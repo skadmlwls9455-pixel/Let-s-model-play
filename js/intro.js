@@ -95,7 +95,10 @@ var INTRO = (function () {
     st.raf = requestAnimationFrame(step);
   }
   /* 문어 반응: 자고 있으면 깨우지 않는다 (연출이 문어 상태를 바꾸지 않게) */
-  function react(expr) { if (!st.asleep && st.scene && st.scene.setExpression) st.scene.setExpression(expr); }
+  function react(expr) {   /* 지금 얼굴로 판단 — 입장 뒤에 새로고침 귀가(resumeRunning)가 재울 수 있다 */
+    var cur = st.scene && st.scene.expression ? st.scene.expression() : null;
+    if (!st.asleep && cur !== 'sleep' && cur !== 'sleepy' && st.scene && st.scene.setExpression) st.scene.setExpression(expr);
+  }
   function showHint() { if (st.el && st.phase === 'title') st.el.classList.add('hinted'); }
   function bob() {   /* 숨쉬기: 0.7 s 마다 1 아트px 위/아래 (스텝, 보간 없음) */
     if (!st.el || st.phase !== 'title') return;

@@ -1597,6 +1597,7 @@ var SCENE3D = (function () {
     function cerTrans(p, onSwap) { var it = { dur: 0 }; it.start = function () { it.dur = st.reduced ? 0 : TRANS_DUR; setPlace(p, { onSwap: onSwap }); }; it.end = function () { if (PLACE.trans) finishTrans(); }; return it; }
     function cerRun(name, items, onDone) {
       if (CER.active) { CER.walk = false; oct.hop = 0; }   /* 앞 의식은 조용히 취소 (onDone 안 부름) */
+      if (oct.walking) { oct.walking.cancel(); oct.walking = null; }   /* 돌아다니던 걸음(moveTo)이 의식 위치를 덮어쓰지 않게 */
       CER.q = items; CER.cur = null; CER.active = true; CER.name = name;
       return new Promise(function (resolve) { CER.done = function () { if (onDone) onDone(); resolve(); }; });
     }
@@ -1720,7 +1721,7 @@ var SCENE3D = (function () {
       return pts.map(function (p) { return cerWalk([p[0], 0, p[1]], speed); });
     }
     function pkHoldItem(key, status, short, o) {
-      var sp = EXT_SPOTS[key], it = { dur: 0 }, happy = status === 'read' || !!o.first, swapped = false;
+      var sp = EXT_SPOTS[key], it = { dur: 0 }, happy = status === 'read' || (!!o.first && status === 'builtin'), swapped = false;
       it.start = function () {
         it.dur = (st.reduced ? 0.4 : 1.2) * st.speed; PK.hold = true; PK.t = 0; PK.onSpot = !short; PK.status = status;
         var face = sp.face * D2R;
@@ -1752,6 +1753,7 @@ var SCENE3D = (function () {
       return it;
     }
     function cerQueue(name, items, onDone) { /* 출발·기웃·퇴장이 진행 중이면 뒤에 잇는다 (앞 것의 onDone 은 이음매에서 부른다) — 그 밖엔 새 의식 */
+      if (oct.walking) { oct.walking.cancel(); oct.walking = null; }
       if (CER.active && /^(depart|peek|leave)$/.test(CER.name)) {
         var prev = CER.done;
         CER.q.push(cerDo(function () { CER.name = name; if (prev) prev(); }));
@@ -2123,6 +2125,8 @@ var SCENE3D = (function () {
       setPlace: function (p, o) { setPlace(p, o); }, place: function () { return PLACE.cur; },
       setSeason: setSeason, season: function () { return SEASON.cur; }, seasonMode: function () { return SEASON.mode; },
       departCeremony: departCeremony, returnCeremony: returnCeremony, ceremony: function () { return CER.name; },
+      /* 비상 정지: 프레임이 못 도는 동안(WebGL 컨텍스트 잃음) 남은 의식을 버리고 다락으로. onDone 은 부르지 않는다 (앱이 이미 정리) */
+      cancelCeremony: function () { CER.q = []; CER.cur = null; CER.active = false; CER.name = ''; CER.done = null; CER.walk = false; oct.hop = 0; pkReset(); octG.visible = true; octDecal.visible = true; setPlace('attic', { instant: true }); },
       /* 바깥 기웃 (docs/SCENE.md "바깥 기웃"): extSpot(corner|roomId) → {key,x,y,z,face(rad),prop,act} · peekOutside({corner, roomId, status, first, emoji}, onDone) → Promise · leaveOutside(onDone) → Promise */
       extSpot: extSpot, peekOutside: peekOutside, leaveOutside: leaveOutside, EXT_SPOTS: Object.keys(EXT_SPOTS),
       peek: function () { return { on: PK.on, key: PK.key, hold: PK.hold, onSpot: PK.onSpot, status: PK.status, t: +PK.t.toFixed(2), lean: +(PK.leanQ / DEG).toFixed(1), sit: PK.sit, arm: PK.arm, mail: PK.mail, rustle: PK.rustle && rustleM.visible, ripple: rippleM.visible }; },
