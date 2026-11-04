@@ -107,13 +107,13 @@
    "ogg": "jingle/stay_settle_1.ogg",
    "m4a": "jingle/stay_settle_1.m4a"
   },
-  "duration": 0.8395,
+  "duration": 0.8441,
   "level": {
    "rel_db": -4,
    "target": -24.0,
    "measured": -24.0,
    "unit": "RMS",
-   "peak_dbfs": -8.1
+   "peak_dbfs": -8.2
   },
   "loop": null,
   "trigger": "집에 있기로 정했을 때(같은 움츠림 뒤 다른 결말, 1.03 오버슈트 모션과 함께)",
@@ -131,13 +131,13 @@
    "ogg": "jingle/stay_settle_2.ogg",
    "m4a": "jingle/stay_settle_2.m4a"
   },
-  "duration": 0.8566,
+  "duration": 0.8544,
   "level": {
    "rel_db": -4,
    "target": -24.0,
    "measured": -24.0,
    "unit": "RMS",
-   "peak_dbfs": -11.0
+   "peak_dbfs": -11.1
   },
   "loop": null,
   "trigger": "집에 있기로 정했을 때(같은 움츠림 뒤 다른 결말, 1.03 오버슈트 모션과 함께)",
@@ -203,13 +203,13 @@
    "ogg": "jingle/return_home_1.ogg",
    "m4a": "jingle/return_home_1.m4a"
   },
-  "duration": 1.5119,
+  "duration": 1.5061,
   "level": {
    "rel_db": 0,
    "target": -20.0,
    "measured": -20.0,
    "unit": "LUFS",
-   "peak_dbfs": -4.5
+   "peak_dbfs": -4.4
   },
   "loop": null,
   "trigger": "귀가: 문어가 돌아와 자리에 내려앉을 때(600+200 ms 정착 모션도 같은 박에 시작)",
@@ -229,7 +229,7 @@
    "ogg": "jingle/return_home_2.ogg",
    "m4a": "jingle/return_home_2.m4a"
   },
-  "duration": 1.6891,
+  "duration": 1.6608,
   "level": {
    "rel_db": 0,
    "target": -20.0,
@@ -255,13 +255,13 @@
    "ogg": "jingle/return_home_3.ogg",
    "m4a": "jingle/return_home_3.m4a"
   },
-  "duration": 1.5996,
+  "duration": 1.5376,
   "level": {
    "rel_db": 0,
    "target": -20.0,
    "measured": -20.0,
    "unit": "LUFS",
-   "peak_dbfs": -4.8
+   "peak_dbfs": -4.9
   },
   "loop": null,
   "trigger": "귀가: 문어가 돌아와 자리에 내려앉을 때(600+200 ms 정착 모션도 같은 박에 시작)",
@@ -365,7 +365,7 @@
    "target": -22.0,
    "measured": -22.0,
    "unit": "LUFS",
-   "peak_dbfs": -7.3
+   "peak_dbfs": -7.1
   },
   "loop": null,
   "trigger": "기억 정리(remember) 단계, 대표 장소가 signs(기호와 언어)일 때",
@@ -573,7 +573,7 @@
    "target": -22.0,
    "measured": -22.0,
    "unit": "LUFS",
-   "peak_dbfs": -13.2
+   "peak_dbfs": -13.4
   },
   "loop": null,
   "trigger": "기억 정리(remember) 단계, 대표 장소가 door_out(밖의 문)일 때",
@@ -619,7 +619,7 @@
    "ogg": "jingle/hang_poster_2.ogg",
    "m4a": "jingle/hang_poster_2.m4a"
   },
-  "duration": 1.5823,
+  "duration": 1.5731,
   "level": {
    "rel_db": 0,
    "target": -20.0,
@@ -807,7 +807,7 @@
    "target": -19.0,
    "measured": -19.0,
    "unit": "RMS",
-   "peak_dbfs": -5.2
+   "peak_dbfs": -5.1
   },
   "loop": null,
   "trigger": "등불 7칸째가 켜질 때",
@@ -827,7 +827,7 @@
    "ogg": "jingle/room_complete.ogg",
    "m4a": "jingle/room_complete.m4a"
   },
-  "duration": 4.643,
+  "duration": 4.6373,
   "level": {
    "rel_db": 4,
    "target": -16.0,
@@ -859,7 +859,7 @@
    "target": -18.0,
    "measured": -18.0,
    "unit": "LUFS",
-   "peak_dbfs": -7.8
+   "peak_dbfs": -7.9
   },
   "loop": null,
   "trigger": "처음 가 본 장소를 다녀왔을 때(히어로, 고정)",
@@ -878,7 +878,7 @@
    "ogg": "jingle/rare_sparkle.ogg",
    "m4a": "jingle/rare_sparkle.m4a"
   },
-  "duration": 1.0779,
+  "duration": 1.075,
   "level": {
    "rel_db": 2,
    "target": -18.0,
@@ -935,7 +935,7 @@
    "target": -19.0,
    "measured": -19.0,
    "unit": "LUFS",
-   "peak_dbfs": -8.7
+   "peak_dbfs": -8.6
   },
   "loop": null,
   "trigger": "반응(wrap_up) 기분이 우쭐(뿌듯)일 때 — 다음 BGM 박에 시작",
@@ -961,7 +961,7 @@
    "target": -21.0,
    "measured": -21.0,
    "unit": "LUFS",
-   "peak_dbfs": -14.7
+   "peak_dbfs": -14.5
   },
   "loop": null,
   "trigger": "반응(wrap_up) 기분이 덤덤(담담)일 때 — 다음 BGM 박에 시작",
@@ -1007,13 +1007,13 @@
    "ogg": "jingle/sleep_settle.ogg",
    "m4a": "jingle/sleep_settle.m4a"
   },
-  "duration": 1.0879,
+  "duration": 1.0907,
   "level": {
    "rel_db": -8,
    "target": -28.0,
    "measured": -28.0,
    "unit": "RMS",
-   "peak_dbfs": -13.6
+   "peak_dbfs": -13.7
   },
   "loop": null,
   "trigger": "잠들 때(wrap_up 뒤). BGM 은 3 s 페이드아웃, 이어서 snore_* 순환",
@@ -1106,13 +1106,13 @@
    "ogg": "jingle/chime_dawn.ogg",
    "m4a": "jingle/chime_dawn.m4a"
   },
-  "duration": 2.5761,
+  "duration": 2.6047,
   "level": {
    "rel_db": -12,
    "target": -32.0,
    "measured": -32.0,
    "unit": "LUFS",
-   "peak_dbfs": -16.4
+   "peak_dbfs": -16.8
   },
   "loop": null,
   "trigger": "시간대 전환 새벽(6시): 경계 뒤 4마디 프레이즈 끝 → 이전 곡 2마디 페이드아웃 → 이 종 → 새 시간대 곡. 하루 첫 새벽 진입 때 한 번(dawn_chime 겸용)",
@@ -1130,13 +1130,13 @@
    "ogg": "jingle/chime_day.ogg",
    "m4a": "jingle/chime_day.m4a"
   },
-  "duration": 1.7764,
+  "duration": 1.7639,
   "level": {
    "rel_db": -10,
    "target": -30.0,
    "measured": -30.0,
    "unit": "LUFS",
-   "peak_dbfs": -16.7
+   "peak_dbfs": -16.6
   },
   "loop": null,
   "trigger": "시간대 전환 낮(9시): 경계 뒤 4마디 프레이즈 끝 → 이전 곡 2마디 페이드아웃 → 이 종 → 새 시간대 곡",
@@ -1154,13 +1154,13 @@
    "ogg": "jingle/chime_dusk.ogg",
    "m4a": "jingle/chime_dusk.m4a"
   },
-  "duration": 3.291,
+  "duration": 3.2911,
   "level": {
    "rel_db": -10,
    "target": -30.0,
    "measured": -30.0,
    "unit": "LUFS",
-   "peak_dbfs": -18.2
+   "peak_dbfs": -18.1
   },
   "loop": null,
   "trigger": "시간대 전환 노을(17시): 경계 뒤 4마디 프레이즈 끝 → 이전 곡 2마디 페이드아웃 → 이 종 → 새 시간대 곡",
@@ -1178,13 +1178,13 @@
    "ogg": "jingle/chime_night.ogg",
    "m4a": "jingle/chime_night.m4a"
   },
-  "duration": 2.9909,
+  "duration": 2.991,
   "level": {
    "rel_db": -12,
    "target": -32.0,
    "measured": -32.0,
    "unit": "LUFS",
-   "peak_dbfs": -18.6
+   "peak_dbfs": -18.7
   },
   "loop": null,
   "trigger": "시간대 전환 밤(19시): 경계 뒤 4마디 프레이즈 끝 → 이전 곡 2마디 페이드아웃 → 이 종 → 새 시간대 곡",
@@ -1202,13 +1202,13 @@
    "ogg": "jingle/letter_room.ogg",
    "m4a": "jingle/letter_room.m4a"
   },
-  "duration": 2.5958,
+  "duration": 2.6155,
   "level": {
    "rel_db": -3,
    "target": -23.0,
    "measured": -23.0,
    "unit": "LUFS",
-   "peak_dbfs": -15.4
+   "peak_dbfs": -15.7
   },
   "loop": null,
   "trigger": "편지의 방에 들어갈 때 1회(루프 없음, 그 뒤로는 앰비언스만)",
