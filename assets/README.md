@@ -39,3 +39,17 @@
 3. `light.*` 는 검정 위에 호박색을 얹는 식(스크린 합성)으로 렌더. `light.lantern0` 은 완전 투명.
 4. `scene.*` 는 글자가 올라가므로 대비가 낮은 중간톤으로.
 5. 바꾼 뒤 `node tools/bundle.js` 로 단일 파일을 다시 만든다.
+
+## UI 아트 (픽셀 PNG, 플레이스홀더 아님)
+
+`node tools/make-ui-art.js` 가 만든다. 규칙과 CSS 사용 예는 [docs/UI_ART.md](../docs/UI_ART.md) 에 있다. 미리보기는 `tests/evidence/ui-art/sheet.png`.
+
+| 키 | 크기 | 뭐냐 |
+|---|---|---|
+| `illust.title` `illust.title_bg` `illust.logo` | 180×240 · 160×41 | 타이틀 (게임 렌더러로 찍은 밤 다락 + "뽈뽈 문어" 로고) |
+| `illust.loading` | 160×120 | 로딩 (꾸벅 조는 문어 클로즈업) |
+| `ui.frame.dialog` `ui.frame.portrait` `ui.frame.paper` | 24×24 | 9-slice 테두리 (슬라이스 8) |
+| `ui.bubble.say` `think` `shout` `whisper` + `ui.tail.*` | 24×24 + 8×8 | 말풍선 4종과 꼬리 |
+| `ui.next` `ui.next2` | 8×8 | 대화창 "다음" ▼ 2프레임 |
+| `fx.*` | 8×8 칸 스트립 | 먼지·빛 알갱이·반짝·빗방울·먹물·z·하트·음표·?·꽃잎·낙엽·눈·반딧불 |
+| `icon.log.*` `icon.memory.*` `icon.souvenir.*` | 16×16 | 산책 로그 행 · 기억 코너 9 · 기념품 16 |

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI 아트 시트</title>
+<link rel="stylesheet" href="../../vendor/fonts/galmuri.css">
+<style>
+  /* tools/make-ui-art.js sheet 가 manifest 를 window.UIART_MANIFEST 로 주입해 찍는 미리보기. 모두 정수 배 + pixelated */
+  :root { --bg: #151d28; --panel: #202e37; --fg: #ebede9; --mute: #a8b5b2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 400 14px/1.6 'Galmuri11', system-ui, sans-serif; }
+  h2 { font: 700 22px/1.3 'Galmuri11'; margin: 24px 0 8px; color: #e8c170; }
+  h2:first-child { margin-top: 0; }
+  img { image-rendering: pixelated; display: block; }
+  .grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cell { background: var(--panel); padding: 8px; width: 96px; text-align: center; font-size: 11px; color: var(--mute); word-break: break-all; }
+  .cell img { margin: 0 auto 4px; }
+  .light { background: #e7d5b3; color: #4d2b32; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .demo { padding: 16px; }
+  /* 9-slice 사용 예 (docs/UI_ART.md 의 CSS 그대로) */
+  .nine { border-style: solid; border-width: 16px; image-rendering: pixelated; font: 400 22px/1.5 'Galmuri11'; }
+  .dlg { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; width: 520px; border-image: url(../../assets/ui/frame_dialog.png) 8 fill / 16px round; color: #ebede9; padding: 4px 8px; position: relative; }
+  .port { width: 128px; height: 128px; border-style: solid; border-width: 16px; border-image: url(../../assets/ui/frame_portrait.png) 8 fill / 16px round; display: flex; align-items: center; justify-content: center; }
+  .next { position: absolute; right: 8px; bottom: 4px; width: 16px; height: 16px; }
+  .bub { display: inline-flex; flex-direction: column; align-items: center; }
+  .bub .b { border-style: solid; border-width: 16px; padding: 0 8px; color: #172038; font: 400 22px/1.4 'Galmuri11'; }
+  .bub img.t { width: 16px; height: 16px; margin-top: -4px; }
+  .paper { border-image: url(../../assets/ui/frame_paper.png) 8 fill / 16px round; color: #4d2b32; width: 300px; padding: 0 4px; font-size: 18px; }
+  .strip img { height: 32px; }
+  .fxrow { display: flex; gap: 12px; flex-wrap: wrap; }
+  .fx { background: #10141f; padding: 8px; font-size: 11px; color: var(--mute); }
+  .illu { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .illu figure { margin: 0; font-size: 11px; color: var(--mute); }
+</style>
+</head>
+<body>
+<h2>일러스트 (게임 렌더러, ×2)</h2>
+<div class="illu" id="illu"></div>
+
+<h2>대화창 · 말풍선 (9-slice 사용 예, ×2)</h2>
+<div class="row demo">
+  <div class="dlg nine"><div class="port"><img id="portimg" width="96" height="96" alt=""></div><div>창밖에 비가 와.<br>오늘은 바다 쪽 방에 가 볼까?</div><img class="next" src="../../assets/ui/next.png" alt=""></div>
+</div>
+<div class="row demo" id="bubbles"></div>
+<div class="row demo"><div class="paper nine">비 오는 날 조개를 주웠어.<br>들른 곳: 바다 → 등대</div></div>
+
+<h2>테두리 원본 (24×24, ×4)</h2>
+<div class="grid" id="frames"></div>
+
+<h2>산책 로그 아이콘 (16×16, ×4)</h2>
+<div class="grid" id="log"></div>
+<h2>기억 코너 (16×16, ×4)</h2>
+<div class="grid" id="memory"></div>
+<h2>기념품 (16×16, ×4) — 밝은 바탕에서도</h2>
+<div class="grid" id="souvenir"></div>
+<div class="grid" id="souvenir-l" style="margin-top:8px"></div>
+
+<h2>파티클 (8×8 칸 스트립, ×4)</h2>
+<div class="fxrow" id="fx"></div>
+
+<script>
+(function () {
+  var M = window.UIART_MANIFEST || {};
+  function src(k) { return '../../' + M[k].src; }
+  function cell(k, scale, light) {
+    var d = document.createElement('div'); d.className = 'cell' + (light ? ' light' : '');
+    var im = new Image(); im.src = src(k); im.width = M[k].w * scale; im.height = M[k].h * scale; d.appendChild(im);
+    d.appendChild(document.createTextNode(k)); return d;
+  }
+  var keys = Object.keys(M);
+  keys.filter(function (k) { return /^icon\.log\./.test(k); }).forEach(function (k) { document.getElementById('log').appendChild(cell(k, 4)); });
+  keys.filter(function (k) { return /^icon\.memory\./.test(k); }).forEach(function (k) { document.getElementById('memory').appendChild(cell(k, 4)); });
+  keys.filter(function (k) { return /^icon\.souvenir\./.test(k); }).forEach(function (k) { document.getElementById('souvenir').appendChild(cell(k, 4)); document.getElementById('souvenir-l').appendChild(cell(k, 4, true)); });
+  keys.filter(function (k) { return /^ui\.(frame|bubble)\./.test(k); }).forEach(function (k) { document.getElementById('frames').appendChild(cell(k, 4)); });
+  keys.filter(function (k) { return /^fx\./.test(k); }).forEach(function (k) {
+    var d = document.createElement('div'); d.className = 'fx';
+    var im = new Image(); im.src = src(k); im.width = M[k].w * 4; im.height = M[k].h * 4; d.appendChild(im);
+    d.appendChild(document.createTextNode(k + ' · ' + M[k].frames + 'f')); document.getElementById('fx').appendChild(d);
+  });
+  [['say', '뽈뽈 다녀올게'], ['think', '음… 깃털?'], ['shout', '찾았다!'], ['whisper', '쿨… 쿨…']].forEach(function (b) {
+    var w = document.createElement('div'); w.className = 'bub';
+    var bb = document.createElement('div'); bb.className = 'b'; bb.textContent = b[1];
+    bb.style.borderImage = 'url(../../assets/ui/bubble_' + b[0] + '.png) 8 fill / 16px round';
+    var t = new Image(); t.className = 't'; t.src = '../../assets/ui/tail_' + b[0] + '.png';
+    w.appendChild(bb); w.appendChild(t); document.getElementById('bubbles').appendChild(w);
+  });
+  keys.filter(function (k) { return /^illust\./.test(k); }).forEach(function (k) {
+    var f = document.createElement('figure'); var im = new Image(); im.src = src(k); im.width = M[k].w * 2; im.height = M[k].h * 2;
+    f.appendChild(im); var c = document.createElement('figcaption'); c.textContent = k + ' · ' + M[k].w + '×' + M[k].h; f.appendChild(c);
+    document.getElementById('illu').appendChild(f);
+  });
+  var pi = document.getElementById('portimg'); pi.src = '../../tests/evidence/ui-art/portrait.png'; pi.onerror = function () { pi.remove(); };
+  var imgs = [].slice.call(document.images);
+  Promise.all([document.fonts.ready].concat(imgs.map(function (i) { return i.complete ? 0 : new Promise(function (r) { i.onload = i.onerror = r; }); }))).then(function () { window.PREVIEW_READY = true; });
+})();
+</script>
+</body>
+</html>

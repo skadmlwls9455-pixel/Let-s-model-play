@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>일러스트 하네스</title>
+<link rel="stylesheet" href="../../vendor/fonts/galmuri.css">
+<style>
+  /* tools/make-ui-art.js illust 가 여는 페이지. 게임 장면 렌더러(js/scene3d.js)를 정해진 크기로 띄워 찍는다 */
+  body { margin: 0; background: #1b1522; }
+  .host { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #1b1522; }
+  .font-warm { font: 700 11px 'Galmuri11'; position: absolute; left: -999px; }   /* 글꼴 미리 로드 */
+</style>
+</head>
+<body>
+<span class="font-warm">뽈뽈 문어 불러오는 중</span>
+<div id="host" class="host"></div>
+<script src="../../vendor/three.min.js"></script>
+<script src="../../js/palettes.js"></script>
+<script src="../../js/scene3d.js"></script>
+<script src="sprites.js"></script>
+<script src="illust.js"></script>
+</body>
+</html>
