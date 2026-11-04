@@ -1,0 +1,1221 @@
+[
+ {
+  "id": "depart_windup",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/depart_windup.ogg",
+   "m4a": "jingle/depart_windup.m4a"
+  },
+  "duration": 0.8,
+  "level": {
+   "rel_db": -10,
+   "target": -30.0,
+   "measured": -30.0,
+   "unit": "RMS",
+   "peak_dbfs": -21.9
+  },
+  "loop": null,
+  "trigger": "출발·집에 있기 공통 움츠림이 시작될 때(600 ms 움츠림 + 200 ms 정지와 함께)",
+  "group": "depart_windup",
+  "duck_db": 0,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "TRI F4↘C4 500 ms(-5 반음), LPF 900 \"우우웅\" + 200 ms 무음. 파일 0.8 s 고정. 이어서 depart_leave 또는 stay_settle"
+ },
+ {
+  "id": "depart_leave_1",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/depart_leave_1.ogg",
+   "m4a": "jingle/depart_leave_1.m4a"
+  },
+  "duration": 1.0186,
+  "level": {
+   "rel_db": -4,
+   "target": -24.0,
+   "measured": -24.0,
+   "unit": "RMS",
+   "peak_dbfs": -10.3
+  },
+  "loop": null,
+  "trigger": "출발: 움츠림이 끝나고 문어가 호를 그리며 나갈 때(셔플백, 직전 변형 반복 금지)",
+  "group": "depart_leave",
+  "duck_db": -2,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "P25 \"뽈\" C5 → 둘째 \"뽈\" C5↗F5 점프 150 ms(M 머리 C C). NZ BP 2k→600 Hz 600 ms 멀어짐(-12), 먹물 퍼프 NZ LPF 1.2k(-10), 기포 SIN ↗C6·D6. 덕킹 -2 는 선택",
+  "variant": 1,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "depart_leave_2",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/depart_leave_2.ogg",
+   "m4a": "jingle/depart_leave_2.m4a"
+  },
+  "duration": 1.0163,
+  "level": {
+   "rel_db": -4,
+   "target": -24.0,
+   "measured": -24.0,
+   "unit": "RMS",
+   "peak_dbfs": -10.4
+  },
+  "loop": null,
+  "trigger": "출발: 움츠림이 끝나고 문어가 호를 그리며 나갈 때(셔플백, 직전 변형 반복 금지)",
+  "group": "depart_leave",
+  "duck_db": -2,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "P25 \"뽈\" C5 → 둘째 \"뽈\" C5↗F5 점프 150 ms(M 머리 C C). NZ BP 2k→600 Hz 600 ms 멀어짐(-12), 먹물 퍼프 NZ LPF 1.2k(-10), 기포 SIN ↗D6·F6. 덕킹 -2 는 선택",
+  "variant": 2,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "depart_leave_3",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/depart_leave_3.ogg",
+   "m4a": "jingle/depart_leave_3.m4a"
+  },
+  "duration": 1.0023,
+  "level": {
+   "rel_db": -4,
+   "target": -24.0,
+   "measured": -24.0,
+   "unit": "RMS",
+   "peak_dbfs": -10.5
+  },
+  "loop": null,
+  "trigger": "출발: 움츠림이 끝나고 문어가 호를 그리며 나갈 때(셔플백, 직전 변형 반복 금지)",
+  "group": "depart_leave",
+  "duck_db": -2,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "P25 \"뽈\" C5 → 둘째 \"뽈\" C5↗F5 점프 150 ms(M 머리 C C). NZ BP 2k→600 Hz 600 ms 멀어짐(-12), 먹물 퍼프 NZ LPF 1.2k(-10), 기포 SIN ↗A5·C6. 덕킹 -2 는 선택",
+  "variant": 3,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "stay_settle_1",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/stay_settle_1.ogg",
+   "m4a": "jingle/stay_settle_1.m4a"
+  },
+  "duration": 0.8395,
+  "level": {
+   "rel_db": -4,
+   "target": -24.0,
+   "measured": -24.0,
+   "unit": "RMS",
+   "peak_dbfs": -8.1
+  },
+  "loop": null,
+  "trigger": "집에 있기로 정했을 때(같은 움츠림 뒤 다른 결말, 1.03 오버슈트 모션과 함께)",
+  "group": "stay_settle",
+  "duck_db": 0,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "TRI C4↗F4(+5 반음, 오버슈트 후 정착) LPF 1.1k + \"폭신\" NZ LPF 500 + 장3도 차임 F5+A5 400 ms (동시)",
+  "variant": 1
+ },
+ {
+  "id": "stay_settle_2",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/stay_settle_2.ogg",
+   "m4a": "jingle/stay_settle_2.m4a"
+  },
+  "duration": 0.8566,
+  "level": {
+   "rel_db": -4,
+   "target": -24.0,
+   "measured": -24.0,
+   "unit": "RMS",
+   "peak_dbfs": -11.0
+  },
+  "loop": null,
+  "trigger": "집에 있기로 정했을 때(같은 움츠림 뒤 다른 결말, 1.03 오버슈트 모션과 함께)",
+  "group": "stay_settle",
+  "duck_db": 0,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "TRI C4↗F4(+5 반음, 오버슈트 후 정착) LPF 1.1k + \"폭신\" NZ LPF 500 + 장3도 차임 F5+A5 400 ms (F5→A5 50 ms 굴림 + F6 반짝)",
+  "variant": 2
+ },
+ {
+  "id": "depart_rain_extra_1",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/depart_rain_extra_1.ogg",
+   "m4a": "jingle/depart_rain_extra_1.m4a"
+  },
+  "duration": 0.23,
+  "level": {
+   "rel_db": -14,
+   "target": -34.0,
+   "measured": -34.0,
+   "unit": "RMS",
+   "peak_dbfs": -20.1
+  },
+  "loop": null,
+  "trigger": "비·가는 비 날 출발할 때 depart_leave 의 퍼프 직후(약 +180 ms) 덧소리",
+  "group": "depart_rain_extra",
+  "duck_db": 0,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "처마 물방울 2개: 삼각 근사 15 ms ↗(+20%) 처프, C6 → D6",
+  "variant": 1
+ },
+ {
+  "id": "depart_rain_extra_2",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/depart_rain_extra_2.ogg",
+   "m4a": "jingle/depart_rain_extra_2.m4a"
+  },
+  "duration": 0.26,
+  "level": {
+   "rel_db": -14,
+   "target": -34.0,
+   "measured": -34.0,
+   "unit": "RMS",
+   "peak_dbfs": -19.5
+  },
+  "loop": null,
+  "trigger": "비·가는 비 날 출발할 때 depart_leave 의 퍼프 직후(약 +180 ms) 덧소리",
+  "group": "depart_rain_extra",
+  "duck_db": 0,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "처마 물방울 2개: 삼각 근사 15 ms ↗(+20%) 처프, D6 → C6",
+  "variant": 2
+ },
+ {
+  "id": "return_home_1",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/return_home_1.ogg",
+   "m4a": "jingle/return_home_1.m4a"
+  },
+  "duration": 1.5119,
+  "level": {
+   "rel_db": 0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -4.5
+  },
+  "loop": null,
+  "trigger": "귀가: 문어가 돌아와 자리에 내려앉을 때(600+200 ms 정착 모션도 같은 박에 시작)",
+  "group": "return_home",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "NZ BP 600→2k 400 ms 다가옴 → 400 ms \"퐁\" TRI F3+F4 → P25 C5 C5 F5 (M 머리 → F, V–I), TRI F3 받침",
+  "variant": 1,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "return_home_2",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/return_home_2.ogg",
+   "m4a": "jingle/return_home_2.m4a"
+  },
+  "duration": 1.6891,
+  "level": {
+   "rel_db": 0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -4.8
+  },
+  "loop": null,
+  "trigger": "귀가: 문어가 돌아와 자리에 내려앉을 때(600+200 ms 정착 모션도 같은 박에 시작)",
+  "group": "return_home",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "NZ BP 600→2k 400 ms 다가옴 → 400 ms \"퐁\" TRI F3+F4 → P25 C5 C5 A4 C5 F5 (M 머리 → F, V–I), TRI F3 받침",
+  "variant": 2,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "return_home_3",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/return_home_3.ogg",
+   "m4a": "jingle/return_home_3.m4a"
+  },
+  "duration": 1.5996,
+  "level": {
+   "rel_db": 0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -4.8
+  },
+  "loop": null,
+  "trigger": "귀가: 문어가 돌아와 자리에 내려앉을 때(600+200 ms 정착 모션도 같은 박에 시작)",
+  "group": "return_home",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "NZ BP 600→2k 400 ms 다가옴 → 400 ms \"퐁\" TRI F3+F4 → P25 C5 F5 A5 (M 머리 → F, V–I), TRI F3 받침",
+  "variant": 3,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "remember_hands",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/remember_hands.ogg",
+   "m4a": "jingle/remember_hands.m4a"
+  },
+  "duration": 1.5,
+  "level": {
+   "rel_db": -2,
+   "target": -22.0,
+   "measured": -22.0,
+   "unit": "LUFS",
+   "peak_dbfs": -9.7
+  },
+  "loop": null,
+  "trigger": "기억 정리(remember) 단계, 대표 장소가 hands(손과 물건)일 때",
+  "group": "remember",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "나무 톡톡(TRI G5·D5 10 ms+클릭, 뽈뽈 리듬) + C5 F5. 공통: TRI 아르페지오 + 딜레이 180 ms 피드백 -6 dB ×3 + LPF 2.5k(표 R)",
+  "key": "hands",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "remember_sea",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/remember_sea.ogg",
+   "m4a": "jingle/remember_sea.m4a"
+  },
+  "duration": 1.5496,
+  "level": {
+   "rel_db": -2,
+   "target": -22.0,
+   "measured": -22.0,
+   "unit": "LUFS",
+   "peak_dbfs": -10.4
+  },
+  "loop": null,
+  "trigger": "기억 정리(remember) 단계, 대표 장소가 sea(바다와 생물)일 때",
+  "group": "remember",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "기포 SIN ↗(→C6, →F6) + A4 C5 F5(느린 물결 비브라토). 공통: TRI 아르페지오 + 딜레이 180 ms 피드백 -6 dB ×3 + LPF 2.5k(표 R)",
+  "key": "sea",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "remember_sky",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/remember_sky.ogg",
+   "m4a": "jingle/remember_sky.m4a"
+  },
+  "duration": 1.5601,
+  "level": {
+   "rel_db": -2,
+   "target": -22.0,
+   "measured": -22.0,
+   "unit": "LUFS",
+   "peak_dbfs": -10.0
+  },
+  "loop": null,
+  "trigger": "기억 정리(remember) 단계, 대표 장소가 sky(하늘과 날씨)일 때",
+  "group": "remember",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "F5 C6(열린 5도) + 바람 NZ BP 500→950→550 Hz. 공통: TRI 아르페지오 + 딜레이 180 ms 피드백 -6 dB ×3 + LPF 2.5k(표 R)",
+  "key": "sky",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "remember_signs",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/remember_signs.ogg",
+   "m4a": "jingle/remember_signs.m4a"
+  },
+  "duration": 1.5,
+  "level": {
+   "rel_db": -2,
+   "target": -22.0,
+   "measured": -22.0,
+   "unit": "LUFS",
+   "peak_dbfs": -7.3
+  },
+  "loop": null,
+  "trigger": "기억 정리(remember) 단계, 대표 장소가 signs(기호와 언어)일 때",
+  "group": "remember",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "P25 타자 D5 D5 F5 + 키 딸깍(짧은 모드 노이즈). 공통: TRI 아르페지오 + 딜레이 180 ms 피드백 -6 dB ×3 + LPF 2.5k(표 R)",
+  "key": "signs",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "remember_numbers",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/remember_numbers.ogg",
+   "m4a": "jingle/remember_numbers.m4a"
+  },
+  "duration": 1.5,
+  "level": {
+   "rel_db": -2,
+   "target": -22.0,
+   "measured": -22.0,
+   "unit": "LUFS",
+   "peak_dbfs": -9.1
+  },
+  "loop": null,
+  "trigger": "기억 정리(remember) 단계, 대표 장소가 numbers(수와 모양)일 때",
+  "group": "remember",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "F5 G5 A5 고른 걸음(하나 둘 셋) + 틱. 공통: TRI 아르페지오 + 딜레이 180 ms 피드백 -6 dB ×3 + LPF 2.5k(표 R)",
+  "key": "numbers",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "remember_sounds",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/remember_sounds.ogg",
+   "m4a": "jingle/remember_sounds.m4a"
+  },
+  "duration": 1.5,
+  "level": {
+   "rel_db": -2,
+   "target": -22.0,
+   "measured": -22.0,
+   "unit": "LUFS",
+   "peak_dbfs": -9.3
+  },
+  "loop": null,
+  "trigger": "기억 정리(remember) 단계, 대표 장소가 sounds(소리와 리듬)일 때",
+  "group": "remember",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "C5 (쉼) C5 F5 당김음 + 쉼 자리 햇. 공통: TRI 아르페지오 + 딜레이 180 ms 피드백 -6 dB ×3 + LPF 2.5k(표 R)",
+  "key": "sounds",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "remember_home",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/remember_home.ogg",
+   "m4a": "jingle/remember_home.m4a"
+  },
+  "duration": 1.5,
+  "level": {
+   "rel_db": -2,
+   "target": -22.0,
+   "measured": -22.0,
+   "unit": "LUFS",
+   "peak_dbfs": -8.0
+  },
+  "loop": null,
+  "trigger": "기억 정리(remember) 단계, 대표 장소가 home(집과 사람)일 때",
+  "group": "remember",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "TRI 화음 F4 A4 C5 를 50 ms씩 굴림. 공통: TRI 아르페지오 + 딜레이 180 ms 피드백 -6 dB ×3 + LPF 2.5k(표 R)",
+  "key": "home",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "remember_mind",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/remember_mind.ogg",
+   "m4a": "jingle/remember_mind.m4a"
+  },
+  "duration": 1.9439,
+  "level": {
+   "rel_db": -2,
+   "target": -22.0,
+   "measured": -22.0,
+   "unit": "LUFS",
+   "peak_dbfs": -9.2
+  },
+  "loop": null,
+  "trigger": "기억 정리(remember) 단계, 대표 장소가 mind(생각하는 것)일 때",
+  "group": "remember",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "A5 F5 C6 + 비브라토, 에코 4번(피드백 -4.4 dB). 공통: TRI 아르페지오 + 딜레이 180 ms 피드백 -6 dB ×3 + LPF 2.5k(표 R)",
+  "key": "mind",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "remember_wild",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/remember_wild.ogg",
+   "m4a": "jingle/remember_wild.m4a"
+  },
+  "duration": 1.5,
+  "level": {
+   "rel_db": -2,
+   "target": -22.0,
+   "measured": -22.0,
+   "unit": "LUFS",
+   "peak_dbfs": -9.9
+  },
+  "loop": null,
+  "trigger": "기억 정리(remember) 단계, 대표 장소가 wild(들판(미지))일 때",
+  "group": "remember",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "C5 G5 D6 넓은 도약 + 발걸음 틱. 공통: TRI 아르페지오 + 딜레이 180 ms 피드백 -6 dB ×3 + LPF 2.5k(표 R)",
+  "key": "wild",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "remember_slow_room",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/remember_slow_room.ogg",
+   "m4a": "jingle/remember_slow_room.m4a"
+  },
+  "duration": 2.36,
+  "level": {
+   "rel_db": -2,
+   "target": -22.0,
+   "measured": -22.0,
+   "unit": "LUFS",
+   "peak_dbfs": -10.6
+  },
+  "loop": null,
+  "trigger": "기억 정리(remember) 단계, 대표 장소가 slow_room(느린 글의 방)일 때",
+  "group": "remember",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "F4 … C5, 900 ms 간격. 공통: TRI 아르페지오 + 딜레이 180 ms 피드백 -6 dB ×3 + LPF 2.5k(표 R)",
+  "key": "slow_room",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "remember_letter_room",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/remember_letter_room.ogg",
+   "m4a": "jingle/remember_letter_room.m4a"
+  },
+  "duration": 1.5,
+  "level": {
+   "rel_db": -2,
+   "target": -22.0,
+   "measured": -22.0,
+   "unit": "LUFS",
+   "peak_dbfs": -9.7
+  },
+  "loop": null,
+  "trigger": "기억 정리(remember) 단계, 대표 장소가 letter_room(편지의 방)일 때",
+  "group": "remember",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "종이 소리(NZ BP 1.2→2.6k) + A4 하나(중립, 항상 비어 있음). 공통: TRI 아르페지오 + 딜레이 180 ms 피드백 -6 dB ×3 + LPF 2.5k(표 R)",
+  "key": "letter_room",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "remember_door_out",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/remember_door_out.ogg",
+   "m4a": "jingle/remember_door_out.m4a"
+  },
+  "duration": 1.5,
+  "level": {
+   "rel_db": -2,
+   "target": -22.0,
+   "measured": -22.0,
+   "unit": "LUFS",
+   "peak_dbfs": -13.2
+  },
+  "loop": null,
+  "trigger": "기억 정리(remember) 단계, 대표 장소가 door_out(밖의 문)일 때",
+  "group": "remember",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "똑똑(TRI C4) + P50 LPF 1.2k C5→D5 + 90 ms 에코 2번(simulated 색). 공통: TRI 아르페지오 + 딜레이 180 ms 피드백 -6 dB ×3 + LPF 2.5k(표 R)",
+  "key": "door_out",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "hang_poster_1",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/hang_poster_1.ogg",
+   "m4a": "jingle/hang_poster_1.m4a"
+  },
+  "duration": 1.5817,
+  "level": {
+   "rel_db": 0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -3.8
+  },
+  "loop": null,
+  "trigger": "포스터를 벽에 걸 때(0 ms 종이, 500 ms 핀, 650 ms 스티커 — 모션도 같은 박에 시작)",
+  "group": "hang_poster",
+  "duck_db": -4,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "0 ms 종이 NZ BP 1→3k, 500 ms 핀 TRI C6 15 ms+클릭, 650 ms 스티커 P25 A5↗C6 → F5 A5 C6 30 ms 굴림(D400), TRI F3 (I)",
+  "variant": 1,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "hang_poster_2",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/hang_poster_2.ogg",
+   "m4a": "jingle/hang_poster_2.m4a"
+  },
+  "duration": 1.5823,
+  "level": {
+   "rel_db": 0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -4.1
+  },
+  "loop": null,
+  "trigger": "포스터를 벽에 걸 때(0 ms 종이, 500 ms 핀, 650 ms 스티커 — 모션도 같은 박에 시작)",
+  "group": "hang_poster",
+  "duck_db": -4,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "0 ms 종이 NZ BP 1→3k, 500 ms 핀 TRI C6 15 ms+클릭, 650 ms 스티커 P25 G5↗C6 (V, TRI C3) → A5 C6 F6 30 ms 굴림, TRI F3 (I) — 우쭐 축소판 I–V–I",
+  "variant": 2,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "lantern_1",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/lantern_1.ogg",
+   "m4a": "jingle/lantern_1.m4a"
+  },
+  "duration": 0.9543,
+  "level": {
+   "rel_db": 1,
+   "target": -19.0,
+   "measured": -19.0,
+   "unit": "RMS",
+   "peak_dbfs": -4.5
+  },
+  "loop": null,
+  "trigger": "등불 1칸째가 켜질 때",
+  "group": "lantern",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "꾸밈음 C5 C5 40 ms(-9) → 본음 F5 TRI A3 D600 + P25 F6 반짝(-12) + \"화륵\" NZ LPF 1k(-16) + TRI 근음 F3(I) 아주 작게",
+  "key": 1,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "lantern_2",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/lantern_2.ogg",
+   "m4a": "jingle/lantern_2.m4a"
+  },
+  "duration": 1.0112,
+  "level": {
+   "rel_db": 1,
+   "target": -19.0,
+   "measured": -19.0,
+   "unit": "RMS",
+   "peak_dbfs": -4.7
+  },
+  "loop": null,
+  "trigger": "등불 2칸째가 켜질 때",
+  "group": "lantern",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "꾸밈음 C5 F5 40 ms(-9) → 본음 G5 TRI A3 D600 + P25 G6 반짝(-12) + \"화륵\" NZ LPF 1k(-16) + TRI 근음 C3(V) 아주 작게",
+  "key": 2,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "lantern_3",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/lantern_3.ogg",
+   "m4a": "jingle/lantern_3.m4a"
+  },
+  "duration": 0.9568,
+  "level": {
+   "rel_db": 1,
+   "target": -19.0,
+   "measured": -19.0,
+   "unit": "RMS",
+   "peak_dbfs": -4.6
+  },
+  "loop": null,
+  "trigger": "등불 3칸째가 켜질 때",
+  "group": "lantern",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "꾸밈음 F5 G5 40 ms(-9) → 본음 A5 TRI A3 D600 + P25 A6 반짝(-12) + \"화륵\" NZ LPF 1k(-16) + TRI 근음 F3(I) 아주 작게",
+  "key": 3,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "lantern_4",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/lantern_4.ogg",
+   "m4a": "jingle/lantern_4.m4a"
+  },
+  "duration": 0.9339,
+  "level": {
+   "rel_db": 1,
+   "target": -19.0,
+   "measured": -19.0,
+   "unit": "RMS",
+   "peak_dbfs": -4.8
+  },
+  "loop": null,
+  "trigger": "등불 4칸째가 켜질 때",
+  "group": "lantern",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "꾸밈음 G5 A5 40 ms(-9) → 본음 Bb5 TRI A3 D600 + P25 Bb6 반짝(-12) + \"화륵\" NZ LPF 1k(-16) + TRI 근음 Bb2(IV) 아주 작게",
+  "key": 4,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "lantern_5",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/lantern_5.ogg",
+   "m4a": "jingle/lantern_5.m4a"
+  },
+  "duration": 0.96,
+  "level": {
+   "rel_db": 1,
+   "target": -19.0,
+   "measured": -19.0,
+   "unit": "RMS",
+   "peak_dbfs": -4.5
+  },
+  "loop": null,
+  "trigger": "등불 5칸째가 켜질 때",
+  "group": "lantern",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "꾸밈음 A5 Bb5 40 ms(-9) → 본음 C6 TRI A3 D600 + P25 C7 반짝(-12) + \"화륵\" NZ LPF 1k(-16) + TRI 근음 F3(I) 아주 작게",
+  "key": 5,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "lantern_6",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/lantern_6.ogg",
+   "m4a": "jingle/lantern_6.m4a"
+  },
+  "duration": 0.9341,
+  "level": {
+   "rel_db": 1,
+   "target": -19.0,
+   "measured": -19.0,
+   "unit": "RMS",
+   "peak_dbfs": -4.7
+  },
+  "loop": null,
+  "trigger": "등불 6칸째가 켜질 때",
+  "group": "lantern",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "꾸밈음 Bb5 C6 40 ms(-9) → 본음 D6 TRI A3 D600 + P25 D7 반짝(-12) + \"화륵\" NZ LPF 1k(-16) + TRI 근음 Bb2(IV) 아주 작게",
+  "key": 6,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "lantern_7",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/lantern_7.ogg",
+   "m4a": "jingle/lantern_7.m4a"
+  },
+  "duration": 0.9771,
+  "level": {
+   "rel_db": 1,
+   "target": -19.0,
+   "measured": -19.0,
+   "unit": "RMS",
+   "peak_dbfs": -5.2
+  },
+  "loop": null,
+  "trigger": "등불 7칸째가 켜질 때",
+  "group": "lantern",
+  "duck_db": -3,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "꾸밈음 C6 D6 40 ms(-9) → 본음 E6 TRI A3 D600 + P25 E7 반짝(-12) + \"화륵\" NZ LPF 1k(-16) + TRI 근음 C3(V) 아주 작게",
+  "key": 7,
+  "duck_attack_ms": 70,
+  "duck_release_ms": 750
+ },
+ {
+  "id": "room_complete",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/room_complete.ogg",
+   "m4a": "jingle/room_complete.m4a"
+  },
+  "duration": 4.643,
+  "level": {
+   "rel_db": 4,
+   "target": -16.0,
+   "measured": -16.0,
+   "unit": "LUFS",
+   "peak_dbfs": -4.5
+  },
+  "loop": null,
+  "trigger": "등불 8칸이 다 켜져 방이 완성될 때(다음 박에 BGM 일시정지 → 이 징글 → BGM 은 다음 프레이즈 처음부터 재개)",
+  "group": "room_complete",
+  "duck_db": -9,
+  "quantize": "beat",
+  "pause_bgm": true,
+  "notes": "A: 꾸밈음 D6 E6 → F6 종(TRI+bell 파형+P25 F7) + F 화음 칩 아르페지오(16.7 ms) + TRI F3→F2. B: M 팡파르 8분 0.2 s — C6 C6 A5 C6 | D6. C6 | F6(비브라토 6 Hz ±20 c), 3도 아래 P25 화성, 베이스 I–IV–V–I, 스네어 롤. C: P12 반짝 C7 D7 F7 ×6(-18), 꼬리 LPF 9k→1.2k 로 닫힘. 고정(변형 없음)",
+  "bgm_resume": "next_phrase",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 900
+ },
+ {
+  "id": "first_place",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/first_place.ogg",
+   "m4a": "jingle/first_place.m4a"
+  },
+  "duration": 1.6804,
+  "level": {
+   "rel_db": 2,
+   "target": -18.0,
+   "measured": -18.0,
+   "unit": "LUFS",
+   "peak_dbfs": -7.8
+  },
+  "loop": null,
+  "trigger": "처음 가 본 장소를 다녀왔을 때(히어로, 고정)",
+  "group": "first_place",
+  "duck_db": -6,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "P25 C5 C5(뽈뽈) F5 G5 A5 C6 D6 50 ms 씩 → F6 750 ms, 150 ms 뒤 비브라토 6 Hz ±20 c, P25 에코 90 ms, TRI F4→C5",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 900
+ },
+ {
+  "id": "rare_sparkle",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/rare_sparkle.ogg",
+   "m4a": "jingle/rare_sparkle.m4a"
+  },
+  "duration": 1.0779,
+  "level": {
+   "rel_db": 2,
+   "target": -18.0,
+   "measured": -18.0,
+   "unit": "RMS",
+   "peak_dbfs": -4.4
+  },
+  "loop": null,
+  "trigger": "희귀 티어(1/6) 포스터·발견. room_complete 와 겹치면 400 ms 뒤로 미룸",
+  "group": "rare_sparkle",
+  "duck_db": -6,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "P12 C7 C7(뽈뽈) → P25+P12 칩 아르페지오 F6 A6 C7(F7) 500 ms, LPF 6k + P12 반짝 {C7 D7 F7} ×6(-16), 고정",
+  "duck_attack_ms": 70,
+  "duck_release_ms": 900
+ },
+ {
+  "id": "mood_poljjak",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/mood_poljjak.ogg",
+   "m4a": "jingle/mood_poljjak.m4a"
+  },
+  "duration": 1.7641,
+  "level": {
+   "rel_db": 1,
+   "target": -19.0,
+   "measured": -19.0,
+   "unit": "LUFS",
+   "peak_dbfs": -5.2
+  },
+  "loop": null,
+  "trigger": "반응(wrap_up) 기분이 폴짝(신남)일 때 — 다음 BGM 박에 시작",
+  "group": "mood_poljjak",
+  "duck_db": -9,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "160 BPM P12→25% 스타카토: C5 C5 A4 C5(M 머리) F5 · A5 · C6 · F5 F6\"뿅\"(+1 반음 ↗↘ 180 ms). P25 화음음 위 메아리 16분 늦게, TRI F3 A3 C4 F3, 끝에 노이즈 \"퐁\" 상행. 약 1.8 s",
+  "key": "poljjak",
+  "duck_attack_ms": 60,
+  "duck_release_ms": 500
+ },
+ {
+  "id": "mood_ujjul",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/mood_ujjul.ogg",
+   "m4a": "jingle/mood_ujjul.m4a"
+  },
+  "duration": 3.3706,
+  "level": {
+   "rel_db": 1,
+   "target": -19.0,
+   "measured": -19.0,
+   "unit": "LUFS",
+   "peak_dbfs": -8.7
+  },
+  "loop": null,
+  "trigger": "반응(wrap_up) 기분이 우쭐(뿌듯)일 때 — 다음 BGM 박에 시작",
+  "group": "mood_ujjul",
+  "duck_db": -9,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "112 BPM P50 마르카토 점리듬: C5. C5 A4. C5 | D5. F5 | G5 | F5—. P50 3도 아래(A4 F4 B♭4 D5 E5 A4), TRI F3 B♭2 C3 F3 (I–IV–V–I), V 마디 스네어 롤, 끝 화음 200 ms 뒤 비브라토 ±15 c \"에헴\". 3.5 s",
+  "key": "ujjul",
+  "duck_attack_ms": 60,
+  "duck_release_ms": 500
+ },
+ {
+  "id": "mood_deomdeom",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/mood_deomdeom.ogg",
+   "m4a": "jingle/mood_deomdeom.m4a"
+  },
+  "duration": 2.7148,
+  "level": {
+   "rel_db": -1,
+   "target": -21.0,
+   "measured": -21.0,
+   "unit": "LUFS",
+   "peak_dbfs": -14.7
+  },
+  "loop": null,
+  "trigger": "반응(wrap_up) 기분이 덤덤(담담)일 때 — 다음 BGM 박에 시작",
+  "group": "mood_deomdeom",
+  "duck_db": -9,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "72 BPM P50 레가토 C5 C5 → F4(동음 + 열린 5도, 3음 없는 선율), 비브라토 없음. TRI 한 음 A3 이 끝음 밑에 → F/A 로 멈춤(근음 완전종지 없음, 3음 A 에서 멈춘 열린 끝). 약 2.3 s",
+  "key": "deomdeom",
+  "duck_attack_ms": 60,
+  "duck_release_ms": 500
+ },
+ {
+  "id": "mood_jollim",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/mood_jollim.ogg",
+   "m4a": "jingle/mood_jollim.m4a"
+  },
+  "duration": 3.3461,
+  "level": {
+   "rel_db": -1,
+   "target": -21.0,
+   "measured": -21.0,
+   "unit": "LUFS",
+   "peak_dbfs": -11.3
+  },
+  "loop": null,
+  "trigger": "반응(wrap_up) 기분이 졸림일 때 — 다음 BGM 박에 시작",
+  "group": "mood_jollim",
+  "duck_db": -9,
+  "quantize": "beat",
+  "pause_bgm": false,
+  "notes": "TRI(+P12 작게) D5 C5 A4 F4 리타르단도(63→45 BPM), TRI B♭2→F2 변격, 끝음 -25 c 처짐 + 비브라토 4.5→2 Hz, LPF 3k→800, 하품 숨결 NZ LPF 800. 3.5 s",
+  "key": "jollim",
+  "duck_attack_ms": 60,
+  "duck_release_ms": 500
+ },
+ {
+  "id": "sleep_settle",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/sleep_settle.ogg",
+   "m4a": "jingle/sleep_settle.m4a"
+  },
+  "duration": 1.0879,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -13.6
+  },
+  "loop": null,
+  "trigger": "잠들 때(wrap_up 뒤). BGM 은 3 s 페이드아웃, 이어서 snore_* 순환",
+  "group": "sleep_settle",
+  "duck_db": 0,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "이불 NZ LPF 1.5k 400 ms(들썩임 3번) + TRI F3 허밍 페이드(+오카리나 F4 아주 작게)",
+  "bgm_fade_out_s": 3.0
+ },
+ {
+  "id": "snore_1",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/snore_1.ogg",
+   "m4a": "jingle/snore_1.m4a"
+  },
+  "duration": 3.7,
+  "level": {
+   "rel_db": -18,
+   "target": -38.0,
+   "measured": -38.0,
+   "unit": "LUFS",
+   "peak_dbfs": -22.5
+  },
+  "loop": null,
+  "trigger": "자는 동안: 숨 한 주기 파일을 끝나는 즉시 다음 것으로 이어 재생(셔플백, 직전 반복 금지)",
+  "group": "snore",
+  "duck_db": 0,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "3.7 s 한 주기(파일 길이 = 주기, 자르지 않음): 들숨 NZ BP 400→900 Hz → 0.3 s 멈춤 → 날숨 NZ LPF 600",
+  "variant": 1,
+  "cycle_s": 3.7
+ },
+ {
+  "id": "snore_2",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/snore_2.ogg",
+   "m4a": "jingle/snore_2.m4a"
+  },
+  "duration": 4.1,
+  "level": {
+   "rel_db": -18,
+   "target": -38.0,
+   "measured": -38.0,
+   "unit": "LUFS",
+   "peak_dbfs": -23.0
+  },
+  "loop": null,
+  "trigger": "자는 동안: 숨 한 주기 파일을 끝나는 즉시 다음 것으로 이어 재생(셔플백, 직전 반복 금지)",
+  "group": "snore",
+  "duck_db": 0,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "4.1 s 한 주기(파일 길이 = 주기, 자르지 않음): 들숨 NZ BP 400→900 Hz → 0.3 s 멈춤 → 날숨 NZ LPF 600, TRI \"푸우\" C5↘A4(-26)",
+  "variant": 2,
+  "cycle_s": 4.1
+ },
+ {
+  "id": "snore_3",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/snore_3.ogg",
+   "m4a": "jingle/snore_3.m4a"
+  },
+  "duration": 4.6,
+  "level": {
+   "rel_db": -18,
+   "target": -38.0,
+   "measured": -38.0,
+   "unit": "LUFS",
+   "peak_dbfs": -22.7
+  },
+  "loop": null,
+  "trigger": "자는 동안: 숨 한 주기 파일을 끝나는 즉시 다음 것으로 이어 재생(셔플백, 직전 반복 금지)",
+  "group": "snore",
+  "duck_db": 0,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "4.6 s 한 주기(파일 길이 = 주기, 자르지 않음): 들숨 NZ BP 400→900 Hz → 0.3 s 멈춤 → 날숨 NZ LPF 600",
+  "variant": 3,
+  "cycle_s": 4.6
+ },
+ {
+  "id": "chime_dawn",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/chime_dawn.ogg",
+   "m4a": "jingle/chime_dawn.m4a"
+  },
+  "duration": 2.5761,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "LUFS",
+   "peak_dbfs": -16.4
+  },
+  "loop": null,
+  "trigger": "시간대 전환 새벽(6시): 경계 뒤 4마디 프레이즈 끝 → 이전 곡 2마디 페이드아웃 → 이 종 → 새 시간대 곡. 하루 첫 새벽 진입 때 한 번(dawn_chime 겸용)",
+  "group": "chime",
+  "duck_db": -2,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "F5↗C6↗F6 P12 종(부드러운 어택)+TRI, G6·C7 사인 후광, TRI F4 페달, 새 한 마리(2.6–3.4 kHz 3음절). 높고 가벼움. F–C–F 종 가족",
+  "key": "dawn"
+ },
+ {
+  "id": "chime_day",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/chime_day.ogg",
+   "m4a": "jingle/chime_day.m4a"
+  },
+  "duration": 1.7764,
+  "level": {
+   "rel_db": -10,
+   "target": -30.0,
+   "measured": -30.0,
+   "unit": "LUFS",
+   "peak_dbfs": -16.7
+  },
+  "loop": null,
+  "trigger": "시간대 전환 낮(9시): 경계 뒤 4마디 프레이즈 끝 → 이전 곡 2마디 페이드아웃 → 이 종 → 새 시간대 곡",
+  "group": "chime",
+  "duck_db": -2,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "P25 C6 C6(M 머리) → 글록 F5↗C6↗F6 빠르게 + bell 파형 F6 + 반짝 A6 C7. 밝음. F–C–F 종 가족",
+  "key": "day"
+ },
+ {
+  "id": "chime_dusk",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/chime_dusk.ogg",
+   "m4a": "jingle/chime_dusk.m4a"
+  },
+  "duration": 3.291,
+  "level": {
+   "rel_db": -10,
+   "target": -30.0,
+   "measured": -30.0,
+   "unit": "LUFS",
+   "peak_dbfs": -18.2
+  },
+  "loop": null,
+  "trigger": "시간대 전환 노을(17시): 경계 뒤 4마디 프레이즈 끝 → 이전 곡 2마디 페이드아웃 → 이 종 → 새 시간대 곡",
+  "group": "chime",
+  "duck_db": -2,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "플루트 파형 종 F5↘C5↘F4 + 에코 280 ms ×2, TRI B♭2→F2(변격). 따뜻하고 낮음. F–C–F 종 가족",
+  "key": "dusk"
+ },
+ {
+  "id": "chime_night",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/chime_night.ogg",
+   "m4a": "jingle/chime_night.m4a"
+  },
+  "duration": 2.9909,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "LUFS",
+   "peak_dbfs": -18.6
+  },
+  "loop": null,
+  "trigger": "시간대 전환 밤(19시): 경계 뒤 4마디 프레이즈 끝 → 이전 곡 2마디 페이드아웃 → 이 종 → 새 시간대 곡",
+  "group": "chime",
+  "duck_db": -2,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "사인 오르골 F5↗C6 C6↘F5(+한 옥타브 아래, 두 옥타브 위 P12 아주 작게), TRI F3 페달. 부드러움. F–C–F 종 가족",
+  "key": "night"
+ },
+ {
+  "id": "letter_room",
+  "kind": "jingle",
+  "files": {
+   "ogg": "jingle/letter_room.ogg",
+   "m4a": "jingle/letter_room.m4a"
+  },
+  "duration": 2.5958,
+  "level": {
+   "rel_db": -3,
+   "target": -23.0,
+   "measured": -23.0,
+   "unit": "LUFS",
+   "peak_dbfs": -15.4
+  },
+  "loop": null,
+  "trigger": "편지의 방에 들어갈 때 1회(루프 없음, 그 뒤로는 앰비언스만)",
+  "group": "letter_room",
+  "duck_db": 0,
+  "quantize": "none",
+  "pause_bgm": false,
+  "notes": "TRI F3 페달 + P50 C5(M 첫 음, 8분 @80) → G5(2음)에서 멈춰 사라짐. 열린 5도, 대답 없는 질문(중립, 슬픔 아님)"
+ }
+]

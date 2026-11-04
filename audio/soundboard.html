@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>뽈뽈 사운드 보드</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
@@ -443,7 +444,7 @@ select { font-family: var(--f-body); font-size: 16px; min-height: 44px; border: 
       html += '<span class="vlab">' + v + '</span><div class="lane">';
       TL[v].forEach(function (x) {
         var len = x[2] || 4, cls = x[0] === '~' ? 'echo' : x[0];
-        var lab = x[0] === '~' ? '' : x[0] === 'X' ? '브리지' : x[0] === 'T' ? '꼬리' : x[0];
+        var lab = x[0] === '~' ? '' : x[0] === 'X' ? '브리지' : x[0] === 'T' ? '끝' : x[0];
         html += '<span class="seg ' + cls + '" style="left:' + (x[1] / 68 * 100).toFixed(3) + '%;width:' + (len / 68 * 100).toFixed(3) + '%">' + lab + '</span>';
       });
       html += '<span class="playhead" aria-hidden="true"></span></div>';

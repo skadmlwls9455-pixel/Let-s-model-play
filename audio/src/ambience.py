@@ -21,9 +21,10 @@
   엔벨로프는 프레임 계단 대신 매끈하게(앰비언스는 틱이 없어야 한다).
 """
 import argparse
-import json
 import math
 import os
+import subprocess
+import tempfile
 
 import numpy as np
 from scipy import signal
@@ -774,7 +775,9 @@ def build_lantern(n_lamps, L=41, seed=None):
     rate = 0.3 + 0.4 * n_lamps
     dens = np.clip(1 + 0.6 * plfo(rng, N, L, 0.05, 0.4), 0.2, None)
     crack = Bus(L)
-    times = poisson(rng, L, rate, dens / dens.mean())
+    # 개수는 정확히 rate·L, 자리는 들쭉날쭉한 밀도 곡선을 따라(포아송 근사 — 루프 하나에서 밀도 차이가 확실히 들리게)
+    cdf = np.cumsum(dens)
+    times = np.sort(np.searchsorted(cdf, rng.uniform(0, cdf[-1], int(round(rate * L)))) / SR)
     for tt in times:
         lvl = rng.uniform(-32, -20)
         crack.add(at_db(crackle(rng), lvl), tt)
@@ -969,6 +972,32 @@ def lantern_levels(bodies):
     return {k: round(LANTERN_HIGH_DB + (I[k] - I['amb_lantern_high']), 1) for k in bodies}
 
 
+OPUS_KBPS, AAC_KBPS, OPUS_VBR = 40, 48, 'constrained'   # 긴 루프라 용량을 아낀다
+
+
+def encode_amb(x, sid, folder='amb'):
+    """export 와 같은 형식(48 kHz 모노 Ogg Opus + AAC m4a, 같은 비트레이트)이되 플래그 두 개를 바꿔 인코딩한다.
+    - Opus: '-application audio' 는 48 kbps 이하에서 노이즈 베드를 SILK/하이브리드로 보내 2~8 kHz 를 깎는다
+      (빗소리 −1.9 dB, 등불 −1.4 dB). 'lowdelay' = CELT 전용이라 40 kbps 에서도 ±0.0 dB.
+    - AAC: ffmpeg 기본 twoloop 코더는 48 kbps 에서 성긴 순음(귀뚜라미·물방울)에 잡음을 얹는다(+1.2 dB, 피크 +6 dB,
+      SNR 8 dB). '-aac_coder fast' 는 같은 비트레이트에서 ±0.1 dB, SNR 30 dB 이상."""
+    out_dir = os.path.join(export.ROOT, folder)
+    os.makedirs(out_dir, exist_ok=True)
+    base = os.path.join(out_dir, sid)
+    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+        tmp = f.name
+    try:
+        chip.write_wav(tmp, x)
+        ff = ['ffmpeg', '-y', '-hide_banner', '-loglevel', 'error', '-i', tmp, '-ac', '1']
+        subprocess.run(ff + ['-c:a', 'libopus', '-b:a', f'{OPUS_KBPS}k', '-vbr', OPUS_VBR,
+                             '-application', 'lowdelay', base + '.ogg'], check=True)
+        subprocess.run(ff + ['-c:a', 'aac', '-aac_coder', 'fast', '-b:a', f'{AAC_KBPS}k',
+                             '-movflags', '+faststart', base + '.m4a'], check=True)
+    finally:
+        os.unlink(tmp)
+    return {'ogg': f'{folder}/{sid}.ogg', 'm4a': f'{folder}/{sid}.m4a'}
+
+
 def export_loop(body, sid, kind, rel_db, L, trigger, recipe, dump=None):
     N = len(body)
     assert N == int(round(L * SR)), (sid, N)
@@ -977,7 +1006,10 @@ def export_loop(body, sid, kind, rel_db, L, trigger, recipe, dump=None):
     full = np.concatenate([body[N - ni:], body, body[:no]])
     loop = dict(start=LEAD_IN, end=round(LEAD_IN + L, 6))
     meta = dict(trigger=trigger, loop_len=L, notes=recipe)
-    entry, x = export.export(full, sid, kind, rel_db=rel_db, folder='amb', loop=loop, meta=meta)
+    # 레벨·매니페스트 항목은 export 그대로, 인코딩만 여기서(아래 encode_amb 주석 참고)
+    entry, x = export.export(full, sid, kind, rel_db=rel_db, folder='amb', loop=loop, meta=meta,
+                             opus_kbps=OPUS_KBPS, aac_kbps=AAC_KBPS, opus_vbr=OPUS_VBR, write=False)
+    entry['files'] = encode_amb(x, sid)
     if dump:
         import viz
         os.makedirs(dump, exist_ok=True)
