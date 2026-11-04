@@ -1,0 +1,705 @@
+<title>뽈뽈 사운드 보드</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 레이아웃: 게임 화면처럼 한 줄 기둥 — 위에 '지금 흐르는 것' 창(돌림노래 지도), 아래로 장면 고르기 → 산책 재생 → 효과음 패드 → 전체 목록 */
+@font-face { font-family: 'Galmuri11'; src: url('fonts/Galmuri11.woff2') format('woff2'), url('../vendor/fonts/Galmuri11.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Galmuri11'; src: url('fonts/Galmuri11-Bold.woff2') format('woff2'), url('../vendor/fonts/Galmuri11-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Galmuri9'; src: url('fonts/Galmuri9.woff2') format('woff2'), url('../vendor/fonts/Galmuri9.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Galmuri7'; src: url('fonts/Galmuri7.woff2') format('woff2'), url('../vendor/fonts/Galmuri7.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+:root {
+  /* 게임 css/style.css 의 픽셀 테마(Apollo) 토큰 그대로 — 라이트: 종이 위 나무 */
+  --bg: #d7b594; --panel: #e7d5b3; --panel2: #ebede9; --fg: #341c27; --muted: #602c2c; --dim: #c09473;
+  --amber: #884b2b; --amber-fill: #be772b; --on-accent: #241527; --teal: #253a5e; --rose: #a53030;
+  --line: #602c2c; --hi-px: #ebede9; --lo-px: #c09473; --strip: #c09473; --pip-off: #ad7757;
+  --sec-solo: #e8c170; --sec-duo: #be772b; --sec-trio: #884b2b; --sec-drain: #577277; --sec-bridge: #253a5e; --sec-tail: #a53030;
+  --f-ui: 'Galmuri11', 'Noto Sans KR', system-ui, sans-serif;
+  --f-body: 'Galmuri9', 'Noto Sans KR', system-ui, sans-serif;
+  --f-meta: 'Galmuri7', 'Noto Sans KR', system-ui, sans-serif;
+  --bevel: inset 2px 2px 0 var(--hi-px), inset -2px -2px 0 var(--lo-px);
+  --bevel-in: inset 2px 2px 0 var(--lo-px), inset -2px -2px 0 var(--hi-px);
+  --notch: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 0 calc(100% - 2px), 0 2px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10141f; --panel: #202e37; --panel2: #151d28; --fg: #ebede9; --muted: #a8b5b2; --dim: #394a50;
+    --amber: #e8c170; --amber-fill: #de9e41; --on-accent: #241527; --teal: #73bed3; --rose: #df84a5;
+    --line: #577277; --hi-px: #819796; --lo-px: #090a14; --strip: #4d2b32; --pip-off: #394a50;
+    --sec-solo: #e8c170; --sec-duo: #de9e41; --sec-trio: #be772b; --sec-drain: #577277; --sec-bridge: #73bed3; --sec-tail: #df84a5;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10141f; --panel: #202e37; --panel2: #151d28; --fg: #ebede9; --muted: #a8b5b2; --dim: #394a50;
+  --amber: #e8c170; --amber-fill: #de9e41; --on-accent: #241527; --teal: #73bed3; --rose: #df84a5;
+  --line: #577277; --hi-px: #819796; --lo-px: #090a14; --strip: #4d2b32; --pip-off: #394a50;
+  --sec-solo: #e8c170; --sec-duo: #de9e41; --sec-trio: #be772b; --sec-drain: #577277; --sec-bridge: #73bed3; --sec-tail: #df84a5;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 18px; line-height: 27px;
+  -webkit-font-smoothing: none; letter-spacing: 0;
+}
+.wrap { max-width: 720px; margin: 0 auto; padding-block: 16px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 24px; }
+h1, h2, h3 { font-family: var(--f-ui); font-weight: 700; margin: 0; text-wrap: balance; }
+h1 { font-size: 22px; line-height: 33px; }
+h2 { font-size: 22px; line-height: 33px; }
+h3 { font-size: 18px; line-height: 27px; }
+p { margin: 0; }
+.meta { font-family: var(--f-meta); font-size: 14px; line-height: 21px; color: var(--muted); }
+.frame { border: 2px solid var(--line); background: var(--panel); box-shadow: var(--bevel); padding: 12px; min-width: 0; }
+.strip { background: var(--strip); border: 2px solid var(--line); box-shadow: var(--bevel); padding: 8px 12px; }
+section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn {
+  font-family: var(--f-ui); font-size: 18px; line-height: 18px; color: var(--fg); background: var(--panel);
+  border: 2px solid var(--line); box-shadow: var(--bevel), 2px 2px 0 var(--line); clip-path: var(--notch);
+  min-height: 44px; padding: 10px 12px; cursor: pointer; border-radius: 0; touch-action: manipulation;
+}
+.btn:active { transform: translate(2px, 2px); box-shadow: var(--bevel); }
+.btn:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.btn.primary { background: var(--amber-fill); color: var(--on-accent); font-weight: 700; }
+.btn.small { min-height: 44px; padding: 8px 10px; font-size: 14px; font-family: var(--f-meta); line-height: 14px; }
+.btn[aria-pressed="true"] { background: var(--amber-fill); color: var(--on-accent); box-shadow: var(--bevel-in); }
+.btn:disabled { opacity: .5; cursor: default; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+label.lab { font-family: var(--f-meta); font-size: 14px; line-height: 21px; color: var(--muted); display: block; margin-bottom: 4px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+
+/* 소리 켜기 막 */
+#gate { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+
+/* 지금 흐르는 것 */
+#now .title { font-family: var(--f-ui); font-size: 22px; line-height: 33px; }
+#now .char { color: var(--muted); }
+.pos { font-family: var(--f-meta); font-size: 14px; line-height: 21px; font-variant-numeric: tabular-nums; }
+
+/* 돌림노래 지도: 68마디 × 3성부 */
+.canon { display: grid; grid-template-columns: 28px 1fr; gap: 2px 6px; align-items: center; }
+.canon .vlab { font-family: var(--f-meta); font-size: 14px; line-height: 14px; color: var(--muted); }
+.lane { position: relative; height: 16px; background: var(--panel2); border: 2px solid var(--line); overflow: hidden; }
+.seg { position: absolute; top: 0; bottom: 0; font-family: var(--f-meta); font-size: 14px; line-height: 12px; text-align: center;
+  color: var(--on-accent); border-right: 2px solid var(--line); overflow: hidden; }
+.seg.A { background: var(--sec-solo); } .seg.B { background: var(--sec-duo); } .seg.C { background: var(--sec-trio); color: var(--panel2); }
+.seg.D { background: var(--sec-drain); color: var(--panel2); } .seg.X { background: var(--sec-bridge); color: var(--panel2); } .seg.T { background: var(--sec-tail); color: var(--panel2); }
+.seg.echo { background: transparent; color: var(--muted); background-image: repeating-linear-gradient(90deg, var(--dim) 0 2px, transparent 2px 4px); }
+.playhead { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--fg); left: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.legend span { font-family: var(--f-meta); font-size: 14px; line-height: 21px; color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border: 2px solid var(--line); margin-right: 4px; vertical-align: -1px; }
+
+/* 슬라이더 */
+input[type=range] { width: 100%; accent-color: var(--amber-fill); min-height: 32px; }
+.vol { display: grid; grid-template-columns: 64px 1fr 44px; gap: 8px; align-items: center; }
+.vol span { font-family: var(--f-meta); font-size: 14px; line-height: 21px; }
+.vol output { font-family: var(--f-meta); font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* 등불 칸 */
+.lanterns { display: flex; gap: 4px; }
+.lanterns button { width: 36px; height: 44px; padding: 0; border: 2px solid var(--line); background: var(--pip-off); box-shadow: var(--bevel); cursor: pointer; }
+.lanterns button.on { background: var(--amber-fill); }
+.lanterns button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+/* 산책 로그 */
+#log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
+#log li { display: grid; grid-template-columns: 52px 1fr; gap: 8px; padding: 4px 8px; background: var(--panel2); border-left: 4px solid var(--amber-fill); }
+#log li .k { font-family: var(--f-meta); font-size: 14px; color: var(--amber); }
+#log li .v { word-break: keep-all; overflow-wrap: anywhere; min-width: 0; }
+#log li.miss { border-left-color: var(--teal); }
+
+/* 목록 */
+details.cat { border: 2px solid var(--line); background: var(--panel); box-shadow: var(--bevel); }
+details.cat > summary { cursor: pointer; padding: 12px; font-family: var(--f-ui); font-size: 18px; line-height: 27px; list-style: none; display: flex; justify-content: space-between; gap: 8px; min-height: 44px; }
+details.cat > summary::-webkit-details-marker { display: none; }
+details.cat > summary::after { content: '▸'; } details.cat[open] > summary::after { content: '▾'; }
+.list { display: flex; flex-direction: column; border-top: 2px solid var(--line); }
+.item { display: grid; grid-template-columns: 44px 1fr; gap: 8px 12px; padding: 8px 12px; align-items: start; border-bottom: 2px solid var(--dim); }
+.item:last-child { border-bottom: 0; }
+.item .play { width: 44px; height: 44px; padding: 0; font-size: 16px; line-height: 16px; }
+.item .name { font-family: var(--f-ui); font-size: 18px; line-height: 27px; word-break: keep-all; overflow-wrap: anywhere; }
+.item .id { font-family: var(--f-meta); font-size: 14px; line-height: 21px; color: var(--muted); overflow-wrap: anywhere; }
+.item .trig { font-size: 14px; line-height: 21px; font-family: var(--f-meta); word-break: keep-all; overflow-wrap: anywhere; }
+.item > div { min-width: 0; }
+.note { border-left: 4px solid var(--teal); padding: 8px 12px; background: var(--panel2); }
+#voiceText { width: 100%; font-family: var(--f-body); font-size: 16px; min-height: 44px; padding: 8px; border: 2px solid var(--line); background: var(--panel2); color: var(--fg); border-radius: 0; box-shadow: var(--bevel-in); }
+select { font-family: var(--f-body); font-size: 16px; min-height: 44px; border: 2px solid var(--line); background: var(--panel2); color: var(--fg); border-radius: 0; padding: 4px 8px; max-width: 100%; }
+@media (prefers-reduced-motion: reduce) { .playhead { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header class="strip">
+    <h1>뽈뽈 사운드 보드</h1>
+    <p class="meta">비 오는 다락방 문어를 위한 칩튠 BGM·징글·효과음·환경음. 모두 F장조 한 집, 한 동기 "도도라도 미도(뽈뽈 다녀와)"에서 나왔다.</p>
+  </header>
+
+  <section id="gate" class="frame" aria-label="소리 켜기">
+    <p>휴대폰은 한 번 눌러야 소리가 난다. 이어폰이나 스피커 소리를 조금 올리고 눌러 줘.</p>
+    <button class="btn primary" id="unlock" type="button">🔈 소리 켜기</button>
+    <p class="meta" id="loadMsg">목록을 읽는 중…</p>
+  </section>
+
+  <section aria-labelledby="h-now">
+    <h2 id="h-now">지금 흐르는 것</h2>
+    <div class="frame" id="now">
+      <p class="title" id="nowTitle">아직 조용함</p>
+      <p class="char meta" id="nowChar">아래에서 시간대와 날씨를 고르고 ▶ 방 틀기를 눌러 봐.</p>
+      <p class="pos" id="nowPos">—</p>
+      <div id="canonWrap" hidden>
+        <div class="canon" id="canon"></div>
+        <div class="legend" aria-hidden="true">
+          <span><i style="background:var(--sec-solo)"></i>A 부르기</span><span><i style="background:var(--sec-duo)"></i>B 대답</span>
+          <span><i style="background:var(--sec-trio)"></i>C 종종걸음</span><span><i style="background:var(--sec-drain)"></i>D 숨 고르기</span>
+          <span><i style="background:var(--sec-bridge)"></i>브리지</span><span><i style="background:var(--sec-tail)"></i>꼬리</span>
+        </div>
+        <p class="meta">세 성부가 4마디씩 늦게 같은 선율을 따라 부르는 돌림노래. 1~16마디는 혼자(+점8분 메아리), 17~32 둘이, 33~48 셋이, 49~56 빠짐.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-scene">
+    <h2 id="h-scene">방 듣기</h2>
+    <div class="frame" style="display:flex;flex-direction:column;gap:12px">
+      <div><span class="lab">시간대 (실제 시계로 바뀜)</span>
+        <div class="chips" id="timeChips"></div></div>
+      <div><span class="lab">날씨 (등불 0~5칸은 늘 비)</span>
+        <div class="chips" id="wxChips"></div></div>
+      <div><span class="lab">계절</span>
+        <div class="chips" id="seasonChips"></div></div>
+      <div><span class="lab" id="lanLab">등불 0/8칸</span>
+        <div class="lanterns" id="lanterns"></div></div>
+      <div class="row">
+        <button class="btn primary" id="scenePlay" type="button">▶ 방 틀기</button>
+        <button class="btn" id="sceneStop" type="button">■ 멈춤</button>
+        <button class="btn" id="sleepBtn" type="button">💤 잠들기</button>
+      </div>
+      <div class="grid2">
+        <div class="vol"><span>음악</span><input type="range" id="vBgm" min="0" max="100" value="80" aria-label="음악 크기"><output for="vBgm">80</output></div>
+        <div class="vol"><span>환경</span><input type="range" id="vAmb" min="0" max="100" value="80" aria-label="환경음 크기"><output for="vAmb">80</output></div>
+        <div class="vol"><span>효과</span><input type="range" id="vSfx" min="0" max="100" value="80" aria-label="효과음 크기"><output for="vSfx">80</output></div>
+        <div class="vol"><span>전체</span><input type="range" id="vMaster" min="0" max="100" value="90" aria-label="전체 크기"><output for="vMaster">90</output></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-walk">
+    <h2 id="h-walk">산책 한 번 들어 보기</h2>
+    <div class="frame" style="display:flex;flex-direction:column;gap:12px">
+      <p>문어가 나갔다 오는 동안 나는 소리를 차례대로 튼다. 출발 → 장소 테마 → 기웃 3번 → 귀가 → 기억 → 포스터 → 등불 → 반응.</p>
+      <div class="row">
+        <label class="lab" for="walkCorner" style="margin:0">처음 들를 곳</label>
+        <select id="walkCorner"></select>
+        <button class="btn primary" id="walkBtn" type="button">🌧 뽈뽈 다녀와</button>
+      </div>
+      <ol id="log" role="log" aria-live="polite" tabindex="0"></ol>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-pads">
+    <h2 id="h-pads">눌러 보기</h2>
+    <div class="grid2">
+      <div class="frame" style="display:flex;flex-direction:column;gap:8px"><h3>문어의 반응</h3><div class="chips" id="padMood"></div></div>
+      <div class="frame" style="display:flex;flex-direction:column;gap:8px"><h3>기웃 결과 (같은 길이, 다른 색)</h3><div class="chips" id="padPeek"></div></div>
+      <div class="frame" style="display:flex;flex-direction:column;gap:8px"><h3>등불이 켜질 때</h3><div class="chips" id="padLantern"></div></div>
+      <div class="frame" style="display:flex;flex-direction:column;gap:8px"><h3>만지고 두드리기</h3><div class="chips" id="padTouch"></div></div>
+      <div class="frame" style="display:flex;flex-direction:column;gap:8px"><h3>화면 소리</h3><div class="chips" id="padUi"></div></div>
+      <div class="frame" style="display:flex;flex-direction:column;gap:8px"><h3>시간대 종</h3><div class="chips" id="padChime"></div></div>
+    </div>
+    <div class="frame" style="display:flex;flex-direction:column;gap:8px">
+      <h3>말풍선 목소리</h3>
+      <p class="meta">글자마다 작은 소리 하나. 모음이 둥글면(ㅗ·ㅜ·ㅡ) 둥근 소리, 아니면 열린 소리. 기분마다 쓰는 음이 다르다.</p>
+      <input id="voiceText" type="text" value="처음 가 본 데가 있었어. 다리가 아직 들썩거려" aria-label="말풍선 문장">
+      <div class="chips" id="padVoice"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-all">
+    <h2 id="h-all">전부 듣기</h2>
+    <div id="lib" style="display:flex;flex-direction:column;gap:12px"></div>
+    <p class="note meta">모든 파일은 들려줄 크기가 미리 맞춰져 있다(BGM −20 LUFS 기준). 이 페이지는 AAC(.m4a)로 튼다. 게임에는 Opus(.ogg)와 AAC 두 벌이 함께 들어 있다.</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var M = null, byId = new Map(), groups = new Map();
+  var ctx = null, bus = {}, duckG = null, cache = new Map();
+  var slots = {};              // bgm, amb, layer, warm, season
+  var scene = { time: 'night', weather: 'rain', season: 'autumn', lantern: 3, playing: false, sleeping: false };
+  var mood = '폴짝';
+  var lastPick = {};
+  var $ = function (s) { return document.querySelector(s); };
+
+  /* ---------------- 목록 ---------------- */
+  fetch('manifest.json').then(function (r) { return r.json(); }).then(function (m) {
+    M = m;
+    m.sounds.forEach(function (s) {
+      byId.set(s.id, s);
+      var g = s.group || s.id;
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(s.id);
+    });
+    $('#loadMsg').textContent = '소리 ' + m.sounds.length + '개 준비됨.';
+    buildUi();
+  }).catch(function () {
+    $('#loadMsg').textContent = 'manifest.json 을 읽지 못했다. 이 페이지는 audio 폴더를 웹서버로 열어야 한다(python3 -m http.server).';
+  });
+
+  function has(id) { return byId.has(id) || groups.has(id); }
+  function pick(idOrGroup) {
+    if (byId.has(idOrGroup) && !groups.has(idOrGroup)) return idOrGroup;
+    var g = groups.get(idOrGroup);
+    if (!g) return byId.has(idOrGroup) ? idOrGroup : null;
+    if (g.length === 1) return g[0];
+    var c = g.filter(function (x) { return x !== lastPick[idOrGroup]; });
+    var p = c[Math.floor(Math.random() * c.length)];
+    lastPick[idOrGroup] = p;
+    return p;
+  }
+
+  /* ---------------- 오디오 ---------------- */
+  function ensureCtx() {
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+    var AC = window.AudioContext || window.webkitAudioContext;
+    ctx = new AC();
+    var master = ctx.createGain(); master.connect(ctx.destination);
+    duckG = ctx.createGain(); duckG.connect(master);
+    var ambDuck = ctx.createGain(); ambDuck.connect(master);
+    bus.master = master; bus.ambDuck = ambDuck;
+    bus.bgm = ctx.createGain(); bus.bgm.connect(duckG);
+    bus.amb = ctx.createGain(); bus.amb.connect(ambDuck);
+    bus.sfx = ctx.createGain(); bus.sfx.connect(master);
+    applyVolumes();
+  }
+  function applyVolumes() {
+    if (!ctx) return;
+    var v = function (id) { var x = +$(id).value / 100; return x * x; };
+    var night = scene.time === 'night' ? Math.pow(10, -3 / 20) : 1;
+    bus.bgm.gain.setTargetAtTime(v('#vBgm'), ctx.currentTime, 0.05);
+    bus.amb.gain.setTargetAtTime(v('#vAmb'), ctx.currentTime, 0.05);
+    bus.sfx.gain.setTargetAtTime(v('#vSfx'), ctx.currentTime, 0.05);
+    bus.master.gain.setTargetAtTime(v('#vMaster') * night, ctx.currentTime, 0.05);
+  }
+  function load(id) {
+    if (cache.has(id)) return cache.get(id);
+    var s = byId.get(id);
+    var p = fetch(s.files.m4a).then(function (r) {
+      if (!r.ok) throw new Error(id);
+      return r.arrayBuffer();
+    }).then(function (ab) {
+      return new Promise(function (res, rej) { ctx.decodeAudioData(ab, res, rej); });
+    });
+    cache.set(id, p);
+    p.catch(function () { cache.delete(id); });
+    return p;
+  }
+  function db(x) { return Math.pow(10, x / 20); }
+
+  function playOnce(idOrGroup, opts) {
+    opts = opts || {};
+    var id = pick(idOrGroup);
+    if (!id || !ctx) return Promise.resolve(0);
+    var s = byId.get(id);
+    return load(id).then(function (buf) {
+      var src = ctx.createBufferSource(); src.buffer = buf;
+      var g = ctx.createGain(); g.gain.value = opts.gain || 1;
+      src.connect(g); g.connect(opts.bus || bus.sfx);
+      var t = Math.max(ctx.currentTime + 0.01, opts.at || 0);
+      if (s.quantize === 'beat' && slots.bgm && !opts.at) t = nextBeat(t);
+      if (s.pause_bgm) pauseBgmFor(buf.duration, t);
+      else if (s.duck_db) duck(s.duck_db, t, buf.duration);
+      src.start(t);
+      return t + buf.duration;
+    });
+  }
+  function duck(dbv, t, dur) {
+    var to = db(Math.min(0, dbv));
+    duckG.gain.setTargetAtTime(to, t, 0.025);
+    duckG.gain.setTargetAtTime(1, t + Math.max(0.1, dur - 0.2), 0.25);
+    bus.ambDuck.gain.setTargetAtTime(db(Math.min(0, dbv / 2)), t, 0.025);
+    bus.ambDuck.gain.setTargetAtTime(1, t + Math.max(0.1, dur - 0.2), 0.25);
+  }
+  function pauseBgmFor(dur, t) {
+    duckG.gain.setTargetAtTime(0.0001, t - 0.05, 0.05);
+    duckG.gain.setTargetAtTime(1, t + dur + 0.2, 0.4);
+  }
+
+  function startLoop(slot, id, o) {
+    o = o || {};
+    var s = byId.get(id);
+    if (!s || !ctx) return Promise.resolve();
+    var token = {};
+    slots['_' + slot] = token;
+    return load(id).then(function (buf) {
+      if (slots['_' + slot] !== token) return;
+      var src = ctx.createBufferSource(); src.buffer = buf;
+      if (s.loop) { src.loop = true; src.loopStart = s.loop.start; src.loopEnd = s.loop.end; }
+      var g = ctx.createGain(); g.gain.value = 0;
+      src.connect(g); g.connect(o.bus || bus.bgm);
+      var t = Math.max(ctx.currentTime + 0.05, o.at || 0);
+      var off = s.loop ? s.loop.start : 0;
+      src.start(t, off);
+      var fi = o.fade == null ? 0.05 : o.fade;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(o.gain || 1, t + fi);
+      var old = slots[slot];
+      if (old) stopNode(old, t, o.xfade == null ? fi : o.xfade);
+      slots[slot] = { id: id, src: src, g: g, t0: t, s: s };
+      if (slot === 'bgm') showNow();
+    });
+  }
+  function stopNode(n, t, fade) {
+    t = Math.max(t || 0, ctx.currentTime);
+    n.g.gain.cancelScheduledValues(t);
+    n.g.gain.setValueAtTime(n.g.gain.value, t);
+    n.g.gain.linearRampToValueAtTime(0, t + (fade || 0.05));
+    try { n.src.stop(t + (fade || 0.05) + 0.05); } catch (e) { /* 이미 멈춤 */ }
+  }
+  function stopSlot(slot, fade) {
+    slots['_' + slot] = null;
+    if (slots[slot]) { stopNode(slots[slot], ctx.currentTime, fade); slots[slot] = null; }
+  }
+  function loopLen(n) { return n.s.loop ? n.s.loop.end - n.s.loop.start : n.src.buffer.duration; }
+  function beatsPerBar(s) { var m = String(s.meter || '4/4'); return m.indexOf('3/4') === 0 || m.indexOf('6/8') === 0 ? 3 : m.indexOf('2/4') === 0 ? 2 : 4; }
+  function nextBar(t) {
+    var n = slots.bgm; if (!n || !n.s.bar_sec) return t;
+    var b = n.s.bar_sec, el = Math.max(0, t - n.t0);
+    return n.t0 + Math.ceil(el / b - 1e-6) * b;
+  }
+  function nextBeat(t) {
+    var n = slots.bgm; if (!n || !n.s.bar_sec) return t;
+    var b = n.s.bar_sec / beatsPerBar(n.s), el = Math.max(0, t - n.t0);
+    return n.t0 + Math.ceil(el / b - 1e-6) * b;
+  }
+
+  /* ---------------- 장면 → 소리 ---------------- */
+  function sceneIds() {
+    var mp = M.map, t = scene.time, w = scene.weather;
+    var ids = {};
+    ids.bgm = scene.sleeping ? 'special_lullaby' : (mp.home_bgm[t] || {})[w];
+    var aw = mp.ambience.weather[w];
+    ids.amb = typeof aw === 'string' ? aw : aw && aw[t];
+    var L = mp.ambience.layers;
+    ids.layer = w === 'snow' ? L.snow : (w === 'rain' || w === 'drizzle') ? L[w] : (t === 'night' ? L.clear_night : null);
+    if (scene.season === 'winter' && w !== 'snow' && t !== 'night') ids.layer = L.winter;
+    var n = scene.lantern;
+    ids.warm = n === 0 ? null : n <= 3 ? mp.ambience.lantern_warmth['1-3'] : n <= 6 ? mp.ambience.lantern_warmth['4-6'] : mp.ambience.lantern_warmth['7-8'];
+    ids.season = (t === 'night' && (w === 'clear' || w === 'drizzle')) ? (mp.ambience.season_night[scene.season] || null) : null;
+    Object.keys(ids).forEach(function (k) { if (ids[k] && !has(ids[k])) ids[k] = null; });
+    return ids;
+  }
+  function applyScene(first) {
+    if (!scene.playing || !ctx) return;
+    var ids = sceneIds();
+    ['amb', 'layer', 'warm', 'season'].forEach(function (k) {
+      var cur = slots[k] && slots[k].id;
+      if (cur === ids[k]) return;
+      if (!ids[k]) { if (slots[k]) stopSlot(k, 6); return; }
+      startLoop(k, ids[k], { bus: bus.amb, fade: first ? 2 : 6, xfade: 6 });
+    });
+    var cb = slots.bgm && slots.bgm.id;
+    if (ids.bgm && cb !== ids.bgm) {
+      var at = first || !slots.bgm ? 0 : nextBar(ctx.currentTime + 0.1);
+      var bar = slots.bgm && slots.bgm.s.bar_sec ? slots.bgm.s.bar_sec : 2;
+      startLoop('bgm', ids.bgm, { at: at, fade: first ? 1.5 : bar, xfade: bar });
+    }
+  }
+
+  /* ---------------- 지금 흐르는 것 ---------------- */
+  var SEC = { solo: '혼자', duo: '둘이', trio: '셋이', drain: '빠짐', bridge: '브리지', tail: '꼬리' };
+  function showNow() {
+    var n = slots.bgm;
+    if (!n) { $('#nowTitle').textContent = '아직 조용함'; $('#nowPos').textContent = '—'; $('#canonWrap').hidden = true; return; }
+    $('#nowTitle').textContent = n.s.title || n.id;
+    $('#nowChar').textContent = n.s.character || n.s.trigger || '';
+    $('#canonWrap').hidden = !/^theme_/.test(n.id);
+  }
+  function tick() {
+    var n = slots.bgm;
+    if (n && ctx && n.s.bar_sec) {
+      var el = ctx.currentTime - n.t0;
+      if (el >= 0) {
+        var L = loopLen(n), p = el % L, bar = Math.floor(p / n.s.bar_sec) + 1, bars = n.s.bars || Math.round(L / n.s.bar_sec);
+        var sec = '';
+        if (n.s.sections) Object.keys(n.s.sections).forEach(function (k) { var r = n.s.sections[k]; if (bar >= r[0] && bar <= r[1]) sec = ' · ' + (SEC[k] || k); });
+        $('#nowPos').textContent = '마디 ' + bar + '/' + bars + sec + ' · ' + (n.s.bpm || '') + ' BPM · ' + fmt(p) + ' / ' + fmt(L);
+        var ph = document.querySelectorAll('.playhead');
+        for (var i = 0; i < ph.length; i++) ph[i].style.left = (p / L * 100).toFixed(2) + '%';
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+  function fmt(s) { s = Math.max(0, s); var m = Math.floor(s / 60); var r = Math.floor(s % 60); return m + ':' + (r < 10 ? '0' : '') + r; }
+  function buildCanon() {
+    var TL = {
+      'V1': [['A', 0], ['B', 4], ['C', 8], ['D', 12], ['A', 16], ['B', 20], ['C', 24], ['D', 28], ['A', 32], ['B', 36], ['C', 40], ['D', 44], ['X', 56, 8], ['T', 64, 4]],
+      'V2': [['~', 0, 16], ['A', 20], ['B', 24], ['C', 28], ['D', 32], ['A', 36], ['B', 40], ['C', 44], ['D', 48], ['~', 56, 8]],
+      'V3': [['A', 40], ['B', 44], ['C', 48], ['D', 52]]
+    };
+    var html = '';
+    Object.keys(TL).forEach(function (v) {
+      html += '<span class="vlab">' + v + '</span><div class="lane">';
+      TL[v].forEach(function (x) {
+        var len = x[2] || 4, cls = x[0] === '~' ? 'echo' : x[0];
+        var lab = x[0] === '~' ? '' : x[0] === 'X' ? '브리지' : x[0] === 'T' ? '꼬리' : x[0];
+        html += '<span class="seg ' + cls + '" style="left:' + (x[1] / 68 * 100).toFixed(3) + '%;width:' + (len / 68 * 100).toFixed(3) + '%">' + lab + '</span>';
+      });
+      html += '<span class="playhead" aria-hidden="true"></span></div>';
+    });
+    $('#canon').innerHTML = html;
+  }
+
+  /* ---------------- 화면 만들기 ---------------- */
+  function chip(parent, label, pressed, fn) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn small'; b.textContent = label;
+    if (pressed != null) b.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+    b.addEventListener('click', fn);
+    parent.appendChild(b);
+    return b;
+  }
+  function radio(parent, items, key) {
+    var btns = [];
+    items.forEach(function (it) {
+      var b = chip(parent, it[1], scene[key] === it[0], function () {
+        scene[key] = it[0];
+        btns.forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+        if (ctx && key === 'weather' && has('weather_shift')) playOnce('weather_shift');
+        if (ctx && key === 'time' && scene.playing) {
+          var ch = M.map.events.time_of_day_change[it[0]];
+          if (has(ch)) playOnce(ch);
+        }
+        applyVolumes(); applyScene(false);
+      });
+      btns.push(b);
+    });
+  }
+  function nowTime() { var h = new Date().getHours(); return h >= 6 && h < 9 ? 'dawn' : h >= 9 && h < 17 ? 'day' : h >= 17 && h < 19 ? 'dusk' : 'night'; }
+  function nowSeason() { var m = new Date().getMonth() + 1; return m >= 3 && m <= 5 ? 'spring' : m >= 6 && m <= 8 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter'; }
+
+  function buildUi() {
+    scene.time = nowTime(); scene.season = nowSeason();
+    radio($('#timeChips'), [['dawn', '새벽'], ['day', '낮'], ['dusk', '노을'], ['night', '밤']], 'time');
+    radio($('#wxChips'), [['rain', '비'], ['drizzle', '가는 비'], ['clear', '맑음'], ['snow', '눈']], 'weather');
+    radio($('#seasonChips'), [['spring', '봄'], ['summer', '여름'], ['autumn', '가을'], ['winter', '겨울']], 'season');
+    var lw = $('#lanterns');
+    for (var i = 1; i <= 8; i++) (function (k) {
+      var b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', '등불 ' + k + '칸');
+      b.addEventListener('click', function () { setLantern(scene.lantern === k ? k - 1 : k, true); });
+      lw.appendChild(b);
+    })(i);
+    setLantern(scene.lantern, false);
+    buildCanon();
+
+    var corners = [['hands', '🧵 손과 물건'], ['sea', '🐚 바다와 생물'], ['sky', '🌧 하늘과 날씨'], ['signs', '✒ 기호와 언어'], ['numbers', '🔢 수와 모양'],
+      ['sounds', '🎵 소리와 리듬'], ['home', '🏠 집과 사람'], ['mind', '💭 생각하는 것'], ['wild', '❔ 들판'], ['door_out', '🚪 밖의 문'], ['slow_room', '📖 느린 글의 방']];
+    var sel = $('#walkCorner');
+    corners.forEach(function (c) { var o = document.createElement('option'); o.value = c[0]; o.textContent = c[1]; sel.appendChild(o); });
+
+    var MOODS = [['폴짝', '🎉 폴짝'], ['우쭐', '😌 우쭐'], ['덤덤', '😶 덤덤'], ['졸림', '😴 졸림']];
+    MOODS.forEach(function (x) { chip($('#padMood'), x[1], null, function () { gesture(); playOnce(M.map.moods[x[0]]); }); });
+    [['read', '✅ 읽음'], ['builtin', '📚 책장 메모'], ['simulated', '🧪 모의 방문'], ['failed', '❌ 못 읽음'], ['none', '◌ 앉아만']].forEach(function (x) {
+      chip($('#padPeek'), x[1], null, function () { gesture(); playOnce(M.map.peek_status[x[0]]); });
+    });
+    for (var k = 1; k <= 8; k++) (function (n) {
+      chip($('#padLantern'), n === 8 ? '8 방 완성' : String(n), null, function () { gesture(); playOnce(n === 8 ? 'room_complete' : 'lantern_' + n); });
+    })(k);
+    chip($('#padLantern'), '첫 장소', null, function () { gesture(); playOnce('first_place'); });
+    chip($('#padLantern'), '희귀 반짝', null, function () { gesture(); playOnce('rare_sparkle'); });
+    var strokeN = 0, strokeT = 0;
+    chip($('#padTouch'), '쓰다듬기', null, function () {
+      gesture();
+      var now = Date.now();
+      if (now - strokeT > 1500) { strokeN = 0; playOnce('pet_squish'); }
+      strokeT = now; strokeN = Math.min(strokeN + 1, 5);
+      playOnce('pet_stroke_' + strokeN);
+      if (strokeN === 4) setTimeout(function () { playOnce('pet_happy'); }, 250);
+    });
+    chip($('#padTouch'), '창문 똑', null, function () { gesture(); playOnce('window_tap'); });
+    chip($('#padTouch'), '뽈뽈 걸음', null, function () { gesture(); for (var i = 0; i < 6; i++) playOnce('step', { at: ctx.currentTime + 0.05 + i * 0.25 }); });
+    chip($('#padTouch'), '바라보기 ?', null, function () { gesture(); playOnce('curious'); });
+    chip($('#padTouch'), '빗방울 세기', null, function () { gesture(); for (var i = 1; i <= 4; i++) playOnce('stay_count_drops_' + i, { at: ctx.currentTime + 0.05 + (i - 1) * 0.5 }); });
+    chip($('#padTouch'), '정리', null, function () { gesture(); playOnce('stay_tidy'); });
+    chip($('#padTouch'), '흥얼', null, function () { gesture(); playOnce('stay_hum'); });
+    chip($('#padTouch'), '빈 차례 …', null, function () { gesture(); playOnce('empty_turn'); });
+    [['ui_tap', '탭'], ['ui_toggle_on', '켬'], ['ui_toggle_off', '끔'], ['sheet_open', '시트 열기'], ['sheet_close', '시트 닫기'],
+      ['toast', '토스트'], ['log_line', '로그 한 줄'], ['card_flip', '카드 뒤집기'], ['album_open', '앨범'], ['audio_on', '소리 켬']].forEach(function (x) {
+      if (has(x[0])) chip($('#padUi'), x[1], null, function () { gesture(); playOnce(x[0]); });
+    });
+    [['dawn', '새벽 종'], ['day', '낮 종'], ['dusk', '노을 종'], ['night', '밤 종']].forEach(function (x) {
+      chip($('#padChime'), x[1], null, function () { gesture(); playOnce(M.map.events.time_of_day_change[x[0]]); });
+    });
+    MOODS.concat([['보통', '🙂 보통']]).forEach(function (x) { chip($('#padVoice'), x[1] + '로 말하기', null, function () { gesture(); speak($('#voiceText').value, x[0]); }); });
+
+    buildLibrary();
+    requestAnimationFrame(tick);
+  }
+
+  function setLantern(n, sound) {
+    var prev = scene.lantern;
+    scene.lantern = Math.max(0, Math.min(8, n));
+    var bs = document.querySelectorAll('#lanterns button');
+    for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('on', i < scene.lantern);
+    $('#lanLab').textContent = '등불 ' + scene.lantern + '/8칸';
+    if (sound && ctx && scene.lantern > prev) playOnce(scene.lantern === 8 ? 'room_complete' : 'lantern_' + scene.lantern);
+    applyScene(false);
+  }
+
+  /* ---------------- 말풍선 목소리 ---------------- */
+  var VSET = { '보통': [['A4', 'C5', 'D5'], 60], '폴짝': [['C5', 'D5', 'F5', 'G5'], 50], '우쭐': [['C5', 'F5', 'A5'], 65], '덤덤': [['A4', 'C5'], 70], '졸림': [['F4', 'G4', 'A4'], 90] };
+  var ROUND = { 8: 1, 9: 1, 10: 1, 11: 1, 12: 1, 13: 1, 14: 1, 15: 1, 16: 1, 17: 1, 18: 1, 19: 1 };
+  function speak(text, md) {
+    var set = VSET[md] || VSET['보통'], notes = set[0], gap = set[1] / 1000;
+    var t = ctx.currentTime + 0.05, k = 0;
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charCodeAt(i);
+      if (c < 0xAC00 || c > 0xD7A3) { if (/[.,!?…]/.test(text[i])) t += gap * 3; continue; }
+      k++;
+      if (md === '졸림' && k % 2 === 0) { t += gap; continue; }
+      var jung = Math.floor(((c - 0xAC00) % 588) / 28);
+      var vow = ROUND[jung] ? 'u' : 'a';
+      var h = (c * 2654435761) >>> 0;
+      var note = notes[h % notes.length];
+      if (md === '폴짝' && i >= text.length - 2) note = notes[notes.length - 1];
+      playOnce('voice_' + vow + '_' + note, { at: t });
+      t += gap + 0.02;
+    }
+  }
+
+  /* ---------------- 산책 재생 ---------------- */
+  var walking = false;
+  function logLine(k, v, miss) {
+    var li = document.createElement('li'); if (miss) li.className = 'miss';
+    li.innerHTML = '<span class="k"></span><span class="v"></span>';
+    li.firstChild.textContent = k; li.lastChild.textContent = v;
+    $('#log').appendChild(li); $('#log').scrollTop = 1e6;
+  }
+  function wait(s) { return new Promise(function (r) { setTimeout(r, s * 1000); }); }
+  function walk() {
+    if (walking) return; walking = true; $('#walkBtn').disabled = true;
+    gesture();
+    if (!scene.playing) { scene.playing = true; scene.sleeping = false; applyScene(true); }
+    $('#log').innerHTML = '';
+    var c = $('#walkCorner').value;
+    var label = $('#walkCorner').selectedOptions[0].textContent;
+    var others = ['sea', 'sky', 'signs', 'numbers', 'mind', 'wild'].filter(function (x) { return x !== c; });
+    var second = others[Math.floor(Math.random() * others.length)];
+    var home = slots.bgm && slots.bgm.id;
+    logLine('출발', '"뽈뽈 다녀와" — 문어가 움츠렸다가 문 밖으로');
+    playOnce('depart_windup').then(function () { return wait(0.8); })
+      .then(function () { if (scene.weather === 'rain' || scene.weather === 'drizzle') playOnce('depart_rain_extra'); return playOnce('depart_leave'); })
+      .then(function () { return wait(1.2); })
+      .then(function () {
+        var pid = M.map.places[c];
+        if (pid && has(pid)) startLoop('bgm', pid, { at: nextBar(ctx.currentTime + 0.1), fade: 2, xfade: 2 });
+        return wait(3);
+      })
+      .then(function () { logLine('기웃', label + ' ✅ 읽음'); playOnce('peek_read'); return wait(4); })
+      .then(function () { logLine('기웃', '옆 방 문 앞까지 🧪 모의 방문', true); playOnce('peek_simulated'); return wait(4); })
+      .then(function () { logLine('기웃', '닫힌 문 ❌ 못 읽음 — 똑똑, 괜찮아', true); playOnce('peek_failed'); return wait(4); })
+      .then(function () {
+        logLine('귀가', '돌아왔어. 이만하면 됐어');
+        playOnce('return_home');
+        var target = (M.map.home_bgm[scene.time] || {})[scene.weather] || home;
+        if (target) startLoop('bgm', target, { at: nextBar(ctx.currentTime + 1.5), fade: 3, xfade: 3 });
+        return wait(3);
+      })
+      .then(function () { logLine('기억', label + ' 쪽에서 한눈판 것을 기억으로'); return playOnce('remember_' + c); })
+      .then(function () { return wait(1.4); })
+      .then(function () { logLine('포스터', '벽에 한 장 붙였다'); return playOnce('hang_poster'); })
+      .then(function () { return wait(1.4); })
+      .then(function () { var n = Math.min(8, scene.lantern + 1); logLine('등불', n + '칸째가 켜졌다'); setLantern(n, true); return wait(n === 8 ? 6 : 1.8); })
+      .then(function () {
+        var ms = ['폴짝', '우쭐', '덤덤', '졸림'], m = ms[Math.floor(Math.random() * 4)];
+        logLine('마무리', '문어가 고른 반응: ' + m);
+        return playOnce(M.map.moods[m]);
+      })
+      .catch(function () { /* 빠진 파일은 건너뜀 */ })
+      .then(function () { walking = false; $('#walkBtn').disabled = false; });
+  }
+
+  /* ---------------- 전체 목록 ---------------- */
+  var KIND = [['bgm', '집 테마 · 특수 곡', 'loop'], ['place', '장소 테마', 'loop'], ['jingle', '징글 · 이벤트', 'once'], ['sfx', '효과음', 'once'], ['amb', '환경음', 'loop'], ['layer', '환경 덧층', 'loop']];
+  var libPlaying = null;
+  function buildLibrary() {
+    var lib = $('#lib');
+    KIND.forEach(function (K) {
+      var items = M.sounds.filter(function (s) { return s.kind === K[0] || (K[0] === 'bgm' && s.kind === 'special'); });
+      if (!items.length) return;
+      var d = document.createElement('details'); d.className = 'cat';
+      var sm = document.createElement('summary');
+      sm.innerHTML = '<span></span><span class="meta"></span>';
+      sm.firstChild.textContent = K[1]; sm.childNodes[1].textContent = items.length + '개';
+      d.appendChild(sm);
+      var list = document.createElement('div'); list.className = 'list';
+      d.addEventListener('toggle', function () {
+        if (!d.open || list.childNodes.length) return;
+        items.forEach(function (s) {
+          var it = document.createElement('div'); it.className = 'item';
+          var b = document.createElement('button'); b.type = 'button'; b.className = 'btn play'; b.textContent = '▶';
+          b.setAttribute('aria-label', (s.title || s.id) + ' 재생');
+          var info = document.createElement('div');
+          var nm = document.createElement('div'); nm.className = 'name'; nm.textContent = s.title || s.id;
+          var idl = document.createElement('div'); idl.className = 'id';
+          idl.textContent = s.id + ' · ' + s.duration.toFixed(s.duration < 10 ? 2 : 0) + '초' + (s.bpm ? ' · ' + s.bpm + ' BPM' : '') + (s.level ? ' · BGM ' + (s.level.rel_db >= 0 ? '+' : '') + s.level.rel_db + 'dB' : '');
+          var tr = document.createElement('div'); tr.className = 'trig'; tr.textContent = s.character || s.trigger || s.notes || '';
+          info.appendChild(nm); info.appendChild(idl); info.appendChild(tr);
+          it.appendChild(b); it.appendChild(info); list.appendChild(it);
+          b.addEventListener('click', function () {
+            gesture();
+            if (K[2] === 'once' || !s.loop) { playOnce(s.id); return; }
+            var slot = (s.kind === 'amb' || s.kind === 'layer') ? 'lib_amb' : 'bgm';
+            if (libPlaying === b) { stopSlot(slot, 0.5); b.textContent = '▶'; libPlaying = null; if (slot === 'bgm') showNow(); return; }
+            if (libPlaying) libPlaying.textContent = '▶';
+            if (slot === 'bgm') { stopScene(false); }
+            startLoop(slot, s.id, { bus: slot === 'bgm' ? bus.bgm : bus.amb, fade: 0.3, xfade: 0.3 });
+            b.textContent = '■'; libPlaying = b;
+          });
+        });
+      });
+      d.appendChild(list);
+      lib.appendChild(d);
+    });
+  }
+
+  /* ---------------- 버튼 ---------------- */
+  function gesture() { ensureCtx(); }
+  function stopScene(all) {
+    scene.playing = false; scene.sleeping = false;
+    ['amb', 'layer', 'warm', 'season'].forEach(function (k) { stopSlot(k, 1.5); });
+    if (all !== false) { stopSlot('bgm', 1.5); stopSlot('lib_amb', 1.5); }
+    if (libPlaying) { libPlaying.textContent = '▶'; libPlaying = null; }
+    setTimeout(showNow, 50);
+  }
+  $('#unlock').addEventListener('click', function () {
+    ensureCtx();
+    if (M && has('audio_on')) playOnce('audio_on');
+    $('#unlock').textContent = '🔈 켜짐';
+    $('#unlock').disabled = true;
+  });
+  $('#scenePlay').addEventListener('click', function () {
+    gesture();
+    if (libPlaying) { libPlaying.textContent = '▶'; libPlaying = null; stopSlot('lib_amb', 0.5); }
+    scene.playing = true; scene.sleeping = false;
+    applyScene(!slots.bgm);
+  });
+  $('#sceneStop').addEventListener('click', function () { if (ctx) stopScene(true); });
+  $('#sleepBtn').addEventListener('click', function () {
+    gesture();
+    if (!scene.playing) { scene.playing = true; }
+    playOnce(M.map.moods['졸림']).then(function (end) {
+      playOnce('sleep_settle', { at: end + 0.2 });
+      scene.sleeping = true;
+      if (slots.bgm) stopNode(slots.bgm, end, 2);
+      slots.bgm = null;
+      setTimeout(function () { applyScene(true); }, Math.max(0, (end - ctx.currentTime) * 1000 + 1200));
+    });
+  });
+  $('#walkBtn').addEventListener('click', walk);
+  ['#vBgm', '#vAmb', '#vSfx', '#vMaster'].forEach(function (id) {
+    $(id).addEventListener('input', function () { $(id).nextElementSibling.textContent = $(id).value; applyVolumes(); });
+  });
+})();
+</script>
