@@ -335,6 +335,15 @@ var SCENE3D = (function () {
       return v.addScaledVector(_r, Math.round(dx / pw) * pw - dx).addScaledVector(_u, Math.round(dy / pw) * pw - dy);
     }
     function snapUp(dy) { var k = S.pw / Math.max(_u.y, 1e-3); return Math.round(dy / k) * k; }   /* 월드 y 오프셋을 화면 세로 픽셀 단위로 (문어 폴짝·걷기 통통) */
+    function pxUp() { return S.pw / Math.max(_u.y, 1e-3); }                                       /* 화면 세로 1px = 월드 y 이만큼 (룩 패스 7: 비·눈·커튼·다리 끝) */
+    function snapC(v) { /* v 를 아트 픽셀 **중심**에 (1px 점·선용, 룩 패스 7): 타깃 폭이 짝수면 카메라 중심이 픽셀 모서리라 ½ 위상을 더한다 → Points·Line 끝점이 늘 한 픽셀 안에 떨어진다 */
+      var pw = S.pw, dx = v.dot(_r), dy = v.dot(_u), hx = (S.rw & 1) ? 0 : 0.5, hy = (S.rh & 1) ? 0 : 0.5;
+      return v.addScaledVector(_r, (Math.round(dx / pw - hx) + hx) * pw - dx).addScaledVector(_u, (Math.round(dy / pw - hy) + hy) * pw - dy);
+    }
+    function snapDelta(d) { /* 변위 벡터를 카메라 우/상 축 정수 픽셀로 양자화 (등불 흔들림: 몸체가 정수 px 만 움직인다) */
+      var pw = S.pw, dx = Math.round(d.dot(_r) / pw) * pw, dy = Math.round(d.dot(_u) / pw) * pw;
+      return d.set(0, 0, 0).addScaledVector(_r, dx).addScaledVector(_u, dy);
+    }
     function resize() {
       var W = container.clientWidth || 320, H = container.clientHeight || 240, p = Math.max(st.look.pixelSize | 0 || 3, Math.ceil(W / 480));
       var rw = Math.max(8, Math.floor(W / p)), rh = Math.max(8, Math.floor(H / p));
@@ -357,7 +366,7 @@ var SCENE3D = (function () {
     var hemi = new T.HemisphereLight(0xffffff, 0x000000, 0.3); scene.add(hemi);
     var fill = new T.DirectionalLight(0xffffff, 0); fill.position.set(6, 3, 8); fill.target.position.set(0, 0.5, 0); scene.add(fill); scene.add(fill.target);   /* 필: 카메라 쪽, 그림자 없음 (뒷벽·왼벽·바닥을 살짝 들어 올린다) */
     var lampPos = new T.Vector3(snapPos(-1.6), 1.95, snapPos(-0.9));
-    var lamp = new T.PointLight(C('#ffb066').getHex(), 0, 6, 2); lamp.position.copy(lampPos).add(new T.Vector3(0, -0.1, 0)); scene.add(lamp);
+    var lamp = new T.PointLight(C('#ffb066').getHex(), 0, 6, 2); lamp.position.set(0, -0.1, 0);   /* 등불 그룹의 자식 (룩 패스 7: 흔들림을 따라간다) — 아래 lampG.add */
     var candleLight = new T.PointLight(C('#ffb066').getHex(), 0, 2, 2); scene.add(candleLight);   /* 양초 = 두 번째 작은 따뜻한 점광 (0.35, d 2) */
     /* 빛 차폐 (룩 패스 4): 보이지 않는 지붕·앞벽·오른벽. 그림자만 던지고(colorWrite 끔) 노멀 패스에서는 숨긴다 → 태양·달이 창으로만 들어와 바닥에 창 모양 빛 조각 */
     var SHADE = [[-3.1, 3.1], [-0.6, 3.25], [-3.1, 3.1]];   /* 그림자 카메라 피팅용 상자 (x · y · z) */
@@ -493,7 +502,7 @@ var SCENE3D = (function () {
     parts.push({ g: box(0.1, 0.1, WIN.z1 - WIN.z0), m: M(-R + 0.1, (WIN.y0 + WIN.y1) / 2, (WIN.z0 + WIN.z1) / 2), c: W[1] });                            /* 가로 살 */
     [DOOR.x0 - 0.06, DOOR.x1 + 0.06].forEach(function (x) { parts.push({ g: box(0.14, DOOR.h + 0.1, 0.16), m: M(x, (DOOR.h + 0.1) / 2, -R + 0.1), c: W[1] }); });   /* 문틀 */
     parts.push({ g: box(DOOR.x1 - DOOR.x0 + 0.26, 0.14, 0.16), m: M((DOOR.x0 + DOOR.x1) / 2, DOOR.h + 0.07, -R + 0.1), c: W[1] });
-    hiParts.push({ g: new T.CylinderGeometry(0.03, 0.03, 1.1, 5), m: M(lampPos.x, lampPos.y + 0.28 + 0.55, lampPos.z), c: W[0] });                   /* 등불 끈 (x=-1.6 도리에서) */
+    /* 등불 끈은 룩 패스 7 부터 등불 그룹의 자식(lampRope) — 흔들림에 따라 기운다 */
     /* 밧줄·도르래: x=-1.6 도리 아래 z=-1.9 — 끈 0.6, 바퀴 r 0.11, 양쪽으로 늘어진 밧줄 + 갈고리 + 매듭 */
     seg(hiParts, [-1.6, 3.25, -1.9], [-1.6, 2.6, -1.9], 0.045, PAL.paper[0], 5);
     hiParts.push({ g: new T.CylinderGeometry(0.11, 0.11, 0.08, 8), m: M(-1.6, 2.55, -1.9, 0, 0, Math.PI / 2), c: W[2] });
@@ -939,11 +948,13 @@ var SCENE3D = (function () {
 
     /* ── 루프 ── */
     var logged = false, candleT = 0;
+    var perf = { ring: new Float32Array(60), n: 0, i: 0 };   /* 디버그 통계 (룩 패스 7): 마지막 60 렌더 프레임의 ms/frame (stats().ms) */
     function frame(ts) {
       var dt = lastT ? Math.min(0.1, (ts - lastT) / 1000) : 0.016; lastT = ts; time += dt; frameNo++;
       if (st.lost) return;
       var idle = (st.octState === 'idle' || st.octState === 'sleep' || st.octState === 'stay') && !oct.walking && !dragging && light.t >= 1 && dither.still > 0.3;
-      if (idle && (frameNo & 1)) return;   /* 가만히 있을 땐 30fps */
+      if (idle && (frameNo & 1) && !st.force) return;   /* 가만히 있을 땐 30fps (debugStep 은 강제 렌더) */
+      var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       if (light.t < 1) { light.t = Math.min(1, light.t + dt / light.dur); applyLight(); if (light.t >= 1) light.from = null; }
       if (lampDirty) applyLamp();
       if (!st.reduced && st.lantern > 0) { lampGlow.material.opacity = glowOpacity() + Math.sin(time * 2) * 0.03 * (light.glow || 0.7) / 0.7; }
@@ -982,6 +993,7 @@ var SCENE3D = (function () {
       }
       renderer.setRenderTarget(null); renderer.render(quadScene, quadCam);
       calls += 1;
+      if (t0) { perf.ring[perf.i] = performance.now() - t0; perf.i = (perf.i + 1) % 60; if (perf.n < 60) perf.n++; }
       if (!logged && frameNo > 3) {
         logged = true; console.info('[scene3d] draw calls ' + calls + ' (≤150 ' + (calls <= 150 ? 'ok' : 'OVER') + ') · target ' + S.rw + '×' + S.rh + ' · px ' + S.p + ' · palette ' + PAL.list.length + ' · static props ' + propCount);
         if (calls > 150) console.error('[scene3d] draw calls ' + calls + ' > 150 (renderer.info)');   /* 예산 단언: look-shots / evidence3d 가 console.error 로 실패 처리 */
@@ -1030,6 +1042,10 @@ var SCENE3D = (function () {
         else { var base = PAL.list.slice(0, PAL.list.length - PAL.oct.length); for (var i = 0; i < base.length; i += 8) out.push({ name: PAL.source + ' ' + (i / 8 + 1), colors: base.slice(i, i + 8) }); }
         out.push({ name: 'oct', colors: PAL.oct }); return out;
       },
+      /* 디버그 (룩 패스 7, tools/look-strip.js): 루프를 멈추고 dt 초만큼 한 프레임 진행·렌더 (idle 30fps 건너뛰기 무시) → 12 fps 프레임 스트립을 결정적으로 찍는다. resume() 으로 재개 */
+      debugStep: function (dt) { st.paused = true; cancelAnimationFrame(raf); st.force = true; frame((lastT || 0) + Math.max(0.001, +dt || 1 / 12) * 1000); st.force = false; },
+      screenOf: function (x, y, z) { var p = _hp.set(x, y, z).project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 월드 → 컨테이너 CSS px (스트립 크롭 중심) */
+      msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
       stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2) }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastT = 0; loop(); },
