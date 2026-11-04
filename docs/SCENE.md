@@ -33,9 +33,28 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
 ## 문어 (DESIGN §7.1 · `assets/ref/octopus-ref.png`)
 - 로컬 단위 = 머리 반지름 r, 전체 **0.42 배(r = 0.42 m ≈ 방 폭 8%)**. 머리 = 구 r1 (중심 y 0.92, y 0.88 찌그림 → 바닥 틈 1.7 cm), 눈 흰자 2(r 0.24, 둘 다 정면 y 0.67) + 하이라이트 타원(좌상) + 흰 점 + `_` 입(폭 0.3 r, 눈 아래) → **정점색 1메시**. 동공(r 0.13, 검정 + 흰 글린트) 2, 눈꺼풀(몸색) 1, 홍조 원판 2(1메시), `^ ^` 토러스 반원 2(1메시). 다리 8 = 바깥·아래로 말리는 테이퍼 사슬 4마디(두께 0.38 r → 0.13 r, **길이 ≈ 0.9 r**, 밑면이 바닥 y=0 에 닿고 끝이 들림) + 관절 구 + 빨판 점 2(끝마디 밑면, 연한 색), 각각 1메시. 흔들림·걷기는 다리를 위로만 든다. 히트 구 r 0.67 m(≈72 CSS px), 접지 데칼 1.34 m. 패스 기록: `docs/LOOK_LOG.md`.
 - 재질 `MeshToonMaterial` + 3단 gradientMap, 정점색. 색은 설정(hue 슬라이더 + 프리셋 6, `settings.octColor`, 기본 `#e8463c`)에서 하이라이트(L+0.14, b+0.07)·빨판(L+0.26)·입(L−0.32) 파생. 색을 바꾸면 한 번 흔들고 팔레트의 문어 램프 5칸만 교체.
-- 상태: idle(숨 4 s, 깜빡임 3~7 s, 다리 흔들) · anticipate(600 ms 눌림) · walk/carry(1.2 m/s, 다리 번갈아, 통통, 진행 방향으로 회전, 도착 시 0.4 m 폴짝) · away(숨김) · carry(포스터 평면 들기) · hang(포스터가 보드 칸으로 500 ms 날아감) · happy(폴짝 2) · sleep(눈 감음, hue ±18° 12 s) · stay · peek(좌우 흔들) · pet(`^ ^` + 홍조 + 눌림 + 색이 따뜻해짐. 2 s 뒤 APP 이 70% 기대기 / 30% 산책을 고른다 — 시무룩 없음).
+- 상태: idle(숨 4 s, 깜빡임 3~7 s, 다리 흔들) · anticipate(600 ms 눌림 + 반눈 `calm`) · walk/carry(1.2 m/s, 다리 번갈아, 통통, 진행 방향으로 회전, 도착 시 0.4 m 폴짝) · away(숨김) · carry(포스터 평면 들기) · hang(포스터가 보드 칸으로 500 ms 날아감) · happy(폴짝 2 + 꼭대기에서 다리 바깥 ×1.3) · sleep(`— —` 눈 + 6 % 납작 + hue ±18° 12 s) · stay · peek(좌우 흔들) · pet(`^ ^` + 홍조 원판 2 + 12 % 눌림 + ±4° 느린 흔들 + 색이 따뜻해짐. 2 s 뒤 APP 이 70% 기대기 / 30% 산책을 고른다 — 시무룩 없음). 눈·입·홍조는 **표정**이 그린다(아래 "초상·표정") — 상태는 기본 표정을 고를 뿐.
 - 동공은 포인터를 따라간다(`lookAt` 으로 입력칸도). 가만히 있으면 카메라 쪽을 본다.
 - 위치는 `oct.pos`(논리, 걷기 보간)이고 `octG.position` 은 매 프레임 그걸 카메라 우/상 축 픽셀 격자에 스냅한 값(룩 패스 5) — 걷는 동안 실루엣이 반 픽셀로 흐르지 않는다.
+
+## 초상·표정 (룩 패스 8 · DESIGN §15.2 · `assets/ref/ui-ref-portrait-dialog.jpg`)
+**표정** `setExpression(expr)` — 장면과 초상이 하나의 표정 상태를 공유한다. 상태(`setOctState`)는 기본 표정만 고른다(`happy→happy · pet→pet · sleep→sleep · anticipate→calm · 나머지→idle`), app.js 가 나중에 `setExpression` 으로 덮어쓴다(로그 대화창 행에서 같은 표정의 초상을 붙인다). `expression()` 로 현재 표정, `SCENE3D.EXPRESSIONS` / `scene.EXPRESSIONS` 로 목록. 모르는 이름은 `idle`.
+| 표정 | 눈 | 그 밖에 (장면 동작 · 초상 정지 자세) |
+|---|---|---|
+| `idle` | 둥근 흰자 + 동공(포인터 따라감) | 숨쉬기, 깜빡임 3~7 s |
+| `blink` | 눈꺼풀 + 짧은 직선 `- -` (0.30 r) | 깜빡임이 눈 뜬 표정(idle·curious·calm·sleepy)에 120 ms 끼어드는 표정. 모션 감소면 없음 |
+| `happy` | 눈꺼풀 + `^ ^` 호(토러스 r 0.17, 관 0.06) + `u` 웃는 입(아래 반원 토러스 r 0.13, `_` 입 위에 겹침) | 장면: 폴짝 2번(0.45 s × 2, 0.5 r) + **꼭대기에서 다리 바깥 ×1.3** (`arm.scale.x`, 모션 감소 = 다리만 ×1.3 정지) |
+| `pet` | happy + **홍조 원판 2**(r 0.15, 뺨 (±0.52, 0.50, 0.80), 색 L+0.3 — 빨판과 비슷한 연한 색) | 장면: 12 % 눌림(sx 1.06~1.09 · sy 0.88~0.85) + ±4° 느린 좌우 흔들(0.6 Hz) + 몸색이 hi 쪽 35 % 로 따뜻해짐. 초상: 눌린 자세 + 끝값 색 |
+| `sleep` | 눈꺼풀 + `— —` 긴 선(0.42 r, 눈 아래 0.04, 바깥 끝 8° 처짐) | 장면: 6 % 납작 + hue ±18° 12 s 순환, 다리 정지. 초상: 납작 + hue +12° |
+| `curious` | 흰자·동공 **×1.3** (큰 흰자 메시가 보통 흰자를 덮는다) · `?` 말풍선은 UI 몫 | 장면: 포인터 쪽으로 **8° 기울임**(포인터 없으면 오른쪽), 초상도 8° |
+| `calm` | 반눈: 눈꺼풀을 0.28 r 올려 위 50 % 가림(동공은 z+0.10 으로 눈꺼풀 뒤) | anticipate 의 "눈 가늘게" |
+| `sleepy` | 눈꺼풀 65 %(0.21 r) + 동공 0.05 아래 | 살짝 납작(sy 0.96) |
+눈 부품은 전부 **기하**(토운 재질, `bodyG` 자식): 눈꺼풀 = 몸색 구 r 0.27 (z 0.85 배, 앞면 z+0.25) · 선·호·웃는 입은 z+0.26(눈꺼풀 앞) · 홍조 원판 · 큰 흰자. idle 에선 모두 숨김이라 **방 패스 드로우콜 77/85 그대로**(표정마다 +1~4). 64 px 초상에서 눈 흰자 14 px · 동공 7 px · 선·호 2 px 두께 · 홍조 9 px · 입 9×1~2 px 로 읽힌다.
+
+**초상** `portrait(expr, { bg }) → 64×64 <canvas>` · `portraitURL(expr, { bg }) → data URL`. 두 번째 직교 카메라 `pCam` 이 문어 **머리만** 잡는다: `octG` 로컬 공간에서 정면 + **위 15°**, 거리 10 r, 프러스텀 반폭 **1.08 r**(머리 2 r + 외곽선 여백), 타깃 = 머리 중심 0.14 r 아래(눈이 아래 ⅔, 입·턱이 들어오고 정수리는 살짝 잘린다 — 레퍼런스의 "큰 얼굴" 구도). `camera.layers = 2`: 머리·동공·눈꺼풀·선·호·홍조·큰눈·웃는 입만 레이어 2 에 올렸으므로 방 소품·다리·접지 데칼·들고 있는 포스터는 안 찍힌다. **조명도 레이어로 걸러지므로** 시각대 조명 대신 레이어 2 전용 3점 리그(`octG` 자식, 문어를 따라 돈다): 키 `#ffe4c4` ×0.9 좌상 앞 (−1.2, 2.4, 2.0) · 필 `#b8ccff` ×0.4 우 앞 (2.0, 1.2, 1.4) · 림 `#ffffff` ×0.35 뒤 위 (0.6, 2.6, −1.6) · 앰비언트 ×0.18 — 밤에도 얼굴이 같은 밝기로 읽힌다. 패스: 뷰티 `rtP`(64×64, 깊이 텍스처) → 노멀 `rtPN` → 같은 후처리 셰이더 `postP`(팔레트·가중치·Bayer 유니폼은 `post` 와 공유; **디더 0 · 비네트 0 · 블룸 0**, 외곽선·노멀 하이라이트 그대로, `uKeepAlpha` 1 = 뷰티 알파 통과) → `rtPO` → `readRenderTargetPixels` → 2D 캔버스(세로 뒤집기). 배경 `bg`: `'transparent'`(기본, 알파 0) · `'navy'`(Apollo `#172038`) · `'#rrggbb'`. 찍는 동안 몸 변환(눌림·폴짝·기울임)·표정·몸색을 표정의 정지 자세로 바꿨다가 되돌리고 `away` 여도 보이게 한다.
+**캐시**: 키 = `표정|몸색|팔레트|배경`, `setColor`·`setPalette` 가 비운다. 매 프레임 X — `portrait()` 는 캐시 캔버스의 **복사본**(로그 행마다 하나씩 붙일 수 있게; `{ shared: true }` 면 캐시 캔버스 그대로), `portraitURL` 은 `toDataURL` 도 캐시. 비용: SwiftShader(소프트웨어, `tools/portrait-shots.js`)에서 5~10 ms/장, 첫 장은 셰이더 변형(3점 조명 토운) 컴파일로 ≈ 240 ms → 2번째 프레임에 `idle` 을 미리 한 장 찍어 워밍업. GPU 에선 64×64 3패스라 ≤ 2 ms 로 본다(실측은 폰에서). `stats().portraitMs/portraitN/portraitCache/expr`, `motion().expr/hop/armX/tilt/squashY`.
+2D 폴백(`SCENE2D`)은 같은 API: `setExpression` 은 `#oct` 에 `ex-<name>` 클래스만, `portrait` 는 2D 캔버스에 바로 그린 64×64 얼굴(머리 원 + 눈·입·홍조 8종).
+증거: `node tools/portrait-shots.js apollo` → `tests/evidence/look/portraits.png`(표정 8 × 192 px) · `tests/evidence/portrait-<expr>.png`(64×64 원본, 고유 색 ≤ 24 검사·캐시 검사) · `tests/evidence/look/actions-strip.png`(`happy` 6프레임 × 0.15 s, 문어 주변 120×120 CSS px).
 
 ## 팔레트 (스냅 소스 선택, OKLab 최근접, 근소 동률은 밝은 쪽 · 룩 패스 3)
 `settings.palette` = `ramps` | `apollo` | `endesga64` | `resurrect64` (기본 **apollo**, `SCENE3D.PAL_DEFAULT`; 방 보기 시트·데모 패널의 4갈래 칩 "즉흥 / Apollo / Endesga / Resurrect", `APP.setPalette`, `scene.setPalette`). `js/palettes.js` 가 `index.html` 에서 `scene3d.js` 앞에 로드된다(전역 `PALETTES`, 출처·검증은 파일 머리).

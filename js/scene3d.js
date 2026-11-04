@@ -15,6 +15,7 @@ var SCENE3D = (function () {
   /* 방 5×5 m (x,z ∈ [-2.5, 2.5]). 뒷벽 오른쪽 끝의 문으로 나간다 (§13.2 의 앞쪽 문은 직교 시점에서 바닥을 가려 뒷벽으로 옮김) */
   var R = 2.5;
   var ANCHORS = { door: [1.95, 0, -2.05], window: [-1.8, 0, 0.4], crate: [1.25, 0, -1.0], board: [0.1, 0, -2.0], blanket: [-1.0, 0, 1.5], center: [0, 0, 0.2] };
+  var EXPRESSIONS = ['idle', 'blink', 'happy', 'pet', 'sleep', 'curious', 'calm', 'sleepy'];   /* 표정 8 (DESIGN §15.2) — 장면과 초상이 setExpression 하나로 공유 */
 
   /* ───────────────────────── 색 수학 (sRGB ↔ 선형 ↔ OKLab) ───────────────────────── */
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -94,7 +95,8 @@ var SCENE3D = (function () {
   function octDerived(hex) {
     var lab = hexToOklab(hex);
     return { body: hex, hi: oklabToHex([clamp(lab[0] + 0.14, 0, 0.95), lab[1] - 0.02, lab[2] + 0.07]), pale: oklabToHex([clamp(lab[0] + 0.26, 0, 0.96), lab[1] - 0.04, lab[2] + 0.06]),
-      mouth: oklabToHex([clamp(lab[0] - 0.32, 0.1, 1), lab[1] * 0.8, lab[2] * 0.6]), eye: '#1b1f2e', white: '#fff6ee' };
+      mouth: oklabToHex([clamp(lab[0] - 0.32, 0.1, 1), lab[1] * 0.8, lab[2] * 0.6]), eye: '#1b1f2e', white: '#fff6ee',
+      blush: oklabToHex([clamp(lab[0] + 0.3, 0, 0.96), lab[1] + 0.02, lab[2] + 0.02]) };   /* 홍조 원판: 몸보다 훨씬 밝고(L+0.3, 빨판과 비슷) 조금 더 붉게 — 홍조로 밝아진 몸(hi 쪽 35 %) 위에서도 한 칸 이상 뜬다 */
   }
 
   /* ───────────────────────── GLSL 후처리 ───────────────────────── */
@@ -104,7 +106,7 @@ var SCENE3D = (function () {
     'varying vec2 vUv;',
     'uniform sampler2D tDiffuse, tDepth, tNormal, uBayer, tBloom; uniform vec2 uRes; uniform float uNear, uFar;',
     'uniform vec3 uPalOk[72]; uniform vec3 uPalRgb[72]; uniform int uPalN; uniform vec3 uW;',
-    'uniform float uDither, uOutline, uHasNormal, uVig, uBloom;',
+    'uniform float uDither, uOutline, uHasNormal, uVig, uBloom, uKeepAlpha;',   /* uKeepAlpha 1 = 뷰티 알파를 그대로 (초상 투명 배경) */
     'vec3 srgbToLinear(vec3 c){ vec3 lo = c / 12.92; vec3 hi = pow((c + 0.055) / 1.055, vec3(2.4)); return mix(lo, hi, step(vec3(0.04045), c)); }',
     'vec3 linToOklab(vec3 c){ c = max(c, vec3(0.0));',
     '  float l = 0.412221469470763 * c.r + 0.5363325372617348 * c.g + 0.0514459932675022 * c.b;',
@@ -150,7 +152,7 @@ var SCENE3D = (function () {
     '  for (int i = 0; i < 72; i++) { if (i >= uPalN) break;',
     '    vec3 d = (ok - uPalOk[i]) * uW; float q = dot(d, d);',
     '    if (q < best - 0.0005 || (q < best + 0.0005 && uPalOk[i].x > bestL)) { best = q; bi = i; bestL = uPalOk[i].x; } }',  /* 근소 동률 → 밝은 쪽 */
-    '  gl_FragColor = vec4(uPalRgb[bi], 1.0);',
+    '  gl_FragColor = vec4(uPalRgb[bi], mix(1.0, texture2D(tDiffuse, vUv).a, uKeepAlpha));',
     '}'].join('\n');
   /* 발광 블러 (룩 패스 6): 한 축 5탭 [0.12 0.22 0.32 0.22 0.12] (오프셋 ±1·±2 아트px, 반지름 ≈ 2px) — 가로 한 번·세로 한 번. 가우시안보다 평평한 꼬리라 2px 째 고리가 스냅 뒤에도 남는다 */
   var BLUR_FRAG = [
@@ -293,7 +295,7 @@ var SCENE3D = (function () {
       tDiffuse: { value: rt.texture }, tDepth: { value: rt.depthTexture || rtN.texture }, tNormal: { value: rtN.texture }, tBloom: { value: rtE.texture }, uBloom: { value: BLOOM },
       uRes: { value: new T.Vector2(4, 4) }, uNear: { value: 0.1 }, uFar: { value: 60 },
       uPalOk: { value: new Float32Array(216) }, uPalRgb: { value: new Float32Array(216) }, uPalN: { value: 0 }, uW: { value: new T.Vector3(1, 1.3, 1.3) },
-      uDither: { value: 0 }, uOutline: { value: hasDepthTex ? 1 : 0 }, uHasNormal: { value: 1 }, uVig: { value: hasDepthTex ? 1 : 0 }, uBayer: { value: keep(bayerTex()) } } }));
+      uDither: { value: 0 }, uOutline: { value: hasDepthTex ? 1 : 0 }, uHasNormal: { value: 1 }, uVig: { value: hasDepthTex ? 1 : 0 }, uBayer: { value: keep(bayerTex()) }, uKeepAlpha: { value: 0 } } }));
     renderer.autoClear = false;   /* 패스마다 명시적으로 클리어 (발광 패스는 색만 지우고 뷰티 깊이를 쓴다) */
     var quadGeo = keep(new T.BufferGeometry());
     quadGeo.setAttribute('position', new T.Float32BufferAttribute([-1, 3, 0, -1, -1, 0, 3, -1, 0], 3));
@@ -850,10 +852,17 @@ var SCENE3D = (function () {
       var g = keep(mergeParts([{ g: new T.SphereGeometry(PUPIL_R, 8, 6), m: M(0, 0, 0), c: OC.eye }, { g: new T.SphereGeometry(0.055, 5, 4), m: M(-0.045, 0.05, 0.105), c: OC.white }]));
       var m = new T.Mesh(g, toon); m.receiveShadow = true; m.position.set(e[0], e[1], e[2] + 0.14); bodyG.add(m); return m;
     });
-    var lidGeo = keep(mergeParts(EYE.map(function (e) { return { g: new T.SphereGeometry(EYE_R + 0.03, 10, 8), m: M(e[0], e[1], e[2] + 0.01, 0, 0, 0, 1, 1, 0.6), c: OC.body, tag: 1 }; })));
+    /* ── 얼굴 부품 (룩 패스 8 표정 · DESIGN §15.2): 장면과 초상이 setExpression 하나로 공유. 전부 기하(구·토러스·박스, 토운 재질)라 64 px 초상에서도 읽힌다. idle 에선 아래 전부 숨김 → 방 패스 드로우콜 그대로.
+       눈꺼풀 = 몸색 구 r 0.27 (z 0.85 배, 앞면 z+0.25) — y 오프셋으로 반쯤 감김(calm 0.28 = 50 %, sleepy 0.21 = 65 %; 이때 동공을 z+0.10 으로 물려 눈꺼풀 뒤에 둔다). 감은 눈은 동공 숨김.
+       `— —` 선: blink 0.30×0.07 직선 · sleep 0.42×0.07 눈 아래 0.04, 바깥 끝 8° 처짐 · `^ ^` 호 토러스 r 0.17 관 0.06 · 홍조 원판 r 0.15 ×2 · 큰 눈 흰자 ×1.3(curious, 동공도 ×1.3) · `u` 입 = 아래 반원 토러스 r 0.13 (happy·pet, `_` 입 위에 겹쳐 웃는 입). 선·호는 z+0.26 (눈꺼풀 앞) */
+    var lidGeo = keep(mergeParts(EYE.map(function (e) { return { g: new T.SphereGeometry(EYE_R + 0.03, 10, 8), m: M(e[0], e[1], e[2] + 0.02, 0, 0, 0, 1, 1, 0.85), c: OC.body, tag: 1 }; })));
     var lids = new T.Mesh(lidGeo, toon); lids.visible = false; lids.receiveShadow = true; bodyG.add(lids);
-    var arcs = new T.Mesh(keep(mergeParts(EYE.map(function (e) { return { g: new T.TorusGeometry(0.17, 0.04, 5, 8, Math.PI), m: M(e[0], e[1] - 0.04, e[2] + 0.2), c: OC.eye }; }))), toon); arcs.visible = false; bodyG.add(arcs);
-    var blush = new T.Mesh(keep(mergeParts([[-0.57, 0.52, 0.72], [0.57, 0.52, 0.72]].map(function (p) { return { g: new T.CircleGeometry(0.15, 8), m: M(p[0], p[1], p[2], 0, p[0] < 0 ? -0.5 : 0.5, 0), c: OC.hi, tag: 2 }; }))), toon); blush.visible = false; bodyG.add(blush);
+    var arcs = new T.Mesh(keep(mergeParts(EYE.map(function (e) { return { g: new T.TorusGeometry(0.17, 0.06, 5, 8, Math.PI), m: M(e[0], e[1] - 0.04, e[2] + 0.26), c: OC.eye }; }))), toon); arcs.visible = false; bodyG.add(arcs);
+    var blush = new T.Mesh(keep(mergeParts([[-0.52, 0.50, 0.80], [0.52, 0.50, 0.80]].map(function (p) { return { g: new T.CircleGeometry(0.15, 8), m: M(p[0], p[1], p[2], 0, p[0] < 0 ? -0.4 : 0.4, 0), c: OC.blush, tag: 5 }; }))), toon); blush.visible = false; bodyG.add(blush);
+    var linesB = new T.Mesh(keep(mergeParts(EYE.map(function (e) { return { g: box(0.30, 0.07, 0.06), m: M(e[0], e[1], e[2] + 0.26), c: OC.eye }; }))), toon); linesB.visible = false; bodyG.add(linesB);
+    var linesS = new T.Mesh(keep(mergeParts(EYE.map(function (e) { return { g: box(0.42, 0.07, 0.06), m: M(e[0], e[1] - 0.04, e[2] + 0.26, 0, 0, e[0] < 0 ? 0.14 : -0.14), c: OC.eye }; }))), toon); linesS.visible = false; bodyG.add(linesS);
+    var bigEyes = new T.Mesh(keep(mergeParts(EYE.map(function (e) { return { g: new T.SphereGeometry(EYE_R * 1.3, 10, 8), m: M(e[0], e[1], e[2], 0, 0, 0, 1, 1, 0.55), c: OC.white }; }))), toon); bigEyes.visible = false; bigEyes.receiveShadow = true; bodyG.add(bigEyes);
+    var smile = new T.Mesh(keep(mergeParts([{ g: new T.TorusGeometry(0.13, 0.035, 5, 8, Math.PI), m: M(0, 0.57, 0.90, 0, 0, Math.PI), c: OC.mouth, tag: 3 }])), toon); smile.visible = false; bodyG.add(smile);
     /* 다리 키포인트 [바깥 거리, 높이(뿌리 기준), 반지름]: 뿌리는 몸 안(0.62 r, 0.30 r), 밑면이 바닥(y=0)에 닿고 끝이 들린다 */
     var ARM = [[0, 0, 0.19], [0.26, -0.12, 0.17], [0.50, -0.17, 0.14], [0.70, -0.19, 0.11], [0.82, -0.08, 0.065]], ARM_ROOT = [0.60, 0.30];
     function armParts() {
@@ -886,9 +895,107 @@ var SCENE3D = (function () {
       if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return;
       st.color = hex; OC = octDerived(hex); PAL = buildPalette(hex, st.palette); uploadPalette();
       octColor(hex); recolor(headGeo, 2, OC.hi); recolor(headGeo, 3, OC.mouth); recolor(blush.geometry, 2, OC.hi);
-      arms.forEach(function (m) { recolor(m.geometry, 4, OC.pale); });
+      arms.forEach(function (m) { recolor(m.geometry, 4, OC.pale); }); recolor(blush.geometry, 5, OC.blush); recolor(smile.geometry, 3, OC.mouth);
       oct.wiggle = 0.7;   /* 색을 바꾸면 한 번 흔들 (§14) */
+      portraitFlush();
     }
+    /* ── 표정 (룩 패스 8): lid = 눈꺼풀 y 오프셋(null 숨김 · 0 완전히 감음) · pupil = 동공 배율(0 숨김) · pz = 동공 z · dy = 동공 y 오프셋 · pose = 초상·모션 감소 정지 자세 [sx, sy, rz] */
+    var FACES = {
+      idle: { lid: null, pupil: 1, pz: 0.14 },
+      blink: { lid: 0, pupil: 0, linesB: true },
+      happy: { lid: 0, pupil: 0, arcs: true, smile: true },
+      pet: { lid: 0, pupil: 0, arcs: true, smile: true, blush: true, pose: [1.06, 0.88, 0] },
+      sleep: { lid: 0, pupil: 0, linesS: true, pose: [1.03, 0.94, 0] },
+      curious: { lid: null, pupil: 1.3, pz: 0.14, big: true, pose: [1, 1, -8 * DEG] },
+      calm: { lid: 0.28, pupil: 1, pz: 0.10 },
+      sleepy: { lid: 0.21, pupil: 1, pz: 0.10, dy: -0.05, pose: [1.02, 0.96, 0] }
+    };
+    var OPEN_EYES = { idle: 1, curious: 1, calm: 1, sleepy: 1 };                              /* 깜빡임이 끼어드는 표정 */
+    var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' };   /* 상태 → 기본 표정 (나머지는 idle). app.js 가 나중에 setExpression 으로 덮어쓴다 (DESIGN §15.2) */
+    var face = { expr: 'idle', applied: '', t: 0, hopsLeft: 0, dy: 0 };
+    function applyFace(name) {
+      var f = FACES[name] || FACES.idle;
+      lids.visible = f.lid != null; lids.position.y = f.lid || 0;
+      pupils.forEach(function (p, k) { p.visible = f.pupil > 0; p.scale.setScalar(f.pupil || 1); p.position.z = EYE[k][2] + (f.pz || 0.14); });
+      arcs.visible = !!f.arcs; smile.visible = !!f.smile; blush.visible = !!f.blush; linesB.visible = !!f.linesB; linesS.visible = !!f.linesS; bigEyes.visible = !!f.big;
+      face.applied = name; face.dy = f.dy || 0;
+    }
+    function syncFace() { var eff = oct.blinkLeft > 0 ? 'blink' : face.expr; if (eff !== face.applied) applyFace(eff); }
+    function setExpression(name) {
+      name = FACES[name] ? name : 'idle';
+      if (name !== face.expr) { face.expr = name; face.t = 0; face.hopsLeft = name === 'happy' ? 2 : 0; }
+      else if (name === 'happy') { face.t = 0; face.hopsLeft = 2; }   /* 다시 happy → 다시 폴짝 */
+      if (!OPEN_EYES[name]) oct.blinkLeft = 0;
+      syncFace();
+    }
+
+    /* ── 초상 (DESIGN §15.2 · 룩 패스 8): 문어 **머리만** 잡는 두 번째 직교 카메라(정면 + 위 15°, 거리 10 r, 프러스텀 2.16 r = 머리 2 r + 외곽선 여백, 타깃은 머리 중심보다 0.14 r 아래) → 64×64 RT → 같은 후처리(팔레트 스냅·외곽선; 디더 0·비네트 0·블룸 0) → 2D 캔버스.
+       레이어 2 = 머리·눈 부품 + 전용 3점 조명(따뜻한 키 · 차가운 필 · 림 + 약한 앰비언트, 시각대와 무관 → 얼굴이 늘 읽힌다). 방 소품·다리·시각대 조명은 레이어 0 이라 안 찍힌다(three 는 조명도 레이어로 거른다).
+       표정·몸색·팔레트·배경 키로 캐시 — 매 프레임 X. 찍는 동안 몸 변환(눌림·폴짝·기울임)·표정·색을 표정의 정지 자세로 바꿨다가 되돌린다 */
+    var PORT = { N: 64, hw: 1.08, tilt: 15 * DEG, dist: 10, down: 0.14, cache: {}, ms: 0, n: 0, warm: false };   /* 프러스텀 반폭 1.08 r · 위에서 15° · 거리 10 r · 타깃 = 머리 중심 0.14 r 아래 (눈이 아래 ⅔, 입·턱이 들어오고 정수리는 살짝 잘린다) */
+    [head, lids, arcs, blush, linesB, linesS, bigEyes, smile].concat(pupils).forEach(function (m) { m.layers.enable(2); });
+    var rigG = new T.Group(); octG.add(rigG);
+    function rigLight(hex, i, x, y, z) { var l = new T.DirectionalLight(C(hex).getHex(), i); l.position.set(x, y, z); l.target.position.set(0, HEAD_Y, 0); l.layers.set(2); rigG.add(l); rigG.add(l.target); return l; }
+    rigLight('#ffe4c4', 0.9, -1.2, 2.4, 2.0); rigLight('#b8ccff', 0.4, 2.0, 1.2, 1.4); rigLight('#ffffff', 0.35, 0.6, 2.6, -1.6);   /* 키(좌상 앞, 따뜻) · 필(우 앞, 차가움) · 림(뒤 위) */
+    var rigAmb = new T.AmbientLight(0xffffff, 0.18); rigAmb.layers.set(2); rigG.add(rigAmb);
+    var pCam = new T.OrthographicCamera(-1, 1, 1, -1, 0.1, 12), _pp = new T.Vector3(), _pt = new T.Vector3(), _cc = new T.Color(); pCam.layers.set(2);
+    var rtP = keep(new T.WebGLRenderTarget(PORT.N, PORT.N, { minFilter: T.NearestFilter, magFilter: T.NearestFilter, format: T.RGBAFormat, type: T.UnsignedByteType, depthBuffer: true, stencilBuffer: false,
+      depthTexture: hasDepthTex ? new T.DepthTexture(PORT.N, PORT.N, T.UnsignedIntType) : undefined }));
+    rtP.texture.encoding = T.sRGBEncoding; rtP.texture.generateMipmaps = false;
+    var rtPN = keep(new T.WebGLRenderTarget(PORT.N, PORT.N, { minFilter: T.NearestFilter, magFilter: T.NearestFilter, format: T.RGBAFormat, depthBuffer: true, stencilBuffer: false }));
+    var rtPO = keep(new T.WebGLRenderTarget(PORT.N, PORT.N, { minFilter: T.NearestFilter, magFilter: T.NearestFilter, format: T.RGBAFormat, type: T.UnsignedByteType, depthBuffer: false, stencilBuffer: false }));
+    var postP = keep(new T.ShaderMaterial({ depthTest: false, depthWrite: false, vertexShader: VERT, fragmentShader: FRAG, uniforms: {   /* 팔레트·가중치·Bayer 유니폼 객체는 post 와 공유 (uploadPalette 한 번) */
+      tDiffuse: { value: rtP.texture }, tDepth: { value: rtP.depthTexture || rtPN.texture }, tNormal: { value: rtPN.texture }, tBloom: { value: rtPN.texture }, uBloom: { value: 0 },
+      uRes: { value: new T.Vector2(PORT.N, PORT.N) }, uNear: { value: pCam.near }, uFar: { value: pCam.far },
+      uPalOk: post.uniforms.uPalOk, uPalRgb: post.uniforms.uPalRgb, uPalN: post.uniforms.uPalN, uW: post.uniforms.uW,
+      uDither: { value: 0 }, uOutline: { value: hasDepthTex ? 1 : 0 }, uHasNormal: { value: 1 }, uVig: { value: 0 }, uBayer: post.uniforms.uBayer, uKeepAlpha: { value: 1 } } }));
+    var pBuf = new Uint8Array(PORT.N * PORT.N * 4);
+    function portraitBg(o) { var b = o && o.bg; if (!b || b === 'transparent') return null; if (b === 'navy') return '#172038'; return /^#[0-9a-f]{6}$/i.test(b) ? b : null; }   /* 기본 투명 · 'navy' = Apollo 남색 · '#rrggbb' */
+    function renderPortrait(expr, bgHex) {
+      var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+      var sv = { sx: bodyG.scale.x, sy: bodyG.scale.y, sz: bodyG.scale.z, py: bodyG.position.y, rz: bodyG.rotation.z, vis: octG.visible, applied: face.applied, hex: oct.curHex || st.color, bg: scene.background };
+      var sc = renderer.getClearColor(_cc).clone(), sa = renderer.getClearAlpha();
+      var pose = FACES[expr].pose || [1, 1, 0];
+      applyFace(expr);
+      var hex = expr === 'pet' ? mixHex(st.color, OC.hi, 0.35) : expr === 'sleep' ? hueHex(st.color, 12) : st.color;   /* pet = 장면의 홍조 끝값, sleep = 색 순환 한 자락 */
+      if (hex !== sv.hex) octColor(hex);
+      octG.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]); bodyG.position.y = 0; bodyG.rotation.z = pose[2];
+      octG.updateMatrixWorld(true);
+      var ty = (HEAD_Y - PORT.down) * pose[1];
+      _pt.set(0, ty, 0); octG.localToWorld(_pt);
+      _pp.set(0, ty + PORT.dist * Math.sin(PORT.tilt), PORT.dist * Math.cos(PORT.tilt)); octG.localToWorld(_pp);
+      var hw = PORT.hw * OCT_R; pCam.left = -hw; pCam.right = hw; pCam.top = hw; pCam.bottom = -hw; pCam.updateProjectionMatrix();
+      pCam.position.copy(_pp); pCam.up.set(0, 1, 0); pCam.lookAt(_pt); pCam.updateMatrixWorld();
+      scene.background = bgHex ? C(bgHex) : null;
+      renderer.setClearColor(bgHex ? C(bgHex) : 0x000000, bgHex ? 1 : 0);
+      renderer.setRenderTarget(rtP); renderer.clear(true, true, false); renderer.render(scene, pCam);
+      scene.overrideMaterial = normalMat; scene.background = null;
+      renderer.setRenderTarget(rtPN); renderer.clear(true, true, false); renderer.render(scene, pCam);
+      scene.overrideMaterial = null;
+      quad.material = postP; renderer.setRenderTarget(rtPO); renderer.render(quadScene, quadCam); quad.material = post;
+      renderer.readRenderTargetPixels(rtPO, 0, 0, PORT.N, PORT.N, pBuf);
+      /* 되돌리기 */
+      scene.background = sv.bg; renderer.setClearColor(sc, sa); renderer.setRenderTarget(null);
+      octG.visible = sv.vis; bodyG.scale.set(sv.sx, sv.sy, sv.sz); bodyG.position.y = sv.py; bodyG.rotation.z = sv.rz;
+      if (hex !== sv.hex) octColor(sv.hex);
+      applyFace(sv.applied);
+      var N = PORT.N, cv = document.createElement('canvas'); cv.width = cv.height = N;
+      var cx = cv.getContext('2d'), img = cx.createImageData(N, N);
+      for (var y = 0; y < N; y++) img.data.set(pBuf.subarray((N - 1 - y) * N * 4, (N - y) * N * 4), y * N * 4);   /* GL 은 아래→위 */
+      cx.putImageData(img, 0, 0);
+      if (t0) PORT.ms = +(performance.now() - t0).toFixed(2); PORT.n++;
+      return cv;
+    }
+    function portraitKey(expr, o) { return expr + '|' + st.color + '|' + PAL.source + '|' + (portraitBg(o) || 't'); }
+    function portrait(expr, o) { /* → 64×64 캔버스 (CSS 로 키운다). 기본은 캐시의 복사본(로그 행마다 하나씩 붙일 수 있게), o.shared = 캐시 캔버스 그대로 */
+      expr = FACES[expr] ? expr : 'idle';
+      var k = portraitKey(expr, o), e = PORT.cache[k];
+      if (!e) e = PORT.cache[k] = { cv: renderPortrait(expr, portraitBg(o)), url: '' };
+      if (o && o.shared) return e.cv;
+      var cv = document.createElement('canvas'); cv.width = cv.height = PORT.N; cv.getContext('2d').drawImage(e.cv, 0, 0); return cv;
+    }
+    function portraitURL(expr, o) { expr = FACES[expr] ? expr : 'idle'; var cv = portrait(expr, Object.assign({}, o, { shared: true })), e = PORT.cache[portraitKey(expr, o)]; if (!e.url) e.url = cv.toDataURL('image/png'); return e.url; }
+    function portraitFlush() { PORT.cache = {}; }
     function anchorPos(name) { var p = ANCHORS[name] || ANCHORS.center; return new T.Vector3(p[0], name === 'blanket' && st.items.indexOf('blanket') >= 0 ? 0.12 : 0, p[2]); }
     function camYaw() { return YAW + yawDelta(); }
     /* 문어 위치: oct.pos 가 논리 위치(보간·앵커), octG.position 은 매 프레임 그걸 카메라 우/상 축 픽셀 격자에 스냅한 값 (룩 패스 5: 걷는 동안 반 픽셀 금지). 스냅을 매 프레임 논리값에서 새로 하므로 요가 바뀌어도 누적 표류 없음 */
@@ -919,13 +1026,10 @@ var SCENE3D = (function () {
       if (opts.octEl) opts.octEl.className = opts.octEl.className.replace(/\bst-[a-z]+/g, '').trim() + ' st-' + s;
       var away = s === 'away';
       octG.visible = !away; octDecal.visible = !away;
-      var closed = s === 'sleep' || s === 'pet';
-      lids.visible = closed; pupils.forEach(function (p) { p.visible = !closed; });
-      arcs.visible = s === 'pet'; blush.visible = s === 'pet';
+      setExpression(STATE_EXPR[s] || 'idle');   /* 상태의 기본 표정 (룩 패스 8) */
       if (s === 'carry') { carry.visible = true; if (extra && extra.svg) bakeSVG(extra.svg, 48, 64).then(function (t) { if (t) carry.material = new T.MeshPhongMaterial({ map: t, shininess: 0, specular: 0x000000 }); }); }
       else if (s === 'hang') { if (carry.visible && !st.reduced) startHang(); carry.visible = false; }
       else carry.visible = false;
-      if (s === 'happy') oct.hopsLeft = 2;
       if (s !== 'walk' && s !== 'carry' && !oct.walking) oct.wantYaw = camYaw();
       if (s === 'idle' || s === 'stay') oct.wantYaw = camYaw();
     }
@@ -961,41 +1065,53 @@ var SCENE3D = (function () {
       var dy = oct.wantYaw - oct.faceYaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
       oct.faceYaw += red ? dy : dy * Math.min(1, dt * 8); octG.rotation.y = oct.faceYaw;
       /* 몸 */
-      var sx = 1, sy = 1, by = oct.hop, walking = s === 'walk' || s === 'carry', tb = Math.floor(t * 8) / 8;   /* 숨쉬기는 8 fps 스텝 샘플 (룩 패스 7) */
+      var sx = 1, sy = 1, by = oct.hop, walking = s === 'walk' || s === 'carry', tb = Math.floor(t * 8) / 8, ex = face.expr, splay = 0, rz = 0;   /* 숨쉬기는 8 fps 스텝 샘플 (룩 패스 7) */
+      face.t += dt;
+      /* 포인터 쪽 (동공 방향 · curious 기울임; 포인터가 없으면 오른쪽) */
+      var look = oct.lookTarget || oct.pointer, px = 0, py = 0;
+      if (look) { var sp = octScreen(), r = canvas.getBoundingClientRect(); px = clamp((look.x - (r.left + sp.x - S.offX)) / 140, -1, 1); py = clamp((look.y - (r.top + sp.y - S.offY + 30)) / 140, -1, 1); }
+      var dir = px < -0.05 ? 1 : -1;
+      /* 과장 동작 (룩 패스 8, 표정 기준 — 상태는 기본 표정으로 매핑): happy 폴짝 2 + 꼭대기에서 다리 바깥 ×1.3 · curious 포인터 쪽 8° 기울임 · pet 12 % 눌림 + 느린 좌우 흔들 ±4° · sleep 6 % 납작 + 색 순환 · anticipate(상태) 600 ms 눌림 + calm 반눈 */
       if (!red) {
         if (s === 'idle' || s === 'stay') { sy = 1 - 0.03 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2)); sx = 1 + 0.02 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2)); }
-        if (s === 'sleep') { sy = 0.95 - 0.02 * Math.sin(tb * Math.PI / 2.5); sx = 1.03; }
+        if (ex === 'sleep') { sy = 0.94 - 0.02 * Math.sin(tb * Math.PI / 2.5); sx = 1.03; }
         if (walking && oct.walking) { by += Math.abs(Math.sin(t * 10)) * 0.1; sy = 1 + 0.03 * Math.sin(t * 20); }
         if (s === 'anticipate') { var ak = Math.min(1, oct.animT / 0.6); sx = 1 + 0.05 * ak; sy = 1 - 0.08 * ak; }
-        if (s === 'pet') { var pk = 0.5 + 0.5 * Math.sin(t * Math.PI / 0.6); sx = 1 + 0.06 * pk; sy = 1 - 0.06 * pk; }
-        if (s === 'peek') bodyG.rotation.z = Math.sin(t * 4.5) * 0.12; else bodyG.rotation.z *= 0.8;
-        if (s === 'happy' && oct.hopsLeft > 0) { var hk = (oct.animT % 0.45) / 0.45; by += Math.sin(hk * Math.PI) * 0.5; if (oct.animT > 0.9) oct.hopsLeft = 0; }
+        if (ex === 'pet') { var pk = 0.5 + 0.5 * Math.sin(t * Math.PI / 0.6); sx = 1.06 + 0.03 * pk; sy = 0.88 - 0.03 * pk; rz = Math.sin(t * Math.PI / 0.8) * 4 * DEG; }
+        if (ex === 'curious') rz = -8 * DEG * dir;
+        if (ex === 'happy' && face.hopsLeft > 0) { var hk = (face.t % 0.45) / 0.45; splay = Math.sin(hk * Math.PI); by += splay * 0.5; if (face.t > 0.9) { face.hopsLeft = 0; splay = 0; } }
+        if (s === 'peek') bodyG.rotation.z = Math.sin(t * 4.5) * 0.12; else bodyG.rotation.z += (rz - bodyG.rotation.z) * Math.min(1, dt * 8);
         if (oct.wiggle > 0) { oct.wiggle -= dt; bodyG.rotation.z = Math.sin(oct.wiggle * 30) * 0.1 * oct.wiggle; }
-      } else if (s === 'sleep') sy = 0.95;
+      } else {   /* 모션 감소: 표정의 정지 자세 */
+        var pose = FACES[ex].pose; if (pose) { sx = pose[0]; sy = pose[1]; rz = pose[2]; }
+        if (ex === 'curious') rz = -8 * DEG * dir;
+        if (s === 'anticipate') { sx = 1.05; sy = 0.92; }
+        if (ex === 'happy') splay = 1;
+        bodyG.rotation.z = rz;
+      }
       bodyG.scale.set(sx, sy, sx); bodyG.position.y = snapUp(by * OCT_R) / OCT_R;   /* 폴짝·통통도 세로 정수 픽셀로 */
       /* 다리: 0 = 끝이 바닥에 닿은 자세, 흔들림은 위로만. idle 다리 끝 미세 꿈틀(룩 패스 7) = 8 fps 스텝, 다리마다 시드 주기(2~4 s)로 2스텝(0.25 s)만 끝이 화면 세로 **1px** 들림(각도 = asin(1px / 다리 길이)), 걷기는 연속 그대로 */
       anim.armAcc += dt; while (anim.armAcc >= ARM_DT - 1e-6) { anim.armAcc -= ARM_DT; anim.armStep++; } if (anim.armAcc > 1) anim.armAcc = 0;
       var armUp = Math.asin(clamp(pxUp() / (ARM[4][0] * OCT_R * sy), 0, 1));
       for (var i = 0; i < 8; i++) {
         var arm = arms[i], base = 0, w = ARMW[i];
+        arm.scale.x = 1 + 0.3 * splay;   /* happy 꼭대기: 다리 바깥으로 ×1.3 */
         if (red) { arm.rotation.z = base; continue; }
         if (walking && oct.walking) arm.rotation.z = base + (0.5 + 0.5 * Math.sin(t * 10 + (i % 2) * Math.PI)) * 0.35;
         else if (s === 'sleep') arm.rotation.z = base + 0.02;
         else arm.rotation.z = base + 0.05 + (((anim.armStep + w.ph) % w.per) < 2 ? armUp : 0);
       }
-      /* 눈 깜빡임 (룩 패스 7: 3~7 s 시드 간격, 120 ms, 눈꺼풀 덮고 동공 scaleY 0.1; 모션 감소면 없음) · 동공 */
-      if (s !== 'sleep' && s !== 'pet' && s !== 'away') {
-        if (!red) { oct.blinkT -= dt; if (oct.blinkT <= 0) { oct.blinkLeft = 0.12; oct.blinkN = (oct.blinkN | 0) + 1; oct.blinkT = 3 + (hash('blink' + oct.blinkN) % 1000) / 1000 * 4; } }
-        if (oct.blinkLeft > 0 && !red) { oct.blinkLeft -= dt; lids.visible = true; pupils[0].scale.y = pupils[1].scale.y = 0.1; }
-        else { oct.blinkLeft = 0; lids.visible = false; pupils[0].scale.y = pupils[1].scale.y = 1; pupils[0].visible = pupils[1].visible = true; }
-      }
-      var look = oct.lookTarget || oct.pointer, px = 0, py = 0;
-      if (look) { var sp = octScreen(), r = canvas.getBoundingClientRect(); px = clamp((look.x - (r.left + sp.x - S.offX)) / 140, -1, 1); py = clamp((look.y - (r.top + sp.y - S.offY + 30)) / 140, -1, 1); }
-      pupils.forEach(function (p, k) { p.position.x += ((EYE[k][0] + px * 0.07) - p.position.x) * Math.min(1, dt * 10); p.position.y += ((EYE[k][1] - py * 0.06) - p.position.y) * Math.min(1, dt * 10); });
-      /* 색: 잠(색 순환 ±18°) · 쓰다듬기(따뜻한 홍조) */
-      var want = s === 'pet' ? 1 : 0; oct.flushK += (want - oct.flushK) * Math.min(1, dt * 3);
+      /* 눈 깜빡임 (룩 패스 7: 눈 뜬 표정에서만 3~7 s 시드 간격, 120 ms — 눈꺼풀 + 짧은 선 = blink 표정이 끼어든다; 모션 감소면 없음) · 동공 */
+      if (OPEN_EYES[ex] && s !== 'away' && !red) {
+        oct.blinkT -= dt; if (oct.blinkT <= 0) { oct.blinkLeft = 0.12; oct.blinkN = (oct.blinkN | 0) + 1; oct.blinkT = 3 + (hash('blink' + oct.blinkN) % 1000) / 1000 * 4; }
+        if (oct.blinkLeft > 0) oct.blinkLeft = Math.max(0, oct.blinkLeft - dt);
+      } else oct.blinkLeft = 0;
+      syncFace();
+      pupils.forEach(function (p, k) { p.position.x += ((EYE[k][0] + px * 0.07) - p.position.x) * Math.min(1, dt * 10); p.position.y += ((EYE[k][1] + face.dy - py * 0.06) - p.position.y) * Math.min(1, dt * 10); });
+      /* 색: 잠(색 순환 ±18°) · 쓰다듬기(따뜻한 홍조) — 표정 기준 */
+      var want = ex === 'pet' ? 1 : 0; oct.flushK += (want - oct.flushK) * Math.min(1, dt * 3);
       var hex = st.color;
-      if (s === 'sleep') hex = hueHex(hex, Math.sin(t * Math.PI / 6) * 18);
+      if (ex === 'sleep') hex = hueHex(hex, Math.sin(t * Math.PI / 6) * 18);
       if (oct.flushK > 0.02) hex = mixHex(hex, OC.hi, oct.flushK * 0.35);
       if (hex !== oct.curHex) { oct.curHex = hex; octColor(hex); }
       octDecal.material.opacity = 0.42;
@@ -1114,6 +1230,7 @@ var SCENE3D = (function () {
         logged = true; console.info('[scene3d] draw calls ' + calls + ' (≤150 ' + (calls <= 150 ? 'ok' : 'OVER') + ') · target ' + S.rw + '×' + S.rh + ' · px ' + S.p + ' · palette ' + PAL.list.length + ' · static props ' + propCount);
         if (calls > 150) console.error('[scene3d] draw calls ' + calls + ' > 150 (renderer.info)');   /* 예산 단언: look-shots / evidence3d 가 console.error 로 실패 처리 */
       }
+      if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
     }
     function loop() { if (st.paused || st.hidden) return; cancelAnimationFrame(raf); raf = requestAnimationFrame(function (ts) { frame(ts); loop(); }); }
 
@@ -1132,6 +1249,8 @@ var SCENE3D = (function () {
       setWeather: function (w) { st.weather = w || 'rain'; applyWeather(); },
       setTime: setTime, setColor: setColor,
       setOctState: setOctState, setCarry: function (svg) { octState.carrySvg = svg; },
+      setExpression: setExpression, expression: function () { return face.expr; }, EXPRESSIONS: EXPRESSIONS.slice(),   /* 룩 패스 8: 표정은 상태와 별개 (상태가 기본 표정을 고르고, app.js 가 덮어쓴다) */
+      portrait: portrait, portraitURL: portraitURL,   /* 64×64 초상 캔버스 / data URL (표정·몸색·팔레트·배경 키 캐시, opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb') */
       moveTo: moveTo, jumpTo: jumpTo,
       setPosters: setPosters, setSouvenirs: setSouvenirs,
       bubble: bubble, lookAt: function (x, y) { oct.lookTarget = { x: x, y: y }; }, octScreenPos: function () { var p = octScreen(), r = canvas.getBoundingClientRect(); return { x: r.left + p.x - S.offX, y: r.top + p.y - S.offY }; },
@@ -1149,7 +1268,7 @@ var SCENE3D = (function () {
       },
       setPalette: function (name) { /* 룩 패스 3: 스냅 팔레트 소스 교체 (재질은 그대로, 디더 진폭은 새 칸 간격으로) */
         name = paletteSource(name); if (name === st.palette) return;
-        st.palette = name; PAL = buildPalette(st.color, name); uploadPalette(); ditherBase(); dither.still = 0;
+        st.palette = name; PAL = buildPalette(st.color, name); uploadPalette(); ditherBase(); dither.still = 0; portraitFlush();
       },
       paletteName: function () { return st.palette; },
       palette: function () { /* 스와치 줄: 램프면 램프별, 검증 팔레트면 8칸씩 + 문어 램프 */
@@ -1162,8 +1281,8 @@ var SCENE3D = (function () {
       debugStep: function (dt) { st.paused = true; cancelAnimationFrame(raf); st.force = true; frame((lastT || 0) + Math.max(0.001, +dt || 1 / 12) * 1000); st.force = false; },
       screenOf: function (x, y, z) { var p = _hp.set(x, y, z).project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 월드 → 컨테이너 CSS px (스트립 크롭 중심) */
       msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
-      motion: function () { return { swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced }; },   /* 룩 패스 7 디버그 */
-      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2) }; },
+      motion: function () { return { swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3) }; },   /* 룩 패스 7·8 디버그 */
+      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastT = 0; loop(); },
       destroy: function () {
@@ -1180,5 +1299,5 @@ var SCENE3D = (function () {
     };
   }
 
-  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS };
+  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS, EXPRESSIONS: EXPRESSIONS.slice() };
 })();

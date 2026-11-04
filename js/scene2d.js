@@ -227,7 +227,36 @@ var SCENE2D = (function () {
       if (s === 'carry') setCarry(true);
       else if (s === 'hang') { setCarry(false); flyPoster(); }
       else setCarry(false);
+      setExpression({ happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' }[s] || 'idle');
     }
+    /* ── 표정·초상 폴백 (DESIGN §15.2, 3D 와 같은 API): 표정은 `ex-<name>` 클래스로만 남기고, 초상은 2D 캔버스에 바로 그린 64×64 얼굴(머리 원 + 눈·입·홍조). 표정별 SVG 8종은 UI 단계에서 */
+    var EXPRESSIONS = ['idle', 'blink', 'happy', 'pet', 'sleep', 'curious', 'calm', 'sleepy'];
+    st.expr = 'idle';
+    function setExpression(name) {
+      name = EXPRESSIONS.indexOf(name) >= 0 ? name : 'idle'; st.expr = name;
+      octEl.className = octEl.className.replace(/\bex-[a-z]+/g, '').trim() + ' ex-' + name;
+    }
+    function portrait(expr) {
+      expr = EXPRESSIONS.indexOf(expr) >= 0 ? expr : 'idle';
+      var cv = document.createElement('canvas'); cv.width = cv.height = 64; var x = cv.getContext('2d');
+      var body = expr === 'pet' ? shade(st.color, 0.12) : st.color, dark = shade(st.color, -0.35), ink = '#1b1f2e', white = '#fff6ee', big = expr === 'curious' ? 1.3 : 1, closed = expr === 'blink' || expr === 'sleep';
+      x.fillStyle = ink; x.beginPath(); x.arc(32, 34, 27, 0, 7); x.fill();   /* 외곽선 */
+      x.fillStyle = body; x.beginPath(); x.arc(32, 34, 25, 0, 7); x.fill();
+      x.fillStyle = shade(body, 0.14); x.beginPath(); x.ellipse(22, 20, 6, 3, -0.5, 0, 7); x.fill();   /* 하이라이트 */
+      [22, 42].forEach(function (ex) {
+        if (closed) { x.fillStyle = ink; x.fillRect(ex - (expr === 'sleep' ? 6 : 4), 40, expr === 'sleep' ? 12 : 8, 2); return; }
+        if (expr === 'happy' || expr === 'pet') { x.strokeStyle = ink; x.lineWidth = 2; x.beginPath(); x.arc(ex, 42, 5, Math.PI, 2 * Math.PI); x.stroke(); return; }
+        x.fillStyle = white; x.beginPath(); x.arc(ex, 40, 7 * big, 0, 7); x.fill();
+        x.fillStyle = ink; x.beginPath(); x.arc(ex, 41, 4 * big, 0, 7); x.fill();
+        x.fillStyle = white; x.fillRect(ex - 2, 38, 2, 2);
+        if (expr === 'calm' || expr === 'sleepy') { x.fillStyle = body; x.fillRect(ex - 8, 32, 16, expr === 'calm' ? 8 : 10); }   /* 반쯤 감김 */
+      });
+      if (expr === 'pet') { x.fillStyle = shade(st.color, 0.3); [12, 52].forEach(function (bx) { x.beginPath(); x.ellipse(bx, 46, 4, 3, 0, 0, 7); x.fill(); }); }
+      x.fillStyle = dark; x.fillRect(28, 51, 8, 2);   /* `_` 입 */
+      if (expr === 'happy' || expr === 'pet') { x.strokeStyle = dark; x.lineWidth = 2; x.beginPath(); x.arc(32, 48, 4, 0, Math.PI); x.stroke(); }
+      return cv;
+    }
+    function portraitURL(expr) { return portrait(expr).toDataURL('image/png'); }
     function flyPoster() {
       if (!stage || st.reduced) return;
       var fly = h('div', { class: 'fly', html: (st.carrySvg || '') });
@@ -302,6 +331,7 @@ var SCENE2D = (function () {
       setTime: function () { /* 2D 는 시각 조명 없음 */ },
       setColor: setColor,
       setOctState: setOctState,
+      setExpression: setExpression, expression: function () { return st.expr; }, EXPRESSIONS: EXPRESSIONS.slice(), portrait: portrait, portraitURL: portraitURL,
       setCarry: function (svg) { st.carrySvg = svg || ''; },
       moveTo: moveTo, jumpTo: jumpTo,
       setPosters: function (list) { st.posters = (list || []).slice(); renderWall(); },
