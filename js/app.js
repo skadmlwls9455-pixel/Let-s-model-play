@@ -359,6 +359,7 @@ var APP = (function () {
     if (lbl) lbl.textContent = st === 'sleep' ? '💤' : st === 'away' ? '' : st === 'anticipate' ? '출발 중…' : '';
     if (st === 'sleep') scheduleDreamLabel();
     if (!quiet && window.UIART) UIART.onState(st);   /* zzz · 출발 먹물 (js/ui-art.js) */
+    if (window.AUDIO) AUDIO.on('state', { state: st, skip: skipFlag });   /* 소리: 움츠림·나감·잠 (js/audio.js) */
   }
 
   /* ── 출발·귀가 의식 (DESIGN §15.3 · SCENE.md "바깥·계절·전환"): 다락 문 → 전환 → 현관 → 계단 → 길 → 화면 밖 / 그 거꾸로.
@@ -403,6 +404,7 @@ var APP = (function () {
     if (!hasCeremony() || typeof scene[CER_FN[kind]] !== 'function') return Promise.resolve({ ink: false, cancelled: false });
     var my = ++cer.seq, t0 = Date.now();
     cer.kind = kind; cer.ink = false;
+    if (window.AUDIO) AUDIO.on('ceremony', { kind: kind, skip: skipFlag });   /* 소리: 출발·귀가 징글 (js/audio.js) */
     var p = kind === 'peek' ? scene.peekOutside(arg) : scene[CER_FN[kind]]();
     if (kind === 'depart' && sceneMode === '3d') watchDoorExit(my);
     if (skipFlag) jumpCeremony();
@@ -455,6 +457,7 @@ var APP = (function () {
     function hold() {
       if (shown) return; shown = true; cancelAnimationFrame(raf);
       show();
+      if (window.AUDIO) AUDIO.on('peek', { status: st, corner: arg.corner, roomId: arg.roomId, url: tg.kind === 'url', first: arg.first, skip: skipFlag });   /* 소리: 기웃 결과(상태 그대로) + 장소 테마 */
       if (skipFlag) return;   /* 건너뛰면 말풍선 없이 행만 */
       var ms = reduced() ? 900 : 1700;
       liftOverlay(ms); bubble(b.text, ms, b.kind);
@@ -524,7 +527,7 @@ var APP = (function () {
       scheduleThink();
     }, (20 + uiRng() * 20) * 1000);
   }
-  function bubble(text, ms, kind) { scene.bubble(text, ms); if (window.UIART) UIART.onBubble(text, kind); }   /* kind → 말풍선 모양 (js/ui-art.js) */
+  function bubble(text, ms, kind) { scene.bubble(text, ms); if (window.UIART) UIART.onBubble(text, kind); if (window.AUDIO) AUDIO.on('bubble', { text: text, kind: kind }); }   /* kind → 말풍선 모양 (js/ui-art.js) · 말풍선 목소리 (js/audio.js) */
   /* 말풍선 + 로그 대화창 행 (§15.2 "?" · "비가 와" · "…♡"): 장면 위 말풍선과 같은 말을 초상과 함께 오늘 칸에 남긴다 (저장 X — 새로고침하면 사라지는 혼잣말). 바로 앞 행과 같은 말이면 행은 생략 */
   function say(text, expr, ms) {
     bubble(text, ms, expr);
@@ -547,6 +550,7 @@ var APP = (function () {
     if (oct.state === 'sleep') { say('…zZ', 'sleep', 1500); return; }
     octState('pet');
     if (window.UIART) UIART.fx('heart');
+    if (window.AUDIO) AUDIO.on('pet');   /* 소리: 쓰다듬기 */
     clearTimeout(petTimer);
     petTimer = setTimeout(function () {
       if (oct.state !== 'pet') return;
@@ -564,6 +568,7 @@ var APP = (function () {
     if (sk) sk.hidden = !on;
     if (inp) inp.disabled = on;
     if (on) stopWander(); else { ensureAttic(); scheduleWander(); }
+    if (window.AUDIO) AUDIO.on('busy', { on: on });   /* 소리: 건너뛰기 표시 정리 */
   }
   function tripsOn(key) { return S.trips.filter(function (t) { return t.date === key; }); }
   function newTripId(seed) {
@@ -678,6 +683,7 @@ var APP = (function () {
         if (i > 0) { showTyping(); return gapWait((out ? 1100 + rng() * 1300 : 2200 + rng() * 2300) * speed()).then(function () { if (!out || skipFlag) hideTyping(); }); }
       }).then(function () {
         var row = eventRow(trip, ev);
+        if (window.AUDIO) AUDIO.on('row', { ev: ev, trip: trip, outside: out && !skipFlag, skip: skipFlag });   /* 소리: 공개되는 이벤트마다 (바깥 기웃은 peek 훅) */
         if (out && !skipFlag) return peekOut(ev, function () { hideTyping(); if (row) appendLogRow(today, row); });
         if (row) appendLogRow(today, row);
         return sceneFor(trip, ev);
@@ -1236,6 +1242,7 @@ var APP = (function () {
     });
     if (cnt) cnt.textContent = n + '/8';
     var rt = $('room-title'); if (rt) rt.textContent = roomTitle(n);
+    if (bloom && window.AUDIO) AUDIO.on('lantern', { n: n });   /* 소리: 등불 칸이 켜지는 순간 (8칸 = 방 완성) */
   }
   function tripById(id) { for (var i = 0; i < S.trips.length; i++) if (S.trips[i].id === id) return S.trips[i]; return null; }
   function posterTrips() { return S.room.posterOrder.map(tripById).filter(function (t) { return t && t.poster && t.status === 'done'; }); }
@@ -1411,6 +1418,7 @@ var APP = (function () {
     frag.appendChild(h('h3', { text: '팔레트' }));
     frag.appendChild(h('p', { class: 'help', text: sceneMode === '3d' ? '방 전체의 색을 맞추는 팔레트. 즉흥 = 직접 만든 램프, 나머지는 픽셀아트 커뮤니티 팔레트(Lospec).' : '2D 장면에서는 적용 안 돼.' }));
     frag.appendChild(paletteChips('rs-pal'));
+    if (window.AUDIO) AUDIO.on('room_sheet', { frag: frag });   /* 소리: 음악·효과음 크기 (js/audio.js) */
     frag.appendChild(h('h3', { text: '설정' }));
     var sel = h('select', { id: 'set-motion' }, [h('option', { value: 'auto', text: '기기 설정 따르기' }), h('option', { value: 'reduce', text: '모션 줄이기' })]);
     sel.value = S.settings.motion || 'auto';
@@ -1665,6 +1673,7 @@ var APP = (function () {
     if (typeof scene.setPlace === 'function') scene.setPlace('attic', { instant: true });   /* 늘 다락에서 연다 (running 여행이 남아 있어도 — resumeRunning) */
     renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum();
     bind();
+    if (window.AUDIO) AUDIO.init({ hour: hourNow, weather: function () { return weatherFor(S.room.lantern); }, lantern: function () { return S.room.lantern; }, season: function () { return (scene && typeof scene.season === 'function') ? scene.season() : null; } });   /* 소리 (js/audio.js) — 꺼진 채로 시작 */
     if (!storeOK) quietWarn('이 브라우저에선 벽이 오늘만 남아');
     if (S.octopus.name) { setGreeting(greetingByHour(new Date().getHours()) + '. ' + S.octopus.name + (S.octopus.state === 'sleep' ? ' 아직 자고 있어.' : ' 기다리고 있었어.')); setMemoGreeting(); }
     renderLog();

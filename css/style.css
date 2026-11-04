@@ -758,3 +758,53 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] #name-dialog .honest { font-family: var(--f-meta); font-size: 16px; line-height: 24px; color: #884b2b; opacity: 1; }
 :root[data-font="pixel"][data-theme="dark"] #name-dialog .honest { color: var(--muted); }
 @media (prefers-color-scheme: dark) { :root[data-font="pixel"]:not([data-theme="light"]) #name-dialog .honest { color: var(--muted); } }
+
+/* ── 소리 (js/audio.js): 상태 줄 오른쪽 스피커 토글 · 방 보기 › 소리 크기 ──
+   토글은 누르는 곳 44×44 · 보이는 상자 28×28. 위아래 -9px 로 상태 줄 높이는 그대로. 켜면 호박색 상자 + 물결, 끄면 종이색 상자 + ×.
+   크기 슬라이더는 등불 칸과 같은 말: 켜진 쪽 호박 · 꺼진 쪽 --pip-off, 손잡이는 베벨 블록 */
+.sound-btn {
+  flex: 0 0 auto; position: relative; width: 44px; height: 44px; margin: -9px -8px -9px -4px; padding: 0;
+  border: 0; background: none; color: var(--muted); display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.sound-btn .snd-box { display: grid; place-items: center; box-sizing: border-box; width: 28px; height: 28px; border: 1px solid var(--rim); border-radius: 8px; background: var(--panel2); color: var(--muted); }
+.sound-btn svg { display: block; width: 24px; height: 24px; }
+.sound-btn .w-on { display: none; }
+.sound-btn[aria-pressed="true"] .snd-box { color: var(--amber); }
+.sound-btn[aria-pressed="true"] .w-on { display: inline; }
+.sound-btn[aria-pressed="true"] .w-off { display: none; }
+.sound-btn.na[aria-pressed="true"] .snd-box { opacity: .6; }   /* 켜 뒀지만 여기선 못 냄 (file:// 등) */
+.sound-btn:focus-visible { outline: none; }
+.sound-btn:focus-visible .snd-box { outline: 2px solid var(--amber); outline-offset: 2px; }
+.sheet .snd-row { gap: 12px; }
+.sheet .snd-row > span { flex: 0 0 auto; min-width: 3.4em; }
+.sheet input.snd-range { flex: 1 1 auto; min-width: 0; }
+.snd-val { flex: 0 0 auto; min-width: 2.4em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+:root[data-font="pixel"] .sound-btn .snd-box {
+  width: 28px; height: 28px; border: 2px solid var(--line); border-radius: 0; background-color: var(--panel2); color: var(--muted);
+  box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line);
+}
+:root[data-font="pixel"] .sound-btn[aria-pressed="true"] .snd-box {
+  background-color: var(--amber-fill); color: var(--on-accent);
+  box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo), 2px 2px 0 var(--line);
+}
+:root[data-font="pixel"] .sound-btn:active .snd-box { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
+:root[data-font="pixel"] .sound-btn[aria-pressed="true"]:active .snd-box { box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo); }
+:root[data-font="pixel"] .sound-btn:focus-visible .snd-box { outline: 2px solid var(--fg); outline-offset: 2px; }
+:root[data-font="pixel"] .snd-val { font-family: var(--f-meta); font-size: 16px; line-height: 24px; color: var(--fg); }
+:root[data-font="pixel"] .sheet input.snd-range { -webkit-appearance: none; appearance: none; height: 44px; margin: 0; background: transparent; accent-color: var(--amber-fill); cursor: pointer; }
+:root[data-font="pixel"] .sheet input.snd-range:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+:root[data-font="pixel"] .sheet input.snd-range::-webkit-slider-runnable-track {
+  box-sizing: border-box; height: 12px; border: 2px solid var(--line); border-radius: 0;
+  background: linear-gradient(var(--amber-fill), var(--amber-fill)) 0 0 / var(--fill, 80%) 100% no-repeat, var(--pip-off);
+}
+:root[data-font="pixel"] .sheet input.snd-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; box-sizing: border-box; width: 16px; height: 28px; margin-top: -10px;
+  border: 2px solid var(--line); border-radius: 0; background: var(--panel2); box-shadow: inset 2px 2px 0 var(--hi-px), inset -2px -2px 0 var(--lo-px), 2px 2px 0 var(--line);
+}
+:root[data-font="pixel"] .sheet input.snd-range::-moz-range-track { box-sizing: border-box; height: 12px; border: 2px solid var(--line); border-radius: 0; background: var(--pip-off); }
+:root[data-font="pixel"] .sheet input.snd-range::-moz-range-progress { box-sizing: border-box; height: 12px; border: 2px solid var(--line); border-right: 0; background: var(--amber-fill); }
+:root[data-font="pixel"] .sheet input.snd-range::-moz-range-thumb {
+  box-sizing: border-box; width: 16px; height: 28px; border: 2px solid var(--line); border-radius: 0; background: var(--panel2);
+  box-shadow: inset 2px 2px 0 var(--hi-px), inset -2px -2px 0 var(--lo-px), 2px 2px 0 var(--line);
+}

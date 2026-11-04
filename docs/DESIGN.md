@@ -325,6 +325,15 @@ matchHint(hint) →
 ### 7.8 첫 실행
 이름 모달(기존) → 저장 → 로그에 첫 인사 → 안내 토스트 1회: "힌트는 비워 둬도 돼. 오늘은 네가 골라봐, 라는 뜻이 되니까."
 
+### 7.9 소리 (`js/audio.js`, 전역 `AUDIO` — 소리 파일·규칙은 `audio/README.md` §3·§4, `audio/manifest.json`)
+- **꺼진 채로 시작.** 상태줄 오른쪽 스피커(누르는 곳 44×44, `aria-pressed`, "소리 켜기/소리 끄기")를 누르면 `audio_on` 한 번 → 집 BGM + 환경음. 설정은 `localStorage['ppolppol_audio'] = { on, music, sfx }`. 켜 둔 채 새로고침하면 첫 탭에서 다시 흐른다(사용자 동작 전엔 요청도 소리도 없음). 방 보기 › 소리: 음악(BGM·환경음) / 효과음(징글·UI·말풍선) 슬라이더.
+- **언제 무엇이**: 집 = `home_bgm[시간대][날씨]` (시간대는 실제 시계 6·9·17·19시, 날씨는 `weatherFor()` — 등불 0~5칸은 늘 비) 한 바퀴 → 20~90초 쉼(환경음만) → 처음부터. 밤엔 마스터 −3 dB. 환경음 = 날씨 바탕 + 덧층 + 등불 온기(다락 안에서만) + 가을·여름 밤.
+  움츠림 `depart_windup` → 나감 `depart_leave`(비 오면 `depart_rain_extra`) → 나가 있는 동안 집 BGM −3 dB(빈 방) → 기웃마다 **결과음은 상태 그대로**(read/builtin/simulated/failed/none 다섯 개 같은 길이 — 실패·모의·빈 방에 성공음·`first_place` 없음) + 그 코너의 장소 테마로 다음 마디선에서(최소 8마디, 편지의 방은 BGM 없이 `letter_room`) → 귀가 `return_home` → 다음 프레이즈에 집 BGM → `remember_{장소}` · `hang_poster` · `mood_*` · 등불 `lantern_1~7`(8칸 = `room_complete`, BGM 잠깐 멈춤) → 잠 `sleep_settle` → 자장가 2~3바퀴 → 환경음만(낮이면 쉼 뒤 집 BGM). 집에 있는 날은 같은 움츠림 뒤 `stay_settle`, 창가 + 비면 `special_window_rain`.
+  쓰다듬기 `pet_*`, 문어 말풍선은 글자마다 목소리 블립(생각 말풍선·긴 글·마무리 말은 빼고), 주요 버튼은 작은 `ui_tap`, 시간대가 바뀌면 `chime_*`, 날씨가 바뀌면 `weather_shift`.
+- 징글은 BGM 을 `duck_db` 만큼 **내리기만** 한다(어택 60~80 ms · 릴리스 0.5~0.9 s). 변형은 날짜 시드 mulberry32 로 직전과 다른 것. 탭이 숨으면 AudioContext 를 멈춘다.
+- **file:// 에서는 소리 없음**: 브라우저가 file:// 의 fetch 를 막아 manifest 와 소리 파일을 못 읽는다. `<audio loop>` 폴백은 루프 틈이 들리고(README 금지) iOS 는 볼륨·덕킹이 안 돼서 쓰지 않았다. 토글은 기억되고, 켜면 토스트 한 줄 + 방 보기에 "웹 주소로 열면 들려". http(s)(Vercel)에서만 소리가 난다.
+- 앱은 `if (window.AUDIO) AUDIO.on(…)` 한 줄 훅만 둔다: `state` · `bubble` · `pet` · `ceremony` · `peek` · `row` · `lantern` · `busy` · `room_sheet` (+ boot 의 `AUDIO.init`). 파일이 없거나 디코드가 안 되거나 AudioContext 가 없어도 게임으로 오류를 던지지 않는다(경고 한 번). 검사: `node tools/test-audio.js`.
+
 ---
 
 ## 8. 상태 스키마와 영속
@@ -400,6 +409,8 @@ js/brain.js         PRNG, 힌트 매칭, 길 만들기, 위키 fetch, 기억·�
 js/scene3d.js       three.js 픽셀아트 3D 다락방 + 문어 (전역 SCENE3D, §13 계약). WebGL 없으면 2D 폴백
 vendor/three.min.js three r128 UMD (MIT). cdnjs 폴백
 js/app.js           상태·영속·마이그레이션, 공개(재생) 타이머, 렌더, 포스터 SVG, 모달, 데모 조작, 가져오기/내보내기
+js/audio.js         소리 연결 (전역 AUDIO, §7.9): audio/manifest.json 을 읽어 BGM·환경음·징글·효과음. 꺼진 채로 시작
+audio/              칩튠 소리 한 벌 + manifest.json + README(연동 규칙) — 사운드 세션 소유
 assets/             2D 폴백용 플레이스홀더 SVG + 캐릭터 레퍼런스. 사람이 그릴 에셋은 없다
 tools/bundle.js     css/js/에셋을 인라인한 단일 파일 dist/ppolppol.html 생성 (node, 의존성 없음)
 tools/make-placeholders.js  플레이스홀더 SVG 생성
