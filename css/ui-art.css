@@ -78,7 +78,7 @@
   background: url(../assets/ui/tail_say.png) 0 0 / 16px 16px no-repeat; image-rendering: pixelated;
 }
 :root[data-font="pixel"] #scene3d #oct-bubble[data-ua="think"]::after { background-image: url(../assets/ui/tail_think.png); top: calc(100% + 12px); }
-:root[data-font="pixel"] #scene3d #oct-bubble[data-ua="shout"]::after { background-image: url(../assets/ui/tail_shout.png); top: calc(100% + 12px); }
+:root[data-font="pixel"] #scene3d #oct-bubble[data-ua="shout"]::after { background-image: url(../assets/ui/tail_shout.png); background-size: 20px 16px; width: 20px; margin-left: calc(-10px + var(--ua-tail, 0px)); top: calc(100% + 14px); }
 :root[data-font="pixel"] #scene3d #oct-bubble[data-ua="whisper"]::after { background-image: url(../assets/ui/tail_whisper.png); top: calc(100% + 12px); }
 
 /* ── 5. 파티클: fx.* 스트립 8×8 칸 → 16px, 프레임은 steps(), 떠오름도 12fps 스텝 ── */

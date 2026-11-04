@@ -706,7 +706,7 @@
   },
   "ui.tail.shout": {
     "src": "assets/ui/tail_shout.png",
-    "w": 8,
+    "w": 10,
     "h": 8,
     "note": "말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다"
   },

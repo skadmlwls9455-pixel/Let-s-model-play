@@ -135,9 +135,10 @@ function makeSprites() {
     OUT[key] = { src: rel, w: 24, h: 24, slice: 8, note: FNOTE[key] };
   });
   Object.keys(SP.TAILS).forEach(function (key) {
-    var g = grid(SP.TAILS[key], 8, 8, key), rel = 'assets/ui/' + key.slice(3).replace('.', '_') + '.png';
-    writePNG(rel, 8, 8, toRGBA(g)); n++;
-    OUT[key] = { src: rel, w: 8, h: 8, note: /next/.test(key) ? '대화창 "다음" ▼ (next/next2 를 0.5 s 마다 번갈아)' : '말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다' };
+    var tw = Math.max(8, Math.max.apply(null, SP.TAILS[key].map(function (r) { return r.length; })));   /* 꼬리는 8 칸 이상 (외침 = 10) */
+    var g = grid(SP.TAILS[key], tw, 8, key), rel = 'assets/ui/' + key.slice(3).replace('.', '_') + '.png';
+    writePNG(rel, tw, 8, toRGBA(g)); n++;
+    OUT[key] = { src: rel, w: tw, h: 8, note: /next/.test(key) ? '대화창 "다음" ▼ (next/next2 를 0.5 s 마다 번갈아)' : '말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다' };
   });
   console.log('sprites: ' + n + ' PNG');
 }
