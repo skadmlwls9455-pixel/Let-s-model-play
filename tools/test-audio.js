@@ -205,12 +205,14 @@ async function scenarioHttp(browser, base) {
   await page.reload();
   await page.waitForSelector('#btn-go');
   await page.waitForTimeout(600);
-  var o4 = await page.evaluate(function () { return { p: document.getElementById('btn-sound').getAttribute('aria-pressed'), st: AUDIO.state() }; });
-  ok(o4.p === 'true' && o4.st.enabled && !o4.st.started && s.bag.audioReq.length === 0, '켜 둔 채 새로고침: 토글 켜짐 · 사용자 동작 전엔 요청·소리 없음');
+  var o4 = await page.evaluate(function () { var b4 = document.getElementById('btn-sound'); return { p: b4.getAttribute('aria-pressed'), l: b4.getAttribute('aria-label'), st: AUDIO.state() }; });
+  /* 기억은 켜짐이지만 아직 아무것도 안 들린다 → 토글은 들리는 대로 '소리 켜기' (누르면 켜진다 — "소리 끄기"가 소리를 켜지 않게) */
+  ok(o4.p === 'false' && o4.l === '소리 켜기' && o4.st.enabled && !o4.st.started && s.bag.audioReq.length === 0, '켜 둔 채 새로고침: 기억은 켜짐 · 토글은 "소리 켜기"(아직 안 들림) · 사용자 동작 전엔 요청·소리 없음');
   await page.mouse.click(180, 400);
   var back = await waitState(page, function () { var x = AUDIO.state(); return x.started && x.ctx === 'running' && !!(x.bgm || x.pending); }, null, 15000);
   var o5 = await st(page);
-  ok(back && playedIds(o5).indexOf('audio_on') < 0, '첫 탭에서 다시 흐름 (audio_on 은 토글할 때만) — bgm ' + (o5.bgm || o5.pending));
+  var p5 = await page.evaluate(function () { return document.getElementById('btn-sound').getAttribute('aria-pressed'); });
+  ok(back && playedIds(o5).indexOf('audio_on') < 0 && p5 === 'true', '첫 탭에서 다시 흐름 (audio_on 은 토글할 때만) · 토글 눌림 — bgm ' + (o5.bgm || o5.pending));
   reportErrors(s.bag, 'http 새로고침');
   await s.ctx.close();
 }

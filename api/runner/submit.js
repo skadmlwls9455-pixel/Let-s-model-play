@@ -76,8 +76,7 @@ module.exports = async function submit(req, res) {
     try { await store.put(path, { nick: nick, score: score, ticks: ticks, at: now, runId: runId, inputsLen: inputs.length }); }
     catch (e3) { if (!e3 || e3.code !== 'EEXIST') throw e3; }   /* 같은 경로 = 같은 판·같은 닉네임이 이미 있음 → 그대로 성공 */
     var got = await find(store, week, runId);
-    if (got.d) return core.send(res, 200, okBody(got.b, got.d, week));
-    return core.send(res, 200, { ok: true, rank: null, total: got.b.length, week: week, runId: runId, nick: nick, score: score, award: core.isEventWeek(week) ? core.AWARDS.PAPER : null });
+    return core.send(res, 200, okBody(got.b, got.d || { rank: null, runId: runId, nick: nick, score: score }, week));
   } catch (e2) {
     console.error('runner submit: entry put failed', e2 && e2.name);
     return bad(res, 502, 'storage');
