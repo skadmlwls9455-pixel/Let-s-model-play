@@ -773,42 +773,67 @@ var AUDIO = (function () {
     if (!c) { paint(); if (fromUser) tellUnavailable(); return; }
     try { var r = c.resume(); if (r && r.catch) r.catch(noop); } catch (e) { /* noop */ }
     if (!fmt) fmt = pickFmt();
+    if (!started) { starting = true; paint(); }
     loadManifest().then(guard(function (ok) {
+      starting = false;
       if (!ok) { reason = reason || 'manifest'; paint(); if (fromUser) tellUnavailable(); return; }
-      if (!pref.on || started) return;
+      if (!pref.on || started) { paint(); return; }
       started = true;
       readGame();
       applyLevels(0.15);
+      /* 방 완성 팡파르 중에 껐다 켰으면 BGM 덕킹이 0 에 남아 있다 (일시정지를 풀 타이머는 끌 때 지웠다) */
+      if (nd.duckBgm) { target(nd.duckBgm.gain, 1, now(), 0.05); target(nd.duckAmb.gain, 1, now(), 0.05); }
+      duckInfo.until = 0; duckInfo.db = 0;
       if (fromUser) play(ev(['ui', 'audio_on']));
       applyAmb(true);
       if (gs.sleeping) startLullaby(false); else applyBgm({ delay: fromUser ? 0.45 : 0 });
       clearInterval(tickTimer); tickTimer = setInterval(guard(tick), 1000);
       clearTimeout(warmTimer); warmTimer = setTimeout(guard(warmVoices), 2500);   /* BGM·환경음을 먼저 받고 나서 */
-      if (ctx && ctx.state === 'running') disarm();
+      if (ctx && ctx.state === 'running') disarm(); else if (!document.hidden) arm();   /* 아직 멈춰 있으면 다음 탭에서 깨운다 */
+      paint();
     }));
   }
   /* 말풍선 음절 16개 + 기웃 결과음 11개 (다 합쳐 56 KB) 를 한 번에 미리. 산책마다 몇 번씩 나는 작은 소리라 처음 받는 지연이 그대로 들렸다
-     (음절은 0.8 s 넘으면 말을 건너뛰고, 결과음이 늦으면 음절과 겹친다). 하나씩 차례로 받으면 메인 스레드가 바쁜 기기에선 몇 초씩 걸렸다 */
+     (음절은 0.8 s 넘으면 말을 건너뛰고, 결과음이 늦으면 음절과 겹친다). 하나씩 차례로 받으면 메인 스레드가 바쁜 기기에선 몇 초씩 걸렸다.
+     + 차례 첫 소리 움츠림·나감·앉음 6개와 끄는 소리 2개 (46 KB): 움츠림이 늦게 오면 나감 소리와 겹쳤고, 끄는 소리가 늦으면 멈춘 뒤라 버려진다 */
   var warmTimer = null;
   function warmVoices() {
     if (!active()) return;
     var ids = (groups.voice_a || []).concat(groups.voice_u || []);
     Object.keys(PEEK_OK).forEach(function (k) { ids = ids.concat(groups[ev(['peek_status', k])] || []); });
+    [ev(['events', 'depart', 0]), ev(['events', 'depart', 1]), ev(['events', 'stay_home', 1]), ev(['ui', 'toggle_off'])].forEach(function (x) { if (x) ids = ids.concat(groups[x] || (byId[x] ? [x] : [])); });
     ids.forEach(function (id) { if (!cache[id]) load(id).catch(noop); });
   }
   function stopAll() {
-    started = false;
+    started = false; starting = false;
     clearInterval(tickTimer); tickTimer = null; cancelPend(); clearRest(); clearTimeout(lullTimer); clearTimeout(pauseTimer); clearTimeout(warmTimer); pauseUntil = 0;
     gs.sleepPhase = null;
+    shots = []; evQ = []; evEnd = 0;
     if (!ctx || !nd.master) return;
-    var t = now() + 0.4;
-    target(nd.master.gain, 0, now(), 0.08);
-    Object.keys(slots).forEach(function (k) { want[k] = null; loading[k] = null; if (slots[k]) { try { slots[k].src.stop(t); } catch (e) { /* noop */ } slots[k] = null; } });
-    setTimeout(guard(function () { if (!pref.on && ctx && ctx.state === 'running') ctx.suspend().catch(noop); }), 600);
+    var t0 = now();
+    target(nd.master.gain, 0, t0, 0.08);
+    /* 자리마다 제 크기로 닫는다 (마스터만 믿으면 금방 다시 켤 때 옛 곡이 되살아났다가 뚝 끊긴다) */
+    Object.keys(slots).forEach(function (k) { want[k] = null; loading[k] = null; if (slots[k]) { fadeOut(slots[k], t0, 0.25); slots[k] = null; } });
+    /* 한 번짜리 소리(징글·예약된 종·음절)도 멈춘다 — 안 그러면 suspend 에 얼어 있다가 다음에 켤 때 울린다. 끄는 소리(direct)만 끝까지 */
+    live = live.filter(function (x) {
+      if (x.direct) return true;
+      try { x.gn.gain.cancelScheduledValues(t0); x.gn.gain.setTargetAtTime(0, t0, 0.03); x.src.stop(t0 + 0.2); } catch (e) { /* noop */ }
+      return false;
+    });
+    suspendSoon(600);
+  }
+  function suspendSoon(ms) {
+    setTimeout(guard(function () {
+      if (pref.on || !ctx || ctx.state !== 'running') return;
+      var e = 0; live.forEach(function (x) { if (x.direct) e = Math.max(e, x.end); });
+      if (e > now() + 0.02) { suspendSoon((e - now()) * 1000 + 80); return; }   /* 끄는 소리가 끝난 뒤에 */
+      ctx.suspend().catch(noop);
+    }), ms);
   }
   function setEnabled(on, fromUser) {
     try {
       on = !!on;
+      if (on && reason === 'manifest') { reason = ''; toldFile = false; }   /* 목록을 한 번 못 읽은 건 다시 해 본다 (흔들리는 모바일 망) */
       if (on === pref.on && (!on || started)) { paint(); return; }
       pref.on = on; savePref(); paint();
       if (!on) {
@@ -829,15 +854,15 @@ var AUDIO = (function () {
     start(false);
   }
   var unlockFn = guard(onUnlock);
-  function arm() { if (armed) return; armed = true; UNLOCK.forEach(function (n) { document.addEventListener(n, unlockFn, true); }); }
-  function disarm() { if (!armed) return; armed = false; UNLOCK.forEach(function (n) { document.removeEventListener(n, unlockFn, true); }); }
+  function arm() { if (armed) return; armed = true; UNLOCK.forEach(function (n) { document.addEventListener(n, unlockFn, true); }); paint(); }
+  function disarm() { if (!armed) return; armed = false; UNLOCK.forEach(function (n) { document.removeEventListener(n, unlockFn, true); }); paint(); }
 
   /* ───────────────────────── 화면: 토글 · 안내 · 방 보기 ───────────────────────── */
   function noteText() {
     if (reason === 'file') return '파일로 열면(file://) 브라우저가 소리 파일을 못 읽게 막아서 조용해. 웹 주소로 열면 들려.';
     if (reason === 'no-webaudio' || reason === 'no-fetch') return '이 브라우저는 소리를 못 내. 소리 없이도 다 할 수 있어.';
     if (reason === 'manifest') return '소리 목록을 못 읽었어. 소리 없이 계속할게.';
-    return pref.on ? '등불 옆 스피커를 누르면 꺼져.' : '소리는 꺼진 채로 시작해. 등불 옆 스피커를 누르면 켜져.';
+    return isLit() ? '등불 옆 스피커를 누르면 꺼져.' : '소리는 꺼진 채로 시작해. 등불 옆 스피커를 누르면 켜져.';
   }
   function tellUnavailable() {
     if (toldFile) return; toldFile = true;
@@ -846,10 +871,14 @@ var AUDIO = (function () {
     t.classList.add('show');
     setTimeout(function () { if (t.textContent && /소리/.test(t.textContent)) t.classList.remove('show'); }, 2800);
   }
+  /* 토글은 지금 들리는 대로: 켜 둔 채 새로고침했거나 iOS 가 멈춰 둬서 탭을 기다리는 동안(armed)은 '소리 켜기' (누르면 켜진다).
+     켜는 중(starting)·소리를 못 내는 곳(reason — 기억은 켜짐)은 눌린 채 */
+  function isLit() { return pref.on && (!!reason || starting || !armed); }
   function paint() {
     if (!btn) return;
-    var lab = pref.on ? '소리 끄기' : '소리 켜기';
-    btn.setAttribute('aria-pressed', pref.on ? 'true' : 'false');
+    var lit = isLit();
+    var lab = lit ? '소리 끄기' : '소리 켜기';
+    btn.setAttribute('aria-pressed', lit ? 'true' : 'false');
     btn.setAttribute('aria-label', lab);
     btn.title = reason ? lab + ' · ' + noteText() : lab;
     btn.classList.toggle('na', !!reason);
@@ -860,7 +889,10 @@ var AUDIO = (function () {
     if (!btn) return;
     btn.addEventListener('click', guard(function (e) {
       if (e) e.preventDefault();
-      if (pref.on && !started && !reason) { start(true); return; }   /* 켜 둔 채 새로고침 → 이 탭이 첫 동작: 다시 흐르게 */
+      if (pref.on && !isLit()) {   /* 탭을 기다리던 중('소리 켜기'로 보임) → 이 탭이 첫 동작: 다시 흐르게 */
+        if (started && ctx) { try { ctx.resume().catch(noop); } catch (x) { /* noop */ } } else start(true);
+        return;
+      }
       setEnabled(!pref.on, true);
     }));
     paint();
@@ -909,7 +941,9 @@ var AUDIO = (function () {
     document.addEventListener('visibilitychange', guard(function () {
       if (!ctx) return;
       if (document.hidden) { if (ctx.state === 'running') ctx.suspend().catch(noop); }
-      else if (pref.on && started) ctx.resume().catch(noop);
+      else if (pref.on && !reason) {   /* 켜는 중에 숨겼다 돌아와도. 동작 없이는 안 풀리면(iOS) 다음 탭에서 */
+        ctx.resume().then(guard(function () { if (ctx && ctx.state !== 'running') arm(); }), guard(arm));
+      }
     }));
   }
 

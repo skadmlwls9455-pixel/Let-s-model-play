@@ -86,9 +86,13 @@ var BLOCK = [   /* 공백·_·- 를 지운 소문자에 대해 부분 일치 (�
   'fuck', 'shit', 'bitch', 'cunt', 'dick', 'pussy', 'nigg', 'fag', 'whore', 'porn'
 ];
 var URL_RE = /(https?:|www\.|:\/\/|\.(com|net|org|kr|io|gg|me|ly|co|app|xyz)\b|discord|t\.me)/i;
+/* 빈칸처럼 보이는 글자: 한글 채움 문자(ㅤ U+3164 는 ㄱ-ㆎ 범위 안이라 허용 목록을 통과한다) · 점자 빈칸 → 공백으로 */
+var BLANK_LIKE = /[ᅟᅠㅤﾠ⠀]/g;
+/* 보이지 않는 글자: 서식 문자(ZWSP·ZWJ·방향 표시·BOM·soft hyphen …) · 결합 자소 잇기 · 변형 선택자 → 지운다 */
+var INVISIBLE = /[\p{Cf}͏︀-️\u{E0100}-\u{E01EF}]/gu;
 function sanitizeNick(raw) {
   if (typeof raw !== 'string') return FALLBACK_NICK;
-  var s = raw.normalize('NFC');
+  var s = raw.normalize('NFC').replace(INVISIBLE, '').replace(BLANK_LIKE, ' ');   /* 빈칸 확인·금칙어 확인보다 먼저 */
   if (URL_RE.test(s)) return FALLBACK_NICK;
   s = s.replace(/\s+/g, ' ').replace(/[^가-힣ㄱ-ㆎA-Za-z0-9 _-]/g, '').replace(/ {2,}/g, ' ').trim();
   s = Array.from(s).slice(0, 12).join('').trim();
@@ -115,15 +119,19 @@ function decodePath(p) {
 }
 function weekPrefix(week) { return 'runner/' + week + '/'; }
 function idPath(week, runId) { return 'runner-ids/' + week + '/' + runId + '.json'; }
-/* 그 주의 기록 전부 → 순위순 [{pathname, uploadedAt, score, ticks, runId, nick, rank}] */
+/* 그 주의 기록 전부 → 순위순 [{pathname, uploadedAt, score, ticks, runId, nick, rank}]
+ *   같은 runId 는 한 줄만 (가장 앞 = 가장 높은 것). 다시 보낸 제출이 겹쳐 쓴 경우에도 한 판 = 한 줄. */
 async function board(store, week) {
   var items = await store.list(weekPrefix(week));
-  var out = [];
+  var out = [], seen = {};
   items.forEach(function (b) { var d = decodePath(b.pathname); if (d && d.week === week) { d.pathname = b.pathname; d.uploadedAt = b.uploadedAt; out.push(d); } });
   out.sort(function (a, b) { return a.pathname < b.pathname ? -1 : a.pathname > b.pathname ? 1 : 0; });
+  out = out.filter(function (d) { if (seen[d.runId]) return false; seen[d.runId] = 1; return true; });
   out.forEach(function (d, i) { d.rank = i + 1; });
   return out;
 }
+/* 그 주가 닫혔나: 그 주에 받은 토큰이 모두 만료된 뒤(월 00:00 KST + 30분 + 여유 5초)부터. 그 전엔 늦게 온 판이 순위를 바꿀 수 있다 */
+function weekClosed(week, ms) { return weekKey((ms == null ? now() : ms) - TOKEN_TTL_MS - 5000) > week; }
 
 /* ───────── 저장소 ───────── */
 function existsError(path) { var e = new Error('blob already exists'); e.code = 'EEXIST'; e.pathname = path; return e; }
@@ -214,6 +222,6 @@ module.exports = {
   now: now, setClock: setClock, getStore: getStore, setStore: setStore, setSecret: setSecret, secret: secret,
   b64u: b64u, unb64u: unb64u, signToken: signToken, readToken: readToken, runIdOf: runIdOf,
   weekKey: weekKey, isWeek: isWeek, isEventWeek: isEventWeek, sanitizeNick: sanitizeNick,
-  encodePath: encodePath, decodePath: decodePath, weekPrefix: weekPrefix, idPath: idPath, board: board,
+  encodePath: encodePath, decodePath: decodePath, weekPrefix: weekPrefix, idPath: idPath, board: board, weekClosed: weekClosed,
   memoryStore: memoryStore, blobStore: blobStore, send: send, query: query, one: one, readJson: readJson
 };
