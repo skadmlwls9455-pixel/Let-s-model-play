@@ -907,7 +907,19 @@ var SCENE3D = (function () {
     var carry = new T.Mesh(posterGeo, posterMat); carry.receiveShadow = true; carry.position.set(1.0, 0.95, 0.6); carry.rotation.set(0, 0.5, 0.15); carry.scale.setScalar(1.6); carry.visible = false; bodyG.add(carry);
     var octDecal = new T.Mesh(keep(new T.PlaneGeometry(3.2, 3.2)), decalMat); octDecal.rotation.x = -Math.PI / 2; octDecal.position.y = 0.01; octDecal.renderOrder = 1; octG.add(octDecal);   /* 접지 그림자 1.34 m (다리 끝까지) */
     var oct = { anchor: 'window', pos: new T.Vector3(), walking: null, faceYaw: 0, wantYaw: 0, blinkT: 3 + (hash('blink0') % 1000) / 1000 * 4, blinkLeft: 0, blinkN: 0, animT: 0, hop: 0, flushK: 0, pointer: null, lookTarget: null };
-    var ARMW = arms.map(function (_, i) { var r = hash('armw' + i); return { ph: r % 32, per: 16 + ((r >> 8) % 17) }; });   /* 다리 끝 꿈틀: 시드 위상 · 주기 16~32 스텝(2~4 s @ 8 fps) */
+    var ARMW = arms.map(function (_, i) { var r = hash('armw' + i); return { ph: r % 32, per: 16 + ((r >> 8) % 17) }; });
+    /* ── 걸음 = 뒤뚱뒤뚱 (생동감 · DESIGN §7.1 · docs/SCENE.md "움직임"): 시간이 아니라 **간 거리**로 도는 걸음 위상(보폭 0.6 m = 한 걸음 → 1.2 m/s 에서 한 발 0.5 s, 바깥 길 1.8 m/s 면 0.33 s 로 저절로 빨라진다).
+       위상 n.u — n = 걸음 번호(짝수 = +x 쪽 다리 4개가 앞으로, 홀수 = −x 쪽), u = 걸음 안 0→1. 몸: 진행 축(로컬 z) 기준 굴림 ±7°(걸음 중간 정점, 디딤발 쪽으로 기대고 내딛는 쪽이 들린다) ·
+       요 흔들 ±4°(디딤 순간 정점) · 앞 기울임 5° · 걸음 중간 세로 +1 아트px · 디딤마다 6 % 눌림(y 0.94, xz 1.03) 80 ms → 80 ms 회복.
+       굴림은 **3단 스텝**(−7° / 0 / +7°, |sin πu| > 0.6 일 때만 기울어짐 — 매끈한 굴림은 둥근 머리 외곽이 매 프레임 1px 씩 흘러 반짝였다, walk-strip 비교) · 요도 같은 3단.
+       다리: 내딛는 쪽 4개가 들리며(최대 0.38 rad) 앞으로 ±14° 쓸고, 다음 걸음엔 디딘 채 뒤로 민다; 다리 위상은 몸 위상을 60 ms 늦게 따라간다(겹침). 굴림·기울임으로 바닥 아래로 내려가는 다리는 그만큼 들어 보정.
+       시작 = 120 ms 예비 동작(제자리 8 % 눌림 + 뒤로 3°, 이동은 그 뒤 — 원천(moveTo·cerWalk)이 그만큼 멈춰 있다) · 회전은 첫 걸음 동안(거리 기준) · 멈춤 = 굴림이 0 을 한 번 넘었다 돌아오는 0.36 s 정착 + 1px 한 번 통통.
+       모션 감소 = 전부 없음(이동 자체가 즉시). 초상은 정지 자세로 찍고 되돌린다 */
+    var GAIT = { stride: 0.6, roll: 7 * DEG, yaw: 4 * DEG, lean: 5 * DEG, sq: [1.03, 0.94], plant: 0.08, antic: 0.12, anticSq: [1.04, 0.92], anticLean: -3 * DEG, lag: 0.06, settle: 0.36, armLift: 0.38, armFwd: 14 * DEG, stepped: true };
+    var G = { moving: false, phase: 0, armPhase: 0, n: 0, plantT: 9, antic: 0, moveK: 0, armK: 0, settleT: 9, rollStop: 0, last: new T.Vector3(), turnFrom: 0, turnTo: 0, turnPh: 0, roll: 0, yaw: 0, lean: 0, rz: 0 };
+    function anticHold() { if (st.reduced || G.moving || G.antic > 0) return 0; G.antic = GAIT.antic * st.speed; return G.antic; }   /* 걷기 원천이 시작할 때: 서 있다 출발하면 120 ms 제자리 예비 동작 */
+    function angDiff(a, b) { var d = a - b; return Math.atan2(Math.sin(d), Math.cos(d)); }
+    function gaitReset() { G.moving = false; G.antic = 0; G.moveK = 0; G.armK = 0; G.settleT = 9; G.plantT = 9; G.roll = G.yaw = G.lean = 0; G.armPhase = G.phase; }   /* 다리 끝 꿈틀: 시드 위상 · 주기 16~32 스텝(2~4 s @ 8 fps) */
     var octTags = [headGeo, lidGeo].concat(arms.map(function (m) { return m.geometry; }));
     function octColor(hex) { octTags.forEach(function (g) { recolor(g, 1, hex); }); }
     function setColor(hex) {
@@ -972,13 +984,14 @@ var SCENE3D = (function () {
     function portraitBg(o) { var b = o && o.bg; if (!b || b === 'transparent') return null; if (b === 'navy') return '#172038'; return /^#[0-9a-f]{6}$/i.test(b) ? b : null; }   /* 기본 투명 · 'navy' = Apollo 남색 · '#rrggbb' */
     function renderPortrait(expr, bgHex) {
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
-      var sv = { sx: bodyG.scale.x, sy: bodyG.scale.y, sz: bodyG.scale.z, py: bodyG.position.y, rz: bodyG.rotation.z, vis: octG.visible, pvis: octG.parent ? octG.parent.visible : true, applied: face.applied, hex: oct.curHex || st.color, bg: scene.background };
+      var sv = { sx: bodyG.scale.x, sy: bodyG.scale.y, sz: bodyG.scale.z, py: bodyG.position.y, rz: bodyG.rotation.z, rx: bodyG.rotation.x, ry: bodyG.rotation.y, arms: arms.map(function (m) { return [m.rotation.y, m.rotation.z]; }), vis: octG.visible, pvis: octG.parent ? octG.parent.visible : true, applied: face.applied, hex: oct.curHex || st.color, bg: scene.background };
       var sc = renderer.getClearColor(_cc).clone(), sa = renderer.getClearAlpha();
       var pose = FACES[expr].pose || [1, 1, 0];
       applyFace(expr);
       var hex = expr === 'pet' ? mixHex(st.color, OC.hi, 0.35) : expr === 'sleep' ? hueHex(st.color, 12) : st.color;   /* pet = 장면의 홍조 끝값, sleep = 색 순환 한 자락 */
       if (hex !== sv.hex) octColor(hex);
-      octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]);   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = 0; bodyG.rotation.z = pose[2];
+      octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]);   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = 0; bodyG.rotation.set(0, 0, pose[2]);
+      arms.forEach(function (m) { m.rotation.y = -m.userData.a; m.rotation.z = 0.05; });   /* 걸음 중이어도 초상은 정지 자세 (다리 기본 0.05) */
       octG.updateMatrixWorld(true);
       var ty = (HEAD_Y - PORT.down) * pose[1];
       _pt.set(0, ty, 0); octG.localToWorld(_pt);
@@ -995,7 +1008,8 @@ var SCENE3D = (function () {
       renderer.readRenderTargetPixels(rtPO, 0, 0, PORT.N, PORT.N, pBuf);
       /* 되돌리기 */
       scene.background = sv.bg; renderer.setClearColor(sc, sa); renderer.setRenderTarget(null);
-      octG.visible = sv.vis; if (octG.parent) octG.parent.visible = sv.pvis; bodyG.scale.set(sv.sx, sv.sy, sv.sz); bodyG.position.y = sv.py; bodyG.rotation.z = sv.rz;
+      octG.visible = sv.vis; if (octG.parent) octG.parent.visible = sv.pvis; bodyG.scale.set(sv.sx, sv.sy, sv.sz); bodyG.position.y = sv.py; bodyG.rotation.set(sv.rx, sv.ry, sv.rz);
+      arms.forEach(function (m, i) { m.rotation.y = sv.arms[i][0]; m.rotation.z = sv.arms[i][1]; });
       if (hex !== sv.hex) octColor(sv.hex);
       applyFace(sv.applied);
       var N = PORT.N, cv = document.createElement('canvas'); cv.width = cv.height = N;
@@ -1018,7 +1032,7 @@ var SCENE3D = (function () {
     function anchorPos(name) { var p = ANCHORS[name] || ANCHORS.center; return new T.Vector3(p[0], name === 'blanket' && st.items.indexOf('blanket') >= 0 ? 0.12 : 0, p[2]); }
     function camYaw() { return YAW + yawDelta(); }
     /* 문어 위치: oct.pos 가 논리 위치(보간·앵커), octG.position 은 매 프레임 그걸 카메라 우/상 축 픽셀 격자에 스냅한 값 (룩 패스 5: 걷는 동안 반 픽셀 금지). 스냅을 매 프레임 논리값에서 새로 하므로 요가 바뀌어도 누적 표류 없음 */
-    function jumpTo(anchor) { if (oct.walking) { oct.walking.cancel(); oct.walking = null; } oct.anchor = anchor; oct.pos.copy(anchorPos(anchor)); snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = camYaw(); }
+    function jumpTo(anchor) { if (oct.walking) { oct.walking.cancel(); oct.walking = null; } oct.anchor = anchor; oct.pos.copy(anchorPos(anchor)); snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = camYaw(); gaitReset(); }
     function moveTo(anchor) {
       var to = anchorPos(anchor), from = oct.pos.clone();
       oct.anchor = anchor;
@@ -1027,13 +1041,16 @@ var SCENE3D = (function () {
       function done() { if (on.anchorReached) on.anchorReached(anchor); }
       if (st.reduced || dist < 0.05) { oct.pos.copy(to); snapScreen(octG.position.copy(to)); oct.wantYaw = camYaw(); done(); return Promise.resolve(anchor); }
       oct.wantYaw = Math.atan2(d.x, d.z);
-      var dur = dist / 1.2 * st.speed, hopDur = 0.3 * st.speed, k = 0, cancelled = false;
+      var dur = dist / 1.2 * st.speed, hopDur = 0.3 * st.speed, hold = anticHold(), k = 0, cancelled = false;   /* hold = 서 있다 출발할 때 120 ms 예비 동작 (뒤뚱 걸음) */
       return new Promise(function (resolve) {
-        oct.walking = { cancel: function () { cancelled = true; }, step: function (dt) {
+        var w = oct.walking = { gait: true, cancel: function () { cancelled = true; w.gait = false; }, step: function (dt) {
           if (cancelled) return;
           k += dt;
-          if (k < dur) { oct.pos.lerpVectors(from, to, k / dur); return; }
-          var hk = (k - dur) / hopDur;
+          if (k < hold) return;
+          var kw = k - hold;
+          if (kw < dur) { oct.pos.lerpVectors(from, to, kw / dur); return; }
+          w.gait = false;
+          var hk = (kw - dur) / hopDur;
           if (hk < 1) { oct.pos.copy(to); oct.hop = Math.sin(hk * Math.PI) * 0.4; return; }
           oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(anchor);
         } };
@@ -1075,16 +1092,57 @@ var SCENE3D = (function () {
       var p = octScreen(), s = 'translate(' + Math.round(p.x - 24) + 'px,' + Math.round(p.y - 48) + 'px)';
       if (s !== lastOverlay) { lastOverlay = s; el.style.transform = s; }
     }
+    function stepGait(dt, on) {   /* 걸음 위상을 간 거리로 진행 + 시작/멈춤 전이. on = 걷기 원천이 움직이는 중(예비 동작 포함) */
+      var p = oct.pos;
+      if (G.antic > 0) G.antic = Math.max(0, G.antic - dt);
+      if (!on) G.antic = 0;
+      var moving = on && G.antic <= 0;
+      G.plantT += dt; G.settleT += dt;   /* 먼저 더한다 → 디딤을 감지한 프레임은 0 (눌림 80 ms 가 12 fps 에서도 한 프레임은 온전히 보인다) */
+      if (moving) {
+        if (!G.moving) { G.last.copy(p); G.n = Math.floor(G.phase); G.turnFrom = oct.faceYaw; G.turnTo = oct.wantYaw; G.turnPh = G.phase; G.settleT = 9; }
+        G.phase += Math.min(0.3, Math.hypot(p.x - G.last.x, p.z - G.last.z)) / GAIT.stride;
+        var n = Math.floor(G.phase); if (n !== G.n) { G.n = n; G.plantT = 0; }   /* 새 걸음 = 디딤 */
+        if (Math.abs(angDiff(oct.wantYaw, G.turnTo)) > 1e-3) { G.turnFrom = oct.faceYaw; G.turnTo = oct.wantYaw; G.turnPh = G.phase; }   /* 길 꺾임: 다음 한 걸음 동안 돈다 */
+      } else if (G.moving) {   /* 멈춤: 정착 시작 (굴림이 거의 0 이면 다음 쪽으로 반 굴림에서 출발) */
+        G.settleT = 0; G.plantT = 0; G.rollStop = Math.abs(G.roll) > 2 * DEG ? G.roll : GAIT.roll * 0.5 * ((G.n & 1) ? 1 : -1);
+      }
+      G.last.copy(p); G.moving = moving;
+      G.moveK = clamp(G.moveK + (moving ? dt : -dt) / 0.15, 0, 1);
+      var lk = 1 - Math.exp(-dt / GAIT.lag);
+      G.armK += ((moving ? 1 : 0) - G.armK) * lk; G.armPhase += (G.phase - G.armPhase) * lk;
+      /* 굴림·요·기울임 */
+      var u = G.phase - Math.floor(G.phase), sg = (Math.floor(G.phase) & 1) ? -1 : 1, sr = Math.sin(Math.PI * u), cy = Math.cos(Math.PI * u);
+      if (moving) {
+        G.roll = sg * GAIT.roll * (GAIT.stepped ? (sr > 0.6 ? 1 : 0) : sr);
+        G.yaw = sg * GAIT.yaw * (GAIT.stepped ? (cy > 0.6 ? 1 : cy < -0.6 ? -1 : 0) : cy);
+      } else if (G.settleT < GAIT.settle) {   /* r0 → 0 → −⅓ r0 → 0 (넘었다 한 번 돌아옴) */
+        var k = G.settleT / GAIT.settle, r = G.rollStop * (1 - k) * Math.cos(1.5 * Math.PI * k);
+        G.roll = GAIT.stepped ? Math.round(r / (GAIT.roll * 0.5)) * GAIT.roll * 0.5 : r; G.yaw *= Math.max(0, 1 - dt / 0.1);
+      } else { G.roll = 0; G.yaw = 0; }
+      G.lean = G.antic > 0 ? GAIT.anticLean : GAIT.lean * G.moveK;
+    }
+    function gaitBody() {   /* → [xz 배율, y 배율, 세로 오프셋(r 단위)] */
+      var sx = 1, sy = 1, by = 0, up = pxUp() / OCT_R;
+      if (G.antic > 0) return [GAIT.anticSq[0], GAIT.anticSq[1], 0];
+      if (G.plantT < 2 * GAIT.plant) { var k = G.plantT < GAIT.plant ? 1 : 2 - G.plantT / GAIT.plant; sx = 1 + (GAIT.sq[0] - 1) * k; sy = 1 + (GAIT.sq[1] - 1) * k; }   /* 디딤 눌림 80 ms + 회복 80 ms */
+      if (G.moving && Math.sin(Math.PI * (G.phase - Math.floor(G.phase))) > 0.5) by = up;   /* 걸음 중간 +1px (디딤 땐 0) */
+      if (!G.moving && G.settleT > 0.1 && G.settleT < 0.22) by = up;   /* 정착 통통 1번 */
+      return [sx, sy, by];
+    }
     function stepOct(dt) {
       var s = st.octState, t = time, red = st.reduced;
       oct.animT += dt;
       if (oct.walking) oct.walking.step(dt);
       snapScreen(octG.position.copy(oct.pos));   /* 화면 픽셀 격자에 스냅 (걷기 보간은 oct.pos 에서 매끄럽게, 보이는 위치는 정수 픽셀) */
-      /* 방향 */
-      var dy = oct.wantYaw - oct.faceYaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
-      oct.faceYaw += red ? dy : dy * Math.min(1, dt * 8); octG.rotation.y = oct.faceYaw;
+      stepGait(dt, !red && ((oct.walking && oct.walking.gait) || CER.walk));
+      /* 방향: 걷는 중엔 첫 걸음(거리) 동안 새 방향으로 돈다 · 예비 동작 중엔 그대로 · 그 밖엔 지수 접근 */
+      var dy = angDiff(oct.wantYaw, oct.faceYaw);
+      if (red) oct.faceYaw += dy;
+      else if (G.moving) { var tk = clamp(G.phase - G.turnPh, 0, 1); oct.faceYaw = G.turnFrom + angDiff(G.turnTo, G.turnFrom) * tk * tk * (3 - 2 * tk); }
+      else if (G.antic <= 0) oct.faceYaw += dy * Math.min(1, dt * 8);
+      octG.rotation.y = oct.faceYaw;
       /* 몸 */
-      var sx = 1, sy = 1, by = oct.hop, walking = s === 'walk' || s === 'carry' || CER.walk, tb = Math.floor(t * 8) / 8, ex = face.expr, splay = 0, rz = 0;   /* 숨쉬기는 8 fps 스텝 샘플 (룩 패스 7) */
+      var sx = 1, sy = 1, by = oct.hop, tb = Math.floor(t * 8) / 8, ex = face.expr, splay = 0, rz = 0;   /* 숨쉬기는 8 fps 스텝 샘플 (룩 패스 7) */
       face.t += dt;
       /* 포인터 쪽 (동공 방향 · curious 기울임; 포인터가 없으면 오른쪽) */
       var look = oct.lookTarget || oct.pointer, px = 0, py = 0;
@@ -1094,31 +1152,36 @@ var SCENE3D = (function () {
       if (!red) {
         if (s === 'idle' || s === 'stay') { sy = 1 - 0.03 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2)); sx = 1 + 0.02 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2)); }
         if (ex === 'sleep') { sy = 0.94 - 0.02 * Math.sin(tb * Math.PI / 2.5); sx = 1.03; }
-        if (walking && (oct.walking || CER.walk)) { by += Math.abs(Math.sin(t * 10)) * 0.1; sy = 1 + 0.03 * Math.sin(t * 20); }
+        var gs = gaitBody(); sx *= gs[0]; sy *= gs[1]; by += gs[2];   /* 뒤뚱: 디딤 눌림 · 예비 눌림 · 걸음 중간 1px · 정착 통통 */
         if (s === 'anticipate') { var ak = Math.min(1, oct.animT / 0.6); sx = 1 + 0.05 * ak; sy = 1 - 0.08 * ak; }
         if (ex === 'pet') { var pk = 0.5 + 0.5 * Math.sin(t * Math.PI / 0.6); sx = 1.06 + 0.03 * pk; sy = 0.88 - 0.03 * pk; rz = Math.sin(t * Math.PI / 0.8) * 4 * DEG; }
         if (ex === 'curious') rz = -8 * DEG * dir;
         if (ex === 'happy' && face.hopsLeft > 0) { var hk = (face.t % 0.45) / 0.45; splay = Math.sin(hk * Math.PI); by += splay * 0.5; if (face.t > 0.9) { face.hopsLeft = 0; splay = 0; } }
-        if (s === 'peek') bodyG.rotation.z = Math.sin(t * 4.5) * 0.12; else bodyG.rotation.z += (rz - bodyG.rotation.z) * Math.min(1, dt * 8);
-        if (oct.wiggle > 0) { oct.wiggle -= dt; bodyG.rotation.z = Math.sin(oct.wiggle * 30) * 0.1 * oct.wiggle; }
+        if (s === 'peek') G.rz = Math.sin(t * 4.5) * 0.12; else G.rz += (rz - G.rz) * Math.min(1, dt * 8);
+        if (oct.wiggle > 0) { oct.wiggle -= dt; G.rz = Math.sin(oct.wiggle * 30) * 0.1 * oct.wiggle; }
+        bodyG.rotation.set(G.lean, G.yaw, G.rz + G.roll);   /* 표정 기울임(부드럽게) + 걸음 굴림(3단 스텝) · 요 흔들 · 앞 기울임 */
       } else {   /* 모션 감소: 표정의 정지 자세 */
         var pose = FACES[ex].pose; if (pose) { sx = pose[0]; sy = pose[1]; rz = pose[2]; }
         if (ex === 'curious') rz = -8 * DEG * dir;
         if (s === 'anticipate') { sx = 1.05; sy = 0.92; }
         if (ex === 'happy') splay = 1;
-        bodyG.rotation.z = rz;
+        G.rz = rz; bodyG.rotation.set(0, 0, rz);
       }
       bodyG.scale.set(sx, sy, sx); bodyG.position.y = snapUp(by * OCT_R) / OCT_R;   /* 폴짝·통통도 세로 정수 픽셀로 */
       /* 다리: 0 = 끝이 바닥에 닿은 자세, 흔들림은 위로만. idle 다리 끝 미세 꿈틀(룩 패스 7) = 8 fps 스텝, 다리마다 시드 주기(2~4 s)로 2스텝(0.25 s)만 끝이 화면 세로 **1px** 들림(각도 = asin(1px / 다리 길이)), 걷기는 연속 그대로 */
       anim.armAcc += dt; while (anim.armAcc >= ARM_DT - 1e-6) { anim.armAcc -= ARM_DT; anim.armStep++; } if (anim.armAcc > 1) anim.armAcc = 0;
       var armUp = Math.asin(clamp(pxUp() / (ARM[4][0] * OCT_R * sy), 0, 1));
+      /* 걸음 다리: 위상(60 ms 늦게 따라감) n.u — 짝수 걸음 = +x 쪽 4개가 내딛는 쪽(들림 sin πu, 뒤→앞 쓸기), 나머지는 디딘 채 앞→뒤로 민다. armK 로 정지 자세와 섞는다 */
+      var ak = G.armK, an = Math.floor(G.armPhase), au = G.armPhase - an, swingPos = (an & 1) === 0;
       for (var i = 0; i < 8; i++) {
-        var arm = arms[i], base = 0, w = ARMW[i];
+        var arm = arms[i], base = 0, w = ARMW[i], ca = Math.cos(arm.userData.a), sa = Math.sin(arm.userData.a);
         arm.scale.x = 1 + 0.3 * splay;   /* happy 꼭대기: 다리 바깥으로 ×1.3 */
-        if (red) { arm.rotation.z = base; continue; }
-        if (walking && (oct.walking || CER.walk)) arm.rotation.z = base + (0.5 + 0.5 * Math.sin(t * 10 + (i % 2) * Math.PI)) * 0.35;
-        else if (s === 'sleep') arm.rotation.z = base + 0.02;
-        else arm.rotation.z = base + 0.05 + (((anim.armStep + w.ph) % w.per) < 2 ? armUp : 0);
+        if (red) { arm.rotation.z = base; arm.rotation.y = -arm.userData.a; continue; }
+        var still = s === 'sleep' ? base + 0.02 : base + 0.05 + (((anim.armStep + w.ph) % w.per) < 2 ? armUp : 0);
+        var comp = Math.max(0, -(G.roll) * ca) + Math.max(0, G.lean * sa), lift = 0, fwd = 0;   /* 굴림·기울임으로 바닥 밑으로 가는 다리를 그만큼 든다 */
+        if (ak > 0.001) { var sw = (ca > 0) === swingPos; lift = sw ? GAIT.armLift * Math.sin(Math.PI * au) : 0; fwd = sw ? 2 * au - 1 : 1 - 2 * au; }
+        arm.rotation.z = still * (1 - ak) + (base + 0.05 + lift) * ak + comp;
+        arm.rotation.y = -arm.userData.a + fwd * ak * GAIT.armFwd * (ca > 0 ? 1 : -1);
       }
       /* 눈 깜빡임 (룩 패스 7: 눈 뜬 표정에서만 3~7 s 시드 간격, 120 ms — 눈꺼풀 + 짧은 선 = blink 표정이 끼어든다; 모션 감소면 없음) · 동공 */
       if (OPEN_EYES[ex] && s !== 'away' && !red) {
@@ -1486,8 +1549,8 @@ var SCENE3D = (function () {
     function V(a) { return new T.Vector3(a[0], a[1], a[2]); }
     function cerWalk(to, speed, hop) { /* 걷기(hop 0, 다리 번갈아 + 통통) 또는 폴짝(hop = 호 높이) — 마디 하나 */
       var from = new T.Vector3(), tv = V(to), it = { dur: 0 };
-      it.start = function () { from.copy(oct.pos); var d = tv.clone().sub(from); it.dur = st.reduced ? 0 : Math.max(0.05, (hop ? 0.22 : Math.hypot(d.x, d.z) / speed)) * st.speed; if (Math.hypot(d.x, d.z) > 1e-3) oct.wantYaw = Math.atan2(d.x, d.z); CER.walk = !hop; };
-      it.update = function (k) { oct.pos.lerpVectors(from, tv, k); oct.hop = hop ? Math.sin(k * Math.PI) * hop / OCT_R : 0; };
+      it.start = function () { from.copy(oct.pos); var d = tv.clone().sub(from); it.dur = st.reduced ? 0 : Math.max(0.05, (hop ? 0.22 : Math.hypot(d.x, d.z) / speed)) * st.speed; if (Math.hypot(d.x, d.z) > 1e-3) oct.wantYaw = Math.atan2(d.x, d.z); CER.walk = !hop; it.hold = hop || !it.dur ? 0 : anticHold(); it.dur += it.hold; };   /* 서 있다 걷기 시작하면 예비 동작만큼 제자리 */
+      it.update = function (k) { var w = it.dur > it.hold ? Math.max(0, (k * it.dur - it.hold) / (it.dur - it.hold)) : 1; oct.pos.lerpVectors(from, tv, w); oct.hop = hop ? Math.sin(k * Math.PI) * hop / OCT_R : 0; };
       it.end = function () { oct.pos.copy(tv); oct.hop = 0; CER.walk = false; };
       return it;
     }
@@ -1612,7 +1675,7 @@ var SCENE3D = (function () {
     function frame(ts) {
       var dt = lastT ? Math.min(0.1, (ts - lastT) / 1000) : 0.016; lastT = ts; time += dt; frameNo++;
       if (st.lost) return;
-      var idle = (st.octState === 'idle' || st.octState === 'sleep' || st.octState === 'stay') && !oct.walking && !dragging && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !CER.active;
+      var idle = (st.octState === 'idle' || st.octState === 'sleep' || st.octState === 'stay') && !oct.walking && !(G.settleT < GAIT.settle) && !dragging && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !CER.active;
       if (idle && (frameNo & 1) && !st.force) return;   /* 가만히 있을 땐 30fps (debugStep 은 강제 렌더) */
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       if (light.t < 1) { light.t = Math.min(1, light.t + dt / light.dur); applyLight(); if (light.t >= 1) light.from = null; }
@@ -1725,7 +1788,8 @@ var SCENE3D = (function () {
       debugStep: function (dt) { st.paused = true; cancelAnimationFrame(raf); st.force = true; frame((lastT || 0) + Math.max(0.001, +dt || 1 / 12) * 1000); st.force = false; },
       screenOf: function (x, y, z) { var p = _hp.set(x, y, z).project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 월드 → 컨테이너 CSS px (스트립 크롭 중심) */
       msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
-      motion: function () { return { place: PLACE.vis, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3) }; },   /* 룩 패스 7·8 디버그 */
+      motion: function () { return { place: PLACE.vis, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
+      gaitStyle: function (s) { if (s === 'stepped' || s === 'smooth') GAIT.stepped = s === 'stepped'; return GAIT.stepped ? 'stepped' : 'smooth'; },   /* 디버그: 걸음 굴림 3단 스텝(기본) / 매끈 — tools/walk-strip.js 비교용 */   /* 룩 패스 7·8 디버그 */
       stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, season: SEASON.cur, callsAttic: callsBy.attic, callsExt: callsBy.exterior, extProps: extPropN }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastT = 0; loop(); },
