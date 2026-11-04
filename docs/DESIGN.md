@@ -261,14 +261,14 @@ matchHint(hint) →
 
 ## 7. UI 세부
 
-### 7.0 장면 렌더 방식 — 픽셀 캔버스 (3D→픽셀아트 대비)
-작성자가 방·소품·문어를 **블렌더로 만들고 픽셀아트화해서** 뽑을 계획이다. 그래서 장면은 처음부터 **고정 내부 해상도의 픽셀 캔버스**로 짠다.
-- 내부 해상도 **320×240** (4:3). 화면에는 **정수 배**(×1, ×2, ×3…)로만 확대한다. 폰 360px 폭이면 ×1 + 양옆 여백, 또는 캔버스를 `max-width:100%` 로 두고 비정수 배가 불가피할 때만 CSS가 보간하게 둔다(`image-rendering: pixelated`). 문어·소품의 모든 PNG는 **같은 픽셀 밀도(1 게임픽셀 = 1 PNG 픽셀)** 로 만든다.
-- 시점: **2:1 다이메트릭**(아이소메트릭 계열, 카메라 X≈60°·Z=45°). 다락방의 **모서리 한 칸**(왼쪽 벽: 창문, 오른쪽 벽: 코르크 보드, 바닥 마름모)이 보인다. 문은 오른쪽 아래(화면 밖으로 이어짐).
-- 레이어(아래→위): `bg.room`(벽·바닥·들보) → `window.{rain|drizzle|stars}` → 소품 8개(§4, 등불 단계별 표시) → 기념품 → 벽 포스터 썸네일 → **문어 스프라이트** → `light.lantern{0..8}`(조명 오버레이, `mix-blend-mode: screen` 또는 블렌더에서 라이팅까지 구운 `bg.room.L{0..8}` 9장 중 택1) → 비 파티클(캔버스 밖 CSS).
-- 에셋이 없을 때는 **같은 레이어 구조의 벡터 플레이스홀더**(인라인 SVG, 320×240 viewBox)를 쓴다. 구현은 지금 플레이스홀더로 하고, PNG가 생기면 파일만 바꾼다(`assets/manifest.json` 의 키 → 파일 경로).
-- 움직임: 스프라이트 이동은 **게임픽셀 단위로 스냅**한다(`translate` 값을 `Math.round(v)` px × 스케일, 또는 `steps()` 이징). 서브픽셀 흔들림 금지. 비·등불 깜빡임처럼 픽셀 캔버스 밖 효과는 CSS로 자유롭게.
-- UI 글자(로그·버튼·상태줄)는 픽셀 캔버스 **밖**에 둔다. 캔버스 안 글자는 상태 라벨(`💤`, `출발 중…`)뿐이고, 이것도 캔버스 위에 겹친 HTML이다.
+### 7.0 장면 렌더 방식 — Three.js 픽셀아트 3D 다락방 (그릴 것 없음)
+작성자는 **아무것도 직접 그리지 않는다.** 장면은 three.js(r128 UMD, `vendor/three.min.js`, 없으면 cdnjs)로 **전부 절차적으로** 만들고, 저해상도 렌더 타깃 + 팔레트 스냅 + 디더 + 외곽선 후처리로 픽셀아트처럼 보이게 한다. 블렌더/스프라이트 파이프라인은 쓰지 않는다. WebGL이 없거나 three 로드에 실패하면 인라인 SVG 2D 장면(1차 구현)으로 내려간다.
+
+- **룩**: 아트 픽셀 크기 기본 3(설정 1~4). 렌더 타깃 = `canvasWidth/px × canvasHeight/px`. 후처리: (1) 깊이 텍스처로 깊이가 튀는 곳에 1px 어두운 외곽선, (2) OKLab 공간에서 고정 팔레트(48~64색: 다락방 나무 갈색 램프, 종이, 등불 호박색 램프, 밤 남색 램프, 이끼 초록, **문어 색에서 만든 5단계 램프**)로 스냅, (3) Bayer 4×4 정렬 디더. 직교 카메라, 다이메트릭(약 30~35°) 각도, 카메라 타깃은 아트 픽셀 격자에 스냅. 드래그로 ±25° 돌려 볼 수 있고 핀치/휠로 줌(정수 배 유지).
+- **다락방 기하**: 벽 두 면(널빤지 복셀), 바닥 널, 기울어진 지붕 들보, 창문(틀 + 유리 평면, 유리 뒤 빗방울 파티클 + 유리 위 흐르는 물줄기), 고리에 매달린 등불(발광 + 포인트 라이트), 오른쪽 아래 문틀(어둠으로 이어짐). 소품 8개는 §4 그대로 원시 도형 조합(이끼 화분 = 원기둥 + 초록 덩어리, 상자 = 박스, 양초 = 원기둥 + 발광 불꽃 + 깜빡이는 라이트, 담요 = 납작한 둥근 박스, 코르크 보드 = 박스 + 포스터 평면(포스터 SVG를 캔버스로 구워 텍스처), 선반 = 박스 + 기념품 소형 도형, 커튼 = 평면 2장).
+- **조명 = 실제 시각**: `new Date()` 로컬 시각을 1분마다 읽어 창문 햇빛의 색·각도·세기를 바꾼다. 6~9시 새벽(분홍빛), 9~17시 낮, 17~19시 노을(주황), 19~6시 밤(짙은 남색, 등불이 주광). 상태 사이는 60초에 걸쳐 이징. 등불 세기는 등불 칸 수. 날씨(비/가는 비/맑음)는 날짜 시드 + §4의 등불 아크(6칸 가는 비, 7칸 맑은 밤) — 별은 밤이고 맑을 때만 보인다. 로그 첫 줄 인사도 시각에 맞춘다("좋은 아침", "밤이네").
+- **성능**: `renderer.setPixelRatio(1)`, 그림자 맵 1024, 정적 메시는 재질별 병합, 드로우콜 ≤150, 탭이 숨겨지면 rAF 정지, `dt` 상한 0.1s. 폰 360px에서 60fps 목표, 안 되면 아트 픽셀을 4로.
+- UI 글자(로그·버튼·상태줄·말풍선)는 3D 캔버스 **밖** HTML. 말풍선은 문어의 3D 위치를 화면 좌표로 투영해 붙인다.
 
 ### 7.1 문어 — 집 안에서는 실제로 돌아다닌다
 **캐릭터 레퍼런스: `assets/ref/octopus-ref.png`** (작성자 그림). 동글동글한 빨간 몸, 왼쪽 위 주황 하이라이트 + 흰 점, 짧고 통통한 다리 6~8개에 연주황 빨판 점, 흰 테두리가 있는 까만 점 눈, 작은 `_` 입. 팔레트: 몸 `#e8463c`, 하이라이트 `#f2a05a`, 빨판 `#f6c28c`, 눈 `#1b1f2e` + 테두리 `#fff6ee`, 입 `#8a2a24`. 이 팔레트가 기존 티얼(#3a7080) 문어를 **대체**한다. 인라인 SVG 플레이스홀더도 이 모양·색으로 그린다. 잠잘 때 색 순환은 빨강 기준 hue ±18°(주황↔자주 사이).
@@ -285,8 +285,9 @@ matchHint(hint) →
 
 상태 기계(`APP.oct`):
 `idle`(앵커에서 숨쉬기, 20~40초마다 다른 앵커로 산책) → `anticipate`(출발 직전 300ms 움츠림) → `walk`(앵커 간 이동, 속도 40게임픽셀/초, 좌우 미러) → `away`(없음) → `walk`(door→board, 포스터 들고 `carry`) → `hang`(포스터가 보드로 500ms) → `happy|calm` → `walk`(→blanket) → `sleep`(색 순환, §3) 또는 `stay`(집에 있는 날: window/crate에서 활동).
-- 스프라이트 시트 규격(블렌더에서 뽑을 때): 프레임 48×48 게임픽셀, 상태별 프레임 수 `idle 4 · walk 6 · carry 6 · peek 4 · happy 4 · sleep 4`, 방향 2(오른쪽만 만들고 CSS `scaleX(-1)` 미러). 3D에서 4방향을 뽑으면 `walk_up/down` 도 받는다(선택).
-- 지금은 인라인 SVG 문어(기존 64×76 → 48×48 틀 안에 축소)를 같은 상태 이름으로 움직인다. 다리 흔들림은 CSS. PNG 시트가 생기면 `background-position` 스텝 애니메이션으로 교체.
+- **3D 문어(절차적)**: 머리 = 살짝 눌린 구(반지름 1), 눈 = 흰 구 + 검은 동공 + 하이라이트 점(동공이 포인터를 따라감), 입 = 작은 `_`(어두운 납작 박스), 다리 = **짧고 통통한** 테이퍼드 캡슐 8개를 몸통 아래 둘레에 배치(실제 문어보다 훨씬 짧게, 몸 반지름의 0.9배 길이), 아래쪽에 연한 빨판 점. 다리는 사인파로 흐느적, 걸을 땐 좌우 다리가 번갈아 밀고 몸이 통통 튄다. 재질은 플랫/셀 셰이딩에 가깝게(MeshToonMaterial 또는 Lambert + 팔레트 스냅이 알아서 셀 느낌을 만든다).
+- **색 고르기**: 방 보기에 색상(hue) 슬라이더 + 프리셋 6개(빨강·주황·보라·파랑·초록·분홍). 저장된다. 몸 색에서 하이라이트(밝게), 다리 밑면(더 밝고 따뜻하게), 그림자(어둡게) 램프를 만들어 팔레트에 넣는다. 잠잘 때 색 순환, 쓰다듬으면 홍조(§14).
+- 2D 폴백(인라인 SVG 문어)도 같은 상태 이름으로 움직인다.
 - `sleep`: 느린 호흡 + **색 순환**(hue-rotate ±18°, 12초 주기). 라벨 `💤` → 가끔 `꿈꾸는 중`. (문어의 활성 수면: 자면서 피부색이 바뀐다.)
 - 모든 모션은 `transform/opacity` 만. `prefers-reduced-motion: reduce` 면 걷기 대신 즉시 이동, 비·흔들림 정지, 플립 없이 교체.
 
@@ -390,12 +391,14 @@ index.html          화면 뼈대 + 인라인 문어 SVG + 모달/시트
 css/style.css       테마 변수(라이트/다크), 장면, 애니메이션, 컴포넌트
 js/world.js         세계 그래프·코너·기념품·집 활동·문구 (데이터만, 전역 WORLD)
 js/brain.js         PRNG, 힌트 매칭, 길 만들기, 위키 fetch, 기억·반응 선택 → 이벤트 배열 (전역 BRAIN)
+js/scene3d.js       three.js 픽셀아트 3D 다락방 + 문어 (전역 SCENE3D, §13 계약). WebGL 없으면 2D 폴백
+vendor/three.min.js three r128 UMD (MIT). cdnjs 폴백
 js/app.js           상태·영속·마이그레이션, 공개(재생) 타이머, 렌더, 포스터 SVG, 모달, 데모 조작, 가져오기/내보내기
-assets/             이미지 자리. manifest.json(키→파일) + 플레이스홀더 SVG. 작성자의 블렌더→픽셀아트 PNG로 교체 (docs/ASSETS.md)
+assets/             2D 폴백용 플레이스홀더 SVG + 캐릭터 레퍼런스. 사람이 그릴 에셋은 없다
 tools/bundle.js     css/js/에셋을 인라인한 단일 파일 dist/ppolppol.html 생성 (node, 의존성 없음)
 tools/make-placeholders.js  플레이스홀더 SVG 생성
 docs/DESIGN.md      이 문서
-docs/ASSETS.md      에셋 명세 + 블렌더→픽셀아트 렌더 스펙(카메라·해상도·팔레트·라이트 9단계·스프라이트 시트)
+docs/SCENE.md       절차적 3D 장면 명세(기하·팔레트·조명·후처리·상호작용) — 그릴 것 없음
 docs/PROTOCOL.md    §9 상세 + MCP 매핑
 docs/APPLIED_TIPS.md 리서치에서 실제로 적용한 규칙과 출처
 ```
@@ -458,3 +461,61 @@ BRAIN.replay(events, meta) → Trip                      // 사람이 조작한/
 - DOM id 고정: `#scene`, `#oct`, `#status`, `#hint-in`, `#btn-go`, `#btn-skip`, `#btn-look`, `#log`, `#album`, `#poster-dialog`, `#room-sheet`, `#demo`.
 - 공개(재생) 타이머는 `APP.reveal(trip)`: 이벤트 `t` 가 아니라 §7.4 간격(PRNG)으로 하나씩, `skip` 시 전부.
 - 스모크 테스트 `tools/smoke.js`(Playwright, 설치돼 있음, `require('playwright')`): file:// 로 열기 → 이름 입력 → 힌트 '모자의 역사' → 초대 → 건너뛰기 → 앨범 카드 1개·벽 썸네일 1개·등불 1칸 → **새로고침** → 그대로 남아 있음 → 카드 탭 → 모달 앞면 → 뒤집기 → 영수증에 정류장 ≥2 → 스크린샷 저장. 위키 fetch 는 `page.route` 로 가짜 응답(성공/실패 두 경우) 주입.
+
+
+---
+
+## 13. `SCENE3D` 계약과 장면 프롬프트
+
+### 13.1 계약 (js/scene3d.js, 전역 `SCENE3D`)
+```js
+SCENE3D.supported() → boolean                       // WebGL + THREE 로드 여부
+SCENE3D.init(container, opts) → scene               // opts: { pixelSize:3, color:'#e8463c', lantern:0, items:[], weather:'rain', hour:21.5,
+                                                    //         posters:[{id, svg}], souvenirs:[{id,emoji,name}], reducedMotion:false,
+                                                    //         on:{ posterTap(id), pet(), tap(), windowTap(), anchorReached(anchor) } }
+scene.setLantern(n) · setItems([...]) · setWeather('rain'|'drizzle'|'clear'|'snow') · setTime(hourFloat) · setColor(hex)
+scene.setOctState('idle'|'anticipate'|'walk'|'away'|'carry'|'hang'|'happy'|'sleep'|'stay'|'peek'|'pet')
+scene.moveTo(anchor)                                // 'door'|'window'|'crate'|'board'|'blanket'|'center' — 걸어가서 anchorReached 콜백
+scene.setPosters([...]) · setSouvenirs([...]) · bubble(text, ms) · pause() · resume() · destroy()
+scene.octScreenPos() → {x,y}                        // 말풍선 투영용
+```
+2D 폴백(`SCENE2D`)도 같은 메서드를 가진다. `APP` 은 `SCENE = SCENE3D.supported() ? SCENE3D : SCENE2D` 하나만 본다.
+
+### 13.2 장면 프롬프트 (구현 에이전트에게 주는 지시문. "Island Grand Prix" 형식)
+```
+Build js/scene3d.js for "뽈뽈 문어": a pixel-art 3D rainy attic where a small red octopus lives. three.js r128 UMD (global THREE from vendor/three.min.js, fallback cdnjs). No build step, no modules. Everything procedural: NO image/model files.
+
+LOOK
+- Render to a low-res render target (art pixel 3 px default, 1–4 via setting). Post pass on a full-screen quad: depth-texture outline where depth jumps, snap every pixel to a fixed ~56-colour palette in OKLab (wood browns ×8, paper ×4, amber lantern ramp ×6, night navy ramp ×6, moss greens ×4, slate greys ×6, plus a 5-shade ramp generated from the octopus colour), Bayer 4×4 ordered dither. Orthographic dimetric camera (≈32° tilt, 45° yaw), target snapped to the art-pixel grid, drag to rotate ±25°, pinch/wheel zoom in integer steps.
+- Attic corner ~6 × 6 m: two plank walls meeting at the back corner, plank floor, one slanted roof beam, a window (frame + glass) on the left wall with rain particles behind the glass and streaks on it, a lantern hanging from a hook (emissive body + point light whose intensity follows 0–8 notches), a door frame at the right opening into darkness. Props appear by notch: moss pot on the sill (1), wooden crate (2), candle with flickering point light (3), blanket (4), cork board (5) that holds poster planes (textures baked from poster SVGs), rain thins (6), stars through the window at night when clear (7), shelf with souvenirs + curtain (8).
+- Lighting from the real clock: a directional sun through the window whose colour/angle/intensity ease (60 s) between dawn 6–9h (pink), day 9–17h, dusk 17–19h (orange), night 19–6h (deep navy; lantern dominates). Hemisphere fill. PCF soft shadows, shadow map 1024. Weather states rain / drizzle / clear / snow.
+- Octopus: squashed sphere head (r=1), two white eyes with black pupils + highlight that track the pointer, a tiny "_" mouth, eight SHORT stubby tapered arms (length 0.9 r) around the base with pale sucker dots underneath. Toon/flat shading; colour from a setting (hue slider + 6 presets), highlight and underside derived. States: idle (4 s breathe, blink 3–7 s, arms sway), anticipate (600 ms squash), walk (arms alternate, body bob, turns toward direction, 1.2 m/s), away (not in scene), carry (holds a poster plane), hang (poster flies to the board), happy (two hops), sleep (slow breathe + hue cycle ±18°, "💤" bubble), stay (sits at window/crate/blanket), pet (eyes become ^ ^ arcs, blush discs, squish, colour flush toward warm; after ~2 s the octopus decides to lean in (70%) or wander to another anchor (30%) — never a sad face).
+- Doll's-house style lift is NOT needed; keep the camera above wall height so walls never occlude the octopus.
+
+INTERACTION
+- Raycast pointer: octopus (tap → turns to camera + "?" bubble; press-and-move → pet), posters on the board (tap → on.posterTap(id)), window (tap → on.windowTap: octopus walks to the window and looks out), name label is HTML outside the canvas.
+- Anchors (world units): door (2.6, 0, 2.4), window (-2.2, 0, 0.6), crate (1.8, 0, -1.6), board (0.6, 0, -2.6), blanket (-1.2, 0, 1.8), center (0,0,0). moveTo walks a straight line with a 0.4 m arc hop at the end and fires anchorReached.
+- Reduced motion: no breathe/sway/rain motion, instant moveTo, static starfield; colour transitions stay.
+
+QUALITY BAR
+- Runs from file:// and GitHub Pages; no console errors; 360×740 phone at 60 fps with pixel 3 (≤150 draw calls, static meshes merged by material); pause rAF when document.hidden; destroy() frees GPU resources; Playwright screenshot at notch 0 / 4 / 8, day / night, pet state; a 2D SVG fallback is used when THREE or WebGL is missing, with the same API.
+```
+
+## 14. 문어와의 소통 (추가 컨텐츠)
+
+원칙: 소통은 **애정 표현**이지 자원이 아니다. 쓰다듬기·바라보기로 등불이 켜지거나 포스터가 나오지 않는다. 문어가 응하지 않아도 벌이 아니다.
+
+| 행동 | 문어의 반응 | 메모 |
+|---|---|---|
+| 쓰다듬기(누르고 문지르기) | `pet` 상태: 눈이 ^ ^, 홍조, 살짝 눌림, 색이 따뜻하게 홍조. 2초쯤 지나면 **문어가 정함**: 더 기대 온다(70%) 또는 다른 앵커로 총총 간다(30%, 바쁜 것뿐, 시무룩 없음) | 시무룩·죄책감 금지(컨펌셰이밍) |
+| 톡 두드리기 | 카메라 쪽으로 돌아보고 `?` 말풍선. 이름표를 누르면 깡총 | |
+| 바라보기 | 동공이 포인터를 따라감. 힌트를 입력하면 입력칸 쪽을 쳐다봄(눈치가 아니라 관심) | 기존 §7.3 |
+| 창문 두드리기 | 창가로 걸어가서 같이 창밖을 봄. 밤이고 맑으면 별 | |
+| 가만히 두기 | 20~40초마다 다른 앵커로 산책, 가끔 생각 말풍선: 지난 산책의 기억 조각("어제 본 깃털 생각 중") | 기록에서 뽑는다. 지어내지 않는다 |
+| 기념품 만지기 | 선반의 기념품을 누르면 문어가 가져와 보여 주고 영수증(그걸 가져온 날)을 연다 | |
+| 포스터 두드리기 | 보드의 포스터를 누르면 모달(앞면→뒤집기) | §6.3 |
+| 색 고르기 | 방 보기에서 색을 바꾸면 문어가 몸을 한 번 흔들며 색이 번진다 | 저장 |
+| 시간 | 아침/낮/노을/밤 조명, 인사말, 밤엔 집에 있을 확률 ↑(§5.2) | 실제 시계 |
+| 문어의 놀이(가끔) | 집에 있는 날 활동에 "병뚜껑 굴리기"를 둔다(문어의 놀이 행동 연구에서) | §5.8 |
+
+하지 않는 것: 쓰다듬기 횟수 표시, 애정도 게이지, "오늘 안 쓰다듬었어" 류 알림.
