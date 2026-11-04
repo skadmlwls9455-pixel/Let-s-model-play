@@ -10,11 +10,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap">
 <link rel="stylesheet" href="css/style.css">
+<!-- 저장소 워밍업: 문서가 열리자마자 한 번 읽어 둔다. file:// 원점에서 새로고침 직후 첫 읽기가 직전 커밋을 놓치는 경우가 있어서 (R2) -->
+<script>try { localStorage.getItem('ppolppol_v2'); } catch (e) { /* 저장소 없음: app.js 가 메모리로 대신한다 */ }</script>
 </head>
 <body>
 
 <!-- 저장 실패 경고 (조용히, 1회) -->
-<div id="save-warn" class="warn" hidden role="status">기록을 이 브라우저에 저장하지 못했어. 새로고침하면 사라질 수 있어.</div>
+<div id="save-warn" class="warn" hidden role="status"></div>
 
 <!-- ══ SCENE · 3D 픽셀아트 다락방 (§7.0, js/scene3d.js) — WebGL 없으면 아래 #stage 2D 폴백 ══ -->
 <section id="scene" aria-label="문어의 다락방">
@@ -62,11 +64,16 @@
 
 <!-- ══ STATUS (§7.2) ══ -->
 <div id="status">
-  <span id="oct-name" class="name">이름 없는 문어</span>
-  <span id="pips" class="pips" role="img" aria-label="등불 0/8"></span>
-  <span class="stat" id="stat-trips">여행 0</span>
-  <span class="stat" id="stat-days">함께한 날 0</span>
-  <button type="button" class="chip" id="chip-demo" title="데모 두뇌 설명 보기">데모 두뇌</button>
+  <div class="srow">
+    <span id="oct-name" class="name">이름 없는 문어</span>
+    <span id="room-title" class="room-title">어두운 다락</span>
+    <button type="button" class="chip" id="chip-demo" title="데모 두뇌 설명 보기">데모 두뇌</button>
+  </div>
+  <div class="srow">
+    <span id="pips" class="pips" role="img" aria-label="등불 0/8"></span>
+    <span class="stat" id="stat-trips" hidden>여행 0</span>
+    <span class="stat" id="stat-days" hidden>함께한 날 0</span>
+  </div>
 </div>
 
 <!-- ══ INVITE (§7.3) ══ -->
@@ -76,8 +83,8 @@
          placeholder="관심 가는 주제나 URL을 넌지시… 비워 두면 네가 골라">
   <div id="hint-help" class="help">비워 두면 '오늘은 네가 골라봐'</div>
   <div class="btn-row">
-    <button type="button" class="btn primary pressable" id="btn-go"><span class="go-txt">🌧 뽈뽈 다녀와</span></button>
-    <button type="button" class="btn pressable" id="btn-skip" hidden>⏩ 건너뛰기</button>
+    <button type="button" class="btn primary pressable" id="btn-go"><span class="go-txt"><span class="emo" aria-hidden="true">🌧</span> 뽈뽈 다녀와</span></button>
+    <button type="button" class="btn pressable" id="btn-skip" hidden><span class="emo" aria-hidden="true">⏩</span> 건너뛰기</button>
     <button type="button" class="btn pressable" id="btn-look">방 보기</button>
   </div>
 </section>
@@ -89,7 +96,7 @@
 </section>
 
 <!-- ══ ALBUM (§6.3) ══ -->
-<section id="album-sec" aria-label="추억 앨범">
+<section id="album-sec" aria-label="추억 앨범" hidden>
   <div class="sec-row">
     <h2 class="sec-h">추억 앨범</h2>
     <div class="filters" role="group" aria-label="앨범 필터">
@@ -148,6 +155,7 @@
     <div class="face front" id="pd-front"></div>
     <div class="face back" id="pd-back"></div>
   </div>
+  <p class="flip-hint" id="pd-hint" hidden><span>톡 눌러 뒤집기</span></p>
   <div class="btn-row center">
     <button type="button" class="btn pressable" id="pd-flip">뒤집기</button>
     <button type="button" class="btn pressable" id="pd-save">이미지로 저장</button>
@@ -163,6 +171,7 @@
   <button type="button" class="btn wide pressable" id="rs-close">닫기</button>
 </dialog>
 
+<!-- 토스트는 이거 하나. 한 번에 하나, 2.5초 -->
 <output id="toast" aria-live="polite"></output>
 
 <!-- three r128 UMD (MIT, vendor/THREE-LICENSE.txt). 로컬 파일이 없으면 cdnjs. 둘 다 실패하면 SCENE2D 폴백 -->

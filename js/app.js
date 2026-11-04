@@ -36,6 +36,14 @@ var APP = (function () {
     return el;
   }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  /* 장식 이모지는 <span class="emo" aria-hidden> 로 (UI R12). DOM 용 / HTML 문자열 용 */
+  function emo(ch) { return h('span', { class: 'emo', 'aria-hidden': 'true', text: ch }); }
+  function emoH(ch) { return ch ? '<span class="emo" aria-hidden="true">' + esc(ch) + '</span>' : ''; }
+  /* 방 이름: 등불 칸수에 따라 (CG R17) */
+  function roomTitle(lv) { return lv >= 8 ? '문어의 다락' : lv >= 5 ? '살림이 생긴 다락' : lv >= 2 ? '등불 켜진 다락' : '어두운 다락'; }
+  /* 등불 칸이 켜질 때 문어 목소리로 한 줄 (WORLD.roomLevels 순서) */
+  var ITEM_LINE = { 1: '창턱에 이끼 화분을 올려뒀어', 2: '낡은 나무 상자를 끌어다 책상 삼았어', 3: '구석에 양초를 켰어. 그림자가 흔들려', 4: '담요 한 장 깔았어. 좀 따뜻해졌다',
+    5: '벽에 포스터 붙일 판을 걸었어', 6: '비가 잦아들었어. 창밖이 조용해', 7: '선반을 달았어. 창문에 별도 보여', 8: '커튼을 쳤어. 이제 진짜 내 다락이야' };
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function dateKey(d) { d = d || new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
   function fmtDate(key, dots) { var p = String(key || '').split('-'); return dots ? p.join('.') : (p[1] | 0) + '.' + (p[2] | 0); }
@@ -54,11 +62,21 @@ var APP = (function () {
   function cornerName(c) { return (W && W.corners && W.corners[c] && W.corners[c].name) || c; }
   function greetingByHour(hr) { return hr < 6 ? '밤이 깊었네' : hr < 9 ? '좋은 아침' : hr < 17 ? '좋은 오후' : hr < 19 ? '노을이 지네' : '밤이네'; }
   var toastTimer = null;
-  function toast(msg) {
+  function toast(msg) {   /* <output aria-live=polite> 하나, 한 번에 하나, 2.5초 (UI R21) */
     var t = $('toast'); if (!t) return;
     t.textContent = msg; t.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2500);
   }
+  /* ── 저장소: localStorage 감지 → 없으면 메모리 (조용히 한 줄). QuotaExceeded 는 오래된 이벤트를 비우고 한 번 재시도 (R2–R5) ── */
+  var mem = {};
+  var storeOK = (function () { try { var k = 'ppolppol_probe'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return true; } catch (e) { return false; } })();
+  var store = {
+    get: function (k) { if (storeOK) { try { return localStorage.getItem(k); } catch (e) { /* 아래 */ } } return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null; },
+    set: function (k, v) { mem[k] = v; if (!storeOK) return false; localStorage.setItem(k, v); return true; },
+    remove: function (k) { delete mem[k]; if (storeOK) { try { localStorage.removeItem(k); } catch (e) { /* noop */ } } }
+  };
+  function isQuota(e) { return !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014); }
+  function quietWarn(text) { var w = $('save-warn'); if (!w) return; if (w.textContent === text && !w.hidden) return; w.textContent = text; w.hidden = false; }
 
   /* ───────────────────────── state ───────────────────────── */
   function defaults() {
@@ -67,33 +85,45 @@ var APP = (function () {
       octopus: { name: null, born: null, trips: 0, invites: 0, days: [], affinity: {}, visits: {}, state: 'idle' },
       room: { lantern: 0, souvenirs: [], posterOrder: [] },
       trips: [],
-      settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c' }
+      settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c', flipped: false }
     };
   }
   var S = defaults();
-  var warned = false;
+  var warned = false, lastSaved = null;
+  /* 가장 오래된 여행들의 events 를 비운다 (영수증·포스터는 남김). 비운 게 있으면 true */
+  function trimOldestEvents(n) {
+    var cut = 0;
+    for (var i = 0; i < S.trips.length && cut < (n || 10); i++) { if (S.trips[i].events && S.trips[i].events.length) { S.trips[i].events = []; cut++; } }
+    return cut > 0;
+  }
   function save() {
-    try {
-      S.settings.lastSeen = Date.now();
-      localStorage.setItem(KEY, JSON.stringify(S));
-      return true;
-    } catch (e) {
-      if (!warned) { warned = true; var w = $('save-warn'); if (w) w.hidden = false; }
+    S.settings.lastSeen = Date.now();
+    var json = JSON.stringify(S);
+    if (!storeOK) { mem[KEY] = json; if (!warned) { warned = true; quietWarn('이 브라우저에선 벽이 오늘만 남아'); } return false; }
+    try { localStorage.setItem(KEY, json); lastSaved = json; return true; }
+    catch (e) {
+      if (isQuota(e) && trimOldestEvents(10)) {
+        try { json = JSON.stringify(S); localStorage.setItem(KEY, json); lastSaved = json; return true; } catch (e2) { /* 아래 */ }
+      }
+      mem[KEY] = json;
+      if (!warned) { warned = true; quietWarn('기록을 이 브라우저에 저장하지 못했어. 새로고침하면 사라질 수 있어.'); }
       return false;
     }
   }
   function load() {
-    var raw = null;
-    try { raw = localStorage.getItem(KEY); } catch (e) { raw = null; }
+    var raw = store.get(KEY);
     if (raw) {
-      try { S = normalize(JSON.parse(raw)); return S; } catch (e) { /* 깨진 저장 → 새로 */ }
+      try { S = normalize(JSON.parse(raw)); lastSaved = raw; return S; } catch (e) { /* 깨진 저장 → 새로 */ }
     }
-    var v1 = null;
-    try { v1 = localStorage.getItem(KEY_V1); } catch (e) { v1 = null; }
+    var v1 = store.get(KEY_V1);
     if (v1) { S = migrateV1(v1); save(); return S; }
     S = defaults();
     return S;
   }
+  /* 작은 UI 기억 (데모 펼침 등) — 뷰어별, 기록과 분리 */
+  var UI_KEY = 'ppolppol_ui';
+  function uiPref() { try { var o = JSON.parse(store.get(UI_KEY) || 'null'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; } }
+  function setUiPref(k, v) { var o = uiPref(); o[k] = v; try { store.set(UI_KEY, JSON.stringify(o)); } catch (e) { /* noop */ } }
   function normalize(s) {
     var d = defaults();
     s = s || {};
@@ -135,7 +165,7 @@ var APP = (function () {
       });
       d.room.posterOrder.push(id);
     });
-    try { localStorage.setItem(KEY_V1_BAK, raw); localStorage.removeItem(KEY_V1); } catch (e) { /* 이름 바꾸기 실패해도 진행 */ }
+    try { store.set(KEY_V1_BAK, raw); store.remove(KEY_V1); } catch (e) { /* 이름 바꾸기 실패해도 진행 */ }
     return d;
   }
 
@@ -193,8 +223,8 @@ var APP = (function () {
     return r < 0.4 ? 'rain' : r < 0.65 ? 'drizzle' : 'clear';
   }
   function hourNow() { var hk = lookHook(); if (hk && typeof hk.hour === 'number') return hk.hour; var d = new Date(); return d.getHours() + d.getMinutes() / 60; }
-  function loadLook() { try { var o = JSON.parse(localStorage.getItem(LOOK_KEY) || 'null'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; } }
-  function saveLook(o) { try { localStorage.setItem(LOOK_KEY, JSON.stringify(o)); } catch (e) { /* noop */ } }
+  function loadLook() { try { var o = JSON.parse(store.get(LOOK_KEY) || 'null'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; } }
+  function saveLook(o) { try { store.set(LOOK_KEY, JSON.stringify(o)); } catch (e) { /* noop */ } }
   function sceneOpts() {
     return {
       pixelSize: 3, color: S.settings.octColor, lantern: S.room.lantern, items: itemsFor(S.room.lantern), weather: weatherFor(S.room.lantern), hour: hourNow(),
@@ -224,10 +254,12 @@ var APP = (function () {
     $('scene3d').hidden = sceneMode !== '3d';
     setInterval(function () { scene.setTime(hourNow()); }, 60000);
   }
-  function renderScene() {
+  /* part: 'lantern' 등불만 · 'items' 소품·날씨만 · 생략하면 전부 (귀가 연출에서 둘을 200ms 띄운다) */
+  function renderScene(part) {
     var lv = S.room.lantern;
-    scene.setLantern(lv); scene.setItems(itemsFor(lv)); scene.setWeather(weatherFor(lv));
-    document.title = (S.octopus.name ? S.octopus.name + ' · ' : '') + '뽈뽈 문어 · 등불 ' + lv + '/8';
+    if (part !== 'items') scene.setLantern(lv);
+    if (part !== 'lantern') { scene.setItems(itemsFor(lv)); scene.setWeather(weatherFor(lv)); }
+    document.title = (S.octopus.name ? S.octopus.name + ' · ' : '') + roomTitle(lv) + ' · 뽈뽈 문어';
   }
   function setOctColor(hex) { if (!/^#[0-9a-f]{6}$/i.test(hex)) return; S.settings.octColor = hex; save(); scene.setColor(hex); }
 
@@ -308,7 +340,7 @@ var APP = (function () {
   function setBusy(on) {
     busy = on; oct.busy = on;
     var go = $('btn-go'), sk = $('btn-skip'), inp = $('hint-in');
-    if (go) { go.disabled = on; go.classList.toggle('away', on); go.querySelector('.go-txt').textContent = on ? '다녀오는 중…' : '🌧 뽈뽈 다녀와'; }
+    if (go) { go.disabled = on; go.classList.toggle('away', on); if (go.parentNode) go.parentNode.classList.toggle('away', on); go.querySelector('.go-txt').innerHTML = on ? '다녀오는 중…' : emoH('🌧') + ' 뽈뽈 다녀와'; }
     if (sk) sk.hidden = !on;
     if (inp) inp.disabled = on;
     if (on) stopWander(); else scheduleWander();
@@ -349,21 +381,33 @@ var APP = (function () {
     setBusy(true); skipFlag = false;
     wakeUp();
     bubble('', 0);
+    /* 누른 지 400ms 안에 로그에 첫 반응 (UI R19): 움츠리는 동안 '…' 자리표시 */
+    var pre = logRow('…', '…', 'typing pre', false); ensureTodaySection().appendChild(pre); scrollLog();
     octState('anticipate');
-    var windup = sleep(reduced() ? 50 : 600);
+    /* 예비 동작: 600ms 움츠림 + 200ms 멈춤 → 나간다. 집에 있는 날엔 같은 움츠림이 풀리며 자리에 앉는다 (GF R8) */
+    var fast = reduced();
+    var windup = sleep(fast ? 50 : 600 * speed()).then(function () { return sleep(fast ? 0 : 200 * speed()); });
     var planP = B.plan(brainInput(trip)).catch(function (e) { console.warn('plan failed', e); return null; });
     return Promise.all([planP, windup]).then(function (res) {
       var planned = res[0];
       if (!planned) {
         S.trips = S.trips.filter(function (t) { return t !== trip; }); save();
-        setBusy(false); octState('idle'); toast('두뇌가 잠깐 멈췄어. 다시 한 번 불러 줘');
+        pre.remove(); setBusy(false); settleOct(); toast('두뇌가 잠깐 멈췄어. 다시 한 번 불러 줘');
         return null;
       }
       mergePlan(trip, planned); save();
-      return reveal(trip).then(function () { setBusy(false); return trip; });
+      var pre = (trip.kind !== 'out' && !fast) ? settleOct() : Promise.resolve();
+      return pre.then(function () { return reveal(trip); }).then(function () { setBusy(false); return trip; });
     });
   }
   function skip() { skipFlag = true; if (revealing && revealing.wake) revealing.wake(); }
+  /* 움츠림 → 1.03 overshoot 로 풀기 (2D 는 CSS, 3D 는 idle 복귀). 끝나면 idle */
+  function settleOct() {
+    var el = $('oct'); octState('idle');
+    if (reduced() || !el) return Promise.resolve();
+    el.classList.add('settle');
+    return sleep(500 * speed()).then(function () { el.classList.remove('settle'); });
+  }
   function gapWait(ms) {
     if (skipFlag) return Promise.resolve();
     return new Promise(function (resolve) {
@@ -373,10 +417,11 @@ var APP = (function () {
     });
   }
   function reveal(trip) {
-    revealing = { trip: trip, wake: null };
+    revealing = { trip: trip, wake: null, deferred: null, ceremony: null };
     var rng = mkRng((trip.seed ^ 0x9e3779b9) >>> 0);
     var evs = trip.events || [];
     var today = ensureTodaySection();
+    today.querySelectorAll('.lrow.typing.pre').forEach(function (r) { r.remove(); });
     var typing = null;
     function showTyping() { if (skipFlag) return; typing = logRow('…', '…', 'typing', false); today.appendChild(typing); scrollLog(); }
     function hideTyping() { if (typing) { typing.remove(); typing = null; } }
@@ -386,16 +431,43 @@ var APP = (function () {
         if (i > 0) { showTyping(); return gapWait((2200 + rng() * 2300) * speed()).then(hideTyping); }
       }).then(function () {
         var row = eventRow(trip, ev);
-        if (row) { row.classList.add('in'); today.appendChild(row); scrollLog(); }
+        if (row) appendLogRow(today, row);
         return sceneFor(trip, ev);
       });
     });
     return chain.then(function () {
       hideTyping();
       if (trip.status !== 'done') commitTrip(trip);
+      return startCeremony();
+    }).then(function () {
       revealing = null;
       finalPose(trip);
     });
+  }
+  /* 귀가 연출 (UI R25 · GF R15/R18): 로그 끝 → 포스터 올라옴 → 토스트 → 등불 칸 → 200ms 뒤 소품 + 문어 한 줄. 건너뛰기/축소 모션이면 즉시 */
+  function startCeremony() {
+    if (!revealing) return Promise.resolve();
+    if (revealing.ceremony) return revealing.ceremony;
+    var d = revealing.deferred, trip = revealing.trip;
+    if (!d) { revealing.ceremony = Promise.resolve(); return revealing.ceremony; }
+    revealing.deferred = null;
+    var fast = skipFlag || reduced(), lit = S.room.lantern > d.prevL, lv = S.room.lantern;
+    function wait(ms) { return fast ? Promise.resolve() : sleep(ms * speed()); }
+    revealing.ceremony = Promise.resolve().then(function () {
+      renderAlbum();                                   /* 포스터(정점): 새 카드만 올라온다 */
+      if (!trip.poster) return;
+      return wait(650).then(function () { toast(trip.poster.type === 'note' ? '쪽지 한 장 남겼어' : '새 포스터 · ' + (trip.poster.title || '')); return wait(400); });
+    }).then(function () {
+      renderStatus(lit);                               /* 등불 칸 (8번째는 800ms 블룸) */
+      renderScene('lantern');
+      return wait(lit && lv >= 8 ? 800 : 500);
+    }).then(function () {
+      return wait(200);                                /* follow-through: 소품은 칸 뒤 200ms */
+    }).then(function () {
+      renderScene('items');
+      if (lit && ITEM_LINE[lv]) appendLogRow(ensureTodaySection(), logRow('방', ITEM_LINE[lv], 'c-amber', true));
+    });
+    return revealing.ceremony;
   }
   /* 이벤트별 장면 연출. skipFlag 면 즉시 */
   function sceneFor(trip, ev) {
@@ -419,8 +491,10 @@ var APP = (function () {
         var r = ev.reaction || trip.reaction;
         if (r && REACT_EMOJI[r]) bubble(REACT_EMOJI[r] + ' ' + ((trip.receipt && trip.receipt.reactionLine) || r), 3000);
         octState(r === '폴짝' || r === '우쭐' ? 'happy' : 'idle');
-        if (fast) return Promise.resolve();
-        return sleep(900 * speed()).then(function () { return walkTo('blanket'); });
+        if (trip.status !== 'done') commitTrip(trip);
+        var cer = startCeremony();                      /* 로그가 끝났으니 연출 시작 — 문어가 담요로 가는 동안 같이 */
+        if (fast) return cer;
+        return Promise.all([cer, sleep(900 * speed()).then(function () { return walkTo('blanket'); })]);
       case 'stay_home':
         commitTrip(trip);
         var anchor = ev.anchor || (trip.receipt && trip.receipt.activity && trip.receipt.activity.anchor) || 'window';
@@ -462,11 +536,12 @@ var APP = (function () {
     lastNewPoster = trip.poster ? trip.id : null;
     capTrips();
     save();
-    renderStatus(S.room.lantern > prevL);
-    renderScene();
-    renderSouvenirs(); renderAlbum();
+    renderSouvenirs();
+    var live = revealing && revealing.trip === trip && !skipFlag && !reduced();
+    if (live) revealing.deferred = { prevL: prevL };   /* 상태는 지금 저장, 보이는 건 로그가 끝난 뒤 순서대로 (startCeremony) */
+    else { renderStatus(S.room.lantern > prevL); renderScene(); renderAlbum(); }
     /* 포스터는 hang_poster 연출 뒤에 벽에 붙는다 (공개 중이 아니면 바로) */
-    var pendingHang = revealing && revealing.trip === trip && !skipFlag && !reduced() && trip.poster && (trip.events || []).some(function (e) { return e.type === 'hang_poster'; });
+    var pendingHang = live && trip.poster && (trip.events || []).some(function (e) { return e.type === 'hang_poster'; });
     if (!pendingHang) renderWall();
   }
   function capTrips() {
@@ -487,7 +562,7 @@ var APP = (function () {
     });
     return chain.then(function () {
       renderLog();
-      ensureTodaySection().appendChild(logRow('귀가', '네가 없는 동안 다녀왔어', 'c-teal', true)); scrollLog();
+      appendLogRow(ensureTodaySection(), logRow('귀가', '네가 없는 동안 다녀왔어', 'c-teal', true));
       return true;
     });
   }
@@ -500,6 +575,14 @@ var APP = (function () {
     if (typeof text === 'string') tx.textContent = text; else tx.appendChild(text);
     row.appendChild(tx);
     return row;
+  }
+  /* 행 추가 + 250ms 등장. 한꺼번에 쏟아질 때(건너뛰기·귀가 복구)만 60ms 스태거, 최대 6행 (GF R11) */
+  var burst = { at: 0, n: 0 };
+  function appendLogRow(parent, row) {
+    var now = Date.now();
+    burst.n = (now - burst.at < 400) ? Math.min(burst.n + 1, 5) : 0; burst.at = now;
+    row.classList.add('in'); row.style.setProperty('--i', String(burst.n));
+    parent.appendChild(row); scrollLog();
   }
   function secs(ms) { return ms ? Math.round(ms / 1000) + '초' : ''; }
   function stopName(ev) { var tg = ev.target || {}; return tg.title || (tg.url ? tg.url.replace(/^https?:\/\//, '').split('/')[0] : '어딘가'); }
@@ -514,10 +597,10 @@ var APP = (function () {
         else if (trip.hint && trip.hint.note) frag.appendChild(h('span', { class: 'sub', text: trip.hint.note }));
         break;
       case 'peek': {
-        cls = ev.status === 'read' ? 'c-teal' : ev.status === 'failed' ? 'c-rose' : '';
         var st = ev.status || 'failed';
-        frag.appendChild(document.createTextNode(stopEmoji(ev) + ' ' + stopName(ev) + ' '));
-        frag.appendChild(h('span', { class: 'st', text: (STATUS_ICON[st] || '❌') + ' ' + (STATUS_LABEL[st] || '못 읽음') + (ev.ms ? ' · ' + secs(ev.ms) : '') }));
+        cls = st === 'read' ? 'c-teal' : (st === 'failed' || st === 'simulated') ? 'c-mute' : '';   /* 실패·모의: 같은 모션, 자기 글리프, 빨강 없음 */
+        frag.appendChild(emo(stopEmoji(ev))); frag.appendChild(document.createTextNode(' ' + stopName(ev) + ' '));
+        frag.appendChild(h('span', { class: 'st' }, [emo(STATUS_ICON[st] || '❌'), ' ' + (STATUS_LABEL[st] || '못 읽음') + (ev.ms ? ' · ' + secs(ev.ms) : '')]));
         if (ev.first) frag.appendChild(h('span', { class: 'sub first', text: '처음 온 곳이야' }));
         if (ev.bridge) frag.appendChild(h('span', { class: 'sub', text: ev.bridge }));
         if (ev.note && st !== 'read') frag.appendChild(h('span', { class: 'sub', text: ev.note }));
@@ -528,14 +611,15 @@ var APP = (function () {
         cls = 'c-teal';
         var rr = (STR.returnReasons && STR.returnReasons[ev.reason]) || '';
         frag.appendChild(document.createTextNode('돌아왔어' + (rr ? '. ' + rr : '')));
-        if (trip.receipt && trip.receipt.souvenir) { var sv = W && W.souvenirs && W.souvenirs[trip.receipt.souvenir]; frag.appendChild(h('span', { class: 'sub', text: '가져온 것: ' + (sv ? sv.emoji + ' ' + sv.name : trip.receipt.souvenir) })); }
+        if (trip.receipt && trip.receipt.souvenir) { var sv = W && W.souvenirs && W.souvenirs[trip.receipt.souvenir]; frag.appendChild(h('span', { class: 'sub' }, sv ? ['가져온 것: ', emo(sv.emoji), ' ' + sv.name] : ['가져온 것: ' + trip.receipt.souvenir])); }
         break;
       }
       case 'remember': cls = 'c-amber'; frag.appendChild(document.createTextNode(ev.line || (trip.poster && trip.poster.line) || '')); break;
       case 'hang_poster': frag.appendChild(document.createTextNode(trip.poster ? '벽에 붙였어 · ' + (trip.poster.title || '') : '')); break;
       case 'wrap_up': {
         var r = ev.reaction || trip.reaction || '';
-        frag.appendChild(document.createTextNode((REACT_EMOJI[r] || '') + ' ' + r + (trip.receipt && trip.receipt.reactionLine ? ' · ' + trip.receipt.reactionLine : '')));
+        if (REACT_EMOJI[r]) frag.appendChild(emo(REACT_EMOJI[r]));
+        frag.appendChild(document.createTextNode(' ' + r + (trip.receipt && trip.receipt.reactionLine ? ' · ' + trip.receipt.reactionLine : '')));
         break;
       }
       case 'stay_home':
@@ -554,7 +638,21 @@ var APP = (function () {
     if (!today) { var e = log.querySelector('.lempty'); if (e) e.remove(); today = h('div', { class: 'lday', 'data-day': dateKey() }); log.appendChild(today); }
     return today;
   }
-  function scrollLog() { var log = $('log'); if (log) log.scrollTop = log.scrollHeight; }
+  /* 자동 스크롤은 읽는 사람이 40px 넘게 위로 올려 두지 않았을 때만 (GF R13) */
+  var logStick = true, progScrollUntil = 0;
+  function scrollLog() {
+    var log = $('log'); if (!log || !logStick) return;
+    var smooth = !reduced() && !(burst.n > 0 && Date.now() - burst.at < 400);   /* 한꺼번에 쏟아질 땐 바로 */
+    progScrollUntil = Date.now() + (smooth ? 700 : 80);
+    if (log.scrollTo) log.scrollTo({ top: log.scrollHeight, behavior: smooth ? 'smooth' : 'auto' }); else log.scrollTop = log.scrollHeight;
+  }
+  function watchLogScroll() {
+    var log = $('log'); if (!log) return;
+    log.addEventListener('scroll', function () {
+      if (Date.now() < progScrollUntil) return;   /* 우리가 굴린 스크롤은 세지 않는다 */
+      logStick = (log.scrollHeight - log.scrollTop - log.clientHeight) <= 40;
+    }, { passive: true });
+  }
   var greetingRow = null;
   function renderLog() {
     var log = $('log'); if (!log) return;
@@ -583,8 +681,8 @@ var APP = (function () {
       }
     });
     if (!log.querySelector('[data-day="' + today + '"]')) { var sec2 = h('div', { class: 'lday', 'data-day': today }); if (greetingRow) sec2.appendChild(greetingRow); log.appendChild(sec2); }
-    if (!log.querySelector('.lrow')) log.appendChild(h('div', { class: 'lempty', text: S.octopus.name ? '힌트를 하나 놓고 뽈뽈 다녀와, 하고 불러 봐. 비워 둬도 돼.' : '문어 이름부터 지어 주자.' }));
-    scrollLog();
+    if (!log.querySelector('.lrow')) log.appendChild(h('div', { class: 'lempty', text: S.octopus.name ? '아직 아무 데도 안 갔어. 힌트를 두고 뽈뽈 다녀와를 눌러 봐 (비워 둬도 돼).' : '문어 이름부터 지어 주자.' }));
+    logStick = true; scrollLog();
   }
   function setGreeting(text) { greetingRow = logRow('인사', text, 'c-amber', true); }
 
@@ -645,10 +743,10 @@ var APP = (function () {
     /* 스티커 하나 */
     var pos = p.stickerPos || { x: 70, y: 28, rot: 0 };
     var stx = sx + sw * (pos.x / 100), sty = sy + sh * (pos.y / 100), fs = w * (note ? 0.15 : 0.17);
-    s += '<text x="' + stx.toFixed(1) + '" y="' + sty.toFixed(1) + '" font-size="' + fs.toFixed(1) + '" text-anchor="middle" dominant-baseline="central" transform="rotate(' + (pos.rot || 0) + ' ' + stx.toFixed(1) + ' ' + sty.toFixed(1) + ')">' + esc(p.emoji || (note ? '🏠' : '❔')) + '</text>';
+    s += '<g class="stk"><text x="' + stx.toFixed(1) + '" y="' + sty.toFixed(1) + '" font-size="' + fs.toFixed(1) + '" text-anchor="middle" dominant-baseline="central" transform="rotate(' + (pos.rot || 0) + ' ' + stx.toFixed(1) + ' ' + sty.toFixed(1) + ')">' + esc(p.emoji || (note ? '🏠' : '❔')) + '</text></g>';
     if (opts.mini) {
-      s += '<rect x="' + sx + '" y="' + (sy + sh + hgt * 0.08) + '" width="' + (sw * 0.8) + '" height="' + (hgt * 0.05) + '" fill="#7a7262" opacity=".5"/>';
-      s += '<rect x="' + sx + '" y="' + (sy + sh + hgt * 0.17) + '" width="' + (sw * 0.55) + '" height="' + (hgt * 0.05) + '" fill="#7a7262" opacity=".5"/></svg>';
+      s += '<rect x="' + sx + '" y="' + (sy + sh + hgt * 0.08) + '" width="' + (sw * 0.8) + '" height="' + (hgt * 0.05) + '" fill="#5f5849" opacity=".5"/>';
+      s += '<rect x="' + sx + '" y="' + (sy + sh + hgt * 0.17) + '" width="' + (sw * 0.55) + '" height="' + (hgt * 0.05) + '" fill="#5f5849" opacity=".5"/></svg>';
       return s;
     }
     /* 한 줄 (Noto Serif KR 600, ≤2줄) */
@@ -657,12 +755,32 @@ var APP = (function () {
     lines.forEach(function (ln, i) { s += '<text x="' + (w / 2) + '" y="' + (ly + i * lf * 1.5).toFixed(1) + '" text-anchor="middle" font-family="Noto Serif KR, serif" font-weight="600" font-size="' + lf.toFixed(1) + '" fill="#2a2620">' + esc(ln) + '</text>'; });
     /* 날짜 · N번째 */
     var ord = tripOrdinal(trip), meta = fmtDate(trip.date, true) + (ord ? ' · ' + ord + '번째 뽈뽈' : note ? ' · 오늘은 집' : '');
-    s += '<text x="' + (w / 2) + '" y="' + (hgt - m * 1.1).toFixed(1) + '" text-anchor="middle" font-family="Noto Sans KR, sans-serif" font-size="' + (w * 0.036).toFixed(1) + '" fill="#7a7262">' + esc(meta) + '</text>';
+    s += '<text x="' + (w / 2) + '" y="' + (hgt - m * 1.1).toFixed(1) + '" text-anchor="middle" font-family="Noto Sans KR, sans-serif" font-size="' + (w * 0.036).toFixed(1) + '" fill="#5f5849">' + esc(meta) + '</text>';
     /* 테이프 / 핀 */
     if (S.room.lantern >= 5) s += '<circle cx="' + (w / 2) + '" cy="' + (m * 0.7) + '" r="' + (w * 0.022) + '" fill="#b8402c"/><circle cx="' + (w / 2 - w * 0.006) + '" cy="' + (m * 0.7 - w * 0.006) + '" r="' + (w * 0.008) + '" fill="#fff" opacity=".7"/>';
     else s += '<rect x="' + (w / 2 - w * 0.09) + '" y="' + (-m * 0.1) + '" width="' + (w * 0.18) + '" height="' + (m * 0.75) + '" fill="#fff" opacity=".45" transform="rotate(-4 ' + (w / 2) + ' ' + (m * 0.3) + ')"/>';
     s += '</svg>';
     return s;
+  }
+  /* 공유용 한 줄 (CG R14): `뽈뽈 #N ☔🐙 → 🎩 → 🪶 → 🏠` — 정류장 이모지만, URL·힌트 없음 */
+  function shareLine(trip) {
+    var wx = { rain: '☔', drizzle: '🌦', clear: '✨', snow: '❄' }[weatherFor(S.room.lantern)] || '☔';
+    if (trip.kind === 'home') return '뽈뽈 🐙🏠 오늘은 집';
+    var ord = tripOrdinal(trip), stops = (trip.receipt && trip.receipt.stops) || [];
+    var chain = stops.map(function (s) { return s.emoji || '❔'; });
+    return '뽈뽈 #' + (ord || '?') + ' ' + wx + '🐙' + (chain.length ? ' → ' + chain.join(' → ') : '') + ' → 🏠';
+  }
+  function shareHTML(trip) {
+    var line = shareLine(trip);
+    return '<div class="share"><code>' + esc(line) + '</code><button type="button" class="copy pressable" data-share="' + esc(line) + '" aria-label="한 줄 복사">복사</button></div>';
+  }
+  function copyText(text) {
+    var done = function () { toast('복사했어'); }, fail = function () { toast('복사가 안 됐어. 길게 눌러 골라 줘'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(done, function () { legacyCopy(text) ? done() : fail(); });
+    legacyCopy(text) ? done() : fail(); return Promise.resolve();
+  }
+  function legacyCopy(text) {
+    try { var ta = h('textarea', { 'aria-hidden': 'true' }); ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;top:0'; document.body.appendChild(ta); ta.select(); var ok = document.execCommand && document.execCommand('copy'); ta.remove(); return !!ok; } catch (e) { return false; }
   }
   /* 뒷면 영수증 HTML (§6.2) — 링크 클릭 가능 */
   function receiptHTML(trip) {
@@ -678,7 +796,8 @@ var APP = (function () {
       out += '<p>오늘은 집. 등불 +1</p>';
       if (act.detail) out += '<p>' + esc(act.detail).replace(/\n/g, '<br>') + '</p>';
       out += '<div class="hr"></div>';
-      if (r && r.reaction) out += '<div class="kv"><span>반응</span><b>' + esc((REACT_EMOJI[r.reaction] || '') + ' ' + r.reaction) + '</b></div>';
+      if (r && r.reaction) out += '<div class="kv"><span>반응</span><b>' + emoH(REACT_EMOJI[r.reaction]) + ' ' + esc(r.reaction) + '</b></div>';
+      out += shareHTML(trip);
       out += '<p class="by">고른 이: ' + esc(BY_LABEL[trip.by] || trip.by) + '</p></div>';
       return out;
     }
@@ -687,8 +806,8 @@ var APP = (function () {
     out += '<div class="hr"></div>';
     if (r && r.stops) r.stops.forEach(function (s, i) {
       var st = s.status || 'failed';
-      out += '<div class="row"><span class="n">' + (i + 1) + '</span><span>' + esc(s.emoji || '') + ' ' + esc(s.name || s.title || '') +
-        ' <span class="st">' + (STATUS_ICON[st] || '❌') + ' ' + esc(STATUS_LABEL[st] || st) + (s.ms ? ' · ' + secs(s.ms) : '') + (s.first ? ' · 처음 온 곳' : '') + '</span>';
+      out += '<div class="row"><span class="n">' + (i + 1) + '</span><span>' + emoH(s.emoji || '') + ' ' + esc(s.name || s.title || '') +
+        ' <span class="st">' + emoH(STATUS_ICON[st] || '❌') + ' ' + esc(STATUS_LABEL[st] || st) + (s.ms ? ' · ' + secs(s.ms) : '') + (s.first ? ' · 처음 온 곳' : '') + '</span>';
       if (s.bridge) out += '<span class="bridge">' + esc(s.bridge) + '</span>';
       if (s.note) out += '<span class="note">' + (st === 'read' ? '“' + esc(s.note) + '”' : esc(s.note)) + '</span>';
       if (st === 'read' && s.source && s.source.url) out += '<a href="' + esc(s.source.url) + '" target="_blank" rel="noopener">출처 ↗ ' + esc(s.source.attribution || 'Wikipedia (ko)') + ' · ' + esc(s.source.license || 'CC BY-SA') + '</a>';
@@ -697,10 +816,11 @@ var APP = (function () {
     out += '<div class="hr"></div>';
     var c = (r && r.counts) || {};
     var sv = r && r.souvenir && W && W.souvenirs && W.souvenirs[r.souvenir];
-    out += '<p>읽음 ' + (c.read | 0) + ' · 책장 ' + (c.builtin | 0) + ' · 모의 ' + (c.simulated | 0) + ' · 못 읽음 ' + (c.failed | 0) + (c.none ? ' · 앉아만 ' + c.none : '') + '<br>가져온 것: ' + (sv ? esc(sv.emoji + ' ' + sv.name) : r && r.souvenir ? esc(r.souvenir) : '없음') + '</p>';
+    out += '<p>읽음 ' + (c.read | 0) + ' · 책장 ' + (c.builtin | 0) + ' · 모의 ' + (c.simulated | 0) + ' · 못 읽음 ' + (c.failed | 0) + (c.none ? ' · 앉아만 ' + c.none : '') + '<br>가져온 것: ' + (sv ? emoH(sv.emoji) + ' ' + esc(sv.name) : r && r.souvenir ? esc(r.souvenir) : '없음') + '</p>';
     if (r && r.rememberedIdx >= 0 && r.stops[r.rememberedIdx]) out += '<div class="kv"><span>기억으로 고른 곳</span><b>' + esc(r.stops[r.rememberedIdx].name || '') + '</b></div>';
-    if (r && r.reaction) out += '<div class="kv"><span>반응</span><b>' + esc((REACT_EMOJI[r.reaction] || '') + ' ' + r.reaction) + '</b></div>';
+    if (r && r.reaction) out += '<div class="kv"><span>반응</span><b>' + emoH(REACT_EMOJI[r.reaction]) + ' ' + esc(r.reaction) + '</b></div>';
     if (r && r.reactionLine) out += '<p class="dim">' + esc(r.reactionLine) + '</p>';
+    out += shareHTML(trip);
     out += '<p class="by">고른 이: ' + esc(BY_LABEL[trip.by] || trip.by) + '</p></div>';
     return out;
   }
@@ -714,10 +834,12 @@ var APP = (function () {
     Array.prototype.forEach.call(pips.children, function (p, i) {
       var on = i < n, was = p.classList.contains('on');
       p.classList.toggle('on', on); p.textContent = on ? '●' : '○';
-      if (on && !was && bloom) { p.classList.add('bloom'); setTimeout(function () { p.classList.remove('bloom'); }, 900); }
+      if (on && !was && bloom) { p.classList.add('bloom'); p.classList.toggle('last', i === 7); setTimeout(function () { p.classList.remove('bloom', 'last'); }, 1000 * speed()); }
     });
-    $('stat-trips').textContent = '여행 ' + S.octopus.trips;
-    $('stat-days').textContent = '함께한 날 ' + S.octopus.days.length;
+    var rt = $('room-title'); if (rt) rt.textContent = roomTitle(n);
+    /* 숫자는 의미가 생긴 뒤에만: 여행 N 은 첫 외출 뒤, 함께한 날은 첫 초대 뒤 (CG R18) */
+    $('stat-trips').textContent = '여행 ' + S.octopus.trips; $('stat-trips').hidden = !S.octopus.trips;
+    $('stat-days').textContent = '함께한 날 ' + S.octopus.days.length; $('stat-days').hidden = !S.octopus.days.length;
   }
   function tripById(id) { for (var i = 0; i < S.trips.length; i++) if (S.trips[i].id === id) return S.trips[i]; return null; }
   function posterTrips() { return S.room.posterOrder.map(tripById).filter(function (t) { return t && t.poster && t.status === 'done'; }); }
@@ -730,20 +852,25 @@ var APP = (function () {
   function renderAlbum() {
     var al = $('album'); if (!al) return;
     al.innerHTML = '';
-    var trips = S.trips.filter(function (t) { return t.poster && t.status === 'done' && (albumFilter === 'all' || t.poster.type === albumFilter); });
-    if (!trips.length) { al.appendChild(h('div', { class: 'lempty', text: albumFilter === 'note' ? '아직 쪽지가 없어. 집에 있는 날에 생겨.' : '아직 포스터가 없어. 첫 뽈뽈을 보내 봐' })); return; }
+    var all = S.trips.filter(function (t) { return t.poster && t.status === 'done'; });
+    var sec = $('album-sec'); if (sec) sec.hidden = !all.length;   /* 첫 포스터가 생기기 전엔 앨범 자체를 보이지 않는다 (CG R18) */
+    var trips = all.filter(function (t) { return albumFilter === 'all' || t.poster.type === albumFilter; });
+    if (!trips.length) { al.appendChild(h('div', { class: 'lempty', text: albumFilter === 'note' ? '아직 쪽지는 없어. 집에 있는 날 하나 써 둘게.' : albumFilter === 'poster' ? '아직 붙인 포스터가 없어. 힌트를 두고 뽈뽈 다녀와를 눌러 봐 (비워 둬도 돼).' : '아직 붙인 포스터가 없어. 힌트를 두고 뽈뽈 다녀와를 눌러 봐 (비워 둬도 돼).' })); return; }
+    var newest = null; all.forEach(function (t) { if (t.date === dateKey() && (!newest || (t.endedAt || 0) >= (newest.endedAt || 0))) newest = t; });
     var byDay = {}, days = [];
     trips.forEach(function (t) { if (!byDay[t.date]) { byDay[t.date] = []; days.push(t.date); } byDay[t.date].push(t); });
     days.forEach(function (d) {
       var g = h('div', { class: 'aday' }, [h('span', { class: 'adate', text: fmtDate(d) })]);
       byDay[d].forEach(function (t) {
-        var note = t.poster.type === 'note';
-        var c = h('button', { type: 'button', class: 'pcard' + (note ? ' note' : '') + (t.id === lastNewPoster ? ' in' : ''), 'aria-label': (t.poster.title || '포스터') + ' · ' + (t.poster.line || ''), html: note ? posterSVG(t, 84, 112) : posterSVG(t, 108, 144) });
+        var note = t.poster.type === 'note', isNew = t.id === lastNewPoster;
+        var c = h('button', { type: 'button', class: 'pcard' + (note ? ' note' : '') + (isNew ? ' in' : '') + (newest && t.id === newest.id ? ' newest' : ''), 'aria-label': (t.poster.title || '포스터') + ' · ' + (t.poster.line || ''), html: note ? posterSVG(t, 84, 112) : posterSVG(t, 108, 144) });
+        if (isNew) c.style.setProperty('--rot', ((mkRng(t.seed >>> 0)() * 6) - 3).toFixed(1) + 'deg');   /* 최종 각도 ±3° (GF R15) */
         c.addEventListener('click', function () { openPoster(t.id); });
         g.appendChild(c);
       });
       al.appendChild(g);
     });
+    lastNewPoster = null;   /* 새 포스터는 한 번만 올라온다. 저장된 건 즉시 (GF R17) */
     al.scrollLeft = al.scrollWidth;
   }
   var lastNewPoster = null;
@@ -756,7 +883,7 @@ var APP = (function () {
   function renderAll() { renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderLog(); }
 
   /* ───────────────────────── dialogs: poster · room sheet · name ───────────────────────── */
-  var openTripId = null;
+  var openTripId = null, flippedOnce = {};
   function openPoster(tripId, back) {
     var t = tripById(tripId); if (!t || !t.poster) return;
     openTripId = tripId;
@@ -764,11 +891,37 @@ var APP = (function () {
     $('pd-front').innerHTML = posterSVG(t, 300, 400);
     $('pd-back').innerHTML = receiptHTML(t);
     fl.classList.toggle('note', t.poster.type === 'note');
+    fl.classList.toggle('again', !!flippedOnce[tripId]);   /* 같은 포스터 두 번째 뒤집기는 300ms (GF R6) */
     fl.classList.toggle('flip', !!back);
+    if (back) flippedOnce[tripId] = true;
     $('pd-save').hidden = false;
+    var hint = $('pd-hint'); if (hint) hint.hidden = !!(S.settings.flipped || back);   /* 첫 뒤집기까지만 */
+    showDialog(dlg);
+  }
+  function flipPoster() {
+    var fl = $('flipper'); fl.classList.toggle('flip');
+    if (openTripId) { flippedOnce[openTripId] = true; }
+    setTimeout(function () { fl.classList.add('again'); }, 600 * speed());   /* 이번 뒤집기가 끝난 뒤부터 짧게 */
+    if (!S.settings.flipped) { S.settings.flipped = true; save(); }
+    var hint = $('pd-hint'); if (hint) hint.hidden = true;
+  }
+  /* <dialog> 열기: 연 요소를 기억해 닫힐 때 포커스를 돌려준다. closedby="any" 는 지원 브라우저에서만 */
+  function showDialog(dlg) {
+    if (!dlg) return;
+    dlg._opener = document.activeElement;
     if (!dlg.open) dlg.showModal();
   }
-  function flipPoster() { $('flipper').classList.toggle('flip'); }
+  function bindDialogs() {
+    var supportsClosedBy = (typeof HTMLDialogElement !== 'undefined') && ('closedBy' in HTMLDialogElement.prototype);
+    ['poster-dialog', 'room-sheet', 'name-dialog'].forEach(function (id) {
+      var d = $(id); if (!d) return;
+      if (supportsClosedBy && id !== 'name-dialog') d.setAttribute('closedby', 'any');
+      d.addEventListener('close', function () {
+        var o = d._opener; d._opener = null;
+        if (o && o.focus && document.contains(o) && o !== document.body) { try { o.focus({ preventScroll: true }); } catch (e) { o.focus(); } }
+      });
+    });
+  }
   function svgToDataURI(svg) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); }
   function fetchAsDataURL(url) {
     return fetch(url, { mode: 'cors' }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.blob(); })
@@ -815,7 +968,7 @@ var APP = (function () {
     var body = $('rs-body'), lv = S.room.lantern;
     var levels = (W && W.roomLevels) || [], L = levels[lv] || { text: '' };
     var frag = document.createDocumentFragment();
-    frag.appendChild(h('h3', { text: '방 · 등불 ' + lv + '/8' }));
+    frag.appendChild(h('h3', { text: roomTitle(lv) + ' · 등불 ' + lv + '/8' }));
     frag.appendChild(h('p', { class: 'room-text', text: L.text || '' }));
     frag.appendChild(h('h3', { text: '문어의 요즘' }));
     var tc = topCorners(), tv = topVisited();
@@ -825,7 +978,7 @@ var APP = (function () {
     frag.appendChild(h('h3', { text: lv >= 7 ? '선반' : '창턱' }));
     var sl = h('div', { class: 'souv-list' });
     if (!S.room.souvenirs.length) sl.appendChild(h('span', { text: '아직 가져온 게 없어' }));
-    S.room.souvenirs.forEach(function (sv) { var d = W && W.souvenirs && W.souvenirs[sv.id]; sl.appendChild(h('span', { text: d ? d.emoji + ' ' + d.name : sv.id })); });
+    S.room.souvenirs.forEach(function (sv) { var d = W && W.souvenirs && W.souvenirs[sv.id]; sl.appendChild(d ? h('span', null, [emo(d.emoji), ' ' + d.name]) : h('span', { text: sv.id })); });
     frag.appendChild(sl);
     frag.appendChild(h('h3', { text: '통계' }));
     var reads = S.trips.reduce(function (n, t) { return n + ((t.receipt && t.receipt.counts && t.receipt.counts.read) | 0); }, 0);
@@ -872,10 +1025,10 @@ var APP = (function () {
   }
   function openRoomSheet(scrollToDemo) {
     renderRoomSheet();
-    var dlg = $('room-sheet'); if (!dlg.open) dlg.showModal();
+    showDialog($('room-sheet'));
     if (scrollToDemo) { var el = $('rs-demo'); if (el) el.scrollIntoView({ block: 'start' }); }
   }
-  function openNameDialog() { var d = $('name-dialog'); if (!d.open) d.showModal(); setTimeout(function () { $('name-in').focus(); }, 50); }
+  function openNameDialog() { showDialog($('name-dialog')); setTimeout(function () { $('name-in').focus(); }, 50); }
   function applyMotion() { document.documentElement.setAttribute('data-motion', S.settings.motion || 'auto'); if (scene) scene.setReducedMotion(reduced()); }
   function hexHue(hex) {
     var n = parseInt(String(hex).slice(1), 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
@@ -903,7 +1056,7 @@ var APP = (function () {
     } catch (e) { toast('이 파일은 뽈뽈 기록이 아닌 것 같아'); return false; }
   }
   function resetAll() {
-    try { localStorage.removeItem(KEY); } catch (e) { /* noop */ }
+    store.remove(KEY);
     S = defaults(); save(); renderAll(); octInitial();
     var d = $('room-sheet'); if (d.open) d.close();
     openNameDialog();
@@ -933,7 +1086,7 @@ var APP = (function () {
     var today = ensureTodaySection(); today.querySelectorAll('.lrow.demo-live').forEach(function (r) { r.remove(); });
     reveal(trip).then(function () { setBusy(false); demo = { phase: 'start', events: [], t0: 0, hint: '', hung: false, wrapped: false }; demoSet('start'); demoMsg('사람이 조작한 산책이 저장됐어 (고른 이: 사람이 조작)'); renderLog(); });
   }
-  function demoLive(ev) { var row = eventRow({ hint: {}, receipt: null, poster: null }, ev); if (row) { row.classList.add('demo-live', 'in'); ensureTodaySection().appendChild(row); scrollLog(); } }
+  function demoLive(ev) { var row = eventRow({ hint: {}, receipt: null, poster: null }, ev); if (row) { row.classList.add('demo-live'); appendLogRow(ensureTodaySection(), row); } }
   function bindDemo() {
     demoSet('start');
     $('d-depart').addEventListener('click', function () {
@@ -1018,7 +1171,19 @@ var APP = (function () {
     $('pd-close').addEventListener('click', function () { $('poster-dialog').close(); });
     $('pd-save').addEventListener('click', function () { savePNG(); });
     $('poster-dialog').addEventListener('click', function (e) { if (e.target === e.currentTarget) e.currentTarget.close(); });
+    $('pd-back').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('.copy[data-share]'); if (b) { e.stopPropagation(); copyText(b.getAttribute('data-share')); } });
     $('room-sheet').addEventListener('click', function (e) { if (e.target === e.currentTarget) e.currentTarget.close(); });
+    bindDialogs(); watchLogScroll();
+    /* 데모 <details>: 접힌 채 시작, 뷰어별로 펼침 기억 (UI R2) */
+    var demoEl = $('demo');
+    if (demoEl) { if (uiPref().demoOpen) demoEl.open = true; demoEl.addEventListener('toggle', function () { setUiPref('demoOpen', demoEl.open); }); }
+    /* 탭을 떠날 때 저장 · 다른 탭이 저장하면 다시 그린다 (R4, R5) */
+    document.addEventListener('visibilitychange', function () { if (document.hidden && S.octopus.name) save(); });
+    window.addEventListener('storage', function (e) {
+      if (e.key !== KEY || !e.newValue || e.newValue === lastSaved || busy) return;
+      try { S = normalize(JSON.parse(e.newValue)); lastSaved = e.newValue; } catch (err) { return; }
+      renderAll(); applyMotion();
+    });
     $('name-form').addEventListener('submit', function (e) {
       e.preventDefault();
       var v = ($('name-in').value || '').trim(); if (!v) { $('name-in').focus(); return; }
@@ -1066,6 +1231,7 @@ var APP = (function () {
     applyMotion(); initScene(); applyMotion();
     renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum();
     bind();
+    if (!storeOK) quietWarn('이 브라우저에선 벽이 오늘만 남아');
     if (S.octopus.name) setGreeting(greetingByHour(new Date().getHours()) + ', ' + S.octopus.name + (S.octopus.state === 'sleep' ? '는 아직 자고 있어.' : '가 기다리고 있었어.'));
     renderLog();
     octInitial();
