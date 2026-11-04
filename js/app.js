@@ -14,12 +14,13 @@ var APP = (function () {
   var W = (typeof WORLD !== 'undefined') ? WORLD : null;
   var B = (typeof BRAIN !== 'undefined') ? BRAIN : null;
   var STR = (W && W.strings) || {};
+  var MEMO_STR = (W && W.memoTemplates) || {};
   var STATUS_ICON = { read: '✅', builtin: '📚', simulated: '🧪', failed: '❌', none: '◌' };
   var STATUS_LABEL = { read: '읽음', builtin: '책장 메모', simulated: '모의 방문', failed: '못 읽음', none: '앉아만 있었음' };
   var FOLLOW_LABEL = { followed: '따라감', ignored: '무시함', left: '도중에 벗어남', none: '없음' };
   var BY_LABEL = { demo: '데모 두뇌(규칙)', human: '사람이 조작', mcp: '모델(MCP)', legacy: '복원된 기록' };
   var LOG_LABEL = { depart: '출발', peek: '기웃', 'return': '귀가', remember: '기억', hang_poster: '포스터', wrap_up: '마무리', stay_home: '집', empty_turn: '…' };
-  var VOICE_LABELS = ['귀가', '기억', '마무리', '집', '인사', '방', '혼잣말'];   /* 문어 목소리 행 → 픽셀 테마에서 호박색 탭 + 초상 대화창 (§15.2) */
+  var VOICE_LABELS = ['귀가', '기억', '마무리', '집', '인사', '방', '혼잣말', '어제 메모', '지난 메모'];   /* 문어 목소리 행 → 픽셀 테마에서 호박색 탭 + 초상 대화창 (§15.2) */
   /* 문어 목소리 행의 표정 (DESIGN §15.2): 귀가 calm · 기억 curious · 마무리 폴짝/우쭐 happy, 졸림 sleepy, 덤덤 calm · 집 활동 calm (낮잠 sleep) · 빈 차례 sleep · 인사 아침 idle / 밤 sleepy · 방(소품) happy · 말풍선 ♡ pet, ? curious */
   var REACT_EXPR = { '폴짝': 'happy', '우쭐': 'happy', '덤덤': 'calm', '졸림': 'sleepy' };
   var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' };   /* 상태의 기본 표정 (SCENE.md 초상·표정) — 대화창 표정은 4 s 뒤 여기로 돌아온다 */
@@ -50,6 +51,9 @@ var APP = (function () {
     5: '벽에 포스터 붙일 판을 걸었어', 6: '비가 잦아들었어. 창밖이 조용해', 7: '선반을 달았어. 창문에 별도 보여', 8: '커튼을 쳤어. 이제 진짜 내 다락이야' };
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function dateKey(d) { d = d || new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  /* 테스트 훅: window.__ppolTest.today = 'YYYY-MM-DD' 가 있을 때만 '오늘'을 그 날짜로 (tools/smoke.js 둘째 날) */
+  function todayKey() { var t = window.__ppolTest; return (t && typeof t === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(t.today || '')) ? t.today : dateKey(); }
+  function keyAdd(key, n) { var p = String(key).split('-'); return dateKey(new Date(+p[0], +p[1] - 1, +p[2] + n)); }
   function fmtDate(key, dots) { var p = String(key || '').split('-'); return dots ? p.join('.') : (p[1] | 0) + '.' + (p[2] | 0); }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, Math.max(0, ms)); }); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -101,6 +105,7 @@ var APP = (function () {
       octopus: { name: null, born: null, trips: 0, invites: 0, days: [], affinity: {}, visits: {}, state: 'idle' },
       room: { lantern: 0, souvenirs: [], posterOrder: [] },
       trips: [],
+      notes: {},   /* §17.1 방마다 최근 메모 1개: { nodeId: { text, tripId, date } } */
       settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c', flipped: false, palette: paletteDefault(), pixelFont: true }
     };
   }
@@ -149,6 +154,7 @@ var APP = (function () {
     s.room = Object.assign(d.room, s.room || {});
     s.settings = Object.assign(d.settings, s.settings || {});
     if (!Array.isArray(s.trips)) s.trips = [];
+    if (!s.notes || typeof s.notes !== 'object' || Array.isArray(s.notes)) s.notes = {};
     if (!Array.isArray(s.octopus.days)) s.octopus.days = [];
     if (!Array.isArray(s.room.souvenirs)) s.room.souvenirs = [];
     if (!Array.isArray(s.room.posterOrder)) s.room.posterOrder = [];
@@ -241,7 +247,7 @@ var APP = (function () {
     if (lv < 6) return 'rain';
     if (lv < 7) return 'drizzle';
     if (lv < 8) return 'clear';
-    var r = mkRng(hash('wx|' + dateKey()))(), m = new Date().getMonth();
+    var r = mkRng(hash('wx|' + todayKey()))(), m = new Date().getMonth();
     if ((m === 0 || m === 1) && r < 0.35) return 'snow';
     return r < 0.4 ? 'rain' : r < 0.65 ? 'drizzle' : 'clear';
   }
@@ -343,15 +349,29 @@ var APP = (function () {
       if (oct.busy || oct.state !== 'idle' || document.hidden) { scheduleWander(); return; }
       var opts = allowedIdleAnchors().filter(function (a) { return a !== oct.anchor; });
       var next = opts[Math.floor(uiRng() * opts.length)] || 'center';
-      walkTo(next).then(function () { if (!oct.busy) { octState('idle'); maybeThink(); } scheduleWander(); });
+      walkTo(next).then(function () { if (!oct.busy) octState('idle'); scheduleWander(); });
     }, (20 + uiRng() * 20) * 1000);
   }
-  function maybeThink() {
-    if (uiRng() > 0.3) return;
-    var mems = S.trips.filter(function (t) { return t.poster && t.poster.type === 'poster' && t.kind === 'out' && t.receipt; });
-    if (!mems.length) return;
-    var t = mems[mems.length - 1];
-    say((t.date === dateKey() ? '오늘' : '어제') + ' 본 ' + (t.poster.title || '것') + ' 생각 중', 'curious', 3200);
+  /* §17.1 대기 중 생각 말풍선: 20–40 s 마다, 집에서 idle 일 때만, 최근 방 메모 중 하나 ("{note} 생각 중"). 메모가 없으면 아무 말도 안 한다 (지어내지 않음). 말풍선만 — 로그엔 남기지 않는다 */
+  var thinkTimer = null;
+  function recentNotes() {
+    return Object.keys(S.notes || {}).map(function (k) { return S.notes[k]; }).filter(function (n) { return n && typeof n.text === 'string' && n.text; })
+      .sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; }).slice(0, 6);
+  }
+  function thinkLine() {
+    var pool = recentNotes(); if (!pool.length) return null;
+    var n = pool[Math.floor(uiRng() * pool.length)];
+    return typeof MEMO_STR.thinking === 'function' ? MEMO_STR.thinking(n.text) : n.text + ' 생각 중';
+  }
+  function scheduleThink() {
+    clearTimeout(thinkTimer);
+    thinkTimer = setTimeout(function () {
+      var dlgOpen = !!document.querySelector('dialog[open]');
+      if (!oct.busy && oct.state === 'idle' && !document.hidden && !dlgOpen && !lookHook()) {
+        var t = thinkLine(); if (t) { bubble(t, 3600); expressRow('curious'); }
+      }
+      scheduleThink();
+    }, (20 + uiRng() * 20) * 1000);
   }
   function bubble(text, ms) { scene.bubble(text, ms); }
   /* 말풍선 + 로그 대화창 행 (§15.2 "?" · "비가 와" · "…♡"): 장면 위 말풍선과 같은 말을 초상과 함께 오늘 칸에 남긴다 (저장 X — 새로고침하면 사라지는 혼잣말). 바로 앞 행과 같은 말이면 행은 생략 */
@@ -405,24 +425,48 @@ var APP = (function () {
     var todayOut = tripsOn(trip.date).filter(function (t) { return t.kind === 'out' && t.status === 'done'; }).length;
     return {
       seed: trip.seed, dateKey: trip.date, seq: trip.seq, hint: trip.hint.raw, name: S.octopus.name || '', id: trip.id,
-      state: { visits: S.octopus.visits, affinity: S.octopus.affinity, lantern: S.room.lantern, recent: recent, todayOut: todayOut },
+      state: { visits: S.octopus.visits, affinity: S.octopus.affinity, lantern: S.room.lantern, recent: recent, todayOut: todayOut, lastVisit: lastVisitMap(trip) },
       now: new Date(), online: navigator.onLine !== false, by: 'demo'
     };
   }
+  /* 방마다 마지막으로 다녀온 날 (저장된 여행의 날짜에서만) → 두뇌의 재방문 판단 (§17.1) */
+  function lastVisitMap(except) {
+    var m = {};
+    S.trips.forEach(function (t) { if (t === except || t.status !== 'done' || !t.receipt || !t.receipt.stops) return; t.receipt.stops.forEach(function (st) { if (st.nodeId && st.nodeId !== 'door_out') m[st.nodeId] = t.date; }); });
+    return m;
+  }
+  /* 재방문 기웃 행에 붙일 기록: 그 방의 최근 메모 + 그때 날씨 (그 여행이 날씨를 저장했을 때만). 이번 여행에 고정 저장 → 다시 그려도 같은 말 */
+  function buildRecall(trip) {
+    var rc = {};
+    (trip.events || []).forEach(function (ev) {
+      var tg = ev && ev.type === 'peek' && ev.target; if (!tg || !tg.id || tg.id === 'door_out' || rc[tg.id]) return;
+      var prior = null;
+      S.trips.forEach(function (t) { if (t !== trip && t.status === 'done' && t.receipt && t.receipt.stops && t.receipt.stops.some(function (st) { return st.nodeId === tg.id; })) prior = t; });
+      var n = S.notes[tg.id];
+      var o = {};
+      if (n && n.text && n.tripId !== trip.id) { o.note = n.text; o.date = n.date; }
+      if (prior && prior.weather) { o.weather = prior.weather; o.date = o.date || prior.date; }
+      if (o.note || o.weather) rc[tg.id] = o;
+    });
+    if (Object.keys(rc).length) trip.recall = rc; else delete trip.recall;
+  }
   function mergePlan(trip, planned) {
-    ['kind', 'by', 'hint', 'events', 'receipt', 'poster', 'visitsDelta', 'affinityDelta', 'affinityDecay', 'reaction'].forEach(function (k) { if (planned[k] !== undefined) trip[k] = planned[k]; });
+    ['kind', 'by', 'hint', 'events', 'receipt', 'poster', 'visitsDelta', 'affinityDelta', 'affinityDecay', 'reaction', 'memo', 'revisit'].forEach(function (k) { if (planned[k] !== undefined) trip[k] = planned[k]; });
     if (trip.receipt && trip.receipt.stops) trip.receipt.stops.forEach(function (s) { if (s.source && s.source.extract) s.source.extract = String(s.source.extract).slice(0, 160); });
     if (trip.events && trip.events[0] && trip.events[0].type === 'depart') delete trip.events[0].match;
+    if (!trip.memo) delete trip.memo;
+    if (!trip.revisit) delete trip.revisit;
+    buildRecall(trip);
   }
   function invite(hintText) {
     if (busy) return Promise.resolve(null);
     if (!S.octopus.name) { openNameDialog(); return Promise.resolve(null); }
     if (!B || typeof B.plan !== 'function') { toast('두뇌(brain.js)가 아직 없어'); return Promise.resolve(null); }
     var hint = String(hintText == null ? ($('hint-in') ? $('hint-in').value : '') : hintText).trim();
-    var dk = dateKey(), seq = tripsOn(dk).length + 1;
+    var dk = todayKey(), seq = tripsOn(dk).length + 1;
     var seed = B.hashSeed(dk, hint, seq, S.octopus.name);
     var trip = { id: newTripId(seed), date: dk, seq: seq, seed: seed, kind: null, by: 'demo', hint: { raw: hint, match: null, followed: null },
-      status: 'running', startedAt: Date.now(), endedAt: null, events: [], receipt: null, poster: null };
+      status: 'running', startedAt: Date.now(), endedAt: null, events: [], receipt: null, poster: null, weather: weatherFor(S.room.lantern) };
     S.trips.push(trip); save();
     if ($('hint-in')) $('hint-in').value = '';
     updateHintHelp();
@@ -488,6 +532,7 @@ var APP = (function () {
       if (trip.status !== 'done') commitTrip(trip);
       return startCeremony();
     }).then(function () {
+      var sr = summaryRow(trip); if (sr) appendLogRow(today, sr);
       revealing = null;
       finalPose(trip);
     });
@@ -568,6 +613,8 @@ var APP = (function () {
     if (trip.status === 'done') return;
     var o = S.octopus, prevL = S.room.lantern;
     var decay = typeof trip.affinityDecay === 'number' ? trip.affinityDecay : 0.9;
+    /* §17.3 귀가 요약: 반영 전에 '처음 온 방' 수를 센다 (방 = 세계의 방, 밖의 문 제외) */
+    var newRooms = Object.keys(trip.visitsDelta || {}).filter(function (k) { return k !== 'door_out' && nodeOf(k) && !(o.visits[k] > 0); }).length;
     Object.keys(o.affinity).forEach(function (k) { o.affinity[k] = Math.round(o.affinity[k] * decay * 1000) / 1000; if (o.affinity[k] < 0.01) delete o.affinity[k]; });
     Object.keys(trip.affinityDelta || {}).forEach(function (k) { o.affinity[k] = (o.affinity[k] || 0) + trip.affinityDelta[k]; });
     Object.keys(trip.visitsDelta || {}).forEach(function (k) { o.visits[k] = (o.visits[k] || 0) + trip.visitsDelta[k]; });
@@ -580,6 +627,12 @@ var APP = (function () {
     if (trip.kind === 'home' && trip.receipt && trip.receipt.activity && trip.receipt.activity.id === 'rearrange' && S.room.posterOrder.length > 1) {
       var po = S.room.posterOrder, a = po.length - 1, b2 = po.length - 2; var tmp = po[a]; po[a] = po[b2]; po[b2] = tmp;
     }
+    if (trip.kind !== 'empty') {
+      var note = trip.poster && trip.poster.type === 'note';
+      trip.summary = { lantern: S.room.lantern > prevL ? 1 : 0, rooms: trip.kind === 'out' ? newRooms : 0, souvenir: trip.receipt && trip.receipt.souvenir ? 1 : 0, poster: trip.poster && !note ? 1 : 0, note: note ? 1 : 0 };
+    }
+    /* §17.1 방마다 최근 메모 1개 (그때 남긴 것 그대로) */
+    if (trip.memo && trip.memo.notes) Object.keys(trip.memo.notes).forEach(function (k) { var tx = trip.memo.notes[k]; if (typeof tx === 'string' && tx) S.notes[k] = { text: tx, tripId: trip.id, date: trip.date }; });
     trip.status = 'done'; trip.endedAt = Date.now();
     lastNewPoster = trip.poster ? trip.id : null;
     capTrips();
@@ -697,10 +750,12 @@ var APP = (function () {
         cls = st === 'read' ? 'c-teal' : (st === 'failed' || st === 'simulated') ? 'c-mute' : '';   /* 실패·모의: 같은 모션, 자기 글리프, 빨강 없음 */
         frag.appendChild(emo(stopEmoji(ev))); frag.appendChild(document.createTextNode(' ' + stopName(ev) + ' '));
         frag.appendChild(h('span', { class: 'st' }, [emo(STATUS_ICON[st] || '❌'), ' ' + (STATUS_LABEL[st] || '못 읽음') + (ev.ms ? ' · ' + secs(ev.ms) : '')]));
+        if (ev.aside) frag.appendChild(h('span', { class: 'sub aside', text: ev.aside }));
         if (ev.first) frag.appendChild(h('span', { class: 'sub first', text: '처음 온 곳이야' }));
         if (ev.bridge) frag.appendChild(h('span', { class: 'sub', text: ev.bridge }));
         if (ev.note && st !== 'read') frag.appendChild(h('span', { class: 'sub', text: ev.note }));
         if (ev.note && st === 'read') frag.appendChild(h('span', { class: 'sub', text: '“' + ev.note + '”' }));
+        recallSubs(trip, ev).forEach(function (t) { frag.appendChild(h('span', { class: 'sub recall', text: t })); });
         break;
       }
       case 'return': {
@@ -730,9 +785,36 @@ var APP = (function () {
     }
     return logRow(LOG_LABEL[ev.type] || ev.type, frag, cls, false, expr);
   }
+  /* 재방문 기웃: "지난번 메모: '…'" · "지난번엔 비가 왔는데" — trip.recall(계획 때 고정)에서만. 없으면 말하지 않는다 */
+  function recallSubs(trip, ev) {
+    var tg = ev.target || {}, rc = trip && trip.recall && tg.id && trip.recall[tg.id];
+    if (!rc) return [];
+    var out = [];
+    if (rc.note && rc.note !== ev.note) out.push(typeof MEMO_STR.lastNote === 'function' ? MEMO_STR.lastNote(rc.note) : "지난번 메모: '" + rc.note + "'");
+    if (rc.weather) {
+      var same = trip.weather && trip.weather === rc.weather, tbl = same ? MEMO_STR.sameWeather : MEMO_STR.lastWeather;
+      var w = tbl && tbl[rc.weather];
+      if (w) out.push(w);
+    }
+    return out;
+  }
+  /* §17.3 귀가 요약 한 줄: 해당 없는 항목은 생략. 저장된 trip.summary 에서만 (옛 기록엔 없음) */
+  function summaryText(trip) {
+    var sm = trip && trip.summary; if (!sm) return '';
+    var P = MEMO_STR.summaryParts || {}, parts = [];
+    function f(fn, n, alt) { return typeof fn === 'function' ? fn(n) : alt; }
+    if (sm.lantern) parts.push(P.lantern || '등불 +1');
+    if (sm.rooms) parts.push(f(P.rooms, sm.rooms, '새 방 ' + sm.rooms + '곳'));
+    if (sm.souvenir) parts.push(f(P.souvenir, sm.souvenir, '기념품 ' + sm.souvenir));
+    if (sm.poster) parts.push(f(P.poster, sm.poster, '포스터 ' + sm.poster));
+    if (sm.note) parts.push(f(P.note, sm.note, '쪽지 ' + sm.note));
+    if (!parts.length) return '';
+    return [MEMO_STR.summaryHead || '오늘 바뀐 것'].concat(parts).join(' · ');
+  }
+  function summaryRow(trip) { var t = summaryText(trip); if (!t) return null; var r = logRow('요약', t, 'c-mute summary', false); return r; }
   function ensureTodaySection() {
-    var log = $('log'), today = log.querySelector('[data-day="' + dateKey() + '"]');
-    if (!today) { var e = log.querySelector('.lempty'); if (e) e.remove(); today = h('div', { class: 'lday', 'data-day': dateKey() }); log.appendChild(today); }
+    var log = $('log'), today = log.querySelector('[data-day="' + todayKey() + '"]');
+    if (!today) { var e = log.querySelector('.lempty'); if (e) e.remove(); today = h('div', { class: 'lday', 'data-day': todayKey() }); log.appendChild(today); }
     return today;
   }
   /* 자동 스크롤은 읽는 사람이 40px 넘게 위로 올려 두지 않았을 때만 (GF R13) */
@@ -756,8 +838,8 @@ var APP = (function () {
     log.innerHTML = '';
     var byDay = {};
     S.trips.forEach(function (t) { (byDay[t.date] = byDay[t.date] || []).push(t); });
-    var days = Object.keys(byDay).sort(), today = dateKey();
-    var yest = dateKey(new Date(Date.now() - 86400000));
+    var days = Object.keys(byDay).sort(), today = todayKey();
+    var yest = keyAdd(today, -1);
     days.forEach(function (d) {
       var rows = [];
       byDay[d].forEach(function (t) {
@@ -765,10 +847,11 @@ var APP = (function () {
         if (t.status !== 'done') return;
         (t.events || []).forEach(function (ev) { var r = eventRow(t, ev); if (r) rows.push(r); });
         if (!(t.events || []).length && t.poster) rows.push(logRow('포스터', t.poster.line || '', '', false));
+        var sr = summaryRow(t); if (sr) rows.push(sr);
       });
       if (d === today) {
         var sec = h('div', { class: 'lday', 'data-day': d });
-        if (greetingRow) sec.appendChild(greetingRow);
+        greetRows().forEach(function (g) { sec.appendChild(g); });
         rows.forEach(function (r) { sec.appendChild(r); });
         log.appendChild(sec);
       } else if (rows.length) {
@@ -777,11 +860,22 @@ var APP = (function () {
         log.appendChild(det);
       }
     });
-    if (!log.querySelector('[data-day="' + today + '"]')) { var sec2 = h('div', { class: 'lday', 'data-day': today }); if (greetingRow) sec2.appendChild(greetingRow); log.appendChild(sec2); }
+    if (!log.querySelector('[data-day="' + today + '"]')) { var sec2 = h('div', { class: 'lday', 'data-day': today }); greetRows().forEach(function (g) { sec2.appendChild(g); }); log.appendChild(sec2); }
     if (!log.querySelector('.lrow')) log.appendChild(h('div', { class: 'lempty', text: S.octopus.name ? '아직 아무 데도 안 갔어. 힌트를 두고 뽈뽈 다녀와를 눌러 봐 (비워 둬도 돼).' : '문어 이름부터 지어 주자.' }));
     logStick = true; scrollLog();
   }
   function setGreeting(text) { var hr = new Date().getHours(); greetingRow = logRow('인사', text, 'c-amber', true, (hr >= 19 || hr < 6) ? 'sleepy' : 'idle'); }
+  var memoRow = null;
+  function greetRows() { return [greetingRow, memoRow].filter(Boolean); }
+  /* §17.1 새 날의 첫 인사 = 마지막 산책이 남긴 memo.tomorrow 그대로 (다시 짓지 않는다). 오늘 산책이 아직 없을 때만. 메모 없는 옛 기록이면 말하지 않는다 */
+  function setMemoGreeting() {
+    memoRow = null;
+    var today = todayKey(), last = null;
+    if (tripsOn(today).length) return;
+    S.trips.forEach(function (t) { if (t.status === 'done' && t.by !== 'legacy') last = t; });
+    if (!last || !(last.date < today) || !last.memo || typeof last.memo.tomorrow !== 'string' || !last.memo.tomorrow) return;
+    memoRow = logRow(last.date === keyAdd(today, -1) ? '어제 메모' : '지난 메모', last.memo.tomorrow, 'c-amber memo', true, 'calm');
+  }
 
   /* ───────────────────────── posters (§6) ───────────────────────── */
   var PAPER = [['#f3ead6', '#e6d9bd'], ['#e9ecdc', '#d7dcc3'], ['#f0e2e4', '#dfc9cd']];
@@ -990,7 +1084,7 @@ var APP = (function () {
     var sec = $('album-sec'); if (sec) sec.hidden = !all.length;   /* 첫 포스터가 생기기 전엔 앨범 자체를 보이지 않는다 (CG R18) */
     var trips = all.filter(function (t) { return albumFilter === 'all' || t.poster.type === albumFilter; });
     if (!trips.length) { al.appendChild(h('div', { class: 'lempty', text: albumFilter === 'note' ? '아직 쪽지는 없어. 집에 있는 날 하나 써 둘게.' : albumFilter === 'poster' ? '아직 붙인 포스터가 없어. 힌트를 두고 뽈뽈 다녀와를 눌러 봐 (비워 둬도 돼).' : '아직 붙인 포스터가 없어. 힌트를 두고 뽈뽈 다녀와를 눌러 봐 (비워 둬도 돼).' })); return; }
-    var newest = null; all.forEach(function (t) { if (t.date === dateKey() && (!newest || (t.endedAt || 0) >= (newest.endedAt || 0))) newest = t; });
+    var newest = null; all.forEach(function (t) { if (t.date === todayKey() && (!newest || (t.endedAt || 0) >= (newest.endedAt || 0))) newest = t; });
     var byDay = {}, days = [];
     trips.forEach(function (t) { if (!byDay[t.date]) { byDay[t.date] = []; days.push(t.date); } byDay[t.date].push(t); });
     days.forEach(function (d) {
@@ -1192,7 +1286,7 @@ var APP = (function () {
   }
   function exportJSON() {
     var blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
-    var url = URL.createObjectURL(blob), a = h('a', { href: url, download: 'ppolppol_' + dateKey() + '.json' });
+    var url = URL.createObjectURL(blob), a = h('a', { href: url, download: 'ppolppol_' + todayKey() + '.json' });
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
     return JSON.stringify(S);
   }
@@ -1224,13 +1318,14 @@ var APP = (function () {
   function demoT() { return Date.now() - demo.t0; }
   function demoFinish(byKind) {
     if (!B || typeof B.replay !== 'function') { demoMsg('두뇌(brain.js)가 없어 재생할 수 없어'); return; }
-    var dk = dateKey(), seq = tripsOn(dk).length + 1;
+    var dk = todayKey(), seq = tripsOn(dk).length + 1;
     var meta = { by: byKind || 'human', dateKey: dk, seq: seq, name: S.octopus.name || '', now: new Date(), seed: B.hashSeed(dk, demo.hint, seq, 'human', String(demo.events.length)),
       state: { visits: S.octopus.visits, affinity: S.octopus.affinity, lantern: S.room.lantern, recent: [], todayOut: 0 } };
     var planned;
     try { planned = B.replay(demo.events, meta); } catch (e) { demoMsg('재생 실패: ' + e.message); return; }
     var trip = { id: newTripId(meta.seed), date: dk, seq: seq, seed: meta.seed, kind: null, by: meta.by, hint: { raw: demo.hint }, status: 'running', startedAt: demo.t0 || Date.now(), endedAt: null, events: [], receipt: null, poster: null };
-    mergePlan(trip, planned); trip.by = meta.by; trip.events = demo.events.slice();
+    trip.weather = weatherFor(S.room.lantern);
+    mergePlan(trip, planned); trip.by = meta.by; trip.events = demo.events.slice(); buildRecall(trip);
     S.trips.push(trip); save();
     skipFlag = true; setBusy(true);
     var today = ensureTodaySection(); today.querySelectorAll('.lrow.demo-live').forEach(function (r) { r.remove(); });
@@ -1286,14 +1381,15 @@ var APP = (function () {
     try { evs = typeof json === 'string' ? JSON.parse(json) : json; } catch (e) { demoMsg('JSON 을 읽을 수 없어: ' + e.message); return false; }
     if (!Array.isArray(evs) || !evs.length) { demoMsg('이벤트 배열이 비어 있어'); return false; }
     if (!B || typeof B.replay !== 'function') { demoMsg('두뇌(brain.js)가 없어'); return false; }
-    var dk = dateKey(), seq = tripsOn(dk).length + 1;
+    var dk = todayKey(), seq = tripsOn(dk).length + 1;
     var dep = evs.filter(function (e) { return e && e.type === 'depart'; })[0];
     var meta = { by: 'mcp', dateKey: dk, seq: seq, name: S.octopus.name || '', now: new Date(), seed: B.hashSeed('mcp', dk, seq, JSON.stringify(evs)),
       state: { visits: S.octopus.visits, affinity: S.octopus.affinity, lantern: S.room.lantern, recent: [], todayOut: 0 } };
     var planned;
     try { planned = B.replay(evs, meta); } catch (e) { demoMsg('재생 실패: ' + e.message); return false; }
     var trip = { id: newTripId(meta.seed), date: dk, seq: seq, seed: meta.seed, kind: null, by: 'mcp', hint: { raw: dep ? (dep.hint || '') : '' }, status: 'running', startedAt: Date.now(), endedAt: null, events: [], receipt: null, poster: null };
-    mergePlan(trip, planned); trip.by = 'mcp'; trip.events = evs;
+    trip.weather = weatherFor(S.room.lantern);
+    mergePlan(trip, planned); trip.by = 'mcp'; trip.events = evs; buildRecall(trip);
     S.trips.push(trip); save();
     $('d-json').value = ''; demoMsg('모델(MCP) 이벤트를 재생 중…');
     wakeUp(); setBusy(true); skipFlag = false; demoSet('start');
@@ -1390,9 +1486,10 @@ var APP = (function () {
     renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum();
     bind();
     if (!storeOK) quietWarn('이 브라우저에선 벽이 오늘만 남아');
-    if (S.octopus.name) setGreeting(greetingByHour(new Date().getHours()) + '. ' + S.octopus.name + (S.octopus.state === 'sleep' ? ' 아직 자고 있어.' : ' 기다리고 있었어.'));
+    if (S.octopus.name) { setGreeting(greetingByHour(new Date().getHours()) + '. ' + S.octopus.name + (S.octopus.state === 'sleep' ? ' 아직 자고 있어.' : ' 기다리고 있었어.')); setMemoGreeting(); }
     renderLog();
     octInitial();
+    scheduleThink();
     /* 초상은 장면이 두 프레임 그린 뒤부터 (3D 는 2번째 프레임에 idle 을 미리 찍어 셰이더를 데운다) */
     requestAnimationFrame(function () { requestAnimationFrame(function () { PORT.ready = true; flushPortraits(); }); });
     if (!S.octopus.name) openNameDialog();
