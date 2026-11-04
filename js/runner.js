@@ -411,8 +411,8 @@ var RUNNER = (function () {
     R(-2, C.GY, C.W + 4, C.H - C.GY, T.floor); R(-2, C.GY, C.W + 4, 1, T.floorHi); R(-2, C.GY + 8, C.W + 4, 1, T.floor2);
     for (var fx = -mod(px, 32); fx < C.W + 2; fx += 32) { R(fx, C.GY + 1, 1, 7, T.floor2); R(fx + 16, C.GY + 9, 1, 7, T.floor2); R(fx + 3, C.GY + 3, 1, 1, T.dark); }
     /* 장애물 */
+    drawOct(s, T, ts);   /* 문어 다음에 장애물 — 부딪힌 순간 무엇에 닿았는지 보이게 */
     for (var j = 0; j < s.obs.length; j++) drawObs(s.obs[j], O, T, ts);
-    drawOct(s, T, ts);
     if (!L.reduced) particles(s, ck, ts);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
@@ -509,7 +509,8 @@ var RUNNER = (function () {
   API.open = open;
   API.close = function () { if (dlg && dlg.open) dlg.close(); };
   API.load = load;
-  API.live = function () { return L ? { state: L.state, score: L.sim.score, ticks: L.sim.tick, seed: L.seed, inputs: L.inputs.slice(), night: L.sim.night, sprites: L.sprites.src, phase: L.clock.phase, season: L.clock.season } : null; };
+  API.live = function () { return L ? { state: L.state, score: L.sim.score, ticks: L.sim.tick, seed: L.seed, inputs: L.inputs.slice(), night: L.sim.night, sprites: L.sprites.src, phase: L.clock.phase, season: L.clock.season, speed: L.sim.speed, ground: L.sim.ground, y: L.sim.y, moss: L.sim.moss,
+    obs: L.sim.obs.map(function (o) { return { k: o.k, x: Math.floor(o.x / SUB), w: o.w, got: o.got }; }) } : null; };   /* 읽기 전용 복사본 (스모크·디버그용) */
   return API;
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = RUNNER;

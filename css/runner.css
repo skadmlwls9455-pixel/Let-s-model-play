@@ -16,8 +16,8 @@
 
 .rn-hud { width: 100%; max-width: 760px; margin: 0; display: flex; gap: 16px; align-items: baseline; justify-content: center;
   font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.rn-hud #rn-score { font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 24px; color: var(--fg); min-width: 4ch; text-align: right; }
-.rn-hud #rn-score::after { content: ' 만큼'; font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; color: var(--muted); }
+.rn-hud #rn-score { font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 24px; color: var(--fg); min-width: 5ch; text-align: right; white-space: nowrap; }
+.rn-hud #rn-score::before { content: '거리 '; font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; color: var(--muted); }
 .rn-hud-moss:empty { display: none; }
 
 .rn-stage { position: relative; line-height: 0; border: 16px solid transparent; border-image: url(../assets/ui/frame_dialog.png) 8 fill / 16px round; image-rendering: pixelated; background: #172038; }
@@ -25,7 +25,7 @@
 #rn-cv:focus { outline: none; }
 #rn-cv:focus-visible { outline: 2px solid var(--amber-fill, #de9e41); outline-offset: 2px; }
 
-.rn-msg { margin: 0; min-height: 30px; max-width: 340px; text-align: center; font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; }
+.rn-msg { margin: 0; min-height: 60px; max-width: 340px; text-align: center; font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; }
 .rn-msg:empty { visibility: hidden; }
 
 .rn-ctrls { width: 100%; max-width: 420px; display: grid; grid-template-columns: 3fr 2fr; gap: 12px; }
