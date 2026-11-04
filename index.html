@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#eee8de" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16182a" media="(prefers-color-scheme: dark)">
+<title>뽈뽈 문어</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- 저장 실패 경고 (조용히, 1회) -->
+<div id="save-warn" class="warn" hidden role="status">기록을 이 브라우저에 저장하지 못했어. 새로고침하면 사라질 수 있어.</div>
+
+<!-- ══ SCENE · 픽셀 캔버스 320×240 (§7.0) ══ -->
+<section id="scene" aria-label="문어의 다락방">
+  <div id="stage">
+    <div id="layers"></div>
+    <div id="window-fx" aria-hidden="true"></div>
+    <div id="souvenir-row" aria-label="선반"></div>
+    <div id="wall-posts" aria-label="벽에 붙은 포스터"></div>
+    <div id="oct" class="st-idle" aria-label="문어">
+      <div id="oct-label" aria-live="off"></div>
+      <div id="oct-inner">
+        <!-- 인라인 문어 (48×48, 발끝 = 아래 가운데) · 팔레트 §7.1 -->
+        <svg id="oct-svg" viewBox="0 0 48 48" width="48" height="48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <g class="legs">
+            <path class="leg l1" d="M13 29 Q7 36 8 43 Q10 46 13 43 Q15 38 17 32" fill="#e8463c"/>
+            <path class="leg l2" d="M18 31 Q15 38 15 44 Q17 47 20 44 Q21 38 22 33" fill="#e8463c"/>
+            <path class="leg l3" d="M23 32 Q22 39 23 45 Q25 47 27 45 Q27 39 26 33" fill="#e8463c"/>
+            <path class="leg l4" d="M28 31 Q31 38 31 44 Q29 47 26 44 Q26 38 25 33" fill="#d93d33"/>
+            <path class="leg l5" d="M33 29 Q39 36 38 43 Q36 46 33 43 Q31 38 30 32" fill="#d93d33"/>
+            <path class="leg l6" d="M10 31 Q4 33 3 37 Q4 40 7 38 Q10 35 14 34" fill="#e8463c"/>
+            <path class="leg l7" d="M38 31 Q44 33 45 37 Q44 40 41 38 Q38 35 34 34" fill="#d93d33"/>
+            <g fill="#f6c28c">
+              <circle cx="9" cy="42" r="1"/><circle cx="16" cy="43" r="1"/><circle cx="24" cy="44" r="1"/>
+              <circle cx="31" cy="43" r="1"/><circle cx="37" cy="42" r="1"/><circle cx="5" cy="38" r=".9"/><circle cx="43" cy="38" r=".9"/>
+            </g>
+          </g>
+          <g class="body">
+            <ellipse cx="24" cy="21" rx="14" ry="13" fill="#e8463c"/>
+            <ellipse cx="18" cy="13" rx="5" ry="3.4" fill="#f2a05a" transform="rotate(-25 18 13)"/>
+            <circle cx="15.5" cy="11" r="1.4" fill="#fff6ee"/>
+            <circle cx="19" cy="22" r="3.4" fill="#fff6ee"/><circle cx="29" cy="22" r="3.4" fill="#fff6ee"/>
+            <circle class="pupil" cx="19.6" cy="22.4" r="2" fill="#1b1f2e"/><circle class="pupil" cx="29.6" cy="22.4" r="2" fill="#1b1f2e"/>
+            <circle cx="20.3" cy="21.6" r=".6" fill="#fff6ee"/><circle cx="30.3" cy="21.6" r=".6" fill="#fff6ee"/>
+            <path class="eyelid" d="M15.6 22 h7 M25.6 22 h7" stroke="#e8463c" stroke-width="7" stroke-linecap="butt" opacity="0"/>
+            <path d="M22 28 h4" stroke="#8a2a24" stroke-width="1.4" stroke-linecap="round"/>
+            <g class="blush" opacity="0"><ellipse cx="14" cy="26" rx="2.4" ry="1.4" fill="#f2a05a"/><ellipse cx="34" cy="26" rx="2.4" ry="1.4" fill="#f2a05a"/></g>
+          </g>
+        </svg>
+      </div>
+      <div id="oct-bubble" hidden></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ STATUS (§7.2) ══ -->
+<div id="status">
+  <span id="oct-name" class="name">이름 없는 문어</span>
+  <span id="pips" class="pips" role="img" aria-label="등불 0/8"></span>
+  <span class="stat" id="stat-trips">여행 0</span>
+  <span class="stat" id="stat-days">함께한 날 0</span>
+  <button type="button" class="chip" id="chip-demo" title="데모 두뇌 설명 보기">데모 두뇌</button>
+</div>
+
+<!-- ══ INVITE (§7.3) ══ -->
+<section id="invite" aria-label="초대">
+  <label class="lbl" for="hint-in">힌트 <span class="dim">(선택)</span></label>
+  <input id="hint-in" type="text" maxlength="120" autocomplete="off" enterkeyhint="send"
+         placeholder="관심 가는 주제나 URL을 넌지시… 비워 두면 네가 골라">
+  <div id="hint-help" class="help">비워 두면 '오늘은 네가 골라봐'</div>
+  <div class="btn-row">
+    <button type="button" class="btn primary pressable" id="btn-go"><span class="go-txt">🌧 뽈뽈 다녀와</span></button>
+    <button type="button" class="btn pressable" id="btn-skip" hidden>⏩ 건너뛰기</button>
+    <button type="button" class="btn pressable" id="btn-look">방 보기</button>
+  </div>
+</section>
+
+<!-- ══ LOG (§7.4) ══ -->
+<section id="log-sec" aria-label="오늘의 산책">
+  <h2 class="sec-h">오늘의 산책</h2>
+  <div id="log" role="log" aria-live="polite" tabindex="0"></div>
+</section>
+
+<!-- ══ ALBUM (§6.3) ══ -->
+<section id="album-sec" aria-label="추억 앨범">
+  <div class="sec-row">
+    <h2 class="sec-h">추억 앨범</h2>
+    <div class="filters" role="group" aria-label="앨범 필터">
+      <button type="button" class="fchip on" data-f="all">전체</button>
+      <button type="button" class="fchip" data-f="poster">포스터</button>
+      <button type="button" class="fchip" data-f="note">쪽지</button>
+    </div>
+  </div>
+  <div id="album"></div>
+</section>
+
+<!-- ══ DEMO (§7.6) ══ -->
+<details id="demo">
+  <summary>데모 조작 (개발용)</summary>
+  <p class="warn-line">여기 버튼은 문어 대신 사람이 고르는 거야. 영수증에 '사람이 조작' 으로 남아.</p>
+  <div class="btn-row">
+    <button type="button" class="btn sm" id="d-depart">출발</button>
+    <button type="button" class="btn sm" id="d-stay">집에 있기</button>
+    <button type="button" class="btn sm" id="d-peek">기웃</button>
+    <button type="button" class="btn sm" id="d-return">귀가</button>
+    <button type="button" class="btn sm" id="d-poster">포스터</button>
+    <button type="button" class="btn sm" id="d-wrap">마무리</button>
+  </div>
+  <input id="d-peek-in" type="text" maxlength="200" placeholder="기웃거릴 곳 (노드 이름 또는 URL)">
+  <label class="lbl" for="d-json">이벤트 JSON 배열 붙여넣기 (by: mcp)</label>
+  <textarea id="d-json" rows="3" placeholder='[{"type":"depart","t":0,"hint":""}, …]'></textarea>
+  <div class="btn-row"><button type="button" class="btn sm" id="d-import">이벤트 JSON 불러오기</button></div>
+  <p class="help" id="d-msg"></p>
+</details>
+
+<footer class="foot">뽈뽈 문어 · <a href="https://github.com/skadmlwls9455-pixel/model-welfare-idea" rel="noopener" target="_blank">뽈뽈 복지</a>에서 왔어</footer>
+
+<!-- ══ 이름 모달 (§7.8) ══ -->
+<dialog id="name-dialog" class="modal" aria-labelledby="name-h">
+  <form method="dialog" id="name-form">
+    <div class="big" aria-hidden="true">🐙</div>
+    <h2 id="name-h">문어 이름을 지어 줘</h2>
+    <p>오늘 처음 보내는 문어야.<br>이름은 천천히 불러 줘도 괜찮아.</p>
+    <input class="modal-in" id="name-in" type="text" placeholder="예: 뚜루, 안개, 삐죠…" maxlength="18" autocomplete="off" required>
+    <button type="submit" class="btn primary wide pressable">이름 저장</button>
+    <p class="honest">지금은 작은 규칙 뭉치가 문어를 움직여. 진짜 모델이 고르는 건 MCP 연결 뒤 이야기야.</p>
+  </form>
+</dialog>
+
+<!-- ══ 포스터 모달 (§6.3) ══ -->
+<dialog id="poster-dialog" class="modal poster-modal" aria-label="포스터">
+  <div class="flipper" id="flipper">
+    <div class="face front" id="pd-front"></div>
+    <div class="face back" id="pd-back"></div>
+  </div>
+  <div class="btn-row center">
+    <button type="button" class="btn pressable" id="pd-flip">뒤집기</button>
+    <button type="button" class="btn pressable" id="pd-save">이미지로 저장</button>
+    <button type="button" class="btn pressable" id="pd-close">닫기</button>
+  </div>
+</dialog>
+
+<!-- ══ 방 보기 (§7.5) ══ -->
+<dialog id="room-sheet" class="sheet" aria-labelledby="rs-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="rs-h" class="sr-only">방 보기</h2>
+  <div id="rs-body"></div>
+  <button type="button" class="btn wide pressable" id="rs-close">닫기</button>
+</dialog>
+
+<output id="toast" aria-live="polite"></output>
+
+<script src="js/world.js"></script>
+<script src="js/brain.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

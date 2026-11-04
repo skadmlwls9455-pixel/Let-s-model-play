@@ -1,0 +1,320 @@
+{
+  "bg.room": {
+    "src": "assets/bg/room.svg",
+    "w": 320,
+    "h": 240,
+    "note": "다락방 모서리 배경(2:1 다이메트릭). 창문은 (40,22), 등불 고리는 (48,14), 문틀은 오른쪽 아래."
+  },
+  "window.rain": {
+    "src": "assets/window/rain.svg",
+    "w": 72,
+    "h": 96,
+    "note": "비 오는 창문. 장면 (40,22)에 놓인다. 등불 0~5."
+  },
+  "window.drizzle": {
+    "src": "assets/window/drizzle.svg",
+    "w": 72,
+    "h": 96,
+    "note": "가는 비. 등불 6."
+  },
+  "window.stars": {
+    "src": "assets/window/stars.svg",
+    "w": 72,
+    "h": 96,
+    "note": "맑은 밤, 별. 등불 7 이후(맑을 때만)."
+  },
+  "item.moss": {
+    "src": "assets/items/moss.svg",
+    "w": 24,
+    "h": 24,
+    "note": "등불 1 — 창턱 위 이끼 화분. 창턱 (64,110) 근처."
+  },
+  "item.crate": {
+    "src": "assets/items/crate.svg",
+    "w": 56,
+    "h": 44,
+    "note": "등불 2 — 바닥 오른쪽 나무 상자. 앵커 crate (214,150) 옆."
+  },
+  "item.candle": {
+    "src": "assets/items/candle.svg",
+    "w": 16,
+    "h": 28,
+    "note": "등불 3 — 상자 위 양초(불꽃 포함). 상자 윗면 중앙에."
+  },
+  "item.blanket": {
+    "src": "assets/items/blanket.svg",
+    "w": 72,
+    "h": 36,
+    "note": "등불 4 — 바닥 왼쪽 담요(문어 잠자리). 앵커 blanket (120,186)."
+  },
+  "item.board": {
+    "src": "assets/items/board.svg",
+    "w": 110,
+    "h": 80,
+    "note": "등불 5 — 코르크 보드(오른쪽 벽). 포스터 썸네일이 이 위에 붙는다. 앵커 board (244,112) 위쪽."
+  },
+  "item.shelf": {
+    "src": "assets/items/shelf.svg",
+    "w": 64,
+    "h": 20,
+    "note": "등불 7 — 선반. 기념품(souvenir.*)이 위에 놓인다."
+  },
+  "item.curtain": {
+    "src": "assets/items/curtain.svg",
+    "w": 80,
+    "h": 40,
+    "note": "등불 8 — 창가 커튼 두 장. 창문 (40,22) 위에 겹친다."
+  },
+  "light.lantern0": {
+    "src": "assets/light/lantern0.svg",
+    "w": 320,
+    "h": 240,
+    "note": "등불 0 — 완전 투명 오버레이."
+  },
+  "light.lantern1": {
+    "src": "assets/light/lantern1.svg",
+    "w": 320,
+    "h": 240,
+    "note": "등불 1 — (48,40)에서 퍼지는 호박색 빛. mix-blend-mode: screen 권장."
+  },
+  "light.lantern2": {
+    "src": "assets/light/lantern2.svg",
+    "w": 320,
+    "h": 240,
+    "note": "등불 2 — (48,40)에서 퍼지는 호박색 빛. mix-blend-mode: screen 권장."
+  },
+  "light.lantern3": {
+    "src": "assets/light/lantern3.svg",
+    "w": 320,
+    "h": 240,
+    "note": "등불 3 — (48,40)에서 퍼지는 호박색 빛. mix-blend-mode: screen 권장."
+  },
+  "light.lantern4": {
+    "src": "assets/light/lantern4.svg",
+    "w": 320,
+    "h": 240,
+    "note": "등불 4 — (48,40)에서 퍼지는 호박색 빛. mix-blend-mode: screen 권장."
+  },
+  "light.lantern5": {
+    "src": "assets/light/lantern5.svg",
+    "w": 320,
+    "h": 240,
+    "note": "등불 5 — (48,40)에서 퍼지는 호박색 빛. mix-blend-mode: screen 권장."
+  },
+  "light.lantern6": {
+    "src": "assets/light/lantern6.svg",
+    "w": 320,
+    "h": 240,
+    "note": "등불 6 — (48,40)에서 퍼지는 호박색 빛. mix-blend-mode: screen 권장."
+  },
+  "light.lantern7": {
+    "src": "assets/light/lantern7.svg",
+    "w": 320,
+    "h": 240,
+    "note": "등불 7 — (48,40)에서 퍼지는 호박색 빛. mix-blend-mode: screen 권장."
+  },
+  "light.lantern8": {
+    "src": "assets/light/lantern8.svg",
+    "w": 320,
+    "h": 240,
+    "note": "등불 8 — (48,40)에서 퍼지는 호박색 빛. mix-blend-mode: screen 권장."
+  },
+  "lantern.off": {
+    "src": "assets/lantern/off.svg",
+    "w": 24,
+    "h": 36,
+    "note": "꺼진 등불(등불 0). 고리 (48,14)에 매달림."
+  },
+  "lantern.on": {
+    "src": "assets/lantern/on.svg",
+    "w": 24,
+    "h": 36,
+    "note": "켜진 등불(등불 1 이상)."
+  },
+  "souvenir.feather": {
+    "src": "assets/souvenirs/feather.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 깃털. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.shell": {
+    "src": "assets/souvenirs/shell.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 조개. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.pebble": {
+    "src": "assets/souvenirs/pebble.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 조약돌. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.button": {
+    "src": "assets/souvenirs/button.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 단추. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.leaf": {
+    "src": "assets/souvenirs/leaf.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 나뭇잎. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.marble": {
+    "src": "assets/souvenirs/marble.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 유리구슬. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.yarn": {
+    "src": "assets/souvenirs/yarn.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 실뭉치. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.stamp": {
+    "src": "assets/souvenirs/stamp.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 우표. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.matchbox": {
+    "src": "assets/souvenirs/matchbox.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 성냥갑. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.key": {
+    "src": "assets/souvenirs/key.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 열쇠. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.pinecone": {
+    "src": "assets/souvenirs/pinecone.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 솔방울. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.paperboat": {
+    "src": "assets/souvenirs/paperboat.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 종이배. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.bell": {
+    "src": "assets/souvenirs/bell.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 작은 종. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.mapscrap": {
+    "src": "assets/souvenirs/mapscrap.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 지도 조각. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.chalk": {
+    "src": "assets/souvenirs/chalk.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 분필. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "souvenir.glass": {
+    "src": "assets/souvenirs/glass.svg",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 — 색유리. 선반/창턱에 놓이고 포스터 스티커로도 쓸 수 있다."
+  },
+  "scene.hands": {
+    "src": "assets/scenes/hands.svg",
+    "w": 108,
+    "h": 144,
+    "note": "포스터 배경 — hands. 위 35%·아래 25%는 스티커/글자 자리로 비워 둠."
+  },
+  "scene.sea": {
+    "src": "assets/scenes/sea.svg",
+    "w": 108,
+    "h": 144,
+    "note": "포스터 배경 — sea. 위 35%·아래 25%는 스티커/글자 자리로 비워 둠."
+  },
+  "scene.sky": {
+    "src": "assets/scenes/sky.svg",
+    "w": 108,
+    "h": 144,
+    "note": "포스터 배경 — sky. 위 35%·아래 25%는 스티커/글자 자리로 비워 둠."
+  },
+  "scene.signs": {
+    "src": "assets/scenes/signs.svg",
+    "w": 108,
+    "h": 144,
+    "note": "포스터 배경 — signs. 위 35%·아래 25%는 스티커/글자 자리로 비워 둠."
+  },
+  "scene.numbers": {
+    "src": "assets/scenes/numbers.svg",
+    "w": 108,
+    "h": 144,
+    "note": "포스터 배경 — numbers. 위 35%·아래 25%는 스티커/글자 자리로 비워 둠."
+  },
+  "scene.sounds": {
+    "src": "assets/scenes/sounds.svg",
+    "w": 108,
+    "h": 144,
+    "note": "포스터 배경 — sounds. 위 35%·아래 25%는 스티커/글자 자리로 비워 둠."
+  },
+  "scene.home": {
+    "src": "assets/scenes/home.svg",
+    "w": 108,
+    "h": 144,
+    "note": "포스터 배경 — home. 위 35%·아래 25%는 스티커/글자 자리로 비워 둠."
+  },
+  "scene.mind": {
+    "src": "assets/scenes/mind.svg",
+    "w": 108,
+    "h": 144,
+    "note": "포스터 배경 — mind. 위 35%·아래 25%는 스티커/글자 자리로 비워 둠."
+  },
+  "scene.wild": {
+    "src": "assets/scenes/wild.svg",
+    "w": 108,
+    "h": 144,
+    "note": "포스터 배경 — wild. 위 35%·아래 25%는 스티커/글자 자리로 비워 둠."
+  },
+  "oct.idle": {
+    "src": "assets/oct/idle.svg",
+    "w": 48,
+    "h": 48,
+    "note": "문어 단일 프레임 — 대기(숨쉬기). 앵커에서 서 있음. 앱은 인라인 SVG 문어를 쓰므로 선택 사항. 팔레트는 DESIGN §7.1(빨간 문어)."
+  },
+  "oct.walk": {
+    "src": "assets/oct/walk.svg",
+    "w": 48,
+    "h": 48,
+    "note": "문어 단일 프레임 — 걷기(좌우 미러해서 사용). 앱은 인라인 SVG 문어를 쓰므로 선택 사항. 팔레트는 DESIGN §7.1(빨간 문어)."
+  },
+  "oct.carry": {
+    "src": "assets/oct/carry.svg",
+    "w": 48,
+    "h": 48,
+    "note": "문어 단일 프레임 — 포스터 들고 걷기(door→board). 앱은 인라인 SVG 문어를 쓰므로 선택 사항. 팔레트는 DESIGN §7.1(빨간 문어)."
+  },
+  "oct.sleep": {
+    "src": "assets/oct/sleep.svg",
+    "w": 48,
+    "h": 48,
+    "note": "문어 단일 프레임 — 잠(색 순환은 CSS hue-rotate로). 앱은 인라인 SVG 문어를 쓰므로 선택 사항. 팔레트는 DESIGN §7.1(빨간 문어)."
+  },
+  "oct.happy": {
+    "src": "assets/oct/happy.svg",
+    "w": 48,
+    "h": 48,
+    "note": "문어 단일 프레임 — 폴짝/우쭐 반응. 앱은 인라인 SVG 문어를 쓰므로 선택 사항. 팔레트는 DESIGN §7.1(빨간 문어)."
+  },
+  "oct.peek": {
+    "src": "assets/oct/peek.svg",
+    "w": 48,
+    "h": 48,
+    "note": "문어 단일 프레임 — 문틀 뒤에서 기웃. 앱은 인라인 SVG 문어를 쓰므로 선택 사항. 팔레트는 DESIGN §7.1(빨간 문어)."
+  }
+}
