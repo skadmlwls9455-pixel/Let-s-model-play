@@ -741,3 +741,9 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .swatch { display: flex; flex-direction: column; gap: 2px; }
 .swrow { display: flex; gap: 1px; }
 .sw { width: 14px; height: 14px; display: block; }
+
+/* ── 초대 버튼 줄 정렬 (사용자 피드백): 방 보기는 폭은 좁게, 높이는 뽈뽈 다녀와와 같게 · 다녀와 글자를 이모지 기준으로 2px 내림 ── */
+.btn-row #btn-look { min-height: 52px; align-self: stretch; padding-left: 14px; padding-right: 14px; flex: 0 0 auto; }
+#btn-go .go-txt { display: inline-flex; align-items: center; gap: 6px; transform: translateY(2px); }
+#btn-go .go-txt .emo { transform: translateY(-2px); }
+#btn-go.away .go-txt, #btn-go.away .go-txt .emo { transform: none; }
