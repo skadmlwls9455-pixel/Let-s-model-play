@@ -102,6 +102,12 @@ function bundle() {
     return `<style data-inlined="${href}">\n${safeStyle(readText(href))}\n</style>`;
   });
 
+  // 2a) vendor 스크립트: onerror 속성 안에 '>' 가 있어 일반 정규식이 못 잡으므로 먼저 처리
+  html = html.replace(/<script\s+src=["'](vendor\/[^"']+)["'][\s\S]*?<\/script>/gi, (tag, src) => {
+    if (!exists(src)) { console.warn(`[bundle] vendor 없음: ${src}`); return tag; }
+    report.js.push(src);
+    return `<script data-inlined="${src}">\n${safeScript(readText(src))}\n</script>`;
+  });
   // 2) 로컬 스크립트 인라인 (순서 유지)
   html = html.replace(/<script\b([^>]*)\bsrc=["']([^"']+)["']([^>]*)>\s*<\/script>/gi, (tag, pre, src, post) => {
     if (/^(https?:)?\/\//i.test(src) || src.startsWith('data:')) return tag; // CDN 폴백 등 외부는 그대로

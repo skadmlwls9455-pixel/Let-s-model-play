@@ -33,6 +33,7 @@
   var DEFAULT_TEMPLATES = {
     followedThenLeft: ['{hint} 보러 갔다가 {mem}에 한눈팔았어', '{hint}에서 시작했는데 발이 {mem} 쪽으로 갔어'],
     followedKept: ['{hint}, 끝까지 봤어. {memory}', '{hint} 앞에 오래 있었어. {memory}'],
+    leftKept: ['{hint} 보러 갔다가 딴 데도 들렀는데, 결국 {hint}가 제일 남았어', '{hint}에서 시작해 한눈도 팔았지만 {hint}가 기억에 남아. {memory}'],
     noHint: ['오늘은 {mem}. {memory}', '발길 닿는 대로 가다 {mem}에 오래 있었어'],
     ignored: ['{hint}는 다음에. 오늘은 {mem}가 궁금했어', '{hint} 말고 {mem} 쪽이 끌렸어. {memory}'],
     linger: ['느린 글의 방에 앉아만 있었어. 아무것도 안 읽어도 됐어'],
@@ -554,7 +555,10 @@
       else if (rem.kind === 'room' && rem.node.linger) lineKind = 'linger';
       else if (rem.kind === 'room' && rem.node.id === 'letter_room') lineKind = 'letter';
       else if (rem.kind === 'url') lineKind = 'door';
-      else if (ctx.intent && ctx.follow) lineKind = remIdx === hintStopIdx ? 'followedKept' : 'followedThenLeft';
+      else if (ctx.intent && ctx.follow) {
+        var leftCorner = stops.length > 1 && stops.some(function (s) { return s.corner !== stops[0].corner; });
+        lineKind = remIdx === hintStopIdx ? (leftCorner ? 'leftKept' : 'followedKept') : 'followedThenLeft';
+      }
       else if (ctx.intent && !ctx.follow) lineKind = 'ignored';
       else if (rem.kind === 'wild' && !ctx.intent) lineKind = 'wild';
       else lineKind = 'noHint';

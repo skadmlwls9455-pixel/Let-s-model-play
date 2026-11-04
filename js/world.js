@@ -1293,6 +1293,10 @@ var WORLD = (function () {
   /* ---------- 한 줄 템플릿 (§5.6) ----------
      치환자: {hint} 힌트 노드 이름, {mem} 기억으로 고른 노드 이름, {memory} 기억 조각 한 줄 */
   var lineTemplates = {
+    leftKept: [
+      '{hint} 보러 갔다가 딴 데도 들렀는데, 결국 {hint}가 제일 남았어',
+      '{hint}에서 시작해 한눈도 팔았지만 {hint}가 기억에 남아. {memory}'
+    ],
     followedThenLeft: [
       '{hint} 보러 갔다가 {mem}에 한눈팔았어',
       '{hint}에서 시작했는데 {mem}에 오래 있었어',
