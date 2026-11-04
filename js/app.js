@@ -181,7 +181,10 @@ var APP = (function () {
   var LOOK_KEY = 'ppolppol_look';
   function itemsFor(lv) { return Object.keys(ITEM_LEVEL).filter(function (k) { return lv >= ITEM_LEVEL[k]; }); }
   /* 날씨: 등불 아크(6 가는 비, 7 맑음) → 8칸 뒤에는 날짜 시드 (1~2월엔 눈) */
+  /* 테스트 훅 (tools/look-shots.js): window.__ppolLook = { hour, lantern, weather, octState, anchor } — 있을 때만 시각·날씨·등불·초기 자세를 고정 */
+  function lookHook() { var h = window.__ppolLook; return (h && typeof h === 'object') ? h : null; }
   function weatherFor(lv) {
+    var hk = lookHook(); if (hk && hk.weather) return hk.weather;
     if (lv < 6) return 'rain';
     if (lv < 7) return 'drizzle';
     if (lv < 8) return 'clear';
@@ -189,7 +192,7 @@ var APP = (function () {
     if ((m === 0 || m === 1) && r < 0.35) return 'snow';
     return r < 0.4 ? 'rain' : r < 0.65 ? 'drizzle' : 'clear';
   }
-  function hourNow() { var d = new Date(); return d.getHours() + d.getMinutes() / 60; }
+  function hourNow() { var hk = lookHook(); if (hk && typeof hk.hour === 'number') return hk.hour; var d = new Date(); return d.getHours() + d.getMinutes() / 60; }
   function loadLook() { try { var o = JSON.parse(localStorage.getItem(LOOK_KEY) || 'null'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; } }
   function saveLook(o) { try { localStorage.setItem(LOOK_KEY, JSON.stringify(o)); } catch (e) { /* noop */ } }
   function sceneOpts() {
@@ -280,6 +283,8 @@ var APP = (function () {
   }
   function bubble(text, ms) { scene.bubble(text, ms); }
   function octInitial() {
+    var hk = lookHook();
+    if (hk) { octPlace(hk.anchor || 'center'); octState(hk.octState || 'idle'); return; }   /* 고정 앵글: 산책 없음 */
     if (S.octopus.state === 'sleep') { octPlace('blanket'); octState('sleep'); }
     else { octPlace('window'); octState('idle'); }
     scheduleWander();
@@ -1057,7 +1062,8 @@ var APP = (function () {
   function boot() {
     var q = new URLSearchParams(location.search), slow = parseFloat(q.get('slow'));
     if (slow > 0) document.documentElement.style.setProperty('--speed', String(slow));
-    load(); applyMotion(); initScene(); applyMotion();
+    load(); var hk = lookHook(); if (hk && hk.lantern != null) S.room.lantern = clamp(hk.lantern | 0, 0, 8);
+    applyMotion(); initScene(); applyMotion();
     renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum();
     bind();
     if (S.octopus.name) setGreeting(greetingByHour(new Date().getHours()) + ', ' + S.octopus.name + (S.octopus.state === 'sleep' ? '는 아직 자고 있어.' : '가 기다리고 있었어.'));

@@ -259,15 +259,18 @@ var SCENE3D = (function () {
 
     /* ── 카메라 (직교 다이메트릭, 픽셀 격자 스냅) ── */
     var camera = new T.OrthographicCamera(-1, 1, 1, -1, 0.1, 60);
-    var camTarget = new T.Vector3(0, 0.75, -0.4), yawDrag = 0, dragging = false;
+    var camTarget = new T.Vector3(0, 0.75, -0.4), _tg = new T.Vector3(), yawDrag = 0, dragging = false;
+    function camTargetNow() { return st.look.focus === 'oct' && octG ? _tg.copy(octG.position).add(_focusUp) : camTarget; }   /* look.focus='oct': 문어 중심 (look-shots close) */
+    var _focusUp = new T.Vector3(0, 0.45, 0);
     var S = { W: 0, H: 0, p: 3, rw: 4, rh: 4, cw: 4, ch: 4, N: PX_PER_M, offX: 0, offY: 0 };
     function yawDelta() { var y = clamp(yawDrag + st.look.yaw * DEG, -25 * DEG, 25 * DEG); return Math.round(y / (9 * DEG)) * 9 * DEG; }   /* 9° 스냅 */
     var _off = new T.Vector3(), _r = new T.Vector3(), _u = new T.Vector3(), _ax = new T.Vector3(1, 0, 0), _ay = new T.Vector3(0, 1, 0);
     function placeCamera() {
+      var tgt = camTargetNow();
       _off.set(0, 0, DIST).applyAxisAngle(_ax, -TILT).applyAxisAngle(_ay, YAW + yawDelta());
-      camera.position.copy(camTarget).add(_off); camera.lookAt(camTarget); camera.updateMatrixWorld();
+      camera.position.copy(tgt).add(_off); camera.lookAt(tgt); camera.updateMatrixWorld();
       _r.setFromMatrixColumn(camera.matrixWorld, 0); _u.setFromMatrixColumn(camera.matrixWorld, 1);
-      var dx = camTarget.dot(_r), dy = camTarget.dot(_u), N = S.N;
+      var dx = tgt.dot(_r), dy = tgt.dot(_u), N = S.N;
       camera.position.addScaledVector(_r, Math.round(dx * N) / N - dx).addScaledVector(_u, Math.round(dy * N) / N - dy);
       camera.updateMatrixWorld();
     }
@@ -480,34 +483,50 @@ var SCENE3D = (function () {
       });
     }
 
-    /* ── 문어 (§7.1, 절차적) ── */
-    var octG = new T.Group(), bodyG = new T.Group(); octG.add(bodyG); scene.add(octG); octG.scale.setScalar(0.85);
-    var EYE = [[-0.34, 1.02, 0.84], [0.34, 1.02, 0.84]];
-    var headParts = [{ g: new T.SphereGeometry(1, 20, 14), m: M(0, 1.0, 0, 0, 0, 0, 1, 0.86, 1), c: OC.body, tag: 1 },
-      { g: new T.SphereGeometry(0.28, 9, 7), m: M(-0.45, 1.58, 0.52, 0.5, -0.4, 0, 1, 0.55, 0.5), c: OC.hi, tag: 2 },
-      { g: new T.SphereGeometry(0.07, 6, 5), m: M(-0.56, 1.7, 0.6), c: OC.white },
-      { g: box(0.24, 0.05, 0.1), m: M(0, 0.68, 0.99), c: OC.mouth, tag: 3 }];
-    EYE.forEach(function (e) { headParts.push({ g: new T.SphereGeometry(0.19, 10, 8), m: M(e[0], e[1], e[2], 0, 0, 0, 1, 1, 0.55), c: OC.white }); });
+    /* ── 문어 (§7.1, 절차적 · assets/ref/octopus-ref.png) ──
+       로컬 단위 = 머리 반지름 r. OCT_R = 0.42 m (방 폭 5 m 의 8%). 머리 중심 y 0.92, y 찌그림 0.88 → 바닥 틈 0.04 r (= 1.7 cm).
+       다리 8 = 바깥·아래로 말리는 테이퍼 사슬(두께 0.38 r → 0.12 r, 길이 ≈ 0.9 r), 끝이 바닥(y=0)에 닿고 살짝 들린다(룩 패스 1). */
+    var OCT_R = 0.42, HEAD_Y = 0.92, HEAD_SQ = 0.88;
+    var octG = new T.Group(), bodyG = new T.Group(); octG.add(bodyG); scene.add(octG); octG.scale.setScalar(OCT_R);
+    var EYE = [[-0.30, 0.67, 0.90], [0.30, 0.67, 0.90]], EYE_R = 0.24, PUPIL_R = 0.13;   /* 둘 다 정면(+z), 몸 중심보다 아래 (레퍼런스) */
+    var headParts = [{ g: new T.SphereGeometry(1, 20, 14), m: M(0, HEAD_Y, 0, 0, 0, 0, 1, HEAD_SQ, 1), c: OC.body, tag: 1 },
+      { g: new T.SphereGeometry(0.3, 9, 7), m: M(-0.45, 1.50, 0.52, 0.5, -0.4, 0, 1, 0.55, 0.5), c: OC.hi, tag: 2 },   /* 왼쪽 위 하이라이트 패치 */
+      { g: new T.SphereGeometry(0.07, 6, 5), m: M(-0.56, 1.62, 0.6), c: OC.white },
+      { g: box(0.30, 0.05, 0.08), m: M(0, 0.44, 0.82), c: OC.mouth, tag: 3 }];   /* `_` 입: 눈 아래, 폭 0.3 r */
+    EYE.forEach(function (e) { headParts.push({ g: new T.SphereGeometry(EYE_R, 10, 8), m: M(e[0], e[1], e[2], 0, 0, 0, 1, 1, 0.55), c: OC.white }); });
     var headGeo = keep(mergeParts(headParts)), head = new T.Mesh(headGeo, toon); head.castShadow = true; bodyG.add(head);
-    var pupils = EYE.map(function (e) {
-      var g = keep(mergeParts([{ g: new T.SphereGeometry(0.095, 8, 6), m: M(0, 0, 0), c: OC.eye }, { g: new T.SphereGeometry(0.035, 5, 4), m: M(-0.03, 0.035, 0.08), c: OC.white }]));
-      var m = new T.Mesh(g, toon); m.position.set(e[0], e[1], e[2] + 0.12); bodyG.add(m); return m;
+    var pupils = EYE.map(function (e) {   /* 동공 0.13 r + 흰 글린트 1px */
+      var g = keep(mergeParts([{ g: new T.SphereGeometry(PUPIL_R, 8, 6), m: M(0, 0, 0), c: OC.eye }, { g: new T.SphereGeometry(0.055, 5, 4), m: M(-0.045, 0.05, 0.105), c: OC.white }]));
+      var m = new T.Mesh(g, toon); m.position.set(e[0], e[1], e[2] + 0.14); bodyG.add(m); return m;
     });
-    var lidGeo = keep(mergeParts(EYE.map(function (e) { return { g: new T.SphereGeometry(0.215, 10, 8), m: M(e[0], e[1], e[2] + 0.01, 0, 0, 0, 1, 1, 0.6), c: OC.body, tag: 1 }; })));
+    var lidGeo = keep(mergeParts(EYE.map(function (e) { return { g: new T.SphereGeometry(EYE_R + 0.03, 10, 8), m: M(e[0], e[1], e[2] + 0.01, 0, 0, 0, 1, 1, 0.6), c: OC.body, tag: 1 }; })));
     var lids = new T.Mesh(lidGeo, toon); lids.visible = false; bodyG.add(lids);
-    var arcs = new T.Mesh(keep(mergeParts(EYE.map(function (e) { return { g: new T.TorusGeometry(0.14, 0.035, 5, 8, Math.PI), m: M(e[0], e[1] - 0.04, e[2] + 0.18), c: OC.eye }; }))), toon); arcs.visible = false; bodyG.add(arcs);
-    var blush = new T.Mesh(keep(mergeParts([[-0.56, 0.78, 0.76], [0.56, 0.78, 0.76]].map(function (p) { return { g: new T.CircleGeometry(0.13, 8), m: M(p[0], p[1], p[2], 0, p[0] < 0 ? -0.5 : 0.5, 0), c: OC.hi, tag: 2 }; }))), toon); blush.visible = false; bodyG.add(blush);
+    var arcs = new T.Mesh(keep(mergeParts(EYE.map(function (e) { return { g: new T.TorusGeometry(0.17, 0.04, 5, 8, Math.PI), m: M(e[0], e[1] - 0.04, e[2] + 0.2), c: OC.eye }; }))), toon); arcs.visible = false; bodyG.add(arcs);
+    var blush = new T.Mesh(keep(mergeParts([[-0.57, 0.52, 0.72], [0.57, 0.52, 0.72]].map(function (p) { return { g: new T.CircleGeometry(0.15, 8), m: M(p[0], p[1], p[2], 0, p[0] < 0 ? -0.5 : 0.5, 0), c: OC.hi, tag: 2 }; }))), toon); blush.visible = false; bodyG.add(blush);
+    /* 다리 키포인트 [바깥 거리, 높이(뿌리 기준), 반지름]: 뿌리는 몸 안(0.62 r, 0.30 r), 밑면이 바닥(y=0)에 닿고 끝이 들린다 */
+    var ARM = [[0, 0, 0.19], [0.26, -0.12, 0.17], [0.50, -0.17, 0.14], [0.70, -0.19, 0.11], [0.82, -0.08, 0.065]], ARM_ROOT = [0.60, 0.30];
+    function armParts() {
+      var ps = [{ g: new T.SphereGeometry(ARM[0][2], 8, 6), m: M(0, 0, 0), c: OC.body, tag: 1 }];
+      for (var k = 0; k < ARM.length - 1; k++) {
+        var a0 = ARM[k], a1 = ARM[k + 1], dx = a1[0] - a0[0], dy = a1[1] - a0[1];
+        ps.push({ g: new T.CylinderGeometry(a1[2], a0[2], Math.hypot(dx, dy), 7), m: M((a0[0] + a1[0]) / 2, (a0[1] + a1[1]) / 2, 0, 0, 0, Math.atan2(dy, dx) - Math.PI / 2), c: OC.body, tag: 1 });
+        ps.push({ g: new T.SphereGeometry(a1[2], 7, 5), m: M(a1[0], a1[1], 0), c: OC.body, tag: 1 });   /* 관절을 둥글게 */
+      }
+      /* 빨판 2: 들린 끝마디 밑면(바깥을 향해 보인다) */
+      var p3 = ARM[3], p4 = ARM[4], d = [p4[0] - p3[0], p4[1] - p3[1]], dl = Math.hypot(d[0], d[1]), n = [d[1] / dl, -d[0] / dl];
+      ps.push({ g: new T.SphereGeometry(0.05, 5, 4), m: M((p3[0] + p4[0]) / 2 + n[0] * 0.06, (p3[1] + p4[1]) / 2 + n[1] * 0.06, 0), c: OC.pale, tag: 4 });
+      ps.push({ g: new T.SphereGeometry(0.045, 5, 4), m: M(p4[0] + n[0] * 0.045, p4[1] + n[1] * 0.045, 0), c: OC.pale, tag: 4 });
+      return ps;
+    }
     var arms = [];
     for (i = 0; i < 8; i++) {
       var a = i / 8 * Math.PI * 2 + Math.PI / 8;
-      var ap = [{ g: new T.CylinderGeometry(0.07, 0.2, 0.9, 7), m: M(0.45, 0, 0, 0, 0, -Math.PI / 2), c: OC.body, tag: 1 }, { g: new T.SphereGeometry(0.2, 8, 6), m: M(0, 0, 0), c: OC.body, tag: 1 }, { g: new T.SphereGeometry(0.075, 6, 5), m: M(0.9, 0, 0), c: OC.body, tag: 1 }];
-      [0.25, 0.5, 0.75].forEach(function (x) { ap.push({ g: new T.SphereGeometry(0.055, 5, 4), m: M(x, -(0.2 - x * 0.145) * 0.85, 0), c: OC.pale, tag: 4 }); });
-      var arm = new T.Mesh(keep(mergeParts(ap)), toon); arm.castShadow = true;
-      arm.position.set(0.74 * Math.cos(a), 0.3, 0.74 * Math.sin(a)); arm.rotation.set(0, -a, -0.3); arm.userData.a = a; bodyG.add(arm); arms.push(arm);
+      var arm = new T.Mesh(keep(mergeParts(armParts())), toon); arm.castShadow = true;
+      arm.position.set(ARM_ROOT[0] * Math.cos(a), ARM_ROOT[1], ARM_ROOT[0] * Math.sin(a)); arm.rotation.set(0, -a, 0); arm.userData.a = a; bodyG.add(arm); arms.push(arm);
     }
-    var hit = new T.Mesh(keep(new T.SphereGeometry(1.35, 8, 6)), keep(new T.MeshBasicMaterial({ visible: false }))); hit.position.y = 0.9; hit.userData.kind = 'oct'; bodyG.add(hit);
-    var carry = new T.Mesh(posterGeo, posterMat); carry.position.set(0.8, 1.15, 0.55); carry.rotation.set(0, 0.5, 0.15); carry.visible = false; bodyG.add(carry);
-    var octDecal = new T.Mesh(keep(new T.PlaneGeometry(2.2, 2.2)), decalMat); octDecal.rotation.x = -Math.PI / 2; octDecal.position.y = 0.01; octDecal.renderOrder = 1; octG.add(octDecal);
+    var hit = new T.Mesh(keep(new T.SphereGeometry(1.6, 8, 6)), keep(new T.MeshBasicMaterial({ visible: false }))); hit.position.y = 0.7; hit.userData.kind = 'oct'; bodyG.add(hit);   /* 반지름 0.67 m ≈ 72 CSS px (p=3) ≥ 44 */
+    var carry = new T.Mesh(posterGeo, posterMat); carry.position.set(1.0, 0.95, 0.6); carry.rotation.set(0, 0.5, 0.15); carry.scale.setScalar(1.6); carry.visible = false; bodyG.add(carry);
+    var octDecal = new T.Mesh(keep(new T.PlaneGeometry(3.2, 3.2)), decalMat); octDecal.rotation.x = -Math.PI / 2; octDecal.position.y = 0.01; octDecal.renderOrder = 1; octG.add(octDecal);   /* 접지 그림자 1.34 m (다리 끝까지) */
     var oct = { anchor: 'window', walking: null, faceYaw: 0, wantYaw: 0, blinkT: 2 + Math.random() * 4, blinkLeft: 0, animT: 0, hop: 0, flushK: 0, pointer: null, lookTarget: null };
     var octTags = [headGeo, lidGeo].concat(arms.map(function (m) { return m.geometry; }));
     function octColor(hex) { octTags.forEach(function (g) { recolor(g, 1, hex); }); }
@@ -560,18 +579,18 @@ var SCENE3D = (function () {
     var hangFly = null;
     function startHang() {
       var from = carry.getWorldPosition(new T.Vector3()), slot = posterSlot(Math.min(lastPosterCount, 5)), to = new T.Vector3(slot[0], slot[1], slot[2]);
-      var fly = new T.Mesh(posterGeo, carry.material); fly.position.copy(from); scene.add(fly);
-      hangFly = { m: fly, from: from, to: to, k: 0, dur: 0.5 * st.speed };
+      var fly = new T.Mesh(posterGeo, carry.material); fly.position.copy(from); fly.scale.setScalar(carry.scale.x * OCT_R); scene.add(fly);
+      hangFly = { m: fly, from: from, to: to, k: 0, dur: 0.5 * st.speed, s0: fly.scale.x };   /* 들고 있던 크기 → 보드 크기 */
     }
     function stepHang(dt) {
       if (!hangFly) return;
       hangFly.k += dt; var k = Math.min(1, hangFly.k / hangFly.dur), e = k * k * (3 - 2 * k);
-      hangFly.m.position.lerpVectors(hangFly.from, hangFly.to, e); hangFly.m.position.y += Math.sin(k * Math.PI) * 0.4;
+      hangFly.m.position.lerpVectors(hangFly.from, hangFly.to, e); hangFly.m.position.y += Math.sin(k * Math.PI) * 0.4; hangFly.m.scale.setScalar(hangFly.s0 + (1 - hangFly.s0) * e);
       if (k >= 1) { scene.remove(hangFly.m); hangFly = null; }
     }
     var _hp = new T.Vector3();
     function octScreen() { /* 머리 꼭대기 → 컨테이너 CSS px */
-      bodyG.localToWorld(_hp.set(0, 1.95, 0)).project(camera);
+      bodyG.localToWorld(_hp.set(0, HEAD_Y + HEAD_SQ + 0.1, 0)).project(camera);
       return { x: S.offX + (_hp.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (_hp.y * 0.5 + 0.5)) * S.ch };
     }
     var lastOverlay = '';
@@ -602,11 +621,11 @@ var SCENE3D = (function () {
       bodyG.scale.set(sx, sy, sx); bodyG.position.y = by;
       /* 다리 */
       for (var i = 0; i < 8; i++) {
-        var arm = arms[i], base = -0.3;
+        var arm = arms[i], base = 0;   /* 0 = 끝이 바닥에 닿은 자세. 흔들림은 위로만 (바닥을 뚫지 않게) */
         if (red) { arm.rotation.z = base; continue; }
-        if (walking && oct.walking) arm.rotation.z = base + Math.sin(t * 10 + (i % 2) * Math.PI) * 0.3;
-        else if (s === 'sleep') arm.rotation.z = base - 0.08 + Math.sin(t * 1.2 + i) * 0.03;
-        else arm.rotation.z = base + Math.sin(t * 2.6 + i * 0.8) * 0.08;
+        if (walking && oct.walking) arm.rotation.z = base + (0.5 + 0.5 * Math.sin(t * 10 + (i % 2) * Math.PI)) * 0.35;
+        else if (s === 'sleep') arm.rotation.z = base + 0.02 + Math.sin(t * 1.2 + i) * 0.02;
+        else arm.rotation.z = base + 0.05 + Math.sin(t * 2.6 + i * 0.8) * 0.05;
       }
       /* 눈 깜빡임 · 동공 */
       if (s !== 'sleep' && s !== 'pet' && s !== 'away') {
@@ -741,7 +760,9 @@ var SCENE3D = (function () {
         if (o.dither != null) { st.look.dither = clamp(+o.dither, 0, 1); dither.base = st.look.dither * 0.08; }
         if (o.outline != null) { st.look.outline = !!o.outline; post.uniforms.uOutline.value = st.look.outline && hasDepthTex ? 1 : 0; }
         if (o.yaw != null) { st.look.yaw = clamp(+o.yaw, -25, 25); dither.still = 0; }
-        if (re) resize();
+        if (o.zoom != null) { var z = clamp(o.zoom | 0, 0, ZOOM_STEPS.length - 1); if (z !== st.zoom) { st.zoom = z; re = true; } }
+        if (o.focus !== undefined) { st.look.focus = o.focus === 'oct' ? 'oct' : null; dither.still = 0; }   /* 줌 단계 0..3 (핀치/휠과 같은 단계, look-shots 의 close 용) */
+        if (re) { resize(); dither.still = 0; }
       },
       palette: function () { var out = RAMPS.map(function (r) { return { name: r[0], colors: PAL[r[0]] }; }); out.push({ name: 'fixed', colors: [PAL.ink, PAL.white, PAL.night] }); out.push({ name: 'oct', colors: PAL.oct }); return out; },
       stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom] }; },
