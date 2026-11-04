@@ -218,9 +218,10 @@ a { color: var(--teal); touch-action: manipulation; }
 }
 #status .srow { display: flex; align-items: center; gap: 8px; min-height: 28px; width: 100%; flex-wrap: nowrap; }
 #status .who { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; white-space: nowrap; overflow: hidden; }
-/* 이름이 먼저 줄어든다(… 2~3자까지), 방 제목은 이름이 최소 폭에 닿은 뒤에만 (flex-shrink 0.001 + 1px 여유: 첫 패스의 0.0x px 줄어듦이 … 를 켜지 않게) */
-#status .name { flex: 0 1 auto; min-width: 2.6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 15px; color: var(--amber); }
-.room-title { flex: 0 0.001 auto; min-width: 0; padding-right: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+/* 이름이 먼저 줄어든다(… --name-min 까지). 방 제목은 줄어들지 않고(flex-shrink 0 — 플렉스 반올림 0.3px 에도 … 가 켜져서), 폭 상한 = 전체 − 이름 최소 폭이라 이름이 최소에 닿은 뒤에만 … */
+#status .who { --name-min: 39px; }
+#status .name { flex: 0 1 auto; min-width: var(--name-min); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 15px; color: var(--amber); }
+.room-title { flex: 0 0 auto; max-width: calc(100% - var(--name-min)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
 .room-title::before { content: '·'; margin: 0 6px; color: var(--dim); }
 .pips { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pip-row { display: inline-flex; gap: 3px; }
@@ -528,6 +529,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   border: 2px solid var(--line); border-top: 0; color: var(--fg); font-family: var(--f-meta); font-size: 14px; line-height: 27px; padding: 6px 16px; min-height: 0;
 }
 :root[data-font="pixel"] #status .srow { gap: 8px; min-height: 27px; }
+:root[data-font="pixel"] #status .who { --name-min: 47px; }   /* Galmuri9 18px 두 글자 + … */
 :root[data-font="pixel"] #status .name { font-family: var(--f-body); font-weight: 400; font-size: 18px; line-height: 27px; color: var(--fg); }
 :root[data-font="pixel"] .room-title { font-family: var(--f-meta); font-size: 14px; line-height: 27px; color: var(--muted); }
 :root[data-font="pixel"] .room-title::before { content: '·'; margin: 0 6px; color: var(--line); }
@@ -739,3 +741,9 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .swatch { display: flex; flex-direction: column; gap: 2px; }
 .swrow { display: flex; gap: 1px; }
 .sw { width: 14px; height: 14px; display: block; }
+
+/* ── 초대 버튼 줄 정렬 (사용자 피드백): 방 보기는 폭은 좁게, 높이는 뽈뽈 다녀와와 같게 · 다녀와 글자를 이모지 기준으로 2px 내림 ── */
+.btn-row #btn-look { min-height: 52px; align-self: stretch; padding-left: 14px; padding-right: 14px; flex: 0 0 auto; }
+#btn-go .go-txt { display: inline-flex; align-items: center; gap: 6px; transform: translateY(2px); }
+#btn-go .go-txt .emo { transform: translateY(-2px); }
+#btn-go.away .go-txt, #btn-go.away .go-txt .emo { transform: none; }
