@@ -943,7 +943,7 @@
     "target": -20.0,
     "measured": -20.0,
     "unit": "LUFS",
-    "peak_dbfs": -3.3
+    "peak_dbfs": -2.9
    },
    "loop": {
     "start": 0.5,
@@ -1005,7 +1005,7 @@
     "target": -20.0,
     "measured": -20.0,
     "unit": "LUFS",
-    "peak_dbfs": -2.7
+    "peak_dbfs": -2.9
    },
    "loop": {
     "start": 0.5,
@@ -1067,7 +1067,7 @@
     "target": -20.0,
     "measured": -20.0,
     "unit": "LUFS",
-    "peak_dbfs": -3.3
+    "peak_dbfs": -2.9
    },
    "loop": {
     "start": 0.5,
@@ -2334,13 +2334,13 @@
     "ogg": "jingle/room_complete.ogg",
     "m4a": "jingle/room_complete.m4a"
    },
-   "duration": 4.6373,
+   "duration": 4.6372,
    "level": {
     "rel_db": 4,
     "target": -16.0,
     "measured": -16.0,
     "unit": "LUFS",
-    "peak_dbfs": -4.5
+    "peak_dbfs": -4.2
    },
    "loop": null,
    "trigger": "등불 8칸이 다 켜져 방이 완성될 때(다음 박에 BGM 일시정지 → 이 징글 → BGM 은 다음 프레이즈 처음부터 재개)",
@@ -2637,7 +2637,7 @@
     "ogg": "jingle/chime_day.ogg",
     "m4a": "jingle/chime_day.m4a"
    },
-   "duration": 1.7639,
+   "duration": 1.7761,
    "level": {
     "rel_db": -10,
     "target": -30.0,

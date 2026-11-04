@@ -694,7 +694,7 @@
    "target": -20.0,
    "measured": -20.0,
    "unit": "LUFS",
-   "peak_dbfs": -3.3
+   "peak_dbfs": -2.9
   },
   "loop": {
    "start": 0.5,
@@ -756,7 +756,7 @@
    "target": -20.0,
    "measured": -20.0,
    "unit": "LUFS",
-   "peak_dbfs": -2.7
+   "peak_dbfs": -2.9
   },
   "loop": {
    "start": 0.5,
@@ -818,7 +818,7 @@
    "target": -20.0,
    "measured": -20.0,
    "unit": "LUFS",
-   "peak_dbfs": -3.3
+   "peak_dbfs": -2.9
   },
   "loop": {
    "start": 0.5,

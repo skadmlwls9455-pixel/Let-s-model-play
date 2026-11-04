@@ -127,7 +127,7 @@
 - 등불 `lantern_1`~`lantern_7` 은 F장조 음계를 한 칸씩 올라간다. 귀로 진행이 들린다. 8칸은 `room_complete` 팡파르(BGM 을 잠깐 멈춤).
 - 처음 가 본 곳 `first_place`, 희귀 티어 `rare_sparkle`, 시간대가 바뀔 때 `chime_{dawn,day,dusk,night}`.
 - 말풍선 목소리 `voice_{a|u}_{음}`: 글자 하나에 소리 하나. 둥근 모음(ㅗㅜㅡ…)은 u, 나머지는 a. 기분별로 쓰는 음이 다르다(아래 표).
-- 환경음: 날씨 바탕(`amb_rain` 등) + 밤·계절 덧층(`amb_summer_night` 귀뚜라미, `amb_autumn`) + 등불 온기(`amb_lantern_low/mid/high`, 칸이 찰수록 탁탁 소리가 촘촘해짐) + 덧층(`layer_drips` 처마 물방울, `layer_snowbells`, `layer_sparkle`, `layer_winter_chime`). 길이가 서로 소수라서(37·41·47·53·61·73초…) 겹쳐도 반복이 잘 들리지 않는다.
+- 환경음: 날씨 바탕(`amb_rain` 등, 항상 하나) + 밤·계절 덧층(`amb_summer_night` 귀뚜라미, `amb_autumn`. 바탕 없이 소리만 있어서 바탕 위에 겹쳐 튼다) + 등불 온기(`amb_lantern_low/mid/high`, 칸이 찰수록 탁탁 소리가 촘촘해짐) + 덧층(`layer_drips` 처마 물방울, `layer_snowbells`, `layer_sparkle`, `layer_winter_chime`). 길이가 서로 소수라서(37·41·47·53·61·73초…) 겹쳐도 반복이 잘 들리지 않는다.
 
 | 기분 | 말풍선 음 집합 | 글자 간격 |
 |---|---|---|
@@ -176,7 +176,14 @@ python3 check_loops.py bgm place amb   # 인코딩 후 루프 이음새 검사
 | `jingles.py`, `sfx.py`, `ambience.py` | 징글, 효과음, 환경음 |
 | `export.py`, `render.py` | 음량 맞추기(ffmpeg ebur128), Opus·AAC 인코딩, 매니페스트 조각 |
 
-## 6. 정직 메모
+## 6. 합성기에서 손본 것
+
+- 볼륨은 칩처럼 60Hz·4비트 계단으로 움직이지만, 계단 모서리를 1.5ms 에 걸쳐 넘긴다. 오르골 같은 느린 감쇠에서 나던 지글거림이 사인 기준 −46dB 에서 −74dB 로 줄었다.
+- 종 음색(`WAVES['bell']`)은 협화 배음(1·2·3·4·6)만 남겼다. 예전 표는 5배음(장3도)이 −2.3dB 로 커서 D 종에 F# 이 섞였다. 지금은 −39.5dB 다.
+- 펄스파는 4배 오버샘플 + PolyBLEP 로 그려서 높은 음의 에일리어싱을 줄였다.
+- 환경음은 노이즈가 많아 Opus 를 `-application lowdelay`, AAC 를 `-aac_coder fast` 로 따로 인코딩한다(`ambience.py`). 저비트레이트 기본 설정에서 노이즈가 1~2dB 작아지는 문제를 피하려고 그렇게 했다. BGM 은 디코드 후에도 −20.0 LUFS 를 확인했다.
+
+## 7. 정직 메모
 
 - **만든 쪽(Claude)은 소리를 들을 수 없다.** 그래서 귀 대신 숫자로 확인했다. 화성 검사기, 음 높이 FFT 확인(A4 = 440.0 Hz), 라우드니스 측정, 디코드 후 루프 이음새 검사, 스펙트로그램 눈검사를 거쳤다.
   그래도 "듣기 좋은가"는 사람 귀로만 판단할 수 있다. `soundboard.html` 로 들어 보고 마음에 안 드는 곡·소리를 알려 주면 악보나 악기 숫자를 고쳐 다시 굽는다.
