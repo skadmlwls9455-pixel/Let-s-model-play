@@ -19,6 +19,7 @@ var APP = (function () {
   var FOLLOW_LABEL = { followed: '따라감', ignored: '무시함', left: '도중에 벗어남', none: '없음' };
   var BY_LABEL = { demo: '데모 두뇌(규칙)', human: '사람이 조작', mcp: '모델(MCP)', legacy: '복원된 기록' };
   var LOG_LABEL = { depart: '출발', peek: '기웃', 'return': '귀가', remember: '기억', hang_poster: '포스터', wrap_up: '마무리', stay_home: '집', empty_turn: '…' };
+  var VOICE_LABELS = ['귀가', '기억', '마무리', '집', '인사', '방'];   /* 문어 목소리 행 → 픽셀 테마에서 호박색 탭 */
   var REACT_EMOJI = { '폴짝': '🎉', '우쭐': '😌', '덤덤': '😶', '졸림': '😴' };
   var KEY = 'ppolppol_v2', KEY_V1 = 'ppolppol_v1', KEY_V1_BAK = 'ppolppol_v1_backup';
 
@@ -97,7 +98,7 @@ var APP = (function () {
       octopus: { name: null, born: null, trips: 0, invites: 0, days: [], affinity: {}, visits: {}, state: 'idle' },
       room: { lantern: 0, souvenirs: [], posterOrder: [] },
       trips: [],
-      settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c', flipped: false, palette: paletteDefault() }
+      settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c', flipped: false, palette: paletteDefault(), pixelFont: true }
     };
   }
   var S = defaults();
@@ -605,7 +606,7 @@ var APP = (function () {
 
   /* ───────────────────────── log (§7.4) ───────────────────────── */
   function logRow(label, text, cls, animate) {
-    var row = h('div', { class: 'lrow' + (cls ? ' ' + cls : '') + (animate ? ' in' : '') });
+    var row = h('div', { class: 'lrow' + (cls ? ' ' + cls : '') + (VOICE_LABELS.indexOf(label) >= 0 ? ' voice' : '') + (animate ? ' in' : '') });
     row.appendChild(h('span', { class: 'ltool', text: label }));
     var tx = h('span', { class: 'ltext' });
     if (typeof text === 'string') tx.textContent = text; else tx.appendChild(text);
@@ -794,7 +795,7 @@ var APP = (function () {
     var lf = w * (note ? 0.062 : 0.058), lines = wrapLine(p.line || '', Math.floor(sw / (lf * 0.95)), 3);
     if (lines.length === 3) { lf *= 0.9; lines = wrapLine(p.line || '', Math.floor(sw / (lf * 0.95)), 3); }
     var ly = sy + sh + lf * 1.6;
-    lines.forEach(function (ln, i) { s += '<text x="' + (w / 2) + '" y="' + (ly + i * lf * 1.5).toFixed(1) + '" text-anchor="middle" font-family="Noto Serif KR, serif" font-weight="600" font-size="' + lf.toFixed(1) + '" fill="#2a2620">' + esc(ln) + '</text>'; });
+    lines.forEach(function (ln, i) { s += '<text x="' + (w / 2) + '" y="' + (ly + i * lf * 1.5).toFixed(1) + '" text-anchor="middle" font-family="' + posterFont() + '" font-weight="' + (pixelFont() ? 700 : 600) + '" font-size="' + lf.toFixed(1) + '" fill="#2a2620">' + esc(ln) + '</text>'; });
     /* 날짜 · N번째 */
     var ord = tripOrdinal(trip), meta = fmtDate(trip.date, true) + (ord ? ' · ' + ord + '번째 뽈뽈' : note ? ' · 오늘은 집' : '');
     s += '<text x="' + (w / 2) + '" y="' + (hgt - m * 1.1).toFixed(1) + '" text-anchor="middle" font-family="Noto Sans KR, sans-serif" font-size="' + (w * 0.036).toFixed(1) + '" fill="#5f5849">' + esc(meta) + '</text>';
@@ -1093,6 +1094,9 @@ var APP = (function () {
     var cb = h('input', { type: 'checkbox', id: 'set-thumbs' }); cb.checked = S.settings.thumbs !== false;
     cb.addEventListener('change', function () { S.settings.thumbs = cb.checked; save(); renderWall(); renderAlbum(); });
     frag.appendChild(h('label', { class: 'set' }, ['포스터에 위키 썸네일 표시', cb]));
+    var pf = h('input', { type: 'checkbox', id: 'set-pixel' }); pf.checked = pixelFont();
+    pf.addEventListener('change', function () { S.settings.pixelFont = pf.checked; save(); applyFont(); renderWall(); renderAlbum(); });
+    frag.appendChild(h('label', { class: 'set' }, ['픽셀 글꼴', pf]));
     frag.appendChild(h('div', { class: 'set' }, [h('span', { text: '기록 내보내기 (JSON)' }), h('button', { type: 'button', class: 'btn sm', text: '내보내기', onclick: exportJSON })]));
     var file = h('input', { type: 'file', accept: 'application/json,.json', id: 'set-import' });
     file.addEventListener('change', function () { var f = file.files && file.files[0]; if (!f) return; var fr = new FileReader(); fr.onload = function () { importJSON(fr.result); }; fr.readAsText(f); });
@@ -1112,6 +1116,9 @@ var APP = (function () {
     if (scrollToDemo) { var el = $('rs-demo'); if (el) el.scrollIntoView({ block: 'start' }); }
   }
   function openNameDialog() { showDialog($('name-dialog')); setTimeout(function () { $('name-in').focus(); }, 50); }
+  function pixelFont() { return !(S && S.settings && S.settings.pixelFont === false); }
+  function posterFont() { return pixelFont() ? 'Galmuri11, Noto Serif KR, serif' : 'Noto Serif KR, serif'; }
+  function applyFont() { document.documentElement.setAttribute('data-font', pixelFont() ? 'pixel' : 'system'); }
   function applyMotion() { document.documentElement.setAttribute('data-motion', S.settings.motion || 'auto'); if (scene) scene.setReducedMotion(reduced()); }
   function hexHue(hex) {
     var n = parseInt(String(hex).slice(1), 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
@@ -1133,7 +1140,7 @@ var APP = (function () {
     try {
       var obj = typeof text === 'string' ? JSON.parse(text) : text;
       if (!obj || obj.v !== 2 || !obj.octopus) throw new Error('format');
-      S = normalize(obj); save(); renderAll(); applyMotion(); octInitial();
+      S = normalize(obj); save(); renderAll(); applyMotion(); applyFont(); octInitial();
       var d = $('room-sheet'); if (d.open) d.close();
       toast('기록을 불러왔어'); return true;
     } catch (e) { toast('이 파일은 뽈뽈 기록이 아닌 것 같아'); return false; }
@@ -1266,7 +1273,7 @@ var APP = (function () {
     window.addEventListener('storage', function (e) {
       if (e.key !== KEY || !e.newValue || e.newValue === lastSaved || busy) return;
       try { S = normalize(JSON.parse(e.newValue)); lastSaved = e.newValue; } catch (err) { return; }
-      renderAll(); applyMotion();
+      renderAll(); applyMotion(); applyFont();
     });
     $('name-form').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -1320,7 +1327,7 @@ var APP = (function () {
     var q = new URLSearchParams(location.search), slow = parseFloat(q.get('slow'));
     if (slow > 0) document.documentElement.style.setProperty('--speed', String(slow));
     load(); var hk = lookHook(); if (hk && hk.lantern != null) S.room.lantern = clamp(hk.lantern | 0, 0, 8);
-    applyMotion(); initScene(); applyMotion();
+    applyMotion(); applyFont(); initScene(); applyMotion();
     renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum();
     bind();
     if (!storeOK) quietWarn('이 브라우저에선 벽이 오늘만 남아');

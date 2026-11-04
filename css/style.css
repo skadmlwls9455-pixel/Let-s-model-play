@@ -430,6 +430,243 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   .sheet[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 }
 
+/* ══════════════════════════════════════════════════════════
+   픽셀 테마 — html[data-font="pixel"] (기본값. 방 보기 › 설정 › "픽셀 글꼴" 끄면 위의 Noto + 민무늬 패널로 돌아간다)
+   글꼴: Galmuri (vendor/fonts/galmuri.css) 정수 배만 — 본문·로그·영수증 Galmuri9 18px/27px, 버튼·상태·방 제목·대화 Galmuri11 22px, 메타·칩·날짜 Galmuri7 14px/21px
+   색: Apollo 46 (js/palettes.js) 에서만 고른다. 라이트 = 종이·나무, 다크 = 슬레이트·남색. 본문 대비 ≥ 4.5:1 (tools 없음 — 리포트에 표)
+   질감: 2px 격자 체커 디더(패널 3% · 페이지 6%) + 종이 알갱이, 전부 data-URI SVG, image-rendering: pixelated. 그라디언트·블러 없음, 그림자는 2px 딱딱한 블록
+   틀: 2px 어두운 테두리 + 안쪽 2px 베벨(밝음 좌상·어둠 우하) + 모서리 2px 계단(clip-path). 대화상자는 이중 틀(바깥 2px · 2px 틈 · 안쪽 1px)
+   ══════════════════════════════════════════════════════════ */
+:root[data-font="pixel"] {
+  /* 라이트: 종이 위 나무 — Apollo #d7b594 / #e7d5b3 / #ebede9, 잉크 #341c27, 나무 #602c2c · #884b2b, 호박 #be772b */
+  --bg: #d7b594; --panel: #e7d5b3; --panel2: #ebede9; --rim: #602c2c;
+  --fg: #341c27; --muted: #602c2c; --dim: #c09473;
+  --amber: #884b2b; --amber-fill: #be772b; --amber-hi: #e8c170; --amber-lo: #884b2b; --amber-g: #e7d5b3; --on-accent: #241527;
+  --rose: #a53030; --teal: #253a5e;
+  --paper0: #e7d5b3; --paper1: #d0da91; --paper2: #d7b594;
+  --ink: #341c27; --ink-muted: #602c2c; --ink-link: #253a5e;
+  --line: #602c2c; --hi-px: #ebede9; --lo-px: #c09473; --strip: #c09473; --pip-off: #ad7757; --tab: #577277;
+  --shadow: 2px 2px 0 var(--line); --shadow-lg: 4px 4px 0 var(--line); --shadow-xs: 1px 1px 0 var(--line); --hi: var(--hi-px);
+  --f-body: 'Galmuri9', 'Noto Sans KR', sans-serif;
+  --f-ui: 'Galmuri11', 'Noto Sans KR', sans-serif;
+  --f-meta: 'Galmuri7', 'Noto Sans KR', sans-serif;
+  /* 2px 격자 체커 (4×4 타일에 2×2 두 칸) — 어두운 점은 라이트, 밝은 점은 다크 */
+  --dither-panel: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect width='2' height='2' fill='%23341c27' fill-opacity='.03'/%3E%3Crect x='2' y='2' width='2' height='2' fill='%23341c27' fill-opacity='.03'/%3E%3C/svg%3E");
+  --dither-page: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect width='2' height='2' fill='%23341c27' fill-opacity='.06'/%3E%3Crect x='2' y='2' width='2' height='2' fill='%23341c27' fill-opacity='.06'/%3E%3C/svg%3E");
+  /* 종이 알갱이: 12×12 타일에 2×2 점 셋 */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' shape-rendering='crispEdges'%3E%3Cg fill='%23602c2c' fill-opacity='.07'%3E%3Crect x='2' y='2' width='2' height='2'/%3E%3Crect x='8' y='6' width='2' height='2'/%3E%3Crect x='4' y='10' width='2' height='2'/%3E%3C/g%3E%3C/svg%3E");
+  --scrim: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect width='2' height='2' fill='%23090a14' fill-opacity='.5'/%3E%3Crect x='2' y='2' width='2' height='2' fill='%23090a14' fill-opacity='.5'/%3E%3C/svg%3E");
+  /* 모서리 2px 계단. --notch-sh 는 2px 그림자 블록까지 같은 계단으로 포함 (clip-path 는 상자 밖도 가리킬 수 있다) */
+  --notch: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 0 calc(100% - 2px), 0 2px);
+  --notch-sh: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, calc(100% + 2px) 4px, calc(100% + 2px) 100%, 100% calc(100% + 2px), 4px calc(100% + 2px), 2px 100%, 0 calc(100% - 2px), 0 2px);
+  --bevel: inset 2px 2px 0 var(--hi-px), inset -2px -2px 0 var(--lo-px);
+  --bevel-in: inset 2px 2px 0 var(--lo-px), inset -2px -2px 0 var(--hi-px);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-font="pixel"]:not([data-theme="light"]) {
+    --bg: #10141f; --panel: #202e37; --panel2: #151d28; --rim: #577277;
+    --fg: #ebede9; --muted: #a8b5b2; --dim: #394a50;
+    --amber: #e8c170; --amber-fill: #de9e41; --amber-hi: #e8c170; --amber-lo: #be772b; --amber-g: #202e37; --on-accent: #241527;
+    --rose: #df84a5; --teal: #73bed3;
+    --line: #577277; --hi-px: #819796; --lo-px: #090a14; --strip: #4d2b32; --pip-off: #394a50; --tab: #577277;
+    --shadow: 2px 2px 0 #090a14; --shadow-lg: 4px 4px 0 #090a14; --shadow-xs: 1px 1px 0 #090a14;
+    --dither-panel: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect width='2' height='2' fill='%23ebede9' fill-opacity='.03'/%3E%3Crect x='2' y='2' width='2' height='2' fill='%23ebede9' fill-opacity='.03'/%3E%3C/svg%3E");
+    --dither-page: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect width='2' height='2' fill='%23ebede9' fill-opacity='.05'/%3E%3Crect x='2' y='2' width='2' height='2' fill='%23ebede9' fill-opacity='.05'/%3E%3C/svg%3E");
+  }
+}
+:root[data-font="pixel"][data-theme="dark"] {
+  --bg: #10141f; --panel: #202e37; --panel2: #151d28; --rim: #577277;
+  --fg: #ebede9; --muted: #a8b5b2; --dim: #394a50;
+  --amber: #e8c170; --amber-fill: #de9e41; --amber-hi: #e8c170; --amber-lo: #be772b; --amber-g: #202e37; --on-accent: #241527;
+  --rose: #df84a5; --teal: #73bed3;
+  --line: #577277; --hi-px: #819796; --lo-px: #090a14; --strip: #4d2b32; --pip-off: #394a50; --tab: #577277;
+  --shadow: 2px 2px 0 #090a14; --shadow-lg: 4px 4px 0 #090a14; --shadow-xs: 1px 1px 0 #090a14;
+  --dither-panel: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect width='2' height='2' fill='%23ebede9' fill-opacity='.03'/%3E%3Crect x='2' y='2' width='2' height='2' fill='%23ebede9' fill-opacity='.03'/%3E%3C/svg%3E");
+  --dither-page: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' shape-rendering='crispEdges'%3E%3Crect width='2' height='2' fill='%23ebede9' fill-opacity='.05'/%3E%3Crect x='2' y='2' width='2' height='2' fill='%23ebede9' fill-opacity='.05'/%3E%3C/svg%3E");
+}
+
+/* 글꼴 눈금 — 픽셀 글꼴은 안티앨리어싱을 끈다 (지원하는 곳에서만), 자간 0, 이모지는 시스템 이모지를 1em 로 */
+:root[data-font="pixel"] body {
+  font-family: var(--f-body); font-size: 18px; line-height: 27px; letter-spacing: 0;
+  -webkit-font-smoothing: none; font-smooth: never; text-rendering: optimizeSpeed;
+  background-color: var(--bg); background-image: var(--dither-page); background-size: 4px 4px; image-rendering: pixelated;
+}
+:root[data-font="pixel"] .emo { font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; font-size: 1em; line-height: 1; vertical-align: -1px; }
+:root[data-font="pixel"] :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+:root[data-font="pixel"] .pressable:active { transform: translate(2px, 2px); }
+@media (hover: hover) and (pointer: fine) { :root[data-font="pixel"] .pressable:not(:disabled):hover { transform: none; } }
+
+/* 틀 — .px-frame 은 어디든 붙일 수 있는 기본 틀. 같은 선언을 패널·행·카드에도 준다 */
+:root[data-font="pixel"] .px-frame {
+  border: 2px solid var(--line); border-radius: 0; box-shadow: var(--bevel);
+  background-color: var(--panel); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated;
+}
+
+/* ── 경고 / 토스트 ── */
+:root[data-font="pixel"] .warn { background: var(--amber-fill); color: var(--on-accent); font-family: var(--f-meta); font-size: 14px; line-height: 21px; border-bottom: 2px solid var(--line); }
+:root[data-font="pixel"] #toast {
+  border-radius: 0; border: 2px solid var(--line); background-color: var(--panel); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated;
+  color: var(--fg); font-family: var(--f-body); font-size: 18px; line-height: 27px; padding: 6px 12px;
+  box-shadow: var(--bevel), 2px 2px 0 var(--line); clip-path: var(--notch-sh);
+}
+
+/* ── 장면: 디오라마 창 (2px 틀 + 안쪽 베벨은 캔버스 위에 겹치는 ::after) ── */
+:root[data-font="pixel"] #scene { border: 2px solid var(--line); border-bottom: 0; }
+:root[data-font="pixel"] #scene::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 9; box-shadow: inset 2px 2px 0 var(--lo-px), inset -2px -2px 0 var(--hi-px); }
+:root[data-font="pixel"] #scene3d #oct-label { font-family: var(--f-meta); font-size: 14px; line-height: 14px; color: var(--paper0); }
+:root[data-font="pixel"] #scene3d #oct-bubble { font-family: var(--f-meta); font-size: 14px; line-height: 21px; border-radius: 0; border: 2px solid var(--line); background: var(--paper0); color: var(--ink); box-shadow: 2px 2px 0 var(--line); padding: 2px 8px; }
+
+/* ── 상태 줄: 나무색 띠, 이름·방 제목 Galmuri11 22px, 숫자 Galmuri7 ── */
+:root[data-font="pixel"] #status {
+  background-color: var(--strip); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated;
+  border: 2px solid var(--line); border-top: 0; color: var(--fg); font-family: var(--f-meta); font-size: 14px; line-height: 21px; padding: 6px 16px; gap: 4px;
+}
+:root[data-font="pixel"] #status .srow { gap: 8px; min-height: 32px; }
+:root[data-font="pixel"] #status .name { font-family: var(--f-ui); font-weight: 700; font-size: 22px; line-height: 22px; color: var(--fg); }
+:root[data-font="pixel"] .room-title { font-family: var(--f-ui); font-size: 22px; line-height: 22px; color: var(--fg); }
+:root[data-font="pixel"] .room-title::before { content: '·'; margin-right: 8px; color: var(--line); }
+:root[data-font="pixel"] .stat { color: var(--fg); }
+/* 등불 칸: 12×12 네모 8개, 2px 틈. 켜지면 호박색 + 좌상 1px 밝은 점 */
+:root[data-font="pixel"] .pips { gap: 2px; }
+:root[data-font="pixel"] .pip {
+  width: 12px; height: 12px; font-size: 0; line-height: 0; color: transparent; opacity: 1;
+  background: var(--pip-off); box-shadow: inset 0 0 0 1px var(--line);
+  transition: background-color var(--t-scene) var(--ease-enter), transform var(--t-scene) var(--ease-enter);
+}
+:root[data-font="pixel"] .pip.on { background: var(--amber-fill); box-shadow: inset 0 0 0 1px var(--line), inset 2px 2px 0 var(--amber-hi); text-shadow: none; }
+:root[data-font="pixel"] .chip, :root[data-font="pixel"] .fchip {
+  border-radius: 0; border: 2px solid var(--line); background: var(--panel2); color: var(--muted);
+  font-family: var(--f-meta); font-size: 14px; line-height: 14px; padding: 4px 10px; min-height: 32px;
+  box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line);
+}
+:root[data-font="pixel"] .chip:active, :root[data-font="pixel"] .fchip:active { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
+:root[data-font="pixel"] .fchip.on { background: var(--amber-fill); border-color: var(--line); color: var(--on-accent); box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo), 2px 2px 0 var(--line); }
+
+/* ── 초대: 라벨 Galmuri7, 입력칸은 안으로 들어간 틀, 버튼은 베벨 블록 + 2px 그림자 (누르면 2px 내려앉으며 그림자가 사라진다) ── */
+:root[data-font="pixel"] .lbl, :root[data-font="pixel"] .help { font-family: var(--f-meta); font-size: 14px; line-height: 21px; }
+:root[data-font="pixel"] .help { min-height: 21px; }
+:root[data-font="pixel"] #hint-in, :root[data-font="pixel"] .modal-in, :root[data-font="pixel"] #d-peek-in, :root[data-font="pixel"] #d-json, :root[data-font="pixel"] .sheet select {
+  font-family: var(--f-body); font-size: 18px; line-height: 27px; letter-spacing: 0;
+  border: 2px solid var(--line); border-radius: 0; background: var(--panel2); color: var(--fg);
+  box-shadow: var(--bevel-in); padding: 6px 12px; clip-path: var(--notch);
+}
+:root[data-font="pixel"] #hint-in:focus { border-color: var(--amber-fill); }
+:root[data-font="pixel"] .btn {
+  font-family: var(--f-ui); font-size: 22px; line-height: 22px; letter-spacing: 0; border-radius: 0; padding: 8px 14px;
+  border: 2px solid var(--line); background-color: var(--panel); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated; color: var(--fg);
+  box-shadow: var(--bevel), 2px 2px 0 var(--line);
+  transition: transform var(--t-press) var(--ease-out), opacity var(--t-ui);
+}
+:root[data-font="pixel"] .btn:not(.sm) { clip-path: var(--notch-sh); }
+:root[data-font="pixel"] .btn:active { transform: translate(2px, 2px); box-shadow: var(--bevel); }
+:root[data-font="pixel"] .btn.sm { font-family: var(--f-body); font-size: 18px; line-height: 18px; min-height: 36px; padding: 4px 10px; }
+:root[data-font="pixel"] .btn.primary {
+  min-height: 52px; font-weight: 700; background-color: var(--amber-fill); color: var(--on-accent); border-color: var(--line);
+  box-shadow: inset 2px 2px 0 var(--amber-hi), inset -2px -2px 0 var(--amber-lo), 2px 2px 0 var(--line);
+}
+:root[data-font="pixel"] .btn.primary:active { box-shadow: inset 2px 2px 0 var(--amber-hi), inset -2px -2px 0 var(--amber-lo); }
+:root[data-font="pixel"] .btn.primary.away { background-color: var(--panel); border-color: var(--line); color: var(--amber); font-weight: 400; box-shadow: var(--bevel-in); }
+:root[data-font="pixel"] .btn.primary.away .go-txt::before { width: 6px; height: 6px; border-radius: 0; margin-right: 8px; vertical-align: 2px; }
+:root[data-font="pixel"] .btn:disabled { transform: none; }
+:root[data-font="pixel"] .btn-row #btn-skip { color: var(--fg); }
+
+/* ── 로그: 행마다 틀, 왼쪽 8px 탭 — 문어 목소리(귀가·기억·마무리·집·인사·방)는 호박, 나머지는 슬레이트 ── */
+:root[data-font="pixel"] .sec-h { font-family: var(--f-meta); font-size: 14px; line-height: 21px; letter-spacing: 0; border-top: 2px solid var(--line); padding-top: 8px; color: var(--fg); }
+:root[data-font="pixel"] #log { border-radius: 0; padding: 2px 2px 0; }
+:root[data-font="pixel"] .lday summary { font-family: var(--f-meta); font-size: 14px; line-height: 21px; }
+:root[data-font="pixel"] .lrow {
+  border-radius: 0; border: 2px solid var(--line); border-left: 8px solid var(--tab); font-size: 18px; line-height: 27px;
+  padding: 6px 10px; margin-bottom: 8px; gap: 8px;
+  background-color: var(--panel); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated;
+  box-shadow: inset 0 2px 0 var(--hi-px), inset -2px -2px 0 var(--lo-px), 2px 2px 0 var(--line); clip-path: var(--notch-sh);
+}
+:root[data-font="pixel"] .lrow.c-amber, :root[data-font="pixel"] .lrow.c-teal, :root[data-font="pixel"] .lrow.c-mute { border-left-color: var(--tab); border-left-style: solid; }
+:root[data-font="pixel"] .lrow.voice { border-left-color: var(--amber-fill); }
+:root[data-font="pixel"] .lrow.c-mute { border-left-color: var(--dim); }
+:root[data-font="pixel"] .ltool { font-family: var(--f-meta); font-size: 14px; line-height: 21px; letter-spacing: 0; padding-top: 3px; color: var(--amber); }
+:root[data-font="pixel"] .ltext .st, :root[data-font="pixel"] .ltext .sub { font-family: var(--f-meta); font-size: 14px; line-height: 21px; }
+:root[data-font="pixel"] .lrow.typing .ltext { letter-spacing: 2px; }
+:root[data-font="pixel"] .lempty { font-size: 18px; line-height: 27px; }
+
+/* ── 앨범: 카드 틀 + 2px 그림자 + 종이 알갱이, 기울기 없음(픽셀 격자) ── */
+:root[data-font="pixel"] .aday { border-right: 2px dashed var(--line); }
+:root[data-font="pixel"] .aday .adate { font-family: var(--f-meta); font-size: 14px; letter-spacing: 0; }
+:root[data-font="pixel"] .pcard { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); clip-path: var(--notch-sh); background: var(--paper0); }
+:root[data-font="pixel"] .pcard::before { content: ''; position: absolute; inset: 0; pointer-events: none; background-image: var(--grain); background-size: 12px 12px; image-rendering: pixelated; }
+:root[data-font="pixel"] .pcard:active { transform: translate(2px, 2px); box-shadow: none; }
+:root[data-font="pixel"] .pcard.newest::after { border-radius: 0; width: 8px; height: 8px; background: var(--amber-fill); box-shadow: 0 0 0 2px var(--line); }
+:root[data-font="pixel"] .pcard.in { animation-name: fade-only; transform: none; }
+
+/* ── 데모 · 바닥글 ── */
+:root[data-font="pixel"] #demo { border: 2px dashed var(--line); border-radius: 0; font-size: 18px; line-height: 27px; }
+:root[data-font="pixel"] #demo .warn-line { font-family: var(--f-meta); font-size: 14px; line-height: 21px; }
+:root[data-font="pixel"] #d-json { font-family: var(--f-body); }
+:root[data-font="pixel"] .foot { font-family: var(--f-meta); font-size: 14px; line-height: 21px; }
+:root[data-font="pixel"] .dv { font-family: var(--f-meta); font-size: 14px; line-height: 21px; }
+:root[data-font="pixel"] .dev-look { border-top: 2px dashed var(--line); }
+
+/* ── 대화상자: 이중 틀 (바깥 2px 어두움 · 2px 틈 · 안쪽 1px 밝음) + 4px 블록 그림자, 스크림은 체커 ── */
+:root[data-font="pixel"] dialog {
+  border: 2px solid var(--line); border-radius: 0; background-color: var(--panel); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated;
+  box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px), 4px 4px 0 var(--line);
+}
+:root[data-font="pixel"] dialog::backdrop { background-color: rgba(9,10,20,.45); background-image: var(--scrim); background-size: 4px 4px; backdrop-filter: none; }
+:root[data-font="pixel"] dialog[open] { animation-name: fade-only; }
+:root[data-font="pixel"] .modal { border-radius: 0; padding: 24px 20px 18px; }
+:root[data-font="pixel"] .modal h2 { font-family: var(--f-ui); font-size: 22px; line-height: 33px; font-weight: 700; }
+:root[data-font="pixel"] .modal p { font-family: var(--f-ui); font-size: 22px; line-height: 33px; }
+:root[data-font="pixel"] .modal .big { font-size: 44px; line-height: 44px; }
+:root[data-font="pixel"] .honest { font-family: var(--f-meta); font-size: 14px; line-height: 21px; }
+/* 포스터 열람: 어두운 슬레이트 패널(두 테마 공통)을 Apollo 로 — 안쪽 1px 밝은 선은 --ip-rim */
+:root[data-font="pixel"] .poster-modal {
+  --ip-bg: #151d28; --ip-rim: #577277; --ip-fg: #ebede9; --ip-muted: #a8b5b2; --ip-line: #394a50; --accent: #e8c170; --teal: #73bed3;
+  --ip-cw: calc(var(--ip-w) - 32px);
+  border: 2px solid #090a14; border-radius: 0; background-color: var(--ip-bg); background-image: none; color: var(--ip-fg);
+  box-shadow: inset 0 0 0 2px var(--ip-bg), inset 0 0 0 3px var(--ip-rim), 4px 4px 0 #090a14; padding: 16px;
+}
+:root[data-font="pixel"] .flipper .face.front { border-radius: 0; border: 2px solid #090a14; box-shadow: 2px 2px 0 #090a14; background: var(--paper0); position: relative; }
+:root[data-font="pixel"] .flipper .face.front::after { content: ''; position: absolute; inset: 0; pointer-events: none; background-image: var(--grain); background-size: 12px 12px; image-rendering: pixelated; }
+:root[data-font="pixel"] .inspect-text { font-family: var(--f-body); font-size: 18px; line-height: 27px; letter-spacing: 0; }
+:root[data-font="pixel"] .inspect-text .lead { font-family: var(--f-ui); font-size: 22px; line-height: 33px; font-weight: 700; }
+:root[data-font="pixel"] .inspect-text .meta, :root[data-font="pixel"] .inspect-text .first-chip { font-family: var(--f-meta); font-size: 14px; line-height: 21px; }
+:root[data-font="pixel"] .inspect-text .voice { border-left: 4px solid var(--ip-line); padding-left: 10px; }
+:root[data-font="pixel"] .flipper .face.back { border-radius: 0; border: 2px solid #090a14; box-shadow: 2px 2px 0 #090a14; }
+:root[data-font="pixel"] .poster-modal .btn { background-color: #202e37; background-image: none; border-color: #090a14; color: var(--ip-fg); font-family: var(--f-body); font-size: 18px; line-height: 18px; padding: 8px 12px; box-shadow: inset 2px 2px 0 #577277, inset -2px -2px 0 #090a14, 2px 2px 0 #090a14; }
+:root[data-font="pixel"] .poster-modal .btn:active { box-shadow: inset 2px 2px 0 #577277, inset -2px -2px 0 #090a14; }
+@media (min-width: 600px) {
+  :root[data-font="pixel"] .inspect-text { font-size: 18px; }
+  :root[data-font="pixel"] .inspect-text .lead { font-size: 22px; }
+}
+/* 영수증: 종이 위 Galmuri9 18px, 점선 2px, 복사 버튼도 틀 */
+:root[data-font="pixel"] .receipt { font-family: var(--f-body); font-size: 18px; line-height: 27px; padding: 14px 12px; background-image: var(--grain); background-size: 12px 12px; image-rendering: pixelated; }
+:root[data-font="pixel"] .receipt h3 { font-family: var(--f-meta); font-size: 14px; line-height: 21px; letter-spacing: 0; }
+:root[data-font="pixel"] .receipt .hr { border-top: 2px dashed var(--ink-muted); }
+:root[data-font="pixel"] .receipt .row { grid-template-columns: 18px 1fr; gap: 6px; padding: 2px 0; }
+:root[data-font="pixel"] .receipt .row .note, :root[data-font="pixel"] .receipt .row .bridge, :root[data-font="pixel"] .receipt .row a, :root[data-font="pixel"] .receipt .by { font-family: var(--f-meta); font-size: 14px; line-height: 21px; font-style: normal; }
+:root[data-font="pixel"] .receipt .row .note { color: var(--ink-muted); }
+:root[data-font="pixel"] .receipt .big-line { font-family: var(--f-ui); font-size: 22px; line-height: 33px; font-weight: 700; }
+:root[data-font="pixel"] .receipt .share { border-radius: 0; border: 2px solid var(--ink-muted); background: #ebede9; padding: 6px 8px; }
+:root[data-font="pixel"] .receipt .share code { font-size: 14px; font-family: var(--f-meta); letter-spacing: 0; }
+:root[data-font="pixel"] .receipt .copy { border-radius: 0; border: 2px solid var(--ink); background: var(--paper0); font-family: var(--f-meta); font-size: 14px; line-height: 14px; box-shadow: inset 1px 1px 0 #ebede9, inset -1px -1px 0 #c09473, 2px 2px 0 var(--ink); }
+:root[data-font="pixel"] .receipt .copy:active { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 #ebede9, inset -1px -1px 0 #c09473; }
+
+/* 바텀시트 (방 보기): 위쪽 이중 틀, 손잡이는 네모 */
+:root[data-font="pixel"] .sheet { border-radius: 0; border-bottom: 0; box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px); padding: 8px 16px max(16px, env(safe-area-inset-bottom, 0px)); }
+:root[data-font="pixel"] .sheet .handle { border-radius: 0; background: var(--line); }
+:root[data-font="pixel"] .sheet h3 { font-family: var(--f-meta); font-size: 14px; line-height: 21px; letter-spacing: 0; color: var(--fg); margin: 16px 0 4px; }
+:root[data-font="pixel"] .sheet p, :root[data-font="pixel"] .sheet ul, :root[data-font="pixel"] .sheet .set, :root[data-font="pixel"] .sheet .stats { font-size: 18px; line-height: 27px; }
+:root[data-font="pixel"] .sheet .room-text { font-family: var(--f-ui); font-size: 22px; line-height: 33px; font-weight: 700; }
+:root[data-font="pixel"] .sheet .stats b { font-weight: 400; color: var(--amber); }
+:root[data-font="pixel"] .sheet select { min-height: 44px; padding: 4px 8px; }
+:root[data-font="pixel"] .sheet input[type=file] { font-family: var(--f-meta); font-size: 14px; }
+:root[data-font="pixel"] .souv-list span { border-radius: 0; border: 2px solid var(--line); background: var(--panel2); font-family: var(--f-meta); font-size: 14px; line-height: 21px; padding: 2px 8px; box-shadow: 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .preset { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .preset.on { border-color: var(--fg); box-shadow: inset 0 0 0 2px var(--panel2), 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .sheet .btn.danger { color: var(--rose); }
+@media (min-width: 600px) {
+  :root[data-font="pixel"] .sheet { border-radius: 0; border-bottom: 2px solid var(--line); box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px), 4px 4px 0 var(--line); }
+}
+
 /* ── 축소 모션 (설정 또는 OS): 줄이되 없애지 않는다 — 이동·회전 대신 크로스페이드, 등불은 그대로 밝아진다 ── */
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion="auto"]) { --t-press: 0ms; --t-ui: 120ms; --t-scene: 150ms; --t-ceremony: 200ms; --t-morph: 120ms; --t-windup: 50ms; --t-hold: 0ms; --t-bloom: 150ms; --t-flip-again: 120ms; --t-stagger: 0ms; }

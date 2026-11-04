@@ -1,14 +1,15 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-font="pixel">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#eee8de" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#16182a" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#d7b594" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10141f" media="(prefers-color-scheme: dark)">
 <title>뽈뽈 문어</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap">
+<link rel="stylesheet" href="vendor/fonts/galmuri.css"><!-- 픽셀 글꼴 (Galmuri, OFL) · file:// 상대 경로 -->
 <link rel="stylesheet" href="css/style.css">
 <!-- 저장소 워밍업: 문서가 열리자마자 한 번 읽어 둔다. file:// 원점에서 새로고침 직후 첫 읽기가 직전 커밋을 놓치는 경우가 있어서 (R2) -->
 <script>try { localStorage.getItem('ppolppol_v2'); } catch (e) { /* 저장소 없음: app.js 가 메모리로 대신한다 */ }</script>
@@ -19,7 +20,7 @@
 <div id="save-warn" class="warn" hidden role="status"></div>
 
 <!-- ══ SCENE · 3D 픽셀아트 다락방 (§7.0, js/scene3d.js) — WebGL 없으면 아래 #stage 2D 폴백 ══ -->
-<section id="scene" aria-label="문어의 다락방">
+<section id="scene" class="px-frame" aria-label="문어의 다락방">
   <div id="scene3d" aria-hidden="true" hidden></div>
   <div id="stage">
     <div id="layers"></div>
