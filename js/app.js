@@ -215,8 +215,13 @@ var APP = (function () {
   var LOOK_KEY = 'ppolppol_look';
   function itemsFor(lv) { return Object.keys(ITEM_LEVEL).filter(function (k) { return lv >= ITEM_LEVEL[k]; }); }
   /* 날씨: 등불 아크(6 가는 비, 7 맑음) → 8칸 뒤에는 날짜 시드 (1~2월엔 눈) */
-  /* 테스트 훅 (tools/look-shots.js): window.__ppolLook = { hour, lantern, weather, octState, anchor, palette } — 있을 때만 시각·날씨·등불·초기 자세·팔레트를 고정 */
+  /* 테스트 훅 (tools/look-shots.js): window.__ppolLook = { hour, lantern, weather, octState, anchor, palette, key, fill } — 있을 때만 시각·날씨·등불·초기 자세·팔레트·키/필 비율을 고정 */
   function lookHook() { var h = window.__ppolLook; return (h && typeof h === 'object') ? h : null; }
+  function lookNow() { /* 저장된 룩 + 훅의 key/fill (훅 값은 저장하지 않고 장면에만) */
+    var o = loadLook(), hk = lookHook();
+    if (hk) { if (typeof hk.key === 'number') o.key = hk.key; if (typeof hk.fill === 'number') o.fill = hk.fill; }
+    return o;
+  }
   function weatherFor(lv) {
     var hk = lookHook(); if (hk && hk.weather) return hk.weather;
     if (lv < 6) return 'rain';
@@ -249,7 +254,7 @@ var APP = (function () {
   function sceneOpts() {
     return {
       pixelSize: 3, color: S.settings.octColor, lantern: S.room.lantern, items: itemsFor(S.room.lantern), weather: weatherFor(S.room.lantern), hour: hourNow(),
-      posters: [], souvenirs: [], reducedMotion: reduced(), speed: speed(), assetPath: assetPath, octEl: $('oct'), look: loadLook(), palette: paletteNow(),
+      posters: [], souvenirs: [], reducedMotion: reduced(), speed: speed(), assetPath: assetPath, octEl: $('oct'), look: lookNow(), palette: paletteNow(),
       on: {
         posterTap: function (id) { openPoster(id); },
         souvenirTap: function (sv) { if (sv.tripId && tripById(sv.tripId)) { bubble((sv.emoji ? sv.emoji + ' ' + sv.name : sv.id) + ' — 이거 가져온 날', 1800); openPoster(sv.tripId, true); } },
@@ -1226,19 +1231,20 @@ var APP = (function () {
     if (window.matchMedia) { var mq = window.matchMedia('(prefers-reduced-motion: reduce)'); if (mq.addEventListener) mq.addEventListener('change', applyMotion); }
     bindDemo();
   }
-  /* 데모 <details> 안 룩 슬라이더 (3D 전용, localStorage 'ppolppol_look') */
+  /* 데모 <details> 안 룩 슬라이더 (3D 전용, localStorage 'ppolppol_look'). 키/필 = 낮 태양 세기(0.5~4, 기본 3.0)·낮 헤미+필 세기(0~1, 기본 0.36 = 헤미; 필 방향광도 같은 비율) — 다른 시각대엔 비율로 적용 (룩 패스 4) */
   function bindLook() {
-    var px = $('dv-px'), di = $('dv-dither'), ol = $('dv-outline'), yw = $('dv-yaw'), sw = $('dv-swatch'), msg = $('dv-msg');
+    var px = $('dv-px'), di = $('dv-dither'), ol = $('dv-outline'), yw = $('dv-yaw'), ky = $('dv-key'), fl = $('dv-fill'), sw = $('dv-swatch'), msg = $('dv-msg');
     if (!px) return;
-    var look = Object.assign({ pixelSize: 3, dither: 0.25, outline: true, yaw: 0 }, loadLook());
-    px.value = look.pixelSize; di.value = look.dither; ol.checked = look.outline !== false; yw.value = look.yaw;
-    function show() { $('dv-px-v').textContent = px.value; $('dv-dither-v').textContent = (+di.value).toFixed(2); $('dv-yaw-v').textContent = yw.value + '°'; }
+    var L = (typeof SCENE3D !== 'undefined' && SCENE3D.LIGHTS) ? SCENE3D.LIGHTS.day : { sunI: 3, hemiI: 0.36 };
+    var look = Object.assign({ pixelSize: 3, dither: 0.25, outline: true, yaw: 0, key: L.sunI, fill: L.hemiI }, lookNow());
+    px.value = look.pixelSize; di.value = look.dither; ol.checked = look.outline !== false; yw.value = look.yaw; ky.value = look.key; fl.value = look.fill;
+    function show() { $('dv-px-v').textContent = px.value; $('dv-dither-v').textContent = (+di.value).toFixed(2); $('dv-yaw-v').textContent = yw.value + '°'; $('dv-key-v').textContent = (+ky.value).toFixed(1); $('dv-fill-v').textContent = (+fl.value).toFixed(2) + ' (키/필 ' + (+fl.value > 0 ? (+ky.value / +fl.value).toFixed(1) : '∞') + ')'; }
     function apply() {
-      look = { pixelSize: +px.value, dither: +di.value, outline: ol.checked, yaw: +yw.value };
+      look = { pixelSize: +px.value, dither: +di.value, outline: ol.checked, yaw: +yw.value, key: +ky.value, fill: +fl.value };
       saveLook(look); show();
       if (sceneMode === '3d') scene.setLook(look);
     }
-    [px, di, ol, yw].forEach(function (el) { el.addEventListener('input', apply); el.addEventListener('change', apply); });
+    [px, di, ol, yw, ky, fl].forEach(function (el) { el.addEventListener('input', apply); el.addEventListener('change', apply); });
     show();
     if (sceneMode !== '3d') { msg.textContent = '지금은 2D 장면이라 이 슬라이더는 적용 안 돼 (WebGL 없음 또는 ?scene=2d)'; return; }
     msg.textContent = '3D 룩 조정 (저장됨). 팔레트:';

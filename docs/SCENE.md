@@ -11,7 +11,7 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
 - 고정 비율 **18 아트픽셀/m** (p=3 폰에서 1 px ≈ 5.5 cm). 핀치/휠 줌은 `{1, 1.25, 1.5, 2}` 정수 단계.
 - 렌더 타깃 = `⌊W/p⌋ × ⌊H/p⌋`, p = 설정 1~4(기본 3), `W/480` 이상. 360×326 폰 → 120×108. `setPixelRatio(1)`, 캔버스 `image-rendering: pixelated`.
 
-## 기하 (전부 원시 도형, 재질별 병합 → 드로우콜 71 초기 / 79 포스터·기념품 포함 ≤ 150, 초과 시 `console.error`. 정적 방 = `room`(그림자 던짐·받음) + `roomHi`(머리 위 목재, `castShadow` 끔) 2메시, 룩 패스 2)
+## 기하 (전부 원시 도형, 재질별 병합 → 드로우콜 72 초기 / 80 포스터·기념품 포함 ≤ 150 (룩 패스 4 차폐 +1), 초과 시 `console.error`. 정적 방 = `room`(그림자 던짐·받음) + `roomHi`(머리 위 목재, `castShadow` 끔) 2메시, 룩 패스 2)
 | 것 | 만드는 법 |
 |---|---|
 | 바닥 | 밑판 `Box(5, 0.1, 5)` W2(이음 색) 위에 널 23줄 — 피치 0.217 m = 널 0.127 + 이음 0.09(≈ 1 아트px), 길이 1.0~2.4 m 해시로 엇갈림, W3/W4 교대, 윗면 y 0.004. 옹이·못 3 = `Box(0.09, 0.012, 0.09)` W1 |
@@ -22,7 +22,7 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
 | 먼지 | `Points` 24, size 1, amber3, 등불 중심 r 0.3~0.9 · y ±0.6. 버퍼 고정, 오브젝트 회전(0.12 rad/s)·상하(±0.06) **변환만**. 등불 0 이거나 모션 감소면 숨김 |
 | 창 | 틀 4 + 살 2(갈색 0~1), 유리 = `MeshBasic` 평면(색 = 바깥 하늘, 시각에 따라), 창턱 |
 | 비/눈/별 | `Points`(size 1, 감쇠 없음) 창 구멍 안에서 낙하·랩. 별 14개는 밤 + 맑음일 때만. 유리 위 줄기 평면 3 |
-| 등불 | 갓·받침·기둥(갈색 0) + 유리 `MeshBasic`(켜짐 호박 2 / 꺼짐 회색 1) + **글로우 원판**(빌보드, 방사 알파 텍스처, 팔레트 색) + 바닥 빛 웅덩이 데칼 + `PointLight #ffb066` 거리 6 감쇠 2, 세기 `1.2 × (0.4+0.6·n/8) × 시각계수` |
+| 등불 | 갓·받침·기둥(갈색 0) + 유리 `MeshBasic`(켜짐 호박 2 / 꺼짐 회색 1) + **글로우 원판**(빌보드, 방사 알파 텍스처, 팔레트 색, 불투명도 = 시각대 `glow` × (0.43+0.57·n/8)) + 바닥 빛 웅덩이 데칼(불투명도 (0.12+0.03n) × 시각대 `pool`, 크기 × 거리/6) + `PointLight #ffb066` 감쇠 2, 세기 `시각대 lamp × (0.4+0.6·n/8)`, 거리 = 시각대 `lampD` (조명 표) |
 | 문 | 뒷벽 x∈[1.5, 2.4], 높이 2.1, 틀 + 검정 평면 |
 | 소품 | moss(원기둥 + 이끼 구 2), crate(박스 + 띠), candle(원기둥 + 심지 + 불꽃 구 + 글로우 + 깜빡이는 PointLight), blanket(납작 박스), board(코르크 + 틀) + 포스터 평면 ≤6(포스터 SVG → 캔버스 텍스처 48×64, 실패 시 종이색), shelf(판 + 받침) + 기념품 ≤8(구/박스/원뿔, id 해시로 모양·색), curtain(봉 + 천 2, 남색) |
 | 접지 그림자 | 방사 알파 데칼(잉크색, 0.42) — 상자·문어 아래 |
@@ -47,13 +47,16 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
 3. 셰이더: sRGB→선형→OKLab → 그레이드(대비 1.03, 채도 1.07) → **깊이 외곽선**(이웃이 6 cm 이상 멀면, 2단, L×0.66) → **노멀 하이라이트**(가까운 면의 노멀 꺾임, L×1.06, 깊이선이 없는 곳만) → **게이트 Bayer 4×4**(이웃 루마 차 `smoothstep(.004,.055)`, 진폭 = 슬라이더 × 2 × `PAL.step` → 기본 0.25 에서 ≈ ½ 팔레트 칸: 즉흥 0.024 · Apollo 0.029 · Endesga 0.032 · Resurrect 0.029; 카메라가 움직이면 0, 모션 감소면 0) → **허공 비네트**(깊이 = far 인 배경 픽셀만, `uVig` = 깊이 텍스처 있을 때: L −0.1·smoothstep(0.3, 0.9, 중심 거리) + 정적 Bayer 0.06 → 모서리가 밤검정/남색으로 디더됨) → 팔레트 스냅 → Nearest 업스케일.
 4. 순도: `tools/evidence3d.js` 가 PNG 고유 색을 센다(≤ 팔레트 크기 + 6; 낮 장면 Apollo 47).
 
-## 조명 = 실제 시계 (1분마다 읽음, 상태가 바뀌면 60 s 이징)
-| 시각 | 태양(창 쪽 `DirectionalLight`, 그림자 1024 PCFSoft, bias −0.0002, normalBias .025, radius 1) | 헤미 | 바깥 | 등불 계수 |
-|---|---|---|---|---|
-| 6–9 새벽 | `#f4bcb4` ×1.2, 고도 14° | `#e0c0c8/#5a4a48` ×0.28 | `#e8b0b8` | 0.6 |
-| 9–17 낮 | `#fffecd` ×1.7, 48° | `#d6ecf6/#6f6a60` ×0.3 | `#9fc7e8` | 0.3 |
-| 17–19 노을 | `#ffbe84` ×1.3, 12° | `#d08860/#4a3a38` ×0.26 | `#e39a8c` | 0.75 |
-| 19–6 밤 | 달 `#93a7c4` ×0.55, 35° | `#1b2740/#090b12` ×0.2 | `#141c33` | 1.0 (등불이 주광, 검정은 `#0b1020` 로 들어올림) |
+## 조명 = 실제 시계 (1분마다 읽음, 상태가 바뀌면 60 s 이징 · 룩 패스 4 "조명 비율")
+방은 **보이지 않는 차폐**(지붕 y 3.08 · 앞벽 z 3.05 · 오른벽 x 3.05 · 왼벽 앞 날개 x −2.6 z 2.4~3.1 — `MeshBasic colorWrite:false depthWrite:false` 1메시, `castShadow` 만, 노멀 패스에선 `visible=false`)로 닫혀 있어 **태양·달은 창으로만 들어온다** → 바닥에 창 모양 빛 조각(창살 십자 그림자 포함). 키 = `DirectionalLight`, 그림자맵 **2048**, `PCFShadowMap` radius 1(딱딱), bias −0.0002, normalBias 0.025, 그림자 카메라는 `applyLight` 마다 차폐 상자(x ±3.1 · y −0.6~3.25 · z ±3.1) 8꼭짓점을 빛 공간으로 보내 딱 맞춤(≈ 220 텍셀/m, p=3 에서 아트px 당 ≥ 10 텍셀). 위치 `(−10 cos e cos a, 10 sin e + 0.5, 10 cos e sin a)`, 타깃 (0, 0.5, 0); 창턱(y 1.0, x −2.03 까지)이 낮은 광선을 자르므로 낮 조각은 바닥 x −0.2~1.5 · z −0.5~−2.5(문어 center 뒤) + 뒷벽 아래. 필 = 그림자 없는 `DirectionalLight` (6, 3, 8)→(0, 0.5, 0): 카메라 쪽 낮은 각이라 뒷벽·왼벽을 들고 바닥은 덜. 등불 `PointLight #ffb066` decay 2 + 양초 `PointLight` d 2 (0.35 × 계수, 깜빡임 진폭도 × 계수).
+| 시각 | 키 색 × 세기, 고도 e / 방위 a | 헤미 sky/ground × 세기 | 필 색 × 세기 | 바깥 | 등불 점광(8칸) · 거리 | 글로우 원판(8칸) / 웅덩이 데칼 / 양초 계수 |
+|---|---|---|---|---|---|---|
+| 6–9 새벽 | `#f6b4a6` ×2.0, 20° / 30° | `#e0c0c8/#4a3a38` ×0.28 | `#c9b0bc` ×0.8 | `#e8b0b8` | 0.5 · 5.5 | 0.55 / 0.6 / 0.7 |
+| 9–17 낮 | `#dfe9ff` ×3.0, 30° / 30° | `#d6ecf6/#4a4030` ×0.36 | `#a9cbe2` ×1.3 | `#9fc7e8` | 0.25 · 5 | 0.4 / 0.3 / 0.4 |
+| 17–19 노을 | `#ffb070` ×1.8, 16° / 30° | `#d08860/#3a2e30` ×0.26 | `#b89a90` ×0.7 | `#e39a8c` | 0.8 · 6 | 0.6 / 0.75 / 0.85 |
+| 19–6 밤 | 달 `#93a7c4` ×0.5, 30° / 30° | `#1b2740/#090b12` ×0.16 | `#4a5a80` ×0.06 | `#141c33` | 1.2 · 6 | 0.7 / 1.0 / 1.0 (등불이 주광, 검정은 `#0b1020`; 바닥이 가장자리 `#090a14` → `#341c27` → 웅덩이 `#602c2c`/`#884b2b` 세 어두운 값으로 읽힘) |
+키/필 비율은 데브 슬라이더(`dv-key` 0.5~4 = 낮 태양 세기, `dv-fill` 0~1 = 낮 헤미 세기; 다른 시각대엔 `look.key / 3.0`, `look.fill / 0.36` 비율로 적용, 필 방향광도 같은 비율)로 바꾼다. `stats()` 에 `key·fill·sun·hemi·phase`.
+**재질**: 방·소품·포스터·기념품은 `MeshPhongMaterial({ shininess: 0, specular: 0 })`(난반사는 Lambert 와 같음) — r128 `MeshLambertMaterial` 은 직접광을 정점에서 합쳐 그림자 마스크 **하나**를 곱하므로 닫힌 방에선 태양 그림자가 필·등불·양초까지 지워 버린다(룩 패스 4 에서 확인: 필 0→3 이 루마 0.169→0.181). 소품·문어·포스터·기념품은 `receiveShadow` 켬(지붕 그림자를 받아야 창 조각만 밝다). 문어는 그대로 `MeshToonMaterial`.
 날씨 = 등불 아크(≤5 비, 6 가는 비, 7 맑음) → 8칸 뒤 날짜 시드(비/가는 비/맑음, 1~2월 35% 눈). APP 이 정한다(`APP.weatherFor`).
 
 ## 앵커 (월드 m) · 상호작용
@@ -61,10 +64,10 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
 레이캐스트: 문어(탭 → 카메라 보고 `?` / 누르고 움직이거나 350 ms 유지 → `pet`) · 창 유리(탭 → `windowTap`: 창가로 걸어가 "비가 와/별이 보여") · 포스터 평면(`posterTap(id)` → 모달) · 기념품(`souvenirTap(sv)` → 그걸 가져온 날의 영수증) · 빈 곳 드래그 → 시점 ±25° · 휠/핀치 → 줌. 말풍선·이름표는 캔버스 밖 HTML(`#oct`)을 머리 위로 투영해 붙인다.
 
 ## 데모 패널 (`<details id=demo>` 안, localStorage `ppolppol_look`)
-픽셀 1–4 · 디더 0–1 · 외곽선 on/off · 시점 −25°~25° · 팔레트 칩 4갈래(`settings.palette`, 방 보기 시트와 같은 줄) · 팔레트 스와치 줄(검증 팔레트는 8칸씩 + 문어 램프). 2D 모드에서는 "적용 안 돼" 안내만. `setLook` 은 추가로 `zoom`(0..3 단계)·`focus`(`'oct'` = 문어 중심) 를 받는다 — `tools/look-shots.js` 의 close 샷용. 테스트 훅 `window.__ppolLook = { hour, lantern, weather, octState, anchor, palette }` 는 있을 때만 APP 이 읽는다(`palette` 는 저장하지 않고 장면에만).
+픽셀 1–4 · 디더 0–1 · 외곽선 on/off · 시점 −25°~25° · **키 광 0.5–4 · 필 광 0–1**(낮 태양·헤미 세기, 키/필 비율 표시) · 팔레트 칩 4갈래(`settings.palette`, 방 보기 시트와 같은 줄) · 팔레트 스와치 줄(검증 팔레트는 8칸씩 + 문어 램프). 2D 모드에서는 "적용 안 돼" 안내만. `setLook` 은 추가로 `zoom`(0..3 단계)·`focus`(`'oct'` = 문어 중심) 를 받는다 — `tools/look-shots.js` 의 close 샷용. 테스트 훅 `window.__ppolLook = { hour, lantern, weather, octState, anchor, palette, key, fill }` 는 있을 때만 APP 이 읽는다(`palette`·`key`·`fill` 은 저장하지 않고 장면에만).
 
 ## 성능 · 접근성 · 폴백
-- `antialias:false`, `setPixelRatio(1)`, 섀도맵 1024(태양만, `autoUpdate` 끄고 뷰티 패스에서만 갱신), 정적 방 = 2메시(`room` + 그림자 안 던지는 `roomHi`), 가만히 있을 땐 30 fps, `document.hidden` 이면 rAF 정지, dt ≤ 0.1 s, `destroy()` 가 RT·기하·재질·텍스처 해제 + `forceContextLoss`.
+- `antialias:false`, `setPixelRatio(1)`, 섀도맵 2048 PCF(태양만, `autoUpdate` 끄고 뷰티 패스에서만 갱신, 카메라는 방에 꼭 맞춤), 정적 방 = 2메시(`room` + 그림자 안 던지는 `roomHi`) + 보이지 않는 차폐 1메시, 가만히 있을 땐 30 fps, `document.hidden` 이면 rAF 정지, dt ≤ 0.1 s, `destroy()` 가 RT·기하·재질·텍스처 해제 + `forceContextLoss`.
 - 모션 감소(설정 또는 OS): 숨쉬기·흔들림·비 정지, 먼지 숨김, `moveTo` 즉시, 디더 0, 색 전환은 유지.
 - WebGL/THREE 없음 또는 `init` 예외 → `SCENE2D`(js/scene2d.js, 1차 구현의 인라인 SVG 레이어 + DOM 문어)가 같은 API(`setCarry`, `jumpTo`, `lookAt`, `setLook`, `palette`, `stats`, `refresh`, `setReducedMotion` 확장 포함)로 받는다. 두 장면 모두 호스트에 `data-items`, `data-posters` 를 쓴다(스모크가 본다).
 - 증거: `node tools/evidence3d.js` → `tests/evidence/3d-{lantern0-night,lantern4-day,lantern8-night-clear,pet,away,dark-ui}.png` + 순도·드로우콜·에러 0 검사.

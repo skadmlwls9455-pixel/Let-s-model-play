@@ -228,12 +228,13 @@ var SCENE3D = (function () {
     });
   }
 
-  /* 시각대별 조명 (pixel-look-references: 낮 = 따뜻한 키 하나 + 차가운 헤미, 밤 = 새 비율) */
+  /* 시각대별 조명 (룩 패스 4 · pixel-look-references 5·7: 키 하나(창으로만 들어오는 태양, 보이지 않는 지붕·앞벽 차폐로 바닥에 창 모양 빛 조각) + 차가운 헤미 + 카메라 쪽 약한 필 + 등불 점광, 밤 = 새 비율)
+     sun/sunI/elev/az = 키 색·세기·고도·방위(창 법선 −x 에서 +z 쪽으로; 창턱이 낮은 광선을 자르므로 낮 30°/방위 30° 에서 빛 조각 = 문어 뒤 바닥 x −0.2~1.5 · z −0.5~−2.5 + 뒷벽 아래 — 문어(center)가 조각 어귀에 서면 그림자가 조각 안으로 떨어지므로 방위를 돌려 조각을 문어 뒤로 보냈다) · sky/gnd/hemiI = 헤미 · fill/fillI = 필 방향광(그림자 없음, 카메라 쪽 낮은 각 (6,3,8): 벽을 들고 바닥은 덜) · out = 창밖 · lamp = 등불 점광 세기(8칸) · lampD = 점광 거리(바닥 웅덩이 크기) · glow = 글로우 원판 불투명도(8칸) · pool = 웅덩이 데칼 계수 · candle = 양초 점광 계수 */
   var LIGHTS = {
-    day: { sun: '#fffecd', sunI: 1.7, elev: 48, sky: '#d6ecf6', gnd: '#6f6a60', hemiI: 0.3, out: '#9fc7e8', lamp: 0.3, bg: '#1b1522' },
-    dawn: { sun: '#f4bcb4', sunI: 1.2, elev: 14, sky: '#e0c0c8', gnd: '#5a4a48', hemiI: 0.28, out: '#e8b0b8', lamp: 0.6, bg: '#1b1522' },
-    dusk: { sun: '#ffbe84', sunI: 1.3, elev: 12, sky: '#d08860', gnd: '#4a3a38', hemiI: 0.26, out: '#e39a8c', lamp: 0.75, bg: '#1b1522' },
-    night: { sun: '#93a7c4', sunI: 0.55, elev: 35, sky: '#1b2740', gnd: '#090b12', hemiI: 0.2, out: '#141c33', lamp: 1.0, bg: '#0b1020' }
+    day: { sun: '#dfe9ff', sunI: 3.0, elev: 30, az: 30, sky: '#d6ecf6', gnd: '#4a4030', hemiI: 0.36, fill: '#a9cbe2', fillI: 1.3, out: '#9fc7e8', lamp: 0.25, lampD: 5, glow: 0.4, pool: 0.3, candle: 0.4, bg: '#1b1522' },
+    dawn: { sun: '#f6b4a6', sunI: 2.0, elev: 20, az: 30, sky: '#e0c0c8', gnd: '#4a3a38', hemiI: 0.28, fill: '#c9b0bc', fillI: 0.8, out: '#e8b0b8', lamp: 0.5, lampD: 5.5, glow: 0.55, pool: 0.6, candle: 0.7, bg: '#1b1522' },
+    dusk: { sun: '#ffb070', sunI: 1.8, elev: 16, az: 30, sky: '#d08860', gnd: '#3a2e30', hemiI: 0.26, fill: '#b89a90', fillI: 0.7, out: '#e39a8c', lamp: 0.8, lampD: 6, glow: 0.6, pool: 0.75, candle: 0.85, bg: '#1b1522' },
+    night: { sun: '#93a7c4', sunI: 0.5, elev: 30, az: 30, sky: '#1b2740', gnd: '#090b12', hemiI: 0.16, fill: '#4a5a80', fillI: 0.06, out: '#141c33', lamp: 1.2, lampD: 6, glow: 0.7, pool: 1.0, candle: 1.0, bg: '#0b1020' }
   };
   function phaseOf(h) { return h < 6 ? 'night' : h < 9 ? 'dawn' : h < 17 ? 'day' : h < 19 ? 'dusk' : 'night'; }
 
@@ -243,7 +244,8 @@ var SCENE3D = (function () {
     var on = opts.on || {};
     var st = { lantern: opts.lantern | 0, items: (opts.items || []).slice(), weather: opts.weather || 'rain', hour: typeof opts.hour === 'number' ? opts.hour : 21.5,
       color: opts.color || '#e8463c', reduced: !!opts.reducedMotion, speed: opts.speed > 0 ? opts.speed : 1, octState: 'idle', paused: false, hidden: false,
-      look: Object.assign({ pixelSize: 3, dither: 0.25, outline: true, yaw: 0 }, opts.look || {}), zoom: 0, palette: paletteSource(opts.palette || PAL_DEFAULT) };
+      look: Object.assign({ pixelSize: 3, dither: 0.25, outline: true, yaw: 0, key: LIGHTS.day.sunI, fill: LIGHTS.day.hemiI }, opts.look || {}), zoom: 0, palette: paletteSource(opts.palette || PAL_DEFAULT) };
+    st.look.key = clamp(+st.look.key || LIGHTS.day.sunI, 0.5, 4); st.look.fill = clamp(+st.look.fill || LIGHTS.day.hemiI, 0, 1);
     var PAL = buildPalette(st.color, st.palette), OC = octDerived(st.color);
     var disposables = [], unbind = [], raf = 0, lastT = 0, frameNo = 0, time = 0, calls = 0, ready = false;
     function listen(el, ev, fn, o) { el.addEventListener(ev, fn, o); unbind.push(function () { el.removeEventListener(ev, fn, o); }); }
@@ -252,7 +254,7 @@ var SCENE3D = (function () {
     /* ── 렌더러 · 타깃 · 후처리 ── */
     var renderer = new T.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'low-power' });
     renderer.setPixelRatio(1); renderer.outputEncoding = T.LinearEncoding;
-    renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFShadowMap; renderer.shadowMap.autoUpdate = false;   /* PCF radius 1 = 딱딱한 그림자 (룩 패스 4) */
     var canvas = renderer.domElement; canvas.className = 'scene3d-canvas'; canvas.style.imageRendering = 'pixelated';
     container.appendChild(canvas);
     var hasDepthTex = renderer.capabilities.isWebGL2 || !!renderer.extensions.get('WEBGL_depth_texture');
@@ -313,27 +315,49 @@ var SCENE3D = (function () {
 
     /* ── 장면 · 조명 ── */
     var scene = new T.Scene(); scene.background = C(LIGHTS.night.bg);
+    /* 키 = 창 쪽 방향광 (그림자맵 2048, PCF radius 1, bias −0.0002, normalBias 0.025, 그림자 카메라는 applyLight 에서 방(차폐 포함)에 꼭 맞춤) */
     var sun = new T.DirectionalLight(0xffffff, 1); sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.left = -7; sun.shadow.camera.right = 7; sun.shadow.camera.top = 7; sun.shadow.camera.bottom = -7;
-    sun.shadow.camera.near = 1; sun.shadow.camera.far = 40; sun.shadow.bias = -0.0002; sun.shadow.normalBias = 0.025; sun.shadow.radius = 1;
+    sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0002; sun.shadow.normalBias = 0.025; sun.shadow.radius = 1;
     sun.target.position.set(0, 0.5, 0); scene.add(sun); scene.add(sun.target);
     var hemi = new T.HemisphereLight(0xffffff, 0x000000, 0.3); scene.add(hemi);
+    var fill = new T.DirectionalLight(0xffffff, 0); fill.position.set(6, 3, 8); fill.target.position.set(0, 0.5, 0); scene.add(fill); scene.add(fill.target);   /* 필: 카메라 쪽, 그림자 없음 (뒷벽·왼벽·바닥을 살짝 들어 올린다) */
     var lampPos = new T.Vector3(-1.6, 1.95, -0.9);
     var lamp = new T.PointLight(C('#ffb066').getHex(), 0, 6, 2); lamp.position.copy(lampPos).add(new T.Vector3(0, -0.1, 0)); scene.add(lamp);
-    var candleLight = new T.PointLight(C('#ffb066').getHex(), 0, 2.6, 2); scene.add(candleLight);
-    var light = { from: null, to: LIGHTS[phaseOf(st.hour)], t: 1, dur: 60 }, lampTint = C('#ffb066');
+    var candleLight = new T.PointLight(C('#ffb066').getHex(), 0, 2, 2); scene.add(candleLight);   /* 양초 = 두 번째 작은 따뜻한 점광 (0.35, d 2) */
+    /* 빛 차폐 (룩 패스 4): 보이지 않는 지붕·앞벽·오른벽. 그림자만 던지고(colorWrite 끔) 노멀 패스에서는 숨긴다 → 태양·달이 창으로만 들어와 바닥에 창 모양 빛 조각 */
+    var SHADE = [[-3.1, 3.1], [-0.6, 3.25], [-3.1, 3.1]];   /* 그림자 카메라 피팅용 상자 (x · y · z) */
+    var shade = new T.Mesh(keep(mergeParts([{ g: box(6.2, 0.05, 6.2), m: M(0, 3.08, 0), c: '#000000' }, { g: box(6.2, 3.7, 0.05), m: M(0, 1.35, 3.05), c: '#000000' }, { g: box(0.05, 3.7, 6.2), m: M(3.05, 1.35, 0), c: '#000000' },
+      { g: box(0.05, 3.7, 0.7), m: M(-2.6, 1.35, 2.75), c: '#000000' }])),   /* 왼쪽 벽 앞 날개: 벽 끝(z 2.5)과 앞벽 차폐 사이로 새는 빛을 막는다 */
+      keep(new T.MeshBasicMaterial({ colorWrite: false, depthWrite: false })));
+    shade.castShadow = true; shade.receiveShadow = false; shade.frustumCulled = false; shade.renderOrder = -10; scene.add(shade);
+    var _sm = new T.Matrix4(), _sv = new T.Vector3();
+    function fitShadow() { /* 방 상자 8꼭짓점을 빛 공간으로 → 직교 그림자 카메라를 딱 맞춘다 (p=3 에서 아트px 당 ≥ 10 텍셀) */
+      _sm.lookAt(sun.position, sun.target.position, _ay).transpose();
+      var mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+      for (var i = 0; i < 8; i++) {
+        _sv.set(SHADE[0][i & 1], SHADE[1][(i >> 1) & 1], SHADE[2][(i >> 2) & 1]).sub(sun.position).applyMatrix4(_sm);
+        var v = [_sv.x, _sv.y, _sv.z]; for (var k = 0; k < 3; k++) { if (v[k] < mn[k]) mn[k] = v[k]; if (v[k] > mx[k]) mx[k] = v[k]; }
+      }
+      var c = sun.shadow.camera; c.left = mn[0] - 0.1; c.right = mx[0] + 0.1; c.bottom = mn[1] - 0.1; c.top = mx[1] + 0.1; c.near = -mx[2] - 0.1; c.far = -mn[2] + 0.1; c.updateProjectionMatrix();
+    }
+    var light = { from: null, to: LIGHTS[phaseOf(st.hour)], t: 1, dur: 60 };
     var tmpA = new T.Color(), tmpB = new T.Color();
     function lerpC(a, b, k) { return tmpA.copy(C(a)).lerp(tmpB.copy(C(b)), k); }
+    function keyK() { return st.look.key / LIGHTS.day.sunI; }      /* 데브 슬라이더: 낮 키 세기(기본 2.6)·필 세기(기본 0.32)를 비율로 모든 시각대에 적용 */
+    function fillK() { return st.look.fill / LIGHTS.day.hemiI; }
     function applyLight() {
       var a = light.from || light.to, b = light.to, k = light.t;
       var e = k * (2 - k);
-      sun.color.copy(lerpC(a.sun, b.sun, e)); sun.intensity = a.sunI + (b.sunI - a.sunI) * e;
-      var elev = (a.elev + (b.elev - a.elev) * e) * DEG;
-      sun.position.set(-10 * Math.cos(elev), 10 * Math.sin(elev) + 0.5, 2.5);
-      hemi.color.copy(lerpC(a.sky, b.sky, e)); hemi.groundColor.copy(lerpC(a.gnd, b.gnd, e)); hemi.intensity = a.hemiI + (b.hemiI - a.hemiI) * e;
+      function num(key) { return a[key] + (b[key] - a[key]) * e; }
+      sun.color.copy(lerpC(a.sun, b.sun, e)); sun.intensity = num('sunI') * keyK();
+      var elev = num('elev') * DEG, az = num('az') * DEG;
+      sun.position.set(-10 * Math.cos(elev) * Math.cos(az), 10 * Math.sin(elev) + 0.5, 10 * Math.cos(elev) * Math.sin(az));
+      fitShadow();
+      hemi.color.copy(lerpC(a.sky, b.sky, e)); hemi.groundColor.copy(lerpC(a.gnd, b.gnd, e)); hemi.intensity = num('hemiI') * fillK();
+      fill.color.copy(lerpC(a.fill, b.fill, e)); fill.intensity = num('fillI') * fillK();
       glass.material.color.copy(lerpC(a.out, b.out, e));
       scene.background.copy(lerpC(a.bg, b.bg, e));
-      light.lampK = a.lamp + (b.lamp - a.lamp) * e;
+      light.lamp = num('lamp'); light.lampD = num('lampD'); light.glow = num('glow'); light.pool = num('pool'); light.candle = num('candle');
       lampDirty = true;
     }
     function setTime(h, instant) {
@@ -351,7 +375,8 @@ var SCENE3D = (function () {
     function isNight() { return phaseOf(st.hour) === 'night'; }
 
     /* ── 재질 ── */
-    var lambert = keep(new T.MeshLambertMaterial({ vertexColors: true }));
+    /* 방·소품 재질: r128 Lambert 는 직접광 합을 정점에서 계산하고 그림자 마스크 하나를 곱한다 → 닫힌 방(지붕 차폐)에선 태양 그림자가 필·등불·양초까지 지워 버린다. Phong(광택 0 = 같은 난반사)은 프래그먼트별·광원별 그림자라 등불 웅덩이·필이 그림자 안에서도 산다 (룩 패스 4) */
+    var lambert = keep(new T.MeshPhongMaterial({ vertexColors: true, shininess: 0, specular: 0x000000 }));
     var toon = keep(new T.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: keep(gradientTex()) }));
     var rtex = keep(radialTex());
     var decalMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C('#1b1522'), transparent: true, opacity: 0.42, depthWrite: false }));
@@ -515,18 +540,19 @@ var SCENE3D = (function () {
     /* 등불 */
     var lampG = new T.Group(); lampG.position.copy(lampPos); scene.add(lampG);
     var lampBody = new T.Mesh(keep(mergeParts([{ g: box(0.34, 0.08, 0.34), m: M(0, 0.24, 0), c: W[0] }, { g: box(0.3, 0.06, 0.3), m: M(0, -0.24, 0), c: W[0] }, { g: box(0.05, 0.4, 0.05), m: M(0.14, 0, 0.14), c: W[0] }, { g: box(0.05, 0.4, 0.05), m: M(-0.14, 0, -0.14), c: W[0] }])), lambert);
-    lampBody.castShadow = true; lampG.add(lampBody);
+    lampBody.castShadow = true; lampBody.receiveShadow = true; lampG.add(lampBody);
     var lampGlass = new T.Mesh(keep(box(0.24, 0.36, 0.24)), basic(PAL.slate[1])); lampG.add(lampGlass);
     var lampGlow = new T.Mesh(keep(new T.PlaneGeometry(1.1, 1.1)), glowMat); lampGlow.renderOrder = 5; lampG.add(lampGlow);
     var lampPool = new T.Mesh(keep(new T.PlaneGeometry(2.6, 2.6)), keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[2]), transparent: true, opacity: 0.28, depthWrite: false })));
     lampPool.rotation.x = -Math.PI / 2; lampPool.position.set(lampPos.x, 0.015, lampPos.z); lampPool.renderOrder = 2; scene.add(lampPool);
     var lampDirty = true;
+    function glowOpacity() { return (light.glow || 0.7) * (0.43 + 0.57 * st.lantern / 8); }   /* 8칸에서 시각대의 glow (낮 0.4 · 밤 0.7) */
     function applyLamp() {
       var n = st.lantern, k = n > 0 ? 0.4 + 0.6 * n / 8 : 0, on = n > 0;
-      lamp.intensity = 1.2 * k * (light.lampK || 1);
+      lamp.intensity = (light.lamp || 1.2) * k; lamp.distance = light.lampD || 6;
       lampGlass.material.color.copy(C(on ? PAL.amber[2] : PAL.slate[1]));
-      lampGlow.visible = on; lampGlow.material.opacity = 0.3 + 0.05 * n; lampGlow.scale.setScalar(0.7 + 0.06 * n);
-      lampPool.visible = on; lampPool.material.opacity = (0.12 + 0.03 * n) * (light.lampK || 1);
+      lampGlow.visible = on; lampGlow.material.opacity = glowOpacity(); lampGlow.scale.setScalar(0.7 + 0.06 * n);
+      lampPool.visible = on; lampPool.material.opacity = (0.12 + 0.03 * n) * (light.pool || 1); lampPool.scale.setScalar((light.lampD || 6) / 6);
       dust.visible = on && !st.reduced;
       lampDirty = false;
     }
@@ -565,7 +591,7 @@ var SCENE3D = (function () {
 
     /* ── 소품 (§4) ── */
     var props = {}, propDecals = null;
-    function addProp(key, mesh, decalR) { mesh.castShadow = true; mesh.visible = false; mesh.userData.decalR = decalR || 0; props[key] = mesh; scene.add(mesh); }
+    function addProp(key, mesh, decalR) { mesh.castShadow = true; mesh.visible = false; mesh.traverse(function (o) { if (o.isMesh) o.receiveShadow = true; });   /* 룩 패스 4: 닫힌 방이라 소품도 지붕 그림자를 받아야 창 빛 조각만 밝다 */ mesh.userData.decalR = decalR || 0; props[key] = mesh; scene.add(mesh); }
     addProp('moss', new T.Mesh(keep(mergeParts([{ g: new T.CylinderGeometry(0.17, 0.13, 0.24, 8), m: M(0, 0.12, 0), c: W[4] }, { g: new T.SphereGeometry(0.22, 8, 6), m: M(0, 0.3, 0, 0, 0, 0, 1, 0.6, 1), c: PAL.moss[2] }, { g: new T.SphereGeometry(0.12, 7, 5), m: M(0.1, 0.4, 0.06), c: PAL.moss[3] }])), lambert));
     props.moss.position.set(-R + 0.26, WIN.y0 + 0.04, WIN.z1 - 0.2);
     addProp('crate', new T.Mesh(keep(mergeParts([{ g: box(1.0, 0.72, 0.84), m: M(0, 0.36, 0), c: W[3] }, { g: box(1.04, 0.06, 0.88), m: M(0, 0.36, 0), c: W[2] }, { g: box(0.06, 0.74, 0.88), m: M(0, 0.37, 0), c: W[2] }])), lambert), 0.8);
@@ -597,7 +623,7 @@ var SCENE3D = (function () {
     }
 
     /* ── 포스터 (보드 위 평면) · 기념품 ── */
-    var posterMeshes = [], posterMat = keep(new T.MeshLambertMaterial({ color: C(MAT.paper) })), lastPosterCount = 0;
+    var posterMeshes = [], posterMat = keep(new T.MeshPhongMaterial({ color: C(MAT.paper), shininess: 0, specular: 0x000000 })), lastPosterCount = 0;
     function posterSlot(i) { return [BOARD.x - 0.54 + (i % 3) * 0.54, BOARD.y + 0.3 - Math.floor(i / 3) * 0.6, BOARD.z + 0.05]; }
     function setPosters(list) {
       list = (list || []).slice(-6);
@@ -607,9 +633,9 @@ var SCENE3D = (function () {
       list.forEach(function (p, i) {
         var m = posterMeshes.filter(function (x) { return x.userData.id === p.id; })[0];
         if (!m) {
-          m = new T.Mesh(posterGeo, posterMat); m.userData = { kind: 'poster', id: p.id }; m.castShadow = false;
+          m = new T.Mesh(posterGeo, posterMat); m.userData = { kind: 'poster', id: p.id }; m.castShadow = false; m.receiveShadow = true;
           scene.add(m); posterMeshes.push(m);
-          bakeSVG(p.tex || p.svg, 48, 64).then(function (tex) { if (!tex || !m.parent) return; m.material = new T.MeshLambertMaterial({ map: tex }); });
+          bakeSVG(p.tex || p.svg, 48, 64).then(function (tex) { if (!tex || !m.parent) return; m.material = new T.MeshPhongMaterial({ map: tex, shininess: 0, specular: 0x000000 }); });
         }
         var s = posterSlot(i); m.position.set(s[0], s[1], s[2]); m.rotation.z = ((hash(p.id) % 7) - 3) * 0.02;
       });
@@ -617,14 +643,14 @@ var SCENE3D = (function () {
     }
     var posterGeo = keep(new T.PlaneGeometry(0.42, 0.56));
     var souvMeshes = [], souvMats = {};
-    function souvMat(hex) { return souvMats[hex] || (souvMats[hex] = keep(new T.MeshLambertMaterial({ color: C(hex) }))); }
+    function souvMat(hex) { return souvMats[hex] || (souvMats[hex] = keep(new T.MeshPhongMaterial({ color: C(hex), shininess: 0, specular: 0x000000 }))); }
     function setSouvenirs(list) {
       souvMeshes.forEach(function (m) { scene.remove(m); });
       souvMeshes = [];
       var cols = [PAL.amber[3], PAL.moss[2], PAL.sky[2], PAL.dusk[2], PAL.rose[2], PAL.paper[2]];
       (list || []).slice(-8).forEach(function (sv) {
         var r = hash(sv.id), shape = r % 3, g = shape === 0 ? new T.SphereGeometry(0.11, 7, 5) : shape === 1 ? box(0.18, 0.18, 0.18) : new T.CylinderGeometry(0.02, 0.11, 0.22, 6);
-        var m = new T.Mesh(keep(g), souvMat(cols[(r >> 4) % cols.length])); m.userData = { kind: 'souvenir', sv: sv, h: shape === 0 ? 0.11 : shape === 1 ? 0.09 : 0.11 }; m.castShadow = true;
+        var m = new T.Mesh(keep(g), souvMat(cols[(r >> 4) % cols.length])); m.userData = { kind: 'souvenir', sv: sv, h: shape === 0 ? 0.11 : shape === 1 ? 0.09 : 0.11 }; m.castShadow = true; m.receiveShadow = true;
         scene.add(m); souvMeshes.push(m);
       });
       layoutSouvenirs();
@@ -649,13 +675,13 @@ var SCENE3D = (function () {
       { g: new T.SphereGeometry(0.07, 6, 5), m: M(-0.56, 1.62, 0.6), c: OC.white },
       { g: box(0.30, 0.05, 0.08), m: M(0, 0.44, 0.82), c: OC.mouth, tag: 3 }];   /* `_` 입: 눈 아래, 폭 0.3 r */
     EYE.forEach(function (e) { headParts.push({ g: new T.SphereGeometry(EYE_R, 10, 8), m: M(e[0], e[1], e[2], 0, 0, 0, 1, 1, 0.55), c: OC.white }); });
-    var headGeo = keep(mergeParts(headParts)), head = new T.Mesh(headGeo, toon); head.castShadow = true; bodyG.add(head);
+    var headGeo = keep(mergeParts(headParts)), head = new T.Mesh(headGeo, toon); head.castShadow = true; head.receiveShadow = true; bodyG.add(head);
     var pupils = EYE.map(function (e) {   /* 동공 0.13 r + 흰 글린트 1px */
       var g = keep(mergeParts([{ g: new T.SphereGeometry(PUPIL_R, 8, 6), m: M(0, 0, 0), c: OC.eye }, { g: new T.SphereGeometry(0.055, 5, 4), m: M(-0.045, 0.05, 0.105), c: OC.white }]));
-      var m = new T.Mesh(g, toon); m.position.set(e[0], e[1], e[2] + 0.14); bodyG.add(m); return m;
+      var m = new T.Mesh(g, toon); m.receiveShadow = true; m.position.set(e[0], e[1], e[2] + 0.14); bodyG.add(m); return m;
     });
     var lidGeo = keep(mergeParts(EYE.map(function (e) { return { g: new T.SphereGeometry(EYE_R + 0.03, 10, 8), m: M(e[0], e[1], e[2] + 0.01, 0, 0, 0, 1, 1, 0.6), c: OC.body, tag: 1 }; })));
-    var lids = new T.Mesh(lidGeo, toon); lids.visible = false; bodyG.add(lids);
+    var lids = new T.Mesh(lidGeo, toon); lids.visible = false; lids.receiveShadow = true; bodyG.add(lids);
     var arcs = new T.Mesh(keep(mergeParts(EYE.map(function (e) { return { g: new T.TorusGeometry(0.17, 0.04, 5, 8, Math.PI), m: M(e[0], e[1] - 0.04, e[2] + 0.2), c: OC.eye }; }))), toon); arcs.visible = false; bodyG.add(arcs);
     var blush = new T.Mesh(keep(mergeParts([[-0.57, 0.52, 0.72], [0.57, 0.52, 0.72]].map(function (p) { return { g: new T.CircleGeometry(0.15, 8), m: M(p[0], p[1], p[2], 0, p[0] < 0 ? -0.5 : 0.5, 0), c: OC.hi, tag: 2 }; }))), toon); blush.visible = false; bodyG.add(blush);
     /* 다리 키포인트 [바깥 거리, 높이(뿌리 기준), 반지름]: 뿌리는 몸 안(0.62 r, 0.30 r), 밑면이 바닥(y=0)에 닿고 끝이 들린다 */
@@ -676,11 +702,11 @@ var SCENE3D = (function () {
     var arms = [];
     for (i = 0; i < 8; i++) {
       var a = i / 8 * Math.PI * 2 + Math.PI / 8;
-      var arm = new T.Mesh(keep(mergeParts(armParts())), toon); arm.castShadow = true;
+      var arm = new T.Mesh(keep(mergeParts(armParts())), toon); arm.castShadow = true; arm.receiveShadow = true;
       arm.position.set(ARM_ROOT[0] * Math.cos(a), ARM_ROOT[1], ARM_ROOT[0] * Math.sin(a)); arm.rotation.set(0, -a, 0); arm.userData.a = a; bodyG.add(arm); arms.push(arm);
     }
     var hit = new T.Mesh(keep(new T.SphereGeometry(1.6, 8, 6)), keep(new T.MeshBasicMaterial({ visible: false }))); hit.position.y = 0.7; hit.userData.kind = 'oct'; bodyG.add(hit);   /* 반지름 0.67 m ≈ 72 CSS px (p=3) ≥ 44 */
-    var carry = new T.Mesh(posterGeo, posterMat); carry.position.set(1.0, 0.95, 0.6); carry.rotation.set(0, 0.5, 0.15); carry.scale.setScalar(1.6); carry.visible = false; bodyG.add(carry);
+    var carry = new T.Mesh(posterGeo, posterMat); carry.receiveShadow = true; carry.position.set(1.0, 0.95, 0.6); carry.rotation.set(0, 0.5, 0.15); carry.scale.setScalar(1.6); carry.visible = false; bodyG.add(carry);
     var octDecal = new T.Mesh(keep(new T.PlaneGeometry(3.2, 3.2)), decalMat); octDecal.rotation.x = -Math.PI / 2; octDecal.position.y = 0.01; octDecal.renderOrder = 1; octG.add(octDecal);   /* 접지 그림자 1.34 m (다리 끝까지) */
     var oct = { anchor: 'window', walking: null, faceYaw: 0, wantYaw: 0, blinkT: 2 + Math.random() * 4, blinkLeft: 0, animT: 0, hop: 0, flushK: 0, pointer: null, lookTarget: null };
     var octTags = [headGeo, lidGeo].concat(arms.map(function (m) { return m.geometry; }));
@@ -724,7 +750,7 @@ var SCENE3D = (function () {
       var closed = s === 'sleep' || s === 'pet';
       lids.visible = closed; pupils.forEach(function (p) { p.visible = !closed; });
       arcs.visible = s === 'pet'; blush.visible = s === 'pet';
-      if (s === 'carry') { carry.visible = true; if (extra && extra.svg) bakeSVG(extra.svg, 48, 64).then(function (t) { if (t) carry.material = new T.MeshLambertMaterial({ map: t }); }); }
+      if (s === 'carry') { carry.visible = true; if (extra && extra.svg) bakeSVG(extra.svg, 48, 64).then(function (t) { if (t) carry.material = new T.MeshPhongMaterial({ map: t, shininess: 0, specular: 0x000000 }); }); }
       else if (s === 'hang') { if (carry.visible && !st.reduced) startHang(); carry.visible = false; }
       else carry.visible = false;
       if (s === 'happy') oct.hopsLeft = 2;
@@ -870,9 +896,9 @@ var SCENE3D = (function () {
       if (idle && (frameNo & 1)) return;   /* 가만히 있을 땐 30fps */
       if (light.t < 1) { light.t = Math.min(1, light.t + dt / light.dur); applyLight(); if (light.t >= 1) light.from = null; }
       if (lampDirty) applyLamp();
-      if (!st.reduced && st.lantern > 0) { lampGlow.material.opacity = 0.3 + 0.05 * st.lantern + Math.sin(time * 2) * 0.03; }
+      if (!st.reduced && st.lantern > 0) { lampGlow.material.opacity = glowOpacity() + Math.sin(time * 2) * 0.03 * (light.glow || 0.7) / 0.7; }
       if (dust.visible) { dust.rotation.y = time * 0.12; dust.position.y = lampPos.y - 0.8 + Math.sin(time * 0.4) * 0.06; }
-      if (props.candle.visible) { candleT += dt; var fl = 0.5 + Math.sin(candleT * 9.1) * 0.08 + Math.sin(candleT * 23.7) * 0.05; candleLight.intensity = (st.reduced ? 0.5 : fl) * (light.lampK || 1); flame.scale.y = st.reduced ? 1 : 1 + (fl - 0.5) * 2; candleGlow.visible = true; } else candleLight.intensity = 0;
+      if (props.candle.visible) { candleT += dt; var ck = light.candle || 1, fl = 0.35 + (Math.sin(candleT * 9.1) * 0.06 + Math.sin(candleT * 23.7) * 0.035) * ck; candleLight.intensity = (st.reduced ? 0.35 : fl) * ck; flame.scale.y = st.reduced ? 1 : 1 + (fl - 0.35) * 2.5; candleGlow.visible = true; } else candleLight.intensity = 0;   /* 양초 0.35 d 2, 낮엔 깜빡임도 줄인다 */
       dither.still = Math.min(1, dither.still + dt);
       post.uniforms.uDither.value = ditherNow();
       stepWeather(dt); stepOct(dt); stepHang(dt);
@@ -881,9 +907,9 @@ var SCENE3D = (function () {
       renderer.shadowMap.needsUpdate = true;
       renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, camera);
       calls = renderer.info.render.calls;
-      scene.overrideMaterial = normalMat; var bg = scene.background; scene.background = null;
+      scene.overrideMaterial = normalMat; var bg = scene.background; scene.background = null; shade.visible = false;   /* 차폐는 노멀 패스에서 숨김 (방 전체를 덮어쓰지 않게) */
       renderer.setRenderTarget(rtN); renderer.clear(); renderer.render(scene, camera);
-      scene.overrideMaterial = null; scene.background = bg;
+      scene.overrideMaterial = null; scene.background = bg; shade.visible = true;
       calls += renderer.info.render.calls;
       renderer.setRenderTarget(null); renderer.render(quadScene, quadCam);
       calls += 1;
@@ -921,6 +947,7 @@ var SCENE3D = (function () {
         if (o.yaw != null) { st.look.yaw = clamp(+o.yaw, -25, 25); dither.still = 0; }
         if (o.zoom != null) { var z = clamp(o.zoom | 0, 0, ZOOM_STEPS.length - 1); if (z !== st.zoom) { st.zoom = z; re = true; } }
         if (o.focus !== undefined) { st.look.focus = o.focus === 'oct' ? 'oct' : null; dither.still = 0; }   /* 줌 단계 0..3 (핀치/휠과 같은 단계, look-shots 의 close 용) */
+        if (o.key != null || o.fill != null) { if (o.key != null) st.look.key = clamp(+o.key || LIGHTS.day.sunI, 0.5, 4); if (o.fill != null) st.look.fill = clamp(+o.fill, 0, 1); applyLight(); }   /* 키/필 비율 (룩 패스 4) */
         if (re) { resize(); dither.still = 0; }
       },
       setPalette: function (name) { /* 룩 패스 3: 스냅 팔레트 소스 교체 (재질은 그대로, 디더 진폭은 새 칸 간격으로) */
@@ -934,7 +961,7 @@ var SCENE3D = (function () {
         else { var base = PAL.list.slice(0, PAL.list.length - PAL.oct.length); for (var i = 0; i < base.length; i += 8) out.push({ name: PAL.source + ' ' + (i / 8 + 1), colors: base.slice(i, i + 8) }); }
         out.push({ name: 'oct', colors: PAL.oct }); return out;
       },
-      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount }; },
+      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour) }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastT = 0; loop(); },
       destroy: function () {
@@ -951,5 +978,5 @@ var SCENE3D = (function () {
     };
   }
 
-  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT };
+  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS };
 })();
