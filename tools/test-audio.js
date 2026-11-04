@@ -12,6 +12,7 @@
  *  5. 끄기 → 새로고침해도 꺼짐 (요청 0) · 켜 둔 채 새로고침 → 첫 탭에서 다시 흐름
  *  6. 밤 21시 + 맑음 → theme_night_clear · 마스터 -3 dB · 탭 숨김 suspend · 방 완성 일시정지 · 날씨/시간대 전환 · 집에 있는 날 자리 규칙
  *  7. file:// → 토글을 켜도 페이지 오류 0 · 소리 없음 안내
+ *  8. 방 완성 팡파르 중 끄고 켜기 → BGM 덕킹 풀림 · 못 받는 집 테마는 매초 다시 받지 않는다
  * 모든 페이지: 콘솔 오류 0 (바깥 글꼴 같은 외부 요청 실패만 무시), audio/ 응답은 전부 200.
  */
 'use strict';
@@ -136,7 +137,8 @@ async function scenarioHttp(browser, base) {
   await page.evaluate(function (evs) { APP.importEvents(JSON.stringify(evs)); }, TRIP);
   var dep = await waitState(page, function () { var p = AUDIO.state().played.map(function (x) { return x.id; }); return p.indexOf('depart_windup') >= 0 && p.some(function (id) { return /^depart_leave_/.test(id); }); }, null, 15000);
   ok(dep, '출발: depart_windup → depart_leave_* (' + mode + ')');
-  await page.waitForTimeout(700);
+  /* 나감 소리는 움츠림 뒤에 줄을 선다 (움츠림을 처음 받느라 늦었으면 그만큼 뒤) → 덕킹이 걸린 다음에 본다 */
+  await waitState(page, function () { var x = AUDIO.state(); return x.lastDuck.db === -2 && x.time > x.lastDuck.at + 0.4; }, null, 6000);
   var d1 = await page.evaluate(function () { return { min: window.__minDuck, last: AUDIO.state().lastDuck, rain: AUDIO.state().played.some(function (x) { return /^depart_rain_extra_/.test(x.id); }) }; });
   ok(d1.last.db === -2 && d1.min < 0.95, '출발 징글이 BGM 을 덕킹 (duck_db -2 → 최저 ' + d1.min + ')');
   ok(d1.rain, '비 오는 날 출발: depart_rain_extra');
@@ -167,7 +169,13 @@ async function scenarioHttp(browser, base) {
   ok(sl && playedIds(b).indexOf('sleep_settle') >= 0 && b.sleepPhase === 'lullaby', '잠 → sleep_settle → special_lullaby');
   ok(b.amb.indexOf('amb_lantern_low') >= 0, '등불 1칸 → 환경음에 등불 온기 (amb_lantern_low)');
   ok(playedIds(b).filter(function (id) { return /^voice_[au]_/.test(id); }).length >= 3, '바깥 말풍선 → 말풍선 목소리 블립 (voice_*)');
-  ok(playedIds(b).filter(function (id) { return /^depart_leave_/.test(id); }).length === 1, '나가는 징글은 한 번만');
+  ok(playedIds(b).filter(function (id) { return /^depart_leave_/.test(id); }).length === 1 && playedIds(b).filter(function (id) { return id === 'depart_windup'; }).length === 1, '나가는·움츠림 징글은 한 번씩만');
+  /* 이벤트 징글은 서로 겹치지 않는다 (매니페스트 길이 기준, 비 오는 날 나감 덧층·시간대 종만 예외) */
+  var MAN = JSON.parse(fs.readFileSync(path.join(ROOT, 'audio', 'manifest.json'), 'utf8')), DUR = {};
+  MAN.sounds.forEach(function (x) { if (x.kind === 'jingle' && !/^(depart_rain_extra|chime)/.test(x.group || x.id)) DUR[x.id] = x.duration; });
+  var jg = b.played.filter(function (x) { return DUR[x.id]; }).sort(function (x, y) { return x.t - y.t; }), lap = [];
+  for (var k = 1; k < jg.length; k++) if (jg[k].t < jg[k - 1].t + DUR[jg[k - 1].id] - 0.03) lap.push(jg[k - 1].id + '@' + jg[k - 1].t + '+' + jg[k].id + '@' + jg[k].t);
+  ok(jg.length >= 5 && !lap.length, '이벤트 징글 ' + jg.length + '개가 겹치지 않고 줄을 섬' + (lap.length ? ' — ' + lap.join(', ') : ''));
   await page.evaluate(function () { clearInterval(window.__duckIv); });
 
   console.log('\n== 4. 방 보기: 음악 · 효과음');
@@ -314,6 +322,38 @@ async function scenarioStay(browser, base) {
   await s.ctx.close();
 }
 
+async function scenarioToggle(browser, base) {
+  console.log('\n== 8. 방 완성 팡파르 중 끄고 켜기 · 못 받는 파일');
+  var s = await newPage(browser, { hour: 14 }, base);
+  var page = s.page;
+  await page.goto(base + '/index.html');
+  await nameIt(page);
+  await page.click('#btn-sound');
+  await waitState(page, function () { return AUDIO.state().bgm === 'theme_day_rain'; }, null, 15000);
+  await page.evaluate(function () { AUDIO.on('lantern', { n: 8 }); });
+  var pz = await waitState(page, function () { var x = AUDIO.state(); return x.paused && x.duck < 0.05; }, null, 8000);
+  await page.click('#btn-sound');
+  await page.waitForTimeout(400);
+  await page.click('#btn-sound');
+  var un = await waitState(page, function () { var x = AUDIO.state(); return x.started && x.bgm === 'theme_day_rain' && x.duck > 0.95; }, null, 10000);
+  var a = await st(page);
+  ok(pz && un, '팡파르(BGM 멈춤) 중 끄고 켜기 → 다시 켜면 덕킹 풀림 (duck ' + a.duck + ', bgm ' + a.bgm + ')');
+  reportErrors(s.bag, 'toggle');
+  await s.ctx.close();
+  /* 집 테마 파일이 없다(404): 한 번(ogg → m4a) 받아 보고, 매초 다시 받지 않는다 · 환경음은 그대로 */
+  s = await newPage(browser, { hour: 14 }, base);
+  page = s.page;
+  await s.ctx.route(/\/audio\/.*theme_day_rain\.(ogg|m4a)$/, function (r) { return r.fulfill({ status: 404, body: '404' }); });
+  await page.goto(base + '/index.html');
+  await nameIt(page);
+  await page.click('#btn-sound');
+  await page.waitForTimeout(6000);
+  var n = s.bag.audioReq.filter(function (u) { return /theme_day_rain/.test(u); }).length, m = await st(page);
+  ok(n >= 1 && n <= 2 && m.bgm === null && m.amb.indexOf('amb_rain') >= 0, '없는 집 테마: 6초 동안 ' + n + '번만 받아 봄 (매초 다시 받지 않음) · 환경음은 그대로 (' + m.amb.join(',') + ')');
+  ok(s.bag.errors.filter(function (e) { return /pageerror/.test(e); }).length === 0, '없는 파일: 페이지 오류 0');
+  await s.ctx.close();
+}
+
 async function scenarioFile(browser) {
   console.log('\n== 7. file:// → 토글을 켜도 오류 0 · 소리 없음 안내');
   var s = await newPage(browser, null, 'file://');
@@ -346,6 +386,7 @@ async function scenarioFile(browser) {
     await scenarioHttp(browser, base);
     await scenarioStay(browser, base);
     await scenarioNight(browser, base);
+    await scenarioToggle(browser, base);
     await scenarioFile(browser);
   } catch (e) {
     fails++; console.error('\nCRASH: ' + (e && e.stack || e));

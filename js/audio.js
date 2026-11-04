@@ -243,13 +243,15 @@ var AUDIO = (function () {
   function note(id, t) { played.push({ id: id, t: Math.round(t * 1000) / 1000 }); if (played.length > 120) played.shift(); }
   /* o: at (ctx 시각) · gain · bus · always (건너뛰는 중에도) · direct (마스터를 거치지 않음 — 끄는 소리) */
   /* 이벤트 징글 줄 세우기: 받기 전에(매니페스트 길이로) 자리를 잡아 서로 겹치지 않게 (기분+등불, 귀가+등불, 등불+이불…).
-     빈 자리가 있으면 앞 예약(시간대 종 등) 사이에도 들어간다. beat0 = 처음 자리도 박에, beat1 = 밀렸으면 박에 */
-  function fitEv(tt, d, beat0, beat1) {
+     빈 자리가 있으면 앞 예약(시간대 종 등) 사이에도 들어간다. beat0 = 처음 자리도 박에, beat1 = 밀렸으면 박에 · fixed = 이미 걸린 것만 피한다
+     받기가 늦으면 순서를 지킨다: 뒤 징글은 앞 징글이 걸릴 때까지(많아야 1.5 s) 기다렸다가 그 뒤로 (움츠림이 나감 뒤에 울리지 않게) */
+  var evChain = Promise.resolve(0);
+  function fitEv(tt, d, beat0, beat1, fixed) {
     var t0 = now(); evQ = evQ.filter(function (x) { return x.e > t0; });
     if (beat0) tt = nextBeat(tt);
     for (var i = 0; i < 16; i++) {
       var hit = null;
-      for (var j = 0; j < evQ.length; j++) { var x = evQ[j]; if (x.s < tt + d - 0.02 && x.e > tt + 0.02 && (!hit || x.e > hit.e)) hit = x; }
+      for (var j = 0; j < evQ.length; j++) { var x = evQ[j]; if ((!fixed || x.fixed) && x.s < tt + d - 0.02 && x.e > tt + 0.02 && (!hit || x.e > hit.e)) hit = x; }
       if (!hit) break;
       tt = hit.e + 0.05; if (beat1) tt = nextBeat(tt);
     }
@@ -273,9 +275,13 @@ var AUDIO = (function () {
     if (over >= MAX_SHOTS + (bus === 'sfx_event' ? 2 : 0)) return Promise.resolve(0);
     lastAt[g] = tt;
     shots.push({ s: tt, e: tt + d + 0.05 });
-    var resv = null, at = o.at || 0;
-    if (queued) { resv = { s: tt, e: tt + d }; evQ.push(resv); evEnd = Math.max(evEnd, resv.e); at = tt; }
-    var p = load(id).then(function (buf) {
+    var resv = null, at = o.at || 0, ready = load(id);
+    if (queued) {
+      resv = { s: tt, e: tt + d, fixed: g === 'chime' }; evQ.push(resv); evEnd = Math.max(evEnd, resv.e); at = tt;
+      var prev = evChain;
+      ready = Promise.all([ready, Promise.race([prev, new Promise(function (r) { setTimeout(r, 1500); })])]).then(function (r) { return r[0]; });
+    }
+    var p = ready.then(function (buf) {
       if (!ctx || (!o.direct && !active())) return 0;
       if (o.direct && (pref.on || ctx.state !== 'running')) return 0;   /* 끄는 소리가 늦게 왔다: 멈춘 뒤라면 다음에 켤 때 울리니 버린다 */
       if (o.at && bus === 'voice' && now() > o.at + 0.08) return 0;   /* 늦은 음절은 버린다 (뭉쳐 울리지 않게) */
@@ -285,9 +291,10 @@ var AUDIO = (function () {
       if (o.direct) gn.gain.value *= curve(vol.sfx_ui);
       var t = Math.max(now() + 0.01, at);
       if (beat && !at) t = nextBeat(t);
-      if (resv && t > at + 0.02) {   /* 받기가 늦었다: 제 자리를 비우고 지금부터 다시 줄을 선다 (뒤에 예약된 것과 겹치지 않게) */
-        resv.s = resv.e = -1; t = fitEv(t, buf.duration, beat, beat);
-        evQ.push({ s: t, e: t + buf.duration });
+      if (resv) {   /* 제 예약을 실제로 걸리는 자리로: 이미 걸린 것과 겹치면 그 뒤로 (받기가 늦었으면 박에 맞춰) */
+        var late = t > at + 0.02;
+        resv.s = resv.e = -1; t = fitEv(t, buf.duration, late && beat, beat, true);
+        evQ.push({ s: t, e: t + buf.duration, fixed: true });
       }
       if (!o.direct) {
         if (s.pause_bgm) pauseBgm(t, buf.duration);
@@ -301,8 +308,9 @@ var AUDIO = (function () {
       if (bus === 'sfx_event') evEnd = Math.max(evEnd, end);
       note(id, t);
       return end;
-    }).catch(function (e) { warn('소리 파일을 못 틀었어 (' + id + ')', e); return 0; });
+    }).catch(function (e) { if (resv) resv.s = resv.e = -1; warn('소리 파일을 못 틀었어 (' + id + ')', e); return 0; });   /* 못 튼 징글 자리는 비운다 */
     if (bus === 'sfx_event') evP = p;   /* 말풍선 음절은 이게 자리 잡은 뒤에 (처음 받는 기웃 결과음과 겹치지 않게) */
+    if (queued) evChain = p;
     return p;
   }
   /* 덕킹: bgm 을 duck_db, amb 를 그 절반만큼 내렸다가 끝에서 놓는다. 겹치면 더 깊은 쪽 · 더 늦게 끝나는 쪽 */
@@ -418,7 +426,7 @@ var AUDIO = (function () {
   function placeId(key) {
     if (key === 'letter_room') return null;   /* 편지의 방: BGM 없이 (징글 한 번 + 환경음) */
     var pl = mp().places || {};
-    var id = pl[key] || pl.wild;
+    var id = pl[key]; if (!has(id)) id = pl.wild;   /* 없거나 못 받은 곡이면 들판 테마로 */
     return has(id) ? id : null;
   }
   function lullId() { var id = ev(['sleep', 'bgm']) || 'special_lullaby'; return has(id) ? id : null; }
@@ -742,7 +750,8 @@ var AUDIO = (function () {
   function onLantern(d) {
     var n = Math.max(0, Math.min(8, d.n | 0));
     lantern = n;
-    if (active() && n >= 1) play(n >= 8 ? ev(['events', 'lantern_8']) : ev(['events', 'lantern', String(n)]), { always: true });   /* 7칸까지 F장조 한 칸씩, 8칸 = 방 완성 */
+    /* 7칸까지 F장조 한 칸씩, 8칸 = 방 완성. 한 틱 뒤에: 같은 순간의 귀가 줄(한 틱 미룸)이 먼저 줄을 서게 (귀가 → 등불) */
+    if (active() && n >= 1) setTimeout(guard(function () { play(n >= 8 ? ev(['events', 'lantern_8']) : ev(['events', 'lantern', String(n)]), { always: true }); }), 0);
     tick();   /* 6·7·8칸에서 날씨가 바뀐다 */
   }
   function onBusy(d) {
@@ -809,7 +818,7 @@ var AUDIO = (function () {
     started = false; starting = false;
     clearInterval(tickTimer); tickTimer = null; cancelPend(); clearRest(); clearTimeout(lullTimer); clearTimeout(pauseTimer); clearTimeout(warmTimer); pauseUntil = 0;
     gs.sleepPhase = null;
-    shots = []; evQ = []; evEnd = 0;
+    shots = []; evQ = []; evEnd = 0; evChain = Promise.resolve(0);
     if (!ctx || !nd.master) return;
     var t0 = now();
     target(nd.master.gain, 0, t0, 0.08);
