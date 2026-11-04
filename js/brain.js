@@ -110,7 +110,9 @@
       lantern: s.lantern == null ? 0 : s.lantern,
       recent: Array.isArray(s.recent) ? s.recent : [],
       todayOut: s.todayOut == null ? 0 : s.todayOut,
-      lastVisit: (s.lastVisit && typeof s.lastVisit === 'object') ? s.lastVisit : {}
+      lastVisit: (s.lastVisit && typeof s.lastVisit === 'object') ? s.lastVisit : {},
+      /* 벽에 붙은 포스터 수. 안 주면 0 — 없는 포스터를 다시 읽었다고 말하지 않게 */
+      posters: (typeof s.posters === 'number' && s.posters > 0 && isFinite(s.posters)) ? Math.floor(s.posters) : 0
     };
   }
   /* 가중치 뽑기: r ∈ [0,1) 하나로 결정 */
