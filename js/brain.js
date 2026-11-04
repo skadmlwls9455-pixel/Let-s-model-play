@@ -259,6 +259,15 @@
     return { kind: 'wiki', query: raw };
   }
 
+  /* URL 안에서 c 를 낱말로 찾기: 영문은 앞뒤가 영문이 아닐 때만(linkedin 안의 ink 는 아니다),
+     그 밖(한글 등)은 낱말 첫머리일 때만(코스모스 안의 모스는 아니다) */
+  function urlHasWord(low, c) {
+    if (/^[a-z ]+$/.test(c)) return new RegExp('(^|[^a-z])' + c + '([^a-z]|$)').test(low);
+    for (var i = low.indexOf(c); i >= 0; i = low.indexOf(c, i + 1)) {
+      if (i === 0 || !/[a-z0-9가-힣]/.test(low.charAt(i - 1))) return true;
+    }
+    return false;
+  }
   /* URL 경로에서 한글/영문 키워드로 노드 찾기 (문 다음 정류장) */
   function nodeFromUrl(url) {
     var W = world();
@@ -273,7 +282,7 @@
       var cands = [node.name, id.replace(/_/g, ' ')].concat(node.aliases || [], node.keywords || [], node.wiki ? [node.wiki] : []);
       cands.forEach(function (c) {
         c = lower(c);
-        if (c.length >= 2 && low.indexOf(c) >= 0 && (!best || c.length > best.len)) best = { id: id, len: c.length };
+        if (c.length >= 2 && urlHasWord(low, c) && (!best || c.length > best.len)) best = { id: id, len: c.length };
       });
     });
     return best ? W.nodes[best.id] : null;
