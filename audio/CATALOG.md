@@ -59,8 +59,8 @@
 | `stay_settle_2` | 0.85s | -4 |  | 집에 있기로 정했을 때(같은 움츠림 뒤 다른 결말, 1.03 오버슈트 모션과 함께) |
 | `depart_rain_extra_1` | 0.23s | -14 |  | 비·가는 비 날 출발할 때 depart_leave 의 퍼프 직후(약 +180 ms) 덧소리 |
 | `depart_rain_extra_2` | 0.26s | -14 |  | 비·가는 비 날 출발할 때 depart_leave 의 퍼프 직후(약 +180 ms) 덧소리 |
-| `return_home_1` | 1.51s | +0 |  | 귀가: 문어가 돌아와 자리에 내려앉을 때(600+200 ms 정착 모션도 같은 박에 시작) (BGM -3 dB 덕킹) |
-| `return_home_2` | 1.66s | +0 |  | 귀가: 문어가 돌아와 자리에 내려앉을 때(600+200 ms 정착 모션도 같은 박에 시작) (BGM -3 dB 덕킹) |
+| `return_home_1` | 1.48s | +0 |  | 귀가: 문어가 돌아와 자리에 내려앉을 때(600+200 ms 정착 모션도 같은 박에 시작) (BGM -3 dB 덕킹) |
+| `return_home_2` | 1.67s | +0 |  | 귀가: 문어가 돌아와 자리에 내려앉을 때(600+200 ms 정착 모션도 같은 박에 시작) (BGM -3 dB 덕킹) |
 | `return_home_3` | 1.54s | +0 |  | 귀가: 문어가 돌아와 자리에 내려앉을 때(600+200 ms 정착 모션도 같은 박에 시작) (BGM -3 dB 덕킹) |
 | `remember_hands` | 1.50s | -2 |  | 기억 정리(remember) 단계, 대표 장소가 hands(손과 물건)일 때 (BGM -3 dB 덕킹) |
 | `remember_sea` | 1.55s | -2 |  | 기억 정리(remember) 단계, 대표 장소가 sea(바다와 생물)일 때 (BGM -3 dB 덕킹) |
@@ -75,17 +75,17 @@
 | `remember_letter_room` | 1.50s | -2 |  | 기억 정리(remember) 단계, 대표 장소가 letter_room(편지의 방)일 때 (BGM -3 dB 덕킹) |
 | `remember_door_out` | 1.50s | -2 |  | 기억 정리(remember) 단계, 대표 장소가 door_out(밖의 문)일 때 (BGM -3 dB 덕킹) |
 | `hang_poster_1` | 1.58s | +0 |  | 포스터를 벽에 걸 때(0 ms 종이, 500 ms 핀, 650 ms 스티커 — 모션도 같은 박에 시작) (BGM -4 dB 덕킹) |
-| `hang_poster_2` | 1.57s | +0 |  | 포스터를 벽에 걸 때(0 ms 종이, 500 ms 핀, 650 ms 스티커 — 모션도 같은 박에 시작) (BGM -4 dB 덕킹) |
+| `hang_poster_2` | 1.58s | +0 |  | 포스터를 벽에 걸 때(0 ms 종이, 500 ms 핀, 650 ms 스티커 — 모션도 같은 박에 시작) (BGM -4 dB 덕킹) |
 | `lantern_1` | 0.95s | +1 |  | 등불 1칸째가 켜질 때 (BGM -3 dB 덕킹) |
-| `lantern_2` | 1.01s | +1 |  | 등불 2칸째가 켜질 때 (BGM -3 dB 덕킹) |
+| `lantern_2` | 1.02s | +1 |  | 등불 2칸째가 켜질 때 (BGM -3 dB 덕킹) |
 | `lantern_3` | 0.96s | +1 |  | 등불 3칸째가 켜질 때 (BGM -3 dB 덕킹) |
 | `lantern_4` | 0.93s | +1 |  | 등불 4칸째가 켜질 때 (BGM -3 dB 덕킹) |
 | `lantern_5` | 0.96s | +1 |  | 등불 5칸째가 켜질 때 (BGM -3 dB 덕킹) |
-| `lantern_6` | 0.93s | +1 |  | 등불 6칸째가 켜질 때 (BGM -3 dB 덕킹) |
+| `lantern_6` | 0.94s | +1 |  | 등불 6칸째가 켜질 때 (BGM -3 dB 덕킹) |
 | `lantern_7` | 0.98s | +1 |  | 등불 7칸째가 켜질 때 (BGM -3 dB 덕킹) |
 | `room_complete` | 4.64s | +4 |  | 등불 8칸이 다 켜져 방이 완성될 때(다음 박에 BGM 일시정지 → 이 징글 → BGM 은 다음 프레이즈 처음부터 재개) (BGM -9 dB 덕킹) |
 | `first_place` | 1.68s | +2 |  | 처음 가 본 장소를 다녀왔을 때(히어로, 고정) (BGM -6 dB 덕킹) |
-| `rare_sparkle` | 1.07s | +2 |  | 희귀 티어(1/6) 포스터·발견. room_complete 와 겹치면 400 ms 뒤로 미룸 (BGM -6 dB 덕킹) |
+| `rare_sparkle` | 1.13s | +2 |  | 희귀 티어(1/6) 포스터·발견. room_complete 와 겹치면 400 ms 뒤로 미룸 (BGM -6 dB 덕킹) |
 | `mood_poljjak` | 1.76s | +1 |  | 반응(wrap_up) 기분이 폴짝(신남)일 때 — 다음 BGM 박에 시작 (BGM -9 dB 덕킹) |
 | `mood_ujjul` | 3.37s | +1 |  | 반응(wrap_up) 기분이 우쭐(뿌듯)일 때 — 다음 BGM 박에 시작 (BGM -9 dB 덕킹) |
 | `mood_deomdeom` | 2.71s | -1 |  | 반응(wrap_up) 기분이 덤덤(담담)일 때 — 다음 BGM 박에 시작 (BGM -9 dB 덕킹) |

@@ -447,7 +447,7 @@
     "target": -20.0,
     "measured": -20.0,
     "unit": "LUFS",
-    "peak_dbfs": -5.2
+    "peak_dbfs": -5.3
    },
    "loop": {
     "start": 0.5,
@@ -1249,7 +1249,7 @@
     "target": -20.0,
     "measured": -20.0,
     "unit": "LUFS",
-    "peak_dbfs": -6.9
+    "peak_dbfs": -7.2
    },
    "loop": {
     "start": 0.5,
@@ -1369,7 +1369,7 @@
     "target": -20.0,
     "measured": -20.0,
     "unit": "LUFS",
-    "peak_dbfs": -7.3
+    "peak_dbfs": -7.2
    },
    "loop": {
     "start": 0.5,
@@ -1429,7 +1429,7 @@
     "target": -20.0,
     "measured": -20.0,
     "unit": "LUFS",
-    "peak_dbfs": -8.9
+    "peak_dbfs": -9.0
    },
    "loop": {
     "start": 0.5,
@@ -1542,7 +1542,7 @@
     "target": -24.0,
     "measured": -24.0,
     "unit": "RMS",
-    "peak_dbfs": -10.3
+    "peak_dbfs": -10.4
    },
    "loop": null,
    "trigger": "출발: 움츠림이 끝나고 문어가 호를 그리며 나갈 때(셔플백, 직전 변형 반복 금지)",
@@ -1710,12 +1710,12 @@
     "ogg": "jingle/return_home_1.ogg",
     "m4a": "jingle/return_home_1.m4a"
    },
-   "duration": 1.5061,
+   "duration": 1.4837,
    "level": {
     "rel_db": 0,
     "target": -20.0,
     "measured": -20.0,
-    "unit": "LUFS",
+    "unit": "RMS",
     "peak_dbfs": -4.4
    },
    "loop": null,
@@ -1736,7 +1736,7 @@
     "ogg": "jingle/return_home_2.ogg",
     "m4a": "jingle/return_home_2.m4a"
    },
-   "duration": 1.6608,
+   "duration": 1.6652,
    "level": {
     "rel_db": 0,
     "target": -20.0,
@@ -1762,7 +1762,7 @@
     "ogg": "jingle/return_home_3.ogg",
     "m4a": "jingle/return_home_3.m4a"
    },
-   "duration": 1.5376,
+   "duration": 1.5404,
    "level": {
     "rel_db": 0,
     "target": -20.0,
@@ -1814,7 +1814,7 @@
     "ogg": "jingle/remember_sea.ogg",
     "m4a": "jingle/remember_sea.m4a"
    },
-   "duration": 1.5496,
+   "duration": 1.5503,
    "level": {
     "rel_db": -2,
     "target": -22.0,
@@ -1840,13 +1840,13 @@
     "ogg": "jingle/remember_sky.ogg",
     "m4a": "jingle/remember_sky.m4a"
    },
-   "duration": 1.5601,
+   "duration": 1.561,
    "level": {
     "rel_db": -2,
     "target": -22.0,
     "measured": -22.0,
     "unit": "LUFS",
-    "peak_dbfs": -10.0
+    "peak_dbfs": -10.1
    },
    "loop": null,
    "trigger": "기억 정리(remember) 단계, 대표 장소가 sky(하늘과 날씨)일 때",
@@ -1924,7 +1924,7 @@
     "target": -22.0,
     "measured": -22.0,
     "unit": "LUFS",
-    "peak_dbfs": -9.3
+    "peak_dbfs": -9.4
    },
    "loop": null,
    "trigger": "기억 정리(remember) 단계, 대표 장소가 sounds(소리와 리듬)일 때",
@@ -1950,7 +1950,7 @@
     "target": -22.0,
     "measured": -22.0,
     "unit": "LUFS",
-    "peak_dbfs": -8.0
+    "peak_dbfs": -8.1
    },
    "loop": null,
    "trigger": "기억 정리(remember) 단계, 대표 장소가 home(집과 사람)일 때",
@@ -1970,7 +1970,7 @@
     "ogg": "jingle/remember_mind.ogg",
     "m4a": "jingle/remember_mind.m4a"
    },
-   "duration": 1.9439,
+   "duration": 1.9448,
    "level": {
     "rel_db": -2,
     "target": -22.0,
@@ -2002,7 +2002,7 @@
     "target": -22.0,
     "measured": -22.0,
     "unit": "LUFS",
-    "peak_dbfs": -9.9
+    "peak_dbfs": -10.0
    },
    "loop": null,
    "trigger": "기억 정리(remember) 단계, 대표 장소가 wild(들판(미지))일 때",
@@ -2022,7 +2022,7 @@
     "ogg": "jingle/remember_slow_room.ogg",
     "m4a": "jingle/remember_slow_room.m4a"
    },
-   "duration": 2.36,
+   "duration": 2.3601,
    "level": {
     "rel_db": -2,
     "target": -22.0,
@@ -2104,9 +2104,9 @@
    "level": {
     "rel_db": 0,
     "target": -20.0,
-    "measured": -20.0,
+    "measured": -20.1,
     "unit": "LUFS",
-    "peak_dbfs": -3.8
+    "peak_dbfs": -3.9
    },
    "loop": null,
    "trigger": "포스터를 벽에 걸 때(0 ms 종이, 500 ms 핀, 650 ms 스티커 — 모션도 같은 박에 시작)",
@@ -2126,7 +2126,7 @@
     "ogg": "jingle/hang_poster_2.ogg",
     "m4a": "jingle/hang_poster_2.m4a"
    },
-   "duration": 1.5731,
+   "duration": 1.5823,
    "level": {
     "rel_db": 0,
     "target": -20.0,
@@ -2178,7 +2178,7 @@
     "ogg": "jingle/lantern_2.ogg",
     "m4a": "jingle/lantern_2.m4a"
    },
-   "duration": 1.0112,
+   "duration": 1.0188,
    "level": {
     "rel_db": 1,
     "target": -19.0,
@@ -2282,7 +2282,7 @@
     "ogg": "jingle/lantern_6.ogg",
     "m4a": "jingle/lantern_6.m4a"
    },
-   "duration": 0.9341,
+   "duration": 0.9379,
    "level": {
     "rel_db": 1,
     "target": -19.0,
@@ -2308,7 +2308,7 @@
     "ogg": "jingle/lantern_7.ogg",
     "m4a": "jingle/lantern_7.m4a"
    },
-   "duration": 0.9771,
+   "duration": 0.9804,
    "level": {
     "rel_db": 1,
     "target": -19.0,
@@ -2360,7 +2360,7 @@
     "ogg": "jingle/first_place.ogg",
     "m4a": "jingle/first_place.m4a"
    },
-   "duration": 1.6804,
+   "duration": 1.6815,
    "level": {
     "rel_db": 2,
     "target": -18.0,
@@ -2385,13 +2385,13 @@
     "ogg": "jingle/rare_sparkle.ogg",
     "m4a": "jingle/rare_sparkle.m4a"
    },
-   "duration": 1.075,
+   "duration": 1.1253,
    "level": {
     "rel_db": 2,
     "target": -18.0,
     "measured": -18.0,
     "unit": "RMS",
-    "peak_dbfs": -4.4
+    "peak_dbfs": -5.8
    },
    "loop": null,
    "trigger": "희귀 티어(1/6) 포스터·발견. room_complete 와 겹치면 400 ms 뒤로 미룸",
@@ -2436,7 +2436,7 @@
     "ogg": "jingle/mood_ujjul.ogg",
     "m4a": "jingle/mood_ujjul.m4a"
    },
-   "duration": 3.3706,
+   "duration": 3.3707,
    "level": {
     "rel_db": 1,
     "target": -19.0,
@@ -2643,7 +2643,7 @@
     "target": -30.0,
     "measured": -30.0,
     "unit": "LUFS",
-    "peak_dbfs": -16.6
+    "peak_dbfs": -16.7
    },
    "loop": null,
    "trigger": "시간대 전환 낮(9시): 경계 뒤 4마디 프레이즈 끝 → 이전 곡 2마디 페이드아웃 → 이 종 → 새 시간대 곡",
@@ -2667,7 +2667,7 @@
     "target": -30.0,
     "measured": -30.0,
     "unit": "LUFS",
-    "peak_dbfs": -18.1
+    "peak_dbfs": -18.2
    },
    "loop": null,
    "trigger": "시간대 전환 노을(17시): 경계 뒤 4마디 프레이즈 끝 → 이전 곡 2마디 페이드아웃 → 이 종 → 새 시간대 곡",
@@ -2709,7 +2709,7 @@
     "ogg": "jingle/letter_room.ogg",
     "m4a": "jingle/letter_room.m4a"
    },
-   "duration": 2.6155,
+   "duration": 2.6189,
    "level": {
     "rel_db": -3,
     "target": -23.0,
@@ -4634,9 +4634,9 @@
    "level": {
     "rel_db": -20.0,
     "target": -40.0,
-    "measured": -40.0,
+    "measured": -39.9,
     "unit": "LUFS",
-    "peak_dbfs": -23.4
+    "peak_dbfs": -25.4
    },
    "loop": {
     "start": 0.5,
@@ -4644,7 +4644,7 @@
    },
    "trigger": "가을(9~11월): 날씨 베드 위에 겹침(맑은 날·밤)",
    "loop_len": 67,
-   "notes": "귀뚜라미 1마리 SIN F7, 처프 1.2/s(돌베어 서늘함), 펄스 18/7 ms ×3, 60~80% 시간, LPF5k. 잎 바스락 4회/루프(NZ BP 2~5k, 20 ms 낟알 3~8개, 10~25 s 간격, −6 dB). 노이즈 베드 없음 | 귀뚜라미 F7 1.19/s, 잎 바스락 @ 8.5, 20.9, 34.9, 56.1 s"
+   "notes": "귀뚜라미 1마리 SIN F7, 처프 1.2/s(돌베어 서늘함), 펄스 18/7 ms ×3, 60~80% 시간, LPF5k. 잎 바스락 4회/루프(NZ BP 2~5k, 20 ms 낟알 3~8개, 10~25 s 간격, −8 dB). 노이즈 베드 없음 | 귀뚜라미 F7 1.19/s, 잎 바스락 @ 8.5, 20.9, 34.9, 56.1 s"
   },
   {
    "id": "amb_lantern_low",
@@ -4751,7 +4751,7 @@
     "target": -36.0,
     "measured": -35.9,
     "unit": "LUFS",
-    "peak_dbfs": -21.1
+    "peak_dbfs": -22.6
    },
    "loop": {
     "start": 0.5,
@@ -4759,7 +4759,7 @@
    },
    "trigger": "무박 레이어: 날씨 snow 일 때 core 스템(−3 dB, LPF4k) 위에. 종은 필터 없이(대비)",
    "loop_len": 43,
-   "notes": "GB bell 웨이브 종 A5~D7 F펜타 ~0.21음/s + 옥타브 위 사인 배음, 30%는 메아리 −10 dB. 썰매방울 트레몰로 1회/루프(7비트 숏모드 LFSR, F6 기음, 13 Hz) | 0.21음/s, 썰매방울 @ 13.5 s"
+   "notes": "GB 웨이브 종(amb_bell 표: 1·2·3·4·6배음) A5~D7 F펜타 ~0.21음/s + 옥타브 위 사인 배음, 30%는 메아리 −10 dB. 썰매방울 트레몰로 1회/루프(7비트 숏모드 LFSR, F6 기음, 13 Hz) | 0.21음/s, 썰매방울 @ 13.5 s"
   },
   {
    "id": "layer_sparkle",
@@ -4795,9 +4795,9 @@
    "level": {
     "rel_db": -18.0,
     "target": -38.0,
-    "measured": -37.6,
+    "measured": -37.4,
     "unit": "LUFS",
-    "peak_dbfs": -25.0
+    "peak_dbfs": -25.1
    },
    "loop": {
     "start": 0.5,
@@ -4805,7 +4805,7 @@
    },
    "trigger": "무박 레이어: 겨울(12~2월) 맑음·가는 비. 1~2월 snow 면 layer_snowbells 가 우선",
    "loop_len": 53,
-   "notes": "F5/C6/F6/C7 종(GB 사인+bell 웨이브, τ 0.7~0.95 s, 옥타브 배음), ~5회/루프, 35%는 F↔C 짝 | 5회/53 s (짝 1)"
+   "notes": "F5/C6/F6/C7 종(GB 사인+amb_bell 웨이브, τ 0.7~0.95 s, 옥타브 배음), ~5회/루프, 35%는 F↔C 짝 | 5회/53 s (짝 1)"
   }
  ]
 }
