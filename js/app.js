@@ -75,6 +75,15 @@ var APP = (function () {
     set: function (k, v) { mem[k] = v; if (!storeOK) return false; localStorage.setItem(k, v); return true; },
     remove: function (k) { delete mem[k]; if (storeOK) { try { localStorage.removeItem(k); } catch (e) { /* noop */ } } }
   };
+  /* ── 같은 탭 미러 (window.name, §8): 새로고침 직후 브라우저가 이 원점의 localStorage 스냅숏을 통째로 비워서 주는 경우가 있다
+     (크로미움 DOMStorage 경합 — tools/test-resume.js 의 'empty-snapshot'). 그때 load() 가 "새 설치" 로 오해하고 저장하면 기록이 통째로 덮인다.
+     window.name 은 탭과 함께 이동해 그 경합이 없으므로 save() 마다 같은 JSON 을 적어 두고, load() 는 둘 중 lastSeen 이 큰 쪽을 쓴다.
+     탭 안에서만 살고(다른 탭·다음 방문은 localStorage), 다른 사이트로 가면 브라우저가 지운다 ── */
+  var MIRROR_PREFIX = KEY + ':';
+  function mirrorSet(json) { try { if (json.length < 2000000) window.name = MIRROR_PREFIX + json; } catch (e) { /* noop */ } }
+  function mirrorGet() { try { var n = window.name; return (typeof n === 'string' && n.indexOf(MIRROR_PREFIX) === 0) ? n.slice(MIRROR_PREFIX.length) : null; } catch (e) { return null; } }
+  function parseState(raw) { if (!raw) return null; try { var o = JSON.parse(raw); return (o && typeof o === 'object') ? o : null; } catch (e) { return null; } }
+  function seenOf(o) { return (o && o.settings && typeof o.settings.lastSeen === 'number') ? o.settings.lastSeen : 0; }
   function isQuota(e) { return !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014); }
   function quietWarn(text) { var w = $('save-warn'); if (!w) return; if (w.textContent === text && !w.hidden) return; w.textContent = text; w.hidden = false; }
 
@@ -100,8 +109,9 @@ var APP = (function () {
     return cut > 0;
   }
   function save() {
-    S.settings.lastSeen = Date.now();
+    S.settings.lastSeen = Math.max(Date.now(), seenOf(S) + 1);   /* 단조 증가: 같은 ms 안의 연속 저장도 순서가 남는다 */
     var json = JSON.stringify(S);
+    mirrorSet(json);
     if (!storeOK) { mem[KEY] = json; if (!warned) { warned = true; quietWarn('이 브라우저에선 벽이 오늘만 남아'); } return false; }
     try { localStorage.setItem(KEY, json); lastSaved = json; return true; }
     catch (e) {
@@ -114,10 +124,10 @@ var APP = (function () {
     }
   }
   function load() {
-    var raw = store.get(KEY);
-    if (raw) {
-      try { S = normalize(JSON.parse(raw)); lastSaved = raw; return S; } catch (e) { /* 깨진 저장 → 새로 */ }
-    }
+    var raw = store.get(KEY), stored = parseState(raw), mirrored = parseState(mirrorGet());
+    /* 같은 탭 미러가 더 새롭다(= 새로고침 직후 스냅숏이 비었거나 뒤처졌다) → 미러로 복구하고 localStorage 에 다시 적는다 */
+    if (mirrored && (!stored || seenOf(mirrored) > seenOf(stored))) { S = normalize(mirrored); save(); return S; }
+    if (stored) { S = normalize(stored); lastSaved = raw; return S; }
     var v1 = store.get(KEY_V1);
     if (v1) { S = migrateV1(v1); save(); return S; }
     S = defaults();

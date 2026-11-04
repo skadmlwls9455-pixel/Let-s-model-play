@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /* tools/test-resume.js — running 여행 복구(§3-6, §8) 결정적 테스트 (Playwright). 실패하면 exit 1.
- *   node tools/test-resume.js            # 10회 × 3시점 (즉시 / 300ms 뒤 / 첫 기웃 행 뒤) 새로고침
+ *   node tools/test-resume.js            # 10회 × 4시점 (즉시 / 300ms 뒤 / 첫 기웃 행 뒤 / 빈 스냅숏) 새로고침
  *   ITER=3 node tools/test-resume.js
  * 각 시점: #btn-go 누름 → localStorage 에 status 'running' 여행이 이미 있어야 함 → reload →
  *   모든 여행 done · 로그에 '네가 없는 동안 다녀왔어' · 문어 상태 유효 · pageerror 0.
+ * 'empty-snapshot': 관찰된 크로미움 경합(다른 크로미움 인스턴스와 동시 실행 시 새로고침 직후 문서가 이 원점의 localStorage 를
+ *   통째로 비어 있는 것으로 봄, 기록은 그 문서에 영영 오지 않음)을 결정적으로 재현 — reload 되는 문서 시작 시 localStorage.clear().
+ *   app.js 는 같은 탭 미러(window.name)에서 복구해 즉시 귀가해야 하고, localStorage 를 다시 채워야 한다.
  */
 'use strict';
 var path = require('path');
@@ -42,10 +45,11 @@ async function one(browser, when, i) {
   await page.waitForFunction(function () { return !document.getElementById('name-dialog').open; });
   await page.fill('#hint-in', '모자의 역사');
   await page.click('#btn-go');
-  if (when === '300ms') await page.waitForTimeout(300);
+  if (when === '300ms' || when === 'empty-snapshot') await page.waitForTimeout(300);
   else if (when === 'peek') await page.waitForFunction(function () { return Array.prototype.some.call(document.querySelectorAll('#log .lrow .ltool'), function (e) { return e.textContent === '기웃'; }); }, null, { timeout: 30000 });
   var before = await stored(page);
   ok(before && before.some(function (x) { return x.indexOf(':running:') > 0; }), label + ' reload 전 localStorage 에 running 여행 (' + JSON.stringify(before) + ')');
+  if (when === 'empty-snapshot') await page.addInitScript({ content: "try { localStorage.clear(); } catch (e) {}" });   /* 다음 문서 시작 시 원점 저장소가 빈 것으로 보이게 (관찰된 경합 재현) */
   await page.reload();
   await page.waitForSelector('#btn-go:not([disabled])');
   var done = await page.waitForFunction(function () { return APP.state.trips.length > 0 && APP.state.trips.every(function (t) { return t.status === 'done'; }); }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
@@ -68,7 +72,7 @@ async function one(browser, when, i) {
   var browser = await chromium.launch();
   try {
     for (var i = 1; i <= ITER; i++) {
-      for (var when of ['immediate', '300ms', 'peek']) await one(browser, when, i);
+      for (var when of ['immediate', '300ms', 'peek', 'empty-snapshot']) await one(browser, when, i);
       console.log('  iter ' + i + '/' + ITER + ' done (fails so far: ' + fails + ')');
     }
   } catch (e) { fails++; console.error('  CRASH', e); }

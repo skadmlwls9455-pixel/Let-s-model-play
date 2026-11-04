@@ -328,7 +328,7 @@ matchHint(hint) →
 
 ## 8. 상태 스키마와 영속
 
-`localStorage['ppolppol_v2']`. 저장은 변경 즉시, `try/catch`, 실패 시 상단에 조용한 경고 1회.
+`localStorage['ppolppol_v2']`. 저장은 변경 즉시, `try/catch`, 실패 시 상단에 조용한 경고 1회. 같은 탭 미러: `save()` 는 같은 JSON 을 `window.name` 에도 적고(`'ppolppol_v2:' + json`), `load()` 는 localStorage 와 미러 중 `settings.lastSeen` 이 큰 쪽을 쓴 뒤 localStorage 에 다시 적는다 — 새로고침 직후 브라우저가 이 원점의 localStorage 스냅숏을 비워서 주는 경합(크로미움, `tools/test-resume.js` 'empty-snapshot')에서도 진행 중(`running`) 여행과 기록이 사라지지 않게. `lastSeen` 은 저장마다 단조 증가한다.
 
 ```js
 {

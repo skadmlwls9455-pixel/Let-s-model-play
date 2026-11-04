@@ -102,9 +102,9 @@ var SCENE3D = (function () {
   var FRAG = [
     '#include <packing>',
     'varying vec2 vUv;',
-    'uniform sampler2D tDiffuse, tDepth, tNormal, uBayer; uniform vec2 uRes; uniform float uNear, uFar;',
+    'uniform sampler2D tDiffuse, tDepth, tNormal, uBayer, tBloom; uniform vec2 uRes; uniform float uNear, uFar;',
     'uniform vec3 uPalOk[72]; uniform vec3 uPalRgb[72]; uniform int uPalN; uniform vec3 uW;',
-    'uniform float uDither, uOutline, uHasNormal, uVig;',
+    'uniform float uDither, uOutline, uHasNormal, uVig, uBloom;',
     'vec3 srgbToLinear(vec3 c){ vec3 lo = c / 12.92; vec3 hi = pow((c + 0.055) / 1.055, vec3(2.4)); return mix(lo, hi, step(vec3(0.04045), c)); }',
     'vec3 linToOklab(vec3 c){ c = max(c, vec3(0.0));',
     '  float l = 0.412221469470763 * c.r + 0.5363325372617348 * c.g + 0.0514459932675022 * c.b;',
@@ -129,12 +129,15 @@ var SCENE3D = (function () {
     'void main(){',
     '  vec2 ap = floor(vUv * uRes), px = 1.0 / uRes;',
     '  vec3 c = texture2D(tDiffuse, vUv).rgb;',
-    '  vec3 ok = linToOklab(srgbToLinear(c));',
+    /* 발광 블룸 (룩 패스 6): 저해상 발광 타깃(등불 유리·양초 불꽃·창 유리만)을 아트 픽셀 단위 5탭 분리 블러한 것을 팔레트 스냅 *전에* 선형으로 더한다 → 글로우가 따뜻한 팔레트 칸으로 양자화되고 램프 게이트 디더를 받는다 */
+    '  vec3 bl = srgbToLinear(texture2D(tBloom, vUv).rgb) * uBloom;',
+    '  float blk = dot(bl, vec3(0.299, 0.587, 0.114));',
+    '  vec3 ok = linToOklab(srgbToLinear(c) + bl);',
     '  ok.x = (ok.x - 0.5) * 1.03 + 0.5; ok.yz *= 1.07;',                               /* grade: 대비 1.03, 채도 1.07 */
     '  float d0 = depthM(vUv); vec3 n0 = nrm(vUv); float l0 = luma(vUv); float dd = 0.0, nn = 0.0;',
     '  float lR = tap(vUv, vec2(px.x, 0.0), d0, n0, dd, nn), lL = tap(vUv, vec2(-px.x, 0.0), d0, n0, dd, nn);',
     '  float lU = tap(vUv, vec2(0.0, px.y), d0, n0, dd, nn), lD = tap(vUv, vec2(0.0, -px.y), d0, n0, dd, nn);',
-    '  float dei = floor(smoothstep(0.06, 0.5, dd) * 2.0) / 2.0 * uOutline;',           /* 깊이 외곽선: 2단 (6 cm 부터) */
+    '  float dei = floor(smoothstep(0.06, 0.5, dd) * 2.0) / 2.0 * uOutline * (1.0 - smoothstep(0.01, 0.08, blk));',   /* 깊이 외곽선: 2단 (6 cm 부터). 글로우 속(블룸 루마 > 0.01)에선 잉크선이 빛에 묻힌다 */
     '  float nei = step(0.1, nn) * uOutline * uHasNormal;',                               /* 노멀 하이라이트: 가까운 면만 */
     '  ok.x *= 1.0 - 0.34 * dei;',
     '  ok.x *= (dei < 0.01) ? (1.0 + 0.06 * nei) : 1.0;',
@@ -148,6 +151,15 @@ var SCENE3D = (function () {
     '    vec3 d = (ok - uPalOk[i]) * uW; float q = dot(d, d);',
     '    if (q < best - 0.0005 || (q < best + 0.0005 && uPalOk[i].x > bestL)) { best = q; bi = i; bestL = uPalOk[i].x; } }',  /* 근소 동률 → 밝은 쪽 */
     '  gl_FragColor = vec4(uPalRgb[bi], 1.0);',
+    '}'].join('\n');
+  /* 발광 블러 (룩 패스 6): 한 축 5탭 [0.12 0.22 0.32 0.22 0.12] (오프셋 ±1·±2 아트px, 반지름 ≈ 2px) — 가로 한 번·세로 한 번. 가우시안보다 평평한 꼬리라 2px 째 고리가 스냅 뒤에도 남는다 */
+  var BLUR_FRAG = [
+    'varying vec2 vUv; uniform sampler2D tSrc; uniform vec2 uDir;',
+    'void main(){',
+    '  vec3 c = texture2D(tSrc, vUv).rgb * 0.32;',
+    '  c += (texture2D(tSrc, vUv + uDir).rgb + texture2D(tSrc, vUv - uDir).rgb) * 0.22;',
+    '  c += (texture2D(tSrc, vUv + 2.0 * uDir).rgb + texture2D(tSrc, vUv - 2.0 * uDir).rgb) * 0.12;',
+    '  gl_FragColor = vec4(c, 1.0);',
     '}'].join('\n');
 
   function supported() {
@@ -236,11 +248,13 @@ var SCENE3D = (function () {
   /* 시각대별 조명 (룩 패스 4 · pixel-look-references 5·7: 키 하나(창으로만 들어오는 태양, 보이지 않는 지붕·앞벽 차폐로 바닥에 창 모양 빛 조각) + 차가운 헤미 + 카메라 쪽 약한 필 + 등불 점광, 밤 = 새 비율)
      sun/sunI/elev/az = 키 색·세기·고도·방위(창 법선 −x 에서 +z 쪽으로; 창턱이 낮은 광선을 자르므로 낮 30°/방위 30° 에서 빛 조각 = 문어 뒤 바닥 x −0.2~1.5 · z −0.5~−2.5 + 뒷벽 아래 — 문어(center)가 조각 어귀에 서면 그림자가 조각 안으로 떨어지므로 방위를 돌려 조각을 문어 뒤로 보냈다) · sky/gnd/hemiI = 헤미 · fill/fillI = 필 방향광(그림자 없음, 카메라 쪽 낮은 각 (6,3,8): 벽을 들고 바닥은 덜) · out = 창밖 · lamp = 등불 점광 세기(8칸) · lampD = 점광 거리(바닥 웅덩이 크기) · glow = 글로우 원판 불투명도(8칸) · pool = 웅덩이 데칼 계수 · candle = 양초 점광 계수 */
   var LIGHTS = {
-    day: { sun: '#dfe9ff', sunI: 3.0, elev: 30, az: 30, sky: '#d6ecf6', gnd: '#4a4030', hemiI: 0.36, fill: '#a9cbe2', fillI: 1.3, out: '#9fc7e8', lamp: 0.25, lampD: 5, glow: 0.4, pool: 0.3, candle: 0.4, bg: '#1b1522' },
-    dawn: { sun: '#f6b4a6', sunI: 2.0, elev: 20, az: 30, sky: '#e0c0c8', gnd: '#4a3a38', hemiI: 0.28, fill: '#c9b0bc', fillI: 0.8, out: '#e8b0b8', lamp: 0.5, lampD: 5.5, glow: 0.55, pool: 0.6, candle: 0.7, bg: '#1b1522' },
-    dusk: { sun: '#ffb070', sunI: 1.8, elev: 16, az: 30, sky: '#d08860', gnd: '#3a2e30', hemiI: 0.26, fill: '#b89a90', fillI: 0.7, out: '#e39a8c', lamp: 0.8, lampD: 6, glow: 0.6, pool: 0.75, candle: 0.85, bg: '#1b1522' },
-    night: { sun: '#93a7c4', sunI: 0.5, elev: 30, az: 30, sky: '#1b2740', gnd: '#090b12', hemiI: 0.16, fill: '#4a5a80', fillI: 0.06, out: '#141c33', lamp: 1.2, lampD: 6, glow: 0.7, pool: 1.0, candle: 1.0, bg: '#0b1020' }
+    day: { sun: '#dfe9ff', sunI: 3.0, elev: 30, az: 30, sky: '#d6ecf6', gnd: '#4a4030', hemiI: 0.36, fill: '#a9cbe2', fillI: 1.3, out: '#9fc7e8', lamp: 0.25, lampD: 5, glow: 0.4, pool: 0.3, candle: 0.4, em: 0.25, winEm: '#78a0c0', bg: '#1b1522' },
+    dawn: { sun: '#f6b4a6', sunI: 2.0, elev: 20, az: 30, sky: '#e0c0c8', gnd: '#4a3a38', hemiI: 0.28, fill: '#c9b0bc', fillI: 0.8, out: '#e8b0b8', lamp: 0.5, lampD: 5.5, glow: 0.55, pool: 0.6, candle: 0.7, em: 0.6, winEm: '#a88090', bg: '#1b1522' },
+    dusk: { sun: '#ffb070', sunI: 1.8, elev: 16, az: 30, sky: '#d08860', gnd: '#3a2e30', hemiI: 0.26, fill: '#b89a90', fillI: 0.7, out: '#e39a8c', lamp: 0.8, lampD: 6, glow: 0.6, pool: 0.75, candle: 0.85, em: 0.8, winEm: '#a87060', bg: '#1b1522' },
+    night: { sun: '#93a7c4', sunI: 0.5, elev: 30, az: 30, sky: '#1b2740', gnd: '#090b12', hemiI: 0.16, fill: '#4a5a80', fillI: 0.06, out: '#141c33', lamp: 1.2, lampD: 6, glow: 0.7, pool: 1.0, candle: 1.0, em: 1.0, winEm: '#3c507a', bg: '#0b1020' }
   };
+  /* 발광 색 (룩 패스 6): 등불 유리 속 심지·양초 불꽃의 발광 타깃 색. 시각대 `em` 과 등불 칸 수로 배율, `winEm` 은 창 유리 발광 색(낮 = 하늘 밝게, 밤 = 희미한 차가운 색) */
+  var EM = { lamp: '#ffc46a', flame: '#ffd990' };
   function phaseOf(h) { return h < 6 ? 'night' : h < 9 ? 'dawn' : h < 17 ? 'day' : h < 19 ? 'dusk' : 'night'; }
 
   /* ═══════════════════════════ init ═══════════════════════════ */
@@ -268,11 +282,19 @@ var SCENE3D = (function () {
     rt.texture.encoding = T.sRGBEncoding; rt.texture.generateMipmaps = false;
     var rtN = keep(new T.WebGLRenderTarget(4, 4, { minFilter: T.NearestFilter, magFilter: T.NearestFilter, format: T.RGBAFormat, depthBuffer: true, stencilBuffer: false }));
     var normalMat = keep(new T.MeshNormalMaterial());
+    /* 발광 타깃 (룩 패스 6): 뷰티와 같은 저해상, 레이어 1(등불 유리·불꽃·창 유리의 발광 쌍둥이)만 그린다. 깊이 텍스처가 있으면 뷰티의 깊이 텍스처를 **공유**해(같은 DepthTexture 를 두 FBO 에 붙임, 깊이 클리어 안 함) 앞에 선 소품·문어가 발광을 가린다. rtB = 분리 블러 핑퐁 */
+    var rtE = keep(new T.WebGLRenderTarget(4, 4, { minFilter: T.NearestFilter, magFilter: T.NearestFilter, format: T.RGBAFormat, type: T.UnsignedByteType, depthBuffer: true, stencilBuffer: false, depthTexture: rt.depthTexture || undefined }));
+    rtE.texture.encoding = T.sRGBEncoding; rtE.texture.generateMipmaps = false;
+    var rtB = keep(new T.WebGLRenderTarget(4, 4, { minFilter: T.NearestFilter, magFilter: T.NearestFilter, format: T.RGBAFormat, type: T.UnsignedByteType, depthBuffer: false, stencilBuffer: false }));
+    rtB.texture.generateMipmaps = false;
+    var blurMat = keep(new T.ShaderMaterial({ depthTest: false, depthWrite: false, vertexShader: VERT, fragmentShader: BLUR_FRAG, uniforms: { tSrc: { value: rtE.texture }, uDir: { value: new T.Vector2(0, 0) } } }));
+    var BLOOM = 0.7, blurOn = true;   /* 블룸 세기(선형 가산 배율) · p ≥ 4 면 블러 생략 (폰 비용: 발광 타깃을 그대로 더한다) */
     var post = keep(new T.ShaderMaterial({ depthTest: false, depthWrite: false, vertexShader: VERT, fragmentShader: FRAG, uniforms: {
-      tDiffuse: { value: rt.texture }, tDepth: { value: rt.depthTexture || rtN.texture }, tNormal: { value: rtN.texture },
+      tDiffuse: { value: rt.texture }, tDepth: { value: rt.depthTexture || rtN.texture }, tNormal: { value: rtN.texture }, tBloom: { value: rtE.texture }, uBloom: { value: BLOOM },
       uRes: { value: new T.Vector2(4, 4) }, uNear: { value: 0.1 }, uFar: { value: 60 },
       uPalOk: { value: new Float32Array(216) }, uPalRgb: { value: new Float32Array(216) }, uPalN: { value: 0 }, uW: { value: new T.Vector3(1, 1.3, 1.3) },
       uDither: { value: 0 }, uOutline: { value: hasDepthTex ? 1 : 0 }, uHasNormal: { value: 1 }, uVig: { value: hasDepthTex ? 1 : 0 }, uBayer: { value: keep(bayerTex()) } } }));
+    renderer.autoClear = false;   /* 패스마다 명시적으로 클리어 (발광 패스는 색만 지우고 뷰티 깊이를 쓴다) */
     var quadGeo = keep(new T.BufferGeometry());
     quadGeo.setAttribute('position', new T.Float32BufferAttribute([-1, 3, 0, -1, -1, 0, 3, -1, 0], 3));
     quadGeo.setAttribute('uv', new T.Float32BufferAttribute([0, 2, 0, 0, 2, 0], 2));
@@ -319,7 +341,8 @@ var SCENE3D = (function () {
       S.W = W; S.H = H; S.p = p; S.rw = rw; S.rh = rh; S.cw = rw * p; S.ch = rh * p; S.offX = Math.floor((W - S.cw) / 2); S.offY = Math.floor((H - S.ch) / 2);
       S.N = Math.round(PX_PER_M * 3 / p * ZOOM_STEPS[st.zoom]);   /* 픽셀을 줄이면 같은 구도에 디테일만 는다 */
       renderer.setSize(S.cw, S.ch, false); canvas.style.width = S.cw + 'px'; canvas.style.height = S.ch + 'px';
-      rt.setSize(rw, rh); rtN.setSize(rw, rh); post.uniforms.uRes.value.set(rw, rh);
+      rt.setSize(rw, rh); rtN.setSize(rw, rh); rtE.setSize(rw, rh); rtB.setSize(rw, rh); post.uniforms.uRes.value.set(rw, rh);
+      blurOn = p < 4;
       camera.left = -rw / 2 / S.N; camera.right = rw / 2 / S.N; camera.top = rh / 2 / S.N; camera.bottom = -rh / 2 / S.N; camera.updateProjectionMatrix();
       S.pw = (camera.right - camera.left) / rw;   /* pixelWorldSize = 직교 프러스텀 폭 / 렌더 타깃 폭 (= 1/N: p=3 줌 1 → 1/18 m, p=2 → 1/27, 줌 ×2 → 1/36) */
       placeCamera();
@@ -368,8 +391,9 @@ var SCENE3D = (function () {
       hemi.color.copy(lerpC(a.sky, b.sky, e)); hemi.groundColor.copy(lerpC(a.gnd, b.gnd, e)); hemi.intensity = num('hemiI') * fillK();
       fill.color.copy(lerpC(a.fill, b.fill, e)); fill.intensity = num('fillI') * fillK();
       glass.material.color.copy(lerpC(a.out, b.out, e));
+      winEm.material.color.copy(lerpC(a.winEm, b.winEm, e));
       scene.background.copy(lerpC(a.bg, b.bg, e));
-      light.lamp = num('lamp'); light.lampD = num('lampD'); light.glow = num('glow'); light.pool = num('pool'); light.candle = num('candle');
+      light.lamp = num('lamp'); light.lampD = num('lampD'); light.glow = num('glow'); light.pool = num('pool'); light.candle = num('candle'); light.em = num('em');
       lampDirty = true;
     }
     function setTime(h, instant) {
@@ -394,6 +418,9 @@ var SCENE3D = (function () {
     var decalMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C('#1b1522'), transparent: true, opacity: 0.42, depthWrite: false }));
     var glowMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[3]), transparent: true, opacity: 0.55, depthWrite: false }));
     function basic(hex) { return keep(new T.MeshBasicMaterial({ color: C(hex) })); }
+    var basicV = keep(new T.MeshBasicMaterial({ vertexColors: true }));
+    /* 발광 쌍둥이 (룩 패스 6): 같은 지오메트리를 레이어 1 에만 두는 자식 메시 — 뷰티 카메라(레이어 0)엔 안 보이고 발광 패스에만 그려진다. depthWrite 끔 (뷰티 깊이를 공유, 같은 깊이라 LEQUAL 통과) */
+    function emTwin(parent, geo) { var m = new T.Mesh(geo, keep(new T.MeshBasicMaterial({ color: 0xffffff, depthWrite: false }))); m.layers.set(1); m.castShadow = false; parent.add(m); return m; }
     function snapXZ(o) { o.position.x = snapPos(o.position.x); o.position.z = snapPos(o.position.z); return o; }   /* 소품: 바닥 격자(x·z)만 스냅, y 는 올려놓은 면에 맞춘다 */
 
     /* ── 다락방 정적 기하 (룩 패스 2: 밀도·구성) ──
@@ -551,11 +578,15 @@ var SCENE3D = (function () {
     doorDark.position.set((DOOR.x0 + DOOR.x1) / 2, DOOR.h / 2, -R + 0.02); scene.add(doorDark);
     var glass = new T.Mesh(keep(new T.PlaneGeometry(WIN.z1 - WIN.z0, WIN.y1 - WIN.y0)), keep(new T.MeshBasicMaterial({ color: C('#141c33') })));
     glass.position.set(-R + 0.01, (WIN.y0 + WIN.y1) / 2, (WIN.z0 + WIN.z1) / 2); glass.rotation.y = Math.PI / 2; glass.userData.kind = 'window'; scene.add(glass);
+    var winEm = emTwin(glass, glass.geometry);   /* 창 유리 발광 (시각대 winEm: 낮 하늘 밝게 · 밤 희미한 차가운 색) */
     /* 등불 */
     var lampG = new T.Group(); lampG.position.copy(lampPos); scene.add(lampG);
     var lampBody = new T.Mesh(keep(mergeParts([{ g: box(0.34, 0.08, 0.34), m: M(0, 0.24, 0), c: W[0] }, { g: box(0.3, 0.06, 0.3), m: M(0, -0.24, 0), c: W[0] }, { g: box(0.05, 0.4, 0.05), m: M(0.14, 0, 0.14), c: W[0] }, { g: box(0.05, 0.4, 0.05), m: M(-0.14, 0, -0.14), c: W[0] }])), lambert);
     lampBody.castShadow = true; lampBody.receiveShadow = true; lampG.add(lampBody);
-    var lampGlass = new T.Mesh(keep(box(0.24, 0.36, 0.24)), basic(PAL.slate[1])); lampG.add(lampGlass);
+    /* 유리(tag 1, 4×6 px) + 심지 띠(tag 2: 0.16 m ≈ 3px 높이, 면보다 1 cm 돌출해 유리 면 위에 밝은 가로 띠로 보인다) — 켜지면 호박 2 / 호박 5(거의 흰 노랑), 꺼지면 회색 1/2. 밤에 몸체(갈색 0)가 검게 가라앉아도 이 심지 + 블룸 때문에 "등불" 로 읽힌다 (룩 패스 6) */
+    var lampGlassGeo = keep(mergeParts([{ g: box(0.24, 0.36, 0.24), m: M(0, 0, 0), c: PAL.amber[2], tag: 1 }, { g: box(0.26, 0.16, 0.26), m: M(0, -0.02, 0), c: PAL.amber[5], tag: 2 }]));
+    var lampGlass = new T.Mesh(lampGlassGeo, basicV); lampG.add(lampGlass);
+    var lampEm = emTwin(lampGlass, lampGlassGeo);   /* 등불 발광 쌍둥이: EM.lamp × em × (0.4+0.6·n/8) */
     var lampGlow = new T.Mesh(keep(new T.PlaneGeometry(1.1, 1.1)), glowMat); lampGlow.renderOrder = 5; lampG.add(lampGlow);
     var lampPool = new T.Mesh(keep(new T.PlaneGeometry(2.6, 2.6)), keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[2]), transparent: true, opacity: 0.28, depthWrite: false })));
     lampPool.rotation.x = -Math.PI / 2; lampPool.position.set(lampPos.x, 0.015, lampPos.z); lampPool.renderOrder = 2; scene.add(lampPool);
@@ -564,7 +595,8 @@ var SCENE3D = (function () {
     function applyLamp() {
       var n = st.lantern, k = n > 0 ? 0.4 + 0.6 * n / 8 : 0, on = n > 0;
       lamp.intensity = (light.lamp || 1.2) * k; lamp.distance = light.lampD || 6;
-      lampGlass.material.color.copy(C(on ? PAL.amber[2] : PAL.slate[1]));
+      recolor(lampGlassGeo, 1, on ? PAL.amber[2] : PAL.slate[1]); recolor(lampGlassGeo, 2, on ? PAL.amber[5] : PAL.slate[2]);
+      lampEm.visible = on; lampEm.material.color.copy(C(EM.lamp)).multiplyScalar((light.em || 1) * k);
       lampGlow.visible = on; lampGlow.material.opacity = glowOpacity(); lampGlow.scale.setScalar(0.7 + 0.06 * n);
       lampPool.visible = on; lampPool.material.opacity = (0.12 + 0.03 * n) * (light.pool || 1); lampPool.scale.setScalar((light.lampD || 6) / 6);
       dust.visible = on && !st.reduced;
@@ -613,6 +645,8 @@ var SCENE3D = (function () {
     var candleG = new T.Group(); candleG.position.set(snapPos(2.05), 0.72, snapPos(-0.8));
     candleG.add(new T.Mesh(keep(mergeParts([{ g: new T.CylinderGeometry(0.08, 0.08, 0.3, 7), m: M(0, 0.15, 0), c: PAL.paper[1] }, { g: box(0.03, 0.06, 0.03), m: M(0, 0.32, 0), c: PAL.ink }])), lambert));
     var flame = new T.Mesh(keep(new T.SphereGeometry(0.06, 6, 5)), basic(PAL.amber[4])); flame.position.y = 0.4; candleG.add(flame);
+    var flameEm = emTwin(flame, flame.geometry), FLAME_C = [C(PAL.amber[4]), C(PAL.amber[5])], EM_FLAME = C(EM.flame), flick = { k: -1, j: 0.5 };   /* 불꽃 2프레임 (룩 패스 6): 어두운/밝은 색 · 발광 쌍둥이 · 주기별 시드 지터 */
+    flameEm.scale.setScalar(1.6);   /* 불꽃(r 0.06 ≈ 1px)은 너무 작아 발광원을 1.6배(≈ 3px)로 — 블러 뒤 2px 고리가 남는다 */
     var candleGlow = new T.Mesh(keep(new T.PlaneGeometry(0.5, 0.5)), glowMat); candleGlow.position.y = 0.4; candleGlow.renderOrder = 5; candleG.add(candleGlow);
     candleLight.position.set(candleG.position.x, 1.15, candleG.position.z);
     addProp('candle', candleG);
@@ -914,19 +948,38 @@ var SCENE3D = (function () {
       if (lampDirty) applyLamp();
       if (!st.reduced && st.lantern > 0) { lampGlow.material.opacity = glowOpacity() + Math.sin(time * 2) * 0.03 * (light.glow || 0.7) / 0.7; }
       if (dust.visible) { dust.rotation.y = time * 0.12; dust.position.y = lampPos.y - 0.8 + Math.sin(time * 0.4) * 0.06; }
-      if (props.candle.visible) { candleT += dt; var ck = light.candle || 1, fl = 0.35 + (Math.sin(candleT * 9.1) * 0.06 + Math.sin(candleT * 23.7) * 0.035) * ck; candleLight.intensity = (st.reduced ? 0.35 : fl) * ck; flame.scale.y = st.reduced ? 1 : 1 + (fl - 0.35) * 2.5; candleGlow.visible = true; } else candleLight.intensity = 0;   /* 양초 0.35 d 2, 낮엔 깜빡임도 줄인다 */
+      if (props.candle.visible) {   /* 양초 점광 0.3~0.42 d 2 × 시각대 계수. 불꽃 = 2프레임 깜빡임 (룩 패스 6): 7 Hz, 주기마다 시드 지터로 밝은 프레임이 35~65 % — 크기(y 0.9/1.25)·색(호박 4/5)·발광(0.7/1.0). 모션 감소면 중간값 고정 */
+        candleT += dt; var ck = light.candle || 1, fph = candleT * 7, fk = Math.floor(fph);
+        if (fk !== flick.k) { flick.k = fk; flick.j = (hash('flk' + fk) % 100) / 100; }
+        var fon = st.reduced ? 0.5 : (fph - fk < 0.35 + 0.3 * flick.j ? 1 : 0);
+        candleLight.intensity = (0.3 + 0.12 * fon) * ck;
+        flame.scale.set(1, st.reduced ? 1.05 : 0.9 + 0.35 * fon, 1); flame.material.color.copy(FLAME_C[fon >= 0.5 ? 1 : 0]);
+        flameEm.material.color.copy(EM_FLAME).multiplyScalar((light.em || 1) * (0.7 + 0.3 * fon));
+        candleGlow.visible = true;
+      } else candleLight.intensity = 0;
       dither.still = Math.min(1, dither.still + dt);
       post.uniforms.uDither.value = ditherNow();
       stepWeather(dt); stepOct(dt); stepHang(dt);
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(camera.quaternion);
       placeCamera(); updateOverlay();
       renderer.shadowMap.needsUpdate = true;
-      renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, camera);
+      renderer.setRenderTarget(rt); renderer.clear(true, true, false); renderer.render(scene, camera);
       calls = renderer.info.render.calls;
       scene.overrideMaterial = normalMat; var bg = scene.background; scene.background = null; shade.visible = false;   /* 차폐는 노멀 패스에서 숨김 (방 전체를 덮어쓰지 않게) */
-      renderer.setRenderTarget(rtN); renderer.clear(); renderer.render(scene, camera);
-      scene.overrideMaterial = null; scene.background = bg; shade.visible = true;
+      renderer.setRenderTarget(rtN); renderer.clear(true, true, false); renderer.render(scene, camera);
+      scene.overrideMaterial = null;
       calls += renderer.info.render.calls;
+      /* 발광 패스 (룩 패스 6): 레이어 1 의 발광 쌍둥이 3개만 (배경 없음 = 검정). 깊이 텍스처가 있으면 뷰티 깊이를 공유하므로 색만 지운다 → 가려진 발광은 안 그려진다 */
+      camera.layers.set(1);
+      renderer.setRenderTarget(rtE); renderer.clear(true, !hasDepthTex, false); renderer.render(scene, camera);
+      camera.layers.set(0); scene.background = bg; shade.visible = true;
+      calls += renderer.info.render.calls;
+      if (blurOn) {   /* 분리 블러 가로 → 세로 (풀스크린 삼각형 2회, rtE → rtB → rtE). p ≥ 4 면 생략 */
+        quad.material = blurMat;
+        blurMat.uniforms.tSrc.value = rtE.texture; blurMat.uniforms.uDir.value.set(1 / S.rw, 0); renderer.setRenderTarget(rtB); renderer.render(quadScene, quadCam);
+        blurMat.uniforms.tSrc.value = rtB.texture; blurMat.uniforms.uDir.value.set(0, 1 / S.rh); renderer.setRenderTarget(rtE); renderer.render(quadScene, quadCam);
+        quad.material = post; calls += 2;
+      }
       renderer.setRenderTarget(null); renderer.render(quadScene, quadCam);
       calls += 1;
       if (!logged && frameNo > 3) {
@@ -977,7 +1030,7 @@ var SCENE3D = (function () {
         else { var base = PAL.list.slice(0, PAL.list.length - PAL.oct.length); for (var i = 0; i < base.length; i += 8) out.push({ name: PAL.source + ' ' + (i / 8 + 1), colors: base.slice(i, i + 8) }); }
         out.push({ name: 'oct', colors: PAL.oct }); return out;
       },
-      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour) }; },
+      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2) }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastT = 0; loop(); },
       destroy: function () {
