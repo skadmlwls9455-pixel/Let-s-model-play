@@ -16,8 +16,9 @@
 <!-- 저장 실패 경고 (조용히, 1회) -->
 <div id="save-warn" class="warn" hidden role="status">기록을 이 브라우저에 저장하지 못했어. 새로고침하면 사라질 수 있어.</div>
 
-<!-- ══ SCENE · 픽셀 캔버스 320×240 (§7.0) ══ -->
+<!-- ══ SCENE · 3D 픽셀아트 다락방 (§7.0, js/scene3d.js) — WebGL 없으면 아래 #stage 2D 폴백 ══ -->
 <section id="scene" aria-label="문어의 다락방">
+  <div id="scene3d" aria-hidden="true" hidden></div>
   <div id="stage">
     <div id="layers"></div>
     <div id="window-fx" aria-hidden="true"></div>
@@ -117,6 +118,14 @@
   <textarea id="d-json" rows="3" placeholder='[{"type":"depart","t":0,"hint":""}, …]'></textarea>
   <div class="btn-row"><button type="button" class="btn sm" id="d-import">이벤트 JSON 불러오기</button></div>
   <p class="help" id="d-msg"></p>
+  <div id="dev-look" class="dev-look">
+    <label class="dv"><span>픽셀 <b id="dv-px-v"></b></span><input type="range" id="dv-px" min="1" max="4" step="1"></label>
+    <label class="dv"><span>디더 <b id="dv-dither-v"></b></span><input type="range" id="dv-dither" min="0" max="1" step="0.05"></label>
+    <label class="dv"><span>외곽선</span><input type="checkbox" id="dv-outline"></label>
+    <label class="dv"><span>시점 <b id="dv-yaw-v"></b></span><input type="range" id="dv-yaw" min="-25" max="25" step="1"></label>
+    <p class="help" id="dv-msg"></p>
+    <div id="dv-swatch" class="swatch" aria-label="팔레트"></div>
+  </div>
 </details>
 
 <footer class="foot">뽈뽈 문어 · <a href="https://github.com/skadmlwls9455-pixel/model-welfare-idea" rel="noopener" target="_blank">뽈뽈 복지</a>에서 왔어</footer>
@@ -156,8 +165,12 @@
 
 <output id="toast" aria-live="polite"></output>
 
+<!-- three r128 UMD (MIT, vendor/THREE-LICENSE.txt). 로컬 파일이 없으면 cdnjs. 둘 다 실패하면 SCENE2D 폴백 -->
+<script src="vendor/three.min.js" onerror="document.write('<script src=\'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js\'><\/script>')"></script>
 <script src="js/world.js"></script>
 <script src="js/brain.js"></script>
+<script src="js/scene3d.js"></script>
+<script src="js/scene2d.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

@@ -30,6 +30,9 @@ var WIKI_OK = {
 };
 var WIKI_MISSING = { query: { pages: { '-1': { title: 'x', missing: '' } } } };
 
+/* 장면 공통 조회: 3D(canvas) 와 2D(DOM) 어느 쪽이든 같은 답. 벽 포스터 수 · 소품 존재 */
+function wallCount(page) { return page.evaluate(function () { var sc = document.getElementById('scene'), h3 = document.getElementById('scene3d'); return sc.classList.contains('mode-3d') ? (parseInt(h3.dataset.posters, 10) || 0) : document.querySelectorAll('#wall-posts .wall-mini').length; }); }
+function hasItem(page, item) { return page.evaluate(function (it) { var sc = document.getElementById('scene'), h3 = document.getElementById('scene3d'); return sc.classList.contains('mode-3d') ? (h3.dataset.items || '').split(' ').indexOf(it) >= 0 : !!document.querySelector('#layers .layer[data-key="item.' + it + '"]'); }, item); }
 function routeWiki(page, mode) {
   return page.route('https://ko.wikipedia.org/**', function (route) {
     if (mode === 'abort') return route.abort('failed');
@@ -116,21 +119,25 @@ async function scenarioMain(browser) {
   ok(st.firstPeek && st.firstPeek.id === 'hat', "힌트 '모자의 역사' → 첫 정류장 hat");
   ok(st.octState === 'sleep', '마무리 뒤 문어 sleep');
   ok((await page.$$('#album .pcard')).length === 1, '앨범 카드 1개');
-  ok((await page.$$('#wall-posts .wall-mini')).length === 1, '벽 썸네일 1개');
+  ok((await wallCount(page)) === 1, '벽 썸네일 1개');
   ok((await page.$$('#pips .pip.on')).length === 1, '상태줄 pip 1개 켜짐');
   ok((await page.getAttribute('#pips', 'aria-label')) === '등불 1/8', 'pips aria-label');
   ok((await page.$$('#log .lrow')).length >= 5, '로그 행 ≥5');
-  ok(await page.$('#layers .layer[data-key="item.moss"]'), '등불 1 → 이끼 화분 레이어');
+  ok(await hasItem(page, 'moss'), '등불 1 → 이끼 화분');
+  var sc3 = await page.evaluate(function () { return { mode: APP.sceneMode, stats: APP.scene.stats(), webgl: !!(document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl')) }; });
+  console.log('   scene:', JSON.stringify(sc3));
+  ok(sc3.mode === (sc3.webgl ? '3d' : '2d'), '장면 모드 = WebGL 유무에 맞음 (' + sc3.mode + ')');
+  if (sc3.mode === '3d') { ok(sc3.stats.calls > 0 && sc3.stats.calls <= 150, '3D 드로우콜 ≤150 (' + sc3.stats.calls + ')'); ok(sc3.stats.palette <= 64, '팔레트 ≤64색 (' + sc3.stats.palette + ')'); }
   var logText = await page.textContent('#log');
   ok(/✅ 읽음|📚 책장 메모|❌ 못 읽음|🧪 모의 방문|◌/.test(logText), '로그에 읽기 상태 아이콘');
   ok(!/결과|리서치|보고/.test(logText), "로그에 '결과/리서치/보고' 없음");
 
   console.log('\n== 새로고침 → 그대로');
-  await page.waitForTimeout(300);   /* file:// 원점의 localStorage 커밋이 새로고침과 겹치지 않게 */
+  await page.waitForTimeout(1000);   /* file:// 원점의 localStorage 커밋이 새로고침과 겹치지 않게 (3D 렌더로 바쁜 탭에서는 300ms 로는 간헐 실패) */
   await page.reload();
   await page.waitForSelector('#btn-go:not([disabled])');
   ok((await page.$$('#album .pcard')).length === 1, '새로고침 후 앨범 카드 1개');
-  ok((await page.$$('#wall-posts .wall-mini')).length === 1, '새로고침 후 벽 썸네일 1개');
+  ok((await wallCount(page)) === 1, '새로고침 후 벽 썸네일 1개');
   ok((await page.$$('#pips .pip.on')).length === 1, '새로고침 후 등불 1칸');
   ok((await page.$$('#log .lrow')).length >= 5, '새로고침 후 로그가 trips 에서 다시 그려짐');
   ok(await page.evaluate(function () { return document.getElementById('oct').className.indexOf('st-sleep') >= 0; }), '새로고침 후 문어는 자고 있음');
@@ -297,7 +304,7 @@ async function scenarioMigrate(browser) {
     APP.state.trips.push(Object.assign({ id: 'trip_run1', date: dk, seq: 1, seed: seed, status: 'running', startedAt: Date.now() - 60000, endedAt: null }, t));
     return { saved: APP.save(), kind: t.kind, n: APP.state.trips.length, stored: (JSON.parse(localStorage.getItem('ppolppol_v2') || '{}').trips || []).map(function (x) { return x.id + ':' + x.status; }) };
   }).then(function (inj) { console.log('   injected:', JSON.stringify(inj)); });
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(1000);   /* 위와 같은 이유 */
   await page.reload();
   await page.waitForSelector('#btn-go:not([disabled])');
   await page.waitForFunction(function () { return APP.state.trips.every(function (t) { return t.status === 'done'; }); });
@@ -340,8 +347,9 @@ async function scenarioForcedHome(browser) {
     var t = APP.state.trips[APP.state.trips.length - 1];
     return { kind: t.kind, status: t.status, type: t.poster && t.poster.type, line: t.poster && t.poster.line, act: t.receipt && t.receipt.activity && t.receipt.activity.id,
       l: APP.state.room.lantern, tr: APP.state.octopus.trips, inv: APP.state.octopus.invites, oct: document.getElementById('oct').className,
-      log: document.getElementById('log').textContent, cards: document.querySelectorAll('#album .pcard.note').length, wall: document.querySelectorAll('#wall-posts .wall-mini').length };
+      log: document.getElementById('log').textContent, cards: document.querySelectorAll('#album .pcard.note').length };
   });
+  r.wall = await wallCount(page);
   console.log('   home:', JSON.stringify({ kind: r.kind, type: r.type, act: r.act, line: r.line }));
   must(r.kind === 'home' && r.status === 'done', '강제 집 → kind=home, done');
   ok(r.type === 'note' && r.line && r.line.length > 0, '쪽지 카드 (poster.type=note, 한 줄 있음)');
@@ -403,6 +411,31 @@ async function scenarioMigrateExact(browser) {
   await s.ctx.close();
 }
 
+/* G. 2D 폴백 (?scene=2d): 같은 API 로 초대 한 번 — 레이어 DOM · 벽 · 문어 클래스 */
+async function scenario2D(browser) {
+  console.log('\n== G. 2D 폴백 (?scene=2d)');
+  var s = await newPage(browser, 'ok');
+  var page = s.page;
+  await page.goto(INDEX + '?scene=2d');
+  await page.waitForSelector('#name-dialog[open]');
+  await page.fill('#name-in', await pickName(page));
+  await page.click('#name-form button[type=submit]');
+  await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  ok(await page.evaluate(function () { return APP.sceneMode === '2d' && document.getElementById('scene').classList.contains('mode-2d') && !document.getElementById('scene').classList.contains('mode-3d'); }), '2D 모드로 내려감');
+  ok(await page.$('#layers .layer[data-key="bg.room"]'), '2D 배경 레이어 있음');
+  await page.fill('#hint-in', '모자의 역사');
+  await page.click('#btn-go');
+  await page.waitForSelector('#btn-skip:not([hidden])', { timeout: 10000 });
+  await page.click('#btn-skip');
+  await page.waitForSelector('#btn-go:not([disabled])', { timeout: 30000 });
+  ok((await page.evaluate(function () { return APP.state.room.lantern; })) === 1, '2D 폴백에서도 등불 1');
+  ok((await wallCount(page)) === 1 && !!(await page.$('#wall-posts .wall-mini')), '2D 벽 썸네일 1개 (DOM)');
+  ok(await hasItem(page, 'moss'), '2D 이끼 화분 레이어');
+  ok(await page.evaluate(function () { return /st-(sleep|idle)/.test(document.getElementById('oct').className); }), '2D 문어 상태 클래스');
+  await page.screenshot({ path: path.join(SHOTS, 'phone-2d-fallback.png') });
+  ok(s.bag.length === 0, '2D 폴백 콘솔/페이지 에러 없음' + (s.bag.length ? ' → ' + s.bag.join(' | ') : ''));
+  await s.ctx.close();
+}
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
@@ -413,6 +446,7 @@ async function scenarioMigrateExact(browser) {
     await scenarioMigrate(browser);
     await scenarioForcedHome(browser);
     await scenarioMigrateExact(browser);
+    await scenario2D(browser);
   } catch (e) {
     fails++; console.error('\nCRASH: ' + (e && e.stack || e));
   } finally {
