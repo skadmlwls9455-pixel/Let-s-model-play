@@ -390,16 +390,18 @@ var APP = (function () {
       if (m.ceremony === 'depart') cer.raf = requestAnimationFrame(tick);
     })();
   }
-  /* → Promise<{ ink, cancelled }>. cancelled = 다른 의식이 덮어 조용히 취소됨 (데모 조작) */
-  function runCeremony(kind) {
-    if (!hasCeremony()) return Promise.resolve({ ink: false, cancelled: false });
+  /* kind: depart · return · peek(arg = peekOutside 인자) · leave → Promise<{ ink, cancelled }>. cancelled = 다른 의식이 덮어 조용히 취소됨 (데모 조작).
+     기웃·퇴장은 앞 의식 뒤에 줄을 서므로(장면 이름이 아직 앞 것) 자기 이름을 한 번 본 뒤에 이름이 바뀌어야 '덮였다' 로 본다. 모션 감소는 장면이 처리(한 프레임 / 기웃 0.4 s) */
+  var CER_FN = { depart: 'departCeremony', 'return': 'returnCeremony', peek: 'peekOutside', leave: 'leaveOutside' };
+  function runCeremony(kind, arg) {
+    if (!hasCeremony() || typeof scene[CER_FN[kind]] !== 'function') return Promise.resolve({ ink: false, cancelled: false });
     var my = ++cer.seq, t0 = Date.now();
     cer.kind = kind; cer.ink = false;
-    var p = kind === 'depart' ? scene.departCeremony() : scene.returnCeremony();
+    var p = kind === 'peek' ? scene.peekOutside(arg) : scene[CER_FN[kind]]();
     if (kind === 'depart' && sceneMode === '3d') watchDoorExit(my);
-    if (skipFlag || reduced()) jumpCeremony();
+    if (skipFlag) jumpCeremony();
     return new Promise(function (resolve) {
-      var done = false, iv = null;
+      var done = false, iv = null, seen = sceneCeremony() === kind, blank = 0;
       function fin(cancelled) {
         if (done) return; done = true; clearInterval(iv);
         var ink = cer.seq === my && cer.ink;
@@ -408,11 +410,53 @@ var APP = (function () {
       }
       Promise.resolve(p).then(function () { fin(false); }, function () { fin(false); });
       iv = setInterval(function () {
-        if (sceneCeremony() !== kind) { fin(true); return; }   /* 끝났으면 p 가 먼저 풀렸다 → 여기 오면 다른 의식이 덮은 것 */
+        var name = sceneCeremony();
+        if (name === kind) { seen = true; blank = 0; }
+        else if (name && seen) { fin(true); return; }        /* 끝났으면 p 가 먼저 풀렸다 → 여기 오면 다른 의식이 덮은 것 */
+        else if (!name && ++blank > 2) { fin(false); return; }   /* 장면이 조용히 끝냈는데 Promise 를 못 받음 — 흐름은 멈추지 않는다 */
         if (document.hidden || Date.now() - t0 > 30000 * speed()) jumpCeremony();
       }, 250);
     });
   }
+  /* ── 바깥 기웃 (뽈뽈 중 "찾았다!"는 다락이 아니라 바깥에서, SCENE.md "바깥 기웃"): 출발 의식 뒤 기웃마다 peekOutside → 자세를 잡는 순간
+     말풍선 + 그 기웃의 로그 행을 같이. 말풍선은 상태대로 정직하게 (읽음/처음 = 외침 · 책장 = 생각 · 모의 = 속삭임 · 실패 = 말). #oct 오버레이는
+     나가 있는 동안 .st-away 로 숨으므로 말풍선이 떠 있는 동안만 인라인으로 들어 올린다 (3D 는 #oct-inner 가 없어 말풍선만 보인다) ── */
+  var liftTimer = null;
+  function liftOverlay(ms) { var el = $('oct'); if (!el) return; el.style.visibility = 'visible'; el.style.opacity = '1'; el.style.transition = 'none'; clearTimeout(liftTimer); liftTimer = setTimeout(dropOverlay, ms + 200); }
+  function dropOverlay() { clearTimeout(liftTimer); var el = $('oct'); if (el) { el.style.visibility = ''; el.style.opacity = ''; el.style.transition = ''; } }
+  function peekBubble(ev, firstN) {
+    var e = stopEmoji(ev), st = ev.status || 'failed', id = ev.target && ev.target.id;
+    if (id === 'letter_room') return { text: '아직 비어 있었어', kind: 'say' };
+    if (st === 'failed') return { text: '닫혀 있었어', kind: 'say' };
+    if (st === 'simulated') return { text: '문 앞까지만', kind: 'whisper' };
+    if (st === 'none') return { text: '…', kind: 'whisper' };
+    if (ev.first && (st !== 'read' || firstN % 2 === 0)) return { text: '처음 와 봤어! ' + e, kind: 'shout' };   /* 처음 온 곳: 읽음이면 '찾았다!' 와 번갈아 */
+    if (st === 'read') return { text: '찾았다! ' + e, kind: 'shout' };
+    return { text: '음… ' + e, kind: 'think' };
+  }
+  function peeksOutside() { return sceneMode === '3d' && !skipFlag && oct.state === 'away' && typeof scene.peekOutside === 'function' && typeof scene.place === 'function' && scene.place() === 'exterior'; }
+  function peekOut(ev, show) {
+    var tg = ev.target || {}, nd = tg.id ? nodeOf(tg.id) : null;
+    var arg = { corner: (nd && nd.corner) || 'wild', roomId: tg.id || null, status: ev.status || 'failed', first: !!ev.first, emoji: stopEmoji(ev) };
+    var b = peekBubble(ev, revealing.firstN); if (ev.first) revealing.firstN++;
+    revealing.outside = true;
+    var shown = false, raf = 0, sawOff = false;
+    function hold() {
+      if (shown) return; shown = true; cancelAnimationFrame(raf);
+      show();
+      if (skipFlag) return;   /* 건너뛰면 말풍선 없이 행만 */
+      var ms = reduced() ? 900 : 1700;
+      liftOverlay(ms); bubble(b.text, ms, b.kind);
+    }
+    if (typeof scene.peek === 'function') (function tick() {   /* 자세를 잡는 첫 프레임 (앞 기웃의 hold 가 남아 있을 수 있어 꺼진 걸 한 번 본 뒤) */
+      if (shown) return;
+      var pk = scene.peek();
+      if (!pk.hold) sawOff = true; else if (sawOff) { hold(); return; }
+      raf = requestAnimationFrame(tick);
+    })();
+    return runCeremony('peek', arg).then(hold);   /* 끝까지 못 봤으면(탭 숨김·건너뛰기) 지금 */
+  }
+
   /* 나가기: 의식 → 'away'. 건너뛰기면 의식 없이 바로 'away' (귀가에서 다락으로 즉시 돌아온다) */
   function departOut() {
     if (skipFlag || !hasCeremony()) { octState('away'); return Promise.resolve(); }
@@ -607,7 +651,7 @@ var APP = (function () {
     });
   }
   function reveal(trip) {
-    revealing = { trip: trip, wake: null, deferred: null, ceremony: null };
+    revealing = { trip: trip, wake: null, deferred: null, ceremony: null, outside: false, firstN: 0 };
     var rng = mkRng((trip.seed ^ 0x9e3779b9) >>> 0);
     var evs = trip.events || [];
     var today = ensureTodaySection();
@@ -617,10 +661,13 @@ var APP = (function () {
     function hideTyping() { if (typing) { typing.remove(); typing = null; } }
     var chain = Promise.resolve();
     evs.forEach(function (ev, i) {
+      var out = false;
       chain = chain.then(function () {
-        if (i > 0) { showTyping(); return gapWait((2200 + rng() * 2300) * speed()).then(hideTyping); }
+        out = ev.type === 'peek' && peeksOutside();   /* 바깥 기웃: 걸어가는 시간만큼 틈은 짧게, '…' 는 자세를 잡을 때까지 */
+        if (i > 0) { showTyping(); return gapWait((out ? 1100 + rng() * 1300 : 2200 + rng() * 2300) * speed()).then(function () { if (!out || skipFlag) hideTyping(); }); }
       }).then(function () {
         var row = eventRow(trip, ev);
+        if (out && !skipFlag) return peekOut(ev, function () { hideTyping(); if (row) appendLogRow(today, row); });
         if (row) appendLogRow(today, row);
         return sceneFor(trip, ev);
       });
@@ -671,9 +718,10 @@ var APP = (function () {
       case 'return':
         commitTrip(trip);
         var mode = trip.poster ? 'carry' : 'walk', carryX = trip.poster ? { svg: posterSVG(trip, 48, 64, { mini: true, noExternal: true }) } : null;
-        if (fast) { jumpCeremony(); ensureAttic(); octPlace('board'); octState(mode, carryX); return Promise.resolve(); }
-        /* 귀가 의식(길 → 계단 → 현관 → 다락 문) → 보드까지 걸어가 포스터 걸기 */
-        var back = (hasCeremony() && oct.state === 'away') ? runCeremony('return') : Promise.resolve();
+        var wasOut = !!(revealing && revealing.outside);
+        if (fast) { if (wasOut && typeof scene.leaveOutside === 'function') scene.leaveOutside(); jumpCeremony(); dropOverlay(); ensureAttic(); octPlace('board'); octState(mode, carryX); return Promise.resolve(); }
+        /* (바깥 기웃을 했으면 같은 출구로 퇴장) → 귀가 의식(길 → 계단 → 현관 → 다락 문) → 보드까지 걸어가 포스터 걸기 */
+        var back = (hasCeremony() && oct.state === 'away') ? (wasOut ? runCeremony('leave') : Promise.resolve()).then(function () { dropOverlay(); return runCeremony('return'); }) : Promise.resolve();
         return back.then(function () {
           ensureAttic(); octPlace('door');
           if (skipFlag) { octPlace('board'); octState(mode, carryX); return; }
@@ -708,7 +756,7 @@ var APP = (function () {
     }
   }
   function finalPose(trip) {
-    ensureAttic();
+    ensureAttic(); dropOverlay();
     if (trip.kind === 'empty') { octState(S.octopus.state === 'sleep' ? 'sleep' : 'idle'); return; }
     octPlace('blanket');
     octState('sleep'); S.octopus.state = 'sleep'; save();

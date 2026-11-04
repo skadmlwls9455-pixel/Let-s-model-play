@@ -576,7 +576,8 @@ async function scenarioCeremony(browser) {
   await page.click('#name-form button[type=submit]');
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   var mode = await page.evaluate(function () {
-    window.__ink = [];
+    window.__ink = []; window.__bub = [];
+    if (window.UIART) { var ob = UIART.onBubble; UIART.onBubble = function (text, kind) { if (text) window.__bub.push({ text: text, kind: kind, skin: UIART.bubbleSkin(text, kind), place: APP.scene.place(), state: APP.oct.state, peekRows: [].filter.call(document.querySelectorAll('#log .lrow .ltool'), function (e) { return e.textContent === '기웃'; }).length, ov: getComputedStyle(document.getElementById('oct')).visibility }); return ob.apply(this, arguments); }; }
     if (window.UIART) { var f = UIART.fx; UIART.fx = function (n) { if (n === 'ink') window.__ink.push({ place: APP.scene.place(), m: APP.scene.motion ? APP.scene.motion() : null }); return f.apply(this, arguments); }; }
     return APP.sceneMode;
   });
@@ -595,6 +596,12 @@ async function scenarioCeremony(browser) {
   if (mode === '3d') ok(away.ink.length === 1 && away.ink[0].place === 'exterior' && away.ink[0].m.octVisible, '먹물은 한 번, 문어가 현관문을 나설 때 (바깥 · 문어 보임)');
   await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(SHOTS, 'phone-away-exterior.png') });
+  /* 바깥 기웃: 자세를 잡는 순간 말풍선 + 그 기웃 행 (3D) */
+  if (mode === '3d') {
+    await page.waitForFunction(function () { return window.__bub.some(function (b) { return b.state === 'away'; }); }, null, { timeout: 30000 });
+    await page.screenshot({ path: path.join(ROOT, 'tests/evidence/peek-bubble.png') });
+    await page.screenshot({ path: path.join(SHOTS, 'phone-peek-bubble.png') });
+  }
   /* 건너뛰지 않고 끝까지: 귀가 의식 → 다락 → 보드 → 포스터 */
   if (mode === '3d') await page.waitForFunction(function () { return APP.scene.ceremony() === 'return'; }, null, { timeout: 60000 });
   await page.waitForFunction(function () { return APP.scene.place() === 'attic' && APP.oct.state !== 'away'; }, null, { timeout: 60000 });
@@ -606,6 +613,16 @@ async function scenarioCeremony(browser) {
   ok(back.log.join('>') === 'attic>exterior>attic', '장소 순서 다락 → 바깥 → 다락 (' + back.log.join('>') + ')');
   ok(back.poster && (await wallCount(page)) === 1, '포스터가 벽에 걸림');
   ok(back.oct === 'sleep', '마무리 뒤 잠듦');
+  var bub = await page.evaluate(function () { return { all: window.__bub, peeks: APP.state.trips[0].events.filter(function (e) { return e.type === 'peek'; }).map(function (e) { return (e.target && e.target.id) + ':' + e.status + (e.first ? ':first' : ''); }) }; });
+  var awayB = bub.all.filter(function (b) { return b.state === 'away'; });
+  console.log('   peeks:', JSON.stringify(bub.peeks), ' bubbles(away):', JSON.stringify(awayB.map(function (b) { return b.place + '|' + b.kind + '|' + b.text + '|rows=' + b.peekRows + '|' + b.ov; })));
+  if (mode === '3d') {
+    ok(awayB.length === bub.peeks.length && awayB.every(function (b) { return b.place === 'exterior' && ['shout', 'think', 'whisper', 'say'].indexOf(b.kind) >= 0; }), '기웃마다 바깥에서 말풍선 (shout/think/whisper/say) — ' + awayB.length + '/' + bub.peeks.length);
+    ok(awayB.every(function (b, i) { return b.peekRows === i + 1; }), '기웃 행은 말풍선과 같은 순간에 (n번째 말풍선 때 기웃 행 n개)');
+    ok(awayB.every(function (b) { return b.ov === 'visible'; }), '나가 있는 동안에도 말풍선 오버레이가 보임 (.st-away 들어 올림)');
+    ok(awayB.every(function (b) { return b.skin === b.kind; }), 'UI 아트 말풍선 모양 = 상태별 종류');
+  }
+  ok(!bub.all.some(function (b) { return b.place === 'attic' && /찾았다/.test(b.text); }), "다락에선 '찾았다' 말풍선 없음");
   await page.screenshot({ path: path.join(SHOTS, 'phone-returned-attic.png') });
 
   console.log('\n== I-2. 출발 의식 중 건너뛰기 → 다락');
