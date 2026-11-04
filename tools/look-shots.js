@@ -3,7 +3,7 @@
  *   node tools/look-shots.js <pass> [palette] [yaw]   # → tests/evidence/look/<pass>-{day,night,close}.png + 메트릭. palette = ramps | apollo | endesga64 | resurrect64 (생략 = 기본값)
  *   yaw(룩 패스 5, 선택) = 시점 각도 −25~25 (9° 스냅). 0 이 아니면 파일명이 <pass>-y<yaw>-{day,night,close}.png 가 되어 요 0° 샷과 나란히 심 두께(look-metrics 의 lines)를 비교할 수 있다.
  * 고정 조건: window.__ppolLook = { hour, lantern: 8, weather: 'rain', octState: 'idle', anchor: 'center', palette? } (APP 이 있을 때만 읽는다).
- *   day   = 14:00, p=3 · night = 22:00, p=3 · close = 14:00, p=2 + 줌 ×2 (문어 중심).
+ *   day   = 14:00, p=2 · night = 22:00, p=2 · close = 14:00, p=2 + 줌 ×2 (문어 중심). (룩 패스 8 부터 기본 p=2; 환경변수 LOOK_P=3 으로 예전 조건)
  * 콘솔/페이지 에러가 있으면 exit 1.
  */
 'use strict';
@@ -67,7 +67,7 @@ var WIKI_OK = { query: { pages: { '1': { pageid: 1, title: '모자', extract: '�
   }
   var pal = await page.evaluate(function () { return APP.scene.paletteName ? APP.scene.paletteName() : '?'; });
   if (PALETTE && pal !== PALETTE) { console.error('팔레트가 적용되지 않음: 요청 ' + PALETTE + ' / 실제 ' + pal); process.exit(1); }
-  var base = { pixelSize: 3, zoom: 0, dither: 0.25, outline: true, yaw: YAW, focus: null };
+  var base = { pixelSize: +process.env.LOOK_P || 2, zoom: 0, dither: 0.25, outline: true, yaw: YAW, focus: null };   /* 룩 패스 8: 기본 p=2 (LOOK_P=3 으로 예전 조건) */
   var res = {};
   res.day = await shot('day', 14, base);
   res.night = await shot('night', 22, base);

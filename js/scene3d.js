@@ -10,7 +10,8 @@ var SCENE3D = (function () {
   'use strict';
   var T = null;
   var DEG = Math.PI / 180;
-  var TILT = 32 * DEG, YAW = 45 * DEG, DIST = 24, PX_PER_M = 18;   /* 아트 픽셀 18/m 고정 (p=3 폰에서 1px ≈ 5.5 cm) */
+  var TILT = 32 * DEG, YAW = 45 * DEG, DIST = 24, PX_PER_M = 18, DEF_P = 2;   /* 아트 픽셀 18/m × 3/p: 기본 p=2(룩 패스 8) → 27/m (1px ≈ 3.7 cm), p=3 → 18/m (5.5 cm) */
+  var SNAP_N = PX_PER_M * 3 / DEF_P;                                              /* 정적 소품 스냅 격자 = 기본 픽셀 격자 1/27 m (p=3 폴백에선 반 픽셀 위상이 생긴다 — 폴백은 느린 기기 전용) */
   var ZOOM_STEPS = [1, 1.25, 1.5, 2];
   /* 방 5×5 m (x,z ∈ [-2.5, 2.5]). 뒷벽 오른쪽 끝의 문으로 나간다 (§13.2 의 앞쪽 문은 직교 시점에서 바닥을 가려 뒷벽으로 옮김) */
   var R = 2.5;
@@ -55,8 +56,8 @@ var SCENE3D = (function () {
   }
   function mixHex(a, b, k) { var A = hexToOklab(a), B = hexToOklab(b); return oklabToHex([A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k, A[2] + (B[2] - A[2]) * k]); }
   function hash(s) { s = String(s); var x = 2166136261; for (var i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; }
-  var PX = 1 / PX_PER_M;                                                          /* 아트 픽셀 한 변(월드 m, p=3 줌 1 기준) = 1/18 m ≈ 5.6 cm */
-  function snapPos(v) { return Math.round(v * PX_PER_M) / PX_PER_M; }            /* 정적 소품 위치를 빌드 때 이 격자에 스냅 (룩 패스 5) */
+  var PX = 1 / SNAP_N;                                                            /* 아트 픽셀 한 변(월드 m, 기본 p=2 줌 1) = 1/27 m ≈ 3.7 cm */
+  function snapPos(v) { return Math.round(v * SNAP_N) / SNAP_N; }                /* 정적 소품 위치를 빌드 때 이 격자에 스냅 (룩 패스 5·8) */
 
   /* 즉흥 램프 (49) + 고정 3 + 문어 램프 5 = 57. 재질 기본색은 늘 이 램프에서 뽑는다 (스냅이 선택 팔레트로 옮긴다) */
   var RAMPS = [['wood', '#8a5a3c', 8], ['paper', '#efe3c8', 4], ['amber', '#ffb462', 6], ['navy', '#22304f', 6], ['moss', '#5f7a3a', 4],
@@ -265,7 +266,7 @@ var SCENE3D = (function () {
     var on = opts.on || {};
     var st = { lantern: opts.lantern | 0, items: (opts.items || []).slice(), weather: opts.weather || 'rain', hour: typeof opts.hour === 'number' ? opts.hour : 21.5,
       color: opts.color || '#e8463c', reduced: !!opts.reducedMotion, speed: opts.speed > 0 ? opts.speed : 1, octState: 'idle', paused: false, hidden: false,
-      look: Object.assign({ pixelSize: 3, dither: 0.25, outline: true, yaw: 0, key: LIGHTS.day.sunI, fill: LIGHTS.day.hemiI }, opts.look || {}), zoom: 0, palette: paletteSource(opts.palette || PAL_DEFAULT) };
+      look: Object.assign({ pixelSize: DEF_P, dither: 0.25, outline: true, yaw: 0, key: LIGHTS.day.sunI, fill: LIGHTS.day.hemiI }, opts.look || {}), zoom: 0, palette: paletteSource(opts.palette || PAL_DEFAULT) };
     st.look.key = clamp(+st.look.key || LIGHTS.day.sunI, 0.5, 4); st.look.fill = clamp(+st.look.fill || LIGHTS.day.hemiI, 0, 1);
     var PAL = buildPalette(st.color, st.palette), OC = octDerived(st.color);
     var disposables = [], unbind = [], raf = 0, lastT = 0, frameNo = 0, time = 0, calls = 0, ready = false;
@@ -321,7 +322,7 @@ var SCENE3D = (function () {
     var camTarget = new T.Vector3(0, 0.75, -0.4), _tg = new T.Vector3(), yawDrag = 0, dragging = false;
     function camTargetNow() { return st.look.focus === 'oct' && octG ? _tg.copy(octG.position).add(_focusUp) : camTarget; }   /* look.focus='oct': 문어 중심 (look-shots close) */
     var _focusUp = new T.Vector3(0, 0.45, 0);
-    var S = { W: 0, H: 0, p: 3, rw: 4, rh: 4, cw: 4, ch: 4, N: PX_PER_M, pw: PX, offX: 0, offY: 0 };   /* pw = pixelWorldSize: 아트 픽셀 한 변(월드 m), resize 에서 프러스텀 폭 / 타깃 폭 */
+    var S = { W: 0, H: 0, p: DEF_P, rw: 4, rh: 4, cw: 4, ch: 4, N: SNAP_N, pw: PX, offX: 0, offY: 0 };   /* pw = pixelWorldSize: 아트 픽셀 한 변(월드 m), resize 에서 프러스텀 폭 / 타깃 폭 */
     function yawDelta() { var y = clamp(yawDrag + st.look.yaw * DEG, -25 * DEG, 25 * DEG); return Math.round(y / (9 * DEG)) * 9 * DEG; }   /* 9° 스냅 */
     var _off = new T.Vector3(), _r = new T.Vector3(), _u = new T.Vector3(), _ax = new T.Vector3(1, 0, 0), _ay = new T.Vector3(0, 1, 0);
     function placeCamera() {
@@ -347,7 +348,7 @@ var SCENE3D = (function () {
       return d.set(0, 0, 0).addScaledVector(_r, dx).addScaledVector(_u, dy);
     }
     function resize() {
-      var W = container.clientWidth || 320, H = container.clientHeight || 240, p = Math.max(st.look.pixelSize | 0 || 3, Math.ceil(W / 480));
+      var W = container.clientWidth || 320, H = container.clientHeight || 240, p = Math.max(st.look.pixelSize | 0 || DEF_P, Math.ceil(W / 480));
       var rw = Math.max(8, Math.floor(W / p)), rh = Math.max(8, Math.floor(H / p));
       S.W = W; S.H = H; S.p = p; S.rw = rw; S.rh = rh; S.cw = rw * p; S.ch = rh * p; S.offX = Math.floor((W - S.cw) / 2); S.offY = Math.floor((H - S.ch) / 2);
       S.N = Math.round(PX_PER_M * 3 / p * ZOOM_STEPS[st.zoom]);   /* 픽셀을 줄이면 같은 구도에 디테일만 는다 */
@@ -455,7 +456,7 @@ var SCENE3D = (function () {
     }
     function seg(list, a, b, r, hex, sides) { list.push({ g: new T.CylinderGeometry(r, r, Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), sides || 4), m: segM(a, b), c: hex }); }
     /* 바닥: 밑판(이음 색 W2) 위에 널 23줄 — 피치 0.217 m, 널 0.127 + 이음 0.09(≈ 1 아트픽셀), 길이 1.0~2.4 m 로 엇갈림, 2색(W3/W4) 교대. 널 윗면 y=0.004 */
-    var FLOOR_SEAM = 0.09, FLOOR_PITCH = 2 * R / 23;
+    var FLOOR_SEAM = 0.05, FLOOR_PITCH = 2 * R / 23;   /* 이음 0.05 m ≈ 1.35 px @ p=2 (룩 패스 8: 0.09 는 p=2 에서 2~3 px 띠였다) */
     parts.push({ g: box(2 * R, 0.1, 2 * R), m: M(0, -0.05, 0), c: MAT.floorSeam });
     for (var i = 0; i < 23; i++) {
       var fx = -R + FLOOR_PITCH * (i + 0.5), fz = -R, k = 0;
@@ -468,11 +469,11 @@ var SCENE3D = (function () {
     }
     [[0.62, 0.9], [-1.48, -1.62], [1.72, 1.58]].forEach(function (p) { parts.push({ g: box(0.09, 0.012, 0.09), m: M(snapPos(p[0]), 0.0, snapPos(p[1])), c: MAT.knot }); propCount++; });   /* 옹이·못 3 (1px 점, 격자 스냅) */
     /* 디오라마 받침 (룩 패스 5: 치수를 아트 픽셀 배수로 — 돌출 4px(0.222 m) · 위 지층 4px + 1px 줄 + 아래 지층 4px = 9px = 0.5 m. 줄은 0.01 만 돌출해 깊이로 앞에 오되 외곽선(6 cm) 은 안 생긴다) */
-    var SLAB_OV = 4 * PX, SLAB_W = 2 * R + 2 * SLAB_OV;
-    parts.push({ g: box(SLAB_W, 4 * PX, SLAB_W), m: M(0, -2 * PX, 0), c: MAT.slabTop });
-    parts.push({ g: box(SLAB_W + 0.02, PX, SLAB_W + 0.02), m: M(0, -4.5 * PX, 0), c: MAT.slabLine });
-    parts.push({ g: box(SLAB_W, 4 * PX, SLAB_W), m: M(0, -7 * PX, 0), c: MAT.slabBase });
-    /* 벽 2면: 가로 널 10줄 0.3 m (창·문 구멍) + 줄 사이 1px 이음(W2, 0.08 m 높이) + 세로 샛기둥 3개씩 */
+    var SLAB_OV = 6 * PX, SLAB_W = 2 * R + 2 * SLAB_OV;   /* p=2 격자: 돌출 6px(0.222 m) · 지층 6px + 1px 줄 + 6px = 13px = 0.48 m (룩 패스 8, 세계 치수는 패스 5 와 같다) */
+    parts.push({ g: box(SLAB_W, 6 * PX, SLAB_W), m: M(0, -3 * PX, 0), c: MAT.slabTop });
+    parts.push({ g: box(SLAB_W + 0.02, PX, SLAB_W + 0.02), m: M(0, -6.5 * PX, 0), c: MAT.slabLine });
+    parts.push({ g: box(SLAB_W, 6 * PX, SLAB_W), m: M(0, -10 * PX, 0), c: MAT.slabBase });
+    /* 벽 2면: 가로 널 10줄 0.3 m (창·문 구멍) + 줄 사이 1px 이음(W2, 0.045 m 높이 ≈ 1.2 px @ p=2 — 룩 패스 8, 전엔 0.08) + 세로 샛기둥 3개씩 */
     for (i = 0; i < 10; i++) {
       var y = 0.15 + i * 0.3, cwall = i % 2 ? MAT.wallA : MAT.wallB, cback = i % 2 ? MAT.wallB : MAT.wallA;
       if (y + 0.15 > WIN.y0 && y - 0.15 < WIN.y1) {
@@ -486,12 +487,12 @@ var SCENE3D = (function () {
       if (i === 0) continue;
       var yb = i * 0.3;   /* 줄 경계 이음 */
       if (yb > WIN.y0 && yb < WIN.y1) {
-        parts.push({ g: box(0.02, 0.08, WIN.z0 + R), m: M(-R + 0.065, yb, (-R + WIN.z0) / 2), c: MAT.wallSeam });
-        parts.push({ g: box(0.02, 0.08, R - WIN.z1), m: M(-R + 0.065, yb, (WIN.z1 + R) / 2), c: MAT.wallSeam });
-      } else parts.push({ g: box(0.02, 0.08, 2 * R), m: M(-R + 0.065, yb, 0), c: MAT.wallSeam });
+        parts.push({ g: box(0.02, 0.045, WIN.z0 + R), m: M(-R + 0.065, yb, (-R + WIN.z0) / 2), c: MAT.wallSeam });
+        parts.push({ g: box(0.02, 0.045, R - WIN.z1), m: M(-R + 0.065, yb, (WIN.z1 + R) / 2), c: MAT.wallSeam });
+      } else parts.push({ g: box(0.02, 0.045, 2 * R), m: M(-R + 0.065, yb, 0), c: MAT.wallSeam });
       if (yb < DOOR.h) {
-        parts.push({ g: box(DOOR.x0 + R, 0.08, 0.02), m: M((-R + DOOR.x0) / 2, yb, -R + 0.065), c: MAT.wallSeam });
-        parts.push({ g: box(R - DOOR.x1, 0.08, 0.02), m: M((DOOR.x1 + R) / 2, yb, -R + 0.065), c: MAT.wallSeam });
+        parts.push({ g: box(DOOR.x0 + R, 0.045, 0.02), m: M((-R + DOOR.x0) / 2, yb, -R + 0.065), c: MAT.wallSeam });
+        parts.push({ g: box(R - DOOR.x1, 0.045, 0.02), m: M((DOOR.x1 + R) / 2, yb, -R + 0.065), c: MAT.wallSeam });
       } else parts.push({ g: box(2 * R, 0.08, 0.02), m: M(0, yb, -R + 0.065), c: MAT.wallSeam });
     }
     [-1.9, -1.1, 1.85].forEach(function (z) { parts.push({ g: box(0.14, 3.0, 0.14), m: M(-R + 0.09, 1.5, z), c: MAT.stud }); propCount++; });   /* 왼쪽 벽 샛기둥 (벽면에서 0.1 돌출) */
@@ -845,11 +846,11 @@ var SCENE3D = (function () {
     var headParts = [{ g: new T.SphereGeometry(1, 20, 14), m: M(0, HEAD_Y, 0, 0, 0, 0, 1, HEAD_SQ, 1), c: OC.body, tag: 1 },
       { g: new T.SphereGeometry(0.3, 9, 7), m: M(-0.45, 1.50, 0.52, 0.5, -0.4, 0, 1, 0.55, 0.5), c: OC.hi, tag: 2 },   /* 왼쪽 위 하이라이트 패치 */
       { g: new T.SphereGeometry(0.07, 6, 5), m: M(-0.56, 1.62, 0.6), c: OC.white },
-      { g: box(0.30, 0.05, 0.08), m: M(0, 0.44, 0.82), c: OC.mouth, tag: 3 }];   /* `_` 입: 눈 아래, 폭 0.3 r */
+      { g: box(0.30, 0.07, 0.08), m: M(0, 0.44, 0.82), c: OC.mouth, tag: 3 }];   /* `_` 입: 눈 아래, 폭 0.3 r × 0.07 r (p=2 에서 3×1 px) */
     EYE.forEach(function (e) { headParts.push({ g: new T.SphereGeometry(EYE_R, 10, 8), m: M(e[0], e[1], e[2], 0, 0, 0, 1, 1, 0.55), c: OC.white }); });
     var headGeo = keep(mergeParts(headParts)), head = new T.Mesh(headGeo, toon); head.castShadow = true; head.receiveShadow = true; bodyG.add(head);
     var pupils = EYE.map(function (e) {   /* 동공 0.13 r + 흰 글린트 1px */
-      var g = keep(mergeParts([{ g: new T.SphereGeometry(PUPIL_R, 8, 6), m: M(0, 0, 0), c: OC.eye }, { g: new T.SphereGeometry(0.055, 5, 4), m: M(-0.045, 0.05, 0.105), c: OC.white }]));
+      var g = keep(mergeParts([{ g: new T.SphereGeometry(PUPIL_R, 8, 6), m: M(0, 0, 0), c: OC.eye }, { g: new T.SphereGeometry(0.07, 5, 4), m: M(-0.045, 0.05, 0.10), c: OC.white }]));   /* 글린트 0.07 r ≈ 3 cm → p=2 에서 1 px */
       var m = new T.Mesh(g, toon); m.receiveShadow = true; m.position.set(e[0], e[1], e[2] + 0.14); bodyG.add(m); return m;
     });
     /* ── 얼굴 부품 (룩 패스 8 표정 · DESIGN §15.2): 장면과 초상이 setExpression 하나로 공유. 전부 기하(구·토러스·박스, 토운 재질)라 64 px 초상에서도 읽힌다. idle 에선 아래 전부 숨김 → 방 패스 드로우콜 그대로.
@@ -872,10 +873,12 @@ var SCENE3D = (function () {
         ps.push({ g: new T.CylinderGeometry(a1[2], a0[2], Math.hypot(dx, dy), 7), m: M((a0[0] + a1[0]) / 2, (a0[1] + a1[1]) / 2, 0, 0, 0, Math.atan2(dy, dx) - Math.PI / 2), c: OC.body, tag: 1 });
         ps.push({ g: new T.SphereGeometry(a1[2], 7, 5), m: M(a1[0], a1[1], 0), c: OC.body, tag: 1 });   /* 관절을 둥글게 */
       }
-      /* 빨판 2: 들린 끝마디 밑면(바깥을 향해 보인다) */
+      /* 빨판 3 (룩 패스 8: r 0.08/0.075/0.07 ≈ 3 cm → p=2 에서 1 px 점): 들린 끝마디 밑면 2 + 그 앞 마디 밑면 1 (바깥을 향해 보인다) */
       var p3 = ARM[3], p4 = ARM[4], d = [p4[0] - p3[0], p4[1] - p3[1]], dl = Math.hypot(d[0], d[1]), n = [d[1] / dl, -d[0] / dl];
-      ps.push({ g: new T.SphereGeometry(0.05, 5, 4), m: M((p3[0] + p4[0]) / 2 + n[0] * 0.06, (p3[1] + p4[1]) / 2 + n[1] * 0.06, 0), c: OC.pale, tag: 4 });
-      ps.push({ g: new T.SphereGeometry(0.045, 5, 4), m: M(p4[0] + n[0] * 0.045, p4[1] + n[1] * 0.045, 0), c: OC.pale, tag: 4 });
+      ps.push({ g: new T.SphereGeometry(0.08, 5, 4), m: M((p3[0] + p4[0]) / 2 + n[0] * 0.07, (p3[1] + p4[1]) / 2 + n[1] * 0.07, 0), c: OC.pale, tag: 4 });
+      ps.push({ g: new T.SphereGeometry(0.075, 5, 4), m: M(p4[0] + n[0] * 0.06, p4[1] + n[1] * 0.06, 0), c: OC.pale, tag: 4 });
+      var p2 = ARM[2], d2 = [p3[0] - p2[0], p3[1] - p2[1]], dl2 = Math.hypot(d2[0], d2[1]), n2 = [d2[1] / dl2, -d2[0] / dl2];
+      ps.push({ g: new T.SphereGeometry(0.07, 5, 4), m: M((p2[0] + p3[0]) / 2 + n2[0] * 0.09, (p2[1] + p3[1]) / 2 + n2[1] * 0.09, 0), c: OC.pale, tag: 4 });
       return ps;
     }
     var arms = [];
@@ -1179,7 +1182,7 @@ var SCENE3D = (function () {
 
     /* ── 루프 ── */
     var logged = false, candleT = 0;
-    var perf = { ring: new Float32Array(60), n: 0, i: 0 };   /* 디버그 통계 (룩 패스 7): 마지막 60 렌더 프레임의 ms/frame (stats().ms) */
+    var perf = { ring: new Float32Array(60), n: 0, i: 0, sum: 0, cnt: 0, auto: 0 };   /* 디버그 통계 (룩 패스 7): 마지막 60 렌더 프레임의 ms/frame (stats().ms). sum/cnt = 첫 2 s 누적 (자동 픽셀 폴백, 룩 패스 8) */
     function frame(ts) {
       var dt = lastT ? Math.min(0.1, (ts - lastT) / 1000) : 0.016; lastT = ts; time += dt; frameNo++;
       if (st.lost) return;
@@ -1225,7 +1228,12 @@ var SCENE3D = (function () {
       }
       renderer.setRenderTarget(null); renderer.render(quadScene, quadCam);
       calls += 1;
-      if (t0) { perf.ring[perf.i] = performance.now() - t0; perf.i = (perf.i + 1) % 60; if (perf.n < 60) perf.n++; }
+      if (t0) { var ms = performance.now() - t0; perf.ring[perf.i] = ms; perf.i = (perf.i + 1) % 60; if (perf.n < 60) perf.n++; perf.sum += ms; perf.cnt++; }
+      /* 자동 픽셀 폴백 (룩 패스 8): 기본 p=2 로 첫 2 s 의 평균 ms/frame(메인 스레드) 이 24 ms 를 넘으면 이 세션만 p=3 (st.look 에만, 저장 X — 데브 슬라이더가 덮어쓸 수 있다) */
+      if (!perf.auto && time >= 2 && perf.cnt >= 10) {
+        perf.auto = +(perf.sum / perf.cnt).toFixed(2);
+        if (perf.auto > 24 && (st.look.pixelSize | 0) < 3) { st.look.pixelSize = 3; st.look.autoPixel = 3; resize(); dither.still = 0; console.info('[scene3d] auto pixel 3 (first 2 s mean ' + perf.auto + ' ms/frame > 24)'); }
+      }
       if (!logged && frameNo > 3) {
         logged = true; console.info('[scene3d] draw calls ' + calls + ' (≤150 ' + (calls <= 150 ? 'ok' : 'OVER') + ') · target ' + S.rw + '×' + S.rh + ' · px ' + S.p + ' · palette ' + PAL.list.length + ' · static props ' + propCount);
         if (calls > 150) console.error('[scene3d] draw calls ' + calls + ' > 150 (renderer.info)');   /* 예산 단언: look-shots / evidence3d 가 console.error 로 실패 처리 */
@@ -1282,7 +1290,7 @@ var SCENE3D = (function () {
       screenOf: function (x, y, z) { var p = _hp.set(x, y, z).project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 월드 → 컨테이너 CSS px (스트립 크롭 중심) */
       msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
       motion: function () { return { swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3) }; },   /* 룩 패스 7·8 디버그 */
-      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length }; },
+      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0 }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastT = 0; loop(); },
       destroy: function () {

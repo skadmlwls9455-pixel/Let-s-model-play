@@ -59,7 +59,7 @@ function uniqueColours(im) { var set = {}; for (var i = 0; i < im.w * im.h; i++)
     APP.octState(a.hook.octState); APP.scene.jumpTo(a.hook.anchor);
     APP.state.room.lantern = a.hook.lantern; APP.renderScene(); APP.renderWall();
     APP.scene.setTime(a.hour, true); APP.scene.setWeather(a.hook.weather); APP.scene.bubble('', 0);
-    APP.scene.setLook({ pixelSize: 3, zoom: 0, dither: 0.25, outline: true, yaw: 0, focus: null });
+    APP.scene.setLook({ pixelSize: 2, zoom: 0, dither: 0.25, outline: true, yaw: 0, focus: null });   /* 룩 패스 8 기본 p=2 */
   }, { hook: HOOK, hour: 14 });
   await page.waitForTimeout(900);
   var pal = await page.evaluate(function () { return APP.scene.paletteName(); });
@@ -89,7 +89,8 @@ function uniqueColours(im) { var set = {}; for (var i = 0; i < im.w * im.h; i++)
   var box = await page.locator('#scene').boundingBox(), cbox = await page.locator('#scene canvas').boundingBox();
   var centre = await page.evaluate(function () { var a = APP.scene.anchors.center; return APP.scene.screenOf(a[0], 0.5, a[2]); });
   var cx = centre.x + box.x - cbox.x, cy = centre.y + box.y - cbox.y;
-  var clip = { x: cbox.x + Math.max(0, Math.min(cbox.width - CROP, Math.floor((cx - CROP / 2) / 3) * 3)), y: cbox.y + Math.max(0, Math.min(cbox.height - CROP, Math.floor((cy - CROP / 2) / 3) * 3)), width: CROP, height: CROP };
+  var P = await page.evaluate(function () { return APP.scene.stats().pixel; });   /* 크롭 원점을 아트 픽셀(p CSS px) 배수로 → 격자 정렬 */
+  var clip = { x: cbox.x + Math.max(0, Math.min(cbox.width - CROP, Math.floor((cx - CROP / 2) / P) * P)), y: cbox.y + Math.max(0, Math.min(cbox.height - CROP, Math.floor((cy - CROP / 2) / P) * P)), width: CROP, height: CROP };
   await page.evaluate(function () { APP.scene.pause(); APP.octState('happy'); });
   var frames = [], motion = [];
   for (var f = 0; f < FRAMES; f++) {

@@ -33,14 +33,14 @@
   var DEFAULT_TEMPLATES = {
     followedThenLeft: ['{hint} 보러 갔다가 {mem}에 한눈팔았어', '{hint}에서 시작했는데 발이 {mem} 쪽으로 갔어'],
     followedKept: ['{hint}, 끝까지 봤어. {memory}', '{hint} 앞에 오래 있었어. {memory}'],
-    leftKept: ['{hint} 보러 갔다가 딴 데도 들렀는데, 결국 {hint}가 제일 남았어', '{hint}에서 시작해 한눈도 팔았지만 {hint}가 기억에 남아. {memory}'],
+    leftKept: ['{hint} 보러 갔다가 딴 데도 들렀는데, 결국 머리에 남은 건 {hint}', '{hint}에서 시작해 한눈도 팔았지만, 기억에 남은 건 {hint}. {memory}'],
     noHint: ['오늘은 {mem}. {memory}', '발길 닿는 대로 가다 {mem}에 오래 있었어'],
-    ignored: ['{hint}는 다음에. 오늘은 {mem}가 궁금했어', '{hint} 말고 {mem} 쪽이 끌렸어. {memory}'],
+    ignored: ['{hint} 보는 건 다음에. 오늘은 {mem} 쪽이 궁금했어', '{hint} 말고 {mem} 쪽이 끌렸어. {memory}'],
     linger: ['느린 글의 방에 앉아만 있었어. 아무것도 안 읽어도 됐어'],
     door: ['{hint} 문 앞까지 갔다 왔어. 바깥은 못 읽었지만'],
     letter: ['편지의 방 문을 열어 봤어. 아직 비어 있었어'],
     failed: ['{mem} 문은 오늘 안 열렸어. 이름만 기억해 둘래', '{mem}는 못 읽었어. 다음에 다시 가 볼래'],
-    wild: ['들판에서 {mem}를 만났어. {memory}', '링크를 따라가다 {mem}에 닿았어']
+    wild: ['들판에서 만난 건 {mem}. {memory}', '링크를 따라가다 {mem}에 닿았어']
   };
 
   var DEFAULT_HOME = [

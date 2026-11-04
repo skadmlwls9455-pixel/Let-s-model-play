@@ -102,7 +102,7 @@ var WORLD = (function () {
       aliases: ['양산', '파라솔', '접는우산'],
       keywords: ['비', '그늘', '우산살', '손잡이'],
       wiki: '우산',
-      clue: '우산은 원래 해를 가리는 물건이었다. 영어 umbrella 는 라틴어 umbra, 그늘에서 왔다.',
+      clue: '우산은 원래 해를 가리는 물건이었다. 영어 umbrella는 라틴어 umbra, 그늘에서 왔다.',
       memories: [
         '원래는 해를 가리는 거였어. 비는 나중이야',
         '영어 umbrella는 라틴어 그늘, umbra에서 왔대',
@@ -666,7 +666,7 @@ var WORLD = (function () {
       aliases: ['프라임', '소수들', '2 3 5 7'],
       keywords: ['수론', '약수', '유클리드', '매미', '나누기'],
       wiki: '소수 (수론)',
-      clue: '소수는 끝이 없다. 유클리드가 2천 년 전에 보여 줬다. 어떤 매미는 13년, 17년마다 나온다.',
+      clue: '소수는 끝이 없다. 유클리드가 2천 년도 더 전에 보여 줬다. 어떤 매미는 13년, 17년마다 나온다.',
       memories: [
         '소수는 끝이 없어. 유클리드가 보여 줬어',
         '짝수 중에 소수는 2 하나야',
@@ -721,7 +721,7 @@ var WORLD = (function () {
       memories: [
         '정다각형으로 빈틈없이 채우는 건 셋뿐이야',
         '에스허르가 새랑 물고기로 바닥을 채웠어',
-        '알람브라 궁전 벽이 다 테셀레이션이야'
+        '알람브라 궁전 벽은 테셀레이션으로 가득해'
       ],
       related: ['honeycomb', 'spiral'],
       tangents: [
@@ -1294,13 +1294,13 @@ var WORLD = (function () {
      치환자: {hint} 힌트 노드 이름, {mem} 기억으로 고른 노드 이름, {memory} 기억 조각 한 줄 */
   var lineTemplates = {
     leftKept: [
-      '{hint} 보러 갔다가 딴 데도 들렀는데, 결국 {hint}가 제일 남았어',
-      '{hint}에서 시작해 한눈도 팔았지만 {hint}가 기억에 남아. {memory}'
+      '{hint} 보러 갔다가 딴 데도 들렀는데, 결국 머리에 남은 건 {hint}',
+      '{hint}에서 시작해 한눈도 팔았지만, 기억에 남은 건 {hint}. {memory}'
     ],
     followedThenLeft: [
       '{hint} 보러 갔다가 {mem}에 한눈팔았어',
       '{hint}에서 시작했는데 {mem}에 오래 있었어',
-      '{hint} 가는 길에 {mem}이 보였어. {memory}'
+      '{hint} 가는 길에 눈에 들어온 건 {mem}. {memory}'
     ],
     followedKept: [
       '{hint}, 끝까지 봤어. {memory}',
@@ -1313,7 +1313,7 @@ var WORLD = (function () {
       '{mem}에 갔어. {memory}'
     ],
     ignored: [
-      '{hint}는 다음에. 오늘은 {mem}가 궁금했어',
+      '{hint} 보는 건 다음에. 오늘은 {mem} 쪽이 궁금했어',
       '{hint} 말고 {mem}. {memory}'
     ],
     linger: [
@@ -1321,7 +1321,7 @@ var WORLD = (function () {
       '느린 글의 방. 읽은 건 없고, 그걸로 됐어'
     ],
     wild: [
-      '{mem}이라는 데를 우연히 들렀어. 처음 듣는 이름이야',
+      '우연히 들른 데가 있어. {mem}. 처음 듣는 이름이야',
       '길을 벗어나 {mem}까지 갔어'
     ]
   };
@@ -1384,7 +1384,7 @@ var WORLD = (function () {
     demoChip: '데모 두뇌',
     demoExplain: '이 문어는 데모 두뇌가 움직여. 작은 규칙 뭉치가 어디로 갈지, 집에 있을지, 무엇을 기억할지 고르는 거야. 진짜 모델이 고르는 건 MCP 연결 뒤 이야기야.',
     honestyLine: '지금은 작은 규칙 뭉치가 문어를 움직여. 진짜 모델이 고르는 건 MCP 연결 뒤 이야기야.',
-    demoWarning: "여기 버튼은 문어 대신 사람이 고르는 거야. 영수증에 '사람이 조작' 으로 남아.",
+    demoWarning: "여기 버튼은 문어 대신 사람이 고르는 거야. 영수증에 '사람이 조작'으로 남아.",
     wikiLicense: '위키미디어 공용',
     wikiSource: '출처 ↗',
     photoCredit: '사진: 위키미디어 공용',
