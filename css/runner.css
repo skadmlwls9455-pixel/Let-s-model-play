@@ -30,14 +30,17 @@
 
 .rn-ctrls { width: 100%; max-width: 420px; display: grid; grid-template-columns: 3fr 2fr; gap: 12px; }
 .rn-ctrls[hidden] { display: none; }
-.rn-pad { min-height: 96px; font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 24px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.rn-pad .rn-arrow { font-size: 20px; }
+.rn-pad { min-height: 120px; padding: 8px !important; white-space: nowrap; font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 24px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.rn-pad .rn-arrow { font-size: 16px; vertical-align: 2px; }
 
 .rn-over { width: 100%; max-width: 340px; text-align: center; padding: 4px 8px; box-sizing: border-box; }
 .rn-over[hidden] { display: none; }
+/* 종이 판 위는 라이트 잉크 고정 */
+:root[data-font="pixel"] .rn-over .rn-final-best { color: #602c2c; }
 :root[data-font="pixel"] .rn-over { border: 16px solid transparent; border-image: url(../assets/ui/frame_paper.png) 8 fill / 16px round; image-rendering: pixelated; color: #2a2620; }
 .rn-final { margin: 0; font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 36px; }
-.rn-final-best { margin: 0 0 8px; font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; }
+.rn-final-score { margin: 0; font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; }
+.rn-final-best { margin: 0 0 8px; color: var(--muted); font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; }
 .rn-over .btn { min-height: 52px; min-width: 112px; }
 .rn-over .btn-row { flex-wrap: nowrap; }
 

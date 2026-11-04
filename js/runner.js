@@ -237,10 +237,10 @@ var RUNNER = (function () {
     btnJ = el('button', { type: 'button', class: 'btn rn-pad rn-jump', id: 'rn-jump', tabindex: '-1', 'aria-label': '점프 (꾹 누르면 더 높이)' }, [el('span', { class: 'rn-arrow', 'aria-hidden': 'true', text: '▲' }), ' 점프']);
     btnD = el('button', { type: 'button', class: 'btn rn-pad rn-duck', id: 'rn-duck', tabindex: '-1', 'aria-label': '숙이기' }, [el('span', { class: 'rn-arrow', 'aria-hidden': 'true', text: '▼' }), ' 숙이기']);
     ctrls = el('div', { class: 'rn-ctrls', id: 'rn-ctrls' }, [btnJ, btnD]);
-    finalEl = el('p', { class: 'rn-final', id: 'rn-final' }); bestEl = el('p', { class: 'rn-final-best', id: 'rn-final-best' });
+    finalEl = el('p', { class: 'rn-final', id: 'rn-final' }); var scoreEl = el('p', { class: 'rn-final-score', id: 'rn-final-score' }); bestEl = el('p', { class: 'rn-final-best', id: 'rn-final-best' });
     btnAgain = el('button', { type: 'button', class: 'btn primary pressable', id: 'rn-again', text: '또 할래?' });
     btnStop = el('button', { type: 'button', class: 'btn pressable', id: 'rn-stop', text: '그만' });
-    overP = el('div', { class: 'rn-over', id: 'rn-over', role: 'status', hidden: '' }, [finalEl, bestEl, el('div', { class: 'btn-row center' }, [btnAgain, btnStop])]);
+    overP = el('div', { class: 'rn-over', id: 'rn-over', role: 'status', hidden: '' }, [finalEl, scoreEl, bestEl, el('div', { class: 'btn-row center' }, [btnAgain, btnStop])]);
     var close = el('button', { type: 'button', class: 'btn sm pressable rn-close', id: 'rn-close', 'aria-label': '닫기', text: '닫기' });
     dlg = el('dialog', { id: 'runner-dlg', class: 'rn-dlg', 'aria-labelledby': 'rn-title' }, [
       el('div', { class: 'rn-top' }, [el('h2', { id: 'rn-title', text: '다락방 달리기' }), close]),
@@ -339,8 +339,9 @@ var RUNNER = (function () {
     L.state = 'over'; L.hitAt = performance.now();
     saveRun(end);
     ctrls.hidden = true; overP.hidden = false; setMsg('');
-    finalEl.textContent = (L.sim.hitKind ? HITCOPY[L.sim.hitKind] || '콩!' : '') + ' ' + L.sim.score + '만큼 달렸어';
-    bestEl.textContent = L.newBest ? '새 최고 기록이야! 최고 ' + L.store.best : '최고 ' + (L.store.best | 0) + (L.sim.moss ? ' · 이끼 ' + L.sim.moss + '개 주웠어' : '');
+    finalEl.textContent = HITCOPY[L.sim.hitKind] || '콩!';
+    document.getElementById('rn-final-score').textContent = L.sim.score + '만큼 달렸어' + (L.sim.moss ? ' · 이끼 ' + L.sim.moss : '');
+    bestEl.textContent = L.newBest ? '새 최고야! 최고 ' + L.store.best : '최고 ' + (L.store.best | 0);
     hudUpdate(true);
     btnAgain.disabled = true; btnStop.disabled = true;
     setTimeout(function () { if (!L || L.state !== 'over') return; btnAgain.disabled = false; btnStop.disabled = false; btnAgain.focus(); }, 450);
@@ -420,7 +421,11 @@ var RUNNER = (function () {
     R(x - 2, y - 2, w + 4, h + 4, T.dark); R(x, y, w, h, T.sky); R(x, y + 12, w, h - 12, T.sky2);
     R(x + 18, y + 3, 4, 4, T.orb); if (ck.phase === 'night') { R(x + 17, y + 3, 1, 1, T.sky); R(x + 4, y + 4, 1, 1, '#ebede9'); R(x + 10, y + 2, 1, 1, '#c7cfcc'); }
     if (ck.season === 'winter') { R(x, y + h - 3, w, 3, '#ebede9'); R(x + 3, y + h - 4, 6, 1, '#ebede9'); }
-    else { R(x + 1, y + h - 6, 8, 6, P[1]); R(x + 2, y + h - 8, 5, 2, P[0]); R(x + 5, y + h - 5, 2, 1, P[0]); R(x + 19, y + h - 4, 7, 4, P[1]); }
+    else {
+      var TREE = ['..aaa....', '.aabaa...', 'aabaaba..', 'abaaaaab.', '.aaabaa..', '...t.....', '...t.....'];
+      for (var r = 0; r < TREE.length; r++) for (var q = 0; q < 9; q++) { var ch = TREE[r][q]; if (ch !== '.') R(x + 1 + q, y + h - 7 + r, 1, 1, ch === 'a' ? P[1] : ch === 'b' ? P[0] : T.dark); }
+      R(x + 20, y + h - 3, 6, 3, P[1]); R(x + 21, y + h - 4, 4, 1, P[1]); R(x + 22, y + h - 3, 1, 1, P[0]);
+    }
     R(x + 12, y, 2, h, T.post); R(x, y + 9, w, 2, T.post); R(x - 3, y + h + 2, w + 6, 2, T.post);
   }
   function drawObs(o, O, T, ts) {
