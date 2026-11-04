@@ -1,6 +1,7 @@
 /* GET /api/runner/award?runId=<12 hex>&week=YYYY-Www
- *   그 주가 끝났고(이번 주 > week) 상위 10 안 → { award:'emperor_cape' }
- *   기록이 있으면(이벤트 주) → { award:'paper_crown' } · 없으면 404. 계정 없음: runId 를 가진 기기만 물어볼 수 있다. */
+ *   그 주가 닫혔고(core.weekClosed: 그 주 토큰이 모두 만료된 월 00:30:05 KST 부터) 상위 10 안 → { award:'emperor_cape', final:true }
+ *   기록이 있으면(이벤트 주) → { award:'paper_crown', final: 닫혔나 } · 아직 안 닫힌 주 → { award:null, final:false }
+ *   없으면 404. final:false 는 "아직 바뀔 수 있음" → 클라이언트는 나중에 다시 묻는다. 계정 없음: runId 를 가진 기기만 물어볼 수 있다. */
 'use strict';
 var core = require('../_lib/core.js');
 
@@ -11,9 +12,10 @@ module.exports = async function award(req, res) {
   try {
     var b = await core.board(core.getStore(), week), me = b.filter(function (d) { return d.runId === runId; })[0];
     if (!me) return core.send(res, 404, { ok: false, error: 'not_found' });
-    var finished = core.weekKey(core.now()) > week;
+    var finished = core.weekClosed(week);   /* 주가 바뀐 직후 30분은 늦게 온 판이 아직 들어올 수 있다 → 순위가 굳은 뒤에만 final */
     if (finished && me.rank <= 10) return core.send(res, 200, { ok: true, award: core.AWARDS.CAPE, rank: me.rank, week: week, final: true });
     if (core.isEventWeek(week)) return core.send(res, 200, { ok: true, award: core.AWARDS.PAPER, rank: me.rank, week: week, final: finished });
+    if (!finished) return core.send(res, 200, { ok: true, award: null, rank: me.rank, week: week, final: false });
     return core.send(res, 404, { ok: false, error: 'no_award' });
   } catch (e) {
     console.error('runner award: list failed', e && e.name);
