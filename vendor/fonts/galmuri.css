@@ -1,0 +1,6 @@
+/* Galmuri (갈무리) — Korean pixel fonts by quiple, SIL Open Font License 1.1 (see GALMURI-LICENSE.txt).
+   Native pixel heights: Galmuri7 → 7px, Galmuri9 → 9px, Galmuri11 → 11px. Render at integer multiples (14/18/22px) for crisp pixels. */
+@font-face { font-family: 'Galmuri11'; src: url('Galmuri11.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Galmuri11'; src: url('Galmuri11-Bold.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Galmuri9';  src: url('Galmuri9.woff2')  format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Galmuri7';  src: url('Galmuri7.woff2')  format('woff2'); font-weight: 400; font-display: swap; }
