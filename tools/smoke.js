@@ -678,6 +678,46 @@ async function scenarioCeremony(browser) {
   await s.ctx.close();
 }
 
+/* I-5. 입장 레이어(js/intro.js, ?intro=1 강제 — 자동화 브라우저는 기본 생략)가 켜진 채로: 하늘 → 타이틀 탭 → 이름 → 외출 의식 → 바깥 기웃 → 건너뛰기 → 다락.
+   나가 있는 중 새로고침하면 입장 레이어가 다시 뜨는 동안에도 다락에서 즉시 귀가 (바깥 안 보임) */
+async function scenarioCeremonyIntro(browser) {
+  console.log('\n== I-5. 입장 레이어 켠 채 의식 (?intro=1)');
+  var s = await newPage(browser, 'ok', [{ content: "window.__ppolTest = { forceKind: 'out' };" }, { content: PLACE_PROBE }]);
+  var page = s.page;
+  await page.goto(INDEX + '?intro=1&slow=0.5');
+  var on = await page.waitForSelector('#intro', { timeout: 10000 }).then(function () { return true; }, function () { return false; });
+  ok(on && await page.evaluate(function () { return INTRO.phase !== 'off' && APP.scene.place() === 'attic'; }), '입장 레이어 시작 (다락)');
+  if (on) { await page.waitForTimeout(600); await page.click('#intro', { force: true }); }
+  await page.waitForFunction(function () { return !window.INTRO || INTRO.phase === 'done' || INTRO.phase === 'off'; }, null, { timeout: 15000 });
+  await page.waitForSelector('#name-dialog[open]', { timeout: 10000 });
+  await page.fill('#name-in', await pickName(page));
+  await page.click('#name-form button[type=submit]');
+  await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  var mode = await page.evaluate(function () { window.__bub = []; if (window.UIART) { var ob = UIART.onBubble; UIART.onBubble = function (t, k) { if (t) window.__bub.push({ t: t, k: k, place: APP.scene.place(), state: APP.oct.state }); return ob.apply(this, arguments); }; } return APP.sceneMode; });
+  await page.fill('#hint-in', '모자의 역사');
+  await page.click('#btn-go');
+  await page.waitForFunction(function () { return APP.oct.state === 'away' && APP.scene.place() === 'exterior'; }, null, { timeout: 20000 });
+  if (mode === '3d') await page.waitForFunction(function () { return window.__bub.some(function (b) { return b.state === 'away' && b.place === 'exterior'; }); }, null, { timeout: 30000 });
+  ok(true, '입장 뒤 출발 의식 → 바깥' + (mode === '3d' ? ' → 바깥 기웃 말풍선' : ''));
+  await page.click('#btn-skip');
+  await waitIdle(page);
+  var r = await page.evaluate(function () { return { place: APP.scene.place(), cer: APP.scene.ceremony(), st: APP.state.trips[0].status, oct: APP.state.octopus.state }; });
+  ok(r.place === 'attic' && r.cer === '' && r.st === 'done' && r.oct === 'sleep' && (await wallCount(page)) === 1, '건너뛰기 → 다락 · 포스터 1 · 잠 (' + JSON.stringify(r) + ')');
+  await page.click('#btn-go');
+  await page.waitForFunction(function () { return APP.oct.state === 'away' && APP.scene.place() === 'exterior'; }, null, { timeout: 20000 });
+  await page.reload();
+  await page.waitForFunction(function () { return window.APP && APP.state.trips.length === 2 && APP.state.trips.every(function (t) { return t.status === 'done'; }); }, null, { timeout: 15000 });
+  var mid = await page.evaluate(function () { return { intro: window.INTRO ? INTRO.phase : 'none', log: window.__placeLog.slice() }; });
+  if (await page.$('#intro')) await page.click('#intro', { force: true });
+  await page.waitForSelector('#btn-go:not([disabled])', { timeout: 15000 });
+  await page.waitForTimeout(800);
+  var rl = await page.evaluate(function () { return { log: window.__placeLog.slice(), place: APP.scene.place(), text: document.getElementById('log').textContent }; });
+  console.log('   reload(intro):', JSON.stringify({ introAtResume: mid.intro, log: rl.log }));
+  ok(rl.log.indexOf('exterior') < 0 && rl.place === 'attic' && rl.text.indexOf('네가 없는 동안 다녀왔어') >= 0, '입장 레이어 중 새로고침 복구: 다락에서 즉시 귀가, 바깥 안 보임');
+  reportErrors(s.bag, 'I-5');
+  await s.ctx.close();
+}
+
 /* G. 2D 폴백 (?scene=2d): 같은 API 로 초대 한 번 — 레이어 DOM · 벽 · 문어 클래스 */
 async function scenario2D(browser) {
   console.log('\n== G. 2D 폴백 (?scene=2d)');
@@ -821,7 +861,7 @@ async function scenarioRunner() {
     var all = [['A', function () { return scenarioMain(browser); }], ['B', function () { return scenarioFail(browser, 'missing', 'B. 문서 없음(missing) 응답'); }],
       ['C', function () { return scenarioFail(browser, 'abort', 'C. 요청 중단(abort)'); }], ['D', function () { return scenarioMigrate(browser); }],
       ['E', function () { return scenarioForcedHome(browser); }], ['F', function () { return scenarioMigrateExact(browser); }], ['G', function () { return scenario2D(browser); }],
-      ['H', function () { return scenarioDay2(browser); }], ['I', function () { return scenarioCeremony(browser); }], ['R', function () { return scenarioRunner(); }]];
+      ['H', function () { return scenarioDay2(browser); }], ['I', function () { return scenarioCeremony(browser).then(function () { return scenarioCeremonyIntro(browser); }); }], ['R', function () { return scenarioRunner(); }]];
     for (var sc of all) if (!only.length || only.indexOf(sc[0]) >= 0) await sc[1]();
   } catch (e) {
     fails++; console.error('\nCRASH: ' + (e && e.stack || e));
