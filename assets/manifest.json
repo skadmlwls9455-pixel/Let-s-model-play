@@ -316,5 +316,440 @@
     "w": 48,
     "h": 48,
     "note": "문어 단일 프레임 — 문틀 뒤에서 기웃. 앱은 인라인 SVG 문어를 쓰므로 선택 사항. 팔레트는 DESIGN §7.1(빨간 문어)."
+  },
+  "icon.souvenir.feather": {
+    "src": "assets/icons/souvenir/feather.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.shell": {
+    "src": "assets/icons/souvenir/shell.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.pebble": {
+    "src": "assets/icons/souvenir/pebble.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.button": {
+    "src": "assets/icons/souvenir/button.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.leaf": {
+    "src": "assets/icons/souvenir/leaf.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.marble": {
+    "src": "assets/icons/souvenir/marble.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.yarn": {
+    "src": "assets/icons/souvenir/yarn.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.stamp": {
+    "src": "assets/icons/souvenir/stamp.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.matchbox": {
+    "src": "assets/icons/souvenir/matchbox.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.key": {
+    "src": "assets/icons/souvenir/key.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.pinecone": {
+    "src": "assets/icons/souvenir/pinecone.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.paper_boat": {
+    "src": "assets/icons/souvenir/paper_boat.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.bell": {
+    "src": "assets/icons/souvenir/bell.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.map_piece": {
+    "src": "assets/icons/souvenir/map_piece.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.chalk": {
+    "src": "assets/icons/souvenir/chalk.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.souvenir.stained_glass": {
+    "src": "assets/icons/souvenir/stained_glass.png",
+    "w": 16,
+    "h": 16,
+    "note": "기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것."
+  },
+  "icon.memory.hands": {
+    "src": "assets/icons/memory/hands.png",
+    "w": 16,
+    "h": 16,
+    "note": "기억 코너 아이콘 16×16 — 로그 \"기억\" 행 · 포스터 열람 기록 줄."
+  },
+  "icon.memory.sea": {
+    "src": "assets/icons/memory/sea.png",
+    "w": 16,
+    "h": 16,
+    "note": "기억 코너 아이콘 16×16 — 로그 \"기억\" 행 · 포스터 열람 기록 줄."
+  },
+  "icon.memory.sky": {
+    "src": "assets/icons/memory/sky.png",
+    "w": 16,
+    "h": 16,
+    "note": "기억 코너 아이콘 16×16 — 로그 \"기억\" 행 · 포스터 열람 기록 줄."
+  },
+  "icon.memory.signs": {
+    "src": "assets/icons/memory/signs.png",
+    "w": 16,
+    "h": 16,
+    "note": "기억 코너 아이콘 16×16 — 로그 \"기억\" 행 · 포스터 열람 기록 줄."
+  },
+  "icon.memory.numbers": {
+    "src": "assets/icons/memory/numbers.png",
+    "w": 16,
+    "h": 16,
+    "note": "기억 코너 아이콘 16×16 — 로그 \"기억\" 행 · 포스터 열람 기록 줄."
+  },
+  "icon.memory.sounds": {
+    "src": "assets/icons/memory/sounds.png",
+    "w": 16,
+    "h": 16,
+    "note": "기억 코너 아이콘 16×16 — 로그 \"기억\" 행 · 포스터 열람 기록 줄."
+  },
+  "icon.memory.home": {
+    "src": "assets/icons/memory/home.png",
+    "w": 16,
+    "h": 16,
+    "note": "기억 코너 아이콘 16×16 — 로그 \"기억\" 행 · 포스터 열람 기록 줄."
+  },
+  "icon.memory.mind": {
+    "src": "assets/icons/memory/mind.png",
+    "w": 16,
+    "h": 16,
+    "note": "기억 코너 아이콘 16×16 — 로그 \"기억\" 행 · 포스터 열람 기록 줄."
+  },
+  "icon.memory.wild": {
+    "src": "assets/icons/memory/wild.png",
+    "w": 16,
+    "h": 16,
+    "note": "기억 코너 아이콘 16×16 — 로그 \"기억\" 행 · 포스터 열람 기록 줄."
+  },
+  "icon.log.depart": {
+    "src": "assets/icons/log/depart.png",
+    "w": 16,
+    "h": 16,
+    "note": "산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어."
+  },
+  "icon.log.peek": {
+    "src": "assets/icons/log/peek.png",
+    "w": 16,
+    "h": 16,
+    "note": "산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어."
+  },
+  "icon.log.return": {
+    "src": "assets/icons/log/return.png",
+    "w": 16,
+    "h": 16,
+    "note": "산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어."
+  },
+  "icon.log.remember": {
+    "src": "assets/icons/log/remember.png",
+    "w": 16,
+    "h": 16,
+    "note": "산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어."
+  },
+  "icon.log.poster": {
+    "src": "assets/icons/log/poster.png",
+    "w": 16,
+    "h": 16,
+    "note": "산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어."
+  },
+  "icon.log.wrapup": {
+    "src": "assets/icons/log/wrapup.png",
+    "w": 16,
+    "h": 16,
+    "note": "산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어."
+  },
+  "icon.log.home": {
+    "src": "assets/icons/log/home.png",
+    "w": 16,
+    "h": 16,
+    "note": "산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어."
+  },
+  "icon.log.read": {
+    "src": "assets/icons/log/read.png",
+    "w": 16,
+    "h": 16,
+    "note": "산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어."
+  },
+  "icon.log.builtin": {
+    "src": "assets/icons/log/builtin.png",
+    "w": 16,
+    "h": 16,
+    "note": "산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어."
+  },
+  "icon.log.simulated": {
+    "src": "assets/icons/log/simulated.png",
+    "w": 16,
+    "h": 16,
+    "note": "산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어."
+  },
+  "icon.log.failed": {
+    "src": "assets/icons/log/failed.png",
+    "w": 16,
+    "h": 16,
+    "note": "산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어."
+  },
+  "icon.log.none": {
+    "src": "assets/icons/log/none.png",
+    "w": 16,
+    "h": 16,
+    "note": "산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어."
+  },
+  "fx.dust": {
+    "src": "assets/fx/dust.png",
+    "w": 32,
+    "h": 8,
+    "frames": 4,
+    "cell": 8,
+    "note": "떠다니는 먼지 4종 (한 칸 = 한 알갱이, 무작위로 고름). 등불 빛 안에서만 보이게 opacity .5~.9 — 8×8 칸 4개 가로 스트립."
+  },
+  "fx.mote": {
+    "src": "assets/fx/mote.png",
+    "w": 32,
+    "h": 8,
+    "frames": 4,
+    "cell": 8,
+    "note": "빛 알갱이 4프레임 (깜빡임 루프, 12fps 스텝). 등불·양초 주변 — 8×8 칸 4개 가로 스트립."
+  },
+  "fx.sparkle": {
+    "src": "assets/fx/sparkle.png",
+    "w": 32,
+    "h": 8,
+    "frames": 4,
+    "cell": 8,
+    "note": "반짝 4프레임 (포스터 걸 때·기억 고를 때 한 번) — 8×8 칸 4개 가로 스트립."
+  },
+  "fx.splash": {
+    "src": "assets/fx/splash.png",
+    "w": 32,
+    "h": 8,
+    "frames": 4,
+    "cell": 8,
+    "note": "빗방울 튐 4프레임 (창턱·바닥) — 8×8 칸 4개 가로 스트립."
+  },
+  "fx.ink": {
+    "src": "assets/fx/ink.png",
+    "w": 32,
+    "h": 8,
+    "frames": 4,
+    "cell": 8,
+    "note": "먹물 퍼프 4프레임 (출발 순간, 문어 발밑). 남색 계열 — 8×8 칸 4개 가로 스트립."
+  },
+  "fx.zzz": {
+    "src": "assets/fx/zzz.png",
+    "w": 24,
+    "h": 8,
+    "frames": 3,
+    "cell": 8,
+    "note": "졸림 z 3프레임 (위로 떠오르며 커짐) — 8×8 칸 3개 가로 스트립."
+  },
+  "fx.heart": {
+    "src": "assets/fx/heart.png",
+    "w": 16,
+    "h": 8,
+    "frames": 2,
+    "cell": 8,
+    "note": "쓰다듬기 하트 2프레임 — 8×8 칸 2개 가로 스트립."
+  },
+  "fx.note": {
+    "src": "assets/fx/note.png",
+    "w": 16,
+    "h": 8,
+    "frames": 2,
+    "cell": 8,
+    "note": "음표 2프레임 (자장가·흥얼) — 8×8 칸 2개 가로 스트립."
+  },
+  "fx.question": {
+    "src": "assets/fx/question.png",
+    "w": 8,
+    "h": 8,
+    "frames": 1,
+    "cell": 8,
+    "note": "물음표 (curious 표정 · 말풍선 ?) — 8×8 칸 1개 가로 스트립."
+  },
+  "fx.petal": {
+    "src": "assets/fx/petal.png",
+    "w": 32,
+    "h": 8,
+    "frames": 4,
+    "cell": 8,
+    "note": "봄 꽃잎 4프레임 (팔랑 회전) — 8×8 칸 4개 가로 스트립."
+  },
+  "fx.leaf": {
+    "src": "assets/fx/leaf.png",
+    "w": 32,
+    "h": 8,
+    "frames": 4,
+    "cell": 8,
+    "note": "가을 낙엽 4프레임 — 8×8 칸 4개 가로 스트립."
+  },
+  "fx.snow": {
+    "src": "assets/fx/snow.png",
+    "w": 24,
+    "h": 8,
+    "frames": 3,
+    "cell": 8,
+    "note": "눈송이 3종 (크기별, 무작위) — 8×8 칸 3개 가로 스트립."
+  },
+  "fx.firefly": {
+    "src": "assets/fx/firefly.png",
+    "w": 16,
+    "h": 8,
+    "frames": 2,
+    "cell": 8,
+    "note": "여름밤 반딧불 2프레임 (켜짐/꺼짐 사이) — 8×8 칸 2개 가로 스트립."
+  },
+  "ui.frame.dialog": {
+    "src": "assets/ui/frame_dialog.png",
+    "w": 24,
+    "h": 24,
+    "slice": 8,
+    "note": "대화창 9-slice (24×24, 슬라이스 8). 나무 테 + 남색 판 + 호박색 못. CSS: border-image: url() 8 fill / 16px round"
+  },
+  "ui.frame.paper": {
+    "src": "assets/ui/frame_paper.png",
+    "w": 24,
+    "h": 24,
+    "slice": 8,
+    "note": "종이 카드 9-slice (포스터 열람·영수증). 위·왼쪽 밝은 줄 = 빛은 위에서"
+  },
+  "ui.frame.portrait": {
+    "src": "assets/ui/frame_portrait.png",
+    "w": 24,
+    "h": 24,
+    "slice": 8,
+    "note": "초상 틀 9-slice (대화창 왼쪽 64×64 초상 둘레, 안으로 파인 인셋)"
+  },
+  "ui.bubble.say": {
+    "src": "assets/ui/bubble_say.png",
+    "w": 24,
+    "h": 24,
+    "slice": 8,
+    "note": "말풍선 보통 9-slice (종이흰 + 남색 1px, 둥근 모서리)"
+  },
+  "ui.bubble.think": {
+    "src": "assets/ui/bubble_think.png",
+    "w": 24,
+    "h": 24,
+    "slice": 8,
+    "note": "생각 풍선 9-slice (구름 가장자리 — 혼잣말·기억)"
+  },
+  "ui.bubble.shout": {
+    "src": "assets/ui/bubble_shout.png",
+    "w": 24,
+    "h": 24,
+    "slice": 8,
+    "note": "외침 풍선 9-slice (가시 가장자리 — happy·놀람)"
+  },
+  "ui.bubble.whisper": {
+    "src": "assets/ui/bubble_whisper.png",
+    "w": 24,
+    "h": 24,
+    "slice": 8,
+    "note": "속삭임 풍선 9-slice (점선, 옅은 청록 — 졸림·잠꼬대)"
+  },
+  "ui.tail.say": {
+    "src": "assets/ui/tail_say.png",
+    "w": 8,
+    "h": 8,
+    "note": "말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다"
+  },
+  "ui.tail.think": {
+    "src": "assets/ui/tail_think.png",
+    "w": 8,
+    "h": 8,
+    "note": "말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다"
+  },
+  "ui.tail.shout": {
+    "src": "assets/ui/tail_shout.png",
+    "w": 8,
+    "h": 8,
+    "note": "말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다"
+  },
+  "ui.tail.whisper": {
+    "src": "assets/ui/tail_whisper.png",
+    "w": 8,
+    "h": 8,
+    "note": "말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다"
+  },
+  "ui.next": {
+    "src": "assets/ui/next.png",
+    "w": 8,
+    "h": 8,
+    "note": "대화창 \"다음\" ▼ (next/next2 를 0.5 s 마다 번갈아)"
+  },
+  "ui.next2": {
+    "src": "assets/ui/next2.png",
+    "w": 8,
+    "h": 8,
+    "note": "대화창 \"다음\" ▼ (next/next2 를 0.5 s 마다 번갈아)"
+  },
+  "illust.title_bg": {
+    "src": "assets/illust/title_bg.png",
+    "w": 180,
+    "h": 240,
+    "note": "타이틀 배경 180×240 (글자 없음) — 게임 렌더러로 찍은 밤·비·등불 8칸 다락, 창가의 문어. 정수 배(×2)로."
+  },
+  "illust.logo": {
+    "src": "assets/illust/logo.png",
+    "w": 160,
+    "h": 41,
+    "note": "타이틀 로고 \"뽈뽈 문어\" (Galmuri11 12px ×3, OFL) — 테·그림자 포함, 투명 배경."
+  },
+  "illust.title": {
+    "src": "assets/illust/title.png",
+    "w": 180,
+    "h": 240,
+    "note": "타이틀 완성본 180×240 (배경 + 로고). 시작 버튼·글자는 HTML 로 위에."
+  },
+  "illust.loading": {
+    "src": "assets/illust/loading.png",
+    "w": 160,
+    "h": 120,
+    "note": "로딩 일러스트 160×120 — 꾸벅 조는 문어 클로즈업(노을·비) + z. \"불러오는 중\" 글자는 HTML 로."
   }
 }
