@@ -45,9 +45,9 @@
 
   var DEFAULT_HOME = [
     { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', detail: '마흔까지 세고 잊었어. 다시 하나부터.', anchor: 'window', weight: 3, emoji: '🌧' },
-    { id: 'reread_poster', line: '어제 포스터 뒷면을 다시 읽었어', detail: '영수증 글씨가 조금 번져 있었어.', anchor: 'crate', weight: 2, emoji: '🧾', minLantern: 1 },
+    { id: 'reread_poster', line: '어제 포스터 뒷면을 다시 읽었어', detail: '영수증 글씨가 조금 번져 있었어.', anchor: 'crate', weight: 2, emoji: '🧾', minLantern: 1, requiresPoster: true },
     { id: 'nap', line: '담요 속에서 낮잠', detail: '빗소리가 이불 같았어.', anchor: 'blanket', weight: 3, emoji: '😴' },
-    { id: 'swap_posters', line: '포스터 위치를 바꿔 봤어', detail: '왼쪽 걸 오른쪽으로. 그게 다야.', anchor: 'board', weight: 1, emoji: '🖼', minLantern: 2 },
+    { id: 'swap_posters', line: '포스터 위치를 바꿔 봤어', detail: '왼쪽 걸 오른쪽으로. 그게 다야.', anchor: 'board', weight: 1, emoji: '🖼', minLantern: 2, requiresPoster: true, effect: 'rotatePosters' },
     { id: 'watch_moss', line: '이끼 화분을 오래 들여다봤어', detail: '어제보다 조금 더 초록인 것 같아.', anchor: 'window', weight: 2, emoji: '🪴', minLantern: 1 },
     { id: 'nothing', line: '…', detail: '', anchor: 'blanket', weight: 0, emoji: '' }
   ];
@@ -772,12 +772,17 @@
   function memoRng(seed) { return rng(((seed >>> 0) ^ 0x6d656d6f) >>> 0); }   /* 'memo' — 길·기억의 난수 순서를 건드리지 않는 별도 줄기 */
 
   /* ───────── 집 / 빈 차례 ───────── */
-  function homeActivities(lantern) {
+  /* 방에 실제로 있는 것만 한다: 등불이 모자라면(이끼 화분 등) 빼고, 포스터가 없으면 포스터 활동을 뺀다.
+     자리 바꾸기(effect:'rotatePosters')는 바꿀 짝이 있어야 하니 2장부터. world.js 는 requiresLantern, 옛 데이터는 minLantern */
+  function homeActivities(lantern, posters) {
     var W = world();
     var list = (W && Array.isArray(W.homeActivities) && W.homeActivities.length) ? W.homeActivities : DEFAULT_HOME;
+    lantern = lantern || 0; posters = posters || 0;
     return list.filter(function (a) {
       if (!a || a.id === 'nothing') return false;
       if (typeof a.minLantern === 'number' && lantern < a.minLantern) return false;
+      if (typeof a.requiresLantern === 'number' && lantern < a.requiresLantern) return false;
+      if (a.requiresPoster && posters < (a.effect === 'rotatePosters' ? 2 : 1)) return false;
       return true;
     });
   }
@@ -862,7 +867,7 @@
       var rEmpty = R();
       var empty = forced ? (forced === 'empty') : (rEmpty < 0.03);
       if (empty) return emptyTrip(base);
-      var acts = homeActivities(state.lantern);
+      var acts = homeActivities(state.lantern, state.posters);
       var ai = pickWeighted(acts, function (a) { return a.weight == null ? 1 : a.weight; }, R());
       return homeTripFrom(base, acts[ai] || DEFAULT_HOME[0], R);
     }
