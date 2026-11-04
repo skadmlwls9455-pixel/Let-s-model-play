@@ -12,8 +12,9 @@
 galmuri.css 는 원본 면을 먼저, 서브셋 면을 뒤에 선언한다. 브라우저는 같은 family/weight 면 가운데 뒤에 선언한 면부터
 보므로, 서브셋 cmap 에 있는 글자는 서브셋에서, 없는 글자(드문 음절 '똠' 등)는 원본에서 그린다 → 원본은 그런 글자가
 화면에 나올 때만 내려받는다. 서브셋의 unicode-range 는 서브셋 파일의 cmap 그대로(정확히)다.
-원본 면의 unicode-range 는 원본 cmap 을 덮는 느슨한 범위(16자 이하 틈은 메움)다 — 이모지처럼 Galmuri 에 아예 없는
-글자 때문에 원본 500 KB 를 헛되이 받지 않게.
+원본 면의 unicode-range 는 원본 cmap 그대로이되, 한자(CJK) 구역 안의 16자 이하 틈만 메운다(규칙 ~200조각).
+기호·이모지 구역(☔ ♾ ❔ 등 Galmuri 에 없는 글자)은 틈을 메우지 않는다 — 그런 글자 하나 때문에 원본 160–500 KB 를
+헛되이 받지 않게.
 
 사용:
   python3 tools/subset-fonts.py           # 서브셋 + galmuri.css 다시 쓰기
@@ -50,7 +51,7 @@ FACES = [
     ('Galmuri9', 400, 'Galmuri9'),
     ('Galmuri7', 400, 'Galmuri7'),
 ]
-FULL_RANGE_GAP = 16  # 원본 면 unicode-range: cmap 사이 틈이 이 이하면 메운다 (규칙 수를 ~100개로)
+FULL_RANGE_GAP = 16  # 원본 면 unicode-range: 한자 구역 안에서 cmap 사이 틈이 이 이하면 메운다 (규칙 수를 ~200개로)
 
 
 def ksx1001_syllables():
@@ -108,6 +109,23 @@ def to_ranges(cps, gap=0):
     return ranges
 
 
+def is_cjk(cp):
+    """틈을 메워도 되는 구역: 한자(확장 A·통합·호환). 여기 빠진 글자는 드문 한자라 원본을 받아 봐도 손해가 작다."""
+    return 0x3400 <= cp <= 0x9FFF or 0xF900 <= cp <= 0xFAFF
+
+
+def full_ranges(cmap):
+    """원본 면 unicode-range: cmap 정확히 + 양끝과 틈 전체가 한자 구역인 FULL_RANGE_GAP 이하 틈만 메움."""
+    ranges = []
+    for cp in sorted(cmap):
+        if ranges and (cp == ranges[-1][1] + 1 or (cp - ranges[-1][1] - 1 <= FULL_RANGE_GAP
+                                                    and is_cjk(ranges[-1][1]) and is_cjk(cp))):
+            ranges[-1][1] = cp
+        else:
+            ranges.append([cp, cp])
+    return ranges
+
+
 def unicode_range(ranges, indent='  '):
     parts = ['U+%X' % a if a == b else 'U+%X-%X' % (a, b) for a, b in ranges]
     lines, line = [], ''
@@ -147,8 +165,9 @@ CSS_HEAD = """/* Galmuri (갈무리) — Korean pixel fonts by quiple, SIL Open 
    Order matters: the full faces come FIRST, the *.sub.woff2 subsets AFTER. For each character the browser takes the
    last-declared face whose unicode-range covers it, so everyday text comes from the ~40 KB subsets and the full file
    (~0.3–0.5 MB) is fetched only when a character outside the subset is shown (e.g. a rare syllable like '똠').
-   Subset unicode-range = the subset's exact cmap. Full unicode-range = the full cmap with gaps of <= %d code points
-   filled, so characters Galmuri does not have at all (emoji) never trigger a full download.
+   Subset unicode-range = the subset's exact cmap. Full unicode-range = the full cmap, exact except that gaps of <= %d
+   code points inside the CJK ideograph blocks are filled (keeps the rule short), so characters Galmuri does not have
+   at all (emoji, symbols like U+2614) never trigger a full download.
    Subset contents: KS X 1001 Hangul (2,350), ASCII, compatibility jamo, U+2000-206F, every non-ASCII char in
    js/*.js, css/*.css, index.html. Sizes: %s */
 """
@@ -174,12 +193,16 @@ def generate():
         if missing:
             raise SystemExit('subset-fonts: %s 서브셋에서 빠진 글자: %s' % (name, ''.join(map(chr, missing))))
         outputs[os.path.join(FONT_DIR, sub_name)] = data
-        full_rules.append(face_rule(family, weight, name + '.woff2', to_ranges(full_cmap, FULL_RANGE_GAP)))
+        full_rules.append(face_rule(family, weight, name + '.woff2', full_ranges(full_cmap)))
         sub_rules.append(face_rule(family, weight, sub_name, to_ranges(sub_cmap)))
         sizes.append('%s %d→%d KB' % (name, os.path.getsize(src) // 1024, len(data) // 1024))
         not_in_font = sorted(c for c in used if c not in full_cmap)
-        report.append('%-15s full %4d KB %5d chars → sub %3d KB %4d chars, %3d unicode-range parts · code chars not in font: %d'
-                      % (name, os.path.getsize(src) // 1024, len(full_cmap), len(data) // 1024, len(sub_cmap),
+        fr = full_ranges(full_cmap)
+        wasted = [c for c in not_in_font if any(a <= c <= b for a, b in fr)]
+        if wasted:  # 코드에 쓴 글자가 원본에 없는데 원본 범위 안 → 그 글자를 그릴 때 원본을 헛되이 받는다
+            raise SystemExit('subset-fonts: %s 원본 범위가 원본에 없는 글자를 덮음: %s' % (name, ''.join(map(chr, wasted))))
+        report.append('%-15s full %4d KB %5d chars (%3d range parts) → sub %3d KB %4d chars (%4d parts) · code chars not in font: %d'
+                      % (name, os.path.getsize(src) // 1024, len(full_cmap), len(fr), len(data) // 1024, len(sub_cmap),
                          len(to_ranges(sub_cmap)), len(not_in_font)))
     css = (CSS_HEAD % (FULL_RANGE_GAP, ', '.join(sizes) + '.')
            + '\n/* full faces (fallback for characters outside the subset) */\n' + ''.join(full_rules)

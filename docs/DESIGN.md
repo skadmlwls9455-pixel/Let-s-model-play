@@ -330,7 +330,8 @@ matchHint(hint) →
 - **언제 무엇이**: 집 = `home_bgm[시간대][날씨]` (시간대는 실제 시계 6·9·17·19시, 날씨는 `weatherFor()` — 등불 0~5칸은 늘 비) 한 바퀴 → 20~90초 쉼(환경음만) → 처음부터. 밤엔 마스터 −3 dB. 환경음 = 날씨 바탕 + 덧층 + 등불 온기(다락 안에서만) + 가을·여름 밤.
   움츠림 `depart_windup` → 나감 `depart_leave`(비 오면 `depart_rain_extra`) → 나가 있는 동안 집 BGM −3 dB(빈 방) → 기웃마다 **결과음은 상태 그대로**(read/builtin/simulated/failed/none 다섯 개 같은 길이 — 실패·모의·빈 방에 성공음·`first_place` 없음) + 그 코너의 장소 테마로 다음 마디선에서(최소 8마디, 편지의 방은 BGM 없이 `letter_room`) → 귀가 `return_home` → 다음 프레이즈에 집 BGM → `remember_{장소}` · `hang_poster` · `mood_*` · 등불 `lantern_1~7`(8칸 = `room_complete`, BGM 잠깐 멈춤) → 잠 `sleep_settle` → 자장가 2~3바퀴 → 환경음만(낮이면 쉼 뒤 집 BGM). 집에 있는 날은 같은 움츠림 뒤 `stay_settle`, 창가 + 비면 `special_window_rain`.
   쓰다듬기 `pet_*`, 문어 말풍선은 글자마다 목소리 블립(생각 말풍선·긴 글·마무리 말은 빼고), 주요 버튼은 작은 `ui_tap`, 시간대가 바뀌면 `chime_*`, 날씨가 바뀌면 `weather_shift`.
-- 징글은 BGM 을 `duck_db` 만큼 **내리기만** 한다(어택 60~80 ms · 릴리스 0.5~0.9 s). 변형은 날짜 시드 mulberry32 로 직전과 다른 것. 탭이 숨으면 AudioContext 를 멈춘다.
+- 징글은 BGM 을 `duck_db` 만큼 **내리기만** 한다(어택 60~80 ms · 릴리스 0.5~0.9 s 로 묶음). 변형은 날짜 시드 mulberry32 로 직전과 다른 것. 탭이 숨으면 AudioContext 를 멈춘다.
+- 받기는 필요할 때만(지금 BGM·환경음, 효과음은 처음 쓸 때) + 디코드 버퍼 LRU. 예외는 말풍선 음절 16개 + 기웃 결과음 11개(다 합쳐 56 KB): 켠 뒤 2.5초에 한꺼번에 미리 받는다 — 음절을 처음 받는 게 0.8초를 넘기면 그 말을 건너뛰어서 느린 기기에선 첫 말풍선들이 조용했고, 결과음이 늦게 오면 음절과 겹쳤다. 음절은 방금 낸 결과음 뒤에서(많아야 0.5초 기다림) 말한다.
 - **file:// 에서는 소리 없음**: 브라우저가 file:// 의 fetch 를 막아 manifest 와 소리 파일을 못 읽는다. `<audio loop>` 폴백은 루프 틈이 들리고(README 금지) iOS 는 볼륨·덕킹이 안 돼서 쓰지 않았다. 토글은 기억되고, 켜면 토스트 한 줄 + 방 보기에 "웹 주소로 열면 들려". http(s)(Vercel)에서만 소리가 난다.
 - 앱은 `if (window.AUDIO) AUDIO.on(…)` 한 줄 훅만 둔다: `state` · `bubble` · `pet` · `ceremony` · `peek` · `row` · `lantern` · `busy` · `room_sheet` (+ boot 의 `AUDIO.init`). 파일이 없거나 디코드가 안 되거나 AudioContext 가 없어도 게임으로 오류를 던지지 않는다(경고 한 번). 검사: `node tools/test-audio.js`.
 

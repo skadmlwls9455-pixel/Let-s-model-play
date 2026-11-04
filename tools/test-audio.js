@@ -10,7 +10,7 @@
  *  3b. 집에 있는 날 + 창가 + 비 → stay_settle · special_window_rain · 빗방울 세기 · 졸림 → 자장가
  *  4. 방 보기: 음악·효과음 슬라이더 (저장) · 스크린샷
  *  5. 끄기 → 새로고침해도 꺼짐 (요청 0) · 켜 둔 채 새로고침 → 첫 탭에서 다시 흐름
- *  6. 밤 21시 + 맑음 → theme_night_clear · 마스터 -3 dB · 탭 숨김 suspend · 방 완성 일시정지 · 날씨/시간대 전환
+ *  6. 밤 21시 + 맑음 → theme_night_clear · 마스터 -3 dB · 탭 숨김 suspend · 방 완성 일시정지 · 날씨/시간대 전환 · 집에 있는 날 자리 규칙
  *  7. file:// → 토글을 켜도 페이지 오류 0 · 소리 없음 안내
  * 모든 페이지: 콘솔 오류 0 (바깥 글꼴 같은 외부 요청 실패만 무시), audio/ 응답은 전부 200.
  */
@@ -276,6 +276,15 @@ async function scenarioNight(browser, base) {
   var bc = await waitState(page, function () { var x = AUDIO.state(); return x.bgm === 'theme_dawn_rain' && x.played.some(function (p) { return p.id === 'chime_dawn'; }); }, null, 50000);
   var a2 = await st(page);
   ok(bc && Math.abs(a2.master - 1) < 0.05, '시간대 바뀜 → chime_dawn → theme_dawn_rain · 마스터 1.0 (' + a2.bgm + ', ' + a2.master + ')');
+  /* 집에 있는 날 자리: app.js 와 같은 규칙 — 등불 2칸 전 상자(crate)는 창가로 → 비면 창가 비 BGM, 담요는 집 테마 그대로 */
+  var anc = await page.evaluate(function () {
+    AUDIO.on('row', { ev: { type: 'stay_home', anchor: 'crate', activity: 'reread_poster' }, trip: {} });
+    var w1 = AUDIO.state().want; AUDIO.on('busy', { on: false });
+    AUDIO.on('row', { ev: { type: 'stay_home', anchor: 'blanket', activity: 'nap' }, trip: {} });
+    var w2 = AUDIO.state().want; AUDIO.on('busy', { on: false });
+    return { w1: w1, w2: w2, lantern: AUDIO.state().lantern };
+  });
+  ok(anc.w1 === 'special_window_rain' && anc.w2 === 'theme_dawn_rain', '집에 있는 날 자리: 등불 ' + anc.lantern + '칸 상자 → 창가 비 (' + anc.w1 + ') · 담요 → 집 테마 (' + anc.w2 + ')');
   reportErrors(s.bag, 'night');
   await s.ctx.close();
 }

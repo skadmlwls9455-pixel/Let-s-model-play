@@ -270,7 +270,7 @@ var SCENE3D = (function () {
       look: Object.assign({ pixelSize: DEF_P, dither: 0.25, outline: true, yaw: 0, key: LIGHTS.day.sunI, fill: LIGHTS.day.hemiI }, opts.look || {}), zoom: 0, palette: paletteSource(opts.palette || PAL_DEFAULT) };
     st.look.key = clamp(+st.look.key || LIGHTS.day.sunI, 0.5, 4); st.look.fill = clamp(+st.look.fill || LIGHTS.day.hemiI, 0, 1);
     var PAL = buildPalette(st.color, st.palette), OC = octDerived(st.color);
-    var disposables = [], unbind = [], raf = 0, lastDraw = 0, frameNo = 0, time = 0, calls = 0, ready = false;
+    var disposables = [], unbind = [], raf = 0, lastDraw = 0, frameNo = 0, drawN = 0, time = 0, calls = 0, ready = false;
     function listen(el, ev, fn, o) { el.addEventListener(ev, fn, o); unbind.push(function () { el.removeEventListener(ev, fn, o); }); }
     function keep(x) { disposables.push(x); return x; }
 
@@ -2112,6 +2112,7 @@ var SCENE3D = (function () {
       if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
     }
     function draw(t0) {   /* 렌더 패스: 뷰티 → 노멀 → 발광(+블러) → 후처리 합성 · 프레임 ms · 드로우콜 로그 */
+      drawN++;
       renderer.shadowMap.needsUpdate = true;
       renderer.setRenderTarget(rt); renderer.clear(true, true, false); renderer.render(scene, camera);
       calls = renderer.info.render.calls;
@@ -2157,17 +2158,21 @@ var SCENE3D = (function () {
     /* 셰이더 예열 (T3, docs/research/polish-from-starred-repos.md): 첫 바깥 전환이 프로그램 9개를 새로 컴파일하며 멈칫하던 것을 부팅으로 옮긴다.
        r128 compile 은 조명을 traverseVisible 로만 모으므로 장소마다 한 번씩 (그 장소만 보이게, 뷰티 패스와 같은 sRGB 타깃으로) 부른다. 재질은 숨은 것까지 traverse 하므로
        다른 장소 그룹은 잠깐 장면에서 떼어 낸다 (안 떼면 쓰지 않을 조명 변형이 9개 더 생긴다) · 문어는 두 장소를 오가므로 바깥 패스에선 바깥 그룹에 잠깐 붙인다. 끝나면 부모·순서·보이기를 되돌린다.
-       남는 것: 노멀 패스 덮어쓰기 재질·그림자 깊이 재질의 바깥(인스턴스) 변형 3개는 compile 이 닿지 않아 첫 바깥 프레임에 컴파일된다 (작은 셰이더) */
+       compile 이 닿지 않는 노멀 패스 덮어쓰기 재질·그림자 깊이 재질의 바깥 변형 3개(조명 수·인스턴스가 달라 따로 생긴다)는 바깥 노멀 패스를 rtN 에 한 번 그려 컴파일한다
+       (그림자 갱신 포함. rtN·그림자 맵은 첫 프레임이 다시 그리므로 화면엔 안 남는다) */
     (function prewarm() {
       if (ctxLost()) return;
-      var av = atticG.visible, ev = extG.visible, prt = renderer.getRenderTarget();
+      var av = atticG.visible, ev = extG.visible, prt = renderer.getRenderTarget(), bg = scene.background;
       function lift(o) { var p = o.parent, i = p.children.indexOf(o); p.remove(o); return function () { p.add(o); p.children.splice(p.children.indexOf(o), 1); p.children.splice(i, 0, o); }; }
       var putExt = null, putAttic = null, putOct = null;
       try {
         renderer.setRenderTarget(rt);
         putExt = lift(extG); atticG.visible = true; renderer.compile(scene, camera); putExt(); putExt = null;
         putOct = lift(octG); extG.add(octG); putAttic = lift(atticG); extG.visible = true; renderer.compile(scene, camera);
+        renderer.shadowMap.needsUpdate = true; scene.overrideMaterial = normalMat; scene.background = null;   /* draw() 의 노멀 패스와 같은 조건 */
+        renderer.setRenderTarget(rtN); renderer.clear(true, true, false); renderer.render(scene, camera);
       } catch (e) { /* 예열 실패는 첫 렌더가 대신 컴파일한다 */ }
+      scene.overrideMaterial = null; scene.background = bg;
       if (putExt) putExt(); if (putAttic) putAttic(); if (putOct) putOct();
       atticG.visible = av; extG.visible = ev; renderer.setRenderTarget(prt);
     })();
@@ -2235,7 +2240,7 @@ var SCENE3D = (function () {
       msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
       motion: function () { return { place: PLACE.vis, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, peek: PK.on ? PK.key + (PK.hold ? ':hold' : ':walk') : '', extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
       gaitStyle: function (s) { if (s === 'stepped' || s === 'smooth') GAIT.stepped = s === 'stepped'; return GAIT.stepped ? 'stepped' : 'smooth'; },   /* 디버그: 걸음 굴림 3단 스텝(기본) / 매끈 — tools/walk-strip.js 비교용 */   /* 룩 패스 7·8 디버그 */
-      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, season: SEASON.cur, offscreen: !!st.offscreen, callsAttic: callsBy.attic, callsExt: callsBy.exterior, extProps: extPropN }; },
+      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, season: SEASON.cur, offscreen: !!st.offscreen, draws: drawN, callsAttic: callsBy.attic, callsExt: callsBy.exterior, extProps: extPropN }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastDraw = 0; loop(); },
       destroy: function () {

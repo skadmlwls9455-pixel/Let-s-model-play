@@ -6,6 +6,8 @@
    - 꺼진 채로 시작한다 (브라우저 자동재생 정책 + 조용한 게임). 켜면 audio_on 한 번. 설정 = localStorage 'ppolppol_audio' { on, music, sfx }
      켜 둔 채 새로고침하면 첫 탭(어디든)에서 다시 흐른다 — 사용자 동작 없이는 소리를 내지 않는다.
    - 켜기 전에는 audio/ 에 요청을 하나도 보내지 않는다. 켠 뒤에도 지금 필요한 것만: 지금 BGM · 지금 환경음 · 효과음은 처음 쓸 때.
+     예외 하나: 말풍선 음절(voice_*) 16개 + 기웃 결과음(peek_*) 11개 (파일 56 KB · 디코드 1 MB 미만)는 켠 뒤 2.5초에 한꺼번에 미리 받는다 —
+     음절을 처음 받는 데 0.8 s 넘게 걸리면 그 말을 통째로 건너뛰어서 느린 기기에선 첫 말풍선들이 조용했고, 결과음이 늦게 오면 음절과 겹쳤다.
      디코드된 버퍼는 작은 LRU (바이트 한도, 울리는 중인 것은 안 지움).
    - Web Audio 버스 다섯 bgm · amb · sfx_event · sfx_ui · voice → (bgm: 빈 방 트림 → 덕킹) (amb: 덕킹 절반) → 마스터(밤 -3 dB) → 출력.
      징글의 duck_db 만큼 내리기만 한다 (어택 60~80 ms · 릴리스 0.5~0.9 s). 멈추는 건 방 완성(pause_bgm) 하나.
@@ -26,10 +28,11 @@ var AUDIO = (function () {
   var BASE = 'audio/';
   var BUSES = ['bgm', 'amb', 'sfx_event', 'sfx_ui', 'voice'];
   var BUDGET = 128 * 1024 * 1024;   /* 디코드된 버퍼 한도 (float32 — 집 테마 한 곡 3.5분 ≈ 40 MB, 환경음 한 겹 ≈ 10 MB) */
-  var MAX_BUFS = 48;                /* …그리고 개수 한도 (효과음은 작다) */
+  var MAX_BUFS = 64;                /* …그리고 개수 한도 (효과음은 작다 — 미리 받는 음절·결과음 27개가 금방 밀려나지 않게) */
   var MAX_SHOTS = 6;                /* 동시에 울리는 한 번짜리 소리 (manifest rules.min_gap_ms) */
   var PEEK_OK = { read: 1, builtin: 1, simulated: 1, failed: 1, none: 1 };
   var PLACE_ROOMS = { door_out: 1, slow_room: 1, letter_room: 1 };   /* 코너가 아니라 방 이름으로 테마가 있는 곳 */
+  var STAY_ANCHORS = { door: 1, window: 1, crate: 1, board: 1, blanket: 1, center: 1 };   /* app.js ANCHORS */
   var pref = { on: false, music: 0.8, sfx: 0.8 };
   var vol = { bgm: 0.8, amb: 0.8, sfx_event: 0.8, sfx_ui: 0.8, voice: 0.8 };
   function num(x) { return typeof x === 'number' && isFinite(x); }
@@ -76,7 +79,7 @@ var AUDIO = (function () {
   var slots = { bgm: null, amb: null, layer: null, warm: null, season: null }, want = {};
   var pend = null, rest = null, started = false, inited = false, armed = false, btn = null, toldFile = false;
   var band = bandOf(null), wx = 'rain', season = seasonOf(), lantern = 0;
-  var played = [], lastAt = {}, lastPick = {}, shots = [], evEnd = 0, pauseUntil = 0;
+  var played = [], lastAt = {}, lastPick = {}, shots = [], evEnd = 0, evP = Promise.resolve(0), pauseUntil = 0;
   var duckInfo = { db: 0, until: 0, lastDb: 0, lastAt: -1 };
   var windupAt = -99, returnAt = -99, moodAt = -99, lastSpeak = -99, lastSnore = -99, petN = 0, petT = -99;
   var tickTimer = null, lullTimer = null, pauseTimer = null;
@@ -240,7 +243,7 @@ var AUDIO = (function () {
     if (over >= MAX_SHOTS + (bus === 'sfx_event' ? 2 : 0)) return Promise.resolve(0);
     lastAt[g] = tt;
     shots.push({ s: tt, e: tt + (s.duration || 0.3) + 0.05 });
-    return load(id).then(function (buf) {
+    var p = load(id).then(function (buf) {
       if (!ctx || (!o.direct && !active())) return 0;
       if (o.at && bus === 'voice' && now() > o.at + 0.08) return 0;   /* 늦은 음절은 버린다 (뭉쳐 울리지 않게) */
       var src = ctx.createBufferSource(); src.buffer = buf;
@@ -260,10 +263,12 @@ var AUDIO = (function () {
       note(id, t);
       return end;
     }).catch(function (e) { warn('소리 파일을 못 틀었어 (' + id + ')', e); return 0; });
+    if (bus === 'sfx_event') evP = p;   /* 말풍선 음절은 이게 자리 잡은 뒤에 (처음 받는 기웃 결과음과 겹치지 않게) */
+    return p;
   }
   /* 덕킹: bgm 을 duck_db, amb 를 그 절반만큼 내렸다가 끝에서 놓는다. 겹치면 더 깊은 쪽 · 더 늦게 끝나는 쪽 */
   function duck(db, t, dur, atkMs, relMs) {
-    var atk = (atkMs || 70) / 1000, rel = (relMs || 750) / 1000, end = t + Math.max(0.1, dur - 0.15);
+    var atk = Math.min(80, Math.max(60, atkMs || 70)) / 1000, rel = Math.min(900, Math.max(500, relMs || 750)) / 1000, end = t + Math.max(0.1, dur - 0.15);   /* README §4: 어택 60~80 ms · 릴리스 0.5~0.9 s 밖으로 나가지 않게 */
     var deep = now() < duckInfo.until ? Math.min(duckInfo.db, db) : db;
     duckInfo.db = deep; duckInfo.until = Math.max(duckInfo.until, end); duckInfo.lastDb = db; duckInfo.lastAt = Math.round(t * 1000) / 1000;
     if (now() >= pauseUntil) setDuck(nd.duckBgm.gain, dbg(deep), t, atk, duckInfo.until, rel);
@@ -538,13 +543,18 @@ var AUDIO = (function () {
     if (!seq.length) return;
     var asked = now(), uniq = {};
     seq.forEach(function (x) { uniq[x[0]] = 1; });
-    /* 음절 파일을 다 받은 뒤 한 번에 예약 → 처음 쓸 때도 리듬이 흐트러지지 않는다. 너무 늦으면(0.8 s) 그 말은 건너뜀 */
-    Promise.all(Object.keys(uniq).map(load)).then(guard(function () {
-      if (!active() || now() - asked > 0.8) return;
-      var t = now() + 0.04;
-      if (evEnd > t && evEnd - t < 0.6) t = evEnd + 0.03;   /* 기웃 결과음 바로 뒤에서 말한다 */
-      seq.forEach(function (x) { play(x[0], { at: t + x[1], gain: gain }); });
-    }), noop);
+    /* 음절 파일을 다 받은 뒤 한 번에 예약 → 처음 쓸 때도 리듬이 흐트러지지 않는다. 음절 받기가 너무 늦으면(0.8 s) 그 말은 건너뜀.
+       방금 낸 이벤트 소리(기웃 결과음)가 아직 받는 중이면 그게 자리 잡을 때까지 (많아야 0.5 s) 기다렸다가 그 뒤에서 말한다 */
+    var evWait = Promise.race([evP, new Promise(function (r) { setTimeout(r, 500); })]);
+    Promise.all(Object.keys(uniq).map(load)).then(function () {
+      if (now() - asked > 0.8) return;
+      return evWait.then(guard(function () {
+        if (!active()) return;
+        var t = now() + 0.04;
+        if (evEnd > t && evEnd - t < 0.6) t = evEnd + 0.03;   /* 기웃 결과음 바로 뒤에서 말한다 */
+        seq.forEach(function (x) { play(x[0], { at: t + x[1], gain: gain }); });
+      }));
+    }).catch(noop);
   }
 
   /* ───────────────────────── 게임 이벤트 ───────────────────────── */
@@ -599,6 +609,7 @@ var AUDIO = (function () {
       case 'stay_home': {
         var ra = trip.receipt && trip.receipt.activity;
         var anchor = e.anchor || (ra && ra.anchor) || 'window';
+        if (!STAY_ANCHORS[anchor] || (anchor === 'crate' && lantern + 1 < 2)) anchor = 'window';   /* app.js sceneFor 와 같은 규칙: 모르는 자리 · 등불 2칸 전 상자 = 창가 (앱은 commitTrip 으로 한 칸 올린 뒤에 본다) */
         gs.stayAct = e.activity || (ra && ra.id) || null;
         gs.stayWindow = anchor === 'window';
         if (active() && !gs.skipping) {   /* 같은 움츠림, 다른 결말 */
@@ -715,12 +726,22 @@ var AUDIO = (function () {
       applyAmb(true);
       if (gs.sleeping) startLullaby(false); else applyBgm({ delay: fromUser ? 0.45 : 0 });
       clearInterval(tickTimer); tickTimer = setInterval(guard(tick), 1000);
+      clearTimeout(warmTimer); warmTimer = setTimeout(guard(warmVoices), 2500);   /* BGM·환경음을 먼저 받고 나서 */
       if (ctx && ctx.state === 'running') disarm();
     }));
   }
+  /* 말풍선 음절 16개 + 기웃 결과음 11개 (다 합쳐 56 KB) 를 한 번에 미리. 산책마다 몇 번씩 나는 작은 소리라 처음 받는 지연이 그대로 들렸다
+     (음절은 0.8 s 넘으면 말을 건너뛰고, 결과음이 늦으면 음절과 겹친다). 하나씩 차례로 받으면 메인 스레드가 바쁜 기기에선 몇 초씩 걸렸다 */
+  var warmTimer = null;
+  function warmVoices() {
+    if (!active()) return;
+    var ids = (groups.voice_a || []).concat(groups.voice_u || []);
+    Object.keys(PEEK_OK).forEach(function (k) { ids = ids.concat(groups[ev(['peek_status', k])] || []); });
+    ids.forEach(function (id) { if (!cache[id]) load(id).catch(noop); });
+  }
   function stopAll() {
     started = false;
-    clearInterval(tickTimer); tickTimer = null; cancelPend(); clearRest(); clearTimeout(lullTimer); clearTimeout(pauseTimer); pauseUntil = 0;
+    clearInterval(tickTimer); tickTimer = null; cancelPend(); clearRest(); clearTimeout(lullTimer); clearTimeout(pauseTimer); clearTimeout(warmTimer); pauseUntil = 0;
     gs.sleepPhase = null;
     if (!ctx || !nd.master) return;
     var t = now() + 0.4;
@@ -862,6 +883,9 @@ var AUDIO = (function () {
     return api;
   }
   function state() {
+    try { return snapshot(); } catch (e) { warn('state', e); return { enabled: pref.on, available: !reason, reason: reason || null, started: started, played: [] }; }
+  }
+  function snapshot() {
     var b = slots.bgm && !slots.bgm.dead ? slots.bgm : null;
     return {
       enabled: pref.on, available: !reason, reason: reason || null, started: started, ctx: ctx ? ctx.state : 'none', fmt: fmt,
