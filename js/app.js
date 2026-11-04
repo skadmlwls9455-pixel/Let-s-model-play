@@ -818,6 +818,36 @@ var APP = (function () {
   function legacyCopy(text) {
     try { var ta = h('textarea', { 'aria-hidden': 'true' }); ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;top:0'; document.body.appendChild(ta); ta.select(); var ok = document.execCommand && document.execCommand('copy'); ta.remove(); return !!ok; } catch (e) { return false; }
   }
+  /* 열람 기록 3~5줄 (§15.1) — 픽셀 게임 아이템 설명처럼. 강조는 색만: 기억 장소 .kw(--accent), 처음 온 곳 .first(--teal) */
+  function inspectHTML(trip) {
+    var r = trip.receipt, p = trip.poster || {}, lines = [];
+    var lead = '<p class="lead">' + esc(p.line || '') + '</p>';
+    if (trip.by === 'legacy') return lead + '<p class="meta">옛 기록에서 복원된 포스터야. 들른 곳 기록은 남아 있지 않아.</p>';
+    if (trip.kind === 'home') {
+      var act = (r && r.activity) || {};
+      lines.push('<p class="meta">' + emoH('🏠') + ' 오늘은 집 · 등불 +1</p>');
+      if (act.detail || p.detail) lines.push('<p>' + esc((act.detail || p.detail || '').split('\n')[0]) + '</p>');
+      if (r && r.reaction) lines.push('<p class="say voice">' + emoH(REACT_EMOJI[r.reaction]) + esc(r.reactionLine || r.reaction) + '</p>');
+      return lead + lines.join('');
+    }
+    var stops = (r && r.stops) || [], remIdx = r && r.rememberedIdx >= 0 ? r.rememberedIdx : -1;
+    if (stops.length) {
+      var chain = stops.map(function (s, i) {
+        var st = s.status || 'failed', cls = i === remIdx ? 'kw' : s.first ? 'first' : '';
+        var name = emoH(s.emoji || '❔') + ' ' + esc(s.name || s.title || '');
+        return '<span class="stop">' + (cls ? '<span class="' + cls + '">' + name + '</span>' : name) +
+          (s.first && i !== remIdx ? '<span class="first-chip">처음</span>' : '') +
+          (st === 'failed' || st === 'simulated' ? '<span class="miss" title="' + esc(STATUS_LABEL[st]) + '">✕</span>' : '') + '</span>';
+      });
+      lines.push('<p>들른 곳: ' + chain.join(' → ') + '</p>');
+    }
+    var c = (r && r.counts) || {};
+    lines.push('<p class="meta">읽음 ' + (c.read | 0) + ' · 책장 ' + (c.builtin | 0) + ' · 모의 ' + (c.simulated | 0) + ' · 못 읽음 ' + (c.failed | 0) + (c.none ? ' · 앉아만 ' + c.none : '') + '</p>');
+    if (r && r.reaction) lines.push('<p class="say voice">' + emoH(REACT_EMOJI[r.reaction]) + esc(r.reactionLine || r.reaction) + '</p>');
+    var sv = r && r.souvenir && W && W.souvenirs && W.souvenirs[r.souvenir];
+    if (sv || (r && r.souvenir)) lines.push('<p class="meta">가져온 것: ' + (sv ? emoH(sv.emoji) + ' ' + esc(sv.name) : esc(r.souvenir)) + '</p>');
+    return lead + lines.join('');
+  }
   /* 뒷면 영수증 HTML (§6.2) — 링크 클릭 가능 */
   function receiptHTML(trip) {
     var r = trip.receipt, p = trip.poster || {}, out = '<div class="receipt">';
@@ -925,21 +955,29 @@ var APP = (function () {
     openTripId = tripId;
     var dlg = $('poster-dialog'), fl = $('flipper');
     $('pd-front').innerHTML = posterSVG(t, 300, 400);
+    $('pd-text').innerHTML = inspectHTML(t);
     $('pd-back').innerHTML = receiptHTML(t);
     fl.classList.toggle('note', t.poster.type === 'note');
-    fl.classList.toggle('again', !!flippedOnce[tripId]);   /* 같은 포스터 두 번째 뒤집기는 300ms (GF R6) */
-    fl.classList.toggle('flip', !!back);
+    fl.classList.toggle('again', !!flippedOnce[tripId]);   /* 같은 포스터 두 번째 펼침은 300ms (GF R6) */
+    setReceiptOpen(!!back);
     if (back) flippedOnce[tripId] = true;
     $('pd-save').hidden = false;
-    var hint = $('pd-hint'); if (hint) hint.hidden = !!(S.settings.flipped || back);   /* 첫 뒤집기까지만 */
+    dlg.scrollTop = 0;
     showDialog(dlg);
   }
+  /* 영수증 전체 보기: .flip = 두 칸 아래로 영수증(링크 포함)을 펼친 상태 */
+  function setReceiptOpen(on) {
+    var fl = $('flipper'), b = $('pd-flip');
+    fl.classList.toggle('flip', on);
+    b.setAttribute('aria-expanded', on ? 'true' : 'false'); b.textContent = on ? '영수증 접기' : '영수증 전체 보기';
+  }
   function flipPoster() {
-    var fl = $('flipper'); fl.classList.toggle('flip');
+    var fl = $('flipper'), on = !fl.classList.contains('flip');
+    setReceiptOpen(on);
     if (openTripId) { flippedOnce[openTripId] = true; }
-    setTimeout(function () { fl.classList.add('again'); }, 600 * speed());   /* 이번 뒤집기가 끝난 뒤부터 짧게 */
+    setTimeout(function () { fl.classList.add('again'); }, 600 * speed());   /* 이번 펼침이 끝난 뒤부터 짧게 */
     if (!S.settings.flipped) { S.settings.flipped = true; save(); }
-    var hint = $('pd-hint'); if (hint) hint.hidden = true;
+    if (on) setTimeout(function () { var bk = $('pd-back'); if (bk && bk.scrollIntoView) bk.scrollIntoView({ block: 'nearest', behavior: reduced() ? 'auto' : 'smooth' }); }, 30);
   }
   /* <dialog> 열기: 연 요소를 기억해 닫힐 때 포커스를 돌려준다. closedby="any" 는 지원 브라우저에서만 */
   function showDialog(dlg) {
@@ -1209,6 +1247,7 @@ var APP = (function () {
     $('pd-front').addEventListener('click', flipPoster);
     $('pd-close').addEventListener('click', function () { $('poster-dialog').close(); });
     $('pd-save').addEventListener('click', function () { savePNG(); });
+    $('pd-copy').addEventListener('click', function () { var t = tripById(openTripId); if (t) copyText(shareLine(t)); });
     $('poster-dialog').addEventListener('click', function (e) { if (e.target === e.currentTarget) e.currentTarget.close(); });
     $('pd-back').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('.copy[data-share]'); if (b) { e.stopPropagation(); copyText(b.getAttribute('data-share')); } });
     $('room-sheet').addEventListener('click', function (e) { if (e.target === e.currentTarget) e.currentTarget.close(); });
@@ -1293,7 +1332,7 @@ var APP = (function () {
     get state() { return S; },
     save: save, load: load, invite: invite, skip: skip, reveal: reveal,
     renderAll: renderAll, renderStatus: renderStatus, renderScene: renderScene, renderLog: renderLog, renderWall: renderWall, renderAlbum: renderAlbum, renderSouvenirs: renderSouvenirs,
-    posterSVG: posterSVG, receiptHTML: receiptHTML, openPoster: openPoster, openRoomSheet: openRoomSheet,
+    posterSVG: posterSVG, receiptHTML: receiptHTML, inspectHTML: inspectHTML, openPoster: openPoster, openRoomSheet: openRoomSheet,
     importEvents: importEvents, exportJSON: exportJSON, importJSON: importJSON,
     oct: oct, walkTo: walkTo, octState: octState, anchors: ANCHORS, placeholders: PH, commitTrip: commitTrip,
     get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor

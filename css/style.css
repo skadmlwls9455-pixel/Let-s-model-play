@@ -338,27 +338,52 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .modal .big { font-size: 38px; line-height: 1; margin-bottom: 12px; }
 .modal-in { text-align: center; margin-bottom: 12px; background: var(--panel2); }
 .honest { font-size: 12px; color: var(--muted); margin: 14px 0 0; }
-.poster-modal { background: transparent; border: 0; width: min(92vw, 360px); padding: 0; overflow: visible; }
-.flipper { position: relative; width: 100%; aspect-ratio: 3 / 4; perspective: 900px; --t-flip: var(--t-scene); }
-.flipper.again { --t-flip: var(--t-flip-again); }
-.flipper .face {
-  position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
-  border-radius: 6px; overflow: hidden; background: var(--paper0); box-shadow: var(--shadow-lg);
-  transition: transform var(--t-flip) var(--ease-inout), opacity var(--t-flip) var(--ease-inout);   /* transition 이라 두 번 탭해도 되돌아온다 */
+/* ── 포스터 열람 (§15.1, ui-ref-inspect) — 다락 색조의 어두운 패널(두 테마 공통), 4px 모서리, 1px 밝은 안쪽 테두리.
+   패널이 항상 어두우니 강조색은 다크 테마 값으로 고정: 기억 장소 = --accent, 처음 온 곳 = --teal (색만, 굵기 X) ── */
+.poster-modal {
+  --ip-bg: #27222f; --ip-rim: #5a5068; --ip-fg: #e8dfcc; --ip-muted: #a89f93; --ip-line: rgba(232,223,204,.14);
+  --accent: #d8a062; --teal: #7ab3c6;
+  --ip-w: min(100vw - 32px, 760px); --ip-cw: calc(var(--ip-w) - 30px);   /* 패널 폭 · 안쪽 폭(패딩 28 + 테두리 2) — UA max-width 는 끈다 */
+  background: var(--ip-bg); color: var(--ip-fg); border: 1px solid #16121c; border-radius: 4px;
+  box-shadow: inset 0 0 0 1px var(--ip-rim), 0 12px 32px rgba(10,8,20,.5);
+  width: var(--ip-w); max-width: none; max-height: calc(100dvh - 24px); padding: 14px; overflow-y: auto; overscroll-behavior: contain; text-align: left;
 }
-.flipper .face.front { transform: rotateY(0); cursor: pointer; }
-.flipper .face.back { transform: rotateY(180deg); color: var(--ink); }
-.flipper.flip .face.front { transform: rotateY(-180deg); }
-.flipper.flip .face.back { transform: rotateY(0); }
-.flipper.note .face { width: 80%; height: 80%; inset: 10%; }
+.flipper { --t-flip: var(--t-scene); --pf: 1; }
+.flipper.again { --t-flip: var(--t-flip-again); }
+.flipper.note { --pf: .82; }   /* 쪽지는 포스터보다 작은 카드 */
+.inspect { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: start; }
+.inspect-art { display: flex; justify-content: center; }
+.flipper .face.front {
+  /* 폰: 뷰포트 높이의 62% 까지, 폭은 비율로 따라온다 */
+  height: calc(min(62dvh, var(--ip-cw) * 4 / 3) * var(--pf)); aspect-ratio: 3 / 4; width: auto; max-width: 100%;
+  border-radius: 3px; overflow: hidden; background: var(--paper0); box-shadow: 0 0 0 1px rgba(10,8,20,.5), 0 6px 18px rgba(10,8,20,.45); cursor: pointer;
+}
 .face.front svg { display: block; width: 100%; height: 100%; }
-.flip-hint { text-align: center; margin: 10px 0 0; font-size: 12px; }
-.flip-hint span { display: inline-block; padding: 4px 12px; border-radius: 12px; background: rgba(10,8,20,.6); color: #fff7ee; }
-.poster-modal .btn-row { margin-top: 12px; }
-.poster-modal .btn { background: var(--panel); }
+.inspect-text { font-family: 'Noto Sans KR', sans-serif; font-size: 14px; line-height: 1.6; min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.inspect-text p { margin: 0 0 8px; }
+.inspect-text .lead { font-family: 'Noto Serif KR', serif; font-size: 16px; font-weight: 600; margin-bottom: 10px; }
+.inspect-text .meta { color: var(--ip-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.inspect-text .kw { color: var(--accent); }        /* 기억으로 고른 곳 */
+.inspect-text .first { color: var(--teal); }       /* 처음 온 곳 */
+.inspect-text .first-chip { color: var(--teal); font-size: 11px; margin-left: 5px; vertical-align: 1px; }
+.inspect-text .miss { color: var(--ip-muted); margin-left: 2px; }   /* 못 읽음·모의 방문 뒤 ✕ */
+.inspect-text .say { font-style: normal; }
+.inspect-text .say .emo { margin-right: 4px; }
+.inspect-text .voice { border-left: 2px solid var(--ip-line); padding-left: 10px; }
+/* 영수증 펼침: .flip 이면 두 칸 아래로 내려온다 (뒤집기 아님) */
+.flipper .face.back { display: none; margin-top: 14px; border-radius: 3px; overflow: hidden; color: var(--ink); background: var(--paper0); box-shadow: 0 0 0 1px rgba(10,8,20,.5); }
+.flipper.flip .face.back { display: block; animation: fade-only var(--t-flip) var(--ease-enter) both; }
+.poster-modal .btn-row { margin-top: 14px; }
+.poster-modal .btn { background: rgba(255,250,240,.06); border-color: var(--ip-rim); color: var(--ip-fg); box-shadow: inset 0 1px 0 rgba(255,250,240,.06); font-size: 14px; padding: 8px 14px; }
+@media (min-width: 600px) {
+  .inspect { grid-template-columns: 58fr 42fr; gap: 18px; }
+  .flipper .face.front { height: calc(min(100dvh - 150px, (var(--ip-cw) - 18px) * .58 * 4 / 3) * var(--pf)); }
+  .inspect-text { padding-top: 4px; font-size: 15px; }
+  .inspect-text .lead { font-size: 18px; }
+}
 
 /* 영수증 (뒷면 HTML, §6.2) — 종이 위 글자는 테마 무관 ink 토큰 */
-.receipt { padding: 16px 14px; font-size: 12px; line-height: 1.5; height: 100%; overflow-y: auto; font-family: 'Noto Sans KR', sans-serif; color: var(--ink); background: var(--paper0); }
+.receipt { padding: 16px 14px; font-size: 12px; line-height: 1.5; font-family: 'Noto Sans KR', sans-serif; color: var(--ink); background: var(--paper0); }
 .receipt h3 { font-family: ui-monospace, monospace; font-size: 12px; margin: 0 0 6px; font-weight: 500; letter-spacing: .04em; }
 .receipt .hr { border-top: 1px dashed rgba(42,38,32,.4); margin: 6px 0; }
 .receipt .row { display: grid; grid-template-columns: 14px 1fr; gap: 6px; padding: 3px 0; }
@@ -413,10 +438,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   :root:not([data-motion="auto"]) .layer svg .flame, :root:not([data-motion="auto"]) .layer svg .glow,
   :root:not([data-motion="auto"]) .pip, :root:not([data-motion="auto"]) .btn.primary.away, :root:not([data-motion="auto"]) .lrow.typing .ltext { animation: none !important; }
   :root:not([data-motion="auto"]) .st-sleep #oct-inner { animation: hue 12s ease-in-out infinite !important; }
-  :root:not([data-motion="auto"]) .flipper .face { transform: none !important; transition: opacity var(--t-flip) var(--ease-inout); }
-  :root:not([data-motion="auto"]) .flipper .face.back { opacity: 0; }
-  :root:not([data-motion="auto"]) .flipper.flip .face.back { opacity: 1; }
-  :root:not([data-motion="auto"]) .flipper.flip .face.front { opacity: 0; }
+  :root:not([data-motion="auto"]) .flipper.flip .face.back { animation-name: fade-only; }
   :root:not([data-motion="auto"]) .lrow.in, :root:not([data-motion="auto"]) .pcard.in, :root:not([data-motion="auto"]) .layer.enter,
   :root:not([data-motion="auto"]) .pcard.in svg .stk, :root:not([data-motion="auto"]) dialog[open], :root:not([data-motion="auto"]) .sheet[open], :root:not([data-motion="auto"]) .wall-mini.landed { animation-name: fade-only; }
   :root:not([data-motion="auto"]) .pcard.in { transform: none; }
@@ -428,10 +450,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-motion="reduce"] .star, :root[data-motion="reduce"] .layer svg .flame, :root[data-motion="reduce"] .layer svg .glow,
 :root[data-motion="reduce"] .pip, :root[data-motion="reduce"] .btn.primary.away, :root[data-motion="reduce"] .lrow.typing .ltext { animation: none !important; }
 :root[data-motion="reduce"] .st-sleep #oct-inner { animation: hue 12s ease-in-out infinite !important; }
-:root[data-motion="reduce"] .flipper .face { transform: none !important; transition: opacity var(--t-flip) var(--ease-inout); }
-:root[data-motion="reduce"] .flipper .face.back { opacity: 0; }
-:root[data-motion="reduce"] .flipper.flip .face.back { opacity: 1; }
-:root[data-motion="reduce"] .flipper.flip .face.front { opacity: 0; }
+:root[data-motion="reduce"] .flipper.flip .face.back { animation-name: fade-only; }
 :root[data-motion="reduce"] .lrow.in, :root[data-motion="reduce"] .pcard.in, :root[data-motion="reduce"] .layer.enter,
 :root[data-motion="reduce"] .pcard.in svg .stk, :root[data-motion="reduce"] dialog[open], :root[data-motion="reduce"] .sheet[open], :root[data-motion="reduce"] .wall-mini.landed { animation-name: fade-only; }
 :root[data-motion="reduce"] .pcard.in { transform: none; }
