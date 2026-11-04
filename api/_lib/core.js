@@ -86,10 +86,10 @@ var BLOCK = [   /* 공백·_·- 를 지운 소문자에 대해 부분 일치 (�
   'fuck', 'shit', 'bitch', 'cunt', 'dick', 'pussy', 'nigg', 'fag', 'whore', 'porn'
 ];
 var URL_RE = /(https?:|www\.|:\/\/|\.(com|net|org|kr|io|gg|me|ly|co|app|xyz)\b|discord|t\.me)/i;
-/* 빈칸처럼 보이는 글자: 한글 채움 문자(ㅤ U+3164 는 ㄱ-ㆎ 범위 안이라 허용 목록을 통과한다) · 점자 빈칸 → 공백으로 */
-var BLANK_LIKE = /[ᅟᅠㅤﾠ⠀]/g;
+/* 빈칸처럼 보이는 글자: 한글 채움 문자(U+3164 는 ㄱ-ㆎ 범위 안이라 허용 목록을 통과한다) · 점자 빈칸 → 공백으로 */
+var BLANK_LIKE = /[\u115F\u1160\u3164\uFFA0\u2800]/g;
 /* 보이지 않는 글자: 서식 문자(ZWSP·ZWJ·방향 표시·BOM·soft hyphen …) · 결합 자소 잇기 · 변형 선택자 → 지운다 */
-var INVISIBLE = /[\p{Cf}͏︀-️\u{E0100}-\u{E01EF}]/gu;
+var INVISIBLE = /[\p{Cf}\u034F\uFE00-\uFE0F\u{E0100}-\u{E01EF}]/gu;
 function sanitizeNick(raw) {
   if (typeof raw !== 'string') return FALLBACK_NICK;
   var s = raw.normalize('NFC').replace(INVISIBLE, '').replace(BLANK_LIKE, ' ');   /* 빈칸 확인·금칙어 확인보다 먼저 */

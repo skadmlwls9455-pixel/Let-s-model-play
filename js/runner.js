@@ -430,9 +430,9 @@ var RUNNER = (function () {
         netMsg('이번 주 ' + j.rank + '등이야!' + (j.award === 'paper_crown' ? ' 종이 왕관을 받았어' : ''));
         loadTop(j.rank);
       } else {
-        var final = r.status >= 400 && r.status < 500 && r.status !== 408 && r.status !== 429;   /* 같은 판을 다시 보내도 같은 답 → 버튼은 꺼 둔다 */
-        if (!final) { me.submitted = false; btn.disabled = false; inp.disabled = false; }
-        netMsg(NET_ERR[j.error] || (final ? '이 판은 올릴 수 없어.' : '지금은 못 올렸어. 점수는 이 기기에 남아 있어.'));
+        var stuck = r.status >= 400 && r.status < 500 && r.status !== 408 && r.status !== 429;   /* 같은 판을 다시 보내도 같은 답(409·401 만료 등) → 버튼은 꺼 둔다 */
+        if (!stuck) { me.submitted = false; btn.disabled = false; inp.disabled = false; }
+        netMsg(NET_ERR[j.error] || (stuck ? '이 판은 올릴 수 없어.' : '지금은 못 올렸어. 점수는 이 기기에 남아 있어.'));
       }
     });
   }

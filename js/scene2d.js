@@ -183,7 +183,13 @@ var SCENE2D = (function () {
     }
 
     /* ───────── 포스터 벽 · 기념품 ───────── */
-    function wallSlotPos() { var n = Math.min(st.posters.length - 1, 4); if (n < 0) n = 0; return [216 + (n % 4) * 16, 62 + Math.floor(n / 4) * 21]; }
+    /* 새 포스터가 붙을 칸 (벽은 최근 5장만, 새 것이 맨 끝). 걸기 연출 중엔 APP 이 날아간 *뒤에* setPosters 를 부르므로 보통은 아직 목록에 없다 → 다음 칸.
+       id 를 알고 이미 목록에 있으면(건너뛰기·모션 감소로 먼저 붙었을 때) 그 칸 */
+    function wallSlotPos(id) {
+      var all = st.posters, first = Math.max(0, all.length - 5), n = Math.min(all.length, 4);
+      if (id) for (var i = 0; i < all.length; i++) if (all[i].id === id) n = Math.max(0, i - first);
+      return [216 + (n % 4) * 16, 62 + Math.floor(n / 4) * 21];
+    }
     function renderWall() {
       if (!wall) return;
       var all = st.posters, show = all.slice(-5), prev = wall.dataset.n | 0;
@@ -221,8 +227,12 @@ var SCENE2D = (function () {
       if (onOff && !c) inner.appendChild(h('div', { class: 'carry-poster' }));
       if (!onOff && c) c.remove();
     }
-    function setOctState(s) {
+    function setOctState(s, extra) {
       st.octState = s;
+      /* 들고 오는 포스터 그림: APP 이 octState('carry', { svg, id }) 로 넘긴다 (3D 와 같은 계약). 걸기(hang) 때 이 그림이 벽으로 날아간다.
+         들고 있지 않은 상태로 바뀌면 비운다 — 다음 산책에서 지난 포스터가 날아가지 않게 */
+      if (s === 'carry') { if (extra && extra.svg) { st.carrySvg = extra.svg; st.carryId = extra.id || null; } }
+      else if (s !== 'hang') { st.carrySvg = ''; st.carryId = null; }
       octEl.className = octEl.className.replace(/\bst-[a-z]+/g, '').trim() + ' st-' + s + (oct.flip ? ' flip' : '');
       if (s === 'carry') setCarry(true);
       else if (s === 'hang') { setCarry(false); flyPoster(); }
@@ -289,9 +299,10 @@ var SCENE2D = (function () {
     }
     function portraitURL(expr, o) { return portrait(expr, o).toDataURL('image/png'); }
     function flyPoster() {
-      if (!stage || st.reduced) return;
-      var fly = h('div', { class: 'fly', html: (st.carrySvg || '') });
-      var target = wallSlotPos();
+      if (!stage || st.reduced || !st.carrySvg) return;   /* 들고 온 그림이 없으면 빈 상자를 날리지 않는다 */
+      var fly = h('div', { class: 'fly', html: st.carrySvg });
+      var target = wallSlotPos(st.carryId);
+      st.carrySvg = ''; st.carryId = null;   /* 한 번 걸면 끝 */
       fly.style.transform = 'translate(' + (oct.x + 6) + 'px,' + (oct.y - 40) + 'px)';
       stage.appendChild(fly);
       requestAnimationFrame(function () { requestAnimationFrame(function () { fly.style.transform = 'translate(' + target[0] + 'px,' + target[1] + 'px)'; }); });
@@ -308,18 +319,21 @@ var SCENE2D = (function () {
       function done() { if (on.anchorReached) on.anchorReached(anchor); }
       if (st.reduced || dist < 1) { octPlace(to[0], to[1]); done(); return Promise.resolve(anchor); }
       var dur = dist / 40 * 1000 * st.speed, start = null, raf = 0, cancelled = false;
-      var p = new Promise(function (resolve) {
+      return new Promise(function (resolve) {
+        var w = oct.walking = {
+          cancel: function () { cancelled = true; cancelAnimationFrame(raf); },
+          /* 건너뛰기: 남은 걸음을 건너뛰고 바로 도착 (Promise 도 지금 풀린다 — 3D 의 walking.finish 와 같은 몫) */
+          finish: function () { if (cancelled) return; cancelled = true; cancelAnimationFrame(raf); octPlace(to[0], to[1]); if (oct.walking === w) oct.walking = null; done(); resolve(anchor); }
+        };
         function step(ts) {
           if (cancelled) return;
           if (start == null) start = ts;
           var k = Math.min(1, (ts - start) / dur);
           octPlace(from[0] + dx * k, from[1] + dy * k);
-          if (k < 1) raf = requestAnimationFrame(step); else { oct.walking = null; done(); resolve(anchor); }
+          if (k < 1) raf = requestAnimationFrame(step); else { cancelled = true; if (oct.walking === w) oct.walking = null; done(); resolve(anchor); }
         }
         raf = requestAnimationFrame(step);
       });
-      oct.walking = { cancel: function () { cancelled = true; cancelAnimationFrame(raf); } };
-      return p;
     }
     function pupilsTowards(clientX, clientY) {
       var r = octEl.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -364,8 +378,9 @@ var SCENE2D = (function () {
       setColor: setColor,
       setOctState: setOctState,
       setExpression: setExpression, expression: function () { return st.expr; }, EXPRESSIONS: EXPRESSIONS.slice(), portrait: portrait, portraitURL: portraitURL, portraitSVG: portraitSVG,
-      setCarry: function (svg) { st.carrySvg = svg || ''; },
+      setCarry: function (svg, id) { st.carrySvg = svg || ''; st.carryId = id || null; },
       moveTo: moveTo, jumpTo: jumpTo,
+      finishWalk: function () { if (oct.walking && oct.walking.finish) oct.walking.finish(); },   /* 건너뛰기: 걷던 길을 끝까지 감고 moveTo 의 Promise 를 지금 푼다 */
       /* 바깥·계절·전환 (DESIGN §15.3) — 2D 폴백은 같은 API 의 무동작 판: 장소·계절은 값만 기억하고(그림은 다락 그대로), 의식은 다음 틱에 onDone */
       setPlace: function (p) { st.place = p === 'exterior' ? 'exterior' : 'attic'; }, place: function () { return st.place || 'attic'; },
       setSeason: function (s) { st.seasonMode = ['spring', 'summer', 'autumn', 'winter'].indexOf(s) >= 0 ? s : 'auto'; var m = new Date().getMonth() + 1; st.season = st.seasonMode !== 'auto' ? st.seasonMode : m >= 3 && m <= 5 ? 'spring' : m >= 6 && m <= 8 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter'; },

@@ -203,8 +203,23 @@
     });
     return out;
   }
-  /* s 가 낱말 첫머리에서 시작하나 ('코스모스' 안의 '모스' 는 아니다) */
-  function startsWord(spaced, s) { return spaced.indexOf(' ' + s) >= 0; }
+  /* hay 안에 s 가 낱말로 들어 있나 (힌트 글·URL 공용, 둘 다 소문자).
+     - 영문만인 s: 앞뒤가 영문이 아닐 때만 (linkedin 안의 ink, rainbow 안의 rain 은 아니다)
+     - 그 밖(한글 등): 낱말 첫머리에서 시작하고, 그 낱말에 붙은 나머지가 없거나·조사거나·두 글자 이상일 때만
+       ('코스모스' 안의 모스, '노트북'의 노트, '에코백'의 에코는 아니다. '구름사진'의 구름, '모자가게'의 모자는 맞다) */
+  var WORD_CH = /[a-z0-9가-힣]/;
+  function containsWord(hay, s) {
+    if (!s) return false;
+    if (/^[a-z ]+$/.test(s)) return new RegExp('(^|[^a-z])' + s + '([^a-z]|$)').test(hay);
+    for (var i = hay.indexOf(s); i >= 0; i = hay.indexOf(s, i + 1)) {
+      if (i > 0 && WORD_CH.test(hay.charAt(i - 1))) continue;
+      var j = i + s.length, k = j;
+      while (k < hay.length && WORD_CH.test(hay.charAt(k))) k++;
+      var rest = hay.slice(j, k);
+      if (rest.length !== 1 || PARTICLES.indexOf(rest) >= 0) return true;
+    }
+    return false;
+  }
 
   function tokenize(hint) {
     var out = [];
@@ -230,7 +245,6 @@
     var low = lower(raw);
     var tokens = tokenize(raw).map(lower);
     var words = hintWords(raw);
-    var spaced = ' ' + low.split(HINT_SEP).join(' ');
     var ids = Object.keys(W.nodes);
     var best = null;
     function offer(id, how, score) {
@@ -251,23 +265,14 @@
       if (name && name.length === 1 && words.indexOf(name) >= 0) offer(id, 'token', 500 + name.length);   /* '비 오는 날' → 비 */
       for (j = 0; j < al.length; j++) if (tokens.indexOf(al[j]) >= 0) offer(id, 'alias', 400 + al[j].length);
       for (j = 0; j < kw.length; j++) if (tokens.indexOf(kw[j]) >= 0) offer(id, 'alias', 350 + kw[j].length);
-      if (name && name.length >= 2 && startsWord(spaced, name)) offer(id, 'token', 300 + name.length);
-      for (j = 0; j < al.length; j++) if (al[j].length >= 2 && startsWord(spaced, al[j])) offer(id, 'alias', 200 + al[j].length);
-      for (j = 0; j < kw.length; j++) if (kw[j].length >= 2 && startsWord(spaced, kw[j])) offer(id, 'alias', 150 + kw[j].length);
+      if (name && name.length >= 2 && containsWord(low, name)) offer(id, 'token', 300 + name.length);
+      for (j = 0; j < al.length; j++) if (al[j].length >= 2 && containsWord(low, al[j])) offer(id, 'alias', 200 + al[j].length);
+      for (j = 0; j < kw.length; j++) if (kw[j].length >= 2 && containsWord(low, kw[j])) offer(id, 'alias', 150 + kw[j].length);
     }
     if (best) return { kind: 'node', nodeId: best.nodeId, how: best.how };
     return { kind: 'wiki', query: raw };
   }
 
-  /* URL 안에서 c 를 낱말로 찾기: 영문은 앞뒤가 영문이 아닐 때만(linkedin 안의 ink 는 아니다),
-     그 밖(한글 등)은 낱말 첫머리일 때만(코스모스 안의 모스는 아니다) */
-  function urlHasWord(low, c) {
-    if (/^[a-z ]+$/.test(c)) return new RegExp('(^|[^a-z])' + c + '([^a-z]|$)').test(low);
-    for (var i = low.indexOf(c); i >= 0; i = low.indexOf(c, i + 1)) {
-      if (i === 0 || !/[a-z0-9가-힣]/.test(low.charAt(i - 1))) return true;
-    }
-    return false;
-  }
   /* URL 경로에서 한글/영문 키워드로 노드 찾기 (문 다음 정류장) */
   function nodeFromUrl(url) {
     var W = world();
@@ -282,7 +287,7 @@
       var cands = [node.name, id.replace(/_/g, ' ')].concat(node.aliases || [], node.keywords || [], node.wiki ? [node.wiki] : []);
       cands.forEach(function (c) {
         c = lower(c);
-        if (c.length >= 2 && urlHasWord(low, c) && (!best || c.length > best.len)) best = { id: id, len: c.length };
+        if (c.length >= 2 && containsWord(low, c) && (!best || c.length > best.len)) best = { id: id, len: c.length };
       });
     });
     return best ? W.nodes[best.id] : null;
@@ -343,6 +348,17 @@
       .catch(function () { clearTimeout(timer); return { ok: false, reason: timedOut ? 'timeout' : 'network' }; });
   }
   BRAIN.wikiUrl = function (title) { return WIKI_PAGE + encodeURIComponent(String(title).replace(/ /g, '_')); };
+
+  /* 재생 입력이 준 출처는 이 꼴일 때만 믿는다: 위키백과(한국어) 문서 · 위키미디어 공용 사진 (https 만) */
+  function isWikiPageUrl(u) { return typeof u === 'string' && /^https:\/\/ko\.wikipedia\.org\/wiki\/\S+$/.test(u); }
+  function safeThumb(t) {
+    if (!t || typeof t !== 'object' || typeof t.url !== 'string' || !/^https:\/\/upload\.wikimedia\.org\/\S+$/.test(t.url)) return null;
+    return { url: t.url, w: (typeof t.w === 'number' && isFinite(t.w)) ? t.w : null, h: (typeof t.h === 'number' && isFinite(t.h)) ? t.h : null };
+  }
+  /* 재생의 '읽음'을 fetch 결과 꼴로 (출처 주소는 isWikiPageUrl 를 통과한 것만 들어온다). 라이선스·출처 표기는 입력이 아니라 두뇌가 붙인다 */
+  function replayRead(title, src, note) {
+    return { ok: true, title: title, extract: String(src.extract || note || '').slice(0, 160), url: src.url, thumb: safeThumb(src.thumb), links: [] };
+  }
 
   /* fetchWiki(stub 가능)를 타임아웃·예외로부터 감싼다. 항상 resolve. */
   function normalizeResult(r) {
@@ -1073,41 +1089,55 @@
       var ht = homeTripFrom(base, act, R);
       ht.events = events;
       var wu = events.filter(function (e) { return e.type === 'wrap_up'; })[0];
-      if (wu && REACTIONS.indexOf(wu.reaction) >= 0) { ht.reaction = wu.reaction; ht.receipt.reaction = wu.reaction; ht.receipt.reactionEmoji = reactionEmoji(wu.reaction); }
+      /* 집에 있는 날엔 처음 온 곳도 읽은 것도 없으니 폴짝·우쭐은 받지 않는다 */
+      if (wu && REACTIONS.indexOf(wu.reaction) >= 0 && reactionFits(wu.reaction, [], 'none')) { ht.reaction = wu.reaction; ht.receipt.reaction = wu.reaction; ht.receipt.reactionEmoji = reactionEmoji(wu.reaction); }
+      if (wu) wu.reaction = ht.reaction;
       ht.memo = cleanMemo(wu && wu.memo);   /* 재생: 이벤트가 준 메모만. 없으면 말하지 않는다 */
       return ht;
     }
 
-    /* 외출 */
+    /* 외출. 재생 입력의 '읽음'·'처음'은 그대로 믿지 않는다 (§5.4.1 정직 표기):
+       - 밖의 문(url)은 정적 페이지라 바깥을 읽을 수 없다 → simulated (입력이 failed 면 failed). read 는 없다
+       - 방·들판의 read 는 출처가 진짜 ko.wikipedia.org 문서 주소일 때만. 사진은 upload.wikimedia.org 일 때만 싣는다
+       - 읽었다던 메모는 읽음이 인정될 때만 쓴다. 아니면 책장 메모·기본 문구
+       - 방의 '처음'은 방문 기록(meta.state.visits)이 정하고, 입력은 '처음 아님'만 보탤 수 있다. 들판은 늘 처음 아님
+       정리한 상태·메모·출처·처음 여부는 복사해 둔 peek 이벤트에도 다시 써서, 돌려주는 events 도 영수증과 같은 말을 한다 */
     var stops = events.filter(function (e) { return e.type === 'peek'; }).map(function (ev) {
       var tg = ev.target || {};
       var node = tg.id && W && W.nodes ? W.nodes[tg.id] : null;
+      var claimedRead = ev.status === 'read';
+      var src = (claimedRead && ev.source && isWikiPageUrl(ev.source.url)) ? ev.source : null;
       var s;
-      if (tg.kind === 'url' || (!node && tg.url)) {
+      if (tg.kind === 'url' || tg.id === 'door_out' || (!node && tg.url)) {
         s = makeDoorStop(tg.url || '');
-        if (ev.status && STATUSES.indexOf(ev.status) >= 0) s.status = ev.status;
-        if (ev.note) s.note = ev.note;
-      } else if (node && tg.id !== 'door_out') {
+        if (ev.status === 'failed') { s.status = 'failed'; s.note = ev.note || '문이 안 열렸어'; }
+        else if (ev.note && !claimedRead) s.note = ev.note;
+        if (tg.kind !== 'url') ev.target = Object.assign({}, tg, { kind: 'url', url: tg.url || '', title: tg.title || s.name });
+      } else if (node) {
         s = makeLibStop(node, state, ev.viaTangent, ev.bridge);
         if (isNoneNode(node)) applyFetch(s, null, true);
-        else if (ev.status === 'read' && ev.source && ev.source.url) applyFetch(s, { ok: true, title: node.wiki || node.name, extract: ev.source.extract || ev.note || '', url: ev.source.url, thumb: ev.source.thumb || null, links: [] }, true);
+        else if (src) applyFetch(s, replayRead(node.wiki || node.name, src, ev.note), true);
         else {
-          var st = (ev.status && STATUSES.indexOf(ev.status) >= 0 && ev.status !== 'read') ? ev.status : (node.clue ? 'builtin' : 'failed');
-          s.status = st; s.note = ev.note || (st === 'builtin' ? node.clue : st === 'simulated' ? SIMULATED_NOTE : '');
+          var st = (ev.status && STATUSES.indexOf(ev.status) >= 0 && !claimedRead) ? ev.status : (node.clue ? 'builtin' : 'failed');
+          s.status = st; s.note = (!claimedRead && ev.note) || (st === 'builtin' ? node.clue : st === 'simulated' ? SIMULATED_NOTE : '');
           if (st === 'builtin') s.reason = 'replay';
         }
-        if (typeof ev.first === 'boolean') s.first = ev.first;
+        if (ev.first === false) s.first = false;
       } else {
         var title = tg.title || tg.wiki || tg.id || '이름 없는 곳';
         s = makeWildStop(title, { viaTangent: !!ev.viaTangent, bridge: ev.bridge || null });
-        if (ev.status === 'read' && ev.source && ev.source.url) applyFetch(s, { ok: true, title: title, extract: ev.source.extract || ev.note || '', url: ev.source.url, thumb: ev.source.thumb || null, links: [] }, true);
+        if (src) applyFetch(s, replayRead(title, src, ev.note), true);
         else {
-          s.status = (ev.status && STATUSES.indexOf(ev.status) >= 0 && ev.status !== 'read') ? ev.status : 'simulated';
-          s.note = ev.note || (s.status === 'simulated' ? '내용은 읽지 않았어' : '');
+          s.status = (ev.status && STATUSES.indexOf(ev.status) >= 0 && !claimedRead) ? ev.status : 'simulated';
+          s.note = (!claimedRead && ev.note) || (s.status === 'simulated' ? '내용은 읽지 않았어' : '');
         }
-        if (typeof ev.first === 'boolean') s.first = ev.first;
       }
       s.ms = typeof ev.ms === 'number' ? ev.ms : 0;
+      /* 정리한 그대로 이벤트에도 (로그 줄이 원본의 ✅ 를 보여 주지 않게) */
+      ev.status = s.status; ev.note = s.note || ''; ev.first = !!s.first;
+      if (s.source) ev.source = { url: s.source.url, extract: s.source.extract, thumb: s.source.thumb, license: s.source.license, attribution: s.source.attribution };
+      else delete ev.source;
+      if (s.reason) ev.reason = s.reason;
       return s;
     });
 
@@ -1131,6 +1161,7 @@
       line: rem && rem.line ? String(rem.line) : null, sticker: rem && rem.sticker ? String(rem.sticker) : null,
       reaction: wrap && wrap.reaction
     });
+    if (wrap) wrap.reaction = out.reaction;   /* 맞지 않아 바뀐 반응도 이벤트에 그대로 */
     return {
       kind: 'out', by: by, seed: seed, dateKey: base.dateKey, seq: base.seq,
       hint: out.hint, events: events, receipt: out.receipt, poster: out.poster,

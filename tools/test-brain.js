@@ -75,8 +75,8 @@ function fakeWorld() {
       { id: 'nothing', line: '…', detail: '', anchor: 'blanket', weight: 0 }
     ],
     reactions: {
-      '폴짝': { emoji: '🎉', lines: ['처음 보는 게 있었어!'] }, '우쭐': { emoji: '😌', lines: ['끝까지 봤다구'] },
-      '덤덤': { emoji: '😶', lines: ['그냥 그랬어'] }, '졸림': { emoji: '😴', lines: ['졸려…'] }
+      '폴짝': { emoji: '🎉', lines: ['모르는 데로 한 발!'], when: { first: ['처음 보는 게 있었어!'] } }, '우쭐': { emoji: '😌', lines: ['끝까지 봤다구'] },
+      '덤덤': { emoji: '😶', lines: ['그냥 그랬어'], when: { missed: ['못 읽은 데도 있었어'] } }, '졸림': { emoji: '😴', lines: ['졸려…'], when: { long: ['많이 걸었어'] } }
     },
     lineTemplates: {
       followedThenLeft: ['{hint} 보러 갔다가 {mem}에 한눈팔았어'],
@@ -214,6 +214,37 @@ async function unitTests() {
   var hung = await BRAIN.wikiFetch('hang', { timeoutMs: 60 });
   check(hung.reason === 'timeout' && Date.now() - t0 < 2000, 'wikiFetch timeout via AbortController');
   global.fetch = realFetch;
+
+  /* ── 버그 사냥 회귀 (데이터와 무관한 작은 세계로) ── */
+  section('matchHint / nodeFromUrl — word matching (bug hunt #4 #5 #7)');
+  function mini(id, name, o) { return Object.assign({ id: id, name: name, corner: 'c', aliases: [], keywords: [], wiki: name }, o || {}); }
+  BRAIN.setWorld({ corners: { c: {} }, nodes: {
+    stamp: mini('stamp', '우표', { keywords: ['편지', '먹물'] }),           /* 키워드가 파일 앞쪽에 */
+    letter: mini('letter', '편지함', { aliases: ['편지'] }),               /* 별칭은 뒤쪽 */
+    ink: mini('ink', '잉크', { aliases: ['먹물'] }),
+    morse: mini('morse', '모스 부호', { aliases: ['모스', '노트'] }),
+    rain: mini('rain', '비', { keywords: ['rain'] }), snow: mini('snow', '눈'), bell: mini('bell', '종'), tea: mini('tea', '차', { aliases: ['tea'] }),
+    hat: mini('hat', '모자'), cloud: mini('cloud', '구름 이름', { aliases: ['구름'] })
+  } });
+  check(BRAIN.matchHint('편지').nodeId === 'letter', "#5 alias beats keyword: '편지' → letter (" + BRAIN.matchHint('편지').nodeId + ')');
+  check(BRAIN.matchHint('먹물').nodeId === 'ink', "#5 '먹물' → ink alias, not stamp keyword");
+  check(BRAIN.matchHint('편지 쓰기').nodeId === 'letter', "#5 token: alias beats keyword");
+  check(BRAIN.matchHint('비 오는 날').nodeId === 'rain' && BRAIN.matchHint('눈 오는 밤').nodeId === 'snow' && BRAIN.matchHint('차 한 잔').nodeId === 'tea', '#4 one-syllable room names match inside a phrase');
+  check(BRAIN.matchHint('비가 와').nodeId === 'rain' && BRAIN.matchHint('눈이 펑펑').nodeId === 'snow', '#4 one-syllable name + matching particle');
+  check(BRAIN.matchHint('종이').kind === 'wiki' && BRAIN.matchHint('차이').kind === 'wiki' && BRAIN.matchHint('종이접기').kind === 'wiki', "#4 '종이'/'차이' are not 종/차 + particle");
+  check(BRAIN.matchHint('코스모스').kind === 'wiki', "#7 '코스모스' does not match 모스 (mid-word)");
+  check(BRAIN.matchHint('노트북').kind === 'wiki', "#7 '노트북' does not match alias 노트 (prefix + one syllable)");
+  check(BRAIN.matchHint('구름사진').nodeId === 'cloud' && BRAIN.matchHint('모자가게').nodeId === 'hat' && BRAIN.matchHint('모자의 역사').nodeId === 'hat', '#7 compounds/particles still match (구름사진, 모자가게, 모자의 역사)');
+  check(BRAIN.matchHint('rainbow').kind === 'wiki' && BRAIN.matchHint('rain check').nodeId === 'rain', '#7 ascii keyword only as a whole word');
+  check(BRAIN.nodeFromUrl('https://www.linkedin.com/in/someone') === null, '#7 linkedin ≠ ink');
+  check(BRAIN.nodeFromUrl('https://teams.microsoft.com/x') === null && BRAIN.nodeFromUrl('https://chat.openai.com/') === null && BRAIN.nodeFromUrl('https://www.trainline.com/') === null, '#7 teams≠tea, chat≠hat, trainline≠rain');
+  check((BRAIN.nodeFromUrl('https://example.org/tea-time') || {}).id === 'tea' && (BRAIN.nodeFromUrl('https://example.org/hat') || {}).id === 'hat', '#7 url words still match (tea-time, /hat)');
+  check(BRAIN.nodeFromUrl('https://ko.wikipedia.org/wiki/' + encodeURIComponent('코스모스')) === null && (BRAIN.nodeFromUrl('https://ko.wikipedia.org/wiki/' + encodeURIComponent('모자의_역사')) || {}).id === 'hat', '#7 url: 코스모스 ≠ 모스, 모자의_역사 = 모자');
+  BRAIN.setWorld(null);
+
+  section('computeReaction — wild stops (bug hunt #6/#42)');
+  check(BRAIN.computeReaction([{ kind: 'wild', status: 'failed', first: false }, { kind: 'room', status: 'builtin', first: false }], 'left', 14, false) !== '폴짝', 'failed wild stop alone is not 폴짝');
+  check(BRAIN.computeReaction([{ kind: 'wild', status: 'read', first: false }, { kind: 'room', status: 'builtin', first: false }], 'none', 14, false) === '폴짝', 'read wild stop → 폴짝');
 }
 
 /* ───────── plan 테스트 (어떤 WORLD 로도) ───────── */
@@ -496,6 +527,171 @@ async function planSuite(label, W, hasHat) {
   check(specialHits === 0, 'pickStart never starts in special rooms');
 
   await memoSuite(label, W, hasHat);
+  await huntSuite(label, W);
+}
+
+/* ───────── 버그 사냥 회귀: 정직 표기 (어떤 WORLD 로도) ───────── */
+var WIKI_PAGE_RE = /^https:\/\/ko\.wikipedia\.org\/wiki\/\S+$/;
+async function huntSuite(label, W) {
+  var allVisited = {}; Object.keys(W.nodes).forEach(function (k) { allVisited[k] = 3; });
+  var okAll = function (t) { return Promise.resolve({ ok: true, title: t, extract: t + '는 무엇이다. 둘째 문장.', url: 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(t), thumb: null, links: ['베레모', '깃털', '단추', '조개'] }); };
+  var failAll = function () { return Promise.resolve({ ok: false, reason: 'missing' }); };
+  var seed, t, errs;
+
+  /* #1/#12/#38 집 활동: 등불·포스터가 실제로 있을 때만 */
+  section('home activities need what is in the room (#1) — ' + label);
+  function reqOk(a, lantern, posters) {
+    if (!a) return false;
+    if (typeof a.minLantern === 'number' && lantern < a.minLantern) return false;
+    if (typeof a.requiresLantern === 'number' && lantern < a.requiresLantern) return false;
+    if (a.requiresPoster && posters < (a.effect === 'rotatePosters' ? 2 : 1)) return false;
+    return true;
+  }
+  function actOf(id) { return (W.homeActivities || []).filter(function (a) { return a.id === id; })[0]; }
+  global.__ppolTest = { forceKind: 'home' };
+  errs = [];
+  var seenAct = { p0: {}, p1: {}, p3: {} };
+  for (seed = 1; seed <= 150; seed++) {
+    var cases = [{ lantern: 0, posters: undefined, k: 'p0' }, { lantern: 8, posters: 1, k: 'p1' }, { lantern: 8, posters: 3, k: 'p3' }, { lantern: 8, posters: 'x', k: 'p0' }];
+    for (var ci = 0; ci < cases.length; ci++) {
+      var c = cases[ci];
+      var st = { visits: {}, affinity: {}, lantern: c.lantern, recent: [], todayOut: 0 };
+      if (c.posters !== undefined) st.posters = c.posters;
+      t = await BRAIN.plan(baseInput(seed, { state: st }));
+      var id = t.receipt.activity.id, a = actOf(id);
+      var np = typeof c.posters === 'number' ? c.posters : 0;
+      if (a && !reqOk(a, c.lantern, np)) errs.push('seed ' + seed + ' lantern ' + c.lantern + ' posters ' + c.posters + ' → ' + id);
+      if (seenAct[c.k]) seenAct[c.k][id] = 1;
+    }
+  }
+  delete global.__ppolTest;
+  check(errs.length === 0, 'home activity always fits lantern/posters (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 3).join(' | ') : ''));
+  var posterActs = (W.homeActivities || []).filter(function (a) { return a.requiresPoster; });
+  if (posterActs.length) {
+    check(!Object.keys(seenAct.p0).some(function (id) { return actOf(id) && actOf(id).requiresPoster; }), 'no posters (missing/0/invalid) → no poster activity (' + Object.keys(seenAct.p0).join(',') + ')');
+    var rot = posterActs.filter(function (a) { return a.effect === 'rotatePosters'; })[0];
+    if (rot) {
+      check(!seenAct.p1[rot.id], 'one poster → no ' + rot.id + ' (needs two to swap)');
+      check(!!seenAct.p3[rot.id], 'three posters → ' + rot.id + ' can happen');
+    }
+    check(posterActs.some(function (a) { return seenAct.p1[a.id]; }), 'one poster → a poster activity can happen');
+  }
+
+  /* #2 무시한 힌트 방은 길에 없다 */
+  section('ignored node hint stays out of the route (#2) — ' + label);
+  var hintId = W.nodes.hat ? 'hat' : Object.keys(W.nodes).filter(function (id) { return W.nodes[id].wiki && !W.nodes[id].linger && id !== 'door_out'; })[0];
+  var hintName = W.nodes[hintId].name, hintCorner = W.nodes[hintId].corner;
+  var aff = {}; aff[hintCorner] = 5;
+  var ign = 0; errs = [];
+  for (seed = 1; seed <= 300; seed++) {
+    t = await BRAIN.plan(baseInput(seed, { hint: hintName, online: false, state: { visits: {}, affinity: aff, lantern: 1, recent: [], todayOut: 0 } }));
+    if (t.kind !== 'out' || t.hint.followed !== 'ignored') continue;
+    ign++;
+    if (t.receipt.stops.some(function (s) { return s.nodeId === hintId; })) errs.push('seed ' + seed + ' ignored but visited ' + hintId + ': ' + t.receipt.stops.map(function (s) { return s.name; }).join(','));
+    if (t.poster.line.indexOf(hintName + ' 말고 ' + hintName) >= 0 || (t.memo && t.memo.tomorrow.indexOf(hintName + ' 대신 ' + hintName) >= 0)) errs.push('seed ' + seed + ' contradiction: ' + t.poster.line);
+  }
+  check(ign > 10 && errs.length === 0, 'ignored ' + hintName + ' never walks into ' + hintId + ' (' + ign + ' ignored trips, ' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs[0] : ''));
+  var R1 = BRAIN.rng(5), R2 = BRAIN.rng(5), sameNoAvoid = true, avoided = true;
+  for (var q = 0; q < 300; q++) {
+    if (BRAIN.pickStart({ visits: {}, affinity: aff }, R1) !== BRAIN.pickStart({ visits: {}, affinity: aff }, R2, '__nope__')) sameNoAvoid = false;
+  }
+  var R3 = BRAIN.rng(6);
+  for (q = 0; q < 300; q++) if (BRAIN.pickStart({ visits: {}, affinity: aff }, R3, hintId) === hintId) avoided = false;
+  check(sameNoAvoid && avoided, 'pickStart avoid: never returns the avoided room; unknown avoid id changes nothing');
+  var contra = BRAIN.replay([{ type: 'depart', t: 0, hint: hintName, followHint: false }, { type: 'peek', t: 1, target: { kind: 'room', id: hintId } },
+    { type: 'return', t: 2 }, { type: 'remember', t: 3, stopIdx: 0 }, { type: 'wrap_up', t: 4, reaction: '덤덤' }], { by: 'mcp', now: NOW_DAY });
+  check(contra.hint.followed !== 'ignored' && !contra.hint.note && contra.poster.line.indexOf(hintName + ' 말고') < 0, 'replay: followHint false but went there → not "ignored" (' + contra.hint.followed + ' · ' + contra.poster.line + ')');
+
+  /* #3/#41 반응 한 줄은 실제로 있었던 일만 */
+  section('reaction lines match what happened (#3/#41) — ' + label);
+  errs = [];
+  global.__ppolTest = { forceKind: 'home' };
+  for (seed = 1; seed <= 80; seed++) {
+    t = await BRAIN.plan(baseInput(seed, { state: { visits: {}, affinity: {}, lantern: 3, recent: [], todayOut: 0 } }));
+    if (/걸었|다녀왔|갔다 왔|산책|처음|못 읽/.test(t.receipt.reactionLine || '')) errs.push('home seed ' + seed + ': ' + t.receipt.reactionLine);
+  }
+  delete global.__ppolTest;
+  function lineErr(tr, tag) {
+    var ln = tr.receipt.reactionLine || '', c = tr.receipt.counts;
+    if (/못 읽은/.test(ln) && !(c.failed + c.simulated > 0)) return tag + ' says missed but nothing failed: ' + ln;
+    if (/처음/.test(ln) && !tr.receipt.stops.some(function (s) { return s.first; })) return tag + ' says first but no first stop: ' + ln;
+    if (/많이 걸었/.test(ln) && tr.receipt.stops.length < 4) return tag + ' says walked a lot with ' + tr.receipt.stops.length + ' stops: ' + ln;
+    return null;
+  }
+  var outN = 0;
+  for (seed = 1; seed <= 200; seed++) {
+    var variants = [
+      baseInput(seed, { state: { visits: allVisited, affinity: {}, lantern: 8, recent: [], todayOut: 0 }, fetchWiki: okAll }),
+      baseInput(seed, { now: NOW_NIGHT, state: { visits: allVisited, affinity: {}, lantern: 3, recent: [], todayOut: 0 }, fetchWiki: okAll }),
+      baseInput(seed, { hint: '아무도모르는제목', state: { visits: allVisited, affinity: {}, lantern: 3, recent: [], todayOut: 0 }, fetchWiki: failAll })
+    ];
+    for (var vi = 0; vi < variants.length; vi++) {
+      t = await BRAIN.plan(variants[vi]);
+      if (t.kind !== 'out') continue;
+      outN++;
+      var e1 = lineErr(t, 'seed ' + seed + '/' + vi); if (e1) errs.push(e1);
+    }
+  }
+  check(outN > 100 && errs.length === 0, 'reaction lines: no "많이 걸었어" at home, no "못 읽은" without a miss, no "처음" without a first stop (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 3).join(' | ') : ''));
+
+  /* #6/#42 들판(❔)은 '처음'이 아니다. 실패한 들판 걸음으로 폴짝하지 않는다 */
+  section('wild stops are never "first" (#6/#42) — ' + label);
+  errs = []; var wildSeen = 0, failedWild = 0;
+  for (seed = 1; seed <= 120; seed++) {
+    var runs = [await BRAIN.plan(baseInput(seed, { hint: '고양이', state: { visits: allVisited, affinity: {}, lantern: 8, recent: [], todayOut: 0 }, fetchWiki: failAll })),
+      await BRAIN.plan(baseInput(seed, { state: { visits: allVisited, affinity: {}, lantern: 8, recent: [], todayOut: 0 }, fetchWiki: okAll }))];
+    runs.forEach(function (tr, k) {
+      if (tr.kind !== 'out') return;
+      tr.receipt.stops.forEach(function (s) { if (s.wild) { wildSeen++; if (s.first) errs.push('seed ' + seed + ' wild first'); } });
+      tr.events.forEach(function (e) { if (e.type === 'peek' && e.target.kind === 'wild' && e.first) errs.push('seed ' + seed + ' wild peek event first'); });
+      var onlyFailedWild = tr.receipt.stops.some(function (s) { return s.wild && s.status === 'failed'; }) && !tr.receipt.stops.some(function (s) { return s.first || (s.wild && s.status === 'read'); });
+      if (onlyFailedWild) { failedWild++; if (tr.reaction === '폴짝') errs.push('seed ' + seed + ' 폴짝 from a failed wild stop'); }
+    });
+  }
+  check(wildSeen > 0 && failedWild > 0 && errs.length === 0, 'wild stops first:false; failed wild stop does not make 폴짝 (' + wildSeen + ' wild, ' + failedWild + ' failed-only, ' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs[0] : ''));
+
+  /* #0 replay 는 지어낸 '읽음'·출처·사진·처음·반응을 받지 않는다 */
+  section('replay does not accept made-up reads (#0) — ' + label);
+  var clueId = W.nodes.button && W.nodes.button.clue ? 'button' : Object.keys(W.nodes).filter(function (id) { return W.nodes[id].clue && W.nodes[id].wiki && id !== hintId; })[0];
+  var good = 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(W.nodes[clueId].wiki || W.nodes[clueId].name);
+  var fake = [
+    { type: 'depart', t: 0, hint: 'https://example.com/page' },
+    { type: 'peek', t: 1, target: { kind: 'url', url: 'https://example.com/page' }, status: 'read', note: '바깥 글을 다 읽었어', first: true, ms: 3000 },
+    { type: 'peek', t: 2, target: { kind: 'room', id: hintId }, status: 'read', first: true, ms: 3000, source: { url: 'https://example.com/not-wiki', extract: '진짜 읽은 척', thumb: { url: 'https://example.com/x.png' } } },
+    { type: 'peek', t: 3, target: { kind: 'wild', title: '어딘가' }, status: 'read', first: true, ms: 3000, source: { url: 'javascript:alert(1)', extract: 'x' } },
+    { type: 'peek', t: 4, target: { kind: 'room', id: clueId }, status: 'read', ms: 3000, source: { url: good, extract: '진짜 위키 문서 요약.', thumb: { url: 'http://upload.wikimedia.org/a.jpg' }, license: '퍼블릭 도메인', attribution: '나' } },
+    { type: 'peek', t: 5, target: { kind: 'room', id: 'door_out' }, status: 'read', ms: 3000 },
+    { type: 'return', t: 6 }, { type: 'remember', t: 7, stopIdx: 3 }, { type: 'hang_poster', t: 8 }, { type: 'wrap_up', t: 9, reaction: '우쭐' }
+  ];
+  var fakeCopy = JSON.parse(JSON.stringify(fake));
+  var visited = {}; visited[hintId] = 4;
+  var rf = BRAIN.replay(fakeCopy, { by: 'mcp', now: NOW_DAY, state: { visits: visited, affinity: {} } });
+  var rs = rf.receipt.stops;
+  check(JSON.stringify(fakeCopy) === JSON.stringify(fake), 'replay does not mutate its input');
+  check(rs[0].status === 'simulated' && rs[0].note.indexOf('정적 페이지라') === 0 && !rs[0].source, 'url door claimed read → simulated, honest note (' + rs[0].status + ')');
+  check(rs[4].status === 'simulated' && rs[4].nodeId === 'door_out', 'door_out room claimed read → simulated door');
+  check(rs[1].status !== 'read' && !rs[1].source && rs[1].note.indexOf('읽은 척') < 0, 'room read with non-wiki source → not read, no source, claimed note dropped (' + rs[1].status + ')');
+  check(rs[1].first === false, 'room first:true claim ignored when visits say it was visited');
+  check(rs[2].status === 'simulated' && !rs[2].source && rs[2].first === false, 'wild read with javascript: source → simulated, not first');
+  check(rs[3].status === 'read' && rs[3].source && rs[3].source.url === good && rs[3].source.thumb === null && rs[3].source.license === BRAIN.LICENSE && rs[3].source.attribution === BRAIN.ATTRIBUTION, 'real ko.wikipedia source kept; http thumb dropped; license/attribution from the brain, not input');
+  check(rf.poster.thumb === null, 'poster thumb only from upload.wikimedia.org https');
+  check(rf.receipt.counts.read === 1 && rf.receipt.counts.simulated === 3, 'counts honest (' + JSON.stringify(rf.receipt.counts) + ')');
+  check(rs.every(function (s) { return !s.source || WIKI_PAGE_RE.test(s.source.url); }), 'every receipt source is a ko.wikipedia.org page');
+  check(rf.reaction !== '우쭐' && rf.receipt.reaction === rf.reaction, 'claimed 우쭐 with 1/5 read → recomputed (' + rf.reaction + ')');
+  var peeks = rf.events.filter(function (e) { return e.type === 'peek'; });
+  var evMismatch = peeks.filter(function (e, i) { var s = rs[i]; return e.status !== s.status || e.note !== s.note || !!e.first !== !!s.first || !!e.source !== !!s.source || (e.source && e.source.url !== s.source.url); });
+  check(peeks.length === rs.length && evMismatch.length === 0, 'returned peek events carry the normalized status/note/first/source (' + evMismatch.length + ' mismatches)');
+  check(rf.events.filter(function (e) { return e.type === 'wrap_up'; })[0].reaction === rf.reaction, 'returned wrap_up event carries the normalized reaction');
+  var wikiThumb = BRAIN.replay([{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 1, target: { kind: 'room', id: clueId }, status: 'read', source: { url: good, extract: '요약.', thumb: { url: 'https://upload.wikimedia.org/wikipedia/commons/a/ab/x.jpg', w: 10, h: 20 } } },
+    { type: 'return', t: 2 }, { type: 'remember', t: 3, stopIdx: 0 }, { type: 'wrap_up', t: 4, reaction: '덤덤' }], { by: 'mcp', now: NOW_DAY });
+  check(wikiThumb.poster.thumb && wikiThumb.poster.thumb.url.indexOf('https://upload.wikimedia.org/') === 0 && wikiThumb.poster.thumb.license === BRAIN.THUMB_LICENSE, 'upload.wikimedia.org thumb is kept and credited');
+  var proudOk = BRAIN.replay([{ type: 'depart', t: 0, hint: W.nodes[clueId].name }, { type: 'peek', t: 1, target: { kind: 'room', id: clueId }, status: 'read', source: { url: good, extract: '요약.' } },
+    { type: 'return', t: 2 }, { type: 'wrap_up', t: 3, reaction: '우쭐' }], { by: 'mcp', now: NOW_DAY, state: { visits: allVisited } });
+  check(proudOk.reaction === '우쭐' || proudOk.hint.followed !== 'followed', 'honest 우쭐 (followed + all read) is kept (' + proudOk.reaction + '/' + proudOk.hint.followed + ')');
+  var homeJump = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 1, reaction: '폴짝' }], { by: 'mcp' });
+  check(homeJump.reaction === '졸림' && homeJump.events[1].reaction === '졸림', 'home replay: 폴짝 with nothing new → 졸림');
+  var failedDoor = BRAIN.replay([{ type: 'depart', t: 0, hint: 'https://example.org' }, { type: 'peek', t: 1, target: { kind: 'url', url: 'https://example.org' }, status: 'failed' }, { type: 'return', t: 2 }], { by: 'mcp' });
+  check(failedDoor.receipt.stops[0].status === 'failed', "url door reported failed stays 'failed'");
 }
 
 /* ───────── §17.1 메모 · 재방문 깊이 ───────── */

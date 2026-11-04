@@ -19,12 +19,14 @@ var INTRO = (function () {
   var enabled = !off && (forced || !robot);
   if (enabled) {
     root.classList.add('intro-on');
+    /* 새로고침 때 브라우저가 예전 스크롤 자리를 load 뒤에 되살리면 start 의 scrollTo(0,0) 를 덮어 장면이 화면 밖으로 밀린다 (덮개 구멍만 남음) → 입장이 켜진 판은 되살리지 않는다 */
+    try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) { /* 막힌 환경 */ }
     /* 안전판: 앱이 INTRO.start 를 못 부르면(스크립트 오류 등) 로드 3 s 뒤 덮개를 걷어 화면을 돌려준다 */
     window.addEventListener('load', function () { setTimeout(function () { if (st.phase === 'off') root.classList.remove('intro-on'); }, 3000); });
   }
 
   var LOGO = { w: 160, h: 41 }, SKY_DUR = 2.2;
-  var st = { phase: 'off', scene: null, el: null, s: 2, reduced: false, cbs: [], timers: [], raf: 0, rise: null, ro: null, inert: [] };
+  var st = { phase: 'off', scene: null, el: null, s: 2, reduced: false, cbs: [], timers: [], raf: 0, rise: null, ro: null, inert: [], anim: null };
 
   function asset(key, fallback) { var a = window.ASSETS_INLINE && window.ASSETS_INLINE[key]; return (a && (a.src || (typeof a === 'string' ? a : null))) || fallback; }
   function later(fn, ms) { var id = setTimeout(fn, ms); st.timers.push(id); return id; }
@@ -145,6 +147,7 @@ var INTRO = (function () {
     var stage = host.querySelector('#stage');
     if (!stage || st.reduced || !stage.animate) return Promise.resolve();
     var a = stage.animate([{ translate: '0 -110%' }, { translate: '0 3%', offset: 0.8 }, { translate: '0 0' }], { duration: SKY_DUR * 1000 * speed(), easing: 'cubic-bezier(.2,.8,.2,1)' });
+    st.anim = a;   /* go() 가 바로 착지시킨다 (3D 의 introSkip 과 같은 몫) */
     return a.finished.catch(function () {});
   }
 
@@ -155,6 +158,7 @@ var INTRO = (function () {
     st.phase = 'out'; st.el.dataset.phase = 'out';
     cancelAnimationFrame(st.raf);
     if (st.scene && st.scene.introSkip) st.scene.introSkip();
+    if (st.anim) { try { st.anim.finish(); } catch (e) { /* 이미 끝남 */ } st.anim = null; }   /* 2D: 내려오던 무대를 제자리에 (덮개가 걷히는 동안 아래로 미끄러지지 않게) */
     react('happy');   /* 폴짝 두 번 — 반가워. 2.4 s 뒤 원래 표정으로 */
     var sc = st.scene, prev = st.prevExpr;
     if (!st.asleep && sc && sc.setExpression) setTimeout(function () { if (sc.expression && sc.expression() === 'happy') sc.setExpression(prev && prev !== 'curious' ? prev : 'idle'); }, 2400 * speed());

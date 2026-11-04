@@ -246,10 +246,37 @@ acts.forEach(function (a) {
   ok(!/미안|못 나가|아쉽/.test(a.line + a.detail), '활동 ' + a.id + ' 에 아쉬움/사과 표현');
 });
 
-/* ---- 반응 ---- */
+/* 집 활동은 방에 실제로 있는 것만: 포스터를 말하면 requiresPoster, 이끼 화분은 등불 1부터, 자리 바꾸기는 rotatePosters */
+acts.forEach(function (a) {
+  if (/포스터/.test(a.line + a.detail + (a.memo || ''))) ok(a.requiresPoster === true, '활동 ' + a.id + ' 은 포스터를 말하니 requiresPoster 필요');
+  if (/이끼|화분/.test(a.line + a.detail)) ok(typeof a.requiresLantern === 'number' && a.requiresLantern >= 1, '활동 ' + a.id + ' 은 이끼 화분(등불 1)이 있어야 해: requiresLantern ≥ 1');
+});
+var rearr = acts.filter(function (a) { return a.id === 'rearrange'; })[0];
+ok(rearr && rearr.effect === 'rotatePosters' && rearr.requiresPoster === true, 'rearrange 는 effect:rotatePosters + requiresPoster');
+
+/* ---- 반응 ----
+   lines = 언제 말해도 참인 줄, when.first/missed/long = 그 일이 있었을 때만 더하는 줄 */
+var WHEN_KEYS = ['first', 'missed', 'long'];
 ['폴짝', '우쭐', '덤덤', '졸림'].forEach(function (r) {
   var rx = W.reactions[r];
-  ok(rx && rx.emoji && Array.isArray(rx.lines) && rx.lines.length >= 2 && rx.lines.length <= 3, '반응 ' + r + ' 은 2~3줄');
+  var when = (rx && rx.when) || {};
+  var extra = 0;
+  Object.keys(when).forEach(function (k) {
+    ok(WHEN_KEYS.indexOf(k) >= 0, '반응 ' + r + ' when.' + k + ' 은 모르는 조건');
+    ok(Array.isArray(when[k]) && when[k].length >= 1 && when[k].every(function (l) { return typeof l === 'string' && l; }), '반응 ' + r + ' when.' + k + ' 은 문자열 배열');
+    extra += (when[k] || []).length;
+  });
+  ok(rx && rx.emoji && Array.isArray(rx.lines) && rx.lines.length >= 1 && rx.lines.length + extra >= 2 && rx.lines.length + extra <= 3, '반응 ' + r + ' 은 2~3줄 (늘 참인 줄 1개 이상)');
+  /* 늘 쓰는 줄에는 사실 주장이 없어야 한다 */
+  (rx && rx.lines || []).forEach(function (l) {
+    ok(!/처음/.test(l), '반응 ' + r + ' 의 늘 쓰는 줄이 처음을 주장: ' + l + ' (when.first 로)');
+    ok(!/못 읽/.test(l), '반응 ' + r + ' 의 늘 쓰는 줄이 못 읽음을 주장: ' + l + ' (when.missed 로)');
+    ok(!/많이 걸었/.test(l), '반응 ' + r + ' 의 늘 쓰는 줄이 오래 걸음을 주장: ' + l + ' (when.long 으로)');
+  });
+});
+/* 집에 있는 날의 졸림 줄(lines)은 걷거나 다녀온 일을 말하지 않는다 */
+(W.reactions['졸림'].lines || []).forEach(function (l) {
+  ok(!/걸었|다녀왔|갔다 왔|산책/.test(l), '졸림 lines 는 집에 있는 날에도 쓰인다 — 걸은 얘기 금지: ' + l);
 });
 
 /* ---- 템플릿 ---- */

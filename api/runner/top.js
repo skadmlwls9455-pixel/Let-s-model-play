@@ -8,7 +8,7 @@ module.exports = async function top(req, res) {
   if (!core.isWeek(week)) return core.send(res, 400, { ok: false, error: 'bad_week' });
   try {
     var b = await core.board(core.getStore(), week);
-    /* 닉네임은 보여 줄 때 한 번 더 정리: 정리 규칙이 생기기 전에 저장된 블롭(예: 한글 채움 문자 ㅤ 이름)도 같은 규칙으로 */
+    /* 닉네임은 보여 줄 때 한 번 더 정리: 정리 규칙이 생기기 전에 저장된 블롭(예: 한글 채움 문자 U+3164 이름)도 같은 규칙으로 */
     var rows = b.slice(0, 20).map(function (d) { var r = { rank: d.rank, nick: core.sanitizeNick(d.nick), score: d.score }; if (d.uploadedAt) r.at = d.uploadedAt; return r; });
     core.send(res, 200, { ok: true, week: week, total: b.length, top: rows }, 'public, s-maxage=15, stale-while-revalidate=30');
   } catch (e) {
