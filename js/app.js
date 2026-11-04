@@ -327,6 +327,7 @@ var APP = (function () {
     var lbl = $('oct-label');
     if (lbl) lbl.textContent = st === 'sleep' ? '💤' : st === 'away' ? '' : st === 'anticipate' ? '출발 중…' : '';
     if (st === 'sleep') scheduleDreamLabel();
+    if (window.UIART) UIART.onState(st);   /* zzz · 출발 먹물 (js/ui-art.js) */
   }
   var dreamTimer = null;
   function scheduleDreamLabel() {
@@ -368,15 +369,15 @@ var APP = (function () {
     thinkTimer = setTimeout(function () {
       var dlgOpen = !!document.querySelector('dialog[open]');
       if (!oct.busy && oct.state === 'idle' && !document.hidden && !dlgOpen && !lookHook()) {
-        var t = thinkLine(); if (t) { bubble(t, 3600); expressRow('curious'); }
+        var t = thinkLine(); if (t) { bubble(t, 3600, 'think'); expressRow('curious'); }
       }
       scheduleThink();
     }, (20 + uiRng() * 20) * 1000);
   }
-  function bubble(text, ms) { scene.bubble(text, ms); }
+  function bubble(text, ms, kind) { scene.bubble(text, ms); if (window.UIART) UIART.onBubble(text, kind); }   /* kind → 말풍선 모양 (js/ui-art.js) */
   /* 말풍선 + 로그 대화창 행 (§15.2 "?" · "비가 와" · "…♡"): 장면 위 말풍선과 같은 말을 초상과 함께 오늘 칸에 남긴다 (저장 X — 새로고침하면 사라지는 혼잣말). 바로 앞 행과 같은 말이면 행은 생략 */
   function say(text, expr, ms) {
-    bubble(text, ms);
+    bubble(text, ms, expr);
     var today = ensureTodaySection(), last = today.lastElementChild;
     if (last && last.classList.contains('lrow') && last.dataset.say === text) { expressRow(expr); return; }
     var row = logRow('혼잣말', text, 'c-amber', true, expr); row.dataset.say = text;
@@ -395,6 +396,7 @@ var APP = (function () {
     if (oct.busy || oct.state === 'away') return;
     if (oct.state === 'sleep') { say('…zZ', 'sleep', 1500); return; }
     octState('pet');
+    if (window.UIART) UIART.fx('heart');
     clearTimeout(petTimer);
     petTimer = setTimeout(function () {
       if (oct.state !== 'pet') return;
@@ -582,7 +584,7 @@ var APP = (function () {
         return sleep(fast ? 0 : 520 * speed()).then(function () { renderWall(); });
       case 'wrap_up':
         var r = ev.reaction || trip.reaction;
-        if (r && REACT_EMOJI[r]) bubble(REACT_EMOJI[r] + ' ' + ((trip.receipt && trip.receipt.reactionLine) || r), 3000);
+        if (r && REACT_EMOJI[r]) bubble(REACT_EMOJI[r] + ' ' + ((trip.receipt && trip.receipt.reactionLine) || r), 3000, REACT_EXPR[r]);
         octState(r === '폴짝' || r === '우쭐' ? 'happy' : 'idle');
         if (trip.status !== 'done') commitTrip(trip);
         var cer = startCeremony();                      /* 로그가 끝났으니 연출 시작 — 문어가 담요로 가는 동안 같이 */
@@ -783,7 +785,9 @@ var APP = (function () {
       case 'empty_turn': expr = 'sleep'; frag.appendChild(document.createTextNode('…')); break;
       default: return null;
     }
-    return logRow(LOG_LABEL[ev.type] || ev.type, frag, cls, false, expr);
+    var row = logRow(LOG_LABEL[ev.type] || ev.type, frag, cls, false, expr);
+    if (window.UIART) UIART.onRow(row, ev, trip);   /* UI 아트: 로그 아이콘 (js/ui-art.js) */
+    return row;
   }
   /* 재방문 기웃: "지난번 메모: '…'" · "지난번엔 비가 왔는데" — trip.recall(계획 때 고정)에서만. 없으면 말하지 않는다 */
   function recallSubs(trip, ev) {
@@ -1124,6 +1128,7 @@ var APP = (function () {
     setReceiptOpen(!!back);
     if (back) flippedOnce[tripId] = true;
     $('pd-save').hidden = false;
+    if (window.UIART) UIART.onInspect(t);
     dlg.scrollTop = 0;
     showDialog(dlg);
   }
