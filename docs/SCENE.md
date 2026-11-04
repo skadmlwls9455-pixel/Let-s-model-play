@@ -35,14 +35,17 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
 - 상태: idle(숨 4 s, 깜빡임 3~7 s, 다리 흔들) · anticipate(600 ms 눌림) · walk/carry(1.2 m/s, 다리 번갈아, 통통, 진행 방향으로 회전, 도착 시 0.4 m 폴짝) · away(숨김) · carry(포스터 평면 들기) · hang(포스터가 보드 칸으로 500 ms 날아감) · happy(폴짝 2) · sleep(눈 감음, hue ±18° 12 s) · stay · peek(좌우 흔들) · pet(`^ ^` + 홍조 + 눌림 + 색이 따뜻해짐. 2 s 뒤 APP 이 70% 기대기 / 30% 산책을 고른다 — 시무룩 없음).
 - 동공은 포인터를 따라간다(`lookAt` 으로 입력칸도). 가만히 있으면 카메라 쪽을 본다.
 
-## 팔레트 (57색, OKLab 최근접, 근소 동률은 밝은 쪽)
-갈색 8 `#8a5a3c` · 종이 4 `#efe3c8` · 호박 6 `#ffb462` · 남색 6 `#22304f` · 이끼 4 `#5f7a3a` · 회색 6 `#6a6670` · 하늘 4 `#9fc7e8` · 노을 4 `#e39a8c` · 유리 4 `#8aa0b4` · 장미 3 `#9a5058` · 고정 `#1b1522`(잉크) `#fbf6ea`(종이 흰) `#0b1020`(밤 검정) · **문어 5**(설정색, dL 0.09).
-램프 = 기준색 ± 0.085 L, 그림자는 파랑/보라, 하이라이트는 노랑 쪽으로 이동. 거리 가중 `(1, 1.3, 1.3)`. 재질 기본색은 램프 가운데 칸.
+## 팔레트 (스냅 소스 선택, OKLab 최근접, 근소 동률은 밝은 쪽 · 룩 패스 3)
+`settings.palette` = `ramps` | `apollo` | `endesga64` | `resurrect64` (기본 **apollo**, `SCENE3D.PAL_DEFAULT`; 방 보기 시트·데모 패널의 4갈래 칩 "즉흥 / Apollo / Endesga / Resurrect", `APP.setPalette`, `scene.setPalette`). `js/palettes.js` 가 `index.html` 에서 `scene3d.js` 앞에 로드된다(전역 `PALETTES`, 출처·검증은 파일 머리).
+- 셰이더 배열 72 칸, 실제 상한 `PAL_MAX` 70. 목록 = 소스 팔레트 + (OKLab 거리 0.05 안에 없을 때만) 밤검정 `#0b1020`·종이흰 `#fbf6ea` + **문어 램프 5**(설정색, dL 0.09, 항상). 크기: 즉흥 57 · Apollo 51 (46+5) · Endesga 69 (64+5) · Resurrect 70 (64+#0b1020+5).
+- `ramps`(즉흥) = 갈색 8 `#8a5a3c` · 종이 4 `#efe3c8` · 호박 6 `#ffb462` · 남색 6 `#22304f` · 이끼 4 `#5f7a3a` · 회색 6 `#6a6670` · 하늘 4 `#9fc7e8` · 노을 4 `#e39a8c` · 유리 4 `#8aa0b4` · 장미 3 `#9a5058` · 고정 `#1b1522`(잉크) `#fbf6ea` `#0b1020`. 램프 = 기준색 ± 0.085 L, 그림자는 파랑/보라, 하이라이트는 노랑 쪽. 소품 기본색은 어느 소스에서도 이 램프에서 뽑는다 — 스냅이 선택 팔레트로 옮긴다. 거리 가중 `(1, 1.3, 1.3)`.
+- **재질 기본색 `MAT`**(바닥·벽·받침·깔개·종이, 어느 팔레트에서도 서로 다른 칸에 앉도록 패스 3에서 조정): 바닥 널 `#7b4f35`/`#996643` 이음 `#5f3928` 옹이 `#44241b` · **벽 널 `#c2b4a4`/`#b0a292`**(회백 — 그늘에서 회청 계열로 스냅: Apollo `#394a50`, Endesga `#3d3d3d`, Resurrect `#374e4a`, 즉흥 `#424356`) 이음 `#66605c` 샛기둥 `#7b4f35`(목재 그대로) · 받침 `#55484c`/`#746668`/`#3f3438` · 깔개 테 `#2e3b58` 줄무늬 **`#3f6690`/`#5c86b0`**(파랑) · 포스터 종이 `#dfd5bf`. 낮 샘플 결과(우세 칸): 바닥 햇빛/그늘 ≠ 벽 ≠ 깔개 — 2차 칸(벽에 드리운 서까래·등불 그림자)만 바닥 그늘 칸을 공유.
+- 팔레트 칸 간격 `PAL.step` = 최근접 이웃 OKLab 거리 중앙값 (즉흥 0.048 · Apollo 0.058 · Endesga 0.064 · Resurrect 0.058). 디더 진폭이 여기서 나온다(아래). `stats()` 에 `paletteName`·`step`·`dither`.
 
 ## 후처리 (풀스크린 삼각형 1패스, EffectComposer 없음)
 1. 장면 → 저해상 RT(sRGB 저장, 24-bit 깊이 텍스처). 2. 같은 장면을 `MeshNormalMaterial` 오버라이드로 노멀 RT.
-3. 셰이더: sRGB→선형→OKLab → 그레이드(대비 1.03, 채도 1.07) → **깊이 외곽선**(이웃이 6 cm 이상 멀면, 2단, L×0.66) → **노멀 하이라이트**(가까운 면의 노멀 꺾임, L×1.06, 깊이선이 없는 곳만) → **게이트 Bayer 4×4**(이웃 루마 차 `smoothstep(.004,.055)`, 진폭 = 슬라이더×0.08, 기본 0.02; 카메라가 움직이면 0, 모션 감소면 0) → **허공 비네트**(깊이 = far 인 배경 픽셀만, `uVig` = 깊이 텍스처 있을 때: L −0.1·smoothstep(0.3, 0.9, 중심 거리) + 정적 Bayer 0.06 → 모서리가 밤검정/남색으로 디더됨) → 팔레트 스냅 → Nearest 업스케일.
-4. 순도: `tools/evidence3d.js` 가 PNG 고유 색을 센다(낮 장면 47 ≤ 70).
+3. 셰이더: sRGB→선형→OKLab → 그레이드(대비 1.03, 채도 1.07) → **깊이 외곽선**(이웃이 6 cm 이상 멀면, 2단, L×0.66) → **노멀 하이라이트**(가까운 면의 노멀 꺾임, L×1.06, 깊이선이 없는 곳만) → **게이트 Bayer 4×4**(이웃 루마 차 `smoothstep(.004,.055)`, 진폭 = 슬라이더 × 2 × `PAL.step` → 기본 0.25 에서 ≈ ½ 팔레트 칸: 즉흥 0.024 · Apollo 0.029 · Endesga 0.032 · Resurrect 0.029; 카메라가 움직이면 0, 모션 감소면 0) → **허공 비네트**(깊이 = far 인 배경 픽셀만, `uVig` = 깊이 텍스처 있을 때: L −0.1·smoothstep(0.3, 0.9, 중심 거리) + 정적 Bayer 0.06 → 모서리가 밤검정/남색으로 디더됨) → 팔레트 스냅 → Nearest 업스케일.
+4. 순도: `tools/evidence3d.js` 가 PNG 고유 색을 센다(≤ 팔레트 크기 + 6; 낮 장면 Apollo 47).
 
 ## 조명 = 실제 시계 (1분마다 읽음, 상태가 바뀌면 60 s 이징)
 | 시각 | 태양(창 쪽 `DirectionalLight`, 그림자 1024 PCFSoft, bias −0.0002, normalBias .025, radius 1) | 헤미 | 바깥 | 등불 계수 |
@@ -58,7 +61,7 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
 레이캐스트: 문어(탭 → 카메라 보고 `?` / 누르고 움직이거나 350 ms 유지 → `pet`) · 창 유리(탭 → `windowTap`: 창가로 걸어가 "비가 와/별이 보여") · 포스터 평면(`posterTap(id)` → 모달) · 기념품(`souvenirTap(sv)` → 그걸 가져온 날의 영수증) · 빈 곳 드래그 → 시점 ±25° · 휠/핀치 → 줌. 말풍선·이름표는 캔버스 밖 HTML(`#oct`)을 머리 위로 투영해 붙인다.
 
 ## 데모 패널 (`<details id=demo>` 안, localStorage `ppolppol_look`)
-픽셀 1–4 · 디더 0–1 · 외곽선 on/off · 시점 −25°~25° · 팔레트 스와치 줄. 2D 모드에서는 "적용 안 돼" 안내만. `setLook` 은 추가로 `zoom`(0..3 단계)·`focus`(`'oct'` = 문어 중심) 를 받는다 — `tools/look-shots.js` 의 close 샷용. 테스트 훅 `window.__ppolLook = { hour, lantern, weather, octState, anchor }` 는 있을 때만 APP 이 읽는다.
+픽셀 1–4 · 디더 0–1 · 외곽선 on/off · 시점 −25°~25° · 팔레트 칩 4갈래(`settings.palette`, 방 보기 시트와 같은 줄) · 팔레트 스와치 줄(검증 팔레트는 8칸씩 + 문어 램프). 2D 모드에서는 "적용 안 돼" 안내만. `setLook` 은 추가로 `zoom`(0..3 단계)·`focus`(`'oct'` = 문어 중심) 를 받는다 — `tools/look-shots.js` 의 close 샷용. 테스트 훅 `window.__ppolLook = { hour, lantern, weather, octState, anchor, palette }` 는 있을 때만 APP 이 읽는다(`palette` 는 저장하지 않고 장면에만).
 
 ## 성능 · 접근성 · 폴백
 - `antialias:false`, `setPixelRatio(1)`, 섀도맵 1024(태양만, `autoUpdate` 끄고 뷰티 패스에서만 갱신), 정적 방 = 2메시(`room` + 그림자 안 던지는 `roomHi`), 가만히 있을 땐 30 fps, `document.hidden` 이면 rAF 정지, dt ≤ 0.1 s, `destroy()` 가 RT·기하·재질·텍스처 해제 + `forceContextLoss`.

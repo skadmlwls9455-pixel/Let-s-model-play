@@ -60,7 +60,7 @@ var SCENE3D = (function () {
     ['slate', '#6a6670', 6], ['sky', '#9fc7e8', 4], ['dusk', '#e39a8c', 4], ['glass', '#8aa0b4', 4], ['rose', '#9a5058', 3]];
   var FIXED = { ink: '#1b1522', white: '#fbf6ea', night: '#0b1020' };
   /* 스냅 팔레트 소스 (룩 패스 3): 'ramps' = 위 즉흥 램프, 나머지 = js/palettes.js 의 검증 팔레트 + 문어 램프 5 + (없으면) 밤검정·종이흰. 최대 PAL_MAX, 셰이더 배열 72 */
-  var PAL_SOURCES = ['ramps', 'apollo', 'endesga64', 'resurrect64'], PAL_DEFAULT = 'resurrect64', PAL_MAX = 70;
+  var PAL_SOURCES = ['ramps', 'apollo', 'endesga64', 'resurrect64'], PAL_DEFAULT = 'apollo', PAL_MAX = 70;
   function paletteSource(name) { return PAL_SOURCES.indexOf(name) > 0 && typeof PALETTES !== 'undefined' && PALETTES[name] ? name : 'ramps'; }
   function minDist(labs, lab) { var b = 1e9; for (var i = 0; i < labs.length; i++) { var d = Math.hypot(labs[i][0] - lab[0], labs[i][1] - lab[1], labs[i][2] - lab[2]); if (d < b) b = d; } return b; }
   function medianStep(list) { /* 팔레트 칸 간격 = 최근접 이웃 OKLab 거리의 중앙값 (디더 진폭 기준) */
@@ -83,11 +83,11 @@ var SCENE3D = (function () {
     P.list = list; P.step = medianStep(list);
     return P;
   }
-  /* 재질 기본색 (룩 패스 3): 바닥·벽·받침·깔개·종이가 어느 팔레트에서도 서로 다른 칸에 앉도록 조정한 값. 나머지 소품은 램프 그대로 */
+  /* 재질 기본색 (룩 패스 3, docs/SCENE.md 팔레트): 바닥·벽·받침·깔개·종이가 어느 팔레트에서도 서로 다른 칸에 앉도록 조정 — 벽은 회백(그늘에서 회청 계열), 깔개 줄무늬는 파랑, 바닥·종이·샛기둥은 램프값. 나머지 소품은 램프 그대로 */
   var MAT = { floorA: '#7b4f35', floorB: '#996643', floorSeam: '#5f3928', knot: '#44241b',
-    wallA: '#996643', wallB: '#b77e51', wallSeam: '#5f3928', stud: '#7b4f35',
-    slabTop: '#44241b', slabLine: '#7b4f35', slabBase: '#5f3928',
-    rugEdge: '#2e3b58', rugA: '#7b93aa', rugB: '#99adbe', paper: '#dfd5bf' };
+    wallA: '#c2b4a4', wallB: '#b0a292', wallSeam: '#66605c', stud: '#7b4f35',
+    slabTop: '#55484c', slabLine: '#746668', slabBase: '#3f3438',
+    rugEdge: '#2e3b58', rugA: '#3f6690', rugB: '#5c86b0', paper: '#dfd5bf' };
   /* 문어 몸 색에서 파생: 하이라이트(밝고 노랑 쪽) · 빨판(더 밝고 따뜻) · 입(어둡게) */
   function octDerived(hex) {
     var lab = hexToOklab(hex);

@@ -8,7 +8,7 @@
 - 수치: `.claude/skills/cozy-web-game/references/pixel-look-references.md`, `three-pixel-look.md`.
 
 ## 고정 앵글 (매 패스 동일)
-`node tools/look-shots.js` → `tests/evidence/look/<pass>-{day,night,close}.png` (360×740 @2x, 시각 14:00 / 22:00 강제, 등불 8칸, 문어 idle at center).
+`node tools/look-shots.js <pass> [palette]` → `tests/evidence/look/<pass>-{day,night,close}.png` (palette = ramps / apollo / endesga64 / resurrect64, 생략 = 기본값) (360×740 @2x, 시각 14:00 / 22:00 강제, 등불 8칸, 문어 idle at center).
 메트릭 `node tools/look-metrics.js <png>` → 고유 색 수(≤ 팔레트 크기), 엣지 픽셀 비율(2~8%), 평균 밝기, 드로우콜(콘솔), 소품 수.
 
 ## 레버 순서 (중요도 순, 한 패스에 하나)
