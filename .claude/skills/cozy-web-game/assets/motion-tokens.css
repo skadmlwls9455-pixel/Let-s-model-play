@@ -1,0 +1,23 @@
+/* Motion token sheet for calm/cozy UI. Source: Emil Kowalski standards, Material 3 motion tokens, MDN/web.dev perf.
+   Usage: paste into :root; never type raw ms in component rules. `--speed` lets a ?slow=4 debug mode stretch everything. */
+:root {
+  --speed: 1;
+  --t-press:    calc(150ms * var(--speed));   /* button :active, glyph fades, hover tilt */
+  --t-ui:       calc(250ms * var(--speed));   /* list row enter, sheet open, pill morph */
+  --t-scene:    calc(500ms * var(--speed));   /* card rise, card flip, lantern notch */
+  --t-ceremony: calc(900ms * var(--speed));   /* once-a-day moments: character leaves (return = 600ms) */
+  --ease-out:   cubic-bezier(0.23, 1, 0.32, 1);     /* things appearing */
+  --ease-inout: cubic-bezier(0.77, 0, 0.175, 1);    /* move / morph */
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);    /* M3 emphasized-decelerate */
+  --ease-exit:  cubic-bezier(0.3, 0, 0.8, 0.15);    /* M3 emphasized-accelerate; exits are shorter than enters */
+}
+.pressable { transition: transform var(--t-press) var(--ease-out); }
+.pressable:active { transform: scale(0.97); }          /* 0.95–0.98 range */
+@media (hover: hover) and (pointer: fine) { .pressable:hover { transform: translateY(-1px); } }
+.row-enter { opacity: 0; transform: translateY(8px); transition: opacity var(--t-ui) var(--ease-enter), transform var(--t-ui) var(--ease-enter); }
+.row-enter.in { opacity: 1; transform: none; transition-delay: calc(var(--i, 0) * 60ms); } /* stagger 60ms, cap --i at 5 */
+.card-enter { opacity: 0; transform: translateY(12%) scale(0.95); }  /* never animate from scale(0) */
+@media (prefers-reduced-motion: reduce) {
+  :root { --t-press: 0ms; --t-ui: 120ms; --t-scene: 150ms; --t-ceremony: 200ms; }
+  .row-enter, .card-enter { transform: none !important; }   /* reduce, don't remove: keep opacity/colour, drop movement */
+}
