@@ -5,7 +5,7 @@
 
 - 전체 목록: [CATALOG.md](CATALOG.md) (자동 생성)
 - 게임이 읽을 표: [manifest.json](manifest.json) (파일 경로, 루프 지점, 음량, 상태→소리 매핑, 재생 규칙)
-- 들어 보기: [soundboard.html](soundboard.html) (`audio/` 에서 `python3 -m http.server` 후 열기. 게임 화면처럼 날씨·시간·등불을 고르면 섞여서 나온다)
+- 들어 보기: [soundboard.html](soundboard.html) (`audio/` 에서 `python3 -m http.server` 후 열기. 게임 화면처럼 날씨·시간·등불을 고르면 섞여서 나온다). 게시본: https://claude.ai/artifact/MCtLYb8vZqpKDxTS72JyGu (비공개, 공유 메뉴로 열어 줘야 다른 사람이 볼 수 있음)
 - 근거 리서치 4편: [docs/research/](docs/research/)
 
 | 폴더 | 무엇 | 개수 |
