@@ -2,7 +2,7 @@
 /* tools/evidence3d.js — 3D 장면 증거 스크린샷 (360×740 @2x, SwiftShader 로 WebGL 강제) + 팔레트 순도 검사.
  *   node tools/evidence3d.js            # → tests/evidence/3d-*.png
  * 장면 6장: 등불0 밤 · 등불4 낮 · 등불8 맑은 밤(별) · 쓰다듬기 · 외출(빈 방) · 다크 UI(전체 페이지).
- * 순도: 3d-lantern4-day.png 의 고유 색 수 ≤ 70 (팔레트 57 + 컨테이너 배경 + 오버레이 글자) — 넘으면 exit 1.
+ * 순도: 3d-lantern4-day.png 의 고유 색 수 ≤ 팔레트 + 6 (컨테이너 배경 + 오버레이 글자) — 넘으면 exit 1.
  * 콘솔/페이지 에러가 하나라도 있으면 exit 1. 드로우콜은 APP.scene.stats() 로 찍는다.
  */
 'use strict';
@@ -92,11 +92,11 @@ var WIKI_OK = { query: { pages: { '1': { pageid: 1, title: '모자', extract: '�
   var uniq = pngUniqueColors(path.join(OUT, '3d-lantern4-day.png'));
   var uniqN = pngUniqueColors(path.join(OUT, '3d-lantern8-night-clear.png'));
   console.log('stats:', JSON.stringify(stats));
-  console.log('palette purity: 3d-lantern4-day.png unique colours = ' + uniq + ' (limit 70, palette ' + stats.palette + ') → ' + (uniq <= 70 ? 'ok' : 'FAIL'));
+  console.log('palette purity: 3d-lantern4-day.png unique colours = ' + uniq + ' (limit palette+6 = ' + (stats.palette + 6) + ', palette ' + stats.palette + ' ' + stats.paletteName + ') → ' + (uniq <= stats.palette + 6 ? 'ok' : 'FAIL'));
   console.log('                3d-lantern8-night-clear.png unique colours = ' + uniqN);
   console.log('draw calls:', stats.calls, stats.calls <= 150 ? '(≤150 ok)' : '(OVER 150)');
   infos.forEach(function (t) { console.log('  ' + t); });
   console.log('errors:', errs.length ? errs : 'none');
   await browser.close();
-  process.exit(errs.length || uniq > 70 || stats.calls > 150 ? 1 : 0);
+  process.exit(errs.length || uniq > stats.palette + 6 || stats.calls > 150 ? 1 : 0);
 })();

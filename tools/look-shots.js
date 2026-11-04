@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* tools/look-shots.js — 룩 루프 고정 앵글 스크린샷 (docs/LOOK_LOOP.md). SwiftShader 로 WebGL 강제, 360×740 @2x.
- *   node tools/look-shots.js <pass>      # → tests/evidence/look/<pass>-{day,night,close}.png + 메트릭
- * 고정 조건: window.__ppolLook = { hour, lantern: 8, weather: 'rain', octState: 'idle', anchor: 'center' } (APP 이 있을 때만 읽는다).
+ *   node tools/look-shots.js <pass> [palette]   # → tests/evidence/look/<pass>-{day,night,close}.png + 메트릭. palette = ramps | apollo | endesga64 | resurrect64 (생략 = 기본값)
+ * 고정 조건: window.__ppolLook = { hour, lantern: 8, weather: 'rain', octState: 'idle', anchor: 'center', palette? } (APP 이 있을 때만 읽는다).
  *   day   = 14:00, p=3 · night = 22:00, p=3 · close = 14:00, p=2 + 줌 ×2 (문어 중심).
  * 콘솔/페이지 에러가 있으면 exit 1.
  */
@@ -12,10 +12,12 @@ var LM = require('./look-metrics.js');
 var ROOT = path.resolve(__dirname, '..');
 var INDEX = 'file://' + path.join(ROOT, 'index.html');
 var PASS = String(process.argv[2] || '0').replace(/[^A-Za-z0-9_-]/g, '');
+var PALETTE = process.argv[3] ? String(process.argv[3]).replace(/[^A-Za-z0-9_]/g, '') : '';   /* 룩 패스 3: 'ramps' | 'apollo' | 'endesga64' | 'resurrect64' (생략 = settings.palette 기본값) */
 var OUT = process.env.LOOK_OUT || path.join(ROOT, 'tests/evidence/look');
 fs.mkdirSync(OUT, { recursive: true });
 
 var HOOK = { hour: 14, lantern: 8, weather: 'rain', octState: 'idle', anchor: 'center' };
+if (PALETTE) HOOK.palette = PALETTE;
 var WIKI_OK = { query: { pages: { '1': { pageid: 1, title: '모자', extract: '모자는 머리에 쓰는 물건이다. 햇빛과 추위를 막고 신분을 나타내기도 했다.', links: [{ ns: 0, title: '깃털' }, { ns: 0, title: '밀짚' }] } } } };
 
 (async function () {
@@ -57,9 +59,11 @@ var WIKI_OK = { query: { pages: { '1': { pageid: 1, title: '모자', extract: '�
     var file = path.join(OUT, PASS + '-' + name + '.png');
     await page.locator('#scene').screenshot({ path: file });
     var m = LM.metrics(file);
-    console.log('  📷 ' + path.relative(ROOT, file) + '  (hour ' + hour + ', p=' + look.pixelSize + ', zoom step ' + look.zoom + ') → colours ' + m.colours + ' · edge ' + m.edgePct + '% · luma ' + m.meanLuma);
+    console.log('  📷 ' + path.relative(ROOT, file) + '  (hour ' + hour + ', p=' + look.pixelSize + ', zoom step ' + look.zoom + ', palette ' + pal + ') → colours ' + m.colours + ' · edge ' + m.edgePct + '% · luma ' + m.meanLuma);
     return m;
   }
+  var pal = await page.evaluate(function () { return APP.scene.paletteName ? APP.scene.paletteName() : '?'; });
+  if (PALETTE && pal !== PALETTE) { console.error('팔레트가 적용되지 않음: 요청 ' + PALETTE + ' / 실제 ' + pal); process.exit(1); }
   var base = { pixelSize: 3, zoom: 0, dither: 0.25, outline: true, yaw: 0, focus: null };
   var res = {};
   res.day = await shot('day', 14, base);

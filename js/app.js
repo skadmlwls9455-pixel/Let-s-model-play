@@ -79,13 +79,16 @@ var APP = (function () {
   function quietWarn(text) { var w = $('save-warn'); if (!w) return; if (w.textContent === text && !w.hidden) return; w.textContent = text; w.hidden = false; }
 
   /* ───────────────────────── state ───────────────────────── */
+  /* 스냅 팔레트 (룩 패스 3, settings.palette): 즉흥 램프 또는 js/palettes.js 의 검증 팔레트. 기본값은 SCENE3D.PAL_DEFAULT (docs/LOOK_LOG.md 3행) */
+  var PALETTES_UI = [['ramps', '즉흥'], ['apollo', 'Apollo'], ['endesga64', 'Endesga'], ['resurrect64', 'Resurrect']];
+  function paletteDefault() { return (typeof SCENE3D !== 'undefined' && SCENE3D.PAL_DEFAULT) || 'ramps'; }
   function defaults() {
     return {
       v: 2,
       octopus: { name: null, born: null, trips: 0, invites: 0, days: [], affinity: {}, visits: {}, state: 'idle' },
       room: { lantern: 0, souvenirs: [], posterOrder: [] },
       trips: [],
-      settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c', flipped: false }
+      settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c', flipped: false, palette: paletteDefault() }
     };
   }
   var S = defaults();
@@ -139,6 +142,7 @@ var APP = (function () {
     s.octopus.visits = s.octopus.visits || {};
     s.room.lantern = clamp(s.room.lantern | 0, 0, 8);
     if (!/^#[0-9a-f]{6}$/i.test(s.settings.octColor || '')) s.settings.octColor = '#e8463c';
+    if (PALETTES_UI.map(function (p) { return p[0]; }).indexOf(s.settings.palette) < 0) s.settings.palette = paletteDefault();
     return s;
   }
 
@@ -211,7 +215,7 @@ var APP = (function () {
   var LOOK_KEY = 'ppolppol_look';
   function itemsFor(lv) { return Object.keys(ITEM_LEVEL).filter(function (k) { return lv >= ITEM_LEVEL[k]; }); }
   /* 날씨: 등불 아크(6 가는 비, 7 맑음) → 8칸 뒤에는 날짜 시드 (1~2월엔 눈) */
-  /* 테스트 훅 (tools/look-shots.js): window.__ppolLook = { hour, lantern, weather, octState, anchor } — 있을 때만 시각·날씨·등불·초기 자세를 고정 */
+  /* 테스트 훅 (tools/look-shots.js): window.__ppolLook = { hour, lantern, weather, octState, anchor, palette } — 있을 때만 시각·날씨·등불·초기 자세·팔레트를 고정 */
   function lookHook() { var h = window.__ppolLook; return (h && typeof h === 'object') ? h : null; }
   function weatherFor(lv) {
     var hk = lookHook(); if (hk && hk.weather) return hk.weather;
@@ -223,12 +227,29 @@ var APP = (function () {
     return r < 0.4 ? 'rain' : r < 0.65 ? 'drizzle' : 'clear';
   }
   function hourNow() { var hk = lookHook(); if (hk && typeof hk.hour === 'number') return hk.hour; var d = new Date(); return d.getHours() + d.getMinutes() / 60; }
+  function paletteNow() { var hk = lookHook(); return (hk && typeof hk.palette === 'string') ? hk.palette : S.settings.palette; }   /* __ppolLook.palette 는 저장하지 않고 장면에만 */
+  function setPalette(name) {
+    if (PALETTES_UI.map(function (p) { return p[0]; }).indexOf(name) < 0) return;
+    S.settings.palette = name; save(); if (scene) scene.setPalette(name);
+    document.querySelectorAll('[data-pal]').forEach(function (b) { b.classList.toggle('on', b.dataset.pal === name); });
+    renderSwatch();
+  }
+  /* 4갈래 칩 줄 (즉흥 / Apollo / Endesga / Resurrect): 방 보기 시트 + 데모 패널 공용 */
+  function paletteChips(id) {
+    var row = h('div', { class: 'filters', role: 'group', 'aria-label': '팔레트', id: id });
+    PALETTES_UI.forEach(function (p) {
+      var b = h('button', { type: 'button', class: 'fchip' + (S.settings.palette === p[0] ? ' on' : ''), 'data-pal': p[0], text: p[1] });
+      b.addEventListener('click', function () { setPalette(p[0]); });
+      row.appendChild(b);
+    });
+    return row;
+  }
   function loadLook() { try { var o = JSON.parse(store.get(LOOK_KEY) || 'null'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; } }
   function saveLook(o) { try { store.set(LOOK_KEY, JSON.stringify(o)); } catch (e) { /* noop */ } }
   function sceneOpts() {
     return {
       pixelSize: 3, color: S.settings.octColor, lantern: S.room.lantern, items: itemsFor(S.room.lantern), weather: weatherFor(S.room.lantern), hour: hourNow(),
-      posters: [], souvenirs: [], reducedMotion: reduced(), speed: speed(), assetPath: assetPath, octEl: $('oct'), look: loadLook(),
+      posters: [], souvenirs: [], reducedMotion: reduced(), speed: speed(), assetPath: assetPath, octEl: $('oct'), look: loadLook(), palette: paletteNow(),
       on: {
         posterTap: function (id) { openPoster(id); },
         souvenirTap: function (sv) { if (sv.tripId && tripById(sv.tripId)) { bubble((sv.emoji ? sv.emoji + ' ' + sv.name : sv.id) + ' — 이거 가져온 날', 1800); openPoster(sv.tripId, true); } },
@@ -1002,6 +1023,9 @@ var APP = (function () {
     swatchOn();
     frag.appendChild(h('label', { class: 'set' }, ['색상', hueIn]));
     frag.appendChild(sw);
+    frag.appendChild(h('h3', { text: '팔레트' }));
+    frag.appendChild(h('p', { class: 'help', text: sceneMode === '3d' ? '방 전체의 색을 맞추는 팔레트. 즉흥 = 직접 만든 램프, 나머지는 픽셀아트 커뮤니티 팔레트(Lospec).' : '2D 장면에서는 적용 안 돼.' }));
+    frag.appendChild(paletteChips('rs-pal'));
     frag.appendChild(h('h3', { text: '설정' }));
     var sel = h('select', { id: 'set-motion' }, [h('option', { value: 'auto', text: '기기 설정 따르기' }), h('option', { value: 'reduce', text: '모션 줄이기' })]);
     sel.value = S.settings.motion || 'auto';
@@ -1218,11 +1242,18 @@ var APP = (function () {
     show();
     if (sceneMode !== '3d') { msg.textContent = '지금은 2D 장면이라 이 슬라이더는 적용 안 돼 (WebGL 없음 또는 ?scene=2d)'; return; }
     msg.textContent = '3D 룩 조정 (저장됨). 팔레트:';
+    sw.parentNode.insertBefore(paletteChips('dv-pal'), sw);
+    renderSwatch();
+  }
+  function renderSwatch() {
+    var sw = $('dv-swatch'); if (!sw || sceneMode !== '3d') return;
+    sw.innerHTML = '';
     scene.palette().forEach(function (r) {
       var row = h('div', { class: 'swrow', title: r.name });
       r.colors.forEach(function (c) { var d = h('span', { class: 'sw', title: c }); d.style.background = c; row.appendChild(d); });
       sw.appendChild(row);
     });
+    var st = scene.stats(); $('dv-msg').textContent = '3D 룩 조정 (저장됨). 팔레트 ' + st.paletteName + ' ' + st.palette + '색 · 칸 간격 ' + st.step + ' · 디더 ' + st.dither + ':';
   }
   function boot() {
     var q = new URLSearchParams(location.search), slow = parseFloat(q.get('slow'));
@@ -1249,6 +1280,6 @@ var APP = (function () {
     posterSVG: posterSVG, receiptHTML: receiptHTML, openPoster: openPoster, openRoomSheet: openRoomSheet,
     importEvents: importEvents, exportJSON: exportJSON, importJSON: importJSON,
     oct: oct, walkTo: walkTo, octState: octState, anchors: ANCHORS, placeholders: PH, commitTrip: commitTrip,
-    get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, weatherFor: weatherFor, itemsFor: itemsFor
+    get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor
   };
 })();

@@ -55,18 +55,39 @@ var SCENE3D = (function () {
   function mixHex(a, b, k) { var A = hexToOklab(a), B = hexToOklab(b); return oklabToHex([A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k, A[2] + (B[2] - A[2]) * k]); }
   function hash(s) { s = String(s); var x = 2166136261; for (var i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; }
 
-  /* 고정 램프 (49) + 문어 램프 5 = 54 ≤ 64 */
+  /* 즉흥 램프 (49) + 고정 3 + 문어 램프 5 = 57. 재질 기본색은 늘 이 램프에서 뽑는다 (스냅이 선택 팔레트로 옮긴다) */
   var RAMPS = [['wood', '#8a5a3c', 8], ['paper', '#efe3c8', 4], ['amber', '#ffb462', 6], ['navy', '#22304f', 6], ['moss', '#5f7a3a', 4],
     ['slate', '#6a6670', 6], ['sky', '#9fc7e8', 4], ['dusk', '#e39a8c', 4], ['glass', '#8aa0b4', 4], ['rose', '#9a5058', 3]];
   var FIXED = { ink: '#1b1522', white: '#fbf6ea', night: '#0b1020' };
-  function buildPalette(octHex) {
+  /* 스냅 팔레트 소스 (룩 패스 3): 'ramps' = 위 즉흥 램프, 나머지 = js/palettes.js 의 검증 팔레트 + 문어 램프 5 + (없으면) 밤검정·종이흰. 최대 PAL_MAX, 셰이더 배열 72 */
+  var PAL_SOURCES = ['ramps', 'apollo', 'endesga64', 'resurrect64'], PAL_DEFAULT = 'resurrect64', PAL_MAX = 70;
+  function paletteSource(name) { return PAL_SOURCES.indexOf(name) > 0 && typeof PALETTES !== 'undefined' && PALETTES[name] ? name : 'ramps'; }
+  function minDist(labs, lab) { var b = 1e9; for (var i = 0; i < labs.length; i++) { var d = Math.hypot(labs[i][0] - lab[0], labs[i][1] - lab[1], labs[i][2] - lab[2]); if (d < b) b = d; } return b; }
+  function medianStep(list) { /* 팔레트 칸 간격 = 최근접 이웃 OKLab 거리의 중앙값 (디더 진폭 기준) */
+    var labs = list.map(hexToOklab), d = labs.map(function (a, i) { return minDist(labs.filter(function (_, j) { return j !== i; }), a); }).sort(function (a, b) { return a - b; });
+    return d.length ? d[d.length >> 1] : 0.05;
+  }
+  function buildPalette(octHex, source) {
     var P = {}, list = [];
-    RAMPS.forEach(function (r) { P[r[0]] = ramp(r[1], r[2]); list = list.concat(P[r[0]]); });
-    Object.keys(FIXED).forEach(function (k) { P[k] = FIXED[k]; list.push(FIXED[k]); });
-    P.oct = ramp(octHex, 5, 0.09, [0.004, 0.014]); list = list.concat(P.oct);
-    P.list = list;
+    RAMPS.forEach(function (r) { P[r[0]] = ramp(r[1], r[2]); });
+    Object.keys(FIXED).forEach(function (k) { P[k] = FIXED[k]; });
+    P.oct = ramp(octHex, 5, 0.09, [0.004, 0.014]);
+    P.source = paletteSource(source);
+    if (P.source === 'ramps') { RAMPS.forEach(function (r) { list = list.concat(P[r[0]]); }); Object.keys(FIXED).forEach(function (k) { list.push(FIXED[k]); }); }
+    else {
+      list = PALETTES[P.source].colors.map(function (h) { return h.toLowerCase(); });
+      var labs = list.map(hexToOklab);
+      [FIXED.night, FIXED.white].forEach(function (h) { if (minDist(labs, hexToOklab(h)) > 0.05) list.push(h); });   /* 밤검정 #0b1020 · 종이흰: 팔레트에 비슷한 게 없을 때만 */
+    }
+    list = list.concat(P.oct).slice(0, PAL_MAX);
+    P.list = list; P.step = medianStep(list);
     return P;
   }
+  /* 재질 기본색 (룩 패스 3): 바닥·벽·받침·깔개·종이가 어느 팔레트에서도 서로 다른 칸에 앉도록 조정한 값. 나머지 소품은 램프 그대로 */
+  var MAT = { floorA: '#7b4f35', floorB: '#996643', floorSeam: '#5f3928', knot: '#44241b',
+    wallA: '#996643', wallB: '#b77e51', wallSeam: '#5f3928', stud: '#7b4f35',
+    slabTop: '#44241b', slabLine: '#7b4f35', slabBase: '#5f3928',
+    rugEdge: '#2e3b58', rugA: '#7b93aa', rugB: '#99adbe', paper: '#dfd5bf' };
   /* 문어 몸 색에서 파생: 하이라이트(밝고 노랑 쪽) · 빨판(더 밝고 따뜻) · 입(어둡게) */
   function octDerived(hex) {
     var lab = hexToOklab(hex);
@@ -80,7 +101,7 @@ var SCENE3D = (function () {
     '#include <packing>',
     'varying vec2 vUv;',
     'uniform sampler2D tDiffuse, tDepth, tNormal, uBayer; uniform vec2 uRes; uniform float uNear, uFar;',
-    'uniform vec3 uPalOk[64]; uniform vec3 uPalRgb[64]; uniform int uPalN; uniform vec3 uW;',
+    'uniform vec3 uPalOk[72]; uniform vec3 uPalRgb[72]; uniform int uPalN; uniform vec3 uW;',
     'uniform float uDither, uOutline, uHasNormal, uVig;',
     'vec3 srgbToLinear(vec3 c){ vec3 lo = c / 12.92; vec3 hi = pow((c + 0.055) / 1.055, vec3(2.4)); return mix(lo, hi, step(vec3(0.04045), c)); }',
     'vec3 linToOklab(vec3 c){ c = max(c, vec3(0.0));',
@@ -118,7 +139,7 @@ var SCENE3D = (function () {
     '  float bgk = step(uFar - 0.5, d0) * uVig; vec2 vq = (vUv - 0.5) * vec2(uRes.x / uRes.y, 1.0);',   /* 허공(배경)만: 가장자리로 갈수록 어둡게 + 정적 Bayer (비네트) */
     '  ok.x -= bgk * 0.1 * smoothstep(0.3, 0.9, length(vq)); ok.x += bgk * bayer(ap) * 0.06;',
     '  float best = 1e9, bestL = 0.0; int bi = 0;',
-    '  for (int i = 0; i < 64; i++) { if (i >= uPalN) break;',
+    '  for (int i = 0; i < 72; i++) { if (i >= uPalN) break;',
     '    vec3 d = (ok - uPalOk[i]) * uW; float q = dot(d, d);',
     '    if (q < best - 0.0005 || (q < best + 0.0005 && uPalOk[i].x > bestL)) { best = q; bi = i; bestL = uPalOk[i].x; } }',  /* 근소 동률 → 밝은 쪽 */
     '  gl_FragColor = vec4(uPalRgb[bi], 1.0);',
@@ -222,8 +243,8 @@ var SCENE3D = (function () {
     var on = opts.on || {};
     var st = { lantern: opts.lantern | 0, items: (opts.items || []).slice(), weather: opts.weather || 'rain', hour: typeof opts.hour === 'number' ? opts.hour : 21.5,
       color: opts.color || '#e8463c', reduced: !!opts.reducedMotion, speed: opts.speed > 0 ? opts.speed : 1, octState: 'idle', paused: false, hidden: false,
-      look: Object.assign({ pixelSize: 3, dither: 0.25, outline: true, yaw: 0 }, opts.look || {}), zoom: 0 };
-    var PAL = buildPalette(st.color), OC = octDerived(st.color);
+      look: Object.assign({ pixelSize: 3, dither: 0.25, outline: true, yaw: 0 }, opts.look || {}), zoom: 0, palette: paletteSource(opts.palette || PAL_DEFAULT) };
+    var PAL = buildPalette(st.color, st.palette), OC = octDerived(st.color);
     var disposables = [], unbind = [], raf = 0, lastT = 0, frameNo = 0, time = 0, calls = 0, ready = false;
     function listen(el, ev, fn, o) { el.addEventListener(ev, fn, o); unbind.push(function () { el.removeEventListener(ev, fn, o); }); }
     function keep(x) { disposables.push(x); return x; }
@@ -243,7 +264,7 @@ var SCENE3D = (function () {
     var post = keep(new T.ShaderMaterial({ depthTest: false, depthWrite: false, vertexShader: VERT, fragmentShader: FRAG, uniforms: {
       tDiffuse: { value: rt.texture }, tDepth: { value: rt.depthTexture || rtN.texture }, tNormal: { value: rtN.texture },
       uRes: { value: new T.Vector2(4, 4) }, uNear: { value: 0.1 }, uFar: { value: 60 },
-      uPalOk: { value: new Float32Array(192) }, uPalRgb: { value: new Float32Array(192) }, uPalN: { value: 0 }, uW: { value: new T.Vector3(1, 1.3, 1.3) },
+      uPalOk: { value: new Float32Array(216) }, uPalRgb: { value: new Float32Array(216) }, uPalN: { value: 0 }, uW: { value: new T.Vector3(1, 1.3, 1.3) },
       uDither: { value: 0 }, uOutline: { value: hasDepthTex ? 1 : 0 }, uHasNormal: { value: 1 }, uVig: { value: hasDepthTex ? 1 : 0 }, uBayer: { value: keep(bayerTex()) } } }));
     var quadGeo = keep(new T.BufferGeometry());
     quadGeo.setAttribute('position', new T.Float32BufferAttribute([-1, 3, 0, -1, -1, 0, 3, -1, 0], 3));
@@ -256,7 +277,10 @@ var SCENE3D = (function () {
       post.uniforms.uPalN.value = PAL.list.length;
     }
     uploadPalette();
-    var dither = { base: st.look.dither * 0.08, still: 0 };   /* 슬라이더 0..1 → L 진폭 0..0.08 (기본 0.25 → 0.02 ≈ 팔레트 칸의 ¼, 경계에서만 가중) */
+    /* 디더 L 진폭 = 슬라이더 × 2 × 팔레트 칸 간격(PAL.step, 최근접 이웃 OKLab 거리 중앙값) → 기본 0.25 에서 ≈ ½ 칸 (램프 0.048 → 0.024, 아폴로 0.061 → 0.030, 엔데스가 0.075 → 0.038, 리저렉트 0.061 → 0.031). 경계에서만 가중 */
+    var dither = { base: 0, still: 0 };
+    function ditherBase() { dither.base = st.look.dither * 2 * PAL.step; }
+    ditherBase();
     function ditherNow() { return st.reduced ? 0 : (dither.still < 0.3 ? 0 : dither.base); }
 
     /* ── 카메라 (직교 다이메트릭, 픽셀 격자 스냅) ── */
@@ -348,24 +372,24 @@ var SCENE3D = (function () {
     function seg(list, a, b, r, hex, sides) { list.push({ g: new T.CylinderGeometry(r, r, Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), sides || 4), m: segM(a, b), c: hex }); }
     /* 바닥: 밑판(이음 색 W2) 위에 널 23줄 — 피치 0.217 m, 널 0.127 + 이음 0.09(≈ 1 아트픽셀), 길이 1.0~2.4 m 로 엇갈림, 2색(W3/W4) 교대. 널 윗면 y=0.004 */
     var FLOOR_SEAM = 0.09, FLOOR_PITCH = 2 * R / 23;
-    parts.push({ g: box(2 * R, 0.1, 2 * R), m: M(0, -0.05, 0), c: W[2] });
+    parts.push({ g: box(2 * R, 0.1, 2 * R), m: M(0, -0.05, 0), c: MAT.floorSeam });
     for (var i = 0; i < 23; i++) {
       var fx = -R + FLOOR_PITCH * (i + 0.5), fz = -R, k = 0;
       while (fz < R) {
         var len = 1.0 + (hash('fl' + i + '_' + k) % 100) / 100 * 1.4, last = fz + len > R - 0.5;
         if (last) len = R - fz;
-        parts.push({ g: box(FLOOR_PITCH - FLOOR_SEAM, 0.02, last ? len : len - FLOOR_SEAM), m: M(fx, -0.006, fz + (last ? len : len - FLOOR_SEAM) / 2), c: W[(i + k) % 2 ? 3 : 4] });
+        parts.push({ g: box(FLOOR_PITCH - FLOOR_SEAM, 0.02, last ? len : len - FLOOR_SEAM), m: M(fx, -0.006, fz + (last ? len : len - FLOOR_SEAM) / 2), c: (i + k) % 2 ? MAT.floorA : MAT.floorB });
         fz += len; k++;
       }
     }
-    [[0.62, 0.9], [-1.48, -1.62], [1.72, 1.58]].forEach(function (p) { parts.push({ g: box(0.09, 0.012, 0.09), m: M(p[0], 0.0, p[1]), c: W[1] }); propCount++; });   /* 옹이·못 3 (1px 점) */
+    [[0.62, 0.9], [-1.48, -1.62], [1.72, 1.58]].forEach(function (p) { parts.push({ g: box(0.09, 0.012, 0.09), m: M(p[0], 0.0, p[1]), c: MAT.knot }); propCount++; });   /* 옹이·못 3 (1px 점) */
     /* 디오라마 받침: 바닥보다 0.4 m 큰 두꺼운 판 0.5 m — 위 지층 W1 0.2 + 1px 줄 W3 + 아래 지층 W2 0.23 */
-    parts.push({ g: box(2 * R + 0.4, 0.2, 2 * R + 0.4), m: M(0, -0.2, 0), c: W[1] });
-    parts.push({ g: box(2 * R + 0.42, 0.07, 2 * R + 0.42), m: M(0, -0.335, 0), c: W[3] });
-    parts.push({ g: box(2 * R + 0.4, 0.23, 2 * R + 0.4), m: M(0, -0.485, 0), c: W[2] });
+    parts.push({ g: box(2 * R + 0.4, 0.2, 2 * R + 0.4), m: M(0, -0.2, 0), c: MAT.slabTop });
+    parts.push({ g: box(2 * R + 0.42, 0.07, 2 * R + 0.42), m: M(0, -0.335, 0), c: MAT.slabLine });
+    parts.push({ g: box(2 * R + 0.4, 0.23, 2 * R + 0.4), m: M(0, -0.485, 0), c: MAT.slabBase });
     /* 벽 2면: 가로 널 10줄 0.3 m (창·문 구멍) + 줄 사이 1px 이음(W2, 0.08 m 높이) + 세로 샛기둥 3개씩 */
     for (i = 0; i < 10; i++) {
-      var y = 0.15 + i * 0.3, cwall = W[i % 2 ? 4 : 5], cback = W[i % 2 ? 5 : 4];
+      var y = 0.15 + i * 0.3, cwall = i % 2 ? MAT.wallA : MAT.wallB, cback = i % 2 ? MAT.wallB : MAT.wallA;
       if (y + 0.15 > WIN.y0 && y - 0.15 < WIN.y1) {
         parts.push({ g: box(0.12, 0.3, WIN.z0 + R, 1, 1, 4), m: M(-R, y, (-R + WIN.z0) / 2), c: cwall });
         parts.push({ g: box(0.12, 0.3, R - WIN.z1, 1, 1, 3), m: M(-R, y, (WIN.z1 + R) / 2), c: cwall });
@@ -377,16 +401,16 @@ var SCENE3D = (function () {
       if (i === 0) continue;
       var yb = i * 0.3;   /* 줄 경계 이음 */
       if (yb > WIN.y0 && yb < WIN.y1) {
-        parts.push({ g: box(0.02, 0.08, WIN.z0 + R), m: M(-R + 0.065, yb, (-R + WIN.z0) / 2), c: W[2] });
-        parts.push({ g: box(0.02, 0.08, R - WIN.z1), m: M(-R + 0.065, yb, (WIN.z1 + R) / 2), c: W[2] });
-      } else parts.push({ g: box(0.02, 0.08, 2 * R), m: M(-R + 0.065, yb, 0), c: W[2] });
+        parts.push({ g: box(0.02, 0.08, WIN.z0 + R), m: M(-R + 0.065, yb, (-R + WIN.z0) / 2), c: MAT.wallSeam });
+        parts.push({ g: box(0.02, 0.08, R - WIN.z1), m: M(-R + 0.065, yb, (WIN.z1 + R) / 2), c: MAT.wallSeam });
+      } else parts.push({ g: box(0.02, 0.08, 2 * R), m: M(-R + 0.065, yb, 0), c: MAT.wallSeam });
       if (yb < DOOR.h) {
-        parts.push({ g: box(DOOR.x0 + R, 0.08, 0.02), m: M((-R + DOOR.x0) / 2, yb, -R + 0.065), c: W[2] });
-        parts.push({ g: box(R - DOOR.x1, 0.08, 0.02), m: M((DOOR.x1 + R) / 2, yb, -R + 0.065), c: W[2] });
-      } else parts.push({ g: box(2 * R, 0.08, 0.02), m: M(0, yb, -R + 0.065), c: W[2] });
+        parts.push({ g: box(DOOR.x0 + R, 0.08, 0.02), m: M((-R + DOOR.x0) / 2, yb, -R + 0.065), c: MAT.wallSeam });
+        parts.push({ g: box(R - DOOR.x1, 0.08, 0.02), m: M((DOOR.x1 + R) / 2, yb, -R + 0.065), c: MAT.wallSeam });
+      } else parts.push({ g: box(2 * R, 0.08, 0.02), m: M(0, yb, -R + 0.065), c: MAT.wallSeam });
     }
-    [-1.9, -1.1, 1.85].forEach(function (z) { parts.push({ g: box(0.14, 3.0, 0.14), m: M(-R + 0.09, 1.5, z), c: W[3] }); propCount++; });   /* 왼쪽 벽 샛기둥 (벽면에서 0.1 돌출) */
-    [-1.9, -0.9, 1.12].forEach(function (x) { parts.push({ g: box(0.14, 3.0, 0.14), m: M(x, 1.5, -R + 0.09), c: W[3] }); propCount++; });   /* 뒷벽 샛기둥 */
+    [-1.9, -1.1, 1.85].forEach(function (z) { parts.push({ g: box(0.14, 3.0, 0.14), m: M(-R + 0.09, 1.5, z), c: MAT.stud }); propCount++; });   /* 왼쪽 벽 샛기둥 (벽면에서 0.1 돌출) */
+    [-1.9, -0.9, 1.12].forEach(function (x) { parts.push({ g: box(0.14, 3.0, 0.14), m: M(x, 1.5, -R + 0.09), c: MAT.stud }); propCount++; });   /* 뒷벽 샛기둥 */
     parts.push({ g: box(0.2, 3.1, 0.2), m: M(-R, 1.55, -R), c: W[1] });                                                                             /* 모서리 기둥 */
     /* 지붕: 서까래 5 (x 방향, 5.7° 경사 y = 3.75 + 0.2x; 먼 쪽 3개는 통짜, 가까운 2개는 잘라낸 단면) + 도리 2 (z 방향, x=-2.1 / -1.6 = 옛 들보). 카메라 가까운 머리 위 목재는 창·보드를 가리므로 먼 모서리에만 둔다 */
     var RAFTER_K = 0.2, RAFTER_Y = 3.75;
@@ -464,9 +488,9 @@ var SCENE3D = (function () {
     /* 짜임 깔개 2.3×1.7 (담요 자리 아래, 윗면 y 0.008 < 데칼 0.01): 테 navy3 · 줄무늬 glass1/2 (0.18 m, 그늘에서도 읽히게 밝은 쪽) · 술 paper0 */
     (function () {
       var RUG = { x: -1.0, z: 1.55, w: 2.3, d: 1.7, h: 0.016 }, bw = 0.14;
-      [-1, 1].forEach(function (s) { parts.push({ g: box(RUG.w, RUG.h, bw), m: M(RUG.x, 0, RUG.z + s * (RUG.d / 2 - bw / 2)), c: PAL.navy[3] }); parts.push({ g: box(bw, RUG.h, RUG.d - 2 * bw), m: M(RUG.x + s * (RUG.w / 2 - bw / 2), 0, RUG.z), c: PAL.navy[3] }); });
+      [-1, 1].forEach(function (s) { parts.push({ g: box(RUG.w, RUG.h, bw), m: M(RUG.x, 0, RUG.z + s * (RUG.d / 2 - bw / 2)), c: MAT.rugEdge }); parts.push({ g: box(bw, RUG.h, RUG.d - 2 * bw), m: M(RUG.x + s * (RUG.w / 2 - bw / 2), 0, RUG.z), c: MAT.rugEdge }); });
       var n = 8, sw = (RUG.d - 2 * bw) / n;
-      for (var j = 0; j < n; j++) parts.push({ g: box(RUG.w - 2 * bw, RUG.h, sw), m: M(RUG.x, 0, RUG.z - RUG.d / 2 + bw + sw * (j + 0.5)), c: PAL.glass[j % 2 ? 2 : 1] });
+      for (var j = 0; j < n; j++) parts.push({ g: box(RUG.w - 2 * bw, RUG.h, sw), m: M(RUG.x, 0, RUG.z - RUG.d / 2 + bw + sw * (j + 0.5)), c: j % 2 ? MAT.rugB : MAT.rugA });
       for (j = 0; j < 8; j++) [-1, 1].forEach(function (s) { parts.push({ g: box(0.1, 0.012, 0.09), m: M(RUG.x + s * (RUG.w / 2 + 0.06), 0, RUG.z - RUG.d / 2 + 0.12 + j * 0.21), c: PAL.paper[0] }); });
       propCount++;
     })();
@@ -573,7 +597,7 @@ var SCENE3D = (function () {
     }
 
     /* ── 포스터 (보드 위 평면) · 기념품 ── */
-    var posterMeshes = [], posterMat = keep(new T.MeshLambertMaterial({ color: C(PAL.paper[1]) })), lastPosterCount = 0;
+    var posterMeshes = [], posterMat = keep(new T.MeshLambertMaterial({ color: C(MAT.paper) })), lastPosterCount = 0;
     function posterSlot(i) { return [BOARD.x - 0.54 + (i % 3) * 0.54, BOARD.y + 0.3 - Math.floor(i / 3) * 0.6, BOARD.z + 0.05]; }
     function setPosters(list) {
       list = (list || []).slice(-6);
@@ -663,7 +687,7 @@ var SCENE3D = (function () {
     function octColor(hex) { octTags.forEach(function (g) { recolor(g, 1, hex); }); }
     function setColor(hex) {
       if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return;
-      st.color = hex; OC = octDerived(hex); PAL = buildPalette(hex); uploadPalette();
+      st.color = hex; OC = octDerived(hex); PAL = buildPalette(hex, st.palette); uploadPalette();
       octColor(hex); recolor(headGeo, 2, OC.hi); recolor(headGeo, 3, OC.mouth); recolor(blush.geometry, 2, OC.hi);
       arms.forEach(function (m) { recolor(m.geometry, 4, OC.pale); });
       oct.wiggle = 0.7;   /* 색을 바꾸면 한 번 흔들 (§14) */
@@ -892,15 +916,25 @@ var SCENE3D = (function () {
       setLook: function (o) {
         var re = false;
         if (o.pixelSize != null && (o.pixelSize | 0) !== st.look.pixelSize) { st.look.pixelSize = clamp(o.pixelSize | 0, 1, 4); re = true; }
-        if (o.dither != null) { st.look.dither = clamp(+o.dither, 0, 1); dither.base = st.look.dither * 0.08; }
+        if (o.dither != null) { st.look.dither = clamp(+o.dither, 0, 1); ditherBase(); }
         if (o.outline != null) { st.look.outline = !!o.outline; post.uniforms.uOutline.value = st.look.outline && hasDepthTex ? 1 : 0; }
         if (o.yaw != null) { st.look.yaw = clamp(+o.yaw, -25, 25); dither.still = 0; }
         if (o.zoom != null) { var z = clamp(o.zoom | 0, 0, ZOOM_STEPS.length - 1); if (z !== st.zoom) { st.zoom = z; re = true; } }
         if (o.focus !== undefined) { st.look.focus = o.focus === 'oct' ? 'oct' : null; dither.still = 0; }   /* 줌 단계 0..3 (핀치/휠과 같은 단계, look-shots 의 close 용) */
         if (re) { resize(); dither.still = 0; }
       },
-      palette: function () { var out = RAMPS.map(function (r) { return { name: r[0], colors: PAL[r[0]] }; }); out.push({ name: 'fixed', colors: [PAL.ink, PAL.white, PAL.night] }); out.push({ name: 'oct', colors: PAL.oct }); return out; },
-      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount }; },
+      setPalette: function (name) { /* 룩 패스 3: 스냅 팔레트 소스 교체 (재질은 그대로, 디더 진폭은 새 칸 간격으로) */
+        name = paletteSource(name); if (name === st.palette) return;
+        st.palette = name; PAL = buildPalette(st.color, name); uploadPalette(); ditherBase(); dither.still = 0;
+      },
+      paletteName: function () { return st.palette; },
+      palette: function () { /* 스와치 줄: 램프면 램프별, 검증 팔레트면 8칸씩 + 문어 램프 */
+        var out = [];
+        if (PAL.source === 'ramps') { out = RAMPS.map(function (r) { return { name: r[0], colors: PAL[r[0]] }; }); out.push({ name: 'fixed', colors: [PAL.ink, PAL.white, PAL.night] }); }
+        else { var base = PAL.list.slice(0, PAL.list.length - PAL.oct.length); for (var i = 0; i < base.length; i += 8) out.push({ name: PAL.source + ' ' + (i / 8 + 1), colors: base.slice(i, i + 8) }); }
+        out.push({ name: 'oct', colors: PAL.oct }); return out;
+      },
+      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastT = 0; loop(); },
       destroy: function () {
@@ -917,5 +951,5 @@ var SCENE3D = (function () {
     };
   }
 
-  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS };
+  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT };
 })();

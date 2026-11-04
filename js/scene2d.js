@@ -308,7 +308,7 @@ var SCENE2D = (function () {
       setSouvenirs: function (list) { st.souvenirs = (list || []).slice(); renderSouvenirs(); },
       bubble: bubble, lookAt: pupilsTowards, octScreenPos: octScreenPos,
       setReducedMotion: function (r) { st.reduced = !!r; },
-      setLook: function () { /* 3D 전용 */ }, palette: function () { return []; }, stats: function () { return { calls: 0 }; },
+      setLook: function () { /* 3D 전용 */ }, setPalette: function () { /* 3D 전용 */ }, paletteName: function () { return 'ramps'; }, palette: function () { return []; }, stats: function () { return { calls: 0 }; },
       refresh: function () { renderLayers(true); renderSouvenirs(); },
       pause: function () { st.paused = true; }, resume: function () { st.paused = false; },
       destroy: function () { unbind.forEach(function (f) { f(); }); unbind = []; if (oct.walking) oct.walking.cancel(); container.classList.remove('mode-2d'); },
