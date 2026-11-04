@@ -286,7 +286,7 @@ var AUDIO = (function () {
       if (beat && !at) t = nextBeat(t);
       if (resv && t > at + 0.02) {   /* 받기가 늦었다: 제 자리를 비우고 지금부터 다시 줄을 선다 (뒤에 예약된 것과 겹치지 않게) */
         resv.s = resv.e = -1; t = fitEv(t, buf.duration, beat, beat);
-        resv.s = t; resv.e = t + buf.duration;
+        evQ.push({ s: t, e: t + buf.duration });
       }
       if (!o.direct) {
         if (s.pause_bgm) pauseBgm(t, buf.duration);
@@ -358,7 +358,7 @@ var AUDIO = (function () {
     o = o || {};
     var tok = {}; want[slot] = tok;
     var s = byId[id];
-    if (!s || !ctx) return Promise.resolve(null);
+    if (!s || !ctx) { loading[slot] = null; return Promise.resolve(null); }
     loading[slot] = id;
     return load(id).then(function (buf) {
       if (want[slot] === tok) loading[slot] = null;
@@ -789,7 +789,7 @@ var AUDIO = (function () {
       if (gs.sleeping) startLullaby(false); else applyBgm({ delay: fromUser ? 0.45 : 0 });
       clearInterval(tickTimer); tickTimer = setInterval(guard(tick), 1000);
       clearTimeout(warmTimer); warmTimer = setTimeout(guard(warmVoices), 2500);   /* BGM·환경음을 먼저 받고 나서 */
-      if (ctx && ctx.state === 'running') disarm(); else if (!document.hidden) arm();   /* 아직 멈춰 있으면 다음 탭에서 깨운다 */
+      if (ctx && ctx.state === 'running') disarm(); else armIfStuck();   /* 아직 멈춰 있으면 다음 탭에서 깨운다 */
       paint();
     }));
   }
@@ -854,6 +854,10 @@ var AUDIO = (function () {
     start(false);
   }
   var unlockFn = guard(onUnlock);
+  /* 동작 밖의 resume() 은 막히면 약속이 끝나지 않을 수도 있어서(자동재생 정책) 잠시 뒤 상태로 본다 */
+  function armIfStuck() {
+    setTimeout(guard(function () { if (ctx && ctx.state !== 'running' && ctx.state !== 'closed' && pref.on && !reason && !document.hidden) arm(); }), 400);
+  }
   function arm() { if (armed) return; armed = true; UNLOCK.forEach(function (n) { document.addEventListener(n, unlockFn, true); }); paint(); }
   function disarm() { if (!armed) return; armed = false; UNLOCK.forEach(function (n) { document.removeEventListener(n, unlockFn, true); }); paint(); }
 
@@ -941,9 +945,7 @@ var AUDIO = (function () {
     document.addEventListener('visibilitychange', guard(function () {
       if (!ctx) return;
       if (document.hidden) { if (ctx.state === 'running') ctx.suspend().catch(noop); }
-      else if (pref.on && !reason) {   /* 켜는 중에 숨겼다 돌아와도. 동작 없이는 안 풀리면(iOS) 다음 탭에서 */
-        ctx.resume().then(guard(function () { if (ctx && ctx.state !== 'running') arm(); }), guard(arm));
-      }
+      else if (pref.on && !reason) { ctx.resume().catch(noop); armIfStuck(); }   /* 켜는 중에 숨겼다 돌아와도. 동작 없이는 안 풀리면(iOS) 다음 탭에서 */
     }));
   }
 
