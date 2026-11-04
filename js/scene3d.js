@@ -355,6 +355,7 @@ var SCENE3D = (function () {
       camera.left = -rw / 2 / S.N; camera.right = rw / 2 / S.N; camera.top = rh / 2 / S.N; camera.bottom = -rh / 2 / S.N; camera.updateProjectionMatrix();
       S.pw = (camera.right - camera.left) / rw;   /* pixelWorldSize = 직교 프러스텀 폭 / 렌더 타깃 폭 (= 1/N: p=3 줌 1 → 1/18 m, p=2 → 1/27, 줌 ×2 → 1/36) */
       placeCamera();
+      if (ready) { layoutWeather(false); if (CURT.frame) curtainFrame(1); anim.dustInit = false; }   /* 룩 패스 7: 격자가 바뀌면 비·눈·물방울·커튼·먼지를 새 픽셀 중심에 재스냅 */
     }
 
     /* ── 장면 · 조명 ── */
@@ -384,7 +385,15 @@ var SCENE3D = (function () {
       }
       var c = sun.shadow.camera; c.left = mn[0] - 0.1; c.right = mx[0] + 0.1; c.bottom = mn[1] - 0.1; c.top = mx[1] + 0.1; c.near = -mx[2] - 0.1; c.far = -mn[2] + 0.1; c.updateProjectionMatrix();
     }
-    var light = { from: null, to: LIGHTS[phaseOf(st.hour)], t: 1, dur: 60 };
+    var light = { from: null, to: LIGHTS[phaseOf(st.hour)], t: 1, dur: 60, sunI: 0 };
+    /* 창 빛 조각 일렁임 (룩 패스 7): 비·가는 비일 때 키 광 세기 ×0.8 / ×1.0 을 ≈0.6 s(시드 지터 0.42~0.78 s)마다 교대 — 유리를 타고 흐르는 물의 그림자. 맑음·눈·모션 감소 = 1.0 고정 */
+    var shim = { k: 1, t: 0, dur: 0.6, cyc: 0 };
+    function stepShimmer(dt) {
+      var raining = (st.weather === 'rain' || st.weather === 'drizzle') && !st.reduced;
+      if (!raining) { if (shim.k !== 1) { shim.k = 1; shim.t = 0; sun.intensity = light.sunI; } return; }
+      shim.t += dt;
+      if (shim.t >= shim.dur) { shim.t = 0; shim.cyc++; shim.k = shim.k < 1 ? 1 : 0.8; shim.dur = 0.6 * (0.7 + 0.6 * (hash('shm' + shim.cyc) % 100) / 100); sun.intensity = light.sunI * shim.k; }
+    }
     var tmpA = new T.Color(), tmpB = new T.Color();
     function lerpC(a, b, k) { return tmpA.copy(C(a)).lerp(tmpB.copy(C(b)), k); }
     function keyK() { return st.look.key / LIGHTS.day.sunI; }      /* 데브 슬라이더: 낮 키 세기(기본 2.6)·필 세기(기본 0.32)를 비율로 모든 시각대에 적용 */
@@ -393,7 +402,7 @@ var SCENE3D = (function () {
       var a = light.from || light.to, b = light.to, k = light.t;
       var e = k * (2 - k);
       function num(key) { return a[key] + (b[key] - a[key]) * e; }
-      sun.color.copy(lerpC(a.sun, b.sun, e)); sun.intensity = num('sunI') * keyK();
+      sun.color.copy(lerpC(a.sun, b.sun, e)); light.sunI = num('sunI') * keyK(); sun.intensity = light.sunI * shim.k;   /* × 창 빛 조각 2단 일렁임 (룩 패스 7, 비 올 때만) */
       var elev = num('elev') * DEG, az = num('az') * DEG;
       sun.position.set(-10 * Math.cos(elev) * Math.cos(az), 10 * Math.sin(elev) + 0.5, 10 * Math.cos(elev) * Math.sin(az));
       fitShadow();
@@ -589,9 +598,21 @@ var SCENE3D = (function () {
     glass.position.set(-R + 0.01, (WIN.y0 + WIN.y1) / 2, (WIN.z0 + WIN.z1) / 2); glass.rotation.y = Math.PI / 2; glass.userData.kind = 'window'; scene.add(glass);
     var winEm = emTwin(glass, glass.geometry);   /* 창 유리 발광 (시각대 winEm: 낮 하늘 밝게 · 밤 희미한 차가운 색) */
     /* 등불 */
-    var lampG = new T.Group(); lampG.position.copy(lampPos); scene.add(lampG);
+    var lampG = new T.Group(); lampG.position.copy(lampPos); scene.add(lampG); lampG.add(lamp);
     var lampBody = new T.Mesh(keep(mergeParts([{ g: box(0.34, 0.08, 0.34), m: M(0, 0.24, 0), c: W[0] }, { g: box(0.3, 0.06, 0.3), m: M(0, -0.24, 0), c: W[0] }, { g: box(0.05, 0.4, 0.05), m: M(0.14, 0, 0.14), c: W[0] }, { g: box(0.05, 0.4, 0.05), m: M(-0.14, 0, -0.14), c: W[0] }])), lambert);
     lampBody.castShadow = true; lampBody.receiveShadow = true; lampG.add(lampBody);
+    /* 끈 (룩 패스 7): 등불 그룹의 자식, 그림자 안 던짐(패스 2 의 "끈 그림자 띠" 방지). 그룹 원점 = 등불 몸체라 그룹이 기울면 끈 윗끝이 도리(y 3.23) 쪽으로 되돌아가 — 위는 고정, 아래가 흔들리는 "살짝 휘는 끈" 으로 보인다 */
+    var lampRope = new T.Mesh(keep(mergeParts([{ g: new T.CylinderGeometry(0.03, 0.03, 1.1, 5), m: M(0, 0.28 + 0.55, 0), c: W[0] }])), lambert); lampRope.castShadow = false; lampRope.receiveShadow = false; lampG.add(lampRope);
+    /* 진자 흔들림 (룩 패스 7): ±3° · 0.35 Hz · 시드 위상, 축 = 기본 시점의 화면 가로(월드 대각 (1,0,−1)/√2). 변위 L·sinθ 를 화면 정수 px 로 양자화(snapDelta)하고 그 변위에 맞는 각도만 몸체에 준다 → p=3 에서 몸체가 −1/0/+1 px 로 스텝, 끈 아래가 1px 기운다. 점광·글로우·발광은 자식이라 따라오고 웅덩이·먼지는 lampAt 으로 */
+    var SWAY = { amp: 3 * DEG, hz: 0.35, L: 3.23 - lampPos.y, ph: (hash('sway') % 1000) / 1000 * Math.PI * 2, dir: new T.Vector3(Math.SQRT1_2, 0, -Math.SQRT1_2), axis: new T.Vector3(-Math.SQRT1_2, 0, -Math.SQRT1_2) };
+    var lampAt = lampPos.clone(), _sd = new T.Vector3(), swayPx = 0;
+    function stepSway() {
+      var th = st.reduced ? 0 : SWAY.amp * Math.sin(Math.PI * 2 * SWAY.hz * time + SWAY.ph);
+      _sd.copy(SWAY.dir).multiplyScalar(SWAY.L * Math.sin(th)); snapDelta(_sd);
+      var s = _sd.dot(SWAY.dir), q = Math.asin(clamp(s / SWAY.L, -1, 1)); swayPx = Math.round(s / S.pw);
+      lampAt.copy(lampPos).add(_sd); lampG.position.copy(lampAt); lampG.quaternion.setFromAxisAngle(SWAY.axis, q);
+      lampPool.position.set(lampAt.x, 0.015, lampAt.z);
+    }
     /* 유리(tag 1, 4×6 px) + 심지 띠(tag 2: 0.16 m ≈ 3px 높이, 면보다 1 cm 돌출해 유리 면 위에 밝은 가로 띠로 보인다) — 켜지면 호박 2 / 호박 5(거의 흰 노랑), 꺼지면 회색 1/2. 밤에 몸체(갈색 0)가 검게 가라앉아도 이 심지 + 블룸 때문에 "등불" 로 읽힌다 (룩 패스 6) */
     var lampGlassGeo = keep(mergeParts([{ g: box(0.24, 0.36, 0.24), m: M(0, 0, 0), c: PAL.amber[2], tag: 1 }, { g: box(0.26, 0.16, 0.26), m: M(0, -0.02, 0), c: PAL.amber[5], tag: 2 }]));
     var lampGlass = new T.Mesh(lampGlassGeo, basicV); lampG.add(lampGlass);
@@ -619,29 +640,108 @@ var SCENE3D = (function () {
       var p = new T.Points(g, keep(new T.PointsMaterial({ color: C(hex), size: size || 1, sizeAttenuation: false })));
       p.frustumCulled = false; p.castShadow = false; scene.add(p); return p;
     }
-    var rain = points(40, PAL.glass[2]), snow = points(24, PAL.paper[3]), stars = points(14, PAL.white);
-    function seedDrops(pts, n) { var a = pts.geometry.attributes.position.array; for (var i = 0; i < n; i++) { a[i * 3] = -R + 0.07; a[i * 3 + 1] = WIN.y0 + Math.random() * (WIN.y1 - WIN.y0); a[i * 3 + 2] = WIN.z0 + 0.05 + Math.random() * (WIN.z1 - WIN.z0 - 0.1); } pts.geometry.attributes.position.needsUpdate = true; }
-    seedDrops(rain, 40); seedDrops(snow, 24);
+    function lines(n, hex) { /* 1px 선분 n개 (LineSegments 1 드로우콜) */
+      var g = keep(new T.BufferGeometry()); g.setAttribute('position', new T.BufferAttribute(new Float32Array(n * 6), 3));
+      var l = new T.LineSegments(g, keep(new T.LineBasicMaterial({ color: C(hex) }))); l.frustumCulled = false; l.castShadow = false; scene.add(l); return l;
+    }
+    var stars = points(14, PAL.white);
     (function () { var a = stars.geometry.attributes.position.array; for (var i = 0; i < 14; i++) { var r = hash('star' + i); a[i * 3] = -R + 0.04; a[i * 3 + 1] = WIN.y0 + 0.2 + ((r >> 8) % 100) / 100 * (WIN.y1 - WIN.y0 - 0.3); a[i * 3 + 2] = WIN.z0 + 0.1 + (r % 100) / 100 * (WIN.z1 - WIN.z0 - 0.2); } stars.geometry.attributes.position.needsUpdate = true; })();
-    /* 먼지: 등불 빛 원뿔 안 1px 점 24개. 버퍼는 고정, Points 오브젝트의 회전·상하 흔들림(변환)만으로 떠다닌다. 모션 감소면 숨김 */
-    var dust = points(24, PAL.amber[3]);
-    (function () { var a = dust.geometry.attributes.position.array; for (var i = 0; i < 24; i++) { var r = hash('dust' + i), ang = (r % 360) * DEG, rad = 0.3 + ((r >> 9) % 100) / 100 * 0.6; a[i * 3] = Math.cos(ang) * rad; a[i * 3 + 1] = -0.6 + ((r >> 17) % 100) / 100 * 1.2; a[i * 3 + 2] = Math.sin(ang) * rad; } dust.geometry.attributes.position.needsUpdate = true; })();
-    dust.position.set(lampPos.x, lampPos.y - 0.8, lampPos.z);
-    var streaks = [];
-    for (i = 0; i < 3; i++) { var sm = new T.Mesh(keep(new T.PlaneGeometry(0.05, 0.3)), basic(PAL.glass[3])); sm.rotation.y = Math.PI / 2; sm.position.set(-R + 0.05, WIN.y0 + 0.3 + i * 0.4, WIN.z0 + 0.3 + i * 0.4); scene.add(sm); streaks.push(sm); }
+    /* ── 비·눈·유리 물방울·먼지 (룩 패스 7: 손그림 픽셀 애니처럼 12 fps 스텝, 모든 점·선 끝은 아트 픽셀 중심(snapC), 낙하는 스텝당 정수 px) ──
+       비 = 창 구멍 안 1px 세로 줄기 2층: 먼 층(x −R+0.06, 22줄, 3~4px, 2px/스텝 = 24px/s) / 가까운 층(x −R+0.09, 18줄, 5~6px, 4px/스텝 = 48px/s), 층마다 LineSegments 1 드로우콜. 가는 비 = 줄 수 절반, 맑음 = 없음.
+       줄기 상태 = 열 z(월드) + 행 m(맨 아래 픽셀, 창 위 모서리 기준 정수) + 길이 — 매 스텝 (x, y1, z) 를 픽셀 중심에 스냅한 점 P 에서 세로로 m·k 내려 그린다(k = 세로 1px). 창턱 아래·틀 위로는 행을 잘라 유리 안에만.
+       유리 물방울 = Points 3 (비 3 · 가는 비 2): 스텝의 40 % 에서만 1px 내려가고(≈ 5px/s 불규칙), 바닥에 닿으면 1~5 s 쉬었다가 새 열에서. 눈 = Points 24: 2스텝에 1px 낙하 + 가끔 ±1 px 옆으로.
+       먼지 = Points 24, 10 fps 스텝: 등불 원뿔 안에서 회전·상하 → 월드 좌표를 픽셀 중심에 스냅해 버퍼에 쓴다(반 픽셀 없음). 모션 감소면 비·눈·물방울은 정지(보이기만), 먼지는 숨김 */
+    var RAIN = [{ n: 22, x: -R + 0.06, speed: 2, lens: [3, 4], obj: lines(22, PAL.glass[1]) }, { n: 18, x: -R + 0.09, speed: 4, lens: [5, 6], obj: lines(18, PAL.glass[3]) }];
+    var drops = points(3, PAL.glass[3]), snow = points(24, PAL.paper[3]), dust = points(24, PAL.amber[3]);
+    var DROP = { x: -R + 0.11, n: 3, z: [], m: [], wait: [], cyc: [] }, SNOW = { x: -R + 0.07, n: 24, z: [], m: [], col: [], cyc: [] }, DUST = [];
+    for (i = 0; i < 24; i++) { var dr = hash('dust' + i); DUST.push({ ang: (dr % 360) * DEG, rad: 0.3 + ((dr >> 9) % 100) / 100 * 0.6, h: -0.6 + ((dr >> 17) % 100) / 100 * 1.2 }); }
+    var anim = { rainAcc: 0, step: 0, dustAcc: 0, armAcc: 0, armStep: 0 }, RAIN_DT = 1 / 12, DUST_DT = 0.1, ARM_DT = 1 / 8;
+    var _wp = new T.Vector3();
+    function winRows(P, k) { return Math.floor((P.y - WIN.y0 - 0.5 * k) / k) + 1; }   /* P 아래로 창 안에 완전히 드는 행 수 (행 0 = P) */
+    function winCol(r) { return WIN.z0 + 0.06 + (r % 1000) / 1000 * (WIN.z1 - WIN.z0 - 0.12); }
+    function rainSpawn(L, li, i, init) {
+      L.cyc[i] = (L.cyc[i] | 0) + 1; var r = hash('rain' + li + '_' + i + '_' + L.cyc[i]);
+      L.z[i] = winCol(r); L.len[i] = L.lens[0] + ((r >> 10) % (L.lens[1] - L.lens[0] + 1));
+      L.m[i] = init ? ((r >> 14) % 30) - L.len[i] : -(1 + ((r >> 14) % 10));
+    }
+    RAIN.forEach(function (L, li) { L.z = []; L.m = []; L.len = []; L.cyc = []; for (var i = 0; i < L.n; i++) rainSpawn(L, li, i, true); });
+    function rainLayout(L, li, active, advance) {
+      var a = L.obj.geometry.attributes.position.array, k = pxUp();
+      for (var i = 0; i < L.n; i++) {
+        var o = i * 6;
+        if (i >= active) { a[o] = a[o + 3] = 0; a[o + 1] = a[o + 4] = -50; a[o + 2] = a[o + 5] = 0; continue; }
+        if (advance) L.m[i] += L.speed;
+        _wp.set(L.x, WIN.y1, L.z[i]); snapC(_wp);
+        var M = winRows(_wp, k);
+        if (L.m[i] - L.len[i] + 1 >= M) { rainSpawn(L, li, i); _wp.set(L.x, WIN.y1, L.z[i]); snapC(_wp); M = winRows(_wp, k); }
+        var m0 = Math.max(L.m[i] - L.len[i] + 1, 0), m1 = Math.min(L.m[i], M - 1);
+        if (m1 < m0) { a[o] = a[o + 3] = 0; a[o + 1] = a[o + 4] = -50; a[o + 2] = a[o + 5] = 0; continue; }
+        a[o] = _wp.x; a[o + 1] = _wp.y - m0 * k; a[o + 2] = _wp.z; a[o + 3] = _wp.x; a[o + 4] = _wp.y - (m1 + 1) * k; a[o + 5] = _wp.z;   /* 픽셀 중심 → 다음 픽셀 중심: 다이아몬드 규칙으로 꼭 (m1−m0+1) px */
+      }
+      L.obj.geometry.attributes.position.needsUpdate = true;
+    }
+    function dropSpawn(i, init) {
+      DROP.cyc[i] = (DROP.cyc[i] | 0) + 1; var r = hash('drop' + i + '_' + DROP.cyc[i]);
+      DROP.z[i] = winCol(r); DROP.m[i] = init ? (r >> 10) % 16 : (r >> 10) % 4; DROP.wait[i] = init ? (i * 7) % 20 : 12 + ((r >> 14) % 48);
+    }
+    for (i = 0; i < DROP.n; i++) dropSpawn(i, true);
+    function dropLayout(active, advance) {
+      var a = drops.geometry.attributes.position.array, k = pxUp();
+      for (var i = 0; i < DROP.n; i++) {
+        var o = i * 3;
+        if (advance && DROP.wait[i] > 0) DROP.wait[i]--;
+        else if (advance && hash('dropv' + i + '_' + anim.step) % 5 < 2) DROP.m[i]++;
+        if (i >= active || DROP.wait[i] > 0) { a[o] = 0; a[o + 1] = -50; a[o + 2] = 0; continue; }
+        _wp.set(DROP.x, WIN.y1, DROP.z[i]); snapC(_wp);
+        if (DROP.m[i] >= winRows(_wp, k)) { dropSpawn(i); a[o] = 0; a[o + 1] = -50; a[o + 2] = 0; continue; }
+        a[o] = _wp.x; a[o + 1] = _wp.y - DROP.m[i] * k; a[o + 2] = _wp.z;
+      }
+      drops.geometry.attributes.position.needsUpdate = true;
+    }
+    function snowSpawn(i, init) {
+      SNOW.cyc[i] = (SNOW.cyc[i] | 0) + 1; var r = hash('snow' + i + '_' + SNOW.cyc[i]);
+      SNOW.z[i] = WIN.z0 + 0.2 + (r % 1000) / 1000 * (WIN.z1 - WIN.z0 - 0.4); SNOW.col[i] = 0; SNOW.m[i] = init ? (r >> 10) % 24 : -(1 + ((r >> 10) % 6));
+    }
+    for (i = 0; i < SNOW.n; i++) snowSpawn(i, true);
+    function snowLayout(advance) {
+      var a = snow.geometry.attributes.position.array, k = pxUp();
+      for (var i = 0; i < SNOW.n; i++) {
+        var o = i * 3;
+        if (advance) { if ((anim.step + i) & 1) SNOW.m[i]++; if (anim.step % 4 === 0) { var r = hash('snd' + i + '_' + anim.step) % 8; if (r === 0) SNOW.col[i] = clamp(SNOW.col[i] + 1, -3, 3); else if (r === 1) SNOW.col[i] = clamp(SNOW.col[i] - 1, -3, 3); } }
+        _wp.set(SNOW.x, WIN.y1, SNOW.z[i]); snapC(_wp);
+        if (SNOW.m[i] >= winRows(_wp, k)) snowSpawn(i);
+        if (SNOW.m[i] < 0) { a[o] = 0; a[o + 1] = -50; a[o + 2] = 0; continue; }
+        _wp.addScaledVector(_r, SNOW.col[i] * S.pw); a[o] = _wp.x; a[o + 1] = _wp.y - SNOW.m[i] * k; a[o + 2] = _wp.z;
+      }
+      snow.geometry.attributes.position.needsUpdate = true;
+    }
+    function dustLayout() {
+      var a = dust.geometry.attributes.position.array, t = time;
+      for (var i = 0; i < 24; i++) {
+        var d = DUST[i], ang = d.ang + t * 0.12;
+        _wp.set(lampAt.x + Math.cos(ang) * d.rad, lampPos.y - 0.8 + d.h + Math.sin(t * 0.4) * 0.06, lampAt.z + Math.sin(ang) * d.rad); snapC(_wp);
+        a[i * 3] = _wp.x; a[i * 3 + 1] = _wp.y; a[i * 3 + 2] = _wp.z;
+      }
+      dust.geometry.attributes.position.needsUpdate = true;
+    }
+    function weatherCounts() { var w = st.weather; return { rain: w === 'rain' ? 1 : w === 'drizzle' ? 0.5 : 0, drops: w === 'rain' ? 3 : w === 'drizzle' ? 2 : 0 }; }
+    function layoutWeather(advance) { /* 현재 날씨의 보이는 것만 (advance = 한 스텝 전진, false = 재스냅만: 초기·줌·시점 변경) */
+      var c = weatherCounts();
+      if (c.rain) RAIN.forEach(function (L, li) { rainLayout(L, li, Math.ceil(L.n * c.rain), advance); });
+      if (c.drops) dropLayout(c.drops, advance);
+      if (snow.visible) snowLayout(advance);
+    }
     function updateStars() { stars.visible = isNight() && st.weather === 'clear'; }
     function applyWeather() {
-      var w = st.weather;
-      rain.visible = w === 'rain' || w === 'drizzle'; rain.material.color.copy(C(w === 'drizzle' ? PAL.glass[1] : PAL.glass[2]));
-      snow.visible = w === 'snow'; streaks.forEach(function (s, k) { s.visible = w === 'rain' || (w === 'drizzle' && k === 0); });
-      updateStars();
+      var c = weatherCounts();
+      RAIN.forEach(function (L) { L.obj.visible = c.rain > 0; }); drops.visible = c.drops > 0; snow.visible = st.weather === 'snow';
+      updateStars(); layoutWeather(false);
     }
     function stepWeather(dt) {
-      if (st.reduced) return;
-      var w = st.weather, a, i, n;
-      if (rain.visible) { a = rain.geometry.attributes.position.array; n = w === 'drizzle' ? 14 : 40; for (i = 0; i < 40; i++) { if (i >= n) { a[i * 3 + 1] = -5; continue; } a[i * 3 + 1] -= (w === 'drizzle' ? 1.6 : 3.2) * dt; if (a[i * 3 + 1] < WIN.y0) a[i * 3 + 1] = WIN.y1 - Math.random() * 0.3; } rain.geometry.attributes.position.needsUpdate = true; }
-      if (snow.visible) { a = snow.geometry.attributes.position.array; for (i = 0; i < 24; i++) { a[i * 3 + 1] -= 0.45 * dt; a[i * 3 + 2] += Math.sin(time * 1.3 + i) * 0.15 * dt; if (a[i * 3 + 1] < WIN.y0) a[i * 3 + 1] = WIN.y1; } snow.geometry.attributes.position.needsUpdate = true; }
-      streaks.forEach(function (s, k) { if (!s.visible) return; s.position.y -= (0.35 + k * 0.1) * dt; if (s.position.y < WIN.y0 + 0.15) s.position.y = WIN.y1 - 0.15; });
+      if (st.reduced) return;   /* 모션 감소: 비·눈·물방울 정지 (보이기만) */
+      anim.rainAcc += dt; var n = 0;
+      while (anim.rainAcc >= RAIN_DT - 1e-6 && n < 3) { anim.rainAcc -= RAIN_DT; anim.step++; n++; layoutWeather(true); }
+      if (n === 3) anim.rainAcc = 0;
     }
 
     /* ── 소품 (§4) ── */
@@ -667,8 +767,21 @@ var SCENE3D = (function () {
     var SHELF = { x: snapPos(-1.55), y: snapPos(1.7), z: snapPos(-R + 0.22) };
     addProp('shelf', new T.Mesh(keep(mergeParts([{ g: box(1.5, 0.07, 0.4), m: M(0, 0, 0), c: W[2] }, { g: box(0.08, 0.3, 0.3), m: M(-0.6, -0.18, -0.05), c: W[1] }, { g: box(0.08, 0.3, 0.3), m: M(0.6, -0.18, -0.05), c: W[1] }])), lambert));
     props.shelf.position.set(SHELF.x, SHELF.y, SHELF.z);
-    addProp('curtain', new T.Mesh(keep(mergeParts([{ g: new T.CylinderGeometry(0.03, 0.03, 2.6, 5), m: M(0, WIN.y1 + 0.25, 0.6, Math.PI / 2, 0, 0), c: W[1] }, { g: box(0.08, 1.5, 0.5, 1, 4, 2), m: M(0, WIN.y1 - 0.5, WIN.z0 - 0.3), c: PAL.navy[4] }, { g: box(0.08, 1.5, 0.5, 1, 4, 2), m: M(0, WIN.y1 - 0.5, WIN.z1 + 0.3), c: PAL.navy[4] }])), lambert));
+    addProp('curtain', new T.Mesh(keep(mergeParts([{ g: new T.CylinderGeometry(0.03, 0.03, 2.6, 5), m: M(0, WIN.y1 + 0.25, 0.6, Math.PI / 2, 0, 0), c: W[1] }, { g: box(0.08, 1.5, 0.5, 1, 4, 2), m: M(0, WIN.y1 - 0.5, WIN.z0 - 0.3), c: PAL.navy[4], tag: 5 }, { g: box(0.08, 1.5, 0.5, 1, 4, 2), m: M(0, WIN.y1 - 0.5, WIN.z1 + 0.3), c: PAL.navy[4], tag: 5 }])), lambert));
     props.curtain.position.set(snapPos(-R + 0.18), 0, 0); props.curtain.castShadow = false;
+    /* 커튼 2프레임 숨쉬기 (룩 패스 7, 등불 ≥ 8 = 커튼 있을 때): 프레임 1 은 천(tag 5) 밑단 정점(y < 1.1)만 세로 1px 들림. 1.2~2.0 s(시드)마다 교대, 모션 감소면 프레임 0 */
+    var CURT = { geo: props.curtain.geometry, base: null, frame: 0, t: 0, dur: 1.5, cyc: 0 }; CURT.base = CURT.geo.attributes.position.array.slice();
+    function curtainFrame(f) {
+      var at = CURT.geo.attributes.position, arr = at.array, tags = CURT.geo.userData.tags, up = f ? pxUp() : 0;
+      for (var i = 0; i < tags.length; i++) if (tags[i] === 5 && CURT.base[i * 3 + 1] < 1.1) arr[i * 3 + 1] = CURT.base[i * 3 + 1] + up;
+      at.needsUpdate = true; CURT.frame = f;
+    }
+    function stepCurtain(dt) {
+      if (!props.curtain.visible) return;
+      if (st.reduced) { if (CURT.frame) curtainFrame(0); return; }
+      CURT.t += dt;
+      if (CURT.t >= CURT.dur) { CURT.t = 0; CURT.cyc++; CURT.dur = 1.2 + (hash('cur' + CURT.cyc) % 100) / 100 * 0.8; curtainFrame(CURT.frame ? 0 : 1); }
+    }
     function applyItems() {
       Object.keys(props).forEach(function (k) { props[k].visible = st.items.indexOf(k) >= 0; });
       if (propDecals) { scene.remove(propDecals); propDecals.geometry.dispose(); propDecals = null; }
@@ -765,7 +878,8 @@ var SCENE3D = (function () {
     var hit = new T.Mesh(keep(new T.SphereGeometry(1.6, 8, 6)), keep(new T.MeshBasicMaterial({ visible: false }))); hit.position.y = 0.7; hit.userData.kind = 'oct'; bodyG.add(hit);   /* 반지름 0.67 m ≈ 72 CSS px (p=3) ≥ 44 */
     var carry = new T.Mesh(posterGeo, posterMat); carry.receiveShadow = true; carry.position.set(1.0, 0.95, 0.6); carry.rotation.set(0, 0.5, 0.15); carry.scale.setScalar(1.6); carry.visible = false; bodyG.add(carry);
     var octDecal = new T.Mesh(keep(new T.PlaneGeometry(3.2, 3.2)), decalMat); octDecal.rotation.x = -Math.PI / 2; octDecal.position.y = 0.01; octDecal.renderOrder = 1; octG.add(octDecal);   /* 접지 그림자 1.34 m (다리 끝까지) */
-    var oct = { anchor: 'window', pos: new T.Vector3(), walking: null, faceYaw: 0, wantYaw: 0, blinkT: 2 + Math.random() * 4, blinkLeft: 0, animT: 0, hop: 0, flushK: 0, pointer: null, lookTarget: null };
+    var oct = { anchor: 'window', pos: new T.Vector3(), walking: null, faceYaw: 0, wantYaw: 0, blinkT: 3 + (hash('blink0') % 1000) / 1000 * 4, blinkLeft: 0, blinkN: 0, animT: 0, hop: 0, flushK: 0, pointer: null, lookTarget: null };
+    var ARMW = arms.map(function (_, i) { var r = hash('armw' + i); return { ph: r % 32, per: 16 + ((r >> 8) % 17) }; });   /* 다리 끝 꿈틀: 시드 위상 · 주기 16~32 스텝(2~4 s @ 8 fps) */
     var octTags = [headGeo, lidGeo].concat(arms.map(function (m) { return m.geometry; }));
     function octColor(hex) { octTags.forEach(function (g) { recolor(g, 1, hex); }); }
     function setColor(hex) {
@@ -847,10 +961,10 @@ var SCENE3D = (function () {
       var dy = oct.wantYaw - oct.faceYaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
       oct.faceYaw += red ? dy : dy * Math.min(1, dt * 8); octG.rotation.y = oct.faceYaw;
       /* 몸 */
-      var sx = 1, sy = 1, by = oct.hop, walking = s === 'walk' || s === 'carry';
+      var sx = 1, sy = 1, by = oct.hop, walking = s === 'walk' || s === 'carry', tb = Math.floor(t * 8) / 8;   /* 숨쉬기는 8 fps 스텝 샘플 (룩 패스 7) */
       if (!red) {
-        if (s === 'idle' || s === 'stay') { sy = 1 - 0.03 * (0.5 + 0.5 * Math.sin(t * Math.PI / 2)); sx = 1 + 0.02 * (0.5 + 0.5 * Math.sin(t * Math.PI / 2)); }
-        if (s === 'sleep') { sy = 0.95 - 0.02 * Math.sin(t * Math.PI / 2.5); sx = 1.03; }
+        if (s === 'idle' || s === 'stay') { sy = 1 - 0.03 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2)); sx = 1 + 0.02 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2)); }
+        if (s === 'sleep') { sy = 0.95 - 0.02 * Math.sin(tb * Math.PI / 2.5); sx = 1.03; }
         if (walking && oct.walking) { by += Math.abs(Math.sin(t * 10)) * 0.1; sy = 1 + 0.03 * Math.sin(t * 20); }
         if (s === 'anticipate') { var ak = Math.min(1, oct.animT / 0.6); sx = 1 + 0.05 * ak; sy = 1 - 0.08 * ak; }
         if (s === 'pet') { var pk = 0.5 + 0.5 * Math.sin(t * Math.PI / 0.6); sx = 1 + 0.06 * pk; sy = 1 - 0.06 * pk; }
@@ -859,20 +973,21 @@ var SCENE3D = (function () {
         if (oct.wiggle > 0) { oct.wiggle -= dt; bodyG.rotation.z = Math.sin(oct.wiggle * 30) * 0.1 * oct.wiggle; }
       } else if (s === 'sleep') sy = 0.95;
       bodyG.scale.set(sx, sy, sx); bodyG.position.y = snapUp(by * OCT_R) / OCT_R;   /* 폴짝·통통도 세로 정수 픽셀로 */
-      /* 다리 */
+      /* 다리: 0 = 끝이 바닥에 닿은 자세, 흔들림은 위로만. idle 다리 끝 미세 꿈틀(룩 패스 7) = 8 fps 스텝, 다리마다 시드 주기(2~4 s)로 2스텝(0.25 s)만 끝이 화면 세로 **1px** 들림(각도 = asin(1px / 다리 길이)), 걷기는 연속 그대로 */
+      anim.armAcc += dt; while (anim.armAcc >= ARM_DT - 1e-6) { anim.armAcc -= ARM_DT; anim.armStep++; } if (anim.armAcc > 1) anim.armAcc = 0;
+      var armUp = Math.asin(clamp(pxUp() / (ARM[4][0] * OCT_R * sy), 0, 1));
       for (var i = 0; i < 8; i++) {
-        var arm = arms[i], base = 0;   /* 0 = 끝이 바닥에 닿은 자세. 흔들림은 위로만 (바닥을 뚫지 않게) */
+        var arm = arms[i], base = 0, w = ARMW[i];
         if (red) { arm.rotation.z = base; continue; }
         if (walking && oct.walking) arm.rotation.z = base + (0.5 + 0.5 * Math.sin(t * 10 + (i % 2) * Math.PI)) * 0.35;
-        else if (s === 'sleep') arm.rotation.z = base + 0.02 + Math.sin(t * 1.2 + i) * 0.02;
-        else arm.rotation.z = base + 0.05 + Math.sin(t * 2.6 + i * 0.8) * 0.05;
+        else if (s === 'sleep') arm.rotation.z = base + 0.02;
+        else arm.rotation.z = base + 0.05 + (((anim.armStep + w.ph) % w.per) < 2 ? armUp : 0);
       }
-      /* 눈 깜빡임 · 동공 */
+      /* 눈 깜빡임 (룩 패스 7: 3~7 s 시드 간격, 120 ms, 눈꺼풀 덮고 동공 scaleY 0.1; 모션 감소면 없음) · 동공 */
       if (s !== 'sleep' && s !== 'pet' && s !== 'away') {
-        oct.blinkT -= dt;
-        if (oct.blinkT <= 0) { oct.blinkLeft = 0.13; oct.blinkT = 3 + Math.random() * 4; }
-        if (oct.blinkLeft > 0) { oct.blinkLeft -= dt; lids.visible = true; pupils[0].visible = pupils[1].visible = false; }
-        else { lids.visible = false; pupils[0].visible = pupils[1].visible = true; }
+        if (!red) { oct.blinkT -= dt; if (oct.blinkT <= 0) { oct.blinkLeft = 0.12; oct.blinkN = (oct.blinkN | 0) + 1; oct.blinkT = 3 + (hash('blink' + oct.blinkN) % 1000) / 1000 * 4; } }
+        if (oct.blinkLeft > 0 && !red) { oct.blinkLeft -= dt; lids.visible = true; pupils[0].scale.y = pupils[1].scale.y = 0.1; }
+        else { oct.blinkLeft = 0; lids.visible = false; pupils[0].scale.y = pupils[1].scale.y = 1; pupils[0].visible = pupils[1].visible = true; }
       }
       var look = oct.lookTarget || oct.pointer, px = 0, py = 0;
       if (look) { var sp = octScreen(), r = canvas.getBoundingClientRect(); px = clamp((look.x - (r.left + sp.x - S.offX)) / 140, -1, 1); py = clamp((look.y - (r.top + sp.y - S.offY + 30)) / 140, -1, 1); }
@@ -957,8 +1072,9 @@ var SCENE3D = (function () {
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       if (light.t < 1) { light.t = Math.min(1, light.t + dt / light.dur); applyLight(); if (light.t >= 1) light.from = null; }
       if (lampDirty) applyLamp();
-      if (!st.reduced && st.lantern > 0) { lampGlow.material.opacity = glowOpacity() + Math.sin(time * 2) * 0.03 * (light.glow || 0.7) / 0.7; }
-      if (dust.visible) { dust.rotation.y = time * 0.12; dust.position.y = lampPos.y - 0.8 + Math.sin(time * 0.4) * 0.06; }
+      if (!st.reduced && st.lantern > 0) { lampGlow.material.opacity = glowOpacity() + Math.sin(Math.floor(time * 8) / 8 * 2) * 0.03 * (light.glow || 0.7) / 0.7; }   /* 글로우 맥동 8 fps 스텝 */
+      stepSway(); stepShimmer(dt); stepCurtain(dt);   /* 룩 패스 7: 등불 진자 · 창 빛 일렁임 · 커튼 숨 */
+      if (dust.visible) { anim.dustAcc += dt; if (anim.dustAcc >= DUST_DT - 1e-6 || !anim.dustInit) { anim.dustAcc = 0; anim.dustInit = true; dustLayout(); } }   /* 먼지 10 fps 스텝, 픽셀 중심 스냅 */
       if (props.candle.visible) {   /* 양초 점광 0.3~0.42 d 2 × 시각대 계수. 불꽃 = 2프레임 깜빡임 (룩 패스 6): 7 Hz, 주기마다 시드 지터로 밝은 프레임이 35~65 % — 크기(y 0.9/1.25)·색(호박 4/5)·발광(0.7/1.0). 모션 감소면 중간값 고정 */
         candleT += dt; var ck = light.candle || 1, fph = candleT * 7, fk = Math.floor(fph);
         if (fk !== flick.k) { flick.k = fk; flick.j = (hash('flk' + fk) % 100) / 100; }
@@ -1046,6 +1162,7 @@ var SCENE3D = (function () {
       debugStep: function (dt) { st.paused = true; cancelAnimationFrame(raf); st.force = true; frame((lastT || 0) + Math.max(0.001, +dt || 1 / 12) * 1000); st.force = false; },
       screenOf: function (x, y, z) { var p = _hp.set(x, y, z).project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 월드 → 컨테이너 CSS px (스트립 크롭 중심) */
       msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
+      motion: function () { return { swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced }; },   /* 룩 패스 7 디버그 */
       stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2) }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastT = 0; loop(); },
