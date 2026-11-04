@@ -1324,12 +1324,7 @@ var SCENE3D = (function () {
       E(new T.CylinderGeometry(1, 1, 0.008, 14), M(pux, 0.004, puz, 0, 0, 0, PU[2] + 2 * PX, 1, PU[3] + 2 * PX), sc.path, 12);
       E(new T.CylinderGeometry(1, 1, 0.01, 14), M(pux, 0.007, puz, 0, 0, 0, PU[2], 1, PU[3]), '#5a7890', 17);
       E(box(2 * PX, 0.004, PX), M(pux - 0.1, 0.0125, puz - 0.06), '#c8dce8', 18); E(box(PX, 0.004, PX), M(pux - 0.04, 0.0125, puz - 0.1), '#c8dce8', 18);   /* 하늘 반사 2점 */
-      /* 울타리 첫 기둥의 작은 팻말 (바깥 기웃 '기호'): 마당(−z) 쪽을 본다 — 나무 테 + 종이 + 1px 글자 줄 2 */
-      var SG = { x: snapPos(EXT_FENCE[0][0]), z: snapPos(EXT_FENCE[0][1]) - 0.06 };
-      E(box(0.34, 0.22, 0.03), M(SG.x, 0.5, SG.z), W[2]);
-      E(box(0.28, 0.16, 0.012), M(SG.x, 0.5, SG.z - 0.018), '#efe3c8');
-      E(box(0.18, PX * 0.8, 0.006), M(SG.x - 0.02, 0.53, SG.z - 0.026), '#3a2a2e'); E(box(0.12, PX * 0.8, 0.006), M(SG.x - 0.05, 0.47, SG.z - 0.026), '#3a2a2e');
-      extPropN += 2;
+      extPropN += 1;
     })();
     var extStatic = new T.Mesh(keep(mergeParts(ep)), lambert); extStatic.castShadow = true; extStatic.receiveShadow = true; extG.add(extStatic);
     /* 바깥 기웃 소품 (평소엔 잔물결만 보인다 — 드로우콜 +2): 잔물결 1px 타원 선 · 덤불 바스락 덮개(앞 덤불 복제, ±1px 흔들) · 우체통 열림(뚫린 입구 + 내려간 뚜껑) */
@@ -1647,18 +1642,19 @@ var SCENE3D = (function () {
        출발 의식과 같은 출구(길 가장자리 → 아래로 폴짝)로 내보내므로 returnCeremony 가 그대로 이어진다. 문어 상태(st.octState)는 'away' 그대로 — 보이기만 한다.
        경로: 원(소품) + 사각(집·현관) 장애물을 피하는 작은 길목 그래프(최단 거리) — 집을 가로지르지 않는다. 모션 감소 = 자리로 순간이동 · 정지 자세 · 0.4 s ── */
     var D2R = DEG;
-    var EXT_SPOTS = {   /* x, z (월드 m, extG) · y (앉는 높이) · face (도, 0 = +z · 90 = +x · 45 = 카메라) · 소품 · 동작 · approach (폴짝 직전 발치) */
-      sea:     { x: -0.6, z: 0.6, face: 45, prop: 'puddle', act: 'ripple' },
-      sky:     { x: -1.25, z: 1.3, face: 15, prop: 'tree', act: 'up' },
-      sounds:  { x: 0.1, z: 0.5, face: 110, prop: 'bush', act: 'rustle' },
-      hands:   { x: 1.45, z: 0.6, face: -70, prop: 'mailbox', act: 'mail1' },
-      signs:   { x: -1.15, z: 2.05, face: 5, prop: 'sign' },
-      numbers: { x: 0.15, z: 2.0, face: 0, prop: 'fence', act: 'count' },
+    var EXT_SPOTS = {   /* x, z (월드 m, extG) · y (앉는 높이) · face (도, 0 = +z · 90 = +x · 45 = 카메라) · 소품 · 동작 · approach (폴짝 직전 발치).
+       이 카메라에선 문어가 소품을 '마주 보면' 등이 보이므로, 소품은 화면에서 문어 옆이나 앞(아래)에 두고 얼굴은 카메라 ±40° 안에서 소품 쪽으로 돌린다 */
+      sea:     { x: -0.6, z: 0.6, face: 45, prop: 'puddle', act: 'ripple' },          /* 웅덩이가 바로 앞(화면 아래) */
+      sky:     { x: -1.25, z: 1.3, face: 15, prop: 'tree', act: 'up' },               /* 왼쪽 둥근 나무 밑, 올려다봄 */
+      sounds:  { x: 0.1, z: 0.5, face: 75, prop: 'bush', act: 'rustle' },             /* 덤불이 화면 오른쪽 */
+      hands:   { x: 1.4, z: -0.05, face: 10, prop: 'mailbox', act: 'mail1' },         /* 우체통 오른쪽 (열리는 끝 쪽) */
+      signs:   { x: 0.45, z: 1.0, face: 85, prop: 'mailbox', act: 'mail1' },          /* 우체통 왼쪽 */
+      numbers: { x: 0.0, z: 1.7, face: 0, prop: 'fence', act: 'count' },              /* 울타리 기둥이 화면 왼쪽 아래 */
       home:    { x: 1.08, y: 0.12, z: -1.1, face: 75, prop: 'steps', act: 'sit', approach: [1.55, -1.1] },
-      mind:    { x: -2.95, z: 0.55, face: 40, prop: 'conifer' },
+      mind:    { x: 1.7, z: -1.9, face: 40, prop: 'tree' },                           /* 오른쪽 둥근 나무 밑 (원뿔 나무는 이 시점에서 집 뒤라 안 보인다) */
       wild:    { x: 2.95, z: -0.9, face: 95, prop: 'edge' },
-      slow_room:   { x: -0.55, y: 0.14, z: 1.95, face: 40, prop: 'rock', act: 'sit', approach: [0.05, 1.65] },
-      letter_room: { x: 1.45, z: 0.6, face: -70, prop: 'mailbox', act: 'mailOpen' },
+      slow_room:   { x: 2.5, y: 0.2, z: -1.5, face: 40, prop: 'rock', act: 'sit', approach: [2.2, -0.9] },
+      letter_room: { x: 1.4, z: -0.05, face: 10, prop: 'mailbox', act: 'mailOpen' },
       door_out:    { x: 2.85, z: 0.3, face: 45, prop: 'pathEdge' }
     };
     var PK_FENCE = EXT_FENCE.concat([EXT_FENCE_END]);
@@ -1667,7 +1663,7 @@ var SCENE3D = (function () {
       .concat((function () { var o = []; for (var i = 0; i <= 8; i++) { var k = i / 8; o.push([-1.1 + (0.8 + 1.1) * k, 2.55 + 0.11 * k, 0.06]); } return o; })());   /* 울타리 = 원 9 */
     var PK_RECT = [[EXT.HX0, EXT.HX1, EXT.HZ0, EXT.HZ1], [EXT.HX1, 1.2, EXT.HZC - 0.58, EXT.HZC + 0.58]];   /* 집 · 현관+계단+난간 */
     var PK_M = 0.3;   /* 문어 몸 여유 (다리 끝은 소품에 살짝 걸쳐도 된다) */
-    var PK_HUBS = [[2.05, 1.0], [0.4, 1.45], [-1.0, 0.65], [-2.3, 1.0], [2.25, -0.5], [-1.9, 2.3]];
+    var PK_HUBS = [[2.05, 1.0], [0.4, 1.45], [-1.0, 0.65], [-2.3, 1.0], [2.25, -0.5], [-1.9, 2.3], [1.85, -1.25]];
     var PK_ENTRY = [   /* 가장자리 출입구: at = 받침 위, below = 아래(폴짝 출발점 — 출발 의식의 below 와 같은 꼴) */
       { at: EXT_P.edge, below: EXT_P.below }, { at: [EXT.L - 0.02, 0, -0.75], below: [EXT.L + 0.6, -1.5, -0.35] },
       { at: [-1.75, 0, EXT.L - 0.02], below: [-1.35, -1.5, EXT.L + 0.6] }, { at: [1.35, 0, EXT.L - 0.02], below: [1.75, -1.5, EXT.L + 0.6] }];
@@ -1689,7 +1685,7 @@ var SCENE3D = (function () {
       return false;
     }
     function pkClear(a, b) { var d = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(d / 0.08)); for (var i = 1; i < n; i++) { var k = i / n; if (pkBlocked(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k)) return false; } return true; }   /* 양 끝은 검사하지 않는다 (자리·출입구는 소품 곁) */
-    function pkRoute(a, b) { /* 최단 길목 경로 (Dijkstra, 노드 = 시작·길목 6·끝) → 거쳐 갈 점들 (시작 제외, 끝 포함) + 길이 */
+    function pkRoute(a, b) { /* 최단 길목 경로 (Dijkstra, 노드 = 시작·길목 7·끝) → 거쳐 갈 점들 (시작 제외, 끝 포함) + 길이 */
       var N = [a].concat(PK_HUBS, [b]), n = N.length, dist = [], prev = [], done = [], i, j;
       for (i = 0; i < n; i++) { dist.push(i ? 1e9 : 0); prev.push(-1); done.push(false); }
       for (var it = 0; it < n; it++) {
@@ -1735,7 +1731,7 @@ var SCENE3D = (function () {
       };
       it.update = function (k) {
         var t = k * it.dur / st.speed; PK.t = t;
-        if (happy && !swapped && (t >= 0.35 || st.reduced)) { swapped = true; setExpression('happy'); }   /* 찾았다 → 폴짝 2 */
+        if (happy && !swapped && (t >= 0.35 || st.reduced)) { swapped = true; setExpression('happy'); if (!PK.sit) PK.lean = 0; }   /* 찾았다 → 몸을 펴고 폴짝 2 (^ ^ 눈이 보이게) */
         if (PK.count > -2 && !st.reduced) {   /* 수: 기둥마다 고개 까딱 (0.25 s 간격, 기둥 쪽으로 돌아보며) */
           var c = Math.min(PK_FENCE.length - 1, Math.floor(t / 0.25));
           if (c !== PK.count) { PK.count = c; PK.nod = 0; var f = PK_FENCE[c]; oct.wantYaw = Math.atan2(f[0] - oct.pos.x, f[1] - oct.pos.z); }
