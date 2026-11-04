@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["icn1"],
+  "functions": {
+    "api/**/*.js": {
+      "regions": ["icn1"],
+      "maxDuration": 10,
+      "includeFiles": "js/runner.js"
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/((?!runner/top).*)",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+    }
+  ]
+}
