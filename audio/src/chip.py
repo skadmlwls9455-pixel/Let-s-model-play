@@ -184,6 +184,12 @@ def render_note(midi, vel, gate_s, inst, total_s=None, seed=0):
         pitch = pitch + depth * ramp * np.sin(2 * np.pi * rate * t)
 
     vol_s = _frames_to_samples(vol, n, spf)
+    # 계단 모서리 다듬기: 볼륨은 여전히 60Hz·4비트 계단으로 움직이지만, 한 계단을 1.5ms 에 걸쳐 넘어가게 해서
+    # 느린 감쇠(오르골·종)에서 '지글지글' 클릭이 나지 않게 한다. (순수 사인 기준 고역 잡음 -46dB → 측정값은 커밋 메시지)
+    k = int(0.0015 * OSR)
+    if n > 2 * k:
+        c = np.cumsum(np.concatenate([np.zeros(k), vol_s]))
+        vol_s = (c[k:] - c[:-k]) / k
 
     w = p['wave']
     if w == 'noise':

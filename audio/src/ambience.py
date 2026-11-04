@@ -277,6 +277,19 @@ def _blep(t, dt):
     return y
 
 
+def _gb_table(amps):
+    """GB 웨이브 채널식 32샘플 4비트 표(0~15 → ±1). amps[k-1] = k번째 배음 크기."""
+    n = np.arange(32)
+    w = sum(a * np.sin(2 * np.pi * (k + 1) * n / 32) for k, a in enumerate(amps))
+    v = np.round((w - w.min()) / (w.max() - w.min()) * 15)
+    return v / 7.5 - 1.0
+
+
+# 공용 'bell' 표는 5배음이 기음만큼 크다(−2.3 dB) → D 종이면 F#, A 종이면 C# 이 5 kHz 근처에서 도드라진다.
+# 앰비언스 종은 1·2·3·4·6배음만(옥타브·5도) 둔 표를 쓴다 → 펜타 밖 색이 덜 나고 고역도 부드럽다.
+AMB_WAVES = {'amb_bell': _gb_table([1.0, 0.5, 0.32, 0.22, 0.0, 0.1])}
+
+
 def osc_os(wave, f, duty=0.125, table='sine'):
     """OSR(4배) 위상 누적 발진기: 'sine' | 'tri'(NES 32계단) | 'wave'(GB 표) | 'pulse'(PolyBLEP)"""
     ph = np.cumsum(f / OSR)
@@ -286,7 +299,7 @@ def osc_os(wave, f, duty=0.125, table='sine'):
     if wave == 'tri':
         return chip.TRI_TABLE[(frac * 32).astype(np.int64) % 32]
     if wave == 'wave':
-        tab = chip.WAVES[table]
+        tab = AMB_WAVES[table] if table in AMB_WAVES else chip.WAVES[table]
         return tab[(frac * 32).astype(np.int64) % 32] - tab.mean()
     if wave == 'pulse':
         dt = np.minimum(f / OSR, 0.5)
@@ -335,12 +348,12 @@ AMB = {
     'amb_eave':        dict(wave='tri', att=0.003, tau=0.075, glide=-0.6, glide_t=0.012),   # 처마 '똑' (NES 삼각)
     'amb_eave_gb':     dict(wave='wave', table='sine', att=0.003, tau=0.06, glide=-0.6, glide_t=0.012),
     'amb_roof':        dict(wave='tri', att=0.0006, tau=0.0028),                            # 지붕 톡 8 ms
-    'amb_snowbell':    dict(wave='wave', table='bell', att=0.002, tau=0.42),
+    'amb_snowbell':    dict(wave='wave', table='amb_bell', att=0.002, tau=0.42),
     'amb_bellhi':      dict(wave='sine', att=0.002, tau=0.12),                              # 옥타브 위 배음
     'amb_spark':       dict(wave='pulse', duty=0.125, att=0.003, tau=0.11),                 # P12 반짝
     'amb_spark_swell': dict(wave='pulse', duty=0.125, att=0.25, dec=0.4),                   # 느린 어택(반딧불)
     'amb_chime':       dict(wave='wave', table='sine', att=0.003, tau=0.8),
-    'amb_chime_b':     dict(wave='wave', table='bell', att=0.003, tau=0.45),
+    'amb_chime_b':     dict(wave='wave', table='amb_bell', att=0.003, tau=0.45),
     'amb_star':        dict(wave='sine', att=0.005, tau=0.04),                              # A5 D120
     'amb_firefly':     dict(wave='sine', att=0.3, dec=0.5, vib=0.04, vib_hz=3.0),           # A300 D500, 틱 없음
 }
@@ -762,7 +775,7 @@ def build_autumn(L=67, seed=4067):
     lv = Bus(L)
     lt = spaced(rng, L, 10, 25)
     for tt in lt:
-        lv.add(at_db(leaf_rustle(rng), -6.0 + rng.uniform(-2, 1)), tt)
+        lv.add(at_db(leaf_rustle(rng), -8.0 + rng.uniform(-2, 1)), tt)
     x = verb(crk, 0.12) + verb(lv.x, 0.15)
     info = f'귀뚜라미 F7 {r:.2f}/s, 잎 바스락 @ ' + ', '.join(f'{s:.1f}' for s in lt) + ' s'
     return finish(x, 7000), info
@@ -935,7 +948,7 @@ SOUNDS = {
     'amb_autumn': ('amb', 67, -20.0, build_autumn,
                    '가을(9~11월): 날씨 베드 위에 겹침(맑은 날·밤)',
                    '귀뚜라미 1마리 SIN F7, 처프 1.2/s(돌베어 서늘함), 펄스 18/7 ms ×3, 60~80% 시간, LPF5k. '
-                   '잎 바스락 4회/루프(NZ BP 2~5k, 20 ms 낟알 3~8개, 10~25 s 간격, −6 dB). 노이즈 베드 없음'),
+                   '잎 바스락 4회/루프(NZ BP 2~5k, 20 ms 낟알 3~8개, 10~25 s 간격, −8 dB). 노이즈 베드 없음'),
     'amb_lantern_low': ('amb', 41, None, lambda: build_lantern(2),
                         '등불 0~3칸: 항상(다른 베드 위). 칸이 바뀌면 low/mid/high 사이 3 s 크로스페이드',
                         '딱딱 포아송 (0.3+0.4n)/s=1.1/s, 2~5 ms NZ HPF1.5k −20~−32 dB(25% 작은 연쇄); 웅 브라운 LPF180 −34 dB; '
@@ -953,7 +966,7 @@ SOUNDS = {
                     '(C6/D6/F6/G6 위주), 셔플백, ±10센트, 20%는 겹방울 −7 dB'),
     'layer_snowbells': ('layer', 43, -16.0, build_layer_snowbells,
                         '무박 레이어: 날씨 snow 일 때 core 스템(−3 dB, LPF4k) 위에. 종은 필터 없이(대비)',
-                        'GB bell 웨이브 종 A5~D7 F펜타 ~0.21음/s + 옥타브 위 사인 배음, 30%는 메아리 −10 dB. '
+                        'GB 웨이브 종(amb_bell 표: 1·2·3·4·6배음) A5~D7 F펜타 ~0.21음/s + 옥타브 위 사인 배음, 30%는 메아리 −10 dB. '
                         '썰매방울 트레몰로 1회/루프(7비트 숏모드 LFSR, F6 기음, 13 Hz)'),
     'layer_sparkle': ('layer', 31, -20.0, build_layer_sparkle,
                       '무박 레이어: 맑은 밤 별 반짝(등불 8칸 밤엔 상시). 여름밤 반딧불에도 같은 파일(gain −4 dB 권장)',
@@ -961,7 +974,7 @@ SOUNDS = {
                       '25%는 느린 부풂(A250 D400). LPF 8.5k'),
     'layer_winter_chime': ('layer', 53, -18.0, build_layer_winter_chime,
                            '무박 레이어: 겨울(12~2월) 맑음·가는 비. 1~2월 snow 면 layer_snowbells 가 우선',
-                           'F5/C6/F6/C7 종(GB 사인+bell 웨이브, τ 0.7~0.95 s, 옥타브 배음), ~5회/루프, 35%는 F↔C 짝'),
+                           'F5/C6/F6/C7 종(GB 사인+amb_bell 웨이브, τ 0.7~0.95 s, 옥타브 배음), ~5회/루프, 35%는 F↔C 짝'),
 }
 
 

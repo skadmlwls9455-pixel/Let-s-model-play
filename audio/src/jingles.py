@@ -94,7 +94,8 @@ preset('jg_thud', wave='tri', env=[15, 12, 8, 4, 0], rel=[0.0], pitch=[0, -0.6, 
 preset('jg_knock', wave='tri', env=[15, 7, 0], rel=[0.0], cut=False)
 preset('jg_wood', wave='tri', env=[14, 0], rel=[0.0], cut=False)
 # 펄스 (길게 사라지는 음색은 cut=False: 4비트 볼륨 계단이 조용한 페이드에서 '틱틱' 들리지 않게)
-preset('jg_p25', wave='pulse', duty=0.25, env=[8, 12, 12, 11, 10, 10, 9, 9, 8], rel=[0.6, 0.4, 0.2, 0.08],
+preset('jg_p25', wave='pulse', duty=0.25, env=[8, 12, 12, 11, 10, 10, 9, 9, 8],
+       rel=[0.8, 0.62, 0.46, 0.33, 0.22, 0.13, 0.06, 0.02],
        sus_decay=0.05, cut=False)
 preset('jg_pluck25', wave='pulse', duty=0.25, env=_dec(12, 0.45, attack=[9]), rel=[0.5, 0.2], cut=False)
 preset('jg_chime', wave='pulse', duty=0.25, env=_dec(11, 0.4, attack=[8]), rel=[0.5, 0.2], cut=False)
@@ -111,7 +112,8 @@ preset('jg_marc2', wave='pulse', duty=0.5, env=[10, 11, 10, 9, 9, 8, 8, 8, 7], r
        sus_decay=0.03, cut=False)
 preset('jg_calm', wave='pulse', duty=0.5, env=[3, 5, 7, 8, 8, 8, 8], rel=[0.85, 0.7, 0.55, 0.4, 0.28, 0.18, 0.1],
        sus_decay=0.02, cut=False)
-preset('jg_calm_fade', wave='pulse', duty=0.5, env=[6, 8, 8], rel=[0.7, 0.45, 0.25, 0.1], sus_decay=0.075, cut=False)
+preset('jg_calm_fade', wave='pulse', duty=0.5, env=[6, 8, 8], rel=[0.75, 0.55, 0.38, 0.24, 0.13, 0.05],
+       sus_decay=0.075, cut=False)
 preset('jg_sleepy', wave='pulse', duty=0.125, env=[2, 4, 6, 7, 7, 7], rel=[0.8, 0.6, 0.4, 0.25, 0.12],
        sus_decay=0.02, cut=False)
 preset('jg_tri_sleepy', wave='tri', env=[5, 8, 10, 11, 11, 11], rel=[0.8, 0.6, 0.4, 0.25, 0.12], cut=False,
@@ -256,6 +258,7 @@ class Jg:
         self.trim = True
         self.cap = None       # (최대 길이 초, 페이드 초) — 스펙 길이 상한
         self.minlen = None    # 꼬리를 자른 뒤 이 길이(초)까지 무음으로 채움
+        self.ceil = CEIL_DB   # 리미터 천장(dBFS)
 
     def ch(self, name, notes, level=1.0, lp=None, dly=None, send=1.0, voice=True):
         notes = list(notes)
@@ -643,6 +646,7 @@ def b_first_place():
 def b_rare_sparkle():
     # 04 #25: (반짝 "뽈뽈" C7 C7) → P25/P12 칩 아르페지오 F6 A6 C7 500 ms, LPF 6k + 반짝 {C7 D7 F7} P12 ×6 (-16)
     j = Jg(lp=6000, reverb=0.06)
+    j.ceil = -5.0          # F6–F7 펄스는 AAC 디코드 피크가 1.5 dB 가까이 튄다
     j.ch('pip', [N(0.0, 0.025, 'C7', 11, 'jg_spark', 1.0), N(0.06, 0.025, 'C7', 11, 'jg_spark', 1.0)], level=0.5)
     j.ch('arpA', [N(0.12, 0.5, 'F6', 12, 'jg_shimmer')], level=0.8, voice=False)
     j.ch('arpB', [N(0.12, 0.5, 'F6', 10, P_('jg_shimmer', duty=0.125, arp=[4, 7, 12]))], level=0.5, voice=False)
@@ -1013,7 +1017,7 @@ def main(argv):
         x = ex.trim_tail(y[None, :]) if j.trim else y[None, :]
         if j.minlen and x.shape[1] < int(j.minlen * SR):
             x = np.pad(x, ((0, 0), (0, int(j.minlen * SR) - x.shape[1])))
-        entry, xo = ex.export(x, sid, KIND, rel_db=rel, meta=meta, ceiling_db=CEIL_DB)
+        entry, xo = ex.export(x, sid, KIND, rel_db=rel, meta=meta, ceiling_db=j.ceil)
         entries.append(entry)
         lv = entry['level']
         print(f"{sid:24s} {entry['duration']:6.2f}s  {lv['measured']:6.1f}/{lv['target']:6.1f} {lv['unit']:4s} "
