@@ -377,7 +377,7 @@ var SCENE2D = (function () {
       extSpot: function (k) { var key = typeof k === 'string' ? k : (k && (k.roomId || k.corner)) || 'wild'; return { key: key, x: 0, y: 0, z: 0, face: 0, prop: '', act: '' }; },
       peekOutside: function (o, onDone) { return new Promise(function (r) { setTimeout(function () { if (onDone) onDone(); r(); }, 0); }); },
       leaveOutside: function (onDone) { return new Promise(function (r) { setTimeout(function () { if (onDone) onDone(); r(); }, 0); }); },
-      peek: function () { return { on: false, key: '', hold: false }; },
+      peek: function () { return { on: false, key: '', hold: false }; }, EXT_SPOTS: ['sea', 'sky', 'sounds', 'hands', 'signs', 'numbers', 'home', 'mind', 'wild', 'slow_room', 'letter_room', 'door_out'],
       setPosters: function (list) { st.posters = (list || []).slice(); renderWall(); },
       setSouvenirs: function (list) { st.souvenirs = (list || []).slice(); renderSouvenirs(); },
       bubble: bubble, lookAt: pupilsTowards, octScreenPos: octScreenPos,
