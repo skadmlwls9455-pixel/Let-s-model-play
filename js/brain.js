@@ -38,6 +38,7 @@
     linger: ['느린 글의 방에 앉아만 있었어. 아무것도 안 읽어도 됐어'],
     door: ['{hint} 문 앞까지 갔다 왔어. 바깥은 못 읽었지만'],
     letter: ['편지의 방 문을 열어 봤어. 아직 비어 있었어'],
+    failed: ['{mem} 문은 오늘 안 열렸어. 이름만 기억해 둘래', '{mem}는 못 읽었어. 다음에 다시 가 볼래'],
     wild: ['들판에서 {mem}를 만났어. {memory}', '링크를 따라가다 {mem}에 닿았어']
   };
 
@@ -99,7 +100,7 @@
   function sentences(text, maxLen) {
     var t = String(text || '').replace(/\s+/g, ' ').trim();
     if (!t) return '';
-    var parts = t.split(/(?<=[.!?。])\s+/);
+    var parts = (t.match(/[^.!?。]+[.!?。]*/g) || [t]).map(function (x) { return x.trim(); }).filter(Boolean);
     var out = '';
     for (var i = 0; i < parts.length && i < 2; i++) {
       var cand = out ? out + ' ' + parts[i] : parts[i];
@@ -135,6 +136,17 @@
     };
   }
   function asR(r) { return typeof r === 'function' ? r() : (typeof r === 'number' ? r : 0); }
+  /* 받침에 맞는 조사. 한글로 끝나지 않으면 템플릿에 적힌 조사를 그대로 둔다. */
+  var JOSA = { '은': ['은', '는'], '는': ['은', '는'], '이': ['이', '가'], '가': ['이', '가'], '을': ['을', '를'], '를': ['을', '를'], '과': ['과', '와'], '와': ['과', '와'], '으로': ['으로', '로'], '로': ['으로', '로'] };
+  function josa(word, particle) {
+    var pair = JOSA[particle];
+    if (!pair || !word) return particle;
+    var code = word.charCodeAt(word.length - 1);
+    if (code < 0xAC00 || code > 0xD7A3) return particle;
+    var jong = (code - 0xAC00) % 28;
+    if (particle === '로' || particle === '으로') return (jong === 0 || jong === 8) ? '로' : '으로';
+    return jong === 0 ? pair[1] : pair[0];
+  }
 
   /* ───────── 5.3 힌트 읽기 ───────── */
   function tokenize(hint) {
@@ -444,9 +456,10 @@
     var idx = Math.min(list.length - 1, Math.floor(asR(r) * list.length));
     var line = String(list[idx] || '');
     var map = { hint: ctx.hint, mem: ctx.mem, memory: ctx.memory, name: ctx.name };
-    line = line.replace(/\{(\w+)\}/g, function (_, key) {
+    line = line.replace(/\{(\w+)\}(은|는|이|가|을|를|과|와|으로|로)?/g, function (_, key, particle) {
       var v = map[key];
-      return v == null ? '' : String(v);
+      v = v == null ? '' : String(v);
+      return v + (particle ? josa(v, particle) : '');
     });
     line = line.replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').replace(/\s+([.,!?…])/g, '$1').replace(/^[.,\s]+/, '').trim();
     return line;
@@ -516,7 +529,7 @@
         if (s.status === 'read') w *= 1.3;
         if (s.viaTangent) w *= 1.6;
         if (i === hintStopIdx) w *= 0.7;
-        if (s.status === 'none' || s.status === 'simulated') w *= 0.5;
+        if (s.status === 'none' || s.status === 'simulated' || s.status === 'failed') w *= 0.5;
         return w;
       }, rr.rRemember);
     }
@@ -537,7 +550,8 @@
       var memory = '';
       if (rem.kind === 'room') memory = pickMemory(rem.node, rr.rMemory);
       if (!memory && rem.status === 'read' && rem.source) memory = sentences(rem.source.extract, 60);
-      if (rem.kind === 'room' && rem.node.linger) lineKind = 'linger';
+      if (rem.status === 'failed') lineKind = 'failed';
+      else if (rem.kind === 'room' && rem.node.linger) lineKind = 'linger';
       else if (rem.kind === 'room' && rem.node.id === 'letter_room') lineKind = 'letter';
       else if (rem.kind === 'url') lineKind = 'door';
       else if (ctx.intent && ctx.follow) lineKind = remIdx === hintStopIdx ? 'followedKept' : 'followedThenLeft';

@@ -91,17 +91,21 @@ function fakeWorld() {
 
 /* ───────── fetch stub ───────── */
 var OK_LINKS = ['베레모', '2010년', '모자 목록', 'Hat', '실크해트', '분류:모자', '왕관', '깃털', '아주아주아주아주긴제목이야열셋', '단추'];
-var OK_TITLES = { '모자': 1, '단추': 1, '조개': 1, '비': 1, '구름': 1, '베레모': 1, '실크해트': 1, '왕관': 1, '우산': 1, '잉크': 1, '매듭': 1, '소수': 1, '점자': 1 };
+var OK_TITLES = { '쿼카': 1, '모자': 1, '단추': 1, '조개': 1, '비': 1, '구름': 1, '베레모': 1, '실크해트': 1, '왕관': 1, '우산': 1, '잉크': 1, '매듭': 1, '소수': 1, '점자': 1 };
 var fetchLog = [];
 var inflight = 0, maxInflight = 0;
-function stubFetch(title) {
+function stubFetch(title, opts) {
   fetchLog.push(title);
   inflight++; maxInflight = Math.max(maxInflight, inflight);
   var done = function () { inflight--; };
   if (title === '깃털') { done(); throw new Error('boom'); }
   if (title === '문어') { done(); return Promise.resolve({ ok: false, reason: 'network' }); }
   if (title === '파도') { done(); return Promise.resolve({ ok: false, reason: 'missing' }); }
-  if (title === '__hang__') { return new Promise(function () { /* never */ }); }
+  if (title === '__hang__') {
+    return new Promise(function () {
+      if (opts && opts.signal) opts.signal.addEventListener('abort', done);
+    });
+  }
   return new Promise(function (resolve) {
     setImmediate(function () {
       done();
@@ -136,6 +140,8 @@ function baseInput(seed, o) {
   }, o || {});
 }
 function hasBrace(s) { return typeof s === 'string' && s.indexOf('{') >= 0; }
+/* "읽었다"는 주장. "못 읽었어" 는 정직한 문장이므로 제외 */
+var READ_CLAIM = /끝까지 봤어|만 봤어|(?<!못 )읽었어/;
 function allLines(trip) {
   var out = [];
   if (trip.poster) { out.push(trip.poster.line); out.push(trip.poster.title); }
@@ -174,6 +180,9 @@ async function unitTests() {
   check(l === '모자 보러 갔다가 깃털에 한눈팔았어', 'template substitution (' + l + ')');
   check(!hasBrace(BRAIN.composeLine('noHint', { mem: '깃털' }, 0.1)), 'missing {memory} removed');
   check(!hasBrace(BRAIN.composeLine('nonexistent_kind', {}, 0.5)), 'unknown kind falls back');
+  check(BRAIN.composeLine('ignored', { hint: '모자', mem: '왕관' }, 0.1) === '모자는 다음에. 오늘은 왕관이 궁금했어', 'josa: 왕관이 / 모자는 (' + BRAIN.composeLine('ignored', { hint: '모자', mem: '왕관' }, 0.1) + ')');
+  check(BRAIN.composeLine('ignored', { hint: '구름', mem: '조개' }, 0.1) === '구름은 다음에. 오늘은 조개가 궁금했어', 'josa: 구름은 / 조개가');
+  check(BRAIN.composeLine('failed', { mem: 'Hat' }, 0.9) === 'Hat는 못 읽었어. 다음에 다시 가 볼래', 'josa: non-hangul keeps template particle');
 
   section('filterLinkTitle / parseWikiResponse');
   check(BRAIN.filterLinkTitle('베레모') && !BRAIN.filterLinkTitle('2010년') && !BRAIN.filterLinkTitle('모자 목록') && !BRAIN.filterLinkTitle('Hat')
@@ -245,6 +254,8 @@ async function planSuite(label, W, hasHat) {
       var remEv = a.events.filter(function (e) { return e.type === 'remember'; })[0];
       if (remEv.stopIdx !== ri || remEv.line !== a.poster.line || remEv.sticker !== a.poster.sticker) errors.push('seed ' + seed + ' remember event mismatch');
       if (!a.poster || a.poster.type !== 'poster' || !a.poster.title || !a.poster.line) errors.push('seed ' + seed + ' poster incomplete');
+      var remStatus = a.receipt.stops[ri].status;
+      if ((remStatus === 'failed' || remStatus === 'simulated' || remStatus === 'none') && READ_CLAIM.test(a.poster.line)) errors.push('seed ' + seed + ' line claims a read that did not happen: ' + a.poster.line);
       var sp = a.poster.stickerPos;
       if (!(sp.x >= 58 && sp.x <= 82 && sp.y >= 18 && sp.y <= 40 && sp.rot >= -14 && sp.rot <= 14)) errors.push('seed ' + seed + ' stickerPos range');
       if ([0, 1, 2].indexOf(a.poster.paper) < 0) errors.push('seed ' + seed + ' paper');
@@ -350,7 +361,6 @@ async function planSuite(label, W, hasHat) {
     var offLib = off.receipt.stops.map(function (s) { return s.nodeId; });
     if (JSON.stringify(onLib) !== JSON.stringify(offLib)) offErrors.push('seed ' + seed + ' route differs online/offline ' + onLib + ' vs ' + offLib);
   }
-  check(fetchLog.length === 0 || fetchLog.every(function (x) { return false; }) || true, 'noop');
   check(offErrors.length === 0, offErrors.length + ' offline errors; first: ' + offErrors.slice(0, 5).join(' | '));
   check(fetchLog.length > 0, 'online runs fetched');
 
@@ -395,20 +405,33 @@ async function planSuite(label, W, hasHat) {
   /* wiki 힌트(매칭 실패) */
   section('wiki hint — ' + label);
   var we = 0, wikiFirst = 0, wikiOut = 0;
+  var WQ = ['우산', '쿼카'].filter(function (q) { return BRAIN.matchHint(q).kind === 'wiki'; })[0];
+  check(!!WQ, 'found an unmatched query for this WORLD (' + WQ + ')');
   for (seed = 1; seed <= 80; seed++) {
-    var wk = await BRAIN.plan(baseInput(seed, { hint: '우산' }));
+    var wk = await BRAIN.plan(baseInput(seed, { hint: WQ }));
     if (wk.kind !== 'out') continue;
     wikiOut++;
     if (wk.hint.match.kind !== 'wiki') we++;
     if (wk.hint.followed === 'followed' || wk.hint.followed === 'left') {
       var f0 = wk.receipt.stops[0];
-      if (!f0.wild || f0.title !== '우산' || f0.status !== 'read') we++;
+      if (!f0.wild || f0.title !== WQ || f0.status !== 'read') we++;
       wikiFirst++;
     } else if (wk.hint.followed !== 'ignored') we++;
-    var wkOff = await BRAIN.plan(baseInput(seed, { hint: '우산', online: false }));
+    var wkOff = await BRAIN.plan(baseInput(seed, { hint: WQ, online: false }));
     if (wkOff.kind === 'out' && (wkOff.hint.followed !== 'none' || wkOff.receipt.stops.some(function (s) { return s.wild; }))) we++;
   }
   check(wikiOut > 0 && wikiFirst > 0 && we === 0, 'unmatched hint → wild first stop when online, none when offline (' + we + ' errors)');
+  var fe = 0, failedSeen = 0;
+  for (seed = 1; seed <= 80; seed++) {
+    var fm = await BRAIN.plan(baseInput(seed, { hint: '아무도모르는제목' }));
+    if (fm.kind !== 'out' || fm.hint.followed === 'ignored') continue;
+    var f0b = fm.receipt.stops[0];
+    if (!f0b.wild || f0b.status !== 'failed' || f0b.source) fe++;
+    failedSeen++;
+    if (fm.receipt.rememberedIdx === 0 && READ_CLAIM.test(fm.poster.line)) fe++;
+    if (fm.receipt.counts.failed < 1) fe++;
+  }
+  check(failedSeen > 0 && fe === 0, 'unmatched hint missing on wiki → failed stop, honest line (' + fe + ' errors)');
 
   /* 타임아웃 */
   section('fetch timeout — ' + label);
@@ -457,7 +480,8 @@ async function planSuite(label, W, hasHat) {
   check(sl.receipt.rememberedIdx >= 0 && sl.poster && !hasBrace(sl.poster.line), 'sloppy replay picks a memory and composes a line');
   check(BRAIN.REACTIONS.indexOf(sl.reaction) >= 0, 'invalid reaction replaced');
   var homeRp = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 2000, reaction: '졸림' }], { by: 'human' });
-  check(homeRp.kind === 'home' && homeRp.poster.type === 'note' && homeRp.poster.line === '담요 속에서 낮잠', 'home replay');
+  var napLine = ((W.homeActivities || []).filter(function (a) { return a.id === 'nap'; })[0] || { line: '담요 속에서 낮잠' }).line;
+  check(homeRp.kind === 'home' && homeRp.poster.type === 'note' && homeRp.poster.line === napLine && homeRp.receipt.activity.id === 'nap', 'home replay (' + homeRp.poster.line + ')');
   var emptyRp = BRAIN.replay([{ type: 'empty_turn', t: 0 }], { by: 'human' });
   check(emptyRp.kind === 'empty' && emptyRp.poster === null && emptyRp.receipt === null, 'empty replay');
 

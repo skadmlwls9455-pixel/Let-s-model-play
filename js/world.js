@@ -533,7 +533,7 @@ var WORLD = (function () {
         '세피아 색은 원래 갑오징어 먹물 이름이었어',
         '옛 유럽 잉크는 참나무 혹에서 만들었대'
       ],
-      related: ['cuneiform', 'hangul'],
+      related: ['cuneiform', 'hangul', 'stamp'],
       tangents: [
         { to: 'octopus', bridge: '잉크병 옆에 적힌 먹물이란 말을 따라가다가' },
         { to: 'quill', bridge: '잉크를 머금은 펜촉을 보다가' }
@@ -923,7 +923,7 @@ var WORLD = (function () {
     /* ===== home 집과 사람 ===== */
     node({
       id: 'window', name: '창문', corner: 'home', emoji: '🪟',
-      aliases: ['창', '창가', '창턱', '유리창'],
+      aliases: ['창', '창가', '창턱'],
       keywords: ['빗방울', '밖', '빛', '커튼', '집'],
       wiki: '창문',
       clue: '옛 영국에는 창문 수대로 세금을 내던 때가 있었다. 그래서 창을 벽으로 막은 집이 남아 있다.',
