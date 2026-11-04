@@ -373,6 +373,11 @@ var SCENE2D = (function () {
       departCeremony: function (onDone) { st.place = 'exterior'; return new Promise(function (r) { setTimeout(function () { if (onDone) onDone(); r(); }, 0); }); },
       returnCeremony: function (onDone) { st.place = 'attic'; return new Promise(function (r) { setTimeout(function () { if (onDone) onDone(); r(); }, 0); }); },
       ceremony: function () { return ''; },
+      /* 바깥 기웃 (docs/SCENE.md) — 2D 는 무동작 판: 자리는 이름만, 기웃·퇴장은 다음 틱 onDone (말풍선은 APP 이 octScreenPos 로 — 2D 에선 다락 문어 머리 위) */
+      extSpot: function (k) { var key = typeof k === 'string' ? k : (k && (k.roomId || k.corner)) || 'wild'; return { key: key, x: 0, y: 0, z: 0, face: 0, prop: '', act: '' }; },
+      peekOutside: function (o, onDone) { return new Promise(function (r) { setTimeout(function () { if (onDone) onDone(); r(); }, 0); }); },
+      leaveOutside: function (onDone) { return new Promise(function (r) { setTimeout(function () { if (onDone) onDone(); r(); }, 0); }); },
+      peek: function () { return { on: false, key: '', hold: false }; },
       setPosters: function (list) { st.posters = (list || []).slice(); renderWall(); },
       setSouvenirs: function (list) { st.souvenirs = (list || []).slice(); renderSouvenirs(); },
       bubble: bubble, lookAt: pupilsTowards, octScreenPos: octScreenPos,
