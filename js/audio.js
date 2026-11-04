@@ -345,6 +345,7 @@ var AUDIO = (function () {
     if (!n || n.dead) return;
     n.dead = true;
     t = Math.max(t || 0, now()); dur = Math.max(0.05, dur || 0.05);
+    if (n.endT) { if (t >= n.endT) return; dur = Math.min(dur, Math.max(0.05, n.endT - t)); }   /* 한 바퀴 끝(집 테마)을 넘겨 여유분까지 틀지 않게 */
     var p = n.g.gain;
     try {
       if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(t); else { p.cancelScheduledValues(t); p.setValueAtTime(n.level || 1, t); }
@@ -380,14 +381,15 @@ var AUDIO = (function () {
       src.start(t, off);
       var lv = o.gain == null ? 1 : o.gain;
       fadeIn(g, t, o.fade == null ? 0.05 : o.fade, lv);
+      var endT = 0;
       if (lp && !looping) {   /* 집 테마 한 바퀴 = loop.end 까지. 뒤 1초(이음새 여유분 = 마디 1 복사)는 틀지 않고 끝에서 살짝 닫는다 */
-        var endT = t + (Math.min(lp.end, buf.duration) - off);
+        endT = t + (Math.min(lp.end, buf.duration) - off);
         try { g.gain.setTargetAtTime(0, Math.max(t + (o.fade || 0.05) + 0.01, endT - 0.35), 0.1); } catch (e) { /* noop */ }
         try { src.stop(endT); } catch (e) { /* noop */ }
       }
       var old = slots[slot];
       if (old) fadeOut(old, t, o.xfade == null ? (o.fade || 0.05) : o.xfade);
-      var n = { id: id, s: s, src: src, g: g, level: lv, t0: t - (off - base), started: t, band: band, slot: slot, dead: false };
+      var n = { id: id, s: s, src: src, g: g, level: lv, t0: t - (off - base), started: t, band: band, slot: slot, dead: false, endT: endT };
       if (s.kind === 'place' && s.bar_sec) n.minUntil = t + (s.min_stay_bars || 8) * s.bar_sec;   /* 장소는 최소 8마디 */
       if (slot === 'bgm' && s.kind === 'bgm') src.onended = guard(function () { if (slots.bgm === n) { slots.bgm = null; startRest(s); } });
       slots[slot] = n;
