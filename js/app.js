@@ -791,11 +791,11 @@ var APP = (function () {
       s += '<rect x="' + sx + '" y="' + (sy + sh + hgt * 0.17) + '" width="' + (sw * 0.55) + '" height="' + (hgt * 0.05) + '" fill="#5f5849" opacity=".5"/></svg>';
       return s;
     }
-    /* 한 줄 (Noto Serif KR 600, ≤2줄) */
+    /* 한 줄 (Noto Serif KR 600, ≤2줄) — 픽셀 테마에서도 세리프: 카드 크기에 따라 w×0.058 로 비례하는 글자라 픽셀 글꼴은 정수 배가 안 된다 (손글씨 느낌 유지) */
     var lf = w * (note ? 0.062 : 0.058), lines = wrapLine(p.line || '', Math.floor(sw / (lf * 0.95)), 3);
     if (lines.length === 3) { lf *= 0.9; lines = wrapLine(p.line || '', Math.floor(sw / (lf * 0.95)), 3); }
     var ly = sy + sh + lf * 1.6;
-    lines.forEach(function (ln, i) { s += '<text x="' + (w / 2) + '" y="' + (ly + i * lf * 1.5).toFixed(1) + '" text-anchor="middle" font-family="' + posterFont() + '" font-weight="' + (pixelFont() ? 700 : 600) + '" font-size="' + lf.toFixed(1) + '" fill="#2a2620">' + esc(ln) + '</text>'; });
+    lines.forEach(function (ln, i) { s += '<text x="' + (w / 2) + '" y="' + (ly + i * lf * 1.5).toFixed(1) + '" text-anchor="middle" font-family="Noto Serif KR, serif" font-weight="600" font-size="' + lf.toFixed(1) + '" fill="#2a2620">' + esc(ln) + '</text>'; });
     /* 날짜 · N번째 */
     var ord = tripOrdinal(trip), meta = fmtDate(trip.date, true) + (ord ? ' · ' + ord + '번째 뽈뽈' : note ? ' · 오늘은 집' : '');
     s += '<text x="' + (w / 2) + '" y="' + (hgt - m * 1.1).toFixed(1) + '" text-anchor="middle" font-family="Noto Sans KR, sans-serif" font-size="' + (w * 0.036).toFixed(1) + '" fill="#5f5849">' + esc(meta) + '</text>';
@@ -1095,7 +1095,7 @@ var APP = (function () {
     cb.addEventListener('change', function () { S.settings.thumbs = cb.checked; save(); renderWall(); renderAlbum(); });
     frag.appendChild(h('label', { class: 'set' }, ['포스터에 위키 썸네일 표시', cb]));
     var pf = h('input', { type: 'checkbox', id: 'set-pixel' }); pf.checked = pixelFont();
-    pf.addEventListener('change', function () { S.settings.pixelFont = pf.checked; save(); applyFont(); renderWall(); renderAlbum(); });
+    pf.addEventListener('change', function () { S.settings.pixelFont = pf.checked; save(); applyFont(); });
     frag.appendChild(h('label', { class: 'set' }, ['픽셀 글꼴', pf]));
     frag.appendChild(h('div', { class: 'set' }, [h('span', { text: '기록 내보내기 (JSON)' }), h('button', { type: 'button', class: 'btn sm', text: '내보내기', onclick: exportJSON })]));
     var file = h('input', { type: 'file', accept: 'application/json,.json', id: 'set-import' });
@@ -1117,7 +1117,6 @@ var APP = (function () {
   }
   function openNameDialog() { showDialog($('name-dialog')); setTimeout(function () { $('name-in').focus(); }, 50); }
   function pixelFont() { return !(S && S.settings && S.settings.pixelFont === false); }
-  function posterFont() { return pixelFont() ? 'Galmuri11, Noto Serif KR, serif' : 'Noto Serif KR, serif'; }
   function applyFont() { document.documentElement.setAttribute('data-font', pixelFont() ? 'pixel' : 'system'); }
   function applyMotion() { document.documentElement.setAttribute('data-motion', S.settings.motion || 'auto'); if (scene) scene.setReducedMotion(reduced()); }
   function hexHue(hex) {

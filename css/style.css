@@ -540,6 +540,8 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line);
 }
 :root[data-font="pixel"] .chip:active, :root[data-font="pixel"] .fchip:active { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
+:root[data-font="pixel"] .filters { flex-wrap: wrap; gap: 6px 4px; }   /* 팔레트 칩(Apollo·Endesga…)은 라틴 글자가 넓어 줄을 바꾼다, 단어 중간 끊김 없이 */
+:root[data-font="pixel"] .fchip { white-space: nowrap; flex: 0 0 auto; }
 :root[data-font="pixel"] .fchip.on { background: var(--amber-fill); border-color: var(--line); color: var(--on-accent); box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo), 2px 2px 0 var(--line); }
 
 /* ── 초대: 라벨 Galmuri7, 입력칸은 안으로 들어간 틀, 버튼은 베벨 블록 + 2px 그림자 (누르면 2px 내려앉으며 그림자가 사라진다) ── */
@@ -565,7 +567,8 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   box-shadow: inset 2px 2px 0 var(--amber-hi), inset -2px -2px 0 var(--amber-lo), 2px 2px 0 var(--line);
 }
 :root[data-font="pixel"] .btn.primary:active { box-shadow: inset 2px 2px 0 var(--amber-hi), inset -2px -2px 0 var(--amber-lo); }
-:root[data-font="pixel"] .btn.primary.away { background-color: var(--panel); border-color: var(--line); color: var(--amber); font-weight: 400; box-shadow: var(--bevel-in); }
+:root[data-font="pixel"] .btn.primary.away { background-color: var(--panel); border-color: var(--line); color: var(--amber); font-weight: 400; box-shadow: var(--bevel-in); font-family: var(--f-body); font-size: 18px; line-height: 18px; }   /* 알약 + 건너뛰기가 360px 한 줄에 */
+:root[data-font="pixel"] .btn-row.away #btn-skip { font-family: var(--f-body); font-size: 18px; line-height: 18px; }
 :root[data-font="pixel"] .btn.primary.away .go-txt::before { width: 6px; height: 6px; border-radius: 0; margin-right: 8px; vertical-align: 2px; }
 :root[data-font="pixel"] .btn:disabled { transform: none; }
 :root[data-font="pixel"] .btn-row #btn-skip { color: var(--fg); }
@@ -614,7 +617,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] dialog[open] { animation-name: fade-only; }
 :root[data-font="pixel"] .modal { border-radius: 0; padding: 24px 20px 18px; }
 :root[data-font="pixel"] .modal h2 { font-family: var(--f-ui); font-size: 22px; line-height: 33px; font-weight: 700; }
-:root[data-font="pixel"] .modal p { font-family: var(--f-ui); font-size: 22px; line-height: 33px; }
+:root[data-font="pixel"] .modal:not(.poster-modal) p { font-family: var(--f-ui); font-size: 22px; line-height: 33px; }
 :root[data-font="pixel"] .modal .big { font-size: 44px; line-height: 44px; }
 :root[data-font="pixel"] .honest { font-family: var(--f-meta); font-size: 14px; line-height: 21px; }
 /* 포스터 열람: 어두운 슬레이트 패널(두 테마 공통)을 Apollo 로 — 안쪽 1px 밝은 선은 --ip-rim */
@@ -627,6 +630,8 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .flipper .face.front { border-radius: 0; border: 2px solid #090a14; box-shadow: 2px 2px 0 #090a14; background: var(--paper0); position: relative; }
 :root[data-font="pixel"] .flipper .face.front::after { content: ''; position: absolute; inset: 0; pointer-events: none; background-image: var(--grain); background-size: 12px 12px; image-rendering: pixelated; }
 :root[data-font="pixel"] .inspect-text { font-family: var(--f-body); font-size: 18px; line-height: 27px; letter-spacing: 0; }
+:root[data-font="pixel"] .inspect-text p { font-family: var(--f-body); font-size: 18px; line-height: 27px; color: var(--ip-fg); margin: 0 0 8px; }   /* .modal p 가 포스터 모달에도 닿지 않게 */
+:root[data-font="pixel"] .inspect-text .meta, :root[data-font="pixel"] .inspect-text .miss { color: var(--ip-muted); }
 :root[data-font="pixel"] .inspect-text .lead { font-family: var(--f-ui); font-size: 22px; line-height: 33px; font-weight: 700; }
 :root[data-font="pixel"] .inspect-text .meta, :root[data-font="pixel"] .inspect-text .first-chip { font-family: var(--f-meta); font-size: 14px; line-height: 21px; }
 :root[data-font="pixel"] .inspect-text .voice { border-left: 4px solid var(--ip-line); padding-left: 10px; }
@@ -639,6 +644,10 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 }
 /* 영수증: 종이 위 Galmuri9 18px, 점선 2px, 복사 버튼도 틀 */
 :root[data-font="pixel"] .receipt { font-family: var(--f-body); font-size: 18px; line-height: 27px; padding: 14px 12px; background-image: var(--grain); background-size: 12px 12px; image-rendering: pixelated; }
+:root[data-font="pixel"] .receipt p { font-family: var(--f-body); font-size: 18px; line-height: 27px; color: var(--ink); margin: 6px 0; }
+:root[data-font="pixel"] .receipt .dim, :root[data-font="pixel"] .receipt .by { color: var(--ink-muted); }
+:root[data-font="pixel"] .receipt .kv > span { flex: 0 0 auto; }
+:root[data-font="pixel"] .receipt .kv b { flex: 1 1 auto; min-width: 0; text-align: right; }
 :root[data-font="pixel"] .receipt h3 { font-family: var(--f-meta); font-size: 14px; line-height: 21px; letter-spacing: 0; }
 :root[data-font="pixel"] .receipt .hr { border-top: 2px dashed var(--ink-muted); }
 :root[data-font="pixel"] .receipt .row { grid-template-columns: 18px 1fr; gap: 6px; padding: 2px 0; }
