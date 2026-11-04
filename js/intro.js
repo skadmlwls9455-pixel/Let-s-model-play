@@ -110,8 +110,9 @@ var INTRO = (function () {
     var host = o.host || document.getElementById('scene');
     if (!host) { root.classList.remove('intro-on'); return false; }
     try { window.scrollTo(0, 0); } catch (e) { /* 스크롤 없는 환경 */ }
-    build(host); setSky(); layout(); root.classList.add('intro-live');
-    (function settle(n) { requestAnimationFrame(function () { setSky(); if (n > 0) settle(n - 1); }); })(4);   /* 첫 몇 프레임 안에 장면이 실제로 그린 허공 색으로 맞춘다 */
+    build(host); setSky(); layout();
+    /* 장면 자리는 장면이 몇 프레임 그린 뒤에 드러낸다 (그 전 캔버스는 순검정이라 덮개 색과 다르다). 첫 몇 프레임 안에 실제로 그린 허공 색으로 맞춘다 */
+    (function settle(n) { requestAnimationFrame(function () { setSky(); if (n <= 2) root.classList.add('intro-live'); if (n > 0) settle(n - 1); }); })(5);   /* 3번째 프레임에 드러낸다 (느린 GPU 는 첫 프레임 셰이더 컴파일 동안 캔버스를 검게 합성한다) */
     st.phase = 'sky'; st.t0 = performance.now();
     if (st.reduced) root.classList.add('intro-reduced');
     /* 아래 UI 는 연출 동안 손이 닿지 않게 (inert) — 레이어만 포커스를 받는다 */
@@ -121,7 +122,7 @@ var INTRO = (function () {
     var landed;
     if (o.mode === '3d' && scene && scene.intro) landed = scene.intro({ dur: SKY_DUR * speed(), hold: true });
     else landed = slide2D(host);
-    Promise.resolve(landed).then(function () { setSky(); });
+    Promise.resolve(landed);   /* 착지 때 허공 색을 다시 읽지 않는다 (배경색은 연출 중 그대로 · 처음 몇 프레임에서 이미 맞췄다) */
     /* 로고는 방이 거의 다 내려왔을 때 (카메라 진행 52 %, 착지 눌림과 겹치게). 벽시계가 아니라 장면 진행도를 본다 — 느린 기기에선 프레임 dt 가 0.1 s 로 잘려
        카메라가 벽시계보다 늦으므로. 탭이 숨어 프레임이 멈춰도 갇히지 않게 벽시계 2.5배를 안전판으로 둔다 */
     var prog = scene && scene.introProgress;

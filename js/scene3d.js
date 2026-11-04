@@ -1323,11 +1323,18 @@ var SCENE3D = (function () {
       if (!INTRO.on) return;
       INTRO.on = false; dither.still = 0; if (!INTRO.hold) introRelease();
       var sky = INTRO.sky; INTRO.sky = null;
-      if (sky) { scene.remove(sky.g); sky.list.forEach(function (d) { if (d && d.dispose) d.dispose(); }); }
+      if (sky) {   /* 장면에서는 바로 빼고, GPU 자원 정리는 착지 순간을 피해 1.5 s 뒤 (착지 프레임에 텍스처·버퍼 삭제가 겹치지 않게) */
+        scene.remove(sky.g);
+        setTimeout(function () { sky.list.forEach(function (d) { if (d && d.dispose) d.dispose(); }); }, 1500);
+      }
       placeCamera();
       var r = INTRO.resolve; INTRO.resolve = null; if (r) r(true);
     }
     function introRelease() { INTRO.hold = false; post.uniforms.uVig.value = hasDepthTex ? 1 : 0; }
+    function applyPendingPixel() {   /* 자동 픽셀 폴백 적용: 입장 연출(하늘·타이틀) 동안은 미룬다 — 연출 한가운데서 픽셀 밀도가 바뀌면 구름·로고와 어긋나고 깜빡인다 */
+      if (!perf.pendingPixel || INTRO.on || INTRO.hold) return;
+      st.look.pixelSize = perf.pendingPixel; st.look.autoPixel = perf.pendingPixel; perf.pendingPixel = 0; resize(); dither.still = 0;
+    }
     function stepIntro(dt) {
       if (!INTRO.on) return;
       INTRO.t += dt; dither.still = 0;   /* 움직이는 동안 디더 끔 (드래그와 같은 규칙) */
@@ -1341,6 +1348,7 @@ var SCENE3D = (function () {
       var idle = (st.octState === 'idle' || st.octState === 'sleep' || st.octState === 'stay') && !oct.walking && !dragging && light.t >= 1 && dither.still > 0.3;
       if (idle && (frameNo & 1) && !st.force) return;   /* 가만히 있을 땐 30fps (debugStep 은 강제 렌더) */
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+      applyPendingPixel();
       if (light.t < 1) { light.t = Math.min(1, light.t + dt / light.dur); applyLight(); if (light.t >= 1) light.from = null; }
       if (lampDirty) applyLamp();
       if (!st.reduced && st.lantern > 0) { lampGlow.material.opacity = glowOpacity() + Math.sin(Math.floor(time * 8) / 8 * 2) * 0.03 * (light.glow || 0.7) / 0.7; }   /* 글로우 맥동 8 fps 스텝 */
@@ -1384,7 +1392,7 @@ var SCENE3D = (function () {
       /* 자동 픽셀 폴백 (룩 패스 8): 기본 p=2 로 첫 2 s 의 평균 ms/frame(메인 스레드) 이 24 ms 를 넘으면 이 세션만 p=3 (st.look 에만, 저장 X — 데브 슬라이더가 덮어쓸 수 있다) */
       if (!perf.auto && time >= 2 && perf.cnt >= 10) {
         perf.auto = +(perf.sum / perf.cnt).toFixed(2);
-        if (perf.auto > 24 && (st.look.pixelSize | 0) < 3) { st.look.pixelSize = 3; st.look.autoPixel = 3; resize(); dither.still = 0; console.info('[scene3d] auto pixel 3 (first 2 s mean ' + perf.auto + ' ms/frame > 24)'); }
+        if (perf.auto > 24 && (st.look.pixelSize | 0) < 3) { perf.pendingPixel = 3; console.info('[scene3d] auto pixel 3 (first 2 s mean ' + perf.auto + ' ms/frame > 24)'); }   /* 바꾸기는 다음 프레임 렌더 *전에* (렌더 직후 resize 하면 캔버스가 비워진 채 한 프레임이 보인다) · 입장 연출 중이면 연출이 끝난 뒤 */
       }
       if (!logged && frameNo > 3) {
         logged = true; console.info('[scene3d] draw calls ' + calls + ' (≤150 ' + (calls <= 150 ? 'ok' : 'OVER') + ') · target ' + S.rw + '×' + S.rh + ' · px ' + S.p + ' · palette ' + PAL.list.length + ' · static props ' + propCount);
