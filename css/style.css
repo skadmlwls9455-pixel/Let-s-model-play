@@ -749,3 +749,12 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 #btn-go.away .go-txt, #btn-go.away .go-txt .emo { transform: none; }
 /* 폰 폭(< 420px)에서는 상태띠에 방 제목을 숨긴다 — "등불 켜진 다락" 과 "등불 ■■■" 이 겹쳐 읽히고, 24/20/16px 픽셀 글꼴에서 이름이 잘려서. 방 제목은 탭 제목과 방 보기에 남는다 */
 @media (max-width: 419px) { #status .room-title { display: none; } }
+
+/* ── 이름 짓기 창 (사용자 피드백): 설명은 문장·의미 단위로 줄바꿈, 아래 정직 표기는 작고 연한 갈색 ── */
+#name-dialog .ln { display: block; }
+#name-dialog .name-lead { margin: 4px 0 20px; }
+#name-dialog .honest { margin: 18px 0 0; font-size: 13px; line-height: 1.6; color: var(--muted); opacity: .85; }
+:root[data-font="pixel"] #name-dialog .name-lead { font-family: var(--f-body); font-size: 20px; line-height: 30px; }
+:root[data-font="pixel"] #name-dialog .honest { font-family: var(--f-meta); font-size: 16px; line-height: 24px; color: #884b2b; opacity: 1; }
+:root[data-font="pixel"][data-theme="dark"] #name-dialog .honest { color: var(--muted); }
+@media (prefers-color-scheme: dark) { :root[data-font="pixel"]:not([data-theme="light"]) #name-dialog .honest { color: var(--muted); } }
