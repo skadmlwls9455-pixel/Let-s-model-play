@@ -122,7 +122,21 @@ async function scenarioMain(browser) {
   ok((await wallCount(page)) === 1, '벽 썸네일 1개');
   ok((await page.$$('#pips .pip.on')).length === 1, '상태줄 pip 1개 켜짐');
   ok((await page.getAttribute('#pips', 'aria-label')) === '등불 1/8', 'pips aria-label');
+  var strip = await page.evaluate(function () { var st = document.getElementById('status'), r = st.getBoundingClientRect(); return { h: r.height, txt: st.textContent.replace(/\s+/g, ' ').trim(), rows: st.querySelectorAll('.srow').length, nameTop: document.getElementById('oct-name').getBoundingClientRect().top, pipsTop: document.getElementById('pips').getBoundingClientRect().top, demo: !!document.getElementById('chip-demo'), stat: !!document.getElementById('stat-trips') }; });
+  console.log('   strip:', JSON.stringify(strip));
+  ok(strip.h <= 44 && strip.rows === 1 && Math.abs(strip.nameTop - strip.pipsTop) < 12, '상태 줄 한 줄 ≤44px (' + strip.h + 'px)');
+  ok(/등불/.test(strip.txt) && /1\/8/.test(strip.txt) && !strip.demo && !strip.stat && !/여행|함께한 날/.test(strip.txt), "상태 줄: '등불 … 1/8', 데모 두뇌 칩·여행·함께한 날 없음");
+  ok((await page.getAttribute('#hint-in', 'placeholder')) === '주제나 링크를 슬쩍 건네줘', '힌트 자리표시 문구');
   ok((await page.$$('#log .lrow')).length >= 5, '로그 행 ≥5');
+  await page.waitForTimeout(200);
+  var dlg = await page.evaluate(function () {
+    var rows = document.querySelectorAll('#log .lrow.dialog'), cv = document.querySelector('#log .lrow.dialog canvas.lport-cv'); if (!cv) return { rows: rows.length, cv: false };
+    var d = cv.getContext('2d').getImageData(0, 0, 64, 64).data, n = 0, colors = {}; for (var i = 0; i < d.length; i += 4) { if (d[i + 3] > 0) n++; colors[d[i] + ',' + d[i + 1] + ',' + d[i + 2]] = 1; }
+    return { rows: rows.length, cv: true, exprs: Array.prototype.map.call(rows, function (r) { return r.dataset.expr; }), drawn: n, colors: Object.keys(colors).length, hidden: cv.getAttribute('aria-hidden'), css: getComputedStyle(cv).width, sceneExpr: APP.scene.expression(), cache: APP.portraitCache };
+  });
+  console.log('   dialog:', JSON.stringify(dlg));
+  ok(dlg.cv && dlg.rows >= 3 && dlg.drawn > 64 * 64 * 0.5 && dlg.colors >= 3 && dlg.hidden === 'true' && dlg.css === '96px', '여행 뒤 대화창 행 + 초상 캔버스 (그려짐, aria-hidden, 96px)');
+  ok(dlg.exprs && dlg.exprs.indexOf('calm') >= 0 && dlg.exprs.indexOf('curious') >= 0, '귀가 calm · 기억 curious 표정 행');
   ok(await hasItem(page, 'moss'), '등불 1 → 이끼 화분');
   var sc3 = await page.evaluate(function () { return { mode: APP.sceneMode, stats: APP.scene.stats(), webgl: !!(document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl')) }; });
   console.log('   scene:', JSON.stringify(sc3));
@@ -167,10 +181,11 @@ async function scenarioMain(browser) {
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.waitForTimeout(200);
   await page.screenshot({ path: path.join(SHOTS, 'phone-dark.png') });
-  await page.click('#chip-demo');
+  await page.click('#btn-look');
   await page.waitForSelector('#room-sheet[open]');
   var rs = await page.textContent('#rs-body');
   ok(rs.indexOf('데모 두뇌') >= 0, '방 보기에 데모 두뇌 설명');
+  ok(/여행\s*1/.test(rs) && /함께한 날\s*1/.test(rs), '방 보기 통계에 여행 1 · 함께한 날 1');
   ok(rs.indexOf('창가에 이끼 화분') >= 0, '방 보기 등불 1 문구');
   await page.screenshot({ path: path.join(SHOTS, 'room-sheet-dark.png') });
   await page.click('#rs-close');
@@ -386,12 +401,13 @@ async function scenarioMigrateExact(browser) {
     var t = APP.state.trips[0];
     return { name: APP.state.octopus.name, trips: APP.state.octopus.trips, invites: APP.state.octopus.invites, lantern: APP.state.room.lantern,
       n: APP.state.trips.length, by: t && t.by, kind: t && t.kind, line: t && t.poster && t.poster.line, title: t && t.poster && t.poster.title, events: t && t.events.length, receipt: t && t.receipt,
-      pips: document.querySelectorAll('#pips .pip.on').length, statTrips: document.getElementById('stat-trips').textContent, nameEl: document.getElementById('oct-name').textContent,
+      pips: document.querySelectorAll('#pips .pip.on').length, pipsN: (document.querySelector('#pips .pips-n') || {}).textContent, nameEl: document.getElementById('oct-name').textContent,
+      rsStats: (function () { APP.openRoomSheet(false); var t = document.querySelector('#rs-body .stats').textContent; document.getElementById('room-sheet').close(); return t; })(),
       bak: localStorage.getItem('ppolppol_v1_backup'), v1: localStorage.getItem('ppolppol_v1'), cards: document.querySelectorAll('#album .pcard').length, nameDlg: !!document.querySelector('#name-dialog[open]') };
   });
   ok(m.name === '뚜루' && m.nameEl === '뚜루', '이름 뚜루 유지');
-  ok(m.lantern === 2 && m.pips === 2, '등불 2 (light_level) · pip 2');
-  ok(m.trips === 3 && m.statTrips === '여행 3', '여행 3 (total_trips)');
+  ok(m.lantern === 2 && m.pips === 2 && m.pipsN === '2/8', '등불 2 (light_level) · pip 2 · 2/8');
+  ok(m.trips === 3 && /여행\s*3/.test(m.rsStats), '여행 3 (total_trips) — 방 보기 통계');
   ok(m.invites === 4, '초대 4 (hearts)');
   ok(m.n === 1 && m.by === 'legacy' && m.kind === 'out' && m.events === 0 && m.receipt === null, '옛 포스터 1 → by:legacy, events 없음, receipt 없음');
   ok(m.title === '옛 포스터' && m.line === '(복원된 포스터 · 기록 없음)', "legacy 카드 한 줄 '(복원된 포스터 · 기록 없음)'");
@@ -432,6 +448,14 @@ async function scenario2D(browser) {
   ok((await wallCount(page)) === 1 && !!(await page.$('#wall-posts .wall-mini')), '2D 벽 썸네일 1개 (DOM)');
   ok(await hasItem(page, 'moss'), '2D 이끼 화분 레이어');
   ok(await page.evaluate(function () { return /st-(sleep|idle)/.test(document.getElementById('oct').className); }), '2D 문어 상태 클래스');
+  await page.waitForTimeout(200);
+  var dlg2 = await page.evaluate(function () {
+    var cv = document.querySelector('#log .lrow.dialog canvas.lport-cv'); if (!cv) return { cv: false };
+    var d = cv.getContext('2d').getImageData(0, 0, 64, 64).data, n = 0; for (var i = 3; i < d.length; i += 4) if (d[i] > 0) n++;
+    return { cv: true, drawn: n, expr: cv.dataset.expr, ex: document.getElementById('oct').className.match(/ex-[a-z]+/) + '', svg: typeof APP.scene.portraitSVG === 'function' && APP.scene.portraitSVG('happy').indexOf('<svg') === 0 };
+  });
+  console.log('   dialog2d:', JSON.stringify(dlg2));
+  ok(dlg2.cv && dlg2.drawn > 64 * 64 * 0.5 && dlg2.svg, '2D 폴백: 대화창 행 + SVG 얼굴 초상 캔버스 그려짐');
   await page.screenshot({ path: path.join(SHOTS, 'phone-2d-fallback.png') });
   ok(s.bag.length === 0, '2D 폴백 콘솔/페이지 에러 없음' + (s.bag.length ? ' → ' + s.bag.join(' | ') : ''));
   await s.ctx.close();

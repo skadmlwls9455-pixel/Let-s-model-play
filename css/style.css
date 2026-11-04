@@ -211,29 +211,28 @@ a { color: var(--teal); touch-action: manipulation; }
 .carry-poster { position: absolute; left: 32px; top: 8px; width: 12px; height: 16px; background: var(--paper0); border-radius: 1px; box-shadow: var(--shadow-xs); }
 .pupil { transition: transform var(--t-ui) var(--ease-out); }
 
-/* ── STATUS ── */
+/* ── STATUS: 한 줄 — 왼쪽 `이름 · 방 제목`(이름이 길면 이름부터 …, 방 제목은 그다음), 오른쪽 `등불 ■■□□□□□□ n/8`(줄어들지 않음). 360px 에서 8자 이름도 줄바꿈 없음 ── */
 #status {
-  display: flex; flex-direction: column; gap: 2px; min-height: 44px;
+  display: flex; align-items: center; min-height: 40px;
   padding: 6px 16px; background: var(--panel); border-bottom: 1px solid var(--rim); font-size: 12px;
 }
-#status .srow { display: flex; align-items: center; gap: 10px; min-height: 28px; flex-wrap: wrap; }
-#status .srow:last-child:empty { display: none; }
-#status .name { font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 15px; color: var(--amber); }
-.room-title { color: var(--muted); font-size: 12px; }
-.room-title::before { content: '·'; margin-right: 10px; color: var(--dim); }
-.pips { display: inline-flex; gap: 3px; letter-spacing: 0; }
+#status .srow { display: flex; align-items: center; gap: 8px; min-height: 28px; width: 100%; flex-wrap: nowrap; }
+#status .who { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; white-space: nowrap; overflow: hidden; }
+#status .name { flex: 0 4 auto; min-width: 2.6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 15px; color: var(--amber); }
+.room-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.room-title::before { content: '·'; margin: 0 6px; color: var(--dim); }
+.pips { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pip-row { display: inline-flex; gap: 3px; }
 .pip { font-size: 11px; line-height: 1; color: var(--dim); opacity: .6; transition: color var(--t-scene) var(--ease-enter), opacity var(--t-scene) var(--ease-enter), transform var(--t-scene) var(--ease-enter); }
 .pip.on { color: var(--amber); opacity: 1; text-shadow: 0 0 5px var(--amber); }
 .pip.bloom { animation: bloom var(--t-scene) var(--ease-out) both; }
 .pip.bloom.last { animation-duration: var(--t-bloom); }
 @keyframes bloom { 0% { transform: scale(1); } 40% { transform: scale(1.6); } 100% { transform: scale(1); } }
-.stat { color: var(--muted); font-variant-numeric: tabular-nums; }
-.chip, .fchip {
+.fchip {
   position: relative; margin-left: auto; min-height: 32px; padding: 2px 12px; border-radius: 16px;
   border: 1px solid var(--rim); background: var(--panel2); color: var(--muted); font-size: 12px;
 }
-.chip::before, .fchip::before, .btn.sm::before { content: ''; position: absolute; inset: -6px; }   /* 보이는 건 작아도 탭 영역은 44px */
-@media (hover: hover) and (pointer: fine) { .chip:hover { color: var(--fg); } }
+.fchip::before, .btn.sm::before { content: ''; position: absolute; inset: -6px; }   /* 보이는 건 작아도 탭 영역은 44px */
 
 /* ── INVITE (고정 출발 바: 화면이 짧으면 아래에 붙는다) ── */
 #invite {
@@ -294,6 +293,12 @@ a { color: var(--teal); touch-action: manipulation; }
 .ltext .first { color: var(--teal); }
 .lrow.typing .ltext { color: var(--muted); letter-spacing: 2px; animation: pill-breathe 1.4s ease-in-out infinite; }
 .lempty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+/* 초상 대화창 행 (§15.2, ui-ref-portrait-dialog): 왼쪽 64×64 초상을 96px 로(nearest), 남색 바탕 틀, 오른쪽 라벨 + 말. 초상 <canvas> 는 aria-hidden — 읽히는 건 글자뿐 */
+.lrow.dialog { grid-template-columns: auto 1fr; align-items: start; gap: 10px; }
+.lport { display: block; width: 100px; height: 100px; padding: 1px; background: #172038; border: 1px solid var(--rim); border-radius: 6px; overflow: hidden; }
+.lport canvas { display: block; width: 96px; height: 96px; image-rendering: pixelated; image-rendering: crisp-edges; }
+.lbody { display: flex; flex-direction: column; min-width: 0; }
+.lrow.dialog .ltool { padding-top: 0; }
 
 /* ── ALBUM ── */
 .filters { display: flex; gap: 4px; }
@@ -516,30 +521,30 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] #scene3d #oct-label { font-family: var(--f-meta); font-size: 14px; line-height: 14px; color: var(--paper0); }
 :root[data-font="pixel"] #scene3d #oct-bubble { font-family: var(--f-meta); font-size: 14px; line-height: 21px; border-radius: 0; border: 2px solid var(--line); background: var(--paper0); color: var(--ink); box-shadow: 2px 2px 0 var(--line); padding: 2px 8px; }
 
-/* ── 상태 줄: 나무색 띠, 이름·방 제목 Galmuri11 22px, 숫자 Galmuri7 ── */
+/* ── 상태 줄: 나무색 띠 한 줄 41px (27px 글줄 + 6px×2 + 아래 틀 2px). 이름 Galmuri9 18px, 방 제목 Galmuri7 14px 흐림, 오른쪽 `등불 ■■□□□□□□ n/8` (Galmuri7 14px + 10px 네모 8개) ≈ 151px — 360px 에서 왼쪽에 165px 남는다 ── */
 :root[data-font="pixel"] #status {
   background-color: var(--strip); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated;
-  border: 2px solid var(--line); border-top: 0; color: var(--fg); font-family: var(--f-meta); font-size: 14px; line-height: 21px; padding: 6px 16px; gap: 4px;
+  border: 2px solid var(--line); border-top: 0; color: var(--fg); font-family: var(--f-meta); font-size: 14px; line-height: 27px; padding: 6px 16px; min-height: 0;
 }
-:root[data-font="pixel"] #status .srow { gap: 8px; min-height: 32px; }
-:root[data-font="pixel"] #status .name { font-family: var(--f-ui); font-weight: 700; font-size: 22px; line-height: 22px; color: var(--fg); }
-:root[data-font="pixel"] .room-title { font-family: var(--f-ui); font-size: 22px; line-height: 22px; color: var(--fg); }
-:root[data-font="pixel"] .room-title::before { content: '·'; margin-right: 8px; color: var(--line); }
-:root[data-font="pixel"] .stat { color: var(--fg); }
-/* 등불 칸: 12×12 네모 8개, 2px 틈. 켜지면 호박색 + 좌상 1px 밝은 점 */
-:root[data-font="pixel"] .pips { gap: 2px; }
+:root[data-font="pixel"] #status .srow { gap: 8px; min-height: 27px; }
+:root[data-font="pixel"] #status .name { font-family: var(--f-body); font-weight: 400; font-size: 18px; line-height: 27px; color: var(--fg); }
+:root[data-font="pixel"] .room-title { font-family: var(--f-meta); font-size: 14px; line-height: 27px; color: var(--muted); }
+:root[data-font="pixel"] .room-title::before { content: '·'; margin: 0 6px; color: var(--line); }
+/* 등불 칸: `등불` + 10×10 네모 8개(2px 틈) + `n/8`. 켜지면 호박색 + 좌상 밝은 점 */
+:root[data-font="pixel"] .pips { gap: 4px; color: var(--fg); font-family: var(--f-meta); font-size: 14px; line-height: 27px; }
+:root[data-font="pixel"] .pip-row { gap: 2px; }
 :root[data-font="pixel"] .pip {
-  width: 12px; height: 12px; font-size: 0; line-height: 0; color: transparent; opacity: 1;
+  width: 10px; height: 10px; font-size: 0; line-height: 0; color: transparent; opacity: 1;
   background: var(--pip-off); box-shadow: inset 0 0 0 1px var(--line);
   transition: background-color var(--t-scene) var(--ease-enter), transform var(--t-scene) var(--ease-enter);
 }
 :root[data-font="pixel"] .pip.on { background: var(--amber-fill); box-shadow: inset 0 0 0 1px var(--line), inset 2px 2px 0 var(--amber-hi); text-shadow: none; }
-:root[data-font="pixel"] .chip, :root[data-font="pixel"] .fchip {
+:root[data-font="pixel"] .fchip {
   border-radius: 0; border: 2px solid var(--line); background: var(--panel2); color: var(--muted);
   font-family: var(--f-meta); font-size: 14px; line-height: 14px; padding: 4px 10px; min-height: 32px;
   box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line);
 }
-:root[data-font="pixel"] .chip:active, :root[data-font="pixel"] .fchip:active { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
+:root[data-font="pixel"] .fchip:active { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
 :root[data-font="pixel"] .filters { flex-wrap: wrap; gap: 6px 4px; }   /* 팔레트 칩(Apollo·Endesga…)은 라틴 글자가 넓어 줄을 바꾼다, 단어 중간 끊김 없이 */
 :root[data-font="pixel"] .fchip { white-space: nowrap; flex: 0 0 auto; }
 :root[data-font="pixel"] .fchip.on { background: var(--amber-fill); border-color: var(--line); color: var(--on-accent); box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo), 2px 2px 0 var(--line); }
@@ -590,6 +595,10 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .ltext .st, :root[data-font="pixel"] .ltext .sub { font-family: var(--f-meta); font-size: 14px; line-height: 21px; }
 :root[data-font="pixel"] .lrow.typing .ltext { letter-spacing: 2px; }
 :root[data-font="pixel"] .lempty { font-size: 18px; line-height: 27px; }
+/* 초상 대화창 행: 초상은 이중 틀(바깥 2px 어두움 · 2px 남색 틈 · 안쪽 1px 밝음) 안에 96px, 바탕 Apollo 남색 #172038 (초상의 bg 'navy' 와 같은 색) */
+:root[data-font="pixel"] .lrow.dialog { grid-template-columns: auto 1fr; gap: 10px; }
+:root[data-font="pixel"] .lport { width: 106px; height: 106px; padding: 3px; border: 2px solid var(--line); border-radius: 0; background: #172038; box-shadow: inset 0 0 0 2px #172038, inset 0 0 0 3px var(--hi-px); }
+:root[data-font="pixel"] .lrow.dialog .ltool { padding-top: 0; }
 
 /* ── 앨범: 카드 틀 + 2px 그림자 + 종이 알갱이, 기울기 없음(픽셀 격자) ── */
 :root[data-font="pixel"] .aday { border-right: 2px dashed var(--line); }
