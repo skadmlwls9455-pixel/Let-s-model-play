@@ -73,15 +73,15 @@ var AUDIO = (function () {
   function read(fn, dflt) { try { var v = fn(); return v == null ? dflt : v; } catch (e) { return dflt; } }
 
   /* ───────────────────────── 상태 ───────────────────────── */
-  var gs = { st: null, away: false, departing: false, left: false, placeKey: undefined, sleeping: false, sleepPhase: null, stayWindow: false, stayAct: null, skipping: false };
+  var gs = { st: null, away: false, departing: false, left: false, placeKey: undefined, sleeping: false, sleepPhase: null, stayWindow: false, stayAct: null, skipping: false, wound: false, leaving: false };
   var ctx = null, nd = {}, M = null, byId = {}, groups = {}, manifestP = null, fmt = null;
   var cache = {}, cacheBytes = 0, useTick = 0, requests = 0;
   var slots = { bgm: null, amb: null, layer: null, warm: null, season: null }, want = {};
-  var pend = null, rest = null, started = false, inited = false, armed = false, btn = null, toldFile = false;
+  var pend = null, rest = null, started = false, starting = false, inited = false, armed = false, btn = null, toldFile = false;
   var band = bandOf(null), wx = 'rain', season = seasonOf(), lantern = 0;
-  var played = [], lastAt = {}, lastPick = {}, shots = [], evEnd = 0, evP = Promise.resolve(0), pauseUntil = 0;
+  var played = [], lastAt = {}, lastPick = {}, shots = [], live = [], evQ = [], evEnd = 0, evP = Promise.resolve(0), pauseUntil = 0;
   var duckInfo = { db: 0, until: 0, lastDb: 0, lastAt: -1 };
-  var windupAt = -99, returnAt = -99, moodAt = -99, lastSpeak = -99, lastSnore = -99, petN = 0, petT = -99;
+  var returnAt = -99, moodAt = -99, lastSpeak = -99, lastSnore = -99, petN = 0, petT = -99;
   var tickTimer = null, lullTimer = null, pauseTimer = null;
   function readGame() {
     band = bandOf(read(game.hour, null));
@@ -109,7 +109,10 @@ var AUDIO = (function () {
       .catch(function (e) { manifestP = null; warn('audio/manifest.json 을 못 읽었어', e); return false; });
     return manifestP;
   }
-  function has(x) { return !!(x && (byId[x] || groups[x])); }
+  /* 못 받은·못 읽은 파일: 다시 받기는 15 s → 30 s → … 10분 뒤 (그동안 없는 것으로 — 틱마다 ogg+m4a 를 다시 받지 않게) */
+  var bad = {};
+  function isBad(id) { var b = bad[id]; return !!(b && Date.now() < b.until); }
+  function has(x) { return !!(x && (byId[x] || groups[x]) && !isBad(x)); }
   /* 정확한 이름이 먼저 (lantern_3 · chime_day), 아니면 그룹에서 직전과 다른 것 (시드 PRNG) */
   function pick(x) {
     if (Array.isArray(x)) x = x.length ? x[Math.floor(rnd() * x.length)] : null;
@@ -159,12 +162,17 @@ var AUDIO = (function () {
       /* Opus 를 못 읽는 브라우저 (iOS Safari 18.4 미만) → AAC 로 한 번 더, 이후 전부 AAC */
       return fetchBuf(s.files.m4a).then(decode).then(function (b) { fmt = 'm4a'; return b; });
     }).then(function (b) {
+      delete bad[id];
       entry.buf = b; entry.bytes = b.length * b.numberOfChannels * 4;
       if (cache[id] === entry) { cacheBytes += entry.bytes; evict(); }
       return b;
     });
     cache[id] = entry;
-    entry.p.catch(function (e) { if (cache[id] === entry) delete cache[id]; warn('소리 파일을 못 틀었어 (' + id + ')', e); });
+    entry.p.catch(function (e) {
+      if (cache[id] === entry) delete cache[id];
+      var b = bad[id] || { n: 0 }; b.n++; b.until = Date.now() + Math.min(600, 15 * Math.pow(2, b.n - 1)) * 1000; bad[id] = b;
+      warn('소리 파일을 못 틀었어 (' + id + ')', e);
+    });
     return entry.p;
   }
   function inUse(id) {
@@ -196,7 +204,12 @@ var AUDIO = (function () {
         g.connect(b === 'bgm' ? nd.trim : b === 'amb' ? nd.duckAmb : nd.master);
         nd.bus[b] = g;
       });
-      ctx.onstatechange = guard(function () { if (ctx && ctx.state === 'running' && started) disarm(); });
+      /* 멈춤이 풀리면 탭 대기를 거두고, 보이는데 멈춰 있으면(iOS 잠금·전화·다른 앱 소리 = suspended/interrupted) 다음 탭에서 다시 깨운다 */
+      ctx.onstatechange = guard(function () {
+        if (!ctx) return;
+        if (ctx.state === 'running') { if (started) disarm(); }
+        else if (ctx.state !== 'closed' && pref.on && !reason && !document.hidden) arm();
+      });
     } catch (e) {
       reason = 'no-webaudio'; warn('AudioContext 를 못 만들었어', e);
       try { if (ctx) ctx.close(); } catch (x) { /* noop */ }
@@ -491,7 +504,7 @@ var AUDIO = (function () {
     var lw = A.lantern_warmth || {}, n = lantern;
     ids.warm = (gs.away || gs.departing) ? null : n <= 0 ? null : n <= 3 ? lw['1-3'] : n <= 6 ? lw['4-6'] : lw['7-8'];   /* 등불 탁탁은 다락 안 소리 */
     ids.season = (band === 'night' && (wx === 'clear' || wx === 'drizzle')) ? ((A.season_night || {})[season] || null) : null;
-    Object.keys(ids).forEach(function (k) { if (!ids[k] || !byId[ids[k]]) ids[k] = null; });
+    Object.keys(ids).forEach(function (k) { if (!ids[k] || !byId[ids[k]] || isBad(ids[k])) ids[k] = null; });
     return ids;
   }
   function applyAmb(first) {
