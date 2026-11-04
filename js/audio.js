@@ -650,7 +650,9 @@ var AUDIO = (function () {
     if (d.skip) gs.skipping = true;
     switch (e.type) {
       case 'peek': if (!d.outside) onPeek(peekInfo(e, !!d.skip)); return;
-      case 'return': onReturn(); return;
+      /* 3D 에서 바깥에 나가 있었으면 앱이 바로 이어서 퇴장 의식(leave) → 귀가 의식(return)을 연다: 귀가 소리·집 BGM 은 문어가 실제로 돌아오는 귀가 의식에서.
+         퇴장 의식은 이 훅과 같은 순간에 동기로 불리므로 한 틱 뒤에 보면 안다 (2D·건너뛰기·모션 감소는 의식이 없어 지금처럼 이 줄에서) */
+      case 'return': setTimeout(guard(function () { if (!gs.leaving) onReturn(); }), 0); return;
       case 'depart': play(ev(['ui', 'log_line'])); return;
       case 'remember': play((ev(['remember_motif']) || {})[rememberKey(e, trip)] || 'remember_wild'); return;
       case 'hang_poster': if (trip.poster) play(ev(['events', 'hang_poster'])); return;
@@ -667,7 +669,7 @@ var AUDIO = (function () {
         gs.stayWindow = anchor === 'window';
         if (active() && !gs.skipping) {   /* 같은 움츠림, 다른 결말 */
           var t = now(), lead = 0;
-          if (t - windupAt > 2.5) { play(ev(['events', 'stay_home', 0]) || 'depart_windup'); lead = 0.8; }
+          if (!gs.wound) { gs.wound = true; play(ev(['events', 'stay_home', 0]) || 'depart_windup'); lead = 0.8; }   /* 이번 차례에 아직 안 움츠렸으면 (이벤트 재생) */
           play(ev(['events', 'stay_home', 1]) || 'stay_settle', { at: t + lead + 0.02 });
         }
         applyBgm();
@@ -680,7 +682,7 @@ var AUDIO = (function () {
   function onState(d) {
     var st = d.state, prev = gs.st;
     gs.st = st;
-    if (st === 'anticipate') { windupAt = now(); gs.left = false; if (!d.skip) play(ev(['events', 'depart', 0])); }   /* 움츠림 600 ms + 멈춤 200 ms = depart_windup 0.8 s */
+    if (st === 'anticipate') { gs.wound = true; gs.left = false; if (!d.skip) play(ev(['events', 'depart', 0])); }   /* 움츠림 600 ms + 멈춤 200 ms = depart_windup 0.8 s */
     if (st === 'away') {
       if (!gs.away) {
         gs.away = true; gs.departing = false;
@@ -706,13 +708,14 @@ var AUDIO = (function () {
       if (d.skip) gs.skipping = true;
       if (active() && !gs.skipping && !gs.left) {
         var t = now(), lead = 0;
-        if (t - windupAt > 2) { play(ev(['events', 'depart', 0])); windupAt = t; lead = 0.8; }   /* 이벤트 재생·데모: 움츠림부터 */
+        if (!gs.wound) { gs.wound = true; play(ev(['events', 'depart', 0])); lead = 0.8; }   /* 이벤트 재생·데모: 움츠림부터 (초대는 계획이 오래 걸려도 이미 움츠렸다) */
         play(ev(['events', 'depart', 1]), { at: t + lead + 0.02 });
         if (wx === 'rain' || wx === 'drizzle') play(ev(['events', 'depart_rain_extra']), { at: t + lead + 0.2 });
       }
       gs.left = true;
       trimUpdate(); applyAmb(false); applyBgm();
-    } else if (d.kind === 'return') onReturn();
+    } else if (d.kind === 'leave') gs.leaving = true;
+    else if (d.kind === 'return') { gs.leaving = false; onReturn(); }
   }
   function onBubble(d) {
     var text = String(d.text || '');
@@ -742,7 +745,8 @@ var AUDIO = (function () {
     tick();   /* 6·7·8칸에서 날씨가 바뀐다 */
   }
   function onBusy(d) {
-    gs.skipping = false;
+    gs.skipping = false; gs.wound = false;   /* 움츠림은 한 차례에 한 번 (초대는 busy 를 켠 뒤에 움츠린다) */
+    if (gs.leaving) { gs.leaving = false; if (!d.on && (gs.away || gs.departing)) onReturn(); }   /* 퇴장 의식 뒤 귀가 의식이 안 왔다 */
     if (!d.on) { gs.stayWindow = false; gs.stayAct = null; applyBgm(); }
   }
   function on(name, d) {
