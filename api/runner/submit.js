@@ -21,7 +21,7 @@ function validInputs(inputs, ticks) {
 }
 
 function okBody(b, d, week) {
-  return { ok: true, rank: d ? d.rank : null, total: b.length, week: week, runId: d ? d.runId : null, nick: d ? d.nick : null, score: d ? d.score : null, award: core.isEventWeek(week) ? core.AWARDS.PAPER : null };
+  return { ok: true, rank: d.rank, total: b.length, week: week, runId: d.runId, nick: core.sanitizeNick(d.nick), score: d.score, award: core.isEventWeek(week) ? core.AWARDS.PAPER : null };
 }
 /* 그 주 순위표에서 이 runId 의 줄 (없으면 null) */
 async function find(store, week, runId) {
