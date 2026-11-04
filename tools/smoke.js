@@ -26,7 +26,7 @@ function ok(cond, msg) { if (cond) { passes++; console.log('  ok   ' + msg); } e
 function must(cond, msg) { ok(cond, msg); if (!cond) throw new Error('assertion: ' + msg); }
 
 var WIKI_OK = {
-  query: { pages: { '1': { pageid: 1, title: '모자', extract: '모자는 머리에 쓰는 물건이다. 햇빛과 추위를 막고 신분을 나타내기도 했다. 세 번째 문장은 잘려야 한다.',
+  query: { pages: { '1': { pageid: 1, title: '모자', extract: '테스트용 요약: 모자. 가짜 위키 응답이라 실제 내용이 아니다. 세 번째 문장은 잘려야 한다.',
     thumbnail: { source: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="#5a7"/></svg>'), width: 40, height: 30 },
     links: [{ ns: 0, title: '깃털' }, { ns: 0, title: '밀짚' }, { ns: 0, title: '1990년' }, { ns: 0, title: '모자 목록' }] } } }
 };
@@ -39,7 +39,7 @@ function routeWiki(page, mode) {
   return page.route('https://ko.wikipedia.org/**', function (route) {
     if (mode === 'abort') return route.abort('failed');
     var body = mode === 'ok' ? WIKI_OK : WIKI_MISSING;
-    if (mode === 'ok') { var t = decodeURIComponent((route.request().url().match(/titles=([^&]+)/) || [])[1] || '모자'); body = JSON.parse(JSON.stringify(WIKI_OK)); body.query.pages['1'].title = t; body.query.pages['1'].extract = t + body.query.pages['1'].extract.slice(2); }
+    if (mode === 'ok') { var t = decodeURIComponent((route.request().url().match(/titles=([^&]+)/) || [])[1] || '모자'); body = JSON.parse(JSON.stringify(WIKI_OK)); body.query.pages['1'].title = t; body.query.pages['1'].extract = body.query.pages['1'].extract.replace('모자', t); }   /* 제목마다 그 제목의 가짜 요약 (조사 없음) */
     return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
   });
 }
@@ -634,6 +634,27 @@ async function scenarioCeremony(browser) {
   ok(rl.n === 3, '새로고침 뒤 여행 3건 그대로 (미러 복구 포함)');
   ok(rl.log.indexOf('exterior') < 0 && rl.place === 'attic', '새로고침 뒤 바깥은 한 번도 안 보임 (' + rl.log.join('>') + ')');
   ok(rl.text.indexOf('네가 없는 동안 다녀왔어') >= 0 && /st-(sleep|idle)/.test(rl.oct) && !rl.busy, "'네가 없는 동안 다녀왔어' · 문어 유효 · 버튼 활성");
+
+  console.log('\n== I-4. 계절: 방 보기 한 줄 · 데모 패널 지정 (룩 설정에 저장)');
+  var mo = new Date().getMonth() + 1, KO = mo >= 3 && mo <= 5 ? '봄' : mo >= 6 && mo <= 8 ? '여름' : mo >= 9 && mo <= 11 ? '가을' : '겨울';
+  async function seasonLine() { await page.click('#btn-look'); await page.waitForSelector('#room-sheet[open]'); var t = await page.textContent('#rs-season'); await page.click('#rs-close'); return t; }
+  var l1 = await seasonLine();
+  ok(l1 === '계절: ' + KO + ' (실제 날짜)', '방 보기: "' + l1 + '"');
+  await page.click('#demo summary');
+  ok((await page.$$('#dv-season .fchip')).length === 5 && (await page.textContent('#dv-season .fchip.on')) === '자동', '데모 패널 계절 칩 5 (자동 켜짐)');
+  var other = KO === '겨울' ? ['summer', '여름'] : ['winter', '겨울'];
+  await page.click('#dv-season .fchip[data-season="' + other[0] + '"]');
+  var ov = await page.evaluate(function () { return { season: APP.scene.season(), mode: APP.scene.seasonMode(), saved: JSON.parse(localStorage.getItem('ppolppol_look') || '{}').season }; });
+  ok(ov.season === other[0] && ov.mode === other[0] && ov.saved === other[0], '지정 → scene.setSeason · ppolppol_look.season 저장 (' + JSON.stringify(ov) + ')');
+  ok((await seasonLine()) === '계절: ' + other[1] + ' (지정)', '방 보기: 계절: ' + other[1] + ' (지정)');
+  await page.reload();
+  await page.waitForSelector('#btn-go:not([disabled])');
+  var ov2 = await page.evaluate(function () { var on = document.querySelector('#dv-season .fchip.on'); return { season: APP.scene.season(), on: on ? on.dataset.season : null }; });
+  ok(ov2.season === other[0] && ov2.on === other[0], '새로고침 뒤에도 지정 계절 유지 (' + JSON.stringify(ov2) + ')');
+  if (!(await page.evaluate(function () { return document.getElementById('demo').open; }))) await page.click('#demo summary');
+  await page.click('#dv-season .fchip[data-season="auto"]');
+  var ov3 = await page.evaluate(function () { return { mode: APP.scene.seasonMode(), saved: JSON.parse(localStorage.getItem('ppolppol_look') || '{}').season }; });
+  ok(ov3.mode === 'auto' && ov3.saved === undefined && (await seasonLine()) === '계절: ' + KO + ' (실제 날짜)', '자동으로 되돌림 → 실제 날짜 (' + JSON.stringify(ov3) + ')');
   reportErrors(s.bag, 'I');
   await s.ctx.close();
 }
@@ -671,6 +692,94 @@ async function scenario2D(browser) {
   ok(s.bag.length === 0, '2D 폴백 콘솔/페이지 에러 없음' + (s.bag.length ? ' → ' + s.bag.join(' | ') : ''));
   await s.ctx.close();
 }
+/* R. 다락방 달리기 (js/runner.js): 방 보기 → 같이 놀기 → 6초 스크립트 탭 → 부딪힘 또는 닫기 → 저장된 판의 simulate() 점수 = 화면 점수.
+ *   SwiftShader(WebGL 강제, look-shots 와 같은 인자) · 360×740 @2x · 스크린샷 tests/evidence/runner-{start,mid,over}.png
+ *   실제 판 기록은 tests/evidence/runner-live-run.json 에 남겨 node tools/test-runner.js 가 다시 시뮬한다. */
+async function scenarioRunner() {
+  console.log('\n== R. 다락방 달리기 (같이 놀기)');
+  var EVD = path.join(ROOT, 'tests/evidence'); fs.mkdirSync(EVD, { recursive: true });
+  var br = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
+  try {
+    var ctx = await br.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, locale: 'ko-KR', colorScheme: 'light' });
+    var page = await ctx.newPage(), bag = []; bag.ignored = [];
+    watchErrors(page, bag);
+    if (useStubs) await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') });
+    await routeWiki(page, 'ok');
+    await page.goto(INDEX);
+    await page.waitForSelector('#name-dialog[open]');
+    await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
+    await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+    await page.waitForTimeout(600);
+    await page.click('#btn-look');
+    await page.waitForSelector('#room-sheet[open]');
+    must(await page.$('#room-sheet #rs-play'), '방 보기 시트에 "같이 놀기" 버튼');
+    await page.click('#rs-play');
+    await page.waitForSelector('#runner-dlg[open]');
+    await page.waitForTimeout(400);
+    var info = await page.evaluate(function () {
+      var cv = document.getElementById('rn-cv'), r = cv.getBoundingClientRect(), L = RUNNER.live();
+      var b = [].map.call(document.querySelectorAll('#runner-dlg button:not([hidden])'), function (x) { var q = x.getBoundingClientRect(); return q.width && q.height ? Math.min(q.width, q.height) : 99; });
+      return { w: r.width, h: r.height, dpr: devicePixelRatio, focus: document.activeElement && document.activeElement.id, state: L.state, sprites: L.sprites, phase: L.phase, season: L.season, minBtn: Math.min.apply(null, b), docW: document.documentElement.scrollWidth };
+    });
+    console.log('   start:', JSON.stringify(info));
+    ok(info.state === 'ready' && info.focus === 'rn-cv', '준비 상태 · 캔버스에 포커스');
+    ok(Number.isInteger(info.w * info.dpr / 192) && info.w * info.dpr / 192 >= 2 && Math.abs(info.h * 192 - info.w * 108) < 1, '캔버스 192×108 정수 배 (' + (info.w * info.dpr / 192) + '×, 장치 px)');
+    ok(info.sprites === 'portrait', '문어 스프라이트 = 장면 초상 캡처');
+    ok(info.minBtn >= 44, '보이는 버튼 ≥ 44px (' + info.minBtn + ')');
+    ok(info.docW <= 360, '가로 스크롤 없음');
+    await page.screenshot({ path: path.join(EVD, 'runner-start.png') });
+
+    /* 6초 스크립트 탭: 스페이스(짧게/꾹), 점프 버튼 포인터, 아래 화살표 */
+    var t0 = Date.now(), plan = [[0, 'space', 90], [700, 'space', 250], [1250, 'shot'], [1500, 'btn', 120], [2300, 'space', 60], [3000, 'down', 300], [3600, 'space', 200], [4300, 'btn', 300], [5000, 'space', 80], [5600, 'space', 150]];
+    for (var p of plan) {
+      var wait = p[0] - (Date.now() - t0); if (wait > 0) await page.waitForTimeout(wait);
+      var st = await page.evaluate(function () { return RUNNER.live() && RUNNER.live().state; });
+      if (st === 'over') break;
+      if (p[1] === 'shot') { await page.screenshot({ path: path.join(EVD, 'runner-mid.png') }); continue; }
+      if (p[1] === 'space') { await page.keyboard.down(' '); await page.waitForTimeout(p[2]); await page.keyboard.up(' '); }
+      else if (p[1] === 'down') { await page.keyboard.down('ArrowDown'); await page.waitForTimeout(p[2]); await page.keyboard.up('ArrowDown'); }
+      else { var bb = await page.$('#rn-jump'); var box = await bb.boundingBox(); await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down(); await page.waitForTimeout(p[2]); await page.mouse.up(); }
+    }
+    var rest = 6000 - (Date.now() - t0); if (rest > 0) await page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: rest }).catch(function () {});
+    var midObs = await page.evaluate(function () { return RUNNER.live().ticks; });
+    var ended = await page.evaluate(function () { return RUNNER.live().state; });
+    if (ended !== 'over') { await page.click('#rn-close'); await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' }); }
+    else await page.waitForTimeout(600);
+    var res = await page.evaluate(function () {
+      var st = JSON.parse(localStorage.getItem('ppolppol_runner') || 'null'), run = st && st.last;
+      var shown = document.getElementById('rn-score').textContent;
+      var sim = run && RUNNER.simulate(run.seed, run.inputs, { night: run.night, until: run.end === 'hit' ? null : run.ticks });
+      return { run: run, best: st && st.best, shown: shown, sim: sim, verify: run ? RUNNER.verify(run) : false, focus: document.activeElement && document.activeElement.id };
+    });
+    console.log('   run: end=' + (res.run && res.run.end) + ' ticks=' + (res.run && res.run.ticks) + ' inputs=' + (res.run && res.run.inputs.length) + ' saved=' + (res.run && res.run.score) + ' shown=' + res.shown + ' sim=' + JSON.stringify(res.sim) + ' (6초 동안 ' + midObs + ' 틱)');
+    must(res.run && res.run.version === 'runner-1' && res.run.inputs.length >= 2, 'localStorage ppolppol_runner 에 판 기록 (seed·inputs·score·version)');
+    ok(res.sim.score === res.run.score && String(res.sim.score) === res.shown, 'simulate() 점수 = 저장 점수 = 화면 점수 (' + res.shown + ')');
+    ok(res.verify, 'RUNNER.verify(기록) 통과');
+    ok(res.best >= res.run.score, '최고 기록 저장');
+    if (ended !== 'over') ok(res.focus === 'rs-play', '닫으면 "같이 놀기" 버튼으로 포커스가 돌아감');
+    fs.writeFileSync(path.join(EVD, 'runner-live-run.json'), JSON.stringify(Object.assign({ displayed: res.shown }, res.run), null, 1));
+
+    /* 게임 오버 화면: 입력 없이 한 판 (첫 상자에 부딪힘) */
+    if (ended === 'over') await page.click('#rn-again'); else await page.click('#rs-play');
+    await page.waitForFunction(function () { return RUNNER.live() && RUNNER.live().state === 'ready'; });
+    await page.focus('#rn-cv'); await page.keyboard.press(' ');
+    await page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: 15000 });
+    await page.waitForTimeout(700);
+    var ov = await page.evaluate(function () {
+      var st = JSON.parse(localStorage.getItem('ppolppol_runner')), run = st.last;
+      return { final: document.getElementById('rn-final').textContent, best: document.getElementById('rn-final-best').textContent, again: document.activeElement && document.activeElement.id, shown: document.getElementById('rn-score').textContent, sim: RUNNER.simulate(run.seed, run.inputs, { night: run.night }).score, saved: run.score, end: run.end };
+    });
+    console.log('   over:', JSON.stringify(ov));
+    ok(/또 할래\?/.test(await page.textContent('#rn-again')) && /그만/.test(await page.textContent('#rn-stop')), '게임 오버: "또 할래?" / "그만"');
+    ok(ov.again === 'rn-again' && /최고/.test(ov.best), '게임 오버: 최고 기록 표시 · "또 할래?" 에 포커스');
+    ok(ov.end === 'hit' && ov.sim === ov.saved && String(ov.sim) === ov.shown, '부딪힌 판도 재시뮬 점수 = 화면 점수 (' + ov.shown + ')');
+    await page.screenshot({ path: path.join(EVD, 'runner-over.png') });
+    await page.click('#rn-stop');
+    await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
+    reportErrors(bag, 'R');
+    await ctx.close();
+  } finally { await br.close(); }
+}
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
@@ -679,7 +788,7 @@ async function scenario2D(browser) {
     var all = [['A', function () { return scenarioMain(browser); }], ['B', function () { return scenarioFail(browser, 'missing', 'B. 문서 없음(missing) 응답'); }],
       ['C', function () { return scenarioFail(browser, 'abort', 'C. 요청 중단(abort)'); }], ['D', function () { return scenarioMigrate(browser); }],
       ['E', function () { return scenarioForcedHome(browser); }], ['F', function () { return scenarioMigrateExact(browser); }], ['G', function () { return scenario2D(browser); }],
-      ['H', function () { return scenarioDay2(browser); }], ['I', function () { return scenarioCeremony(browser); }]];
+      ['H', function () { return scenarioDay2(browser); }], ['I', function () { return scenarioCeremony(browser); }], ['R', function () { return scenarioRunner(); }]];
     for (var sc of all) if (!only.length || only.indexOf(sc[0]) >= 0) await sc[1]();
   } catch (e) {
     fails++; console.error('\nCRASH: ' + (e && e.stack || e));

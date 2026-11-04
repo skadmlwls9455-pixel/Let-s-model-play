@@ -1130,7 +1130,8 @@ var SCENE3D = (function () {
       return [sx, sy, by];
     }
     function stepOct(dt) {
-      var s = st.octState, t = time, red = st.reduced;
+      var s = st.octState === 'away' && PK.on ? 'idle' : st.octState, t = time, red = st.reduced;   /* 바깥 기웃 중엔 'away' 라도 보이는 문어 (숨쉬기·깜빡임) */
+      var pkb = PK.on ? pkBody(dt) : null; if (!pkb) { PK.leanQ = 0; PK.arm = 0; }
       oct.animT += dt;
       if (oct.walking) oct.walking.step(dt);
       snapScreen(octG.position.copy(oct.pos));   /* 화면 픽셀 격자에 스냅 (걷기 보간은 oct.pos 에서 매끄럽게, 보이는 위치는 정수 픽셀) */
@@ -1159,13 +1160,15 @@ var SCENE3D = (function () {
         if (ex === 'happy' && face.hopsLeft > 0) { var hk = (face.t % 0.45) / 0.45; splay = Math.sin(hk * Math.PI); by += splay * 0.5; if (face.t > 0.9) { face.hopsLeft = 0; splay = 0; } }
         if (s === 'peek') G.rz = Math.sin(t * 4.5) * 0.12; else G.rz += (rz - G.rz) * Math.min(1, dt * 8);
         if (oct.wiggle > 0) { oct.wiggle -= dt; G.rz = Math.sin(oct.wiggle * 30) * 0.1 * oct.wiggle; }
-        bodyG.rotation.set(G.lean, G.yaw, G.rz + G.roll);   /* 표정 기울임(부드럽게) + 걸음 굴림(3단 스텝) · 요 흔들 · 앞 기울임 */
+        if (pkb) { sx *= pkb[0]; sy *= pkb[1]; by += pkb[2]; }
+        bodyG.rotation.set(G.lean + PK.leanQ, G.yaw, G.rz + G.roll);   /* 표정 기울임(부드럽게) + 걸음 굴림(3단 스텝) · 요 흔들 · 앞 기울임 */
       } else {   /* 모션 감소: 표정의 정지 자세 */
         var pose = FACES[ex].pose; if (pose) { sx = pose[0]; sy = pose[1]; rz = pose[2]; }
         if (ex === 'curious') rz = -8 * DEG * dir;
         if (s === 'anticipate') { sx = 1.05; sy = 0.92; }
         if (ex === 'happy') splay = 1;
-        G.rz = rz; bodyG.rotation.set(0, 0, rz);
+        if (pkb) { sx *= pkb[0]; sy *= pkb[1]; }
+        G.rz = rz; bodyG.rotation.set(PK.leanQ, 0, rz);
       }
       bodyG.scale.set(sx, sy, sx); bodyG.position.y = snapUp(by * OCT_R) / OCT_R;   /* 폴짝·통통도 세로 정수 픽셀로 */
       /* 다리: 0 = 끝이 바닥에 닿은 자세, 흔들림은 위로만. idle 다리 끝 미세 꿈틀(룩 패스 7) = 8 fps 스텝, 다리마다 시드 주기(2~4 s)로 2스텝(0.25 s)만 끝이 화면 세로 **1px** 들림(각도 = asin(1px / 다리 길이)), 걷기는 연속 그대로 */
@@ -1176,11 +1179,11 @@ var SCENE3D = (function () {
       for (var i = 0; i < 8; i++) {
         var arm = arms[i], base = 0, w = ARMW[i], ca = Math.cos(arm.userData.a), sa = Math.sin(arm.userData.a);
         arm.scale.x = 1 + 0.3 * splay;   /* happy 꼭대기: 다리 바깥으로 ×1.3 */
-        if (red) { arm.rotation.z = base; arm.rotation.y = -arm.userData.a; continue; }
+        if (red) { arm.rotation.z = base + PK.arm; arm.rotation.y = -arm.userData.a; continue; }
         var still = s === 'sleep' ? base + 0.02 : base + 0.05 + (((anim.armStep + w.ph) % w.per) < 2 ? armUp : 0);
         var comp = Math.max(0, -(G.roll) * ca) + Math.max(0, G.lean * sa), lift = 0, fwd = 0;   /* 굴림·기울임으로 바닥 밑으로 가는 다리를 그만큼 든다 */
         if (ak > 0.001) { var sw = (ca > 0) === swingPos; lift = sw ? GAIT.armLift * Math.sin(Math.PI * au) : 0; fwd = sw ? 2 * au - 1 : 1 - 2 * au; }
-        arm.rotation.z = still * (1 - ak) + (base + 0.05 + lift) * ak + comp;
+        arm.rotation.z = (still + PK.arm) * (1 - ak) + (base + 0.05 + lift) * ak + comp;
         arm.rotation.y = -arm.userData.a + fwd * ak * GAIT.armFwd * (ca > 0 ? 1 : -1);
       }
       /* 눈 깜빡임 (룩 패스 7: 눈 뜬 표정에서만 3~7 s 시드 간격, 120 ms — 눈꺼풀 + 짧은 선 = blink 표정이 끼어든다; 모션 감소면 없음) · 동공 */
@@ -1209,6 +1212,8 @@ var SCENE3D = (function () {
     var EXT_PATH = [[1.38, -1.06], [1.9, -0.85], [2.5, -0.15], [3.12, 0.5]];   /* 계단 발치 → 오른쪽 아래 가장자리 (x = L) */
     var EXT_TREES = { round: [[-1.7, 1.55, 1.0, 0.3], [1.75, -2.35, 0.9, 1.2]], cone: [[-2.85, -0.3, 1.0, 0.0]] };   /* [x, z, 배율, 요] */
     var EXT_FENCE = [[-1.1, 2.55], [-0.48, 2.58], [0.14, 2.61]], EXT_FENCE_END = [0.76, 2.64];
+    var EXT_PUDDLE = [-0.15, 1.05, 0.3, 0.22], EXT_MAILBOX = [0.85, 0.4];   /* 물웅덩이 [x, z, 반지름 x, 반지름 z] (바깥 기웃: 바다) · 우체통 (손·편지의 방) */
+    function nearPuddle(x, z, m) { var dx = (x - EXT_PUDDLE[0]) / (EXT_PUDDLE[2] + m), dz = (z - EXT_PUDDLE[1]) / (EXT_PUDDLE[3] + m); return dx * dx + dz * dz < 1; }
     var SEASONS = ['spring', 'summer', 'autumn', 'winter'];
     /* 계절 색 (팔레트 스냅 전 기본색): 땅 · 풀 포기 · 흙길 · 둥근 나무 잎 3단 · 꽃 점 · 원뿔 나무 3단 · 눈 모자(겨울 흰색, 다른 계절엔 잎 윗톤과 같아 안 보인다) */
     var SEASON_C = {
@@ -1217,6 +1222,7 @@ var SCENE3D = (function () {
       autumn: { ground: '#948a34', tuft: '#a8763a', path: '#5e3c2a', leaf: ['#d4782c', '#e8a63e', '#a4482a'], bloom: '#b8402c', cone: ['#3a5a34', '#46663a', '#52703e'], cap: '#e8a63e' },
       winter: { ground: '#e6ecf0', tuft: '#c4d0da', path: '#8c949c', leaf: ['#4e5e58', '#62726a', '#3e4c48'], bloom: '#f4f6f8', cone: ['#2e4a3a', '#3a5844', '#46644c'], cap: '#f4f6f8' }
     };
+    var EXT_WATER = { spring: '#5a86a8', summer: '#4a7c9c', autumn: '#5a7890', winter: '#b4cede' };   /* 물웅덩이 (겨울 = 얼음, 잔물결 없음) */
     var EXT_C = { wallA: '#56606a', wallB: '#606a74', seam: '#2a2e38', post: W[1], plinth: '#6e6872', plinthLine: '#4a4650', roof: '#a04838', roofLine: '#6a2c2c', ridge: '#6a2c2c',
       chim: '#7a6a66', chimRim: '#4e4448', door: '#996643', frame: '#efe3c8', step: ['#8a5a3c', '#7b4f35'], rail: '#6a4630', stone: ['#a8a29a', '#8a8580'], rock: ['#77737f', '#9b97a3'],
       mail: '#b04a3c', mailFlag: '#e8b04a', fence: '#a07a52', snow: '#f2f4f6', trunk: '#6a4630' };
@@ -1235,7 +1241,7 @@ var SCENE3D = (function () {
       /* 풀 포기 (1~2px 점, 태그 11): 집·길·나무 자리는 피한다 */
       for (var i = 0, n = 0; i < 90 && n < 46; i++) {
         var r = hash('tuft' + i), x = -L + 0.15 + (r % 1000) / 1000 * (2 * L - 0.3), z = -L + 0.15 + ((r >> 10) % 1000) / 1000 * (2 * L - 0.3);
-        if (inHouse(x, z, 0.2) || nearPath(x, z, 0.45) || nearTree(x, z, 0.45)) continue;
+        if (inHouse(x, z, 0.2) || nearPath(x, z, 0.45) || nearTree(x, z, 0.45) || nearPuddle(x, z, 0.1)) continue;
         E(box(0.07, 0.05 + (r >> 20) % 3 * 0.015, 0.07), M(snapPos(x), 0.025, snapPos(z)), sc.tuft, 11); n++;
       }
       /* 흙길 (태그 12) + 디딤돌: 마디마다 납작 상자, 끝은 받침 가장자리에서 멈춘다 */
@@ -1313,8 +1319,35 @@ var SCENE3D = (function () {
       E(box(0.03, 0.16, 0.05), M(MB.x - 0.06, 0.96, MB.z + 0.13), EXT_C.mailFlag);
       E(box(0.08, 0.56, 0.08), M(EXT_FENCE_END[0], 0.28, EXT_FENCE_END[1]), EXT_C.fence);
       extPropN += 2;
+      /* 물웅덩이 (바깥 기웃 '바다'): 진흙 테(길 태그 12) + 물(태그 17, 계절 재색 — 겨울엔 얼음). 잔물결은 따로 1px 선 (stepPeekProps) */
+      var PU = EXT_PUDDLE, pux = snapPos(PU[0]), puz = snapPos(PU[1]);
+      E(new T.CylinderGeometry(1, 1, 0.008, 14), M(pux, 0.004, puz, 0, 0, 0, PU[2] + 2 * PX, 1, PU[3] + 2 * PX), sc.path, 12);
+      E(new T.CylinderGeometry(1, 1, 0.01, 14), M(pux, 0.007, puz, 0, 0, 0, PU[2], 1, PU[3]), '#5a7890', 17);
+      E(box(2 * PX, 0.004, PX), M(pux - 0.1, 0.0125, puz - 0.06), '#c8dce8', 18); E(box(PX, 0.004, PX), M(pux - 0.04, 0.0125, puz - 0.1), '#c8dce8', 18);   /* 하늘 반사 2점 */
+      /* 울타리 첫 기둥의 작은 팻말 (바깥 기웃 '기호'): 마당(−z) 쪽을 본다 — 나무 테 + 종이 + 1px 글자 줄 2 */
+      var SG = { x: snapPos(EXT_FENCE[0][0]), z: snapPos(EXT_FENCE[0][1]) - 0.06 };
+      E(box(0.34, 0.22, 0.03), M(SG.x, 0.5, SG.z), W[2]);
+      E(box(0.28, 0.16, 0.012), M(SG.x, 0.5, SG.z - 0.018), '#efe3c8');
+      E(box(0.18, PX * 0.8, 0.006), M(SG.x - 0.02, 0.53, SG.z - 0.026), '#3a2a2e'); E(box(0.12, PX * 0.8, 0.006), M(SG.x - 0.05, 0.47, SG.z - 0.026), '#3a2a2e');
+      extPropN += 2;
     })();
     var extStatic = new T.Mesh(keep(mergeParts(ep)), lambert); extStatic.castShadow = true; extStatic.receiveShadow = true; extG.add(extStatic);
+    /* 바깥 기웃 소품 (평소엔 잔물결만 보인다 — 드로우콜 +2): 잔물결 1px 타원 선 · 덤불 바스락 덮개(앞 덤불 복제, ±1px 흔들) · 우체통 열림(뚫린 입구 + 내려간 뚜껑) */
+    var rippleM = (function () {
+      var g = new T.BufferGeometry(), pts = [];
+      for (var i = 0; i < 20; i++) { var a = i / 20 * Math.PI * 2, b = (i + 1) / 20 * Math.PI * 2; pts.push(Math.cos(a), 0, Math.sin(a) * 0.72, Math.cos(b), 0, Math.sin(b) * 0.72); }
+      g.setAttribute('position', new T.Float32BufferAttribute(pts, 3)); keep(g);
+      var l = new T.LineSegments(g, keep(new T.LineBasicMaterial({ color: C('#d6e6f0'), depthWrite: false }))); l.position.set(snapPos(EXT_PUDDLE[0]) + 0.03, 0.016, snapPos(EXT_PUDDLE[1]) + 0.02); l.frustumCulled = false; l.visible = false; extG.add(l); return l;
+    })();
+    var rustleM = new T.Mesh(keep(mergeParts([   /* 앞 덤불 (0.5, −0.05) 의 세 구를 그대로 (태그 13~15, 계절 재색) */
+      { g: new T.SphereGeometry(0.3, 7, 5), m: M(0, 0.22, 0, 0, 0, 0, 1, 0.8, 1), c: SEASON_C.autumn.leaf[0], tag: 13 },
+      { g: new T.SphereGeometry(0.22, 7, 5), m: M(0.2, 0.2, 0.14), c: SEASON_C.autumn.leaf[1], tag: 14 },
+      { g: new T.SphereGeometry(0.2, 6, 5), m: M(-0.16, 0.18, 0.12), c: SEASON_C.autumn.leaf[2], tag: 15 }])), lambert);
+    rustleM.position.set(snapPos(0.5), 0, snapPos(-0.05)); rustleM.receiveShadow = true; rustleM.visible = false; extG.add(rustleM);
+    var mailOpenM = new T.Mesh(keep(mergeParts([   /* 우체통 +x 끝: 어두운 입구 + 아래 경첩으로 내려간 뚜껑 */
+      { g: box(0.012, 0.15, 0.17), m: M(snapPos(EXT_MAILBOX[0]) + 0.176, 0.8, snapPos(EXT_MAILBOX[1])), c: '#1e1418' },
+      { g: box(0.16, 0.024, 0.2), m: M(snapPos(EXT_MAILBOX[0]) + 0.17 + 0.08, 0.705, snapPos(EXT_MAILBOX[1])), c: EXT_C.mail }])), lambert);
+    mailOpenM.receiveShadow = true; mailOpenM.visible = false; extG.add(mailOpenM);
     /* 나무 (인스턴스): 둥근 나무 = 줄기 + 잎 구 3단(태그 2·3·4) + 눈 모자(5) + 꽃 점(6) · 원뿔 나무 = 줄기 + 원뿔 3단 + 눈 모자 */
     function treeGeo() {
       /* 우듬지 = 겹친 구 4 (세로로 쌓은 눈사람 꼴이 아니라 한 덩어리 구름 꼴): 아래 큰 구 · 좌우 어깨 2 · 꼭대기 */
@@ -1347,7 +1380,7 @@ var SCENE3D = (function () {
     function groundPt(r, onPath) {
       var L = EXT.L, x, z;
       if (onPath) { var sgi = r % (EXT_PATH.length - 1), a = EXT_PATH[sgi], b = EXT_PATH[sgi + 1], t = ((r >> 4) % 100) / 100, o = (((r >> 12) % 100) / 100 - 0.5) * 0.5; x = a[0] + (b[0] - a[0]) * t - (b[1] - a[1]) * o; z = a[1] + (b[1] - a[1]) * t + (b[0] - a[0]) * o; }
-      else { x = -L + 0.2 + (r % 1000) / 1000 * (2 * L - 0.4); z = -L + 0.2 + ((r >> 10) % 1000) / 1000 * (2 * L - 0.4); if (inHouse(x, z, 0.1)) return null; }
+      else { x = -L + 0.2 + (r % 1000) / 1000 * (2 * L - 0.4); z = -L + 0.2 + ((r >> 10) % 1000) / 1000 * (2 * L - 0.4); if (inHouse(x, z, 0.1) || nearPuddle(x, z, 0.06)) return null; }
       return [snapPos(x), snapPos(z)];
     }
     var deco = {};
@@ -1399,7 +1432,8 @@ var SCENE3D = (function () {
     var SEASON = { mode: 'auto', cur: seasonOfMonth(new Date().getMonth() + 1) };
     function applySeason() {
       var c = SEASON_C[SEASON.cur], g = extStatic.geometry;
-      recolor(g, 10, c.ground); recolor(g, 11, c.tuft); recolor(g, 12, c.path); recolor(g, 13, c.leaf[0]); recolor(g, 14, c.leaf[1]); recolor(g, 15, c.leaf[2]); recolor(g, 16, SEASON.cur === 'spring' ? c.bloom : c.leaf[1]);
+      recolor(g, 10, c.ground); recolor(g, 11, c.tuft); recolor(g, 12, c.path); recolor(g, 17, EXT_WATER[SEASON.cur]);
+      [13, 14, 15].forEach(function (t) { recolor(rustleM.geometry, t, c.leaf[t - 13]); }); recolor(g, 13, c.leaf[0]); recolor(g, 14, c.leaf[1]); recolor(g, 15, c.leaf[2]); recolor(g, 16, SEASON.cur === 'spring' ? c.bloom : c.leaf[1]);
       [2, 3, 4].forEach(function (t) { recolor(treeIM.geometry, t, c.leaf[t - 2]); recolor(coneIM.geometry, t, c.cone[t - 2]); });
       recolor(treeIM.geometry, 5, c.cap); recolor(coneIM.geometry, 5, SEASON.cur === 'winter' ? c.cap : c.cone[2]);
       recolor(treeIM.geometry, 6, SEASON.cur === 'spring' || SEASON.cur === 'autumn' ? c.bloom : c.leaf[1]);
@@ -1501,7 +1535,7 @@ var SCENE3D = (function () {
       Object.keys(XCOUNT).forEach(function (k) { XP[k].obj.visible = XCOUNT[k] > 0; if (XCOUNT[k]) xLayout(k, XCOUNT[k], false); });
     }
     function stepExt(dt) {
-      stepDoor(dt);
+      stepDoor(dt); stepPeekProps(dt);
       if (st.reduced) return;
       xanim.acc += dt; var n = 0;
       while (xanim.acc >= RAIN_DT - 1e-6 && n < 3) { xanim.acc -= RAIN_DT; xanim.step++; n++; Object.keys(XCOUNT).forEach(function (k) { if (XCOUNT[k]) xLayout(k, XCOUNT[k], true); }); }
@@ -1575,7 +1609,7 @@ var SCENE3D = (function () {
     }
     function pathItems(reverse, speed) { var pts = EXT_PATH.map(function (p) { return [p[0], 0, p[1]]; }); pts.push(EXT_P.edge); if (reverse) pts.reverse(); return pts.map(function (p) { return cerWalk(p, speed); }); }
     function departCeremony(onDone) {
-      var items = [];
+      var items = [cerDo(pkReset)];   /* 바깥 기웃 상태가 남아 있으면 지운다 (기웃을 안 쓰면 무동작) */
       if (PLACE.vis !== 'attic' || PLACE.trans) items.push(cerDo(function () { setPlace('attic', { instant: true }); }));
       items.push(cerDo(function () { setOctState('walk'); oct.anchor = 'door'; }));
       items.push(cerWalk(ANCHORS.door, 1.2));                                                      /* 다락 문으로 */
@@ -1593,7 +1627,7 @@ var SCENE3D = (function () {
       var items = [];
       items.push(cerDo(function () {
         if (PLACE.vis !== 'exterior' || PLACE.trans) setPlace('exterior', { instant: true, onSwap: function () {} });
-        oct.pos.copy(V(EXT_P.below)); setOctState('walk'); octDecal.visible = true;
+        pkReset(); oct.pos.copy(V(EXT_P.below)); setOctState('walk'); octDecal.visible = true;
       }));
       items.push(cerWalk(EXT_P.edge, 0, 0.3));                                                     /* 가장자리 아래에서 폴짝 올라옴 */
       items = items.concat(pathItems(true, 1.8).slice(1));
@@ -1607,6 +1641,174 @@ var SCENE3D = (function () {
       items.push(cerDo(function () { oct.anchor = 'door'; if (st.octState === 'walk') setOctState('idle'); }));
       return cerRun('return', items, onDone);
     }
+
+    /* ── 바깥 기웃 (뽈뽈 중 "찾았다!"는 바깥에서): 출발 의식 뒤 문어는 무대 밖(가장자리 아래). 기웃마다 가까운 가장자리에서 폴짝 올라오거나(무대 밖일 때) 앞 자리에서
+       뒤뚱 걸어 그 갈래의 자리로 가고, 상태별 자세·표정으로 ~1.2 s 기웃한 뒤 Promise 를 푼다(말풍선은 APP 이 octScreenPos 로 붙인다). 마지막엔 leaveOutside 가
+       출발 의식과 같은 출구(길 가장자리 → 아래로 폴짝)로 내보내므로 returnCeremony 가 그대로 이어진다. 문어 상태(st.octState)는 'away' 그대로 — 보이기만 한다.
+       경로: 원(소품) + 사각(집·현관) 장애물을 피하는 작은 길목 그래프(최단 거리) — 집을 가로지르지 않는다. 모션 감소 = 자리로 순간이동 · 정지 자세 · 0.4 s ── */
+    var D2R = DEG;
+    var EXT_SPOTS = {   /* x, z (월드 m, extG) · y (앉는 높이) · face (도, 0 = +z · 90 = +x · 45 = 카메라) · 소품 · 동작 · approach (폴짝 직전 발치) */
+      sea:     { x: -0.6, z: 0.6, face: 45, prop: 'puddle', act: 'ripple' },
+      sky:     { x: -1.25, z: 1.3, face: 15, prop: 'tree', act: 'up' },
+      sounds:  { x: 0.1, z: 0.5, face: 110, prop: 'bush', act: 'rustle' },
+      hands:   { x: 1.45, z: 0.6, face: -70, prop: 'mailbox', act: 'mail1' },
+      signs:   { x: -1.15, z: 2.05, face: 5, prop: 'sign' },
+      numbers: { x: 0.15, z: 2.0, face: 0, prop: 'fence', act: 'count' },
+      home:    { x: 1.08, y: 0.12, z: -1.1, face: 75, prop: 'steps', act: 'sit', approach: [1.55, -1.1] },
+      mind:    { x: -2.95, z: 0.55, face: 40, prop: 'conifer' },
+      wild:    { x: 2.95, z: -0.9, face: 95, prop: 'edge' },
+      slow_room:   { x: -0.55, y: 0.14, z: 1.95, face: 40, prop: 'rock', act: 'sit', approach: [0.05, 1.65] },
+      letter_room: { x: 1.45, z: 0.6, face: -70, prop: 'mailbox', act: 'mailOpen' },
+      door_out:    { x: 2.85, z: 0.3, face: 45, prop: 'pathEdge' }
+    };
+    var PK_FENCE = EXT_FENCE.concat([EXT_FENCE_END]);
+    var PK_OBS = [[EXT_MAILBOX[0], EXT_MAILBOX[1], 0.15], [0.5, -0.05, 0.32], [-2.55, 0.05, 0.28], [2.58, -1.45, 0.35], [-0.5, 2.0, 0.22], [EXT_PUDDLE[0], EXT_PUDDLE[1], 0.28]]
+      .concat(EXT_TREES.round.concat(EXT_TREES.cone).map(function (t) { return [t[0], t[1], 0.14]; }))
+      .concat((function () { var o = []; for (var i = 0; i <= 8; i++) { var k = i / 8; o.push([-1.1 + (0.8 + 1.1) * k, 2.55 + 0.11 * k, 0.06]); } return o; })());   /* 울타리 = 원 9 */
+    var PK_RECT = [[EXT.HX0, EXT.HX1, EXT.HZ0, EXT.HZ1], [EXT.HX1, 1.2, EXT.HZC - 0.58, EXT.HZC + 0.58]];   /* 집 · 현관+계단+난간 */
+    var PK_M = 0.3;   /* 문어 몸 여유 (다리 끝은 소품에 살짝 걸쳐도 된다) */
+    var PK_HUBS = [[2.05, 1.0], [0.4, 1.45], [-1.0, 0.65], [-2.3, 1.0], [2.25, -0.5], [-1.9, 2.3]];
+    var PK_ENTRY = [   /* 가장자리 출입구: at = 받침 위, below = 아래(폴짝 출발점 — 출발 의식의 below 와 같은 꼴) */
+      { at: EXT_P.edge, below: EXT_P.below }, { at: [EXT.L - 0.02, 0, -0.75], below: [EXT.L + 0.6, -1.5, -0.35] },
+      { at: [-1.75, 0, EXT.L - 0.02], below: [-1.35, -1.5, EXT.L + 0.6] }, { at: [1.35, 0, EXT.L - 0.02], below: [1.75, -1.5, EXT.L + 0.6] }];
+    var PK_WALK = 1.5;   /* m/s (다락 1.2 · 길 1.8 사이 — 뒤뚱 초당 2.5걸음) */
+    var PK = { on: false, key: '', spot: null, onSpot: false, status: '', hold: false, t: 0, lean: 0, leanNow: 0, sit: 0, shrug: -1, nod: -1, rustle: false, mail: 0, plop: 0, count: -2, emoji: '', first: false, arm: 0, leanQ: 0 };
+    function pkBody(dt) { /* 기웃 자세 → [xz 배율, y 배율, 세로(r)] + PK.leanQ(앞 기댐, 3° 스텝) · PK.arm(다리 끝 들림). 모션 감소 = 정지 자세 (으쓱·까딱 없음) */
+      var red = st.reduced, sx = 1, sy = 1, by = 0, arm = 0;
+      PK.leanNow = red ? PK.lean : PK.leanNow + (PK.lean - PK.leanNow) * Math.min(1, dt * 12);
+      var q = 3 * D2R, lean = Math.round(PK.leanNow / q) * q;
+      if (PK.sit) { sx = 1.06; sy = 0.9; arm = 0.14; }                                  /* 앉음: 납작 + 다리 벌림 */
+      if (PK.shrug >= 0 && !red) { PK.shrug += dt; if (PK.shrug > 0.15 && PK.shrug < 0.55) { by = pxUp() / OCT_R; arm = 0.35; sy *= 1.03; } }   /* 으쓱: 1px 위 + 다리 끝 들림 0.4 s */
+      if (PK.nod >= 0 && !red) { PK.nod += dt; if (PK.nod < 0.12) lean += 9 * D2R; else PK.nod = -1; }                                         /* 까딱 120 ms */
+      PK.leanQ = lean; PK.arm = arm;
+      return [sx, sy, by];
+    }
+    function pkBlocked(x, z) {
+      for (var i = 0; i < PK_OBS.length; i++) { var o = PK_OBS[i]; if (Math.hypot(x - o[0], z - o[1]) < o[2] + PK_M) return true; }
+      for (i = 0; i < PK_RECT.length; i++) { var r = PK_RECT[i]; if (x > r[0] - PK_M && x < r[1] + PK_M && z > r[2] - PK_M && z < r[3] + PK_M) return true; }
+      return false;
+    }
+    function pkClear(a, b) { var d = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(d / 0.08)); for (var i = 1; i < n; i++) { var k = i / n; if (pkBlocked(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k)) return false; } return true; }   /* 양 끝은 검사하지 않는다 (자리·출입구는 소품 곁) */
+    function pkRoute(a, b) { /* 최단 길목 경로 (Dijkstra, 노드 = 시작·길목 6·끝) → 거쳐 갈 점들 (시작 제외, 끝 포함) + 길이 */
+      var N = [a].concat(PK_HUBS, [b]), n = N.length, dist = [], prev = [], done = [], i, j;
+      for (i = 0; i < n; i++) { dist.push(i ? 1e9 : 0); prev.push(-1); done.push(false); }
+      for (var it = 0; it < n; it++) {
+        var u = -1; for (i = 0; i < n; i++) if (!done[i] && (u < 0 || dist[i] < dist[u])) u = i;
+        if (u < 0 || dist[u] >= 1e9) break; done[u] = true; if (u === n - 1) break;
+        for (j = 0; j < n; j++) if (!done[j] && j !== u) { var d = Math.hypot(N[j][0] - N[u][0], N[j][1] - N[u][1]); if (dist[u] + d < dist[j] && pkClear(N[u], N[j])) { dist[j] = dist[u] + d; prev[j] = u; } }
+      }
+      if (dist[n - 1] >= 1e9) return { pts: [b], len: Math.hypot(b[0] - a[0], b[1] - a[1]) + 50 };   /* 길이 없으면 곧장 (일어나지 않게 길목을 둔다) */
+      var pts = []; for (i = n - 1; i > 0; i = prev[i]) pts.unshift(N[i]);
+      return { pts: pts, len: dist[n - 1] };
+    }
+    function spotKey(o) { o = o || {}; if (o.roomId && EXT_SPOTS[o.roomId]) return o.roomId; if (o.corner && EXT_SPOTS[o.corner]) return o.corner; if (typeof o === 'string' && EXT_SPOTS[o]) return o; return 'wild'; }
+    function extSpot(k) { var key = typeof k === 'string' ? (EXT_SPOTS[k] ? k : 'wild') : spotKey(k), sp = EXT_SPOTS[key]; return { key: key, x: sp.x, y: sp.y || 0, z: sp.z, face: sp.face * D2R, prop: sp.prop, act: sp.act || '' }; }
+    function pkPose(o) { PK.lean = 0; PK.sit = 0; PK.shrug = -1; PK.nod = -1; PK.rustle = false; PK.mail = 0; PK.count = -2; if (o) Object.keys(o).forEach(function (k) { PK[k] = o[k]; }); }
+    function pkReset() { pkPose(); PK.on = false; PK.key = ''; PK.spot = null; PK.onSpot = false; PK.hold = false; PK.status = ''; PK.leanNow = 0; rustleM.visible = false; mailOpenM.visible = false; }
+    function pkOff() { pkReset(); octG.visible = false; octDecal.visible = false; setExpression('idle'); }
+    function pkHere() { return [oct.pos.x, oct.pos.z]; }
+    function pkWalkItems(from, to, speed, short) { /* 경로 걷기 마디들. short = 끝 0.5 m 앞에서 멈춤 (시뮬레이션: 멀리서 기웃) */
+      var r = pkRoute(from, to), pts = r.pts.slice();
+      if (short) { var last = pts[pts.length - 1], pv = pts.length > 1 ? pts[pts.length - 2] : from, d = Math.hypot(last[0] - pv[0], last[1] - pv[1]), cut = Math.min(0.5, d);
+        pts[pts.length - 1] = d > 1e-3 ? [last[0] - (last[0] - pv[0]) / d * cut, last[1] - (last[1] - pv[1]) / d * cut] : last; }
+      return pts.map(function (p) { return cerWalk([p[0], 0, p[1]], speed); });
+    }
+    function pkHoldItem(key, status, short, o) {
+      var sp = EXT_SPOTS[key], it = { dur: 0 }, happy = status === 'read' || !!o.first, swapped = false;
+      it.start = function () {
+        it.dur = (st.reduced ? 0.4 : 1.2) * st.speed; PK.hold = true; PK.t = 0; PK.onSpot = !short; PK.status = status;
+        var face = sp.face * D2R;
+        if (short) { var dx = sp.x - oct.pos.x, dz = sp.z - oct.pos.z; if (Math.hypot(dx, dz) > 1e-3) face = Math.atan2(dx, dz); }
+        oct.wantYaw = face; if (st.reduced) oct.faceYaw = face;
+        var act = short ? '' : (sp.act || '');
+        var pose = { lean: 7 * D2R };   /* 기웃 = 앞으로 기댐 */
+        if (status === 'simulated') pose.lean = 12 * D2R;                 /* 멀리서 목을 빼고 */
+        if (status === 'failed') { pose.lean = 0; pose.shrug = 0; }      /* 서서 작게 으쓱 */
+        if (status === 'none' || act === 'sit') { pose.sit = 1; pose.lean = 0; }
+        if (act === 'up') pose.lean = -12 * D2R;                          /* 나무 밑: 올려다보기 */
+        if (act === 'rustle' && !st.reduced) pose.rustle = true;
+        if (act === 'count') pose.count = -1;
+        if (act === 'mailOpen') pose.mail = 1;
+        pkPose(pose);
+        if (act === 'ripple') PK.plop = 1;
+        setExpression(status === 'none' ? 'sleepy' : status === 'failed' ? 'calm' : happy && st.reduced ? 'happy' : 'curious');   /* read/first = curious → happy · builtin·simulated = curious · failed = calm · none = sleepy */
+      };
+      it.update = function (k) {
+        var t = k * it.dur / st.speed; PK.t = t;
+        if (happy && !swapped && (t >= 0.35 || st.reduced)) { swapped = true; setExpression('happy'); }   /* 찾았다 → 폴짝 2 */
+        if (PK.count > -2 && !st.reduced) {   /* 수: 기둥마다 고개 까딱 (0.25 s 간격, 기둥 쪽으로 돌아보며) */
+          var c = Math.min(PK_FENCE.length - 1, Math.floor(t / 0.25));
+          if (c !== PK.count) { PK.count = c; PK.nod = 0; var f = PK_FENCE[c]; oct.wantYaw = Math.atan2(f[0] - oct.pos.x, f[1] - oct.pos.z); }
+        }
+        if (sp.act === 'mail1' && PK.onSpot) PK.mail = t >= 0.5 && t < 0.5 + 1 / 12 ? 1 : 0;   /* 손: 우체통이 딱 한 프레임 열린다 */
+      };
+      it.end = function () { PK.hold = false; PK.mail = 0; PK.rustle = false; };
+      return it;
+    }
+    function cerQueue(name, items, onDone) { /* 출발·기웃·퇴장이 진행 중이면 뒤에 잇는다 (앞 것의 onDone 은 이음매에서 부른다) — 그 밖엔 새 의식 */
+      if (CER.active && /^(depart|peek|leave)$/.test(CER.name)) {
+        var prev = CER.done;
+        CER.q.push(cerDo(function () { CER.name = name; if (prev) prev(); }));
+        CER.q = CER.q.concat(items);
+        return new Promise(function (resolve) { CER.done = function () { if (onDone) onDone(); resolve(); }; });
+      }
+      return cerRun(name, items, onDone);
+    }
+    function peekOutside(o, onDone) {
+      o = o || {}; var key = spotKey(o), status = STATUS_OK[o.status] ? o.status : 'builtin';
+      var plan = cerDo(function () {
+        var sp = EXT_SPOTS[key], items = [], short = status === 'simulated', target = sp.approach || [sp.x, sp.z], from;
+        if (PLACE.vis !== 'exterior' || PLACE.trans) setPlace('exterior', { instant: true, onSwap: function () {} });
+        var onStage = PK.on && octG.visible;
+        PK.key = key; PK.emoji = o.emoji || ''; PK.first = !!o.first; PK.status = status; PK.hold = false;
+        pkPose(); setExpression('idle');
+        if (!onStage) {   /* 무대 밖 → 경로가 가장 짧은 가장자리 출입구에서 폴짝 올라온다 */
+          var best = null; PK_ENTRY.forEach(function (e) { var L2 = pkRoute([e.at[0], e.at[2]], target).len; if (!best || L2 < best.len) best = { e: e, len: L2 }; });
+          oct.pos.copy(V(best.e.below)); octG.visible = true; octDecal.visible = true; PK.on = true; PK.onSpot = false; PK.spot = null;
+          items.push(cerWalk(best.e.at, 0, 0.3)); from = [best.e.at[0], best.e.at[2]];
+        } else {
+          from = pkHere();
+          if (PK.spot && PK.spot.approach && PK.onSpot) { items.push(cerWalk([PK.spot.approach[0], 0, PK.spot.approach[1]], 0, 0.16)); from = PK.spot.approach.slice(); }   /* 계단·돌에서 내려온다 */
+        }
+        PK.onSpot = false; PK.spot = sp;
+        items = items.concat(pkWalkItems(from, target, PK_WALK, short));
+        if (sp.approach && !short) items.push(cerWalk([sp.x, sp.y || 0, sp.z], 0, 0.2));   /* 계단·돌 위로 폴짝 */
+        items.push(pkHoldItem(key, status, short, o));
+        CER.q = items.concat(CER.q);
+      });
+      return cerQueue('peek', [plan], onDone);
+    }
+    var STATUS_OK = { read: 1, builtin: 1, simulated: 1, failed: 1, none: 1 };
+    function leaveOutside(onDone) {
+      var plan = cerDo(function () {
+        var items = [];
+        if (PLACE.vis === 'exterior' && PK.on && octG.visible) {
+          pkPose(); setExpression('idle');
+          var from = pkHere();
+          if (PK.spot && PK.spot.approach && PK.onSpot) { items.push(cerWalk([PK.spot.approach[0], 0, PK.spot.approach[1]], 0, 0.16)); from = PK.spot.approach.slice(); }
+          PK.onSpot = false;
+          items = items.concat(pkWalkItems(from, [EXT_P.edge[0], EXT_P.edge[2]], 1.8, false));   /* 출발 의식과 같은 출구 */
+          items.push(cerWalk(EXT_P.below, 0, 0.3));
+        }
+        items.push(cerDo(function () { pkOff(); oct.pos.copy(V(EXT_P.below)); }));
+        CER.q = items.concat(CER.q);
+      });
+      return cerQueue('leave', [plan], onDone);
+    }
+    var PKP = { acc: 0, step: 0 };
+    function stepPeekProps(dt) { /* 12 fps 스텝: 잔물결(평소 1.5 s 마다 4프레임, 바다 기웃 땐 0.67 s 마다) · 덤불 바스락(±1px 교대) · 우체통 열림 */
+      mailOpenM.visible = PK.mail > 0;
+      var winter = SEASON.cur === 'winter';
+      if (st.reduced) { rippleM.visible = false; rustleM.visible = false; return; }
+      PKP.acc += dt; var adv = false;
+      while (PKP.acc >= RAIN_DT - 1e-6) { PKP.acc -= RAIN_DT; PKP.step++; adv = true; if (PK.plop > 0) PK.plop--; } if (PKP.acc > 1) PKP.acc = 0;
+      if (!adv && PKP.step) return;
+      var fast = PK.hold && PK.key === 'sea' && PK.onSpot, per = fast ? 8 : 18, f = PKP.step % per;
+      rippleM.visible = !winter && f < 4;
+      if (rippleM.visible) { var rr = (2 + 2 * f) * S.pw; rippleM.scale.set(rr, 1, rr); }   /* 반지름 2·4·6·8 px */
+      rustleM.visible = PK.rustle;
+      if (PK.rustle) { var sgn = (PKP.step & 1) ? 1 : -1; rustleM.position.set(snapPos(0.5), 0, snapPos(-0.05)).addScaledVector(_r, sgn * S.pw); rustleM.scale.set(1.12, 1.08 + ((PKP.step >> 1) & 1) * 0.04, 1.12); }
+    }
     extReady = true;
 
     /* ── 입력: 레이캐스트 · 드래그 · 줌 ── */
@@ -1617,7 +1819,7 @@ var SCENE3D = (function () {
       ray.setFromCamera(ndc, camera);
       var list = PLACE.vis === 'exterior' ? [hit] : [hit, glass].concat(posterMeshes, souvMeshes.filter(function (m) { return m.visible; }));   /* 바깥: 문어만 (다락 유리·포스터는 숨은 그룹이라도 레이캐스트엔 걸리므로 뺀다) */
       var hits = ray.intersectObjects(list, false);
-      for (var i = 0; i < hits.length; i++) { var o = hits[i].object; if (o === hit && !octG.visible) continue; return o; }
+      for (var i = 0; i < hits.length; i++) { var o = hits[i].object; if (o === hit && (!octG.visible || st.octState === 'away')) continue; return o; }   /* 바깥 기웃 중(away)엔 문어 탭 없음 */
       return null;
     }
     listen(canvas, 'pointerdown', function (e) {
@@ -1759,6 +1961,9 @@ var SCENE3D = (function () {
       setPlace: function (p, o) { setPlace(p, o); }, place: function () { return PLACE.cur; },
       setSeason: setSeason, season: function () { return SEASON.cur; }, seasonMode: function () { return SEASON.mode; },
       departCeremony: departCeremony, returnCeremony: returnCeremony, ceremony: function () { return CER.name; },
+      /* 바깥 기웃 (docs/SCENE.md "바깥 기웃"): extSpot(corner|roomId) → {key,x,y,z,face(rad),prop,act} · peekOutside({corner, roomId, status, first, emoji}, onDone) → Promise · leaveOutside(onDone) → Promise */
+      extSpot: extSpot, peekOutside: peekOutside, leaveOutside: leaveOutside, EXT_SPOTS: Object.keys(EXT_SPOTS),
+      peek: function () { return { on: PK.on, key: PK.key, hold: PK.hold, onSpot: PK.onSpot, status: PK.status, t: +PK.t.toFixed(2), lean: +(PK.leanQ / DEG).toFixed(1), sit: PK.sit, arm: PK.arm, mail: PK.mail, rustle: PK.rustle && rustleM.visible, ripple: rippleM.visible }; },
       setPosters: setPosters, setSouvenirs: setSouvenirs,
       bubble: bubble, lookAt: function (x, y) { oct.lookTarget = { x: x, y: y }; }, octScreenPos: function () { var p = octScreen(), r = canvas.getBoundingClientRect(); return { x: r.left + p.x - S.offX, y: r.top + p.y - S.offY }; },
       setReducedMotion: function (r) { st.reduced = !!r; lampDirty = true; },
@@ -1788,7 +1993,7 @@ var SCENE3D = (function () {
       debugStep: function (dt) { st.paused = true; cancelAnimationFrame(raf); st.force = true; frame((lastT || 0) + Math.max(0.001, +dt || 1 / 12) * 1000); st.force = false; },
       screenOf: function (x, y, z) { var p = _hp.set(x, y, z).project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 월드 → 컨테이너 CSS px (스트립 크롭 중심) */
       msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
-      motion: function () { return { place: PLACE.vis, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
+      motion: function () { return { place: PLACE.vis, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, peek: PK.on ? PK.key + (PK.hold ? ':hold' : ':walk') : '', extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
       gaitStyle: function (s) { if (s === 'stepped' || s === 'smooth') GAIT.stepped = s === 'stepped'; return GAIT.stepped ? 'stepped' : 'smooth'; },   /* 디버그: 걸음 굴림 3단 스텝(기본) / 매끈 — tools/walk-strip.js 비교용 */   /* 룩 패스 7·8 디버그 */
       stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, season: SEASON.cur, callsAttic: callsBy.attic, callsExt: callsBy.exterior, extProps: extPropN }; },
       refresh: function () { applyItems(); },
