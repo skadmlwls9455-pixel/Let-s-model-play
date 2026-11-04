@@ -9,7 +9,8 @@
 
 ## 고정 앵글 (매 패스 동일)
 `node tools/look-shots.js <pass> [palette]` → `tests/evidence/look/<pass>-{day,night,close}.png` (palette = ramps / apollo / endesga64 / resurrect64, 생략 = 기본값) (360×740 @2x, 시각 14:00 / 22:00 강제, 등불 8칸, 문어 idle at center).
-메트릭 `node tools/look-metrics.js <png>` → 고유 색 수(≤ 팔레트 크기), 엣지 픽셀 비율(2~8%), 평균 밝기, 드로우콜(콘솔), 소품 수.
+메트릭 `node tools/look-metrics.js <png>` → 고유 색 수(≤ 팔레트 크기), 엣지 픽셀 비율(2~8%), 평균 밝기, 평탄 노이즈 블록·스펙클 ‰(정지 시 평평한 면의 디더 — 레버 5), 선 두께(1px/2px), 드로우콜(콘솔), 소품 수.
+요 떨림 비교(레버 5): `node tools/look-shots.js <pass> <palette> 9` → `<pass>-y9-*.png` 를 요 0° 샷과 나란히(선 두께·스펙클이 같은 수준이면 합격).
 
 ## 레버 순서 (중요도 순, 한 패스에 하나)
 | # | 레버 | 바꾸는 것 | 합격 |

@@ -2,7 +2,7 @@
    뽈뽈 문어 — js/scene3d.js (전역 SCENE3D)
    three.js r128 UMD 로 만든 픽셀아트 3D 다락방 + 절차적 문어. DESIGN.md §7.0 §7.1 §13, docs/SCENE.md
    전부 절차적(이미지/모델 파일 없음). 저해상 렌더 타깃 → 풀스크린 후처리(깊이 외곽선·노멀 하이라이트·
-   게이트 디더·OKLab 팔레트 스냅) → Nearest 업스케일. WebGL/THREE 가 없으면 APP 이 SCENE2D 를 쓴다.
+   램프 게이트 디더·OKLab 팔레트 스냅) → Nearest 업스케일. 카메라 타깃·정적 소품·문어는 pixelWorldSize 격자에 스냅. WebGL/THREE 가 없으면 APP 이 SCENE2D 를 쓴다.
    레시피: .claude/skills/cozy-web-game/references/three-pixel-look.md, pixel-look-references.md
    ============================================================ */
 /* global THREE */
@@ -54,6 +54,8 @@ var SCENE3D = (function () {
   }
   function mixHex(a, b, k) { var A = hexToOklab(a), B = hexToOklab(b); return oklabToHex([A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k, A[2] + (B[2] - A[2]) * k]); }
   function hash(s) { s = String(s); var x = 2166136261; for (var i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; }
+  var PX = 1 / PX_PER_M;                                                          /* 아트 픽셀 한 변(월드 m, p=3 줌 1 기준) = 1/18 m ≈ 5.6 cm */
+  function snapPos(v) { return Math.round(v * PX_PER_M) / PX_PER_M; }            /* 정적 소품 위치를 빌드 때 이 격자에 스냅 (룩 패스 5) */
 
   /* 즉흥 램프 (49) + 고정 3 + 문어 램프 5 = 57. 재질 기본색은 늘 이 램프에서 뽑는다 (스냅이 선택 팔레트로 옮긴다) */
   var RAMPS = [['wood', '#8a5a3c', 8], ['paper', '#efe3c8', 4], ['amber', '#ffb462', 6], ['navy', '#22304f', 6], ['moss', '#5f7a3a', 4],
@@ -117,25 +119,28 @@ var SCENE3D = (function () {
     'vec3 nrm(vec2 uv){ return texture2D(tNormal, uv).rgb * 2.0 - 1.0; }',
     'float luma(vec2 uv){ vec3 c = texture2D(tDiffuse, uv).rgb; return dot(c, vec3(0.299, 0.587, 0.114)); }',
     /* 이웃 한 칸: 깊이가 더 멀면 어두운 선(dd), 같은 깊이에서 노멀이 꺾이면 밝은 선(nn) — RenderPixelatedPass 규칙 */
-    'void tap(vec2 uv, vec2 off, float d0, vec3 n0, inout float dd, inout float nn, inout float le, float l0){',
+    'float tap(vec2 uv, vec2 off, float d0, vec3 n0, inout float dd, inout float nn){',
     '  vec2 u2 = uv + off; float d1 = depthM(u2); dd += max(d1 - d0, 0.0);',
     '  vec3 n1 = nrm(u2); float di = clamp(sign((d1 - d0) * 0.25 + 0.0025), 0.0, 1.0);',
     '  float ni = smoothstep(-0.01, 0.01, dot(n0 - n1, vec3(1.0)));',
-    '  nn += (1.0 - dot(n0, n1)) * di * ni; le = max(le, abs(luma(u2) - l0)); }',
+    '  nn += (1.0 - dot(n0, n1)) * di * ni; return luma(u2); }',
+    /* 램프 게이트(룩 패스 5): 한 축의 양쪽 1계 차분이 같은 부호일 때 둘 중 작은 쪽 = 연속 기울기. 1px 이음·외곽선·계단 가장자리·2색 경계는 한쪽 차분이 0 이라 0 → 거기엔 디더가 안 붙는다 */
+    'float ramp(float lm, float l0, float lp){ float a = l0 - lm, b = lp - l0; return (a * b > 0.0) ? min(abs(a), abs(b)) : 0.0; }',
     'void main(){',
     '  vec2 ap = floor(vUv * uRes), px = 1.0 / uRes;',
     '  vec3 c = texture2D(tDiffuse, vUv).rgb;',
     '  vec3 ok = linToOklab(srgbToLinear(c));',
     '  ok.x = (ok.x - 0.5) * 1.03 + 0.5; ok.yz *= 1.07;',                               /* grade: 대비 1.03, 채도 1.07 */
-    '  float d0 = depthM(vUv); vec3 n0 = nrm(vUv); float l0 = luma(vUv); float dd = 0.0, nn = 0.0, le = 0.0;',
-    '  tap(vUv, vec2(px.x, 0.0), d0, n0, dd, nn, le, l0); tap(vUv, vec2(-px.x, 0.0), d0, n0, dd, nn, le, l0);',
-    '  tap(vUv, vec2(0.0, px.y), d0, n0, dd, nn, le, l0); tap(vUv, vec2(0.0, -px.y), d0, n0, dd, nn, le, l0);',
+    '  float d0 = depthM(vUv); vec3 n0 = nrm(vUv); float l0 = luma(vUv); float dd = 0.0, nn = 0.0;',
+    '  float lR = tap(vUv, vec2(px.x, 0.0), d0, n0, dd, nn), lL = tap(vUv, vec2(-px.x, 0.0), d0, n0, dd, nn);',
+    '  float lU = tap(vUv, vec2(0.0, px.y), d0, n0, dd, nn), lD = tap(vUv, vec2(0.0, -px.y), d0, n0, dd, nn);',
     '  float dei = floor(smoothstep(0.06, 0.5, dd) * 2.0) / 2.0 * uOutline;',           /* 깊이 외곽선: 2단 (6 cm 부터) */
     '  float nei = step(0.1, nn) * uOutline * uHasNormal;',                               /* 노멀 하이라이트: 가까운 면만 */
     '  ok.x *= 1.0 - 0.34 * dei;',
     '  ok.x *= (dei < 0.01) ? (1.0 + 0.06 * nei) : 1.0;',
-    '  float gate = smoothstep(0.004, 0.055, le);',                                       /* 디더는 명암이 변하는 곳에만 */
-    '  ok.x += bayer(ap) * uDither * mix(0.12, 1.0, gate);',
+    '  float g = max(ramp(lL, l0, lR), ramp(lD, l0, lU));',                              /* 3탭 연속 기울기 (가로·세로 중 큰 쪽) */
+    '  float gate = smoothstep(0.004, 0.055, g) * (1.0 - smoothstep(0.16, 0.3, g));',     /* 디더는 톤 램프에만: 기울기 0.004~0.055 에서 올라가고, 1px 띠처럼 아주 가파르면 다시 끈다 */
+    '  ok.x += bayer(ap) * uDither * mix(0.125, 1.0, gate);',                            /* 평지 0.05 칸 · 램프 0.4 칸 (uDither = 0.4 × PAL.step × 슬라이더/0.25) */
     '  float bgk = step(uFar - 0.5, d0) * uVig; vec2 vq = (vUv - 0.5) * vec2(uRes.x / uRes.y, 1.0);',   /* 허공(배경)만: 가장자리로 갈수록 어둡게 + 정적 Bayer (비네트) */
     '  ok.x -= bgk * 0.1 * smoothstep(0.3, 0.9, length(vq)); ok.x += bgk * bayer(ap) * 0.06;',
     '  float best = 1e9, bestL = 0.0; int bi = 0;',
@@ -279,9 +284,11 @@ var SCENE3D = (function () {
       post.uniforms.uPalN.value = PAL.list.length;
     }
     uploadPalette();
-    /* 디더 L 진폭 = 슬라이더 × 2 × 팔레트 칸 간격(PAL.step, 최근접 이웃 OKLab 거리 중앙값) → 기본 0.25 에서 ≈ ½ 칸 (램프 0.048 → 0.024, 아폴로 0.061 → 0.030, 엔데스가 0.075 → 0.038, 리저렉트 0.061 → 0.031). 경계에서만 가중 */
+    /* 디더 L 진폭 (룩 패스 5): 램프 위 0.4 × PAL.step, 평지 0.05 × PAL.step (셰이더 mix(0.125, 1, gate)). 슬라이더는 배율 — 0.25(기본) = ×1, 1 = ×4.
+       Apollo step 0.058 → 램프 0.023 · 평지 0.003 (즉흥 0.048 → 0.019/0.002 · Endesga 0.064 → 0.026/0.003). 패스 4 까지는 슬라이더 × 2 × step = ½ 칸이 이음 옆 모든 널 픽셀에 붙어 바닥이 체크무늬였다.
+       카메라 드래그/줌/시점 변경 후 0.3 s 동안 0 (dither.still), 모션 감소면 항상 0 */
     var dither = { base: 0, still: 0 };
-    function ditherBase() { dither.base = st.look.dither * 2 * PAL.step; }
+    function ditherBase() { dither.base = 0.4 * PAL.step * (st.look.dither / 0.25); }
     ditherBase();
     function ditherNow() { return st.reduced ? 0 : (dither.still < 0.3 ? 0 : dither.base); }
 
@@ -290,7 +297,7 @@ var SCENE3D = (function () {
     var camTarget = new T.Vector3(0, 0.75, -0.4), _tg = new T.Vector3(), yawDrag = 0, dragging = false;
     function camTargetNow() { return st.look.focus === 'oct' && octG ? _tg.copy(octG.position).add(_focusUp) : camTarget; }   /* look.focus='oct': 문어 중심 (look-shots close) */
     var _focusUp = new T.Vector3(0, 0.45, 0);
-    var S = { W: 0, H: 0, p: 3, rw: 4, rh: 4, cw: 4, ch: 4, N: PX_PER_M, offX: 0, offY: 0 };
+    var S = { W: 0, H: 0, p: 3, rw: 4, rh: 4, cw: 4, ch: 4, N: PX_PER_M, pw: PX, offX: 0, offY: 0 };   /* pw = pixelWorldSize: 아트 픽셀 한 변(월드 m), resize 에서 프러스텀 폭 / 타깃 폭 */
     function yawDelta() { var y = clamp(yawDrag + st.look.yaw * DEG, -25 * DEG, 25 * DEG); return Math.round(y / (9 * DEG)) * 9 * DEG; }   /* 9° 스냅 */
     var _off = new T.Vector3(), _r = new T.Vector3(), _u = new T.Vector3(), _ax = new T.Vector3(1, 0, 0), _ay = new T.Vector3(0, 1, 0);
     function placeCamera() {
@@ -298,10 +305,14 @@ var SCENE3D = (function () {
       _off.set(0, 0, DIST).applyAxisAngle(_ax, -TILT).applyAxisAngle(_ay, YAW + yawDelta());
       camera.position.copy(tgt).add(_off); camera.lookAt(tgt); camera.updateMatrixWorld();
       _r.setFromMatrixColumn(camera.matrixWorld, 0); _u.setFromMatrixColumn(camera.matrixWorld, 1);
-      var dx = tgt.dot(_r), dy = tgt.dot(_u), N = S.N;
-      camera.position.addScaledVector(_r, Math.round(dx * N) / N - dx).addScaledVector(_u, Math.round(dy * N) / N - dy);
+      snapScreen(camera.position, tgt);   /* 타깃을 카메라 우/상 축 기준 pixelWorldSize 격자에 스냅 → 패닝/추적 중 픽셀 크리프 없음 */
       camera.updateMatrixWorld();
     }
+    function snapScreen(v, ref) { /* v 를 (ref 또는 v 자신의) 카메라 우/상 축 좌표가 S.pw 의 배수가 되도록 옮긴다. 깊이 방향은 그대로 (직교) */
+      ref = ref || v; var pw = S.pw, dx = ref.dot(_r), dy = ref.dot(_u);
+      return v.addScaledVector(_r, Math.round(dx / pw) * pw - dx).addScaledVector(_u, Math.round(dy / pw) * pw - dy);
+    }
+    function snapUp(dy) { var k = S.pw / Math.max(_u.y, 1e-3); return Math.round(dy / k) * k; }   /* 월드 y 오프셋을 화면 세로 픽셀 단위로 (문어 폴짝·걷기 통통) */
     function resize() {
       var W = container.clientWidth || 320, H = container.clientHeight || 240, p = Math.max(st.look.pixelSize | 0 || 3, Math.ceil(W / 480));
       var rw = Math.max(8, Math.floor(W / p)), rh = Math.max(8, Math.floor(H / p));
@@ -310,6 +321,7 @@ var SCENE3D = (function () {
       renderer.setSize(S.cw, S.ch, false); canvas.style.width = S.cw + 'px'; canvas.style.height = S.ch + 'px';
       rt.setSize(rw, rh); rtN.setSize(rw, rh); post.uniforms.uRes.value.set(rw, rh);
       camera.left = -rw / 2 / S.N; camera.right = rw / 2 / S.N; camera.top = rh / 2 / S.N; camera.bottom = -rh / 2 / S.N; camera.updateProjectionMatrix();
+      S.pw = (camera.right - camera.left) / rw;   /* pixelWorldSize = 직교 프러스텀 폭 / 렌더 타깃 폭 (= 1/N: p=3 줌 1 → 1/18 m, p=2 → 1/27, 줌 ×2 → 1/36) */
       placeCamera();
     }
 
@@ -321,7 +333,7 @@ var SCENE3D = (function () {
     sun.target.position.set(0, 0.5, 0); scene.add(sun); scene.add(sun.target);
     var hemi = new T.HemisphereLight(0xffffff, 0x000000, 0.3); scene.add(hemi);
     var fill = new T.DirectionalLight(0xffffff, 0); fill.position.set(6, 3, 8); fill.target.position.set(0, 0.5, 0); scene.add(fill); scene.add(fill.target);   /* 필: 카메라 쪽, 그림자 없음 (뒷벽·왼벽·바닥을 살짝 들어 올린다) */
-    var lampPos = new T.Vector3(-1.6, 1.95, -0.9);
+    var lampPos = new T.Vector3(snapPos(-1.6), 1.95, snapPos(-0.9));
     var lamp = new T.PointLight(C('#ffb066').getHex(), 0, 6, 2); lamp.position.copy(lampPos).add(new T.Vector3(0, -0.1, 0)); scene.add(lamp);
     var candleLight = new T.PointLight(C('#ffb066').getHex(), 0, 2, 2); scene.add(candleLight);   /* 양초 = 두 번째 작은 따뜻한 점광 (0.35, d 2) */
     /* 빛 차폐 (룩 패스 4): 보이지 않는 지붕·앞벽·오른벽. 그림자만 던지고(colorWrite 끔) 노멀 패스에서는 숨긴다 → 태양·달이 창으로만 들어와 바닥에 창 모양 빛 조각 */
@@ -382,7 +394,7 @@ var SCENE3D = (function () {
     var decalMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C('#1b1522'), transparent: true, opacity: 0.42, depthWrite: false }));
     var glowMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[3]), transparent: true, opacity: 0.55, depthWrite: false }));
     function basic(hex) { return keep(new T.MeshBasicMaterial({ color: C(hex) })); }
-    function snapPos(v) { return Math.round(v * PX_PER_M) / PX_PER_M; }   /* 소품 위치를 픽셀-월드 크기에 스냅 */
+    function snapXZ(o) { o.position.x = snapPos(o.position.x); o.position.z = snapPos(o.position.z); return o; }   /* 소품: 바닥 격자(x·z)만 스냅, y 는 올려놓은 면에 맞춘다 */
 
     /* ── 다락방 정적 기하 (룩 패스 2: 밀도·구성) ──
        room   = 그림자 던짐·받음 (바닥·벽·받침·배경 잡동사니) → 드로우콜 1
@@ -407,11 +419,12 @@ var SCENE3D = (function () {
         fz += len; k++;
       }
     }
-    [[0.62, 0.9], [-1.48, -1.62], [1.72, 1.58]].forEach(function (p) { parts.push({ g: box(0.09, 0.012, 0.09), m: M(p[0], 0.0, p[1]), c: MAT.knot }); propCount++; });   /* 옹이·못 3 (1px 점) */
-    /* 디오라마 받침: 바닥보다 0.4 m 큰 두꺼운 판 0.5 m — 위 지층 W1 0.2 + 1px 줄 W3 + 아래 지층 W2 0.23 */
-    parts.push({ g: box(2 * R + 0.4, 0.2, 2 * R + 0.4), m: M(0, -0.2, 0), c: MAT.slabTop });
-    parts.push({ g: box(2 * R + 0.42, 0.07, 2 * R + 0.42), m: M(0, -0.335, 0), c: MAT.slabLine });
-    parts.push({ g: box(2 * R + 0.4, 0.23, 2 * R + 0.4), m: M(0, -0.485, 0), c: MAT.slabBase });
+    [[0.62, 0.9], [-1.48, -1.62], [1.72, 1.58]].forEach(function (p) { parts.push({ g: box(0.09, 0.012, 0.09), m: M(snapPos(p[0]), 0.0, snapPos(p[1])), c: MAT.knot }); propCount++; });   /* 옹이·못 3 (1px 점, 격자 스냅) */
+    /* 디오라마 받침 (룩 패스 5: 치수를 아트 픽셀 배수로 — 돌출 4px(0.222 m) · 위 지층 4px + 1px 줄 + 아래 지층 4px = 9px = 0.5 m. 줄은 0.01 만 돌출해 깊이로 앞에 오되 외곽선(6 cm) 은 안 생긴다) */
+    var SLAB_OV = 4 * PX, SLAB_W = 2 * R + 2 * SLAB_OV;
+    parts.push({ g: box(SLAB_W, 4 * PX, SLAB_W), m: M(0, -2 * PX, 0), c: MAT.slabTop });
+    parts.push({ g: box(SLAB_W + 0.02, PX, SLAB_W + 0.02), m: M(0, -4.5 * PX, 0), c: MAT.slabLine });
+    parts.push({ g: box(SLAB_W, 4 * PX, SLAB_W), m: M(0, -7 * PX, 0), c: MAT.slabBase });
     /* 벽 2면: 가로 널 10줄 0.3 m (창·문 구멍) + 줄 사이 1px 이음(W2, 0.08 m 높이) + 세로 샛기둥 3개씩 */
     for (i = 0; i < 10; i++) {
       var y = 0.15 + i * 0.3, cwall = i % 2 ? MAT.wallA : MAT.wallB, cback = i % 2 ? MAT.wallB : MAT.wallA;
@@ -506,13 +519,14 @@ var SCENE3D = (function () {
       propCount++; })();
     /* 상자 더미 3: 먼 모서리 (0.46 정육면체 W6 + 띠 W3 — 해가 안 드는 모서리라 가장 밝은 나무색) */
     [[-2.26, 0.23, -2.26], [-2.26, 0.23, -1.78], [-2.26, 0.69, -2.02]].forEach(function (c) {
-      parts.push({ g: box(0.46, 0.46, 0.46), m: M(c[0], c[1], c[2]), c: W[6] });
-      parts.push({ g: box(0.48, 0.07, 0.48), m: M(c[0], c[1], c[2]), c: W[3] });
-      parts.push({ g: box(0.07, 0.48, 0.48), m: M(c[0], c[1], c[2]), c: W[3] }); propCount++;
+      var cx = snapPos(c[0]), cz = snapPos(c[2]);
+      parts.push({ g: box(0.46, 0.46, 0.46), m: M(cx, c[1], cz), c: W[6] });
+      parts.push({ g: box(0.48, 0.07, 0.48), m: M(cx, c[1], cz), c: W[3] });
+      parts.push({ g: box(0.07, 0.48, 0.48), m: M(cx, c[1], cz), c: W[3] }); propCount++;
     });
     /* 짜임 깔개 2.3×1.7 (담요 자리 아래, 윗면 y 0.008 < 데칼 0.01): 테 navy3 · 줄무늬 glass1/2 (0.18 m, 그늘에서도 읽히게 밝은 쪽) · 술 paper0 */
     (function () {
-      var RUG = { x: -1.0, z: 1.55, w: 2.3, d: 1.7, h: 0.016 }, bw = 0.14;
+      var RUG = { x: snapPos(-1.0), z: snapPos(1.55), w: 2.3, d: 1.7, h: 0.016 }, bw = 0.14;
       [-1, 1].forEach(function (s) { parts.push({ g: box(RUG.w, RUG.h, bw), m: M(RUG.x, 0, RUG.z + s * (RUG.d / 2 - bw / 2)), c: MAT.rugEdge }); parts.push({ g: box(bw, RUG.h, RUG.d - 2 * bw), m: M(RUG.x + s * (RUG.w / 2 - bw / 2), 0, RUG.z), c: MAT.rugEdge }); });
       var n = 8, sw = (RUG.d - 2 * bw) / n;
       for (var j = 0; j < n; j++) parts.push({ g: box(RUG.w - 2 * bw, RUG.h, sw), m: M(RUG.x, 0, RUG.z - RUG.d / 2 + bw + sw * (j + 0.5)), c: j % 2 ? MAT.rugB : MAT.rugA });
@@ -521,7 +535,7 @@ var SCENE3D = (function () {
     })();
     /* 화분(항상): 창 아래 바닥 (-2.2, 0, 1.4) — 화분 W4 + 흙 + 줄기 + 잎 3 + 끝잎. 이끼 화분(§4 moss)은 등불 1 부터 창턱에 */
     (function () {
-      var px = -2.2, pz = 1.4;
+      var px = snapPos(-2.2), pz = snapPos(1.4);
       parts.push({ g: new T.CylinderGeometry(0.14, 0.11, 0.26, 7), m: M(px, 0.13, pz), c: W[4] });
       parts.push({ g: new T.CylinderGeometry(0.12, 0.12, 0.04, 7), m: M(px, 0.27, pz), c: W[0] });
       parts.push({ g: new T.CylinderGeometry(0.045, 0.045, 0.55, 5), m: M(px, 0.53, pz), c: PAL.moss[1] });
@@ -593,25 +607,25 @@ var SCENE3D = (function () {
     var props = {}, propDecals = null;
     function addProp(key, mesh, decalR) { mesh.castShadow = true; mesh.visible = false; mesh.traverse(function (o) { if (o.isMesh) o.receiveShadow = true; });   /* 룩 패스 4: 닫힌 방이라 소품도 지붕 그림자를 받아야 창 빛 조각만 밝다 */ mesh.userData.decalR = decalR || 0; props[key] = mesh; scene.add(mesh); }
     addProp('moss', new T.Mesh(keep(mergeParts([{ g: new T.CylinderGeometry(0.17, 0.13, 0.24, 8), m: M(0, 0.12, 0), c: W[4] }, { g: new T.SphereGeometry(0.22, 8, 6), m: M(0, 0.3, 0, 0, 0, 0, 1, 0.6, 1), c: PAL.moss[2] }, { g: new T.SphereGeometry(0.12, 7, 5), m: M(0.1, 0.4, 0.06), c: PAL.moss[3] }])), lambert));
-    props.moss.position.set(-R + 0.26, WIN.y0 + 0.04, WIN.z1 - 0.2);
+    props.moss.position.set(-R + 0.26, WIN.y0 + 0.04, WIN.z1 - 0.2); snapXZ(props.moss);
     addProp('crate', new T.Mesh(keep(mergeParts([{ g: box(1.0, 0.72, 0.84), m: M(0, 0.36, 0), c: W[3] }, { g: box(1.04, 0.06, 0.88), m: M(0, 0.36, 0), c: W[2] }, { g: box(0.06, 0.74, 0.88), m: M(0, 0.37, 0), c: W[2] }])), lambert), 0.8);
     props.crate.position.set(snapPos(2.0), 0, snapPos(-0.75));
-    var candleG = new T.Group(); candleG.position.set(2.05, 0.72, -0.8);
+    var candleG = new T.Group(); candleG.position.set(snapPos(2.05), 0.72, snapPos(-0.8));
     candleG.add(new T.Mesh(keep(mergeParts([{ g: new T.CylinderGeometry(0.08, 0.08, 0.3, 7), m: M(0, 0.15, 0), c: PAL.paper[1] }, { g: box(0.03, 0.06, 0.03), m: M(0, 0.32, 0), c: PAL.ink }])), lambert));
     var flame = new T.Mesh(keep(new T.SphereGeometry(0.06, 6, 5)), basic(PAL.amber[4])); flame.position.y = 0.4; candleG.add(flame);
     var candleGlow = new T.Mesh(keep(new T.PlaneGeometry(0.5, 0.5)), glowMat); candleGlow.position.y = 0.4; candleGlow.renderOrder = 5; candleG.add(candleGlow);
-    candleLight.position.set(2.05, 1.15, -0.8);
+    candleLight.position.set(candleG.position.x, 1.15, candleG.position.z);
     addProp('candle', candleG);
     addProp('blanket', new T.Mesh(keep(mergeParts([{ g: box(1.4, 0.12, 1.0, 3, 1, 3), m: M(0, 0.06, 0), c: PAL.rose[1] }, { g: box(1.1, 0.05, 0.3), m: M(0, 0.13, -0.25), c: PAL.rose[2] }])), lambert));
-    props.blanket.position.set(ANCHORS.blanket[0], 0, ANCHORS.blanket[2] + 0.1); props.blanket.castShadow = false;
-    var BOARD = { x: 0.15, y: 1.8, z: -R + 0.08, w: 1.7, h: 1.25 };
+    props.blanket.position.set(snapPos(ANCHORS.blanket[0]), 0, snapPos(ANCHORS.blanket[2] + 0.1)); props.blanket.castShadow = false;
+    var BOARD = { x: snapPos(0.15), y: snapPos(1.8), z: snapPos(-R + 0.08), w: 1.7, h: 1.25 };   /* 룩 패스 5: 보드·선반·포스터 칸·기념품 자리도 격자 스냅 */
     addProp('board', new T.Mesh(keep(mergeParts([{ g: box(BOARD.w, BOARD.h, 0.06), m: M(0, 0, 0), c: W[6] }, { g: box(BOARD.w + 0.1, 0.08, 0.08), m: M(0, BOARD.h / 2, 0), c: W[1] }, { g: box(BOARD.w + 0.1, 0.08, 0.08), m: M(0, -BOARD.h / 2, 0), c: W[1] }, { g: box(0.08, BOARD.h, 0.08), m: M(-BOARD.w / 2, 0, 0), c: W[1] }, { g: box(0.08, BOARD.h, 0.08), m: M(BOARD.w / 2, 0, 0), c: W[1] }])), lambert));
     props.board.position.set(BOARD.x, BOARD.y, BOARD.z); props.board.castShadow = false;
-    var SHELF = { x: -1.55, y: 1.7, z: -R + 0.22 };
+    var SHELF = { x: snapPos(-1.55), y: snapPos(1.7), z: snapPos(-R + 0.22) };
     addProp('shelf', new T.Mesh(keep(mergeParts([{ g: box(1.5, 0.07, 0.4), m: M(0, 0, 0), c: W[2] }, { g: box(0.08, 0.3, 0.3), m: M(-0.6, -0.18, -0.05), c: W[1] }, { g: box(0.08, 0.3, 0.3), m: M(0.6, -0.18, -0.05), c: W[1] }])), lambert));
     props.shelf.position.set(SHELF.x, SHELF.y, SHELF.z);
     addProp('curtain', new T.Mesh(keep(mergeParts([{ g: new T.CylinderGeometry(0.03, 0.03, 2.6, 5), m: M(0, WIN.y1 + 0.25, 0.6, Math.PI / 2, 0, 0), c: W[1] }, { g: box(0.08, 1.5, 0.5, 1, 4, 2), m: M(0, WIN.y1 - 0.5, WIN.z0 - 0.3), c: PAL.navy[4] }, { g: box(0.08, 1.5, 0.5, 1, 4, 2), m: M(0, WIN.y1 - 0.5, WIN.z1 + 0.3), c: PAL.navy[4] }])), lambert));
-    props.curtain.position.set(-R + 0.18, 0, 0); props.curtain.castShadow = false;
+    props.curtain.position.set(snapPos(-R + 0.18), 0, 0); props.curtain.castShadow = false;
     function applyItems() {
       Object.keys(props).forEach(function (k) { props[k].visible = st.items.indexOf(k) >= 0; });
       if (propDecals) { scene.remove(propDecals); propDecals.geometry.dispose(); propDecals = null; }
@@ -624,7 +638,7 @@ var SCENE3D = (function () {
 
     /* ── 포스터 (보드 위 평면) · 기념품 ── */
     var posterMeshes = [], posterMat = keep(new T.MeshPhongMaterial({ color: C(MAT.paper), shininess: 0, specular: 0x000000 })), lastPosterCount = 0;
-    function posterSlot(i) { return [BOARD.x - 0.54 + (i % 3) * 0.54, BOARD.y + 0.3 - Math.floor(i / 3) * 0.6, BOARD.z + 0.05]; }
+    function posterSlot(i) { return [snapPos(BOARD.x - 0.54 + (i % 3) * 0.54), snapPos(BOARD.y + 0.3 - Math.floor(i / 3) * 0.6), BOARD.z + 0.05]; }
     function setPosters(list) {
       list = (list || []).slice(-6);
       var keepIds = {};
@@ -658,8 +672,8 @@ var SCENE3D = (function () {
     function layoutSouvenirs() {
       var shelf = st.items.indexOf('shelf') >= 0;
       souvMeshes.forEach(function (m, i) {
-        if (shelf) m.position.set(SHELF.x - 0.6 + (i % 6) * 0.24, SHELF.y + 0.035 + m.userData.h, SHELF.z + (i >= 6 ? -0.1 : 0.05));
-        else m.position.set(-R + 0.26, WIN.y0 + 0.04 + m.userData.h, WIN.z0 + 0.15 + (i % 3) * 0.26);
+        if (shelf) m.position.set(snapPos(SHELF.x - 0.6 + (i % 6) * 0.24), SHELF.y + 0.035 + m.userData.h, snapPos(SHELF.z + (i >= 6 ? -0.1 : 0.05)));
+        else m.position.set(snapPos(-R + 0.26), WIN.y0 + 0.04 + m.userData.h, snapPos(WIN.z0 + 0.15 + (i % 3) * 0.26));
         m.visible = shelf || i < 3;
       });
     }
@@ -708,7 +722,7 @@ var SCENE3D = (function () {
     var hit = new T.Mesh(keep(new T.SphereGeometry(1.6, 8, 6)), keep(new T.MeshBasicMaterial({ visible: false }))); hit.position.y = 0.7; hit.userData.kind = 'oct'; bodyG.add(hit);   /* 반지름 0.67 m ≈ 72 CSS px (p=3) ≥ 44 */
     var carry = new T.Mesh(posterGeo, posterMat); carry.receiveShadow = true; carry.position.set(1.0, 0.95, 0.6); carry.rotation.set(0, 0.5, 0.15); carry.scale.setScalar(1.6); carry.visible = false; bodyG.add(carry);
     var octDecal = new T.Mesh(keep(new T.PlaneGeometry(3.2, 3.2)), decalMat); octDecal.rotation.x = -Math.PI / 2; octDecal.position.y = 0.01; octDecal.renderOrder = 1; octG.add(octDecal);   /* 접지 그림자 1.34 m (다리 끝까지) */
-    var oct = { anchor: 'window', walking: null, faceYaw: 0, wantYaw: 0, blinkT: 2 + Math.random() * 4, blinkLeft: 0, animT: 0, hop: 0, flushK: 0, pointer: null, lookTarget: null };
+    var oct = { anchor: 'window', pos: new T.Vector3(), walking: null, faceYaw: 0, wantYaw: 0, blinkT: 2 + Math.random() * 4, blinkLeft: 0, animT: 0, hop: 0, flushK: 0, pointer: null, lookTarget: null };
     var octTags = [headGeo, lidGeo].concat(arms.map(function (m) { return m.geometry; }));
     function octColor(hex) { octTags.forEach(function (g) { recolor(g, 1, hex); }); }
     function setColor(hex) {
@@ -720,23 +734,24 @@ var SCENE3D = (function () {
     }
     function anchorPos(name) { var p = ANCHORS[name] || ANCHORS.center; return new T.Vector3(p[0], name === 'blanket' && st.items.indexOf('blanket') >= 0 ? 0.12 : 0, p[2]); }
     function camYaw() { return YAW + yawDelta(); }
-    function jumpTo(anchor) { if (oct.walking) { oct.walking.cancel(); oct.walking = null; } oct.anchor = anchor; octG.position.copy(anchorPos(anchor)); oct.wantYaw = oct.faceYaw = camYaw(); }
+    /* 문어 위치: oct.pos 가 논리 위치(보간·앵커), octG.position 은 매 프레임 그걸 카메라 우/상 축 픽셀 격자에 스냅한 값 (룩 패스 5: 걷는 동안 반 픽셀 금지). 스냅을 매 프레임 논리값에서 새로 하므로 요가 바뀌어도 누적 표류 없음 */
+    function jumpTo(anchor) { if (oct.walking) { oct.walking.cancel(); oct.walking = null; } oct.anchor = anchor; oct.pos.copy(anchorPos(anchor)); snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = camYaw(); }
     function moveTo(anchor) {
-      var to = anchorPos(anchor), from = octG.position.clone();
+      var to = anchorPos(anchor), from = oct.pos.clone();
       oct.anchor = anchor;
       if (oct.walking) { oct.walking.cancel(); oct.walking = null; }
       var d = to.clone().sub(from), dist = d.length();
       function done() { if (on.anchorReached) on.anchorReached(anchor); }
-      if (st.reduced || dist < 0.05) { octG.position.copy(to); oct.wantYaw = camYaw(); done(); return Promise.resolve(anchor); }
+      if (st.reduced || dist < 0.05) { oct.pos.copy(to); snapScreen(octG.position.copy(to)); oct.wantYaw = camYaw(); done(); return Promise.resolve(anchor); }
       oct.wantYaw = Math.atan2(d.x, d.z);
       var dur = dist / 1.2 * st.speed, hopDur = 0.3 * st.speed, k = 0, cancelled = false;
       return new Promise(function (resolve) {
         oct.walking = { cancel: function () { cancelled = true; }, step: function (dt) {
           if (cancelled) return;
           k += dt;
-          if (k < dur) { octG.position.lerpVectors(from, to, k / dur); return; }
+          if (k < dur) { oct.pos.lerpVectors(from, to, k / dur); return; }
           var hk = (k - dur) / hopDur;
-          if (hk < 1) { octG.position.copy(to); oct.hop = Math.sin(hk * Math.PI) * 0.4; return; }
+          if (hk < 1) { oct.pos.copy(to); oct.hop = Math.sin(hk * Math.PI) * 0.4; return; }
           oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(anchor);
         } };
       });
@@ -784,6 +799,7 @@ var SCENE3D = (function () {
       var s = st.octState, t = time, red = st.reduced;
       oct.animT += dt;
       if (oct.walking) oct.walking.step(dt);
+      snapScreen(octG.position.copy(oct.pos));   /* 화면 픽셀 격자에 스냅 (걷기 보간은 oct.pos 에서 매끄럽게, 보이는 위치는 정수 픽셀) */
       /* 방향 */
       var dy = oct.wantYaw - oct.faceYaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
       oct.faceYaw += red ? dy : dy * Math.min(1, dt * 8); octG.rotation.y = oct.faceYaw;
@@ -799,7 +815,7 @@ var SCENE3D = (function () {
         if (s === 'happy' && oct.hopsLeft > 0) { var hk = (oct.animT % 0.45) / 0.45; by += Math.sin(hk * Math.PI) * 0.5; if (oct.animT > 0.9) oct.hopsLeft = 0; }
         if (oct.wiggle > 0) { oct.wiggle -= dt; bodyG.rotation.z = Math.sin(oct.wiggle * 30) * 0.1 * oct.wiggle; }
       } else if (s === 'sleep') sy = 0.95;
-      bodyG.scale.set(sx, sy, sx); bodyG.position.y = by;
+      bodyG.scale.set(sx, sy, sx); bodyG.position.y = snapUp(by * OCT_R) / OCT_R;   /* 폴짝·통통도 세로 정수 픽셀로 */
       /* 다리 */
       for (var i = 0; i < 8; i++) {
         var arm = arms[i], base = 0;   /* 0 = 끝이 바닥에 닿은 자세. 흔들림은 위로만 (바닥을 뚫지 않게) */
@@ -961,7 +977,7 @@ var SCENE3D = (function () {
         else { var base = PAL.list.slice(0, PAL.list.length - PAL.oct.length); for (var i = 0; i < base.length; i += 8) out.push({ name: PAL.source + ' ' + (i / 8 + 1), colors: base.slice(i, i + 8) }); }
         out.push({ name: 'oct', colors: PAL.oct }); return out;
       },
-      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour) }; },
+      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour) }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastT = 0; loop(); },
       destroy: function () {
