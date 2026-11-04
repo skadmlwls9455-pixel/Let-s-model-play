@@ -322,12 +322,22 @@ var SCENE3D = (function () {
     var camera = new T.OrthographicCamera(-1, 1, 1, -1, 0.1, 60);
     var camTarget = new T.Vector3(0, 0.75, -0.4), _tg = new T.Vector3(), yawDrag = 0, dragging = false;
     var EXT_TARGET = new T.Vector3(0.4, 1.55, 0.0);   /* 바깥 디오라마 카메라 타깃 (같은 요·틸트·픽셀 밀도; 집 용마루·굴뚝과 오른쪽 아래 가장자리 출구가 한 화면에) */
-    function camTargetNow() {   /* look.focus='oct': 문어 중심 (look-shots close). 장소 그룹은 순수 평행이동이라 부모 위치를 더하면 월드 좌표 */
-      if (st.look.focus === 'oct' && octG) { _tg.copy(octG.position).add(_focusUp); if (octG.parent) _tg.add(octG.parent.position); return _tg; }
-      return PLACE.vis === 'exterior' ? EXT_TARGET : camTarget;
+    function camTargetNow() {   /* look.focus='oct': 문어 중심 (look-shots close). 장소 그룹은 순수 평행이동이라 부모 위치를 더하면 월드 좌표. 입장 연출 중이면 그 위로 introOffset() 만큼 (하늘) */
+      var b;
+      if (st.look.focus === 'oct' && octG) { _tg.copy(octG.position).add(_focusUp); if (octG.parent) _tg.add(octG.parent.position); b = _tg; }
+      else b = PLACE.vis === 'exterior' ? EXT_TARGET : camTarget;
+      return INTRO.on ? _ti.copy(b).setY(b.y + introOffset()) : b;
     }
     var PLACE = { cur: 'attic', vis: 'attic', trans: null, fade: 0 };   /* cur = 요청된 장소, vis = 지금 그려지는 장소 (전환 앞 절반은 나가는 쪽) */
-    var _focusUp = new T.Vector3(0, 0.45, 0);
+    var _focusUp = new T.Vector3(0, 0.45, 0), _ti = new T.Vector3();
+    /* ── 입장 연출 (docs/UI_ART.md "입장"): 하늘에서 내려오는 카메라. 직교라 타깃을 위로 올리면 = 하늘을 보는 것 → 구름층을 지나 비를 뚫고 다락에 착지.
+       움직이는 건 타깃 y 오프셋 하나뿐이고, 픽셀 격자 스냅은 placeCamera 의 snapScreen 이 그대로 해 준다 (서브픽셀 크리프 없음, 스텝은 정수 px).
+       곡선: 0~86 % easeOutCubic 으로 H → 0, 72~100 % 에 착지 눌림(D = 아트 3px 만큼 더 내려갔다가 사인으로 복귀). 모션 감소면 연출 없이 바로 착지. */
+    var INTRO = { on: false, t: 0, dur: 2.2, H: 0, D: 0, resolve: null, sky: null, acc: 0, hold: false };
+    function introOffset() {
+      var k = clamp(INTRO.t / INTRO.dur, 0, 1), u = clamp(k / 0.86, 0, 1);
+      return INTRO.H * Math.pow(1 - u, 3) - (k > 0.72 ? INTRO.D * Math.sin(Math.PI * clamp((k - 0.72) / 0.28, 0, 1)) : 0);
+    }
     var S = { W: 0, H: 0, p: DEF_P, rw: 4, rh: 4, cw: 4, ch: 4, N: SNAP_N, pw: PX, offX: 0, offY: 0 };   /* pw = pixelWorldSize: 아트 픽셀 한 변(월드 m), resize 에서 프러스텀 폭 / 타깃 폭 */
     function yawDelta() { var y = clamp(yawDrag + st.look.yaw * DEG, -25 * DEG, 25 * DEG); return Math.round(y / (9 * DEG)) * 9 * DEG; }   /* 9° 스냅 */
     var _off = new T.Vector3(), _r = new T.Vector3(), _u = new T.Vector3(), _ax = new T.Vector3(1, 0, 0), _ay = new T.Vector3(0, 1, 0);
@@ -1870,12 +1880,166 @@ var SCENE3D = (function () {
     /* ── 루프 ── */
     var candleT = 0, loggedBy = { attic: false, exterior: false }, callsBy = { attic: 0, exterior: 0 }, framesBy = { attic: 0, exterior: 0 };
     var perf = { ring: new Float32Array(60), n: 0, i: 0, sum: 0, cnt: 0, auto: 0 };   /* 디버그 통계 (룩 패스 7): 마지막 60 렌더 프레임의 ms/frame (stats().ms). sum/cnt = 첫 2 s 누적 (자동 픽셀 폴백, 룩 패스 8) */
+    /* ── 입장 하늘: 구름 퍼프(알파 테스트 쿼드, 텍스처 1텍셀 = 아트 1px) · 하늘 비(1px 세로줄, 12 fps 스텝) / 눈 / 별. 연출 동안만 존재하고 착지하면 버린다 ──
+       구름 색은 시각대로: 밤 = 남회색, 노을·새벽 = 웜 베이지, 낮 = 밝은 회색 (Apollo 칸). 노멀 패스에선 숨긴다 (쿼드 테두리가 노멀 하이라이트로 새지 않게) */
+    var CLOUD = { w: 112, h: 56, n: 4 };   /* 퍼프 한 칸 112×44 텍셀 = 아트 112×44 px (1:1 — 장면과 같은 픽셀 밀도), 아틀라스 4칸 */
+    function cloudTex(night, warm, far) {
+      var W = CLOUD.w * CLOUD.n, H = CLOUD.h, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var x = cv.getContext('2d');
+      var col = night ? (far ? ['#577277', '#394a50', '#202e37'] : ['#819796', '#577277', '#394a50'])
+        : warm ? (far ? ['#c09473', '#ad7757', '#7a4841'] : ['#e7d5b3', '#d7b594', '#ad7757'])
+        : (far ? ['#c7cfcc', '#a8b5b2', '#819796'] : ['#ebede9', '#c7cfcc', '#a8b5b2']);
+      for (var v = 0; v < CLOUD.n; v++) {   /* 모양 4가지: 겹친 원 5~7개, 밑면은 평평하게 (적운) */
+        var blobs = [], n = 5 + (hash('cloud' + v) % 3), ox = v * CLOUD.w, bottom = H - 6;
+        for (var i = 0; i < n; i++) { var q = hash('cb' + v + '_' + i), t = (i + 0.5) / n, rad = 9 + ((q >>> 9) % 7) + Math.round(8 * Math.sin(Math.PI * t)); blobs.push([10 + t * (CLOUD.w - 20) + ((q % 9) - 4), bottom - rad * 0.55 - ((q >>> 4) % 5), rad]); }
+        var inside = function (px, py) { if (py > bottom) return false; for (var j = 0; j < blobs.length; j++) { var dx = px - blobs[j][0], dy = py - blobs[j][1]; if (dx * dx + dy * dy <= blobs[j][2] * blobs[j][2]) return true; } return false; };
+        for (var py = 0; py < H; py++) for (var px = 0; px < CLOUD.w; px++) {
+          if (!inside(px, py)) continue;
+          x.fillStyle = !inside(px, py - 3) ? col[0] : (py > bottom - 5 || !inside(px, py + 3)) ? col[2] : col[1];   /* 윗면 3px 밝게 · 밑면 어둡게 (빛은 위에서) */
+          x.fillRect(ox + px, py, 1, 1);
+        }
+      }
+      var t = new T.CanvasTexture(cv); t.magFilter = T.NearestFilter; t.minFilter = T.NearestFilter; t.generateMipmaps = false; t.encoding = T.sRGBEncoding; return t;
+    }
+    function canvasTex(cv) { var t = new T.CanvasTexture(cv); t.magFilter = T.NearestFilter; t.minFilter = T.NearestFilter; t.generateMipmaps = false; t.encoding = T.sRGBEncoding; return t; }
+    function buildSky() {
+      var ph = phaseOf(st.hour), night = ph === 'night', warm = ph === 'dusk' || ph === 'dawn', w = st.weather, g = new T.Group(), sky = { g: g, list: [], clouds: [] };
+      var mats = [false, true].map(function (far) {   /* 구름 그림: js/clouds.js (몽글한 적운, 날씨 × 시각대 램프). 없으면 예전 간단한 퍼프 */
+        var tex = typeof CLOUDS !== 'undefined' ? canvasTex(CLOUDS.atlas({ weather: w, phase: ph, far: far, w: CLOUD.w, h: CLOUD.h, n: CLOUD.n })) : cloudTex(night, warm, far);
+        var m = new T.MeshBasicMaterial({ map: tex, alphaTest: 0.5, depthWrite: false }); sky.list.push(tex, m); return m;   /* 깊이에 안 쓴다 → 후처리 깊이 외곽선이 구름끼리 겹친 곳에 금을 긋지 않는다 (다락 뒤면 깊이 테스트로 가려진다) */
+      });
+      var fwd = new T.Vector3(); camera.getWorldDirection(fwd);
+      var base = camTarget, VW = S.rw / S.N, VH = (S.rh / S.N) / Math.max(_u.y, 0.3), top = base.y + INTRO.H;
+      var nC = w === 'clear' ? 5 : w === 'drizzle' ? 11 : 16;
+      for (var i = 0; i < nC; i++) {
+        /* 먼 층(어둡고, 카메라를 30 % 따라와 느리게 흐름) · 가까운 층(밝고, 월드에 고정 = 빨리 지나감) → 직교 카메라에서도 깊이가 생긴다 (패럴랙스) */
+        var r = hash('cl' + i), far = i % 3 !== 0, gw = CLOUD.w / S.N, gh = CLOUD.h / S.N;
+        var geo = new T.PlaneGeometry(gw, gh), uv = geo.attributes.uv.array, v0 = (r % CLOUD.n) / CLOUD.n;
+        for (var j = 0; j < uv.length; j += 2) uv[j] = v0 + uv[j] / CLOUD.n;
+        var m = new T.Mesh(geo, mats[far ? 1 : 0]); m.quaternion.copy(camera.quaternion); m.renderOrder = (far ? 5 : 40) + i;   /* 쌓는 순서: 먼 층 → 가까운 층, 층 안은 번호순 (깊이를 안 쓰니 순서로) */
+        var sx = ((i + 0.5) / nC - 0.5) * VW * 1.25 + (((r >>> 6) % 100) / 100 - 0.5) * 1.2;
+        /* 시작 높이: 착지했을 때 화면 위 가장자리(base + 0.62 VH) + 구름 높이 + 패럴랙스로 따라 내려오는 거리 위 → 끝나면 반드시 화면 밖. 위로는 출발 화면 위 바깥까지 */
+        var par = far ? 0.3 : 0, y0 = Math.max(base.y + 0.62 * VH + gh + INTRO.H * par, top - 0.35 * VH), y1 = top + 0.85 * VH;
+        /* 깊이: 층 안에서는 1 cm 씩만 (후처리 깊이 외곽선 문턱 6 cm 아래 → 같은 층 구름끼리 겹쳐도 금 간 선이 안 생긴다), 먼 층과 가까운 층 사이만 3 m */
+        m.userData = { sx: sx, z: (far ? -4 : -1) - i * 0.01, y: y0 + ((r >>> 16) % 1000) / 1000 * (y1 - y0), par: par };
+        g.add(m); sky.list.push(geo); sky.clouds.push(m);
+      }
+      sky.fwd = fwd; sky.VW = VW;
+      if (w === 'rain' || w === 'drizzle') {   /* 비 두 층: 먼 층(짧고 어둡게) · 가까운 층(길고 밝게) */
+        var n = w === 'rain' ? 90 : 45;
+        sky.rain = [{ n: Math.round(n * 0.55), obj: lines(Math.round(n * 0.55), PAL.glass[1]), sp: 6, lens: [3, 5] }, { n: Math.round(n * 0.45), obj: lines(Math.round(n * 0.45), PAL.glass[3]), sp: 9, lens: [5, 8] }];
+        sky.rain.forEach(function (L, li) { scene.remove(L.obj); g.add(L.obj); sky.list.push(L.obj.geometry, L.obj.material); L.s = []; for (var q = 0; q < L.n; q++) L.s.push(skyDrop(li, q, 0, true)); });
+      } else if (w === 'snow') {
+        sky.snow = points(70, PAL.paper[3]); scene.remove(sky.snow); g.add(sky.snow); sky.list.push(sky.snow.geometry, sky.snow.material);
+        sky.flakes = []; for (var f = 0; f < 70; f++) sky.flakes.push(skyDrop(9, f, 0, true));
+      } else if (night || ph === 'dusk') {   /* 맑은 밤: 별 (정지 — 카메라가 내려가면 위로 흘러간다) */
+        var st2 = points(46, PAL.white); scene.remove(st2); g.add(st2); sky.list.push(st2.geometry, st2.material);
+        var a = st2.geometry.attributes.position.array;
+        for (var s2 = 0; s2 < 46; s2++) { var rs = hash('isky' + s2); _wp.copy(base).addScaledVector(_r, ((rs % 1000) / 1000 - 0.5) * VW).setY(3.6 + ((rs >>> 10) % 1000) / 1000 * (INTRO.H + 3)).addScaledVector(fwd, -6); snapC(_wp); a[s2 * 3] = _wp.x; a[s2 * 3 + 1] = _wp.y; a[s2 * 3 + 2] = _wp.z; }
+        st2.geometry.attributes.position.needsUpdate = true;
+      }
+      scene.add(g); return sky;
+    }
+    function skyDrop(li, i, cyc, init) {   /* 하늘 낙하물 하나: 화면 가로 위치 · 깊이 · 월드 y · 길이. init 이면 출발 화면 전체에, 아니면 viewY 근처에 */
+      var r = hash('sk' + li + '_' + i + '_' + cyc);
+      return { c: cyc, x: ((r % 1000) / 1000 - 0.5) * 1.15, z: -0.5 - ((r >>> 10) % 10) * 0.35, y: init ? 3.4 + ((r >>> 14) % 1000) / 1000 * (INTRO.H + 4) : 0, len: 0, r: r };
+    }
+    function skyLayout(advance) {
+      var sky = INTRO.sky; if (!sky) return;
+      var k = pxUp(), tg = camTargetNow(), vh = (S.rh / S.N) / Math.max(_u.y, 0.3), top = tg.y + vh * 0.6, bot = tg.y - vh * 0.6, off = introOffset();
+      sky.clouds.forEach(function (m) { var u = m.userData; m.position.copy(camTarget).addScaledVector(_r, u.sx).setY(u.y - (INTRO.H - off) * u.par).addScaledVector(sky.fwd, u.z); snapScreen(m.position); });   /* 구름은 매 프레임 (먼 층 패럴랙스), 화면 격자에 스냅. y 를 먼저 정하고 시선 방향으로 민다 (직교: 시선 방향 이동은 화면 위치를 안 바꾼다) */
+      var kk = clamp(INTRO.t / INTRO.dur, 0, 1), fade = 1 - clamp((kk - 0.7) / 0.25, 0, 1);   /* 착지 직전 30 % 동안 줄기를 줄인다 (지붕 위로 비가 갑자기 끊기지 않게) */
+      function place(d, li) {   /* 화면 밖(위/아래)으로 나간 줄기는 반대편 가장자리 바로 밖에서 다시 (카메라가 빨리 내려갈 땐 아래에서 올라오는 것처럼 보인다) */
+        if (d.y > top + 0.4) { d.c++; var n1 = skyDrop(li, d.i, d.c, false); d.x = n1.x; d.z = n1.z; d.y = bot - ((n1.r >>> 20) % 100) / 100 * 0.8; }
+        else if (d.y < bot - 1.0) { d.c++; var n2 = skyDrop(li, d.i, d.c, false); d.x = n2.x; d.z = n2.z; d.y = top + ((n2.r >>> 20) % 100) / 100 * 0.8; }
+      }
+      if (sky.rain) sky.rain.forEach(function (L, li) {
+        var a = L.obj.geometry.attributes.position.array, act = Math.round(L.n * fade);
+        L.s.forEach(function (d, i) {
+          d.i = i; if (advance) d.y -= L.sp * k; place(d, li);
+          var len = L.lens[0] + (d.r >>> 4) % (L.lens[1] - L.lens[0] + 1), o = i * 6;
+          if (i >= act || d.y < 3.3) { a[o + 1] = a[o + 4] = -50; return; }   /* 지붕(3.1) 아래로는 안 들어온다 */
+          _wp.copy(camTarget).addScaledVector(_r, d.x * sky.VW).setY(d.y).addScaledVector(sky.fwd, d.z); snapC(_wp);
+          a[o] = _wp.x; a[o + 1] = _wp.y; a[o + 2] = _wp.z; a[o + 3] = _wp.x; a[o + 4] = _wp.y - len * k; a[o + 5] = _wp.z;
+        });
+        L.obj.geometry.attributes.position.needsUpdate = true;
+      });
+      if (sky.snow) {
+        var b = sky.snow.geometry.attributes.position.array, act2 = Math.round(70 * fade);
+        sky.flakes.forEach(function (d, i) {
+          d.i = i; if (advance) { d.y -= ((anim.step + i) & 1) * k; if (hash('fl' + i + '_' + anim.step) % 7 === 0) d.x += ((i & 1) ? 1 : -1) / sky.VW / S.N; }
+          place(d, 9);
+          if (i >= act2 || d.y < 3.3) { b[i * 3 + 1] = -50; return; }
+          _wp.copy(camTarget).addScaledVector(_r, d.x * sky.VW).setY(d.y).addScaledVector(sky.fwd, d.z); snapC(_wp);
+          b[i * 3] = _wp.x; b[i * 3 + 1] = _wp.y; b[i * 3 + 2] = _wp.z;
+        });
+        sky.snow.geometry.attributes.position.needsUpdate = true;
+      }
+    }
+    /* 허공 색 읽기: 다음 프레임 후처리 직후 캔버스 네 변에서 64점을 readPixels 로 읽고(같은 프레임이라 preserveDrawingBuffer 없이도 유효, 1회 동기화),
+       CPU 추정(배경색 → 셰이더와 같은 보정 → 가중 최근접)과 OKLab 0.08 안의 색 중 가장 많이 나온 것. 폰에선 가장자리에 바닥·벽이 걸리므로 추정 근처만 후보로 본다.
+       연출 중엔 비네트를 끄므로 장면 허공 전체가 이 한 색 */
+    var SKYPX = { want: false, hex: null };
+    function probeSky() {
+      if (!SKYPX.want) return; SKYPX.want = false;
+      var gl = renderer.getContext(), b = new Uint8Array(4), cnt = {}, est = hexToOklab(skyEstimate()), top = null, n = 16, i, pts = [];
+      for (i = 0; i < n; i++) { var fx = Math.floor(i * (S.cw - 1) / (n - 1)), fy = Math.floor(i * (S.ch - 1) / (n - 1)); pts.push([fx, 0], [fx, S.ch - 1], [0, fy], [S.cw - 1, fy]); }
+      pts.forEach(function (p) {
+        gl.readPixels(p[0], p[1], 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, b);
+        var hx = rgbHex([b[0] / 255, b[1] / 255, b[2] / 255]), q = hexToOklab(hx);
+        if (Math.hypot(q[0] - est[0], q[1] - est[1], q[2] - est[2]) > 0.08) return;
+        cnt[hx] = (cnt[hx] || 0) + 1; if (!top || cnt[hx] > cnt[top]) top = hx;
+      });
+      if (top) SKYPX.hex = top;
+    }
+    function skyHex() { SKYPX.want = true; return SKYPX.hex || skyEstimate(); }
+    function skyEstimate() {
+      var lab = hexToOklab((light.to && light.to.bg) || LIGHTS.night.bg), L = (lab[0] - 0.5) * 1.03 + 0.5, A = lab[1] * 1.07, B = lab[2] * 1.07, best = 1e9, bestL = 0, out = PAL.list[0];
+      PAL.list.forEach(function (h) { var q = hexToOklab(h), d = Math.pow(L - q[0], 2) + Math.pow((A - q[1]) * 1.3, 2) + Math.pow((B - q[2]) * 1.3, 2); if (d < best - 0.0005 || (d < best + 0.0005 && q[0] > bestL)) { best = d; bestL = q[0]; out = h; } });
+      return out;
+    }
+    function startIntro(o) {
+      o = o || {};
+      if (INTRO.on) finishIntro();
+      if (st.reduced || o.instant) return Promise.resolve(false);
+      INTRO.dur = clamp(+o.dur || 2.2, 0.6, 6); INTRO.t = 0; INTRO.acc = 0; INTRO.hold = !!o.hold;   /* hold: 착지 뒤에도 비네트를 끈 채로 (입장 레이어가 걷힐 때 introRelease) */
+      placeCamera();   /* _r · _u 갱신 */
+      var vh = (S.rh / S.N) / Math.max(_u.y, 0.3);
+      INTRO.H = (o.height || 1.35) * vh; INTRO.D = 3 * pxUp();   /* 출발 = 방이 화면 아래로 완전히 빠진 높이 · 착지 눌림 아트 3px */
+      INTRO.on = true; dither.still = 0; post.uniforms.uVig.value = 0;   /* 비네트 끔: 허공이 한 색이어야 바깥 덮개와 이음매 없이 이어진다 */
+      INTRO.sky = buildSky(); skyLayout(false);
+      return new Promise(function (res) { INTRO.resolve = res; });
+    }
+    function finishIntro() {
+      if (!INTRO.on) return;
+      INTRO.on = false; dither.still = 0; if (!INTRO.hold) introRelease();
+      var sky = INTRO.sky; INTRO.sky = null;
+      if (sky) {   /* 장면에서는 바로 빼고, GPU 자원 정리는 착지 순간을 피해 1.5 s 뒤 (착지 프레임에 텍스처·버퍼 삭제가 겹치지 않게) */
+        scene.remove(sky.g);
+        setTimeout(function () { sky.list.forEach(function (d) { if (d && d.dispose) d.dispose(); }); }, 1500);
+      }
+      placeCamera();
+      var r = INTRO.resolve; INTRO.resolve = null; if (r) r(true);
+    }
+    function introRelease() { INTRO.hold = false; post.uniforms.uVig.value = hasDepthTex ? 1 : 0; }
+    function applyPendingPixel() {   /* 자동 픽셀 폴백 적용: 입장 연출(하늘·타이틀) 동안은 미룬다 — 연출 한가운데서 픽셀 밀도가 바뀌면 구름·로고와 어긋나고 깜빡인다 */
+      if (!perf.pendingPixel || INTRO.on || INTRO.hold) return;
+      st.look.pixelSize = perf.pendingPixel; st.look.autoPixel = perf.pendingPixel; perf.pendingPixel = 0; resize(); dither.still = 0;
+    }
+    function stepIntro(dt) {
+      if (!INTRO.on) return;
+      INTRO.t += dt; dither.still = 0;   /* 움직이는 동안 디더 끔 (드래그와 같은 규칙) */
+      INTRO.acc += dt; var adv = INTRO.acc >= RAIN_DT - 1e-6; if (adv) INTRO.acc = 0;
+      skyLayout(adv);
+      if (INTRO.t >= INTRO.dur) finishIntro();
+    }
     function frame(ts) {
       var dt = lastT ? Math.min(0.1, (ts - lastT) / 1000) : 0.016; lastT = ts; time += dt; frameNo++;
       if (st.lost) return;
       var idle = (st.octState === 'idle' || st.octState === 'sleep' || st.octState === 'stay') && !oct.walking && !(G.settleT < GAIT.settle) && !dragging && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !CER.active;
       if (idle && (frameNo & 1) && !st.force) return;   /* 가만히 있을 땐 30fps (debugStep 은 강제 렌더) */
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+      applyPendingPixel();
       if (light.t < 1) { light.t = Math.min(1, light.t + dt / light.dur); applyLight(); if (light.t >= 1) light.from = null; }
       if (lampDirty) applyLamp();
       if (!st.reduced && st.lantern > 0) { lampGlow.material.opacity = glowOpacity() + Math.sin(Math.floor(time * 8) / 8 * 2) * 0.03 * (light.glow || 0.7) / 0.7; }   /* 글로우 맥동 8 fps 스텝 */
@@ -1895,20 +2059,20 @@ var SCENE3D = (function () {
       stepTrans(dt); stepCer(dt);   /* 장소 전환 · 출발/귀가 의식 (바깥·계절·전환) */
       if (atticG.visible) stepWeather(dt); if (extG.visible) stepExt(dt);
       post.uniforms.uFade.value = PLACE.fade; if (PLACE.fade > 0) { var fk = hexToOklab(LIGHTS[phaseOf(st.hour)].bg); post.uniforms.uFadeOk.value.set(fk[0], fk[1], fk[2]); }
-      stepOct(dt); stepHang(dt);
+      stepOct(dt); stepHang(dt); stepIntro(dt);
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(camera.quaternion);
       placeCamera(); updateOverlay();
       renderer.shadowMap.needsUpdate = true;
       renderer.setRenderTarget(rt); renderer.clear(true, true, false); renderer.render(scene, camera);
       calls = renderer.info.render.calls;
-      scene.overrideMaterial = normalMat; var bg = scene.background; scene.background = null; shade.visible = false;   /* 차폐는 노멀 패스에서 숨김 (방 전체를 덮어쓰지 않게) */
+      scene.overrideMaterial = normalMat; var bg = scene.background; scene.background = null; shade.visible = false; if (INTRO.sky) INTRO.sky.g.visible = false;   /* 차폐는 노멀 패스에서 숨김 (방 전체를 덮어쓰지 않게) */
       renderer.setRenderTarget(rtN); renderer.clear(true, true, false); renderer.render(scene, camera);
       scene.overrideMaterial = null;
       calls += renderer.info.render.calls;
       /* 발광 패스 (룩 패스 6): 레이어 1 의 발광 쌍둥이 3개만 (배경 없음 = 검정). 깊이 텍스처가 있으면 뷰티 깊이를 공유하므로 색만 지운다 → 가려진 발광은 안 그려진다 */
       camera.layers.set(1);
       renderer.setRenderTarget(rtE); renderer.clear(true, !hasDepthTex, false); renderer.render(scene, camera);
-      camera.layers.set(0); scene.background = bg; shade.visible = true;
+      camera.layers.set(0); scene.background = bg; shade.visible = true; if (INTRO.sky) INTRO.sky.g.visible = true;
       calls += renderer.info.render.calls;
       if (blurOn) {   /* 분리 블러 가로 → 세로 (풀스크린 삼각형 2회, rtE → rtB → rtE). p ≥ 4 면 생략 */
         quad.material = blurMat;
@@ -1916,13 +2080,13 @@ var SCENE3D = (function () {
         blurMat.uniforms.tSrc.value = rtB.texture; blurMat.uniforms.uDir.value.set(0, 1 / S.rh); renderer.setRenderTarget(rtE); renderer.render(quadScene, quadCam);
         quad.material = post; calls += 2;
       }
-      renderer.setRenderTarget(null); renderer.render(quadScene, quadCam);
+      renderer.setRenderTarget(null); renderer.render(quadScene, quadCam); probeSky();
       calls += 1;
       if (t0) { var ms = performance.now() - t0; perf.ring[perf.i] = ms; perf.i = (perf.i + 1) % 60; if (perf.n < 60) perf.n++; perf.sum += ms; perf.cnt++; }
       /* 자동 픽셀 폴백 (룩 패스 8): 기본 p=2 로 첫 2 s 의 평균 ms/frame(메인 스레드) 이 24 ms 를 넘으면 이 세션만 p=3 (st.look 에만, 저장 X — 데브 슬라이더가 덮어쓸 수 있다) */
       if (!perf.auto && time >= 2 && perf.cnt >= 10) {
         perf.auto = +(perf.sum / perf.cnt).toFixed(2);
-        if (perf.auto > 24 && (st.look.pixelSize | 0) < 3) { st.look.pixelSize = 3; st.look.autoPixel = 3; resize(); dither.still = 0; console.info('[scene3d] auto pixel 3 (first 2 s mean ' + perf.auto + ' ms/frame > 24)'); }
+        if (perf.auto > 24 && (st.look.pixelSize | 0) < 3) { perf.pendingPixel = 3; console.info('[scene3d] auto pixel 3 (first 2 s mean ' + perf.auto + ' ms/frame > 24)'); }   /* 바꾸기는 다음 프레임 렌더 *전에* (렌더 직후 resize 하면 캔버스가 비워진 채 한 프레임이 보인다) · 입장 연출 중이면 연출이 끝난 뒤 */
       }
       if (!PLACE.trans) { var pv = PLACE.vis; callsBy[pv] = calls; framesBy[pv]++;
         if (!loggedBy[pv] && framesBy[pv] > 3) {   /* 장소마다 한 번 (바깥·계절·전환: 두 장소 모두 ≤ 150) */
@@ -1953,6 +2117,8 @@ var SCENE3D = (function () {
       setExpression: setExpression, expression: function () { return face.expr; }, EXPRESSIONS: EXPRESSIONS.slice(),   /* 룩 패스 8: 표정은 상태와 별개 (상태가 기본 표정을 고르고, app.js 가 덮어쓴다) */
       portrait: portrait, portraitURL: portraitURL,   /* 64×64 초상 캔버스 / data URL (표정·몸색·팔레트·배경 키 캐시, opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb') */
       moveTo: moveTo, jumpTo: jumpTo,
+      intro: startIntro, introSkip: finishIntro, introRelease: introRelease, introActive: function () { return INTRO.on; }, introProgress: function () { return INTRO.on ? clamp(INTRO.t / INTRO.dur, 0, 1) : 1; },   /* 입장 연출: intro({ dur, height, instant, hold }) → Promise(착지) · introSkip() 바로 착지 · introRelease() 비네트 복귀 */
+      skyHex: skyHex,   /* 지금 허공(배경)이 화면에 찍히는 색 — 입장 레이어가 장면 밖을 같은 색으로 덮는다 */
       /* 바깥·계절·전환 (DESIGN §15.3, docs/SCENE.md): 장소 'attic' | 'exterior' · 계절 'spring' | 'summer' | 'autumn' | 'winter' | 'auto'(실제 월) · 출발/귀가 의식 (onDone 콜백 + Promise) */
       setPlace: function (p, o) { setPlace(p, o); }, place: function () { return PLACE.cur; },
       setSeason: setSeason, season: function () { return SEASON.cur; }, seasonMode: function () { return SEASON.mode; },

@@ -75,6 +75,7 @@
 | `js/world.js` | 세계 그래프·코너·기념품·집 활동·문구 (데이터만, 전역 `WORLD`) |
 | `js/brain.js` | PRNG, 힌트 매칭, 길 만들기, 위키 fetch, 기억·반응 선택 → 이벤트 배열 (전역 `BRAIN`) |
 | `js/scene3d.js` | Three.js 픽셀아트 3D 다락방 + 문어 (전역 `SCENE3D`, 작업 중) |
+| `js/intro.js` · `css/intro.css` | 입장 레이어: 하늘에서 내려오는 카메라 + 장면 위 타이틀, 누르면 바로 게임 (전역 `INTRO`, [docs/UI_ART.md](docs/UI_ART.md)). `?intro=0` 생략 · `?intro=1` 강제 |
 | `js/app.js` | 상태·영속·마이그레이션, 공개 타이머, 렌더, 포스터 SVG, 데모 조작, 내보내기/불러오기 (전역 `APP`) |
 | `assets/` | 2D 폴백용 플레이스홀더 SVG, `manifest.json`, 캐릭터 레퍼런스 |
 | `vendor/` | `three.min.js` (r128, MIT) |

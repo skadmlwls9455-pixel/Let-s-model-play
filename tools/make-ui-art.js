@@ -5,6 +5,7 @@
  *   node tools/make-ui-art.js sprites    # 스프라이트만 (브라우저 없이, zlib 만)
  *   node tools/make-ui-art.js illust     # 일러스트만 (Playwright + SwiftShader WebGL)
  *   node tools/make-ui-art.js sheet      # 미리보기 시트만 → tests/evidence/ui-art/sheet.png
+ *   node tools/make-ui-art.js clouds     # 입장 하늘 구름 시트만 (js/clouds.js) → tests/evidence/ui-art/clouds.png
  *
  * 스프라이트: tools/ui-art/sprites.js 의 그리드 → Apollo 색 → (outline 이면) 장면 외곽선 규칙으로 1px 선 → PNG 1x.
  * 일러스트: 게임 장면 렌더러(js/scene3d.js)를 그대로 띄워 구도·시각·표정만 고정해 찍는다 → 아트 픽셀 1x 로 줄여 저장.
@@ -176,6 +177,21 @@ async function makeSheet() {
   console.log('  📷 tests/evidence/ui-art/sheet.png');
 }
 
+/* ─────────── 구름 시트 (js/clouds.js, 날씨 4 × 시각대 3 × 가까운/먼 층) ─────────── */
+async function makeClouds() {
+  var { chromium } = require('playwright');
+  var browser = await chromium.launch();
+  var page = await browser.newPage({ viewport: { width: 1960, height: 600 }, deviceScaleFactor: 1 });
+  var errs = []; page.on('pageerror', function (e) { errs.push(e.message); });
+  await page.goto('file://' + path.join(ROOT, 'tools/ui-art/clouds.html'));
+  await page.waitForFunction(function () { return window.CLOUDS_READY === true; }, null, { timeout: 20000 });
+  fs.mkdirSync(EVID, { recursive: true });
+  await page.screenshot({ path: path.join(EVID, 'clouds.png'), fullPage: true });
+  await browser.close();
+  if (errs.length) { console.error('구름 시트 에러:', errs); process.exit(1); }
+  console.log('  ☁ tests/evidence/ui-art/clouds.png');
+}
+
 function updateManifest() {
   if (!Object.keys(OUT).length) return;
   var man = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
@@ -191,4 +207,5 @@ function updateManifest() {
   if (MODE === 'all' || MODE === 'illust') await makeIllust();
   updateManifest();
   if (MODE === 'all' || MODE === 'sheet') await makeSheet();
+  if (MODE === 'all' || MODE === 'clouds') await makeClouds();
 })().catch(function (e) { console.error(e); process.exit(1); });

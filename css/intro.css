@@ -1,0 +1,81 @@
+/* css/intro.css — 입장 레이어 (js/intro.js, docs/UI_ART.md "입장").
+   장면 밖은 장면 허공색(--intro-sky, SCENE3D.skyHex)으로 덮어 장면과 한 화면처럼 잇고, 로고는 장면 아래 가장자리에 걸친다.
+   모든 이동은 JS 가 정수 px(아트 1px × 배율)로 준다. 여기 CSS 는 페이드·스프라이트 스텝만 한다 (transform/opacity 만, 모션 토큰 사용). */
+
+/* ── 스크립트 로드 중 (레이어가 아직 없음): 페이지 전체를 밤하늘색으로, 장면 자리도 비워 둔다 → 베이지 종이·2D 문어가 한순간 비치지 않게.
+      intro.js 가 레이어를 세우면 html.intro-live 가 붙는다. (레이어가 3 s 안에 안 서면 intro.js 가 intro-on 을 걷는다) ── */
+:root.intro-on { background: #090a14; }
+:root.intro-on body, :root.intro-on[data-font] body { background-color: #090a14; background-image: none; }   /* :root[data-font="pixel"] body (0,2,1) 보다 세게 */
+html.intro-on:not(.intro-live) #scene { visibility: hidden; }
+
+/* ── 연출 동안: 아래 UI 는 숨겨 두었다가(아래로 12px), 들어갈 때 차례로 올라온다 ── */
+html.intro-on, html.intro-on body { overflow: hidden; }
+html.intro-on :is(#status, #invite, #log-sec, #album-sec, #demo, .foot) { opacity: 0; transform: translateY(12px); }
+:root.intro-reveal body, :root.intro-reveal[data-font] body { transition: background-color calc(420ms * var(--speed)) linear; }
+html.intro-reveal :is(#status, #invite, #log-sec, #album-sec, #demo, .foot) {
+  transition: opacity var(--t-ui) var(--ease-enter), transform var(--t-ui) var(--ease-enter);
+  transition-delay: calc(120ms * var(--speed));
+}
+html.intro-reveal #invite   { transition-delay: calc(120ms * var(--speed) + var(--t-stagger)); }
+html.intro-reveal #log-sec  { transition-delay: calc(120ms * var(--speed) + var(--t-stagger) * 2); }
+html.intro-reveal #album-sec, html.intro-reveal #demo, html.intro-reveal .foot { transition-delay: calc(120ms * var(--speed) + var(--t-stagger) * 3); }
+/* 장면 테두리도 연출 동안은 감춘다 (허공과 덮개가 이음매 없이 이어지게) */
+/* :root[data-font="pixel"] #scene (1,2,0) 보다 세게: :root.intro-on[data-font] (1,3,0) */
+:root.intro-on[data-font] #scene, :root.intro-on #scene { border-color: transparent; }
+:root.intro-on[data-font] #scene::after, :root.intro-on #scene::after { opacity: 0; }
+:root.intro-on #scene3d, :root.intro-on[data-font] #scene.mode-3d { background: var(--intro-sky, #090a14); }
+:root.intro-reveal[data-font] #scene, :root.intro-reveal #scene, :root.intro-reveal #scene::after { transition: border-color var(--t-scene) linear, opacity var(--t-scene) linear; }
+
+/* ── 레이어 ── */
+.intro { position: fixed; inset: 0; z-index: 80; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+.intro-veil { position: absolute; inset: 0; overflow: hidden; pointer-events: none; transition: opacity calc(420ms * var(--speed)) var(--ease-exit, ease-in); }
+.intro-hole { position: absolute; box-shadow: 0 0 0 200vmax var(--intro-sky, #090a14); }   /* 장면 자리만 뚫린 덮개 (그림자는 정적, 걷힐 땐 부모 opacity) */
+.intro.leaving .intro-veil { opacity: 0; }
+
+.intro-title { position: absolute; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; display: block; outline: none; }
+.intro-title:focus-visible { outline: 2px solid #e8c170; outline-offset: 6px; }
+.intro-lift { position: absolute; inset: 0; display: block; will-change: transform; transform: translateY(calc(var(--s, 2) * 14px)); }
+.intro-logo { display: block; image-rendering: pixelated; image-rendering: crisp-edges; opacity: 0; pointer-events: none; }
+.intro[data-phase="title"] .intro-logo, .intro.risen .intro-logo { opacity: 1; transition: opacity calc(200ms * var(--speed)) linear; }
+.intro.leaving .intro-logo { opacity: 0; transition: opacity calc(240ms * var(--speed)) var(--ease-exit, ease-in) calc(80ms * var(--speed)); }
+.intro-lift.pressed { transform-origin: 50% 100%; scale: 1 .94; }   /* 눌림: 아래 기준으로 살짝 납작 (80ms) */
+
+/* 빛 알갱이 (fx.mote 4칸 스트립 → ×배율). 1.6 s 주기 중 앞 0.4 s 만 깜빡이고 쉰다 */
+.intro-mote { position: absolute; width: calc(var(--s, 2) * 8px); height: calc(var(--s, 2) * 8px); background-repeat: no-repeat;
+  background-size: calc(var(--s, 2) * 32px) calc(var(--s, 2) * 8px); image-rendering: pixelated; opacity: 0; pointer-events: none; }
+.intro.risen .intro-mote { animation: intro-mote calc(1600ms * var(--speed)) step-end infinite; }
+@keyframes intro-mote {
+  0%   { opacity: 1; background-position: 0 0; }
+  6%   { background-position: calc(var(--s, 2) * -8px) 0; }
+  12%  { background-position: calc(var(--s, 2) * -16px) 0; }
+  18%  { background-position: calc(var(--s, 2) * -24px) 0; }
+  24%  { background-position: calc(var(--s, 2) * -8px) 0; }
+  30%  { opacity: 0; }
+  100% { opacity: 0; }
+}
+/* 반짝 (fx.sparkle 4칸) — 다 올라오면 한 번 */
+.intro-spark { position: absolute; width: calc(var(--s, 2) * 8px); height: calc(var(--s, 2) * 8px); background-repeat: no-repeat;
+  background-size: calc(var(--s, 2) * 32px) calc(var(--s, 2) * 8px); image-rendering: pixelated; opacity: 0; pointer-events: none; }
+.intro.risen .intro-spark { animation: intro-spark calc(400ms * var(--speed)) step-end 1 forwards; }
+@keyframes intro-spark {
+  0%   { opacity: 1; background-position: 0 0; }
+  25%  { background-position: calc(var(--s, 2) * -8px) 0; }
+  50%  { background-position: calc(var(--s, 2) * -16px) 0; }
+  75%  { background-position: calc(var(--s, 2) * -24px) 0; }
+  100% { opacity: 0; background-position: calc(var(--s, 2) * -24px) 0; }
+}
+.intro.leaving .intro-mote, .intro.leaving .intro-spark { animation: none; opacity: 0; }
+
+/* 안내: Galmuri9 는 10px 이 제 픽셀 격자 → 10px × 로고 배율 = 로고와 같은 픽셀 밀도 (폰 20px) */
+.intro-hint { position: absolute; left: 0; right: 0; margin: 0; text-align: center; font: 400 calc(var(--s, 2) * 10px)/1 'Galmuri9', 'Galmuri11', 'Noto Sans KR', sans-serif; letter-spacing: 0;
+  color: #c7cfcc; text-shadow: 0 calc(var(--s, 2) * 1px) 0 #090a14; opacity: 0; pointer-events: none; word-break: keep-all; }
+.intro.hinted .intro-hint { opacity: 1; transition: opacity var(--t-ui) linear; animation: intro-blink calc(1200ms * var(--speed)) step-end calc(600ms * var(--speed)) infinite; }
+@keyframes intro-blink { 0% { opacity: 1; } 70% { opacity: .35; } }
+.intro.leaving .intro-hint { animation: none; opacity: 0; transition: opacity calc(150ms * var(--speed)) linear; }
+
+/* ── 모션 감소: 페이드만 (알갱이 한 칸 정지, 깜빡임 없음) ── */
+html.intro-reduced .intro-lift { transform: none; }
+html.intro-reduced .intro.risen .intro-mote { animation: none; opacity: .8; background-position: calc(var(--s, 2) * -8px) 0; }
+html.intro-reduced .intro.risen .intro-spark { animation: none; }
+html.intro-reduced .intro.hinted .intro-hint { animation: none; }
+html.intro-reduced :is(#status, #invite, #log-sec, #album-sec, #demo, .foot) { transform: none !important; }
