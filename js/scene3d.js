@@ -1684,7 +1684,7 @@ var SCENE3D = (function () {
     var perf = { ring: new Float32Array(60), n: 0, i: 0, sum: 0, cnt: 0, auto: 0 };   /* 디버그 통계 (룩 패스 7): 마지막 60 렌더 프레임의 ms/frame (stats().ms). sum/cnt = 첫 2 s 누적 (자동 픽셀 폴백, 룩 패스 8) */
     /* ── 입장 하늘: 구름 퍼프(알파 테스트 쿼드, 텍스처 1텍셀 = 아트 1px) · 하늘 비(1px 세로줄, 12 fps 스텝) / 눈 / 별. 연출 동안만 존재하고 착지하면 버린다 ──
        구름 색은 시각대로: 밤 = 남회색, 노을·새벽 = 웜 베이지, 낮 = 밝은 회색 (Apollo 칸). 노멀 패스에선 숨긴다 (쿼드 테두리가 노멀 하이라이트로 새지 않게) */
-    var CLOUD = { w: 112, h: 44, n: 4 };   /* 퍼프 한 칸 112×44 텍셀 = 아트 112×44 px (1:1 — 장면과 같은 픽셀 밀도), 아틀라스 4칸 */
+    var CLOUD = { w: 112, h: 56, n: 4 };   /* 퍼프 한 칸 112×44 텍셀 = 아트 112×44 px (1:1 — 장면과 같은 픽셀 밀도), 아틀라스 4칸 */
     function cloudTex(night, warm, far) {
       var W = CLOUD.w * CLOUD.n, H = CLOUD.h, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       var x = cv.getContext('2d');
@@ -1703,9 +1703,13 @@ var SCENE3D = (function () {
       }
       var t = new T.CanvasTexture(cv); t.magFilter = T.NearestFilter; t.minFilter = T.NearestFilter; t.generateMipmaps = false; t.encoding = T.sRGBEncoding; return t;
     }
+    function canvasTex(cv) { var t = new T.CanvasTexture(cv); t.magFilter = T.NearestFilter; t.minFilter = T.NearestFilter; t.generateMipmaps = false; t.encoding = T.sRGBEncoding; return t; }
     function buildSky() {
       var ph = phaseOf(st.hour), night = ph === 'night', warm = ph === 'dusk' || ph === 'dawn', w = st.weather, g = new T.Group(), sky = { g: g, list: [], clouds: [] };
-      var mats = [false, true].map(function (far) { var tex = cloudTex(night, warm, far), m = new T.MeshBasicMaterial({ map: tex, alphaTest: 0.5 }); sky.list.push(tex, m); return m; });
+      var mats = [false, true].map(function (far) {   /* 구름 그림: js/clouds.js (몽글한 적운, 날씨 × 시각대 램프). 없으면 예전 간단한 퍼프 */
+        var tex = typeof CLOUDS !== 'undefined' ? canvasTex(CLOUDS.atlas({ weather: w, phase: ph, far: far, w: CLOUD.w, h: CLOUD.h, n: CLOUD.n })) : cloudTex(night, warm, far);
+        var m = new T.MeshBasicMaterial({ map: tex, alphaTest: 0.5, depthWrite: false }); sky.list.push(tex, m); return m;   /* 깊이에 안 쓴다 → 후처리 깊이 외곽선이 구름끼리 겹친 곳에 금을 긋지 않는다 (다락 뒤면 깊이 테스트로 가려진다) */
+      });
       var fwd = new T.Vector3(); camera.getWorldDirection(fwd);
       var base = camTarget, VW = S.rw / S.N, VH = (S.rh / S.N) / Math.max(_u.y, 0.3), top = base.y + INTRO.H;
       var nC = w === 'clear' ? 5 : w === 'drizzle' ? 11 : 16;
@@ -1714,11 +1718,12 @@ var SCENE3D = (function () {
         var r = hash('cl' + i), far = i % 3 !== 0, gw = CLOUD.w / S.N, gh = CLOUD.h / S.N;
         var geo = new T.PlaneGeometry(gw, gh), uv = geo.attributes.uv.array, v0 = (r % CLOUD.n) / CLOUD.n;
         for (var j = 0; j < uv.length; j += 2) uv[j] = v0 + uv[j] / CLOUD.n;
-        var m = new T.Mesh(geo, mats[far ? 1 : 0]); m.quaternion.copy(camera.quaternion); m.renderOrder = 5;
+        var m = new T.Mesh(geo, mats[far ? 1 : 0]); m.quaternion.copy(camera.quaternion); m.renderOrder = (far ? 5 : 40) + i;   /* 쌓는 순서: 먼 층 → 가까운 층, 층 안은 번호순 (깊이를 안 쓰니 순서로) */
         var sx = ((i + 0.5) / nC - 0.5) * VW * 1.25 + (((r >>> 6) % 100) / 100 - 0.5) * 1.2;
         /* 시작 높이: 착지했을 때 화면 위 가장자리(base + 0.62 VH) + 구름 높이 + 패럴랙스로 따라 내려오는 거리 위 → 끝나면 반드시 화면 밖. 위로는 출발 화면 위 바깥까지 */
         var par = far ? 0.3 : 0, y0 = Math.max(base.y + 0.62 * VH + gh + INTRO.H * par, top - 0.35 * VH), y1 = top + 0.85 * VH;
-        m.userData = { sx: sx, z: far ? -4 - ((r >>> 12) % 6) * 0.3 : -1 - ((r >>> 12) % 6) * 0.3, y: y0 + ((r >>> 16) % 1000) / 1000 * (y1 - y0), par: par };
+        /* 깊이: 층 안에서는 1 cm 씩만 (후처리 깊이 외곽선 문턱 6 cm 아래 → 같은 층 구름끼리 겹쳐도 금 간 선이 안 생긴다), 먼 층과 가까운 층 사이만 3 m */
+        m.userData = { sx: sx, z: (far ? -4 : -1) - i * 0.01, y: y0 + ((r >>> 16) % 1000) / 1000 * (y1 - y0), par: par };
         g.add(m); sky.list.push(geo); sky.clouds.push(m);
       }
       sky.fwd = fwd; sky.VW = VW;
