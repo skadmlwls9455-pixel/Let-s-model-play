@@ -19,7 +19,10 @@ var APP = (function () {
   var FOLLOW_LABEL = { followed: '따라감', ignored: '무시함', left: '도중에 벗어남', none: '없음' };
   var BY_LABEL = { demo: '데모 두뇌(규칙)', human: '사람이 조작', mcp: '모델(MCP)', legacy: '복원된 기록' };
   var LOG_LABEL = { depart: '출발', peek: '기웃', 'return': '귀가', remember: '기억', hang_poster: '포스터', wrap_up: '마무리', stay_home: '집', empty_turn: '…' };
-  var VOICE_LABELS = ['귀가', '기억', '마무리', '집', '인사', '방'];   /* 문어 목소리 행 → 픽셀 테마에서 호박색 탭 */
+  var VOICE_LABELS = ['귀가', '기억', '마무리', '집', '인사', '방', '혼잣말'];   /* 문어 목소리 행 → 픽셀 테마에서 호박색 탭 + 초상 대화창 (§15.2) */
+  /* 문어 목소리 행의 표정 (DESIGN §15.2): 귀가 calm · 기억 curious · 마무리 폴짝/우쭐 happy, 졸림 sleepy, 덤덤 calm · 집 활동 calm (낮잠 sleep) · 빈 차례 sleep · 인사 아침 idle / 밤 sleepy · 방(소품) happy · 말풍선 ♡ pet, ? curious */
+  var REACT_EXPR = { '폴짝': 'happy', '우쭐': 'happy', '덤덤': 'calm', '졸림': 'sleepy' };
+  var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' };   /* 상태의 기본 표정 (SCENE.md 초상·표정) — 대화창 표정은 4 s 뒤 여기로 돌아온다 */
   var REACT_EMOJI = { '폴짝': '🎉', '우쭐': '😌', '덤덤': '😶', '졸림': '😴' };
   var KEY = 'ppolppol_v2', KEY_V1 = 'ppolppol_v1', KEY_V1_BAK = 'ppolppol_v1_backup';
 
@@ -246,7 +249,7 @@ var APP = (function () {
   function paletteNow() { var hk = lookHook(); return (hk && typeof hk.palette === 'string') ? hk.palette : S.settings.palette; }   /* __ppolLook.palette 는 저장하지 않고 장면에만 */
   function setPalette(name) {
     if (PALETTES_UI.map(function (p) { return p[0]; }).indexOf(name) < 0) return;
-    S.settings.palette = name; save(); if (scene) scene.setPalette(name);
+    S.settings.palette = name; save(); if (scene) { scene.setPalette(name); refreshPortraits(); }
     document.querySelectorAll('[data-pal]').forEach(function (b) { b.classList.toggle('on', b.dataset.pal === name); });
     renderSwatch();
   }
@@ -268,13 +271,13 @@ var APP = (function () {
       posters: [], souvenirs: [], reducedMotion: reduced(), speed: speed(), assetPath: assetPath, octEl: $('oct'), look: lookNow(), palette: paletteNow(),
       on: {
         posterTap: function (id) { openPoster(id); },
-        souvenirTap: function (sv) { if (sv.tripId && tripById(sv.tripId)) { bubble((sv.emoji ? sv.emoji + ' ' + sv.name : sv.id) + ' — 이거 가져온 날', 1800); openPoster(sv.tripId, true); } },
+        souvenirTap: function (sv) { if (sv.tripId && tripById(sv.tripId)) { say((sv.emoji ? sv.emoji + ' ' + sv.name : sv.id) + ' — 이거 가져온 날', 'happy', 1800); openPoster(sv.tripId, true); } },
         albumTap: function () { $('album-sec').scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth' }); },
         pet: pet,
-        tap: function () { if (oct.state === 'sleep') bubble('…zZ', 1500); else if (!oct.busy && oct.state !== 'pet') bubble('?', 1600); },
+        tap: function () { if (oct.state === 'sleep') say('…zZ', 'sleep', 1500); else if (!oct.busy && oct.state !== 'pet') say('?', 'curious', 1600); },
         windowTap: function () {
           if (oct.busy || oct.state === 'sleep') return;
-          walkTo('window').then(function () { if (!oct.busy) { octState('idle'); var w = weatherFor(S.room.lantern), hr = new Date().getHours(); bubble(w === 'clear' ? (hr >= 19 || hr < 6 ? '별이 보여' : '맑네') : w === 'snow' ? '눈이 와' : '비가 와', 2000); } });
+          walkTo('window').then(function () { if (!oct.busy) { octState('idle'); var w = weatherFor(S.room.lantern), hr = new Date().getHours(); say(w === 'clear' ? (hr >= 19 || hr < 6 ? '별이 보여' : '맑네') : w === 'snow' ? '눈이 와' : '비가 와', 'calm', 2000); } });
         },
         anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ }
       }
@@ -298,7 +301,7 @@ var APP = (function () {
     if (part !== 'lantern') { scene.setItems(itemsFor(lv)); scene.setWeather(weatherFor(lv)); }
     document.title = (S.octopus.name ? S.octopus.name + ' · ' : '') + roomTitle(lv) + ' · 뽈뽈 문어';
   }
-  function setOctColor(hex) { if (!/^#[0-9a-f]{6}$/i.test(hex)) return; S.settings.octColor = hex; save(); scene.setColor(hex); }
+  function setOctColor(hex) { if (!/^#[0-9a-f]{6}$/i.test(hex)) return; S.settings.octColor = hex; save(); scene.setColor(hex); refreshPortraits(); }
 
   /* ───────────────────────── octopus (§7.1 상태 기계 — 그림은 scene 이 그린다) ───────────────────────── */
   var ANCHORS = { door: 1, window: 1, crate: 1, board: 1, blanket: 1, center: 1 };
@@ -348,9 +351,17 @@ var APP = (function () {
     var mems = S.trips.filter(function (t) { return t.poster && t.poster.type === 'poster' && t.kind === 'out' && t.receipt; });
     if (!mems.length) return;
     var t = mems[mems.length - 1];
-    bubble((t.date === dateKey() ? '오늘' : '어제') + ' 본 ' + (t.poster.title || '것') + ' 생각 중', 3200);
+    say((t.date === dateKey() ? '오늘' : '어제') + ' 본 ' + (t.poster.title || '것') + ' 생각 중', 'curious', 3200);
   }
   function bubble(text, ms) { scene.bubble(text, ms); }
+  /* 말풍선 + 로그 대화창 행 (§15.2 "?" · "비가 와" · "…♡"): 장면 위 말풍선과 같은 말을 초상과 함께 오늘 칸에 남긴다 (저장 X — 새로고침하면 사라지는 혼잣말). 바로 앞 행과 같은 말이면 행은 생략 */
+  function say(text, expr, ms) {
+    bubble(text, ms);
+    var today = ensureTodaySection(), last = today.lastElementChild;
+    if (last && last.classList.contains('lrow') && last.dataset.say === text) { expressRow(expr); return; }
+    var row = logRow('혼잣말', text, 'c-amber', true, expr); row.dataset.say = text;
+    appendLogRow(today, row);
+  }
   function octInitial() {
     var hk = lookHook();
     if (hk) { octPlace(hk.anchor || 'center'); octState(hk.octState || 'idle'); return; }   /* 고정 앵글: 산책 없음 */
@@ -362,12 +373,12 @@ var APP = (function () {
   var petTimer = null;
   function pet() {
     if (oct.busy || oct.state === 'away') return;
-    if (oct.state === 'sleep') { bubble('…zZ', 1500); return; }
+    if (oct.state === 'sleep') { say('…zZ', 'sleep', 1500); return; }
     octState('pet');
     clearTimeout(petTimer);
     petTimer = setTimeout(function () {
       if (oct.state !== 'pet') return;
-      if (uiRng() < 0.7) { octState('idle'); bubble('…♡', 1800); }
+      if (uiRng() < 0.7) { octState('idle'); say('…♡', 'pet', 1800); }
       else { var opts = allowedIdleAnchors().filter(function (a) { return a !== oct.anchor; }); walkTo(opts[Math.floor(uiRng() * opts.length)] || 'center').then(function () { if (!oct.busy) octState('idle'); }); }
     }, 2000);
   }
@@ -502,7 +513,7 @@ var APP = (function () {
       return wait(200);                                /* follow-through: 소품은 칸 뒤 200ms */
     }).then(function () {
       renderScene('items');
-      if (lit && ITEM_LINE[lv]) appendLogRow(ensureTodaySection(), logRow('방', ITEM_LINE[lv], 'c-amber', true));
+      if (lit && ITEM_LINE[lv]) appendLogRow(ensureTodaySection(), logRow('방', ITEM_LINE[lv], 'c-amber', true, 'happy'));
     });
     return revealing.ceremony;
   }
@@ -599,33 +610,81 @@ var APP = (function () {
     });
     return chain.then(function () {
       renderLog();
-      appendLogRow(ensureTodaySection(), logRow('귀가', '네가 없는 동안 다녀왔어', 'c-teal', true));
+      appendLogRow(ensureTodaySection(), logRow('귀가', '네가 없는 동안 다녀왔어', 'c-teal', true, 'calm'));
       return true;
     });
   }
 
-  /* ───────────────────────── log (§7.4) ───────────────────────── */
-  function logRow(label, text, cls, animate) {
-    var row = h('div', { class: 'lrow' + (cls ? ' ' + cls : '') + (VOICE_LABELS.indexOf(label) >= 0 ? ' voice' : '') + (animate ? ' in' : '') });
-    row.appendChild(h('span', { class: 'ltool', text: label }));
+  /* ───────────────────────── log (§7.4) · 초상 대화창 (§15.2) ───────────────────────── */
+  /* 초상 캐시: 표정별 64×64 캔버스 하나 (scene.portrait 는 3D 에서 ≈5–10 ms/장, 첫 장 ≈240 ms). 행마다 복사해 붙인다.
+     행이 만들어질 때 캔버스만 만들고(지연), 부팅 두 프레임 뒤부터 rAF 한 번에 모아 그린다. setColor/setPalette 는 캐시를 비우고 보이는 초상을 다시 그린다 */
+  var PORT = { cache: {}, queue: [], ready: false, raf: 0, refresh: null, bg: 'navy' };
+  function portraitFor(expr) {   /* → 캐시된 64×64 캔버스 (복사하지 말고 drawImage 원본으로만 쓸 것) */
+    expr = (scene && scene.EXPRESSIONS && scene.EXPRESSIONS.indexOf(expr) >= 0) ? expr : 'idle';
+    var cv = PORT.cache[expr];
+    if (!cv) { cv = PORT.cache[expr] = scene.portrait(expr, { bg: PORT.bg }); }
+    return cv;
+  }
+  function drawPortrait(cv) {
+    try { var src = portraitFor(cv.dataset.expr), cx = cv.getContext('2d'); cx.clearRect(0, 0, 64, 64); cx.drawImage(src, 0, 0); cv.dataset.drawn = '1'; }
+    catch (e) { console.warn('[app] portrait', e); }
+  }
+  function flushPortraits() {
+    PORT.raf = 0;
+    var q = PORT.queue; PORT.queue = [];
+    q.forEach(function (cv) { if (document.body.contains(cv)) drawPortrait(cv); });
+  }
+  function schedulePortraits() { if (!PORT.ready || PORT.raf) return; PORT.raf = requestAnimationFrame(flushPortraits); }
+  function portraitCanvas(expr) {
+    var cv = h('canvas', { class: 'lport-cv', width: '64', height: '64', 'aria-hidden': 'true', 'data-expr': expr });
+    PORT.queue.push(cv); schedulePortraits();
+    return cv;
+  }
+  function refreshPortraits() {   /* 몸색·팔레트가 바뀌면 (슬라이더는 연속 입력이라 150 ms 모아서) */
+    clearTimeout(PORT.refresh);
+    PORT.refresh = setTimeout(function () {
+      PORT.cache = {};
+      document.querySelectorAll('#log canvas.lport-cv').forEach(function (cv) { PORT.queue.push(cv); });
+      schedulePortraits();
+    }, 150);
+  }
+  /* 대화창 행이 나타나면 장면 얼굴도 같은 표정 → 4 s 뒤 상태의 기본 표정으로 (자는 중이면 그대로) */
+  var exprTimer = null;
+  function expressRow(expr) {
+    if (!scene || !expr) return;
+    scene.setExpression(expr);
+    clearTimeout(exprTimer);
+    exprTimer = setTimeout(function () { if (oct.state !== 'sleep') scene.setExpression(STATE_EXPR[oct.state] || 'idle'); }, 4000);
+  }
+  /* expr 가 있으면 대화창 행: 왼쪽 초상(64→96 px, 남색 바탕 이중 틀) + 오른쪽 라벨·말. 없으면 도구 라벨 행 (시스템 행) */
+  function logRow(label, text, cls, animate, expr) {
+    var row = h('div', { class: 'lrow' + (cls ? ' ' + cls : '') + (VOICE_LABELS.indexOf(label) >= 0 ? ' voice' : '') + (expr ? ' dialog' : '') + (animate ? ' in' : '') });
     var tx = h('span', { class: 'ltext' });
     if (typeof text === 'string') tx.textContent = text; else tx.appendChild(text);
-    row.appendChild(tx);
+    if (expr) {
+      row.dataset.expr = expr;
+      row.appendChild(h('span', { class: 'lport', 'aria-hidden': 'true' }, [portraitCanvas(expr)]));
+      row.appendChild(h('span', { class: 'lbody' }, [h('span', { class: 'ltool', text: label }), tx]));
+    } else {
+      row.appendChild(h('span', { class: 'ltool', text: label }));
+      row.appendChild(tx);
+    }
     return row;
   }
-  /* 행 추가 + 250ms 등장. 한꺼번에 쏟아질 때(건너뛰기·귀가 복구)만 60ms 스태거, 최대 6행 (GF R11) */
+  /* 행 추가 + 250ms 등장. 한꺼번에 쏟아질 때(건너뛰기·귀가 복구)만 60ms 스태거, 최대 6행 (GF R11). 대화창 행이면 장면 표정도 맞춘다 */
   var burst = { at: 0, n: 0 };
   function appendLogRow(parent, row) {
     var now = Date.now();
     burst.n = (now - burst.at < 400) ? Math.min(burst.n + 1, 5) : 0; burst.at = now;
     row.classList.add('in'); row.style.setProperty('--i', String(burst.n));
     parent.appendChild(row); scrollLog();
+    if (row.dataset.expr) expressRow(row.dataset.expr);
   }
   function secs(ms) { return ms ? Math.round(ms / 1000) + '초' : ''; }
   function stopName(ev) { var tg = ev.target || {}; return tg.title || (tg.url ? tg.url.replace(/^https?:\/\//, '').split('/')[0] : '어딘가'); }
   function stopEmoji(ev) { var tg = ev.target || {}; var n = tg.id && nodeOf(tg.id); return (n && n.emoji) || (tg.kind === 'url' ? '🚪' : '❔'); }
   function eventRow(trip, ev) {
-    var frag = document.createDocumentFragment(), cls = '';
+    var frag = document.createDocumentFragment(), cls = '', expr = null;
     switch (ev.type) {
       case 'depart':
         cls = 'c-amber';
@@ -645,30 +704,31 @@ var APP = (function () {
         break;
       }
       case 'return': {
-        cls = 'c-teal';
+        cls = 'c-teal'; expr = 'calm';
         var rr = (STR.returnReasons && STR.returnReasons[ev.reason]) || '';
         frag.appendChild(document.createTextNode('돌아왔어' + (rr ? '. ' + rr : '')));
         if (trip.receipt && trip.receipt.souvenir) { var sv = W && W.souvenirs && W.souvenirs[trip.receipt.souvenir]; frag.appendChild(h('span', { class: 'sub' }, sv ? ['가져온 것: ', emo(sv.emoji), ' ' + sv.name] : ['가져온 것: ' + trip.receipt.souvenir])); }
         break;
       }
-      case 'remember': cls = 'c-amber'; frag.appendChild(document.createTextNode(ev.line || (trip.poster && trip.poster.line) || '')); break;
+      case 'remember': cls = 'c-amber'; expr = 'curious'; frag.appendChild(document.createTextNode(ev.line || (trip.poster && trip.poster.line) || '')); break;
       case 'hang_poster': frag.appendChild(document.createTextNode(trip.poster ? '벽에 붙였어 · ' + (trip.poster.title || '') : '')); break;
       case 'wrap_up': {
         var r = ev.reaction || trip.reaction || '';
+        expr = REACT_EXPR[r] || 'calm';
         if (REACT_EMOJI[r]) frag.appendChild(emo(REACT_EMOJI[r]));
         frag.appendChild(document.createTextNode(' ' + r + (trip.receipt && trip.receipt.reactionLine ? ' · ' + trip.receipt.reactionLine : '')));
         break;
       }
       case 'stay_home':
-        cls = 'c-amber';
+        cls = 'c-amber'; expr = ((ev.activity === 'nap') || (trip.receipt && trip.receipt.activity && trip.receipt.activity.id === 'nap')) ? 'sleep' : 'calm';
         frag.appendChild(document.createTextNode(ev.line || '오늘은 집에 있을래'));
         if (trip.receipt && trip.receipt.activity && trip.receipt.activity.detail) frag.appendChild(h('span', { class: 'sub', text: trip.receipt.activity.detail.split('\n')[0] }));
         frag.appendChild(h('span', { class: 'sub', text: '오늘은 집. 등불 +1' }));
         break;
-      case 'empty_turn': frag.appendChild(document.createTextNode('…')); break;
+      case 'empty_turn': expr = 'sleep'; frag.appendChild(document.createTextNode('…')); break;
       default: return null;
     }
-    return logRow(LOG_LABEL[ev.type] || ev.type, frag, cls, false);
+    return logRow(LOG_LABEL[ev.type] || ev.type, frag, cls, false, expr);
   }
   function ensureTodaySection() {
     var log = $('log'), today = log.querySelector('[data-day="' + dateKey() + '"]');
@@ -721,7 +781,7 @@ var APP = (function () {
     if (!log.querySelector('.lrow')) log.appendChild(h('div', { class: 'lempty', text: S.octopus.name ? '아직 아무 데도 안 갔어. 힌트를 두고 뽈뽈 다녀와를 눌러 봐 (비워 둬도 돼).' : '문어 이름부터 지어 주자.' }));
     logStick = true; scrollLog();
   }
-  function setGreeting(text) { greetingRow = logRow('인사', text, 'c-amber', true); }
+  function setGreeting(text) { var hr = new Date().getHours(); greetingRow = logRow('인사', text, 'c-amber', true, (hr >= 19 || hr < 6) ? 'sleepy' : 'idle'); }
 
   /* ───────────────────────── posters (§6) ───────────────────────── */
   var PAPER = [['#f3ead6', '#e6d9bd'], ['#e9ecdc', '#d7dcc3'], ['#f0e2e4', '#dfc9cd']];
@@ -902,17 +962,18 @@ var APP = (function () {
   function renderStatus(bloom) {
     var n = S.room.lantern;
     $('oct-name').textContent = S.octopus.name || '이름 없는 문어';
+    /* 등불: `등불 ■■□□□□□□ n/8` 한 줄 (role=img 의 aria-label 만 읽힌다). 여행·함께한 날 수는 방 보기 › 통계로 옮겼다 */
     var pips = $('pips'); pips.setAttribute('aria-label', '등불 ' + n + '/8');
-    if (pips.children.length !== 8) { pips.innerHTML = ''; for (var i = 0; i < 8; i++) pips.appendChild(h('span', { class: 'pip', 'aria-hidden': 'true', text: '○' })); }
-    Array.prototype.forEach.call(pips.children, function (p, i) {
+    var row = pips.querySelector('.pip-row'), cnt = pips.querySelector('.pips-n');
+    if (!row) { pips.innerHTML = ''; pips.appendChild(h('span', { class: 'pips-lbl', text: '등불' })); row = pips.appendChild(h('span', { class: 'pip-row' })); cnt = pips.appendChild(h('span', { class: 'pips-n' })); }
+    if (row.children.length !== 8) { row.innerHTML = ''; for (var i = 0; i < 8; i++) row.appendChild(h('span', { class: 'pip', 'aria-hidden': 'true', text: '○' })); }
+    Array.prototype.forEach.call(row.children, function (p, i) {
       var on = i < n, was = p.classList.contains('on');
       p.classList.toggle('on', on); p.textContent = on ? '●' : '○';
       if (on && !was && bloom) { p.classList.add('bloom'); p.classList.toggle('last', i === 7); setTimeout(function () { p.classList.remove('bloom', 'last'); }, 1000 * speed()); }
     });
+    if (cnt) cnt.textContent = n + '/8';
     var rt = $('room-title'); if (rt) rt.textContent = roomTitle(n);
-    /* 숫자는 의미가 생긴 뒤에만: 여행 N 은 첫 외출 뒤, 함께한 날은 첫 초대 뒤 (CG R18) */
-    $('stat-trips').textContent = '여행 ' + S.octopus.trips; $('stat-trips').hidden = !S.octopus.trips;
-    $('stat-days').textContent = '함께한 날 ' + S.octopus.days.length; $('stat-days').hidden = !S.octopus.days.length;
   }
   function tripById(id) { for (var i = 0; i < S.trips.length; i++) if (S.trips[i].id === id) return S.trips[i]; return null; }
   function posterTrips() { return S.room.posterOrder.map(tripById).filter(function (t) { return t && t.poster && t.status === 'done'; }); }
@@ -1253,7 +1314,6 @@ var APP = (function () {
     $('hint-in').addEventListener('blur', function () { scene.lookAt(window.innerWidth / 2, window.innerHeight / 2); });
     $('btn-skip').addEventListener('click', skip);
     $('btn-look').addEventListener('click', function () { openRoomSheet(false); });
-    $('chip-demo').addEventListener('click', function () { openRoomSheet(true); });
     $('rs-close').addEventListener('click', function () { $('room-sheet').close(); });
     $('pd-flip').addEventListener('click', flipPoster);
     $('pd-front').addEventListener('click', flipPoster);
@@ -1333,6 +1393,8 @@ var APP = (function () {
     if (S.octopus.name) setGreeting(greetingByHour(new Date().getHours()) + '. ' + S.octopus.name + (S.octopus.state === 'sleep' ? ' 아직 자고 있어.' : ' 기다리고 있었어.'));
     renderLog();
     octInitial();
+    /* 초상은 장면이 두 프레임 그린 뒤부터 (3D 는 2번째 프레임에 idle 을 미리 찍어 셰이더를 데운다) */
+    requestAnimationFrame(function () { requestAnimationFrame(function () { PORT.ready = true; flushPortraits(); }); });
     if (!S.octopus.name) openNameDialog();
     loadManifest().then(function (ok) { if (ok) { scene.refresh(); renderSouvenirs(); } });
     resumeRunning().then(function (did) { if (did) finalPose({ kind: 'out' }); });
@@ -1347,6 +1409,7 @@ var APP = (function () {
     posterSVG: posterSVG, receiptHTML: receiptHTML, inspectHTML: inspectHTML, openPoster: openPoster, openRoomSheet: openRoomSheet,
     importEvents: importEvents, exportJSON: exportJSON, importJSON: importJSON,
     oct: oct, walkTo: walkTo, octState: octState, anchors: ANCHORS, placeholders: PH, commitTrip: commitTrip,
-    get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor
+    get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor,
+    portraitFor: portraitFor, say: say, get portraitCache() { return Object.keys(PORT.cache); }
   };
 })();

@@ -229,34 +229,65 @@ var SCENE2D = (function () {
       else setCarry(false);
       setExpression({ happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' }[s] || 'idle');
     }
-    /* ── 표정·초상 폴백 (DESIGN §15.2, 3D 와 같은 API): 표정은 `ex-<name>` 클래스로만 남기고, 초상은 2D 캔버스에 바로 그린 64×64 얼굴(머리 원 + 눈·입·홍조). 표정별 SVG 8종은 UI 단계에서 */
+    /* ── 표정·초상 폴백 (DESIGN §15.2, 3D 와 같은 API): 표정은 `ex-<name>` 클래스로만 남기고, 초상은 **인라인 SVG 얼굴 8종**(64×64, 머리 원 + 눈·눈꺼풀·입·홍조)을 같은 도형 목록에서
+       portraitSVG(expr) → <svg> 문자열, portrait(expr, { bg }) → Path2D 로 2D 캔버스에 바로 그린 64×64 캔버스(동기 — <img> 디코딩을 기다리지 않는다). 색은 문어 몸색 + 잉크 #1b1f2e + 종이흰 #fff6ee (2D 문어 SVG 와 같은 팔레트) */
     var EXPRESSIONS = ['idle', 'blink', 'happy', 'pet', 'sleep', 'curious', 'calm', 'sleepy'];
     st.expr = 'idle';
     function setExpression(name) {
       name = EXPRESSIONS.indexOf(name) >= 0 ? name : 'idle'; st.expr = name;
       octEl.className = octEl.className.replace(/\bex-[a-z]+/g, '').trim() + ' ex-' + name;
     }
-    function portrait(expr) {
-      expr = EXPRESSIONS.indexOf(expr) >= 0 ? expr : 'idle';
-      var cv = document.createElement('canvas'); cv.width = cv.height = 64; var x = cv.getContext('2d');
-      var body = expr === 'pet' ? shade(st.color, 0.12) : st.color, dark = shade(st.color, -0.35), ink = '#1b1f2e', white = '#fff6ee', big = expr === 'curious' ? 1.3 : 1, closed = expr === 'blink' || expr === 'sleep';
-      x.fillStyle = ink; x.beginPath(); x.arc(32, 34, 27, 0, 7); x.fill();   /* 외곽선 */
-      x.fillStyle = body; x.beginPath(); x.arc(32, 34, 25, 0, 7); x.fill();
-      x.fillStyle = shade(body, 0.14); x.beginPath(); x.ellipse(22, 20, 6, 3, -0.5, 0, 7); x.fill();   /* 하이라이트 */
+    var INK = '#1b1f2e', PAPER = '#fff6ee', NAVY = '#172038';
+    function f2(v) { return (Math.round(v * 100) / 100).toString(); }
+    function circ(cx, cy, r) { return 'M' + f2(cx - r) + ' ' + f2(cy) + 'a' + f2(r) + ' ' + f2(r) + ' 0 1 0 ' + f2(2 * r) + ' 0a' + f2(r) + ' ' + f2(r) + ' 0 1 0 ' + f2(-2 * r) + ' 0z'; }
+    function ell(cx, cy, rx, ry) { return 'M' + f2(cx - rx) + ' ' + f2(cy) + 'a' + f2(rx) + ' ' + f2(ry) + ' 0 1 0 ' + f2(2 * rx) + ' 0a' + f2(rx) + ' ' + f2(ry) + ' 0 1 0 ' + f2(-2 * rx) + ' 0z'; }
+    function rect(x, y, w, hh) { return 'M' + f2(x) + ' ' + f2(y) + 'h' + f2(w) + 'v' + f2(hh) + 'h' + f2(-w) + 'z'; }
+    function arc(cx, cy, r, up) { return 'M' + f2(cx - r) + ' ' + f2(cy) + 'a' + f2(r) + ' ' + f2(r) + ' 0 0 ' + (up ? 1 : 0) + ' ' + f2(2 * r) + ' 0'; }   /* up = ^ (위로 볼록), 아니면 u */
+    /* 표정별 도형 목록 [{ d, fill | stroke, w }] — 정지 자세: pet 눌림·sleep 납작·sleepy 살짝 납작·curious 8° 기울임 (SCENE.md 표) */
+    function faceShapes(expr) {
+      var body = expr === 'pet' ? shade(st.color, 0.12) : expr === 'sleep' ? shade(st.color, 0.04) : st.color, dark = shade(st.color, -0.35);
+      var big = expr === 'curious' ? 1.3 : 1, closed = expr === 'blink' || expr === 'sleep', arcs = expr === 'happy' || expr === 'pet';
+      var out = [{ d: circ(32, 36, 28), fill: INK }, { d: circ(32, 36, 26), fill: body }, { d: ell(22, 20, 6, 3), fill: shade(body, 0.14) }];
       [22, 42].forEach(function (ex) {
-        if (closed) { x.fillStyle = ink; x.fillRect(ex - (expr === 'sleep' ? 6 : 4), 40, expr === 'sleep' ? 12 : 8, 2); return; }
-        if (expr === 'happy' || expr === 'pet') { x.strokeStyle = ink; x.lineWidth = 2; x.beginPath(); x.arc(ex, 42, 5, Math.PI, 2 * Math.PI); x.stroke(); return; }
-        x.fillStyle = white; x.beginPath(); x.arc(ex, 40, 7 * big, 0, 7); x.fill();
-        x.fillStyle = ink; x.beginPath(); x.arc(ex, 41, 4 * big, 0, 7); x.fill();
-        x.fillStyle = white; x.fillRect(ex - 2, 38, 2, 2);
-        if (expr === 'calm' || expr === 'sleepy') { x.fillStyle = body; x.fillRect(ex - 8, 32, 16, expr === 'calm' ? 8 : 10); }   /* 반쯤 감김 */
+        if (expr === 'sleep') { out.push({ d: 'M' + (ex - 6) + ' 40l12 ' + (ex < 32 ? '-1' : '1'), stroke: INK, w: 2 }); return; }   /* `— —` 바깥 끝 처짐 */
+        if (expr === 'blink') { out.push({ d: rect(ex - 4, 40, 8, 2), fill: INK }); return; }
+        if (arcs) { out.push({ d: arc(ex, 44, 5, true), stroke: INK, w: 2 }); return; }                                          /* `^ ^` */
+        out.push({ d: circ(ex, 40, 7 * big), fill: PAPER });
+        out.push({ d: circ(ex, 41 + (expr === 'sleepy' ? 1 : 0), 4 * big), fill: INK });
+        out.push({ d: rect(ex - 2, 38, 2, 2), fill: PAPER });                                                                      /* 반짝 */
+        if (expr === 'calm') out.push({ d: rect(ex - 10, 30, 20, 10), fill: body });                                               /* 반눈: 위 50 % */
+        if (expr === 'sleepy') out.push({ d: rect(ex - 10, 30, 20, 13), fill: body });                                             /* 65 % */
       });
-      if (expr === 'pet') { x.fillStyle = shade(st.color, 0.3); [12, 52].forEach(function (bx) { x.beginPath(); x.ellipse(bx, 46, 4, 3, 0, 0, 7); x.fill(); }); }
-      x.fillStyle = dark; x.fillRect(28, 51, 8, 2);   /* `_` 입 */
-      if (expr === 'happy' || expr === 'pet') { x.strokeStyle = dark; x.lineWidth = 2; x.beginPath(); x.arc(32, 48, 4, 0, Math.PI); x.stroke(); }
+      if (expr === 'pet') [12, 52].forEach(function (bx) { out.push({ d: ell(bx, 46, 4, 3), fill: shade(st.color, 0.3) }); });  /* 홍조 원판 2 */
+      out.push({ d: rect(28, 51, 8, 2), fill: dark });                                                                              /* `_` 입 */
+      if (arcs) out.push({ d: arc(32, 48, 4, false), stroke: dark, w: 2 });                                                        /* `u` 웃는 입 */
+      return out;
+    }
+    function faceXform(expr) { return expr === 'curious' ? { rot: 8, sx: 1, sy: 1 } : expr === 'pet' ? { rot: 0, sx: 1.06, sy: 0.9 } : expr === 'sleep' ? { rot: 0, sx: 1.02, sy: 0.94 } : expr === 'sleepy' ? { rot: 0, sx: 1, sy: 0.96 } : { rot: 0, sx: 1, sy: 1 }; }
+    function portraitBg(o) { var b = o && o.bg; if (!b || b === 'transparent') return null; if (b === 'navy') return NAVY; return /^#[0-9a-f]{6}$/i.test(b) ? b : null; }
+    function portraitSVG(expr, o) {
+      expr = EXPRESSIONS.indexOf(expr) >= 0 ? expr : 'idle';
+      var x = faceXform(expr), bg = portraitBg(o);
+      var s = bg ? '<rect width="64" height="64" fill="' + bg + '"/>' : '';
+      s += '<g transform="translate(32 36) rotate(' + x.rot + ') scale(' + x.sx + ' ' + x.sy + ') translate(-32 -36)">';
+      faceShapes(expr).forEach(function (sh) { s += '<path d="' + sh.d + '"' + (sh.fill ? ' fill="' + sh.fill + '"' : ' fill="none" stroke="' + sh.stroke + '" stroke-width="' + sh.w + '"') + '/>'; });
+      return svgWrap(64, 64, s + '</g>');
+    }
+    function portrait(expr, o) {
+      expr = EXPRESSIONS.indexOf(expr) >= 0 ? expr : 'idle';
+      var cv = document.createElement('canvas'); cv.width = cv.height = 64; var x = cv.getContext('2d'), bg = portraitBg(o), xf = faceXform(expr);
+      if (bg) { x.fillStyle = bg; x.fillRect(0, 0, 64, 64); }
+      x.save(); x.translate(32, 36); x.rotate(xf.rot * Math.PI / 180); x.scale(xf.sx, xf.sy); x.translate(-32, -36);
+      x.lineCap = 'round';
+      faceShapes(expr).forEach(function (sh) {
+        var p = (typeof Path2D === 'function') ? new Path2D(sh.d) : null;
+        if (!p) return;
+        if (sh.fill) { x.fillStyle = sh.fill; x.fill(p); } else { x.strokeStyle = sh.stroke; x.lineWidth = sh.w; x.stroke(p); }
+      });
+      x.restore();
       return cv;
     }
-    function portraitURL(expr) { return portrait(expr).toDataURL('image/png'); }
+    function portraitURL(expr, o) { return portrait(expr, o).toDataURL('image/png'); }
     function flyPoster() {
       if (!stage || st.reduced) return;
       var fly = h('div', { class: 'fly', html: (st.carrySvg || '') });
@@ -331,7 +362,7 @@ var SCENE2D = (function () {
       setTime: function () { /* 2D 는 시각 조명 없음 */ },
       setColor: setColor,
       setOctState: setOctState,
-      setExpression: setExpression, expression: function () { return st.expr; }, EXPRESSIONS: EXPRESSIONS.slice(), portrait: portrait, portraitURL: portraitURL,
+      setExpression: setExpression, expression: function () { return st.expr; }, EXPRESSIONS: EXPRESSIONS.slice(), portrait: portrait, portraitURL: portraitURL, portraitSVG: portraitSVG,
       setCarry: function (svg) { st.carrySvg = svg || ''; },
       moveTo: moveTo, jumpTo: jumpTo,
       setPosters: function (list) { st.posters = (list || []).slice(); renderWall(); },

@@ -63,17 +63,11 @@
   </div>
 </section>
 
-<!-- ══ STATUS (§7.2) ══ -->
+<!-- ══ STATUS (§7.2) — 한 줄: 이름 · 방 제목 | 등불 ■■□□□□□□ n/8. 여행·함께한 날은 방 보기 › 통계, 데모 두뇌 표기는 방 보기 › 누가 고르나 ══ -->
 <div id="status">
   <div class="srow">
-    <span id="oct-name" class="name">이름 없는 문어</span>
-    <span id="room-title" class="room-title">어두운 다락</span>
-    <button type="button" class="chip" id="chip-demo" title="데모 두뇌 설명 보기">데모 두뇌</button>
-  </div>
-  <div class="srow">
-    <span id="pips" class="pips" role="img" aria-label="등불 0/8"></span>
-    <span class="stat" id="stat-trips" hidden>여행 0</span>
-    <span class="stat" id="stat-days" hidden>함께한 날 0</span>
+    <span class="who"><span id="oct-name" class="name">이름 없는 문어</span><span id="room-title" class="room-title">어두운 다락</span></span>
+    <span id="pips" class="pips" role="img" aria-label="등불 0/8"><span class="pips-lbl">등불</span><span class="pip-row"></span><span class="pips-n">0/8</span></span>
   </div>
 </div>
 
@@ -81,7 +75,7 @@
 <section id="invite" aria-label="초대">
   <label class="lbl" for="hint-in">힌트 <span class="dim">(선택)</span></label>
   <input id="hint-in" type="text" maxlength="120" autocomplete="off" enterkeyhint="send"
-         placeholder="관심 가는 주제나 URL을 넌지시… 비워 두면 네가 골라">
+         placeholder="주제나 링크를 슬쩍 건네줘">
   <div id="hint-help" class="help">비워 두면 '오늘은 네가 골라봐'</div>
   <div class="btn-row">
     <button type="button" class="btn primary pressable" id="btn-go"><span class="go-txt"><span class="emo" aria-hidden="true">🌧</span> 뽈뽈 다녀와</span></button>
