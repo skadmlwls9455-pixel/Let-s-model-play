@@ -484,6 +484,7 @@ scene.octScreenPos() → {x,y}                        // 말풍선 투영용
 ### 13.2 장면 프롬프트 (구현 에이전트에게 주는 지시문. "Island Grand Prix" 형식)
 ```
 Build js/scene3d.js for "뽈뽈 문어": a pixel-art 3D rainy attic where a small red octopus lives. three.js r128 UMD (global THREE from vendor/three.min.js, fallback cdnjs). No build step, no modules. Everything procedural: NO image/model files.
+READ FIRST: .claude/skills/cozy-web-game/references/three-pixel-look.md (verified r128 recipe: render target sizing, hand-rolled full-screen pass, OKLab palette snap GLSL, Bayer 4x4 via DataTexture, depth outline with 6 cm threshold applied before snapping, dimetric camera snapping, 53-colour palette ramps, performance budget). Follow its numbers unless this prompt overrides them.
 
 LOOK
 - Render to a low-res render target (art pixel 3 px default, 1–4 via setting). Post pass on a full-screen quad: depth-texture outline where depth jumps, snap every pixel to a fixed ~56-colour palette in OKLab (wood browns ×8, paper ×4, amber lantern ramp ×6, night navy ramp ×6, moss greens ×4, slate greys ×6, plus a 5-shade ramp generated from the octopus colour), Bayer 4×4 ordered dither. Orthographic dimetric camera (≈32° tilt, 45° yaw), target snapped to the art-pixel grid, drag to rotate ±25°, pinch/wheel zoom in integer steps.
@@ -497,7 +498,11 @@ INTERACTION
 - Anchors (world units): door (2.6, 0, 2.4), window (-2.2, 0, 0.6), crate (1.8, 0, -1.6), board (0.6, 0, -2.6), blanket (-1.2, 0, 1.8), center (0,0,0). moveTo walks a straight line with a 0.4 m arc hop at the end and fires anchorReached.
 - Reduced motion: no breathe/sway/rain motion, instant moveTo, static starfield; colour transitions stay.
 
+DEV PANEL
+- Inside the existing <details id=demo>, add live sliders saved to localStorage: pixelSize 1–4, dither 0–1, outline on/off, yaw, and a palette swatch strip; purely for tuning the look.
+
 QUALITY BAR
+- Done = launched, observed, screenshot retained (tests/evidence/*.png) and a one-line "Run result: OBSERVED — …" in the report. A parse check is not a run.
 - Runs from file:// and GitHub Pages; no console errors; 360×740 phone at 60 fps with pixel 3 (≤150 draw calls, static meshes merged by material); pause rAF when document.hidden; destroy() frees GPU resources; Playwright screenshot at notch 0 / 4 / 8, day / night, pet state; a 2D SVG fallback is used when THREE or WebGL is missing, with the same API.
 ```
 
