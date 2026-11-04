@@ -1,0 +1,14 @@
+{
+  "name": "ppolppol-octopus",
+  "version": "1.0.0",
+  "private": true,
+  "description": "뽈뽈 문어 — static site + tiny runner leaderboard functions (api/)",
+  "license": "UNLICENSED",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node tools/test-api.js"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.2"
+  }
+}
