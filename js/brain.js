@@ -453,26 +453,28 @@
   function nodesIn(W, corner) {
     return Object.keys(W.nodes).filter(function (id) { return !SPECIAL[id] && W.nodes[id].corner === corner; });
   }
-  /* 선호 코너 60% / 아무 코너 30% / 엉뚱한 방 10%. 노드 가중 1/(1+visits) */
-  function pickStart(state, R) {
+  /* 선호 코너 60% / 아무 코너 30% / 엉뚱한 방 10%. 노드 가중 1/(1+visits)
+     avoid: 이번엔 안 가기로 한 방(무시한 힌트 방). 후보에서만 빼고 난수 뽑는 자리는 그대로 */
+  function pickStart(state, R, avoid) {
     var W = world();
     state = normalizeState(state);
     var corners = eligibleCorners(W);
-    var all = Object.keys(W.nodes).filter(function (id) { return !SPECIAL[id] && W.nodes[id].corner !== 'wild'; });
+    function keep(id) { return id !== avoid; }
+    var all = Object.keys(W.nodes).filter(function (id) { return !SPECIAL[id] && W.nodes[id].corner !== 'wild' && keep(id); });
     var r = R();
     var pool = null;
     function weight(id) { return 1 / (1 + (state.visits[id] || 0)); }
     if (r < 0.6) {
       var top = null, topV = 0;
       corners.forEach(function (c) { var v = state.affinity[c] || 0; if (v > topV) { topV = v; top = c; } });
-      if (top) pool = nodesIn(W, top);
+      if (top) pool = nodesIn(W, top).filter(keep);
     } else if (r >= 0.9) {
       pool = all.filter(function (id) { return W.nodes[id].odd; });
     }
     if (!pool || !pool.length) {
       if (corners.length) {
         var ci = Math.floor(R() * corners.length);
-        pool = nodesIn(W, corners[ci]);
+        pool = nodesIn(W, corners[ci]).filter(keep);
       }
       if (!pool || !pool.length) pool = all;
     }
@@ -487,6 +489,7 @@
     opt = opt || {};
     var stops = prefix.slice(), used = {}, i;
     for (i = 0; i < stops.length; i++) if (stops[i].id) used[stops[i].id] = true;
+    if (opt.avoid) used[opt.avoid] = true;   /* 무시한 힌트 방으로는 샛길로도 들어가지 않는다 */
     var minStops = opt.deeper ? 3 : 2;   /* 보통 길과 똑같이: 2 (앞의 문/들판 정류장 포함) */
     var cur = W.nodes[startId];
     var pDistract = 0.40, reason = 'enough', ladder = [0.25, 0.45, 0.7, 1.0];
@@ -675,15 +678,15 @@
         var leftCorner = stops.length > 1 && stops.some(function (s) { return s.corner !== stops[0].corner; });
         lineKind = remIdx === hintStopIdx ? (leftCorner ? 'leftKept' : 'followedKept') : 'followedThenLeft';
       }
-      else if (ctx.intent && !ctx.follow) lineKind = 'ignored';
+      else if (ctx.intent && !ctx.follow && followed === 'ignored') lineKind = 'ignored';
       else if (rem.kind === 'wild' && !ctx.intent) lineKind = 'wild';
       else lineKind = 'noHint';
       if (!line) line = composeLine(lineKind, { hint: hintLabel, mem: rem.name, memory: memory, name: ctx.name }, rr.rTemplate);
     }
 
-    /* 반응 */
-    var followed = computeFollowed(match, ctx.intent, ctx.follow, stops, ctx.hintNode, ctx.urlNode);
-    var reaction = (ctx.reaction && REACTIONS.indexOf(ctx.reaction) >= 0) ? ctx.reaction : computeReaction(stops, followed, ctx.hour, false);
+    /* 반응: 재생 입력이 고른 반응도 실제로 있었던 일과 맞을 때만 (안 읽었는데 우쭐, 처음 온 데 없는데 폴짝은 안 된다) */
+    var reaction = (ctx.reaction && REACTIONS.indexOf(ctx.reaction) >= 0 && reactionFits(ctx.reaction, stops, followed))
+      ? ctx.reaction : computeReaction(stops, followed, ctx.hour, false);
 
     /* 영수증 */
     var counts = zeroCounts();
@@ -702,7 +705,7 @@
     });
     var receipt = {
       stops: rstops, counts: counts, souvenir: souvenir, rememberedIdx: remIdx, reaction: reaction,
-      reactionEmoji: reactionEmoji(reaction), reactionLine: pickReactionLine(reaction, rr.rReaction), returnReason: ctx.reason || null
+      reactionEmoji: reactionEmoji(reaction), reactionLine: pickReactionLine(reaction, rr.rReaction, reactionFacts(stops, counts)), returnReason: ctx.reason || null
     };
 
     /* 포스터 */
@@ -884,7 +887,7 @@
       events: events,
       receipt: {
         stops: [], counts: zeroCounts(), souvenir: null, rememberedIdx: -1, reaction: reaction,
-        reactionEmoji: reactionEmoji(reaction), reactionLine: pickReactionLine(reaction, rLine),
+        reactionEmoji: reactionEmoji(reaction), reactionLine: pickReactionLine(reaction, rLine, null),   /* 집: 걸은 일·읽은 일이 없으니 lines 만 */
         activity: { id: act.id, line: act.line, detail: act.detail || '', anchor: act.anchor || 'window' }
       },
       poster: {
@@ -955,6 +958,7 @@
 
     /* 3. 출발 노드 */
     var prefix = [], startId = null, urlNode = null;
+    var avoidId = (match.kind === 'node' && !follow) ? match.nodeId : null;   /* '오늘은 그쪽 말고' → 그 방은 길에서 뺀다 */
     if (match.kind === 'url') {
       prefix.push(makeDoorStop(match.url));
       urlNode = nodeFromUrl(match.url);
@@ -965,12 +969,12 @@
       prefix.push(makeWildStop(match.query, { viaTangent: false, fromHint: true }));
       startId = pickStart(state, R);
     } else {
-      startId = pickStart(state, R);
+      startId = pickStart(state, R, avoidId);
     }
     /* §17.1 재방문: 힌트 방을 전에 가 봤다 → 한 단계 더 깊게 + 첫 기웃에 한마디 */
     var revisit = !!(match.kind === 'node' && follow && hintNode && startId === hintNode.id &&
       ((state.visits[hintNode.id] || 0) > 0 || state.lastVisit[hintNode.id]));
-    var route = buildRoute(W, state, R, startId, prefix, 5, { deeper: revisit });
+    var route = buildRoute(W, state, R, startId, prefix, 5, { deeper: revisit, avoid: avoidId });
     var stops = route.stops;
     if (revisit && stops[0] && stops[0].id === hintNode.id) stops[0].aside = revisitAside(hintNode.name, state.lastVisit[hintNode.id], dateKey);
 
