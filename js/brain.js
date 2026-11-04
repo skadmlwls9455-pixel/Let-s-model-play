@@ -708,8 +708,16 @@
 
     /* 1. 나갈까 */
     var pStay = stayProbability(state, hour);
-    if (R() < pStay) {
-      if (R() < 0.03) return emptyTrip(base);
+    /* 테스트 전용 훅: window.__ppolTest = { forceKind:'home'|'empty'|'out' } 가 있을 때만 결과를 강제한다.
+       난수는 똑같이 뽑아서(rStay, rEmpty) 훅이 없을 때의 draw 순서와 어긋나지 않게 한다. */
+    var forced = (root && root.__ppolTest && typeof root.__ppolTest === 'object') ? root.__ppolTest.forceKind : null;
+    if (forced !== 'home' && forced !== 'empty' && forced !== 'out') forced = null;
+    var rStay = R();
+    var stay = forced ? (forced !== 'out') : (rStay < pStay);
+    if (stay) {
+      var rEmpty = R();
+      var empty = forced ? (forced === 'empty') : (rEmpty < 0.03);
+      if (empty) return emptyTrip(base);
       var acts = homeActivities(state.lantern);
       var ai = pickWeighted(acts, function (a) { return a.weight == null ? 1 : a.weight; }, R());
       return homeTripFrom(base, acts[ai] || DEFAULT_HOME[0], R);

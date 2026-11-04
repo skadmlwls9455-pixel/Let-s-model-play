@@ -28,7 +28,7 @@
 | `item.curtain` | 80×40 | 창가 커튼 두 장 — 등불 8 |
 | `light.lantern0` … `light.lantern8` | 320×240 | 등불 빛 오버레이. 0 은 완전 투명, 숫자가 클수록 (48,40) 에서 퍼지는 호박색 빛이 커짐. `mix-blend-mode: screen` 권장 |
 | `lantern.off`, `lantern.on` | 24×36 | 매달린 등불, 꺼짐/켜짐 |
-| `souvenir.feather` `shell` `pebble` `button` `leaf` `marble` `yarn` `stamp` `matchbox` `key` `pinecone` `paperboat` `bell` `mapscrap` `chalk` `glass` | 16×16 | 기념품 16종 (깃털·조개·조약돌·단추·나뭇잎·유리구슬·실뭉치·우표·성냥갑·열쇠·솔방울·종이배·작은 종·지도 조각·분필·색유리). 선반/창턱에 놓이고 포스터 스티커로도 씀 |
+| `souvenir.feather` `shell` `pebble` `button` `leaf` `marble` `yarn` `stamp` `matchbox` `key` `pinecone` `paper_boat` `bell` `map_piece` `chalk` `stained_glass` | 16×16 | 기념품 16종 (깃털·조개·조약돌·단추·나뭇잎·유리구슬·실뭉치·우표·성냥갑·열쇠·솔방울·종이배·작은 종·지도 조각·분필·색유리). 선반/창턱에 놓이고 포스터 스티커로도 씀 |
 | `scene.hands` `sea` `sky` `signs` `numbers` `sounds` `home` `mind` `wild` | 108×144 | 포스터(3:4) 앞면 배경, 코너별 하나. 위 ~35% 와 아래 ~25% 는 스티커·한 줄 글자 자리로 조용하게 비워 둠 |
 | `oct.idle` `walk` `carry` `sleep` `happy` `peek` | 48×48 | 문어 단일 프레임. **선택 사항** — 앱은 인라인 SVG 문어(또는 3D 문어)를 쓰고, 진짜 스프라이트 시트가 생기면 그때 교체 |
 
