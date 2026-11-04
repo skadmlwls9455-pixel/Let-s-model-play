@@ -321,7 +321,7 @@ var SCENE3D = (function () {
     /* ── 카메라 (직교 다이메트릭, 픽셀 격자 스냅) ── */
     var camera = new T.OrthographicCamera(-1, 1, 1, -1, 0.1, 60);
     var camTarget = new T.Vector3(0, 0.75, -0.4), _tg = new T.Vector3(), yawDrag = 0, dragging = false;
-    var EXT_TARGET = new T.Vector3(0.4, 1.3, 0.0);   /* 바깥 디오라마 카메라 타깃 (같은 요·틸트·픽셀 밀도; 집 용마루·굴뚝과 오른쪽 아래 가장자리 출구가 한 화면에) */
+    var EXT_TARGET = new T.Vector3(0.4, 1.55, 0.0);   /* 바깥 디오라마 카메라 타깃 (같은 요·틸트·픽셀 밀도; 집 용마루·굴뚝과 오른쪽 아래 가장자리 출구가 한 화면에) */
     function camTargetNow() {   /* look.focus='oct': 문어 중심 (look-shots close). 장소 그룹은 순수 평행이동이라 부모 위치를 더하면 월드 좌표 */
       if (st.look.focus === 'oct' && octG) { _tg.copy(octG.position).add(_focusUp); if (octG.parent) _tg.add(octG.parent.position); return _tg; }
       return PLACE.vis === 'exterior' ? EXT_TARGET : camTarget;
@@ -422,7 +422,7 @@ var SCENE3D = (function () {
       if (PLACE.vis === 'exterior') sun.position.set(10 * Math.cos(elev) * Math.cos(az), 10 * Math.sin(elev) + 0.5, -10 * Math.cos(elev) * Math.sin(az));   /* 바깥: 차폐 없음, 해는 화면 오른쪽 옆(+x −z)에서 — 현관·계단 면(+x)이 밝고 그림자는 왼쪽으로 */
       else sun.position.set(-10 * Math.cos(elev) * Math.cos(az), 10 * Math.sin(elev) + 0.5, 10 * Math.cos(elev) * Math.sin(az));
       fitShadow();
-      hemi.color.copy(lerpC(a.sky, b.sky, e)); hemi.groundColor.copy(lerpC(a.gnd, b.gnd, e)); hemi.intensity = num('hemiI') * fillK();
+      hemi.color.copy(lerpC(a.sky, b.sky, e)); hemi.groundColor.copy(lerpC(a.gnd, b.gnd, e)); hemi.intensity = num('hemiI') * fillK() * (PLACE.vis === 'exterior' ? 1 + 1.2 * clamp((num('em') - 0.25) / 0.75, 0, 1) : 1);   /* 바깥은 열린 하늘: 밤 헤미 ×2.2 (다락은 그대로) */
       fill.color.copy(lerpC(a.fill, b.fill, e)); fill.intensity = num('fillI') * fillK();
       glass.material.color.copy(lerpC(a.out, b.out, e));
       winEm.material.color.copy(lerpC(a.winEm, b.winEm, e));
@@ -1149,10 +1149,10 @@ var SCENE3D = (function () {
     var SEASONS = ['spring', 'summer', 'autumn', 'winter'];
     /* 계절 색 (팔레트 스냅 전 기본색): 땅 · 풀 포기 · 흙길 · 둥근 나무 잎 3단 · 꽃 점 · 원뿔 나무 3단 · 눈 모자(겨울 흰색, 다른 계절엔 잎 윗톤과 같아 안 보인다) */
     var SEASON_C = {
-      spring: { ground: '#7aa04c', tuft: '#a6c45e', path: '#9a7a58', leaf: ['#8cc05a', '#b2d273', '#6a9a42'], bloom: '#f2a6c0', cone: ['#3f6a3a', '#4e7c40', '#5f8c48'], cap: '#b2d273' },
-      summer: { ground: '#4c7a36', tuft: '#3a6630', path: '#8a6a4a', leaf: ['#3c6a2e', '#558a3a', '#2a5226'], bloom: '#558a3a', cone: ['#2e5230', '#3a6236', '#46703c'], cap: '#558a3a' },
-      autumn: { ground: '#867a40', tuft: '#a8763a', path: '#8a6a4a', leaf: ['#d4782c', '#e8a63e', '#a4482a'], bloom: '#b8402c', cone: ['#3a5a34', '#46663a', '#52703e'], cap: '#e8a63e' },
-      winter: { ground: '#e6ecf0', tuft: '#c4d0da', path: '#aab8c4', leaf: ['#b8c8d4', '#dfe7ee', '#94a6b6'], bloom: '#f4f6f8', cone: ['#2e4a3a', '#3a5844', '#46644c'], cap: '#f4f6f8' }
+      spring: { ground: '#7aa04c', tuft: '#a6c45e', path: '#7a5a40', leaf: ['#8cc05a', '#b2d273', '#6a9a42'], bloom: '#f2a6c0', cone: ['#3f6a3a', '#4e7c40', '#5f8c48'], cap: '#b2d273' },
+      summer: { ground: '#4c7a36', tuft: '#3a6630', path: '#6e5038', leaf: ['#3c6a2e', '#558a3a', '#2a5226'], bloom: '#558a3a', cone: ['#2e5230', '#3a6236', '#46703c'], cap: '#558a3a' },
+      autumn: { ground: '#948a34', tuft: '#a8763a', path: '#5e3c2a', leaf: ['#d4782c', '#e8a63e', '#a4482a'], bloom: '#b8402c', cone: ['#3a5a34', '#46663a', '#52703e'], cap: '#e8a63e' },
+      winter: { ground: '#e6ecf0', tuft: '#c4d0da', path: '#8c949c', leaf: ['#4e5e58', '#62726a', '#3e4c48'], bloom: '#f4f6f8', cone: ['#2e4a3a', '#3a5844', '#46644c'], cap: '#f4f6f8' }
     };
     var EXT_C = { wallA: '#56606a', wallB: '#606a74', seam: '#2a2e38', post: W[1], plinth: '#6e6872', plinthLine: '#4a4650', roof: '#a04838', roofLine: '#6a2c2c', ridge: '#6a2c2c',
       chim: '#7a6a66', chimRim: '#4e4448', door: '#996643', frame: '#efe3c8', step: ['#8a5a3c', '#7b4f35'], rail: '#6a4630', stone: ['#a8a29a', '#8a8580'], rock: ['#77737f', '#9b97a3'],
@@ -1243,7 +1243,7 @@ var SCENE3D = (function () {
       [[2.5, -1.5, 1.0], [-0.55, 1.95, 0.75]].forEach(function (rk) { var rx = snapPos(rk[0]), rz = snapPos(rk[1]), s = rk[2];
         E(new T.SphereGeometry(0.24 * s, 6, 4), M(rx, 0.1 * s, rz, 0, 0.4, 0, 1, 0.62, 0.85), EXT_C.rock[0]);
         E(new T.SphereGeometry(0.13 * s, 5, 4), M(rx + 0.2 * s, 0.06 * s, rz + 0.12 * s, 0, 0.9, 0, 1, 0.6, 0.9), EXT_C.rock[1]); extPropN++; });
-      var MB = { x: snapPos(1.3), z: snapPos(-0.3) };
+      var MB = { x: snapPos(0.85), z: snapPos(0.4) };
       E(box(0.07, 0.72, 0.07), M(MB.x, 0.36, MB.z), W[2]);
       E(box(0.34, 0.2, 0.22), M(MB.x, 0.8, MB.z), EXT_C.mail);
       E(box(0.34, 0.04, 0.24), M(MB.x, 0.92, MB.z), '#7a3030');
@@ -1254,12 +1254,14 @@ var SCENE3D = (function () {
     var extStatic = new T.Mesh(keep(mergeParts(ep)), lambert); extStatic.castShadow = true; extStatic.receiveShadow = true; extG.add(extStatic);
     /* 나무 (인스턴스): 둥근 나무 = 줄기 + 잎 구 3단(태그 2·3·4) + 눈 모자(5) + 꽃 점(6) · 원뿔 나무 = 줄기 + 원뿔 3단 + 눈 모자 */
     function treeGeo() {
-      var ps = [{ g: new T.CylinderGeometry(0.07, 0.1, 0.95, 6), m: M(0, 0.47, 0), c: EXT_C.trunk, tag: 1 }], blobs = [[0, 1.12, 0, 0.56, 2], [0.12, 1.52, -0.06, 0.45, 3], [-0.05, 1.86, 0.06, 0.32, 4]];
+      /* 우듬지 = 겹친 구 4 (세로로 쌓은 눈사람 꼴이 아니라 한 덩어리 구름 꼴): 아래 큰 구 · 좌우 어깨 2 · 꼭대기 */
+      var ps = [{ g: new T.CylinderGeometry(0.07, 0.1, 1.0, 6), m: M(0, 0.5, 0), c: EXT_C.trunk, tag: 1 }, { g: new T.CylinderGeometry(0.03, 0.04, 0.4, 5), m: M(0.12, 0.95, 0.04, 0, 0, -0.6), c: EXT_C.trunk, tag: 1 }],
+        blobs = [[0, 1.16, 0, 0.5, 2], [0.3, 1.36, 0.14, 0.4, 3], [-0.3, 1.4, -0.1, 0.42, 2], [0.02, 1.64, 0.02, 0.38, 4]];
       blobs.forEach(function (b) {
         ps.push({ g: new T.SphereGeometry(b[3], 8, 6), m: M(b[0], b[1], b[2]), c: SEASON_C.autumn.leaf[b[4] - 2], tag: b[4] });
         ps.push({ g: new T.SphereGeometry(b[3] * 0.82, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), m: M(b[0], b[1] + b[3] * 0.32, b[2], 0, 0, 0, 1, 0.75, 1), c: SEASON_C.autumn.cap, tag: 5 });
       });
-      for (var d = 0; d < 12; d++) { var rd = hash('bloom' + d), b = blobs[d % 3], ang = -Math.PI * 0.15 + (rd % 100) / 100 * Math.PI * 0.8, el = -0.2 + ((rd >> 8) % 100) / 100 * 0.9;
+      for (var d = 0; d < 14; d++) { var rd = hash('bloom' + d), b = blobs[d % 4], ang = -Math.PI * 0.15 + (rd % 100) / 100 * Math.PI * 0.8, el = -0.2 + ((rd >> 8) % 100) / 100 * 0.9;
         ps.push({ g: box(0.07, 0.07, 0.07), m: M(b[0] + Math.cos(ang) * Math.cos(el) * b[3], b[1] + Math.sin(el) * b[3], b[2] + Math.sin(ang) * Math.cos(el) * b[3]), c: SEASON_C.autumn.bloom, tag: 6 }); }
       return keep(mergeParts(ps));
     }
@@ -1299,7 +1301,7 @@ var SCENE3D = (function () {
       ps.push({ g: box(0.34, 0.04, 1.04), m: M(H.HX1 + 0.19, H.PL + 0.02, H.HZC), c: S });
       for (var i = 0; i < 3; i++) ps.push({ g: box(0.2, 0.04, 1.04), m: M(H.HX1 + 0.38 + 0.24 * i + 0.11, H.PL - 0.12 * (i + 1) + 0.02, H.HZC), c: S });
       ps.push({ g: box(0.66, 0.05, 0.16), m: M(snapPos(-1.25), H.PL + 0.74 - 0.23 - 0.03, H.HZ1 + 0.07), c: S });
-      ps.push({ g: box(0.36, 0.05, 0.26), m: M(snapPos(1.3), 0.96, snapPos(-0.3)), c: S });
+      ps.push({ g: box(0.36, 0.05, 0.26), m: M(snapPos(0.85), 0.96, snapPos(0.4)), c: S });
       [[2.5, -1.5, 1.0], [-0.55, 1.95, 0.75]].forEach(function (rk) { ps.push({ g: new T.SphereGeometry(0.2 * rk[2], 6, 3, 0, Math.PI * 2, 0, Math.PI / 2), m: M(snapPos(rk[0]), 0.13 * rk[2], snapPos(rk[1]), 0, 0, 0, 1, 0.45, 0.8), c: S }); });
       [[0.5, -0.05, 1.0], [-2.55, 0.05, 0.85]].forEach(function (b) { ps.push({ g: new T.SphereGeometry(0.26 * b[2], 7, 3, 0, Math.PI * 2, 0, Math.PI / 2), m: M(snapPos(b[0]), 0.3 * b[2], snapPos(b[1]), 0, 0, 0, 1, 0.45, 1), c: S }); });
       EXT_FENCE.concat([EXT_FENCE_END]).forEach(function (f, j) { ps.push({ g: box(0.1, 0.05, 0.1), m: M(snapPos(f[0]), 0.585, snapPos(f[1])), c: S }); if (j < EXT_FENCE.length) ps.push({ g: box(0.6, 0.03, 0.06), m: M(snapPos(f[0]) + 0.32, 0.425, snapPos(f[1]) + 0.016, 0, -0.05, 0), c: S }); });
@@ -1360,12 +1362,12 @@ var SCENE3D = (function () {
     function extPoints(n, hex, vcols) {
       var g = keep(new T.BufferGeometry()); g.setAttribute('position', new T.BufferAttribute(new Float32Array(n * 3), 3));
       if (vcols) { var ca = new Float32Array(n * 3); for (var i = 0; i < n; i++) { var c = C(vcols[i % vcols.length]); ca[i * 3] = c.r; ca[i * 3 + 1] = c.g; ca[i * 3 + 2] = c.b; } g.setAttribute('color', new T.BufferAttribute(ca, 3)); }
-      var p = new T.Points(g, keep(new T.PointsMaterial({ color: vcols ? 0xffffff : C(hex), vertexColors: !!vcols, size: 1, sizeAttenuation: false }))); p.frustumCulled = false; p.visible = false; extG.add(p); return p;
+      var p = new T.Points(g, keep(new T.PointsMaterial({ color: vcols ? 0xffffff : C(hex), vertexColors: !!vcols, size: 1, sizeAttenuation: false, depthWrite: false }))); p.frustumCulled = false; p.visible = false; extG.add(p); return p;   /* depthWrite 끔: 허공 위 1px 입자가 깊이 외곽선(×0.66)으로 어두운 점이 되지 않게 */
     }
     function extLines(n, hex, vcols) {
       var g = keep(new T.BufferGeometry()); g.setAttribute('position', new T.BufferAttribute(new Float32Array(n * 6), 3));
       if (vcols) { var ca = new Float32Array(n * 6); for (var i = 0; i < n * 2; i++) { var c = C(vcols[(i >> 1) % vcols.length]); ca[i * 3] = c.r; ca[i * 3 + 1] = c.g; ca[i * 3 + 2] = c.b; } g.setAttribute('color', new T.BufferAttribute(ca, 3)); }
-      var l = new T.LineSegments(g, keep(new T.LineBasicMaterial({ color: vcols ? 0xffffff : C(hex), vertexColors: !!vcols }))); l.frustumCulled = false; l.visible = false; extG.add(l); return l;
+      var l = new T.LineSegments(g, keep(new T.LineBasicMaterial({ color: vcols ? 0xffffff : C(hex), vertexColors: !!vcols, depthWrite: false }))); l.frustumCulled = false; l.visible = false; extG.add(l); return l;
     }
     var XP = {
       rain: { n: 60, obj: extLines(60, PAL.glass[3]), s: [] },
@@ -1374,7 +1376,7 @@ var SCENE3D = (function () {
       leaf: { n: 16, obj: extLines(16, null, ['#d4782c', '#a4482a', '#e8a63e', '#7a4a2c']), s: [] },
       fly: { n: 6, obj: extPoints(6, '#e8f0a0'), s: [] }
     };
-    XP.flyEm = new T.Points(XP.fly.obj.geometry, keep(new T.PointsMaterial({ color: C('#d8f070'), size: 1, sizeAttenuation: false, depthWrite: false }))); XP.flyEm.layers.set(1); XP.flyEm.frustumCulled = false; XP.fly.obj.add(XP.flyEm);   /* 반딧불 발광 쌍둥이 → 블룸 고리 */
+    XP.flyEm = new T.Points(XP.fly.obj.geometry, keep(new T.PointsMaterial({ color: C('#f0ff90'), size: 3, sizeAttenuation: false, depthWrite: false }))); XP.flyEm.layers.set(1); XP.flyEm.frustumCulled = false; XP.fly.obj.add(XP.flyEm);   /* 반딧불 발광 쌍둥이 (3px 발광원 → 블러 뒤 1px 심 둘레에 1~2px 고리) */
     var xanim = { acc: 0, step: 0 }, XTOP = 3.6;
     function xRows(y) { return Math.round(y / pxUp()); }
     function xSpawn(kind, i, init) {
@@ -1385,7 +1387,7 @@ var SCENE3D = (function () {
         s.gx = any ? -L + ((r >> 8) % 1000) / 1000 * 2 * L : tr[0] + Math.cos(ang) * rad; s.gz = any ? -L + ((r >> 18) % 1000) / 1000 * 2 * L : tr[1] + Math.sin(ang) * rad;
         s.m = init ? (r >> 22) % xRows(1.8) : xRows((any ? 2.4 : 1.1) + ((r >> 22) % 100) / 100 * 0.8); s.c = 0;
       } else if (kind === 'fly') {
-        var hosts = [[0.5, -0.05], [-2.55, 0.05], [-1.7, 1.55], [0.2, 2.4], [1.75, -2.35], [2.5, -1.5]], h = hosts[i % hosts.length];
+        var hosts = [[1.0, 0.95], [-0.7, 0.9], [0.3, 1.95], [2.3, -0.95], [-2.0, 0.55], [1.4, 1.9]], h = hosts[i % hosts.length];   /* 열린 마당 (덤불·나무 앞, 우듬지 속이 아니라) */
         s.gx = h[0] + (((r >> 4) % 100) / 100 - 0.5) * 0.8; s.gz = h[1] + (((r >> 12) % 100) / 100 - 0.5) * 0.8; s.m = xRows(0.35 + ((r >> 20) % 100) / 100 * 0.9); s.c = 0; s.dm = 0;
       } else {
         s.gx = -L + (r % 1000) / 1000 * 2 * L; s.gz = -L + ((r >> 10) % 1000) / 1000 * 2 * L;
@@ -1393,7 +1395,7 @@ var SCENE3D = (function () {
       }
       s.len = kind === 'rain' ? 3 + ((r >> 26) & 1) * 2 : 1;
     }
-    ['rain', 'snow', 'petal', 'leaf', 'fly'].forEach(function (k) { for (var i = 0; i < XP[k].n; i++) xSpawn(k, i, true); });
+    function xInit() { xanim.init = true; ['rain', 'snow', 'petal', 'leaf', 'fly'].forEach(function (k) { for (var i = 0; i < XP[k].n; i++) xSpawn(k, i, true); }); }   /* 첫 extApplyWeather 때 (카메라 축·pxUp 이 정해진 뒤) */
     function xBase(s) { _wp.set(s.gx, 0, s.gz); snapC(_wp); return _wp.addScaledVector(_r, s.c * S.pw); }
     function xHide(a, o, two) { a[o] = 0; a[o + 1] = -50; a[o + 2] = 0; if (two) { a[o + 3] = 0; a[o + 4] = -50; a[o + 5] = 0; } }
     function xLayout(kind, active, advance) {
@@ -1425,7 +1427,8 @@ var SCENE3D = (function () {
     }
     var XCOUNT = { rain: 0, snow: 0, petal: 0, leaf: 0, fly: 0 };
     function extApplyWeather() {
-      if (!XP) return;
+      if (!XP || !S.rw || _u.lengthSq() < 0.5) return;
+      if (!xanim.init) xInit();
       var w = st.weather, sea = SEASON.cur, wet = w === 'rain' || w === 'drizzle', night = isNight();
       XCOUNT.rain = sea !== 'winter' && wet ? (w === 'rain' ? 60 : 30) : 0;
       XCOUNT.snow = (sea === 'winter' && (wet || w === 'snow')) || w === 'snow' ? (w === 'drizzle' ? 40 : 72) : 0;   /* 겨울엔 비가 눈으로 */
@@ -1453,7 +1456,7 @@ var SCENE3D = (function () {
       applyLight(); dither.still = 0;
     }
     function defaultSwap(p) { /* 의식 없이 장소만 바꿀 때 문어 자리: 바깥 = 마당(길가), 다락 = 마지막 앵커 */
-      if (p === 'exterior') { oct.pos.set(snapPos(1.7), 0, snapPos(-0.35)); oct.wantYaw = oct.faceYaw = camYaw(); } else jumpTo(oct.anchor || 'center');
+      if (p === 'exterior') { oct.pos.set(snapPos(1.75), 0, snapPos(0.75)); oct.wantYaw = oct.faceYaw = camYaw(); } else jumpTo(oct.anchor || 'center');
     }
     function setPlace(p, o) {
       p = p === 'exterior' ? 'exterior' : 'attic'; o = o || {};
