@@ -135,6 +135,40 @@ RULES = {
 }
 
 
+KIND_KO = [('bgm', '집 테마'), ('special', '특수 곡'), ('place', '장소 테마'), ('jingle', '징글·이벤트'), ('sfx', '효과음'),
+           ('amb', '환경음'), ('layer', '환경 덧층')]
+
+
+def write_catalog(sounds, total):
+    lines = ['# 소리 목록', '',
+             f'`manifest.json` 에서 자동으로 만든 표다(`python3 src/build_manifest.py`). 소리 {len(sounds)}개, '
+             f'파일 합계 {total / 1e6:.1f} MB(Opus + AAC 두 벌).', '',
+             '- **BGM 대비** = 이 파일이 BGM(−20 LUFS)보다 몇 dB 크게/작게 구워져 있는지. 게임은 gain 1.0 으로 튼다.',
+             '- **루프** = Web Audio `loopStart`/`loopEnd`(초). 비어 있으면 한 번만 트는 소리.', '']
+    for kind, ko in KIND_KO:
+        items = [x for x in sounds if x['kind'] == kind]
+        if not items:
+            continue
+        lines += [f'## {ko} ({len(items)})', '', '| id | 길이 | BGM 대비 | 루프 | 언제 / 성격 |', '|---|---|---|---|---|']
+        for x in items:
+            lp = f"{x['loop']['start']}–{x['loop']['end']}" if x.get('loop') else ''
+            desc = x.get('character') or x.get('trigger') or ''
+            if x.get('title') and kind in ('bgm', 'special', 'place'):
+                desc = f"**{x['title']}** — {desc}"
+            extra = []
+            if x.get('bpm'):
+                extra.append(f"{x['bpm']} BPM")
+            if x.get('duck_db'):
+                extra.append(f"BGM {x['duck_db']} dB 덕킹")
+            if extra:
+                desc += ' (' + ', '.join(extra) + ')'
+            desc = desc.replace('|', '/').replace('\n', ' ')
+            lines.append(f"| `{x['id']}` | {x['duration']:.2f}s | {x['level']['rel_db']:+g} | {lp} | {desc} |")
+        lines.append('')
+    with open(os.path.join(ROOT, 'CATALOG.md'), 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
+
+
 def main():
     sounds = []
     missing_parts = []
@@ -181,6 +215,7 @@ def main():
     )
     with open(os.path.join(ROOT, 'manifest.json'), 'w', encoding='utf-8') as f:
         json.dump(out, f, ensure_ascii=False, indent=1)
+    write_catalog(sounds, total)
     print(f'sounds: {len(sounds)}  total bytes: {total / 1e6:.1f} MB  parts missing: {missing_parts}')
     if bad:
         print('매핑에 없는 id:', *bad, sep='\n  ')
