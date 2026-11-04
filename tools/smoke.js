@@ -595,14 +595,12 @@ async function scenario2D(browser) {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
   try {
-    await scenarioMain(browser);
-    await scenarioFail(browser, 'missing', 'B. 문서 없음(missing) 응답');
-    await scenarioFail(browser, 'abort', 'C. 요청 중단(abort)');
-    await scenarioMigrate(browser);
-    await scenarioForcedHome(browser);
-    await scenarioMigrateExact(browser);
-    await scenario2D(browser);
-    await scenarioDay2(browser);
+    var only = String(process.env.SMOKE_ONLY || '').toUpperCase().split(/[,\s]+/).filter(Boolean);   /* SMOKE_ONLY=H,I → 그 시나리오만 */
+    var all = [['A', function () { return scenarioMain(browser); }], ['B', function () { return scenarioFail(browser, 'missing', 'B. 문서 없음(missing) 응답'); }],
+      ['C', function () { return scenarioFail(browser, 'abort', 'C. 요청 중단(abort)'); }], ['D', function () { return scenarioMigrate(browser); }],
+      ['E', function () { return scenarioForcedHome(browser); }], ['F', function () { return scenarioMigrateExact(browser); }], ['G', function () { return scenario2D(browser); }],
+      ['H', function () { return scenarioDay2(browser); }]];
+    for (var sc of all) if (!only.length || only.indexOf(sc[0]) >= 0) await sc[1]();
   } catch (e) {
     fails++; console.error('\nCRASH: ' + (e && e.stack || e));
   } finally {
