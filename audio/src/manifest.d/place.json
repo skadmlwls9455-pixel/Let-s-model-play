@@ -1,0 +1,392 @@
+[
+ {
+  "id": "place_hands",
+  "kind": "place",
+  "files": {
+   "ogg": "place/place_hands.ogg",
+   "m4a": "place/place_hands.m4a"
+  },
+  "duration": 39.9,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -5.8
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 38.9
+  },
+  "title": "손과 물건",
+  "mode": "F 이오니안",
+  "meter": "4/4",
+  "bpm": 100,
+  "bars": 16,
+  "character": "만지작만지작. M을 절반 길이로 줄이고 반 박 밀어 시작, 16분 톱니 반주, 옥타브로 튀는 베이스, 나무 톡톡",
+  "trigger": "산책 중 손과 물건 코너(모자·단추·열쇠…)를 기웃거릴 때, 그 포스터를 볼 때",
+  "key": "F 이오니안",
+  "bar_sec": 2.4,
+  "min_stay_bars": 8
+ },
+ {
+  "id": "place_sea",
+  "kind": "place",
+  "files": {
+   "ogg": "place/place_sea.ogg",
+   "m4a": "place/place_sea.m4a"
+  },
+  "duration": 37.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -8.7
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 36.5
+  },
+  "title": "바다와 생물",
+  "mode": "G 도리안 (E♮ 색)",
+  "meter": "6/8 (점4분≈53)",
+  "bpm": 80,
+  "bars": 16,
+  "character": "물결 위 뱃노래. M을 6/8로 다시 박자 맞춤, 3도 아래 따라가는 둘째 펄스, 굴러가는 삼각 베이스, 2마디마다 파도 노이즈",
+  "trigger": "바다와 생물 코너",
+  "key": "G 도리안 (E♮ 색)",
+  "bar_sec": 2.25,
+  "min_stay_bars": 8
+ },
+ {
+  "id": "place_sky",
+  "kind": "place",
+  "files": {
+   "ogg": "place/place_sky.ogg",
+   "m4a": "place/place_sky.m4a"
+  },
+  "duration": 33.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -8.4
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 32.5
+  },
+  "title": "하늘과 날씨",
+  "mode": "F 리디안 (B♮)",
+  "meter": "3/4",
+  "bpm": 90,
+  "bars": 16,
+  "character": "구름 사이를 미끄러지는 왈츠. M의 도약을 넓힘, 높은 음은 미끄러져 들어감, 넓은 아르페지오, 바람 한 줄기",
+  "trigger": "하늘과 날씨 코너",
+  "key": "F 리디안 (B♮)",
+  "bar_sec": 2.0,
+  "min_stay_bars": 8
+ },
+ {
+  "id": "place_signs",
+  "kind": "place",
+  "files": {
+   "ogg": "place/place_signs.ogg",
+   "m4a": "place/place_signs.m4a"
+  },
+  "duration": 41.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -5.7
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 40.5
+  },
+  "title": "기호와 언어",
+  "mode": "C 믹솔리디안 (B♭)",
+  "meter": "4/4",
+  "bpm": 96,
+  "bars": 16,
+  "character": "글자 퍼즐. 25% 펄스가 모스 부호 리듬으로 묻고 50% 펄스가 답함, 스타카토 베이스, 타자기 같은 틱",
+  "trigger": "기호와 언어 코너",
+  "key": "C 믹솔리디안 (B♭)",
+  "bar_sec": 2.5,
+  "min_stay_bars": 8
+ },
+ {
+  "id": "place_numbers",
+  "kind": "place",
+  "files": {
+   "ogg": "place/place_numbers.ogg",
+   "m4a": "place/place_numbers.m4a"
+  },
+  "duration": 39.9,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -6.9
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 38.9
+  },
+  "title": "수와 모양",
+  "mode": "F 이오니안",
+  "meter": "4/4",
+  "bpm": 100,
+  "bars": 16,
+  "character": "규칙대로 쌓이는 블록. 두 성부가 4마디 간격으로 영원히 도는 돌림노래(셈: 8분 계단 → 4분 → 16분 → 2분), 메트로놈 햇",
+  "trigger": "수와 모양 코너",
+  "key": "F 이오니안",
+  "bar_sec": 2.4,
+  "min_stay_bars": 8
+ },
+ {
+  "id": "place_sounds",
+  "kind": "place",
+  "files": {
+   "ogg": "place/place_sounds.ogg",
+   "m4a": "place/place_sounds.m4a"
+  },
+  "duration": 39.9,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -3.3
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 38.9
+  },
+  "title": "소리와 리듬",
+  "mode": "D 도리안 (B♮)",
+  "meter": "4/4 스윙",
+  "bpm": 100,
+  "bars": 16,
+  "character": "장단 맞추기. 처음 4마디는 M의 리듬만 우드블록으로, 그다음 음높이가 입혀짐, 뒷박 코드, 당김 베이스, 노이즈 드럼이 주연",
+  "trigger": "소리와 리듬 코너",
+  "key": "D 도리안 (B♮)",
+  "bar_sec": 2.4,
+  "min_stay_bars": 8
+ },
+ {
+  "id": "place_home",
+  "kind": "place",
+  "files": {
+   "ogg": "place/place_home.ogg",
+   "m4a": "place/place_home.m4a"
+  },
+  "duration": 49.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -9.5
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 48.5
+  },
+  "title": "집과 사람",
+  "mode": "B♭ 이오니안 (E♭, 따뜻한 쪽)",
+  "meter": "4/4",
+  "bpm": 80,
+  "bars": 16,
+  "character": "남의 집 저녁 냄새. 메인 선율 A·B·C·D를 IV조로 옮기고 아래에 화음 성부를 붙인 따뜻한 이중창",
+  "trigger": "집과 사람 코너",
+  "key": "B♭ 이오니안 (E♭, 따뜻한 쪽)",
+  "bar_sec": 3.0,
+  "min_stay_bars": 8
+ },
+ {
+  "id": "place_mind",
+  "kind": "place",
+  "files": {
+   "ogg": "place/place_mind.ogg",
+   "m4a": "place/place_mind.m4a"
+  },
+  "duration": 61.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -7.8
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 60.5
+  },
+  "title": "생각하는 것",
+  "mode": "D 에올리안 + sus 화음",
+  "meter": "4/4",
+  "bpm": 64,
+  "bars": 16,
+  "character": "기억 속을 헤엄치는 느린 메아리. M을 쪼개고 거꾸로, 점8분 에코 두 번, D 페달, 중고음역 유지(무섭지 않게)",
+  "trigger": "생각하는 것(꿈·기억) 코너",
+  "key": "D 에올리안 + sus 화음",
+  "bar_sec": 3.75,
+  "min_stay_bars": 8
+ },
+ {
+  "id": "place_wild",
+  "kind": "place",
+  "files": {
+   "ogg": "place/place_wild.ogg",
+   "m4a": "place/place_wild.m4a"
+  },
+  "duration": 33.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -7.3
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 32.5
+  },
+  "title": "들판",
+  "mode": "G 믹솔리디안 (F♮)",
+  "meter": "2/4",
+  "bpm": 120,
+  "bars": 32,
+  "character": "처음 가 보는 들판. 낯선 중심음 G 위의 M, 점8분+16분 걸음, 열린 5도 베이스와 드론, 발소리",
+  "trigger": "들판(위키 링크로 간 미지의 곳)",
+  "key": "G 믹솔리디안 (F♮)",
+  "bar_sec": 1.0,
+  "min_stay_bars": 8
+ },
+ {
+  "id": "place_door_out",
+  "kind": "place",
+  "files": {
+   "ogg": "place/place_door_out.ogg",
+   "m4a": "place/place_door_out.m4a"
+  },
+  "duration": 28.1667,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -7.9
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 27.166667
+  },
+  "title": "밖의 문",
+  "mode": "C 이오니안 (V조, B♮)",
+  "meter": "4/4",
+  "bpm": 90,
+  "bars": 10,
+  "character": "문 밖으로 한 발. 메인 테마를 딸림조로 옮겨 한 칸 밝게, 5마디부터 돌림, 꼬리 C7→F 로 집 쪽으로 돌아옴",
+  "trigger": "밖의 문(URL 힌트, 모의 방문)",
+  "key": "C 이오니안 (V조, B♮)",
+  "bar_sec": 2.666667,
+  "min_stay_bars": 8
+ },
+ {
+  "id": "place_slow_room",
+  "kind": "place",
+  "files": {
+   "ogg": "place/place_slow_room.ogg",
+   "m4a": "place/place_slow_room.m4a"
+  },
+  "duration": 33.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -8.9
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 32.5
+  },
+  "title": "느린 글의 방",
+  "mode": "B♭ 이오니안",
+  "meter": "4/4",
+  "bpm": 60,
+  "bars": 8,
+  "character": "한 글자씩 천천히 읽는 방. 메인 선율 A·B를 B♭조 60 BPM으로, 5마디부터 피리가 A를 따라 부름",
+  "trigger": "느린 글의 방(linger)",
+  "key": "B♭ 이오니안",
+  "bar_sec": 4.0,
+  "min_stay_bars": 8
+ },
+ {
+  "id": "special_lullaby",
+  "kind": "special",
+  "files": {
+   "ogg": "bgm/special_lullaby.ogg",
+   "m4a": "bgm/special_lullaby.m4a"
+  },
+  "duration": 49.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -4.4
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 48.5
+  },
+  "title": "자장가",
+  "mode": "F 이오니안, F 페달 위 흔들림",
+  "meter": "3/4",
+  "bpm": 60,
+  "bars": 16,
+  "character": "이불을 덮어 주는 흔들의자. 오르골 + 두 옥타브 위 작은 반짝, 마디마다 베이스 한 음. 2~3번 돌고 페이드해 빗소리만 남김",
+  "trigger": "마무리 후 문어가 잠든 동안(2~3번 돌고 페이드 → 빗소리만)",
+  "key": "F 이오니안, F 페달 위 흔들림",
+  "bar_sec": 3.0,
+  "min_stay_bars": null
+ },
+ {
+  "id": "special_window_rain",
+  "kind": "special",
+  "files": {
+   "ogg": "bgm/special_window_rain.ogg",
+   "m4a": "bgm/special_window_rain.m4a"
+  },
+  "duration": 54.8333,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -6.0
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 53.833333
+  },
+  "title": "창가 비",
+  "mode": "D 에올리안 (vi-IV-I-V)",
+  "meter": "4/4",
+  "bpm": 72,
+  "bars": 16,
+  "character": "창가에서 빗방울 세기. D단조로 돌린 M, 두 번째에는 점8분 에코가 유리에 비친 것처럼 따라옴, 높은 물방울 반주",
+  "trigger": "집에 있는 날 + 비/가는 비: 창가에서 빗방울 세기 장면",
+  "key": "D 에올리안 (vi-IV-I-V)",
+  "bar_sec": 3.333333,
+  "min_stay_bars": null
+ }
+]
