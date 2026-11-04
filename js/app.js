@@ -731,15 +731,20 @@ var APP = (function () {
     for (var i = 0; i < S.trips.length; i++) { if (S.trips[i].kind === 'out') n++; if (S.trips[i] === trip) break; }
     return n;
   }
-  /* 한글 한 줄 → 최대 2줄. 공백 우선, 없으면 글자 단위 */
-  function wrapLine(text, maxChars) {
+  /* 한글 한 줄 → 최대 3줄. 공백 우선, 없으면 글자 단위. 마지막 줄만 … */
+  function wrapLine(text, maxChars, maxLines) {
     text = String(text || '').trim(); if (!text) return [];
-    if (text.length <= maxChars) return [text];
-    var cut = text.lastIndexOf(' ', maxChars);
-    if (cut < maxChars * 0.4) cut = maxChars;
-    var a = text.slice(0, cut).trim(), b = text.slice(cut).trim();
-    if (b.length > maxChars) b = b.slice(0, maxChars - 1) + '…';
-    return [a, b];
+    maxLines = maxLines || 3;
+    var out = [], rest = text;
+    while (rest.length && out.length < maxLines) {
+      if (rest.length <= maxChars || out.length === maxLines - 1) {
+        out.push(rest.length > maxChars ? rest.slice(0, maxChars - 1) + '…' : rest); rest = ''; break;
+      }
+      var cut = rest.lastIndexOf(' ', maxChars);
+      if (cut < maxChars * 0.4) cut = maxChars;
+      out.push(rest.slice(0, cut).trim()); rest = rest.slice(cut).trim();
+    }
+    return out;
   }
   function sceneGradient(scene, seed, id) {
     var hue = (hash(scene + '|' + seed) % 360), hue2 = (hue + 28) % 360;
@@ -786,7 +791,8 @@ var APP = (function () {
       return s;
     }
     /* 한 줄 (Noto Serif KR 600, ≤2줄) */
-    var lf = w * (note ? 0.062 : 0.058), lines = wrapLine(p.line || '', Math.floor(sw / (lf * 0.95)));
+    var lf = w * (note ? 0.062 : 0.058), lines = wrapLine(p.line || '', Math.floor(sw / (lf * 0.95)), 3);
+    if (lines.length === 3) { lf *= 0.9; lines = wrapLine(p.line || '', Math.floor(sw / (lf * 0.95)), 3); }
     var ly = sy + sh + lf * 1.6;
     lines.forEach(function (ln, i) { s += '<text x="' + (w / 2) + '" y="' + (ly + i * lf * 1.5).toFixed(1) + '" text-anchor="middle" font-family="Noto Serif KR, serif" font-weight="600" font-size="' + lf.toFixed(1) + '" fill="#2a2620">' + esc(ln) + '</text>'; });
     /* 날짜 · N번째 */
