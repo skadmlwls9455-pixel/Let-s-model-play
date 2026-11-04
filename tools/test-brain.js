@@ -278,7 +278,6 @@ async function planSuite(label, W, hasHat) {
         if (s.status === 'failed') sawFailed = true;
         if (s.first) sawFirst = true;
         if (s.wild) sawWild = true;
-        if (s.wild && i !== n - 1 && !(hasHat === false)) { /* 들판은 마지막 (힌트가 wiki 일 때만 첫 자리) */ }
         if (s.nodeId && W.nodes[s.nodeId] && !s.wild) {
           var nd = W.nodes[s.nodeId];
           if (nd.id === 'slow_room' || nd.id === 'letter_room' || nd.linger) { if (s.status !== 'none') errors.push('seed ' + seed + ' special node status ' + s.status); }
@@ -302,7 +301,6 @@ async function planSuite(label, W, hasHat) {
           if (a.receipt.stops[0].nodeId !== 'hat') errors.push('seed ' + seed + ' followed=' + a.hint.followed + ' but first stop ' + a.receipt.stops[0].nodeId);
           if (a.events[0].followHint !== true) errors.push('seed ' + seed + ' depart.followHint');
         } else {
-          if (a.receipt.stops[0].nodeId === 'hat' && a.receipt.stops[0].first) { /* 우연히 hat 에서 출발할 수도 있음 */ }
           if (a.events[0].followHint !== false || !a.hint.note) errors.push('seed ' + seed + ' ignored hint should have note + followHint false');
         }
         if (a.hint.followed === 'followed') {
@@ -513,9 +511,8 @@ async function planSuite(label, W, hasHat) {
         loadScript(worldFile);
         var RW = global.WORLD;
         if (RW && RW.nodes && Object.keys(RW.nodes).length) {
-          var hasHat = !!(RW.nodes.hat && BRAIN.matchHint.call(null, '모자의 역사').kind === 'node');
           global.WORLD = RW;
-          hasHat = !!(RW.nodes.hat && BRAIN.matchHint('모자의 역사').nodeId === 'hat');
+          var hasHat = !!(RW.nodes.hat && BRAIN.matchHint('모자의 역사').nodeId === 'hat');
           await planSuite('real js/world.js (' + Object.keys(RW.nodes).length + ' nodes)', RW, hasHat);
         } else console.log('\n(js/world.js loaded but WORLD.nodes empty — skipped)');
       } catch (e) { console.log('\n(js/world.js could not be loaded: ' + e.message + ' — skipped)'); failures++; }
