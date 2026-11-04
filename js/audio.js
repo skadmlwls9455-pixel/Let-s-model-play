@@ -241,6 +241,19 @@ var AUDIO = (function () {
   /* ───────────────────────── 한 번짜리 소리 · 덕킹 ───────────────────────── */
   function note(id, t) { played.push({ id: id, t: Math.round(t * 1000) / 1000 }); if (played.length > 120) played.shift(); }
   /* o: at (ctx 시각) · gain · bus · always (건너뛰는 중에도) · direct (마스터를 거치지 않음 — 끄는 소리) */
+  /* 이벤트 징글 줄 세우기: 받기 전에(매니페스트 길이로) 자리를 잡아 서로 겹치지 않게 (기분+등불, 귀가+등불, 등불+이불…).
+     빈 자리가 있으면 앞 예약(시간대 종 등) 사이에도 들어간다. beat0 = 처음 자리도 박에, beat1 = 밀렸으면 박에 */
+  function fitEv(tt, d, beat0, beat1) {
+    var t0 = now(); evQ = evQ.filter(function (x) { return x.e > t0; });
+    if (beat0) tt = nextBeat(tt);
+    for (var i = 0; i < 16; i++) {
+      var hit = null;
+      for (var j = 0; j < evQ.length; j++) { var x = evQ[j]; if (x.s < tt + d - 0.02 && x.e > tt + 0.02 && (!hit || x.e > hit.e)) hit = x; }
+      if (!hit) break;
+      tt = hit.e + 0.05; if (beat1) tt = nextBeat(tt);
+    }
+    return tt;
+  }
   function play(x, o) {
     o = o || {};
     if (!ctx || !M || document.hidden) return Promise.resolve(0);
@@ -248,28 +261,40 @@ var AUDIO = (function () {
     var id = pick(x); if (!id) return Promise.resolve(0);
     var s = byId[id], g = s.group || id, bus = o.bus || busFor(s);
     if (gs.skipping && !o.always && bus !== 'sfx_ui') return Promise.resolve(0);   /* 건너뛰는 중엔 귀가·등불만 */
-    var t0 = now(), tt = o.at || t0, gap = (s.min_gap_ms || 0) / 1000;
+    var t0 = now(), tt = o.at || t0, gap = (s.min_gap_ms || 0) / 1000, beat = s.quantize === 'beat';
+    /* 비 오는 날 나감 소리 덧층(depart_rain_extra)은 일부러 겹친다. 시간대 종은 곡 전환에 맞춘 자리 그대로 (다른 것이 피해 간다) */
+    var queued = !o.direct && bus === 'sfx_event' && s.kind === 'jingle' && g !== 'depart_rain_extra', d = s.duration || 0.3;
+    if (queued && g !== 'chime') tt = fitEv(Math.max(tt, t0 + 0.01), d, beat && !o.at, beat);
     if (gap && lastAt[g] != null && Math.abs(tt - lastAt[g]) < gap) return Promise.resolve(0);
     /* 동시에 6개까지: 새 소리가 시작하는 순간 울리고 있을 것만 센다 (미리 예약한 말풍선 음절은 서로 겹치지 않는다) */
     shots = shots.filter(function (x) { return x.e > t0; });
     var over = shots.filter(function (x) { return x.s <= tt + 0.02 && x.e > tt; }).length;
     if (over >= MAX_SHOTS + (bus === 'sfx_event' ? 2 : 0)) return Promise.resolve(0);
     lastAt[g] = tt;
-    shots.push({ s: tt, e: tt + (s.duration || 0.3) + 0.05 });
+    shots.push({ s: tt, e: tt + d + 0.05 });
+    var resv = null, at = o.at || 0;
+    if (queued) { resv = { s: tt, e: tt + d }; evQ.push(resv); evEnd = Math.max(evEnd, resv.e); at = tt; }
     var p = load(id).then(function (buf) {
       if (!ctx || (!o.direct && !active())) return 0;
+      if (o.direct && (pref.on || ctx.state !== 'running')) return 0;   /* 끄는 소리가 늦게 왔다: 멈춘 뒤라면 다음에 켤 때 울리니 버린다 */
       if (o.at && bus === 'voice' && now() > o.at + 0.08) return 0;   /* 늦은 음절은 버린다 (뭉쳐 울리지 않게) */
       var src = ctx.createBufferSource(); src.buffer = buf;
       var gn = ctx.createGain(); gn.gain.value = o.gain == null ? 1 : o.gain;
       src.connect(gn); gn.connect(o.direct ? ctx.destination : nd.bus[bus]);
       if (o.direct) gn.gain.value *= curve(vol.sfx_ui);
-      var t = Math.max(now() + 0.01, o.at || 0);
-      if (s.quantize === 'beat' && !o.at) t = nextBeat(t);
+      var t = Math.max(now() + 0.01, at);
+      if (beat && !at) t = nextBeat(t);
+      if (resv && t > at + 0.02) {   /* 받기가 늦었다: 제 자리를 비우고 지금부터 다시 줄을 선다 (뒤에 예약된 것과 겹치지 않게) */
+        resv.s = resv.e = -1; t = fitEv(t, buf.duration, beat, beat);
+        resv.s = t; resv.e = t + buf.duration;
+      }
       if (!o.direct) {
         if (s.pause_bgm) pauseBgm(t, buf.duration);
         else if (s.duck_db < 0) duck(s.duck_db, t, buf.duration, s.duck_attack_ms, s.duck_release_ms);
       }
-      src.onended = function () { try { gn.disconnect(); } catch (e) { /* noop */ } };
+      var rec = { src: src, gn: gn, end: t + buf.duration, direct: !!o.direct };   /* 끌 때 같이 멈춘다 (안 그러면 suspend 에 얼었다가 다음에 켤 때 울린다) */
+      live.push(rec);
+      src.onended = function () { try { gn.disconnect(); } catch (e) { /* noop */ } var i = live.indexOf(rec); if (i >= 0) live.splice(i, 1); };
       src.start(t);
       var end = t + buf.duration;
       if (bus === 'sfx_event') evEnd = Math.max(evEnd, end);
