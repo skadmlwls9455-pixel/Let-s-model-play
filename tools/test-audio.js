@@ -149,8 +149,10 @@ async function scenarioHttp(browser, base) {
   var sea = await waitState(page, function () { var x = AUDIO.state(); return x.bgm === 'place_sea' || x.pending === 'place_sea'; }, null, 12000);
   b = await st(page);
   ok(sea && b.place === 'sea', '실패한 곳이어도 장소 테마는 그 코너 → place_sea (bgm=' + b.bgm + ', pending=' + b.pending + ')');
-  var seaOn = await waitState(page, function () { return AUDIO.state().bgm === 'place_sea'; }, null, 12000);
-  ok(seaOn, '다음 마디선에서 place_sea 로 전환');
+  /* 빠른 재생(?slow=0.5)에선 둘째 기웃이 첫 마디선보다 먼저 올 수 있다 → 그땐 마지막 코너(하늘)가 이긴다. 바깥에 있는 동안 장소 테마로 바뀌기만 확인 (정확한 마디선 전환은 6번에서) */
+  var placeOn = await waitState(page, function () { var x = AUDIO.state(); return (x.away || x.departing) && /^place_(sea|sky)$/.test(x.bgm || ''); }, null, 15000);
+  b = await st(page);
+  ok(placeOn, '나가 있는 동안 장소 테마로 전환 (' + b.bgm + ')');
   var rd = await waitState(page, function () { var p = AUDIO.state().played.map(function (x) { return x.id; }); return p.some(function (id) { return /^peek_read_/.test(id); }) && p.indexOf('first_place') >= 0; }, null, 40000);
   ok(rd, '기웃 read + 처음 → peek_read_* + first_place');
   var ret = await waitState(page, function () { return AUDIO.state().played.some(function (x) { return /^return_home_/.test(x.id); }); }, null, 60000);
@@ -241,6 +243,21 @@ async function scenarioNight(browser, base) {
     });
   });
   ok(vis.hidden === 'suspended' && vis.shown === 'running', '탭 숨김 → suspended, 보이면 → running (' + JSON.stringify(vis) + ')');
+  /* 기웃 → 장소 테마: 다음 마디선(밤 맑음 64 BPM = 3.75 s)에서 1마디 크로스페이드. 게임 상태와 무관한 오디오 이벤트만 흉내 */
+  var pk = await page.evaluate(function () {
+    AUDIO.on('ceremony', { kind: 'depart' }); AUDIO.on('state', { state: 'away' });
+    var x = AUDIO.state(); window.__peekAt = x.time;
+    AUDIO.on('peek', { status: 'failed', corner: 'sea', roomId: 'shell', first: true });
+    return { trimAway: x.away, want: AUDIO.state().want };
+  });
+  var seaOn = await waitState(page, function () { return AUDIO.state().bgm === 'place_sea'; }, null, 8000);
+  var a3 = await page.evaluate(function () { var x = AUDIO.state(); return { bgm: x.bgm, dt: x.time - window.__peekAt, played: x.played.map(function (p) { return p.id; }) }; });
+  ok(pk.want === 'place_sea' && seaOn && a3.dt < 3.75 + 1.5, '기웃 failed → peek_failed + 다음 마디선에서 place_sea (' + a3.dt.toFixed(2) + ' s 뒤)');
+  ok(a3.played.some(function (id) { return /^peek_failed_/.test(id); }) && a3.played.indexOf('first_place') < 0, '정직: failed 는 처음이어도 first_place 없음');
+  await page.evaluate(function () { AUDIO.on('ceremony', { kind: 'return' }); AUDIO.on('state', { state: 'idle' }); });
+  var home = await waitState(page, function () { var x = AUDIO.state(); return x.played.some(function (p) { return /^return_home_/.test(p.id); }) && (x.pending === 'theme_night_clear' || x.bgm === 'theme_night_clear'); }, null, 8000);
+  ok(home, '귀가 → return_home + 집 테마 예약 (장소 최소 8마디 뒤)');
+  await waitState(page, function () { return AUDIO.state().bgm === 'theme_night_clear'; }, null, 40000);
   /* 방 완성 (등불 8칸): BGM 일시정지 → room_complete → 같은 곡을 처음부터 */
   await page.evaluate(function () { window.__paused = false; window.__pIv = setInterval(function () { if (AUDIO.state().paused) window.__paused = true; }, 30); AUDIO.on('lantern', { n: 8 }); });
   var rc = await waitState(page, function () { return window.__paused && AUDIO.state().played.some(function (x) { return x.id === 'room_complete'; }); }, null, 10000);

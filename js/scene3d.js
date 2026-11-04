@@ -270,7 +270,7 @@ var SCENE3D = (function () {
       look: Object.assign({ pixelSize: DEF_P, dither: 0.25, outline: true, yaw: 0, key: LIGHTS.day.sunI, fill: LIGHTS.day.hemiI }, opts.look || {}), zoom: 0, palette: paletteSource(opts.palette || PAL_DEFAULT) };
     st.look.key = clamp(+st.look.key || LIGHTS.day.sunI, 0.5, 4); st.look.fill = clamp(+st.look.fill || LIGHTS.day.hemiI, 0, 1);
     var PAL = buildPalette(st.color, st.palette), OC = octDerived(st.color);
-    var disposables = [], unbind = [], raf = 0, lastT = 0, frameNo = 0, time = 0, calls = 0, ready = false;
+    var disposables = [], unbind = [], raf = 0, lastDraw = 0, frameNo = 0, time = 0, calls = 0, ready = false;
     function listen(el, ev, fn, o) { el.addEventListener(ev, fn, o); unbind.push(function () { el.removeEventListener(ev, fn, o); }); }
     function keep(x) { disposables.push(x); return x; }
 
@@ -1825,21 +1825,52 @@ var SCENE3D = (function () {
     extReady = true;
 
     /* ── 입력: 레이캐스트 · 드래그 · 줌 ── */
-    var ray = new T.Raycaster(), ndc = new T.Vector2(), press = null, pinch = null;
-    function pick(e) {
+    var ray = new T.Raycaster(), ndc = new T.Vector2(), press = null, pinch = null, _pb = new T.Box3(), _pv = new T.Vector3();
+    /* 탭 판정 (docs/research/furniture-tap-events.md 1·2): ① 문어의 *실제 몸 메시*·포스터·보이는 기념품을 거리순 레이캐스트 (몸 = 문어 'oct')
+       → ② 다 빗나가면 문어 히트 구(r 0.67 m) → ③ 창 유리 → ④ 화면 공간 보정: 포스터·기념품 투영 사각형 중 탭에서 NEAR_PX 안 최근접 하나 (2등이 NEAR_GAP 안이면 모호 → 없음).
+       큰 히트 구가 문어 뒤 포스터·선반 기념품을 가리지 않는다. 바깥: 문어 히트 구만 (다락 유리·포스터는 숨은 그룹이라도 레이캐스트엔 걸리므로 뺀다) · 숨은 문어·바깥 기웃 중(away)엔 문어 탭 없음 */
+    var NEAR_PX = 16, NEAR_GAP = 4;
+    function octTappable() { return octG.visible && st.octState !== 'away'; }
+    function bodyMeshes() { var out = []; bodyG.traverseVisible(function (o) { if (o.isMesh && o !== hit && o.material && o.material.visible !== false) out.push(o); }); return out; }
+    function tapItems() { return posterMeshes.filter(function (m) { return m.visible; }).concat(souvMeshes.filter(function (m) { return m.visible; })); }
+    function tapId(o) { var u = o.userData; return u.kind === 'poster' ? u.id : u.kind === 'souvenir' ? (u.sv && u.sv.id) : u.kind; }
+    function screenRect(objs, r) {   /* 월드 AABB 꼭짓점 8개 투영 → 캔버스 CSS px 사각형 {l,t,r,b} */
+      var l = Infinity, t = Infinity, rr = -Infinity, b = -Infinity;
+      objs.forEach(function (o) {
+        _pb.setFromObject(o); if (_pb.isEmpty()) return;
+        for (var i = 0; i < 8; i++) {
+          _pv.set(i & 1 ? _pb.max.x : _pb.min.x, i & 2 ? _pb.max.y : _pb.min.y, i & 4 ? _pb.max.z : _pb.min.z).project(camera);
+          var x = (_pv.x * 0.5 + 0.5) * r.width, y = (1 - (_pv.y * 0.5 + 0.5)) * r.height;
+          if (x < l) l = x; if (x > rr) rr = x; if (y < t) t = y; if (y > b) b = y;
+        }
+      });
+      return { l: l, t: t, r: rr, b: b };
+    }
+    function nearItem(px, py, r) {   /* ④ 빗나간 탭 → 화면 공간 최근접 포스터·기념품 (bubble cursor 간이판, 캔버스 CSS px) */
+      var best = null, d1 = Infinity, d2 = Infinity;
+      tapItems().forEach(function (m) {
+        var q = screenRect([m], r), d = Math.hypot(Math.max(q.l - px, 0, px - q.r), Math.max(q.t - py, 0, py - q.b));
+        if (d < d1) { d2 = d1; d1 = d; best = m; } else if (d < d2) d2 = d;
+      });
+      return best && d1 <= NEAR_PX && d2 - d1 >= NEAR_GAP ? best : null;
+    }
+    function pick(cx, cy) {   /* 클라이언트 CSS px (PointerEvent clientX/Y) → 탭 표적 메시 | null */
       var r = canvas.getBoundingClientRect();
-      ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
-      var list = PLACE.vis === 'exterior' ? [hit] : [hit, glass].concat(posterMeshes, souvMeshes.filter(function (m) { return m.visible; }));   /* 바깥: 문어만 (다락 유리·포스터는 숨은 그룹이라도 레이캐스트엔 걸리므로 뺀다) */
-      var hits = ray.intersectObjects(list, false);
-      for (var i = 0; i < hits.length; i++) { var o = hits[i].object; if (o === hit && (!octG.visible || st.octState === 'away')) continue; return o; }   /* 바깥 기웃 중(away)엔 문어 탭 없음 */
-      return null;
+      var okOct = octTappable();
+      if (PLACE.vis === 'exterior') return okOct && ray.intersectObject(hit, false).length ? hit : null;
+      var hs = ray.intersectObjects(okOct ? tapItems().concat(bodyMeshes()) : tapItems(), false);
+      if (hs.length) { var o = hs[0].object, k = o.userData.kind; return k === 'poster' || k === 'souvenir' ? o : hit; }
+      if (okOct && ray.intersectObject(hit, false).length) return hit;
+      if (ray.intersectObject(glass, false).length) return glass;
+      return nearItem(cx - r.left, cy - r.top, r);
     }
     listen(canvas, 'pointerdown', function (e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
       if (press && press.id !== e.pointerId) { pinch = { d0: Math.hypot(e.clientX - press.x, e.clientY - press.y), zoom: st.zoom }; return; }
-      var o = pick(e);
+      var o = pick(e.clientX, e.clientY);
       press = { id: e.pointerId, x: e.clientX, y: e.clientY, obj: o, moved: false, pet: false, t: null };
       if (o && o.userData.kind === 'oct') press.t = setTimeout(function () { press.pet = true; if (on.pet) on.pet(); }, 350);
       e.preventDefault();
@@ -1870,9 +1901,15 @@ var SCENE3D = (function () {
     listen(document, 'pointermove', function (e) { if (e.pointerType !== 'touch') { oct.pointer = { x: e.clientX, y: e.clientY }; oct.lookTarget = null; } }, { passive: true });
     listen(canvas, 'webglcontextlost', function (e) { e.preventDefault(); st.lost = true; if (oct.walking && oct.walking.finish) oct.walking.finish(); });
     listen(canvas, 'webglcontextrestored', function () { st.lost = false; renderer.shadowMap.needsUpdate = true; });
-    listen(document, 'visibilitychange', function () { st.hidden = document.hidden; if (!st.hidden) { lastT = 0; loop(); } });
+    listen(document, 'visibilitychange', function () { st.hidden = document.hidden; if (!st.hidden) { lastDraw = 0; loop(); } });
     var ro = null;
     if (window.ResizeObserver) { ro = new ResizeObserver(function () { resize(); }); ro.observe(container); } else listen(window, 'resize', resize);
+    /* 화면 밖 (T4, docs/research/a11y-and-mobile-perf.md 2): 장면이 스크롤로 안 보이면 시뮬레이션(의식·걷기·비 스텝)은 그대로 돌리고 렌더 패스만 건너뛴다. 다시 보이면 디더 0.3 s 쉼 (드래그 뒤와 같은 규칙) */
+    var io = null;
+    if (window.IntersectionObserver) {
+      io = new IntersectionObserver(function (es) { var off = !es[es.length - 1].isIntersecting; if (off === !!st.offscreen) return; st.offscreen = off; if (!off) dither.still = 0; }, { threshold: 0 });
+      io.observe(container);
+    }
 
     /* ── 말풍선 (HTML 오버레이) ── */
     var bubbleTimer = null;
@@ -2041,10 +2078,12 @@ var SCENE3D = (function () {
       if (INTRO.t >= INTRO.dur) finishIntro();
     }
     function frame(ts) {
-      var dt = lastT ? Math.min(0.1, (ts - lastT) / 1000) : 0.016; lastT = ts; time += dt; frameNo++;
-      if (ctxLost()) return;
       var idle = (st.octState === 'idle' || st.octState === 'sleep' || st.octState === 'stay') && !oct.walking && !(G.settleT < GAIT.settle) && !dragging && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !CER.active;
-      if (idle && (frameNo & 1) && !st.force) return;   /* 가만히 있을 땐 30fps (debugStep 은 강제 렌더) */
+      /* 프레임 상한은 *시간* 기준 (docs/research/a11y-and-mobile-perf.md 1): 가만히(또는 화면 밖) 30fps · 그 밖 60fps — 120Hz 폰도 60. 건너뛴 콜백의 시간은 버리지 않고
+         다음에 그리는 프레임의 dt 로 넘긴다 (예전 홀수 콜백 건너뛰기는 dt 째 버려서 가만히 있을 때 비·양초·먼지·깜빡임·커튼이 반속도였다). debugStep(st.force) 은 항상 주어진 dt 로 진행·렌더 */
+      if (!st.force && lastDraw && ts - lastDraw < (idle || st.offscreen ? 1000 / 30 : 1000 / 60) - 1) return;
+      var dt = lastDraw ? Math.min(0.1, (ts - lastDraw) / 1000) : 0.016; lastDraw = ts; time += dt; frameNo++;
+      if (ctxLost()) return;
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       applyPendingPixel();
       if (light.t < 1) { light.t = Math.min(1, light.t + dt / light.dur); applyLight(); if (light.t >= 1) light.from = null; }
@@ -2069,6 +2108,10 @@ var SCENE3D = (function () {
       stepOct(dt); stepHang(dt); stepIntro(dt);
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(camera.quaternion);
       placeCamera(); updateOverlay();
+      if (!st.offscreen || st.force) draw(t0);   /* 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 */
+      if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
+    }
+    function draw(t0) {   /* 렌더 패스: 뷰티 → 노멀 → 발광(+블러) → 후처리 합성 · 프레임 ms · 드로우콜 로그 */
       renderer.shadowMap.needsUpdate = true;
       renderer.setRenderTarget(rt); renderer.clear(true, true, false); renderer.render(scene, camera);
       calls = renderer.info.render.calls;
@@ -2101,7 +2144,6 @@ var SCENE3D = (function () {
           if (calls > 150) console.error('[scene3d] draw calls ' + calls + ' > 150 (renderer.info, ' + pv + ')');   /* 예산 단언: look-shots / evidence3d 가 console.error 로 실패 처리 */
         }
       }
-      if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
     }
     function loop() { if (st.paused || st.hidden) return; cancelAnimationFrame(raf); raf = requestAnimationFrame(function (ts) { frame(ts); loop(); }); }
 
@@ -2112,6 +2154,23 @@ var SCENE3D = (function () {
     jumpTo('window'); setOctState('idle');
     if (opts.octEl) { container.appendChild(opts.octEl); opts.octEl.classList.add('overlay3d'); }
     container.classList.add('mode-3d');
+    /* 셰이더 예열 (T3, docs/research/polish-from-starred-repos.md): 첫 바깥 전환이 프로그램 9개를 새로 컴파일하며 멈칫하던 것을 부팅으로 옮긴다.
+       r128 compile 은 조명을 traverseVisible 로만 모으므로 장소마다 한 번씩 (그 장소만 보이게, 뷰티 패스와 같은 sRGB 타깃으로) 부른다. 재질은 숨은 것까지 traverse 하므로
+       다른 장소 그룹은 잠깐 장면에서 떼어 낸다 (안 떼면 쓰지 않을 조명 변형이 9개 더 생긴다) · 문어는 두 장소를 오가므로 바깥 패스에선 바깥 그룹에 잠깐 붙인다. 끝나면 부모·순서·보이기를 되돌린다.
+       남는 것: 노멀 패스 덮어쓰기 재질·그림자 깊이 재질의 바깥(인스턴스) 변형 3개는 compile 이 닿지 않아 첫 바깥 프레임에 컴파일된다 (작은 셰이더) */
+    (function prewarm() {
+      if (ctxLost()) return;
+      var av = atticG.visible, ev = extG.visible, prt = renderer.getRenderTarget();
+      function lift(o) { var p = o.parent, i = p.children.indexOf(o); p.remove(o); return function () { p.add(o); p.children.splice(p.children.indexOf(o), 1); p.children.splice(i, 0, o); }; }
+      var putExt = null, putAttic = null, putOct = null;
+      try {
+        renderer.setRenderTarget(rt);
+        putExt = lift(extG); atticG.visible = true; renderer.compile(scene, camera); putExt(); putExt = null;
+        putOct = lift(octG); extG.add(octG); putAttic = lift(atticG); extG.visible = true; renderer.compile(scene, camera);
+      } catch (e) { /* 예열 실패는 첫 렌더가 대신 컴파일한다 */ }
+      if (putExt) putExt(); if (putAttic) putAttic(); if (putOct) putOct();
+      atticG.visible = av; extG.visible = ev; renderer.setRenderTarget(prt);
+    })();
     ready = true; loop();
 
     return {
@@ -2161,16 +2220,26 @@ var SCENE3D = (function () {
         out.push({ name: 'oct', colors: PAL.oct }); return out;
       },
       /* 디버그 (룩 패스 7, tools/look-strip.js): 루프를 멈추고 dt 초만큼 한 프레임 진행·렌더 (idle 30fps 건너뛰기 무시) → 12 fps 프레임 스트립을 결정적으로 찍는다. resume() 으로 재개 */
-      debugStep: function (dt) { st.paused = true; cancelAnimationFrame(raf); st.force = true; frame((lastT || 0) + Math.max(0.001, +dt || 1 / 12) * 1000); st.force = false; },
+      debugStep: function (dt) { st.paused = true; cancelAnimationFrame(raf); st.force = true; frame((lastDraw || 0) + Math.max(0.001, +dt || 1 / 12) * 1000); st.force = false; },
+      /* 디버그 (T2, tools/test-scene-perf.js): 탭 표적 목록 {kind,id,x,y,rect} · pickAt(x, y) → {kind,id} | null. 좌표는 둘 다 클라이언트 CSS px (PointerEvent clientX/Y 와 같은 계) */
+      targets: function () {
+        scene.updateMatrixWorld(); camera.updateMatrixWorld();
+        var r = canvas.getBoundingClientRect(), out = [];
+        function add(kind, id, objs) { var q = screenRect(objs, r); if (!isFinite(q.l)) return; out.push({ kind: kind, id: id, x: r.left + (q.l + q.r) / 2, y: r.top + (q.t + q.b) / 2, rect: { l: r.left + q.l, t: r.top + q.t, r: r.left + q.r, b: r.top + q.b } }); }
+        if (octTappable()) add('oct', 'oct', bodyMeshes());
+        if (PLACE.vis !== 'exterior') { add('window', 'window', [glass]); tapItems().forEach(function (m) { add(m.userData.kind, tapId(m), [m]); }); }
+        return out;
+      },
+      pickAt: function (x, y) { scene.updateMatrixWorld(); camera.updateMatrixWorld(); var o = pick(+x, +y); return o ? { kind: o.userData.kind, id: tapId(o) } : null; },
       screenOf: function (x, y, z) { var p = _hp.set(x, y, z).project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 월드 → 컨테이너 CSS px (스트립 크롭 중심) */
       msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
       motion: function () { return { place: PLACE.vis, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, peek: PK.on ? PK.key + (PK.hold ? ':hold' : ':walk') : '', extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
       gaitStyle: function (s) { if (s === 'stepped' || s === 'smooth') GAIT.stepped = s === 'stepped'; return GAIT.stepped ? 'stepped' : 'smooth'; },   /* 디버그: 걸음 굴림 3단 스텝(기본) / 매끈 — tools/walk-strip.js 비교용 */   /* 룩 패스 7·8 디버그 */
-      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, season: SEASON.cur, callsAttic: callsBy.attic, callsExt: callsBy.exterior, extProps: extPropN }; },
+      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, season: SEASON.cur, offscreen: !!st.offscreen, callsAttic: callsBy.attic, callsExt: callsBy.exterior, extProps: extPropN }; },
       refresh: function () { applyItems(); },
-      pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastT = 0; loop(); },
+      pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastDraw = 0; loop(); },
       destroy: function () {
-        st.paused = true; cancelAnimationFrame(raf); unbind.forEach(function (f) { f(); }); if (ro) ro.disconnect();
+        st.paused = true; cancelAnimationFrame(raf); unbind.forEach(function (f) { f(); }); if (ro) ro.disconnect(); if (io) io.disconnect();
         posterMeshes.forEach(function (m) { if (m.material !== posterMat) { if (m.material.map) m.material.map.dispose(); m.material.dispose(); } });
         if (carry.material !== posterMat) { if (carry.material.map) carry.material.map.dispose(); carry.material.dispose(); }
         disposables.forEach(function (d) { if (d && d.dispose) d.dispose(); });
