@@ -587,14 +587,24 @@
   }
 
   /* ───────── 5.9 반응 ───────── */
+  function jumpy(stops) {   /* 폴짝할 일이 실제로 있었나: 처음 온 방, 또는 실제로 읽은 들판 걸음 */
+    return stops.some(function (s) { return s.first || (s.kind === 'wild' && s.status === 'read'); });
+  }
+  function proud(stops, followed) {   /* 우쭐할 일: 힌트를 따라가 전부 읽음 */
+    return followed === 'followed' && stops.length > 0 && stops.every(function (s) { return s.status === 'read'; });
+  }
   function computeReaction(stops, followed, hour, isHome) {
     if (isHome) return '졸림';
-    var anyFirst = stops.some(function (s) { return s.first; });
-    var anyWild = stops.some(function (s) { return s.kind === 'wild'; });
-    if (anyFirst || anyWild) return '폴짝';
-    if (followed === 'followed' && stops.length && stops.every(function (s) { return s.status === 'read'; })) return '우쭐';
+    if (jumpy(stops)) return '폴짝';
+    if (proud(stops, followed)) return '우쭐';
     if (stops.length >= 4 || hour >= 23 || hour <= 5) return '졸림';
     return '덤덤';
+  }
+  /* 사람/모델이 고른 반응이 실제로 있었던 일과 맞나. 졸림·덤덤은 아무것도 주장하지 않으니 늘 괜찮다 */
+  function reactionFits(reaction, stops, followed) {
+    if (reaction === '폴짝') return jumpy(stops);
+    if (reaction === '우쭐') return proud(stops, followed);
+    return true;
   }
 
   /* ───────── 힌트 따랐나 ───────── */
@@ -606,6 +616,8 @@
       return 'left';
     }
     if (!intent) return 'none';
+    /* 따르지 않았는데 길에 힌트 방이 있다(재생 입력) → '무시함'이라 하면 "모자 말고 모자"가 된다 */
+    if (!follow && match.kind === 'node' && hintNode && stops.some(function (s) { return s.id === hintNode.id; })) return 'left';
     if (!follow) return 'ignored';
     if (match.kind === 'wiki') {
       return stops.length > 1 ? 'left' : 'followed';
@@ -646,6 +658,8 @@
     if (cands.length && rr.rSouvenir < 0.35) {
       souvenir = cands[Math.min(cands.length - 1, Math.floor((rr.rSouvenir / 0.35) * cands.length))].node.souvenir;
     }
+
+    var followed = computeFollowed(match, ctx.intent, ctx.follow, stops, ctx.hintNode, ctx.urlNode);
 
     /* 한 줄 */
     var line = ctx.line || null, lineKind = null;
