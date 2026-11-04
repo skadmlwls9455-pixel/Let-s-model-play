@@ -271,10 +271,37 @@ var APP = (function () {
   }
   function loadLook() { try { var o = JSON.parse(store.get(LOOK_KEY) || 'null'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; } }
   function saveLook(o) { try { store.set(LOOK_KEY, JSON.stringify(o)); } catch (e) { /* noop */ } }
+  /* 계절 (DESIGN §15.3): 기본 = 실제 날짜(월). 데모 패널 칩으로 지정하면 룩 설정(ppolppol_look.season)에 남는다. 테스트 훅 __ppolLook.season 이 있으면 그게 먼저 (저장 X) */
+  var SEASONS_UI = [['auto', '자동'], ['spring', '봄'], ['summer', '여름'], ['autumn', '가을'], ['winter', '겨울']];
+  var SEASON_KO = { spring: '봄', summer: '여름', autumn: '가을', winter: '겨울' };
+  function validSeason(x) { return ['spring', 'summer', 'autumn', 'winter'].indexOf(x) >= 0 ? x : null; }
+  function seasonPref() { var hk = lookHook(); return validSeason(hk && hk.season) || validSeason(loadLook().season) || undefined; }   /* undefined = 자동 (장면이 월로 정한다) */
+  function seasonMode() { return (scene && typeof scene.seasonMode === 'function') ? scene.seasonMode() : (seasonPref() || 'auto'); }
+  function seasonLine() {
+    var cur = (scene && typeof scene.season === 'function') ? scene.season() : null, mode = seasonMode();
+    return '계절: ' + (SEASON_KO[cur] || '?') + ' (' + (mode === 'auto' ? '실제 날짜' : '지정') + ')';
+  }
+  function setSeasonPref(x) {
+    var v = validSeason(x) || 'auto', o = loadLook();
+    if (v === 'auto') delete o.season; else o.season = v;
+    saveLook(o);
+    if (scene && typeof scene.setSeason === 'function') scene.setSeason(v);
+    document.querySelectorAll('[data-season]').forEach(function (b) { b.classList.toggle('on', b.dataset.season === v); });
+    var ln = $('rs-season'); if (ln) ln.textContent = seasonLine();
+  }
+  function seasonChips(id) {   /* 자동 / 봄 / 여름 / 가을 / 겨울 — 데모 패널 (개발용 지정) */
+    var row = h('div', { class: 'filters', role: 'group', 'aria-label': '계절', id: id }), cur = seasonMode();
+    SEASONS_UI.forEach(function (p) {
+      var b = h('button', { type: 'button', class: 'fchip' + (cur === p[0] ? ' on' : ''), 'data-season': p[0], text: p[1] });
+      b.addEventListener('click', function () { setSeasonPref(p[0]); });
+      row.appendChild(b);
+    });
+    return row;
+  }
   function sceneOpts() {
     return {
       pixelSize: 3, color: S.settings.octColor, lantern: S.room.lantern, items: itemsFor(S.room.lantern), weather: weatherFor(S.room.lantern), hour: hourNow(),
-      posters: [], souvenirs: [], reducedMotion: reduced(), speed: speed(), assetPath: assetPath, octEl: $('oct'), look: lookNow(), palette: paletteNow(),
+      posters: [], souvenirs: [], reducedMotion: reduced(), speed: speed(), assetPath: assetPath, octEl: $('oct'), look: lookNow(), palette: paletteNow(), season: seasonPref(),
       on: {
         posterTap: function (id) { openPoster(id); },
         souvenirTap: function (sv) { if (sv.tripId && tripById(sv.tripId)) { say((sv.emoji ? sv.emoji + ' ' + sv.name : sv.id) + ' — 이거 가져온 날', 'happy', 1800); openPoster(sv.tripId, true); } },
@@ -321,13 +348,81 @@ var APP = (function () {
     return a;
   }
   function octPlace(anchor) { oct.anchor = anchorName(anchor); scene.jumpTo(oct.anchor); }
-  function octState(st, extra) {
-    oct.state = st;
+  function octState(st, extra, quiet) {
     scene.setOctState(st, extra);
+    octMirror(st, quiet);
+  }
+  /* APP 쪽 상태만 (라벨 · UI 아트). 의식 중엔 장면이 스스로 setOctState 하므로 이것만 부른다. quiet = UIART 훅 생략 (먹물을 이미 문 앞에서 뿌렸을 때) */
+  function octMirror(st, quiet) {
+    oct.state = st;
     var lbl = $('oct-label');
     if (lbl) lbl.textContent = st === 'sleep' ? '💤' : st === 'away' ? '' : st === 'anticipate' ? '출발 중…' : '';
     if (st === 'sleep') scheduleDreamLabel();
-    if (window.UIART) UIART.onState(st);   /* zzz · 출발 먹물 (js/ui-art.js) */
+    if (!quiet && window.UIART) UIART.onState(st);   /* zzz · 출발 먹물 (js/ui-art.js) */
+  }
+
+  /* ── 출발·귀가 의식 (DESIGN §15.3 · SCENE.md "바깥·계절·전환"): 다락 문 → 전환 → 현관 → 계단 → 길 → 화면 밖 / 그 거꾸로.
+     장면이 dt 로 돌리는 작업 큐라 끝날 때까지 moveTo/setOctState 를 부르지 않는다. 건너뛰기 = 남은 의식을 한 번에 감아 끝낸다(jumpCeremony).
+     탭이 숨어 rAF 가 멈추거나 30 s 를 넘기면 역시 감는다 → 바깥에 멈춘 채 남지 않는다. 2D 폴백은 장소 값만 기억하고 다음 틱에 끝난다 ── */
+  var cer = { kind: '', seq: 0, ink: false, raf: 0 };
+  function hasCeremony() { return !!scene && typeof scene.departCeremony === 'function' && typeof scene.returnCeremony === 'function'; }
+  function sceneCeremony() { return (scene && typeof scene.ceremony === 'function') ? scene.ceremony() : ''; }
+  function ensureAttic() {   /* 의식이 없는데 바깥이면 즉시 다락으로 (집에 있는 동안 바깥이 보이는 일은 없다) */
+    if (!scene || typeof scene.setPlace !== 'function' || sceneCeremony()) return;
+    if (typeof scene.place === 'function' && scene.place() !== 'attic') scene.setPlace('attic', { instant: true });
+  }
+  function jumpCeremony() {
+    if (!sceneCeremony() || typeof scene.debugStep !== 'function') return;
+    /* 모션 감소 동안 새로 시작하는 마디는 0 s → 지금 마디만 0.1 s 스텝으로 마저 감으면 남은 큐가 한 프레임에 끝난다 (onDone 은 그 안에서 불린다) */
+    scene.setReducedMotion(true);
+    for (var n = 0; sceneCeremony() && n < 120; n++) scene.debugStep(0.1);
+    scene.setReducedMotion(reduced());
+    if (typeof scene.resume === 'function') scene.resume();
+  }
+  /* 먹물은 문어가 실제로 현관문을 나설 때 (바깥으로 바뀐 뒤 문어가 다시 보이는 첫 프레임) — 문어 발밑 */
+  function watchDoorExit(my) {
+    cancelAnimationFrame(cer.raf);
+    if (typeof scene.motion !== 'function') return;
+    (function tick() {
+      if (cer.seq !== my || cer.ink) return;
+      var m = scene.motion();
+      if (m.ceremony === 'depart' && m.place === 'exterior' && m.octVisible && !m.trans) { cer.ink = true; if (window.UIART) UIART.fx('ink'); return; }
+      if (m.ceremony === 'depart') cer.raf = requestAnimationFrame(tick);
+    })();
+  }
+  /* → Promise<{ ink, cancelled }>. cancelled = 다른 의식이 덮어 조용히 취소됨 (데모 조작) */
+  function runCeremony(kind) {
+    if (!hasCeremony()) return Promise.resolve({ ink: false, cancelled: false });
+    var my = ++cer.seq, t0 = Date.now();
+    cer.kind = kind; cer.ink = false;
+    var p = kind === 'depart' ? scene.departCeremony() : scene.returnCeremony();
+    if (kind === 'depart' && sceneMode === '3d') watchDoorExit(my);
+    if (skipFlag || reduced()) jumpCeremony();
+    return new Promise(function (resolve) {
+      var done = false, iv = null;
+      function fin(cancelled) {
+        if (done) return; done = true; clearInterval(iv);
+        var ink = cer.seq === my && cer.ink;
+        if (cer.seq === my) { cancelAnimationFrame(cer.raf); cer.kind = ''; }
+        resolve({ ink: ink, cancelled: !!cancelled });
+      }
+      Promise.resolve(p).then(function () { fin(false); }, function () { fin(false); });
+      iv = setInterval(function () {
+        if (sceneCeremony() !== kind) { fin(true); return; }   /* 끝났으면 p 가 먼저 풀렸다 → 여기 오면 다른 의식이 덮은 것 */
+        if (document.hidden || Date.now() - t0 > 30000 * speed()) jumpCeremony();
+      }, 250);
+    });
+  }
+  /* 나가기: 의식 → 'away'. 건너뛰기면 의식 없이 바로 'away' (귀가에서 다락으로 즉시 돌아온다) */
+  function departOut() {
+    if (skipFlag || !hasCeremony()) { octState('away'); return Promise.resolve(); }
+    /* 3D: 장면이 의식 첫 마디에서 스스로 walk → 다락 문까지 걷는다. 2D 폴백: 의식은 값만 바꾸므로 문까지는 여기서 걷는다 */
+    var toDoor = sceneMode === '3d' ? Promise.resolve(octMirror('walk', false)) : walkTo('door');
+    return toDoor.then(function () { return runCeremony('depart'); }).then(function (r) {
+      if (r.cancelled) return;
+      if (sceneMode === '3d') octMirror('away', true);   /* 장면이 이미 away (먹물은 문 앞에서 뿌렸다) */
+      else octState('away');
+    });
   }
   var dreamTimer = null;
   function scheduleDreamLabel() {
@@ -413,7 +508,7 @@ var APP = (function () {
     if (go) { go.disabled = on; go.classList.toggle('away', on); if (go.parentNode) go.parentNode.classList.toggle('away', on); go.querySelector('.go-txt').innerHTML = on ? '다녀오는 중…' : emoH('🌧') + ' 뽈뽈 다녀와'; }
     if (sk) sk.hidden = !on;
     if (inp) inp.disabled = on;
-    if (on) stopWander(); else scheduleWander();
+    if (on) stopWander(); else { ensureAttic(); scheduleWander(); }
   }
   function tripsOn(key) { return S.trips.filter(function (t) { return t.date === key; }); }
   function newTripId(seed) {
@@ -490,11 +585,12 @@ var APP = (function () {
         return null;
       }
       mergePlan(trip, planned); save();
-      var pre = (trip.kind !== 'out' && !fast) ? settleOct() : Promise.resolve();
+      /* 외출: 움츠림 뒤 출발 의식(다락 문 → 바깥 → 화면 밖) → 끝나면 로그 공개. 바깥은 나가 있는 동안 그대로 (계절 입자). 집·빈 차례는 의식 없음 */
+      var pre = trip.kind === 'out' ? departOut() : !fast ? settleOct() : Promise.resolve();
       return pre.then(function () { return reveal(trip); }).then(function () { setBusy(false); return trip; });
     });
   }
-  function skip() { skipFlag = true; if (revealing && revealing.wake) revealing.wake(); }
+  function skip() { skipFlag = true; if (cer.kind) jumpCeremony(); if (revealing && revealing.wake) revealing.wake(); }
   /* 움츠림 → 1.03 overshoot 로 풀기 (2D 는 CSS, 3D 는 idle 복귀). 끝나면 idle */
   function settleOct() {
     var el = $('oct'); octState('idle');
@@ -569,15 +665,21 @@ var APP = (function () {
     var fast = skipFlag || reduced();
     switch (ev.type) {
       case 'depart':
+        if (oct.state === 'away') return Promise.resolve();   /* 초대: 의식은 공개 전에 끝났다 */
         if (fast) { octState('away'); return Promise.resolve(); }
-        return walkTo('door').then(function () { octState('away'); return sleep(400 * speed()); });
+        return departOut().then(function () { return sleep(400 * speed()); });   /* 이벤트 JSON 재생 등 */
       case 'return':
         commitTrip(trip);
         var mode = trip.poster ? 'carry' : 'walk', carryX = trip.poster ? { svg: posterSVG(trip, 48, 64, { mini: true, noExternal: true }) } : null;
-        octPlace('door');
-        if (fast) { octPlace('board'); octState(mode, carryX); return Promise.resolve(); }
-        octState(mode, carryX);
-        return walkTo('board', mode).then(function () { octState(mode, carryX); });
+        if (fast) { jumpCeremony(); ensureAttic(); octPlace('board'); octState(mode, carryX); return Promise.resolve(); }
+        /* 귀가 의식(길 → 계단 → 현관 → 다락 문) → 보드까지 걸어가 포스터 걸기 */
+        var back = (hasCeremony() && oct.state === 'away') ? runCeremony('return') : Promise.resolve();
+        return back.then(function () {
+          ensureAttic(); octPlace('door');
+          if (skipFlag) { octPlace('board'); octState(mode, carryX); return; }
+          octState(mode, carryX);
+          return walkTo('board', mode).then(function () { octState(mode, carryX); });
+        });
       case 'hang_poster':
         if (!trip.poster) return Promise.resolve();
         octState('hang');
@@ -606,6 +708,7 @@ var APP = (function () {
     }
   }
   function finalPose(trip) {
+    ensureAttic();
     if (trip.kind === 'empty') { octState(S.octopus.state === 'sleep' ? 'sleep' : 'idle'); return; }
     octPlace('blanket');
     octState('sleep'); S.octopus.state = 'sleep'; save();
@@ -655,6 +758,7 @@ var APP = (function () {
   function resumeRunning() {
     var run = S.trips.filter(function (t) { return t.status === 'running'; });
     if (!run.length) return Promise.resolve(false);
+    if (scene && typeof scene.setPlace === 'function') scene.setPlace('attic', { instant: true });   /* 나가 있던 중이었어도 다락에서 연다 (바깥에 멈춰 두지 않는다) */
     var chain = Promise.resolve();
     run.forEach(function (trip) {
       chain = chain.then(function () {
@@ -1211,6 +1315,7 @@ var APP = (function () {
     var frag = document.createDocumentFragment();
     frag.appendChild(h('h3', { text: roomTitle(lv) + ' · 등불 ' + lv + '/8' }));
     frag.appendChild(h('p', { class: 'room-text', text: L.text || '' }));
+    frag.appendChild(h('p', { class: 'help', id: 'rs-season', text: seasonLine() }));
     frag.appendChild(h('h3', { text: '문어의 요즘' }));
     var tc = topCorners(), tv = topVisited();
     if (!tc.length && !tv) frag.appendChild(h('p', { text: '아직 어디가 좋은지 모르겠어. 더 다녀 봐야 알겠어' }));
@@ -1332,7 +1437,7 @@ var APP = (function () {
     trip.weather = weatherFor(S.room.lantern);
     mergePlan(trip, planned); trip.by = meta.by; trip.events = demo.events.slice(); buildRecall(trip);
     S.trips.push(trip); save();
-    skipFlag = true; setBusy(true);
+    skipFlag = true; jumpCeremony(); setBusy(true);
     var today = ensureTodaySection(); today.querySelectorAll('.lrow.demo-live').forEach(function (r) { r.remove(); });
     reveal(trip).then(function () { setBusy(false); demo = { phase: 'start', events: [], t0: 0, hint: '', hung: false, wrapped: false }; demoSet('start'); demoMsg('사람이 조작한 산책이 저장됐어 (고른 이: 사람이 조작)'); renderLog(); });
   }
@@ -1342,8 +1447,9 @@ var APP = (function () {
     $('d-depart').addEventListener('click', function () {
       if (busy) return;
       wakeUp(); demo.t0 = Date.now(); demo.hint = ($('hint-in').value || '').trim(); demo.events = [{ type: 'depart', t: 0, hint: demo.hint, followHint: !!demo.hint }];
-      demoLive(demo.events[0]); oct.busy = true; stopWander();
-      walkTo('door').then(function () { octState('away'); }); demoSet('out');
+      demoLive(demo.events[0]); oct.busy = true; stopWander(); demoSet('out');
+      if (!hasCeremony()) { walkTo('door').then(function () { octState('away'); }); return; }
+      departOut();
     });
     $('d-stay').addEventListener('click', function () {
       if (busy) return;
@@ -1362,7 +1468,11 @@ var APP = (function () {
     $('d-return').addEventListener('click', function () {
       if (!demo.events.some(function (e) { return e.type === 'peek'; })) { demoMsg('한 곳은 기웃거리고 돌아오자'); return; }
       var ev = { type: 'return', t: demoT(), reason: 'enough' }; demo.events.push(ev); demoLive(ev);
-      octPlace('door'); walkTo('board', 'carry').then(function () { octState('idle'); }); demoSet('back');
+      demoSet('back');
+      (hasCeremony() ? runCeremony('return') : Promise.resolve()).then(function (r) {
+        if (r && r.cancelled) return;
+        ensureAttic(); octPlace('door'); walkTo('board', 'carry').then(function () { octState('idle'); });
+      });
     });
     $('d-poster').addEventListener('click', function () {
       if (demo.hung) return; demo.hung = true;
@@ -1463,11 +1573,12 @@ var APP = (function () {
     function show() { $('dv-px-v').textContent = px.value; $('dv-dither-v').textContent = (+di.value).toFixed(2); $('dv-yaw-v').textContent = yw.value + '°'; $('dv-key-v').textContent = (+ky.value).toFixed(1); $('dv-fill-v').textContent = (+fl.value).toFixed(2) + ' (키/필 ' + (+fl.value > 0 ? (+ky.value / +fl.value).toFixed(1) : '∞') + ')'; }
     function apply() {
       look = { pixelSize: +px.value, dither: +di.value, outline: ol.checked, yaw: +yw.value, key: +ky.value, fill: +fl.value };
-      saveLook(look); show();
+      saveLook(Object.assign(loadLook(), look)); show();   /* 같은 키에 있는 계절 지정은 남긴다 */
       if (sceneMode === '3d') scene.setLook(look);
     }
     [px, di, ol, yw, ky, fl].forEach(function (el) { el.addEventListener('input', apply); el.addEventListener('change', apply); });
     show();
+    msg.parentNode.insertBefore(h('div', { class: 'dv dv-season' }, [h('span', { text: '계절 (바깥)' }), seasonChips('dv-season')]), msg);   /* 2D 에서도 값은 기억한다 */
     if (sceneMode !== '3d') { msg.textContent = '지금은 2D 장면이라 이 슬라이더는 적용 안 돼 (WebGL 없음 또는 ?scene=2d)'; return; }
     msg.textContent = '3D 룩 조정 (저장됨). 팔레트:';
     sw.parentNode.insertBefore(paletteChips('dv-pal'), sw);
@@ -1488,6 +1599,7 @@ var APP = (function () {
     if (slow > 0) document.documentElement.style.setProperty('--speed', String(slow));
     load(); var hk = lookHook(); if (hk && hk.lantern != null) S.room.lantern = clamp(hk.lantern | 0, 0, 8);
     applyMotion(); applyFont(); initScene(); applyMotion();
+    if (typeof scene.setPlace === 'function') scene.setPlace('attic', { instant: true });   /* 늘 다락에서 연다 (running 여행이 남아 있어도 — resumeRunning) */
     renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum();
     bind();
     if (!storeOK) quietWarn('이 브라우저에선 벽이 오늘만 남아');
@@ -1512,6 +1624,7 @@ var APP = (function () {
     importEvents: importEvents, exportJSON: exportJSON, importJSON: importJSON,
     oct: oct, walkTo: walkTo, octState: octState, anchors: ANCHORS, placeholders: PH, commitTrip: commitTrip,
     get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor,
-    portraitFor: portraitFor, say: say, get portraitCache() { return Object.keys(PORT.cache); }
+    portraitFor: portraitFor, say: say, get portraitCache() { return Object.keys(PORT.cache); },
+    setSeason: setSeasonPref, get ceremony() { return cer.kind; }
   };
 })();
