@@ -370,10 +370,21 @@ var AUDIO = (function () {
       src.connect(g); g.connect(nd.bus[slot === 'bgm' ? 'bgm' : 'amb']);
       var t = Math.max(now() + 0.03, o.at || 0);
       var base = lp ? lp.start : 0, off = num(o.offset) ? o.offset : base;
+      /* 마디선 전환인데 디코드가 늦었다: 지금 곡의 다음 마디선으로 (README §4). 같은 곡 다른 옷이면 그만큼 마디를 건너 이어 탄다 */
+      if (o.bar && o.at && t > o.at + 0.005) {
+        var cb = slots.bgm && !slots.bgm.dead && slots.bgm.s.bar_sec, t2 = nextBar(t);
+        if (num(o.offset) && cb && s.bar_sec) { off += Math.round((t2 - o.at) / cb) * s.bar_sec; if (lp && off > lp.end - 4 * s.bar_sec) off = base; }
+        t = t2;
+      }
       if (off >= buf.duration - 0.25) off = base;
       src.start(t, off);
       var lv = o.gain == null ? 1 : o.gain;
       fadeIn(g, t, o.fade == null ? 0.05 : o.fade, lv);
+      if (lp && !looping) {   /* 집 테마 한 바퀴 = loop.end 까지. 뒤 1초(이음새 여유분 = 마디 1 복사)는 틀지 않고 끝에서 살짝 닫는다 */
+        var endT = t + (Math.min(lp.end, buf.duration) - off);
+        try { g.gain.setTargetAtTime(0, Math.max(t + (o.fade || 0.05) + 0.01, endT - 0.35), 0.1); } catch (e) { /* noop */ }
+        try { src.stop(endT); } catch (e) { /* noop */ }
+      }
       var old = slots[slot];
       if (old) fadeOut(old, t, o.xfade == null ? (o.fade || 0.05) : o.xfade);
       var n = { id: id, s: s, src: src, g: g, level: lv, t0: t - (off - base), started: t, band: band, slot: slot, dead: false };
@@ -446,7 +457,7 @@ var AUDIO = (function () {
     if (now() < pauseUntil) return;                             /* 방 완성 팡파르 중 */
     var w = desired(), cur = slots.bgm && !slots.bgm.dead ? slots.bgm : null, curId = cur ? cur.id : null;
     if (w === curId) { cancelPend(); return; }
-    if (!cur && loading.bgm && loading.bgm === w) return;   /* 곧 시작한다 */
+    if (w && loading.bgm === w) return;   /* 곧 시작한다 (받는 중 — 지금 곡이 있어도 같은 곡을 또 걸지 않게) */
     if (pend && pend.id === w) return;
     cancelPend();
     var t = now() + 0.05;
@@ -460,15 +471,17 @@ var AUDIO = (function () {
       if (o.phrase) at = Math.max(at, nextPhrase(t + 0.1));
     }
     var xf = gs.skipping ? 1 : bar;
+    var onBar = !(gs.skipping || o.now);
     schedule(w, at, function (at2) {
       var c = slots.bgm && !slots.bgm.dead ? slots.bgm : null;
-      if (!w) { if (c) { fadeOut(c, at2, xf); slots.bgm = null; } want.bgm = null; return; }
+      if (!w) { if (c) { fadeOut(c, at2, xf); slots.bgm = null; } want.bgm = null; loading.bgm = null; return; }
+      if ((c && c.id === w) || loading.bgm === w) return;   /* 그사이 이미 시작했거나 받는 중 */
       var off;
       if (c && isHome(c.id) && isHome(w)) {   /* 같은 곡 다른 옷(날씨): 같은 마디에서 이어 탄다 */
         var nb = byId[w].bar_sec, idx = Math.round((at2 - c.t0) / (c.s.bar_sec || 3));
         if (nb && byId[w].loop) { off = byId[w].loop.start + idx * nb; if (off > byId[w].loop.end - 4 * nb) off = undefined; }
       }
-      startSlot('bgm', w, { at: at2, fade: xf, xfade: xf, offset: off });
+      startSlot('bgm', w, { at: at2, fade: xf, xfade: xf, offset: off, bar: onBar });
     });
   }
   /* 시간대 경계: 지금 4마디 프레이즈 끝 → 2마디 페이드아웃 → 종 → 새 곡을 처음부터 */
