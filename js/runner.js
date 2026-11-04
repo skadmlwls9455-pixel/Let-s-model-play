@@ -328,6 +328,7 @@ var RUNNER = (function () {
     if (L.state === 'over') return;
     if (L.state === 'pause') { if (a === 'jd' || a === 'dd') resume(); return; }
     if (L.state === 'ready' && L.pending) return;   /* 서버 시드를 기다리는 중 (최대 2 초) */
+    if (L.state === 'ready' && L.net && Date.now() - L.net.at > NET_FRESH_MS) { if (a === 'jd') prepare(); return; }   /* 준비 화면에 오래 있었다 → 올릴 수 있게 새 토큰부터 */
     var held = a[0] === 'j' ? 'j' : 'd', isDown = a[1] === 'd';
     if (L.held[held] === isDown) return;   /* 같은 상태 반복은 버린다 (키 반복·두 입력원) */
     L.held[held] = isDown;
@@ -366,7 +367,7 @@ var RUNNER = (function () {
       var j = r.json;
       me.pending = false;
       if (r.status === 200 && j && j.ok && typeof j.token === 'string' && Number.isInteger(j.seed) && typeof j.night === 'boolean') {
-        me.net = { token: j.token, seed: j.seed >>> 0, night: j.night, week: String(j.week || '') };
+        me.net = { token: j.token, seed: j.seed >>> 0, night: j.night, week: String(j.week || ''), at: Date.now() };
         if (!me.weekChecked) { me.weekChecked = true; checkAwards(me.net.week); }
       }
       ready();
@@ -378,6 +379,7 @@ var RUNNER = (function () {
     todo.forEach(function (sub) {
       fetchJson('award?runId=' + sub.runId + '&week=' + encodeURIComponent(sub.week), null, 4000).then(function (r) {
         if (r.status !== 200 && r.status !== 404) return;   /* 네트워크 실패면 다음에 다시 */
+        if (r.status === 200 && !(r.json && r.json.final)) return;   /* 그 주가 아직 안 닫힘(월 00:30 전) → 순위가 바뀔 수 있으니 다음에 다시 */
         var st = load(), nn = netState(st), s2 = nn.subs.filter(function (x) { return x && x.runId === sub.runId; })[0];
         if (!s2) return;
         s2.done = true;
@@ -404,6 +406,15 @@ var RUNNER = (function () {
   }
   function netMsg(t) { var m = document.getElementById('rn-net-msg'); if (m) m.textContent = t; }
   var NET_ERR = { duplicate: '이 판은 벌써 올렸어.', expired: '시간이 너무 지나서 못 올렸어. 다음 판은 바로 올려 줘.', too_fast: '이 판은 올릴 수 없어.', mismatch: '기록이 맞지 않아서 못 올렸어.' };
+  var NET_FRESH_MS = 20 * 60000;   /* 토큰은 30분 → 준비 화면에서 20분 넘게 쉬었으면 출발할 때 새로 받는다 (달리기·올리기 몫 10분) */
+  /* 서버가 받은 판은 창을 닫았든 다음 판으로 넘어갔든 저장한다 (runId 가 있어야 나중에 망토를 물어볼 수 있다) */
+  function keepSub(j, rec) {
+    var st = load(), n = netState(st), old = n.subs.filter(function (x) { return x && x.runId === j.runId; })[0];
+    if (old) { old.rank = j.rank; old.score = rec.score; } else n.subs.push({ runId: j.runId, week: j.week, score: rec.score, rank: j.rank, at: Date.now() });
+    if (n.subs.length > 30) n.subs = n.subs.slice(-30);
+    if (j.award) addAward(n, j.award, j.week);
+    n.nick = j.nick; st.net = n; store(st);
+  }
   function submitRun() {
     var me = L; if (!me || me.state !== 'over' || !me.net || me.submitted) return;
     var btn = document.getElementById('rn-submit'), inp = document.getElementById('rn-nick');
@@ -411,26 +422,24 @@ var RUNNER = (function () {
     me.submitted = true; btn.disabled = true; inp.disabled = true; netMsg('올리는 중…');
     var rec = me.rec;
     fetchJson('submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: me.net.token, inputs: rec.inputs, score: rec.score, ticks: rec.ticks, nick: nick }) }, 8000).then(function (r) {
-      if (L !== me) return;
-      var j = r.json || {};
-      if (r.status === 200 && j.ok) {
-        var st = load(), n = netState(st);
-        n.subs.push({ runId: j.runId, week: j.week, score: rec.score, rank: j.rank, at: Date.now() });
-        if (n.subs.length > 30) n.subs = n.subs.slice(-30);
-        if (j.award) addAward(n, j.award, j.week);
-        n.nick = j.nick; st.net = n; store(st);
+      var j = r.json || {}, ok = r.status === 200 && j.ok && typeof j.runId === 'string';
+      if (ok) keepSub(j, rec);
+      if (L !== me || me.rec !== rec || me.state !== 'over') return;   /* 닫았거나 다음 판 → 그 판의 결과판이 아니다 */
+      if (ok) {
         document.getElementById('rn-net-form').hidden = true;
         netMsg('이번 주 ' + j.rank + '등이야!' + (j.award === 'paper_crown' ? ' 종이 왕관을 받았어' : ''));
         loadTop(j.rank);
       } else {
-        if (r.status !== 409) { me.submitted = false; btn.disabled = false; inp.disabled = false; }
-        netMsg(NET_ERR[j.error] || '지금은 못 올렸어. 점수는 이 기기에 남아 있어.');
+        var final = r.status >= 400 && r.status < 500 && r.status !== 408 && r.status !== 429;   /* 같은 판을 다시 보내도 같은 답 → 버튼은 꺼 둔다 */
+        if (!final) { me.submitted = false; btn.disabled = false; inp.disabled = false; }
+        netMsg(NET_ERR[j.error] || (final ? '이 판은 올릴 수 없어.' : '지금은 못 올렸어. 점수는 이 기기에 남아 있어.'));
       }
     });
   }
-  function start() {
-    L.state = 'run'; L.store.dayN = (L.store.dayN | 0) + 1; L.store.runs = (L.store.runs | 0) + 1; store(L.store);
-    setMsg('');
+  function start() {   /* 다시 읽고 쓴다: 준비 화면에 있는 동안 망토 확인·올리기 응답이 저장한 net 을 ready() 때 사본으로 덮지 않게 (saveRun 과 같은 방식) */
+    var st = load(); st.day = L.store.day; st.dayN = (L.store.dayN | 0) + 1; st.runs = (st.runs | 0) + 1;
+    store(st); L.store = st;
+    L.state = 'run'; setMsg('');
   }
   function pause() {
     if (L.held.j) { L.held.j = false; L.queue.push('ju'); }

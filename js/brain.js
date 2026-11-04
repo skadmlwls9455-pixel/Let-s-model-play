@@ -181,9 +181,34 @@
   }
 
   /* ───────── 5.3 힌트 읽기 ───────── */
+  var HINT_SEP = /[\s,.·…!?\/()\[\]"'“”‘’:;]+/;
+  /* 한 글자 이름(비·눈·별·꿈·차…)이 조사와 붙으면 흔한 다른 낱말이 되는 꼴 — 이건 이름으로 치지 않는다 */
+  var ONE_SYLLABLE_SKIP = { '종이': 1, '별로': 1, '실로': 1, '실은': 1, '차도': 1, '종로': 1 };
+  /* 띄어 쓴 낱말 그대로 + (한 글자 + 받침에 맞는 조사) 에서 조사를 뗀 한 글자. tokenize 는 2자 이상만 남긴다 */
+  function hintWords(hint) {
+    var out = [];
+    String(hint || '').split(HINT_SEP).forEach(function (w) {
+      w = lower(w.trim());
+      if (!w) return;
+      out.push(w);
+      if (ONE_SYLLABLE_SKIP[w]) return;
+      for (var i = 0; i < PARTICLES.length; i++) {
+        var p = PARTICLES[i];
+        if (w.length === p.length + 1 && w.slice(-p.length) === p) {
+          var stem = w.charAt(0);
+          if (!JOSA[p] || josa(stem, p) === p) out.push(stem);
+          break;
+        }
+      }
+    });
+    return out;
+  }
+  /* s 가 낱말 첫머리에서 시작하나 ('코스모스' 안의 '모스' 는 아니다) */
+  function startsWord(spaced, s) { return spaced.indexOf(' ' + s) >= 0; }
+
   function tokenize(hint) {
     var out = [];
-    String(hint || '').split(/[\s,.·…!?\/()\[\]"'“”‘’:;]+/).forEach(function (tok) {
+    String(hint || '').split(HINT_SEP).forEach(function (tok) {
       tok = tok.trim();
       if (!tok) return;
       var forms = [tok];
@@ -204,23 +229,31 @@
     if (!W || !W.nodes) return { kind: 'wiki', query: raw };
     var low = lower(raw);
     var tokens = tokenize(raw).map(lower);
+    var words = hintWords(raw);
+    var spaced = ' ' + low.split(HINT_SEP).join(' ');
     var ids = Object.keys(W.nodes);
     var best = null;
     function offer(id, how, score) {
       if (!best || score > best.score) best = { nodeId: id, how: how, score: score };
     }
+    /* 같은 단계에서는 별칭(aliases)이 키워드(keywords)보다 앞선다: 먹물은 잉크의 별칭, 문어의 키워드 */
     for (var i = 0; i < ids.length; i++) {
       var id = ids[i], node = W.nodes[id];
       if (!node || id === 'door_out') continue;
       var name = lower(node.name);
-      var alts = (node.aliases || []).concat(node.keywords || []).map(lower).filter(Boolean);
+      var al = (node.aliases || []).map(lower).filter(Boolean);
+      var kw = (node.keywords || []).map(lower).filter(Boolean);
       if (name && name === low) return { kind: 'node', nodeId: id, how: 'exact' };
       var j;
-      for (j = 0; j < alts.length; j++) if (alts[j] === low) offer(id, 'alias', 1000 + alts[j].length);
+      for (j = 0; j < al.length; j++) if (al[j] === low) offer(id, 'alias', 1000 + al[j].length);
+      for (j = 0; j < kw.length; j++) if (kw[j] === low) offer(id, 'alias', 900 + kw[j].length);
       if (name && tokens.indexOf(name) >= 0) offer(id, 'token', 500 + name.length);
-      for (j = 0; j < alts.length; j++) if (tokens.indexOf(alts[j]) >= 0) offer(id, 'alias', 400 + alts[j].length);
-      if (name && name.length >= 2 && low.indexOf(name) >= 0) offer(id, 'token', 300 + name.length);
-      for (j = 0; j < alts.length; j++) if (alts[j].length >= 2 && low.indexOf(alts[j]) >= 0) offer(id, 'alias', 200 + alts[j].length);
+      if (name && name.length === 1 && words.indexOf(name) >= 0) offer(id, 'token', 500 + name.length);   /* '비 오는 날' → 비 */
+      for (j = 0; j < al.length; j++) if (tokens.indexOf(al[j]) >= 0) offer(id, 'alias', 400 + al[j].length);
+      for (j = 0; j < kw.length; j++) if (tokens.indexOf(kw[j]) >= 0) offer(id, 'alias', 350 + kw[j].length);
+      if (name && name.length >= 2 && startsWord(spaced, name)) offer(id, 'token', 300 + name.length);
+      for (j = 0; j < al.length; j++) if (al[j].length >= 2 && startsWord(spaced, al[j])) offer(id, 'alias', 200 + al[j].length);
+      for (j = 0; j < kw.length; j++) if (kw[j].length >= 2 && startsWord(spaced, kw[j])) offer(id, 'alias', 150 + kw[j].length);
     }
     if (best) return { kind: 'node', nodeId: best.nodeId, how: best.how };
     return { kind: 'wiki', query: raw };
