@@ -52,3 +52,19 @@
 
 @media (prefers-reduced-motion: reduce) { .rn-dlg[open] { animation: none; } }
 :root[data-motion="reduce"] .rn-dlg[open] { animation: none; }
+
+/* 주간 랭킹 (http(s) 에서만 보인다 — js/runner.js NET) */
+.rn-award { margin: 0; max-width: 340px; text-align: center; font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; color: var(--amber-fill, #de9e41); }
+.rn-award[hidden], .rn-net[hidden], .rn-net-form[hidden], .rn-top10[hidden] { display: none; }
+.rn-net { margin: 0 0 8px; text-align: left; }
+.rn-net-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+.rn-net-label { grid-column: 1 / -1; font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; }
+#rn-nick { min-height: 44px; min-width: 0; box-sizing: border-box; padding: 4px 8px; font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; color: inherit; background: var(--bg); border: 2px solid var(--line, currentColor); border-radius: 0; }
+.rn-over .rn-net-form .btn { min-width: 0; white-space: nowrap; }
+.rn-net-msg { margin: 6px 0 0; min-height: 0; font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; text-align: center; }
+.rn-net-msg:empty { display: none; }
+.rn-top10 { margin: 6px 0 0; padding: 0; list-style: none; font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; font-variant-numeric: tabular-nums; }
+.rn-top10 li { display: grid; grid-template-columns: 3ch 1fr auto; gap: 8px; }
+.rn-top10 li.rn-me { font-weight: 700; text-decoration: underline; }
+.rn-top-nick { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rn-net-privacy { margin: 6px 0 0; font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; color: var(--muted); text-align: center; }

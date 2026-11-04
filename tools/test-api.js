@@ -78,7 +78,8 @@ function body(tok, run, nick, patch) { var b = { token: tok, inputs: run.inputs,
   check(s.headers['cache-control'] === 'no-store', 'seed no-store');
   check((await call('seed', { query: { tz: '-300' } })).json.night === true, 'tz -300 (03:00 UTC → 22:00) → 밤');
   check((await call('seed', { query: { tz: '420' } })).json.night === false, 'tz 420 → 10:00 → 낮');
-  clock = Date.UTC(2026, 10, 4, 10, 0); check((await call('seed', { query: { tz: '540' } })).json.night === true, '서울 19:00 → 밤 (경계 19 포함)');
+  clock = Date.UTC(2026, 10, 4, 11, 0); check((await call('seed', { query: { tz: '540' } })).json.night === true, '서울 20:00 → 밤 (경계 20 포함)');
+  clock = Date.UTC(2026, 10, 4, 10, 0); check((await call('seed', { query: { tz: '540' } })).json.night === false, '서울 19:00 → 아직 저녁 (클라이언트 밤 팔레트 20시와 같게)');
   clock = Date.UTC(2026, 10, 4, 21, 0); check((await call('seed', { query: { tz: '540' } })).json.night === false, '서울 06:00 → 낮 (경계 6 제외)');
   clock = T0;
   var seeds = {}; for (var i = 0; i < 20; i++) seeds[(await call('seed', {})).json.seed] = 1;

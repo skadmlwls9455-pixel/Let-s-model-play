@@ -57,10 +57,61 @@
 ## 규칙
 - 소리 없음(음소거 토글도 없음). 광고·타이머·연속 기록 압박 없음. 실패 문구는 "상자에 콩!" 같은 담담한 말 + "또 할래?" / "그만".
 - 모션 줄이기(기기 설정 또는 방 보기 › 모션)면 흔들림·파티클·촛불 깜빡임 없음. 보이는 버튼은 전부 44px 이상.
-- 점수는 이 기기에만 남는다고 화면 아래에 적어 둔다.
+- 점수는 이 기기에만 남는다고 화면 아래에 적어 둔다 (http(s) 에선 "올리기 전까지"). 올리기는 사람이 버튼을 눌러야만.
+
+## 랭킹 서버 (주간 · 리플레이 검증)
+정적 사이트는 그대로(빌드 없음), Vercel Node 함수 4개만 `api/runner/` 에 있다. 저장소는 **private Vercel Blob** (icn1).
+공통 부품 `api/_lib/core.js`, 테스트 `npm test` (= `tools/test-api.js`, 네트워크 없음 · 메모리 저장소 · 주입 시계).
+
+| 끝점 | 하는 일 |
+|---|---|
+| `GET /api/runner/seed?tz=<분>` | `{ token, seed, night, iat, week, v }`. seed = crypto uint32, night = 현지 시각 ∈ [20, 6) (`tz` = UTC 에 더할 분, 서울 540, 없으면 540). 토큰 = `b64u(JSON{seed,night,iat,week,v})` + `.` + `b64u(HMAC-SHA256)` |
+| `POST /api/runner/submit` | 몸 `{ token, inputs, score, ticks, nick }` → `{ ok, rank, total, week, runId, nick, award }` |
+| `GET /api/runner/top?week=` | 그 주(기본 이번 주) 상위 20 `{ rank, nick, score, at }`, `s-maxage=15` |
+| `GET /api/runner/award?runId=&week=` | 주가 끝났고 상위 10 → `emperor_cape`, 기록만 있으면(이벤트 주) `paper_crown`, 없으면 404 |
+
+**키**: `RUNNER_SECRET` 이 있으면 그것, 없으면 `sha256('ppolppol-runner|' + BLOB_READ_WRITE_TOKEN)`. 둘 다 없으면 503 (로그에 남기지 않음).
+**주**: Asia/Seoul ISO 주 (`2026-W45`). 월요일 00:00 KST 에 새 주. 이벤트 주는 기본 "모든 주", `RUNNER_EVENT_WEEKS=2026-W45,2026-W46` 로 좁힐 수 있다.
+
+### submit 검증 (순서대로, 하나라도 어긋나면 거절 · 거절은 아무것도 저장하지 않는다)
+1. 서명 (timingSafeEqual) → 401 `bad_token`. 토큰 `v` ≠ `RUNNER.VERSION` → 400 `old_version`.
+2. `iat` 가 30분 안 (미래 5초 이상이면 거절) → 401 `expired`.
+3. `score`·`ticks` 정수 범위, `inputs` ≤ 20000개, 각 `{t 정수 ≥ 0 비감소, t ≤ ticks, a ∈ jd|ju|dd|du}` → 400.
+4. **실시간보다 빠를 수 없음**: `ticks / 60 ≤ (지금 − iat) / 1000 + 3` → 400 `too_fast`.
+5. 토큰의 seed·night 로 `simulate` 를 **끝까지** 한 번, **`until = ticks`** 로 한 번 → 둘 다 주장한 `score`·`ticks` 와 같아야 → 422 `mismatch`.
+   그래서 **부딪혀 끝난 판만** 올라간다 (중간에 닫은 판은 끝까지 돌리면 틱이 달라진다).
+6. **시드(토큰)당 한 번**: `runId` = sha256(token) 앞 12 hex. `runner-ids/{week}/{runId}.json` 을 덮어쓰기 금지로 먼저 쓴다 → 이미 있으면 409 `duplicate`.
+
+### 저장되는 것
+```
+runner/{week}/{(10_000_000 − score) 8자리}-{ticks 6자리}-{runId}~{base64url(nick)}.json   ← 사전순 = 순위 (동점이면 짧은 틱이 위)
+  { nick, score, ticks, at, runId, inputsLen }
+runner-ids/{week}/{runId}.json   { runId, at }   ← 중복 막기 표지
+```
+IP·UA·입력 내용은 저장하지 않는다. 순위표는 `list(prefix)` 한 번 + 경로 해석뿐 (블롭 본문을 읽지 않음).
+닉네임: NFC, 한글·라틴·숫자·공백·`_-` 만, 1–12자, URL·7자리 넘는 숫자·금칙어(한/영 29개, 공백 무시 부분 일치) → `익명 문어`.
+
+### 상 (꾸미기 전용 · 계정 없음)
+- 이벤트 주에 검증을 통과한 판 → **종이 왕관** (`paper_crown`).
+- 주가 끝난 뒤 그 주 상위 10 → **황제 망토** (`emperor_cape`). 판을 올린 기기가 `runId` 로 물어봐야 받는다.
+- 클라이언트는 `localStorage.ppolppol_runner.net = { subs:[{runId, week, score, rank, at, done?}], awards:{ paper_crown:[week], emperor_cape:[week] }, nick }` 에만 적는다.
+  문어에게 입히는 건 §16 선물 시스템 몫 (여기선 저장만).
+
+### 클라이언트 (`js/runner.js`)
+- `location.protocol` 이 http(s) 일 때만. 판마다 `seed` 를 받아(2 초, 기다리는 동안 "판을 고르는 중이야…", 출발 막음) 그 seed·night 로 달린다. 실패하면 조용히 로컬 시드 (올리기 칸이 안 보임).
+- 부딪혀 끝나면 결과판에 닉네임 칸(기본 = `ppolppol_v2.octopus.name`, 12자) + **기록 올리기** + 이번 주 10위 + "닉네임과 점수만 저장해. 이번 주 순위는 월요일에 새로 시작해."
+- 열 때 지난 주 기록(아직 안 물어본 것, 최대 4개)을 `award` 로 확인 → 망토면 "지난주 N등! 황제 망토를 받았어".
+- `file://` 이면 네트워크 호출 0, 화면도 예전 그대로.
+
+### 알려진 한계
+- 시뮬레이터가 공개라서 **봇이 좋은 입력을 찾아 올릴 수 있다** (시드를 여러 번 받아 고르는 것도). 실시간 규칙이 속도만 막는다. 그래서 상은 꾸미기뿐.
+- 레이트 리밋 없음. `tz` 는 클라이언트가 정한다 (밤 장애물만 바뀜).
+- 수동 검토: Blob 스토어에서 `runner/{week}/` 를 나열하면 경로만으로 점수·틱·닉네임이 보인다. 지울 블롭은 대시보드나 `del()` 로.
+- 물리·생성 규칙을 바꾸면 `VERSION` 을 올린다 → 옛 토큰은 `old_version` 으로 거절.
 
 ## 테스트
 ```
+npm test                         # 랭킹 API (서명·만료·실시간·재시뮬·중복·순위·주 경계 상·닉네임), 네트워크 없음
 node tools/test-runner.js        # 무작위 200판 ×2 인스턴스 동일 · 봇 4판 40초 생존 · 단조 · 골든 · 라이브 기록 재시뮬
 SMOKE_ONLY=R node tools/smoke.js # 실제 브라우저(SwiftShader, 360×740 @2x) 판 → tests/evidence/runner-{start,mid,over}.png, runner-live-run.json
 ```

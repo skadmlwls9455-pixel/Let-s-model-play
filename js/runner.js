@@ -127,6 +127,38 @@ var RUNNER = (function () {
     return { phase: phase, season: season, day: dateKey(d) };
   }
 
+  /* ── 주간 랭킹 (http(s) 에서만. file:// 이면 네트워크를 전혀 안 쓴다) — docs/MINIGAME.md "랭킹 서버" ── */
+  var NET = false;
+  try { NET = /^https?:$/.test(location.protocol); } catch (e) { NET = false; }
+  var API_BASE = 'api/runner/';
+  function fetchJson(url, opts, ms) {   /* 실패는 전부 { status: 0 } — 절대 throw 하지 않는다 */
+    if (!NET || typeof fetch !== 'function') return Promise.resolve({ status: 0, json: null });
+    var ac = typeof AbortController === 'function' ? new AbortController() : null, timer = null;
+    var o = Object.assign({ cache: 'no-store', credentials: 'same-origin' }, opts || {}); if (ac) o.signal = ac.signal;
+    return new Promise(function (resolve) {
+      timer = setTimeout(function () { if (ac) try { ac.abort(); } catch (e) { /* 없음 */ } resolve({ status: 0, json: null }); }, ms || 4000);
+      fetch(API_BASE + url, o).then(function (r) {
+        return r.json().catch(function () { return null; }).then(function (j) { clearTimeout(timer); resolve({ status: r.status, json: j }); });
+      }).catch(function () { clearTimeout(timer); resolve({ status: 0, json: null }); });
+    });
+  }
+  function weekKeyKST(ms) {   /* 서버(api/_lib/core.js weekKey)와 같은 계산: Asia/Seoul ISO 주 */
+    var d = new Date(ms + 9 * 3600 * 1000), day = d.getUTCDay() || 7;
+    var thu = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) + (4 - day) * 86400000, y = new Date(thu).getUTCFullYear();
+    return y + '-W' + String(1 + Math.floor((thu - Date.UTC(y, 0, 1)) / (7 * 86400000))).padStart(2, '0');
+  }
+  function octName() { try { var o = JSON.parse(localStorage.getItem('ppolppol_v2') || 'null'); var n = o && o.octopus && o.octopus.name; return typeof n === 'string' ? n.slice(0, 12) : ''; } catch (e) { return ''; } }
+  function netState(st) {
+    var n = (st && st.net && typeof st.net === 'object') ? st.net : {};
+    if (!Array.isArray(n.subs)) n.subs = [];
+    if (!n.awards || typeof n.awards !== 'object') n.awards = {};
+    if (!Array.isArray(n.awards.paper_crown)) n.awards.paper_crown = [];
+    if (!Array.isArray(n.awards.emperor_cape)) n.awards.emperor_cape = [];
+    return n;
+  }
+  function addAward(n, kind, week) { if (n.awards[kind].indexOf(week) < 0) n.awards[kind].push(week); }
+  var AWARD_NAME = { paper_crown: '종이 왕관', emperor_cape: '황제 망토' };
+
   /* ── 팔레트 (Apollo) ── */
   var THEME = {
     day: { wall: '#c09473', wall2: '#ad7757', seam: '#ad7757', beam: '#7a4841', post: '#884b2b', dark: '#4d2b32', floor: '#884b2b', floor2: '#602c2c', floorHi: '#be772b', sky: '#a4dddb', sky2: '#73bed3', orb: '#e8c170', shadow: '#602c2c', ink: '#341c27' },
@@ -227,7 +259,7 @@ var RUNNER = (function () {
     (kids || []).forEach(function (c) { e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
     return e;
   }
-  var dlg, cv, ctx, hud, msg, ctrls, overP, btnJ, btnD, btnAgain, btnStop, finalEl, bestEl;
+  var dlg, cv, ctx, hud, msg, ctrls, overP, btnJ, btnD, btnAgain, btnStop, finalEl, bestEl, netP, awardEl;
   function buildDialog() {
     if (dlg) return;
     cv = el('canvas', { id: 'rn-cv', width: String(C.W), height: String(C.H), tabindex: '0', role: 'img', 'aria-label': '다락방 달리기 화면. 스페이스나 위 화살표는 점프, 꾹 누르면 더 높이. 아래 화살표는 숙이기.' });
@@ -240,19 +272,32 @@ var RUNNER = (function () {
     finalEl = el('p', { class: 'rn-final', id: 'rn-final' }); var scoreEl = el('p', { class: 'rn-final-score', id: 'rn-final-score' }); bestEl = el('p', { class: 'rn-final-best', id: 'rn-final-best' });
     btnAgain = el('button', { type: 'button', class: 'btn primary pressable', id: 'rn-again', text: '또 할래?' });
     btnStop = el('button', { type: 'button', class: 'btn pressable', id: 'rn-stop', text: '그만' });
-    overP = el('div', { class: 'rn-over', id: 'rn-over', role: 'status', hidden: '' }, [finalEl, scoreEl, bestEl, el('div', { class: 'btn-row center' }, [btnAgain, btnStop])]);
+    netP = el('div', { class: 'rn-net', id: 'rn-net', hidden: '' }, [
+      el('div', { class: 'rn-net-form', id: 'rn-net-form' }, [
+        el('label', { for: 'rn-nick', class: 'rn-net-label', text: '닉네임' }),
+        el('input', { id: 'rn-nick', type: 'text', maxlength: '12', autocomplete: 'off', enterkeyhint: 'send', spellcheck: 'false' }),
+        el('button', { type: 'button', class: 'btn pressable', id: 'rn-submit', text: '기록 올리기' })
+      ]),
+      el('p', { class: 'rn-net-msg', id: 'rn-net-msg', 'aria-live': 'polite' }),
+      el('ol', { class: 'rn-top10', id: 'rn-top10', 'aria-label': '이번 주 순위 10', hidden: '' }),
+      el('p', { class: 'rn-net-privacy', text: '닉네임과 점수만 저장해. 이번 주 순위는 월요일에 새로 시작해.' })
+    ]);
+    overP = el('div', { class: 'rn-over', id: 'rn-over', role: 'status', hidden: '' }, [finalEl, scoreEl, bestEl, netP, el('div', { class: 'btn-row center' }, [btnAgain, btnStop])]);
+    awardEl = el('p', { class: 'rn-award', id: 'rn-award', 'aria-live': 'polite', hidden: '' });
     var close = el('button', { type: 'button', class: 'btn sm pressable rn-close', id: 'rn-close', 'aria-label': '닫기', text: '닫기' });
     dlg = el('dialog', { id: 'runner-dlg', class: 'rn-dlg', 'aria-labelledby': 'rn-title' }, [
       el('div', { class: 'rn-top' }, [el('h2', { id: 'rn-title', text: '다락방 달리기' }), close]),
       hud,
       el('div', { class: 'rn-stage' }, [cv]),
-      msg, ctrls, overP,
-      el('p', { class: 'rn-note', text: '점수는 이 기기에만 남아. 소리는 없어.' })
+      awardEl, msg, ctrls, overP,
+      el('p', { class: 'rn-note', text: NET ? '올리기 전까지 점수는 이 기기에만 남아. 소리는 없어.' : '점수는 이 기기에만 남아. 소리는 없어.' })
     ]);
     document.body.appendChild(dlg);
     close.addEventListener('click', function () { dlg.close(); });
     btnStop.addEventListener('click', function () { dlg.close(); });
-    btnAgain.addEventListener('click', function () { if (!btnAgain.disabled) ready(); });
+    btnAgain.addEventListener('click', function () { if (!btnAgain.disabled) prepare(); });
+    document.getElementById('rn-submit').addEventListener('click', submitRun);
+    document.getElementById('rn-nick').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submitRun(); } });
     dlg.addEventListener('close', onClose);
     dlg.addEventListener('keydown', onKey); dlg.addEventListener('keyup', onKey);
     function pad(btn, down, up) {
@@ -272,6 +317,7 @@ var RUNNER = (function () {
     var k = e.key, down = e.type === 'keydown';
     var J = k === ' ' || k === 'ArrowUp' || k === 'w' || k === 'W', D = k === 'ArrowDown' || k === 's' || k === 'S';
     if (!J && !D) return;
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;   /* 닉네임 칸에서는 글자 그대로 */
     if (e.target && e.target.tagName === 'BUTTON' && e.target !== btnJ && e.target !== btnD) return;   /* 포커스된 버튼(또 할래?/그만/닫기)은 기본 동작 */
     e.preventDefault();
     if (down && e.repeat) return;
@@ -281,6 +327,7 @@ var RUNNER = (function () {
     if (!L) return;
     if (L.state === 'over') return;
     if (L.state === 'pause') { if (a === 'jd' || a === 'dd') resume(); return; }
+    if (L.state === 'ready' && L.pending) return;   /* 서버 시드를 기다리는 중 (최대 2 초) */
     var held = a[0] === 'j' ? 'j' : 'd', isDown = a[1] === 'd';
     if (L.held[held] === isDown) return;   /* 같은 상태 반복은 버린다 (키 반복·두 입력원) */
     L.held[held] = isDown;
@@ -298,14 +345,88 @@ var RUNNER = (function () {
   function ready() {
     var st = load(), ck = clock();
     if (st.day !== ck.day) { st.day = ck.day; st.dayN = 0; }
-    var seed = (L && L.serverSeed != null) ? (L.serverSeed >>> 0) : seedFor(ck.day, st.dayN);
-    L.store = st; L.clock = ck; L.seed = seed; L.sim = createSim(seed, { night: ck.phase === 'night' });
+    var nt = L.net, seed = L.serverSeed != null ? (L.serverSeed >>> 0) : nt ? nt.seed : seedFor(ck.day, st.dayN);
+    L.store = st; L.clock = ck; L.seed = seed; L.sim = createSim(seed, { night: nt ? nt.night : ck.phase === 'night' });
     L.inputs = []; L.queue = []; L.held = { j: false, d: false }; L.state = 'ready'; L.acc = 0; L.last = 0; L.hitAt = 0; L.saved = false; L.newBest = false;
     L.parts = []; L.reduced = reducedMotion();
     overP.hidden = true; ctrls.hidden = false;
-    setMsg('탭하거나 스페이스를 누르면 출발해. 꾹 누르면 더 높이 뛰어');
+    setMsg(L.pending ? '판을 고르는 중이야…' : '탭하거나 스페이스를 누르면 출발해. 꾹 누르면 더 높이 뛰어');
+    netP.hidden = true;
     hudUpdate(true);
     try { cv.focus({ preventScroll: true }); } catch (e) { cv.focus(); }
+  }
+  /* 판 준비: http(s) 면 서버 시드(2 초)를 받아 그 시드·밤 여부로, 실패하면 조용히 로컬 시드 */
+  function prepare() {
+    var me = L; if (!me) return;
+    me.net = null;
+    if (!NET || me.serverSeed != null) { me.pending = false; ready(); return; }
+    me.pending = true; ready();
+    fetchJson('seed?tz=' + (-new Date().getTimezoneOffset()), null, 2000).then(function (r) {
+      if (L !== me || me.state !== 'ready') return;
+      var j = r.json;
+      me.pending = false;
+      if (r.status === 200 && j && j.ok && typeof j.token === 'string' && Number.isInteger(j.seed) && typeof j.night === 'boolean') {
+        me.net = { token: j.token, seed: j.seed >>> 0, night: j.night, week: String(j.week || '') };
+        if (!me.weekChecked) { me.weekChecked = true; checkAwards(me.net.week); }
+      }
+      ready();
+    });
+  }
+  /* 지난 주에 올린 기록 → 황제 망토인지 한 번씩 물어본다 */
+  function checkAwards(curWeek) {
+    var cur = curWeek || weekKeyKST(Date.now()), n = netState(load()), todo = n.subs.filter(function (x) { return x && !x.done && typeof x.week === 'string' && x.week < cur && /^[0-9a-f]{12}$/.test(x.runId || ''); }).slice(0, 4);
+    todo.forEach(function (sub) {
+      fetchJson('award?runId=' + sub.runId + '&week=' + encodeURIComponent(sub.week), null, 4000).then(function (r) {
+        if (r.status !== 200 && r.status !== 404) return;   /* 네트워크 실패면 다음에 다시 */
+        var st = load(), nn = netState(st), s2 = nn.subs.filter(function (x) { return x && x.runId === sub.runId; })[0];
+        if (!s2) return;
+        s2.done = true;
+        if (r.status === 200 && r.json && r.json.award === 'emperor_cape') {
+          s2.final = r.json.rank; addAward(nn, 'emperor_cape', sub.week);
+          if (awardEl) { awardEl.textContent = '지난주 ' + r.json.rank + '등! 황제 망토를 받았어'; awardEl.hidden = false; }
+        }
+        st.net = nn; store(st);
+      });
+    });
+  }
+  function renderTop(rows, myRunId, myRank) {
+    var ol = document.getElementById('rn-top10'); if (!ol) return;
+    while (ol.firstChild) ol.removeChild(ol.firstChild);
+    (rows || []).slice(0, 10).forEach(function (r) {
+      var li = el('li', { class: r.rank === myRank ? 'rn-me' : '' }, [el('span', { class: 'rn-top-rank', text: String(r.rank) }), el('span', { class: 'rn-top-nick', text: String(r.nick || '') }), el('span', { class: 'rn-top-score', text: String(r.score | 0) })]);
+      ol.appendChild(li);
+    });
+    ol.hidden = !ol.firstChild;
+  }
+  function loadTop(myRank) {
+    var me = L;
+    fetchJson('top', null, 4000).then(function (r) { if (L === me && r.status === 200 && r.json && r.json.ok) renderTop(r.json.top, null, myRank); });
+  }
+  function netMsg(t) { var m = document.getElementById('rn-net-msg'); if (m) m.textContent = t; }
+  var NET_ERR = { duplicate: '이 판은 벌써 올렸어.', expired: '시간이 너무 지나서 못 올렸어. 다음 판은 바로 올려 줘.', too_fast: '이 판은 올릴 수 없어.', mismatch: '기록이 맞지 않아서 못 올렸어.' };
+  function submitRun() {
+    var me = L; if (!me || me.state !== 'over' || !me.net || me.submitted) return;
+    var btn = document.getElementById('rn-submit'), inp = document.getElementById('rn-nick');
+    var nick = String(inp.value || '').trim().slice(0, 12);
+    me.submitted = true; btn.disabled = true; inp.disabled = true; netMsg('올리는 중…');
+    var rec = me.rec;
+    fetchJson('submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: me.net.token, inputs: rec.inputs, score: rec.score, ticks: rec.ticks, nick: nick }) }, 8000).then(function (r) {
+      if (L !== me) return;
+      var j = r.json || {};
+      if (r.status === 200 && j.ok) {
+        var st = load(), n = netState(st);
+        n.subs.push({ runId: j.runId, week: j.week, score: rec.score, rank: j.rank, at: Date.now() });
+        if (n.subs.length > 30) n.subs = n.subs.slice(-30);
+        if (j.award) addAward(n, j.award, j.week);
+        n.nick = j.nick; st.net = n; store(st);
+        document.getElementById('rn-net-form').hidden = true;
+        netMsg('이번 주 ' + j.rank + '등이야!' + (j.award === 'paper_crown' ? ' 종이 왕관을 받았어' : ''));
+        loadTop(j.rank);
+      } else {
+        if (r.status !== 409) { me.submitted = false; btn.disabled = false; inp.disabled = false; }
+        netMsg(NET_ERR[j.error] || '지금은 못 올렸어. 점수는 이 기기에 남아 있어.');
+      }
+    });
   }
   function start() {
     L.state = 'run'; L.store.dayN = (L.store.dayN | 0) + 1; L.store.runs = (L.store.runs | 0) + 1; store(L.store);
@@ -342,6 +463,14 @@ var RUNNER = (function () {
     finalEl.textContent = HITCOPY[L.sim.hitKind] || '콩!';
     document.getElementById('rn-final-score').textContent = L.sim.score + '만큼 달렸어' + (L.sim.moss ? ' · 이끼 ' + L.sim.moss : '');
     bestEl.textContent = L.newBest ? '새 최고야! 최고 ' + L.store.best : '최고 ' + (L.store.best | 0);
+    if (L.net && end === 'hit' && L.sim.tick) {
+      L.rec = record(end); L.submitted = false;
+      var inp = document.getElementById('rn-nick'), btn = document.getElementById('rn-submit');
+      inp.value = inp.value || netState(load()).nick || octName(); inp.disabled = false; btn.disabled = false;
+      document.getElementById('rn-net-form').hidden = false; netMsg(''); renderTop([]);
+      netP.hidden = false;
+      loadTop(0);
+    }
     hudUpdate(true);
     btnAgain.disabled = true; btnStop.disabled = true;
     setTimeout(function () { if (!L || L.state !== 'over') return; btnAgain.disabled = false; btnStop.disabled = false; btnAgain.focus(); }, 450);
@@ -367,9 +496,10 @@ var RUNNER = (function () {
     opts = opts || {};
     buildDialog();
     if (dlg.open) return;
-    L = { opener: opts.opener || document.activeElement, serverSeed: opts.seed != null ? opts.seed : null, sprites: buildSprites(), raf: 0 };
+    L = { opener: opts.opener || document.activeElement, serverSeed: opts.seed != null ? opts.seed : null, sprites: buildSprites(), raf: 0, net: null, pending: false };
+    awardEl.hidden = true;
     dlg.showModal();
-    fit(); ready();
+    fit(); prepare();
     L.raf = requestAnimationFrame(frame);
   }
   var DT = 1000 / 60;
