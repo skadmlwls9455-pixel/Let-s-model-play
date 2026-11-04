@@ -407,10 +407,11 @@
       viaTangent: false, bridge: null, status: 'simulated', note: SIMULATED_NOTE, source: null, reason: null, ms: 0
     };
   }
+  /* 들판(❔)은 방문 기록(visits)에 남지 않아 '처음'인지 알 수 없다 → first:false. 폴짝은 실제로 읽은 들판 걸음일 때만 */
   function makeWildStop(title, opt) {
     opt = opt || {};
     return {
-      kind: 'wild', node: null, id: null, title: title, name: title, emoji: '❔', corner: 'wild', first: true,
+      kind: 'wild', node: null, id: null, title: title, name: title, emoji: '❔', corner: 'wild', first: false,
       viaTangent: !!opt.viaTangent, bridge: opt.bridge || null, fromHint: !!opt.fromHint,
       status: null, note: '', source: null, reason: null, ms: 0
     };
@@ -558,11 +559,26 @@
   function drawStickerPos(R) {
     return { x: Math.round(lerp(R(), 58, 82)), y: Math.round(lerp(R(), 18, 40)), rot: Math.round(lerp(R(), -14, 14)) };
   }
-  function pickReactionLine(reaction, r) {
+  /* 반응 한 줄. lines = 언제 말해도 참인 줄. when.first/missed/long = 그 일이 실제로 있었을 때만 후보에 더한다.
+     facts: first(처음 온 방이 있음) · missed(못 읽음·모의가 있음) · long(정류장 4곳 이상). 집에 있는 날은 facts 없음 → lines 만 */
+  function pickReactionLine(reaction, r, facts) {
     var W = world();
     var rec = W && W.reactions && W.reactions[reaction];
-    if (!rec || !Array.isArray(rec.lines) || !rec.lines.length) return null;
-    return String(rec.lines[Math.min(rec.lines.length - 1, Math.floor(asR(r) * rec.lines.length))]);
+    if (!rec) return null;
+    facts = facts || {};
+    var when = (rec.when && typeof rec.when === 'object') ? rec.when : {};
+    var list = [];
+    ['first', 'missed', 'long'].forEach(function (k) { if (facts[k] && Array.isArray(when[k])) list = list.concat(when[k]); });
+    if (Array.isArray(rec.lines)) list = list.concat(rec.lines);
+    if (!list.length) return null;
+    return String(list[Math.min(list.length - 1, Math.floor(asR(r) * list.length))]);
+  }
+  function reactionFacts(stops, counts) {
+    return {
+      first: stops.some(function (s) { return s.first; }),
+      missed: ((counts.failed || 0) + (counts.simulated || 0)) > 0,
+      long: stops.length >= 4
+    };
   }
   function reactionEmoji(reaction) {
     var W = world();
