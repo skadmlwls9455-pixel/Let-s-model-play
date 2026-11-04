@@ -218,8 +218,9 @@ a { color: var(--teal); touch-action: manipulation; }
 }
 #status .srow { display: flex; align-items: center; gap: 8px; min-height: 28px; width: 100%; flex-wrap: nowrap; }
 #status .who { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; white-space: nowrap; overflow: hidden; }
-#status .name { flex: 0 4 auto; min-width: 2.6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 15px; color: var(--amber); }
-.room-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+/* 이름이 먼저 줄어든다(… 2~3자까지), 방 제목은 이름이 최소 폭에 닿은 뒤에만 (flex-shrink 0.001 + 1px 여유: 첫 패스의 0.0x px 줄어듦이 … 를 켜지 않게) */
+#status .name { flex: 0 1 auto; min-width: 2.6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 15px; color: var(--amber); }
+.room-title { flex: 0 0.001 auto; min-width: 0; padding-right: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
 .room-title::before { content: '·'; margin: 0 6px; color: var(--dim); }
 .pips { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pip-row { display: inline-flex; gap: 3px; }
