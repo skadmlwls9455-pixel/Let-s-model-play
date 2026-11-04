@@ -3,7 +3,9 @@
  *   node tools/smoke.js            # js/world.js, js/brain.js 가 있으면 그대로, 없으면 tools/stubs.js 주입
  *   SMOKE_STUBS=1 node tools/smoke.js   # 스텁 강제 주입
  *   SHOTS=/path node tools/smoke.js     # 스크린샷 폴더 변경
- * 추가 시나리오: E 강제 집에 있는 날(window.__ppolTest.forceKind='home'), F v1→v2 마이그레이션(과제 페이로드).
+ * 추가 시나리오: E 강제 집에 있는 날(window.__ppolTest.forceKind='home'), F v1→v2 마이그레이션(과제 페이로드),
+ *   H 이틀째 메모 인사·재방문·귀가 요약(window.__ppolTest.today='YYYY-MM-DD'), I 출발·귀가 의식(바깥 장면)·건너뛰기·나가 있는 중 새로고침.
+ *   SMOKE_ONLY=H,I node tools/smoke.js   # 그 시나리오만
  * 시나리오: 이름 → 힌트 '모자의 역사' → 초대 → 건너뛰기 → 앨범 1·벽 1·등불 1 → 새로고침 → 그대로 →
  *           카드 탭 → 앞면 → 뒤집기 → 영수증 정류장 ≥2 → 스크린샷 (라이트/다크/앞면/뒷면)
  * 위키 fetch 는 page.route 로 가짜 응답: (A) 성공+썸네일+링크, (B) 문서 없음, (C) 요청 중단.
@@ -144,6 +146,31 @@ async function scenarioMain(browser) {
   if (sc3.mode === '3d') { ok(sc3.stats.calls > 0 && sc3.stats.calls <= 150, '3D 드로우콜 ≤150 (' + sc3.stats.calls + ')'); ok(sc3.stats.palette <= 72, '팔레트 ≤72색 (' + sc3.stats.palette + ' · ' + sc3.stats.paletteName + ')'); }
   var logText = await page.textContent('#log');
   ok(/✅ 읽음|📚 책장 메모|❌ 못 읽음|🧪 모의 방문|◌/.test(logText), '로그에 읽기 상태 아이콘');
+  /* UI 아트 (css/ui-art.css · js/ui-art.js, docs/UI_ART.md) — 픽셀 모드 */
+  var ua = await page.evaluate(function () {
+    var sheet = Array.prototype.filter.call(document.styleSheets, function (x) { return /css\/ui-art\.css$/.test(x.href || ''); })[0], rules = 0;
+    try { rules = sheet ? sheet.cssRules.length : 0; } catch (e) { rules = -1; }   /* file:// 에서는 cssRules 를 못 읽는다 → 아래 탐침으로 */
+    var probe = document.createElement('span'); probe.className = 'ua-fx'; document.body.appendChild(probe);
+    var probeDisp = getComputedStyle(probe).display; probe.remove();   /* ui-art.css 가 있으면 픽셀 모드 block · 시스템 모드 none, 없으면 inline */
+    var voice = document.querySelector('#log .lrow.voice.ua-frame-dialog');
+    var tool = document.querySelector('#log .lrow .ltool.ua-tool'), img = tool && tool.querySelector('img.ua-ico');
+    var st = document.querySelector('#log .ltext .st.ua-st'), stImg = st && st.querySelector('img.ua-ico');
+    function vis(el) { var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; }
+    return { font: document.documentElement.getAttribute('data-font'), uiart: typeof UIART === 'object' && typeof UIART.onRow === 'function', rules: rules,
+      probe: probeDisp, voice: !!voice, voiceBorder: voice ? getComputedStyle(voice).borderImageSource : '', newest: document.querySelectorAll('#log .lrow.ua-newest > .ua-next').length,
+      img: !!img, imgOk: !!(img && img.complete && img.naturalWidth === 16), imgW: img ? img.getBoundingClientRect().width : 0,
+      alt: img ? img.getAttribute('alt') : null, hidden: img ? img.getAttribute('aria-hidden') : null,
+      label: tool ? tool.textContent.trim() : '', labelVis: tool ? vis(tool) : false,
+      stImg: !!(stImg && stImg.naturalWidth === 16), stWord: st ? st.textContent.replace(/[^가-힣]/g, '') : '' };
+  });
+  console.log('   ui-art:', JSON.stringify(ua));
+  ok(ua.uiart && (ua.rules > 10 || (ua.rules === -1 && ua.probe !== 'inline')), 'css/ui-art.css · js/ui-art.js 로드됨 (UIART, 탐침 display ' + ua.probe + ') — 콘솔 에러 0 은 아래 [A] 에서');
+  if (ua.font === 'pixel') {
+    ok(ua.voice && /frame_dialog\.png/.test(ua.voiceBorder), '목소리 행에 대화창 틀 클래스 (.ua-frame-dialog → ui.frame.dialog)');
+    ok(ua.newest === 1, '▼ 는 가장 새 목소리 행 하나에만 (' + ua.newest + ')');
+    ok(ua.img && ua.imgOk && ua.imgW === 32 && (ua.alt || ua.hidden === 'true') && ua.label.length >= 1 && ua.labelVis, '로그 행 아이콘 img(16→32px, alt/aria-hidden) + 보이는 라벨 (' + ua.label + ')');
+    ok(ua.stImg && ua.stWord.length >= 2, '읽기 상태 칩: 아이콘 + 상태 단어 (' + ua.stWord + ')');
+  }
   ok(!/결과|리서치|보고/.test(logText), "로그에 '결과/리서치/보고' 없음");
 
   console.log('\n== 새로고침 → 그대로');
@@ -427,6 +454,190 @@ async function scenarioMigrateExact(browser) {
   await s.ctx.close();
 }
 
+/* H. §17.1 이틀째 · §17.3 귀가 요약: window.__ppolTest.today 로 날짜를 넘긴다 (훅이 있을 때만 app 이 존중)
+   1일째 외출 → 요약 행 · 메모 저장 → 2일째 새로고침 → 첫 인사 = 어제 memo.tomorrow 그대로 → 같은 힌트 재방문 → 기웃 행 한마디 · 지난번 메모 · 날씨 */
+async function scenarioDay2(browser) {
+  console.log('\n== H. 이틀째 메모 인사 · 재방문 · 귀가 요약 (§17.1 · §17.3)');
+  var DAY1 = '2026-11-03', DAY2 = '2026-11-04';
+  /* 날짜 훅은 init 스크립트에만 둔다 (localStorage 에 두지 않는다): file:// 새로고침 직후 문서가 원점 localStorage 를 통째로 빈 것으로 보는
+     크로미움 경합(tools/test-resume.js 'empty-snapshot') 이 나면 '__smoke_today' 도 같이 사라져 2일째가 1일째로 돌아갔다 (H 간헐 실패의 원인).
+     app 은 같은 탭 미러(window.name)로 기록을 살리지만 테스트 입력은 거기 없다. 2일째 init 스크립트는 무조건 덮어쓰고, 1일째 것은 비어 있을 때만 쓴다 → 실행 순서와 무관 */
+  var s = await newPage(browser, 'ok', [{ content: "window.__ppolTest = window.__ppolTest || { today: '" + DAY1 + "', forceKind: 'out' };" }]);
+  var page = s.page;
+  await page.goto(INDEX);
+  await page.waitForSelector('#name-dialog[open]');
+  /* 두 날 모두 힌트를 따라 모자에서 시작하는 이름 */
+  var name = await page.evaluate(async function (days) {
+    var names = ['뚜루', '안개', '삐죠', '구름', '조약돌', '먹물', '단추', '파도', '이끼', '별', '솔방울', '종이배'];
+    for (var n of names) {
+      var good = true;
+      for (var d of days) {
+        var t = await BRAIN.plan({ seed: BRAIN.hashSeed(d, '모자의 역사', 1, n), dateKey: d, seq: 1, hint: '모자의 역사', name: n, state: { visits: { hat: 1 }, affinity: {}, lantern: 0, recent: [], todayOut: 0 }, now: new Date(), online: false, by: 'demo' });
+        if (!(t.kind === 'out' && t.receipt.stops[0].nodeId === 'hat')) { good = false; break; }
+      }
+      if (good) return n;
+    }
+    return names[0];
+  }, [DAY1, DAY2]);
+  await page.fill('#name-in', name);
+  await page.click('#name-form button[type=submit]');
+  await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  async function goTrip() {
+    await page.fill('#hint-in', '모자의 역사');
+    await page.click('#btn-go');
+    await page.waitForSelector('#btn-skip:not([hidden])', { timeout: 10000 });
+    await page.click('#btn-skip');
+    await waitIdle(page);
+    await page.waitForTimeout(300);
+  }
+  function summaryOf(t) {
+    var sm = t.summary, p = ['오늘 바뀐 것'];
+    if (sm.lantern) p.push('등불 +1'); if (sm.rooms) p.push('새 방 ' + sm.rooms + '곳'); if (sm.souvenir) p.push('기념품 ' + sm.souvenir); if (sm.poster) p.push('포스터 ' + sm.poster); if (sm.note) p.push('쪽지 ' + sm.note);
+    return p.join(' · ');
+  }
+  await goTrip();
+  var d1 = await page.evaluate(function () {
+    var t = APP.state.trips[APP.state.trips.length - 1], rows = document.querySelectorAll('#log .lday[data-day="' + t.date + '"] .lrow'), last = rows[rows.length - 1];
+    return { date: t.date, kind: t.kind, memo: t.memo, weather: t.weather, summary: t.summary, stops: t.receipt.stops.map(function (x) { return x.nodeId; }), notes: APP.state.notes,
+      lastLabel: last && last.querySelector('.ltool').textContent, lastText: last && last.querySelector('.ltext').textContent, lastDialog: last && last.classList.contains('dialog') };
+  });
+  console.log('   day1:', JSON.stringify({ date: d1.date, stops: d1.stops, memo: d1.memo && d1.memo.tomorrow, weather: d1.weather, summary: d1.lastText }));
+  must(d1.date === DAY1 && d1.kind === 'out', '1일째 외출 (날짜 훅 ' + DAY1 + ')');
+  ok(d1.memo && typeof d1.memo.tomorrow === 'string' && d1.memo.tomorrow.length > 0 && d1.memo.tomorrow.length <= 60, 'trip.memo.tomorrow (≤60): ' + (d1.memo && d1.memo.tomorrow));
+  ok(d1.notes.hat && d1.notes.hat.text === d1.memo.notes.hat && d1.notes.hat.date === DAY1, 'state.notes.hat = {text, tripId, date}');
+  ok(d1.weather === 'rain', '1일째 trip.weather 저장 (' + d1.weather + ')');
+  ok(d1.lastLabel === '요약' && !d1.lastDialog && d1.lastText === summaryOf(d1), '귀가 요약 시스템 행: ' + d1.lastText);
+  ok(/^오늘 바뀐 것 · 등불 \+1 · 새 방 \d+곳 · (기념품 1 · )?포스터 1$/.test(d1.lastText), '요약 형식 (등불·새 방·포스터, 0 항목 생략)');
+
+  /* 2일째 */
+  await page.addInitScript({ content: "window.__ppolTest = { today: '" + DAY2 + "', forceKind: 'out' };" });
+  await page.reload();
+  await page.waitForSelector('#btn-go:not([disabled])');
+  await page.waitForTimeout(400);
+  var g = await page.evaluate(function (d) {
+    var sec = document.querySelector('#log .lday[data-day="' + d + '"]'), rows = sec ? sec.querySelectorAll('.lrow') : [];
+    return [].map.call(rows, function (r) { return { label: r.querySelector('.ltool').textContent, text: r.querySelector('.ltext').textContent, expr: r.dataset.expr || null, dialog: r.classList.contains('dialog') }; });
+  }, DAY2);
+  console.log('   day2 greeting:', JSON.stringify(g));
+  ok(g.length === 2 && g[0].label === '인사', '2일째: 시각 인사 행');
+  ok(g[1] && g[1].label === '어제 메모' && g[1].text === d1.memo.tomorrow, '2일째 첫 인사 = 어제 memo.tomorrow 그대로');
+  ok(g[1] && g[1].dialog && g[1].expr === 'calm', "메모 인사는 문어 대화창 행 (초상 'calm')");
+  await page.evaluate(function () { var r = document.querySelector('#log .lrow.memo'); if (r) r.scrollIntoView({ block: 'center' }); });
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: path.join(SHOTS, 'phone-day2-greeting.png') });
+
+  await goTrip();
+  var d2 = await page.evaluate(function (d) {
+    var t = APP.state.trips[APP.state.trips.length - 1], sec = document.querySelector('#log .lday[data-day="' + d + '"]');
+    var peek = [].filter.call(sec.querySelectorAll('.lrow'), function (r) { return r.querySelector('.ltool').textContent === '기웃'; })[0];
+    var rows = sec.querySelectorAll('.lrow'), last = rows[rows.length - 1];
+    if (peek) peek.scrollIntoView({ block: 'center' });
+    return { date: t.date, stops: t.receipt.stops.map(function (x) { return x.nodeId; }), aside: (t.events.filter(function (e) { return e.type === 'peek'; })[0] || {}).aside, recall: t.recall, weather: t.weather,
+      peekSubs: peek ? [].map.call(peek.querySelectorAll('.sub'), function (x) { return x.textContent; }) : [], summary: t.summary, lastLabel: last.querySelector('.ltool').textContent, lastText: last.querySelector('.ltext').textContent,
+      greetStill: !!sec.querySelector('.lrow.memo'), notesHat: APP.state.notes.hat };
+  }, DAY2);
+  console.log('   day2:', JSON.stringify({ stops: d2.stops, aside: d2.aside, subs: d2.peekSubs, summary: d2.lastText }));
+  must(d2.date === DAY2 && d2.stops[0] === 'hat', '2일째 같은 힌트 → 다시 모자');
+  ok(d2.stops.length >= 3, '재방문: 한 단계 더 깊게 (정류장 ' + d2.stops.length + ' ≥ 3)');
+  ok(d2.aside === '모자? 그거 1일 전에 봤잖아. 이번엔 안쪽까지 가 볼게' && d2.peekSubs.indexOf(d2.aside) >= 0, '첫 기웃 행: "' + d2.aside + '"');
+  ok(d2.peekSubs.indexOf("지난번 메모: '" + d1.memo.notes.hat + "'") >= 0, "기웃 행: 지난번 메모: '" + d1.memo.notes.hat + "'");
+  ok(d2.peekSubs.indexOf('지난번에도 비가 왔어') >= 0 || d2.peekSubs.some(function (x) { return /^지난번엔 /.test(x); }), '기웃 행: 그때 날씨 한 줄');
+  ok(d2.lastLabel === '요약' && d2.lastText === summaryOf({ summary: d2.summary }), '2일째 귀가 요약: ' + d2.lastText);
+  ok(d2.notesHat && d2.notesHat.date === DAY2, 'state.notes.hat 최신 것으로 갱신');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(SHOTS, 'phone-day2-revisit.png') });
+  await page.evaluate(function () { var l = document.getElementById('log'); l.scrollTop = l.scrollHeight; });
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: path.join(SHOTS, 'phone-day2-summary.png') });
+  /* 다시 그려도 같은 말 (recall 은 계획 때 고정) */
+  await page.reload();
+  await page.waitForSelector('#btn-go:not([disabled])');
+  var again = await page.evaluate(function (d) {
+    var sec = document.querySelector('#log .lday[data-day="' + d + '"]');
+    var peek = [].filter.call(sec.querySelectorAll('.lrow'), function (r) { return r.querySelector('.ltool').textContent === '기웃'; })[0];
+    return { subs: peek ? [].map.call(peek.querySelectorAll('.sub'), function (x) { return x.textContent; }) : [], memoRow: !!sec.querySelector('.lrow.memo'), summaries: sec.querySelectorAll('.lrow.summary').length };
+  }, DAY2);
+  ok(again.subs.indexOf("지난번 메모: '" + d1.memo.notes.hat + "'") >= 0 && !again.memoRow && again.summaries === 1, '새로고침 뒤: 지난번 메모 그대로 · 오늘 산책이 있으니 메모 인사 없음 · 요약 1행');
+  reportErrors(s.bag, 'H');
+  await s.ctx.close();
+}
+
+/* I. 출발·귀가 의식 (DESIGN §15.3): 외출 초대 → 나가 있는 동안 바깥 → 귀가 의식 → 다락 → 포스터 걸림.
+   건너뛰기 = 의식을 감아 다락으로. 나가 있는 중 새로고침 → 바깥을 한 번도 안 보이고 다락에서 즉시 귀가 */
+var PLACE_PROBE = "window.__placeLog = []; (function poll() { try { if (window.APP && APP.scene && APP.scene.place) { var p = APP.scene.place(), L = window.__placeLog; if (L[L.length - 1] !== p) L.push(p); } } catch (e) {} setTimeout(poll, 16); })();";
+function hasLabel(page, label) { return page.evaluate(function (lb) { return [].some.call(document.querySelectorAll('#log .lrow .ltool'), function (e) { return e.textContent === lb; }); }, label); }
+async function scenarioCeremony(browser) {
+  console.log('\n== I. 출발·귀가 의식 · 바깥 장면 (§15.3)');
+  var s = await newPage(browser, 'ok', [{ content: "window.__ppolTest = { forceKind: 'out' };" }, { content: PLACE_PROBE }]);
+  var page = s.page;
+  await page.goto(INDEX + '?slow=0.5');   /* --speed 0.5: 공개 간격·의식 모두 절반 */
+  await page.waitForSelector('#name-dialog[open]');
+  await page.fill('#name-in', await pickName(page));
+  await page.click('#name-form button[type=submit]');
+  await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  var mode = await page.evaluate(function () {
+    window.__ink = [];
+    if (window.UIART) { var f = UIART.fx; UIART.fx = function (n) { if (n === 'ink') window.__ink.push({ place: APP.scene.place(), m: APP.scene.motion ? APP.scene.motion() : null }); return f.apply(this, arguments); }; }
+    return APP.sceneMode;
+  });
+  ok(await page.evaluate(function () { return APP.scene.place() === 'attic'; }), '처음엔 다락 (' + mode + ')');
+  await page.fill('#hint-in', '모자의 역사');
+  await page.click('#btn-go');
+  if (mode === '3d') {
+    await page.waitForFunction(function () { return APP.scene.ceremony() === 'depart'; }, null, { timeout: 10000 });
+    ok(!(await hasLabel(page, '출발')), '출발 의식 동안엔 아직 공개 전 (출발 행 없음)');
+  }
+  await page.waitForFunction(function () { return APP.oct.state === 'away' && APP.scene.place() === 'exterior'; }, null, { timeout: 20000 });
+  await page.waitForFunction(function () { return [].some.call(document.querySelectorAll('#log .lrow .ltool'), function (e) { return e.textContent === '출발'; }); }, null, { timeout: 10000 });
+  var away = await page.evaluate(function () { return { place: APP.scene.place(), cer: APP.scene.ceremony(), oct: document.getElementById('oct').className, busy: document.getElementById('btn-go').disabled, ink: window.__ink, log: window.__placeLog.slice() }; });
+  console.log('   away:', JSON.stringify({ place: away.place, cer: away.cer, oct: away.oct.trim(), ink: away.ink.map(function (x) { return x.place + (x.m ? '/vis=' + x.m.octVisible + '/door=' + x.m.door : ''); }), log: away.log }));
+  ok(away.place === 'exterior' && away.cer === '' && away.busy && /st-away/.test(away.oct), '나가 있는 동안 바깥 장면 유지 (의식 끝, 공개 중)');
+  if (mode === '3d') ok(away.ink.length === 1 && away.ink[0].place === 'exterior' && away.ink[0].m.octVisible, '먹물은 한 번, 문어가 현관문을 나설 때 (바깥 · 문어 보임)');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(SHOTS, 'phone-away-exterior.png') });
+  /* 건너뛰지 않고 끝까지: 귀가 의식 → 다락 → 보드 → 포스터 */
+  if (mode === '3d') await page.waitForFunction(function () { return APP.scene.ceremony() === 'return'; }, null, { timeout: 60000 });
+  await page.waitForFunction(function () { return APP.scene.place() === 'attic' && APP.oct.state !== 'away'; }, null, { timeout: 60000 });
+  await waitIdle(page);
+  await page.waitForTimeout(400);
+  var back = await page.evaluate(function () { var t = APP.state.trips[0]; return { place: APP.scene.place(), status: t.status, kind: t.kind, poster: !!t.poster, oct: APP.state.octopus.state, log: window.__placeLog.slice() }; });
+  console.log('   back:', JSON.stringify(back));
+  ok(back.status === 'done' && back.kind === 'out' && back.place === 'attic', '귀가 → 다락, 여행 done');
+  ok(back.log.join('>') === 'attic>exterior>attic', '장소 순서 다락 → 바깥 → 다락 (' + back.log.join('>') + ')');
+  ok(back.poster && (await wallCount(page)) === 1, '포스터가 벽에 걸림');
+  ok(back.oct === 'sleep', '마무리 뒤 잠듦');
+  await page.screenshot({ path: path.join(SHOTS, 'phone-returned-attic.png') });
+
+  console.log('\n== I-2. 출발 의식 중 건너뛰기 → 다락');
+  await page.evaluate(function () { window.__placeLog = [APP.scene.place()]; });
+  await page.fill('#hint-in', '');
+  await page.click('#btn-go');
+  if (mode === '3d') await page.waitForFunction(function () { return APP.scene.ceremony() === 'depart'; }, null, { timeout: 10000 });
+  await page.waitForSelector('#btn-skip:not([hidden])');
+  await page.click('#btn-skip');
+  await waitIdle(page);
+  var sk = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { place: APP.scene.place(), cer: APP.scene.ceremony(), status: t.status, kind: t.kind, oct: APP.state.octopus.state, posters: APP.state.room.posterOrder.length }; });
+  console.log('   skip:', JSON.stringify(sk));
+  ok(sk.place === 'attic' && sk.cer === '' && sk.status === 'done', '건너뛰기: 의식을 감고 다락에서 끝남');
+  ok((await wallCount(page)) === sk.posters, '건너뛰기 뒤 벽 포스터 = 저장된 포스터 수 (' + sk.posters + ')');
+
+  console.log('\n== I-3. 나가 있는 중 새로고침 → 다락에서 즉시 귀가 (바깥 안 보임)');
+  await page.click('#btn-go');
+  await page.waitForFunction(function () { return APP.oct.state === 'away' && APP.scene.place() === 'exterior'; }, null, { timeout: 20000 });
+  ok(await page.evaluate(function () { return APP.state.trips.some(function (t) { return t.status === 'running'; }); }), '바깥에 나가 있는 동안 running 여행 저장됨');
+  await page.reload();
+  await page.waitForSelector('#btn-go:not([disabled])');
+  await page.waitForFunction(function () { return APP.state.trips.every(function (t) { return t.status === 'done'; }); }, null, { timeout: 15000 });
+  await page.waitForTimeout(1500);
+  var rl = await page.evaluate(function () { return { log: window.__placeLog.slice(), place: APP.scene.place(), text: document.getElementById('log').textContent, oct: document.getElementById('oct').className, busy: document.getElementById('btn-go').disabled, n: APP.state.trips.length }; });
+  console.log('   reload:', JSON.stringify({ log: rl.log, place: rl.place, oct: rl.oct.trim(), trips: rl.n }));
+  ok(rl.n === 3, '새로고침 뒤 여행 3건 그대로 (미러 복구 포함)');
+  ok(rl.log.indexOf('exterior') < 0 && rl.place === 'attic', '새로고침 뒤 바깥은 한 번도 안 보임 (' + rl.log.join('>') + ')');
+  ok(rl.text.indexOf('네가 없는 동안 다녀왔어') >= 0 && /st-(sleep|idle)/.test(rl.oct) && !rl.busy, "'네가 없는 동안 다녀왔어' · 문어 유효 · 버튼 활성");
+  reportErrors(s.bag, 'I');
+  await s.ctx.close();
+}
+
 /* G. 2D 폴백 (?scene=2d): 같은 API 로 초대 한 번 — 레이어 DOM · 벽 · 문어 클래스 */
 async function scenario2D(browser) {
   console.log('\n== G. 2D 폴백 (?scene=2d)');
@@ -464,13 +675,12 @@ async function scenario2D(browser) {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
   try {
-    await scenarioMain(browser);
-    await scenarioFail(browser, 'missing', 'B. 문서 없음(missing) 응답');
-    await scenarioFail(browser, 'abort', 'C. 요청 중단(abort)');
-    await scenarioMigrate(browser);
-    await scenarioForcedHome(browser);
-    await scenarioMigrateExact(browser);
-    await scenario2D(browser);
+    var only = String(process.env.SMOKE_ONLY || '').toUpperCase().split(/[,\s]+/).filter(Boolean);   /* SMOKE_ONLY=H,I → 그 시나리오만 */
+    var all = [['A', function () { return scenarioMain(browser); }], ['B', function () { return scenarioFail(browser, 'missing', 'B. 문서 없음(missing) 응답'); }],
+      ['C', function () { return scenarioFail(browser, 'abort', 'C. 요청 중단(abort)'); }], ['D', function () { return scenarioMigrate(browser); }],
+      ['E', function () { return scenarioForcedHome(browser); }], ['F', function () { return scenarioMigrateExact(browser); }], ['G', function () { return scenario2D(browser); }],
+      ['H', function () { return scenarioDay2(browser); }], ['I', function () { return scenarioCeremony(browser); }]];
+    for (var sc of all) if (!only.length || only.indexOf(sc[0]) >= 0) await sc[1]();
   } catch (e) {
     fails++; console.error('\nCRASH: ' + (e && e.stack || e));
   } finally {

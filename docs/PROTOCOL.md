@@ -11,13 +11,23 @@
 | type | 필드 | 뜻 |
 |---|---|---|
 | `depart` | `hint` (string, 빈 문자열 가능), `followHint` (bool) | 문 밖으로 나감. `followHint` 는 힌트를 **처음에** 따를지 문어가 정한 값 |
-| `peek` | `target`, `status`, `ms`, `note?`, `first?`, `viaTangent?`, `bridge?`, `source?` | 한 곳을 기웃거림 |
+| `peek` | `target`, `status`, `ms`, `note?`, `first?`, `viaTangent?`, `bridge?`, `source?`, `aside?` | 한 곳을 기웃거림. `aside` 는 그 자리에서 문어가 하는 한마디(재방문: "모자? 그거 3일 전에 봤잖아. 이번엔 안쪽까지 가 볼게") |
 | `return` | `reason`: `enough` \| `tired` \| `linger` | 귀가 |
 | `remember` | `stopIdx` (peek 순서, 0부터), `sticker`, `line` | 기억으로 고른 한 곳과 스티커, 한 줄 |
 | `hang_poster` | `posterId` | 벽에 붙임 |
-| `wrap_up` | `reaction`: `폴짝` \| `우쭐` \| `덤덤` \| `졸림` | 문어의 반응. 사람이 고르지 않는다 |
+| `wrap_up` | `reaction`: `폴짝` \| `우쭐` \| `덤덤` \| `졸림`, `memo?` | 문어의 반응. 사람이 고르지 않는다. `memo` 는 그때 남긴 메모(아래) |
 | `stay_home` | `activity` (id), `line`, `detail?` | 오늘은 집. 쪽지 한 장 |
 | `empty_turn` | (없음) | 빈 차례. 로그에 `…` 한 줄. 등불은 켜진다 |
+
+### `wrap_up.memo` — 그때 남긴 메모 (DESIGN §17.1)
+```jsonc
+{ "tomorrow": "모자 보다가 깃털에 꽂혔어. 내일은 새의 비행 쪽으로 가 볼까",      // 다음 날 첫 인사에 그대로 읽힌다
+  "notes": { "hat": "챙은 해를 가리고, 안쪽 띠는 땀을 막아 줘", "feather": "…" } }   // 다녀온 방마다 한 줄. 재방문 기웃 때 "지난번 메모: '…'"
+```
+- 선택 필드. **없으면 다음 날 아무 말도 하지 않는다**(화면이 대신 지어내지 않는다). 빈 차례에는 없다.
+- 각 문자열 60자 이하(넘으면 화면이 59자 + `…` 로 자른다). `notes` 키는 방 `id`, 값은 문자열만 받는다.
+- 데이터 전용: 다녀온 기록·기억 조각·실제로 읽은 요약에서만. 명령문(사람에게 시키는 말)·자격/규칙 언급 금지.
+- 데모 두뇌는 `plan` 끝에서 결정적으로 만든다. **MCP 는 모델이 직접 쓴다** (`ppolppol_wrap_up` 입력의 `memo`).
 
 ### `peek.target`
 ```jsonc
@@ -49,13 +59,14 @@
  { "type":"return", "t":12000, "reason":"enough" },
  { "type":"remember", "t":12500, "stopIdx":1, "sticker":"feather", "line":"모자 보러 갔다가 깃털에 한눈팔았어" },
  { "type":"hang_poster", "t":13000, "posterId":"trip_k7x2" },
- { "type":"wrap_up", "t":13500, "reaction":"폴짝" }
+ { "type":"wrap_up", "t":13500, "reaction":"폴짝",
+   "memo":{ "tomorrow":"모자 보다가 깃털에 꽂혔어. 내일은 새의 비행 쪽으로 가 볼까", "notes":{ "hat":"챙은 해를 가리고, 안쪽 띠는 땀을 막아 줘", "feather":"깃털 끝이 갈라져 있어서 소리가 안 나는 거래" } } }
 ]
 ```
 ### 예시 — 집
 ```json
 [ { "type":"stay_home", "t":0, "activity":"count_rain", "line":"창가에서 빗방울을 세다가 잠들었어" },
-  { "type":"wrap_up", "t":2000, "reaction":"졸림" } ]
+  { "type":"wrap_up", "t":2000, "reaction":"졸림", "memo":{ "tomorrow":"창가에서 비 셌어. 내일은 나가 볼까 말까", "notes":{} } } ]
 ```
 ### 예시 — 빈 차례
 ```json
@@ -80,7 +91,7 @@
 | `ppolppol_return_home` | `{ tripId, reason }` | `{ stops: [...] }` | |
 | `ppolppol_remember` | `{ tripId, stopIdx, sticker, line }` | `{ ok }` | 모델이 고른 한 장면 |
 | `ppolppol_hang_poster` | `{ tripId }` | `{ posterId }` | |
-| `ppolppol_wrap_up` | `{ tripId, reaction }` | `{ ok }` | |
+| `ppolppol_wrap_up` | `{ tripId, reaction, memo?: { tomorrow, notes } }` | `{ ok }` | `memo` 는 모델이 직접 쓴다(§1 `wrap_up.memo`). 안 쓰면 다음 날 메모 인사는 없다 |
 | `ppolppol_stay_home` | `{ activity?, line? }` | `{ tripId }` | 외출과 같은 무게 |
 | `ppolppol_empty_turn` | `{}` | `{ tripId }` | 아무것도 만들지 않아도 된다는 허락 |
 

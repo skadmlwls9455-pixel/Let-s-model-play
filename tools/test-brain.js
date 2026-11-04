@@ -494,6 +494,125 @@ async function planSuite(label, W, hasHat) {
   var R2 = BRAIN.rng(9), specialHits = 0;
   for (q = 0; q < 300; q++) { var pid = BRAIN.pickStart({ visits: {}, affinity: {} }, R2); if (['door_out', 'slow_room', 'letter_room'].indexOf(pid) >= 0 || !pid) specialHits++; }
   check(specialHits === 0, 'pickStart never starts in special rooms');
+
+  await memoSuite(label, W, hasHat);
+}
+
+/* ───────── §17.1 메모 · 재방문 깊이 ───────── */
+var IMPERATIVE = /해라|하세요|믿어/;
+var RULE_TALK = /자격|조건|규칙|기준/;
+function noteIsFromRecord(W, trip, id, text) {
+  var n = W.nodes[id]; if (!n) return false;
+  var bare = text.replace(/…$/, '');
+  if ((n.memories || []).indexOf(text) >= 0) return true;
+  if (n.clue && n.clue.replace(/\s+/g, ' ').indexOf(bare) >= 0) return true;
+  var st = (trip.receipt.stops || []).filter(function (s) { return s.nodeId === id; })[0];
+  return !!(st && st.source && st.source.extract && st.source.extract.replace(/\s+/g, ' ').indexOf(bare) >= 0);
+}
+async function memoSuite(label, W, hasHat) {
+  section('memo (§17.1) — ' + label);
+  var errs = [], nOut = 0, nHome = 0, nEmpty = 0, samples = [];
+  for (var seed = 1; seed <= 150; seed++) {
+    var hint = seed % 3 === 0 ? '' : (hasHat ? '모자의 역사' : '');
+    var a = await BRAIN.plan(baseInput(seed, { hint: hint }));
+    var b = await BRAIN.plan(baseInput(seed, { hint: hint }));
+    try { assert.deepStrictEqual(a.memo, b.memo); } catch (e) { errs.push('seed ' + seed + ' memo not deterministic'); }
+    if (a.kind === 'empty') { nEmpty++; if (a.memo !== null) errs.push('seed ' + seed + ' empty turn has memo'); continue; }
+    if (a.kind === 'out') nOut++; else nHome++;
+    var m = a.memo;
+    if (!m || typeof m.tomorrow !== 'string' || !m.tomorrow) { errs.push('seed ' + seed + ' ' + a.kind + ' has no memo.tomorrow'); continue; }
+    if (samples.length < 3 && a.kind === 'out') samples.push(m.tomorrow);
+    var texts = [m.tomorrow].concat(Object.keys(m.notes).map(function (k) { return m.notes[k]; }));
+    texts.forEach(function (t) {
+      if (typeof t !== 'string' || t.length > 60) errs.push('seed ' + seed + ' memo > 60: ' + t);
+      if (hasBrace(t)) errs.push('seed ' + seed + ' memo leftover {: ' + t);
+      if (IMPERATIVE.test(t)) errs.push('seed ' + seed + ' memo imperative: ' + t);
+    });
+    /* 생성된 문장(tomorrow)은 자격·규칙을 말하지 않는다 (notes 는 기록 인용이라 '0을 수로 다룬 규칙' 같은 사실은 그대로 둔다) */
+    if (RULE_TALK.test(m.tomorrow)) errs.push('seed ' + seed + ' tomorrow mentions rules: ' + m.tomorrow);
+    var wu = a.events.filter(function (e) { return e.type === 'wrap_up'; })[0];
+    try { assert.deepStrictEqual(wu.memo, m); } catch (e) { errs.push('seed ' + seed + ' wrap_up.memo != trip.memo'); }
+    if (a.kind === 'home') { if (Object.keys(m.notes).length) errs.push('seed ' + seed + ' home memo has notes'); continue; }
+    var roomIds = a.receipt.stops.filter(function (s) { return s.nodeId && s.nodeId !== 'door_out' && !s.wild; }).map(function (s) { return s.nodeId; });
+    Object.keys(m.notes).forEach(function (id) {
+      if (roomIds.indexOf(id) < 0) errs.push('seed ' + seed + ' note for unvisited room ' + id);
+      else if (!noteIsFromRecord(W, a, id, m.notes[id])) errs.push('seed ' + seed + ' note not from memories/clue/extract: ' + id + ' ' + m.notes[id]);
+    });
+    roomIds.forEach(function (id) { var nd = W.nodes[id]; if (nd && ((nd.memories || []).length || nd.clue) && !m.notes[id]) errs.push('seed ' + seed + ' visited room without note ' + id); });
+    var rem = a.receipt.stops[a.receipt.rememberedIdx];
+    if (rem && m.tomorrow.indexOf(rem.name) < 0 && !/느린 글의 방|편지의 방/.test(m.tomorrow)) errs.push('seed ' + seed + ' tomorrow does not mention remembered stop ' + rem.name + ': ' + m.tomorrow);
+  }
+  console.log('  memo samples:', JSON.stringify(samples), '| out', nOut, 'home', nHome, 'empty', nEmpty);
+  check(errs.length === 0, 'memo: deterministic, ≤60, no {, no imperative, notes from record (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 4).join(' | ') : ''));
+  check(nOut > 0 && nHome > 0, 'memo seen for out and home trips');
+
+  /* 강제 빈 차례 → memo null */
+  global.__ppolTest = { forceKind: 'empty' };
+  var em = await BRAIN.plan(baseInput(3));
+  delete global.__ppolTest;
+  check(em.kind === 'empty' && em.memo === null, 'empty turn → memo null');
+  global.__ppolTest = { forceKind: 'home' };
+  var hm = await BRAIN.plan(baseInput(4));
+  delete global.__ppolTest;
+  check(hm.kind === 'home' && hm.memo && /내일은/.test(hm.memo.tomorrow) && hm.memo.tomorrow.length <= 60, 'home memo: "' + (hm.memo && hm.memo.tomorrow) + '"');
+
+  /* replay: wrap_up.memo 가 있으면 그것(정리해서), 없으면 null */
+  var src = null;
+  for (seed = 1; seed <= 60 && !src; seed++) { var c = await BRAIN.plan(baseInput(seed)); if (c.kind === 'out') src = c; }
+  var rp = BRAIN.replay(JSON.parse(JSON.stringify(src.events)), { by: 'mcp', now: NOW_DAY });
+  try { assert.deepStrictEqual(rp.memo, src.memo); check(true, 'replay keeps wrap_up.memo'); } catch (e) { check(false, 'replay keeps wrap_up.memo'); }
+  var noMemo = JSON.parse(JSON.stringify(src.events)); noMemo.forEach(function (e) { delete e.memo; });
+  check(BRAIN.replay(noMemo, { by: 'mcp', now: NOW_DAY }).memo === null, 'replay without memo → null (no invented greeting)');
+  var long = JSON.parse(JSON.stringify(noMemo)); long[long.length - 1].memo = { tomorrow: new Array(30).join('가나다'), notes: { hat: new Array(40).join('라'), bad: 5, 'x y': 'z' } };
+  var lm = BRAIN.replay(long, { by: 'mcp', now: NOW_DAY }).memo;
+  check(lm && lm.tomorrow.length <= 60 && lm.notes.hat.length <= 60 && !('bad' in lm.notes) && !('x y' in lm.notes), 'replay memo clamped to 60 and sanitized');
+  check(BRAIN.replay([{ type: 'stay_home', activity: 'nap' }, { type: 'wrap_up', reaction: '졸림' }], { by: 'human' }).memo === null, 'home replay without memo → null');
+  check(BRAIN.replay([{ type: 'empty_turn', t: 0 }], { by: 'human' }).memo === null, 'empty replay → memo null');
+
+  /* 재방문 깊이 */
+  section('revisit depth (§17.1) — ' + label);
+  if (!hasHat) { console.log('  (hat 없음 — 건너뜀)'); return; }
+  var hat = W.nodes.hat, related = hat.related || [];
+  var seen = 0, deepErr = [], plainShort = 0, deepShort = 0, rel1 = 0, relAvail = 0;
+  for (seed = 1; seed <= 120; seed++) {
+    var plain = await BRAIN.plan(baseInput(seed, { hint: '모자의 역사' }));
+    var visits = { hat: 2 };
+    var deep = await BRAIN.plan(baseInput(seed, { hint: '모자의 역사', state: { visits: visits, affinity: {}, lantern: 1, recent: [], todayOut: 0, lastVisit: { hat: '2026-11-01' } } }));
+    var deep2 = await BRAIN.plan(baseInput(seed, { hint: '모자의 역사', state: { visits: visits, affinity: {}, lantern: 1, recent: [], todayOut: 0, lastVisit: { hat: '2026-11-01' } } }));
+    if (JSON.stringify(deep.events) !== JSON.stringify(deep2.events)) deepErr.push('seed ' + seed + ' revisit not deterministic');
+    if (deep.kind !== 'out') continue;
+    var p0 = deep.events.filter(function (e) { return e.type === 'peek'; })[0];
+    if (p0.target.id !== 'hat') { if (p0.aside) deepErr.push('seed ' + seed + ' aside without hat start'); continue; }
+    seen++;
+    if (plain.kind === 'out' && plain.receipt.stops.length < 3) plainShort++;
+    if (deep.receipt.stops.length < 3) deepShort++;
+    var want = '모자? 그거 3일 전에 봤잖아. 이번엔 안쪽까지 가 볼게';
+    if (p0.aside !== want) deepErr.push('seed ' + seed + ' aside "' + p0.aside + '"');
+    if (hasBrace(p0.aside || '')) deepErr.push('seed ' + seed + ' aside brace');
+    var freshRel = related.filter(function (id) { return W.nodes[id] && !W.nodes[id].linger && !(visits[id] > 0); });
+    if (freshRel.length) { relAvail++; if (freshRel.indexOf(deep.receipt.stops[1].nodeId) >= 0) rel1++; }
+    var pp = plain.events.filter(function (e) { return e.type === 'peek'; })[0];
+    if (pp && pp.aside) deepErr.push('seed ' + seed + ' first-time visit has aside');
+    if (!deep.revisit || deep.revisit.nodeId !== 'hat') deepErr.push('seed ' + seed + ' trip.revisit missing');
+  }
+  console.log('  revisit trips', seen, '| <3 stops: plain', plainShort, 'revisit', deepShort, '| 2nd stop = unvisited related', rel1 + '/' + relAvail);
+  check(seen > 10, 'revisit seen (' + seen + ')');
+  check(deepShort === 0, 'revisit: route goes ≥3 stops (one step deeper)');
+  check(relAvail === 0 || rel1 === relAvail, 'revisit: second stop is an unvisited related neighbour');
+  check(deepErr.length === 0, 'revisit aside "{hint}? 그거 N일 전에 봤잖아…" (' + deepErr.length + ' errors)' + (deepErr.length ? ' e.g. ' + deepErr.slice(0, 3).join(' | ') : ''));
+  /* 같은 날 · 날짜 없는 방문 */
+  var sameDay = null, undated = null;
+  for (seed = 1; seed <= 60 && (!sameDay || !undated); seed++) {
+    var sd = await BRAIN.plan(baseInput(seed, { hint: '모자의 역사', state: { visits: { hat: 1 }, affinity: {}, lantern: 1, recent: [], todayOut: 0, lastVisit: { hat: '2026-11-04' } } }));
+    var p = sd.kind === 'out' && sd.events.filter(function (e) { return e.type === 'peek'; })[0];
+    if (p && p.target.id === 'hat' && !sameDay) sameDay = p.aside;
+    var ud = await BRAIN.plan(baseInput(seed, { hint: '모자의 역사', state: { visits: { hat: 1 }, affinity: {}, lantern: 1, recent: [], todayOut: 0 } }));
+    var q2 = ud.kind === 'out' && ud.events.filter(function (e) { return e.type === 'peek'; })[0];
+    if (q2 && q2.target.id === 'hat' && !undated) undated = q2.aside;
+  }
+  check(sameDay === '모자? 그거 아까 봤잖아. 이번엔 안쪽까지 가 볼게', 'same-day revisit aside: ' + sameDay);
+  check(undated === '모자? 그거 전에 봤잖아. 이번엔 안쪽까지 가 볼게', 'undated revisit aside (legacy visits): ' + undated);
+  check(BRAIN.daysBetween('2026-10-30', '2026-11-04') === 5 && BRAIN.daysBetween('x', '2026-11-04') === null, 'daysBetween');
 }
 
 /* ───────── main ───────── */

@@ -1240,25 +1240,25 @@ var WORLD = (function () {
      requiresPoster / requiresLantern 은 두뇌가 후보를 거를 때 쓴다.
      effect:'rotatePosters' 는 벽 포스터 순서를 한 칸 바꾼다(§5.8). */
   var homeActivities = [
-    { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어',
+    { id: 'count_rain', memo: '창가에서 비 셌어', line: '창가에서 빗방울을 세다가 잠들었어',
       detail: '열일곱까지 셌어. 그다음은 기억이 안 나.\n빗소리가 좋아서 집에 있었어.',
       anchor: 'window', weight: 3 },
-    { id: 'nap', line: '담요 속에서 낮잠 잤어',
+    { id: 'nap', memo: '담요 속에서 낮잠 잤어', line: '담요 속에서 낮잠 잤어',
       detail: '빗소리가 담요 안까지 들렸어. 그게 좋았어.\n오늘은 그걸로 충분했어.',
       anchor: 'blanket', weight: 3 },
-    { id: 'window_watch', line: '창밖을 그냥 봤어',
+    { id: 'window_watch', memo: '창밖을 그냥 봤어', line: '창밖을 그냥 봤어',
       detail: '비가 오고, 비가 오고, 비가 왔어.\n아무 일도 없었어. 그게 다였어.',
       anchor: 'window', weight: 2 },
-    { id: 'moss', line: '창턱 이끼 화분을 오래 들여다봤어',
+    { id: 'moss', memo: '이끼 화분을 오래 들여다봤어', line: '창턱 이끼 화분을 오래 들여다봤어',
       detail: '이끼는 뿌리가 없어. 온몸으로 물을 마셔.\n오늘은 흠뻑이야.',
       anchor: 'window', weight: 2, requiresLantern: 1 },
-    { id: 'reread_poster', line: '어제 포스터 뒷면을 다시 읽었어',
+    { id: 'reread_poster', memo: '포스터 뒷면을 다시 읽었어', line: '어제 포스터 뒷면을 다시 읽었어',
       detail: '영수증 글씨가 작아서 가까이 가서 봤어.\n다 기억나더라.',
       anchor: 'board', weight: 2, requiresPoster: true },
-    { id: 'rearrange', line: '벽 포스터 자리를 한 칸 바꿨어',
+    { id: 'rearrange', memo: '벽 포스터 자리를 한 칸 바꿨어', line: '벽 포스터 자리를 한 칸 바꿨어',
       detail: '왼쪽 게 더 잘 보여서.\n벽도 가끔은 바뀌어야 해.',
       anchor: 'board', weight: 1, requiresPoster: true, effect: 'rotatePosters' },
-    { id: 'hum', line: '아무 노래나 흥얼거렸어',
+    { id: 'hum', memo: '아무 노래나 흥얼거렸어', line: '아무 노래나 흥얼거렸어',
       detail: '가사는 없고 박자만 있는 노래.\n빗소리에 맞췄어.',
       anchor: 'crate', weight: 2 },
     { id: 'nothing', line: '…',
@@ -1324,6 +1324,45 @@ var WORLD = (function () {
       '우연히 들른 데가 있어. {mem}. 처음 듣는 이름이야',
       '길을 벗어나 {mem}까지 갔어'
     ]
+  };
+
+  /* ---------- 그때 남긴 메모 (§17.1) ----------
+     산책이 끝나는 그 자리에서 두뇌가 남기고, 다음 날은 그대로 읽는다(다시 짓지 않는다).
+     tomorrow = lead[lineKind] + '. ' + next[반응]  (60자 넘으면 next 를 뺀다)
+     치환자: {hint} 힌트 이름, {mem} 기억한 방, {next} 기억한 방의 이웃 중 이번에 안 간 곳, {n} 며칠 전.
+     조사 없는 꼴만 쓴다({mem}에 · {next} 쪽으로). 명령문·자격 기준 언급 금지. 집에 있는 날은 활동의 memo + home. */
+  var memoTemplates = {
+    lead: {
+      followedThenLeft: ['{hint} 보다가 {mem}에 꽂혔어', '{hint}에서 시작했는데 {mem}에 오래 있었어'],
+      followedKept: ['{hint} 앞에 오래 있었어', '오늘은 {hint} 하나만 봤어'],
+      leftKept: ['한눈은 팔았는데 머리에 남은 건 {hint}'],
+      noHint: ['{mem}에 오래 있었어', '발길 닿는 대로 가다 {mem}까지 갔어'],
+      ignored: ['{hint} 대신 {mem} 쪽에 갔어'],
+      wild: ['길을 벗어나 {mem}까지 갔어'],
+      linger: ['느린 글의 방에 앉아만 있었어'],
+      letter: ['편지의 방은 아직 비어 있었어'],
+      door: ['{hint} 문 앞까지만 갔어'],
+      failed: ['{mem} 문이 안 열렸어']
+    },
+    next: {
+      '폴짝': ['내일은 {next} 쪽으로 가 볼까', '내일은 {next} 쪽도 들여다볼까'],
+      '우쭐': ['내일은 {next} 쪽으로 더 가 볼까'],
+      '덤덤': ['내일은 {next} 쪽으로 가 볼까 말까'],
+      '졸림': ['내일은 {next} 쪽으로 천천히 가 볼까']
+    },
+    nextNone: ['내일은 어디로 갈지 자고 나서 정할래'],
+    home: ['내일은 나가 볼까 말까', '내일은 밖에 나가 볼까'],
+    /* 같은 힌트 방 재방문: 첫 기웃 행에 붙는 한마디 (조사 없는 꼴) */
+    revisit: '{hint}? 그거 {n}일 전에 봤잖아. 이번엔 안쪽까지 가 볼게',
+    revisitToday: '{hint}? 그거 아까 봤잖아. 이번엔 안쪽까지 가 볼게',
+    revisitUndated: '{hint}? 그거 전에 봤잖아. 이번엔 안쪽까지 가 볼게',
+    /* 앱 쪽 문구 */
+    lastNote: function (note) { return "지난번 메모: '" + note + "'"; },
+    lastWeather: { rain: '지난번엔 비가 왔는데', drizzle: '지난번엔 가는 비였는데', clear: '지난번엔 맑았는데', snow: '지난번엔 눈이 왔는데' },
+    sameWeather: { rain: '지난번에도 비가 왔어', drizzle: '지난번에도 가는 비였어', clear: '지난번에도 맑았어', snow: '지난번에도 눈이 왔어' },
+    thinking: function (note) { return note + ' 생각 중'; },
+    summaryHead: '오늘 바뀐 것',
+    summaryParts: { lantern: '등불 +1', rooms: function (n) { return '새 방 ' + n + '곳'; }, souvenir: function (n) { return '기념품 ' + n; }, poster: function (n) { return '포스터 ' + n; }, note: function (n) { return '쪽지 ' + n; } }
   };
 
   /* ---------- 방 진행표 (§4, 문구 그대로) ---------- */
@@ -1413,6 +1452,7 @@ var WORLD = (function () {
     homeActivities: homeActivities,
     reactions: reactions,
     lineTemplates: lineTemplates,
+    memoTemplates: memoTemplates,
     roomLevels: roomLevels,
     stickers: stickers,
     scenes: scenes,

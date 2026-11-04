@@ -286,6 +286,7 @@ matchHint(hint) →
 상태 기계(`APP.oct`):
 `idle`(앵커에서 숨쉬기, 20~40초마다 다른 앵커로 산책) → `anticipate`(출발 직전 300ms 움츠림) → `walk`(앵커 간 이동, 속도 40게임픽셀/초, 좌우 미러) → `away`(없음) → `walk`(door→board, 포스터 들고 `carry`) → `hang`(포스터가 보드로 500ms) → `happy|calm` → `walk`(→blanket) → `sleep`(색 순환, §3) 또는 `stay`(집에 있는 날: window/crate에서 활동).
 - **3D 문어(절차적)**: 머리 = 살짝 눌린 구(반지름 1), 눈 = 흰 구 + 검은 동공 + 하이라이트 점(동공이 포인터를 따라감), 입 = 작은 `_`(어두운 납작 박스), 다리 = **짧고 통통한** 테이퍼드 캡슐 8개를 몸통 아래 둘레에 배치(실제 문어보다 훨씬 짧게, 몸 반지름의 0.9배 길이), 아래쪽에 연한 빨판 점. 다리는 사인파로 흐느적, 걸을 땐 좌우 다리가 번갈아 밀고 몸이 통통 튄다. 재질은 플랫/셀 셰이딩에 가깝게(MeshToonMaterial 또는 Lambert + 팔레트 스냅이 알아서 셀 느낌을 만든다).
+- **걸음: 뒤뚱뒤뚱** — 미끄러지지 않고 걷는다. 걸음 위상은 시간이 아니라 간 거리(보폭 0.6 m → 1.2 m/s 에서 한 발 0.5 s, 바깥 1.8 m/s 에선 저절로 빨라짐). 걸음마다 진행 축으로 ±7° 굴림(−7/0/+7 3단, 걸음 중간 정점) · 요 ±4° · 앞으로 5° · 걸음 중간 1 아트px 위로 · 디딤마다 6 % 눌림(y 0.94, xz 1.03) 80 ms 후 회복. 내딛는 쪽 다리 4개가 들려 앞으로 쓸고 다음 걸음에 디딘다(좌우 번갈아, 다리는 몸보다 60 ms 늦게). 출발 120 ms 예비 동작(눌림 + 뒤로 3°) 후 첫 걸음에 방향을 돌고, 멈출 땐 굴림이 한 번 넘었다 돌아오며 1px 통통. 계단 폴짝은 폴짝 그대로. 모션 감소면 없음(즉시 이동).
 - **색 고르기**: 방 보기에 색상(hue) 슬라이더 + 프리셋 6개(빨강·주황·보라·파랑·초록·분홍). 저장된다. 몸 색에서 하이라이트(밝게), 다리 밑면(더 밝고 따뜻하게), 그림자(어둡게) 램프를 만들어 팔레트에 넣는다. 잠잘 때 색 순환, 쓰다듬으면 홍조(§14).
 - 2D 폴백(인라인 SVG 문어)도 같은 상태 이름으로 움직인다.
 - `sleep`: 느린 호흡 + **색 순환**(hue-rotate ±18°, 12초 주기). 라벨 `💤` → 가끔 `꿈꾸는 중`. (문어의 활성 수면: 자면서 피부색이 바뀐다.)
@@ -345,8 +346,13 @@ matchHint(hint) →
       events: [ ...§9 ],
       receipt: { stops:[{ idx, nodeId|title, name, emoji, status, ms, note, source:{url,extract,thumb,license}|null, first:bool, viaTangent:bool }],
                  counts:{ read, builtin, simulated, failed, none }, souvenir: 'feather'|null, rememberedIdx, reaction },
-      poster:  { type:'poster'|'note', title, line, sticker, emoji, scene, stickerPos:{x,y,rot}, thumb:{url,license}|null, paper: 0|1|2 } | null
+      poster:  { type:'poster'|'note', title, line, sticker, emoji, scene, stickerPos:{x,y,rot}, thumb:{url,license}|null, paper: 0|1|2 } | null,
+      memo?:   { tomorrow, notes:{ [nodeId]: string } },        /* §17.1 그때 남긴 메모 (각 ≤60자). 옛 기록엔 없음 → 메모 인사 없음 */
+      weather?: 'rain'|'drizzle'|'clear'|'snow',               /* 계획 때 창밖 날씨 */
+      recall?: { [nodeId]: { note?, weather?, date } },        /* 계획 때 고정한 '지난번' 기록 (재방문 기웃 행) */
+      revisit?: { nodeId, last }, summary?: { lantern, rooms, souvenir, poster, note }   /* §17.1 재방문 · §17.3 귀가 요약 */
   } ],
+  notes: { [nodeId]: { text, tripId, date } },                 /* §17.1 방마다 최근 메모 1개 */
   settings: { motion: 'auto'|'reduce', thumbs: true, lastSeen }
 }
 ```
@@ -372,7 +378,7 @@ matchHint(hint) →
 { "type": "return",     "t": 12000, "reason": "enough" | "tired" | "linger" }
 { "type": "remember",   "t": 12500, "stopIdx": 1, "sticker": "feather", "line": "모자 보러 갔다가 깃털에 한눈팔았어" }
 { "type": "hang_poster","t": 13000, "posterId": "trip_k7x2" }
-{ "type": "wrap_up",    "t": 13500, "reaction": "폴짝" }
+{ "type": "wrap_up",    "t": 13500, "reaction": "폴짝", "memo": { "tomorrow": "모자 보다가 깃털에 꽂혔어. 내일은 새의 비행 쪽으로 가 볼까", "notes": { "feather": "…" } } }   // memo 선택 (§17.1)
 // 집에 있는 날
 { "type": "stay_home",  "t": 0, "activity": "count_rain", "line": "창가에서 빗방울을 세다가 잠들었어" }
 { "type": "wrap_up",    "t": 2000, "reaction": "졸림" }
@@ -575,11 +581,14 @@ QUALITY BAR
 
 ---
 
-## 17. 제안(미확정): 쌓임을 보이게 — 기억 언급 · 도서관 지도 · 귀가 요약
+## 17. 쌓임을 보이게 — 기억 언급 · 도서관 지도 · 귀가 요약 (17.1 · 17.3 구현됨, 17.2 · 17.4 제안)
 
 외부 비평 요지: "오늘의 산책이 로그로 끝나는지, 다음 날에 영향을 주는지가 핵심. 입력→결과가 보여야 하고, 진행 구조 없이는 매일 같은 루프." 데이터상 관계는 이미 쌓인다(`visits`, `affinity`, `trips[]`, 날씨·시각 저장). 부족한 건 **보이는 것**이다. 농사가 되지 않게 보상 없이 보이게 한다.
 
-### 17.1 어제를 입에 올리기 = 그때 남긴 메모
+### 17.1 어제를 입에 올리기 = 그때 남긴 메모 — **구현됨**
+> 구현 메모: `BRAIN.plan` 끝에서 `trip.memo` 를 `wrap_up.memo` 와 함께 만든다(별도 난수 줄기 `rng(seed ^ 'memo')` — 길·기억의 난수 순서는 그대로). `tomorrow` = 기억한 방의 한 줄(lineKind별 `WORLD.memoTemplates.lead`) + 반응별 다음 걸음(`next`: 기억한 방의 tangents/related 중 이번에 안 간 곳, 덜 밟힌 쪽 가중). 60자를 넘으면 다음 걸음을 뺀다. 집에 있는 날 = 활동의 `memo` + "내일은 나가 볼까 말까" 류. 빈 차례 = `null`. `notes` = 다녀온 방마다 기억 조각 → (없으면) 실제로 읽은 요약 → 실마리. `replay` 는 `wrap_up.memo` 가 있을 때만(정리해서) 쓰고, 없으면 `null`.
+> 재방문: 힌트를 따라 간 방이 `visits>0` 또는 `lastVisit`(앱이 저장된 여행 날짜로 계산)에 있으면 `buildRoute(…, {deeper:true})` — 정류장 최소 3개, 처음 걸음들은 안 가 본 `related`(없으면 안 가 본 tangents). 첫 기웃 이벤트에 `aside: "{힌트}? 그거 N일 전에 봤잖아. 이번엔 안쪽까지 가 볼게"` (같은 날 "아까", 날짜 없으면 "전에"). `trip.revisit = { nodeId, last }`.
+> 앱: `state.notes[nodeId] = { text, tripId, date }` (최근 1개), 계획 때 `trip.weather` 와 `trip.recall[nodeId] = { note, weather, date }` 를 고정 저장 → 기웃 행 sub "지난번 메모: '…'" · "지난번엔 비가 왔는데"/"지난번에도 비가 왔어". 오늘 산책이 아직 없으면 첫 인사 = 시각 인사 행 + `'어제 메모'`(또는 `'지난 메모'`) 대화창 행(초상 calm) = 마지막 산책의 `memo.tomorrow` 그대로. 메모 없는 옛 기록이면 말하지 않는다. 대기 중 말풍선: 20–40 s 마다, idle 이고 대화창이 닫혀 있을 때만, 최근 `notes` 중 하나 "{note} 생각 중" (말풍선만, 로그엔 남기지 않음). 테스트 훅 `window.__ppolTest.today = 'YYYY-MM-DD'` (있을 때만 '오늘').
 핵심: 다음 날 대사를 **재구성하지 않는다.** 산책이 끝나는 바로 그 시점에 두뇌가 메모를 남기고, 다음 날은 그 메모를 그대로 읽는다(그때 기억이 더 생생하고, 지어낼 여지가 없다). 복지 문서의 "탐험가 메모" 원칙: 데이터 전용, 길이 제한(각 60자), 명령문·자격 기준 언급 금지.
 ```js
 trip.memo = {
@@ -597,7 +606,8 @@ trip.memo = {
 - 커버리지 "가 본 방 23/66" 은 표시만 하고 **보상·해금 없음.** 덜 밟힌 길이 보이게 하는 게 목적(복지 문서 "방문 수 표시").
 - 그리기: 인라인 SVG, 고정 레이아웃(코너별 원형 배치, 시드 고정), 픽셀 UI 프레임.
 
-### 17.3 귀가 요약 한 줄
+### 17.3 귀가 요약 한 줄 — **구현됨**
+> 구현 메모: `commitTrip` 이 반영 직전에 `trip.summary = { lantern, rooms, souvenir, poster, note }` 를 저장(새 방 = 이번에 처음 visits 가 생긴 세계의 방, 밖의 문 제외; 등불이 이미 8이면 lantern 0). 마무리 연출 뒤 시스템 행 `요약` 하나(문구는 `WORLD.memoTemplates.summary*`), 로그를 다시 그려도 같은 행. 빈 차례·옛 기록(summary 없음)은 행 없음.
 - 마무리 뒤 로그에 한 줄: "오늘 바뀐 것 · 등불 +1 · 새 방 2곳 · 기념품 1 · 포스터 1" (해당 없는 항목은 생략). 집에 있는 날: "오늘 바뀐 것 · 등불 +1 · 쪽지 1".
 
 ### 17.4 단계(엔딩 없음)

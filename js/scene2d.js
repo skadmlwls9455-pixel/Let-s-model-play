@@ -352,6 +352,7 @@ var SCENE2D = (function () {
 
     /* ───────── 초기 렌더 ───────── */
     fit(); setColor(st.color); renderLayers(true); renderWall(); renderSouvenirs();
+    st.place = 'attic'; (function () { var m = new Date().getMonth() + 1, h = null; try { h = window.__ppolLook && window.__ppolLook.season; } catch (e) { /* noop */ } st.seasonMode = ['spring', 'summer', 'autumn', 'winter'].indexOf(opts.season || h) >= 0 ? (opts.season || h) : 'auto'; st.season = st.seasonMode !== 'auto' ? st.seasonMode : m >= 3 && m <= 5 ? 'spring' : m >= 6 && m <= 8 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter'; })();
     st.ready = true;
 
     return {
@@ -365,6 +366,13 @@ var SCENE2D = (function () {
       setExpression: setExpression, expression: function () { return st.expr; }, EXPRESSIONS: EXPRESSIONS.slice(), portrait: portrait, portraitURL: portraitURL, portraitSVG: portraitSVG,
       setCarry: function (svg) { st.carrySvg = svg || ''; },
       moveTo: moveTo, jumpTo: jumpTo,
+      /* 바깥·계절·전환 (DESIGN §15.3) — 2D 폴백은 같은 API 의 무동작 판: 장소·계절은 값만 기억하고(그림은 다락 그대로), 의식은 다음 틱에 onDone */
+      setPlace: function (p) { st.place = p === 'exterior' ? 'exterior' : 'attic'; }, place: function () { return st.place || 'attic'; },
+      setSeason: function (s) { st.seasonMode = ['spring', 'summer', 'autumn', 'winter'].indexOf(s) >= 0 ? s : 'auto'; var m = new Date().getMonth() + 1; st.season = st.seasonMode !== 'auto' ? st.seasonMode : m >= 3 && m <= 5 ? 'spring' : m >= 6 && m <= 8 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter'; },
+      season: function () { return st.season; }, seasonMode: function () { return st.seasonMode || 'auto'; },
+      departCeremony: function (onDone) { st.place = 'exterior'; return new Promise(function (r) { setTimeout(function () { if (onDone) onDone(); r(); }, 0); }); },
+      returnCeremony: function (onDone) { st.place = 'attic'; return new Promise(function (r) { setTimeout(function () { if (onDone) onDone(); r(); }, 0); }); },
+      ceremony: function () { return ''; },
       setPosters: function (list) { st.posters = (list || []).slice(); renderWall(); },
       setSouvenirs: function (list) { st.souvenirs = (list || []).slice(); renderSouvenirs(); },
       bubble: bubble, lookAt: pupilsTowards, octScreenPos: octScreenPos,

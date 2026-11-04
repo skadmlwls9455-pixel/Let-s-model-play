@@ -52,6 +52,34 @@
     { id: 'nothing', line: '…', detail: '', anchor: 'blanket', weight: 0, emoji: '' }
   ];
 
+  /* §17.1 그때 남긴 메모. 조사 없는 꼴만 쓴다({mem}에 · {next} 쪽으로). 각 60자 이하. 명령문·자격 기준 언급 없음 */
+  var MEMO_MAX = 60;
+  var DEFAULT_MEMO = {
+    lead: {
+      followedThenLeft: ['{hint} 보다가 {mem}에 꽂혔어', '{hint}에서 시작했는데 {mem}에 오래 있었어'],
+      followedKept: ['{hint} 앞에 오래 있었어', '오늘은 {hint} 하나만 봤어'],
+      leftKept: ['한눈은 팔았는데 머리에 남은 건 {hint}'],
+      noHint: ['{mem}에 오래 있었어', '발길 닿는 대로 가다 {mem}까지 갔어'],
+      ignored: ['{hint} 대신 {mem} 쪽에 갔어'],
+      wild: ['길을 벗어나 {mem}까지 갔어'],
+      linger: ['느린 글의 방에 앉아만 있었어'],
+      letter: ['편지의 방은 아직 비어 있었어'],
+      door: ['{hint} 문 앞까지만 갔어'],
+      failed: ['{mem} 문이 안 열렸어']
+    },
+    next: {
+      '폴짝': ['내일은 {next} 쪽으로 가 볼까', '내일은 {next} 쪽도 들여다볼까'],
+      '우쭐': ['내일은 {next} 쪽으로 더 가 볼까'],
+      '덤덤': ['내일은 {next} 쪽으로 가 볼까 말까'],
+      '졸림': ['내일은 {next} 쪽으로 천천히 가 볼까']
+    },
+    nextNone: ['내일은 어디로 갈지 자고 나서 정할래'],
+    home: ['내일은 나가 볼까 말까', '내일은 밖에 나가 볼까'],
+    revisit: '{hint}? 그거 {n}일 전에 봤잖아. 이번엔 안쪽까지 가 볼게',
+    revisitToday: '{hint}? 그거 아까 봤잖아. 이번엔 안쪽까지 가 볼게',
+    revisitUndated: '{hint}? 그거 전에 봤잖아. 이번엔 안쪽까지 가 볼게'
+  };
+
   var BRAIN = { _world: null, LICENSE: LICENSE, ATTRIBUTION: ATTRIBUTION, THUMB_LICENSE: THUMB_LICENSE };
 
   /* ───────── 유틸 ───────── */
@@ -81,7 +109,8 @@
       affinity: s.affinity || {},
       lantern: s.lantern == null ? 0 : s.lantern,
       recent: Array.isArray(s.recent) ? s.recent : [],
-      todayOut: s.todayOut == null ? 0 : s.todayOut
+      todayOut: s.todayOut == null ? 0 : s.todayOut,
+      lastVisit: (s.lastVisit && typeof s.lastVisit === 'object') ? s.lastVisit : {}
     };
   }
   /* 가중치 뽑기: r ∈ [0,1) 하나로 결정 */
@@ -406,19 +435,25 @@
     var pi = pickWeighted(pool, weight, R());
     return pool[pi];
   }
-  function buildRoute(W, state, R, startId, prefix, maxStops) {
+  /* opt.deeper (§17.1 재방문): 같은 힌트 방에 또 왔다 → 한 단계 더 깊게.
+     정류장 최소 3개(보통 2개), 처음 걸음들은 아직 안 가 본 related 이웃(없으면 안 가 본 tangents)을 먼저 고른다.
+     난수는 보통 길과 같은 자리에서 뽑는다(쓰지 않을 때도) — 결정성만 지키면 되므로 */
+  function buildRoute(W, state, R, startId, prefix, maxStops, opt) {
+    opt = opt || {};
     var stops = prefix.slice(), used = {}, i;
     for (i = 0; i < stops.length; i++) if (stops[i].id) used[stops[i].id] = true;
+    var minStops = opt.deeper ? 3 : 2;   /* 보통 길과 똑같이: 2 (앞의 문/들판 정류장 포함) */
     var cur = W.nodes[startId];
     var pDistract = 0.40, reason = 'enough', ladder = [0.25, 0.45, 0.7, 1.0];
     var via = false, bridge = null, guard = 0;
+    function unseen(p) { return !((state.visits && state.visits[p.node.id]) > 0) && !p.node.linger && p.node.id !== 'letter_room'; }
     while (cur && guard++ < 12) {
       stops.push(makeLibStop(cur, state, via, bridge));
       used[cur.id] = true;
-      if (stops.length >= 2 && cur.linger) { reason = 'linger'; break; }
+      if (stops.length >= minStops && cur.linger) { reason = 'linger'; break; }
       if (stops.length >= 2) {
-        var pr = ladder[Math.min(stops.length - 2, ladder.length - 1)];
-        if (R() < pr) { reason = stops.length >= 4 ? 'tired' : 'enough'; break; }
+        var rRet = R();
+        if (stops.length >= minStops && rRet < ladder[Math.min(stops.length - minStops, ladder.length - 1)]) { reason = stops.length >= 4 ? 'tired' : 'enough'; break; }
       }
       if (stops.length >= maxStops) { reason = 'tired'; break; }
       var distract = R() < pDistract;
@@ -426,8 +461,14 @@
         .map(function (t) { return { node: W.nodes[t.to], bridge: t.bridge || null, via: true }; });
       var rel = (cur.related || []).filter(function (id) { return W.nodes[id] && !used[id] && id !== 'door_out'; })
         .map(function (id) { return { node: W.nodes[id], bridge: null, via: false }; });
-      var pool;
-      if (distract && tang.length) pool = tang;
+      var pool = null;
+      if (opt.deeper && stops.length < minStops) {
+        var freshRel = rel.filter(unseen), freshTang = tang.filter(unseen);
+        pool = freshRel.length ? freshRel : freshTang.length ? freshTang : null;
+        if (!pool) { var keep = rel.concat(tang).filter(function (p) { return !p.node.linger; }); if (keep.length) pool = keep; }
+      }
+      if (pool) { /* 깊게 고른 자리 */ }
+      else if (distract && tang.length) pool = tang;
       else if (rel.length) pool = rel;
       else if (tang.length) pool = tang;
       else {
@@ -451,19 +492,20 @@
     if (Array.isArray(t) && t.length) return t;
     return DEFAULT_TEMPLATES[kind] || DEFAULT_TEMPLATES.noHint;
   }
-  function composeLine(kind, ctx, r) {
-    ctx = ctx || {};
-    var list = templatesFor(kind);
-    var idx = Math.min(list.length - 1, Math.floor(asR(r) * list.length));
-    var line = String(list[idx] || '');
-    var map = { hint: ctx.hint, mem: ctx.mem, memory: ctx.memory, name: ctx.name };
-    line = line.replace(/\{(\w+)\}(은|는|이|가|을|를|과|와|으로|로)?/g, function (_, key, particle) {
+  /* {key}(조사)? 치환 + 남은 { } 제거 + 공백 정리 */
+  function fillTemplate(tpl, map) {
+    var line = String(tpl || '').replace(/\{(\w+)\}(은|는|이|가|을|를|과|와|으로|로)?/g, function (_, key, particle) {
       var v = map[key];
       v = v == null ? '' : String(v);
       return v + (particle ? josa(v, particle) : '');
     });
-    line = line.replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').replace(/\s+([.,!?…])/g, '$1').replace(/^[.,\s]+/, '').trim();
-    return line;
+    return line.replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').replace(/\s+([.,!?…])/g, '$1').replace(/^[.,\s]+/, '').trim();
+  }
+  function composeLine(kind, ctx, r) {
+    ctx = ctx || {};
+    var list = templatesFor(kind);
+    var idx = Math.min(list.length - 1, Math.floor(asR(r) * list.length));
+    return fillTemplate(list[idx], { hint: ctx.hint, mem: ctx.mem, memory: ctx.memory, name: ctx.name });
   }
   function pickMemory(node, r) {
     if (!node || !Array.isArray(node.memories) || !node.memories.length) return '';
@@ -630,8 +672,102 @@
     if (s.bridge) ev.bridge = s.bridge;
     if (s.source) ev.source = { url: s.source.url, extract: s.source.extract, thumb: s.source.thumb, license: s.source.license, attribution: s.source.attribution };
     if (s.reason) ev.reason = s.reason;
+    if (s.aside) ev.aside = s.aside;
     return ev;
   }
+
+  /* ───────── §17.1 메모 (그때 남긴 한 줄 · 방마다 한 줄) ───────── */
+  function memoTpl() {
+    var W = world(), m = (W && W.memoTemplates) || {};
+    var d = DEFAULT_MEMO;
+    return {
+      lead: Object.assign({}, d.lead, m.lead || {}), next: Object.assign({}, d.next, m.next || {}),
+      nextNone: (Array.isArray(m.nextNone) && m.nextNone.length) ? m.nextNone : d.nextNone,
+      home: (Array.isArray(m.home) && m.home.length) ? m.home : d.home,
+      revisit: m.revisit || d.revisit, revisitToday: m.revisitToday || d.revisitToday, revisitUndated: m.revisitUndated || d.revisitUndated
+    };
+  }
+  function pickStr(list, r) { list = Array.isArray(list) && list.length ? list : ['']; return String(list[Math.min(list.length - 1, Math.floor(asR(r) * list.length))]); }
+  /* 60자 넘으면 마침표 앞까지, 그래도 길면 59자 + … */
+  function clampText(t, max) {
+    t = String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
+    max = max || MEMO_MAX;
+    if (t.length <= max) return t;
+    return t.slice(0, max - 1).replace(/[\s.,]+$/, '') + '…';
+  }
+  function joinFit(parts, max) {   /* 앞에서부터 '. ' 로 잇되 max 를 넘으면 그 조각은 뺀다 */
+    var out = '';
+    parts.forEach(function (p) { if (!p) return; var c = out ? out + '. ' + p : p; if (c.length <= max) out = c; });
+    return out || clampText(parts.filter(Boolean)[0] || '', max);
+  }
+  function daysBetween(a, b) {
+    var ma = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(a || '')), mb = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(b || ''));
+    if (!ma || !mb) return null;
+    var da = Date.UTC(+ma[1], +ma[2] - 1, +ma[3]), db = Date.UTC(+mb[1], +mb[2] - 1, +mb[3]);
+    return Math.round((db - da) / 86400000);
+  }
+  function revisitAside(name, lastDate, dateKey) {
+    var T = memoTpl(), n = daysBetween(lastDate, dateKey);
+    var tpl = n == null || n < 0 ? T.revisitUndated : n === 0 ? T.revisitToday : T.revisit;
+    return clampText(fillTemplate(tpl, { hint: name, n: n }), MEMO_MAX);
+  }
+  /* 방마다 한 줄: 그 방의 기억 조각(문어 말투) → 없으면 실제로 읽은 요약(read) → 없으면 실마리. 지어내지 않는다 */
+  function roomNote(s, R) {
+    var t = s.node ? pickMemory(s.node, R) : '';
+    if (!t && s.status === 'read' && s.source && s.source.extract) t = sentences(s.source.extract, MEMO_MAX);
+    if (!t && s.node && s.node.clue) t = sentences(s.node.clue, MEMO_MAX);
+    return clampText(t, MEMO_MAX);
+  }
+  /* 다음 걸음 의도: 기억한 방(없으면 마지막 방)의 이웃 중 이번에 안 간 곳, 덜 밟힌 쪽 가중 */
+  function nextIntent(W, stops, rem, state, r) {
+    var from = (rem && rem.kind === 'room') ? rem.node : null;
+    if (!from) { for (var i = stops.length - 1; i >= 0 && !from; i--) if (stops[i].kind === 'room' && stops[i].node) from = stops[i].node; }
+    if (!from) return null;
+    var seen = {}; stops.forEach(function (s) { if (s.id) seen[s.id] = 1; });
+    var ids = (from.tangents || []).map(function (t) { return t && t.to; }).concat(from.related || []);
+    var cands = [];
+    ids.forEach(function (id) { if (id && W.nodes[id] && !SPECIAL[id] && !seen[id] && W.nodes[id].corner !== 'wild' && cands.indexOf(id) < 0) cands.push(id); });
+    if (!cands.length) return null;
+    var pi = pickWeighted(cands, function (id) { return 1 / (1 + ((state.visits && state.visits[id]) || 0)); }, r);
+    return W.nodes[cands[pi]];
+  }
+  function buildOutMemo(stops, out, state, R) {
+    var W = world(), T = memoTpl();
+    var rem = out.remIdx >= 0 ? stops[out.remIdx] : null;
+    var kind = (out.poster && out.poster.lineKind) || 'noHint';
+    var rLead = R(), rNext = R(), rIntent = R();
+    var lead = rem ? fillTemplate(pickStr(T.lead[kind] || T.lead.noHint, rLead), { hint: out.hint.label || '', mem: rem.name }) : '';
+    var nx = nextIntent(W, stops, rem, state, rIntent);
+    var next = nx ? fillTemplate(pickStr(T.next[out.reaction] || T.next['덤덤'], rNext), { next: nx.name }) : pickStr(T.nextNone, rNext);
+    var notes = {};
+    stops.forEach(function (s) {
+      if (s.kind !== 'room' || !s.node || s.id === 'door_out' || notes[s.id]) return;
+      var t = roomNote(s, R);
+      if (t) notes[s.id] = t;
+    });
+    var tomorrow = joinFit([lead, next], MEMO_MAX);
+    if (!tomorrow) return null;
+    return { tomorrow: tomorrow, notes: notes };
+  }
+  function buildHomeMemo(act, R) {
+    var T = memoTpl();
+    var did = act.memo || String(act.line || '').replace(/[.…\s]+$/, '');
+    if (!did || did === '…') return null;
+    return { tomorrow: joinFit([did, pickStr(T.home, R())], MEMO_MAX), notes: {} };
+  }
+  /* 모델·사람이 준 메모(wrap_up.memo)를 정리: 문자열만, 각 60자, 빈 건 버림 */
+  function cleanMemo(m) {
+    if (!m || typeof m !== 'object') return null;
+    var tomorrow = typeof m.tomorrow === 'string' ? clampText(m.tomorrow, MEMO_MAX) : '';
+    var notes = {};
+    if (m.notes && typeof m.notes === 'object') Object.keys(m.notes).forEach(function (k) {
+      var v = m.notes[k];
+      if (typeof v === 'string' && v.trim() && /^[\w-]{1,64}$/.test(k)) notes[k] = clampText(v, MEMO_MAX);
+    });
+    if (!tomorrow && !Object.keys(notes).length) return null;
+    return { tomorrow: tomorrow, notes: notes };
+  }
+  function memoRng(seed) { return rng(((seed >>> 0) ^ 0x6d656d6f) >>> 0); }   /* 'memo' — 길·기억의 난수 순서를 건드리지 않는 별도 줄기 */
 
   /* ───────── 집 / 빈 차례 ───────── */
   function homeActivities(lantern) {
@@ -648,7 +784,7 @@
       kind: 'empty', by: base.by, seed: base.seed, dateKey: base.dateKey, seq: base.seq,
       hint: { raw: base.hintRaw, match: matchHint(base.hintRaw), followed: 'none', note: null },
       events: [{ type: 'empty_turn', t: 0 }],
-      receipt: null, poster: null, visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: null
+      receipt: null, poster: null, visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: null, memo: null
     };
   }
   function homeTripFrom(base, act, R) {
@@ -657,10 +793,12 @@
     var paper = Math.floor(R() * 3);
     var rLine = R();
     var reaction = '졸림';
+    var memo = buildHomeMemo(act, memoRng(base.seed));
     var events = [
       { type: 'stay_home', t: 0, activity: act.id, line: act.line, anchor: act.anchor || 'window' },
       { type: 'wrap_up', t: tWrap, reaction: reaction }
     ];
+    if (memo) events[1].memo = memo;
     return {
       kind: 'home', by: base.by, seed: base.seed, dateKey: base.dateKey, seq: base.seq,
       hint: { raw: base.hintRaw, match: matchHint(base.hintRaw), followed: 'none', note: null },
@@ -674,7 +812,7 @@
         type: 'note', title: act.title || '오늘은 집', line: act.line, detail: act.detail || '', back: '오늘은 집. 등불 +1',
         sticker: act.sticker || 'home', emoji: act.emoji || '🏠', scene: 'home', stickerPos: pos, thumb: null, paper: paper
       },
-      visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: reaction
+      visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: reaction, memo: memo
     };
   }
 
@@ -750,8 +888,12 @@
     } else {
       startId = pickStart(state, R);
     }
-    var route = buildRoute(W, state, R, startId, prefix, 5);
+    /* §17.1 재방문: 힌트 방을 전에 가 봤다 → 한 단계 더 깊게 + 첫 기웃에 한마디 */
+    var revisit = !!(match.kind === 'node' && follow && hintNode && startId === hintNode.id &&
+      ((state.visits[hintNode.id] || 0) > 0 || state.lastVisit[hintNode.id]));
+    var route = buildRoute(W, state, R, startId, prefix, 5, { deeper: revisit });
     var stops = route.stops;
+    if (revisit && stops[0] && stops[0].id === hintNode.id) stops[0].aside = revisitAside(hintNode.name, state.lastVisit[hintNode.id], dateKey);
 
     /* 4. 미리 뽑아 두는 난수 (fetch 와 무관하게 고정) */
     var msArr = [], gaps = [], i;
@@ -807,12 +949,15 @@
         t += gReturn; events.push({ type: 'return', t: t, reason: route.reason });
         if (out.remIdx >= 0) { t += gRemember; events.push({ type: 'remember', t: t, stopIdx: out.remIdx, sticker: out.sticker, line: out.line }); }
         t += gHang; events.push({ type: 'hang_poster', t: t, posterId: input.id || input.tripId || null });
+        var memo = buildOutMemo(stops, out, state, memoRng(seed));
         t += gWrap; events.push({ type: 'wrap_up', t: t, reaction: out.reaction });
+        if (memo) events[events.length - 1].memo = memo;
 
         return {
           kind: 'out', by: by, seed: seed, dateKey: dateKey, seq: seq,
           hint: out.hint, events: events, receipt: out.receipt, poster: out.poster,
-          visitsDelta: out.visitsDelta, affinityDelta: out.affinityDelta, affinityDecay: 0.9, reaction: out.reaction
+          visitsDelta: out.visitsDelta, affinityDelta: out.affinityDelta, affinityDecay: 0.9, reaction: out.reaction,
+          revisit: revisit ? { nodeId: hintNode.id, last: state.lastVisit[hintNode.id] || null } : null, memo: memo
         };
       });
   }
@@ -846,6 +991,7 @@
       ht.events = events;
       var wu = events.filter(function (e) { return e.type === 'wrap_up'; })[0];
       if (wu && REACTIONS.indexOf(wu.reaction) >= 0) { ht.reaction = wu.reaction; ht.receipt.reaction = wu.reaction; ht.receipt.reactionEmoji = reactionEmoji(wu.reaction); }
+      ht.memo = cleanMemo(wu && wu.memo);   /* 재생: 이벤트가 준 메모만. 없으면 말하지 않는다 */
       return ht;
     }
 
@@ -905,7 +1051,8 @@
     return {
       kind: 'out', by: by, seed: seed, dateKey: base.dateKey, seq: base.seq,
       hint: out.hint, events: events, receipt: out.receipt, poster: out.poster,
-      visitsDelta: out.visitsDelta, affinityDelta: out.affinityDelta, affinityDecay: 0.9, reaction: out.reaction
+      visitsDelta: out.visitsDelta, affinityDelta: out.affinityDelta, affinityDecay: 0.9, reaction: out.reaction,
+      memo: cleanMemo(wrap && wrap.memo)   /* 재생: wrap_up.memo 가 있을 때만 (MCP 모델이 직접 쓴다) */
     };
   }
 
@@ -925,6 +1072,9 @@
   BRAIN.stayProbability = stayProbability;
   BRAIN.computeReaction = computeReaction;
   BRAIN.localDateKey = localDateKey;
+  BRAIN.cleanMemo = cleanMemo;
+  BRAIN.daysBetween = daysBetween;
+  BRAIN.MEMO_MAX = MEMO_MAX;
   BRAIN.setWorld = function (w) { BRAIN._world = w || null; };
   BRAIN.STATUSES = STATUSES.slice();
   BRAIN.REACTIONS = REACTIONS.slice();
