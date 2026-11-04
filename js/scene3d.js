@@ -276,6 +276,8 @@ var SCENE3D = (function () {
 
     /* ── 렌더러 · 타깃 · 후처리 ── */
     var renderer = new T.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'low-power' });
+    var glCtx = renderer.getContext();
+    function ctxLost() { return st.lost || !!(glCtx && glCtx.isContextLost && glCtx.isContextLost()); }   /* 잃음 이벤트는 한 틱 늦게 온다 — 그 사이 렌더하면 셰이더 컴파일이 null 로그에서 터진다 */
     renderer.setPixelRatio(1); renderer.outputEncoding = T.LinearEncoding;
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFShadowMap; renderer.shadowMap.autoUpdate = false;   /* PCF radius 1 = 딱딱한 그림자 (룩 패스 4) */
     var canvas = renderer.domElement; canvas.className = 'scene3d-canvas'; canvas.style.imageRendering = 'pixelated';
@@ -1033,6 +1035,7 @@ var SCENE3D = (function () {
     function portrait(expr, o) { /* → 64×64 캔버스 (CSS 로 키운다). 기본은 캐시의 복사본(로그 행마다 하나씩 붙일 수 있게), o.shared = 캐시 캔버스 그대로 */
       expr = FACES[expr] ? expr : 'idle';
       var k = portraitKey(expr, o), e = PORT.cache[k];
+      if (!e && ctxLost()) { var blank = document.createElement('canvas'); blank.width = blank.height = PORT.N; return blank; }   /* 컨텍스트 잃음: GL 읽기 오류 대신 빈 초상 (캐시하지 않음 → 복구 뒤 다시 그림) */
       if (!e) e = PORT.cache[k] = { cv: renderPortrait(expr, portraitBg(o)), url: '' };
       if (o && o.shared) return e.cv;
       var cv = document.createElement('canvas'); cv.width = cv.height = PORT.N; cv.getContext('2d').drawImage(e.cv, 0, 0); return cv;
@@ -1049,11 +1052,13 @@ var SCENE3D = (function () {
       if (oct.walking) { oct.walking.cancel(); oct.walking = null; }
       var d = to.clone().sub(from), dist = d.length();
       function done() { if (on.anchorReached) on.anchorReached(anchor); }
-      if (st.reduced || dist < 0.05) { oct.pos.copy(to); snapScreen(octG.position.copy(to)); oct.wantYaw = camYaw(); done(); return Promise.resolve(anchor); }
+      if (st.reduced || ctxLost() || dist < 0.05) { oct.pos.copy(to); snapScreen(octG.position.copy(to)); oct.wantYaw = camYaw(); done(); return Promise.resolve(anchor); }   /* 컨텍스트를 잃으면 프레임이 안 돌아 걸음이 안 끝난다 → 바로 도착 */
       oct.wantYaw = Math.atan2(d.x, d.z);
       var dur = dist / 1.2 * st.speed, hopDur = 0.3 * st.speed, hold = anticHold(), k = 0, cancelled = false;   /* hold = 서 있다 출발할 때 120 ms 예비 동작 (뒤뚱 걸음) */
       return new Promise(function (resolve) {
-        var w = oct.walking = { gait: true, cancel: function () { cancelled = true; w.gait = false; }, step: function (dt) {
+        var w = oct.walking = { gait: true, cancel: function () { cancelled = true; w.gait = false; },
+          finish: function () { if (cancelled) return; cancelled = true; w.gait = false; oct.pos.copy(to); oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(anchor); },   /* 컨텍스트 잃음: 남은 걸음을 건너뛰고 도착 */
+          step: function (dt) {
           if (cancelled) return;
           k += dt;
           if (k < hold) return;
@@ -1863,7 +1868,7 @@ var SCENE3D = (function () {
     listen(canvas, 'pointerup', pointerEnd); listen(canvas, 'pointercancel', pointerEnd);
     listen(canvas, 'wheel', function (e) { e.preventDefault(); var z = clamp(st.zoom + (e.deltaY < 0 ? 1 : -1), 0, ZOOM_STEPS.length - 1); if (z !== st.zoom) { st.zoom = z; resize(); dither.still = 0; } }, { passive: false });
     listen(document, 'pointermove', function (e) { if (e.pointerType !== 'touch') { oct.pointer = { x: e.clientX, y: e.clientY }; oct.lookTarget = null; } }, { passive: true });
-    listen(canvas, 'webglcontextlost', function (e) { e.preventDefault(); st.lost = true; });
+    listen(canvas, 'webglcontextlost', function (e) { e.preventDefault(); st.lost = true; if (oct.walking && oct.walking.finish) oct.walking.finish(); });
     listen(canvas, 'webglcontextrestored', function () { st.lost = false; renderer.shadowMap.needsUpdate = true; });
     listen(document, 'visibilitychange', function () { st.hidden = document.hidden; if (!st.hidden) { lastT = 0; loop(); } });
     var ro = null;
@@ -2037,7 +2042,7 @@ var SCENE3D = (function () {
     }
     function frame(ts) {
       var dt = lastT ? Math.min(0.1, (ts - lastT) / 1000) : 0.016; lastT = ts; time += dt; frameNo++;
-      if (st.lost) return;
+      if (ctxLost()) return;
       var idle = (st.octState === 'idle' || st.octState === 'sleep' || st.octState === 'stay') && !oct.walking && !(G.settleT < GAIT.settle) && !dragging && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !CER.active;
       if (idle && (frameNo & 1) && !st.force) return;   /* 가만히 있을 땐 30fps (debugStep 은 강제 렌더) */
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
