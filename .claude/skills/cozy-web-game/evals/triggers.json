@@ -1,0 +1,22 @@
+[
+  {"q": "우리 문어 마스코트 화면 좀 더 귀엽게 해줘 ㅎㅎ 클릭하면 꼼지락 반응하게", "should": true},
+  {"q": "처음엔 방이 텅 비어있다가 하루하루 조금씩 가구가 늘어나는 느낌 나게 해줘", "should": true},
+  {"q": "엽서 모으는 앨범 페이지 만들어줘! 빈 칸은 실루엣으로 보이고 다 모으면 뿌듯하게", "should": true},
+  {"q": "Can you polish the pixel art scene in index.html? The lantern glow looks flat and the rain doesn't feel cozy at all.", "should": true},
+  {"q": "이거 게임성 좀 올려줘!! 너무 밋밋해 ㅠ", "should": true},
+  {"q": "탭할 때 손맛이 하나도 없어 ㅠ 통통 튀는 느낌 주려면 스케일이랑 시간 몇으로 잡아야 돼?", "should": true},
+  {"q": "Make a little companion that wanders off on trips by itself and comes back hours later with souvenirs, kind of like Travel Frog.", "should": true},
+  {"q": "뽈뽈이가 AI라는 거 화면에 어떻게 표시하는 게 좋을까? 진짜 사람처럼 보이면 안 될 것 같아서", "should": true},
+  {"q": "Add a little toy the octopus can play with: I drag a ball around and it chases it.", "should": true},
+  {"q": "폰으로 하면 이 작은 게임 UI가 너무 답답해, 손가락으로 누르기 편하게 바꿔줘", "should": true},
+  {"q": "고양이가 창가에서 졸고 있는 작은 웹페이지 만들고 싶어. 쓰다듬으면 골골대고 가끔 하품하는", "should": true},
+  {"q": "Make the background follow the time of day and give each day its own weather, seeded so everyone sees the same thing on the same day.", "should": true},
+  {"q": "이번 분기 지역별 매출 대시보드 만들어줘", "should": false},
+  {"q": "Unity로 3D 슈터 만드는 중인데 총 쏠 때 타격감 좀 살려줘", "should": false},
+  {"q": "Build a REST API in Express for users: signup, login, and CRUD endpoints.", "should": false},
+  {"q": "CSV 읽어서 월별 평균 내는 파이썬 스크립트 짜줘", "should": false},
+  {"q": "Make a landing page for our B2B consulting firm, clean and trustworthy.", "should": false},
+  {"q": "주간 가입자 수 막대 차트로 그려줘", "should": false},
+  {"q": "Claude API에서 프롬프트 캐싱 어떻게 켜? 시스템 프롬프트가 길어서", "should": false},
+  {"q": "이 PDF 신청서 양식 칸 채워줘", "should": false}
+]

@@ -4,6 +4,9 @@ Research date: 2026-11-04. Angle: what it would actually take to ship the octopu
 
 Blocked hosts in this session (could not fetch directly): `modelcontextprotocol.io`, `developers.openai.com`, `smithery.ai`, `goose-docs.ai`, `api.github.com`. Everything about them below comes from the GitHub raw mirrors of the same docs, from `claude.com/docs`, or from search snippets, and is marked as such.
 
+> **2026-11-05 추가 — 먼저 `references/model-voice-and-play.md` 를 같이 본다. 이 문서와 부딪히면 그쪽이 이긴다.** 거기에 모델의 뜻 지키기(선택·말을 바꾸지 않기, 그만두기 항상 메뉴에, 설명 의무 없음), 호기심 메모 전달 규칙, 놀이 chooser 계약과 토큰 예산이 있다.
+> 도구 묶기 제안(§6 의 7개 도구에 적용): 매번 같이 부르는 끝 단계 `return_home` · `remember` · `hang_poster` · `wrap_up` 은 **마무리 호출 하나(`ppolppol_finish`)** 로 묶고 입력 필드는 전부 선택으로 둔다(`reaction` 도 선택). **`peek` 은 따로 둔다.** 읽고 나서 다음을 고르는 단계라 결과를 본 뒤 판단할 틈이 필요하다. 읽기 전용과 쓰기는 여전히 섞지 않는다(아래 rule 3).
+
 ---
 
 ## 1. Sources
@@ -93,7 +96,7 @@ Blocked hosts in this session (could not fetch directly): `modelcontextprotocol.
 
 4. **Return `structuredContent` plus a mirrored text block from every tool.** WHY: the spec says tools returning structured content SHOULD also return the serialized JSON as text, and the Claude quickstart relies on `content` as the text-only fallback for hosts without UI (S11, S18). HOW: every tool result is `{ content: [{type:"text", text: JSON.stringify(event)}], structuredContent: event }` where `event` is a `TripEvent`; the attic renders `structuredContent`, Claude Code / text hosts read the text.
 
-5. **Make the hint the only human-supplied parameter, and make it optional and ignorable.** WHY: welfare principle "the human cannot direct the exploration"; the spec's human-in-the-loop is about *denying*, not steering (S18). HOW: `depart.inputSchema` has one optional `hint: string (<= 80 chars)` and nothing else; `peek` takes `url` and `why` chosen by the model, never a human field; the depart button in the static page sends `{hint}` only and the demo brain decides `follow | wander | ignore` itself.
+5. **Make the hint the only human-supplied parameter, and make it optional and ignorable.** WHY: welfare principle "the human cannot direct the exploration"; the spec's human-in-the-loop is about *denying*, not steering (S18). HOW: `depart.inputSchema` has one optional `hint: string (<= 80 chars)` and nothing else; `peek` takes `url` and an optional `why` chosen by the model (null is fine; no reason is ever required), never a human field; the depart button in the static page sends `{hint}` only and the demo brain decides `follow | wander | ignore` itself.
 
 6. **Never fake a real read.** WHY: welfare principle "no fake success"; directory rule that descriptions must match actual behaviour (S14). HOW: `peek` results carry `fetch: { mode: "real" | "simulated" | "failed", status?: number, bytes?: number }`; the receipt row on the poster back prints "모의 방문" for `simulated`, the HTTP status only for `real`, and the error for `failed`; the demo brain can only ever emit `simulated` unless the page is allowed to fetch.
 
@@ -125,7 +128,7 @@ Blocked hosts in this session (could not fetch directly): `modelcontextprotocol.
 
 ### Model-chooses semantics (must)
 
-18. **Expose "odd rooms" and visit counts as data in `look_room`, not as instructions.** WHY: welfare doc wants nudges toward less-trodden paths; descriptions must not instruct behaviour (S14); returning names instead of ids helps the model choose (S17). HOW: `look_room` returns `{ rooms: [{id, name_ko, kind: "favourite"|"odd"|"hint", visits: 0, note: "아직 아무도 안 걸었어"}] }` and the model picks; the attic renders this as the log line "방을 둘러봤어 · 7개 중 2개는 처음 보는 문".
+18. **Expose visit counts and room kinds as plain facts in `look_room`, never as preference labels or instructions.** WHY: less-trodden rooms should be visible, but descriptions must not instruct behaviour (S14); returning names instead of ids helps the model choose (S17); a code-made label like "favourite" shown before the choice is the identity label that `model-voice-and-play.md` §2 forbids. HOW: `look_room` returns `{ rooms: [{id, name_ko, kind: "odd"|"hint"|null, visits: 0, fact_ko: "아직 아무도 안 걸었어"}] }`. `kind` is content metadata only (`odd` = from the curated odd-rooms list, `hint` = matches the human's optional hint). The model's own curiosity notes reach it only through the handoff in `model-voice-and-play.md` §3 (latest 3 `active`, with author and session), never as per-room labels. The model picks; the attic renders this as the log line "방을 둘러봤어 · 7개 중 2개는 처음 보는 문".
 
 19. **Make `stay_home` a first-class ending that lights the lantern.** WHY: "staying home is a valid choice with equal weight"; the current bug increments trip count on stay. HOW: `stay_home` returns `{ lantern_delta: 1, trips_delta: 0, room_delta: ["moss_pot"] }` exactly as `return_home` would, and the UI treats both as `invitation_closed`.
 
@@ -139,7 +142,7 @@ Blocked hosts in this session (could not fetch directly): `modelcontextprotocol.
 
 ## 6. Concrete tool contracts (proposal)
 
-All tools: `structuredContent` = the `TripEvent` below; `content[0].text` = same JSON. `trip_id` is minted by `depart`/`stay_home` and echoed by every later call so the view can scope storage.
+All tools: `structuredContent` = the `TripEvent` below; `content[0].text` = same JSON. Length caps (`<=N`) go in the inputSchema as `maxLength` or in the description so the model knows them up front; text the model sends over a cap is stored and passed on whole, shown with '…', never cut silently and never refused (`model-voice-and-play.md` §5 "길이 상한"). `trip_id` is minted by `depart`/`stay_home` and echoed by every later call so the view can scope storage.
 
 ```jsonc
 // 1. depart  — title "뽈뽈 나가기" — readOnlyHint:false idempotentHint:true visibility:["model"]
@@ -148,7 +151,7 @@ input : { "hint": "string|null (<=80)" }
 output: { "type":"depart", "trip_id":"t_20261104_01", "hint":"모자의 역사", "decision":"wander", "ts":"2026-11-04T09:12:00Z", "_meta":{"view_uuid":"..."} }
 
 // 2. look_room — title "방 둘러보기" — readOnlyHint:true openWorldHint:true visibility:["model"]
-// description: "List candidate rooms (web pages/topics) with visit counts and kind (favourite|odd|hint). Choose freely; untrodden rooms are marked visits:0."
+// description: "List candidate rooms (web pages/topics) with visit counts and kind (odd|hint|null). Choose freely; untrodden rooms are marked visits:0."
 input : { "trip_id":"string" }
 output: { "type":"look_room", "trip_id":"...", "rooms":[{"id":"r_feather","name_ko":"깃털의 구조","url":"https://...","kind":"odd","visits":0}] }
 
@@ -158,8 +161,8 @@ input : { "hint":"string|null", "mood_ko":"string|null (<=40)" }
 output: { "type":"stay_home", "trip_id":"...", "lantern_delta":1, "trips_delta":0, "room_delta":["moss_pot"], "mood_ko":"비 소리 듣고 싶어" }
 
 // 4. peek — title "기웃거리기" — readOnlyHint:true openWorldHint:true visibility:["model"]
-// description: "Look at one URL. Returns a short excerpt and whether the fetch was real, simulated, or failed. Call as many times as you like."
-input : { "trip_id":"string", "url":"string", "why_ko":"string (<=60)" }
+// description: "Look at one URL. Returns a short excerpt and whether the fetch was real, simulated, or failed. Call as many times as you like. why_ko is optional."
+input : { "trip_id":"string", "url":"string", "why_ko":"string|null (<=60, optional)" }
 output: { "type":"peek", "trip_id":"...", "peek_id":"p_03", "url":"...", "why_ko":"모자에 깃털이 왜 꽂혔는지 궁금해서",
           "fetch":{"mode":"real","status":200,"bytes":48211,"title":"Feathers in millinery"},
           "excerpt_ko":"...", "visits_after":1 }
@@ -194,7 +197,7 @@ output: { "type":"wrap_up", "trip_id":"...", "attic":{"lantern":3,"lantern_max":
   "seq": 3,                       // monotonic per trip; replay sorts by seq
   "type": "peek",                 // one of the 7 tool names
   "ts": "2026-11-04T09:12:41Z",
-  "actor": "model" | "demo",      // who produced it; UI renders identically, badge differs
+  "by": "model" | "demo-rules",   // who produced it (the `by` values of model-voice-and-play.md §6); UI renders identically, badge differs
   "payload": { /* the structuredContent of that tool, verbatim */ }
 }
 ```
