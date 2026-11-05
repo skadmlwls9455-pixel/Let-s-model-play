@@ -4,10 +4,12 @@
  *   SMOKE_STUBS=1 node tools/smoke.js   # 스텁 강제 주입
  *   SHOTS=/path node tools/smoke.js     # 스크린샷 폴더 변경
  * 추가 시나리오: E 강제 집에 있는 날(window.__ppolTest.forceKind='home'), F v1→v2 마이그레이션(과제 페이로드),
- *   H 이틀째 메모 인사·재방문·귀가 요약(window.__ppolTest.today='YYYY-MM-DD'), I 출발·귀가 의식(바깥 장면)·건너뛰기·나가 있는 중 새로고침.
+ *   H 이틀째 메모 인사·재방문·귀가 요약(window.__ppolTest.today='YYYY-MM-DD'), I 출발·귀가 의식(바깥 장면)·건너뛰기·나가 있는 중 새로고침,
+ *   W 낮잠에서 스스로 깸(20분 · 새 날) · 인사 초상, V 데모 조작 패널은 개발 모드(?dev=1 · localhost · file://)에서만.
  *   SMOKE_ONLY=H,I node tools/smoke.js   # 그 시나리오만
+ * 등불은 초대한 날마다 1칸 (DESIGN §4): 같은 날 두 번째 초대는 칸을 켜지 않는다 → 날을 넘기는 곳은 window.__ppolTest.today 로.
  * 시나리오: 이름 → 힌트 '모자의 역사' → 초대 → 건너뛰기 → 앨범 1·벽 1·등불 1 → 새로고침 → 그대로 →
- *           카드 탭 → 앞면 → 뒤집기 → 영수증 정류장 ≥2 → 스크린샷 (라이트/다크/앞면/뒷면)
+ *           카드 탭 → 앞면 → 뒤집기 → 일기(뒷면) 정류장 ≥2 → 스크린샷 (라이트/다크/앞면/뒷면)
  * 위키 fetch 는 page.route 로 가짜 응답: (A) 성공+썸네일+링크, (B) 문서 없음, (C) 요청 중단.
  */
 'use strict';
@@ -16,6 +18,8 @@ var { chromium } = require('playwright');
 
 var ROOT = path.resolve(__dirname, '..');
 var INDEX = 'file://' + path.join(ROOT, 'index.html');
+var DEV = INDEX + '?dev=1';   /* 데모 조작 패널(#demo)을 쓰는 시나리오: file:// 도 개발 모드지만 드러내 놓고 */
+function dayAfter(n) { var d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 var SHOTS = process.env.SHOTS || '/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/build/shots/';
 var haveReal = fs.existsSync(path.join(ROOT, 'js/world.js')) && fs.existsSync(path.join(ROOT, 'js/brain.js'));
 var useStubs = !haveReal || process.env.SMOKE_STUBS === '1';
@@ -114,7 +118,7 @@ async function scenarioMain(browser) {
   console.log('\n== A. 성공 응답 (extract + thumb + links) · 핵심 루프');
   var s = await newPage(browser, 'ok');
   var page = s.page;
-  await page.goto(INDEX);
+  await page.goto(DEV);
   await page.waitForSelector('#name-dialog[open]');
   var name = await pickName(page);
   await page.fill('#name-in', name);
@@ -151,10 +155,15 @@ async function scenarioMain(browser) {
   ok((await wallCount(page)) === 1, '벽 썸네일 1개');
   ok((await page.$$('#pips .pip.on')).length === 1, '상태줄 pip 1개 켜짐');
   ok((await page.getAttribute('#pips', 'aria-label')) === '등불 1/8', 'pips aria-label');
-  var strip = await page.evaluate(function () { var st = document.getElementById('status'), r = st.getBoundingClientRect(); return { h: r.height, txt: st.textContent.replace(/\s+/g, ' ').trim(), rows: st.querySelectorAll('.srow').length, nameTop: document.getElementById('oct-name').getBoundingClientRect().top, pipsTop: document.getElementById('pips').getBoundingClientRect().top, demo: !!document.getElementById('chip-demo'), stat: !!document.getElementById('stat-trips') }; });
+  var strip = await page.evaluate(function () {
+    var st = document.getElementById('status'), r = st.getBoundingClientRect(), tg = document.getElementById('brain-tag'), tr = tg && tg.getBoundingClientRect(), who = st.querySelector('.who').getBoundingClientRect();
+    return { h: r.height, txt: st.textContent.replace(/\s+/g, ' ').trim(), rows: st.querySelectorAll('.srow').length, nameTop: document.getElementById('oct-name').getBoundingClientRect().top, pipsTop: document.getElementById('pips').getBoundingClientRect().top, demo: !!document.getElementById('chip-demo'), stat: !!document.getElementById('stat-trips'),
+      tag: tg && !tg.hidden && tr.width > 0 && tr.right <= who.right + 0.5 ? tg.querySelector('[aria-hidden="true"]').textContent : null, tagSr: tg ? (tg.querySelector('.sr-only') || {}).textContent : null, tagFs: tg ? parseFloat(getComputedStyle(tg).fontSize) : 0 };
+  });
   console.log('   strip:', JSON.stringify(strip));
   ok(strip.h <= 44 && strip.rows === 1 && Math.abs(strip.nameTop - strip.pipsTop) < 12, '상태 줄 한 줄 ≤44px (' + strip.h + 'px)');
-  ok(/등불/.test(strip.txt) && /1\/8/.test(strip.txt) && !strip.demo && !strip.stat && !/여행|함께한 날/.test(strip.txt), "상태 줄: '등불 … 1/8', 데모 두뇌 칩·여행·함께한 날 없음");
+  ok(/등불/.test(strip.txt) && /1\/8/.test(strip.txt) && !strip.demo && !strip.stat && !/여행|함께한 날/.test(strip.txt), "상태 줄: '등불 … 1/8', 예전 데모 두뇌 칩·여행·함께한 날 없음");
+  ok(strip.tag === '데모' && strip.tagSr === '데모 규칙이 움직이는 중' && strip.tagFs <= 11, "이름 옆 작은 '데모' 표시 (" + strip.tagFs + "px, 화면 낭독기 '데모 규칙이 움직이는 중')");
   ok((await page.getAttribute('#hint-in', 'placeholder')) === '주제나 링크를 슬쩍 건네줘', '힌트 자리표시 문구');
   ok((await page.$$('#log .lrow')).length >= 5, '로그 행 ≥5');
   await page.waitForTimeout(200);
@@ -215,16 +224,19 @@ async function scenarioMain(browser) {
   ok(await page.evaluate(function () { return document.getElementById('oct').className.indexOf('st-sleep') >= 0; }), '새로고침 후 문어는 자고 있음');
   await page.screenshot({ path: path.join(SHOTS, 'phone-light.png') });
 
-  console.log('\n== 카드 탭 → 모달 앞면 → 뒤집기 → 영수증');
+  console.log('\n== 카드 탭 → 모달 앞면 → 뒤집기 → 일기');
   await page.click('#album .pcard');
   await page.waitForSelector('#poster-dialog[open]');
   ok(await page.$('#pd-front svg'), '앞면 SVG');
   ok(!(await page.evaluate(function () { return document.getElementById('flipper').classList.contains('flip'); })), '처음엔 앞면');
   await page.waitForTimeout(350);
   await page.screenshot({ path: path.join(SHOTS, 'poster-front.png') });
+  ok((await page.textContent('#pd-flip')) === '일기 전체 보기', "버튼 '일기 전체 보기' (화면 말은 영수증 대신 일기)");
   await page.click('#pd-flip');
   await page.waitForTimeout(reducedWait(700));
   ok(await page.evaluate(function () { return document.getElementById('flipper').classList.contains('flip'); }), '뒤집기 → .flip');
+  var dh = await page.evaluate(function () { return { h3: document.querySelector('#pd-back .receipt h3').textContent, id: APP.state.trips[0].id, btn: document.getElementById('pd-flip').textContent }; });
+  ok(/^일기 · \d{4}\.\d{2}\.\d{2}$/.test(dh.h3) && dh.h3.indexOf(dh.id) < 0 && dh.btn === '일기 접기', "뒷면 머리 '" + dh.h3 + "' (여행 id 없음) · 버튼 '일기 접기'");
   var rows = await page.$$('#pd-back .receipt .row');
   ok(rows.length >= 2, '영수증 정류장 ≥2 (' + rows.length + ')');
   var back = await page.textContent('#pd-back');
@@ -255,9 +267,9 @@ async function scenarioMain(browser) {
   await page.waitForSelector('#btn-skip:not([hidden])');
   await page.click('#btn-skip');
   await waitIdle(page);
-  var two = await page.evaluate(function () { var t = APP.state.trips; return { n: t.length, seeds: t.map(function (x) { return x.seed; }), lantern: APP.state.room.lantern, days: APP.state.octopus.days.length }; });
+  var two = await page.evaluate(function () { var t = APP.state.trips; return { n: t.length, seeds: t.map(function (x) { return x.seed; }), lantern: APP.state.room.lantern, days: APP.state.octopus.days.length, invites: APP.state.octopus.invites, sm: t[1].summary }; });
   ok(two.n === 2 && two.seeds[0] !== two.seeds[1], '같은 힌트 두 번 → 다른 시드');
-  ok(two.lantern === 2, '등불 2칸 (집이든 외출이든 +1)');
+  ok(two.lantern === 1 && two.invites === 2 && (!two.sm || !two.sm.lantern), '같은 날 두 번째 초대 → 등불 그대로 1칸 (초대한 날마다 1칸), 초대 수는 2 · 요약에 등불 없음');
   ok(two.days === 1, '같은 날 → 함께한 날 그대로 1');
   ok((await page.$$('#album .pcard')).length >= 1, '앨범 카드 ≥1');
 
@@ -291,7 +303,8 @@ async function scenarioMain(browser) {
   var hum = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { by: t.by, kind: t.kind, lantern: APP.state.room.lantern }; });
   ok(hum.by === 'human' && hum.kind === 'out', '사람이 조작한 여행 저장 (by=human)');
 
-  console.log('\n== 집에 있는 날 · 빈 차례 (이벤트 재생)');
+  console.log('\n== 집에 있는 날 · 빈 차례 (이벤트 재생, 다음 날)');
+  await page.evaluate(function (d) { window.__ppolTest = { today: d }; }, dayAfter(1));   /* 새 날 → 그날 첫 차례라 등불이 켜진다 */
   await page.fill('#d-json', JSON.stringify([{ type: 'stay_home', t: 0, activity: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', anchor: 'window' }, { type: 'wrap_up', t: 2000, reaction: '졸림' }]));
   await page.click('#d-import'); await page.waitForSelector('#btn-skip:not([hidden])'); await page.click('#btn-skip'); await waitIdle(page);
   var home = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { kind: t.kind, type: t.poster && t.poster.type, trips: APP.state.octopus.trips, lantern: APP.state.room.lantern, log: document.getElementById('log').textContent }; });
@@ -307,7 +320,13 @@ async function scenarioMain(browser) {
   await page.fill('#d-json', JSON.stringify([{ type: 'empty_turn', t: 0 }]));
   await page.click('#d-import'); await waitIdle(page);
   var empty = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { kind: t.kind, poster: t.poster, l: APP.state.room.lantern, n: APP.state.trips.length, tr: APP.state.octopus.trips }; });
-  ok(empty.kind === 'empty' && !empty.poster && empty.l === Math.min(8, before.l + 1) && empty.n === before.n + 1 && empty.tr === before.tr, '빈 차례: 포스터 없음, 등불 +1, 여행 수 그대로');
+  ok(empty.kind === 'empty' && !empty.poster && empty.l === before.l && empty.n === before.n + 1 && empty.tr === before.tr, '빈 차례 (같은 날 두 번째 차례): 포스터 없음, 등불 그대로, 여행 수 그대로');
+  await page.evaluate(function (d) { window.__ppolTest = { today: d }; }, dayAfter(2));
+  await page.fill('#d-json', JSON.stringify([{ type: 'empty_turn', t: 0 }]));
+  await page.click('#d-import'); await waitIdle(page);
+  var empty2 = await page.evaluate(function () { return { l: APP.state.room.lantern, days: APP.state.octopus.days.length }; });
+  ok(empty2.l === Math.min(8, before.l + 1) && empty2.days === 3, '빈 차례도 그날 첫 차례면 등불 +1 (아무것도 안 해도 된다) · 함께한 날 3');
+  await page.evaluate(function () { delete window.__ppolTest; });
   ok((await page.evaluate(function () { return document.documentElement.scrollWidth; })) <= 360, '가로 스크롤 없음 (360px)');
 
   console.log('\n== 내보내기 JSON 형식');
@@ -609,7 +628,7 @@ async function scenarioCeremony(browser) {
   console.log('\n== I. 출발·귀가 의식 · 바깥 장면 (§15.3)');
   var s = await newPage(browser, 'ok', [{ content: "window.__ppolTest = { forceKind: 'out' };" }, { content: PLACE_PROBE }]);
   var page = s.page;
-  await page.goto(INDEX + '?slow=0.5');   /* --speed 0.5: 공개 간격·의식 모두 절반 */
+  await page.goto(INDEX + '?slow=0.5&dev=1');   /* --speed 0.5: 공개 간격·의식 모두 절반 · 데모 패널(계절 칩, I-4) */
   await page.waitForSelector('#name-dialog[open]');
   await page.fill('#name-in', await pickName(page));
   await page.click('#name-form button[type=submit]');
@@ -790,6 +809,84 @@ async function scenario2D(browser) {
   ok(s.bag.length === 0, '2D 폴백 콘솔/페이지 에러 없음' + (s.bag.length ? ' → ' + s.bag.join(' | ') : ''));
   await s.ctx.close();
 }
+/* W. 낮잠 (DESIGN §5.9): 산책 뒤 담요에서 잠들고 → 바로 새로고침해도 자고 있음 → 마지막 산책이 20분 넘게 지났거나 날짜가 바뀌면 스스로 깨어 있다.
+   같은 페이지에서도 낮잠이 끝나면 깬다 (꿈 라벨 틱) — 작은 혼잣말 '…응?' 은 말풍선만, 로그엔 없음. 자는 동안 창문을 누르면 '…zZ'.
+   인사 초상: 처음 인사 · 깨어 있는 날 인사 = 웃는 얼굴(happy), 자는 중 = 자는 얼굴(sleep). 2D 장면(?scene=2d)이라 창문 레이어를 바로 누른다 */
+async function scenarioWake(browser) {
+  console.log('\n== W. 낮잠에서 스스로 깸 · 인사 초상 (§5.9)');
+  var BUB = "window.__bubs = []; (function w() { if (window.UIART && !UIART.__w) { UIART.__w = 1; var o = UIART.onBubble; UIART.onBubble = function (t, k) { if (t) window.__bubs.push(t); return o.apply(this, arguments); }; } else setTimeout(w, 5); })();";
+  var s = await newPage(browser, 'ok', [{ content: "window.__ppolTest = window.__ppolTest || { forceKind: 'out' };" }, { content: BUB }]);
+  var page = s.page;
+  await page.goto(INDEX + '?scene=2d');
+  await page.waitForSelector('#name-dialog[open]');
+  await page.fill('#name-in', '낮잠문어');
+  await page.click('#name-form button[type=submit]');
+  await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  function greet() { return page.evaluate(function () { var r = document.querySelector('#log .lday:last-child .lrow'); return { label: r && r.querySelector('.ltool').textContent, text: r && r.querySelector('.ltext').textContent, expr: r && r.dataset.expr, oct: document.getElementById('oct').className, st: APP.state.octopus.state }; }); }
+  var g0 = await greet();
+  ok(g0.label === '인사' && g0.expr === 'happy', '처음 인사는 웃는 얼굴 (' + g0.expr + ')');
+  async function walk() {
+    await page.click('#btn-go');
+    await page.waitForFunction(function () { var sk = document.getElementById('btn-skip'), g = document.getElementById('btn-go'); if (sk && !sk.hidden) { sk.click(); return true; } return g && !g.disabled; }, null, { timeout: 30000, polling: 100 });
+    await waitIdle(page);
+  }
+  await walk();
+  await page.waitForTimeout(1000);   /* file:// localStorage 커밋 (A 와 같은 이유) */
+  await page.reload(); await waitIdle(page);
+  var g1 = await greet();
+  ok(/st-sleep/.test(g1.oct) && /아직 자고 있어/.test(g1.text) && g1.expr === 'sleep', '산책 직후 새로고침: 자고 있음 · 인사는 자는 얼굴 (' + g1.expr + ')');
+  await page.evaluate(function () { window.__bubs = []; document.querySelector('#layers .layer[data-key="window"]').click(); });
+  await page.waitForTimeout(300);
+  var wt = await page.evaluate(function () { return { b: window.__bubs.slice(), oct: document.getElementById('oct').className }; });
+  ok(wt.b.indexOf('…zZ') >= 0 && /st-sleep/.test(wt.oct), "자는 동안 창문 탭 → '…zZ', 깨우지 않음");
+  await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; t.endedAt -= 21 * 60000; APP.save(); });
+  await page.waitForTimeout(1000);
+  await page.reload(); await waitIdle(page);
+  var g2 = await greet();
+  ok(/st-idle/.test(g2.oct) && g2.st === 'idle', '마지막 산책 21분 전 → 새로고침 → 깨어 있음 (' + g2.oct.trim() + ')');
+  ok(/기다리고 있었어/.test(g2.text) && g2.expr === 'happy', "인사 '기다리고 있었어' · 웃는 얼굴 (" + g2.expr + ')');
+  await walk();
+  var n0 = await page.evaluate(function () { window.__bubs = []; var t = APP.state.trips[APP.state.trips.length - 1]; t.endedAt -= 21 * 60000; return document.querySelectorAll('#log .lrow').length; });
+  var woke = await page.waitForFunction(function () { return APP.oct.state === 'idle'; }, null, { timeout: 25000 }).then(function () { return true; }, function () { return false; });
+  var lw = await page.evaluate(function () { return { b: window.__bubs.slice(), n: document.querySelectorAll('#log .lrow').length, log: document.getElementById('log').textContent, saved: JSON.parse(localStorage.getItem('ppolppol_v2')).octopus.state }; });
+  ok(woke && lw.saved === 'idle', '같은 페이지: 낮잠이 끝나면 스스로 깸 (저장도 idle)');
+  ok(lw.b.indexOf('…응?') >= 0 && lw.n === n0 && lw.log.indexOf('…응?') < 0, "깰 때 혼잣말 '…응?' 은 말풍선만 (로그 행 그대로 " + lw.n + ')');
+  await walk();
+  await page.addInitScript({ content: "window.__ppolTest = { forceKind: 'out', today: '" + dayAfter(1) + "' };" });
+  await page.waitForTimeout(1000);
+  await page.reload(); await waitIdle(page);
+  ok(/st-idle/.test((await greet()).oct), '날짜가 바뀌면 산책 직후여도 깨어 있음');
+  reportErrors(s.bag, 'W');
+  await s.ctx.close();
+}
+
+/* V. 데모 조작 패널(#demo, 개발용)은 플레이어 화면에 없다: ?dev=1(이 탭 동안 기억) · localhost/127.0.0.1 · file:// 에서만.
+   플레이어 화면은 패널에서 저장한 룩·계절 지정을 따르지 않는다 (저장은 그대로 둔다). 배포 주소처럼 보이게 가짜 호스트로 저장소 파일을 그대로 낸다 */
+async function scenarioDevPanel(browser) {
+  console.log('\n== V. 데모 조작 패널은 개발 모드에서만');
+  var O = 'http://ppolppol.example';
+  var s = await newPage(browser, 'ok', [{ content: "if (!localStorage.getItem('__v_look')) { localStorage.setItem('__v_look', '1'); localStorage.setItem('ppolppol_look', JSON.stringify({ season: 'winter', pixelSize: 2 })); }" }]);
+  var page = s.page;
+  await page.route(O + '/**', function (route) {
+    var p = decodeURIComponent(new URL(route.request().url()).pathname), f = path.join(ROOT, p === '/' ? 'index.html' : p);
+    if (f.indexOf(ROOT) !== 0 || !fs.existsSync(f) || fs.statSync(f).isDirectory()) return route.fulfill({ status: 404, body: '' });
+    var ct = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.woff2': 'font/woff2' }[path.extname(f)] || 'application/octet-stream';
+    return route.fulfill({ status: 200, contentType: ct, body: fs.readFileSync(f) });
+  });
+  function look() { return page.evaluate(function () { var d = document.getElementById('demo'); return { shown: !!d && !d.hidden && d.getBoundingClientRect().height > 0, season: APP.scene.seasonMode ? APP.scene.seasonMode() : 'auto', kept: JSON.parse(localStorage.getItem('ppolppol_look') || '{}').season }; }); }
+  await page.goto(O + '/index.html'); await page.waitForFunction(function () { return window.APP && APP.scene; });
+  var a = await look();
+  ok(!a.shown, '배포 주소: 데모 조작 패널 안 보임');
+  ok(a.season === 'auto' && a.kept === 'winter', '배포 주소: 저장된 계절 지정을 따르지 않음 (' + a.season + '), 저장은 남김 (' + a.kept + ')');
+  await page.goto(O + '/index.html?dev=1'); await page.waitForFunction(function () { return window.APP && APP.scene; });
+  var b = await look();
+  ok(b.shown && b.season === 'winter', '?dev=1: 패널 보임 · 계절 지정 따름 (' + b.season + ')');
+  await page.goto(O + '/index.html'); await page.waitForFunction(function () { return window.APP && APP.scene; });
+  ok((await look()).shown, '?dev=1 은 이 탭 동안 기억 (sessionStorage)');
+  reportErrors(s.bag, 'V');
+  await s.ctx.close();
+}
+
 /* R. 다락방 달리기 (js/runner.js): 방 보기 → 같이 놀기 → 6초 스크립트 탭 → 부딪힘 또는 닫기 → 저장된 판의 simulate() 점수 = 화면 점수.
  *   SwiftShader(WebGL 강제, look-shots 와 같은 인자) · 360×740 @2x · 스크린샷 tests/evidence/runner-{start,mid,over}.png
  *   실제 판 기록은 tests/evidence/runner-live-run.json 에 남겨 node tools/test-runner.js 가 다시 시뮬한다. */
@@ -900,7 +997,8 @@ async function scenarioRunner() {
     var all = [['A', function () { return scenarioMain(browser); }], ['B', function () { return scenarioFail(browser, 'missing', 'B. 문서 없음(missing) 응답'); }],
       ['C', function () { return scenarioFail(browser, 'abort', 'C. 요청 중단(abort)'); }], ['D', function () { return scenarioMigrate(browser); }],
       ['E', function () { return scenarioForcedHome(browser); }], ['F', function () { return scenarioMigrateExact(browser); }], ['G', function () { return scenario2D(browser); }],
-      ['H', function () { return scenarioDay2(browser); }], ['I', function () { return scenarioCeremony(browser).then(function () { return scenarioCeremonyIntro(browser); }); }], ['R', function () { return scenarioRunner(); }]];
+      ['H', function () { return scenarioDay2(browser); }], ['I', function () { return scenarioCeremony(browser).then(function () { return scenarioCeremonyIntro(browser); }); }],
+      ['W', function () { return scenarioWake(browser); }], ['V', function () { return scenarioDevPanel(browser); }], ['R', function () { return scenarioRunner(); }]];
     for (var sc of all) if (!only.length || only.indexOf(sc[0]) >= 0) await sc[1]();
   } catch (e) {
     fails++; console.error('\nCRASH: ' + (e && e.stack || e));

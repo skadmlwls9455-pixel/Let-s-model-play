@@ -21,6 +21,8 @@ var SCENE2D = (function () {
   }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function hash(s) { s = String(s); var x = 2166136261; for (var i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; }
+  /* 꾸밈용 시드 난수 (mulberry32, [0,1)): 같은 키 → 같은 수열. 결정적인 화면, 전역 난수 없음 */
+  function seeded(key) { var a = hash(key); return function () { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   function shade(hex, k) { /* k<0 어둡게 */
     var n = parseInt(hex.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
     var f = function (v) { v = Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k); return ('0' + clamp(v, 0, 255).toString(16)).slice(-2); };
@@ -163,15 +165,16 @@ var SCENE2D = (function () {
       var mode = st.weather;
       if (fx.dataset.mode === mode) return;
       fx.dataset.mode = mode; fx.innerHTML = '';
+      var r = seeded('fx|' + mode);   /* 꾸밈 자리도 시드로 (날씨마다 같은 빗줄기 · 별 자리) */
       var n = mode === 'rain' ? 14 : mode === 'drizzle' ? 6 : mode === 'snow' ? 8 : 0;
       for (var i = 0; i < n; i++) {
         var d = h('div', { class: 'rdrop' + (mode === 'drizzle' ? ' light' : mode === 'snow' ? ' snow' : '') });
-        d.style.cssText = 'left:' + Math.floor(Math.random() * 64) + 'px;animation-duration:' + ((mode === 'snow' ? 2.2 : 0.7) + Math.random() * 0.6).toFixed(2) + 's;animation-delay:' + (Math.random() * 2).toFixed(2) + 's';
+        d.style.cssText = 'left:' + Math.floor(r() * 64) + 'px;animation-duration:' + ((mode === 'snow' ? 2.2 : 0.7) + r() * 0.6).toFixed(2) + 's;animation-delay:' + (r() * 2).toFixed(2) + 's';
         fx.appendChild(d);
       }
       if (windowMode() === 'stars') for (var k = 0; k < 7; k++) {
         var s2 = h('div', { class: 'star' });
-        s2.style.cssText = 'left:' + Math.floor(Math.random() * 60 + 2) + 'px;top:' + Math.floor(Math.random() * 30 + 2) + 'px;animation-delay:' + (Math.random() * 3).toFixed(2) + 's';
+        s2.style.cssText = 'left:' + Math.floor(r() * 60 + 2) + 'px;top:' + Math.floor(r() * 30 + 2) + 'px;animation-delay:' + (r() * 3).toFixed(2) + 's';
         fx.appendChild(s2);
       }
     }

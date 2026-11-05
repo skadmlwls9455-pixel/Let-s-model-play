@@ -113,6 +113,8 @@ var RUNNER = (function () {
   function load() { try { var o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o && typeof o === 'object') return o; } catch (e) { /* 저장소 없음 */ } return { v: 1, best: 0, runs: 0, day: '', dayN: 0, last: null }; }
   function store(o) { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) { /* 저장 실패해도 놀이는 계속 */ } }
   function dateKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  /* '오늘' = js/app.js todayKey 와 같은 규칙: 테스트 훅 window.__ppolTest.today = 'YYYY-MM-DD' 가 있을 때만 그 날짜 (그날 판 번호·시드도 그 날로) */
+  function todayKey(d) { var t = window.__ppolTest; return (t && typeof t === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(t.today || '')) ? t.today : dateKey(d); }
   function settings() { try { var o = JSON.parse(localStorage.getItem('ppolppol_v2') || 'null'); return (o && o.settings) || {}; } catch (e) { return {}; } }
   function reducedMotion() {
     var m = document.documentElement.getAttribute('data-motion') || settings().motion || 'auto';
@@ -124,7 +126,7 @@ var RUNNER = (function () {
     var h = o.hour != null ? o.hour : d.getHours(), m = o.month != null ? o.month : d.getMonth() + 1;
     var phase = (h >= 20 || h < 6) ? 'night' : (h >= 17 || h < 8) ? 'eve' : 'day';
     var season = (m >= 3 && m <= 5) ? 'spring' : (m >= 6 && m <= 8) ? 'summer' : (m >= 9 && m <= 11) ? 'autumn' : 'winter';
-    return { phase: phase, season: season, day: dateKey(d) };
+    return { phase: phase, season: season, day: todayKey(d) };
   }
 
   /* ── 주간 랭킹 (http(s) 에서만. file:// 이면 네트워크를 전혀 안 쓴다) — docs/MINIGAME.md "랭킹 서버" ── */
@@ -349,7 +351,7 @@ var RUNNER = (function () {
     var nt = L.net, seed = L.serverSeed != null ? (L.serverSeed >>> 0) : nt ? nt.seed : seedFor(ck.day, st.dayN);
     L.store = st; L.clock = ck; L.seed = seed; L.sim = createSim(seed, { night: nt ? nt.night : ck.phase === 'night' });
     L.inputs = []; L.queue = []; L.held = { j: false, d: false }; L.state = 'ready'; L.acc = 0; L.last = 0; L.hitAt = 0; L.saved = false; L.newBest = false;
-    L.parts = []; L.reduced = reducedMotion();
+    L.parts = []; L.partRng = null; L.reduced = reducedMotion();
     overP.hidden = true; ctrls.hidden = false;
     setMsg(L.pending ? '판을 고르는 중이야…' : '탭하거나 스페이스를 누르면 출발해. 꾹 누르면 더 높이 뛰어');
     netP.hidden = true;
@@ -621,14 +623,17 @@ var RUNNER = (function () {
     var dx = C.OCT_X + 7 - (w >> 1), dy = C.GY - h - hh + 1 + bob + (hh === 26 ? 1 : 0);
     ctx.drawImage(img, dx, dy, w, hh);
   }
+  /* 꾸밈 입자(계절 꽃잎·눈): 판 시드에서 갈라 낸 따로 된 mulberry32 — 시뮬레이션 난수(s.rng)는 건드리지 않는다. 같은 판은 같은 입자 */
   function particles(s, ck, ts) {
     var P = L.parts, col = SEASON[ck.season];
-    if (!P.length) for (var i = 0; i < 9; i++) P.push({ x: Math.random() * C.W, y: 14 + Math.random() * (C.GY - 20), v: 0.15 + Math.random() * 0.25, c: i % 2, ph: Math.random() * 6 });
+    if (!L.partRng) L.partRng = mulberry32(hash32('parts|' + (L.seed >>> 0)));
+    var u = function () { return L.partRng() / 4294967296; };
+    if (!P.length) for (var i = 0; i < 9; i++) P.push({ x: u() * C.W, y: 14 + u() * (C.GY - 20), v: 0.15 + u() * 0.25, c: i % 2, ph: u() * 6 });
     var sp = L.state === 'run' ? s.speed / SUB * 0.3 : 0.1;
     for (var j = 0; j < P.length; j++) {
       var p = P[j];
       p.x -= sp + 0.05; p.y += ck.season === 'winter' ? p.v : p.v * 0.6;
-      if (p.x < -2 || p.y > C.GY) { p.x = C.W + Math.random() * 20; p.y = 14 + Math.random() * 30; }
+      if (p.x < -2 || p.y > C.GY) { p.x = C.W + u() * 20; p.y = 14 + u() * 30; }
       var wob = Math.floor(Math.sin(ts / 400 + p.ph) * 1.5);
       R(Math.floor(p.x) + wob, Math.floor(p.y), ck.season === 'winter' ? 1 : 2, 1, col[p.c]);
     }

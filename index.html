@@ -80,10 +80,11 @@
   </div>
 </section>
 
-<!-- ══ STATUS (§7.2) — 한 줄: 이름 · 방 제목 | 등불 ■■□□□□□□ n/8. 여행·함께한 날은 방 보기 › 통계, 데모 두뇌 표기는 방 보기 › 누가 고르나 ══ -->
+<!-- ══ STATUS (§7.2) — 한 줄: 이름 [데모] · 방 제목 | 등불 ■■□□□□□□ n/8. 여행·함께한 날은 방 보기 › 통계, 데모 두뇌 설명은 방 보기 › 누가 고르나 ══ -->
 <div id="status">
   <div class="srow">
-    <span class="who"><span id="oct-name" class="name">이름 없는 문어</span><span id="room-title" class="room-title">어두운 다락</span></span>
+    <!-- #brain-tag: 데모 두뇌(규칙)가 고르는 동안 늘 보이는 아주 작은 표시 (정직 표기). 모델(MCP) 여행을 재생하는 동안만 숨긴다 (app.js renderBrainTag) -->
+    <span class="who"><span id="oct-name" class="name">이름 없는 문어</span><span id="brain-tag" class="brain-tag"><span aria-hidden="true">데모</span><span class="sr-only">데모 규칙이 움직이는 중</span></span><span id="room-title" class="room-title">어두운 다락</span></span>
     <span id="pips" class="pips" role="img" aria-label="등불 0/8"><span class="pips-lbl">등불</span><span class="pip-row"></span><span class="pips-n">0/8</span></span>
     <!-- 소리 토글 (js/audio.js): 꺼진 채로 시작. 누르는 곳 44×44, 보이는 상자 28×28. 켜면 스피커 물결, 끄면 × -->
     <button type="button" id="btn-sound" class="sound-btn" aria-pressed="false" aria-label="소리 켜기" title="소리 켜기">
@@ -124,10 +125,10 @@
   <div id="album"></div>
 </section>
 
-<!-- ══ DEMO (§7.6) ══ -->
-<details id="demo">
+<!-- ══ DEMO (§7.6) — 개발용: ?dev=1 · localhost · file:// 에서만 보인다 (app.js DEV) ══ -->
+<details id="demo" hidden>
   <summary>데모 조작 (개발용)</summary>
-  <p class="warn-line">여기 버튼은 문어 대신 사람이 고르는 거야. 영수증에 '사람이 조작'으로 남아.</p>
+  <p class="warn-line">여기 버튼은 문어 대신 사람이 고르는 거야. 일기에 '사람이 조작'으로 남아.</p>
   <div class="btn-row">
     <button type="button" class="btn sm" id="d-depart">출발</button>
     <button type="button" class="btn sm" id="d-stay">집에 있기</button>
@@ -167,7 +168,7 @@
   </form>
 </dialog>
 
-<!-- ══ 포스터 열람 모달 (§6.3 · §15.1) — 왼쪽(폰에선 위) 포스터, 오른쪽(아래) 짧은 기록, 영수증은 아래로 펼침 ══ -->
+<!-- ══ 포스터 열람 모달 (§6.3 · §15.1) — 왼쪽(폰에선 위) 포스터, 오른쪽(아래) 짧은 기록, 일기(뒷면)는 아래로 펼침 ══ -->
 <dialog id="poster-dialog" class="modal poster-modal" aria-label="포스터 열람">
   <h2 id="pd-h" class="sr-only dlg-top" tabindex="-1">포스터</h2><!-- 열 때 포커스는 여기(맨 위) — 첫 버튼은 폰에서 상자 아래쪽이라 (app.js showDialog). 글자는 포스터 제목 -->
   <div class="flipper" id="flipper">
@@ -178,7 +179,7 @@
     <div class="face back" id="pd-back"></div>
   </div>
   <div class="btn-row center">
-    <button type="button" class="btn pressable" id="pd-flip" aria-controls="pd-back" aria-expanded="false">영수증 전체 보기</button>
+    <button type="button" class="btn pressable" id="pd-flip" aria-controls="pd-back" aria-expanded="false">일기 전체 보기</button>
     <button type="button" class="btn pressable" id="pd-save">이미지로 저장</button>
     <button type="button" class="btn pressable" id="pd-copy">복사</button>
     <button type="button" class="btn pressable" id="pd-close">닫기</button>

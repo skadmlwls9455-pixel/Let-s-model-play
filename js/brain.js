@@ -4,7 +4,7 @@
  * - 모든 선택은 mulberry32(seed) 만 쓴다. Math.random 금지.
  * - fetch 결과(성공/실패)는 정류장의 "읽기 상태" 표기에만 쓰이고 길 선택을 바꾸지 않는다.
  *   난수 뽑는 순서는 fetch 와 무관하게 고정된다:
- *     1 r_stay → (집) r_empty, r_activity, t_wrap, 스티커 위치 3, paper, r_reactionLine
+ *     1 r_stay → (집) r_empty, r_activity, t_wrap, 스티커 위치 3, paper, r_reactionLine(반응 후보 고르기도 이 하나로)
  *                (외출) r_follow, r_wild, r_wildIdx, pickStart(필요 시), 길 만들기(걸음마다 r_return/r_distract/r_pick),
  *                ms×6, gap×6, g_return, g_remember, g_hang, g_wrap,
  *                r_remember, r_souvenir, r_template, r_memory, 스티커 위치 3, paper, r_reactionLine
@@ -44,11 +44,11 @@
   };
 
   var DEFAULT_HOME = [
-    { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', detail: '마흔까지 세고 잊었어. 다시 하나부터.', anchor: 'window', weight: 3, emoji: '🌧', maxLantern: 6 },
-    { id: 'reread_poster', line: '어제 포스터 뒷면을 다시 읽었어', detail: '영수증 글씨가 조금 번져 있었어.', anchor: 'crate', weight: 2, emoji: '🧾', minLantern: 1, requiresPoster: true },
-    { id: 'nap', line: '담요 속에서 낮잠', detail: '담요 안은 조용했어.', anchor: 'blanket', weight: 3, emoji: '😴' },
-    { id: 'swap_posters', line: '포스터 위치를 바꿔 봤어', detail: '왼쪽 걸 오른쪽으로. 그게 다야.', anchor: 'board', weight: 1, emoji: '🖼', minLantern: 2, requiresPoster: true, effect: 'rotatePosters' },
-    { id: 'watch_moss', line: '이끼 화분을 오래 들여다봤어', detail: '어제보다 조금 더 초록인 것 같아.', anchor: 'window', weight: 2, emoji: '🪴', minLantern: 1 },
+    { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', detail: '마흔까지 세고 잊었어. 다시 하나부터.', anchor: 'window', weight: 3, emoji: '🌧', maxLantern: 6, reactions: ['졸림'] },
+    { id: 'reread_poster', line: '어제 포스터 뒷면을 다시 읽었어', detail: '영수증 글씨가 조금 번져 있었어.', anchor: 'crate', weight: 2, emoji: '🧾', minLantern: 1, requiresPoster: true, reactions: ['덤덤'] },
+    { id: 'nap', line: '담요 속에서 낮잠', detail: '담요 안은 조용했어.', anchor: 'blanket', weight: 3, emoji: '😴', reactions: ['졸림'] },
+    { id: 'swap_posters', line: '포스터 위치를 바꿔 봤어', detail: '왼쪽 걸 오른쪽으로. 그게 다야.', anchor: 'board', weight: 1, emoji: '🖼', minLantern: 2, requiresPoster: true, effect: 'rotatePosters', reactions: ['덤덤'] },
+    { id: 'watch_moss', line: '이끼 화분을 오래 들여다봤어', detail: '어제보다 조금 더 초록인 것 같아.', anchor: 'window', weight: 2, emoji: '🪴', minLantern: 1, reactions: ['덤덤'] },
     { id: 'nothing', line: '…', detail: '', anchor: 'blanket', weight: 0, emoji: '' }
   ];
 
@@ -108,6 +108,11 @@
       visits: s.visits || {},
       affinity: s.affinity || {},
       lantern: s.lantern == null ? 0 : s.lantern,
+      /* 이 차례가 끝나면 등불 칸이 하나 켜지나 (app 이 안다: 칸이 남았고 그날 아직 안 켰을 때). 안 주면 옛 규칙(등불 < 8).
+         쪽지 뒷면의 '등불 +1' 말에만 쓴다 — 난수·길·활동 고르기와는 무관 */
+      lanternLeft: typeof s.lanternLeft === 'boolean' ? s.lanternLeft : ((s.lantern == null ? 0 : s.lantern) < 8),
+      /* 플레이어가 이미 가진 기념품 id. 안 주면 null = 옛 규칙(이번에 처음 온 방에서만) */
+      owned: Array.isArray(s.owned) ? s.owned.filter(function (x) { return typeof x === 'string'; }) : null,
       recent: Array.isArray(s.recent) ? s.recent : [],
       todayOut: s.todayOut == null ? 0 : s.todayOut,
       lastVisit: (s.lastVisit && typeof s.lastVisit === 'object') ? s.lastVisit : {},
@@ -178,6 +183,17 @@
     var jong = (code - 0xAC00) % 28;
     if (particle === '로' || particle === '으로') return (jong === 0 || jong === 8) ? '로' : '으로';
     return jong === 0 ? pair[1] : pair[0];
+  }
+  /* 숫자로 시작하는 방 이름('0')을 문장에 그대로 넣으면 "0까지 갔어"·"오늘은 0." 처럼 어색하다 → "0이라는 방".
+     방 이름(노드)에만 쓴다 — 들판 글 제목·URL 은 그대로. 숫자로 안 시작하면 손대지 않는다.
+     받침: 끝 글자가 숫자면 읽는 소리(영·일·이·삼·사·오·육·칠·팔·구)로, 한글이면 그 받침으로 */
+  var DIGIT_JONG = '1101001110';
+  function roomWord(name) {
+    name = name == null ? '' : String(name);
+    if (!/^[0-9]/.test(name)) return name;
+    var last = name.charAt(name.length - 1), code = last.charCodeAt(0);
+    var jong = /[0-9]/.test(last) ? DIGIT_JONG.charAt(+last) === '1' : (code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 > 0);
+    return name + (jong ? '이라는 방' : '라는 방');
   }
 
   /* ───────── 5.3 힌트 읽기 ─────────
@@ -756,8 +772,8 @@
   function drawStickerPos(R) {
     return { x: Math.round(lerp(R(), 58, 82)), y: Math.round(lerp(R(), 18, 40)), rot: Math.round(lerp(R(), -14, 14)) };
   }
-  /* 반응 한 줄. lines = 언제 말해도 참인 줄. when.first/missed/long = 그 일이 실제로 있었을 때만 후보에 더한다.
-     facts: first(처음 온 방이 있음) · missed(못 읽음·모의가 있음) · long(정류장 4곳 이상). 집에 있는 날은 facts 없음 → lines 만 */
+  /* 반응 한 줄 (외출). lines = 언제 말해도 참인 줄. when.first/missed/long = 그 일이 실제로 있었을 때만 후보에 더한다.
+     facts: first(처음 온 방이 있음) · missed(못 읽음·모의가 있음) · long(정류장 4곳 이상). 집에 있는 날은 pickHomeLine (아래) */
   function pickReactionLine(reaction, r, facts) {
     var W = world();
     var rec = W && W.reactions && W.reactions[reaction];
@@ -802,6 +818,32 @@
     if (reaction === '폴짝') return jumpy(stops);
     if (reaction === '우쭐') return proud(stops, followed);
     return true;
+  }
+  /* 집에 있는 날 반응 줄: 그 반응의 home 줄(집에서만 쓰는 줄)이 있으면 그것, 없으면 졸림만 lines(걸은 얘기 없음, check-world).
+     덤덤 lines 는 '다녀왔어'를 말하니 home 줄이 없으면 집에서 쓰지 않는다 ([] = 못 씀). 반응 기록이 아예 없으면 null(줄 없이) */
+  function homeLines(reaction) {
+    var W = world();
+    var rec = W && W.reactions && W.reactions[reaction];
+    if (!rec) return null;
+    if (Array.isArray(rec.home) && rec.home.length) return rec.home;
+    return reaction === '졸림' && Array.isArray(rec.lines) ? rec.lines : [];
+  }
+  /* 집에서 정직한 반응: 처음 온 데·읽은 게 없으니 폴짝·우쭐은 안 되고(reactionFits), 집에서 참인 줄이 있어야 한다 */
+  function homeReactionOk(r) {
+    if (REACTIONS.indexOf(r) < 0 || !reactionFits(r, [], 'none')) return false;
+    var ls = homeLines(r);
+    return ls === null || ls.length > 0;
+  }
+  /* 활동이 고른 반응 후보 (world.js homeActivities[].reactions). 없으면 옛날처럼 졸림 하나 */
+  function homeReactionCands(act) {
+    var list = (act && Array.isArray(act.reactions) && act.reactions.length) ? act.reactions : ['졸림'];
+    var out = list.filter(function (r, i) { return list.indexOf(r) === i && homeReactionOk(r); });
+    return out.length ? out : ['졸림'];
+  }
+  function pickHomeLine(reaction, r) {
+    var list = homeLines(reaction);
+    if (!list || !list.length) return null;
+    return String(list[Math.min(list.length - 1, Math.floor(asR(r) * list.length))]);
   }
 
   /* ───────── 힌트 따랐나 ───────── */
@@ -859,11 +901,21 @@
     }
     var rem = remIdx >= 0 ? stops[remIdx] : null;
 
-    /* 기념품 */
+    /* 기념품: 이번 길에 실제로 들른 방의 것만. 난수는 rSouvenir 하나 (35%, 한 번에 하나).
+       owned(가진 기념품 id 목록)를 받으면: 아직 없는 기념품의 방이면 다시 온 방이어도 후보 — 단 다시 온 방이 힌트(·URL)가 가리킨 방이면 빼서
+       힌트로 한 방을 되풀이해 기념품을 '뽑는' 일은 없게 한다. 처음 온 방 후보가 있으면 그쪽만 (처음은 여전히 특별).
+       owned 를 안 주면(null) 옛 규칙: 처음 온 방에서만 */
     var souvenir = null;
+    var owned = Array.isArray(ctx.owned) ? ctx.owned : null;
+    var hinted = {};
+    if (ctx.hintNode) hinted[ctx.hintNode.id] = 1;
+    if (ctx.urlNode) hinted[ctx.urlNode.id] = 1;
     var cands = stops.filter(function (s) {
-      return s.kind === 'room' && s.first && s.node.souvenir && (!W.souvenirs || W.souvenirs[s.node.souvenir]);
+      if (s.kind !== 'room' || !s.node.souvenir || (W.souvenirs && !W.souvenirs[s.node.souvenir])) return false;
+      if (!owned) return s.first;
+      return owned.indexOf(s.node.souvenir) < 0 && (s.first || !hinted[s.id]);
     });
+    if (owned) { var fresh = cands.filter(function (s) { return s.first; }); if (fresh.length) cands = fresh; }
     if (cands.length && rr.rSouvenir < 0.35) {
       souvenir = cands[Math.min(cands.length - 1, Math.floor((rr.rSouvenir / 0.35) * cands.length))].node.souvenir;
     }
@@ -887,7 +939,7 @@
       else if (ctx.intent && !ctx.follow && followed === 'ignored') lineKind = 'ignored';
       else if (rem.kind === 'wild' && !ctx.intent) lineKind = 'wild';
       else lineKind = 'noHint';
-      if (!line) line = composeLine(lineKind, { hint: hintLabel, mem: rem.name, memory: memory, name: ctx.name }, rr.rTemplate);
+      if (!line) line = composeLine(lineKind, { hint: match.kind === 'node' && ctx.hintNode ? roomWord(hintLabel) : hintLabel, mem: rem.kind === 'room' ? roomWord(rem.name) : rem.name, memory: memory, name: ctx.name }, rr.rTemplate);
     }
 
     /* 반응: 재생 입력이 고른 반응도 실제로 있었던 일과 맞을 때만 (안 읽었는데 우쭐, 처음 온 데 없는데 폴짝은 안 된다) */
@@ -1019,9 +1071,10 @@
     var rem = out.remIdx >= 0 ? stops[out.remIdx] : null;
     var kind = (out.poster && out.poster.lineKind) || 'noHint';
     var rLead = R(), rNext = R(), rIntent = R();
-    var lead = rem ? fillTemplate(pickStr(T.lead[kind] || T.lead.noHint, rLead), { hint: out.hint.label || '', mem: rem.name }) : '';
+    var hintWord = out.hint.match && out.hint.match.kind === 'node' ? roomWord(out.hint.label || '') : (out.hint.label || '');
+    var lead = rem ? fillTemplate(pickStr(T.lead[kind] || T.lead.noHint, rLead), { hint: hintWord, mem: rem.kind === 'room' ? roomWord(rem.name) : rem.name }) : '';
     var nx = nextIntent(W, stops, rem, state, rIntent);
-    var next = nx ? fillTemplate(pickStr(T.next[out.reaction] || T.next['덤덤'], rNext), { next: nx.name }) : pickStr(T.nextNone, rNext);
+    var next = nx ? fillTemplate(pickStr(T.next[out.reaction] || T.next['덤덤'], rNext), { next: roomWord(nx.name) }) : pickStr(T.nextNone, rNext);
     var notes = {};
     stops.forEach(function (s) {
       if (s.kind !== 'room' || !s.node || s.id === 'door_out' || notes[s.id]) return;
@@ -1077,13 +1130,20 @@
       receipt: null, poster: null, visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: null, memo: null
     };
   }
-  /* lantern: 이 여행 전 등불 칸 수 (normalizeState). app 은 칸이 남았을 때만(< 8) 집에 있던 날 칸을 켠다 → 꽉 찼으면 뒷면에 '+1' 을 쓰지 않는다. 난수는 뽑지 않는다 */
-  function homeTripFrom(base, act, R, lantern) {
+  /* lanternLeft: 이 차례가 끝나면 등불 칸이 켜지나 (normalizeState: app 이 주고, 없으면 등불 < 8) → 아닐 때는 뒷면에 '+1' 을 쓰지 않는다. 난수는 뽑지 않는다.
+     반응: given(재생 입력이 고른 반응)이 집에서 맞으면(졸림·덤덤) 그것. 아니면 활동의 후보(act.reactions) 가운데 하나를
+     이미 뽑은 rLine 하나로 고른다 — 앞자리(몇 번째 후보)로 반응, 남은 몫으로 줄. 새 난수 없음 (후보가 하나면 옛날과 같은 줄) */
+  function homeTripFrom(base, act, R, lanternLeft, given) {
     var tWrap = Math.round(lerp(R(), 2000, 4000));
     var pos = drawStickerPos(R);
     var paper = Math.floor(R() * 3);
     var rLine = R();
-    var reaction = '졸림';
+    var reaction, rPick;
+    if (given && REACTIONS.indexOf(given) >= 0 && reactionFits(given, [], 'none')) { reaction = given; rPick = rLine; }   /* 고른 쪽의 뜻은 그대로. 집에서 참인 줄이 없으면 줄 없이(null) */
+    else {
+      var rc = homeReactionCands(act), x = rLine * rc.length, ci = Math.min(rc.length - 1, Math.floor(x));
+      reaction = rc[ci]; rPick = x - ci;
+    }
     var memo = buildHomeMemo(act, memoRng(base.seed));
     var events = [
       { type: 'stay_home', t: 0, activity: act.id, line: act.line, anchor: act.anchor || 'window' },
@@ -1096,11 +1156,11 @@
       events: events,
       receipt: {
         stops: [], counts: zeroCounts(), souvenir: null, rememberedIdx: -1, reaction: reaction,
-        reactionEmoji: reactionEmoji(reaction), reactionLine: pickReactionLine(reaction, rLine, null),   /* 집: 걸은 일·읽은 일이 없으니 lines 만 */
+        reactionEmoji: reactionEmoji(reaction), reactionLine: pickHomeLine(reaction, rPick),   /* 집: 걸은 일·읽은 일이 없으니 집에서 참인 줄만 */
         activity: { id: act.id, line: act.line, detail: act.detail || '', anchor: act.anchor || 'window' }
       },
       poster: {
-        type: 'note', title: act.title || '오늘은 집', line: act.line, detail: act.detail || '', back: (lantern >= 8 ? '오늘은 집' : '오늘은 집. 등불 +1'),
+        type: 'note', title: act.title || '오늘은 집', line: act.line, detail: act.detail || '', back: (lanternLeft ? '오늘은 집. 등불 +1' : '오늘은 집'),
         sticker: act.sticker || 'home', emoji: act.emoji || '🏠', scene: 'home', stickerPos: pos, thumb: null, paper: paper
       },
       visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: reaction, memo: memo
@@ -1153,7 +1213,7 @@
       if (empty) return emptyTrip(base);
       var acts = homeActivities(state.lantern, state.posters);
       var ai = pickWeighted(acts, function (a) { return a.weight == null ? 1 : a.weight; }, R());
-      return homeTripFrom(base, acts[ai] || DEFAULT_HOME[0], R, state.lantern);
+      return homeTripFrom(base, acts[ai] || DEFAULT_HOME[0], R, state.lanternLeft);
     }
 
     /* 2. 힌트 · 들판 */
@@ -1185,7 +1245,7 @@
       ((state.visits[hintNode.id] || 0) > 0 || state.lastVisit[hintNode.id]));
     var route = buildRoute(W, state, R, startId, prefix, 5, { deeper: revisit, avoid: avoidId });
     var stops = route.stops;
-    if (revisit && stops[0] && stops[0].id === hintNode.id) stops[0].aside = revisitAside(hintNode.name, state.lastVisit[hintNode.id], dateKey);
+    if (revisit && stops[0] && stops[0].id === hintNode.id) stops[0].aside = revisitAside(roomWord(hintNode.name), state.lastVisit[hintNode.id], dateKey);
 
     /* 4. 미리 뽑아 두는 난수 (fetch 와 무관하게 고정) */
     var msArr = [], gaps = [], i;
@@ -1233,7 +1293,7 @@
         stops.forEach(function (s, k) { s.ms = msArr[Math.min(k, msArr.length - 1)]; });
         var out = assemble({
           stops: stops, match: match, intent: intent, follow: follow, hintNode: hintNode, urlNode: urlNode,
-          hintRaw: hintRaw, name: name, hour: hour, reason: route.reason, rr: rr
+          hintRaw: hintRaw, name: name, hour: hour, reason: route.reason, rr: rr, owned: state.owned
         });
 
         /* 7. 이벤트 */
@@ -1285,11 +1345,10 @@
       var act = allActs.filter(function (a) { return a && a.id === sh.activity && (a.id === 'nothing' || okActs.indexOf(a) >= 0); })[0]
         || { id: 'custom', line: sh.line || '오늘은 집에 있었어', detail: sh.detail || '', anchor: sh.anchor || 'window' };
       if (sh.line) act = Object.assign({}, act, { line: sh.line });
-      var ht = homeTripFrom(base, act, R, state.lantern);
-      ht.events = events;
       var wu = events.filter(function (e) { return e.type === 'wrap_up'; })[0];
-      /* 집에 있는 날엔 처음 온 곳도 읽은 것도 없으니 폴짝·우쭐은 받지 않는다 */
-      if (wu && REACTIONS.indexOf(wu.reaction) >= 0 && reactionFits(wu.reaction, [], 'none')) { ht.reaction = wu.reaction; ht.receipt.reaction = wu.reaction; ht.receipt.reactionEmoji = reactionEmoji(wu.reaction); }
+      /* 집에 있는 날엔 처음 온 곳도 읽은 것도 없으니 폴짝·우쭐은 받지 않는다 (homeTripFrom 이 거른다 → 활동 후보로). 받은 반응이면 줄도 그 반응의 집 줄 */
+      var ht = homeTripFrom(base, act, R, state.lanternLeft, wu && wu.reaction);
+      ht.events = events;
       if (wu) wu.reaction = ht.reaction;
       ht.memo = cleanMemo(wu && wu.memo);   /* 재생: 이벤트가 준 메모만. 없으면 말하지 않는다 */
       return ht;
@@ -1355,7 +1414,7 @@
     var rr = { rRemember: R(), rSouvenir: R(), rTemplate: R(), rMemory: R(), pos: drawStickerPos(R), paper: Math.floor(R() * 3), rReaction: R() };
     var out = assemble({
       stops: stops, match: match, intent: intent, follow: follow, hintNode: hintNode, urlNode: urlNode,
-      hintRaw: hintRaw, name: base.name, hour: hour, reason: (ret && ret.reason) || null, rr: rr,
+      hintRaw: hintRaw, name: base.name, hour: hour, reason: (ret && ret.reason) || null, rr: rr, owned: state.owned,
       remIdx: rem && typeof rem.stopIdx === 'number' ? rem.stopIdx : undefined,
       line: rem && rem.line ? String(rem.line) : null, sticker: rem && rem.sticker ? String(rem.sticker) : null,
       reaction: wrap && wrap.reaction

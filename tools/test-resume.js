@@ -27,6 +27,7 @@ var FORCE = { peek: 'out', home: 'home', empty: 'empty' };   /* 시점 → 강�
 var WHENS = ['immediate', '300ms', 'peek', 'empty-snapshot'], FORCED_WHENS = ['home', 'empty'];   /* 강제 집·빈 차례는 홀수 회차만 (ITER=1 도 6시점 전부, 기본 10회는 4×10 + 2×5) */
 var AWAY_OUT = '네가 없는 동안 다녀왔어', AWAY_HOME = '네가 없는 동안 집에 있었어';
 var fails = 0, passes = 0, kindsSeen = [];
+var WAIT = 90000;   /* 기다림 상한: 3D 출발 의식 + 첫 기웃 행까지 이 기계에서 ~30 s 걸려 30 s 상한이면 가끔 넘었다 (판정은 그대로, 기다림만 길게) */
 function ok(cond, msg) { if (cond) { passes++; } else { fails++; console.error('  FAIL ' + msg); } return !!cond; }
 
 var WIKI_OK = { query: { pages: { '1': { pageid: 1, title: '모자', extract: '모자는 머리에 쓰는 물건이다. 햇빛과 추위를 막는다.', links: [{ ns: 0, title: '깃털' }, { ns: 0, title: '밀짚' }] } } } };
@@ -58,13 +59,13 @@ async function one(browser, when, i) {
   await page.fill('#hint-in', '모자의 역사');
   await page.click('#btn-go');
   if (when === '300ms' || when === 'empty-snapshot' || when === 'home' || when === 'empty') await page.waitForTimeout(300);
-  else if (when === 'peek') await page.waitForFunction(function () { return Array.prototype.some.call(document.querySelectorAll('#log .lrow .ltool'), function (e) { return e.textContent === '기웃'; }); }, null, { timeout: 30000 });
+  else if (when === 'peek') await page.waitForFunction(function () { return Array.prototype.some.call(document.querySelectorAll('#log .lrow .ltool'), function (e) { return e.textContent === '기웃'; }); }, null, { timeout: WAIT, polling: 100 });
   var before = await stored(page);
   ok(before && before.some(function (x) { return x.indexOf(':running:') > 0; }), label + ' reload 전 localStorage 에 running 여행 (' + JSON.stringify(before) + ')');
   if (when === 'empty-snapshot') await page.addInitScript({ content: "try { localStorage.clear(); } catch (e) {}" });   /* 다음 문서 시작 시 원점 저장소가 빈 것으로 보이게 (관찰된 경합 재현) */
   await page.reload();
-  await page.waitForSelector('#btn-go:not([disabled])');
-  var done = await page.waitForFunction(function () { return APP.state.trips.length > 0 && APP.state.trips.every(function (t) { return t.status === 'done'; }); }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
+  await page.waitForSelector('#btn-go:not([disabled])', { timeout: WAIT });
+  var done = await page.waitForFunction(function () { return APP.state.trips.length > 0 && APP.state.trips.every(function (t) { return t.status === 'done'; }); }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
   var r = await page.evaluate(function (k) {
     var sv = null; try { sv = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) {}
     /* 여행이 실제로 한 일 — kind 표지와 따로, 저장된 events·receipt 에서: 기웃(+영수증 정류장) → out, 집 활동(+영수증 활동) → home, 빈 차례 행뿐(영수증 없음) → empty, 그 밖 → '?' */
@@ -89,10 +90,14 @@ async function one(browser, when, i) {
   var wantAway = { out: ['귀가 · ' + AWAY_OUT], home: ['집 · ' + AWAY_HOME], empty: [] }[r.did] || ['?'];
   ok(JSON.stringify(r.away) === JSON.stringify(wantAway), label + ' 복구 줄 (한 일 ' + r.did + '): ' + JSON.stringify(r.away) + ' — 기대 ' + JSON.stringify(wantAway) + ' (tail: ' + JSON.stringify(r.log.slice(-80)) + ')');
   ok(/st-(sleep|idle)/.test(r.oct) && !r.busy, label + ' 문어 상태 유효 · 버튼 활성 (' + r.oct.trim() + ')');
-  /* 복구 뒤 한 번 더 초대해도 정상 */
+  /* 복구 뒤 한 번 더 초대해도 정상. 건너뛰기는 페이지 안에서 보이는 순간 누른다 (빈 차례는 금방 끝나 건너뛰기가 먼저 사라질 수 있다) —
+     여행이 둘 다 끝나고 버튼이 다시 켜질 때까지 100 ms 마다. 판정은 아래 '저장 2건 done' */
   await page.click('#btn-go');
-  await page.waitForSelector('#btn-skip:not([hidden])'); await page.click('#btn-skip', { timeout: 5000 }).catch(function () {});   /* 빈 차례는 금방 끝나 건너뛰기가 먼저 사라질 수 있다 — 아래 '저장 2건 done' 이 판정 */
-  await page.waitForFunction(function () { var b = document.getElementById('btn-go'); return b && !b.disabled; }, null, { timeout: 30000 });
+  await page.waitForFunction(function () {
+    var sk = document.getElementById('btn-skip'), b = document.getElementById('btn-go');
+    if (sk && !sk.hidden) sk.click();
+    return APP.state.trips.length >= 2 && APP.state.trips.every(function (t) { return t.status === 'done'; }) && b && !b.disabled;
+  }, null, { timeout: WAIT, polling: 100 }).catch(function () {});
   var after = await stored(page);
   ok(after && after.length === 2 && after.every(function (x) { return x.indexOf(':done:') > 0; }), label + ' 복구 뒤 초대 → 저장 2건 모두 done (' + JSON.stringify(after) + ')');
   ok(s.bag.length === 0, label + ' pageerror/console.error 0' + (s.bag.length ? ': ' + s.bag.join(' | ') : ''));

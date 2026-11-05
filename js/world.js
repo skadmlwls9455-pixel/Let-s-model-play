@@ -1239,31 +1239,33 @@ var WORLD = (function () {
      line = 쪽지 앞면, detail = 뒷면 1~2줄, anchor = 문어가 서는 자리.
      requiresPoster / requiresLantern 은 두뇌가 후보를 거를 때 쓴다(포스터 수는 state.posters).
      effect:'rotatePosters' 는 벽 포스터 순서를 한 칸 바꾼다(§5.8) — 바꿀 짝이 있게 2장부터.
+     reactions: 그 활동 뒤 마무리 반응 후보. 집에선 처음 온 데·읽은 게 없으니 졸림·덤덤만 (두뇌가 거른다).
+       두뇌는 새 난수 없이 이미 뽑은 줄 난수 하나로 고른다. 없으면 졸림.
      maxLantern: 비를 말하는 활동은 비가 확실한 등불 6까지만. 날씨는 두뇌 입력에 없고 app 이 등불로 정한다:
        0~5 비 · 6 가랑비 · 7 맑음(창에 별, 아래 roomLevels) · 8 부터는 날마다 다름 → 7 부터는 비라고 말할 수 없다.
      나머지 활동의 줄은 날씨를 말하지 않는다 (check-world 가 지킨다). */
   var homeActivities = [
     { id: 'count_rain', memo: '창가에서 비 셌어', line: '창가에서 빗방울을 세다가 잠들었어',
       detail: '열일곱까지 셌어. 그다음은 기억이 안 나.\n빗소리가 좋아서 집에 있었어.',
-      anchor: 'window', weight: 3, maxLantern: 6 },
+      anchor: 'window', weight: 3, maxLantern: 6, reactions: ['졸림'] },
     { id: 'nap', memo: '담요 속에서 낮잠 잤어', line: '담요 속에서 낮잠 잤어',
       detail: '담요 안은 바깥보다 조용했어. 그게 좋았어.\n오늘은 그걸로 충분했어.',
-      anchor: 'blanket', weight: 3 },
+      anchor: 'blanket', weight: 3, reactions: ['졸림'] },
     { id: 'window_watch', memo: '창밖을 그냥 봤어', line: '창밖을 그냥 봤어',
       detail: '비가 오고, 비가 오고, 비가 왔어.\n아무 일도 없었어. 그게 다였어.',
-      anchor: 'window', weight: 2, maxLantern: 6 },
+      anchor: 'window', weight: 2, maxLantern: 6, reactions: ['덤덤', '졸림'] },
     { id: 'moss', memo: '이끼 화분을 오래 들여다봤어', line: '창턱 이끼 화분을 오래 들여다봤어',
       detail: '이끼는 뿌리가 없어. 온몸으로 물을 마셔.\n오늘은 흠뻑이야.',
-      anchor: 'window', weight: 2, requiresLantern: 1 },
+      anchor: 'window', weight: 2, requiresLantern: 1, reactions: ['덤덤'] },
     { id: 'reread_poster', memo: '포스터 뒷면을 다시 읽었어', line: '어제 포스터 뒷면을 다시 읽었어',
       detail: '영수증 글씨가 작아서 가까이 가서 봤어.\n다 기억나더라.',
-      anchor: 'board', weight: 2, requiresPoster: true },
+      anchor: 'board', weight: 2, requiresPoster: true, reactions: ['덤덤'] },
     { id: 'rearrange', memo: '벽 포스터 자리를 한 칸 바꿨어', line: '벽 포스터 자리를 한 칸 바꿨어',
       detail: '왼쪽 게 더 잘 보여서.\n벽도 가끔은 바뀌어야 해.',
-      anchor: 'board', weight: 1, requiresPoster: true, effect: 'rotatePosters' },
+      anchor: 'board', weight: 1, requiresPoster: true, effect: 'rotatePosters', reactions: ['덤덤'] },
     { id: 'hum', memo: '아무 노래나 흥얼거렸어', line: '아무 노래나 흥얼거렸어',
       detail: '가사는 없고 박자만 있는 노래.\n박자는 내 맘대로였어.',
-      anchor: 'crate', weight: 2 },
+      anchor: 'crate', weight: 2, reactions: ['덤덤'] },
     { id: 'nothing', line: '…',
       detail: '',
       anchor: 'blanket', weight: 0 }   /* 빈 차례. 확률은 두뇌가 §5.2 로 정한다(3%). */
@@ -1271,6 +1273,7 @@ var WORLD = (function () {
 
   /* ---------- 마무리 반응 (§5.9) ----------
      lines = 그 반응이면 언제 말해도 참인 줄 (집에 있는 날의 졸림도 이것만 쓴다). 날씨는 말하지 않는다 — 두뇌 입력에 날씨가 없다.
+     home = 집에 있는 날에만 쓰는 줄 (덤덤 lines 는 '다녀왔어'를 말하니 집에선 이것). 걸은 일·날씨·처음·'오늘은 끝' 같은 말 없음.
      when.first / when.missed / when.long = 그 일이 실제로 있었을 때만 두뇌가 후보에 더한다:
        first = 처음 온 방이 있었다 · missed = 못 읽음·모의 방문이 있었다 · long = 4곳 이상 걸었다 */
   var reactions = {
@@ -1288,12 +1291,15 @@ var WORLD = (function () {
     '덤덤': { emoji: '😶', lines: [
       '그냥 그런 산책이었어. 그래도 다녀왔어',
       '조용히 다녀왔어. 그거면 됐어'   /* 날씨·거리는 말하지 않는다: 두뇌는 날씨를 모르고(등불 7 은 맑음), 재생된 덤덤은 길 수도 있다 */
+    ], home: [
+      '이번엔 집에 있었어. 그거면 됐어',
+      '나가지 않고 집에 있었어'   /* '오늘은' 아님: 같은 날 나갔다 온 뒤일 수도 있다 */
     ], when: { missed: [
       '못 읽은 데도 있었어. 그런 날도 있어'
     ] } },
     '졸림': { emoji: '😴', lines: [
       '눈이 감겨. 내일 또 이야기해 줄게',
-      '오늘은 여기까지. 잘 자'
+      '하품이 나와. 조금만 쉴게'   /* 문어 자신의 상태만. '오늘은 여기까지' 처럼 놀이가 끝났다는 말로 읽히지 않게 */
     ], when: { long: [
       '많이 걸었어. 담요 속으로 들어갈래'
     ] } }
@@ -1396,6 +1402,16 @@ var WORLD = (function () {
     none:      { icon: '◌',  label: '앉아만 있었음' }
   };
 
+  /* 숫자로 시작하는 방 이름('0')은 문장 속에서 "0이라는 방" ("0 방은 3번 왔어" 대신). 두뇌 roomWord 와 같은 규칙.
+     받침: 끝이 숫자면 읽는 소리(영·일·이·삼·사·오·육·칠·팔·구), 한글이면 그 받침. 숫자로 안 시작하면 그대로 */
+  function roomWord(name) {
+    var nm = String(name == null ? '' : name);
+    if (!/^[0-9]/.test(nm)) return nm;
+    var last = nm.charAt(nm.length - 1), c = last.charCodeAt(0);
+    var jong = /[0-9]/.test(last) ? '1101001110'.charAt(+last) === '1' : (c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 > 0);
+    return nm + (jong ? '이라는 방' : '라는 방');
+  }
+
   /* ---------- UI 문구 (세계와 묶이는 것만; app 이 더 보탤 수 있음) ---------- */
   var strings = {
     appTitle: '뽈뽈 문어',
@@ -1441,7 +1457,7 @@ var WORLD = (function () {
     returnReasons: { enough: '이만하면 됐어', tired: '다리가 좀 무거워', linger: '여기서 오래 있었어' },
     legacyPosterLine: '(복원된 포스터 · 기록 없음)',
     affinityCorner: function (cornerName) { return '요즘 ' + cornerName + ' 방을 자꾸 가네'; },
-    affinityNode: function (nodeName, n) { return nodeName + ' 방은 ' + n + '번 왔어'; },
+    affinityNode: function (nodeName, n) { var w = roomWord(nodeName); return w + (/방$/.test(w) ? '은 ' : ' 방은 ') + n + '번 왔어'; },   /* '느린 글의 방' → '방 방은' 안 되게, '0' → '0이라는 방은' */
     affinityNone: '아직 어디가 좋은지 모르겠어. 더 다녀 봐야 알겠어',
     logLabels: { depart: '출발', peek: '기웃', 'return': '귀가', remember: '기억', hang_poster: '포스터', wrap_up: '마무리', stay_home: '집', empty_turn: '…' },
     statusLabels: { idle: '', away: '나가 있음', sleep: '💤', dream: '꿈꾸는 중', departing: '출발 중…' },

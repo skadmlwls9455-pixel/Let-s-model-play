@@ -486,7 +486,10 @@ async function planSuite(label, W, hasHat) {
     } else if (a.kind === 'home') {
       if (a.events.length !== 2 || a.events[0].type !== 'stay_home' || a.events[1].type !== 'wrap_up') errors.push('seed ' + seed + ' home events');
       if (!a.poster || a.poster.type !== 'note' || !a.poster.line) errors.push('seed ' + seed + ' note poster');
-      if (a.reaction !== '졸림') errors.push('seed ' + seed + ' home reaction');
+      /* E4: 집에 있는 날 반응은 그 활동의 후보(act.reactions, 없으면 졸림) 가운데 하나 — 졸림·덤덤만 (처음·읽음이 없다) */
+      var hAct = (W.homeActivities || []).filter(function (x) { return x.id === a.events[0].activity; })[0];
+      var hCands = (hAct && hAct.reactions && hAct.reactions.length) ? hAct.reactions : ['졸림'];
+      if (['졸림', '덤덤'].indexOf(a.reaction) < 0 || hCands.indexOf(a.reaction) < 0 || a.events[1].reaction !== a.reaction || a.receipt.reaction !== a.reaction) errors.push('seed ' + seed + ' home reaction ' + a.reaction + ' for ' + a.events[0].activity);
       if (a.events[0].activity === 'nothing') errors.push('seed ' + seed + " home picked 'nothing' (should be empty turn)");
       if (/미안|못 나가|아쉽/.test(a.poster.line + (a.poster.detail || ''))) errors.push('seed ' + seed + ' guilt-trip wording');
       if (Object.keys(a.visitsDelta).length || Object.keys(a.affinityDelta).length) errors.push('seed ' + seed + ' home deltas should be empty');
@@ -695,6 +698,158 @@ async function planSuite(label, W, hasHat) {
 
   await memoSuite(label, W, hasHat);
   await huntSuite(label, W);
+  await waveESuite(label, W);
+}
+
+/* ───────── 물결 E: 기념품(owned) · 집에 있는 날 반응 · 숫자 이름 방 ───────── */
+async function waveESuite(label, W) {
+  var ids = Object.keys(W.nodes), allVisited = {}; ids.forEach(function (k) { allVisited[k] = 2; });
+  var allSv = Object.keys(W.souvenirs || {});
+  var okAll = function (t) { return Promise.resolve({ ok: true, title: t, extract: t + '는 무엇이다. 둘째 문장.', url: 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(t), thumb: null, links: ['베레모', '깃털', '단추', '조개'] }); };
+  function stV(o) { return Object.assign({ visits: allVisited, affinity: {}, lantern: 3, recent: [], todayOut: 0 }, o); }
+  function onRoute(t, sv) { return t.receipt.stops.some(function (s) { return s.nodeId && !s.wild && W.nodes[s.nodeId] && W.nodes[s.nodeId].souvenir === sv; }); }
+  var seed, t, errs;
+
+  /* E3b: state.owned 가 있으면 '이번 길에 들른 방 중 아직 없는 기념품' (35% 한 번). 없으면 옛 규칙(처음 온 방만) */
+  section('souvenir from owned (E3b) — ' + label);
+  var seenSv = 0, outN = 0, allOwnedSv = 0; errs = [];
+  for (seed = 1; seed <= 300; seed++) {
+    t = await BRAIN.plan(baseInput(seed, { state: stV({ owned: [] }), fetchWiki: okAll }));
+    if (t.kind !== 'out') continue;
+    outN++;
+    if (t.receipt.souvenir) { seenSv++; if (!onRoute(t, t.receipt.souvenir)) errs.push('seed ' + seed + ' off-route ' + t.receipt.souvenir); }
+    var t2 = await BRAIN.plan(baseInput(seed, { state: stV({ owned: allSv.slice() }), fetchWiki: okAll }));
+    if (t2.receipt.souvenir) allOwnedSv++;
+    /* owned 는 기념품 말고는 아무것도 바꾸지 않는다 (난수 그대로) */
+    var t0 = await BRAIN.plan(baseInput(seed, { state: stV({}), fetchWiki: okAll }));
+    var x = JSON.parse(JSON.stringify(t)), y = JSON.parse(JSON.stringify(t0)); x.receipt.souvenir = y.receipt.souvenir = null;
+    if (JSON.stringify(x) !== JSON.stringify(y)) errs.push('seed ' + seed + ' owned changed more than receipt.souvenir');
+    if (t0.receipt.souvenir) errs.push('seed ' + seed + ' owned missing + all visited → old rule gives no souvenir, got ' + t0.receipt.souvenir);
+  }
+  check(seenSv > 0, 'all visited + owned [] → souvenirs appear (' + seenSv + '/' + outN + ')');
+  check(allOwnedSv === 0, 'all owned → no souvenir (' + allOwnedSv + ')');
+  var mixSeen = 0, hints = ['', '깃털', '모자의 역사', 'https://example.org/feather/1', '단추', '아무도모르는제목'];
+  for (seed = 1; seed <= 400; seed++) {
+    var vis = {}; ids.forEach(function (k, i) { if ((i * 7 + seed) % 3 === 0) vis[k] = 1; });
+    var owned = allSv.filter(function (s, i) { return (i + seed) % 3 === 0; });
+    t = await BRAIN.plan(baseInput(seed, { hint: hints[seed % hints.length], state: stV({ visits: vis, owned: owned }) }));
+    if (t.kind !== 'out' || !t.receipt.souvenir) continue;
+    mixSeen++;
+    if (owned.indexOf(t.receipt.souvenir) >= 0) errs.push('seed ' + seed + ' owned souvenir again ' + t.receipt.souvenir);
+    if (!onRoute(t, t.receipt.souvenir)) errs.push('seed ' + seed + ' off-route ' + t.receipt.souvenir);
+  }
+  check(mixSeen > 0, 'mixed visits/owned: souvenirs seen (' + mixSeen + ')');
+  /* 힌트(·URL)가 가리킨 방을 다시 가면 그 방 기념품은 안 나온다 (힌트로 되풀이해 뽑기 금지). 처음 가는 힌트 방은 그대로 나올 수 있다 */
+  var notFeather = allSv.filter(function (s) { return s !== 'feather'; }), hintStarts = 0, urlOut = 0, firstHint = 0;
+  if (W.nodes.feather && W.nodes.feather.souvenir === 'feather') {
+    for (seed = 1; seed <= 300; seed++) {
+      var hf = await BRAIN.plan(baseInput(seed, { hint: '깃털', state: stV({ owned: notFeather }) }));
+      if (hf.kind === 'out' && hf.receipt.stops[0].nodeId === 'feather') { hintStarts++; if (hf.receipt.souvenir) errs.push('seed ' + seed + ' hinted revisit yielded ' + hf.receipt.souvenir); }
+      var uf = await BRAIN.plan(baseInput(seed, { hint: 'https://example.org/feather/2020', state: stV({ owned: notFeather }) }));
+      if (uf.kind === 'out') { urlOut++; if (uf.receipt.souvenir) errs.push('seed ' + seed + ' url-hinted revisit yielded ' + uf.receipt.souvenir); }
+      var v1 = Object.assign({}, allVisited); delete v1.feather;
+      var ff = await BRAIN.plan(baseInput(seed, { hint: '깃털', state: stV({ visits: v1, owned: notFeather }) }));
+      if (ff.kind === 'out' && ff.receipt.souvenir === 'feather') firstHint++;
+    }
+    check(hintStarts > 20 && urlOut > 20, 'hinted revisits seen (' + hintStarts + ' hint, ' + urlOut + ' url)');
+    check(firstHint > 0, 'hinted FIRST visit can still give its souvenir (' + firstHint + ')');
+  }
+  /* 재생도 owned 를 받는다 */
+  var src = null;
+  for (seed = 1; seed <= 300 && !src; seed++) { var s0 = await BRAIN.plan(baseInput(seed, { state: stV({}), fetchWiki: okAll })); if (s0.kind === 'out' && s0.receipt.stops.some(function (s) { return s.nodeId && W.nodes[s.nodeId] && W.nodes[s.nodeId].souvenir; })) src = s0; }
+  var rpSeen = 0;
+  for (seed = 1; seed <= 200 && src; seed++) {
+    var rpa = BRAIN.replay(JSON.parse(JSON.stringify(src.events)), { by: 'mcp', seed: seed, now: NOW_DAY, state: { visits: allVisited, owned: allSv } });
+    if (rpa.receipt.souvenir) errs.push('replay seed ' + seed + ' all owned → ' + rpa.receipt.souvenir);
+    var rpe = BRAIN.replay(JSON.parse(JSON.stringify(src.events)), { by: 'mcp', seed: seed, now: NOW_DAY, state: { visits: allVisited, owned: [] } });
+    if (rpe.receipt.souvenir) { rpSeen++; if (!onRoute(rpe, rpe.receipt.souvenir)) errs.push('replay seed ' + seed + ' off-route'); }
+    var rpn = BRAIN.replay(JSON.parse(JSON.stringify(src.events)), { by: 'mcp', seed: seed, now: NOW_DAY, state: { visits: allVisited } });
+    if (rpn.receipt.souvenir) errs.push('replay seed ' + seed + ' no owned + all visited → old rule, got ' + rpn.receipt.souvenir);
+  }
+  check(!src || rpSeen > 0, 'replay with owned [] can give a souvenir (' + rpSeen + ')');
+  check(errs.length === 0, 'souvenir: never owned, never off-route, never from a hinted revisit; owned changes nothing else (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 3).join(' | ') : ''));
+
+  /* E4: 집에 있는 날 반응은 활동에 맞는 후보에서, 새 난수 없이 (이미 뽑은 줄 난수 하나로) */
+  section('home-day reaction by activity (E4) — ' + label);
+  var acts = W.homeActivities || [];
+  function actOf(id) { return acts.filter(function (a) { return a.id === id; })[0]; }
+  var dHome = W.reactions && W.reactions['덤덤'] && Array.isArray(W.reactions['덤덤'].home) && W.reactions['덤덤'].home.length;
+  var mayDumdum = dHome && acts.some(function (a) { return (a.reactions || []).indexOf('덤덤') >= 0; });
+  var count = {}; errs = [];
+  global.__ppolTest = { forceKind: 'home' };
+  for (seed = 1; seed <= 200; seed++) {
+    for (var lv of [0, 3, 8]) {
+      t = await BRAIN.plan(baseInput(seed, { state: { visits: {}, affinity: {}, lantern: lv, recent: [], todayOut: 0, posters: 3 } }));
+      count[t.reaction] = (count[t.reaction] || 0) + 1;
+      var a = actOf(t.receipt.activity.id), cands = (a && a.reactions && a.reactions.length) ? a.reactions : ['졸림'];
+      if (cands.indexOf(t.reaction) < 0) errs.push('seed ' + seed + ' ' + t.receipt.activity.id + ' → ' + t.reaction);
+      /* 난수 자리 그대로: r_stay, r_empty, r_activity, t_wrap, 스티커 3, paper, r_line (9개). 반응은 r_line 의 앞자리 */
+      var R = BRAIN.rng(seed); R(); R(); R();
+      var tw = Math.round(2000 + R() * 2000); R(); R(); R(); var pp = Math.floor(R() * 3), rl = R();
+      var good = cands.filter(function (r) { return r === '졸림' || (W.reactions && W.reactions[r] && W.reactions[r].home && W.reactions[r].home.length); });
+      if (!good.length) good = ['졸림'];
+      var want = good[Math.min(good.length - 1, Math.floor(rl * good.length))];
+      if (t.events[1].t !== tw || t.poster.paper !== pp || t.reaction !== want) errs.push('seed ' + seed + ' draw order (t ' + t.events[1].t + '/' + tw + ', paper ' + t.poster.paper + '/' + pp + ', ' + t.reaction + '/' + want + ')');
+      var ln = t.receipt.reactionLine || '';
+      if (/걸었|다녀왔|갔다 왔|산책|처음|못 읽|여기까지/.test(ln)) errs.push('seed ' + seed + ' home line claims a walk / says the day is over: ' + ln);
+    }
+  }
+  delete global.__ppolTest;
+  console.log('  home reactions', JSON.stringify(count));
+  check(errs.length === 0, 'home reaction from the activity candidates, same draws, home-true line (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 3).join(' | ') : ''));
+  if (mayDumdum) check(Object.keys(count).length > 1, 'home days over 200 seeds are not all 졸림 (' + JSON.stringify(count) + ')');
+  /* 템플릿: '오늘은 여기까지' 처럼 놀이가 끝났다고 읽히는 말 없음 */
+  var tpls = [];
+  Object.keys(W.reactions || {}).forEach(function (r) { var x = W.reactions[r]; tpls = tpls.concat(x.lines || [], x.home || []); Object.keys(x.when || {}).forEach(function (k) { tpls = tpls.concat(x.when[k]); }); });
+  Object.keys(W.lineTemplates || {}).forEach(function (k) { tpls = tpls.concat(W.lineTemplates[k]); });
+  var M = W.memoTemplates || {}; Object.keys(M.lead || {}).forEach(function (k) { tpls = tpls.concat(M.lead[k]); }); Object.keys(M.next || {}).forEach(function (k) { tpls = tpls.concat(M.next[k]); });
+  tpls = tpls.concat(M.nextNone || [], M.home || [], [M.revisit, M.revisitToday, M.revisitUndated].filter(Boolean));
+  check(tpls.length > 0 && !tpls.some(function (x) { return /여기까지/.test(x); }), 'no reaction/line/memo template says "여기까지" (' + tpls.filter(function (x) { return /여기까지/.test(x); }).join(' | ') + ')');
+  Object.keys(W.reactions || {}).forEach(function (r) {
+    (W.reactions[r].home || []).forEach(function (l) {
+      check(!/걸었|다녀왔|갔다 왔|산책|처음|못 읽|오늘은|비가|비 오|빗|맑|날씨/.test(l), 'reactions.' + r + '.home is true on any home turn (no walk, weather, "오늘은"): ' + l);
+    });
+  });
+  /* 재생: 고른 반응(졸림·덤덤)은 그대로, 줄도 그 반응의 집 줄 */
+  if (dHome && actOf('hum')) {
+    var rd = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'hum' }, { type: 'wrap_up', t: 1, reaction: '덤덤' }], { by: 'mcp', state: { lantern: 3 } });
+    check(rd.reaction === '덤덤' && W.reactions['덤덤'].home.indexOf(rd.receipt.reactionLine) >= 0 && rd.events[1].reaction === '덤덤', 'home replay 덤덤 → 덤덤 with a 덤덤 home line (' + rd.receipt.reactionLine + ')');
+    var rz = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'hum' }, { type: 'wrap_up', t: 1, reaction: '졸림' }], { by: 'mcp', state: { lantern: 3 } });
+    check(rz.reaction === '졸림' && W.reactions['졸림'].lines.indexOf(rz.receipt.reactionLine) >= 0, 'home replay 졸림 on a 덤덤 activity is kept (the chooser decides) (' + rz.receipt.reactionLine + ')');
+  }
+  var rj = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'hum' }, { type: 'wrap_up', t: 1, reaction: '우쭐' }], { by: 'mcp', state: { lantern: 3 } });
+  check(rj.reaction !== '우쭐' && rj.reaction !== '폴짝', 'home replay 우쭐 (nothing read) → not kept (' + rj.reaction + ')');
+
+  /* E5b: 숫자로 시작하는 방 이름('0')은 문장에서 "0이라는 방" — "0까지 갔어", "오늘은 0." 이 되지 않게 */
+  var digitIds = ids.filter(function (id) { return id !== 'door_out' && /^[0-9]/.test(W.nodes[id].name || ''); });
+  if (!digitIds.length) return;
+  section('digit-leading room names in copy (E5b) — ' + label);
+  var zid = digitIds[0], zname = W.nodes[zid].name, texts = [], zTrips = 0;
+  var esc = zname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  var AWK = new RegExp('(^|[^0-9])' + esc + '(까지|에 |에서|\\?|, |,$|\\. |\\.$| 보러| 쪽| 문 | 앞에| 대신| 하나| 보다가| 그거|$)');
+  var zv = {}; zv[zid] = 2;
+  for (seed = 1; seed <= 200; seed++) {
+    var vars = [baseInput(seed, { hint: zname, fetchWiki: okAll }),
+      baseInput(seed, { hint: zname, state: { visits: zv, affinity: {}, lantern: 3, recent: [], todayOut: 0, lastVisit: (function () { var o = {}; o[zid] = '2026-11-01'; return o; })() } }),
+      baseInput(seed, { hint: zname, online: false })];
+    for (var vi = 0; vi < vars.length; vi++) {
+      t = await BRAIN.plan(vars[vi]);
+      if (t.kind !== 'out' || !t.receipt.stops.some(function (s) { return s.nodeId === zid; })) continue;
+      zTrips++;
+      [t.poster && t.poster.line, t.memo && t.memo.tomorrow].concat(t.events.map(function (e) { return e.aside || (e.type === 'remember' ? e.line : null); })).forEach(function (x) { if (x) texts.push(x); });
+    }
+  }
+  var rpz = BRAIN.replay([{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 1, target: { kind: 'room', id: zid }, status: 'failed' }, { type: 'return', t: 2 }, { type: 'remember', t: 3, stopIdx: 0 }, { type: 'wrap_up', t: 4, reaction: '덤덤' }], { by: 'mcp', seed: 1 });
+  texts.push(rpz.poster.line);
+  var awk = texts.filter(function (x) { return AWK.test(x); });
+  check(zTrips > 20 && texts.some(function (x) { return x.indexOf(zname + '이라는 방') >= 0 || x.indexOf(zname + '라는 방') >= 0; }), 'trips through room "' + zname + '" name it as "' + zname + '이라는 방" (' + zTrips + ' trips)');
+  check(awk.length === 0, 'no bare "' + zname + '까지 / ' + zname + '에 / 오늘은 ' + zname + '. / ' + zname + '? …" in templated copy (' + awk.length + ' e.g. ' + awk.slice(0, 3).join(' | ') + ')');
+  check(rpz.poster.title === zname && rpz.receipt.stops[0].name === zname, 'titles/labels keep the bare name (' + rpz.poster.title + ')');
+  if (W.strings && typeof W.strings.affinityNode === 'function') check(!/^[0-9]+ 방/.test(W.strings.affinityNode(zname, 3)), 'strings.affinityNode: ' + W.strings.affinityNode(zname, 3));
+  /* 숫자로 안 시작하는 이름은 그대로 (외출 문장에 "…이라는 방" 이 붙지 않는다) */
+  var plainWrapped = 0;
+  for (seed = 1; seed <= 60; seed++) { t = await BRAIN.plan(baseInput(seed, { hint: '모자의 역사' })); if (t.kind === 'out' && /이라는 방|[^0-9]라는 방/.test((t.poster.line || '') + (t.memo ? t.memo.tomorrow : '')) && !t.receipt.stops.some(function (s) { return s.nodeId === zid; }) && !(t.memo && t.memo.tomorrow.indexOf(zname) >= 0)) plainWrapped++; }
+  check(plainWrapped === 0, 'other names are left as they are (' + plainWrapped + ')');
 }
 
 /* ───────── 버그 사냥 회귀: 정직 표기 (어떤 WORLD 로도) ───────── */
@@ -766,6 +921,27 @@ async function huntSuite(label, W) {
   check(backSeen[3] === '오늘은 집. 등불 +1', 'lantern 3 → back "' + backSeen[3] + '" (+1)');
   var rpNoState = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 2000, reaction: '졸림' }], { by: 'human' });
   check(rpNoState.poster && rpNoState.poster.back === '오늘은 집. 등불 +1', 'replay without meta.state (lantern 0) → back keeps +1');
+  /* E1b: app 이 state.lanternLeft 를 주면 그대로 (하루 1칸이라 오늘 이미 켰으면 false). 안 주면 위의 옛 규칙. 난수는 그대로 */
+  global.__ppolTest = { forceKind: 'home' };
+  errs = [];
+  for (seed = 1; seed <= 30; seed++) {
+    for (var lb2 of [0, 3, 7, 8]) {
+      var stL = function (o) { return Object.assign({ visits: {}, affinity: {}, lantern: lb2, recent: [], todayOut: 0, posters: 3 }, o); };
+      var lf = await BRAIN.plan(baseInput(seed, { state: stL({ lanternLeft: false }) }));
+      var lt = await BRAIN.plan(baseInput(seed, { state: stL({ lanternLeft: true }) }));
+      var lm = await BRAIN.plan(baseInput(seed, { state: stL({}) }));
+      if (lf.poster.back !== '오늘은 집' || /\+1/.test(lf.poster.back)) errs.push('plan false seed ' + seed + '/' + lb2 + ' → ' + lf.poster.back);
+      if (lt.poster.back !== '오늘은 집. 등불 +1') errs.push('plan true seed ' + seed + '/' + lb2 + ' → ' + lt.poster.back);
+      var a1 = JSON.parse(JSON.stringify(lf)), a2 = JSON.parse(JSON.stringify(lm)); a1.poster.back = a2.poster.back = '';
+      if (JSON.stringify(a1) !== JSON.stringify(a2)) errs.push('lanternLeft changed more than the back text, seed ' + seed);
+      var rfl = BRAIN.replay(JSON.parse(JSON.stringify(lf.events)), { by: 'mcp', now: NOW_DAY, state: { lantern: lb2, posters: 3, lanternLeft: false } });
+      var rtl = BRAIN.replay(JSON.parse(JSON.stringify(lf.events)), { by: 'mcp', now: NOW_DAY, state: { lantern: lb2, posters: 3, lanternLeft: true } });
+      if (rfl.poster.back !== '오늘은 집') errs.push('replay false seed ' + seed + '/' + lb2 + ' → ' + rfl.poster.back);
+      if (rtl.poster.back !== '오늘은 집. 등불 +1') errs.push('replay true seed ' + seed + '/' + lb2 + ' → ' + rtl.poster.back);
+    }
+  }
+  delete global.__ppolTest;
+  check(errs.length === 0, 'state.lanternLeft decides the "+1" (false → "오늘은 집", true → "+1", plan + replay; nothing else changes) (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 3).join(' | ') : ''));
 
   /* 41 옆: 두뇌는 날씨를 모른다 (app: 등불 0~5 비 · 6 가랑비 · 7 맑음 · 8+ 날마다). 등불 7 이상에서 집 활동·메모가 비를 말하면 안 된다 */
   var HOME_WX = /비가|비 오|비 와|비 셌|빗|눈이 와|눈 오|맑|흐려|흐린|날씨|안개/;
