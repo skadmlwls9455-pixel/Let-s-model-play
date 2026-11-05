@@ -1,0 +1,130 @@
+# 다른 Claude 에게 나눠 줄 일 (2026-11-05)
+
+카드 하나를 통째로 복사해서 다른 계정의 Claude Code 세션에 붙여 넣으면 된다.
+**맨 위 '공통 규칙'은 모든 카드 앞에 같이 붙인다.**
+
+지금 이 브랜치(`ccr-38ad393e-15xr9t`)에서 다른 작업이 아래 파일들을 고치고 있다. 그래서 카드들은 이 파일들과 겹치지 않는 일만 골랐다.
+- 4물결: `css/style.css`, `index.html`, `js/app.js`, `js/ui-art.js`, `tools/bundle.js`, `tools/test-api.js`
+- 컵 놀이: `js/scene3d.js`, `play.html`, `js/play.js`
+- 5물결: `js/brain.js`, `js/app.js`, `tools/smoke.js`, `tools/test-brain.js`, `README.md`, `docs/DESIGN.md`
+
+---
+
+## 공통 규칙 (모든 카드 앞에 붙이기)
+
+```text
+저장소: skadmlwls9455-pixel/Let-s-model-play
+기준 브랜치: ccr-38ad393e-15xr9t (여기서 새 브랜치를 만들고, 끝나면 이 브랜치를 대상으로 draft PR)
+게임: "뽈뽈 문어" — AI 모델을 문어로 보여 주는 아늑한 픽셀아트 웹 게임. 바닐라 HTML/CSS/JS, 빌드 없음, 모듈 없음.
+     file:// 과 정적 호스팅(Vercel) 둘 다에서 돌아야 한다.
+
+먼저 읽기:
+- docs/MODEL_VOICE.md — 모델의 선택과 말을 덧붙이거나 빼거나 바꾸지 않는다. 고르기 전에 몰래 끌지 않는다.
+- docs/CURIOSITY_NOTES.md — 코드는 사실(횟수)만 쓴다. 취향 말은 모델이 직접 쓴 메모로만, 누가 썼는지 붙여서.
+- .claude/skills/cozy-web-game/SKILL.md 의 '중요' 부분 (AI 캐릭터 정직 표기, 벌·연속 기록 압박 없음, 시드 PRNG)
+
+절대 고치지 말 것 (다른 작업이 고치는 중):
+js/app.js, js/brain.js, js/scene3d.js, js/scene2d.js, js/world.js, js/ui-art.js, css/style.css, index.html,
+tools/smoke.js, tools/bundle.js, tools/test-brain.js, tools/test-api.js, README.md, docs/DESIGN.md, audio/
+
+지킬 것:
+- 결정을 내리는 코드에 Math.random 금지. 시드 PRNG 사용 (.claude/skills/cozy-web-game/scripts/prng.js).
+- 화면에 새 한국어 문구를 넣으면 픽셀 글꼴 부분 집합 점검:
+  pip install fonttools brotli && python3 tools/subset-fonts.py --check  (stale 이면 문구를 바꾸거나 도구로 다시 만든다)
+- 폰 우선: 360×740 세로, 터치, 누르는 곳 44px 이상, '동작 줄이기' 존중.
+- 점수·승패·연속 기록·"N/66 발견" 같은 완성률 압박을 넣지 않는다.
+- 커밋 메시지는 한국어로 짧고 평이하게.
+- 기존 테스트가 깨지지 않는지 확인: node tools/check-world.js && node tools/test-brain.js && node tools/test-runner.js
+```
+
+---
+
+## 카드 1. 공동 낙서 프로토타입 (놀이 2번)
+
+```text
+브랜치: play/doodle
+만들 것: doodle.html + js/doodle.js (+ css/doodle.css), docs/DOODLE_PROTO.md, tools/test-doodle.js
+목표: 사람과 문어가 한 획씩 번갈아 놓아서, 정체를 모르는 이상한 생물 하나를 같이 만드는 놀이.
+- 자유 그림이 아니라 선·원·점·도장 몇 개를 번갈아 놓는 방식. 두세 차례 하고 끝낼 수 있게.
+- 핵심 재미: 상대가 내 획을 어떻게 받아들일지 모른다. 동그라미를 얼굴로 그렸는데 문어는 바퀴로 이어 갈 수도 있다.
+- 끝나면 결과를 PNG 로 저장할 수 있게 하고, 이름 붙이기는 선택.
+- 문어 쪽 선택은 choose(situation) → Promise<{ action, target?, line?, note? }> 인터페이스로 분리한다.
+  지금은 '데모 규칙'(시드 PRNG)이 고르고, 나중에 진짜 모델이 같은 메뉴에서 고를 수 있게.
+  situation 은 작게: 지금 캔버스에 놓인 조각들(종류·칸 좌표), 사람이 방금 놓은 것, 가능한 행동 목록(그만두기 포함).
+- 기록마다 by: 'user' | 'demo-rules' | 'playback' 를 붙인다. 화면 구석에 작게 '데모 규칙' 한 줄.
+- 문어는 안 하고 넘어갈 수도 있다. 그건 실패가 아니다.
+- 픽셀 느낌: vendor/fonts/galmuri.css + js/palettes.js 의 Apollo 팔레트를 읽기만 해서 쓴다. 2px 격자, 확대·축소로 흐리게 하지 않기.
+검수: tools/test-doodle.js (Playwright, 360×740, 터치) — 세 차례 진행·완료, PNG 저장, 같은 시드면 같은 결과, file:// 동작, 콘솔 오류 0.
+       docs/DOODLE_PROTO.md 에 화면 캡처 3장과 "처음 보는 사람이 설명 없이 두 번째 획을 놓는가" 를 볼 체크리스트.
+```
+
+## 카드 2. 도서관 지도 프로토타입 (DESIGN §17.2)
+
+```text
+브랜치: proto/map
+만들 것: map.html + js/map.js (+ css/map.css), docs/MAP_PROTO.md, tools/test-map.js
+목표: 문어가 다니는 세계(js/world.js 의 66개 방과 갈래)를 지도로 보여 준다. "다음엔 어디로 갈까"가 구체적으로 느껴지게.
+- js/world.js 는 읽기만. 진행 정보는 localStorage 'ppolppol_v2' 를 읽기만 (없으면 예시 저장 파일로).
+- 보여 줄 것: 오늘 걸은 길, 자주 간 곳(방문 횟수는 숫자 그대로, "좋아하는 곳" 같은 말은 쓰지 않는다), 아직 안 가 본 갈래.
+- 하지 말 것: 완성률(%·N/66), 잠긴 자물쇠 아이콘, 놓친 것을 아쉬워하게 하는 문구.
+- 폰 세로 화면에서 손가락으로 끌고 확대할 수 있게. 방을 누르면 그 방에서 있었던 일(날짜·포스터 제목)을 사실대로.
+검수: tools/test-map.js — 저장 없을 때·방문 20곳 저장·방문 66곳 저장 세 경우, 360×740, file://, 콘솔 오류 0. 캡처 3장.
+```
+
+## 카드 3. MCP 서버 초안 (진짜 모델이 문어가 되는 길)
+
+```text
+브랜치: feat/mcp-server
+만들 것: mcp/ 폴더 (Node, @modelcontextprotocol/sdk, stdio), mcp/README.md, mcp/test/*.js
+     그리고 docs/PROTOCOL.md §3 (도구 표) 수정 — 이 문서는 이 카드가 맡는다.
+먼저 읽기: docs/PROTOCOL.md, docs/MODEL_VOICE.md, docs/CURIOSITY_NOTES.md,
+          .claude/skills/cozy-web-game/references/mcp-readiness.md, references/model-voice-and-play.md
+목표:
+- 도구: look_room, depart, peek, finish, stay_home, empty_turn.
+  귀가·기억 고르기·포스터 걸기·마무리 네 개는 finish 하나로 묶는다.
+  peek(읽고 나서 다음 갈 곳 고르기)는 따로 둔다 — 읽은 걸 보고 마음을 바꿀 수 있어야 한다.
+- 모델이 꼭 내야 하는 건 행동 하나뿐. reaction·메모·이유는 모두 선택 (지금 PROTOCOL 의 reaction 필수를 선택으로).
+- peek 는 서버가 실제로 ko.wikipedia 를 읽고 status 를 정직하게 돌려준다 (read / failed / simulated). 지어낸 요약 금지.
+- finish 의 선택 필드: note?: { text, about? }, setDown?: [noteId] (CURIOSITY_NOTES 형식).
+  다음 세션 look_room 은 내려놓지 않은 최근 메모 3개만, 작성 주체·세션·날짜를 붙여서.
+- 결과는 게임이 그대로 재생할 수 있는 이벤트 JSON (PROTOCOL §1 형식) 으로 남긴다. 게임 쪽 불러오기 연결은 하지 않는다 (다른 작업이 맡음).
+- 도구 설명과 반환값은 짧게 (토큰 절약). 반환값 크기를 테스트에서 재서 README 에 표로.
+검수: mcp/test — 각 도구 왕복, 위키 실패 시 failed 정직 반환, set_down 메모가 look_room 에 안 나옴, 이유 없이도 finish 성공.
+```
+
+## 카드 4. 자동 테스트 (GitHub Actions)
+
+```text
+브랜치: ci/tests
+만들 것: .github/workflows/test.yml (새 파일만), package.json 의 scripts 는 건드리지 말고 워크플로에서 직접 node 명령 실행
+목표: PR 과 push 마다 빠른 테스트 자동 실행. 여러 Claude 가 동시에 일하니 서로 깨뜨린 걸 바로 알게.
+- 빠른 묶음 (필수): node tools/check-world.js, node tools/test-brain.js, node tools/test-runner.js, node tools/test-api.js
+- 느린 묶음 (선택 job): Playwright chromium 설치 후 SMOKE_ONLY=A,B,I node tools/smoke.js, node tools/test-scene-perf.js
+  (tests/evidence/ 를 다시 쓰니 결과 파일은 artifact 로만 올리고 커밋하지 않는다)
+- 글꼴 점검: pip install fonttools brotli && python3 tools/subset-fonts.py --check
+검수: 이 브랜치의 draft PR 에서 워크플로가 초록으로 도는 것까지 확인하고, 각 job 소요 시간을 PR 설명에 적기.
+```
+
+## 카드 5. 접근성·성능 점검 보고서 (읽기만)
+
+```text
+브랜치: audit/a11y-perf
+만들 것: docs/research/audit-2026-11.md 와 캡처 (코드 수정 없음)
+목표: 지금 게임을 폰 기준으로 점검해서 우선순위 목록을 만든다. 고치는 건 나중에 우리가 한다.
+- 로컬에서 python3 -m http.server 로 띄우고 Playwright + Lighthouse(설치 가능하면)로 360×740 모바일 측정.
+- 볼 것: 첫 화면까지 시간, 긴 작업(long task), 메모리, 화면 읽기 도구로 읽히는 순서, 키보드만으로 산책 한 바퀴, 대비, 눌러지는 크기, '동작 줄이기'.
+- 2D 대체 화면(?scene=2d)도 같이.
+- 각 항목: 무엇이 문제인지 → 어떻게 재현하는지 → 고칠 파일과 대략의 방법 → 심각도.
+```
+
+## 카드 6. 라이트 픽셀 테마 대비 시안 (결정거리 4번, 그림만)
+
+```text
+브랜치: design/light-contrast
+만들 것: docs/research/light-contrast/ 에 시안 PNG 와 proposal.md (CSS 는 고치지 않는다)
+배경: 라이트 픽셀 테마에서 호박색·장미색 글자 대비가 3.5:1 (기준 4.5:1), 켜진/꺼진 등불 칸 대비가 1.06:1 이다.
+목표: js/palettes.js 의 Apollo 팔레트 안에서만 색을 골라 시안 2~3개를 만든다.
+- 각 시안: 바뀌는 CSS 변수 목록(이름 → 새 색), 대비 수치 표, 첫 화면·방 보기·영수증 캡처.
+- 기존 인상(종이·나무 느낌)이 얼마나 달라지는지 한 줄씩 솔직하게.
+- 결정은 주인이 한다. 추천은 하나만 표시.
+```
