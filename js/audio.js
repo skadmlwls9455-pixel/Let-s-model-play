@@ -74,7 +74,7 @@ var AUDIO = (function () {
   function read(fn, dflt) { try { var v = fn(); return v == null ? dflt : v; } catch (e) { return dflt; } }
 
   /* ───────────────────────── 상태 ───────────────────────── */
-  var gs = { st: null, away: false, departing: false, left: false, placeKey: undefined, sleeping: false, sleepPhase: null, stayWindow: false, stayAct: null, skipping: false, wound: false, leaving: false };
+  var gs = { st: null, away: false, departing: false, left: false, placeKey: undefined, sleeping: false, sleepPhase: null, stayWindow: false, stayAct: null, skipping: false, wound: false, leaving: false, peekHeard: {} };
   var ctx = null, nd = {}, M = null, byId = {}, groups = {}, manifestP = null, fmt = null;
   var cache = {}, cacheBytes = 0, useTick = 0, requests = 0;
   var slots = { bgm: null, amb: null, layer: null, warm: null, season: null }, want = {};
@@ -585,6 +585,7 @@ var AUDIO = (function () {
 
   /* ───────────────────────── 말풍선 목소리 (README §3 표) ───────────────────────── */
   var VSET = { '보통': [['A4', 'C5', 'D5'], 60], '폴짝': [['C5', 'D5', 'F5', 'G5'], 50], '우쭐': [['C5', 'F5', 'A5'], 65], '덤덤': [['A4', 'C5'], 70], '졸림': [['F4', 'G4', 'A4'], 90] };
+  var PEEK_GAIN = { read: 0.45, builtin: 0.7 };   /* 읽음(-4 dB 설정)이 다른 결과음보다 6~8 dB 컸다 → 약 -7 dB / 책장 메모 약 -3 dB */
   var KIND_MOOD = { shout: '폴짝', happy: '우쭐', calm: '덤덤', whisper: '덤덤', sleep: '졸림', sleepy: '졸림' };
   function speak(text, mood, gain) {
     var set = VSET[mood] || VSET['보통'], notes = set[0], gap = set[1] / 1000;
@@ -630,14 +631,16 @@ var AUDIO = (function () {
     if (d.skip) gs.skipping = true;
     if (gs.skipping) return;   /* 건너뛰는 중: 소리 없이 곧장 집으로 */
     var st = PEEK_OK[d.status] ? d.status : 'failed';
-    /* 정직: 결과음은 실제 상태 그대로 (다섯 개 모두 같은 길이·리듬). '처음 온 곳' 징글은 2026-11-05 주인 요청으로 뺐다 (산책 중 튀는 실로폰 소리) */
-    play(ev(['peek_status', st]));
+    /* 정직: 결과음은 실제 상태 그대로 (다섯 개 모두 같은 길이·리듬). '처음 온 곳' 징글은 2026-11-05 주인 요청으로 뺐다 (산책 중 튀는 실로폰 소리).
+       차분하게 (11-05 주인 요청 "찾았다! 소리가 시끄럽고 잦다"): 한 산책에서 같은 결과음은 한 번만, 읽음 소리는 소리 자체도 낮춘다.
+       어느 상태든 같은 규칙이라 '실패인데 성공음' 같은 일은 없다 (말풍선·기록이 상태를 보여 준다). */
+    if (!gs.peekHeard[st]) { gs.peekHeard[st] = true; play(ev(['peek_status', st]), { gain: PEEK_GAIN[st] == null ? 1 : PEEK_GAIN[st] }); }
     var key = placeKeyOf(d);
     if (key === 'letter_room') play('letter_room', { at: now() + 0.35 });
     if (gs.away || gs.departing) { gs.placeKey = key; trimUpdate(); applyBgm(); }
   }
   function onReturn() {
-    gs.away = false; gs.departing = false; gs.left = false; gs.placeKey = undefined;
+    gs.away = false; gs.departing = false; gs.left = false; gs.placeKey = undefined; gs.peekHeard = {};
     if (active() && now() - returnAt > 8) { returnAt = now(); play(ev(['events', 'return']), { always: true }); }
     trimUpdate(); applyAmb(false); applyBgm({ phrase: true });
   }
@@ -712,7 +715,7 @@ var AUDIO = (function () {
   }
   function onCeremony(d) {
     if (d.kind === 'depart') {
-      gs.departing = true; gs.placeKey = undefined;
+      gs.departing = true; gs.placeKey = undefined; gs.peekHeard = {};
       if (d.skip) gs.skipping = true;
       if (active() && !gs.skipping && !gs.left) {
         var t = now(), lead = 0;
@@ -736,7 +739,7 @@ var AUDIO = (function () {
     var syl = (text.match(/[가-힣]/g) || []).length;
     if (!syl || syl > 28 || t - lastSpeak < 0.7) return;   /* 아주 긴 글은 블립 없이 */
     lastSpeak = t;
-    speak(text, KIND_MOOD[d.kind] || '보통', d.kind === 'whisper' ? 0.55 : 1);
+    speak(text, KIND_MOOD[d.kind] || '보통', d.kind === 'whisper' ? 0.55 : d.kind === 'shout' ? 0.5 : 1);   /* 외침(찾았다!)도 목소리는 작게 — 11-05 */
   }
   function onPet() {
     if (!active()) return;
