@@ -630,9 +630,8 @@ var AUDIO = (function () {
     if (d.skip) gs.skipping = true;
     if (gs.skipping) return;   /* 건너뛰는 중: 소리 없이 곧장 집으로 */
     var st = PEEK_OK[d.status] ? d.status : 'failed';
-    /* 정직: 결과음은 실제 상태 그대로 (다섯 개 모두 같은 길이·리듬). 처음 온 곳 징글은 읽음·책장 메모일 때만 */
+    /* 정직: 결과음은 실제 상태 그대로 (다섯 개 모두 같은 길이·리듬). '처음 온 곳' 징글은 2026-11-05 주인 요청으로 뺐다 (산책 중 튀는 실로폰 소리) */
     play(ev(['peek_status', st]));
-    if (d.first && (st === 'read' || st === 'builtin')) play(ev(['events', 'first_place']), { at: now() + 0.35 });
     var key = placeKeyOf(d);
     if (key === 'letter_room') play('letter_room', { at: now() + 0.35 });
     if (gs.away || gs.departing) { gs.placeKey = key; trimUpdate(); applyBgm(); }

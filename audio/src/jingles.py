@@ -913,10 +913,7 @@ def specs():
         'B: M 팡파르 8분 0.2 s — C6 C6 A5 C6 | D6. C6 | F6(비브라토 6 Hz ±20 c), 3도 아래 P25 화성, '
         '베이스 I–IV–V–I, 스네어 롤. C: P12 반짝 C7 D7 F7 ×6(-18), 꼬리 LPF 9k→1.2k 로 닫힘. 고정(변형 없음)',
         pause_bgm=True, bgm_resume='next_phrase', **HERO_DUCK)))
-    S.append(('first_place', b_first_place, 2, M(
-        '처음 가 본 장소를 다녀왔을 때(히어로, 고정)', 'first_place', -6, 'beat',
-        'P25 C5 C5(뽈뽈) F5 G5 A5 C6 D6 50 ms 씩 → F6 750 ms, 150 ms 뒤 비브라토 6 Hz ±20 c, '
-        'P25 에코 90 ms, TRI F4→C5', **HERO_DUCK)))
+    # first_place 는 2026-11-05 주인 요청으로 뺐다 (산책 중 튀는 실로폰 소리). b_first_place 는 기록용으로만 남긴다.
     S.append(('rare_sparkle', b_rare_sparkle, 2, M(
         '희귀 티어(1/6) 포스터·발견. room_complete 와 겹치면 400 ms 뒤로 미룸', 'rare_sparkle', -6, 'beat',
         'P12 C7 C7(뽈뽈) → P25+P12 칩 아르페지오 F6 A6 C7(F7) 500 ms, LPF 6k + P12 반짝 {C7 D7 F7} ×6(-16), 고정',
