@@ -44,9 +44,9 @@
   };
 
   var DEFAULT_HOME = [
-    { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', detail: '마흔까지 세고 잊었어. 다시 하나부터.', anchor: 'window', weight: 3, emoji: '🌧' },
+    { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', detail: '마흔까지 세고 잊었어. 다시 하나부터.', anchor: 'window', weight: 3, emoji: '🌧', maxLantern: 6 },
     { id: 'reread_poster', line: '어제 포스터 뒷면을 다시 읽었어', detail: '영수증 글씨가 조금 번져 있었어.', anchor: 'crate', weight: 2, emoji: '🧾', minLantern: 1, requiresPoster: true },
-    { id: 'nap', line: '담요 속에서 낮잠', detail: '빗소리가 이불 같았어.', anchor: 'blanket', weight: 3, emoji: '😴' },
+    { id: 'nap', line: '담요 속에서 낮잠', detail: '담요 안은 조용했어.', anchor: 'blanket', weight: 3, emoji: '😴' },
     { id: 'swap_posters', line: '포스터 위치를 바꿔 봤어', detail: '왼쪽 걸 오른쪽으로. 그게 다야.', anchor: 'board', weight: 1, emoji: '🖼', minLantern: 2, requiresPoster: true, effect: 'rotatePosters' },
     { id: 'watch_moss', line: '이끼 화분을 오래 들여다봤어', detail: '어제보다 조금 더 초록인 것 같아.', anchor: 'window', weight: 2, emoji: '🪴', minLantern: 1 },
     { id: 'nothing', line: '…', detail: '', anchor: 'blanket', weight: 0, emoji: '' }
@@ -180,71 +180,182 @@
     return jong === 0 ? pair[1] : pair[0];
   }
 
-  /* ───────── 5.3 힌트 읽기 ───────── */
+  /* ───────── 5.3 힌트 읽기 ─────────
+     낱말 단위로 맞춘다. 힌트(또는 URL)를 낱말로 자르고(두 글자 넘는 한글·영문 덩어리는 붙어 있어도 따로: '문어octopus' = 문어 + octopus),
+     낱말 = 방의 말(이름·별칭·키워드) + 조사·어미 사슬 일 때만 그 방이다. 말이 낱말 안 아무 데나 들어 있다고 맞추지 않는다.
+       - 사슬: 들 → 격조사(에·에서·로·와·하고…) → 보조사(는·도·만·나·든·라도·야말로…) → 끝 조사(이·을·의), 최대 3개 + '요'.
+         서술격(예요·이에요·야·이다·다·인데·였나·거든·지·라는…)은 맨 끝에 하나만(몇몇은 + 요). 예: 문어에도 · 모자에는 · 문어와의 · 자장가라도 · 털모자예요 · 문어다 · 문어든
+       - 받침 맞춤: 서술격은 늘 맞아야 한다('나선다' ≠ 나선). 조사는 두 글자 이상 말이면 틀려도 봐준다(흔한 오타).
+       - 하다꼴(하는·한·할·해…)은 하다가 붙는 말(HADA)에만: '기억하는 법' = 기억, '뜨개질하는 법' = 실, '유리한 위치' ≠ 유리.
+         치다꼴(치는·친다…)은 CHIDA 에만: '천둥치는 밤' = 천둥, '벼락치기' ≠ 천둥
+       - 한 글자 이름(비·눈·별·꿈·차…)은 받침 맞는 조사 사슬만 (서술격·요·야 없음: '차다'·'차요' 는 차가 아니다).
+       - 다른 낱말이 되는 꼴은 그 말로 치지 않는다 (NOT_WORD: 종이·별로·차도·별도·비만·모자라·나선다…)
+       - 띄어 쓴 말('눈 움직임', '비 온 뒤', '문어 뇌')은 낱말을 이어서 맞추고 끝 낱말에만 사슬을 붙인다.
+         그 낱말들은 그 방 차지라, 안의 '눈'·'비'·'문어'를 다른 방으로 치지 않는다 (#101)
+       - 합성어는 말마다 정한 자리에서만 (COMPOUND): 앞머리(구름사진·한글날)·낱말 끝 머리말(털모자·봄바람·흑진주).
+         목록 밖의 이름·별칭은 SAFE_TAIL 뒷말(소리·목걸이·공예…)이 붙을 때만 (풍경소리·바람소리). 키워드는 합성어로 맞추지 않는다.
+         그 밖에 낱말 속에 들어 있는 것은 아니다: 실제로≠제로, 짝수면≠수면, 어울림≠울림, 실시간≠시간, 코스모스≠모스, 득점자≠점자
+       - 영문 말은 낱말 전체가 같아야 한다 (linkedin≠ink, teams≠tea, rainbow≠rain) */
   var HINT_SEP = /[\s,.·…!?\/()\[\]"'“”‘’:;]+/;
-  /* 한 글자 이름(비·눈·별·꿈·차…)이 조사와 붙으면 흔한 다른 낱말이 되는 꼴 — 이건 이름으로 치지 않는다 */
-  var ONE_SYLLABLE_SKIP = { '종이': 1, '별로': 1, '실로': 1, '실은': 1, '차도': 1, '종로': 1 };
-  /* 띄어 쓴 낱말 그대로 + (한 글자 + 받침에 맞는 조사) 에서 조사를 뗀 한 글자. tokenize 는 2자 이상만 남긴다 */
-  function hintWords(hint) {
-    var out = [];
-    String(hint || '').split(HINT_SEP).forEach(function (w) {
-      w = lower(w.trim());
-      if (!w) return;
-      out.push(w);
-      if (ONE_SYLLABLE_SKIP[w]) return;
-      for (var i = 0; i < PARTICLES.length; i++) {
-        var p = PARTICLES[i];
-        if (w.length === p.length + 1 && w.slice(-p.length) === p) {
-          var stem = w.charAt(0);
-          if (!JOSA[p] || josa(stem, p) === p) out.push(stem);
-          break;
-        }
-      }
-    });
-    return out;
-  }
-  /* hay 안에 s 가 낱말로 들어 있나 (힌트 글·URL 공용, 둘 다 소문자). 0 = 아님, 2 = 낱말 첫머리, 1 = 낱말 끝(머리말).
-     - 영문만인 s: 앞뒤가 영문이 아닐 때만 (linkedin 안의 ink, rainbow 안의 rain 은 아니다)
-     - 그 밖(한글 등), 낱말 첫머리: 붙은 나머지에서 조사를 떼고 없거나·두 글자 이상일 때만
-       ('노트북을'의 노트, '에코백'의 에코는 아니다. '구름사진을'의 구름, '모자가게'의 모자는 맞다)
-     - 낱말 끝: 한국어 합성어는 끝이 머리말이라 '털모자'·'빨간모자'는 모자다. 뒤에는 조사만. 덜 확실하니 따로(1) 알린다
-       ('코스모스'처럼 끝이 우연히 같은 낱말은 NOT_HEAD 로 뺀다) */
-  var WORD_CH = /[a-z0-9가-힣]/;
+  var WORD_SPLIT = /[^a-z0-9가-힣]+/;
+  /* 영문↔한글 경계: 양쪽 다 두 글자 이상일 때만 자른다 ('문어octopus'·'sos신호'). 한 글자 쪽은 붙여 둔다:
+     'lineKind별'(~별 = ~마다)·'비ASCII'(비 = 아닌)·'SOS를' 의 한 글자는 낱말이 아니다. 숫자는 붙은 쪽에 ('0은' 한 낱말) */
+  var SCRIPT_EDGE = /([a-z]{2})(?=[가-힣]{2})|([가-힣]{2})(?=[a-z]{2})/g;
   var HANGUL_ONLY = /^[가-힣]+$/;
-  var TAIL_OK = ['들', '만', '랑', '야', '요'];   /* 조사 말고도 흔히 붙는 한 글자: 모자들 · 모자만 · 모자랑 · 모자야 */
-  var NOT_HEAD = { '코스모스': 1, '중심지': 1, '도심지': 1, '해수면': 1, '극소수': 1, '선글라스': 1 };
-  /* 끝의 조사 하나를 뗀다. 받침에 맞는 조사만 ('북을' → 북, '사이' 는 사+이 가 아니라 그대로) */
-  function stripParticle(rest) {
-    for (var i = 0; i < PARTICLES.length; i++) {
-      var p = PARTICLES[i];
-      if (rest.length > p.length && rest.slice(-p.length) === p) {
-        var stem = rest.slice(0, -p.length);
-        if (!JOSA[p] || josa(stem, p) === p) return stem;
-        return rest;
-      }
+  function wordsOf(s) {
+    if (HANGUL_ONLY.test(s)) return [s];   /* 흔한 경우(한글 한 낱말)는 바로 */
+    return lower(s).replace(SCRIPT_EDGE, '$1$2 ').split(WORD_SPLIT).filter(Boolean);
+  }
+  function jongOf(s) { var c = s.charCodeAt(s.length - 1); return (c >= 0xAC00 && c <= 0xD7A3) ? (c - 0xAC00) % 28 : -1; }
+  /* 받침 조건: C 받침 뒤 · V 모음 뒤 · R 모음·ㄹ 뒤(로) · N ㄹ 아닌 받침 뒤(으로). 한글로 안 끝나면(SOS·0) 아무거나 */
+  function agrees(prev, cond) {
+    var j = jongOf(prev);
+    if (!cond || j < 0) return true;
+    if (cond === 'C') return j > 0;
+    if (cond === 'V') return j === 0;
+    if (cond === 'R') return j === 0 || j === 8;
+    return j > 0 && j !== 8;
+  }
+  /* [꼴, 갈래, 받침]. 갈래: P 들 · K 격조사 · D 보조사 · E 끝 조사 · Q 서술격(끝) · Y 높임 요(끝) */
+  var SUFFIXES = [
+    ['들', 'P'],
+    ['에서', 'K'], ['에게서', 'K'], ['에게', 'K'], ['한테서', 'K'], ['한테', 'K'], ['께서', 'K'], ['께', 'K'], ['에다가', 'K'], ['에다', 'K'], ['에', 'K'],
+    ['으로서', 'K', 'N'], ['으로써', 'K', 'N'], ['으로', 'K', 'N'], ['로서', 'K', 'R'], ['로써', 'K', 'R'], ['로', 'K', 'R'],
+    ['과', 'K', 'C'], ['와', 'K', 'V'], ['하고', 'K'], ['이랑', 'K', 'C'], ['랑', 'K', 'V'], ['이며', 'K', 'C'], ['며', 'K', 'V'],
+    ['까지', 'K'], ['부터', 'K'], ['처럼', 'K'], ['보다', 'K'], ['만큼', 'K'], ['같이', 'K'], ['마다', 'K'], ['밖에', 'K'],
+    ['은', 'D', 'C'], ['는', 'D', 'V'], ['도', 'D'], ['만', 'D'], ['뿐', 'D'], ['조차', 'D'], ['마저', 'D'],
+    ['이나', 'D', 'C'], ['나', 'D', 'V'], ['이든지', 'D', 'C'], ['든지', 'D', 'V'], ['이든', 'D', 'C'], ['든', 'D', 'V'],
+    ['이라도', 'D', 'C'], ['라도', 'D', 'V'], ['이야말로', 'D', 'C'], ['야말로', 'D', 'V'], ['이야', 'D', 'C'], ['야', 'D', 'V'],
+    ['이', 'E', 'C'], ['가', 'E', 'V'], ['을', 'E', 'C'], ['를', 'E', 'V'], ['의', 'E'],
+    ['이에요', 'Q', 'C'], ['예요', 'Q', 'V'], ['에요', 'Q', 'V'], ['이다', 'Q'], ['다', 'Q', 'V'], ['입니다', 'Q'], ['인데', 'Q'], ['인가', 'Q'],
+    ['인지', 'Q'], ['일까', 'Q'], ['인', 'Q'], ['이고', 'Q'], ['이지', 'Q'], ['이죠', 'Q', 'C'], ['죠', 'Q', 'V'], ['지', 'Q', 'V'],
+    ['이었어', 'Q', 'C'], ['였어', 'Q', 'V'], ['이었다', 'Q', 'C'], ['였다', 'Q', 'V'], ['이었나', 'Q', 'C'], ['였나', 'Q', 'V'],
+    ['이었니', 'Q', 'C'], ['였니', 'Q', 'V'], ['이었지', 'Q', 'C'], ['였지', 'Q', 'V'], ['이었네', 'Q', 'C'], ['였네', 'Q', 'V'],
+    ['이었구나', 'Q', 'C'], ['였구나', 'Q', 'V'], ['이었던', 'Q', 'C'], ['였던', 'Q', 'V'], ['이었는데', 'Q', 'C'], ['였는데', 'Q', 'V'],
+    ['이네', 'Q', 'C'], ['네', 'Q', 'V'], ['이구나', 'Q', 'C'], ['구나', 'Q', 'V'], ['이군', 'Q', 'C'], ['군', 'Q', 'V'],
+    ['이거든', 'Q', 'C'], ['거든', 'Q', 'V'], ['이니까', 'Q', 'C'], ['니까', 'Q', 'V'], ['이니', 'Q', 'C'], ['니', 'Q', 'V'], ['이냐', 'Q', 'C'], ['냐', 'Q', 'V'],
+    ['이면', 'Q', 'C'], ['면', 'Q', 'V'], ['이라서', 'Q', 'C'], ['라서', 'Q', 'V'], ['이라고', 'Q', 'C'], ['라고', 'Q', 'V'], ['이라는', 'Q', 'C'], ['라는', 'Q', 'V'],
+    ['이란', 'Q', 'C'], ['란', 'Q', 'V'], ['이라면', 'Q', 'C'], ['라면', 'Q', 'V'], ['이라니', 'Q', 'C'], ['라니', 'Q', 'V'], ['이잖아', 'Q', 'C'], ['잖아', 'Q', 'V'],
+    ['요', 'Y']
+  ];
+  /* 서술격 가운데 뒤에 '요'가 붙는 꼴 (문어거든요 · 문어네요 · 문어였어요 · 문어인데요) */
+  var Q_YO = { '인데': 1, '인가': 1, '일까': 1, '이지': 1, '지': 1, '이었어': 1, '였어': 1, '이었는데': 1, '였는데': 1, '이네': 1, '네': 1, '이군': 1, '군': 1,
+    '이거든': 1, '거든': 1, '이니까': 1, '니까': 1, '이라서': 1, '라서': 1, '이라고': 1, '라고': 1, '이잖아': 1, '잖아': 1 };
+  var K_AGAIN = { '부터': 1, '까지': 1, '처럼': 1, '보다': 1, '만큼': 1 };   /* 에서부터 · 에게까지 · 로부터 */
+  function nextOk(pc, pf, c, f) {
+    if (!pc) return true;
+    if (pc === 'P') return c !== 'P';
+    if (pc === 'K') return c === 'D' || c === 'Y' || (c === 'E' && f === '의') || (c === 'K' && K_AGAIN[f] === 1 && f !== pf);
+    if (pc === 'D' && (pf === '만' || pf === '뿐')) return c === 'D' || c === 'E' || c === 'Q' || c === 'Y';   /* 만은 · 만이 · 뿐이야 */
+    if (pc === 'D' || pc === 'E') return c === 'Y' && pf !== '의';
+    if (pc === 'Q') return c === 'Y' && Q_YO[pf] === 1;
+    return false;
+  }
+  /* rest 가 prev 뒤에 붙는 사슬인가. one = 한 글자 이름(받침 엄격, 서술격·요·야 없음) */
+  function tailOk(prev, rest, one, pc, pf, n) {
+    if (!rest) return true;
+    if (n >= 4) return false;
+    for (var i = 0; i < SUFFIXES.length; i++) {
+      var s = SUFFIXES[i], f = s[0], c = s[1];
+      if (rest.lastIndexOf(f, 0) !== 0 || !nextOk(pc, pf, c, f)) continue;
+      if (one && (c === 'Q' || c === 'Y' || f === '야' || f === '이야' || f === '야말로' || f === '이야말로')) continue;
+      if ((one || c === 'Q' || n > 0) && !agrees(prev, s[2])) continue;
+      if (tailOk(f, rest.slice(f.length), one, c, f, n + 1)) return true;
+    }
+    return false;
+  }
+  /* 하다가 붙어도 그 이야기인 말 (이름·별칭·키워드). 녹음·재생처럼 하다꼴이 대개 다른 뜻인 키워드는 넣지 않는다 */
+  var HADA = { '기억': 1, '추억': 1, '회상': 1, '망각': 1, '명명': 1, '호칭': 1, '숙면': 1,
+    '뜨개질': 1, '바느질': 1, '필기': 1, '계산': 1, '수집': 1, '해독': 1, '치환': 1, '타종': 1 };
+  var HADA_TAIL = /^(하|한|할|합|해|했|되|된|될|됐|돼|나|난|날|났)[가-힣]{0,4}$/;
+  /* 치다가 붙는 말: 천둥치다 · 번개치다 · 메아리치다 · 소용돌이치다 (벼락치기는 벼락이 아니라 넣지 않는다) */
+  var CHIDA = { '천둥': 1, '번개': 1, '메아리': 1, '소용돌이': 1 };
+  var CHIDA_TAIL = /^(치|친|칠|칩|쳐|쳤|침)[가-힣]{0,3}$/;
+  /* 방의 말로 시작하지만 다른 낱말 — 그 자리에서는 그 말로 치지 않는다 (종이 ≠ 종+이, 모자라다 ≠ 모자) */
+  var NOT_WORD = ['종이', '별로', '실로', '실은', '차도', '종로', '별도', '비만', '실의', '모자라', '모자란', '모자랄', '모자람', '모자랐', '모자래', '나선다'];
+  function blockedAt(w, i, t) {
+    for (var k = 0; k < NOT_WORD.length; k++) {
+      var b = NOT_WORD[k];
+      if (b.length > t.length && b.lastIndexOf(t, 0) === 0 && w.substr(i, b.length) === b) return true;
+    }
+    return false;
+  }
+  /* 낱말 w 가 말 t (+ 조사·어미 사슬) 인가 */
+  function wordIs(w, t, one) {
+    if (w.lastIndexOf(t, 0) !== 0 || blockedAt(w, 0, t)) return false;
+    var rest = w.slice(t.length);
+    if (!rest) return true;
+    if (!one && HADA[t] === 1 && HADA_TAIL.test(rest)) return true;
+    if (!one && CHIDA[t] === 1 && CHIDA_TAIL.test(rest)) return true;
+    return tailOk(t, rest, one, '', '', 0);
+  }
+  /* 합성어를 만들어도 그 물건 이야기인 말과, 맞추는 자리. 3 = 앞머리·끝 머리말 다 · 2 = 앞머리만 · 1 = 끝 머리말만.
+     다른 낱말 끝에 우연히 걸리는 말(수면·울림·시간·풍경·조수·제로·모스·심지·글라스·소수·하루)은 넣지 않는다.
+       점자 2: 앞머리(점자블록)만 — 끝에 오면 '득점자'·'만점자'(점+자)
+       바람·진주 1: 끝 머리말(봄바람·흑진주)만 — 앞머리는 '바람직한'·'바람둥이'·'진주시' (앞머리는 SAFE_TAIL 뒷말만: 바람소리·진주목걸이) */
+  var COMPOUND = {};
+  ['모자', '구름', '우산', '단추', '털실', '매듭', '열쇠', '자물쇠', '분필', '문어', '조개', '소금', '등대', '깃털', '깃펜', '무지개',
+    '잉크', '우표', '벌집', '주판', '자장가', '메아리', '천둥', '창문', '양초', '촛불', '담요', '이불', '이끼', '솔방울', '등불', '불가사리',
+    '기억', '이름', '한글', '심장', '나선', '암호', '메트로놈', '라틴어', '테셀레이션', '수수께끼', '추억', '유리', '빗방울', '낮잠'
+  ].forEach(function (t) { COMPOUND[t] = 3; });
+  COMPOUND['점자'] = 2; COMPOUND['바람'] = 1; COMPOUND['진주'] = 1;
+  var NOT_COMPOUND = ['모자이크', '소금쟁이', '문어발식', '태양초', '암호화폐', '구름판'];   /* 허용된 말로 시작·끝나지만 다른 낱말 */
+  var VERB_START = /^(하|한|할|합|해|했|히|되|된|될|됐|돼|스러|스럽|스런|롭|로운|적|답|다운|다워)/;   /* '…하게'·'…스러운' 은 합성 명사가 아니다 */
+  /* 앞머리 뒤 한 글자 뒷말 (앞머리 허용 말만): 소금물 한글날 등대섬 무지개빛 이름표 심장병 점자판 나선형 우표첩 메트로놈앱 유리컵·유리문 주판알 암호화 수수께끼책 …
+     (끝 머리말만인 말은 빛·색만: 진주빛). '-기' 로 끝나는 말 + 전 (잠들기전). 문어체·소수점·유리수·소금빵·이름값은 이 목록 밖이라 아니다 */
+  var ONE_TAIL = '물날섬빛색표병판형첩앱컵잔알꽃화문벽책';
+  /* 목록 밖 이름·별칭(두 글자 이상)도 이 뒷말이면 앞머리 합성어: 풍경소리·바람소리·진주목걸이·유리공예·테셀레이션무늬 */
+  var SAFE_TAIL = ['소리', '목걸이', '귀걸이', '반지', '팔찌', '공예', '무늬', '모양'];
+  /* 사람 이름으로 흔한 말은 끝 머리말 자리에서 한 글자 성 뒤면 이름이다 (김유리·박진주) */
+  var NAME_LIKE = { '유리': 1, '진주': 1 };
+  var SURNAMES = '김이박최정강조윤장임한오서신권황안송전홍류유고문양손배백허남심노하곽성차주우구민진나지엄채원천방공현함변염여추도소석선설마길연위표명기반라사';
+  /* 앞머리 합성어의 뒷말: 끝의 사슬을 뗀 줄기 ('사진을' → 사진). '걸이'·'꽂이'·'구이' 같은 한 글자 + 이 는 명사로 둔다 */
+  function coreOf(rest) {
+    for (var k = 1; k < rest.length; k++) {
+      var tail = rest.slice(k);
+      if (tailOk(rest.slice(0, k), tail, false, '', '', 0)) return (k === 1 && tail === '이') ? rest : rest.slice(0, k);
     }
     return rest;
   }
-  function bareTail(rest) { return !rest || PARTICLES.indexOf(rest) >= 0 || TAIL_OK.indexOf(rest) >= 0 || TAIL_OK.indexOf(stripParticle(rest)) >= 0; }
-  function containsWord(hay, s) {
-    if (!s) return 0;
-    if (/^[a-z ]+$/.test(s)) return new RegExp('(^|[^a-z])' + s + '([^a-z]|$)').test(hay) ? 2 : 0;
-    var found = 0;
-    for (var i = hay.indexOf(s); i >= 0; i = hay.indexOf(s, i + 1)) {
-      var a = i;
-      while (a > 0 && WORD_CH.test(hay.charAt(a - 1))) a--;
-      var j = i + s.length, k = j;
-      while (k < hay.length && WORD_CH.test(hay.charAt(k))) k++;
-      var rest = hay.slice(j, k);
-      if (a === i) {
-        if (bareTail(rest) || stripParticle(rest).length >= 2) return 2;
-      } else if (!found && bareTail(rest) && HANGUL_ONLY.test(hay.slice(a, i)) && !NOT_HEAD[hay.slice(a, j)]) {
-        found = 1;
+  /* rest 가 뒷말 f (+ 사슬) 인가 */
+  function tailIs(rest, f) { return rest.lastIndexOf(f, 0) === 0 && tailOk(f, rest.slice(f.length), false, '', '', 0); }
+  /* 0 = 아님 · 2 = 앞머리(구름사진) · 1 = 낱말 끝 머리말(털모자). t 는 두 글자 이상 이름·별칭 (키워드는 부르지 않는다).
+     same = 그 방의 다른 말들: 뒷말이 같은 방의 말이면 앞머리 합성어다 (암호해독 = 암호 + 해독, 우표수집 = 우표 + 수집) */
+  function compoundIs(w, t, same) {
+    if (w.length <= t.length || w.indexOf(t) < 0 || !HANGUL_ONLY.test(w)) return 0;
+    for (var k = 0; k < NOT_COMPOUND.length; k++) if (w.indexOf(NOT_COMPOUND[k]) >= 0) return 0;
+    var mode = COMPOUND[t] || 0;
+    if (w.lastIndexOf(t, 0) === 0 && !blockedAt(w, 0, t)) {
+      var rest = w.slice(t.length);
+      for (k = 0; k < SAFE_TAIL.length; k++) if (tailIs(rest, SAFE_TAIL[k])) return 2;
+      for (k = 0; same && k < same.length; k++) if (same[k].length >= 2 && same[k] !== t && tailIs(rest, same[k])) return 2;
+      if (/기$/.test(t) && tailIs(rest, '전')) return 2;   /* 잠들기전 · 꿈꾸기전 (-기 전) */
+      if (mode & 2) {
+        var core = coreOf(rest);
+        if (core.length >= 2 && !VERB_START.test(core)) return 2;
+        if (ONE_TAIL.indexOf(rest[0]) >= 0 && tailIs(rest, rest[0])) return 2;
+      } else if (mode === 1 && '빛색'.indexOf(rest[0]) >= 0 && tailIs(rest, rest[0])) return 2;   /* 진주빛 · 진주색 */
+    }
+    if (mode & 1) {
+      for (var i = w.indexOf(t, 1); i > 0; i = w.indexOf(t, i + 1)) {
+        if (NAME_LIKE[t] === 1 && i === 1 && SURNAMES.indexOf(w[0]) >= 0) continue;
+        if (!blockedAt(w, i, t) && tailOk(t, w.slice(i + t.length), false, '', '', 0)) return 1;
       }
     }
-    return found;
+    return 0;
+  }
+  /* 띄어 쓴 말 tw 가 낱말들 hw 에 이어서 나오는 첫 자리들 (끝 낱말만 사슬) */
+  function phraseAt(hw, tw) {
+    var out = [], k = tw.length;
+    for (var i = 0; i + k <= hw.length; i++) {
+      var ok = true;
+      for (var j = 0; j < k - 1 && ok; j++) ok = hw[i + j] === tw[j];
+      if (ok && wordIs(hw[i + k - 1], tw[k - 1], false)) out.push(i);
+    }
+    return out;
   }
 
+  /* 옛 토크나이저 (공개 API 로만 남김): 띄어쓰기로 자르고 끝 조사 하나를 뗀 꼴도 (2자 이상만) */
   function tokenize(hint) {
     var out = [];
     String(hint || '').split(HINT_SEP).forEach(function (tok) {
@@ -260,6 +371,12 @@
     return out;
   }
 
+  /* 점수: 힌트 전체가 별칭/키워드 1000/900 > 낱말(또는 띄어 쓴 말) 이름 500 · 별칭 400
+           > 이름 합성어 앞머리 380 · 끝 머리말 370 > 키워드 낱말 350 > 별칭 합성어 앞머리 200 · 끝 머리말 180 (모두 + 말 길이).
+     이름이 든 합성어는 흔한 키워드 낱말보다 앞선다: '한글날 노래' = 한글 (노래는 자장가의 키워드). 키워드는 합성어로 맞추지 않는다.
+     같은 단계에서는 별칭이 키워드보다 앞선다: 먹물은 잉크의 별칭, 문어의 키워드 */
+  var TIER = { name: [500, 380, 370], alias: [400, 200, 180], kw: [350, 0, 0] };
+  var HOW = { name: 'token', alias: 'alias', kw: 'alias' };
   function matchHint(hint) {
     var raw = (hint == null ? '' : String(hint)).trim();
     if (!raw) return { kind: 'none' };
@@ -267,74 +384,87 @@
     var W = world();
     if (!W || !W.nodes) return { kind: 'wiki', query: raw };
     var low = lower(raw);
-    var tokens = tokenize(raw).map(lower);
-    var words = hintWords(raw);
+    var hw = wordsOf(raw);
     var ids = Object.keys(W.nodes);
-    var best = null;
+    var best = null, rooms = [], i;
     function offer(id, how, score) {
       if (!best || score > best.score) best = { nodeId: id, how: how, score: score };
     }
-    function termsOf(node) {
-      return { name: lower(node.name), al: (node.aliases || []).map(lower).filter(Boolean), kw: (node.keywords || []).map(lower).filter(Boolean) };
-    }
-    /* 다른 방의 띄어 쓴 별칭·키워드('눈 움직임' → 꿈, '비 온 뒤' → 무지개)가 힌트에 그대로 있으면,
-       그 안의 한 글자 낱말은 한 글자 방 이름으로 치지 않는다 */
-    var phrases = [];
-    ids.forEach(function (id) {
-      var node = W.nodes[id];
-      if (!node || id === 'door_out') return;
-      var t = termsOf(node);
-      [t.name].concat(t.al, t.kw).forEach(function (p) { if (/\s/.test(p) && containsWord(low, p)) phrases.push({ id: id, p: p }); });
-    });
-    function wordsOutsidePhrases(id) {
-      var h = low;
-      phrases.forEach(function (x) { if (x.id !== id) h = h.split(x.p).join(' '); });
-      return h === low ? words : hintWords(h);
-    }
-    /* 같은 단계에서는 별칭(aliases)이 키워드(keywords)보다 앞선다: 먹물은 잉크의 별칭, 문어의 키워드.
-       낱말 끝에 붙은 이름·별칭('털모자'·'아기모자'의 모자)은 합성어의 머리말이라 같은 종류의 첫머리 매칭 바로 아래 (250/180).
-       키워드는 낱말 끝 매칭을 하지 않는다 */
-    for (var i = 0; i < ids.length; i++) {
+    for (i = 0; i < ids.length; i++) {
       var id = ids[i], node = W.nodes[id];
       if (!node || id === 'door_out') continue;
-      var tm = termsOf(node), name = tm.name, al = tm.al, kw = tm.kw;
+      var name = lower(node.name);
       if (name && name === low) return { kind: 'node', nodeId: id, how: 'exact' };
-      var j, cw;
-      for (j = 0; j < al.length; j++) if (al[j] === low) offer(id, 'alias', 1000 + al[j].length);
-      for (j = 0; j < kw.length; j++) if (kw[j] === low) offer(id, 'alias', 900 + kw[j].length);
-      if (name && tokens.indexOf(name) >= 0) offer(id, 'token', 500 + name.length);
-      if (name && name.length === 1 && wordsOutsidePhrases(id).indexOf(name) >= 0) offer(id, 'token', 500 + name.length);   /* '비 오는 날' → 비 */
-      for (j = 0; j < al.length; j++) if (tokens.indexOf(al[j]) >= 0) offer(id, 'alias', 400 + al[j].length);
-      for (j = 0; j < kw.length; j++) if (tokens.indexOf(kw[j]) >= 0) offer(id, 'alias', 350 + kw[j].length);
-      if (name && name.length >= 2 && (cw = containsWord(low, name))) offer(id, 'token', (cw === 2 ? 300 : 250) + name.length);
-      for (j = 0; j < al.length; j++) if (al[j].length >= 2 && (cw = containsWord(low, al[j]))) offer(id, 'alias', (cw === 2 ? 200 : 180) + al[j].length);
-      for (j = 0; j < kw.length; j++) if (kw[j].length >= 2 && containsWord(low, kw[j]) === 2) offer(id, 'alias', 150 + kw[j].length);
+      var terms = name ? [[name, 'name']] : [];
+      (node.aliases || []).map(lower).filter(Boolean).forEach(function (a) { terms.push([a, 'alias']); });
+      (node.keywords || []).map(lower).filter(Boolean).forEach(function (k) { terms.push([k, 'kw']); });
+      terms.forEach(function (x) { x.push(wordsOf(x[0])); });   /* [말, 갈래, 낱말들] */
+      rooms.push({ id: id, terms: terms, flat: terms.map(function (x) { return x[2].join(''); }) });
     }
+    /* 1) 힌트 전체가 별칭·키워드 · 띄어 쓴 말 (그 낱말들은 그 방 차지) */
+    var owner = hw.map(function () { return {}; });
+    rooms.forEach(function (r) {
+      r.terms.forEach(function (tk) {
+        var t = tk[0], kind = tk[1], tw = tk[2];
+        if (kind !== 'name' && t === low) offer(r.id, 'alias', (kind === 'alias' ? 1000 : 900) + t.length);
+        if (tw.length < 2) return;
+        phraseAt(hw, tw).forEach(function (s) {
+          for (var j = 0; j < tw.length; j++) owner[s + j][r.id] = 1;
+          offer(r.id, HOW[kind], TIER[kind][0] + t.length);
+        });
+      });
+    });
+    function free(k, id) { for (var o in owner[k]) if (o !== id) return false; return true; }
+    /* 2) 낱말 하나: 말 + 사슬, 그다음 합성어. 띄어 쓴 이름·별칭은 붙여 쓴 꼴('문어신경계')도 */
+    rooms.forEach(function (r) {
+      r.terms.forEach(function (tk) {
+        var t = tk[0], kind = tk[1], tw = tk[2];
+        var tt = tw.length === 1 ? tw[0] : (kind !== 'kw' && tw.length > 1 ? tw.join('') : '');
+        if (!tt) return;
+        var one = tt.length === 1;
+        if (one && kind !== 'name') return;   /* 한 글자 별칭·키워드(영·공·창·초…)는 힌트 전체가 그 말일 때만 */
+        for (var k = 0; k < hw.length; k++) {
+          if (!free(k, r.id)) continue;
+          if (wordIs(hw[k], tt, one)) offer(r.id, HOW[kind], TIER[kind][0] + t.length);
+          else if (!one && kind !== 'kw') {
+            var c = compoundIs(hw[k], tt, r.flat);
+            if (c) offer(r.id, HOW[kind], TIER[kind][c === 2 ? 1 : 2] + t.length);
+          }
+        }
+      });
+    });
     if (best) return { kind: 'node', nodeId: best.nodeId, how: best.how };
     return { kind: 'wiki', query: raw };
   }
 
-  /* URL 경로에서 한글/영문 키워드로 노드 찾기 (문 다음 정류장) */
+  /* URL 경로에서 한글/영문 키워드로 노드 찾기 (문 다음 정류장). 힌트와 같은 낱말 규칙.
+     이름·별칭 낱말 200 > 합성어 앞머리 170 > 낱말 끝 머리말 150 > 키워드 낱말 100, 같은 단계면 긴 말 */
   function nodeFromUrl(url) {
     var W = world();
     if (!W || !W.nodes) return null;
     var s = String(url || '');
     try { s = decodeURIComponent(s); } catch (e) { /* 그대로 */ }
-    var low = lower(s.replace(/^https?:\/\//i, '')).replace(/[_\-+]/g, ' ');
+    var uw = wordsOf(s.replace(/^https?:\/\//i, ''));
     var best = null;
     Object.keys(W.nodes).forEach(function (id) {
       var node = W.nodes[id];
       if (!node || SPECIAL[id] || node.corner === 'wild') return;
       var kws = (node.keywords || []).map(lower);
       var cands = [node.name, id.replace(/_/g, ' ')].concat(node.aliases || [], node.keywords || [], node.wiki ? [node.wiki] : []);
-      cands.forEach(function (c) {
+      var tws = cands.map(function (c) { return wordsOf(lower(c)); }), flat = tws.map(function (tw) { return tw.join(''); });
+      cands.forEach(function (c, ci) {
         c = lower(c);
         if (c.length < 2) return;
-        var cw = containsWord(low, c);
-        var isKw = kws.indexOf(c) >= 0;
-        if (!cw || (cw === 1 && isKw)) return;   /* 낱말 끝 매칭('털모자')은 이름·별칭만 */
-        /* 힌트 글과 같은 순서: 이름·별칭 첫머리 > 이름·별칭 낱말 끝(합성어 머리말, '아기모자'의 모자) > 키워드 첫머리. 같은 단계면 긴 쪽 */
-        var score = c.length + (cw === 1 ? 150 : isKw ? 100 : 200);
+        var isKw = kws.indexOf(c) >= 0, tw = tws[ci], hit = 0;
+        if (tw.length > 1) hit = phraseAt(uw, tw).length ? 3 : 0;
+        else if (tw.length === 1) {
+          for (var i = 0; i < uw.length && hit < 3; i++) {
+            if (wordIs(uw[i], tw[0], tw[0].length === 1)) hit = 3;
+            else if (!isKw) hit = Math.max(hit, compoundIs(uw[i], tw[0], flat));
+          }
+        }
+        if (!hit) return;
+        var score = c.length + (hit === 3 ? (isKw ? 100 : 200) : hit === 2 ? 170 : 150);
         if (!best || score > best.len) best = { id: id, len: score };
       });
     });
@@ -924,7 +1054,8 @@
 
   /* ───────── 집 / 빈 차례 ───────── */
   /* 방에 실제로 있는 것만 한다: 등불이 모자라면(이끼 화분 등) 빼고, 포스터가 없으면 포스터 활동을 뺀다.
-     자리 바꾸기(effect:'rotatePosters')는 바꿀 짝이 있어야 하니 2장부터. world.js 는 requiresLantern, 옛 데이터는 minLantern */
+     자리 바꾸기(effect:'rotatePosters')는 바꿀 짝이 있어야 하니 2장부터. world.js 는 requiresLantern, 옛 데이터는 minLantern.
+     maxLantern 을 넘으면 뺀다: 두뇌는 날씨를 모르니, 비를 말하는 활동은 비가 확실한 등불 단계에서만 (등불 7 은 맑음) */
   function homeActivities(lantern, posters) {
     var W = world();
     var list = (W && Array.isArray(W.homeActivities) && W.homeActivities.length) ? W.homeActivities : DEFAULT_HOME;
@@ -933,6 +1064,7 @@
       if (!a || a.id === 'nothing') return false;
       if (typeof a.minLantern === 'number' && lantern < a.minLantern) return false;
       if (typeof a.requiresLantern === 'number' && lantern < a.requiresLantern) return false;
+      if (typeof a.maxLantern === 'number' && lantern > a.maxLantern) return false;   /* 비 이야기는 비가 확실한 등불까지만 (world.js) */
       if (a.requiresPoster && posters < (a.effect === 'rotatePosters' ? 2 : 1)) return false;
       return true;
     });

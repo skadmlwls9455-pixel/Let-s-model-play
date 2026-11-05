@@ -134,7 +134,7 @@ var WORLD = (function () {
     }),
     node({
       id: 'knot', name: '매듭', corner: 'hands', emoji: '🪢',
-      aliases: ['노트', '옭매듭', '나비매듭', '보울라인'],
+      aliases: ['옭매듭', '나비매듭', '보울라인'],   /* '노트'는 뺐다: 한국어로는 공책·메모라 '노트에 적어'가 매듭이 됐다 */
       keywords: ['끈', '밧줄', '묶기', '뱃사람'],
       wiki: '매듭',
       clue: '매듭을 지으면 줄은 그 자리에서 조금 약해진다. 그런데도 사람들은 수천 년 동안 매듭으로 배를 묶었다.',
@@ -663,7 +663,7 @@ var WORLD = (function () {
     /* ===== numbers 수와 모양 ===== */
     node({
       id: 'prime', name: '소수', corner: 'numbers', emoji: '🔢', odd: true,
-      aliases: ['프라임', '소수들', '2 3 5 7'],
+      aliases: ['소수들', '2 3 5 7'],   /* '프라임'은 뺐다: '아마존 프라임'·'프라임 타임'이 소수가 됐다 */
       keywords: ['수론', '약수', '유클리드', '매미', '나누기'],
       wiki: '소수 (수론)',
       clue: '소수는 끝이 없다. 유클리드가 2천 년도 더 전에 보여 줬다. 어떤 매미는 13년, 17년마다 나온다.',
@@ -1116,7 +1116,7 @@ var WORLD = (function () {
     node({
       id: 'sleep', name: '잠', corner: 'mind', emoji: '😴',
       aliases: ['수면', '낮잠', '잠들기', '숙면'],
-      keywords: ['꿈', '밤', '쉬기', '정리', '문어'],
+      keywords: ['꿈', '밤', '쉬기', '문어'],   /* '정리'는 뺐다: 정리해 줘·창고 정리처럼 거의 늘 '치우기·요약' 뜻 */
       wiki: '수면',
       clue: '문어도 두 가지 잠을 잔다. 조용한 잠, 그리고 피부색이 바뀌는 잠. 잠은 아무것도 안 하는 게 아니다.',
       memories: [
@@ -1238,17 +1238,20 @@ var WORLD = (function () {
   /* ---------- 집에 있는 날 활동 (§5.8) ----------
      line = 쪽지 앞면, detail = 뒷면 1~2줄, anchor = 문어가 서는 자리.
      requiresPoster / requiresLantern 은 두뇌가 후보를 거를 때 쓴다(포스터 수는 state.posters).
-     effect:'rotatePosters' 는 벽 포스터 순서를 한 칸 바꾼다(§5.8) — 바꿀 짝이 있게 2장부터. */
+     effect:'rotatePosters' 는 벽 포스터 순서를 한 칸 바꾼다(§5.8) — 바꿀 짝이 있게 2장부터.
+     maxLantern: 비를 말하는 활동은 비가 확실한 등불 6까지만. 날씨는 두뇌 입력에 없고 app 이 등불로 정한다:
+       0~5 비 · 6 가랑비 · 7 맑음(창에 별, 아래 roomLevels) · 8 부터는 날마다 다름 → 7 부터는 비라고 말할 수 없다.
+     나머지 활동의 줄은 날씨를 말하지 않는다 (check-world 가 지킨다). */
   var homeActivities = [
     { id: 'count_rain', memo: '창가에서 비 셌어', line: '창가에서 빗방울을 세다가 잠들었어',
       detail: '열일곱까지 셌어. 그다음은 기억이 안 나.\n빗소리가 좋아서 집에 있었어.',
-      anchor: 'window', weight: 3 },
+      anchor: 'window', weight: 3, maxLantern: 6 },
     { id: 'nap', memo: '담요 속에서 낮잠 잤어', line: '담요 속에서 낮잠 잤어',
-      detail: '빗소리가 담요 안까지 들렸어. 그게 좋았어.\n오늘은 그걸로 충분했어.',
+      detail: '담요 안은 바깥보다 조용했어. 그게 좋았어.\n오늘은 그걸로 충분했어.',
       anchor: 'blanket', weight: 3 },
     { id: 'window_watch', memo: '창밖을 그냥 봤어', line: '창밖을 그냥 봤어',
       detail: '비가 오고, 비가 오고, 비가 왔어.\n아무 일도 없었어. 그게 다였어.',
-      anchor: 'window', weight: 2 },
+      anchor: 'window', weight: 2, maxLantern: 6 },
     { id: 'moss', memo: '이끼 화분을 오래 들여다봤어', line: '창턱 이끼 화분을 오래 들여다봤어',
       detail: '이끼는 뿌리가 없어. 온몸으로 물을 마셔.\n오늘은 흠뻑이야.',
       anchor: 'window', weight: 2, requiresLantern: 1 },
@@ -1259,7 +1262,7 @@ var WORLD = (function () {
       detail: '왼쪽 게 더 잘 보여서.\n벽도 가끔은 바뀌어야 해.',
       anchor: 'board', weight: 1, requiresPoster: true, effect: 'rotatePosters' },
     { id: 'hum', memo: '아무 노래나 흥얼거렸어', line: '아무 노래나 흥얼거렸어',
-      detail: '가사는 없고 박자만 있는 노래.\n빗소리에 맞췄어.',
+      detail: '가사는 없고 박자만 있는 노래.\n박자는 내 맘대로였어.',
       anchor: 'crate', weight: 2 },
     { id: 'nothing', line: '…',
       detail: '',
@@ -1267,7 +1270,7 @@ var WORLD = (function () {
   ];
 
   /* ---------- 마무리 반응 (§5.9) ----------
-     lines = 그 반응이면 언제 말해도 참인 줄 (집에 있는 날의 졸림도 이것만 쓴다).
+     lines = 그 반응이면 언제 말해도 참인 줄 (집에 있는 날의 졸림도 이것만 쓴다). 날씨는 말하지 않는다 — 두뇌 입력에 날씨가 없다.
      when.first / when.missed / when.long = 그 일이 실제로 있었을 때만 두뇌가 후보에 더한다:
        first = 처음 온 방이 있었다 · missed = 못 읽음·모의 방문이 있었다 · long = 4곳 이상 걸었다 */
   var reactions = {
@@ -1284,7 +1287,7 @@ var WORLD = (function () {
     ] },
     '덤덤': { emoji: '😶', lines: [
       '그냥 그런 산책이었어. 그래도 다녀왔어',
-      '짧게 갔다 왔어. 비가 좋아서'
+      '조용히 다녀왔어. 그거면 됐어'   /* 날씨·거리는 말하지 않는다: 두뇌는 날씨를 모르고(등불 7 은 맑음), 재생된 덤덤은 길 수도 있다 */
     ], when: { missed: [
       '못 읽은 데도 있었어. 그런 날도 있어'
     ] } },
@@ -1418,7 +1421,7 @@ var WORLD = (function () {
     letterRoomEmpty: '아직 비어 있었어',
     slowRoomNote: '읽은 것 없음',
     homeBack: '오늘은 집. 등불 +1',
-    homeStay: '오늘은 집에 있을래. 빗소리가 좋아서.',
+    homeStay: '오늘은 집에 있을래. 그냥 그러고 싶어서.',   /* 날씨는 말하지 않는다 (두뇌는 날씨를 모른다) */
     emptyTurn: '…',
     albumEmpty: '아직 포스터가 없어. 첫 뽈뽈을 보내 봐',
     albumFilters: { all: '전체', poster: '포스터', note: '쪽지' },

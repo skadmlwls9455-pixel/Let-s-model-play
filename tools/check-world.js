@@ -251,6 +251,16 @@ acts.forEach(function (a) {
   if (/포스터/.test(a.line + a.detail + (a.memo || ''))) ok(a.requiresPoster === true, '활동 ' + a.id + ' 은 포스터를 말하니 requiresPoster 필요');
   if (/이끼|화분/.test(a.line + a.detail)) ok(typeof a.requiresLantern === 'number' && a.requiresLantern >= 1, '활동 ' + a.id + ' 은 이끼 화분(등불 1)이 있어야 해: requiresLantern ≥ 1');
 });
+/* 날씨는 두뇌 입력에 없고 app 이 등불로 정한다 (roomLevels: 창이 'stars' 인 단계부터 맑을 수 있다 = 등불 7).
+   그러니 비·날씨를 말하는 집 활동은 maxLantern 이 그 단계보다 낮아야 하고, 나머지 활동은 날씨를 말하지 않는다 */
+var clearFrom = (W.roomLevels || []).filter(function (lv) { return lv.window === 'stars'; }).map(function (lv) { return lv.lantern; })[0];
+ok(typeof clearFrom === 'number', "roomLevels 에 창이 'stars' 인 단계(맑음 시작)가 있어야 해");
+var HOME_WX = /비가|비 오|비 와|비 셌|빗|눈이 와|눈 오|맑|흐려|흐린|날씨|안개|천둥/;
+acts.forEach(function (a) {
+  if (!HOME_WX.test(a.line + '\n' + a.detail + '\n' + (a.memo || ''))) return;
+  ok(typeof a.maxLantern === 'number' && a.maxLantern < clearFrom, '활동 ' + a.id + ' 은 날씨를 말하니 maxLantern < ' + clearFrom + ' 필요 (등불 ' + clearFrom + ' 은 맑음)');
+});
+ok(!HOME_WX.test(W.strings.homeStay || ''), 'strings.homeStay 가 날씨를 주장: ' + W.strings.homeStay);
 var rearr = acts.filter(function (a) { return a.id === 'rearrange'; })[0];
 ok(rearr && rearr.effect === 'rotatePosters' && rearr.requiresPoster === true, 'rearrange 는 effect:rotatePosters + requiresPoster');
 
@@ -272,6 +282,12 @@ var WHEN_KEYS = ['first', 'missed', 'long'];
     ok(!/처음/.test(l), '반응 ' + r + ' 의 늘 쓰는 줄이 처음을 주장: ' + l + ' (when.first 로)');
     ok(!/못 읽/.test(l), '반응 ' + r + ' 의 늘 쓰는 줄이 못 읽음을 주장: ' + l + ' (when.missed 로)');
     ok(!/많이 걸었/.test(l), '반응 ' + r + ' 의 늘 쓰는 줄이 오래 걸음을 주장: ' + l + ' (when.long 으로)');
+  });
+  /* 날씨는 app 이 등불 단계로 정하고 두뇌 입력에는 없다 (등불 7 은 맑음) → 반응 줄은 어느 칸이든 날씨를 말하지 않는다 */
+  var every = (rx && rx.lines || []).slice();
+  Object.keys(when).forEach(function (k) { every = every.concat(when[k] || []); });
+  every.forEach(function (l) {
+    ok(!/비가|비 오|비 와|빗|눈이 와|눈 오|맑|흐려|흐린|날씨|안개|천둥/.test(l), '반응 ' + r + ' 의 줄이 날씨를 주장: ' + l + ' (두뇌는 날씨를 모른다)');
   });
 });
 /* 집에 있는 날의 졸림 줄(lines)은 걷거나 다녀온 일을 말하지 않는다 */

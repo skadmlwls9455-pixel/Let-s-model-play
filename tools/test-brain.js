@@ -67,8 +67,8 @@ function fakeWorld() {
       shell: { name: '조개', emoji: '🐚', asset: 'souvenir.shell' }
     },
     homeActivities: [
-      { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', detail: '마흔까지 세고 잊었어.', anchor: 'window', weight: 3 },
-      { id: 'nap', line: '담요 속에서 낮잠', detail: '빗소리가 이불 같았어.', anchor: 'blanket', weight: 3 },
+      { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', detail: '마흔까지 세고 잊었어.', anchor: 'window', weight: 3, maxLantern: 6 },
+      { id: 'nap', line: '담요 속에서 낮잠', detail: '담요 안은 조용했어.', anchor: 'blanket', weight: 3 },
       { id: 'reread_poster', line: '어제 포스터 뒷면을 다시 읽었어', detail: '글씨가 조금 번져 있었어.', anchor: 'crate', weight: 2, minLantern: 1 },
       { id: 'swap_posters', line: '포스터 위치를 바꿔 봤어', detail: '왼쪽 걸 오른쁽으로.', anchor: 'board', weight: 1, minLantern: 2 },
       { id: 'watch_moss', line: '이끼 화분을 오래 들여다봤어', detail: '조금 더 초록인 것 같아.', anchor: 'window', weight: 2, minLantern: 1 },
@@ -148,6 +148,76 @@ function allLines(trip) {
   trip.events.forEach(function (e) { if (e.line) out.push(e.line); if (e.note) out.push(e.note); });
   if (trip.receipt) { trip.receipt.stops.forEach(function (s) { out.push(s.note); }); if (trip.receipt.reactionLine) out.push(trip.receipt.reactionLine); }
   return out.filter(function (x) { return typeof x === 'string'; });
+}
+
+/* ───────── 힌트 낱말 규칙 말뭉치 (실제 world.js 용, brain3) ─────────
+   방마다 이름·별칭 × 겹조사·서술격(받침 맞춤) = 그 방이어야 하고, 방의 말이 속에 든 흔한 낱말은 그 방이면 안 된다.
+   전체 말뭉치(1.7만 줄)와 옛 판 비교표는 작업 노트에 있다. 여기는 빠르게 도는 축약판 */
+function matcherCorpus(W) {
+  function jong(s) { var c = s.charCodeAt(s.length - 1); return (c >= 0xAC00 && c <= 0xD7A3) ? (c - 0xAC00) % 28 : -1; }
+  function pk(t, a, b) { return jong(t) > 0 ? a : b; }
+  function ro(t) { var j = jong(t); return (j === 0 || j === 8) ? '로' : '으로'; }
+  var out = [], k = 0, TAILS = ['궁금해', '보고 싶어', '알려 줘', '뭐가 있어'];
+  var AMBIG = /^(종이|별로|실로|실은|차도|종로|별도|비만|실의|모자라)/;   /* 다른 낱말과 같은 꼴은 뺀다 (모자라도 = 모자라다) */
+  var COP = { '이에요': 1, '예요': 1, '이다': 1, '다': 1, '이야': 1, '야': 1, '인데': 1 };
+  Object.keys(W.nodes).forEach(function (id) {
+    if (id === 'door_out') return;
+    var n = W.nodes[id];
+    [n.name].concat(n.aliases || []).forEach(function (t, ti) {
+      if (!t || jong(t) < 0 || (t.length === 1 && ti > 0)) return;
+      var one = t.length === 1, sfx;
+      if (ti === 0) sfx = ['', '에도', '에는', pk(t, '과의', '와의'), ro(t) + '도', pk(t, '이라도', '라도'), pk(t, '이나', '나'), pk(t, '이든', '든'), '하고는', '까지도', '에서도', pk(t, '이', '가')]
+        .concat(one ? [] : [pk(t, '이에요', '예요'), pk(t, '이다', '다'), pk(t, '이야', '야'), '인데']);
+      else sfx = ['에도', pk(t, '과의', '와의')].concat(one ? [] : [pk(t, '이에요', '예요')]);
+      sfx.forEach(function (p) {
+        if (AMBIG.test(t + p)) return;
+        out.push({ g: 'room term + particles', h: COP[p] ? '이거 ' + t + p : t + p + ' ' + TAILS[(k++) % 4], exp: id });
+      });
+    });
+  });
+  function P(g, h, exp) { if (W.nodes[exp]) out.push({ g: g, h: h, exp: exp }); }
+  function N(h, not) { if (W.nodes[not]) out.push({ g: 'term inside another word (not that room)', h: h, not: not }); }
+  [['문어에도 뼈가 있어?', 'octopus'], ['모자에는 뭐가 있어', 'hat'], ['이끼에도 꽃이 펴?', 'moss'], ['잉크에는 뭐가 들어가?', 'ink'], ['문어와의 대화', 'octopus'],
+    ['자장가라도 불러 줘', 'lullaby'], ['기억하는 법', 'memory'], ['털모자예요', 'hat'], ['문어다', 'octopus'], ['문어든', 'octopus'], ['모자나', 'hat'],
+    ['나선에도', 'spiral'], ['소금에는', 'salt'], ['기억나는 게 없어', 'memory']].forEach(function (x) { P('task R (stacked/copula/하다)', x[0], x[1]); });
+  [['눈 움직임에는 뭐가 있어', 'dream'], ['눈 움직임에도', 'dream'], ['비 온 뒤에는', 'rainbow'], ['비 온 뒤에도 좋아', 'rainbow'], ['눈 결정에는', 'snow'],
+    ['문어 뇌가 궁금해', 'octopus_nerves'], ['문어 신경계에도 뇌가 있어?', 'octopus_nerves'], ['심장 세 개라니', 'octopus'], ['고래의 노래를 들었어', 'whale_song'],
+    ['매듭 이론에도', 'knot_theory'], ['문어신경계가 궁금해', 'octopus_nerves'], ['비 오는 날', 'rain'], ['차 한 잔', 'tea']].forEach(function (x) { P('phrases (#101)', x[0], x[1]); });
+  [['털모자', 'hat'], ['빨간모자를 쓴 소녀', 'hat'], ['먹구름', 'cloud_names'], ['대왕문어', 'octopus'], ['색분필', 'chalk'], ['모자가게', 'hat'],
+    ['구름사진을 찍었어', 'cloud_names'], ['우산꽂이', 'umbrella'], ['기억상실', 'memory'], ['문어발이 몇 개야', 'octopus']].forEach(function (x) { P('compounds about the room', x[0], x[1]); });
+  [['실제로 있는 거야?', 'zero'], ['이거 실제로 봤어', 'zero'], ['짝수면 어떡해', 'sleep'], ['어울림', 'echo'], ['롱노트', 'knot'], ['실시간', 'time_sense'],
+    ['시골풍경', 'bell'], ['운전조수', 'tide'], ['코스모스가 폈어', 'morse'], ['노트북을 샀어', 'knot'], ['에코백을 들고', 'echo'], ['종이컵에 담아', 'bell'],
+    ['별로야', 'star'], ['별도 요금', 'star'], ['비만 걱정', 'rain'], ['실의에 빠졌어', 'thread'], ['돈이 모자라서', 'hat'], ['모자란 사람', 'hat'],
+    ['모자이크 처리', 'hat'], ['유리한 위치', 'glass'], ['바람직한 방향', 'wind'], ['소수민족', 'prime'], ['중심지', 'candle'], ['선글라스', 'glass'],
+    ['문어체', 'octopus'], ['하루살이', 'time_sense'], ['소금쟁이', 'salt'], ['초롱초롱', 'lantern'], ['벼락치기', 'thunder'], ['머리카락', 'hat'],
+    ['바다표범', 'octopus'], ['득점자', 'braille'], ['김유리', 'glass'], ['아마존 프라임', 'prime'], ['노트에 적어 둬', 'knot'], ['차다', 'tea'],
+    ['나선다', 'spiral'], ['이름있는 가게', 'name'], ['태양초 고추장', 'candle'], ['rainbow', 'rain']].forEach(function (x) { N(x[0], x[1]); });
+  /* brain4: 검증에서 3차가 놓친 것 — 합성어(목록 밖 말·한 글자 뒷말·끝 머리말만인 말), 영문 붙여 쓰기, 빠진 어미, 키워드 하다꼴 */
+  [['봄바람', 'wind'], ['산들바람', 'wind'], ['바닷바람', 'wind'], ['겨울바람', 'wind'], ['칼바람', 'wind'], ['바람소리', 'wind'], ['바람소리 들려', 'wind'],
+    ['진주목걸이', 'pearl'], ['진주귀걸이를 한 소녀', 'pearl'], ['흑진주', 'pearl'], ['진주빛', 'pearl'], ['유리공예', 'glass'], ['유리구두', 'glass'],
+    ['색유리', 'glass'], ['통유리', 'glass'], ['유리컵', 'glass'], ['유리잔', 'glass'], ['점자블록', 'braille'], ['점자판', 'braille'], ['암호해독', 'cipher'],
+    ['암호화', 'cipher'], ['이중나선', 'spiral'], ['나선형 계단', 'spiral'], ['한글창제', 'hangul'], ['한글자판', 'hangul'], ['한글날', 'hangul'],
+    ['한글날 노래', 'hangul'], ['라틴어사전', 'ancient_language'], ['테셀레이션무늬', 'tessellation'], ['추억여행', 'memory'], ['빗방울소리', 'rain'],
+    ['낮잠자기', 'sleep'], ['잠들기전', 'sleep'], ['심장소리', 'heartbeat'], ['심장병', 'heartbeat'], ['풍경소리', 'bell'], ['소금물 만드는 법', 'salt'],
+    ['메트로놈앱', 'metronome'], ['등대섬', 'lighthouse'], ['무지개빛', 'rainbow'], ['이름표', 'name'], ['수수께끼놀이', 'riddle'], ['밀물썰물', 'tide']
+  ].forEach(function (x) { P('compounds (brain4: 목록 밖·한 글자 뒷말·끝 머리말)', x[0], x[1]); });
+  [['문어octopus', 'octopus'], ['octopus문어', 'octopus'], ['이끼moss', 'moss'], ['sos신호', 'morse'], ['한글이야말로 최고', 'hangul'], ['고래 노래였나?', 'whale_song'],
+    ['문어였나', 'octopus'], ['문어거든', 'octopus'], ['문어지?', 'octopus'], ['문어거든요', 'octopus'], ['문어라는 동물', 'octopus'], ['문어니까', 'octopus'],
+    ['우산이면 돼', 'umbrella'], ['진주였구나', 'pearl'], ['뜨개질하는 법', 'thread'], ['필기하는 법', 'quill'], ['계산하는 법', 'abacus'],
+    ['수집하는 취미', 'stamp'], ['해독하는 법', 'cipher'], ['바느질하기', 'thread'], ['추억하는 법', 'memory'], ['천둥치는 밤', 'thunder'], ['소용돌이치는 바다', 'spiral'], ['메아리치다', 'echo']
+  ].forEach(function (x) { P('mixed script · endings · 하다/치다 (brain4)', x[0], x[1]); });
+  [['만점자', 'braille'], ['고득점자', 'braille'], ['박진주', 'pearl'], ['진주시청', 'pearl'], ['진주시', 'pearl'], ['진주냉면', 'pearl'], ['바람둥이', 'wind'],
+    ['바람기', 'wind'], ['바람피운 남자', 'wind'], ['바람날 거야', 'wind'], ['바람직하다', 'wind'], ['이유리 선생님', 'glass'], ['유리수', 'glass'], ['유리해', 'glass'],
+    ['암호화폐', 'cipher'], ['암호화폐 시세', 'cipher'], ['소수점', 'prime'], ['소수자', 'prime'], ['이름값', 'name'], ['한글자', 'hangul'], ['심장부', 'heartbeat'],
+    ['핵심장면', 'heartbeat'], ['나선거야', 'spiral'], ['풍경화', 'bell'], ['풍경사진', 'bell'], ['번개팅', 'thunder'], ['모자래', 'hat'], ['모자라는 사람', 'hat'],
+    ['창고 정리', 'sleep'], ['정리해 줘', 'sleep'], ['조수석', 'tide'], ['제로콜라', 'zero'], ['나선다고 했어', 'spiral'], ['구름판 밟기', 'cloud_names'], ['비ASCII 문자', 'rain'], ['lineKind별로', 'star']].forEach(function (x) { N(x[0], x[1]); });
+  var wk = function (t) { return 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(t); };
+  [[wk('털모자'), 'hat'], [wk('모자의_역사'), 'hat'], [wk('눈_(날씨)'), 'snow'], [wk('매듭_이론'), 'knot_theory'], [wk('먹구름'), 'cloud_names'],
+    ['https://example.org/tea-time', 'tea'], ['https://www.linkedin.com/in/someone', 'none'], ['https://teams.microsoft.com/x', 'none'], [wk('실제로'), 'none'],
+    [wk('실시간'), 'none'], [wk('코스모스'), 'none'], [wk('모자이크'), 'none'],
+    [wk('한글날'), 'hangul'], [wk('이중나선'), 'spiral'], [wk('봄바람'), 'wind'], [wk('흑진주'), 'pearl'], [wk('심장병'), 'heartbeat'], [wk('점자블록'), 'braille'],
+    [wk('암호화폐'), 'none'], [wk('득점자'), 'none'], [wk('진주시'), 'none'], [wk('김유리'), 'none']].forEach(function (x) { if (x[1] === 'none' || W.nodes[x[1]]) out.push({ g: 'url', u: x[0], exp: x[1] }); });
+  return out;
 }
 
 /* ───────── 단위 테스트 ───────── */
@@ -268,6 +338,51 @@ async function unitTests() {
   check(mh('눈 결정이 궁금해') === 'snow' && mh('비 오는 날') === 'rain' && mh('눈 오는 밤') === 'snow', "own phrase keeps its room (눈 결정이 → 눈); plain one-syllable words still match");
   var u = function (t) { return (BRAIN.nodeFromUrl('https://ko.wikipedia.org/wiki/' + encodeURIComponent(t)) || {}).id || null; };
   check(u('털모자') === 'hat' && u('아기모자') === 'hat' && u('노트북') === null && u('코스모스') === null, 'url: 털모자/아기모자 → hat, 노트북/코스모스 → none (' + [u('털모자'), u('아기모자'), u('노트북'), u('코스모스')].join(',') + ')');
+  BRAIN.setWorld(null);
+
+  /* 3차: 낱말 = 말 + 조사·어미 사슬 (겹조사·서술격·하다꼴), 합성어는 허용된 말만 */
+  section('matchHint — whole-word stems, stacked particles, compound allow-list (brain3 R/#7/#101)');
+  BRAIN.setWorld({ corners: { c: {} }, nodes: {
+    hat: mini('hat', '모자'), octopus: mini('octopus', '문어'), moss: mini('moss', '이끼'), lullaby: mini('lullaby', '자장가'),
+    memory: mini('memory', '기억'), glass: mini('glass', '유리'), rain: mini('rain', '비'), snow: mini('snow', '눈', { aliases: ['눈 결정'] }),
+    dream: mini('dream', '꿈', { keywords: ['눈 움직임'] }), rainbow: mini('rainbow', '무지개', { keywords: ['비 온 뒤'] }),
+    zero: mini('zero', '0', { aliases: ['제로'] }), sleep: mini('sleep', '잠', { aliases: ['수면'] }), echo: mini('echo', '메아리', { aliases: ['울림'] }),
+    time: mini('time', '시간 감각', { aliases: ['시간'] }), knot: mini('knot', '매듭', { aliases: ['노트'] }), salt: mini('salt', '소금')
+  } });
+  var stackedHits = ['문어에도 뼈가 있어?', '모자에는 뭐가 있어', '이끼에도 꽃이 펴?', '문어와의 대화', '자장가라도 불러 줘', '소금에는', '모자로도', '문어하고는', '이끼까지도', '모자들이랑'].map(mh);
+  check(stackedHits.join() === 'octopus,hat,moss,octopus,lullaby,salt,hat,octopus,moss,hat', 'R: name + stacked particles (에도/에는/와의/라도/로도/하고는/까지도/들이랑) → room (' + stackedHits.join(',') + ')');
+  var copHits = ['털모자예요', '문어다', '소금이에요', '이거 모자야', '문어든', '모자나 장갑', '소금이든', '모자인데', '문어였어'].map(mh);
+  check(copHits.join() === 'hat,octopus,salt,hat,octopus,hat,salt,hat,octopus', 'R: copula endings and 나/든/이나/이든 → room (' + copHits.join(',') + ')');
+  check(mh('기억하는 법') === 'memory' && mh('기억나는 게 없어') === 'memory' && mh('유리한 위치') === 'wiki' && mh('유리하게') === 'wiki', "R: 하다 forms only after 하다-nouns (기억하는 → 기억, 유리한 ≠ 유리)");
+  check(mh('눈 움직임에는 뭐가 있어') === 'dream' && mh('눈 움직임에도') === 'dream' && mh('비 온 뒤에는') === 'rainbow' && mh('비 온 뒤에도 좋아') === 'rainbow' && mh('눈 결정에는') === 'snow', '#101 phrase + stacked particle keeps the phrase room (' + [mh('눈 움직임에는 뭐가 있어'), mh('비 온 뒤에는')].join(',') + ')');
+  var notIn = ['실제로 있는 거야?', '이거 실제로 봤어', '짝수면 어떡해', '어울림', '롱노트', '실시간', '해수면', '노트북이랑'].map(mh);
+  check(notIn.every(function (x) { return x === 'wiki'; }), '#7 a term inside another word is not that room (제로/수면/울림/노트/시간) (' + notIn.join(',') + ')');
+  check(mh('비에도 젖었어') === 'rain' && mh('눈에는') === 'snow' && mh('비만 걱정') === 'wiki' && mh('비다') === 'wiki' && mh('비요') === 'wiki', 'one-syllable name: particle chains yes, 비만/copula/요 no');
+  check(mh('모자란 사람') === 'wiki' && mh('돈이 모자라서') === 'wiki' && mh('모자랑 장갑') === 'hat', "'모자라다' forms are not 모자, '모자랑' is");
+  check(mh('모자이크 처리') === 'wiki' && mh('소금쟁이') === 'wiki' && mh('소금사막') === 'salt' && mh('대왕문어') === 'octopus', 'compound allow-list: 모자이크/소금쟁이 no, 소금사막/대왕문어 yes');
+  check(mh('시간이 모자라') === 'time' && mh('잠이 모자라요') === 'sleep', "whole-word terms still match next to 모자라 (" + mh('시간이 모자라') + ')');
+  var uu = function (t) { return (BRAIN.nodeFromUrl('https://ko.wikipedia.org/wiki/' + encodeURIComponent(t)) || {}).id || null; };
+  check(uu('실제로') === null && uu('실시간') === null && uu('대왕문어') === 'octopus' && uu('눈_결정') === 'snow', 'url uses the same word rules (' + [uu('실제로'), uu('실시간'), uu('대왕문어'), uu('눈_결정')].join(',') + ')');
+  BRAIN.setWorld(null);
+
+  /* 4차: 합성어 자리는 말마다 (끝 머리말만 · 앞머리만 · 목록 밖은 SAFE_TAIL 뒷말만) · 영문 붙여 쓰기 · 어미 · 키워드 하다/치다꼴 */
+  section('matchHint — compound positions per term, mixed script, endings, keyword 하다 (brain4)');
+  BRAIN.setWorld({ corners: { c: {} }, nodes: {
+    wind: mini('wind', '바람'), pearl: mini('pearl', '진주'), glass: mini('glass', '유리'), braille: mini('braille', '점자'),
+    cipher: mini('cipher', '암호', { keywords: ['해독'] }), bell: mini('bell', '종', { aliases: ['풍경'] }), prime: mini('prime', '소수'),
+    hangul: mini('hangul', '한글'), lullaby: mini('lullaby', '자장가', { keywords: ['노래'] }), octopus: mini('octopus', '문어'),
+    thread: mini('thread', '실', { keywords: ['뜨개질'] }), thunder: mini('thunder', '천둥', { aliases: ['벼락'] }), sleep: mini('sleep', '잠', { aliases: ['잠들기'] })
+  } });
+  var m4 = function (list) { return list.map(mh).join(); };
+  check(m4(['봄바람', '칼바람이 불어', '바람소리', '바람직한', '바람둥이', '바람기']) === 'wind,wind,wind,wiki,wiki,wiki', "바람: head noun only (봄바람·칼바람), front only with a SAFE_TAIL (바람소리); 바람직한/바람둥이/바람기 no (" + m4(['봄바람', '칼바람이 불어', '바람소리', '바람직한', '바람둥이', '바람기']) + ')');
+  check(m4(['흑진주', '진주목걸이', '진주빛', '박진주', '진주시', '진주시청']) === 'pearl,pearl,pearl,wiki,wiki,wiki', '진주: 흑진주/진주목걸이/진주빛 yes; surname + 진주 and 진주시 (city) no (' + m4(['흑진주', '진주목걸이', '진주빛', '박진주', '진주시', '진주시청']) + ')');
+  check(m4(['색유리', '유리공예', '유리컵', '김유리', '유리수', '유리한 위치']) === 'glass,glass,glass,wiki,wiki,wiki', '유리: 색유리/유리공예/유리컵 yes; 김유리/유리수/유리한 no (' + m4(['색유리', '유리공예', '유리컵', '김유리', '유리수', '유리한 위치']) + ')');
+  check(m4(['점자블록', '득점자', '만점자', '암호해독', '암호화', '암호화폐']) === 'braille,wiki,wiki,cipher,cipher,wiki', '점자 front only (득점자/만점자 no); 암호해독 = two words of one room; 암호화폐 no (' + m4(['점자블록', '득점자', '만점자', '암호해독', '암호화', '암호화폐']) + ')');
+  check(m4(['풍경소리', '풍경화', '시골풍경', '소수판별', '소수민족']) === 'bell,wiki,wiki,wiki,wiki', 'unlisted alias only with a SAFE_TAIL (풍경소리 yes, 풍경화/시골풍경 no); 소수 never compounds (' + m4(['풍경소리', '풍경화', '시골풍경', '소수판별', '소수민족']) + ')');
+  check(mh('한글날 노래') === 'hangul' && mh('한글날') === 'hangul' && mh('노래') === 'lullaby', "a name compound beats a plain keyword word ('한글날 노래' → 한글, 노래 = 자장가 키워드)");
+  check(m4(['문어octopus', 'octopus문어', '문어거든요', '문어였나', '한글이야말로', '문어라는 동물', '문어지?']) === 'octopus,octopus,octopus,octopus,hangul,octopus,octopus', 'Hangul+ASCII written together split; endings 거든요/였나/이야말로/라는/지 (' + m4(['문어octopus', 'octopus문어', '문어거든요', '문어였나', '한글이야말로', '문어라는 동물', '문어지?']) + ')');
+  check(m4(['뜨개질하는 법', '천둥치는 밤', '벼락치기', '잠들기전', '잠들기전에']) === 'thread,thunder,wiki,sleep,sleep', 'keyword + 하다 (뜨개질하는), 치다 only for CHIDA (천둥치는 yes, 벼락치기 no), -기 전 (' + m4(['뜨개질하는 법', '천둥치는 밤', '벼락치기', '잠들기전', '잠들기전에']) + ')');
+  check((BRAIN.nodeFromUrl('https://ko.wikipedia.org/wiki/' + encodeURIComponent('봄바람')) || {}).id === 'wind' && BRAIN.nodeFromUrl('https://ko.wikipedia.org/wiki/' + encodeURIComponent('득점자')) === null, 'url: same compound positions (봄바람 → wind, 득점자 → none)');
   BRAIN.setWorld(null);
 
   section('computeReaction — wild stops (bug hunt #6/#42)');
@@ -551,6 +666,21 @@ async function planSuite(label, W, hasHat) {
   if (W.nodes.rainbow && W.nodes.rain) check(mw('비 온 뒤에 대해 알려줘') === 'rainbow' && mw('비 오는 날') === 'rain', "'비 온 뒤에' → 무지개, '비 오는 날' → 비 (" + mw('비 온 뒤에 대해 알려줘') + ')');
   if (W.nodes.knot) check(['노트북을 샀어', '노트북이 고장났어', '에코백을 들고', '코스모스'].every(function (h) { return mw(h) === 'wiki'; }), '노트북을/노트북이/에코백을/코스모스 → wiki');
 
+  /* brain3 말뭉치: 실제 world.js 에서만 (가짜 WORLD 의 방 이름은 이 말뭉치의 정답과 다르다) */
+  if (W.nodes.octopus && W.nodes.zero && W.nodes.dream && W.nodes.knot_theory) {
+    var mcases = matcherCorpus(W), byG = {};
+    section('matchHint word-rule corpus (R/#7/#101, ' + mcases.length + ' cases) — ' + label);
+    mcases.forEach(function (c) {
+      var r = c.u ? ((BRAIN.nodeFromUrl(c.u) || {}).id || 'none') : mw(c.h);
+      var g = byG[c.g] = byG[c.g] || { n: 0, bad: [] };
+      g.n++;
+      if (c.not ? r === c.not : r !== c.exp) g.bad.push((c.h || c.u) + ' → ' + r + (c.not ? ' (≠' + c.not + ')' : ' (want ' + c.exp + ')'));
+    });
+    Object.keys(byG).forEach(function (g) {
+      check(byG[g].bad.length === 0, g + ': ' + (byG[g].n - byG[g].bad.length) + '/' + byG[g].n + (byG[g].bad.length ? ' e.g. ' + byG[g].bad.slice(0, 5).join(' | ') : ''));
+    });
+  }
+
   /* pickStart 취향 */
   section('pickStart — ' + label);
   var seaNodes = Object.keys(W.nodes).filter(function (id) { return W.nodes[id].corner === 'sea'; });
@@ -581,6 +711,7 @@ async function huntSuite(label, W) {
     if (!a) return false;
     if (typeof a.minLantern === 'number' && lantern < a.minLantern) return false;
     if (typeof a.requiresLantern === 'number' && lantern < a.requiresLantern) return false;
+    if (typeof a.maxLantern === 'number' && lantern > a.maxLantern) return false;
     if (a.requiresPoster && posters < (a.effect === 'rotatePosters' ? 2 : 1)) return false;
     return true;
   }
@@ -613,6 +744,23 @@ async function huntSuite(label, W) {
     }
     check(posterActs.some(function (a) { return seenAct.p1[a.id]; }), 'one poster → a poster activity can happen');
   }
+
+  /* 41 옆: 두뇌는 날씨를 모른다 (app: 등불 0~5 비 · 6 가랑비 · 7 맑음 · 8+ 날마다). 등불 7 이상에서 집 활동·메모가 비를 말하면 안 된다 */
+  var HOME_WX = /비가|비 오|비 와|비 셌|빗|눈이 와|눈 오|맑|흐려|흐린|날씨|안개/;
+  global.__ppolTest = { forceKind: 'home' };
+  var wxErr = [], rainyLow = 0;
+  for (seed = 1; seed <= 200; seed++) {
+    for (var lv of [7, 8, 9]) {
+      t = await BRAIN.plan(baseInput(seed, { state: { visits: {}, affinity: {}, lantern: lv, recent: [], todayOut: 0, posters: 3 } }));
+      var txt = [t.receipt.activity.line, t.receipt.activity.detail, t.poster.line, t.poster.detail, JSON.stringify(t.memo || '')].concat(t.events.map(function (e) { return (e.line || '') + ' ' + JSON.stringify(e.memo || ''); })).join(' | ');
+      if (HOME_WX.test(txt)) wxErr.push('seed ' + seed + ' lantern ' + lv + ' ' + t.receipt.activity.id + ': ' + txt.slice(0, 60));
+    }
+    t = await BRAIN.plan(baseInput(seed, { state: { visits: {}, affinity: {}, lantern: 3, recent: [], todayOut: 0, posters: 3 } }));
+    if (HOME_WX.test(t.receipt.activity.line + t.receipt.activity.detail)) rainyLow++;
+  }
+  delete global.__ppolTest;
+  check(wxErr.length === 0, 'lantern ≥7 (can be clear): home activity / memo never claims rain (' + wxErr.length + ' errors)' + (wxErr.length ? ' e.g. ' + wxErr.slice(0, 2).join(' || ') : ''));
+  if ((W.homeActivities || []).some(function (a) { return typeof a.maxLantern === 'number'; })) check(rainyLow > 0, 'lantern 3 (always rain): rain activities still happen (' + rainyLow + '/200)');
 
   /* #2 무시한 힌트 방은 길에 없다 */
   section('ignored node hint stays out of the route (#2) — ' + label);
@@ -672,11 +820,13 @@ async function huntSuite(label, W) {
 
   /* #3/#41 반응 한 줄은 실제로 있었던 일만 */
   section('reaction lines match what happened (#3/#41) — ' + label);
+  /* #41: 두뇌 입력에는 날씨가 없다 (app 이 등불 단계로 정한다, 등불 7 = 맑음) → 반응 줄이 날씨를 말하면 안 된다 */
+  var WEATHER_CLAIM = /비가|비 오|비 와|빗|눈이 와|눈 오|맑|흐려|흐린|날씨|안개/;
   errs = [];
   global.__ppolTest = { forceKind: 'home' };
   for (seed = 1; seed <= 80; seed++) {
     t = await BRAIN.plan(baseInput(seed, { state: { visits: {}, affinity: {}, lantern: 3, recent: [], todayOut: 0 } }));
-    if (/걸었|다녀왔|갔다 왔|산책|처음|못 읽/.test(t.receipt.reactionLine || '')) errs.push('home seed ' + seed + ': ' + t.receipt.reactionLine);
+    if (/걸었|다녀왔|갔다 왔|산책|처음|못 읽/.test(t.receipt.reactionLine || '') || WEATHER_CLAIM.test(t.receipt.reactionLine || '')) errs.push('home seed ' + seed + ': ' + t.receipt.reactionLine);
   }
   delete global.__ppolTest;
   function lineErr(tr, tag) {
@@ -684,6 +834,7 @@ async function huntSuite(label, W) {
     if (/못 읽은/.test(ln) && !(c.failed + c.simulated > 0)) return tag + ' says missed but nothing failed: ' + ln;
     if (/처음/.test(ln) && !tr.receipt.stops.some(function (s) { return s.first; })) return tag + ' says first but no first stop: ' + ln;
     if (/많이 걸었/.test(ln) && tr.receipt.stops.length < 4) return tag + ' says walked a lot with ' + tr.receipt.stops.length + ' stops: ' + ln;
+    if (WEATHER_CLAIM.test(ln)) return tag + ' claims weather the brain does not know (lantern 7 is clear): ' + ln;
     return null;
   }
   var outN = 0;
@@ -700,7 +851,7 @@ async function huntSuite(label, W) {
       var e1 = lineErr(t, 'seed ' + seed + '/' + vi); if (e1) errs.push(e1);
     }
   }
-  check(outN > 100 && errs.length === 0, 'reaction lines: no "많이 걸었어" at home, no "못 읽은" without a miss, no "처음" without a first stop (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 3).join(' | ') : ''));
+  check(outN > 100 && errs.length === 0, 'reaction lines: no "많이 걸었어" at home, no "못 읽은" without a miss, no "처음" without a first stop, no weather (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 3).join(' | ') : ''));
 
   /* #6/#42 들판(❔)은 '처음'이 아니다. 실패한 들판 걸음으로 폴짝하지 않는다 */
   section('wild stops are never "first" (#6/#42) — ' + label);
