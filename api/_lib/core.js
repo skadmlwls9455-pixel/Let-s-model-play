@@ -1,5 +1,5 @@
 /* api/_lib/core.js — 다락방 달리기 주간 랭킹 공통 부품 (CommonJS, Node 런타임).
- *   저장소 어댑터 { put(path, json), list(prefix) → [{pathname, uploadedAt}], head(path) → meta|null }
+ *   저장소 어댑터 { put(path, json), list(prefix) → [{pathname, uploadedAt}], head(path) → meta|null, read(path) → json|null }
  *     - blobStore(): Vercel Blob (private, addRandomSuffix:false, allowOverwrite:false)
  *     - memoryStore(): 테스트용 (네트워크 없음)
  *   토큰(HMAC-SHA256) · 주 키(Asia/Seoul ISO 주) · 닉네임 정리 · 경로 코덱(사전순 = 순위).
@@ -150,7 +150,7 @@ function memoryStore() {
       return out;
     },
     head: async function (path) { var v = m.get(path); return v ? { pathname: v.pathname, uploadedAt: v.uploadedAt } : null; },
-    read: function (path) { var v = m.get(path); return v ? JSON.parse(v.body) : null; }   /* 테스트 전용 */
+    read: function (path) { var v = m.get(path); return v ? JSON.parse(v.body) : null; }   /* 동기로 돌려줘도 부르는 쪽은 await */
   };
 }
 function blobStore() {
@@ -179,7 +179,14 @@ function blobStore() {
       }
       return out;
     },
-    head: head
+    head: head,
+    read: async function (path) {   /* 없으면 null. 방금 쓴 표지를 읽으니 캐시를 거치지 않는다 */
+      var r = await sdk().get(path, { access: 'private', useCache: false });
+      if (!r || r.statusCode !== 200 || !r.stream) return null;
+      var rd = r.stream.getReader(), parts = [], c;
+      while (!(c = await rd.read()).done) parts.push(Buffer.from(c.value));
+      try { return JSON.parse(Buffer.concat(parts).toString('utf8')); } catch (e) { return null; }
+    }
   };
 }
 

@@ -260,6 +260,11 @@ function body(tok, run, nick, patch) { var b = { token: tok, inputs: run.inputs,
   var w1 = await call('submit', { method: 'POST', body: bPw });
   check(w1.status === 502 && w1.json.error === 'storage', '표시만 쓰고 기록 쓰기 실패 → 502 ' + JSON.stringify(w1.json));
   check(await mem.head(core.idPath('2026-W45', core.runIdOf(tPw))) && (await core.board(mem, '2026-W45')).length === 0, '(표시는 있고 순위표엔 없음)');
+  var mk = mem.read(core.idPath('2026-W45', core.runIdOf(tPw)));
+  check(mk && mk.score === pw.score && mk.ticks === pw.ticks, '표시에 이 토큰의 판(score·ticks)을 적어 둠 ' + JSON.stringify(mk));
+  var pw2 = null; for (var k6 = 10; k6 < 300 && !pw2; k6++) { var x6 = runOf(7, false, [{ t: k6, a: 'jd' }, { t: k6 + 5, a: 'ju' }]); if (x6.score !== pw.score) pw2 = x6; }
+  var wX = await call('submit', { method: 'POST', body: body(tPw, pw2, 'other run') });
+  check(wX.status === 409 && wX.json.error === 'duplicate' && (await core.board(mem, '2026-W45')).length === 0, '끊긴 뒤 같은 토큰으로 다른 판 → 409, 그 판을 이어 쓰지 않음 ' + JSON.stringify(wX.json));
   var w2 = await call('submit', { method: 'POST', body: bPw });
   check(w2.status === 200 && w2.json.rank === 1 && w2.json.total === 1 && w2.json.runId === core.runIdOf(tPw), '다시 보내면 이어서 써서 200 (409 아님) ' + JSON.stringify(w2.json));
   var w3 = await call('submit', { method: 'POST', body: body(tPw, pw, 'other name') });
@@ -284,6 +289,31 @@ function body(tok, run, nick, patch) { var b = { token: tok, inputs: run.inputs,
   await mem.put(core.encodePath({ week: '2026-W45', score: pE.score, ticks: pE.ticks, runId: core.runIdOf(tE), nick: 'same' }), {});
   var wE = await call('submit', { method: 'POST', body: body(tE, pE, 'same') });
   check(wE.status === 200 && wE.json.rank === 1 && wE.json.total === 1, '표시 없이 기록만 있던 경우도 200 한 줄 ' + JSON.stringify(wE.json));
+  /* 동시에: 먼저 표시를 쓴 요청이 아직 기록을 쓰는 중에 같은 토큰으로 다른 판이 오면 409 (먼저 온 판만 남음) */
+  mem = core.memoryStore(); core.setStore(mem); clock = T0;
+  var rp = mem.put, slow = true;
+  mem.put = async function (p, j) { if (/^runner\//.test(p) && slow) { slow = false; await new Promise(function (r) { setTimeout(r, 30); }); } return rp.call(mem, p, j); };
+  var both = await Promise.all([call('submit', { method: 'POST', body: body(tPw, pw, 'first') }),
+    new Promise(function (r) { setTimeout(r, 5); }).then(function () { return call('submit', { method: 'POST', body: body(tPw, pw2, 'second') }); })]);
+  var rawR = await mem.list('runner/2026-W45/');
+  check(both[0].status === 200 && both[0].json.score === pw.score && both[0].json.nick === 'first', '먼저 온 판은 200, 제 점수·닉네임 그대로 ' + JSON.stringify(both[0].json));
+  check(both[1].status === 409 && both[1].json.error === 'duplicate' && rawR.length === 1, '쓰는 중에 온 다른 판은 409, 기록 1개 ' + JSON.stringify(both[1].json) + ' raw ' + rawR.length);
+  var again = await call('submit', { method: 'POST', body: body(tPw, pw, 'first') });
+  check(again.status === 200 && again.json.score === pw.score, '그 뒤 먼저 온 판을 다시 보내면 200 ' + JSON.stringify(again.json));
+  mem.put = rp;
+  /* 점수가 안 적힌 옛 표시({runId, at})는 예전처럼 이어 쓴다 · 표시를 못 읽으면 502 (다시 시도) */
+  mem = core.memoryStore(); core.setStore(mem);
+  var tL = token(11, false, T0 - 60000), pL = runOf(11, false, []);
+  await mem.put(core.idPath('2026-W45', core.runIdOf(tL)), { runId: core.runIdOf(tL), at: T0 - 30000 });
+  var wL = await call('submit', { method: 'POST', body: body(tL, pL, 'legacy') });
+  check(wL.status === 200 && wL.json.rank === 1, '옛 표시 + 기록 없음 → 이어 써서 200 ' + JSON.stringify(wL.json));
+  var tU = token(12, false, T0 - 60000), pU = runOf(12, false, []);
+  await mem.put(core.idPath('2026-W45', core.runIdOf(tU)), { runId: core.runIdOf(tU), at: T0, score: pU.score, ticks: pU.ticks });
+  mem.read = function () { return null; };
+  var wU = await call('submit', { method: 'POST', body: body(tU, pU, 'u') });
+  mem.read = function () { throw new Error('BlobServiceNotAvailable'); };
+  var wU2 = await call('submit', { method: 'POST', body: body(tU, pU, 'u') });
+  check(wU.status === 502 && wU2.status === 502 && (await core.board(mem, '2026-W45')).length === 1, '표시를 못 읽으면 502, 아무것도 안 씀 ' + wU.status + '/' + wU2.status);
 
   console.log('== 7. 주 경계: 늦게 온 판 · 망토는 10개까지');
   mem = core.memoryStore(); core.setStore(mem);

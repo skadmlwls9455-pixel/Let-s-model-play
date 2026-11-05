@@ -1,9 +1,10 @@
 /* POST /api/runner/submit  { token, inputs:[{t,a}], score, ticks, nick } → { ok, rank, week, runId, award }
  *   검증: 서명 · 30분 안 · 입력 형식(≤ 20000, t 정수 ≥ 0 비감소, a ∈ jd|ju|dd|du, t ≤ ticks)
  *        · 실시간보다 빠를 수 없음(ticks/60 ≤ 경과 초 + 3) · 토큰의 seed/night 로 재시뮬(끝까지 + until=ticks) = 주장한 score·ticks
- *        · 시드당 한 번(runner-ids/{week}/{runId}.json, 덮어쓰기 금지).
+ *        · 시드당 한 번(runner-ids/{week}/{runId}.json { runId, at, score, ticks }, 덮어쓰기 금지 — 먼저 쓴 판이 이 토큰의 판).
  *   다시 보내기는 멱등: 같은 runId 가 같은 score·ticks 로 이미 순위표에 있으면 그 결과를 200 으로 그대로 (응답을 잃었을 때 · 만료 뒤라도).
- *        같은 runId 인데 다른 점수면 409 duplicate. 표시만 있고 기록이 없으면(지난번에 중간에 실패) 기록을 이어서 쓴다.
+ *        같은 runId 인데 다른 점수면 409 duplicate. 표시만 있고 기록이 없으면(지난번에 중간에 실패, 또는 먼저 온 요청이 아직 쓰는 중)
+ *        표시에 적힌 판과 같은 판일 때만 기록을 이어서 쓴다 — 다른 판이면 409.
  *   저장: { nick, score, ticks, at, runId, inputsLen } — IP·UA 는 저장하지 않는다. */
 'use strict';
 var core = require('../_lib/core.js');
@@ -60,16 +61,20 @@ module.exports = async function submit(req, res) {
 
   var store = core.getStore(), week = tok.week, runId = core.runIdOf(body.token), nick = core.sanitizeNick(body.nick);
   try {
-    await store.put(core.idPath(week, runId), { runId: runId, at: now });
+    await store.put(core.idPath(week, runId), { runId: runId, at: now, score: score, ticks: ticks });
   } catch (e) {
     if (!e || e.code !== 'EEXIST') {
       console.error('runner submit: id put failed', e && e.name);
       return bad(res, 502, 'storage');
     }
-    /* 이 토큰은 벌써 한 번 왔다: 같은 판이 순위표에 있으면 그 결과(다시 보내기), 다른 판이면 409, 없으면 지난번 쓰기가 중간에 끊긴 것 → 아래에서 이어 쓴다 */
-    var prior;
+    /* 이 토큰은 벌써 한 번 왔다: 같은 판이 순위표에 있으면 그 결과(다시 보내기), 다른 판이면 409.
+     * 순위표에 없으면 지난번 쓰기가 끊겼거나 먼저 온 요청이 아직 쓰는 중 → 표시에 적힌 판과 같을 때만 아래에서 이어 쓴다 */
+    var prior, mark;
     try { prior = await find(store, week, runId); } catch (e1) { console.error('runner submit: list failed', e1 && e1.name); return bad(res, 502, 'storage'); }
     if (prior.d) return same(prior.d, score, ticks) ? core.send(res, 200, okBody(prior.b, prior.d, week)) : bad(res, 409, 'duplicate');
+    try { mark = await store.read(core.idPath(week, runId)); } catch (e4) { console.error('runner submit: id read failed', e4 && e4.name); return bad(res, 502, 'storage'); }
+    if (!mark) return bad(res, 502, 'storage');   /* 있다는데 못 읽음 → 다시 시도하게 */
+    if (Number.isInteger(mark.score) && !same(mark, score, ticks)) return bad(res, 409, 'duplicate');   /* 점수 없는 옛 표시({runId, at})는 30분 안에 만료되니 그대로 이어 쓴다 */
   }
   var path = core.encodePath({ week: week, score: score, ticks: ticks, runId: runId, nick: nick });
   try {
