@@ -203,22 +203,46 @@
     });
     return out;
   }
-  /* hay 안에 s 가 낱말로 들어 있나 (힌트 글·URL 공용, 둘 다 소문자).
+  /* hay 안에 s 가 낱말로 들어 있나 (힌트 글·URL 공용, 둘 다 소문자). 0 = 아님, 2 = 낱말 첫머리, 1 = 낱말 끝(머리말).
      - 영문만인 s: 앞뒤가 영문이 아닐 때만 (linkedin 안의 ink, rainbow 안의 rain 은 아니다)
-     - 그 밖(한글 등): 낱말 첫머리에서 시작하고, 그 낱말에 붙은 나머지가 없거나·조사거나·두 글자 이상일 때만
-       ('코스모스' 안의 모스, '노트북'의 노트, '에코백'의 에코는 아니다. '구름사진'의 구름, '모자가게'의 모자는 맞다) */
+     - 그 밖(한글 등), 낱말 첫머리: 붙은 나머지에서 조사를 떼고 없거나·두 글자 이상일 때만
+       ('노트북을'의 노트, '에코백'의 에코는 아니다. '구름사진을'의 구름, '모자가게'의 모자는 맞다)
+     - 낱말 끝: 한국어 합성어는 끝이 머리말이라 '털모자'·'빨간모자'는 모자다. 뒤에는 조사만. 덜 확실하니 따로(1) 알린다
+       ('코스모스'처럼 끝이 우연히 같은 낱말은 NOT_HEAD 로 뺀다) */
   var WORD_CH = /[a-z0-9가-힣]/;
+  var HANGUL_ONLY = /^[가-힣]+$/;
+  var TAIL_OK = ['들', '만', '랑', '야', '요'];   /* 조사 말고도 흔히 붙는 한 글자: 모자들 · 모자만 · 모자랑 · 모자야 */
+  var NOT_HEAD = { '코스모스': 1, '중심지': 1, '도심지': 1, '해수면': 1, '극소수': 1, '선글라스': 1 };
+  /* 끝의 조사 하나를 뗀다. 받침에 맞는 조사만 ('북을' → 북, '사이' 는 사+이 가 아니라 그대로) */
+  function stripParticle(rest) {
+    for (var i = 0; i < PARTICLES.length; i++) {
+      var p = PARTICLES[i];
+      if (rest.length > p.length && rest.slice(-p.length) === p) {
+        var stem = rest.slice(0, -p.length);
+        if (!JOSA[p] || josa(stem, p) === p) return stem;
+        return rest;
+      }
+    }
+    return rest;
+  }
+  function bareTail(rest) { return !rest || PARTICLES.indexOf(rest) >= 0 || TAIL_OK.indexOf(rest) >= 0 || TAIL_OK.indexOf(stripParticle(rest)) >= 0; }
   function containsWord(hay, s) {
-    if (!s) return false;
-    if (/^[a-z ]+$/.test(s)) return new RegExp('(^|[^a-z])' + s + '([^a-z]|$)').test(hay);
+    if (!s) return 0;
+    if (/^[a-z ]+$/.test(s)) return new RegExp('(^|[^a-z])' + s + '([^a-z]|$)').test(hay) ? 2 : 0;
+    var found = 0;
     for (var i = hay.indexOf(s); i >= 0; i = hay.indexOf(s, i + 1)) {
-      if (i > 0 && WORD_CH.test(hay.charAt(i - 1))) continue;
+      var a = i;
+      while (a > 0 && WORD_CH.test(hay.charAt(a - 1))) a--;
       var j = i + s.length, k = j;
       while (k < hay.length && WORD_CH.test(hay.charAt(k))) k++;
       var rest = hay.slice(j, k);
-      if (rest.length !== 1 || PARTICLES.indexOf(rest) >= 0) return true;
+      if (a === i) {
+        if (bareTail(rest) || stripParticle(rest).length >= 2) return 2;
+      } else if (!found && bareTail(rest) && HANGUL_ONLY.test(hay.slice(a, i)) && !NOT_HEAD[hay.slice(a, j)]) {
+        found = 1;
+      }
     }
-    return false;
+    return found;
   }
 
   function tokenize(hint) {
@@ -250,24 +274,41 @@
     function offer(id, how, score) {
       if (!best || score > best.score) best = { nodeId: id, how: how, score: score };
     }
-    /* 같은 단계에서는 별칭(aliases)이 키워드(keywords)보다 앞선다: 먹물은 잉크의 별칭, 문어의 키워드 */
+    function termsOf(node) {
+      return { name: lower(node.name), al: (node.aliases || []).map(lower).filter(Boolean), kw: (node.keywords || []).map(lower).filter(Boolean) };
+    }
+    /* 다른 방의 띄어 쓴 별칭·키워드('눈 움직임' → 꿈, '비 온 뒤' → 무지개)가 힌트에 그대로 있으면,
+       그 안의 한 글자 낱말은 한 글자 방 이름으로 치지 않는다 */
+    var phrases = [];
+    ids.forEach(function (id) {
+      var node = W.nodes[id];
+      if (!node || id === 'door_out') return;
+      var t = termsOf(node);
+      [t.name].concat(t.al, t.kw).forEach(function (p) { if (/\s/.test(p) && containsWord(low, p)) phrases.push({ id: id, p: p }); });
+    });
+    function wordsOutsidePhrases(id) {
+      var h = low;
+      phrases.forEach(function (x) { if (x.id !== id) h = h.split(x.p).join(' '); });
+      return h === low ? words : hintWords(h);
+    }
+    /* 같은 단계에서는 별칭(aliases)이 키워드(keywords)보다 앞선다: 먹물은 잉크의 별칭, 문어의 키워드.
+       낱말 끝에 붙은 이름·별칭('털모자'·'아기모자'의 모자)은 합성어의 머리말이라 같은 종류의 첫머리 매칭 바로 아래 (250/180).
+       키워드는 낱말 끝 매칭을 하지 않는다 */
     for (var i = 0; i < ids.length; i++) {
       var id = ids[i], node = W.nodes[id];
       if (!node || id === 'door_out') continue;
-      var name = lower(node.name);
-      var al = (node.aliases || []).map(lower).filter(Boolean);
-      var kw = (node.keywords || []).map(lower).filter(Boolean);
+      var tm = termsOf(node), name = tm.name, al = tm.al, kw = tm.kw;
       if (name && name === low) return { kind: 'node', nodeId: id, how: 'exact' };
-      var j;
+      var j, cw;
       for (j = 0; j < al.length; j++) if (al[j] === low) offer(id, 'alias', 1000 + al[j].length);
       for (j = 0; j < kw.length; j++) if (kw[j] === low) offer(id, 'alias', 900 + kw[j].length);
       if (name && tokens.indexOf(name) >= 0) offer(id, 'token', 500 + name.length);
-      if (name && name.length === 1 && words.indexOf(name) >= 0) offer(id, 'token', 500 + name.length);   /* '비 오는 날' → 비 */
+      if (name && name.length === 1 && wordsOutsidePhrases(id).indexOf(name) >= 0) offer(id, 'token', 500 + name.length);   /* '비 오는 날' → 비 */
       for (j = 0; j < al.length; j++) if (tokens.indexOf(al[j]) >= 0) offer(id, 'alias', 400 + al[j].length);
       for (j = 0; j < kw.length; j++) if (tokens.indexOf(kw[j]) >= 0) offer(id, 'alias', 350 + kw[j].length);
-      if (name && name.length >= 2 && containsWord(low, name)) offer(id, 'token', 300 + name.length);
-      for (j = 0; j < al.length; j++) if (al[j].length >= 2 && containsWord(low, al[j])) offer(id, 'alias', 200 + al[j].length);
-      for (j = 0; j < kw.length; j++) if (kw[j].length >= 2 && containsWord(low, kw[j])) offer(id, 'alias', 150 + kw[j].length);
+      if (name && name.length >= 2 && (cw = containsWord(low, name))) offer(id, 'token', (cw === 2 ? 300 : 250) + name.length);
+      for (j = 0; j < al.length; j++) if (al[j].length >= 2 && (cw = containsWord(low, al[j]))) offer(id, 'alias', (cw === 2 ? 200 : 180) + al[j].length);
+      for (j = 0; j < kw.length; j++) if (kw[j].length >= 2 && containsWord(low, kw[j]) === 2) offer(id, 'alias', 150 + kw[j].length);
     }
     if (best) return { kind: 'node', nodeId: best.nodeId, how: best.how };
     return { kind: 'wiki', query: raw };
@@ -284,10 +325,17 @@
     Object.keys(W.nodes).forEach(function (id) {
       var node = W.nodes[id];
       if (!node || SPECIAL[id] || node.corner === 'wild') return;
+      var kws = (node.keywords || []).map(lower);
       var cands = [node.name, id.replace(/_/g, ' ')].concat(node.aliases || [], node.keywords || [], node.wiki ? [node.wiki] : []);
       cands.forEach(function (c) {
         c = lower(c);
-        if (c.length >= 2 && containsWord(low, c) && (!best || c.length > best.len)) best = { id: id, len: c.length };
+        if (c.length < 2) return;
+        var cw = containsWord(low, c);
+        var isKw = kws.indexOf(c) >= 0;
+        if (!cw || (cw === 1 && isKw)) return;   /* 낱말 끝 매칭('털모자')은 이름·별칭만 */
+        /* 힌트 글과 같은 순서: 이름·별칭 첫머리 > 이름·별칭 낱말 끝(합성어 머리말, '아기모자'의 모자) > 키워드 첫머리. 같은 단계면 긴 쪽 */
+        var score = c.length + (cw === 1 ? 150 : isKw ? 100 : 200);
+        if (!best || score > best.len) best = { id: id, len: score };
       });
     });
     return best ? W.nodes[best.id] : null;
@@ -627,7 +675,16 @@
   }
 
   /* ───────── 힌트 따랐나 ───────── */
-  function computeFollowed(match, intent, follow, stops, hintNode, urlNode) {
+  /* 문서 제목 비교용 열쇠: 소문자, 끝의 '(…)' 꼬리·띄어쓰기·밑줄 없이 ('눈 (날씨)' = '눈') */
+  function titleKey(t) { return lower(t).replace(/\s*\([^)]*\)\s*$/, '').replace(/[\s_]+/g, ''); }
+  /* 힌트가 가리키는 글 제목들: 노드면 이름·위키 제목·별칭(+힌트 글 그대로), 위키 힌트면 그 글 */
+  function hintTitleKeys(match, hintNode, hintRaw) {
+    var out = [];
+    if (match && match.kind === 'node' && hintNode) out = [hintNode.name, hintNode.wiki, hintRaw].concat(hintNode.aliases || []);
+    else if (match && match.kind === 'wiki') out = [match.query, hintRaw];
+    return out.filter(function (x) { return typeof x === 'string' && x.trim(); }).map(titleKey);
+  }
+  function computeFollowed(match, intent, follow, stops, hintNode, urlNode, hintRaw) {
     if (!match || match.kind === 'none') return 'none';
     if (match.kind === 'url') {
       var lib = stops.filter(function (s) { return s.kind === 'room'; });
@@ -635,8 +692,11 @@
       return 'left';
     }
     if (!intent) return 'none';
-    /* 따르지 않았는데 길에 힌트 방이 있다(재생 입력) → '무시함'이라 하면 "모자 말고 모자"가 된다 */
-    if (!follow && match.kind === 'node' && hintNode && stops.some(function (s) { return s.id === hintNode.id; })) return 'left';
+    /* 따르지 않았는데 길에 힌트 방(또는 힌트와 같은 제목의 들판 글)이 있다 → '무시함'이라 하면 "모자 말고 모자"가 된다 */
+    var keys = follow ? [] : hintTitleKeys(match, hintNode, hintRaw);
+    if (!follow && stops.some(function (s) {
+      return (match.kind === 'node' && hintNode && s.id === hintNode.id) || (s.kind === 'wild' && keys.indexOf(titleKey(s.title)) >= 0);
+    })) return 'left';
     if (!follow) return 'ignored';
     if (match.kind === 'wiki') {
       return stops.length > 1 ? 'left' : 'followed';
@@ -678,7 +738,7 @@
       souvenir = cands[Math.min(cands.length - 1, Math.floor((rr.rSouvenir / 0.35) * cands.length))].node.souvenir;
     }
 
-    var followed = computeFollowed(match, ctx.intent, ctx.follow, stops, ctx.hintNode, ctx.urlNode);
+    var followed = computeFollowed(match, ctx.intent, ctx.follow, stops, ctx.hintNode, ctx.urlNode, ctx.hintRaw);
 
     /* 한 줄 */
     var line = ctx.line || null, lineKind = null;
@@ -1020,7 +1080,10 @@
         if (!wildPlanned || stops.length >= 5 || route.reason === 'linger') return null;
         var last = stops[stops.length - 1];
         var links = (last.fetchResult && last.fetchResult.ok && last.fetchResult.links) || [];
+        /* 안 가기로 한 힌트와 같은 글로는 들판 걸음도 하지 않는다 (인덱스 난수는 그대로 r_wildIdx) */
+        var skipKeys = (intent && !follow) ? hintTitleKeys(match, hintNode, hintRaw) : [];
         links = links.filter(function (t) {
+          if (skipKeys.length && skipKeys.indexOf(titleKey(t)) >= 0) return false;
           return !stops.some(function (s) { return (s.kind === 'wild' && s.title === t) || (s.kind === 'room' && s.node.wiki === t); });
         });
         if (!links.length) return null;

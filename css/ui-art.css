@@ -100,10 +100,10 @@
 @keyframes ua-frames { to { background-position: var(--fw) 0; } }
 @keyframes ua-rise { 0% { transform: translateY(0); opacity: 1; } 75% { opacity: 1; } 100% { transform: translateY(var(--rise, 0)); opacity: 0; } }
 
-/* 축소 모션: ▼ 는 가만히, 파티클은 없음 (JS 도 띄우지 않는다) */
+/* 축소 모션: ▼ 는 가만히, 파티클은 없음 (JS 도 띄우지 않는다). OS 설정은 모션 설정이 "기기 설정 따르기"일 때만 (style.css 와 같은 규칙) */
 @media (prefers-reduced-motion: reduce) {
-  :root[data-font="pixel"] .lrow.ua-newest > .ua-next { animation: none; }
-  :root[data-font="pixel"] .ua-fx { display: none; }
+  :root[data-font="pixel"]:is([data-motion="auto"], :not([data-motion])) .lrow.ua-newest > .ua-next { animation: none; }
+  :root[data-font="pixel"]:is([data-motion="auto"], :not([data-motion])) .ua-fx { display: none; }
 }
 :root[data-font="pixel"][data-motion="reduce"] .lrow.ua-newest > .ua-next { animation: none; }
 :root[data-font="pixel"][data-motion="reduce"] .ua-fx { display: none; }

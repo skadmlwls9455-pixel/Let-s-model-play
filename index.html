@@ -25,6 +25,7 @@
 
 <!-- ══ SCENE · 3D 픽셀아트 다락방 (§7.0, js/scene3d.js) — WebGL 없으면 아래 #stage 2D 폴백 ══ -->
 <section id="scene" class="px-frame" aria-label="문어의 다락방">
+  <p id="scene-desc" class="sr-only"></p><!-- 화면 낭독기용 장면 설명 (장소 · 문어 상태 · 날씨/시각). app.js 가 채운다. 라이브 영역 아님 -->
   <div id="scene3d" aria-hidden="true" hidden></div>
   <div id="stage">
     <div id="layers"></div>
@@ -103,9 +104,9 @@
   <div class="sec-row">
     <h2 class="sec-h">추억 앨범</h2>
     <div class="filters" role="group" aria-label="앨범 필터">
-      <button type="button" class="fchip on" data-f="all">전체</button>
-      <button type="button" class="fchip" data-f="poster">포스터</button>
-      <button type="button" class="fchip" data-f="note">쪽지</button>
+      <button type="button" class="fchip on" data-f="all" aria-pressed="true">전체</button>
+      <button type="button" class="fchip" data-f="poster" aria-pressed="false">포스터</button>
+      <button type="button" class="fchip" data-f="note" aria-pressed="false">쪽지</button>
     </div>
   </div>
   <div id="album"></div>
@@ -179,8 +180,8 @@
   <button type="button" class="btn wide pressable" id="rs-close">닫기</button>
 </dialog>
 
-<!-- 토스트는 이거 하나. 한 번에 하나, 2.5초 -->
-<output id="toast" aria-live="polite"></output>
+<!-- 토스트는 이거 하나. 한 번에 하나, 2.5초. 모달이 열려 있으면 app.js 가 그 안으로 옮겨 popover 로 띄운다 (모달 밖은 inert 라 안 보이고 안 읽힌다) -->
+<output id="toast" popover="manual" aria-live="polite"></output>
 
 <!-- three r128 UMD (MIT, vendor/THREE-LICENSE.txt). 로컬 파일이 없으면 cdnjs. 둘 다 실패하면 SCENE2D 폴백 -->
 <script src="vendor/three.min.js" onerror="document.write('<script src=\'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js\'><\/script>')"></script>

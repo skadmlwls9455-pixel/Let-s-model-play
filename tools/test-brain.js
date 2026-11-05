@@ -242,6 +242,34 @@ async function unitTests() {
   check(BRAIN.nodeFromUrl('https://ko.wikipedia.org/wiki/' + encodeURIComponent('코스모스')) === null && (BRAIN.nodeFromUrl('https://ko.wikipedia.org/wiki/' + encodeURIComponent('모자의_역사')) || {}).id === 'hat', '#7 url: 코스모스 ≠ 모스, 모자의_역사 = 모자');
   BRAIN.setWorld(null);
 
+  /* 2차: 조사 붙은 합성어 · 낱말 끝 머리말 · 띄어 쓴 구절 안의 한 글자 */
+  section('matchHint — particles, head nouns, phrases (bug hunt #7 · regressions)');
+  BRAIN.setWorld({ corners: { c: {} }, nodes: {
+    lullaby: mini('lullaby', '자장가', { keywords: ['아기'] }),               /* 키워드가 합성어 앞머리에 */
+    thread: mini('thread', '실', { aliases: ['털실'] }),
+    knot: mini('knot', '매듭', { aliases: ['노트'] }), echo: mini('echo', '메아리', { aliases: ['에코'] }),
+    morse: mini('morse', '모스 부호', { aliases: ['모스'] }), candle: mini('candle', '양초', { aliases: ['심지'] }),
+    snow: mini('snow', '눈', { aliases: ['눈 결정'] }), rain: mini('rain', '비'), salt: mini('salt', '소금', { keywords: ['결정'] }),
+    dream: mini('dream', '꿈', { keywords: ['눈 움직임'] }), rainbow: mini('rainbow', '무지개', { keywords: ['비 온 뒤'] }),
+    hat: mini('hat', '모자', { aliases: ['중절모'] }), cloud: mini('cloud', '구름 이름', { aliases: ['구름'] })
+  } });
+  function mh(h) { var m = BRAIN.matchHint(h); return m.kind === 'node' ? m.nodeId : m.kind; }
+  var notKnot = ['노트북을 샀어', '노트북이 고장났어', '노트북으로', '노트북도'].map(mh), notEcho = mh('에코백을 들고');
+  check(notKnot.every(function (x) { return x === 'wiki'; }) && notEcho === 'wiki', '#7 노트북을/노트북이/노트북으로 ≠ 노트, 에코백을 ≠ 에코 (' + notKnot.join(',') + ' · ' + notEcho + ')');
+  check(mh('구름사진을 찍었어') === 'cloud' && mh('구름사이') === 'cloud' && mh('모자들이') === 'hat' && mh('모자만') === 'hat', '#7 two-syllable tails and plain endings still match (구름사진을, 구름사이, 모자들이, 모자만)');
+  check(mh('모자란') === 'wiki', "'모자란' (lacking) is not 모자 + one syllable");
+  var heads = ['털모자', '중절모자', '빨간모자를 쓴 소녀', '털모자 사고 싶어', '아기모자', '털실모자'].map(mh);
+  check(heads.every(function (x) { return x === 'hat'; }), 'head noun at the end of a compound: 털모자/중절모자/빨간모자를/아기모자/털실모자 → 모자 (' + heads.join(',') + ')');
+  check(mh('먹구름') === 'cloud' && mh('아기') === 'lullaby' && mh('털실') === 'thread', 'head noun alias (먹구름 → 구름); plain words unchanged');
+  var notHead = ['코스모스', '코스모스가 폈어', '중심지', '도심지에서'].map(mh);
+  check(notHead.every(function (x) { return x === 'wiki'; }), 'word that only happens to end in a term stays wiki (코스모스 ≠ 모스, 중심지 ≠ 심지) (' + notHead.join(',') + ')');
+  check(mh('눈 움직임이 궁금해') === 'dream' && mh('눈 움직임에 대해 알려줘') === 'dream', "regression: one-syllable 눈 inside another room's phrase '눈 움직임' → 꿈 (" + mh('눈 움직임이 궁금해') + ')');
+  check(mh('비 온 뒤이 궁금해') === 'rainbow' && mh('비 온 뒤에 대해 알려줘') === 'rainbow', "regression: '비 온 뒤' phrase → 무지개, not 비 (" + mh('비 온 뒤에 대해 알려줘') + ')');
+  check(mh('눈 결정이 궁금해') === 'snow' && mh('비 오는 날') === 'rain' && mh('눈 오는 밤') === 'snow', "own phrase keeps its room (눈 결정이 → 눈); plain one-syllable words still match");
+  var u = function (t) { return (BRAIN.nodeFromUrl('https://ko.wikipedia.org/wiki/' + encodeURIComponent(t)) || {}).id || null; };
+  check(u('털모자') === 'hat' && u('아기모자') === 'hat' && u('노트북') === null && u('코스모스') === null, 'url: 털모자/아기모자 → hat, 노트북/코스모스 → none (' + [u('털모자'), u('아기모자'), u('노트북'), u('코스모스')].join(',') + ')');
+  BRAIN.setWorld(null);
+
   section('computeReaction — wild stops (bug hunt #6/#42)');
   check(BRAIN.computeReaction([{ kind: 'wild', status: 'failed', first: false }, { kind: 'room', status: 'builtin', first: false }], 'left', 14, false) !== '폴짝', 'failed wild stop alone is not 폴짝');
   check(BRAIN.computeReaction([{ kind: 'wild', status: 'read', first: false }, { kind: 'room', status: 'builtin', first: false }], 'none', 14, false) === '폴짝', 'read wild stop → 폴짝');
@@ -514,6 +542,15 @@ async function planSuite(label, W, hasHat) {
   var emptyRp = BRAIN.replay([{ type: 'empty_turn', t: 0 }], { by: 'human' });
   check(emptyRp.kind === 'empty' && emptyRp.poster === null && emptyRp.receipt === null, 'empty replay');
 
+  /* 이 WORLD 의 실제 낱말로 (있는 방만) — 합성어 머리말 · 구절 안 한 글자 · 조사 붙은 합성어 */
+  section('matchHint on this WORLD — ' + label);
+  var mw = function (h) { var m = BRAIN.matchHint(h); return m.kind === 'node' ? m.nodeId : m.kind; };
+  if (W.nodes.hat) check(['털모자', '빨간모자를 쓴 소녀', '중절모자'].every(function (h) { return mw(h) === 'hat'; }), '털모자/빨간모자를/중절모자 → hat');
+  if (W.nodes.octopus) check(mw('문어발이 몇 개야') === 'octopus' && mw('문어발') === 'octopus', '문어발 → octopus (' + mw('문어발') + ')');
+  if (W.nodes.dream && W.nodes.snow) check(mw('눈 움직임이 궁금해') === 'dream' && mw('눈 오는 밤') === 'snow', "'눈 움직임이' → 꿈, '눈 오는 밤' → 눈 (" + mw('눈 움직임이 궁금해') + ')');
+  if (W.nodes.rainbow && W.nodes.rain) check(mw('비 온 뒤에 대해 알려줘') === 'rainbow' && mw('비 오는 날') === 'rain', "'비 온 뒤에' → 무지개, '비 오는 날' → 비 (" + mw('비 온 뒤에 대해 알려줘') + ')');
+  if (W.nodes.knot) check(['노트북을 샀어', '노트북이 고장났어', '에코백을 들고', '코스모스'].every(function (h) { return mw(h) === 'wiki'; }), '노트북을/노트북이/에코백을/코스모스 → wiki');
+
   /* pickStart 취향 */
   section('pickStart — ' + label);
   var seaNodes = Object.keys(W.nodes).filter(function (id) { return W.nodes[id].corner === 'sea'; });
@@ -601,6 +638,37 @@ async function huntSuite(label, W) {
   var contra = BRAIN.replay([{ type: 'depart', t: 0, hint: hintName, followHint: false }, { type: 'peek', t: 1, target: { kind: 'room', id: hintId } },
     { type: 'return', t: 2 }, { type: 'remember', t: 3, stopIdx: 0 }, { type: 'wrap_up', t: 4, reaction: '덤덤' }], { by: 'mcp', now: NOW_DAY });
   check(contra.hint.followed !== 'ignored' && !contra.hint.note && contra.poster.line.indexOf(hintName + ' 말고') < 0, 'replay: followHint false but went there → not "ignored" (' + contra.hint.followed + ' · ' + contra.poster.line + ')');
+  /* 들판 걸음(링크 따라가기)으로도 무시한 힌트와 같은 글에 닿지 않는다 — 링크 목록 맨 앞에 힌트 제목을 둬도 */
+  var wikiQ = ['쿼카', '기린'].filter(function (q) { return BRAIN.matchHint(q).kind === 'wiki'; })[0];
+  for (var hi = 0; hi < 2; hi++) {
+    var hq = hi === 0 ? hintName : wikiQ;
+    var alts = hi === 0 ? [(W.nodes[hintId].aliases || [])[0] || hintName, W.nodes[hintId].wiki || hintName] : [wikiQ + ' (동물)', wikiQ];
+    var linkFetch = (function (h, alts) {
+      return function (title) {
+        return Promise.resolve({ ok: true, title: title, extract: title + ' 요약.', url: 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(title), thumb: null, links: alts.concat([h, '아무거나']) });
+      };
+    })(hq, alts);
+    var hEsc = hq.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var selfRe = new RegExp(hEsc + ' 말고 ' + hEsc + '(?![가-힣])|' + hEsc + ' 대신 ' + hEsc + ' 쪽|' + hEsc + '(는|은)? (보는 건 )?다음에\\. 오늘은 ' + hEsc + '(?![가-힣]{2})');
+    var hintKeys = [hq].concat(alts).map(function (x) { return x.replace(/\s*\([^)]*\)$/, '').replace(/\s+/g, ''); });
+    var ignHop = 0, wildSeen = 0, hopErrs = [];
+    for (seed = 1; seed <= 400; seed++) {
+      t = await BRAIN.plan(baseInput(seed, { hint: hq, fetchWiki: linkFetch, state: { visits: {}, affinity: aff, lantern: 1, recent: [], todayOut: 0 } }));
+      if (t.kind !== 'out' || t.hint.followed !== 'ignored') continue;
+      ignHop++;
+      t.receipt.stops.forEach(function (s) {
+        if (!s.wild) return;
+        wildSeen++;
+        if (hintKeys.indexOf(String(s.title).replace(/\s*\([^)]*\)$/, '').replace(/\s+/g, '')) >= 0) hopErrs.push('seed ' + seed + ' ignored ' + hq + ' but hopped to ' + s.title);
+      });
+      var txt = [t.poster.line, t.memo && t.memo.tomorrow].join(' | ');
+      if (selfRe.test(txt)) hopErrs.push('seed ' + seed + ' contradiction: ' + txt);
+    }
+    check(ignHop > 10 && wildSeen > 0 && hopErrs.length === 0, '#2 ignored ' + (hi === 0 ? 'node' : 'wiki') + ' hint "' + hq + '": link hop never lands on the hint (' + ignHop + ' ignored, ' + wildSeen + ' wild hops, ' + hopErrs.length + ' errors)' + (hopErrs.length ? ' e.g. ' + hopErrs[0] : ''));
+  }
+  var wildContra = BRAIN.replay([{ type: 'depart', t: 0, hint: hintName, followHint: false }, { type: 'peek', t: 1, target: { kind: 'wild', title: hintName } },
+    { type: 'return', t: 2 }, { type: 'remember', t: 3, stopIdx: 0 }, { type: 'wrap_up', t: 4, reaction: '덤덤' }], { by: 'mcp', now: NOW_DAY });
+  check(wildContra.hint.followed !== 'ignored' && !wildContra.hint.note && wildContra.poster.line.indexOf(hintName + ' 말고') < 0, 'replay: followHint false but a wild stop titled the hint → not "ignored" (' + wildContra.hint.followed + ' · ' + wildContra.poster.line + ')');
 
   /* #3/#41 반응 한 줄은 실제로 있었던 일만 */
   section('reaction lines match what happened (#3/#41) — ' + label);

@@ -77,7 +77,7 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 a { color: var(--teal); touch-action: manipulation; }
 :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 [hidden] { display: none !important; }
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }   /* nowrap: 1px 폭에서 낱말마다 끊겨 읽히지 않게 */
 .dim { color: var(--muted); font-weight: 400; }
 .emo { display: inline-block; }   /* 장식 이모지 (aria-hidden) */
 .lbl, .help, .ltext, .big-line, .room-text, .lempty { word-break: keep-all; overflow-wrap: anywhere; }
@@ -95,12 +95,13 @@ a { color: var(--teal); touch-action: manipulation; }
   background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 12px;
   font-size: 13px; max-width: calc(100% - 32px); z-index: 60; display: block; width: max-content;
   transition: opacity var(--t-press) var(--ease-exit), transform var(--t-press) var(--ease-exit);   /* 나갈 땐 짧게 */
+  top: auto; right: auto; margin: 0; border: 0; overflow: visible;   /* popover="manual" 의 UA 기본값(inset 0 · margin auto · border · overflow auto)을 끈다. display:block 이 닫힌 popover 의 display:none 도 이긴다 */
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); transition: opacity var(--t-ui) var(--ease-enter), transform var(--t-ui) var(--ease-enter); }
 
 /* ── SCENE: 320×240 픽셀 캔버스, --px 정수 배 ── */
 #scene {
-  --px: 1; position: relative; width: 100%; overflow: hidden;
+  --px: 1; position: relative; z-index: 0; width: 100%; overflow: hidden;   /* z-index 0: 장면 안 층(문어 6 · 베벨 9)이 아래 고정 초대 바(5) 위로 새지 않게 */
   height: calc(240px * var(--px)); background: var(--panel);
   touch-action: pan-y; user-select: none;
 }
@@ -170,14 +171,16 @@ a { color: var(--teal); touch-action: manipulation; }
 #oct svg { display: block; width: 48px; height: 48px; overflow: visible; }
 #oct-label {
   position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%);
-  font-size: 7px; line-height: 1.2; color: var(--muted); white-space: nowrap; pointer-events: none;
+  font-size: 10px; line-height: 1.2; color: var(--muted); white-space: nowrap; pointer-events: none;
 }
+/* 2D 무대는 --px = 1 (본문 폭 600px 상한) 이라 글자를 그대로 10px 로 — 6·7px 는 못 읽는다. 3D 는 아래 #scene3d 규칙이 덮는다 */
 #oct-bubble {
   position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
   background: var(--paper0); color: var(--ink); border-radius: 4px; padding: 2px 4px;
-  font-size: 6px; line-height: 1.3; width: max-content; max-width: 110px; white-space: normal; text-align: center;
+  font-size: 10px; line-height: 1.3; width: max-content; max-width: 150px; white-space: normal; text-align: center;
   box-shadow: var(--shadow-xs); animation: bubble-in var(--t-ui) var(--ease-enter) both;
 }
+#oct-label:not(:empty) ~ #oct-bubble { bottom: calc(100% + 14px); }   /* 이름표(💤 · 꿈꾸는 중 · 출발 중…)가 있으면 그 위로 */
 @keyframes bubble-in { from { opacity: 0; transform: translate(-50%, 4px); } to { opacity: 1; transform: translate(-50%, 0); } }
 /* 상태별 모션 */
 .st-idle #oct-inner, .st-stay #oct-inner { animation: breathe var(--t-idle) ease-in-out infinite; }
@@ -241,6 +244,8 @@ a { color: var(--teal); touch-action: manipulation; }
   position: sticky; bottom: 0; z-index: 5; background: var(--bg);
   padding: 12px 16px calc(8px + env(safe-area-inset-bottom, 0px));
 }
+/* 폰 가로(높이 ≤ 480px): 붙어 있으면 바가 화면 절반을 덮어 상태 줄·장면이 가려진다 → 제자리에 둔다 */
+@media (max-height: 480px) { #invite { position: static; } }
 .lbl { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 #hint-in, .modal-in, #d-peek-in, #d-json {
   width: 100%; min-height: 44px; padding: 8px 12px; font-size: 16px;
@@ -425,7 +430,17 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .sheet .set { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; font-size: 13px; }
 .sheet select { min-height: 44px; border-radius: 8px; background: var(--panel2); border: 1px solid var(--rim); padding: 4px 8px; font-size: 16px; }
 .sheet input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--amber); }
-.sheet input[type=file] { max-width: 56%; font-size: 12px; }
+/* 기록 불러오기 (#set-import): 기본 파일 칸의 "선택된 파일 없음" 글자는 접고(font-size 0 — 고르면 바로 불러오고 토스트로 알린다),
+   버튼만 옆 '내보내기'(.btn.sm)와 같은 모양으로. 입력 그대로라 Tab 포커스 · Enter/Space 로 열기 · 링은 기본 :focus-visible */
+.sheet input[type=file] { flex: 0 0 auto; max-width: 56%; font-size: 0; line-height: 0; padding: 4px 2px 4px 0; margin-right: -2px; border: 0; border-radius: 22px; background: none; cursor: pointer; }   /* 오른쪽 2px: 입력이 잘라 내는 픽셀 그림자 자리 */
+.sheet input[type=file]::file-selector-button {
+  min-height: 36px; margin: 0; padding: 4px 12px; border-radius: 22px; border: 1px solid var(--rim); background: var(--panel); color: var(--fg);
+  font-family: inherit; font-size: 13px; line-height: 1.65; box-shadow: inset 0 1px 0 var(--hi); cursor: pointer;
+}
+/* app.js 가 입력을 <label class="btn sm file-btn">불러오기<input type=file …></label> 로 감싸면: 입력은 보이지 않게(포커스·키보드는 그대로), 링은 라벨에 */
+.file-btn { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.sheet .file-btn input[type=file] { position: absolute; width: 1px; height: 1px; margin: 0; padding: 0; opacity: 0; overflow: hidden; clip-path: inset(50%); }
+.file-btn:has(input:focus-visible) { outline: 2px solid var(--amber); outline-offset: 2px; }
 .sheet .set > span { flex: 1 1 auto; }
 .sheet .btn.danger { color: var(--rose); border-color: var(--rose); }
 .sheet .stats { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; }
@@ -433,13 +448,14 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .souv-list { display: flex; gap: 8px; flex-wrap: wrap; }
 .souv-list span { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; background: var(--panel2); font-size: 12px; }
 @media (min-width: 600px) {
-  .sheet { inset: 50% auto auto 50%; transform: translate(-50%, -50%); width: 480px; border-radius: 16px; border-bottom: 1px solid var(--rim); }
+  /* 가운데 정렬은 inset 0 + margin auto 로 (transform 아님): dlg-in 애니메이션의 transform: none 이 translate(-50%, -50%) 를 덮어 시트가 화면 밖으로 밀렸다 */
+  .sheet { inset: 0; margin: auto; height: fit-content; width: 480px; border-radius: 16px; border-bottom: 1px solid var(--rim); }
   .sheet[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 }
 
 /* ══════════════════════════════════════════════════════════
    픽셀 테마 — html[data-font="pixel"] (기본값. 방 보기 › 설정 › "픽셀 글꼴" 끄면 위의 Noto + 민무늬 패널로 돌아간다)
-   글꼴: Galmuri (vendor/fonts/galmuri.css) 정수 배만 — 본문·로그·영수증 Galmuri9 18px/27px, 버튼·상태·방 제목·대화 Galmuri11 22px, 메타·칩·날짜 Galmuri7 14px/21px
+   글꼴: Galmuri (vendor/fonts/galmuri.css) 정수 배만 — 본문·로그·영수증 Galmuri9 20px/30px, 버튼·상태·방 제목·대화 Galmuri11 24px, 메타·칩·날짜 Galmuri7 16px/24px
    색: Apollo 46 (js/palettes.js) 에서만 고른다. 라이트 = 종이·나무, 다크 = 슬레이트·남색. 본문 대비 ≥ 4.5:1 (tools 없음 — 리포트에 표)
    질감: 2px 격자 체커 디더(패널 3% · 페이지 6%) + 종이 알갱이, 전부 data-URI SVG, image-rendering: pixelated. 그라디언트·블러 없음, 그림자는 2px 딱딱한 블록
    틀: 2px 어두운 테두리 + 안쪽 2px 베벨(밝음 좌상·어둠 우하) + 모서리 2px 계단(clip-path). 대화상자는 이중 틀(바깥 2px · 2px 틈 · 안쪽 1px)
@@ -500,6 +516,13 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 }
 :root[data-font="pixel"] .emo { font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; font-size: 1em; line-height: 1; vertical-align: -1px; }
 :root[data-font="pixel"] :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+/* 계단 모서리(clip-path)가 있는 요소는 바깥 링이 통째로 잘린다 → 링을 안쪽으로: 틀 2px · 베벨 2px 안에 2px 링 (버튼·카드), 입력칸은 베벨 자리에 */
+:root[data-font="pixel"] .btn:not(.sm):focus-visible, :root[data-font="pixel"] .pcard:focus-visible { outline-offset: -6px; }
+:root[data-font="pixel"] :is(.modal-in, #d-peek-in, #d-json, .sheet select):focus-visible { outline-offset: -4px; }
+:root[data-font="pixel"] .btn.primary:not(.away):focus-visible { outline-color: var(--on-accent); }   /* 호박 바탕 위엔 어두운 링 (두 테마 공통) */
+:root[data-font="pixel"] .pcard:focus-visible::before { box-shadow: inset 0 0 0 2px var(--bg); }   /* 포스터 그림 위: 링 바깥에 바탕색 2px 띠 → 밝은 그림·어두운 그림 어디서든 보인다 */
+.poster-modal .btn-row .btn:focus-visible { outline-color: var(--ip-fg); }   /* 포스터 열람 패널은 두 테마 모두 어둡다 */
+:root .receipt :focus-visible { outline-color: var(--ink); }   /* 영수증은 두 테마 모두 종이 */
 :root[data-font="pixel"] .pressable:active { transform: translate(2px, 2px); }
 @media (hover: hover) and (pointer: fine) { :root[data-font="pixel"] .pressable:not(:disabled):hover { transform: none; } }
 
@@ -523,7 +546,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] #scene3d #oct-label { font-family: var(--f-meta); font-size: 16px; line-height: 16px; color: var(--paper0); }
 :root[data-font="pixel"] #scene3d #oct-bubble { font-family: var(--f-meta); font-size: 16px; line-height: 24px; border-radius: 0; border: 2px solid var(--line); background: var(--paper0); color: var(--ink); box-shadow: 2px 2px 0 var(--line); padding: 2px 8px; }
 
-/* ── 상태 줄: 나무색 띠 한 줄 41px (27px 글줄 + 6px×2 + 아래 틀 2px). 이름 Galmuri9 18px, 방 제목 Galmuri7 14px 흐림, 오른쪽 `등불 ■■□□□□□□ n/8` (Galmuri7 14px + 10px 네모 8개) ≈ 151px — 360px 에서 왼쪽에 165px 남는다 ── */
+/* ── 상태 줄: 나무색 띠 한 줄 41px (27px 글줄 + 6px×2 + 아래 틀 2px). 이름 Galmuri9 20px, 방 제목 Galmuri7 16px 흐림, 오른쪽 `등불 ■■□□□□□□ n/8` (Galmuri7 16px + 10px 네모 8개) ≈ 151px — 360px 에서 왼쪽에 165px 남는다 ── */
 :root[data-font="pixel"] #status {
   background-color: var(--strip); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated;
   border: 2px solid var(--line); border-top: 0; color: var(--fg); font-family: var(--f-meta); font-size: 16px; line-height: 30px; padding: 6px 16px; min-height: 0;
@@ -654,7 +677,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   :root[data-font="pixel"] .inspect-text { font-size: 20px; }
   :root[data-font="pixel"] .inspect-text .lead { font-size: 24px; }
 }
-/* 영수증: 종이 위 Galmuri9 18px, 점선 2px, 복사 버튼도 틀 */
+/* 영수증: 종이 위 Galmuri9 20px, 점선 2px, 복사 버튼도 틀 */
 :root[data-font="pixel"] .receipt { font-family: var(--f-body); font-size: 20px; line-height: 30px; padding: 14px 12px; background-image: var(--grain); background-size: 12px 12px; image-rendering: pixelated; }
 :root[data-font="pixel"] .receipt p { font-family: var(--f-body); font-size: 20px; line-height: 30px; color: var(--ink); margin: 6px 0; }
 :root[data-font="pixel"] .receipt .dim, :root[data-font="pixel"] .receipt .by { color: var(--ink-muted); }
@@ -679,7 +702,14 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .sheet .room-text { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
 :root[data-font="pixel"] .sheet .stats b { font-weight: 400; color: var(--amber); }
 :root[data-font="pixel"] .sheet select { min-height: 44px; padding: 4px 8px; }
-:root[data-font="pixel"] .sheet input[type=file] { font-family: var(--f-meta); font-size: 16px; }
+:root[data-font="pixel"] .sheet input[type=file] { border-radius: 0; }
+:root[data-font="pixel"] .sheet input[type=file]::file-selector-button {
+  font-family: var(--f-body); font-size: 20px; line-height: 20px; min-height: 36px; padding: 4px 10px; border: 2px solid var(--line); border-radius: 0;
+  background-color: var(--panel); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated; color: var(--fg);
+  box-shadow: var(--bevel), 2px 2px 0 var(--line);
+}
+:root[data-font="pixel"] .sheet input[type=file]:active::file-selector-button { transform: translate(2px, 2px); box-shadow: var(--bevel); }
+:root[data-font="pixel"] .file-btn:has(input:focus-visible) { outline-color: var(--fg); }
 :root[data-font="pixel"] .souv-list span { border-radius: 0; border: 2px solid var(--line); background: var(--panel2); font-family: var(--f-meta); font-size: 16px; line-height: 24px; padding: 2px 8px; box-shadow: 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .preset { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .preset.on { border-color: var(--fg); box-shadow: inset 0 0 0 2px var(--panel2), 2px 2px 0 var(--line); }
@@ -688,20 +718,21 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   :root[data-font="pixel"] .sheet { border-radius: 0; border-bottom: 2px solid var(--line); box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px), 4px 4px 0 var(--line); }
 }
 
-/* ── 축소 모션 (설정 또는 OS): 줄이되 없애지 않는다 — 이동·회전 대신 크로스페이드, 등불은 그대로 밝아진다 ── */
+/* ── 축소 모션 (설정 또는 OS): 줄이되 없애지 않는다 — 이동·회전 대신 크로스페이드, 등불은 그대로 밝아진다 ──
+   OS 설정은 모션 설정이 "기기 설정 따르기"(data-motion="auto", 또는 아직 안 붙었을 때)일 때만 따른다. 사람이 고른 값(reduce 등)은 아래 [data-motion] 규칙이 정한다 */
 @media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion="auto"]) { --t-press: 0ms; --t-ui: 120ms; --t-scene: 150ms; --t-ceremony: 200ms; --t-morph: 120ms; --t-windup: 50ms; --t-hold: 0ms; --t-bloom: 150ms; --t-flip-again: 120ms; --t-stagger: 0ms; }
-  :root:not([data-motion="auto"]) #oct-inner, :root:not([data-motion="auto"]) .legs .leg, :root:not([data-motion="auto"]) .eyelid,
-  :root:not([data-motion="auto"]) .rdrop, :root:not([data-motion="auto"]) .star,
-  :root:not([data-motion="auto"]) .layer svg .flame, :root:not([data-motion="auto"]) .layer svg .glow,
-  :root:not([data-motion="auto"]) .pip, :root:not([data-motion="auto"]) .btn.primary.away, :root:not([data-motion="auto"]) .lrow.typing .ltext { animation: none !important; }
-  :root:not([data-motion="auto"]) .st-sleep #oct-inner { animation: hue 12s ease-in-out infinite !important; }
-  :root:not([data-motion="auto"]) .flipper.flip .face.back { animation-name: fade-only; }
-  :root:not([data-motion="auto"]) .lrow.in, :root:not([data-motion="auto"]) .pcard.in, :root:not([data-motion="auto"]) .layer.enter,
-  :root:not([data-motion="auto"]) .pcard.in svg .stk, :root:not([data-motion="auto"]) dialog[open], :root:not([data-motion="auto"]) .sheet[open], :root:not([data-motion="auto"]) .wall-mini.landed { animation-name: fade-only; }
-  :root:not([data-motion="auto"]) .pcard.in { transform: none; }
-  :root:not([data-motion="auto"]) #toast { transform: translate(-50%, 0); }
-  :root:not([data-motion="auto"]) .pressable:active { transform: none; }
+  :root:is([data-motion="auto"], :not([data-motion])) { --t-press: 0ms; --t-ui: 120ms; --t-scene: 150ms; --t-ceremony: 200ms; --t-morph: 120ms; --t-windup: 50ms; --t-hold: 0ms; --t-bloom: 150ms; --t-flip-again: 120ms; --t-stagger: 0ms; }
+  :root:is([data-motion="auto"], :not([data-motion])) #oct-inner, :root:is([data-motion="auto"], :not([data-motion])) .legs .leg, :root:is([data-motion="auto"], :not([data-motion])) .eyelid,
+  :root:is([data-motion="auto"], :not([data-motion])) .rdrop, :root:is([data-motion="auto"], :not([data-motion])) .star,
+  :root:is([data-motion="auto"], :not([data-motion])) .layer svg .flame, :root:is([data-motion="auto"], :not([data-motion])) .layer svg .glow,
+  :root:is([data-motion="auto"], :not([data-motion])) .pip, :root:is([data-motion="auto"], :not([data-motion])) .btn.primary.away, :root:is([data-motion="auto"], :not([data-motion])) .lrow.typing .ltext { animation: none !important; }
+  :root:is([data-motion="auto"], :not([data-motion])) .st-sleep #oct-inner { animation: hue 12s ease-in-out infinite !important; }
+  :root:is([data-motion="auto"], :not([data-motion])) .flipper.flip .face.back { animation-name: fade-only; }
+  :root:is([data-motion="auto"], :not([data-motion])) .lrow.in, :root:is([data-motion="auto"], :not([data-motion])) .pcard.in, :root:is([data-motion="auto"], :not([data-motion])) .layer.enter,
+  :root:is([data-motion="auto"], :not([data-motion])) .pcard.in svg .stk, :root:is([data-motion="auto"], :not([data-motion])) dialog[open], :root:is([data-motion="auto"], :not([data-motion])) .sheet[open], :root:is([data-motion="auto"], :not([data-motion])) .wall-mini.landed { animation-name: fade-only; }
+  :root:is([data-motion="auto"], :not([data-motion])) .pcard.in { transform: none; }
+  :root:is([data-motion="auto"], :not([data-motion])) #toast { transform: translate(-50%, 0); }
+  :root:is([data-motion="auto"], :not([data-motion])) .pressable:active { transform: none; }
 }
 :root[data-motion="reduce"] { --t-press: 0ms; --t-ui: 120ms; --t-scene: 150ms; --t-ceremony: 200ms; --t-morph: 120ms; --t-windup: 50ms; --t-hold: 0ms; --t-bloom: 150ms; --t-flip-again: 120ms; --t-stagger: 0ms; }
 :root[data-motion="reduce"] #oct-inner, :root[data-motion="reduce"] .legs .leg, :root[data-motion="reduce"] .eyelid, :root[data-motion="reduce"] .rdrop,
@@ -715,6 +746,17 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-motion="reduce"] #toast { transform: translate(-50%, 0); }
 :root[data-motion="reduce"] .pressable:active { transform: none; }
 @keyframes fade-only { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── 고대비 (OS "대비 높이기" · prefers-contrast: more): 글자 뒤 질감(체커 디더 · 종이 알갱이)을 끄고 틀 선을 진하게. 배치·크기는 그대로 ──
+   :is([data-theme], :not([data-theme])) 는 아무것도 거르지 않고 우선순위만 테마 규칙과 맞춘다 (나중에 와서 이긴다) */
+@media (prefers-contrast: more) {
+  :root:is([data-theme], :not([data-theme])) { --rim: var(--muted); }
+  :root[data-font="pixel"]:is([data-theme], :not([data-theme])) { --dither-panel: none; --dither-page: none; --grain: none; --line: var(--fg); --rim: var(--line); }
+  :root[data-font="pixel"][data-theme="dark"] { --line: var(--muted); }   /* 다크: 흰 선은 눈부셔서 한 단 낮춘 회청색 (바탕 대비 ≥ 8:1) */
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root[data-font="pixel"]:not([data-theme="light"]) { --line: var(--muted); }
+}
 
 /* ── 3D 장면 (js/scene3d.js): 캔버스 호스트 · HTML 오버레이(#oct 는 이름표/말풍선만) ── */
 #scene.mode-3d { height: clamp(250px, 44vh, 400px); background: #1b1522; }

@@ -225,7 +225,7 @@ var WORLD = (function () {
     node({
       id: 'octopus', name: '문어', corner: 'sea', emoji: '🐙',
       aliases: ['낙지', '두족류', '옥토퍼스'],
-      keywords: ['빨판', '먹물', '다리 여덟', '심장 세 개', '바다'],
+      keywords: ['빨판', '먹물', '다리 여덟', '심장 세 개', '바다', '문어발'],
       wiki: '문어',
       clue: '문어는 심장이 세 개고 피가 파랗다. 뼈는 하나도 없고, 빨판으로 맛을 본다.',
       memories: [

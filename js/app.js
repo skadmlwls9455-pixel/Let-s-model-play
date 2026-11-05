@@ -44,6 +44,8 @@ var APP = (function () {
   /* 장식 이모지는 <span class="emo" aria-hidden> 로 (UI R12). DOM 용 / HTML 문자열 용 */
   function emo(ch) { return h('span', { class: 'emo', 'aria-hidden': 'true', text: ch }); }
   function emoH(ch) { return ch ? '<span class="emo" aria-hidden="true">' + esc(ch) + '</span>' : ''; }
+  /* 고른 칩(앨범 필터 · 팔레트 · 계절 · 색 프리셋): 보이는 .on 과 읽히는 aria-pressed 를 같이 */
+  function chipOn(b, on) { b.classList.toggle('on', !!on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
   /* 방 이름: 등불 칸수에 따라 (CG R17) */
   function roomTitle(lv) { return lv >= 8 ? '문어의 다락' : lv >= 5 ? '살림이 생긴 다락' : lv >= 2 ? '등불 켜진 다락' : '어두운 다락'; }
   /* 등불 칸이 켜질 때 문어 목소리로 한 줄 (WORLD.roomLevels 순서) */
@@ -72,10 +74,21 @@ var APP = (function () {
   var toastTimer = null;
   function toast(msg) {   /* <output aria-live=polite> 하나, 한 번에 하나, 2.5초 (UI R21) */
     var t = $('toast'); if (!t) return;
+    var moved = raiseToast(t);
+    if (moved && !t.classList.contains('show')) void t.offsetWidth;   /* 옮긴 직후에도 나타나는 전환이 돌게 */
     t.textContent = msg; t.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2500);
   }
-  /* ── 저장소: localStorage 감지 → 없으면 메모리 (조용히 한 줄). QuotaExceeded 는 오래된 이벤트를 비우고 한 번 재시도 (R2–R5) ── */
+  /* 모달 <dialog> 가 열려 있으면 그 밖은 inert 라 토스트가 대화상자 밑에 깔리고 화면 낭독기에도 안 읽힌다 (복사·저장·불러오기 결과).
+     → 열린 대화상자 안으로 옮기고 popover(최상층)로 띄운다. popover 가 없는 브라우저는 대화상자 안(최상층)이라 그대로 위에 보인다. 닫히면 body 로 (bindDialogs) → 옮겼으면 true */
+  function openDialog() { var ds = document.querySelectorAll('dialog[open]'); return ds.length ? ds[ds.length - 1] : null; }
+  function raiseToast(t) {
+    var host = openDialog() || document.body, moved = t.parentNode !== host;
+    if (moved) host.appendChild(t);   /* 옮기면 열려 있던 popover 는 저절로 닫힌다 */
+    if (host !== document.body && typeof t.showPopover === 'function') { try { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } catch (e) { /* popover 속성 없음 등: 대화상자 안이라 그대로 보인다 */ } }
+    return moved;
+  }
+  /* ── 저장소: localStorage 감지 → 없으면 메모리 (조용히 한 줄). QuotaExceeded 는 오래된 여행의 이벤트를 뺀 저장용 사본으로 다시 시도 — 메모리의 기록은 그대로 (R2–R5) ── */
   var mem = {};
   var storeOK = (function () { try { var k = 'ppolppol_probe'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return true; } catch (e) { return false; } })();
   var store = {
@@ -111,11 +124,15 @@ var APP = (function () {
   }
   var S = defaults();
   var warned = false, lastSaved = null;
-  /* 가장 오래된 여행들의 events 를 비운다 (영수증·포스터는 남김). 비운 게 있으면 true */
-  function trimOldestEvents(n) {
-    var cut = 0;
-    for (var i = 0; i < S.trips.length && cut < (n || 10); i++) { if (S.trips[i].events && S.trips[i].events.length) { S.trips[i].events = []; cut++; } }
-    return cut > 0;
+  /* 쿼터 초과 때 쓰는 저장용 사본: 최근 keep 개를 뺀 끝난 여행의 events 만 비운다 (영수증·포스터·요약은 남김). 메모리의 S 는 건드리지 않는다. 비울 게 없으면 null */
+  var SLIM_KEEP = [100, 30, 10, 1];   /* 점점 작게 — 가장 최근 여행(방금 반영한 것)의 이벤트는 끝까지 남긴다 */
+  function slimJSON(keep) {
+    var n = S.trips.length, cut = 0;
+    var trips = S.trips.map(function (t, i) {
+      if (i >= n - keep || t.status !== 'done' || !t.events || !t.events.length) return t;
+      cut++; return Object.assign({}, t, { events: [] });
+    });
+    return cut ? JSON.stringify(Object.assign({}, S, { trips: trips })) : null;
   }
   function save() {
     S.settings.lastSeen = Math.max(Date.now(), seenOf(S) + 1);   /* 단조 증가: 같은 ms 안의 연속 저장도 순서가 남는다 */
@@ -124,19 +141,32 @@ var APP = (function () {
     if (!storeOK) { mem[KEY] = json; if (!warned) { warned = true; quietWarn('이 브라우저에선 벽이 오늘만 남아'); } return false; }
     try { localStorage.setItem(KEY, json); lastSaved = json; return true; }
     catch (e) {
-      if (isQuota(e) && trimOldestEvents(10)) {
-        try { json = JSON.stringify(S); localStorage.setItem(KEY, json); lastSaved = json; return true; } catch (e2) { /* 아래 */ }
+      if (isQuota(e)) {
+        for (var k = 0, prev = null; k < SLIM_KEEP.length; k++) {
+          var slim = slimJSON(SLIM_KEEP[k]); if (!slim || slim === prev) continue; prev = slim;
+          try { localStorage.setItem(KEY, slim); lastSaved = slim; return true; } catch (e2) { if (!isQuota(e2)) break; }
+        }
       }
       mem[KEY] = json;
       if (!warned) { warned = true; quietWarn('기록을 이 브라우저에 저장하지 못했어. 새로고침하면 사라질 수 있어.'); }
       return false;
     }
   }
+  /* 읽을 수 없는(JSON 이 아닌) 기록은 덮어쓰기 전에 ppolppol_v2_corrupt_<시각> 으로 옮겨 둔다 (원래 키는 비움 → 다음 부팅에 또 복사·경고하지 않고, 꽉 찬 저장소에서도 자리가 난다).
+     옮기지 못했으면 제자리에 되돌린다 */
+  function setAsideBroken(raw) {
+    store.remove(KEY);
+    try { if (store.set(KEY + '_corrupt_' + Date.now(), raw)) return true; } catch (e) { /* 아래 */ }
+    try { store.set(KEY, raw); } catch (e) { /* noop */ }
+    return false;
+  }
   function load() {
     var raw = store.get(KEY), stored = parseState(raw), mirrored = parseState(mirrorGet());
+    var broken = !!raw && !stored, kept = broken && setAsideBroken(raw);
     /* 같은 탭 미러가 더 새롭다(= 새로고침 직후 스냅숏이 비었거나 뒤처졌다) → 미러로 복구하고 localStorage 에 다시 적는다 */
     if (mirrored && (!stored || seenOf(mirrored) > seenOf(stored))) { S = normalize(mirrored); save(); return S; }
     if (stored) { S = normalize(stored); lastSaved = raw; return S; }
+    if (broken) quietWarn(kept ? '저장된 기록을 읽지 못했어. 원본은 따로 남겨 뒀어.' : '저장된 기록을 읽지 못했어. 새로 시작할게.');
     var v1 = store.get(KEY_V1);
     if (v1) { S = migrateV1(v1); save(); return S; }
     S = defaults();
@@ -146,6 +176,7 @@ var APP = (function () {
   var UI_KEY = 'ppolppol_ui';
   function uiPref() { try { var o = JSON.parse(store.get(UI_KEY) || 'null'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; } }
   function setUiPref(k, v) { var o = uiPref(); o[k] = v; try { store.set(UI_KEY, JSON.stringify(o)); } catch (e) { /* noop */ } }
+  function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
   function normalize(s) {
     var d = defaults();
     s = s || {};
@@ -153,13 +184,20 @@ var APP = (function () {
     s.octopus = Object.assign(d.octopus, s.octopus || {});
     s.room = Object.assign(d.room, s.room || {});
     s.settings = Object.assign(d.settings, s.settings || {});
-    if (!Array.isArray(s.trips)) s.trips = [];
-    if (!s.notes || typeof s.notes !== 'object' || Array.isArray(s.notes)) s.notes = {};
+    /* 손으로 고친·반쯤 깨진 기록: 객체가 아닌 여행·이벤트·정류장·기념품은 버린다 (그리다 멈추지 않게) */
+    s.trips = Array.isArray(s.trips) ? s.trips.filter(isObj) : [];
+    s.trips.forEach(function (t) {
+      t.events = Array.isArray(t.events) ? t.events.filter(isObj) : [];
+      if (!isObj(t.hint)) t.hint = { raw: '' };
+      if (t.receipt != null && !isObj(t.receipt)) t.receipt = null;
+      if (t.receipt && t.receipt.stops != null) t.receipt.stops = Array.isArray(t.receipt.stops) ? t.receipt.stops.filter(isObj) : [];
+    });
+    if (!isObj(s.notes)) s.notes = {};
     if (!Array.isArray(s.octopus.days)) s.octopus.days = [];
-    if (!Array.isArray(s.room.souvenirs)) s.room.souvenirs = [];
+    s.room.souvenirs = Array.isArray(s.room.souvenirs) ? s.room.souvenirs.filter(isObj) : [];
     if (!Array.isArray(s.room.posterOrder)) s.room.posterOrder = [];
-    s.octopus.affinity = s.octopus.affinity || {};
-    s.octopus.visits = s.octopus.visits || {};
+    if (!isObj(s.octopus.affinity)) s.octopus.affinity = {};
+    if (!isObj(s.octopus.visits)) s.octopus.visits = {};
     s.room.lantern = clamp(s.room.lantern | 0, 0, 8);
     if (!/^#[0-9a-f]{6}$/i.test(s.settings.octColor || '')) s.settings.octColor = '#e8463c';
     if (PALETTES_UI.map(function (p) { return p[0]; }).indexOf(s.settings.palette) < 0) s.settings.palette = paletteDefault();
@@ -256,14 +294,14 @@ var APP = (function () {
   function setPalette(name) {
     if (PALETTES_UI.map(function (p) { return p[0]; }).indexOf(name) < 0) return;
     S.settings.palette = name; save(); if (scene) { scene.setPalette(name); refreshPortraits(); }
-    document.querySelectorAll('[data-pal]').forEach(function (b) { b.classList.toggle('on', b.dataset.pal === name); });
+    document.querySelectorAll('[data-pal]').forEach(function (b) { chipOn(b, b.dataset.pal === name); });
     renderSwatch();
   }
   /* 4갈래 칩 줄 (즉흥 / Apollo / Endesga / Resurrect): 방 보기 시트 + 데모 패널 공용 */
   function paletteChips(id) {
     var row = h('div', { class: 'filters', role: 'group', 'aria-label': '팔레트', id: id });
     PALETTES_UI.forEach(function (p) {
-      var b = h('button', { type: 'button', class: 'fchip' + (S.settings.palette === p[0] ? ' on' : ''), 'data-pal': p[0], text: p[1] });
+      var b = h('button', { type: 'button', class: 'fchip' + (S.settings.palette === p[0] ? ' on' : ''), 'aria-pressed': String(S.settings.palette === p[0]), 'data-pal': p[0], text: p[1] });
       b.addEventListener('click', function () { setPalette(p[0]); });
       row.appendChild(b);
     });
@@ -286,13 +324,13 @@ var APP = (function () {
     if (v === 'auto') delete o.season; else o.season = v;
     saveLook(o);
     if (scene && typeof scene.setSeason === 'function') scene.setSeason(v);
-    document.querySelectorAll('[data-season]').forEach(function (b) { b.classList.toggle('on', b.dataset.season === v); });
+    document.querySelectorAll('[data-season]').forEach(function (b) { chipOn(b, b.dataset.season === v); });
     var ln = $('rs-season'); if (ln) ln.textContent = seasonLine();
   }
   function seasonChips(id) {   /* 자동 / 봄 / 여름 / 가을 / 겨울 — 데모 패널 (개발용 지정) */
     var row = h('div', { class: 'filters', role: 'group', 'aria-label': '계절', id: id }), cur = seasonMode();
     SEASONS_UI.forEach(function (p) {
-      var b = h('button', { type: 'button', class: 'fchip' + (cur === p[0] ? ' on' : ''), 'data-season': p[0], text: p[1] });
+      var b = h('button', { type: 'button', class: 'fchip' + (cur === p[0] ? ' on' : ''), 'aria-pressed': String(cur === p[0]), 'data-season': p[0], text: p[1] });
       b.addEventListener('click', function () { setSeasonPref(p[0]); });
       row.appendChild(b);
     });
@@ -316,16 +354,40 @@ var APP = (function () {
       }
     };
   }
-  function initScene() {
+  var timeTimer = 0;
+  function initScene(force2d) {   /* force2d = 3D 를 버리고 2D 로 (sceneLost) */
     var host = $('scene'), opts = sceneOpts();
-    if (typeof SCENE3D !== 'undefined' && SCENE3D.supported()) {
+    if (!force2d && typeof SCENE3D !== 'undefined' && SCENE3D.supported()) {
+      opts.onLost = sceneLost;
       try { scene = SCENE3D.init($('scene3d'), opts); sceneMode = '3d'; }
       catch (e) { console.warn('[app] scene3d init 실패 → 2D 폴백', e); scene = null; }
     }
     if (!scene) { scene = SCENE2D.init(host, opts); sceneMode = '2d'; }
     host.classList.toggle('mode-3d', sceneMode === '3d');
     $('scene3d').hidden = sceneMode !== '3d';
-    setInterval(function () { scene.setTime(hourNow()); }, 60000);
+    if (!timeTimer) timeTimer = setInterval(function () { scene.setTime(hourNow()); updateSceneDesc(); }, 60000);
+  }
+  /* WebGL 컨텍스트를 잃고 3 s 안에 돌아오지 않음 (scene3d 의 opts.onLost, docs/research/a11y-and-mobile-perf.md 3): 검게 멈춘 3D 를 버리고 같은 initScene 경로로 2D 폴백.
+     돌아오면 scene3d 가 부르지 않는다 → 3D 그대로. 지금 앱 상태(등불·소품·날씨·벽·선반·문어 자리와 상태)를 새 장면에 다시 그린다. 걸린 의식은 runCeremony 가 새 장면의 빈 이름을 보고 푼다 */
+  function sceneLost() {
+    if (sceneMode !== '3d' || !scene) return;
+    console.warn('[app] WebGL 컨텍스트가 돌아오지 않음 → 2D 폴백');
+    if (window.INTRO && ['sky', 'title'].indexOf(INTRO.phase) >= 0) { try { INTRO.dismiss(); } catch (e) { /* 입장 레이어 없음 */ } }   /* 멈춘 하늘에 갇히지 않게 */
+    var old = scene; scene = null;
+    try { old.destroy(); } catch (e) { console.warn('[app] scene3d destroy', e); }
+    var el = $('oct'), stage = $('stage');   /* destroy 가 중간에 멈췄어도 문어 DOM 은 2D 무대로 */
+    if (el && stage && el.parentNode !== stage) stage.appendChild(el);
+    if (el) { el.classList.remove('overlay3d'); el.style.transform = ''; }
+    initScene(true);
+    renderScene(); renderSouvenirs(); renderWall();
+    scene.jumpTo(oct.anchor); scene.setOctState(oct.state === 'carry' ? 'walk' : oct.state);   /* 들고 오던 포스터 그림은 3D 쪽에만 있었다 → 걷는 자세로 */
+    PORT.cache = {}; refreshPortraits();   /* 로그 초상도 2D 얼굴로 (한 로그 안에서 섞이지 않게) */
+    var pal = $('dv-pal'), sw = $('dv-swatch'), msg = $('dv-msg');
+    if (pal) pal.remove();
+    if (sw) sw.innerHTML = '';
+    if (msg) msg.textContent = '지금은 2D 장면이라 이 슬라이더는 적용 안 돼 (3D 그림이 멈춰서 바꿨어)';
+    updateSceneDesc();
+    toast('3D 그림이 멈춰서 2D로 바꿨어');
   }
   /* part: 'lantern' 등불만 · 'items' 소품·날씨만 · 생략하면 전부 (귀가 연출에서 둘을 200ms 띄운다) */
   function renderScene(part) {
@@ -333,6 +395,7 @@ var APP = (function () {
     if (part !== 'items') scene.setLantern(lv);
     if (part !== 'lantern') { scene.setItems(itemsFor(lv)); scene.setWeather(weatherFor(lv)); }
     document.title = (S.octopus.name ? S.octopus.name + ' · ' : '') + roomTitle(lv) + ' · 뽈뽈 문어';
+    updateSceneDesc();
   }
   function setOctColor(hex) { if (!/^#[0-9a-f]{6}$/i.test(hex)) return; S.settings.octColor = hex; save(); scene.setColor(hex); refreshPortraits(); }
 
@@ -347,14 +410,30 @@ var APP = (function () {
     if (S.room.posterOrder.length) a.push('board');
     return a;
   }
-  function octPlace(anchor) { oct.anchor = anchorName(anchor); scene.jumpTo(oct.anchor); }
+  function octPlace(anchor) { oct.anchor = anchorName(anchor); scene.jumpTo(oct.anchor); updateSceneDesc(); }
   function octState(st, extra, quiet) {
     scene.setOctState(st, extra);
     octMirror(st, quiet);
   }
+  /* 화면 낭독기용 장면 설명 한 줄 (#scene-desc, docs/research/a11y-and-mobile-perf.md 4): 3D 캔버스는 aria-hidden 이라 장면 칸이 비어 읽힌다.
+     장소 · 등불 · 날씨 · 시각대 · 문어 자리와 상태를 지금 값 그대로. 라이브 영역 아님 (사건은 #log 가 읽어 준다). 글자가 바뀔 때만 쓴다 */
+  var WX_DESC = { rain: '비 오는', drizzle: '가랑비 오는', clear: '맑은', snow: '눈 오는' };
+  var SPOT_DESC = { window: '창가', center: '방 가운데', crate: '나무 상자 옆', blanket: '담요 위', board: '포스터 판 앞', door: '문 앞' };
+  var DOING_DESC = { idle: '쉬고 있어', stay: '쉬고 있어', sleep: '자고 있어', pet: '쓰다듬받고 있어', happy: '신나 있어', anticipate: '나갈 채비 중이야', hang: '포스터를 붙이고 있어', carry: '포스터를 들고 있어' };
+  function partOfDay(hr) { return hr < 5 ? '밤' : hr < 9 ? '아침' : hr < 17 ? '낮' : hr < 19 ? '저녁' : '밤'; }
+  function sceneDescText() {
+    var lv = S.room.lantern, outside = !!scene && typeof scene.place === 'function' && scene.place() === 'exterior';
+    var where = outside ? '집 바깥' : lv ? '등불 ' + lv + '칸 켜진 다락' : '등불이 다 꺼진 다락';
+    var wx = WX_DESC[weatherFor(lv)], st = oct.state;
+    var who = st === 'away' ? '문어는 산책 나갔어.' : st === 'walk' ? '문어는 걸어가는 중이야.'
+      : '문어는 ' + (SPOT_DESC[oct.anchor] || '방 가운데') + '에서 ' + (DOING_DESC[st] || '쉬고 있어') + '.';
+    return where + ', ' + (wx ? wx + ' ' : '') + partOfDay(hourNow()) + '. ' + who;
+  }
+  function updateSceneDesc() { var el = $('scene-desc'); if (!el) return; var t = sceneDescText(); if (el.textContent !== t) el.textContent = t; }
   /* APP 쪽 상태만 (라벨 · UI 아트). 의식 중엔 장면이 스스로 setOctState 하므로 이것만 부른다. quiet = UIART 훅 생략 (먹물을 이미 문 앞에서 뿌렸을 때) */
   function octMirror(st, quiet) {
     oct.state = st;
+    updateSceneDesc();
     var lbl = $('oct-label');
     if (lbl) lbl.textContent = st === 'sleep' ? '💤' : st === 'away' ? '' : st === 'anticipate' ? '출발 중…' : '';
     if (st === 'sleep') scheduleDreamLabel();
@@ -370,7 +449,7 @@ var APP = (function () {
   function sceneCeremony() { return (scene && typeof scene.ceremony === 'function') ? scene.ceremony() : ''; }
   function ensureAttic() {   /* 의식이 없는데 바깥이면 즉시 다락으로 (집에 있는 동안 바깥이 보이는 일은 없다) */
     if (!scene || typeof scene.setPlace !== 'function' || sceneCeremony()) return;
-    if (typeof scene.place === 'function' && scene.place() !== 'attic') scene.setPlace('attic', { instant: true });
+    if (typeof scene.place === 'function' && scene.place() !== 'attic') { scene.setPlace('attic', { instant: true }); updateSceneDesc(); }
   }
   function jumpCeremony() {   /* → true 면 의식이 끝났다 (프레임이 못 도는 동안엔 false — 컨텍스트 잃음 등) */
     if (!sceneCeremony()) return true;
@@ -503,7 +582,8 @@ var APP = (function () {
       if (oct.busy || oct.state !== 'idle' || document.hidden) { scheduleWander(); return; }
       var opts = allowedIdleAnchors().filter(function (a) { return a !== oct.anchor; });
       var next = opts[Math.floor(uiRng() * opts.length)] || 'center';
-      walkTo(next).then(function () { if (!oct.busy) octState('idle'); scheduleWander(); });
+      scheduleWander();   /* 다음 산책은 지금 예약: 걷기가 다른 이동에 끊기면 그 Promise 는 풀리지 않는다 → .then 에서 걸면 산책이 영영 멈춘다 */
+      walkTo(next).then(function () { if (!oct.busy) octState('idle'); });
     }, (20 + uiRng() * 20) * 1000);
   }
   /* §17.1 대기 중 생각 말풍선: 20–40 s 마다, 집에서 idle 일 때만, 최근 방 메모 중 하나 ("{note} 생각 중"). 메모가 없으면 아무 말도 안 한다 (지어내지 않음). 말풍선만 — 로그엔 남기지 않는다 */
@@ -561,8 +641,10 @@ var APP = (function () {
 
   /* ───────────────────────── invite / reveal / commit (§3) ───────────────────────── */
   var busy = false, skipFlag = false, revealing = null;
+  var flying = null, remoteDirty = false;   /* 이 탭에서 지금 다녀오는 여행 · 그동안 다른 탭 저장을 받아 다시 그려야 하는지 (bind 의 storage) */
   function setBusy(on) {
     busy = on; oct.busy = on;
+    if (!on) { flying = null; if (remoteDirty) { remoteDirty = false; renderAll(); applyMotion(); applyFont(); } }
     var go = $('btn-go'), sk = $('btn-skip'), inp = $('hint-in');
     if (go) { go.disabled = on; go.classList.toggle('away', on); if (go.parentNode) go.parentNode.classList.toggle('away', on); go.querySelector('.go-txt').innerHTML = on ? '다녀오는 중…' : emoH('🌧') + ' 뽈뽈 다녀와'; }
     if (sk) sk.hidden = !on;
@@ -627,7 +709,7 @@ var APP = (function () {
     S.trips.push(trip); save();
     if ($('hint-in')) $('hint-in').value = '';
     updateHintHelp();
-    setBusy(true); skipFlag = false;
+    setBusy(true); skipFlag = false; flying = trip;
     wakeUp();
     bubble('', 0);
     /* 누른 지 400ms 안에 로그에 첫 반응 (UI R19): 움츠리는 동안 '…' 자리표시 */
@@ -644,7 +726,8 @@ var APP = (function () {
         pre.remove(); setBusy(false); settleOct(); toast('두뇌가 잠깐 멈췄어. 다시 한 번 불러 줘');
         return null;
       }
-      mergePlan(trip, planned); save();
+      if (trip.status !== 'done') mergePlan(trip, planned);   /* done = 그사이 다른 탭이 데려왔다 (adoptRemote) → 그 기록 그대로 보여 준다 */
+      save();
       /* 외출: 움츠림 뒤 출발 의식(다락 문 → 바깥 → 화면 밖) → 끝나면 로그 공개. 바깥은 나가 있는 동안 그대로 (계절 입자). 집·빈 차례는 의식 없음 */
       var lead = trip.kind === 'out' ? departOut() : !fast ? settleOct() : Promise.resolve();
       return lead.then(function () { return reveal(trip); }).then(function () { setBusy(false); return trip; });
@@ -781,6 +864,19 @@ var APP = (function () {
   /* 상태 반영: 등불 · 방문 · 취향 · 기념품 · 함께한 날 (한 번만) */
   function commitTrip(trip) {
     if (trip.status === 'done') return;
+    var prevL = applyTrip(trip);
+    lastNewPoster = trip.poster ? trip.id : null;
+    save();
+    renderSouvenirs();
+    var live = revealing && revealing.trip === trip && !skipFlag && !reduced();
+    if (live) revealing.deferred = { prevL: prevL };   /* 상태는 지금 저장, 보이는 건 로그가 끝난 뒤 순서대로 (startCeremony) */
+    else { renderStatus(S.room.lantern > prevL); renderScene(); renderAlbum(); }
+    /* 포스터는 hang_poster 연출 뒤에 벽에 붙는다 (공개 중이 아니면 바로) */
+    var pendingHang = live && trip.poster && (trip.events || []).some(function (e) { return e.type === 'hang_poster'; });
+    if (!pendingHang) renderWall();
+  }
+  /* commitTrip 의 상태 부분만 (그리기·저장 없음) → 반영 전 등불 칸. 다른 탭 저장을 받아들일 때 그쪽에 빠진 이 탭의 여행을 다시 얹는 데도 쓴다 */
+  function applyTrip(trip) {
     var o = S.octopus, prevL = S.room.lantern;
     var decay = typeof trip.affinityDecay === 'number' ? trip.affinityDecay : 0.9;
     /* §17.3 귀가 요약: 반영 전에 '처음 온 방' 수를 센다 (방 = 세계의 방, 밖의 문 제외) */
@@ -805,22 +901,29 @@ var APP = (function () {
     if (trip.memo && trip.memo.notes) Object.keys(trip.memo.notes).forEach(function (k) { var tx = trip.memo.notes[k]; if (typeof tx === 'string' && tx) S.notes[k] = { text: tx, tripId: trip.id, date: trip.date }; });
     trip.status = 'done'; trip.endedAt = Date.now();
     if (trip.kind !== 'empty') S.octopus.state = 'sleep';   /* 화면은 귀가 연출이 끝나야 잠들지만(finalPose), 지금 새로고침해도 담요에서 자고 있게 */
-    lastNewPoster = trip.poster ? trip.id : null;
     capTrips();
-    save();
-    renderSouvenirs();
-    var live = revealing && revealing.trip === trip && !skipFlag && !reduced();
-    if (live) revealing.deferred = { prevL: prevL };   /* 상태는 지금 저장, 보이는 건 로그가 끝난 뒤 순서대로 (startCeremony) */
-    else { renderStatus(S.room.lantern > prevL); renderScene(); renderAlbum(); }
-    /* 포스터는 hang_poster 연출 뒤에 벽에 붙는다 (공개 중이 아니면 바로) */
-    var pendingHang = live && trip.poster && (trip.events || []).some(function (e) { return e.type === 'hang_poster'; });
-    if (!pendingHang) renderWall();
+    return prevL;
   }
+  /* 다른 탭이 저장한 기록을 받아들인다 (R5). 이 탭에서 다녀오는 중인 여행(flying)이 있으면 그 객체를 그대로 끼워 넣어 이 탭의 공개·반영이 이어지게 하고,
+     그쪽 기록에 이 여행의 반영이 빠져 있으면(그 탭이 반영 전 사본으로 저장) 여기서 다시 얹어 저장한다 → 어느 탭이 늦게 저장해도 다른 탭의 여행·등불이 지워지지 않는다 */
+  function adoptRemote(raw) {
+    var R; try { R = normalize(JSON.parse(raw)); } catch (err) { return false; }
+    var T = busy ? flying : null, at = -1;
+    S = R; lastSaved = raw;
+    if (!T) return true;
+    R.trips.forEach(function (t, i) { if (t.id === T.id) at = i; });
+    if (at >= 0 && R.trips[at].status === 'done' && T.status !== 'done') Object.assign(T, R.trips[at]);   /* 새로 연 탭이 이 여행을 먼저 데려왔다(즉시 귀가) → 그쪽 기록·반영을 따른다 (두 번 반영하지 않게) */
+    var redo = T.status === 'done' && !(at >= 0 && R.trips[at].status === 'done');
+    if (at >= 0) R.trips[at] = T; else R.trips.push(T);
+    if (redo) { T.status = 'running'; applyTrip(T); save(); }
+    return true;
+  }
+  /* 최근 200개를 뺀 여행의 events 를 비운다 (영수증·포스터·요약은 남김). 방금 반영한 여행은 늘 최근 200 안이라 그대로 */
   function capTrips() {
-    var n = S.trips.length - 200;
-    for (var i = 0; n > 0 && i < S.trips.length; i++) { if (S.trips[i].events && S.trips[i].events.length) { S.trips[i].events = []; n--; } }
+    for (var i = 0; i < S.trips.length - 200; i++) { if (S.trips[i].events && S.trips[i].events.length) S.trips[i].events = []; }
   }
-  /* 열었을 때 running 이 남아 있으면 즉시 귀가 (§3-6) */
+  /* 열었을 때 running 이 남아 있으면 즉시 귀가 (§3-6) → 실제로 한 일의 종류 ('out' | 'home' | 'empty') 또는 false.
+     복구 한 줄도 그대로: 나갔다 왔으면 '다녀왔어', 집에만 있었으면 '집에 있었어', 빈 차례뿐이면 말하지 않는다 */
   function resumeRunning() {
     var run = S.trips.filter(function (t) { return t.status === 'running'; });
     if (!run.length) return Promise.resolve(false);
@@ -835,8 +938,10 @@ var APP = (function () {
     });
     return chain.then(function () {
       renderLog();
-      appendLogRow(ensureTodaySection(), logRow('귀가', '네가 없는 동안 다녀왔어', 'c-teal', true, 'calm'));
-      return true;
+      var kind = run.some(function (t) { return t.kind === 'out'; }) ? 'out' : run.some(function (t) { return t.kind === 'home'; }) ? 'home' : 'empty';
+      if (kind === 'out') appendLogRow(ensureTodaySection(), logRow('귀가', '네가 없는 동안 다녀왔어', 'c-teal', true, 'calm'));
+      else if (kind === 'home') appendLogRow(ensureTodaySection(), logRow('집', '네가 없는 동안 집에 있었어', 'c-amber', true, 'calm'));
+      return kind;
     });
   }
 
@@ -906,6 +1011,9 @@ var APP = (function () {
     if (row.dataset.expr) expressRow(row.dataset.expr);
   }
   function secs(ms) { return ms ? Math.round(ms / 1000) + '초' : ''; }
+  /* 집에 있던 날 '등불 +1' 은 칸이 실제로 켜졌을 때만: 반영된 여행은 저장된 요약 그대로, 반영 전(공개 중)이면 지금 칸이 남았는지.
+     요약 없는 옛 기록은 지금 8칸이 아니면 그때도 켜졌다 (칸은 줄지 않는다), 8칸이면 모르니 말하지 않는다 */
+  function homeLit(trip) { return (trip && trip.summary) ? trip.summary.lantern > 0 : S.room.lantern < 8; }
   function stopName(ev) { var tg = ev.target || {}; return tg.title || (tg.url ? tg.url.replace(/^https?:\/\//, '').split('/')[0] : '어딘가'); }
   function stopEmoji(ev) { var tg = ev.target || {}; var n = tg.id && nodeOf(tg.id); return (n && n.emoji) || (tg.kind === 'url' ? '🚪' : '❔'); }
   function eventRow(trip, ev) {
@@ -950,7 +1058,7 @@ var APP = (function () {
         cls = 'c-amber'; expr = ((ev.activity === 'nap') || (trip.receipt && trip.receipt.activity && trip.receipt.activity.id === 'nap')) ? 'sleep' : 'calm';
         frag.appendChild(document.createTextNode(ev.line || '오늘은 집에 있을래'));
         if (trip.receipt && trip.receipt.activity && trip.receipt.activity.detail) frag.appendChild(h('span', { class: 'sub', text: trip.receipt.activity.detail.split('\n')[0] }));
-        frag.appendChild(h('span', { class: 'sub', text: '오늘은 집. 등불 +1' }));
+        frag.appendChild(h('span', { class: 'sub', text: '오늘은 집' + (homeLit(trip) ? '. 등불 +1' : '') }));
         break;
       case 'empty_turn': expr = 'sleep'; frag.appendChild(document.createTextNode('…')); break;
       default: return null;
@@ -1041,6 +1149,13 @@ var APP = (function () {
   function setGreeting(text) { var hr = new Date().getHours(); greetingRow = logRow('인사', text, 'c-amber', true, (hr >= 19 || hr < 6) ? 'sleepy' : 'idle'); }
   var memoRow = null;
   function greetRows() { return [greetingRow, memoRow].filter(Boolean); }
+  /* 오늘 칸 머리의 인사 + 어제 메모를 지금 S 의 문어로 다시 (부팅 · 기록 불러오기 · 초기화). 이름이 없으면 둘 다 없음 */
+  function setDayGreeting() {
+    greetingRow = memoRow = null;
+    if (!S.octopus.name) return;
+    setGreeting(greetingByHour(new Date().getHours()) + '. ' + S.octopus.name + (S.octopus.state === 'sleep' ? ' 아직 자고 있어.' : ' 기다리고 있었어.'));
+    setMemoGreeting();
+  }
   /* §17.1 새 날의 첫 인사 = 마지막 산책이 남긴 memo.tomorrow 그대로 (다시 짓지 않는다). 오늘 산책이 아직 없을 때만. 메모 없는 옛 기록이면 말하지 않는다 */
   function setMemoGreeting() {
     memoRow = null;
@@ -1160,7 +1275,7 @@ var APP = (function () {
     if (trip.by === 'legacy') return lead + '<p class="meta">옛 기록에서 복원된 포스터야. 들른 곳 기록은 남아 있지 않아.</p>';
     if (trip.kind === 'home') {
       var act = (r && r.activity) || {};
-      lines.push('<p class="meta">' + emoH('🏠') + ' 오늘은 집 · 등불 +1</p>');
+      lines.push('<p class="meta">' + emoH('🏠') + ' 오늘은 집' + (homeLit(trip) ? ' · 등불 +1' : '') + '</p>');
       if (act.detail || p.detail) lines.push('<p>' + esc((act.detail || p.detail || '').split('\n')[0]) + '</p>');
       if (r && r.reaction) lines.push('<p class="say voice">' + emoH(REACT_EMOJI[r.reaction]) + esc(r.reactionLine || r.reaction) + '</p>');
       return lead + lines.join('');
@@ -1194,7 +1309,7 @@ var APP = (function () {
     if (trip.kind === 'home') {
       var act = (r && r.activity) || {};
       out += '<p class="big-line">' + esc(p.line || act.line || '') + '</p>';
-      out += '<p>오늘은 집. 등불 +1</p>';
+      out += '<p>오늘은 집' + (homeLit(trip) ? '. 등불 +1' : '') + '</p>';
       if (act.detail) out += '<p>' + esc(act.detail).replace(/\n/g, '<br>') + '</p>';
       out += '<div class="hr"></div>';
       if (r && r.reaction) out += '<div class="kv"><span>반응</span><b>' + emoH(REACT_EMOJI[r.reaction]) + ' ' + esc(r.reaction) + '</b></div>';
@@ -1321,7 +1436,13 @@ var APP = (function () {
   function showDialog(dlg) {
     if (!dlg) return;
     dlg._opener = document.activeElement;
-    if (!dlg.open) dlg.showModal();
+    if (!dlg.open) { dlg.showModal(); dlg.scrollTop = 0; }   /* showModal 의 첫 포커스(아래쪽 버튼)가 대화상자를 끝까지 굴려 놓는다 (픽셀 테마 폰) → 맨 위에서 연다 */
+  }
+  /* 대화상자 바깥(백드롭) 클릭만 닫기: 대화상자 자신의 안쪽 여백을 눌러도 target 이 dialog 라 → 좌표가 상자 밖일 때만 */
+  function clickedOutside(d, e) {
+    if (e.target !== d) return false;
+    var r = d.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
   }
   function bindDialogs() {
     var supportsClosedBy = (typeof HTMLDialogElement !== 'undefined') && ('closedBy' in HTMLDialogElement.prototype);
@@ -1329,10 +1450,15 @@ var APP = (function () {
       var d = $(id); if (!d) return;
       if (supportsClosedBy && id !== 'name-dialog') d.setAttribute('closedby', 'any');
       d.addEventListener('close', function () {
+        var t = $('toast');
+        if (t && d.contains(t)) raiseToast(t);   /* 토스트가 이 안에 있었으면 body 로 (닫힌 대화상자 안에선 안 보인다). 다른 대화상자가 아직 열려 있으면 그리로 */
         var o = d._opener; d._opener = null;
         if (o && o.focus && document.contains(o) && o !== document.body) { try { o.focus({ preventScroll: true }); } catch (e) { o.focus(); } }
       });
     });
+    /* 토스트를 app 의 toast() 를 거치지 않고 띄우는 곳(js/audio.js 의 소리 안내)도 열린 대화상자 위로 */
+    var t = $('toast');
+    if (t && window.MutationObserver) new MutationObserver(function () { if (t.classList.contains('show') && openDialog() && t.parentNode !== openDialog()) raiseToast(t); }).observe(t, { attributes: true, attributeFilter: ['class'] });
   }
   function svgToDataURI(svg) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); }
   function fetchAsDataURL(url) {
@@ -1387,7 +1513,7 @@ var APP = (function () {
     var tc = topCorners(), tv = topVisited();
     if (!tc.length && !tv) frag.appendChild(h('p', { text: '아직 어디가 좋은지 모르겠어. 더 다녀 봐야 알겠어' }));
     tc.forEach(function (c) { frag.appendChild(h('p', { text: '요즘 ' + cornerName(c) + ' 방을 자꾸 가네' })); });
-    if (tv) { var nd = nodeOf(tv.id); frag.appendChild(h('p', { text: (nd ? nd.name : tv.id) + ' 방은 ' + tv.n + '번 왔어' })); }
+    if (tv) { var nd = nodeOf(tv.id), nm = nd ? nd.name : tv.id; frag.appendChild(h('p', { text: (/방$/.test(nm) ? nm + '은 ' : nm + ' 방은 ') + tv.n + '번 왔어' })); }   /* '느린 글의 방' → '방 방은' 안 되게 */
     frag.appendChild(h('h3', { text: lv >= 7 ? '선반' : '창턱' }));
     var sl = h('div', { class: 'souv-list' });
     if (!S.room.souvenirs.length) sl.appendChild(h('span', { text: '아직 가져온 게 없어' }));
@@ -1411,7 +1537,7 @@ var APP = (function () {
       b.addEventListener('click', function () { setOctColor(p[1]); hueIn.value = String(hexHue(p[1])); swatchOn(); });
       sw.appendChild(b);
     });
-    function swatchOn() { sw.querySelectorAll('.preset').forEach(function (b) { b.classList.toggle('on', b.dataset.hex === S.settings.octColor); }); }
+    function swatchOn() { sw.querySelectorAll('.preset').forEach(function (b) { chipOn(b, b.dataset.hex === S.settings.octColor); }); }
     swatchOn();
     frag.appendChild(h('label', { class: 'set' }, ['색상', hueIn]));
     frag.appendChild(sw);
@@ -1468,20 +1594,27 @@ var APP = (function () {
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
     return JSON.stringify(S);
   }
+  /* 불러오기: 먼저 그려 보고(검사), 되면 그때 저장. 안 되면 원래 기록·화면으로 되돌린다 — 저장된 기록은 건드리지 않는다 */
   function importJSON(text) {
     if (busy) { toast('다녀오는 중이라 지금은 못 불러와. 끝나고 다시 해 줘'); return false; }
+    var prev = { S: S, g: greetingRow, m: memoRow };
     try {
       var obj = typeof text === 'string' ? JSON.parse(text) : text;
-      if (!obj || obj.v !== 2 || !obj.octopus) throw new Error('format');
-      S = normalize(obj); save(); renderAll(); applyMotion(); applyFont(); octInitial();
-      var d = $('room-sheet'); if (d.open) d.close();
-      toast('기록을 불러왔어'); return true;
-    } catch (e) { toast('이 파일은 뽈뽈 기록이 아닌 것 같아'); return false; }
+      if (!isObj(obj) || obj.v !== 2 || !isObj(obj.octopus)) throw new Error('format');
+      S = normalize(obj); setDayGreeting(); renderAll();
+    } catch (e) {
+      S = prev.S; greetingRow = prev.g; memoRow = prev.m;
+      try { renderAll(); } catch (e2) { /* 원래 기록은 저장된 그대로 */ }
+      toast('이 파일은 뽈뽈 기록이 아닌 것 같아'); return false;
+    }
+    save(); applyMotion(); applyFont(); octInitial();
+    var d = $('room-sheet'); if (d.open) d.close();
+    toast('기록을 불러왔어'); return true;
   }
   function resetAll() {
     if (busy) { toast('다녀오는 중이라 지금은 못 지워. 끝나고 다시 해 줘'); return false; }
     store.remove(KEY);
-    S = defaults(); save(); renderAll(); octInitial();
+    S = defaults(); save(); setDayGreeting(); renderAll(); octInitial();
     var d = $('room-sheet'); if (d.open) d.close();
     openNameDialog();
   }
@@ -1507,7 +1640,7 @@ var APP = (function () {
     trip.weather = weatherFor(S.room.lantern);
     mergePlan(trip, planned); trip.by = meta.by; trip.events = demo.events.slice(); buildRecall(trip);
     S.trips.push(trip); save();
-    skipFlag = true; jumpCeremony(); setBusy(true);
+    skipFlag = true; jumpCeremony(); setBusy(true); flying = trip;
     var today = ensureTodaySection(); today.querySelectorAll('.lrow.demo-live').forEach(function (r) { r.remove(); });
     reveal(trip).then(function () { setBusy(false); demo = { phase: 'start', events: [], t0: 0, hint: '', hung: false, wrapped: false }; demoSet('start'); demoMsg('사람이 조작한 산책이 저장됐어 (고른 이: 사람이 조작)'); renderLog(); });
   }
@@ -1578,7 +1711,7 @@ var APP = (function () {
     mergePlan(trip, planned); trip.by = 'mcp'; trip.events = evs; buildRecall(trip);
     S.trips.push(trip); save();
     $('d-json').value = ''; demoMsg('모델(MCP) 이벤트를 재생 중…');
-    wakeUp(); setBusy(true); skipFlag = false; demoSet('start');
+    wakeUp(); setBusy(true); skipFlag = false; flying = trip; demoSet('start');
     reveal(trip).then(function () { setBusy(false); demoSet('start'); demoMsg('재생 끝 (고른 이: 모델(MCP))'); });
     return true;
   }
@@ -1602,18 +1735,20 @@ var APP = (function () {
     $('pd-close').addEventListener('click', function () { $('poster-dialog').close(); });
     $('pd-save').addEventListener('click', function () { savePNG(); });
     $('pd-copy').addEventListener('click', function () { var t = tripById(openTripId); if (t) copyText(shareLine(t)); });
-    $('poster-dialog').addEventListener('click', function (e) { if (e.target === e.currentTarget) e.currentTarget.close(); });
+    $('poster-dialog').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     $('pd-back').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('.copy[data-share]'); if (b) { e.stopPropagation(); copyText(b.getAttribute('data-share')); } });
-    $('room-sheet').addEventListener('click', function (e) { if (e.target === e.currentTarget) e.currentTarget.close(); });
+    $('room-sheet').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     bindDialogs(); watchLogScroll();
+    document.addEventListener('touchstart', function () { /* 빈 리스너: iOS Safari 는 터치 리스너가 있어야 :active(눌림) 모양을 그린다 */ }, { passive: true });
     /* 데모 <details>: 접힌 채 시작, 뷰어별로 펼침 기억 (UI R2) */
     var demoEl = $('demo');
     if (demoEl) { if (uiPref().demoOpen) demoEl.open = true; demoEl.addEventListener('toggle', function () { setUiPref('demoOpen', demoEl.open); }); }
     /* 탭을 떠날 때 저장 · 다른 탭이 저장하면 다시 그린다 (R4, R5) */
     document.addEventListener('visibilitychange', function () { if (document.hidden && S.octopus.name) save(); });
     window.addEventListener('storage', function (e) {
-      if (e.key !== KEY || !e.newValue || e.newValue === lastSaved || busy) return;
-      try { S = normalize(JSON.parse(e.newValue)); lastSaved = e.newValue; } catch (err) { return; }
+      if (e.key !== KEY || !e.newValue || e.newValue === lastSaved) return;
+      if (!adoptRemote(e.newValue)) return;
+      if (busy) { remoteDirty = true; return; }   /* 공개 중엔 로그·등불을 다시 그리지 않는다 → 끝날 때 한 번 (setBusy) */
       renderAll(); applyMotion(); applyFont();
     });
     $('name-form').addEventListener('submit', function (e) {
@@ -1628,7 +1763,7 @@ var APP = (function () {
       }
     });
     $('name-dialog').addEventListener('cancel', function (e) { if (!S.octopus.name) e.preventDefault(); });
-    document.querySelectorAll('.fchip[data-f]').forEach(function (b) { b.addEventListener('click', function () { albumFilter = b.dataset.f; document.querySelectorAll('.fchip[data-f]').forEach(function (x) { x.classList.toggle('on', x === b); }); renderAlbum(); }); });
+    document.querySelectorAll('.fchip[data-f]').forEach(function (b) { b.addEventListener('click', function () { albumFilter = b.dataset.f; document.querySelectorAll('.fchip[data-f]').forEach(function (x) { chipOn(x, x === b); }); renderAlbum(); }); });
     /* 문어·창문·포스터·기념품 입력은 scene 이 받아 on.* 콜백으로 준다 (§13.1) */
     bindLook();
     if (window.matchMedia) { var mq = window.matchMedia('(prefers-reduced-motion: reduce)'); if (mq.addEventListener) mq.addEventListener('change', applyMotion); }
@@ -1675,7 +1810,7 @@ var APP = (function () {
     bind();
     if (window.AUDIO) AUDIO.init({ hour: hourNow, weather: function () { return weatherFor(S.room.lantern); }, lantern: function () { return S.room.lantern; }, season: function () { return (scene && typeof scene.season === 'function') ? scene.season() : null; } });   /* 소리 (js/audio.js) — 꺼진 채로 시작 */
     if (!storeOK) quietWarn('이 브라우저에선 벽이 오늘만 남아');
-    if (S.octopus.name) { setGreeting(greetingByHour(new Date().getHours()) + '. ' + S.octopus.name + (S.octopus.state === 'sleep' ? ' 아직 자고 있어.' : ' 기다리고 있었어.')); setMemoGreeting(); }
+    setDayGreeting();
     renderLog();
     octInitial();
     scheduleThink();
@@ -1685,7 +1820,7 @@ var APP = (function () {
     var afterIntro = function () { if (!S.octopus.name && !$('name-dialog').open) openNameDialog(); };
     if (window.INTRO && INTRO.start(scene, { mode: sceneMode, reduced: reduced(), host: $('scene') })) INTRO.onDone(afterIntro); else afterIntro();
     loadManifest().then(function (ok) { if (ok) { scene.refresh(); renderSouvenirs(); } });
-    resumeRunning().then(function (did) { if (did) finalPose({ kind: 'out' }); });
+    resumeRunning().then(function (kind) { if (kind) finalPose({ kind: kind }); });   /* 빈 차례뿐이면 재우지 않는다 (commitTrip 과 같은 규칙) */
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 

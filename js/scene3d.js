@@ -1899,9 +1899,17 @@ var SCENE3D = (function () {
     listen(canvas, 'pointerup', pointerEnd); listen(canvas, 'pointercancel', pointerEnd);
     listen(canvas, 'wheel', function (e) { e.preventDefault(); var z = clamp(st.zoom + (e.deltaY < 0 ? 1 : -1), 0, ZOOM_STEPS.length - 1); if (z !== st.zoom) { st.zoom = z; resize(); dither.still = 0; } }, { passive: false });
     listen(document, 'pointermove', function (e) { if (e.pointerType !== 'touch') { oct.pointer = { x: e.clientX, y: e.clientY }; oct.lookTarget = null; } }, { passive: true });
-    listen(canvas, 'webglcontextlost', function (e) { e.preventDefault(); st.lost = true; if (oct.walking && oct.walking.finish) oct.walking.finish(); });
-    listen(canvas, 'webglcontextrestored', function () { st.lost = false; renderer.shadowMap.needsUpdate = true; });
-    listen(document, 'visibilitychange', function () { st.hidden = document.hidden; if (!st.hidden) { lastDraw = 0; loop(); } });
+    /* 컨텍스트 잃음 (docs/research/a11y-and-mobile-perf.md 3): 보이는 동안 3 s 안에 돌아오지 않으면 opts.onLost() 한 번 → 앱이 2D 폴백으로 바꾼다. 돌아오면 아무것도 안 한다 (3D 그대로).
+       탭이 숨어 있는 동안은 세지 않는다 (iOS 는 백그라운드에서 회수하고 앞으로 돌아올 때 복구한다) */
+    var lostTimer = 0, lostTold = false;
+    function armLost() {
+      clearTimeout(lostTimer); lostTimer = 0;
+      if (!st.lost || lostTold || document.hidden || typeof opts.onLost !== 'function') return;
+      lostTimer = setTimeout(function () { lostTimer = 0; if (!st.lost || lostTold || document.hidden) return; lostTold = true; opts.onLost(); }, 3000);
+    }
+    listen(canvas, 'webglcontextlost', function (e) { e.preventDefault(); st.lost = true; if (oct.walking && oct.walking.finish) oct.walking.finish(); armLost(); });
+    listen(canvas, 'webglcontextrestored', function () { st.lost = false; renderer.shadowMap.needsUpdate = true; armLost(); });
+    listen(document, 'visibilitychange', function () { st.hidden = document.hidden; armLost(); if (!st.hidden) { lastDraw = 0; loop(); } });
     var ro = null;
     if (window.ResizeObserver) { ro = new ResizeObserver(function () { resize(); }); ro.observe(container); } else listen(window, 'resize', resize);
     /* 화면 밖 (T4, docs/research/a11y-and-mobile-perf.md 2): 장면이 스크롤로 안 보이면 시뮬레이션(의식·걷기·비 스텝)은 그대로 돌리고 렌더 패스만 건너뛴다. 다시 보이면 디더 0.3 s 쉼 (드래그 뒤와 같은 규칙) */
@@ -2245,6 +2253,7 @@ var SCENE3D = (function () {
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastDraw = 0; loop(); },
       destroy: function () {
         st.paused = true; cancelAnimationFrame(raf); unbind.forEach(function (f) { f(); }); if (ro) ro.disconnect(); if (io) io.disconnect();
+        clearTimeout(lostTimer); lostTold = true;
         posterMeshes.forEach(function (m) { if (m.material !== posterMat) { if (m.material.map) m.material.map.dispose(); m.material.dispose(); } });
         if (carry.material !== posterMat) { if (carry.material.map) carry.material.map.dispose(); carry.material.dispose(); }
         disposables.forEach(function (d) { if (d && d.dispose) d.dispose(); });
