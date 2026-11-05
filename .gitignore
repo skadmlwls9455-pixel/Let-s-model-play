@@ -4,3 +4,4 @@ node_modules/
 dist/*.map
 dist/
 __pycache__/
+tests/evidence/playtest/run/
