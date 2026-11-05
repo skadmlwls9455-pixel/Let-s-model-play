@@ -470,7 +470,7 @@ var APP = (function () {
     cancelAnimationFrame(cer.raf);
     if (typeof scene.motion !== 'function') return;
     (function tick() {
-      if (cer.seq !== my || cer.ink) return;
+      if (cer.seq !== my || cer.ink || typeof scene.motion !== 'function') return;   /* 도중에 2D 폴백으로 바뀌면 (sceneLost) 그만 */
       var m = scene.motion();
       if (m.ceremony === 'depart' && m.place === 'exterior' && m.octVisible && !m.trans) { cer.ink = true; if (window.UIART) UIART.fx('ink'); return; }
       if (m.ceremony === 'depart') cer.raf = requestAnimationFrame(tick);
@@ -1437,6 +1437,7 @@ var APP = (function () {
     if (!dlg) return;
     dlg._opener = document.activeElement;
     if (!dlg.open) { dlg.showModal(); dlg.scrollTop = 0; }   /* showModal 의 첫 포커스(아래쪽 버튼)가 대화상자를 끝까지 굴려 놓는다 (픽셀 테마 폰) → 맨 위에서 연다 */
+    var t = $('toast'); if (t && t.classList.contains('show')) raiseToast(t);   /* 떠 있던 토스트는 새 대화상자 위로 */
   }
   /* 대화상자 바깥(백드롭) 클릭만 닫기: 대화상자 자신의 안쪽 여백을 눌러도 target 이 dialog 라 → 좌표가 상자 밖일 때만 */
   function clickedOutside(d, e) {
