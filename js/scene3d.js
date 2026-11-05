@@ -259,6 +259,12 @@ var SCENE3D = (function () {
   };
   /* 발광 색 (룩 패스 6): 등불 유리 속 심지·양초 불꽃의 발광 타깃 색. 시각대 `em` 과 등불 칸 수로 배율, `winEm` 은 창 유리 발광 색(낮 = 하늘 밝게, 밤 = 희미한 차가운 색) */
   var EM = { lamp: '#ffc46a', flame: '#ffd990' };
+  /* 첫 불 (소유자 폰 22:51 · 등불 0 · 비 = 창과 달빛 조각만 보이고 문어를 못 찾던 칠흑): 처음부터 방이 '어둑하지만 아늑한 다락' 으로 읽히고 문어가 늘 찾아지게. 전부 밤에만 (em 0.8→1 = nightK) — 낮·새벽·노을·바깥은 예전 그대로.
+     ember = 0칸 등불 계수 ('작은 불씨': 밤에만 점광·발광·글로우·웅덩이가 작게 켜진다, 낮 0칸은 예전처럼 꺼진 회색 유리; 1칸 0.475 → 8칸 1 의 칸당 곡선은 그대로) ·
+     밤 바닥 = 다락 헤미를 sky/gnd · hemiI 쪽으로 (keep = 등불 칸과 무관하게 남는 몫: 1 = 모든 칸에서 같은 달빛 바닥 → 등불 빛이 안 닿는 앞쪽 바닥·깔개도 허공색에 묻히지 않고, 칸을 채워도 앞쪽이 어두워지지 않는다) ·
+     필은 등불 칸이 낮을 때(0칸 전부 → upTo 칸 0) fillI 까지 ·
+     문어 자체광 = 몸색(알베도)에 비례하는 흐린 빛 glow × (glow0 → glow8, 등불 칸에 따라 선형) — 동공·입은 어두운 채, 몸·흰자만 한 칸 뜬다 (블러·새 패스 없음, 툰 재질 유니폼 하나). 옅은 살구색이라 파랑·보라·초록 몸도 빨강만큼 뜬다 */
+  var FIRST_LIGHT = { ember: 0.25, sky: '#4d4a70', gnd: '#2a2024', hemiI: 0.4, keep: 1, fillI: 0.12, upTo: 4, glow: '#ffd8b0', glow0: 0.14, glow8: 0.06 };
   function phaseOf(h) { return h < 6 ? 'night' : h < 9 ? 'dawn' : h < 17 ? 'day' : h < 19 ? 'dusk' : 'night'; }
 
   /* ═══════════════════════════ init ═══════════════════════════ */
@@ -434,14 +440,26 @@ var SCENE3D = (function () {
       if (PLACE.vis === 'exterior') sun.position.set(10 * Math.cos(elev) * Math.cos(az), 10 * Math.sin(elev) + 0.5, -10 * Math.cos(elev) * Math.sin(az));   /* 바깥: 차폐 없음, 해는 화면 오른쪽 옆(+x −z)에서 — 현관·계단 면(+x)이 밝고 그림자는 왼쪽으로 */
       else sun.position.set(-10 * Math.cos(elev) * Math.cos(az), 10 * Math.sin(elev) + 0.5, 10 * Math.cos(elev) * Math.sin(az));
       fitShadow();
-      hemi.color.copy(lerpC(a.sky, b.sky, e)); hemi.groundColor.copy(lerpC(a.gnd, b.gnd, e)); hemi.intensity = num('hemiI') * fillK() * (PLACE.vis === 'exterior' ? 1 + 1.2 * clamp((num('em') - 0.25) / 0.75, 0, 1) : 1);   /* 바깥은 열린 하늘: 밤 헤미 ×2.2 (다락은 그대로) */
-      fill.color.copy(lerpC(a.fill, b.fill, e)); fill.intensity = num('fillI') * fillK();
+      base.sky.copy(lerpC(a.sky, b.sky, e)); base.gnd.copy(lerpC(a.gnd, b.gnd, e)); base.hemiI = num('hemiI') * fillK() * (PLACE.vis === 'exterior' ? 1 + 1.2 * clamp((num('em') - 0.25) / 0.75, 0, 1) : 1);   /* 바깥은 열린 하늘: 밤 헤미 ×2.2 (다락은 그대로) */
+      fill.color.copy(lerpC(a.fill, b.fill, e)); base.fillI = num('fillI') * fillK();
       glass.material.color.copy(lerpC(a.out, b.out, e));
       winEm.material.color.copy(lerpC(a.winEm, b.winEm, e));
       scene.background.copy(lerpC(a.bg, b.bg, e));
       light.lamp = num('lamp'); light.lampD = num('lampD'); light.glow = num('glow'); light.pool = num('pool'); light.candle = num('candle'); light.em = num('em');
       light.out = lerpC(a.out, b.out, e).clone(); light.winEm = lerpC(a.winEm, b.winEm, e).clone();
-      lampDirty = true; if (extReady) extApplyLight();
+      lampDirty = true; if (extReady) extApplyLight();   /* 헤미·필 최종값(applyFloor)은 applyLamp 가 — 다음 렌더 전에 frame 이 lampDirty 를 처리한다 (전환 중 프레임당 한 번) */
+    }
+    /* 첫 불 — 밤 바닥·문어 자체광 (FIRST_LIGHT): applyLight 가 구한 시각대 헤미·필(base) 위에 얹는다. applyLamp 가 부른다 */
+    var base = { sky: new T.Color(), gnd: new T.Color(), hemiI: 0, fillI: 0 }, FL = FIRST_LIGHT;   /* FL 은 SCENE3D.FIRST_LIGHT 그대로 (LIGHTS 처럼 런타임에 바꾸면 다음 applyLight/applyLamp 에 반영) */
+    var _flc = {};
+    function flC(hex) { return _flc[hex] || (_flc[hex] = C(hex)); }   /* FIRST_LIGHT 색 캐시 (전환 중 매 프레임 new Color 없이) */
+    function nightK() { return PLACE.vis === 'exterior' ? 0 : clamp(((light.em == null ? 1 : light.em) - 0.8) / 0.2, 0, 1); }   /* 다락의 밤 정도: 노을(em 0.8) 이하 0 → 밤(1) 1. 낮·새벽·노을은 0 = 첫 불 전부 꺼짐 (낮 모습 그대로) */
+    function applyFloor() {
+      var nk = nightK(), fade = clamp(1 - st.lantern / FL.upTo, 0, 1), wh = nk * (FL.keep + (1 - FL.keep) * fade), w = nk * fade;
+      hemi.color.copy(base.sky).lerp(flC(FL.sky), wh); hemi.groundColor.copy(base.gnd).lerp(flC(FL.gnd), wh);
+      hemi.intensity = base.hemiI + Math.max(0, FL.hemiI - base.hemiI) * wh;
+      fill.intensity = base.fillI + Math.max(0, FL.fillI - base.fillI) * w;
+      toon.emissive.copy(flC(FL.glow)).multiplyScalar(nk * (FL.glow0 + (FL.glow8 - FL.glow0) * clamp(st.lantern / 8, 0, 1)));
     }
     function setTime(h, instant) {
       st.hour = h; var ph = LIGHTS[phaseOf(h)];
@@ -461,6 +479,8 @@ var SCENE3D = (function () {
     /* 방·소품 재질: r128 Lambert 는 직접광 합을 정점에서 계산하고 그림자 마스크 하나를 곱한다 → 닫힌 방(지붕 차폐)에선 태양 그림자가 필·등불·양초까지 지워 버린다. Phong(광택 0 = 같은 난반사)은 프래그먼트별·광원별 그림자라 등불 웅덩이·필이 그림자 안에서도 산다 (룩 패스 4) */
     var lambert = keep(new T.MeshPhongMaterial({ vertexColors: true, shininess: 0, specular: 0x000000 }));
     var toon = keep(new T.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: keep(gradientTex()) }));
+    /* 문어 자체광 (첫 불): 툰의 emissive 를 정점색(알베도)에 곱한다 → 문어에만 닿는 흐린 따뜻한 채움빛. 몸·흰자는 한 칸 뜨고 동공·입(어두운 정점색)은 어두운 채라 얼굴이 안 뭉개진다. 값은 applyFloor (밤에만, 초상은 0) */
+    toon.onBeforeCompile = function (sh) { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= diffuseColor.rgb;'); };
     var rtex = keep(radialTex());
     var decalMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C('#1b1522'), transparent: true, opacity: 0.42, depthWrite: false }));
     var glowMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[3]), transparent: true, opacity: 0.55, depthWrite: false }));
@@ -650,15 +670,17 @@ var SCENE3D = (function () {
     var lampPool = new T.Mesh(keep(new T.PlaneGeometry(2.6, 2.6)), keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[2]), transparent: true, opacity: 0.28, depthWrite: false })));
     lampPool.rotation.x = -Math.PI / 2; lampPool.position.set(lampPos.x, 0.015, lampPos.z); lampPool.renderOrder = 2; atticG.add(lampPool);
     var lampDirty = true;
-    function glowOpacity() { return (light.glow || 0.7) * (0.43 + 0.57 * st.lantern / 8); }   /* 8칸에서 시각대의 glow (낮 0.4 · 밤 0.7) */
+    function lampK(n) { return n > 0 ? 0.4 + 0.6 * n / 8 : FIRST_LIGHT.ember * nightK(); }   /* 등불 계수: 0칸 = 밤에만 작은 불씨(첫 불, 노을→밤 전환 동안 0→ember) · 1칸 0.475 → 8칸 1 (칸당 0.075, 예전 곡선 그대로) */
+    function glowOpacity() { var n = st.lantern; return (light.glow || 0.7) * (n > 0 ? 0.43 + 0.57 * n / 8 : 0.43 * lampK(0) / 0.475); }   /* 8칸에서 시각대의 glow (낮 0.4 · 밤 0.7) · 0칸 불씨는 1칸 글로우의 계수 비례 */
     function applyLamp() {
-      var n = st.lantern, k = n > 0 ? 0.4 + 0.6 * n / 8 : 0, on = n > 0;
+      var n = st.lantern, lit = n > 0, ember = !lit && nightK() >= 0.5, on = lit || ember, k = on ? lampK(n) : 0;   /* 0칸: 낮·새벽·노을 = 예전처럼 꺼짐(회색 유리) · 밤 = 불씨 (노을→밤 전환 중간부터, 세기는 nightK 를 따라 오른다). lit = 칸이 찬 등불(먼지·유리 밝은 칸) */
       lamp.intensity = (light.lamp || 1.2) * k; lamp.distance = light.lampD || 6;
-      recolor(lampGlassGeo, 1, on ? PAL.amber[2] : PAL.slate[1]); recolor(lampGlassGeo, 2, on ? PAL.amber[5] : PAL.slate[2]);
+      recolor(lampGlassGeo, 1, lit ? PAL.amber[2] : ember ? PAL.amber[1] : PAL.slate[1]); recolor(lampGlassGeo, 2, lit ? PAL.amber[5] : ember ? PAL.amber[4] : PAL.slate[2]);   /* 불씨: 유리·심지 띠가 한 칸씩 어둡다 */
       lampEm.visible = on; lampEm.material.color.copy(C(EM.lamp)).multiplyScalar((light.em || 1) * k);
-      lampGlow.visible = on; lampGlow.material.opacity = glowOpacity(); lampGlow.scale.setScalar(0.7 + 0.06 * n);
-      lampPool.visible = on; lampPool.material.opacity = (0.12 + 0.03 * n) * (light.pool || 1); lampPool.scale.setScalar((light.lampD || 6) / 6);
-      dust.visible = on && !st.reduced;
+      lampGlow.visible = on; lampGlow.material.opacity = glowOpacity(); lampGlow.scale.setScalar(lit ? 0.7 + 0.06 * n : 0.55);
+      lampPool.visible = on; lampPool.material.opacity = (lit ? 0.12 + 0.03 * n : 0.12 * k / 0.475) * (light.pool || 1); lampPool.scale.setScalar((light.lampD || 6) / 6 * (lit ? 1 : 0.8));
+      dust.visible = lit && !st.reduced;
+      applyFloor();   /* 밤 바닥·문어 자체광 (등불 칸에 따라) */
       lampDirty = false;
       if (extReady) extApplyLight();   /* 바깥 다락 창 불빛 = 등불 칸 수 */
     }
@@ -998,8 +1020,8 @@ var SCENE3D = (function () {
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       var sv = { sx: bodyG.scale.x, sy: bodyG.scale.y, sz: bodyG.scale.z, py: bodyG.position.y, rz: bodyG.rotation.z, rx: bodyG.rotation.x, ry: bodyG.rotation.y, arms: arms.map(function (m) { return [m.rotation.y, m.rotation.z]; }), vis: octG.visible, pvis: octG.parent ? octG.parent.visible : true, applied: face.applied, hex: oct.curHex || st.color, bg: scene.background };
       var sc = renderer.getClearColor(_cc).clone(), sa = renderer.getClearAlpha();
-      var pose = FACES[expr].pose || [1, 1, 0];
-      applyFace(expr);
+      var pose = FACES[expr].pose || [1, 1, 0], svEm = toon.emissive.clone();
+      applyFace(expr); toon.emissive.setRGB(0, 0, 0);   /* 초상은 시각대와 무관 (전용 3점 조명) → 밤 문어 자체광(첫 불)은 빼고 찍는다 */
       var hex = expr === 'pet' ? mixHex(st.color, OC.hi, 0.35) : expr === 'sleep' ? hueHex(st.color, 12) : st.color;   /* pet = 장면의 홍조 끝값, sleep = 색 순환 한 자락 */
       if (hex !== sv.hex) octColor(hex);
       octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]);   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = 0; bodyG.rotation.set(0, 0, pose[2]);
@@ -1023,7 +1045,7 @@ var SCENE3D = (function () {
       octG.visible = sv.vis; if (octG.parent) octG.parent.visible = sv.pvis; bodyG.scale.set(sv.sx, sv.sy, sv.sz); bodyG.position.y = sv.py; bodyG.rotation.set(sv.rx, sv.ry, sv.rz);
       arms.forEach(function (m, i) { m.rotation.y = sv.arms[i][0]; m.rotation.z = sv.arms[i][1]; });
       if (hex !== sv.hex) octColor(sv.hex);
-      applyFace(sv.applied);
+      applyFace(sv.applied); toon.emissive.copy(svEm);
       var N = PORT.N, cv = document.createElement('canvas'); cv.width = cv.height = N;
       var cx = cv.getContext('2d'), img = cx.createImageData(N, N);
       for (var y = 0; y < N; y++) img.data.set(pBuf.subarray((N - 1 - y) * N * 4, (N - y) * N * 4), y * N * 4);   /* GL 은 아래→위 */
@@ -2100,7 +2122,7 @@ var SCENE3D = (function () {
       applyPendingPixel();
       if (light.t < 1) { light.t = Math.min(1, light.t + dt / light.dur); applyLight(); if (light.t >= 1) light.from = null; }
       if (lampDirty) applyLamp();
-      if (!st.reduced && st.lantern > 0) { lampGlow.material.opacity = glowOpacity() + Math.sin(Math.floor(time * 8) / 8 * 2) * 0.03 * (light.glow || 0.7) / 0.7; }   /* 글로우 맥동 8 fps 스텝 */
+      if (!st.reduced && lampGlow.visible) { lampGlow.material.opacity = glowOpacity() + Math.sin(Math.floor(time * 8) / 8 * 2) * 0.03 * (light.glow || 0.7) / 0.7; }   /* 글로우 맥동 8 fps 스텝 */
       stepSway(); stepShimmer(dt); stepCurtain(dt);   /* 룩 패스 7: 등불 진자 · 창 빛 일렁임 · 커튼 숨 */
       if (dust.visible) { anim.dustAcc += dt; if (anim.dustAcc >= DUST_DT - 1e-6 || !anim.dustInit) { anim.dustAcc = 0; anim.dustInit = true; dustLayout(); } }   /* 먼지 10 fps 스텝, 픽셀 중심 스냅 */
       if (props.candle.visible) {   /* 양초 점광 0.3~0.42 d 2 × 시각대 계수. 불꽃 = 2프레임 깜빡임 (룩 패스 6): 7 Hz, 주기마다 시드 지터로 밝은 프레임이 35~65 % — 크기(y 0.9/1.25)·색(호박 4/5)·발광(0.7/1.0). 모션 감소면 중간값 고정 */
@@ -2270,5 +2292,5 @@ var SCENE3D = (function () {
     };
   }
 
-  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS, EXPRESSIONS: EXPRESSIONS.slice() };
+  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS, FIRST_LIGHT: FIRST_LIGHT, EXPRESSIONS: EXPRESSIONS.slice() };
 })();
