@@ -21,6 +21,7 @@
 | A7 | 방 보기 시트는 통계 글 위주이고, 포스터 한 줄 문장 틀이 7개뿐이다 | 작음 | app.js, world.js | 없음 |
 | B | 작은 버그 6건 | 작음 | 여러 곳 | 없음 |
 | C | 모듈화 6단계 (util → poster → store → demo → color → scene3d) | 단계별 | 단계별 | scene3d 쪼개는 시점 |
+| D | 소리 매핑: 산책마다 자장가 · 창문 톡 소리 미연결 · 달리기 무음 · 안 쓰는 소리 4묶음 | 작음 | audio.js, app.js, runner.js | 자장가를 언제 틀지 |
 
 **순서 제안** (지금 물결과 덜 부딪히게):
 1. 지금 바로: **A5**. `js/intro.js` 는 이 세션이 만든 파일이라 다른 물결과 겹치지 않는다. 원하면 이 세션이 한다.
@@ -234,6 +235,22 @@
 - `init()` 클로저가 약 2,000줄이다. 공유 상태(`T, scene, camera, PAL, S, st, light, keep, snapC, snapScreen, pxUp`)를 `ctx` 하나로 모은다. 그다음 잎부터 `SCENE3D_PARTS.<이름> = function (ctx) { … return api; }` 파일로 뺀다.
 - 순서: 입장 하늘 → 초상 → 바깥·계절 → 날씨 입자 → 다락 정적 기하 → 문어(몸·얼굴·걸음) → 후처리 파이프라인.
 - 관문: 한 조각을 뺄 때마다 `look-shots`·`intro-shots`·`exterior-shots` 를 고정 훅(`__ppolLook`, `debugStep`)으로 찍어 **PNG 해시가 전후 같아야** 한다. 다르면 그 조각을 되돌린다. `test-scene-perf` 의 드로우콜 수도 같아야 한다.
+
+---
+
+## D. 소리 — 행동과 소리 매핑 점검 (2026-11-05)
+
+들어 보는 페이지: https://claude.ai/artifact/ANmHF9fDTQApFS2ALQziJn (비공개, 사람 피드백이 `feedback` 컬렉션에 쌓인다). 다시 재는 도구: `node tools/sound-map.js out.json`.
+
+**잘 맞는 곳**: 출발(움츠림 → 문 밖 → 비 오면 덧소리) · 기웃 결과 5종 · 바깥 첫 기웃에 장소 테마(바다 → `place_sea`)로 바뀌고 귀가 때 집 테마로 돌아옴 · 기억 동기 · 포스터 걸기 · 등불 1~7 음계 + 8칸 방 완성 · 쓰다듬기 음계(4번째에 기뻐함) · 잠든 문어 톡에 코골이(6초에 한 번) · 집에 있는 날(움츠림 → 정착 → 빗방울 세기) · 빈 차례 · 시트·포스터·앨범 UI 소리.
+
+| 무엇 | 근거 | 고치는 법 | 건드리는 파일 |
+|---|---|---|---|
+| 산책·집에 있기가 끝날 때마다 `sleep_settle` → 자장가로 넘어간다. 폴짝·우쭐 징글 바로 뒤에도 그렇다 | 플레이 기록: 외출 → `mood_poljjak` → `lantern_1` → `sleep_settle`, BGM `special_lullaby`. 하루 여러 번이면 가장 많이 듣는 곡이 자장가가 된다 | 자장가는 반응이 졸림이거나 밤(19~6시)일 때만 튼다. 낮의 폴짝·우쭐·덤덤 뒤에는 집 테마를 그대로 두고 잠들기 소리만 작게 낸다. 문어가 잠드는 연출 자체(앱 쪽)는 A2 와 같이 본다 | audio.js (`startLullaby` 를 부르는 곳) |
+| 창문 톡 소리(`window_tap` 4종)가 안 불린다 | `audio.js` 에서 부르는 곳이 없다(버스 분류 135행에만 나옴). 지금은 말풍선 목소리("비가 와")만 난다 | `app.js` `windowTap` 에서 `AUDIO.on('window')` 같은 훅 하나 → `play(ev(['interaction','window_tap']))` | app.js, audio.js |
+| 다락방 달리기가 무음이다 | runner.js 에 소리가 없다(화면에 "소리는 없어") | 있는 소리로 시작: 점프 = `ui_tap`, 부딪힘 = `pet_squish`, 새 최고 = `first_place`. `AUDIO` 가 켜져 있을 때만, 효과음 크기 설정을 따른다 | runner.js, audio.js |
+| 발소리 `step`·희귀 `rare_sparkle`·등불 소품 `lantern_prop_fade`·`toast` 가 안 불린다 | 부르는 곳 0곳 | 발소리는 의식 걸음(출발·귀가)에만, 희귀는 희귀 포스터를 걸 때, 소품은 등불 칸 200 ms 뒤(DESIGN §4 모션 표와 같은 박자), 토스트는 저장 실패 같은 알림에만 | audio.js, app.js |
+| 문어 톡 = `curious` 하나 | 톡 반응을 바꾸면(A1) 소리도 같이 고른다 | A1 과 같은 커밋에서 | audio.js |
 
 ---
 
