@@ -85,11 +85,12 @@ function reportErrors(bag, label) {
   ok(bag.audioBad.length === 0, label + ': audio/ 응답 전부 200' + (bag.audioBad.length ? ' — ' + bag.audioBad.slice(0, 3).join(' | ') : ''));
 }
 
-/* 이벤트 재생: 바다(조개) 기웃 = 실패, 하늘(별) 기웃 = 읽음·처음 */
+/* 이벤트 재생: 바다(조개) 기웃 = 실패, 하늘(별) 기웃 = 읽음·처음.
+   '읽음'은 출처(ko.wikipedia.org 문서 주소)가 있어야 두뇌(replay)가 받아 준다 — 없으면 읽음이 아니라서 peek_read_* 가 안 난다 */
 var TRIP = [
   { type: 'depart', t: 0, hint: '' },
   { type: 'peek', t: 1000, ms: 3000, status: 'failed', first: true, target: { kind: 'room', id: 'shell', title: '조개' }, note: '문이 닫혀 있었어' },
-  { type: 'peek', t: 2000, ms: 3000, status: 'read', first: true, target: { kind: 'room', id: 'star', title: '별' } },
+  { type: 'peek', t: 2000, ms: 3000, status: 'read', first: true, target: { kind: 'room', id: 'star', title: '별' }, source: { url: 'https://ko.wikipedia.org/wiki/%EB%B3%84', extract: '별은 스스로 빛을 내는 천체다.' } },
   { type: 'return', t: 3000, reason: 'enough' },
   { type: 'remember', t: 3100, stopIdx: 1, line: '별을 오래 봤어' },
   { type: 'hang_poster', t: 3200, posterId: null },
