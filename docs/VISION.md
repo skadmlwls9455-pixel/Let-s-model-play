@@ -25,11 +25,12 @@
 
 ## 꼭 지킬 선 네 개 (이것만 넘지 않으면 나머지는 자유로운 게임 디자인)
 1. 문어(모델)에 대해 거짓말하지 않는다 — 안 한 걸 했다고, 안 느낀 걸 느꼈다고 하지 않는다.
-2. 문어를 일꾼으로 만들지 않는다 — 산책이 돈(골드)을 벌어 오지 않는다. 돈은 플레이어 자신의 놀이에서.
+2. 문어를 일꾼으로 만들지 않는다 — 산책이 돈(조개, 결정 19)을 벌어 오지 않는다. 돈은 플레이어 자신의 놀이에서.
 3. 문어의 선택을 몰래 조종하지 않는다 — 보상·숫자로 문어가 고를 것을 끌지 않는다.
 4. 플레이어를 괴롭히는 압박을 쓰지 않는다 — 연속 출석 벌, 놓치면 사라지는 한정, 결제 뽑기, 쉬면 잃는 것 없음.
 
 자세한 원칙: docs/MODEL_VOICE.md, docs/CURIOSITY_NOTES.md.
 
 ## 설계 문서 (오늘 쓰는 중)
-CORE_LOOP_V2(같이 가기·기다리기) · DIALOGUE_UI(대화 상자·대사 다시 보기·버튼 안내) · TUTORIAL(안내 NPC) · ROOM_EXPANSION(방 넓히기) · INTERIOR_MODE(집 꾸미기) · PLAYER_PROGRESSION(아바타·옷·상점) · ACHIEVEMENTS(업적·골드).
+CORE_LOOP_V2(같이 가기·기다리기) · DIALOGUE_UI(대화 상자·대사 다시 보기·버튼 안내) · TUTORIAL(안내 NPC) · ROOM_EXPANSION(방 넓히기) · INTERIOR_MODE(집 꾸미기) · PLAYER_PROGRESSION(아바타·옷·상점) · ACHIEVEMENTS(업적·조개) · PHOTO_AND_FURNITURE(사진·소파).
+순서와 기간: docs/ROADMAP.md · 지금 고를 것: docs/OWNER_DECISIONS.md.
