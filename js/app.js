@@ -1447,14 +1447,19 @@ var APP = (function () {
   function bindAlbumPress() {
     var al = $('album'); if (!al) return;
     var p = null;   /* 지금 누르는 카드: { id(포인터 · 'key'), card, x, y, timer, at(.down 붙인 때) } */
-    function on(q) { if (!q.at) { q.at = performance.now(); q.card.classList.add('down'); } }
+    function on(q) { if (!q.at) { q.at = q.card._downAt = performance.now(); q.card.classList.add('down'); } }
+    /* 최소 225ms 를 채운 뒤 뗀다 (타이머가 조금 일찍 깨면 남은 만큼 더). 그새 같은 카드를 다시 눌렀으면 그 누름이 뗀다 */
+    function off(c, at) {
+      if (c._downAt !== at) return;
+      var left = PRESS_MIN - (performance.now() - at);
+      if (left > 0) setTimeout(function () { off(c, at); }, Math.ceil(left));
+      else { c._downAt = 0; c.classList.remove('down'); }
+    }
     function end(lift) {
       var q = p; if (!q) return;
       p = null; clearTimeout(q.timer);
       if (lift) on(q);   /* 150ms 전에 뗀 탭도 눌림이 보이게 */
-      if (!q.at) return;
-      var c = q.card;
-      setTimeout(function () { c.classList.remove('down'); }, Math.max(0, PRESS_MIN - (performance.now() - q.at)));
+      if (q.at) off(q.card, q.at);
     }
     al.addEventListener('pointerdown', function (e) {
       var card = e.target.closest ? e.target.closest('.pcard') : null;
@@ -1673,9 +1678,76 @@ var APP = (function () {
     body.innerHTML = ''; body.appendChild(frag);
   }
   function openRoomSheet(scrollToDemo) {
+    var d = $('room-sheet');
+    if (d && !d.open) { sheetDragReset(d); sheetOpenedAt = performance.now(); }   /* 열 때마다 제자리에서 (끌어 닫은 뒤에도) */
     renderRoomSheet();
-    showDialog($('room-sheet'));
+    showDialog(d);
     if (scrollToDemo) { var el = $('rs-demo'); if (el) el.scrollIntoView({ block: 'start' }); }
+  }
+  /* 방 보기 시트: 손잡이를 아래로 끌어 닫기 (docs/research/polish-from-starred-repos.md 7 · 수치는 vaul constants: 25% · 0.4px/ms · 500ms cubic-bezier(.32,.72,0,1)).
+     잡는 곳은 손잡이와 시트 머리 띠뿐이다 (손잡이 ::before 가 시트 맨 위 폭 전체를 덮는다, css/style.css 끝 블록). 굴러가는 본문은 잡지 않는다.
+     아래로는 손가락을 1:1 로 따라오고(픽셀 테마는 2px 격자로), 위로는 고무줄처럼 최대 8px 만 간다.
+     놓을 때 시트 높이의 25% 이상 끌었거나 아래로 0.4px/ms 넘게 튕겼으면 close(). 아니면 500ms 에 제자리로 (모션 감소면 바로).
+     연 뒤 500ms 동안과, 본문이 굴러가 있을 때(scrollTop !== 0)는 무시한다. 닫기 버튼 · Esc · 바깥 탭(clickedOutside · closedby)은 그대로 */
+  var SHEET_CLOSE = 0.25, SHEET_FLICK = 0.4, SHEET_LOCK = 500, SHEET_BACK = 500, SHEET_EASE = 'cubic-bezier(.32,.72,0,1)', SHEET_UP = 8;
+  var sheetOpenedAt = 0;
+  function sheetDragReset(d) {
+    d.classList.remove('dragging');
+    ['transform', 'transition', 'animation'].forEach(function (k) { d.style.removeProperty(k); });
+  }
+  function bindSheetDrag() {
+    var d = $('room-sheet'), hd = d && d.querySelector('.handle'); if (!hd) return;
+    var g = null, backTimer = 0, eatClickUntil = 0;
+    /* 이벤트가 실제로 난 때 — 메인 스레드가 밀려 이벤트가 몰려 와도 속도는 손가락 그대로 */
+    function stamp(e) { var t = e.timeStamp; return t > 0 && t < 1e11 ? t : performance.now(); }
+    function nowY() { var m = getComputedStyle(d).transform; try { return m && m !== 'none' && typeof DOMMatrix === 'function' ? new DOMMatrix(m).m42 : 0; } catch (err) { return 0; } }
+    function place(off) {
+      var y = off >= 0 ? off : -SHEET_UP * (1 - 1 / (1 + -off / 40));   /* 위로는 고무줄 */
+      y = pixelFont() ? Math.round(y / 2) * 2 : Math.round(y);           /* 픽셀 테마: 2px 격자 */
+      d.style.transform = y ? 'translateY(' + y + 'px)' : 'none';
+    }
+    function settle() { d.style.removeProperty('transition'); d.style.removeProperty('transform'); }
+    function track(q, e) {
+      var t = stamp(e);
+      q.off = q.base + e.clientY - q.y0; q.s.push({ t: t, y: e.clientY });
+      while (q.s.length > 2 && t - q.s[0].t > 100) q.s.shift();   /* 속도는 마지막 100ms 로 */
+    }
+    hd.addEventListener('pointerdown', function (e) {
+      if (g || !d.open || !e.isPrimary || e.button !== 0) return;
+      if (stamp(e) - sheetOpenedAt < SHEET_LOCK || d.scrollTop !== 0) return;   /* 막 열렸거나(손가락이 닿은 때 기준) 본문이 굴러가 있으면 스크롤이 먼저 */
+      clearTimeout(backTimer);
+      var base = Math.max(0, nowY());   /* 돌아가는 도중에 다시 잡으면 그 자리에서 */
+      g = { id: e.pointerId, y0: e.clientY, base: base, off: base, s: [{ t: stamp(e), y: e.clientY }] };
+      try { hd.setPointerCapture(e.pointerId); } catch (err) { /* 이미 끝난 포인터 */ }
+      /* 여는 애니메이션(sheet-in · dlg-in, fill both)이 transform 을 붙잡고 있어 끈다. 다 끝난 뒤라 모양은 같고, 닫힐 때(sheetDragReset) 되돌린다 */
+      d.style.animation = 'none'; d.style.transition = 'none';
+      place(base);
+      d.classList.add('dragging');
+      if (e.pointerType === 'mouse') e.preventDefault();   /* 마우스로 끌 때 글자 선택 없이 */
+    });
+    hd.addEventListener('pointermove', function (e) { if (g && e.pointerId === g.id) { track(g, e); place(g.off); } });
+    function release(e, cancelled) {
+      if (!g || e.pointerId !== g.id) return;
+      var q = g; g = null;
+      if (!cancelled) track(q, e);
+      try { if (hd.hasPointerCapture(q.id)) hd.releasePointerCapture(q.id); } catch (err) { /* 없음 */ }
+      d.classList.remove('dragging');
+      if (Math.abs(q.off - q.base) > 2) eatClickUntil = performance.now() + 400;   /* 끈 뒤 따라오는 click 이 바깥 탭 닫기로 한 번 더 가지 않게 */
+      var a = q.s[0], b = q.s[q.s.length - 1], v = b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0;
+      if (!cancelled && q.off > 0 && (q.off >= SHEET_CLOSE * d.offsetHeight || v > SHEET_FLICK)) { d.close(); sheetDragReset(d); return; }
+      var ms = reduced() ? 0 : Math.round(SHEET_BACK * speed());
+      if (!ms || !nowY()) { d.style.transition = 'none'; place(0); void d.offsetWidth; settle(); return; }   /* 모션 감소: 바로 제자리 */
+      d.style.transition = 'transform ' + ms + 'ms ' + SHEET_EASE;
+      place(0);
+      backTimer = setTimeout(function () { if (!g) settle(); }, ms + 50);
+    }
+    hd.addEventListener('pointerup', function (e) { release(e, false); });
+    hd.addEventListener('pointercancel', function (e) { release(e, true); });
+    d.addEventListener('close', function () { g = null; clearTimeout(backTimer); sheetDragReset(d); });
+    window.addEventListener('click', function (e) {
+      if (performance.now() > eatClickUntil || (e.target !== d && e.target !== hd)) return;
+      eatClickUntil = 0; e.stopPropagation(); e.preventDefault();
+    }, true);
   }
   function openNameDialog() { showDialog($('name-dialog')); setTimeout(function () { $('name-in').focus(); }, 50); }
   function pixelFont() { return !(S && S.settings && S.settings.pixelFont === false); }
@@ -1842,7 +1914,7 @@ var APP = (function () {
     $('poster-dialog').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     $('pd-back').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('.copy[data-share]'); if (b) { e.stopPropagation(); copyText(b.getAttribute('data-share')); } });
     $('room-sheet').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
-    bindDialogs(); watchLogScroll();
+    bindDialogs(); watchLogScroll(); bindAlbumPress(); bindSheetDrag();
     document.addEventListener('touchstart', function () { /* 빈 리스너: iOS Safari 는 터치 리스너가 있어야 :active(눌림) 모양을 그린다 */ }, { passive: true });
     /* 데모 <details>: 접힌 채 시작, 뷰어별로 펼침 기억 (UI R2) */
     var demoEl = $('demo');

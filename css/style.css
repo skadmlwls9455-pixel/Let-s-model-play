@@ -322,7 +322,7 @@ a { color: var(--teal); touch-action: manipulation; }
 }
 .pcard.note { width: 84px; }
 .pcard svg { display: block; width: 100%; height: 100%; }
-.pcard:active { transform: scale(.97); }
+.pcard:not(:where(#album *)):active, :where(#album) .pcard.down { transform: scale(.97); }   /* 앨범 안은 :active 대신 .down (js/app.js bindAlbumPress · 이 파일 끝 블록). 우선순위는 예전 .pcard:active 그대로 (0,2,0) */
 .pcard.newest::after { content: ''; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px var(--paper0); }
 /* 새 포스터만 올라온다 (저장된 건 즉시). translateY(12%) scale(.95) → 제자리 + 최종 각도 ±3°, 스티커는 150ms 뒤 */
 .pcard.in { animation: card-in var(--t-scene) var(--ease-enter) both; transform: rotate(var(--rot, 0deg)); }
@@ -521,7 +521,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 }
 @keyframes px-rise-8 { from { transform: translateY(8px); } to { transform: none; } }
 @keyframes px-bubble-in { from { transform: translate(-50%, 4px); } to { transform: translate(-50%, 0); } }
-@keyframes px-land { from { transform: translateY(-4px); } to { transform: none; } }
+@keyframes px-land { from { translate: 0 -4px; } to { translate: 0 0; } }   /* transform 이 아니라 translate 속성: 벽 포스터의 인라인 기울기(scene2d.js)를 덮지 않는다 */
 @keyframes px-land-fade { from { opacity: .6; } to { opacity: 1; } }
 
 /* 글꼴 눈금 — 픽셀 글꼴은 안티앨리어싱을 끈다 (지원하는 곳에서만), 자간 0, 이모지는 시스템 이모지를 1em 로 */
@@ -565,9 +565,10 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] #scene3d #oct-label { font-family: var(--f-meta); font-size: 16px; line-height: 16px; color: var(--paper0); }
 :root[data-font="pixel"] #scene3d #oct-bubble { font-family: var(--f-meta); font-size: 16px; line-height: 24px; border-radius: 0; border: 2px solid var(--line); background: var(--paper0); color: var(--ink); box-shadow: 2px 2px 0 var(--line); padding: 2px 8px; }
 :root[data-font="pixel"] #oct-bubble { animation: fade-only var(--t-ui) var(--ease-enter) both, px-bubble-in var(--t-ui) var(--ease-px-2) backwards; }   /* 4px → 4·2·0 (2D · 3D 공통) */
-/* 벽 포스터 미니: 누르면 2px 내려앉고(확대·축소 없음 — 2px 베벨이 다시 샘플링돼 흐려진다), 새로 붙으면 4px 위에서 두 칸 계단으로 착지 */
+/* 벽 포스터 미니: 누르면 2px 내려앉고(확대·축소 없음 — 2px 베벨이 다시 샘플링돼 흐려진다), 새로 붙으면 4px 위에서 두 칸 계단으로 착지.
+   scene2d.js 가 미니마다 인라인 transform: rotate() 기울기를 줘서 시트의 transform 은 이기지 못한다 → 누름·착지는 translate 속성으로 (기울기와 겹쳐진다) */
 :root[data-font="pixel"] .wall-mini { transition: none; }
-:root[data-font="pixel"] .wall-mini:active { transform: translate(2px, 2px); box-shadow: none; }
+:root[data-font="pixel"] .wall-mini:active { translate: 2px 2px; box-shadow: none; }
 :root[data-font="pixel"] .wall-mini.landed { animation: px-land-fade var(--t-scene) var(--ease-out) both, px-land var(--t-scene) var(--ease-px-2) backwards; }
 
 /* ── 상태 줄: 나무색 띠 한 줄 44px (30px 글줄 + 6px×2 + 아래 틀 2px). 이름 Galmuri9 20px, 방 제목 Galmuri7 16px 흐림, 오른쪽 `등불 ■■□□□□□□ n/8` (Galmuri7 16px + 10px 네모 8개) ≈ 162px + 소리 버튼 44px — 360px 에서 왼쪽(이름 · 방 제목)에 ≈ 114px 남는다 ── */
@@ -877,3 +878,16 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   box-sizing: border-box; width: 16px; height: 28px; border: 2px solid var(--line); border-radius: 0; background: var(--panel2);
   box-shadow: inset 2px 2px 0 var(--hi-px), inset -2px -2px 0 var(--lo-px), 2px 2px 0 var(--line);
 }
+
+/* ══ D2 (다듬기 물결 D · docs/research/polish-from-starred-repos.md 2 · 7): 앨범 카드 누름 타이밍 · 방 보기 시트 손잡이 끌기 — js/app.js bindAlbumPress · bindSheetDrag ══
+   1) 앨범 카드: #album 안 .pcard 는 :active 대신 .down 으로 눌린다 (터치는 150ms 늦게 붙고 최소 225ms → 엄지로 훑을 때 카드마다 번쩍이지 않는다).
+      시스템 테마 .down 은 위 .pcard 규칙(scale(.97))에 같이 있다. 픽셀 테마의 .pcard:active(2px 내려앉기 · 그림자 빼기)는 앨범 안에서 끄고 같은 모양을 .down 에 준다.
+      새로 올라온 카드(.in)는 예전처럼 자리는 그대로 — 그림자만 빠진다 (.in 의 transform: none 이 이기던 그대로). 다른 버튼(#btn-go 등)은 그대로 :active */
+:root[data-font="pixel"] :where(#album) .pcard:active:not(.down) { transform: none; box-shadow: 2px 2px 0 var(--line); }
+:root[data-font="pixel"] :where(#album) .pcard.down { box-shadow: none; }
+:root[data-font="pixel"] :where(#album) .pcard.down:not(.in) { transform: translate(2px, 2px); }
+/* 2) 방 보기 시트: 손잡이와 시트 머리 띠(맨 위 30px · 폭 전체 = 손잡이의 ::before, 위치 기준은 시트 자신)만 끌 수 있다.
+      touch-action: none 은 그 띠에만 → 굴러가는 본문의 스크롤은 그대로. 끄는 동안의 transform 과 놓은 뒤 500ms 되돌아가기는 app.js 가 인라인으로 준다 (모션 감소면 바로) */
+#room-sheet > .handle { touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
+#room-sheet > .handle::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px; }
+#room-sheet.dragging, #room-sheet.dragging > .handle { cursor: grabbing; }
