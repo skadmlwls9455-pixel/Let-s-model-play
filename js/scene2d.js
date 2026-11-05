@@ -230,8 +230,11 @@ var SCENE2D = (function () {
     function setOctState(s, extra) {
       st.octState = s;
       /* 들고 오는 포스터 그림: APP 이 octState('carry', { svg, id }) 로 넘긴다 (3D 와 같은 계약). 걸기(hang) 때 이 그림이 벽으로 날아간다.
-         들고 있지 않은 상태로 바뀌면 비운다 — 다음 산책에서 지난 포스터가 날아가지 않게 */
-      if (s === 'carry') { if (extra && extra.svg) { st.carrySvg = extra.svg; st.carryId = extra.id || null; } }
+         들고 있지 않은 상태로 바뀌면 비운다 — 다음 산책에서 지난 포스터가 날아가지 않게.
+         id 가 없으면: 직전 상태 변경 뒤에 벽에 새로 붙은 포스터(st.wallNew — 건너뛰기·데모 재생은 carry 바로 앞에서 벽을 먼저 그린다)가 이 그림이다.
+         같은 그림으로 carry 를 다시 부르면(걸어간 뒤) 정해 둔 칸을 그대로 둔다 */
+      var wallNew = st.wallNew; st.wallNew = null;
+      if (s === 'carry') { if (extra && extra.svg) { st.carryId = extra.id || wallNew || (extra.svg === st.carrySvg ? st.carryId : null); st.carrySvg = extra.svg; } }
       else if (s !== 'hang') { st.carrySvg = ''; st.carryId = null; }
       octEl.className = octEl.className.replace(/\bst-[a-z]+/g, '').trim() + ' st-' + s + (oct.flip ? ' flip' : '');
       if (s === 'carry') setCarry(true);
@@ -393,7 +396,13 @@ var SCENE2D = (function () {
       peekOutside: function (o, onDone) { return new Promise(function (r) { setTimeout(function () { if (onDone) onDone(); r(); }, 0); }); },
       leaveOutside: function (onDone) { return new Promise(function (r) { setTimeout(function () { if (onDone) onDone(); r(); }, 0); }); },
       peek: function () { return { on: false, key: '', hold: false }; }, EXT_SPOTS: ['sea', 'sky', 'sounds', 'hands', 'signs', 'numbers', 'home', 'mind', 'wild', 'slow_room', 'letter_room', 'door_out'],
-      setPosters: function (list) { st.posters = (list || []).slice(); renderWall(); },
+      setPosters: function (list) {
+        var had = {}; st.posters.forEach(function (p) { had[p.id] = 1; });
+        st.posters = (list || []).slice();
+        var last = st.posters[st.posters.length - 1];
+        if (last && last.id && !had[last.id]) st.wallNew = last.id;   /* 맨 끝에 새로 붙은 것 — 다음 setOctState 가 한 번 읽고 지운다 */
+        renderWall();
+      },
       setSouvenirs: function (list) { st.souvenirs = (list || []).slice(); renderSouvenirs(); },
       bubble: bubble, lookAt: pupilsTowards, octScreenPos: octScreenPos,
       setReducedMotion: function (r) { st.reduced = !!r; },
