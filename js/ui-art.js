@@ -27,11 +27,17 @@ var UIART = (function () {
     return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }
 
+  /* 그림 주소: tools/bundle.js 단일 파일이면 window.ASSETS_INLINE['icon.log.peek'] = { src:'data:…' } 를 (dist/ 기준 상대 경로는 404),
+     아니면 지금까지처럼 상대 경로 (http · file:// 그대로). 키 = 'icon.' + 경로의 '/' 를 '.' 로 — bundle.js iconKey() 와 같은 규칙 */
+  function iconSrc(path) {
+    var m = window.ASSETS_INLINE, a = (m && typeof m === 'object') ? m['icon.' + path.split('/').join('.')] : null;
+    return (a && (typeof a === 'string' ? a : a.src)) || ('assets/icons/' + path + '.png');
+  }
   /* ── 아이콘 <img>: 16×16 원본을 32px(×2)로. 장식이라 alt="" + aria-hidden — 옆의 글자(라벨·상태 단어)는 그대로 남긴다 ── */
   function icon(path, cls) {
     var i = document.createElement('img');
     i.className = 'ua-ico' + (cls ? ' ' + cls : '');
-    i.src = 'assets/icons/' + path + '.png';
+    i.src = iconSrc(path);
     i.alt = ''; i.setAttribute('aria-hidden', 'true');
     i.width = 32; i.height = 32; i.draggable = false; i.decoding = 'async';
     return i;

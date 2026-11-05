@@ -1713,7 +1713,8 @@ var APP = (function () {
       while (q.s.length > 2 && t - q.s[0].t > 100) q.s.shift();   /* 속도는 마지막 100ms 로 */
     }
     hd.addEventListener('pointerdown', function (e) {
-      if (g || !d.open || !e.isPrimary || e.button !== 0) return;
+      if (!d.open || !e.isPrimary || e.button !== 0) return;
+      if (g) release({ pointerId: g.id }, true);   /* 떼는 소식을 못 받은 지난 끌기(창 전환 등)는 제자리로 돌리고 새로 */
       if (stamp(e) - sheetOpenedAt < SHEET_LOCK || d.scrollTop !== 0) return;   /* 막 열렸거나(손가락이 닿은 때 기준) 본문이 굴러가 있으면 스크롤이 먼저 */
       clearTimeout(backTimer);
       var base = Math.max(0, nowY());   /* 돌아가는 도중에 다시 잡으면 그 자리에서 */
@@ -1743,6 +1744,7 @@ var APP = (function () {
     }
     hd.addEventListener('pointerup', function (e) { release(e, false); });
     hd.addEventListener('pointercancel', function (e) { release(e, true); });
+    hd.addEventListener('lostpointercapture', function (e) { release(e, true); });   /* pointerup 뒤에 오면 이미 끝난 끌기라 아무 일 없다 */
     d.addEventListener('close', function () { g = null; clearTimeout(backTimer); sheetDragReset(d); });
     window.addEventListener('click', function (e) {
       if (performance.now() > eatClickUntil || (e.target !== d && e.target !== hd)) return;

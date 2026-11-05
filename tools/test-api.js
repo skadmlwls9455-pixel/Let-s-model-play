@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /* tools/test-api.js — 다락방 달리기 랭킹 API 테스트 (node, 네트워크 없음). 실패하면 exit 1.
  *   npm test   (= node tools/test-api.js)
+ *   RUNNER_LIVE_RUN=/tmp/x.json node tools/test-api.js   # 라이브 판 기록을 다른 파일로 (기본 tests/evidence/runner-live-run.json)
  * api/runner/*.js 핸들러를 메모리 저장소 + 고정 비밀값 + 주입한 시계로 직접 부른다.
  */
 'use strict';
@@ -94,7 +95,8 @@ function body(tok, run, nick, patch) { var b = { token: tok, inputs: run.inputs,
   core.setSecret(SECRET);
 
   console.log('== 1. 맞는 판은 받는다 (라이브 기록 + 봇 판)');
-  var live = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/evidence/runner-live-run.json'), 'utf8'));
+  var liveFile = process.env.RUNNER_LIVE_RUN ? path.resolve(process.env.RUNNER_LIVE_RUN) : path.join(ROOT, 'tests/evidence/runner-live-run.json');
+  var live = JSON.parse(fs.readFileSync(liveFile, 'utf8'));
   var liveRun = { seed: live.seed, night: live.night, inputs: live.inputs, score: live.score, ticks: live.ticks };
   console.log('   라이브 기록: ' + live.end + ' · ' + live.ticks + ' 틱 · ' + live.score + '점');
   if (live.end !== 'hit') {   /* 중간에 닫은 판(quit)은 끝까지 재시뮬하면 틱이 달라서 받지 않는다 → 같은 시드의 부딪힌 판으로 바꿔 쓴다 */
@@ -112,9 +114,26 @@ function body(tok, run, nick, patch) { var b = { token: tok, inputs: run.inputs,
   check(!/ip|agent|ua/i.test(JSON.stringify(stored)), 'IP·UA 없음');
   var r1b = await call('submit', { method: 'POST', body: JSON.stringify(body(tLive, liveRun, '뽈뽈')) });
   check(r1b.status === 200 && r1b.json.runId === r1.json.runId && r1b.json.rank === r1.json.rank && r1b.json.total === 1 && r1b.json.nick === '뽈뽈', '같은 토큰·같은 판 다시 보내기 → 200 같은 결과 (멱등) ' + JSON.stringify(r1b.json));
-  var other = runOf(live.seed, live.night, []);   /* 같은 토큰으로 다른 판 */
-  var r1c = await call('submit', { method: 'POST', body: body(tLive, other, '뽈뽈') });
-  check(other.score !== liveRun.score && r1c.status === 409 && r1c.json.error === 'duplicate', '같은 토큰(시드)에 다른 판 → 409 ' + JSON.stringify(r1c.json));
+  /* 같은 토큰으로 '다른 판': 서버는 같은 runId 에 같은 score·ticks 가 오면 멱등 다시 보내기(200)로 보므로, 다른 판 = 점수나 틱이 다른 판.
+     라이브 기록은 스모크 R 이 그때그때 남겨서, 조종사가 첫 상자에서 부딪히면 '아무것도 안 누른 판'(25점 · 157틱)과 같아진다
+     → 고정 후보를 차례로 시뮬해 라이브 판과 점수나 틱이 다른 첫 판을 쓴다. 마지막 후보는 라이브 판보다 오래 사는 봇 판 (결정적). */
+  var OTHER_INPUTS = [
+    function () { return []; },                                                 /* 안 누름: 첫 상자에서 부딪힘 */
+    function () { return [{ t: 135, a: 'jd' }, { t: 150, a: 'ju' }]; },         /* 첫 상자를 넘는 점프 하나 */
+    function () { return [{ t: 120, a: 'jd' }, { t: 135, a: 'ju' }]; },         /* 첫 상자에 걸리는 점프 하나 (틱만 달라짐) */
+    function () { return bot(live.seed, live.night, liveRun.ticks + 60).inputs; }
+  ];
+  var other = null, otherAt = -1;
+  for (var oi = 0; oi < OTHER_INPUTS.length && !other; oi++) {
+    var cand = runOf(live.seed, live.night, OTHER_INPUTS[oi]());
+    if (cand.score !== liveRun.score || cand.ticks !== liveRun.ticks) { other = cand; otherAt = oi; }
+  }
+  check(!!other, '같은 시드의 다른 판(점수나 틱이 다른 판)을 후보 ' + OTHER_INPUTS.length + '개 안에서 찾음' + (other ? ' — 후보 ' + otherAt + ': ' + other.score + '점 · ' + other.ticks + '틱 (라이브 ' + liveRun.score + '점 · ' + liveRun.ticks + '틱)' : ' — 못 찾음: 후보가 전부 라이브 판과 같은 점수·틱'));
+  if (other) {
+    console.log('   같은 토큰의 다른 판: 후보 ' + otherAt + ' · ' + other.ticks + ' 틱 · ' + other.score + '점');
+    var r1c = await call('submit', { method: 'POST', body: body(tLive, other, '뽈뽈') });
+    check(r1c.status === 409 && r1c.json.error === 'duplicate', '같은 토큰(시드)에 다른 판 → 409 duplicate ' + JSON.stringify(r1c.json));
+  } else check(false, '같은 토큰(시드)에 다른 판 → 409 duplicate (다른 판이 없어 보낼 수 없음)');
   check((await core.board(mem, '2026-W45')).length === 1, '다시 보내기·다른 판 뒤에도 순위표엔 한 줄');
 
   var long = bot(4242, false, 900);
