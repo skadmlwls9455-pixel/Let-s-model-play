@@ -182,6 +182,7 @@ tools/smoke.js, tools/bundle.js, tools/test-brain.js, tools/test-api.js, README.
 브랜치: feat/mcp-octopus
 맡는 파일 (이 카드만 고친다): mcp/ (새 폴더), docs/PROTOCOL.md, .claude/skills/ppolppol-octopus-play/ (새 스킬 폴더), docs/MCP_PLAYTEST.md (새 문서)
 게임 코드는 고치지 않는다. 게임 쪽 연결은 이미 있는 '이벤트 JSON 붙여넣기' 재생 칸(index.html 의 데모 패널 #d-json → APP.importEvents)으로만 확인한다.
+(데모 패널은 곧 일반 플레이어에게서 숨기고 index.html?dev=1 일 때만 보이게 바뀐다. 그 뒤에는 ?dev=1 로 열어서 쓴다. 테스트에서는 APP.importEvents(json) 를 직접 불러도 된다.)
 
 먼저 읽기: docs/PROTOCOL.md, docs/MODEL_VOICE.md, docs/CURIOSITY_NOTES.md,
           .claude/skills/cozy-web-game/references/mcp-readiness.md 와 references/model-voice-and-play.md,
