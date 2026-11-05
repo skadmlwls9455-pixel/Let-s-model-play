@@ -1438,6 +1438,45 @@ var APP = (function () {
     al.scrollLeft = al.scrollWidth;
   }
   var lastNewPoster = null;
+  /* 앨범 카드 누름 모양 (docs/research/polish-from-starred-repos.md 2 · 수치는 material-web ripple: TOUCH_DELAY_MS 150 · MINIMUM_PRESS_MS 225).
+     #album 은 가로 스크롤이라, 엄지로 훑을 때 지나가는 카드마다 눌림이 번쩍이지 않게 :active 대신 .down 을 쓴다 (모양은 css/style.css .pcard.down).
+     터치: 150ms 뒤에 붙인다. 그 전에 pointercancel · 스크롤 · 8px 넘는 움직임이 있으면 안 붙인다. 150ms 전에 떼면 뗄 때 붙인다.
+     마우스·펜: 바로 붙인다. Space 를 누르는 동안도 (예전 :active 와 같게). 붙으면 최소 225ms 유지하고 뗀다.
+     클릭(포스터 열기)·키보드 Enter/Space 는 손대지 않는다 — 모양만 바꾼다. #btn-go 같은 다른 버튼은 그대로 :active */
+  var PRESS_DELAY = 150, PRESS_MIN = 225, PRESS_SLOP = 8;
+  function bindAlbumPress() {
+    var al = $('album'); if (!al) return;
+    var p = null;   /* 지금 누르는 카드: { id(포인터 · 'key'), card, x, y, timer, at(.down 붙인 때) } */
+    function on(q) { if (!q.at) { q.at = performance.now(); q.card.classList.add('down'); } }
+    function end(lift) {
+      var q = p; if (!q) return;
+      p = null; clearTimeout(q.timer);
+      if (lift) on(q);   /* 150ms 전에 뗀 탭도 눌림이 보이게 */
+      if (!q.at) return;
+      var c = q.card;
+      setTimeout(function () { c.classList.remove('down'); }, Math.max(0, PRESS_MIN - (performance.now() - q.at)));
+    }
+    al.addEventListener('pointerdown', function (e) {
+      var card = e.target.closest ? e.target.closest('.pcard') : null;
+      end(false);
+      if (!card || !al.contains(card) || !e.isPrimary || e.button !== 0) return;
+      var q = p = { id: e.pointerId, card: card, x: e.clientX, y: e.clientY, timer: 0, at: 0 };
+      if (e.pointerType === 'touch') q.timer = setTimeout(function () { if (p === q) on(q); }, PRESS_DELAY);
+      else on(q);
+    });
+    document.addEventListener('pointermove', function (e) {
+      if (p && e.pointerId === p.id && !p.at && Math.hypot(e.clientX - p.x, e.clientY - p.y) > PRESS_SLOP) end(false);
+    }, true);
+    document.addEventListener('pointerup', function (e) { if (p && e.pointerId === p.id) end(true); }, true);
+    document.addEventListener('pointercancel', function (e) { if (p && e.pointerId === p.id) end(false); }, true);
+    /* 스크롤: 앨범 자신이나 페이지가 굴러가면 (다른 곳 — 로그 자동 스크롤 같은 — 은 상관없다) */
+    document.addEventListener('scroll', function (e) { if (p && p.id !== 'key' && (e.target === document || (e.target.contains && e.target.contains(p.card)))) end(false); }, true);
+    al.addEventListener('keydown', function (e) {
+      if ((e.key === ' ' || e.key === 'Spacebar') && !e.repeat && e.target.classList && e.target.classList.contains('pcard')) { end(false); p = { id: 'key', card: e.target, timer: 0, at: 0 }; on(p); }
+    });
+    al.addEventListener('keyup', function (e) { if (p && p.id === 'key' && (e.key === ' ' || e.key === 'Spacebar')) end(false); });
+    al.addEventListener('focusout', function () { if (p && p.id === 'key') end(false); });
+  }
   function renderSouvenirs() {
     scene.setSouvenirs(S.room.souvenirs.slice(-8).map(function (sv) {
       var def = W && W.souvenirs && W.souvenirs[sv.id];
