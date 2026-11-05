@@ -909,6 +909,22 @@ async function huntSuite(label, W) {
   check(proudOk.reaction === '우쭐' || proudOk.hint.followed !== 'followed', 'honest 우쭐 (followed + all read) is kept (' + proudOk.reaction + '/' + proudOk.hint.followed + ')');
   var homeJump = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 1, reaction: '폴짝' }], { by: 'mcp' });
   check(homeJump.reaction === '졸림' && homeJump.events[1].reaction === '졸림', 'home replay: 폴짝 with nothing new → 졸림');
+  /* 재생도 지금 방에서 못 하는 활동은 그 문구·효과를 쓰지 않는다 (맑은 날 비 세기, 포스터 없이 자리 바꾸기) */
+  var hasAct = function (id) { return (W.homeActivities || []).some(function (a) { return a.id === id; }); };
+  if (hasAct('count_rain')) {
+    var rainClear = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'count_rain' }, { type: 'wrap_up', t: 1, reaction: '졸림' }], { by: 'mcp', state: { lantern: 9 } });
+    var rainWet = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'count_rain' }, { type: 'wrap_up', t: 1, reaction: '졸림' }], { by: 'mcp', state: { lantern: 3 } });
+    check(rainClear.receipt.activity.id === 'custom' && !/비|빗/.test(rainClear.receipt.activity.detail + rainClear.poster.line), 'home replay: count_rain at lantern 9 (clear) drops the rain text');
+    check(rainWet.receipt.activity.id === 'count_rain', 'home replay: count_rain at lantern 3 (rain) is kept');
+  }
+  if (hasAct('rearrange')) {
+    var rearr0 = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'rearrange' }, { type: 'wrap_up', t: 1, reaction: '졸림' }], { by: 'mcp', state: { lantern: 3, posters: 0 } });
+    var rearr2 = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'rearrange' }, { type: 'wrap_up', t: 1, reaction: '졸림' }], { by: 'mcp', state: { lantern: 3, posters: 2 } });
+    check(rearr0.receipt.activity.id !== 'rearrange' && !rearr0.receipt.activity.effect, 'home replay: rearrange with no posters is not trusted');
+    check(rearr2.receipt.activity.id === 'rearrange', 'home replay: rearrange with 2 posters is kept');
+  }
+  var nothingRp = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nothing' }, { type: 'wrap_up', t: 1, reaction: '졸림' }], { by: 'mcp' });
+  check(nothingRp.kind === 'home', 'home replay: nothing activity still replays');
   var failedDoor = BRAIN.replay([{ type: 'depart', t: 0, hint: 'https://example.org' }, { type: 'peek', t: 1, target: { kind: 'url', url: 'https://example.org' }, status: 'failed' }, { type: 'return', t: 2 }], { by: 'mcp' });
   check(failedDoor.receipt.stops[0].status === 'failed', "url door reported failed stays 'failed'");
 }

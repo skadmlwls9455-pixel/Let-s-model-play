@@ -1277,9 +1277,12 @@
     }
     var sh = events.filter(function (e) { return e.type === 'stay_home'; })[0];
     if (sh && !events.some(function (e) { return e.type === 'peek'; })) {
-      var acts = (W && Array.isArray(W.homeActivities) && W.homeActivities.length) ? W.homeActivities : DEFAULT_HOME;
-      var act = acts.filter(function (a) { return a && a.id === sh.activity; })[0]
-        || { id: sh.activity || 'custom', line: sh.line || '오늘은 집에 있었어', detail: sh.detail || '', anchor: sh.anchor || 'window' };
+      /* 재생도 지금 방에서 할 수 있는 활동만 그대로 믿는다 (homeActivities 와 같은 거르기: 등불·포스터·맑은 날 비 이야기).
+         못 하는 활동이면 그 활동의 문구·효과(포스터 바꾸기)는 쓰지 않고, 입력이 준 말만 쓴다 */
+      var allActs = (W && Array.isArray(W.homeActivities) && W.homeActivities.length) ? W.homeActivities : DEFAULT_HOME;
+      var okActs = homeActivities(state.lantern, state.posters);
+      var act = allActs.filter(function (a) { return a && a.id === sh.activity && (a.id === 'nothing' || okActs.indexOf(a) >= 0); })[0]
+        || { id: 'custom', line: sh.line || '오늘은 집에 있었어', detail: sh.detail || '', anchor: sh.anchor || 'window' };
       if (sh.line) act = Object.assign({}, act, { line: sh.line });
       var ht = homeTripFrom(base, act, R);
       ht.events = events;
