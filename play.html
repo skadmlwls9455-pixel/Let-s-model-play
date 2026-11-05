@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko" data-font="pixel">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>ppolppol play</title>
+<!-- Cup play prototype v1 (docs/PLAY_PROTO.md). All visible text is inserted by js/play.js (font subset counts js/css only). -->
+<link rel="stylesheet" href="vendor/fonts/galmuri.css">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/play.css">
+</head>
+<body class="play">
+<main id="play">
+  <div id="scene3d" role="img">
+    <div id="touch"></div>
+  </div>
+</main>
+<div id="oct"><div id="oct-bubble" hidden></div></div>
+<p id="hint"></p>
+<div id="bar">
+  <button id="reset" type="button" hidden></button>
+  <button id="honest" type="button" aria-expanded="false" aria-controls="receipt"></button>
+</div>
+<p id="receipt" hidden></p>
+<div id="say" class="sr-only" aria-live="polite"></div>
+<div id="nogl" role="alert" hidden></div>
+<script src="vendor/three.min.js"></script>
+<script src="js/palettes.js"></script>
+<script src="js/scene3d.js"></script>
+<script src="js/play.js"></script>
+</body>
+</html>
