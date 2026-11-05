@@ -350,7 +350,8 @@ var APP = (function () {
           if (oct.busy || oct.state === 'sleep') return;
           walkTo('window').then(function () { if (!oct.busy) { octState('idle'); var w = weatherFor(S.room.lantern), hr = new Date().getHours(); say(w === 'clear' ? (hr >= 19 || hr < 6 ? '별이 보여' : '맑네') : w === 'snow' ? '눈이 와' : '비가 와', 'calm', 2000); } });
         },
-        anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ }
+        anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ },
+        place: function () { updateSceneDesc(); }   /* 3D: 의식이 다락 ↔ 집 바깥을 바꾼 순간 (2D 는 runCeremony 의 250 ms 틱이 따라간다) */
       }
     };
   }
@@ -422,10 +423,12 @@ var APP = (function () {
   var DOING_DESC = { idle: '쉬고 있어', stay: '쉬고 있어', sleep: '자고 있어', pet: '쓰다듬받고 있어', happy: '신나 있어', anticipate: '나갈 채비 중이야', hang: '포스터를 붙이고 있어', carry: '포스터를 들고 있어' };
   function partOfDay(hr) { return hr < 5 ? '밤' : hr < 9 ? '아침' : hr < 17 ? '낮' : hr < 19 ? '저녁' : '밤'; }
   function sceneDescText() {
-    var lv = S.room.lantern, outside = !!scene && typeof scene.place === 'function' && scene.place() === 'exterior';
+    var lv = S.room.lantern, outside = sceneMode === '3d' && !!scene && typeof scene.place === 'function' && scene.place() === 'exterior';   /* 2D 무대는 바깥을 그리지 않는다 (장소 값만 기억) → 늘 다락 */
     var where = outside ? '집 바깥' : lv ? '등불 ' + lv + '칸 켜진 다락' : '등불이 다 꺼진 다락';
-    var wx = WX_DESC[weatherFor(lv)], st = oct.state;
-    var who = st === 'away' ? '문어는 산책 나갔어.' : st === 'walk' ? '문어는 걸어가는 중이야.'
+    var wx = WX_DESC[weatherFor(lv)], st = oct.state, cname = sceneCeremony();
+    /* 출발·귀가 의식은 장면이 스스로 걷고 장소를 바꾼다 (APP 의 oct.state 는 의식이 끝나야 바뀐다) → 의식 이름대로 */
+    var who = cname === 'depart' ? '문어는 나가는 중이야.' : cname === 'return' ? '문어는 돌아오는 중이야.'
+      : st === 'away' ? '문어는 산책 나갔어.' : st === 'walk' ? '문어는 걸어가는 중이야.'
       : '문어는 ' + (SPOT_DESC[oct.anchor] || '방 가운데') + '에서 ' + (DOING_DESC[st] || '쉬고 있어') + '.';
     return where + ', ' + (wx ? wx + ' ' : '') + partOfDay(hourNow()) + '. ' + who;
   }
@@ -493,10 +496,13 @@ var APP = (function () {
         if (done) return; done = true; clearInterval(iv);
         var ink = cer.seq === my && cer.ink;
         if (cer.seq === my) { cancelAnimationFrame(cer.raf); cer.kind = ''; }
+        updateSceneDesc();
         resolve({ ink: ink, cancelled: !!cancelled });
       }
       Promise.resolve(p).then(function () { fin(false); }, function () { fin(false); });
+      updateSceneDesc();
       iv = setInterval(function () {
+        updateSceneDesc();   /* 의식 중 장소(다락 ↔ 집 바깥)는 장면이 바꾼다 → 250 ms 마다 따라간다 (글자가 바뀔 때만 쓴다) */
         var name = sceneCeremony();
         if (name === kind) { seen = true; blank = 0; }
         else if (name && seen) { fin(true); return; }        /* 끝났으면 p 가 먼저 풀렸다 → 여기 오면 다른 의식이 덮은 것 */
@@ -607,7 +613,24 @@ var APP = (function () {
       scheduleThink();
     }, (20 + uiRng() * 20) * 1000);
   }
-  function bubble(text, ms, kind) { scene.bubble(text, ms); if (window.UIART) UIART.onBubble(text, kind); if (window.AUDIO) AUDIO.on('bubble', { text: text, kind: kind }); }   /* kind → 말풍선 모양 (js/ui-art.js) · 말풍선 목소리 (js/audio.js) */
+  function bubble(text, ms, kind) { scene.bubble(text, ms); if (window.UIART) UIART.onBubble(text, kind); if (window.AUDIO) AUDIO.on('bubble', { text: text, kind: kind }); keepBubble2D(); }   /* kind → 말풍선 모양 (js/ui-art.js) · 말풍선 목소리 (js/audio.js) */
+  /* 2D 무대: 문 앞(무대 오른쪽 끝)에서 말풍선(최대 150px)이 장면 밖으로 잘리지 않게 옆으로 민다 (--bub-dx → css #oct-bubble left, 무대 px).
+     보이는 동안 문어가 걸어가도 5 Hz 로 따라간다. 3D 픽셀 말풍선은 js/ui-art.js keepInside 가 맡는다 */
+  var bubFit = null;
+  function keepBubble2D() {
+    clearInterval(bubFit); bubFit = null;
+    var b = $('oct-bubble'), sc = $('scene'); if (!b || !sc) return;
+    function fit() {
+      if (b.hidden || sceneMode !== '2d') { clearInterval(bubFit); bubFit = null; b.style.removeProperty('--bub-dx'); return; }
+      var px = parseFloat(getComputedStyle(sc).getPropertyValue('--px')) || 1, cur = parseFloat(b.style.getPropertyValue('--bub-dx')) || 0;
+      var s = sc.getBoundingClientRect(), r = b.getBoundingClientRect(), pad = 4, l = r.left - cur * px, rt = r.right - cur * px, dx = 0;
+      if (rt > s.right - pad) dx = (s.right - pad - rt) / px; else if (l < s.left + pad) dx = (s.left + pad - l) / px;
+      dx = Math.round(dx);
+      if (dx !== cur) { if (dx) b.style.setProperty('--bub-dx', dx + 'px'); else b.style.removeProperty('--bub-dx'); }
+    }
+    fit();
+    if (!b.hidden && sceneMode === '2d') bubFit = setInterval(fit, 200);
+  }
   /* 말풍선 + 로그 대화창 행 (§15.2 "?" · "비가 와" · "…♡"): 장면 위 말풍선과 같은 말을 초상과 함께 오늘 칸에 남긴다 (저장 X — 새로고침하면 사라지는 혼잣말). 바로 앞 행과 같은 말이면 행은 생략 */
   function say(text, expr, ms) {
     bubble(text, ms, expr);
@@ -642,6 +665,9 @@ var APP = (function () {
   /* ───────────────────────── invite / reveal / commit (§3) ───────────────────────── */
   var busy = false, skipFlag = false, revealing = null;
   var flying = null, remoteDirty = false;   /* 이 탭에서 지금 다녀오는 여행 · 그동안 다른 탭 저장을 받아 다시 그려야 하는지 (bind 의 storage) */
+  /* 이 탭이 반영한 여행 [{ trip, at }] — 다른 탭이 그걸 받기 전에 만든 저장이 오면(그쪽에 없음·아직 running) 다시 얹는다 (adoptRemote).
+     탭이 셋 이상이면 한 탭이 받았다고 다른 탭의 늦은 저장이 안 오는 게 아니라서, 받았는지 대신 시간(MINE_MS)으로 놓는다 */
+  var mine = [], MINE_MS = 60000;
   function setBusy(on) {
     busy = on; oct.busy = on;
     if (!on) { flying = null; if (remoteDirty) { remoteDirty = false; renderAll(); applyMotion(); applyFont(); } }
@@ -866,7 +892,7 @@ var APP = (function () {
     if (trip.status === 'done') return;
     var prevL = applyTrip(trip);
     lastNewPoster = trip.poster ? trip.id : null;
-    save();
+    save(); mine.push({ trip: trip, at: Date.now() });
     renderSouvenirs();
     var live = revealing && revealing.trip === trip && !skipFlag && !reduced();
     if (live) revealing.deferred = { prevL: prevL };   /* 상태는 지금 저장, 보이는 건 로그가 끝난 뒤 순서대로 (startCeremony) */
@@ -905,18 +931,33 @@ var APP = (function () {
     return prevL;
   }
   /* 다른 탭이 저장한 기록을 받아들인다 (R5). 이 탭에서 다녀오는 중인 여행(flying)이 있으면 그 객체를 그대로 끼워 넣어 이 탭의 공개·반영이 이어지게 하고,
-     그쪽 기록에 이 여행의 반영이 빠져 있으면(그 탭이 반영 전 사본으로 저장) 여기서 다시 얹어 저장한다 → 어느 탭이 늦게 저장해도 다른 탭의 여행·등불이 지워지지 않는다 */
+     그쪽 기록에 이 탭이 반영한 여행(flying · mine)이 빠져 있으면(그 탭이 이걸 받기 전 사본으로 저장) 여기서 다시 얹어 저장한다 → 어느 탭이 늦게 저장해도 다른 탭의 여행·등불이 지워지지 않는다.
+     다른 문어의 기록(born 이 다름 = 다른 탭에서 초기화·불러오기)이면 mine 은 버린다 (지운 기록을 되살리지 않게) */
   function adoptRemote(raw) {
     var R; try { R = normalize(JSON.parse(raw)); } catch (err) { return false; }
-    var T = busy ? flying : null, at = -1;
+    var T = busy ? flying : null, same = (S.octopus.born || 0) === (R.octopus.born || 0), now = Date.now();
     S = R; lastSaved = raw;
-    if (!T) return true;
-    R.trips.forEach(function (t, i) { if (t.id === T.id) at = i; });
-    if (at >= 0 && R.trips[at].status === 'done' && T.status !== 'done') Object.assign(T, R.trips[at]);   /* 새로 연 탭이 이 여행을 먼저 데려왔다(즉시 귀가) → 그쪽 기록·반영을 따른다 (두 번 반영하지 않게) */
-    var redo = T.status === 'done' && !(at >= 0 && R.trips[at].status === 'done');
-    if (at >= 0) R.trips[at] = T; else R.trips.push(T);
-    if (redo) { T.status = 'running'; applyTrip(T); save(); }
+    var redo = !!T && carry(T);
+    mine = !same ? [] : mine.filter(function (m) {
+      if (now - m.at > MINE_MS) return false;
+      if (T && m.trip.id === T.id) return true;
+      var theirs = tripById(m.trip.id);
+      if (!(theirs && theirs.status === 'done') && carry(m.trip)) redo = true;   /* 그쪽도 반영했으면 그쪽 것 그대로 */
+      return true;
+    });
+    if (redo) save();
     return true;
+  }
+  /* 이 탭의 여행 P 를 방금 받은 기록(S)에 끼운다 → 그쪽에 반영이 없어 여기서 다시 얹었으면 true */
+  function carry(P) {
+    var at = -1;
+    S.trips.forEach(function (t, i) { if (t.id === P.id) at = i; });
+    var theirsDone = at >= 0 && S.trips[at].status === 'done';
+    if (theirsDone && P.status !== 'done') Object.assign(P, S.trips[at]);   /* 새로 연 탭이 이 여행을 먼저 데려왔다(즉시 귀가) → 그쪽 기록·반영을 따른다 (두 번 반영하지 않게) */
+    var redo = P.status === 'done' && !theirsDone;
+    if (at >= 0) S.trips[at] = P; else S.trips.push(P);
+    if (redo) { var end = P.endedAt; P.status = 'running'; applyTrip(P); if (end) P.endedAt = end; }
+    return redo;
   }
   /* 최근 200개를 뺀 여행의 events 를 비운다 (영수증·포스터·요약은 남김). 방금 반영한 여행은 늘 최근 200 안이라 그대로 */
   function capTrips() {
@@ -1414,6 +1455,7 @@ var APP = (function () {
     setReceiptOpen(!!back);
     if (back) flippedOnce[tripId] = true;
     $('pd-save').hidden = false;
+    var hd = $('pd-h'); if (hd) hd.textContent = t.poster.title || (t.poster.type === 'note' ? '쪽지' : '포스터');   /* 화면 낭독기가 처음 읽는 제목 (보이지 않음) */
     if (window.UIART) UIART.onInspect(t);
     dlg.scrollTop = 0;
     showDialog(dlg);
@@ -1436,7 +1478,14 @@ var APP = (function () {
   function showDialog(dlg) {
     if (!dlg) return;
     dlg._opener = document.activeElement;
-    if (!dlg.open) { dlg.showModal(); dlg.scrollTop = 0; }   /* showModal 의 첫 포커스(아래쪽 버튼)가 대화상자를 끝까지 굴려 놓는다 (픽셀 테마 폰) → 맨 위에서 연다 */
+    if (!dlg.open) {
+      dlg.showModal();
+      /* showModal 의 첫 포커스는 첫 버튼 — 픽셀 테마 폰에선 그게 대화상자 아래쪽이라 상자를 끝까지 굴려 놓고, 맨 위로 되돌리면 포커스가 화면 밖에 남는다.
+         → 맨 위 제목(.dlg-top, tabindex=-1)에 포커스를 두고 맨 위에서 연다. 화면 낭독기는 제목부터 읽고, 첫 Tab 이 첫 버튼으로 간다 */
+      var top = dlg.querySelector('.dlg-top');
+      if (top) { try { top.focus({ preventScroll: true }); } catch (e) { top.focus(); } }
+      dlg.scrollTop = 0;
+    }
     var t = $('toast'); if (t && t.classList.contains('show')) raiseToast(t);   /* 떠 있던 토스트는 새 대화상자 위로 */
   }
   /* 대화상자 바깥(백드롭) 클릭만 닫기: 대화상자 자신의 안쪽 여백을 눌러도 target 이 dialog 라 → 좌표가 상자 밖일 때만 */
@@ -1451,15 +1500,19 @@ var APP = (function () {
       var d = $(id); if (!d) return;
       if (supportsClosedBy && id !== 'name-dialog') d.setAttribute('closedby', 'any');
       d.addEventListener('close', function () {
-        var t = $('toast');
-        if (t && d.contains(t)) raiseToast(t);   /* 토스트가 이 안에 있었으면 body 로 (닫힌 대화상자 안에선 안 보인다). 다른 대화상자가 아직 열려 있으면 그리로 */
         var o = d._opener; d._opener = null;
         if (o && o.focus && document.contains(o) && o !== document.body) { try { o.focus({ preventScroll: true }); } catch (e) { o.focus(); } }
       });
     });
-    /* 토스트를 app 의 toast() 를 거치지 않고 띄우는 곳(js/audio.js 의 소리 안내)도 열린 대화상자 위로 */
+    /* 어느 대화상자든(js/runner.js 의 달리기 창 포함) 닫힐 때 토스트가 그 안에 있었으면 꺼낸다 → body, 다른 대화상자가 아직 열려 있으면 그리로.
+       close 는 버블링하지 않아서 document 의 캡처 단계에서 받는다 (닫힌 대화상자 안에 남으면 다음 토스트가 안 보인다) */
+    document.addEventListener('close', function (e) {
+      var t = $('toast'), d = e.target;
+      if (t && d && d.tagName === 'DIALOG' && d.contains(t)) raiseToast(t);
+    }, true);
+    /* 토스트를 app 의 toast() 를 거치지 않고 띄우는 곳(js/audio.js 의 소리 안내)도: 지금 열린 대화상자(없으면 body)가 아닌 곳에 있으면 옮긴다 */
     var t = $('toast');
-    if (t && window.MutationObserver) new MutationObserver(function () { if (t.classList.contains('show') && openDialog() && t.parentNode !== openDialog()) raiseToast(t); }).observe(t, { attributes: true, attributeFilter: ['class'] });
+    if (t && window.MutationObserver) new MutationObserver(function () { if (t.classList.contains('show') && t.parentNode !== (openDialog() || document.body)) raiseToast(t); }).observe(t, { attributes: true, attributeFilter: ['class'] });
   }
   function svgToDataURI(svg) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); }
   function fetchAsDataURL(url) {
@@ -1560,7 +1613,7 @@ var APP = (function () {
     frag.appendChild(h('div', { class: 'set' }, [h('span', { text: '기록 내보내기 (JSON)' }), h('button', { type: 'button', class: 'btn sm', text: '내보내기', onclick: exportJSON })]));
     var file = h('input', { type: 'file', accept: 'application/json,.json', id: 'set-import' });
     file.addEventListener('change', function () { var f = file.files && file.files[0]; if (!f) return; var fr = new FileReader(); fr.onload = function () { importJSON(fr.result); }; fr.readAsText(f); });
-    frag.appendChild(h('div', { class: 'set' }, [h('span', { text: '기록 불러오기 (JSON)' }), file]));
+    frag.appendChild(h('div', { class: 'set' }, [h('span', { text: '기록 불러오기 (JSON)' }), h('label', { class: 'btn sm file-btn' }, ['불러오기', file])]));   /* 브라우저 글자('파일 선택') 대신 옆 '내보내기'와 같은 버튼. 입력은 그대로(Tab · Space/Enter · change), 링은 라벨에 (css) */
     var resetBtn = h('button', { type: 'button', class: 'btn sm danger', text: '전체 초기화' });
     var armed = false, armTimer = null;
     resetBtn.addEventListener('click', function () {
@@ -1608,6 +1661,7 @@ var APP = (function () {
       try { renderAll(); } catch (e2) { /* 원래 기록은 저장된 그대로 */ }
       toast('이 파일은 뽈뽈 기록이 아닌 것 같아'); return false;
     }
+    mine = [];   /* 바꾼 기록에 예전 여행을 다시 얹지 않게 */
     save(); applyMotion(); applyFont(); octInitial();
     var d = $('room-sheet'); if (d.open) d.close();
     toast('기록을 불러왔어'); return true;
@@ -1615,7 +1669,7 @@ var APP = (function () {
   function resetAll() {
     if (busy) { toast('다녀오는 중이라 지금은 못 지워. 끝나고 다시 해 줘'); return false; }
     store.remove(KEY);
-    S = defaults(); save(); setDayGreeting(); renderAll(); octInitial();
+    S = defaults(); mine = []; save(); setDayGreeting(); renderAll(); octInitial();
     var d = $('room-sheet'); if (d.open) d.close();
     openNameDialog();
   }

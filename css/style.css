@@ -175,7 +175,7 @@ a { color: var(--teal); touch-action: manipulation; }
 }
 /* 2D 무대는 --px = 1 (본문 폭 600px 상한) 이라 글자를 그대로 10px 로 — 6·7px 는 못 읽는다. 3D 는 아래 #scene3d 규칙이 덮는다 */
 #oct-bubble {
-  position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
+  position: absolute; left: calc(50% + var(--bub-dx, 0px)); bottom: calc(100% + 8px); transform: translateX(-50%);   /* --bub-dx: 2D 무대 가장자리(문 앞)에서 안으로 미는 양 (app.js keepBubble2D) */
   background: var(--paper0); color: var(--ink); border-radius: 4px; padding: 2px 4px;
   font-size: 10px; line-height: 1.3; width: max-content; max-width: 150px; white-space: normal; text-align: center;
   box-shadow: var(--shadow-xs); animation: bubble-in var(--t-ui) var(--ease-enter) both;
@@ -546,7 +546,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] #scene3d #oct-label { font-family: var(--f-meta); font-size: 16px; line-height: 16px; color: var(--paper0); }
 :root[data-font="pixel"] #scene3d #oct-bubble { font-family: var(--f-meta); font-size: 16px; line-height: 24px; border-radius: 0; border: 2px solid var(--line); background: var(--paper0); color: var(--ink); box-shadow: 2px 2px 0 var(--line); padding: 2px 8px; }
 
-/* ── 상태 줄: 나무색 띠 한 줄 41px (27px 글줄 + 6px×2 + 아래 틀 2px). 이름 Galmuri9 20px, 방 제목 Galmuri7 16px 흐림, 오른쪽 `등불 ■■□□□□□□ n/8` (Galmuri7 16px + 10px 네모 8개) ≈ 151px — 360px 에서 왼쪽에 165px 남는다 ── */
+/* ── 상태 줄: 나무색 띠 한 줄 44px (30px 글줄 + 6px×2 + 아래 틀 2px). 이름 Galmuri9 20px, 방 제목 Galmuri7 16px 흐림, 오른쪽 `등불 ■■□□□□□□ n/8` (Galmuri7 16px + 10px 네모 8개) ≈ 162px + 소리 버튼 44px — 360px 에서 왼쪽(이름 · 방 제목)에 ≈ 114px 남는다 ── */
 :root[data-font="pixel"] #status {
   background-color: var(--strip); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated;
   border: 2px solid var(--line); border-top: 0; color: var(--fg); font-family: var(--f-meta); font-size: 16px; line-height: 30px; padding: 6px 16px; min-height: 0;

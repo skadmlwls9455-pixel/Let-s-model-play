@@ -1565,7 +1565,9 @@ var SCENE3D = (function () {
     function defaultSwap(p) { /* 의식 없이 장소만 바꿀 때 문어 자리: 바깥 = 마당(길가), 다락 = 마지막 앵커 */
       if (p === 'exterior') { oct.pos.set(snapPos(1.75), 0, snapPos(0.75)); oct.wantYaw = oct.faceYaw = camYaw(); } else jumpTo(oct.anchor || 'center');
     }
-    function setPlace(p, o) {
+    /* 장소 값(place())이 바뀌면 opts.on.place(p) 한 번 — 의식이 스스로 바꿀 때도 (앱의 화면 낭독기용 장면 설명이 따라간다) */
+    function setPlace(p, o) { var was = PLACE.cur; setPlaceNow(p, o); if (PLACE.cur !== was && on.place) on.place(PLACE.cur); }
+    function setPlaceNow(p, o) {
       p = p === 'exterior' ? 'exterior' : 'attic'; o = o || {};
       if (PLACE.trans) finishTrans();
       var swap = o.onSwap || function () { defaultSwap(p); };

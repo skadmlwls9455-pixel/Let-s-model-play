@@ -157,6 +157,7 @@
 
 <!-- ══ 포스터 열람 모달 (§6.3 · §15.1) — 왼쪽(폰에선 위) 포스터, 오른쪽(아래) 짧은 기록, 영수증은 아래로 펼침 ══ -->
 <dialog id="poster-dialog" class="modal poster-modal" aria-label="포스터 열람">
+  <h2 id="pd-h" class="sr-only dlg-top" tabindex="-1">포스터</h2><!-- 열 때 포커스는 여기(맨 위) — 첫 버튼은 폰에서 상자 아래쪽이라 (app.js showDialog). 글자는 포스터 제목 -->
   <div class="flipper" id="flipper">
     <div class="inspect">
       <div class="inspect-art"><div class="face front" id="pd-front"></div></div>
@@ -175,7 +176,7 @@
 <!-- ══ 방 보기 (§7.5) ══ -->
 <dialog id="room-sheet" class="sheet" aria-labelledby="rs-h">
   <div class="handle" aria-hidden="true"></div>
-  <h2 id="rs-h" class="sr-only">방 보기</h2>
+  <h2 id="rs-h" class="sr-only dlg-top" tabindex="-1">방 보기</h2><!-- 열 때 포커스는 여기 (app.js showDialog) -->
   <div id="rs-body"></div>
   <button type="button" class="btn wide pressable" id="rs-close">닫기</button>
 </dialog>
