@@ -43,14 +43,29 @@ function routeWiki(page, mode) {
     return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
   });
 }
-/* 로그가 문어를 '성과·보고서를 내는 조사원'으로 그리지 않는지 (정직 표기). 막는 것: 결과 · 리서치 · 보고서 · 보고하다 활용(보고했/보고할/보고합/보고하/보고해/보고함/보고드·보고 드려).
-   막지 않는 것: 동사 보다 + 고 (world.js 다리 문구 '…라는 걸 보고', '…솔방울을 보고' · '보고 싶어') — 다리 문구 '보고' 20곳은 전부 이 뜻 (2026-11 확인) */
-var HARVEST_WORDS = /결과|리서치|보고서|보고(?:했|할|합|하|해|함|드[리려립릴렸])|보고 드[리려립릴렸]/;
-/* 페이지 안에서 돈다: #log 의 텍스트 노드를 하나씩 (공백만인 것은 뺀다) */
-function logTextPieces() {
-  var out = [], log = document.getElementById('log'); if (!log) return out;
-  var w = document.createTreeWalker(log, NodeFilter.SHOW_TEXT), n;
-  while ((n = w.nextNode())) { var t = n.nodeValue.trim(); if (t) out.push(t); }
+/* 로그가 문어를 '성과·보고서를 내는 조사원'으로 그리지 않는지 (정직 표기). 막는 것: '결과' · '리서치' · '보고' 전부
+   (보고서 · 보고했어 · 보고 드려 · 보고를 올렸어 · 탐험 보고 · 오늘의 보고 · 보고 내용 · 칸이 갈린 <b>보고</b>했어 까지).
+   빼 주는 것은 동사 보다 + 고 하나: 목적어 뒤 '…를/을/걸/만 보고' 가 띄어쓰기·문장부호·끝으로 끝날 때 (뒤에 '드리다' 가 오면 보고드리다라 안 뺀다), '보고 싶'.
+   world.js 다리 문구의 '보고' 20곳이 전부 이 꼴이다 (2026-11 확인). 다리 문구는 날짜 시드로 그날 로그에 나오므로 [A] 에서 WORLD 문구 전부를 같은 검사로 한 번 더 돌린다 */
+function reportFramed(s) {
+  var t = String(s).replace(/([을를걸만]) 보고(?=$|[\s,.…!?”’)](?!드[리려립릴렸]))/g, '$1 ◇').replace(/보고 싶/g, '◇ 싶');
+  return /결과|리서치|보고/.test(t);
+}
+/* 페이지 안에서 돈다: #log 를 보이는 줄 단위로. 인라인 칸(<b>·<a>·span)은 이어 붙이고, 블록 칸(.ltool · .sub 같은 display 가 inline 이 아닌 것)과 행 경계에서 끊는다.
+   textContent 는 다리 문구 칸 '…걸 보고' 와 다음 칸 '하늘…' 을 '보고하늘' 로 붙이고, 텍스트 노드를 하나씩 보면 '<b>보고</b>했어' 를 놓친다 */
+function logLines() {
+  var log = document.getElementById('log'), out = [], cur = '', curBox = null, w, n, b;
+  if (!log) return out;
+  function box(x) { for (var e = x.parentElement; e && e !== log; e = e.parentElement) { var d = getComputedStyle(e).display; if (d !== 'inline' && d !== 'contents') return e; } return log; }
+  w = document.createTreeWalker(log, NodeFilter.SHOW_TEXT);
+  while ((n = w.nextNode())) { b = box(n); if (b !== curBox) { if (cur.trim()) out.push(cur.trim()); cur = ''; curBox = b; } cur += n.nodeValue; }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+/* 페이지 안에서 돈다: WORLD 의 문자열 전부 (다리 문구 · 메모 · 집 활동 · 반응 …) — 어느 날이든 로그에 나올 수 있는 세계 문구 */
+function worldStrings() {
+  var out = [];
+  (function walk(o, d) { if (typeof o === 'string') out.push(o); else if (o && typeof o === 'object' && d < 12) Object.keys(o).forEach(function (k) { walk(o[k], d + 1); }); })(window.WORLD, 0);
   return out;
 }
 /* running 여행 복구 한 줄 (app.js resumeRunning): 복구된 여행 종류마다. 빈 차례뿐이면 말하지 않는다 */
@@ -157,7 +172,7 @@ async function scenarioMain(browser) {
   ok(sc3.mode === (sc3.webgl ? '3d' : '2d'), '장면 모드 = WebGL 유무에 맞음 (' + sc3.mode + ')');
   if (sc3.mode === '3d') { ok(sc3.stats.calls > 0 && sc3.stats.calls <= 150, '3D 드로우콜 ≤150 (' + sc3.stats.calls + ')'); ok(sc3.stats.palette <= 72, '팔레트 ≤72색 (' + sc3.stats.palette + ' · ' + sc3.stats.paletteName + ')'); }
   var logText = await page.textContent('#log');
-  var logPieces = await page.evaluate(logTextPieces);   /* 글 조각(텍스트 노드)마다 따로: textContent 는 이웃 행·칸을 띄어쓰기 없이 붙인다 ('…보고' + '하늘…') */
+  var logLinesNow = await page.evaluate(logLines);   /* 보이는 줄마다: textContent 는 이웃 칸을 띄어쓰기 없이 붙인다 ('…걸 보고' + '하늘…') */
   ok(/✅ 읽음|📚 책장 메모|❌ 못 읽음|🧪 모의 방문|◌/.test(logText), '로그에 읽기 상태 아이콘');
   /* UI 아트 (css/ui-art.css · js/ui-art.js, docs/UI_ART.md) — 픽셀 모드 */
   var ua = await page.evaluate(function () {
@@ -184,8 +199,10 @@ async function scenarioMain(browser) {
     ok(ua.img && ua.imgOk && ua.imgW === 32 && (ua.alt || ua.hidden === 'true') && ua.label.length >= 1 && ua.labelVis, '로그 행 아이콘 img(16→32px, alt/aria-hidden) + 보이는 라벨 (' + ua.label + ')');
     ok(ua.stImg && ua.stWord.length >= 2, '읽기 상태 칩: 아이콘 + 상태 단어 (' + ua.stWord + ')');
   }
-  var harvest = logPieces.filter(function (x) { return HARVEST_WORDS.test(x); });
-  ok(!harvest.length, "로그에 '결과/리서치/보고서·보고했어' 같은 성과·보고 틀 없음 (동사 '…걸 보고' 는 괜찮음)" + (harvest.length ? ': ' + JSON.stringify(harvest.slice(0, 3)) : ''));
+  var harvest = logLinesNow.filter(reportFramed);
+  ok(logLinesNow.length >= 5 && !harvest.length, "로그 " + logLinesNow.length + "줄에 '결과/리서치/보고' 같은 성과·보고 틀 없음 (동사 '…걸 보고' 만 괜찮음)" + (harvest.length ? ': ' + JSON.stringify(harvest.slice(0, 3)) : ''));
+  var wStr = await page.evaluate(worldStrings), wBad = wStr.filter(reportFramed);   /* 오늘 시드가 안 고른 다리 문구까지 — 날짜와 상관없이 같은 검사 */
+  ok(wStr.length > 0 && !wBad.length, 'WORLD 문구 ' + wStr.length + '개 전부 성과·보고 틀 없음' + (wBad.length ? ': ' + JSON.stringify(wBad.slice(0, 3)) : ''));
 
   console.log('\n== 새로고침 → 그대로');
   await page.waitForTimeout(1000);   /* file:// 원점의 localStorage 커밋이 새로고침과 겹치지 않게 (3D 렌더로 바쁜 탭에서는 300ms 로는 간헐 실패) */
@@ -378,12 +395,14 @@ async function scenarioMigrate(browser) {
   /* 축소 모션에서도 초대 한 번 (즉시 이동 경로) */
   await page.fill('#hint-in', 'https://example.org/page');
   ok((await page.textContent('#hint-help')).indexOf('모의 방문') >= 0, 'URL 힌트 도움말');
+  /* 그날 시드가 집·빈 차례면 URL 정류장도 건너뛰기도 시험이 안 된다 → 이 초대만 외출로 강제 (brain.js 테스트 훅, plan 때 읽음 · 난수 순서 그대로) */
+  await page.evaluate(function () { window.__ppolTest = { forceKind: 'out' }; });
   await page.click('#btn-go');
-  /* 그날 시드가 빈 차례면 건너뛰기 없이 바로 끝날 수 있다 → 건너뛰기는 보이면 누르고, 판정은 아래 마지막 여행으로 */
-  await page.waitForSelector('#btn-skip:not([hidden])', { timeout: 5000 }).then(function () { return page.click('#btn-skip', { timeout: 5000 }); }).catch(function () {});
+  await page.waitForSelector('#btn-skip:not([hidden])');
+  await page.click('#btn-skip');
   await waitIdle(page);
-  var u = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { kind: t.kind, st: t.receipt ? t.receipt.stops.map(function (x) { return x.status; }) : [] }; });
-  ok(u.kind !== 'out' || u.st[0] === 'simulated', 'URL 힌트 → 첫 정류장 simulated(🧪) (' + JSON.stringify(u) + ')');
+  var u = await page.evaluate(function () { delete window.__ppolTest; var t = APP.state.trips[APP.state.trips.length - 1]; return { kind: t.kind, st: t.receipt ? t.receipt.stops.map(function (x) { return x.status; }) : [] }; });
+  ok(u.kind === 'out' && u.st[0] === 'simulated', 'URL 힌트 → 외출 · 첫 정류장 simulated(🧪) (' + JSON.stringify(u) + ')');
   await page.screenshot({ path: path.join(SHOTS, 'phone-reduced-motion.png') });
   reportErrors(s.bag, 'D');
   await s.ctx.close();
