@@ -1077,7 +1077,8 @@
       receipt: null, poster: null, visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: null, memo: null
     };
   }
-  function homeTripFrom(base, act, R) {
+  /* lantern: 이 여행 전 등불 칸 수 (normalizeState). app 은 칸이 남았을 때만(< 8) 집에 있던 날 칸을 켠다 → 꽉 찼으면 뒷면에 '+1' 을 쓰지 않는다. 난수는 뽑지 않는다 */
+  function homeTripFrom(base, act, R, lantern) {
     var tWrap = Math.round(lerp(R(), 2000, 4000));
     var pos = drawStickerPos(R);
     var paper = Math.floor(R() * 3);
@@ -1099,7 +1100,7 @@
         activity: { id: act.id, line: act.line, detail: act.detail || '', anchor: act.anchor || 'window' }
       },
       poster: {
-        type: 'note', title: act.title || '오늘은 집', line: act.line, detail: act.detail || '', back: '오늘은 집. 등불 +1',
+        type: 'note', title: act.title || '오늘은 집', line: act.line, detail: act.detail || '', back: (lantern >= 8 ? '오늘은 집' : '오늘은 집. 등불 +1'),
         sticker: act.sticker || 'home', emoji: act.emoji || '🏠', scene: 'home', stickerPos: pos, thumb: null, paper: paper
       },
       visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: reaction, memo: memo
@@ -1152,7 +1153,7 @@
       if (empty) return emptyTrip(base);
       var acts = homeActivities(state.lantern, state.posters);
       var ai = pickWeighted(acts, function (a) { return a.weight == null ? 1 : a.weight; }, R());
-      return homeTripFrom(base, acts[ai] || DEFAULT_HOME[0], R);
+      return homeTripFrom(base, acts[ai] || DEFAULT_HOME[0], R, state.lantern);
     }
 
     /* 2. 힌트 · 들판 */
@@ -1284,7 +1285,7 @@
       var act = allActs.filter(function (a) { return a && a.id === sh.activity && (a.id === 'nothing' || okActs.indexOf(a) >= 0); })[0]
         || { id: 'custom', line: sh.line || '오늘은 집에 있었어', detail: sh.detail || '', anchor: sh.anchor || 'window' };
       if (sh.line) act = Object.assign({}, act, { line: sh.line });
-      var ht = homeTripFrom(base, act, R);
+      var ht = homeTripFrom(base, act, R, state.lantern);
       ht.events = events;
       var wu = events.filter(function (e) { return e.type === 'wrap_up'; })[0];
       /* 집에 있는 날엔 처음 온 곳도 읽은 것도 없으니 폴짝·우쭐은 받지 않는다 */

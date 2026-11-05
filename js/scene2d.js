@@ -236,7 +236,10 @@ var SCENE2D = (function () {
       var wallNew = st.wallNew; st.wallNew = null;
       if (s === 'carry') { if (extra && extra.svg) { st.carryId = extra.id || wallNew || (extra.svg === st.carrySvg ? st.carryId : null); st.carrySvg = extra.svg; } }
       else if (s !== 'hang') { st.carrySvg = ''; st.carryId = null; }
-      octEl.className = octEl.className.replace(/\bst-[a-z]+/g, '').trim() + ' st-' + s + (oct.flip ? ' flip' : '');
+      /* 토큰 단위로 바꾼다: 문자열로 ' flip' 을 덧붙이면 상태가 바뀔 때마다 flip 이 쌓였다 */
+      Array.prototype.slice.call(octEl.classList).forEach(function (c) { if (/^st-[a-z]+$/.test(c)) octEl.classList.remove(c); });
+      octEl.classList.add('st-' + s);
+      octEl.classList.toggle('flip', !!oct.flip);
       if (s === 'carry') setCarry(true);
       else if (s === 'hang') { setCarry(false); flyPoster(); }
       else setCarry(false);
@@ -248,7 +251,8 @@ var SCENE2D = (function () {
     st.expr = 'idle';
     function setExpression(name) {
       name = EXPRESSIONS.indexOf(name) >= 0 ? name : 'idle'; st.expr = name;
-      octEl.className = octEl.className.replace(/\bex-[a-z]+/g, '').trim() + ' ex-' + name;
+      Array.prototype.slice.call(octEl.classList).forEach(function (c) { if (/^ex-[a-z]+$/.test(c)) octEl.classList.remove(c); });
+      octEl.classList.add('ex-' + name);
     }
     var INK = '#1b1f2e', PAPER = '#fff6ee', NAVY = '#172038';
     function f2(v) { return (Math.round(v * 100) / 100).toString(); }

@@ -690,10 +690,12 @@ var APP = (function () {
     var todayOut = tripsOn(trip.date).filter(function (t) { return t.kind === 'out' && t.status === 'done'; }).length;
     return {
       seed: trip.seed, dateKey: trip.date, seq: trip.seq, hint: trip.hint.raw, name: S.octopus.name || '', id: trip.id,
-      state: { visits: S.octopus.visits, affinity: S.octopus.affinity, lantern: S.room.lantern, recent: recent, todayOut: todayOut, lastVisit: lastVisitMap(trip) },
+      state: { visits: S.octopus.visits, affinity: S.octopus.affinity, lantern: S.room.lantern, recent: recent, todayOut: todayOut, lastVisit: lastVisitMap(trip), posters: wallPosters() },
       now: new Date(), online: navigator.onLine !== false, by: 'demo'
     };
   }
+  /* 지금 벽에 붙어 있는 포스터 수 (renderWall 과 같은 목록) → 두뇌가 포스터 활동(다시 읽기·자리 바꾸기)을 거른다. 계획·재생 모두 */
+  function wallPosters() { return posterTrips().length; }
   /* 방마다 마지막으로 다녀온 날 (저장된 여행의 날짜에서만) → 두뇌의 재방문 판단 (§17.1) */
   function lastVisitMap(except) {
     var m = {};
@@ -759,7 +761,8 @@ var APP = (function () {
       return lead.then(function () { return reveal(trip); }).then(function () { setBusy(false); return trip; });
     });
   }
-  function skip() { skipFlag = true; if (cer.kind) jumpCeremony(); if (revealing && revealing.wake) revealing.wake(); }
+  /* 건너뛰기: 걷던 길은 그 자리에서 도착 (2D·3D 장면의 finishWalk — moveTo 의 Promise 도 지금 풀린다) · 의식은 감고 · 틈은 깨운다 */
+  function skip() { skipFlag = true; if (scene && typeof scene.finishWalk === 'function') scene.finishWalk(); if (cer.kind) jumpCeremony(); if (revealing && revealing.wake) revealing.wake(); }
   /* 움츠림 → 1.03 overshoot 로 풀기 (2D 는 CSS, 3D 는 idle 복귀). 끝나면 idle */
   function settleOct() {
     var el = $('oct'); octState('idle');
@@ -843,7 +846,8 @@ var APP = (function () {
         return departOut().then(function () { return sleep(400 * speed()); });   /* 이벤트 JSON 재생 등 */
       case 'return':
         commitTrip(trip);
-        var mode = trip.poster ? 'carry' : 'walk', carryX = trip.poster ? { svg: posterSVG(trip, 48, 64, { mini: true, noExternal: true }) } : null;
+        /* 들고 오는 포스터 = 이 여행의 것 (id: 장면이 걸 때 그 포스터의 벽 칸으로 날린다 — 건너뛰기·데모 재생처럼 벽에 먼저 붙었어도) */
+        var mode = trip.poster ? 'carry' : 'walk', carryX = trip.poster ? { svg: posterSVG(trip, 48, 64, { mini: true, noExternal: true }), id: trip.id } : null;
         var wasOut = !!(revealing && revealing.outside);
         if (fast) { if (wasOut && typeof scene.leaveOutside === 'function') scene.leaveOutside(); if (!jumpCeremony()) abandonCeremony(); bubble('', 0); dropOverlay(); ensureAttic(); octPlace('board'); octState(mode, carryX); return Promise.resolve(); }
         /* (바깥 기웃을 했으면 같은 출구로 퇴장) → 귀가 의식(길 → 계단 → 현관 → 다락 문) → 보드까지 걸어가 포스터 걸기 */
@@ -865,7 +869,7 @@ var APP = (function () {
         if (trip.status !== 'done') commitTrip(trip);
         var cer = startCeremony();                      /* 로그가 끝났으니 연출 시작 — 문어가 담요로 가는 동안 같이 */
         if (fast) return cer;
-        return Promise.all([cer, sleep(900 * speed()).then(function () { return walkTo('blanket'); })]);
+        return Promise.all([cer, sleep(900 * speed()).then(function () { if (skipFlag) return; return walkTo('blanket'); })]);   /* 그사이 건너뛰면 걷지 않는다 (finalPose 가 담요에 놓는다) */
       case 'stay_home':
         commitTrip(trip);
         var anchor = ev.anchor || (trip.receipt && trip.receipt.activity && trip.receipt.activity.anchor) || 'window';
@@ -1339,7 +1343,8 @@ var APP = (function () {
     if (sv || (r && r.souvenir)) lines.push('<p class="meta">가져온 것: ' + (sv ? emoH(sv.emoji) + ' ' + esc(sv.name) : esc(r.souvenir)) + '</p>');
     return lead + lines.join('');
   }
-  /* 뒷면 영수증 HTML (§6.2) — 링크 클릭 가능 */
+  /* 뒷면 영수증 HTML (§6.2) — 링크 클릭 가능. 출처 링크는 위키백과(한국어) 주소일 때만 (두뇌도 거르지만 옛 기록·불러온 기록까지) */
+  var WIKI_SRC = /^https:\/\/ko\.wikipedia\.org\//;
   function receiptHTML(trip) {
     var r = trip.receipt, p = trip.poster || {}, out = '<div class="receipt">';
     out += '<h3>영수증 · ' + esc(trip.id) + '</h3>';
@@ -1367,7 +1372,7 @@ var APP = (function () {
         ' <span class="st">' + emoH(STATUS_ICON[st] || '❌') + ' ' + esc(STATUS_LABEL[st] || st) + (s.ms ? ' · ' + secs(s.ms) : '') + (s.first ? ' · 처음 온 곳' : '') + '</span>';
       if (s.bridge) out += '<span class="bridge">' + esc(s.bridge) + '</span>';
       if (s.note) out += '<span class="note">' + (st === 'read' ? '“' + esc(s.note) + '”' : esc(s.note)) + '</span>';
-      if (st === 'read' && s.source && s.source.url) out += '<a href="' + esc(s.source.url) + '" target="_blank" rel="noopener">출처 ↗ ' + esc(s.source.attribution || 'Wikipedia (ko)') + ' · ' + esc(s.source.license || 'CC BY-SA') + '</a>';
+      if (st === 'read' && s.source && WIKI_SRC.test(s.source.url || '')) out += '<a href="' + esc(s.source.url) + '" target="_blank" rel="noopener">출처 ↗ ' + esc(s.source.attribution || 'Wikipedia (ko)') + ' · ' + esc(s.source.license || 'CC BY-SA') + '</a>';
       out += '</span></div>';
     });
     out += '<div class="hr"></div>';
@@ -1512,7 +1517,12 @@ var APP = (function () {
     }, true);
     /* 토스트를 app 의 toast() 를 거치지 않고 띄우는 곳(js/audio.js 의 소리 안내)도: 지금 열린 대화상자(없으면 body)가 아닌 곳에 있으면 옮긴다 */
     var t = $('toast');
-    if (t && window.MutationObserver) new MutationObserver(function () { if (t.classList.contains('show') && t.parentNode !== (openDialog() || document.body)) raiseToast(t); }).observe(t, { attributes: true, attributeFilter: ['class'] });
+    if (t && window.MutationObserver) {
+      var lift = function () { if (t.classList.contains('show') && t.parentNode !== (openDialog() || document.body)) raiseToast(t); };
+      new MutationObserver(lift).observe(t, { attributes: true, attributeFilter: ['class'] });
+      /* 대화상자가 새로 열릴 때도: js/runner.js 는 showDialog 를 거치지 않고 showModal 을 바로 부른다 → 떠 있던 토스트가 그 밑(방 보기 시트 안)에 깔리지 않게 새 대화상자 위로 */
+      new MutationObserver(function (ms) { if (ms.some(function (m) { return m.target.tagName === 'DIALOG'; })) lift(); }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
+    }
   }
   function svgToDataURI(svg) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); }
   function fetchAsDataURL(url) {
@@ -1688,12 +1698,12 @@ var APP = (function () {
     if (!B || typeof B.replay !== 'function') { demoMsg('두뇌(brain.js)가 없어 재생할 수 없어'); return; }
     var dk = todayKey(), seq = tripsOn(dk).length + 1;
     var meta = { by: byKind || 'human', dateKey: dk, seq: seq, name: S.octopus.name || '', now: new Date(), seed: B.hashSeed(dk, demo.hint, seq, 'human', String(demo.events.length)),
-      state: { visits: S.octopus.visits, affinity: S.octopus.affinity, lantern: S.room.lantern, recent: [], todayOut: 0 } };
+      state: { visits: S.octopus.visits, affinity: S.octopus.affinity, lantern: S.room.lantern, recent: [], todayOut: 0, posters: wallPosters() } };
     var planned;
     try { planned = B.replay(demo.events, meta); } catch (e) { demoMsg('재생 실패: ' + e.message); return; }
     var trip = { id: newTripId(meta.seed), date: dk, seq: seq, seed: meta.seed, kind: null, by: meta.by, hint: { raw: demo.hint }, status: 'running', startedAt: demo.t0 || Date.now(), endedAt: null, events: [], receipt: null, poster: null };
     trip.weather = weatherFor(S.room.lantern);
-    mergePlan(trip, planned); trip.by = meta.by; trip.events = demo.events.slice(); buildRecall(trip);
+    mergePlan(trip, planned); trip.by = meta.by;   /* events = 두뇌가 정리한 것 (mergePlan) — 로그·영수증이 같은 말을 한다 (§5.4.1) */
     S.trips.push(trip); save();
     skipFlag = true; jumpCeremony(); setBusy(true); flying = trip;
     var today = ensureTodaySection(); today.querySelectorAll('.lrow.demo-live').forEach(function (r) { r.remove(); });
@@ -1758,12 +1768,12 @@ var APP = (function () {
     var dk = todayKey(), seq = tripsOn(dk).length + 1;
     var dep = evs.filter(function (e) { return e && e.type === 'depart'; })[0];
     var meta = { by: 'mcp', dateKey: dk, seq: seq, name: S.octopus.name || '', now: new Date(), seed: B.hashSeed('mcp', dk, seq, JSON.stringify(evs)),
-      state: { visits: S.octopus.visits, affinity: S.octopus.affinity, lantern: S.room.lantern, recent: [], todayOut: 0 } };
+      state: { visits: S.octopus.visits, affinity: S.octopus.affinity, lantern: S.room.lantern, recent: [], todayOut: 0, posters: wallPosters() } };
     var planned;
     try { planned = B.replay(evs, meta); } catch (e) { demoMsg('재생 실패: ' + e.message); return false; }
     var trip = { id: newTripId(meta.seed), date: dk, seq: seq, seed: meta.seed, kind: null, by: 'mcp', hint: { raw: dep ? (dep.hint || '') : '' }, status: 'running', startedAt: Date.now(), endedAt: null, events: [], receipt: null, poster: null };
     trip.weather = weatherFor(S.room.lantern);
-    mergePlan(trip, planned); trip.by = 'mcp'; trip.events = evs; buildRecall(trip);
+    mergePlan(trip, planned); trip.by = 'mcp';   /* events = 두뇌가 정리한 것 (입력의 '읽음'·출처를 그대로 보여 주지 않게) */
     S.trips.push(trip); save();
     $('d-json').value = ''; demoMsg('모델(MCP) 이벤트를 재생 중…');
     wakeUp(); setBusy(true); skipFlag = false; flying = trip; demoSet('start');

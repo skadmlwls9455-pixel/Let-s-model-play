@@ -745,6 +745,28 @@ async function huntSuite(label, W) {
     check(posterActs.some(function (a) { return seenAct.p1[a.id]; }), 'one poster → a poster activity can happen');
   }
 
+  /* 쪽지 뒷면: app 은 등불이 8 미만일 때만 집에 있던 날 칸을 켠다 (app.js homeLit) → 등불 8(꽉 참)이면 '+1' 을 말하지 않는다. plan · replay(meta.state) 둘 다 */
+  section('home note back: no "등불 +1" when the lantern is already full — ' + label);
+  global.__ppolTest = { forceKind: 'home' };
+  errs = [];
+  var backSeen = {};
+  for (seed = 1; seed <= 40; seed++) {
+    for (var lb of [0, 3, 7, 8, 9]) {
+      var want = lb >= 8 ? '오늘은 집' : '오늘은 집. 등불 +1';
+      t = await BRAIN.plan(baseInput(seed, { state: { visits: {}, affinity: {}, lantern: lb, recent: [], todayOut: 0, posters: 3 } }));
+      if (t.kind !== 'home' || !t.poster || t.poster.back !== want) errs.push('plan seed ' + seed + ' lantern ' + lb + ' → ' + (t.poster && t.poster.back));
+      else backSeen[lb] = t.poster.back;
+      var rb = BRAIN.replay(JSON.parse(JSON.stringify(t.events)), { by: 'mcp', now: NOW_DAY, state: { visits: {}, affinity: {}, lantern: lb, posters: 3 } });
+      if (rb.kind !== 'home' || !rb.poster || rb.poster.back !== want) errs.push('replay seed ' + seed + ' lantern ' + lb + ' → ' + (rb.poster && rb.poster.back));
+    }
+  }
+  delete global.__ppolTest;
+  check(errs.length === 0, 'home note back matches whether a lantern pip can still light (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 3).join(' | ') : ''));
+  check(backSeen[8] === '오늘은 집' && !/\+1/.test(backSeen[8] || '+1'), 'lantern 8 → back "' + backSeen[8] + '" (no +1)');
+  check(backSeen[3] === '오늘은 집. 등불 +1', 'lantern 3 → back "' + backSeen[3] + '" (+1)');
+  var rpNoState = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 2000, reaction: '졸림' }], { by: 'human' });
+  check(rpNoState.poster && rpNoState.poster.back === '오늘은 집. 등불 +1', 'replay without meta.state (lantern 0) → back keeps +1');
+
   /* 41 옆: 두뇌는 날씨를 모른다 (app: 등불 0~5 비 · 6 가랑비 · 7 맑음 · 8+ 날마다). 등불 7 이상에서 집 활동·메모가 비를 말하면 안 된다 */
   var HOME_WX = /비가|비 오|비 와|비 셌|빗|눈이 와|눈 오|맑|흐려|흐린|날씨|안개/;
   global.__ppolTest = { forceKind: 'home' };

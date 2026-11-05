@@ -43,6 +43,18 @@ function routeWiki(page, mode) {
     return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
   });
 }
+/* 로그가 문어를 '성과·보고서를 내는 조사원'으로 그리지 않는지 (정직 표기). 막는 것: 결과 · 리서치 · 보고서 · 보고하다 활용(보고했/보고할/보고합/보고하/보고해/보고함/보고드·보고 드려).
+   막지 않는 것: 동사 보다 + 고 (world.js 다리 문구 '…라는 걸 보고', '…솔방울을 보고' · '보고 싶어') — 다리 문구 '보고' 20곳은 전부 이 뜻 (2026-11 확인) */
+var HARVEST_WORDS = /결과|리서치|보고서|보고(?:했|할|합|하|해|함|드[리려립릴렸])|보고 드[리려립릴렸]/;
+/* 페이지 안에서 돈다: #log 의 텍스트 노드를 하나씩 (공백만인 것은 뺀다) */
+function logTextPieces() {
+  var out = [], log = document.getElementById('log'); if (!log) return out;
+  var w = document.createTreeWalker(log, NodeFilter.SHOW_TEXT), n;
+  while ((n = w.nextNode())) { var t = n.nodeValue.trim(); if (t) out.push(t); }
+  return out;
+}
+/* running 여행 복구 한 줄 (app.js resumeRunning): 복구된 여행 종류마다. 빈 차례뿐이면 말하지 않는다 */
+var AWAY_ROWS = { out: ['귀가 · 네가 없는 동안 다녀왔어'], home: ['집 · 네가 없는 동안 집에 있었어'], empty: [] };
 function watchErrors(page, bag) {
   page.on('pageerror', function (e) { bag.push('pageerror: ' + e.message); });
   page.on('console', function (m) {
@@ -145,6 +157,7 @@ async function scenarioMain(browser) {
   ok(sc3.mode === (sc3.webgl ? '3d' : '2d'), '장면 모드 = WebGL 유무에 맞음 (' + sc3.mode + ')');
   if (sc3.mode === '3d') { ok(sc3.stats.calls > 0 && sc3.stats.calls <= 150, '3D 드로우콜 ≤150 (' + sc3.stats.calls + ')'); ok(sc3.stats.palette <= 72, '팔레트 ≤72색 (' + sc3.stats.palette + ' · ' + sc3.stats.paletteName + ')'); }
   var logText = await page.textContent('#log');
+  var logPieces = await page.evaluate(logTextPieces);   /* 글 조각(텍스트 노드)마다 따로: textContent 는 이웃 행·칸을 띄어쓰기 없이 붙인다 ('…보고' + '하늘…') */
   ok(/✅ 읽음|📚 책장 메모|❌ 못 읽음|🧪 모의 방문|◌/.test(logText), '로그에 읽기 상태 아이콘');
   /* UI 아트 (css/ui-art.css · js/ui-art.js, docs/UI_ART.md) — 픽셀 모드 */
   var ua = await page.evaluate(function () {
@@ -171,7 +184,8 @@ async function scenarioMain(browser) {
     ok(ua.img && ua.imgOk && ua.imgW === 32 && (ua.alt || ua.hidden === 'true') && ua.label.length >= 1 && ua.labelVis, '로그 행 아이콘 img(16→32px, alt/aria-hidden) + 보이는 라벨 (' + ua.label + ')');
     ok(ua.stImg && ua.stWord.length >= 2, '읽기 상태 칩: 아이콘 + 상태 단어 (' + ua.stWord + ')');
   }
-  ok(!/결과|리서치|보고/.test(logText), "로그에 '결과/리서치/보고' 없음");
+  var harvest = logPieces.filter(function (x) { return HARVEST_WORDS.test(x); });
+  ok(!harvest.length, "로그에 '결과/리서치/보고서·보고했어' 같은 성과·보고 틀 없음 (동사 '…걸 보고' 는 괜찮음)" + (harvest.length ? ': ' + JSON.stringify(harvest.slice(0, 3)) : ''));
 
   console.log('\n== 새로고침 → 그대로');
   await page.waitForTimeout(1000);   /* file:// 원점의 localStorage 커밋이 새로고침과 겹치지 않게 (3D 렌더로 바쁜 탭에서는 300ms 로는 간헐 실패) */
@@ -350,17 +364,23 @@ async function scenarioMigrate(browser) {
   await page.reload();
   await page.waitForSelector('#btn-go:not([disabled])');
   await page.waitForFunction(function () { return APP.state.trips.every(function (t) { return t.status === 'done'; }); });
-  var rr = await page.evaluate(function () { return { lantern: APP.state.room.lantern, invites: APP.state.octopus.invites, log: document.getElementById('log').textContent, oct: document.getElementById('oct').className }; });
-  console.log('   resume:', JSON.stringify({ lantern: rr.lantern, invites: rr.invites, oct: rr.oct.trim(), tail: rr.log.slice(-60) }));
+  var rr = await page.evaluate(function () {
+    var sv = null; try { sv = JSON.parse(localStorage.getItem('ppolppol_v2') || 'null'); } catch (e) {}
+    var run = sv && sv.trips ? sv.trips.filter(function (t) { return t.id === 'trip_run1'; })[0] : null;
+    return { lantern: APP.state.room.lantern, invites: APP.state.octopus.invites, log: document.getElementById('log').textContent, oct: document.getElementById('oct').className, kind: run ? run.kind : null,
+      away: [].filter.call(document.querySelectorAll('#log .lrow'), function (row) { return row.textContent.indexOf('네가 없는 동안') >= 0; }).map(function (row) { var tl = row.querySelector('.ltool'), tx = row.querySelector('.ltext'); return (tl ? tl.textContent : '?') + ' · ' + (tx ? tx.textContent : row.textContent); }) };
+  });
+  console.log('   resume:', JSON.stringify({ lantern: rr.lantern, invites: rr.invites, kind: rr.kind, away: rr.away, oct: rr.oct.trim(), tail: rr.log.slice(-60) }));
   ok(rr.lantern === 3 && rr.invites === 5, 'running 여행 즉시 귀가 처리 (등불 +1, 초대 +1)');
-  ok(rr.log.indexOf('네가 없는 동안 다녀왔어') >= 0, "'네가 없는 동안 다녀왔어' 로그");
+  /* 심은 여행은 오늘 시드대로라 외출일 수도 집일 수도 빈 차례일 수도 있다 → 복구된 여행 종류(localStorage)에 맞는 한 줄 */
+  ok(JSON.stringify(rr.away) === JSON.stringify(AWAY_ROWS[rr.kind] || ['?']), '복구 한 줄이 복구된 여행 종류(' + rr.kind + ')대로: ' + JSON.stringify(rr.away) + ' — 기대 ' + JSON.stringify(AWAY_ROWS[rr.kind] || ['?']));
   ok(rr.oct.indexOf('st-sleep') >= 0 || rr.oct.indexOf('st-idle') >= 0, '복구 뒤 문어 상태 유효 (' + rr.oct.trim() + ')');
   /* 축소 모션에서도 초대 한 번 (즉시 이동 경로) */
   await page.fill('#hint-in', 'https://example.org/page');
   ok((await page.textContent('#hint-help')).indexOf('모의 방문') >= 0, 'URL 힌트 도움말');
   await page.click('#btn-go');
-  await page.waitForSelector('#btn-skip:not([hidden])');
-  await page.click('#btn-skip');
+  /* 그날 시드가 빈 차례면 건너뛰기 없이 바로 끝날 수 있다 → 건너뛰기는 보이면 누르고, 판정은 아래 마지막 여행으로 */
+  await page.waitForSelector('#btn-skip:not([hidden])', { timeout: 5000 }).then(function () { return page.click('#btn-skip', { timeout: 5000 }); }).catch(function () {});
   await waitIdle(page);
   var u = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { kind: t.kind, st: t.receipt ? t.receipt.stops.map(function (x) { return x.status; }) : [] }; });
   ok(u.kind !== 'out' || u.st[0] === 'simulated', 'URL 힌트 → 첫 정류장 simulated(🧪) (' + JSON.stringify(u) + ')');

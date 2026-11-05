@@ -1071,22 +1071,24 @@ var SCENE3D = (function () {
         } };
       });
     }
-    var octState = { carrySvg: null, hang: null };
+    var octState = { carrySvg: null, hang: null, carryId: null };   /* carryId = 들고 있는 포스터의 여행 id (APP 의 carry { svg, id }) */
     function setOctState(s, extra) {
       st.octState = s; oct.animT = 0;
       if (opts.octEl) opts.octEl.className = opts.octEl.className.replace(/\bst-[a-z]+/g, '').trim() + ' st-' + s;
       var away = s === 'away';
       octG.visible = !away; octDecal.visible = !away;
       setExpression(STATE_EXPR[s] || 'idle');   /* 상태의 기본 표정 (룩 패스 8) */
-      if (s === 'carry') { carry.visible = true; if (extra && extra.svg) bakeSVG(extra.svg, 48, 64).then(function (t) { if (t) carry.material = new T.MeshPhongMaterial({ map: t, shininess: 0, specular: 0x000000 }); }); }
-      else if (s === 'hang') { if (carry.visible && !st.reduced) startHang(); carry.visible = false; }
-      else carry.visible = false;
+      if (s === 'carry') { carry.visible = true; if (extra && extra.id) octState.carryId = extra.id; if (extra && extra.svg) bakeSVG(extra.svg, 48, 64).then(function (t) { if (t) carry.material = new T.MeshPhongMaterial({ map: t, shininess: 0, specular: 0x000000 }); }); }
+      else if (s === 'hang') { if (carry.visible && !st.reduced) startHang(); carry.visible = false; octState.carryId = null; }
+      else { carry.visible = false; octState.carryId = null; }
       if (s !== 'walk' && s !== 'carry' && !oct.walking) oct.wantYaw = camYaw();
       if (s === 'idle' || s === 'stay') oct.wantYaw = camYaw();
     }
     var hangFly = null;
     function startHang() {
-      var from = carry.getWorldPosition(new T.Vector3()), slot = posterSlot(Math.min(lastPosterCount, 5)), to = new T.Vector3(slot[0], slot[1], slot[2]);
+      /* 건너뛰기·데모 재생은 벽을 먼저 그린다 → 들고 온 포스터가 이미 벽에 있으면 그 칸으로, 아니면 다음 칸 */
+      var on = octState.carryId ? posterMeshes.filter(function (m) { return m.userData.id === octState.carryId; })[0] : null;
+      var from = carry.getWorldPosition(new T.Vector3()), slot = on ? [on.position.x, on.position.y, on.position.z] : posterSlot(Math.min(lastPosterCount, 5)), to = new T.Vector3(slot[0], slot[1], slot[2]);
       var fly = new T.Mesh(posterGeo, carry.material); fly.position.copy(from); fly.scale.setScalar(carry.scale.x * OCT_R); atticG.add(fly);
       hangFly = { m: fly, from: from, to: to, k: 0, dur: 0.5 * st.speed, s0: fly.scale.x };   /* 들고 있던 크기 → 보드 크기 */
     }
@@ -2197,7 +2199,7 @@ var SCENE3D = (function () {
       setOctState: setOctState, setCarry: function (svg) { octState.carrySvg = svg; },
       setExpression: setExpression, expression: function () { return face.expr; }, EXPRESSIONS: EXPRESSIONS.slice(),   /* 룩 패스 8: 표정은 상태와 별개 (상태가 기본 표정을 고르고, app.js 가 덮어쓴다) */
       portrait: portrait, portraitURL: portraitURL,   /* 64×64 초상 캔버스 / data URL (표정·몸색·팔레트·배경 키 캐시, opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb') */
-      moveTo: moveTo, jumpTo: jumpTo,
+      moveTo: moveTo, jumpTo: jumpTo, finishWalk: function () { if (oct.walking && oct.walking.finish) oct.walking.finish(); },   /* 건너뛰기: 걷던 길을 지금 도착시키고 moveTo 의 Promise 를 푼다 (2D 와 같은 API) */
       intro: startIntro, introSkip: finishIntro, introRelease: introRelease, introActive: function () { return INTRO.on; }, introProgress: function () { return INTRO.on ? clamp(INTRO.t / INTRO.dur, 0, 1) : 1; },   /* 입장 연출: intro({ dur, height, instant, hold }) → Promise(착지) · introSkip() 바로 착지 · introRelease() 비네트 복귀 */
       skyHex: skyHex,   /* 지금 허공(배경)이 화면에 찍히는 색 — 입장 레이어가 장면 밖을 같은 색으로 덮는다 */
       /* 바깥·계절·전환 (DESIGN §15.3, docs/SCENE.md): 장소 'attic' | 'exterior' · 계절 'spring' | 'summer' | 'autumn' | 'winter' | 'auto'(실제 월) · 출발/귀가 의식 (onDone 콜백 + Promise) */

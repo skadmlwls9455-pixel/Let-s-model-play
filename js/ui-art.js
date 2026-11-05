@@ -151,7 +151,11 @@ var UIART = (function () {
       if (!inRecent || el.tagName !== 'P' || el.querySelector('.ua-ico')) return;
       var t = el.textContent, m = t.match(/^요즘 (.+) 방을 자꾸 가네/), c = null;
       if (m) c = cornerByName(m[1]);
-      else { var m2 = t.match(/^(.+) 방은 \d+번 왔어/); if (m2) c = cornerOfNodeName(m2[1]); }
+      else {
+        /* app.js: 이름이 '방'으로 끝나면 '느린 글의 방은 3번 왔어', 아니면 '모자 방은 3번 왔어'. '…은' 앞 전체를 이름으로 먼저 찾고, 없으면 붙인 ' 방'을 떼고 찾는다 */
+        var m2 = t.match(/^(.+)은 \d+번 왔어/), full = m2 && m2[1];
+        if (full) c = cornerOfNodeName(full) || cornerOfNodeName(full.replace(/ 방$/, ''));
+      }
       if (CORNERS.indexOf(c) >= 0 && prepend(el, 'memory/' + c, 'ua-mem')) el.classList.add('ua-ico-line');
     });
     Array.prototype.forEach.call(body.querySelectorAll('.souv-list > span'), function (sp) {
