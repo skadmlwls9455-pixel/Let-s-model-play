@@ -7,6 +7,18 @@
 <meta name="theme-color" content="#d7b594" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#10141f" media="(prefers-color-scheme: dark)">
 <title>뽈뽈 문어</title>
+<!-- 첫 화면 픽셀 글꼴 미리 받기: 첫 화면이 쓰는 Galmuri 부분집합 넷(본문 9 · 버튼 11 · 굵은 11 · 메타 7)을 스타일시트를 다 읽기 전에 받기 시작한다.
+     스크립트로 넣는 까닭: file:// 에서는 crossorigin preload 가 CORS 로 막혀 오류·경고가 나고, 시스템 글꼴을 골랐으면 건너뛴다 (쓰지 않게 되면 "preload 했는데 안 씀" 경고가 난다).
+     crossorigin 이 없으면 @font-face 요청이 preload 를 다시 쓰지 않고 또 받는다. 스타일시트보다 앞에 있어야 기다리지 않고 바로 돈다 -->
+<script>(function () {
+  if (!/^https?:$/.test(location.protocol)) return;
+  /* 기록 전체를 JSON.parse 하지 않고 글자만 찾는다 (오래 논 기록은 몇 MB — head 에서 파서를 붙잡지 않게). 저장은 JSON.stringify 그대로라 공백이 없고, 문자열 속 따옴표는 \" 라 키로만 걸린다 */
+  try { var raw = localStorage.getItem('ppolppol_v2') || ''; if (raw.indexOf('"pixelFont":false') !== -1 || raw.indexOf('"font":"system"') !== -1) return; } catch (e) { /* 저장소 없음 → 기본(픽셀 글꼴) */ }
+  ['Galmuri9', 'Galmuri11', 'Galmuri11-Bold', 'Galmuri7'].forEach(function (f) {
+    var l = document.createElement('link'); l.rel = 'preload'; l.as = 'font'; l.type = 'font/woff2'; l.crossOrigin = 'anonymous'; l.href = 'vendor/fonts/' + f + '.sub.woff2';
+    document.head.appendChild(l);
+  });
+})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap">
 <link rel="stylesheet" href="vendor/fonts/galmuri.css"><!-- 픽셀 글꼴 (Galmuri, OFL) · file:// 상대 경로 -->

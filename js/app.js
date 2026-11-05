@@ -1438,6 +1438,50 @@ var APP = (function () {
     al.scrollLeft = al.scrollWidth;
   }
   var lastNewPoster = null;
+  /* 앨범 카드 누름 모양 (docs/research/polish-from-starred-repos.md 2 · 수치는 material-web ripple: TOUCH_DELAY_MS 150 · MINIMUM_PRESS_MS 225).
+     #album 은 가로 스크롤이라, 엄지로 훑을 때 지나가는 카드마다 눌림이 번쩍이지 않게 :active 대신 .down 을 쓴다 (모양은 css/style.css .pcard.down).
+     터치: 150ms 뒤에 붙인다. 그 전에 pointercancel · 스크롤 · 8px 넘는 움직임이 있으면 안 붙인다. 150ms 전에 떼면 뗄 때 붙인다.
+     마우스·펜: 바로 붙인다. Space 를 누르는 동안도 (예전 :active 와 같게). 붙으면 최소 225ms 유지하고 뗀다.
+     클릭(포스터 열기)·키보드 Enter/Space 는 손대지 않는다 — 모양만 바꾼다. #btn-go 같은 다른 버튼은 그대로 :active */
+  var PRESS_DELAY = 150, PRESS_MIN = 225, PRESS_SLOP = 8;
+  function bindAlbumPress() {
+    var al = $('album'); if (!al) return;
+    var p = null;   /* 지금 누르는 카드: { id(포인터 · 'key'), card, x, y, timer, at(.down 붙인 때) } */
+    function on(q) { if (!q.at) { q.at = q.card._downAt = performance.now(); q.card.classList.add('down'); } }
+    /* 최소 225ms 를 채운 뒤 뗀다 (타이머가 조금 일찍 깨면 남은 만큼 더). 그새 같은 카드를 다시 눌렀으면 그 누름이 뗀다 */
+    function off(c, at) {
+      if (c._downAt !== at) return;
+      var left = PRESS_MIN - (performance.now() - at);
+      if (left > 0) setTimeout(function () { off(c, at); }, Math.ceil(left));
+      else { c._downAt = 0; c.classList.remove('down'); }
+    }
+    function end(lift) {
+      var q = p; if (!q) return;
+      p = null; clearTimeout(q.timer);
+      if (lift) on(q);   /* 150ms 전에 뗀 탭도 눌림이 보이게 */
+      if (q.at) off(q.card, q.at);
+    }
+    al.addEventListener('pointerdown', function (e) {
+      var card = e.target.closest ? e.target.closest('.pcard') : null;
+      end(false);
+      if (!card || !al.contains(card) || !e.isPrimary || e.button !== 0) return;
+      var q = p = { id: e.pointerId, card: card, x: e.clientX, y: e.clientY, timer: 0, at: 0 };
+      if (e.pointerType === 'touch') q.timer = setTimeout(function () { if (p === q) on(q); }, PRESS_DELAY);
+      else on(q);
+    });
+    document.addEventListener('pointermove', function (e) {
+      if (p && e.pointerId === p.id && !p.at && Math.hypot(e.clientX - p.x, e.clientY - p.y) > PRESS_SLOP) end(false);
+    }, true);
+    document.addEventListener('pointerup', function (e) { if (p && e.pointerId === p.id) end(true); }, true);
+    document.addEventListener('pointercancel', function (e) { if (p && e.pointerId === p.id) end(false); }, true);
+    /* 스크롤: 앨범 자신이나 페이지가 굴러가면 (다른 곳 — 로그 자동 스크롤 같은 — 은 상관없다) */
+    document.addEventListener('scroll', function (e) { if (p && p.id !== 'key' && (e.target === document || (e.target.contains && e.target.contains(p.card)))) end(false); }, true);
+    al.addEventListener('keydown', function (e) {
+      if ((e.key === ' ' || e.key === 'Spacebar') && !e.repeat && e.target.classList && e.target.classList.contains('pcard')) { end(false); p = { id: 'key', card: e.target, timer: 0, at: 0 }; on(p); }
+    });
+    al.addEventListener('keyup', function (e) { if (p && p.id === 'key' && (e.key === ' ' || e.key === 'Spacebar')) end(false); });
+    al.addEventListener('focusout', function () { if (p && p.id === 'key') end(false); });
+  }
   function renderSouvenirs() {
     scene.setSouvenirs(S.room.souvenirs.slice(-8).map(function (sv) {
       var def = W && W.souvenirs && W.souvenirs[sv.id];
@@ -1634,9 +1678,100 @@ var APP = (function () {
     body.innerHTML = ''; body.appendChild(frag);
   }
   function openRoomSheet(scrollToDemo) {
+    var d = $('room-sheet');
+    if (d && !d.open) { sheetDragReset(d); sheetOpenedAt = performance.now(); }   /* 열 때마다 제자리에서 (끌어 닫은 뒤에도) */
     renderRoomSheet();
-    showDialog($('room-sheet'));
+    showDialog(d);
     if (scrollToDemo) { var el = $('rs-demo'); if (el) el.scrollIntoView({ block: 'start' }); }
+  }
+  /* 방 보기 시트: 손잡이를 아래로 끌어 닫기 (docs/research/polish-from-starred-repos.md 7 · 수치는 vaul constants: 25% · 0.4px/ms · 500ms cubic-bezier(.32,.72,0,1)).
+     잡는 곳은 손잡이와 시트 머리 띠뿐이다 (손잡이 ::before 가 시트 맨 위 폭 전체를 덮는다, css/style.css 끝 블록). 굴러가는 본문은 잡지 않는다.
+     아래로는 손가락을 1:1 로 따라오고(픽셀 테마는 2px 격자로), 위로는 고무줄처럼 최대 8px 만 간다.
+     놓을 때 시트 높이의 25% 이상 끌었거나 아래로 0.4px/ms 넘게 튕겼으면 close(). 아니면 500ms 에 제자리로 (모션 감소면 바로).
+     연 뒤 500ms 동안과, 본문이 굴러가 있을 때(scrollTop !== 0)는 무시한다. 닫기 버튼 · Esc · 바깥 탭(clickedOutside · closedby)은 그대로 */
+  var SHEET_CLOSE = 0.25, SHEET_FLICK = 0.4, SHEET_LOCK = 500, SHEET_BACK = 500, SHEET_EASE = 'cubic-bezier(.32,.72,0,1)', SHEET_UP = 8;
+  var sheetOpenedAt = 0, linearEase = null;
+  /* cubic-bezier(.32,.72,0,1) 의 값 (시간 x → 진행 y). x 쪽 둘째 점이 0 이라 그 항은 빠진다 */
+  function sheetCurve(x) {
+    var lo = 0, hi = 1, s = x, u;
+    for (var i = 0; i < 30; i++) { u = 1 - s; var xs = 3 * u * u * s * 0.32 + s * s * s; if (Math.abs(xs - x) < 1e-7) break; if (xs < x) lo = s; else hi = s; s = (lo + hi) / 2; }
+    u = 1 - s; return 3 * u * u * s * 0.72 + 3 * u * s * s + s * s * s;
+  }
+  /* 픽셀 테마의 제자리 돌아가기: 같은 500ms 곡선을 한 프레임(16ms)마다 재서 2px 격자로 반올림한 계단 linear().
+     돌아가는 동안에도 시트가 격자 밖에 서지 않는다 (--ease-px 와 같은 생각). linear() 가 없으면 2px 씩 고른 steps() */
+  function sheetPxEase(from, ms) {
+    if (linearEase === null) linearEase = !!(window.CSS && CSS.supports && CSS.supports('transition-timing-function', 'linear(0, 1)'));
+    if (!linearEase) return 'steps(' + Math.max(1, Math.round(Math.abs(from) / 2)) + ', jump-end)';
+    var n = Math.max(2, Math.round(ms / 16)), out = [], prev = null, t0 = 0;
+    for (var k = 1; k <= n; k++) {
+      var y = Math.round(from * (1 - sheetCurve(k / n)) / 2) * 2, p = y === 0 ? 1 : 1 - y / from;   /* 칸의 끝에서 잰 값 → 놓자마자 움직인다 */
+      if (prev !== null && p !== prev) { out.push(prev + ' ' + (t0 * 100 / n).toFixed(3) + '% ' + ((k - 1) * 100 / n).toFixed(3) + '%'); t0 = k - 1; }
+      prev = p;
+    }
+    out.push(prev + ' ' + (t0 * 100 / n).toFixed(3) + '% 100%');
+    return 'linear(' + out.join(', ') + ')';
+  }
+  function sheetDragReset(d) {
+    d.classList.remove('dragging');
+    ['transform', 'transition', 'animation'].forEach(function (k) { d.style.removeProperty(k); });
+  }
+  function bindSheetDrag() {
+    var d = $('room-sheet'), hd = d && d.querySelector('.handle'); if (!hd) return;
+    var g = null, backTimer = 0, eatClickUntil = 0;
+    /* 이벤트가 실제로 난 때 — 메인 스레드가 밀려 이벤트가 몰려 와도 속도는 손가락 그대로 */
+    function stamp(e) { var t = e.timeStamp; return t > 0 && t < 1e11 ? t : performance.now(); }
+    function nowY() { var m = getComputedStyle(d).transform; try { return m && m !== 'none' && typeof DOMMatrix === 'function' ? new DOMMatrix(m).m42 : 0; } catch (err) { return 0; } }
+    function place(off) {
+      var y = off >= 0 ? off : -SHEET_UP * (1 - 1 / (1 + -off / 40));   /* 위로는 고무줄 */
+      y = pixelFont() ? Math.round(y / 2) * 2 : Math.round(y);           /* 픽셀 테마: 2px 격자 */
+      d.style.transform = y ? 'translateY(' + y + 'px)' : 'none';
+    }
+    function settle() { d.style.removeProperty('transition'); d.style.removeProperty('transform'); }
+    function track(q, e) {
+      var t = stamp(e);
+      q.off = q.base + e.clientY - q.y0; q.s.push({ t: t, y: e.clientY });
+      while (q.s.length > 2 && t - q.s[0].t > 100) q.s.shift();   /* 속도는 마지막 100ms 로 */
+    }
+    hd.addEventListener('pointerdown', function (e) {
+      if (!d.open || !e.isPrimary || e.button !== 0) return;
+      if (g) release({ pointerId: g.id }, true);   /* 떼는 소식을 못 받은 지난 끌기(창 전환 등)는 제자리로 돌리고 새로 */
+      if (stamp(e) - sheetOpenedAt < SHEET_LOCK || d.scrollTop !== 0) return;   /* 막 열렸거나(손가락이 닿은 때 기준) 본문이 굴러가 있으면 스크롤이 먼저 */
+      clearTimeout(backTimer);
+      var base = Math.max(0, nowY());   /* 돌아가는 도중에 다시 잡으면 그 자리에서 */
+      g = { id: e.pointerId, y0: e.clientY, base: base, off: base, s: [{ t: stamp(e), y: e.clientY }] };
+      try { hd.setPointerCapture(e.pointerId); } catch (err) { /* 이미 끝난 포인터 */ }
+      /* 여는 애니메이션(sheet-in · dlg-in, fill both)이 transform 을 붙잡고 있어 끈다. 다 끝난 뒤라 모양은 같고, 닫힐 때(sheetDragReset) 되돌린다 */
+      d.style.animation = 'none'; d.style.transition = 'none';
+      place(base);
+      d.classList.add('dragging');
+      if (e.pointerType === 'mouse') e.preventDefault();   /* 마우스로 끌 때 글자 선택 없이 */
+    });
+    hd.addEventListener('pointermove', function (e) { if (g && e.pointerId === g.id) { track(g, e); place(g.off); } });
+    function release(e, cancelled) {
+      if (!g || e.pointerId !== g.id) return;
+      var q = g; g = null;
+      if (!cancelled) track(q, e);
+      try { if (hd.hasPointerCapture(q.id)) hd.releasePointerCapture(q.id); } catch (err) { /* 없음 */ }
+      d.classList.remove('dragging');
+      if (Math.abs(q.off - q.base) > 2) eatClickUntil = performance.now() + 400;   /* 끈 뒤 따라오는 click 이 바깥 탭 닫기로 한 번 더 가지 않게 */
+      var a = q.s[0], b = q.s[q.s.length - 1], v = b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0;
+      if (!cancelled && q.off > 0 && (q.off >= SHEET_CLOSE * d.offsetHeight || v > SHEET_FLICK)) { d.close(); sheetDragReset(d); return; }
+      var ms = reduced() ? 0 : Math.round(SHEET_BACK * speed()), from = nowY();
+      if (!ms || !from) { d.style.transition = 'none'; place(0); void d.offsetWidth; settle(); return; }   /* 모션 감소: 바로 제자리 */
+      d.style.transition = 'transform ' + ms + 'ms ' + (pixelFont() ? sheetPxEase(from, ms) : SHEET_EASE);
+      place(0);
+      backTimer = setTimeout(function () { if (!g) settle(); }, ms + 50);
+    }
+    hd.addEventListener('pointerup', function (e) { release(e, false); });
+    hd.addEventListener('pointercancel', function (e) { release(e, true); });
+    hd.addEventListener('lostpointercapture', function (e) { release(e, true); });   /* pointerup 뒤에 오면 이미 끝난 끌기라 아무 일 없다 */
+    d.addEventListener('close', function () { g = null; clearTimeout(backTimer); sheetDragReset(d); });
+    window.addEventListener('click', function (e) {
+      if (performance.now() > eatClickUntil || (e.target !== d && e.target !== hd)) return;
+      eatClickUntil = 0; e.stopPropagation(); e.preventDefault();
+    }, true);
+    /* 끈 뒤 따라오는 click 은 다음 누르기보다 먼저 온다. 손가락 끌기는 click 이 안 따라오니, 다음 누르기(바깥 탭 포함)에서 지워 그 탭은 먹지 않는다 */
+    window.addEventListener('pointerdown', function () { eatClickUntil = 0; }, true);
   }
   function openNameDialog() { showDialog($('name-dialog')); setTimeout(function () { $('name-in').focus(); }, 50); }
   function pixelFont() { return !(S && S.settings && S.settings.pixelFont === false); }
@@ -1803,7 +1938,7 @@ var APP = (function () {
     $('poster-dialog').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     $('pd-back').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('.copy[data-share]'); if (b) { e.stopPropagation(); copyText(b.getAttribute('data-share')); } });
     $('room-sheet').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
-    bindDialogs(); watchLogScroll();
+    bindDialogs(); watchLogScroll(); bindAlbumPress(); bindSheetDrag();
     document.addEventListener('touchstart', function () { /* 빈 리스너: iOS Safari 는 터치 리스너가 있어야 :active(눌림) 모양을 그린다 */ }, { passive: true });
     /* 데모 <details>: 접힌 채 시작, 뷰어별로 펼침 기억 (UI R2) */
     var demoEl = $('demo');

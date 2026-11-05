@@ -68,7 +68,6 @@ MAP = {
         'lantern': {str(i): f'lantern_{i}' for i in range(1, 8)},
         'lantern_8': 'room_complete',
         'lantern_prop': 'lantern_prop_fade',
-        'first_place': 'first_place',
         'rare': 'rare_sparkle',
         'empty_turn': 'empty_turn',
         'time_of_day_change': {t: f'chime_{t}' for t in TIMES},

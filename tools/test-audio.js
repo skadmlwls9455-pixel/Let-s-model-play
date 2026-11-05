@@ -156,8 +156,9 @@ async function scenarioHttp(browser, base) {
   var placeOn = await waitState(page, function () { var x = AUDIO.state(); return (x.away || x.departing) && /^place_(sea|sky)$/.test(x.bgm || ''); }, null, 15000);
   b = await st(page);
   ok(placeOn, '나가 있는 동안 장소 테마로 전환 (' + b.bgm + ')');
-  var rd = await waitState(page, function () { var p = AUDIO.state().played.map(function (x) { return x.id; }); return p.some(function (id) { return /^peek_read_/.test(id); }) && p.indexOf('first_place') >= 0; }, null, 40000);
-  ok(rd, '기웃 read + 처음 → peek_read_* + first_place');
+  var rd = await waitState(page, function () { var p = AUDIO.state().played.map(function (x) { return x.id; }); return p.some(function (id) { return /^peek_read_/.test(id); }); }, null, 40000);
+  ok(rd, '기웃 read → peek_read_*');
+  ok(await page.evaluate(function () { return AUDIO.state().played.every(function (x) { return x.id !== 'first_place'; }); }), "처음 온 곳이어도 'first_place' 징글은 안 울림 (11-05 주인 요청으로 뺌)");
   var ret = await waitState(page, function () { return AUDIO.state().played.some(function (x) { return /^return_home_/.test(x.id); }); }, null, 60000);
   ok(ret, '귀가 → return_home_*');
   var mood = await waitState(page, function () { return AUDIO.state().played.some(function (x) { return x.id === 'mood_poljjak'; }); }, null, 60000);
