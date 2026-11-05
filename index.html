@@ -12,7 +12,8 @@
      crossorigin 이 없으면 @font-face 요청이 preload 를 다시 쓰지 않고 또 받는다. 스타일시트보다 앞에 있어야 기다리지 않고 바로 돈다 -->
 <script>(function () {
   if (!/^https?:$/.test(location.protocol)) return;
-  try { var s = (JSON.parse(localStorage.getItem('ppolppol_v2') || 'null') || {}).settings || {}; if (s.pixelFont === false || s.font === 'system') return; } catch (e) { /* 저장소 없음 · 깨진 기록 → 기본(픽셀 글꼴) */ }
+  /* 기록 전체를 JSON.parse 하지 않고 글자만 찾는다 (오래 논 기록은 몇 MB — head 에서 파서를 붙잡지 않게). 저장은 JSON.stringify 그대로라 공백이 없고, 문자열 속 따옴표는 \" 라 키로만 걸린다 */
+  try { var raw = localStorage.getItem('ppolppol_v2') || ''; if (raw.indexOf('"pixelFont":false') !== -1 || raw.indexOf('"font":"system"') !== -1) return; } catch (e) { /* 저장소 없음 → 기본(픽셀 글꼴) */ }
   ['Galmuri9', 'Galmuri11', 'Galmuri11-Bold', 'Galmuri7'].forEach(function (f) {
     var l = document.createElement('link'); l.rel = 'preload'; l.as = 'font'; l.type = 'font/woff2'; l.crossOrigin = 'anonymous'; l.href = 'vendor/fonts/' + f + '.sub.woff2';
     document.head.appendChild(l);

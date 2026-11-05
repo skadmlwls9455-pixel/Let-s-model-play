@@ -1690,7 +1690,27 @@ var APP = (function () {
      놓을 때 시트 높이의 25% 이상 끌었거나 아래로 0.4px/ms 넘게 튕겼으면 close(). 아니면 500ms 에 제자리로 (모션 감소면 바로).
      연 뒤 500ms 동안과, 본문이 굴러가 있을 때(scrollTop !== 0)는 무시한다. 닫기 버튼 · Esc · 바깥 탭(clickedOutside · closedby)은 그대로 */
   var SHEET_CLOSE = 0.25, SHEET_FLICK = 0.4, SHEET_LOCK = 500, SHEET_BACK = 500, SHEET_EASE = 'cubic-bezier(.32,.72,0,1)', SHEET_UP = 8;
-  var sheetOpenedAt = 0;
+  var sheetOpenedAt = 0, linearEase = null;
+  /* cubic-bezier(.32,.72,0,1) 의 값 (시간 x → 진행 y). x 쪽 둘째 점이 0 이라 그 항은 빠진다 */
+  function sheetCurve(x) {
+    var lo = 0, hi = 1, s = x, u;
+    for (var i = 0; i < 30; i++) { u = 1 - s; var xs = 3 * u * u * s * 0.32 + s * s * s; if (Math.abs(xs - x) < 1e-7) break; if (xs < x) lo = s; else hi = s; s = (lo + hi) / 2; }
+    u = 1 - s; return 3 * u * u * s * 0.72 + 3 * u * s * s + s * s * s;
+  }
+  /* 픽셀 테마의 제자리 돌아가기: 같은 500ms 곡선을 한 프레임(16ms)마다 재서 2px 격자로 반올림한 계단 linear().
+     돌아가는 동안에도 시트가 격자 밖에 서지 않는다 (--ease-px 와 같은 생각). linear() 가 없으면 2px 씩 고른 steps() */
+  function sheetPxEase(from, ms) {
+    if (linearEase === null) linearEase = !!(window.CSS && CSS.supports && CSS.supports('transition-timing-function', 'linear(0, 1)'));
+    if (!linearEase) return 'steps(' + Math.max(1, Math.round(Math.abs(from) / 2)) + ', jump-end)';
+    var n = Math.max(2, Math.round(ms / 16)), out = [], prev = null, t0 = 0;
+    for (var k = 1; k <= n; k++) {
+      var y = Math.round(from * (1 - sheetCurve(k / n)) / 2) * 2, p = y === 0 ? 1 : 1 - y / from;   /* 칸의 끝에서 잰 값 → 놓자마자 움직인다 */
+      if (prev !== null && p !== prev) { out.push(prev + ' ' + (t0 * 100 / n).toFixed(3) + '% ' + ((k - 1) * 100 / n).toFixed(3) + '%'); t0 = k - 1; }
+      prev = p;
+    }
+    out.push(prev + ' ' + (t0 * 100 / n).toFixed(3) + '% 100%');
+    return 'linear(' + out.join(', ') + ')';
+  }
   function sheetDragReset(d) {
     d.classList.remove('dragging');
     ['transform', 'transition', 'animation'].forEach(function (k) { d.style.removeProperty(k); });
@@ -1736,9 +1756,9 @@ var APP = (function () {
       if (Math.abs(q.off - q.base) > 2) eatClickUntil = performance.now() + 400;   /* 끈 뒤 따라오는 click 이 바깥 탭 닫기로 한 번 더 가지 않게 */
       var a = q.s[0], b = q.s[q.s.length - 1], v = b.t > a.t ? (b.y - a.y) / (b.t - a.t) : 0;
       if (!cancelled && q.off > 0 && (q.off >= SHEET_CLOSE * d.offsetHeight || v > SHEET_FLICK)) { d.close(); sheetDragReset(d); return; }
-      var ms = reduced() ? 0 : Math.round(SHEET_BACK * speed());
-      if (!ms || !nowY()) { d.style.transition = 'none'; place(0); void d.offsetWidth; settle(); return; }   /* 모션 감소: 바로 제자리 */
-      d.style.transition = 'transform ' + ms + 'ms ' + SHEET_EASE;
+      var ms = reduced() ? 0 : Math.round(SHEET_BACK * speed()), from = nowY();
+      if (!ms || !from) { d.style.transition = 'none'; place(0); void d.offsetWidth; settle(); return; }   /* 모션 감소: 바로 제자리 */
+      d.style.transition = 'transform ' + ms + 'ms ' + (pixelFont() ? sheetPxEase(from, ms) : SHEET_EASE);
       place(0);
       backTimer = setTimeout(function () { if (!g) settle(); }, ms + 50);
     }
@@ -1750,6 +1770,8 @@ var APP = (function () {
       if (performance.now() > eatClickUntil || (e.target !== d && e.target !== hd)) return;
       eatClickUntil = 0; e.stopPropagation(); e.preventDefault();
     }, true);
+    /* 끈 뒤 따라오는 click 은 다음 누르기보다 먼저 온다. 손가락 끌기는 click 이 안 따라오니, 다음 누르기(바깥 탭 포함)에서 지워 그 탭은 먹지 않는다 */
+    window.addEventListener('pointerdown', function () { eatClickUntil = 0; }, true);
   }
   function openNameDialog() { showDialog($('name-dialog')); setTimeout(function () { $('name-in').focus(); }, 50); }
   function pixelFont() { return !(S && S.settings && S.settings.pixelFont === false); }

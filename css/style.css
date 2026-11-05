@@ -513,14 +513,14 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
    --ease-px   8px 이동 → 8·4·2·0 (linear() 가 없으면 steps(4) → 8·6·4·2·0): 대화상자·시트·로그 행·토스트
    --ease-px-2 4px 이동 → 4·2·0 (두 칸): 말풍선·벽 포스터 착지
    커스텀 속성은 파싱 때 검사되지 않아서 대체값을 두 번 선언하면 뒤의 것이 그냥 이긴다 → @supports 로 나눈다.
-   투명도는 원래 곡선 그대로 매끈하게, 이동만 계단 → 애니메이션을 둘로 쓴다 (첫째 = 페이드, 둘째 = 이동 · fill backwards 라 끝나면 transform 을 붙잡지 않는다).
-   축소 모션 규칙은 animation-name 을 fade-only 하나로 바꾸므로 첫째(페이드)의 길이·곡선만 남는다 = 예전과 같은 페이드 */
+   로그 행·말풍선은 애니메이션 이름(row-in · bubble-in)은 그대로 두고 곡선만 바꾼다 (투명도도 계단) → 픽셀 글꼴을 켜고 꺼도 이미 올라온 행·말풍선이 다시 돌지 않는다.
+   대화상자·시트·벽 포스터 착지는 원래 이동이 달라서(확대) 둘로 쓴다: 첫째 = 페이드(원래 곡선), 둘째 = 계단 이동 (fill backwards 라 끝나면 transform 을 붙잡지 않는다).
+   축소 모션 규칙은 animation-name 을 fade-only 하나로 바꾸므로 첫째의 길이·곡선만 남고, 아래 축소 블록이 두 토큰을 원래 곡선으로 돌린다 = 예전과 같은 매끈한 페이드 */
 :root[data-font="pixel"] { --ease-px: steps(4, jump-end); --ease-px-2: steps(2, jump-end); }
 @supports (animation-timing-function: linear(0, 1)) {
   :root[data-font="pixel"] { --ease-px: linear(0, 0 10%, .5 10% 35%, .75 35% 65%, 1 65%, 1); --ease-px-2: linear(0, 0 15%, .5 15% 50%, 1 50%, 1); }
 }
 @keyframes px-rise-8 { from { transform: translateY(8px); } to { transform: none; } }
-@keyframes px-bubble-in { from { transform: translate(-50%, 4px); } to { transform: translate(-50%, 0); } }
 @keyframes px-land { from { translate: 0 -4px; } to { translate: 0 0; } }   /* transform 이 아니라 translate 속성: 벽 포스터의 인라인 기울기(scene2d.js)를 덮지 않는다 */
 @keyframes px-land-fade { from { opacity: .6; } to { opacity: 1; } }
 
@@ -564,7 +564,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] #scene::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 9; box-shadow: inset 2px 2px 0 var(--lo-px), inset -2px -2px 0 var(--hi-px); }
 :root[data-font="pixel"] #scene3d #oct-label { font-family: var(--f-meta); font-size: 16px; line-height: 16px; color: var(--paper0); }
 :root[data-font="pixel"] #scene3d #oct-bubble { font-family: var(--f-meta); font-size: 16px; line-height: 24px; border-radius: 0; border: 2px solid var(--line); background: var(--paper0); color: var(--ink); box-shadow: 2px 2px 0 var(--line); padding: 2px 8px; }
-:root[data-font="pixel"] #oct-bubble { animation: fade-only var(--t-ui) var(--ease-enter) both, px-bubble-in var(--t-ui) var(--ease-px-2) backwards; }   /* 4px → 4·2·0 (2D · 3D 공통) */
+:root[data-font="pixel"] #oct-bubble { animation-timing-function: var(--ease-px-2); }   /* bubble-in 4px → 4·2·0 (2D · 3D 공통) */
 /* 벽 포스터 미니: 누르면 2px 내려앉고(확대·축소 없음 — 2px 베벨이 다시 샘플링돼 흐려진다), 새로 붙으면 4px 위에서 두 칸 계단으로 착지.
    scene2d.js 가 미니마다 인라인 transform: rotate() 기울기를 줘서 시트의 transform 은 이기지 못한다 → 누름·착지는 translate 속성으로 (기울기와 겹쳐진다) */
 :root[data-font="pixel"] .wall-mini { transition: none; }
@@ -642,7 +642,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .lrow.c-amber, :root[data-font="pixel"] .lrow.c-teal, :root[data-font="pixel"] .lrow.c-mute { border-left-color: var(--tab); border-left-style: solid; }
 :root[data-font="pixel"] .lrow.voice { border-left-color: var(--amber-fill); }
 :root[data-font="pixel"] .lrow.c-mute { border-left-color: var(--dim); }
-:root[data-font="pixel"] .lrow.in { animation: fade-only var(--t-ui) var(--ease-enter) both, px-rise-8 var(--t-ui) var(--ease-px) backwards; animation-delay: calc(var(--i, 0) * var(--t-stagger)); }   /* 8px → 8·4·2·0 */
+:root[data-font="pixel"] .lrow.in { animation-timing-function: var(--ease-px); }   /* row-in 8px → 8·4·2·0 */
 :root[data-font="pixel"] .ltool { font-family: var(--f-meta); font-size: 16px; line-height: 24px; letter-spacing: 0; padding-top: 3px; color: var(--amber); }
 :root[data-font="pixel"] .ltext .st, :root[data-font="pixel"] .ltext .sub { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .lrow.typing .ltext { letter-spacing: 2px; }
@@ -675,7 +675,10 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px), 4px 4px 0 var(--line);
 }
 :root[data-font="pixel"] dialog::backdrop { background-color: rgba(9,10,20,.45); background-image: var(--scrim); background-size: 4px 4px; backdrop-filter: none; }
-:root[data-font="pixel"] dialog[open] { animation: fade-only var(--t-ui) var(--ease-enter) both, px-rise-8 var(--t-ui) var(--ease-px) backwards; }   /* 시트(dialog.sheet)도. 확대 없이 8px 계단 상승 (8·4·2·0) */
+:root[data-font="pixel"] dialog[open] { animation-name: fade-only; }
+/* 시트(dialog.sheet)·이름·포스터 대화상자: 확대 없이 8px 계단 상승 (8·4·2·0). 달리기 창(.rn-dlg, 화면 가득)은 위 페이드 그대로 —
+   :where 라 우선순위가 위 줄·축소 모션 규칙과 같은 (0,3,1) 로 남는다 → 축소 모션 규칙(뒤)이 이기고, runner.css 의 .rn-dlg[open] { animation: none } 도 예전처럼 길이 0 으로 남는다 */
+:root[data-font="pixel"] dialog[open]:where(:not(.rn-dlg)) { animation: fade-only var(--t-ui) var(--ease-enter) both, px-rise-8 var(--t-ui) var(--ease-px) backwards; }
 :root[data-font="pixel"] .modal { border-radius: 0; padding: 24px 20px 18px; }
 :root[data-font="pixel"] .modal h2 { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
 :root[data-font="pixel"] .modal:not(.poster-modal) p { font-family: var(--f-ui); font-size: 24px; line-height: 36px; }
@@ -759,7 +762,9 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   :root:is([data-motion="auto"], :not([data-motion])) .pcard.in { transform: none; }
   :root:is([data-motion="auto"], :not([data-motion])) #toast { transform: translate(-50%, 0); }
   :root:is([data-motion="auto"], :not([data-motion])) .pressable:active { transform: none; }
+  :root[data-font="pixel"]:is([data-motion="auto"], :not([data-motion])) { --ease-px: var(--ease-enter); --ease-px-2: var(--ease-enter); }   /* 픽셀: 움직이는 게 없으니 계단 대신 원래 페이드 곡선 (로그 행·말풍선) */
   :root[data-font="pixel"]:is([data-motion="auto"], :not([data-motion])) #oct-bubble { animation-name: fade-only; }   /* 픽셀 말풍선: 4px 계단 상승 대신 페이드만 */
+  :root[data-font="pixel"]:is([data-motion="auto"], :not([data-motion])) .wall-mini:active { translate: none; }   /* 누름에 자리 이동 없음 (.pressable 처럼) — 그림자만 빠진다 */
 }
 :root[data-motion="reduce"] { --t-press: 0ms; --t-ui: 120ms; --t-scene: 150ms; --t-ceremony: 200ms; --t-morph: 120ms; --t-windup: 50ms; --t-hold: 0ms; --t-bloom: 150ms; --t-flip-again: 120ms; --t-stagger: 0ms; }
 :root[data-motion="reduce"] #oct-inner, :root[data-motion="reduce"] .legs .leg, :root[data-motion="reduce"] .eyelid, :root[data-motion="reduce"] .rdrop,
@@ -772,7 +777,9 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-motion="reduce"] .pcard.in { transform: none; }
 :root[data-motion="reduce"] #toast { transform: translate(-50%, 0); }
 :root[data-motion="reduce"] .pressable:active { transform: none; }
+:root[data-font="pixel"][data-motion="reduce"] { --ease-px: var(--ease-enter); --ease-px-2: var(--ease-enter); }
 :root[data-font="pixel"][data-motion="reduce"] #oct-bubble { animation-name: fade-only; }
+:root[data-font="pixel"][data-motion="reduce"] .wall-mini:active { translate: none; }
 @keyframes fade-only { from { opacity: 0; } to { opacity: 1; } }
 
 /* ── 고대비 (OS "대비 높이기" · prefers-contrast: more): 글자 뒤 질감(체커 디더 · 종이 알갱이)을 끄고 틀 선을 진하게. 배치·크기는 그대로 ──
