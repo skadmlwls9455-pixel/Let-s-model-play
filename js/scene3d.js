@@ -323,11 +323,13 @@ var SCENE3D = (function () {
     /* ── 카메라 (직교 다이메트릭, 픽셀 격자 스냅) ── */
     var camera = new T.OrthographicCamera(-1, 1, 1, -1, 0.1, 60);
     var camTarget = new T.Vector3(0, 0.75, -0.4), _tg = new T.Vector3(), yawDrag = 0, dragging = false;
+    var PLAY = null;   /* 놀이 kit (play.html 전용, makePlay): inst.play() 를 부르기 전엔 늘 null → 아래 `if (PLAY)` 훅 4개는 본 게임에서 아무것도 안 한다 */
     var EXT_TARGET = new T.Vector3(0.4, 1.55, 0.0);   /* 바깥 디오라마 카메라 타깃 (같은 요·틸트·픽셀 밀도; 집 용마루·굴뚝과 오른쪽 아래 가장자리 출구가 한 화면에) */
     function camTargetNow() {   /* look.focus='oct': 문어 중심 (look-shots close). 장소 그룹은 순수 평행이동이라 부모 위치를 더하면 월드 좌표. 입장 연출 중이면 그 위로 introOffset() 만큼 (하늘) */
       var b;
       if (st.look.focus === 'oct' && octG) { _tg.copy(octG.position).add(_focusUp); if (octG.parent) _tg.add(octG.parent.position); b = _tg; }
       else b = PLACE.vis === 'exterior' ? EXT_TARGET : camTarget;
+      if (PLAY && PLAY.cam) b = PLAY.cam;   /* 놀이: 컵 줄을 화면 아래쪽 60 % 쯤에 */
       return INTRO.on ? _ti.copy(b).setY(b.y + introOffset()) : b;
     }
     var PLACE = { cur: 'attic', vis: 'attic', trans: null, fade: 0 };   /* cur = 요청된 장소, vis = 지금 그려지는 장소 (전환 앞 절반은 나가는 쪽) */
@@ -1047,17 +1049,19 @@ var SCENE3D = (function () {
     /* 문어 위치: oct.pos 가 논리 위치(보간·앵커), octG.position 은 매 프레임 그걸 카메라 우/상 축 픽셀 격자에 스냅한 값 (룩 패스 5: 걷는 동안 반 픽셀 금지). 스냅을 매 프레임 논리값에서 새로 하므로 요가 바뀌어도 누적 표류 없음 */
     function jumpTo(anchor) { if (oct.walking) { oct.walking.cancel(); oct.walking = null; } oct.anchor = anchor; oct.pos.copy(anchorPos(anchor)); snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = camYaw(); gaitReset(); }
     function moveTo(anchor) {
-      var to = anchorPos(anchor), from = oct.pos.clone();
       oct.anchor = anchor;
+      return walkPoint(anchorPos(anchor), function () { if (on.anchorReached) on.anchorReached(anchor); }, anchor);
+    }
+    function walkPoint(to, done, val) {   /* 점까지 뒤뚱 걸음 (moveTo 와 놀이 kit.walkTo 공용) → Promise(val). done = 도착 콜백 */
+      var from = oct.pos.clone();
       if (oct.walking) { oct.walking.cancel(); oct.walking = null; }
       var d = to.clone().sub(from), dist = d.length();
-      function done() { if (on.anchorReached) on.anchorReached(anchor); }
-      if (st.reduced || ctxLost() || dist < 0.05) { oct.pos.copy(to); snapScreen(octG.position.copy(to)); oct.wantYaw = camYaw(); done(); return Promise.resolve(anchor); }   /* 컨텍스트를 잃으면 프레임이 안 돌아 걸음이 안 끝난다 → 바로 도착 */
+      if (st.reduced || ctxLost() || dist < 0.05) { oct.pos.copy(to); snapScreen(octG.position.copy(to)); oct.wantYaw = camYaw(); done(); return Promise.resolve(val); }   /* 컨텍스트를 잃으면 프레임이 안 돌아 걸음이 안 끝난다 → 바로 도착 */
       oct.wantYaw = Math.atan2(d.x, d.z);
       var dur = dist / 1.2 * st.speed, hopDur = 0.3 * st.speed, hold = anticHold(), k = 0, cancelled = false;   /* hold = 서 있다 출발할 때 120 ms 예비 동작 (뒤뚱 걸음) */
       return new Promise(function (resolve) {
         var w = oct.walking = { gait: true, cancel: function () { cancelled = true; w.gait = false; },
-          finish: function () { if (cancelled) return; cancelled = true; w.gait = false; oct.pos.copy(to); oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(anchor); },   /* 컨텍스트 잃음: 남은 걸음을 건너뛰고 도착 */
+          finish: function () { if (cancelled) return; cancelled = true; w.gait = false; oct.pos.copy(to); oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(val); },   /* 컨텍스트 잃음: 남은 걸음을 건너뛰고 도착 */
           step: function (dt) {
           if (cancelled) return;
           k += dt;
@@ -1067,7 +1071,7 @@ var SCENE3D = (function () {
           w.gait = false;
           var hk = (kw - dur) / hopDur;
           if (hk < 1) { oct.pos.copy(to); oct.hop = Math.sin(hk * Math.PI) * 0.4; return; }
-          oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(anchor);
+          oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(val);
         } };
       });
     }
@@ -1164,6 +1168,7 @@ var SCENE3D = (function () {
       face.t += dt;
       /* 포인터 쪽 (동공 방향 · curious 기울임; 포인터가 없으면 오른쪽) */
       var look = oct.lookTarget || oct.pointer, px = 0, py = 0;
+      if (PLAY && PLAY.eye) look = PLAY.eye;   /* 놀이: 눈은 kit.look 대상 (만진 컵·공·사람) */
       if (look) { var sp = octScreen(), r = canvas.getBoundingClientRect(); px = clamp((look.x - (r.left + sp.x - S.offX)) / 140, -1, 1); py = clamp((look.y - (r.top + sp.y - S.offY + 30)) / 140, -1, 1); }
       var dir = px < -0.05 ? 1 : -1;
       /* 과장 동작 (룩 패스 8, 표정 기준 — 상태는 기본 표정으로 매핑): happy 폴짝 2 + 꼭대기에서 다리 바깥 ×1.3 · curious 포인터 쪽 8° 기울임 · pet 12 % 눌림 + 느린 좌우 흔들 ±4° · sleep 6 % 납작 + 색 순환 · anticipate(상태) 600 ms 눌림 + calm 반눈 */
@@ -1215,6 +1220,7 @@ var SCENE3D = (function () {
       var hex = st.color;
       if (ex === 'sleep') hex = hueHex(hex, Math.sin(t * Math.PI / 6) * 18);
       if (oct.flushK > 0.02) hex = mixHex(hex, OC.hi, oct.flushK * 0.35);
+      if (PLAY && PLAY.tint) hex = PLAY.tint;   /* 놀이: 위장 색 */
       if (hex !== oct.curHex) { oct.curHex = hex; octColor(hex); }
       octDecal.material.opacity = 0.42;
     }
@@ -2117,7 +2123,8 @@ var SCENE3D = (function () {
       stepTrans(dt); stepCer(dt);   /* 장소 전환 · 출발/귀가 의식 (바깥·계절·전환) */
       if (atticG.visible) stepWeather(dt); if (extG.visible) stepExt(dt);
       post.uniforms.uFade.value = PLACE.fade; if (PLACE.fade > 0) { var fk = hexToOklab(LIGHTS[phaseOf(st.hour)].bg); post.uniforms.uFadeOk.value.set(fk[0], fk[1], fk[2]); }
-      stepOct(dt); stepHang(dt); stepIntro(dt);
+      stepOct(dt); if (PLAY) PLAY.step(dt);   /* 놀이 kit: stepOct 가 매 프레임 새로 쓴 몸·팔 값 위에 덮어쓴다 */
+      stepHang(dt); stepIntro(dt);
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(camera.quaternion);
       placeCamera(); updateOverlay();
       if (!st.offscreen || st.force) draw(t0);   /* 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 */
@@ -2189,6 +2196,752 @@ var SCENE3D = (function () {
       atticG.visible = av; extG.visible = ev; renderer.setRenderTarget(prt);
     })();
     ready = true; loop();
+
+    /* ═══════════════ 놀이 kit (play.html 전용 · docs/PLAY_PROTO.md §11) ═══════════════
+       inst.play() 를 처음 부를 때만 만든다. 그 전엔 PLAY = null 이라 훅 4줄(frame · stepOct 눈·색 · camTargetNow)이 아무것도 안 하고, 메시·재질·리스너도 하나도 없다 → index.html 그대로.
+       고르기는 여기 없다: kit 는 "보여 주기"만 한다 (걷기·뻗기·들기·놓기·굴리기·구겨 넣기·위장). 무엇을 할지는 play.js 의 chooser 가 정하고, 그 한 선택을 여러 원시 동작으로 재생한다.
+       시계: 모든 연출은 PLAY.step(dt) 의 작업 큐로 돈다 (debugStep 으로 결정적). 포즈는 12 fps 칸(83 ms)으로 끊은 그린 포즈. 모션 감소면 대부분 즉시(색·대기는 유지).
+       좌표: 월드 m. 장난감 논리 위치(x, z, 바닥 위 y) → 매 프레임 화면 픽셀 격자에 스냅(snapScreen), 들림은 화면 세로 정수 px(snapUp). 난수 없음 — 꿈틀 위상 같은 변화는 hash 만 쓴다 (결정적).
+       동작 Promise 는 늘 resolve 한다 (reject 없음): { ok, cancelled?, ... }. kit.cancel() 이면 남은 작업이 { ok: false, cancelled: true } 로 끝난다. */
+    function makePlay() {
+      var SQ = Math.SQRT1_2, TIP = new T.Vector3(0.82, -0.08, 0), MAXS = 2.6, F12 = 1 / 12, NEAR = 32;
+      var GRID = { P0: [0, 0, 0.2], e: [SQ, 0, -SQ], f: [SQ, 0, SQ], du: 0.3, v: [0.55, 0, -0.85, -1.1] };   /* §12.2: u 0..8 창 쪽 → 문 쪽, v 0 앞자리 · 1 컵 줄 · 2 작업칸 · 3 문어 자리 */
+      var CUP = { h: 0.325, r0: 0.17, r1: 0.13 }, BALL_R = 0.10;
+      var toys = {}, order = [], jobs = [], ctl = {}, poses = {}, PF = 0;
+      var proxyMat = keep(new T.MeshBasicMaterial({ visible: false }));
+      var _v = new T.Vector3(), _w = new T.Vector3(), _l = new T.Vector3(), _q = new T.Quaternion(), _q2 = new T.Quaternion(), _ax2 = new T.Vector3(), _rc = new T.Raycaster(), _nd = new T.Vector2(), _pl = new T.Plane(new T.Vector3(0, 1, 0), 0);
+      var P = PLAY = { kit: null, step: stepPlay, tint: null, cam: null, eye: null, look: null, hidden: null, tip: null, stat: { jobs: 0, frames: 0 } };
+      function per() { return F12 * st.speed; }                                   /* 12 fps 한 칸 (속도 배율) */
+      function DK(sec) { return sec * st.speed; }                                 /* 모션 감소여도 유지 (색·대기) */
+      function cell(u, v) { var vv = GRID.v[clamp(Math.round(v), 0, 3)]; return [GRID.P0[0] + GRID.e[0] * (u - 4) * GRID.du + GRID.f[0] * vv, GRID.P0[2] + GRID.e[2] * (u - 4) * GRID.du + GRID.f[2] * vv]; }
+      function cellOf(x, z) {   /* 가장 가까운 칸 [u, v] (u 0..8 정수, v 0..3) */
+        var dx = x - GRID.P0[0], dz = z - GRID.P0[2], su = (dx * GRID.e[0] + dz * GRID.e[2]) / GRID.du + 4, sv = dx * GRID.f[0] + dz * GRID.f[2], bv = 0, bd = 9;
+        GRID.v.forEach(function (vv, i) { var d = Math.abs(vv - sv); if (d < bd) { bd = d; bv = i; } });
+        return [clamp(Math.round(su), 0, 8), bv];
+      }
+
+      /* ── 작업 큐 ── */
+      function job(dur, fn, tag) { return new Promise(function (res) { jobs.push({ t: 0, dur: dur, fn: fn, res: res, tag: tag || '' }); }); }
+      function frames(n, step, fn, tag) {   /* n 포즈를 step 초마다: fn(i) 를 0..n-1 순서대로 빠짐없이 (dt 가 커도) */
+        var last = -1;
+        return job(n * step, function (k, t) { var i = k >= 1 ? n - 1 : Math.min(n - 1, Math.floor(t / step + 1e-6)); while (last < i) { last++; fn(last); } }, tag);
+      }
+      function wait(sec) { return job(DK(sec), null, 'wait'); }
+      function okR(o) { return Object.assign({ ok: true }, o || {}); }
+      function cancel(tag) {   /* 남은 연출(작업)을 { ok: false, cancelled: true } 로 끝낸다. tag 없으면 걷기도 */
+        if (!tag) stopWalk();
+        var keep2 = [];
+        jobs.forEach(function (j) { if (!tag || j.tag === tag) { j.dead = true; j.res({ ok: false, cancelled: true }); } else keep2.push(j); });
+        jobs = keep2;
+      }
+
+      /* ── 장난감 ── */
+      function colorOf(c, fb) { if (/^#[0-9a-f]{6}$/i.test(c || '')) return c; var m = { navy: PAL.navy[3], moss: PAL.moss[2], rose: PAL.rose[1], amber: PAL.amber[3], sky: PAL.sky[2], paper: PAL.paper[1], wood: PAL.wood[3] }; return m[c] || fb; }
+      function atOf(at, row) { if (typeof at === 'number') return cell(at, row); if (at && at.length >= 2) return [at[0], at[at.length - 1]]; return cell(4, row); }
+      function addToy(id, kind, parts, o) {
+        if (toys[id]) removeToy(id);
+        var g = new T.Group(), mesh = new T.Mesh(mergeParts(parts), lambert);
+        mesh.receiveShadow = true; mesh.castShadow = false; g.add(mesh);
+        var px = new T.Mesh(o.proxy, proxyMat); px.userData.toy = id; g.add(px);
+        var dc = new T.Mesh(new T.PlaneGeometry(o.decal * 2, o.decal * 2), decalMat); dc.rotation.x = -Math.PI / 2; dc.renderOrder = 1;
+        atticG.add(g); atticG.add(dc);
+        var at = o.at || [0, 0];
+        var p = toys[id] = { id: id, kind: kind, g: g, mesh: mesh, proxy: px, decal: dc, x: at[0], z: at[1], y: 0, lift: 0, tilt: 0, sy: 1, vis: true, attach: null, grip: null, on: null, cover: null, h: o.h, r: o.r, q: new T.Quaternion(), w: new T.Vector3(), f: -1, color: o.color, seen: true };
+        order.push(id); return p;
+      }
+      function removeToy(id) {
+        var p = toys[id]; if (!p) return;
+        atticG.remove(p.g); atticG.remove(p.decal); p.mesh.geometry.dispose(); p.decal.geometry.dispose(); p.proxy.geometry.dispose();   /* 장난감 기하는 장난감 것 (keep 목록에 안 넣는다: 처음처럼마다 쌓이지 않게) */
+        order.splice(order.indexOf(id), 1); delete toys[id];
+        order.forEach(function (k) { var q = toys[k]; if (q.on === id) q.on = null; if (q.cover === id) q.cover = null; });
+      }
+      function addCup(id, band, at) {   /* 엎은 컵: 아래 r .17 · 위 r .13 · 높이 .30 · 10면 + 띠(y .21) + 입술 + 굽. 메시 하나 (§11.4) */
+        var body = PAL.paper[1], bc = colorOf(band, PAL.navy[3]);
+        var parts = [{ g: new T.CylinderGeometry(CUP.r1, CUP.r0, 0.30, 10), m: M(0, 0.15, 0), c: body },
+          { g: new T.CylinderGeometry(0.152, 0.158, 0.05, 10), m: M(0, 0.21, 0), c: bc },
+          { g: new T.CylinderGeometry(0.176, 0.18, 0.03, 10), m: M(0, 0.015, 0), c: PAL.paper[2] },
+          { g: new T.CylinderGeometry(0.105, 0.115, 0.025, 10), m: M(0, 0.3125, 0), c: PAL.paper[0] }];
+        var p = addToy(id, 'cup', parts, { proxy: new T.CylinderGeometry(0.28, 0.28, 0.5, 8).translate(0, 0.25, 0), decal: 0.22, at: atOf(at, 1), h: CUP.h, r: CUP.r0, color: body });
+        p.band = bc; return api(id);
+      }
+      function addBall(id, color, at) {   /* 공: 구 r .10 (10×8) + 종이색 띠 (구르는 게 보이게). 그룹 원점 = 바닥 접점, 메시 원점 = 공 중심 */
+        var c = colorOf(color, PAL.amber[3]);
+        var parts = [{ g: new T.SphereGeometry(BALL_R, 10, 8), m: M(0, 0, 0), c: c }, { g: new T.TorusGeometry(BALL_R * 0.98, 0.022, 4, 14), m: M(0, 0, 0, Math.PI / 2, 0, 0.5), c: PAL.paper[2] }];
+        var inBasket = at === 'basket', p = addToy(id, 'ball', parts, { proxy: new T.SphereGeometry(0.22, 8, 6).translate(0, BALL_R, 0), decal: 0.13, at: inBasket ? cell(8, 0) : atOf(at, 0), h: BALL_R * 2, r: BALL_R, color: c });
+        p.mesh.position.y = BALL_R;
+        if (inBasket) putInBasket(id);
+        return api(id);
+      }
+      function addBasket(id, at) {   /* 열린 상자 .36 × .16 × .28 (나무). 공 하나가 들어간다. addBasket(u) 도 된다 (id 'basket') */
+        if (typeof id === 'number' || Array.isArray(id)) { at = id; id = 'basket'; }
+        id = id || 'basket';
+        var w = PAL.wood, parts = [{ g: box(0.36, 0.03, 0.28), m: M(0, 0.015, 0), c: w[2] },
+          { g: box(0.36, 0.16, 0.025), m: M(0, 0.08, 0.1275), c: w[4] }, { g: box(0.36, 0.16, 0.025), m: M(0, 0.08, -0.1275), c: w[3] },
+          { g: box(0.025, 0.16, 0.28), m: M(0.1675, 0.08, 0), c: w[4] }, { g: box(0.025, 0.16, 0.28), m: M(-0.1675, 0.08, 0), c: w[3] },
+          { g: box(0.38, 0.02, 0.025), m: M(0, 0.165, 0.1275), c: w[6] }, { g: box(0.025, 0.02, 0.30), m: M(0.1675, 0.165, 0), c: w[6] }];
+        var p = addToy(id, 'basket', parts, { proxy: box(0.5, 0.3, 0.42).translate(0, 0.15, 0), decal: 0.3, at: atOf(typeof at === 'number' ? at : at || 8, 0), h: 0.16, r: 0.2, color: w[3] });
+        p.g.rotation.y = -Math.PI / 4;   /* 화면과 나란히 */
+        return api(id);
+      }
+      function putInBasket(ballId, basketId) {
+        var b = toys[ballId], k = toys[basketId || 'basket'] || order.map(function (i) { return toys[i]; }).filter(function (t) { return t.kind === 'basket'; })[0];
+        if (!b || !k) return false;
+        b.attach = null; b.cover = null; b.on = null; b.x = k.x; b.z = k.z; b.y = 0.03; b.lift = 0; b.inBasket = k.id; return true;
+      }
+      function towerBase(p) { while (p && p.on && toys[p.on]) p = toys[p.on]; return p; }
+      function towerTop(p) { var top = p, again = true; while (again) { again = false; for (var i = 0; i < order.length; i++) { var q = toys[order[i]]; if (q.on === top.id) { top = q; again = true; break; } } } return top; }
+      function towerH(base) { var h = 0, p = towerTop(base); while (p) { h += p.h; if (p === base) break; p = toys[p.on]; } return h; }
+      function liftY(p) { return snapUp(p.lift * pxUp()); }
+
+      /* 매 프레임: 논리 → 월드 (스냅). 순서: 놓인 것 → 쌓인 것(아래부터) → 덮인 공 */
+      function place(p) {
+        if (P.inLayout && p.f === PF) return p.w;
+        p.f = PF; var w = p.w;
+        if (p.attach && p.attach.slice(0, 4) === 'arm:' && arms[+p.attach.slice(4)]) {
+          var am = arms[+p.attach.slice(4)]; am.updateMatrixWorld(true);
+          am.localToWorld(w.copy(TIP)).sub(p.grip); snapScreen(w); w.y += liftY(p);
+        } else if (p.attach === 'head') {
+          bodyG.updateMatrixWorld(true); bodyG.localToWorld(w.set(0, HEAD_Y + HEAD_SQ * 0.93, 0)); snapScreen(w);
+        } else if (p.on && toys[p.on]) {
+          var b = place(toys[p.on]); w.set(b.x, b.y + snapUp(toys[p.on].h * toys[p.on].sy) + liftY(p), b.z);
+        } else {
+          if (p.cover && toys[p.cover]) { var c = towerBase(toys[p.cover]); if (!c.attach && c.lift <= 3) { p.x = c.x; p.z = c.z; } }
+          w.set(p.x, p.y, p.z); snapScreen(w); w.y += liftY(p);
+        }
+        return w;
+      }
+      function covered(p) {   /* 공이 엎은 컵 밑에 있고 그 컵(탑)이 바닥에 있으면 안 보인다 */
+        if (!p.cover || !toys[p.cover]) return false;
+        var c = towerBase(toys[p.cover]); return !c.attach && c.lift < 3 && c.vis;
+      }
+      function layoutToys() {
+        PF++; P.inLayout = true; octG.updateMatrixWorld(true);
+        order.forEach(function (id) {
+          var p = toys[id], w = place(p), show = p.vis && !(p.kind === 'ball' && covered(p));
+          p.g.position.copy(w); p.g.visible = show;
+          if (p.kind === 'cup') {
+            if (p.attach === 'head') { bodyG.getWorldQuaternion(_q); _q2.setFromAxisAngle(_ax2.set(0, 0, 1), p.hatTilt || 8 * DEG); p.g.quaternion.copy(_q).multiply(_q2); }
+            else { p.g.rotation.set(0, 0, p.tilt); if (p.tip) { _q.setFromAxisAngle(_ax2.set(GRID.e[0], 0, GRID.e[2]), p.tip); p.g.quaternion.premultiply(_q); } }   /* tip < 0: 입구가 보는 사람 쪽으로 (들춰 보기) */
+            p.mesh.scale.set(1, p.sy, 1);
+          } else if (p.kind === 'ball') { p.mesh.quaternion.copy(p.q); var bs = S.p >= 3 ? 1.2 : 1; p.mesh.scale.setScalar(bs); p.mesh.position.y = BALL_R * bs; }   /* 자동 픽셀 폴백(p=3)이면 공을 r .12 로 */
+          var hgt = w.y - (p.inBasket ? p.y : 0), dShow = show && p.attach !== 'head' && !(p.on && toys[p.on]) && !p.inBasket;
+          p.decal.visible = dShow;
+          if (dShow) {
+            p.decal.position.set(w.x, 0.02, w.z); snapScreen(p.decal.position);   /* 스냅 그대로 (y 를 되돌리면 세로 스냅이 풀린다) */
+            var up = pxUp(); p.decal.scale.setScalar(hgt >= 6 * up ? 0.6 : hgt >= 3 * up ? 0.8 : 1);
+          }
+        });
+        P.inLayout = false;
+      }
+
+      /* ── 팔 (한 팔씩 덮어쓰기; 나머지 팔은 stepOct 의 꿈틀·걸음 그대로) ── */
+      function restTip(i) { var am = arms[i], a = am.userData.a, ro = am.position; return _l.set(ro.x + Math.cos(a) * 0.824, ro.y - 0.039, ro.z + Math.sin(a) * 0.824); }
+      function needS(i, wp) { bodyG.updateMatrixWorld(true); var t = bodyG.worldToLocal(_v.copy(wp)), ro = arms[i].position, dh = Math.hypot(t.x - ro.x, t.z - ro.z), dy = t.y - ro.y; return Math.sqrt(Math.max(dh * dh + dy * dy - 0.0064, 1e-4)) / 0.82; }
+      function solveArm(i, pl, wig) {   /* bodyG 로컬 점 pl 에 팔 끝(0.82, −0.08)을 → rotation.y · rotation.z · scale.x */
+        var am = arms[i], ro = am.position, dx = pl.x - ro.x, dy = pl.y - ro.y, dz = pl.z - ro.z, dh = Math.hypot(dx, dz), d2 = dh * dh + dy * dy;
+        var sx = clamp(Math.sqrt(Math.max(d2 - 0.0064, 1e-4)) / 0.82, 0.55, (ctl[i] && ctl[i].maxS) || MAXS);   /* maxS: 틈으로 길게 뻗는 팔 (reach o.maxS) */
+        am.rotation.y = -Math.atan2(dz, dx);
+        am.rotation.z = Math.atan2(dy, dh) - Math.atan2(-0.08, 0.82 * sx) + (wig || 0) * Math.asin(clamp(pxUp() / (0.82 * sx * OCT_R * Math.max(bodyG.scale.y, 0.3)), 0, 1));
+        am.scale.x = sx; return sx;
+      }
+      function armTarget(c) { return typeof c.tgt === 'function' ? c.tgt() : c.tgt; }
+      function stepArms() {
+        var keys = Object.keys(ctl); if (!keys.length) return;
+        octG.updateMatrixWorld(true);
+        keys.forEach(function (k) {
+          var i = +k, c = ctl[k], am = arms[i];
+          if (c.mode === 'tuck') { am.rotation.y = -am.userData.a; am.rotation.z = c.rz; am.scale.x = c.sx; return; }
+          var wp = armTarget(c); if (!wp) return;
+          var tl = bodyG.worldToLocal(_w.copy(wp)), rt = restTip(i), kk = c.kq;
+          var hk = kk <= 0.5 ? 0 : (kk - 0.5) / 0.5;
+          _v.set(rt.x + (tl.x - rt.x) * kk, rt.y + (tl.y - rt.y) * hk, rt.z + (tl.z - rt.z) * kk);
+          c.sx = solveArm(i, _v, (c.wig || 0) - (c.press || 0));
+        });
+      }
+      function freeArms() { return arms.map(function (_, i) { return i; }).filter(function (i) { return !ctl[i]; }); }
+      function pickArm(wp, avoid) {   /* 'auto': 목표 방향에 가장 가까운 노는 팔 */
+        bodyG.updateMatrixWorld(true); var t = bodyG.worldToLocal(_v.copy(wp)), beta = Math.atan2(t.z, t.x), best = -1, bd = 9;
+        freeArms().forEach(function (i) { if (avoid && avoid.indexOf(i) >= 0) return; var d = Math.abs(angDiff(arms[i].userData.a, beta)); if (d < bd) { bd = d; best = i; } });
+        return best;
+      }
+      function gripPoint(p) {   /* 팔이 닿는 곳: 컵(탑) = 꼭대기 문어 쪽 가장자리 위 · 공 = 위쪽 · 바구니 = 테두리 */
+        var base = p.kind === 'cup' ? towerBase(p) : p, w = place(base).clone();
+        if (p.kind === 'cup') {
+          w.y += snapUp(towerH(base)) + 0.03;
+          var dx = oct.pos.x - w.x, dz = oct.pos.z - w.z, dl = Math.hypot(dx, dz) || 1; w.x += dx / dl * 0.07; w.z += dz / dl * 0.07;
+        } else if (p.kind === 'ball') { w.y += BALL_R * 1.6; var ex = oct.pos.x - w.x, ez = oct.pos.z - w.z, el = Math.hypot(ex, ez) || 1; w.x += ex / el * 0.04; w.z += ez / el * 0.04; }
+        else w.y += p.h + 0.03;
+        return w;
+      }
+      function targetPoint(tg) {   /* 대상: 장난감 id | [x, z] (바닥 높이의 팔 끝) | [x, y, z] | Vector3 */
+        if (typeof tg === 'string' && toys[tg]) return gripPoint(toys[tg]);
+        if (tg && tg.isVector3) return tg.clone();
+        if (tg && tg.length === 3) return new T.Vector3(tg[0], tg[1], tg[2]);
+        if (tg && tg.length === 2) return new T.Vector3(tg[0], 0.09, tg[1]);
+        return null;
+      }
+      function claim(i, tgt) { ctl[i] = ctl[i] || { k: 0, kq: 0, wig: 0, press: 0 }; ctl[i].mode = 'reach'; ctl[i].tgt = tgt; return ctl[i]; }
+      function needAt(x, z, wp) {   /* 몸이 (x, z) 에 있을 때 wp 까지 팔 늘이기 어림 (뿌리 = 몸 중심에서 목표 쪽 0.25 m, 높이 0.126 m) */
+        var dh = Math.max(0, Math.hypot(wp.x - x, wp.z - z) - 0.6 * OCT_R), dy = wp.y - 0.3 * OCT_R;
+        return Math.hypot(dh, dy) / (0.82 * OCT_R);
+      }
+      function approach(wps, maxS) {   /* 팔이 안 닿으면(늘이기 > MAXS) 먼저 걷는다: 줄 방향(옆)으로 먼저, 그래도 모자라면 앞으로 — 대상 0.62 m 안으로는 안 들어간다 (눈이 컵에 가리지 않게) */
+        if (!wps.length) return Promise.resolve(okR({ walked: 0 }));
+        var lim = (maxS > MAXS ? Math.min(maxS, 4.6) : MAXS) * 0.95, x0 = oct.pos.x, z0 = oct.pos.z;
+        function worst(x, z) { return Math.max.apply(null, wps.map(function (wp) { return needAt(x, z, wp); })); }
+        if (worst(x0, z0) <= lim) return Promise.resolve(okR({ walked: 0 }));
+        var cx = 0, cz = 0; wps.forEach(function (wp) { cx += wp.x / wps.length; cz += wp.z / wps.length; });
+        var e = GRID.e, f = GRID.f, lat = (cx - x0) * e[0] + (cz - z0) * e[2], best = null;
+        for (var s = 1; s <= 10 && !best; s++) { var x1 = x0 + e[0] * lat * s / 10, z1 = z0 + e[2] * lat * s / 10; if (worst(x1, z1) <= lim) best = [x1, z1]; }
+        if (!best) {   /* 옆으로 다 가도 모자라면 앞으로 (가장 가까운 대상에서 0.62 m 까지) */
+          var bx = x0 + e[0] * lat, bz = z0 + e[2] * lat;
+          for (var d = 0.05; d <= 0.6 && !best; d += 0.05) { var x2 = bx + f[0] * d, z2 = bz + f[2] * d, near = Infinity; wps.forEach(function (wp) { near = Math.min(near, Math.hypot(wp.x - x2, wp.z - z2)); }); if (near < 0.62) break; if (worst(x2, z2) <= lim) best = [x2, z2]; }
+          if (!best) best = [bx, bz];
+        }
+        var go = Math.hypot(best[0] - x0, best[1] - z0);
+        if (go < 0.03) return Promise.resolve(okR({ walked: 0 }));
+        return walkTo(best[0], best[1]).then(function () { return faceTo([cx, cz]); }).then(function () { return okR({ walked: +go.toFixed(2) }); });
+      }
+
+      /* reach(arm|'auto', target, k = 1, { poses, step, approach }) → { ok, arm, sx }. k = 0..1 (0.5 = 바닥을 기어 반까지, 1 = 닿기). 포즈 수 기본: 0 에서 출발 → 8·k, 0.5 이상에서 마무리 → 2 */
+      function reach(arm, tg, k, o) {
+        o = o || {}; k = k == null ? 1 : clamp(+k, 0, 1);
+        var wp = targetPoint(tg); if (!wp) return Promise.resolve({ ok: false, reason: 'no-target' });
+        var pre = o.approach === false || (typeof arm === 'number' && ctl[arm]) ? Promise.resolve() : approach([wp], o.maxS);
+        return pre.then(function () {
+          var wp2 = targetPoint(tg) || wp, i = typeof arm === 'number' ? arm : pickArm(wp2, o.avoid);
+          if (i < 0 || !arms[i]) return { ok: false, reason: 'no-arm' };
+          var c = claim(i, typeof tg === 'string' && toys[tg] ? function () { return gripPoint(toys[tg]); } : wp2), k0 = c.kq || 0; c.maxS = o.maxS > MAXS ? Math.min(+o.maxS, 4.6) : null;
+          var n = st.reduced ? 1 : (o.poses || (k0 >= 0.49 ? 2 : Math.max(1, Math.round(Math.abs(k - k0) * 8)))), stp = o.step != null ? o.step * st.speed : per();
+          c.k = k;
+          return frames(n, st.reduced ? 0 : stp, function (f) { c.kq = k0 + (k - k0) * (f + 1) / n; }, 'arm' + i).then(function (r) { return r.cancelled ? r : okR({ arm: i, sx: +(c.sx || 0).toFixed(2), need: +needS(i, targetPoint(tg) || wp2).toFixed(2) }); });
+        });
+      }
+      function retract(i, o) {   /* 2 포즈로 거둔 뒤 팔을 stepOct 에 돌려준다. 쥔 것이 있으면 그대로 따라온다 (놓기는 hold(id, null)) */
+        o = o || {}; var c = ctl[i]; if (!c) return Promise.resolve(okR({ arm: i }));
+        if (c.mode === 'tuck') { delete ctl[i]; return Promise.resolve(okR({ arm: i })); }
+        var tw = armTarget(c); c.tgt = tw ? tw.clone() : null; c.wig = 0; c.press = 0;
+        var k0 = c.kq, n = st.reduced ? 1 : (o.poses || 2);
+        return frames(n, st.reduced ? 0 : per(), function (f) { c.kq = k0 * (1 - (f + 1) / n); }, 'arm' + i).then(function (r) {
+          if (!r.cancelled && ctl[i] === c && !heldBy(i)) delete ctl[i];
+          return r.cancelled ? r : okR({ arm: i });
+        });
+      }
+      function heldBy(i) { var tag = 'arm:' + i; return order.filter(function (id) { return toys[id].attach === tag; })[0] || null; }
+      function hesitate(i, sec, o) {   /* 멈춤: 팔 끝 1px 꿈틀(2칸마다) + 반쯤 감은 눈(calm), 끝나면 표정 되돌림 */
+        o = o || {}; var c = ctl[i], prev = face.expr, n = 0;
+        if (o.eyes !== false) setExpression(o.eyes || 'calm');
+        return job(DK(sec == null ? 0.45 : sec), function (k, t) { if (c && !st.reduced) { var s = Math.floor(t / per()); if (s !== n) { n = s; c.wig = (s >> 1) & 1 ? 1 : 0; } } }, 'arm' + i)
+          .then(function (r) { if (c) c.wig = 0; if (o.eyes !== false && face.expr === (o.eyes || 'calm')) setExpression(prev); return r.cancelled ? r : okR({ arm: i }); });
+      }
+
+      /* hold(id, arm | 'head' | null, { at:[x,z], on }) — 즉시 붙이기/놓기. 놓으면 그 자리 바닥(또는 on 컵 위)에 선다. 컵을 딴 데 놓으면 그 밑 공의 덮임이 풀린다 */
+      function hold(id, to, o) {
+        o = o || {}; var p = toys[id]; if (!p) return false;
+        var w = place(p).clone();
+        if (to == null) {
+          var at = o.at || [w.x, w.z];
+          if (p.attach === 'head') { p.hatTilt = 0; }
+          p.attach = null; p.grip = null; p.lift = 0; p.inBasket = null; p.liftFrom = null;
+          if (o.on && toys[o.on]) { p.on = o.on; } else { p.on = null; p.x = at[0]; p.z = at[1]; p.y = 0; }
+          if (p.kind === 'cup') {   /* 그 컵 밑에 있던 공: 컵이 같은 자리에 돌아오면 다시 덮임(탑이면 탑 맨 아래가 덮개), 딴 데 놓이면 풀림 */
+            var bs = towerBase(p);
+            order.forEach(function (k) { var b = toys[k]; if (b.cover !== id) return; if (!p.on && Math.hypot(b.x - p.x, b.z - p.z) <= 0.12) b.cover = id; else if (p.on && Math.hypot(b.x - bs.x, b.z - bs.z) <= 0.12) b.cover = bs.id; else b.cover = null; });
+          }
+          PF++; return true;
+        }
+        p.inBasket = null; p.cover = null;   /* 집어 든 공은 더 이상 어느 컵 밑도 아니다 */
+        if (to === 'head') { p.attach = 'head'; p.on = null; p.lift = 0; p.hatTilt = 8 * DEG; p.liftFrom = null; PF++; return true; }
+        var i = +to; if (!arms[i]) return false;
+        octG.updateMatrixWorld(true); arms[i].updateMatrixWorld(true);
+        var tip = arms[i].localToWorld(_v.copy(TIP));
+        if (p.on) { p.on = null; }   /* 탑 위 컵을 집으면 탑에서 떨어진다 */
+        p.grip = tip.clone().sub(w.setY(w.y - liftY(p))); p.lift = 0; p.attach = 'arm:' + i;
+        var c = ctl[i] || claim(i, tip.clone()); c.tgt = tip.clone(); c.k = c.kq = 1;
+        PF++; return true;
+      }
+      function raise(id, o) {   /* 쥔 장난감을 몸 쪽으로 pull m · 위로 px 아트px (2포즈) — 컵을 다시 내려도 그 밑에 안 남게 */
+        o = o || {}; var p = toys[id]; if (!p || !p.attach || p.attach.slice(0, 4) !== 'arm:') return Promise.resolve({ ok: false, reason: 'not-held' });
+        var i = +p.attach.slice(4); if (!ctl[i]) return Promise.resolve({ ok: false, reason: 'no-arm' });
+        var pull = o.pull == null ? 0.3 : o.pull, up = snapUp((o.px == null ? 8 : o.px) * pxUp());
+        return moveHeld([i], 2, function (ii, k, t0) { var dx = oct.pos.x - t0.x, dz = oct.pos.z - t0.z, dl = Math.hypot(dx, dz) || 1; return new T.Vector3(t0.x + dx / dl * pull * k, t0.y + up * k, t0.z + dz / dl * pull * k); })
+          .then(function (r) { return r.cancelled ? r : okR({ arm: i }); });
+      }
+      function press(i) {   /* 닿는 프레임: 빨판 1px 눌림 (한 칸) */
+        var c = ctl[i]; if (!c || st.reduced) return Promise.resolve(okR());
+        c.press = 1; return frames(1, per(), function () { }, 'arm' + i).then(function (r) { c.press = 0; return r; });
+      }
+      function grab(i, id) {   /* 이미 뻗은 팔(i)로 닿기(2포즈) → 눌림 → 쥐기 */
+        var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var base = p.kind === 'cup' ? towerBase(p) : p;
+        return reach(i, id, 1, { approach: false }).then(function (r) { if (!r.ok) return r; return press(i); }).then(function (r) {
+          if (r && r.cancelled) return r;
+          if (!toys[id]) return { ok: false, reason: 'gone' };
+          hold(base.id, i); return okR({ arm: i, id: base.id });
+        });
+      }
+      function moveHeld(list, n, fn) {   /* 쥔 팔들의 목표점을 n 포즈로 옮긴다: fn(arm, k) → Vector3 */
+        var st0 = list.map(function (i) { return ctl[i] && armTarget(ctl[i]) ? armTarget(ctl[i]).clone() : null; });
+        return frames(st.reduced ? 1 : n, st.reduced ? 0 : per(), function (f) {
+          var k = (f + 1) / (st.reduced ? 1 : n);
+          list.forEach(function (i, j) { if (ctl[i] && st0[j]) ctl[i].tgt = fn(i, k, st0[j]); });
+        }, 'held');
+      }
+      /* lift(ids, { px: 8, stagger: 1 칸, stand: true, creep }) — 컵(탑이면 통째로) N 개를 팔 N 개로 동시에: 뻗기(어긋나게) → 눌림 → +3/+6/+8 px. → { ok, arms: {id: arm} } */
+      function lift(ids, o) {
+        o = o || {}; ids = [].concat(ids).filter(function (id) { return toys[id]; }).map(function (id) { var p = toys[id]; return p.kind === 'cup' ? towerBase(p).id : id; })
+          .filter(function (id, i, a) { return a.indexOf(id) === i; });
+        if (!ids.length) return Promise.resolve({ ok: false, reason: 'gone' });
+        var used = [], map = {}, px = o.px == null ? 8 : o.px;
+        ids.forEach(function (id) { var a0 = toys[id].attach; if (a0 && a0.slice(0, 4) === 'arm:') { map[id] = +a0.slice(4); used.push(map[id]); } });   /* 이미 쥔 컵(grab 뒤)은 그 팔 그대로 */
+        var fresh = ids.filter(function (id) { return map[id] == null; });
+        return approach(fresh.map(function (id) { return gripPoint(toys[towerTop(toys[id]).id]); })).then(function () {
+          return Promise.all(fresh.map(function (id, j) {
+            var top = towerTop(toys[id]).id, i = pickArm(gripPoint(toys[top]), used); used.push(i); map[id] = i;
+            if (i < 0) return Promise.resolve({ ok: false, reason: 'no-arm' });
+            return (j && !st.reduced ? wait((o.stagger == null ? 1 : o.stagger) * F12) : Promise.resolve()).then(function () { return reach(i, top, 1, { approach: false, poses: o.creep }); })
+              .then(function (r) { return r.ok ? press(i) : r; }).then(function (r) { if (r && r.ok !== false) hold(id, i); return r; });
+          }));
+        }).then(function (rs) {
+          if (rs.some(function (r) { return r && r.cancelled; })) return { ok: false, cancelled: true };
+          var list = ids.map(function (id) { return map[id]; }).filter(function (i) { return i >= 0; });
+          if (o.stand !== false) setPose('stand', { sy: 1.14 });   /* 2 아트px 서서 눈이 든 컵 위로 */
+          var steps = px >= 8 ? [3, 6, px] : px >= 4 ? [Math.round(px / 2), px] : [px], up = pxUp(), side = {};
+          ids.forEach(function (id) { side[map[id]] = asideOf(id, o.aside); var p = toys[id]; if (!p.liftFrom) p.liftFrom = [p.x, p.z]; });
+          spread(ids, map, side);
+          return moveHeld(list, steps.length, function (i, k, t0) {
+            var n = Math.min(steps.length - 1, Math.round(k * steps.length) - 1), s = steps[n], a = side[i] * (steps.length > 1 ? n / (steps.length - 1) : 1);
+            return new T.Vector3(t0.x + GRID.e[0] * a, t0.y + snapUp(s * up), t0.z + GRID.e[2] * a);
+          })
+            .then(function (r) { return r.cancelled ? r : okR({ arms: map, px: px }); });
+        });
+      }
+      function spread(ids, map, side) {   /* 여러 컵을 같이 들면 줄 방향으로 서로 0.46 m 이상 (든 채 서로 닿지 않게): 가운데서 먼 쪽을 바깥으로 민다 */
+        if (ids.length < 2) return;
+        var e = GRID.e, cx = oct.pos.x, cz = oct.pos.z;
+        var L = ids.map(function (id) { var p = toys[id]; return { i: map[id], u: (p.x - cx) * e[0] + (p.z - cz) * e[2] + (side[map[id]] || 0) }; }).sort(function (a, b) { return a.u - b.u; });
+        var mid = L.reduce(function (m, a, k) { return Math.abs(a.u) < Math.abs(L[m].u) ? k : m; }, 0);
+        for (var k = mid + 1; k < L.length; k++) if (L[k].u - L[k - 1].u < 0.46) { var d = 0.46 - (L[k].u - L[k - 1].u); L[k].u += d; side[L[k].i] = (side[L[k].i] || 0) + d; }
+        for (k = mid - 1; k >= 0; k--) if (L[k + 1].u - L[k].u < 0.46) { var d2 = 0.46 - (L[k + 1].u - L[k].u); L[k].u -= d2; side[L[k].i] = (side[L[k].i] || 0) - d2; }
+      }
+      function asideOf(id, opt) {   /* 든 컵은 줄 방향으로 비켜 든다 → 밑의 공이 다 보이고 눈이 안 가린다. 문어 눈앞(0.3 m 안)이면 0.26 m(탑은 층마다 +0.12, 쪽 = 다른 컵이 더 먼 쪽), 아니면 바깥으로 0.18 m. opt: 'auto'(기본) | 0 | 부호 있는 m */
+        if (opt === 0 || opt === false) return 0;
+        if (typeof opt === 'number') return opt;
+        var p = toys[id], e = GRID.e, rel = (p.x - oct.pos.x) * e[0] + (p.z - oct.pos.z) * e[2];
+        if (Math.abs(rel) >= 0.3) return (rel > 0 ? 1 : -1) * 0.18;   /* 눈앞이 아니어도 바깥쪽으로 조금: 8px 만 곧게 들면 공이 거의 안 보인다 */
+        function room(sg) { var m = Infinity, x = p.x + e[0] * sg * 0.26, z = p.z + e[2] * sg * 0.26; order.forEach(function (k) { var q = toys[k]; if (k === id || q.kind !== 'cup' || q.on) return; m = Math.min(m, Math.hypot(q.x - x, q.z - z)); }); return m; }
+        var sg = Math.abs(rel) > 0.05 ? (rel > 0 ? 1 : -1) : (room(1) >= room(-1) ? 1 : -1), lv = Math.round(towerH(p) / CUP.h);
+        return sg * (0.26 + 0.12 * Math.max(0, lv - 1));   /* 탑(2층)은 더 비켜 든다 */
+      }
+      /* lower(ids | 'all', { to: {id: [x,z]}, on: {id: baseId}, retract: true }) — 쥔 컵·공을 (옮겨서) 내려놓기: 옮기기 3포즈 → 내리기 1 → 놓기 → 눌림 1 → 팔 거두기 2 */
+      function lower(ids, o) {
+        o = o || {}; var all = ids === 'all' || ids == null;
+        var list = (all ? order : [].concat(ids)).filter(function (id) { var p = toys[id]; return p && p.attach && p.attach.slice(0, 4) === 'arm:'; });
+        if (!list.length) return Promise.resolve(okR({ lowered: [] }));
+        var armOf = {}; list.forEach(function (id) { armOf[id] = +toys[id].attach.slice(4); });
+        var arms2 = list.map(function (id) { return armOf[id]; }), to = o.to || {}, onTo = o.on || {};
+        function dest(id) { var p = toys[id], w = place(p); if (onTo[id] && toys[onTo[id]]) { var b = place(towerTop(toys[onTo[id]])); return [b.x, b.z]; } return to[id] || p.liftFrom || [w.x, w.z]; }   /* 기본 = 든 자리 */
+        var D0 = {};
+        list.forEach(function (id) { D0[id] = dest(id); });
+        var moving = list.some(function (id) { var w = place(toys[id]); return onTo[id] || Math.hypot(D0[id][0] - w.x, D0[id][1] - w.z) > 0.01; });
+        var carry = moving ? moveHeld(arms2, 3, function (i, k, t0) { var id = list[arms2.indexOf(i)], d = D0[id], p = toys[id], tx = d[0] + p.grip.x, tz = d[1] + p.grip.z; return new T.Vector3(t0.x + (tx - t0.x) * k, t0.y + (onTo[id] && toys[onTo[id]] ? snapUp(towerH(towerBase(toys[onTo[id]]))) * k : 0), t0.z + (tz - t0.z) * k); }) : Promise.resolve(okR());
+        return carry.then(function (r) {
+          if (r.cancelled) return r;
+          return moveHeld(arms2, 1, function (i, k, t0) { var id = list[arms2.indexOf(i)], p = toys[id], baseY = onTo[id] && toys[onTo[id]] ? place(towerTop(toys[onTo[id]])).y + snapUp(towerTop(toys[onTo[id]]).h) : 0; return t0.clone().setY(baseY + p.grip.y); });
+        }).then(function (r) {
+          if (r.cancelled) return r;
+          var tops = {}; list.forEach(function (id) { if (onTo[id] && toys[onTo[id]]) tops[id] = towerTop(toys[onTo[id]]).id; });
+          list.forEach(function (id) { var d = D0[id]; toys[id].liftFrom = null; hold(id, null, { at: d, on: tops[id] }); if (!st.reduced) toys[id].sy = toys[id].kind === 'cup' ? 1 - pxUp() / CUP.h : 1; });
+          clearPose('stand');
+          return frames(1, st.reduced ? 0 : per(), function () { }, 'land').then(function () { list.forEach(function (id) { if (toys[id]) toys[id].sy = 1; }); });
+        }).then(function (r) {
+          if (r && r.cancelled) return r;
+          if (o.retract === false) return okR({ lowered: list });
+          return Promise.all(arms2.map(function (i) { return retract(i); })).then(function () { return okR({ lowered: list }); });
+        });
+      }
+
+      /* ── 굴리기 (바닥 '물리' 대신 칸 스냅 + 계단식): roll(id, to | [[x,z]...], { perCell: 83 ms / 0.3 m, bounce }) ── */
+      function roll(id, to, o) {
+        o = o || {}; var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        cancel('roll:' + id);   /* 굴러가는 중에 또 밀면 앞 굴림을 끝낸다 (두 굴림이 한 프레임에 겹치지 않게) */
+        if (p.attach) hold(id, null); p.cover = null; p.on = null; p.inBasket = null; p.y = 0;
+        var pts = [[p.x, p.z]].concat(to && to.length && to[0].length ? to : [to]), L = 0, seg = [];
+        for (var i = 1; i < pts.length; i++) { var d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(d); L += d; }
+        if (L < 1e-3) return Promise.resolve(okR({ dist: 0 }));
+        var dur = st.reduced ? 0 : Math.max(per(), L / GRID.du * (o.perCell || 0.083) * st.speed), n = Math.max(1, Math.round(dur / per())), done = 0;
+        function at(k) { var s = k * L; for (var j = 0; j < seg.length; j++) { if (s <= seg[j] || j === seg.length - 1) { var t = seg[j] ? Math.min(1, s / seg[j]) : 1; return [pts[j][0] + (pts[j + 1][0] - pts[j][0]) * t, pts[j][1] + (pts[j + 1][1] - pts[j][1]) * t]; } s -= seg[j]; } return pts[pts.length - 1]; }
+        return frames(st.reduced ? 1 : n, st.reduced ? 0 : per(), function (f) {
+          var k = (f + 1) / (st.reduced ? 1 : n), q = at(k), dx = q[0] - p.x, dz = q[1] - p.z, dd = Math.hypot(dx, dz);
+          if (dd > 1e-4) { _q.setFromAxisAngle(_ax2.set(dz / dd, 0, -dx / dd), dd / BALL_R); p.q.premultiply(_q); }
+          p.x = q[0]; p.z = q[1]; done = k;
+        }, 'roll:' + id).then(function (r) {
+          if (r.cancelled || o.bounce === false || st.reduced) return r.cancelled ? r : okR({ dist: +L.toFixed(2) });
+          p.lift = 1; return frames(1, per(), function () { }, 'roll:' + id).then(function () { p.lift = 0; return okR({ dist: +L.toFixed(2) }); });
+        });
+      }
+      /* 충돌 대신 길 고르기 (물리 없음 · 칸 스냅): blocked(from, to, r) → 처음 걸리는 바닥 컵 { id, stop:[x,z] (그 컵 발치) } | null.
+         route(from, to) → 막히면 줄의 빈 틈(컵 사이 홀수 칸 · 비어 있는 칸)을 하나 거쳐 가는 길 [[x,z]...], 아니면 [to] */
+      function floorCups(skip) { return order.map(function (k) { return toys[k]; }).filter(function (q) { return q.kind === 'cup' && !q.on && !q.attach && q.vis && q.id !== skip; }); }
+      function blocked(from, to, r, skip) {
+        r = r == null ? BALL_R : r; var dx = to[0] - from[0], dz = to[1] - from[1], L2 = dx * dx + dz * dz, best = null;
+        if (L2 < 1e-6) return null;
+        floorCups(skip).forEach(function (q) {
+          var t = clamp(((q.x - from[0]) * dx + (q.z - from[1]) * dz) / L2, 0, 1), px = from[0] + dx * t, pz = from[1] + dz * t, d = Math.hypot(q.x - px, q.z - pz), rr = CUP.r0 + r;
+          if (d >= rr || (Math.hypot(q.x - from[0], q.z - from[1]) < rr && t < 0.05)) return;
+          var back = Math.sqrt(Math.max(0, rr * rr - d * d)) / Math.sqrt(L2), ts = Math.max(0, t - back - 0.01);
+          if (!best || ts < best.t) best = { id: q.id, t: ts, stop: [from[0] + dx * ts, from[1] + dz * ts] };
+        });
+        return best ? { id: best.id, stop: best.stop } : null;
+      }
+      function route(from, to, r) {
+        if (!blocked(from, to, r)) return [to];
+        var f = GRID.f, best = null;
+        for (var u = 0; u <= 8; u++) {
+          var g = cell(u, 1), bk = [g[0] - f[0] * 0.3, g[1] - f[2] * 0.3], fr = [g[0] + f[0] * 0.3, g[1] + f[2] * 0.3];
+          [[g], [bk, fr], [fr, bk]].forEach(function (wps) {   /* 틈 한 점, 또는 줄을 곧게 건너는 두 점 (대각선으로 틈에 들어가면 옆 컵을 스친다) */
+            var pts = [from].concat(wps, [to]), len = 0;
+            for (var i = 0; i < pts.length - 1; i++) { if (blocked(pts[i], pts[i + 1], r)) return; len += Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); }
+            if (!best || len < best.len) best = { path: wps.concat([to]), len: len };
+          });
+        }
+        return best ? best.path : [to];
+      }
+      /* nudge(ballId, to, { arm:'auto', quick }) — 팔로 공을 밀어 보낸다 (받아치기 = quick: 2포즈, 25° 휙). 공 쪽으로 뻗기 → 굴리기 → 거두기 */
+      function nudge(id, to, o) {
+        o = o || {}; var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var path = to && to.length && to[0].length ? to : (o.route === false ? [to] : route([p.x, p.z], to)), first = path[0];   /* 기본: 컵을 피해 틈으로 */
+        var w = place(p), back = new T.Vector3(w.x, BALL_R, w.z), dx = first[0] - w.x, dz = first[1] - w.z, dl = Math.hypot(dx, dz) || 1;
+        back.x -= dx / dl * 0.1; back.z -= dz / dl * 0.1;   /* 공 뒤쪽 */
+        var arm0 = null;
+        return reach(o.arm == null ? 'auto' : o.arm, back, 1, { poses: o.poses || (o.quick ? 2 : undefined), approach: o.approach, maxS: o.maxS }).then(function (r) {
+          if (!r.ok) return r; arm0 = r.arm;
+          var c = ctl[arm0], t0 = armTarget(c).clone();
+          c.tgt = new T.Vector3(t0.x + dx / dl * 0.18, t0.y, t0.z + dz / dl * 0.18);   /* 휙: 팔 끝이 공을 지나 한 칸 */
+          return roll(id, path, o);
+        }).then(function (r) { if (arm0 == null) return r; return retract(arm0).then(function () { return r.ok === false ? r : okR({ arm: arm0, dist: r.dist }); }); });
+      }
+      /* cupHop(cupId, x, z, { hide: ballId, px: 4 }) — 컵이 스스로 폴짝 (우연한 숨기기 · 사람이 끌어 놓을 때): 2→4px 들림 → 2칸 이동 → 내려앉음 + 1px 눌림. hide 면 그 공이 컵 밑으로 */
+      function cupHop(id, x, z, o) {
+        o = o || {}; var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var x0 = p.x, z0 = p.z, hpx = o.px || 4, ball = o.hide && toys[o.hide];
+        if (st.reduced) { p.x = x; p.z = z; if (ball) { ball.x = x; ball.z = z; ball.cover = id; ball.attach = null; ball.inBasket = null; } return Promise.resolve(okR()); }
+        var seq = [[Math.round(hpx / 2), 0], [hpx, 0.5], [hpx, 1], [0, 1]];
+        return frames(seq.length, per(), function (f) {
+          p.lift = seq[f][0]; p.x = x0 + (x - x0) * seq[f][1]; p.z = z0 + (z - z0) * seq[f][1];
+          if (f === 2 && ball) { ball.x = x; ball.z = z; ball.y = 0; ball.attach = null; ball.inBasket = null; ball.cover = id; }
+          if (f === 3) p.sy = 1 - pxUp() / CUP.h;
+        }, 'hop:' + id).then(function (r) {
+          p.sy = 1;
+          if (r.cancelled && toys[id]) { p.lift = 0; p.x = x; p.z = z; if (ball && toys[o.hide] && !ball.attach) { ball.x = x; ball.z = z; ball.y = 0; ball.inBasket = null; ball.cover = id; } PF++; }   /* 끊겨도 숨기기는 끝낸다 (보이는 것 = 상태) */
+          return r.cancelled ? r : okR();
+        });
+      }
+      /* slide(cupId, x, z, { arm }) — 팔로 컵을 바닥에서 민다 (덮인 공도 같이). 뻗기 → 3포즈 밀기 → 거두기 */
+      function slide(id, x, z, o) {
+        o = o || {}; var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var base = towerBase(p), w = place(base), dx = x - w.x, dz = z - w.z, dl = Math.hypot(dx, dz) || 1, side = new T.Vector3(w.x - dx / dl * 0.2, 0.12, w.z - dz / dl * 0.2), arm0 = null, x0 = base.x, z0 = base.z;
+        return reach(o.arm == null ? 'auto' : o.arm, side, 1, {}).then(function (r) {
+          if (!r.ok) return r; arm0 = r.arm; var c = ctl[arm0], t0 = armTarget(c).clone();
+          return frames(st.reduced ? 1 : (o.poses || 3), st.reduced ? 0 : per(), function (f) {
+            var k = (f + 1) / (st.reduced ? 1 : (o.poses || 3)); base.x = x0 + (x - x0) * k; base.z = z0 + (z - z0) * k; c.tgt = new T.Vector3(t0.x + (x - x0) * k, t0.y, t0.z + (z - z0) * k);
+          }, 'slide:' + id);
+        }).then(function (r) {
+          if (r && !r.cancelled && o.hide && toys[o.hide]) { var b = toys[o.hide]; b.cover = base.id; b.x = base.x; b.z = base.z; b.attach = null; b.inBasket = null; }   /* 문어가 공을 덮어 둠 (cover_ball) */
+          if (arm0 == null) return r; return retract(arm0).then(function () { return r.cancelled ? r : okR({ arm: arm0 }); });
+        });
+      }
+
+      /* peekCup(cupId, { px: 10, tipDeg: 23, hold: 0.6 }) — 사람이 컵을 들춰 보기 (로컬, 팔 없음): 3/6/10 px 들며 입구를 보는 쪽으로 기울임 → 버팀 → 5/0 + 눌림. 모션 감소면 든 자세로 버팀 */
+      function peekCup(id, o) {
+        o = o || {}; var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var base = towerBase(p), px = o.px || 10, tp = towerTop(base) !== base ? 0 : -(o.tipDeg == null ? 23 : o.tipDeg) * DEG;   /* 탑은 기울이지 않는다 (위 컵이 따로 논다) */
+        var up = st.reduced ? [[px, 1]] : [[3, 0.4], [6, 0.75], [px, 1]], down = st.reduced ? [[0, 0]] : [[Math.round(px / 2), 0.4], [0, 0]];
+        return frames(up.length, st.reduced ? 0 : per(), function (f) { base.lift = up[f][0]; base.tip = tp * up[f][1]; }, 'peek:' + base.id)
+          .then(function (r) { return r.cancelled ? r : wait(o.hold == null ? 0.6 : o.hold); })
+          .then(function (r) { return r.cancelled ? r : frames(down.length, st.reduced ? 0 : per(), function (f) { base.lift = down[f][0]; base.tip = tp * down[f][1]; if (f === down.length - 1 && !st.reduced) base.sy = 1 - pxUp() / CUP.h; }, 'peek:' + base.id); })
+          .then(function (r) { base.sy = 1; base.lift = 0; base.tip = 0; return r.cancelled ? r : okR({ cup: base.id }); });
+      }
+      function bob(id, px) {   /* 공 통: 1 칸 들렸다 내려옴 (처음 만지기 전 1.6 s 마다 같은 것) */
+        var p = toys[id]; if (!p || st.reduced || p.attach) return Promise.resolve(okR());
+        return frames(2, per(), function (f) { p.lift = f ? 0 : (px || 1); }, 'bob:' + id).then(function (r) { p.lift = 0; return r; });
+      }
+
+      /* ── 몸 ── */
+      function setPose(name, o) { if (o) poses[name] = o; else delete poses[name]; }
+      function clearPose(name) { delete poses[name]; }
+      function poseSteps(name, list, step) {   /* 포즈 프레임들 (12 fps). 모션 감소면 마지막만 */
+        if (st.reduced) { setPose(name, list[list.length - 1]); return Promise.resolve(okR()); }
+        return frames(list.length, step != null ? step * st.speed : per(), function (f) { setPose(name, list[f]); }, 'pose:' + name);
+      }
+      function applyPoses() {
+        var sx = 1, sy = 1, dy = 0, lean = 0, tilt = 0, hid = false, n = 0;
+        Object.keys(poses).forEach(function (k) { var o = poses[k]; n++; sx *= o.sx || 1; sy *= o.sy || 1; dy += o.dyPx || 0; lean += o.lean || 0; tilt += o.tilt || 0; hid = hid || !!o.hidden; });
+        if (n) {
+          bodyG.scale.x *= sx; bodyG.scale.y *= sy; bodyG.scale.z *= sx;
+          bodyG.position.y += Math.round(dy) * pxUp() / OCT_R; bodyG.rotation.x += lean; bodyG.rotation.z += tilt;
+        }
+        octG.visible = !hid && st.octState !== 'away'; octDecal.scale.setScalar(Math.min(1, sx));
+      }
+      var walkRes = null;   /* walkPoint 는 끊긴 걸음의 Promise 를 안 푼다 (moveTo 와 같은 동작, 본 게임 그대로) → kit 은 감싸서 끊기면 { cancelled } 로 푼다 */
+      function stopWalk() { if (oct.walking) { oct.walking.cancel(); oct.walking = null; } if (walkRes) { var r0 = walkRes; walkRes = null; r0({ ok: false, cancelled: true }); } }
+      function walkTo(x, z) {
+        if (walkRes) { var r0 = walkRes; walkRes = null; r0({ ok: false, cancelled: true }); }
+        return new Promise(function (res) {
+          walkRes = res;
+          walkPoint(new T.Vector3(x, 0, z), function () { }, null).then(function () { if (walkRes === res) { walkRes = null; res(okR({ at: [x, z] })); } });
+        });
+      }
+      function jumpTo(x, z) { stopWalk(); oct.pos.set(x, 0, z); snapScreen(octG.position.copy(oct.pos)); gaitReset(); }
+      function yawTo(tg) {
+        if (tg === 'camera') return camYaw();
+        var q = typeof tg === 'string' && toys[tg] ? place(toys[tg]) : tg && tg.length ? { x: tg[0], z: tg[tg.length - 1] } : tg;
+        if (!q) return oct.wantYaw;
+        var dx = q.x - oct.pos.x, dz = q.z - oct.pos.z; return Math.hypot(dx, dz) < 1e-3 ? oct.wantYaw : Math.atan2(dx, dz);
+      }
+      function faceTo(tg, o) {   /* 몸을 돌린다 (stepOct 의 지수 접근 그대로) → 다 돌면 resolve. face(id | 'camera' | [x,z] | x, z, o?). offsetDeg: 거기서 더 돌기 (거절 30°) */
+        if (typeof tg === 'number') { tg = [tg, +o]; o = arguments[2]; }
+        o = o || {}; oct.wantYaw = yawTo(tg) + (o.offsetDeg || 0) * DEG;
+        return job(DK(0.8), function () { return Math.abs(angDiff(oct.wantYaw, oct.faceYaw)) < 0.06; }, 'face').then(function (r) { return r.cancelled ? r : okR({ yaw: +(oct.faceYaw / DEG).toFixed(1) }); });
+      }
+      function eyePoint() {   /* 눈 목표 → 클라이언트 CSS px (stepOct 이 동공·curious 기울임에 쓴다) */
+        var lk = P.look; if (lk == null) return null;
+        var r = canvas.getBoundingClientRect();
+        if (lk === 'camera') { var sp = octScreen(); return { x: r.left + sp.x - S.offX, y: r.top + sp.y - S.offY + 30 }; }
+        var w = typeof lk === 'string' && toys[lk] ? place(toys[lk]).clone().setY(place(toys[lk]).y + toys[lk].h * 0.5) : lk.length === 3 ? _v.set(lk[0], lk[1], lk[2]) : lk.length === 2 ? _v.set(lk[0], 0.1, lk[1]) : (lk.x != null && lk.z == null ? null : _v.set(lk.x, lk.y || 0, lk.z));
+        if (!w) return { x: lk.x, y: lk.y };
+        w = w.clone().project(camera);
+        return { x: r.left + (w.x * 0.5 + 0.5) * r.width, y: r.top + (1 - (w.y * 0.5 + 0.5)) * r.height };
+      }
+      function look(tg) { P.look = tg == null ? null : tg; P.eye = eyePoint(); if (tg === 'camera') oct.wantYaw = camYaw(); return P.eye; }
+      function scan(list, each) {   /* 눈이 차례로 (좌우 훑기) */
+        list = [].concat(list); var i = 0;
+        return frames(list.length, DK(each == null ? 0.25 : each), function (f) { look(list[f]); i = f; }, 'scan').then(function (r) { return r.cancelled ? r : okR({ n: i + 1 }); });
+      }
+      function joy() { setExpression('happy'); return wait(st.reduced ? 0.3 : 0.9); }   /* found_joy: happy 표정이 폴짝 2번 (모션 감소면 폴짝 없음) */
+      /* 위장: tint(hex|null, steps) — octColor 만 바꾼다 (외곽선·눈 흰자·하이라이트는 남아 들킬 틈). camouflage('floor' | hex | toyId | null, { amount .85, steps 3 }) 120 ms 칸 */
+      function tint(to, o) {
+        if (typeof o === 'number') o = { steps: o };
+        o = o || {}; var from = P.tint || st.color, n = st.reduced ? 2 : (o.steps || (to ? 3 : 2)), amt = o.amount == null ? 0.85 : o.amount;
+        var goal = to ? mixHex(st.color, to, amt) : st.color;
+        return frames(n, DK(o.step || 0.12), function (f) { var k = (f + 1) / n; P.tint = k >= 1 && !to ? null : mixHex(from, goal, k); }, 'tint').then(function (r) { return r.cancelled ? r : okR({ tint: P.tint }); });
+      }
+      function camouflage(tg, o) { var hex = tg == null ? null : tg === 'floor' ? MAT.floorB : toys[tg] ? toys[tg].color : colorOf(tg, MAT.floorB); return tint(hex, o); }
+      function tuck(on) {   /* 거절: 팔 8개를 몸 밑으로 오므린다 (2포즈) + 몸 6 % 낮게 */
+        if (!on) { clearPose('tuck'); arms.forEach(function (_, i) { if (ctl[i] && ctl[i].mode === 'tuck') delete ctl[i]; }); return Promise.resolve(okR()); }
+        var list = freeArms();
+        list.forEach(function (i) { ctl[i] = { mode: 'tuck', rz: 0.05, sx: 1, k: 0, kq: 0 }; });
+        return frames(st.reduced ? 1 : 2, st.reduced ? 0 : per(), function (f) {
+          var k = (f + 1) / (st.reduced ? 1 : 2); list.forEach(function (i) { if (ctl[i] && ctl[i].mode === 'tuck') { ctl[i].rz = 0.05 + 0.1 * k; ctl[i].sx = 1 - 0.38 * k; } }); setPose('tuck', { sy: 1 - 0.06 * k, sx: 1 + 0.02 * k });
+        }, 'tuck').then(function (r) { return r.cancelled ? r : okR({ arms: list.length }); });
+      }
+
+      /* ── 컵 속 (squeeze_in · hide_peek): 컵 하나를 들고 → 몸을 3포즈로 구겨 컵 자리로 → 컵이 덮임 → 몸 숨김 (+ 팔 끝 하나 밖) ── */
+      function squeezeInto(id, o) {
+        o = o || {}; var p = toys[id]; if (!p || p.kind !== 'cup') return Promise.resolve({ ok: false, reason: 'gone' });
+        var base = towerBase(p), w0 = place(base).clone(), dx = oct.pos.x - w0.x, dz = oct.pos.z - w0.z, dl = Math.hypot(dx, dz) || 1, armI = -1;
+        var pre = dl > 0.75 ? walkTo(w0.x + dx / dl * 0.7, w0.z + dz / dl * 0.7).then(function () { return faceTo(base.id); }) : faceTo(base.id);
+        return pre.then(function () { return lift([base.id], { px: o.px || 14, stand: false, aside: 0 }); }).then(function (r) {
+          if (!r.ok) return r; armI = r.arms[base.id];
+          /* 컵을 그 높이에 띄워 두고(놓는 순간 팔은 돌아간다) 몸이 그 밑으로: 들고 있으면 팔이 몸 쪽으로 접혀 컵을 끌어당기므로 */
+          var hp = Math.max(0, Math.round((place(base).y) / pxUp()));
+          base.attach = null; base.grip = null; base.liftFrom = null; base.x = w0.x; base.z = w0.z; base.lift = hp; if (armI >= 0) delete ctl[armI];
+          var sx0 = oct.pos.x, sz0 = oct.pos.z, steps = st.reduced ? [{ sx: 0.7, sy: 0.5 }, { sx: 0.45, sy: 0.35 }] : [{ sx: 1, sy: 1 }, { sx: 1.15, sy: 0.7 }, { sx: 0.7, sy: 0.5 }, { sx: 0.45, sy: 0.35 }];
+          return frames(steps.length, st.reduced ? 0 : per(), function (f) {
+            setPose('squeeze', steps[f]); var k = (f + 1) / steps.length; oct.pos.set(sx0 + (w0.x - sx0) * k, 0, sz0 + (w0.z - sz0) * k);
+          }, 'squeeze');
+        }).then(function (r) {
+          if (r.cancelled || r.ok === false) return r;
+          setPose('hide', { hidden: true }); P.hidden = base.id; clearPose('stand');
+          base.lift = 0; PF++;
+          if (!st.reduced) base.sy = 1 - pxUp() / CUP.h;   /* 컵은 1px 눌려 내려앉은 채 */
+          return o.tip === false ? okR({ cup: base.id }) : tipOut(base.id, o.tip || 'front').then(function () { return okR({ cup: base.id }); });
+        });
+      }
+      /* popOut({ cup, to:[x,z], happy }) — 컵이 튀어 오르고 몸이 퐁(.4 → 1.04 → 1). cup 을 주면 그 컵에서 나온다 (다른 컵이면 몸이 거기로 옮겨 가 있다) */
+      function popOut(o) {
+        o = o || {}; var from = o.cup && toys[o.cup] ? towerBase(toys[o.cup]) : toys[P.hidden]; if (!from) return Promise.resolve({ ok: false, reason: 'not-hidden' });
+        var w = place(from).clone(), to = o.to || null;
+        if (toys[P.hidden]) toys[P.hidden].sy = 1;   /* 숨었던 컵의 1px 눌림도 푼다 (다른 컵에서 나오는 경우) */
+        tipIn(); P.hidden = null; from.sy = 1;
+        oct.pos.set(w.x, 0, w.z); snapScreen(octG.position.copy(oct.pos));
+        /* 퐁: 컵 위로 튐(10→14→6→0 px) · 몸 배율 .4 → 1.04 → 1 · 동시에 컵 뒤(문어 자리 쪽) 0.85 m 로 폴짝 (작업칸 거리: 눈이 컵에 안 가린다) */
+        var home = cell(4, 3), bx = home[0] - w.x, bz = home[1] - w.z, bl = Math.hypot(bx, bz) || 1, out = [w.x + bx / bl * Math.min(0.85, bl), w.z + bz / bl * Math.min(0.85, bl)];
+        var seq = st.reduced ? [[0, 1, 1, 0]] : [[10, 0.4, 0, 2], [14, 1.04, 0.5, 6], [6, 1, 1, 3], [0, 1, 1, 0]];
+        clearPose('hide'); clearPose('squeeze');
+        return frames(seq.length, st.reduced ? 0 : per(), function (f) {
+          var s = seq[f]; from.lift = s[0]; setPose('pop', { sx: s[1], sy: s[1], dyPx: s[3] });
+          oct.pos.set(w.x + (out[0] - w.x) * s[2], 0, w.z + (out[1] - w.z) * s[2]);
+          if (f === 0 && o.happy !== false) setExpression('happy');
+          if (f === seq.length - 1 && !st.reduced) from.sy = 1 - pxUp() / CUP.h;
+        }, 'pop').then(function (r) {
+          clearPose('pop'); from.lift = 0; from.sy = 1;
+          if (r.cancelled) return r;
+          if (to) return walkTo(to[0], to[1]).then(function () { return okR({ cup: from.id }); });
+          return okR({ cup: from.id, at: out });
+        });
+      }
+      /* 팔 끝 하나 (다리 기하를 공유 → 몸색·위장을 따른다): 컵 테두리 밑으로. side = 'front' | 'left' | 'right' | 'back' | 각도(°, 0 = 앞, 90 = 오른쪽) */
+      function sideDir(side) {
+        var deg = typeof side === 'number' ? side : { front: 0, right: 90, back: 180, left: 270 }[side] || 0, a = deg * DEG;
+        return [GRID.f[0] * Math.cos(a) + GRID.e[0] * Math.sin(a), GRID.f[2] * Math.cos(a) + GRID.e[2] * Math.sin(a)];
+      }
+      function tipMesh() {
+        if (P.tipM) return P.tipM;
+        var m = new T.Mesh(arms[0].geometry, toon); m.castShadow = false; m.receiveShadow = true; m.visible = false; m.scale.set(OCT_R, OCT_R * 0.8, OCT_R * 0.8); atticG.add(m);
+        return (P.tipM = m);
+      }
+      function tipOut(id, side) {
+        var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var m = tipMesh(), d = sideDir(side == null ? 'front' : side);
+        P.tip = { cup: id, side: side == null ? 'front' : side, d: d, poke: false, n: 0, k: 0 };
+        m.rotation.set(0, -Math.atan2(d[1], d[0]), 0.05);
+        return frames(st.reduced ? 1 : 2, st.reduced ? 0 : per(), function (f) { P.tip.k = (f + 1) / (st.reduced ? 1 : 2); }, 'tip').then(function (r) { return r.cancelled ? r : okR({ cup: id, side: P.tip && P.tip.side }); });
+      }
+      function tipIn() { if (P.tip) P.tip = null; if (P.tipM) P.tipM.visible = false; return Promise.resolve(okR()); }
+      function tipPoke(on) { if (P.tip) P.tip.poke = !!on; }
+      function layoutTip() {
+        var tp = P.tip, m = P.tipM; if (!m) return;
+        if (!tp || !toys[tp.cup]) { m.visible = false; return; }
+        var w = place(towerBase(toys[tp.cup])), reachOut = 0.07 + 0.09 * tp.k;   /* 테두리(.17) 밖으로 나온 길이 */
+        m.position.set(w.x + tp.d[0] * (0.17 + reachOut - 0.82 * OCT_R), 0.09, w.z + tp.d[1] * (0.17 + reachOut - 0.82 * OCT_R)); snapScreen(m.position); m.position.y = 0.09;
+        tp.n++; m.rotation.z = 0.05 + (tp.poke && !st.reduced && ((Math.floor(tp.n / 3)) & 1) ? Math.asin(clamp(pxUp() / (0.82 * OCT_R), 0, 1)) : 0);
+        m.visible = true;
+      }
+      function tipScreen() {
+        var tp = P.tip, m = P.tipM; if (!tp || !m || !m.visible) return null;
+        m.updateMatrixWorld(true); var v = m.localToWorld(_v.copy(TIP)).project(camera), r = canvas.getBoundingClientRect();
+        return { x: r.left + (v.x * 0.5 + 0.5) * r.width, y: r.top + (1 - (v.y * 0.5 + 0.5)) * r.height };
+      }
+
+      /* ── 모자 (wear_cup_as_hat): 쥔 컵(없으면 집어 들고) → 4포즈 호로 머리 위 → 'head' 에 붙임(8° 기울게) → 팔 거둠 ── */
+      function wearHat(id) {
+        var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var base = towerBase(p), pre = base.attach && base.attach.slice(0, 4) === 'arm:' ? Promise.resolve(okR({ arms: (function () { var o = {}; o[base.id] = +base.attach.slice(4); return o; })() })) : lift([base.id], { px: 8, stand: false, aside: asideOf(base.id) * 1.5 });   /* 모자는 더 옆에서 올린다 (올라가는 길에 눈을 안 가리게) */
+        var armI = -1;
+        return pre.then(function (r) {
+          if (!r.ok) return r; armI = r.arms[base.id];
+          bodyG.updateMatrixWorld(true); var head = bodyG.localToWorld(new T.Vector3(0, HEAD_Y + HEAD_SQ * 0.93, 0)), c = ctl[armI], t0 = armTarget(c).clone(), tEnd = head.clone().add(base.grip);
+          /* 4 포즈 호: 옆에서 먼저 머리보다 높이 올리고(눈을 안 가리게) → 머리 위로 → 얹기 */
+          var hi = tEnd.y + 0.15, path = st.reduced ? [[1, 1]] : [[0, 0.5], [0, 1], [0.5, 1], [1, 2]];
+          return frames(path.length, st.reduced ? 0 : per(), function (f) {
+            var hk = path[f][0], vy = path[f][1], y = vy <= 1 ? t0.y + (hi - t0.y) * vy : tEnd.y;
+            c.tgt = new T.Vector3(t0.x + (tEnd.x - t0.x) * hk, st.reduced ? tEnd.y : y, t0.z + (tEnd.z - t0.z) * hk);
+          }, 'hat');
+        }).then(function (r) {
+          if (r.cancelled || r.ok === false) return r;
+          hold(base.id, 'head'); clearPose('stand');
+          return retract(armI).then(function () { return okR({ cup: base.id }); });
+        });
+      }
+      function takeOffHat(id, x, z) {   /* 머리 위 컵을 팔로 집어 (x, z) 에 내려놓기 */
+        var p = toys[id]; if (!p || p.attach !== 'head') return Promise.resolve({ ok: false, reason: 'not-hat' });
+        var w = place(p).clone(), i = pickArm(new T.Vector3(x, 0.3, z));
+        if (i < 0) { hold(id, null, { at: [x, z] }); return Promise.resolve(okR()); }
+        var tip = w.clone().setY(w.y + p.h + 0.03);
+        return reach(i, tip, 1, { approach: false, poses: 3 }).then(function (r) {
+          if (!r.ok) return r; hold(id, i);
+          var t = {}; t[id] = [x, z]; return lower([id], { to: t });
+        });
+      }
+
+      /* ── 고르기(탭)·화면 ── */
+      function cRect() { return canvas.getBoundingClientRect(); }
+      function pick(x, y) {   /* 클라이언트 CSS px → { kind: 'ball'|'cup'|'basket'|'tip', id } | null. 프록시 레이캐스트 → 없으면 화면 32px 안 최근접. 우선순위 공 > 맨 위 컵 > 컵 > 바구니 */
+        scene.updateMatrixWorld(); camera.updateMatrixWorld();
+        var r = cRect(), ts = tipScreen();
+        if (ts && Math.hypot(ts.x - x, ts.y - y) <= 26) return { kind: 'tip', id: P.tip.cup };
+        _nd.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1); _rc.setFromCamera(_nd, camera);
+        var vis = order.map(function (id) { return toys[id]; }).filter(function (p) { return p.g.visible; });
+        function rank(p) { return p.kind === 'ball' ? 3 : p.kind === 'cup' ? (towerTop(p) === p ? 2 : 1) : 0; }
+        var hs = _rc.intersectObjects(vis.map(function (p) { return p.proxy; }), false), best = null;
+        hs.forEach(function (h) { var p = toys[h.object.userData.toy]; if (!best || rank(p) > rank(best.p) || (rank(p) === rank(best.p) && h.distance < best.d)) best = { p: p, d: h.distance }; });
+        if (best) return { kind: best.p.kind, id: best.p.id };
+        var bd = Infinity, bp = null;
+        vis.forEach(function (p) { var q = screenRect([p.mesh], r), d = Math.hypot(Math.max(q.l - (x - r.left), 0, (x - r.left) - q.r), Math.max(q.t - (y - r.top), 0, (y - r.top) - q.b)); if (d < bd - 4 || (d < bd + 4 && bp && rank(p) > rank(bp))) { bd = Math.min(bd, d); bp = p; } });
+        return bp && bd <= NEAR ? { kind: bp.kind, id: bp.id } : null;
+      }
+      function floorAt(x, y, h) { var r = cRect(); _nd.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1); _rc.setFromCamera(_nd, camera); _pl.constant = -(h || 0); var o = _rc.ray.intersectPlane(_pl, new T.Vector3()); return o ? { x: o.x, z: o.z } : null; }
+      function screenOf(tg) {   /* 장난감 중심(또는 [x,y,z]) → 클라이언트 CSS px */
+        scene.updateMatrixWorld(); var p = toys[tg], r = cRect(), v;
+        if (p) { v = place(p).clone(); v.y += p.kind === 'ball' ? BALL_R : p.h * 0.5; } else if (tg && tg.length === 3) v = new T.Vector3(tg[0], tg[1], tg[2]); else return null;
+        v.project(camera); return { x: r.left + (v.x * 0.5 + 0.5) * r.width, y: r.top + (1 - (v.y * 0.5 + 0.5)) * r.height };
+      }
+      function headRect() {   /* 문어 머리(몸통 메시)만의 화면 사각형 (팔 제외) — 컵 탭 상자와 겹칠 때 '보이는 그림이 이긴다' 판정용. 숨었으면 null */
+        if (!octG.visible || P.hidden) return null; scene.updateMatrixWorld(); camera.updateMatrixWorld();
+        var r = cRect(), q = screenRect([head], r); if (!isFinite(q.l)) return null;
+        return { l: r.left + q.l, t: r.top + q.t, r: r.left + q.r, b: r.top + q.b };
+      }
+      function targets() {   /* 보이는 장난감의 화면 사각형: rect = 보이는 메시, hit = 탭 프록시 (CSS px, 클라이언트) */
+        scene.updateMatrixWorld(); camera.updateMatrixWorld(); var r = cRect(), out = [];
+        order.forEach(function (id) {
+          var p = toys[id]; if (!p.g.visible) return;
+          var a = screenRect([p.mesh], r), b = screenRect([p.proxy], r);
+          function abs(q) { return { l: r.left + q.l, t: r.top + q.t, r: r.left + q.r, b: r.top + q.b, w: Math.round(q.r - q.l), h: Math.round(q.b - q.t) }; }
+          out.push({ kind: p.kind, id: id, x: r.left + (a.l + a.r) / 2, y: r.top + (a.t + a.b) / 2, rect: abs(a), hit: abs(b) });
+        });
+        var ts = tipScreen(); if (ts) out.push({ kind: 'tip', id: P.tip.cup, x: ts.x, y: ts.y, rect: { l: ts.x - 26, t: ts.y - 26, r: ts.x + 26, b: ts.y + 26, w: 52, h: 52 } });
+        return out;
+      }
+
+      /* ── 프레임 (frame() 에서 stepOct 바로 뒤) ── */
+      function stepPlay(dt) {
+        P.stat.frames++;
+        var list = jobs.slice();
+        for (var j = 0; j < list.length; j++) {
+          var jb = list[j]; if (jb.dead) continue;
+          jb.t += dt; var k = jb.dur > 0 ? Math.min(1, jb.t / jb.dur) : 1, end = false;
+          if (jb.fn) end = jb.fn(k, jb.t) === true;
+          if (end || k >= 1) { jb.dead = true; jobs.splice(jobs.indexOf(jb), 1); jb.res({ ok: true }); }
+        }
+        P.stat.jobs = jobs.length;
+        applyPoses();
+        stepArms();
+        layoutToys(); layoutTip();
+        if (P.look != null) P.eye = eyePoint();
+      }
+      function resetAll() {   /* '처음처럼': 남은 연출 취소 · 팔·자세·색·숨김·모자 · 장난감은 그대로 둔다(play.js 가 다시 놓는다) */
+        cancel(); Object.keys(ctl).forEach(function (k) { delete ctl[k]; });
+        order.forEach(function (id) { var p = toys[id]; if (p.attach) hold(id, null); p.sy = 1; p.lift = 0; p.tip = 0; });
+        Object.keys(poses).forEach(function (k) { delete poses[k]; }); P.tint = null; P.hidden = null; tipIn(); P.look = null; P.eye = null;
+        octG.visible = st.octState !== 'away'; octDecal.scale.setScalar(1);
+      }
+      function snapshot() {   /* 테스트·결정 확인용 상태 (실수는 cm 로 반올림, 칸 포함) */
+        var o = { toys: {}, oct: { at: [+oct.pos.x.toFixed(3), +oct.pos.z.toFixed(3)], cell: cellOf(oct.pos.x, oct.pos.z), yaw: +(oct.faceYaw / DEG).toFixed(1), hidden: P.hidden, tint: P.tint, visible: octG.visible, poses: Object.keys(poses), expr: face.expr, walking: !!oct.walking }, arms: {}, jobs: jobs.map(function (j) { return j.tag; }), tip: P.tip ? { cup: P.tip.cup, side: P.tip.side, poke: P.tip.poke } : null, look: P.look };
+        order.forEach(function (id) { var p = toys[id], w = place(p); o.toys[id] = { kind: p.kind, x: +p.x.toFixed(3), z: +p.z.toFixed(3), cell: cellOf(p.x, p.z), y: +w.y.toFixed(3), lift: p.lift, vis: p.g.visible, attach: p.attach, on: p.on, cover: p.cover, inBasket: p.inBasket || null }; });
+        Object.keys(ctl).forEach(function (k) { var c = ctl[k]; o.arms[k] = { mode: c.mode, k: +(c.kq || 0).toFixed(2), sx: +(arms[k].scale.x).toFixed(2), holds: heldBy(+k) }; });
+        return o;
+      }
+      function api(id) { return toys[id] ? id : null; }
+      function prop(id, o) {   /* 논리 위치 직접 (끌기·배치): { x, z, lift(px), tilt, vis, sy, on, cover } */
+        var p = toys[id]; if (!p) return null; o = o || {};
+        if (o.at) { p.x = o.at[0]; p.z = o.at[1]; }
+        ['x', 'z', 'lift', 'tilt', 'tip', 'vis', 'sy'].forEach(function (k) { if (o[k] != null) p[k] = o[k]; });
+        if ('on' in o) p.on = o.on && toys[o.on] && o.on !== id ? o.on : null;
+        if ('cover' in o) p.cover = o.cover && toys[o.cover] ? o.cover : null;
+        if (o.x != null || o.at || o.on) p.inBasket = null;
+        PF++; return snapshot().toys[id];
+      }
+      var camDef = (function () { var a = GRID.P0, f = GRID.f; return new T.Vector3(a[0] - f[0] * 1.3, 0.3, a[2] - f[2] * 1.3); })();   /* 컵 줄이 화면 높이 ~62 % (360×740, 2배 줌) */
+      P.cam = camDef.clone();
+      var kit = P.kit = {
+        version: 1, grid: GRID, cell: cell, cellOf: cellOf, CUP: CUP, BALL_R: BALL_R, MAXS: MAXS,
+        addCup: addCup, addBall: addBall, addBasket: addBasket, remove: removeToy, prop: prop, putInBasket: putInBasket, has: function (id) { return !!toys[id]; }, ids: function () { return order.slice(); },
+        pick: pick, floorAt: floorAt, screenOf: screenOf, targets: targets, headRect: headRect,
+        camera: function (v) { P.cam = v == null ? camDef.clone() : v.isVector3 ? v.clone() : new T.Vector3(v[0], v[1], v[2]); dither.still = 0; return [+P.cam.x.toFixed(3), +P.cam.y.toFixed(3), +P.cam.z.toFixed(3)]; },
+        walkTo: walkTo, jumpTo: jumpTo, face: faceTo, look: look, scan: scan, expr: function (n) { setExpression(n); return face.expr; }, joy: joy,
+        reach: reach, retract: retract, hesitate: hesitate, grab: grab, hold: hold, press: press, lift: lift, lower: lower, raise: raise, pxUp: pxUp,
+        roll: roll, nudge: nudge, route: route, blocked: blocked, cupHop: cupHop, slide: slide, peekCup: peekCup, bob: bob, cover: function (ball, cup) { var b = toys[ball]; if (!b) return false; b.cover = cup && toys[cup] ? cup : null; if (b.cover) { var c = towerBase(toys[cup]); b.x = c.x; b.z = c.z; b.attach = null; b.inBasket = null; } PF++; return true; },
+        pose: function (a, b) { if (typeof a === 'string') setPose(a, b); else setPose('user', a); }, poseSteps: poseSteps,
+        tint: tint, camouflage: camouflage, tuck: tuck,
+        squeezeInto: squeezeInto, popOut: popOut, tipOut: tipOut, tipIn: tipIn, tipPoke: tipPoke,
+        wearHat: wearHat, takeOffHat: takeOffHat,
+        wait: wait, cancel: cancel, reset: resetAll, busy: function () { return jobs.length; }, state: snapshot,
+        speed: function (k) { if (k > 0) st.speed = clamp(+k, 0.1, 8); return st.speed; },
+        destroy: function () { resetAll(); order.slice().forEach(removeToy); if (P.tipM) atticG.remove(P.tipM); PLAY = null; }
+      };
+      return kit;
+    }
 
     return {
       kind: '3d', renderer: renderer, scene: scene, camera: camera,
@@ -2266,7 +3019,8 @@ var SCENE3D = (function () {
         if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
         container.classList.remove('mode-3d');
       },
-      anchors: ANCHORS, extAnchors: EXT_P, PLACES: ['attic', 'exterior'], SEASONS: SEASONS.slice()
+      anchors: ANCHORS, extAnchors: EXT_P, PLACES: ['attic', 'exterior'], SEASONS: SEASONS.slice(),
+      play: function () { return PLAY ? PLAY.kit : makePlay(); }   /* 놀이 kit (docs/PLAY_PROTO.md §11.3) — 처음 부를 때 만든다. 본 게임은 부르지 않는다 */
     };
   }
 
