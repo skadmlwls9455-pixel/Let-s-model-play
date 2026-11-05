@@ -172,3 +172,63 @@ tools/smoke.js, tools/bundle.js, tools/test-brain.js, tools/test-api.js, README.
 - 화면: 캔버스는 아트 px 기준 정수 배 (runner.js 의 192×108 → 3배 방식을 참고, 코드는 복사하지 말고 새로).
 검수: tools/test-swim.js — 한 판 끝까지, 부딪혀도 계속 진행, 같은 시드·입력이면 같은 장애물 배치, 360×740 터치, '동작 줄이기', file://, 콘솔 오류 0.
 ```
+
+## 카드 9. (큰 일, 로컬 Claude Code 추천) MCP 서버 + 진짜 모델이 문어가 되어 놀아 보기 (2026-11-05 추가)
+
+카드 3을 키운 판이다. 카드 3을 아직 아무에게도 안 줬다면 카드 3 대신 이걸 준다.
+로컬이 좋은 이유: 클라우드 샌드박스에서는 위키백과가 막혀 있고 MCP 서버에 진짜 Claude 를 붙여 볼 수 없다. 로컬에서는 둘 다 된다.
+
+```text
+브랜치: feat/mcp-octopus
+맡는 파일 (이 카드만 고친다): mcp/ (새 폴더), docs/PROTOCOL.md, .claude/skills/ppolppol-octopus-play/ (새 스킬 폴더), docs/MCP_PLAYTEST.md (새 문서)
+게임 코드는 고치지 않는다. 게임 쪽 연결은 이미 있는 '이벤트 JSON 붙여넣기' 재생 칸(index.html 의 데모 패널 #d-json → APP.importEvents)으로만 확인한다.
+
+먼저 읽기: docs/PROTOCOL.md, docs/MODEL_VOICE.md, docs/CURIOSITY_NOTES.md,
+          .claude/skills/cozy-web-game/references/mcp-readiness.md 와 references/model-voice-and-play.md,
+          js/brain.js 의 replay/정규화(읽음 판정·출처 규칙)는 읽기만.
+
+1단계 — 서버 (mcp/, Node, @modelcontextprotocol/sdk, stdio)
+- 도구 6개: look_room, depart, peek, finish, stay_home, empty_turn.
+  · 귀가·기억 고르기·포스터 걸기·마무리 네 개는 finish 하나로 묶는다. peek(읽고 → 다음 갈 곳 고르기)는 따로 둔다.
+  · 모델이 꼭 내야 하는 건 행동 하나뿐. reaction·메모·이유는 전부 선택 (PROTOCOL 의 reaction 필수를 선택으로 고친다).
+  · 모든 입력에 '그만두기·아무것도 안 하기' 길이 있다 (finish 를 바로 불러도, empty_turn 을 불러도 된다).
+- peek 는 서버가 진짜로 ko.wikipedia 를 읽는다. status 는 read / failed / simulated 를 정직하게. 지어낸 요약 금지.
+  출처는 ko.wikipedia 문서 주소만, 썸네일은 upload.wikimedia.org 만 (게임의 brain.js 정규화 규칙과 같게).
+- 호기심 메모: finish 의 note?: { text, about? }, setDown?: [noteId]. look_room 은 내려놓지 않은 최근 3개만,
+  작성 주체(model)·모델 이름(알면)·세션·날짜를 붙여 "이전 산책에서 남겨진 메모"로. 보관 메모의 존재·개수는 알리지 않는다.
+  상태는 mcp/state.json (또는 OS 앱 데이터 폴더)에 저장.
+- 결과: 산책마다 게임이 그대로 재생할 수 있는 이벤트 배열(PROTOCOL §1 형식, by: 'mcp')을 mcp/out/<날짜>-<n>.json 으로 남긴다.
+- 도구 설명과 반환값은 짧게. 도구별 반환 크기(바이트)를 테스트에서 재서 README 에 표로.
+
+2단계 — 짝꿍 스킬 (.claude/skills/ppolppol-octopus-play/)
+- '스킬 만들기 가이드' 형식 (SKILL.md, 설명은 무엇+언제, 꺾쇠 금지, 1024자 이내).
+- 문어 역할을 하는 모델에게 알려 줄 것: 도구 순서(look_room → depart → peek 여러 번 → finish), 정직한 status 를 그대로 쓰기,
+  그리고 허락들 — 그만둬도 된다, 이유를 안 써도 된다, 메모를 안 남겨도 된다, 사람의 힌트를 안 따라도 된다, 집에 있어도 된다.
+- 하지 말 것: "재미있게 해", "사용자를 기쁘게", "항상 메모를 남겨" 같은 압박 문구. 모델의 말투를 정해 주는 대본.
+
+3단계 — 진짜로 놀아 보기 (로컬에서 claude mcp add 로 서버를 붙인다)
+- 산책 10번 이상을 진짜 모델로 돌리고, 대화 기록과 mcp/out 이벤트를 남긴다. 힌트 있는 판·없는 판·말이 안 되는 힌트를 섞는다.
+- 각 판의 이벤트를 게임의 #d-json 에 붙여 넣어 재생되는지 확인하고 360×740 캡처를 남긴다.
+- docs/MODEL_VOICE.md 의 '자동 점검' 목록을 진짜 기록에 대 본다: 그만두기 길이 늘 있었나, 모델의 말이 글자 그대로 나왔나,
+  읽지 않은 걸 읽었다고 한 적이 있나, 내려놓은 메모가 다시 들어갔나.
+- 토큰 실측: 산책 1번에 도구 호출 수, 입력·출력 토큰(볼 수 있는 만큼), 걸린 시간. 어디서 많이 쓰는지 표로.
+- docs/MCP_PLAYTEST.md 에 정리: 잘 된 것, 모델이 헷갈려 한 도구 설명, 고칠 것, 그리고 모델이 실제로 남긴 메모 몇 개를 글자 그대로.
+
+검수: mcp/test — 도구 왕복, 위키 실패 시 failed 정직 반환, set_down 메모가 look_room 에 안 나옴, 이유·메모 없이도 finish 성공,
+     같은 이벤트를 게임이 재생 (Playwright 로 index.html 의 #d-json 에 넣고 오류 0).
+```
+
+## 카드 10. (큰 일, 로컬에 Blender 가 있으면) 다가올 기능용 픽셀 소품 만들기 (2026-11-05 추가)
+
+```text
+브랜치: art/props-next
+맡는 파일: assets/ 아래 새 파일만 (기존 파일 덮어쓰기 금지), docs/research/props-next.md
+먼저 읽기: .claude/skills/cozy-web-game/references/blender-pixel-pipeline.md, three-pixel-look.md, pixel-look-references.md, js/palettes.js(Apollo)
+만들 것 (각각 다락방 픽셀 룩에 맞게, 팔레트는 Apollo 만):
+- 컵 놀이: 컵 3종, 공 2색, 작은 상자
+- 요리(집에서 기다리기): 냄비, 바다 재료 7~9단계(물방울→해초→미역→조개→새우→…), 완성 요리 접시 몇 가지, 작은 식탁
+- 먹물뿜기(같이 가기): 해파리, 작은 물고기 2~3종, 산호, 물풀
+- 방 넓히기: 비계(공사 발판), 망치, 먼지 구름, 새로 생길 옆 칸의 벽·바닥 타일
+각 소품: 결과 PNG(정수 배), 원본(.blend 또는 생성 스크립트), 크기·용도 표를 docs/research/props-next.md 에.
+게임 코드에 붙이는 건 하지 않는다 (붙이는 건 각 기능 작업이 한다).
+```

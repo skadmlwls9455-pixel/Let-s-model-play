@@ -555,7 +555,8 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   color: var(--fg); font-family: var(--f-body); font-size: 20px; line-height: 30px; padding: 6px 12px;
   box-shadow: var(--bevel), 2px 2px 0 var(--line); clip-path: var(--notch-sh);
 }
-/* 들어올 땐 8px 아래에서 계단(8·4·2·0), 나갈 땐 제자리에서 흐려진 뒤 끝에 한 번에 내려간다(step-end) → 나가는 중에 다시 떠도 격자 밖 값이 없다 */
+/* 들어올 땐 8px 아래에서 계단(8·4·2·0), 나갈 땐 제자리에서 흐려진 뒤 끝에 한 번에 내려간다(step-end) → 다 뜬 뒤 나가는 중에 다시 떠도 격자 밖 값이 없다.
+   남는 틈: 들어오는 250ms 안에 숨었다가 150ms 안에 다시 뜨면 멈춘 자리(4·2px)에서 출발해 1px 이 한 번 나온다. 앱의 토스트(2.5초 · 소리 안내 2.8초)로는 생기지 않는다 */
 :root[data-font="pixel"] #toast { transform: translate(-50%, 8px); transition: opacity var(--t-press) var(--ease-exit), transform var(--t-press) step-end; }
 :root[data-font="pixel"] #toast.show { transform: translate(-50%, 0); transition: opacity var(--t-ui) var(--ease-enter), transform var(--t-ui) var(--ease-px); }
 
