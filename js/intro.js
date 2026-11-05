@@ -7,6 +7,9 @@
  * 하늘 단계에서 누르면 바로 착지 + 바로 게임 (기다리게 하지 않는다). Enter · Space · Esc 도 같다.
  *
  * 켜고 끄기: ?intro=0 이면 생략, ?intro=1 이면 강제. 자동화 브라우저(navigator.webdriver)는 기본 생략 — 기존 스모크·룩 샷이 첫 화면에서 바로 이름 창을 기다리기 때문.
+ * 하루 한 번 (docs/PLAYTEST_FIXES.md A5-1): 그 날짜에 한 번 입장을 마쳤으면(타이틀을 눌러 들어갔으면) 같은 날 다시 열 때는 연출 없이 바로 게임.
+ *   날짜는 앱과 같은 로컬 날짜(YYYY-MM-DD)이고 테스트 날짜 훅 window.__ppolTest.today 를 따른다. 기록은 localStorage 'ppolppol_intro_day' 하나.
+ *   저장소가 막혀 있으면 예전처럼 매번 보인다. ?intro=1 은 같은 날에도 강제로 보인다.
  * 모션 감소: 카메라는 바로 착지, 로고·덮개는 페이드만, 알갱이·깜빡임 정지.
  * 계약: INTRO.start(scene, { mode: '3d'|'2d', reduced, host }) → true 면 연출 중 (끝나면 INTRO.onDone 콜백). app.js boot 가 부른다.
  * 이 파일은 <head> 에서 읽어 html.intro-on 을 먼저 붙인다 (UI 가 한 프레임 보였다 사라지는 깜빡임 방지).
@@ -16,7 +19,16 @@ var INTRO = (function () {
   var root = document.documentElement, q = location.search || '';
   var forced = /[?&]intro=1(&|$)/.test(q), off = /[?&]intro=0(&|$)/.test(q);
   var robot = typeof navigator !== 'undefined' && !!navigator.webdriver;
-  var enabled = !off && (forced || !robot);
+  var DAY_KEY = 'ppolppol_intro_day';
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function todayKey() {   /* app.js todayKey 와 같은 규칙: 테스트 훅이 있으면 그 날짜, 아니면 로컬 날짜 (UTC 아님) */
+    var t = window.__ppolTest;
+    if (t && typeof t === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(t.today || '')) return t.today;
+    var d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+  function seenToday() { try { return localStorage.getItem(DAY_KEY) === todayKey(); } catch (e) { return false; } }
+  function markToday() { try { localStorage.setItem(DAY_KEY, todayKey()); } catch (e) { /* 저장소 없음: 다음에도 보인다 */ } }
+  var enabled = !off && (forced || (!robot && !seenToday()));
   if (enabled) {
     root.classList.add('intro-on');
     /* 새로고침 때 브라우저가 예전 스크롤 자리를 load 뒤에 되살리면 start 의 scrollTo(0,0) 를 덮어 장면이 화면 밖으로 밀린다 (덮개 구멍만 남음) → 입장이 켜진 판은 되살리지 않는다 */
@@ -184,6 +196,7 @@ var INTRO = (function () {
     if (st.el && st.el.parentNode) st.el.parentNode.removeChild(st.el);
     root.classList.remove('intro-reveal', 'intro-reduced', 'intro-on', 'intro-live'); root.style.removeProperty('--intro-sky');
     st.el = null; st.phase = 'done';
+    markToday();   /* 오늘은 들어왔다 → 같은 날 다시 열면 바로 게임 */
     var cbs = st.cbs; st.cbs = []; cbs.forEach(function (f) { try { f(); } catch (e) { console.error('[intro]', e); } });
   }
   function onDone(fn) { if (st.phase === 'done' || st.phase === 'off') fn(); else st.cbs.push(fn); }
