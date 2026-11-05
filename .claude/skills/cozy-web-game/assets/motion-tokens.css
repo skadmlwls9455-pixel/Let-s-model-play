@@ -12,7 +12,7 @@
   --ease-exit:  cubic-bezier(0.3, 0, 0.8, 0.15);    /* M3 emphasized-accelerate; exits are shorter than enters */
 }
 .pressable { transition: transform var(--t-press) var(--ease-out); }
-.pressable:active { transform: scale(0.97); }          /* 0.95–0.98 range */
+.pressable:active { transform: scale(0.97); }          /* 0.95-0.98 range */
 @media (hover: hover) and (pointer: fine) { .pressable:hover { transform: translateY(-1px); } }
 .row-enter { opacity: 0; transform: translateY(8px); transition: opacity var(--t-ui) var(--ease-enter), transform var(--t-ui) var(--ease-enter); }
 .row-enter.in { opacity: 1; transform: none; transition-delay: calc(var(--i, 0) * 60ms); } /* stagger 60ms, cap --i at 5 */
