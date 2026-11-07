@@ -60,10 +60,16 @@
   function onContextLost(event){event.preventDefault();useFallback('3D 화면 대신 같은 픽셀 캐릭터로 보여 줄게.');}
   function useFallback(message){
     backend='canvas2d';fallback.hidden=false;if(renderer)renderer.domElement.hidden=true;
-    if(message)notice.textContent=message;A.draw(fallback,look);renderPose(true);
+    if(message)notice.textContent=message;resize();renderPose(true);
   }
   function resize(){
-    if(!renderer||backend!=='three')return;
+    if(backend!=='three'){
+      var fallbackScale=host.clientWidth>=500?3:2;
+      width=Math.max(80,Math.floor(host.clientWidth/fallbackScale));height=Math.floor(host.clientHeight/fallbackScale);
+      fallback.width=width;fallback.height=height;fallback.style.width=(width*fallbackScale)+'px';fallback.style.height=(height*fallbackScale)+'px';
+      renderPose(true);return;
+    }
+    if(!renderer)return;
     var factor=host.clientWidth>=500?3:2;
     width=Math.max(1,Math.floor(host.clientWidth/factor));height=Math.max(1,Math.floor(host.clientHeight/factor));
     renderer.setSize(width,height,false);renderer.domElement.style.width=(width*factor)+'px';renderer.domElement.style.height=(height*factor)+'px';
@@ -71,6 +77,29 @@
     avatar.object.position.set(.18,.08,.58);avatar.snapToCamera(camera,width,height);drawScene();
   }
   function drawScene(){if(backend==='three'&&renderer)renderer.render(scene,camera);}
+  function drawFallback(pose){
+    // Rectangular pixel art keeps the same character and a usable room without WebGL.
+    var c=fallback.getContext('2d'),x=Math.floor((width-124)/2),y=Math.floor((height-106)/2);
+    c.imageSmoothingEnabled=false;c.clearRect(0,0,width,height);
+    function r(a,b,w,h,color){c.fillStyle=color;c.fillRect(x+a,y+b,w,h);}
+    r(3,105,118,3,'#b7c3a6');r(0,6,124,98,'#ad7757');r(3,10,118,65,'#e7d5b3');
+    r(3,75,118,27,'#d7b594');r(3,75,118,2,'#c09473');
+    for(var line=82;line<102;line+=8)r(3,line,118,1,'#c09473');
+    r(0,6,124,4,'#c09473');r(0,10,4,94,'#c09473');r(120,10,4,94,'#c09473');
+    r(14,21,39,33,'#ad7757');r(17,24,33,27,'#73bed3');r(18,25,31,12,'#a4dddb');
+    r(20,29,13,3,'#ebede9');r(26,27,6,2,'#ebede9');r(32,23,2,30,'#e7d5b3');r(17,37,33,2,'#e7d5b3');
+    r(10,21,5,32,'#ebede9');r(52,21,5,32,'#ebede9');r(11,54,46,3,'#ad7757');
+    r(89,40,24,36,'#c09473');r(88,39,26,3,'#ad7757');r(88,56,26,3,'#ad7757');r(88,74,26,3,'#ad7757');
+    ['#3c5e8b','#7a4841','#819796','#e7d5b3','#df84a5'].forEach(function(color,i){r(91+i*4,43+i%2*2,3,12-i%2*2,color);});
+    r(92,63,16,8,'#e7d5b3');r(92,62,16,2,'#819796');r(96,20,14,13,'#ad7757');r(98,22,10,9,'#ebede9');r(101,25,4,4,'#819796');
+    r(33,81,55,18,'#819796');r(35,83,51,1,'#d0da91');r(35,96,51,1,'#d0da91');
+    for(var fringe=36;fringe<87;fringe+=5){r(fringe,80,2,1,'#d0da91');r(fringe,99,2,1,'#d0da91');}
+    r(13,72,12,16,'#c09473');r(11,71,16,3,'#ad7757');r(18,54,2,18,'#468232');
+    r(9,58,10,5,'#75a743');r(19,52,10,5,'#75a743');r(12,49,7,5,'#a8ca58');r(19,63,9,4,'#468232');
+    r(100,78,10,10,'#df84a5');r(104,72,2,6,'#468232');r(100,67,10,6,'#ebede9');r(103,69,3,3,'#e8c170');
+    r(46,93,31,3,'#577277');
+    c.drawImage(A.compose(look,pose),x+38,y+27,48,72);
+  }
   function identity(){
     document.getElementById('av-description').textContent=A.describe(look);host.setAttribute('aria-label',A.describe(look));
     var c=document.getElementById('av-portrait'),ctx=c.getContext('2d');ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,48,48);ctx.drawImage(A.face(look),0,0,48,48);
@@ -78,7 +107,7 @@
   function apply(value){look=A.validate(value);if(avatar)avatar.setLook(look);identity();renderPose(true);}
   function renderPose(force){
     var reduced=media.matches,pose={frame:walking&&!reduced?'walk'+(Math.floor(time*8)%4):'stand',expr:!reduced&&time%4.3>4.15?'blink':'idle'};
-    var key=pose.frame+pose.expr;if(force||key!==lastPose){lastPose=key;if(backend==='three'){avatar.setPose(pose);drawScene();}else A.draw(fallback,look,pose);}
+    var key=pose.frame+pose.expr;if(force||key!==lastPose){lastPose=key;if(backend==='three'){avatar.setPose(pose);drawScene();}else drawFallback(pose);}
   }
   function loop(now){
     if(disposed)return;
