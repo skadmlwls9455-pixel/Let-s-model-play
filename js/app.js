@@ -1192,8 +1192,8 @@ var APP = (function () {
     if (trip && trip.status !== 'done') return lanternLeft(trip.date);
     return S.room.lantern < 8;
   }
-  /* 출발 행 (힌트 없을 때): 이름 + '산책 나갔어' (날 인사 '뚜루 아직 자고 있어' 와 같은 집 목소리, 조사 없이) */
-  function departLine() { var n = S.octopus.name; return (n ? n + ' ' : '') + '산책 나갔어'; }
+  /* 출발 행 (힌트 없을 때): 집 목소리 '뚜루가 산책 나갔어' (조사를 붙여 문어를 가리킨다 — 플레이어를 부르는 말로 읽히지 않게) */
+  function departLine() { var n = S.octopus.name; return typeof STR.departLine === 'function' ? STR.departLine(n) : (n ? n + ' ' : '') + '산책 나갔어'; }
   function stopName(ev) { var tg = ev.target || {}; return tg.title || (tg.url ? tg.url.replace(/^https?:\/\//, '').split('/')[0] : '어딘가'); }
   function stopEmoji(ev) { var tg = ev.target || {}; var n = tg.id && nodeOf(tg.id); return (n && n.emoji) || (tg.kind === 'url' ? '🚪' : '❔'); }
   function eventRow(trip, ev) {
@@ -1326,7 +1326,7 @@ var APP = (function () {
       }
     });
     if (!log.querySelector('[data-day="' + today + '"]')) { var sec2 = h('div', { class: 'lday', 'data-day': today }); greetRows().forEach(function (g) { sec2.appendChild(g); }); log.appendChild(sec2); }
-    if (!log.querySelector('.lrow')) log.appendChild(h('div', { class: 'lempty', text: S.octopus.name ? '아직 아무 데도 안 갔어. 뽈뽈 다녀와를 눌러 봐.' : '문어 이름부터 지어 주자.' }));
+    if (!log.querySelector('.lrow')) log.appendChild(h('div', { class: 'lempty', text: S.octopus.name ? "아직 아무 데도 안 갔어. '" + (STR.goButton || '뽈뽈 다녀와') + "'를 눌러 봐." : '문어 이름부터 지어 주자.' }));
     logStick = true; scrollLog();
   }
   /* 인사 초상: 자는 중이면 자는 얼굴, 깨어 있으면 웃는 얼굴 (반쯤 감은 차분한 얼굴은 화난 '-_-^' 로 읽힌다는 주인 피드백) */
@@ -1338,7 +1338,9 @@ var APP = (function () {
     greetingRow = memoRow = null;
     if (!S.octopus.name) return;
     var asleep = S.octopus.state === 'sleep';
-    setGreeting(greetingByHour(new Date().getHours()) + '. ' + S.octopus.name + (asleep ? ' 아직 자고 있어.' : ' 기다리고 있었어.'), asleep ? 'sleep' : 'happy');
+    /* 집 목소리 줄 (문어 초상 없음): '좋은 아침. 뚜루는 다락방에 있어.' / '… 뚜루는 아직 자고 있어.' — 문어가 자기 이름을 부르는 꼴이 되지 않게 (DIALOGUE_UI §3 표) */
+    var hello = greetingByHour(new Date().getHours());
+    greetingRow = logRow('오늘', typeof STR.dayGreeting === 'function' ? STR.dayGreeting(hello, S.octopus.name, asleep) : hello + '. ' + S.octopus.name + (asleep ? '은 아직 자고 있어.' : '은 다락방에 있어.'), '', true, null);
     setMemoGreeting();
   }
   /* §17.1 새 날의 첫 인사 = 마지막 산책이 남긴 memo.tomorrow 그대로 (다시 짓지 않는다). 오늘 산책이 아직 없을 때만. 메모 없는 옛 기록이면 말하지 않는다 */
@@ -2227,7 +2229,7 @@ var APP = (function () {
       S.octopus.name = v; if (!S.octopus.born) S.octopus.born = Date.now(); save();
       $('name-dialog').close(); renderStatus(false); renderScene();
       if (first) {
-        setGreeting('안녕, ' + v + '. 비 오는 다락방에 온 걸 환영해. ' + greetingByHour(new Date().getHours()) + '.', 'happy');
+        setGreeting(typeof STR.firstGreeting === 'function' ? STR.firstGreeting(v) : '안녕, 나는 ' + v + '야. 비 오는 다락방에 온 걸 환영해.', 'happy');   /* 문어의 자기소개 (웃는 얼굴) */
         renderLog();
         if (DEV) toast(STR.firstToast || '힌트는 비워 둬도 돼.');   /* 힌트 칸이 있는 개발 모드에서만. 플레이어에겐 힌트 얘기 없음 (결정 18, DIALOGUE_UI: 첫 토스트 지움) */
       }

@@ -1404,6 +1404,17 @@ var WORLD = (function () {
 
   /* 숫자로 시작하는 방 이름('0')은 문장 속에서 "0이라는 방" ("0 방은 3번 왔어" 대신). 두뇌 roomWord 와 같은 규칙.
      받침: 끝이 숫자면 읽는 소리(영·일·이·삼·사·오·육·칠·팔·구), 한글이면 그 받침. 숫자로 안 시작하면 그대로 */
+  /* 문어 이름 뒤 조사: 받침이 있으면 withB, 없으면 without. 한글은 그 받침, 숫자는 읽는 소리, 로마자는 l·m·n 으로 끝날 때만 받침으로 본다
+     (Tom이야 · Lucy야 · Mike야 — 영어 이름의 k·t·p 는 '크·트·프' 로 읽혀 받침이 없다). 그 밖의 글자는 받침 없음 쪽 */
+  function nameJosa(name, withB, without) {
+    var nm = String(name == null ? '' : name).replace(/[^0-9A-Za-z\uAC00-\uD7A3]+$/, '');
+    if (!nm) return without;
+    var last = nm.charAt(nm.length - 1), c = last.charCodeAt(0), jong;
+    if (/[0-9]/.test(last)) jong = '1101001110'.charAt(+last) === '1';
+    else if (/[A-Za-z]/.test(last)) jong = /[lmn]$/i.test(nm) || /ng$/i.test(nm);
+    else jong = c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 > 0;
+    return jong ? withB : without;
+  }
   function roomWord(name) {
     var nm = String(name == null ? '' : name);
     if (!/^[0-9]/.test(nm)) return nm;
@@ -1422,8 +1433,16 @@ var WORLD = (function () {
     awayButton: '다녀오는 중…',
     skipButton: '⏩ 건너뛰기',
     lookButton: '방 보기',
-    firstGreeting: function (name) {
-      return '안녕, ' + name + '. 비 오는 다락방에 온 걸 환영해.';
+    /* 이름이 들어가는 문장은 누가 누구를 부르는지 헷갈리지 않게 (DIALOGUE_UI §3 표): 문어는 자기 이름으로 자기를 소개하고,
+       집 목소리는 조사를 붙여 문어를 가리킨다 ("뽈뽈 기다리고 있었어" 처럼 조사 없이 쓰면 플레이어를 부르는 말로 읽힌다) */
+    firstGreeting: function (name) {   /* 문어가 하는 말 (이름 지은 직후) */
+      return '안녕, 나는 ' + name + nameJosa(name, '이야', '야') + '. 비 오는 다락방에 온 걸 환영해.';
+    },
+    dayGreeting: function (hello, name, asleep) {   /* 집 목소리 (다시 열 때). "기다리고 있었어" 는 뺐다 — 감정을 덧칠하고 "왜 늦게 왔어" 로 읽힌다 */
+      return hello + '. ' + name + nameJosa(name, '은', '는') + (asleep ? ' 아직 자고 있어.' : ' 다락방에 있어.');
+    },
+    departLine: function (name) {   /* 집 목소리 (힌트 없는 출발 행) */
+      return name ? name + nameJosa(name, '이', '가') + ' 산책 나갔어' : '산책 나갔어';
     },
     firstToast: '힌트는 비워 둬도 돼.',   /* 개발 모드에서만 (플레이어 화면엔 힌트 칸이 없다) */
     namePrompt: '문어 이름을 지어 줘',

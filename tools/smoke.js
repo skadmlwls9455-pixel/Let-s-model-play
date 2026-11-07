@@ -606,7 +606,7 @@ async function scenarioDay2(browser) {
     return [].map.call(rows, function (r) { return { label: r.querySelector('.ltool').textContent, text: r.querySelector('.ltext').textContent, expr: r.dataset.expr || null, dialog: r.classList.contains('dialog') }; });
   }, DAY2);
   console.log('   day2 greeting:', JSON.stringify(g));
-  ok(g.length === 2 && g[0].label === '인사', '2일째: 시각 인사 행');
+  ok(g.length === 2 && g[0].label === '오늘', '2일째: 시각 인사 행 (집 목소리 \'오늘\')');
   ok(g[1] && g[1].label === '어제 메모' && g[1].text === d1.memo.tomorrow, '2일째 첫 인사 = 어제 memo.tomorrow 그대로');
   ok(g[1] && g[1].dialog && g[1].expr === 'calm', "메모 인사는 문어 대화창 행 (초상 'calm')");
   await page.evaluate(function () { var r = document.querySelector('#log .lrow.memo'); if (r) r.scrollIntoView({ block: 'center' }); });
@@ -878,7 +878,7 @@ async function scenarioWake(browser) {
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   function greet() { return page.evaluate(function () { var r = document.querySelector('#log .lday:last-child .lrow'); return { label: r && r.querySelector('.ltool').textContent, text: r && r.querySelector('.ltext').textContent, expr: r && r.dataset.expr, oct: document.getElementById('oct').className, st: APP.state.octopus.state }; }); }
   var g0 = await greet();
-  ok(g0.label === '인사' && g0.expr === 'happy', '처음 인사는 웃는 얼굴 (' + g0.expr + ')');
+  ok(g0.label === '인사' && g0.expr === 'happy' && /^안녕, 나는 /.test(g0.text), '처음 인사는 문어의 자기소개 · 웃는 얼굴 (' + g0.expr + ' · ' + g0.text + ')');
   async function walk() {
     await page.click('#btn-go');
     await page.waitForFunction(function () { var sk = document.getElementById('btn-skip'), g = document.getElementById('btn-go'); if (sk && !sk.hidden) { sk.click(); return true; } return g && !g.disabled; }, null, { timeout: 30000, polling: 100 });
@@ -888,7 +888,7 @@ async function scenarioWake(browser) {
   await page.waitForTimeout(1000);   /* file:// localStorage 커밋 (A 와 같은 이유) */
   await page.reload(); await waitIdle(page);
   var g1 = await greet();
-  ok(/st-sleep/.test(g1.oct) && /아직 자고 있어/.test(g1.text) && g1.expr === 'sleep', '산책 직후 새로고침: 자고 있음 · 인사는 자는 얼굴 (' + g1.expr + ')');
+  ok(/st-sleep/.test(g1.oct) && g1.label === '오늘' && /[은는] 아직 자고 있어/.test(g1.text) && !g1.expr, '산책 직후 새로고침: 자고 있음 · 집 목소리 "…는 아직 자고 있어" (문어 초상 없음: ' + g1.text + ')');
   await page.evaluate(function () { window.__bubs = []; document.querySelector('#layers .layer[data-key="window"]').click(); });
   await page.waitForTimeout(300);
   var wt = await page.evaluate(function () { return { b: window.__bubs.slice(), oct: document.getElementById('oct').className }; });
@@ -898,7 +898,7 @@ async function scenarioWake(browser) {
   await page.reload(); await waitIdle(page);
   var g2 = await greet();
   ok(/st-idle/.test(g2.oct) && g2.st === 'idle', '마지막 산책 21분 전 → 새로고침 → 깨어 있음 (' + g2.oct.trim() + ')');
-  ok(/기다리고 있었어/.test(g2.text) && g2.expr === 'happy', "인사 '기다리고 있었어' · 웃는 얼굴 (" + g2.expr + ')');
+  ok(g2.label === '오늘' && /[은는] 다락방에 있어/.test(g2.text) && g2.text.indexOf('기다리고') < 0 && !g2.expr, "깬 날 인사: 집 목소리 '…는 다락방에 있어' · '기다리고 있었어' 없음 (" + g2.text + ')');
   await walk();
   var n0 = await page.evaluate(function () { window.__bubs = []; var t = APP.state.trips[APP.state.trips.length - 1]; t.endedAt -= 21 * 60000; return document.querySelectorAll('#log .lrow').length; });
   var woke = await page.waitForFunction(function () { return APP.oct.state === 'idle'; }, null, { timeout: 25000 }).then(function () { return true; }, function () { return false; });
@@ -1005,7 +1005,7 @@ async function scenarioPlayer(browser) {
     var r = Array.prototype.filter.call(document.querySelectorAll('#log .lrow'), function (x) { var l = x.querySelector('.ltool'); return l && /출발/.test(l.textContent); })[0];
     return r ? r.querySelector('.ltext').textContent : null;
   });
-  ok(tr.kind !== 'out' || (dep !== null && !/힌트|네가 골라/.test(dep) && dep.indexOf(name + ' 산책 나갔어') === 0), "출발 행: '힌트'·'네가 골라봐' 없이 집 목소리 한 줄 (" + dep + ')');
+  ok(tr.kind !== 'out' || (dep !== null && !/힌트|네가 골라/.test(dep) && dep.indexOf(name) === 0 && /^.+[이가] 산책 나갔어/.test(dep)), "출발 행: '힌트'·'네가 골라봐' 없이 집 목소리 한 줄 (" + dep + ')');
   var logAll = await page.textContent('#log');
   ok(!/네가 골라|힌트:/.test(logAll), "로그 어디에도 '네가 골라봐'·'힌트:' 없음");
   await openCard(page);
