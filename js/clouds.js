@@ -9,7 +9,11 @@
  *  4) 가장자리: 밑 가장자리와 그늘진 오른쪽 가장자리 1px 은 체크 디더로 반쯤 비워 솜털처럼 (알파 테스트라 반투명 대신 디더).
  *  5) 색: 날씨 × 시각대 램프 5색 (전부 Apollo 칸 — 장면 팔레트 스냅을 지나도 색이 안 바뀐다). 먼 층은 한 단 어둡고 대비가 낮다.
  * 결정적: 모양은 hash 시드, Math.random 없음.
- *   CLOUDS.atlas({ weather, phase, far, w, h, n }) → 캔버스 (n 칸 가로 아틀라스, 칸 = w×h 기본 112×56, 1텍셀 = 아트 1px)
+ *   CLOUDS.atlas({ weather, phase, far, w, h, n, scale }) → 캔버스 (n 칸 가로 아틀라스, 칸 = w×h 기본 112×56, 1텍셀 = 아트 1px)
+ *     scale: 덩어리 크기 배율 (기본 1). 큰 구름은 텍스처를 늘리지 않고 덩어리를 크게 그린다 → 테·디더는 그대로 1px (픽셀 밀도 1:1 유지)
+ *   CLOUDS.bank({ weather, phase, w, h, seed }) → 캔버스 w×h: 카메라가 뚫고 지나가는 구름 덩어리 (카드 11).
+ *     윗면만 몽글한 덩어리 줄, 몸은 평평한 한 색(램프 3번 = 밝은 면), 밑면은 평평하게 + 그늘 띠. 몸 한가운데는 무늬가 없다 —
+ *     화면을 다 덮는 몇 프레임 동안 장면 가장자리가 한 색이어야 바깥 덮개와 어긋나지 않는다.
  *   CLOUDS.ramp(weather, phase, far) → 5색 (어두움 → 밝음) + rim
  */
 var CLOUDS = (function () {
@@ -71,24 +75,40 @@ var CLOUDS = (function () {
   var K = 3.2;   /* 덩어리 녹여 붙이기 폭 (smooth union, px) — 밑면 사이 골이 메워져 한 덩어리처럼 */
   var LX = -0.6, LY = -0.8;   /* 2D 빛 방향 (캔버스 좌표, 왼쪽 위에서) */
 
-  /* 일러스트식 픽셀 구름 음영: 덩어리마다 초승달 띠 (왼쪽 위 = 밝음, 오른쪽 아래 = 중간), 밑면 띠 2단, 띠 경계 1줄만 체크 디더 */
-  function drawShape(ctx, ox, v, w, h, R) {
-    var S = lobes(v, w, h), L = S.L, bottom = S.bottom, x, y, i;
+  /* 일러스트식 픽셀 구름 음영: 덩어리마다 초승달 띠 (왼쪽 위 = 밝음, 오른쪽 아래 = 중간), 밑면 띠 2단, 띠 경계 1줄만 체크 디더.
+     S = { L: 덩어리 [cx, cy, r], bottom, box?: [x0, y0, x1] (평평한 몸 — bank), k: 녹여 붙이기 폭 }, s = 밑면 띠 배율 */
+  function drawShape(ctx, ox, S, w, h, R, s) {
+    var L = S.L, bottom = S.bottom, box = S.box, k = S.k || K, x, y, i;
     var SD = new Float32Array(w * h), OWN = new Int16Array(w * h);
+    var maxR = 0; L.forEach(function (l) { if (l[2] > maxR) maxR = l[2]; });
+    var deep = box ? box[1] + maxR + 4 * k : 1e9;   /* 이보다 아래인 몸 안쪽은 덩어리와 상관없이 안 (계산을 건너뛴다) */
     for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
       var sum = 0, own = -1, best = -1e9;
+      if (box && y > deep && x > box[0] + 4 * k && x < box[2] - 4 * k) { SD[y * w + x] = Math.min(bottom + 0.5 - (y + 0.5), 99); OWN[y * w + x] = -1; continue; }
       for (i = 0; i < L.length; i++) {
-        var dx = x + 0.5 - L[i][0], dy = y + 0.5 - L[i][1], d = Math.sqrt(dx * dx + dy * dy), sd = L[i][2] - d;
-        sum += Math.exp(sd / K);
+        var dx = x + 0.5 - L[i][0], dy = y + 0.5 - L[i][1], dd = dx * dx + dy * dy, reach = L[i][2] + 7 * k;
+        if (dd > reach * reach) continue;   /* 7k 밖의 덩어리는 e^-7 아래라 합에 안 보탠다 (계산만 건너뛴다) */
+        var d = Math.sqrt(dd), sd = L[i][2] - d;
+        sum += Math.exp(sd / k);
         /* 주인 덩어리: 안에 드는 것 중 아래(앞)에 있는 것 — 아랫줄이 윗줄을 가린다 */
         var pri = sd > -1 ? L[i][1] + L[i][2] * 0.25 + Math.min(sd, 2) : -1e9;
         if (pri > best) { best = pri; own = i; }
       }
-      var u = K * Math.log(sum), base = bottom + 0.5 - (y + 0.5);
-      SD[y * w + x] = -K * Math.log(Math.exp(-u / K) + Math.exp(-base / K));   /* 부드러운 합집합 ∩ 평평한 밑면 */
+      if (box) {   /* 몸 상자 (부호 거리: 안이 +) — 덩어리와 같이 녹여 붙인다. 상자 안이면 주인은 몸(-1) */
+        var sb = Math.min(x + 0.5 - box[0], box[2] - (x + 0.5), y + 0.5 - box[1]);
+        sum += Math.exp(Math.min(sb, 40) / k);
+        if (sb > 0.5) own = -1;
+      }
+      if (sum <= 0) { SD[y * w + x] = -1e9; OWN[y * w + x] = -1; continue; }
+      var u = k * Math.log(sum), base = bottom + 0.5 - (y + 0.5);
+      SD[y * w + x] = -k * Math.log(Math.exp(-u / k) + Math.exp(-base / k));   /* 부드러운 합집합 ∩ 평평한 밑면 */
       OWN[y * w + x] = own;
     }
+    var b1 = Math.round(5 * s), b2 = Math.round(7 * s), b0 = Math.max(2, Math.round(1.5 * s));
     function inside(xx, yy) { return xx >= 0 && yy >= 0 && xx < w && yy < h && SD[yy * w + xx] > 0; }
+    var img = ctx.createImageData(w, h), pix = img.data;   /* 칸 하나를 한 번에 그린다 (픽셀마다 fillRect 보다 훨씬 빠르다) */
+    function rgb(hex) { return [parseInt(hex.substr(1, 2), 16), parseInt(hex.substr(3, 2), 16), parseInt(hex.substr(5, 2), 16)]; }
+    var RGB = R.t.map(rgb), RIM = rgb(R.rim);
     for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
       if (!inside(x, y)) continue;
       var o = OWN[y * w + x], lb = o >= 0 ? L[o] : [x, y, 8];
@@ -100,23 +120,52 @@ var CLOUDS = (function () {
       var lv = dBo >= 0.95 ? 2 : dAw > 0.98 ? 4 : 3;                      /* 그늘 · 밝음 · 몸 */
       if (lv === 4 && dAw < 1.05 && dz) lv = 3;                          /* 띠 경계 1줄: 체크로 반씩 */
       if (lv === 3 && dBo > 0.88 && dz) lv = 2;
-      if (fromBase < 5) lv = Math.min(lv, 1); else if (fromBase < 7 && dz) lv = Math.min(lv, 1);   /* 밑면 그늘 띠 (위 2줄은 체크) */
-      if (fromBase < 2) lv = 0;                                           /* 맨 밑 2줄 */
+      if (o < 0 && box) lv = 3;                                           /* 몸 상자: 무늬 없는 한 색 */
+      if (fromBase < b1) lv = Math.min(lv, 1); else if (fromBase < b2 && dz) lv = Math.min(lv, 1);   /* 밑면 그늘 띠 (위 2줄은 체크) */
+      if (fromBase < b0) lv = 0;                                          /* 맨 밑 줄 */
       var up = inside(x, y - 1), dn = inside(x, y + 1), rt = inside(x + 1, y), col;
       if (up && !dn && ((x + y) & 1)) continue;                           /* 밑 가장자리 1px 체크 = 솜털 */
       if (up && !rt && lv <= 2 && ((x + y) & 1)) continue;                /* 그늘진 오른쪽 가장자리도 */
-      col = (!up && lv >= 3) ? R.rim : R.t[lv];                           /* 윗면 테 (림 라이트) */
-      ctx.fillStyle = col; ctx.fillRect(ox + x, y, 1, 1);
+      col = (!up && lv >= 3) ? RIM : RGB[lv];                             /* 윗면 테 (림 라이트) */
+      var o4 = (y * w + x) * 4; pix[o4] = col[0]; pix[o4 + 1] = col[1]; pix[o4 + 2] = col[2]; pix[o4 + 3] = 255;
     }
+    ctx.putImageData(img, ox, 0);
+  }
+
+  /* 배율: 기본 112×56 칸 기준 모양을 s 배로 (덩어리 자리·반지름·녹여 붙이기 폭). 텍스처도 s 배 크기라 1텍셀 = 아트 1px 그대로 */
+  function scaled(v, w, h, s) {
+    var S = lobes(v, Math.round(w / s), Math.round(h / s));
+    return { L: S.L.map(function (l) { return [l[0] * s, l[1] * s, l[2] * s]; }), bottom: Math.min(h - 3, S.bottom * s), k: K * Math.max(1, s * 0.8) };
   }
 
   function atlas(o) {
-    o = o || {}; var w = o.w || 112, h = o.h || 56, n = o.n || 4;
+    o = o || {}; var w = o.w || 112, h = o.h || 56, n = o.n || 4, sc = o.scale > 0 ? o.scale : 1;
     var cv = document.createElement('canvas'); cv.width = w * n; cv.height = h;
     var ctx = cv.getContext('2d'), R = ramp(o.weather || 'clear', o.phase || 'day', !!o.far);
-    for (var v = 0; v < n; v++) drawShape(ctx, v * w, v + (o.far ? 7 : 0), w, h, R);
+    for (var v = 0; v < n; v++) drawShape(ctx, v * w, scaled(v + (o.far ? 7 : 0), w, h, sc), w, h, R, sc);
     return cv;
   }
-  return { atlas: atlas, ramp: ramp, RAMPS: RAMPS };
+
+  /* 뚫고 지나가는 구름 (카드 11): 윗면 덩어리 줄 + 평평한 몸 + 평평한 밑면. 가로는 화면보다 넓게 (양옆은 화면 밖) */
+  function bank(o) {
+    o = o || {}; var w = Math.max(48, Math.round(o.w || 200)), h = Math.max(48, Math.round(o.h || 240)), seed = o.seed || 'bank';
+    var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    var ctx = cv.getContext('2d'), R = ramp(o.weather || 'clear', o.phase || 'day', false);
+    var n = bankN(w), rAvg = w / n * 0.7, top = Math.round(rAvg * 1.6), L = [], i, q, t, r;
+    for (i = 0; i < n; i++) {   /* 윗줄: 크고 작은 몽우리가 번갈아, 가운데가 조금 높다. 몽우리 중심 줄 = 몸 윗변 → 반쯤 솟는다 */
+      q = hash(seed + i); t = (i + 0.5) / n;
+      r = Math.round(w / n * (0.62 + ((q >>> 3) % 5) * 0.06) + 6 * Math.sin(Math.PI * t));
+      L.push([t * w + ((q % 9) - 4), top + rAvg * 0.35 - ((q >>> 8) % 6), r]);
+    }
+    for (i = 0; i < 2; i++) { q = hash(seed + 'p' + i); r = Math.round(rAvg * 1.25) + (q % 4); L.push([w * (0.28 + 0.44 * i) + ((q >>> 4) % 9) - 4, top - rAvg * 0.15, r]); }   /* 솟은 몽우리 둘 */
+    L.forEach(function (l) { if (l[1] - l[2] < 2) l[1] = l[2] + 2; });
+    drawShape(ctx, 0, { L: L, bottom: h - 4, box: [-8, top + rAvg * 0.45, w + 8], k: K * 1.6 }, w, h, R, 1.4);
+    cv.bodyTop = bank.bodyTop(w);
+    return cv;
+  }
+  function bankN(w) { return Math.max(4, Math.round(w / 34)); }
+  /* 이 줄부터 아래는 빈틈 없는 몸 (부르는 쪽이 '다 덮었다'를 잴 때·칸 높이를 정할 때 쓴다). 칸 높이와 상관없이 폭으로만 정해진다 */
+  bank.bodyTop = function (w) { var rAvg = w / bankN(w) * 0.7; return Math.ceil(Math.round(rAvg * 1.6) + rAvg * 0.45 + 2); };
+  return { atlas: atlas, bank: bank, ramp: ramp, RAMPS: RAMPS };
 })();
 if (typeof module !== 'undefined') module.exports = CLOUDS;
