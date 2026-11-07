@@ -652,6 +652,19 @@ async function scenarioDay2(browser) {
 /* I. 출발·귀가 의식 (DESIGN §15.3): 외출 초대 → 나가 있는 동안 바깥 → 귀가 의식 → 다락 → 포스터 걸림.
    건너뛰기 = 의식을 감아 다락으로. 나가 있는 중 새로고침 → 바깥을 한 번도 안 보이고 다락에서 즉시 귀가 */
 var PLACE_PROBE = "window.__lsLen0 = (function () { try { return localStorage.length; } catch (e) { return -1; } })(); window.__placeLog = []; (function poll() { try { if (window.APP && APP.scene && APP.scene.place) { var p = APP.scene.place(), L = window.__placeLog; if (L[L.length - 1] !== p) L.push(p); } } catch (e) {} setTimeout(poll, 16); })();";
+/* 크로미움은 localStorage 쓰기를 브라우저 프로세스로 늦게 넘긴다. 넘어가기 전에 새로고침하면 새 문서가 예전 스냅숏을 읽는다 (CI 11-07: ls0 1, 지정 전 값).
+   같은 file:// 저장소를 보는 둘째 쪽(앱을 안 띄우는 JSON 파일)에서 값이 보일 때까지 기다린다. 끝내 안 보이면 저장이 정말 안 된 것 → false */
+async function waitCommitted(ctx, key, test, ms) {
+  var probe = await ctx.newPage(), until = Date.now() + (ms || 5000), seen = false;
+  try {
+    await probe.goto('file://' + path.join(ROOT, 'assets/manifest.json'));
+    while (!seen && Date.now() < until) {
+      seen = await probe.evaluate(function (a) { try { return localStorage.getItem(a); } catch (e) { return null; } }, key).then(test);
+      if (!seen) await probe.waitForTimeout(100);
+    }
+  } finally { await probe.close(); }
+  return seen;
+}
 function hasLabel(page, label) { return page.evaluate(function (lb) { return [].some.call(document.querySelectorAll('#log .lrow .ltool'), function (e) { return e.textContent === lb; }); }, label); }
 async function scenarioCeremony(browser) {
   console.log('\n== I. 출발·귀가 의식 · 바깥 장면 (§15.3)');
@@ -751,6 +764,7 @@ async function scenarioCeremony(browser) {
   var ov = await page.evaluate(function () { return { season: APP.scene.season(), mode: APP.scene.seasonMode(), saved: JSON.parse(localStorage.getItem('ppolppol_look') || '{}').season }; });
   ok(ov.season === other[0] && ov.mode === other[0] && ov.saved === other[0], '지정 → scene.setSeason · ppolppol_look.season 저장 (' + JSON.stringify(ov) + ')');
   ok((await seasonLine()) === '계절: ' + other[1] + ' (지정)', '방 보기: 계절: ' + other[1] + ' (지정)');
+  ok(await waitCommitted(s.ctx, 'ppolppol_look', function (v) { try { return JSON.parse(v || '{}').season === other[0]; } catch (e) { return false; } }), '지정 계절이 새로고침 전에 저장소로 넘어감');
   await page.reload();
   await page.waitForSelector('#btn-go:not([disabled])');
   var ov2 = await page.evaluate(function () { var on = document.querySelector('#dv-season .fchip.on'); return { season: APP.scene.season(), on: on ? on.dataset.season : null, ls0: window.__lsLen0 }; });
