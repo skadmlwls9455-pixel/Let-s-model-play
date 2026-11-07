@@ -407,6 +407,33 @@ v2 에서 더할 것: 산책마다 머리 줄 "🌧 산책 · 오후 3:12 · 고
 
 버튼 안내 id (글과 언제 뜨는지는 TUTORIAL §3.6 한 곳): `box`(대사창), `backlog`(📜).
 
+#### 얼린 표 (11-07)
+
+카드 13·14·15 가 같이 쓰는 대사창 공개 API 다 (CARD_REVIEW 1-5). 이름·인자·돌려줌·뜻은 바꾸지 않고, 선택 칸만 더한다.
+`js/dialogue-stub.js` (주 세션 것, `window.DLG` 가 없을 때만 정의) 가 이 표 그대로 돈다. 카드 13 의 `js/dialogue.js` 는
+`node tools/test-dialogue-stub.js js/dialogue.js --css css/dialogue.css --level v0` 를 통과해야 한다 (v1.1 이 되면 `--level` 없이).
+카드 14·15 는 `window.DLG` 가 없을 때만 스텁을 싣는다. 13 이 들어오면 `<script src>` 한 줄만 바꾼다.
+
+```text
+- 공개 API (얼림: 이름·인자·돌려줌·뜻은 안 바꾸고 선택 칸만 더한다, 모르는 칸은 무시. 함수 length = 표의 인자 수. js/dialogue-stub.js 도 이 표) — 이름 | 인자 | 돌려줌 | 단계 | 뜻
+  DLG.init(host, opts) | opts { portrait(expr) → img·canvas, name() → 이름 } 선택 | 없음 | v0 | host 안에 #dbox 를 만든다, 두 번째는 무시 (안 부르면 body 끝에)
+  DLG.say(line) | { voice:'octopus'·'house'·'user', text, by, expr, pace:'wait'(기본)·'flow', model, more } | Promise (값·reject 없음) | v0 (more 는 나중) |
+    다 나온 뒤 톡 · flow 는 읽는 시간 (§5.5) · 다시 보기로만 감 → 풀린다, 마지막 줄은 그래도 남는다. user·빈 text 는 바로 풀림. by 없는 octopus 는 house 줄. text·by·model 은 받은 그대로
+  DLG.ask(q) | { voice, by, text, choices:[{ id, label }] 2~3개, cancel, chips } | Promise<id · cancel 값 · null> | v1.1 | 차례가 오면 글 + 단추, 넘기기 숨김.
+    단추 → id, Esc → cancel (없으면 질문이 남음), 상자·바깥 톡 → 아무 일 없음, 새 ask 면 앞 것은 null. 고른 것은 부르는 쪽이 say({ voice:'user', by:'user' })
+  DLG.endAsk() | 없음 | 거둔 게 있었으면 true | v1.1 | 떠 있거나 기다리는 질문을 거둔다 → 그 ask 는 null (건너뛰기·뽈뽈 다녀와가 시작될 때 부르는 쪽이, §4.5)
+  DLG.hold(on) | true·false | 없음 | v0 | 켠 동안 타자·읽는 시간·톡 넘김이 멈춘다 (say 도 안 풀림, 선택 단추는 눌림). 끄면 멈춘 데서 잇는다. 세지 않는다
+  DLG.open() | 없음 | 없음 | v0 | dialog#backlog 를 연다 (맨 아래, 보여 준 줄까지만). Esc·바깥·닫기 → 포커스는 button.dlg-log (📜)
+  DLG.current() · pending() | 없음 | { voice, text, by, page, pages } 또는 null · 수 | v0 | 지금 줄 사본 (text 는 전체 원문, page 는 1부터) · 남은 대기열 수 (질문 포함)
+  html[data-ui-busy] | 공백으로 나눈 낱말 | | v0 | 대사창은 'dlg' 만 넣고 뺀다 (타자 중·질문·다시 보기·hold), 안내는 'guide'. 남의 낱말은 그대로, 비면 속성을 지운다
+  DOM | #dbox (role=group) 안 button.dlg-next 넘기기 · button.dlg-log 📜 (aria-haspopup=dialog) · button.dlg-choice 글 = label (v1.1) | | v0 | 테스트가 쓴다
+```
+
+- 문서에 없어 11-07 에 정한 것: `pace` 값 둘 · `say` 가 풀리는 때 · `DLG.endAsk` (§4.5 의 '조용히 끝남' 과 A3 [건너뛰기] 를 위한 것) ·
+`init` 의 `name` · `page` 는 1부터 · `data-ui-busy` 낱말은 공백으로 나눔 · DOM 이름 `.dlg-next`·`.dlg-choice`·`.dlg-log` · 선택 단추는 `hold` 와 상관없이 눌림 (안내가 [같이 가기] 를 비추는 두 번째 톡을 잃지 않게).
+- 안 얼린 것 (부르는 카드가 없다. 정할 때 표에 더한다): `DLG.subscribe(fn)` (§5.11) · 닫힌 쪽지의 📌 줄을 다시 보기에 남기는 길 (TUTORIAL §4 원칙 10) · `josa` (카드 14 의 GUIDE.josa) · 기록 줄 (상태 칩) 표시 칸 (v1 훅 때).
+- 주의: 본 게임에 이미 `.dlg-top` (js/app.js showDialog · index.html 시트 제목) 이 있다. 카드 13 의 css/dialogue.css 는 `.dlg-*` 를 쓰지만 `.dlg-top` 은 건드리지 않는다.
+
 ### 5.12 저장
 
 | 단계 | 저장 |
