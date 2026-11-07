@@ -71,8 +71,8 @@ var WIKI_OK = { query: { pages: { '1': { pageid: 1, title: '모자', extract: '�
   /* 포스터·기념품이 생기게 외출 두 번 (건너뛰기) */
   for (var i = 0; i < 2; i++) {
     await page.fill('#hint-in', i ? '깃털' : '모자의 역사'); await page.click('#btn-go');
-    await page.waitForSelector('#btn-skip:not([hidden])', { timeout: 10000 }); await page.waitForTimeout(200); await page.click('#btn-skip');
-    await page.waitForFunction(function () { var b = document.getElementById('btn-go'); return b && !b.disabled; }, null, { timeout: 40000 });
+    await page.waitForSelector('#btn-go.can-skip', { timeout: 10000 }); await page.click('#btn-go');   /* 나가 있는 동안 큰 버튼 = 건너뛰기 (0.6 s 뒤 .can-skip) */
+    await page.waitForFunction(function () { var b = document.getElementById('btn-go'); return b && !b.classList.contains('away'); }, null, { timeout: 40000 });
   }
   await page.evaluate(function () { APP.state.room.souvenirs.push({ id: Object.keys(WORLD.souvenirs)[0], tripId: APP.state.trips[0].id, at: Date.now() }, { id: Object.keys(WORLD.souvenirs)[1], tripId: APP.state.trips[0].id, at: Date.now() }); });
   await page.evaluate(function () { APP.octState('idle'); APP.scene.jumpTo('center'); });

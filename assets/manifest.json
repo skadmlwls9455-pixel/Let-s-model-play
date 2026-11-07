@@ -738,5 +738,11 @@
     "w": 160,
     "h": 120,
     "note": "로딩 일러스트 160×120 — 꾸벅 조는 문어 클로즈업(노을·비) + z. \"불러오는 중\" 글자는 HTML 로."
+  },
+  "icon.ctl.door": {
+    "src": "assets/icons/ctl/door.png",
+    "w": 16,
+    "h": 16,
+    "note": "장면 위 버튼 아이콘 16×16 (놀이방 문 #btn-door) — ×2 = 32px 로만. 두 테마 다 보인다 (js/ui-art.js fillIcons 가 주소를 채운다)."
   }
 }

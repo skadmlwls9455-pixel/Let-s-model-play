@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /* tools/sound-map.js — 행동 → 실제로 재생된 소리 기록 (docs/PLAYTEST_FIXES.md "D. 소리"). 저장소를 http 로 띄우고 소리를 켠 채로 논다.
  *   node tools/sound-map.js [out.json]     → 단계마다 "한 일 → 난 소리 · 그때 BGM" 을 찍고, out.json 에 저장 (생략하면 찍기만)
- * 순서: 소리 켜기 → 문어 톡 → 꾹(쓰다듬기) → 창문 톡 → 방 보기 열기/닫기 → 산책(외출 강제) → 포스터 열기/뒤집기/닫기 → 집에 있기(강제)
- *       → 잠든 문어 톡 → 빈 차례(강제) → 건너뛰기 → 같이 놀기 → 등불 8칸까지. 소리 id 는 AUDIO.state().played (시각으로 단계마다 자른다).
+ * 순서: 소리 켜기 → 문어 톡 → 꾹(쓰다듬기) → 창문 톡 → ⚙ 설정 열기/닫기 → 산책(외출 강제) → 포스터 열기/뒤집기/닫기 → 집에 있기(강제)
+ *       → 잠든 문어 톡 → 빈 차례(강제) → 건너뛰기(큰 버튼) → 놀이방 문(달리기) → 등불 8칸까지. 소리 id 는 AUDIO.state().played (시각으로 단계마다 자른다).
  * 주의: '잠든 문어 톡'은 시작 때 잡은 문어 좌표를 쓴다. 문어가 담요로 옮겨 갔으면 빗맞아 '(없음)'이 나올 수 있다.
  */
 const http = require('http'), fs = require('fs'), path = require('path');
@@ -34,19 +34,19 @@ const OUT = []; let mark = 0;
   await step('문어 톡', () => p.touchscreen.tap(oc.x, oc.y - 8));
   await step('문어 꾹 (쓰다듬기)', async () => { await p.mouse.move(oc.x, oc.y - 8); await p.mouse.down(); await p.waitForTimeout(600); await p.mouse.up(); }, 2500);
   await step('창문 톡', () => p.touchscreen.tap(60, 70), 4000);
-  await step('방 보기 열기', () => p.click('#btn-look'), 800);
-  await step('방 보기 닫기', () => p.click('#rs-close'), 800);
-  await step('산책 (외출 강제, 끝까지)', async () => { await p.evaluate(() => { window.__ppolTest = { forceKind: 'out' }; }); await p.fill('#hint-in', '바다'); await p.click('#btn-go'); await p.waitForFunction(() => !document.getElementById('btn-go').disabled, null, { timeout: 90000 }); }, 2500);
+  await step('설정 열기', () => p.click('#btn-settings'), 800);
+  await step('설정 닫기', () => p.click('#set-close'), 800);
+  await step('산책 (외출 강제, 끝까지)', async () => { await p.evaluate(() => { window.__ppolTest = { forceKind: 'out' }; }); await p.fill('#hint-in', '바다'); await p.click('#btn-go'); await p.waitForFunction(() => !document.getElementById('btn-go').classList.contains('away'), null, { timeout: 90000 }); }, 2500);
   await step('포스터 열기', async () => { const c = await p.$('#album .pcard'); if (c) await c.click(); }, 1500);
   await step('포스터 뒤집기', () => p.click('#pd-flip').catch(() => {}), 1000);
   await step('포스터 닫기', () => p.click('#pd-close').catch(() => {}), 1000);
-  await step('집에 있기 (강제, 끝까지)', async () => { await p.evaluate(() => { window.__ppolTest = { forceKind: 'home' }; }); await p.click('#btn-go'); await p.waitForFunction(() => !document.getElementById('btn-go').disabled, null, { timeout: 90000 }); }, 4000);
+  await step('집에 있기 (강제, 끝까지)', async () => { await p.evaluate(() => { window.__ppolTest = { forceKind: 'home' }; }); await p.click('#btn-go'); await p.waitForFunction(() => !document.getElementById('btn-go').classList.contains('away'), null, { timeout: 90000 }); }, 4000);
   await step('잠든 문어 톡', () => p.touchscreen.tap(oc.x, oc.y - 8), 1500);
-  await step('빈 차례 (강제)', async () => { await p.evaluate(() => { window.__ppolTest = { forceKind: 'empty' }; }); await p.click('#btn-go'); await p.waitForFunction(() => !document.getElementById('btn-go').disabled, null, { timeout: 60000 }); }, 2500);
-  await step('산책 건너뛰기', async () => { await p.evaluate(() => { window.__ppolTest = { forceKind: 'out' }; }); await p.click('#btn-go'); await p.waitForSelector('#btn-skip:not([hidden])'); await p.waitForTimeout(300); await p.click('#btn-skip'); await p.waitForFunction(() => !document.getElementById('btn-go').disabled, null, { timeout: 60000 }); }, 2500);
-  await step('같이 놀기 열고 몇 번 점프', async () => { await p.click('#btn-look'); await p.waitForTimeout(500); const pl = await p.$('#room-sheet button:has-text("같이 놀기")'); if (pl) { await pl.click(); await p.waitForTimeout(800); for (let i = 0; i < 10; i++) { await p.keyboard.press('Space'); await p.waitForTimeout(400); } } }, 1000);
+  await step('빈 차례 (강제)', async () => { await p.evaluate(() => { window.__ppolTest = { forceKind: 'empty' }; }); await p.click('#btn-go'); await p.waitForFunction(() => !document.getElementById('btn-go').classList.contains('away'), null, { timeout: 60000 }); }, 2500);
+  await step('산책 건너뛰기', async () => { await p.evaluate(() => { window.__ppolTest = { forceKind: 'out' }; }); await p.click('#btn-go'); await p.waitForSelector('#btn-go.can-skip'); await p.click('#btn-go'); await p.waitForFunction(() => !document.getElementById('btn-go').classList.contains('away'), null, { timeout: 60000 }); }, 2500);
+  await step('놀이방 문 열고 몇 번 점프', async () => { await p.click('#btn-door'); await p.waitForSelector('#runner-dlg[open]'); await p.waitForTimeout(800); for (let i = 0; i < 10; i++) { await p.keyboard.press('Space'); await p.waitForTimeout(400); } await p.keyboard.press('Escape'); }, 1000);
   await p.keyboard.press('Escape'); await p.waitForTimeout(300); await p.keyboard.press('Escape');
-  await step('등불 8칸까지 (건너뛰기 반복)', async () => { await p.evaluate(() => { window.__ppolTest = { forceKind: 'out' }; }); for (let i = 0; i < 5; i++) { await p.click('#btn-go'); await p.waitForSelector('#btn-skip:not([hidden])'); await p.waitForTimeout(200); await p.click('#btn-skip'); await p.waitForFunction(() => !document.getElementById('btn-go').disabled, null, { timeout: 60000 }); } }, 4000);
+  await step('등불 8칸까지 (건너뛰기 반복)', async () => { await p.evaluate(() => { window.__ppolTest = { forceKind: 'out' }; }); for (let i = 0; i < 5; i++) { await p.click('#btn-go'); await p.waitForSelector('#btn-go.can-skip'); await p.click('#btn-go'); await p.waitForFunction(() => !document.getElementById('btn-go').classList.contains('away'), null, { timeout: 60000 }); } }, 4000);
   const lantern = await p.evaluate(() => APP.state.room.lantern);
   const all = await played();
   if (process.argv[2]) fs.writeFileSync(process.argv[2], JSON.stringify({ steps: OUT, lantern, distinct: [...new Set(all)], errs }, null, 1));

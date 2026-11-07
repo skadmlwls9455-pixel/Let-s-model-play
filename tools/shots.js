@@ -23,13 +23,14 @@ function wikiBody(title) {   /* 제목으로 만든 가짜 요약 — 받침 유
 var wikiSeen = [];
 
 async function shot(page, name) { await page.screenshot({ path: path.join(SHOTS, name) }); console.log('  📷 ' + name); }
-async function waitIdle(page) { await page.waitForFunction(function () { var b = document.getElementById('btn-go'); return b && !b.disabled; }, null, { timeout: 40000 }); }
+async function waitIdle(page) { await page.waitForFunction(function () { var b = document.getElementById('btn-go'); return b && !b.classList.contains('away'); }, null, { timeout: 40000 }); }
+/* 나가 있는 동안 큰 버튼(#btn-go = "다녀오는 중…") = 건너뛰기. 막 누른 직후 0.6 s 는 안 되니 .can-skip 을 기다린다 */
+async function skipAway(page) { await page.waitForSelector('#btn-go.can-skip'); await page.click('#btn-go'); }
 async function inviteSkip(page, hint) {
   await page.fill('#hint-in', hint || '');
   await page.click('#btn-go');
-  await page.waitForSelector('#btn-skip:not([hidden])');
   await page.waitForTimeout(300);
-  await page.click('#btn-skip');
+  await skipAway(page);
   await waitIdle(page);
 }
 
@@ -77,7 +78,7 @@ async function inviteSkip(page, hint) {
   await page.waitForSelector('#log .lrow.typing', { timeout: 10000 }).catch(function () {});
   await page.waitForTimeout(400);
   await shot(page, '03-away.png');
-  await page.click('#btn-skip');
+  await skipAway(page);
   await waitIdle(page);
   await page.waitForTimeout(700);
   await shot(page, '04-returned-poster.png');
@@ -87,6 +88,8 @@ async function inviteSkip(page, hint) {
   await shot(page, '05-dark.png');
   await page.emulateMedia({ colorScheme: 'light' });
 
+  await page.click('#btn-album');
+  await page.waitForSelector('#album-sheet[open]');
   await page.click('#album .pcard');
   await page.waitForSelector('#poster-dialog[open]');
   await page.waitForTimeout(500);
@@ -95,19 +98,22 @@ async function inviteSkip(page, hint) {
   await page.waitForTimeout(900);
   await shot(page, '07-receipt-back.png');
   await page.click('#pd-close');
+  await page.click('#al-close');
 
   /* 몇 번 더 다녀와서 방과 앨범을 채운다 */
   for (var i = 0; i < 4; i++) await inviteSkip(page, ['', '단추', '', 'https://example.org/post'][i]);
 
-  await page.click('#btn-look');
-  await page.waitForSelector('#room-sheet[open]');
+  await page.click('#btn-settings');   /* ⚙ 설정 (예전 방 보기 자리) */
+  await page.waitForSelector('#settings-sheet[open]');
   await page.waitForTimeout(400);
-  await shot(page, '08-room-sheet.png');
-  await page.click('#rs-close');
+  await shot(page, '08-settings.png');
+  await page.click('#set-close');
 
-  await page.evaluate(function () { document.getElementById('album-sec').scrollIntoView({ block: 'start' }); });
-  await page.waitForTimeout(300);
+  await page.click('#btn-album');   /* 추억 앨범 (요즘 · 카드 · 남긴 메모) */
+  await page.waitForSelector('#album-sheet[open]');
+  await page.waitForTimeout(400);
   await shot(page, '09-album.png');
+  await page.click('#al-close');
 
   await page.click('#demo summary');
   await page.evaluate(function () { document.getElementById('demo').scrollIntoView({ block: 'end' }); });

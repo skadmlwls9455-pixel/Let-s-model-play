@@ -80,7 +80,7 @@ a { color: var(--teal); touch-action: manipulation; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }   /* nowrap: 1px 폭에서 낱말마다 끊겨 읽히지 않게 */
 .dim { color: var(--muted); font-weight: 400; }
 .emo { display: inline-block; }   /* 장식 이모지 (aria-hidden) */
-.lbl, .help, .ltext, .big-line, .room-text, .lempty { word-break: keep-all; overflow-wrap: anywhere; }
+.lbl, .help, .ltext, .big-line, .lempty { word-break: keep-all; overflow-wrap: anywhere; }
 .ltext a, .receipt a, .url { word-break: break-all; overflow-wrap: anywhere; }
 
 .pressable { transition: transform var(--t-press) var(--ease-out); }
@@ -224,7 +224,7 @@ a { color: var(--teal); touch-action: manipulation; }
   padding: 6px 16px; background: var(--panel); border-bottom: 1px solid var(--rim); font-size: 12px;
 }
 #status .srow { display: flex; align-items: center; gap: 8px; min-height: 28px; width: 100%; flex-wrap: nowrap; }
-#status .who { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; white-space: nowrap; overflow: hidden; }
+#status .who { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; white-space: nowrap; }   /* overflow 없음: 이름(…)·방 제목(상한 폭)이 스스로 줄어든다. 잘라 내면 '데모' 단추의 44px 누르는 곳도 잘린다 */
 /* 이름이 먼저 줄어든다(… --name-min 까지). 방 제목은 줄어들지 않고(flex-shrink 0 — 플렉스 반올림 0.3px 에도 … 가 켜져서), 폭 상한 = 전체 − 이름 최소 폭(− 데모 표시)이라 이름이 최소에 닿은 뒤에만 …
    이름 자체엔 최소 폭을 두지 않는다(바닥은 방 제목 상한이 지킨다) → 짧은 이름(한두 글자) 뒤에 빈칸 없이 데모 표시가 바로 붙는다 */
 #status .who { --name-min: 39px; }
@@ -277,16 +277,14 @@ a { color: var(--teal); touch-action: manipulation; }
 .btn.sm { min-height: 36px; padding: 4px 12px; font-size: 13px; }
 .btn.wide { width: 100%; }
 .btn.primary { min-height: 52px; background: var(--amber); border-color: var(--amber); color: var(--on-accent); font-weight: 500; flex: 1 1 auto; box-shadow: inset 0 1px 0 var(--hi), var(--shadow); }
-/* 나가 있는 동안: 회색 비활성 대신 "다녀오는 중…" 알약 (변신 300ms, 2초 숨쉬기). 돌아오면 다시 변신 */
-.btn.primary.away { background: var(--amber-g); border-color: transparent; color: var(--amber); box-shadow: none; animation: pill-breathe var(--t-breathe) ease-in-out infinite; animation-delay: var(--t-morph); min-width: 0; }
-.btn-row.away #btn-look { display: none; }   /* 나가 있는 동안엔 알약 + 건너뛰기만 한 줄에 */
-.btn-row #btn-skip { flex: 0 0 auto; }
-.btn.primary.away .go-txt::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; margin-right: 8px; vertical-align: 1px; }
-@keyframes pill-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .66; } }
+/* 나가 있는 동안 (주인 11-07: 건너뛰기를 큰 버튼에 합침): "다녀오는 중…" 글자만 (기호 없음 — 주인 11-07 마지막 말) — 누르면 바로 데려온다 (app.js skip). 누를 수 있는 버튼으로 보이게
+   종이색 판 + 테두리 + 그림자는 그대로 두고(회색 비활성처럼 보이지 않게), 숨쉬기는 앞의 점 하나만. 시작 0.6 s 뒤 .can-skip 이 붙는다(두 번 탭이 건너뛰기가 되지 않게) — 모양은 그대로 */
+.btn.primary.away { background: var(--panel); border-color: var(--rim); color: var(--amber); box-shadow: inset 0 1px 0 var(--hi), var(--shadow); min-width: 0; }
+.btn.primary.away .go-txt::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; margin-right: 8px; vertical-align: 1px; animation: pill-breathe var(--t-breathe) ease-in-out infinite; }
+@keyframes pill-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 .btn:disabled { cursor: default; transform: none; }
 .btn:disabled:not(.away) { opacity: .45; }
 .btn.primary.away:disabled { opacity: 1; }
-.btn-row #btn-skip { color: var(--muted); }
 
 /* ── LOG ── */
 #log-sec { padding: 8px 16px 0; }
@@ -436,7 +434,6 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .sheet .handle { width: 32px; height: 4px; border-radius: 2px; background: var(--rim); margin: 4px auto 12px; }
 .sheet h3 { font-size: 12px; color: var(--muted); letter-spacing: .06em; font-weight: 500; margin: 14px 0 4px; }
 .sheet p { margin: 0 0 4px; font-size: 13px; }
-.sheet .room-text { font-family: 'Noto Serif KR', serif; font-size: 15px; font-weight: 600; }
 .sheet ul { margin: 0; padding-left: 18px; font-size: 13px; }
 .sheet .set { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; font-size: 13px; }
 .sheet select { min-height: 44px; border-radius: 8px; background: var(--panel2); border: 1px solid var(--rim); padding: 4px 8px; font-size: 16px; }
@@ -454,10 +451,6 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .file-btn:has(input:focus-visible) { outline: 2px solid var(--amber); outline-offset: 2px; }
 .sheet .set > span { flex: 1 1 auto; }
 .sheet .btn.danger { color: var(--rose); border-color: var(--rose); }
-.sheet .stats { display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px; }
-.sheet .stats b { font-weight: 500; font-variant-numeric: tabular-nums; }
-.souv-list { display: flex; gap: 8px; flex-wrap: wrap; }
-.souv-list span { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; background: var(--panel2); font-size: 12px; }
 @media (min-width: 600px) {
   /* 가운데 정렬은 inset 0 + margin auto 로 (transform 아님): dlg-in 애니메이션의 transform: none 이 translate(-50%, -50%) 를 덮어 시트가 화면 밖으로 밀렸다 */
   .sheet { inset: 0; margin: auto; height: fit-content; width: 480px; border-radius: 16px; border-bottom: 1px solid var(--rim); }
@@ -465,7 +458,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 }
 
 /* ══════════════════════════════════════════════════════════
-   픽셀 테마 — html[data-font="pixel"] (기본값. 방 보기 › 설정 › "픽셀 글꼴" 끄면 위의 Noto + 민무늬 패널로 돌아간다)
+   픽셀 테마 — html[data-font="pixel"] (기본값. ⚙ 설정 › "픽셀 글꼴" 끄면 위의 Noto + 민무늬 패널로 돌아간다)
    글꼴: Galmuri (vendor/fonts/galmuri.css) 정수 배만 (제 격자 8/10/12px 의 2배) — 본문·로그·영수증·이름 Galmuri9 20px/30px, 버튼·대화 Galmuri11 24px, 메타·칩·날짜·상태 줄·방 제목 Galmuri7 16px/24px
    색: Apollo 46 (js/palettes.js) 에서만 고른다. 라이트 = 종이·나무, 다크 = 슬레이트·남색. 본문 대비 ≥ 4.5:1 (tools 없음 — 리포트에 표)
    질감: 2px 격자 체커 디더(패널 3% · 페이지 6%) + 종이 알갱이, 전부 data-URI SVG, image-rendering: pixelated. 그라디언트·블러 없음, 그림자는 2px 딱딱한 블록
@@ -646,11 +639,10 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   box-shadow: inset 2px 2px 0 var(--amber-hi), inset -2px -2px 0 var(--amber-lo), 2px 2px 0 var(--line);
 }
 :root[data-font="pixel"] .btn.primary:active { box-shadow: inset 2px 2px 0 var(--amber-hi), inset -2px -2px 0 var(--amber-lo); }
-:root[data-font="pixel"] .btn.primary.away { background-color: var(--panel); border-color: var(--line); color: var(--amber); font-weight: 400; box-shadow: var(--bevel-in); font-family: var(--f-body); font-size: 20px; line-height: 20px; }   /* 알약 + 건너뛰기가 360px 한 줄에 */
-:root[data-font="pixel"] .btn-row.away #btn-skip { font-family: var(--f-body); font-size: 20px; line-height: 20px; }
-:root[data-font="pixel"] .btn.primary.away .go-txt::before { width: 6px; height: 6px; border-radius: 0; margin-right: 8px; vertical-align: 2px; }
+:root[data-font="pixel"] .btn.primary.away { background-color: var(--panel); border-color: var(--line); color: var(--fg); font-weight: 400; box-shadow: var(--bevel), 2px 2px 0 var(--line); font-family: var(--f-ui); font-size: 24px; line-height: 22px; }   /* 누를 수 있는 베벨 블록 (예전 안으로 파인 알약은 꺼진 버튼처럼 보였다) */
+:root[data-font="pixel"] .btn.primary.away:active { box-shadow: var(--bevel); }
+:root[data-font="pixel"] .btn.primary.away .go-txt::before { width: 6px; height: 6px; border-radius: 0; margin-right: 8px; vertical-align: 2px; background: var(--amber-fill); animation-timing-function: steps(1, end); }
 :root[data-font="pixel"] .btn:disabled { transform: none; }
-:root[data-font="pixel"] .btn-row #btn-skip { color: var(--fg); }
 
 /* ── 로그: 행마다 틀, 왼쪽 8px 탭 — 문어 목소리(귀가·기억·마무리·집·인사·방)는 호박, 나머지는 슬레이트 ── */
 :root[data-font="pixel"] .sec-h { font-family: var(--f-meta); font-size: 16px; line-height: 24px; letter-spacing: 0; border-top: 2px solid var(--line); padding-top: 8px; color: var(--fg); }
@@ -746,13 +738,11 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .receipt .copy { border-radius: 0; border: 2px solid var(--ink); background: var(--paper0); font-family: var(--f-meta); font-size: 16px; line-height: 16px; box-shadow: inset 1px 1px 0 #ebede9, inset -1px -1px 0 #c09473, 2px 2px 0 var(--ink); }
 :root[data-font="pixel"] .receipt .copy:active { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 #ebede9, inset -1px -1px 0 #c09473; }
 
-/* 바텀시트 (방 보기): 위쪽 이중 틀, 손잡이는 네모 */
+/* 바텀시트 (설정 · 추억 앨범): 위쪽 이중 틀, 손잡이는 네모 */
 :root[data-font="pixel"] .sheet { border-radius: 0; border-bottom: 0; box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px); padding: 8px 16px max(16px, env(safe-area-inset-bottom, 0px)); }
 :root[data-font="pixel"] .sheet .handle { border-radius: 0; background: var(--line); }
 :root[data-font="pixel"] .sheet h3 { font-family: var(--f-meta); font-size: 16px; line-height: 24px; letter-spacing: 0; color: var(--fg); margin: 16px 0 4px; }
-:root[data-font="pixel"] .sheet p, :root[data-font="pixel"] .sheet ul, :root[data-font="pixel"] .sheet .set, :root[data-font="pixel"] .sheet .stats { font-size: 20px; line-height: 30px; }
-:root[data-font="pixel"] .sheet .room-text { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
-:root[data-font="pixel"] .sheet .stats b { font-weight: 400; color: var(--amber); }
+:root[data-font="pixel"] .sheet p, :root[data-font="pixel"] .sheet ul, :root[data-font="pixel"] .sheet .set { font-size: 20px; line-height: 30px; }
 :root[data-font="pixel"] .sheet select { min-height: 44px; padding: 4px 8px; }
 :root[data-font="pixel"] .sheet input[type=file] { border-radius: 0; }
 :root[data-font="pixel"] .sheet input[type=file]::file-selector-button {
@@ -762,7 +752,6 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 }
 :root[data-font="pixel"] .sheet input[type=file]:active::file-selector-button { transform: translate(2px, 2px); box-shadow: var(--bevel); }
 :root[data-font="pixel"] .file-btn:has(input:focus-visible) { outline-color: var(--fg); }
-:root[data-font="pixel"] .souv-list span { border-radius: 0; border: 2px solid var(--line); background: var(--panel2); font-family: var(--f-meta); font-size: 16px; line-height: 24px; padding: 2px 8px; box-shadow: 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .preset { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .preset.on { border-color: var(--fg); box-shadow: inset 0 0 0 2px var(--panel2), 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .sheet .btn.danger { color: var(--rose); }
@@ -770,16 +759,25 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   :root[data-font="pixel"] .sheet { border-radius: 0; border-bottom: 2px solid var(--line); box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px), 4px 4px 0 var(--line); }
 }
 
-/* ── 추억 앨범 시트 (#album-sheet, DESIGN §6.3): 방 보기와 같은 바텀시트(≥600px 가운데). 머리 줄 = 제목 + 필터 칩, 카드 줄은 예전 #album 그대로(가로 스크롤),
-   아래 '남긴 메모' = 호기심 메모 전부 (내려놓은 메모는 표시를 달고 그대로, docs/CURIOSITY_NOTES.md 원칙 4) ── */
+/* ── 추억 앨범 시트 (#album-sheet, DESIGN §6.3) · 설정 시트 (#settings-sheet): 같은 바텀시트(≥600px 가운데). 앨범 머리 줄 = 제목 + 필터 칩, 그 아래 '문어의 요즘' 한두 줄,
+   카드 줄은 예전 #album 그대로(가로 스크롤), 아래 '남긴 메모' = 호기심 메모 전부 (다음 산책에 같이 가는 최근 3개 · 내려놓은 메모는 표시를 달고 그대로, docs/CURIOSITY_NOTES.md 원칙 4).
+   '일기' 칩 = 지난 날 로그 (날짜마다 접힘, 새 날이 위 · 읽기만) ── */
 .album-sheet .al-top { align-items: center; flex-wrap: wrap; row-gap: 4px; }
-.album-sheet .al-h { font-size: 15px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0; color: var(--fg); }
-.album-sheet .al-h:focus { outline: none; }
+.album-sheet .al-h, .settings-sheet .set-h { font-size: 15px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0; color: var(--fg); }
+.album-sheet .al-h:focus, .settings-sheet .set-h:focus { outline: none; }
+.al-recent { margin: 8px 0 2px; }
+.al-recent h3 { margin: 0 0 2px; }
+.al-recent p { margin: 0; }
+.al-recent .dim { color: var(--muted); }
+.album-diary { margin-top: 8px; }
+.album-diary .dday { margin-bottom: 8px; }
+.album-diary .dday > summary { font-size: 12px; color: var(--muted); cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.album-diary .lrow { animation: none; }
 .album-sheet #album { margin: 4px -4px 0; }
 .album-sheet #al-close { margin-top: 12px; }
 .icon-btn .snd-box { transition: transform var(--t-press) var(--ease-out); }
 .icon-btn:active .snd-box { transform: scale(.97); }
-/* 호기심 메모 줄 (방 보기 '우리 방의 지난 메모' · 앨범 '남긴 메모' 공용): 따옴표 안이 남긴 말 그대로(60자 넘으면 … — 누르면 전체), 아래 작은 줄 = 누가 · 언제 · 어느 산책 */
+/* 호기심 메모 줄 (앨범 '남긴 메모'): 따옴표 안이 남긴 말 그대로(60자 넘으면 … — 누르면 전체), 아래 작은 줄 = 누가 · 언제 · 어느 산책 */
 .cnote-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .sheet .cnote-list { padding-left: 0; }
 .cnote { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--panel2); word-break: keep-all; overflow-wrap: anywhere; }
@@ -788,13 +786,20 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .cnote button.cn-text:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 .cnote .cn-meta { font-size: 12px; color: var(--muted); }
 .cnote .cn-tag { align-self: flex-start; font-size: 12px; color: var(--muted); border: 1px solid var(--rim); border-radius: 6px; padding: 0 6px; }
+.cnote .cn-tag.next { color: var(--amber); border-color: var(--amber); }   /* 다음 산책에 같이 가는 메모 (최근 active 3개) */
 .cnote.down .cn-text { color: var(--muted); }
 #album-notes h3 { margin-top: 12px; }
-:root[data-font="pixel"] .album-sheet .al-h { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
+:root[data-font="pixel"] .album-sheet .al-h, :root[data-font="pixel"] .settings-sheet .set-h { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
+:root[data-font="pixel"] .al-recent h3 { margin: 4px 0 0; }
+:root[data-font="pixel"] .sheet .al-recent p { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }   /* 요즘 한두 줄은 작게 (카드가 먼저 보이게) */
+:root[data-font="pixel"] .sheet .al-recent p.ua-ico-line { display: flex; align-items: center; line-height: 32px; }
+:root[data-font="pixel"] .al-recent p.ua-ico-line .ua-ico { margin: 0 6px 0 0; }
+:root[data-font="pixel"] .album-diary .dday > summary { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .cnote { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .cnote .cn-text, :root[data-font="pixel"] .cnote button.cn-text { font-family: var(--f-body); font-size: 20px; line-height: 30px; }
 :root[data-font="pixel"] .cnote .cn-meta, :root[data-font="pixel"] .cnote .cn-tag { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .cnote .cn-tag { border-radius: 0; border: 0; box-shadow: inset 0 0 0 2px var(--line); padding: 0 6px; }
+:root[data-font="pixel"] .cnote .cn-tag.next { color: var(--amber); box-shadow: inset 0 0 0 2px var(--amber-fill); }
 :root[data-font="pixel"] .cnote button.cn-text:focus-visible { outline-color: var(--fg); }
 
 /* ── 축소 모션 (설정 또는 OS): 줄이되 없애지 않는다 — 이동·회전 대신 크로스페이드, 등불은 그대로 밝아진다 ──
@@ -804,7 +809,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   :root:is([data-motion="auto"], :not([data-motion])) #oct-inner, :root:is([data-motion="auto"], :not([data-motion])) .legs .leg, :root:is([data-motion="auto"], :not([data-motion])) .eyelid,
   :root:is([data-motion="auto"], :not([data-motion])) .rdrop, :root:is([data-motion="auto"], :not([data-motion])) .star,
   :root:is([data-motion="auto"], :not([data-motion])) .layer svg .flame, :root:is([data-motion="auto"], :not([data-motion])) .layer svg .glow,
-  :root:is([data-motion="auto"], :not([data-motion])) .pip, :root:is([data-motion="auto"], :not([data-motion])) .btn.primary.away, :root:is([data-motion="auto"], :not([data-motion])) .lrow.typing .ltext { animation: none !important; }
+  :root:is([data-motion="auto"], :not([data-motion])) .pip, :root:is([data-motion="auto"], :not([data-motion])) .btn.primary.away, :root:is([data-motion="auto"], :not([data-motion])) .btn.primary.away .go-txt::before, :root:is([data-motion="auto"], :not([data-motion])) .lrow.typing .ltext { animation: none !important; }
   :root:is([data-motion="auto"], :not([data-motion])) .st-sleep #oct-inner { animation: hue 12s ease-in-out infinite !important; }
   :root:is([data-motion="auto"], :not([data-motion])) .flipper.flip .face.back { animation-name: fade-only; }
   :root:is([data-motion="auto"], :not([data-motion])) .lrow.in, :root:is([data-motion="auto"], :not([data-motion])) .pcard.in, :root:is([data-motion="auto"], :not([data-motion])) .layer.enter,
@@ -819,7 +824,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-motion="reduce"] { --t-press: 0ms; --t-ui: 120ms; --t-scene: 150ms; --t-ceremony: 200ms; --t-morph: 120ms; --t-windup: 50ms; --t-hold: 0ms; --t-bloom: 150ms; --t-flip-again: 120ms; --t-stagger: 0ms; }
 :root[data-motion="reduce"] #oct-inner, :root[data-motion="reduce"] .legs .leg, :root[data-motion="reduce"] .eyelid, :root[data-motion="reduce"] .rdrop,
 :root[data-motion="reduce"] .star, :root[data-motion="reduce"] .layer svg .flame, :root[data-motion="reduce"] .layer svg .glow,
-:root[data-motion="reduce"] .pip, :root[data-motion="reduce"] .btn.primary.away, :root[data-motion="reduce"] .lrow.typing .ltext { animation: none !important; }
+:root[data-motion="reduce"] .pip, :root[data-motion="reduce"] .btn.primary.away, :root[data-motion="reduce"] .btn.primary.away .go-txt::before, :root[data-motion="reduce"] .lrow.typing .ltext { animation: none !important; }
 :root[data-motion="reduce"] .st-sleep #oct-inner { animation: hue 12s ease-in-out infinite !important; }
 :root[data-motion="reduce"] .flipper.flip .face.back { animation-name: fade-only; }
 :root[data-motion="reduce"] .lrow.in, :root[data-motion="reduce"] .pcard.in, :root[data-motion="reduce"] .layer.enter,
@@ -853,7 +858,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 #scene3d #oct-label { font-size: 12px; }
 #scene3d #oct-bubble { font-size: 12px; padding: 4px 8px; border-radius: 8px; max-width: 200px; }
 .rdrop.snow { width: 2px; height: 2px; background: #f7f1d8; opacity: .8; }
-/* 방 보기: 문어 색 */
+/* 설정: 문어 색 */
 .presets { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; }
 .preset { position: relative; width: 36px; height: 36px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; }
 .preset::before { content: ''; position: absolute; inset: -4px; }
@@ -869,12 +874,10 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .swrow { display: flex; gap: 1px; }
 .sw { width: 14px; height: 14px; display: block; }
 
-/* ── 초대 버튼 줄 정렬 (사용자 피드백): 방 보기는 폭은 좁게, 높이는 뽈뽈 다녀와와 같게 · 다녀와 글자를 이모지 기준으로 2px 내림 ── */
-.btn-row #btn-look { min-height: 52px; align-self: stretch; padding-left: 14px; padding-right: 14px; flex: 0 0 auto; }
-#btn-go .go-txt { display: inline-flex; align-items: center; gap: 6px; transform: translateY(2px); }
-#btn-go .go-txt .emo { transform: translateY(-2px); }
-#btn-go.away .go-txt, #btn-go.away .go-txt .emo { transform: none; }
-/* 폰 폭(< 420px)에서는 상태띠에 방 제목을 숨긴다 — "등불 켜진 다락" 과 "등불 ■■■" 이 겹쳐 읽히고, 24/20/16px 픽셀 글꼴에서 이름이 잘려서. 방 제목은 탭 제목과 방 보기에 남는다 */
+/* ── 초대 버튼 ── */
+#btn-go .go-txt { display: inline-flex; align-items: center; gap: 6px; }   /* 글자만 (주인 11-07: 이모지 없음) — 예전 이모지 맞춤 2px 내림은 뺐다: 가운데 ±1px, 나가 있는 동안과 같다 */
+/* 폰 폭(< 420px)에서는 상태띠에 방 제목을 숨긴다 — "등불 켜진 다락" 과 "등불 ■■■" 이 겹쳐 읽히고, 24/20/16px 픽셀 글꼴에서 이름이 잘려서.
+   그 폭에선 방 제목이 등불을 눌렀을 때의 말풍선 첫 줄에 나온다 (app.js tip · 방 보기를 없앤 뒤 폰에서 방 이름을 볼 곳) · 탭 제목에도 남는다 */
 @media (max-width: 419px) { #status .room-title { display: none; } }
 
 /* ── 이름 짓기 창 (사용자 피드백): 설명은 문장·의미 단위로 줄바꿈, 아래 정직 표기는 작고 연한 갈색 ── */
@@ -886,15 +889,17 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"][data-theme="dark"] #name-dialog .honest { color: var(--muted); }
 @media (prefers-color-scheme: dark) { :root[data-font="pixel"]:not([data-theme="light"]) #name-dialog .honest { color: var(--muted); } }
 
-/* ── 장면 오른쪽 위 아이콘 묶음 (#scene-ctl, DESIGN §7.2): 추억 앨범 · 소리 토글 (js/audio.js) · 방 보기 › 소리 크기 ──
+/* ── 장면 오른쪽 위 아이콘 묶음 (#scene-ctl, DESIGN §7.2): 추억 앨범 · ⚙ 설정 · 소리 토글 (js/audio.js) · 설정 › 소리 크기 ──
    상태 줄에 아이콘 두 개를 두면 320 px 에서 두 글자 이름부터 잘려서 장면 틀 안 오른쪽 위로 옮겼다 (픽셀 베벨 ::after 9 보다 위 · 문어 6 보다 위).
    버튼은 누르는 곳 44×44 · 보이는 상자 28×28 (틀에서 8px 안쪽). 켜면 호박색 상자 + 물결, 끄면 종이색 상자 + ×.
    크기 슬라이더는 등불 칸과 같은 말: 켜진 쪽 호박 · 꺼진 쪽 --pip-off, 손잡이는 베벨 블록 */
 .scene-ctl { position: absolute; top: 0; right: 0; z-index: 10; display: flex; transition: opacity var(--t-ui) var(--ease-enter); }
-/* 말풍선이 비켜 서도 아이콘과 겹칠 때(좁은 폭 · 보드 앞 마무리 말)만, 말풍선이 보이는 동안 옅게 — 문어의 말이 먼저 읽힌다 (js/ui-art.js ctlYield).
-   누르기·Tab 은 그대로, 포커스·호버면 다시 진하다 */
-.scene-ctl.yield { opacity: .3; }
-.scene-ctl.yield:is(:hover, :focus-within) { opacity: 1; }
+/* 말풍선이 비켜 서도 버튼과 겹칠 때(좁은 폭 · 보드·문 앞 말)만, 말풍선이 보이는 동안 겹치는 그 버튼을 숨긴다 — 문어의 말이 먼저 읽힌다 (js/ui-art.js ctlYield).
+   옅게(0.3) 두던 때는 아이콘이 말풍선 글자 위에 그려졌다. 숨은 동안 탭은 아래로 통과(보이지 않는 버튼이 눌리지 않게), Tab 포커스가 가면 다시 보이고 눌린다.
+   놀이방 문(.scene-door.yield)도 같다 (아래 7물결 블록) */
+.icon-btn { transition: opacity var(--t-ui) var(--ease-enter); }
+.icon-btn.yield, .scene-door.yield { opacity: 0; pointer-events: none; }
+.icon-btn.yield:focus-visible, .scene-door.yield:focus-visible { opacity: 1; pointer-events: auto; }
 .icon-btn {
   flex: 0 0 auto; position: relative; width: 44px; height: 44px; margin: 0; padding: 0;
   border: 0; background: none; color: var(--muted); display: inline-flex; align-items: center; justify-content: center;
@@ -953,15 +958,83 @@ html.intro-reveal #scene-ctl { transition: opacity var(--t-ui) var(--ease-enter)
   box-shadow: inset 2px 2px 0 var(--hi-px), inset -2px -2px 0 var(--lo-px), 2px 2px 0 var(--line);
 }
 
-/* ══ D2 (다듬기 물결 D · docs/research/polish-from-starred-repos.md 2 · 7): 앨범 카드 누름 타이밍 · 방 보기 시트 손잡이 끌기 — js/app.js bindAlbumPress · bindSheetDrag ══
+/* ══ D2 (다듬기 물결 D · docs/research/polish-from-starred-repos.md 2 · 7): 앨범 카드 누름 타이밍 · 시트(설정 · 앨범) 손잡이 끌기 — js/app.js bindAlbumPress · bindSheetDrag ══
    1) 앨범 카드: #album 안 .pcard 는 :active 대신 .down 으로 눌린다 (터치는 150ms 늦게 붙고 최소 225ms → 엄지로 훑을 때 카드마다 번쩍이지 않는다).
       시스템 테마 .down 은 위 .pcard 규칙(scale(.97))에 같이 있다. 픽셀 테마의 .pcard:active(2px 내려앉기 · 그림자 빼기)는 앨범 안에서 끄고 같은 모양을 .down 에 준다.
       새로 올라온 카드(.in)는 예전처럼 자리는 그대로 — 그림자만 빠진다 (.in 의 transform: none 이 이기던 그대로). 다른 버튼(#btn-go 등)은 그대로 :active */
 :root[data-font="pixel"] :where(#album) .pcard:active:not(.down) { transform: none; box-shadow: 2px 2px 0 var(--line); }
 :root[data-font="pixel"] :where(#album) .pcard.down { box-shadow: none; }
 :root[data-font="pixel"] :where(#album) .pcard.down:not(.in) { transform: translate(2px, 2px); }
-/* 2) 방 보기 시트: 손잡이와 시트 머리 띠(맨 위 30px · 폭 전체 = 손잡이의 ::before, 위치 기준은 시트 자신)만 끌 수 있다.
+/* 2) 설정 · 앨범 시트: 손잡이와 시트 머리 띠(맨 위 30px · 폭 전체 = 손잡이의 ::before, 위치 기준은 시트 자신)만 끌 수 있다.
       touch-action: none 은 그 띠에만 → 굴러가는 본문의 스크롤은 그대로. 끄는 동안의 transform 과 놓은 뒤 500ms 되돌아가기는 app.js 가 인라인으로 준다 (모션 감소면 바로) */
-:is(#room-sheet, #album-sheet) > .handle { touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
-:is(#room-sheet, #album-sheet) > .handle::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px; }
-:is(#room-sheet, #album-sheet).dragging, :is(#room-sheet, #album-sheet).dragging > .handle { cursor: grabbing; }
+:is(#settings-sheet, #album-sheet) > .handle { touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
+:is(#settings-sheet, #album-sheet) > .handle::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px; }
+:is(#settings-sheet, #album-sheet).dragging, :is(#settings-sheet, #album-sheet).dragging > .handle { cursor: grabbing; }
+
+/* ══ 7물결 (주인 11-07 · 방 보기 없앰): 상태 줄의 작은 말풍선 · 놀이방 문 · 설정 시트 줄 ══
+   1) '데모'·등불은 누를 수 있다 → 같은 작은 말풍선 #tip (app.js tip): 2.5 s · 다시 누르면 닫힘 · role=status(polite) · 모션 줄이기면 그냥 나타난다.
+      보이는 모양은 그대로, 누르는 곳만 44px (::before). 말풍선 자리는 누른 것 아래 가운데 — 상태 줄 안쪽 16px 까지만 (app.js 가 left · --tip-x 를 정수 px 로).
+      말풍선은 큰 버튼 위에 겹친다 → 떠 있는 동안(.show)은 탭을 받는다 (누르면 말풍선만 닫힘 · 아래 버튼으로 새지 않음, app.js bindTip). 숨으면 탭은 그대로 통과.
+      등불 말풍선은 폰 폭에서 두 줄: 방 제목(.tip-head, 상태 줄에서 숨긴 것) + 설명(.tip-line) */
+#status { position: relative; }
+button.brain-tag { position: relative; margin-top: 0; margin-bottom: 0; background: none; font-family: inherit; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button.brain-tag::before { content: ''; position: absolute; inset: -16px -10px; }
+button.pips { position: relative; margin: 0; padding: 0; border: 0; background: none; font: inherit; color: var(--muted); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button.pips::before { content: ''; position: absolute; inset: -8px -4px; }
+:is(button.brain-tag, button.pips):focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.tip {
+  position: absolute; top: calc(100% + 4px); left: 16px; z-index: 12; box-sizing: border-box; width: max-content; max-width: calc(100% - 32px); margin: 0;
+  padding: 6px 10px; border: 1px solid var(--rim); border-radius: 10px; background: var(--panel2); color: var(--fg); font-size: 13px; line-height: 1.5;
+  box-shadow: var(--shadow); word-break: keep-all; overflow-wrap: anywhere; pointer-events: none;
+  opacity: 0; transform: translateY(-4px); transition: opacity var(--t-press) var(--ease-out), transform var(--t-press) var(--ease-out);
+}
+.tip:empty { padding: 0; border-width: 0; }
+.tip.show { opacity: 1; transform: none; transition-duration: var(--t-ui); pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.tip .tip-head, .tip .tip-line { display: block; }
+.tip .tip-head { color: var(--muted); }
+.tip::before { content: ''; position: absolute; top: -6px; left: var(--tip-x, 24px); margin-left: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: var(--rim); }
+.tip::after { content: ''; position: absolute; top: -5px; left: var(--tip-x, 24px); margin-left: -5px; border: 5px solid transparent; border-top: 0; border-bottom-color: var(--panel2); }
+.tip:empty::before, .tip:empty::after { display: none; }
+:root[data-font="pixel"] .tip {
+  border: 2px solid var(--line); border-radius: 0; font-family: var(--f-meta); font-size: 16px; line-height: 24px; padding: 4px 10px;
+  box-shadow: inset 1px 1px 0 var(--hi-px), 2px 2px 0 var(--line); transform: translateY(-4px); transition-timing-function: steps(2, jump-end);
+}
+:root[data-font="pixel"] .tip.show { transform: none; }
+:root[data-font="pixel"] .tip:empty { padding: 0; border-width: 0; box-shadow: none; }   /* 숨은 빈 말풍선은 크기 0 (픽셀 테마의 테두리·안쪽 여백이 :empty 를 이기지 않게) */
+/* 픽셀 꼬리: 2px 칸 계단 (선 · 판) */
+:root[data-font="pixel"] .tip::before { top: -6px; margin-left: -1px; width: 2px; height: 2px; border: 0; background: var(--line); box-shadow: -2px 2px 0 var(--line), 2px 2px 0 var(--line), -4px 4px 0 var(--line), 4px 4px 0 var(--line); }
+:root[data-font="pixel"] .tip::after { top: -2px; margin-left: -3px; width: 6px; height: 2px; border: 0; background: var(--panel2); }
+:root[data-font="pixel"] :is(button.brain-tag, button.pips):focus-visible { outline-color: var(--fg); }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .tip { transition: none; transform: none; } }
+:root[data-motion="reduce"] .tip { transition: none; transform: none; }
+
+/* 2) 놀이방 문 (임시, 장면 오른쪽 아래 끝): 누르는 곳 44×44 · 보이는 상자 36×36 · 그림 16×16 ×2 (그림이 안 오면 글자 '문' — 이모지 없음). 문어가 나가 있어도 누를 수 있다.
+      말풍선이 겹치면 아이콘 묶음처럼 비켜 서고(js/ui-art.js avoidCtl), 그래도 겹치면 말풍선이 보이는 동안 숨는다 (.yield — 규칙은 위 아이콘 묶음 블록) */
+.scene-door {
+  position: absolute; right: 0; bottom: 0; z-index: 10; width: 44px; height: 44px; margin: 0; padding: 0; border: 0; background: none;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  transition: opacity var(--t-ui) var(--ease-enter);
+}
+.scene-door .door-box { display: grid; place-items: center; box-sizing: border-box; width: 36px; height: 36px; border: 1px solid var(--rim); border-radius: 8px; background: var(--panel2); transition: transform var(--t-press) var(--ease-out); }
+.scene-door .door-ico { display: block; width: 32px; height: 32px; image-rendering: pixelated; image-rendering: crisp-edges; }
+.scene-door .door-txt { display: none; font-size: 15px; line-height: 1; font-weight: 600; color: var(--fg); }
+.scene-door.no-img .door-ico { display: none; }
+.scene-door.no-img .door-txt { display: inline; }
+:root[data-font="pixel"] .scene-door .door-txt { font-family: var(--f-ui); font-size: 24px; font-weight: 400; }
+.scene-door:active .door-box { transform: scale(.97); }
+.scene-door:focus-visible { outline: none; }
+.scene-door:focus-visible .door-box { outline: 2px solid var(--amber); outline-offset: 2px; }
+:root[data-font="pixel"] .scene-door .door-box { border: 2px solid var(--line); border-radius: 0; box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .scene-door:active .door-box { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
+:root[data-font="pixel"] .scene-door:focus-visible .door-box { outline-color: var(--fg); }
+html.intro-on .scene-door { opacity: 0; visibility: hidden; }
+html.intro-reveal .scene-door { transition: opacity var(--t-ui) var(--ease-enter); transition-delay: calc(120ms * var(--speed)); }
+
+/* 3) 설정 시트: 색 슬라이더는 한 줄 가득 · 기록은 작은 한 줄 + 버튼 셋 한 줄 (좁으면 줄바꿈) · 누가 고르나 한 줄 */
+.settings-sheet .hue-row input[type=range] { flex: 1 1 auto; min-width: 0; }
+.settings-sheet .set-stats { color: var(--muted); font-variant-numeric: tabular-nums; }
+.settings-sheet .set-data { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 44px; margin: 4px 0; }
+.settings-sheet .set-data .btn.sm, :root[data-font="pixel"] .settings-sheet .set-data .btn.sm { min-height: 44px; }   /* 내보내기 · 불러오기 · 전체 초기화: 보이는 상자부터 44px (픽셀 테마에선 36px 상자 그대로 눌렸다) — 설정의 다른 줄과 같은 높이 */
+.settings-sheet .set-who { color: var(--muted); }
+.settings-sheet #set-close { margin-top: 12px; }
+:root[data-font="pixel"] .settings-sheet .set-stats, :root[data-font="pixel"] .settings-sheet .set-who { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }

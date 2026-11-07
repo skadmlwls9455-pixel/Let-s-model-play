@@ -64,7 +64,7 @@ async function one(browser, when, i) {
   ok(before && before.some(function (x) { return x.indexOf(':running:') > 0; }), label + ' reload 전 localStorage 에 running 여행 (' + JSON.stringify(before) + ')');
   if (when === 'empty-snapshot') await page.addInitScript({ content: "try { localStorage.clear(); } catch (e) {}" });   /* 다음 문서 시작 시 원점 저장소가 빈 것으로 보이게 (관찰된 경합 재현) */
   await page.reload();
-  await page.waitForSelector('#btn-go:not([disabled])', { timeout: WAIT });
+  await page.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
   var done = await page.waitForFunction(function () { return APP.state.trips.length > 0 && APP.state.trips.every(function (t) { return t.status === 'done'; }); }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
   var r = await page.evaluate(function (k) {
     var sv = null; try { sv = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) {}
@@ -79,7 +79,7 @@ async function one(browser, when, i) {
     }
     var t0 = sv && sv.trips ? sv.trips[0] : null;
     var away = [].filter.call(document.querySelectorAll('#log .lrow'), function (row) { return row.textContent.indexOf('네가 없는 동안') >= 0; }).map(function (row) { var tl = row.querySelector('.ltool'), tx = row.querySelector('.ltext'); return (tl ? tl.textContent : '?') + ' · ' + (tx ? tx.textContent : row.textContent); });
-    return { n: APP.state.trips.length, st: APP.state.trips.map(function (t) { return t.status + '/' + t.kind + '/' + (t.events || []).length; }), lantern: APP.state.room.lantern, invites: APP.state.octopus.invites, log: document.getElementById('log').textContent, oct: document.getElementById('oct').className, busy: document.getElementById('btn-go').disabled,
+    return { n: APP.state.trips.length, st: APP.state.trips.map(function (t) { return t.status + '/' + t.kind + '/' + (t.events || []).length; }), lantern: APP.state.room.lantern, invites: APP.state.octopus.invites, log: document.getElementById('log').textContent, oct: document.getElementById('oct').className, busy: document.getElementById('btn-go').classList.contains('away'),
       kind: t0 ? t0.kind : null, did: didKind(t0), appKind: APP.state.trips[0] ? APP.state.trips[0].kind : null, away: away };
   }, KEY);
   ok(done, label + ' 모든 여행 done (' + JSON.stringify(r.st) + ')');
@@ -90,13 +90,13 @@ async function one(browser, when, i) {
   var wantAway = { out: ['귀가 · ' + AWAY_OUT], home: ['집 · ' + AWAY_HOME], empty: [] }[r.did] || ['?'];
   ok(JSON.stringify(r.away) === JSON.stringify(wantAway), label + ' 복구 줄 (한 일 ' + r.did + '): ' + JSON.stringify(r.away) + ' — 기대 ' + JSON.stringify(wantAway) + ' (tail: ' + JSON.stringify(r.log.slice(-80)) + ')');
   ok(/st-(sleep|idle)/.test(r.oct) && !r.busy, label + ' 문어 상태 유효 · 버튼 활성 (' + r.oct.trim() + ')');
-  /* 복구 뒤 한 번 더 초대해도 정상. 건너뛰기는 페이지 안에서 보이는 순간 누른다 (빈 차례는 금방 끝나 건너뛰기가 먼저 사라질 수 있다) —
+  /* 복구 뒤 한 번 더 초대해도 정상. 건너뛰기(나가 있는 동안 큰 버튼 · 0.6 s 뒤 .can-skip)는 페이지 안에서 누를 수 있는 순간 누른다 (빈 차례는 금방 끝나 먼저 끝날 수 있다) —
      여행이 둘 다 끝나고 버튼이 다시 켜질 때까지 100 ms 마다. 판정은 아래 '저장 2건 done' */
   await page.click('#btn-go');
   await page.waitForFunction(function () {
-    var sk = document.getElementById('btn-skip'), b = document.getElementById('btn-go');
-    if (sk && !sk.hidden) sk.click();
-    return APP.state.trips.length >= 2 && APP.state.trips.every(function (t) { return t.status === 'done'; }) && b && !b.disabled;
+    var b = document.getElementById('btn-go');
+    if (b && b.classList.contains('can-skip')) b.click();
+    return APP.state.trips.length >= 2 && APP.state.trips.every(function (t) { return t.status === 'done'; }) && b && !b.classList.contains('away');
   }, null, { timeout: WAIT, polling: 100 }).catch(function () {});
   var after = await stored(page);
   ok(after && after.length === 2 && after.every(function (x) { return x.indexOf(':done:') > 0; }), label + ' 복구 뒤 초대 → 저장 2건 모두 done (' + JSON.stringify(after) + ')');

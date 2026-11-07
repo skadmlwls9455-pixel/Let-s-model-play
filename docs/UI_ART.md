@@ -102,6 +102,18 @@ manifest 에 `frames`, `cell: 8` 이 적혀 있다.
 - `icon.log.*` (산책 로그 행): `depart` 출발 · `peek` 기웃 · `return` 귀가 · `remember` 기억 · `poster` 포스터 · `wrapup` 마무리 · `home` 집에 있기, 읽기 상태 `read` · `builtin` · `simulated` · `failed` · `none`
 - `icon.memory.*` (기억 코너 9개): `hands` `sea` `sky` `signs` `numbers` `sounds` `home` `mind` `wild`
 - `icon.souvenir.*` (기념품 16종): `souvenir.*` SVG 플레이스홀더의 픽셀 버전. 2D 폴백 `.souv img` 는 8px 로 그리기 때문에 기존 `souvenir.*` 키는 바꾸지 않았다. 16px 의 정수 배로 쓰는 UI(로그·앨범·열람)에서 이 키를 쓴다
+- `icon.ctl.door` (7물결, 장면 위 버튼): 놀이방 문 — 둥근 머리 나무 문, 불 켜진 작은 창(문 너머 방), 호박색 손잡이, 돌 문턱. `#btn-door` 에서 ×2 = 32px. 다른 아이콘과 달리 **두 테마 모두** 보인다 (`.ua-ico` 가 아니라 `.door-ico`). 주소는 `js/ui-art.js` 의 `fillIcons` 가 `img[data-icon]` 에 채운다(단일 파일 번들이면 `ASSETS_INLINE['icon.ctl.door']`). 그림이 안 오면 버튼에 `.no-img` 를 붙여 글자 '문' 으로 바꾼다 (이모지는 쓰지 않는다 — 주인 11-07: 플레이어가 보는 버튼은 글자나 픽셀 그림만)
+
+### 장면 위 버튼 (7물결 · 주인 11-07)
+`방 보기`는 없앴다. 그 자리의 버튼은 이렇게 놓였다.
+
+| 버튼 | 자리 | 그림 |
+|---|---|---|
+| 추억 앨범 `#btn-album` · ⚙ 설정 `#btn-settings` · 소리 `#btn-sound` | 장면 오른쪽 위 묶음 `#scene-ctl` (이 순서) | 12칸 격자 인라인 SVG ×2 = 24px, `currentColor`(두 테마). 누르는 곳 44×44, 보이는 상자 28×28 |
+| 놀이방 문 `#btn-door` (임시) | 장면 오른쪽 아래 끝 | `icon.ctl.door` ×2 = 32px, 보이는 상자 36×36. 누르면 `APP.goRoom('play')` → 문 소리 훅 `door{act:'open'}` + 다락방 달리기 창. 8물결에서 다락 안 진짜 문으로 바뀐다 |
+
+- 장면 말풍선은 이 버튼들의 보이는 상자와 겹치면 왼쪽으로 비켜 선다. `UIART.avoidCtl` 이 버튼 무리마다 따로 잰다(오른쪽 위 묶음 하나, 문 하나). 비켜도 겹치면 말풍선이 보이는 동안 **겹치는 그 버튼만** 숨긴다(`.icon-btn.yield` · `.scene-door.yield`: 투명 · 탭은 아래로 통과 · Tab 포커스가 가면 다시 보임). 예전처럼 옅게(0.3) 두면 세 아이콘이 말풍선 글자 위에 그려졌다. 겹치지 않는 버튼은 그대로 보인다. 2D 무대(`app.js keepBubble2D`)도 같은 함수를 쓴다.
+- 앨범 맨 위 '문어의 요즘' 한두 줄에는 그 코너의 `icon.memory.*` 를 앞에 붙인다. 줄마다 `data-corner` 가 달려 있어서 글자를 읽어 맞히지 않는다(예전 방 보기의 `syncRoomSheet` 는 문장을 정규식으로 읽었다).
 
 ## 다시 만들기 · 고치기
 

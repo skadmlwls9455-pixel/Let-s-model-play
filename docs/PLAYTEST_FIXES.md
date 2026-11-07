@@ -37,7 +37,7 @@
 
 | D 항목 | 함께 할 카드 | 물결 | 이유 |
 |---|---|---|---|
-| 산책 끝마다 자장가 (`audio.js` 자장가 시작 조건) | A2 | 5물결 | 둘 다 "산책 끝 = 잠" 문제. 반응을 고르는 김에 자장가는 졸림·밤일 때만 |
+| 산책 끝마다 자장가 (`audio.js` 자장가 시작 조건) — **완료 (7물결, 11-07)**: 아래 D 표 첫 줄 | A2 | 5물결 → 7물결 | 둘 다 "산책 끝 = 잠" 문제. 반응을 고르는 김에 자장가는 졸림·밤일 때만 |
 | `lantern_prop_fade` (등불 소품 등장) | A4 | 5물결 | 등불 규칙을 바꾸는 김에 소품 등장 0.2초 뒤에 연결 |
 | `window_tap` (창문 톡), `curious` 교체 | A1 | 6물결 | 톡 반응을 고칠 때 같이 |
 | 달리기 소리 (점프·부딪힘·새 최고) | A6 | 6물결 | 놀이 입구를 꺼낼 때 같이 |
@@ -64,7 +64,7 @@
 | A7 | 방 보기 시트는 통계 글 위주이고, 포스터 한 줄 문장 틀이 7개뿐이다 | 작음 | app.js, world.js | 없음 |
 | B | 작은 버그 6건 | 작음 | 여러 곳 | 없음 |
 | C | 모듈화 6단계 (util → poster → store → demo → color → scene3d) | 단계별 | 단계별 | scene3d 쪼개는 시점 |
-| D | 소리 매핑: 산책마다 자장가 · 창문 톡 소리 미연결 · 달리기 무음 · 안 쓰는 소리 4묶음 | 작음 | audio.js, app.js, runner.js | 자장가를 언제 틀지 |
+| D | 소리 매핑: 산책마다 자장가(**완료 7물결**) · 창문 톡 소리 미연결 · 달리기 무음 · 안 쓰는 소리 4묶음 | 작음 | audio.js, app.js, runner.js | 결정됨: 자장가 = 밤(19~6시) 또는 졸림 |
 
 **순서 제안** (지금 물결과 덜 부딪히게):
 1. 지금 바로: **A5**. `js/intro.js` 는 이 세션이 만든 파일이라 다른 물결과 겹치지 않는다. 원하면 이 세션이 한다.
@@ -289,11 +289,13 @@
 
 | 무엇 | 근거 | 고치는 법 | 건드리는 파일 |
 |---|---|---|---|
-| 산책·집에 있기가 끝날 때마다 `sleep_settle` → 자장가로 넘어간다. 폴짝·우쭐 징글 바로 뒤에도 그렇다 | 플레이 기록: 외출 → `mood_poljjak` → `lantern_1` → `sleep_settle`, BGM `special_lullaby`. 하루 여러 번이면 가장 많이 듣는 곡이 자장가가 된다 | 자장가는 반응이 졸림이거나 밤(19~6시)일 때만 튼다. 낮의 폴짝·우쭐·덤덤 뒤에는 집 테마를 그대로 두고 잠들기 소리만 작게 낸다. 문어가 잠드는 연출 자체(앱 쪽)는 A2 와 같이 본다 | audio.js (`startLullaby` 를 부르는 곳) |
+| ~~산책·집에 있기가 끝날 때마다 `sleep_settle` → 자장가로 넘어간다. 폴짝·우쭐 징글 바로 뒤에도 그렇다~~ **완료 (7물결, 11-07)** | 플레이 기록: 외출 → `mood_poljjak` → `lantern_1` → `sleep_settle`, BGM `special_lullaby`. 하루 여러 번이면 가장 많이 듣는 곡이 자장가가 된다 | **규칙**: 자장가는 밤(19~6시, 게임 시계 `init({ hour })`)이거나 그 차례 반응이 졸림일 때만 (2~3바퀴 → 페이드 → 환경음만, 예전과 같다). 그 밖(낮의 폴짝·우쭐·덤덤·반응 없음)에는 지금 곡을 그대로 두고 `sleep_settle` 만 작게(gain 0.6, BGM 페이드 없음). 반응은 앱이 `AUDIO.on('state', { state: 'sleep', reaction })` 에 싣고, 키가 없으면 그 차례 마무리 줄(`wrap_up`)의 반응. 소리를 꺼 둔 채 잠들었다가 켜도 같은 규칙. 검사: `tools/test-audio.js` 3 · 3b · 9 | audio.js (`onState` · `settleHome` · `start`), app.js (`octMirror` 가 반응을 싣는다) |
 | 창문 톡 소리(`window_tap` 4종)가 안 불린다 | `audio.js` 에서 부르는 곳이 없다(버스 분류 135행에만 나옴). 지금은 말풍선 목소리("비가 와")만 난다 | `app.js` `windowTap` 에서 `AUDIO.on('window')` 같은 훅 하나 → `play(ev(['interaction','window_tap']))` | app.js, audio.js |
-| 다락방 달리기가 무음이다 | runner.js 에 소리가 없다(화면에 "소리는 없어") | 있는 소리로 시작: 점프 = `ui_tap`, 부딪힘 = `pet_squish`, 새 최고 = `first_place`. `AUDIO` 가 켜져 있을 때만, 효과음 크기 설정을 따른다 | runner.js, audio.js |
+| 다락방 달리기가 무음이다 | runner.js 에 소리가 없다(화면에 "소리는 없어") | 있는 소리로 시작: 점프 = `ui_tap`, 부딪힘 = `pet_squish`, 새 최고 = `toast`(짧은 '플링' — 예전 안의 `first_place` 는 11-05 주인 요청으로 한 벌에서 뺐다). `AUDIO` 가 켜져 있을 때만, 효과음 크기 설정을 따른다. 7물결부터 달리기는 놀이방 문(`AUDIO.on('door', { act: 'open' })` 끼익 → 달리기 창)으로 들어간다 | runner.js, audio.js |
 | 발소리 `step`·희귀 `rare_sparkle`·등불 소품 `lantern_prop_fade`·`toast` 가 안 불린다 | 부르는 곳 0곳 | 발소리는 의식 걸음(출발·귀가)에만, 희귀는 희귀 포스터를 걸 때, 소품은 등불 칸 200 ms 뒤(DESIGN §4 모션 표와 같은 박자), 토스트는 저장 실패 같은 알림에만 | audio.js, app.js |
 | 문어 톡 = `curious` 하나 | 톡 반응을 바꾸면(A1) 소리도 같이 고른다 | A1 과 같은 커밋에서 | audio.js |
+| 놀이방 문 끼익 (7물결, 11-07 — **고침**) | 한 벌에 문 소리가 없어서 처음엔 `sheet_open`(0.25 s '스윽')을 빌렸다 → 문이 시트처럼 들렸다 (주인 말은 "끼익 열리면서") | `AUDIO.on('door', { act: 'open' })` → `js/audio.js` 가 만든 끼익 `door_creak_open`(0.44 s, 스틱-슬립 펄스가 빨라지며 F 펜타토닉 공명 A4·D5·A5 를 친다 — 한 벌의 나무 삐걱과 같은 만듦새, 크기는 export 잣대로 `sheet_open` 과 같은 BGM 대비 −14 dB). 닫기는 `door_creak_close`(짧게, 아직 부르는 곳 없음). 매니페스트에 `map.interaction.door_open` 이 생기면 그 파일이 먼저다 (사운드 세션이 진짜 `door_creak` 를 구우면 코드 그대로). 기웃 결과음(`peek_simulated`·`peek_failed`)은 상태 전용이라 빌리지 않는다. test-audio 9번 (audio/README.md §4 '게임 쪽에서 정한 것') | audio.js · (나중에 사운드 세션) manifest |
+| 시트 소리 (7물결 — **연결함**) | 방 보기 버튼·닫기만 id 로 소리를 냈다. 장면 안 앨범 아이콘은 무음, 앨범 닫기는 탭 소리 | `dialog.sheet`(앨범 · 설정)의 `open` 속성을 지켜봐서 열면 `sheet_open`, 닫히면(닫기·Esc·바깥 탭·끌어 내리기) `sheet_close`. 앱 훅 없음 | audio.js |
 
 ---
 

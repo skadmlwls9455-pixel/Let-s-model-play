@@ -639,17 +639,8 @@ var RUNNER = (function () {
     }
   }
 
-  /* ── 방 보기 시트에 "같이 놀기" 버튼 (app.js 수정 없이) ── */
-  function inject() {
-    var sheet = document.getElementById('room-sheet');
-    if (!sheet || document.getElementById('rs-play')) return;
-    var b = el('button', { type: 'button', class: 'btn wide pressable rn-entry', id: 'rs-play' }, ['같이 놀기 ', el('span', { class: 'rn-entry-sub', text: '다락방 달리기' })]);
-    b.addEventListener('click', function () { open({ opener: b }); });
-    var closeBtn = document.getElementById('rs-close');
-    if (closeBtn && closeBtn.parentNode === sheet) sheet.insertBefore(b, closeBtn); else sheet.appendChild(b);
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inject); else inject();
-
+  /* 입구는 app.js 의 놀이방 문 (#btn-door → APP.goRoom('play') → RUNNER.open({ opener })). 예전처럼 다른 시트에 버튼을 끼워 넣지 않는다 (방 보기는 없앴다, 주인 11-07).
+     닫으면 포커스는 연 버튼(문)으로 돌아간다 (onClose) */
   API.open = open;
   API.close = function () { if (dlg && dlg.open) dlg.close(); };
   API.load = load;

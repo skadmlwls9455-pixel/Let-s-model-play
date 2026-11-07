@@ -18,7 +18,14 @@
    - file:// 에서는 소리 없음: 브라우저가 file:// 의 fetch·디코드를 막아 manifest 와 파일을 못 읽는다. <audio loop> 폴백은 README 가 금지한
      루프 틈(인코더 패딩·앞뒤 여유분)이 들리고 iOS 는 element.volume 을 무시해 덕킹도 안 돼서 쓰지 않는다. 토글은 기억만 하고, 켜면 한 줄로 말한다.
    - 어떤 실패(파일 없음·디코드 실패·AudioContext 없음)도 게임으로 던지지 않는다. console.warn 은 많아야 한 번.
-   APP 은 if (window.AUDIO) AUDIO.on('이름', {...}) 한 줄 훅만 부른다 (js/app.js). 이벤트 이름: state · bubble · pet · ceremony · peek · row · lantern · busy · room_sheet
+   - 잠 (PLAYTEST_FIXES D-1): 자장가는 밤(19~6시, init 의 hour)이거나 그 차례 반응이 졸림일 때만. 그 밖엔 집 테마를 그대로 두고 잠들기 소리(sleep_settle)만 작게.
+     반응은 state 'sleep' 이벤트의 reaction (키가 있으면 null 이어도 그것 — 시간으로만), 키가 없으면 이번 차례 마무리 줄(wrap_up)에서 들은 반응.
+   - 문 끼익: 한 벌에 문 소리가 아직 없어서 여기서 만든다 (door_creak_open · door_creak_close — 사운드 세션의 나무 삐걱과 같은 만듦새, export.py 크기 규칙, 시드 PRNG).
+     audio/ 에 파일 요청은 없다. 사운드 세션이 map.interaction.door_open 을 구워 넣으면 그 파일이 먼저다.
+   - 시트 소리: dialog.sheet 의 open 속성이 바뀌는 것을 지켜본다 (MutationObserver) → 열면 sheet_open, 닫으면 sheet_close. 닫기 버튼·Esc·바깥 탭·끌어 내리기 모두 같다.
+     그래서 앨범·설정 시트는 app.js 훅 없이 소리가 난다. 시트를 여닫는 버튼 자체는 탭 소리를 내지 않는다 (두 번 울리지 않게).
+   APP 은 if (window.AUDIO) AUDIO.on('이름', {...}) 한 줄 훅만 부른다 (js/app.js). 이벤트 이름: state · bubble · pet · ceremony · peek · row · lantern · busy · door · room_sheet(= settings_sheet).
+   모르는 이름은 조용히 넘긴다.
    ============================================================ */
 /* global WORLD */
 var AUDIO = (function () {
@@ -34,6 +41,13 @@ var AUDIO = (function () {
   var PEEK_OK = { read: 1, builtin: 1, simulated: 1, failed: 1, none: 1 };
   var PLACE_ROOMS = { door_out: 1, slow_room: 1, letter_room: 1 };   /* 코너가 아니라 방 이름으로 테마가 있는 곳 */
   var STAY_ANCHORS = { door: 1, window: 1, crate: 1, board: 1, blanket: 1, center: 1 };   /* app.js ANCHORS */
+  /* 한 벌에 없어서 여기서 만드는 소리 — 지금은 문 끼익 둘 (아래 makeSound). 사운드 세션이 map.interaction.door_open·door_close 를 구워 넣으면 그쪽이 먼저다.
+     rate = 스틱-슬립 펄스 빠르기 [처음, knee 에서, 끝] Hz · lean = 크기 포락선 기울기 (sin(π·u^lean)^0.7) · rel = BGM 대비 dB (export.py 규칙) */
+  var MADE = {
+    door_creak_open: { dur: 0.44, rate: [30, 170, 120], knee: 0.62, lean: 0.75, lpf: 3200, rel: -14 },   /* 끼이익: 틱틱 → 빨라지며 '이익' */
+    door_creak_close: { dur: 0.28, rate: [120, 90, 32], knee: 0.5, lean: 1.2, lpf: 2800, rel: -15 }     /* 닫기: 짧게 느려지며 (아직 앱이 부르지 않는다) */
+  };
+  var CREAK_RES = [[440, 7, 0.35], [587.33, 9, 1], [880, 8, 0.6]];   /* 공명 A4 · D5 · A5 = F 펜타토닉 안 (Hz, Q, 크기) */
   var pref = { on: false, music: 0.8, sfx: 0.8 };
   var vol = { bgm: 0.8, amb: 0.8, sfx_event: 0.8, sfx_ui: 0.8, voice: 0.8 };
   function num(x) { return typeof x === 'number' && isFinite(x); }
@@ -74,7 +88,7 @@ var AUDIO = (function () {
   function read(fn, dflt) { try { var v = fn(); return v == null ? dflt : v; } catch (e) { return dflt; } }
 
   /* ───────────────────────── 상태 ───────────────────────── */
-  var gs = { st: null, away: false, departing: false, left: false, placeKey: undefined, sleeping: false, sleepPhase: null, stayWindow: false, stayAct: null, skipping: false, wound: false, leaving: false, peekHeard: {} };
+  var gs = { st: null, away: false, departing: false, left: false, placeKey: undefined, sleeping: false, sleepPhase: null, sleepReaction: null, wrapReaction: undefined, stayWindow: false, stayAct: null, skipping: false, wound: false, leaving: false, peekHeard: {} };
   var ctx = null, nd = {}, M = null, byId = {}, groups = {}, manifestP = null, fmt = null;
   var cache = {}, cacheBytes = 0, useTick = 0, requests = 0;
   var slots = { bgm: null, amb: null, layer: null, warm: null, season: null }, want = {};
@@ -99,6 +113,9 @@ var AUDIO = (function () {
       byId[s.id] = s;
       var g = s.group || s.id;
       (groups[g] = groups[g] || []).push(s.id);
+    });
+    Object.keys(MADE).forEach(function (id) {   /* 한 벌에 같은 이름이 생기면 그 파일을 쓴다 */
+      if (!byId[id]) byId[id] = { id: id, kind: 'sfx', made: MADE[id], duration: MADE[id].dur + 0.12, min_gap_ms: 300, duck_db: 0 };
     });
   }
   function loadManifest() {
@@ -132,7 +149,7 @@ var AUDIO = (function () {
     if (s.kind === 'bgm' || s.kind === 'special' || s.kind === 'place') return 'bgm';
     if (s.kind === 'amb' || s.kind === 'layer') return 'amb';
     if (/^voice_/.test(s.id)) return 'voice';
-    if (s.kind === 'sfx' && /^(ui_|sheet_|toast|log_line|card_flip|audio_on|album_open|pet_|curious|window_tap)/.test(s.id)) return 'sfx_ui';
+    if (s.kind === 'sfx' && /^(ui_|sheet_|door_|toast|log_line|card_flip|audio_on|album_open|pet_|curious|window_tap)/.test(s.id)) return 'sfx_ui';   /* door_ = 문 끼익 (지금은 여기서 만든 door_creak_*) */
     return 'sfx_event';
   }
   function isHome(id) { return !!(id && byId[id] && byId[id].kind === 'bgm'); }
@@ -155,14 +172,14 @@ var AUDIO = (function () {
     var c = cache[id];
     if (c) { c.used = ++useTick; return c.p; }
     var s = byId[id];
-    if (!s || !s.files || !ctx) return Promise.reject(new Error('없음 ' + id));
-    var f = fmt === 'ogg' && s.files.ogg ? 'ogg' : 'm4a';
+    if (!s || !(s.files || s.made) || !ctx) return Promise.reject(new Error('없음 ' + id));
+    var f = s.files && fmt === 'ogg' && s.files.ogg ? 'ogg' : 'm4a';
     var entry = { p: null, buf: null, bytes: 0, used: ++useTick };
-    entry.p = fetchBuf(s.files[f]).then(decode).catch(function (e) {
+    entry.p = (s.made ? Promise.resolve().then(function () { return makeSound(id, s.made); }) : fetchBuf(s.files[f]).then(decode).catch(function (e) {
       if (f !== 'ogg' || !s.files.m4a) throw e;
       /* Opus 를 못 읽는 브라우저 (iOS Safari 18.4 미만) → AAC 로 한 번 더, 이후 전부 AAC */
       return fetchBuf(s.files.m4a).then(decode).then(function (b) { fmt = 'm4a'; return b; });
-    }).then(function (b) {
+    })).then(function (b) {
       delete bad[id];
       entry.buf = b; entry.bytes = b.length * b.numberOfChannels * 4;
       if (cache[id] === entry) { cacheBytes += entry.bytes; evict(); }
@@ -175,6 +192,43 @@ var AUDIO = (function () {
       warn('소리 파일을 못 틀었어 (' + id + ')', e);
     });
     return entry.p;
+  }
+  /* 만드는 소리 (MADE): 사운드 세션의 나무 삐걱(audio/src/ambience.py creak)과 같은 만듦새 — 스틱-슬립 펄스열(조금씩 흔들리는 간격·세기, 시드 PRNG)이
+     F 펜타토닉 공명(CREAK_RES)을 친다 → 2차 LPF. 크기는 audio/src/export.py 처럼 소리 나는 구간(10 ms 창, 최대 −50 dB 위) RMS = BGM −20 + rel dB,
+     피크 −3 dBFS 아래, 끝 30 ms 페이드. 그래서 파일 소리처럼 gain 1 로 틀고 효과음 슬라이더만 곱한다. 한 번 만들면 LRU 에 다른 버퍼처럼 남는다 */
+  function biquad(x, b0, b1, b2, a1, a2) {
+    var y = new Float32Array(x.length), x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (var i = 0; i < x.length; i++) { var v = b0 * x[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = x[i]; y2 = y1; y1 = v; y[i] = v; }
+    return y;
+  }
+  function peakBp(x, sr, f, q) { var w = 2 * Math.PI * f / sr, g = 1 / (1 + Math.tan(w / q / 2)); return biquad(x, 1 - g, 0, g - 1, -2 * g * Math.cos(w), 2 * g - 1); }   /* scipy iirpeak (가운데 0 dB) */
+  function lowpass(x, sr, f) { var w = 2 * Math.PI * f / sr, c = Math.cos(w), al = Math.sin(w) / Math.SQRT2, a0 = 1 + al; return biquad(x, (1 - c) / 2 / a0, (1 - c) / a0, (1 - c) / 2 / a0, -2 * c / a0, (1 - al) / a0); }   /* 2차 버터워스 */
+  function activeRms(y, sr) {
+    var win = Math.max(1, Math.round(0.01 * sr)), e = [], mx = 0, m = 0, k = 0;
+    for (var w = 0; (w + 1) * win <= y.length; w++) { var s = 0; for (var j = w * win; j < (w + 1) * win; j++) s += y[j] * y[j]; e.push(s / win); mx = Math.max(mx, s / win); }
+    e.forEach(function (v) { if (v > mx * 1e-5) { m += v; k++; } });
+    return Math.sqrt(m / (k || 1)) || 1e-9;
+  }
+  function makeSound(id, sp) {
+    var sr = ctx.sampleRate, n = Math.ceil((sp.dur + 0.12) * sr), x = new Float32Array(n), y = new Float32Array(n);
+    var r = mulberry32(hashStr('ppolppol-audio|' + id)), next = 0, i;
+    for (i = 0; i < n; i++) {
+      var t = i / sr; if (t > sp.dur) break;
+      if (t < next) continue;
+      var u = t / sp.dur, k = sp.knee, a = u < k ? u / k : (u - k) / (1 - k), sm = a * a * (3 - 2 * a);
+      var rate = u < k ? sp.rate[0] + (sp.rate[1] - sp.rate[0]) * sm : sp.rate[1] + (sp.rate[2] - sp.rate[1]) * sm;
+      x[i] = Math.pow(Math.sin(Math.PI * Math.pow(u, sp.lean)), 0.7) * (0.6 + 0.4 * r());
+      next = t + (0.94 + 0.12 * r()) / rate;
+    }
+    CREAK_RES.forEach(function (q) { var z = peakBp(x, sr, q[0], q[1]); for (var j = 0; j < n; j++) y[j] += q[2] * z[j]; });
+    y = lowpass(y, sr, sp.lpf);
+    var g = dbg(-20 + sp.rel) / activeRms(y, sr), pk = 0, f = Math.round(0.03 * sr);
+    for (i = 0; i < n; i++) pk = Math.max(pk, Math.abs(y[i] * g));
+    if (pk > dbg(-3)) g *= dbg(-3) / pk;
+    for (i = 0; i < n; i++) y[i] *= g * (i >= n - f ? (n - i) / f : 1);
+    var buf = ctx.createBuffer(1, n, sr);
+    buf.getChannelData(0).set(y);
+    return buf;
   }
   function inUse(id) {
     if (pend && pend.id === id) return true;
@@ -509,6 +563,21 @@ var AUDIO = (function () {
   }
 
   /* ───────────────────────── 잠: settle → 자장가 2~3바퀴 → 4초 페이드 → 환경음만 ───────────────────────── */
+  /* D-1 (2026-11-07): 산책·집에 있는 날이 끝날 때마다 자장가로 넘어가서, 하루 몇 번이면 가장 많이 듣는 곡이 자장가였다.
+     자장가 = 밤(19~6시)이거나 반응이 졸림. 그 밖(낮의 폴짝·우쭐·덤덤·반응 없음)엔 지금 곡을 그대로 두고 잠들기 소리만 작게 */
+  var SETTLE_SOFT = 0.6;   /* 낮잠 잠들기 소리 크기 (≈ -4.4 dB) */
+  function nightNow() { return bandOf(read(game.hour, null)) === 'night'; }
+  function lullabyWanted(r) { return r === '졸림' || nightNow(); }
+  function settleHome(live) {
+    if (!active()) return;
+    clearTimeout(lullTimer);
+    gs.sleepPhase = 'home';
+    if (live) {   /* 마무리 징글·등불이 끝난 뒤에, 작게. BGM 은 그대로 */
+      var setId = ev(['sleep', 'settle']) || 'sleep_settle';
+      play(setId, { at: Math.max(now() + 0.05, evEnd + 0.25), always: true, gain: SETTLE_SOFT });
+    }
+    applyBgm();
+  }
   function startLullaby(live) {
     if (!active()) return;
     var lid = lullId(); if (!lid) return;
@@ -669,6 +738,7 @@ var AUDIO = (function () {
       case 'hang_poster': if (trip.poster) play(ev(['events', 'hang_poster'])); return;
       case 'wrap_up': {
         var r = e.reaction || trip.reaction, m = r && ev(['moods', r]);
+        gs.wrapReaction = r || null;   /* 곧 올 잠(state sleep)이 반응을 안 실어 오면 이걸로 자장가를 정한다 (D-1) */
         if (m) { moodAt = now(); play(m); }   /* 기분 징글이 곧 문어 목소리 — 그 말풍선엔 블립을 얹지 않는다 */
         return;
       }
@@ -707,9 +777,14 @@ var AUDIO = (function () {
     }
     if (st === 'sleep' && prev !== 'sleep') {
       gs.sleeping = true; gs.stayWindow = false; gs.placeKey = undefined;
-      if (active()) startLullaby(prev != null); else gs.sleepPhase = null;
+      /* 반응: 이벤트에 reaction 키가 있으면 그것 (null·undefined = 시간으로만), 없으면 이번 차례 마무리 줄에서 들은 것 */
+      gs.sleepReaction = Object.prototype.hasOwnProperty.call(d, 'reaction') ? (d.reaction || null) : (gs.wrapReaction || null);
+      gs.wrapReaction = undefined;
+      if (!active()) gs.sleepPhase = null;   /* 켤 때 start() 가 다시 정한다 */
+      else if (lullabyWanted(gs.sleepReaction)) startLullaby(prev != null);
+      else settleHome(prev != null);
     } else if (prev === 'sleep' && st !== 'sleep') {
-      gs.sleeping = false; gs.sleepPhase = null; clearTimeout(lullTimer); clearRest(); applyBgm();
+      gs.sleeping = false; gs.sleepPhase = null; gs.sleepReaction = null; clearTimeout(lullTimer); clearRest(); applyBgm();
     }
     if (st === 'stay') stayActivity();
   }
@@ -758,8 +833,18 @@ var AUDIO = (function () {
   }
   function onBusy(d) {
     gs.skipping = false; gs.wound = false;   /* 움츠림은 한 차례에 한 번 (초대는 busy 를 켠 뒤에 움츠린다) */
+    if (d.on) gs.wrapReaction = undefined;   /* 새 차례: 지난 차례 반응은 잊는다 */
     if (gs.leaving) { gs.leaving = false; if (!d.on && (gs.away || gs.departing)) onReturn(); }   /* 퇴장 의식 뒤 귀가 의식이 안 왔다 */
     if (!d.on) { gs.stayWindow = false; gs.stayAct = null; applyBgm(); }
+  }
+  /* 문 (놀이방 문 · 앞으로 걸어서 지나가는 방문): 끼익. 사운드 세션이 map.interaction.door_open(또는 ui.door_open · 닫기 door_close)을 구워 넣으면 그걸,
+     그 전엔 여기서 만든 door_creak_open · door_creak_close (MADE · makeSound). 시트 소리(sheet_open)와 다르게 들려야 한다 — 주인 11-07 "끼익 열리면서".
+     기웃 결과음(peek_simulated '문 너머', peek_failed '닫힌 문 노크')은 정직 규칙상 그 상태 전용이라 빌리지 않는다. 모르는 act 는 조용히 (audio/README.md §4 '문') */
+  function onDoor(d) {
+    var act = d.act === 'open' || d.act === 'close' ? d.act : null;
+    if (!act || !active()) return;
+    var I = mp().interaction || {}, U = mp().ui || {}, own = I['door_' + act] || U['door_' + act];
+    play(has(own) ? own : 'door_creak_' + act);
   }
   function on(name, d) {
     try {
@@ -773,7 +858,8 @@ var AUDIO = (function () {
         case 'row': onRow(d); break;
         case 'lantern': onLantern(d); break;
         case 'busy': onBusy(d); break;
-        case 'room_sheet': roomSheet(d.frag); break;
+        case 'door': onDoor(d); break;
+        case 'room_sheet': case 'settings_sheet': roomSheet(d.frag); break;   /* 소리 칸은 이제 설정 시트에 있다 (방 보기는 11-07 에 없앴다 — 옛 이름도 받는다) */
         default: break;
       }
     } catch (e) { warn('on(' + name + ')', e); }
@@ -798,7 +884,8 @@ var AUDIO = (function () {
       duckInfo.until = 0; duckInfo.db = 0;
       if (fromUser) play(ev(['ui', 'audio_on']));
       applyAmb(true);
-      if (gs.sleeping) startLullaby(false); else applyBgm({ delay: fromUser ? 0.45 : 0 });
+      if (gs.sleeping && lullabyWanted(gs.sleepReaction)) startLullaby(false);   /* 자고 있을 때 켰다: 같은 규칙 (D-1) — 밤이거나 졸림이면 자장가 */
+      else { if (gs.sleeping) gs.sleepPhase = 'home'; applyBgm({ delay: fromUser ? 0.45 : 0 }); }
       clearInterval(tickTimer); tickTimer = setInterval(guard(tick), 1000);
       clearTimeout(warmTimer); warmTimer = setTimeout(guard(warmVoices), 2500);   /* BGM·환경음을 먼저 받고 나서 */
       if (ctx && ctx.state === 'running') disarm(); else armIfStuck();   /* 아직 멈춰 있으면 다음 탭에서 깨운다 */
@@ -873,12 +960,13 @@ var AUDIO = (function () {
   function arm() { if (armed) return; armed = true; UNLOCK.forEach(function (n) { document.addEventListener(n, unlockFn, true); }); paint(); }
   function disarm() { if (!armed) return; armed = false; UNLOCK.forEach(function (n) { document.removeEventListener(n, unlockFn, true); }); paint(); }
 
-  /* ───────────────────────── 화면: 토글 · 안내 · 방 보기 ───────────────────────── */
+  /* ───────────────────────── 화면: 토글 · 안내 · 설정 시트의 소리 칸 ───────────────────────── */
+  /* 설정 시트 안에서 읽는 한 줄. 스피커 토글은 장면 오른쪽 위 아이콘 묶음(앨범 · 설정 · 소리)에 있다 */
   function noteText() {
-    if (reason === 'file') return '파일로 열면(file://) 브라우저가 소리 파일을 못 읽게 막아서 조용해. 웹 주소로 열면 들려.';
+    if (reason === 'file') return '파일(file://)로 열면 브라우저가 소리를 막아. 웹 주소로 열면 들려.';
     if (reason === 'no-webaudio' || reason === 'no-fetch') return '이 브라우저는 소리를 못 내. 소리 없이도 다 할 수 있어.';
     if (reason === 'manifest') return '소리 목록을 못 읽었어. 소리 없이 계속할게.';
-    return isLit() ? '등불 옆 스피커를 누르면 꺼져.' : '소리는 꺼진 채로 시작해. 등불 옆 스피커를 누르면 켜져.';
+    return isLit() ? '오른쪽 위 스피커로 끌 수 있어.' : '처음엔 꺼져 있어. 오른쪽 위 스피커로 켜.';
   }
   function tellUnavailable() {
     if (toldFile) return; toldFile = true;
@@ -938,20 +1026,41 @@ var AUDIO = (function () {
     frag.appendChild(slider('효과음', 'sfx', 'set-sfx'));
     frag.appendChild(el('p', { class: 'help snd-note', id: 'rs-sound-note' }, noteText()));
   }
+  function isSheet(x) { return !!(x && x.tagName === 'DIALOG' && x.classList && x.classList.contains('sheet')); }
+  /* 시트를 여닫는 버튼: 소리는 시트가 낸다 (bindSheets) — aria-controls 로 시트를 가리키는 버튼 · 시트 안의 닫기 버튼(…-close / '닫기') */
+  function sheetButton(b) {
+    var c = b.getAttribute('aria-controls');
+    if (c && isSheet(document.getElementById(c))) return true;
+    return !!b.closest('dialog.sheet') && (/(^|-)close$/.test(b.id || '') || (b.textContent || '').trim() === '닫기');
+  }
   function bindClicks() {
-    /* 주요 버튼의 작은 소리 (sfx_ui). 다녀와(움츠림 징글)·스피커(자기 소리)·장면 안은 빼고 */
+    /* 주요 버튼의 작은 소리 (sfx_ui). 다녀와(움츠림 징글)·스피커(자기 소리)·장면 안(앨범·설정·놀이방 문 아이콘 포함)·시트 여닫기는 빼고 */
     document.addEventListener('click', guard(function (e) {
       if (!active()) return;
       var b = e.target && e.target.closest ? e.target.closest('button, summary') : null;
       if (!b || b.disabled || b.closest('#scene')) return;
       var id = b.id, U = mp().ui || {};
-      if (id === 'btn-sound' || id === 'btn-go') return;
-      if (id === 'btn-look') play(U.sheet_open);
-      else if (id === 'rs-close' || id === 'pd-close') play(U.sheet_close);
+      if (id === 'btn-sound' || id === 'btn-go' || id === 'btn-look' || sheetButton(b)) return;   /* btn-look = 옛 방 보기 (7물결에 지움 — 남아 있는 동안만) */
+      if (id === 'pd-close') play(U.sheet_close);
       else if (id === 'pd-flip' || id === 'pd-front') play(U.card_flip);
       else if (b.classList.contains('pcard')) play(U.album_open);
       else play(U.tap);
     }), true);
+  }
+  /* 시트(dialog.sheet — 앨범 · 설정 · 앞으로 생길 시트) 여닫기 = open 속성. 같은 순간에 하나 닫고 하나 열면 여는 소리만 */
+  function bindSheets() {
+    if (typeof MutationObserver !== 'function' || !document.documentElement) return;
+    new MutationObserver(guard(function (recs) {
+      if (!active()) return;
+      var opened = false, closed = false;
+      recs.forEach(function (r) {
+        if (!isSheet(r.target)) return;
+        var was = r.oldValue !== null, is = r.target.hasAttribute('open');
+        if (is && !was) opened = true; else if (!is && was) closed = true;
+      });
+      var U = mp().ui || {};
+      if (opened) play(U.sheet_open); else if (closed) play(U.sheet_close);
+    })).observe(document.documentElement, { attributes: true, attributeFilter: ['open'], attributeOldValue: true, subtree: true });
   }
   function bindVisibility() {
     document.addEventListener('visibilitychange', guard(function () {
@@ -982,7 +1091,7 @@ var AUDIO = (function () {
       inited = true;
       loadPref(); syncVol();
       rnd = mulberry32(hashStr('ppolppol-audio|' + todayKey()));
-      bindButton(); bindClicks(); bindVisibility();
+      bindButton(); bindClicks(); bindSheets(); bindVisibility();
       if (pref.on && !reason) arm();
     } catch (e) { warn('init', e); }
     return api;

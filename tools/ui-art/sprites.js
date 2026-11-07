@@ -603,7 +603,26 @@ var ICONS = {
     '..RQQRQQQQQQPP..',
     '..PQQQQQQQQPPP..',
     '...PPPPPPPPPO...',
-    '....OOOOOOOO....']
+    '....OOOOOOOO....'],
+
+  /* ── 장면 위 버튼 (7물결): 놀이방 문 — 둥근 머리 나무 문 · 불 켜진 작은 창(문 너머 방) · 호박색 손잡이 · 돌 문턱. ×2 = 32px (#btn-door) ── */
+  'ctl.door': [
+    '................',
+    '.....bbbbbb.....',
+    '....bddddddb....',
+    '...bdccbccbcb...',
+    '...bdcFFFFbcb...',
+    '...bdcEEEEbcb...',
+    '...bdccbccbcb...',
+    '...bdccbccbcb...',
+    '...bdccbcFbcb...',
+    '...bdccbcEbcb...',
+    '...bdccbccbcb...',
+    '...bdccbccbcb...',
+    '...bdccbccbcb...',
+    '...bdccbccbcb...',
+    '..bbbbbbbbbbbb..',
+    '..VWWWWWWWWWWV..']
 };
 
 /* ─────────────── 파티클 (8×8 칸 가로 스트립, 분위기용) ─────────────── */

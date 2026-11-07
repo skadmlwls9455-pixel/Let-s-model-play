@@ -2,7 +2,7 @@
 /* tools/playtest.js — 처음 온 사람처럼, 실제 속도로 이틀 플레이 (docs/PLAYTEST.md). SwiftShader WebGL, 360×740 터치.
  *   node tools/playtest.js            → tests/evidence/playtest/run/NN-*.png + journal.json + 끝에 '첫 1분 수치' 요약
  *   PLAYTEST_OUT=/path node tools/playtest.js
- * 순서: 입장(?intro=1) → 이름 → 문어 톡 ×4 · 창문 톡 → 산책 3번(힌트 없음/고래/없음) → 포스터 → 방 보기 → 같이 놀기 → 새로고침 → 다음 날 산책 1번.
+ * 순서: 입장(?intro=1) → 이름 → 문어 톡 ×4 · 창문 톡 → 산책 3번(힌트 없음/고래/없음) → 포스터 → ⚙ 설정 → 놀이방 문(달리기) → 새로고침 → 다음 날 산책 1번.
  * 위키는 가짜 응답(한 문장). 실패해도 끝까지 가고 수치를 찍는다. 고치기 전후로 같은 수치를 비교한다.
  */
 const { chromium } = require('playwright');
@@ -25,7 +25,7 @@ const WIKI = { query: { pages: { '1': { pageid: 1, title: '고래', extract: '�
   async function waitTripDone(label) {
     const s0 = Date.now(); let rows = 0, last = '';
     while (Date.now() - s0 < 90000) {
-      const st = await p.evaluate(() => ({ busy: !!(document.getElementById('btn-go') && document.getElementById('btn-go').disabled), rows: document.querySelectorAll('#log .lrow').length, go: document.getElementById('btn-go') ? document.getElementById('btn-go').innerText.trim() : '' }));
+      const st = await p.evaluate(() => ({ busy: !!(document.getElementById('btn-go') && document.getElementById('btn-go').classList.contains('away')), rows: document.querySelectorAll('#log .lrow').length, go: document.getElementById('btn-go') ? document.getElementById('btn-go').innerText.trim() : '' }));
       if (st.rows !== rows) { rows = st.rows; const lt = await p.evaluate(() => { const r = document.querySelectorAll('#log .lrow'); return r.length ? r[r.length - 1].innerText.replace(/\s+/g, ' ').trim() : ''; }); if (lt !== last) { last = lt; note(label + ' row', lt); } }
       if (!st.busy && Date.now() - s0 > 1500) break;
       await p.waitForTimeout(400);
@@ -59,10 +59,11 @@ const WIKI = { query: { pages: { '1': { pageid: 1, title: '고래', extract: '�
   await p.evaluate(() => window.scrollTo(0, 0));
   await p.fill('#hint-in', '고래'); await p.tap('#btn-go'); note('go#2', 'hint 고래');
   await waitTripDone('trip2'); await shot('trip2-done');
-  /* 6. 방 보기 + 같이 놀기 */
-  await p.tap('#btn-look'); await p.waitForTimeout(900); await shot('room-sheet'); note('room sheet', await txt('#rs-body'));
-  const play = await p.$('#room-sheet button:has-text("같이 놀기")');
-  note('play button', !!play);
+  /* 6. ⚙ 설정 (예전 방 보기 자리) → 닫고 놀이방 문 (다락방 달리기) */
+  await p.tap('#btn-settings'); await p.waitForTimeout(900); await shot('settings'); note('settings', await txt('#set-body'));
+  await p.keyboard.press('Escape'); await p.waitForTimeout(400);
+  const play = await p.$('#btn-door');
+  note('play door', !!play);
   if (play) {
     await play.tap(); await p.waitForTimeout(1200); await shot('runner-open'); note('runner text', await txt('#runner-dlg'));
     const box = await p.evaluate(() => { const c = document.querySelector('#runner-dlg canvas'); if (!c) return null; const r = c.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
