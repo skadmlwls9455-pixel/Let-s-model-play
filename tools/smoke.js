@@ -720,7 +720,7 @@ async function scenarioCeremony(browser) {
     ok(awayB.length === bub.peeks.length && awayB.every(function (b) { return b.place === 'exterior' && ['shout', 'think', 'whisper', 'say'].indexOf(b.kind) >= 0; }), '기웃마다 바깥에서 말풍선 (shout/think/whisper/say) — ' + awayB.length + '/' + bub.peeks.length);
     ok(awayB.every(function (b, i) { return b.peekRows === i + 1; }), '기웃 행은 말풍선과 같은 순간에 (n번째 말풍선 때 기웃 행 n개)');
     ok(awayB.every(function (b) { return b.ov === 'visible'; }), '나가 있는 동안에도 말풍선 오버레이가 보임 (.st-away 들어 올림)');
-    ok(awayB.every(function (b) { return b.skin === b.kind; }), 'UI 아트 말풍선 모양 = 상태별 종류');
+    ok(awayB.every(function (b) { return b.skin === (b.kind === 'shout' ? 'say' : b.kind); }), 'UI 아트 말풍선 모양 = 상태별 종류 (외침은 가시 없이 보통 풍선, 11-07)');
   }
   ok(!bub.all.some(function (b) { return b.place === 'attic' && /찾았다/.test(b.text); }), "다락에선 '찾았다' 말풍선 없음");
   await page.screenshot({ path: path.join(SHOTS, 'phone-returned-attic.png') });
