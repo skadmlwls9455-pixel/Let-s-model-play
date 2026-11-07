@@ -763,7 +763,10 @@ async function waveFSuite(label, W) {
   check(pl.poster.line === '여기 오래 있었어…  정말로' && pl.receipt.rememberedIdx === 1 && pl.receipt.rememberedBy === 'model', 'remember line kept verbatim, chosen stop kept, rememberedBy model');
   var nl = out(walk.concat([{ type: 'remember', t: 4, stopIdx: 0 }, { type: 'wrap_up', t: 6, reaction: '덤덤' }]), 'mcp');
   check(nl.poster.line === null && nl.receipt.rememberedBy === 'model', 'remember without a line → poster line null (no template)');
-  [99, -1, 0.5, '1'].forEach(function (bad) {
+  /* 번호를 글('0')로 줘도 모델이 고른 곳 그대로 (그 뜻이 분명하니까). 범위 밖 글('7')·숫자 아닌 글은 fallback */
+  var strIdx = out(walk.concat([{ type: 'remember', t: 4, stopIdx: '0', line: '그거' }, { type: 'wrap_up', t: 6 }]), 'mcp');
+  check(strIdx.receipt.rememberedIdx === 0 && strIdx.receipt.rememberedBy === 'model', 'stopIdx "0" given as text → stop 0, rememberedBy model (' + strIdx.receipt.rememberedIdx + '/' + strIdx.receipt.rememberedBy + ')');
+  [99, -1, 0.5, '7', 'x', '1.5'].forEach(function (bad) {
     var fb = out(walk.concat([{ type: 'remember', t: 4, stopIdx: bad, line: '그거' }, { type: 'wrap_up', t: 6 }]), 'mcp');
     check(fb.receipt.rememberedIdx === 1 && fb.receipt.rememberedBy === 'fallback' && fb.poster.title === fb.receipt.stops[1].name, 'stopIdx ' + JSON.stringify(bad) + ' → last stop, rememberedBy fallback (PROTOCOL §2)');
   });
@@ -873,6 +876,13 @@ async function waveFSuite(label, W) {
   var rhome = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 1, note: { text: '담요 무늬가 궁금해' }, setDown: ['cn_9'] }], { by: 'mcp' });
   var rempty = BRAIN.replay([{ type: 'empty_turn', t: 0 }, { type: 'wrap_up', t: 1, setDown: ['cn_8'] }], { by: 'mcp' });
   check(rhome.noteOut && rhome.noteOut.text === '담요 무늬가 궁금해' && rhome.setDown[0] === 'cn_9' && rempty.kind === 'empty' && rempty.setDown[0] === 'cn_8' && rempty.noteOut === null, 'home and empty-turn replays carry note / setDown too');
+  var rsStr = out(walk.concat([{ type: 'wrap_up', t: 6, setDown: 'cn_3' }]), 'mcp');
+  check(JSON.stringify(rsStr.setDown) === '["cn_3"]', 'mcp replay: one id given as a plain string → setDown ["cn_3"] (' + JSON.stringify(rsStr.setDown) + ')');
+  /* 빈 차례 뒤의 마무리: 모델이 낸 반응·줄도 호기심 메모처럼 그대로. 데모 규칙(by demo)의 빈 차례는 예전대로 비어 있다 */
+  var remptyR = BRAIN.replay([{ type: 'empty_turn', t: 0 }, { type: 'wrap_up', t: 1, reaction: '우쭐', line: '쉬어도 돼', note: '쉬는 것도 궁금해' }], { by: 'mcp' });
+  var remptyD = BRAIN.replay([{ type: 'empty_turn', t: 0 }, { type: 'wrap_up', t: 1, reaction: '우쭐', line: '쉬어도 돼' }], { by: 'demo' });
+  check(remptyR.reaction === '우쭐' && remptyR.reactionBy === 'model' && remptyR.reactionLine === '쉬어도 돼' && remptyR.noteOut.text === '쉬는 것도 궁금해' && remptyR.receipt === null && remptyR.poster === null, 'mcp empty turn + wrap_up: reaction / line / note kept, nothing else invented');
+  check(remptyD.reaction === null && remptyD.reactionBy === null && remptyD.reactionLine === null, 'demo empty turn: still nothing (unchanged)');
 }
 
 /* ───────── 물결 E: 기념품(owned) · 집에 있는 날 반응 · 숫자 이름 방 ───────── */
@@ -1281,7 +1291,10 @@ async function huntSuite(label, W) {
   var rf = BRAIN.replay(fakeCopy, { by: 'mcp', now: NOW_DAY, state: { visits: visited, affinity: {} } });
   var rs = rf.receipt.stops;
   check(JSON.stringify(fakeCopy) === JSON.stringify(fake), 'replay does not mutate its input');
-  check(rs[0].status === 'simulated' && rs[0].note.indexOf('정적 페이지라') === 0 && !rs[0].source, 'url door claimed read → simulated, honest note (' + rs[0].status + ')');
+  /* 모델 재생: 읽었다는 메모는 읽음이 확인되지 않으면 화면에서 빼고 원문은 noteGiven 에. 코드가 문어 말투로 대신 쓰지 않는다 (MODEL_VOICE §3) */
+  check(rs[0].status === 'simulated' && rs[0].note === '' && rs[0].noteGiven === '바깥 글을 다 읽었어' && !rs[0].source, 'url door claimed read → simulated, claimed note hidden but kept as noteGiven, no code-written note (' + rs[0].status + ' · ' + JSON.stringify(rs[0].note) + ')');
+  var rfDemo = BRAIN.replay(JSON.parse(JSON.stringify(fake)), { by: 'demo', now: NOW_DAY, state: { visits: visited, affinity: {} } });
+  check(rfDemo.receipt.stops[0].status === 'simulated' && rfDemo.receipt.stops[0].note.indexOf('정적 페이지라') === 0 && rfDemo.receipt.stops[0].noteGiven === undefined, 'demo-rules playback: url door claimed read → simulated, the old honest note (unchanged)');
   check(rs[4].status === 'simulated' && rs[4].nodeId === 'door_out', 'door_out room claimed read → simulated door');
   check(rs[1].status !== 'read' && !rs[1].source && rs[1].note.indexOf('읽은 척') < 0, 'room read with non-wiki source → not read, no source, claimed note dropped (' + rs[1].status + ')');
   check(rs[1].first === false, 'room first:true claim ignored when visits say it was visited');

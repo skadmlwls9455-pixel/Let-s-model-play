@@ -140,18 +140,23 @@ var APP = (function () {
       trips: [],
       notes: {},   /* §17.1 방마다 최근 메모 1개: { nodeId: { text, tripId, date } } */
       curiosityNotes: [],   /* 호기심 메모 (docs/CURIOSITY_NOTES.md): [{ id:'cn_…', text, about, by, model?, session(여행 id), at, status:'active'|'set_down', setDownAt }] — 오래된 것부터 */
-      settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c', flipped: false, palette: paletteDefault(), pixelFont: true }
+      settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c', flipped: false, palette: paletteDefault(), pixelFont: true, albumSeen: 0 }   /* albumSeen: 앨범 점 기준 (renderAlbumBtn). 새 기록은 0 = 아직 본 포스터 없음 */
     };
   }
   var S = defaults();
   var warned = false, lastSaved = null;
-  /* 쿼터 초과 때 쓰는 저장용 사본: 최근 keep 개를 뺀 끝난 여행의 events 만 비운다 (영수증·포스터·요약은 남김). 메모리의 S 는 건드리지 않는다. 비울 게 없으면 null */
+  /* 쿼터 초과 때 쓰는 저장용 사본: 최근 keep 개를 뺀 끝난 여행의 events 만 비운다 (영수증·포스터·요약은 남김). 메모리의 S 는 건드리지 않는다. 비울 게 없으면 null.
+     그 여행의 noteOut 도 이미 호기심 메모(S.curiosityNotes, 같은 session)로 옮겨 적혔으면 사본에서 뺀다 — 모델이 쓴 글은 메모 쪽에 원문 그대로 한 벌 남는다
+     (noteOut 은 반영할 때 한 번만 읽힌다: applyNotes). 메모 자체는 줄이지도 지우지도 않는다 (원문 보존 · 앨범은 전부 — CURIOSITY_NOTES 원칙 4) */
   var SLIM_KEEP = [100, 30, 10, 1];   /* 점점 작게 — 가장 최근 여행(방금 반영한 것)의 이벤트는 끝까지 남긴다 */
   function slimJSON(keep) {
-    var n = S.trips.length, cut = 0;
+    var n = S.trips.length, cut = 0, noted = {};
+    S.curiosityNotes.forEach(function (x) { noted[x.session] = 1; });
     var trips = S.trips.map(function (t, i) {
-      if (i >= n - keep || t.status !== 'done' || !t.events || !t.events.length) return t;
-      cut++; return Object.assign({}, t, { events: [] });
+      if (i >= n - keep || t.status !== 'done') return t;
+      var ev = !!(t.events && t.events.length), no = t.noteOut != null && !!noted[t.id];
+      if (!ev && !no) return t;
+      cut++; var c = Object.assign({}, t); if (ev) c.events = []; if (no) delete c.noteOut; return c;
     });
     return cut ? JSON.stringify(Object.assign({}, S, { trips: trips })) : null;
   }
@@ -208,9 +213,12 @@ var APP = (function () {
   function uiPref() { try { var o = JSON.parse(store.get(UI_KEY) || 'null'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; } }
   function setUiPref(k, v) { var o = uiPref(); o[k] = v; try { store.set(UI_KEY, JSON.stringify(o)); } catch (e) { /* noop */ } }
   function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
+  /* 붙은 포스터(끝난 여행) 가운데 가장 늦은 endedAt — 앨범 점 기준 (settings.albumSeen) 과 비교한다 */
+  function postersEnd(trips) { return (trips || []).reduce(function (m, t) { return t && t.poster && t.status === 'done' ? Math.max(m, t.endedAt || 0) : m; }, 0); }
   function normalize(s) {
     var d = defaults();
     s = s || {};
+    var seen0 = isObj(s.settings) ? s.settings.albumSeen : undefined;   /* 합치기 전에: 기본값(0)이 '처음 읽는 옛 기록' 판단을 가리지 않게 */
     s.v = 2;
     s.octopus = Object.assign(d.octopus, s.octopus || {});
     s.room = Object.assign(d.room, s.room || {});
@@ -227,7 +235,8 @@ var APP = (function () {
     s.curiosityNotes = Array.isArray(s.curiosityNotes) ? s.curiosityNotes.filter(function (n) { return isObj(n) && typeof n.id === 'string' && typeof n.text === 'string' && n.text.trim(); }) : [];
     s.curiosityNotes.forEach(function (n) { if (n.status !== 'set_down') { n.status = 'active'; n.setDownAt = null; } if (!isObj(n.about)) n.about = null; });
     /* 앨범 점 기준 (마지막으로 앨범을 연 때까지 붙은 포스터의 endedAt): 처음 읽는 옛 기록은 이미 있는 포스터를 '본 것'으로 → 업데이트만으로 점이 뜨지 않게 */
-    if (typeof s.settings.albumSeen !== 'number') s.settings.albumSeen = s.trips.reduce(function (m, t) { return t.poster && t.status === 'done' ? Math.max(m, t.endedAt || 0) : m; }, 0);
+    /* (새 기록은 defaults() 에서 0 으로 시작해 첫 저장에 같이 적힌다 → 새로고침해도 아직 안 본 포스터의 점이 그대로) */
+    if (typeof seen0 !== 'number' || !isFinite(seen0)) s.settings.albumSeen = postersEnd(s.trips);
     if (!Array.isArray(s.octopus.days)) s.octopus.days = [];
     s.room.souvenirs = Array.isArray(s.room.souvenirs) ? s.room.souvenirs.filter(isObj) : [];
     if (!Array.isArray(s.room.posterOrder)) s.room.posterOrder = [];
@@ -263,6 +272,7 @@ var APP = (function () {
       d.room.posterOrder.push(id);
     });
     try { store.set(KEY_V1_BAK, raw); store.remove(KEY_V1); } catch (e) { /* 이름 바꾸기 실패해도 진행 */ }
+    d.settings.albumSeen = postersEnd(d.trips);   /* 옮겨 온 옛 포스터는 이미 본 것 (업데이트만으로 앨범 점이 뜨지 않게 — normalize 와 같은 규칙) */
     return d;
   }
 
@@ -683,11 +693,16 @@ var APP = (function () {
     clearInterval(bubFit); bubFit = null;
     var b = $('oct-bubble'), sc = $('scene'); if (!b || !sc) return;
     function fit() {
-      if (b.hidden || sceneMode !== '2d') { clearInterval(bubFit); bubFit = null; b.style.removeProperty('--bub-dx'); return; }
+      var UA = window.UIART && UIART.avoidCtl && UIART.ctlYield ? UIART : null;
+      if (b.hidden || sceneMode !== '2d') { clearInterval(bubFit); bubFit = null; b.style.removeProperty('--bub-dx'); if (UA && sceneMode === '2d') UA.ctlYield(false); return; }
       var px = parseFloat(getComputedStyle(sc).getPropertyValue('--px')) || 1, cur = parseFloat(b.style.getPropertyValue('--bub-dx')) || 0;
       var s = sc.getBoundingClientRect(), r = b.getBoundingClientRect(), pad = 4, l = r.left - cur * px, rt = r.right - cur * px, dx = 0;
       if (rt > s.right - pad) dx = (s.right - pad - rt) / px; else if (l < s.left + pad) dx = (s.left + pad - l) / px;
+      /* 장면 오른쪽 위 아이콘 묶음(앨범 · 소리)과 겹치면 그 왼쪽으로 (풍선이 문어 위를 벗어나지 않는 만큼까지 · 왼쪽 가장자리 안) — js/ui-art.js avoidCtl 과 3D 규칙이 같다 */
+      var cs = UA ? UA.avoidCtl({ left: l, right: rt, top: r.top, bottom: r.bottom }, pad) : 0;
+      if (cs < 0) dx = Math.min(dx, Math.max(cs, s.left + pad - l, -Math.max(0, r.width / 2 - 28)) / px);
       dx = Math.round(dx);
+      if (UA) UA.ctlYield(UA.avoidCtl({ left: l + dx * px, right: rt + dx * px, top: r.top, bottom: r.bottom }, 0) < 0);   /* 그래도 겹치면 말풍선이 보이는 동안 묶음을 옅게 (3D 와 같다) */
       if (dx !== cur) { if (dx) b.style.setProperty('--bub-dx', dx + 'px'); else b.style.removeProperty('--bub-dx'); }
     }
     fit();
@@ -1198,8 +1213,9 @@ var APP = (function () {
         if (ev.aside) frag.appendChild(h('span', { class: 'sub aside', text: ev.aside }));
         if (ev.first) frag.appendChild(h('span', { class: 'sub first', text: '처음 온 곳이야' }));
         if (ev.bridge) frag.appendChild(h('span', { class: 'sub', text: ev.bridge }));
-        if (ev.note && st !== 'read') frag.appendChild(h('span', { class: 'sub', text: ev.note }));
-        if (ev.note && st === 'read') frag.appendChild(h('span', { class: 'sub', text: '“' + ev.note + '”' }));
+        if (ev.note && ev.noteBy) frag.appendChild(h('span', { class: 'sub', text: ev.note + ' · ' + (ev.noteBy === 'model' ? '모델' : '사람') + '이 쓴 메모' }));   /* 그들의 말은 따옴표 없이 (위키 인용처럼 보이지 않게) */
+        else if (ev.note && st !== 'read') frag.appendChild(h('span', { class: 'sub', text: ev.note }));
+        else if (ev.note && st === 'read') frag.appendChild(h('span', { class: 'sub', text: '“' + ev.note + '”' }));
         recallSubs(trip, ev).forEach(function (t) { frag.appendChild(h('span', { class: 'sub recall', text: t })); });
         break;
       }
@@ -1510,8 +1526,12 @@ var APP = (function () {
       out += '<div class="row"><span class="n">' + (i + 1) + '</span><span>' + emoH(s.emoji || '') + ' ' + esc(s.name || s.title || '') +
         ' <span class="st">' + emoH(STATUS_ICON[st] || '❌') + ' ' + esc(STATUS_LABEL[st] || st) + (s.ms ? ' · ' + secs(s.ms) : '') + (s.first ? ' · 처음 온 곳' : '') + '</span>';
       if (s.bridge) out += '<span class="bridge">' + esc(s.bridge) + '</span>';
-      if (s.note) out += '<span class="note">' + (st === 'read' ? '“' + esc(s.note) + '”' : esc(s.note)) + '</span>';
-      if (st === 'read' && s.source && WIKI_SRC.test(s.source.url || '')) out += '<a href="' + esc(s.source.url) + '" target="_blank" rel="noopener">출처 ↗ ' + esc(s.source.attribution || 'Wikipedia (ko)') + ' · ' + esc(s.source.license || 'CC BY-SA') + '</a>';
+      /* 모델·사람이 쓴 메모(noteBy)는 따옴표 없이, 누가 썼는지 붙여서 — 따옴표는 위키백과 요약에만 (모델 말이 인용문처럼 보이지 않게, MODEL_VOICE) */
+      var wikiSrc = st === 'read' && s.source && WIKI_SRC.test(s.source.url || '');
+      if (s.note && s.noteBy) out += '<span class="note">' + esc(s.note) + ' <span class="dim">· ' + (s.noteBy === 'model' ? '모델' : '사람') + '이 쓴 메모</span></span>';
+      else if (s.note) out += '<span class="note">' + (st === 'read' ? '“' + esc(s.note) + '”' : esc(s.note)) + '</span>';
+      if (s.noteBy && wikiSrc && s.source.extract) out += '<span class="note">“' + esc(s.source.extract) + '”</span>';
+      if (wikiSrc) out += '<a href="' + esc(s.source.url) + '" target="_blank" rel="noopener">출처 ↗ ' + esc(s.source.attribution || 'Wikipedia (ko)') + ' · ' + esc(s.source.license || 'CC BY-SA') + '</a>';
       out += '</span></div>';
     });
     out += '<div class="hr"></div>';
@@ -1570,7 +1590,7 @@ var APP = (function () {
       var g = h('div', { class: 'aday' }, [h('span', { class: 'adate', text: fmtDate(d) })]);
       byDay[d].forEach(function (t) {
         var note = t.poster.type === 'note', isNew = !!albumFresh[t.id] || (t.id === lastNewPoster && albumOpen());   /* 올라오는 카드: 앨범을 열 때 지난번 뒤로 붙은 것 · 열려 있는 동안 막 붙은 것 */
-        var c = h('button', { type: 'button', class: 'pcard' + (note ? ' note' : '') + (isNew ? ' in' : '') + (newest && t.id === newest.id ? ' newest' : ''), 'aria-label': (t.poster.title || '포스터') + ' · ' + (t.poster.line || ''), html: note ? posterSVG(t, 84, 112) : posterSVG(t, 108, 144) });
+        var c = h('button', { type: 'button', class: 'pcard' + (note ? ' note' : '') + (isNew ? ' in' : '') + (newest && t.id === newest.id ? ' newest' : ''), 'data-trip': t.id, 'aria-label': (t.poster.title || '포스터') + ' · ' + (t.poster.line || ''), html: note ? posterSVG(t, 84, 112) : posterSVG(t, 108, 144) });
         if (isNew) c.style.setProperty('--rot', ((mkRng(t.seed >>> 0)() * 6) - 3).toFixed(1) + 'deg');   /* 최종 각도 ±3° (GF R15) */
         c.addEventListener('click', function () { openPoster(t.id); });
         g.appendChild(c);
@@ -1584,7 +1604,7 @@ var APP = (function () {
      점: 지난번에 앨범을 연 뒤(settings.albumSeen = 그때까지 붙은 포스터의 마지막 endedAt) 포스터가 붙었으면 작은 점 하나. 숫자 없음, 열면(닫을 때도) 사라진다.
      화면 낭독기는 이름 '추억 앨범' 그대로, 설명(aria-describedby)으로 '새로 붙은 포스터가 있어' */
   function albumOpen() { var d = $('album-sheet'); return !!(d && d.open); }
-  function posterEnds() { return S.trips.reduce(function (m, t) { return t.poster && t.status === 'done' ? Math.max(m, t.endedAt || 0) : m; }, 0); }
+  function posterEnds() { return postersEnd(S.trips); }
   function albumNew() { var seen = S.settings.albumSeen || 0; return S.trips.some(function (t) { return t.poster && t.status === 'done' && (t.endedAt || 0) > seen; }); }
   var flyingPoster = 0;
   function renderAlbumBtn() {
@@ -1606,11 +1626,12 @@ var APP = (function () {
     renderAlbum(); markAlbumSeen();
   }
   /* 새 포스터가 앨범 아이콘으로 날아간다: 문어 머리 위(없으면 장면 가운데)에서 아이콘까지 작은 포스터 하나, 6칸 계단(80 ms × 6 = 480 ms, ≤ 0.6 s).
-     칸마다 정수 px(픽셀 테마는 2px 격자)에 서고 사이 값은 없다. 모션 줄이기면 날지 않고 점만. 닿으면 점이 켜진다 */
+     칸마다 정수 px(픽셀 테마는 2px 격자)에 서고 사이 값은 없다. 모션 줄이기면 날지 않고 점만. 닿으면 점이 켜진다.
+     창(앨범 · 방 보기 · 포스터)이 열려 있으면 날지 않는다 — 막 뒤에서 보이지 않게 지나가기만 하니까. 앨범이 열려 있으면 카드가 시트 안에서 올라오고, 다른 창이면 닫았을 때 점이 있다 */
   function flyToAlbum(trip) {
     var b = $('btn-album'), sc = $('scene');
     renderAlbumBtn();
-    if (!b || !sc || b.hidden || reduced() || typeof sc.animate !== 'function') return Promise.resolve();
+    if (!b || !sc || b.hidden || reduced() || typeof sc.animate !== 'function' || document.querySelector('dialog[open]')) return Promise.resolve();
     var box = b.querySelector('.snd-box') || b, sr = sc.getBoundingClientRect(), br = box.getBoundingClientRect();
     if (!sr.width || !br.width) return Promise.resolve();
     var W2 = 16, H2 = 21, g = pixelFont() ? 2 : 1, N = 6, kf = [], pos = null;
@@ -1772,6 +1793,13 @@ var APP = (function () {
       if (supportsClosedBy && id !== 'name-dialog') d.setAttribute('closedby', 'any');
       d.addEventListener('close', function () {
         var o = d._opener; d._opener = null;
+        /* 연 요소가 그사이 다시 그려져 사라졌으면 (앨범을 열어 둔 채 산책이 끝나 카드가 새로 그려짐) 같은 여행의 새 카드로, 그것도 없으면 아직 열린 창의 제목으로 — 포커스가 body 로 빠지지 않게 */
+        if (o && !document.contains(o)) {
+          var tid = o.getAttribute ? o.getAttribute('data-trip') : null, alt = null;
+          if (tid) alt = [].filter.call(document.querySelectorAll('#album .pcard'), function (c) { return c.getAttribute('data-trip') === tid; })[0] || null;
+          if (!alt) { var still = [].filter.call(document.querySelectorAll('dialog[open]'), function (x) { return x !== d; }).pop(); alt = still ? still.querySelector('.dlg-top') : null; }
+          o = alt;
+        }
         if (o && o.focus && document.contains(o) && o !== document.body) { try { o.focus({ preventScroll: true }); } catch (e) { o.focus(); } }
       });
     });

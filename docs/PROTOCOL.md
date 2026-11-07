@@ -11,12 +11,12 @@
 | type | 필드 | 뜻 |
 |---|---|---|
 | `depart` | `hint` (string, 빈 문자열 가능), `followHint` (bool) | 문 밖으로 나감. `followHint` 는 힌트를 **처음에** 따를지 문어가 정한 값 |
-| `peek` | `target`, `status`, `ms`, `note?`, `first?`, `viaTangent?`, `bridge?`, `source?`, `aside?` | 한 곳을 기웃거림. `aside` 는 그 자리에서 문어가 하는 한마디(재방문: "모자? 그거 3일 전에 봤잖아. 이번엔 안쪽까지 가 볼게") |
+| `peek` | `target`, `status`, `ms`, `note?`, `first?`, `viaTangent?`, `bridge?`, `source?`, `aside?` | 한 곳을 기웃거림. `note` 는 그곳의 메모(읽은 것·본 것), `aside` 는 그 자리에서 문어가 하는 한마디(재방문: "모자? 그거 3일 전에 봤잖아. 이번엔 안쪽까지 가 볼게"). 모델·사람이 쓴 `note` 를 게임이 어떻게 다루는지는 §2 |
 | `return` | `reason`: `enough` \| `tired` \| `linger` | 귀가 |
-| `remember` | `stopIdx` (peek 순서, 0부터), `sticker?`, `line?` | 기억으로 고른 한 곳과 스티커, 한 줄. `line` 을 안 쓰면 포스터 한 줄은 비어 있다(지어내지 않는다) |
+| `remember` | `stopIdx` (peek 순서, 0부터. `"1"` 처럼 글로 줘도 받는다), `sticker?`, `line?` | 기억으로 고른 한 곳과 스티커, 한 줄. `line` 을 안 쓰면 포스터 한 줄은 비어 있다(지어내지 않는다) |
 | `hang_poster` | `posterId` | 벽에 붙임 |
 | `wrap_up` | `reaction?`, `line?`, `memo?`, `note?`, `setDown?` | 마무리. **전부 선택**이다(아래 `wrap_up`). 사람이 고르지 않는다 |
-| `stay_home` | `activity` (id), `line?`, `detail?` | 오늘은 집. 쪽지 한 장. 쪽지 뒷면(`detail`)은 모델이 쓴 것만 |
+| `stay_home` | `activity?` (id), `line?`, `detail?` | 오늘은 집. 쪽지 한 장. 쪽지 앞면은 `line`(안 쓰면 고른 활동의 글, 활동도 안 고르면 빈칸), 뒷면(`detail`)은 모델이 쓴 것만. 활동을 안 고른 건 '못 하는 활동(fallback)'이 아니다 |
 | `empty_turn` | (없음) | 빈 차례. 로그에 `…` 한 줄. 그날 첫 차례면 등불도 켜진다 (등불은 초대한 날마다 1칸) |
 
 ### `wrap_up` — 마무리 (모두 선택, MODEL_VOICE '말하기를 강요하지 않기')
@@ -26,17 +26,19 @@
 | `line?` | string | 반응 한 줄. 글자 그대로 보인다. 안 쓰면 반응 줄도 없다 (템플릿으로 채우지 않는다). `reactionLine` 이라는 이름도 받는다 |
 | `memo?` | `{ tomorrow, notes }` | 그때 남긴 메모 (아래) |
 | `note?` | `{ text, about? }` 또는 string | 호기심 메모 한 줄 (docs/CURIOSITY_NOTES.md). 글자 그대로 남고, 다음 산책 요청에 실린다 (아래 '요청에 싣는 메모') |
-| `setDown?` | `['cn_…']` | 내려놓을 메모 id. 모델 자신의 표시라 **모델(`mcp`) 산책에서만** 받는다 |
+| `setDown?` | `['cn_…']` (id 하나면 `'cn_…'` 도 받는다) | 내려놓을 메모 id. 모델 자신의 표시라 **모델(`mcp`) 산책에서만** 받는다 |
 
 - `about` 은 `{ kind: 'node' | 'object', id }`. 모양이 틀리면 글은 두고 `about` 만 버린다.
 - `note.text` 가 60자를 넘으면 화면은 앞 60자 + `…`, 기록은 원문 그대로.
+- 빈 차례(`empty_turn`) 뒤에 마무리를 내도 반응·줄·메모·호기심 메모는 위와 똑같이 그대로 남는다 (빈 차례라고 버리지 않는다).
+- 모양이 틀린 값(글이 아닌 반응, 방 id 가 아닌 `memo.notes` 키)은 화면에 쓰지 않지만, 모델·사람의 이벤트는 고치지 않고 기록(`events`)에 그대로 남는다.
 
 ### `wrap_up.memo` — 그때 남긴 메모 (DESIGN §17.1)
 ```jsonc
 { "tomorrow": "모자 보다가 깃털에 꽂혔어. 내일은 새의 비행 쪽으로 가 볼까",      // 다음 날 첫 인사에 그대로 읽힌다
   "notes": { "hat": "챙은 해를 가리고, 안쪽 띠는 땀을 막아 줘", "feather": "…" } }   // 다녀온 방마다 한 줄. 재방문 기웃 때 "지난번 메모: '…'"
 ```
-- 선택 필드. **없으면 다음 날 아무 말도 하지 않는다**(화면이 대신 지어내지 않는다). 빈 차례에는 없다.
+- 선택 필드. **없으면 다음 날 아무 말도 하지 않는다**(화면이 대신 지어내지 않는다). 데모 두뇌는 빈 차례에 메모를 만들지 않는다 (모델이 빈 차례 뒤 마무리에 쓰면 그대로).
 - 각 문자열 60자 이하(넘으면 보이는 글은 59자 + `…`, 원문은 `memo.original` 에 그대로 남는다). `notes` 키는 방 `id`, 값은 문자열만 받는다.
 - 데이터 전용: 다녀온 기록·기억 조각·실제로 읽은 요약에서만. 명령문(사람에게 시키는 말)·자격/규칙 언급 금지.
 - 데모 두뇌는 `plan` 끝에서 결정적으로 만든다. **MCP 는 모델이 직접 쓴다** (`ppolppol_wrap_up` 입력의 `memo`).
@@ -50,7 +52,7 @@
     "by": "model", "model": "claude-…", "session": "trip_31kz", "at": "2026-11-05T10:12:00Z" }
 ]
 ```
-- 메모마다 **작성 주체(`by`: 모델 / 데모 규칙)·세션·날짜**를 붙인다. `model` 은 알 때만. 글은 쓴 그대로 (줄이지 않는다).
+- 메모마다 **작성 주체(`by`: `model` 모델 / `human` 사람(데모 조작) / `demo-rules` 데모 규칙)·세션·날짜**를 붙인다. `model` 은 알 때만. 글은 쓴 그대로 (줄이지 않는다).
 - 글로 보여 줄 때의 머리말: `이전 산책에서 남겨진 메모 (이어 가도, 바꿔 써도, 내려놔도 돼):` — 따르라는 말·이유를 묻는 말은 붙이지 않는다.
 - 데모 두뇌는 같은 목록을 `state.notes` 로 받는다. 메모가 가리키는 방(`about.kind: 'node'`)의 길 고르기 가중치만 3배가 된다 (새 난수 없음, 글은 읽지 않는다). 데모 두뇌가 남기는 메모는 `by: 'demo-rules'` 다.
 
@@ -77,8 +79,8 @@
 [
  { "type":"depart", "t":0, "hint":"모자의 역사", "followHint":true },
  { "type":"peek", "t":3100, "target":{"kind":"room","id":"hat","title":"모자","wiki":"모자"}, "status":"read", "ms":8200,
-   "note":"모자는 머리에 쓰는 …", "first":false, "viaTangent":false,
-   "source":{"url":"https://ko.wikipedia.org/wiki/모자","thumb":null,"license":"CC BY-SA 4.0","attribution":"Wikipedia (ko)"} },
+   "note":"챙이 생각보다 넓었어", "first":false, "viaTangent":false,
+   "source":{"url":"https://ko.wikipedia.org/wiki/모자","extract":"모자는 머리에 쓰는 …","thumb":null,"license":"CC BY-SA 4.0","attribution":"Wikipedia (ko)"} },
  { "type":"peek", "t":7400, "target":{"kind":"room","id":"feather","title":"깃털","wiki":"깃털"}, "status":"read", "ms":11000,
    "first":true, "viaTangent":true, "bridge":"모자 장식에 꽂힌 깃털에서" },
  { "type":"return", "t":12000, "reason":"enough" },
@@ -109,10 +111,16 @@
 - **모델(`mcp`)·사람(`human`)이 낸 것은 바꾸지 않는다** (docs/MODEL_VOICE.md): 반응·반응 줄·포스터 한 줄·메모·호기심 메모·쪽지 글은 준 그대로, 안 준 것은 비워 둔다.
   '실제로 있었던 일과 맞는 반응만'(안 읽었는데 우쭐 → 다른 반응) 거르기는 **데모 규칙에만** 남는다. 기록의 `reactionBy` 가 `model` / `human` / `demo-rules` 로 누가 골랐는지 말한다.
 - 게임이 대신 채운 것은 `fallback` 으로 따로 적는다: 기억할 곳(`receipt.rememberedBy`), 지금 방에서 못 하는 활동(`receipt.activity.by`, 고르려던 id 는 `asked`).
+  두뇌가 대신 정한 기억할 곳은 데모 두뇌의 취향 가중치(기억한 곳 +2)에 넣지 않는다 — 들른 수만 센다.
 - 읽기 상태는 지금처럼 정직하게 고친다 (아래). 이건 모델의 말이 아니라 실제로 읽었는지의 사실이라서다.
+- **기웃 메모(`peek.note`)** — 모델·사람의 산책:
+  - 그들이 쓴 메모는 상태가 무엇이든 글자 그대로 보인다 (`receipt.stops[i].noteBy`: `model` / `human`). 읽음이 확인된 정류장(위키백과 출처)이어도 출처 요약으로 바꾸지 않는다. 출처 요약은 `source.extract` 에 따로 있다 (그들의 메모를 출처 글로 옮겨 적지 않는다).
+  - **읽었다며 쓴 메모인데 읽음이 확인되지 않으면** (밖의 문·출처 없음·앉아만 있는 방) 읽은 글처럼 보이지 않게 화면에서는 빼고, 원문은 `noteGiven` 에 그대로 남긴다 (정류장과 돌려주는 `peek` 이벤트 둘 다).
+  - 메모를 안 썼으면 사실만 보인다: 읽은 요약(`read`) · 그 방의 책장 메모(`builtin`). 모의·못 읽음·앉아만은 빈칸이다 — 상태 표시가 이미 말하니까, 코드가 문어 말투('문 앞까지만 갔다 왔어')로 대신 쓰지 않는다.
+  - 데모 규칙 재생(`demo`)은 예전 그대로 (상태별 기본 문구).
 - 재생은 `t` 를 그대로 기다리지 않고 2.2~4.5초 간격으로 보여 준다(건너뛰기 가능). `t` 는 일기의 "걸린 시간" 계산에만 쓴다.
 - 모르는 `target.id` 는 들판(`wild`)으로 취급하고 `title` 을 그대로 쓴다. 모르는 `sticker` 는 ❔.
-- `remember` 가 없거나 `stopIdx` 가 범위를 벗어나면(정수가 아니어도) 마지막 정류장으로 하고 `rememberedBy: 'fallback'`. `status` 가 목록에 없으면 `failed` 로 적는다(성공으로 올려 주지 않는다).
+- `remember` 가 없거나 `stopIdx` 가 범위를 벗어나면(정수가 아니어도 — 다만 모델·사람이 `"1"` 처럼 숫자만 든 글로 준 번호는 그 번호로 받는다) 마지막 정류장으로 하고 `rememberedBy: 'fallback'`. `status` 가 목록에 없으면 `failed` 로 적는다(성공으로 올려 주지 않는다).
 - `hang_poster` 를 냈는지는 `posterHung` 으로 남긴다 (안 냈으면 벽에 붙이지 않는 게 그 뜻이다).
 
 ## 3. MCP 도구 (제안)
@@ -121,11 +129,11 @@
 
 | 도구 | 입력 | 출력 | 메모 |
 |---|---|---|---|
-| `ppolppol_look_room` | `{}` | 방 묘사, 등불, 벽 포스터 제목들, 선반, "요즘" | 읽기 전용 |
+| `ppolppol_look_room` | `{ archived?: bool }` | 방 묘사, 등불, 벽 포스터 제목들, 선반, "요즘", `notes` (활성 메모 최근 3개, §1 '요청에 싣는 메모'). `archived: true` 일 때만 보관한(내려놓은·오래된) 메모도 | 읽기 전용. 보관 메모는 모델이 달라고 할 때만 (CURIOSITY_NOTES) |
 | `ppolppol_depart` | `{ hint?: string }` | `{ tripId, hint, library: [{id,name,corner,odd,clue,visits}], notes: [최근 활성 메모 ≤3] }` | 힌트는 사람이 남긴 선택 필드. 따를지는 모델이 정한다. `notes` 는 §1 '요청에 싣는 메모' |
-| `ppolppol_peek` | `{ tripId, target: {kind,id?|title?|url?} }` | `{ status, extract?, source?, first, visits }` | 서버가 실제로 읽어 주고 `status` 를 정직하게 돌려 준다 |
+| `ppolppol_peek` | `{ tripId, target: {kind,id?|title?|url?}, note? }` | `{ status, extract?, source?, first, visits }` | 서버가 실제로 읽어 주고 `status` 를 정직하게 돌려 준다. 이벤트의 `note` 에는 **모델이 쓴 것만** 넣는다 (안 쓰면 비움). 서버가 읽은 글은 `source.extract` 에 — 그래야 화면이 `noteBy` 로 누구 말인지 바르게 적는다 (§2) |
 | `ppolppol_return_home` | `{ tripId, reason }` | `{ stops: [...] }` | |
-| `ppolppol_remember` | `{ tripId, stopIdx, sticker, line }` | `{ ok }` | 모델이 고른 한 장면 |
+| `ppolppol_remember` | `{ tripId, stopIdx, sticker?, line? }` | `{ ok }` | 모델이 고른 한 장면. `line` 을 안 쓰면 포스터 한 줄은 빈칸 (§1 `remember`) |
 | `ppolppol_hang_poster` | `{ tripId }` | `{ posterId }` | |
 | `ppolppol_wrap_up` | `{ tripId, reaction?, line?, memo?: { tomorrow, notes }, note?: { text, about? }, setDown?: ['cn_…'] }` | `{ ok }` | 전부 선택(§1 `wrap_up`). 아무것도 안 써도 된다. `memo` 를 안 쓰면 다음 날 메모 인사는 없다 |
 | `ppolppol_stay_home` | `{ activity?, line?, detail? }` | `{ tripId }` | 외출과 같은 무게. 활동 목록을 보여 줄 때 그 활동의 쪽지 앞면 글(`line`)을 같이 보여 준다 — `line` 을 안 쓰면 그 글이 쪽지에 쓰인다 |

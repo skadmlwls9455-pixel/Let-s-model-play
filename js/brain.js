@@ -13,7 +13,8 @@
  * - 설계 명세: docs/DESIGN.md §5, §6.1, §8, §9, §12.2
  * - 모델의 뜻 (docs/MODEL_VOICE.md): replay 에서 모델(by 'mcp')·사람(by 'human')이 낸 반응·말·메모는 그대로 둔다.
  *   거르거나 바꾸지 않고, 안 낸 것은 지어내지 않는다(null). 데모 규칙(plan)만 지금처럼 정직하게 거른다 (reactionBy 'demo-rules').
- *   두뇌가 대신 고른 것(기억할 곳·못 하는 활동)은 'fallback' 으로 따로 적는다.
+ *   두뇌가 대신 고른 것(기억할 곳·못 하는 활동)은 'fallback' 으로 따로 적는다. 기웃 메모(peek.note)도 그들이 쓴 그대로 (noteBy),
+ *   읽음이 확인되지 않은 '읽은 글'만 화면에서 빼고 원문은 noteGiven 에 둔다. 메모를 안 썼으면 코드가 문어 말투로 채우지 않는다.
  * - 호기심 메모 (docs/CURIOSITY_NOTES.md): state.notes(활성 메모 최근 3개)의 about 방은 데모 두뇌의 길 고르기에서
  *   가중치만 NOTE_BOOST 배가 된다 (새 난수 없음, 메모 글은 쓰지 않는다). 메모가 없으면 결과는 예전과 바이트 하나까지 같다.
  */
@@ -135,14 +136,15 @@
     return { kind: a.kind, id: a.id };
   }
   /* 들어온 메모 목록 정리: 내려놓은 것(status 가 'active' 가 아닌 것)·모양이 틀린 것은 버리고, 앞에서부터(최근 것부터) 3개.
-     글(text)은 그대로 두지만 두뇌는 읽지 않는다 — 데모 두뇌가 메모 글을 제 말처럼 옮기지 않게 */
+     글(text)은 그대로 두지만 두뇌는 읽지 않는다 — 데모 두뇌가 메모 글을 제 말처럼 옮기지 않게.
+     작성 주체(by)는 'model' · 'human'(데모 조작) 그대로, 그 밖은 'demo-rules' — 사람·모델의 메모를 규칙 메모로 바꿔 적지 않게 */
   function normalizeNotes(list) {
     if (!Array.isArray(list)) return [];
     var out = [];
     list.forEach(function (n) {
       if (!n || typeof n !== 'object' || (n.status != null && n.status !== 'active')) return;
       out.push({ id: typeof n.id === 'string' ? n.id : null, text: typeof n.text === 'string' ? n.text : '', about: normAbout(n.about),
-        by: n.by === 'model' ? 'model' : 'demo-rules', session: typeof n.session === 'string' ? n.session : null, at: typeof n.at === 'string' ? n.at : null });
+        by: (n.by === 'model' || n.by === 'human') ? n.by : 'demo-rules', session: typeof n.session === 'string' ? n.session : null, at: typeof n.at === 'string' ? n.at : null });
     });
     return out.slice(0, NOTES_IN);
   }
@@ -921,7 +923,7 @@
        - 반응은 준 그대로 (ctx.reaction = 아는 넷 중 하나 | null, ctx.reactionRaw = 그 밖의 글). 안 줬으면 null. 거르지도 계산하지도 않는다
        - 반응 줄·포스터 한 줄은 그들이 쓴 줄만 (ctx.reactionLine, ctx.line). 없으면 null — 템플릿으로 채우지 않는다
        - 힌트를 안 따랐을 때 '오늘은 그쪽 말고 다른 데가 궁금했어' 같은 마음 말을 붙이지 않는다
-       - 기억할 곳을 안 줬거나 범위 밖이면 마지막 정류장 (PROTOCOL §2), rememberedBy 'fallback'
+       - 기억할 곳을 안 줬거나 범위 밖이면 마지막 정류장 (PROTOCOL §2), rememberedBy 'fallback'. 그 곳은 취향 가중치(+2)에 넣지 않는다
      난수는 voice 여부와 무관하게 똑같이 뽑아 둔 rr 만 쓴다 (안 쓰는 것도 있다) */
   function assemble(ctx) {
     var W = world();
@@ -1009,6 +1011,8 @@
       if (s.kind === 'url') o.url = s.url;
       if (s.reason) o.reason = s.reason;
       if (s.kind === 'wild') o.wild = true;
+      if (s.noteBy) o.noteBy = s.noteBy;                     /* 모델·사람 재생: 보이는 메모가 그들이 쓴 글 */
+      if (s.noteGiven != null) o.noteGiven = s.noteGiven;    /* 모델·사람 재생: 읽음이 확인되지 않아 화면에서 뺀 그들의 메모 (원문) */
       return o;
     });
     var receipt = {
@@ -1038,7 +1042,8 @@
       if (s.kind === 'room') affinityDelta[s.corner] = (affinityDelta[s.corner] || 0) + 1;
       if (s.kind === 'wild') affinityDelta.wild = (affinityDelta.wild || 0) + 1;
     });
-    if (rem && rem.kind !== 'url') affinityDelta[rem.corner] = (affinityDelta[rem.corner] || 0) + 2;
+    /* 기억한 곳 +2 는 고른 이가 고른 기억에만. 두뇌가 대신 정한 곳(fallback)이 데모 두뇌의 취향 가중치로 들어가지 않게 */
+    if (rem && rem.kind !== 'url' && remBy !== 'fallback') affinityDelta[rem.corner] = (affinityDelta[rem.corner] || 0) + 2;
 
     var hintNote = null;   /* 데모 규칙의 말. 모델·사람의 재생에는 붙이지 않는다 (마음을 대신 말하지 않게) */
     if (voice) hintNote = null;
@@ -1194,8 +1199,10 @@
   }
   /* 내려놓기는 모델 자신의 표시라 모델(mcp) 재생에서만 받는다 (CURIOSITY_NOTES 원칙 3·4) */
   function spokenSetDown(wrap, voice) {
-    if (voice !== 'model' || !wrap || !Array.isArray(wrap.setDown)) return [];
-    return wrap.setDown.filter(function (x) { return typeof x === 'string' && x.length > 0; });
+    if (voice !== 'model' || !wrap) return [];
+    var list = typeof wrap.setDown === 'string' ? [wrap.setDown] : wrap.setDown;   /* id 하나를 글로만 줘도 그 뜻 그대로 */
+    if (!Array.isArray(list)) return [];
+    return list.filter(function (x) { return typeof x === 'string' && x.length > 0; });
   }
   function memoRng(seed) { return rng(((seed >>> 0) ^ 0x6d656d6f) >>> 0); }   /* 'memo' — 길·기억의 난수 순서를 건드리지 않는 별도 줄기 */
 
@@ -1446,7 +1453,14 @@
     var noteOut = spokenNote(wrap, voice), setDown = spokenSetDown(wrap, voice);
 
     if (events.some(function (e) { return e.type === 'empty_turn'; }) && !events.some(function (e) { return e.type === 'peek'; })) {
-      var et = emptyTrip(base); et.events = events; et.noteOut = noteOut; et.setDown = setDown; return et;
+      var et = emptyTrip(base); et.events = events; et.noteOut = noteOut; et.setDown = setDown;
+      /* 빈 차례 뒤에 모델·사람이 마무리를 냈으면 그 반응·줄·메모도 그대로 (호기심 메모만 받고 반응을 버리지 않게). 데모 규칙의 빈 차례는 예전대로 비어 있다 */
+      if (voice && wrap) {
+        var se = spokenReaction(wrap);
+        et.reaction = se.reaction; et.reactionRaw = se.raw; et.reactionBy = (se.reaction || se.raw) ? voice : null;
+        et.reactionLine = spokenLine(wrap); et.memo = cleanMemo(wrap.memo);
+      }
+      return et;
     }
     var sh = events.filter(function (e) { return e.type === 'stay_home'; })[0];
     if (sh && !events.some(function (e) { return e.type === 'peek'; })) {
@@ -1455,7 +1469,9 @@
       var allActs = (W && Array.isArray(W.homeActivities) && W.homeActivities.length) ? W.homeActivities : DEFAULT_HOME;
       var okActs = homeActivities(state.lantern, state.posters);
       var trusted = allActs.filter(function (a) { return a && a.id === sh.activity && (a.id === 'nothing' || okActs.indexOf(a) >= 0); })[0] || null;
-      var act = trusted || { id: 'custom', line: sh.line || '오늘은 집에 있었어', detail: sh.detail || '', anchor: sh.anchor || 'window' };
+      var asked = sh.activity != null && sh.activity !== '';   /* activity 는 선택 (PROTOCOL §3 ppolppol_stay_home) — 안 줬으면 '못 하는 활동'도 아니다 */
+      /* 활동 없는 쪽지의 앞면: 입력이 준 줄. 모델·사람이 줄을 안 썼으면 빈칸 (데모 규칙 재생만 '오늘은 집에 있었어') */
+      var act = trusted || { id: 'custom', line: sh.line || (voice ? '' : '오늘은 집에 있었어'), detail: sh.detail || '', anchor: sh.anchor || 'window' };
       if (sh.line) act = Object.assign({}, act, { line: sh.line });
       /* 모델·사람의 쪽지 뒷면(detail)은 그들이 쓴 것만. 활동 목록의 뒷면 글('빗소리가 좋아서 …')은 데모 규칙의 말이라 그들 쪽지에 붙이지 않는다 */
       if (voice) act = Object.assign({}, act, { detail: typeof sh.detail === 'string' ? sh.detail : '' });
@@ -1469,9 +1485,9 @@
       if (wu && !voice) wu.reaction = ht.reaction;
       ht.memo = cleanMemo(wu && wu.memo);   /* 재생: 이벤트가 준 메모만. 없으면 말하지 않는다 */
       ht.noteOut = noteOut; ht.setDown = setDown;
-      if (voice) {   /* 못 하는 활동(등불·포스터가 모자람)이면 두뇌가 '집에 있었어' 로 바꿨다는 걸 따로 남긴다 (MODEL_VOICE §2) */
-        ht.receipt.activity.by = trusted ? voice : 'fallback';
-        if (!trusted && sh.activity != null) ht.receipt.activity.asked = String(sh.activity);
+      if (voice) {   /* 고른 활동을 못 해서(등불·포스터가 모자람·모르는 id) 두뇌가 활동 없이 적었으면 따로 남긴다 (MODEL_VOICE §2). 활동을 안 골랐으면 고른 이의 것 그대로 */
+        ht.receipt.activity.by = (trusted || !asked) ? voice : 'fallback';
+        if (!trusted && asked) ht.receipt.activity.asked = String(sh.activity);
       }
       return ht;
     }
@@ -1479,7 +1495,7 @@
     /* 외출. 재생 입력의 '읽음'·'처음'은 그대로 믿지 않는다 (§5.4.1 정직 표기):
        - 밖의 문(url)은 정적 페이지라 바깥을 읽을 수 없다 → simulated (입력이 failed 면 failed). read 는 없다
        - 방·들판의 read 는 출처가 진짜 ko.wikipedia.org 문서 주소일 때만. 사진은 upload.wikimedia.org 일 때만 싣는다
-       - 읽었다던 메모는 읽음이 인정될 때만 쓴다. 아니면 책장 메모·기본 문구
+       - 읽었다던 메모는 읽음이 인정될 때만 보인다. 아니면 책장 메모·기본 문구 (모델·사람 재생은 기본 문구 없이 빈칸, 숨긴 원문은 noteGiven)
        - 방의 '처음'은 방문 기록(meta.state.visits)이 정하고, 입력은 '처음 아님'만 보탤 수 있다. 들판은 늘 처음 아님
        정리한 상태·메모·출처·처음 여부는 복사해 둔 peek 이벤트에도 다시 써서, 돌려주는 events 도 영수증과 같은 말을 한다 */
     var stops = events.filter(function (e) { return e.type === 'peek'; }).map(function (ev) {
@@ -1487,34 +1503,46 @@
       var node = tg.id && W && W.nodes ? W.nodes[tg.id] : null;
       var claimedRead = ev.status === 'read';
       var src = (claimedRead && ev.source && isWikiPageUrl(ev.source.url)) ? ev.source : null;
+      /* 기웃 메모(note) — 모델·사람의 재생 (MODEL_VOICE §3):
+         - 그들이 쓴 메모는 글자 그대로 보인다 (noteBy). 읽음이 확인된 정류장(위키백과 출처)도 출처 요약으로 바꾸지 않는다
+         - 읽었다며 쓴 메모인데 읽음이 확인되지 않으면(출처 없음·밖의 문) 읽은 글처럼 보이지 않게 화면에서는 빼되, 원문은 noteGiven 에 그대로 둔다
+         - 메모를 안 썼으면 사실만: 읽은 요약(read) · 책장 메모(builtin, 세계의 실마리). 모의·못 읽음·앉아만은 빈칸 — 코드가 문어 말투로 대신 쓰지 않는다 (상태 표시가 이미 말한다)
+         데모 규칙 재생(그 밖의 by)은 예전 그대로 */
+      var given = voice && typeof ev.note === 'string' && ev.note.trim() ? ev.note : null;
       var s;
       if (tg.kind === 'url' || tg.id === 'door_out' || (!node && tg.url)) {
         s = makeDoorStop(tg.url || '');
-        if (ev.status === 'failed') { s.status = 'failed'; s.note = ev.note || '문이 안 열렸어'; }
-        else if (ev.note && !claimedRead) s.note = ev.note;
+        if (voice) s.note = '';
+        if (ev.status === 'failed') { s.status = 'failed'; s.note = voice ? (given || '') : (ev.note || '문이 안 열렸어'); }
+        else if (voice ? (given && !claimedRead) : (ev.note && !claimedRead)) s.note = voice ? given : ev.note;
         if (tg.kind !== 'url') ev.target = Object.assign({}, tg, { kind: 'url', url: tg.url || '', title: tg.title || s.name });
       } else if (node) {
         s = makeLibStop(node, state, ev.viaTangent, ev.bridge);
-        if (isNoneNode(node)) applyFetch(s, null, true);
-        else if (src) applyFetch(s, replayRead(node.wiki || node.name, src, ev.note), true);
+        if (isNoneNode(node)) { applyFetch(s, null, true); if (voice) s.note = (!claimedRead && given) || ''; }
+        else if (src) { applyFetch(s, replayRead(node.wiki || node.name, src, voice ? '' : ev.note), true); if (given) s.note = given; }
         else {
           var st = (ev.status && STATUSES.indexOf(ev.status) >= 0 && !claimedRead) ? ev.status : (node.clue ? 'builtin' : 'failed');
-          s.status = st; s.note = (!claimedRead && ev.note) || (st === 'builtin' ? node.clue : st === 'simulated' ? SIMULATED_NOTE : '');
+          s.status = st;
+          s.note = voice ? ((!claimedRead && given) || (st === 'builtin' ? node.clue || '' : ''))
+            : ((!claimedRead && ev.note) || (st === 'builtin' ? node.clue : st === 'simulated' ? SIMULATED_NOTE : ''));
           if (st === 'builtin') s.reason = 'replay';
         }
         if (ev.first === false) s.first = false;
       } else {
         var title = tg.title || tg.wiki || tg.id || '이름 없는 곳';
         s = makeWildStop(title, { viaTangent: !!ev.viaTangent, bridge: ev.bridge || null });
-        if (src) applyFetch(s, replayRead(title, src, ev.note), true);
+        if (src) { applyFetch(s, replayRead(title, src, voice ? '' : ev.note), true); if (given) s.note = given; }
         else {
           s.status = (ev.status && STATUSES.indexOf(ev.status) >= 0 && !claimedRead) ? ev.status : 'simulated';
-          s.note = (!claimedRead && ev.note) || (s.status === 'simulated' ? '내용은 읽지 않았어' : '');
+          s.note = voice ? ((!claimedRead && given) || '') : ((!claimedRead && ev.note) || (s.status === 'simulated' ? '내용은 읽지 않았어' : ''));
         }
       }
       s.ms = typeof ev.ms === 'number' ? ev.ms : 0;
-      /* 정리한 그대로 이벤트에도 (로그 줄이 원본의 ✅ 를 보여 주지 않게) */
+      if (given) { if (s.note === given) s.noteBy = voice; else s.noteGiven = given; }
+      /* 정리한 그대로 이벤트에도 (로그 줄이 원본의 ✅ 를 보여 주지 않게). 화면에서 뺀 모델·사람의 메모는 noteGiven 으로 이벤트에도 남는다 */
       ev.status = s.status; ev.note = s.note || ''; ev.first = !!s.first;
+      if (s.noteBy) ev.noteBy = s.noteBy;
+      if (s.noteGiven != null) ev.noteGiven = s.noteGiven;
       if (s.source) ev.source = { url: s.source.url, extract: s.source.extract, thumb: s.source.thumb, license: s.source.license, attribution: s.source.attribution };
       else delete ev.source;
       if (s.reason) ev.reason = s.reason;
@@ -1537,7 +1565,8 @@
     var out = assemble({
       stops: stops, match: match, intent: intent, follow: follow, hintNode: hintNode, urlNode: urlNode,
       hintRaw: hintRaw, name: base.name, hour: hour, reason: (ret && ret.reason) || null, rr: rr, owned: state.owned,
-      remIdx: rem && typeof rem.stopIdx === 'number' ? rem.stopIdx : undefined,
+      remIdx: rem && typeof rem.stopIdx === 'number' ? rem.stopIdx
+        : (voice && rem && typeof rem.stopIdx === 'string' && /^\s*\d{1,4}\s*$/.test(rem.stopIdx)) ? +rem.stopIdx : undefined,   /* 모델·사람이 '1' 처럼 글로 준 번호도 그 뜻 그대로 */
       line: rem && rem.line ? String(rem.line) : null, sticker: rem && rem.sticker ? String(rem.sticker) : null,
       reaction: voice ? sr2.reaction : (wrap && wrap.reaction), voice: voice,
       reactionRaw: voice ? sr2.raw : null, reactionLine: voice ? spokenLine(wrap) : null

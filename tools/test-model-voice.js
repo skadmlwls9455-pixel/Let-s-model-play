@@ -7,6 +7,7 @@
  * 여기서는 두뇌가 넘기는 기록이 모델의 말·선택을 덧붙이거나 빼거나 바꾸지 않는지를 본다.
  *
  *   1. 모델이 쓴 말이 기록에 글자 그대로 남는다. 줄여 보여야 하면 '…' 와 원문 보존 (MODEL_VOICE §3)
+ *      — 포스터 한 줄 · 반응 · 반응 줄 · 호기심 메모 · 메모 · 쪽지 · 기웃 한마디(aside) · 건너간 말(bridge) · 기웃 메모(peek.note, 숨기면 noteGiven)
  *   2. fallback·playback(데모 규칙 재생)이 '모델 선택'으로 기록되지 않는다 (§2 · §5)
  *   3. 코드가 만든 문구(템플릿)에 취향·감정 말이 횟수에서 파생되어 들어가지 않는다 (§4 · CURIOSITY_NOTES 원칙 1)
  *   4. set_down 메모는 다음 요청(두뇌 입력)에 들어가지 않고, 결과에도 나오지 않는다 (§4 · CURIOSITY_NOTES 원칙 4)
@@ -88,6 +89,50 @@ for (var i = 0; i < 300; i++) {
   if (JSON.stringify(t.receipt.stops[1].bridge) !== JSON.stringify(said.bridge)) errs.push(tag + ' bridge changed');
 }
 check(n1 === 300 && errs.length === 0, 'poster line · reaction line · raw reaction · note · memo · aside · bridge kept verbatim over ' + n1 + ' replays (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 3).join(' | ') : ''));
+/* 기웃 메모(peek.note): 모델·사람이 쓴 건 그대로 (읽음이 확인된 정류장도 출처 요약으로 바꾸지 않는다).
+   읽었다며 쓴 메모인데 읽음이 확인되지 않으면 화면에서 빼되 원문은 noteGiven 에 (정류장·이벤트 둘 다). 안 썼으면 코드가 문어 말투로 채우지 않는다 */
+errs = [];
+var NONE_ROOM = W.nodes.slow_room ? 'slow_room' : null;
+var CLUE_ROOM = ROOMS.filter(function (id) { return W.nodes[id].clue && W.nodes[id].wiki; })[0];
+var WIKI = 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(W.nodes[CLUE_ROOM].wiki);
+var clues = {}; Object.keys(W.nodes).forEach(function (id) { if (W.nodes[id].clue) clues[W.nodes[id].clue] = 1; });
+var nPeek = 0;
+for (i = 0; i < 120; i++) {
+  var word = pick(SAYINGS), by2 = i % 3 === 0 ? 'human' : 'mcp', voice2 = by2 === 'mcp' ? 'model' : 'human';
+  var targets = [
+    { tg: { kind: 'room', id: CLUE_ROOM }, st: 'builtin' }, { tg: { kind: 'room', id: CLUE_ROOM }, st: 'failed' }, { tg: { kind: 'room', id: CLUE_ROOM }, st: 'simulated' },
+    { tg: { kind: 'url', url: 'https://example.org/x' }, st: 'simulated' }, { tg: { kind: 'url', url: 'https://example.org/x' }, st: 'failed' },
+    { tg: { kind: 'wiki', title: '깃펜' }, st: 'simulated' }, { tg: { kind: 'room', id: CLUE_ROOM }, st: 'read', src: { url: WIKI, extract: '출처 요약 글이다. 둘째.' } }
+  ];
+  if (NONE_ROOM) targets.push({ tg: { kind: 'room', id: NONE_ROOM }, st: 'none' });
+  targets.forEach(function (x, k) {
+    [true, false].forEach(function (withNote) {
+      var ev = { type: 'peek', t: 1, target: x.tg, status: x.st };
+      if (withNote) ev.note = word;
+      if (x.src) ev.source = x.src;
+      var tr = B.replay([{ type: 'depart', t: 0, hint: '' }, ev, { type: 'return', t: 2 }, { type: 'wrap_up', t: 3 }], { by: by2, now: NOW, state: { visits: {} } });
+      var st = tr.receipt.stops[0], pe = tr.events.filter(function (e) { return e.type === 'peek'; })[0], tag = by2 + ' ' + x.st + ' ' + (x.tg.kind) + (withNote ? ' +note' : '');
+      nPeek++;
+      if (withNote) {
+        if (st.note !== word || pe.note !== word || st.noteBy !== voice2) errs.push(tag + ': note changed ' + JSON.stringify(st.note));
+      } else {
+        var allowed = st.status === 'builtin' ? clues[st.note] : st.status === 'read' ? st.note === '출처 요약 글이다. 둘째.' : st.note === '';
+        if (!allowed || st.noteBy) errs.push(tag + ': code filled the note ' + JSON.stringify(st.note));
+      }
+    });
+  });
+  /* 읽었다며 쓴 메모 — 읽음이 확인되지 않음: 밖의 문 · 출처 없는 방 · 출처 없는 들판 · 앉아만 있는 방 */
+  [{ kind: 'url', url: 'https://example.org/x' }, { kind: 'room', id: CLUE_ROOM }, { kind: 'wiki', title: '깃펜' }].concat(NONE_ROOM ? [{ kind: 'room', id: NONE_ROOM }] : []).forEach(function (tg) {
+    var tr = B.replay([{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 1, target: tg, status: 'read', note: word }, { type: 'return', t: 2 }, { type: 'wrap_up', t: 3 }], { by: by2, now: NOW });
+    var st = tr.receipt.stops[0], pe = tr.events.filter(function (e) { return e.type === 'peek'; })[0];
+    nPeek++;
+    if (st.status === 'read' || st.note === word || st.noteGiven !== word || pe.noteGiven !== word || pe.note !== st.note) errs.push(by2 + ' claimed read ' + tg.kind + ': ' + JSON.stringify([st.status, st.note, st.noteGiven, pe.noteGiven]));
+  });
+}
+check(nPeek > 1000 && errs.length === 0, 'peek notes: the model\'s / person\'s note kept verbatim on every status (noteBy); an unverified "read" note is hidden but kept as noteGiven; no note → only facts (source summary · bookshelf clue) or nothing (' + nPeek + ' peeks, ' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 3).join(' | ') : ''));
+/* 빈 차례 뒤의 마무리도 준 그대로 (반응·줄·호기심 메모) */
+var etr = B.replay([{ type: 'empty_turn', t: 0 }, { type: 'wrap_up', t: 1, reaction: '졸림', line: '그냥 쉬었어', note: '쉬는 것도 궁금해' }], { by: 'mcp' });
+check(etr.kind === 'empty' && etr.reaction === '졸림' && etr.reactionBy === 'model' && etr.reactionLine === '그냥 쉬었어' && etr.noteOut && etr.noteOut.text === '쉬는 것도 궁금해', 'empty turn + wrap_up: the model\'s reaction, line and note are all kept (' + etr.reaction + ' · ' + etr.reactionLine + ')');
 /* 집에 있는 날: 모델이 쓴 쪽지 앞뒷면 그대로 */
 errs = [];
 (W.homeActivities || []).forEach(function (act) {
@@ -146,6 +191,18 @@ function byValues(o, out, k) {
     if (cant.receipt.activity.by !== 'fallback' || cant.receipt.activity.asked !== 'rearrange') errs.push('activity the room cannot do not labelled fallback');
     var can = B.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 1 }], { by: 'mcp' });
     if (can.receipt.activity.by !== 'model' || can.reactionBy !== null) errs.push('chosen activity not labelled model / reaction invented');
+    /* 활동은 선택 (ppolppol_stay_home { activity? }) — 안 골랐으면 '못 하는 활동(fallback)'이 아니다. 줄도 안 썼으면 쪽지 앞면은 빈칸 */
+    [{ line: '그냥 있었어' }, {}].forEach(function (x) {
+      var nh = B.replay([Object.assign({ type: 'stay_home', t: 0 }, x), { type: 'wrap_up', t: 1 }], { by: 'mcp' });
+      if (nh.receipt.activity.by !== 'model' || nh.receipt.activity.asked !== undefined) errs.push('stay_home without an activity labelled ' + nh.receipt.activity.by);
+      if (nh.poster.line !== (x.line || '')) errs.push('stay_home without a line got code text ' + JSON.stringify(nh.poster.line));
+    });
+    /* 기억할 곳을 두뇌가 대신 정했으면(fallback) 그 곳은 취향 가중치(+2)에 들어가지 않는다 — 들른 수만 */
+    var fbm = B.replay(base.concat([{ type: 'wrap_up', t: 5 }]), { by: 'mcp', now: NOW });
+    var perCorner = {}; fbm.receipt.stops.forEach(function (s) { perCorner[s.corner] = (perCorner[s.corner] || 0) + 1; });
+    if (JSON.stringify(fbm.affinityDelta) !== JSON.stringify(perCorner)) errs.push('fallback memory fed affinity ' + JSON.stringify(fbm.affinityDelta) + ' vs visits ' + JSON.stringify(perCorner));
+    var chm = B.replay(base.concat([{ type: 'remember', t: 4, stopIdx: 0 }, { type: 'wrap_up', t: 5 }]), { by: 'mcp', now: NOW });
+    if ((chm.affinityDelta[chm.receipt.stops[0].corner] || 0) !== (perCorner[chm.receipt.stops[0].corner] || 0) + 2) errs.push('the model\'s own memory lost its +2');
     check(errs.length === 0, 'what the brain filled in is labelled fallback; only what the model gave is labelled model (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.join(' | ') : ''));
     /* 데모 규칙의 마음 말(활동 뒷면 '빗소리가 좋아서 …', 힌트 '다른 데가 궁금했어', 반응 줄)이 모델 기록에 붙지 않는다 */
     errs = [];
@@ -206,6 +263,8 @@ function byValues(o, out, k) {
     ];
     var nn = B.normalizeNotes(mixed);
     check(nn.length === 1 && nn[0].id === 'cn_live', 'normalizeNotes keeps only active notes (' + nn.map(function (x) { return x.id; }).join(',') + ')');
+    var byKept = B.normalizeNotes([{ id: 'a', text: 't', by: 'model' }, { id: 'b', text: 't', by: 'human' }, { id: 'c', text: 't', by: 'demo-rules' }]).map(function (x) { return x.by; }).join(',');
+    check(byKept === 'model,human,demo-rules', 'normalizeNotes keeps who wrote each note (model · human · demo-rules), never relabels a model/person note as demo rules (' + byKept + ')');
     errs = [];
     for (seed = 1; seed <= 200; seed++) {
       var inp = { seed: seed, now: NOW, dateKey: '2026-11-07', online: false, state: { visits: {}, lantern: 3 } };

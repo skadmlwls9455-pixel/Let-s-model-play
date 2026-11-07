@@ -179,23 +179,39 @@ var UIART = (function () {
     if (kind === 'happy' || kind === 'excited' || kind === 'shout' || /찾았|!$/.test(String(text || ''))) return 'shout';
     return 'say';
   }
-  /* 9-slice 테두리로 넓어진 풍선이 장면 가장자리에서 잘리지 않게 옆으로 민다 (꼬리는 문어 위에 그대로) */
+  /* 장면 오른쪽 위 아이콘 묶음(#scene-ctl: 추억 앨범 · 소리)의 보이는 상자와 겹치는 말풍선 → 왼쪽으로 밀 양(px, 음수) · 안 겹치면 0.
+     r = 밀기 전 풍선 상자. 입장 연출로 숨은 묶음 · 숨은 버튼은 셈하지 않는다. 2D 무대(app.js keepBubble2D)도 같이 쓴다 */
+  function avoidCtl(r, pad) {
+    var ctl = $('scene-ctl'); if (!ctl || !r || getComputedStyle(ctl).visibility === 'hidden') return 0;
+    var L = Infinity, T = Infinity, B = -Infinity;
+    [].forEach.call(ctl.querySelectorAll('.icon-btn:not([hidden]) .snd-box'), function (x) { var q = x.getBoundingClientRect(); if (!q.width) return; L = Math.min(L, q.left); T = Math.min(T, q.top); B = Math.max(B, q.bottom); });
+    if (L === Infinity || r.bottom <= T || r.top >= B || r.right <= L - pad) return 0;
+    return L - pad - r.right;
+  }
+  /* 비켜 서도 겹치면(좁은 폭에서 문어가 보드 앞 = 아이콘 바로 아래일 때 — 꼬리를 문어 위에 두면 더는 못 민다) 말풍선이 보이는 동안만 묶음을 옅게 (css .scene-ctl.yield).
+     문어의 말이 먼저 읽히게. 버튼은 그대로 누를 수 있고, 포커스·호버면 다시 진하다. 말풍선이 사라지면 돌아온다 */
+  function ctlYield(on) { var c = $('scene-ctl'); if (c && c.classList.contains('yield') !== !!on) c.classList.toggle('yield', !!on); }
+  /* 9-slice 테두리로 넓어진 풍선이 장면 가장자리에서 잘리지 않게 옆으로 민다 (꼬리는 문어 위에 그대로).
+     장면 오른쪽 위 아이콘 묶음과 겹치면 그 왼쪽까지 민다 (두 테마 — 시스템 테마 풍선은 꼬리가 없어 가장자리 규칙은 픽셀만). 한도는 같다: 꼬리가 풍선 아랫변 안 */
   function keepInside(b) {
     b.style.marginLeft = ''; b.style.removeProperty('--ua-tail');
-    var sc = $('scene'); if (!pixel() || !sc || !b.closest('#scene3d')) return;
+    var sc = $('scene'); if (!sc || !b.closest('#scene3d')) return;
     var s = sc.getBoundingClientRect(), r = b.getBoundingClientRect(), pad = 4, shift = 0;
-    if (r.left < s.left + pad) shift = s.left + pad - r.left; else if (r.right > s.right - pad) shift = s.right - pad - r.right;
+    if (pixel()) { if (r.left < s.left + pad) shift = s.left + pad - r.left; else if (r.right > s.right - pad) shift = s.right - pad - r.right; }
+    var cs = avoidCtl(r, pad); if (cs < 0) shift = Math.min(shift, Math.max(cs, s.left + pad - r.left));   /* 아이콘을 피하되 왼쪽 가장자리 밖으로는 안 민다 */
     var lim = Math.max(0, r.width / 2 - 28); shift = even(Math.max(-lim, Math.min(lim, shift)));
-    if (shift) { b.style.marginLeft = shift + 'px'; b.style.setProperty('--ua-tail', (-shift) + 'px'); }
+    if (shift) { b.style.marginLeft = shift + 'px'; if (pixel()) b.style.setProperty('--ua-tail', (-shift) + 'px'); }
+    ctlYield(avoidCtl({ left: r.left + shift, right: r.right + shift, top: r.top, bottom: r.bottom }, 0) < 0);
   }
   var bubTimer = null;
   function onBubble(text, kind) {
     var b = $('oct-bubble'); if (!b || !text) return;
     b.setAttribute('data-ua', bubbleSkin(text, kind));
     keepInside(b);
+    requestAnimationFrame(function () { if (!b.hidden) keepInside(b); });   /* 장면이 다음 프레임에 풍선을 문어 위로 옮긴 뒤 한 번 더 (첫 0.2 s 동안 아이콘과 겹쳐 보이지 않게) */
     /* 문어가 걸어가도 풍선이 따라가며 가장자리 안에 머물게 (보이는 동안만 5 Hz) */
     clearInterval(bubTimer);
-    bubTimer = setInterval(function () { if (b.hidden) { clearInterval(bubTimer); bubTimer = null; return; } keepInside(b); }, 200);
+    bubTimer = setInterval(function () { if (b.hidden) { clearInterval(bubTimer); bubTimer = null; ctlYield(false); return; } keepInside(b); }, 200);
     if (kind === 'curious' && String(text).trim() === '?') fx('question');
   }
 
@@ -302,5 +318,5 @@ var UIART = (function () {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
-  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRoomSheet: syncRoomSheet };
+  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRoomSheet: syncRoomSheet, avoidCtl: avoidCtl, ctlYield: ctlYield };
 })();

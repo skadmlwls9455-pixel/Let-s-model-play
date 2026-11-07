@@ -35,6 +35,7 @@ jobs:
       - run: node tools/test-brain.js
       - run: node tools/test-runner.js
       - run: node tools/test-api.js
+      - run: node tools/test-model-voice.js
 
   fonts:
     name: 글꼴 점검

@@ -24,7 +24,7 @@ curiosityNote = {
   id: 'cn_…',
   text: '조개를 귀에 대면 소리가 나. 다른 소리 나는 것도 궁금해',  // 모델이 쓴 그대로. 화면은 60자까지 + '…', 기록은 원문
   about: { kind: 'node' | 'object', id: 'shell' },   // 선택. 코드가 다음 후보와 잇는 데만 쓴다
-  by: 'model' | 'demo-rules',                        // 작성 주체
+  by: 'model' | 'human' | 'demo-rules',              // 작성 주체 ('human' = 데모 조작). 두뇌·앱 어디서도 다른 주체로 바꿔 적지 않는다
   model: 'claude-…',                                  // 알 때만 (MCP/API 가 알려 준 값)
   session: 'trip_31kz' | 'play_…',                   // 어느 산책·놀이에서
   at: '2026-11-05T10:12:00Z',
@@ -67,5 +67,6 @@ curiosityNote = {
   60자에 맞추느라 '내일은 X' 가 글에서 빠진 날은 `noteOut` 을 만들지 않는다 — 글에 없는 관심을 다음 선택에 쓰지 않게 (MODEL_VOICE §3). 집·빈 차례는 `null`.
   화면은 데모 규칙 메모를 '데모 규칙' 표시 아래에서만 보인다.
 - **나가기 (모델)** — `replay` 가 `wrap_up.note` 를 글자 그대로 `noteOut = { text, about?, by: 'model' }` 로, `wrap_up.setDown` 의 문자열 id 를 `setDown` 으로 옮긴다.
-  60자가 넘어도 기록은 원문 그대로, 화면만 앞 60자 + `…`. `setDown` 은 모델(`mcp`) 산책에서만 받는다 (사람·데모 규칙은 메모를 내려놓지 않는다).
+  60자가 넘어도 기록은 원문 그대로, 화면만 앞 60자 + `…`. `setDown` 은 모델(`mcp`) 산책에서만 받는다 (사람·데모 규칙은 메모를 내려놓지 않는다). 빈 차례 뒤의 마무리에서도 같다.
+  사람(데모 조작) 산책의 메모는 `by: 'human'` 이고, 다시 두뇌에 들어올 때도 `human` 그대로다 (`BRAIN.normalizeNotes`).
 - 저장·전달(메모 id·세션·날짜 붙이기, 앨범 '우리 방의 지난 메모', 내려놓기 반영)은 app 몫이다.
