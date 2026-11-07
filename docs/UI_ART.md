@@ -23,6 +23,7 @@
 - 연출 동안 아래 UI 는 `inert` 라서 레이어만 입력을 받는다. 자동 포커스는 하지 않는다(입력 전에 포커스를 주면 포커스 링이 그려진다). Tab 으로 로고 버튼에 갈 수 있다.
 - **모션 감소**: 카메라는 바로 착지하고, 로고·덮개는 페이드만 한다. 알갱이는 한 칸에 멈추고 안내는 깜빡이지 않는다.
 - **2D 폴백**(WebGL 없음): `#stage` 를 위에서 내린다(`translate` 개별 속성이라 기존 transform 은 그대로 둔다).
+- **하루 한 번**: 그 날짜(로컬, `__ppolTest.today` 훅 따름)에 타이틀을 눌러 들어갔으면, 같은 날 다시 열 때는 연출 없이 바로 게임으로 들어간다(`localStorage['ppolppol_intro_day']`). 연출 도중 닫으면 다음에도 보인다.
 - **켜고 끄기**: `?intro=0` 이면 생략, `?intro=1` 이면 강제. 자동화 브라우저(`navigator.webdriver`)에서는 기본 생략한다. 기존 스모크·룩 샷이 첫 화면에서 바로 이름 창을 기다리기 때문이다. `?slow=4` 를 주면 연출 전체가 4배 느려진다.
 - 스모크와 스크린샷: `node tools/intro-shots.js [hour] [weather]` → `tests/evidence/intro/`. 첫 실행 흐름, 다시 열기에서 하늘 단계 탭, 카메라 하강 스트립 7장(결정적), 자동화 기본 생략을 확인한다. 같은 폴더에 첫 실행을 실제 속도로 녹화한 `intro.webm`(SwiftShader 라 실기기보다 프레임이 성기다)과 요약 `sheet.png` 도 남긴다.
 - 장면 API: `scene.intro({ dur, height, hold })` → Promise(착지), `scene.introSkip()`, `scene.introRelease()`(hold 중이던 비네트 복귀), `scene.skyHex()`(지금 허공이 찍히는 색).
