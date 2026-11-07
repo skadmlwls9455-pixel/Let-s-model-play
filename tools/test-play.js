@@ -509,14 +509,31 @@ async function main() {
     }
   } finally { await browser.close(); srv.close(); }
 
-  /* 17. 본 게임 회귀: index.html 스모크 A,B,I (smoke I 가 바꾸는 증거 PNG 는 되돌린다) */
+  /* 17. 본 게임 회귀: index.html 스모크 A,B,I (smoke I 가 바꾸는 증거 PNG 는 되돌린다).
+     smoke 는 ok 줄을 stdout, FAIL·CRASH 줄을 stderr 에 쓴다 → 둘을 한 파일(같은 fd)에 쓰인 차례대로 받아,
+     실패한 검사 이름을 그 앞 '== 시나리오' 줄과 같이 찍는다. 전체 출력은 SHOTS/smoke/smoke.log */
   if (want('main') && process.env.SKIP_MAIN !== '1') {
     console.log('[main] SMOKE_ONLY=A,B,I node tools/smoke.js');
     const ev = path.join(ROOT, 'tests/evidence/peek-bubble.png'), keep = fs.existsSync(ev) ? fs.readFileSync(ev) : null;
-    const r = cp.spawnSync('node', ['tools/smoke.js'], { cwd: ROOT, env: Object.assign({}, process.env, { SMOKE_ONLY: 'A,B,I', SHOTS: path.join(SHOTS, 'smoke') + '/' }), encoding: 'utf8', timeout: 600000 });
+    const logDir = path.join(SHOTS, 'smoke'); fs.mkdirSync(logDir, { recursive: true });
+    const logFile = path.join(logDir, 'smoke.log'), fd = fs.openSync(logFile, 'w');
+    let r;
+    try {
+      r = cp.spawnSync('node', ['tools/smoke.js'], { cwd: ROOT, env: Object.assign({}, process.env, { SMOKE_ONLY: 'A,B,I', SHOTS: logDir + '/' }), stdio: ['ignore', fd, fd], timeout: 600000 });
+    } finally { fs.closeSync(fd); }
     if (keep) fs.writeFileSync(ev, keep);
-    const lines = (r.stdout || '').trim().split('\n'), tail = lines.slice(-2).join(' | '), failed = lines.filter((l) => /FAIL/.test(l));
-    ok(r.status === 0, 'index.html smoke A,B,I passes (' + tail + ')' + (failed.length ? '\n        failing: ' + failed.join('\n        failing: ') : ''));
+    const lines = fs.readFileSync(logFile, 'utf8').split('\n').map((l) => l.trimEnd()), failed = [];
+    let sec = '';
+    for (const l of lines) {
+      const t = l.trim();
+      if (/^== /.test(t)) sec = t.slice(3, 51);
+      else if (/^(FAIL\b|CRASH:)/.test(t)) failed.push(t.replace(/^FAIL\s+/, '') + (sec ? '   [' + sec + ']' : ''));
+    }
+    const said = lines.filter(Boolean), tail = said.slice(-1).join('');
+    const why = r.error ? ' · ' + (r.error.code || r.error.message) : r.signal ? ' · ' + r.signal : '';
+    const more = failed.length ? '\n        failing: ' + failed.join('\n        failing: ')
+      : r.status !== 0 ? '\n        last lines: ' + said.slice(-6).join('\n                    ') : '';
+    ok(r.status === 0 && !failed.length, 'index.html smoke A,B,I passes (' + tail + why + ')' + more + (r.status !== 0 || failed.length ? '\n        log: ' + logFile : ''));
   }
   /* 18. 글꼴 서브셋 */
   if (want('font') || (!ONLY.length)) {

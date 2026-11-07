@@ -1,8 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════════
    뽈뽈 문어 — js/ui-art.js (전역 UIART) · UI 아트 배선 (docs/UI_ART.md)
-   app.js 는 손대지 않고 작은 훅만 부른다: onRow · onBubble · onState · onInspect · fx.
-   오늘의 산책(▼) · 앨범(반짝 · '문어의 요즘' 줄 아이콘)은 MutationObserver 로 따라간다. 장면 위 버튼 그림(img[data-icon], 놀이방 문)의 주소도 여기서 채운다.
-   보이는 건 전부 css/ui-art.css 가 :root[data-font="pixel"] 일 때만 켠다 (시스템 글꼴 모드는 그대로).
+   app.js 는 작은 훅만 부른다: onRow · onBubble · onState · onInspect · fx. 그림 주소는 icon · iconHTML · iconSrc 로 빌려 준다.
+   오늘의 산책(가장 새 목소리 행의 '다음' 그림 next.png) · 앨범(반짝 · '문어의 요즘' 줄 아이콘)은 MutationObserver 로 따라간다. 장면 위 버튼 그림(img[data-icon], 놀이방 문)의 주소도 여기서 채운다.
+   플레이어 화면엔 이모지 · 장식 기호가 없다 (주인 11-07): 예전 이모지 자리(방 · 읽기 상태 · 기념품 · 스티커)는 app.js 가 픽셀 아이콘(class ua-both)을 직접 넣는다 — 두 테마 다 보인다 (시스템 16px · 픽셀 32px).
+   그 밖의 꾸밈(도구 라벨 아이콘 · 틀 · '다음' · 파티클)은 css/ui-art.css 가 :root[data-font="pixel"] 일 때만 켠다.
    일러스트(illust.*)는 여기서 쓰지 않는다 (타이틀·로딩 흐름은 다른 작업).
    일반 스크립트 · 모듈 없음 · file:// 에서 그대로 동작 (경로는 manifest 규칙대로 고정).
    ═══════════════════════════════════════════════════════════════════ */
@@ -10,9 +11,7 @@ var UIART = (function () {
   'use strict';
 
   var LOG_KIND = { depart: 'depart', peek: 'peek', 'return': 'return', remember: 'remember', hang_poster: 'poster', wrap_up: 'wrapup', stay_home: 'home' };
-  var STATUSES = ['read', 'builtin', 'simulated', 'failed', 'none'];
   var CORNERS = ['hands', 'sea', 'sky', 'signs', 'numbers', 'sounds', 'home', 'mind', 'wild'];
-  var SOUVENIRS = ['feather', 'shell', 'pebble', 'button', 'leaf', 'marble', 'yarn', 'stamp', 'matchbox', 'key', 'pinecone', 'paper_boat', 'bell', 'map_piece', 'chalk', 'stained_glass'];
   /* fx 스트립: 8×8 칸 수 (manifest fx.*.frames) */
   var FX = { heart: 2, question: 1, zzz: 3, sparkle: 4, ink: 4 };
   var TICK = 1000 / 12;   /* 12 fps — 장면 입자와 같은 박자 */
@@ -32,7 +31,8 @@ var UIART = (function () {
     var m = window.ASSETS_INLINE, a = (m && typeof m === 'object') ? m['icon.' + path.split('/').join('.')] : null;
     return (a && (typeof a === 'string' ? a : a.src)) || ('assets/icons/' + path + '.png');
   }
-  /* ── 아이콘 <img>: 16×16 원본을 32px(×2)로. 장식이라 alt="" + aria-hidden — 옆의 글자(라벨·상태 단어)는 그대로 남긴다 ── */
+  /* ── 아이콘 <img>: 16×16 원본을 32px(×2)로. 장식이라 alt="" + aria-hidden — 옆의 글자(라벨·상태 단어)는 그대로 남긴다.
+     그림이 안 오면 지운다 (아래 문서 전체 error 캡처 — HTML 문자열로 넣은 것도). 이모지로 되돌리지 않는다 ── */
   function icon(path, cls) {
     var i = document.createElement('img');
     i.className = 'ua-ico' + (cls ? ' ' + cls : '');
@@ -41,25 +41,18 @@ var UIART = (function () {
     i.width = 32; i.height = 32; i.draggable = false; i.decoding = 'async';
     return i;
   }
-  /* 이모지 글리프 자리를 아이콘으로: 이모지는 DOM 에 남기고(텍스트·검색 그대로) 픽셀 모드에서만 숨긴다. 그림이 안 오면 이모지로 되돌린다 */
-  function swap(emo, path, cls) {
-    if (!emo || !emo.parentNode || emo.classList.contains('ua-swap')) return null;
-    var img = icon(path, cls);
-    img.onerror = function () { emo.classList.remove('ua-swap'); if (img.parentNode) img.parentNode.removeChild(img); };
-    emo.parentNode.insertBefore(img, emo);
-    emo.classList.add('ua-swap');
-    return img;
+  function iconHTML(path, cls) {
+    return '<img class="ua-ico' + (cls ? ' ' + cls : '') + '" src="' + String(iconSrc(path)).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '" alt="" aria-hidden="true" width="32" height="32" draggable="false" decoding="async">';
   }
+  document.addEventListener('error', function (e) {
+    var t = e.target;
+    if (t && t.tagName === 'IMG' && t.classList && t.classList.contains('ua-ico') && t.parentNode) t.parentNode.removeChild(t);
+  }, true);
   function prepend(el, path, cls) {
     if (!el || el.querySelector(':scope > .ua-ico')) return null;
     var img = icon(path, cls);
-    img.onerror = function () { if (img.parentNode) img.parentNode.removeChild(img); };
     el.insertBefore(img, el.firstChild);
     return img;
-  }
-  function souvenirSwap(scope, id) {
-    if (!scope || SOUVENIRS.indexOf(id) < 0) return;
-    var e = scope.querySelector('.emo:not(.ua-swap)'); if (e) swap(e, 'souvenir/' + id, 'ua-souv');
   }
 
   /* ── 1 · 2 산책 로그 행 ── */
@@ -68,8 +61,8 @@ var UIART = (function () {
     row.classList.add('ua-frame-dialog');
     var port = row.querySelector('.lport'); if (port) port.classList.add('ua-frame-portrait');
   }
-  /* app.js eventRow 끝에서: 도구 라벨 앞에 icon.log.<kind>, 읽기 상태 칩엔 icon.log.<status> (단어는 그대로) */
-  function onRow(row, ev, trip) {
+  /* app.js eventRow 끝에서: 도구 라벨 앞에 icon.log.<kind> (픽셀 테마 꾸밈). 읽기 상태 · 방 · 기념품 그림은 app.js 가 이미 넣었다 */
+  function onRow(row, ev) {
     if (!row || !ev) return;
     frameRow(row);
     var kind = LOG_KIND[ev.type];
@@ -77,16 +70,8 @@ var UIART = (function () {
       var tool = row.querySelector('.ltool');
       if (tool && prepend(tool, 'log/' + kind, 'ua-log')) { tool.classList.add('ua-tool'); row.classList.add('ua-row'); }
     }
-    if (ev.type === 'peek') {
-      var st = row.querySelector('.ltext .st'), status = ev.status || 'failed';
-      if (st && STATUSES.indexOf(status) >= 0) { var e = st.querySelector('.emo'); if (e && swap(e, 'log/' + status, 'ua-status')) st.classList.add('ua-st'); }
-    }
-    if (ev.type === 'return' && trip && trip.receipt && trip.receipt.souvenir) {
-      var subs = row.querySelectorAll('.ltext .sub');
-      for (var i = 0; i < subs.length; i++) if (subs[i].textContent.indexOf('가져온 것') === 0) { subs[i].classList.add('ua-ico-line'); souvenirSwap(subs[i], trip.receipt.souvenir); }
-    }
   }
-  /* 가장 새 문어 목소리 행에만 ▼ (0.5 s 깜빡, 축소 모션이면 가만히) */
+  /* 가장 새 문어 목소리 행에만 '다음' 그림 (next.png ↔ next2.png 0.5 s 깜빡, 축소 모션이면 가만히) */
   var logRaf = 0;
   function syncLog() {
     logRaf = 0;
@@ -100,35 +85,13 @@ var UIART = (function () {
     if (!newest.querySelector(':scope > .ua-next')) { var n = document.createElement('span'); n.className = 'ua-next'; n.setAttribute('aria-hidden', 'true'); newest.appendChild(n); }
   }
 
-  /* ── 3 · 포스터 열람 기록 · 영수증 (app.js openPoster 끝에서) ── */
+  /* ── 3 · 포스터 열람 기록 · 일기(뒷면): 종이 틀 (app.js openPoster 끝에서). 코너 · 상태 · 기념품 그림은 app.js 가 이미 넣었다 ── */
   function onInspect(trip) {
     var tx = $('pd-text'), back = $('pd-back');
     if (!trip) return;
-    var r = trip.receipt || {}, stops = r.stops || [];
-    if (tx) {
-      tx.classList.add('ua-frame-paper');
-      var spans = tx.querySelectorAll('.stop');
-      Array.prototype.forEach.call(spans, function (sp, i) {
-        var s = stops[i], c = s && s.corner;
-        if (CORNERS.indexOf(c) < 0) return;
-        var e = sp.querySelector('.emo'); if (e) swap(e, 'memory/' + c, 'ua-mem');
-        if (sp.parentNode) sp.parentNode.classList.add('ua-chain');
-      });
-      Array.prototype.forEach.call(tx.querySelectorAll('p.meta'), function (p) {
-        var t = p.textContent.replace(/^\s+/, '');
-        if (t.indexOf('가져온 것') === 0 && r.souvenir) { p.classList.add('ua-ico-line'); souvenirSwap(p, r.souvenir); }
-        else if (trip.kind === 'home' && /오늘은 집/.test(t)) { var e = p.querySelector('.emo'); if (e && swap(e, 'log/home', 'ua-log')) p.classList.add('ua-ico-line'); }
-      });
-    }
+    if (tx) tx.classList.add('ua-frame-paper');
     var rc = back && back.querySelector('.receipt');
-    if (rc) {
-      rc.classList.add('ua-frame-paper');
-      Array.prototype.forEach.call(rc.querySelectorAll('.row'), function (row, i) {
-        var s = stops[i], st = row.querySelector('.st'), status = (s && s.status) || 'failed';
-        if (st && STATUSES.indexOf(status) >= 0) { var e = st.querySelector('.emo'); if (e && swap(e, 'log/' + status, 'ua-status')) st.classList.add('ua-st'); }
-      });
-      if (r.souvenir) Array.prototype.forEach.call(rc.querySelectorAll('p'), function (p) { if (p.textContent.indexOf('가져온 것') >= 0) { p.classList.add('ua-ico-line'); souvenirSwap(p, r.souvenir); } });
-    }
+    if (rc) rc.classList.add('ua-frame-paper');
   }
 
   /* ── 6 · 앨범 맨 위 '문어의 요즘' 줄 → icon.memory.<코너> (app.js 가 줄마다 data-corner 를 단다 — 예전 방 보기처럼 글자를 읽어 맞히지 않는다) ── */
@@ -320,5 +283,6 @@ var UIART = (function () {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
-  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, ctlYield: ctlYield, iconSrc: iconSrc };
+  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, ctlYield: ctlYield,
+    iconSrc: iconSrc, icon: icon, iconHTML: iconHTML };
 })();

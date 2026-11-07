@@ -225,8 +225,9 @@ var SCENE2D = (function () {
       st.souvenirs.forEach(function (sv, i) {
         var x = shelf ? 146 + (i % 6) * 9 : 82 + (i % 3) * 10, y = shelf ? 68 - Math.floor(i / 6) * 10 : 116;
         var b = h('button', { type: 'button', class: 'souv', title: sv.name || sv.id, 'aria-label': (sv.name || sv.id) + ' 기념품' });
-        if (sv.img) { var img = new Image(); img.alt = ''; img.src = sv.img; img.onerror = function () { img.replaceWith(document.createTextNode(sv.emoji || '•')); }; b.appendChild(img); }
-        else b.textContent = sv.emoji || '•';
+        /* 그림: 선반 그림(souvenir.<id>) → 안 오면 16×16 기념품 픽셀 아이콘(sv.icon) → 그것도 안 오면 비워 둔다 (이모지 · 기호 글자는 쓰지 않는다 — 이름은 aria-label · title) */
+        var src = sv.img || sv.icon;
+        if (src) { var img = new Image(); img.alt = ''; img.src = src; img.onerror = function () { if (sv.icon && img.getAttribute('src') !== sv.icon) { img.classList.add('souv-ico'); img.src = sv.icon; } else img.remove(); }; if (src === sv.icon) img.classList.add('souv-ico'); b.appendChild(img); }
         b.style.left = x + 'px'; b.style.top = y + 'px';
         b.addEventListener('click', function () { if (on.souvenirTap) on.souvenirTap(sv); });
         souvRow.appendChild(b);

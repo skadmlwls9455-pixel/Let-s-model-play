@@ -1431,7 +1431,6 @@ var WORLD = (function () {
     urlHintHelp: 'URL은 문 앞까지만 가 볼 수 있어(모의 방문)',
     goButton: '뽈뽈 다녀와',
     awayButton: '다녀오는 중…',
-    skipButton: '⏩ 건너뛰기',
     lookButton: '방 보기',
     /* 이름이 들어가는 문장은 누가 누구를 부르는지 헷갈리지 않게 (DIALOGUE_UI §3 표): 문어는 자기 이름으로 자기를 소개하고,
        집 목소리는 조사를 붙여 문어를 가리킨다 ("뽈뽈 기다리고 있었어" 처럼 조사 없이 쓰면 플레이어를 부르는 말로 읽힌다) */
@@ -1469,7 +1468,6 @@ var WORLD = (function () {
     honestyLine: '지금은 작은 규칙 뭉치가 문어를 움직여. 진짜 모델이 고르는 건 MCP 연결 뒤 이야기야.',
     demoWarning: "여기 버튼은 문어 대신 사람이 고르는 거야. 일기에 '사람이 조작'으로 남아.",   /* index.html #demo .warn-line 과 같은 글 */
     wikiLicense: '위키미디어 공용',
-    wikiSource: '출처 ↗',
     photoCredit: '사진: 위키미디어 공용',
     followedLabels: { followed: '따라감', ignored: '무시함', left: '도중에 벗어남', none: '없음' },
     byLabels: { demo: '데모 두뇌(규칙)', human: '사람이 조작', mcp: '모델(MCP)', legacy: '복원된 기록' },
@@ -1479,7 +1477,6 @@ var WORLD = (function () {
     affinityNode: function (nodeName, n) { var w = roomWord(nodeName); return w + (/방$/.test(w) ? '은 ' : ' 방은 ') + n + '번 왔어'; },   /* '느린 글의 방' → '방 방은' 안 되게, '0' → '0이라는 방은' */
     affinityNone: '아직 어디가 좋은지 모르겠어. 더 다녀 봐야 알겠어',
     logLabels: { depart: '출발', peek: '기웃', 'return': '귀가', remember: '기억', hang_poster: '포스터', wrap_up: '마무리', stay_home: '집', empty_turn: '…' },
-    statusLabels: { idle: '', away: '나가 있음', sleep: '💤', dream: '꿈꾸는 중', departing: '출발 중…' },
     lanternLabel: function (n) { return '등불 ' + n + '/8'; },
     tripsLabel: function (n) { return '여행 ' + n; },
     daysLabel: function (n) { return '함께한 날 ' + n; },

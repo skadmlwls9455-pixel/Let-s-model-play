@@ -1683,6 +1683,220 @@ async function scenarioWave7(browser) {
   reportErrors(s.bag, 'S');
   await s.ctx.close();
 }
+/* U. 플레이어 화면 글자 지킴이 (주인 11-07: "개발자용이 아니라 실 사용자한테 바로 배포할 거라고 생각하고 이모티콘 같은 건 다 빼").
+ *   플레이어 화면(가짜 http 호스트 + ?dev=0)을 상태마다 돌며 — 입장 · 이름 창 · 첫 인사 · 등불/데모 말풍선 · 설정 · 나가 있는 중(말풍선) · 산책 뒤 로그(읽음 · 책장 · 모의 · 못 읽음 · 앉아만) ·
+ *   잠 · 포스터 앞면/열람 기록/일기(외출 · 집 · 모델) · 복사 토스트 · 앨범 칩 넷(전체 · 포스터 · 쪽지 · 일기, 날 펼치기) · 놀이방 문 → 달리기(준비 · 달리는 중 · 끝 · 랭킹) · 2D 장면(기념품 그림 실패 · 기념품 누름) —
+ *   보이는 글자 노드 · aria-label · title · placeholder · alt · SVG 글자 · ::before/::after content · 목록 표시(::marker) 에 이모지나 허용 목록 밖 기호가 있으면 실패. 두 글꼴 테마(픽셀 · 시스템) 다.
+ *   허용: 한글 · ASCII · 공백 · 문장부호 · … ‘ ’ “ ” — – (~ ! ? : ( ) / % + 는 ASCII). 그 밖(✅ 📚 🎉 💤 ▲ ✕ ↗ → ● ♡ …)은 실패.
+ *   빼는 것: 개발용(#demo · #hint-box)과 [data-raw] 표시가 붙은 칸(속성만이면 data-raw-attr) — 모델이 쓴 말 · 위키백과 글 · 사람이 쓴 이름(랭킹 닉네임)은 바이트 그대로 보여야 해서 (docs/MODEL_VOICE.md).
+ *   그래서 이 시나리오는 일부러 이모지가 든 모델 말 · 위키 요약 · 닉네임을 넣고, 그 글이 그대로(data-raw 안에) 보이는지도 본다.
+ *   잠깐 보였다 사라지는 것(말풍선 · 토스트 · 타자 행)은 문서 전체 MutationObserver 가 바뀌는 순간마다 같은 검사를 한다 */
+function glyphGuardInit() {
+  var BAD = /[^\s\x20-\x7Eᄀ-ᇿ㄰-㆏가-힣·…‘’“”—–]/gu;
+  var SKIP = 'script, style, noscript, template, #demo, #hint-box, [data-raw]';
+  var ATTRS = ['aria-label', 'title', 'placeholder', 'alt', 'aria-valuetext', 'aria-roledescription', 'data-share'];
+  function where(el) {
+    var s = el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '');
+    var p = el.parentElement, k = 0; while (p && !p.id && k < 6) { p = p.parentElement; k++; }
+    return (p && p.id ? '#' + p.id + ' ' : '') + s;
+  }
+  function check(out, seen, kind, el, text) {
+    var m = String(text == null ? '' : text).match(BAD); if (!m) return;
+    var key = kind + '|' + where(el) + '|' + text; if (seen[key]) return; seen[key] = 1;
+    out.push({ kind: kind, at: where(el), chars: Array.from(new Set(m)).join(''), text: String(text).replace(/\s+/g, ' ').slice(0, 70) });
+  }
+  function textsIn(root, out, seen) {
+    if (root.nodeType === 3) { var pe = root.parentElement; if (pe && !pe.closest(SKIP)) check(out, seen, 'text', pe, root.nodeValue); return; }
+    if (root.nodeType !== 1 || root.closest(SKIP)) return;
+    var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), n;
+    while ((n = w.nextNode())) { var p = n.parentElement; if (p && !p.closest(SKIP)) check(out, seen, 'text', p, n.nodeValue); }
+  }
+  function scan() {
+    var out = [], seen = {};
+    check(out, seen, 'title', document.documentElement, document.title);
+    textsIn(document.body, out, seen);
+    [document.documentElement].concat([].slice.call(document.body.querySelectorAll('*'))).forEach(function (el) {
+      if (el.closest('#demo, #hint-box')) return;
+      var rawAttr = (el.getAttribute('data-raw-attr') || '').split(/\s+/);   /* 속성만 남의 글 (예: 앨범 카드 이름표에 모델이 쓴 한 줄) */
+      if (!el.closest(SKIP)) ATTRS.forEach(function (a) { var v = el.getAttribute(a); if (v && rawAttr.indexOf(a) < 0) check(out, seen, '@' + a, el, v); });
+      ['::before', '::after'].forEach(function (p) {
+        var c = getComputedStyle(el, p).content;
+        if (!c || c === 'none' || c === 'normal') return;
+        (c.match(/"(?:[^"\\]|\\.)*"/g) || []).forEach(function (q) { check(out, seen, p, el, q.slice(1, -1)); });
+      });
+      var cs = getComputedStyle(el);
+      if (cs.display === 'list-item' && cs.listStyleImage === 'none' && /^(disc|circle|square|disclosure-open|disclosure-closed)$/.test(cs.listStyleType) && getComputedStyle(el, '::marker').content !== 'none')
+        out.push({ kind: '::marker', at: where(el), chars: cs.listStyleType, text: '' });
+    });
+    [].forEach.call(document.querySelectorAll('img'), function (im) { if (im.complete && im.getAttribute('src') && !im.naturalWidth && !im.closest('#demo')) out.push({ kind: 'img', at: where(im), chars: '', text: '깨진 그림 ' + String(im.getAttribute('src')).slice(0, 50) }); });
+    return out;
+  }
+  /* 두 테마: 지금 테마 · 다른 테마 (글자는 같고 ::before/::after · 보이는 칸만 다르다) */
+  function scanBoth() {
+    var root = document.documentElement, was = root.getAttribute('data-font') || 'pixel', other = was === 'pixel' ? 'system' : 'pixel', res = [];
+    scan().forEach(function (x) { x.theme = was; res.push(x); });
+    root.setAttribute('data-font', other);
+    scan().forEach(function (x) { if (!res.some(function (y) { return y.kind === x.kind && y.at === x.at && y.text === x.text; })) { x.theme = other; res.push(x); } });
+    root.setAttribute('data-font', was);
+    return res;
+  }
+  var live = [], liveSeen = {}, bubbles = [];
+  function watch() {
+    new MutationObserver(function (ms) {
+      ms.forEach(function (m) {
+        var t = m.type === 'characterData' ? m.target.parentElement : m.target;
+        if (t && t.isConnected) textsIn(t, live, liveSeen);
+      });
+      var b = document.getElementById('oct-bubble');   /* 본 말풍선 (덮개: 바깥 기웃 말풍선이 실제로 지나갔는지) */
+      if (b && !b.hidden && b.textContent) { var k = b.textContent + (b.querySelector('img.ua-ico') ? ' [그림 ' + b.querySelector('img.ua-ico').getAttribute('src').split('/').pop().slice(0, 24) + ']' : ''); if (bubbles.indexOf(k) < 0) bubbles.push(k); }
+    }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+  }
+  window.__glyph = { scan: scan, scanBoth: scanBoth, live: live, bubbles: bubbles, bad: BAD };
+  if (document.documentElement) watch(); else document.addEventListener('DOMContentLoaded', watch);
+}
+async function scenarioGlyphs(browser) {
+  console.log('\n== U. 플레이어 화면 글자: 이모지 · 장식 기호 없음 (픽셀 아이콘이나 글자만)');
+  var O = 'http://ppolppol.example', DAY1 = '2026-11-03', DAY2 = '2026-11-04', SPEED = 0.4;
+  var WIKI_EMO = ' 머리 위 🎩 이야기.';   /* 위키 요약에 든 이모지 — 출처 글이라 그대로 보여야 한다 (data-raw 안) */
+  var NICK = '문어왕🐙';                  /* 랭킹 닉네임 — 다른 사람이 쓴 이름이라 그대로 (data-raw 안) */
+  var s = await newPage(browser, 'ok', [{ content: "window.__ppolTest = window.__ppolTest || { today: '" + DAY1 + "', forceKind: 'out' };" }, { content: '(' + glyphGuardInit.toString() + ')();' }]);
+  var page = s.page, found = [], states = 0;
+  await routeRepo(page, O);
+  await page.route('https://ko.wikipedia.org/**', function (route) {
+    var t = decodeURIComponent((route.request().url().match(/titles=([^&]+)/) || [])[1] || '모자'), body = JSON.parse(JSON.stringify(WIKI_OK));
+    body.query.pages['1'].title = t; body.query.pages['1'].extract = t + WIKI_EMO + ' 가짜 위키 응답이라 실제 내용이 아니다.';
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
+  });
+  await page.route(O + '/api/runner/**', function (route) {
+    var u = new URL(route.request().url()), p = u.pathname.replace(/^.*\/api\/runner\//, '');
+    var j = p === 'seed' ? { ok: true, token: 'tok', seed: 12345, night: false, week: '2026-W45' } : p === 'top' ? { ok: true, top: [{ rank: 1, nick: NICK, score: 321 }, { rank: 2, nick: '뚜루', score: 12 }] } : null;
+    return route.fulfill(j ? { status: 200, contentType: 'application/json', body: JSON.stringify(j) } : { status: 503, contentType: 'application/json', body: '{}' });
+  });
+  async function scan(label) {
+    states++;
+    var r = await page.evaluate(function () { return window.__glyph ? window.__glyph.scanBoth() : null; });
+    if (!r) { found.push({ label: label, kind: 'guard', at: '', chars: '', text: '검사기 없음' }); return; }
+    r.forEach(function (x) { x.label = label; if (!found.some(function (y) { return y.kind === x.kind && y.at === x.at && y.text === x.text; })) found.push(x); });
+  }
+  var liveAll = [], bubAll = [];   /* 문서 관찰자의 기록은 페이지를 옮기면 사라진다 → 옮기기 전에 모은다 */
+  async function collectLive() {
+    var r = await page.evaluate(function () { return window.__glyph ? { live: window.__glyph.live.slice(), bubbles: window.__glyph.bubbles.slice() } : { live: [], bubbles: [] }; });
+    liveAll = liveAll.concat(r.live); r.bubbles.forEach(function (b) { if (bubAll.indexOf(b) < 0) bubAll.push(b); });
+  }
+  async function walkAndScan(label) {   /* 끝까지 걷게 둔다 (바깥 기웃 말풍선 · 귀가 연출까지) — 잠깐 보인 것은 문서 관찰자가 본다 */
+    await page.click('#btn-go'); await page.waitForSelector('#btn-go.away', { timeout: 10000 });
+    for (var i = 0; i < 40; i++) { await page.waitForTimeout(700); if (i % 4 === 0) await scan(label + ' (나가 있는 중)'); if (!(await page.$('#btn-go.away'))) break; }
+    await skipAway(page).catch(function () {}); await waitIdle(page); await page.waitForTimeout(400);
+  }
+
+  /* 1. 입장 (?intro=1 — 자동화 브라우저는 기본 생략) → 이름 창 */
+  await page.goto(O + '/index.html?dev=0&intro=1&slow=' + SPEED);
+  await page.waitForSelector('#intro .intro-title', { timeout: 20000 }).catch(function () {});
+  await page.waitForTimeout(600);
+  await scan('입장');
+  await page.click('#intro .intro-title').catch(function () {});
+  await page.waitForSelector('#name-dialog[open]', { timeout: 20000 });
+  await page.waitForTimeout(300);
+  await scan('이름 창');
+  await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
+  await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  await page.waitForTimeout(500);
+  await scan('첫 인사');
+  /* 2. 말풍선 둘 · 설정 */
+  await page.click('#pips'); await page.waitForTimeout(250); await scan('등불 말풍선');
+  await page.click('#brain-tag'); await page.waitForTimeout(250); await scan('데모 말풍선');
+  await page.click('#brain-tag'); await page.waitForTimeout(100);
+  await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]'); await scan('설정');
+  await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  /* 3. 외출 (데모 두뇌, 위키 읽음) · 집에 있는 날 (쪽지) */
+  await walkAndScan('외출');
+  await page.waitForFunction(function () { return APP.oct.state === 'sleep'; }, null, { timeout: 8000 }).catch(function () {});
+  await scan('외출 뒤 (로그 · 잠)');
+  await page.evaluate(function () { window.__ppolTest.forceKind = 'home'; });
+  await walkAndScan('집에 있는 날');
+  await page.evaluate(function () { window.__ppolTest.forceKind = 'out'; });
+  /* 4. 모델(MCP) 차례: 모델이 쓴 말에 이모지 (그대로 보여야 한다) + 읽기 상태 다섯 가지 */
+  var M = { aside: '챙이 넓어 🎩', note: '안쪽 띠가 좋아 🧵', line: '모자 생각 🎩', raw: '두근 ✨', rline: '좋았어 😌', memo: '다음엔 바다 🐚' };
+  var evs = [{ type: 'depart', t: 0, hint: '' },
+    { type: 'peek', t: 1000, target: { kind: 'room', id: 'hat', title: '모자' }, status: 'builtin', ms: 3000, aside: M.aside, note: M.note },
+    { type: 'peek', t: 1500, target: { kind: 'url', url: 'https://example.org/x' }, status: 'simulated', ms: 0 },
+    { type: 'peek', t: 2000, target: { kind: 'room', id: 'shell', title: '조개' }, status: 'failed', ms: 1200 },
+    { type: 'peek', t: 2500, target: { kind: 'room', id: 'slow_room', title: '느린 글의 방' }, status: 'none', ms: 2000 },
+    { type: 'peek', t: 3000, target: { kind: 'room', id: 'rain', title: '비' }, status: 'read', ms: 2000 },
+    { type: 'return', t: 3500, reason: 'enough' }, { type: 'remember', t: 3700, stopIdx: 0, sticker: 'hat', line: M.line }, { type: 'hang_poster', t: 4000 },
+    { type: 'wrap_up', t: 4500, reaction: M.raw, line: M.rline, note: { text: M.memo, about: { kind: 'node', id: 'shell' } }, model: 'claude-test' }];
+  must(await page.evaluate(function (e) { return APP.importEvents(e); }, evs), '모델 이벤트 재생 시작');
+  for (var k = 0; k < 40; k++) { await page.waitForTimeout(700); if (k % 4 === 0) await scan('모델 차례 (나가 있는 중)'); if (!(await page.$('#btn-go.away'))) break; }
+  await skipAway(page).catch(function () {}); await waitIdle(page); await page.waitForTimeout(400);
+  await scan('모델 차례 뒤');
+  var mt = await page.evaluate(function (M) {
+    var raws = [].map.call(document.querySelectorAll('[data-raw]'), function (e) { return e.textContent + '|' + (e.getAttribute('title') || ''); }).join('\n');
+    var t = APP.state.trips[APP.state.trips.length - 1];
+    var all = {}; APP.state.trips.forEach(function (x) { (x.receipt && x.receipt.stops || []).forEach(function (q) { all[q.status] = 1; }); });
+    return { by: t.by, st: Object.keys(all), shown: Object.keys(M).filter(function (k) { return raws.indexOf(M[k]) >= 0 || raws.indexOf(M[k].slice(0, 6)) >= 0; }) };
+  }, M);
+  console.log('   model:', JSON.stringify(mt));
+  ok(mt.by === 'mcp' && ['read', 'builtin', 'simulated', 'failed', 'none'].every(function (x) { return mt.st.indexOf(x) >= 0; }), '로그에 읽기 상태 다섯 가지 (읽음 · 책장 · 모의 · 못 읽음 · 앉아만 — ' + mt.st.join(',') + ')');
+  ok(['aside', 'note', 'raw', 'rline'].every(function (k) { return mt.shown.indexOf(k) >= 0; }), '모델이 쓴 말(이모지 포함)은 고치지 않고 그대로 보임 — data-raw 칸 (' + mt.shown.join(',') + ')');
+  /* 5. 포스터: 앞면 · 열람 기록 · 일기 — 카드마다 (외출 · 쪽지 · 모델) · 복사 토스트 */
+  await openAlbum(page); await scan('앨범 전체');
+  var nCards = await page.evaluate(function () { return document.querySelectorAll('#album .pcard').length; });
+  for (var c = 0; c < nCards; c++) {
+    await page.click('#album .pcard >> nth=' + c); await page.waitForSelector('#poster-dialog[open]'); await page.waitForTimeout(300);
+    await scan('포스터 ' + (c + 1) + ' 앞면');
+    await page.click('#pd-flip'); await page.waitForTimeout(600); await scan('포스터 ' + (c + 1) + ' 일기');
+    if (c === 0) { await page.click('#pd-copy'); await page.waitForTimeout(250); await scan('복사 토스트'); }
+    await closePoster(page, true);
+  }
+  for (var f of ['poster', 'note', 'all']) { await page.click('#album-sheet .fchip[data-f="' + f + '"]'); await page.waitForTimeout(150); await scan('앨범 ' + f); }
+  await closeAlbum(page);
+  /* 6. 다음 날: 앨범 › 일기 (날 머리 · 펼치기) */
+  await page.evaluate(function (d) { window.__ppolTest.today = d; APP.state.trips.forEach(function (t) { if (t.endedAt) t.endedAt -= 180000; }); document.dispatchEvent(new Event('visibilitychange')); }, DAY2);
+  await page.waitForTimeout(300);
+  await scan('다음 날 (어제 메모)');
+  await openAlbum(page);
+  await page.click('#album-sheet .fchip[data-f="diary"]'); await page.waitForTimeout(200);
+  await scan('앨범 일기 (펼침)');
+  await page.click('#album-diary details.dday summary'); await page.waitForTimeout(150); await scan('앨범 일기 (접힘)');
+  await closeAlbum(page);
+  /* 7. 놀이방 문 → 달리기: 준비 · 달리는 중 · 끝(랭킹 · 닉네임) */
+  await page.click('#btn-door'); await page.waitForSelector('#runner-dlg[open]'); await page.waitForTimeout(500);
+  await scan('달리기 준비');
+  await page.focus('#rn-cv'); await page.keyboard.press(' '); await page.waitForTimeout(300);
+  await scan('달리기 중');
+  await page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: 15000 });
+  await page.waitForTimeout(900);
+  var top = await page.evaluate(function () { var n = document.querySelector('#rn-top10 .rn-top-nick'); return n ? { text: n.textContent, raw: !!n.closest('[data-raw]') } : null; });
+  await scan('달리기 끝 (랭킹)');
+  ok(top && top.text === NICK && top.raw, '랭킹 닉네임(다른 사람이 쓴 이름)은 그대로 · data-raw (' + JSON.stringify(top) + ')');
+  await page.click('#rn-stop'); await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
+  /* 8. 2D 장면: 기념품 그림이 안 오면 · 기념품을 누르면 (말풍선 + 일기) */
+  var tid = await page.evaluate(function () { var t = APP.state.trips.filter(function (x) { return x.kind === 'out' && x.status === 'done'; })[0]; APP.state.room.souvenirs.push({ id: 'shell', tripId: t.id }); APP.save(); return t.id; });
+  await page.route(O + '/assets/souvenirs/**', function (route) { return route.fulfill({ status: 404, body: '' }); });
+  await page.waitForTimeout(600);
+  await collectLive();
+  await page.goto(O + '/index.html?dev=0&scene=2d&slow=' + SPEED);
+  await page.waitForFunction(function () { return window.APP && APP.sceneMode === '2d' && document.querySelector('#souvenir-row button'); }, null, { timeout: 15000 });
+  await page.waitForTimeout(800);
+  await scan('2D 장면 (기념품 그림 실패)');
+  await page.evaluate(function () { document.querySelector('#souvenir-row button').click(); });   /* 2D 무대에선 문어(#oct)가 선반 위에 겹칠 수 있다 */
+  await page.waitForSelector('#poster-dialog[open]'); await page.waitForTimeout(300);
+  await scan('2D 기념품 누름');
+  await page.click('#pd-close');
+
+  await collectLive();
+  var bubs = bubAll;
+  console.log('   본 말풍선: ' + JSON.stringify(bubs));
+  ok(bubs.some(function (b) { return /^(찾았다!|처음 와 봤어!|음…|읽음|책장 메모)/.test(b) && /\[그림/.test(b); }) && bubs.some(function (b) { return /이거 가져온 날 \[그림/.test(b); }),
+    '바깥 기웃 말풍선 · 기념품 말풍선: 말 뒤에 픽셀 그림 (이모지 대신)');
+  var live = liveAll;
+  live.forEach(function (x) { x.label = '잠깐 보인 글자'; if (!found.some(function (y) { return y.at === x.at && y.text === x.text; })) found.push(x); });
+  console.log('   상태 ' + states + '곳 × 테마 둘 · 잠깐 보인 글자 검사 ' + live.length + '건');
+  found.forEach(function (x) { console.log('   ✗ [' + x.label + '] ' + (x.theme || '') + ' ' + x.kind + ' ' + x.at + ' «' + x.chars + '» ' + x.text); });
+  ok(!found.length, '플레이어 화면 어디에도 이모지 · 장식 기호 없음 (상태 ' + states + '곳 · 픽셀/시스템 테마)' + (found.length ? ' — ' + found.length + '건' : ''));
+  reportErrors(s.bag, 'U');
+  await s.ctx.close();
+}
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
@@ -1694,7 +1908,7 @@ async function scenarioWave7(browser) {
       ['H', function () { return scenarioDay2(browser); }], ['I', function () { return scenarioCeremony(browser).then(function () { return scenarioCeremonyIntro(browser); }); }],
       ['W', function () { return scenarioWake(browser); }], ['V', function () { return scenarioDevPanel(browser); }], ['P', function () { return scenarioPlayer(browser); }],
       ['L', function () { return scenarioAlbumIcon(browser); }], ['N', function () { return scenarioNotes(browser); }], ['M', function () { return scenarioReactions(browser); }],
-      ['R', function () { return scenarioRunner(); }], ['S', function () { return scenarioWave7(browser); }]];
+      ['R', function () { return scenarioRunner(); }], ['S', function () { return scenarioWave7(browser); }], ['U', function () { return scenarioGlyphs(browser); }]];
     for (var sc of all) if (!only.length || only.indexOf(sc[0]) >= 0) await sc[1]();
   } catch (e) {
     fails++; console.error('\nCRASH: ' + (e && e.stack || e));

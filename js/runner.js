@@ -268,8 +268,9 @@ var RUNNER = (function () {
     ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
     hud = el('p', { class: 'rn-hud', 'aria-hidden': 'true' }, [el('span', { id: 'rn-score', text: '0' }), el('span', { class: 'rn-hud-best', id: 'rn-best', text: '' }), el('span', { class: 'rn-hud-moss', id: 'rn-moss', text: '' })]);
     msg = el('p', { class: 'rn-msg', id: 'rn-msg', 'aria-live': 'polite' });
-    btnJ = el('button', { type: 'button', class: 'btn rn-pad rn-jump', id: 'rn-jump', tabindex: '-1', 'aria-label': '점프 (꾹 누르면 더 높이)' }, [el('span', { class: 'rn-arrow', 'aria-hidden': 'true', text: '▲' }), ' 점프']);
-    btnD = el('button', { type: 'button', class: 'btn rn-pad rn-duck', id: 'rn-duck', tabindex: '-1', 'aria-label': '숙이기' }, [el('span', { class: 'rn-arrow', 'aria-hidden': 'true', text: '▼' }), ' 숙이기']);
+    /* 버튼은 글자만 (예전 ▲ ▼ 기호는 뺐다 — 주인 11-07). 누르는 곳은 runner.css .rn-pad (120px) */
+    btnJ = el('button', { type: 'button', class: 'btn rn-pad rn-jump', id: 'rn-jump', tabindex: '-1', 'aria-label': '점프 (꾹 누르면 더 높이)' }, ['점프']);
+    btnD = el('button', { type: 'button', class: 'btn rn-pad rn-duck', id: 'rn-duck', tabindex: '-1', 'aria-label': '숙이기' }, ['숙이기']);
     ctrls = el('div', { class: 'rn-ctrls', id: 'rn-ctrls' }, [btnJ, btnD]);
     finalEl = el('p', { class: 'rn-final', id: 'rn-final' }); var scoreEl = el('p', { class: 'rn-final-score', id: 'rn-final-score' }); bestEl = el('p', { class: 'rn-final-best', id: 'rn-final-best' });
     btnAgain = el('button', { type: 'button', class: 'btn primary pressable', id: 'rn-again', text: '또 할래?' });
@@ -397,7 +398,7 @@ var RUNNER = (function () {
     var ol = document.getElementById('rn-top10'); if (!ol) return;
     while (ol.firstChild) ol.removeChild(ol.firstChild);
     (rows || []).slice(0, 10).forEach(function (r) {
-      var li = el('li', { class: r.rank === myRank ? 'rn-me' : '' }, [el('span', { class: 'rn-top-rank', text: String(r.rank) }), el('span', { class: 'rn-top-nick', text: String(r.nick || '') }), el('span', { class: 'rn-top-score', text: String(r.score | 0) })]);
+      var li = el('li', { class: r.rank === myRank ? 'rn-me' : '' }, [el('span', { class: 'rn-top-rank', text: String(r.rank) }), el('span', { class: 'rn-top-nick', 'data-raw': 'player', text: String(r.nick || '') }), el('span', { class: 'rn-top-score', text: String(r.score | 0) })]);
       ol.appendChild(li);
     });
     ol.hidden = !ol.firstChild;
