@@ -1,0 +1,870 @@
+[
+ {
+  "id": "theme_day_clear",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_day_clear.ogg",
+   "m4a": "bgm/theme_day_clear.m4a"
+  },
+  "duration": 205.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -3.3
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 204.5
+  },
+  "title": "뽈뽈 돌림노래 — 낮 9~17시 · 맑음",
+  "trigger": "집 화면 BGM. 시간대=day, 날씨=clear",
+  "character": "기본형. 펄스 리드 + 25% 돌림 성부 + 게임보이 피리, 통통 베이스, 셋이 구간에만 작은 틱",
+  "time": "day",
+  "weather": "clear",
+  "key": "F major",
+  "bpm": 80,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 3.0,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_day_drizzle",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_day_drizzle.ogg",
+   "m4a": "bgm/theme_day_drizzle.m4a"
+  },
+  "duration": 205.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -4.1
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 204.5
+  },
+  "title": "뽈뽈 돌림노래 — 낮 9~17시 · 가는 비",
+  "trigger": "집 화면 BGM. 시간대=day, 날씨=drizzle",
+  "character": "낮 + 물방울 반주, 타악 절반, 필터 살짝 — 비가 잦아드는 날",
+  "time": "day",
+  "weather": "drizzle",
+  "key": "F major",
+  "bpm": 80,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 3.0,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_day_rain",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_day_rain.ogg",
+   "m4a": "bgm/theme_day_rain.m4a"
+  },
+  "duration": 219.1,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -4.0
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 218.1
+  },
+  "title": "뽈뽈 돌림노래 — 낮 9~17시 · 비",
+  "trigger": "집 화면 BGM. 시간대=day, 날씨=rain",
+  "character": "비 오는 낮(등불 0~5칸의 기본 날씨). 느리게·얇게·먹먹하게, 북 없음 — 빗소리가 주인공",
+  "time": "day",
+  "weather": "rain",
+  "key": "F major",
+  "bpm": 75,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 3.2,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_dawn_clear",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_dawn_clear.ogg",
+   "m4a": "bgm/theme_dawn_clear.m4a"
+  },
+  "duration": 228.1667,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -5.3
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 227.166667
+  },
+  "title": "뽈뽈 돌림노래 — 새벽 6~9시 · 맑음",
+  "trigger": "집 화면 BGM. 시간대=dawn, 날씨=clear",
+  "character": "창틈으로 들어오는 첫 빛. 부드러운 펄스와 오카리나, 오르골 반주, 북 없음",
+  "time": "dawn",
+  "weather": "clear",
+  "key": "F major",
+  "bpm": 72,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 3.333333,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_dawn_drizzle",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_dawn_drizzle.ogg",
+   "m4a": "bgm/theme_dawn_drizzle.m4a"
+  },
+  "duration": 228.1667,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -6.1
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 227.166667
+  },
+  "title": "뽈뽈 돌림노래 — 새벽 6~9시 · 가는 비",
+  "trigger": "집 화면 BGM. 시간대=dawn, 날씨=drizzle",
+  "character": "새벽 + 처마 물방울 반주, 필터 살짝",
+  "time": "dawn",
+  "weather": "drizzle",
+  "key": "F major",
+  "bpm": 72,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 3.333333,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_dawn_rain",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_dawn_rain.ogg",
+   "m4a": "bgm/theme_dawn_rain.m4a"
+  },
+  "duration": 256.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -5.8
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 255.5
+  },
+  "title": "뽈뽈 돌림노래 — 새벽 6~9시 · 비",
+  "trigger": "집 화면 BGM. 시간대=dawn, 날씨=rain",
+  "character": "새벽, 비. 한 단계 느리게, 얇은 리드, 듬성듬성한 빗방울 반주, 먹먹하게",
+  "time": "dawn",
+  "weather": "rain",
+  "key": "F major",
+  "bpm": 64,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 3.75,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_dusk_clear",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_dusk_clear.ogg",
+   "m4a": "bgm/theme_dusk_clear.m4a"
+  },
+  "duration": 219.1,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -4.4
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 218.1
+  },
+  "title": "뽈뽈 돌림노래 — 노을 17~19시 · 맑음",
+  "trigger": "집 화면 BGM. 시간대=dusk, 날씨=clear",
+  "character": "금빛으로 하루를 접는 노래. 피리 리드, 현 같은 웨이브, 살짝 스윙, 브러시",
+  "time": "dusk",
+  "weather": "clear",
+  "key": "F major",
+  "bpm": 75,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 3.2,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_dusk_drizzle",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_dusk_drizzle.ogg",
+   "m4a": "bgm/theme_dusk_drizzle.m4a"
+  },
+  "duration": 219.1,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -4.3
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 218.1
+  },
+  "title": "뽈뽈 돌림노래 — 노을 17~19시 · 가는 비",
+  "trigger": "집 화면 BGM. 시간대=dusk, 날씨=drizzle",
+  "character": "노을 + 물방울 반주",
+  "time": "dusk",
+  "weather": "drizzle",
+  "key": "F major",
+  "bpm": 75,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 3.2,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_dusk_rain",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_dusk_rain.ogg",
+   "m4a": "bgm/theme_dusk_rain.m4a"
+  },
+  "duration": 228.1667,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -4.5
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 227.166667
+  },
+  "title": "뽈뽈 돌림노래 — 노을 17~19시 · 비",
+  "trigger": "집 화면 BGM. 시간대=dusk, 날씨=rain",
+  "character": "노을, 비",
+  "time": "dusk",
+  "weather": "rain",
+  "key": "F major",
+  "bpm": 72,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 3.333333,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_night_clear",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_night_clear.ogg",
+   "m4a": "bgm/theme_night_clear.m4a"
+  },
+  "duration": 256.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -2.2
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 255.5
+  },
+  "title": "뽈뽈 돌림노래 — 밤 19~6시 · 맑음",
+  "trigger": "집 화면 BGM. 시간대=night, 날씨=clear",
+  "character": "자장가 옷. 오르골 리드, 오카리나, 종, 64 BPM",
+  "time": "night",
+  "weather": "clear",
+  "key": "F major",
+  "bpm": 64,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 3.75,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_night_drizzle",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_night_drizzle.ogg",
+   "m4a": "bgm/theme_night_drizzle.m4a"
+  },
+  "duration": 256.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -2.3
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 255.5
+  },
+  "title": "뽈뽈 돌림노래 — 밤 19~6시 · 가는 비",
+  "trigger": "집 화면 BGM. 시간대=night, 날씨=drizzle",
+  "character": "밤 + 물방울 반주",
+  "time": "night",
+  "weather": "drizzle",
+  "key": "F major",
+  "bpm": 64,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 3.75,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_night_rain",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_night_rain.ogg",
+   "m4a": "bgm/theme_night_rain.m4a"
+  },
+  "duration": 273.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -2.9
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 272.5
+  },
+  "title": "뽈뽈 돌림노래 — 밤 19~6시 · 비",
+  "trigger": "집 화면 BGM. 시간대=night, 날씨=rain",
+  "character": "비 오는 밤의 자장가. 60 BPM",
+  "time": "night",
+  "weather": "rain",
+  "key": "F major",
+  "bpm": 60,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 4.0,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_snow_day",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_snow_day.ogg",
+   "m4a": "bgm/theme_snow_day.m4a"
+  },
+  "duration": 219.1,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -2.9
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 218.1
+  },
+  "title": "뽈뽈 돌림노래 — 낮 9~17시 · 눈",
+  "trigger": "집 화면 BGM. 시간대=day, 날씨=snow (1~2월 눈)",
+  "character": "눈 오는 날(1~2월). 오르골 + 종, 한 단계 느리게, 잔향 조금 더",
+  "time": "day",
+  "weather": "snow",
+  "key": "F major",
+  "bpm": 75,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 3.2,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ },
+ {
+  "id": "theme_snow_night",
+  "kind": "bgm",
+  "files": {
+   "ogg": "bgm/theme_snow_night.ogg",
+   "m4a": "bgm/theme_snow_night.m4a"
+  },
+  "duration": 273.5,
+  "level": {
+   "rel_db": 0.0,
+   "target": -20.0,
+   "measured": -20.0,
+   "unit": "LUFS",
+   "peak_dbfs": -2.9
+  },
+  "loop": {
+   "start": 0.5,
+   "end": 272.5
+  },
+  "title": "뽈뽈 돌림노래 — 밤 19~6시 · 눈",
+  "trigger": "집 화면 BGM. 시간대=night, 날씨=snow (1~2월 눈)",
+  "character": "눈 오는 밤. 오르골 + 종, 60 BPM",
+  "time": "night",
+  "weather": "snow",
+  "key": "F major",
+  "bpm": 60,
+  "meter": "4/4",
+  "bars": 68,
+  "bar_sec": 4.0,
+  "phrase_bars": 4,
+  "sections": {
+   "solo": [
+    1,
+    16
+   ],
+   "duo": [
+    17,
+    32
+   ],
+   "trio": [
+    33,
+    48
+   ],
+   "drain": [
+    49,
+    56
+   ],
+   "bridge": [
+    57,
+    64
+   ],
+   "tail": [
+    65,
+    68
+   ]
+  },
+  "progression": "| F C/E | Dm Am/C | Bb F/A | Bb C | (캐논 진행), 브리지: 로열로드",
+  "rest_after_sec": [
+   20,
+   90
+  ]
+ }
+]

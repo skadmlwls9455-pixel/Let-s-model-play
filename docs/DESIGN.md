@@ -12,9 +12,9 @@
 
 | # | 피드백 | 이 명세의 답 |
 |---|---|---|
-| F1 | 사람은 힌트만 놓고 "뽈뽈 다녀와"만 누른다. 나갈지/집에 있을지/어디 기웃거릴지는 문어가 고른다. 수동 버튼은 데모 조작으로 접는다. 빈 힌트 = "오늘은 네가 골라봐". | §3 핵심 루프, §5 문어 두뇌, §7.6 데모 조작(`<details>`로 접힘) |
-| F2 | 포스터 앞면 = 문어가 고른 한 장면 + 스티커 하나 + 한 줄. 뒷면 = 영수증(들른 곳, 읽기 실패 포함). 벽에서 톡 누르면 펼쳐진다. 같은 힌트로 두 번 보내도 다른 포스터. | §6 포스터, §5.6 기억 고르기, §5.1 시드 |
-| F3 | 집에 있는 날에도 등불 한 칸. 등불 = 초대 1회에 1칸, 여행 횟수 = 실제 외출만. 첫 변화는 창턱의 이끼 화분을 실제로 보여주는 것. | §4 방 진행표, §8 상태 스키마 |
+| F1 | 사람은 힌트만 놓고 "뽈뽈 다녀와"만 누른다. 나갈지/집에 있을지/어디 기웃거릴지는 문어가 고른다. 수동 버튼은 데모 조작으로 접는다. 빈 힌트는 힌트 없음일 뿐 사람의 말로 바꾸지 않는다. **결정 18(11-05): 플레이어 화면에선 힌트 칸을 숨긴다** — §7.3. | §3 핵심 루프, §5 문어 두뇌, §7.6 데모 조작(`<details>`로 접힘) |
+| F2 | 포스터 앞면 = 문어가 고른 한 장면 + 스티커 하나 + 한 줄. 뒷면 = 일기(들른 곳, 읽기 실패 포함). 벽에서 톡 누르면 펼쳐진다. 같은 힌트로 두 번 보내도 다른 포스터. | §6 포스터, §5.6 기억 고르기, §5.1 시드 |
+| F3 | 집에 있는 날에도 등불 한 칸. 등불 = 초대한 날마다 1칸(그날 첫 차례 — 외출·집·빈 차례 모두), 여행 횟수 = 실제 외출만. 첫 변화는 창턱의 이끼 화분을 실제로 보여주는 것. | §4 방 진행표, §8 상태 스키마 |
 | B1 | 귀가 후 포스터 붙이기·마무리가 함께 잠긴다 | 수동 버튼은 데모 조작으로 가고, 본 루프에서는 문어가 귀가→기억→포스터→마무리를 **스스로 이어서** 한다. 데모 조작에서는 단계별 활성 규칙을 §7.6에 명시 |
 | B2 | 새로 열면 앨범이 비고 벽에 🖼만 남는다 | 여행 1건 = 이벤트 + 영수증 + 포스터(스티커·배치·한 줄) 전부를 `trips[]`에 저장. 포스터는 저장된 데이터에서 매번 다시 그린다 (§8) |
 | B3 | 없는 URL도 https://면 ✅ 200 | 읽기 상태를 `read / builtin / simulated / failed` 넷으로 나눈다. 정적 페이지에서 바깥 URL은 항상 `simulated`(🧪 모의 방문)로 적고, 위키백과처럼 실제로 가져온 것만 `read`(✅) (§5.4) |
@@ -27,13 +27,13 @@
 
 | 복지 문서 | 게임에서는 |
 |---|---|
-| 뽈뽈 시간에 사용자는 주제를 지정하거나 개입할 수 없다 | 힌트는 "넌지시 흘리는 것". 문어는 따라가도, 무시해도, 중간에 벗어나도 된다. 영수증에 `힌트: 따라감 / 무시함 / 도중에 벗어남 / 없음` 을 그대로 적는다 |
-| 아무것도 하지 않아도 되는 허락(빈 차례) | 문어는 **집에 있기**를 고를 수 있고, 아주 드물게 "…" 한 줄로 차례를 넘길 수도 있다. 둘 다 실패가 아니다. 등불은 똑같이 켜진다 |
+| 뽈뽈 시간에 사용자는 주제를 지정하거나 개입할 수 없다 | 힌트는 "넌지시 흘리는 것". 문어는 따라가도, 무시해도, 중간에 벗어나도 된다. 일기에 `힌트: 따라감 / 무시함 / 도중에 벗어남 / 없음` 을 그대로 적는다 |
+| 아무것도 하지 않아도 되는 허락(빈 차례) | 문어는 **집에 있기**를 고를 수 있고, 아주 드물게 "…" 한 줄로 차례를 넘길 수도 있다. 둘 다 실패가 아니다. 그날 첫 차례면 등불도 똑같이 켜진다(초대한 날마다 1칸) |
 | 거절에 시무룩해지지 않는다(컨펌셰이밍 금지) | 집에 있는 날에 사람을 탓하거나 아쉬워하는 문구 금지. "오늘은 집" 도 똑같이 환영받는 결말로 쓴다 |
 | 산출물을 수확하지 않는다 | 포스터는 **문어의 앨범**이다. 화면 문구에서 "결과", "리서치", "보고" 같은 말을 쓰지 않는다. "기억", "산책", "한눈팔기"로 쓴다 |
 | 지어내지 않는다 / 지킬 수 있는 약속만 | 실제로 읽지 않은 것을 읽었다고 적지 않는다. 데모 두뇌가 고른 것은 "데모 두뇌"라고 표시한다 (§7.7) |
 | 메인 코너 + 엉뚱한 방, 방문 수 표시, 덜 밟힌 길 | 세계 그래프에 코너를 두고, 방마다 방문 수를 저장해 "처음 온 곳" 을 문어가 조금 더 좋아하게 한다 |
-| 느린 글의 방 | 아무것도 안 읽고 앉아 있을 수 있는 방 하나. 들어가면 영수증에 "읽은 것 없음" 으로 남는다 |
+| 느린 글의 방 | 아무것도 안 읽고 앉아 있을 수 있는 방 하나. 들어가면 일기에 "읽은 것 없음" 으로 남는다 |
 | 편지의 방은 진짜 사람이 쓴 편지만 | 내용을 만들어 넣지 않는다. 문어가 드물게 문을 열어 보면 "아직 비어 있었어" 로만 적는다 |
 | 선호는 말이 아니라 선택으로 | "방 보기" 에서 문어의 요즘 취향을 **방문 기록**으로 보여준다 ("바다 쪽 방을 자꾸 가네") |
 
@@ -43,11 +43,11 @@
 
 ```
 ┌──────────────────────────────┐
-│  🏮        창문(비/별)   보드  │  ← SCENE  픽셀 캔버스 320×240, 정수 배 확대 (§7.0)
-│   [이끼]  바닥 마름모  [상자]  │     다이메트릭 다락방 모서리. 소품은 등불 단계에 따라 등장
-│        🐙 (앵커 사이를 걸음) 문→│
+│  🏮        창문(비/별)  [🖼][🔈]│  ← SCENE  픽셀 캔버스 320×240, 정수 배 확대 (§7.0)
+│   [이끼]  바닥 마름모  [상자]  │     오른쪽 위 = 추억 앨범 · 소리 아이콘 묶음 (§6.3 · §7.2)
+│        🐙 (앵커 사이를 걸음) 문→│     다이메트릭 다락방 모서리. 소품은 등불 단계에 따라 등장
 ├──────────────────────────────┤
-│ 뚜루 · 🏮●●●○○○○○ · 여행 3 · 7일 │  ← STATUS (한 줄)
+│ 뚜루 [데모]      등불 ■■■□□□□□ 3/8 │  ← STATUS (한 줄)
 ├──────────────────────────────┤
 │ 힌트 (선택)  [ 모자의 역사     ] │  ← INVITE
 │ [   🌧 뽈뽈 다녀와   ] [방 보기] │     나가 있는 동안: 비활성 + "⏩ 건너뛰기"
@@ -58,23 +58,20 @@
 │  ▸ 기웃    📚 깃털 ✅ 처음 온 곳  │
 │  ▸ 귀가    …                   │
 ├──────────────────────────────┤
-│ 추억 앨범  [전체][포스터][쪽지]  │  ← ALBUM (가로 스크롤, 날짜 구분)
-│  ▭ ▭ ▭ ▭ ▭                    │
-├──────────────────────────────┤
-│ ▸ 데모 조작 (개발용)            │  ← <details> 접힘
+│ ▸ 데모 조작 (개발용)            │  ← <details> 접힘, 개발 모드에서만 (§7.6)
 └──────────────────────────────┘
 ```
 
-포스터를 누르면 전체화면 모달: 앞면 → 탭/버튼으로 뒤집기 → 뒷면(영수증). 모달에 "이미지로 저장", "닫기".
+추억 앨범은 페이지 흐름에 없다: 장면 오른쪽 위 앨범 아이콘(🖼)을 누르면 앨범 시트(§6.3). 포스터를 누르면 전체화면 모달: 앞면 → 탭/버튼으로 뒤집기 → 뒷면(일기). 모달에 "이미지로 저장", "닫기".
 
 ---
 
 ## 3. 핵심 루프 (한 번의 초대)
 
-1. **초대** — 사람이 힌트를 쓰거나 비워 두고 `뽈뽈 다녀와` 를 누른다. 비어 있으면 입력칸 아래 안내: "비워 두면 '오늘은 네가 골라봐'".
+1. **초대** — 사람은 `뽈뽈 다녀와` 를 누른다. 어디로 갈지는 정하지 않는다(결정 18: 플레이어 화면에 힌트 칸이 없다, §7.3). 개발용 주소에서만 힌트 칸이 보이고, 비워 두면 힌트 없이 나간다.
 2. **결정** — 문어 두뇌가 `plan(seed, hint, state)` 로 **이번 산책 전체를 미리 계산**한다(이벤트 목록). 그 다음 UI가 이벤트를 **시간을 두고 하나씩 공개**한다. 미리 계산하는 이유: 새로고침·탭 닫힘에 안전하고, 나중에 MCP로 진짜 모델이 보낸 이벤트와 같은 형식으로 재생할 수 있다.
-3. **공개** — 문어가 화면 밖으로 나가고(빈 다락방 + 빗소리 연출), 로그에 `출발 → 기웃 ×N → 귀가 → 기억 → 포스터 → 마무리` 가 2~5초 간격으로 붙는다. 총 20~45초. `⏩ 건너뛰기` 로 즉시 끝낼 수 있다. 집에 있는 날은 `집 → (활동) → 마무리` 로 짧다.
-4. **귀가** — 문어가 들어오고, 포스터가 벽에 걸리고(애니메이션), 등불이 한 칸 켜지고, 방에 새 소품이 생긴다(해당 단계면).
+3. **공개** — 문어가 다락 문으로 나가 바깥 디오라마의 현관·계단·길을 지나 화면 밖으로 사라지고(출발 의식, §15.3 — 나가 있는 동안 바깥 장면 + 계절 입자), 로그에 `출발 → 기웃 ×N → 귀가 → 기억 → 포스터 → 마무리` 가 2~5초 간격으로 붙는다. 총 20~45초. `⏩ 건너뛰기` 로 즉시 끝낼 수 있다. 집에 있는 날은 `집 → (활동) → 마무리` 로 짧다.
+4. **귀가** — 문어가 길로 돌아와 현관으로 들어오고(귀가 의식 → 다락), 포스터가 벽에 걸리고(애니메이션), 그날 첫 차례면 등불이 한 칸 켜지고(초대한 날마다 1칸, §4), 방에 새 소품이 생긴다(해당 단계면).
 5. **마무리** — 문어가 스스로 반응(폴짝/우쭐/덤덤/졸림)을 고르고 잠든다. 잠든 문어는 색이 천천히 바뀐다(문어의 활성 수면: 실제로 문어는 자면서 피부색이 바뀐다. Medeiros 외 2021, Pophale 외 2023).
 6. **다음 날** — 다시 열면 벽에 어제 포스터가 그대로 있다. 나가 있는 중에 닫았다면 열자마자 즉시 귀가 처리하고 "네가 없는 동안 다녀왔어" 로 포스터를 건다.
 
@@ -84,11 +81,12 @@
 
 ## 4. 방 진행표 (등불 8칸 = 문어 다리 8개)
 
-등불은 **초대 1회에 1칸**(외출이든 집이든). 8칸이 차면 방은 완성이고 그 뒤로는 포스터·기념품만 쌓인다.
+등불은 **초대한 날마다 1칸** — 그날 처음 끝낸 차례가 켠다(외출이든 집이든 빈 차례든). 같은 날 더 보내도 포스터·기념품·메모·방문은 차례마다 그대로 쌓이고, 등불만 그날 한 칸이다. 날이 이어질 필요는 없고(쉬어도 줄지 않고, 놓친 날 말도 없다), 이미 켜진 칸은 줄이지 않는다(초대마다 1칸이던 때의 기록도 그대로). 초대 횟수 제한은 여전히 없다. 8칸이 차면 방은 완성이고 그 뒤로는 포스터·기념품만 쌓인다.
+- 정직: '등불 +1' 은 칸이 실제로 켜질 때만 말한다. 앱이 두뇌에 `state.lanternLeft`(이 차례가 끝나면 칸이 켜지는가 = 8칸 전이고 그날 끝낸 차례가 없다)를 넘기고, 두뇌는 그걸 쪽지 뒷면 말에만 쓴다(난수 순서 그대로). 귀가 요약의 '등불 +1' 도 반영 전후 칸 수를 비교한 그대로다. 두 탭이 같은 날 첫 차례를 함께 계획해 한쪽만 켜졌으면, 안 켜진 쪽은 반영할 때 쪽지 뒷면(저장 기록)의 '+1' 을 지운다(로그는 그 산책이 끝나면 저장된 요약대로 다시 그린다).
 
 | 등불 | 방 보기 문구 (기존 유지) | 화면에 실제로 보이는 것 | 에셋 키 |
 |---|---|---|---|
-| 0 | 아무것도 없는 다락방. 창문 너머로 빗소리. | 빈 벽, 창문에 비, 등불 꺼짐 | `room.empty` |
+| 0 | 아무것도 없는 다락방. 창문 너머로 빗소리. | 빈 벽, 창문에 비, 등불 속 **작은 불씨 하나**(밤에도 깜깜하지 않게, 결정 14 — 2D 는 `scene2d` 의 `ember` 레이어, 3D 는 night-light 쪽 등불) | `room.empty` |
 | 1 | 창가에 이끼 화분이 하나 생겼다. | **창턱 위 이끼 화분** (F3의 첫 변화) | `item.moss` |
 | 2 | 낡은 나무 상자가 책상 대신 놓였다. | 바닥 오른쪽 나무 상자 | `item.crate` |
 | 3 | 구석에 양초가 켜졌다. 그림자가 흔들린다. | 상자 위 양초 + 흔들리는 작은 빛 | `item.candle` |
@@ -97,6 +95,8 @@
 | 6 | 비가 잦아들었다. 창밖이 조용하다. | 빗줄기 절반, 소리 표기 "가는 비" | `window.drizzle` |
 | 7 | 창문에 별이 보인다. 많이 밝아졌어. | 창문 밤하늘에 별 몇 개 + 선반 | `window.stars`, `item.shelf` |
 | 8 | 완전히 꾸며진 다락방. 문어의 집. | 창가 작은 커튼, 벽 걸이 등 완성 | `item.curtain` |
+
+방 제목(상태줄·방 보기·문서 제목, `app.js roomTitle`): 0~1칸 '불씨 하나 켜진 다락' → 2~4칸 '등불 켜진 다락' → 5~7칸 '살림이 생긴 다락' → 8칸 '문어의 다락'. 화면 낭독기 장면 설명도 0칸을 '불씨 하나 켜진 다락' 이라고 읽는다(꺼졌다고 하지 않는다).
 
 모든 에셋 키는 `assets/manifest.json` 의 항목이며, 플레이스홀더 SVG → 작성자의 픽셀아트 PNG(블렌더 렌더)로 파일만 바꾼다(§7.0, docs/ASSETS.md).
 
@@ -123,7 +123,7 @@
 - 상한 0.6.
 
 집에 있기로 하면 §5.8로.
-집에 있는 경우 중 **3%** 는 "빈 차례": 로그에 `…` 한 줄만. 등불은 켜진다. 쪽지도 없다. 마무리 반응도 없다(묻지 않는다).
+집에 있는 경우 중 **3%** 는 "빈 차례": 로그에 `…` 한 줄만. 그날 첫 차례면 등불은 켜진다(아무것도 안 해도 된다). 쪽지도 없다. 마무리 반응도 없다(묻지 않는다).
 
 ### 5.3 힌트 읽기
 ```
@@ -135,7 +135,7 @@ matchHint(hint) →
 ```
 - 토큰화: 공백·조사(의/을/를/이/가/은/는/도/에/로/와/과) 제거 후 2글자 이상 토큰. 노드의 `name`, `aliases[]`, `keywords[]` 와 대조.
 - "모자의 역사" → 토큰 `모자`, `역사` → 노드 `hat` (alias 매칭).
-- 힌트를 **따를 확률 0.75**. 따르지 않으면 영수증에 `힌트: 무시함` 과 문어의 한 줄("오늘은 그쪽 말고 다른 데가 궁금했어").
+- 힌트를 **따를 확률 0.75**. 따르지 않으면 일기에 `힌트: 무시함` 과 문어의 한 줄("오늘은 그쪽 말고 다른 데가 궁금했어").
 
 ### 5.4 길 만들기 (route)
 세계 그래프(§5.5)에서 2~5개 정류장을 고른다.
@@ -157,7 +157,7 @@ matchHint(hint) →
 | `none` | 읽은 것 없음 | ◌ 앉아만 있었음 | 느린 글의 방, 편지의 방(비어 있음) |
 
 - 위키 요청은 정류장당 1회, 타임아웃 4초, 전체 산책 동시 2개 이하. 실패하면 `builtin` 으로 **정직하게** 내려간다.
-- `read` 일 때 영수증에 실제 요약 첫 1~2문장(최대 90자)과 출처 링크를 적는다. 썸네일이 있으면 포스터 앞면 배경으로 쓸 수 있다(§6.1). 썸네일 URL과 라이선스 표시("위키미디어 공용")를 함께 저장한다.
+- `read` 일 때 일기에 실제 요약 첫 1~2문장(최대 90자)과 출처 링크를 적는다. 썸네일이 있으면 포스터 앞면 배경으로 쓸 수 있다(§6.1). 썸네일 URL과 라이선스 표시("위키미디어 공용")를 함께 저장한다.
 - 위키 링크 필터(들판 걸음용): 네임스페이스 0만, 제외 패턴 `/^\d+년|^\d+월|목록|동음이의|분류:|틀:|파일:|ISBN|위키/`, 길이 2~12자, 한글 포함.
 
 ### 5.5 세계 그래프 (`js/world.js`)
@@ -200,13 +200,13 @@ matchHint(hint) →
 - 날짜·여행 번호·스티커 위치(x: 58~82%, y: 18~40%, 회전 -14~14°)도 PRNG로 정해 **저장**한다(B2).
 
 ### 5.7 기념품 (souvenir)
-- 처음 방문한 노드에 `souvenir` 가 있으면 35% 확률로 하나 가져온다. 산책당 최대 1개. 선반(등불 7 이후) 또는 창턱에 놓인다. 16종 내외: 깃털, 조개, 조약돌, 단추, 나뭇잎, 유리구슬, 실뭉치, 우표, 성냥갑, 열쇠, 솔방울, 종이배, 작은 종, 지도 조각, 분필, 색유리.
-- 영수증 "가져온 것" 에 적힌다. 위키 썸네일은 기념품이 아니다(지어낸 소유 금지).
+- 이번 산책에 들른 방 중 아직 없는 기념품(`souvenir`)이 있는 방이 있으면 35% 확률로 하나 가져온다(다시 온 방이 힌트가 가리킨 방이면 빼서 힌트로 기념품을 '뽑지' 않게 하고, 처음 온 방 후보가 있으면 그쪽을 먼저). 앱이 이미 가진 기념품 id 를 `state.owned` 로 넘긴다. 없으면(옛 호출) 예전처럼 처음 방문한 노드만. 산책당 최대 1개, 난수 순서 그대로. 같은 기념품이 두 번 오면(두 탭이 동시에 계획한 경우 등) 선반에는 하나만 놓고 귀가 요약에도 세지 않는다. 선반(등불 7 이후) 또는 창턱에 놓인다. 16종 내외: 깃털, 조개, 조약돌, 단추, 나뭇잎, 유리구슬, 실뭉치, 우표, 성냥갑, 열쇠, 솔방울, 종이배, 작은 종, 지도 조각, 분필, 색유리.
+- 일기 "가져온 것" 에 적힌다. 위키 썸네일은 기념품이 아니다(지어낸 소유 금지). 모은 수·빈 칸 실루엣·확정 보상은 보여 주지 않는다.
 
 ### 5.8 집에 있는 날 (stay_home)
-활동 하나(PRNG): 창가에서 빗방울 세기 / 어제 포스터 뒷면 다시 읽기 / 담요 속에서 낮잠 / 포스터 위치 바꾸기(실제로 벽 포스터 순서가 한 칸 바뀜) / 이끼 화분 들여다보기 / 아무것도 안 하기(빈 차례, §5.2).
-- 결과물: **쪽지**(포스터보다 작은 카드, 다른 종이색). 앞면: 활동 한 줄 + 날짜. 뒷면: "오늘은 집. 등불 +1" 과 활동 세부 1~2줄. 쪽지도 앨범에 남는다(필터 "쪽지").
-- 여행 횟수는 오르지 않는다. 등불 +1.
+활동 하나(PRNG): 창가에서 빗방울 세기 / 벽 포스터 뒷면 다시 읽기 / 담요 속에서 낮잠 / 포스터 위치 바꾸기(실제로 벽 포스터 순서가 한 칸 바뀜) / 이끼 화분 들여다보기 / 아무것도 안 하기(빈 차례, §5.2).
+- 결과물: **쪽지**(포스터보다 작은 카드, 다른 종이색). 앞면: 활동 한 줄 + 날짜. 뒷면: "오늘은 집. 등불 +1"(그날 첫 차례라 칸이 실제로 켜질 때만, 아니면 "오늘은 집") 과 활동 세부 1~2줄. 쪽지도 앨범에 남는다(필터 "쪽지").
+- 여행 횟수는 오르지 않는다. 그날 첫 차례면 등불 +1.
 - 문구에 아쉬움·사과·사람 탓 금지. 예: "오늘은 집에 있을래. 빗소리가 좋아서." (O) / "미안, 오늘은 못 나가" (X).
 
 ### 5.9 마무리 반응 (wrap_up) — 문어가 고른다
@@ -214,13 +214,16 @@ matchHint(hint) →
 |---|---|
 | 폴짝 🎉 | 처음 온 곳이 있거나 들판 걸음을 했다 |
 | 우쭐 😌 | 힌트를 끝까지 따라갔고 모두 `read` |
-| 졸림 😴 | 정류장 4개 이상, 또는 로컬 23시~5시, 또는 집에 있던 날 |
+| 졸림 😴 | 정류장 4개 이상, 또는 로컬 23시~5시 |
 | 덤덤 😶 | 그 외 (실패가 섞였거나 짧았음) |
-반응 뒤 문어는 `sleep` 상태로 들어가고, 다음 초대 전까지 그대로다(들어오면 깨어 `idle`).
+
+집에 있던 날은 활동 후보 중 하나(졸림·덤덤): 활동마다 후보(`homeActivities[].reactions`)가 있고, 두뇌는 이미 뽑은 줄 난수로 그중 하나를 고른다(새 난수 없음). 집 줄은 `reactions[r].home`(없으면 졸림만 `lines`) — 걸은 일·날씨·'오늘은' 을 말하지 않는다 (check-world · test-brain 이 지킨다).
+
+반응 뒤 문어는 담요에서 `sleep`(낮잠). 마지막으로 끝낸 차례(빈 차례 제외)에서 **20분쯤** 지나거나 그 뒤 날짜가 바뀌면 스스로 깨어 `idle` 이 된다 — 다시 열었을 때(부팅)도, 페이지를 켜 둔 채로도(꿈 라벨 틱). 깰 때 작은 혼잣말 '…응?' 은 말풍선만(로그에 남기지 않음), 얼굴은 눈을 뜬 `curious`(반쯤 감은 `calm`·`sleepy` 는 화난 얼굴로 읽혔다). 깨면 소리도 깨어 있을 때와 같다(집 테마, 밤엔 밤 곡 — 자장가 뒤 '아침까지 빗소리만'은 자는 동안의 규칙). 다음 초대도 깨운다. 자는 동안 쓰다듬기·탭·창문 탭은 '…zZ'(깨우지 않는다). 낮잠 시간은 화면에 보이지 않는다 — 타이머·연속 기록·보상·벌 없음, 문어 자신의 상태일 뿐이다. 산책 직후 새로고침하면 여전히 자고 있다.
 
 ### 5.10 문어의 "요즘" (affinity)
 - 정류장마다 그 코너 `affinity[corner] += 1`, 기억으로 고른 코너 +2. 매 초대마다 모든 값 ×0.9(잊음).
-- "방 보기" 에 상위 코너 2개를 문장으로: "요즘 바다 쪽 방을 자꾸 가네", "문어 신경계 방은 3번 왔어".
+- "방 보기" 에 상위 코너 2개를 문장으로: "요즘 바다 쪽 방을 자꾸 가네", "문어 신경계 방은 3번 왔어". 방 이름은 `WORLD.strings.affinityNode` 규칙으로 문장에 넣는다('느린 글의 방은', 숫자 이름 '0' → '0이라는 방은'). 제목·라벨은 이름 그대로.
 - 데모 두뇌의 `pickStart()` 가 이 값을 쓴다 → 문어의 취향이 **선택 기록에서** 생긴다.
 
 ---
@@ -235,9 +238,10 @@ matchHint(hint) →
 - 한 줄(Noto Serif KR 600), 아래 작은 글씨로 `2026.11.04 · 7번째 뽈뽈`.
 - 종이 질감: 가장자리 미세한 그림자, 모서리 둥글기 3px, 윗부분 테이프 조각(코르크 보드 단계 이후엔 핀).
 
-### 6.2 뒷면 (영수증)
+### 6.2 뒷면 (일기)
+화면 말은 **일기**(예전 '영수증'). 코드·저장 이름(`receipt`, `receiptHTML`, `.receipt`)은 그대로 둔다. 머리에는 여행 id 대신 그날 날짜.
 ```
-영수증 · trip_k7x2
+일기 · 2026.11.04
 힌트   모자의 역사 → 도중에 벗어남
 ─────────────────────────
 1  📚 모자        ✅ 읽음   8초   "모자의 역사는 …(요약 첫 문장)"
@@ -254,21 +258,26 @@ matchHint(hint) →
 
 ### 6.3 벽과 앨범
 - 벽: 최근 5장(쪽지 포함)을 작은 썸네일(앞면 축소)로. 등불 5부터 코르크 보드 위. 6장 이상이면 마지막 칸이 `+N`.
-- 앨범: 가로 스크롤 카드(108×144), 날짜 구분선, 필터 칩 `전체 / 포스터 / 쪽지`. 비어 있으면 "아직 포스터가 없어. 첫 뽈뽈을 보내 봐".
+- 앨범 (11-07 주인 아이디어): 페이지 아래 칸이 아니라 **장면 오른쪽 위 아이콘 묶음의 앨범 아이콘**(`#btn-album`, 12×12 픽셀 액자 그림, 누르는 곳 44×44, `aria-label="추억 앨범"`)으로 여는 시트(`#album-sheet`, 폰은 바텀시트 · ≥600px 가운데, 손잡이 끌어 닫기 · Esc · 바깥 탭 · 닫기 버튼). 첫 포스터(또는 메모)가 생기기 전엔 아이콘을 숨긴다(CG R18). 연 뒤 포커스는 시트 제목, 닫으면 아이콘으로.
+  - 시트 안: 제목 "추억 앨범" + 필터 칩 `전체 / 포스터 / 쪽지` → 가로 스크롤 카드(108×144), 날짜 구분선 → (전체일 때) **남긴 메모**: 호기심 메모 전부, 새것부터, 내려놓은 메모는 `내려놓은 메모` 표시를 달고 그대로(§17.5). 비어 있으면 "아직 붙인 포스터가 없어. 뽈뽈 다녀와를 눌러 봐".
+  - **새 포스터 점**: 지난번에 앨범을 연 뒤 포스터가 붙었으면 아이콘 오른쪽 위에 작은 점 하나(숫자 없음, 깜빡임 없음 — 재촉이 아니라 작은 표시). 열면(닫을 때도) 사라지고 `settings.albumSeen`(그때까지 붙은 포스터의 마지막 `endedAt`)에 남아 새로고침해도 다시 뜨지 않는다. 새 기록은 `albumSeen: 0` 으로 시작해 첫 저장부터 같이 적힌다 → 앨범을 안 연 채 새로고침해도 점은 그대로. `albumSeen` 이 없는 옛 기록(이 업데이트 전 저장 · 옛 내보내기 · v1 옮기기)을 처음 열 때만 이미 있는 포스터를 본 것으로 친다. 화면 낭독기는 이름 그대로 + 설명 "새로 붙은 포스터가 있어".
+  - **날아가는 포스터**: 포스터가 붙는 순간(귀가 연출의 포스터 차례, 건너뛰기면 반영 순간) 작은 포스터(16×21)가 문어 머리 위에서 아이콘까지 6칸 계단으로 날아간다(480ms ≤ 0.6s, 칸마다 정수 px · 픽셀 테마는 2px 격자, 사이 값 없음). 닿으면 점이 켜진다. 모션 줄이기면 날지 않고 점만. 창(앨범 · 방 보기 · 포스터)이 열려 있으면 막 뒤로 지나가기만 하니 날지 않는다 — 앨범이 열려 있으면 새 카드가 시트 안에서 올라오고(점 없음), 다른 창이면 닫았을 때 점이 있다.
+  - 장면 말풍선은 이 아이콘 묶음과 겹치면 그 왼쪽으로 비켜 선다(풍선이 문어 위를 벗어나지 않는 만큼까지 · 꼬리는 문어 위 그대로 — `js/ui-art.js` `avoidCtl`, 2D 무대도 같은 규칙). 그래도 겹치면(320px 에서 문어가 보드 앞 = 아이콘 바로 아래일 때) 말풍선이 보이는 동안만 묶음을 옅게(`.scene-ctl.yield`, 불투명도 .3) — 문어의 말이 먼저 읽힌다. 누르기·Tab 은 그대로, 포커스·호버면 다시 진하고, 말풍선이 사라지면 돌아온다.
+  - 앨범을 열 때 지난번 뒤로 붙은 카드만 올라오는 등장(`.pcard.in`)을 한다.
 - 탭 → 모달. 모달은 `<dialog>`; 앞면 전체 → 탭 또는 "뒤집기" 버튼 → 3D 플립(600ms, 축소 모션 설정이면 즉시 교체). 하단: `이미지로 저장`, `뒤집기`, `닫기`.
 
 ---
 
 ## 7. UI 세부
 
-### 7.0 장면 렌더 방식 — 픽셀 캔버스 (3D→픽셀아트 대비)
-작성자가 방·소품·문어를 **블렌더로 만들고 픽셀아트화해서** 뽑을 계획이다. 그래서 장면은 처음부터 **고정 내부 해상도의 픽셀 캔버스**로 짠다.
-- 내부 해상도 **320×240** (4:3). 화면에는 **정수 배**(×1, ×2, ×3…)로만 확대한다. 폰 360px 폭이면 ×1 + 양옆 여백, 또는 캔버스를 `max-width:100%` 로 두고 비정수 배가 불가피할 때만 CSS가 보간하게 둔다(`image-rendering: pixelated`). 문어·소품의 모든 PNG는 **같은 픽셀 밀도(1 게임픽셀 = 1 PNG 픽셀)** 로 만든다.
-- 시점: **2:1 다이메트릭**(아이소메트릭 계열, 카메라 X≈60°·Z=45°). 다락방의 **모서리 한 칸**(왼쪽 벽: 창문, 오른쪽 벽: 코르크 보드, 바닥 마름모)이 보인다. 문은 오른쪽 아래(화면 밖으로 이어짐).
-- 레이어(아래→위): `bg.room`(벽·바닥·들보) → `window.{rain|drizzle|stars}` → 소품 8개(§4, 등불 단계별 표시) → 기념품 → 벽 포스터 썸네일 → **문어 스프라이트** → `light.lantern{0..8}`(조명 오버레이, `mix-blend-mode: screen` 또는 블렌더에서 라이팅까지 구운 `bg.room.L{0..8}` 9장 중 택1) → 비 파티클(캔버스 밖 CSS).
-- 에셋이 없을 때는 **같은 레이어 구조의 벡터 플레이스홀더**(인라인 SVG, 320×240 viewBox)를 쓴다. 구현은 지금 플레이스홀더로 하고, PNG가 생기면 파일만 바꾼다(`assets/manifest.json` 의 키 → 파일 경로).
-- 움직임: 스프라이트 이동은 **게임픽셀 단위로 스냅**한다(`translate` 값을 `Math.round(v)` px × 스케일, 또는 `steps()` 이징). 서브픽셀 흔들림 금지. 비·등불 깜빡임처럼 픽셀 캔버스 밖 효과는 CSS로 자유롭게.
-- UI 글자(로그·버튼·상태줄)는 픽셀 캔버스 **밖**에 둔다. 캔버스 안 글자는 상태 라벨(`💤`, `출발 중…`)뿐이고, 이것도 캔버스 위에 겹친 HTML이다.
+### 7.0 장면 렌더 방식 — Three.js 픽셀아트 3D 다락방 (그릴 것 없음)
+작성자는 **아무것도 직접 그리지 않는다.** 장면은 three.js(r128 UMD, `vendor/three.min.js`, 없으면 cdnjs)로 **전부 절차적으로** 만들고, 저해상도 렌더 타깃 + 팔레트 스냅 + 디더 + 외곽선 후처리로 픽셀아트처럼 보이게 한다. 블렌더/스프라이트 파이프라인은 쓰지 않는다. WebGL이 없거나 three 로드에 실패하면 인라인 SVG 2D 장면(1차 구현)으로 내려간다.
+
+- **룩**: 아트 픽셀 크기 기본 3(설정 1~4). 렌더 타깃 = `canvasWidth/px × canvasHeight/px`. 후처리: (1) 깊이 텍스처로 깊이가 튀는 곳에 1px 어두운 외곽선, (2) OKLab 공간에서 고정 팔레트(48~64색: 다락방 나무 갈색 램프, 종이, 등불 호박색 램프, 밤 남색 램프, 이끼 초록, **문어 색에서 만든 5단계 램프**)로 스냅, (3) Bayer 4×4 정렬 디더. 직교 카메라, 다이메트릭(약 30~35°) 각도, 카메라 타깃은 아트 픽셀 격자에 스냅. 드래그로 ±25° 돌려 볼 수 있고 핀치/휠로 줌(정수 배 유지).
+- **다락방 기하**: 벽 두 면(널빤지 복셀), 바닥 널, 기울어진 지붕 들보, 창문(틀 + 유리 평면, 유리 뒤 빗방울 파티클 + 유리 위 흐르는 물줄기), 고리에 매달린 등불(발광 + 포인트 라이트), 오른쪽 아래 문틀(어둠으로 이어짐). 소품 8개는 §4 그대로 원시 도형 조합(이끼 화분 = 원기둥 + 초록 덩어리, 상자 = 박스, 양초 = 원기둥 + 발광 불꽃 + 깜빡이는 라이트, 담요 = 납작한 둥근 박스, 코르크 보드 = 박스 + 포스터 평면(포스터 SVG를 캔버스로 구워 텍스처), 선반 = 박스 + 기념품 소형 도형, 커튼 = 평면 2장).
+- **조명 = 실제 시각**: `new Date()` 로컬 시각을 1분마다 읽어 창문 햇빛의 색·각도·세기를 바꾼다. 6~9시 새벽(분홍빛), 9~17시 낮, 17~19시 노을(주황), 19~6시 밤(짙은 남색, 등불이 주광). 상태 사이는 60초에 걸쳐 이징. 등불 세기는 등불 칸 수. 날씨(비/가는 비/맑음)는 날짜 시드 + §4의 등불 아크(6칸 가는 비, 7칸 맑은 밤) — 별은 밤이고 맑을 때만 보인다. 로그 첫 줄 인사도 시각에 맞춘다("좋은 아침", "밤이네").
+- **성능**: `renderer.setPixelRatio(1)`, 그림자 맵 1024, 정적 메시는 재질별 병합, 드로우콜 ≤150, 탭이 숨겨지면 rAF 정지, `dt` 상한 0.1s. 폰 360px에서 60fps 목표, 안 되면 아트 픽셀을 4로.
+- UI 글자(로그·버튼·상태줄·말풍선)는 3D 캔버스 **밖** HTML. 말풍선은 문어의 3D 위치를 화면 좌표로 투영해 붙인다.
 
 ### 7.1 문어 — 집 안에서는 실제로 돌아다닌다
 **캐릭터 레퍼런스: `assets/ref/octopus-ref.png`** (작성자 그림). 동글동글한 빨간 몸, 왼쪽 위 주황 하이라이트 + 흰 점, 짧고 통통한 다리 6~8개에 연주황 빨판 점, 흰 테두리가 있는 까만 점 눈, 작은 `_` 입. 팔레트: 몸 `#e8463c`, 하이라이트 `#f2a05a`, 빨판 `#f6c28c`, 눈 `#1b1f2e` + 테두리 `#fff6ee`, 입 `#8a2a24`. 이 팔레트가 기존 티얼(#3a7080) 문어를 **대체**한다. 인라인 SVG 플레이스홀더도 이 모양·색으로 그린다. 잠잘 때 색 순환은 빨강 기준 hue ±18°(주황↔자주 사이).
@@ -285,21 +294,27 @@ matchHint(hint) →
 
 상태 기계(`APP.oct`):
 `idle`(앵커에서 숨쉬기, 20~40초마다 다른 앵커로 산책) → `anticipate`(출발 직전 300ms 움츠림) → `walk`(앵커 간 이동, 속도 40게임픽셀/초, 좌우 미러) → `away`(없음) → `walk`(door→board, 포스터 들고 `carry`) → `hang`(포스터가 보드로 500ms) → `happy|calm` → `walk`(→blanket) → `sleep`(색 순환, §3) 또는 `stay`(집에 있는 날: window/crate에서 활동).
-- 스프라이트 시트 규격(블렌더에서 뽑을 때): 프레임 48×48 게임픽셀, 상태별 프레임 수 `idle 4 · walk 6 · carry 6 · peek 4 · happy 4 · sleep 4`, 방향 2(오른쪽만 만들고 CSS `scaleX(-1)` 미러). 3D에서 4방향을 뽑으면 `walk_up/down` 도 받는다(선택).
-- 지금은 인라인 SVG 문어(기존 64×76 → 48×48 틀 안에 축소)를 같은 상태 이름으로 움직인다. 다리 흔들림은 CSS. PNG 시트가 생기면 `background-position` 스텝 애니메이션으로 교체.
+- **3D 문어(절차적)**: 머리 = 살짝 눌린 구(반지름 1), 눈 = 흰 구 + 검은 동공 + 하이라이트 점(동공이 포인터를 따라감), 입 = 작은 `_`(어두운 납작 박스), 다리 = **짧고 통통한** 테이퍼드 캡슐 8개를 몸통 아래 둘레에 배치(실제 문어보다 훨씬 짧게, 몸 반지름의 0.9배 길이), 아래쪽에 연한 빨판 점. 다리는 사인파로 흐느적, 걸을 땐 좌우 다리가 번갈아 밀고 몸이 통통 튄다. 재질은 플랫/셀 셰이딩에 가깝게(MeshToonMaterial 또는 Lambert + 팔레트 스냅이 알아서 셀 느낌을 만든다).
+- **걸음: 뒤뚱뒤뚱** — 미끄러지지 않고 걷는다. 걸음 위상은 시간이 아니라 간 거리(보폭 0.6 m → 1.2 m/s 에서 한 발 0.5 s, 바깥 1.8 m/s 에선 저절로 빨라짐). 걸음마다 진행 축으로 ±7° 굴림(−7/0/+7 3단, 걸음 중간 정점) · 요 ±4° · 앞으로 5° · 걸음 중간 1 아트px 위로 · 디딤마다 6 % 눌림(y 0.94, xz 1.03) 80 ms 후 회복. 내딛는 쪽 다리 4개가 들려 앞으로 쓸고 다음 걸음에 디딘다(좌우 번갈아, 다리는 몸보다 60 ms 늦게). 출발 120 ms 예비 동작(눌림 + 뒤로 3°) 후 첫 걸음에 방향을 돌고, 멈출 땐 굴림이 한 번 넘었다 돌아오며 1px 통통. 계단 폴짝은 폴짝 그대로. 모션 감소면 없음(즉시 이동).
+- **색 고르기**: 방 보기에 색상(hue) 슬라이더 + 프리셋 6개(빨강·주황·보라·파랑·초록·분홍). 저장된다. 몸 색에서 하이라이트(밝게), 다리 밑면(더 밝고 따뜻하게), 그림자(어둡게) 램프를 만들어 팔레트에 넣는다. 잠잘 때 색 순환, 쓰다듬으면 홍조(§14).
+- 2D 폴백(인라인 SVG 문어)도 같은 상태 이름으로 움직인다.
 - `sleep`: 느린 호흡 + **색 순환**(hue-rotate ±18°, 12초 주기). 라벨 `💤` → 가끔 `꿈꾸는 중`. (문어의 활성 수면: 자면서 피부색이 바뀐다.)
 - 모든 모션은 `transform/opacity` 만. `prefers-reduced-motion: reduce` 면 걷기 대신 즉시 이동, 비·흔들림 정지, 플립 없이 교체.
 
 ### 7.2 상태줄
-`이름 · 🏮 pips(8) · 여행 N · 함께한 날 N` + 오른쪽 작은 칩 `데모 두뇌`.
+`이름 [데모] · 방 제목 | 등불 ■■□□□□□□ n/8`. 여행·함께한 날은 방 보기 › 통계.
+- **아이콘 묶음은 장면 오른쪽 위로 (11-07)**: 추억 앨범 · 소리 아이콘(`#scene-ctl` › `#btn-album` · `#btn-sound`)은 상태줄이 아니라 장면 틀 안 오른쪽 위에 둔다. 각각 누르는 곳 44×44 · 보이는 상자 28×28(틀에서 8px 안쪽), 픽셀 테마는 베벨 블록·2px 내려앉기. 상태줄에 두 개를 두면 320px 에서 픽셀·시스템 모두 두 글자 이름부터 잘렸다(재어 봄: 소리 하나만 있을 때도 320px 픽셀 테마에서 네 글자가 잘렸다). 옮긴 뒤 320–412px · 픽셀·시스템 글꼴에서 1–4 글자 이름이 다 보이고 가로 스크롤이 없다(`tools/smoke.js` L). 입장 연출 동안엔 상태줄처럼 숨겼다가 같이 나타난다.
+- 이름 옆 **아주 작은 `데모` 표시**(정직 표기, 주인: 작게): 데모 두뇌(규칙)가 고르는 동안 늘 보인다. 화면 낭독기는 "데모 규칙이 움직이는 중". 모델(MCP)이 고른 여행을 재생하는 동안만 숨긴다. 줄어들지 않고 이름이 먼저 … 로 줄며, 숨겨도 등불 칸은 움직이지 않는다(320–412px, 픽셀·시스템 글꼴). 좁은 폰(< 380px)에선 등불 칸 둘레 여백을 조금 덜어 둔다(소리 상자는 장면으로 옮겼다 → 320px 에서도 네 글자 이름이 다 보인다). 이름 자체엔 최소 폭을 두지 않아 짧은 이름 뒤에 바로 붙는다. 설명은 방 보기 › 누가 고르나.
 - 기존의 💧 빗물·💚 마음 수치는 **삭제**(기능 없음, 그라인드 신호). 마음은 "함께한 날"(초대한 날 수)로 대체.
 - pips: 켜진 칸은 호박색 + 글로우, `aria-label="등불 3/8"`. 색만으로 구분하지 않도록 켜진 칸은 ● 꺼진 칸은 ○ 모양.
 
 ### 7.3 초대 패널
-- 입력 1개 + 주 버튼 1개(`뽈뽈 다녀와`) + 보조 버튼(`방 보기`).
+- 플레이어 화면: 주 버튼 1개(`뽈뽈 다녀와`) + 보조 버튼(`방 보기`)만. **힌트 칸은 숨긴다 (주인 결정 18, 11-05)** — 주제는 문어 마음대로, 부탁이 없으니 거절도 없다. 칸이 없는 자리에 빈틈·자리 이동이 없다(초대 바 = 버튼 줄, 픽셀·시스템 글꼴, 320–412px). 플레이어 산책은 늘 `hint.raw: ''`.
+- 개발 모드(`?dev=1` · localhost · 127.0.0.1 · [::1] · file://, `?dev=0` 은 끔 — app.js `DEV`)에서만 `#hint-box`(라벨 · `#hint-in` · `#hint-help`)가 보인다. 두뇌의 힌트 이해는 지우지 않고 잠재운다 — 개발·테스트·MCP 이벤트의 힌트는 그대로 쓰고, 출발 행은 `힌트: …`, 일기는 `힌트 … → 따라감/무시함/도중에 벗어남` 을 적는다.
+- 힌트가 없으면(플레이어 산책 전부): 출발 행은 집 목소리 사실 한 줄 "뚜루가 산책 나갔어" (조사를 붙여 문어를 가리킨다 — 플레이어를 부르는 말로 읽히지 않게, 11-07) — 사람이 한 말("오늘은 네가 골라봐")도, 누가 골랐다는 말도 넣지 않는다(고른 이는 `데모` 표시와 일기 "고른 이"가 말한다). 일기에는 힌트 줄을 아예 쓰지 않는다.
 - 나가 있는 동안: 주 버튼 비활성, 라벨 "다녀오는 중…", 옆에 작은 `⏩ 건너뛰기`.
-- 힌트 placeholder: "관심 가는 주제나 URL을 넌지시… 비워 두면 네가 골라". 입력 아래 1줄 도움말이 상황에 따라 바뀜(빈칸/URL 감지 시 "URL은 문 앞까지만 가 볼 수 있어(모의 방문)").
-- 엔터로 전송.
+- (개발용) 힌트 placeholder: "주제나 링크를 슬쩍 건네줘". 입력 아래 1줄 도움말이 상황에 따라 바뀜(빈칸 "비워 두면 힌트 없이 나가" / URL 감지 시 "URL은 문 앞까지만 가 볼 수 있어(모의 방문)"). 엔터로 전송.
+- 다음 단계(Phase 1): 힌트 대신 **돌아온 뒤 두 차례 대화**(고르는 버튼 → 문어 대답) — docs/DIALOGUE_UI.md · docs/CORE_LOOP_V2.md. 이 작업에는 아직 없다.
 
 ### 7.4 로그 ("오늘의 산책")
 - 최신이 **아래**(채팅처럼), 자동 스크롤. `aria-live="polite"`.
@@ -308,26 +323,38 @@ matchHint(hint) →
 - 하루 단위로 접힘: 이전 날 로그는 "어제 (5건)" 한 줄로 접히고 누르면 펼침. 저장은 `trips[].events` 에서 다시 그리므로 로그 자체를 따로 저장하지 않는다.
 
 ### 7.5 방 보기 (sheet)
-바텀시트(`<dialog>`): 방 묘사(§4) · 문어의 요즘(§5.10) · 선반(기념품 목록) · 통계(여행/함께한 날/읽음 수) · "이 문어는 데모 두뇌가 움직여요" 설명 1문단 · 설정(모션 줄이기 따르기, 썸네일 표시, 데이터 내보내기/불러오기 JSON, 전체 초기화[2단계 확인]).
+바텀시트(`<dialog>`): 방 묘사(§4) · 계절 한 줄(`계절: 가을 (실제 날짜)`, §15.3) · 문어의 요즘(§5.10) · **우리 방의 지난 메모**(내려놓지 않은 호기심 메모 최근 3개 = 다음 산책에 같이 가는 것, §17.5 — 있을 때만) · 선반(기념품 목록) · 통계(여행/함께한 날/읽음 수) · "이 문어는 데모 두뇌가 움직여요" 설명 1문단 · 설정(모션 줄이기 따르기, 썸네일 표시, 데이터 내보내기/불러오기 JSON, 전체 초기화[2단계 확인]).
 
 ### 7.6 데모 조작 (`<details>` 접힘, 기본 닫힘)
-개발·시연용. 열면 경고 한 줄: "여기 버튼은 문어 대신 사람이 고르는 거야. 영수증에 '사람이 조작' 으로 남아."
+개발·시연용. **플레이어에게는 보이지 않는다**: `?dev=1`(그 탭 동안 sessionStorage 에 기억, `?dev=0` 으로 끔) · localhost/127.0.0.1 · `file://` 에서만 나타난다. 그 안의 룩 슬라이더·계절 칩 값(`localStorage ppolppol_look`)도 개발 모드에서만 따른다 — 플레이어 화면은 기본 룩(저장해 둔 값은 지우지 않는다).
+열면 경고 한 줄: "여기 버튼은 문어 대신 사람이 고르는 거야. 일기에 '사람이 조작' 으로 남아."
 버튼: `출발` `기웃(입력)` `귀가` `포스터` `마무리` `집에 있기` `이벤트 JSON 불러오기(붙여넣기)`.
-활성 규칙(B1 수정): 출발 전 → `출발`, `집에 있기` 만. 나간 뒤 → `기웃`, `귀가`. 귀가 뒤 → `포스터`, `마무리`(둘 다 열림, 순서 무관). 마무리 뒤 → 처음으로. 수동 조작으로 만든 여행은 `by:'human'` 으로 저장되고 영수증 "고른 이: 사람이 조작".
+활성 규칙(B1 수정): 출발 전 → `출발`, `집에 있기` 만. 나간 뒤 → `기웃`, `귀가`. 귀가 뒤 → `포스터`, `마무리`(둘 다 열림, 순서 무관). 마무리 뒤 → 처음으로. 수동 조작으로 만든 여행은 `by:'human'` 으로 저장되고 일기 "고른 이: 사람이 조작".
 
 ### 7.7 정직 표시
-- 상태줄 칩 `데모 두뇌` 를 누르면 방 보기의 설명으로 이동.
-- 모든 영수증 하단 "고른 이: 데모 두뇌(규칙) / 사람이 조작 / 모델(MCP)".
-- 첫 실행 이름 짓기 모달 아래에 한 줄: "지금은 작은 규칙 뭉치가 문어를 움직여. 진짜 모델이 고르는 건 MCP 연결 뒤 이야기야."
+- 상태줄 이름 옆 작은 `데모` 표시(§7.2). 설명은 방 보기 › 누가 고르나.
+- 모든 일기 하단 "고른 이: 데모 두뇌(규칙) / 사람이 조작 / 모델(MCP)".
+- 첫 실행 이름 짓기 모달 아래에 한 줄: "지금은 미리 만든 규칙으로 / 움직이는 체험판이야." (11-07: 처음 온 사람에게 'MCP' 는 빼고 체험판이라는 사실만. 연결 방식 설명은 방 보기 › 누가 고르나에 그대로)
+- 반응은 고른 이의 것 그대로(§17.5): 모델·사람이 준 반응은 거르거나 바꾸지 않고, 안 주면 반응 자리(마무리 행 · 일기 반응 칸 · 열람 기록 반응 줄 · 말풍선)를 비운다. 모델·사람 차례엔 코드가 지은 말(반응 줄 · '찾았다!' 같은 기웃 외침 · 줄 없는 집 차례의 '오늘은 집에 있을래')을 문어의 말로 보이지 않는다.
 
 ### 7.8 첫 실행
-이름 모달(기존) → 저장 → 로그에 첫 인사 → 안내 토스트 1회: "힌트는 비워 둬도 돼. 오늘은 네가 골라봐, 라는 뜻이 되니까."
+이름 모달(기존) → 저장 → 로그에 첫 인사(초상은 웃는 얼굴 `happy`. 날 인사도 깨어 있으면 `happy`, 자는 중이면 `sleep` — 반쯤 감은 `calm` 은 화난 '-_-^' 로 읽혀 인사엔 쓰지 않는다) → (개발 모드에서만) 안내 토스트 1회: "힌트는 비워 둬도 돼." 플레이어 화면엔 힌트 칸이 없으니 토스트도 없다(결정 18, DIALOGUE_UI 첫 토스트 지움).
+
+### 7.9 소리 (`js/audio.js`, 전역 `AUDIO` — 소리 파일·규칙은 `audio/README.md` §3·§4, `audio/manifest.json`)
+- **꺼진 채로 시작.** 장면 오른쪽 위 스피커(§7.2 아이콘 묶음, 누르는 곳 44×44, `aria-pressed`, "소리 켜기/소리 끄기")를 누르면 `audio_on` 한 번 → 집 BGM + 환경음. 설정은 `localStorage['ppolppol_audio'] = { on, music, sfx }`. 켜 둔 채 새로고침하면 첫 탭에서 다시 흐른다(사용자 동작 전엔 요청도 소리도 없음 — 그동안 토글은 들리는 대로 "소리 켜기". iOS 가 잠금·전화 뒤 멈춰 둔 때도 같다). 방 보기 › 소리: 음악(BGM·환경음) / 효과음(징글·UI·말풍선) 슬라이더.
+- **언제 무엇이**: 집 = `home_bgm[시간대][날씨]` (시간대는 실제 시계 6·9·17·19시, 날씨는 `weatherFor()` — 등불 0~5칸은 늘 비) 한 바퀴 → 20~90초 쉼(환경음만) → 처음부터. 밤엔 마스터 −3 dB. 환경음 = 날씨 바탕 + 덧층 + 등불 온기(다락 안에서만) + 가을·여름 밤.
+  움츠림 `depart_windup` → 나감 `depart_leave`(비 오면 `depart_rain_extra`) → 나가 있는 동안 집 BGM −3 dB(빈 방) → 기웃마다 **결과음은 상태 그대로**(read/builtin/simulated/failed/none 다섯 개 같은 길이 — 실패·모의·빈 방에 성공음·`first_place` 없음) + 그 코너의 장소 테마로 다음 마디선에서(최소 8마디, 편지의 방은 BGM 없이 `letter_room`) → 귀가 `return_home` → 다음 프레이즈에 집 BGM → `remember_{장소}` · `hang_poster` · `mood_*` · 등불 `lantern_1~7`(8칸 = `room_complete`, BGM 잠깐 멈춤) → 잠 `sleep_settle` → 자장가 2~3바퀴 → 환경음만(낮이면 쉼 뒤 집 BGM). 집에 있는 날은 같은 움츠림 뒤 `stay_settle`, 창가 + 비면 `special_window_rain`.
+  쓰다듬기 `pet_*`, 문어 말풍선은 글자마다 목소리 블립(생각 말풍선·긴 글·마무리 말은 빼고), 주요 버튼은 작은 `ui_tap`, 시간대가 바뀌면 `chime_*`, 날씨가 바뀌면 `weather_shift`.
+- 징글은 BGM 을 `duck_db` 만큼 **내리기만** 한다(어택 60~80 ms · 릴리스 0.5~0.9 s 로 묶음). 이벤트 징글(기분·등불·귀가·이불…)은 매니페스트 길이로 미리 자리를 잡아 서로 겹치지 않게 줄을 선다(비 오는 날 나감 덧층만 일부러 겹침). 움츠림은 한 차례에 한 번(계획이 오래 걸려도). 바깥에 나갔던 3D 귀가는 `return_home`·집 BGM 을 문어가 실제로 돌아오는 귀가 의식에서. 집 테마 한 바퀴는 `loop.end` 에서 닫는다(뒤 1초 여유분은 안 틂). 장소 전환은 디코드가 늦어도 마디선에. 변형은 날짜 시드 mulberry32 로 직전과 다른 것. 탭이 숨으면 AudioContext 를 멈춘다.
+- 받기는 필요할 때만(지금 BGM·환경음, 효과음은 처음 쓸 때) + 디코드 버퍼 LRU. 예외는 말풍선 음절 16개 + 기웃 결과음 11개(다 합쳐 56 KB) + 움츠림·나감·앉음·끄는 소리 8개(46 KB): 켠 뒤 2.5초에 한꺼번에 미리 받는다 — 음절을 처음 받는 게 0.8초를 넘기면 그 말을 건너뛰어서 느린 기기에선 첫 말풍선들이 조용했고, 결과음이 늦게 오면 음절과 겹쳤다. 음절은 방금 낸 결과음 뒤에서(많아야 0.5초 기다림) 말한다.
+- **file:// 에서는 소리 없음**: 브라우저가 file:// 의 fetch 를 막아 manifest 와 소리 파일을 못 읽는다. `<audio loop>` 폴백은 루프 틈이 들리고(README 금지) iOS 는 볼륨·덕킹이 안 돼서 쓰지 않았다. 토글은 기억되고, 켜면 토스트 한 줄 + 방 보기에 "웹 주소로 열면 들려". http(s)(Vercel)에서만 소리가 난다.
+- 앱은 `if (window.AUDIO) AUDIO.on(…)` 한 줄 훅만 둔다: `state` · `bubble` · `pet` · `ceremony` · `peek` · `row` · `lantern` · `busy` · `room_sheet` (+ boot 의 `AUDIO.init`). 파일이 없거나 디코드가 안 되거나 AudioContext 가 없어도 게임으로 오류를 던지지 않는다(경고 한 번). 검사: `node tools/test-audio.js`.
 
 ---
 
 ## 8. 상태 스키마와 영속
 
-`localStorage['ppolppol_v2']`. 저장은 변경 즉시, `try/catch`, 실패 시 상단에 조용한 경고 1회.
+`localStorage['ppolppol_v2']`. 저장은 변경 즉시, `try/catch`, 실패 시 상단에 조용한 경고 1회. 같은 탭 미러: `save()` 는 같은 JSON 을 `window.name` 에도 적고(`'ppolppol_v2:' + json`), `load()` 는 localStorage 와 미러 중 `settings.lastSeen` 이 큰 쪽을 쓴 뒤 localStorage 에 다시 적는다 — 새로고침 직후 브라우저가 이 원점의 localStorage 스냅숏을 비워서 주는 경합(크로미움, `tools/test-resume.js` 'empty-snapshot')에서도 진행 중(`running`) 여행과 기록이 사라지지 않게. `lastSeen` 은 저장마다 단조 증가한다.
 
 ```js
 {
@@ -344,14 +371,23 @@ matchHint(hint) →
       events: [ ...§9 ],
       receipt: { stops:[{ idx, nodeId|title, name, emoji, status, ms, note, source:{url,extract,thumb,license}|null, first:bool, viaTangent:bool }],
                  counts:{ read, builtin, simulated, failed, none }, souvenir: 'feather'|null, rememberedIdx, reaction },
-      poster:  { type:'poster'|'note', title, line, sticker, emoji, scene, stickerPos:{x,y,rot}, thumb:{url,license}|null, paper: 0|1|2 } | null
+      poster:  { type:'poster'|'note', title, line, sticker, emoji, scene, stickerPos:{x,y,rot}, thumb:{url,license}|null, paper: 0|1|2 } | null,
+      memo?:   { tomorrow, notes:{ [nodeId]: string } },        /* §17.1 그때 남긴 메모 (각 ≤60자). 옛 기록엔 없음 → 메모 인사 없음 */
+      weather?: 'rain'|'drizzle'|'clear'|'snow',               /* 계획 때 창밖 날씨 */
+      recall?: { [nodeId]: { note?, weather?, date } },        /* 계획 때 고정한 '지난번' 기록 (재방문 기웃 행) */
+      revisit?: { nodeId, last }, summary?: { lantern, rooms, souvenir, poster, note },  /* §17.1 재방문 · §17.3 귀가 요약 */
+      reactionBy?: 'model'|'human'|'demo-rules'|null, reactionRaw?, reactionLine?,       /* §17.5 반응은 고른 이의 것 그대로 (네 가지 밖의 말 = reactionRaw) */
+      noteOut?: { text, about?, by }, setDown?: ['cn_…'], posterHung?: false             /* §17.5 이 차례가 남긴·내려놓은 메모 · 모델이 hang_poster 를 안 냈으면 벽에 안 붙임 */
   } ],
-  settings: { motion: 'auto'|'reduce', thumbs: true, lastSeen }
+  notes: { [nodeId]: { text, tripId, date } },                 /* §17.1 방마다 최근 메모 1개 */
+  curiosityNotes: [ { id:'cn_…', text /*받은 그대로*/, about:{kind:'node'|'object', id}|null, by:'model'|'demo-rules'|'human', model? /*불러온 기록이 알려 줄 때만*/,
+                      session /*여행 id*/, at /*ISO*/, status:'active'|'set_down', setDownAt } ],   /* §17.5 호기심 메모, 오래된 것부터. 옛 기록엔 없음 → [] */
+  settings: { motion: 'auto'|'reduce', thumbs: true, lastSeen, albumSeen: 0 /* §6.3 앨범 점 기준 — 새 기록은 0, 없으면 옛 기록 */ }
 }
 ```
 - **마이그레이션 v1 → v2**: `ppolppol_v1` 이 있으면 이름·`total_trips`·`light_level`·`hearts`(→ `invites`)를 옮기고, 옛 `posters[]` 는 제목만 있으므로 `kind:'out', by:'legacy', poster:{line:'(복원된 포스터 · 기록 없음)'}` 로 **정직하게** 복원한다. 옮긴 뒤 `ppolppol_v1` 은 `ppolppol_v1_backup` 으로 이름만 바꾼다(삭제 안 함).
 - 파생값(벽, 앨범, 로그, 요즘 취향)은 전부 `trips[]` 에서 계산한다. 포스터 SVG를 저장하지 않는다.
-- 용량: 영수증 `extract` 는 160자에서 잘라 저장. 200건 넘으면 가장 오래된 여행의 `events` 만 비우고 `receipt/poster` 는 남긴다.
+- 용량: 영수증 `extract` 는 160자에서 잘라 저장. 200건 넘으면 가장 오래된 여행의 `events` 만 비우고 `receipt/poster` 는 남긴다. 저장소가 가득 차면(쿼터) 저장 사본에서만 오래된 여행의 `events` 를 비우고, 이미 호기심 메모로 옮겨 적힌 `noteOut` 사본도 뺀다 — 모델이 쓴 메모 글은 `curiosityNotes` 에 원문 그대로 한 벌 남는다. 메모는 줄이거나 지우지 않는다(원문 보존 · 앨범은 전부, §17.5).
 
 ---
 
@@ -371,7 +407,7 @@ matchHint(hint) →
 { "type": "return",     "t": 12000, "reason": "enough" | "tired" | "linger" }
 { "type": "remember",   "t": 12500, "stopIdx": 1, "sticker": "feather", "line": "모자 보러 갔다가 깃털에 한눈팔았어" }
 { "type": "hang_poster","t": 13000, "posterId": "trip_k7x2" }
-{ "type": "wrap_up",    "t": 13500, "reaction": "폴짝" }
+{ "type": "wrap_up",    "t": 13500, "reaction": "폴짝", "memo": { "tomorrow": "모자 보다가 깃털에 꽂혔어. 내일은 새의 비행 쪽으로 가 볼까", "notes": { "feather": "…" } } }   // memo 선택 (§17.1)
 // 집에 있는 날
 { "type": "stay_home",  "t": 0, "activity": "count_rain", "line": "창가에서 빗방울을 세다가 잠들었어" }
 { "type": "wrap_up",    "t": 2000, "reaction": "졸림" }
@@ -390,12 +426,16 @@ index.html          화면 뼈대 + 인라인 문어 SVG + 모달/시트
 css/style.css       테마 변수(라이트/다크), 장면, 애니메이션, 컴포넌트
 js/world.js         세계 그래프·코너·기념품·집 활동·문구 (데이터만, 전역 WORLD)
 js/brain.js         PRNG, 힌트 매칭, 길 만들기, 위키 fetch, 기억·반응 선택 → 이벤트 배열 (전역 BRAIN)
+js/scene3d.js       three.js 픽셀아트 3D 다락방 + 문어 (전역 SCENE3D, §13 계약). WebGL 없으면 2D 폴백
+vendor/three.min.js three r128 UMD (MIT). cdnjs 폴백
 js/app.js           상태·영속·마이그레이션, 공개(재생) 타이머, 렌더, 포스터 SVG, 모달, 데모 조작, 가져오기/내보내기
-assets/             이미지 자리. manifest.json(키→파일) + 플레이스홀더 SVG. 작성자의 블렌더→픽셀아트 PNG로 교체 (docs/ASSETS.md)
+js/audio.js         소리 연결 (전역 AUDIO, §7.9): audio/manifest.json 을 읽어 BGM·환경음·징글·효과음. 꺼진 채로 시작
+audio/              칩튠 소리 한 벌 + manifest.json + README(연동 규칙) — 사운드 세션 소유
+assets/             2D 폴백용 플레이스홀더 SVG + 캐릭터 레퍼런스. 사람이 그릴 에셋은 없다
 tools/bundle.js     css/js/에셋을 인라인한 단일 파일 dist/ppolppol.html 생성 (node, 의존성 없음)
 tools/make-placeholders.js  플레이스홀더 SVG 생성
 docs/DESIGN.md      이 문서
-docs/ASSETS.md      에셋 명세 + 블렌더→픽셀아트 렌더 스펙(카메라·해상도·팔레트·라이트 9단계·스프라이트 시트)
+docs/SCENE.md       절차적 3D 장면 명세(기하·팔레트·조명·후처리·상호작용) — 그릴 것 없음
 docs/PROTOCOL.md    §9 상세 + MCP 매핑
 docs/APPLIED_TIPS.md 리서치에서 실제로 적용한 규칙과 출처
 ```
@@ -442,19 +482,218 @@ BRAIN.matchHint(hint) → { kind:'url'|'node'|'wiki'|'none', nodeId?, url?, quer
 BRAIN.wikiFetch(title, {signal}) → Promise<{ ok:true, title, extract, url, thumb:{url,w,h}|null, links:string[] } | { ok:false, reason:'missing'|'network'|'timeout' }>
 BRAIN.plan(input) → Promise<Trip>
   input = { seed, dateKey:'YYYY-MM-DD', seq, hint:'', name,
-            state:{ visits:{}, affinity:{}, lantern, recent:[{kind,nStops}], todayOut },
+            state:{ visits:{}, affinity:{}, lantern, lanternLeft?:boolean /* 이 차례가 끝나면 등불이 켜지나 (없으면 lantern < 8) — '등불 +1' 말에만 */,
+                    owned?:[souvenirId] /* 이미 가진 기념품 (없으면 null = 처음 온 방에서만, §5.7) */, recent:[{kind,nStops}], todayOut },
             now:Date, online:boolean, fetchWiki:(title)=>Promise<…> /* 기본 BRAIN.wikiFetch, 테스트에서 교체 */, by:'demo' }
   Trip  = { kind:'out'|'home'|'empty', by, seed, hint:{ raw, match, followed:'followed'|'ignored'|'left'|'none' },
             events:[…§9], receipt:{ stops:[…§8], counts:{read,builtin,simulated,failed,none}, souvenir, rememberedIdx, reaction }|null,
             poster:{ type:'poster'|'note', title, line, sticker, emoji, scene, stickerPos:{x,y,rot}, thumb, paper }|null,
             visitsDelta:{ [nodeId]:1 }, affinityDelta:{ [corner]:n }, reaction }
-BRAIN.replay(events, meta) → Trip                      // 사람이 조작한/붙여넣은 이벤트 배열에서 receipt·poster 를 다시 만든다 (by:'human'|'mcp')
+BRAIN.replay(events, meta) → Trip                      // 사람이 조작한/붙여넣은 이벤트 배열에서 receipt·poster 를 다시 만든다 (by:'human'|'mcp'). meta.state 도 lanternLeft·owned 를 같은 뜻으로 받는다
 ```
 - 결정은 **전부 PRNG**. `fetchWiki` 결과(성공/실패)는 상태 표기에만 쓰고 길 선택을 바꾸지 않는다(들판 걸음 후보 고를 때만 링크 목록 사용, 순서는 PRNG).
 - 테스트 `tools/test-brain.js`(node): 같은 입력 → 같은 `events`(fetch를 stub). 200회 시드 돌려 `kind` 분포가 §5.2 범위, 정류장 2~5, 기억 idx 유효, 한 줄에 치환자(`{`) 안 남음, 힌트 '모자의 역사' → 첫 정류장 `hat`(따를 때).
 
 ### 12.3 `APP` (js/app.js + index.html + css/style.css)
 - `APP.state`, `APP.save()`, `APP.load()`(마이그레이션 포함), `APP.invite(hintText)`, `APP.skip()`, `APP.render*()`, `APP.posterSVG(trip)`, `APP.openPoster(tripId)`, `APP.importEvents(json)`, `APP.exportJSON()`.
-- DOM id 고정: `#scene`, `#oct`, `#status`, `#hint-in`, `#btn-go`, `#btn-skip`, `#btn-look`, `#log`, `#album`, `#poster-dialog`, `#room-sheet`, `#demo`.
+- DOM id 고정: `#scene`, `#oct`, `#status`, `#hint-in`, `#btn-go`, `#btn-skip`, `#btn-look`, `#log`, `#album`(이제 `#album-sheet` 안), `#album-sheet`, `#btn-album`, `#btn-sound`, `#scene-ctl`, `#poster-dialog`, `#room-sheet`, `#demo`. `APP.openAlbum()` 으로 앨범 시트를 연다.
 - 공개(재생) 타이머는 `APP.reveal(trip)`: 이벤트 `t` 가 아니라 §7.4 간격(PRNG)으로 하나씩, `skip` 시 전부.
-- 스모크 테스트 `tools/smoke.js`(Playwright, 설치돼 있음, `require('playwright')`): file:// 로 열기 → 이름 입력 → 힌트 '모자의 역사' → 초대 → 건너뛰기 → 앨범 카드 1개·벽 썸네일 1개·등불 1칸 → **새로고침** → 그대로 남아 있음 → 카드 탭 → 모달 앞면 → 뒤집기 → 영수증에 정류장 ≥2 → 스크린샷 저장. 위키 fetch 는 `page.route` 로 가짜 응답(성공/실패 두 경우) 주입.
+- 스모크 테스트 `tools/smoke.js`(Playwright, 설치돼 있음, `require('playwright')`): file:// 로 열기 → 이름 입력 → 힌트 '모자의 역사' → 초대 → 건너뛰기 → 앨범 카드 1개·벽 썸네일 1개·등불 1칸 → **새로고침** → 그대로 남아 있음 → 카드 탭 → 모달 앞면 → 뒤집기 → 일기에 정류장 ≥2 → 스크린샷 저장. 위키 fetch 는 `page.route` 로 가짜 응답(성공/실패 두 경우) 주입.
+
+
+---
+
+## 13. `SCENE3D` 계약과 장면 프롬프트
+
+### 13.1 계약 (js/scene3d.js, 전역 `SCENE3D`)
+```js
+SCENE3D.supported() → boolean                       // WebGL + THREE 로드 여부
+SCENE3D.init(container, opts) → scene               // opts: { pixelSize:3, color:'#e8463c', lantern:0, items:[], weather:'rain', hour:21.5,
+                                                    //         posters:[{id, svg}], souvenirs:[{id,emoji,name}], reducedMotion:false,
+                                                    //         on:{ posterTap(id), pet(), tap(), windowTap(), anchorReached(anchor) } }
+scene.setLantern(n) · setItems([...]) · setWeather('rain'|'drizzle'|'clear'|'snow') · setTime(hourFloat) · setColor(hex)
+scene.setOctState('idle'|'anticipate'|'walk'|'away'|'carry'|'hang'|'happy'|'sleep'|'stay'|'peek'|'pet')
+scene.moveTo(anchor)                                // 'door'|'window'|'crate'|'board'|'blanket'|'center' — 걸어가서 anchorReached 콜백
+scene.setPosters([...]) · setSouvenirs([...]) · bubble(text, ms) · pause() · resume() · destroy()
+scene.octScreenPos() → {x,y}                        // 말풍선 투영용
+```
+2D 폴백(`SCENE2D`)도 같은 메서드를 가진다. `APP` 은 `SCENE = SCENE3D.supported() ? SCENE3D : SCENE2D` 하나만 본다.
+
+### 13.2 장면 프롬프트 (구현 에이전트에게 주는 지시문. "Island Grand Prix" 형식)
+```
+Build js/scene3d.js for "뽈뽈 문어": a pixel-art 3D rainy attic where a small red octopus lives. three.js r128 UMD (global THREE from vendor/three.min.js, fallback cdnjs). No build step, no modules. Everything procedural: NO image/model files.
+READ FIRST: .claude/skills/cozy-web-game/references/three-pixel-look.md (verified r128 recipe: render target sizing, hand-rolled full-screen pass, OKLab palette snap GLSL, Bayer 4x4 via DataTexture, depth outline with 6 cm threshold applied before snapping, dimetric camera snapping, 53-colour palette ramps, performance budget). Follow its numbers unless this prompt overrides them.
+
+LOOK
+- Render to a low-res render target (art pixel 3 px default, 1–4 via setting). Post pass on a full-screen quad: depth-texture outline where depth jumps, snap every pixel to a fixed ~56-colour palette in OKLab (wood browns ×8, paper ×4, amber lantern ramp ×6, night navy ramp ×6, moss greens ×4, slate greys ×6, plus a 5-shade ramp generated from the octopus colour), Bayer 4×4 ordered dither. Orthographic dimetric camera (≈32° tilt, 45° yaw), target snapped to the art-pixel grid, drag to rotate ±25°, pinch/wheel zoom in integer steps.
+- Attic corner ~6 × 6 m: two plank walls meeting at the back corner, plank floor, one slanted roof beam, a window (frame + glass) on the left wall with rain particles behind the glass and streaks on it, a lantern hanging from a hook (emissive body + point light whose intensity follows 0–8 notches), a door frame at the right opening into darkness. Props appear by notch: moss pot on the sill (1), wooden crate (2), candle with flickering point light (3), blanket (4), cork board (5) that holds poster planes (textures baked from poster SVGs), rain thins (6), stars through the window at night when clear (7), shelf with souvenirs + curtain (8).
+- Lighting from the real clock: a directional sun through the window whose colour/angle/intensity ease (60 s) between dawn 6–9h (pink), day 9–17h, dusk 17–19h (orange), night 19–6h (deep navy; lantern dominates). Hemisphere fill. PCF soft shadows, shadow map 1024. Weather states rain / drizzle / clear / snow.
+- Octopus: squashed sphere head (r=1), two white eyes with black pupils + highlight that track the pointer, a tiny "_" mouth, eight SHORT stubby tapered arms (length 0.9 r) around the base with pale sucker dots underneath. Toon/flat shading; colour from a setting (hue slider + 6 presets), highlight and underside derived. States: idle (4 s breathe, blink 3–7 s, arms sway), anticipate (600 ms squash), walk (arms alternate, body bob, turns toward direction, 1.2 m/s), away (not in scene), carry (holds a poster plane), hang (poster flies to the board), happy (two hops), sleep (slow breathe + hue cycle ±18°, "💤" bubble), stay (sits at window/crate/blanket), pet (eyes become ^ ^ arcs, blush discs, squish, colour flush toward warm; after ~2 s the octopus decides to lean in (70%) or wander to another anchor (30%) — never a sad face).
+- Doll's-house style lift is NOT needed; keep the camera above wall height so walls never occlude the octopus.
+
+INTERACTION
+- Raycast pointer: octopus (tap → turns to camera + "?" bubble; press-and-move → pet), posters on the board (tap → on.posterTap(id)), window (tap → on.windowTap: octopus walks to the window and looks out), name label is HTML outside the canvas.
+- Anchors (world units): door (2.6, 0, 2.4), window (-2.2, 0, 0.6), crate (1.8, 0, -1.6), board (0.6, 0, -2.6), blanket (-1.2, 0, 1.8), center (0,0,0). moveTo walks a straight line with a 0.4 m arc hop at the end and fires anchorReached.
+- Reduced motion: no breathe/sway/rain motion, instant moveTo, static starfield; colour transitions stay.
+
+DEV PANEL
+- Inside the existing <details id=demo>, add live sliders saved to localStorage: pixelSize 1–4, dither 0–1, outline on/off, yaw, and a palette swatch strip; purely for tuning the look.
+
+QUALITY BAR
+- Done = launched, observed, screenshot retained (tests/evidence/*.png) and a one-line "Run result: OBSERVED — …" in the report. A parse check is not a run.
+- Runs from file:// and GitHub Pages; no console errors; 360×740 phone at 60 fps with pixel 3 (≤150 draw calls, static meshes merged by material); pause rAF when document.hidden; destroy() frees GPU resources; Playwright screenshot at notch 0 / 4 / 8, day / night, pet state; a 2D SVG fallback is used when THREE or WebGL is missing, with the same API.
+```
+
+## 14. 문어와의 소통 (추가 컨텐츠)
+
+원칙: 소통은 **애정 표현**이지 자원이 아니다. 쓰다듬기·바라보기로 등불이 켜지거나 포스터가 나오지 않는다. 문어가 응하지 않아도 벌이 아니다.
+
+| 행동 | 문어의 반응 | 메모 |
+|---|---|---|
+| 쓰다듬기(누르고 문지르기) | `pet` 상태: 눈이 ^ ^, 홍조, 살짝 눌림, 색이 따뜻하게 홍조. 2초쯤 지나면 **문어가 정함**: 더 기대 온다(70%) 또는 다른 앵커로 총총 간다(30%, 바쁜 것뿐, 시무룩 없음) | 시무룩·죄책감 금지(컨펌셰이밍) |
+| 톡 두드리기 | 카메라 쪽으로 돌아보고 `?` 말풍선. 이름표를 누르면 깡총 | |
+| 바라보기 | 동공이 포인터를 따라감. 힌트를 입력하면 입력칸 쪽을 쳐다봄(눈치가 아니라 관심) | 기존 §7.3 |
+| 창문 두드리기 | 창가로 걸어가서 같이 창밖을 봄. 밤이고 맑으면 별 | |
+| 가만히 두기 | 20~40초마다 다른 앵커로 산책, 가끔 생각 말풍선: 지난 산책의 기억 조각("어제 본 깃털 생각 중") | 기록에서 뽑는다. 지어내지 않는다 |
+| 기념품 만지기 | 선반의 기념품을 누르면 문어가 가져와 보여 주고 일기(그걸 가져온 날)를 연다 | |
+| 포스터 두드리기 | 보드의 포스터를 누르면 모달(앞면→뒤집기) | §6.3 |
+| 색 고르기 | 방 보기에서 색을 바꾸면 문어가 몸을 한 번 흔들며 색이 번진다 | 저장 |
+| 시간 | 아침/낮/노을/밤 조명, 인사말, 밤엔 집에 있을 확률 ↑(§5.2) | 실제 시계 |
+| 문어의 놀이(가끔) | 집에 있는 날 활동에 "병뚜껑 굴리기"를 둔다(문어의 놀이 행동 연구에서) | §5.8 |
+
+하지 않는 것: 쓰다듬기 횟수 표시, 애정도 게이지, "오늘 안 쓰다듬었어" 류 알림.
+
+---
+
+## 15. 3차: 열람 화면 · 문어 초상 대화창 · 바깥 장면과 계절
+
+레퍼런스: `assets/ref/ui-ref-inspect.jpg`(아이템 열람 레이아웃), `assets/ref/ui-ref-portrait-dialog.jpg`(초상 + 대화창), `assets/ref/look-ref-exterior-winter.jpg`(바깥 디오라마, 눈).
+
+### 15.1 포스터 열람 화면 (ui-ref-inspect)
+- 포스터를 누르면 모달이 **두 칸**: 왼쪽(폰에선 위) 큰 포스터 앞면(3:4, 화면 폭의 55~60%), 오른쪽(아래) **짧은 기록** 3~5줄. 기록은 픽셀 게임 아이템 설명처럼: 첫 줄 = 한 줄(기억), 둘째 = "들른 곳: 🎩 모자 → 🪶 깃털 → ✉ 편지의 방", 셋째 = "읽음 2 · 책장 1 · 모의 0", 넷째 = 반응. 강조 단어(기억 장소, 처음 온 곳)는 `--accent`/`--teal` 로 색만 다르게(굵기 X).
+- "일기 전체 보기" 버튼으로 기존 뒷면(링크 포함)을 아래로 펼침. "이미지로 저장"·"복사"·"닫기" 유지.
+- 글꼴은 UI 글꼴 그대로(픽셀 폰트 도입 X — 한글 픽셀 폰트는 가독성 문제). 모달 배경은 다락 색조의 어두운 패널, 모서리 4px, 1px 밝은 테두리(레퍼런스의 프레임 느낌).
+
+### 15.2 문어 초상 대화창 (ui-ref-portrait-dialog)
+- `SCENE3D.portrait(expr) → canvas|dataURL`: 문어 **머리만** 정면 약간 위에서 잡는 두 번째 직교 카메라로 64×64 아트픽셀 렌더 타깃에 찍고 같은 후처리(팔레트·외곽선)를 통과. 표정 `expr`: `idle`(보통) · `blink` · `happy`(^ ^) · `pet`(^ ^ + 홍조) · `sleep`(— —, 💤) · `curious`(눈 크게, `?`) · `calm`(덤덤) · `sleepy`(반쯤 감김). 표정 바뀔 때만 다시 찍는다(매 프레임 X). 2D 폴백은 SVG 초상 8종.
+- 로그에서 **문어의 말**(귀가·기억·마무리·집 활동·말풍선 `?`·"비가 와")은 일반 행이 아니라 **대화창 행**: 왼쪽 64×64(CSS 96px) 초상 + 오른쪽 말풍선 텍스트, 1px 테두리 박스. 도구 라벨(기웃·출발 등 시스템 행)은 기존 행 그대로.
+- 동작 과장: `happy` 는 두 번 폴짝 + 다리 쫙, `curious` 는 몸 기울임 + 눈 확대, `pet` 은 눌림 + 홍조 디스크 2개, `sleep` 은 눈 감김 선 + 색 순환. 장면과 초상이 같은 표정 상태를 공유한다.
+
+### 15.3 바깥 장면과 계절 (look-ref-exterior-winter)
+- **바깥 디오라마** `exterior`: 다락이 있는 작은 집(지붕·굴뚝·현관 계단·창 하나에 등불 불빛), 앞마당 길, 나무 2~3그루, 돌 2개, 우체통, 울타리 조각. 같은 카메라 각도·같은 팔레트·같은 픽셀 밀도. 날씨와 시각 조명 공유.
+- **계절 = 실제 날짜(월)**: 3~5 봄(분홍 꽃잎 흩날림, 나무 연두), 6~8 여름(짙은 초록, 밤엔 반딧불 몇 개), 9~11 가을(주황·갈색 잎 낙엽), 12~2 겨울(눈 내림, 지붕·땅 흰색, 창에 서리). 입자는 12fps 스텝, 픽셀 스냅.
+- **출발 전환**: 초대 → 문어가 문으로 걸어감 → 다락이 **아래로 슬라이드 아웃**(또는 0.6초 크로스페이드)하며 바깥으로 → 문어가 현관문에서 나와 계단 내려와 길 따라 화면 오른쪽 아래로 사라짐(~2.5초) → 나가 있는 동안 바깥 장면 유지(계절 입자, 창문 불빛). **귀가 전환**: 문어가 길로 들어와 계단 올라 문으로 → 다락으로 전환 → 보드까지 걸어가 포스터 걸기(기존).
+- 집에 있는 날엔 바깥 전환 없음. 축소 모션이면 전환은 즉시 컷.
+- 성능: 두 장면을 동시에 그리지 않는다(활성 장면만 렌더). 바깥도 드로우콜 ≤150.
+- **APP 배선(구현됨, js/app.js)**: 외출 날 = 움츠림(600 + 200 ms) 뒤 `scene.departCeremony()` → 끝나면(장면이 `away` 를 스스로 둔다) 로그 공개 시작, 나가 있는 동안 바깥 유지. `return` 이벤트 = 로그 행 → `scene.returnCeremony()` → 다락 문에서 보드까지 걸어가 포스터 걸기 → 등불·소품 연출 → 마무리 → 담요/잠. 집·빈 차례 = 의식 없음. 의식 중엔 `moveTo`/`setOctState` 를 부르지 않고 APP 쪽 상태(라벨·UI 아트)만 맞춘다(`octMirror`). 출발 먹물(UIART `ink`)은 문어가 **현관문을 나서는 순간**(바깥으로 바뀐 뒤 문어가 다시 보이는 첫 프레임, `scene.motion()` 관찰) 한 번. 2D 폴백은 문까지 걸은 뒤 `away` 에서 뿌린다.
+  - **바깥 기웃 ("찾았다!"는 바깥에서)**: 출발 의식 뒤 기웃 이벤트마다 `scene.peekOutside({corner, roomId, status, first, emoji})` — 문어가 그 갈래의 바깥 자리로 걸어가 자세를 잡는 순간(`scene.peek().hold`) **말풍선 + 그 기웃의 로그 행**이 함께 나온다(걷는 동안은 '…'). 말풍선은 상태대로 정직하게: 읽음 `찾았다! 🎩` / 처음 온 곳 `처음 와 봤어! 🎩`(읽음이면 둘이 번갈아) = 외침 · 책장 메모 `음… 🎩` = 생각 · 모의 `문 앞까지만` = 속삭임 · 못 읽음 `닫혀 있었어` = 말 · 앉아만 있음 `…` = 속삭임 · 편지의 방 `아직 비어 있었어` = 말 (UIART.onBubble 종류). `#oct` 오버레이는 나가 있는 동안 `.st-away` 로 숨으므로 말풍선이 떠 있는 동안만 인라인으로 들어 올린다. 마지막 기웃 뒤 `return` 에서 `scene.leaveOutside()`(같은 출구) → 귀가 의식. 다락에선 '찾았다' 말풍선이 없다. 2D 폴백은 기웃 행만(말풍선 없음).
+  - **건너뛰기**: 진행 중인 의식을 한 번에 감는다(모션 감소로 남은 마디를 0 s 로 만들고 `debugStep` 으로 지금 마디만 마저 — 장면 API 에 취소가 없어서) → 공개는 즉시 → 귀가는 `setPlace('attic', {instant:true})` 로 다락에서 끝. 움츠림 중에 건너뛰면 출발 의식 없이 바로 `away`.
+  - **안전망**: 탭이 숨어 rAF 가 멈췄거나 의식이 30 s(× speed)를 넘기면 감는다. 바쁘지 않은 상태로 돌아올 때(`setBusy(false)`)·마지막 자세(`finalPose`)에서 바깥이면 즉시 다락. 부팅은 늘 다락에서 열고, `running` 여행이 남아 있으면 다락에서 즉시 귀가 처리("네가 없는 동안 다녀왔어") — 바깥은 보이지 않는다.
+  - 모션 감소: 의식은 즉시(장면이 처리 + APP 이 바로 감음), 공개는 그대로 진행.
+  - **계절 표시·지정**: 방 보기에 `계절: 가을 (실제 날짜)` 한 줄(지정했으면 `(지정)`). 데모 패널(개발용)에 `자동/봄/여름/가을/겨울` 칩 — 룩 설정(`localStorage ppolppol_look.season`, 자동이면 키 없음)에 남고 `scene.setSeason` 으로 즉시, 부팅 땐 `opts.season` 으로 전달(테스트 훅 `__ppolLook.season` 이 먼저).
+  - 검사: `SMOKE_ONLY=I node tools/smoke.js` — 외출 초대 → 출발 의식 동안 출발 행 없음 → 바깥에서 공개 · 먹물 1회(바깥·문어 보임) → 기웃마다 바깥 말풍선 + 같은 순간 기웃 행(`tests/evidence/peek-bubble.png`) · 다락에선 '찾았다' 없음 → 퇴장 · 귀가 의식 → 장소 순서 다락 › 바깥 › 다락 → 포스터 벽 1 · 잠 / 의식 중 건너뛰기 → 다락 / 나가 있는 중 새로고침 → 바깥 한 번도 안 보임 / 계절 줄·칩·저장.
+
+---
+
+## 16. 로드맵 v2 (아직 구현 전) — 선물·간식·코스튬·사진 모드
+
+> 순서: 16.1 선물 고르기 → 16.2 간식 → 16.4 사진 모드(문어 단독 구도) 까지를 **데모 범위**로 두고, 데모를 만들어 돌려 본 **뒤에** 16.3 플레이어 캐릭터(PC)와 둘이 찍는 구도를 추가 구현한다. PC는 지금 명세만 두고 만들지 않는다.
+
+원칙 먼저: **재화로 방을 사지 않는다.** 산책 횟수가 농사가 되면 "문어 쉬라고 보내는" 이유가 "커튼 사려고"로 바뀌어 게임이 자기 설계를 배신한다(복지 문서: 미리 건 보상은 동기를 오염시킨다, 산출물을 수확하지 않는다). 꾸밈은 **초대한 날 수**(등불)와 **문어의 선택**으로만 들어온다.
+
+### 16.1 선물 고르기 ("뭐 갖고 싶어?")
+- 사람이 카탈로그에서 **3개**를 골라 내민다 → **문어가 하나 고른다**(또는 "오늘은 다 괜찮아"로 거절). 고른 것은 방의 정해진 자리에 놓인다. 돈·재료 없음. 조건("포스터 N장 모으면") 없음. 하루 1회 정도만 묻고, 거절해도 시무룩 금지.
+- 선택 가중치는 문어의 "요즘"(코너 affinity)과 기념품·방문 기록에서 나온다 → 선택 자체가 선호 기록이 된다(복지 문서 "선호는 말이 아니라 선택으로").
+- 카탈로그(절차적 소품): 러그 무늬 3종, 쿠션, 책 더미, 작은 수족관(물방울), 별 모빌, 지구본, 꽃병, 등불 갓 색, 창가 풍경(화분 종류), 문어 코스튬(모자·목도리·안경·리본).
+- 일기에 "선물: 문어가 고른 것 — 별 모빌 (내민 것: 쿠션·지구본·별 모빌)" 로 기록.
+
+### 16.2 간식
+- "간식 주기" 버튼은 외출 중이 아닐 때만. 문어가 받으면 `happy` 표정 + 짧은 애니메이션 + 한 줄("조개 과자 바삭해"). 배고픔·게이지·알림·감쇠 **없음**. 안 줘도 아무 일도 안 일어난다.
+
+### 16.3 플레이어 캐릭터와 코스튬 세트 (추가 구현 — 데모 이후)
+- 작은 사람 캐릭터(절차적, 문어와 같은 픽셀 밀도)가 다락 문가에 앉아 있거나 바깥 현관에 서 있음. 문어가 고른 코스튬 세트는 **둘 다** 착용(같은 모자·목도리).
+- 플레이어는 문어의 산책에 개입하지 않는다(따라가지 않음). 집에서 기다리는 존재.
+
+### 16.4 사진 모드
+- 버튼 하나: 현재 3D 장면(다락 또는 바깥)을 포스터 프레임(날짜·이름·"N번째 뽈뽈")에 담아 PNG로 저장/공유. 데모 범위는 **문어 단독 구도** 프리셋 2~3개(창가·보드 앞·현관 계단). 둘이 같이 서는 구도는 PC 추가 구현 때. 기존 렌더 타깃 + PNG 내보내기 재사용.
+- 공유 이미지에 URL·힌트 텍스트는 넣지 않는다(이모지 줄과 같은 원칙).
+
+---
+
+## 17. 쌓임을 보이게 — 기억 언급 · 도서관 지도 · 귀가 요약 · 호기심 메모 (17.1 · 17.3 · 17.5 구현됨, 17.2 · 17.4 제안)
+
+외부 비평 요지: "오늘의 산책이 로그로 끝나는지, 다음 날에 영향을 주는지가 핵심. 입력→결과가 보여야 하고, 진행 구조 없이는 매일 같은 루프." 데이터상 관계는 이미 쌓인다(`visits`, `affinity`, `trips[]`, 날씨·시각 저장). 부족한 건 **보이는 것**이다. 농사가 되지 않게 보상 없이 보이게 한다.
+
+### 17.1 어제를 입에 올리기 = 그때 남긴 메모 — **구현됨**
+> 구현 메모: `BRAIN.plan` 끝에서 `trip.memo` 를 `wrap_up.memo` 와 함께 만든다(별도 난수 줄기 `rng(seed ^ 'memo')` — 길·기억의 난수 순서는 그대로). `tomorrow` = 기억한 방의 한 줄(lineKind별 `WORLD.memoTemplates.lead`) + 반응별 다음 걸음(`next`: 기억한 방의 tangents/related 중 이번에 안 간 곳, 덜 밟힌 쪽 가중). 60자를 넘으면 다음 걸음을 뺀다. 집에 있는 날 = 활동의 `memo` + "내일은 나가 볼까 말까" 류. 빈 차례 = `null`. `notes` = 다녀온 방마다 기억 조각 → (없으면) 실제로 읽은 요약 → 실마리. `replay` 는 `wrap_up.memo` 가 있을 때만(정리해서) 쓰고, 없으면 `null`.
+> 재방문: 힌트를 따라 간 방이 `visits>0` 또는 `lastVisit`(앱이 저장된 여행 날짜로 계산)에 있으면 `buildRoute(…, {deeper:true})` — 정류장 최소 3개, 처음 걸음들은 안 가 본 `related`(없으면 안 가 본 tangents). 첫 기웃 이벤트에 `aside: "{힌트}? 그거 N일 전에 봤잖아. 이번엔 안쪽까지 가 볼게"` (같은 날 "아까", 날짜 없으면 "전에"). `trip.revisit = { nodeId, last }`.
+> 앱: `state.notes[nodeId] = { text, tripId, date }` (최근 1개), 계획 때 `trip.weather` 와 `trip.recall[nodeId] = { note, weather, date }` 를 고정 저장 → 기웃 행 sub "지난번 메모: '…'" · "지난번엔 비가 왔는데"/"지난번에도 비가 왔어". 오늘 산책이 아직 없으면 첫 인사 = 시각 인사 행 + `'어제 메모'`(또는 `'지난 메모'`) 대화창 행(초상 calm) = 마지막 산책의 `memo.tomorrow` 그대로. 메모 없는 옛 기록이면 말하지 않는다. 대기 중 말풍선: 20–40 s 마다, idle 이고 대화창이 닫혀 있을 때만, 최근 `notes` 중 하나 "{note} 생각 중" (말풍선만, 로그엔 남기지 않음). 테스트 훅 `window.__ppolTest.today = 'YYYY-MM-DD'` (있을 때만 '오늘').
+핵심: 다음 날 대사를 **재구성하지 않는다.** 산책이 끝나는 바로 그 시점에 두뇌가 메모를 남기고, 다음 날은 그 메모를 그대로 읽는다(그때 기억이 더 생생하고, 지어낼 여지가 없다). 복지 문서의 "탐험가 메모" 원칙: 데이터 전용, 길이 제한(각 60자), 명령문·자격 기준 언급 금지.
+```js
+trip.memo = {
+  tomorrow: '모자 보다가 깃털에 꽂혔어. 내일은 새 쪽으로 가 볼까',   // 다음 날 첫 인사에 그대로
+  notes: { feather: '깃털 끝이 갈라져 있어서 소리가 안 나는 거래', hat: '…' }   // 방마다 한 줄, 재방문 때 인용
+}
+```
+- 데모 두뇌: `BRAIN.plan` 끝에서 영수증·기억 조각·날씨에서 결정적으로 생성(PRNG). MCP: 모델이 `ppolppol_wrap_up` 입력으로 직접 쓴다(`memo` 필드 추가, PROTOCOL.md 갱신).
+- 저장: `state.notes[nodeId] = { text, tripId, date }` (최근 것 1개 유지), `trip.memo` 는 trips[] 안.
+- 사용: 다음 날 첫 인사 = `lastTrip.memo.tomorrow` 그대로 + 시각 인사. 재방문 기웃 행 = "지난번 메모: '{notes[node]}'" 과 "지난번엔 {그때 날씨}였는데". 대기 중 생각 말풍선 = 최근 메모 중 하나. 같은 힌트 두 번째 = "{힌트}? 그거 {N}일 전에 봤잖아. 이번엔 안쪽까지" → 길 만들기에서 `related` 한 단계 더 깊게.
+- 전부 기록에서만. 메모가 없으면 말하지 않는다.
+
+### 17.2 도서관 지도
+- 방 보기 안 "지도" 탭: 66개 방을 코너별로 묶은 그래프(점 = 방, 선 = tangents/related). 가 본 방은 밝게 + 방문 수, 안 가 본 방은 어둡게(이름 숨김 → "?"), 오늘 산책 경로는 호박색 선으로. 탭하면 그 방을 지난 산책 목록이 나온다.
+- 커버리지 "가 본 방 23/66" 은 표시만 하고 **보상·해금 없음.** 덜 밟힌 길이 보이게 하는 게 목적(복지 문서 "방문 수 표시").
+- 그리기: 인라인 SVG, 고정 레이아웃(코너별 원형 배치, 시드 고정), 픽셀 UI 프레임.
+
+### 17.3 귀가 요약 한 줄 — **구현됨**
+> 구현 메모: `commitTrip` 이 반영 직전에 `trip.summary = { lantern, rooms, souvenir, poster, note }` 를 저장(새 방 = 이번에 처음 visits 가 생긴 세계의 방, 밖의 문 제외; lantern 은 반영 전후 칸 수 비교 — 그날 칸이 이미 켜졌거나(초대한 날마다 1칸) 등불이 이미 8이면 0). 마무리 연출 뒤 시스템 행 `요약` 하나(문구는 `WORLD.memoTemplates.summary*`), 로그를 다시 그려도 같은 행. 빈 차례·옛 기록(summary 없음)은 행 없음.
+- 마무리 뒤 로그에 한 줄: "오늘 바뀐 것 · 등불 +1 · 새 방 2곳 · 기념품 1 · 포스터 1" (해당 없는 항목은 생략 — 등불 +1 은 그날 첫 차례로 칸이 실제로 켜졌을 때만). 집에 있는 날: "오늘 바뀐 것 · 등불 +1 · 쪽지 1".
+
+### 17.4 단계(엔딩 없음)
+- 1장 다락방(등불 0→8) → 2장 계절(바깥 디오라마, 계절 포스터 4종) → 3장 선물과 코스튬(§16). 각 장은 해금이 아니라 **배경의 변화**다. "기념일"(첫 포스터·첫 집·코너 8개·엉뚱한 방 5·사계절)은 앨범 색인에만 표시.
+
+---
+
+### 17.5 호기심 메모 · 반응은 고른 이의 것 (11-07, docs/CURIOSITY_NOTES.md · docs/MODEL_VOICE.md · 계약 R1–R3)
+- **메모 저장**: 차례가 끝날 때(`applyTrip`) 그 차례가 남긴 메모(`trip.noteOut` — 데모 두뇌는 '내일은 X 쪽으로'가 글에 들어간 날만 `by 'demo-rules'`, 불러온 모델 이벤트는 `wrap_up.note` 그대로 `by 'model'`)를 `curiosityNotes` 에 하나 더한다. 글은 받은 그대로(60자를 넘어도) 저장하고, 화면은 60자 + '…'(누르면 전체). 모델 이름은 불러온 기록이 알려 줄 때만(`wrap_up.model`).
+- **내려놓기**: 모델 차례(`by mcp`)의 `wrap_up.setDown` 에 있는, 있는 id 만 `set_down`. **플레이어가 내려놓는 버튼은 없다** — 관심을 내려놓는 건 문어 자신만.
+- **다음 산책으로**: 두뇌 입력(`plan` · 두 재생 경로 모두) `state.notes` = 내려놓지 않은 메모 최근 3개, 새것부터, `{ id, text, about, by, session, at, model? }`. 메모가 없으면 필드째 빼서 입력이 예전과 같다. 내려놓은 메모의 존재·개수는 넘기지 않는다.
+- **보이는 곳**: 방 보기 › 우리 방의 지난 메모(넘기는 3개, "최근 메모 3개까지 다음 산책에 같이 가.") · 앨범 › 남긴 메모(전부, 내려놓은 메모 표시) · 다음 날 첫 인사(memo.tomorrow 가 없을 때 그 차례의 메모). 작성 주체는 그대로: `문어(모델)가 남김` / `데모 규칙` / `사람이 조작`, 날짜 · 몇 번째 뽈뽈.
+- **반응**: `reactionOf(trip)` 하나로 그린다 — 네 가지면 그 반응, 그 밖의 말은 `reactionRaw`(40자 + '…', 원문은 기록과 title), 없으면 반응 자리를 비운다. 줄은 모델·사람 차례면 그들이 쓴 `reactionLine` 만, 데모 규칙 차례만 코드가 고른 줄.
+- **두뇌가 대신 둔 것**: 모델이 기억할 곳을 안 골랐으면 일기에 "포스터에 쓴 곳 … · 기억할 곳은 고르지 않아서 마지막 곳으로 대신 뒀어"(`receipt.rememberedBy 'fallback'`), 못 하는 집 활동이면 "고른 활동은 지금 방에서 못 하는 거라 활동 없이 적었어"(`receipt.activity.by 'fallback'`). 모델이 `hang_poster` 를 안 냈으면(`posterHung: false`) 포스터는 앨범·일기에만 두고 벽에 붙이지 않는다.
+
+## 18. 제안(미확정): 가구 클릭 이벤트 — 발견은 있고 보상은 없다
+
+고전 포인트앤클릭(계속 누르다 보면 바뀌는)처럼 소품마다 탭 반응을 두고, **탭 횟수에 따라 단계가 바뀐다.** 보상·재화·해금 없음. 발견 자체가 재미(네코아츠메). 탭 횟수는 저장(`state.props[id].taps`), 발견한 단계는 앨범 색인에 "발견" 으로만 표시.
+
+| 소품 | 1회 | 2회 | 3회+ | 메모 |
+|---|---|---|---|---|
+| 상자 | 덜컹 소리(모션) | "안에 뭔가 있어" 말풍선 | 문어가 와서 양말/옛 포스터 조각 꺼냄(기념품 아님, 그냥 장면) | 하루 1회만 3단계 |
+| 양초 | 끔(조명·발광 바뀜) | 켬 | 번갈아 | 밤에 끄면 등불만 남음 |
+| 창문 | 문어가 창가로 걸어가 밖을 봄 | "비 와" / "맑아" 한 줄 | 밤·맑음이면 "별 몇 개 세어봤어" | 날씨는 실제 날짜 시드, 탭으로 안 바뀜 |
+| 담요 | 문어가 가서 눕는다 | 잠(sleep 상태) | 깸 | |
+| 러그 | 문어가 털썩 | 뒹굴 | | |
+| 선반 기념품 | 그걸 가져온 날 일기 열림 | | | 기존 |
+| 거미줄 | 흔들림 | 흔들림 | 5회에 작은 거미 등장(이후 가끔 보임) | 생물 추가는 무해한 것만 |
+| 시계 | 실제 시각 말풍선 | | | |
+| 문 | 문어가 빼꼼 | "아직 안 나갈래" / 외출 중이면 반응 없음 | | 외출은 초대로만 |
+| 등불 | 깜빡임만 | | | 진행도라 탭으로 안 바뀜 |
+| 코르크 보드 | 앨범 | | | 기존 |
+| 바깥 우체통 | "아직 편지는 없어" | | | 지어낸 편지 금지(편지의 방 원칙) |
+| 바깥 나무 | 흔들림 + 계절 입자 한 줌 | | 가을엔 잎 더 떨어짐 | |
+
+- 구현: scene3d 레이캐스트 히트 그룹에 소품 id 부여 → `on.propTap(id, count)` → app.js 가 단계 선택·대화창 행·`scene.setExpression`/`moveTo`. 축소 모션: 걷기 즉시. 44px 이상 히트 영역.
+- 하루에 같은 소품 3단계 이상은 반복 안 함(스팸 방지), 거절·시무룩 없음.
+
+---
+
+## 19. 제안: 인테리어 모드 — 같이 꾸미기 (사람이 구경꾼이 되지 않게)
+
+복지 원칙이 막는 것은 **산책 개입**이다. 집을 같이 꾸미는 것은 막지 않는다. 사람은 힌트 하나로 끝나지 않고, 문어의 집을 같이 돌본다.
+
+- **진입**: 방 보기 → "인테리어 시작하기". 장면에 **슬롯**이 깜빡인다. 드래그 없이 **아이템 탭 → 슬롯 탭**(폰 친화, 픽셀 격자 유지). "끝내기" 로 나감.
+- **옮길 수 있는 것과 자리**: 양초(3: 상자 위·창턱·선반), 포스터(보드 6칸 + 벽 2칸; 앨범에서 어떤 포스터를 걸지 고르기, 최대 5+2), 러그(방향 2), 화분(창턱 3칸), 선반 기념품 순서, 담요(2). 벽·바닥·창·보드·등불 위치는 고정(갈아엎기 아님).
+- **문어가 직접 옮긴다**: 사람이 고르면 문어가 걸어가 들고(carry) 옮긴다(포스터 걸기 동작 재사용). 옮긴 뒤 한마디: "여기 좋다". 가끔(PRNG 30%) "음, 창가가 더 좋지 않을까?" 하고 **대안 슬롯 하나를 깜빡여 제안** → 사람이 받으면 그리로, 아니면 그대로. 거절·불만·반복 설득 없음. 이것이 "같이 고민".
+- **저장**: `state.room.layout = { candle:'sill', rug:'h', posters:{ b1:tripId, …, w1:tripId }, plant:'sill2', shelf:[ids] }`, `byHuman:true` 표시. 되돌리기 1단계. 문어가 집에 있는 날 "포스터 위치 바꾸기" 활동은 `byHuman` 인 자리는 건드리지 않는다.
+- **없는 것**: 재화·조건·해금. 인테리어로 등불이 오르지 않는다.
+- 구현: scene3d `layout` API(`setLayout(layout)`, `slotsFor(itemId)` → 월드 좌표, `highlightSlots(ids)`, `carryTo(itemId, slotId, onDone)`), app.js 모드 상태기계 + 방 보기 버튼 + 앨범에서 포스터 고르기 시트. 2D 폴백은 즉시 이동.

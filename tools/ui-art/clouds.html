@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>구름 시트</title>
+<style>
+  /* js/clouds.js 미리보기: 날씨 4 × 시각대 3, 가까운 층/먼 층. 장면 허공색 위에 ×3 (tools/make-ui-art.js clouds 가 찍는다) */
+  body { margin: 0; padding: 12px; background: #151d28; color: #a8b5b2; font: 12px/1.4 sans-serif; }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .lbl { width: 90px; }
+  .cell { padding: 6px; }
+  canvas { image-rendering: pixelated; display: block; }
+</style></head><body>
+<div id="out"></div>
+<script src="../../js/clouds.js"></script>
+<script>
+  var SKY = { day: '#090a14', dusk: '#090a14', night: '#090a14' };   /* 장면 허공 (밤 #0b1020 · 그 외 #1b1522 → 스냅 후 거의 같은 남흑) */
+  var out = document.getElementById('out');
+  ['day', 'dusk', 'night'].forEach(function (ph) {
+    ['clear', 'drizzle', 'rain', 'snow'].forEach(function (w) {
+      var row = document.createElement('div'); row.className = 'row';
+      var l = document.createElement('div'); l.className = 'lbl'; l.textContent = ph + ' · ' + w; row.appendChild(l);
+      [false, true].forEach(function (far) {
+        var c = CLOUDS.atlas({ weather: w, phase: ph, far: far, n: 4 }), big = document.createElement('canvas');
+        big.width = c.width * 2; big.height = c.height * 2; var x = big.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(c, 0, 0, big.width, big.height);
+        var cell = document.createElement('div'); cell.className = 'cell'; cell.style.background = SKY[ph]; cell.appendChild(big); row.appendChild(cell);
+      });
+      out.appendChild(row);
+    });
+  });
+  window.CLOUDS_READY = true;
+</script></body></html>

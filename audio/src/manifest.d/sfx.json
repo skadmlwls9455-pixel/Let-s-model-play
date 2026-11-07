@@ -1,0 +1,1762 @@
+[
+ {
+  "id": "ui_tap_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/ui_tap_1.ogg",
+   "m4a": "sfx/ui_tap_1.m4a"
+  },
+  "duration": 0.03,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "RMS",
+   "peak_dbfs": -20.8
+  },
+  "loop": null,
+  "trigger": "일반 버튼 탭(주 버튼은 depart 가 대신함). 셔플백으로 직전 변형 피하기",
+  "group": "ui_tap",
+  "duck_db": 0,
+  "min_gap_ms": 60,
+  "notes": "TRI C6 -8c A2 D26 + NZ 클릭 4ms HPF4k -20dB"
+ },
+ {
+  "id": "ui_tap_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/ui_tap_2.ogg",
+   "m4a": "sfx/ui_tap_2.m4a"
+  },
+  "duration": 0.03,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "RMS",
+   "peak_dbfs": -20.6
+  },
+  "loop": null,
+  "trigger": "일반 버튼 탭(주 버튼은 depart 가 대신함). 셔플백으로 직전 변형 피하기",
+  "group": "ui_tap",
+  "duck_db": 0,
+  "min_gap_ms": 60,
+  "notes": "TRI D6 +6c A2 D26 + NZ 클릭 4ms HPF4k -20dB"
+ },
+ {
+  "id": "ui_tap_3",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/ui_tap_3.ogg",
+   "m4a": "sfx/ui_tap_3.m4a"
+  },
+  "duration": 0.03,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "RMS",
+   "peak_dbfs": -20.8
+  },
+  "loop": null,
+  "trigger": "일반 버튼 탭(주 버튼은 depart 가 대신함). 셔플백으로 직전 변형 피하기",
+  "group": "ui_tap",
+  "duck_db": 0,
+  "min_gap_ms": 60,
+  "notes": "TRI C6 +10c A2 D26 + NZ 클릭 4ms HPF4k -20dB"
+ },
+ {
+  "id": "ui_tap_4",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/ui_tap_4.ogg",
+   "m4a": "sfx/ui_tap_4.m4a"
+  },
+  "duration": 0.03,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "RMS",
+   "peak_dbfs": -20.5
+  },
+  "loop": null,
+  "trigger": "일반 버튼 탭(주 버튼은 depart 가 대신함). 셔플백으로 직전 변형 피하기",
+  "group": "ui_tap",
+  "duck_db": 0,
+  "min_gap_ms": 60,
+  "notes": "TRI D6 -10c A2 D26 + NZ 클릭 4ms HPF4k -20dB"
+ },
+ {
+  "id": "ui_toggle_on_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/ui_toggle_on_1.ogg",
+   "m4a": "sfx/ui_toggle_on_1.m4a"
+  },
+  "duration": 0.08,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "RMS",
+   "peak_dbfs": -24.8
+  },
+  "loop": null,
+  "trigger": "토글 켬",
+  "group": "ui_toggle_on",
+  "duck_db": 0,
+  "min_gap_ms": 150,
+  "notes": "TRI G5 35ms → C6 45ms (완전4도↑) +0c"
+ },
+ {
+  "id": "ui_toggle_on_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/ui_toggle_on_2.ogg",
+   "m4a": "sfx/ui_toggle_on_2.m4a"
+  },
+  "duration": 0.08,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "RMS",
+   "peak_dbfs": -24.8
+  },
+  "loop": null,
+  "trigger": "토글 켬",
+  "group": "ui_toggle_on",
+  "duck_db": 0,
+  "min_gap_ms": 150,
+  "notes": "TRI G5 35ms → C6 45ms (완전4도↑) +10c"
+ },
+ {
+  "id": "ui_toggle_off_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/ui_toggle_off_1.ogg",
+   "m4a": "sfx/ui_toggle_off_1.m4a"
+  },
+  "duration": 0.08,
+  "level": {
+   "rel_db": -13,
+   "target": -33.0,
+   "measured": -33.0,
+   "unit": "RMS",
+   "peak_dbfs": -25.6
+  },
+  "loop": null,
+  "trigger": "토글 끔(부정이 아니라 열림). 1초 안 연타의 두 번째부터는 무음",
+  "group": "ui_toggle_off",
+  "duck_db": 0,
+  "min_gap_ms": 150,
+  "notes": "TRI C6 35ms → G5 45ms (완전4도↓, toggle_on 뒤집기) +0c"
+ },
+ {
+  "id": "ui_toggle_off_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/ui_toggle_off_2.ogg",
+   "m4a": "sfx/ui_toggle_off_2.m4a"
+  },
+  "duration": 0.08,
+  "level": {
+   "rel_db": -13,
+   "target": -33.0,
+   "measured": -33.0,
+   "unit": "RMS",
+   "peak_dbfs": -25.6
+  },
+  "loop": null,
+  "trigger": "토글 끔(부정이 아니라 열림). 1초 안 연타의 두 번째부터는 무음",
+  "group": "ui_toggle_off",
+  "duck_db": 0,
+  "min_gap_ms": 150,
+  "notes": "TRI C6 35ms → G5 45ms (완전4도↓, toggle_on 뒤집기) -10c"
+ },
+ {
+  "id": "sheet_open_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/sheet_open_1.ogg",
+   "m4a": "sfx/sheet_open_1.m4a"
+  },
+  "duration": 0.25,
+  "level": {
+   "rel_db": -14,
+   "target": -34.0,
+   "measured": -34.0,
+   "unit": "RMS",
+   "peak_dbfs": -19.2
+  },
+  "loop": null,
+  "trigger": "바텀시트 열기",
+  "group": "sheet_open",
+  "duck_db": 0,
+  "min_gap_ms": 200,
+  "notes": "NZ LPF 800→3000Hz 스윕 160ms(A40) \"스윽\" + TRI A5 20ms 꼬리 +0c"
+ },
+ {
+  "id": "sheet_open_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/sheet_open_2.ogg",
+   "m4a": "sfx/sheet_open_2.m4a"
+  },
+  "duration": 0.25,
+  "level": {
+   "rel_db": -14,
+   "target": -34.0,
+   "measured": -34.0,
+   "unit": "RMS",
+   "peak_dbfs": -20.3
+  },
+  "loop": null,
+  "trigger": "바텀시트 열기",
+  "group": "sheet_open",
+  "duck_db": 0,
+  "min_gap_ms": 200,
+  "notes": "NZ LPF 880→3300Hz 스윕 160ms(A40) \"스윽\" + TRI A5 20ms 꼬리 +8c"
+ },
+ {
+  "id": "sheet_close_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/sheet_close_1.ogg",
+   "m4a": "sfx/sheet_close_1.m4a"
+  },
+  "duration": 0.11,
+  "level": {
+   "rel_db": -15,
+   "target": -35.0,
+   "measured": -35.0,
+   "unit": "RMS",
+   "peak_dbfs": -20.6
+  },
+  "loop": null,
+  "trigger": "바텀시트 닫기(여는 소리보다 짧게)",
+  "group": "sheet_close",
+  "duck_db": 0,
+  "min_gap_ms": 200,
+  "notes": "NZ LPF 3000→800Hz 스윕 110ms, 음 없음"
+ },
+ {
+  "id": "sheet_close_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/sheet_close_2.ogg",
+   "m4a": "sfx/sheet_close_2.m4a"
+  },
+  "duration": 0.11,
+  "level": {
+   "rel_db": -15,
+   "target": -35.0,
+   "measured": -35.0,
+   "unit": "RMS",
+   "peak_dbfs": -18.6
+  },
+  "loop": null,
+  "trigger": "바텀시트 닫기(여는 소리보다 짧게)",
+  "group": "sheet_close",
+  "duck_db": 0,
+  "min_gap_ms": 200,
+  "notes": "NZ LPF 3300→880Hz 스윕 110ms, 음 없음"
+ },
+ {
+  "id": "toast_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/toast_1.ogg",
+   "m4a": "sfx/toast_1.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "RMS",
+   "peak_dbfs": -21.4
+  },
+  "loop": null,
+  "trigger": "토스트가 뜰 때(자동 닫힘은 무음)",
+  "group": "toast",
+  "duck_db": 0,
+  "min_gap_ms": 500,
+  "notes": "TRI A5 50ms → D6 250ms 지수 감쇠 \"플링\" (완전4도↑)"
+ },
+ {
+  "id": "toast_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/toast_2.ogg",
+   "m4a": "sfx/toast_2.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "RMS",
+   "peak_dbfs": -21.7
+  },
+  "loop": null,
+  "trigger": "토스트가 뜰 때(자동 닫힘은 무음)",
+  "group": "toast",
+  "duck_db": 0,
+  "min_gap_ms": 500,
+  "notes": "TRI G5 50ms → C6 250ms 지수 감쇠 \"플링\" (완전4도↑)"
+ },
+ {
+  "id": "log_line_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/log_line_1.ogg",
+   "m4a": "sfx/log_line_1.m4a"
+  },
+  "duration": 0.02,
+  "level": {
+   "rel_db": -16,
+   "target": -36.0,
+   "measured": -36.0,
+   "unit": "RMS",
+   "peak_dbfs": -24.9
+  },
+  "loop": null,
+  "trigger": "로그 한 줄 추가(peek 가 아닌 줄). 로그 시트가 닫혀 있으면 무음",
+  "group": "log_line",
+  "duck_db": 0,
+  "min_gap_ms": 120,
+  "notes": "NZ 틱 4ms HPF2k + TRI C6 -6c 18ms"
+ },
+ {
+  "id": "log_line_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/log_line_2.ogg",
+   "m4a": "sfx/log_line_2.m4a"
+  },
+  "duration": 0.02,
+  "level": {
+   "rel_db": -16,
+   "target": -36.0,
+   "measured": -36.0,
+   "unit": "RMS",
+   "peak_dbfs": -24.6
+  },
+  "loop": null,
+  "trigger": "로그 한 줄 추가(peek 가 아닌 줄). 로그 시트가 닫혀 있으면 무음",
+  "group": "log_line",
+  "duck_db": 0,
+  "min_gap_ms": 120,
+  "notes": "NZ 틱 4ms HPF2k + TRI D6 +5c 18ms"
+ },
+ {
+  "id": "log_line_3",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/log_line_3.ogg",
+   "m4a": "sfx/log_line_3.m4a"
+  },
+  "duration": 0.02,
+  "level": {
+   "rel_db": -16,
+   "target": -36.0,
+   "measured": -36.0,
+   "unit": "RMS",
+   "peak_dbfs": -24.1
+  },
+  "loop": null,
+  "trigger": "로그 한 줄 추가(peek 가 아닌 줄). 로그 시트가 닫혀 있으면 무음",
+  "group": "log_line",
+  "duck_db": 0,
+  "min_gap_ms": 120,
+  "notes": "NZ 틱 4ms HPF2k + TRI C6 +9c 18ms"
+ },
+ {
+  "id": "log_line_4",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/log_line_4.ogg",
+   "m4a": "sfx/log_line_4.m4a"
+  },
+  "duration": 0.02,
+  "level": {
+   "rel_db": -16,
+   "target": -36.0,
+   "measured": -36.0,
+   "unit": "RMS",
+   "peak_dbfs": -24.5
+  },
+  "loop": null,
+  "trigger": "로그 한 줄 추가(peek 가 아닌 줄). 로그 시트가 닫혀 있으면 무음",
+  "group": "log_line",
+  "duck_db": 0,
+  "min_gap_ms": 120,
+  "notes": "NZ 틱 4ms HPF2k + TRI D6 -9c 18ms"
+ },
+ {
+  "id": "card_flip_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/card_flip_1.ogg",
+   "m4a": "sfx/card_flip_1.m4a"
+  },
+  "duration": 0.12,
+  "level": {
+   "rel_db": -14,
+   "target": -34.0,
+   "measured": -34.0,
+   "unit": "RMS",
+   "peak_dbfs": -19.6
+  },
+  "loop": null,
+  "trigger": "포스터 카드 뒤집기",
+  "group": "card_flip",
+  "duck_db": 0,
+  "min_gap_ms": 120,
+  "notes": "NZ BP 1500~4000Hz 18ms 두 번(30ms 간격) \"팔락\" + TRI F5 20ms +0c"
+ },
+ {
+  "id": "card_flip_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/card_flip_2.ogg",
+   "m4a": "sfx/card_flip_2.m4a"
+  },
+  "duration": 0.12,
+  "level": {
+   "rel_db": -14,
+   "target": -34.0,
+   "measured": -34.0,
+   "unit": "RMS",
+   "peak_dbfs": -17.8
+  },
+  "loop": null,
+  "trigger": "포스터 카드 뒤집기",
+  "group": "card_flip",
+  "duck_db": 0,
+  "min_gap_ms": 120,
+  "notes": "NZ BP 1700~4400Hz 18ms 두 번(28ms 간격) \"팔락\" + TRI F5 20ms +8c"
+ },
+ {
+  "id": "audio_on",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/audio_on.ogg",
+   "m4a": "sfx/audio_on.m4a"
+  },
+  "duration": 0.4,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.7
+  },
+  "loop": null,
+  "trigger": "🔈 소리를 처음 켰을 때 \"안녕\"(처음엔 꺼진 상태로 시작)",
+  "group": "audio_on",
+  "duck_db": 0,
+  "min_gap_ms": 1000,
+  "notes": "P25 F5·A5·C6 50ms씩 + C6 꼬리 250ms, TRI 유니즌 -6dB"
+ },
+ {
+  "id": "album_open",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/album_open.ogg",
+   "m4a": "sfx/album_open.m4a"
+  },
+  "duration": 0.25,
+  "level": {
+   "rel_db": -13,
+   "target": -33.0,
+   "measured": -33.0,
+   "unit": "RMS",
+   "peak_dbfs": -18.6
+  },
+  "loop": null,
+  "trigger": "앨범·벽(포스터 모음) 보기 열기",
+  "group": "album_open",
+  "duck_db": 0,
+  "min_gap_ms": 200,
+  "notes": "sheet_open 변형: NZ LPF 700→2600Hz 160ms + TRI F5(130ms)·A5(170ms) 두 음"
+ },
+ {
+  "id": "voice_a_F4",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_a_F4.ogg",
+   "m4a": "sfx/voice_a_F4.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.4
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_a",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "F4 ㅏㅑ 열린 모음: P50 LPF 2.4k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_a_G4",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_a_G4.ogg",
+   "m4a": "sfx/voice_a_G4.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.6
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_a",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "G4 ㅏㅑ 열린 모음: P50 LPF 2.4k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_a_A4",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_a_A4.ogg",
+   "m4a": "sfx/voice_a_A4.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.7
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_a",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "A4 ㅏㅑ 열린 모음: P50 LPF 2.4k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_a_C5",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_a_C5.ogg",
+   "m4a": "sfx/voice_a_C5.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -17.2
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_a",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "C5 ㅏㅑ 열린 모음: P50 LPF 2.4k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_a_D5",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_a_D5.ogg",
+   "m4a": "sfx/voice_a_D5.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -17.2
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_a",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "D5 ㅏㅑ 열린 모음: P50 LPF 2.4k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_a_F5",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_a_F5.ogg",
+   "m4a": "sfx/voice_a_F5.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -17.6
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_a",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "F5 ㅏㅑ 열린 모음: P50 LPF 2.4k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_a_G5",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_a_G5.ogg",
+   "m4a": "sfx/voice_a_G5.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -17.6
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_a",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "G5 ㅏㅑ 열린 모음: P50 LPF 2.4k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_a_A5",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_a_A5.ogg",
+   "m4a": "sfx/voice_a_A5.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -17.7
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_a",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "A5 ㅏㅑ 열린 모음: P50 LPF 2.4k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_u_F4",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_u_F4.ogg",
+   "m4a": "sfx/voice_u_F4.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.3
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_u",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "F4 ㅗㅛㅜㅠ 둥근 모음: TRI LPF 1.2k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_u_G4",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_u_G4.ogg",
+   "m4a": "sfx/voice_u_G4.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.3
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_u",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "G4 ㅗㅛㅜㅠ 둥근 모음: TRI LPF 1.2k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_u_A4",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_u_A4.ogg",
+   "m4a": "sfx/voice_u_A4.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.4
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_u",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "A4 ㅗㅛㅜㅠ 둥근 모음: TRI LPF 1.2k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_u_C5",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_u_C5.ogg",
+   "m4a": "sfx/voice_u_C5.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.3
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_u",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "C5 ㅗㅛㅜㅠ 둥근 모음: TRI LPF 1.2k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_u_D5",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_u_D5.ogg",
+   "m4a": "sfx/voice_u_D5.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.4
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_u",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "D5 ㅗㅛㅜㅠ 둥근 모음: TRI LPF 1.2k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_u_F5",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_u_F5.ogg",
+   "m4a": "sfx/voice_u_F5.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.5
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_u",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "F5 ㅗㅛㅜㅠ 둥근 모음: TRI LPF 1.2k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_u_G5",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_u_G5.ogg",
+   "m4a": "sfx/voice_u_G5.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.6
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_u",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "G5 ㅗㅛㅜㅠ 둥근 모음: TRI LPF 1.2k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "voice_u_A5",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/voice_u_A5.ogg",
+   "m4a": "sfx/voice_u_A5.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.6
+  },
+  "loop": null,
+  "trigger": "말풍선 음절마다 하나(공백·문장부호·\"…\" 는 무음). 음은 음절 해시로, 기분별 음 집합은 표 V. 런타임 ±12c",
+  "group": "voice_u",
+  "duck_db": 0,
+  "min_gap_ms": 50,
+  "notes": "A5 ㅗㅛㅜㅠ 둥근 모음: TRI LPF 1.2k, A3 D35. 기분 집합: idle{A4 C5 D5} 폴짝{C5 D5 F5 G5} 우쭐{C5 F5 A5} 덤덤{A4 C5} 졸림{F4 G4 A4} 쓰다듬기{D5 F5}"
+ },
+ {
+  "id": "curious_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/curious_1.ogg",
+   "m4a": "sfx/curious_1.m4a"
+  },
+  "duration": 0.14,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -19.6
+  },
+  "loop": null,
+  "trigger": "바라보기, 창문 반응 \"?\"",
+  "group": "curious",
+  "duck_db": 0,
+  "min_gap_ms": 400,
+  "notes": "목소리 블립(u) A4 → D5(완전4도↑, 둘째 블립 +20c ↗), 간격 60ms"
+ },
+ {
+  "id": "curious_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/curious_2.ogg",
+   "m4a": "sfx/curious_2.m4a"
+  },
+  "duration": 0.14,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -20.1
+  },
+  "loop": null,
+  "trigger": "바라보기, 창문 반응 \"?\"",
+  "group": "curious",
+  "duck_db": 0,
+  "min_gap_ms": 400,
+  "notes": "목소리 블립(a) A4 → D5(완전4도↑, 둘째 블립 +20c ↗), 간격 65ms"
+ },
+ {
+  "id": "peek_read_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/peek_read_1.ogg",
+   "m4a": "sfx/peek_read_1.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -4,
+   "target": -24.0,
+   "measured": -24.0,
+   "unit": "RMS",
+   "peak_dbfs": -13.0
+  },
+  "loop": null,
+  "trigger": "기웃: 문서를 읽었음(read)",
+  "group": "peek_read",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "기준 리듬 60+140ms. P25 C5→F5, 둘째 음 시작에 P25 A5 반짝 -15dB. 상행 = 기쁨"
+ },
+ {
+  "id": "peek_read_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/peek_read_2.ogg",
+   "m4a": "sfx/peek_read_2.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -4,
+   "target": -24.0,
+   "measured": -24.0,
+   "unit": "RMS",
+   "peak_dbfs": -12.8
+  },
+  "loop": null,
+  "trigger": "기웃: 문서를 읽었음(read)",
+  "group": "peek_read",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "기준 리듬 60+140ms. P25 A4·C5→F5, 둘째 음 시작에 P25 A5 반짝 -15dB. 상행 = 기쁨"
+ },
+ {
+  "id": "peek_read_3",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/peek_read_3.ogg",
+   "m4a": "sfx/peek_read_3.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -4,
+   "target": -24.0,
+   "measured": -24.0,
+   "unit": "RMS",
+   "peak_dbfs": -12.9
+  },
+  "loop": null,
+  "trigger": "기웃: 문서를 읽었음(read)",
+  "group": "peek_read",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "기준 리듬 60+140ms. P25 D5→F5, 둘째 음 시작에 P25 A5 반짝 -15dB. 상행 = 기쁨"
+ },
+ {
+  "id": "peek_builtin_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/peek_builtin_1.ogg",
+   "m4a": "sfx/peek_builtin_1.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -5,
+   "target": -25.0,
+   "measured": -25.0,
+   "unit": "RMS",
+   "peak_dbfs": -14.6
+  },
+  "loop": null,
+  "trigger": "기웃: 책장 메모(builtin)로 대신 읽음",
+  "group": "peek_builtin",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "같은 리듬. TRI A4→C5 +0c(\"나무\") + NZ BP 2~4k 40ms \"책장 넘김\" @60ms"
+ },
+ {
+  "id": "peek_builtin_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/peek_builtin_2.ogg",
+   "m4a": "sfx/peek_builtin_2.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -5,
+   "target": -25.0,
+   "measured": -25.0,
+   "unit": "RMS",
+   "peak_dbfs": -15.5
+  },
+  "loop": null,
+  "trigger": "기웃: 책장 메모(builtin)로 대신 읽음",
+  "group": "peek_builtin",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "같은 리듬. TRI A4→C5 +8c(\"나무\") + NZ BP 2~4k 40ms \"책장 넘김\" @0ms"
+ },
+ {
+  "id": "peek_simulated_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/peek_simulated_1.ogg",
+   "m4a": "sfx/peek_simulated_1.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -17.9
+  },
+  "loop": null,
+  "trigger": "기웃: 모의 방문(문 앞까지만, simulated)",
+  "group": "peek_simulated",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "같은 리듬. P50 LPF 1200Hz C5→D5(장2도 매달림) +0c + 에코 90ms -9/-18dB(LPF 900) \"문 너머\""
+ },
+ {
+  "id": "peek_simulated_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/peek_simulated_2.ogg",
+   "m4a": "sfx/peek_simulated_2.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -17.7
+  },
+  "loop": null,
+  "trigger": "기웃: 모의 방문(문 앞까지만, simulated)",
+  "group": "peek_simulated",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "같은 리듬. P50 LPF 1050Hz C5→D5(장2도 매달림) +7c + 에코 90ms -9/-18dB(LPF 900) \"문 너머\""
+ },
+ {
+  "id": "peek_failed_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/peek_failed_1.ogg",
+   "m4a": "sfx/peek_failed_1.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -15.9
+  },
+  "loop": null,
+  "trigger": "기웃: 못 읽음(failed) — 오류가 아니라 \"닫힌 문 두드림\"",
+  "group": "peek_failed",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "같은 리듬. TRI D5→C5(5도에 착지) +0c + 노크 TRI C4 25ms ×2 (0·60ms) -10dB. 버즈·다이브 없음"
+ },
+ {
+  "id": "peek_failed_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/peek_failed_2.ogg",
+   "m4a": "sfx/peek_failed_2.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.9
+  },
+  "loop": null,
+  "trigger": "기웃: 못 읽음(failed) — 오류가 아니라 \"닫힌 문 두드림\"",
+  "group": "peek_failed",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "같은 리듬. GB flute D5→C5(5도에 착지) +6c + 노크 TRI C4 25ms ×2 (0·60ms) -10dB. 버즈·다이브 없음"
+ },
+ {
+  "id": "peek_none_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/peek_none_1.ogg",
+   "m4a": "sfx/peek_none_1.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -18.8
+  },
+  "loop": null,
+  "trigger": "기웃: 앉아만 있음(none)",
+  "group": "peek_none",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "같은 리듬. TRI A40 F4→F4 (동음 반복) + 숨결 NZ LPF800 -20dB"
+ },
+ {
+  "id": "peek_none_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/peek_none_2.ogg",
+   "m4a": "sfx/peek_none_2.m4a"
+  },
+  "duration": 0.3,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -19.1
+  },
+  "loop": null,
+  "trigger": "기웃: 앉아만 있음(none)",
+  "group": "peek_none",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "같은 리듬. TRI A40 C4→F4 (C4+F4 4도) + 숨결 NZ LPF800 -20dB"
+ },
+ {
+  "id": "pet_stroke_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/pet_stroke_1.ogg",
+   "m4a": "sfx/pet_stroke_1.m4a"
+  },
+  "duration": 0.09,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -19.4
+  },
+  "loop": null,
+  "trigger": "쓰다듬기 1번째(D5 F5 G5 A5 C6 순서, C6에서 멈춤, 1.5초 쉬면 처음으로). 런타임 ±20c",
+  "group": "pet_stroke",
+  "duck_db": 0,
+  "min_gap_ms": 120,
+  "notes": "TRI D5 + P50 -12dB, +30c ↗. 점수·콤보처럼 들리지 않게 5단에서 상한"
+ },
+ {
+  "id": "pet_stroke_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/pet_stroke_2.ogg",
+   "m4a": "sfx/pet_stroke_2.m4a"
+  },
+  "duration": 0.09,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -19.5
+  },
+  "loop": null,
+  "trigger": "쓰다듬기 2번째(D5 F5 G5 A5 C6 순서, C6에서 멈춤, 1.5초 쉬면 처음으로). 런타임 ±20c",
+  "group": "pet_stroke",
+  "duck_db": 0,
+  "min_gap_ms": 120,
+  "notes": "TRI F5 + P50 -12dB, +30c ↗. 점수·콤보처럼 들리지 않게 5단에서 상한"
+ },
+ {
+  "id": "pet_stroke_3",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/pet_stroke_3.ogg",
+   "m4a": "sfx/pet_stroke_3.m4a"
+  },
+  "duration": 0.09,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -20.1
+  },
+  "loop": null,
+  "trigger": "쓰다듬기 3번째(D5 F5 G5 A5 C6 순서, C6에서 멈춤, 1.5초 쉬면 처음으로). 런타임 ±20c",
+  "group": "pet_stroke",
+  "duck_db": 0,
+  "min_gap_ms": 120,
+  "notes": "TRI G5 + P50 -12dB, +30c ↗. 점수·콤보처럼 들리지 않게 5단에서 상한"
+ },
+ {
+  "id": "pet_stroke_4",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/pet_stroke_4.ogg",
+   "m4a": "sfx/pet_stroke_4.m4a"
+  },
+  "duration": 0.09,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -20.3
+  },
+  "loop": null,
+  "trigger": "쓰다듬기 4번째(D5 F5 G5 A5 C6 순서, C6에서 멈춤, 1.5초 쉬면 처음으로). 런타임 ±20c",
+  "group": "pet_stroke",
+  "duck_db": 0,
+  "min_gap_ms": 120,
+  "notes": "TRI A5 + P50 -12dB, +30c ↗. 점수·콤보처럼 들리지 않게 5단에서 상한"
+ },
+ {
+  "id": "pet_stroke_5",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/pet_stroke_5.ogg",
+   "m4a": "sfx/pet_stroke_5.m4a"
+  },
+  "duration": 0.09,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -20.5
+  },
+  "loop": null,
+  "trigger": "쓰다듬기 5번째(D5 F5 G5 A5 C6 순서, C6에서 멈춤, 1.5초 쉬면 처음으로). 런타임 ±20c",
+  "group": "pet_stroke",
+  "duck_db": 0,
+  "min_gap_ms": 120,
+  "notes": "TRI C6 + P50 -12dB, +30c ↗. 점수·콤보처럼 들리지 않게 5단에서 상한"
+ },
+ {
+  "id": "pet_happy_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/pet_happy_1.ogg",
+   "m4a": "sfx/pet_happy_1.m4a"
+  },
+  "duration": 0.15,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.5
+  },
+  "loop": null,
+  "trigger": "3번 넘게 쓰다듬은 뒤 기뻐함(10초에 한 번)",
+  "group": "pet_happy",
+  "duck_db": 0,
+  "min_gap_ms": 10000,
+  "notes": "P25 \"뀨\" D5↗F5 80ms + A5 60ms"
+ },
+ {
+  "id": "pet_happy_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/pet_happy_2.ogg",
+   "m4a": "sfx/pet_happy_2.m4a"
+  },
+  "duration": 0.15,
+  "level": {
+   "rel_db": -6,
+   "target": -26.0,
+   "measured": -26.0,
+   "unit": "RMS",
+   "peak_dbfs": -18.6
+  },
+  "loop": null,
+  "trigger": "3번 넘게 쓰다듬은 뒤 기뻐함(10초에 한 번)",
+  "group": "pet_happy",
+  "duck_db": 0,
+  "min_gap_ms": 10000,
+  "notes": "TRI \"뀨\" D5↗F5 80ms + A5 60ms"
+ },
+ {
+  "id": "pet_squish",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/pet_squish.ogg",
+   "m4a": "sfx/pet_squish.m4a"
+  },
+  "duration": 0.14,
+  "level": {
+   "rel_db": -9,
+   "target": -29.0,
+   "measured": -29.0,
+   "unit": "RMS",
+   "peak_dbfs": -18.5
+  },
+  "loop": null,
+  "trigger": "쓰다듬기를 시작할 때 몸이 폭 눌리는 소리(첫 pet_stroke 와 함께)",
+  "group": "pet_squish",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "GB sine A4 눌림 -1.8반음 → 되튐 + NZ LPF 1400→600 \"푹\". 다이브 2반음 미만"
+ },
+ {
+  "id": "window_tap_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/window_tap_1.ogg",
+   "m4a": "sfx/window_tap_1.m4a"
+  },
+  "duration": 0.08,
+  "level": {
+   "rel_db": -10,
+   "target": -30.0,
+   "measured": -30.0,
+   "unit": "RMS",
+   "peak_dbfs": -15.2
+  },
+  "loop": null,
+  "trigger": "창문 두드리기(두 번 탭하면 \"똑똑\"). 비·가는 비면 80~200ms 뒤 처마 물방울 2~3개(amb 쪽)",
+  "group": "window_tap",
+  "duck_db": 0,
+  "min_gap_ms": 90,
+  "notes": "TRI A6 +0c 70ms + NZm(7비트, F5 주기) BP 2.5k 15ms \"똑\" -6dB"
+ },
+ {
+  "id": "window_tap_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/window_tap_2.ogg",
+   "m4a": "sfx/window_tap_2.m4a"
+  },
+  "duration": 0.08,
+  "level": {
+   "rel_db": -10,
+   "target": -30.0,
+   "measured": -30.0,
+   "unit": "RMS",
+   "peak_dbfs": -15.1
+  },
+  "loop": null,
+  "trigger": "창문 두드리기(두 번 탭하면 \"똑똑\"). 비·가는 비면 80~200ms 뒤 처마 물방울 2~3개(amb 쪽)",
+  "group": "window_tap",
+  "duck_db": 0,
+  "min_gap_ms": 90,
+  "notes": "TRI G6 +0c 70ms + NZm(7비트, F5 주기) BP 2.5k 15ms \"똑\" -6dB"
+ },
+ {
+  "id": "window_tap_3",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/window_tap_3.ogg",
+   "m4a": "sfx/window_tap_3.m4a"
+  },
+  "duration": 0.08,
+  "level": {
+   "rel_db": -10,
+   "target": -30.0,
+   "measured": -30.0,
+   "unit": "RMS",
+   "peak_dbfs": -15.0
+  },
+  "loop": null,
+  "trigger": "창문 두드리기(두 번 탭하면 \"똑똑\"). 비·가는 비면 80~200ms 뒤 처마 물방울 2~3개(amb 쪽)",
+  "group": "window_tap",
+  "duck_db": 0,
+  "min_gap_ms": 90,
+  "notes": "TRI A6 +12c 70ms + NZm(7비트, F5 주기) BP 2.5k 15ms \"똑\" -6dB"
+ },
+ {
+  "id": "window_tap_4",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/window_tap_4.ogg",
+   "m4a": "sfx/window_tap_4.m4a"
+  },
+  "duration": 0.08,
+  "level": {
+   "rel_db": -10,
+   "target": -30.0,
+   "measured": -30.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.6
+  },
+  "loop": null,
+  "trigger": "창문 두드리기(두 번 탭하면 \"똑똑\"). 비·가는 비면 80~200ms 뒤 처마 물방울 2~3개(amb 쪽)",
+  "group": "window_tap",
+  "duck_db": 0,
+  "min_gap_ms": 90,
+  "notes": "TRI G6 -12c 70ms + NZm(7비트, F5 주기) BP 2.5k 15ms \"똑\" -6dB"
+ },
+ {
+  "id": "step_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/step_1.ogg",
+   "m4a": "sfx/step_1.m4a"
+  },
+  "duration": 0.048,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "RMS",
+   "peak_dbfs": -24.2
+  },
+  "loop": null,
+  "trigger": "문어 발소리 \"뽈뽈\" 종종걸음(걷는 애니메이션 프레임마다, 셔플)",
+  "group": "step",
+  "duck_db": 0,
+  "min_gap_ms": 60,
+  "notes": "GB sine C5 48ms, -1.5반음→0 빨판 \"뽈\" ↗ + 촉촉 NZ LPF1.5k 10ms -14dB, 전체 LPF 3.5k"
+ },
+ {
+  "id": "step_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/step_2.ogg",
+   "m4a": "sfx/step_2.m4a"
+  },
+  "duration": 0.044,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "RMS",
+   "peak_dbfs": -23.8
+  },
+  "loop": null,
+  "trigger": "문어 발소리 \"뽈뽈\" 종종걸음(걷는 애니메이션 프레임마다, 셔플)",
+  "group": "step",
+  "duck_db": 0,
+  "min_gap_ms": 60,
+  "notes": "GB sine D5 44ms, -1.5반음→0 빨판 \"뽈\" ↗ + 촉촉 NZ LPF1.5k 10ms -14dB, 전체 LPF 3.5k"
+ },
+ {
+  "id": "step_3",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/step_3.ogg",
+   "m4a": "sfx/step_3.m4a"
+  },
+  "duration": 0.052,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "RMS",
+   "peak_dbfs": -22.9
+  },
+  "loop": null,
+  "trigger": "문어 발소리 \"뽈뽈\" 종종걸음(걷는 애니메이션 프레임마다, 셔플)",
+  "group": "step",
+  "duck_db": 0,
+  "min_gap_ms": 60,
+  "notes": "GB sine A4 52ms, -1.5반음→0 빨판 \"뽈\" ↗ + 촉촉 NZ LPF1.5k 10ms -14dB, 전체 LPF 3.5k"
+ },
+ {
+  "id": "step_4",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/step_4.ogg",
+   "m4a": "sfx/step_4.m4a"
+  },
+  "duration": 0.046,
+  "level": {
+   "rel_db": -12,
+   "target": -32.0,
+   "measured": -32.0,
+   "unit": "RMS",
+   "peak_dbfs": -23.1
+  },
+  "loop": null,
+  "trigger": "문어 발소리 \"뽈뽈\" 종종걸음(걷는 애니메이션 프레임마다, 셔플)",
+  "group": "step",
+  "duck_db": 0,
+  "min_gap_ms": 60,
+  "notes": "GB sine F5 46ms, -1.5반음→0 빨판 \"뽈\" ↗ + 촉촉 NZ LPF1.5k 10ms -14dB, 전체 LPF 3.5k"
+ },
+ {
+  "id": "stay_count_drops_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/stay_count_drops_1.ogg",
+   "m4a": "sfx/stay_count_drops_1.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -17.7
+  },
+  "loop": null,
+  "trigger": "창가에서 빗방울 세기 1번째(하나씩 위로, 400~600ms 간격)",
+  "group": "stay_count_drops",
+  "duck_db": 0,
+  "min_gap_ms": 400,
+  "notes": "TRI C6 40ms, +40c ↗ 처프"
+ },
+ {
+  "id": "stay_count_drops_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/stay_count_drops_2.ogg",
+   "m4a": "sfx/stay_count_drops_2.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -17.8
+  },
+  "loop": null,
+  "trigger": "창가에서 빗방울 세기 2번째(하나씩 위로, 400~600ms 간격)",
+  "group": "stay_count_drops",
+  "duck_db": 0,
+  "min_gap_ms": 400,
+  "notes": "TRI D6 40ms, +40c ↗ 처프"
+ },
+ {
+  "id": "stay_count_drops_3",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/stay_count_drops_3.ogg",
+   "m4a": "sfx/stay_count_drops_3.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -17.8
+  },
+  "loop": null,
+  "trigger": "창가에서 빗방울 세기 3번째(하나씩 위로, 400~600ms 간격)",
+  "group": "stay_count_drops",
+  "duck_db": 0,
+  "min_gap_ms": 400,
+  "notes": "TRI F6 40ms, +40c ↗ 처프"
+ },
+ {
+  "id": "stay_count_drops_4",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/stay_count_drops_4.ogg",
+   "m4a": "sfx/stay_count_drops_4.m4a"
+  },
+  "duration": 0.04,
+  "level": {
+   "rel_db": -8,
+   "target": -28.0,
+   "measured": -28.0,
+   "unit": "RMS",
+   "peak_dbfs": -17.9
+  },
+  "loop": null,
+  "trigger": "창가에서 빗방울 세기 4번째(하나씩 위로, 400~600ms 간격)",
+  "group": "stay_count_drops",
+  "duck_db": 0,
+  "min_gap_ms": 400,
+  "notes": "TRI G6 40ms, +40c ↗ 처프"
+ },
+ {
+  "id": "stay_tidy_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/stay_tidy_1.ogg",
+   "m4a": "sfx/stay_tidy_1.m4a"
+  },
+  "duration": 0.45,
+  "level": {
+   "rel_db": -10,
+   "target": -30.0,
+   "measured": -30.0,
+   "unit": "RMS",
+   "peak_dbfs": -15.9
+  },
+  "loop": null,
+  "trigger": "집에 있는 날: 정리하기",
+  "group": "stay_tidy",
+  "duck_db": 0,
+  "min_gap_ms": 500,
+  "notes": "나무 \"딱\" 3타: TRI D5(587Hz≈600)/G5(784Hz≈800) 10ms+꼬리 + NZ 클릭, 타이밍 0ms D5/160ms G5/320ms D5"
+ },
+ {
+  "id": "stay_tidy_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/stay_tidy_2.ogg",
+   "m4a": "sfx/stay_tidy_2.m4a"
+  },
+  "duration": 0.45,
+  "level": {
+   "rel_db": -10,
+   "target": -30.0,
+   "measured": -30.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.1
+  },
+  "loop": null,
+  "trigger": "집에 있는 날: 정리하기",
+  "group": "stay_tidy",
+  "duck_db": 0,
+  "min_gap_ms": 500,
+  "notes": "나무 \"딱\" 3타: TRI D5(587Hz≈600)/G5(784Hz≈800) 10ms+꼬리 + NZ 클릭, 타이밍 0ms G5/110ms G5/330ms D5"
+ },
+ {
+  "id": "stay_tidy_3",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/stay_tidy_3.ogg",
+   "m4a": "sfx/stay_tidy_3.m4a"
+  },
+  "duration": 0.45,
+  "level": {
+   "rel_db": -10,
+   "target": -30.0,
+   "measured": -30.0,
+   "unit": "RMS",
+   "peak_dbfs": -16.2
+  },
+  "loop": null,
+  "trigger": "집에 있는 날: 정리하기",
+  "group": "stay_tidy",
+  "duck_db": 0,
+  "min_gap_ms": 500,
+  "notes": "나무 \"딱\" 3타: TRI D5(587Hz≈600)/G5(784Hz≈800) 10ms+꼬리 + NZ 클릭, 타이밍 0ms D5/220ms D5/330ms G5"
+ },
+ {
+  "id": "stay_hum_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/stay_hum_1.ogg",
+   "m4a": "sfx/stay_hum_1.m4a"
+  },
+  "duration": 1.6,
+  "level": {
+   "rel_db": -10,
+   "target": -30.0,
+   "measured": -30.0,
+   "unit": "LUFS",
+   "peak_dbfs": -23.4
+  },
+  "loop": null,
+  "trigger": "집에 있는 날: 창가에서 흥얼흥얼",
+  "group": "stay_hum",
+  "duck_db": -2,
+  "min_gap_ms": 4000,
+  "notes": "목소리 ㅜ 음색(TRI LPF 1.2k) 허밍, 포르타멘토 30ms, 늦은 비브라토 ±10c: A4(300) C5(300) D5(300) C5(300) A4(400)"
+ },
+ {
+  "id": "stay_hum_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/stay_hum_2.ogg",
+   "m4a": "sfx/stay_hum_2.m4a"
+  },
+  "duration": 1.6,
+  "level": {
+   "rel_db": -10,
+   "target": -30.0,
+   "measured": -30.0,
+   "unit": "LUFS",
+   "peak_dbfs": -22.4
+  },
+  "loop": null,
+  "trigger": "집에 있는 날: 창가에서 흥얼흥얼",
+  "group": "stay_hum",
+  "duck_db": -2,
+  "min_gap_ms": 4000,
+  "notes": "목소리 ㅜ 음색(TRI LPF 1.2k) 허밍, 포르타멘토 30ms, 늦은 비브라토 ±10c: C5(200) C5(200) A4(200) C5(200) D5(400) C5(400) — 테마 \"뽈 뽈 다녀 와\" 리듬(E→D)"
+ },
+ {
+  "id": "empty_turn_1",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/empty_turn_1.ogg",
+   "m4a": "sfx/empty_turn_1.m4a"
+  },
+  "duration": 0.75,
+  "level": {
+   "rel_db": -16,
+   "target": -36.0,
+   "measured": -36.0,
+   "unit": "RMS",
+   "peak_dbfs": -23.9
+  },
+  "loop": null,
+  "trigger": "빈 차례 \"…\"(50%는 아예 무음으로 두기)",
+  "group": "empty_turn",
+  "duck_db": 0,
+  "min_gap_ms": 1000,
+  "notes": "TRI C5 25ms를 0/350/700ms에 0/-3/-6dB(표의 -16/-19/-22). 같은 음, 하강 없음"
+ },
+ {
+  "id": "empty_turn_2",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/empty_turn_2.ogg",
+   "m4a": "sfx/empty_turn_2.m4a"
+  },
+  "duration": 0.75,
+  "level": {
+   "rel_db": -16,
+   "target": -36.0,
+   "measured": -36.0,
+   "unit": "RMS",
+   "peak_dbfs": -24.8
+  },
+  "loop": null,
+  "trigger": "빈 차례 \"…\"(50%는 아예 무음으로 두기)",
+  "group": "empty_turn",
+  "duck_db": 0,
+  "min_gap_ms": 1000,
+  "notes": "GB sine C5 25ms를 0/350/700ms에 0/-3/-6dB(표의 -16/-19/-22). 같은 음, 하강 없음"
+ },
+ {
+  "id": "lantern_prop_fade",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/lantern_prop_fade.ogg",
+   "m4a": "sfx/lantern_prop_fade.m4a"
+  },
+  "duration": 0.25,
+  "level": {
+   "rel_db": -16,
+   "target": -36.0,
+   "measured": -36.0,
+   "unit": "RMS",
+   "peak_dbfs": -24.9
+  },
+  "loop": null,
+  "trigger": "등불이 켜지고 200ms 뒤 소품이 나타날 때",
+  "group": "lantern_prop_fade",
+  "duck_db": 0,
+  "min_gap_ms": 300,
+  "notes": "TRI A5(으뜸음 F의 장3도) 짧은 반짝 + P25 A6 -14dB"
+ },
+ {
+  "id": "weather_shift",
+  "kind": "sfx",
+  "files": {
+   "ogg": "sfx/weather_shift.ogg",
+   "m4a": "sfx/weather_shift.m4a"
+  },
+  "duration": 0.4,
+  "level": {
+   "rel_db": -18,
+   "target": -38.0,
+   "measured": -38.0,
+   "unit": "RMS",
+   "peak_dbfs": -22.7
+  },
+  "loop": null,
+  "trigger": "날씨가 바뀔 때(8~12초 앰비언스 크로스페이드 시작과 함께)",
+  "group": "weather_shift",
+  "duck_db": 0,
+  "min_gap_ms": 8000,
+  "notes": "음 없음. NZ LPF 900→2400→700Hz 0.4s 열렸다 닫힘 \"바뀌었다\""
+ }
+]

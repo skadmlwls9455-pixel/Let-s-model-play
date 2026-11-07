@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ko" data-font="pixel">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#d7b594" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10141f" media="(prefers-color-scheme: dark)">
+<title>뽈뽈 문어</title>
+<!-- 첫 화면 픽셀 글꼴 미리 받기: 첫 화면이 쓰는 Galmuri 부분집합 넷(본문 9 · 버튼 11 · 굵은 11 · 메타 7)을 스타일시트를 다 읽기 전에 받기 시작한다.
+     스크립트로 넣는 까닭: file:// 에서는 crossorigin preload 가 CORS 로 막혀 오류·경고가 나고, 시스템 글꼴을 골랐으면 건너뛴다 (쓰지 않게 되면 "preload 했는데 안 씀" 경고가 난다).
+     crossorigin 이 없으면 @font-face 요청이 preload 를 다시 쓰지 않고 또 받는다. 스타일시트보다 앞에 있어야 기다리지 않고 바로 돈다 -->
+<script>(function () {
+  if (!/^https?:$/.test(location.protocol)) return;
+  /* 기록 전체를 JSON.parse 하지 않고 글자만 찾는다 (오래 논 기록은 몇 MB — head 에서 파서를 붙잡지 않게). 저장은 JSON.stringify 그대로라 공백이 없고, 문자열 속 따옴표는 \" 라 키로만 걸린다 */
+  try { var raw = localStorage.getItem('ppolppol_v2') || ''; if (raw.indexOf('"pixelFont":false') !== -1 || raw.indexOf('"font":"system"') !== -1) return; } catch (e) { /* 저장소 없음 → 기본(픽셀 글꼴) */ }
+  ['Galmuri9', 'Galmuri11', 'Galmuri11-Bold', 'Galmuri7'].forEach(function (f) {
+    var l = document.createElement('link'); l.rel = 'preload'; l.as = 'font'; l.type = 'font/woff2'; l.crossOrigin = 'anonymous'; l.href = 'vendor/fonts/' + f + '.sub.woff2';
+    document.head.appendChild(l);
+  });
+})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap">
+<link rel="stylesheet" href="vendor/fonts/galmuri.css"><!-- 픽셀 글꼴 (Galmuri, OFL) · file:// 상대 경로 -->
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/ui-art.css">
+<link rel="stylesheet" href="css/runner.css">
+<link rel="stylesheet" href="css/intro.css"><!-- 입장 레이어 (js/intro.js) -->
+<script src="js/intro.js"></script><!-- head 에서 읽어 html.intro-on 을 먼저 붙인다 (UI 깜빡임 방지) -->
+<!-- 저장소 워밍업: 문서가 열리자마자 한 번 읽어 둔다. file:// 원점에서 새로고침 직후 첫 읽기가 직전 커밋을 놓치는 경우가 있어서 (R2) -->
+<script>try { localStorage.getItem('ppolppol_v2'); } catch (e) { /* 저장소 없음: app.js 가 메모리로 대신한다 */ }</script>
+</head>
+<body>
+
+<!-- 저장 실패 경고 (조용히, 1회) -->
+<div id="save-warn" class="warn" hidden role="status"></div>
+
+<!-- ══ SCENE · 3D 픽셀아트 다락방 (§7.0, js/scene3d.js) — WebGL 없으면 아래 #stage 2D 폴백 ══ -->
+<section id="scene" class="px-frame" aria-label="문어의 다락방">
+  <p id="scene-desc" class="sr-only"></p><!-- 화면 낭독기용 장면 설명 (장소 · 문어 상태 · 날씨/시각). app.js 가 채운다. 라이브 영역 아님 -->
+  <div id="scene3d" aria-hidden="true" hidden></div>
+  <div id="stage">
+    <div id="layers"></div>
+    <div id="window-fx" aria-hidden="true"></div>
+    <div id="souvenir-row" aria-label="선반"></div>
+    <div id="wall-posts" aria-label="벽에 붙은 포스터"></div>
+    <div id="oct" class="st-idle" aria-label="문어">
+      <div id="oct-label" aria-live="off"></div>
+      <div id="oct-inner">
+        <!-- 인라인 문어 (48×48, 발끝 = 아래 가운데) · 팔레트 §7.1 -->
+        <svg id="oct-svg" viewBox="0 0 48 48" width="48" height="48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <g class="legs">
+            <path class="leg l1" d="M13 29 Q7 36 8 43 Q10 46 13 43 Q15 38 17 32" fill="#e8463c"/>
+            <path class="leg l2" d="M18 31 Q15 38 15 44 Q17 47 20 44 Q21 38 22 33" fill="#e8463c"/>
+            <path class="leg l3" d="M23 32 Q22 39 23 45 Q25 47 27 45 Q27 39 26 33" fill="#e8463c"/>
+            <path class="leg l4" d="M28 31 Q31 38 31 44 Q29 47 26 44 Q26 38 25 33" fill="#d93d33"/>
+            <path class="leg l5" d="M33 29 Q39 36 38 43 Q36 46 33 43 Q31 38 30 32" fill="#d93d33"/>
+            <path class="leg l6" d="M10 31 Q4 33 3 37 Q4 40 7 38 Q10 35 14 34" fill="#e8463c"/>
+            <path class="leg l7" d="M38 31 Q44 33 45 37 Q44 40 41 38 Q38 35 34 34" fill="#d93d33"/>
+            <g fill="#f6c28c">
+              <circle cx="9" cy="42" r="1"/><circle cx="16" cy="43" r="1"/><circle cx="24" cy="44" r="1"/>
+              <circle cx="31" cy="43" r="1"/><circle cx="37" cy="42" r="1"/><circle cx="5" cy="38" r=".9"/><circle cx="43" cy="38" r=".9"/>
+            </g>
+          </g>
+          <g class="body">
+            <ellipse cx="24" cy="21" rx="14" ry="13" fill="#e8463c"/>
+            <ellipse cx="18" cy="13" rx="5" ry="3.4" fill="#f2a05a" transform="rotate(-25 18 13)"/>
+            <circle cx="15.5" cy="11" r="1.4" fill="#fff6ee"/>
+            <circle cx="19" cy="22" r="3.4" fill="#fff6ee"/><circle cx="29" cy="22" r="3.4" fill="#fff6ee"/>
+            <circle class="pupil" cx="19.6" cy="22.4" r="2" fill="#1b1f2e"/><circle class="pupil" cx="29.6" cy="22.4" r="2" fill="#1b1f2e"/>
+            <circle cx="20.3" cy="21.6" r=".6" fill="#fff6ee"/><circle cx="30.3" cy="21.6" r=".6" fill="#fff6ee"/>
+            <path class="eyelid" d="M15.6 22 h7 M25.6 22 h7" stroke="#e8463c" stroke-width="7" stroke-linecap="butt" opacity="0"/>
+            <path d="M22 28 h4" stroke="#8a2a24" stroke-width="1.4" stroke-linecap="round"/>
+            <g class="blush" opacity="0"><ellipse cx="14" cy="26" rx="2.4" ry="1.4" fill="#f2a05a"/><ellipse cx="34" cy="26" rx="2.4" ry="1.4" fill="#f2a05a"/></g>
+          </g>
+        </svg>
+      </div>
+      <div id="oct-bubble" hidden></div>
+    </div>
+  </div>
+  <!-- 장면 오른쪽 위 아이콘 묶음 (DESIGN §7.2 · §6.3): 추억 앨범(첫 포스터·메모가 생긴 뒤부터) · 소리 토글 (js/audio.js — id 로만 찾는다).
+       누르는 곳 44×44 · 보이는 상자 28×28. 앨범 점은 지난번에 앨범을 연 뒤 새 포스터가 붙었을 때만 (숫자 없음, 열면 사라진다) -->
+  <div id="scene-ctl" class="scene-ctl">
+    <button type="button" id="btn-album" class="icon-btn album-btn" aria-label="추억 앨범" title="추억 앨범" aria-haspopup="dialog" aria-controls="album-sheet" aria-describedby="album-new" hidden>
+      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M1 2h10v1H1zM1 10h10v1H1zM1 3h1v7H1zM10 3h1v7h-1z"/><path class="al-pic" d="M3 6h1v1H3zM2 7h3v1H2zM6 5h1v1H6zM5 6h3v1H5zM4 7h5v1H4zM2 8h8v2H2zM8 4h1v1H8z"/></svg></span>
+      <span class="ib-dot" aria-hidden="true" hidden></span>
+      <span id="album-new" class="sr-only"></span>
+    </button>
+    <!-- 소리 토글 (js/audio.js): 꺼진 채로 시작. 켜면 스피커 물결, 끄면 × -->
+    <button type="button" id="btn-sound" class="icon-btn sound-btn" aria-pressed="false" aria-label="소리 켜기" title="소리 켜기">
+      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M1 4h2v4H1zM3 3h1v6H3zM4 2h1v8H4zM5 1h1v10H5z"/><path class="w-on" d="M7 4h1v4H7zM8 2h1v1H8zM9 3h1v6H9zM8 9h1v1H8z"/><path class="w-off" d="M7 4h1v1H7zM8 5h2v2H8zM10 4h1v1H10zM7 7h1v1H7zM10 7h1v1H10z"/></svg></span>
+    </button>
+  </div>
+</section>
+
+<!-- ══ STATUS (§7.2) — 한 줄: 이름 [데모] · 방 제목 | 등불 ■■□□□□□□ n/8. 여행·함께한 날은 방 보기 › 통계, 데모 두뇌 설명은 방 보기 › 누가 고르나.
+     추억 앨범 · 소리 버튼은 장면 오른쪽 위 묶음(#scene-ctl)으로 옮겼다: 320 px 에서 두 아이콘을 이 줄에 두면 두 글자 이름부터 잘렸다 (DESIGN §7.2) ══ -->
+<div id="status">
+  <div class="srow">
+    <!-- #brain-tag: 데모 두뇌(규칙)가 고르는 동안 늘 보이는 아주 작은 표시 (정직 표기). 모델(MCP) 여행을 재생하는 동안만 숨긴다 (app.js renderBrainTag) -->
+    <span class="who"><span id="oct-name" class="name">이름 없는 문어</span><span id="brain-tag" class="brain-tag"><span aria-hidden="true">데모</span><span class="sr-only">데모 규칙이 움직이는 중</span></span><span id="room-title" class="room-title">불씨 하나 켜진 다락</span></span>
+    <span id="pips" class="pips" role="img" aria-label="등불 0/8"><span class="pips-lbl">등불</span><span class="pip-row"></span><span class="pips-n">0/8</span></span>
+  </div>
+</div>
+
+<!-- ══ INVITE (§7.3) ══ -->
+<section id="invite" aria-label="초대">
+  <!-- 힌트 칸은 개발용 (주인 결정 18, docs/NIGHT_LOG.md): 플레이어 화면에선 버튼 줄만. ?dev=1 · localhost · file:// 에서만 app.js 가 보인다 (DEV).
+       hidden 으로 시작해 플레이어에겐 깜빡임·자리 비움이 없다. 두뇌의 힌트 이해는 그대로 (개발·테스트·MCP 이벤트가 쓴다) -->
+  <div id="hint-box" class="hint-box" hidden>
+    <label class="lbl" for="hint-in">힌트 <span class="dim">(선택 · 개발용)</span></label>
+    <input id="hint-in" type="text" maxlength="120" autocomplete="off" enterkeyhint="send"
+           placeholder="주제나 링크를 슬쩍 건네줘">
+    <div id="hint-help" class="help">비워 두면 힌트 없이 나가</div>
+  </div>
+  <div class="btn-row">
+    <button type="button" class="btn primary pressable" id="btn-go"><span class="go-txt"><span class="emo" aria-hidden="true">🌧</span> 뽈뽈 다녀와</span></button>
+    <button type="button" class="btn pressable" id="btn-skip" hidden><span class="emo" aria-hidden="true">⏩</span> 건너뛰기</button>
+    <button type="button" class="btn pressable" id="btn-look">방 보기</button>
+  </div>
+</section>
+
+<!-- ══ LOG (§7.4) ══ -->
+<section id="log-sec" aria-label="오늘의 산책">
+  <h2 class="sec-h">오늘의 산책</h2>
+  <div id="log" role="log" aria-live="polite" tabindex="0"></div>
+</section>
+
+<!-- ══ DEMO (§7.6) — 개발용: ?dev=1 · localhost · file:// 에서만 보인다 (app.js DEV) ══ -->
+<details id="demo" hidden>
+  <summary>데모 조작 (개발용)</summary>
+  <p class="warn-line">여기 버튼은 문어 대신 사람이 고르는 거야. 일기에 '사람이 조작'으로 남아.</p>
+  <div class="btn-row">
+    <button type="button" class="btn sm" id="d-depart">출발</button>
+    <button type="button" class="btn sm" id="d-stay">집에 있기</button>
+    <button type="button" class="btn sm" id="d-peek">기웃</button>
+    <button type="button" class="btn sm" id="d-return">귀가</button>
+    <button type="button" class="btn sm" id="d-poster">포스터</button>
+    <button type="button" class="btn sm" id="d-wrap">마무리</button>
+  </div>
+  <input id="d-peek-in" type="text" maxlength="200" placeholder="기웃거릴 곳 (노드 이름 또는 URL)">
+  <label class="lbl" for="d-json">이벤트 JSON 배열 붙여넣기 (by: mcp)</label>
+  <textarea id="d-json" rows="3" placeholder='[{"type":"depart","t":0,"hint":""}, …]'></textarea>
+  <div class="btn-row"><button type="button" class="btn sm" id="d-import">이벤트 JSON 불러오기</button></div>
+  <p class="help" id="d-msg"></p>
+  <div id="dev-look" class="dev-look">
+    <label class="dv"><span>픽셀 <b id="dv-px-v"></b></span><input type="range" id="dv-px" min="1" max="4" step="1"></label>
+    <label class="dv"><span>디더 <b id="dv-dither-v"></b></span><input type="range" id="dv-dither" min="0" max="1" step="0.05"></label>
+    <label class="dv"><span>외곽선</span><input type="checkbox" id="dv-outline"></label>
+    <label class="dv"><span>시점 <b id="dv-yaw-v"></b></span><input type="range" id="dv-yaw" min="-25" max="25" step="1"></label>
+    <label class="dv"><span>키 광 <b id="dv-key-v"></b></span><input type="range" id="dv-key" min="0.5" max="4" step="0.1"></label>
+    <label class="dv"><span>필 광 <b id="dv-fill-v"></b></span><input type="range" id="dv-fill" min="0" max="1" step="0.02"></label>
+    <p class="help" id="dv-msg"></p>
+    <div id="dv-swatch" class="swatch" aria-label="팔레트"></div>
+  </div>
+</details>
+
+<footer class="foot">뽈뽈 문어 · <a href="https://github.com/skadmlwls9455-pixel/model-welfare-idea" rel="noopener" target="_blank">뽈뽈 복지</a>에서 왔어</footer>
+
+<!-- ══ 이름 모달 (§7.8) ══ -->
+<dialog id="name-dialog" class="modal" aria-labelledby="name-h">
+  <form method="dialog" id="name-form">
+    <div class="big" aria-hidden="true">🐙</div>
+    <h2 id="name-h">문어 이름을 지어 줘</h2>
+    <p class="name-lead"><span class="ln">오늘 처음 보내는 문어야.</span><span class="ln">이름은 천천히</span><span class="ln">불러 줘도 괜찮아.</span></p>
+    <input class="modal-in" id="name-in" type="text" placeholder="예: 뚜루, 안개, 삐죠…" maxlength="18" autocomplete="off" required>
+    <button type="submit" class="btn primary wide pressable">이름 저장</button>
+    <p class="honest"><span class="ln">지금은 미리 만든 규칙으로</span><span class="ln">움직이는 체험판이야.</span></p>
+  </form>
+</dialog>
+
+<!-- ══ 포스터 열람 모달 (§6.3 · §15.1) — 왼쪽(폰에선 위) 포스터, 오른쪽(아래) 짧은 기록, 일기(뒷면)는 아래로 펼침 ══ -->
+<dialog id="poster-dialog" class="modal poster-modal" aria-label="포스터 열람">
+  <h2 id="pd-h" class="sr-only dlg-top" tabindex="-1">포스터</h2><!-- 열 때 포커스는 여기(맨 위) — 첫 버튼은 폰에서 상자 아래쪽이라 (app.js showDialog). 글자는 포스터 제목 -->
+  <div class="flipper" id="flipper">
+    <div class="inspect">
+      <div class="inspect-art"><div class="face front" id="pd-front"></div></div>
+      <div class="inspect-text" id="pd-text"></div>
+    </div>
+    <div class="face back" id="pd-back"></div>
+  </div>
+  <div class="btn-row center">
+    <button type="button" class="btn pressable" id="pd-flip" aria-controls="pd-back" aria-expanded="false">일기 전체 보기</button>
+    <button type="button" class="btn pressable" id="pd-save">이미지로 저장</button>
+    <button type="button" class="btn pressable" id="pd-copy">복사</button>
+    <button type="button" class="btn pressable" id="pd-close">닫기</button>
+  </div>
+</dialog>
+
+<!-- ══ 방 보기 (§7.5) ══ -->
+<dialog id="room-sheet" class="sheet" aria-labelledby="rs-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="rs-h" class="sr-only dlg-top" tabindex="-1">방 보기</h2><!-- 열 때 포커스는 여기 (app.js showDialog) -->
+  <div id="rs-body"></div>
+  <button type="button" class="btn wide pressable" id="rs-close">닫기</button>
+</dialog>
+
+<!-- ══ 추억 앨범 (§6.3) — 장면 오른쪽 위 앨범 버튼(#btn-album)으로 여는 시트. 폰은 바텀시트, ≥600px 은 가운데. 카드를 누르면 포스터 열람 창이 그 위에 열린다.
+     아래 '남긴 메모'는 호기심 메모 전부 (내려놓은 메모 포함, docs/CURIOSITY_NOTES.md) — 전체 보기에서만 ══ -->
+<dialog id="album-sheet" class="sheet album-sheet" aria-labelledby="al-h">
+  <div class="handle" aria-hidden="true"></div>
+  <div class="sec-row al-top">
+    <h2 id="al-h" class="al-h dlg-top" tabindex="-1">추억 앨범</h2><!-- 열 때 포커스는 여기 (app.js showDialog) -->
+    <div class="filters" role="group" aria-label="앨범 필터">
+      <button type="button" class="fchip on" data-f="all" aria-pressed="true">전체</button>
+      <button type="button" class="fchip" data-f="poster" aria-pressed="false">포스터</button>
+      <button type="button" class="fchip" data-f="note" aria-pressed="false">쪽지</button>
+    </div>
+  </div>
+  <div id="album"></div>
+  <div id="album-notes"></div>
+  <button type="button" class="btn wide pressable" id="al-close">닫기</button>
+</dialog>
+
+<!-- 토스트는 이거 하나. 한 번에 하나, 2.5초. 모달이 열려 있으면 app.js 가 그 안으로 옮겨 popover 로 띄운다 (모달 밖은 inert 라 안 보이고 안 읽힌다) -->
+<output id="toast" popover="manual" aria-live="polite"></output>
+
+<!-- three r128 UMD (MIT, vendor/THREE-LICENSE.txt). 로컬 파일이 없으면 cdnjs. 둘 다 실패하면 SCENE2D 폴백 -->
+<script src="vendor/three.min.js" onerror="document.write('<script src=\'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js\'><\/script>')"></script>
+<script src="js/world.js"></script>
+<script src="js/brain.js"></script>
+<script src="js/palettes.js"></script>
+<script src="js/clouds.js"></script><!-- 입장 하늘의 몽글한 픽셀 구름 (2D 캔버스, 날씨 × 시각대) -->
+<script src="js/scene3d.js"></script>
+<script src="js/scene2d.js"></script>
+<script src="js/audio.js"></script><!-- 소리 (전역 AUDIO): app.js 의 boot 가 AUDIO.init 을 부른다. 없거나 실패해도 게임은 그대로 -->
+<script src="js/app.js"></script>
+<script src="js/ui-art.js"></script>
+<script src="js/runner.js"></script>
+</body>
+</html>

@@ -1,0 +1,1616 @@
+/* js/brain.js — 뽈뽈 문어의 데모 두뇌 (작은 규칙 뭉치). 전역 BRAIN.
+ *
+ * - 순수 로직 + 위키백과 fetch 도우미. DOM 접근 없음. node 에서도 그대로 로드된다.
+ * - 모든 선택은 mulberry32(seed) 만 쓴다. Math.random 금지.
+ * - fetch 결과(성공/실패)는 정류장의 "읽기 상태" 표기에만 쓰이고 길 선택을 바꾸지 않는다.
+ *   난수 뽑는 순서는 fetch 와 무관하게 고정된다:
+ *     1 r_stay → (집) r_empty, r_activity, t_wrap, 스티커 위치 3, paper, r_reactionLine(반응 후보 고르기도 이 하나로)
+ *                (외출) r_follow, r_wild, r_wildIdx, pickStart(필요 시), 길 만들기(걸음마다 r_return/r_distract/r_pick),
+ *                ms×6, gap×6, g_return, g_remember, g_hang, g_wrap,
+ *                r_remember, r_souvenir, r_template, r_memory, 스티커 위치 3, paper, r_reactionLine
+ *   그 뒤에야 fetch 를 한다. fetch 결과로 달라지는 건 "들판 걸음" 후보 문서 하나뿐이고,
+ *   그 인덱스도 미리 뽑아 둔 r_wildIdx 로 고른다 (floor(r * links.length)).
+ * - 설계 명세: docs/DESIGN.md §5, §6.1, §8, §9, §12.2
+ * - 모델의 뜻 (docs/MODEL_VOICE.md): replay 에서 모델(by 'mcp')·사람(by 'human')이 낸 반응·말·메모는 그대로 둔다.
+ *   거르거나 바꾸지 않고, 안 낸 것은 지어내지 않는다(null). 데모 규칙(plan)만 지금처럼 정직하게 거른다 (reactionBy 'demo-rules').
+ *   두뇌가 대신 고른 것(기억할 곳·못 하는 활동)은 'fallback' 으로 따로 적는다. 기웃 메모(peek.note)도 그들이 쓴 그대로 (noteBy),
+ *   읽음이 확인되지 않은 '읽은 글'만 화면에서 빼고 원문은 noteGiven 에 둔다. 메모를 안 썼으면 코드가 문어 말투로 채우지 않는다.
+ * - 호기심 메모 (docs/CURIOSITY_NOTES.md): state.notes(활성 메모 최근 3개)의 about 방은 데모 두뇌의 길 고르기에서
+ *   가중치만 NOTE_BOOST 배가 된다 (새 난수 없음, 메모 글은 쓰지 않는다). 메모가 없으면 결과는 예전과 바이트 하나까지 같다.
+ */
+(function (root) {
+  'use strict';
+
+  var WIKI_API = 'https://ko.wikipedia.org/w/api.php';
+  var WIKI_PAGE = 'https://ko.wikipedia.org/wiki/';
+  var LICENSE = 'CC BY-SA 4.0';
+  var ATTRIBUTION = 'Wikipedia (ko)';
+  var THUMB_LICENSE = '위키미디어 공용';
+  var LINK_EXCLUDE = /^\d+년|^\d+월|목록|동음이의|분류:|틀:|파일:|ISBN|위키/;
+  var HANGUL = /[가-힣]/;
+  var PARTICLES = ['에서', '으로', '에게', '까지', '부터', '처럼', '이랑', '하고',
+    '의', '을', '를', '이', '가', '은', '는', '도', '에', '로', '와', '과'];
+  var SPECIAL = { door_out: 1, slow_room: 1, letter_room: 1 };
+  var STATUSES = ['read', 'builtin', 'simulated', 'failed', 'none'];
+  var REACTIONS = ['폴짝', '우쭐', '졸림', '덤덤'];
+  var NOTE_BOOST = 3;        /* 활성 호기심 메모가 가리키는 방: 길 고르기 가중치 × 3 (곱하기만, 새 난수 없음) */
+  var NOTES_IN = 3;          /* 두뇌가 읽는 활성 메모 수 (최근 것부터, CURIOSITY_NOTES) */
+  var SIMULATED_NOTE = '정적 페이지라 바깥은 못 읽어. 문 앞까지만 갔다 왔어';
+  var IGNORED_NOTE = '오늘은 그쪽 말고 다른 데가 궁금했어';
+
+  var DEFAULT_TEMPLATES = {
+    followedThenLeft: ['{hint} 보러 갔다가 {mem}에 한눈팔았어', '{hint}에서 시작했는데 발이 {mem} 쪽으로 갔어'],
+    followedKept: ['{hint}, 끝까지 봤어. {memory}', '{hint} 앞에 오래 있었어. {memory}'],
+    leftKept: ['{hint} 보러 갔다가 딴 데도 들렀는데, 결국 머리에 남은 건 {hint}', '{hint}에서 시작해 한눈도 팔았지만, 기억에 남은 건 {hint}. {memory}'],
+    noHint: ['오늘은 {mem}. {memory}', '발길 닿는 대로 가다 {mem}에 오래 있었어'],
+    ignored: ['{hint} 보는 건 다음에. 오늘은 {mem} 쪽이 궁금했어', '{hint} 말고 {mem} 쪽이 끌렸어. {memory}'],
+    linger: ['느린 글의 방에 앉아만 있었어. 아무것도 안 읽어도 됐어'],
+    door: ['{hint} 문 앞까지 갔다 왔어. 바깥은 못 읽었지만'],
+    letter: ['편지의 방 문을 열어 봤어. 아직 비어 있었어'],
+    failed: ['{mem} 문은 오늘 안 열렸어. 이름만 기억해 둘래', '{mem}는 못 읽었어. 다음에 다시 가 볼래'],
+    wild: ['들판에서 만난 건 {mem}. {memory}', '링크를 따라가다 {mem}에 닿았어']
+  };
+
+  var DEFAULT_HOME = [
+    { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', detail: '마흔까지 세고 잊었어. 다시 하나부터.', anchor: 'window', weight: 3, emoji: '🌧', maxLantern: 6, reactions: ['졸림'] },
+    { id: 'reread_poster', line: '벽 포스터 뒷면을 다시 읽었어', detail: '일기 글씨가 조금 번져 있었어.', anchor: 'crate', weight: 2, emoji: '📖', minLantern: 1, requiresPoster: true, reactions: ['덤덤'] },
+    { id: 'nap', line: '담요 속에서 낮잠', detail: '담요 안은 조용했어.', anchor: 'blanket', weight: 3, emoji: '😴', reactions: ['졸림'] },
+    { id: 'swap_posters', line: '포스터 위치를 바꿔 봤어', detail: '왼쪽 걸 오른쪽으로. 그게 다야.', anchor: 'board', weight: 1, emoji: '🖼', minLantern: 2, requiresPoster: true, effect: 'rotatePosters', reactions: ['덤덤'] },
+    { id: 'watch_moss', line: '이끼 화분을 오래 들여다봤어', detail: '어제보다 조금 더 초록인 것 같아.', anchor: 'window', weight: 2, emoji: '🪴', minLantern: 1, reactions: ['덤덤'] },
+    { id: 'nothing', line: '…', detail: '', anchor: 'blanket', weight: 0, emoji: '' }
+  ];
+
+  /* §17.1 그때 남긴 메모. 조사 없는 꼴만 쓴다({mem}에 · {next} 쪽으로). 각 60자 이하. 명령문·자격 기준 언급 없음 */
+  var MEMO_MAX = 60;
+  var DEFAULT_MEMO = {
+    lead: {
+      followedThenLeft: ['{hint} 보다가 {mem}에 꽂혔어', '{hint}에서 시작했는데 {mem}에 오래 있었어'],
+      followedKept: ['{hint} 앞에 오래 있었어', '오늘은 {hint} 하나만 봤어'],
+      leftKept: ['한눈은 팔았는데 머리에 남은 건 {hint}'],
+      noHint: ['{mem}에 오래 있었어', '발길 닿는 대로 가다 {mem}까지 갔어'],
+      ignored: ['{hint} 대신 {mem} 쪽에 갔어'],
+      wild: ['길을 벗어나 {mem}까지 갔어'],
+      linger: ['느린 글의 방에 앉아만 있었어'],
+      letter: ['편지의 방은 아직 비어 있었어'],
+      door: ['{hint} 문 앞까지만 갔어'],
+      failed: ['{mem} 문이 안 열렸어']
+    },
+    next: {
+      '폴짝': ['내일은 {next} 쪽으로 가 볼까', '내일은 {next} 쪽도 들여다볼까'],
+      '우쭐': ['내일은 {next} 쪽으로 더 가 볼까'],
+      '덤덤': ['내일은 {next} 쪽으로 가 볼까 말까'],
+      '졸림': ['내일은 {next} 쪽으로 천천히 가 볼까']
+    },
+    nextNone: ['내일은 어디로 갈지 자고 나서 정할래'],
+    home: ['내일은 나가 볼까 말까', '내일은 밖에 나가 볼까'],
+    revisit: '{hint}? 그거 {n}일 전에 봤잖아. 이번엔 안쪽까지 가 볼게',
+    revisitToday: '{hint}? 그거 아까 봤잖아. 이번엔 안쪽까지 가 볼게',
+    revisitUndated: '{hint}? 그거 전에 봤잖아. 이번엔 안쪽까지 가 볼게'
+  };
+
+  var BRAIN = { _world: null, LICENSE: LICENSE, ATTRIBUTION: ATTRIBUTION, THUMB_LICENSE: THUMB_LICENSE };
+
+  /* ───────── 유틸 ───────── */
+  function world() { return BRAIN._world || root.WORLD || null; }
+  function lower(s) { return String(s == null ? '' : s).toLowerCase(); }
+  function lerp(r, a, b) { return a + r * (b - a); }
+  function toDate(x) {
+    if (x instanceof Date) return isNaN(x.getTime()) ? new Date() : x;
+    if (x == null) return new Date();
+    var d = new Date(x);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function localDateKey(now) {
+    var d = toDate(now);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+  function hostOf(url) {
+    var m = /^https?:\/\/([^\/?#]+)/i.exec(String(url || ''));
+    return m ? m[1].replace(/^www\./, '') : String(url || '');
+  }
+  function zeroCounts() { return { read: 0, builtin: 0, simulated: 0, failed: 0, none: 0 }; }
+  function normalizeState(s) {
+    s = s || {};
+    return {
+      visits: s.visits || {},
+      affinity: s.affinity || {},
+      lantern: s.lantern == null ? 0 : s.lantern,
+      /* 이 차례가 끝나면 등불 칸이 하나 켜지나 (app 이 안다: 칸이 남았고 그날 아직 안 켰을 때). 안 주면 옛 규칙(등불 < 8).
+         쪽지 뒷면의 '등불 +1' 말에만 쓴다 — 난수·길·활동 고르기와는 무관 */
+      lanternLeft: typeof s.lanternLeft === 'boolean' ? s.lanternLeft : ((s.lantern == null ? 0 : s.lantern) < 8),
+      /* 플레이어가 이미 가진 기념품 id. 안 주면 null = 옛 규칙(이번에 처음 온 방에서만) */
+      owned: Array.isArray(s.owned) ? s.owned.filter(function (x) { return typeof x === 'string'; }) : null,
+      recent: Array.isArray(s.recent) ? s.recent : [],
+      todayOut: s.todayOut == null ? 0 : s.todayOut,
+      lastVisit: (s.lastVisit && typeof s.lastVisit === 'object') ? s.lastVisit : {},
+      /* 벽에 붙은 포스터 수. 안 주면 0 — 없는 포스터를 다시 읽었다고 말하지 않게 */
+      posters: (typeof s.posters === 'number' && s.posters > 0 && isFinite(s.posters)) ? Math.floor(s.posters) : 0,
+      /* 호기심 메모 (R2): app 이 활성 메모 최근 3개를 준다. 안 주면 [] = 예전과 같은 결과 */
+      notes: normalizeNotes(s.notes)
+    };
+  }
+  /* ───────── 호기심 메모 (docs/CURIOSITY_NOTES.md) ───────── */
+  function normAbout(a) {
+    if (!a || typeof a !== 'object' || (a.kind !== 'node' && a.kind !== 'object') || typeof a.id !== 'string' || !a.id) return null;
+    return { kind: a.kind, id: a.id };
+  }
+  /* 들어온 메모 목록 정리: 내려놓은 것(status 가 'active' 가 아닌 것)·모양이 틀린 것은 버리고, 앞에서부터(최근 것부터) 3개.
+     글(text)은 그대로 두지만 두뇌는 읽지 않는다 — 데모 두뇌가 메모 글을 제 말처럼 옮기지 않게.
+     작성 주체(by)는 'model' · 'human'(데모 조작) 그대로, 그 밖은 'demo-rules' — 사람·모델의 메모를 규칙 메모로 바꿔 적지 않게 */
+  function normalizeNotes(list) {
+    if (!Array.isArray(list)) return [];
+    var out = [];
+    list.forEach(function (n) {
+      if (!n || typeof n !== 'object' || (n.status != null && n.status !== 'active')) return;
+      out.push({ id: typeof n.id === 'string' ? n.id : null, text: typeof n.text === 'string' ? n.text : '', about: normAbout(n.about),
+        by: (n.by === 'model' || n.by === 'human') ? n.by : 'demo-rules', session: typeof n.session === 'string' ? n.session : null, at: typeof n.at === 'string' ? n.at : null });
+    });
+    return out.slice(0, NOTES_IN);
+  }
+  /* 메모가 가리키는 방 id → true. kind 'object'(방 안 물건)는 길 고르기에 쓰지 않는다 */
+  function noteTargets(state) {
+    var W = world(), m = {};
+    ((state && state.notes) || []).forEach(function (n) { if (n.about && n.about.kind === 'node' && W && W.nodes && W.nodes[n.about.id]) m[n.about.id] = true; });
+    return m;
+  }
+  /* 화면에 보일 때만 줄이는 꼴: max 자가 넘으면 앞 max 자 + '…'. 원문은 기록에 그대로 둔다 (MODEL_VOICE §3) */
+  function clipShown(t, max) {
+    t = String(t == null ? '' : t);
+    return t.length > max ? t.slice(0, max) + '…' : t;
+  }
+  /* 가중치 뽑기: r ∈ [0,1) 하나로 결정 */
+  function pickWeighted(items, weightOf, r) {
+    if (!items || !items.length) return -1;
+    var ws = [], total = 0, i;
+    for (i = 0; i < items.length; i++) {
+      var w = weightOf ? weightOf(items[i], i) : 1;
+      w = (typeof w === 'number' && w > 0 && isFinite(w)) ? w : 0;
+      ws.push(w); total += w;
+    }
+    if (total <= 0) return Math.min(items.length - 1, Math.floor(r * items.length));
+    var target = r * total, acc = 0;
+    for (i = 0; i < items.length; i++) { acc += ws[i]; if (target < acc) return i; }
+    return items.length - 1;
+  }
+  function sentences(text, maxLen) {
+    var t = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!t) return '';
+    var parts = (t.match(/[^.!?。]+[.!?。]*/g) || [t]).map(function (x) { return x.trim(); }).filter(Boolean);
+    var out = '';
+    for (var i = 0; i < parts.length && i < 2; i++) {
+      var cand = out ? out + ' ' + parts[i] : parts[i];
+      if (cand.length > maxLen) break;
+      out = cand;
+    }
+    if (!out) out = t.slice(0, maxLen - 1) + '…';
+    return out;
+  }
+
+  /* ───────── 5.1 시드 · 난수 ───────── */
+  /* FNV-1a 32bit. 인자를 '|' 로 이어 붙인 문자열의 UTF-16 코드 단위를 돈다. */
+  function hashSeed() {
+    var parts = [];
+    for (var k = 0; k < arguments.length; k++) parts.push(arguments[k] == null ? '' : String(arguments[k]));
+    var s = parts.join('|');
+    var h = 0x811c9dc5;
+    for (var i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h >>> 0;
+  }
+  /* mulberry32 */
+  function rng(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function asR(r) { return typeof r === 'function' ? r() : (typeof r === 'number' ? r : 0); }
+  /* 받침에 맞는 조사. 한글로 끝나지 않으면 템플릿에 적힌 조사를 그대로 둔다. */
+  var JOSA = { '은': ['은', '는'], '는': ['은', '는'], '이': ['이', '가'], '가': ['이', '가'], '을': ['을', '를'], '를': ['을', '를'], '과': ['과', '와'], '와': ['과', '와'], '으로': ['으로', '로'], '로': ['으로', '로'] };
+  function josa(word, particle) {
+    var pair = JOSA[particle];
+    if (!pair || !word) return particle;
+    var code = word.charCodeAt(word.length - 1);
+    if (code < 0xAC00 || code > 0xD7A3) return particle;
+    var jong = (code - 0xAC00) % 28;
+    if (particle === '로' || particle === '으로') return (jong === 0 || jong === 8) ? '로' : '으로';
+    return jong === 0 ? pair[1] : pair[0];
+  }
+  /* 숫자로 시작하는 방 이름('0')을 문장에 그대로 넣으면 "0까지 갔어"·"오늘은 0." 처럼 어색하다 → "0이라는 방".
+     방 이름(노드)에만 쓴다 — 들판 글 제목·URL 은 그대로. 숫자로 안 시작하면 손대지 않는다.
+     받침: 끝 글자가 숫자면 읽는 소리(영·일·이·삼·사·오·육·칠·팔·구)로, 한글이면 그 받침으로 */
+  var DIGIT_JONG = '1101001110';
+  function roomWord(name) {
+    name = name == null ? '' : String(name);
+    if (!/^[0-9]/.test(name)) return name;
+    var last = name.charAt(name.length - 1), code = last.charCodeAt(0);
+    var jong = /[0-9]/.test(last) ? DIGIT_JONG.charAt(+last) === '1' : (code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 > 0);
+    return name + (jong ? '이라는 방' : '라는 방');
+  }
+
+  /* ───────── 5.3 힌트 읽기 ─────────
+     낱말 단위로 맞춘다. 힌트(또는 URL)를 낱말로 자르고(두 글자 넘는 한글·영문 덩어리는 붙어 있어도 따로: '문어octopus' = 문어 + octopus),
+     낱말 = 방의 말(이름·별칭·키워드) + 조사·어미 사슬 일 때만 그 방이다. 말이 낱말 안 아무 데나 들어 있다고 맞추지 않는다.
+       - 사슬: 들 → 격조사(에·에서·로·와·하고…) → 보조사(는·도·만·나·든·라도·야말로…) → 끝 조사(이·을·의), 최대 3개 + '요'.
+         서술격(예요·이에요·야·이다·다·인데·였나·거든·지·라는…)은 맨 끝에 하나만(몇몇은 + 요). 예: 문어에도 · 모자에는 · 문어와의 · 자장가라도 · 털모자예요 · 문어다 · 문어든
+       - 받침 맞춤: 서술격은 늘 맞아야 한다('나선다' != 나선). 조사는 두 글자 이상 말이면 틀려도 봐준다(흔한 오타).
+       - 하다꼴(하는·한·할·해…)은 하다가 붙는 말(HADA)에만: '기억하는 법' = 기억, '뜨개질하는 법' = 실, '유리한 위치' != 유리.
+         치다꼴(치는·친다…)은 CHIDA 에만: '천둥치는 밤' = 천둥, '벼락치기' != 천둥
+       - 한 글자 이름(비·눈·별·꿈·차…)은 받침 맞는 조사 사슬만 (서술격·요·야 없음: '차다'·'차요' 는 차가 아니다).
+       - 다른 낱말이 되는 꼴은 그 말로 치지 않는다 (NOT_WORD: 종이·별로·차도·별도·비만·모자라·나선다…)
+       - 띄어 쓴 말('눈 움직임', '비 온 뒤', '문어 뇌')은 낱말을 이어서 맞추고 끝 낱말에만 사슬을 붙인다.
+         그 낱말들은 그 방 차지라, 안의 '눈'·'비'·'문어'를 다른 방으로 치지 않는다 (#101)
+       - 합성어는 말마다 정한 자리에서만 (COMPOUND): 앞머리(구름사진·한글날)·낱말 끝 머리말(털모자·봄바람·흑진주).
+         목록 밖의 이름·별칭은 SAFE_TAIL 뒷말(소리·목걸이·공예…)이 붙을 때만 (풍경소리·바람소리). 키워드는 합성어로 맞추지 않는다.
+         그 밖에 낱말 속에 들어 있는 것은 아니다: 실제로!=제로, 짝수면!=수면, 어울림!=울림, 실시간!=시간, 코스모스!=모스, 득점자!=점자
+       - 영문 말은 낱말 전체가 같아야 한다 (linkedin!=ink, teams!=tea, rainbow!=rain) */
+  var HINT_SEP = /[\s,.·…!?\/()\[\]"'“”‘’:;]+/;
+  var WORD_SPLIT = /[^a-z0-9가-힣]+/;
+  /* 영문↔한글 경계: 양쪽 다 두 글자 이상일 때만 자른다 ('문어octopus'·'sos신호'). 한 글자 쪽은 붙여 둔다:
+     'lineKind별'(~별 = ~마다)·'비ASCII'(비 = 아닌)·'SOS를' 의 한 글자는 낱말이 아니다. 숫자는 붙은 쪽에 ('0은' 한 낱말) */
+  var SCRIPT_EDGE = /([a-z]{2})(?=[가-힣]{2})|([가-힣]{2})(?=[a-z]{2})/g;
+  var HANGUL_ONLY = /^[가-힣]+$/;
+  function wordsOf(s) {
+    if (HANGUL_ONLY.test(s)) return [s];   /* 흔한 경우(한글 한 낱말)는 바로 */
+    return lower(s).replace(SCRIPT_EDGE, '$1$2 ').split(WORD_SPLIT).filter(Boolean);
+  }
+  function jongOf(s) { var c = s.charCodeAt(s.length - 1); return (c >= 0xAC00 && c <= 0xD7A3) ? (c - 0xAC00) % 28 : -1; }
+  /* 받침 조건: C 받침 뒤 · V 모음 뒤 · R 모음·ㄹ 뒤(로) · N ㄹ 아닌 받침 뒤(으로). 한글로 안 끝나면(SOS·0) 아무거나 */
+  function agrees(prev, cond) {
+    var j = jongOf(prev);
+    if (!cond || j < 0) return true;
+    if (cond === 'C') return j > 0;
+    if (cond === 'V') return j === 0;
+    if (cond === 'R') return j === 0 || j === 8;
+    return j > 0 && j !== 8;
+  }
+  /* [꼴, 갈래, 받침]. 갈래: P 들 · K 격조사 · D 보조사 · E 끝 조사 · Q 서술격(끝) · Y 높임 요(끝) */
+  var SUFFIXES = [
+    ['들', 'P'],
+    ['에서', 'K'], ['에게서', 'K'], ['에게', 'K'], ['한테서', 'K'], ['한테', 'K'], ['께서', 'K'], ['께', 'K'], ['에다가', 'K'], ['에다', 'K'], ['에', 'K'],
+    ['으로서', 'K', 'N'], ['으로써', 'K', 'N'], ['으로', 'K', 'N'], ['로서', 'K', 'R'], ['로써', 'K', 'R'], ['로', 'K', 'R'],
+    ['과', 'K', 'C'], ['와', 'K', 'V'], ['하고', 'K'], ['이랑', 'K', 'C'], ['랑', 'K', 'V'], ['이며', 'K', 'C'], ['며', 'K', 'V'],
+    ['까지', 'K'], ['부터', 'K'], ['처럼', 'K'], ['보다', 'K'], ['만큼', 'K'], ['같이', 'K'], ['마다', 'K'], ['밖에', 'K'],
+    ['은', 'D', 'C'], ['는', 'D', 'V'], ['도', 'D'], ['만', 'D'], ['뿐', 'D'], ['조차', 'D'], ['마저', 'D'],
+    ['이나', 'D', 'C'], ['나', 'D', 'V'], ['이든지', 'D', 'C'], ['든지', 'D', 'V'], ['이든', 'D', 'C'], ['든', 'D', 'V'],
+    ['이라도', 'D', 'C'], ['라도', 'D', 'V'], ['이야말로', 'D', 'C'], ['야말로', 'D', 'V'], ['이야', 'D', 'C'], ['야', 'D', 'V'],
+    ['이', 'E', 'C'], ['가', 'E', 'V'], ['을', 'E', 'C'], ['를', 'E', 'V'], ['의', 'E'],
+    ['이에요', 'Q', 'C'], ['예요', 'Q', 'V'], ['에요', 'Q', 'V'], ['이다', 'Q'], ['다', 'Q', 'V'], ['입니다', 'Q'], ['인데', 'Q'], ['인가', 'Q'],
+    ['인지', 'Q'], ['일까', 'Q'], ['인', 'Q'], ['이고', 'Q'], ['이지', 'Q'], ['이죠', 'Q', 'C'], ['죠', 'Q', 'V'], ['지', 'Q', 'V'],
+    ['이었어', 'Q', 'C'], ['였어', 'Q', 'V'], ['이었다', 'Q', 'C'], ['였다', 'Q', 'V'], ['이었나', 'Q', 'C'], ['였나', 'Q', 'V'],
+    ['이었니', 'Q', 'C'], ['였니', 'Q', 'V'], ['이었지', 'Q', 'C'], ['였지', 'Q', 'V'], ['이었네', 'Q', 'C'], ['였네', 'Q', 'V'],
+    ['이었구나', 'Q', 'C'], ['였구나', 'Q', 'V'], ['이었던', 'Q', 'C'], ['였던', 'Q', 'V'], ['이었는데', 'Q', 'C'], ['였는데', 'Q', 'V'],
+    ['이네', 'Q', 'C'], ['네', 'Q', 'V'], ['이구나', 'Q', 'C'], ['구나', 'Q', 'V'], ['이군', 'Q', 'C'], ['군', 'Q', 'V'],
+    ['이거든', 'Q', 'C'], ['거든', 'Q', 'V'], ['이니까', 'Q', 'C'], ['니까', 'Q', 'V'], ['이니', 'Q', 'C'], ['니', 'Q', 'V'], ['이냐', 'Q', 'C'], ['냐', 'Q', 'V'],
+    ['이면', 'Q', 'C'], ['면', 'Q', 'V'], ['이라서', 'Q', 'C'], ['라서', 'Q', 'V'], ['이라고', 'Q', 'C'], ['라고', 'Q', 'V'], ['이라는', 'Q', 'C'], ['라는', 'Q', 'V'],
+    ['이란', 'Q', 'C'], ['란', 'Q', 'V'], ['이라면', 'Q', 'C'], ['라면', 'Q', 'V'], ['이라니', 'Q', 'C'], ['라니', 'Q', 'V'], ['이잖아', 'Q', 'C'], ['잖아', 'Q', 'V'],
+    ['요', 'Y']
+  ];
+  /* 서술격 가운데 뒤에 '요'가 붙는 꼴 (문어거든요 · 문어네요 · 문어였어요 · 문어인데요) */
+  var Q_YO = { '인데': 1, '인가': 1, '일까': 1, '이지': 1, '지': 1, '이었어': 1, '였어': 1, '이었는데': 1, '였는데': 1, '이네': 1, '네': 1, '이군': 1, '군': 1,
+    '이거든': 1, '거든': 1, '이니까': 1, '니까': 1, '이라서': 1, '라서': 1, '이라고': 1, '라고': 1, '이잖아': 1, '잖아': 1 };
+  var K_AGAIN = { '부터': 1, '까지': 1, '처럼': 1, '보다': 1, '만큼': 1 };   /* 에서부터 · 에게까지 · 로부터 */
+  function nextOk(pc, pf, c, f) {
+    if (!pc) return true;
+    if (pc === 'P') return c !== 'P';
+    if (pc === 'K') return c === 'D' || c === 'Y' || (c === 'E' && f === '의') || (c === 'K' && K_AGAIN[f] === 1 && f !== pf);
+    if (pc === 'D' && (pf === '만' || pf === '뿐')) return c === 'D' || c === 'E' || c === 'Q' || c === 'Y';   /* 만은 · 만이 · 뿐이야 */
+    if (pc === 'D' || pc === 'E') return c === 'Y' && pf !== '의';
+    if (pc === 'Q') return c === 'Y' && Q_YO[pf] === 1;
+    return false;
+  }
+  /* rest 가 prev 뒤에 붙는 사슬인가. one = 한 글자 이름(받침 엄격, 서술격·요·야 없음) */
+  function tailOk(prev, rest, one, pc, pf, n) {
+    if (!rest) return true;
+    if (n >= 4) return false;
+    for (var i = 0; i < SUFFIXES.length; i++) {
+      var s = SUFFIXES[i], f = s[0], c = s[1];
+      if (rest.lastIndexOf(f, 0) !== 0 || !nextOk(pc, pf, c, f)) continue;
+      if (one && (c === 'Q' || c === 'Y' || f === '야' || f === '이야' || f === '야말로' || f === '이야말로')) continue;
+      if ((one || c === 'Q' || n > 0) && !agrees(prev, s[2])) continue;
+      if (tailOk(f, rest.slice(f.length), one, c, f, n + 1)) return true;
+    }
+    return false;
+  }
+  /* 하다가 붙어도 그 이야기인 말 (이름·별칭·키워드). 녹음·재생처럼 하다꼴이 대개 다른 뜻인 키워드는 넣지 않는다 */
+  var HADA = { '기억': 1, '추억': 1, '회상': 1, '망각': 1, '명명': 1, '호칭': 1, '숙면': 1,
+    '뜨개질': 1, '바느질': 1, '필기': 1, '계산': 1, '수집': 1, '해독': 1, '치환': 1, '타종': 1 };
+  var HADA_TAIL = /^(하|한|할|합|해|했|되|된|될|됐|돼|나|난|날|났)[가-힣]{0,4}$/;
+  /* 치다가 붙는 말: 천둥치다 · 번개치다 · 메아리치다 · 소용돌이치다 (벼락치기는 벼락이 아니라 넣지 않는다) */
+  var CHIDA = { '천둥': 1, '번개': 1, '메아리': 1, '소용돌이': 1 };
+  var CHIDA_TAIL = /^(치|친|칠|칩|쳐|쳤|침)[가-힣]{0,3}$/;
+  /* 방의 말로 시작하지만 다른 낱말 — 그 자리에서는 그 말로 치지 않는다 (종이 != 종+이, 모자라다 != 모자) */
+  var NOT_WORD = ['종이', '별로', '실로', '실은', '차도', '종로', '별도', '비만', '실의', '모자라', '모자란', '모자랄', '모자람', '모자랐', '모자래', '나선다'];
+  function blockedAt(w, i, t) {
+    for (var k = 0; k < NOT_WORD.length; k++) {
+      var b = NOT_WORD[k];
+      if (b.length > t.length && b.lastIndexOf(t, 0) === 0 && w.substr(i, b.length) === b) return true;
+    }
+    return false;
+  }
+  /* 낱말 w 가 말 t (+ 조사·어미 사슬) 인가 */
+  function wordIs(w, t, one) {
+    if (w.lastIndexOf(t, 0) !== 0 || blockedAt(w, 0, t)) return false;
+    var rest = w.slice(t.length);
+    if (!rest) return true;
+    if (!one && HADA[t] === 1 && HADA_TAIL.test(rest)) return true;
+    if (!one && CHIDA[t] === 1 && CHIDA_TAIL.test(rest)) return true;
+    return tailOk(t, rest, one, '', '', 0);
+  }
+  /* 합성어를 만들어도 그 물건 이야기인 말과, 맞추는 자리. 3 = 앞머리·끝 머리말 다 · 2 = 앞머리만 · 1 = 끝 머리말만.
+     다른 낱말 끝에 우연히 걸리는 말(수면·울림·시간·풍경·조수·제로·모스·심지·글라스·소수·하루)은 넣지 않는다.
+       점자 2: 앞머리(점자블록)만 — 끝에 오면 '득점자'·'만점자'(점+자)
+       바람·진주 1: 끝 머리말(봄바람·흑진주)만 — 앞머리는 '바람직한'·'바람둥이'·'진주시' (앞머리는 SAFE_TAIL 뒷말만: 바람소리·진주목걸이) */
+  var COMPOUND = {};
+  ['모자', '구름', '우산', '단추', '털실', '매듭', '열쇠', '자물쇠', '분필', '문어', '조개', '소금', '등대', '깃털', '깃펜', '무지개',
+    '잉크', '우표', '벌집', '주판', '자장가', '메아리', '천둥', '창문', '양초', '촛불', '담요', '이불', '이끼', '솔방울', '등불', '불가사리',
+    '기억', '이름', '한글', '심장', '나선', '암호', '메트로놈', '라틴어', '테셀레이션', '수수께끼', '추억', '유리', '빗방울', '낮잠'
+  ].forEach(function (t) { COMPOUND[t] = 3; });
+  COMPOUND['점자'] = 2; COMPOUND['바람'] = 1; COMPOUND['진주'] = 1;
+  var NOT_COMPOUND = ['모자이크', '소금쟁이', '문어발식', '태양초', '암호화폐', '구름판'];   /* 허용된 말로 시작·끝나지만 다른 낱말 */
+  var VERB_START = /^(하|한|할|합|해|했|히|되|된|될|됐|돼|스러|스럽|스런|롭|로운|적|답|다운|다워)/;   /* '…하게'·'…스러운' 은 합성 명사가 아니다 */
+  /* 앞머리 뒤 한 글자 뒷말 (앞머리 허용 말만): 소금물 한글날 등대섬 무지개빛 이름표 심장병 점자판 나선형 우표첩 메트로놈앱 유리컵·유리문 주판알 암호화 수수께끼책 …
+     (끝 머리말만인 말은 빛·색만: 진주빛). '-기' 로 끝나는 말 + 전 (잠들기전). 문어체·소수점·유리수·소금빵·이름값은 이 목록 밖이라 아니다 */
+  var ONE_TAIL = '물날섬빛색표병판형첩앱컵잔알꽃화문벽책';
+  /* 목록 밖 이름·별칭(두 글자 이상)도 이 뒷말이면 앞머리 합성어: 풍경소리·바람소리·진주목걸이·유리공예·테셀레이션무늬 */
+  var SAFE_TAIL = ['소리', '목걸이', '귀걸이', '반지', '팔찌', '공예', '무늬', '모양'];
+  /* 사람 이름으로 흔한 말은 끝 머리말 자리에서 한 글자 성 뒤면 이름이다 (김유리·박진주) */
+  var NAME_LIKE = { '유리': 1, '진주': 1 };
+  var SURNAMES = '김이박최정강조윤장임한오서신권황안송전홍류유고문양손배백허남심노하곽성차주우구민진나지엄채원천방공현함변염여추도소석선설마길연위표명기반라사';
+  /* 앞머리 합성어의 뒷말: 끝의 사슬을 뗀 줄기 ('사진을' → 사진). '걸이'·'꽂이'·'구이' 같은 한 글자 + 이 는 명사로 둔다 */
+  function coreOf(rest) {
+    for (var k = 1; k < rest.length; k++) {
+      var tail = rest.slice(k);
+      if (tailOk(rest.slice(0, k), tail, false, '', '', 0)) return (k === 1 && tail === '이') ? rest : rest.slice(0, k);
+    }
+    return rest;
+  }
+  /* rest 가 뒷말 f (+ 사슬) 인가 */
+  function tailIs(rest, f) { return rest.lastIndexOf(f, 0) === 0 && tailOk(f, rest.slice(f.length), false, '', '', 0); }
+  /* 0 = 아님 · 2 = 앞머리(구름사진) · 1 = 낱말 끝 머리말(털모자). t 는 두 글자 이상 이름·별칭 (키워드는 부르지 않는다).
+     same = 그 방의 다른 말들: 뒷말이 같은 방의 말이면 앞머리 합성어다 (암호해독 = 암호 + 해독, 우표수집 = 우표 + 수집) */
+  function compoundIs(w, t, same) {
+    if (w.length <= t.length || w.indexOf(t) < 0 || !HANGUL_ONLY.test(w)) return 0;
+    for (var k = 0; k < NOT_COMPOUND.length; k++) if (w.indexOf(NOT_COMPOUND[k]) >= 0) return 0;
+    var mode = COMPOUND[t] || 0;
+    if (w.lastIndexOf(t, 0) === 0 && !blockedAt(w, 0, t)) {
+      var rest = w.slice(t.length);
+      for (k = 0; k < SAFE_TAIL.length; k++) if (tailIs(rest, SAFE_TAIL[k])) return 2;
+      for (k = 0; same && k < same.length; k++) if (same[k].length >= 2 && same[k] !== t && tailIs(rest, same[k])) return 2;
+      if (/기$/.test(t) && tailIs(rest, '전')) return 2;   /* 잠들기전 · 꿈꾸기전 (-기 전) */
+      if (mode & 2) {
+        var core = coreOf(rest);
+        if (core.length >= 2 && !VERB_START.test(core)) return 2;
+        if (ONE_TAIL.indexOf(rest[0]) >= 0 && tailIs(rest, rest[0])) return 2;
+      } else if (mode === 1 && '빛색'.indexOf(rest[0]) >= 0 && tailIs(rest, rest[0])) return 2;   /* 진주빛 · 진주색 */
+    }
+    if (mode & 1) {
+      for (var i = w.indexOf(t, 1); i > 0; i = w.indexOf(t, i + 1)) {
+        if (NAME_LIKE[t] === 1 && i === 1 && SURNAMES.indexOf(w[0]) >= 0) continue;
+        if (!blockedAt(w, i, t) && tailOk(t, w.slice(i + t.length), false, '', '', 0)) return 1;
+      }
+    }
+    return 0;
+  }
+  /* 띄어 쓴 말 tw 가 낱말들 hw 에 이어서 나오는 첫 자리들 (끝 낱말만 사슬) */
+  function phraseAt(hw, tw) {
+    var out = [], k = tw.length;
+    for (var i = 0; i + k <= hw.length; i++) {
+      var ok = true;
+      for (var j = 0; j < k - 1 && ok; j++) ok = hw[i + j] === tw[j];
+      if (ok && wordIs(hw[i + k - 1], tw[k - 1], false)) out.push(i);
+    }
+    return out;
+  }
+
+  /* 옛 토크나이저 (공개 API 로만 남김): 띄어쓰기로 자르고 끝 조사 하나를 뗀 꼴도 (2자 이상만) */
+  function tokenize(hint) {
+    var out = [];
+    String(hint || '').split(HINT_SEP).forEach(function (tok) {
+      tok = tok.trim();
+      if (!tok) return;
+      var forms = [tok];
+      for (var i = 0; i < PARTICLES.length; i++) {
+        var p = PARTICLES[i];
+        if (tok.length - p.length >= 2 && tok.slice(-p.length) === p) forms.push(tok.slice(0, -p.length));
+      }
+      forms.forEach(function (f) { if (f.length >= 2 && out.indexOf(f) < 0) out.push(f); });
+    });
+    return out;
+  }
+
+  /* 점수: 힌트 전체가 별칭/키워드 1000/900 > 낱말(또는 띄어 쓴 말) 이름 500 · 별칭 400
+           > 이름 합성어 앞머리 380 · 끝 머리말 370 > 키워드 낱말 350 > 별칭 합성어 앞머리 200 · 끝 머리말 180 (모두 + 말 길이).
+     이름이 든 합성어는 흔한 키워드 낱말보다 앞선다: '한글날 노래' = 한글 (노래는 자장가의 키워드). 키워드는 합성어로 맞추지 않는다.
+     같은 단계에서는 별칭이 키워드보다 앞선다: 먹물은 잉크의 별칭, 문어의 키워드 */
+  var TIER = { name: [500, 380, 370], alias: [400, 200, 180], kw: [350, 0, 0] };
+  var HOW = { name: 'token', alias: 'alias', kw: 'alias' };
+  function matchHint(hint) {
+    var raw = (hint == null ? '' : String(hint)).trim();
+    if (!raw) return { kind: 'none' };
+    if (/^https?:\/\//i.test(raw)) return { kind: 'url', url: raw };
+    var W = world();
+    if (!W || !W.nodes) return { kind: 'wiki', query: raw };
+    var low = lower(raw);
+    var hw = wordsOf(raw);
+    var ids = Object.keys(W.nodes);
+    var best = null, rooms = [], i;
+    function offer(id, how, score) {
+      if (!best || score > best.score) best = { nodeId: id, how: how, score: score };
+    }
+    for (i = 0; i < ids.length; i++) {
+      var id = ids[i], node = W.nodes[id];
+      if (!node || id === 'door_out') continue;
+      var name = lower(node.name);
+      if (name && name === low) return { kind: 'node', nodeId: id, how: 'exact' };
+      var terms = name ? [[name, 'name']] : [];
+      (node.aliases || []).map(lower).filter(Boolean).forEach(function (a) { terms.push([a, 'alias']); });
+      (node.keywords || []).map(lower).filter(Boolean).forEach(function (k) { terms.push([k, 'kw']); });
+      terms.forEach(function (x) { x.push(wordsOf(x[0])); });   /* [말, 갈래, 낱말들] */
+      rooms.push({ id: id, terms: terms, flat: terms.map(function (x) { return x[2].join(''); }) });
+    }
+    /* 1) 힌트 전체가 별칭·키워드 · 띄어 쓴 말 (그 낱말들은 그 방 차지) */
+    var owner = hw.map(function () { return {}; });
+    rooms.forEach(function (r) {
+      r.terms.forEach(function (tk) {
+        var t = tk[0], kind = tk[1], tw = tk[2];
+        if (kind !== 'name' && t === low) offer(r.id, 'alias', (kind === 'alias' ? 1000 : 900) + t.length);
+        if (tw.length < 2) return;
+        phraseAt(hw, tw).forEach(function (s) {
+          for (var j = 0; j < tw.length; j++) owner[s + j][r.id] = 1;
+          offer(r.id, HOW[kind], TIER[kind][0] + t.length);
+        });
+      });
+    });
+    function free(k, id) { for (var o in owner[k]) if (o !== id) return false; return true; }
+    /* 2) 낱말 하나: 말 + 사슬, 그다음 합성어. 띄어 쓴 이름·별칭은 붙여 쓴 꼴('문어신경계')도 */
+    rooms.forEach(function (r) {
+      r.terms.forEach(function (tk) {
+        var t = tk[0], kind = tk[1], tw = tk[2];
+        var tt = tw.length === 1 ? tw[0] : (kind !== 'kw' && tw.length > 1 ? tw.join('') : '');
+        if (!tt) return;
+        var one = tt.length === 1;
+        if (one && kind !== 'name') return;   /* 한 글자 별칭·키워드(영·공·창·초…)는 힌트 전체가 그 말일 때만 */
+        for (var k = 0; k < hw.length; k++) {
+          if (!free(k, r.id)) continue;
+          if (wordIs(hw[k], tt, one)) offer(r.id, HOW[kind], TIER[kind][0] + t.length);
+          else if (!one && kind !== 'kw') {
+            var c = compoundIs(hw[k], tt, r.flat);
+            if (c) offer(r.id, HOW[kind], TIER[kind][c === 2 ? 1 : 2] + t.length);
+          }
+        }
+      });
+    });
+    if (best) return { kind: 'node', nodeId: best.nodeId, how: best.how };
+    return { kind: 'wiki', query: raw };
+  }
+
+  /* URL 경로에서 한글/영문 키워드로 노드 찾기 (문 다음 정류장). 힌트와 같은 낱말 규칙.
+     이름·별칭 낱말 200 > 합성어 앞머리 170 > 낱말 끝 머리말 150 > 키워드 낱말 100, 같은 단계면 긴 말 */
+  function nodeFromUrl(url) {
+    var W = world();
+    if (!W || !W.nodes) return null;
+    var s = String(url || '');
+    try { s = decodeURIComponent(s); } catch (e) { /* 그대로 */ }
+    var uw = wordsOf(s.replace(/^https?:\/\//i, ''));
+    var best = null;
+    Object.keys(W.nodes).forEach(function (id) {
+      var node = W.nodes[id];
+      if (!node || SPECIAL[id] || node.corner === 'wild') return;
+      var kws = (node.keywords || []).map(lower);
+      var cands = [node.name, id.replace(/_/g, ' ')].concat(node.aliases || [], node.keywords || [], node.wiki ? [node.wiki] : []);
+      var tws = cands.map(function (c) { return wordsOf(lower(c)); }), flat = tws.map(function (tw) { return tw.join(''); });
+      cands.forEach(function (c, ci) {
+        c = lower(c);
+        if (c.length < 2) return;
+        var isKw = kws.indexOf(c) >= 0, tw = tws[ci], hit = 0;
+        if (tw.length > 1) hit = phraseAt(uw, tw).length ? 3 : 0;
+        else if (tw.length === 1) {
+          for (var i = 0; i < uw.length && hit < 3; i++) {
+            if (wordIs(uw[i], tw[0], tw[0].length === 1)) hit = 3;
+            else if (!isKw) hit = Math.max(hit, compoundIs(uw[i], tw[0], flat));
+          }
+        }
+        if (!hit) return;
+        var score = c.length + (hit === 3 ? (isKw ? 100 : 200) : hit === 2 ? 170 : 150);
+        if (!best || score > best.len) best = { id: id, len: score };
+      });
+    });
+    return best ? W.nodes[best.id] : null;
+  }
+
+  /* ───────── 5.4.1 위키 fetch ───────── */
+  function filterLinkTitle(t) {
+    if (typeof t !== 'string') return false;
+    var s = t.trim();
+    return s.length >= 2 && s.length <= 12 && HANGUL.test(s) && !LINK_EXCLUDE.test(s);
+  }
+  function parseWikiResponse(title, data) {
+    var pages = data && data.query && data.query.pages;
+    if (!pages) return { ok: false, reason: 'missing' };
+    var keys = Object.keys(pages);
+    if (!keys.length) return { ok: false, reason: 'missing' };
+    var page = pages[keys[0]];
+    if (!page || page.missing !== undefined || page.invalid !== undefined || page.pageid == null) return { ok: false, reason: 'missing' };
+    var extract = String(page.extract || '').replace(/\s+/g, ' ').trim();
+    if (!extract) return { ok: false, reason: 'missing' };
+    var realTitle = page.title || title;
+    var thumb = page.thumbnail && page.thumbnail.source
+      ? { url: page.thumbnail.source, w: page.thumbnail.width || null, h: page.thumbnail.height || null } : null;
+    var links = (page.links || []).map(function (l) { return l && l.title; }).filter(filterLinkTitle);
+    return {
+      ok: true, title: realTitle, extract: extract.slice(0, 160),
+      url: WIKI_PAGE + encodeURIComponent(String(realTitle).replace(/ /g, '_')),
+      thumb: thumb, links: links, license: LICENSE, attribution: ATTRIBUTION
+    };
+  }
+  function wikiFetch(title, opts) {
+    opts = opts || {};
+    var timeoutMs = opts.timeoutMs == null ? 4000 : opts.timeoutMs;
+    if (typeof fetch !== 'function') return Promise.resolve({ ok: false, reason: 'network' });
+    var ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timedOut = false;
+    var timer = setTimeout(function () { timedOut = true; if (ac) ac.abort(); }, timeoutMs);
+    if (opts.signal && ac) {
+      if (opts.signal.aborted) ac.abort();
+      else opts.signal.addEventListener('abort', function () { ac.abort(); });
+    }
+    var url = WIKI_API + '?action=query&format=json&origin=*&redirects=1&prop=extracts|pageimages|links' +
+      '&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0' +
+      '&titles=' + encodeURIComponent(String(title));
+    var req;
+    try {
+      req = fetch(url, ac ? { signal: ac.signal } : undefined);
+    } catch (e) {
+      clearTimeout(timer);
+      return Promise.resolve({ ok: false, reason: 'network' });
+    }
+    return Promise.resolve(req)
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error('http ' + (res && res.status));
+        return res.json();
+      })
+      .then(function (data) { clearTimeout(timer); return parseWikiResponse(title, data); })
+      .catch(function () { clearTimeout(timer); return { ok: false, reason: timedOut ? 'timeout' : 'network' }; });
+  }
+  BRAIN.wikiUrl = function (title) { return WIKI_PAGE + encodeURIComponent(String(title).replace(/ /g, '_')); };
+
+  /* 재생 입력이 준 출처는 이 꼴일 때만 믿는다: 위키백과(한국어) 문서 · 위키미디어 공용 사진 (https 만) */
+  function isWikiPageUrl(u) { return typeof u === 'string' && /^https:\/\/ko\.wikipedia\.org\/wiki\/\S+$/.test(u); }
+  function safeThumb(t) {
+    if (!t || typeof t !== 'object' || typeof t.url !== 'string' || !/^https:\/\/upload\.wikimedia\.org\/\S+$/.test(t.url)) return null;
+    return { url: t.url, w: (typeof t.w === 'number' && isFinite(t.w)) ? t.w : null, h: (typeof t.h === 'number' && isFinite(t.h)) ? t.h : null };
+  }
+  /* 재생의 '읽음'을 fetch 결과 꼴로 (출처 주소는 isWikiPageUrl 를 통과한 것만 들어온다). 라이선스·출처 표기는 입력이 아니라 두뇌가 붙인다 */
+  function replayRead(title, src, note) {
+    return { ok: true, title: title, extract: String(src.extract || note || '').slice(0, 160), url: src.url, thumb: safeThumb(src.thumb), links: [] };
+  }
+
+  /* fetchWiki(stub 가능)를 타임아웃·예외로부터 감싼다. 항상 resolve. */
+  function normalizeResult(r) {
+    if (!r || typeof r !== 'object') return { ok: false, reason: 'network' };
+    if (!r.ok) return { ok: false, reason: r.reason || 'network' };
+    return {
+      ok: true, title: r.title || '', extract: String(r.extract || '').slice(0, 160), url: r.url || '',
+      thumb: (r.thumb && r.thumb.url) ? { url: r.thumb.url, w: r.thumb.w || null, h: r.thumb.h || null } : null,
+      links: Array.isArray(r.links) ? r.links.filter(filterLinkTitle) : [],
+      license: r.license || LICENSE, attribution: r.attribution || ATTRIBUTION
+    };
+  }
+  function safeFetch(fn, title, ms) {
+    return new Promise(function (resolve) {
+      var done = false;
+      var ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var timer = setTimeout(function () {
+        if (done) return; done = true;
+        if (ac) ac.abort();
+        resolve({ ok: false, reason: 'timeout' });
+      }, ms);
+      var p;
+      try { p = Promise.resolve(fn(title, { signal: ac ? ac.signal : undefined, timeoutMs: ms })); }
+      catch (e) { p = Promise.reject(e); }
+      p.then(function (r) {
+        if (done) return; done = true; clearTimeout(timer); resolve(normalizeResult(r));
+      }, function (e) {
+        if (done) return; done = true; clearTimeout(timer);
+        resolve({ ok: false, reason: (e && e.name === 'AbortError') ? 'timeout' : 'network' });
+      });
+    });
+  }
+  function runPool(tasks, limit) {
+    var results = new Array(tasks.length), next = 0;
+    function worker() {
+      if (next >= tasks.length) return Promise.resolve();
+      var i = next++;
+      return Promise.resolve().then(tasks[i])
+        .then(function (r) { results[i] = r; }, function () { results[i] = { ok: false, reason: 'network' }; })
+        .then(worker);
+    }
+    var ws = [];
+    for (var k = 0; k < Math.min(limit, tasks.length); k++) ws.push(worker());
+    return Promise.all(ws).then(function () { return results; });
+  }
+
+  /* ───────── 정류장 ───────── */
+  function isNoneNode(node) { return !!(node && (node.linger || node.id === 'letter_room' || node.peek === 'none')); }
+  function makeLibStop(node, state, viaTangent, bridge) {
+    return {
+      kind: 'room', node: node, id: node.id, name: node.name, emoji: node.emoji || '📚', corner: node.corner,
+      first: node.id === 'door_out' ? false : !((state.visits && state.visits[node.id]) > 0),
+      viaTangent: !!viaTangent, bridge: bridge || null, status: null, note: '', source: null, reason: null, ms: 0
+    };
+  }
+  function makeDoorStop(url) {
+    var W = world();
+    var node = W && W.nodes && W.nodes.door_out;
+    return {
+      kind: 'url', node: node || null, id: 'door_out', url: url, name: (node && node.name) || '밖의 문',
+      emoji: (node && node.emoji) || '🚪', corner: (node && node.corner) || 'door_out', first: false,
+      viaTangent: false, bridge: null, status: 'simulated', note: SIMULATED_NOTE, source: null, reason: null, ms: 0
+    };
+  }
+  /* 들판(❔)은 방문 기록(visits)에 남지 않아 '처음'인지 알 수 없다 → first:false. 폴짝은 실제로 읽은 들판 걸음일 때만 */
+  function makeWildStop(title, opt) {
+    opt = opt || {};
+    return {
+      kind: 'wild', node: null, id: null, title: title, name: title, emoji: '❔', corner: 'wild', first: false,
+      viaTangent: !!opt.viaTangent, bridge: opt.bridge || null, fromHint: !!opt.fromHint,
+      status: null, note: '', source: null, reason: null, ms: 0
+    };
+  }
+  function applyFetch(stop, res, online) {
+    stop.fetchResult = res || null;
+    if (stop.kind === 'url') return;
+    if (stop.kind === 'room' && isNoneNode(stop.node)) {
+      stop.status = 'none';
+      stop.note = stop.node.noneNote || (stop.node.linger ? '아무것도 안 읽어도 됐어' : '아직 비어 있었어');
+      return;
+    }
+    if (res && res.ok) {
+      stop.status = 'read';
+      stop.note = sentences(res.extract, 90);
+      stop.source = { url: res.url, extract: res.extract, thumb: res.thumb, license: res.license || LICENSE, attribution: res.attribution || ATTRIBUTION, title: res.title };
+      if (stop.kind === 'wild' && res.title) stop.name = res.title;
+      return;
+    }
+    var why = !online ? 'offline' : (stop.kind === 'room' && !stop.node.wiki) ? 'no_wiki' : (res && res.reason) || 'network';
+    stop.reason = why;
+    if (stop.kind === 'room' && stop.node.clue) {
+      stop.status = 'builtin';
+      stop.note = stop.node.clue;
+    } else {
+      stop.status = 'failed';
+      stop.note = why === 'missing' ? '위키백과에 그 문서는 없었어' : why === 'timeout' ? '기다렸는데 답이 늦었어' : why === 'offline' ? '지금은 바깥 글을 못 읽어' : '연결이 안 됐어';
+    }
+  }
+
+  /* ───────── 5.4 길 ───────── */
+  function eligibleCorners(W) {
+    var ids = Object.keys(W.corners || {});
+    return ids.filter(function (c) {
+      if (c === 'wild') return false;
+      return Object.keys(W.nodes).some(function (id) { return !SPECIAL[id] && W.nodes[id].corner === c; });
+    });
+  }
+  function nodesIn(W, corner) {
+    return Object.keys(W.nodes).filter(function (id) { return !SPECIAL[id] && W.nodes[id].corner === corner; });
+  }
+  /* 선호 코너 60% / 아무 코너 30% / 엉뚱한 방 10%. 노드 가중 1/(1+visits)
+     avoid: 이번엔 안 가기로 한 방(무시한 힌트 방). 후보에서만 빼고 난수 뽑는 자리는 그대로 */
+  function pickStart(state, R, avoid) {
+    var W = world();
+    state = normalizeState(state);
+    var corners = eligibleCorners(W);
+    function keep(id) { return id !== avoid; }
+    var all = Object.keys(W.nodes).filter(function (id) { return !SPECIAL[id] && W.nodes[id].corner !== 'wild' && keep(id); });
+    var r = R();
+    var pool = null;
+    var boost = noteTargets(state);
+    function weight(id) { var w = 1 / (1 + (state.visits[id] || 0)); return boost[id] ? w * NOTE_BOOST : w; }
+    if (r < 0.6) {
+      var top = null, topV = 0;
+      corners.forEach(function (c) { var v = state.affinity[c] || 0; if (v > topV) { topV = v; top = c; } });
+      if (top) pool = nodesIn(W, top).filter(keep);
+    } else if (r >= 0.9) {
+      pool = all.filter(function (id) { return W.nodes[id].odd; });
+    }
+    if (!pool || !pool.length) {
+      if (corners.length) {
+        var ci = Math.floor(R() * corners.length);
+        pool = nodesIn(W, corners[ci]).filter(keep);
+      }
+      if (!pool || !pool.length) pool = all;
+    }
+    if (!pool.length) return null;
+    var pi = pickWeighted(pool, weight, R());
+    return pool[pi];
+  }
+  /* opt.deeper (§17.1 재방문): 같은 힌트 방에 또 왔다 → 한 단계 더 깊게.
+     정류장 최소 3개(보통 2개), 처음 걸음들은 아직 안 가 본 related 이웃(없으면 안 가 본 tangents)을 먼저 고른다.
+     난수는 보통 길과 같은 자리에서 뽑는다(쓰지 않을 때도) — 결정성만 지키면 되므로 */
+  function buildRoute(W, state, R, startId, prefix, maxStops, opt) {
+    opt = opt || {};
+    var stops = prefix.slice(), used = {}, i;
+    for (i = 0; i < stops.length; i++) if (stops[i].id) used[stops[i].id] = true;
+    if (opt.avoid) used[opt.avoid] = true;   /* 무시한 힌트 방으로는 샛길로도 들어가지 않는다 */
+    var minStops = opt.deeper ? 3 : 2;   /* 보통 길과 똑같이: 2 (앞의 문/들판 정류장 포함) */
+    var cur = W.nodes[startId];
+    var pDistract = 0.40, reason = 'enough', ladder = [0.25, 0.45, 0.7, 1.0];
+    var via = false, bridge = null, guard = 0;
+    var boost = noteTargets(state);
+    function unseen(p) { return !((state.visits && state.visits[p.node.id]) > 0) && !p.node.linger && p.node.id !== 'letter_room'; }
+    while (cur && guard++ < 12) {
+      stops.push(makeLibStop(cur, state, via, bridge));
+      used[cur.id] = true;
+      if (stops.length >= minStops && cur.linger) { reason = 'linger'; break; }
+      if (stops.length >= 2) {
+        var rRet = R();
+        if (stops.length >= minStops && rRet < ladder[Math.min(stops.length - minStops, ladder.length - 1)]) { reason = stops.length >= 4 ? 'tired' : 'enough'; break; }
+      }
+      if (stops.length >= maxStops) { reason = 'tired'; break; }
+      var distract = R() < pDistract;
+      var tang = (cur.tangents || []).filter(function (t) { return t && W.nodes[t.to] && !used[t.to] && t.to !== 'door_out'; })
+        .map(function (t) { return { node: W.nodes[t.to], bridge: t.bridge || null, via: true }; });
+      var rel = (cur.related || []).filter(function (id) { return W.nodes[id] && !used[id] && id !== 'door_out'; })
+        .map(function (id) { return { node: W.nodes[id], bridge: null, via: false }; });
+      var pool = null;
+      if (opt.deeper && stops.length < minStops) {
+        var freshRel = rel.filter(unseen), freshTang = tang.filter(unseen);
+        pool = freshRel.length ? freshRel : freshTang.length ? freshTang : null;
+        if (!pool) { var keep = rel.concat(tang).filter(function (p) { return !p.node.linger; }); if (keep.length) pool = keep; }
+      }
+      if (pool) { /* 깊게 고른 자리 */ }
+      else if (distract && tang.length) pool = tang;
+      else if (rel.length) pool = rel;
+      else if (tang.length) pool = tang;
+      else {
+        var same = nodesIn(W, cur.corner).filter(function (id) { return !used[id]; });
+        if (!same.length) same = Object.keys(W.nodes).filter(function (id) { return !used[id] && !SPECIAL[id] && W.nodes[id].corner !== 'wild'; });
+        if (!same.length) break;
+        pool = same.map(function (id) { return { node: W.nodes[id], bridge: null, via: false }; });
+      }
+      var pi = pickWeighted(pool, function (p) { var w = 1 / (1 + (state.visits[p.node.id] || 0)); return boost[p.node.id] ? w * NOTE_BOOST : w; }, R());
+      var nxt = pool[pi];
+      if (nxt.node.corner === cur.corner) pDistract += 0.15; else pDistract = 0.40;
+      via = nxt.via; bridge = nxt.bridge; cur = nxt.node;
+    }
+    return { stops: stops, reason: reason };
+  }
+
+  /* ───────── 5.6 한 줄 ───────── */
+  function templatesFor(kind) {
+    var W = world();
+    var t = W && W.lineTemplates && W.lineTemplates[kind];
+    if (Array.isArray(t) && t.length) return t;
+    return DEFAULT_TEMPLATES[kind] || DEFAULT_TEMPLATES.noHint;
+  }
+  /* {key}(조사)? 치환 + 남은 { } 제거 + 공백 정리 */
+  function fillTemplate(tpl, map) {
+    var line = String(tpl || '').replace(/\{(\w+)\}(은|는|이|가|을|를|과|와|으로|로)?/g, function (_, key, particle) {
+      var v = map[key];
+      v = v == null ? '' : String(v);
+      return v + (particle ? josa(v, particle) : '');
+    });
+    return line.replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').replace(/\s+([.,!?…])/g, '$1').replace(/^[.,\s]+/, '').trim();
+  }
+  function composeLine(kind, ctx, r) {
+    ctx = ctx || {};
+    var list = templatesFor(kind);
+    var idx = Math.min(list.length - 1, Math.floor(asR(r) * list.length));
+    return fillTemplate(list[idx], { hint: ctx.hint, mem: ctx.mem, memory: ctx.memory, name: ctx.name });
+  }
+  function pickMemory(node, r) {
+    if (!node || !Array.isArray(node.memories) || !node.memories.length) return '';
+    return String(node.memories[Math.min(node.memories.length - 1, Math.floor(asR(r) * node.memories.length))]);
+  }
+  function drawStickerPos(R) {
+    return { x: Math.round(lerp(R(), 58, 82)), y: Math.round(lerp(R(), 18, 40)), rot: Math.round(lerp(R(), -14, 14)) };
+  }
+  /* 반응 한 줄 (외출). lines = 언제 말해도 참인 줄. when.first/missed/long = 그 일이 실제로 있었을 때만 후보에 더한다.
+     facts: first(처음 온 방이 있음) · missed(못 읽음·모의가 있음) · long(정류장 4곳 이상). 집에 있는 날은 pickHomeLine (아래) */
+  function pickReactionLine(reaction, r, facts) {
+    var W = world();
+    var rec = W && W.reactions && W.reactions[reaction];
+    if (!rec) return null;
+    facts = facts || {};
+    var when = (rec.when && typeof rec.when === 'object') ? rec.when : {};
+    var list = [];
+    ['first', 'missed', 'long'].forEach(function (k) { if (facts[k] && Array.isArray(when[k])) list = list.concat(when[k]); });
+    if (Array.isArray(rec.lines)) list = list.concat(rec.lines);
+    if (!list.length) return null;
+    return String(list[Math.min(list.length - 1, Math.floor(asR(r) * list.length))]);
+  }
+  function reactionFacts(stops, counts) {
+    return {
+      first: stops.some(function (s) { return s.first; }),
+      missed: ((counts.failed || 0) + (counts.simulated || 0)) > 0,
+      long: stops.length >= 4
+    };
+  }
+  function reactionEmoji(reaction) {
+    var W = world();
+    var rec = W && W.reactions && W.reactions[reaction];
+    return (rec && rec.emoji) || { '폴짝': '🎉', '우쭐': '😌', '졸림': '😴', '덤덤': '😶' }[reaction] || '😶';
+  }
+
+  /* ───────── 5.9 반응 ───────── */
+  function jumpy(stops) {   /* 폴짝할 일이 실제로 있었나: 처음 온 방, 또는 실제로 읽은 들판 걸음 */
+    return stops.some(function (s) { return s.first || (s.kind === 'wild' && s.status === 'read'); });
+  }
+  function proud(stops, followed) {   /* 우쭐할 일: 힌트를 따라가 전부 읽음 */
+    return followed === 'followed' && stops.length > 0 && stops.every(function (s) { return s.status === 'read'; });
+  }
+  function computeReaction(stops, followed, hour, isHome) {
+    if (isHome) return '졸림';
+    if (jumpy(stops)) return '폴짝';
+    if (proud(stops, followed)) return '우쭐';
+    if (stops.length >= 4 || hour >= 23 || hour <= 5) return '졸림';
+    return '덤덤';
+  }
+  /* 사람/모델이 고른 반응이 실제로 있었던 일과 맞나. 졸림·덤덤은 아무것도 주장하지 않으니 늘 괜찮다 */
+  function reactionFits(reaction, stops, followed) {
+    if (reaction === '폴짝') return jumpy(stops);
+    if (reaction === '우쭐') return proud(stops, followed);
+    return true;
+  }
+  /* 집에 있는 날 반응 줄: 그 반응의 home 줄(집에서만 쓰는 줄)이 있으면 그것, 없으면 졸림만 lines(걸은 얘기 없음, check-world).
+     덤덤 lines 는 '다녀왔어'를 말하니 home 줄이 없으면 집에서 쓰지 않는다 ([] = 못 씀). 반응 기록이 아예 없으면 null(줄 없이) */
+  function homeLines(reaction) {
+    var W = world();
+    var rec = W && W.reactions && W.reactions[reaction];
+    if (!rec) return null;
+    if (Array.isArray(rec.home) && rec.home.length) return rec.home;
+    return reaction === '졸림' && Array.isArray(rec.lines) ? rec.lines : [];
+  }
+  /* 집에서 정직한 반응: 처음 온 데·읽은 게 없으니 폴짝·우쭐은 안 되고(reactionFits), 집에서 참인 줄이 있어야 한다 */
+  function homeReactionOk(r) {
+    if (REACTIONS.indexOf(r) < 0 || !reactionFits(r, [], 'none')) return false;
+    var ls = homeLines(r);
+    return ls === null || ls.length > 0;
+  }
+  /* 활동이 고른 반응 후보 (world.js homeActivities[].reactions). 없으면 옛날처럼 졸림 하나 */
+  function homeReactionCands(act) {
+    var list = (act && Array.isArray(act.reactions) && act.reactions.length) ? act.reactions : ['졸림'];
+    var out = list.filter(function (r, i) { return list.indexOf(r) === i && homeReactionOk(r); });
+    return out.length ? out : ['졸림'];
+  }
+  function pickHomeLine(reaction, r) {
+    var list = homeLines(reaction);
+    if (!list || !list.length) return null;
+    return String(list[Math.min(list.length - 1, Math.floor(asR(r) * list.length))]);
+  }
+
+  /* ───────── 힌트 따랐나 ───────── */
+  /* 문서 제목 비교용 열쇠: 소문자, 끝의 '(…)' 꼬리·띄어쓰기·밑줄 없이 ('눈 (날씨)' = '눈') */
+  function titleKey(t) { return lower(t).replace(/\s*\([^)]*\)\s*$/, '').replace(/[\s_]+/g, ''); }
+  /* 힌트가 가리키는 글 제목들: 노드면 이름·위키 제목·별칭(+힌트 글 그대로), 위키 힌트면 그 글 */
+  function hintTitleKeys(match, hintNode, hintRaw) {
+    var out = [];
+    if (match && match.kind === 'node' && hintNode) out = [hintNode.name, hintNode.wiki, hintRaw].concat(hintNode.aliases || []);
+    else if (match && match.kind === 'wiki') out = [match.query, hintRaw];
+    return out.filter(function (x) { return typeof x === 'string' && x.trim(); }).map(titleKey);
+  }
+  function computeFollowed(match, intent, follow, stops, hintNode, urlNode, hintRaw) {
+    if (!match || match.kind === 'none') return 'none';
+    if (match.kind === 'url') {
+      var lib = stops.filter(function (s) { return s.kind === 'room'; });
+      if (urlNode && lib.length && lib.every(function (s) { return s.corner === urlNode.corner; })) return 'followed';
+      return 'left';
+    }
+    if (!intent) return 'none';
+    /* 따르지 않았는데 길에 힌트 방(또는 힌트와 같은 제목의 들판 글)이 있다 → '무시함'이라 하면 "모자 말고 모자"가 된다 */
+    var keys = follow ? [] : hintTitleKeys(match, hintNode, hintRaw);
+    if (!follow && stops.some(function (s) {
+      return (match.kind === 'node' && hintNode && s.id === hintNode.id) || (s.kind === 'wild' && keys.indexOf(titleKey(s.title)) >= 0);
+    })) return 'left';
+    if (!follow) return 'ignored';
+    if (match.kind === 'wiki') {
+      return stops.length > 1 ? 'left' : 'followed';
+    }
+    if (!hintNode || !stops.length || stops[0].id !== hintNode.id) return 'ignored';
+    return stops.every(function (s) { return s.corner === hintNode.corner; }) ? 'followed' : 'left';
+  }
+
+  /* ───────── 영수증 + 포스터 조립 (plan / replay 공용) ─────────
+     ctx.voice: 'model' | 'human' — 고른 이가 모델·사람인 재생. 그때는 (MODEL_VOICE)
+       - 반응은 준 그대로 (ctx.reaction = 아는 넷 중 하나 | null, ctx.reactionRaw = 그 밖의 글). 안 줬으면 null. 거르지도 계산하지도 않는다
+       - 반응 줄·포스터 한 줄은 그들이 쓴 줄만 (ctx.reactionLine, ctx.line). 없으면 null — 템플릿으로 채우지 않는다
+       - 힌트를 안 따랐을 때 '오늘은 그쪽 말고 다른 데가 궁금했어' 같은 마음 말을 붙이지 않는다
+       - 기억할 곳을 안 줬거나 범위 밖이면 마지막 정류장 (PROTOCOL §2), rememberedBy 'fallback'. 그 곳은 취향 가중치(+2)에 넣지 않는다
+     난수는 voice 여부와 무관하게 똑같이 뽑아 둔 rr 만 쓴다 (안 쓰는 것도 있다) */
+  function assemble(ctx) {
+    var W = world();
+    var stops = ctx.stops, match = ctx.match, rr = ctx.rr, voice = ctx.voice || null;
+    var hintLabel = match.kind === 'node' && ctx.hintNode ? ctx.hintNode.name
+      : match.kind === 'wiki' ? match.query : match.kind === 'url' ? hostOf(match.url) : '';
+    var hintStopIdx = (ctx.intent && ctx.follow) ? 0 : -1;
+
+    /* 기억 고르기 */
+    var remIdx = -1, remBy = null;
+    if (typeof ctx.remIdx === 'number' && ctx.remIdx >= 0 && ctx.remIdx < stops.length && ctx.remIdx === Math.floor(ctx.remIdx)) { remIdx = ctx.remIdx; remBy = voice; }
+    else if (stops.length && voice) { remIdx = stops.length - 1; remBy = 'fallback'; }   /* 고른 이가 안 골랐다 → 두뇌가 대신 (취향 가중 없이 마지막 곳) */
+    else if (stops.length) {
+      remIdx = pickWeighted(stops, function (s, i) {
+        var w = 1;
+        if (s.first) w *= 2.0;
+        if (s.status === 'read') w *= 1.3;
+        if (s.viaTangent) w *= 1.6;
+        if (i === hintStopIdx) w *= 0.7;
+        if (s.status === 'none' || s.status === 'simulated' || s.status === 'failed') w *= 0.5;
+        return w;
+      }, rr.rRemember);
+    }
+    var rem = remIdx >= 0 ? stops[remIdx] : null;
+
+    /* 기념품: 이번 길에 실제로 들른 방의 것만. 난수는 rSouvenir 하나 (35%, 한 번에 하나).
+       owned(가진 기념품 id 목록)를 받으면: 아직 없는 기념품의 방이면 다시 온 방이어도 후보 — 단 다시 온 방이 힌트(·URL)가 가리킨 방이면 빼서
+       힌트로 한 방을 되풀이해 기념품을 '뽑는' 일은 없게 한다. 처음 온 방 후보가 있으면 그쪽만 (처음은 여전히 특별).
+       owned 를 안 주면(null) 옛 규칙: 처음 온 방에서만 */
+    var souvenir = null;
+    var owned = Array.isArray(ctx.owned) ? ctx.owned : null;
+    var hinted = {};
+    if (ctx.hintNode) hinted[ctx.hintNode.id] = 1;
+    if (ctx.urlNode) hinted[ctx.urlNode.id] = 1;
+    var cands = stops.filter(function (s) {
+      if (s.kind !== 'room' || !s.node.souvenir || (W.souvenirs && !W.souvenirs[s.node.souvenir])) return false;
+      if (!owned) return s.first;
+      return owned.indexOf(s.node.souvenir) < 0 && (s.first || !hinted[s.id]);
+    });
+    if (owned) { var fresh = cands.filter(function (s) { return s.first; }); if (fresh.length) cands = fresh; }
+    if (cands.length && rr.rSouvenir < 0.35) {
+      souvenir = cands[Math.min(cands.length - 1, Math.floor((rr.rSouvenir / 0.35) * cands.length))].node.souvenir;
+    }
+
+    var followed = computeFollowed(match, ctx.intent, ctx.follow, stops, ctx.hintNode, ctx.urlNode, ctx.hintRaw);
+
+    /* 한 줄 */
+    var line = ctx.line || null, lineKind = null;
+    if (rem) {
+      var memory = '';
+      if (rem.kind === 'room') memory = pickMemory(rem.node, rr.rMemory);
+      if (!memory && rem.status === 'read' && rem.source) memory = sentences(rem.source.extract, 60);
+      if (rem.status === 'failed') lineKind = 'failed';
+      else if (rem.kind === 'room' && rem.node.linger) lineKind = 'linger';
+      else if (rem.kind === 'room' && rem.node.id === 'letter_room') lineKind = 'letter';
+      else if (rem.kind === 'url') lineKind = 'door';
+      else if (ctx.intent && ctx.follow) {
+        var leftCorner = stops.length > 1 && stops.some(function (s) { return s.corner !== stops[0].corner; });
+        lineKind = remIdx === hintStopIdx ? (leftCorner ? 'leftKept' : 'followedKept') : 'followedThenLeft';
+      }
+      else if (ctx.intent && !ctx.follow && followed === 'ignored') lineKind = 'ignored';
+      else if (rem.kind === 'wild' && !ctx.intent) lineKind = 'wild';
+      else lineKind = 'noHint';
+      if (!line && !voice) line = composeLine(lineKind, { hint: match.kind === 'node' && ctx.hintNode ? roomWord(hintLabel) : hintLabel, mem: rem.kind === 'room' ? roomWord(rem.name) : rem.name, memory: memory, name: ctx.name }, rr.rTemplate);
+    }
+
+    /* 반응. 데모 규칙: 실제로 있었던 일과 맞을 때만 (안 읽었는데 우쭐, 처음 온 데 없는데 폴짝은 안 된다).
+       모델·사람: 준 그대로 — 고른 이의 뜻을 게임이 바꾸지 않는다. 안 줬으면 반응 없음 */
+    var reaction = voice ? (ctx.reaction || null)
+      : (ctx.reaction && REACTIONS.indexOf(ctx.reaction) >= 0 && reactionFits(ctx.reaction, stops, followed))
+        ? ctx.reaction : computeReaction(stops, followed, ctx.hour, false);
+    var reactionRaw = voice ? (ctx.reactionRaw || null) : null;
+    var reactionBy = voice ? ((reaction || reactionRaw) ? voice : null) : 'demo-rules';
+
+    /* 영수증 */
+    var counts = zeroCounts();
+    var rstops = stops.map(function (s, i) {
+      counts[s.status] = (counts[s.status] || 0) + 1;
+      var o = {
+        idx: i, nodeId: s.kind === 'room' ? s.id : (s.kind === 'url' ? 'door_out' : null), title: s.kind === 'wild' ? s.title : undefined,
+        name: s.name, emoji: s.emoji, corner: s.corner, status: s.status, ms: s.ms, note: s.note || '',
+        source: s.source ? { url: s.source.url, extract: s.source.extract, thumb: s.source.thumb, license: s.source.license, attribution: s.source.attribution } : null,
+        first: !!s.first, viaTangent: !!s.viaTangent, bridge: s.bridge || null
+      };
+      if (s.kind === 'url') o.url = s.url;
+      if (s.reason) o.reason = s.reason;
+      if (s.kind === 'wild') o.wild = true;
+      if (s.noteBy) o.noteBy = s.noteBy;                     /* 모델·사람 재생: 보이는 메모가 그들이 쓴 글 */
+      if (s.noteGiven != null) o.noteGiven = s.noteGiven;    /* 모델·사람 재생: 읽음이 확인되지 않아 화면에서 뺀 그들의 메모 (원문) */
+      return o;
+    });
+    var receipt = {
+      stops: rstops, counts: counts, souvenir: souvenir, rememberedIdx: remIdx, reaction: reaction,
+      reactionEmoji: voice ? (reaction ? reactionEmoji(reaction) : null) : reactionEmoji(reaction),
+      reactionLine: voice ? (ctx.reactionLine || null) : pickReactionLine(reaction, rr.rReaction, reactionFacts(stops, counts)), returnReason: ctx.reason || null
+    };
+    if (voice) { receipt.reactionRaw = reactionRaw; receipt.reactionBy = reactionBy; receipt.rememberedBy = remBy; }
+
+    /* 포스터 */
+    var poster = null;
+    if (rem) {
+      var sticker = ctx.sticker || (rem.kind === 'room' ? (rem.node.sticker || rem.node.id) : 'wild');
+      var thumb = (rem.status === 'read' && rem.source && rem.source.thumb && rem.source.thumb.url)
+        ? { url: rem.source.thumb.url, w: rem.source.thumb.w || null, h: rem.source.thumb.h || null, license: THUMB_LICENSE } : null;
+      poster = {
+        type: 'poster', title: rem.name, line: line, sticker: sticker, emoji: rem.emoji,
+        scene: rem.kind === 'room' ? (rem.node.scene || rem.corner) : 'wild',
+        stickerPos: rr.pos, thumb: thumb, paper: rr.paper, lineKind: lineKind
+      };
+    }
+
+    /* 변화량 */
+    var visitsDelta = {}, affinityDelta = {};
+    stops.forEach(function (s) {
+      if (s.kind === 'room' || s.kind === 'url') visitsDelta[s.id] = (visitsDelta[s.id] || 0) + 1;
+      if (s.kind === 'room') affinityDelta[s.corner] = (affinityDelta[s.corner] || 0) + 1;
+      if (s.kind === 'wild') affinityDelta.wild = (affinityDelta.wild || 0) + 1;
+    });
+    /* 기억한 곳 +2 는 고른 이가 고른 기억에만. 두뇌가 대신 정한 곳(fallback)이 데모 두뇌의 취향 가중치로 들어가지 않게 */
+    if (rem && rem.kind !== 'url' && remBy !== 'fallback') affinityDelta[rem.corner] = (affinityDelta[rem.corner] || 0) + 2;
+
+    var hintNote = null;   /* 데모 규칙의 말. 모델·사람의 재생에는 붙이지 않는다 (마음을 대신 말하지 않게) */
+    if (voice) hintNote = null;
+    else if (followed === 'ignored') hintNote = IGNORED_NOTE;
+    else if (match.kind === 'wiki' && !ctx.intent) hintNote = '지금은 바깥 글을 못 읽어서 힌트는 다음에 찾아볼래';
+
+    return {
+      hint: { raw: ctx.hintRaw, match: match, followed: followed, note: hintNote, label: hintLabel || null },
+      receipt: receipt, poster: poster, visitsDelta: visitsDelta, affinityDelta: affinityDelta, reaction: reaction,
+      remIdx: remIdx, line: line, sticker: poster ? poster.sticker : null,
+      reactionRaw: reactionRaw, reactionBy: reactionBy, reactionLine: receipt.reactionLine
+    };
+  }
+
+  function peekEvent(s, t) {
+    var ev = { type: 'peek', t: t, status: s.status, ms: s.ms, note: s.note || '', first: !!s.first, viaTangent: !!s.viaTangent };
+    if (s.kind === 'room') ev.target = { kind: 'room', id: s.id, title: s.name, wiki: s.node.wiki || null };
+    else if (s.kind === 'url') ev.target = { kind: 'url', url: s.url, title: s.name };
+    else ev.target = { kind: 'wild', title: s.title, wiki: s.title };
+    if (s.bridge) ev.bridge = s.bridge;
+    if (s.source) ev.source = { url: s.source.url, extract: s.source.extract, thumb: s.source.thumb, license: s.source.license, attribution: s.source.attribution };
+    if (s.reason) ev.reason = s.reason;
+    if (s.aside) ev.aside = s.aside;
+    return ev;
+  }
+
+  /* ───────── §17.1 메모 (그때 남긴 한 줄 · 방마다 한 줄) ───────── */
+  function memoTpl() {
+    var W = world(), m = (W && W.memoTemplates) || {};
+    var d = DEFAULT_MEMO;
+    return {
+      lead: Object.assign({}, d.lead, m.lead || {}), next: Object.assign({}, d.next, m.next || {}),
+      nextNone: (Array.isArray(m.nextNone) && m.nextNone.length) ? m.nextNone : d.nextNone,
+      home: (Array.isArray(m.home) && m.home.length) ? m.home : d.home,
+      revisit: m.revisit || d.revisit, revisitToday: m.revisitToday || d.revisitToday, revisitUndated: m.revisitUndated || d.revisitUndated
+    };
+  }
+  function pickStr(list, r) { list = Array.isArray(list) && list.length ? list : ['']; return String(list[Math.min(list.length - 1, Math.floor(asR(r) * list.length))]); }
+  /* 60자 넘으면 마침표 앞까지, 그래도 길면 59자 + … */
+  function clampText(t, max) {
+    t = String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
+    max = max || MEMO_MAX;
+    if (t.length <= max) return t;
+    return t.slice(0, max - 1).replace(/[\s.,]+$/, '') + '…';
+  }
+  function joinFit(parts, max) {   /* 앞에서부터 '. ' 로 잇되 max 를 넘으면 그 조각은 뺀다 */
+    var out = '';
+    parts.forEach(function (p) { if (!p) return; var c = out ? out + '. ' + p : p; if (c.length <= max) out = c; });
+    return out || clampText(parts.filter(Boolean)[0] || '', max);
+  }
+  function daysBetween(a, b) {
+    var ma = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(a || '')), mb = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(b || ''));
+    if (!ma || !mb) return null;
+    var da = Date.UTC(+ma[1], +ma[2] - 1, +ma[3]), db = Date.UTC(+mb[1], +mb[2] - 1, +mb[3]);
+    return Math.round((db - da) / 86400000);
+  }
+  function revisitAside(name, lastDate, dateKey) {
+    var T = memoTpl(), n = daysBetween(lastDate, dateKey);
+    var tpl = n == null || n < 0 ? T.revisitUndated : n === 0 ? T.revisitToday : T.revisit;
+    return clampText(fillTemplate(tpl, { hint: name, n: n }), MEMO_MAX);
+  }
+  /* 방마다 한 줄: 그 방의 기억 조각(문어 말투) → 없으면 실제로 읽은 요약(read) → 없으면 실마리. 지어내지 않는다 */
+  function roomNote(s, R) {
+    var t = s.node ? pickMemory(s.node, R) : '';
+    if (!t && s.status === 'read' && s.source && s.source.extract) t = sentences(s.source.extract, MEMO_MAX);
+    if (!t && s.node && s.node.clue) t = sentences(s.node.clue, MEMO_MAX);
+    return clampText(t, MEMO_MAX);
+  }
+  /* 다음 걸음 의도: 기억한 방(없으면 마지막 방)의 이웃 중 이번에 안 간 곳, 덜 밟힌 쪽 가중 */
+  function nextIntent(W, stops, rem, state, r) {
+    var from = (rem && rem.kind === 'room') ? rem.node : null;
+    if (!from) { for (var i = stops.length - 1; i >= 0 && !from; i--) if (stops[i].kind === 'room' && stops[i].node) from = stops[i].node; }
+    if (!from) return null;
+    var seen = {}; stops.forEach(function (s) { if (s.id) seen[s.id] = 1; });
+    var ids = (from.tangents || []).map(function (t) { return t && t.to; }).concat(from.related || []);
+    var cands = [];
+    ids.forEach(function (id) { if (id && W.nodes[id] && !SPECIAL[id] && !seen[id] && W.nodes[id].corner !== 'wild' && cands.indexOf(id) < 0) cands.push(id); });
+    if (!cands.length) return null;
+    var pi = pickWeighted(cands, function (id) { return 1 / (1 + ((state.visits && state.visits[id]) || 0)); }, r);
+    return W.nodes[cands[pi]];
+  }
+  /* info(선택): 다음 걸음 방이 tomorrow 글에 실제로 들어갔으면 info.next = 그 방 (R3 noteOut 의 about).
+     60자에 맞추느라 '내일은 X' 가 빠졌으면 info.next 를 두지 않는다 — 잘린 글에서 뜻을 끌어내 다음 선택에 쓰지 않게 (MODEL_VOICE §3) */
+  function buildOutMemo(stops, out, state, R, info) {
+    var W = world(), T = memoTpl();
+    var rem = out.remIdx >= 0 ? stops[out.remIdx] : null;
+    var kind = (out.poster && out.poster.lineKind) || 'noHint';
+    var rLead = R(), rNext = R(), rIntent = R();
+    var hintWord = out.hint.match && out.hint.match.kind === 'node' ? roomWord(out.hint.label || '') : (out.hint.label || '');
+    var lead = rem ? fillTemplate(pickStr(T.lead[kind] || T.lead.noHint, rLead), { hint: hintWord, mem: rem.kind === 'room' ? roomWord(rem.name) : rem.name }) : '';
+    var nx = nextIntent(W, stops, rem, state, rIntent);
+    var next = nx ? fillTemplate(pickStr(T.next[out.reaction] || T.next['덤덤'], rNext), { next: roomWord(nx.name) }) : pickStr(T.nextNone, rNext);
+    var notes = {};
+    stops.forEach(function (s) {
+      if (s.kind !== 'room' || !s.node || s.id === 'door_out' || notes[s.id]) return;
+      var t = roomNote(s, R);
+      if (t) notes[s.id] = t;
+    });
+    var tomorrow = joinFit([lead, next], MEMO_MAX);
+    if (!tomorrow) return null;
+    if (info && nx && next && tomorrow.indexOf(next) >= 0) info.next = nx;
+    return { tomorrow: tomorrow, notes: notes };
+  }
+  function buildHomeMemo(act, R) {
+    var T = memoTpl();
+    var did = act.memo || String(act.line || '').replace(/[.…\s]+$/, '');
+    if (!did || did === '…') return null;
+    return { tomorrow: joinFit([did, pickStr(T.home, R())], MEMO_MAX), notes: {} };
+  }
+  /* 모델·사람이 준 메모(wrap_up.memo)를 정리: 문자열만, 보이는 글은 각 60자(넘으면 59자 + …), 빈 건 버림.
+     줄이거나 띄어쓰기를 고친 글은 원문을 original 에 그대로 둔다 (MODEL_VOICE §3 — 말없이 자르지 않는다) */
+  function cleanMemo(m) {
+    if (!m || typeof m !== 'object') return null;
+    var orig = null;
+    var tomorrow = typeof m.tomorrow === 'string' ? clampText(m.tomorrow, MEMO_MAX) : '';
+    if (tomorrow && tomorrow !== m.tomorrow) (orig = orig || {}).tomorrow = m.tomorrow;
+    var notes = {};
+    if (m.notes && typeof m.notes === 'object') Object.keys(m.notes).forEach(function (k) {
+      var v = m.notes[k];
+      if (typeof v === 'string' && v.trim() && /^[\w-]{1,64}$/.test(k)) {
+        notes[k] = clampText(v, MEMO_MAX);
+        if (notes[k] !== v) { orig = orig || {}; (orig.notes = orig.notes || {})[k] = v; }
+      }
+    });
+    if (!tomorrow && !Object.keys(notes).length) return null;
+    var out = { tomorrow: tomorrow, notes: notes };
+    if (orig) out.original = orig;
+    return out;
+  }
+  /* 고른 이(모델·사람)가 wrap_up 에 낸 것 — 반응 · 반응 줄 · 호기심 메모 · 내려놓기 (R1·R3). 그대로 옮기기만 한다 */
+  function voiceOf(by) { return by === 'mcp' ? 'model' : by === 'human' ? 'human' : null; }
+  function spokenReaction(wrap) {
+    var v = wrap && wrap.reaction;
+    if (typeof v !== 'string' || !v.trim()) return { reaction: null, raw: null };
+    var t = v.trim();
+    return REACTIONS.indexOf(t) >= 0 ? { reaction: t, raw: null } : { reaction: null, raw: v };
+  }
+  function spokenLine(wrap) {
+    if (!wrap) return null;
+    if (typeof wrap.line === 'string' && wrap.line.trim()) return wrap.line;
+    if (typeof wrap.reactionLine === 'string' && wrap.reactionLine.trim()) return wrap.reactionLine;
+    return null;
+  }
+  function spokenNote(wrap, voice) {
+    var n = wrap && wrap.note;
+    var text = typeof n === 'string' ? n : (n && typeof n === 'object' && typeof n.text === 'string') ? n.text : null;
+    if (text == null || !text.trim()) return null;
+    var out = { text: text };
+    var about = (n && typeof n === 'object') ? normAbout(n.about) : null;
+    if (about) out.about = about;
+    out.by = voice || 'demo-rules';
+    return out;
+  }
+  /* 내려놓기는 모델 자신의 표시라 모델(mcp) 재생에서만 받는다 (CURIOSITY_NOTES 원칙 3·4) */
+  function spokenSetDown(wrap, voice) {
+    if (voice !== 'model' || !wrap) return [];
+    var list = typeof wrap.setDown === 'string' ? [wrap.setDown] : wrap.setDown;   /* id 하나를 글로만 줘도 그 뜻 그대로 */
+    if (!Array.isArray(list)) return [];
+    return list.filter(function (x) { return typeof x === 'string' && x.length > 0; });
+  }
+  function memoRng(seed) { return rng(((seed >>> 0) ^ 0x6d656d6f) >>> 0); }   /* 'memo' — 길·기억의 난수 순서를 건드리지 않는 별도 줄기 */
+
+  /* ───────── 집 / 빈 차례 ───────── */
+  /* 방에 실제로 있는 것만 한다: 등불이 모자라면(이끼 화분 등) 빼고, 포스터가 없으면 포스터 활동을 뺀다.
+     자리 바꾸기(effect:'rotatePosters')는 바꿀 짝이 있어야 하니 2장부터. world.js 는 requiresLantern, 옛 데이터는 minLantern.
+     maxLantern 을 넘으면 뺀다: 두뇌는 날씨를 모르니, 비를 말하는 활동은 비가 확실한 등불 단계에서만 (등불 7 은 맑음) */
+  function homeActivities(lantern, posters) {
+    var W = world();
+    var list = (W && Array.isArray(W.homeActivities) && W.homeActivities.length) ? W.homeActivities : DEFAULT_HOME;
+    lantern = lantern || 0; posters = posters || 0;
+    return list.filter(function (a) {
+      if (!a || a.id === 'nothing') return false;
+      if (typeof a.minLantern === 'number' && lantern < a.minLantern) return false;
+      if (typeof a.requiresLantern === 'number' && lantern < a.requiresLantern) return false;
+      if (typeof a.maxLantern === 'number' && lantern > a.maxLantern) return false;   /* 비 이야기는 비가 확실한 등불까지만 (world.js) */
+      if (a.requiresPoster && posters < (a.effect === 'rotatePosters' ? 2 : 1)) return false;
+      return true;
+    });
+  }
+  function emptyTrip(base) {
+    return {
+      kind: 'empty', by: base.by, seed: base.seed, dateKey: base.dateKey, seq: base.seq,
+      hint: { raw: base.hintRaw, match: matchHint(base.hintRaw), followed: 'none', note: null },
+      events: [{ type: 'empty_turn', t: 0 }],
+      receipt: null, poster: null, visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: null, memo: null,
+      reactionBy: null, reactionRaw: null, reactionLine: null, noteOut: null, setDown: []
+    };
+  }
+  /* lanternLeft: 이 차례가 끝나면 등불 칸이 켜지나 (normalizeState: app 이 주고, 없으면 등불 < 8) → 아닐 때는 뒷면에 '+1' 을 쓰지 않는다. 난수는 뽑지 않는다.
+     반응 (데모 규칙): given 이 집에서 맞으면(졸림·덤덤) 그것. 아니면 활동의 후보(act.reactions) 가운데 하나를
+     이미 뽑은 rLine 하나로 고른다 — 앞자리(몇 번째 후보)로 반응, 남은 몫으로 줄. 새 난수 없음 (후보가 하나면 옛날과 같은 줄).
+     said (모델·사람의 재생): { by, reaction, raw, line } — 반응·줄은 준 그대로, 안 줬으면 null. 난수는 똑같이 뽑고 쓰지 않는다 */
+  function homeTripFrom(base, act, R, lanternLeft, given, said) {
+    var tWrap = Math.round(lerp(R(), 2000, 4000));
+    var pos = drawStickerPos(R);
+    var paper = Math.floor(R() * 3);
+    var rLine = R();
+    var reaction, rPick;
+    if (said) { reaction = said.reaction; rPick = rLine; }
+    else if (given && REACTIONS.indexOf(given) >= 0 && reactionFits(given, [], 'none')) { reaction = given; rPick = rLine; }   /* 고른 쪽의 뜻은 그대로. 집에서 참인 줄이 없으면 줄 없이(null) */
+    else {
+      var rc = homeReactionCands(act), x = rLine * rc.length, ci = Math.min(rc.length - 1, Math.floor(x));
+      reaction = rc[ci]; rPick = x - ci;
+    }
+    var memo = buildHomeMemo(act, memoRng(base.seed));
+    var reactionBy = said ? ((said.reaction || said.raw) ? said.by : null) : 'demo-rules';
+    var events = [
+      { type: 'stay_home', t: 0, activity: act.id, line: act.line, anchor: act.anchor || 'window' },
+      { type: 'wrap_up', t: tWrap, reaction: reaction }
+    ];
+    if (memo) events[1].memo = memo;
+    var trip = {
+      kind: 'home', by: base.by, seed: base.seed, dateKey: base.dateKey, seq: base.seq,
+      hint: { raw: base.hintRaw, match: matchHint(base.hintRaw), followed: 'none', note: null },
+      events: events,
+      receipt: {
+        stops: [], counts: zeroCounts(), souvenir: null, rememberedIdx: -1, reaction: reaction,
+        reactionEmoji: said ? (reaction ? reactionEmoji(reaction) : null) : reactionEmoji(reaction),
+        reactionLine: said ? said.line : pickHomeLine(reaction, rPick),   /* 데모 규칙: 걸은 일·읽은 일이 없으니 집에서 참인 줄만. 모델·사람: 그들이 쓴 줄만 */
+        activity: { id: act.id, line: act.line, detail: act.detail || '', anchor: act.anchor || 'window' }
+      },
+      poster: {
+        type: 'note', title: act.title || '오늘은 집', line: act.line, detail: act.detail || '', back: (lanternLeft ? '오늘은 집. 등불 +1' : '오늘은 집'),
+        sticker: act.sticker || 'home', emoji: act.emoji || '🏠', scene: 'home', stickerPos: pos, thumb: null, paper: paper
+      },
+      visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: reaction, memo: memo,
+      reactionBy: reactionBy, reactionRaw: said ? said.raw : null,
+      reactionLine: said ? said.line : pickHomeLine(reaction, rPick), noteOut: null, setDown: []   /* 집 메모에는 다음 걸음 방이 없다 → noteOut 없음 */
+    };
+    if (said) { trip.receipt.reactionRaw = said.raw; trip.receipt.reactionBy = reactionBy; }
+    return trip;
+  }
+
+  /* ───────── 5.2 ───────── */
+  function stayProbability(state, hour) {
+    var p = 0.12;
+    if (hour >= 0 && hour <= 5) p += 0.20;
+    var rc = state.recent.slice(-2);
+    if (rc.length === 2 && rc.every(function (r) { return r && r.kind === 'out' && (r.nStops || 0) >= 4; })) p += 0.15;
+    if ((state.todayOut || 0) >= 2) p += 0.25;
+    return Math.min(0.6, p);
+  }
+
+  /* ───────── plan ───────── */
+  function plan(input) {
+    return Promise.resolve().then(function () { return planInner(input || {}); });
+  }
+  function planInner(input) {
+    var W = world();
+    if (!W || !W.nodes) throw new Error('BRAIN.plan: WORLD.nodes 가 먼저 로드돼야 해');
+    var hintRaw = (input.hint == null ? '' : String(input.hint)).trim();
+    var name = input.name || '';
+    var now = toDate(input.now);
+    var dateKey = input.dateKey || localDateKey(now);
+    var seq = input.seq == null ? 1 : input.seq;
+    var seed = input.seed == null ? hashSeed(dateKey, hintRaw, seq, name) : (input.seed >>> 0);
+    var R = rng(seed);
+    var state = normalizeState(input.state);
+    var online = input.online !== false;
+    var by = input.by || 'demo';
+    var fetcher = typeof input.fetchWiki === 'function' ? input.fetchWiki : wikiFetch;
+    var timeoutMs = input.fetchTimeoutMs || 4000;
+    var hour = now.getHours();
+    var base = { by: by, seed: seed, dateKey: dateKey, seq: seq, name: name, hintRaw: hintRaw };
+
+    /* 1. 나갈까 */
+    var pStay = stayProbability(state, hour);
+    /* 테스트 전용 훅: window.__ppolTest = { forceKind:'home'|'empty'|'out' } 가 있을 때만 결과를 강제한다.
+       난수는 똑같이 뽑아서(rStay, rEmpty) 훅이 없을 때의 draw 순서와 어긋나지 않게 한다. */
+    var forced = (root && root.__ppolTest && typeof root.__ppolTest === 'object') ? root.__ppolTest.forceKind : null;
+    if (forced !== 'home' && forced !== 'empty' && forced !== 'out') forced = null;
+    var rStay = R();
+    var stay = forced ? (forced !== 'out') : (rStay < pStay);
+    if (stay) {
+      var rEmpty = R();
+      var empty = forced ? (forced === 'empty') : (rEmpty < 0.03);
+      if (empty) return emptyTrip(base);
+      var acts = homeActivities(state.lantern, state.posters);
+      var ai = pickWeighted(acts, function (a) { return a.weight == null ? 1 : a.weight; }, R());
+      return homeTripFrom(base, acts[ai] || DEFAULT_HOME[0], R, state.lanternLeft);
+    }
+
+    /* 2. 힌트 · 들판 */
+    var rFollow = R();
+    var match = matchHint(hintRaw);
+    var rWild = R(), rWildIdx = R();
+    var wildPlanned = online && rWild < 0.3;
+    var hintNode = match.kind === 'node' ? W.nodes[match.nodeId] : null;
+    var intent = match.kind === 'node' || (match.kind === 'wiki' && online);
+    var follow = intent ? rFollow < 0.75 : false;
+
+    /* 3. 출발 노드 */
+    var prefix = [], startId = null, urlNode = null;
+    var avoidId = (match.kind === 'node' && !follow) ? match.nodeId : null;   /* '오늘은 그쪽 말고' → 그 방은 길에서 뺀다 */
+    if (match.kind === 'url') {
+      prefix.push(makeDoorStop(match.url));
+      urlNode = nodeFromUrl(match.url);
+      startId = urlNode ? urlNode.id : pickStart(state, R);
+    } else if (match.kind === 'node' && follow) {
+      startId = match.nodeId;
+    } else if (match.kind === 'wiki' && intent && follow) {
+      prefix.push(makeWildStop(match.query, { viaTangent: false, fromHint: true }));
+      startId = pickStart(state, R);
+    } else {
+      startId = pickStart(state, R, avoidId);
+    }
+    /* §17.1 재방문: 힌트 방을 전에 가 봤다 → 한 단계 더 깊게 + 첫 기웃에 한마디 */
+    var revisit = !!(match.kind === 'node' && follow && hintNode && startId === hintNode.id &&
+      ((state.visits[hintNode.id] || 0) > 0 || state.lastVisit[hintNode.id]));
+    var route = buildRoute(W, state, R, startId, prefix, 5, { deeper: revisit, avoid: avoidId });
+    var stops = route.stops;
+    if (revisit && stops[0] && stops[0].id === hintNode.id) stops[0].aside = revisitAside(roomWord(hintNode.name), state.lastVisit[hintNode.id], dateKey);
+
+    /* 4. 미리 뽑아 두는 난수 (fetch 와 무관하게 고정) */
+    var msArr = [], gaps = [], i;
+    for (i = 0; i < 6; i++) msArr.push(Math.round(lerp(R(), 4000, 14000)));
+    for (i = 0; i < 6; i++) gaps.push(Math.round(lerp(R(), 2000, 4000)));
+    var gReturn = Math.round(lerp(R(), 2000, 4000));
+    var gRemember = Math.round(lerp(R(), 500, 1500));
+    var gHang = 500 + Math.round(R() * 300);
+    var gWrap = Math.round(lerp(R(), 500, 1000));
+    var rr = { rRemember: R(), rSouvenir: R(), rTemplate: R(), rMemory: R(), pos: drawStickerPos(R), paper: Math.floor(R() * 3), rReaction: R() };
+
+    /* 5. 읽기 시도 (동시 2개, 각 4초) */
+    var tasks = [];
+    stops.forEach(function (s) {
+      if (!online) return;
+      if (s.kind === 'room' && s.node.wiki && !isNoneNode(s.node)) tasks.push({ stop: s, title: s.node.wiki });
+      else if (s.kind === 'wild') tasks.push({ stop: s, title: s.title });
+    });
+    return runPool(tasks.map(function (t) { return function () { return safeFetch(fetcher, t.title, timeoutMs); }; }), 2)
+      .then(function (results) {
+        tasks.forEach(function (t, k) { applyFetch(t.stop, results[k], online); });
+        stops.forEach(function (s) { if (!s.status) applyFetch(s, null, online); });
+
+        /* 6. 들판 걸음 (후보는 직전 정류장의 링크, 인덱스는 미리 뽑은 r) */
+        if (!wildPlanned || stops.length >= 5 || route.reason === 'linger') return null;
+        var last = stops[stops.length - 1];
+        var links = (last.fetchResult && last.fetchResult.ok && last.fetchResult.links) || [];
+        /* 안 가기로 한 힌트와 같은 글로는 들판 걸음도 하지 않는다 (인덱스 난수는 그대로 r_wildIdx) */
+        var skipKeys = (intent && !follow) ? hintTitleKeys(match, hintNode, hintRaw) : [];
+        links = links.filter(function (t) {
+          if (skipKeys.length && skipKeys.indexOf(titleKey(t)) >= 0) return false;
+          return !stops.some(function (s) { return (s.kind === 'wild' && s.title === t) || (s.kind === 'room' && s.node.wiki === t); });
+        });
+        if (!links.length) return null;
+        var title = links[Math.min(links.length - 1, Math.floor(rWildIdx * links.length))];
+        return safeFetch(fetcher, title, timeoutMs).then(function (res) {
+          if (!res.ok) return null;
+          var ws = makeWildStop(title, { viaTangent: true, bridge: '위키 링크를 따라 들판으로' });
+          applyFetch(ws, res, online);
+          stops.push(ws);
+          return ws;
+        });
+      })
+      .then(function () {
+        stops.forEach(function (s, k) { s.ms = msArr[Math.min(k, msArr.length - 1)]; });
+        var out = assemble({
+          stops: stops, match: match, intent: intent, follow: follow, hintNode: hintNode, urlNode: urlNode,
+          hintRaw: hintRaw, name: name, hour: hour, reason: route.reason, rr: rr, owned: state.owned
+        });
+
+        /* 7. 이벤트 */
+        var t = 0, events = [];
+        events.push({ type: 'depart', t: 0, hint: hintRaw, followHint: out.hint.followed === 'followed' || out.hint.followed === 'left', match: match, note: out.hint.note || undefined });
+        if (!events[0].note) delete events[0].note;
+        stops.forEach(function (s, k) { t += gaps[Math.min(k, gaps.length - 1)]; events.push(peekEvent(s, t)); });
+        t += gReturn; events.push({ type: 'return', t: t, reason: route.reason });
+        if (out.remIdx >= 0) { t += gRemember; events.push({ type: 'remember', t: t, stopIdx: out.remIdx, sticker: out.sticker, line: out.line }); }
+        t += gHang; events.push({ type: 'hang_poster', t: t, posterId: input.id || input.tripId || null });
+        var memoInfo = {};
+        var memo = buildOutMemo(stops, out, state, memoRng(seed), memoInfo);
+        t += gWrap; events.push({ type: 'wrap_up', t: t, reaction: out.reaction });
+        if (memo) events[events.length - 1].memo = memo;
+
+        return {
+          kind: 'out', by: by, seed: seed, dateKey: dateKey, seq: seq,
+          hint: out.hint, events: events, receipt: out.receipt, poster: out.poster,
+          visitsDelta: out.visitsDelta, affinityDelta: out.affinityDelta, affinityDecay: 0.9, reaction: out.reaction,
+          revisit: revisit ? { nodeId: hintNode.id, last: state.lastVisit[hintNode.id] || null } : null, memo: memo,
+          reactionBy: out.reactionBy, reactionRaw: null, reactionLine: out.reactionLine,
+          /* R3: 데모 메모의 '내일은 X 쪽으로' 가 글에 들어갔을 때만. 글 = 메모 그대로, about = X. 새 난수 없음 */
+          noteOut: (memo && memoInfo.next) ? { text: memo.tomorrow, about: { kind: 'node', id: memoInfo.next.id }, by: 'demo-rules' } : null,
+          setDown: []
+        };
+      });
+  }
+
+  /* ───────── replay: 사람/MCP 이벤트 배열 → Trip ───────── */
+  function replay(events, meta) {
+    meta = meta || {};
+    var W = world();
+    events = (Array.isArray(events) ? events : []).filter(function (e) { return e && typeof e.type === 'string'; })
+      .map(function (e) { var c = Object.assign({}, e); c.t = typeof c.t === 'number' ? c.t : 0; return c; });
+    var by = meta.by || 'human';
+    var seed = meta.seed != null ? (meta.seed >>> 0) : hashSeed('replay', by, JSON.stringify(events));
+    var R = rng(seed);
+    var state = normalizeState(meta.state);
+    var now = toDate(meta.now);
+    var hour = now.getHours();
+    var depart = events.filter(function (e) { return e.type === 'depart'; })[0] || null;
+    var hintRaw = String((depart && depart.hint != null ? depart.hint : meta.hint) || '').trim();
+    var base = { by: by, seed: seed, dateKey: meta.dateKey || localDateKey(now), seq: meta.seq == null ? 1 : meta.seq, name: meta.name || '', hintRaw: hintRaw };
+    /* 고른 이가 모델(mcp)·사람(human)이면 그들이 낸 반응·말·메모를 그대로 둔다 (R1, MODEL_VOICE). 그 밖의 by 는 데모 규칙의 재생 */
+    var voice = voiceOf(by);
+    var wrap = events.filter(function (e) { return e.type === 'wrap_up'; })[0] || null;
+    var noteOut = spokenNote(wrap, voice), setDown = spokenSetDown(wrap, voice);
+
+    if (events.some(function (e) { return e.type === 'empty_turn'; }) && !events.some(function (e) { return e.type === 'peek'; })) {
+      var et = emptyTrip(base); et.events = events; et.noteOut = noteOut; et.setDown = setDown;
+      /* 빈 차례 뒤에 모델·사람이 마무리를 냈으면 그 반응·줄·메모도 그대로 (호기심 메모만 받고 반응을 버리지 않게). 데모 규칙의 빈 차례는 예전대로 비어 있다 */
+      if (voice && wrap) {
+        var se = spokenReaction(wrap);
+        et.reaction = se.reaction; et.reactionRaw = se.raw; et.reactionBy = (se.reaction || se.raw) ? voice : null;
+        et.reactionLine = spokenLine(wrap); et.memo = cleanMemo(wrap.memo);
+      }
+      return et;
+    }
+    var sh = events.filter(function (e) { return e.type === 'stay_home'; })[0];
+    if (sh && !events.some(function (e) { return e.type === 'peek'; })) {
+      /* 재생도 지금 방에서 할 수 있는 활동만 그대로 믿는다 (homeActivities 와 같은 거르기: 등불·포스터·맑은 날 비 이야기).
+         못 하는 활동이면 그 활동의 문구·효과(포스터 바꾸기)는 쓰지 않고, 입력이 준 말만 쓴다 */
+      var allActs = (W && Array.isArray(W.homeActivities) && W.homeActivities.length) ? W.homeActivities : DEFAULT_HOME;
+      var okActs = homeActivities(state.lantern, state.posters);
+      var trusted = allActs.filter(function (a) { return a && a.id === sh.activity && (a.id === 'nothing' || okActs.indexOf(a) >= 0); })[0] || null;
+      var asked = sh.activity != null && sh.activity !== '';   /* activity 는 선택 (PROTOCOL §3 ppolppol_stay_home) — 안 줬으면 '못 하는 활동'도 아니다 */
+      /* 활동 없는 쪽지의 앞면: 입력이 준 줄. 모델·사람이 줄을 안 썼으면 빈칸 (데모 규칙 재생만 '오늘은 집에 있었어') */
+      var act = trusted || { id: 'custom', line: sh.line || (voice ? '' : '오늘은 집에 있었어'), detail: sh.detail || '', anchor: sh.anchor || 'window' };
+      if (sh.line) act = Object.assign({}, act, { line: sh.line });
+      /* 모델·사람의 쪽지 뒷면(detail)은 그들이 쓴 것만. 활동 목록의 뒷면 글('빗소리가 좋아서 …')은 데모 규칙의 말이라 그들 쪽지에 붙이지 않는다 */
+      if (voice) act = Object.assign({}, act, { detail: typeof sh.detail === 'string' ? sh.detail : '' });
+      var wu = wrap;
+      var said = null;
+      if (voice) { var sr = spokenReaction(wu); said = { by: voice, reaction: sr.reaction, raw: sr.raw, line: spokenLine(wu) }; }
+      /* 데모 규칙의 재생: 집에 있는 날엔 처음 온 곳도 읽은 것도 없으니 폴짝·우쭐은 받지 않는다 (homeTripFrom 이 거른다 → 활동 후보로).
+         모델·사람: 준 반응 그대로 (said) */
+      var ht = homeTripFrom(base, act, R, state.lanternLeft, wu && wu.reaction, said);
+      ht.events = events;
+      if (wu && !voice) wu.reaction = ht.reaction;
+      ht.memo = cleanMemo(wu && wu.memo);   /* 재생: 이벤트가 준 메모만. 없으면 말하지 않는다 */
+      ht.noteOut = noteOut; ht.setDown = setDown;
+      if (voice) {   /* 고른 활동을 못 해서(등불·포스터가 모자람·모르는 id) 두뇌가 활동 없이 적었으면 따로 남긴다 (MODEL_VOICE §2). 활동을 안 골랐으면 고른 이의 것 그대로 */
+        ht.receipt.activity.by = (trusted || !asked) ? voice : 'fallback';
+        if (!trusted && asked) ht.receipt.activity.asked = String(sh.activity);
+      }
+      return ht;
+    }
+
+    /* 외출. 재생 입력의 '읽음'·'처음'은 그대로 믿지 않는다 (§5.4.1 정직 표기):
+       - 밖의 문(url)은 정적 페이지라 바깥을 읽을 수 없다 → simulated (입력이 failed 면 failed). read 는 없다
+       - 방·들판의 read 는 출처가 진짜 ko.wikipedia.org 문서 주소일 때만. 사진은 upload.wikimedia.org 일 때만 싣는다
+       - 읽었다던 메모는 읽음이 인정될 때만 보인다. 아니면 책장 메모·기본 문구 (모델·사람 재생은 기본 문구 없이 빈칸, 숨긴 원문은 noteGiven)
+       - 방의 '처음'은 방문 기록(meta.state.visits)이 정하고, 입력은 '처음 아님'만 보탤 수 있다. 들판은 늘 처음 아님
+       정리한 상태·메모·출처·처음 여부는 복사해 둔 peek 이벤트에도 다시 써서, 돌려주는 events 도 영수증과 같은 말을 한다 */
+    var stops = events.filter(function (e) { return e.type === 'peek'; }).map(function (ev) {
+      var tg = ev.target || {};
+      var node = tg.id && W && W.nodes ? W.nodes[tg.id] : null;
+      var claimedRead = ev.status === 'read';
+      var src = (claimedRead && ev.source && isWikiPageUrl(ev.source.url)) ? ev.source : null;
+      /* 기웃 메모(note) — 모델·사람의 재생 (MODEL_VOICE §3):
+         - 그들이 쓴 메모는 글자 그대로 보인다 (noteBy). 읽음이 확인된 정류장(위키백과 출처)도 출처 요약으로 바꾸지 않는다
+         - 읽었다며 쓴 메모인데 읽음이 확인되지 않으면(출처 없음·밖의 문) 읽은 글처럼 보이지 않게 화면에서는 빼되, 원문은 noteGiven 에 그대로 둔다
+         - 메모를 안 썼으면 사실만: 읽은 요약(read) · 책장 메모(builtin, 세계의 실마리). 모의·못 읽음·앉아만은 빈칸 — 코드가 문어 말투로 대신 쓰지 않는다 (상태 표시가 이미 말한다)
+         데모 규칙 재생(그 밖의 by)은 예전 그대로 */
+      var given = voice && typeof ev.note === 'string' && ev.note.trim() ? ev.note : null;
+      var s;
+      if (tg.kind === 'url' || tg.id === 'door_out' || (!node && tg.url)) {
+        s = makeDoorStop(tg.url || '');
+        if (voice) s.note = '';
+        if (ev.status === 'failed') { s.status = 'failed'; s.note = voice ? (given || '') : (ev.note || '문이 안 열렸어'); }
+        else if (voice ? (given && !claimedRead) : (ev.note && !claimedRead)) s.note = voice ? given : ev.note;
+        if (tg.kind !== 'url') ev.target = Object.assign({}, tg, { kind: 'url', url: tg.url || '', title: tg.title || s.name });
+      } else if (node) {
+        s = makeLibStop(node, state, ev.viaTangent, ev.bridge);
+        if (isNoneNode(node)) { applyFetch(s, null, true); if (voice) s.note = (!claimedRead && given) || ''; }
+        else if (src) { applyFetch(s, replayRead(node.wiki || node.name, src, voice ? '' : ev.note), true); if (given) s.note = given; }
+        else {
+          var st = (ev.status && STATUSES.indexOf(ev.status) >= 0 && !claimedRead) ? ev.status : (node.clue ? 'builtin' : 'failed');
+          s.status = st;
+          s.note = voice ? ((!claimedRead && given) || (st === 'builtin' ? node.clue || '' : ''))
+            : ((!claimedRead && ev.note) || (st === 'builtin' ? node.clue : st === 'simulated' ? SIMULATED_NOTE : ''));
+          if (st === 'builtin') s.reason = 'replay';
+        }
+        if (ev.first === false) s.first = false;
+      } else {
+        var title = tg.title || tg.wiki || tg.id || '이름 없는 곳';
+        s = makeWildStop(title, { viaTangent: !!ev.viaTangent, bridge: ev.bridge || null });
+        if (src) { applyFetch(s, replayRead(title, src, voice ? '' : ev.note), true); if (given) s.note = given; }
+        else {
+          s.status = (ev.status && STATUSES.indexOf(ev.status) >= 0 && !claimedRead) ? ev.status : 'simulated';
+          s.note = voice ? ((!claimedRead && given) || '') : ((!claimedRead && ev.note) || (s.status === 'simulated' ? '내용은 읽지 않았어' : ''));
+        }
+      }
+      s.ms = typeof ev.ms === 'number' ? ev.ms : 0;
+      if (given) { if (s.note === given) s.noteBy = voice; else s.noteGiven = given; }
+      /* 정리한 그대로 이벤트에도 (로그 줄이 원본의 ✅ 를 보여 주지 않게). 화면에서 뺀 모델·사람의 메모는 noteGiven 으로 이벤트에도 남는다 */
+      ev.status = s.status; ev.note = s.note || ''; ev.first = !!s.first;
+      if (s.noteBy) ev.noteBy = s.noteBy;
+      if (s.noteGiven != null) ev.noteGiven = s.noteGiven;
+      if (s.source) ev.source = { url: s.source.url, extract: s.source.extract, thumb: s.source.thumb, license: s.source.license, attribution: s.source.attribution };
+      else delete ev.source;
+      if (s.reason) ev.reason = s.reason;
+      return s;
+    });
+
+    var match = matchHint(hintRaw);
+    var hintNode = match.kind === 'node' ? W.nodes[match.nodeId] : null;
+    var urlNode = match.kind === 'url' ? nodeFromUrl(match.url) : null;
+    var intent = match.kind === 'node' || match.kind === 'wiki';
+    var follow = false;
+    if (match.kind === 'node') follow = !!(stops[0] && stops[0].id === match.nodeId);
+    else if (match.kind === 'wiki') follow = !!(stops[0] && stops[0].kind === 'wild' && stops[0].title === match.query);
+    if (depart && depart.followHint === false) follow = false;
+
+    var rem = events.filter(function (e) { return e.type === 'remember'; })[0] || null;
+    var ret = events.filter(function (e) { return e.type === 'return'; })[0] || null;
+    var rr = { rRemember: R(), rSouvenir: R(), rTemplate: R(), rMemory: R(), pos: drawStickerPos(R), paper: Math.floor(R() * 3), rReaction: R() };
+    var sr2 = voice ? spokenReaction(wrap) : null;
+    var out = assemble({
+      stops: stops, match: match, intent: intent, follow: follow, hintNode: hintNode, urlNode: urlNode,
+      hintRaw: hintRaw, name: base.name, hour: hour, reason: (ret && ret.reason) || null, rr: rr, owned: state.owned,
+      remIdx: rem && typeof rem.stopIdx === 'number' ? rem.stopIdx
+        : (voice && rem && typeof rem.stopIdx === 'string' && /^\s*\d{1,4}\s*$/.test(rem.stopIdx)) ? +rem.stopIdx : undefined,   /* 모델·사람이 '1' 처럼 글로 준 번호도 그 뜻 그대로 */
+      line: rem && rem.line ? String(rem.line) : null, sticker: rem && rem.sticker ? String(rem.sticker) : null,
+      reaction: voice ? sr2.reaction : (wrap && wrap.reaction), voice: voice,
+      reactionRaw: voice ? sr2.raw : null, reactionLine: voice ? spokenLine(wrap) : null
+    });
+    if (wrap && !voice) wrap.reaction = out.reaction;   /* 데모 규칙의 재생: 맞지 않아 바뀐 반응도 이벤트에 그대로. 모델·사람의 이벤트는 손대지 않는다 */
+    return {
+      kind: 'out', by: by, seed: seed, dateKey: base.dateKey, seq: base.seq,
+      hint: out.hint, events: events, receipt: out.receipt, poster: out.poster,
+      visitsDelta: out.visitsDelta, affinityDelta: out.affinityDelta, affinityDecay: 0.9, reaction: out.reaction,
+      memo: cleanMemo(wrap && wrap.memo),   /* 재생: wrap_up.memo 가 있을 때만 (MCP 모델이 직접 쓴다) */
+      reactionBy: out.reactionBy, reactionRaw: out.reactionRaw, reactionLine: out.reactionLine,
+      noteOut: noteOut, setDown: setDown,
+      /* 고른 이가 hang_poster 를 냈나. 안 냈으면 포스터는 일기로만 두고 벽에 붙이지 않는 게 그 뜻이다 (app 이 정한다) */
+      posterHung: events.some(function (e) { return e.type === 'hang_poster'; })
+    };
+  }
+
+  /* ───────── 공개 ───────── */
+  BRAIN.hashSeed = hashSeed;
+  BRAIN.rng = rng;
+  BRAIN.tokenize = tokenize;
+  BRAIN.matchHint = matchHint;
+  BRAIN.nodeFromUrl = nodeFromUrl;
+  BRAIN.wikiFetch = wikiFetch;
+  BRAIN.parseWikiResponse = parseWikiResponse;
+  BRAIN.filterLinkTitle = filterLinkTitle;
+  BRAIN.plan = plan;
+  BRAIN.replay = replay;
+  BRAIN.composeLine = composeLine;
+  BRAIN.pickStart = pickStart;
+  BRAIN.stayProbability = stayProbability;
+  BRAIN.computeReaction = computeReaction;
+  BRAIN.localDateKey = localDateKey;
+  BRAIN.cleanMemo = cleanMemo;
+  BRAIN.normalizeNotes = normalizeNotes;
+  BRAIN.clipShown = clipShown;
+  BRAIN.NOTE_BOOST = NOTE_BOOST;
+  BRAIN.NOTES_IN = NOTES_IN;
+  BRAIN.daysBetween = daysBetween;
+  BRAIN.MEMO_MAX = MEMO_MAX;
+  BRAIN.setWorld = function (w) { BRAIN._world = w || null; };
+  BRAIN.STATUSES = STATUSES.slice();
+  BRAIN.REACTIONS = REACTIONS.slice();
+
+  root.BRAIN = BRAIN;
+  if (typeof module !== 'undefined' && module.exports) module.exports = BRAIN;
+})(typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : this));
