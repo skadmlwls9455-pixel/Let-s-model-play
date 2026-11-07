@@ -77,8 +77,11 @@
 - 원문: "audio/ 는 다른 세션 소유라 쓰지 않는다. 필요한 소리 목록만 문서에 적는다."
 - 소리 점검 때 본 것처럼, 목록만 적고 끝난 놀이는 소리 세션에 일이 안 넘어가서 무음으로 남는다.
 - **적을 것**: 놀이 코드가 부를 소리 이벤트 이름을 미리 정한다(예: `cook.drop`, `cook.merge`, `cook.done`,
-  `swim.flap`, `swim.bump`, `swim.end`). 놀이는 `window.AUDIO && AUDIO.sfx && AUDIO.sfx(name)` 처럼 있으면
-  부르고 없으면 조용히 넘어간다. 검수에 "소리 세션에 넘길 목록(이름·언제·느낌)이 문서에 있다"를 넣는다.
+  `swim.flap`, `swim.bump`, `swim.end`). 검수에 "소리 세션에 넘길 목록(이름·언제·느낌)이 문서에 있다"를 넣는다.
+- (정정, 주 세션 확인) `AUDIO.sfx` 는 없다. 이미 있는 `AUDIO.on(name, d)` 를 쓴다. `on` 은 모르는 이름을
+  `default: break` 로 조용히 넘기므로, 소리 세션이 `case 'cook'` 을 더하기 전까지는 아무 일도 안 난다.
+  시험대 페이지(`cook.html` 등)는 audio.js 를 안 실을 수 있으니 부르는 쪽은
+  `window.AUDIO && AUDIO.on && AUDIO.on('cook', { act: 'merge', step: 3 })` 처럼 지킨다.
 
 ### 2-2. 카드 8 은 지금 줘도 된다
 
