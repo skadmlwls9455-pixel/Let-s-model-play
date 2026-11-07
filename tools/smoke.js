@@ -6,7 +6,9 @@
  * 추가 시나리오: E 강제 집에 있는 날(window.__ppolTest.forceKind='home'), F v1→v2 마이그레이션(과제 페이로드),
  *   H 이틀째 메모 인사·재방문·귀가 요약(window.__ppolTest.today='YYYY-MM-DD'), I 출발·귀가 의식(바깥 장면)·건너뛰기·나가 있는 중 새로고침,
  *   W 낮잠에서 스스로 깸(20분 · 새 날) · 인사 초상, V 데모 조작 패널은 개발 모드(?dev=1 · localhost · file://)에서만,
- *   P 플레이어 화면(?dev=0): 힌트 칸 없이 산책 한 번 · 출발 행·일기에 힌트 얘기 없음 (결정 18).
+ *   P 플레이어 화면(?dev=0): 힌트 칸 없이 산책 한 번 · 출발 행·일기에 힌트 얘기 없음 (결정 18),
+ *   L 추억 앨범 아이콘(장면 오른쪽 위 · 점 · 날아가는 포스터 · 320 px 이름) · 이름 창 정직 표기, N 호기심 메모(저장 → 다음 산책 입력 · 모델 메모 · 내려놓기),
+ *   M 반응은 모델·사람이 준 그대로 (안 주면 없음 · 네 가지 밖의 말 · 코드 줄 없음).
  *   SMOKE_ONLY=H,I node tools/smoke.js   # 그 시나리오만
  * 등불은 초대한 날마다 1칸 (DESIGN §4): 같은 날 두 번째 초대는 칸을 켜지 않는다 → 날을 넘기는 곳은 window.__ppolTest.today 로.
  * 시나리오: 이름 → 힌트 '모자의 역사' → 초대 → 건너뛰기 → 앨범 1·벽 1·등불 1 → 새로고침 → 그대로 →
@@ -114,6 +116,27 @@ async function pickName(page, hint) {
 }
 async function waitIdle(page) {
   await page.waitForFunction(function () { var b = document.getElementById('btn-go'); return b && !b.disabled; }, null, { timeout: 30000 });
+}
+/* 추억 앨범은 장면 오른쪽 위 아이콘(#btn-album)으로 여는 시트 (#album-sheet) — 카드·필터는 그 안에 있다. 카드 수 세기(#album .pcard)는 닫힌 채로도 된다 */
+async function openAlbum(page) {
+  if (await page.$('#album-sheet[open]')) return;
+  await page.click('#btn-album');
+  await page.waitForSelector('#album-sheet[open]');
+}
+async function closeAlbum(page) {
+  if (!(await page.$('#album-sheet[open]'))) return;
+  await page.click('#al-close');
+  await page.waitForSelector('#album-sheet[open]', { state: 'hidden' });
+}
+async function openCard(page, sel) {
+  await openAlbum(page);
+  await page.click(sel || '#album .pcard');
+  await page.waitForSelector('#poster-dialog[open]');
+}
+async function closePoster(page, keepAlbum) {
+  await page.click('#pd-close');
+  await page.waitForSelector('#poster-dialog[open]', { state: 'hidden' });
+  if (!keepAlbum) await closeAlbum(page);
 }
 
 async function scenarioMain(browser) {
@@ -226,9 +249,8 @@ async function scenarioMain(browser) {
   ok(await page.evaluate(function () { return document.getElementById('oct').className.indexOf('st-sleep') >= 0; }), '새로고침 후 문어는 자고 있음');
   await page.screenshot({ path: path.join(SHOTS, 'phone-light.png') });
 
-  console.log('\n== 카드 탭 → 모달 앞면 → 뒤집기 → 일기');
-  await page.click('#album .pcard');
-  await page.waitForSelector('#poster-dialog[open]');
+  console.log('\n== 앨범 아이콘 → 카드 탭 → 모달 앞면 → 뒤집기 → 일기');
+  await openCard(page);
   ok(await page.$('#pd-front svg'), '앞면 SVG');
   ok(!(await page.evaluate(function () { return document.getElementById('flipper').classList.contains('flip'); })), '처음엔 앞면');
   await page.waitForTimeout(350);
@@ -246,8 +268,7 @@ async function scenarioMain(browser) {
   ok(back.indexOf('힌트') >= 0 && /따라감|무시함|도중에 벗어남/.test(back), '영수증 힌트 따름 표기');
   ok((await page.$$('#pd-back .receipt a[href^="https://ko.wikipedia.org"]')).length >= 1, 'read 항목에 출처 링크');
   await page.screenshot({ path: path.join(SHOTS, 'receipt-back.png') });
-  await page.click('#pd-close');
-  await page.waitForSelector('#poster-dialog[open]', { state: 'hidden' });
+  await closePoster(page);
 
   console.log('\n== 다크 모드 · 방 보기');
   await page.emulateMedia({ colorScheme: 'dark' });
@@ -288,10 +309,9 @@ async function scenarioMain(browser) {
   var mcp = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { by: t.by, kind: t.kind, stops: t.receipt.stops.length, st: t.receipt.stops.map(function (s) { return s.status; }), lantern: APP.state.room.lantern }; });
   ok(mcp.by === 'mcp' && mcp.kind === 'out' && mcp.stops === 2, 'MCP 재생: by=mcp, 정류장 2');
   ok(mcp.st.indexOf('read') < 0, 'MCP 재생: 읽지 않은 것을 ✅ 로 올리지 않음');
-  await page.click('#album .pcard:last-child');
-  await page.waitForSelector('#poster-dialog[open]');
+  await openCard(page, '#album .pcard:last-child');
   ok((await page.textContent('#pd-back')).indexOf('고른 이: 모델(MCP)') >= 0, "영수증 '고른 이: 모델(MCP)'");
-  await page.click('#pd-close');
+  await closePoster(page);
 
   console.log('\n== 데모 조작 (사람)');
   ok(await page.evaluate(function () { return document.getElementById('d-peek').disabled && !document.getElementById('d-depart').disabled; }), '출발 전: 출발만 활성');
@@ -312,12 +332,13 @@ async function scenarioMain(browser) {
   var home = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { kind: t.kind, type: t.poster && t.poster.type, trips: APP.state.octopus.trips, lantern: APP.state.room.lantern, log: document.getElementById('log').textContent }; });
   ok(home.kind === 'home' && home.type === 'note', '집에 있는 날 → 쪽지');
   ok(home.log.indexOf('오늘은 집. 등불 +1') >= 0 && !/미안|아쉽/.test(home.log), "로그 '오늘은 집. 등불 +1', 사과 문구 없음");
+  await openAlbum(page);
   await page.click('.fchip[data-f="note"]');
   ok((await page.$$('#album .pcard.note')).length >= 1, '앨범 필터 쪽지 → 쪽지 카드');
   await page.click('#album .pcard.note'); await page.waitForSelector('#poster-dialog[open]');
   ok((await page.textContent('#pd-back')).indexOf('오늘은 집. 등불 +1') >= 0, "쪽지 뒷면 '오늘은 집. 등불 +1'");
   await page.screenshot({ path: path.join(SHOTS, 'note-front.png') });
-  await page.click('#pd-close'); await page.click('.fchip[data-f="all"]');
+  await closePoster(page, true); await page.click('.fchip[data-f="all"]'); await closeAlbum(page);
   var before = await page.evaluate(function () { return { l: APP.state.room.lantern, n: APP.state.trips.length, tr: APP.state.octopus.trips }; });
   await page.fill('#d-json', JSON.stringify([{ type: 'empty_turn', t: 0 }]));
   await page.click('#d-import'); await waitIdle(page);
@@ -364,8 +385,7 @@ async function scenarioFail(browser, mode, label) {
   ok(r.st.indexOf('read') < 0, 'fetch 실패 → ✅ read 없음 (정직하게 builtin/failed)');
   ok(r.st.length >= 2 && r.st.every(function (x) { return ['builtin', 'failed', 'none', 'simulated'].indexOf(x) >= 0; }), '상태값이 허용 집합 안');
   ok(r.lantern === 1, '실패해도 등불은 켜진다');
-  await page.click('#album .pcard');
-  await page.waitForSelector('#poster-dialog[open]');
+  await openCard(page);
   await page.click('#pd-flip');
   var back = await page.textContent('#pd-back');
   ok(back.indexOf('✅') < 0, '영수증에 ✅ 없음');
@@ -500,8 +520,7 @@ async function scenarioMigrateExact(browser) {
   ok(m.title === '옛 포스터' && m.line === '(복원된 포스터 · 기록 없음)', "legacy 카드 한 줄 '(복원된 포스터 · 기록 없음)'");
   ok(m.cards === 1 && !m.nameDlg, '앨범 카드 1 · 이름 모달 없음');
   ok(m.bak && JSON.parse(m.bak).octopus.name === '뚜루' && m.v1 === null, 'ppolppol_v1 → ppolppol_v1_backup (내용 보존)');
-  await page.click('#album .pcard');
-  await page.waitForSelector('#poster-dialog[open]');
+  await openCard(page);
   var front = await page.textContent('#pd-front');
   ok(front.indexOf('복원된 포스터') >= 0, '앞면에 복원 문구');
   await page.click('#pd-flip');
@@ -509,7 +528,7 @@ async function scenarioMigrateExact(browser) {
   var back = await page.textContent('#pd-back');
   ok(back.indexOf('기록은 남아 있지 않아') >= 0 && back.indexOf('✅') < 0, '뒷면: 기록 없음 정직 표기, 읽음 주장 없음');
   ok(back.indexOf('고른 이') >= 0, "뒷면 '고른 이' 표기");
-  await page.click('#pd-close');
+  await closePoster(page);
   reportErrors(s.bag, 'F');
   await s.ctx.close();
 }
@@ -967,22 +986,300 @@ async function scenarioPlayer(browser) {
   ok(tr.kind !== 'out' || (dep !== null && !/힌트|네가 골라/.test(dep) && dep.indexOf(name + ' 산책 나갔어') === 0), "출발 행: '힌트'·'네가 골라봐' 없이 집 목소리 한 줄 (" + dep + ')');
   var logAll = await page.textContent('#log');
   ok(!/네가 골라|힌트:/.test(logAll), "로그 어디에도 '네가 골라봐'·'힌트:' 없음");
-  await page.click('#album .pcard');
-  await page.waitForSelector('#poster-dialog[open]');
+  await openCard(page);
   await page.click('#pd-flip');
   await page.waitForTimeout(reducedWait(700));
   var bk = await page.evaluate(function () { return { keys: Array.prototype.map.call(document.querySelectorAll('#pd-back .receipt .kv > span:first-child'), function (x) { return x.textContent; }), text: document.getElementById('pd-back').textContent }; });
   ok(bk.keys.indexOf('힌트') < 0 && !/힌트/.test(bk.text), '일기에 힌트 줄 없음 (' + bk.keys.join(', ') + ')');
   ok(bk.text.indexOf('고른 이: 데모 두뇌(규칙)') >= 0, "일기 '고른 이: 데모 두뇌(규칙)' 그대로");
   await page.screenshot({ path: path.join(SHOTS, 'player-receipt.png') });
-  await page.click('#pd-close');
-  await page.waitForSelector('#poster-dialog[open]', { state: 'hidden' });
+  await closePoster(page);
   await page.screenshot({ path: path.join(SHOTS, 'player-invite.png') });
   await page.waitForTimeout(1000);
   await page.goto(O + '/index.html');   /* ?dev 없이 다시: 배포 주소는 기본 플레이어 화면 */
   await page.waitForSelector('#btn-go:not([disabled])');
   ok(!(await inviteBox()).input, '배포 주소 다시 열기: 힌트 칸 여전히 숨김');
   reportErrors(s.bag, 'P');
+  await s.ctx.close();
+}
+
+/* L. 추억 앨범 아이콘 (DESIGN §6.3 · §7.2): 앨범은 페이지 흐름에서 빠지고 장면 오른쪽 위 묶음(앨범 · 소리)의 아이콘으로 연다.
+   첫 화면 정직 표기(이름 창) · 첫 포스터 전엔 아이콘 숨김 · 산책 뒤 새 포스터 점(숫자 없음) + 아이콘으로 날아가는 포스터(≤0.6 s, 정수 px 계단) ·
+   Enter 로 열기 · 포커스 · 필터 · 포스터 창 · Esc 로 닫으면 아이콘으로 포커스 · 열면 점 사라짐(새로고침 뒤에도) · 모션 줄이기면 날지 않고 점만 ·
+   320–412 px 픽셀·시스템 테마에서 1–4 글자 이름이 안 잘리고 가로 스크롤 없음 */
+async function scenarioAlbumIcon(browser) {
+  console.log('\n== L. 추억 앨범 아이콘 · 첫 화면 정직 표기 · 좁은 폭 이름');
+  var s = await newPage(browser, 'ok', [{ content: "window.__ppolTest = { forceKind: 'out' };" }]);
+  var page = s.page;
+  await page.goto(INDEX);
+  await page.waitForSelector('#name-dialog[open]');
+  var hon = await page.evaluate(function () { var p = document.querySelector('#name-dialog .honest'); return { lines: [].map.call(p.querySelectorAll('.ln'), function (x) { return x.textContent; }), text: p.textContent }; });
+  ok(JSON.stringify(hon.lines) === JSON.stringify(['지금은 미리 만든 규칙으로', '움직이는 체험판이야.']) && !/MCP|모델/.test(hon.text), "이름 창 정직 표기: '지금은 미리 만든 규칙으로 / 움직이는 체험판이야.' (MCP 설명 없음) — " + JSON.stringify(hon.lines));
+  ok(!(await page.$('#album-sec')) && !!(await page.$('#log-sec')), '페이지 흐름에 앨범 칸(#album-sec) 없음 · 로그는 그대로');
+  await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
+  await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  var b0 = await page.evaluate(function () { var b = document.getElementById('btn-album'); return { hidden: b.hidden, inCtl: !!b.closest('#scene #scene-ctl'), sound: !!document.getElementById('btn-sound').closest('#scene-ctl'), statusBtns: document.querySelectorAll('#status button').length }; });
+  ok(b0.hidden && b0.inCtl && b0.sound && b0.statusBtns === 0, '첫 포스터 전엔 앨범 아이콘 숨김 · 앨범·소리 = 장면 오른쪽 위 묶음 · 상태 줄엔 버튼 없음 ' + JSON.stringify(b0));
+  var rs = await page.evaluate(function () { APP.openRoomSheet(false); var t = document.getElementById('rs-body').textContent; document.getElementById('room-sheet').close(); return t; });
+  ok(/누가 고르나/.test(rs) && /MCP/.test(rs), "방 보기 '누가 고르나' 에 MCP 설명은 그대로");
+  /* 날아가는 포스터 관찰: #scene 에 붙었다 떨어지는 .album-fly, 붙는 순간의 애니메이션 길이·칸 위치 */
+  await page.evaluate(function () {
+    window.__fly = [];
+    new MutationObserver(function (ms) { ms.forEach(function (m) {
+      [].forEach.call(m.addedNodes, function (n) { if (!n.classList || !n.classList.contains('album-fly')) return; var a = n.getAnimations ? n.getAnimations()[0] : null; window.__fly.push({ add: performance.now(), dur: a ? a.effect.getTiming().duration : null, kf: a ? a.effect.getKeyframes().map(function (k) { return k.transform; }) : [] }); });
+      [].forEach.call(m.removedNodes, function (n) { if (n.classList && n.classList.contains('album-fly')) window.__fly.push({ gone: performance.now() }); });
+    }); }).observe(document.getElementById('scene'), { childList: true });
+  });
+  await page.click('#btn-go'); await page.waitForSelector('#btn-skip:not([hidden])'); await page.waitForTimeout(800); await page.click('#btn-skip'); await waitIdle(page);
+  await page.waitForTimeout(1000);
+  var a1 = await page.evaluate(function () {
+    var b = document.getElementById('btn-album'), r = b.getBoundingClientRect(), dot = b.querySelector('.ib-dot'), sc = document.getElementById('scene').getBoundingClientRect();
+    return { hidden: b.hidden, w: r.width, h: r.height, label: b.getAttribute('aria-label'), dot: !dot.hidden && dot.getBoundingClientRect().width > 0, desc: document.getElementById('album-new').textContent,
+      corner: r.right <= sc.right + 0.5 && r.top >= sc.top - 0.5 && sc.right - r.right < 50 && r.top - sc.top < 50, fly: window.__fly.slice(), font: document.documentElement.getAttribute('data-font') };
+  });
+  console.log('   album icon:', JSON.stringify({ w: a1.w, h: a1.h, dot: a1.dot, fly: a1.fly }));
+  ok(!a1.hidden && a1.w >= 44 && a1.h >= 44 && a1.label === '추억 앨범' && a1.corner, "앨범 아이콘: 장면 오른쪽 위 · 누르는 곳 44×44 · aria-label '추억 앨범'");
+  ok(a1.dot && a1.desc === '새로 붙은 포스터가 있어', '산책 뒤 새 포스터 점 (숫자 없음) + 화면 낭독기 설명');
+  var f = a1.fly[0] || {}, g = a1.font === 'pixel' ? 2 : 1;
+  var snapped = (f.kf || []).length >= 4 && f.kf.every(function (t) { var m = /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(t || ''); return m && +m[1] % g === 0 && +m[2] % g === 0; });
+  ok(a1.fly.length === 2 && a1.fly[1].gone && f.dur > 0 && f.dur <= 600 && snapped, '새 포스터가 아이콘으로 날아감: ' + f.dur + 'ms ≤ 600 · 칸마다 ' + g + 'px 격자 (' + (f.kf || []).length + '칸) · 끝나면 사라짐');
+  /* 키보드: Enter 로 열기 → 포커스 제목 · 점 사라짐 · 필터 · 포스터 창 · Esc → 아이콘으로 */
+  await page.focus('#btn-album'); await page.keyboard.press('Enter');
+  await page.waitForSelector('#album-sheet[open]');
+  var a2 = await page.evaluate(function () { return { focus: document.activeElement && document.activeElement.id, dot: !document.querySelector('#btn-album .ib-dot').hidden, cards: document.querySelectorAll('#album-sheet #album .pcard').length,
+    chips: [].map.call(document.querySelectorAll('#album-sheet .fchip[data-f]'), function (c) { return c.textContent; }), notes: !!document.querySelector('#album-notes .cnote') }; });
+  ok(a2.focus === 'al-h' && !a2.dot && a2.cards === 1 && a2.chips.join('/') === '전체/포스터/쪽지', 'Enter 로 열림 · 포커스는 시트 제목 · 점 사라짐 · 카드 1 · 필터 전체/포스터/쪽지');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(SHOTS, 'album-sheet.png') });
+  await page.click('#album-sheet .fchip[data-f="note"]');
+  var fn = await page.evaluate(function () { return { cards: document.querySelectorAll('#album .pcard').length, empty: (document.querySelector('#album .lempty') || {}).textContent || '', pressed: document.querySelector('.fchip[data-f="note"]').getAttribute('aria-pressed') }; });
+  await page.click('#album-sheet .fchip[data-f="poster"]');
+  var fp = await page.evaluate(function () { return document.querySelectorAll('#album .pcard').length; });
+  await page.click('#album-sheet .fchip[data-f="all"]');
+  ok(fn.cards === 0 && /쪽지/.test(fn.empty) && fn.pressed === 'true' && fp === 1, '필터: 쪽지 0장(빈 문구) · 포스터 1장');
+  await page.click('#album .pcard'); await page.waitForSelector('#poster-dialog[open]');
+  ok(!!(await page.$('#pd-front svg')) && !!(await page.$('#album-sheet[open]')), '카드 → 포스터 창 (앨범 시트 위에)');
+  await closePoster(page, true);
+  ok(await page.evaluate(function () { return document.activeElement && document.activeElement.classList.contains('pcard'); }), '포스터 창 닫으면 포커스는 카드로');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#album-sheet[open]', { state: 'hidden' });
+  ok(await page.evaluate(function () { return document.activeElement && document.activeElement.id === 'btn-album'; }), 'Esc 로 닫으면 포커스는 앨범 아이콘으로');
+  await page.waitForTimeout(1000);
+  await page.reload(); await page.waitForSelector('#btn-go:not([disabled])');
+  ok(await page.evaluate(function () { var b = document.getElementById('btn-album'); return !b.hidden && b.querySelector('.ib-dot').hidden; }), '새로고침 뒤: 아이콘 그대로 · 점 없음 (본 것으로 저장)');
+  /* 모션 줄이기: 날지 않고 점만 */
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.evaluate(function () {
+    window.__fly2 = 0;
+    new MutationObserver(function (ms) { ms.forEach(function (m) { [].forEach.call(m.addedNodes, function (n) { if (n.classList && n.classList.contains('album-fly')) window.__fly2++; }); }); }).observe(document.getElementById('scene'), { childList: true });
+  });
+  await page.click('#btn-go'); await page.waitForSelector('#btn-skip:not([hidden])'); await page.click('#btn-skip'); await waitIdle(page);
+  await page.waitForTimeout(600);
+  var a3 = await page.evaluate(function () { return { fly: window.__fly2, dot: !document.querySelector('#btn-album .ib-dot').hidden, poster: !!APP.state.trips[APP.state.trips.length - 1].poster }; });
+  ok(!a3.poster || (a3.fly === 0 && a3.dot), '모션 줄이기: 날아가는 포스터 없음 · 점은 켜짐 ' + JSON.stringify(a3));
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  /* 좁은 폭: 1–4 글자 이름 · 두 테마 · 가로 스크롤 없음 · 아이콘 묶음은 화면 안 */
+  var fit = [];
+  for (var w of [320, 340, 360, 375, 412]) {
+    await page.setViewportSize({ width: w, height: 740 });
+    for (var font of ['pixel', 'system']) {
+      var r = await page.evaluate(async function (font) {
+        document.documentElement.setAttribute('data-font', font);
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        var out = { cut: [], docW: 0, ctlRight: 0 }, keep = APP.state.octopus.name;
+        for (var n of ['별', '뚜루', '조약돌', '조약돌이']) {
+          APP.state.octopus.name = n; APP.renderStatus(false);
+          await new Promise(function (res) { requestAnimationFrame(function () { requestAnimationFrame(res); }); });
+          var el = document.getElementById('oct-name');
+          if (el.scrollWidth > el.clientWidth + 0.5 || el.textContent !== n) out.cut.push(n);
+        }
+        APP.state.octopus.name = keep; APP.renderStatus(false);
+        out.docW = document.documentElement.scrollWidth; out.ctlRight = document.getElementById('scene-ctl').getBoundingClientRect().right;
+        return out;
+      }, font);
+      fit.push({ w: w, font: font, cut: r.cut, docW: r.docW, ctl: Math.round(r.ctlRight) });
+      if (w === 320 && font === 'pixel') await page.screenshot({ path: path.join(SHOTS, 'status-320-pixel.png'), clip: { x: 0, y: 0, width: 320, height: 420 } });
+    }
+  }
+  var bad = fit.filter(function (x) { return x.cut.length || x.docW > x.w || x.ctl > x.w; });
+  ok(!bad.length, '320–412 px · 픽셀·시스템: 1–4 글자 이름 안 잘림 · 가로 스크롤 없음 · 아이콘 묶음 화면 안' + (bad.length ? ' ✗ ' + JSON.stringify(bad) : ''));
+  await page.evaluate(function () { document.documentElement.setAttribute('data-font', 'pixel'); });
+  await page.setViewportSize({ width: 360, height: 740 });
+  reportErrors(s.bag, 'L');
+  await s.ctx.close();
+}
+
+/* N. 호기심 메모 (docs/CURIOSITY_NOTES.md · 계약 R2/R3): 데모 산책의 메모(by demo-rules) 저장 → 다음 산책 두뇌 입력 state.notes 에 그대로 ·
+   모델 이벤트(wrap_up.note · setDown) 불러오기 → 모델 메모 저장(글 그대로 · 모델 이름) · 내려놓은 메모는 다음 입력에서 빠지고 방 보기에도 없고 앨범에만 '내려놓은 메모' ·
+   메모를 내려놓는 버튼은 없다 · 새로고침 뒤 그대로 · 메모 없는 옛 기록도 열린다 */
+async function scenarioNotes(browser) {
+  console.log('\n== N. 호기심 메모: 저장 → 다음 산책 입력 · 모델 메모 · 내려놓기');
+  var s = await newPage(browser, 'ok', [{ content: "window.__ppolTest = { forceKind: 'out' };" }]);
+  var page = s.page;
+  await page.goto(DEV);
+  await page.waitForSelector('#name-dialog[open]');
+  /* 오늘 첫 산책이 메모(noteOut)를 남기는 이름 — 메모를 쓰지 않는 날도 정당하지만 여기선 이어지는 걸 보려고 */
+  var name = await page.evaluate(async function () {
+    var names = ['뚜루', '안개', '삐죠', '구름', '조약돌', '먹물', '단추', '파도', '이끼', '별', '솔방울', '종이배'];
+    var d = new Date(), dk = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    for (var n of names) {
+      var t = await BRAIN.plan({ seed: BRAIN.hashSeed(dk, '', 1, n), dateKey: dk, seq: 1, hint: '', name: n, state: { visits: {}, affinity: {}, lantern: 0, recent: [], todayOut: 0, lanternLeft: true }, now: d, online: false, by: 'demo' });
+      if (t.kind === 'out' && t.noteOut && t.noteOut.text) return n;
+    }
+    return names[0];
+  });
+  await page.fill('#name-in', name); await page.click('#name-form button[type=submit]');
+  await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  await page.evaluate(function () {
+    window.__planIn = []; window.__replayIn = [];
+    var p0 = BRAIN.plan, r0 = BRAIN.replay;
+    BRAIN.plan = function (inp) { window.__planIn.push(JSON.parse(JSON.stringify((inp && inp.state && inp.state.notes) || null))); return p0.apply(this, arguments); };
+    BRAIN.replay = function (evs, meta) { window.__replayIn.push(JSON.parse(JSON.stringify((meta && meta.state && meta.state.notes) || null))); return r0.apply(this, arguments); };
+  });
+  async function walk() { await page.click('#btn-go'); await page.waitForSelector('#btn-skip:not([hidden])'); await page.click('#btn-skip'); await waitIdle(page); await page.waitForTimeout(200); }
+  await walk();
+  var n1 = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { trip: { id: t.id, noteOut: t.noteOut || null }, notes: APP.state.curiosityNotes.slice(), first: window.__planIn[0] }; });
+  console.log('   walk1:', JSON.stringify({ name: name, noteOut: n1.trip.noteOut, notes: n1.notes.length }));
+  ok(n1.first === null, '첫 산책: 메모가 없으니 두뇌 입력에 notes 필드 없음 (예전과 같은 입력)');
+  must(n1.trip.noteOut && n1.notes.length === 1, '데모 산책의 메모가 저장됨 (curiosityNotes 1)');
+  var c1 = n1.notes[0];
+  ok(/^cn_/.test(c1.id) && c1.text === n1.trip.noteOut.text && c1.by === 'demo-rules' && c1.session === n1.trip.id && c1.status === 'active' && c1.setDownAt === null && typeof c1.at === 'string' && !c1.model
+    && JSON.stringify(c1.about) === JSON.stringify(n1.trip.noteOut.about), "메모 모양: id cn_… · 글 그대로 · by 'demo-rules' · session = 여행 id · active · about 그대로 · model 없음");
+  await walk();
+  var in2 = await page.evaluate(function () { return window.__planIn[window.__planIn.length - 1]; });
+  ok(Array.isArray(in2) && in2.length >= 1 && in2[0].id === c1.id && in2[0].text === c1.text && in2[0].by === 'demo-rules' && in2[0].session === c1.session && !('status' in in2[0]),
+    '다음 산책 두뇌 입력 state.notes 에 지난 메모 (id·글·작성 주체·세션 그대로, status 없음)');
+  /* 모델 이벤트: 긴 메모(70자) + 첫 메모 내려놓기 + 없는 id · 숫자는 무시 */
+  var LONG = '조개를 귀에 대면 소리가 나. 다른 소리 나는 것도 궁금해. 바람 소리, 파도 소리, 그리고 비 오는 날의 지붕 소리까지 다 듣고 싶어';
+  var evs = [{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 1000, target: { kind: 'room', id: 'hat', title: '모자' }, status: 'builtin', ms: 3000 },
+    { type: 'return', t: 2000, reason: 'enough' }, { type: 'remember', t: 2500, stopIdx: 0, sticker: 'hat', line: '모델이 고른 모자' }, { type: 'hang_poster', t: 3000 },
+    { type: 'wrap_up', t: 3500, reaction: '덤덤', note: { text: LONG, about: { kind: 'node', id: 'hat' } }, setDown: [c1.id, 'cn_nope', 7], model: 'claude-test' }];
+  await page.click('#demo summary').catch(function () {});
+  await page.evaluate(function () { document.getElementById('demo').open = true; });
+  await page.fill('#d-json', JSON.stringify(evs)); await page.click('#d-import');
+  await page.waitForSelector('#btn-skip:not([hidden])'); await page.click('#btn-skip'); await waitIdle(page);
+  var m = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { by: t.by, id: t.id, notes: APP.state.curiosityNotes.slice(), rin: window.__replayIn[window.__replayIn.length - 1] }; });
+  var cm = m.notes.filter(function (x) { return x.session === m.id; })[0] || {}, d1 = m.notes.filter(function (x) { return x.id === c1.id; })[0] || {};
+  console.log('   mcp:', JSON.stringify({ notes: m.notes.map(function (x) { return x.id + ':' + x.by + ':' + x.status; }) }));
+  ok(Array.isArray(m.rin) && m.rin.some(function (x) { return x.id === c1.id; }), '모델 이벤트 재생 입력에도 active 메모 (내려놓기 전)');
+  ok(cm.by === 'model' && cm.text === LONG && cm.model === 'claude-test' && cm.about && cm.about.id === 'hat' && cm.status === 'active', "모델 메모: by 'model' · 70자 글 그대로 저장 · 모델 이름 · about hat");
+  ok(d1.status === 'set_down' && typeof d1.setDownAt === 'string' && m.notes.filter(function (x) { return x.status === 'set_down'; }).length === 1, '모델이 내려놓은 메모만 set_down (없는 id · 숫자는 무시)');
+  await walk();
+  var in3 = await page.evaluate(function () { return window.__planIn[window.__planIn.length - 1]; });
+  ok(Array.isArray(in3) && in3.length <= 3 && in3[0].id === cm.id && !in3.some(function (x) { return x.id === c1.id; }) && in3[0].model === 'claude-test',
+    '다음 입력: 내려놓은 메모 빠짐 · 새것부터 (모델 메모 먼저, 모델 이름 포함) · 최대 3 — ' + JSON.stringify((in3 || []).map(function (x) { return x.id + ':' + x.by; })));
+  /* 방 보기 '우리 방의 지난 메모' */
+  await page.click('#btn-look'); await page.waitForSelector('#room-sheet[open]');
+  var rs = await page.evaluate(function (ids) {
+    var hd = [].filter.call(document.querySelectorAll('#rs-body h3'), function (x) { return x.textContent === '우리 방의 지난 메모'; })[0];
+    var items = [].map.call(document.querySelectorAll('#rs-body .cnote'), function (li) { return { id: li.dataset.note, text: li.querySelector('.cn-text').textContent, meta: li.querySelector('.cn-meta').textContent }; });
+    var btns = [].filter.call(document.querySelectorAll('#room-sheet button, #album-sheet button'), function (b) { return /내려놓/.test(b.textContent); }).length;
+    return { hd: !!hd, items: items, btns: btns, setDownShown: items.some(function (x) { return x.id === ids.down; }) };
+  }, { down: c1.id });
+  var mi = rs.items.filter(function (x) { return x.id === cm.id; })[0] || {};
+  ok(rs.hd && rs.items.length >= 1 && rs.items.length <= 3 && !rs.setDownShown && rs.btns === 0, "방 보기 '우리 방의 지난 메모': active 최근 ≤3 · 내려놓은 메모 없음 · 내려놓기 버튼 없음");
+  ok(mi.text === '“' + Array.from(LONG).slice(0, 60).join('') + '…”' && /^문어\(모델\)가 남김 \(claude-test\) · \d+\.\d+ · \d+번째 뽈뽈$/.test(mi.meta), "모델 메모: 60자 + '…' · '문어(모델)가 남김' · 날짜 · 몇 번째 뽈뽈 — " + mi.meta);
+  ok(rs.items.some(function (x) { return /^데모 규칙 · /.test(x.meta); }) || rs.items.every(function (x) { return x.id === cm.id; }), "데모 메모는 '데모 규칙' 으로 표시");
+  await page.click('#rs-body .cnote[data-note="' + cm.id + '"] button.cn-text');
+  ok((await page.textContent('#rs-body .cnote[data-note="' + cm.id + '"] .cn-text')) === '“' + LONG + '”', '누르면 전체 글 (원문 그대로)');
+  await page.screenshot({ path: path.join(SHOTS, 'room-notes.png') });
+  await page.click('#rs-close');
+  /* 앨범 '남긴 메모': 전부, 내려놓은 것 표시 */
+  await openAlbum(page);
+  var al = await page.evaluate(function (ids) {
+    var items = [].map.call(document.querySelectorAll('#album-notes .cnote'), function (li) { return { id: li.dataset.note, tag: (li.querySelector('.cn-tag') || {}).textContent || '' }; });
+    return { n: items.length, all: APP.state.curiosityNotes.length, down: items.filter(function (x) { return x.id === ids.down; })[0], tags: items.filter(function (x) { return x.tag; }).length };
+  }, { down: c1.id });
+  ok(al.n === al.all && al.down && al.down.tag === '내려놓은 메모' && al.tags === 1, "앨범 '남긴 메모': 메모 전부 (" + al.n + ") · 내려놓은 메모에만 '내려놓은 메모' 표시");
+  await page.click('#album-sheet .fchip[data-f="poster"]');
+  ok(!(await page.$('#album-notes .cnote')), '포스터 필터에선 메모 목록 숨김');
+  await page.click('#album-sheet .fchip[data-f="all"]');
+  await page.screenshot({ path: path.join(SHOTS, 'album-notes.png') });
+  await closeAlbum(page);
+  /* 새로고침 → 그대로 */
+  var before = await page.evaluate(function () { return JSON.stringify(APP.state.curiosityNotes); });
+  await page.waitForTimeout(1000);
+  await page.reload(); await page.waitForSelector('#btn-go:not([disabled])');
+  ok((await page.evaluate(function () { return JSON.stringify(APP.state.curiosityNotes); })) === before, '새로고침 뒤 메모·상태 그대로');
+  /* 메모 없는 옛 기록 (curiosityNotes · albumSeen · 새 여행 필드 없음) → 새 탭에서 앱보다 먼저 심는다 (열린 탭은 떠날 때 제 기록을 다시 저장한다) → 열린다 · 메모 [] · 옛 포스터에 점 없음 */
+  var oldJSON = await page.evaluate(function () {
+    var o = JSON.parse(JSON.stringify(APP.state)); delete o.curiosityNotes; delete o.settings.albumSeen;
+    o.trips.forEach(function (t) { delete t.noteOut; delete t.setDown; delete t.reactionBy; delete t.reactionRaw; delete t.reactionLine; });
+    return JSON.stringify(o);
+  });
+  reportErrors(s.bag, 'N');
+  await s.ctx.close();
+  var s2 = await newPage(browser, 'ok', [{ content: "if (!sessionStorage.getItem('__oldSave')) { sessionStorage.setItem('__oldSave', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(oldJSON) + "); }" }]);
+  await s2.page.goto(DEV); await s2.page.waitForSelector('#btn-go:not([disabled])');
+  var old = await s2.page.evaluate(function () { var b = document.getElementById('btn-album'); return { notes: APP.state.curiosityNotes, btn: !b.hidden, dot: !b.querySelector('.ib-dot').hidden, trips: APP.state.trips.length, rows: document.querySelectorAll('#log .lrow').length }; });
+  ok(Array.isArray(old.notes) && old.notes.length === 0 && old.btn && !old.dot && old.trips >= 4 && old.rows >= 5, '메모 없는 옛 기록: 그대로 열림 · 메모 [] · 앨범 아이콘 있음 · 옛 포스터엔 점 없음 ' + JSON.stringify({ trips: old.trips, rows: old.rows, dot: old.dot }));
+  reportErrors(s2.bag, 'N2');
+  await s2.ctx.close();
+}
+
+/* M. 반응은 고른 이의 것 그대로 (MODEL_VOICE §2·§3 · 계약 R1): 모델(by mcp) 집에 있는 날 '폴짝' → '폴짝' 그대로, 코드가 지은 줄 없음 ·
+   반응을 안 주면 반응 자리가 비어 있음(마무리 행 · 일기 반응 칸 · 열람 기록 반응 줄 없음) · 네 가지 밖의 말(40자 넘음) + 모델이 쓴 줄 → 그대로(40자 + '…') ·
+   데모 조작(사람)의 '졸림' → 그대로, 코드 줄 없음 */
+async function scenarioReactions(browser) {
+  console.log('\n== M. 반응: 모델·사람이 준 그대로 · 안 주면 없음');
+  var s = await newPage(browser, 'ok');
+  var page = s.page;
+  await page.goto(DEV);
+  await page.waitForSelector('#name-dialog[open]');
+  await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
+  await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  await page.evaluate(function () { document.getElementById('demo').open = true; });
+  async function importEvs(evs) {
+    await page.fill('#d-json', JSON.stringify(evs)); await page.click('#d-import');
+    await page.waitForSelector('#btn-skip:not([hidden])', { timeout: 10000 }).then(function () { return page.click('#btn-skip'); }).catch(function () {});
+    await waitIdle(page); await page.waitForTimeout(200);
+  }
+  /* 이 여행의 로그 행 · 열람 기록 · 일기를 여행 객체에서 바로 그려 본다 (화면과 같은 함수) */
+  function view() {
+    return page.evaluate(function () {
+      var t = APP.state.trips[APP.state.trips.length - 1], rows = [].filter.call(document.querySelectorAll('#log .lrow'), function (r) { var l = r.querySelector('.ltool'); return l && l.textContent === '마무리'; });
+      var box = document.createElement('div'); box.innerHTML = APP.receiptHTML(t);
+      var kv = [].filter.call(box.querySelectorAll('.kv'), function (k) { return k.firstChild.textContent === '반응'; })[0];
+      var ins = document.createElement('div'); ins.innerHTML = APP.inspectHTML(t);
+      return { trip: { by: t.by, kind: t.kind, reaction: t.reaction, raw: t.reactionRaw || null, by2: t.reactionBy || null, line: t.reactionLine || null }, wrapRows: rows.length,
+        lastRow: rows.length ? rows[rows.length - 1].querySelector('.ltext').textContent : null, lastExpr: rows.length ? rows[rows.length - 1].dataset.expr : null,
+        kv: kv ? kv.querySelector('b').textContent : null, kvTitle: kv ? kv.querySelector('b').getAttribute('title') : null, dims: [].map.call(box.querySelectorAll('p.dim'), function (p) { return p.textContent; }),
+        say: (ins.querySelector('.say') || {}).textContent || null, back: box.textContent };
+    });
+  }
+  var W0 = await page.evaluate(function () { return [].concat.apply([], Object.keys((WORLD && WORLD.reactions) || {}).map(function (k) { var r = WORLD.reactions[k], w = r.when || {}; return [].concat.apply([].concat(r.lines || [], r.home || []), Object.keys(w).map(function (q) { return w[q]; })).filter(function (x) { return typeof x === 'string'; }); })); });
+  function noCodeLine(v) { return !W0.some(function (l) { return l && (v.back.indexOf(l) >= 0 || (v.lastRow || '').indexOf(l) >= 0 || (v.say || '').indexOf(l) >= 0); }); }
+  /* 1. 모델 · 집 · 폴짝 */
+  await importEvs([{ type: 'stay_home', t: 0, activity: 'nap', line: '담요 속에서 낮잠' }, { type: 'wrap_up', t: 2000, reaction: '폴짝' }]);
+  var v1 = await view();
+  console.log('   mcp home 폴짝:', JSON.stringify({ trip: v1.trip, row: v1.lastRow, kv: v1.kv, say: v1.say }));
+  ok(v1.trip.by === 'mcp' && v1.trip.kind === 'home' && v1.trip.reaction === '폴짝' && v1.trip.by2 === 'model', "모델 집에 있는 날 '폴짝' → 기록도 '폴짝' (reactionBy model)");
+  ok(v1.lastRow === '🎉 폴짝' && v1.lastExpr === 'happy' && v1.kv === '🎉 폴짝' && v1.say === '🎉폴짝' && !v1.dims.length && noCodeLine(v1), "로그 '🎉 폴짝' · 일기 반응 '폴짝' · 코드가 지은 반응 줄 없음");
+  /* 2. 모델 · 반응 생략 */
+  var rowsBefore = v1.wrapRows;
+  await importEvs([{ type: 'stay_home', t: 0, activity: 'nap', line: '담요 속에서 낮잠' }, { type: 'wrap_up', t: 2000 }]);
+  var v2 = await view();
+  ok(v2.trip.reaction === null && !v2.trip.raw && v2.trip.by2 === null, '반응을 안 주면 기록에도 반응 없음 (지어내지 않음)');
+  ok(v2.wrapRows === rowsBefore && v2.kv === null && v2.say === null && !v2.dims.length, '반응 자리 비움: 마무리 행 없음 · 일기 반응 칸 없음 · 열람 기록 반응 줄 없음');
+  /* 3. 모델 · 외출 · 네 가지 밖의 반응(40자 넘음) + 모델이 쓴 줄 */
+  var RAW = '오늘은 좀 묘했어 그런데 나쁘지 않았어 다음에도 이런 날이면 좋겠다 정말로', LINE = '모자 안쪽 띠가 제일 재밌었어';
+  await importEvs([{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 1000, target: { kind: 'room', id: 'hat', title: '모자' }, status: 'builtin', ms: 3000 }, { type: 'return', t: 2000, reason: 'enough' },
+    { type: 'remember', t: 2500, stopIdx: 0, sticker: 'hat', line: '모델이 고른 모자' }, { type: 'hang_poster', t: 3000 }, { type: 'wrap_up', t: 3500, reaction: RAW, line: LINE }]);
+  var v3 = await view(), clip40 = Array.from(RAW).slice(0, 40).join('') + '…';
+  console.log('   mcp raw:', JSON.stringify({ trip: v3.trip, row: v3.lastRow, kv: v3.kv }));
+  ok(v3.trip.reaction === null && v3.trip.raw === RAW && v3.trip.line === LINE, '네 가지 밖의 반응은 reactionRaw 에 원문 그대로 · 모델이 쓴 줄은 reactionLine 그대로');
+  ok(v3.lastRow === clip40 + ' · ' + LINE && v3.lastExpr === 'calm' && v3.kv === clip40 && v3.kvTitle === RAW && v3.dims.indexOf(LINE) >= 0 && v3.say === LINE, "로그·일기: 40자 + '…' (원문은 title) · 모델이 쓴 줄 그대로");
+  /* 4. 데모 조작(사람) · 집 · 졸림 */
+  await page.click('#d-stay'); await waitIdle(page); await page.waitForTimeout(200);
+  var v4 = await view();
+  ok(v4.trip.by === 'human' && v4.trip.reaction === '졸림' && v4.trip.by2 === 'human' && v4.lastRow === '😴 졸림' && !v4.dims.length && noCodeLine(v4), "사람(데모 조작)이 준 '졸림' 그대로 · 코드 줄 없음 (" + v4.lastRow + ')');
+  /* 5. 데모 두뇌(규칙) 산책은 예전처럼 반응 + 줄 (reactionBy demo-rules) */
+  await page.evaluate(function () { window.__ppolTest = { forceKind: 'home' }; });
+  await page.click('#btn-go'); await page.waitForSelector('#btn-skip:not([hidden])'); await page.click('#btn-skip'); await waitIdle(page);
+  await page.evaluate(function () { delete window.__ppolTest; });
+  var v5 = await view();
+  ok(v5.trip.by === 'demo' && v5.trip.by2 === 'demo-rules' && !!v5.trip.reaction && v5.lastRow && v5.lastRow.indexOf(v5.trip.reaction) >= 0, "데모 두뇌 차례: 반응은 예전처럼 (reactionBy 'demo-rules') — " + v5.lastRow);
+  reportErrors(s.bag, 'M');
   await s.ctx.close();
 }
 
@@ -1098,6 +1395,7 @@ async function scenarioRunner() {
       ['E', function () { return scenarioForcedHome(browser); }], ['F', function () { return scenarioMigrateExact(browser); }], ['G', function () { return scenario2D(browser); }],
       ['H', function () { return scenarioDay2(browser); }], ['I', function () { return scenarioCeremony(browser).then(function () { return scenarioCeremonyIntro(browser); }); }],
       ['W', function () { return scenarioWake(browser); }], ['V', function () { return scenarioDevPanel(browser); }], ['P', function () { return scenarioPlayer(browser); }],
+      ['L', function () { return scenarioAlbumIcon(browser); }], ['N', function () { return scenarioNotes(browser); }], ['M', function () { return scenarioReactions(browser); }],
       ['R', function () { return scenarioRunner(); }]];
     for (var sc of all) if (!only.length || only.indexOf(sc[0]) >= 0) await sc[1]();
   } catch (e) {

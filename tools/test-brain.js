@@ -702,6 +702,177 @@ async function planSuite(label, W, hasHat) {
   await memoSuite(label, W, hasHat);
   await huntSuite(label, W);
   await waveESuite(label, W);
+  await waveFSuite(label, W);
+}
+
+/* ───────── 물결 F: 모델의 반응·말은 그대로 (R1) · 호기심 메모 들어오기 (R2) · 나가기 (R3) ─────────
+   계약: docs/MODEL_VOICE.md · docs/CURIOSITY_NOTES.md · docs/PROTOCOL.md §1 wrap_up */
+async function waveFSuite(label, W) {
+  var ids = Object.keys(W.nodes).filter(function (id) { return ['door_out', 'slow_room', 'letter_room'].indexOf(id) < 0 && W.nodes[id].corner !== 'wild'; });
+  var quick = function (t) { return Promise.resolve(/^(모자|조개|비|구름|단추)/.test(t) ? { ok: true, title: t, extract: t + '는 무엇이다. 둘째 문장.', url: 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(t), thumb: null, links: ['베레모', '깃털'] } : { ok: false, reason: 'missing' }); };
+  var t, seed, errs;
+  var clueId = ids.filter(function (id) { return W.nodes[id].clue && W.nodes[id].wiki; })[0];
+  var other = ids.filter(function (id) { return id !== clueId; })[0];
+  function out(evs, by, st) { return BRAIN.replay(JSON.parse(JSON.stringify(evs)), { by: by, now: NOW_DAY, seed: 7, state: st || { visits: {} } }); }
+  var walk = [{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 1, target: { kind: 'room', id: clueId } }, { type: 'peek', t: 2, target: { kind: 'room', id: other } }, { type: 'return', t: 3, reason: 'enough' }];
+
+  section('R1 model/human reaction kept as given — ' + label);
+  var visitedAll = {}; ids.forEach(function (id) { visitedAll[id] = 3; });
+  ['mcp', 'human'].forEach(function (by) {
+    var who = by === 'mcp' ? 'model' : 'human';
+    BRAIN.REACTIONS.forEach(function (r) {
+      /* 처음 온 데도 읽은 것도 없는 길 (데모 규칙이면 폴짝·우쭐은 거를 길) */
+      var x = out(walk.concat([{ type: 'remember', t: 4, stopIdx: 0, line: '그냥 지나가다 봤어' }, { type: 'hang_poster', t: 5 }, { type: 'wrap_up', t: 6, reaction: r }]), by, { visits: visitedAll });
+      check(x.reaction === r && x.receipt.reaction === r && x.reactionBy === who && x.receipt.reactionBy === who && x.events[x.events.length - 1].reaction === r && x.reactionRaw === null,
+        by + ' out-day reaction ' + r + ' kept exactly (got ' + x.reaction + ', by ' + x.reactionBy + ')');
+      check(x.receipt.reactionLine === null && x.reactionLine === null, by + ' out-day ' + r + ' without a line → no template line (' + x.receipt.reactionLine + ')');
+      var h = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 1, reaction: r }], { by: by, seed: 3 });
+      check(h.reaction === r && h.events[1].reaction === r && h.reactionBy === who && h.receipt.reactionLine === null, by + ' home-day reaction ' + r + ' kept exactly, no template line (got ' + h.reaction + ' · ' + h.receipt.reactionLine + ')');
+    });
+    var none = out(walk.concat([{ type: 'remember', t: 4, stopIdx: 1 }, { type: 'wrap_up', t: 6 }]), by);
+    check(none.reaction === null && none.reactionBy === null && none.receipt.reactionLine === null && !('reaction' in none.events[none.events.length - 1]), by + ' out-day: no reaction given → null, nothing invented (' + none.reaction + ')');
+    var hn = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 1 }], { by: by });
+    check(hn.reaction === null && hn.reactionBy === null && hn.receipt.reactionLine === null && hn.receipt.reactionEmoji === null && !('reaction' in hn.events[1]), by + ' home-day: no reaction → null');
+    var noWrap = out(walk, by);
+    check(noWrap.reaction === null && noWrap.reactionBy === null, by + ' no wrap_up at all → reaction null');
+  });
+  var lineA = out(walk.concat([{ type: 'wrap_up', t: 6, reaction: '덤덤', line: '  오늘은 이 정도. 문 앞 바람이 셌어  ' }]), 'mcp');
+  check(lineA.receipt.reactionLine === '  오늘은 이 정도. 문 앞 바람이 셌어  ' && lineA.reactionLine === lineA.receipt.reactionLine, 'model reaction line (wrap_up.line) kept verbatim, spaces and all');
+  var lineB = out(walk.concat([{ type: 'wrap_up', t: 6, reaction: '졸림', reactionLine: '하품' }]), 'mcp');
+  check(lineB.receipt.reactionLine === '하품', 'wrap_up.reactionLine is accepted as the line too');
+  var rawLong = '갸웃갸웃 하다가 조금 웃었어 그리고 또 갸웃했어 그래서 결국에는 아무 표정도 아닌 표정';
+  var raw = out(walk.concat([{ type: 'wrap_up', t: 6, reaction: rawLong }]), 'mcp');
+  check(raw.reaction === null && raw.reactionRaw === rawLong && raw.receipt.reactionRaw === rawLong && raw.reactionBy === 'model' && raw.receipt.reactionEmoji === null && raw.events[raw.events.length - 1].reaction === rawLong,
+    'unknown reaction string → reactionRaw in full (' + rawLong.length + ' chars), reaction null, event untouched');
+  check(BRAIN.clipShown(rawLong, 40) === rawLong.slice(0, 40) + '…' && BRAIN.clipShown('폴짝', 40) === '폴짝', 'clipShown: first 40 + … only when longer');
+  check(out(walk.concat([{ type: 'wrap_up', t: 6, reaction: ' 폴짝 ' }]), 'mcp').reaction === '폴짝', 'known reaction with stray spaces → that reaction');
+  check(out(walk.concat([{ type: 'wrap_up', t: 6, reaction: 5 }]), 'mcp').reaction === null, 'non-string reaction → null (not computed)');
+  /* 데모 규칙은 그대로 정직하게 거른다 */
+  var dj = out(walk.concat([{ type: 'wrap_up', t: 6, reaction: '폴짝' }]), 'demo', { visits: visitedAll });
+  check(dj.reaction !== '폴짝' && dj.reactionBy === 'demo-rules' && typeof dj.receipt.reactionLine === 'string', 'demo-rules replay still gates 폴짝 with nothing new (' + dj.reaction + ') and keeps its template line');
+  errs = [];
+  for (seed = 1; seed <= 120; seed++) {
+    t = await BRAIN.plan(baseInput(seed, { fetchWiki: quick }));
+    if (t.kind === 'empty') { if (t.reactionBy !== null || t.reaction !== null) errs.push('empty ' + seed); continue; }
+    if (t.reactionBy !== 'demo-rules' || t.reactionRaw !== null || t.reactionLine !== t.receipt.reactionLine || BRAIN.REACTIONS.indexOf(t.reaction) < 0) errs.push('seed ' + seed + ' ' + t.kind + ' ' + t.reactionBy);
+  }
+  check(errs.length === 0, 'demo plans: reactionBy demo-rules, reactionRaw null, trip.reactionLine = receipt.reactionLine (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs[0] : ''));
+
+  section('R1 other model-given values (line · memory · hint note · activity · memo) — ' + label);
+  var pl = out(walk.concat([{ type: 'remember', t: 4, stopIdx: 1, line: '여기 오래 있었어…  정말로' }, { type: 'wrap_up', t: 6, reaction: '덤덤' }]), 'mcp');
+  check(pl.poster.line === '여기 오래 있었어…  정말로' && pl.receipt.rememberedIdx === 1 && pl.receipt.rememberedBy === 'model', 'remember line kept verbatim, chosen stop kept, rememberedBy model');
+  var nl = out(walk.concat([{ type: 'remember', t: 4, stopIdx: 0 }, { type: 'wrap_up', t: 6, reaction: '덤덤' }]), 'mcp');
+  check(nl.poster.line === null && nl.receipt.rememberedBy === 'model', 'remember without a line → poster line null (no template)');
+  [99, -1, 0.5, '1'].forEach(function (bad) {
+    var fb = out(walk.concat([{ type: 'remember', t: 4, stopIdx: bad, line: '그거' }, { type: 'wrap_up', t: 6 }]), 'mcp');
+    check(fb.receipt.rememberedIdx === 1 && fb.receipt.rememberedBy === 'fallback' && fb.poster.title === fb.receipt.stops[1].name, 'stopIdx ' + JSON.stringify(bad) + ' → last stop, rememberedBy fallback (PROTOCOL §2)');
+  });
+  var noRem = out(walk.concat([{ type: 'wrap_up', t: 6 }]), 'human');
+  check(noRem.receipt.rememberedIdx === 1 && noRem.receipt.rememberedBy === 'fallback' && noRem.poster.line === null, 'no remember event → last stop as fallback, no line');
+  var hintNode = ids.filter(function (id) { return BRAIN.matchHint(W.nodes[id].name).kind === 'node' && BRAIN.matchHint(W.nodes[id].name).nodeId === id && id !== clueId && id !== other; })[0];
+  if (hintNode) {
+    var ig = BRAIN.replay([{ type: 'depart', t: 0, hint: W.nodes[hintNode].name, followHint: false }].concat(walk.slice(1)).concat([{ type: 'wrap_up', t: 6, reaction: '덤덤' }]), { by: 'mcp', now: NOW_DAY });
+    var igD = BRAIN.replay([{ type: 'depart', t: 0, hint: W.nodes[hintNode].name, followHint: false }].concat(walk.slice(1)).concat([{ type: 'wrap_up', t: 6, reaction: '덤덤' }]), { by: 'demo', now: NOW_DAY });
+    check(ig.hint.followed === 'ignored' && ig.hint.note === null && igD.hint.note, 'ignored hint: no "다른 데가 궁금했어" note on a model trip (demo-rules keeps its note)');
+  }
+  var hd = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 1, reaction: '졸림' }], { by: 'mcp' });
+  var napAct = (W.homeActivities || []).filter(function (a) { return a.id === 'nap'; })[0];
+  check(hd.receipt.activity.id === 'nap' && hd.receipt.activity.by === 'model' && hd.receipt.activity.detail === '' && hd.poster.detail === '' && (!napAct || hd.poster.line === napAct.line),
+    'model home day: activity line from the list it chose from, back-of-note detail only what the model wrote (none → "")');
+  var hd2 = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap', line: '담요에서 뒹굴', detail: '그냥' }, { type: 'wrap_up', t: 1 }], { by: 'mcp' });
+  check(hd2.poster.line === '담요에서 뒹굴' && hd2.poster.detail === '그냥', 'model home day: its own line/detail verbatim');
+  var hdDemo = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 1, reaction: '졸림' }], { by: 'demo' });
+  check(!napAct || hdDemo.receipt.activity.detail === (napAct.detail || ''), 'demo-rules home replay keeps the activity detail');
+  var hf = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'no_such_activity', line: '뭔가 했어' }, { type: 'wrap_up', t: 1 }], { by: 'mcp' });
+  check(hf.receipt.activity.id === 'custom' && hf.receipt.activity.by === 'fallback' && hf.receipt.activity.asked === 'no_such_activity' && hf.poster.line === '뭔가 했어', 'activity the room cannot do → custom, by fallback, asked id kept, model line kept');
+  var longMemo = { tomorrow: '내일은 ' + new Array(25).join('조개 ') + '끝', notes: {} }; longMemo.notes[clueId] = '짧은 메모';
+  var lm = out(walk.concat([{ type: 'wrap_up', t: 6, memo: longMemo }]), 'mcp').memo;
+  check(lm && lm.tomorrow.length <= 60 && /…$/.test(lm.tomorrow) && lm.original && lm.original.tomorrow === longMemo.tomorrow && !(lm.original.notes) && lm.notes[clueId] === '짧은 메모',
+    'memo over 60: shown with … and the original kept in memo.original (MODEL_VOICE §3)');
+  var hung = out(walk.concat([{ type: 'remember', t: 4, stopIdx: 0 }, { type: 'hang_poster', t: 5 }, { type: 'wrap_up', t: 6 }]), 'mcp');
+  check(hung.posterHung === true && nl.posterHung === false, 'posterHung says whether the chooser hung the poster');
+
+  section('R2 notes in — ' + label);
+  /* 메모가 없음 · [] · 내려놓은 것만 · 모양이 틀린 것 · 물건(object) 메모 · 없는 방 → 결과가 바이트 하나까지 같다 (2000 시드) */
+  var target = ids.filter(function (id) { return !W.nodes[id].linger; })[ids.length > 6 ? 5 : 1];
+  var variants = [
+    [],
+    [{ id: 'cn_sd', text: '내려놓음', about: { kind: 'node', id: target }, by: 'model', session: 'trip_a', at: '2026-11-01T00:00:00Z', status: 'set_down' }],
+    [null, 5, 'x', { about: { kind: 'room', id: target } }, { about: { kind: 'node', id: 'no_such_room' } }, { id: 'cn_o', text: '물건', about: { kind: 'object', id: target }, status: 'active' }]
+  ];
+  errs = [];
+  for (seed = 1; seed <= 2000; seed++) {
+    var st0 = { visits: seed % 3 ? {} : { hat: 1 }, affinity: seed % 4 ? {} : { sea: 2 }, lantern: seed % 9, recent: [], todayOut: seed % 3, posters: seed % 3 };
+    var inp = baseInput(seed, { online: seed % 2 === 0, fetchWiki: quick, hint: seed % 5 === 0 ? (W.nodes.hat ? '모자' : '') : '', state: st0 });
+    var ref = JSON.stringify(await BRAIN.plan(inp));
+    for (var vi = 0; vi < variants.length; vi++) {
+      var o = JSON.stringify(await BRAIN.plan(Object.assign({}, inp, { state: Object.assign({}, st0, { notes: variants[vi] }) })));
+      if (o !== ref) { errs.push('seed ' + seed + ' variant ' + vi); break; }
+    }
+  }
+  check(errs.length === 0, 'notes absent / [] / set_down only / malformed / object-only → byte-identical plans over 2000 seeds (' + errs.length + ' diffs)' + (errs.length ? ' e.g. ' + errs[0] : ''));
+  var nn = BRAIN.normalizeNotes([{ id: 'a', status: 'set_down', about: { kind: 'node', id: target } }, { id: 'b' }, { id: 'c', status: 'active' }, { id: 'd' }, { id: 'e' }, { id: 'f' }]);
+  check(nn.length === 3 && nn.map(function (n) { return n.id; }).join() === 'b,c,d', 'normalizeNotes: drops non-active, keeps the first (newest) 3');
+  /* 메모가 가리키는 방이 더 자주 뽑힌다. 길이 같은 날은 나머지(시각·스티커·종이·기념품)가 전부 같다 = 새 난수 없음 */
+  var hit0 = 0, hit1 = 0, same = 0, drawDiff = [], noteText = '이 문장은 두뇌가 옮기면 안 되는 메모 글 7f3a';
+  var notes = [{ id: 'cn_t', text: noteText, about: { kind: 'node', id: target }, by: 'model', session: 'trip_x', at: '2026-11-06T10:00:00Z', status: 'active' }];
+  for (seed = 1; seed <= 600; seed++) {
+    var stA = { visits: {}, affinity: {}, lantern: 3, recent: [], todayOut: 0 };
+    var a = await BRAIN.plan(baseInput(seed, { online: false, state: stA }));
+    var b = await BRAIN.plan(baseInput(seed, { online: false, state: Object.assign({}, stA, { notes: notes }) }));
+    if (a.kind === 'out' && a.receipt.stops.some(function (x) { return x.nodeId === target; })) hit0++;
+    if (b.kind === 'out' && b.receipt.stops.some(function (x) { return x.nodeId === target; })) hit1++;
+    if (JSON.stringify(b).indexOf(noteText) >= 0 || JSON.stringify(b).indexOf('cn_t') >= 0) drawDiff.push('seed ' + seed + ' quoted the note');
+    if (a.kind === b.kind && a.kind === 'out' && JSON.stringify(a.receipt.stops.map(function (x) { return x.nodeId; })) === JSON.stringify(b.receipt.stops.map(function (x) { return x.nodeId; }))) {
+      same++;
+      if (JSON.stringify(a) !== JSON.stringify(b)) drawDiff.push('seed ' + seed + ' same route but different output');
+    }
+    if (a.kind !== b.kind) drawDiff.push('seed ' + seed + ' kind changed ' + a.kind + '→' + b.kind);
+  }
+  console.log('  note about ' + target + ': visited ' + hit0 + ' → ' + hit1 + ' of 600 · same-route seeds ' + same);
+  check(hit1 > hit0 * 1.3 && hit1 > hit0 + 10, 'an active note about ' + target + ' raises how often the demo walks there (' + hit0 + ' → ' + hit1 + ')');
+  check(same > 100 && drawDiff.length === 0, 'note boost draws no new numbers: same route → identical trip; kind never changes; note text never quoted (' + drawDiff.length + ' errors)' + (drawDiff.length ? ' e.g. ' + drawDiff[0] : ''));
+  var four = [{ id: 'n1', about: { kind: 'node', id: other } }, { id: 'n2', about: { kind: 'node', id: other } }, { id: 'n3', about: { kind: 'node', id: other } }, { id: 'n4', about: { kind: 'node', id: target } }];
+  errs = [];
+  for (seed = 1; seed <= 150; seed++) {
+    var p3 = JSON.stringify(await BRAIN.plan(baseInput(seed, { online: false, state: { visits: {}, notes: four.slice(0, 3) } })));
+    var p4 = JSON.stringify(await BRAIN.plan(baseInput(seed, { online: false, state: { visits: {}, notes: four } })));
+    if (p3 !== p4) errs.push(seed);
+  }
+  check(errs.length === 0, 'only the newest 3 notes count: a 4th note changes nothing (' + errs.length + ' diffs)');
+  var rpN = out(walk.concat([{ type: 'wrap_up', t: 6, reaction: '덤덤' }]), 'mcp', { visits: {}, notes: notes });
+  check(JSON.stringify(rpN) === JSON.stringify(out(walk.concat([{ type: 'wrap_up', t: 6, reaction: '덤덤' }]), 'mcp', { visits: {} })), 'replay: notes in state change nothing (the chooser already chose)');
+
+  section('R3 notes out — ' + label);
+  errs = []; var nNote = 0, nOutT = 0;
+  for (seed = 1; seed <= 300; seed++) {
+    t = await BRAIN.plan(baseInput(seed, { fetchWiki: quick }));
+    if (!(t.setDown && t.setDown.length === 0)) errs.push('seed ' + seed + ' setDown not []');
+    if (t.kind !== 'out') { if (t.noteOut !== null) errs.push('seed ' + seed + ' ' + t.kind + ' has noteOut'); continue; }
+    nOutT++;
+    if (t.noteOut === null) continue;
+    nNote++;
+    var nd = W.nodes[t.noteOut.about && t.noteOut.about.id];
+    if (t.noteOut.by !== 'demo-rules' || t.noteOut.about.kind !== 'node' || !nd) errs.push('seed ' + seed + ' bad noteOut ' + JSON.stringify(t.noteOut));
+    else if (t.noteOut.text !== t.memo.tomorrow) errs.push('seed ' + seed + ' noteOut text != memo');
+    else if (t.noteOut.text.indexOf(nd.name) < 0 && !/^[0-9]/.test(nd.name)) errs.push('seed ' + seed + ' about ' + nd.name + ' not in text: ' + t.noteOut.text);
+    else if (t.receipt.stops.some(function (x) { return x.nodeId === nd.id; })) errs.push('seed ' + seed + ' about a room visited this trip');
+  }
+  check(nNote > 0 && errs.length === 0, 'plan noteOut = { memo text, about = the "내일은 X" room, by demo-rules } or null; home/empty null; setDown [] (' + nNote + '/' + nOutT + ' out trips, ' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs[0] : ''));
+  var noteLong = '조개를 귀에 대면 소리가 나. 다른 소리 나는 것도 궁금해. 파도 소리랑 같은지 다른지도 다음에 들어 보고 싶어';
+  var ro = out(walk.concat([{ type: 'wrap_up', t: 6, note: { text: noteLong, about: { kind: 'node', id: other } }, setDown: ['cn_1', 7, '', 'cn_2', null] }]), 'mcp');
+  check(ro.noteOut && ro.noteOut.text === noteLong && noteLong.length > 60 && ro.noteOut.by === 'model' && ro.noteOut.about.kind === 'node' && ro.noteOut.about.id === other, 'mcp replay: note copied verbatim (full ' + noteLong.length + ' chars), about kept, by model');
+  check(JSON.stringify(ro.setDown) === '["cn_1","cn_2"]', 'mcp replay: setDown = the string ids it gave (' + JSON.stringify(ro.setDown) + ')');
+  var rs1 = out(walk.concat([{ type: 'wrap_up', t: 6, note: '그냥 한 줄' }]), 'mcp');
+  check(rs1.noteOut && rs1.noteOut.text === '그냥 한 줄' && !('about' in rs1.noteOut) && rs1.noteOut.by === 'model', 'plain-string note → { text, by model }');
+  check(out(walk.concat([{ type: 'wrap_up', t: 6, note: '   ' }]), 'mcp').noteOut === null && out(walk.concat([{ type: 'wrap_up', t: 6 }]), 'mcp').noteOut === null, 'no note / blank note → noteOut null (nothing invented)');
+  var badAbout = out(walk.concat([{ type: 'wrap_up', t: 6, note: { text: 'x', about: { kind: 'feeling', id: 'love' } } }]), 'mcp');
+  check(badAbout.noteOut && !('about' in badAbout.noteOut), 'note with a malformed about keeps the text, drops the about');
+  var rh = out(walk.concat([{ type: 'wrap_up', t: 6, note: '사람 메모', setDown: ['cn_1'] }]), 'human');
+  check(rh.noteOut && rh.noteOut.by === 'human' && rh.setDown.length === 0, 'human replay: note labelled human; setDown ignored (only the model sets down its interest)');
+  var rhome = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 1, note: { text: '담요 무늬가 궁금해' }, setDown: ['cn_9'] }], { by: 'mcp' });
+  var rempty = BRAIN.replay([{ type: 'empty_turn', t: 0 }, { type: 'wrap_up', t: 1, setDown: ['cn_8'] }], { by: 'mcp' });
+  check(rhome.noteOut && rhome.noteOut.text === '담요 무늬가 궁금해' && rhome.setDown[0] === 'cn_9' && rempty.kind === 'empty' && rempty.setDown[0] === 'cn_8' && rempty.noteOut === null, 'home and empty-turn replays carry note / setDown too');
 }
 
 /* ───────── 물결 E: 기념품(owned) · 집에 있는 날 반응 · 숫자 이름 방 ───────── */

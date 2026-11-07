@@ -214,7 +214,7 @@ var SCENE2D = (function () {
         b.addEventListener('click', function () { if (on.posterTap) on.posterTap(p.id); });
         wall.appendChild(b);
       });
-      if (all.length > 5) wall.appendChild(h('button', { type: 'button', class: 'wall-more', text: '+' + (all.length - 5), 'aria-label': '앨범으로', onclick: function () { if (on.albumTap) on.albumTap(); } }));
+      if (all.length > 5) wall.appendChild(h('button', { type: 'button', class: 'wall-more', text: '+' + (all.length - 5), 'aria-label': '추억 앨범 열기', onclick: function () { if (on.albumTap) on.albumTap(); } }));
       wall.dataset.n = all.length;
       container.dataset.posters = String(all.length);
     }
