@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f4f2e8">
+  <title>내 모습 · 뽈뽈 문어</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/avatar.css">
+  <link rel="stylesheet" href="css/avatar-demo.css">
+</head>
+<body class="avatar-demo">
+  <div class="av-page">
+    <header class="av-header">
+      <a class="av-brand" href="index.html"><span class="av-brand-mark" aria-hidden="true">✳</span> 뽈뽈 문어</a>
+      <span class="av-header-note">작은 다락의 옷장</span>
+    </header>
+    <main>
+      <div class="av-heading"><span class="av-eyebrow">A LITTLE LIKE YOU</span><h1>나를 닮은 작은 모습.</h1><p>편한 옷을 입고, 뽈뽈과 같은 풍경 속으로.</p></div>
+      <div class="av-layout">
+        <section class="av-preview-card" aria-label="캐릭터 미리보기">
+          <div class="av-preview-title"><span><i aria-hidden="true"></i> 내 작은 다락</span><button id="av-motion" type="button" aria-pressed="false">걸어 보기</button></div>
+          <div id="av-scene" class="av-scene" role="img" aria-label="내 캐릭터가 있는 작은 다락방"><canvas id="av-fallback" width="96" height="144" hidden></canvas></div>
+          <div class="av-preview-caption"><span class="av-caption-line"></span><span>오늘은 이런 모습</span><span class="av-caption-line"></span></div>
+          <div class="av-identity"><canvas id="av-portrait" width="48" height="48" aria-hidden="true"></canvas><div><strong>다락의 새 친구</strong><p id="av-description"></p></div></div>
+          <div class="av-preview-tools"><button id="av-png" type="button">그림 저장 <span aria-hidden="true">↗</span></button><button id="av-json" type="button">설정 내보내기 <span aria-hidden="true">↗</span></button></div>
+          <output id="av-notice" class="av-notice" aria-live="polite"></output>
+        </section>
+        <section class="av-wardrobe-card" aria-labelledby="wardrobe-title"><div class="av-wardrobe-title"><h2 id="wardrobe-title">내 모습 고르기</h2><span>언제든 바꿀 수 있어</span></div><div id="av-editor"></div></section>
+      </div>
+    </main>
+    <footer class="av-footer"><span>조금씩, 나다운 다락.</span><span>LET’S MODEL PLAY <span aria-hidden="true">✳</span></span></footer>
+  </div>
+  <script src="vendor/three.min.js"></script>
+  <script src="js/avatar-parts.js"></script>
+  <script src="js/avatar.js"></script>
+  <script src="js/avatar-three.js"></script>
+  <script src="js/avatar-editor.js"></script>
+  <script src="js/avatar-demo.js"></script>
+</body>
+</html>

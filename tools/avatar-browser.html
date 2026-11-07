@@ -1,0 +1,48 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Avatar browser QA</title>
+<style>body{font:14px/1.6 system-ui;background:#f4f2e8;color:#33443f;margin:24px}pre{white-space:pre-wrap;background:#fffdf6;padding:20px;border:1px solid #ccd7c7}iframe{border:1px solid #ccc;height:780px;display:block;margin:20px 0}button{padding:12px;margin:0 12px 8px 0}#views{display:flex;gap:24px;flex-wrap:wrap}canvas{image-rendering:pixelated}</style>
+<h1>Avatar browser QA</h1><button id="run">Run checks</button><button id="loss">Test WebGL context loss</button><pre id="result">Loading…</pre><div id="views"><iframe id="phone" title="360px mobile preview" width="360" src="../avatar.html"></iframe><iframe id="narrow" title="320px mobile preview" width="320" src="../avatar.html"></iframe></div>
+<script>
+(function(){
+  var out=document.getElementById('result'),frame=document.getElementById('phone'),narrow=document.getElementById('narrow');
+  function assert(value,message){if(!value)throw new Error(message);}
+  function ready(f){return new Promise(function(resolve){if(f.contentWindow.AVATAR_DEMO)resolve();else f.addEventListener('load',resolve,{once:true});});}
+  var report={};
+  async function run(){
+    out.textContent='Running…';
+    try{
+      await Promise.all([ready(frame),ready(narrow)]);
+      var w=frame.contentWindow,d=w.document,A=w.AVATAR,P=w.AVATAR_PARTS,initial=w.AVATAR_DEMO.editor.getLook(),checks=[];
+      function pass(label){checks.push(label);}
+      assert(d.documentElement.scrollWidth<=360,'360px overflow');assert(narrow.contentDocument.documentElement.scrollWidth<=320,'320px overflow');pass('320px / 360px: no horizontal overflow');
+      var input=d.querySelector('input[value="eye.blue"]');input.click();assert(w.AVATAR_DEMO.inspect().look.eyeColor==='eye.blue','eye input');
+      d.querySelector('input[value="hair.long"]').click();d.querySelector('input[value="top.hood_navy"]').click();
+      assert(w.AVATAR_DEMO.inspect().look.hair==='hair.long','hair input');assert(w.AVATAR_DEMO.inspect().look.top==='top.hood_navy','clothing input');pass('Hair, eye colour and outfit controls update preview');
+      var edited=w.AVATAR_DEMO.inspect().look;
+      d.querySelector('button[type="submit"]').click();await new Promise(function(r){setTimeout(r,30);});
+      var saved=JSON.parse(w.localStorage.getItem('ppolppol_avatar_demo_v1'));
+      assert(saved.look.eyeColor==='eye.blue'&&saved.look.top==='top.hood_navy','save');pass('Explicit save persists canonical look');
+      var load=new Promise(function(r){frame.addEventListener('load',r,{once:true});});frame.contentWindow.location.reload();await load;
+      w=frame.contentWindow;d=w.document;A=w.AVATAR;P=w.AVATAR_PARTS;
+      assert(w.AVATAR_DEMO.inspect().look.eyeColor==='eye.blue','reload');pass('Reload restores saved appearance');
+      d.querySelector('input[value="eye.green"]').click();d.querySelector('.av-secondary').click();assert(w.AVATAR_DEMO.inspect().look.eyeColor==='eye.blue','cancel');pass('Reset returns to last saved appearance');
+      var item=w.AVATAR_THREE.create({THREE:w.THREE,look:edited,outline:true}),tex=item.texture;
+      assert(tex.minFilter===w.THREE.NearestFilter&&tex.magFilter===w.THREE.NearestFilter&&!tex.generateMipmaps,'nearest');
+      assert(item.object.material.alphaTest===.5&&item.object.material.depthWrite&&!item.object.material.transparent,'depth');
+      for(var i=0;i<120;i++)item.setLook(Object.assign({},edited,{hairColor:P.catalog.hairColor[i%4].id}));
+      assert(item.texture===tex,'texture churn');pass('Three.js: nearest filtering, binary cutout depth, one reusable texture');
+      var textureDisposals=0,materialDisposals=0;tex.addEventListener('dispose',function(){textureDisposals++;});item.object.material.addEventListener('dispose',function(){materialDisposals++;});item.dispose();item.dispose();
+      assert(textureDisposals===1&&materialDisposals===1,'dispose');pass('Three.js disposal is idempotent');
+      var nativeCanvas=A.compose(edited);var pixels=nativeCanvas.getContext('2d').getImageData(0,0,16,24).data;
+      for(var p=3;p<pixels.length;p+=4)assert(pixels[p]===0||pixels[p]===255,'partial alpha');pass('Browser canvas: alpha is exactly 0 or 255');
+      var temp=d.createElement('div');d.body.appendChild(temp);var failed=w.AVATAR_EDITOR.mount(temp,{onSave:function(){throw Error('simulated storage denial');}});temp.querySelector('button[type=submit]').click();await new Promise(function(r){setTimeout(r,30);});
+      assert(temp.textContent.indexOf('저장하지 못했어')>=0,'false save success');failed.destroy();assert(temp.children.length===0,'editor cleanup');temp.remove();pass('Storage failure is reported; editor cleanup removes UI');
+      w.AVATAR_DEMO.setLook(initial);w.localStorage.setItem('ppolppol_avatar_demo_v1',JSON.stringify({version:1,look:initial}));
+      report={ok:true,checks:checks,rendering:w.AVATAR_DEMO.inspect()};
+      out.textContent=JSON.stringify(report,null,2);
+    }catch(e){report={ok:false,error:String(e.stack||e)};out.textContent=JSON.stringify(report,null,2);}
+  }
+  document.getElementById('run').onclick=run;
+  document.getElementById('loss').onclick=function(){frame.contentWindow.AVATAR_DEMO.forceContextLoss();setTimeout(function(){out.textContent=JSON.stringify({previous:report,afterContextLoss:frame.contentWindow.AVATAR_DEMO.inspect()},null,2);},200);};
+  run();
+})();
+</script></html>

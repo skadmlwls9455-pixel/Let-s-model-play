@@ -1,0 +1,30 @@
+/* All editor selectors are scoped. No global reset or existing game IDs. */
+.avatar-editor { --av-ink:#33443f; --av-muted:#65756e; --av-line:#d7dfd3; --av-paper:#fffdf6; --av-accent:#456951; color:var(--av-ink); font:14px/1.5 system-ui,sans-serif; }
+.avatar-editor * { box-sizing:border-box; }
+.avatar-editor .av-group { border:0; padding:0; margin:0 0 20px; min-width:0; }
+.avatar-editor legend { display:flex; gap:12px; align-items:center; width:100%; padding:0; margin-bottom:10px; font-weight:700; font-size:14px; }
+.avatar-editor .av-value { margin-left:auto; font-size:12px; font-weight:400; color:var(--av-muted); }
+.avatar-editor .av-options { display:grid; gap:8px; grid-template-columns:repeat(4,minmax(0,1fr)); }
+.avatar-editor .av-group--top .av-options,.avatar-editor .av-group--bottom .av-options { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.avatar-editor .av-options--swatch { display:flex; flex-wrap:wrap; gap:8px; }
+.avatar-editor .av-option { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0; cursor:pointer; touch-action:manipulation; }
+.avatar-editor input[type=radio] { position:absolute; width:1px; height:1px; opacity:0; }
+.avatar-editor .av-chip { position:relative; display:flex; align-items:center; justify-content:center; width:100%; min-height:64px; background:#f1f1e6; border:1px solid var(--av-line); border-radius:9px; }
+.avatar-editor canvas { width:32px; height:48px; image-rendering:pixelated; }
+.avatar-editor .av-swatch { width:44px; min-height:44px; border:4px solid var(--av-paper); border-radius:50%; outline:1px solid var(--av-line); }
+.avatar-editor .av-option-name { font-size:12px; text-align:center; padding-top:5px; min-height:24px; word-break:keep-all; }
+.avatar-editor input:checked + .av-chip { outline:2px solid var(--av-accent); outline-offset:1px; background-color:#e4eadc; }
+.avatar-editor input:checked + .av-chip::after { content:'✓'; position:absolute; right:3px; top:1px; color:var(--av-accent); font-weight:700; font-size:12px; }
+.avatar-editor input:checked + .av-swatch::after { background:var(--av-paper); border-radius:50%; width:16px; height:16px; text-align:center; line-height:16px; right:-5px; top:-5px; }
+.avatar-editor input:focus-visible + .av-chip { outline:3px solid #a45f36; outline-offset:3px; }
+.avatar-editor details { border-top:1px solid var(--av-line); margin-top:4px; padding-top:4px; }
+.avatar-editor summary { padding:12px 0; min-height:44px; cursor:pointer; font-size:13px; }
+.avatar-editor .av-actions { display:flex; gap:8px; margin-top:12px; }
+.avatar-editor button { min-height:48px; padding:12px 14px; font:inherit; font-weight:650; cursor:pointer; touch-action:manipulation; border:1px solid var(--av-line); border-radius:8px; }
+.avatar-editor .av-primary { background:var(--av-accent); color:var(--av-paper); flex:1; border-color:var(--av-accent); }
+.avatar-editor .av-secondary { background:transparent; color:var(--av-muted); }
+.avatar-editor button:active { transform:translateY(2px); }
+.avatar-editor button:focus-visible { outline:3px solid #a45f36; outline-offset:3px; }
+.avatar-editor button:disabled { opacity:.65; cursor:wait; }
+.avatar-editor .av-status { display:block; min-height:24px; margin-top:10px; font-size:12px; color:var(--av-accent); text-align:center; }
+@media (prefers-reduced-motion:reduce) { .avatar-editor button:active { transform:none; } }
