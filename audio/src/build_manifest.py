@@ -137,6 +137,13 @@ RULES = {
 KIND_KO = [('bgm', '집 테마'), ('special', '특수 곡'), ('place', '장소 테마'), ('jingle', '징글·이벤트'), ('sfx', '효과음'),
            ('amb', '환경음'), ('layer', '환경 덧층')]
 
+# 주인 요청으로 뺀 소리. manifest.d·MAP 에 다시 들어오면 빌드가 실패한다(예전 렌더를 다시 굽거나 합칠 때 되살아나지 않게).
+REMOVED = [
+    ('first_place', '2026-11-05',
+     '처음 가 본 곳 징글. 주인 요청으로 뺐다 — 산책 중 튀는 실로폰 소리(딩동)로 들렸다. '
+     '파일·매니페스트·생성 목록에서 지웠고, 악보 b_first_place 는 jingles.py 에 기록으로만 남긴다.'),
+]
+
 
 def write_catalog(sounds, total):
     lines = ['# 소리 목록', '',
@@ -163,6 +170,10 @@ def write_catalog(sounds, total):
                 desc += ' (' + ', '.join(extra) + ')'
             desc = desc.replace('|', '/').replace('\n', ' ')
             lines.append(f"| `{x['id']}` | {x['duration']:.2f}s | {x['level']['rel_db']:+g} | {lp} | {desc} |")
+        lines.append('')
+    if REMOVED:
+        lines += [f'## 뺀 소리 ({len(REMOVED)})', '', '| id | 언제 | 왜 |', '|---|---|---|']
+        lines += [f'| `{rid}` | {when} | {why} |' for rid, when, why in REMOVED]
         lines.append('')
     with open(os.path.join(ROOT, 'CATALOG.md'), 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines))
@@ -195,6 +206,11 @@ def main():
             if x not in known:
                 bad.append('/'.join(path) + ' → ' + x)
     walk(MAP, [])
+    gone = {rid for rid, _, _ in REMOVED}
+    revived = sorted(gone & known) + ['map ' + s for s in json.dumps(MAP, ensure_ascii=False).split('"') if s in gone]
+    if revived:
+        print('주인 요청으로 뺀 소리가 다시 들어왔다 (REMOVED 참고):', *revived, sep='\n  ')
+        return 1
 
     # 파일 존재 검사
     nofile = [s['id'] for s in sounds for f in s.get('files', {}).values()

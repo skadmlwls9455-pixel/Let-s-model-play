@@ -511,7 +511,6 @@ select { font-family: var(--f-body); font-size: 16px; min-height: 44px; border: 
     for (var k = 1; k <= 8; k++) (function (n) {
       chip($('#padLantern'), n === 8 ? '8 방 완성' : String(n), null, function () { gesture(); playOnce(n === 8 ? 'room_complete' : 'lantern_' + n); });
     })(k);
-    chip($('#padLantern'), '첫 장소', null, function () { gesture(); playOnce('first_place'); });
     chip($('#padLantern'), '희귀 반짝', null, function () { gesture(); playOnce('rare_sparkle'); });
     var strokeN = 0, strokeT = 0;
     chip($('#padTouch'), '쓰다듬기', null, function () {
