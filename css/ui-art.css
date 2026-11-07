@@ -27,13 +27,15 @@
   border: 8px solid transparent; border-image: url(../assets/ui/frame_portrait.png) 8 fill / 16px round;
   background: none; box-shadow: none; image-rendering: pixelated;
 }
-/* "다음" ▼ — 가장 새 목소리 행에만, next/next2 를 0.5 s 마다 */
+/* "다음" ▼ — 가장 새 목소리 행에만 (카드 12, DIALOGUE_UI §5.9): next_bob.png 4프레임 띠 (8×8 × 4 → 2배 64×16).
+   한 모양이 아래로 0·1·2·1 아트px 통통, 프레임당 180ms, 3바퀴 뒤 0번 프레임에서 멈춘다 (애니메이션이 끝나면 기본 자리 0 0 = 0번).
+   새 줄이 오면 ui-art.js 가 새 행에 .ua-next 를 새로 붙이므로 처음부터 다시 돈다. (예전: next.png ↔ next2.png 끝없이 — 파일은 남겨 둔다) */
 :root[data-font="pixel"] .lrow.ua-newest > .ua-next {
   display: block; position: absolute; right: -6px; bottom: -10px; width: 16px; height: 16px; pointer-events: none;
-  background: url(../assets/ui/next.png) 0 0 / 16px 16px no-repeat; image-rendering: pixelated;
-  animation: ua-next 1s steps(1) infinite;
+  background: url(../assets/ui/next_bob.png) 0 0 / 64px 16px no-repeat; image-rendering: pixelated;
+  animation: ua-next-bob calc(720ms * var(--speed, 1)) steps(4) 3;
 }
-@keyframes ua-next { 0% { background-image: url(../assets/ui/next.png); } 50% { background-image: url(../assets/ui/next2.png); } }
+@keyframes ua-next-bob { from { background-position: 0 0; } to { background-position: -64px 0; } }
 
 /* ── 2. 로그 행 아이콘: 도구 라벨 위 32px 아이콘 + 한국어 라벨 그대로 · 읽기 상태 칩은 아이콘 + 단어 ── */
 :root[data-font="pixel"] .lrow.ua-row:not(.dialog) { grid-template-columns: 48px 1fr; }
