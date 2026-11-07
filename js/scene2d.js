@@ -21,6 +21,8 @@ var SCENE2D = (function () {
   }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function hash(s) { s = String(s); var x = 2166136261; for (var i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; }
+  /* 꾸밈용 시드 난수 (mulberry32, [0,1)): 같은 키 → 같은 수열. 결정적인 화면, 전역 난수 없음 */
+  function seeded(key) { var a = hash(key); return function () { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   function shade(hex, k) { /* k<0 어둡게 */
     var n = parseInt(hex.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
     var f = function (v) { v = Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k); return ('0' + clamp(v, 0, 255).toString(16)).slice(-2); };
@@ -58,6 +60,16 @@ var SCENE2D = (function () {
       s += '<rect x="9" y="33" width="10" height="3" fill="#3a2a18"/>';
       return svgWrap(28, 44, s);
     },
+    /* 등불 0칸의 불씨 (40×44, 등불 상자 (36,12) 를 (8,4) 에 품는다): 심지 위 2×2 불씨 + 유리 안 옅은 호박빛 + 계단 모양 작은 빛무리.
+       Apollo 호박 램프(#be772b · #de9e41 · #e8c170)만, 정수 좌표 → 픽셀 격자 그대로. 빛무리만 .glow (느린 숨, 동작 줄이기면 멈춤). 3D 쪽 불씨와 같은 뜻 */
+    ember: function () {
+      var s = '<g class="glow">';
+      s += '<g fill="#be772b" opacity=".16"><rect x="8" y="14" width="24" height="16"/><rect x="12" y="10" width="16" height="24"/><rect x="10" y="12" width="20" height="20"/></g>';
+      s += '<g fill="#de9e41" opacity=".22"><rect x="14" y="16" width="12" height="12"/><rect x="13" y="18" width="14" height="8"/><rect x="16" y="15" width="8" height="14"/></g>';
+      s += '</g>';
+      s += '<rect x="19" y="21" width="2" height="2" fill="#de9e41"/><rect x="19" y="20" width="1" height="1" fill="#e8c170"/><rect x="19" y="23" width="2" height="1" fill="#be772b"/>';
+      return svgWrap(40, 44, s);
+    },
     light: function (n) {
       if (!(n > 0)) return svgWrap(320, 240, '');
       var a = Math.min(0.5, 0.18 + n * 0.04);
@@ -77,6 +89,7 @@ var SCENE2D = (function () {
     { key: 'window', x: 40, y: 22, w: 72, h: 96 },
     { key: 'item.curtain', x: 36, y: 18, w: 80, h: 20, item: 'curtain', cls: 'curtain' },
     { key: 'lantern', x: 36, y: 12, w: 24, h: 36, cls: 'lantern' },
+    { key: 'ember', x: 28, y: 8, w: 40, h: 44, cls: 'ember' },   /* 등불 0칸일 때만 (아래 renderLayers): 꺼진 등불 그림 위에 작은 불씨 */
     { key: 'light', x: 0, y: 0, w: 320, h: 240, cls: 'light' },
     { key: 'item.board', x: 212, y: 56, w: 72, h: 56, item: 'board' },
     { key: 'item.shelf', x: 140, y: 60, w: 56, h: 14, item: 'shelf' },
@@ -146,7 +159,7 @@ var SCENE2D = (function () {
       if (!layersEl) return;
       var lightOn = st.lantern >= 1;
       LAYERS.forEach(function (L) {
-        var want = L.item ? st.items.indexOf(L.item) >= 0 : (L.key === 'light' ? lightOn : true), cur = layerEls[L.key];
+        var want = L.item ? st.items.indexOf(L.item) >= 0 : (L.key === 'light' ? lightOn : L.key === 'ember' ? !lightOn : true), cur = layerEls[L.key];
         var sig = want ? layerAssetKey(L) : null;
         if (!want) { if (cur) { cur.remove(); delete layerEls[L.key]; } return; }
         if (cur && cur.dataset.sig === sig && !force) return;
@@ -163,15 +176,16 @@ var SCENE2D = (function () {
       var mode = st.weather;
       if (fx.dataset.mode === mode) return;
       fx.dataset.mode = mode; fx.innerHTML = '';
+      var r = seeded('fx|' + mode);   /* 꾸밈 자리도 시드로 (날씨마다 같은 빗줄기 · 별 자리) */
       var n = mode === 'rain' ? 14 : mode === 'drizzle' ? 6 : mode === 'snow' ? 8 : 0;
       for (var i = 0; i < n; i++) {
         var d = h('div', { class: 'rdrop' + (mode === 'drizzle' ? ' light' : mode === 'snow' ? ' snow' : '') });
-        d.style.cssText = 'left:' + Math.floor(Math.random() * 64) + 'px;animation-duration:' + ((mode === 'snow' ? 2.2 : 0.7) + Math.random() * 0.6).toFixed(2) + 's;animation-delay:' + (Math.random() * 2).toFixed(2) + 's';
+        d.style.cssText = 'left:' + Math.floor(r() * 64) + 'px;animation-duration:' + ((mode === 'snow' ? 2.2 : 0.7) + r() * 0.6).toFixed(2) + 's;animation-delay:' + (r() * 2).toFixed(2) + 's';
         fx.appendChild(d);
       }
       if (windowMode() === 'stars') for (var k = 0; k < 7; k++) {
         var s2 = h('div', { class: 'star' });
-        s2.style.cssText = 'left:' + Math.floor(Math.random() * 60 + 2) + 'px;top:' + Math.floor(Math.random() * 30 + 2) + 'px;animation-delay:' + (Math.random() * 3).toFixed(2) + 's';
+        s2.style.cssText = 'left:' + Math.floor(r() * 60 + 2) + 'px;top:' + Math.floor(r() * 30 + 2) + 'px;animation-delay:' + (r() * 3).toFixed(2) + 's';
         fx.appendChild(s2);
       }
     }
@@ -200,7 +214,7 @@ var SCENE2D = (function () {
         b.addEventListener('click', function () { if (on.posterTap) on.posterTap(p.id); });
         wall.appendChild(b);
       });
-      if (all.length > 5) wall.appendChild(h('button', { type: 'button', class: 'wall-more', text: '+' + (all.length - 5), 'aria-label': '앨범으로', onclick: function () { if (on.albumTap) on.albumTap(); } }));
+      if (all.length > 5) wall.appendChild(h('button', { type: 'button', class: 'wall-more', text: '+' + (all.length - 5), 'aria-label': '추억 앨범 열기', onclick: function () { if (on.albumTap) on.albumTap(); } }));
       wall.dataset.n = all.length;
       container.dataset.posters = String(all.length);
     }

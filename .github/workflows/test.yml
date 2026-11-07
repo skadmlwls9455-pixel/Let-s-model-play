@@ -1,0 +1,80 @@
+# 테스트 — push(모든 브랜치)와 PR 마다 돈다. 여러 작업이 동시에 고치니 서로 깨뜨린 걸 바로 알게.
+#   fast  : 빠른 묶음 (필수) — world 불변식 · brain · runner · api
+#   fonts : 글꼴 부분 집합 점검 (필수) — 화면 문구의 글자가 Galmuri 서브셋에 다 있는지
+#   slow  : 느린 묶음 (선택) — Playwright 스모크 A,B,I · 장면 성능. 실패해도 run 은 빨갛게 되지 않는다
+#           (continue-on-error: 로컬에서 스모크 I 의 '새로고침 뒤 지정 계절 유지' 가 3번 중 1번 흔들렸다)
+# package.json 의 scripts 는 쓰지 않고 node 명령을 그대로 부른다. 이 워크플로는 아무것도 커밋하지 않는다.
+name: test
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast:
+    name: 빠른 테스트
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      # 지금 테스트는 @vercel/blob 을 부르지 않지만(메모리 저장소), api/ 가 실제로 쓰는 의존성과 잠금 파일이 맞는지도 본다
+      - run: npm ci --no-audit --no-fund
+      - run: node tools/check-world.js
+      - run: node tools/test-brain.js
+      - run: node tools/test-runner.js
+      - run: node tools/test-api.js
+
+  fonts:
+    name: 글꼴 점검
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - run: pip install fonttools brotli
+      - run: python3 tools/subset-fonts.py --check
+
+  slow:
+    name: 느린 테스트 (선택)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    continue-on-error: true
+    env:
+      SHOTS: ${{ github.workspace }}/ci-shots
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      # 잠금 파일·package.json 은 그대로 두고 Playwright 만 얹는다
+      - run: npm install --no-save --no-audit --no-fund playwright@1.63.0
+      - run: npx playwright install --with-deps chromium
+      # 둘 다 file:// 로 열어서 서버·포트가 필요 없다. tests/evidence/ 를 다시 쓰지만 커밋하지 않고 아래에서 artifact 로만 올린다
+      - run: node tools/smoke.js
+        env:
+          SMOKE_ONLY: A,B,I
+      - run: node tools/test-scene-perf.js
+        if: ${{ !cancelled() }}
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            tests/evidence/
+            ci-shots/
+          if-no-files-found: ignore
+          retention-days: 14

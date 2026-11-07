@@ -84,7 +84,6 @@
 | `lantern_6` | 0.94s | +1 |  | 등불 6칸째가 켜질 때 (BGM -3 dB 덕킹) |
 | `lantern_7` | 0.98s | +1 |  | 등불 7칸째가 켜질 때 (BGM -3 dB 덕킹) |
 | `room_complete` | 4.64s | +4 |  | 등불 8칸이 다 켜져 방이 완성될 때(다음 박에 BGM 일시정지 → 이 징글 → BGM 은 다음 프레이즈 처음부터 재개) (BGM -9 dB 덕킹) |
-| `first_place` | 1.68s | +2 |  | 처음 가 본 장소를 다녀왔을 때(히어로, 고정) (BGM -6 dB 덕킹) |
 | `rare_sparkle` | 1.13s | +2 |  | 희귀 티어(1/6) 포스터·발견. room_complete 와 겹치면 400 ms 뒤로 미룸 (BGM -6 dB 덕킹) |
 | `mood_poljjak` | 1.76s | +1 |  | 반응(wrap_up) 기분이 폴짝(신남)일 때 — 다음 BGM 박에 시작 (BGM -9 dB 덕킹) |
 | `mood_ujjul` | 3.37s | +1 |  | 반응(wrap_up) 기분이 우쭐(뿌듯)일 때 — 다음 BGM 박에 시작 (BGM -9 dB 덕킹) |

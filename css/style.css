@@ -125,6 +125,9 @@ a { color: var(--teal); touch-action: manipulation; }
 .layer.lantern svg .glow { transform-origin: 50% 50%; animation: glow 3.7s ease-in-out infinite; }   /* 글로우 = 미리 그린 레이어의 opacity 만 */
 .layer.light { mix-blend-mode: screen; pointer-events: none; }
 @keyframes glow { 0%, 100% { opacity: .55; } 50% { opacity: .85; } }
+/* 등불 0칸의 불씨 (scene2d PH.ember): 빛무리만 등불과 같은 숨 (3.7s). 동작 줄이기면 아래 규칙이 animation 을 끄고 가운데 값 .7 로 멈춘다 */
+.layer.ember { pointer-events: none; }
+.layer.ember svg .glow { opacity: .7; animation: glow 3.7s ease-in-out infinite; }
 
 /* 창밖 빗줄기: 선형 루프 하나, 패럴랙스 없음 */
 #window-fx { left: 44px; top: 26px; width: 64px; height: 88px; overflow: hidden; pointer-events: none; }
@@ -222,11 +225,16 @@ a { color: var(--teal); touch-action: manipulation; }
 }
 #status .srow { display: flex; align-items: center; gap: 8px; min-height: 28px; width: 100%; flex-wrap: nowrap; }
 #status .who { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; white-space: nowrap; overflow: hidden; }
-/* 이름이 먼저 줄어든다(… --name-min 까지). 방 제목은 줄어들지 않고(flex-shrink 0 — 플렉스 반올림 0.3px 에도 … 가 켜져서), 폭 상한 = 전체 − 이름 최소 폭이라 이름이 최소에 닿은 뒤에만 … */
+/* 이름이 먼저 줄어든다(… --name-min 까지). 방 제목은 줄어들지 않고(flex-shrink 0 — 플렉스 반올림 0.3px 에도 … 가 켜져서), 폭 상한 = 전체 − 이름 최소 폭(− 데모 표시)이라 이름이 최소에 닿은 뒤에만 …
+   이름 자체엔 최소 폭을 두지 않는다(바닥은 방 제목 상한이 지킨다) → 짧은 이름(한두 글자) 뒤에 빈칸 없이 데모 표시가 바로 붙는다 */
 #status .who { --name-min: 39px; }
-#status .name { flex: 0 1 auto; min-width: var(--name-min); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 15px; color: var(--amber); }
+#status .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 15px; color: var(--amber); }
 .room-title { flex: 0 0 auto; max-width: calc(100% - var(--name-min)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
 .room-title::before { content: '·'; margin: 0 6px; color: var(--dim); }
+/* 이름 옆 '데모' 표시 (정직 표기 · 주인: 작게). 줄어들지 않고(flex 0 0) 이름이 먼저 … 로 줄어든다. 숨겨도(모델 여행 재생 중) 오른쪽 등불 칸은 그대로 — .who 가 남는 폭을 다 차지한다 */
+#status .who { --tag-w: 30px; }
+.brain-tag { flex: 0 0 auto; align-self: center; margin-left: 4px; padding: 0 3px; border: 1px solid var(--rim); border-radius: 6px; font-size: 10px; line-height: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+#status .who .room-title { max-width: calc(100% - var(--name-min) - var(--tag-w)); }
 .pips { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pip-row { display: inline-flex; gap: 3px; }
 .pip { font-size: 11px; line-height: 1; color: var(--dim); opacity: .6; transition: color var(--t-scene) var(--ease-enter), opacity var(--t-scene) var(--ease-enter), transform var(--t-scene) var(--ease-enter); }
@@ -257,6 +265,8 @@ a { color: var(--teal); touch-action: manipulation; }
 #hint-in::placeholder, .modal-in::placeholder, #d-peek-in::placeholder, #d-json::placeholder { color: var(--muted); opacity: .85; }
 .help { font-size: 12px; color: var(--muted); margin: 4px 0 0; min-height: 1.6em; }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+/* 힌트 칸(#hint-box)은 개발 모드에서만 (결정 18). 숨겨져 있으면 초대 바는 버튼 줄만 — 위 여백은 바의 padding 하나 */
+#hint-box[hidden] + .btn-row { margin-top: 0; }
 .btn-row.center { justify-content: center; }
 .btn {
   position: relative; min-height: 44px; padding: 8px 16px; border-radius: 22px;
@@ -279,7 +289,7 @@ a { color: var(--teal); touch-action: manipulation; }
 .btn-row #btn-skip { color: var(--muted); }
 
 /* ── LOG ── */
-#log-sec, #album-sec { padding: 8px 16px 0; }
+#log-sec { padding: 8px 16px 0; }
 .sec-h { font-size: 12px; color: var(--muted); letter-spacing: .06em; font-weight: 500; margin: 8px 0 6px; border-top: 1px solid var(--rim); padding-top: 8px; }
 .sec-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 #log { max-height: 300px; min-height: 80px; overflow-y: auto; scrollbar-width: thin; border-radius: 8px; }
@@ -383,7 +393,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .inspect-text .say { font-style: normal; }
 .inspect-text .say .emo { margin-right: 4px; }
 .inspect-text .voice { border-left: 2px solid var(--ip-line); padding-left: 10px; }
-/* 영수증 펼침: .flip 이면 두 칸 아래로 내려온다 (뒤집기 아님) */
+/* 일기(뒷면, 코드 이름 receipt) 펼침: .flip 이면 두 칸 아래로 내려온다 (뒤집기 아님) */
 .flipper .face.back { display: none; margin-top: 14px; border-radius: 3px; overflow: hidden; color: var(--ink); background: var(--paper0); box-shadow: 0 0 0 1px rgba(10,8,20,.5); }
 .flipper.flip .face.back { display: block; animation: fade-only var(--t-flip) var(--ease-enter) both; }
 .poster-modal .btn-row { margin-top: 14px; }
@@ -397,7 +407,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 
 /* 영수증 (뒷면 HTML, §6.2) — 종이 위 글자는 테마 무관 ink 토큰 */
 .receipt { padding: 16px 14px; font-size: 12px; line-height: 1.5; font-family: 'Noto Sans KR', sans-serif; color: var(--ink); background: var(--paper0); }
-.receipt h3 { font-family: ui-monospace, monospace; font-size: 12px; margin: 0 0 6px; font-weight: 500; letter-spacing: .04em; }
+.receipt h3 { font-family: 'Noto Serif KR', serif; font-size: 13px; margin: 0 0 6px; font-weight: 600; letter-spacing: 0; }   /* '일기 · 2026.11.05' (예전엔 여행 id 라 고정폭) */
 .receipt .hr { border-top: 1px dashed rgba(42,38,32,.4); margin: 6px 0; }
 .receipt .row { display: grid; grid-template-columns: 14px 1fr; gap: 6px; padding: 3px 0; }
 .receipt .row .n { color: var(--ink-muted); }
@@ -513,14 +523,14 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
    --ease-px   8px 이동 → 8·4·2·0 (linear() 가 없으면 steps(4) → 8·6·4·2·0): 대화상자·시트·로그 행·토스트
    --ease-px-2 4px 이동 → 4·2·0 (두 칸): 말풍선·벽 포스터 착지
    커스텀 속성은 파싱 때 검사되지 않아서 대체값을 두 번 선언하면 뒤의 것이 그냥 이긴다 → @supports 로 나눈다.
-   투명도는 원래 곡선 그대로 매끈하게, 이동만 계단 → 애니메이션을 둘로 쓴다 (첫째 = 페이드, 둘째 = 이동 · fill backwards 라 끝나면 transform 을 붙잡지 않는다).
-   축소 모션 규칙은 animation-name 을 fade-only 하나로 바꾸므로 첫째(페이드)의 길이·곡선만 남는다 = 예전과 같은 페이드 */
+   로그 행·말풍선은 애니메이션 이름(row-in · bubble-in)은 그대로 두고 곡선만 바꾼다 (투명도도 계단) → 픽셀 글꼴을 켜고 꺼도 이미 올라온 행·말풍선이 다시 돌지 않는다.
+   대화상자·시트·벽 포스터 착지는 원래 이동이 달라서(확대) 둘로 쓴다: 첫째 = 페이드(원래 곡선), 둘째 = 계단 이동 (fill backwards 라 끝나면 transform 을 붙잡지 않는다).
+   축소 모션 규칙은 animation-name 을 fade-only 하나로 바꾸므로 첫째의 길이·곡선만 남고, 아래 축소 블록이 두 토큰을 원래 곡선으로 돌린다 = 예전과 같은 매끈한 페이드 */
 :root[data-font="pixel"] { --ease-px: steps(4, jump-end); --ease-px-2: steps(2, jump-end); }
 @supports (animation-timing-function: linear(0, 1)) {
   :root[data-font="pixel"] { --ease-px: linear(0, 0 10%, .5 10% 35%, .75 35% 65%, 1 65%, 1); --ease-px-2: linear(0, 0 15%, .5 15% 50%, 1 50%, 1); }
 }
 @keyframes px-rise-8 { from { transform: translateY(8px); } to { transform: none; } }
-@keyframes px-bubble-in { from { transform: translate(-50%, 4px); } to { transform: translate(-50%, 0); } }
 @keyframes px-land { from { translate: 0 -4px; } to { translate: 0 0; } }   /* transform 이 아니라 translate 속성: 벽 포스터의 인라인 기울기(scene2d.js)를 덮지 않는다 */
 @keyframes px-land-fade { from { opacity: .6; } to { opacity: 1; } }
 
@@ -555,7 +565,8 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   color: var(--fg); font-family: var(--f-body); font-size: 20px; line-height: 30px; padding: 6px 12px;
   box-shadow: var(--bevel), 2px 2px 0 var(--line); clip-path: var(--notch-sh);
 }
-/* 들어올 땐 8px 아래에서 계단(8·4·2·0), 나갈 땐 제자리에서 흐려진 뒤 끝에 한 번에 내려간다(step-end) → 나가는 중에 다시 떠도 격자 밖 값이 없다 */
+/* 들어올 땐 8px 아래에서 계단(8·4·2·0), 나갈 땐 제자리에서 흐려진 뒤 끝에 한 번에 내려간다(step-end) → 다 뜬 뒤 나가는 중에 다시 떠도 격자 밖 값이 없다.
+   남는 틈: 들어오는 250ms 안에 숨었다가 150ms 안에 다시 뜨면 멈춘 자리(4·2px)에서 출발해 1px 이 한 번 나온다. 앱의 토스트(2.5초 · 소리 안내 2.8초)로는 생기지 않는다 */
 :root[data-font="pixel"] #toast { transform: translate(-50%, 8px); transition: opacity var(--t-press) var(--ease-exit), transform var(--t-press) step-end; }
 :root[data-font="pixel"] #toast.show { transform: translate(-50%, 0); transition: opacity var(--t-ui) var(--ease-enter), transform var(--t-ui) var(--ease-px); }
 
@@ -564,7 +575,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] #scene::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 9; box-shadow: inset 2px 2px 0 var(--lo-px), inset -2px -2px 0 var(--hi-px); }
 :root[data-font="pixel"] #scene3d #oct-label { font-family: var(--f-meta); font-size: 16px; line-height: 16px; color: var(--paper0); }
 :root[data-font="pixel"] #scene3d #oct-bubble { font-family: var(--f-meta); font-size: 16px; line-height: 24px; border-radius: 0; border: 2px solid var(--line); background: var(--paper0); color: var(--ink); box-shadow: 2px 2px 0 var(--line); padding: 2px 8px; }
-:root[data-font="pixel"] #oct-bubble { animation: fade-only var(--t-ui) var(--ease-enter) both, px-bubble-in var(--t-ui) var(--ease-px-2) backwards; }   /* 4px → 4·2·0 (2D · 3D 공통) */
+:root[data-font="pixel"] #oct-bubble { animation-timing-function: var(--ease-px-2); }   /* bubble-in 4px → 4·2·0 (2D · 3D 공통) */
 /* 벽 포스터 미니: 누르면 2px 내려앉고(확대·축소 없음 — 2px 베벨이 다시 샘플링돼 흐려진다), 새로 붙으면 4px 위에서 두 칸 계단으로 착지.
    scene2d.js 가 미니마다 인라인 transform: rotate() 기울기를 줘서 시트의 transform 은 이기지 못한다 → 누름·착지는 translate 속성으로 (기울기와 겹쳐진다) */
 :root[data-font="pixel"] .wall-mini { transition: none; }
@@ -577,10 +588,13 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   border: 2px solid var(--line); border-top: 0; color: var(--fg); font-family: var(--f-meta); font-size: 16px; line-height: 30px; padding: 6px 16px; min-height: 0;
 }
 :root[data-font="pixel"] #status .srow { gap: 8px; min-height: 27px; }
-:root[data-font="pixel"] #status .who { --name-min: 52px; }   /* Galmuri9 20px 두 글자 + … */
+:root[data-font="pixel"] #status .who { --name-min: 40px; }   /* Galmuri9 20px 한 글자 + … (각 20px — 예전 52px 도 보이는 건 같은 "한 글자…" 였다) */
 :root[data-font="pixel"] #status .name { font-family: var(--f-body); font-weight: 400; font-size: 20px; line-height: 30px; color: var(--fg); }
 :root[data-font="pixel"] .room-title { font-family: var(--f-meta); font-size: 16px; line-height: 30px; color: var(--muted); }
 :root[data-font="pixel"] .room-title::before { content: '·'; margin: 0 6px; color: var(--line); }
+/* 픽셀 테마의 '데모': Galmuri7 1배(8px, 제 격자 그대로라 또렷) + 1px 선 네모. 높이 12px 라 30px 글줄 안에 들어간다 */
+:root[data-font="pixel"] #status .who { --tag-w: 23px; }
+:root[data-font="pixel"] .brain-tag { margin-left: 3px; padding: 1px 2px; border: 0; border-radius: 0; box-shadow: inset 0 0 0 1px var(--line); font-family: var(--f-meta); font-weight: 400; font-size: 8px; line-height: 10px; color: var(--muted); }
 /* 등불 칸: `등불` + 10×10 네모 8개(2px 틈) + `n/8`. 켜지면 호박색 + 좌상 밝은 점 */
 :root[data-font="pixel"] .pips { gap: 4px; color: var(--fg); font-family: var(--f-meta); font-size: 16px; line-height: 30px; }
 :root[data-font="pixel"] .pip-row { gap: 2px; }
@@ -590,6 +604,15 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   transition: background-color var(--t-scene) var(--ease-enter), transform var(--t-scene) var(--ease-enter);
 }
 :root[data-font="pixel"] .pip.on { background: var(--amber-fill); box-shadow: inset 0 0 0 1px var(--line), inset 2px 2px 0 var(--amber-hi); text-shadow: none; }
+/* 좁은 폰(< 380px): 이름 옆 '데모' 표시가 차지하는 폭만큼 오른쪽 여백을 조금 덜어 흔한 이름이 데모 표시 전처럼 다 보이게 (320px: 픽셀 세 글자 · 시스템 네 글자, 340px: 픽셀 네 글자).
+   시스템은 등불 칸 틈 4→2, 픽셀은 줄 틈 8→6 · '등불' 글자 뒤 −2px(글자 자체 여백이 있어 보이는 틈은 남는다). 등불 네모 크기·네모 사이 틈은 그대로.
+   (소리 버튼은 장면 오른쪽 위 묶음으로 옮겼다 → 320 px 픽셀 테마에서도 네 글자 이름이 다 보인다. tools/smoke.js L) */
+@media (max-width: 379px) {
+  #status .pips { gap: 2px; }
+  :root[data-font="pixel"] #status .srow { gap: 6px; }
+  :root[data-font="pixel"] #status .pips { gap: 4px; }
+  :root[data-font="pixel"] #status .pips-lbl { margin-right: -2px; }
+}
 :root[data-font="pixel"] .fchip {
   border-radius: 0; border: 2px solid var(--line); background: var(--panel2); color: var(--muted);
   font-family: var(--f-meta); font-size: 16px; line-height: 16px; padding: 4px 10px; min-height: 32px;
@@ -642,7 +665,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .lrow.c-amber, :root[data-font="pixel"] .lrow.c-teal, :root[data-font="pixel"] .lrow.c-mute { border-left-color: var(--tab); border-left-style: solid; }
 :root[data-font="pixel"] .lrow.voice { border-left-color: var(--amber-fill); }
 :root[data-font="pixel"] .lrow.c-mute { border-left-color: var(--dim); }
-:root[data-font="pixel"] .lrow.in { animation: fade-only var(--t-ui) var(--ease-enter) both, px-rise-8 var(--t-ui) var(--ease-px) backwards; animation-delay: calc(var(--i, 0) * var(--t-stagger)); }   /* 8px → 8·4·2·0 */
+:root[data-font="pixel"] .lrow.in { animation-timing-function: var(--ease-px); }   /* row-in 8px → 8·4·2·0 */
 :root[data-font="pixel"] .ltool { font-family: var(--f-meta); font-size: 16px; line-height: 24px; letter-spacing: 0; padding-top: 3px; color: var(--amber); }
 :root[data-font="pixel"] .ltext .st, :root[data-font="pixel"] .ltext .sub { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .lrow.typing .ltext { letter-spacing: 2px; }
@@ -675,7 +698,10 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px), 4px 4px 0 var(--line);
 }
 :root[data-font="pixel"] dialog::backdrop { background-color: rgba(9,10,20,.45); background-image: var(--scrim); background-size: 4px 4px; backdrop-filter: none; }
-:root[data-font="pixel"] dialog[open] { animation: fade-only var(--t-ui) var(--ease-enter) both, px-rise-8 var(--t-ui) var(--ease-px) backwards; }   /* 시트(dialog.sheet)도. 확대 없이 8px 계단 상승 (8·4·2·0) */
+:root[data-font="pixel"] dialog[open] { animation-name: fade-only; }
+/* 시트(dialog.sheet)·이름·포스터 대화상자: 확대 없이 8px 계단 상승 (8·4·2·0). 달리기 창(.rn-dlg, 화면 가득)은 위 페이드 그대로 —
+   :where 라 우선순위가 위 줄·축소 모션 규칙과 같은 (0,3,1) 로 남는다 → 축소 모션 규칙(뒤)이 이기고, runner.css 의 .rn-dlg[open] { animation: none } 도 예전처럼 길이 0 으로 남는다 */
+:root[data-font="pixel"] dialog[open]:where(:not(.rn-dlg)) { animation: fade-only var(--t-ui) var(--ease-enter) both, px-rise-8 var(--t-ui) var(--ease-px) backwards; }
 :root[data-font="pixel"] .modal { border-radius: 0; padding: 24px 20px 18px; }
 :root[data-font="pixel"] .modal h2 { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
 :root[data-font="pixel"] .modal:not(.poster-modal) p { font-family: var(--f-ui); font-size: 24px; line-height: 36px; }
@@ -744,6 +770,33 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   :root[data-font="pixel"] .sheet { border-radius: 0; border-bottom: 2px solid var(--line); box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px), 4px 4px 0 var(--line); }
 }
 
+/* ── 추억 앨범 시트 (#album-sheet, DESIGN §6.3): 방 보기와 같은 바텀시트(≥600px 가운데). 머리 줄 = 제목 + 필터 칩, 카드 줄은 예전 #album 그대로(가로 스크롤),
+   아래 '남긴 메모' = 호기심 메모 전부 (내려놓은 메모는 표시를 달고 그대로, docs/CURIOSITY_NOTES.md 원칙 4) ── */
+.album-sheet .al-top { align-items: center; flex-wrap: wrap; row-gap: 4px; }
+.album-sheet .al-h { font-size: 15px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0; color: var(--fg); }
+.album-sheet .al-h:focus { outline: none; }
+.album-sheet #album { margin: 4px -4px 0; }
+.album-sheet #al-close { margin-top: 12px; }
+.icon-btn .snd-box { transition: transform var(--t-press) var(--ease-out); }
+.icon-btn:active .snd-box { transform: scale(.97); }
+/* 호기심 메모 줄 (방 보기 '우리 방의 지난 메모' · 앨범 '남긴 메모' 공용): 따옴표 안이 남긴 말 그대로(60자 넘으면 … — 누르면 전체), 아래 작은 줄 = 누가 · 언제 · 어느 산책 */
+.cnote-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sheet .cnote-list { padding-left: 0; }
+.cnote { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--panel2); word-break: keep-all; overflow-wrap: anywhere; }
+.cnote .cn-text { font-size: 13px; line-height: 1.65; color: var(--fg); text-align: left; }
+.cnote button.cn-text { padding: 0; margin: 0; border: 0; background: none; font: inherit; font-size: 13px; color: inherit; cursor: pointer; min-height: 0; }
+.cnote button.cn-text:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.cnote .cn-meta { font-size: 12px; color: var(--muted); }
+.cnote .cn-tag { align-self: flex-start; font-size: 12px; color: var(--muted); border: 1px solid var(--rim); border-radius: 6px; padding: 0 6px; }
+.cnote.down .cn-text { color: var(--muted); }
+#album-notes h3 { margin-top: 12px; }
+:root[data-font="pixel"] .album-sheet .al-h { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
+:root[data-font="pixel"] .cnote { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .cnote .cn-text, :root[data-font="pixel"] .cnote button.cn-text { font-family: var(--f-body); font-size: 20px; line-height: 30px; }
+:root[data-font="pixel"] .cnote .cn-meta, :root[data-font="pixel"] .cnote .cn-tag { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
+:root[data-font="pixel"] .cnote .cn-tag { border-radius: 0; border: 0; box-shadow: inset 0 0 0 2px var(--line); padding: 0 6px; }
+:root[data-font="pixel"] .cnote button.cn-text:focus-visible { outline-color: var(--fg); }
+
 /* ── 축소 모션 (설정 또는 OS): 줄이되 없애지 않는다 — 이동·회전 대신 크로스페이드, 등불은 그대로 밝아진다 ──
    OS 설정은 모션 설정이 "기기 설정 따르기"(data-motion="auto", 또는 아직 안 붙었을 때)일 때만 따른다. 사람이 고른 값(reduce 등)은 아래 [data-motion] 규칙이 정한다 */
 @media (prefers-reduced-motion: reduce) {
@@ -759,7 +812,9 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   :root:is([data-motion="auto"], :not([data-motion])) .pcard.in { transform: none; }
   :root:is([data-motion="auto"], :not([data-motion])) #toast { transform: translate(-50%, 0); }
   :root:is([data-motion="auto"], :not([data-motion])) .pressable:active { transform: none; }
+  :root[data-font="pixel"]:is([data-motion="auto"], :not([data-motion])) { --ease-px: var(--ease-enter); --ease-px-2: var(--ease-enter); }   /* 픽셀: 움직이는 게 없으니 계단 대신 원래 페이드 곡선 (로그 행·말풍선) */
   :root[data-font="pixel"]:is([data-motion="auto"], :not([data-motion])) #oct-bubble { animation-name: fade-only; }   /* 픽셀 말풍선: 4px 계단 상승 대신 페이드만 */
+  :root[data-font="pixel"]:is([data-motion="auto"], :not([data-motion])) .wall-mini:active { translate: none; }   /* 누름에 자리 이동 없음 (.pressable 처럼) — 그림자만 빠진다 */
 }
 :root[data-motion="reduce"] { --t-press: 0ms; --t-ui: 120ms; --t-scene: 150ms; --t-ceremony: 200ms; --t-morph: 120ms; --t-windup: 50ms; --t-hold: 0ms; --t-bloom: 150ms; --t-flip-again: 120ms; --t-stagger: 0ms; }
 :root[data-motion="reduce"] #oct-inner, :root[data-motion="reduce"] .legs .leg, :root[data-motion="reduce"] .eyelid, :root[data-motion="reduce"] .rdrop,
@@ -772,7 +827,9 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-motion="reduce"] .pcard.in { transform: none; }
 :root[data-motion="reduce"] #toast { transform: translate(-50%, 0); }
 :root[data-motion="reduce"] .pressable:active { transform: none; }
+:root[data-font="pixel"][data-motion="reduce"] { --ease-px: var(--ease-enter); --ease-px-2: var(--ease-enter); }
 :root[data-font="pixel"][data-motion="reduce"] #oct-bubble { animation-name: fade-only; }
+:root[data-font="pixel"][data-motion="reduce"] .wall-mini:active { translate: none; }
 @keyframes fade-only { from { opacity: 0; } to { opacity: 1; } }
 
 /* ── 고대비 (OS "대비 높이기" · prefers-contrast: more): 글자 뒤 질감(체커 디더 · 종이 알갱이)을 끄고 틀 선을 진하게. 배치·크기는 그대로 ──
@@ -829,28 +886,39 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"][data-theme="dark"] #name-dialog .honest { color: var(--muted); }
 @media (prefers-color-scheme: dark) { :root[data-font="pixel"]:not([data-theme="light"]) #name-dialog .honest { color: var(--muted); } }
 
-/* ── 소리 (js/audio.js): 상태 줄 오른쪽 스피커 토글 · 방 보기 › 소리 크기 ──
-   토글은 누르는 곳 44×44 · 보이는 상자 28×28. 위아래 -9px 로 상태 줄 높이는 그대로. 켜면 호박색 상자 + 물결, 끄면 종이색 상자 + ×.
+/* ── 장면 오른쪽 위 아이콘 묶음 (#scene-ctl, DESIGN §7.2): 추억 앨범 · 소리 토글 (js/audio.js) · 방 보기 › 소리 크기 ──
+   상태 줄에 아이콘 두 개를 두면 320 px 에서 두 글자 이름부터 잘려서 장면 틀 안 오른쪽 위로 옮겼다 (픽셀 베벨 ::after 9 보다 위 · 문어 6 보다 위).
+   버튼은 누르는 곳 44×44 · 보이는 상자 28×28 (틀에서 8px 안쪽). 켜면 호박색 상자 + 물결, 끄면 종이색 상자 + ×.
    크기 슬라이더는 등불 칸과 같은 말: 켜진 쪽 호박 · 꺼진 쪽 --pip-off, 손잡이는 베벨 블록 */
-.sound-btn {
-  flex: 0 0 auto; position: relative; width: 44px; height: 44px; margin: -9px -8px -9px -4px; padding: 0;
+.scene-ctl { position: absolute; top: 0; right: 0; z-index: 10; display: flex; }
+.icon-btn {
+  flex: 0 0 auto; position: relative; width: 44px; height: 44px; margin: 0; padding: 0;
   border: 0; background: none; color: var(--muted); display: inline-flex; align-items: center; justify-content: center;
   cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
-.sound-btn .snd-box { display: grid; place-items: center; box-sizing: border-box; width: 28px; height: 28px; border: 1px solid var(--rim); border-radius: 8px; background: var(--panel2); color: var(--muted); }
-.sound-btn svg { display: block; width: 24px; height: 24px; }
+.icon-btn[hidden], .icon-btn .ib-dot[hidden] { display: none; }
+.icon-btn .snd-box { display: grid; place-items: center; box-sizing: border-box; width: 28px; height: 28px; border: 1px solid var(--rim); border-radius: 8px; background: var(--panel2); color: var(--muted); }
+.icon-btn svg { display: block; width: 24px; height: 24px; }
 .sound-btn .w-on { display: none; }
 .sound-btn[aria-pressed="true"] .snd-box { color: var(--amber); }
 .sound-btn[aria-pressed="true"] .w-on { display: inline; }
 .sound-btn[aria-pressed="true"] .w-off { display: none; }
 .sound-btn.na[aria-pressed="true"] .snd-box { opacity: .6; }   /* 켜 뒀지만 여기선 못 냄 (file:// 등) */
-.sound-btn:focus-visible { outline: none; }
-.sound-btn:focus-visible .snd-box { outline: 2px solid var(--amber); outline-offset: 2px; }
+.icon-btn:focus-visible { outline: none; }
+.icon-btn:focus-visible .snd-box { outline: 2px solid var(--amber); outline-offset: 2px; }
+/* 앨범 점: 지난번에 앨범을 연 뒤 새 포스터가 붙었을 때만. 숫자 없음 · 깜빡임 없음 · 열면 사라진다 (재촉이 아니라 작은 표시) */
+.album-btn .ib-dot { position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px var(--panel); pointer-events: none; }
+/* 새 포스터가 앨범 아이콘으로 날아간다 (≤0.6 s, 계단 — 위치는 app.js 가 정수 px(픽셀 테마는 2px)로 준다). 모션 줄이기면 날지 않고 점만 */
+.album-fly { position: absolute; left: 0; top: 0; z-index: 11; width: 16px; height: 21px; pointer-events: none; box-shadow: var(--shadow-xs); }
+.album-fly svg { display: block; width: 16px; height: 21px; }
+/* 입장 연출 동안엔 숨겨 둔다 (css/intro.css 가 상태 줄을 숨기는 것과 같이) — 들어갈 때 같이 나타난다 */
+html.intro-on #scene-ctl { opacity: 0; visibility: hidden; }
+html.intro-reveal #scene-ctl { transition: opacity var(--t-ui) var(--ease-enter); transition-delay: calc(120ms * var(--speed)); }
 .sheet .snd-row { gap: 12px; }
 .sheet .snd-row > span { flex: 0 0 auto; min-width: 3.4em; }
 .sheet input.snd-range { flex: 1 1 auto; min-width: 0; }
 .snd-val { flex: 0 0 auto; min-width: 2.4em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
-:root[data-font="pixel"] .sound-btn .snd-box {
+:root[data-font="pixel"] .icon-btn .snd-box {
   width: 28px; height: 28px; border: 2px solid var(--line); border-radius: 0; background-color: var(--panel2); color: var(--muted);
   box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line);
 }
@@ -858,9 +926,11 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   background-color: var(--amber-fill); color: var(--on-accent);
   box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo), 2px 2px 0 var(--line);
 }
-:root[data-font="pixel"] .sound-btn:active .snd-box { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
+:root[data-font="pixel"] .icon-btn:active .snd-box { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
 :root[data-font="pixel"] .sound-btn[aria-pressed="true"]:active .snd-box { box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo); }
-:root[data-font="pixel"] .sound-btn:focus-visible .snd-box { outline: 2px solid var(--fg); outline-offset: 2px; }
+:root[data-font="pixel"] .icon-btn:focus-visible .snd-box { outline: 2px solid var(--fg); outline-offset: 2px; }
+:root[data-font="pixel"] .album-btn .ib-dot { top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 0; background: var(--amber-fill); box-shadow: 0 0 0 2px var(--line); }
+:root[data-font="pixel"] .album-fly { box-shadow: 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .snd-val { font-family: var(--f-meta); font-size: 16px; line-height: 24px; color: var(--fg); }
 :root[data-font="pixel"] .sheet input.snd-range { -webkit-appearance: none; appearance: none; height: 44px; margin: 0; background: transparent; accent-color: var(--amber-fill); cursor: pointer; }
 :root[data-font="pixel"] .sheet input.snd-range:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
@@ -888,6 +958,6 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] :where(#album) .pcard.down:not(.in) { transform: translate(2px, 2px); }
 /* 2) 방 보기 시트: 손잡이와 시트 머리 띠(맨 위 30px · 폭 전체 = 손잡이의 ::before, 위치 기준은 시트 자신)만 끌 수 있다.
       touch-action: none 은 그 띠에만 → 굴러가는 본문의 스크롤은 그대로. 끄는 동안의 transform 과 놓은 뒤 500ms 되돌아가기는 app.js 가 인라인으로 준다 (모션 감소면 바로) */
-#room-sheet > .handle { touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
-#room-sheet > .handle::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px; }
-#room-sheet.dragging, #room-sheet.dragging > .handle { cursor: grabbing; }
+:is(#room-sheet, #album-sheet) > .handle { touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
+:is(#room-sheet, #album-sheet) > .handle::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px; }
+:is(#room-sheet, #album-sheet).dragging, :is(#room-sheet, #album-sheet).dragging > .handle { cursor: grabbing; }

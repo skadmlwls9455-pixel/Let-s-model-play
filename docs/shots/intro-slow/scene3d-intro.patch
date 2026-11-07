@@ -1,0 +1,209 @@
+diff --git a/js/scene3d.js b/js/scene3d.js
+index 4ff62f2..f6ad8bd 100644
+--- a/js/scene3d.js
++++ b/js/scene3d.js
+@@ -346,11 +346,15 @@ var SCENE3D = (function () {
+     var _focusUp = new T.Vector3(0, 0.45, 0), _ti = new T.Vector3();
+     /* ── 입장 연출 (docs/UI_ART.md "입장"): 하늘에서 내려오는 카메라. 직교라 타깃을 위로 올리면 = 하늘을 보는 것 → 구름층을 지나 비를 뚫고 다락에 착지.
+        움직이는 건 타깃 y 오프셋 하나뿐이고, 픽셀 격자 스냅은 placeCamera 의 snapScreen 이 그대로 해 준다 (서브픽셀 크리프 없음, 스텝은 정수 px).
+-       곡선: 0~86 % easeOutCubic 으로 H → 0, 72~100 % 에 착지 눌림(D = 아트 3px 만큼 더 내려갔다가 사인으로 복귀). 모션 감소면 연출 없이 바로 착지. */
+-    var INTRO = { on: false, t: 0, dur: 2.2, H: 0, D: 0, resolve: null, sky: null, acc: 0, hold: false };
++       곡선 (카드 11, 11-07): 맨 위에서 top 초 멈춤 → 사다리꼴 속도(처음 28 % 가속 · 가운데 일정 · 끝 38 % 감속)로 움직임의 90 % 에 H → 0,
++       86~100 % 에 착지 눌림(D = 아트 2px 만큼 더 내려갔다가 사인으로 복귀). 처음 천천히 · 중간 일정 · 부드러운 착지. 모션 감소면 연출 없이 바로 착지. */
++    var INTRO = { on: false, t: 0, dur: 2.2, top: 0, H: 0, D: 0, resolve: null, sky: null, acc: 0, hold: false, band: 0, bands: null, bg0: null, pass: 0, covered: false };
++    var EASE = { a: 0.28, d: 0.38, land: 0.9, bump: 0.86 };
++    function introK() { return clamp((INTRO.t - INTRO.top) / Math.max(INTRO.dur - INTRO.top, 0.1), 0, 1); }   /* 움직임 진행도 (멈춤 뒤부터) */
+     function introOffset() {
+-      var k = clamp(INTRO.t / INTRO.dur, 0, 1), u = clamp(k / 0.86, 0, 1);
+-      return INTRO.H * Math.pow(1 - u, 3) - (k > 0.72 ? INTRO.D * Math.sin(Math.PI * clamp((k - 0.72) / 0.28, 0, 1)) : 0);
++      var k = introK(), u = clamp(k / EASE.land, 0, 1), a = EASE.a, d = EASE.d, v = 1 / (1 - (a + d) / 2), p;
++      if (u < a) p = v * u * u / (2 * a); else if (u <= 1 - d) p = v * (a / 2 + u - a); else { var w1 = 1 - u; p = 1 - v * w1 * w1 / (2 * d); }
++      return INTRO.H * (1 - p) - (k > EASE.bump ? INTRO.D * Math.sin(Math.PI * clamp((k - EASE.bump) / (1 - EASE.bump), 0, 1)) : 0);
+     }
+     var S = { W: 0, H: 0, p: DEF_P, rw: 4, rh: 4, cw: 4, ch: 4, N: SNAP_N, pw: PX, offX: 0, offY: 0 };   /* pw = pixelWorldSize: 아트 픽셀 한 변(월드 m), resize 에서 프러스텀 폭 / 타깃 폭 */
+     function yawDelta() { var y = clamp(yawDrag + st.look.yaw * DEG, -25 * DEG, 25 * DEG); return Math.round(y / (9 * DEG)) * 9 * DEG; }   /* 9° 스냅 */
+@@ -2284,7 +2288,8 @@ var SCENE3D = (function () {
+     var perf = { ring: new Float32Array(60), n: 0, i: 0, sum: 0, cnt: 0, auto: 0 };   /* 디버그 통계 (룩 패스 7): 마지막 60 렌더 프레임의 ms/frame (stats().ms). sum/cnt = 첫 2 s 누적 (자동 픽셀 폴백, 룩 패스 8) */
+     /* ── 입장 하늘: 구름 퍼프(알파 테스트 쿼드, 텍스처 1텍셀 = 아트 1px) · 하늘 비(1px 세로줄, 12 fps 스텝) / 눈 / 별. 연출 동안만 존재하고 착지하면 버린다 ──
+        구름 색은 시각대로: 밤 = 남회색, 노을·새벽 = 웜 베이지, 낮 = 밝은 회색 (Apollo 칸). 노멀 패스에선 숨긴다 (쿼드 테두리가 노멀 하이라이트로 새지 않게) */
+-    var CLOUD = { w: 112, h: 56, n: 4 };   /* 퍼프 한 칸 112×44 텍셀 = 아트 112×44 px (1:1 — 장면과 같은 픽셀 밀도), 아틀라스 4칸 */
++    /* 카드 11: 가까운 층은 1.75 배 큰 덩어리(176×… 칸), 먼 층은 1.2 배. 텍스처를 늘리지 않고 덩어리를 크게 그린다 (1텍셀 = 아트 1px 그대로) */
++    var CLOUD = { w: 196, h: 98, n: 4, s: 1.75, far: { w: 136, h: 68, n: 4, s: 1.2 }, pass: 0.58, near: [[1.08, -1], [0.96, 1], [0.9, -1]] };   /* near = 가까운 층 [화면 가운데를 지나는 높이(H 의 비), 쪽] */   /* pass = 뚫고 지나가는 구름이 화면 가운데 올 때의 높이 (H 의 비) */
+     function cloudTex(night, warm, far) {
+       var W = CLOUD.w * CLOUD.n, H = CLOUD.h, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+       var x = cv.getContext('2d');
+@@ -2306,38 +2311,63 @@ var SCENE3D = (function () {
+     function canvasTex(cv) { var t = new T.CanvasTexture(cv); t.magFilter = T.NearestFilter; t.minFilter = T.NearestFilter; t.generateMipmaps = false; t.encoding = T.sRGBEncoding; return t; }
+     function buildSky() {
+       var ph = phaseOf(st.hour), night = ph === 'night', warm = ph === 'dusk' || ph === 'dawn', w = st.weather, g = new T.Group(), sky = { g: g, list: [], clouds: [] };
++      var hasC = typeof CLOUDS !== 'undefined';
+       var mats = [false, true].map(function (far) {   /* 구름 그림: js/clouds.js (몽글한 적운, 날씨 × 시각대 램프). 없으면 예전 간단한 퍼프 */
+-        var tex = typeof CLOUDS !== 'undefined' ? canvasTex(CLOUDS.atlas({ weather: w, phase: ph, far: far, w: CLOUD.w, h: CLOUD.h, n: CLOUD.n })) : cloudTex(night, warm, far);
++        var cs = far ? CLOUD.far : CLOUD;
++        var tex = hasC ? canvasTex(CLOUDS.atlas({ weather: w, phase: ph, far: far, w: cs.w, h: cs.h, n: cs.n, scale: cs.s })) : cloudTex(night, warm, far);
+         var m = new T.MeshBasicMaterial({ map: tex, alphaTest: 0.5, depthWrite: false }); sky.list.push(tex, m); return m;   /* 깊이에 안 쓴다 → 후처리 깊이 외곽선이 구름끼리 겹친 곳에 금을 긋지 않는다 (다락 뒤면 깊이 테스트로 가려진다) */
+       });
+       var fwd = new T.Vector3(); camera.getWorldDirection(fwd);
+-      var base = camTarget, VW = S.rw / S.N, VH = (S.rh / S.N) / Math.max(_u.y, 0.3), top = base.y + INTRO.H;
+-      var nC = w === 'clear' ? 5 : w === 'drizzle' ? 11 : 16;
+-      for (var i = 0; i < nC; i++) {
+-        /* 먼 층(어둡고, 카메라를 30 % 따라와 느리게 흐름) · 가까운 층(밝고, 월드에 고정 = 빨리 지나감) → 직교 카메라에서도 깊이가 생긴다 (패럴랙스) */
+-        var r = hash('cl' + i), far = i % 3 !== 0, gw = CLOUD.w / S.N, gh = CLOUD.h / S.N;
+-        var geo = new T.PlaneGeometry(gw, gh), uv = geo.attributes.uv.array, v0 = (r % CLOUD.n) / CLOUD.n;
+-        for (var j = 0; j < uv.length; j += 2) uv[j] = v0 + uv[j] / CLOUD.n;
+-        var m = new T.Mesh(geo, mats[far ? 1 : 0]); m.quaternion.copy(camera.quaternion); m.renderOrder = (far ? 5 : 40) + i;   /* 쌓는 순서: 먼 층 → 가까운 층, 층 안은 번호순 (깊이를 안 쓰니 순서로) */
+-        var sx = ((i + 0.5) / nC - 0.5) * VW * 1.25 + (((r >>> 6) % 100) / 100 - 0.5) * 1.2;
+-        /* 시작 높이: 착지했을 때 화면 위 가장자리(base + 0.62 VH) + 구름 높이 + 패럴랙스로 따라 내려오는 거리 위 → 끝나면 반드시 화면 밖. 위로는 출발 화면 위 바깥까지 */
+-        var par = far ? 0.3 : 0, y0 = Math.max(base.y + 0.62 * VH + gh + INTRO.H * par, top - 0.35 * VH), y1 = top + 0.85 * VH;
++      var base = camTarget, VW = S.rw / S.N, VH = (S.rh / S.N) / Math.max(_u.y, 0.3), top = base.y + INTRO.H, pass = base.y + INTRO.H * CLOUD.pass;
++      /* 수는 줄여 띄엄띄엄 (예전 5 · 11 · 16): [먼 층, 가까운 층] + 뚫고 지나가는 구름 1 → 드로우콜은 예전보다 같거나 적다 */
++      var cnt = w === 'clear' ? [2, 2] : w === 'drizzle' ? [3, 2] : [3, 3];
++      function addCloud(i, far, sx, yWant) {
++        var cs = far ? CLOUD.far : CLOUD, r = hash('cl' + i), gw = cs.w / S.N, gh = cs.h / S.N;
++        var geo = new T.PlaneGeometry(gw, gh), uv = geo.attributes.uv.array, v0 = (r % cs.n) / cs.n;
++        for (var j = 0; j < uv.length; j += 2) uv[j] = v0 + uv[j] / cs.n;
++        var m = new T.Mesh(geo, mats[far ? 1 : 0]); m.quaternion.copy(camera.quaternion); m.renderOrder = (far ? 5 : 40) + i;   /* 쌓는 순서: 먼 층 → 가까운 층 → 뚫는 구름 (깊이를 안 쓰니 순서로) */
++        /* 먼 층(어둡고 작고, 카메라를 30 % 따라와 느리게 흐름) · 가까운 층(크고 밝고, 월드에 고정 = 빨리 스쳐 감) → 직교 카메라에서도 깊이가 생긴다 (패럴랙스).
++           가장 낮은 자리: 착지했을 때 화면 위 가장자리(base + 0.62 VH) + 구름 높이 + 패럴랙스로 따라 내려오는 거리 → 끝나면 반드시 화면 밖 */
++        var par = far ? 0.3 : 0, y0 = base.y + 0.62 * VH + gh / Math.max(_u.y, 0.3) + INTRO.H * par;
+         /* 깊이: 층 안에서는 1 cm 씩만 (후처리 깊이 외곽선 문턱 6 cm 아래 → 같은 층 구름끼리 겹쳐도 금 간 선이 안 생긴다), 먼 층과 가까운 층 사이만 3 m */
+-        m.userData = { sx: sx, z: (far ? -4 : -1) - i * 0.01, y: y0 + ((r >>> 16) % 1000) / 1000 * (y1 - y0), par: par };
++        m.userData = { sx: sx, z: (far ? -4 : -1) - i * 0.01, y: Math.max(y0, yWant), par: par };
+         g.add(m); sky.list.push(geo); sky.clouds.push(m);
+       }
+-      sky.fwd = fwd; sky.VW = VW;
++      for (var i = 0; i < cnt[0]; i++) {   /* 먼 층: 출발 화면 둘레 높은 곳에만 (뚫는 구름이 지날 땐 이미 화면 위로 나가 있다 → 다 덮는 프레임이 길어지지 않는다). 가로는 고르게 + 흔들림 */
++        var rf = hash('clf' + i), fy = (i + 0.5) / cnt[0];
++        addCloud(i, true, ((i + 0.5) / cnt[0] - 0.5) * VW * 1.1 + (((rf >>> 6) % 100) / 100 - 0.5) * VW * 0.35, base.y + INTRO.H * (0.94 + 0.24 * fy) + (((rf >>> 16) % 100) / 100 - 0.5) * 0.12 * VH);
++      }
++      for (var n = 0; n < cnt[1]; n++) {   /* 가까운 층: 뚫는 구름보다 위에서, 화면 옆을 반쯤 걸치고 스쳐 간다 (뚫는 구름보다 앞에 그린다) */
++        var rn = hash('cln' + n), side = CLOUD.near[n][1];
++        addCloud(cnt[0] + n, false, side * VW * (0.34 + ((rn >>> 4) % 100) / 100 * 0.1), base.y + INTRO.H * CLOUD.near[n][0]);
++      }
++      sky.fwd = fwd; sky.VW = VW; sky.VH = VH;
++      /* 뚫고 지나가는 구름 (카드 11): 화면보다 넓고, 몸이 화면 높이 + 3프레임 이동만큼 길다 → 몇 프레임 동안 화면을 다 덮는다. 월드에 고정 (가까운 층) */
++      if (hasC && CLOUDS.bank) {
++        var spd = INTRO.H / Math.max((INTRO.dur - INTRO.top) * EASE.land, 0.1) / (1 - (EASE.a + EASE.d) / 2) / pxUp(), bw = S.rw + 24;   /* 가운데 일정 구간 속도 (화면 px/s) */
++        var bh = Math.ceil(CLOUDS.bank.bodyTop(bw) * 0.45 + S.rh + spd * 0.02 + 4);   /* 윗면 몽우리 아래쪽 절반도 거의 빈틈이 없다 → 몸 + 그 절반 = 화면 높이 + 0.02 s 이동 → 다 덮는 건 60 fps 에서 2~4 프레임 (tools 로 잰 값: docs/INTRO_SLOW_PROTO.md) */
++        var cvB = CLOUDS.bank({ weather: w, phase: ph, w: bw, h: bh, seed: 'bank' + w });
++        var texB = canvasTex(cvB), matB = new T.MeshBasicMaterial({ map: texB, alphaTest: 0.5, depthWrite: false }), geoB = new T.PlaneGeometry(bw / S.N, bh / S.N);
++        var mB = new T.Mesh(geoB, matB); mB.quaternion.copy(camera.quaternion); mB.renderOrder = 30;   /* 먼 층(5~) 앞 · 가까운 층(40~) 뒤 */
++        /* 몸 한가운데(윗부분을 뺀 몸의 가운데)가 화면 가운데에 올 때 = 카메라 높이 pass */
++        var cy = ((cvB.bodyTop + (bh - 4 - cvB.bodyTop) / 2) - bh / 2) * pxUp();
++        mB.userData = { sx: 0, z: -1.2, y: pass + cy, par: 0, bank: { h: bh, bodyTop: cvB.bodyTop } };
++        g.add(mB); sky.list.push(texB, matB, geoB); sky.clouds.push(mB); sky.bank = mB;
++      }
++      INTRO.pass = INTRO.H * CLOUD.pass;
++      sky.rainTop = sky.bank ? sky.bank.userData.y - (sky.bank.userData.bank.h / 2 - 6) * pxUp() : pass;   /* 비·눈은 그 구름 밑면에서부터 (구름 위는 맑다) */
+       if (w === 'rain' || w === 'drizzle') {   /* 비 두 층: 먼 층(짧고 어둡게) · 가까운 층(길고 밝게) */
+-        var n = w === 'rain' ? 90 : 45;
+-        sky.rain = [{ n: Math.round(n * 0.55), obj: lines(Math.round(n * 0.55), PAL.glass[1]), sp: 6, lens: [3, 5] }, { n: Math.round(n * 0.45), obj: lines(Math.round(n * 0.45), PAL.glass[3]), sp: 9, lens: [5, 8] }];
++        var nr = w === 'rain' ? 90 : 45;
++        sky.rain = [{ n: Math.round(nr * 0.55), obj: lines(Math.round(nr * 0.55), PAL.glass[1]), sp: 6, lens: [3, 5] }, { n: Math.round(nr * 0.45), obj: lines(Math.round(nr * 0.45), PAL.glass[3]), sp: 9, lens: [5, 8] }];
+         sky.rain.forEach(function (L, li) { scene.remove(L.obj); g.add(L.obj); sky.list.push(L.obj.geometry, L.obj.material); L.s = []; for (var q = 0; q < L.n; q++) L.s.push(skyDrop(li, q, 0, true)); });
+       } else if (w === 'snow') {
+         sky.snow = points(70, PAL.paper[3]); scene.remove(sky.snow); g.add(sky.snow); sky.list.push(sky.snow.geometry, sky.snow.material);
+         sky.flakes = []; for (var f = 0; f < 70; f++) sky.flakes.push(skyDrop(9, f, 0, true));
+-      } else if (night || ph === 'dusk') {   /* 맑은 밤: 별 (정지 — 카메라가 내려가면 위로 흘러간다) */
+-        var st2 = points(46, PAL.white); scene.remove(st2); g.add(st2); sky.list.push(st2.geometry, st2.material);
+-        var a = st2.geometry.attributes.position.array;
+-        for (var s2 = 0; s2 < 46; s2++) { var rs = hash('isky' + s2); _wp.copy(base).addScaledVector(_r, ((rs % 1000) / 1000 - 0.5) * VW).setY(3.6 + ((rs >>> 10) % 1000) / 1000 * (INTRO.H + 3)).addScaledVector(fwd, -6); snapC(_wp); a[s2 * 3] = _wp.x; a[s2 * 3 + 1] = _wp.y; a[s2 * 3 + 2] = _wp.z; }
++      }
++      if (ph !== 'day') {   /* 별: 밤·노을·새벽이면 날씨와 상관없이 구름 위에 몇 개 (구름 위는 맑다). 정지 — 카메라가 내려가면 위로 흘러간다 */
++        var ns = night ? 28 : 12, st2 = points(ns, PAL.white); scene.remove(st2); g.add(st2); sky.list.push(st2.geometry, st2.material);
++        var a = st2.geometry.attributes.position.array, sLo = pass + 0.7 * VH, sHi = top + 0.6 * VH;
++        for (var s2 = 0; s2 < ns; s2++) { var rs = hash('isky' + s2); _wp.copy(base).addScaledVector(_r, ((rs % 1000) / 1000 - 0.5) * VW).setY(sLo + ((rs >>> 10) % 1000) / 1000 * Math.max(sHi - sLo, 0.1)).addScaledVector(fwd, -6); snapC(_wp); a[s2 * 3] = _wp.x; a[s2 * 3 + 1] = _wp.y; a[s2 * 3 + 2] = _wp.z; }
+         st2.geometry.attributes.position.needsUpdate = true;
+       }
+       scene.add(g); return sky;
+@@ -2350,7 +2380,14 @@ var SCENE3D = (function () {
+       var sky = INTRO.sky; if (!sky) return;
+       var k = pxUp(), tg = camTargetNow(), vh = (S.rh / S.N) / Math.max(_u.y, 0.3), top = tg.y + vh * 0.6, bot = tg.y - vh * 0.6, off = introOffset();
+       sky.clouds.forEach(function (m) { var u = m.userData; m.position.copy(camTarget).addScaledVector(_r, u.sx).setY(u.y - (INTRO.H - off) * u.par).addScaledVector(sky.fwd, u.z); snapScreen(m.position); });   /* 구름은 매 프레임 (먼 층 패럴랙스), 화면 격자에 스냅. y 를 먼저 정하고 시선 방향으로 민다 (직교: 시선 방향 이동은 화면 위치를 안 바꾼다) */
+-      var kk = clamp(INTRO.t / INTRO.dur, 0, 1), fade = 1 - clamp((kk - 0.7) / 0.25, 0, 1);   /* 착지 직전 30 % 동안 줄기를 줄인다 (지붕 위로 비가 갑자기 끊기지 않게) */
++      /* 하늘 띠 (카드 11): 구름 위 = 짙은 하늘 (낮 남색 · 밤 거의 검정), 구름을 지나면 = 원래 허공색. 바뀌는 순간은 뚫는 구름이 화면을 덮고 있을 때다 */
++      INTRO.band = off > INTRO.pass ? 0 : 1;
++      if (INTRO.bands) scene.background.copy(INTRO.bands[INTRO.band].c);
++      if (sky.bank) {   /* 덮었나: 몸(윗부분 아래 ~ 밑면)이 화면 위·아래 가장자리를 다 넘었다 → 이때는 허공을 읽지 않는다 */
++        var bu = sky.bank.userData, by = (sky.bank.position.y - tg.y) / pxUp(), hb = bu.bank.h / 2;
++        INTRO.covered = by + hb - bu.bank.bodyTop >= S.rh / 2 && by - hb + 4 <= -S.rh / 2;
++      }
++      var kk = introK(), fade = 1 - clamp((kk - 0.72) / 0.23, 0, 1);   /* 착지 직전 동안 줄기를 줄인다 (지붕 위로 비가 갑자기 끊기지 않게) */
+       function place(d, li) {   /* 화면 밖(위/아래)으로 나간 줄기는 반대편 가장자리 바로 밖에서 다시 (카메라가 빨리 내려갈 땐 아래에서 올라오는 것처럼 보인다) */
+         if (d.y > top + 0.4) { d.c++; var n1 = skyDrop(li, d.i, d.c, false); d.x = n1.x; d.z = n1.z; d.y = bot - ((n1.r >>> 20) % 100) / 100 * 0.8; }
+         else if (d.y < bot - 1.0) { d.c++; var n2 = skyDrop(li, d.i, d.c, false); d.x = n2.x; d.z = n2.z; d.y = top + ((n2.r >>> 20) % 100) / 100 * 0.8; }
+@@ -2360,7 +2397,7 @@ var SCENE3D = (function () {
+         L.s.forEach(function (d, i) {
+           d.i = i; if (advance) d.y -= L.sp * k; place(d, li);
+           var len = L.lens[0] + (d.r >>> 4) % (L.lens[1] - L.lens[0] + 1), o = i * 6;
+-          if (i >= act || d.y < 3.3) { a[o + 1] = a[o + 4] = -50; return; }   /* 지붕(3.1) 아래로는 안 들어온다 */
++          if (i >= act || d.y < 3.3 || d.y > sky.rainTop) { a[o + 1] = a[o + 4] = -50; return; }   /* 지붕(3.1) 아래로는 안 들어온다 · 뚫는 구름 위로도 없다 */
+           _wp.copy(camTarget).addScaledVector(_r, d.x * sky.VW).setY(d.y).addScaledVector(sky.fwd, d.z); snapC(_wp);
+           a[o] = _wp.x; a[o + 1] = _wp.y; a[o + 2] = _wp.z; a[o + 3] = _wp.x; a[o + 4] = _wp.y - len * k; a[o + 5] = _wp.z;
+         });
+@@ -2371,7 +2408,7 @@ var SCENE3D = (function () {
+         sky.flakes.forEach(function (d, i) {
+           d.i = i; if (advance) { d.y -= ((anim.step + i) & 1) * k; if (hash('fl' + i + '_' + anim.step) % 7 === 0) d.x += ((i & 1) ? 1 : -1) / sky.VW / S.N; }
+           place(d, 9);
+-          if (i >= act2 || d.y < 3.3) { b[i * 3 + 1] = -50; return; }
++          if (i >= act2 || d.y < 3.3 || d.y > sky.rainTop) { b[i * 3 + 1] = -50; return; }
+           _wp.copy(camTarget).addScaledVector(_r, d.x * sky.VW).setY(d.y).addScaledVector(sky.fwd, d.z); snapC(_wp);
+           b[i * 3] = _wp.x; b[i * 3 + 1] = _wp.y; b[i * 3 + 2] = _wp.z;
+         });
+@@ -2394,10 +2431,24 @@ var SCENE3D = (function () {
+       });
+       if (top) SKYPX.hex = top;
+     }
+-    function skyHex() { SKYPX.want = true; return SKYPX.hex || skyEstimate(); }
+-    function skyEstimate() {
+-      var lab = hexToOklab((light.to && light.to.bg) || LIGHTS.night.bg), L = (lab[0] - 0.5) * 1.03 + 0.5, A = lab[1] * 1.07, B = lab[2] * 1.07, best = 1e9, bestL = 0, out = PAL.list[0];
++    /* 입장 중 (카드 11): 하늘 띠가 바뀌므로 띠마다 따로 읽는다. 매 프레임 불러도 된다 — 실제 readPixels 는 띠가 바뀐 뒤 몇 번뿐 (덮인 동안은 안 읽는다) */
++    function skyHex() {
++      if (INTRO.on && INTRO.bands) {
++        if (SKYPX.band !== INTRO.band) { SKYPX.band = INTRO.band; SKYPX.hex = null; SKYPX.tries = 0; }
++        if (!SKYPX.hex && !INTRO.covered && SKYPX.tries < 4) { SKYPX.want = true; SKYPX.tries++; }
++        return SKYPX.hex || skyEstimate();
++      }
++      SKYPX.want = true; return SKYPX.hex || skyEstimate();
++    }
++    var SKYEST = { src: null, out: null };
++    function skyEstimate(hex) {   /* hex 없으면 지금 하늘: 입장 중엔 그 띠, 아니면 시각대 허공색 */
++      /* 없으면 지금 배경 그 값: 렌더 타깃에 든 값을 후처리가 sRGB 로 읽으므로 C() 로 바꾼 허공색은 실제로 훨씬 어둡게 나온다 (예: 낮 #1b1522 → #090a14).
++         예전엔 시각대 hex 로 어림해서 틀렸고 readPixels 가 바로잡았다. 이제 어림이 처음부터 맞아 띠가 바뀐 프레임에 덮개가 바로 따라간다 */
++      var src = hex || (scene.background && scene.background.isColor ? '#' + scene.background.getHexString() : LIGHTS.night.bg);
++      if (SKYEST.src === src && SKYEST.pal === PAL) return SKYEST.out;
++      var lab = hexToOklab(src), L = (lab[0] - 0.5) * 1.03 + 0.5, A = lab[1] * 1.07, B = lab[2] * 1.07, best = 1e9, bestL = 0, out = PAL.list[0];
+       PAL.list.forEach(function (h) { var q = hexToOklab(h), d = Math.pow(L - q[0], 2) + Math.pow((A - q[1]) * 1.3, 2) + Math.pow((B - q[2]) * 1.3, 2); if (d < best - 0.0005 || (d < best + 0.0005 && q[0] > bestL)) { best = d; bestL = q[0]; out = h; } });
++      SKYEST.src = src; SKYEST.pal = PAL; SKYEST.out = out;
+       return out;
+     }
+     function startIntro(o) {
+@@ -2405,16 +2456,26 @@ var SCENE3D = (function () {
+       if (INTRO.on) finishIntro();
+       if (st.reduced || o.instant) return Promise.resolve(false);
+       INTRO.dur = clamp(+o.dur || 2.2, 0.6, 6); INTRO.t = 0; INTRO.acc = 0; INTRO.hold = !!o.hold;   /* hold: 착지 뒤에도 비네트를 끈 채로 (입장 레이어가 걷힐 때 introRelease) */
++      INTRO.top = clamp(+o.top || 0, 0, INTRO.dur * 0.3);   /* 맨 위 멈춤 (초, 카드 11) — dur 안에 든다 */
+       placeCamera();   /* _r · _u 갱신 */
+       var vh = (S.rh / S.N) / Math.max(_u.y, 0.3);
+-      INTRO.H = (o.height || 1.35) * vh; INTRO.D = 3 * pxUp();   /* 출발 = 방이 화면 아래로 완전히 빠진 높이 · 착지 눌림 아트 3px */
++      INTRO.H = (o.height || 1.35) * vh; INTRO.D = 2 * pxUp();   /* 출발 = 방이 화면 아래로 완전히 빠진 높이 · 착지 눌림 아트 2px */
++      /* 하늘 띠: [구름 위, 구름 아래 = 원래 허공]. 구름 위는 낮이어도 짙은 남색, 노을·새벽은 남흑, 밤은 거의 검정 (모두 Apollo 칸) */
++      /* 구름 위 색은 C() 없이 그 값 그대로 넣는다 (후처리가 sRGB 로 읽는다 → 화면에 그 칸 그대로). 구름 밑은 원래 허공 (화면엔 #090a14 쯤) */
++      var ph = phaseOf(st.hour), upHex = ph === 'night' ? '#090a14' : ph === 'day' ? '#172038' : '#241527';
++      INTRO.bg0 = scene.background.clone();
++      INTRO.bands = [{ c: new T.Color(upHex) }, { c: INTRO.bg0.clone() }]; INTRO.band = 0; INTRO.covered = false; SKYPX.band = -1;
+       INTRO.on = true; dither.still = 0; post.uniforms.uVig.value = 0;   /* 비네트 끔: 허공이 한 색이어야 바깥 덮개와 이음매 없이 이어진다 */
+       INTRO.sky = buildSky(); skyLayout(false);
+-      return new Promise(function (res) { INTRO.resolve = res; });
++      var pr = new Promise(function (res) { INTRO.resolve = res; });
++      pr.skyLive = true;   /* 입장 레이어에게: 연출 중 skyHex() 를 매 프레임 불러도 된다 (하늘 띠가 바뀐다) */
++      return pr;
+     }
+     function finishIntro() {
+       if (!INTRO.on) return;
+       INTRO.on = false; dither.still = 0; if (!INTRO.hold) introRelease();
++      if (INTRO.bg0) { scene.background.copy(INTRO.bg0); INTRO.bg0 = null; }   /* 하늘 띠 → 원래 허공색 (연출 중 시각대가 바뀌었으면 applyLight 가 다시 칠한다) */
++      INTRO.bands = null; INTRO.covered = false; SKYPX.hex = null; SKYPX.band = -1;
+       var sky = INTRO.sky; INTRO.sky = null;
+       if (sky) {   /* 장면에서는 바로 빼고, GPU 자원 정리는 착지 순간을 피해 1.5 s 뒤 (착지 프레임에 텍스처·버퍼 삭제가 겹치지 않게) */
+         scene.remove(sky.g);

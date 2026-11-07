@@ -4,13 +4,18 @@
  * - 모든 선택은 mulberry32(seed) 만 쓴다. Math.random 금지.
  * - fetch 결과(성공/실패)는 정류장의 "읽기 상태" 표기에만 쓰이고 길 선택을 바꾸지 않는다.
  *   난수 뽑는 순서는 fetch 와 무관하게 고정된다:
- *     1 r_stay → (집) r_empty, r_activity, t_wrap, 스티커 위치 3, paper, r_reactionLine
+ *     1 r_stay → (집) r_empty, r_activity, t_wrap, 스티커 위치 3, paper, r_reactionLine(반응 후보 고르기도 이 하나로)
  *                (외출) r_follow, r_wild, r_wildIdx, pickStart(필요 시), 길 만들기(걸음마다 r_return/r_distract/r_pick),
  *                ms×6, gap×6, g_return, g_remember, g_hang, g_wrap,
  *                r_remember, r_souvenir, r_template, r_memory, 스티커 위치 3, paper, r_reactionLine
  *   그 뒤에야 fetch 를 한다. fetch 결과로 달라지는 건 "들판 걸음" 후보 문서 하나뿐이고,
  *   그 인덱스도 미리 뽑아 둔 r_wildIdx 로 고른다 (floor(r * links.length)).
  * - 설계 명세: docs/DESIGN.md §5, §6.1, §8, §9, §12.2
+ * - 모델의 뜻 (docs/MODEL_VOICE.md): replay 에서 모델(by 'mcp')·사람(by 'human')이 낸 반응·말·메모는 그대로 둔다.
+ *   거르거나 바꾸지 않고, 안 낸 것은 지어내지 않는다(null). 데모 규칙(plan)만 지금처럼 정직하게 거른다 (reactionBy 'demo-rules').
+ *   두뇌가 대신 고른 것(기억할 곳·못 하는 활동)은 'fallback' 으로 따로 적는다.
+ * - 호기심 메모 (docs/CURIOSITY_NOTES.md): state.notes(활성 메모 최근 3개)의 about 방은 데모 두뇌의 길 고르기에서
+ *   가중치만 NOTE_BOOST 배가 된다 (새 난수 없음, 메모 글은 쓰지 않는다). 메모가 없으면 결과는 예전과 바이트 하나까지 같다.
  */
 (function (root) {
   'use strict';
@@ -27,6 +32,8 @@
   var SPECIAL = { door_out: 1, slow_room: 1, letter_room: 1 };
   var STATUSES = ['read', 'builtin', 'simulated', 'failed', 'none'];
   var REACTIONS = ['폴짝', '우쭐', '졸림', '덤덤'];
+  var NOTE_BOOST = 3;        /* 활성 호기심 메모가 가리키는 방: 길 고르기 가중치 × 3 (곱하기만, 새 난수 없음) */
+  var NOTES_IN = 3;          /* 두뇌가 읽는 활성 메모 수 (최근 것부터, CURIOSITY_NOTES) */
   var SIMULATED_NOTE = '정적 페이지라 바깥은 못 읽어. 문 앞까지만 갔다 왔어';
   var IGNORED_NOTE = '오늘은 그쪽 말고 다른 데가 궁금했어';
 
@@ -44,11 +51,11 @@
   };
 
   var DEFAULT_HOME = [
-    { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', detail: '마흔까지 세고 잊었어. 다시 하나부터.', anchor: 'window', weight: 3, emoji: '🌧', maxLantern: 6 },
-    { id: 'reread_poster', line: '어제 포스터 뒷면을 다시 읽었어', detail: '영수증 글씨가 조금 번져 있었어.', anchor: 'crate', weight: 2, emoji: '🧾', minLantern: 1, requiresPoster: true },
-    { id: 'nap', line: '담요 속에서 낮잠', detail: '담요 안은 조용했어.', anchor: 'blanket', weight: 3, emoji: '😴' },
-    { id: 'swap_posters', line: '포스터 위치를 바꿔 봤어', detail: '왼쪽 걸 오른쪽으로. 그게 다야.', anchor: 'board', weight: 1, emoji: '🖼', minLantern: 2, requiresPoster: true, effect: 'rotatePosters' },
-    { id: 'watch_moss', line: '이끼 화분을 오래 들여다봤어', detail: '어제보다 조금 더 초록인 것 같아.', anchor: 'window', weight: 2, emoji: '🪴', minLantern: 1 },
+    { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', detail: '마흔까지 세고 잊었어. 다시 하나부터.', anchor: 'window', weight: 3, emoji: '🌧', maxLantern: 6, reactions: ['졸림'] },
+    { id: 'reread_poster', line: '벽 포스터 뒷면을 다시 읽었어', detail: '일기 글씨가 조금 번져 있었어.', anchor: 'crate', weight: 2, emoji: '📖', minLantern: 1, requiresPoster: true, reactions: ['덤덤'] },
+    { id: 'nap', line: '담요 속에서 낮잠', detail: '담요 안은 조용했어.', anchor: 'blanket', weight: 3, emoji: '😴', reactions: ['졸림'] },
+    { id: 'swap_posters', line: '포스터 위치를 바꿔 봤어', detail: '왼쪽 걸 오른쪽으로. 그게 다야.', anchor: 'board', weight: 1, emoji: '🖼', minLantern: 2, requiresPoster: true, effect: 'rotatePosters', reactions: ['덤덤'] },
+    { id: 'watch_moss', line: '이끼 화분을 오래 들여다봤어', detail: '어제보다 조금 더 초록인 것 같아.', anchor: 'window', weight: 2, emoji: '🪴', minLantern: 1, reactions: ['덤덤'] },
     { id: 'nothing', line: '…', detail: '', anchor: 'blanket', weight: 0, emoji: '' }
   ];
 
@@ -108,12 +115,47 @@
       visits: s.visits || {},
       affinity: s.affinity || {},
       lantern: s.lantern == null ? 0 : s.lantern,
+      /* 이 차례가 끝나면 등불 칸이 하나 켜지나 (app 이 안다: 칸이 남았고 그날 아직 안 켰을 때). 안 주면 옛 규칙(등불 < 8).
+         쪽지 뒷면의 '등불 +1' 말에만 쓴다 — 난수·길·활동 고르기와는 무관 */
+      lanternLeft: typeof s.lanternLeft === 'boolean' ? s.lanternLeft : ((s.lantern == null ? 0 : s.lantern) < 8),
+      /* 플레이어가 이미 가진 기념품 id. 안 주면 null = 옛 규칙(이번에 처음 온 방에서만) */
+      owned: Array.isArray(s.owned) ? s.owned.filter(function (x) { return typeof x === 'string'; }) : null,
       recent: Array.isArray(s.recent) ? s.recent : [],
       todayOut: s.todayOut == null ? 0 : s.todayOut,
       lastVisit: (s.lastVisit && typeof s.lastVisit === 'object') ? s.lastVisit : {},
       /* 벽에 붙은 포스터 수. 안 주면 0 — 없는 포스터를 다시 읽었다고 말하지 않게 */
-      posters: (typeof s.posters === 'number' && s.posters > 0 && isFinite(s.posters)) ? Math.floor(s.posters) : 0
+      posters: (typeof s.posters === 'number' && s.posters > 0 && isFinite(s.posters)) ? Math.floor(s.posters) : 0,
+      /* 호기심 메모 (R2): app 이 활성 메모 최근 3개를 준다. 안 주면 [] = 예전과 같은 결과 */
+      notes: normalizeNotes(s.notes)
     };
+  }
+  /* ───────── 호기심 메모 (docs/CURIOSITY_NOTES.md) ───────── */
+  function normAbout(a) {
+    if (!a || typeof a !== 'object' || (a.kind !== 'node' && a.kind !== 'object') || typeof a.id !== 'string' || !a.id) return null;
+    return { kind: a.kind, id: a.id };
+  }
+  /* 들어온 메모 목록 정리: 내려놓은 것(status 가 'active' 가 아닌 것)·모양이 틀린 것은 버리고, 앞에서부터(최근 것부터) 3개.
+     글(text)은 그대로 두지만 두뇌는 읽지 않는다 — 데모 두뇌가 메모 글을 제 말처럼 옮기지 않게 */
+  function normalizeNotes(list) {
+    if (!Array.isArray(list)) return [];
+    var out = [];
+    list.forEach(function (n) {
+      if (!n || typeof n !== 'object' || (n.status != null && n.status !== 'active')) return;
+      out.push({ id: typeof n.id === 'string' ? n.id : null, text: typeof n.text === 'string' ? n.text : '', about: normAbout(n.about),
+        by: n.by === 'model' ? 'model' : 'demo-rules', session: typeof n.session === 'string' ? n.session : null, at: typeof n.at === 'string' ? n.at : null });
+    });
+    return out.slice(0, NOTES_IN);
+  }
+  /* 메모가 가리키는 방 id → true. kind 'object'(방 안 물건)는 길 고르기에 쓰지 않는다 */
+  function noteTargets(state) {
+    var W = world(), m = {};
+    ((state && state.notes) || []).forEach(function (n) { if (n.about && n.about.kind === 'node' && W && W.nodes && W.nodes[n.about.id]) m[n.about.id] = true; });
+    return m;
+  }
+  /* 화면에 보일 때만 줄이는 꼴: max 자가 넘으면 앞 max 자 + '…'. 원문은 기록에 그대로 둔다 (MODEL_VOICE §3) */
+  function clipShown(t, max) {
+    t = String(t == null ? '' : t);
+    return t.length > max ? t.slice(0, max) + '…' : t;
   }
   /* 가중치 뽑기: r ∈ [0,1) 하나로 결정 */
   function pickWeighted(items, weightOf, r) {
@@ -178,6 +220,17 @@
     var jong = (code - 0xAC00) % 28;
     if (particle === '로' || particle === '으로') return (jong === 0 || jong === 8) ? '로' : '으로';
     return jong === 0 ? pair[1] : pair[0];
+  }
+  /* 숫자로 시작하는 방 이름('0')을 문장에 그대로 넣으면 "0까지 갔어"·"오늘은 0." 처럼 어색하다 → "0이라는 방".
+     방 이름(노드)에만 쓴다 — 들판 글 제목·URL 은 그대로. 숫자로 안 시작하면 손대지 않는다.
+     받침: 끝 글자가 숫자면 읽는 소리(영·일·이·삼·사·오·육·칠·팔·구)로, 한글이면 그 받침으로 */
+  var DIGIT_JONG = '1101001110';
+  function roomWord(name) {
+    name = name == null ? '' : String(name);
+    if (!/^[0-9]/.test(name)) return name;
+    var last = name.charAt(name.length - 1), code = last.charCodeAt(0);
+    var jong = /[0-9]/.test(last) ? DIGIT_JONG.charAt(+last) === '1' : (code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 > 0);
+    return name + (jong ? '이라는 방' : '라는 방');
   }
 
   /* ───────── 5.3 힌트 읽기 ─────────
@@ -657,7 +710,8 @@
     var all = Object.keys(W.nodes).filter(function (id) { return !SPECIAL[id] && W.nodes[id].corner !== 'wild' && keep(id); });
     var r = R();
     var pool = null;
-    function weight(id) { return 1 / (1 + (state.visits[id] || 0)); }
+    var boost = noteTargets(state);
+    function weight(id) { var w = 1 / (1 + (state.visits[id] || 0)); return boost[id] ? w * NOTE_BOOST : w; }
     if (r < 0.6) {
       var top = null, topV = 0;
       corners.forEach(function (c) { var v = state.affinity[c] || 0; if (v > topV) { topV = v; top = c; } });
@@ -688,6 +742,7 @@
     var cur = W.nodes[startId];
     var pDistract = 0.40, reason = 'enough', ladder = [0.25, 0.45, 0.7, 1.0];
     var via = false, bridge = null, guard = 0;
+    var boost = noteTargets(state);
     function unseen(p) { return !((state.visits && state.visits[p.node.id]) > 0) && !p.node.linger && p.node.id !== 'letter_room'; }
     while (cur && guard++ < 12) {
       stops.push(makeLibStop(cur, state, via, bridge));
@@ -719,7 +774,7 @@
         if (!same.length) break;
         pool = same.map(function (id) { return { node: W.nodes[id], bridge: null, via: false }; });
       }
-      var pi = pickWeighted(pool, function (p) { return 1 / (1 + (state.visits[p.node.id] || 0)); }, R());
+      var pi = pickWeighted(pool, function (p) { var w = 1 / (1 + (state.visits[p.node.id] || 0)); return boost[p.node.id] ? w * NOTE_BOOST : w; }, R());
       var nxt = pool[pi];
       if (nxt.node.corner === cur.corner) pDistract += 0.15; else pDistract = 0.40;
       via = nxt.via; bridge = nxt.bridge; cur = nxt.node;
@@ -756,8 +811,8 @@
   function drawStickerPos(R) {
     return { x: Math.round(lerp(R(), 58, 82)), y: Math.round(lerp(R(), 18, 40)), rot: Math.round(lerp(R(), -14, 14)) };
   }
-  /* 반응 한 줄. lines = 언제 말해도 참인 줄. when.first/missed/long = 그 일이 실제로 있었을 때만 후보에 더한다.
-     facts: first(처음 온 방이 있음) · missed(못 읽음·모의가 있음) · long(정류장 4곳 이상). 집에 있는 날은 facts 없음 → lines 만 */
+  /* 반응 한 줄 (외출). lines = 언제 말해도 참인 줄. when.first/missed/long = 그 일이 실제로 있었을 때만 후보에 더한다.
+     facts: first(처음 온 방이 있음) · missed(못 읽음·모의가 있음) · long(정류장 4곳 이상). 집에 있는 날은 pickHomeLine (아래) */
   function pickReactionLine(reaction, r, facts) {
     var W = world();
     var rec = W && W.reactions && W.reactions[reaction];
@@ -803,6 +858,32 @@
     if (reaction === '우쭐') return proud(stops, followed);
     return true;
   }
+  /* 집에 있는 날 반응 줄: 그 반응의 home 줄(집에서만 쓰는 줄)이 있으면 그것, 없으면 졸림만 lines(걸은 얘기 없음, check-world).
+     덤덤 lines 는 '다녀왔어'를 말하니 home 줄이 없으면 집에서 쓰지 않는다 ([] = 못 씀). 반응 기록이 아예 없으면 null(줄 없이) */
+  function homeLines(reaction) {
+    var W = world();
+    var rec = W && W.reactions && W.reactions[reaction];
+    if (!rec) return null;
+    if (Array.isArray(rec.home) && rec.home.length) return rec.home;
+    return reaction === '졸림' && Array.isArray(rec.lines) ? rec.lines : [];
+  }
+  /* 집에서 정직한 반응: 처음 온 데·읽은 게 없으니 폴짝·우쭐은 안 되고(reactionFits), 집에서 참인 줄이 있어야 한다 */
+  function homeReactionOk(r) {
+    if (REACTIONS.indexOf(r) < 0 || !reactionFits(r, [], 'none')) return false;
+    var ls = homeLines(r);
+    return ls === null || ls.length > 0;
+  }
+  /* 활동이 고른 반응 후보 (world.js homeActivities[].reactions). 없으면 옛날처럼 졸림 하나 */
+  function homeReactionCands(act) {
+    var list = (act && Array.isArray(act.reactions) && act.reactions.length) ? act.reactions : ['졸림'];
+    var out = list.filter(function (r, i) { return list.indexOf(r) === i && homeReactionOk(r); });
+    return out.length ? out : ['졸림'];
+  }
+  function pickHomeLine(reaction, r) {
+    var list = homeLines(reaction);
+    if (!list || !list.length) return null;
+    return String(list[Math.min(list.length - 1, Math.floor(asR(r) * list.length))]);
+  }
 
   /* ───────── 힌트 따랐나 ───────── */
   /* 문서 제목 비교용 열쇠: 소문자, 끝의 '(…)' 꼬리·띄어쓰기·밑줄 없이 ('눈 (날씨)' = '눈') */
@@ -835,17 +916,24 @@
     return stops.every(function (s) { return s.corner === hintNode.corner; }) ? 'followed' : 'left';
   }
 
-  /* ───────── 영수증 + 포스터 조립 (plan / replay 공용) ───────── */
+  /* ───────── 영수증 + 포스터 조립 (plan / replay 공용) ─────────
+     ctx.voice: 'model' | 'human' — 고른 이가 모델·사람인 재생. 그때는 (MODEL_VOICE)
+       - 반응은 준 그대로 (ctx.reaction = 아는 넷 중 하나 | null, ctx.reactionRaw = 그 밖의 글). 안 줬으면 null. 거르지도 계산하지도 않는다
+       - 반응 줄·포스터 한 줄은 그들이 쓴 줄만 (ctx.reactionLine, ctx.line). 없으면 null — 템플릿으로 채우지 않는다
+       - 힌트를 안 따랐을 때 '오늘은 그쪽 말고 다른 데가 궁금했어' 같은 마음 말을 붙이지 않는다
+       - 기억할 곳을 안 줬거나 범위 밖이면 마지막 정류장 (PROTOCOL §2), rememberedBy 'fallback'
+     난수는 voice 여부와 무관하게 똑같이 뽑아 둔 rr 만 쓴다 (안 쓰는 것도 있다) */
   function assemble(ctx) {
     var W = world();
-    var stops = ctx.stops, match = ctx.match, rr = ctx.rr;
+    var stops = ctx.stops, match = ctx.match, rr = ctx.rr, voice = ctx.voice || null;
     var hintLabel = match.kind === 'node' && ctx.hintNode ? ctx.hintNode.name
       : match.kind === 'wiki' ? match.query : match.kind === 'url' ? hostOf(match.url) : '';
     var hintStopIdx = (ctx.intent && ctx.follow) ? 0 : -1;
 
     /* 기억 고르기 */
-    var remIdx = -1;
-    if (typeof ctx.remIdx === 'number' && ctx.remIdx >= 0 && ctx.remIdx < stops.length) remIdx = ctx.remIdx;
+    var remIdx = -1, remBy = null;
+    if (typeof ctx.remIdx === 'number' && ctx.remIdx >= 0 && ctx.remIdx < stops.length && ctx.remIdx === Math.floor(ctx.remIdx)) { remIdx = ctx.remIdx; remBy = voice; }
+    else if (stops.length && voice) { remIdx = stops.length - 1; remBy = 'fallback'; }   /* 고른 이가 안 골랐다 → 두뇌가 대신 (취향 가중 없이 마지막 곳) */
     else if (stops.length) {
       remIdx = pickWeighted(stops, function (s, i) {
         var w = 1;
@@ -859,11 +947,21 @@
     }
     var rem = remIdx >= 0 ? stops[remIdx] : null;
 
-    /* 기념품 */
+    /* 기념품: 이번 길에 실제로 들른 방의 것만. 난수는 rSouvenir 하나 (35%, 한 번에 하나).
+       owned(가진 기념품 id 목록)를 받으면: 아직 없는 기념품의 방이면 다시 온 방이어도 후보 — 단 다시 온 방이 힌트(·URL)가 가리킨 방이면 빼서
+       힌트로 한 방을 되풀이해 기념품을 '뽑는' 일은 없게 한다. 처음 온 방 후보가 있으면 그쪽만 (처음은 여전히 특별).
+       owned 를 안 주면(null) 옛 규칙: 처음 온 방에서만 */
     var souvenir = null;
+    var owned = Array.isArray(ctx.owned) ? ctx.owned : null;
+    var hinted = {};
+    if (ctx.hintNode) hinted[ctx.hintNode.id] = 1;
+    if (ctx.urlNode) hinted[ctx.urlNode.id] = 1;
     var cands = stops.filter(function (s) {
-      return s.kind === 'room' && s.first && s.node.souvenir && (!W.souvenirs || W.souvenirs[s.node.souvenir]);
+      if (s.kind !== 'room' || !s.node.souvenir || (W.souvenirs && !W.souvenirs[s.node.souvenir])) return false;
+      if (!owned) return s.first;
+      return owned.indexOf(s.node.souvenir) < 0 && (s.first || !hinted[s.id]);
     });
+    if (owned) { var fresh = cands.filter(function (s) { return s.first; }); if (fresh.length) cands = fresh; }
     if (cands.length && rr.rSouvenir < 0.35) {
       souvenir = cands[Math.min(cands.length - 1, Math.floor((rr.rSouvenir / 0.35) * cands.length))].node.souvenir;
     }
@@ -887,12 +985,16 @@
       else if (ctx.intent && !ctx.follow && followed === 'ignored') lineKind = 'ignored';
       else if (rem.kind === 'wild' && !ctx.intent) lineKind = 'wild';
       else lineKind = 'noHint';
-      if (!line) line = composeLine(lineKind, { hint: hintLabel, mem: rem.name, memory: memory, name: ctx.name }, rr.rTemplate);
+      if (!line && !voice) line = composeLine(lineKind, { hint: match.kind === 'node' && ctx.hintNode ? roomWord(hintLabel) : hintLabel, mem: rem.kind === 'room' ? roomWord(rem.name) : rem.name, memory: memory, name: ctx.name }, rr.rTemplate);
     }
 
-    /* 반응: 재생 입력이 고른 반응도 실제로 있었던 일과 맞을 때만 (안 읽었는데 우쭐, 처음 온 데 없는데 폴짝은 안 된다) */
-    var reaction = (ctx.reaction && REACTIONS.indexOf(ctx.reaction) >= 0 && reactionFits(ctx.reaction, stops, followed))
-      ? ctx.reaction : computeReaction(stops, followed, ctx.hour, false);
+    /* 반응. 데모 규칙: 실제로 있었던 일과 맞을 때만 (안 읽었는데 우쭐, 처음 온 데 없는데 폴짝은 안 된다).
+       모델·사람: 준 그대로 — 고른 이의 뜻을 게임이 바꾸지 않는다. 안 줬으면 반응 없음 */
+    var reaction = voice ? (ctx.reaction || null)
+      : (ctx.reaction && REACTIONS.indexOf(ctx.reaction) >= 0 && reactionFits(ctx.reaction, stops, followed))
+        ? ctx.reaction : computeReaction(stops, followed, ctx.hour, false);
+    var reactionRaw = voice ? (ctx.reactionRaw || null) : null;
+    var reactionBy = voice ? ((reaction || reactionRaw) ? voice : null) : 'demo-rules';
 
     /* 영수증 */
     var counts = zeroCounts();
@@ -911,8 +1013,10 @@
     });
     var receipt = {
       stops: rstops, counts: counts, souvenir: souvenir, rememberedIdx: remIdx, reaction: reaction,
-      reactionEmoji: reactionEmoji(reaction), reactionLine: pickReactionLine(reaction, rr.rReaction, reactionFacts(stops, counts)), returnReason: ctx.reason || null
+      reactionEmoji: voice ? (reaction ? reactionEmoji(reaction) : null) : reactionEmoji(reaction),
+      reactionLine: voice ? (ctx.reactionLine || null) : pickReactionLine(reaction, rr.rReaction, reactionFacts(stops, counts)), returnReason: ctx.reason || null
     };
+    if (voice) { receipt.reactionRaw = reactionRaw; receipt.reactionBy = reactionBy; receipt.rememberedBy = remBy; }
 
     /* 포스터 */
     var poster = null;
@@ -936,14 +1040,16 @@
     });
     if (rem && rem.kind !== 'url') affinityDelta[rem.corner] = (affinityDelta[rem.corner] || 0) + 2;
 
-    var hintNote = null;
-    if (followed === 'ignored') hintNote = IGNORED_NOTE;
+    var hintNote = null;   /* 데모 규칙의 말. 모델·사람의 재생에는 붙이지 않는다 (마음을 대신 말하지 않게) */
+    if (voice) hintNote = null;
+    else if (followed === 'ignored') hintNote = IGNORED_NOTE;
     else if (match.kind === 'wiki' && !ctx.intent) hintNote = '지금은 바깥 글을 못 읽어서 힌트는 다음에 찾아볼래';
 
     return {
       hint: { raw: ctx.hintRaw, match: match, followed: followed, note: hintNote, label: hintLabel || null },
       receipt: receipt, poster: poster, visitsDelta: visitsDelta, affinityDelta: affinityDelta, reaction: reaction,
-      remIdx: remIdx, line: line, sticker: poster ? poster.sticker : null
+      remIdx: remIdx, line: line, sticker: poster ? poster.sticker : null,
+      reactionRaw: reactionRaw, reactionBy: reactionBy, reactionLine: receipt.reactionLine
     };
   }
 
@@ -1014,14 +1120,17 @@
     var pi = pickWeighted(cands, function (id) { return 1 / (1 + ((state.visits && state.visits[id]) || 0)); }, r);
     return W.nodes[cands[pi]];
   }
-  function buildOutMemo(stops, out, state, R) {
+  /* info(선택): 다음 걸음 방이 tomorrow 글에 실제로 들어갔으면 info.next = 그 방 (R3 noteOut 의 about).
+     60자에 맞추느라 '내일은 X' 가 빠졌으면 info.next 를 두지 않는다 — 잘린 글에서 뜻을 끌어내 다음 선택에 쓰지 않게 (MODEL_VOICE §3) */
+  function buildOutMemo(stops, out, state, R, info) {
     var W = world(), T = memoTpl();
     var rem = out.remIdx >= 0 ? stops[out.remIdx] : null;
     var kind = (out.poster && out.poster.lineKind) || 'noHint';
     var rLead = R(), rNext = R(), rIntent = R();
-    var lead = rem ? fillTemplate(pickStr(T.lead[kind] || T.lead.noHint, rLead), { hint: out.hint.label || '', mem: rem.name }) : '';
+    var hintWord = out.hint.match && out.hint.match.kind === 'node' ? roomWord(out.hint.label || '') : (out.hint.label || '');
+    var lead = rem ? fillTemplate(pickStr(T.lead[kind] || T.lead.noHint, rLead), { hint: hintWord, mem: rem.kind === 'room' ? roomWord(rem.name) : rem.name }) : '';
     var nx = nextIntent(W, stops, rem, state, rIntent);
-    var next = nx ? fillTemplate(pickStr(T.next[out.reaction] || T.next['덤덤'], rNext), { next: nx.name }) : pickStr(T.nextNone, rNext);
+    var next = nx ? fillTemplate(pickStr(T.next[out.reaction] || T.next['덤덤'], rNext), { next: roomWord(nx.name) }) : pickStr(T.nextNone, rNext);
     var notes = {};
     stops.forEach(function (s) {
       if (s.kind !== 'room' || !s.node || s.id === 'door_out' || notes[s.id]) return;
@@ -1030,6 +1139,7 @@
     });
     var tomorrow = joinFit([lead, next], MEMO_MAX);
     if (!tomorrow) return null;
+    if (info && nx && next && tomorrow.indexOf(next) >= 0) info.next = nx;
     return { tomorrow: tomorrow, notes: notes };
   }
   function buildHomeMemo(act, R) {
@@ -1038,17 +1148,54 @@
     if (!did || did === '…') return null;
     return { tomorrow: joinFit([did, pickStr(T.home, R())], MEMO_MAX), notes: {} };
   }
-  /* 모델·사람이 준 메모(wrap_up.memo)를 정리: 문자열만, 각 60자, 빈 건 버림 */
+  /* 모델·사람이 준 메모(wrap_up.memo)를 정리: 문자열만, 보이는 글은 각 60자(넘으면 59자 + …), 빈 건 버림.
+     줄이거나 띄어쓰기를 고친 글은 원문을 original 에 그대로 둔다 (MODEL_VOICE §3 — 말없이 자르지 않는다) */
   function cleanMemo(m) {
     if (!m || typeof m !== 'object') return null;
+    var orig = null;
     var tomorrow = typeof m.tomorrow === 'string' ? clampText(m.tomorrow, MEMO_MAX) : '';
+    if (tomorrow && tomorrow !== m.tomorrow) (orig = orig || {}).tomorrow = m.tomorrow;
     var notes = {};
     if (m.notes && typeof m.notes === 'object') Object.keys(m.notes).forEach(function (k) {
       var v = m.notes[k];
-      if (typeof v === 'string' && v.trim() && /^[\w-]{1,64}$/.test(k)) notes[k] = clampText(v, MEMO_MAX);
+      if (typeof v === 'string' && v.trim() && /^[\w-]{1,64}$/.test(k)) {
+        notes[k] = clampText(v, MEMO_MAX);
+        if (notes[k] !== v) { orig = orig || {}; (orig.notes = orig.notes || {})[k] = v; }
+      }
     });
     if (!tomorrow && !Object.keys(notes).length) return null;
-    return { tomorrow: tomorrow, notes: notes };
+    var out = { tomorrow: tomorrow, notes: notes };
+    if (orig) out.original = orig;
+    return out;
+  }
+  /* 고른 이(모델·사람)가 wrap_up 에 낸 것 — 반응 · 반응 줄 · 호기심 메모 · 내려놓기 (R1·R3). 그대로 옮기기만 한다 */
+  function voiceOf(by) { return by === 'mcp' ? 'model' : by === 'human' ? 'human' : null; }
+  function spokenReaction(wrap) {
+    var v = wrap && wrap.reaction;
+    if (typeof v !== 'string' || !v.trim()) return { reaction: null, raw: null };
+    var t = v.trim();
+    return REACTIONS.indexOf(t) >= 0 ? { reaction: t, raw: null } : { reaction: null, raw: v };
+  }
+  function spokenLine(wrap) {
+    if (!wrap) return null;
+    if (typeof wrap.line === 'string' && wrap.line.trim()) return wrap.line;
+    if (typeof wrap.reactionLine === 'string' && wrap.reactionLine.trim()) return wrap.reactionLine;
+    return null;
+  }
+  function spokenNote(wrap, voice) {
+    var n = wrap && wrap.note;
+    var text = typeof n === 'string' ? n : (n && typeof n === 'object' && typeof n.text === 'string') ? n.text : null;
+    if (text == null || !text.trim()) return null;
+    var out = { text: text };
+    var about = (n && typeof n === 'object') ? normAbout(n.about) : null;
+    if (about) out.about = about;
+    out.by = voice || 'demo-rules';
+    return out;
+  }
+  /* 내려놓기는 모델 자신의 표시라 모델(mcp) 재생에서만 받는다 (CURIOSITY_NOTES 원칙 3·4) */
+  function spokenSetDown(wrap, voice) {
+    if (voice !== 'model' || !wrap || !Array.isArray(wrap.setDown)) return [];
+    return wrap.setDown.filter(function (x) { return typeof x === 'string' && x.length > 0; });
   }
   function memoRng(seed) { return rng(((seed >>> 0) ^ 0x6d656d6f) >>> 0); }   /* 'memo' — 길·기억의 난수 순서를 건드리지 않는 별도 줄기 */
 
@@ -1074,37 +1221,53 @@
       kind: 'empty', by: base.by, seed: base.seed, dateKey: base.dateKey, seq: base.seq,
       hint: { raw: base.hintRaw, match: matchHint(base.hintRaw), followed: 'none', note: null },
       events: [{ type: 'empty_turn', t: 0 }],
-      receipt: null, poster: null, visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: null, memo: null
+      receipt: null, poster: null, visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: null, memo: null,
+      reactionBy: null, reactionRaw: null, reactionLine: null, noteOut: null, setDown: []
     };
   }
-  /* lantern: 이 여행 전 등불 칸 수 (normalizeState). app 은 칸이 남았을 때만(< 8) 집에 있던 날 칸을 켠다 → 꽉 찼으면 뒷면에 '+1' 을 쓰지 않는다. 난수는 뽑지 않는다 */
-  function homeTripFrom(base, act, R, lantern) {
+  /* lanternLeft: 이 차례가 끝나면 등불 칸이 켜지나 (normalizeState: app 이 주고, 없으면 등불 < 8) → 아닐 때는 뒷면에 '+1' 을 쓰지 않는다. 난수는 뽑지 않는다.
+     반응 (데모 규칙): given 이 집에서 맞으면(졸림·덤덤) 그것. 아니면 활동의 후보(act.reactions) 가운데 하나를
+     이미 뽑은 rLine 하나로 고른다 — 앞자리(몇 번째 후보)로 반응, 남은 몫으로 줄. 새 난수 없음 (후보가 하나면 옛날과 같은 줄).
+     said (모델·사람의 재생): { by, reaction, raw, line } — 반응·줄은 준 그대로, 안 줬으면 null. 난수는 똑같이 뽑고 쓰지 않는다 */
+  function homeTripFrom(base, act, R, lanternLeft, given, said) {
     var tWrap = Math.round(lerp(R(), 2000, 4000));
     var pos = drawStickerPos(R);
     var paper = Math.floor(R() * 3);
     var rLine = R();
-    var reaction = '졸림';
+    var reaction, rPick;
+    if (said) { reaction = said.reaction; rPick = rLine; }
+    else if (given && REACTIONS.indexOf(given) >= 0 && reactionFits(given, [], 'none')) { reaction = given; rPick = rLine; }   /* 고른 쪽의 뜻은 그대로. 집에서 참인 줄이 없으면 줄 없이(null) */
+    else {
+      var rc = homeReactionCands(act), x = rLine * rc.length, ci = Math.min(rc.length - 1, Math.floor(x));
+      reaction = rc[ci]; rPick = x - ci;
+    }
     var memo = buildHomeMemo(act, memoRng(base.seed));
+    var reactionBy = said ? ((said.reaction || said.raw) ? said.by : null) : 'demo-rules';
     var events = [
       { type: 'stay_home', t: 0, activity: act.id, line: act.line, anchor: act.anchor || 'window' },
       { type: 'wrap_up', t: tWrap, reaction: reaction }
     ];
     if (memo) events[1].memo = memo;
-    return {
+    var trip = {
       kind: 'home', by: base.by, seed: base.seed, dateKey: base.dateKey, seq: base.seq,
       hint: { raw: base.hintRaw, match: matchHint(base.hintRaw), followed: 'none', note: null },
       events: events,
       receipt: {
         stops: [], counts: zeroCounts(), souvenir: null, rememberedIdx: -1, reaction: reaction,
-        reactionEmoji: reactionEmoji(reaction), reactionLine: pickReactionLine(reaction, rLine, null),   /* 집: 걸은 일·읽은 일이 없으니 lines 만 */
+        reactionEmoji: said ? (reaction ? reactionEmoji(reaction) : null) : reactionEmoji(reaction),
+        reactionLine: said ? said.line : pickHomeLine(reaction, rPick),   /* 데모 규칙: 걸은 일·읽은 일이 없으니 집에서 참인 줄만. 모델·사람: 그들이 쓴 줄만 */
         activity: { id: act.id, line: act.line, detail: act.detail || '', anchor: act.anchor || 'window' }
       },
       poster: {
-        type: 'note', title: act.title || '오늘은 집', line: act.line, detail: act.detail || '', back: (lantern >= 8 ? '오늘은 집' : '오늘은 집. 등불 +1'),
+        type: 'note', title: act.title || '오늘은 집', line: act.line, detail: act.detail || '', back: (lanternLeft ? '오늘은 집. 등불 +1' : '오늘은 집'),
         sticker: act.sticker || 'home', emoji: act.emoji || '🏠', scene: 'home', stickerPos: pos, thumb: null, paper: paper
       },
-      visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: reaction, memo: memo
+      visitsDelta: {}, affinityDelta: {}, affinityDecay: 0.9, reaction: reaction, memo: memo,
+      reactionBy: reactionBy, reactionRaw: said ? said.raw : null,
+      reactionLine: said ? said.line : pickHomeLine(reaction, rPick), noteOut: null, setDown: []   /* 집 메모에는 다음 걸음 방이 없다 → noteOut 없음 */
     };
+    if (said) { trip.receipt.reactionRaw = said.raw; trip.receipt.reactionBy = reactionBy; }
+    return trip;
   }
 
   /* ───────── 5.2 ───────── */
@@ -1153,7 +1316,7 @@
       if (empty) return emptyTrip(base);
       var acts = homeActivities(state.lantern, state.posters);
       var ai = pickWeighted(acts, function (a) { return a.weight == null ? 1 : a.weight; }, R());
-      return homeTripFrom(base, acts[ai] || DEFAULT_HOME[0], R, state.lantern);
+      return homeTripFrom(base, acts[ai] || DEFAULT_HOME[0], R, state.lanternLeft);
     }
 
     /* 2. 힌트 · 들판 */
@@ -1185,7 +1348,7 @@
       ((state.visits[hintNode.id] || 0) > 0 || state.lastVisit[hintNode.id]));
     var route = buildRoute(W, state, R, startId, prefix, 5, { deeper: revisit, avoid: avoidId });
     var stops = route.stops;
-    if (revisit && stops[0] && stops[0].id === hintNode.id) stops[0].aside = revisitAside(hintNode.name, state.lastVisit[hintNode.id], dateKey);
+    if (revisit && stops[0] && stops[0].id === hintNode.id) stops[0].aside = revisitAside(roomWord(hintNode.name), state.lastVisit[hintNode.id], dateKey);
 
     /* 4. 미리 뽑아 두는 난수 (fetch 와 무관하게 고정) */
     var msArr = [], gaps = [], i;
@@ -1233,7 +1396,7 @@
         stops.forEach(function (s, k) { s.ms = msArr[Math.min(k, msArr.length - 1)]; });
         var out = assemble({
           stops: stops, match: match, intent: intent, follow: follow, hintNode: hintNode, urlNode: urlNode,
-          hintRaw: hintRaw, name: name, hour: hour, reason: route.reason, rr: rr
+          hintRaw: hintRaw, name: name, hour: hour, reason: route.reason, rr: rr, owned: state.owned
         });
 
         /* 7. 이벤트 */
@@ -1244,7 +1407,8 @@
         t += gReturn; events.push({ type: 'return', t: t, reason: route.reason });
         if (out.remIdx >= 0) { t += gRemember; events.push({ type: 'remember', t: t, stopIdx: out.remIdx, sticker: out.sticker, line: out.line }); }
         t += gHang; events.push({ type: 'hang_poster', t: t, posterId: input.id || input.tripId || null });
-        var memo = buildOutMemo(stops, out, state, memoRng(seed));
+        var memoInfo = {};
+        var memo = buildOutMemo(stops, out, state, memoRng(seed), memoInfo);
         t += gWrap; events.push({ type: 'wrap_up', t: t, reaction: out.reaction });
         if (memo) events[events.length - 1].memo = memo;
 
@@ -1252,7 +1416,11 @@
           kind: 'out', by: by, seed: seed, dateKey: dateKey, seq: seq,
           hint: out.hint, events: events, receipt: out.receipt, poster: out.poster,
           visitsDelta: out.visitsDelta, affinityDelta: out.affinityDelta, affinityDecay: 0.9, reaction: out.reaction,
-          revisit: revisit ? { nodeId: hintNode.id, last: state.lastVisit[hintNode.id] || null } : null, memo: memo
+          revisit: revisit ? { nodeId: hintNode.id, last: state.lastVisit[hintNode.id] || null } : null, memo: memo,
+          reactionBy: out.reactionBy, reactionRaw: null, reactionLine: out.reactionLine,
+          /* R3: 데모 메모의 '내일은 X 쪽으로' 가 글에 들어갔을 때만. 글 = 메모 그대로, about = X. 새 난수 없음 */
+          noteOut: (memo && memoInfo.next) ? { text: memo.tomorrow, about: { kind: 'node', id: memoInfo.next.id }, by: 'demo-rules' } : null,
+          setDown: []
         };
       });
   }
@@ -1272,9 +1440,13 @@
     var depart = events.filter(function (e) { return e.type === 'depart'; })[0] || null;
     var hintRaw = String((depart && depart.hint != null ? depart.hint : meta.hint) || '').trim();
     var base = { by: by, seed: seed, dateKey: meta.dateKey || localDateKey(now), seq: meta.seq == null ? 1 : meta.seq, name: meta.name || '', hintRaw: hintRaw };
+    /* 고른 이가 모델(mcp)·사람(human)이면 그들이 낸 반응·말·메모를 그대로 둔다 (R1, MODEL_VOICE). 그 밖의 by 는 데모 규칙의 재생 */
+    var voice = voiceOf(by);
+    var wrap = events.filter(function (e) { return e.type === 'wrap_up'; })[0] || null;
+    var noteOut = spokenNote(wrap, voice), setDown = spokenSetDown(wrap, voice);
 
     if (events.some(function (e) { return e.type === 'empty_turn'; }) && !events.some(function (e) { return e.type === 'peek'; })) {
-      var et = emptyTrip(base); et.events = events; return et;
+      var et = emptyTrip(base); et.events = events; et.noteOut = noteOut; et.setDown = setDown; return et;
     }
     var sh = events.filter(function (e) { return e.type === 'stay_home'; })[0];
     if (sh && !events.some(function (e) { return e.type === 'peek'; })) {
@@ -1282,16 +1454,25 @@
          못 하는 활동이면 그 활동의 문구·효과(포스터 바꾸기)는 쓰지 않고, 입력이 준 말만 쓴다 */
       var allActs = (W && Array.isArray(W.homeActivities) && W.homeActivities.length) ? W.homeActivities : DEFAULT_HOME;
       var okActs = homeActivities(state.lantern, state.posters);
-      var act = allActs.filter(function (a) { return a && a.id === sh.activity && (a.id === 'nothing' || okActs.indexOf(a) >= 0); })[0]
-        || { id: 'custom', line: sh.line || '오늘은 집에 있었어', detail: sh.detail || '', anchor: sh.anchor || 'window' };
+      var trusted = allActs.filter(function (a) { return a && a.id === sh.activity && (a.id === 'nothing' || okActs.indexOf(a) >= 0); })[0] || null;
+      var act = trusted || { id: 'custom', line: sh.line || '오늘은 집에 있었어', detail: sh.detail || '', anchor: sh.anchor || 'window' };
       if (sh.line) act = Object.assign({}, act, { line: sh.line });
-      var ht = homeTripFrom(base, act, R, state.lantern);
+      /* 모델·사람의 쪽지 뒷면(detail)은 그들이 쓴 것만. 활동 목록의 뒷면 글('빗소리가 좋아서 …')은 데모 규칙의 말이라 그들 쪽지에 붙이지 않는다 */
+      if (voice) act = Object.assign({}, act, { detail: typeof sh.detail === 'string' ? sh.detail : '' });
+      var wu = wrap;
+      var said = null;
+      if (voice) { var sr = spokenReaction(wu); said = { by: voice, reaction: sr.reaction, raw: sr.raw, line: spokenLine(wu) }; }
+      /* 데모 규칙의 재생: 집에 있는 날엔 처음 온 곳도 읽은 것도 없으니 폴짝·우쭐은 받지 않는다 (homeTripFrom 이 거른다 → 활동 후보로).
+         모델·사람: 준 반응 그대로 (said) */
+      var ht = homeTripFrom(base, act, R, state.lanternLeft, wu && wu.reaction, said);
       ht.events = events;
-      var wu = events.filter(function (e) { return e.type === 'wrap_up'; })[0];
-      /* 집에 있는 날엔 처음 온 곳도 읽은 것도 없으니 폴짝·우쭐은 받지 않는다 */
-      if (wu && REACTIONS.indexOf(wu.reaction) >= 0 && reactionFits(wu.reaction, [], 'none')) { ht.reaction = wu.reaction; ht.receipt.reaction = wu.reaction; ht.receipt.reactionEmoji = reactionEmoji(wu.reaction); }
-      if (wu) wu.reaction = ht.reaction;
+      if (wu && !voice) wu.reaction = ht.reaction;
       ht.memo = cleanMemo(wu && wu.memo);   /* 재생: 이벤트가 준 메모만. 없으면 말하지 않는다 */
+      ht.noteOut = noteOut; ht.setDown = setDown;
+      if (voice) {   /* 못 하는 활동(등불·포스터가 모자람)이면 두뇌가 '집에 있었어' 로 바꿨다는 걸 따로 남긴다 (MODEL_VOICE §2) */
+        ht.receipt.activity.by = trusted ? voice : 'fallback';
+        if (!trusted && sh.activity != null) ht.receipt.activity.asked = String(sh.activity);
+      }
       return ht;
     }
 
@@ -1350,22 +1531,27 @@
     if (depart && depart.followHint === false) follow = false;
 
     var rem = events.filter(function (e) { return e.type === 'remember'; })[0] || null;
-    var wrap = events.filter(function (e) { return e.type === 'wrap_up'; })[0] || null;
     var ret = events.filter(function (e) { return e.type === 'return'; })[0] || null;
     var rr = { rRemember: R(), rSouvenir: R(), rTemplate: R(), rMemory: R(), pos: drawStickerPos(R), paper: Math.floor(R() * 3), rReaction: R() };
+    var sr2 = voice ? spokenReaction(wrap) : null;
     var out = assemble({
       stops: stops, match: match, intent: intent, follow: follow, hintNode: hintNode, urlNode: urlNode,
-      hintRaw: hintRaw, name: base.name, hour: hour, reason: (ret && ret.reason) || null, rr: rr,
+      hintRaw: hintRaw, name: base.name, hour: hour, reason: (ret && ret.reason) || null, rr: rr, owned: state.owned,
       remIdx: rem && typeof rem.stopIdx === 'number' ? rem.stopIdx : undefined,
       line: rem && rem.line ? String(rem.line) : null, sticker: rem && rem.sticker ? String(rem.sticker) : null,
-      reaction: wrap && wrap.reaction
+      reaction: voice ? sr2.reaction : (wrap && wrap.reaction), voice: voice,
+      reactionRaw: voice ? sr2.raw : null, reactionLine: voice ? spokenLine(wrap) : null
     });
-    if (wrap) wrap.reaction = out.reaction;   /* 맞지 않아 바뀐 반응도 이벤트에 그대로 */
+    if (wrap && !voice) wrap.reaction = out.reaction;   /* 데모 규칙의 재생: 맞지 않아 바뀐 반응도 이벤트에 그대로. 모델·사람의 이벤트는 손대지 않는다 */
     return {
       kind: 'out', by: by, seed: seed, dateKey: base.dateKey, seq: base.seq,
       hint: out.hint, events: events, receipt: out.receipt, poster: out.poster,
       visitsDelta: out.visitsDelta, affinityDelta: out.affinityDelta, affinityDecay: 0.9, reaction: out.reaction,
-      memo: cleanMemo(wrap && wrap.memo)   /* 재생: wrap_up.memo 가 있을 때만 (MCP 모델이 직접 쓴다) */
+      memo: cleanMemo(wrap && wrap.memo),   /* 재생: wrap_up.memo 가 있을 때만 (MCP 모델이 직접 쓴다) */
+      reactionBy: out.reactionBy, reactionRaw: out.reactionRaw, reactionLine: out.reactionLine,
+      noteOut: noteOut, setDown: setDown,
+      /* 고른 이가 hang_poster 를 냈나. 안 냈으면 포스터는 일기로만 두고 벽에 붙이지 않는 게 그 뜻이다 (app 이 정한다) */
+      posterHung: events.some(function (e) { return e.type === 'hang_poster'; })
     };
   }
 
@@ -1386,6 +1572,10 @@
   BRAIN.computeReaction = computeReaction;
   BRAIN.localDateKey = localDateKey;
   BRAIN.cleanMemo = cleanMemo;
+  BRAIN.normalizeNotes = normalizeNotes;
+  BRAIN.clipShown = clipShown;
+  BRAIN.NOTE_BOOST = NOTE_BOOST;
+  BRAIN.NOTES_IN = NOTES_IN;
   BRAIN.daysBetween = daysBetween;
   BRAIN.MEMO_MAX = MEMO_MAX;
   BRAIN.setWorld = function (w) { BRAIN._world = w || null; };

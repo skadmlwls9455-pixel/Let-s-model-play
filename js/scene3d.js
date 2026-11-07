@@ -12,7 +12,9 @@ var SCENE3D = (function () {
   var DEG = Math.PI / 180;
   var TILT = 32 * DEG, YAW = 45 * DEG, DIST = 24, PX_PER_M = 18, DEF_P = 2;   /* 아트 픽셀 18/m × 3/p: 기본 p=2(룩 패스 8) → 27/m (1px ≈ 3.7 cm), p=3 → 18/m (5.5 cm) */
   var SNAP_N = PX_PER_M * 3 / DEF_P;                                              /* 정적 소품 스냅 격자 = 기본 픽셀 격자 1/27 m (p=3 폴백에선 반 픽셀 위상이 생긴다 — 폴백은 느린 기기 전용) */
-  var ZOOM_STEPS = [1, 1.25, 1.5, 2];
+  /* 줌 멈춤 7개, 한 칸 2^(1/6) ≈ 12 % (docs/INTERIOR_MODE.md §3.5): p=2 → 27·30·34·38·43·48·54 아트px/m, p=3 → 18·20·23·25·29·32·36. 핀치는 손가락 거리 비율을 가장 가까운 멈춤에 잇달아 맞춘다(건너뛰지 않음), 휠은 한 칸.
+     ZOOM_OLD = 예전 4단 (setLook({zoom:i}) 호환: look-shots close · play.html 이 i 로 부른다 → 같은 배율) */
+  var ZOOM_STEPS = [0, 1, 2, 3, 4, 5, 6].map(function (k) { return Math.pow(2, k / 6); }), ZOOM_OLD = [1, 1.25, 1.5, 2];
   /* 방 5×5 m (x,z ∈ [-2.5, 2.5]). 뒷벽 오른쪽 끝의 문으로 나간다 (§13.2 의 앞쪽 문은 직교 시점에서 바닥을 가려 뒷벽으로 옮김) */
   var R = 2.5;
   var ANCHORS = { door: [1.95, 0, -2.05], window: [-1.8, 0, 0.4], crate: [1.25, 0, -1.0], board: [0.1, 0, -2.0], blanket: [-1.0, 0, 1.5], center: [0, 0, 0.2] };
@@ -122,32 +124,34 @@ var SCENE3D = (function () {
     'vec3 nrm(vec2 uv){ return texture2D(tNormal, uv).rgb * 2.0 - 1.0; }',
     'float luma(vec2 uv){ vec3 c = texture2D(tDiffuse, uv).rgb; return dot(c, vec3(0.299, 0.587, 0.114)); }',
     /* 이웃 한 칸: 깊이가 더 멀면 어두운 선(dd), 같은 깊이에서 노멀이 꺾이면 밝은 선(nn) — RenderPixelatedPass 규칙 */
-    'float tap(vec2 uv, vec2 off, float d0, vec3 n0, inout float dd, inout float nn){',
+    'float tap(vec2 uv, vec2 off, float d0, vec3 n0, inout float dd, inout float nn, inout float mk){',
     '  vec2 u2 = uv + off; float d1 = depthM(u2); dd += max(d1 - d0, 0.0);',
     '  vec3 n1 = nrm(u2); float di = clamp(sign((d1 - d0) * 0.25 + 0.0025), 0.0, 1.0);',
     '  float ni = smoothstep(-0.01, 0.01, dot(n0 - n1, vec3(1.0)));',
-    '  nn += (1.0 - dot(n0, n1)) * di * ni; return luma(u2); }',
+    '  vec4 t = texture2D(tDiffuse, u2); mk = max(mk, step(t.a, 0.25));',   /* 이웃이 사라지는 문어의 구멍인가 (알파 0) */
+    '  nn += (1.0 - dot(n0, n1)) * di * ni; return dot(t.rgb, vec3(0.299, 0.587, 0.114)); }',
     /* 램프 게이트(룩 패스 5): 한 축의 양쪽 1계 차분이 같은 부호일 때 둘 중 작은 쪽 = 연속 기울기. 1px 이음·외곽선·계단 가장자리·2색 경계는 한쪽 차분이 0 이라 0 → 거기엔 디더가 안 붙는다 */
     'float ramp(float lm, float l0, float lp){ float a = l0 - lm, b = lp - l0; return (a * b > 0.0) ? min(abs(a), abs(b)) : 0.0; }',
     'void main(){',
     '  vec2 ap = floor(vUv * uRes), px = 1.0 / uRes;',
-    '  vec3 c = texture2D(tDiffuse, vUv).rgb;',
+    '  vec4 c4 = texture2D(tDiffuse, vUv); vec3 c = c4.rgb;',
+    '  float om = (1.0 - uKeepAlpha) * step(c4.a, 0.25);',   /* 사라지는 문어의 구멍 픽셀 (뷰티 알파 0, fadeLook): 색은 뒤 장면인데 깊이·노멀은 문어라 → 잉크선·하이라이트·비네트를 끈다 (안 끄면 윤곽 둘레에 잉크 고리) */
     /* 발광 블룸 (룩 패스 6): 저해상 발광 타깃(등불 유리·양초 불꽃·창 유리만)을 아트 픽셀 단위 5탭 분리 블러한 것을 팔레트 스냅 *전에* 선형으로 더한다 → 글로우가 따뜻한 팔레트 칸으로 양자화되고 램프 게이트 디더를 받는다 */
     '  vec3 bl = srgbToLinear(texture2D(tBloom, vUv).rgb) * uBloom;',
     '  float blk = dot(bl, vec3(0.299, 0.587, 0.114));',
     '  vec3 ok = linToOklab(srgbToLinear(c) + bl);',
     '  ok.x = (ok.x - 0.5) * 1.03 + 0.5; ok.yz *= 1.07;',                               /* grade: 대비 1.03, 채도 1.07 */
-    '  float d0 = depthM(vUv); vec3 n0 = nrm(vUv); float l0 = luma(vUv); float dd = 0.0, nn = 0.0;',
-    '  float lR = tap(vUv, vec2(px.x, 0.0), d0, n0, dd, nn), lL = tap(vUv, vec2(-px.x, 0.0), d0, n0, dd, nn);',
-    '  float lU = tap(vUv, vec2(0.0, px.y), d0, n0, dd, nn), lD = tap(vUv, vec2(0.0, -px.y), d0, n0, dd, nn);',
-    '  float dei = floor(smoothstep(0.06, 0.5, dd) * 2.0) / 2.0 * uOutline * (1.0 - smoothstep(0.01, 0.08, blk));',   /* 깊이 외곽선: 2단 (6 cm 부터). 글로우 속(블룸 루마 > 0.01)에선 잉크선이 빛에 묻힌다 */
-    '  float nei = step(0.1, nn) * uOutline * uHasNormal;',                               /* 노멀 하이라이트: 가까운 면만 */
+    '  float d0 = depthM(vUv); vec3 n0 = nrm(vUv); float l0 = luma(vUv); float dd = 0.0, nn = 0.0, mk = om;',
+    '  float lR = tap(vUv, vec2(px.x, 0.0), d0, n0, dd, nn, mk), lL = tap(vUv, vec2(-px.x, 0.0), d0, n0, dd, nn, mk);',
+    '  float lU = tap(vUv, vec2(0.0, px.y), d0, n0, dd, nn, mk), lD = tap(vUv, vec2(0.0, -px.y), d0, n0, dd, nn, mk);',
+    '  float dei = floor(smoothstep(0.06, 0.5, dd) * 2.0) / 2.0 * uOutline * (1.0 - smoothstep(0.01, 0.08, blk)) * (1.0 - om);',   /* 깊이 외곽선: 2단 (6 cm 부터). 글로우 속(블룸 루마 > 0.01)에선 잉크선이 빛에 묻힌다 */
+    '  float nei = step(0.1, nn) * uOutline * uHasNormal * (1.0 - om);',                               /* 노멀 하이라이트: 가까운 면만 */
     '  ok.x *= 1.0 - 0.34 * dei;',
     '  ok.x *= (dei < 0.01) ? (1.0 + 0.06 * nei) : 1.0;',
     '  float g = max(ramp(lL, l0, lR), ramp(lD, l0, lU));',                              /* 3탭 연속 기울기 (가로·세로 중 큰 쪽) */
-    '  float gate = smoothstep(0.004, 0.055, g) * (1.0 - smoothstep(0.16, 0.3, g));',     /* 디더는 톤 램프에만: 기울기 0.004~0.055 에서 올라가고, 1px 띠처럼 아주 가파르면 다시 끈다 */
+    '  float gate = smoothstep(0.004, 0.055, g) * (1.0 - smoothstep(0.16, 0.3, g)) * (1.0 - mk * (1.0 - uKeepAlpha));',   /* 사라지는 문어의 체크 위·옆엔 램프 디더 없음 (구멍/남은 픽셀 경계가 가짜 기울기로 읽혀 한 칸씩 어두워지던 것) */     /* 디더는 톤 램프에만: 기울기 0.004~0.055 에서 올라가고, 1px 띠처럼 아주 가파르면 다시 끈다 */
     '  ok.x += bayer(ap) * uDither * mix(0.125, 1.0, gate);',                            /* 평지 0.05 칸 · 램프 0.4 칸 (uDither = 0.4 × PAL.step × 슬라이더/0.25) */
-    '  float bgk = step(uFar - 0.5, d0) * uVig; vec2 vq = (vUv - 0.5) * vec2(uRes.x / uRes.y, 1.0);',   /* 허공(배경)만: 가장자리로 갈수록 어둡게 + 정적 Bayer (비네트) */
+    '  float bgk = step(uFar - 0.5, d0) * uVig * (1.0 - om); vec2 vq = (vUv - 0.5) * vec2(uRes.x / uRes.y, 1.0);',   /* 허공(배경)만: 가장자리로 갈수록 어둡게 + 정적 Bayer (비네트) */
     '  ok.x -= bgk * 0.1 * smoothstep(0.3, 0.9, length(vq)); ok.x += bgk * bayer(ap) * 0.06;',
     '  if (bayer(ap) + 0.5 < uFade) ok = uFadeOk;',   /* 장소 전환 크로스페이드: 아트 픽셀 단위 정렬 디더로 허공색에 덮였다 걷힌다 (uFade 0 이면 bayer+0.5 ≥ 1/32 라 늘 통과 = 변화 없음) */
     '  float best = 1e9, bestL = 0.0; int bi = 0;',
@@ -259,6 +263,12 @@ var SCENE3D = (function () {
   };
   /* 발광 색 (룩 패스 6): 등불 유리 속 심지·양초 불꽃의 발광 타깃 색. 시각대 `em` 과 등불 칸 수로 배율, `winEm` 은 창 유리 발광 색(낮 = 하늘 밝게, 밤 = 희미한 차가운 색) */
   var EM = { lamp: '#ffc46a', flame: '#ffd990' };
+  /* 첫 불 (소유자 폰 22:51 · 등불 0 · 비 = 창과 달빛 조각만 보이고 문어를 못 찾던 칠흑): 처음부터 방이 '어둑하지만 아늑한 다락' 으로 읽히고 문어가 늘 찾아지게. 전부 밤에만 (em 0.8→1 = nightK) — 낮·새벽·노을·바깥은 예전 그대로.
+     ember = 0칸 등불 계수 ('작은 불씨': 밤에만 점광·발광·글로우·웅덩이가 작게 켜진다, 낮 0칸은 예전처럼 꺼진 회색 유리; 1칸 0.475 → 8칸 1 의 칸당 곡선은 그대로) ·
+     밤 바닥 = 다락 헤미를 sky/gnd · hemiI 쪽으로 (keep = 등불 칸과 무관하게 남는 몫: 1 = 모든 칸에서 같은 달빛 바닥 → 등불 빛이 안 닿는 앞쪽 바닥·깔개도 허공색에 묻히지 않고, 칸을 채워도 앞쪽이 어두워지지 않는다) ·
+     필은 등불 칸이 낮을 때(0칸 전부 → upTo 칸 0) fillI 까지 ·
+     문어 자체광 = 몸색(알베도)에 비례하는 흐린 빛 glow × (glow0 → glow8, 등불 칸에 따라 선형) — 동공·입은 어두운 채, 몸·흰자만 한 칸 뜬다 (블러·새 패스 없음, 툰 재질 유니폼 하나). 옅은 살구색이라 파랑·보라·초록 몸도 빨강만큼 뜬다 */
+  var FIRST_LIGHT = { ember: 0.25, sky: '#4d4a70', gnd: '#2a2024', hemiI: 0.4, keep: 1, fillI: 0.12, upTo: 4, glow: '#ffd8b0', glow0: 0.14, glow8: 0.06 };
   function phaseOf(h) { return h < 6 ? 'night' : h < 9 ? 'dawn' : h < 17 ? 'day' : h < 19 ? 'dusk' : 'night'; }
 
   /* ═══════════════════════════ init ═══════════════════════════ */
@@ -267,7 +277,7 @@ var SCENE3D = (function () {
     var on = opts.on || {};
     var st = { lantern: opts.lantern | 0, items: (opts.items || []).slice(), weather: opts.weather || 'rain', hour: typeof opts.hour === 'number' ? opts.hour : 21.5,
       color: opts.color || '#e8463c', reduced: !!opts.reducedMotion, speed: opts.speed > 0 ? opts.speed : 1, octState: 'idle', paused: false, hidden: false,
-      look: Object.assign({ pixelSize: DEF_P, dither: 0.25, outline: true, yaw: 0, key: LIGHTS.day.sunI, fill: LIGHTS.day.hemiI }, opts.look || {}), zoom: 0, palette: paletteSource(opts.palette || PAL_DEFAULT) };
+      look: Object.assign({ pixelSize: DEF_P, dither: 0.25, outline: true, yaw: 0, key: LIGHTS.day.sunI, fill: LIGHTS.day.hemiI }, opts.look || {}), zoomF: 1, palette: paletteSource(opts.palette || PAL_DEFAULT) };   /* zoomF = 줌 배율 (1 ~ 2, 보통 ZOOM_STEPS 의 하나) */
     st.look.key = clamp(+st.look.key || LIGHTS.day.sunI, 0.5, 4); st.look.fill = clamp(+st.look.fill || LIGHTS.day.hemiI, 0, 1);
     var PAL = buildPalette(st.color, st.palette), OC = octDerived(st.color);
     var disposables = [], unbind = [], raf = 0, lastDraw = 0, frameNo = 0, drawN = 0, time = 0, calls = 0, ready = false;
@@ -322,12 +332,14 @@ var SCENE3D = (function () {
 
     /* ── 카메라 (직교 다이메트릭, 픽셀 격자 스냅) ── */
     var camera = new T.OrthographicCamera(-1, 1, 1, -1, 0.1, 60);
-    var camTarget = new T.Vector3(0, 0.75, -0.4), _tg = new T.Vector3(), yawDrag = 0, dragging = false;
+    var camTarget = new T.Vector3(0, 0.75, -0.4), _tg = new T.Vector3(), _pnt = new T.Vector3(), yawDrag = 0;
+    var PLAY = null;   /* 놀이 kit (play.html 전용, makePlay): inst.play() 를 부르기 전엔 늘 null → 아래 `if (PLAY)` 훅 4개는 본 게임에서 아무것도 안 한다 */
     var EXT_TARGET = new T.Vector3(0.4, 1.55, 0.0);   /* 바깥 디오라마 카메라 타깃 (같은 요·틸트·픽셀 밀도; 집 용마루·굴뚝과 오른쪽 아래 가장자리 출구가 한 화면에) */
     function camTargetNow() {   /* look.focus='oct': 문어 중심 (look-shots close). 장소 그룹은 순수 평행이동이라 부모 위치를 더하면 월드 좌표. 입장 연출 중이면 그 위로 introOffset() 만큼 (하늘) */
       var b;
       if (st.look.focus === 'oct' && octG) { _tg.copy(octG.position).add(_focusUp); if (octG.parent) _tg.add(octG.parent.position); b = _tg; }
       else b = PLACE.vis === 'exterior' ? EXT_TARGET : camTarget;
+      if (PLAY && PLAY.cam) b = PLAY.cam;   /* 놀이: 컵 줄을 화면 아래쪽 60 % 쯤에 */
       return INTRO.on ? _ti.copy(b).setY(b.y + introOffset()) : b;
     }
     var PLACE = { cur: 'attic', vis: 'attic', trans: null, fade: 0 };   /* cur = 요청된 장소, vis = 지금 그려지는 장소 (전환 앞 절반은 나가는 쪽) */
@@ -344,12 +356,123 @@ var SCENE3D = (function () {
     function yawDelta() { var y = clamp(yawDrag + st.look.yaw * DEG, -25 * DEG, 25 * DEG); return Math.round(y / (9 * DEG)) * 9 * DEG; }   /* 9° 스냅 */
     var _off = new T.Vector3(), _r = new T.Vector3(), _u = new T.Vector3(), _ax = new T.Vector3(1, 0, 0), _ay = new T.Vector3(0, 1, 0);
     function placeCamera() {
-      var tgt = camTargetNow();
+      var tgt = camTargetNow(), ref = tgt;
       _off.set(0, 0, DIST).applyAxisAngle(_ax, -TILT).applyAxisAngle(_ay, YAW + yawDelta());
       camera.position.copy(tgt).add(_off); camera.lookAt(tgt); camera.updateMatrixWorld();
       _r.setFromMatrixColumn(camera.matrixWorld, 0); _u.setFromMatrixColumn(camera.matrixWorld, 1);
-      snapScreen(camera.position, tgt);   /* 타깃을 카메라 우/상 축 기준 pixelWorldSize 격자에 스냅 → 패닝/추적 중 픽셀 크리프 없음 */
+      if (panOn() && (PAN.x || PAN.y)) {   /* 밀기: 카메라를 화면 우/상 축으로 평행이동 (직교라 = 타깃 이동). 스냅 기준도 밀린 타깃 → 1 아트px 계단 */
+        ref = _pnt.copy(tgt).addScaledVector(_r, PAN.x).addScaledVector(_u, PAN.y); camera.position.addScaledVector(_r, PAN.x).addScaledVector(_u, PAN.y);
+      }
+      snapScreen(camera.position, ref);   /* 타깃을 카메라 우/상 축 기준 pixelWorldSize 격자에 스냅 → 패닝/추적 중 픽셀 크리프 없음 */
       camera.updateMatrixWorld();
+    }
+    /* ── 밀기 + 관성 + 고무줄 (docs/INTERIOR_MODE.md §3.4): PAN.x/y = 카메라 오프셋(월드 m, 화면 우/상 축). 손가락 1:1 · 뗄 때 마지막 100 ms 평균 속도(80 ms 멈췄으면 0,
+       0.25 px/ms 미만 0, 최대 2 px/ms) → 매 프레임 v = v·e^(−dt/0.25 s), 0.03 px/ms 아래면 멈춤 · 경계 = 장소 상자를 화면 축에 투영 + 여백 12 아트px (방이 화면 밖으로 안 나간다) ·
+       경계 밖은 손가락의 40 % 로 시작해 최대 20 아트px 까지 (부드러운 포화), 떼면 0.25 s ease-out 으로 돌아온다 · 쉬면 정수 아트px 위 · 모션 감소 = 관성·고무줄 없음.
+       의식·입장 연출 중엔 밀기를 안 받고 0.3 s 만에 0 으로 — 단 의식 중 확대해 있으면 0 대신 문어를 따라간다(cerFollow: 화면 가운데 절반 안, 경계 안 · 문어가 보일 때만 ·
+       가속 한도가 있는 부드러운 따라가기라 멀리서 나타나도 휙 날아가지 않는다), 장소가 바뀌면 0.
+       1× 에선 경계가 0 (가로·세로 고무줄만, 떼면 가운데로 · §3.4 '1×') — 첫 멈춤까지 경계가 줌에 비례해 열린다. 놀이(PLAY)·문어 초점(look-shots close) 중엔 꺼짐 */
+    var PAN = { x: 0, y: 0, vx: 0, vy: 0, mode: '', t: 0, dur: 0, fx: 0, fy: 0, tx: 0, ty: 0, cut: false };   /* cut = 장소가 막 바뀜 (다음 따라가기는 미끄러지지 않고 바로) */
+    var GEST = { mode: '', pts: {}, n: 0, hold: false, wheelT: 0 };   /* 손가락 상태기계 하나 (아래 '입력'): '' | press | pan | multi | pinch | twist | yaw | done */
+    var PLACE_BOX = { attic: [[-2.72, 2.72], [-0.48, 3.0], [-2.72, 2.72]], exterior: [[-3.42, 3.42], [-0.48, 3.3], [-3.42, 3.42]] };   /* 받침 포함 (x · y · z) */
+    function panOn() { return !PLAY && st.look.focus !== 'oct'; }
+    function panLocked() { return INTRO.on || !!(CER && CER.active) || !!PLACE.trans; }   /* 연출 중: 손가락 밀기 X (문어가 화면 밖으로 안 나가게). 줌은 된다 */
+    function panBox() {   /* 카메라 오프셋 허용 범위 [x0, x1, y0, y1] (m). 방이 화면보다 크면 화면이 방(+여백) 안, 작으면 방이 화면 안. 0(기본 구도)은 늘 포함 */
+      var b = PLACE_BOX[PLACE.vis] || PLACE_BOX.attic, tgt = camTargetNow(), m = 12 / S.N, hw = S.rw / 2 / S.N, hh = S.rh / 2 / S.N, a0 = 1e9, a1 = -1e9, c0 = 1e9, c1 = -1e9;
+      for (var i = 0; i < 8; i++) {
+        _pnt.set(b[0][i & 1], b[1][(i >> 1) & 1], b[2][(i >> 2) & 1]).sub(tgt); var a = _pnt.dot(_r), c = _pnt.dot(_u);
+        if (a < a0) a0 = a; if (a > a1) a1 = a; if (c < c0) c0 = c; if (c > c1) c1 = c;
+      }
+      var x0 = a0 - m + hw, x1 = a1 + m - hw, y0 = c0 - m + hh, y1 = c1 + m - hh;
+      var s = clamp((st.zoomF - 1) / (ZOOM_STEPS[1] - 1), 0, 1);   /* 1× = 0 (고무줄만 — 360 폭에서도 기본 구도가 비뚤게 남지 않는다) → 첫 멈춤(1.12×)에서 온전한 경계. 핀치가 1× 로 돌아올 때 한 번에 튀지 않게 비례 */
+      return [Math.min(x0, x1, 0) * s, Math.max(x0, x1, 0) * s, Math.min(y0, y1, 0) * s, Math.max(y0, y1, 0) * s];
+    }
+    function band(v, lo, hi) {   /* 고무줄: 경계 밖 e → M(1 − e^(−0.4 e / M)) (기울기 0.4 로 시작, M = 20 아트px 에 포화). 모션 감소면 딱 멈춤 */
+      var M = 20 / S.N;
+      if (st.reduced) return clamp(v, lo, hi);
+      if (v > hi) return hi + M * (1 - Math.exp(-0.4 * (v - hi) / M));
+      if (v < lo) return lo - M * (1 - Math.exp(-0.4 * (lo - v) / M));
+      return v;
+    }
+    function clampPan() { var b = panBox(); PAN.x = clamp(PAN.x, b[0], b[1]); PAN.y = clamp(PAN.y, b[2], b[3]); }
+    function roundPan() { PAN.x = Math.round(PAN.x * S.N) / S.N; PAN.y = Math.round(PAN.y * S.N) / S.N; }   /* 정확히 아트px 위에서 멈춘다 */
+    function panRest() {   /* 쉬는 중(손가락 밀기·핀치·관성·이징 없음)이면 경계 안 정수 아트px 로 — 폰을 돌린 뒤(resize)·휠 줌 뒤에도 pan() 이 정수. 경계는 늘 0 을 품는다 */
+      if (PAN.mode || ZT || GEST.mode === 'pan' || GEST.mode === 'pinch') return;
+      var b = panBox(), N = S.N;
+      PAN.x = clamp(Math.round(PAN.x * N), Math.ceil(b[0] * N - 1e-6), Math.floor(b[1] * N + 1e-6)) / N;
+      PAN.y = clamp(Math.round(PAN.y * N), Math.ceil(b[2] * N - 1e-6), Math.floor(b[3] * N + 1e-6)) / N;
+    }
+    function panTo(x, y, dur, mode) {   /* ease-out 으로 옮기기 (고무줄 복귀 0.25 s · 연출 시작 0.3 s · 가운데로) — 모션 감소면 바로 */
+      PAN.vx = PAN.vy = 0;
+      if (st.reduced || !dur) { PAN.x = x; PAN.y = y; PAN.mode = ''; return; }
+      PAN.mode = mode || 'tween'; PAN.t = 0; PAN.dur = dur; PAN.fx = PAN.x; PAN.fy = PAN.y; PAN.tx = x; PAN.ty = y;
+    }
+    function panSettle() {   /* 손을 뗀 뒤·관성이 끝난 뒤: 경계 밖이면 고무줄로 돌아오고, 안이면 정수 아트px 에 멈춘다 */
+      var b = panBox(), x = clamp(PAN.x, b[0], b[1]), y = clamp(PAN.y, b[2], b[3]);
+      if (Math.abs(x - PAN.x) > 1e-6 || Math.abs(y - PAN.y) > 1e-6) { panTo(Math.round(x * S.N) / S.N, Math.round(y * S.N) / S.N, 0.25, 'spring'); if (!PAN.mode) clampPan(); }
+      else { PAN.mode = ''; PAN.vx = PAN.vy = 0; roundPan(); }
+    }
+    function pxms(v) { return Math.abs(v) * S.p * S.N / 1000; }   /* m/s → CSS px/ms */
+    var _fw = new T.Vector3();
+    function cerFollow() {   /* 의식 중(출발·귀가·기웃) 확대해 있으면: 0 으로 돌아가면 문어가 화면 밖에서 나간다 (2× 에서 다락 문·가장자리는 화면 밖) →
+                                문어 몸 전체가 화면 안에 들게 밀린 값을 정한다 (이미 들어 있으면 그대로 = 문어 쪽으로 밀어 둔 화면을 빼앗지 않는다). 경계 안 · 정수 아트px.
+                                null = 따라가기 아님 (1× · 의식 밖). 문어가 안 보이면 화면은 그 자리에 선다 (빈 땅 위로 먼저 날아가지 않는다.
+                                멀리서 나타나는 기웃·귀가는 체크가 한 칸 켜진 뒤부터 움직인다). 장소가 막 바뀐 프레임(cut)은 디더에 덮여 있으니 보이든 말든 바로 그 자리 */
+      if (!(CER && CER.active) || INTRO.on || st.zoomF <= 1.001) return null;
+      var b = panBox(), tx = PAN.x, ty = PAN.y;
+      if (PAN.cut || (octG.visible && FADE.d > 0)) {
+        octG.getWorldPosition(_fw).add(_focusUp).sub(camTargetNow());
+        var ox = _fw.dot(_r), oy = _fw.dot(_u), hx = Math.max(0, S.rw / 2 / S.N - 0.9), hy = Math.max(0, S.rh / 2 / S.N - 0.9);   /* 0.9 m = 문어 몸 가운데에서 다리 끝·머리 꼭대기까지 + 여유 → 몸 전체가 화면 안 */
+        tx = clamp(PAN.x, ox - hx, ox + hx); ty = clamp(PAN.y, oy - hy, oy + hy);
+      }   /* 안 보이면 목표 = 지금 자리 (경계 안) → 움직이던 화면은 같은 감속으로 선다 */
+      return [clamp(Math.round(tx * S.N) / S.N, b[0], b[1]), clamp(Math.round(ty * S.N) / S.N, b[2], b[3])];
+    }
+    function stepPan(dt) {
+      if (!panOn()) { PAN.x = PAN.y = PAN.vx = PAN.vy = 0; PAN.mode = ''; PAN.cut = false; return; }
+      if (panLocked()) {
+        var f = cerFollow();
+        if (f !== null) { followStep(f, dt); return; }
+        PAN.cut = false;
+        if (PAN.mode === 'follow') PAN.mode = '';   /* 따라가다 1× 로 줄였거나 연출이 바뀜 → 아래 0 으로 */
+        if ((PAN.x || PAN.y) && PAN.mode !== 'home') panTo(0, 0, 0.3, 'home');
+      } else { PAN.cut = false; if (PAN.mode === 'follow') panSettle(); }   /* 의식이 끝나면 따라가던 자리에서 정수 px 로 */
+      if (!PAN.mode) return;
+      dither.still = 0;
+      if (PAN.mode === 'coast') {
+        var k = Math.exp(-dt / 0.25), b = panBox(), M = 20 / S.N;
+        PAN.vx *= k; PAN.vy *= k; PAN.x += PAN.vx * dt; PAN.y += PAN.vy * dt;
+        if (PAN.x < b[0] || PAN.x > b[1]) { PAN.vx *= Math.exp(-dt / 0.04); PAN.x = clamp(PAN.x, b[0] - M, b[1] + M); }   /* 관성이 경계에 닿으면 고무줄이 받는다 */
+        if (PAN.y < b[2] || PAN.y > b[3]) { PAN.vy *= Math.exp(-dt / 0.04); PAN.y = clamp(PAN.y, b[2] - M, b[3] + M); }
+        if (pxms(PAN.vx) < 0.03 && pxms(PAN.vy) < 0.03) panSettle();
+        return;
+      }
+      PAN.t += dt; var e = Math.min(1, PAN.t / PAN.dur), q = 1 - Math.pow(1 - e, 3);
+      PAN.x = PAN.fx + (PAN.tx - PAN.fx) * q; PAN.y = PAN.fy + (PAN.ty - PAN.fy) * q;
+      if (e >= 1) { PAN.x = PAN.tx; PAN.y = PAN.ty; PAN.mode = ''; }
+    }
+    /* 따라가기 한 프레임: 바라는 속도 = 남은 거리 / 0.12 s (걷는 문어를 바짝 — 1.8 m/s 에서 뒤처짐 ≈ 0.22 m), 단 최고 3 m/s · 가속 ≤ 8 m/s² ·
+       남은 거리에서 그 가속으로 설 수 있는 속도(√(2ad)) 이하 → 출발은 천천히 붙고 넘치지 않고 선다 (2× 에서 60 아트px 를 0.3 s 에 프레임당 19 CSS px 로 휙 가던 것
+       → 최고 프레임당 ≈ 5 CSS px). 반 아트px 안·거의 멈춤이면 정수 px 에 쉰다. 장소가 막 바뀐 프레임(cut)·모션 감소 = 바로 그 자리 */
+    var FOLLOW = { tau: 0.12, vmax: 3, amax: 8 };
+    function followStep(f, dt) {
+      if (PAN.cut || st.reduced) { PAN.x = f[0]; PAN.y = f[1]; PAN.vx = PAN.vy = 0; PAN.cut = false; PAN.mode = ''; return; }
+      var dx = f[0] - PAN.x, dy = f[1] - PAN.y, d = Math.hypot(dx, dy);
+      var sp = d > 1e-6 ? Math.min(FOLLOW.vmax, d / FOLLOW.tau, Math.sqrt(2 * FOLLOW.amax * d)) : 0;
+      var ax = (d > 1e-6 ? dx / d * sp : 0) - PAN.vx, ay = (d > 1e-6 ? dy / d * sp : 0) - PAN.vy, al = Math.hypot(ax, ay), am = FOLLOW.amax * Math.max(dt, 1e-4);
+      if (al > am) { ax *= am / al; ay *= am / al; }
+      PAN.vx += ax; PAN.vy += ay; PAN.x += PAN.vx * dt; PAN.y += PAN.vy * dt;
+      var slow = Math.hypot(PAN.vx, PAN.vy) * S.N < 6;   /* 초당 6 아트px 미만 = 거의 멈춤 */
+      if (d * S.N < 0.5 && slow) { PAN.x = f[0]; PAN.y = f[1]; PAN.vx = PAN.vy = 0; PAN.mode = ''; }
+      else { PAN.mode = 'follow'; dither.still = 0; }
+    }
+    function panReset() { PAN.x = PAN.y = PAN.vx = PAN.vy = 0; PAN.mode = ''; }
+    /* touch-action (§5.3): 평소 1× = pan-y (세로로 쓸면 페이지가 내려간다) · 확대했거나 물건을 든 동안·놀이 = none. 손짓 도중엔 브라우저가 안 바꾸므로
+       두 손가락·들기·밀기 중에는 touchmove 를 막는다 (아래 '입력'). 인라인이라 CSS 의 #scene3d { touch-action: none } 을 이긴다 */
+    var touchNow = '';
+    function touchMode() {
+      var want = PLAY || st.zoomF > 1.001 || GEST.hold ? 'none' : 'pan-y';
+      if (want === touchNow) return;
+      touchNow = want; container.style.touchAction = want; canvas.style.touchAction = want;
     }
     function snapScreen(v, ref) { /* v 를 (ref 또는 v 자신의) 카메라 우/상 축 좌표가 S.pw 의 배수가 되도록 옮긴다. 깊이 방향은 그대로 (직교) */
       ref = ref || v; var pw = S.pw, dx = ref.dot(_r), dy = ref.dot(_u);
@@ -369,15 +492,45 @@ var SCENE3D = (function () {
       var W = container.clientWidth || 320, H = container.clientHeight || 240, p = Math.max(st.look.pixelSize | 0 || DEF_P, Math.ceil(W / 480));
       var rw = Math.max(8, Math.floor(W / p)), rh = Math.max(8, Math.floor(H / p));
       S.W = W; S.H = H; S.p = p; S.rw = rw; S.rh = rh; S.cw = rw * p; S.ch = rh * p; S.offX = Math.floor((W - S.cw) / 2); S.offY = Math.floor((H - S.ch) / 2);
-      S.N = Math.round(PX_PER_M * 3 / p * ZOOM_STEPS[st.zoom]);   /* 픽셀을 줄이면 같은 구도에 디테일만 는다 */
       renderer.setSize(S.cw, S.ch, false); canvas.style.width = S.cw + 'px'; canvas.style.height = S.ch + 'px';
       rt.setSize(rw, rh); rtN.setSize(rw, rh); rtE.setSize(rw, rh); rtB.setSize(rw, rh); post.uniforms.uRes.value.set(rw, rh);
       blurOn = p < 4;
-      camera.left = -rw / 2 / S.N; camera.right = rw / 2 / S.N; camera.top = rh / 2 / S.N; camera.bottom = -rh / 2 / S.N; camera.updateProjectionMatrix();
-      S.pw = (camera.right - camera.left) / rw;   /* pixelWorldSize = 직교 프러스텀 폭 / 렌더 타깃 폭 (= 1/N: p=3 줌 1 → 1/18 m, p=2 → 1/27, 줌 ×2 → 1/36) */
-      placeCamera();
-      if (ready) { layoutWeather(false); if (CURT.frame) curtainFrame(1); anim.dustInit = false; extApplyWeather(); }   /* 룩 패스 7: 격자가 바뀌면 비·눈·물방울·커튼·먼지를 새 픽셀 중심에 재스냅 */
+      applyZoom();
     }
+    function applyZoom() {   /* 줌만 바뀔 때 (핀치·휠): 프러스텀·N·pw·카메라·입자 재스냅만 — renderer.setSize 는 캔버스 버퍼를 다시 잡아 한 프레임 비므로 resize() 에서만 */
+      S.N = Math.round(PX_PER_M * 3 / S.p * st.zoomF);   /* 픽셀을 줄이면 같은 구도에 디테일만 는다 · 매 멈춤이 정수 아트px/m */
+      camera.left = -S.rw / 2 / S.N; camera.right = S.rw / 2 / S.N; camera.top = S.rh / 2 / S.N; camera.bottom = -S.rh / 2 / S.N; camera.updateProjectionMatrix();
+      S.pw = (camera.right - camera.left) / S.rw;   /* pixelWorldSize = 직교 프러스텀 폭 / 렌더 타깃 폭 (= 1/N: p=3 줌 1 → 1/18 m, p=2 → 1/27, 줌 ×2 → 1/36) */
+      placeCamera();
+      if (ready) { clampPan(); panRest(); placeCamera(); layoutWeather(false); if (CURT.frame) curtainFrame(1); anim.dustInit = false; extApplyWeather(); }   /* 룩 패스 7: 격자가 바뀌면 비·눈·물방울·커튼·먼지를 새 픽셀 중심에 재스냅 */
+    }
+    function zoomStepOf(f) { return clamp(Math.round(Math.log(f) / Math.LN2 * 6), 0, ZOOM_STEPS.length - 1); }
+    function setZoom(f, cx, cy) {   /* 배율 f 로. (cx, cy) = 클라이언트 px 기준점: 그 아래 있던 곳이 줌 뒤에도 그 아래 (경계 안으로 자름). 연출 중·기준점 없음 = 가운데 */
+      f = clamp(f, 1, 2); if (Math.abs(f - st.zoomF) < 1e-6) return false;
+      var n0 = S.N, ax = 0, ay = 0;
+      if (cx != null && panOn() && !panLocked()) { var r = canvas.getBoundingClientRect(); ax = cx - (r.left + r.width / 2); ay = cy - (r.top + r.height / 2); }
+      if (PAN.mode === 'coast' || PAN.mode === 'spring') { PAN.mode = ''; PAN.vx = PAN.vy = 0; }
+      st.zoomF = f; applyZoom();
+      if (ax || ay) { var k = (1 / n0 - 1 / S.N) / S.p; PAN.x += ax * k; PAN.y -= ay * k; if (ready) { clampPan(); panRest(); placeCamera(); } }   /* 휠 한 칸 뒤에도 쉬는 자리는 정수 px */
+      dither.still = 0; touchMode(); return true;
+    }
+    /* 핀치 (§3.5): 손가락 거리 비율을 연속으로 따르되 매번 정수 아트px/m (N) 로 → 한 번에 한 N (p=2 에서 27→54 사이 ≈ 2~4 %) 씩, 덜컥 12 % 건너뛰지 않는다.
+       손을 떼면 가장 가까운 멈춤으로 0.15 s (ease-out, 매 프레임 정수 N) — 모션 감소면 바로. 끝나면 밀기도 경계 안 정수 px 로 (panSettle) */
+    function baseN() { return PX_PER_M * 3 / S.p; }
+    function zoomN(f, cx, cy) { var b = baseN(); return setZoom(clamp(Math.round(b * clamp(f, 1, 2)), Math.round(b), Math.round(b * 2)) / b, cx, cy); }
+    var ZT = null;
+    function zoomEase(f, cx, cy) {   /* 멈춤 f 로 0.15 s ease-out (매 프레임 정수 N) — 모션 감소면 바로 */
+      if (st.reduced || Math.abs(f - st.zoomF) < 1e-6) { ZT = null; setZoom(f, cx, cy); if (panOn() && !panLocked()) panSettle(); return; }
+      ZT = { f0: st.zoomF, f1: f, t: 0, cx: cx, cy: cy };
+    }
+    function zoomSettle(cx, cy) { zoomEase(ZOOM_STEPS[zoomStepOf(st.zoomF)], cx, cy); }
+    function stepZoom(dt) {
+      if (!ZT) return;
+      ZT.t += dt; var e = Math.min(1, ZT.t / 0.15), q = 1 - Math.pow(1 - e, 3), z = ZT;
+      if (e < 1) { zoomN(z.f0 + (z.f1 - z.f0) * q, z.cx, z.cy); return; }
+      ZT = null; setZoom(z.f1, z.cx, z.cy); if (panOn() && !panLocked()) panSettle();
+    }
+    function zoomFinish() { if (ZT) stepZoom(1); }   /* 새 손짓·휠이 오면 남은 이징을 끝내고 (멈춤 위에서) 시작 */
 
     /* ── 장면 · 조명 ── */
     var scene = new T.Scene(); scene.background = C(LIGHTS.night.bg);
@@ -434,14 +587,26 @@ var SCENE3D = (function () {
       if (PLACE.vis === 'exterior') sun.position.set(10 * Math.cos(elev) * Math.cos(az), 10 * Math.sin(elev) + 0.5, -10 * Math.cos(elev) * Math.sin(az));   /* 바깥: 차폐 없음, 해는 화면 오른쪽 옆(+x −z)에서 — 현관·계단 면(+x)이 밝고 그림자는 왼쪽으로 */
       else sun.position.set(-10 * Math.cos(elev) * Math.cos(az), 10 * Math.sin(elev) + 0.5, 10 * Math.cos(elev) * Math.sin(az));
       fitShadow();
-      hemi.color.copy(lerpC(a.sky, b.sky, e)); hemi.groundColor.copy(lerpC(a.gnd, b.gnd, e)); hemi.intensity = num('hemiI') * fillK() * (PLACE.vis === 'exterior' ? 1 + 1.2 * clamp((num('em') - 0.25) / 0.75, 0, 1) : 1);   /* 바깥은 열린 하늘: 밤 헤미 ×2.2 (다락은 그대로) */
-      fill.color.copy(lerpC(a.fill, b.fill, e)); fill.intensity = num('fillI') * fillK();
+      base.sky.copy(lerpC(a.sky, b.sky, e)); base.gnd.copy(lerpC(a.gnd, b.gnd, e)); base.hemiI = num('hemiI') * fillK() * (PLACE.vis === 'exterior' ? 1 + 1.2 * clamp((num('em') - 0.25) / 0.75, 0, 1) : 1);   /* 바깥은 열린 하늘: 밤 헤미 ×2.2 (다락은 그대로) */
+      fill.color.copy(lerpC(a.fill, b.fill, e)); base.fillI = num('fillI') * fillK();
       glass.material.color.copy(lerpC(a.out, b.out, e));
       winEm.material.color.copy(lerpC(a.winEm, b.winEm, e));
       scene.background.copy(lerpC(a.bg, b.bg, e));
       light.lamp = num('lamp'); light.lampD = num('lampD'); light.glow = num('glow'); light.pool = num('pool'); light.candle = num('candle'); light.em = num('em');
       light.out = lerpC(a.out, b.out, e).clone(); light.winEm = lerpC(a.winEm, b.winEm, e).clone();
-      lampDirty = true; if (extReady) extApplyLight();
+      lampDirty = true; if (extReady) extApplyLight();   /* 헤미·필 최종값(applyFloor)은 applyLamp 가 — 다음 렌더 전에 frame 이 lampDirty 를 처리한다 (전환 중 프레임당 한 번) */
+    }
+    /* 첫 불 — 밤 바닥·문어 자체광 (FIRST_LIGHT): applyLight 가 구한 시각대 헤미·필(base) 위에 얹는다. applyLamp 가 부른다 */
+    var base = { sky: new T.Color(), gnd: new T.Color(), hemiI: 0, fillI: 0 }, FL = FIRST_LIGHT;   /* FL 은 SCENE3D.FIRST_LIGHT 그대로 (LIGHTS 처럼 런타임에 바꾸면 다음 applyLight/applyLamp 에 반영) */
+    var _flc = {};
+    function flC(hex) { return _flc[hex] || (_flc[hex] = C(hex)); }   /* FIRST_LIGHT 색 캐시 (전환 중 매 프레임 new Color 없이) */
+    function nightK() { return PLACE.vis === 'exterior' ? 0 : clamp(((light.em == null ? 1 : light.em) - 0.8) / 0.2, 0, 1); }   /* 다락의 밤 정도: 노을(em 0.8) 이하 0 → 밤(1) 1. 낮·새벽·노을은 0 = 첫 불 전부 꺼짐 (낮 모습 그대로) */
+    function applyFloor() {
+      var nk = nightK(), fade = clamp(1 - st.lantern / FL.upTo, 0, 1), wh = nk * (FL.keep + (1 - FL.keep) * fade), w = nk * fade;
+      hemi.color.copy(base.sky).lerp(flC(FL.sky), wh); hemi.groundColor.copy(base.gnd).lerp(flC(FL.gnd), wh);
+      hemi.intensity = base.hemiI + Math.max(0, FL.hemiI - base.hemiI) * wh;
+      fill.intensity = base.fillI + Math.max(0, FL.fillI - base.fillI) * w;
+      toon.emissive.copy(flC(FL.glow)).multiplyScalar(nk * (FL.glow0 + (FL.glow8 - FL.glow0) * clamp(st.lantern / 8, 0, 1)));
     }
     function setTime(h, instant) {
       st.hour = h; var ph = LIGHTS[phaseOf(h)];
@@ -461,6 +626,20 @@ var SCENE3D = (function () {
     /* 방·소품 재질: r128 Lambert 는 직접광 합을 정점에서 계산하고 그림자 마스크 하나를 곱한다 → 닫힌 방(지붕 차폐)에선 태양 그림자가 필·등불·양초까지 지워 버린다. Phong(광택 0 = 같은 난반사)은 프래그먼트별·광원별 그림자라 등불 웅덩이·필이 그림자 안에서도 산다 (룩 패스 4) */
     var lambert = keep(new T.MeshPhongMaterial({ vertexColors: true, shininess: 0, specular: 0x000000 }));
     var toon = keep(new T.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: keep(gradientTex()) }));
+    toon.blendSrc = T.SrcAlphaFactor; toon.blendDst = T.OneMinusSrcAlphaFactor; toon.blendSrcAlpha = T.OneFactor; toon.blendDstAlpha = T.ZeroFactor;   /* CustomBlending 일 때만 (체크 사라짐, fadeLook): 남김 = 문어 색, 구멍 = 뒤 색 그대로 · 알파는 셰이더 값(1/0) 그대로 */
+    /* 문어 자체광 (첫 불): 툰의 emissive 를 정점색(알베도)에 곱한다 → 문어에만 닿는 흐린 따뜻한 채움빛. 몸·흰자는 한 칸 뜨고 동공·입(어두운 정점색)은 어두운 채라 얼굴이 안 뭉개진다. 값은 applyFloor (밤에만, 초상은 0) */
+    /* 문어 체크 사라짐 (INTERIOR_MODE 0단계): uOctFade = 남길 몫 (1 = 변화 없음, k/8 = 8단계). 4×4 Bayer 로 아트 픽셀(저해상 타깃의 gl_FragCoord)마다 남김(알파 1)·구멍(알파 0).
+       반투명 섞기는 팔레트 스냅에서 번지므로 쓰지 않는다. 카메라·문어가 정수 px 로만 움직이니 무늬가 기어가지 않는다.
+       구멍은 discard 하지 않는다: discard 하면 구멍마다 깊이가 비어 깊이 외곽선이 남은 픽셀마다 잉크 점을 찍고, 깊이 쓰기를 끄면(설계 문서 안) 몸끼리 가림이 틀려
+       빨판·다리 밑면이 다리 위로 비친다 (repro: 프레임당 최대 96 px). 그래서 구멍도 문어 깊이는 쓰고 색은 뒤 그대로(SrcAlpha 섞기), 알파 0 을 표시로 남겨
+       후처리가 구멍 픽셀엔 잉크선·하이라이트·비네트를 안 긋는다 (FRAG om). 섞기·정렬·그림자·접지 그림자는 fadeLook 이 바꾼다 */
+    var OCT_FADE = { value: 1 };
+    toon.onBeforeCompile = function (sh) {
+      sh.uniforms.uOctFade = OCT_FADE;
+      sh.fragmentShader = 'uniform float uOctFade;\nfloat octBayer2(vec2 a){ a = mod(floor(a), 2.0); return fract(a.x * 0.5 + a.y * 0.75); }\n' + sh.fragmentShader
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= diffuseColor.rgb;')
+        .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n\tgl_FragColor.a = octBayer2(gl_FragCoord.xy * 0.5) * 0.25 + octBayer2(gl_FragCoord.xy) < uOctFade ? 1.0 : 0.0;');
+    };
     var rtex = keep(radialTex());
     var decalMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C('#1b1522'), transparent: true, opacity: 0.42, depthWrite: false }));
     var glowMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[3]), transparent: true, opacity: 0.55, depthWrite: false }));
@@ -650,15 +829,17 @@ var SCENE3D = (function () {
     var lampPool = new T.Mesh(keep(new T.PlaneGeometry(2.6, 2.6)), keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[2]), transparent: true, opacity: 0.28, depthWrite: false })));
     lampPool.rotation.x = -Math.PI / 2; lampPool.position.set(lampPos.x, 0.015, lampPos.z); lampPool.renderOrder = 2; atticG.add(lampPool);
     var lampDirty = true;
-    function glowOpacity() { return (light.glow || 0.7) * (0.43 + 0.57 * st.lantern / 8); }   /* 8칸에서 시각대의 glow (낮 0.4 · 밤 0.7) */
+    function lampK(n) { return n > 0 ? 0.4 + 0.6 * n / 8 : FIRST_LIGHT.ember * nightK(); }   /* 등불 계수: 0칸 = 밤에만 작은 불씨(첫 불, 노을→밤 전환 동안 0→ember) · 1칸 0.475 → 8칸 1 (칸당 0.075, 예전 곡선 그대로) */
+    function glowOpacity() { var n = st.lantern; return (light.glow || 0.7) * (n > 0 ? 0.43 + 0.57 * n / 8 : 0.43 * lampK(0) / 0.475); }   /* 8칸에서 시각대의 glow (낮 0.4 · 밤 0.7) · 0칸 불씨는 1칸 글로우의 계수 비례 */
     function applyLamp() {
-      var n = st.lantern, k = n > 0 ? 0.4 + 0.6 * n / 8 : 0, on = n > 0;
+      var n = st.lantern, lit = n > 0, ember = !lit && nightK() >= 0.5, on = lit || ember, k = on ? lampK(n) : 0;   /* 0칸: 낮·새벽·노을 = 예전처럼 꺼짐(회색 유리) · 밤 = 불씨 (노을→밤 전환 중간부터, 세기는 nightK 를 따라 오른다). lit = 칸이 찬 등불(먼지·유리 밝은 칸) */
       lamp.intensity = (light.lamp || 1.2) * k; lamp.distance = light.lampD || 6;
-      recolor(lampGlassGeo, 1, on ? PAL.amber[2] : PAL.slate[1]); recolor(lampGlassGeo, 2, on ? PAL.amber[5] : PAL.slate[2]);
+      recolor(lampGlassGeo, 1, lit ? PAL.amber[2] : ember ? PAL.amber[1] : PAL.slate[1]); recolor(lampGlassGeo, 2, lit ? PAL.amber[5] : ember ? PAL.amber[4] : PAL.slate[2]);   /* 불씨: 유리·심지 띠가 한 칸씩 어둡다 */
       lampEm.visible = on; lampEm.material.color.copy(C(EM.lamp)).multiplyScalar((light.em || 1) * k);
-      lampGlow.visible = on; lampGlow.material.opacity = glowOpacity(); lampGlow.scale.setScalar(0.7 + 0.06 * n);
-      lampPool.visible = on; lampPool.material.opacity = (0.12 + 0.03 * n) * (light.pool || 1); lampPool.scale.setScalar((light.lampD || 6) / 6);
-      dust.visible = on && !st.reduced;
+      lampGlow.visible = on; lampGlow.material.opacity = glowOpacity(); lampGlow.scale.setScalar(lit ? 0.7 + 0.06 * n : 0.55);
+      lampPool.visible = on; lampPool.material.opacity = (lit ? 0.12 + 0.03 * n : 0.12 * k / 0.475) * (light.pool || 1); lampPool.scale.setScalar((light.lampD || 6) / 6 * (lit ? 1 : 0.8));
+      dust.visible = lit && !st.reduced;
+      applyFloor();   /* 밤 바닥·문어 자체광 (등불 칸에 따라) */
       lampDirty = false;
       if (extReady) extApplyLight();   /* 바깥 다락 창 불빛 = 등불 칸 수 */
     }
@@ -920,6 +1101,26 @@ var SCENE3D = (function () {
     var octDecal = new T.Mesh(keep(new T.PlaneGeometry(3.2, 3.2)), decalMat); octDecal.rotation.x = -Math.PI / 2; octDecal.position.y = 0.01; octDecal.renderOrder = 1; octG.add(octDecal);   /* 접지 그림자 1.34 m (다리 끝까지) */
     var oct = { anchor: 'window', pos: new T.Vector3(), walking: null, faceYaw: 0, wantYaw: 0, blinkT: 3 + (hash('blink0') % 1000) / 1000 * 4, blinkLeft: 0, blinkN: 0, animT: 0, hop: 0, flushK: 0, pointer: null, lookTarget: null };
     var ARMW = arms.map(function (_, i) { var r = hash('armw' + i); return { ph: r % 32, per: 16 + ((r >> 8) % 17) }; });
+    /* 체크 사라짐·나타남 (INTERIOR_MODE 0단계 · 바깥 가장자리 · 다락 문): FADE.d = 논리 밀도(0 ~ 1, 8단계), FADE.on = 지금 그려지는 값.
+       0 < d < 1 동안 ① 섞기 = CustomBlending (구멍은 뒤 색 + 알파 0 표시, 깊이는 온전히 → 잉크 점 없음, 몸끼리 가림 그대로) ② transparent = 불투명 다음에 그린다
+       (구멍에 비칠 뒤 장면이 먼저 그려져 있어야 한다) ③ 문어 햇빛 그림자 ④ 접지 그림자(decalMat 은 소품과 공유) — 둘 다 체크 8단계의 **절반(d < 0.5)에서** 꺼지고 켜진다
+       (그림자 패스는 체크를 모른다 → 꽉 찬 그림자. 사라지기 첫 칸에 끄면 낮의 긴 그림자가 몸이 다 있을 때 툭 사라졌다 · 0단계 '접지 그림자는 절반에서'). d = 0 이면 octG 를 숨긴다 */
+    var WAVE_N = 5, FADE = { d: 1, on: 1, dbg: null }, octCasters = [head].concat(arms), octToon = [], WAVE = { on: false, t: 0, arm: 0 };
+    bodyG.traverse(function (o) { if (o.isMesh && o.material === toon) octToon.push(o); });   /* WAVE.arm 0 = 오른쪽 옆다리 (카메라를 보면 화면 오른쪽 = 나가는 쪽) — 머리 옆으로 들려 윤곽 밖에 보인다 */
+    function fadeLook(q) {   /* 그리기 상태만 (밀도 q) */
+      var part = q < 1, sh = q >= 0.5; FADE.on = q; OCT_FADE.value = q;
+      toon.transparent = part; toon.blending = part ? T.CustomBlending : T.NormalBlending;
+      octCasters.forEach(function (m) { m.castShadow = sh; });
+      octToon.forEach(function (m) { m.renderOrder = part ? 3 : 0; });   /* 바닥 위 반투명(접지 그림자 1 · 등불 웅덩이 2)보다 뒤에 → 구멍에 비치는 뒤 장면에 그것들이 이미 그려져 있다 (안 그러면 구멍 깊이에 걸려 빠져서 문어 모양 체크 그림자가 남는다). 글로우(5) 앞 */
+      if (!sh) octDecal.visible = false;
+    }
+    function setOctFade(d) {
+      var q = Math.round(clamp(d, 0, 1) * 8) / 8, was = FADE.d;
+      FADE.d = q; fadeLook(q);
+      if (q === 0) { octG.visible = false; octDecal.visible = false; }
+      else if (was === 0 && q > 0) octG.visible = true;
+      if (q >= 0.5 && was < 0.5) octDecal.visible = octG.visible;   /* 나타날 때 절반에서 접지 그림자 */
+    }
     /* ── 걸음 = 뒤뚱뒤뚱 (생동감 · DESIGN §7.1 · docs/SCENE.md "움직임"): 시간이 아니라 **간 거리**로 도는 걸음 위상(보폭 0.6 m = 한 걸음 → 1.2 m/s 에서 한 발 0.5 s, 바깥 길 1.8 m/s 면 0.33 s 로 저절로 빨라진다).
        위상 n.u — n = 걸음 번호(짝수 = +x 쪽 다리 4개가 앞으로, 홀수 = −x 쪽), u = 걸음 안 0→1. 몸: 진행 축(로컬 z) 기준 굴림 ±7°(걸음 중간 정점, 디딤발 쪽으로 기대고 내딛는 쪽이 들린다) ·
        요 흔들 ±4°(디딤 순간 정점) · 앞 기울임 5° · 걸음 중간 세로 +1 아트px · 디딤마다 6 % 눌림(y 0.94, xz 1.03) 80 ms → 80 ms 회복.
@@ -967,7 +1168,7 @@ var SCENE3D = (function () {
     function setExpression(name) {
       name = FACES[name] ? name : 'idle';
       if (name !== face.expr) { face.expr = name; face.t = 0; face.hopsLeft = name === 'happy' ? 2 : 0; }
-      else if (name === 'happy') { face.t = 0; face.hopsLeft = 2; }   /* 다시 happy → 다시 폴짝 */
+      else if (name === 'happy') { face.t = face.hopsLeft > 0 ? face.t % 0.45 : 0; face.hopsLeft = 2; }   /* 다시 happy → 다시 폴짝. 뛰는 중이면 지금 폴짝을 이어서 (예전엔 공중에서 바닥으로 한 프레임에 떨어졌다: 걸기 → happy, 0.62 → 0.10 r) */
       if (!OPEN_EYES[name]) oct.blinkLeft = 0;
       syncFace();
     }
@@ -998,8 +1199,9 @@ var SCENE3D = (function () {
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       var sv = { sx: bodyG.scale.x, sy: bodyG.scale.y, sz: bodyG.scale.z, py: bodyG.position.y, rz: bodyG.rotation.z, rx: bodyG.rotation.x, ry: bodyG.rotation.y, arms: arms.map(function (m) { return [m.rotation.y, m.rotation.z]; }), vis: octG.visible, pvis: octG.parent ? octG.parent.visible : true, applied: face.applied, hex: oct.curHex || st.color, bg: scene.background };
       var sc = renderer.getClearColor(_cc).clone(), sa = renderer.getClearAlpha();
-      var pose = FACES[expr].pose || [1, 1, 0];
-      applyFace(expr);
+      var pose = FACES[expr].pose || [1, 1, 0], svEm = toon.emissive.clone();
+      var svFade = FADE.on; if (svFade < 1) fadeLook(1);   /* 사라지는 중에도 초상은 온전히 */
+      applyFace(expr); toon.emissive.setRGB(0, 0, 0);   /* 초상은 시각대와 무관 (전용 3점 조명) → 밤 문어 자체광(첫 불)은 빼고 찍는다 */
       var hex = expr === 'pet' ? mixHex(st.color, OC.hi, 0.35) : expr === 'sleep' ? hueHex(st.color, 12) : st.color;   /* pet = 장면의 홍조 끝값, sleep = 색 순환 한 자락 */
       if (hex !== sv.hex) octColor(hex);
       octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]);   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = 0; bodyG.rotation.set(0, 0, pose[2]);
@@ -1023,7 +1225,7 @@ var SCENE3D = (function () {
       octG.visible = sv.vis; if (octG.parent) octG.parent.visible = sv.pvis; bodyG.scale.set(sv.sx, sv.sy, sv.sz); bodyG.position.y = sv.py; bodyG.rotation.set(sv.rx, sv.ry, sv.rz);
       arms.forEach(function (m, i) { m.rotation.y = sv.arms[i][0]; m.rotation.z = sv.arms[i][1]; });
       if (hex !== sv.hex) octColor(sv.hex);
-      applyFace(sv.applied);
+      applyFace(sv.applied); toon.emissive.copy(svEm); if (svFade < 1) fadeLook(svFade);
       var N = PORT.N, cv = document.createElement('canvas'); cv.width = cv.height = N;
       var cx = cv.getContext('2d'), img = cx.createImageData(N, N);
       for (var y = 0; y < N; y++) img.data.set(pBuf.subarray((N - 1 - y) * N * 4, (N - y) * N * 4), y * N * 4);   /* GL 은 아래→위 */
@@ -1045,19 +1247,21 @@ var SCENE3D = (function () {
     function anchorPos(name) { var p = ANCHORS[name] || ANCHORS.center; return new T.Vector3(p[0], name === 'blanket' && st.items.indexOf('blanket') >= 0 ? 0.12 : 0, p[2]); }
     function camYaw() { return YAW + yawDelta(); }
     /* 문어 위치: oct.pos 가 논리 위치(보간·앵커), octG.position 은 매 프레임 그걸 카메라 우/상 축 픽셀 격자에 스냅한 값 (룩 패스 5: 걷는 동안 반 픽셀 금지). 스냅을 매 프레임 논리값에서 새로 하므로 요가 바뀌어도 누적 표류 없음 */
-    function jumpTo(anchor) { if (oct.walking) { oct.walking.cancel(); oct.walking = null; } oct.anchor = anchor; oct.pos.copy(anchorPos(anchor)); snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = camYaw(); gaitReset(); }
+    function jumpTo(anchor) { if (oct.walking) { oct.walking.cancel(); oct.walking = null; } if (FADE.d < 1) { setOctFade(1); if (st.octState === 'away') octG.visible = octDecal.visible = false; } oct.anchor = anchor; oct.pos.copy(anchorPos(anchor)); snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = camYaw(); gaitReset(); }
     function moveTo(anchor) {
-      var to = anchorPos(anchor), from = oct.pos.clone();
       oct.anchor = anchor;
+      return walkPoint(anchorPos(anchor), function () { if (on.anchorReached) on.anchorReached(anchor); }, anchor);
+    }
+    function walkPoint(to, done, val) {   /* 점까지 뒤뚱 걸음 (moveTo 와 놀이 kit.walkTo 공용) → Promise(val). done = 도착 콜백 */
+      var from = oct.pos.clone();
       if (oct.walking) { oct.walking.cancel(); oct.walking = null; }
       var d = to.clone().sub(from), dist = d.length();
-      function done() { if (on.anchorReached) on.anchorReached(anchor); }
-      if (st.reduced || ctxLost() || dist < 0.05) { oct.pos.copy(to); snapScreen(octG.position.copy(to)); oct.wantYaw = camYaw(); done(); return Promise.resolve(anchor); }   /* 컨텍스트를 잃으면 프레임이 안 돌아 걸음이 안 끝난다 → 바로 도착 */
+      if (st.reduced || ctxLost() || dist < 0.05) { oct.pos.copy(to); snapScreen(octG.position.copy(to)); oct.wantYaw = camYaw(); done(); return Promise.resolve(val); }   /* 컨텍스트를 잃으면 프레임이 안 돌아 걸음이 안 끝난다 → 바로 도착 */
       oct.wantYaw = Math.atan2(d.x, d.z);
       var dur = dist / 1.2 * st.speed, hopDur = 0.3 * st.speed, hold = anticHold(), k = 0, cancelled = false;   /* hold = 서 있다 출발할 때 120 ms 예비 동작 (뒤뚱 걸음) */
       return new Promise(function (resolve) {
         var w = oct.walking = { gait: true, cancel: function () { cancelled = true; w.gait = false; },
-          finish: function () { if (cancelled) return; cancelled = true; w.gait = false; oct.pos.copy(to); oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(anchor); },   /* 컨텍스트 잃음: 남은 걸음을 건너뛰고 도착 */
+          finish: function () { if (cancelled) return; cancelled = true; w.gait = false; oct.pos.copy(to); oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(val); },   /* 컨텍스트 잃음: 남은 걸음을 건너뛰고 도착 */
           step: function (dt) {
           if (cancelled) return;
           k += dt;
@@ -1067,7 +1271,7 @@ var SCENE3D = (function () {
           w.gait = false;
           var hk = (kw - dur) / hopDur;
           if (hk < 1) { oct.pos.copy(to); oct.hop = Math.sin(hk * Math.PI) * 0.4; return; }
-          oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(anchor);
+          oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(val);
         } };
       });
     }
@@ -1076,7 +1280,8 @@ var SCENE3D = (function () {
       st.octState = s; oct.animT = 0;
       if (opts.octEl) opts.octEl.className = opts.octEl.className.replace(/\bst-[a-z]+/g, '').trim() + ' st-' + s;
       var away = s === 'away';
-      octG.visible = !away; octDecal.visible = !away;
+      if (!away && s !== 'walk' && FADE.d < 1) setOctFade(1);   /* 의식 밖 상태 = 늘 온전히 보인다 (걷기는 의식이 사라짐·나타남을 쥔다) */
+      octG.visible = !away && FADE.d > 0; octDecal.visible = !away && FADE.d >= 0.5;
       setExpression(STATE_EXPR[s] || 'idle');   /* 상태의 기본 표정 (룩 패스 8) */
       if (s === 'carry') { carry.visible = true; if (extra && extra.id) octState.carryId = extra.id; if (extra && extra.svg) bakeSVG(extra.svg, 48, 64).then(function (t) { if (t) carry.material = new T.MeshPhongMaterial({ map: t, shininess: 0, specular: 0x000000 }); }); }
       else if (s === 'hang') { if (carry.visible && !st.reduced) startHang(); carry.visible = false; octState.carryId = null; }
@@ -1164,6 +1369,7 @@ var SCENE3D = (function () {
       face.t += dt;
       /* 포인터 쪽 (동공 방향 · curious 기울임; 포인터가 없으면 오른쪽) */
       var look = oct.lookTarget || oct.pointer, px = 0, py = 0;
+      if (PLAY && PLAY.eye) look = PLAY.eye;   /* 놀이: 눈은 kit.look 대상 (만진 컵·공·사람) */
       if (look) { var sp = octScreen(), r = canvas.getBoundingClientRect(); px = clamp((look.x - (r.left + sp.x - S.offX)) / 140, -1, 1); py = clamp((look.y - (r.top + sp.y - S.offY + 30)) / 140, -1, 1); }
       var dir = px < -0.05 ? 1 : -1;
       /* 과장 동작 (룩 패스 8, 표정 기준 — 상태는 기본 표정으로 매핑): happy 폴짝 2 + 꼭대기에서 다리 바깥 ×1.3 · curious 포인터 쪽 8° 기울임 · pet 12 % 눌림 + 느린 좌우 흔들 ±4° · sleep 6 % 납작 + 색 순환 · anticipate(상태) 600 ms 눌림 + calm 반눈 */
@@ -1203,6 +1409,13 @@ var SCENE3D = (function () {
         arm.rotation.z = (still + PK.arm) * (1 - ak) + (base + 0.05 + lift) * ak + comp;
         arm.rotation.y = -arm.userData.a + fwd * ak * GAIT.armFwd * (ca > 0 ? 1 : -1);
       }
+      if (WAVE.on && WAVE.t > WAVE_N / 12 + 0.1) WAVE.on = false;   /* 의식이 끊겨도 남지 않게 */
+      if (WAVE.on) {   /* 손 흔들기 (가장자리에서 한 번 돌아보며, 0단계 0.4 s): 화면 오른쪽(나가는 쪽) 옆다리를 정옆(화면 면)으로 돌려 머리 옆으로 들고 위·아래로 흔든다.
+                          12 fps 칸 5개 — 들기 · 위 · 아래 · 위 · 내리기, 들린 동안 다리를 1.2배 뻗는다 (happy 폴짝의 ×1.3 과 같은 말). 앞다리를 들면 얼굴 앞에 겹쳐 1× 에서 1~2 px 끝만 보였다 →
+                          옆다리는 머리 윤곽 밖에서 끝이 아트px 4~5 칸 오르내린다 (1×). 시간은 의식과 같은 속도 배율(st.speed)로 → 의식 칸과 함께 끝난다 */
+        WAVE.t += dt / st.speed; var wf = Math.min(WAVE_N - 1, Math.floor(WAVE.t * 12)), wa = arms[WAVE.arm];
+        if (!red) { wa.rotation.z = [0.75, 1.0, 0.5, 1.0, 0.35][wf]; wa.rotation.y = 0; wa.scale.x = wf === 0 || wf === WAVE_N - 1 ? 1.1 : 1.2; }
+      }
       /* 눈 깜빡임 (룩 패스 7: 눈 뜬 표정에서만 3~7 s 시드 간격, 120 ms — 눈꺼풀 + 짧은 선 = blink 표정이 끼어든다; 모션 감소면 없음) · 동공 */
       if (OPEN_EYES[ex] && s !== 'away' && !red) {
         oct.blinkT -= dt; if (oct.blinkT <= 0) { oct.blinkLeft = 0.12; oct.blinkN = (oct.blinkN | 0) + 1; oct.blinkT = 3 + (hash('blink' + oct.blinkN) % 1000) / 1000 * 4; }
@@ -1215,8 +1428,10 @@ var SCENE3D = (function () {
       var hex = st.color;
       if (ex === 'sleep') hex = hueHex(hex, Math.sin(t * Math.PI / 6) * 18);
       if (oct.flushK > 0.02) hex = mixHex(hex, OC.hi, oct.flushK * 0.35);
+      if (PLAY && PLAY.tint) hex = PLAY.tint;   /* 놀이: 위장 색 */
       if (hex !== oct.curHex) { oct.curHex = hex; octColor(hex); }
       octDecal.material.opacity = 0.42;
+      if (FADE.on < 0.5) octDecal.visible = false;   /* 절반 넘게 사라진 동안 접지 그림자 없음 (다른 곳이 켜도) */
     }
 
     /* ═══════════════ 바깥 디오라마 · 계절 · 전환 (DESIGN §15.3 · assets/ref/look-ref-exterior-winter.jpg) ═══════════════
@@ -1555,12 +1770,14 @@ var SCENE3D = (function () {
     }
 
     /* ── 장소 전환 (0.6 s): 앞 0.3 s 나가는 장소가 아래로 미끄러지며(가속) 정렬 디더로 허공색에 덮이고, 뒤 0.3 s 들어오는 장소가 위에서 내려오며(감속) 걷힌다.
-       한 프레임엔 한 장소만 그린다. 미끄럼 변위는 화면 세로 정수 px(snapUp). 모션 감소·instant = 즉시 컷 ── */
+       한 프레임엔 한 장소만 그린다. 미끄럼 변위는 화면 세로 정수 px(snapUp). 모션 감소·instant = 즉시 컷.
+       INTERIOR_MODE 0단계 '둘째 후보': 주인은 "집 나가는 건 좋은데"라고 했으므로 이 전환은 그대로 두고, 문어가 섬 아래로 떨어지던 것(첫째)만 고쳤다.
+       문어는 다락 문간에서 먼저 체크로 사라지므로 다락과 함께 가라앉지 않는다. 주인이 고친 것을 보고도 놀라면 그때 옆으로 미끄러지기·디더 바꾸기로 ── */
     var TRANS_DUR = 0.6, TRANS_DY = 2.6;
     function groupOf(p) { return p === 'exterior' ? extG : atticG; }
     function showPlace(p) {
       atticG.visible = p === 'attic'; extG.visible = p === 'exterior'; PLACE.vis = p;
-      atticG.position.y = 0; extG.position.y = 0;
+      atticG.position.y = 0; extG.position.y = 0; panReset(); PAN.cut = true;   /* 장소가 바뀌면 밀린 것은 0 (장소마다 경계가 다르다) · 의식 중 확대면 다음 따라가기가 그 자리로 바로 (디더에 덮인 프레임) */
       var g = groupOf(p); if (octG.parent !== g) g.add(octG);
       applyLight(); dither.still = 0;
     }
@@ -1593,19 +1810,33 @@ var SCENE3D = (function () {
     /* ── 출발·귀가 의식: dt 로 진행하는 작업 큐 (debugStep 으로 결정적). 한 작업 = { dur, start, update(k), end }; 남은 dt 는 다음 작업으로 넘긴다 (모션 감소면 걷기·폴짝 0 s 라 한 프레임에 끝난다) ── */
     var CER = { q: [], cur: null, done: null, active: false, walk: false, name: '' };
     var EXT_P = { doorIn: [EXT.HX1 - 0.12, EXT.PL, EXT.HZC], landing: [EXT.HX1 + 0.24, EXT.PL, EXT.HZC], steps: [0, 1, 2].map(function (i) { return [EXT.HX1 + 0.5 + 0.24 * i, EXT.PL - 0.12 * (i + 1), EXT.HZC]; }),
-      edge: [EXT.L - 0.02, 0, 0.42], below: [EXT.L + 0.6, -1.5, 0.82] };
+      edge: [EXT_PATH[EXT_PATH.length - 1][0], 0, EXT_PATH[EXT_PATH.length - 1][1]] };
+    /* 나가는 곳 (INTERIOR_MODE 0단계): 높이는 늘 0. 그린 길을 그대로 따라 길 끝(edge = 길 마지막 점 x 3.12 — 받침 끝 3.42 안, 길 그림은 0.1 m 더 가서 섬 끝에 닿는다)
+       0.5 m 앞(stop, 길 마지막 마디 위)까지 걷고 → 돌아보며 손 흔들기 → 남은 0.5 m 를 1 m/s 로 걸으며 체크 8단계로 사라진다 (100 % → 0 %, 0.5 s).
+       예전 edge (3.18, 0.42) 는 길 끝에서 옆으로 꺾인 점이라 stop 이 길 밖에 놓이고 돌아올 때 길 마지막 점을 건너뛰었다 → 이제 출발·귀가·기웃 출입이 한 직선 위.
+       올 때·기웃 입장은 거꾸로 (길 끝에서 흐릿하게 나타나 걸어 들어온다).
+       다락 문도 같다: 문 앵커에서 문간(DOOR_IN) 0.35 m 를 0.7 m/s 로 걸어 들어가며 사라지고, 돌아올 때는 문간에서 나타나 걸어 나온다 */
+    var EXIT_DIR = (function () { var a = EXT_PATH[EXT_PATH.length - 2], b = EXT_PATH[EXT_PATH.length - 1], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz); return [dx / l, dz / l]; })();
+    var FADE_LEN = 0.5, FADE_SPEED = 1.0, DOOR_IN = [ANCHORS.door[0], 0, ANCHORS.door[2] - 0.35], DOOR_SPEED = 0.7;
+    EXT_P.stop = [EXT_P.edge[0] - EXIT_DIR[0] * FADE_LEN, 0, EXT_P.edge[2] - EXIT_DIR[1] * FADE_LEN];
     function V(a) { return new T.Vector3(a[0], a[1], a[2]); }
-    function cerWalk(to, speed, hop) { /* 걷기(hop 0, 다리 번갈아 + 통통) 또는 폴짝(hop = 호 높이) — 마디 하나 */
+    function cerWalk(to, speed, hop, fade) { /* 걷기(hop 0, 다리 번갈아 + 통통) 또는 폴짝(hop = 호 높이) — 마디 하나. fade = [시작 밀도, 끝 밀도]: 간 거리에 맞춰 체크 8단계로 사라짐·나타남 */
       var from = new T.Vector3(), tv = V(to), it = { dur: 0 };
-      it.start = function () { from.copy(oct.pos); var d = tv.clone().sub(from); it.dur = st.reduced ? 0 : Math.max(0.05, (hop ? 0.22 : Math.hypot(d.x, d.z) / speed)) * st.speed; if (Math.hypot(d.x, d.z) > 1e-3) oct.wantYaw = Math.atan2(d.x, d.z); CER.walk = !hop; it.hold = hop || !it.dur ? 0 : anticHold(); it.dur += it.hold; };   /* 서 있다 걷기 시작하면 예비 동작만큼 제자리 */
-      it.update = function (k) { var w = it.dur > it.hold ? Math.max(0, (k * it.dur - it.hold) / (it.dur - it.hold)) : 1; oct.pos.lerpVectors(from, tv, w); oct.hop = hop ? Math.sin(k * Math.PI) * hop / OCT_R : 0; };
-      it.end = function () { oct.pos.copy(tv); oct.hop = 0; CER.walk = false; };
+      it.start = function () { from.copy(oct.pos); var d = tv.clone().sub(from); it.dur = st.reduced ? 0 : Math.max(0.05, (hop ? 0.22 : Math.hypot(d.x, d.z) / speed)) * st.speed; if (Math.hypot(d.x, d.z) > 1e-3) oct.wantYaw = Math.atan2(d.x, d.z); CER.walk = !hop; it.hold = hop || !it.dur ? 0 : anticHold(); it.dur += it.hold; if (fade) setOctFade(fade[0]); };   /* 서 있다 걷기 시작하면 예비 동작만큼 제자리 */
+      it.update = function (k) { var w = it.dur > it.hold ? Math.max(0, (k * it.dur - it.hold) / (it.dur - it.hold)) : 1; oct.pos.lerpVectors(from, tv, w); oct.hop = hop ? Math.sin(k * Math.PI) * hop / OCT_R : 0; if (fade) setOctFade(fade[0] + (fade[1] - fade[0]) * w); };
+      it.end = function () { oct.pos.copy(tv); oct.hop = 0; CER.walk = false; if (fade) setOctFade(fade[1]); };
+      return it;
+    }
+    function cerWave() { /* 가장자리 0.5 m 앞에서 카메라 쪽으로 돌아보며 다리 하나 흔들기 (5칸 @ 12 fps ≈ 0.42 s, 0단계 '0.4초'). 모션 감소면 0 s (바로 사라진다) */
+      var it = { dur: 0 };
+      it.start = function () { CER.walk = false; oct.wantYaw = camYaw(); it.dur = st.reduced ? 0 : WAVE_N / 12 * st.speed; if (it.dur) { WAVE.on = true; WAVE.t = 0; } };
+      it.end = function () { WAVE.on = false; };
       return it;
     }
     function cerDo(fn, dur) { return { dur: st.reduced ? 0 : (dur || 0), start: fn }; }
     function cerTrans(p, onSwap) { var it = { dur: 0 }; it.start = function () { it.dur = st.reduced ? 0 : TRANS_DUR; setPlace(p, { onSwap: onSwap }); }; it.end = function () { if (PLACE.trans) finishTrans(); }; return it; }
     function cerRun(name, items, onDone) {
-      if (CER.active) { CER.walk = false; oct.hop = 0; }   /* 앞 의식은 조용히 취소 (onDone 안 부름) */
+      if (CER.active) { CER.walk = false; oct.hop = 0; WAVE.on = false; }   /* 앞 의식은 조용히 취소 (onDone 안 부름) */
       if (oct.walking) { oct.walking.cancel(); oct.walking = null; }   /* 돌아다니던 걸음(moveTo)이 의식 위치를 덮어쓰지 않게 */
       CER.q = items; CER.cur = null; CER.active = true; CER.name = name;
       return new Promise(function (resolve) { CER.done = function () { if (onDone) onDone(); resolve(); }; });
@@ -1622,19 +1853,28 @@ var SCENE3D = (function () {
         dt = c.t - c.dur; if (c.end) c.end(); CER.cur = null;
       }
     }
-    function pathItems(reverse, speed) { var pts = EXT_PATH.map(function (p) { return [p[0], 0, p[1]]; }); pts.push(EXT_P.edge); if (reverse) pts.reverse(); return pts.map(function (p) { return cerWalk(p, speed); }); }
+    function pathItems(reverse, speed) { /* 계단 발치 ↔ stop (길 끝 0.5 m 앞, 길 마지막 마디 위). 길 마지막 점(= edge)까지는 사라짐·나타남 걸음이 간다 */
+      var pts = EXT_PATH.slice(0, -1).map(function (p) { return [p[0], 0, p[1]]; }); pts.push(EXT_P.stop); if (reverse) pts.reverse();
+      return pts.map(function (p) { return cerWalk(p, speed); });
+    }
     function departCeremony(onDone) {
-      var items = [cerDo(pkReset)];   /* 바깥 기웃 상태가 남아 있으면 지운다 (기웃을 안 쓰면 무동작) */
+      var fresh = false;
+      var items = [cerDo(function () { fresh = PLACE.vis !== 'attic' || !!PLACE.trans || !octG.visible || st.octState === 'away'; pkReset(); })];   /* 바깥 기웃 상태가 남아 있으면 지운다 (기웃을 안 쓰면 무동작) */
       if (PLACE.vis !== 'attic' || PLACE.trans) items.push(cerDo(function () { setPlace('attic', { instant: true }); }));
-      items.push(cerDo(function () { setOctState('walk'); oct.anchor = 'door'; }));
+      items.push(cerDo(function () {   /* 출발은 늘 다락에서 온전히 보이는 문어로: 앞 의식의 반쯤 흐린 밀도를 넘겨받지 않고, 나가 있던(안 보이던·바깥) 문어는 바깥 좌표에서 걸어오지 않게 문 앞에서 (데모·다시 들어오기 길) */
+        if (fresh) jumpTo('door'); else if (FADE.d < 1) setOctFade(1);
+        setOctState('walk'); oct.anchor = 'door';
+      }));
       items.push(cerWalk(ANCHORS.door, 1.2));                                                      /* 다락 문으로 */
+      items.push(cerWalk(DOOR_IN, DOOR_SPEED, 0, [1, 0]));                                          /* 문간으로 걸어 들어가며 체크로 사라짐 (전환 동안 문어는 안 보인다) */
       items.push(cerTrans('exterior', function () { octG.visible = false; octDecal.visible = false; oct.pos.copy(V(EXT_P.doorIn)); oct.wantYaw = oct.faceYaw = Math.PI / 2; }));
       items.push(cerDo(function () { DOOR_EXT.want = DOOR_EXT.OPEN; }, 0.2));                       /* 현관문 열림 */
-      items.push(cerDo(function () { octG.visible = true; octDecal.visible = true; }));
+      items.push(cerDo(function () { setOctFade(1); octG.visible = true; octDecal.visible = true; }));
       items.push(cerWalk(EXT_P.landing, 1.4));
       EXT_P.steps.forEach(function (s, i) { var h = cerWalk(s, 0, 0.16); if (i === 0) { var st0 = h.start; h.start = function () { st0(); DOOR_EXT.want = 0; }; } items.push(h); });   /* 계단 3 폴짝 (첫 폴짝에 문 닫힘) */
-      items = items.concat(pathItems(false, 1.8));                                                 /* 길 따라 오른쪽 아래 가장자리로 */
-      items.push(cerWalk(EXT_P.below, 0, 0.3));                                                    /* 가장자리 너머로 폴짝 → 사라짐 */
+      items = items.concat(pathItems(false, 1.8));                                                 /* 길 따라 가장자리 0.5 m 앞까지 */
+      items.push(cerWave());                                                                       /* 한 번 돌아보며 손 흔들기 */
+      items.push(cerWalk(EXT_P.edge, FADE_SPEED, 0, [1, 0]));                                      /* 남은 0.5 m 를 걸으며 체크 8단계로 사라짐 (높이 0, 받침 안) */
       items.push(cerDo(function () { setOctState('away'); }));
       return cerRun('depart', items, onDone);
     }
@@ -1642,17 +1882,17 @@ var SCENE3D = (function () {
       var items = [];
       items.push(cerDo(function () {
         if (PLACE.vis !== 'exterior' || PLACE.trans) setPlace('exterior', { instant: true, onSwap: function () {} });
-        pkReset(); oct.pos.copy(V(EXT_P.below)); setOctState('walk'); octDecal.visible = true;
+        pkReset(); WAVE.on = false; oct.pos.copy(V(EXT_P.edge)); snapScreen(octG.position.copy(oct.pos)); setOctFade(0); setOctState('walk');
       }));
-      items.push(cerWalk(EXT_P.edge, 0, 0.3));                                                     /* 가장자리 아래에서 폴짝 올라옴 */
+      items.push(cerWalk(EXT_P.stop, FADE_SPEED, 0, [0, 1]));                                      /* 가장자리 안쪽에서 흐릿하게 나타나 걸어 들어옴 */
       items = items.concat(pathItems(true, 1.8).slice(1));
-      items.push(cerWalk([EXT_PATH[0][0], 0, EXT_PATH[0][1]], 1.8));
       EXT_P.steps.slice().reverse().forEach(function (s) { items.push(cerWalk(s, 0, 0.16)); });
       items.push(cerWalk(EXT_P.landing, 0, 0.16));
       items.push(cerDo(function () { DOOR_EXT.want = DOOR_EXT.OPEN; }, 0.2));
       items.push(cerWalk(EXT_P.doorIn, 1.4));
       items.push(cerDo(function () { octG.visible = false; octDecal.visible = false; DOOR_EXT.want = 0; }, 0.15));
-      items.push(cerTrans('attic', function () { jumpTo('door'); octG.visible = true; octDecal.visible = true; }));
+      items.push(cerTrans('attic', function () { jumpTo('door'); oct.pos.copy(V(DOOR_IN)); snapScreen(octG.position.copy(oct.pos)); setOctFade(0); }));
+      items.push(cerWalk(ANCHORS.door, DOOR_SPEED, 0, [0, 1]));                                    /* 문간에서 나타나 걸어 나온다 */
       items.push(cerDo(function () { oct.anchor = 'door'; if (st.octState === 'walk') setOctState('idle'); }));
       return cerRun('return', items, onDone);
     }
@@ -1684,9 +1924,9 @@ var SCENE3D = (function () {
     var PK_RECT = [[EXT.HX0, EXT.HX1, EXT.HZ0, EXT.HZ1], [EXT.HX1, 1.2, EXT.HZC - 0.58, EXT.HZC + 0.58]];   /* 집 · 현관+계단+난간 */
     var PK_M = 0.3;   /* 문어 몸 여유 (다리 끝은 소품에 살짝 걸쳐도 된다) */
     var PK_HUBS = [[2.05, 1.0], [0.4, 1.45], [-1.0, 0.65], [-2.3, 1.0], [2.25, -0.5], [-1.9, 2.3], [1.85, -1.25]];
-    var PK_ENTRY = [   /* 가장자리 출입구: at = 받침 위, below = 아래(폴짝 출발점 — 출발 의식의 below 와 같은 꼴) */
-      { at: EXT_P.edge, below: EXT_P.below }, { at: [EXT.L - 0.02, 0, -0.75], below: [EXT.L + 0.6, -1.5, -0.35] },
-      { at: [-1.75, 0, EXT.L - 0.02], below: [-1.35, -1.5, EXT.L + 0.6] }, { at: [1.35, 0, EXT.L - 0.02], below: [1.75, -1.5, EXT.L + 0.6] }];
+    var PK_ENTRY = [   /* 가장자리 출입구: at = 가장자리(받침 위, 나타나기 시작), in = 0.5 m 안쪽(다 나타난 곳) — 출발 의식의 edge → stop 과 같은 꼴 */
+      { at: EXT_P.edge, in: EXT_P.stop }, { at: [EXT.L - 0.02, 0, -0.75], in: [EXT.L - 0.02 - FADE_LEN, 0, -0.75] },
+      { at: [-1.75, 0, EXT.L - 0.02], in: [-1.75, 0, EXT.L - 0.02 - FADE_LEN] }, { at: [1.35, 0, EXT.L - 0.02], in: [1.35, 0, EXT.L - 0.02 - FADE_LEN] }];
     var PK_WALK = 1.5;   /* m/s (다락 1.2 · 길 1.8 사이 — 뒤뚱 초당 2.5걸음) */
     var PK = { on: false, key: '', spot: null, onSpot: false, status: '', hold: false, t: 0, lean: 0, leanNow: 0, sit: 0, shrug: -1, nod: -1, rustle: false, mail: 0, plop: 0, count: -2, emoji: '', first: false, arm: 0, leanQ: 0 };
     function pkBody(dt) { /* 기웃 자세 → [xz 배율, y 배율, 세로(r)] + PK.leanQ(앞 기댐, 3° 스텝) · PK.arm(다리 끝 들림). 모션 감소 = 정지 자세 (으쓱·까딱 없음) */
@@ -1733,6 +1973,7 @@ var SCENE3D = (function () {
       var sp = EXT_SPOTS[key], it = { dur: 0 }, happy = status === 'read' || (!!o.first && status === 'builtin'), swapped = false;
       it.start = function () {
         it.dur = (st.reduced ? 0.4 : 1.2) * st.speed; PK.hold = true; PK.t = 0; PK.onSpot = !short; PK.status = status;
+        oct.blinkLeft = 0; oct.blinkT = Math.max(oct.blinkT, 1.3);   /* 자세를 잡는 1.2 s 동안은 안 깜빡인다 → 기웃의 표정(happy·curious·calm)이 드러나는 순간을 깜빡임이 가리지 않게 (시드 간격은 그대로 뒤로 민다) */
         var face = sp.face * D2R;
         if (short) { var dx = sp.x - oct.pos.x, dz = sp.z - oct.pos.z; if (Math.hypot(dx, dz) > 1e-3) face = Math.atan2(dx, dz); }
         oct.wantYaw = face; if (st.reduced) oct.faceYaw = face;
@@ -1779,10 +2020,10 @@ var SCENE3D = (function () {
         var onStage = PK.on && octG.visible;
         PK.key = key; PK.emoji = o.emoji || ''; PK.first = !!o.first; PK.status = status; PK.hold = false;
         pkPose(); setExpression('idle');
-        if (!onStage) {   /* 무대 밖 → 경로가 가장 짧은 가장자리 출입구에서 폴짝 올라온다 */
-          var best = null; PK_ENTRY.forEach(function (e) { var L2 = pkRoute([e.at[0], e.at[2]], target).len; if (!best || L2 < best.len) best = { e: e, len: L2 }; });
-          oct.pos.copy(V(best.e.below)); octG.visible = true; octDecal.visible = true; PK.on = true; PK.onSpot = false; PK.spot = null;
-          items.push(cerWalk(best.e.at, 0, 0.3)); from = [best.e.at[0], best.e.at[2]];
+        if (!onStage) {   /* 무대 밖 → 경로가 가장 짧은 가장자리 출입구에서 흐릿하게 나타나 0.5 m 걸어 들어온다 (높이 0) */
+          var best = null; PK_ENTRY.forEach(function (e) { var L2 = pkRoute([e.in[0], e.in[2]], target).len; if (!best || L2 < best.len) best = { e: e, len: L2 }; });
+          oct.pos.copy(V(best.e.at)); snapScreen(octG.position.copy(oct.pos)); setOctFade(0); PK.on = true; PK.onSpot = false; PK.spot = null;
+          items.push(cerWalk(best.e.in, FADE_SPEED, 0, [0, 1])); from = [best.e.in[0], best.e.in[2]];
         } else {
           from = pkHere();
           if (PK.spot && PK.spot.approach && PK.onSpot) { items.push(cerWalk([PK.spot.approach[0], 0, PK.spot.approach[1]], 0, 0.16)); from = PK.spot.approach.slice(); }   /* 계단·돌에서 내려온다 */
@@ -1804,10 +2045,10 @@ var SCENE3D = (function () {
           var from = pkHere();
           if (PK.spot && PK.spot.approach && PK.onSpot) { items.push(cerWalk([PK.spot.approach[0], 0, PK.spot.approach[1]], 0, 0.16)); from = PK.spot.approach.slice(); }
           PK.onSpot = false;
-          items = items.concat(pkWalkItems(from, [EXT_P.edge[0], EXT_P.edge[2]], 1.8, false));   /* 출발 의식과 같은 출구 */
-          items.push(cerWalk(EXT_P.below, 0, 0.3));
+          items = items.concat(pkWalkItems(from, [EXT_P.stop[0], EXT_P.stop[2]], 1.8, false));   /* 출발 의식과 같은 출구: 0.5 m 앞까지 */
+          items.push(cerWalk(EXT_P.edge, FADE_SPEED, 0, [1, 0]));                                 /* 걸으며 체크로 사라짐 (손 흔들기는 첫 출발 때만 — 기웃마다 하면 되풀이가 된다) */
         }
-        items.push(cerDo(function () { pkOff(); oct.pos.copy(V(EXT_P.below)); }));
+        items.push(cerDo(function () { pkOff(); oct.pos.copy(V(EXT_P.edge)); }));
         CER.q = items.concat(CER.q);
       });
       return cerQueue('leave', [plan], onDone);
@@ -1829,7 +2070,7 @@ var SCENE3D = (function () {
     extReady = true;
 
     /* ── 입력: 레이캐스트 · 드래그 · 줌 ── */
-    var ray = new T.Raycaster(), ndc = new T.Vector2(), press = null, pinch = null, _pb = new T.Box3(), _pv = new T.Vector3();
+    var ray = new T.Raycaster(), ndc = new T.Vector2(), press = null, _pb = new T.Box3(), _pv = new T.Vector3();
     /* 탭 판정 (docs/research/furniture-tap-events.md 1·2): ① 문어의 *실제 몸 메시*·포스터·보이는 기념품을 거리순 레이캐스트 (몸 = 문어 'oct')
        → ② 다 빗나가면 문어 히트 구(r 0.67 m) → ③ 창 유리 → ④ 화면 공간 보정: 포스터·기념품 투영 사각형 중 탭에서 NEAR_PX 안 최근접 하나 (2등이 NEAR_GAP 안이면 모호 → 없음).
        큰 히트 구가 문어 뒤 포스터·선반 기념품을 가리지 않는다. 바깥: 문어 히트 구만 (다락 유리·포스터는 숨은 그룹이라도 레이캐스트엔 걸리므로 뺀다) · 숨은 문어·바깥 기웃 중(away)엔 문어 탭 없음 */
@@ -1870,38 +2111,143 @@ var SCENE3D = (function () {
       if (ray.intersectObject(glass, false).length) return glass;
       return nearItem(cx - r.left, cy - r.top, r);
     }
+    /* 손가락 문법 (docs/INTERIOR_MODE.md §3.1·§3.4·§3.5·§5.3): 상태기계 하나 (GEST.mode)
+       press = 첫 손가락 대기 (8 px 안에서 떼면 톡 · 문어 위 350 ms 또는 8 px = 쓰다듬기) → pan = 한 손가락 밀기 1:1 + 관성 + 고무줄
+       (1× 터치에서 세로가 더 큰 쓸기는 손대지 않는다 → 브라우저가 페이지를 내린다, touch-action pan-y) · 두 번째 손가락 → multi:
+       거리 1.1배 전에 15° 넘게 비틀면 twist(돌려 보기 9° 계단 ±27°), 아니면 pinch(손가락 거리를 연속으로 · 정수 N, 두 손가락 가운데가 그 자리에, 가운데가 움직이면 밀기 → 떼면 가까운 멈춤으로 0.15 s) — 한 번 정하면 손짓 끝까지.
+       마우스: 왼쪽 끌기 = 밀기 · 오른쪽 끌기 / Shift+끌기 = 돌려 보기 · 휠 = 한 멈춤 (그 칸 뒤 0.15 s 동안 들어오는 휠은 무시 — §3.5).
+       관성 중 누름(> 0.05 px/ms)은 멈추기만 (톡·쓰다듬기 아님, 그대로 끌면 밀기). 어떤 손짓이든 끝날 때 밀린 값이 경계 밖·소수면 제자리로 (고무줄 복귀 중 톡 포함) */
+    function gPts() { var out = []; for (var k in GEST.pts) out.push(GEST.pts[k]); return out; }
+    function unband(v, lo, hi) {   /* band 의 역: 고무줄에 걸린 채 다시 잡으면 그 자리에서 이어 끈다 (튐 없이) */
+      var M = 20 / S.N, f;
+      if (v > hi) { f = Math.min(0.999, (v - hi) / M); return hi - M * Math.log(1 - f) / 0.4; }
+      if (v < lo) { f = Math.min(0.999, (lo - v) / M); return lo + M * Math.log(1 - f) / 0.4; }
+      return v;
+    }
+    function startPan() {
+      var b = panBox();
+      GEST.pan = { sx: press.x, sy: press.y, rx: unband(PAN.x, b[0], b[1]), ry: unband(PAN.y, b[2], b[3]), x0: PAN.x, y0: PAN.y, s: [] };
+      GEST.mode = 'pan'; PAN.mode = ''; PAN.vx = PAN.vy = 0;
+    }
+    function panMove(e) {
+      var g = GEST.pan, b = panBox(), k = 1 / (S.p * S.N), t = e.timeStamp;
+      PAN.x = band(g.rx - (e.clientX - g.sx) * k, b[0], b[1]); PAN.y = band(g.ry + (e.clientY - g.sy) * k, b[2], b[3]);   /* 손가락이 간 만큼 장면도 (아트px = p CSS px) */
+      g.s.push([t, e.clientX, e.clientY]); while (g.s.length > 2 && t - g.s[0][0] > 160) g.s.shift();
+      dither.still = 0;
+    }
+    function panRelease(e) {
+      var g = GEST.pan, s = g.s, now = e.timeStamp, last = s[s.length - 1], vx = 0, vy = 0;
+      if (e.type !== 'pointerup') { var b = panBox(); panTo(clamp(g.x0, b[0], b[1]), clamp(g.y0, b[2], b[3]), 0.25, 'spring'); return; }   /* 브라우저가 가져감 (1× 세로 = 페이지 스크롤) → 장면은 제자리로 */
+      if (last && now - last[0] < 80) {   /* 떼기 전 80 ms 넘게 멈췄으면 0 */
+        var i = 0; while (i < s.length - 1 && now - s[i][0] > 100) i++;   /* 마지막 100 ms 안의 가장 오래된 표본 */
+        if (i === s.length - 1 && i > 0) i--;
+        var f = s[i], dt = last[0] - f[0];
+        if (dt > 4) { vx = (last[1] - f[1]) / dt; vy = (last[2] - f[2]) / dt; }
+      }
+      var sp = Math.hypot(vx, vy);
+      if (st.reduced || sp < 0.25) vx = vy = 0; else if (sp > 2) { vx *= 2 / sp; vy *= 2 / sp; }   /* 0.25 px/ms 미만은 그 자리에 · 최고 2 px/ms */
+      if (vx || vy) { var k = 1000 / (S.p * S.N); PAN.mode = 'coast'; PAN.vx = -vx * k; PAN.vy = vy * k; }
+      else panSettle();
+    }
+    function startMulti() {
+      var p = gPts(), a = p[0], b = p[1];
+      ZT = null;   /* 앞 핀치의 멈춤 이징 중이면 지금 배율에서 이어 간다 */
+      GEST.multi = { d0: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), a0: Math.atan2(b.y - a.y, b.x - a.x), f0: st.zoomF, yaw0: yawDrag, tw: 0, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+      GEST.mode = 'multi'; if (PAN.mode !== 'home') { PAN.mode = ''; PAN.vx = PAN.vy = 0; } dither.still = 0;
+    }
+    function multiMove() {
+      var p = gPts(), a = p[0], b = p[1], m = GEST.multi; if (!a || !b) return;
+      var d = Math.hypot(b.x - a.x, b.y - a.y), da = Math.atan2(b.y - a.y, b.x - a.x) - m.a0, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      da = Math.atan2(Math.sin(da), Math.cos(da));
+      if (GEST.mode === 'multi') {
+        if (Math.abs(da) > 15 * DEG) { GEST.mode = 'twist'; m.tw = da > 0 ? 15 * DEG : -15 * DEG; }   /* 15° 를 먼저 넘기면 비틀기 */
+        else if (d / m.d0 >= 1.1 || d / m.d0 <= 1 / 1.1) { GEST.mode = 'pinch'; m.d0 = d; }          /* 거리 1.1배를 먼저 넘기면 핀치 — 그 거리에서 1:1 로 시작 (첫 프레임에 10 % 튀지 않게, 비틀기의 15° 빼기와 같다) */
+      }
+      if (GEST.mode === 'pinch') {
+        if (panOn() && !panLocked()) { var k = 1 / (S.p * S.N); PAN.x -= (mx - m.mx) * k; PAN.y += (my - m.my) * k; }   /* 두 손가락 가운데가 움직이면 밀기 */
+        if (!zoomN(m.f0 * d / m.d0, mx, my) && panOn()) clampPan();   /* 거리 비율을 연속으로 (정수 N) — 멈춤 맞추기는 손을 뗄 때 (zoomSettle) */
+        dither.still = 0;
+      } else if (GEST.mode === 'twist') {
+        var y = clamp(m.yaw0 + (da - m.tw), -25 * DEG, 25 * DEG);
+        if (y !== yawDrag) { yawDrag = y; dither.still = 0; if (panOn()) { placeCamera(); clampPan(); } }
+      }
+      m.mx = mx; m.my = my;
+    }
     listen(canvas, 'pointerdown', function (e) {
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 2) return;
       canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
-      if (press && press.id !== e.pointerId) { pinch = { d0: Math.hypot(e.clientX - press.x, e.clientY - press.y), zoom: st.zoom }; return; }
-      var o = pick(e.clientX, e.clientY);
-      press = { id: e.pointerId, x: e.clientX, y: e.clientY, obj: o, moved: false, pet: false, t: null };
-      if (o && o.userData.kind === 'oct') press.t = setTimeout(function () { press.pet = true; if (on.pet) on.pet(); }, 350);
+      GEST.pts[e.pointerId] = { x: e.clientX, y: e.clientY }; GEST.n = gPts().length;
+      if (GEST.n >= 2) {   /* 두 번째 손가락: 누르던 것은 톡·쓰다듬기가 아니게 · 밀던 것은 관성 없이 놓고 핀치/비틀기 대기 */
+        if (press) { clearTimeout(press.t); press.multi = true; }
+        if (GEST.n === 2 && GEST.mode !== 'yaw') startMulti();
+        e.preventDefault(); return;
+      }
+      zoomFinish();
+      var caught = PAN.mode === 'coast' && (pxms(PAN.vx) > 0.05 || pxms(PAN.vy) > 0.05);
+      if (PAN.mode === 'coast' || PAN.mode === 'spring') { PAN.mode = ''; PAN.vx = PAN.vy = 0; }   /* 관성·고무줄 중에 누르면 그 자리에 멈춘다 (다시 잡아 끌 수 있게) — 떼면 pointerEnd 가 경계 안으로 */
+      var yaw = e.pointerType === 'mouse' && (e.button === 2 || e.shiftKey), o = yaw ? null : pick(e.clientX, e.clientY);
+      press = { id: e.pointerId, x: e.clientX, y: e.clientY, obj: o, moved: false, pet: false, t: null, caught: caught, yaw: yaw, touch: e.pointerType === 'touch', lx: e.clientX };
+      GEST.mode = yaw ? 'yaw' : 'press';
+      if (o && o.userData.kind === 'oct' && !caught) press.t = setTimeout(function () { if (!press || press.multi) return; press.pet = true; if (on.pet) on.pet(); }, 350);   /* 관성을 잡은 누름은 멈추기만 (§3.1) */
       e.preventDefault();
     });
     listen(canvas, 'pointermove', function (e) {
-      if (press && pinch && e.pointerId !== press.id) { var d = Math.hypot(e.clientX - press.x, e.clientY - press.y); var z = clamp(pinch.zoom + Math.round(Math.log(d / pinch.d0) / Math.log(1.25)), 0, ZOOM_STEPS.length - 1); if (z !== st.zoom) { st.zoom = z; resize(); dither.still = 0; } return; }
-      if (!press || e.pointerId !== press.id) return;
+      var q = GEST.pts[e.pointerId]; if (!q) return;
+      q.x = e.clientX; q.y = e.clientY;
+      if (GEST.mode === 'multi' || GEST.mode === 'pinch' || GEST.mode === 'twist') { multiMove(); return; }
+      if (!press || e.pointerId !== press.id || GEST.mode === 'done') return;
       var dx = e.clientX - press.x, dy = e.clientY - press.y;
+      if (GEST.mode === 'yaw') { yawDrag = clamp(yawDrag + (e.clientX - press.lx) * 0.004, -25 * DEG, 25 * DEG); press.lx = e.clientX; press.moved = true; dither.still = 0; if (panOn()) { placeCamera(); clampPan(); } return; }
       if (!press.moved && Math.hypot(dx, dy) > 8) press.moved = true;
-      if (press.obj && press.obj.userData.kind === 'oct') { if (press.moved && !press.pet) { clearTimeout(press.t); press.pet = true; if (on.pet) on.pet(); } return; }
-      if (press.moved && !pinch) { yawDrag = clamp(yawDrag + (e.clientX - press.lx || 0) * 0.004, -25 * DEG, 25 * DEG); dragging = true; dither.still = 0; }
-      press.lx = e.clientX;
+      var vert = press.touch && touchNow === 'pan-y' && Math.abs(dy) > Math.abs(dx);   /* 1× 터치의 세로 쓸기 = 페이지 몫 (브라우저가 곧 pointercancel) */
+      if (octPress()) { if (press.moved && !press.pet) { clearTimeout(press.t); press.pet = true; if (on.pet) on.pet(); } return; }   /* 문어 위 쓸기 = 쓰다듬기, 세로도 (touchmove 가 페이지 스크롤을 막는다 · §5.3 '지금 그대로') */
+      if (press.moved && GEST.mode === 'press') { if (vert) { GEST.mode = 'done'; return; } if (panOn() && !panLocked()) startPan(); }
+      if (GEST.mode === 'pan') panMove(e);
     });
     function pointerEnd(e) {
-      if (!press || e.pointerId !== press.id) { if (pinch && (!press || e.pointerId !== press.id)) pinch = null; return; }
+      if (!GEST.pts[e.pointerId]) return;
+      delete GEST.pts[e.pointerId]; GEST.n = gPts().length;
+      if (GEST.mode === 'multi' || GEST.mode === 'pinch' || GEST.mode === 'twist') {   /* 한 손가락을 떼면 손짓 끝 — 남은 손가락은 뗄 때까지 아무것도 안 한다 (튐 없이) */
+        if (GEST.mode === 'pinch') zoomSettle(GEST.multi.mx, GEST.multi.my);   /* 가까운 멈춤으로 0.15 s → 끝에 panSettle */
+        else if (panOn() && !panLocked()) panSettle();
+        GEST.mode = GEST.n ? 'done' : ''; if (!GEST.n) press = null; return;
+      }
+      if (!press || e.pointerId !== press.id) { if (!GEST.n) { GEST.mode = ''; press = null; } return; }
       clearTimeout(press.t);
       var o = press.obj, k = o && o.userData.kind;
-      if (!press.moved && !press.pet && !pinch && e.type === 'pointerup') {
+      if (GEST.mode === 'pan') panRelease(e);
+      else if (GEST.mode === 'press' && !press.moved && !press.pet && !press.caught && !press.multi && e.type === 'pointerup') {
         if (k === 'oct') { oct.wantYaw = camYaw(); if (on.tap) on.tap(); }
         else if (k === 'window') { if (on.windowTap) on.windowTap(); }
         else if (k === 'poster') { if (on.posterTap) on.posterTap(o.userData.id); }
         else if (k === 'souvenir') { if (on.souvenirTap) on.souvenirTap(o.userData.sv); }
       }
-      press = null; pinch = null; dragging = false;
+      if (GEST.mode !== 'pan' && !PAN.mode && !ZT && panOn() && !panLocked()) panSettle();   /* 고무줄 복귀·관성을 톡·꾹으로 멈췄으면 경계 밖·소수 자리에 남지 않게 (안이면 정수 px 로만) */
+      press = null; GEST.mode = GEST.n ? 'done' : ''; GEST.pan = null;
     }
     listen(canvas, 'pointerup', pointerEnd); listen(canvas, 'pointercancel', pointerEnd);
-    listen(canvas, 'wheel', function (e) { e.preventDefault(); var z = clamp(st.zoom + (e.deltaY < 0 ? 1 : -1), 0, ZOOM_STEPS.length - 1); if (z !== st.zoom) { st.zoom = z; resize(); dither.still = 0; } }, { passive: false });
+    listen(canvas, 'lostpointercapture', pointerEnd);   /* 떼기 없이 캡처를 잃으면 (장면이 숨거나 2D 로 바뀌는 중) 취소로 친다 — 손가락 상태가 남아 다음 누름이 두 번째 손가락이 되지 않게. 정상 떼기 뒤엔 이미 지워져 무시된다 */
+    listen(canvas, 'wheel', function (e) {   /* 한 칸에 한 멈춤 (커서 아래가 그 자리에), 그 칸 뒤 0.15 s 동안 들어오는 휠은 무시 (§3.5, 트랙패드 폭주 방지) */
+      e.preventDefault();
+      if (!e.deltaY) return;
+      var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      if (now - GEST.wheelT < 150) return;   /* 무시한 휠은 시간을 늘리지 않는다 → 마우스 휠을 빨리 돌리면 0.15 s 마다 한 칸 */
+      GEST.wheelT = now;
+      zoomFinish();
+      setZoom(ZOOM_STEPS[clamp(zoomStepOf(st.zoomF) + (e.deltaY < 0 ? 1 : -1), 0, ZOOM_STEPS.length - 1)], e.clientX, e.clientY);
+    }, { passive: false });
+    /* touch-action 은 손짓 도중 못 바꾼다 → 두 손가락·물건 든 동안·밀기 중·문어 쓰다듬기 중엔 touchmove 를 막아 브라우저가 핀치·끌기·쓸기를 가져가지 않게 (pointercancel 방지).
+       1× 한 손가락 세로 쓸기는 그대로 페이지 스크롤 — 단 페이지가 맨 위인데 아래로 당기면 막는다: 내릴 것이 없고, 안 막으면 안드로이드 크롬의 '당겨서 새로고침'이 게임을 다시 연다
+       (예전 #scene3d touch-action:none 이 막던 것. html·body 의 overscroll-behavior 는 CSS 몫 — 이건 장면 위에서 시작한 손짓만) */
+    function octPress() { return !!(press && !press.caught && press.obj && press.obj.userData.kind === 'oct'); }
+    function pullAtTop(e) {
+      if (!press || e.touches.length !== 1 || touchNow !== 'pan-y') return false;
+      var t = e.touches[0], dy = t.clientY - press.y, se = document.scrollingElement || document.documentElement;
+      return dy > 0 && dy >= Math.abs(t.clientX - press.x) && (window.pageYOffset || 0) <= 0 && (!se || se.scrollTop <= 0);
+    }
+    listen(canvas, 'touchmove', function (e) { if (e.cancelable && (e.touches.length >= 2 || GEST.hold || GEST.mode === 'pan' || octPress() || pullAtTop(e))) e.preventDefault(); }, { passive: false });
+    listen(canvas, 'contextmenu', function (e) { e.preventDefault(); });   /* 안드로이드 꾹 누르기 · 마우스 오른쪽 끌기 */
+    canvas.style.setProperty('-webkit-touch-callout', 'none'); canvas.style.setProperty('-webkit-user-select', 'none'); canvas.style.userSelect = 'none';   /* iOS 꾹 누르기 말풍선 없음 */
     listen(document, 'pointermove', function (e) { if (e.pointerType !== 'touch') { oct.pointer = { x: e.clientX, y: e.clientY }; oct.lookTarget = null; } }, { passive: true });
     /* 컨텍스트 잃음 (docs/research/a11y-and-mobile-perf.md 3): 보이는 동안 3 s 안에 돌아오지 않으면 opts.onLost() 한 번 → 앱이 2D 폴백으로 바꾼다. 돌아오면 아무것도 안 한다 (3D 그대로).
        탭이 숨어 있는 동안은 세지 않는다 (iOS 는 백그라운드에서 회수하고 앞으로 돌아올 때 복구한다) */
@@ -2090,7 +2436,7 @@ var SCENE3D = (function () {
       if (INTRO.t >= INTRO.dur) finishIntro();
     }
     function frame(ts) {
-      var idle = (st.octState === 'idle' || st.octState === 'sleep' || st.octState === 'stay') && !oct.walking && !(G.settleT < GAIT.settle) && !dragging && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !CER.active;
+      var idle = (st.octState === 'idle' || st.octState === 'sleep' || st.octState === 'stay') && !oct.walking && !(G.settleT < GAIT.settle) && !GEST.mode && !PAN.mode && !ZT && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !CER.active;   /* 손가락·관성 중엔 60 fps */
       /* 프레임 상한은 *시간* 기준 (docs/research/a11y-and-mobile-perf.md 1): 가만히(또는 화면 밖) 30fps · 그 밖 60fps — 120Hz 폰도 60. 건너뛴 콜백의 시간은 버리지 않고
          다음에 그리는 프레임의 dt 로 넘긴다 (예전 홀수 콜백 건너뛰기는 dt 째 버려서 가만히 있을 때 비·양초·먼지·깜빡임·커튼이 반속도였다). debugStep(st.force) 은 항상 주어진 dt 로 진행·렌더 */
       if (!st.force && lastDraw && ts - lastDraw < (idle || st.offscreen ? 1000 / 30 : 1000 / 60) - 1) return;
@@ -2100,7 +2446,7 @@ var SCENE3D = (function () {
       applyPendingPixel();
       if (light.t < 1) { light.t = Math.min(1, light.t + dt / light.dur); applyLight(); if (light.t >= 1) light.from = null; }
       if (lampDirty) applyLamp();
-      if (!st.reduced && st.lantern > 0) { lampGlow.material.opacity = glowOpacity() + Math.sin(Math.floor(time * 8) / 8 * 2) * 0.03 * (light.glow || 0.7) / 0.7; }   /* 글로우 맥동 8 fps 스텝 */
+      if (!st.reduced && lampGlow.visible) { lampGlow.material.opacity = glowOpacity() + Math.sin(Math.floor(time * 8) / 8 * 2) * 0.03 * (light.glow || 0.7) / 0.7; }   /* 글로우 맥동 8 fps 스텝 */
       stepSway(); stepShimmer(dt); stepCurtain(dt);   /* 룩 패스 7: 등불 진자 · 창 빛 일렁임 · 커튼 숨 */
       if (dust.visible) { anim.dustAcc += dt; if (anim.dustAcc >= DUST_DT - 1e-6 || !anim.dustInit) { anim.dustAcc = 0; anim.dustInit = true; dustLayout(); } }   /* 먼지 10 fps 스텝, 픽셀 중심 스냅 */
       if (props.candle.visible) {   /* 양초 점광 0.3~0.42 d 2 × 시각대 계수. 불꽃 = 2프레임 깜빡임 (룩 패스 6): 7 Hz, 주기마다 시드 지터로 밝은 프레임이 35~65 % — 크기(y 0.9/1.25)·색(호박 4/5)·발광(0.7/1.0). 모션 감소면 중간값 고정 */
@@ -2117,9 +2463,10 @@ var SCENE3D = (function () {
       stepTrans(dt); stepCer(dt);   /* 장소 전환 · 출발/귀가 의식 (바깥·계절·전환) */
       if (atticG.visible) stepWeather(dt); if (extG.visible) stepExt(dt);
       post.uniforms.uFade.value = PLACE.fade; if (PLACE.fade > 0) { var fk = hexToOklab(LIGHTS[phaseOf(st.hour)].bg); post.uniforms.uFadeOk.value.set(fk[0], fk[1], fk[2]); }
-      stepOct(dt); stepHang(dt); stepIntro(dt);
+      stepOct(dt); if (PLAY) PLAY.step(dt);   /* 놀이 kit: stepOct 가 매 프레임 새로 쓴 몸·팔 값 위에 덮어쓴다 */
+      stepHang(dt); stepIntro(dt);
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(camera.quaternion);
-      placeCamera(); updateOverlay();
+      stepZoom(dt); stepPan(dt); placeCamera(); updateOverlay();
       if (!st.offscreen || st.force) draw(t0);   /* 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 */
       if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
     }
@@ -2129,7 +2476,7 @@ var SCENE3D = (function () {
       renderer.setRenderTarget(rt); renderer.clear(true, true, false); renderer.render(scene, camera);
       calls = renderer.info.render.calls;
       scene.overrideMaterial = normalMat; var bg = scene.background; scene.background = null; shade.visible = false; if (INTRO.sky) INTRO.sky.g.visible = false;   /* 차폐는 노멀 패스에서 숨김 (방 전체를 덮어쓰지 않게) */
-      renderer.setRenderTarget(rtN); renderer.clear(true, true, false); renderer.render(scene, camera);
+      renderer.setRenderTarget(rtN); renderer.clear(true, true, false); renderer.render(scene, camera);   /* 사라지는 문어도 노멀은 꽉 차게 그린다 — 남은 픽셀은 평소와 같은 하이라이트, 구멍 픽셀은 후처리가 알파 표시로 끈다 */
       scene.overrideMaterial = null;
       calls += renderer.info.render.calls;
       /* 발광 패스 (룩 패스 6): 레이어 1 의 발광 쌍둥이 3개만 (배경 없음 = 검정). 깊이 텍스처가 있으면 뷰티 깊이를 공유하므로 색만 지운다 → 가려진 발광은 안 그려진다 */
@@ -2188,7 +2535,753 @@ var SCENE3D = (function () {
       if (putExt) putExt(); if (putAttic) putAttic(); if (putOct) putOct();
       atticG.visible = av; extG.visible = ev; renderer.setRenderTarget(prt);
     })();
-    ready = true; loop();
+    ready = true; touchMode(); loop();
+
+    /* ═══════════════ 놀이 kit (play.html 전용 · docs/PLAY_PROTO.md §11) ═══════════════
+       inst.play() 를 처음 부를 때만 만든다. 그 전엔 PLAY = null 이라 훅 4줄(frame · stepOct 눈·색 · camTargetNow)이 아무것도 안 하고, 메시·재질·리스너도 하나도 없다 → index.html 그대로.
+       고르기는 여기 없다: kit 는 "보여 주기"만 한다 (걷기·뻗기·들기·놓기·굴리기·구겨 넣기·위장). 무엇을 할지는 play.js 의 chooser 가 정하고, 그 한 선택을 여러 원시 동작으로 재생한다.
+       시계: 모든 연출은 PLAY.step(dt) 의 작업 큐로 돈다 (debugStep 으로 결정적). 포즈는 12 fps 칸(83 ms)으로 끊은 그린 포즈. 모션 감소면 대부분 즉시(색·대기는 유지).
+       좌표: 월드 m. 장난감 논리 위치(x, z, 바닥 위 y) → 매 프레임 화면 픽셀 격자에 스냅(snapScreen), 들림은 화면 세로 정수 px(snapUp). 난수 없음 — 꿈틀 위상 같은 변화는 hash 만 쓴다 (결정적).
+       동작 Promise 는 늘 resolve 한다 (reject 없음): { ok, cancelled?, ... }. kit.cancel() 이면 남은 작업이 { ok: false, cancelled: true } 로 끝난다. */
+    function makePlay() {
+      var SQ = Math.SQRT1_2, TIP = new T.Vector3(0.82, -0.08, 0), MAXS = 2.6, F12 = 1 / 12, NEAR = 32;
+      var GRID = { P0: [0, 0, 0.2], e: [SQ, 0, -SQ], f: [SQ, 0, SQ], du: 0.3, v: [0.55, 0, -0.85, -1.1] };   /* §12.2: u 0..8 창 쪽 → 문 쪽, v 0 앞자리 · 1 컵 줄 · 2 작업칸 · 3 문어 자리 */
+      var CUP = { h: 0.325, r0: 0.17, r1: 0.13 }, BALL_R = 0.10;
+      var toys = {}, order = [], jobs = [], ctl = {}, poses = {}, PF = 0;
+      var proxyMat = keep(new T.MeshBasicMaterial({ visible: false }));
+      var _v = new T.Vector3(), _w = new T.Vector3(), _l = new T.Vector3(), _q = new T.Quaternion(), _q2 = new T.Quaternion(), _ax2 = new T.Vector3(), _rc = new T.Raycaster(), _nd = new T.Vector2(), _pl = new T.Plane(new T.Vector3(0, 1, 0), 0);
+      var P = PLAY = { kit: null, step: stepPlay, tint: null, cam: null, eye: null, look: null, hidden: null, tip: null, stat: { jobs: 0, frames: 0 } };
+      function per() { return F12 * st.speed; }                                   /* 12 fps 한 칸 (속도 배율) */
+      function DK(sec) { return sec * st.speed; }                                 /* 모션 감소여도 유지 (색·대기) */
+      function cell(u, v) { var vv = GRID.v[clamp(Math.round(v), 0, 3)]; return [GRID.P0[0] + GRID.e[0] * (u - 4) * GRID.du + GRID.f[0] * vv, GRID.P0[2] + GRID.e[2] * (u - 4) * GRID.du + GRID.f[2] * vv]; }
+      function cellOf(x, z) {   /* 가장 가까운 칸 [u, v] (u 0..8 정수, v 0..3) */
+        var dx = x - GRID.P0[0], dz = z - GRID.P0[2], su = (dx * GRID.e[0] + dz * GRID.e[2]) / GRID.du + 4, sv = dx * GRID.f[0] + dz * GRID.f[2], bv = 0, bd = 9;
+        GRID.v.forEach(function (vv, i) { var d = Math.abs(vv - sv); if (d < bd) { bd = d; bv = i; } });
+        return [clamp(Math.round(su), 0, 8), bv];
+      }
+
+      /* ── 작업 큐 ── */
+      function job(dur, fn, tag) { return new Promise(function (res) { jobs.push({ t: 0, dur: dur, fn: fn, res: res, tag: tag || '' }); }); }
+      function frames(n, step, fn, tag) {   /* n 포즈를 step 초마다: fn(i) 를 0..n-1 순서대로 빠짐없이 (dt 가 커도) */
+        var last = -1;
+        return job(n * step, function (k, t) { var i = k >= 1 ? n - 1 : Math.min(n - 1, Math.floor(t / step + 1e-6)); while (last < i) { last++; fn(last); } }, tag);
+      }
+      function wait(sec) { return job(DK(sec), null, 'wait'); }
+      function okR(o) { return Object.assign({ ok: true }, o || {}); }
+      function cancel(tag) {   /* 남은 연출(작업)을 { ok: false, cancelled: true } 로 끝낸다. tag 없으면 걷기도 */
+        if (!tag) stopWalk();
+        var keep2 = [];
+        jobs.forEach(function (j) { if (!tag || j.tag === tag) { j.dead = true; j.res({ ok: false, cancelled: true }); } else keep2.push(j); });
+        jobs = keep2;
+      }
+
+      /* ── 장난감 ── */
+      function colorOf(c, fb) { if (/^#[0-9a-f]{6}$/i.test(c || '')) return c; var m = { navy: PAL.navy[3], moss: PAL.moss[2], rose: PAL.rose[1], amber: PAL.amber[3], sky: PAL.sky[2], paper: PAL.paper[1], wood: PAL.wood[3] }; return m[c] || fb; }
+      function atOf(at, row) { if (typeof at === 'number') return cell(at, row); if (at && at.length >= 2) return [at[0], at[at.length - 1]]; return cell(4, row); }
+      function addToy(id, kind, parts, o) {
+        if (toys[id]) removeToy(id);
+        var g = new T.Group(), mesh = new T.Mesh(mergeParts(parts), lambert);
+        mesh.receiveShadow = true; mesh.castShadow = false; g.add(mesh);
+        var px = new T.Mesh(o.proxy, proxyMat); px.userData.toy = id; g.add(px);
+        var dc = new T.Mesh(new T.PlaneGeometry(o.decal * 2, o.decal * 2), decalMat); dc.rotation.x = -Math.PI / 2; dc.renderOrder = 1;
+        atticG.add(g); atticG.add(dc);
+        var at = o.at || [0, 0];
+        var p = toys[id] = { id: id, kind: kind, g: g, mesh: mesh, proxy: px, decal: dc, x: at[0], z: at[1], y: 0, lift: 0, tilt: 0, sy: 1, vis: true, attach: null, grip: null, on: null, cover: null, h: o.h, r: o.r, q: new T.Quaternion(), w: new T.Vector3(), f: -1, color: o.color, seen: true };
+        order.push(id); return p;
+      }
+      function removeToy(id) {
+        var p = toys[id]; if (!p) return;
+        atticG.remove(p.g); atticG.remove(p.decal); p.mesh.geometry.dispose(); p.decal.geometry.dispose(); p.proxy.geometry.dispose();   /* 장난감 기하는 장난감 것 (keep 목록에 안 넣는다: 처음처럼마다 쌓이지 않게) */
+        order.splice(order.indexOf(id), 1); delete toys[id];
+        order.forEach(function (k) { var q = toys[k]; if (q.on === id) q.on = null; if (q.cover === id) q.cover = null; });
+      }
+      function addCup(id, band, at) {   /* 엎은 컵: 아래 r .17 · 위 r .13 · 높이 .30 · 10면 + 띠(y .21) + 입술 + 굽. 메시 하나 (§11.4) */
+        var body = PAL.paper[1], bc = colorOf(band, PAL.navy[3]);
+        var parts = [{ g: new T.CylinderGeometry(CUP.r1, CUP.r0, 0.30, 10), m: M(0, 0.15, 0), c: body },
+          { g: new T.CylinderGeometry(0.152, 0.158, 0.05, 10), m: M(0, 0.21, 0), c: bc },
+          { g: new T.CylinderGeometry(0.176, 0.18, 0.03, 10), m: M(0, 0.015, 0), c: PAL.paper[2] },
+          { g: new T.CylinderGeometry(0.105, 0.115, 0.025, 10), m: M(0, 0.3125, 0), c: PAL.paper[0] }];
+        var p = addToy(id, 'cup', parts, { proxy: new T.CylinderGeometry(0.28, 0.28, 0.5, 8).translate(0, 0.25, 0), decal: 0.22, at: atOf(at, 1), h: CUP.h, r: CUP.r0, color: body });
+        p.band = bc; return api(id);
+      }
+      function addBall(id, color, at) {   /* 공: 구 r .10 (10×8) + 종이색 띠 (구르는 게 보이게). 그룹 원점 = 바닥 접점, 메시 원점 = 공 중심 */
+        var c = colorOf(color, PAL.amber[3]);
+        var parts = [{ g: new T.SphereGeometry(BALL_R, 10, 8), m: M(0, 0, 0), c: c }, { g: new T.TorusGeometry(BALL_R * 0.98, 0.022, 4, 14), m: M(0, 0, 0, Math.PI / 2, 0, 0.5), c: PAL.paper[2] }];
+        var inBasket = at === 'basket', p = addToy(id, 'ball', parts, { proxy: new T.SphereGeometry(0.22, 8, 6).translate(0, BALL_R, 0), decal: 0.13, at: inBasket ? cell(8, 0) : atOf(at, 0), h: BALL_R * 2, r: BALL_R, color: c });
+        p.mesh.position.y = BALL_R;
+        if (inBasket) putInBasket(id);
+        return api(id);
+      }
+      function addBasket(id, at) {   /* 열린 상자 .36 × .16 × .28 (나무). 공 하나가 들어간다. addBasket(u) 도 된다 (id 'basket') */
+        if (typeof id === 'number' || Array.isArray(id)) { at = id; id = 'basket'; }
+        id = id || 'basket';
+        var w = PAL.wood, parts = [{ g: box(0.36, 0.03, 0.28), m: M(0, 0.015, 0), c: w[2] },
+          { g: box(0.36, 0.16, 0.025), m: M(0, 0.08, 0.1275), c: w[4] }, { g: box(0.36, 0.16, 0.025), m: M(0, 0.08, -0.1275), c: w[3] },
+          { g: box(0.025, 0.16, 0.28), m: M(0.1675, 0.08, 0), c: w[4] }, { g: box(0.025, 0.16, 0.28), m: M(-0.1675, 0.08, 0), c: w[3] },
+          { g: box(0.38, 0.02, 0.025), m: M(0, 0.165, 0.1275), c: w[6] }, { g: box(0.025, 0.02, 0.30), m: M(0.1675, 0.165, 0), c: w[6] }];
+        var p = addToy(id, 'basket', parts, { proxy: box(0.5, 0.3, 0.42).translate(0, 0.15, 0), decal: 0.3, at: atOf(typeof at === 'number' ? at : at || 8, 0), h: 0.16, r: 0.2, color: w[3] });
+        p.g.rotation.y = -Math.PI / 4;   /* 화면과 나란히 */
+        return api(id);
+      }
+      function putInBasket(ballId, basketId) {
+        var b = toys[ballId], k = toys[basketId || 'basket'] || order.map(function (i) { return toys[i]; }).filter(function (t) { return t.kind === 'basket'; })[0];
+        if (!b || !k) return false;
+        b.attach = null; b.cover = null; b.on = null; b.x = k.x; b.z = k.z; b.y = 0.03; b.lift = 0; b.inBasket = k.id; return true;
+      }
+      function towerBase(p) { while (p && p.on && toys[p.on]) p = toys[p.on]; return p; }
+      function towerTop(p) { var top = p, again = true; while (again) { again = false; for (var i = 0; i < order.length; i++) { var q = toys[order[i]]; if (q.on === top.id) { top = q; again = true; break; } } } return top; }
+      function towerH(base) { var h = 0, p = towerTop(base); while (p) { h += p.h; if (p === base) break; p = toys[p.on]; } return h; }
+      function liftY(p) { return snapUp(p.lift * pxUp()); }
+
+      /* 매 프레임: 논리 → 월드 (스냅). 순서: 놓인 것 → 쌓인 것(아래부터) → 덮인 공 */
+      function place(p) {
+        if (P.inLayout && p.f === PF) return p.w;
+        p.f = PF; var w = p.w;
+        if (p.attach && p.attach.slice(0, 4) === 'arm:' && arms[+p.attach.slice(4)]) {
+          var am = arms[+p.attach.slice(4)]; am.updateMatrixWorld(true);
+          am.localToWorld(w.copy(TIP)).sub(p.grip); snapScreen(w); w.y += liftY(p);
+        } else if (p.attach === 'head') {
+          bodyG.updateMatrixWorld(true); bodyG.localToWorld(w.set(0, HEAD_Y + HEAD_SQ * 0.93, 0)); snapScreen(w);
+        } else if (p.on && toys[p.on]) {
+          var b = place(toys[p.on]); w.set(b.x, b.y + snapUp(toys[p.on].h * toys[p.on].sy) + liftY(p), b.z);
+        } else {
+          if (p.cover && toys[p.cover]) { var c = towerBase(toys[p.cover]); if (!c.attach && c.lift <= 3) { p.x = c.x; p.z = c.z; } }
+          w.set(p.x, p.y, p.z); snapScreen(w); w.y += liftY(p);
+        }
+        return w;
+      }
+      function covered(p) {   /* 공이 엎은 컵 밑에 있고 그 컵(탑)이 바닥에 있으면 안 보인다 */
+        if (!p.cover || !toys[p.cover]) return false;
+        var c = towerBase(toys[p.cover]); return !c.attach && c.lift < 3 && c.vis;
+      }
+      function layoutToys() {
+        PF++; P.inLayout = true; octG.updateMatrixWorld(true);
+        order.forEach(function (id) {
+          var p = toys[id], w = place(p), show = p.vis && !(p.kind === 'ball' && covered(p));
+          p.g.position.copy(w); p.g.visible = show;
+          if (p.kind === 'cup') {
+            if (p.attach === 'head') { bodyG.getWorldQuaternion(_q); _q2.setFromAxisAngle(_ax2.set(0, 0, 1), p.hatTilt || 8 * DEG); p.g.quaternion.copy(_q).multiply(_q2); }
+            else { p.g.rotation.set(0, 0, p.tilt); if (p.tip) { _q.setFromAxisAngle(_ax2.set(GRID.e[0], 0, GRID.e[2]), p.tip); p.g.quaternion.premultiply(_q); } }   /* tip < 0: 입구가 보는 사람 쪽으로 (들춰 보기) */
+            p.mesh.scale.set(1, p.sy, 1);
+          } else if (p.kind === 'ball') { p.mesh.quaternion.copy(p.q); var bs = S.p >= 3 ? 1.2 : 1; p.mesh.scale.setScalar(bs); p.mesh.position.y = BALL_R * bs; }   /* 자동 픽셀 폴백(p=3)이면 공을 r .12 로 */
+          var hgt = w.y - (p.inBasket ? p.y : 0), dShow = show && p.attach !== 'head' && !(p.on && toys[p.on]) && !p.inBasket;
+          p.decal.visible = dShow;
+          if (dShow) {
+            p.decal.position.set(w.x, 0.02, w.z); snapScreen(p.decal.position);   /* 스냅 그대로 (y 를 되돌리면 세로 스냅이 풀린다) */
+            var up = pxUp(); p.decal.scale.setScalar(hgt >= 6 * up ? 0.6 : hgt >= 3 * up ? 0.8 : 1);
+          }
+        });
+        P.inLayout = false;
+      }
+
+      /* ── 팔 (한 팔씩 덮어쓰기; 나머지 팔은 stepOct 의 꿈틀·걸음 그대로) ── */
+      function restTip(i) { var am = arms[i], a = am.userData.a, ro = am.position; return _l.set(ro.x + Math.cos(a) * 0.824, ro.y - 0.039, ro.z + Math.sin(a) * 0.824); }
+      function needS(i, wp) { bodyG.updateMatrixWorld(true); var t = bodyG.worldToLocal(_v.copy(wp)), ro = arms[i].position, dh = Math.hypot(t.x - ro.x, t.z - ro.z), dy = t.y - ro.y; return Math.sqrt(Math.max(dh * dh + dy * dy - 0.0064, 1e-4)) / 0.82; }
+      function solveArm(i, pl, wig) {   /* bodyG 로컬 점 pl 에 팔 끝(0.82, −0.08)을 → rotation.y · rotation.z · scale.x */
+        var am = arms[i], ro = am.position, dx = pl.x - ro.x, dy = pl.y - ro.y, dz = pl.z - ro.z, dh = Math.hypot(dx, dz), d2 = dh * dh + dy * dy;
+        var sx = clamp(Math.sqrt(Math.max(d2 - 0.0064, 1e-4)) / 0.82, 0.55, (ctl[i] && ctl[i].maxS) || MAXS);   /* maxS: 틈으로 길게 뻗는 팔 (reach o.maxS) */
+        am.rotation.y = -Math.atan2(dz, dx);
+        am.rotation.z = Math.atan2(dy, dh) - Math.atan2(-0.08, 0.82 * sx) + (wig || 0) * Math.asin(clamp(pxUp() / (0.82 * sx * OCT_R * Math.max(bodyG.scale.y, 0.3)), 0, 1));
+        am.scale.x = sx; return sx;
+      }
+      function armTarget(c) { return typeof c.tgt === 'function' ? c.tgt() : c.tgt; }
+      function stepArms() {
+        var keys = Object.keys(ctl); if (!keys.length) return;
+        octG.updateMatrixWorld(true);
+        keys.forEach(function (k) {
+          var i = +k, c = ctl[k], am = arms[i];
+          if (c.mode === 'tuck') { am.rotation.y = -am.userData.a; am.rotation.z = c.rz; am.scale.x = c.sx; return; }
+          var wp = armTarget(c); if (!wp) return;
+          var tl = bodyG.worldToLocal(_w.copy(wp)), rt = restTip(i), kk = c.kq;
+          var hk = kk <= 0.5 ? 0 : (kk - 0.5) / 0.5;
+          _v.set(rt.x + (tl.x - rt.x) * kk, rt.y + (tl.y - rt.y) * hk, rt.z + (tl.z - rt.z) * kk);
+          c.sx = solveArm(i, _v, (c.wig || 0) - (c.press || 0));
+        });
+      }
+      function freeArms() { return arms.map(function (_, i) { return i; }).filter(function (i) { return !ctl[i]; }); }
+      function pickArm(wp, avoid) {   /* 'auto': 목표 방향에 가장 가까운 노는 팔 */
+        bodyG.updateMatrixWorld(true); var t = bodyG.worldToLocal(_v.copy(wp)), beta = Math.atan2(t.z, t.x), best = -1, bd = 9;
+        freeArms().forEach(function (i) { if (avoid && avoid.indexOf(i) >= 0) return; var d = Math.abs(angDiff(arms[i].userData.a, beta)); if (d < bd) { bd = d; best = i; } });
+        return best;
+      }
+      function gripPoint(p) {   /* 팔이 닿는 곳: 컵(탑) = 꼭대기 문어 쪽 가장자리 위 · 공 = 위쪽 · 바구니 = 테두리 */
+        var base = p.kind === 'cup' ? towerBase(p) : p, w = place(base).clone();
+        if (p.kind === 'cup') {
+          w.y += snapUp(towerH(base)) + 0.03;
+          var dx = oct.pos.x - w.x, dz = oct.pos.z - w.z, dl = Math.hypot(dx, dz) || 1; w.x += dx / dl * 0.07; w.z += dz / dl * 0.07;
+        } else if (p.kind === 'ball') { w.y += BALL_R * 1.6; var ex = oct.pos.x - w.x, ez = oct.pos.z - w.z, el = Math.hypot(ex, ez) || 1; w.x += ex / el * 0.04; w.z += ez / el * 0.04; }
+        else w.y += p.h + 0.03;
+        return w;
+      }
+      function targetPoint(tg) {   /* 대상: 장난감 id | [x, z] (바닥 높이의 팔 끝) | [x, y, z] | Vector3 */
+        if (typeof tg === 'string' && toys[tg]) return gripPoint(toys[tg]);
+        if (tg && tg.isVector3) return tg.clone();
+        if (tg && tg.length === 3) return new T.Vector3(tg[0], tg[1], tg[2]);
+        if (tg && tg.length === 2) return new T.Vector3(tg[0], 0.09, tg[1]);
+        return null;
+      }
+      function claim(i, tgt) { ctl[i] = ctl[i] || { k: 0, kq: 0, wig: 0, press: 0 }; ctl[i].mode = 'reach'; ctl[i].tgt = tgt; return ctl[i]; }
+      function needAt(x, z, wp) {   /* 몸이 (x, z) 에 있을 때 wp 까지 팔 늘이기 어림 (뿌리 = 몸 중심에서 목표 쪽 0.25 m, 높이 0.126 m) */
+        var dh = Math.max(0, Math.hypot(wp.x - x, wp.z - z) - 0.6 * OCT_R), dy = wp.y - 0.3 * OCT_R;
+        return Math.hypot(dh, dy) / (0.82 * OCT_R);
+      }
+      function approach(wps, maxS) {   /* 팔이 안 닿으면(늘이기 > MAXS) 먼저 걷는다: 줄 방향(옆)으로 먼저, 그래도 모자라면 앞으로 — 대상 0.62 m 안으로는 안 들어간다 (눈이 컵에 가리지 않게) */
+        if (!wps.length) return Promise.resolve(okR({ walked: 0 }));
+        var lim = (maxS > MAXS ? Math.min(maxS, 4.6) : MAXS) * 0.95, x0 = oct.pos.x, z0 = oct.pos.z;
+        function worst(x, z) { return Math.max.apply(null, wps.map(function (wp) { return needAt(x, z, wp); })); }
+        if (worst(x0, z0) <= lim) return Promise.resolve(okR({ walked: 0 }));
+        var cx = 0, cz = 0; wps.forEach(function (wp) { cx += wp.x / wps.length; cz += wp.z / wps.length; });
+        var e = GRID.e, f = GRID.f, lat = (cx - x0) * e[0] + (cz - z0) * e[2], best = null;
+        for (var s = 1; s <= 10 && !best; s++) { var x1 = x0 + e[0] * lat * s / 10, z1 = z0 + e[2] * lat * s / 10; if (worst(x1, z1) <= lim) best = [x1, z1]; }
+        if (!best) {   /* 옆으로 다 가도 모자라면 앞으로 (가장 가까운 대상에서 0.62 m 까지) */
+          var bx = x0 + e[0] * lat, bz = z0 + e[2] * lat;
+          for (var d = 0.05; d <= 0.6 && !best; d += 0.05) { var x2 = bx + f[0] * d, z2 = bz + f[2] * d, near = Infinity; wps.forEach(function (wp) { near = Math.min(near, Math.hypot(wp.x - x2, wp.z - z2)); }); if (near < 0.62) break; if (worst(x2, z2) <= lim) best = [x2, z2]; }
+          if (!best) best = [bx, bz];
+        }
+        var go = Math.hypot(best[0] - x0, best[1] - z0);
+        if (go < 0.03) return Promise.resolve(okR({ walked: 0 }));
+        return walkTo(best[0], best[1]).then(function () { return faceTo([cx, cz]); }).then(function () { return okR({ walked: +go.toFixed(2) }); });
+      }
+
+      /* reach(arm|'auto', target, k = 1, { poses, step, approach }) → { ok, arm, sx }. k = 0..1 (0.5 = 바닥을 기어 반까지, 1 = 닿기). 포즈 수 기본: 0 에서 출발 → 8·k, 0.5 이상에서 마무리 → 2 */
+      function reach(arm, tg, k, o) {
+        o = o || {}; k = k == null ? 1 : clamp(+k, 0, 1);
+        var wp = targetPoint(tg); if (!wp) return Promise.resolve({ ok: false, reason: 'no-target' });
+        var pre = o.approach === false || (typeof arm === 'number' && ctl[arm]) ? Promise.resolve() : approach([wp], o.maxS);
+        return pre.then(function () {
+          var wp2 = targetPoint(tg) || wp, i = typeof arm === 'number' ? arm : pickArm(wp2, o.avoid);
+          if (i < 0 || !arms[i]) return { ok: false, reason: 'no-arm' };
+          var c = claim(i, typeof tg === 'string' && toys[tg] ? function () { return gripPoint(toys[tg]); } : wp2), k0 = c.kq || 0; c.maxS = o.maxS > MAXS ? Math.min(+o.maxS, 4.6) : null;
+          var n = st.reduced ? 1 : (o.poses || (k0 >= 0.49 ? 2 : Math.max(1, Math.round(Math.abs(k - k0) * 8)))), stp = o.step != null ? o.step * st.speed : per();
+          c.k = k;
+          return frames(n, st.reduced ? 0 : stp, function (f) { c.kq = k0 + (k - k0) * (f + 1) / n; }, 'arm' + i).then(function (r) { return r.cancelled ? r : okR({ arm: i, sx: +(c.sx || 0).toFixed(2), need: +needS(i, targetPoint(tg) || wp2).toFixed(2) }); });
+        });
+      }
+      function retract(i, o) {   /* 2 포즈로 거둔 뒤 팔을 stepOct 에 돌려준다. 쥔 것이 있으면 그대로 따라온다 (놓기는 hold(id, null)) */
+        o = o || {}; var c = ctl[i]; if (!c) return Promise.resolve(okR({ arm: i }));
+        if (c.mode === 'tuck') { delete ctl[i]; return Promise.resolve(okR({ arm: i })); }
+        var tw = armTarget(c); c.tgt = tw ? tw.clone() : null; c.wig = 0; c.press = 0;
+        var k0 = c.kq, n = st.reduced ? 1 : (o.poses || 2);
+        return frames(n, st.reduced ? 0 : per(), function (f) { c.kq = k0 * (1 - (f + 1) / n); }, 'arm' + i).then(function (r) {
+          if (!r.cancelled && ctl[i] === c && !heldBy(i)) delete ctl[i];
+          return r.cancelled ? r : okR({ arm: i });
+        });
+      }
+      function heldBy(i) { var tag = 'arm:' + i; return order.filter(function (id) { return toys[id].attach === tag; })[0] || null; }
+      function hesitate(i, sec, o) {   /* 멈춤: 팔 끝 1px 꿈틀(2칸마다) + 반쯤 감은 눈(calm), 끝나면 표정 되돌림 */
+        o = o || {}; var c = ctl[i], prev = face.expr, n = 0;
+        if (o.eyes !== false) setExpression(o.eyes || 'calm');
+        return job(DK(sec == null ? 0.45 : sec), function (k, t) { if (c && !st.reduced) { var s = Math.floor(t / per()); if (s !== n) { n = s; c.wig = (s >> 1) & 1 ? 1 : 0; } } }, 'arm' + i)
+          .then(function (r) { if (c) c.wig = 0; if (o.eyes !== false && face.expr === (o.eyes || 'calm')) setExpression(prev); return r.cancelled ? r : okR({ arm: i }); });
+      }
+
+      /* hold(id, arm | 'head' | null, { at:[x,z], on }) — 즉시 붙이기/놓기. 놓으면 그 자리 바닥(또는 on 컵 위)에 선다. 컵을 딴 데 놓으면 그 밑 공의 덮임이 풀린다 */
+      function hold(id, to, o) {
+        o = o || {}; var p = toys[id]; if (!p) return false;
+        var w = place(p).clone();
+        if (to == null) {
+          var at = o.at || [w.x, w.z];
+          if (p.attach === 'head') { p.hatTilt = 0; }
+          p.attach = null; p.grip = null; p.lift = 0; p.inBasket = null; p.liftFrom = null;
+          if (o.on && toys[o.on]) { p.on = o.on; } else { p.on = null; p.x = at[0]; p.z = at[1]; p.y = 0; }
+          if (p.kind === 'cup') {   /* 그 컵 밑에 있던 공: 컵이 같은 자리에 돌아오면 다시 덮임(탑이면 탑 맨 아래가 덮개), 딴 데 놓이면 풀림 */
+            var bs = towerBase(p);
+            order.forEach(function (k) { var b = toys[k]; if (b.cover !== id) return; if (!p.on && Math.hypot(b.x - p.x, b.z - p.z) <= 0.12) b.cover = id; else if (p.on && Math.hypot(b.x - bs.x, b.z - bs.z) <= 0.12) b.cover = bs.id; else b.cover = null; });
+          }
+          PF++; return true;
+        }
+        p.inBasket = null; p.cover = null;   /* 집어 든 공은 더 이상 어느 컵 밑도 아니다 */
+        if (to === 'head') { p.attach = 'head'; p.on = null; p.lift = 0; p.hatTilt = 8 * DEG; p.liftFrom = null; PF++; return true; }
+        var i = +to; if (!arms[i]) return false;
+        octG.updateMatrixWorld(true); arms[i].updateMatrixWorld(true);
+        var tip = arms[i].localToWorld(_v.copy(TIP));
+        if (p.on) { p.on = null; }   /* 탑 위 컵을 집으면 탑에서 떨어진다 */
+        p.grip = tip.clone().sub(w.setY(w.y - liftY(p))); p.lift = 0; p.attach = 'arm:' + i;
+        var c = ctl[i] || claim(i, tip.clone()); c.tgt = tip.clone(); c.k = c.kq = 1;
+        PF++; return true;
+      }
+      function raise(id, o) {   /* 쥔 장난감을 몸 쪽으로 pull m · 위로 px 아트px (2포즈) — 컵을 다시 내려도 그 밑에 안 남게 */
+        o = o || {}; var p = toys[id]; if (!p || !p.attach || p.attach.slice(0, 4) !== 'arm:') return Promise.resolve({ ok: false, reason: 'not-held' });
+        var i = +p.attach.slice(4); if (!ctl[i]) return Promise.resolve({ ok: false, reason: 'no-arm' });
+        var pull = o.pull == null ? 0.3 : o.pull, up = snapUp((o.px == null ? 8 : o.px) * pxUp());
+        return moveHeld([i], 2, function (ii, k, t0) { var dx = oct.pos.x - t0.x, dz = oct.pos.z - t0.z, dl = Math.hypot(dx, dz) || 1; return new T.Vector3(t0.x + dx / dl * pull * k, t0.y + up * k, t0.z + dz / dl * pull * k); })
+          .then(function (r) { return r.cancelled ? r : okR({ arm: i }); });
+      }
+      function press(i) {   /* 닿는 프레임: 빨판 1px 눌림 (한 칸) */
+        var c = ctl[i]; if (!c || st.reduced) return Promise.resolve(okR());
+        c.press = 1; return frames(1, per(), function () { }, 'arm' + i).then(function (r) { c.press = 0; return r; });
+      }
+      function grab(i, id) {   /* 이미 뻗은 팔(i)로 닿기(2포즈) → 눌림 → 쥐기 */
+        var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var base = p.kind === 'cup' ? towerBase(p) : p;
+        return reach(i, id, 1, { approach: false }).then(function (r) { if (!r.ok) return r; return press(i); }).then(function (r) {
+          if (r && r.cancelled) return r;
+          if (!toys[id]) return { ok: false, reason: 'gone' };
+          hold(base.id, i); return okR({ arm: i, id: base.id });
+        });
+      }
+      function moveHeld(list, n, fn) {   /* 쥔 팔들의 목표점을 n 포즈로 옮긴다: fn(arm, k) → Vector3 */
+        var st0 = list.map(function (i) { return ctl[i] && armTarget(ctl[i]) ? armTarget(ctl[i]).clone() : null; });
+        return frames(st.reduced ? 1 : n, st.reduced ? 0 : per(), function (f) {
+          var k = (f + 1) / (st.reduced ? 1 : n);
+          list.forEach(function (i, j) { if (ctl[i] && st0[j]) ctl[i].tgt = fn(i, k, st0[j]); });
+        }, 'held');
+      }
+      /* lift(ids, { px: 8, stagger: 1 칸, stand: true, creep }) — 컵(탑이면 통째로) N 개를 팔 N 개로 동시에: 뻗기(어긋나게) → 눌림 → +3/+6/+8 px. → { ok, arms: {id: arm} } */
+      function lift(ids, o) {
+        o = o || {}; ids = [].concat(ids).filter(function (id) { return toys[id]; }).map(function (id) { var p = toys[id]; return p.kind === 'cup' ? towerBase(p).id : id; })
+          .filter(function (id, i, a) { return a.indexOf(id) === i; });
+        if (!ids.length) return Promise.resolve({ ok: false, reason: 'gone' });
+        var used = [], map = {}, px = o.px == null ? 8 : o.px;
+        ids.forEach(function (id) { var a0 = toys[id].attach; if (a0 && a0.slice(0, 4) === 'arm:') { map[id] = +a0.slice(4); used.push(map[id]); } });   /* 이미 쥔 컵(grab 뒤)은 그 팔 그대로 */
+        var fresh = ids.filter(function (id) { return map[id] == null; });
+        return approach(fresh.map(function (id) { return gripPoint(toys[towerTop(toys[id]).id]); })).then(function () {
+          return Promise.all(fresh.map(function (id, j) {
+            var top = towerTop(toys[id]).id, i = pickArm(gripPoint(toys[top]), used); used.push(i); map[id] = i;
+            if (i < 0) return Promise.resolve({ ok: false, reason: 'no-arm' });
+            return (j && !st.reduced ? wait((o.stagger == null ? 1 : o.stagger) * F12) : Promise.resolve()).then(function () { return reach(i, top, 1, { approach: false, poses: o.creep }); })
+              .then(function (r) { return r.ok ? press(i) : r; }).then(function (r) { if (r && r.ok !== false) hold(id, i); return r; });
+          }));
+        }).then(function (rs) {
+          if (rs.some(function (r) { return r && r.cancelled; })) return { ok: false, cancelled: true };
+          var list = ids.map(function (id) { return map[id]; }).filter(function (i) { return i >= 0; });
+          if (o.stand !== false) setPose('stand', { sy: 1.14 });   /* 2 아트px 서서 눈이 든 컵 위로 */
+          var steps = px >= 8 ? [3, 6, px] : px >= 4 ? [Math.round(px / 2), px] : [px], up = pxUp(), side = {};
+          ids.forEach(function (id) { side[map[id]] = asideOf(id, o.aside); var p = toys[id]; if (!p.liftFrom) p.liftFrom = [p.x, p.z]; });
+          spread(ids, map, side);
+          return moveHeld(list, steps.length, function (i, k, t0) {
+            var n = Math.min(steps.length - 1, Math.round(k * steps.length) - 1), s = steps[n], a = side[i] * (steps.length > 1 ? n / (steps.length - 1) : 1);
+            return new T.Vector3(t0.x + GRID.e[0] * a, t0.y + snapUp(s * up), t0.z + GRID.e[2] * a);
+          })
+            .then(function (r) { return r.cancelled ? r : okR({ arms: map, px: px }); });
+        });
+      }
+      function spread(ids, map, side) {   /* 여러 컵을 같이 들면 줄 방향으로 서로 0.46 m 이상 (든 채 서로 닿지 않게): 가운데서 먼 쪽을 바깥으로 민다 */
+        if (ids.length < 2) return;
+        var e = GRID.e, cx = oct.pos.x, cz = oct.pos.z;
+        var L = ids.map(function (id) { var p = toys[id]; return { i: map[id], u: (p.x - cx) * e[0] + (p.z - cz) * e[2] + (side[map[id]] || 0) }; }).sort(function (a, b) { return a.u - b.u; });
+        var mid = L.reduce(function (m, a, k) { return Math.abs(a.u) < Math.abs(L[m].u) ? k : m; }, 0);
+        for (var k = mid + 1; k < L.length; k++) if (L[k].u - L[k - 1].u < 0.46) { var d = 0.46 - (L[k].u - L[k - 1].u); L[k].u += d; side[L[k].i] = (side[L[k].i] || 0) + d; }
+        for (k = mid - 1; k >= 0; k--) if (L[k + 1].u - L[k].u < 0.46) { var d2 = 0.46 - (L[k + 1].u - L[k].u); L[k].u -= d2; side[L[k].i] = (side[L[k].i] || 0) - d2; }
+      }
+      function asideOf(id, opt) {   /* 든 컵은 줄 방향으로 비켜 든다 → 밑의 공이 다 보이고 눈이 안 가린다. 문어 눈앞(0.3 m 안)이면 0.26 m(탑은 층마다 +0.12, 쪽 = 다른 컵이 더 먼 쪽), 아니면 바깥으로 0.18 m. opt: 'auto'(기본) | 0 | 부호 있는 m */
+        if (opt === 0 || opt === false) return 0;
+        if (typeof opt === 'number') return opt;
+        var p = toys[id], e = GRID.e, rel = (p.x - oct.pos.x) * e[0] + (p.z - oct.pos.z) * e[2];
+        if (Math.abs(rel) >= 0.3) return (rel > 0 ? 1 : -1) * 0.18;   /* 눈앞이 아니어도 바깥쪽으로 조금: 8px 만 곧게 들면 공이 거의 안 보인다 */
+        function room(sg) { var m = Infinity, x = p.x + e[0] * sg * 0.26, z = p.z + e[2] * sg * 0.26; order.forEach(function (k) { var q = toys[k]; if (k === id || q.kind !== 'cup' || q.on) return; m = Math.min(m, Math.hypot(q.x - x, q.z - z)); }); return m; }
+        var sg = Math.abs(rel) > 0.05 ? (rel > 0 ? 1 : -1) : (room(1) >= room(-1) ? 1 : -1), lv = Math.round(towerH(p) / CUP.h);
+        return sg * (0.26 + 0.12 * Math.max(0, lv - 1));   /* 탑(2층)은 더 비켜 든다 */
+      }
+      /* lower(ids | 'all', { to: {id: [x,z]}, on: {id: baseId}, retract: true }) — 쥔 컵·공을 (옮겨서) 내려놓기: 옮기기 3포즈 → 내리기 1 → 놓기 → 눌림 1 → 팔 거두기 2 */
+      function lower(ids, o) {
+        o = o || {}; var all = ids === 'all' || ids == null;
+        var list = (all ? order : [].concat(ids)).filter(function (id) { var p = toys[id]; return p && p.attach && p.attach.slice(0, 4) === 'arm:'; });
+        if (!list.length) return Promise.resolve(okR({ lowered: [] }));
+        var armOf = {}; list.forEach(function (id) { armOf[id] = +toys[id].attach.slice(4); });
+        var arms2 = list.map(function (id) { return armOf[id]; }), to = o.to || {}, onTo = o.on || {};
+        function dest(id) { var p = toys[id], w = place(p); if (onTo[id] && toys[onTo[id]]) { var b = place(towerTop(toys[onTo[id]])); return [b.x, b.z]; } return to[id] || p.liftFrom || [w.x, w.z]; }   /* 기본 = 든 자리 */
+        var D0 = {};
+        list.forEach(function (id) { D0[id] = dest(id); });
+        var moving = list.some(function (id) { var w = place(toys[id]); return onTo[id] || Math.hypot(D0[id][0] - w.x, D0[id][1] - w.z) > 0.01; });
+        var carry = moving ? moveHeld(arms2, 3, function (i, k, t0) { var id = list[arms2.indexOf(i)], d = D0[id], p = toys[id], tx = d[0] + p.grip.x, tz = d[1] + p.grip.z; return new T.Vector3(t0.x + (tx - t0.x) * k, t0.y + (onTo[id] && toys[onTo[id]] ? snapUp(towerH(towerBase(toys[onTo[id]]))) * k : 0), t0.z + (tz - t0.z) * k); }) : Promise.resolve(okR());
+        return carry.then(function (r) {
+          if (r.cancelled) return r;
+          return moveHeld(arms2, 1, function (i, k, t0) { var id = list[arms2.indexOf(i)], p = toys[id], baseY = onTo[id] && toys[onTo[id]] ? place(towerTop(toys[onTo[id]])).y + snapUp(towerTop(toys[onTo[id]]).h) : 0; return t0.clone().setY(baseY + p.grip.y); });
+        }).then(function (r) {
+          if (r.cancelled) return r;
+          var tops = {}; list.forEach(function (id) { if (onTo[id] && toys[onTo[id]]) tops[id] = towerTop(toys[onTo[id]]).id; });
+          list.forEach(function (id) { var d = D0[id]; toys[id].liftFrom = null; hold(id, null, { at: d, on: tops[id] }); if (!st.reduced) toys[id].sy = toys[id].kind === 'cup' ? 1 - pxUp() / CUP.h : 1; });
+          clearPose('stand');
+          return frames(1, st.reduced ? 0 : per(), function () { }, 'land').then(function () { list.forEach(function (id) { if (toys[id]) toys[id].sy = 1; }); });
+        }).then(function (r) {
+          if (r && r.cancelled) return r;
+          if (o.retract === false) return okR({ lowered: list });
+          return Promise.all(arms2.map(function (i) { return retract(i); })).then(function () { return okR({ lowered: list }); });
+        });
+      }
+
+      /* ── 굴리기 (바닥 '물리' 대신 칸 스냅 + 계단식): roll(id, to | [[x,z]...], { perCell: 83 ms / 0.3 m, bounce }) ── */
+      function roll(id, to, o) {
+        o = o || {}; var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        cancel('roll:' + id);   /* 굴러가는 중에 또 밀면 앞 굴림을 끝낸다 (두 굴림이 한 프레임에 겹치지 않게) */
+        if (p.attach) hold(id, null); p.cover = null; p.on = null; p.inBasket = null; p.y = 0;
+        var pts = [[p.x, p.z]].concat(to && to.length && to[0].length ? to : [to]), L = 0, seg = [];
+        for (var i = 1; i < pts.length; i++) { var d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(d); L += d; }
+        if (L < 1e-3) return Promise.resolve(okR({ dist: 0 }));
+        var dur = st.reduced ? 0 : Math.max(per(), L / GRID.du * (o.perCell || 0.083) * st.speed), n = Math.max(1, Math.round(dur / per())), done = 0;
+        function at(k) { var s = k * L; for (var j = 0; j < seg.length; j++) { if (s <= seg[j] || j === seg.length - 1) { var t = seg[j] ? Math.min(1, s / seg[j]) : 1; return [pts[j][0] + (pts[j + 1][0] - pts[j][0]) * t, pts[j][1] + (pts[j + 1][1] - pts[j][1]) * t]; } s -= seg[j]; } return pts[pts.length - 1]; }
+        return frames(st.reduced ? 1 : n, st.reduced ? 0 : per(), function (f) {
+          var k = (f + 1) / (st.reduced ? 1 : n), q = at(k), dx = q[0] - p.x, dz = q[1] - p.z, dd = Math.hypot(dx, dz);
+          if (dd > 1e-4) { _q.setFromAxisAngle(_ax2.set(dz / dd, 0, -dx / dd), dd / BALL_R); p.q.premultiply(_q); }
+          p.x = q[0]; p.z = q[1]; done = k;
+        }, 'roll:' + id).then(function (r) {
+          if (r.cancelled || o.bounce === false || st.reduced) return r.cancelled ? r : okR({ dist: +L.toFixed(2) });
+          p.lift = 1; return frames(1, per(), function () { }, 'roll:' + id).then(function () { p.lift = 0; return okR({ dist: +L.toFixed(2) }); });
+        });
+      }
+      /* 충돌 대신 길 고르기 (물리 없음 · 칸 스냅): blocked(from, to, r) → 처음 걸리는 바닥 컵 { id, stop:[x,z] (그 컵 발치) } | null.
+         route(from, to) → 막히면 줄의 빈 틈(컵 사이 홀수 칸 · 비어 있는 칸)을 하나 거쳐 가는 길 [[x,z]...], 아니면 [to] */
+      function floorCups(skip) { return order.map(function (k) { return toys[k]; }).filter(function (q) { return q.kind === 'cup' && !q.on && !q.attach && q.vis && q.id !== skip; }); }
+      function blocked(from, to, r, skip) {
+        r = r == null ? BALL_R : r; var dx = to[0] - from[0], dz = to[1] - from[1], L2 = dx * dx + dz * dz, best = null;
+        if (L2 < 1e-6) return null;
+        floorCups(skip).forEach(function (q) {
+          var t = clamp(((q.x - from[0]) * dx + (q.z - from[1]) * dz) / L2, 0, 1), px = from[0] + dx * t, pz = from[1] + dz * t, d = Math.hypot(q.x - px, q.z - pz), rr = CUP.r0 + r;
+          if (d >= rr || (Math.hypot(q.x - from[0], q.z - from[1]) < rr && t < 0.05)) return;
+          var back = Math.sqrt(Math.max(0, rr * rr - d * d)) / Math.sqrt(L2), ts = Math.max(0, t - back - 0.01);
+          if (!best || ts < best.t) best = { id: q.id, t: ts, stop: [from[0] + dx * ts, from[1] + dz * ts] };
+        });
+        return best ? { id: best.id, stop: best.stop } : null;
+      }
+      function route(from, to, r) {
+        if (!blocked(from, to, r)) return [to];
+        var f = GRID.f, best = null;
+        for (var u = 0; u <= 8; u++) {
+          var g = cell(u, 1), bk = [g[0] - f[0] * 0.3, g[1] - f[2] * 0.3], fr = [g[0] + f[0] * 0.3, g[1] + f[2] * 0.3];
+          [[g], [bk, fr], [fr, bk]].forEach(function (wps) {   /* 틈 한 점, 또는 줄을 곧게 건너는 두 점 (대각선으로 틈에 들어가면 옆 컵을 스친다) */
+            var pts = [from].concat(wps, [to]), len = 0;
+            for (var i = 0; i < pts.length - 1; i++) { if (blocked(pts[i], pts[i + 1], r)) return; len += Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); }
+            if (!best || len < best.len) best = { path: wps.concat([to]), len: len };
+          });
+        }
+        return best ? best.path : [to];
+      }
+      /* nudge(ballId, to, { arm:'auto', quick }) — 팔로 공을 밀어 보낸다 (받아치기 = quick: 2포즈, 25° 휙). 공 쪽으로 뻗기 → 굴리기 → 거두기 */
+      function nudge(id, to, o) {
+        o = o || {}; var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var path = to && to.length && to[0].length ? to : (o.route === false ? [to] : route([p.x, p.z], to)), first = path[0];   /* 기본: 컵을 피해 틈으로 */
+        var w = place(p), back = new T.Vector3(w.x, BALL_R, w.z), dx = first[0] - w.x, dz = first[1] - w.z, dl = Math.hypot(dx, dz) || 1;
+        back.x -= dx / dl * 0.1; back.z -= dz / dl * 0.1;   /* 공 뒤쪽 */
+        var arm0 = null;
+        return reach(o.arm == null ? 'auto' : o.arm, back, 1, { poses: o.poses || (o.quick ? 2 : undefined), approach: o.approach, maxS: o.maxS }).then(function (r) {
+          if (!r.ok) return r; arm0 = r.arm;
+          var c = ctl[arm0], t0 = armTarget(c).clone();
+          c.tgt = new T.Vector3(t0.x + dx / dl * 0.18, t0.y, t0.z + dz / dl * 0.18);   /* 휙: 팔 끝이 공을 지나 한 칸 */
+          return roll(id, path, o);
+        }).then(function (r) { if (arm0 == null) return r; return retract(arm0).then(function () { return r.ok === false ? r : okR({ arm: arm0, dist: r.dist }); }); });
+      }
+      /* cupHop(cupId, x, z, { hide: ballId, px: 4 }) — 컵이 스스로 폴짝 (우연한 숨기기 · 사람이 끌어 놓을 때): 2→4px 들림 → 2칸 이동 → 내려앉음 + 1px 눌림. hide 면 그 공이 컵 밑으로 */
+      function cupHop(id, x, z, o) {
+        o = o || {}; var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var x0 = p.x, z0 = p.z, hpx = o.px || 4, ball = o.hide && toys[o.hide];
+        if (st.reduced) { p.x = x; p.z = z; if (ball) { ball.x = x; ball.z = z; ball.cover = id; ball.attach = null; ball.inBasket = null; } return Promise.resolve(okR()); }
+        var seq = [[Math.round(hpx / 2), 0], [hpx, 0.5], [hpx, 1], [0, 1]];
+        return frames(seq.length, per(), function (f) {
+          p.lift = seq[f][0]; p.x = x0 + (x - x0) * seq[f][1]; p.z = z0 + (z - z0) * seq[f][1];
+          if (f === 2 && ball) { ball.x = x; ball.z = z; ball.y = 0; ball.attach = null; ball.inBasket = null; ball.cover = id; }
+          if (f === 3) p.sy = 1 - pxUp() / CUP.h;
+        }, 'hop:' + id).then(function (r) {
+          p.sy = 1;
+          if (r.cancelled && toys[id]) { p.lift = 0; p.x = x; p.z = z; if (ball && toys[o.hide] && !ball.attach) { ball.x = x; ball.z = z; ball.y = 0; ball.inBasket = null; ball.cover = id; } PF++; }   /* 끊겨도 숨기기는 끝낸다 (보이는 것 = 상태) */
+          return r.cancelled ? r : okR();
+        });
+      }
+      /* slide(cupId, x, z, { arm }) — 팔로 컵을 바닥에서 민다 (덮인 공도 같이). 뻗기 → 3포즈 밀기 → 거두기 */
+      function slide(id, x, z, o) {
+        o = o || {}; var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var base = towerBase(p), w = place(base), dx = x - w.x, dz = z - w.z, dl = Math.hypot(dx, dz) || 1, side = new T.Vector3(w.x - dx / dl * 0.2, 0.12, w.z - dz / dl * 0.2), arm0 = null, x0 = base.x, z0 = base.z;
+        return reach(o.arm == null ? 'auto' : o.arm, side, 1, {}).then(function (r) {
+          if (!r.ok) return r; arm0 = r.arm; var c = ctl[arm0], t0 = armTarget(c).clone();
+          return frames(st.reduced ? 1 : (o.poses || 3), st.reduced ? 0 : per(), function (f) {
+            var k = (f + 1) / (st.reduced ? 1 : (o.poses || 3)); base.x = x0 + (x - x0) * k; base.z = z0 + (z - z0) * k; c.tgt = new T.Vector3(t0.x + (x - x0) * k, t0.y, t0.z + (z - z0) * k);
+          }, 'slide:' + id);
+        }).then(function (r) {
+          if (r && !r.cancelled && o.hide && toys[o.hide]) { var b = toys[o.hide]; b.cover = base.id; b.x = base.x; b.z = base.z; b.attach = null; b.inBasket = null; }   /* 문어가 공을 덮어 둠 (cover_ball) */
+          if (arm0 == null) return r; return retract(arm0).then(function () { return r.cancelled ? r : okR({ arm: arm0 }); });
+        });
+      }
+
+      /* peekCup(cupId, { px: 10, tipDeg: 23, hold: 0.6 }) — 사람이 컵을 들춰 보기 (로컬, 팔 없음): 3/6/10 px 들며 입구를 보는 쪽으로 기울임 → 버팀 → 5/0 + 눌림. 모션 감소면 든 자세로 버팀 */
+      function peekCup(id, o) {
+        o = o || {}; var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var base = towerBase(p), px = o.px || 10, tp = towerTop(base) !== base ? 0 : -(o.tipDeg == null ? 23 : o.tipDeg) * DEG;   /* 탑은 기울이지 않는다 (위 컵이 따로 논다) */
+        var up = st.reduced ? [[px, 1]] : [[3, 0.4], [6, 0.75], [px, 1]], down = st.reduced ? [[0, 0]] : [[Math.round(px / 2), 0.4], [0, 0]];
+        return frames(up.length, st.reduced ? 0 : per(), function (f) { base.lift = up[f][0]; base.tip = tp * up[f][1]; }, 'peek:' + base.id)
+          .then(function (r) { return r.cancelled ? r : wait(o.hold == null ? 0.6 : o.hold); })
+          .then(function (r) { return r.cancelled ? r : frames(down.length, st.reduced ? 0 : per(), function (f) { base.lift = down[f][0]; base.tip = tp * down[f][1]; if (f === down.length - 1 && !st.reduced) base.sy = 1 - pxUp() / CUP.h; }, 'peek:' + base.id); })
+          .then(function (r) { base.sy = 1; base.lift = 0; base.tip = 0; return r.cancelled ? r : okR({ cup: base.id }); });
+      }
+      function bob(id, px) {   /* 공 통: 1 칸 들렸다 내려옴 (처음 만지기 전 1.6 s 마다 같은 것) */
+        var p = toys[id]; if (!p || st.reduced || p.attach) return Promise.resolve(okR());
+        return frames(2, per(), function (f) { p.lift = f ? 0 : (px || 1); }, 'bob:' + id).then(function (r) { p.lift = 0; return r; });
+      }
+
+      /* ── 몸 ── */
+      function setPose(name, o) { if (o) poses[name] = o; else delete poses[name]; }
+      function clearPose(name) { delete poses[name]; }
+      function poseSteps(name, list, step) {   /* 포즈 프레임들 (12 fps). 모션 감소면 마지막만 */
+        if (st.reduced) { setPose(name, list[list.length - 1]); return Promise.resolve(okR()); }
+        return frames(list.length, step != null ? step * st.speed : per(), function (f) { setPose(name, list[f]); }, 'pose:' + name);
+      }
+      function applyPoses() {
+        var sx = 1, sy = 1, dy = 0, lean = 0, tilt = 0, hid = false, n = 0;
+        Object.keys(poses).forEach(function (k) { var o = poses[k]; n++; sx *= o.sx || 1; sy *= o.sy || 1; dy += o.dyPx || 0; lean += o.lean || 0; tilt += o.tilt || 0; hid = hid || !!o.hidden; });
+        if (n) {
+          bodyG.scale.x *= sx; bodyG.scale.y *= sy; bodyG.scale.z *= sx;
+          bodyG.position.y += Math.round(dy) * pxUp() / OCT_R; bodyG.rotation.x += lean; bodyG.rotation.z += tilt;
+        }
+        octG.visible = !hid && st.octState !== 'away'; octDecal.scale.setScalar(Math.min(1, sx));
+      }
+      var walkRes = null;   /* walkPoint 는 끊긴 걸음의 Promise 를 안 푼다 (moveTo 와 같은 동작, 본 게임 그대로) → kit 은 감싸서 끊기면 { cancelled } 로 푼다 */
+      function stopWalk() { if (oct.walking) { oct.walking.cancel(); oct.walking = null; } if (walkRes) { var r0 = walkRes; walkRes = null; r0({ ok: false, cancelled: true }); } }
+      function walkTo(x, z) {
+        if (walkRes) { var r0 = walkRes; walkRes = null; r0({ ok: false, cancelled: true }); }
+        return new Promise(function (res) {
+          walkRes = res;
+          walkPoint(new T.Vector3(x, 0, z), function () { }, null).then(function () { if (walkRes === res) { walkRes = null; res(okR({ at: [x, z] })); } });
+        });
+      }
+      function jumpTo(x, z) { stopWalk(); oct.pos.set(x, 0, z); snapScreen(octG.position.copy(oct.pos)); gaitReset(); }
+      function yawTo(tg) {
+        if (tg === 'camera') return camYaw();
+        var q = typeof tg === 'string' && toys[tg] ? place(toys[tg]) : tg && tg.length ? { x: tg[0], z: tg[tg.length - 1] } : tg;
+        if (!q) return oct.wantYaw;
+        var dx = q.x - oct.pos.x, dz = q.z - oct.pos.z; return Math.hypot(dx, dz) < 1e-3 ? oct.wantYaw : Math.atan2(dx, dz);
+      }
+      function faceTo(tg, o) {   /* 몸을 돌린다 (stepOct 의 지수 접근 그대로) → 다 돌면 resolve. face(id | 'camera' | [x,z] | x, z, o?). offsetDeg: 거기서 더 돌기 (거절 30°) */
+        if (typeof tg === 'number') { tg = [tg, +o]; o = arguments[2]; }
+        o = o || {}; oct.wantYaw = yawTo(tg) + (o.offsetDeg || 0) * DEG;
+        return job(DK(0.8), function () { return Math.abs(angDiff(oct.wantYaw, oct.faceYaw)) < 0.06; }, 'face').then(function (r) { return r.cancelled ? r : okR({ yaw: +(oct.faceYaw / DEG).toFixed(1) }); });
+      }
+      function eyePoint() {   /* 눈 목표 → 클라이언트 CSS px (stepOct 이 동공·curious 기울임에 쓴다) */
+        var lk = P.look; if (lk == null) return null;
+        var r = canvas.getBoundingClientRect();
+        if (lk === 'camera') { var sp = octScreen(); return { x: r.left + sp.x - S.offX, y: r.top + sp.y - S.offY + 30 }; }
+        var w = typeof lk === 'string' && toys[lk] ? place(toys[lk]).clone().setY(place(toys[lk]).y + toys[lk].h * 0.5) : lk.length === 3 ? _v.set(lk[0], lk[1], lk[2]) : lk.length === 2 ? _v.set(lk[0], 0.1, lk[1]) : (lk.x != null && lk.z == null ? null : _v.set(lk.x, lk.y || 0, lk.z));
+        if (!w) return { x: lk.x, y: lk.y };
+        w = w.clone().project(camera);
+        return { x: r.left + (w.x * 0.5 + 0.5) * r.width, y: r.top + (1 - (w.y * 0.5 + 0.5)) * r.height };
+      }
+      function look(tg) { P.look = tg == null ? null : tg; P.eye = eyePoint(); if (tg === 'camera') oct.wantYaw = camYaw(); return P.eye; }
+      function scan(list, each) {   /* 눈이 차례로 (좌우 훑기) */
+        list = [].concat(list); var i = 0;
+        return frames(list.length, DK(each == null ? 0.25 : each), function (f) { look(list[f]); i = f; }, 'scan').then(function (r) { return r.cancelled ? r : okR({ n: i + 1 }); });
+      }
+      function joy() { setExpression('happy'); return wait(st.reduced ? 0.3 : 0.9); }   /* found_joy: happy 표정이 폴짝 2번 (모션 감소면 폴짝 없음) */
+      /* 위장: tint(hex|null, steps) — octColor 만 바꾼다 (외곽선·눈 흰자·하이라이트는 남아 들킬 틈). camouflage('floor' | hex | toyId | null, { amount .85, steps 3 }) 120 ms 칸 */
+      function tint(to, o) {
+        if (typeof o === 'number') o = { steps: o };
+        o = o || {}; var from = P.tint || st.color, n = st.reduced ? 2 : (o.steps || (to ? 3 : 2)), amt = o.amount == null ? 0.85 : o.amount;
+        var goal = to ? mixHex(st.color, to, amt) : st.color;
+        return frames(n, DK(o.step || 0.12), function (f) { var k = (f + 1) / n; P.tint = k >= 1 && !to ? null : mixHex(from, goal, k); }, 'tint').then(function (r) { return r.cancelled ? r : okR({ tint: P.tint }); });
+      }
+      function camouflage(tg, o) { var hex = tg == null ? null : tg === 'floor' ? MAT.floorB : toys[tg] ? toys[tg].color : colorOf(tg, MAT.floorB); return tint(hex, o); }
+      function tuck(on) {   /* 거절: 팔 8개를 몸 밑으로 오므린다 (2포즈) + 몸 6 % 낮게 */
+        if (!on) { clearPose('tuck'); arms.forEach(function (_, i) { if (ctl[i] && ctl[i].mode === 'tuck') delete ctl[i]; }); return Promise.resolve(okR()); }
+        var list = freeArms();
+        list.forEach(function (i) { ctl[i] = { mode: 'tuck', rz: 0.05, sx: 1, k: 0, kq: 0 }; });
+        return frames(st.reduced ? 1 : 2, st.reduced ? 0 : per(), function (f) {
+          var k = (f + 1) / (st.reduced ? 1 : 2); list.forEach(function (i) { if (ctl[i] && ctl[i].mode === 'tuck') { ctl[i].rz = 0.05 + 0.1 * k; ctl[i].sx = 1 - 0.38 * k; } }); setPose('tuck', { sy: 1 - 0.06 * k, sx: 1 + 0.02 * k });
+        }, 'tuck').then(function (r) { return r.cancelled ? r : okR({ arms: list.length }); });
+      }
+
+      /* ── 컵 속 (squeeze_in · hide_peek): 컵 하나를 들고 → 몸을 3포즈로 구겨 컵 자리로 → 컵이 덮임 → 몸 숨김 (+ 팔 끝 하나 밖) ── */
+      function squeezeInto(id, o) {
+        o = o || {}; var p = toys[id]; if (!p || p.kind !== 'cup') return Promise.resolve({ ok: false, reason: 'gone' });
+        var base = towerBase(p), w0 = place(base).clone(), dx = oct.pos.x - w0.x, dz = oct.pos.z - w0.z, dl = Math.hypot(dx, dz) || 1, armI = -1;
+        var pre = dl > 0.75 ? walkTo(w0.x + dx / dl * 0.7, w0.z + dz / dl * 0.7).then(function () { return faceTo(base.id); }) : faceTo(base.id);
+        return pre.then(function () { return lift([base.id], { px: o.px || 14, stand: false, aside: 0 }); }).then(function (r) {
+          if (!r.ok) return r; armI = r.arms[base.id];
+          /* 컵을 그 높이에 띄워 두고(놓는 순간 팔은 돌아간다) 몸이 그 밑으로: 들고 있으면 팔이 몸 쪽으로 접혀 컵을 끌어당기므로 */
+          var hp = Math.max(0, Math.round((place(base).y) / pxUp()));
+          base.attach = null; base.grip = null; base.liftFrom = null; base.x = w0.x; base.z = w0.z; base.lift = hp; if (armI >= 0) delete ctl[armI];
+          var sx0 = oct.pos.x, sz0 = oct.pos.z, steps = st.reduced ? [{ sx: 0.7, sy: 0.5 }, { sx: 0.45, sy: 0.35 }] : [{ sx: 1, sy: 1 }, { sx: 1.15, sy: 0.7 }, { sx: 0.7, sy: 0.5 }, { sx: 0.45, sy: 0.35 }];
+          return frames(steps.length, st.reduced ? 0 : per(), function (f) {
+            setPose('squeeze', steps[f]); var k = (f + 1) / steps.length; oct.pos.set(sx0 + (w0.x - sx0) * k, 0, sz0 + (w0.z - sz0) * k);
+          }, 'squeeze');
+        }).then(function (r) {
+          if (r.cancelled || r.ok === false) return r;
+          setPose('hide', { hidden: true }); P.hidden = base.id; clearPose('stand');
+          base.lift = 0; PF++;
+          if (!st.reduced) base.sy = 1 - pxUp() / CUP.h;   /* 컵은 1px 눌려 내려앉은 채 */
+          return o.tip === false ? okR({ cup: base.id }) : tipOut(base.id, o.tip || 'front').then(function () { return okR({ cup: base.id }); });
+        });
+      }
+      /* popOut({ cup, to:[x,z], happy }) — 컵이 튀어 오르고 몸이 퐁(.4 → 1.04 → 1). cup 을 주면 그 컵에서 나온다 (다른 컵이면 몸이 거기로 옮겨 가 있다) */
+      function popOut(o) {
+        o = o || {}; var from = o.cup && toys[o.cup] ? towerBase(toys[o.cup]) : toys[P.hidden]; if (!from) return Promise.resolve({ ok: false, reason: 'not-hidden' });
+        var w = place(from).clone(), to = o.to || null;
+        if (toys[P.hidden]) toys[P.hidden].sy = 1;   /* 숨었던 컵의 1px 눌림도 푼다 (다른 컵에서 나오는 경우) */
+        tipIn(); P.hidden = null; from.sy = 1;
+        oct.pos.set(w.x, 0, w.z); snapScreen(octG.position.copy(oct.pos));
+        /* 퐁: 컵 위로 튐(10→14→6→0 px) · 몸 배율 .4 → 1.04 → 1 · 동시에 컵 뒤(문어 자리 쪽) 0.85 m 로 폴짝 (작업칸 거리: 눈이 컵에 안 가린다) */
+        var home = cell(4, 3), bx = home[0] - w.x, bz = home[1] - w.z, bl = Math.hypot(bx, bz) || 1, out = [w.x + bx / bl * Math.min(0.85, bl), w.z + bz / bl * Math.min(0.85, bl)];
+        var seq = st.reduced ? [[0, 1, 1, 0]] : [[10, 0.4, 0, 2], [14, 1.04, 0.5, 6], [6, 1, 1, 3], [0, 1, 1, 0]];
+        clearPose('hide'); clearPose('squeeze');
+        return frames(seq.length, st.reduced ? 0 : per(), function (f) {
+          var s = seq[f]; from.lift = s[0]; setPose('pop', { sx: s[1], sy: s[1], dyPx: s[3] });
+          oct.pos.set(w.x + (out[0] - w.x) * s[2], 0, w.z + (out[1] - w.z) * s[2]);
+          if (f === 0 && o.happy !== false) setExpression('happy');
+          if (f === seq.length - 1 && !st.reduced) from.sy = 1 - pxUp() / CUP.h;
+        }, 'pop').then(function (r) {
+          clearPose('pop'); from.lift = 0; from.sy = 1;
+          if (r.cancelled) return r;
+          if (to) return walkTo(to[0], to[1]).then(function () { return okR({ cup: from.id }); });
+          return okR({ cup: from.id, at: out });
+        });
+      }
+      /* 팔 끝 하나 (다리 기하를 공유 → 몸색·위장을 따른다): 컵 테두리 밑으로. side = 'front' | 'left' | 'right' | 'back' | 각도(°, 0 = 앞, 90 = 오른쪽) */
+      function sideDir(side) {
+        var deg = typeof side === 'number' ? side : { front: 0, right: 90, back: 180, left: 270 }[side] || 0, a = deg * DEG;
+        return [GRID.f[0] * Math.cos(a) + GRID.e[0] * Math.sin(a), GRID.f[2] * Math.cos(a) + GRID.e[2] * Math.sin(a)];
+      }
+      function tipMesh() {
+        if (P.tipM) return P.tipM;
+        var m = new T.Mesh(arms[0].geometry, toon); m.castShadow = false; m.receiveShadow = true; m.visible = false; m.scale.set(OCT_R, OCT_R * 0.8, OCT_R * 0.8); atticG.add(m);
+        return (P.tipM = m);
+      }
+      function tipOut(id, side) {
+        var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var m = tipMesh(), d = sideDir(side == null ? 'front' : side);
+        P.tip = { cup: id, side: side == null ? 'front' : side, d: d, poke: false, n: 0, k: 0 };
+        m.rotation.set(0, -Math.atan2(d[1], d[0]), 0.05);
+        return frames(st.reduced ? 1 : 2, st.reduced ? 0 : per(), function (f) { P.tip.k = (f + 1) / (st.reduced ? 1 : 2); }, 'tip').then(function (r) { return r.cancelled ? r : okR({ cup: id, side: P.tip && P.tip.side }); });
+      }
+      function tipIn() { if (P.tip) P.tip = null; if (P.tipM) P.tipM.visible = false; return Promise.resolve(okR()); }
+      function tipPoke(on) { if (P.tip) P.tip.poke = !!on; }
+      function layoutTip() {
+        var tp = P.tip, m = P.tipM; if (!m) return;
+        if (!tp || !toys[tp.cup]) { m.visible = false; return; }
+        var w = place(towerBase(toys[tp.cup])), reachOut = 0.07 + 0.09 * tp.k;   /* 테두리(.17) 밖으로 나온 길이 */
+        m.position.set(w.x + tp.d[0] * (0.17 + reachOut - 0.82 * OCT_R), 0.09, w.z + tp.d[1] * (0.17 + reachOut - 0.82 * OCT_R)); snapScreen(m.position); m.position.y = 0.09;
+        tp.n++; m.rotation.z = 0.05 + (tp.poke && !st.reduced && ((Math.floor(tp.n / 3)) & 1) ? Math.asin(clamp(pxUp() / (0.82 * OCT_R), 0, 1)) : 0);
+        m.visible = true;
+      }
+      function tipScreen() {
+        var tp = P.tip, m = P.tipM; if (!tp || !m || !m.visible) return null;
+        m.updateMatrixWorld(true); var v = m.localToWorld(_v.copy(TIP)).project(camera), r = canvas.getBoundingClientRect();
+        return { x: r.left + (v.x * 0.5 + 0.5) * r.width, y: r.top + (1 - (v.y * 0.5 + 0.5)) * r.height };
+      }
+
+      /* ── 모자 (wear_cup_as_hat): 쥔 컵(없으면 집어 들고) → 4포즈 호로 머리 위 → 'head' 에 붙임(8° 기울게) → 팔 거둠 ── */
+      function wearHat(id) {
+        var p = toys[id]; if (!p) return Promise.resolve({ ok: false, reason: 'gone' });
+        var base = towerBase(p), pre = base.attach && base.attach.slice(0, 4) === 'arm:' ? Promise.resolve(okR({ arms: (function () { var o = {}; o[base.id] = +base.attach.slice(4); return o; })() })) : lift([base.id], { px: 8, stand: false, aside: asideOf(base.id) * 1.5 });   /* 모자는 더 옆에서 올린다 (올라가는 길에 눈을 안 가리게) */
+        var armI = -1;
+        return pre.then(function (r) {
+          if (!r.ok) return r; armI = r.arms[base.id];
+          bodyG.updateMatrixWorld(true); var head = bodyG.localToWorld(new T.Vector3(0, HEAD_Y + HEAD_SQ * 0.93, 0)), c = ctl[armI], t0 = armTarget(c).clone(), tEnd = head.clone().add(base.grip);
+          /* 4 포즈 호: 옆에서 먼저 머리보다 높이 올리고(눈을 안 가리게) → 머리 위로 → 얹기 */
+          var hi = tEnd.y + 0.15, path = st.reduced ? [[1, 1]] : [[0, 0.5], [0, 1], [0.5, 1], [1, 2]];
+          return frames(path.length, st.reduced ? 0 : per(), function (f) {
+            var hk = path[f][0], vy = path[f][1], y = vy <= 1 ? t0.y + (hi - t0.y) * vy : tEnd.y;
+            c.tgt = new T.Vector3(t0.x + (tEnd.x - t0.x) * hk, st.reduced ? tEnd.y : y, t0.z + (tEnd.z - t0.z) * hk);
+          }, 'hat');
+        }).then(function (r) {
+          if (r.cancelled || r.ok === false) return r;
+          hold(base.id, 'head'); clearPose('stand');
+          return retract(armI).then(function () { return okR({ cup: base.id }); });
+        });
+      }
+      function takeOffHat(id, x, z) {   /* 머리 위 컵을 팔로 집어 (x, z) 에 내려놓기 */
+        var p = toys[id]; if (!p || p.attach !== 'head') return Promise.resolve({ ok: false, reason: 'not-hat' });
+        var w = place(p).clone(), i = pickArm(new T.Vector3(x, 0.3, z));
+        if (i < 0) { hold(id, null, { at: [x, z] }); return Promise.resolve(okR()); }
+        var tip = w.clone().setY(w.y + p.h + 0.03);
+        return reach(i, tip, 1, { approach: false, poses: 3 }).then(function (r) {
+          if (!r.ok) return r; hold(id, i);
+          var t = {}; t[id] = [x, z]; return lower([id], { to: t });
+        });
+      }
+
+      /* ── 고르기(탭)·화면 ── */
+      function cRect() { return canvas.getBoundingClientRect(); }
+      function pick(x, y) {   /* 클라이언트 CSS px → { kind: 'ball'|'cup'|'basket'|'tip', id } | null. 프록시 레이캐스트 → 없으면 화면 32px 안 최근접. 우선순위 공 > 맨 위 컵 > 컵 > 바구니 */
+        scene.updateMatrixWorld(); camera.updateMatrixWorld();
+        var r = cRect(), ts = tipScreen();
+        if (ts && Math.hypot(ts.x - x, ts.y - y) <= 26) return { kind: 'tip', id: P.tip.cup };
+        _nd.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1); _rc.setFromCamera(_nd, camera);
+        var vis = order.map(function (id) { return toys[id]; }).filter(function (p) { return p.g.visible; });
+        function rank(p) { return p.kind === 'ball' ? 3 : p.kind === 'cup' ? (towerTop(p) === p ? 2 : 1) : 0; }
+        var hs = _rc.intersectObjects(vis.map(function (p) { return p.proxy; }), false), best = null;
+        hs.forEach(function (h) { var p = toys[h.object.userData.toy]; if (!best || rank(p) > rank(best.p) || (rank(p) === rank(best.p) && h.distance < best.d)) best = { p: p, d: h.distance }; });
+        if (best) return { kind: best.p.kind, id: best.p.id };
+        var bd = Infinity, bp = null;
+        vis.forEach(function (p) { var q = screenRect([p.mesh], r), d = Math.hypot(Math.max(q.l - (x - r.left), 0, (x - r.left) - q.r), Math.max(q.t - (y - r.top), 0, (y - r.top) - q.b)); if (d < bd - 4 || (d < bd + 4 && bp && rank(p) > rank(bp))) { bd = Math.min(bd, d); bp = p; } });
+        return bp && bd <= NEAR ? { kind: bp.kind, id: bp.id } : null;
+      }
+      function floorAt(x, y, h) { var r = cRect(); _nd.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1); _rc.setFromCamera(_nd, camera); _pl.constant = -(h || 0); var o = _rc.ray.intersectPlane(_pl, new T.Vector3()); return o ? { x: o.x, z: o.z } : null; }
+      function screenOf(tg) {   /* 장난감 중심(또는 [x,y,z]) → 클라이언트 CSS px */
+        scene.updateMatrixWorld(); var p = toys[tg], r = cRect(), v;
+        if (p) { v = place(p).clone(); v.y += p.kind === 'ball' ? BALL_R : p.h * 0.5; } else if (tg && tg.length === 3) v = new T.Vector3(tg[0], tg[1], tg[2]); else return null;
+        v.project(camera); return { x: r.left + (v.x * 0.5 + 0.5) * r.width, y: r.top + (1 - (v.y * 0.5 + 0.5)) * r.height };
+      }
+      function headRect() {   /* 문어 머리(몸통 메시)만의 화면 사각형 (팔 제외) — 컵 탭 상자와 겹칠 때 '보이는 그림이 이긴다' 판정용. 숨었으면 null */
+        if (!octG.visible || P.hidden) return null; scene.updateMatrixWorld(); camera.updateMatrixWorld();
+        var r = cRect(), q = screenRect([head], r); if (!isFinite(q.l)) return null;
+        return { l: r.left + q.l, t: r.top + q.t, r: r.left + q.r, b: r.top + q.b };
+      }
+      function targets() {   /* 보이는 장난감의 화면 사각형: rect = 보이는 메시, hit = 탭 프록시 (CSS px, 클라이언트) */
+        scene.updateMatrixWorld(); camera.updateMatrixWorld(); var r = cRect(), out = [];
+        order.forEach(function (id) {
+          var p = toys[id]; if (!p.g.visible) return;
+          var a = screenRect([p.mesh], r), b = screenRect([p.proxy], r);
+          function abs(q) { return { l: r.left + q.l, t: r.top + q.t, r: r.left + q.r, b: r.top + q.b, w: Math.round(q.r - q.l), h: Math.round(q.b - q.t) }; }
+          out.push({ kind: p.kind, id: id, x: r.left + (a.l + a.r) / 2, y: r.top + (a.t + a.b) / 2, rect: abs(a), hit: abs(b) });
+        });
+        var ts = tipScreen(); if (ts) out.push({ kind: 'tip', id: P.tip.cup, x: ts.x, y: ts.y, rect: { l: ts.x - 26, t: ts.y - 26, r: ts.x + 26, b: ts.y + 26, w: 52, h: 52 } });
+        return out;
+      }
+
+      /* ── 프레임 (frame() 에서 stepOct 바로 뒤) ── */
+      function stepPlay(dt) {
+        P.stat.frames++;
+        var list = jobs.slice();
+        for (var j = 0; j < list.length; j++) {
+          var jb = list[j]; if (jb.dead) continue;
+          jb.t += dt; var k = jb.dur > 0 ? Math.min(1, jb.t / jb.dur) : 1, end = false;
+          if (jb.fn) end = jb.fn(k, jb.t) === true;
+          if (end || k >= 1) { jb.dead = true; jobs.splice(jobs.indexOf(jb), 1); jb.res({ ok: true }); }
+        }
+        P.stat.jobs = jobs.length;
+        applyPoses();
+        stepArms();
+        layoutToys(); layoutTip();
+        if (P.look != null) P.eye = eyePoint();
+      }
+      function resetAll() {   /* '처음처럼': 남은 연출 취소 · 팔·자세·색·숨김·모자 · 장난감은 그대로 둔다(play.js 가 다시 놓는다) */
+        cancel(); Object.keys(ctl).forEach(function (k) { delete ctl[k]; });
+        order.forEach(function (id) { var p = toys[id]; if (p.attach) hold(id, null); p.sy = 1; p.lift = 0; p.tip = 0; });
+        Object.keys(poses).forEach(function (k) { delete poses[k]; }); P.tint = null; P.hidden = null; tipIn(); P.look = null; P.eye = null;
+        octG.visible = st.octState !== 'away'; octDecal.scale.setScalar(1);
+      }
+      function snapshot() {   /* 테스트·결정 확인용 상태 (실수는 cm 로 반올림, 칸 포함) */
+        var o = { toys: {}, oct: { at: [+oct.pos.x.toFixed(3), +oct.pos.z.toFixed(3)], cell: cellOf(oct.pos.x, oct.pos.z), yaw: +(oct.faceYaw / DEG).toFixed(1), hidden: P.hidden, tint: P.tint, visible: octG.visible, poses: Object.keys(poses), expr: face.expr, walking: !!oct.walking }, arms: {}, jobs: jobs.map(function (j) { return j.tag; }), tip: P.tip ? { cup: P.tip.cup, side: P.tip.side, poke: P.tip.poke } : null, look: P.look };
+        order.forEach(function (id) { var p = toys[id], w = place(p); o.toys[id] = { kind: p.kind, x: +p.x.toFixed(3), z: +p.z.toFixed(3), cell: cellOf(p.x, p.z), y: +w.y.toFixed(3), lift: p.lift, vis: p.g.visible, attach: p.attach, on: p.on, cover: p.cover, inBasket: p.inBasket || null }; });
+        Object.keys(ctl).forEach(function (k) { var c = ctl[k]; o.arms[k] = { mode: c.mode, k: +(c.kq || 0).toFixed(2), sx: +(arms[k].scale.x).toFixed(2), holds: heldBy(+k) }; });
+        return o;
+      }
+      function api(id) { return toys[id] ? id : null; }
+      function prop(id, o) {   /* 논리 위치 직접 (끌기·배치): { x, z, lift(px), tilt, vis, sy, on, cover } */
+        var p = toys[id]; if (!p) return null; o = o || {};
+        if (o.at) { p.x = o.at[0]; p.z = o.at[1]; }
+        ['x', 'z', 'lift', 'tilt', 'tip', 'vis', 'sy'].forEach(function (k) { if (o[k] != null) p[k] = o[k]; });
+        if ('on' in o) p.on = o.on && toys[o.on] && o.on !== id ? o.on : null;
+        if ('cover' in o) p.cover = o.cover && toys[o.cover] ? o.cover : null;
+        if (o.x != null || o.at || o.on) p.inBasket = null;
+        PF++; return snapshot().toys[id];
+      }
+      var camDef = (function () { var a = GRID.P0, f = GRID.f; return new T.Vector3(a[0] - f[0] * 1.3, 0.3, a[2] - f[2] * 1.3); })();   /* 컵 줄이 화면 높이 ~62 % (360×740, 2배 줌) */
+      P.cam = camDef.clone();
+      var kit = P.kit = {
+        version: 1, grid: GRID, cell: cell, cellOf: cellOf, CUP: CUP, BALL_R: BALL_R, MAXS: MAXS,
+        addCup: addCup, addBall: addBall, addBasket: addBasket, remove: removeToy, prop: prop, putInBasket: putInBasket, has: function (id) { return !!toys[id]; }, ids: function () { return order.slice(); },
+        pick: pick, floorAt: floorAt, screenOf: screenOf, targets: targets, headRect: headRect,
+        camera: function (v) { P.cam = v == null ? camDef.clone() : v.isVector3 ? v.clone() : new T.Vector3(v[0], v[1], v[2]); dither.still = 0; return [+P.cam.x.toFixed(3), +P.cam.y.toFixed(3), +P.cam.z.toFixed(3)]; },
+        walkTo: walkTo, jumpTo: jumpTo, face: faceTo, look: look, scan: scan, expr: function (n) { setExpression(n); return face.expr; }, joy: joy,
+        reach: reach, retract: retract, hesitate: hesitate, grab: grab, hold: hold, press: press, lift: lift, lower: lower, raise: raise, pxUp: pxUp,
+        roll: roll, nudge: nudge, route: route, blocked: blocked, cupHop: cupHop, slide: slide, peekCup: peekCup, bob: bob, cover: function (ball, cup) { var b = toys[ball]; if (!b) return false; b.cover = cup && toys[cup] ? cup : null; if (b.cover) { var c = towerBase(toys[cup]); b.x = c.x; b.z = c.z; b.attach = null; b.inBasket = null; } PF++; return true; },
+        pose: function (a, b) { if (typeof a === 'string') setPose(a, b); else setPose('user', a); }, poseSteps: poseSteps,
+        tint: tint, camouflage: camouflage, tuck: tuck,
+        squeezeInto: squeezeInto, popOut: popOut, tipOut: tipOut, tipIn: tipIn, tipPoke: tipPoke,
+        wearHat: wearHat, takeOffHat: takeOffHat,
+        wait: wait, cancel: cancel, reset: resetAll, busy: function () { return jobs.length; }, state: snapshot,
+        speed: function (k) { if (k > 0) st.speed = clamp(+k, 0.1, 8); return st.speed; },
+        destroy: function () { resetAll(); order.slice().forEach(removeToy); if (P.tipM) atticG.remove(P.tipM); PLAY = null; }
+      };
+      return kit;
+    }
 
     return {
       kind: '3d', renderer: renderer, scene: scene, camera: camera,
@@ -2207,7 +3300,7 @@ var SCENE3D = (function () {
       setSeason: setSeason, season: function () { return SEASON.cur; }, seasonMode: function () { return SEASON.mode; },
       departCeremony: departCeremony, returnCeremony: returnCeremony, ceremony: function () { return CER.name; },
       /* 비상 정지: 프레임이 못 도는 동안(WebGL 컨텍스트 잃음) 남은 의식을 버리고 다락으로. onDone 은 부르지 않는다 (앱이 이미 정리) */
-      cancelCeremony: function () { CER.q = []; CER.cur = null; CER.active = false; CER.name = ''; CER.done = null; CER.walk = false; oct.hop = 0; pkReset(); octG.visible = true; octDecal.visible = true; setPlace('attic', { instant: true }); },
+      cancelCeremony: function () { CER.q = []; CER.cur = null; CER.active = false; CER.name = ''; CER.done = null; CER.walk = false; oct.hop = 0; WAVE.on = false; pkReset(); setOctFade(1); octG.visible = true; octDecal.visible = true; setPlace('attic', { instant: true }); },
       /* 바깥 기웃 (docs/SCENE.md "바깥 기웃"): extSpot(corner|roomId) → {key,x,y,z,face(rad),prop,act} · peekOutside({corner, roomId, status, first, emoji}, onDone) → Promise · leaveOutside(onDone) → Promise */
       extSpot: extSpot, peekOutside: peekOutside, leaveOutside: leaveOutside, EXT_SPOTS: Object.keys(EXT_SPOTS),
       peek: function () { return { on: PK.on, key: PK.key, hold: PK.hold, onSpot: PK.onSpot, status: PK.status, t: +PK.t.toFixed(2), lean: +(PK.leanQ / DEG).toFixed(1), sit: PK.sit, arm: PK.arm, mail: PK.mail, rustle: PK.rustle && rustleM.visible, ripple: rippleM.visible }; },
@@ -2220,10 +3313,22 @@ var SCENE3D = (function () {
         if (o.dither != null) { st.look.dither = clamp(+o.dither, 0, 1); ditherBase(); }
         if (o.outline != null) { st.look.outline = !!o.outline; post.uniforms.uOutline.value = st.look.outline && hasDepthTex ? 1 : 0; }
         if (o.yaw != null) { st.look.yaw = clamp(+o.yaw, -25, 25); dither.still = 0; }
-        if (o.zoom != null) { var z = clamp(o.zoom | 0, 0, ZOOM_STEPS.length - 1); if (z !== st.zoom) { st.zoom = z; re = true; } }
-        if (o.focus !== undefined) { st.look.focus = o.focus === 'oct' ? 'oct' : null; dither.still = 0; }   /* 줌 단계 0..3 (핀치/휠과 같은 단계, look-shots 의 close 용) */
+        if (o.zoom != null) { var zf = ZOOM_OLD[clamp(o.zoom | 0, 0, ZOOM_OLD.length - 1)]; if (zf !== st.zoomF) { ZT = null; st.zoomF = zf; re = true; touchMode(); } }   /* 옛 줌 단계 0..3 = 1·1.25·1.5·2× (look-shots close · play.html 호환). 핀치·휠은 7 멈춤 */
+        if (o.focus !== undefined) { st.look.focus = o.focus === 'oct' ? 'oct' : null; dither.still = 0; }
         if (o.key != null || o.fill != null) { if (o.key != null) st.look.key = clamp(+o.key || LIGHTS.day.sunI, 0.5, 4); if (o.fill != null) st.look.fill = clamp(+o.fill, 0, 1); applyLight(); }   /* 키/필 비율 (룩 패스 4) */
         if (re) { resize(); dither.still = 0; }
+      },
+      /* 카메라 (docs/INTERIOR_MODE.md §3.4·§3.5 · §5.3 장면 API): pan() → { x, y (아트px, 쉬면 정수), n (아트px/m), k (줌 멈춤 0..6), zoom (배율), mode } ·
+         zoomStep(k) 멈춤 k 로 바로 (가운데 기준) · zoomTo(n) n 아트px/m 에 가까운 멈춤으로 이징 · recenter() 밀린 것을 0.3 s 만에 0 으로 (가운데로 칩) */
+      pan: function () { return { x: +(PAN.x * S.N).toFixed(3), y: +(PAN.y * S.N).toFixed(3), n: S.N, k: zoomStepOf(st.zoomF), zoom: +st.zoomF.toFixed(4), mode: PAN.mode || GEST.mode }; },
+      zoomStep: function (k) { ZT = null; return setZoom(ZOOM_STEPS[clamp(k | 0, 0, ZOOM_STEPS.length - 1)]); },
+      zoomTo: function (n) { zoomFinish(); zoomEase(ZOOM_STEPS[zoomStepOf(Math.max(1, +n || 0) / baseN())]); return Math.round(baseN() * (ZT ? ZT.f1 : st.zoomF)); },   /* §5.3: n 아트px/m 에 가장 가까운 멈춤으로 0.15 s ([🔍] 칩 1× → 1.41× → 2×) · 그 멈춤의 N 을 돌려준다 */
+      recenter: function () { panTo(0, 0, 0.3, 'tween'); },
+      /* 디버그 (tools · 사라짐 검사): 문어 밀도를 v 로 바꿔 지금 상태를 다시 그린다 (시간은 안 간다) · null = 원래대로 */
+      debugFade: function (v) {
+        if (v == null) { if (FADE.dbg) { octG.visible = FADE.dbg.vis; octDecal.visible = FADE.dbg.dec; FADE.dbg = null; fadeLook(FADE.d); if (FADE.d >= 0.5) octDecal.visible = octG.visible; } return; }
+        if (!FADE.dbg) FADE.dbg = { vis: octG.visible, dec: octDecal.visible };
+        v = clamp(+v, 0, 1); fadeLook(v); octG.visible = v > 0; octDecal.visible = v >= 0.5; draw(0);
       },
       setPalette: function (name) { /* 룩 패스 3: 스냅 팔레트 소스 교체 (재질은 그대로, 디더 진폭은 새 칸 간격으로) */
         name = paletteSource(name); if (name === st.palette) return;
@@ -2250,9 +3355,9 @@ var SCENE3D = (function () {
       pickAt: function (x, y) { scene.updateMatrixWorld(); camera.updateMatrixWorld(); var o = pick(+x, +y); return o ? { kind: o.userData.kind, id: tapId(o) } : null; },
       screenOf: function (x, y, z) { var p = _hp.set(x, y, z).project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 월드 → 컨테이너 CSS px (스트립 크롭 중심) */
       msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
-      motion: function () { return { place: PLACE.vis, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, peek: PK.on ? PK.key + (PK.hold ? ':hold' : ':walk') : '', extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
+      motion: function () { return { place: PLACE.vis, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, octFade: FADE.d, wave: WAVE.on, peek: PK.on ? PK.key + (PK.hold ? ':hold' : ':walk') : '', extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
       gaitStyle: function (s) { if (s === 'stepped' || s === 'smooth') GAIT.stepped = s === 'stepped'; return GAIT.stepped ? 'stepped' : 'smooth'; },   /* 디버그: 걸음 굴림 3단 스텝(기본) / 매끈 — tools/walk-strip.js 비교용 */   /* 룩 패스 7·8 디버그 */
-      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: ZOOM_STEPS[st.zoom], props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, season: SEASON.cur, offscreen: !!st.offscreen, draws: drawN, callsAttic: callsBy.attic, callsExt: callsBy.exterior, extProps: extPropN }; },
+      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: +(S.N / baseN()).toFixed(4), props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, season: SEASON.cur, offscreen: !!st.offscreen, draws: drawN, callsAttic: callsBy.attic, callsExt: callsBy.exterior, extProps: extPropN }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastDraw = 0; loop(); },
       destroy: function () {
@@ -2264,11 +3369,12 @@ var SCENE3D = (function () {
         normalMat.dispose(); renderer.dispose(); renderer.forceContextLoss();
         if (opts.octEl && container.querySelector('#stage') === null) { var stg = document.getElementById('stage'); if (stg) stg.appendChild(opts.octEl); opts.octEl.classList.remove('overlay3d'); }
         if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
-        container.classList.remove('mode-3d');
+        container.classList.remove('mode-3d'); container.style.touchAction = '';
       },
-      anchors: ANCHORS, extAnchors: EXT_P, PLACES: ['attic', 'exterior'], SEASONS: SEASONS.slice()
+      anchors: ANCHORS, extAnchors: EXT_P, PLACES: ['attic', 'exterior'], SEASONS: SEASONS.slice(),
+      play: function () { var k = PLAY ? PLAY.kit : makePlay(); panReset(); touchMode(); return k; }   /* 놀이 kit (docs/PLAY_PROTO.md §11.3) — 처음 부를 때 만든다. 본 게임은 부르지 않는다 · 놀이 동안 밀기 없음, touch-action none */
     };
   }
 
-  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS, EXPRESSIONS: EXPRESSIONS.slice() };
+  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS, FIRST_LIGHT: FIRST_LIGHT, EXPRESSIONS: EXPRESSIONS.slice() };
 })();

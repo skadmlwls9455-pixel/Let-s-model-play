@@ -5,7 +5,7 @@
 /* ── 스크립트 로드 중 (레이어가 아직 없음): 페이지 전체를 밤하늘색으로, 장면 자리도 비워 둔다 → 베이지 종이·2D 문어가 한순간 비치지 않게.
       intro.js 가 레이어를 세우면 html.intro-live 가 붙는다. (레이어가 3 s 안에 안 서면 intro.js 가 intro-on 을 걷는다) ── */
 :root.intro-on { background: #090a14; }
-:root.intro-on body, :root.intro-on[data-font] body { background-color: #090a14; background-image: none; }   /* :root[data-font="pixel"] body (0,2,1) 보다 세게 */
+:root.intro-on body, :root.intro-on[data-font] body { background-color: var(--intro-sky, #090a14); background-image: none; }   /* :root[data-font="pixel"] body (0,2,1) 보다 세게. 레이어가 서면 하늘 띠 색 (낮 남색) — 장면이 드러나기 전 몇 프레임 동안 구멍 자리가 덮개와 같은 색 */
 html.intro-on:not(.intro-live) #scene { visibility: hidden; }
 
 /* ── 연출 동안: 아래 UI 는 숨겨 두었다가(아래로 12px), 들어갈 때 차례로 올라온다 ── */
@@ -24,6 +24,7 @@ html.intro-reveal #album-sec, html.intro-reveal #demo, html.intro-reveal .foot {
 :root.intro-on[data-font] #scene, :root.intro-on #scene { border-color: transparent; }
 :root.intro-on[data-font] #scene::after, :root.intro-on #scene::after { opacity: 0; }
 :root.intro-on #scene3d, :root.intro-on[data-font] #scene.mode-3d { background: var(--intro-sky, #090a14); }
+:root.intro-on #scene.mode-2d, :root.intro-on[data-font] #scene.mode-2d { background: var(--intro-sky, #090a14); }   /* 2D 대체: 무대 둘레 종이색 대신 하늘 (무대가 아래에서 올라오는 동안 구멍이 하늘) */
 :root.intro-reveal[data-font] #scene, :root.intro-reveal #scene, :root.intro-reveal #scene::after { transition: border-color var(--t-scene) linear, opacity var(--t-scene) linear; }
 
 /* ── 레이어 ── */
@@ -34,16 +35,17 @@ html.intro-reveal #album-sec, html.intro-reveal #demo, html.intro-reveal .foot {
 
 .intro-title { position: absolute; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; display: block; outline: none; }
 .intro-title:focus-visible { outline: 2px solid #e8c170; outline-offset: 6px; }
-.intro-lift { position: absolute; inset: 0; display: block; will-change: transform; transform: translateY(calc(var(--s, 2) * 14px)); }
+.intro-lift { position: absolute; inset: 0; display: block; will-change: transform; transform: translateY(calc(var(--s, 2) * 4px)); }
 .intro-logo { display: block; image-rendering: pixelated; image-rendering: crisp-edges; opacity: 0; pointer-events: none; }
-.intro[data-phase="title"] .intro-logo, .intro.risen .intro-logo { opacity: 1; transition: opacity calc(200ms * var(--speed)) linear; }
+/* 로고 '딱' (카드 11): 페이드 없이 바로 보인다 — 자리는 JS 가 아트 px 계단으로 (4px 아래 → 제자리 → 2px 튕김 → 제자리). 동작 줄이기는 아래에서 페이드 */
+.intro[data-phase="title"] .intro-logo, .intro.risen .intro-logo { opacity: 1; }
 .intro.leaving .intro-logo { opacity: 0; transition: opacity calc(240ms * var(--speed)) var(--ease-exit, ease-in) calc(80ms * var(--speed)); }
 .intro-lift.pressed { transform-origin: 50% 100%; scale: 1 .94; }   /* 눌림: 아래 기준으로 살짝 납작 (80ms) */
 
 /* 빛 알갱이 (fx.mote 4칸 스트립 → ×배율). 1.6 s 주기 중 앞 0.4 s 만 깜빡이고 쉰다 */
 .intro-mote { position: absolute; width: calc(var(--s, 2) * 8px); height: calc(var(--s, 2) * 8px); background-repeat: no-repeat;
   background-size: calc(var(--s, 2) * 32px) calc(var(--s, 2) * 8px); image-rendering: pixelated; opacity: 0; pointer-events: none; }
-.intro.risen .intro-mote { animation: intro-mote calc(1600ms * var(--speed)) step-end infinite; }
+.intro.risen .intro-mote { animation: intro-mote calc(1600ms * var(--speed)) step-end 3; }   /* 3번 반짝이고 쉰다 (DIALOGUE_UI §5.9 규칙 3) */
 @keyframes intro-mote {
   0%   { opacity: 1; background-position: 0 0; }
   6%   { background-position: calc(var(--s, 2) * -8px) 0; }
@@ -69,12 +71,25 @@ html.intro-reveal #album-sec, html.intro-reveal #demo, html.intro-reveal .foot {
 /* 안내: Galmuri9 는 10px 이 제 픽셀 격자 → 10px × 로고 배율 = 로고와 같은 픽셀 밀도 (폰 20px) */
 .intro-hint { position: absolute; left: 0; right: 0; margin: 0; text-align: center; font: 400 calc(var(--s, 2) * 10px)/1 'Galmuri9', 'Galmuri11', 'Noto Sans KR', sans-serif; letter-spacing: 0;
   color: #c7cfcc; text-shadow: 0 calc(var(--s, 2) * 1px) 0 #090a14; opacity: 0; pointer-events: none; word-break: keep-all; }
-.intro.hinted .intro-hint { opacity: 1; transition: opacity var(--t-ui) linear; animation: intro-blink calc(1200ms * var(--speed)) step-end calc(600ms * var(--speed)) infinite; }
-@keyframes intro-blink { 0% { opacity: 1; } 70% { opacity: .35; } }
+/* "톡 눌러서 들어가기": 깜빡임 대신 1 아트px 위아래 4프레임 (0 · −1 · 0 · +1, 프레임당 180ms), 3번 하고 제자리에서 멈춘다 (DIALOGUE_UI §5.9) */
+.intro.hinted .intro-hint { opacity: 1; transition: opacity var(--t-ui) linear; animation: intro-hint-bob calc(720ms * var(--speed)) step-end calc(600ms * var(--speed)) 3; }
+@keyframes intro-hint-bob {
+  0%   { transform: translateY(0); }
+  25%  { transform: translateY(calc(var(--s, 2) * -1px)); }
+  50%  { transform: translateY(0); }
+  75%  { transform: translateY(calc(var(--s, 2) * 1px)); }
+  100% { transform: translateY(0); }
+}
 .intro.leaving .intro-hint { animation: none; opacity: 0; transition: opacity calc(150ms * var(--speed)) linear; }
+
+/* ── 2D 대체 (WebGL 없음): 장면 구멍 안의 구름 창. 구름 캔버스는 2배 정수 확대, 자리는 JS 가 2px 계단으로 ── */
+.intro-sky2d { position: absolute; overflow: hidden; pointer-events: none; }
+.intro-cloud2d { position: absolute; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; will-change: transform; }
+.intro.leaving .intro-sky2d { display: none; }
 
 /* ── 모션 감소: 페이드만 (알갱이 한 칸 정지, 깜빡임 없음) ── */
 html.intro-reduced .intro-lift { transform: none; }
+html.intro-reduced .intro[data-phase="title"] .intro-logo { transition: opacity calc(200ms * var(--speed)) linear; }
 html.intro-reduced .intro.risen .intro-mote { animation: none; opacity: .8; background-position: calc(var(--s, 2) * -8px) 0; }
 html.intro-reduced .intro.risen .intro-spark { animation: none; }
 html.intro-reduced .intro.hinted .intro-hint { animation: none; }

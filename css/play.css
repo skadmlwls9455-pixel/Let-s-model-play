@@ -1,0 +1,68 @@
+/* css/play.css — 컵 놀이 프로토타입 (play.html 전용). style.css 의 픽셀 테마 토큰 위에 얹는다.
+   장면이 장난감이다: 화면 전체 캔버스 + 아래 얇은 띠(되돌리기 · 정직 줄). 글자는 Galmuri11 12px (격자 1배). */
+html, body { height: 100%; }
+:root[data-font="pixel"] body.play, body.play {
+  margin: 0; padding: 0; max-width: none; min-height: 0; height: 100%; overflow: hidden;
+  background: #1b1522; background-image: none; color: #ebede9;
+  font-family: var(--f-ui); font-size: 12px; line-height: 18px;
+  -webkit-user-select: none; user-select: none;
+}
+#play { position: fixed; inset: 0; }
+#scene3d { position: absolute; inset: 0; }
+#touch { position: absolute; inset: 0; z-index: 7; touch-action: none; -webkit-touch-callout: none; cursor: pointer; }
+
+/* 말풍선: style.css 의 #scene3d #oct-bubble 위에 Galmuri11 12px 로 */
+:root[data-font="pixel"] #scene3d #oct-bubble, #scene3d #oct-bubble {
+  font-family: var(--f-ui); font-size: 12px; line-height: 18px; padding: 2px 8px;
+  border-radius: 0; border: 2px solid #602c2c; background: #e7d5b3; color: #341c27; box-shadow: 2px 2px 0 #602c2c;
+  width: max-content; max-width: min(180px, calc(100vw - 40px)); white-space: normal; word-break: keep-all; overflow-wrap: anywhere; text-align: center;
+  bottom: calc(100% + 2px);   /* 머리 꼭대기 바로 위 (꼬리가 머리를 가리킨다) */
+}
+/* 꼬리: 아래로 향한 6px 계단 삼각형 (테두리색) + 안쪽 4px (바탕색) */
+#scene3d #oct-bubble::before, #scene3d #oct-bubble::after { content: ''; position: absolute; left: 50%; width: 0; height: 0; border-style: solid; border-color: transparent; }
+#scene3d #oct-bubble::before { bottom: -8px; margin-left: -6px; border-width: 6px 6px 0 6px; border-top-color: #602c2c; }
+#scene3d #oct-bubble::after { bottom: -4px; margin-left: -4px; border-width: 4px 4px 0 4px; border-top-color: #e7d5b3; }
+
+/* 아래 띠: 56px + 안전 영역. 장면을 가리지 않게 배경 없음, 글자만 */
+#bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  min-height: 56px; padding: 6px 16px calc(6px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+#bar > button { pointer-events: auto; }
+#reset {
+  min-height: 44px; min-width: 64px; padding: 0 12px; margin: 0;
+  font: 12px/18px var(--f-ui); color: #341c27; background: #e7d5b3;
+  border: 2px solid #602c2c; border-radius: 0; box-shadow: inset 2px 2px 0 #ebede9, inset -2px -2px 0 #c09473, 2px 2px 0 #090a14;
+}
+#reset:active { transform: translate(2px, 2px); box-shadow: inset 2px 2px 0 #ebede9, inset -2px -2px 0 #c09473; }
+#reset[hidden] { display: none; }
+#honest {
+  margin-left: auto; min-height: 44px; padding: 0 0 0 8px;
+  font: 12px/18px var(--f-ui); color: #a8b5b2; background: none; border: 0; text-align: right;
+  text-decoration: underline; text-decoration-color: #577277; text-underline-offset: 3px;
+}
+#receipt {
+  position: fixed; right: 16px; bottom: calc(56px + env(safe-area-inset-bottom, 0px)); z-index: 10; margin: 0; max-width: calc(100% - 32px);
+  font: 12px/18px var(--f-ui); color: #341c27; background: #e7d5b3; border: 2px solid #602c2c; box-shadow: 2px 2px 0 #090a14; padding: 4px 8px;
+}
+#hint {
+  position: fixed; left: 16px; right: 16px; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); z-index: 8; margin: 0;
+  text-align: center; font: 12px/18px var(--f-ui); color: #ebede9; pointer-events: none;
+  transition: opacity var(--t-ui, 250ms) steps(2, end);
+}
+#hint.gone { opacity: 0; }
+#nogl {
+  position: fixed; left: 16px; right: 16px; top: 40%; z-index: 20; margin: 0;
+  font: 12px/18px var(--f-ui); color: #341c27; background: #e7d5b3; border: 2px solid #602c2c; box-shadow: 2px 2px 0 #090a14; padding: 12px;
+}
+#nogl[hidden] { display: none; }
+#dbg { position: fixed; top: 4px; left: 4px; z-index: 30; background: rgba(9, 10, 20, .78); color: #ebede9; padding: 4px 6px; pointer-events: auto; }
+#dbg pre { margin: 0; font: 12px/14px ui-monospace, monospace; white-space: pre; }
+#dbg button { min-height: 44px; min-width: 44px; margin-top: 4px; font: 12px/14px ui-monospace, monospace; color: #341c27; background: #e8c170; border: 2px solid #090a14; }
+
+/* 가로(낮은 화면): 안내 글은 위로 (컵 줄을 덮지 않게) */
+@media (orientation: landscape) and (max-height: 500px) { #hint { top: 12px; bottom: auto; } }
+:root[data-motion="reduce"] #hint { transition: none; }
+:root[data-motion="reduce"] #reset:active { transform: none; }

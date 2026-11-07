@@ -125,7 +125,7 @@
 - 출발 `depart_windup`(움츠림) → `depart_leave`. 집에 있기로 하면 같은 움츠림 뒤 `stay_settle`(같은 준비 동작, 다른 결말).
 - 귀가 `return_home`, 기억 `remember_{장소}`(장소마다 짧은 동기), 포스터 `hang_poster`.
 - 등불 `lantern_1`~`lantern_7` 은 F장조 음계를 한 칸씩 올라간다. 귀로 진행이 들린다. 8칸은 `room_complete` 팡파르(BGM 을 잠깐 멈춤).
-- 처음 가 본 곳 `first_place`, 희귀 티어 `rare_sparkle`, 시간대가 바뀔 때 `chime_{dawn,day,dusk,night}`.
+- 희귀 티어 `rare_sparkle`, 시간대가 바뀔 때 `chime_{dawn,day,dusk,night}`.
 - 말풍선 목소리 `voice_{a|u}_{음}`: 글자 하나에 소리 하나. 둥근 모음(ㅗㅜㅡ…)은 u, 나머지는 a. 기분별로 쓰는 음이 다르다(아래 표).
 - 환경음: 날씨 바탕(`amb_rain` 등, 항상 하나) + 밤·계절 덧층(`amb_summer_night` 귀뚜라미, `amb_autumn`. 바탕 없이 소리만 있어서 바탕 위에 겹쳐 튼다) + 등불 온기(`amb_lantern_low/mid/high`, 칸이 찰수록 탁탁 소리가 촘촘해짐) + 덧층(`layer_drips` 처마 물방울, `layer_snowbells`, `layer_sparkle`, `layer_winter_chime`). 길이가 서로 소수라서(37·41·47·53·61·73초…) 겹쳐도 반복이 잘 들리지 않는다.
 
@@ -189,3 +189,5 @@ python3 check_loops.py bgm place amb   # 인코딩 후 루프 이음새 검사
   그래도 "듣기 좋은가"는 사람 귀로만 판단할 수 있다. `soundboard.html` 로 들어 보고 마음에 안 드는 곡·소리를 알려 주면 악보나 악기 숫자를 고쳐 다시 굽는다.
 - 진행(캐논 진행, 로열로드)은 관용구라 저작권 대상이 아니다. 파헬벨 캐논의 1바이올린 선율(라–솔–파–미–레–도–레–미)은 일부러 피했다.
 - 리서치 문서의 일부 수치는 검색 요약에 기대고 있다. 각 문서에 확인 수준을 표시해 두었다.
+
+> 2026-11-05: `first_place`(처음 가 본 곳 징글)는 주인 요청으로 뺐다 — 산책 중 튀는 실로폰 소리로 들렸다. 파일·매니페스트·생성 목록에서 모두 지움.

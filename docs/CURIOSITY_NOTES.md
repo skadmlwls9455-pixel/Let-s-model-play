@@ -22,7 +22,7 @@
 ```js
 curiosityNote = {
   id: 'cn_…',
-  text: '조개를 귀에 대면 소리가 나. 다른 소리 나는 것도 궁금해',  // ≤ 60자, 모델이 쓴 그대로
+  text: '조개를 귀에 대면 소리가 나. 다른 소리 나는 것도 궁금해',  // 모델이 쓴 그대로. 화면은 60자까지 + '…', 기록은 원문
   about: { kind: 'node' | 'object', id: 'shell' },   // 선택. 코드가 다음 후보와 잇는 데만 쓴다
   by: 'model' | 'demo-rules',                        // 작성 주체
   model: 'claude-…',                                  // 알 때만 (MCP/API 가 알려 준 값)
@@ -57,3 +57,15 @@ curiosityNote = {
 
 - `note` 와 `setDown` 은 모두 선택이다. 아무것도 안 써도 된다.
 - `setDown` 은 관심을 내려놓는다는 모델 자신의 표시다. 코드는 그 메모를 `set_down` 으로 바꾸고 다음 기본 전달에서 뺀다.
+
+## 지금 코드 (2026-11-07 물결 F)
+
+- **들어오기** — app 이 활성 메모 최근 3개를 두뇌에 `state.notes` 로 준다 (`set_down` 은 app 이 빼고, 두뇌도 한 번 더 거른다).
+  데모 두뇌는 메모 글을 읽지 않는다. `about.kind: 'node'` 인 방의 길 고르기 가중치만 **3배** (`BRAIN.NOTE_BOOST`) — 곱하기만 하고 새 난수를 뽑지 않는다.
+  메모가 없으면 산책은 예전과 바이트 하나까지 같다 (test-brain 이 2000 시드로 잰다). `kind: 'object'` 메모는 아직 길에 쓰지 않는다.
+- **나가기 (데모 규칙)** — `plan` 결과의 `noteOut = { text, about, by: 'demo-rules' }`. 글은 그날 메모(`memo.tomorrow`) 그대로, `about` 은 그 글의 '내일은 X 쪽으로' 의 X.
+  60자에 맞추느라 '내일은 X' 가 글에서 빠진 날은 `noteOut` 을 만들지 않는다 — 글에 없는 관심을 다음 선택에 쓰지 않게 (MODEL_VOICE §3). 집·빈 차례는 `null`.
+  화면은 데모 규칙 메모를 '데모 규칙' 표시 아래에서만 보인다.
+- **나가기 (모델)** — `replay` 가 `wrap_up.note` 를 글자 그대로 `noteOut = { text, about?, by: 'model' }` 로, `wrap_up.setDown` 의 문자열 id 를 `setDown` 으로 옮긴다.
+  60자가 넘어도 기록은 원문 그대로, 화면만 앞 60자 + `…`. `setDown` 은 모델(`mcp`) 산책에서만 받는다 (사람·데모 규칙은 메모를 내려놓지 않는다).
+- 저장·전달(메모 id·세션·날짜 붙이기, 앨범 '우리 방의 지난 메모', 내려놓기 반영)은 app 몫이다.

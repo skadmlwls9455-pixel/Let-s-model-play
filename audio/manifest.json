@@ -172,7 +172,6 @@
    },
    "lantern_8": "room_complete",
    "lantern_prop": "lantern_prop_fade",
-   "first_place": "first_place",
    "rare": "rare_sparkle",
    "empty_turn": "empty_turn",
    "time_of_day_change": {
@@ -2350,31 +2349,6 @@
    "pause_bgm": true,
    "notes": "A: 꾸밈음 D6 E6 → F6 종(TRI+bell 파형+P25 F7) + F 화음 칩 아르페지오(16.7 ms) + TRI F3→F2. B: M 팡파르 8분 0.2 s — C6 C6 A5 C6 | D6. C6 | F6(비브라토 6 Hz ±20 c), 3도 아래 P25 화성, 베이스 I–IV–V–I, 스네어 롤. C: P12 반짝 C7 D7 F7 ×6(-18), 꼬리 LPF 9k→1.2k 로 닫힘. 고정(변형 없음)",
    "bgm_resume": "next_phrase",
-   "duck_attack_ms": 70,
-   "duck_release_ms": 900
-  },
-  {
-   "id": "first_place",
-   "kind": "jingle",
-   "files": {
-    "ogg": "jingle/first_place.ogg",
-    "m4a": "jingle/first_place.m4a"
-   },
-   "duration": 1.6815,
-   "level": {
-    "rel_db": 2,
-    "target": -18.0,
-    "measured": -18.0,
-    "unit": "LUFS",
-    "peak_dbfs": -7.9
-   },
-   "loop": null,
-   "trigger": "처음 가 본 장소를 다녀왔을 때(히어로, 고정)",
-   "group": "first_place",
-   "duck_db": -6,
-   "quantize": "beat",
-   "pause_bgm": false,
-   "notes": "P25 C5 C5(뽈뽈) F5 G5 A5 C6 D6 50 ms 씩 → F6 750 ms, 150 ms 뒤 비브라토 6 Hz ±20 c, P25 에코 90 ms, TRI F4→C5",
    "duck_attack_ms": 70,
    "duck_release_ms": 900
   },

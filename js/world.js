@@ -1239,31 +1239,33 @@ var WORLD = (function () {
      line = 쪽지 앞면, detail = 뒷면 1~2줄, anchor = 문어가 서는 자리.
      requiresPoster / requiresLantern 은 두뇌가 후보를 거를 때 쓴다(포스터 수는 state.posters).
      effect:'rotatePosters' 는 벽 포스터 순서를 한 칸 바꾼다(§5.8) — 바꿀 짝이 있게 2장부터.
+     reactions: 그 활동 뒤 마무리 반응 후보. 집에선 처음 온 데·읽은 게 없으니 졸림·덤덤만 (두뇌가 거른다).
+       두뇌는 새 난수 없이 이미 뽑은 줄 난수 하나로 고른다. 없으면 졸림.
      maxLantern: 비를 말하는 활동은 비가 확실한 등불 6까지만. 날씨는 두뇌 입력에 없고 app 이 등불로 정한다:
        0~5 비 · 6 가랑비 · 7 맑음(창에 별, 아래 roomLevels) · 8 부터는 날마다 다름 → 7 부터는 비라고 말할 수 없다.
      나머지 활동의 줄은 날씨를 말하지 않는다 (check-world 가 지킨다). */
   var homeActivities = [
     { id: 'count_rain', memo: '창가에서 비 셌어', line: '창가에서 빗방울을 세다가 잠들었어',
       detail: '열일곱까지 셌어. 그다음은 기억이 안 나.\n빗소리가 좋아서 집에 있었어.',
-      anchor: 'window', weight: 3, maxLantern: 6 },
+      anchor: 'window', weight: 3, maxLantern: 6, reactions: ['졸림'] },
     { id: 'nap', memo: '담요 속에서 낮잠 잤어', line: '담요 속에서 낮잠 잤어',
       detail: '담요 안은 바깥보다 조용했어. 그게 좋았어.\n오늘은 그걸로 충분했어.',
-      anchor: 'blanket', weight: 3 },
+      anchor: 'blanket', weight: 3, reactions: ['졸림'] },
     { id: 'window_watch', memo: '창밖을 그냥 봤어', line: '창밖을 그냥 봤어',
       detail: '비가 오고, 비가 오고, 비가 왔어.\n아무 일도 없었어. 그게 다였어.',
-      anchor: 'window', weight: 2, maxLantern: 6 },
+      anchor: 'window', weight: 2, maxLantern: 6, reactions: ['덤덤', '졸림'] },
     { id: 'moss', memo: '이끼 화분을 오래 들여다봤어', line: '창턱 이끼 화분을 오래 들여다봤어',
       detail: '이끼는 뿌리가 없어. 온몸으로 물을 마셔.\n오늘은 흠뻑이야.',
-      anchor: 'window', weight: 2, requiresLantern: 1 },
-    { id: 'reread_poster', memo: '포스터 뒷면을 다시 읽었어', line: '어제 포스터 뒷면을 다시 읽었어',
-      detail: '영수증 글씨가 작아서 가까이 가서 봤어.\n다 기억나더라.',
-      anchor: 'board', weight: 2, requiresPoster: true },
+      anchor: 'window', weight: 2, requiresLantern: 1, reactions: ['덤덤'] },
+    { id: 'reread_poster', memo: '포스터 뒷면을 다시 읽었어', line: '벽 포스터 뒷면을 다시 읽었어',   /* '어제' 아님: 같은 날 앞 산책의 포스터일 수도 있다 */
+      detail: '일기 글씨가 작아서 가까이 가서 봤어.\n다 기억나더라.',
+      anchor: 'board', weight: 2, requiresPoster: true, reactions: ['덤덤'] },
     { id: 'rearrange', memo: '벽 포스터 자리를 한 칸 바꿨어', line: '벽 포스터 자리를 한 칸 바꿨어',
       detail: '왼쪽 게 더 잘 보여서.\n벽도 가끔은 바뀌어야 해.',
-      anchor: 'board', weight: 1, requiresPoster: true, effect: 'rotatePosters' },
+      anchor: 'board', weight: 1, requiresPoster: true, effect: 'rotatePosters', reactions: ['덤덤'] },
     { id: 'hum', memo: '아무 노래나 흥얼거렸어', line: '아무 노래나 흥얼거렸어',
       detail: '가사는 없고 박자만 있는 노래.\n박자는 내 맘대로였어.',
-      anchor: 'crate', weight: 2 },
+      anchor: 'crate', weight: 2, reactions: ['덤덤'] },
     { id: 'nothing', line: '…',
       detail: '',
       anchor: 'blanket', weight: 0 }   /* 빈 차례. 확률은 두뇌가 §5.2 로 정한다(3%). */
@@ -1271,6 +1273,7 @@ var WORLD = (function () {
 
   /* ---------- 마무리 반응 (§5.9) ----------
      lines = 그 반응이면 언제 말해도 참인 줄 (집에 있는 날의 졸림도 이것만 쓴다). 날씨는 말하지 않는다 — 두뇌 입력에 날씨가 없다.
+     home = 집에 있는 날에만 쓰는 줄 (덤덤 lines 는 '다녀왔어'를 말하니 집에선 이것). 걸은 일·날씨·처음·'오늘은 끝' 같은 말 없음.
      when.first / when.missed / when.long = 그 일이 실제로 있었을 때만 두뇌가 후보에 더한다:
        first = 처음 온 방이 있었다 · missed = 못 읽음·모의 방문이 있었다 · long = 4곳 이상 걸었다 */
   var reactions = {
@@ -1288,12 +1291,15 @@ var WORLD = (function () {
     '덤덤': { emoji: '😶', lines: [
       '그냥 그런 산책이었어. 그래도 다녀왔어',
       '조용히 다녀왔어. 그거면 됐어'   /* 날씨·거리는 말하지 않는다: 두뇌는 날씨를 모르고(등불 7 은 맑음), 재생된 덤덤은 길 수도 있다 */
+    ], home: [
+      '이번엔 집에 있었어. 그거면 됐어',
+      '나가지 않고 집에 있었어'   /* '오늘은' 아님: 같은 날 나갔다 온 뒤일 수도 있다 */
     ], when: { missed: [
       '못 읽은 데도 있었어. 그런 날도 있어'
     ] } },
     '졸림': { emoji: '😴', lines: [
-      '눈이 감겨. 내일 또 이야기해 줄게',
-      '오늘은 여기까지. 잘 자'
+      '눈이 감겨. 잠깐 자고 일어날게',
+      '하품이 나와. 조금만 쉴게'   /* 문어 자신의 상태만. '오늘은 여기까지'·'내일 또' 처럼 오늘 놀이가 끝났다는 말로 읽히지 않게 (초대는 몇 번이든 되고, 낮잠은 20분쯤이면 깬다) */
     ], when: { long: [
       '많이 걸었어. 담요 속으로 들어갈래'
     ] } }
@@ -1396,11 +1402,21 @@ var WORLD = (function () {
     none:      { icon: '◌',  label: '앉아만 있었음' }
   };
 
+  /* 숫자로 시작하는 방 이름('0')은 문장 속에서 "0이라는 방" ("0 방은 3번 왔어" 대신). 두뇌 roomWord 와 같은 규칙.
+     받침: 끝이 숫자면 읽는 소리(영·일·이·삼·사·오·육·칠·팔·구), 한글이면 그 받침. 숫자로 안 시작하면 그대로 */
+  function roomWord(name) {
+    var nm = String(name == null ? '' : name);
+    if (!/^[0-9]/.test(nm)) return nm;
+    var last = nm.charAt(nm.length - 1), c = last.charCodeAt(0);
+    var jong = /[0-9]/.test(last) ? '1101001110'.charAt(+last) === '1' : (c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 > 0);
+    return nm + (jong ? '이라는 방' : '라는 방');
+  }
+
   /* ---------- UI 문구 (세계와 묶이는 것만; app 이 더 보탤 수 있음) ---------- */
   var strings = {
     appTitle: '뽈뽈 문어',
-    hintPlaceholder: '관심 가는 주제나 URL을 넌지시… 비워 두면 네가 골라',
-    emptyHintHelp: "비워 두면 '오늘은 네가 골라봐'",
+    hintPlaceholder: '주제나 링크를 슬쩍 건네줘',   /* 힌트 칸은 개발용 (결정 18) — index.html #hint-in 과 같은 글 */
+    emptyHintHelp: '비워 두면 힌트 없이 나가',   /* 빈 힌트를 '네가 골라봐' 처럼 플레이어 말로 바꾸지 않는다 */
     urlHintHelp: 'URL은 문 앞까지만 가 볼 수 있어(모의 방문)',
     goButton: '뽈뽈 다녀와',
     awayButton: '다녀오는 중…',
@@ -1409,7 +1425,7 @@ var WORLD = (function () {
     firstGreeting: function (name) {
       return '안녕, ' + name + '. 비 오는 다락방에 온 걸 환영해.';
     },
-    firstToast: '힌트는 비워 둬도 돼. 오늘은 네가 골라봐, 라는 뜻이 되니까.',
+    firstToast: '힌트는 비워 둬도 돼.',   /* 개발 모드에서만 (플레이어 화면엔 힌트 칸이 없다) */
     namePrompt: '문어 이름을 지어 줘',
     nameExamples: '예: 뚜루, 안개, 삐죠…',
     nameLater: '이름은 천천히 불러 줘도 괜찮아.',
@@ -1420,19 +1436,19 @@ var WORLD = (function () {
     firstVisit: '처음 온 곳이야',
     letterRoomEmpty: '아직 비어 있었어',
     slowRoomNote: '읽은 것 없음',
-    homeBack: '오늘은 집. 등불 +1',
+    homeBack: function (lanternLit) { return lanternLit ? '오늘은 집. 등불 +1' : '오늘은 집'; },   /* '+1' 은 그 차례로 칸이 실제로 켜질 때만 (두뇌 homeTripFrom 의 lanternLeft 와 같은 규칙) */
     homeStay: '오늘은 집에 있을래. 그냥 그러고 싶어서.',   /* 날씨는 말하지 않는다 (두뇌는 날씨를 모른다) */
     emptyTurn: '…',
     albumEmpty: '아직 포스터가 없어. 첫 뽈뽈을 보내 봐',
     albumFilters: { all: '전체', poster: '포스터', note: '쪽지' },
     logTitle: '오늘의 산책',
     albumTitle: '추억 앨범',
-    receiptTitle: '영수증',
+    receiptTitle: '일기',   /* 화면 말은 '일기' (데이터 이름 receipt 는 그대로) */
     nthTrip: function (n) { return n + '번째 뽈뽈'; },
     demoChip: '데모 두뇌',
     demoExplain: '이 문어는 데모 두뇌가 움직여. 작은 규칙 뭉치가 어디로 갈지, 집에 있을지, 무엇을 기억할지 고르는 거야. 진짜 모델이 고르는 건 MCP 연결 뒤 이야기야.',
     honestyLine: '지금은 작은 규칙 뭉치가 문어를 움직여. 진짜 모델이 고르는 건 MCP 연결 뒤 이야기야.',
-    demoWarning: "여기 버튼은 문어 대신 사람이 고르는 거야. 영수증에 '사람이 조작'으로 남아.",
+    demoWarning: "여기 버튼은 문어 대신 사람이 고르는 거야. 일기에 '사람이 조작'으로 남아.",   /* index.html #demo .warn-line 과 같은 글 */
     wikiLicense: '위키미디어 공용',
     wikiSource: '출처 ↗',
     photoCredit: '사진: 위키미디어 공용',
@@ -1441,7 +1457,7 @@ var WORLD = (function () {
     returnReasons: { enough: '이만하면 됐어', tired: '다리가 좀 무거워', linger: '여기서 오래 있었어' },
     legacyPosterLine: '(복원된 포스터 · 기록 없음)',
     affinityCorner: function (cornerName) { return '요즘 ' + cornerName + ' 방을 자꾸 가네'; },
-    affinityNode: function (nodeName, n) { return nodeName + ' 방은 ' + n + '번 왔어'; },
+    affinityNode: function (nodeName, n) { var w = roomWord(nodeName); return w + (/방$/.test(w) ? '은 ' : ' 방은 ') + n + '번 왔어'; },   /* '느린 글의 방' → '방 방은' 안 되게, '0' → '0이라는 방은' */
     affinityNone: '아직 어디가 좋은지 모르겠어. 더 다녀 봐야 알겠어',
     logLabels: { depart: '출발', peek: '기웃', 'return': '귀가', remember: '기억', hang_poster: '포스터', wrap_up: '마무리', stay_home: '집', empty_turn: '…' },
     statusLabels: { idle: '', away: '나가 있음', sleep: '💤', dream: '꿈꾸는 중', departing: '출발 중…' },
