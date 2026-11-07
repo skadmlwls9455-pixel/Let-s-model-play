@@ -116,8 +116,7 @@ function harness() {
   var ready = false;
   for (k = 0; k < 120 && !ready; k++) ready = await page.evaluate(function () { SC.debugStep(1 / 12); var m = SC.motion(); return m.place === 'exterior' && !m.trans && m.gait.moving && m.gait.at[1] < 0.05; });
   if (!ready) bad.push('exterior path walk not reached');
-  var p0 = await page.evaluate(function () { return SC.motion().gait.phase; });
-  for (k = 0; k < 24; k++) { var ph = await page.evaluate(function () { SC.debugStep(1 / 12); return SC.motion().gait.phase; }); if (ph - p0 >= 1) break; }
+  /* 출구 앞 0.5 m 에서 멈추고 손을 흔들므로 길 걷기가 짧다: 걷기가 시작되면 바로 찍는다 */
   await capture('walk-strip-ext');
 
   /* 3. 모션 감소: 굴림·통통·눌림 없음, 이동 즉시 */
