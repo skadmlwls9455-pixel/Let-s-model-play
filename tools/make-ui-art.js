@@ -104,7 +104,8 @@ var OUT = {};   /* manifest 키 → { src, w, h, note, frames? } */
 var NOTES = {
   souvenir: '기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것.',
   memory: '기억 코너 아이콘 16×16 — 로그 "기억" 행 · 포스터 열람 기록 줄.',
-  log: '산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어.'
+  log: '산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어.',
+  ui: '대화창 UI 아이콘 16×16 (DIALOGUE_UI §5.9 · 카드 12): ui.backlog = 📜 다시 보기 단추, ui.hand = 너 줄 (내 얼굴 그림이 없을 때).'
 };
 function fileOf(key, dir) { var parts = key.split('.'); return 'assets/' + dir + '/' + parts.slice(1).join('_') + '.png'; }
 function makeSprites() {
@@ -127,7 +128,8 @@ function makeSprites() {
     'ui.bubble.say': '말풍선 보통 9-slice (종이흰 + 남색 1px, 둥근 모서리)',
     'ui.bubble.think': '생각 풍선 9-slice (구름 가장자리 — 혼잣말·기억)',
     'ui.bubble.shout': '외침 풍선 9-slice (가시 가장자리 — happy·놀람)',
-    'ui.bubble.whisper': '속삭임 풍선 9-slice (점선, 옅은 청록 — 졸림·잠꼬대)'
+    'ui.bubble.whisper': '속삭임 풍선 9-slice (점선, 옅은 청록 — 졸림·잠꼬대)',
+    'ui.nameplate': '이름표 9-slice (24×24, 슬라이스 8) — 대사창 왼쪽 위 테두리에 8px 걸친 작은 나무 판 (frame_dialog 와 같은 나무, 판은 어두운 b 라 밝은 글자). 카드 12'
   };
   Object.keys(SP.FRAMES).forEach(function (key) {
     var g = grid(SP.FRAMES[key], 24, 24, key), rel = 'assets/ui/' + key.slice(3).replace('.', '_') + '.png';
@@ -139,6 +141,7 @@ function makeSprites() {
     var g = grid(SP.TAILS[key], tw, 8, key), rel = 'assets/ui/' + key.slice(3).replace('.', '_') + '.png';
     writePNG(rel, tw, 8, toRGBA(g)); n++;
     OUT[key] = { src: rel, w: tw, h: 8, note: /next/.test(key) ? '대화창 "다음" ▼ (next/next2 를 0.5 s 마다 번갈아)' : '말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다' };
+    if (key === 'ui.next_bob') { OUT[key].frames = 4; OUT[key].cell = 8; OUT[key].note = '대화창 "다음" ▼ 4프레임 (8×8 칸 × 4 가로 띠): 아래로 0·1·2·1 px, 2px 프레임은 1px 납작. 프레임당 180ms, 3바퀴 뒤 0번에서 멈춤 (DIALOGUE_UI §5.9 · 카드 12)'; }
   });
   console.log('sprites: ' + n + ' PNG');
 }

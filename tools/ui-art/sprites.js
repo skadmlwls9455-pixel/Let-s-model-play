@@ -912,5 +912,81 @@ var TAILS = {
     '........']
 };
 
+/* ── 카드 12 (UI 아트 세션) 시작 ── 주 세션은 이 덩어리 밖에 넣는다 (DIALOGUE_UI §5.9) */
+/* 대화창 "다음" ▼ 4프레임 (8×8 칸 × 4 = 32×8): 한 모양이 아래로 0 · 1 · 2 · 1 px 통통. 2px 프레임은 1px 납작 (밑 끝은 1px 프레임과 같은 줄 → 닿고 눌린다).
+   프레임당 180ms, 3바퀴 뒤 0번 프레임에서 멈춘다 (css/ui-art.css .ua-next). next.png · next2.png 는 남겨 둔다 */
+TAILS['ui.next_bob'] = [
+  '................................',
+  '.FFFFFF.........................',
+  '.FEEEED..FFFFFF..........FFFFFF.',
+  '..FEED...FEEEED..FFFFFF..FEEEED.',
+  '..FED.....FEED...FEEEED...FEED..',
+  '...D......FED.....FEED....FED...',
+  '...........D.......D.......D....',
+  '................................'];
+/* 📜 다시 보기 단추 (대사창 오른쪽 위 테두리에 걸침): 위아래 말린 종이 + 글줄 셋 반 */
+ICONS['ui.backlog'] = [
+  '................',
+  '..bccccccccccb..',
+  '.bceffffffffecb.',
+  '..bccccccccccb..',
+  '...fffffffffe...',
+  '...fUUUUUUffe...',
+  '...fffffffffe...',
+  '...fUUUUUUUfe...',
+  '...fffffffffe...',
+  '...fUUUUffffe...',
+  '...fffffffffe...',
+  '...feeeeeeeee...',
+  '..bccccccccccb..',
+  '.bceffffffffecb.',
+  '..bccccccccccb..',
+  '................'];
+/* 너 줄 (다시 보기의 내 말 왼쪽 아이콘, 내 얼굴 그림이 없을 때): 편 손바닥 — 손가락 넷은 밝은 줄 + 그늘 줄, 엄지는 왼쪽으로 비스듬히 */
+ICONS['ui.hand'] = [
+  '................',
+  '.......fd.......',
+  '.....fdfdfd.....',
+  '.....fdfdfdfd...',
+  '.....fdfdfdfd...',
+  '..fd.fdfdfdfd...',
+  '..fd.fdfdfdfd...',
+  '...fdfffffffd...',
+  '....ffffffffd...',
+  '....ffffffffd...',
+  '....effffffdd...',
+  '.....efffffd....',
+  '.....deeeedd....',
+  '......dddd......',
+  '................',
+  '................'];
+/* 이름표 9-slice (24×24, 슬라이스 8): frame_dialog 와 같은 나무 — 바깥 a · 윗줄 c · 판 b (밝은 글자가 읽히게) · 오른쪽·밑 그늘 A · 양옆 호박색 못 */
+FRAMES['ui.nameplate'] = [
+  '..aaaaaaaaaaaaaaaaaaaa..',
+  '.acccccccccccccccccccca.',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbBBBBBbbbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbEDbbbbbbbbbbbbbbEDbAa',
+  'acbDCbbbbbbbbbbbbbbDCbAa',
+  'acbbbBBBbbbbbbbBBBBbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbbbBBBBBbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  'acbbbbbbbbbbbbbbbbbbbbAa',
+  '.aAAAAAAAAAAAAAAAAAAAAa.',
+  '..aaaaaaaaaaaaaaaaaaaa..'];
+/* ── 카드 12 끝 ── */
+
 var SPRITES = { KEY: KEY, ICONS: ICONS, FX: FX, FRAMES: FRAMES, TAILS: TAILS };
 if (typeof module !== 'undefined') module.exports = SPRITES;
