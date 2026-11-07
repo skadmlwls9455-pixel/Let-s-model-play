@@ -79,7 +79,7 @@
     var im = new Image(); im.src = src(k); im.width = M[k].w * 4; im.height = M[k].h * 4; d.appendChild(im);
     d.appendChild(document.createTextNode(k + ' · ' + M[k].frames + 'f')); document.getElementById('fx').appendChild(d);
   });
-  [['say', '뽈뽈 다녀올게'], ['think', '음… 깃털?'], ['shout', '찾았다!'], ['whisper', '쿨… 쿨…']].forEach(function (b) {
+  [['say', '뽈뽈 다녀올게'], ['say', '찾았다!'], ['think', '음… 깃털?'], ['whisper', '쿨… 쿨…']].forEach(function (b) {
     var w = document.createElement('div'); w.className = 'bub';
     var bb = document.createElement('div'); bb.className = 'b'; bb.textContent = b[1];
     bb.style.borderImage = 'url(../../assets/ui/bubble_' + b[0] + '.png) 8 fill / 16px round';

@@ -74,8 +74,8 @@
 | `ui.frame.dialog` | 초상 대화창 (나무 테 + 남색 판 + 호박색 못) |
 | `ui.frame.portrait` | 대화창 왼쪽 64×64 초상 둘레 (안으로 파인 인셋) |
 | `ui.frame.paper` | 포스터 열람 기록, 영수증 카드 |
-| `ui.bubble.say` · `think` · `shout` · `whisper` | 말풍선 4종: 보통 / 생각·기억(구름 가장자리) / happy·놀람(가시) / 졸림·잠꼬대(점선, 옅은 청록) |
-| `ui.tail.say` · `think` · `shout` · `whisper` (8×8) | 풍선 꼬리. 풍선 아랫변 가운데에 붙이고, 위 1줄이 풍선 선과 겹친다 |
+| `ui.bubble.say` · `think` · `whisper` | 말풍선 3종: 보통 / 생각·기억(구름 가장자리) / 졸림·잠꼬대(점선, 옅은 청록). 외침(가시) 풍선은 11-07 주인 요청으로 없앴다 — happy·놀람·'찾았다!' 는 보통 풍선 + 효과음 + 2px 통통 두 번 (`data-pop`, 동작 줄이기면 없음) |
+| `ui.tail.say` · `think` · `whisper` (8×8) | 풍선 꼬리. 풍선 아랫변 가운데에 붙이고, 위 1줄이 풍선 선과 겹친다 |
 | `ui.next` · `ui.next2` (8×8) | 대화창 "다음" ▼. 0.5초마다 번갈아 보여 준다 |
 
 ```css
@@ -84,7 +84,7 @@
 .bub   { border: 16px solid; border-image: url(assets/ui/bubble_say.png) 8 fill / 16px round; image-rendering: pixelated; padding: 0 8px; color: #172038; }
 .bub + .tail { width: 16px; height: 16px; margin: -4px auto 0; image-rendering: pixelated; }   /* tail_say.png */
 ```
-`think`·`shout`·`whisper` 는 가장자리 무늬가 반복되므로 `round` 를 쓴다 (`stretch` 를 쓰면 무늬가 늘어난다).
+`think`·`whisper` 는 가장자리 무늬가 반복되므로 `round` 를 쓴다 (`stretch` 를 쓰면 무늬가 늘어난다).
 
 ### 파티클 `assets/fx/` (8×8 칸 가로 스트립, 외곽선 없음)
 `fx.dust`(먼지 4종) · `fx.mote`(빛 알갱이 4f 깜빡임) · `fx.sparkle`(반짝 4f) · `fx.splash`(빗방울 튐 4f) · `fx.ink`(출발 먹물 퍼프 4f) · `fx.zzz`(3f) · `fx.heart`(2f) · `fx.note`(2f) · `fx.question`(1f) · 계절 `fx.petal` · `fx.leaf`(4f) · `fx.snow`(3종) · `fx.firefly`(2f).

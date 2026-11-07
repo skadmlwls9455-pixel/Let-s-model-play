@@ -1909,9 +1909,12 @@ var APP = (function () {
     swatchOn();
     frag.appendChild(h('label', { class: 'set' }, ['색상', hueIn]));
     frag.appendChild(sw);
-    frag.appendChild(h('h3', { text: '팔레트' }));
-    frag.appendChild(h('p', { class: 'help', text: sceneMode === '3d' ? '방 전체의 색을 맞추는 팔레트. 즉흥 = 직접 만든 램프, 나머지는 픽셀아트 커뮤니티 팔레트(Lospec).' : '2D 장면에서는 적용 안 돼.' }));
-    frag.appendChild(paletteChips('rs-pal'));
+    /* 팔레트(즉흥·Apollo·Endesga·Resurrect)는 장면 색 실험용 — 플레이어에겐 뜻이 없어 방 보기에서 뺐다 (주인 11-07: '무슨 버튼인지 모르겠어'). 개발 모드의 데모 패널(#dv-pal)에만 */
+    if (DEV) {
+      frag.appendChild(h('h3', { text: '팔레트' }));
+      frag.appendChild(h('p', { class: 'help', text: sceneMode === '3d' ? '방 전체의 색을 맞추는 팔레트. 즉흥 = 직접 만든 램프, 나머지는 픽셀아트 커뮤니티 팔레트(Lospec).' : '2D 장면에서는 적용 안 돼.' }));
+      frag.appendChild(paletteChips('rs-pal'));
+    }
     if (window.AUDIO) AUDIO.on('room_sheet', { frag: frag });   /* 소리: 음악·효과음 크기 (js/audio.js) */
     frag.appendChild(h('h3', { text: '설정' }));
     var sel = h('select', { id: 'set-motion' }, [h('option', { value: 'auto', text: '기기 설정 따르기' }), h('option', { value: 'reduce', text: '모션 줄이기' })]);

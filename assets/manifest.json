@@ -678,13 +678,6 @@
     "slice": 8,
     "note": "생각 풍선 9-slice (구름 가장자리 — 혼잣말·기억)"
   },
-  "ui.bubble.shout": {
-    "src": "assets/ui/bubble_shout.png",
-    "w": 24,
-    "h": 24,
-    "slice": 8,
-    "note": "외침 풍선 9-slice (가시 가장자리 — happy·놀람)"
-  },
   "ui.bubble.whisper": {
     "src": "assets/ui/bubble_whisper.png",
     "w": 24,
@@ -701,12 +694,6 @@
   "ui.tail.think": {
     "src": "assets/ui/tail_think.png",
     "w": 8,
-    "h": 8,
-    "note": "말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다"
-  },
-  "ui.tail.shout": {
-    "src": "assets/ui/tail_shout.png",
-    "w": 10,
     "h": 8,
     "note": "말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다"
   },

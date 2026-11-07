@@ -126,7 +126,6 @@ function makeSprites() {
     'ui.frame.portrait': '초상 틀 9-slice (대화창 왼쪽 64×64 초상 둘레, 안으로 파인 인셋)',
     'ui.bubble.say': '말풍선 보통 9-slice (종이흰 + 남색 1px, 둥근 모서리)',
     'ui.bubble.think': '생각 풍선 9-slice (구름 가장자리 — 혼잣말·기억)',
-    'ui.bubble.shout': '외침 풍선 9-slice (가시 가장자리 — happy·놀람)',
     'ui.bubble.whisper': '속삭임 풍선 9-slice (점선, 옅은 청록 — 졸림·잠꼬대)'
   };
   Object.keys(SP.FRAMES).forEach(function (key) {

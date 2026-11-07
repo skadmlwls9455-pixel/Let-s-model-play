@@ -172,13 +172,14 @@ var UIART = (function () {
     });
   }
 
-  /* ── 4 · 장면 말풍선: say(기본) · think(혼잣생각·메모) · shout(happy·찾았다) · whisper(졸림·잠) ── */
+  /* ── 4 · 장면 말풍선: say(기본) · think(혼잣생각·메모) · whisper(졸림·잠).
+     외침(happy·찾았다·'!')은 따로 그리지 않는다 — 주인 11-07: 가시 테두리 없이 효과음과 작은 통통(data-pop)으로만. kind 'shout' 는 소리 쪽(js/audio.js)이 그대로 쓴다 ── */
   function bubbleSkin(text, kind) {
     if (kind === 'think' || kind === 'memo') return 'think';
     if (kind === 'sleep' || kind === 'sleepy' || kind === 'whisper') return 'whisper';
-    if (kind === 'happy' || kind === 'excited' || kind === 'shout' || /찾았|!$/.test(String(text || ''))) return 'shout';
     return 'say';
   }
+  function isShout(text, kind) { return kind === 'happy' || kind === 'excited' || kind === 'shout' || /찾았|!$/.test(String(text || '')); }
   /* 장면 오른쪽 위 아이콘 묶음(#scene-ctl: 추억 앨범 · 소리)의 보이는 상자와 겹치는 말풍선 → 왼쪽으로 밀 양(px, 음수) · 안 겹치면 0.
      r = 밀기 전 풍선 상자. 입장 연출로 숨은 묶음 · 숨은 버튼은 셈하지 않는다. 2D 무대(app.js keepBubble2D)도 같이 쓴다 */
   function avoidCtl(r, pad) {
@@ -207,6 +208,8 @@ var UIART = (function () {
   function onBubble(text, kind) {
     var b = $('oct-bubble'); if (!b || !text) return;
     b.setAttribute('data-ua', bubbleSkin(text, kind));
+    b.removeAttribute('data-pop');
+    if (isShout(text, kind) && !reduced()) { void b.offsetWidth; b.setAttribute('data-pop', ''); }   /* 다시 붙여야 애니메이션이 처음부터 */
     keepInside(b);
     requestAnimationFrame(function () { if (!b.hidden) keepInside(b); });   /* 장면이 다음 프레임에 풍선을 문어 위로 옮긴 뒤 한 번 더 (첫 0.2 s 동안 아이콘과 겹쳐 보이지 않게) */
     /* 문어가 걸어가도 풍선이 따라가며 가장자리 안에 머물게 (보이는 동안만 5 Hz) */
