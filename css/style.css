@@ -289,7 +289,7 @@ a { color: var(--teal); touch-action: manipulation; }
 .btn-row #btn-skip { color: var(--muted); }
 
 /* ── LOG ── */
-#log-sec, #album-sec { padding: 8px 16px 0; }
+#log-sec { padding: 8px 16px 0; }
 .sec-h { font-size: 12px; color: var(--muted); letter-spacing: .06em; font-weight: 500; margin: 8px 0 6px; border-top: 1px solid var(--rim); padding-top: 8px; }
 .sec-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 #log { max-height: 300px; min-height: 80px; overflow-y: auto; scrollbar-width: thin; border-radius: 8px; }
@@ -605,9 +605,9 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 }
 :root[data-font="pixel"] .pip.on { background: var(--amber-fill); box-shadow: inset 0 0 0 1px var(--line), inset 2px 2px 0 var(--amber-hi); text-shadow: none; }
 /* 좁은 폰(< 380px): 이름 옆 '데모' 표시가 차지하는 폭만큼 오른쪽 여백을 조금 덜어 흔한 이름이 데모 표시 전처럼 다 보이게 (320px: 픽셀 세 글자 · 시스템 네 글자, 340px: 픽셀 네 글자).
-   소리 상자 왼쪽 여유 −4px, 시스템은 등불 칸 틈 4→2, 픽셀은 줄 틈 8→6 · '등불' 글자 뒤 −2px(글자 자체 여백이 있어 보이는 틈은 남는다). 등불 네모 크기·네모 사이 틈은 그대로 */
+   시스템은 등불 칸 틈 4→2, 픽셀은 줄 틈 8→6 · '등불' 글자 뒤 −2px(글자 자체 여백이 있어 보이는 틈은 남는다). 등불 네모 크기·네모 사이 틈은 그대로.
+   (소리 버튼은 장면 오른쪽 위 묶음으로 옮겼다 → 320 px 픽셀 테마에서도 네 글자 이름이 다 보인다. tools/smoke.js L) */
 @media (max-width: 379px) {
-  #status .sound-btn { margin-left: -8px; }
   #status .pips { gap: 2px; }
   :root[data-font="pixel"] #status .srow { gap: 6px; }
   :root[data-font="pixel"] #status .pips { gap: 4px; }
@@ -770,6 +770,34 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   :root[data-font="pixel"] .sheet { border-radius: 0; border-bottom: 2px solid var(--line); box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px), 4px 4px 0 var(--line); }
 }
 
+/* ── 추억 앨범 시트 (#album-sheet, DESIGN §6.3): 방 보기와 같은 바텀시트(≥600px 가운데). 머리 줄 = 제목 + 필터 칩, 카드 줄은 예전 #album 그대로(가로 스크롤),
+   아래 '남긴 메모' = 호기심 메모 전부 (내려놓은 메모는 표시를 달고 그대로, docs/CURIOSITY_NOTES.md 원칙 4) ── */
+.album-sheet .al-top { align-items: center; flex-wrap: wrap; row-gap: 4px; }
+.album-sheet .al-h { font-size: 15px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0; color: var(--fg); }
+.album-sheet .al-h:focus { outline: none; }
+.album-sheet #album { margin: 4px -4px 0; }
+.album-sheet #al-close { margin-top: 12px; }
+.icon-btn .snd-box { transition: transform var(--t-press) var(--ease-out); }
+.icon-btn:active .snd-box { transform: scale(.97); }
+/* 호기심 메모 줄 (방 보기 '우리 방의 지난 메모' · 앨범 '남긴 메모' 공용): 따옴표 안이 남긴 말 그대로(60자 넘으면 … — 누르면 전체), 아래 작은 줄 = 누가 · 언제 · 어느 산책 */
+.cnote-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sheet .cnote-list { padding-left: 0; }
+.cnote { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--panel2); word-break: keep-all; overflow-wrap: anywhere; }
+.cnote .cn-text { font-size: 13px; line-height: 1.65; color: var(--fg); text-align: left; }
+.cnote button.cn-text { padding: 0; margin: 0; border: 0; background: none; font: inherit; font-size: 13px; color: inherit; cursor: pointer; min-height: 0; }
+.cnote button.cn-text:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.cnote .cn-meta { font-size: 12px; color: var(--muted); }
+.cnote .cn-tag { align-self: flex-start; font-size: 12px; color: var(--muted); border: 1px solid var(--rim); border-radius: 6px; padding: 0 6px; }
+.cnote.down .cn-text { color: var(--muted); }
+#album-notes h3 { margin-top: 12px; }
+:root[data-font="pixel"] .album-sheet .al-h { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
+:root[data-font="pixel"] .cnote { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .cnote .cn-text, :root[data-font="pixel"] .cnote button.cn-text { font-family: var(--f-body); font-size: 20px; line-height: 30px; }
+:root[data-font="pixel"] .cnote .cn-meta, :root[data-font="pixel"] .cnote .cn-tag { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
+:root[data-font="pixel"] .cnote .cn-tag { border-radius: 0; border: 0; box-shadow: inset 0 0 0 2px var(--line); padding: 0 6px; }
+:root[data-font="pixel"] .cnote button.cn-text:focus-visible { outline-color: var(--fg); }
+:root[data-font="pixel"] .icon-btn:active .snd-box { transform: translate(2px, 2px); }
+
 /* ── 축소 모션 (설정 또는 OS): 줄이되 없애지 않는다 — 이동·회전 대신 크로스페이드, 등불은 그대로 밝아진다 ──
    OS 설정은 모션 설정이 "기기 설정 따르기"(data-motion="auto", 또는 아직 안 붙었을 때)일 때만 따른다. 사람이 고른 값(reduce 등)은 아래 [data-motion] 규칙이 정한다 */
 @media (prefers-reduced-motion: reduce) {
@@ -859,28 +887,39 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"][data-theme="dark"] #name-dialog .honest { color: var(--muted); }
 @media (prefers-color-scheme: dark) { :root[data-font="pixel"]:not([data-theme="light"]) #name-dialog .honest { color: var(--muted); } }
 
-/* ── 소리 (js/audio.js): 상태 줄 오른쪽 스피커 토글 · 방 보기 › 소리 크기 ──
-   토글은 누르는 곳 44×44 · 보이는 상자 28×28. 위아래 -9px 로 상태 줄 높이는 그대로. 켜면 호박색 상자 + 물결, 끄면 종이색 상자 + ×.
+/* ── 장면 오른쪽 위 아이콘 묶음 (#scene-ctl, DESIGN §7.2): 추억 앨범 · 소리 토글 (js/audio.js) · 방 보기 › 소리 크기 ──
+   상태 줄에 아이콘 두 개를 두면 320 px 에서 두 글자 이름부터 잘려서 장면 틀 안 오른쪽 위로 옮겼다 (픽셀 베벨 ::after 9 보다 위 · 문어 6 보다 위).
+   버튼은 누르는 곳 44×44 · 보이는 상자 28×28 (틀에서 8px 안쪽). 켜면 호박색 상자 + 물결, 끄면 종이색 상자 + ×.
    크기 슬라이더는 등불 칸과 같은 말: 켜진 쪽 호박 · 꺼진 쪽 --pip-off, 손잡이는 베벨 블록 */
-.sound-btn {
-  flex: 0 0 auto; position: relative; width: 44px; height: 44px; margin: -9px -8px -9px -4px; padding: 0;
+.scene-ctl { position: absolute; top: 0; right: 0; z-index: 10; display: flex; }
+.icon-btn {
+  flex: 0 0 auto; position: relative; width: 44px; height: 44px; margin: 0; padding: 0;
   border: 0; background: none; color: var(--muted); display: inline-flex; align-items: center; justify-content: center;
   cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
-.sound-btn .snd-box { display: grid; place-items: center; box-sizing: border-box; width: 28px; height: 28px; border: 1px solid var(--rim); border-radius: 8px; background: var(--panel2); color: var(--muted); }
-.sound-btn svg { display: block; width: 24px; height: 24px; }
+.icon-btn[hidden], .icon-btn .ib-dot[hidden] { display: none; }
+.icon-btn .snd-box { display: grid; place-items: center; box-sizing: border-box; width: 28px; height: 28px; border: 1px solid var(--rim); border-radius: 8px; background: var(--panel2); color: var(--muted); }
+.icon-btn svg { display: block; width: 24px; height: 24px; }
 .sound-btn .w-on { display: none; }
 .sound-btn[aria-pressed="true"] .snd-box { color: var(--amber); }
 .sound-btn[aria-pressed="true"] .w-on { display: inline; }
 .sound-btn[aria-pressed="true"] .w-off { display: none; }
 .sound-btn.na[aria-pressed="true"] .snd-box { opacity: .6; }   /* 켜 뒀지만 여기선 못 냄 (file:// 등) */
-.sound-btn:focus-visible { outline: none; }
-.sound-btn:focus-visible .snd-box { outline: 2px solid var(--amber); outline-offset: 2px; }
+.icon-btn:focus-visible { outline: none; }
+.icon-btn:focus-visible .snd-box { outline: 2px solid var(--amber); outline-offset: 2px; }
+/* 앨범 점: 지난번에 앨범을 연 뒤 새 포스터가 붙었을 때만. 숫자 없음 · 깜빡임 없음 · 열면 사라진다 (재촉이 아니라 작은 표시) */
+.album-btn .ib-dot { position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px var(--panel); pointer-events: none; }
+/* 새 포스터가 앨범 아이콘으로 날아간다 (≤0.6 s, 계단 — 위치는 app.js 가 정수 px(픽셀 테마는 2px)로 준다). 모션 줄이기면 날지 않고 점만 */
+.album-fly { position: absolute; left: 0; top: 0; z-index: 11; width: 16px; height: 21px; pointer-events: none; box-shadow: var(--shadow-xs); }
+.album-fly svg { display: block; width: 16px; height: 21px; }
+/* 입장 연출 동안엔 숨겨 둔다 (css/intro.css 가 상태 줄을 숨기는 것과 같이) — 들어갈 때 같이 나타난다 */
+html.intro-on #scene-ctl { opacity: 0; visibility: hidden; }
+html.intro-reveal #scene-ctl { transition: opacity var(--t-ui) var(--ease-enter); transition-delay: calc(120ms * var(--speed)); }
 .sheet .snd-row { gap: 12px; }
 .sheet .snd-row > span { flex: 0 0 auto; min-width: 3.4em; }
 .sheet input.snd-range { flex: 1 1 auto; min-width: 0; }
 .snd-val { flex: 0 0 auto; min-width: 2.4em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
-:root[data-font="pixel"] .sound-btn .snd-box {
+:root[data-font="pixel"] .icon-btn .snd-box {
   width: 28px; height: 28px; border: 2px solid var(--line); border-radius: 0; background-color: var(--panel2); color: var(--muted);
   box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line);
 }
@@ -888,9 +927,11 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   background-color: var(--amber-fill); color: var(--on-accent);
   box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo), 2px 2px 0 var(--line);
 }
-:root[data-font="pixel"] .sound-btn:active .snd-box { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
+:root[data-font="pixel"] .icon-btn:active .snd-box { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
 :root[data-font="pixel"] .sound-btn[aria-pressed="true"]:active .snd-box { box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo); }
-:root[data-font="pixel"] .sound-btn:focus-visible .snd-box { outline: 2px solid var(--fg); outline-offset: 2px; }
+:root[data-font="pixel"] .icon-btn:focus-visible .snd-box { outline: 2px solid var(--fg); outline-offset: 2px; }
+:root[data-font="pixel"] .album-btn .ib-dot { top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 0; background: var(--amber-fill); box-shadow: 0 0 0 2px var(--line); }
+:root[data-font="pixel"] .album-fly { box-shadow: 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .snd-val { font-family: var(--f-meta); font-size: 16px; line-height: 24px; color: var(--fg); }
 :root[data-font="pixel"] .sheet input.snd-range { -webkit-appearance: none; appearance: none; height: 44px; margin: 0; background: transparent; accent-color: var(--amber-fill); cursor: pointer; }
 :root[data-font="pixel"] .sheet input.snd-range:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
@@ -918,6 +959,6 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] :where(#album) .pcard.down:not(.in) { transform: translate(2px, 2px); }
 /* 2) 방 보기 시트: 손잡이와 시트 머리 띠(맨 위 30px · 폭 전체 = 손잡이의 ::before, 위치 기준은 시트 자신)만 끌 수 있다.
       touch-action: none 은 그 띠에만 → 굴러가는 본문의 스크롤은 그대로. 끄는 동안의 transform 과 놓은 뒤 500ms 되돌아가기는 app.js 가 인라인으로 준다 (모션 감소면 바로) */
-#room-sheet > .handle { touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
-#room-sheet > .handle::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px; }
-#room-sheet.dragging, #room-sheet.dragging > .handle { cursor: grabbing; }
+:is(#room-sheet, #album-sheet) > .handle { touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
+:is(#room-sheet, #album-sheet) > .handle::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px; }
+:is(#room-sheet, #album-sheet).dragging, :is(#room-sheet, #album-sheet).dragging > .handle { cursor: grabbing; }

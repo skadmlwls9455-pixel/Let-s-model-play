@@ -78,18 +78,28 @@
       <div id="oct-bubble" hidden></div>
     </div>
   </div>
+  <!-- 장면 오른쪽 위 아이콘 묶음 (DESIGN §7.2 · §6.3): 추억 앨범(첫 포스터·메모가 생긴 뒤부터) · 소리 토글 (js/audio.js — id 로만 찾는다).
+       누르는 곳 44×44 · 보이는 상자 28×28. 앨범 점은 지난번에 앨범을 연 뒤 새 포스터가 붙었을 때만 (숫자 없음, 열면 사라진다) -->
+  <div id="scene-ctl" class="scene-ctl">
+    <button type="button" id="btn-album" class="icon-btn album-btn" aria-label="추억 앨범" title="추억 앨범" aria-haspopup="dialog" aria-controls="album-sheet" aria-describedby="album-new" hidden>
+      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M1 2h10v1H1zM1 10h10v1H1zM1 3h1v7H1zM10 3h1v7h-1z"/><path class="al-pic" d="M3 6h1v1H3zM2 7h3v1H2zM6 5h1v1H6zM5 6h3v1H5zM4 7h5v1H4zM2 8h8v2H2zM8 4h1v1H8z"/></svg></span>
+      <span class="ib-dot" aria-hidden="true" hidden></span>
+      <span id="album-new" class="sr-only"></span>
+    </button>
+    <!-- 소리 토글 (js/audio.js): 꺼진 채로 시작. 켜면 스피커 물결, 끄면 × -->
+    <button type="button" id="btn-sound" class="icon-btn sound-btn" aria-pressed="false" aria-label="소리 켜기" title="소리 켜기">
+      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M1 4h2v4H1zM3 3h1v6H3zM4 2h1v8H4zM5 1h1v10H5z"/><path class="w-on" d="M7 4h1v4H7zM8 2h1v1H8zM9 3h1v6H9zM8 9h1v1H8z"/><path class="w-off" d="M7 4h1v1H7zM8 5h2v2H8zM10 4h1v1H10zM7 7h1v1H7zM10 7h1v1H10z"/></svg></span>
+    </button>
+  </div>
 </section>
 
-<!-- ══ STATUS (§7.2) — 한 줄: 이름 [데모] · 방 제목 | 등불 ■■□□□□□□ n/8. 여행·함께한 날은 방 보기 › 통계, 데모 두뇌 설명은 방 보기 › 누가 고르나 ══ -->
+<!-- ══ STATUS (§7.2) — 한 줄: 이름 [데모] · 방 제목 | 등불 ■■□□□□□□ n/8. 여행·함께한 날은 방 보기 › 통계, 데모 두뇌 설명은 방 보기 › 누가 고르나.
+     추억 앨범 · 소리 버튼은 장면 오른쪽 위 묶음(#scene-ctl)으로 옮겼다: 320 px 에서 두 아이콘을 이 줄에 두면 두 글자 이름부터 잘렸다 (DESIGN §7.2) ══ -->
 <div id="status">
   <div class="srow">
     <!-- #brain-tag: 데모 두뇌(규칙)가 고르는 동안 늘 보이는 아주 작은 표시 (정직 표기). 모델(MCP) 여행을 재생하는 동안만 숨긴다 (app.js renderBrainTag) -->
     <span class="who"><span id="oct-name" class="name">이름 없는 문어</span><span id="brain-tag" class="brain-tag"><span aria-hidden="true">데모</span><span class="sr-only">데모 규칙이 움직이는 중</span></span><span id="room-title" class="room-title">불씨 하나 켜진 다락</span></span>
     <span id="pips" class="pips" role="img" aria-label="등불 0/8"><span class="pips-lbl">등불</span><span class="pip-row"></span><span class="pips-n">0/8</span></span>
-    <!-- 소리 토글 (js/audio.js): 꺼진 채로 시작. 누르는 곳 44×44, 보이는 상자 28×28. 켜면 스피커 물결, 끄면 × -->
-    <button type="button" id="btn-sound" class="sound-btn" aria-pressed="false" aria-label="소리 켜기" title="소리 켜기">
-      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M1 4h2v4H1zM3 3h1v6H3zM4 2h1v8H4zM5 1h1v10H5z"/><path class="w-on" d="M7 4h1v4H7zM8 2h1v1H8zM9 3h1v6H9zM8 9h1v1H8z"/><path class="w-off" d="M7 4h1v1H7zM8 5h2v2H8zM10 4h1v1H10zM7 7h1v1H7zM10 7h1v1H10z"/></svg></span>
-    </button>
   </div>
 </div>
 
@@ -114,19 +124,6 @@
 <section id="log-sec" aria-label="오늘의 산책">
   <h2 class="sec-h">오늘의 산책</h2>
   <div id="log" role="log" aria-live="polite" tabindex="0"></div>
-</section>
-
-<!-- ══ ALBUM (§6.3) ══ -->
-<section id="album-sec" aria-label="추억 앨범" hidden>
-  <div class="sec-row">
-    <h2 class="sec-h">추억 앨범</h2>
-    <div class="filters" role="group" aria-label="앨범 필터">
-      <button type="button" class="fchip on" data-f="all" aria-pressed="true">전체</button>
-      <button type="button" class="fchip" data-f="poster" aria-pressed="false">포스터</button>
-      <button type="button" class="fchip" data-f="note" aria-pressed="false">쪽지</button>
-    </div>
-  </div>
-  <div id="album"></div>
 </section>
 
 <!-- ══ DEMO (§7.6) — 개발용: ?dev=1 · localhost · file:// 에서만 보인다 (app.js DEV) ══ -->
@@ -168,7 +165,7 @@
     <p class="name-lead"><span class="ln">오늘 처음 보내는 문어야.</span><span class="ln">이름은 천천히</span><span class="ln">불러 줘도 괜찮아.</span></p>
     <input class="modal-in" id="name-in" type="text" placeholder="예: 뚜루, 안개, 삐죠…" maxlength="18" autocomplete="off" required>
     <button type="submit" class="btn primary wide pressable">이름 저장</button>
-    <p class="honest"><span class="ln">지금은 작은 규칙 뭉치가</span><span class="ln">문어를 움직여.</span><span class="ln">진짜 모델이 고르는 건</span><span class="ln">MCP 연결 뒤 이야기야.</span></p>
+    <p class="honest"><span class="ln">지금은 미리 만든 규칙으로</span><span class="ln">움직이는 체험판이야.</span></p>
   </form>
 </dialog>
 
@@ -196,6 +193,23 @@
   <h2 id="rs-h" class="sr-only dlg-top" tabindex="-1">방 보기</h2><!-- 열 때 포커스는 여기 (app.js showDialog) -->
   <div id="rs-body"></div>
   <button type="button" class="btn wide pressable" id="rs-close">닫기</button>
+</dialog>
+
+<!-- ══ 추억 앨범 (§6.3) — 장면 오른쪽 위 앨범 버튼(#btn-album)으로 여는 시트. 폰은 바텀시트, ≥600px 은 가운데. 카드를 누르면 포스터 열람 창이 그 위에 열린다.
+     아래 '남긴 메모'는 호기심 메모 전부 (내려놓은 메모 포함, docs/CURIOSITY_NOTES.md) — 전체 보기에서만 ══ -->
+<dialog id="album-sheet" class="sheet album-sheet" aria-labelledby="al-h">
+  <div class="handle" aria-hidden="true"></div>
+  <div class="sec-row al-top">
+    <h2 id="al-h" class="al-h dlg-top" tabindex="-1">추억 앨범</h2><!-- 열 때 포커스는 여기 (app.js showDialog) -->
+    <div class="filters" role="group" aria-label="앨범 필터">
+      <button type="button" class="fchip on" data-f="all" aria-pressed="true">전체</button>
+      <button type="button" class="fchip" data-f="poster" aria-pressed="false">포스터</button>
+      <button type="button" class="fchip" data-f="note" aria-pressed="false">쪽지</button>
+    </div>
+  </div>
+  <div id="album"></div>
+  <div id="album-notes"></div>
+  <button type="button" class="btn wide pressable" id="al-close">닫기</button>
 </dialog>
 
 <!-- 토스트는 이거 하나. 한 번에 하나, 2.5초. 모달이 열려 있으면 app.js 가 그 안으로 옮겨 popover 로 띄운다 (모달 밖은 inert 라 안 보이고 안 읽힌다) -->

@@ -652,8 +652,11 @@ async function planSuite(label, W, hasHat) {
   check(sl.receipt.stops[0].wild && sl.receipt.stops[0].title === '모르는 방' && sl.receipt.stops[0].status !== 'read', 'unknown id → wild, not claimed read');
   check(sl.receipt.stops[1].status === 'builtin', 'known node w/o status → builtin');
   check(sl.receipt.stops[2].status === 'simulated', 'url → simulated');
-  check(sl.receipt.rememberedIdx >= 0 && sl.poster && !hasBrace(sl.poster.line), 'sloppy replay picks a memory and composes a line');
-  check(BRAIN.REACTIONS.indexOf(sl.reaction) >= 0, 'invalid reaction replaced');
+  /* R1 · MODEL_VOICE: 모델이 기억할 곳을 안 골랐다 → 두뇌가 마지막 곳으로 대신 (fallback 표시), 한 줄은 지어내지 않는다 */
+  check(sl.receipt.rememberedIdx === 2 && sl.receipt.rememberedBy === 'fallback' && sl.poster && sl.poster.line === null, 'sloppy mcp replay: memory falls back to the last stop (rememberedBy fallback), no composed line');
+  check(sl.reaction === null && sl.reactionRaw === '이상한값' && sl.reactionBy === 'model' && sl.receipt.reactionLine === null, 'unknown reaction kept as reactionRaw, nothing invented (' + sl.reaction + '/' + sl.reactionRaw + ')');
+  var slDemo = BRAIN.replay(JSON.parse(JSON.stringify(sloppy)), { by: 'demo' });
+  check(slDemo.receipt.rememberedIdx >= 0 && slDemo.poster && !hasBrace(slDemo.poster.line) && BRAIN.REACTIONS.indexOf(slDemo.reaction) >= 0 && slDemo.reactionBy === 'demo-rules', 'demo-rules replay (by demo) still picks a memory, composes a line, replaces an invalid reaction');
   var homeRp = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 2000, reaction: '졸림' }], { by: 'human' });
   var napLine = ((W.homeActivities || []).filter(function (a) { return a.id === 'nap'; })[0] || { line: '담요 속에서 낮잠' }).line;
   check(homeRp.kind === 'home' && homeRp.poster.type === 'note' && homeRp.poster.line === napLine && homeRp.receipt.activity.id === 'nap', 'home replay (' + homeRp.poster.line + ')');
@@ -819,15 +822,20 @@ async function waveESuite(label, W) {
       check(!/걸었|다녀왔|갔다 왔|산책|처음|못 읽|오늘은|비가|비 오|빗|맑|날씨/.test(l), 'reactions.' + r + '.home is true on any home turn (no walk, weather, "오늘은"): ' + l);
     });
   });
-  /* 재생: 고른 반응(졸림·덤덤)은 그대로, 줄도 그 반응의 집 줄 */
+  /* 재생 (데모 규칙, by 'demo'): 고른 반응(졸림·덤덤)은 그대로, 줄도 그 반응의 집 줄. 우쭐·폴짝은 집에서 거른다 */
   if (dHome && actOf('hum')) {
-    var rd = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'hum' }, { type: 'wrap_up', t: 1, reaction: '덤덤' }], { by: 'mcp', state: { lantern: 3 } });
-    check(rd.reaction === '덤덤' && W.reactions['덤덤'].home.indexOf(rd.receipt.reactionLine) >= 0 && rd.events[1].reaction === '덤덤', 'home replay 덤덤 → 덤덤 with a 덤덤 home line (' + rd.receipt.reactionLine + ')');
-    var rz = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'hum' }, { type: 'wrap_up', t: 1, reaction: '졸림' }], { by: 'mcp', state: { lantern: 3 } });
-    check(rz.reaction === '졸림' && W.reactions['졸림'].lines.indexOf(rz.receipt.reactionLine) >= 0, 'home replay 졸림 on a 덤덤 activity is kept (the chooser decides) (' + rz.receipt.reactionLine + ')');
+    var rd = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'hum' }, { type: 'wrap_up', t: 1, reaction: '덤덤' }], { by: 'demo', state: { lantern: 3 } });
+    check(rd.reaction === '덤덤' && W.reactions['덤덤'].home.indexOf(rd.receipt.reactionLine) >= 0 && rd.events[1].reaction === '덤덤', 'demo-rules home replay 덤덤 → 덤덤 with a 덤덤 home line (' + rd.receipt.reactionLine + ')');
+    var rz = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'hum' }, { type: 'wrap_up', t: 1, reaction: '졸림' }], { by: 'demo', state: { lantern: 3 } });
+    check(rz.reaction === '졸림' && W.reactions['졸림'].lines.indexOf(rz.receipt.reactionLine) >= 0, 'demo-rules home replay 졸림 on a 덤덤 activity is kept (' + rz.receipt.reactionLine + ')');
   }
-  var rj = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'hum' }, { type: 'wrap_up', t: 1, reaction: '우쭐' }], { by: 'mcp', state: { lantern: 3 } });
-  check(rj.reaction !== '우쭐' && rj.reaction !== '폴짝', 'home replay 우쭐 (nothing read) → not kept (' + rj.reaction + ')');
+  var rj = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'hum' }, { type: 'wrap_up', t: 1, reaction: '우쭐' }], { by: 'demo', state: { lantern: 3 } });
+  check(rj.reaction !== '우쭐' && rj.reaction !== '폴짝' && rj.reactionBy === 'demo-rules', 'demo-rules home replay 우쭐 (nothing read) → not kept (' + rj.reaction + ')');
+  /* R1: 모델(mcp)·사람(human)이 준 반응은 집에서도 그대로. 줄은 그들이 쓴 것만 (템플릿 없음) */
+  var rjm = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'hum' }, { type: 'wrap_up', t: 1, reaction: '우쭐' }], { by: 'mcp', state: { lantern: 3 } });
+  check(rjm.reaction === '우쭐' && rjm.events[1].reaction === '우쭐' && rjm.reactionBy === 'model' && rjm.receipt.reactionLine === null && rjm.reactionLine === null, 'model home replay 우쭐 kept as given, no template line (' + rjm.reaction + ' · ' + rjm.receipt.reactionLine + ')');
+  var rdm = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'hum' }, { type: 'wrap_up', t: 1, reaction: '덤덤', line: '흥얼거리다 박자를 놓쳤어' }], { by: 'human', state: { lantern: 3 } });
+  check(rdm.reaction === '덤덤' && rdm.reactionBy === 'human' && rdm.receipt.reactionLine === '흥얼거리다 박자를 놓쳤어', 'human home replay: reaction + their own line verbatim (' + rdm.receipt.reactionLine + ')');
 
   /* E5b: 숫자로 시작하는 방 이름('0')은 문장에서 "0이라는 방" — "0까지 갔어", "오늘은 0." 이 되지 않게 */
   var digitIds = ids.filter(function (id) { return id !== 'door_out' && /^[0-9]/.test(W.nodes[id].name || ''); });
@@ -1000,7 +1008,7 @@ async function huntSuite(label, W) {
   check(sameNoAvoid && avoided, 'pickStart avoid: never returns the avoided room; unknown avoid id changes nothing');
   var contra = BRAIN.replay([{ type: 'depart', t: 0, hint: hintName, followHint: false }, { type: 'peek', t: 1, target: { kind: 'room', id: hintId } },
     { type: 'return', t: 2 }, { type: 'remember', t: 3, stopIdx: 0 }, { type: 'wrap_up', t: 4, reaction: '덤덤' }], { by: 'mcp', now: NOW_DAY });
-  check(contra.hint.followed !== 'ignored' && !contra.hint.note && contra.poster.line.indexOf(hintName + ' 말고') < 0, 'replay: followHint false but went there → not "ignored" (' + contra.hint.followed + ' · ' + contra.poster.line + ')');
+  check(contra.hint.followed !== 'ignored' && !contra.hint.note && (contra.poster.line || '').indexOf(hintName + ' 말고') < 0, 'replay: followHint false but went there → not "ignored" (' + contra.hint.followed + ' · ' + contra.poster.line + ')');
   /* 들판 걸음(링크 따라가기)으로도 무시한 힌트와 같은 글에 닿지 않는다 — 링크 목록 맨 앞에 힌트 제목을 둬도 */
   var wikiQ = ['쿼카', '기린'].filter(function (q) { return BRAIN.matchHint(q).kind === 'wiki'; })[0];
   for (var hi = 0; hi < 2; hi++) {
@@ -1031,7 +1039,7 @@ async function huntSuite(label, W) {
   }
   var wildContra = BRAIN.replay([{ type: 'depart', t: 0, hint: hintName, followHint: false }, { type: 'peek', t: 1, target: { kind: 'wild', title: hintName } },
     { type: 'return', t: 2 }, { type: 'remember', t: 3, stopIdx: 0 }, { type: 'wrap_up', t: 4, reaction: '덤덤' }], { by: 'mcp', now: NOW_DAY });
-  check(wildContra.hint.followed !== 'ignored' && !wildContra.hint.note && wildContra.poster.line.indexOf(hintName + ' 말고') < 0, 'replay: followHint false but a wild stop titled the hint → not "ignored" (' + wildContra.hint.followed + ' · ' + wildContra.poster.line + ')');
+  check(wildContra.hint.followed !== 'ignored' && !wildContra.hint.note && (wildContra.poster.line || '').indexOf(hintName + ' 말고') < 0, 'replay: followHint false but a wild stop titled the hint → not "ignored" (' + wildContra.hint.followed + ' · ' + wildContra.poster.line + ')');
 
   /* #3/#41 반응 한 줄은 실제로 있었던 일만 */
   section('reaction lines match what happened (#3/#41) — ' + label);
@@ -1111,11 +1119,12 @@ async function huntSuite(label, W) {
   check(rf.poster.thumb === null, 'poster thumb only from upload.wikimedia.org https');
   check(rf.receipt.counts.read === 1 && rf.receipt.counts.simulated === 3, 'counts honest (' + JSON.stringify(rf.receipt.counts) + ')');
   check(rs.every(function (s) { return !s.source || WIKI_PAGE_RE.test(s.source.url); }), 'every receipt source is a ko.wikipedia.org page');
-  check(rf.reaction !== '우쭐' && rf.receipt.reaction === rf.reaction, 'claimed 우쭐 with 1/5 read → recomputed (' + rf.reaction + ')');
+  /* R1: 반응은 읽기 정직 표기와 달리 모델의 몫 — 1/5 만 읽었어도 모델이 우쭐이면 우쭐 (읽음 표기는 위에서 그대로 정직하게) */
+  check(rf.reaction === '우쭐' && rf.receipt.reaction === '우쭐' && rf.reactionBy === 'model', 'model reaction 우쭐 with 1/5 read is kept as given (' + rf.reaction + ')');
   var peeks = rf.events.filter(function (e) { return e.type === 'peek'; });
   var evMismatch = peeks.filter(function (e, i) { var s = rs[i]; return e.status !== s.status || e.note !== s.note || !!e.first !== !!s.first || !!e.source !== !!s.source || (e.source && e.source.url !== s.source.url); });
   check(peeks.length === rs.length && evMismatch.length === 0, 'returned peek events carry the normalized status/note/first/source (' + evMismatch.length + ' mismatches)');
-  check(rf.events.filter(function (e) { return e.type === 'wrap_up'; })[0].reaction === rf.reaction, 'returned wrap_up event carries the normalized reaction');
+  check(rf.events.filter(function (e) { return e.type === 'wrap_up'; })[0].reaction === '우쭐', 'returned wrap_up event carries the model reaction unchanged');
   var wikiThumb = BRAIN.replay([{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 1, target: { kind: 'room', id: clueId }, status: 'read', source: { url: good, extract: '요약.', thumb: { url: 'https://upload.wikimedia.org/wikipedia/commons/a/ab/x.jpg', w: 10, h: 20 } } },
     { type: 'return', t: 2 }, { type: 'remember', t: 3, stopIdx: 0 }, { type: 'wrap_up', t: 4, reaction: '덤덤' }], { by: 'mcp', now: NOW_DAY });
   check(wikiThumb.poster.thumb && wikiThumb.poster.thumb.url.indexOf('https://upload.wikimedia.org/') === 0 && wikiThumb.poster.thumb.license === BRAIN.THUMB_LICENSE, 'upload.wikimedia.org thumb is kept and credited');
@@ -1123,7 +1132,9 @@ async function huntSuite(label, W) {
     { type: 'return', t: 2 }, { type: 'wrap_up', t: 3, reaction: '우쭐' }], { by: 'mcp', now: NOW_DAY, state: { visits: allVisited } });
   check(proudOk.reaction === '우쭐' || proudOk.hint.followed !== 'followed', 'honest 우쭐 (followed + all read) is kept (' + proudOk.reaction + '/' + proudOk.hint.followed + ')');
   var homeJump = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 1, reaction: '폴짝' }], { by: 'mcp' });
-  check(homeJump.reaction === '졸림' && homeJump.events[1].reaction === '졸림', 'home replay: 폴짝 with nothing new → 졸림');
+  check(homeJump.reaction === '폴짝' && homeJump.events[1].reaction === '폴짝' && homeJump.receipt.reactionLine === null, 'model home replay: 폴짝 kept as given (R1), no template line');
+  var homeJumpDemo = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 1, reaction: '폴짝' }], { by: 'demo' });
+  check(homeJumpDemo.reaction === '졸림' && homeJumpDemo.events[1].reaction === '졸림', 'demo-rules home replay: 폴짝 with nothing new → 졸림 (gating kept for demo rules)');
   /* 재생도 지금 방에서 못 하는 활동은 그 문구·효과를 쓰지 않는다 (맑은 날 비 세기, 포스터 없이 자리 바꾸기) */
   var hasAct = function (id) { return (W.homeActivities || []).some(function (a) { return a.id === id; }); };
   if (hasAct('count_rain')) {
@@ -1308,7 +1319,9 @@ async function drawFingerprint() {
     global.__ppolTest = { forceKind: 'out' };
     t = await BRAIN.plan(inp(seed, { hint: '조개' })); kinds[t.kind]++; parts.push(fp(t));
     delete global.__ppolTest;
-    if (t.kind === 'out') { var rp = BRAIN.replay(JSON.parse(JSON.stringify(t.events)), { by: 'mcp', seed: seed + 1000, now: NOW_DAY, state: st({}) }); parts.push(fp(rp)); }
+    /* 데모 계획의 이벤트를 데모 규칙으로 다시 재생 (by 'demo'). 물결 F 전에는 by 'mcp' 로 쟀다 — 그때 mcp 재생은 데모 규칙과 같은 말을 했다.
+       R1 로 mcp 재생은 반응 줄을 지어내지 않으니(글이 달라질 뿐 난수는 같다) 지문은 데모 규칙 재생으로 재고, mcp 가 같은 난수를 쓰는지는 drawOrderSuite 가 따로 본다 */
+    if (t.kind === 'out') { var rp = BRAIN.replay(JSON.parse(JSON.stringify(t.events)), { by: 'demo', seed: seed + 1000, now: NOW_DAY, state: st({}) }); parts.push(fp(rp)); }
   }
   global.WORLD = prevW;
   var s = parts.join('\n'), h = 0x811c9dc5;
@@ -1321,6 +1334,34 @@ async function drawOrderSuite() {
   if (process.env.FP_PRINT) console.log('  DRAW_FP = ' + r.hash + ' ' + JSON.stringify(r.kinds));
   check(r.kinds.out > 100 && r.kinds.home > 50, 'fingerprint covers out and home turns (' + JSON.stringify(r.kinds) + ', ' + r.n + ' results)');
   check(r.hash === DRAW_FP, 'draw order unchanged: fingerprint ' + r.hash + ' === ' + DRAW_FP + ' (일부러 바꿨으면 FP_PRINT=1 로 보고 DRAW_FP 를 고친다)');
+  /* 모델(mcp)·사람(human) 재생도 데모 규칙 재생과 같은 난수를 같은 자리에서 쓴다: 스티커 자리·종이·기념품은 난수로만 정해진다 */
+  var W = fakeWorld(), prevW = global.WORLD; global.WORLD = W; BRAIN.setWorld(null);
+  var drawErr = [], nOut = 0;
+  for (var seed = 1; seed <= 80; seed++) {
+    global.__ppolTest = { forceKind: 'out' };
+    var t = await BRAIN.plan(baseInput(seed, { online: false }));
+    delete global.__ppolTest;
+    var ev = JSON.stringify(t.events);
+    var a = BRAIN.replay(JSON.parse(ev), { by: 'demo', seed: seed, now: NOW_DAY, state: { visits: {} } });
+    ['mcp', 'human'].forEach(function (by) {
+      var b = BRAIN.replay(JSON.parse(ev), { by: by, seed: seed, now: NOW_DAY, state: { visits: {} } });
+      var ka = [JSON.stringify(a.poster.stickerPos), a.poster.paper, a.receipt.souvenir, a.receipt.rememberedIdx].join('|');
+      var kb = [JSON.stringify(b.poster.stickerPos), b.poster.paper, b.receipt.souvenir, b.receipt.rememberedIdx].join('|');
+      if (ka !== kb) drawErr.push(by + ' seed ' + seed + ': ' + ka + ' vs ' + kb);
+    });
+    nOut++;
+  }
+  global.__ppolTest = { forceKind: 'home' };
+  for (seed = 1; seed <= 40; seed++) {
+    var h = await BRAIN.plan(baseInput(seed, { state: { visits: {}, affinity: {}, lantern: 3, recent: [], todayOut: 0, posters: 2 } }));
+    var hev = JSON.stringify(h.events);
+    var ha = BRAIN.replay(JSON.parse(hev), { by: 'demo', seed: seed, state: { lantern: 3, posters: 2 } });
+    var hb = BRAIN.replay(JSON.parse(hev), { by: 'mcp', seed: seed, state: { lantern: 3, posters: 2 } });
+    if (JSON.stringify(ha.poster.stickerPos) + ha.poster.paper + ha.events[1].t !== JSON.stringify(hb.poster.stickerPos) + hb.poster.paper + hb.events[1].t) drawErr.push('home seed ' + seed);
+  }
+  delete global.__ppolTest;
+  global.WORLD = prevW;
+  check(nOut === 80 && drawErr.length === 0, 'mcp/human replay draws the same numbers as demo-rules replay (sticker pos · paper · souvenir · memory) (' + drawErr.length + ' diffs)' + (drawErr.length ? ' e.g. ' + drawErr[0] : ''));
 }
 
 /* ───────── main ───────── */
