@@ -805,6 +805,15 @@ async function waveESuite(label, W) {
   var M = W.memoTemplates || {}; Object.keys(M.lead || {}).forEach(function (k) { tpls = tpls.concat(M.lead[k]); }); Object.keys(M.next || {}).forEach(function (k) { tpls = tpls.concat(M.next[k]); });
   tpls = tpls.concat(M.nextNone || [], M.home || [], [M.revisit, M.revisitToday, M.revisitUndated].filter(Boolean));
   check(tpls.length > 0 && !tpls.some(function (x) { return /여기까지/.test(x); }), 'no reaction/line/memo template says "여기까지" (' + tpls.filter(function (x) { return /여기까지/.test(x); }).join(' | ') + ')');
+  /* 반응 줄은 '내일 또' 도 말하지 않는다 — 초대는 몇 번이든 되니 '오늘 얘기는 끝, 내일 와' 로 읽히면 안 된다 (메모 tomorrow 는 원래 내일 얘기라 따로) */
+  var rLines = [];
+  Object.keys(W.reactions || {}).forEach(function (r) { var x = W.reactions[r]; rLines = rLines.concat(x.lines || [], x.home || []); Object.keys(x.when || {}).forEach(function (k) { rLines = rLines.concat(x.when[k]); }); });
+  check(!rLines.some(function (x) { return /내일|여기까지/.test(x); }), 'no reaction line says "내일" / "여기까지" (' + rLines.filter(function (x) { return /내일|여기까지/.test(x); }).join(' | ') + ')');
+  /* E1b 옆: world 의 집 뒷면 문구도 '+1' 을 무조건 말하지 않는다 */
+  if (W.strings && W.strings.homeBack != null) {
+    var hb = W.strings.homeBack;
+    check(typeof hb === 'function' ? (!/\+1/.test(hb(false)) && /\+1/.test(hb(true))) : !/\+1/.test(String(hb)), 'strings.homeBack says "+1" only when the lantern really lights (' + (typeof hb === 'function' ? hb(false) + ' / ' + hb(true) : hb) + ')');
+  }
   Object.keys(W.reactions || {}).forEach(function (r) {
     (W.reactions[r].home || []).forEach(function (l) {
       check(!/걸었|다녀왔|갔다 왔|산책|처음|못 읽|오늘은|비가|비 오|빗|맑|날씨/.test(l), 'reactions.' + r + '.home is true on any home turn (no walk, weather, "오늘은"): ' + l);
@@ -846,6 +855,14 @@ async function waveESuite(label, W) {
   check(awk.length === 0, 'no bare "' + zname + '까지 / ' + zname + '에 / 오늘은 ' + zname + '. / ' + zname + '? …" in templated copy (' + awk.length + ' e.g. ' + awk.slice(0, 3).join(' | ') + ')');
   check(rpz.poster.title === zname && rpz.receipt.stops[0].name === zname, 'titles/labels keep the bare name (' + rpz.poster.title + ')');
   if (W.strings && typeof W.strings.affinityNode === 'function') check(!/^[0-9]+ 방/.test(W.strings.affinityNode(zname, 3)), 'strings.affinityNode: ' + W.strings.affinityNode(zname, 3));
+  /* affinityNode 를 쓰는 쪽(방 보기 아이콘)은 줄에서 방 이름을 되읽는다: '…은 N번 왔어' 앞에서 ' 방' 또는 '(이)라는 방' 을 떼면 이름. 모든 방이 그렇게 되읽혀야 한다 */
+  if (W.strings && typeof W.strings.affinityNode === 'function') {
+    var unread = ids.filter(function (id) {
+      var nm = W.nodes[id].name, m = String(W.strings.affinityNode(nm, 3)).match(/^(.+)은 3번 왔어$/), full = m && m[1];
+      return !full || /방 방/.test(full) || [full, full.replace(/ 방$/, ''), full.replace(/이?라는 방$/, '')].indexOf(nm) < 0;
+    });
+    check(unread.length === 0, 'strings.affinityNode: every room name reads back (strip " 방" or "(이)라는 방") (' + unread.slice(0, 3).join(', ') + ')');
+  }
   /* 숫자로 안 시작하는 이름은 그대로 (외출 문장에 "…이라는 방" 이 붙지 않는다) */
   var plainWrapped = 0;
   for (seed = 1; seed <= 60; seed++) { t = await BRAIN.plan(baseInput(seed, { hint: '모자의 역사' })); if (t.kind === 'out' && /이라는 방|[^0-9]라는 방/.test((t.poster.line || '') + (t.memo ? t.memo.tomorrow : '')) && !t.receipt.stops.some(function (s) { return s.nodeId === zid; }) && !(t.memo && t.memo.tomorrow.indexOf(zname) >= 0)) plainWrapped++; }
@@ -1244,6 +1261,68 @@ async function memoSuite(label, W, hasHat) {
   check(BRAIN.daysBetween('2026-10-30', '2026-11-04') === 5 && BRAIN.daysBetween('x', '2026-11-04') === null, 'daysBetween');
 }
 
+/* ───────── 난수 순서 지문 (가짜 WORLD) ─────────
+   두뇌가 뽑는 난수의 개수·순서가 바뀌면(R() 하나를 더 뽑거나 자리를 옮기면) 길·시각·스티커 자리·종이·기념품·반응·한 줄이 함께 밀린다.
+   그걸 이 지문 하나로 잡는다. 가짜 WORLD(이 파일 안)로만 재므로 js/world.js 의 문구·그래프가 바뀌어도 안 깨진다.
+   일부러 난수 순서를 바꿨다면 FP_PRINT=1 node tools/test-brain.js 로 새 값을 보고 DRAW_FP 를 고친다 (커밋 메시지에 이유) */
+var DRAW_FP = '370354b6';   /* HEAD 79d5282 과 물결 E 가 같은 값 (집 반응 고르기·owned·lanternLeft 는 새 난수를 뽑지 않는다) */
+async function drawFingerprint() {
+  /* 반응 줄·한 줄 템플릿을 종류마다 셋씩 (이 함수 안의 글) → 템플릿·기억·반응 줄 고르기 난수까지 지문에 드러나고, 두뇌 기본 문구를 고쳐도 안 깨진다 */
+  var W = fakeWorld(), prevW = global.WORLD;
+  Object.keys(W.reactions).forEach(function (r) { var l = W.reactions[r].lines; W.reactions[r].lines = [l[0], l[0] + ' 둘', l[0] + ' 셋']; });
+  W.lineTemplates = {};
+  ['followedThenLeft', 'followedKept', 'leftKept', 'noHint', 'ignored', 'linger', 'door', 'letter', 'failed', 'wild'].forEach(function (k) {
+    W.lineTemplates[k] = [1, 2, 3].map(function (i) { return k + i + ' {hint} / {mem} / {memory}'; });
+  });
+  global.WORLD = W; BRAIN.setWorld(null);
+  var fpFetch = function (title) {
+    if (title === '문어') return Promise.resolve({ ok: false, reason: 'network' });
+    if (/^(모자|단추|조개|비|구름|쿼카|베레모)$/.test(title)) return Promise.resolve({ ok: true, title: title, extract: title + '는 오래된 것이다. 둘째 문장.', url: 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(title), thumb: null, links: ['베레모', '깃털', '단추', '조개'] });
+    return Promise.resolve({ ok: false, reason: 'missing' });
+  };
+  var allV = {}; Object.keys(W.nodes).forEach(function (k) { allV[k] = 2; });
+  function st(o) { return Object.assign({ visits: {}, affinity: {}, lantern: 1, recent: [], todayOut: 0 }, o || {}); }
+  function inp(seed, o) { return baseInput(seed, Object.assign({ fetchWiki: fpFetch }, o)); }
+  function fp(t) {
+    var r = t.receipt || {}, p = t.poster || {};
+    return [t.kind,
+      (r.stops || []).map(function (s) { return (s.nodeId || ('w:' + (s.name || ''))) + '/' + s.status + '/' + s.ms; }).join(','),
+      (t.events || []).map(function (e) { return e.type + '@' + e.t + (e.target ? ':' + (e.target.id || e.target.title || '') : '') + (e.stopIdx != null ? '#' + e.stopIdx : ''); }).join(','),
+      r.souvenir || '', r.rememberedIdx, t.reaction || '', r.reactionLine || '', r.activity ? r.activity.id : '',
+      p.stickerPos ? [p.stickerPos.x, p.stickerPos.y, p.stickerPos.rot].join(':') : '', p.paper, p.line || '', /\+1/.test(p.back || '') ? '+1' : ''].join('|');
+  }
+  var parts = [], kinds = { out: 0, home: 0, empty: 0 }, seed, t;
+  var variants = [
+    function (s) { return inp(s, {}); },
+    function (s) { return inp(s, { hint: '모자' }); },
+    function (s) { return inp(s, { hint: 'https://example.org/feather/1' }); },
+    function (s) { return inp(s, { hint: '쿼카' }); },
+    function (s) { return inp(s, { online: false, hint: '단추' }); },
+    function (s) { return inp(s, { now: NOW_NIGHT, state: st({ lantern: 5, todayOut: 2, recent: [{ kind: 'out', nStops: 4 }] }) }); },
+    function (s) { return inp(s, { hint: '모자', state: st({ visits: allV, lantern: 3, lastVisit: { hat: '2026-11-01' } }) }); }
+  ];
+  for (seed = 1; seed <= 60; seed++) {
+    for (var v = 0; v < variants.length; v++) { t = await BRAIN.plan(variants[v](seed)); kinds[t.kind]++; parts.push(fp(t)); }
+    global.__ppolTest = { forceKind: 'home' };
+    t = await BRAIN.plan(inp(seed, { state: st({ lantern: 3, posters: 2 }) })); kinds[t.kind]++; parts.push(fp(t));
+    global.__ppolTest = { forceKind: 'out' };
+    t = await BRAIN.plan(inp(seed, { hint: '조개' })); kinds[t.kind]++; parts.push(fp(t));
+    delete global.__ppolTest;
+    if (t.kind === 'out') { var rp = BRAIN.replay(JSON.parse(JSON.stringify(t.events)), { by: 'mcp', seed: seed + 1000, now: NOW_DAY, state: st({}) }); parts.push(fp(rp)); }
+  }
+  global.WORLD = prevW;
+  var s = parts.join('\n'), h = 0x811c9dc5;
+  for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return { hash: ('0000000' + h.toString(16)).slice(-8), kinds: kinds, n: parts.length, text: s };
+}
+async function drawOrderSuite() {
+  section('draw-order fingerprint (fake WORLD)');
+  var r = await drawFingerprint();
+  if (process.env.FP_PRINT) console.log('  DRAW_FP = ' + r.hash + ' ' + JSON.stringify(r.kinds));
+  check(r.kinds.out > 100 && r.kinds.home > 50, 'fingerprint covers out and home turns (' + JSON.stringify(r.kinds) + ', ' + r.n + ' results)');
+  check(r.hash === DRAW_FP, 'draw order unchanged: fingerprint ' + r.hash + ' === ' + DRAW_FP + ' (일부러 바꿨으면 FP_PRINT=1 로 보고 DRAW_FP 를 고친다)');
+}
+
 /* ───────── main ───────── */
 (async function main() {
   try {
@@ -1251,6 +1330,7 @@ async function memoSuite(label, W, hasHat) {
     global.WORLD = W;
     await unitTests();
     await planSuite('fake WORLD', W, true);
+    await drawOrderSuite();
 
     var worldFile = path.join(ROOT, 'js/world.js');
     if (fs.existsSync(worldFile)) {

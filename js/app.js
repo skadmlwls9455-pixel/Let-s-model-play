@@ -47,7 +47,8 @@ var APP = (function () {
   /* 고른 칩(앨범 필터 · 팔레트 · 계절 · 색 프리셋): 보이는 .on 과 읽히는 aria-pressed 를 같이 */
   function chipOn(b, on) { b.classList.toggle('on', !!on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
   /* 방 이름: 등불 칸수에 따라 (CG R17) */
-  function roomTitle(lv) { return lv >= 8 ? '문어의 다락' : lv >= 5 ? '살림이 생긴 다락' : lv >= 2 ? '등불 켜진 다락' : '어두운 다락'; }
+  /* 등불 0칸에도 등불 안에 작은 불씨가 켜져 있다 (밤에도 다락이 깜깜하지 않게, 결정 14) → 처음 단계 이름도 '어두운' 이 아니다 */
+  function roomTitle(lv) { return lv >= 8 ? '문어의 다락' : lv >= 5 ? '살림이 생긴 다락' : lv >= 2 ? '등불 켜진 다락' : '불씨 하나 켜진 다락'; }
   /* 등불 칸이 켜질 때 문어 목소리로 한 줄 (WORLD.roomLevels 순서) */
   var ITEM_LINE = { 1: '창턱에 이끼 화분을 올려뒀어', 2: '낡은 나무 상자를 끌어다 책상 삼았어', 3: '구석에 양초를 켰어. 그림자가 흔들려', 4: '담요 한 장 깔았어. 좀 따뜻해졌어',
     5: '벽에 포스터 붙일 판을 걸었어', 6: '비가 잦아들었어. 창밖이 조용해', 7: '선반을 달았어. 창문에 별도 보여', 8: '커튼을 쳤어. 이제 진짜 내 다락이야' };
@@ -438,7 +439,7 @@ var APP = (function () {
   function partOfDay(hr) { return hr < 5 ? '밤' : hr < 9 ? '아침' : hr < 17 ? '낮' : hr < 19 ? '저녁' : '밤'; }
   function sceneDescText() {
     var lv = S.room.lantern, outside = sceneMode === '3d' && !!scene && typeof scene.place === 'function' && scene.place() === 'exterior';   /* 2D 무대는 바깥을 그리지 않는다 (장소 값만 기억) → 늘 다락 */
-    var where = outside ? '집 바깥' : lv ? '등불 ' + lv + '칸 켜진 다락' : '등불이 다 꺼진 다락';
+    var where = outside ? '집 바깥' : lv ? '등불 ' + lv + '칸 켜진 다락' : '불씨 하나 켜진 다락';   /* 0칸이어도 등불 속 불씨는 켜져 있다 */
     var wx = WX_DESC[weatherFor(lv)], st = oct.state, cname = sceneCeremony();
     /* 출발·귀가 의식은 장면이 스스로 걷고 장소를 바꾼다 (APP 의 oct.state 는 의식이 끝나야 바뀐다) → 의식 이름대로 */
     var who = cname === 'depart' ? '문어는 나가는 중이야.' : cname === 'return' ? '문어는 돌아오는 중이야.'
@@ -591,10 +592,11 @@ var APP = (function () {
     var endDay = hookToday() ? l.date : dateKey(new Date(l.endedAt));   /* 끝난 날 (날짜 훅이 있으면 훅이 정한 그 여행의 날) */
     return endDay !== todayKey() || Date.now() - l.endedAt > NAP_MS;
   }
-  /* 스스로 깸: 작은 혼잣말 '…응?' 은 말풍선만 (로그에 남기지 않는다) */
+  /* 스스로 깸: 작은 혼잣말 '…응?' 은 말풍선만 (로그에 남기지 않는다). 말풍선은 졸린 귓속말 모양, 얼굴은 눈을 뜬 curious —
+     반쯤 감은 calm·sleepy 는 주인이 '-_-^'(화남)로 읽었다 (DIALOGUE_UI: '…응?' + 눈 뜨기) */
   function selfWake() {
     octState('idle'); S.octopus.state = 'idle'; save();
-    bubble('…응?', 1600, 'sleepy'); expressRow('sleepy');
+    bubble('…응?', 1600, 'sleepy'); expressRow('curious');
   }
   var dreamTimer = null;
   function scheduleDreamLabel() {
@@ -769,7 +771,8 @@ var APP = (function () {
     if (busy) return Promise.resolve(null);
     if (!S.octopus.name) { openNameDialog(); return Promise.resolve(null); }
     if (!B || typeof B.plan !== 'function') { toast('두뇌(brain.js)가 아직 없어'); return Promise.resolve(null); }
-    var hint = String(hintText == null ? ($('hint-in') ? $('hint-in').value : '') : hintText).trim();
+    /* 힌트 칸은 개발 모드에만 있다 (결정 18): 플레이어 산책은 늘 빈 힌트. 두뇌의 힌트 이해는 그대로 둔다 (개발·테스트·MCP 이벤트) */
+    var hint = String(hintText == null ? (DEV && $('hint-in') ? $('hint-in').value : '') : hintText).trim();
     var dk = todayKey(), seq = tripsOn(dk).length + 1;
     var seed = B.hashSeed(dk, hint, seq, S.octopus.name);
     var trip = { id: newTripId(seed), date: dk, seq: seq, seed: seed, kind: null, by: 'demo', hint: { raw: hint, match: null, followed: null },
@@ -958,6 +961,8 @@ var APP = (function () {
     if (trip.kind === 'out') o.trips++;
     /* 등불: 초대한 날마다 1칸 — 그날 처음 끝낸 차례(외출·집·빈 차례 모두)만. 포스터·기념품·메모·방문은 차례마다 그대로 쌓인다. 이미 켜진 칸은 줄이지 않는다 */
     if (o.days.indexOf(trip.date) < 0) { o.days.push(trip.date); S.room.lantern = Math.min(8, S.room.lantern + 1); }
+    /* 쪽지 뒷면의 '등불 +1' 은 두뇌가 계획 때(lanternLeft) 쓴 말 — 두 탭이 같은 날 첫 차례를 함께 계획해 다른 탭이 먼저 켰으면 여기선 안 켜졌으니 저장 기록에서도 지운다 */
+    if (!(S.room.lantern > prevL) && trip.poster && typeof trip.poster.back === 'string') trip.poster.back = trip.poster.back.replace(/\. 등불 \+1$/, '');
     /* 기념품: 이미 있는 것이면 선반에 하나 더 놓지 않는다 (두 탭이 같은 걸 계획한 경우 등). 일기에는 가져온 그대로 남는다 */
     var sv = trip.receipt && trip.receipt.souvenir, svNew = !!sv && ownedSouvenirs().indexOf(sv) < 0;
     if (svNew) S.room.souvenirs.push({ id: sv, tripId: trip.id, at: Date.now() });
@@ -1105,6 +1110,8 @@ var APP = (function () {
     if (trip && trip.status !== 'done') return lanternLeft(trip.date);
     return S.room.lantern < 8;
   }
+  /* 출발 행 (힌트 없을 때): 이름 + '산책 나갔어' (날 인사 '뚜루 아직 자고 있어' 와 같은 집 목소리, 조사 없이) */
+  function departLine() { var n = S.octopus.name; return (n ? n + ' ' : '') + '산책 나갔어'; }
   function stopName(ev) { var tg = ev.target || {}; return tg.title || (tg.url ? tg.url.replace(/^https?:\/\//, '').split('/')[0] : '어딘가'); }
   function stopEmoji(ev) { var tg = ev.target || {}; var n = tg.id && nodeOf(tg.id); return (n && n.emoji) || (tg.kind === 'url' ? '🚪' : '❔'); }
   function eventRow(trip, ev) {
@@ -1112,7 +1119,7 @@ var APP = (function () {
     switch (ev.type) {
       case 'depart':
         cls = 'c-amber';
-        frag.appendChild(document.createTextNode(ev.hint ? '힌트: ' + ev.hint : '오늘은 네가 골라봐'));
+        frag.appendChild(document.createTextNode(ev.hint ? '힌트: ' + ev.hint : departLine()));   /* 빈 힌트: 집 목소리 사실 한 줄 — 플레이어가 한 말도, 누가 골랐다는 말도 아니다 (고른 이는 '데모' 꼬리표·일기가 말한다) */
         if (trip.hint && trip.hint.followed === 'ignored' && trip.hint.note) frag.appendChild(h('span', { class: 'sub', text: trip.hint.note }));
         else if (trip.hint && trip.hint.note) frag.appendChild(h('span', { class: 'sub', text: trip.hint.note }));
         break;
@@ -1234,7 +1241,7 @@ var APP = (function () {
       }
     });
     if (!log.querySelector('[data-day="' + today + '"]')) { var sec2 = h('div', { class: 'lday', 'data-day': today }); greetRows().forEach(function (g) { sec2.appendChild(g); }); log.appendChild(sec2); }
-    if (!log.querySelector('.lrow')) log.appendChild(h('div', { class: 'lempty', text: S.octopus.name ? '아직 아무 데도 안 갔어. 힌트를 두고 뽈뽈 다녀와를 눌러 봐 (비워 둬도 돼).' : '문어 이름부터 지어 주자.' }));
+    if (!log.querySelector('.lrow')) log.appendChild(h('div', { class: 'lempty', text: S.octopus.name ? '아직 아무 데도 안 갔어. 뽈뽈 다녀와를 눌러 봐.' : '문어 이름부터 지어 주자.' }));
     logStick = true; scrollLog();
   }
   /* 인사 초상: 자는 중이면 자는 얼굴, 깨어 있으면 웃는 얼굴 (반쯤 감은 차분한 얼굴은 화난 '-_-^' 로 읽힌다는 주인 피드백) */
@@ -1412,8 +1419,7 @@ var APP = (function () {
       return out;
     }
     var hint = trip.hint || {};
-    out += '<div class="kv"><span>힌트</span><b>' + (hint.raw ? esc(hint.raw) + ' → ' + esc(FOLLOW_LABEL[hint.followed] || hint.followed || '') : '없음') + '</b></div>';
-    out += '<div class="hr"></div>';
+    if (hint.raw) out += '<div class="kv"><span>힌트</span><b>' + esc(hint.raw) + ' → ' + esc(FOLLOW_LABEL[hint.followed] || hint.followed || '') + '</b></div><div class="hr"></div>';   /* 힌트가 없으면 줄째 뺀다 (플레이어 산책은 늘 빈 힌트, 결정 18) */
     if (r && r.stops) r.stops.forEach(function (s, i) {
       var st = s.status || 'failed';
       out += '<div class="row"><span class="n">' + (i + 1) + '</span><span>' + emoH(s.emoji || '') + ' ' + esc(s.name || s.title || '') +
@@ -1467,7 +1473,7 @@ var APP = (function () {
     var all = S.trips.filter(function (t) { return t.poster && t.status === 'done'; });
     var sec = $('album-sec'); if (sec) sec.hidden = !all.length;   /* 첫 포스터가 생기기 전엔 앨범 자체를 보이지 않는다 (CG R18) */
     var trips = all.filter(function (t) { return albumFilter === 'all' || t.poster.type === albumFilter; });
-    if (!trips.length) { al.appendChild(h('div', { class: 'lempty', text: albumFilter === 'note' ? '아직 쪽지는 없어. 집에 있는 날 하나 써 둘게.' : albumFilter === 'poster' ? '아직 붙인 포스터가 없어. 힌트를 두고 뽈뽈 다녀와를 눌러 봐 (비워 둬도 돼).' : '아직 붙인 포스터가 없어. 힌트를 두고 뽈뽈 다녀와를 눌러 봐 (비워 둬도 돼).' })); return; }
+    if (!trips.length) { al.appendChild(h('div', { class: 'lempty', text: albumFilter === 'note' ? '아직 쪽지는 없어. 집에 있는 날 하나 써 둘게.' : '아직 붙인 포스터가 없어. 뽈뽈 다녀와를 눌러 봐.' })); return; }
     var newest = null; all.forEach(function (t) { if (t.date === todayKey() && (!newest || (t.endedAt || 0) >= (newest.endedAt || 0))) newest = t; });
     var byDay = {}, days = [];
     trips.forEach(function (t) { if (!byDay[t.date]) { byDay[t.date] = []; days.push(t.date); } byDay[t.date].push(t); });
@@ -1668,8 +1674,9 @@ var APP = (function () {
     frag.appendChild(h('h3', { text: '문어의 요즘' }));
     var tc = topCorners(), tv = topVisited();
     if (!tc.length && !tv) frag.appendChild(h('p', { text: '아직 어디가 좋은지 모르겠어. 더 다녀 봐야 알겠어' }));
-    tc.forEach(function (c) { frag.appendChild(h('p', { text: '요즘 ' + cornerName(c) + ' 방을 자꾸 가네' })); });
-    if (tv) { var nd = nodeOf(tv.id), nm = nd ? nd.name : tv.id; frag.appendChild(h('p', { text: (/방$/.test(nm) ? nm + '은 ' : nm + ' 방은 ') + tv.n + '번 왔어' })); }   /* '느린 글의 방' → '방 방은' 안 되게 */
+    tc.forEach(function (c) { frag.appendChild(h('p', { text: typeof STR.affinityCorner === 'function' ? STR.affinityCorner(cornerName(c)) : '요즘 ' + cornerName(c) + ' 방을 자꾸 가네' })); });
+    /* 방 이름을 문장에 넣을 땐 world 의 규칙으로: '느린 글의 방은' ('방 방은' 안 되게) · 숫자 이름 '0' → '0이라는 방은' (js/ui-art.js syncRoomSheet 가 같은 꼴을 읽는다) */
+    if (tv) { var nd = nodeOf(tv.id), nm = nd ? nd.name : tv.id; frag.appendChild(h('p', { text: typeof STR.affinityNode === 'function' ? STR.affinityNode(nm, tv.n) : (/방$/.test(nm) ? nm + '은 ' : nm + ' 방은 ') + tv.n + '번 왔어' })); }
     frag.appendChild(h('h3', { text: lv >= 7 ? '선반' : '창턱' }));
     var sl = h('div', { class: 'souv-list' });
     if (!S.room.souvenirs.length) sl.appendChild(h('span', { text: '아직 가져온 게 없어' }));
@@ -1967,10 +1974,13 @@ var APP = (function () {
 
   /* ───────────────────────── boot ───────────────────────── */
   function updateHintHelp() {
-    var v = ($('hint-in').value || '').trim(), help = $('hint-help');
-    help.textContent = /^https?:\/\//i.test(v) ? 'URL은 문 앞까지만 가 볼 수 있어(모의 방문)' : v ? '힌트는 넌지시 흘리는 거야. 따라갈지는 문어가 정해' : "비워 두면 '오늘은 네가 골라봐'";
+    var inp = $('hint-in'), help = $('hint-help'); if (!inp || !help) return;
+    var v = (inp.value || '').trim();
+    help.textContent = /^https?:\/\//i.test(v) ? 'URL은 문 앞까지만 가 볼 수 있어(모의 방문)' : v ? '힌트는 넌지시 흘리는 거야. 따라갈지는 문어가 정해' : (STR.emptyHintHelp || '비워 두면 힌트 없이 나가');
   }
   function bind() {
+    /* 힌트 칸: 개발 모드에서만 (index.html 에선 hidden 으로 시작 → 플레이어에겐 자리도 깜빡임도 없다). 결정 18 */
+    var hintBox = $('hint-box'); if (hintBox) hintBox.hidden = !DEV;
     $('btn-go').addEventListener('click', function () { invite(); });
     $('hint-in').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); invite(); } });
     $('hint-in').addEventListener('input', updateHintHelp);
@@ -2011,7 +2021,8 @@ var APP = (function () {
       $('name-dialog').close(); renderStatus(false); renderScene();
       if (first) {
         setGreeting('안녕, ' + v + '. 비 오는 다락방에 온 걸 환영해. ' + greetingByHour(new Date().getHours()) + '.', 'happy');
-        renderLog(); toast('힌트는 비워 둬도 돼. 오늘은 네가 골라봐, 라는 뜻이 되니까.');
+        renderLog();
+        if (DEV) toast(STR.firstToast || '힌트는 비워 둬도 돼.');   /* 힌트 칸이 있는 개발 모드에서만. 플레이어에겐 힌트 얘기 없음 (결정 18, DIALOGUE_UI: 첫 토스트 지움) */
       }
     });
     $('name-dialog').addEventListener('cancel', function (e) { if (!S.octopus.name) e.preventDefault(); });

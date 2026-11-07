@@ -84,7 +84,7 @@
 <div id="status">
   <div class="srow">
     <!-- #brain-tag: 데모 두뇌(규칙)가 고르는 동안 늘 보이는 아주 작은 표시 (정직 표기). 모델(MCP) 여행을 재생하는 동안만 숨긴다 (app.js renderBrainTag) -->
-    <span class="who"><span id="oct-name" class="name">이름 없는 문어</span><span id="brain-tag" class="brain-tag"><span aria-hidden="true">데모</span><span class="sr-only">데모 규칙이 움직이는 중</span></span><span id="room-title" class="room-title">어두운 다락</span></span>
+    <span class="who"><span id="oct-name" class="name">이름 없는 문어</span><span id="brain-tag" class="brain-tag"><span aria-hidden="true">데모</span><span class="sr-only">데모 규칙이 움직이는 중</span></span><span id="room-title" class="room-title">불씨 하나 켜진 다락</span></span>
     <span id="pips" class="pips" role="img" aria-label="등불 0/8"><span class="pips-lbl">등불</span><span class="pip-row"></span><span class="pips-n">0/8</span></span>
     <!-- 소리 토글 (js/audio.js): 꺼진 채로 시작. 누르는 곳 44×44, 보이는 상자 28×28. 켜면 스피커 물결, 끄면 × -->
     <button type="button" id="btn-sound" class="sound-btn" aria-pressed="false" aria-label="소리 켜기" title="소리 켜기">
@@ -95,10 +95,14 @@
 
 <!-- ══ INVITE (§7.3) ══ -->
 <section id="invite" aria-label="초대">
-  <label class="lbl" for="hint-in">힌트 <span class="dim">(선택)</span></label>
-  <input id="hint-in" type="text" maxlength="120" autocomplete="off" enterkeyhint="send"
-         placeholder="주제나 링크를 슬쩍 건네줘">
-  <div id="hint-help" class="help">비워 두면 '오늘은 네가 골라봐'</div>
+  <!-- 힌트 칸은 개발용 (주인 결정 18, docs/NIGHT_LOG.md): 플레이어 화면에선 버튼 줄만. ?dev=1 · localhost · file:// 에서만 app.js 가 보인다 (DEV).
+       hidden 으로 시작해 플레이어에겐 깜빡임·자리 비움이 없다. 두뇌의 힌트 이해는 그대로 (개발·테스트·MCP 이벤트가 쓴다) -->
+  <div id="hint-box" class="hint-box" hidden>
+    <label class="lbl" for="hint-in">힌트 <span class="dim">(선택 · 개발용)</span></label>
+    <input id="hint-in" type="text" maxlength="120" autocomplete="off" enterkeyhint="send"
+           placeholder="주제나 링크를 슬쩍 건네줘">
+    <div id="hint-help" class="help">비워 두면 힌트 없이 나가</div>
+  </div>
   <div class="btn-row">
     <button type="button" class="btn primary pressable" id="btn-go"><span class="go-txt"><span class="emo" aria-hidden="true">🌧</span> 뽈뽈 다녀와</span></button>
     <button type="button" class="btn pressable" id="btn-skip" hidden><span class="emo" aria-hidden="true">⏩</span> 건너뛰기</button>

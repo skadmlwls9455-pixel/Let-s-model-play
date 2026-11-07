@@ -125,6 +125,9 @@ a { color: var(--teal); touch-action: manipulation; }
 .layer.lantern svg .glow { transform-origin: 50% 50%; animation: glow 3.7s ease-in-out infinite; }   /* 글로우 = 미리 그린 레이어의 opacity 만 */
 .layer.light { mix-blend-mode: screen; pointer-events: none; }
 @keyframes glow { 0%, 100% { opacity: .55; } 50% { opacity: .85; } }
+/* 등불 0칸의 불씨 (scene2d PH.ember): 빛무리만 등불과 같은 숨 (3.7s). 동작 줄이기면 아래 규칙이 animation 을 끄고 가운데 값 .7 로 멈춘다 */
+.layer.ember { pointer-events: none; }
+.layer.ember svg .glow { opacity: .7; animation: glow 3.7s ease-in-out infinite; }
 
 /* 창밖 빗줄기: 선형 루프 하나, 패럴랙스 없음 */
 #window-fx { left: 44px; top: 26px; width: 64px; height: 88px; overflow: hidden; pointer-events: none; }
@@ -222,14 +225,15 @@ a { color: var(--teal); touch-action: manipulation; }
 }
 #status .srow { display: flex; align-items: center; gap: 8px; min-height: 28px; width: 100%; flex-wrap: nowrap; }
 #status .who { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; white-space: nowrap; overflow: hidden; }
-/* 이름이 먼저 줄어든다(… --name-min 까지). 방 제목은 줄어들지 않고(flex-shrink 0 — 플렉스 반올림 0.3px 에도 … 가 켜져서), 폭 상한 = 전체 − 이름 최소 폭이라 이름이 최소에 닿은 뒤에만 … */
+/* 이름이 먼저 줄어든다(… --name-min 까지). 방 제목은 줄어들지 않고(flex-shrink 0 — 플렉스 반올림 0.3px 에도 … 가 켜져서), 폭 상한 = 전체 − 이름 최소 폭(− 데모 표시)이라 이름이 최소에 닿은 뒤에만 …
+   이름 자체엔 최소 폭을 두지 않는다(바닥은 방 제목 상한이 지킨다) → 짧은 이름(한두 글자) 뒤에 빈칸 없이 데모 표시가 바로 붙는다 */
 #status .who { --name-min: 39px; }
-#status .name { flex: 0 1 auto; min-width: var(--name-min); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 15px; color: var(--amber); }
+#status .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 15px; color: var(--amber); }
 .room-title { flex: 0 0 auto; max-width: calc(100% - var(--name-min)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
 .room-title::before { content: '·'; margin: 0 6px; color: var(--dim); }
 /* 이름 옆 '데모' 표시 (정직 표기 · 주인: 작게). 줄어들지 않고(flex 0 0) 이름이 먼저 … 로 줄어든다. 숨겨도(모델 여행 재생 중) 오른쪽 등불 칸은 그대로 — .who 가 남는 폭을 다 차지한다 */
-#status .who { --tag-w: 34px; }
-.brain-tag { flex: 0 0 auto; align-self: center; margin-left: 6px; padding: 0 4px; border: 1px solid var(--rim); border-radius: 6px; font-size: 10px; line-height: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+#status .who { --tag-w: 30px; }
+.brain-tag { flex: 0 0 auto; align-self: center; margin-left: 4px; padding: 0 3px; border: 1px solid var(--rim); border-radius: 6px; font-size: 10px; line-height: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; }
 #status .who .room-title { max-width: calc(100% - var(--name-min) - var(--tag-w)); }
 .pips { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pip-row { display: inline-flex; gap: 3px; }
@@ -261,6 +265,8 @@ a { color: var(--teal); touch-action: manipulation; }
 #hint-in::placeholder, .modal-in::placeholder, #d-peek-in::placeholder, #d-json::placeholder { color: var(--muted); opacity: .85; }
 .help { font-size: 12px; color: var(--muted); margin: 4px 0 0; min-height: 1.6em; }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+/* 힌트 칸(#hint-box)은 개발 모드에서만 (결정 18). 숨겨져 있으면 초대 바는 버튼 줄만 — 위 여백은 바의 padding 하나 */
+#hint-box[hidden] + .btn-row { margin-top: 0; }
 .btn-row.center { justify-content: center; }
 .btn {
   position: relative; min-height: 44px; padding: 8px 16px; border-radius: 22px;
@@ -582,7 +588,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   border: 2px solid var(--line); border-top: 0; color: var(--fg); font-family: var(--f-meta); font-size: 16px; line-height: 30px; padding: 6px 16px; min-height: 0;
 }
 :root[data-font="pixel"] #status .srow { gap: 8px; min-height: 27px; }
-:root[data-font="pixel"] #status .who { --name-min: 44px; }   /* Galmuri9 20px 한 글자 + … (40px, 한 글자·… 가 각각 20px) + 여유 — 320px 에서도 이름 옆 데모 표시가 들어간다 */
+:root[data-font="pixel"] #status .who { --name-min: 40px; }   /* Galmuri9 20px 한 글자 + … (각 20px — 예전 52px 도 보이는 건 같은 "한 글자…" 였다) */
 :root[data-font="pixel"] #status .name { font-family: var(--f-body); font-weight: 400; font-size: 20px; line-height: 30px; color: var(--fg); }
 :root[data-font="pixel"] .room-title { font-family: var(--f-meta); font-size: 16px; line-height: 30px; color: var(--muted); }
 :root[data-font="pixel"] .room-title::before { content: '·'; margin: 0 6px; color: var(--line); }
@@ -598,6 +604,15 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   transition: background-color var(--t-scene) var(--ease-enter), transform var(--t-scene) var(--ease-enter);
 }
 :root[data-font="pixel"] .pip.on { background: var(--amber-fill); box-shadow: inset 0 0 0 1px var(--line), inset 2px 2px 0 var(--amber-hi); text-shadow: none; }
+/* 좁은 폰(< 380px): 이름 옆 '데모' 표시가 차지하는 폭만큼 오른쪽 여백을 조금 덜어 흔한 이름이 데모 표시 전처럼 다 보이게 (320px: 픽셀 세 글자 · 시스템 네 글자, 340px: 픽셀 네 글자).
+   소리 상자 왼쪽 여유 −4px, 시스템은 등불 칸 틈 4→2, 픽셀은 줄 틈 8→6 · '등불' 글자 뒤 −2px(글자 자체 여백이 있어 보이는 틈은 남는다). 등불 네모 크기·네모 사이 틈은 그대로 */
+@media (max-width: 379px) {
+  #status .sound-btn { margin-left: -8px; }
+  #status .pips { gap: 2px; }
+  :root[data-font="pixel"] #status .srow { gap: 6px; }
+  :root[data-font="pixel"] #status .pips { gap: 4px; }
+  :root[data-font="pixel"] #status .pips-lbl { margin-right: -2px; }
+}
 :root[data-font="pixel"] .fchip {
   border-radius: 0; border: 2px solid var(--line); background: var(--panel2); color: var(--muted);
   font-family: var(--f-meta); font-size: 16px; line-height: 16px; padding: 4px 10px; min-height: 32px;

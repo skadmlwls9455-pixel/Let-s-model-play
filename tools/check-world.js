@@ -294,6 +294,36 @@ var WHEN_KEYS = ['first', 'missed', 'long'];
 (W.reactions['졸림'].lines || []).forEach(function (l) {
   ok(!/걸었|다녀왔|갔다 왔|산책/.test(l), '졸림 lines 는 집에 있는 날에도 쓰인다 — 걸은 얘기 금지: ' + l);
 });
+/* 반응 줄은 '여기까지'·'내일' 을 말하지 않는다 — 초대는 몇 번이든 되니 '오늘 놀이는 끝' 으로 읽히면 안 된다 (test-brain 과 같은 규칙) */
+Object.keys(W.reactions).forEach(function (r) {
+  var rx = W.reactions[r] || {}, all = (rx.lines || []).concat(Array.isArray(rx.home) ? rx.home : []);
+  Object.keys(rx.when || {}).forEach(function (k) { all = all.concat(rx.when[k] || []); });
+  all.forEach(function (l) { ok(!/여기까지|내일/.test(l), '반응 ' + r + ' 의 줄이 놀이가 끝났다고 읽힘 ("여기까지"/"내일"): ' + l); });
+});
+/* 집에 있는 날 반응 (DESIGN §5.9, 두뇌 homeReactionCands · homeLines). 집에선 처음 온 데·읽은 게 없으니 후보는 졸림·덤덤만.
+   reactions[r].home = 집에서만 쓰는 줄: 집 차례 어디서든 참이어야 한다 — 걸은 일·다녀온 일·처음·못 읽음·날씨·'오늘은'(같은 날 나갔다 온 뒤일 수도) 없음.
+   덤덤 lines 는 '다녀왔어' 를 말하니, 덤덤을 후보로 둔 활동이 있으면 덤덤 home 줄이 있어야 한다 (없으면 두뇌가 조용히 졸림으로 바꾼다). test-brain 과 같은 규칙 */
+var HOME_REACTS = ['졸림', '덤덤'];
+var HOME_LINE_BAD = /걸었|다녀왔|갔다 왔|산책|처음|못 읽|오늘은|비가|비 오|비 와|빗|눈이 와|눈 오|맑|흐려|흐린|날씨|안개|천둥/;
+Object.keys(W.reactions).forEach(function (r) {
+  var hm = W.reactions[r] && W.reactions[r].home;
+  if (hm === undefined) return;
+  ok(HOME_REACTS.indexOf(r) >= 0, '반응 ' + r + ' 에 home 줄이 있다 — 집에선 졸림·덤덤만 고를 수 있다');
+  ok(Array.isArray(hm) && hm.length >= 1 && hm.every(function (l) { return typeof l === 'string' && l.trim(); }), '반응 ' + r + ' home 은 비지 않은 문자열 배열');
+  (Array.isArray(hm) ? hm : []).forEach(function (l) {
+    ok(!HOME_LINE_BAD.test(String(l)), '반응 ' + r + ' home 줄은 어느 집 차례에도 참이어야 해 (걸은 일·처음·못 읽음·날씨·"오늘은" 없음): ' + l);
+  });
+});
+acts.forEach(function (a) {
+  if (a.reactions === undefined) return;
+  var rs = a.reactions;
+  ok(Array.isArray(rs) && rs.length >= 1, '활동 ' + a.id + ' reactions 는 비지 않은 배열');
+  (Array.isArray(rs) ? rs : []).forEach(function (r, i) {
+    ok(HOME_REACTS.indexOf(r) >= 0, '활동 ' + a.id + ' reactions 에 ' + r + ' — 집에선 졸림·덤덤만 (처음 온 데·읽은 게 없다)');
+    ok(rs.indexOf(r) === i, '활동 ' + a.id + ' reactions 에 ' + r + ' 가 두 번');
+    if (r !== '졸림') ok(W.reactions[r] && Array.isArray(W.reactions[r].home) && W.reactions[r].home.length >= 1, '활동 ' + a.id + ' 이 ' + r + ' 을 후보로 두니 reactions.' + r + '.home 줄이 있어야 해 (' + r + ' lines 는 다녀온 얘기)');
+  });
+});
 
 /* ---- 템플릿 ---- */
 ['followedThenLeft', 'followedKept', 'noHint', 'ignored', 'linger'].forEach(function (k) {

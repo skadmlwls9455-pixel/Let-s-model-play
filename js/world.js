@@ -1257,8 +1257,8 @@ var WORLD = (function () {
     { id: 'moss', memo: '이끼 화분을 오래 들여다봤어', line: '창턱 이끼 화분을 오래 들여다봤어',
       detail: '이끼는 뿌리가 없어. 온몸으로 물을 마셔.\n오늘은 흠뻑이야.',
       anchor: 'window', weight: 2, requiresLantern: 1, reactions: ['덤덤'] },
-    { id: 'reread_poster', memo: '포스터 뒷면을 다시 읽었어', line: '어제 포스터 뒷면을 다시 읽었어',
-      detail: '영수증 글씨가 작아서 가까이 가서 봤어.\n다 기억나더라.',
+    { id: 'reread_poster', memo: '포스터 뒷면을 다시 읽었어', line: '벽 포스터 뒷면을 다시 읽었어',   /* '어제' 아님: 같은 날 앞 산책의 포스터일 수도 있다 */
+      detail: '일기 글씨가 작아서 가까이 가서 봤어.\n다 기억나더라.',
       anchor: 'board', weight: 2, requiresPoster: true, reactions: ['덤덤'] },
     { id: 'rearrange', memo: '벽 포스터 자리를 한 칸 바꿨어', line: '벽 포스터 자리를 한 칸 바꿨어',
       detail: '왼쪽 게 더 잘 보여서.\n벽도 가끔은 바뀌어야 해.',
@@ -1298,8 +1298,8 @@ var WORLD = (function () {
       '못 읽은 데도 있었어. 그런 날도 있어'
     ] } },
     '졸림': { emoji: '😴', lines: [
-      '눈이 감겨. 내일 또 이야기해 줄게',
-      '하품이 나와. 조금만 쉴게'   /* 문어 자신의 상태만. '오늘은 여기까지' 처럼 놀이가 끝났다는 말로 읽히지 않게 */
+      '눈이 감겨. 잠깐 자고 일어날게',
+      '하품이 나와. 조금만 쉴게'   /* 문어 자신의 상태만. '오늘은 여기까지'·'내일 또' 처럼 오늘 놀이가 끝났다는 말로 읽히지 않게 (초대는 몇 번이든 되고, 낮잠은 20분쯤이면 깬다) */
     ], when: { long: [
       '많이 걸었어. 담요 속으로 들어갈래'
     ] } }
@@ -1415,8 +1415,8 @@ var WORLD = (function () {
   /* ---------- UI 문구 (세계와 묶이는 것만; app 이 더 보탤 수 있음) ---------- */
   var strings = {
     appTitle: '뽈뽈 문어',
-    hintPlaceholder: '관심 가는 주제나 URL을 넌지시… 비워 두면 네가 골라',
-    emptyHintHelp: "비워 두면 '오늘은 네가 골라봐'",
+    hintPlaceholder: '주제나 링크를 슬쩍 건네줘',   /* 힌트 칸은 개발용 (결정 18) — index.html #hint-in 과 같은 글 */
+    emptyHintHelp: '비워 두면 힌트 없이 나가',   /* 빈 힌트를 '네가 골라봐' 처럼 플레이어 말로 바꾸지 않는다 */
     urlHintHelp: 'URL은 문 앞까지만 가 볼 수 있어(모의 방문)',
     goButton: '뽈뽈 다녀와',
     awayButton: '다녀오는 중…',
@@ -1425,7 +1425,7 @@ var WORLD = (function () {
     firstGreeting: function (name) {
       return '안녕, ' + name + '. 비 오는 다락방에 온 걸 환영해.';
     },
-    firstToast: '힌트는 비워 둬도 돼. 오늘은 네가 골라봐, 라는 뜻이 되니까.',
+    firstToast: '힌트는 비워 둬도 돼.',   /* 개발 모드에서만 (플레이어 화면엔 힌트 칸이 없다) */
     namePrompt: '문어 이름을 지어 줘',
     nameExamples: '예: 뚜루, 안개, 삐죠…',
     nameLater: '이름은 천천히 불러 줘도 괜찮아.',
@@ -1436,19 +1436,19 @@ var WORLD = (function () {
     firstVisit: '처음 온 곳이야',
     letterRoomEmpty: '아직 비어 있었어',
     slowRoomNote: '읽은 것 없음',
-    homeBack: '오늘은 집. 등불 +1',
+    homeBack: function (lanternLit) { return lanternLit ? '오늘은 집. 등불 +1' : '오늘은 집'; },   /* '+1' 은 그 차례로 칸이 실제로 켜질 때만 (두뇌 homeTripFrom 의 lanternLeft 와 같은 규칙) */
     homeStay: '오늘은 집에 있을래. 그냥 그러고 싶어서.',   /* 날씨는 말하지 않는다 (두뇌는 날씨를 모른다) */
     emptyTurn: '…',
     albumEmpty: '아직 포스터가 없어. 첫 뽈뽈을 보내 봐',
     albumFilters: { all: '전체', poster: '포스터', note: '쪽지' },
     logTitle: '오늘의 산책',
     albumTitle: '추억 앨범',
-    receiptTitle: '영수증',
+    receiptTitle: '일기',   /* 화면 말은 '일기' (데이터 이름 receipt 는 그대로) */
     nthTrip: function (n) { return n + '번째 뽈뽈'; },
     demoChip: '데모 두뇌',
     demoExplain: '이 문어는 데모 두뇌가 움직여. 작은 규칙 뭉치가 어디로 갈지, 집에 있을지, 무엇을 기억할지 고르는 거야. 진짜 모델이 고르는 건 MCP 연결 뒤 이야기야.',
     honestyLine: '지금은 작은 규칙 뭉치가 문어를 움직여. 진짜 모델이 고르는 건 MCP 연결 뒤 이야기야.',
-    demoWarning: "여기 버튼은 문어 대신 사람이 고르는 거야. 영수증에 '사람이 조작'으로 남아.",
+    demoWarning: "여기 버튼은 문어 대신 사람이 고르는 거야. 일기에 '사람이 조작'으로 남아.",   /* index.html #demo .warn-line 과 같은 글 */
     wikiLicense: '위키미디어 공용',
     wikiSource: '출처 ↗',
     photoCredit: '사진: 위키미디어 공용',

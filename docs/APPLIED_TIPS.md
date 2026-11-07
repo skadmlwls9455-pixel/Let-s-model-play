@@ -46,7 +46,7 @@
 | 실패·모의는 회색, 빨강 금지, 글리프로 구분 (CG R22, UI R17) | Project Horseshoe "Coziness" (companion-loops S21) | `js/app.js` `STATUS_ICON`, `cls = … 'c-mute'` 주석 "빨강 없음" | ✅ |
 | 한 줄은 문어 1인칭, 통계 없음 (CG R11) | Finch (companion-loops S19) | `js/world.js` `lines` 템플릿 뱅크 (`'{hint}, 끝까지 봤어. {memory}'`) | ✅ |
 | 등불은 초대마다 +1(가든 집이든), 여행 횟수는 외출만 (CG R16) | https://github.com/doublespeakgames/adarkroom | `js/app.js` `commitTrip`: `if (trip.kind === 'out') o.trips++`; `octopus.invites` | ✅ |
-| 방 상태 한 줄 + 방 제목 단계 + `document.title` 반영 (CG R17) | adarkroom `script/room.js` | `js/world.js` `roomLevels[]`, `js/app.js` `roomTitle(lv)` '어두운 다락→등불 켜진 다락→살림이 생긴 다락→문어의 다락', `document.title =` | ✅ |
+| 방 상태 한 줄 + 방 제목 단계 + `document.title` 반영 (CG R17) | adarkroom `script/room.js` | `js/world.js` `roomLevels[]`, `js/app.js` `roomTitle(lv)` '불씨 하나 켜진 다락→등불 켜진 다락→살림이 생긴 다락→문어의 다락' (0칸에도 등불 속 불씨, 결정 14), `document.title =` | ✅ |
 | 등불 칸 켜질 때 문어 목소리로 가구 한 줄 (CG R19) | adarkroom 환경 서사 (companion-loops S12) | `js/app.js` `ITEM_LINE` ('창턱에 이끼 화분을 올려뒀어') | ✅ |
 | 의미 있을 때만 UI 노출: 첫 포스터 전 앨범 숨김, 첫 뒤집기까지만 힌트, 여행 수는 첫 외출 후 (CG R18) | adarkroom "check traps" | `index.html` `#album-sec hidden`, `js/app.js` `sec.hidden = !all.length`, `pd-hint`, `stat-trips.hidden` | ✅ |
 | 진행 중 여행은 다음 열기에 즉시 해소, 대기 강요 없음 (CG R6, R24) | Neko Atsume (companion-loops S9) | `js/app.js` `resumeRunning()` → `status === 'running'` 트립을 `online:false` 로 완결, '네가 없는 동안 다녀왔어' | ⚠️ 해소는 되지만 타이머가 `Date.now()-departedAt` 파생이 아니라 `setTimeout` 체인; `#btn-skip` 건너뛰기 버튼이 있음 |

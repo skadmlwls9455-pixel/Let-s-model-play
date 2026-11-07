@@ -45,7 +45,7 @@
 
   var DEFAULT_HOME = [
     { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', detail: '마흔까지 세고 잊었어. 다시 하나부터.', anchor: 'window', weight: 3, emoji: '🌧', maxLantern: 6, reactions: ['졸림'] },
-    { id: 'reread_poster', line: '어제 포스터 뒷면을 다시 읽었어', detail: '영수증 글씨가 조금 번져 있었어.', anchor: 'crate', weight: 2, emoji: '🧾', minLantern: 1, requiresPoster: true, reactions: ['덤덤'] },
+    { id: 'reread_poster', line: '벽 포스터 뒷면을 다시 읽었어', detail: '일기 글씨가 조금 번져 있었어.', anchor: 'crate', weight: 2, emoji: '📖', minLantern: 1, requiresPoster: true, reactions: ['덤덤'] },
     { id: 'nap', line: '담요 속에서 낮잠', detail: '담요 안은 조용했어.', anchor: 'blanket', weight: 3, emoji: '😴', reactions: ['졸림'] },
     { id: 'swap_posters', line: '포스터 위치를 바꿔 봤어', detail: '왼쪽 걸 오른쪽으로. 그게 다야.', anchor: 'board', weight: 1, emoji: '🖼', minLantern: 2, requiresPoster: true, effect: 'rotatePosters', reactions: ['덤덤'] },
     { id: 'watch_moss', line: '이끼 화분을 오래 들여다봤어', detail: '어제보다 조금 더 초록인 것 같아.', anchor: 'window', weight: 2, emoji: '🪴', minLantern: 1, reactions: ['덤덤'] },
