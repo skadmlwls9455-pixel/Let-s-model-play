@@ -21,7 +21,7 @@ var SCENE3D = (function () {
   /* 놀이방 (8물결, docs/SCENE.md '놀이방'): 다락·바깥처럼 따로 그리는 세 번째 장소 'play'. 바닥 ±PLAY_R · 벽 PLAY_H (받침 포함 화면 높이 ≈ 135 아트px). 처음 들어갈 때만 만든다.
      문 앞 앵커 = 나중의 걸어 다니는 내 캐릭터가 문을 열기 전에 서는 자리 (각 장소 그룹 좌표, 그룹은 원점). 문어 앵커(ANCHORS)와 따로 — 문어는 놀이방에 안 간다 */
   var PLAY_R = 1.7, PLAY_H = 2.2;   /* ROOM_EXPANSION §5.2 의 3.6 × 2.4 m 는 360×640 장면(139 아트px)에 145 px 라 위아래가 잘려, 카드의 둘째 후보 3.4 × 2.2 m (≈ 135 px) 로 — scene-api.md '크기' */
-  var DOOR_ANCHORS = { atticPlayDoor: [1.95, 0, 1.4], playAtticDoor: [-1.35, 0, -0.33] };
+  var DOOR_ANCHORS = { atticPlayDoor: [1.95, 0, 1.92], playAtticDoor: [-1.35, 0, -0.33] };   /* 내 캐릭터가 문을 열기 전에 서는 자리. 다락 문은 +x 벽에서 카메라 쪽으로 서 있어 문 바로 안쪽(z 1.4)에 서면 문짝 뒤에 다 가려진다 → 손잡이 쪽 옆(z 1.92, 문 끝 1.76 에서 0.16 m)에 선다 · 놀이방 문은 −x 벽이라 문 앞(x −1.35)이 문보다 앞에 보인다 */
   var EXPRESSIONS = ['idle', 'blink', 'happy', 'pet', 'sleep', 'curious', 'calm', 'sleepy'];   /* 표정 8 (DESIGN §15.2) — 장면과 초상이 setExpression 하나로 공유 */
 
   /* ───────────────────────── 색 수학 (sRGB ↔ 선형 ↔ OKLab) ───────────────────────── */
@@ -627,6 +627,7 @@ var SCENE3D = (function () {
       hemi.intensity = base.hemiI + Math.max(0, FL.hemiI - base.hemiI) * wh;
       fill.intensity = base.fillI + Math.max(0, FL.fillI - base.fillI) * w;
       toon.emissive.copy(flC(FL.glow)).multiplyScalar(nk * (FL.glow0 + (FL.glow8 - FL.glow0) * clamp(st.lantern / 8, 0, 1)));
+      toonP.emissive.copy(toon.emissive);   /* 내 캐릭터도 밤엔 같은 첫 불 자체광 */
     }
     function setTime(h, instant) {
       st.hour = h; var ph = LIGHTS[phaseOf(h)];
@@ -654,12 +655,17 @@ var SCENE3D = (function () {
        빨판·다리 밑면이 다리 위로 비친다 (repro: 프레임당 최대 96 px). 그래서 구멍도 문어 깊이는 쓰고 색은 뒤 그대로(SrcAlpha 섞기), 알파 0 을 표시로 남겨
        후처리가 구멍 픽셀엔 잉크선·하이라이트·비네트를 안 긋는다 (FRAG om). 섞기·정렬·그림자·접지 그림자는 fadeLook 이 바꾼다 */
     var OCT_FADE = { value: 1 };
-    toon.onBeforeCompile = function (sh) {
-      sh.uniforms.uOctFade = OCT_FADE;
-      sh.fragmentShader = 'uniform float uOctFade;\nfloat octBayer2(vec2 a){ a = mod(floor(a), 2.0); return fract(a.x * 0.5 + a.y * 0.75); }\n' + sh.fragmentShader
-        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= diffuseColor.rgb;')
-        .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n\tgl_FragColor.a = octBayer2(gl_FragCoord.xy * 0.5) * 0.25 + octBayer2(gl_FragCoord.xy) < uOctFade ? 1.0 : 0.0;');
-    };
+    function toonFadeHook(FADE_U) {   /* 같은 글자의 훅 → 같은 프로그램 캐시 키 (customProgramCacheKey = onBeforeCompile.toString()) — 문어 툰과 내 캐릭터 툰이 셰이더 하나를 나눠 쓰고 유니폼(사라짐 몫)만 따로 */
+      return function (sh) {
+        sh.uniforms.uOctFade = FADE_U;
+        sh.fragmentShader = 'uniform float uOctFade;\nfloat octBayer2(vec2 a){ a = mod(floor(a), 2.0); return fract(a.x * 0.5 + a.y * 0.75); }\n' + sh.fragmentShader
+          .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= diffuseColor.rgb;')
+          .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n\tgl_FragColor.a = octBayer2(gl_FragCoord.xy * 0.5) * 0.25 + octBayer2(gl_FragCoord.xy) < uOctFade ? 1.0 : 0.0;');
+      };
+    }
+    toon.onBeforeCompile = toonFadeHook(OCT_FADE);
+    var PL_FADE = { value: 1 }, toonP = keep(new T.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: toon.gradientMap }));   /* 내 캐릭터 툰: 문어와 같은 3단 · 정점색 · 밤 자체광, 사라짐은 늘 1 (문어가 체크로 사라져도 그대로) */
+    toonP.onBeforeCompile = toonFadeHook(PL_FADE);
     var rtex = keep(radialTex());
     var decalMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C('#1b1522'), transparent: true, opacity: 0.42, depthWrite: false }));
     var glowMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[3]), transparent: true, opacity: 0.55, depthWrite: false }));
@@ -1341,6 +1347,124 @@ var SCENE3D = (function () {
         } };
       });
     }
+    /* ── 내 캐릭터 (걸어 다니는 내 캐릭터 v0 · ROADMAP '그 뒤' · 주인 11-07 "캐릭터가 그 방문 앞으로 가면 끼익 열리면서") ──
+       레퍼런스: 파넬라 '나나곰쿠키' 이미지 메이커 (panela.link/@nanagom — 머리가 키의 절반, 좁은 어깨, 가는 다리가 따로 보이는 단발 치비 · 큰 동그란 눈 + 흰 글린트 · 홍조)
+       + 4방향 걷기 스프라이트(서기 · 왼발 · 서기 · 오른발 4프레임). 문어와 같은 길로 만든다: 원시 도형 + 정점색 + 툰 3단 + 같은 후처리(팔레트 스냅 · 외곽선 · 디더),
+       위치는 화면 픽셀 격자 스냅(snapScreen) · 통통은 세로 정수 px(snapUp) · 걸음은 **간 거리**로 도는 위상 · 방향은 45° 계단(스프라이트처럼 8방향).
+       크기(m, 발바닥 y 0): 키 PL_H 1.29 (p=2 에서 35 px · 문어 0.76 m 보다 머리 하나 크다 · 문 1.68 m 아래) · 머리 지름 0.66 = 키의 51 % (레퍼런스 피부 실루엣 52 %) ·
+       몸통 0.63→0.30 · 다리 0.33→0.06 (레퍼런스 21 %) · 신발 0.06. 6 cm 미만은 안 만든다 (글린트 · 단추 · 입만 1 px 점·선으로 의도).
+       색은 팔레트 램프에서만 고른다 (apollo 로 스냅해도 제자리): 머리칼 = paper·amber 섞은 연한 금발 · 살결 = paper·dusk · 원피스 navy · 깃·소매·타이츠 paper · 리본 rose · 신발 wood.
+       재질 toonP = 문어 툰과 같은 셰이더(같은 onBeforeCompile 글자 → 프로그램 공유, 유니폼만 따로)라 문어가 체크로 사라져도 내 캐릭터는 그대로. 밤 자체광(첫 불)은 문어와 같이 받는다.
+       방: 다락 ↔ 놀이방을 문으로 오간다 (문어는 놀이방에 안 간다). 쉬는 자리 PL_REST · 문 앞은 DOOR_ANCHORS. 바깥엔 안 나간다 — 바깥이 보이는 동안은 다락 그룹과 같이 숨는다.
+       흐름: 문 톡 → playerWalkTo(문 앞 앵커: 1.2 m/s, 서 있다 출발하면 120 ms 예비 눌림) → 도착해 문을 보고 섬 → (goRoom) 문 열림 → 가로 전환 가운데 프레임에 plEnter(건너편 문 앞, 방 안쪽을 보고)
+       → 문 닫힘 → 쉬는 자리로 걷는다. 모션 감소 = 걷기 없이 바로. 탭 숨음 · 컨텍스트 잃음 · 준비 전 = 바로 (Promise 가 걸려 있지 않게, walkPoint 와 같다). */
+    var PL_H = 1.29, PL_HEAD_R = 0.33, PL_HEAD_Y = 0.96, PL_SPEED = 1.2, PL_STRIDE = 0.5, PL_ANTIC = 0.12, PL_LEG = 0.45, PL_ARM = 0.3;
+    var PL_REST = { attic: [1.65, 0, -0.1], play: [0.15, 0, 0.45] };   /* 쉬는 자리: 다락 오른쪽 — 가운데 문어와 상자 사이, 화면에서 문어(가운데 앵커)·문짝(x−z 0.62~1.34)과 안 겹친다 (x−z 1.75) · 문 앞까지 1.5 m · 놀이방 빈 바닥 가운데 (문까지 1.7 m) */
+    var PL_FACE = { atticPlayDoor: Math.PI / 2, playAtticDoor: -Math.PI / 2 };   /* 문 앞에 서서 보는 쪽 (다락 문은 +x 벽 · 놀이방 문은 −x 벽) — 들어올 땐 반대(방 안쪽) */
+    var PLC = (function () {
+      var skin = mixHex(PAL.paper[3], PAL.dusk[2], 0.22);
+      return { skin: skin, hair: '#ffd27a', eye: '#3b3640',   /* 머리칼: 툰 3단이 apollo 에서 #e8c170 · #de9e41 · (빛 받은 면) #e7d5b3 으로 앉는 따뜻한 금발 — paper 쪽으로 섞으면 낮에 #d0da91(올리브)로 튀었다 */ white: PAL.white, mouth: PAL.rose[1], blush: mixHex(skin, PAL.dusk[1], 0.55),
+        dress: PAL.navy[3], hem: PAL.navy[2], collar: PAL.paper[3], sleeve: PAL.paper[3], bow: PAL.rose[1], button: PAL.paper[3], tights: PAL.paper[2], shoe: PAL.slate[1], ribbon: PAL.rose[1] };   /* 신발은 어두운 회색 (갈색은 바닥 널에 묻힌다) */
+    })();
+    var plG = new T.Group(), plBody = new T.Group(); plG.name = 'player'; plG.add(plBody); atticG.add(plG);
+    function plTaper(list, a, b, r0, r1, hex, sides) { list.push({ g: new T.CylinderGeometry(r1, r0, Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), sides || 8), m: segM(a, b), c: hex }); }
+    /* 머리 1메시: 얼굴 구 + 머리칼(윗덮개 + 옆·뒤 단발, 앞 90° 는 비워 얼굴이 보인다) + 홍조 2 + 입 + 옆 리본 + 글린트 2. 눈은 따로(깜빡임) */
+    var plHeadParts = [
+      { g: new T.SphereGeometry(PL_HEAD_R, 18, 13), m: M(0, PL_HEAD_Y, 0, 0, 0, 0, 1, 0.98, 0.94), c: PLC.skin },
+      { g: new T.SphereGeometry(0.355, 18, 10, 0, Math.PI * 2, 0, 1.55), m: M(0, 0.99, -0.03), c: PLC.hair },              /* 윗덮개: 앞 끝(앞머리 선)이 눈 위 y ≈ 1.0 */
+      { g: new T.SphereGeometry(0.355, 18, 8, Math.PI * 0.75, Math.PI * 1.5, 1.55, 1.05), m: M(0, 0.99, -0.03), c: PLC.hair },   /* 옆·뒤 단발: 턱 높이(y ≈ 0.69)까지 */
+      { g: new T.SphereGeometry(0.075, 8, 6), m: M(0, 0.985, 0.30, 0, 0, 0, 1, 0.7, 0.6), c: PLC.hair },                   /* 앞머리 가운데 갈래 (레퍼런스의 V 앞머리) */
+      { g: new T.CircleGeometry(0.048, 8), m: M(-0.215, 0.835, 0.235, 0, -0.75, 0), c: PLC.blush }, { g: new T.CircleGeometry(0.048, 8), m: M(0.215, 0.835, 0.235, 0, 0.75, 0), c: PLC.blush },
+      { g: box(0.075, 0.035, 0.03), m: M(0, 0.79, 0.30), c: PLC.mouth },                                                      /* 작은 입 (p=2 에서 2×1 px) */
+      { g: new T.SphereGeometry(0.045, 7, 5), m: M(0.27, 1.13, 0.19), c: PLC.ribbon }, { g: new T.SphereGeometry(0.045, 7, 5), m: M(0.32, 1.07, 0.18), c: PLC.ribbon }, { g: new T.SphereGeometry(0.03, 6, 4), m: M(0.295, 1.10, 0.195), c: PLC.ribbon },   /* 오른쪽 머리 작은 리본 (고리 2 + 매듭, 머리칼 구 3 cm 밖) */
+      { g: new T.SphereGeometry(0.048, 6, 5), m: M(-0.21, 0.955, 0.295), c: PLC.white }, { g: new T.SphereGeometry(0.048, 6, 5), m: M(0.15, 0.955, 0.295), c: PLC.white }];   /* 글린트 (각 눈 왼쪽 위, 1~2 px) */
+    var plHead = new T.Mesh(keep(mergeParts(plHeadParts)), toonP); plHead.castShadow = true; plHead.receiveShadow = true; plBody.add(plHead);
+    var plEyes = new T.Mesh(keep(mergeParts([[-0.18, 0.914, 0.26], [0.18, 0.914, 0.26]].map(function (e) { return { g: new T.SphereGeometry(0.075, 10, 8), m: M(e[0], e[1], e[2], 0, 0, 0, 0.95, 1.15, 0.45), c: PLC.eye }; }))), toonP);
+    plEyes.receiveShadow = true; plBody.add(plEyes);   /* 큰 동그란 눈 2 (0.14 × 0.17 m ≈ 4 × 5 px) — 깜빡임은 y 눌림 */
+    /* 몸통 1메시: 원피스(A 라인) + 밑단 띠 + 흰 깃 + 리본 매듭 + 단추 2 */
+    var plTorso = new T.Mesh(keep(mergeParts([
+      { g: new T.CylinderGeometry(0.15, 0.21, 0.33, 12), m: M(0, 0.465, 0), c: PLC.dress }, { g: new T.CylinderGeometry(0.212, 0.215, 0.035, 12), m: M(0, 0.3175, 0), c: PLC.hem },
+      { g: new T.CylinderGeometry(0.165, 0.15, 0.05, 12), m: M(0, 0.625, 0), c: PLC.collar },
+      { g: new T.SphereGeometry(0.042, 7, 5), m: M(-0.05, 0.585, 0.165), c: PLC.bow }, { g: new T.SphereGeometry(0.042, 7, 5), m: M(0.05, 0.585, 0.165), c: PLC.bow }, { g: new T.SphereGeometry(0.028, 6, 4), m: M(0, 0.585, 0.19), c: PLC.bow },
+      { g: new T.SphereGeometry(0.022, 5, 4), m: M(0, 0.50, 0.185), c: PLC.button }, { g: new T.SphereGeometry(0.022, 5, 4), m: M(0, 0.42, 0.20), c: PLC.button }])), toonP);
+    plTorso.castShadow = true; plTorso.receiveShadow = true; plBody.add(plTorso);
+    function plLimb(parts, x, y) { var m = new T.Mesh(keep(mergeParts(parts)), toonP); m.castShadow = true; m.receiveShadow = true; m.position.set(x, y, 0); plBody.add(m); return m; }
+    function plArmParts() { return [{ g: new T.CylinderGeometry(0.045, 0.05, 0.26, 8), m: M(0, -0.13, 0), c: PLC.sleeve }, { g: new T.SphereGeometry(0.05, 7, 5), m: M(0, -0.27, 0), c: PLC.skin }]; }   /* 소매 + 손 (손이 허리 높이) */
+    function plLegParts() { return [{ g: new T.CylinderGeometry(0.055, 0.052, 0.27, 8), m: M(0, -0.135, 0), c: PLC.tights }, { g: box(0.13, 0.06, 0.17), m: M(0, -0.30, 0.02), c: PLC.shoe }]; }   /* 타이츠 + 작은 신발 (바닥 y 0) */
+    var plArmL = plLimb(plArmParts(), -0.185, 0.60), plArmR = plLimb(plArmParts(), 0.185, 0.60), plLegL = plLimb(plLegParts(), -0.07, 0.33), plLegR = plLimb(plLegParts(), 0.07, 0.33);
+    var plDecal = new T.Mesh(keep(new T.PlaneGeometry(0.9, 0.9)), decalMat); plDecal.rotation.x = -Math.PI / 2; plDecal.position.y = 0.012; plDecal.renderOrder = 1; plG.add(plDecal);   /* 접지 그림자 (문어와 같은 데칼) */
+    var PL = { place: 'attic', pos: new T.Vector3(PL_REST.attic[0], 0, PL_REST.attic[2]), yaw: 0, wantYaw: 0, faceCam: true, walking: null, pending: '', phase: 0, n: 0, last: new T.Vector3(), moving: false, antic: 0, settleT: 9, t: 0,
+      blinkT: 4 + (hash('plblink') % 1000) / 1000 * 3, blinkLeft: 0, walks: 0 };
+    PL.last.copy(PL.pos);
+    function plSnap() { snapScreen(plG.position.copy(PL.pos)); }
+    function plStop() { if (PL.walking) { PL.walking.cancel(); PL.walking = null; } PL.antic = 0; }
+    function plFaceAfter(face) { PL.faceCam = face == null; PL.wantYaw = face == null ? camYaw() : face; }
+    function plWalkTo(to, face) {   /* 점까지 걷기 → Promise<walked:boolean>. face = 도착해 볼 방향(rad, 없으면 카메라 쪽). 모션 감소 · 숨은 탭 · 컨텍스트 잃음 · 준비 전 · 5 cm 미만 = 바로 */
+      plStop();
+      var from = PL.pos.clone(), d = to.clone().sub(from), dist = Math.hypot(d.x, d.z);
+      if (st.reduced || ctxLost() || st.hidden || !ready || dist < 0.05) { PL.pos.copy(to); plFaceAfter(face); PL.yaw = PL.wantYaw; PL.moving = false; plSnap(); return Promise.resolve(false); }
+      PL.faceCam = false; PL.wantYaw = Math.atan2(d.x, d.z);
+      var dur = dist / PL_SPEED * st.speed, hold = PL.moving ? 0 : PL_ANTIC * st.speed, k = 0, cancelled = false;
+      PL.antic = hold; PL.walks++;
+      return new Promise(function (resolve) {
+        function arrive() { cancelled = true; PL.pos.copy(to); PL.walking = null; PL.antic = 0; plFaceAfter(face); resolve(true); }
+        PL.walking = { cancel: function () { cancelled = true; }, finish: function () { if (!cancelled) arrive(); },
+          step: function (dt) {
+            if (cancelled) return;
+            k += dt; PL.antic = Math.max(0, hold - k);
+            if (k < hold) return;
+            var kw = k - hold;
+            if (kw < dur) { PL.pos.lerpVectors(from, to, kw / dur); return; }
+            arrive();
+          } };
+      });
+    }
+    function plRest(instant) { var r = PL_REST[PL.place] || PL_REST.attic, to = new T.Vector3(r[0], 0, r[2]); PL.pending = ''; if (instant) { plStop(); PL.pos.copy(to); plFaceAfter(null); PL.yaw = PL.wantYaw; PL.moving = false; plSnap(); } else plWalkTo(to, null); }
+    function plEnter(to) {   /* 문 전환 가운데 프레임 (runDoor 의 swap): 들어온 방 문 앞에 서서 방 안쪽을 보고, 문이 닫히면 쉬는 자리로. 바깥(문어가 아직 산책 중)으로 나왔으면 내 캐릭터는 다락 쉬는 자리에 (안 보이는 곳에서 바로) */
+      if (to === 'attic' || to === 'play') {
+        var g = groupOf(to); if (plG.parent !== g) g.add(plG);
+        var an = to === 'play' ? 'playAtticDoor' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
+        plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false; PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = 'rest'; plSnap();
+      } else { if (plG.parent !== atticG) atticG.add(plG); PL.place = 'attic'; plRest(true); }
+    }
+    function playerWalkTo(anchor) {   /* goRoom 의 walkFirst: 문 앞 앵커까지 걷고 문 쪽을 보며 서면 푼다 → { ok, walked, anchor, at }. 그 방에 없으면(바깥에서 들어갈 때) 걷기 없이 바로 */
+      var a = DOOR_ANCHORS[anchor], at = a ? a.slice() : [0, 0, 0], room = anchor === 'playAtticDoor' ? 'play' : 'attic';
+      if (!a || PL.place !== room || plG.parent !== groupOf(room)) return Promise.resolve({ ok: true, walked: false, anchor: anchor, at: at });
+      PL.pending = '';
+      return plWalkTo(new T.Vector3(a[0], 0, a[2]), PL_FACE[anchor]).then(function (walked) { return { ok: true, walked: walked, anchor: anchor, at: at }; });
+    }
+    function plFinish() { if (PL.walking && PL.walking.finish) PL.walking.finish(); if (PL.pending) plRest(true); }   /* 컨텍스트 잃음 · destroy: 걷던 길을 지금 도착시킨다 (Promise 는 푼다) */
+    function plInfo() { return { place: PL.place, at: [+PL.pos.x.toFixed(3), 0, +PL.pos.z.toFixed(3)], walking: !!PL.walking, pending: PL.pending, yaw: +(plG.rotation.y / DEG).toFixed(1), frame: PL.frame | 0, group: plG.parent ? plG.parent.name : '', visible: !!(plG.parent && plG.parent.visible), walks: PL.walks, height: PL_H }; }
+    function stepPlayer(dt) {
+      PL.t += dt;
+      if (PL.walking) PL.walking.step(dt);
+      if (PL.pending === 'rest' && !DQ.active && !PLACE.trans) plRest(false);   /* 들어온 문이 닫힌 뒤: 쉬는 자리로 */
+      var red = st.reduced, moving = !!PL.walking && PL.antic <= 0 && !red;
+      if (moving) { if (!PL.moving) { PL.last.copy(PL.pos); PL.n = Math.floor(PL.phase); } PL.phase += Math.min(0.3, Math.hypot(PL.pos.x - PL.last.x, PL.pos.z - PL.last.z)) / PL_STRIDE; }
+      else if (PL.moving) { PL.phase = Math.ceil(PL.phase - 1e-6); PL.settleT = 0; }   /* 멈춤 = 서기 프레임 + 착지 눌림 한 번 */
+      PL.last.copy(PL.pos); PL.moving = moving; PL.settleT += dt;
+      if (PL.faceCam && !PL.walking) PL.wantYaw = camYaw();   /* 쉴 땐 카메라 쪽 (돌려 보기를 따라간다) */
+      var dy = angDiff(PL.wantYaw, PL.yaw);
+      PL.yaw = red ? PL.wantYaw : PL.yaw + dy * Math.min(1, dt * 10); PL.yaw = Math.atan2(Math.sin(PL.yaw), Math.cos(PL.yaw));
+      plG.rotation.y = Math.round(PL.yaw / (Math.PI / 4)) * (Math.PI / 4);   /* 8방향 계단 (스프라이트처럼 — 매끈한 회전은 둥근 머리 외곽이 매 프레임 1 px 흘러 반짝인다) */
+      plSnap();
+      /* 4프레임 걸음: 위상 n.u → 프레임 floor(4u) = 서기 · 왼발 앞 · 서기 · 오른발 앞. 팔은 다리 반대. 디딤 프레임(1 · 3)에서 몸 −1 px (스프라이트처럼 다리가 벌어지면 엉덩이가 내려간다) */
+      var u = PL.phase - Math.floor(PL.phase), f = moving ? Math.floor(u * 4) & 3 : 0, sw = [0, 1, 0, -1][f]; PL.frame = f;
+      plLegL.rotation.x = -sw * PL_LEG; plLegR.rotation.x = sw * PL_LEG;
+      plArmL.rotation.x = sw * PL_ARM; plArmR.rotation.x = -sw * PL_ARM;
+      var out = moving ? 0.10 : 0.16; plArmL.rotation.z = -out; plArmR.rotation.z = out;   /* 팔은 살짝 벌려 늘어뜨린다 (레퍼런스) — 걸을 땐 조금 붙인다 */
+      var sx = 1, sy = 1, by = 0, tb = Math.floor(PL.t * 8) / 8;
+      if (!red) {
+        if (!moving && PL.settleT > 0.3) sy = 1 - 0.012 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2));   /* 숨쉬기 8 fps 스텝 (1 px 안쪽, 가끔 1 px) */
+        if (PL.antic > 0) { sy = 0.94; sx = 1.03; }                                                       /* 출발 예비 눌림 */
+        else if (!moving && PL.settleT < 0.1) { sy = 0.95; sx = 1.02; }                                   /* 도착 눌림 80 ms */
+        if (moving && (f & 1)) by = -pxUp();
+        /* 눈 깜빡임 3~7 s 시드 간격 · 120 ms (문어와 같은 규칙) */
+        if (PL.blinkLeft > 0) PL.blinkLeft -= dt; else { PL.blinkT -= dt; if (PL.blinkT <= 0) { PL.blinkLeft = 0.12; PL.blinkT = 3 + (hash('plb' + Math.floor(PL.t * 10)) % 1000) / 1000 * 4; } }
+      } else PL.blinkLeft = 0;
+      plEyes.scale.y = PL.blinkLeft > 0 ? 0.12 : 1; plEyes.position.y = PL.blinkLeft > 0 ? 0.914 * 0.88 : 0;   /* 감은 눈 = 눌린 선 (y 눌림은 원점 기준이라 눈 높이로 되돌린다) */
+      plBody.scale.set(sx, sy, sx); plBody.position.y = snapUp(by);
+    }
     var octState = { carrySvg: null, hang: null, carryId: null };   /* carryId = 들고 있는 포스터의 여행 id (APP 의 carry { svg, id }) */
     function setOctState(s, extra) {
       st.octState = s; oct.animT = 0;
@@ -1975,7 +2099,7 @@ var SCENE3D = (function () {
 
     /* ── 방 문 (8물결 · 카드 18): goRoom('play') = 지금 보이는 곳에서 놀이방으로 (다락이면 다락 문을 열고, 바깥이면 문 없이) · goRoom('attic') = 놀이방 문을 열고 이야기 장소로
        (place(): 문어가 집이면 다락, 나가 있으면 바깥 — 놀이방에 있는 동안 산책이 진행됐으면 그 자리로). 순서:
-       [문 앞으로 걷기: opts.walkFirst — 지금은 캐릭터가 없어 바로] → 문짝 열림 4프레임(12 fps) + on.door({act:'open'}) → 가로 전환 0.6 s (앞 0.3 s 나가는 방이 옆으로 밀려 나가며
+       [문 앞으로 걷기: opts.walkFirst — 내 캐릭터가 문 앞 앵커까지 걷고 문을 보며 선다 (playerWalkTo)] → 문짝 열림 4프레임(12 fps) + on.door({act:'open'}) → 가로 전환 0.6 s (앞 0.3 s 나가는 방이 옆으로 밀려 나가며
        디더로 허공색, 뒤 0.3 s 들어오는 방이 옆에서 들어옴 · 화면 가로 정수 px · 한 프레임엔 한 장소) → 들어온 쪽 문이 닫힘 4프레임 + on.door({act:'close'}) → Promise.
        모션 감소 = 열린 문 한 장(0.15 s) → 컷 → 닫힌 문 (소리 알림은 같다). instant = 문 프레임 없이 바로 컷 (알림은 그대로). 문 작업은 의식 큐(CER)와 따로 돈다 ── */
     var DOOR_HOLD_REDUCED = 0.15, PLAY_DOOR = null;
@@ -1995,7 +2119,7 @@ var SCENE3D = (function () {
         dt = c.until ? 0 : c.t - c.dur; if (c.end) c.end(); DQ.cur = null;
       }
     }
-    function dqFinish() { if (!DQ.active) return; DQ.instant = true; if (PLACE.trans && PLACE.trans.door) finishTrans(); stepDQ(0); }   /* 컨텍스트 잃음·destroy: 남은 문 작업을 지금 끝낸다 (Promise 는 푼다) */
+    function dqFinish() { plFinish(); if (!DQ.active) return; DQ.instant = true; if (PLACE.trans && PLACE.trans.door) finishTrans(); stepDQ(0); }   /* 컨텍스트 잃음·destroy: 남은 문 작업을 지금 끝낸다 (Promise 는 푼다) */
     function doorEvent(ev) { emit('door', ev); if (typeof DQ.onDoor === 'function') { try { DQ.onDoor(ev); } catch (e) { console.error('[scene3d] onDoor', e); } } }
     function doorItem(getD, open, getEv) {   /* 문짝 4프레임 (D 가 없으면 알림만) */
       var it = { dur: 0 }, D = null;
@@ -2018,9 +2142,6 @@ var SCENE3D = (function () {
       };
       it.until = function () { return !tr || PLACE.trans !== tr; };
       return it;
-    }
-    function playerWalkTo(anchor) {   /* 나중의 걸어 다니는 내 캐릭터 자리: 문 앞 앵커까지 걷고 도착하면 푼다. 지금은 캐릭터가 없어 바로 푼다 (walked: false) */
-      return Promise.resolve({ ok: true, walked: false, anchor: anchor, at: (DOOR_ANCHORS[anchor] || [0, 0, 0]).slice() });
     }
     function goRoom(room, o) {
       o = o || {};
@@ -2049,12 +2170,12 @@ var SCENE3D = (function () {
         var AD = from === 'attic' ? ATTIC_DOOR : null;
         PLACE.room = 'play'; container.dataset.room = 'play';   /* 지금부터 의식은 이야기 장소만 바꾼다 (문이 열리는 동안에도 끌려 나가지 않게) */
         items = [doorItem(function () { return AD; }, true, function () { return { act: 'open', room: 'play', door: AD ? 'atticPlay' : null, from: from }; }),
-          slideItem(from, function () { return 'play'; }, 1, function () { setLeaf(ATTIC_DOOR, 0); setLeaf(PLAY_DOOR, 4); }),
+          slideItem(from, function () { return 'play'; }, 1, function () { setLeaf(ATTIC_DOOR, 0); setLeaf(PLAY_DOOR, 4); plEnter('play'); }),
           doorItem(function () { return PLAY_DOOR; }, false, function () { return { act: 'close', room: 'play', door: 'playAttic', from: from }; })];
       } else {
         items = [doorItem(function () { return PLAY_DOOR; }, true, function () { return { act: 'open', room: PLACE.cur, door: 'playAttic', from: 'play' }; }),
           slideItem('play', function () { PLACE.room = null; container.dataset.room = ''; ctx.to = PLACE.cur; return ctx.to; }, -1,   /* 목적지는 가운데 프레임에서 정한다 (문이 열리는 사이 문어가 돌아왔으면 다락) · 거기서 방을 놓는다 */
-            function (to) { setLeaf(PLAY_DOOR, 0); if (to === 'attic') setLeaf(ATTIC_DOOR, 4); }),
+            function (to) { setLeaf(PLAY_DOOR, 0); if (to === 'attic') setLeaf(ATTIC_DOOR, 4); plEnter(to); }),
           doorItem(function () { return ctx.to === 'attic' ? ATTIC_DOOR : null; }, false, function () { return { act: 'close', room: ctx.to, door: ctx.to === 'attic' ? 'atticPlay' : null, from: 'play' }; })];
       }
       var p = dqRun(enter ? 'enter' : 'leave', items, o.onDoor);
@@ -2838,7 +2959,7 @@ var SCENE3D = (function () {
     }
     function frame(ts) {
       var octQuiet = PLACE.vis === 'play' || ((st.octState === 'idle' || st.octState === 'sleep' || st.octState === 'stay') && !oct.walking && !(G.settleT < GAIT.settle));   /* 놀이방이 보이는 동안 문어(다락 · 산책 중 바깥)는 안 보이므로 30 fps (움직이는 건 2 fps 오락기 화면뿐) */
-      var idle = octQuiet && !GEST.mode && !PAN.mode && !ZT && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !(CER.active && PLACE.vis !== 'play') && !DQ.active;   /* 손가락·관성 중엔 60 fps */
+      var idle = octQuiet && !PL.walking && !GEST.mode && !PAN.mode && !ZT && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !(CER.active && PLACE.vis !== 'play') && !DQ.active;   /* 손가락·관성 중엔 60 fps */
       /* 프레임 상한은 *시간* 기준 (docs/research/a11y-and-mobile-perf.md 1): 가만히(또는 화면 밖) 30fps · 그 밖 60fps — 120Hz 폰도 60. 건너뛴 콜백의 시간은 버리지 않고
          다음에 그리는 프레임의 dt 로 넘긴다 (예전 홀수 콜백 건너뛰기는 dt 째 버려서 가만히 있을 때 비·양초·먼지·깜빡임·커튼이 반속도였다). debugStep(st.force) 은 항상 주어진 dt 로 진행·렌더 */
       if (!st.force && lastDraw && ts - lastDraw < (idle || st.offscreen ? 1000 / 30 : 1000 / 60) - 1) return;
@@ -2865,7 +2986,7 @@ var SCENE3D = (function () {
       stepTrans(dt); stepCer(dt); stepDQ(dt);   /* 장소 전환 · 출발/귀가 의식 (바깥·계절·전환) · 방 문 */
       if (atticG.visible) stepWeather(dt); if (extG.visible) stepExt(dt); if (PROOM && PROOM.g.visible) stepPlayRoom(dt);
       post.uniforms.uFade.value = PLACE.fade; if (PLACE.fade > 0) { var fk = hexToOklab(LIGHTS[phaseOf(st.hour)].bg); post.uniforms.uFadeOk.value.set(fk[0], fk[1], fk[2]); }
-      stepOct(dt); if (PLAY) PLAY.step(dt);   /* 놀이 kit: stepOct 가 매 프레임 새로 쓴 몸·팔 값 위에 덮어쓴다 */
+      stepOct(dt); stepPlayer(dt); if (PLAY) PLAY.step(dt);   /* 놀이 kit: stepOct 가 매 프레임 새로 쓴 몸·팔 값 위에 덮어쓴다 */
       stepHang(dt); stepIntro(dt);
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(camera.quaternion);
       stepZoom(dt); stepPan(dt); placeCamera(); updateOverlay();
@@ -3700,9 +3821,9 @@ var SCENE3D = (function () {
       /* 바깥·계절·전환 (DESIGN §15.3, docs/SCENE.md): 장소 'attic' | 'exterior' · 계절 'spring' | 'summer' | 'autumn' | 'winter' | 'auto'(실제 월) · 출발/귀가 의식 (onDone 콜백 + Promise) */
       setPlace: function (p, o) { setPlace(p, o); }, place: function () { return PLACE.cur; },
       /* 놀이방 (8물결, scratchpad scene-api.md · docs/SCENE.md '놀이방'): view() 지금 그려지는 장소 'attic'|'exterior'|'play' · room() 내가 들어가 있는 방 'play'|null ·
-         goRoom('play'|'attic', { walkFirst, instant, onDoor }) → Promise<{ ok, reason?, view, room, place }> · playerWalkTo(anchor) → Promise (지금은 바로) ·
+         goRoom('play'|'attic', { walkFirst, instant, onDoor }) → Promise<{ ok, reason?, view, room, place }> · playerWalkTo(anchor) → Promise<{ ok, walked, anchor, at }> (내 캐릭터가 문 앞까지 걷는다) · player() → { place, at, walking, pending, yaw, frame, group, visible } ·
          hotspots({ atticPlay, playAttic, machine }, { edge }) 진짜 <button> 을 문·기계 위에 · spotRect(id) → {mode, x, y, w, h, art, client} | null (#scene 안쪽 CSS px) · finishRoom() 문 작업 즉시 끝 */
-      view: function () { return PLACE.vis; }, room: function () { return PLACE.room; }, goRoom: goRoom, playerWalkTo: playerWalkTo, finishRoom: dqFinish,
+      view: function () { return PLACE.vis; }, room: function () { return PLACE.room; }, goRoom: goRoom, playerWalkTo: playerWalkTo, player: plInfo, finishRoom: dqFinish,
       hotspots: setHotspots,
       spotRect: function (id) { var s = spotInfo(id); if (!s || s.mode !== 'over') return s; var r = container.getBoundingClientRect(); s.client = { x: r.left + s.x, y: r.top + s.y, w: s.w, h: s.h }; return s; },
       doorAnchors: JSON.parse(JSON.stringify(DOOR_ANCHORS)),
@@ -3765,7 +3886,7 @@ var SCENE3D = (function () {
       pickAt: function (x, y) { scene.updateMatrixWorld(); camera.updateMatrixWorld(); var o = pick(+x, +y); return o ? { kind: o.userData.kind, id: tapId(o) } : null; },
       screenOf: function (x, y, z) { var p = _hp.set(x, y, z).project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 월드 → 컨테이너 CSS px (스트립 크롭 중심) */
       msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
-      motion: function () { var vg = groupOf(PLACE.vis); return { place: PLACE.vis, view: PLACE.vis, room: PLACE.room, dq: DQ.name, slidePx: Math.round(vg.position.dot(_r) / S.pw), slideUpPx: Math.round(vg.position.dot(_u) / S.pw), slideY: +vg.position.y.toFixed(4), transAxis: PLACE.trans ? PLACE.trans.axis : '', doorAttic: ATTIC_DOOR.f, doorPlay: PLAY_DOOR ? PLAY_DOOR.f : 0, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, octFade: FADE.d, wave: WAVE.on, peek: PK.on ? PK.key + (PK.hold ? ':hold' : ':walk') : '', extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
+      motion: function () { var vg = groupOf(PLACE.vis); return { place: PLACE.vis, view: PLACE.vis, room: PLACE.room, dq: DQ.name, slidePx: Math.round(vg.position.dot(_r) / S.pw), slideUpPx: Math.round(vg.position.dot(_u) / S.pw), slideY: +vg.position.y.toFixed(4), transAxis: PLACE.trans ? PLACE.trans.axis : '', doorAttic: ATTIC_DOOR.f, doorPlay: PLAY_DOOR ? PLAY_DOOR.f : 0, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, octFade: FADE.d, wave: WAVE.on, peek: PK.on ? PK.key + (PK.hold ? ':hold' : ':walk') : '', extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), player: plInfo(), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
       gaitStyle: function (s) { if (s === 'stepped' || s === 'smooth') GAIT.stepped = s === 'stepped'; return GAIT.stepped ? 'stepped' : 'smooth'; },   /* 디버그: 걸음 굴림 3단 스텝(기본) / 매끈 — tools/walk-strip.js 비교용 */   /* 룩 패스 7·8 디버그 */
       stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: +(S.N / baseN()).toFixed(4), props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, view: PLACE.vis, room: PLACE.room, season: SEASON.cur, offscreen: !!st.offscreen, draws: drawN, callsAttic: callsBy.attic, callsExt: callsBy.exterior, callsPlay: callsBy.play, extProps: extPropN, playBuilt: !!PROOM, playProps: PROOM ? PROOM.props : 0, programs: renderer.info.programs ? renderer.info.programs.length : 0 }; },
       refresh: function () { applyItems(); },
