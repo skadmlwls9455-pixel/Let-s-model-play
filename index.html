@@ -92,11 +92,11 @@
     </button>
   </div>
   <!-- 방 문 · 오락기 (8물결): 3D 장면 위에 겹친 진짜 <button> — 자리 · 크기 · hidden 은 장면이 매 프레임 맞춘다 (scene.hotspots, 누르는 곳 44×44 이상). #scene3d(aria-hidden) 밖에 둔다.
-       #btn-door = 다락 안 놀이방 문 (data-spot="over" 일 땐 투명 · 문어가 나가 바깥이 보이는 동안은 data-spot="edge" 로 장면 오른쪽 아래 픽셀 문 단추 — 그림은 16×16 ×2 'ctl.door', 안 오면 글자 '문').
+       #btn-door = 다락 안 놀이방 문 (data-spot="over" 일 땐 투명 · 문어가 나가 바깥이 보이는 동안은 data-spot="edge" 로 장면 오른쪽 아래 픽셀 집 단추 — 그림은 16×16 ×2 'ctl.home' (빨간 지붕 집, 주인 11-08), 안 오면 글자 '집').
        누르면 끼익 → 놀이방 (APP.goRoom('play')). #btn-play-door = 놀이방 왼쪽 벽 문 → 문어 방 (goRoom('attic')) · #btn-machine = 다락방 달리기 오락기 → 달리기 창.
        그림 위('over')에선 pointer-events: none — 손가락은 장면이 받아 그린 순서대로 단추를 누른다 (밀기 · 핀치가 문 위에서도 된다). 두 문 단추는 aria-describedby 로 지금 장소 설명(#scene-desc)을 읽힌다 (방을 옮기면 도착한 곳이 들린다) -->
   <button type="button" id="btn-door" class="scene-door" aria-label="놀이방" title="놀이방" aria-describedby="scene-desc">
-    <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/door" alt="" width="32" height="32" draggable="false"><span class="door-txt">문</span></span>
+    <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/home" alt="" width="32" height="32" draggable="false"><span class="door-txt">집</span></span>
   </button>
   <button type="button" id="btn-play-door" class="scene-spot" aria-label="문어 방" title="문어 방" aria-describedby="scene-desc" hidden></button>
   <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
