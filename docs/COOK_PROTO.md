@@ -194,7 +194,7 @@ PYTHONPATH=… python3 tools/subset-fonts.py --check        # 새 글자가 글�
 
 ### 캡처 (`docs/shots/cook/`, 우리 화면만 · 360 × 740 과 320 × 568, DPR 2, 소리 끔)
 
-조리대 (`01-counter`) · 톡톡 중간, 자국과 찌그러진 프레임 (`02-tap-mid`) · 불 켠 뒤 노릇노릇 (`03-flip-golden`) · 뒤집는 호 (`04-flip-arc`) · 한 줄 썬 뒤 (`05-slice-mid`) · 접시 공개 (`06-reveal`) · 접시가 놓인 조리대 (`07-counter-plate`) · 320 폭 조리대와 톡톡 (`08` · `09`). 쿠킹 마마 화면은 저작물이라 넣지 않는다.
+조리대 (`01-counter`) · 단계 시작, 제목 꼬리표와 표시 셋 (`01b-tap-title`) · 톡톡 중간, 자국과 찌그러진 프레임 (`02-tap-mid`) · 불 켠 뒤 노릇노릇 (`03-flip-golden`) · 뒤집는 호 (`04-flip-arc`) · 한 줄 썬 뒤 (`05-slice-mid`) · 접시 공개 (`06-reveal`) · 접시가 놓인 조리대 (`07-counter-plate`) · 320 폭 조리대와 톡톡 (`08` · `09`). 쿠킹 마마 화면은 저작물이라 넣지 않는다.
 
 ## 13. 가져온 생각 · 출처
 
