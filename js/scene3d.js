@@ -1388,10 +1388,10 @@ var SCENE3D = (function () {
     var PL_FACE = { atticPlayDoor: Math.PI / 2, playAtticDoor: -Math.PI / 2 };   /* 문 앞에 서서 보는 쪽 (다락 문은 +x 벽 · 놀이방 문은 −x 벽) — 들어올 땐 반대(방 안쪽) */
     var PLC = (function () {
       var skin = '#ffd096';   /* ≈ mixHex(amber[4], dusk[3], .5) — 필 빛에서 #e7d5b3 로 앉아 흰자 #ebede9 와 한 칸 갈린다 (v0 의 paper·dusk 섞음은 앞면이 흰자와 같은 칸이었다) */
-      return { skin: skin, white: PAL.white, mouth: PAL.rose[1], nose: mixHex(skin, PAL.dusk[0], 0.5), blush: mixHex(skin, PAL.dusk[1], 0.5), pupil: '#1b1b1b', red: '#c04040', orange: '#e89030', straw: '#dcb878' };   /* 코 → #c09473(살결보다 두 칸) · 홍조 → #d7b594(한 칸, apollo 에 연분홍 칸이 없어 '뺨 자리 그늘' 로 은은하게) */
+      return { skin: skin, white: PAL.white, mouth: '#c04040', nose: mixHex(skin, PAL.dusk[0], 0.5), blush: mixHex(skin, PAL.dusk[1], 0.5), pupil: '#1b1b1b', red: '#c04040', orange: '#e89030', straw: '#dcb878' };   /* 코 → #c09473(살결보다 두 칸) · 홍조 → #d7b594(한 칸, apollo 에 연분홍 칸이 없어 '뺨 자리 그늘' 로 은은하게) · 입 → #a53030(rose[1] #7a4841 은 2× 에서 턱수염 같은 어두운 덩어리였다) · red = 리본·방울·입·니트·운동화 */
     })();
     function plBrowHex(hc) {   /* 눈썹 색: 머리칼보다 한 칸 이상 어둡고 살결 위에서 읽히게 색마다 따로 (mixHex(hair, ink) 공식은 금발·은빛·연두에서 푸른 회색이 됐다) */
-      return hc === 'brown' ? mixHex('#9a5a3a', FIXED.ink, 0.45) : hc === 'ink' ? FIXED.ink : hc === 'silver' ? mixHex('#cfc9c0', PAL.slate[1], 0.6) : hc === 'pink' ? mixHex('#de8fa9', PAL.rose[0], 0.6) : hc === 'lime' ? PAL.moss[0] : '#8a5a2a';
+      return hc === 'brown' ? mixHex('#9a5a3a', FIXED.ink, 0.45) : hc === 'ink' ? FIXED.ink : hc === 'silver' ? mixHex('#cfc9c0', PAL.slate[1], 0.6) : hc === 'pink' ? mixHex('#de8fa9', PAL.rose[0], 0.6) : hc === 'lime' ? PAL.moss[0] : '#b8742e';   /* 금발 눈썹 → #be772b (두 단 어두운 꿀색 — #8a5a2a 의 #884b2b 은 2× 에서 너무 무거워 화난 눈썹으로 읽혔다) */
     }
     var plG = new T.Group(), plBody = new T.Group(); plG.name = 'player'; plG.add(plBody); atticG.add(plG);
     function plTaper(list, a, b, r0, r1, hex, sides) { list.push({ g: new T.CylinderGeometry(r1, r0, Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), sides || 8), m: segM(a, b), c: hex }); }   /* a→b 테이퍼 원기둥 (r0 가 a 쪽) */
@@ -1411,7 +1411,7 @@ var SCENE3D = (function () {
           [-1, 1].forEach(function (s) { plTaper(L, [s * 0.28, 0.68, 0.12], [s * 0.30, 0.44, 0.15], 0.055, 0.045, hex, 8); L.push({ g: Sph(0.05, 7, 5), m: M(s * 0.30, 0.42, 0.15), c: hex }); }); },   /* 얼굴 양옆 긴 가닥 둘 (어깨 앞) */
         twin: function (L, cfg, hex) {
           PL_PARTS.hair._cap(L, hex); L.push({ g: Sph(PL_HR, 18, 6, 135, 270, 1.30, 0.60), m: HM(), c: hex });   /* 양갈래: 옆+뒷머리 귀까지 */
-          var tie = cfg.hairColor === 'brown' ? PLC.red : PAL.rose[1];   /* 방울: 밤갈색 머리면 빨강 (rose[1] 은 같은 칸) */
+          var tie = PLC.red;   /* 방울: 빨강 (rose[1] 은 밤갈색 머리와 같은 칸이고 금발 옆에선 갈색 덩어리) */
           [-1, 1].forEach(function (s) {
             L.push({ g: Sph(0.065, 8, 6), m: M(s * 0.36, 0.80, -0.02), c: hex });   /* 매듭 (껍질 밖 0.06) */
             plTaper(L, [s * 0.37, 0.78, -0.02], [s * 0.43, 0.63, 0], 0.07, 0.06, hex, 8); plTaper(L, [s * 0.43, 0.63, 0], [s * 0.40, 0.47, 0.03], 0.06, 0.045, hex, 8);   /* 다발 체인: 살짝 벌어졌다 모임 */
@@ -1428,7 +1428,7 @@ var SCENE3D = (function () {
           [-1, 1].forEach(function (s) { L.push({ g: Sph(0.065, 8, 6), m: M(s * 0.26, 0.60, 0.05), c: hex }); }); } },   /* 턱 옆 '뻗친 끝' 컬 */
       acc: {
         none: function () {},
-        ribbon: function (L, cfg) { var c = cfg.hairColor === 'brown' ? PLC.red : PAL.rose[1]; L.push({ g: Sph(0.055, 8, 6), m: M(0.30, 1.04, 0.17), c: c }, { g: Sph(0.055, 8, 6), m: M(0.35, 0.98, 0.16), c: c }, { g: Sph(0.035, 6, 4), m: M(0.325, 1.01, 0.175), c: c }); },   /* 오른쪽 귀 위 작은 리본 (고리 2 + 매듭, 껍질 밖 0.03~0.06) */
+        ribbon: function (L, cfg) { var c = PLC.red; L.push({ g: Sph(0.055, 8, 6), m: M(0.30, 1.04, 0.17), c: c }, { g: Sph(0.055, 8, 6), m: M(0.35, 0.98, 0.16), c: c }, { g: Sph(0.035, 6, 4), m: M(0.325, 1.01, 0.175), c: c }); },   /* 오른쪽 귀 위 작은 리본 (고리 2 + 매듭, 껍질 밖 0.03~0.06) — 빨강 #a53030: rose[1] 은 금발 옆에서 어두운 갈색 덩어리였다 */
         beret: function (L, cfg) { var c = cfg.hairColor === 'brown' ? PAL.moss[1] : PAL.rose[0]; L.push({ g: Sph(0.42, 16, 8, 0, 360, 0, 1.25), m: M(0.03, 1.08, -0.02, 0, 0, -0.20, 1, 0.6, 1), c: c }, { g: Sph(0.035, 6, 4), m: M(0.03, 1.34, -0.02), c: c }); },   /* 납작한 타원이 왼쪽으로 기움 + 꼭지. 테두리 1.159 → 눈썹·앞머리는 보인다 */
         glasses: function (L) { [-1, 1].forEach(function (s) { L.push({ g: new T.TorusGeometry(0.105, 0.025, 6, 16), m: M(s * 0.14, 0.86, 0.35), c: FIXED.ink }); }); L.push({ g: box(0.06, 0.03, 0.04), m: M(0, 0.87, 0.35), c: FIXED.ink }); },   /* 동글안경: 구멍 r 0.08 ≥ 흰자 반폭이라 흰자·홍채가 다 보인다, 테는 1 px 선 의도, 알은 비움(새 재질 금지) */
         catears: function (L, cfg) {
@@ -1457,7 +1457,7 @@ var SCENE3D = (function () {
       outfit: {   /* torso(L) 몸통 부품 · arm(L) 소매(손은 공통) · leg 다리 색 · legR 다리 원기둥 반지름 · cuff 접은 단 */
         dress: { torso: function (L) {   /* 원피스(기본): 흰 깃 + 어두운 A 라인 + 밑단 띠 + 리본 매듭 + 단추 2 — v0 그대로, 치수만 통통 */
             L.push({ g: Cyl(0.20, 0.245, 0.32), m: M(0, 0.40, 0), c: PAL.navy[3] }, { g: Cyl(0.25, 0.25, 0.035), m: M(0, 0.255, 0), c: PAL.navy[2] }, { g: Cyl(0.21, 0.19, 0.05), m: M(0, 0.54, 0), c: PAL.paper[3] },
-              { g: Sph(0.042, 7, 5), m: M(-0.05, 0.50, 0.205), c: PAL.rose[1] }, { g: Sph(0.042, 7, 5), m: M(0.05, 0.50, 0.205), c: PAL.rose[1] }, { g: Sph(0.028, 6, 4), m: M(0, 0.50, 0.225), c: PAL.rose[1] },
+              { g: Sph(0.042, 7, 5), m: M(-0.05, 0.50, 0.205), c: PLC.red }, { g: Sph(0.042, 7, 5), m: M(0.05, 0.50, 0.205), c: PLC.red }, { g: Sph(0.028, 6, 4), m: M(0, 0.50, 0.225), c: PLC.red },
               { g: Sph(0.022, 5, 4), m: M(0, 0.42, 0.225), c: PAL.paper[3] }, { g: Sph(0.022, 5, 4), m: M(0, 0.35, 0.235), c: PAL.paper[3] }); },
           arm: function (L) { plSleeve(L, PAL.paper[3]); }, leg: PAL.paper[2] },
         knit: { torso: function (L) {   /* 니트: 둥근 목 띠 빨간 스웨터 + 허리에서 퍼지는 짧은 회색 플레어 — 종 모양 */
@@ -1485,9 +1485,9 @@ var SCENE3D = (function () {
     function plHeadParts(cfg) {
       var hair = plPart('hairColor', cfg.hairColor).hex, brow = plBrowHex(cfg.hairColor), hm = function (rz) { return M(0, PL_HEAD_Y, 0, 0, 0, rz || 0, 1, 0.98, 0.94); };
       var L = [{ g: Sph(PL_HEAD_R, 18, 13), m: hm(), c: PLC.skin },   /* 살결 머리 구 (얼굴 앞면 z 0.329) */
-        { g: Sph(0.362, 6, 3, 52.5, 20.3, 1.10, 0.22), m: hm(-0.12), c: brow }, { g: Sph(0.362, 6, 3, 107.2, 20.3, 1.10, 0.22), m: hm(0.12), c: brow },   /* 눈썹: 머리 구를 감싸는 얇은 껍질 띠 y 0.970~1.053 (상자는 머리 표면이 물러나 묻히거나 떴다), 바깥 끝 살짝 올라감 */
+        { g: Sph(0.362, 6, 3, 52.5, 20.3, 1.10, 0.22), m: hm(-0.08), c: brow }, { g: Sph(0.362, 6, 3, 107.2, 20.3, 1.10, 0.22), m: hm(0.08), c: brow },   /* 눈썹: 머리 구를 감싸는 얇은 껍질 띠 y 0.970~1.053 (상자는 머리 표면이 물러나 묻히거나 떴다), 바깥 끝 살짝 올라감 */
         { g: Sph(0.03, 6, 5), m: M(0, 0.80, 0.335), c: PLC.nose },   /* 코 (1 px 점 의도, 색으로만 읽힌다) */
-        { g: box(0.075, 0.035, 0.03), m: M(0, 0.73, 0.32), c: PLC.mouth }, { g: box(0.03, 0.035, 0.03), m: M(-0.045, 0.765, 0.325), c: PLC.mouth }, { g: box(0.03, 0.035, 0.03), m: M(0.045, 0.765, 0.325), c: PLC.mouth },   /* 입: 1× 한 줄 3×1 · 2× 에서 양끝이 올라간 ∪ 미소 */
+        { g: box(0.06, 0.03, 0.03), m: M(0, 0.715, 0.325), c: PLC.mouth }, { g: box(0.025, 0.03, 0.03), m: M(-0.04, 0.735, 0.328), c: PLC.mouth }, { g: box(0.025, 0.03, 0.03), m: M(0.04, 0.735, 0.328), c: PLC.mouth },   /* 입: 1× 한 줄 2×1 · 2× 에서 양끝이 한 칸 올라간 작은 ∪ 미소 (코와 0.085 띄움) */
         { g: new T.CircleGeometry(0.045, 8), m: M(-0.19, 0.80, 0.285, 0, -0.75, 0), c: PLC.blush }, { g: new T.CircleGeometry(0.045, 8), m: M(0.19, 0.80, 0.285, 0, 0.75, 0), c: PLC.blush }];   /* 홍조 2 (뺨 자리 한 칸 어두운 황갈) */
       PL_PARTS.hair[cfg.hair](L, cfg, hair); PL_PARTS.acc[cfg.acc](L, cfg);
       return L;
@@ -1596,7 +1596,7 @@ var SCENE3D = (function () {
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       var sv = { sx: plBody.scale.x, sy: plBody.scale.y, sz: plBody.scale.z, py: plBody.position.y, rz: plBody.rotation.z, gy: plG.rotation.y, vis: plG.visible, pvis: plG.parent ? plG.parent.visible : true,
         limbs: plLimbs.map(function (m) { return [m.rotation.x, m.rotation.z]; }), ey: plEyes.scale.y, ep: plEyes.position.y, shut: PL.shut,
-        ovis: octG.visible, opvis: octG.parent ? octG.parent.visible : true, oy: octG.rotation.y, em: toonP.emissive.clone(), bg: scene.background };
+        ovis: octG.visible, opvis: octG.parent ? octG.parent.visible : true, oy: octG.rotation.y, em: toonP.emissive.clone(), col: toonP.color.clone(), bg: scene.background };
       var sc = renderer.getClearColor(_cc).clone(), sa = renderer.getClearAlpha(), octL2 = [];
       octG.traverse(function (o) { if (o.isMesh && (o.layers.mask & 4)) { octL2.push(o); o.layers.disable(2); } });
       plMeshes.forEach(function (m) { m.layers.enable(2); });
@@ -1604,7 +1604,7 @@ var SCENE3D = (function () {
       plEyes.scale.y = 1; plEyes.position.y = 0; plBody.scale.set(1, 1, 1); plBody.position.y = 0; plBody.rotation.z = 0; plG.rotation.y = 0;
       plLimbs.forEach(function (m) { m.rotation.x = 0; }); plArmL.rotation.z = -0.16; plArmR.rotation.z = 0.16;
       plG.visible = true; if (plG.parent) plG.parent.visible = true; octG.visible = true; if (octG.parent) octG.parent.visible = true; octG.rotation.y = 0;   /* 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */
-      toonP.emissive.setRGB(0, 0, 0);
+      toonP.emissive.setRGB(0, 0, 0); toonP.color.setScalar(0.8);   /* 3점 흰빛 rig 는 장면 필보다 밝아 금발 윗면이 올리브 #d0da91 로 떴다 → 재질 색만 0.8 로 눌러 찍는다 (유니폼, 프로그램 그대로) */
       plG.updateMatrixWorld(true); octG.updateMatrixWorld(true);
       var ty = PL_HEAD_Y - PPORT.down, ct = Math.cos(PPORT.tilt);
       _pt.set(0, ty, 0); plG.localToWorld(_pt);
@@ -1624,7 +1624,7 @@ var SCENE3D = (function () {
       plBody.scale.set(sv.sx, sv.sy, sv.sz); plBody.position.y = sv.py; plBody.rotation.z = sv.rz; plG.rotation.y = sv.gy; plG.visible = sv.vis; if (plG.parent) plG.parent.visible = sv.pvis;
       plLimbs.forEach(function (m, i) { m.rotation.x = sv.limbs[i][0]; m.rotation.z = sv.limbs[i][1]; });
       plEyes.scale.y = sv.ey; plEyes.position.y = sv.ep; if (sv.shut) { recolor(plEyes.geometry, 1, PL.brow); recolor(plEyes.geometry, 2, PL.brow); }
-      octG.visible = sv.ovis; if (octG.parent) octG.parent.visible = sv.opvis; octG.rotation.y = sv.oy; toonP.emissive.copy(sv.em);
+      octG.visible = sv.ovis; if (octG.parent) octG.parent.visible = sv.opvis; octG.rotation.y = sv.oy; toonP.emissive.copy(sv.em); toonP.color.copy(sv.col);
       var N = PORT.N, cv = document.createElement('canvas'); cv.width = cv.height = N;
       var cx = cv.getContext('2d'), img = cx.createImageData(N, N);
       for (var y = 0; y < N; y++) img.data.set(pBuf.subarray((N - 1 - y) * N * 4, (N - y) * N * 4), y * N * 4);   /* GL 은 아래→위 */

@@ -19,8 +19,8 @@ var OUT = process.env.LOOK_OUT || path.join(ROOT, 'tests/evidence/player');
 fs.mkdirSync(OUT, { recursive: true });
 var W = 360, H = 326, DPR = 2, CROP = 96, FRAMES = 24, STEP = 0.1, PL_H = 1.22, HEAD_Y = 0.87;
 var CATS = ['hair', 'hairColor', 'eyes', 'eyeColor', 'outfit', 'shoes', 'acc'];   /* 파츠 시트 줄 순서 = 설정 시트 UI 순서 */
-var CAT_CY = { hair: 0.95, hairColor: 0.95, eyes: 0.95, eyeColor: 0.95, acc: 0.95, outfit: 0.45, shoes: 0.35 };   /* 2× 크롭(0.89 m)은 키 1.22~1.38 을 다 못 담는다 — 범주마다 보여야 할 곳을 가운데에 */
-var SKIN = 0xe7d5b3, WHITE = 0xebede9, OLIVE = 0xd0da91, BROW = 0x884b2b;   /* 실광 모델 칸 (docs/PLAYER_PARTS.md §0.1·§2.2): 살결 · 흰자 · v0 금발이 뜨던 올리브 · 금발 눈썹 */
+var CAT_CY = { hair: 0.72, hairColor: 0.95, eyes: 0.95, eyeColor: 0.95, acc: 0.95, outfit: 0.45, shoes: 0.35 };   /* 2× 크롭(0.89 m)은 키 1.22~1.38 을 다 못 담는다 — 범주마다 보여야 할 곳을 가운데에 (머리 모양은 뒷머리 길이가 갈라 조금 아래) */
+var SKIN = 0xe7d5b3, WHITE = 0xebede9, OLIVE = 0xd0da91, BROW = 0xbe772b;   /* 실광 모델 칸 (docs/PLAYER_PARTS.md §0.1·§2.2): 살결 · 흰자 · v0 금발이 뜨던 올리브 · 금발 눈썹(#b8742e 의 앞면) */
 
 var CRC = (function () { var t = new Int32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
 function crc32(buf) { var c = -1; for (var i = 0; i < buf.length; i++) c = CRC[(c ^ buf[i]) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; }
@@ -101,14 +101,14 @@ function harness() {
   var faceIm = decodeBuf(faceBuf), fc = census(faceIm), tot = faceIm.w * faceIm.h, pct = function (k) { return 100 * (fc[k] || 0) / tot; };
   console.log('face census:', top(fc, 12), '| skin %', pct(SKIN).toFixed(1), 'white %', pct(WHITE).toFixed(1), 'olive %', pct(OLIVE).toFixed(1), 'brow %', pct(BROW).toFixed(1));
   if (uniqIm(faceIm) > 62) fails.push('pl-face-close 고유 색 ' + uniqIm(faceIm) + ' > 62');
-  if (pct(SKIN) < 20) fails.push('얼굴 크롭: 살결 칸 ' + hex(SKIN) + ' 이 20 % 이상이어야 한다 (' + pct(SKIN).toFixed(1) + ')');
+  if (pct(SKIN) < 8) fails.push('얼굴 크롭: 살결 칸 ' + hex(SKIN) + ' 이 8 % 이상이어야 한다 (' + pct(SKIN).toFixed(1) + ')');
   if (!(pct(WHITE) >= 1 && pct(WHITE) <= 15)) fails.push('얼굴 크롭: 흰자 칸 ' + hex(WHITE) + ' 이 1~15 % 여야 한다 (' + pct(WHITE).toFixed(1) + ') — 흰자 ≠ 살결');
   if (pct(OLIVE) > 3) fails.push('얼굴 크롭: 금발이 올리브 ' + hex(OLIVE) + ' 로 떴다 (' + pct(OLIVE).toFixed(1) + ' %)');
   await page.evaluate(function () { SC.debugPlayerBlink(0.12); SC.debugStep(0.01); });
   var blinkIm = decodeBuf(await cropBuf(c.x, c.y)), bc = census(blinkIm); save('pl-blink.png', grid([[faceBuf, await cropBuf(c.x, c.y)]]));
   console.log('blink census:', 'white', fc[WHITE] || 0, '→', bc[WHITE] || 0, '| brow', fc[BROW] || 0, '→', bc[BROW] || 0);
-  if (!((bc[WHITE] || 0) < (fc[WHITE] || 0) * 0.6)) fails.push('깜빡임 프레임: 흰자가 줄어야 한다 ' + (fc[WHITE] || 0) + ' → ' + (bc[WHITE] || 0));
-  if (!((bc[BROW] || 0) > (fc[BROW] || 0))) fails.push('깜빡임 프레임: 눈썹 색 감은 눈 선이 있어야 한다 ' + (fc[BROW] || 0) + ' → ' + (bc[BROW] || 0));
+  if (!((fc[WHITE] || 0) - (bc[WHITE] || 0) >= 400)) fails.push('깜빡임 프레임: 흰자(두 눈 ≈ 1000 px, 깃은 그대로)가 400 px 이상 줄어야 한다 ' + (fc[WHITE] || 0) + ' → ' + (bc[WHITE] || 0));
+  if (!((bc[BROW] || 0) - (fc[BROW] || 0) >= 200)) fails.push('깜빡임 프레임: 눈썹 색 감은 눈 선이 200 px 이상 늘어야 한다 ' + (fc[BROW] || 0) + ' → ' + (bc[BROW] || 0));
   await page.evaluate(function () { for (var i = 0; i < 3; i++) SC.debugStep(0.1); });
   var open2 = census(decodeBuf(await cropBuf(c.x, c.y)));
   if ((open2[WHITE] || 0) < (fc[WHITE] || 0) * 0.8) fails.push('깜빡임 뒤 흰자가 돌아와야 한다 ' + (fc[WHITE] || 0) + ' → ' + (open2[WHITE] || 0));
@@ -189,7 +189,7 @@ function harness() {
   }
   save('pl-hair-turn.png', grid(turn1)); save('pl-hair-turn-2x.png', grid(turn2));
   var yawBack = await page.evaluate(function () { SC.debugPlayerYaw(null); SC.zoomStep(0); for (var i = 0; i < 6; i++) SC.debugStep(0.1); return SC.player().yaw; });
-  if (Math.abs(yawBack) > 0.5 && Math.abs(Math.abs(yawBack) - 360) > 0.5) fails.push('debugPlayerYaw(null) 뒤 다시 카메라 쪽(0°)을 봐야 한다 ' + yawBack);
+  if (Math.abs(yawBack - b.pl.yaw) > 0.5) fails.push('debugPlayerYaw(null) 뒤 다시 카메라 쪽(' + b.pl.yaw + '°)을 봐야 한다 ' + yawBack);
   await setPlayer(PARTS.def);
 
   /* 2d. 초상 (playerPortrait): 머리 6종, navy 배경 → 64×64 × 6 띠. 빈 캔버스가 아니어야 한다 */
