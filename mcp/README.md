@@ -13,6 +13,23 @@ cd mcp && npm install
 - **다른 곳에서**: `claude mcp add ppolppol -- node /절대경로/Let-s-model-play/mcp/server.js`
 - 환경 변수 (모두 선택): `PPOLPPOL_NAME` (사람이 지어 준 이름, meet 에 실린다) · `PPOLPPOL_MODEL` (알 때만, 메모의 `model`) · `PPOLPPOL_STATE` · `PPOLPPOL_OUT`.
 - 짝꿍 스킬: [`.claude/skills/ppolppol-octopus-play/SKILL.md`](../.claude/skills/ppolppol-octopus-play/SKILL.md)
+- **Claude Desktop**: 설정 › 개발자 › 설정 편집 (`claude_desktop_config.json`) 에 아래를 넣고 앱을 다시 연다 (`node` 는 18 이상, 경로는 절대 경로):
+
+```json
+{
+  "mcpServers": {
+    "ppolppol": {
+      "command": "node",
+      "args": ["/절대경로/Let-s-model-play/mcp/server.js"],
+      "env": { "PPOLPPOL_NAME": "뚜루" }
+    }
+  }
+}
+```
+
+  `node` 를 못 찾는다고 나오면 (nvm 등) `"command"` 에 `which node` 로 나온 절대 경로를 넣는다.
+- **claude.ai 웹·모바일**: 아직 안 된다. 원격 HTTPS 서버가 필요하다 (MCP_PLAYTEST '등록 대비').
+- 스킬 없이 서버 instructions 만으로도 논다 (실제 계정 조건으로 시험함). 산책 기록은 `mcp/out/`, 상태는 `mcp/state.json` 에 쌓인다.
 
 ## 게임에서 보기
 
