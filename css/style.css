@@ -290,7 +290,7 @@ a { color: var(--teal); touch-action: manipulation; }
 #log-sec { padding: 8px 16px 0; }
 .sec-h { font-size: 12px; color: var(--muted); letter-spacing: .06em; font-weight: 500; margin: 8px 0 6px; border-top: 1px solid var(--rim); padding-top: 8px; }
 .sec-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-#log { max-height: 300px; min-height: 80px; overflow-y: auto; scrollbar-width: thin; border-radius: 8px; }
+#log { position: relative; max-height: 300px; min-height: 80px; overflow-y: auto; overflow-anchor: none; scrollbar-width: thin; border-radius: 8px; }   /* relative: 행 자리(offsetTop)의 기준 · 스크롤 자리는 app.js 가 정한다 (scrollLog · logSnapTop — 브라우저의 스크롤 앵커링은 끔) */
 .lday { margin-bottom: 8px; }
 .lday summary { font-size: 12px; color: var(--muted); cursor: pointer; min-height: 44px; display: flex; align-items: center; }
 .lrow {
@@ -387,7 +387,8 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .inspect-text .kw { color: var(--accent); }        /* 기억으로 고른 곳 */
 .inspect-text .first { color: var(--teal); }       /* 처음 온 곳 */
 .inspect-text .first-chip { color: var(--teal); font-size: 11px; margin-left: 5px; vertical-align: 1px; }
-.inspect-text .miss { color: var(--ip-muted); margin-left: 2px; }   /* 못 읽음·모의 방문 뒤 상태 그림 (+ 화면 낭독기용 단어) */
+.inspect-text .miss { color: var(--ip-muted); margin-left: 4px; font-size: 11px; }   /* 못 읽음·모의 방문 뒤 상태 그림 + 짧은 낱말 */
+.inspect-text .ua-chain .stop { display: inline-block; max-width: 100%; }   /* 정류장 하나 = 한 덩이 (그림과 이름이 갈라지지 않게) · 사이 ' · ' 에서 줄바꿈 */
 .inspect-text .miss .ua-ico.ua-both { margin: 0 0 0 2px; }
 .inspect-text .say { font-style: normal; }
 .inspect-text .voice { border-left: 2px solid var(--ip-line); padding-left: 10px; }
@@ -410,6 +411,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .receipt .row { display: grid; grid-template-columns: 14px 1fr; gap: 6px; padding: 3px 0; }
 .receipt .row .n { color: var(--ink-muted); }
 .receipt .row .st { color: var(--ink-muted); }
+.receipt .row .first-tag { color: var(--ink-muted); white-space: nowrap; }   /* 처음 온 곳: 상태 줄 뒤 따로 한 덩이 (점 없이) */
 .receipt .row .note { display: block; color: #4a4438; font-size: 11px; }
 .receipt .row .bridge { display: block; color: var(--ink-muted); font-size: 11px; font-style: italic; }
 .receipt .row a { color: var(--ink-link); font-size: 11px; }
@@ -669,7 +671,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 /* ── 앨범: 카드 틀 + 2px 그림자 + 종이 알갱이, 기울기 없음(픽셀 격자) ── */
 :root[data-font="pixel"] .aday { border-right: 2px dashed var(--line); }
 :root[data-font="pixel"] .aday .adate { font-family: var(--f-meta); font-size: 16px; letter-spacing: 0; }
-:root[data-font="pixel"] .pcard { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); clip-path: var(--notch-sh); background: var(--paper0); }
+:root[data-font="pixel"] .pcard { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); clip-path: var(--notch-sh); background: var(--paper0); box-sizing: content-box; }   /* 테두리는 바깥에: 안의 포스터 SVG 가 제 크기(108 · 84px) 그대로 → 16px 스티커가 정수 배 픽셀 */
 :root[data-font="pixel"] .pcard::before { content: ''; position: absolute; inset: 0; pointer-events: none; background-image: var(--grain); background-size: 12px 12px; image-rendering: pixelated; }
 :root[data-font="pixel"] .pcard:active { transform: translate(2px, 2px); box-shadow: none; }
 :root[data-font="pixel"] .pcard.newest::after { border-radius: 0; width: 8px; height: 8px; background: var(--amber-fill); box-shadow: 0 0 0 2px var(--line); }
@@ -711,7 +713,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .inspect-text p { font-family: var(--f-body); font-size: 20px; line-height: 30px; color: var(--ip-fg); margin: 0 0 8px; }   /* .modal p 가 포스터 모달에도 닿지 않게 */
 :root[data-font="pixel"] .inspect-text .meta, :root[data-font="pixel"] .inspect-text .miss { color: var(--ip-muted); }
 :root[data-font="pixel"] .inspect-text .lead { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
-:root[data-font="pixel"] .inspect-text .meta, :root[data-font="pixel"] .inspect-text .first-chip { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
+:root[data-font="pixel"] .inspect-text .meta, :root[data-font="pixel"] .inspect-text .first-chip, :root[data-font="pixel"] .inspect-text .miss { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .inspect-text .voice { border-left: 4px solid var(--ip-line); padding-left: 10px; }
 :root[data-font="pixel"] .flipper .face.back { border-radius: 0; border: 2px solid #090a14; box-shadow: 2px 2px 0 #090a14; }
 :root[data-font="pixel"] .poster-modal .btn { background-color: #202e37; background-image: none; border-color: #090a14; color: var(--ip-fg); font-family: var(--f-body); font-size: 20px; line-height: 20px; padding: 8px 12px; box-shadow: inset 2px 2px 0 #577277, inset -2px -2px 0 #090a14, 2px 2px 0 #090a14; }
@@ -986,7 +988,7 @@ html.intro-reveal #scene-ctl { transition: opacity var(--t-ui) var(--ease-enter)
 button.brain-tag { position: relative; margin-top: 0; margin-bottom: 0; background: none; font-family: inherit; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 button.brain-tag::before { content: ''; position: absolute; inset: -16px -10px; }
 button.pips { position: relative; margin: 0; padding: 0; border: 0; background: none; font: inherit; color: var(--muted); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-button.pips::before { content: ''; position: absolute; inset: -8px -4px; }
+button.pips::before { content: ''; position: absolute; inset: -12px -4px; }   /* 누르는 곳 44px 이상 (시스템 글꼴: 칸 20px + 위아래 12px) */
 :is(button.brain-tag, button.pips):focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 .tip {
   position: absolute; top: calc(100% + 4px); left: 16px; z-index: 12; box-sizing: border-box; width: max-content; max-width: calc(100% - 32px); margin: 0;
@@ -1011,6 +1013,7 @@ button.pips::before { content: ''; position: absolute; inset: -8px -4px; }
 :root[data-font="pixel"] .tip::before { top: -6px; margin-left: -1px; width: 2px; height: 2px; border: 0; background: var(--line); box-shadow: -2px 2px 0 var(--line), 2px 2px 0 var(--line), -4px 4px 0 var(--line), 4px 4px 0 var(--line); }
 :root[data-font="pixel"] .tip::after { top: -2px; margin-left: -3px; width: 6px; height: 2px; border: 0; background: var(--panel2); }
 :root[data-font="pixel"] :is(button.brain-tag, button.pips):focus-visible { outline-color: var(--fg); }
+:root[data-font="pixel"] button.pips::before { inset: -7px -4px; }   /* 픽셀 글꼴: 칸이 30px 라 위아래 7px 이면 44px */
 @media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .tip { transition: none; transform: none; } }
 :root[data-motion="reduce"] .tip { transition: none; transform: none; }
 

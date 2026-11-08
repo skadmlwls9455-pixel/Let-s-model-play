@@ -530,7 +530,7 @@ async function main() {
       else if (/^(FAIL\b|CRASH:)/.test(t)) failed.push(t.replace(/^FAIL\s+/, '') + (sec ? '   [' + sec + ']' : ''));
     }
     const said = lines.filter(Boolean), tail = said.slice(-1).join('');
-    const why = r.error ? ' · ' + (r.error.code || r.error.message) : r.signal ? ' · ' + r.signal : '';
+    const why = r.error ? ' · ' + (r.error.code || r.error.message) : r.signal ? ' · ' + r.signal : r.status ? ' · exit ' + r.status : '';
     const more = failed.length ? '\n        failing: ' + failed.join('\n        failing: ')
       : r.status !== 0 ? '\n        last lines: ' + said.slice(-6).join('\n                    ') : '';
     ok(r.status === 0 && !failed.length, 'index.html smoke A,B,I passes (' + tail + why + ')' + more + (r.status !== 0 || failed.length ? '\n        log: ' + logFile : ''));

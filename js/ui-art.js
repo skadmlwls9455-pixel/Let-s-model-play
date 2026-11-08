@@ -44,10 +44,17 @@ var UIART = (function () {
   function iconHTML(path, cls) {
     return '<img class="ua-ico' + (cls ? ' ' + cls : '') + '" src="' + String(iconSrc(path)).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '" alt="" aria-hidden="true" width="32" height="32" draggable="false" decoding="async">';
   }
+  /* 포스터 스티커(SVG <g class="stk"><image>)도 같다: 안 오면 스티커 무리째 지운다 (깨진 그림 표시가 카드 · 앞면 · 2D 벽에 남지 않게).
+     한 번 안 온 주소는 기억해 둔다 → app.js posterSVG 가 다음부터 스티커를 아예 넣지 않는다 (iconBad) */
+  var BAD = {};
+  function hrefOf(t) { return t.getAttribute('src') || t.getAttribute('href') || t.getAttribute('xlink:href') || ''; }
   document.addEventListener('error', function (e) {
-    var t = e.target;
-    if (t && t.tagName === 'IMG' && t.classList && t.classList.contains('ua-ico') && t.parentNode) t.parentNode.removeChild(t);
+    var t = e.target, g;
+    if (!t || !t.tagName) return;
+    if (t.tagName === 'IMG' && t.classList && t.classList.contains('ua-ico')) { BAD[hrefOf(t)] = 1; if (t.parentNode) t.parentNode.removeChild(t); }
+    else if (t.tagName === 'image' && t.closest && (g = t.closest('g.stk'))) { BAD[hrefOf(t)] = 1; if (g.parentNode) g.parentNode.removeChild(g); }
   }, true);
+  function iconBad(src) { return !!(src && BAD[src]); }
   function prepend(el, path, cls) {
     if (!el || el.querySelector(':scope > .ua-ico')) return null;
     var img = icon(path, cls);
@@ -167,7 +174,7 @@ var UIART = (function () {
     /* 문어가 걸어가도 풍선이 따라가며 가장자리 안에 머물게 (보이는 동안만 5 Hz) */
     clearInterval(bubTimer);
     bubTimer = setInterval(function () { if (b.hidden) { clearInterval(bubTimer); bubTimer = null; ctlYield(false); return; } keepInside(b); }, 200);
-    if (kind === 'curious' && String(text).trim() === '?') fx('question');
+    if (kind === 'curious') fx('question');   /* 톡 누름 ('응?') — 픽셀 테마 물음표 파티클 */
   }
 
   /* ── 5 · 파티클 (DOM 스프라이트, fx.* 8×8 칸 ×2, 12 fps 스텝) — 축소 모션이면 아무것도 안 띄운다 ── */
@@ -284,5 +291,5 @@ var UIART = (function () {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
   return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, ctlYield: ctlYield,
-    iconSrc: iconSrc, icon: icon, iconHTML: iconHTML };
+    iconSrc: iconSrc, icon: icon, iconHTML: iconHTML, iconBad: iconBad };
 })();

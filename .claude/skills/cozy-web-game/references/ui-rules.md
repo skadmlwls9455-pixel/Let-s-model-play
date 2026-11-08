@@ -97,6 +97,7 @@ Apply: 12 (receipt meta), 13 (tertiary), 15 (body), 17 (log verbs), 20/24 (poste
 **R12. Emoji are decoration, not text.**
 Why: Heydon checklist (ornamental art hidden from AT); css-protips #12 (SVG icons, fallback for icon-only buttons); mixed emoji fonts shift baselines.
 Apply: Wrap every emoji in `<span aria-hidden="true" class="emo">` with `font-size:1.1em; line-height:1; vertical-align:-0.1em`. Stickers on posters are SVG/PNG from `assets/` with `alt` text that names the sticker ("깃털 스티커"); the lantern and moss pot are `<img>` so they survive high-contrast mode.
+Project override (뽈뽈, 11-07): no emoji or decorative symbols in player UI at all — words or pixel icons (`alt=""` + `aria-hidden`, the word beside stays); SKILL.md §3 wins over R12.
 
 **R13. Make text pop and un-pop: only the poster title gets full up-pop.**
 Why: Erik Kennedy rule 5.

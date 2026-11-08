@@ -210,6 +210,7 @@ var SCENE2D = (function () {
       wall.innerHTML = '';
       show.forEach(function (p, i) {
         var b = h('button', { type: 'button', class: 'wall-mini' + (i === show.length - 1 && all.length > prev ? ' landed' : ''), 'aria-label': (p.title || '포스터') + ' 열기', html: p.svg || '' });
+        if (p.titleRaw) b.setAttribute('data-raw-attr', 'aria-label');   /* 제목이 위키 문서 제목 · 모델이 준 이름이면 그대로 (APP 이 알려 준다) */
         b.style.transform = 'rotate(' + (((hash(p.id) % 7) - 3) * 1.2).toFixed(1) + 'deg)';
         b.addEventListener('click', function () { if (on.posterTap) on.posterTap(p.id); });
         wall.appendChild(b);

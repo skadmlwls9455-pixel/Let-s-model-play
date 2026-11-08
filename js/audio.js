@@ -807,8 +807,8 @@ var AUDIO = (function () {
     var text = String(d.text || '');
     if (!text || !active() || gs.skipping) return;
     var t = now();
-    if (/zZ/.test(text)) { if (t - lastSnore > 6) { lastSnore = t; play(ev(['sleep', 'snore'])); } return; }
-    if (text.replace(/\s/g, '') === '?') { play(ev(['interaction', 'look'])); return; }
+    if (d.kind === 'sleep' || /zZ/.test(text)) { if (t - lastSnore > 6) { lastSnore = t; play(ev(['sleep', 'snore'])); } return; }   /* 자는 문어를 누름 ('쿨쿨…' — 예전 '…zZ') */
+    if (d.kind === 'curious' || text.replace(/\s/g, '') === '?') { play(ev(['interaction', 'look'])); return; }   /* 깨어 있는 문어를 톡 ('응?' — 예전 '?') */
     if (d.kind === 'think') return;            /* 생각 말풍선은 소리 내지 않는다 */
     if (t - moodAt < 1.5) return;
     var syl = (text.match(/[가-힣]/g) || []).length;

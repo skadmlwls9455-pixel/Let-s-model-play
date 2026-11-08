@@ -104,7 +104,7 @@ Priority: **must** = clearly better and cheap; **should** = valuable; **nice** =
 
 **R13 (should) — One invitation per day, framed as rest, not as a lock.** Wordle's scarcity (S15); Animal Crossing's 5 AM daily reset and one-per-day resources (S18). *Apply:* after today's trip, the button text becomes "오늘은 다녀왔어 · 내일 또 올게" (disabled, no countdown timer visible — a timer reads as a cooldown). The 데모 조작 panel keeps a "날짜 넘기기" override for testing. The day boundary can be 05:00 local like Animal Crossing so a late-night session counts as today.
 
-**R14 (nice) — A shareable emoji card with no spoilers.** Wordle's grid tells the story of the attempt without giving the answer (S15). *Apply:* a 복사 button on the receipt producing e.g. `뽈뽈 #37 ☔🐙 → 🎩 → 🪶 → 🏠  집에 걸었어`. Path emojis come from stop categories; no URLs, no hint text, so it is safe to post.
+**R14 (nice) — A shareable emoji card with no spoilers.** Wordle's grid tells the story of the attempt without giving the answer (S15). *Apply:* a 복사 button on the receipt producing e.g. `뽈뽈 #37 ☔🐙 → 🎩 → 🪶 → 🏠  집에 걸었어`. Path emojis come from stop categories; no URLs, no hint text, so it is safe to post. **Project override (뽈뽈 문어, owner 11-07):** no emoji in player UI, so the card uses category words instead: `뽈뽈 #3 · 비 오는 날 · 손 · 바다 · 들판` (see SKILL.md §3).
 
 ### E. Wall, lantern and room state
 

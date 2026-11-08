@@ -66,11 +66,11 @@
 ### `peek.status` — 거짓 성공 금지
 | 값 | 아이콘 | 뜻 |
 |---|---|---|
-| `read` | ✅ 읽음 | 실제로 가져와서 읽었다. `source.url` 필수 |
-| `builtin` | 📚 책장 메모 | 내장 실마리 한 줄을 읽었다(오프라인·fetch 실패·위키 제목 없음) |
-| `simulated` | 🧪 모의 방문 | 문 앞까지만 갔다. 내용은 읽지 않았다 |
-| `failed` | ❌ 못 읽음 | 읽으려 했는데 실패했다 |
-| `none` | ◌ 앉아만 있었음 | 읽은 것이 없다(느린 글의 방, 편지의 방) |
+| `read` | `icon.log.read` + 읽음 | 실제로 가져와서 읽었다. `source.url` 필수 |
+| `builtin` | `icon.log.builtin` + 책장 메모 | 내장 실마리 한 줄을 읽었다(오프라인·fetch 실패·위키 제목 없음) |
+| `simulated` | `icon.log.simulated` + 모의 방문 | 문 앞까지만 갔다. 내용은 읽지 않았다 |
+| `failed` | `icon.log.failed` + 못 읽음 | 읽으려 했는데 실패했다 |
+| `none` | `icon.log.none` + 앉아만 있었음 | 읽은 것이 없다(느린 글의 방, 편지의 방) |
 
 `source` 는 `read` 일 때만: `{ "url", "extract"(≤160자), "thumb": {"url","w","h"}|null, "license": "CC BY-SA 4.0", "attribution": "Wikipedia (ko)" }`.
 
