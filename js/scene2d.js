@@ -162,6 +162,9 @@ var SCENE2D = (function () {
     var st = { lantern: opts.lantern | 0, items: (opts.items || []).slice(), weather: opts.weather || 'rain', color: opts.color || '#e8463c',
       posters: [], souvenirs: [], reduced: !!opts.reducedMotion, speed: opts.speed > 0 ? opts.speed : 1, octState: 'idle', paused: false, ready: false };
     var assetPath = typeof opts.assetPath === 'function' ? opts.assetPath : function () { return null; };
+    /* 내 캐릭터 모습 (docs/PLAYER_PARTS.md §3) — 2D 폴백엔 캐릭터가 없다: 정규화된 cfg 만 기억한다 (SCENE3D 가 있으면 같은 normalizePlayer 로, 없으면 그대로) */
+    function normPlayer(c) { return typeof SCENE3D !== 'undefined' && SCENE3D.normalizePlayer ? SCENE3D.normalizePlayer(c) : Object.assign({}, c || {}); }
+    var plLook = normPlayer(opts.player);
     var stage = container.querySelector('#stage'), layersEl = container.querySelector('#layers'), fx = container.querySelector('#window-fx');
     var souvRow = container.querySelector('#souvenir-row'), wall = container.querySelector('#wall-posts');
     var octEl = opts.octEl || container.querySelector('#oct'), inner = octEl.querySelector('#oct-inner'), bub = octEl.querySelector('#oct-bubble');
@@ -542,6 +545,8 @@ var SCENE2D = (function () {
       /* 8물결 · 방 (3D 와 같은 계약, docs/SCENE.md): view · room · goRoom → Promise · hotspots · spotRect · playerWalkTo (지금은 바로) · finishRoom */
       PLACES: ['attic', 'exterior', 'play'], view: function () { return R.view; }, room: function () { return R.room; },
       goRoom: goRoom, playerWalkTo: playerWalkTo, doorAnchors: DOOR_ANCHORS, finishRoom: function () { if (roomFin) roomFin(); },
+      /* 내 캐릭터 (3D 계약, docs/PLAYER_PARTS.md §3): 2D 는 그리지 않는다 — setPlayer 는 모습만 기억(무동작), player() 는 다락 자리 + look */
+      setPlayer: function (cfg) { plLook = normPlayer(cfg); return Object.assign({}, plLook); }, player: function () { return { place: 'attic', at: [0, 0, 0], walking: false, pending: '', visible: false, look: Object.assign({}, plLook) }; },
       hotspots: setHotspots, spotRect: function (id) { var s = spotInfo(id); if (!s) return null; var r = container.getBoundingClientRect(); s.client = { x: r.left + container.clientLeft + s.x, y: r.top + container.clientTop + s.y, w: s.w, h: s.h }; return s; },
       setSeason: function (s) { st.seasonMode = ['spring', 'summer', 'autumn', 'winter'].indexOf(s) >= 0 ? s : 'auto'; var m = new Date().getMonth() + 1; st.season = st.seasonMode !== 'auto' ? st.seasonMode : m >= 3 && m <= 5 ? 'spring' : m >= 6 && m <= 8 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter'; },
       season: function () { return st.season; }, seasonMode: function () { return st.seasonMode || 'auto'; },
