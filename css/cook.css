@@ -94,13 +94,15 @@ html.ck-open body { overscroll-behavior: none; }
 
 /* the verb button: always in the DOM, the tab order and the accessibility tree; quiet (opacity 0) on touch until
    the first idle hint or a press; visible whenever it has focus (design 2.4). Outline style, no fill. */
-.ck-verbrow { height: 56px; margin-top: 8px; }
+/* touch-action none like the stage: a stroke that starts on the quiet verb row goes to the stage (js/cook.js onRowDown),
+   so the browser must not turn it into a scroll (that would cancel a thumb flick that begins below the stage) */
+.ck-verbrow { position: relative; height: 56px; margin-top: 8px; touch-action: none; }
 .ck-verb {
   display: block; width: 100%; height: 56px; margin: 0; padding: 0 12px; box-sizing: border-box;
   font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 24px; white-space: nowrap;
   color: var(--fg, #341c27); background: transparent; border: 2px solid var(--line, #602c2c); border-radius: 0; box-shadow: none;
   clip-path: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 0 calc(100% - 2px), 0 2px);
-  opacity: 0; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  opacity: 0; cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 .ck-verb.ck-shown, .ck-verb:focus { opacity: 1; }

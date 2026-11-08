@@ -40,6 +40,16 @@ async function openPage(browser, o) {
   }
   if (o.audio) await ctx.addInitScript(function () { window.__acts = []; window.AUDIO = { on: function (ch, p) { window.__acts.push({ ch: ch, p: p, t: performance.now() }); } }; });
   if (o.full) await ctx.addInitScript(function () { Storage.prototype.setItem = function () { throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); }; });
+  if (o.aria) await ctx.addInitScript(function () {   /* what the aria-live line really said (not COOK.live().said) */
+    window.__aria = [];
+    new MutationObserver(function (ms) {
+      ms.forEach(function (m) {
+        var n = m.target && m.target.nodeType === 3 ? m.target.parentNode : m.target, say = n && n.closest ? n.closest('.ck-say') : null;
+        if (say && say.textContent) window.__aria.push(say.textContent);
+      });
+    }).observe(document.documentElement, { subtree: true, childList: true, characterData: true });
+  });
+  if (o.crypto != null) await ctx.addInitScript(function (v) { crypto.getRandomValues = function (a) { for (var i = 0; i < a.length; i++) a[i] = v; return a; }; }, o.crypto);
   var page = await ctx.newPage(), errs = [];
   page.on('pageerror', function (e) { errs.push('pageerror: ' + e.message); });
   page.on('console', function (m) { if (m.type() === 'error') errs.push('console: ' + m.text()); });
@@ -56,6 +66,8 @@ async function openPage(browser, o) {
   T.touch = function (type, p, id) { return cdp.send('Input.dispatchTouchEvent', { type: type, touchPoints: p ? [{ x: p[0], y: p[1], id: id || 1 }] : [] }); };
   T.tap = async function (lx, ly) { var p = await T.pt(lx, ly); await T.touch('touchStart', p); await T.go(30); await T.touch('touchEnd'); };
   T.tapEl = async function (sel) { var r = await T.rect(sel); var p = [r.x + r.w / 2, r.y + r.h / 2]; await T.touch('touchStart', p); await T.go(30); await T.touch('touchEnd'); };
+  T.tapCss = async function (p) { await T.touch('touchStart', p); await T.go(30); await T.touch('touchEnd'); await realWait(40); await T.go(20); };
+  T.aria = function () { return page.evaluate(function () { return window.__aria || []; }); };
   T.drag = async function (pts, ms) {
     var c = [];
     for (var i = 0; i < pts.length; i++) c.push(await T.pt(pts[i][0], pts[i][1]));
@@ -255,7 +267,7 @@ async function L4(browser) {   /* flip with the fake clock: bands, waiting, no e
     check(l.kind === 'flip' && l.tag === cases[c][2] && l.look.band === cases[c][1], 'L4: swipe up ' + cases[c][0] / 1000 + ' s after heat-on -> ' + cases[c][2] + ' (' + l.tag + ')');
     await T.done();
   }
-  var T2 = await openPage(browser, { store: SEEN_ALL, q: 'recipe=jeon&seed=50' });
+  var T2 = await openPage(browser, { store: SEEN_ALL, q: 'recipe=jeon&seed=50', aria: true });
   await verbThrough(T2, 'tap', 3);
   await T2.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 3000, 'flip');
   await T2.go(700);
@@ -273,8 +285,9 @@ async function L4(browser) {   /* flip with the fake clock: bands, waiting, no e
   check(l2.kind === 'flip' && l2.phase === 'step' && !l2.done && l2.band === 2 && l2.progress === 0.5, 'L4: 60 s after heat-on it still waits at crisp (no burn, no auto flip)');
   var text = await T2.dlgText();
   check(BANDS.every(function (b) { return text.indexOf(b) < 0; }), 'L4: no band word anywhere in the visible DOM');
-  check(BANDS.every(function (b) { return l2.said.indexOf(b) >= 0; }), 'L4: every band word went to aria-live, once per change (' + l2.said.join(' ') + ')');
-  check(l2.said.filter(function (s) { return BANDS.indexOf(s) >= 0; }).length === 3, 'L4: band words are not repeated');
+  var aria = await T2.aria();   /* read from the .ck-say node itself (MutationObserver), not from COOK.live().said */
+  check(BANDS.every(function (b) { return aria.indexOf(b) >= 0; }), 'L4: every band word reached the aria-live node, once per change (' + aria.join(' ') + ')');
+  check(aria.filter(function (s) { return BANDS.indexOf(s) >= 0; }).length === 3, 'L4: band words are not repeated');
   check(T2.errs.length === 0, 'L4: no errors ' + T2.errs.join(' | '));
   await T2.done();
 }
@@ -296,10 +309,16 @@ async function L5(browser) {   /* layout at five sizes + DPR 2.625; notice keeps
     var l = await T.live();
     check(Math.abs(stage.w - 144 * l.k / m.dpr) < 0.02 && Math.abs(stage.h - 160 * l.k / m.dpr) < 0.02 && l.k / m.dpr <= 3, 'L5 ' + tag + ': stage = 144k / dpr (k ' + l.k + ', ' + stage.w.toFixed(3) + ' px)');
     check(Math.abs(row.y - stage.b - 8) < 0.6, 'L5 ' + tag + ': the stage sits right above the verb row');
+    function onDev(v) { var d = v * m.dpr; return Math.abs(d - Math.round(d)) <= m.dpr / 64 + 1e-6; }
+    check(onDev(stage.x) && onDev(stage.y) && onDev(stage.w) && onDev(stage.h), 'L5 ' + tag + ': the stage box sits on whole device pixels (' + [stage.x, stage.y].map(function (v) { return (v * m.dpr).toFixed(3); }).join(', ') + ')');
     await T.tapEl('.ck-prop');
     l = await T.until(function (x) { return x.kind === 'tap'; }, 2000, 'tap');
     var verb = await T.rect('.ck-verb');
     check(verb.h >= 44 && verb.w >= 44 && verb.b <= m.ih + 0.5, 'L5 ' + tag + ': the verb button >= 44 and on screen');
+    await T.go(100);
+    var icons = await T.page.evaluate(function () { return Array.prototype.map.call(document.querySelectorAll('.ck-step canvas'), function (c) { var r = c.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; }); });
+    check(icons.length === 3 && icons.every(function (r) { return r.every(onDev) && Math.abs(r[2] * m.dpr / 16 - Math.round(r[2] * m.dpr / 16)) < 0.01; }),
+      'L5 ' + tag + ': step icons on whole device pixels, a whole number of device px per art px (' + icons.map(function (r) { return (r[0] * m.dpr).toFixed(2) + '/' + (r[1] * m.dpr).toFixed(2); }).join(' ') + ')');
     check(l.st.marks.every(function (mk) { var x = mk.x / 2, y = mk.y / 2; return x >= 8 && x <= 136 && y >= 8 && y <= 152; }), 'L5 ' + tag + ': tap marks >= 8 art px inside the stage');
     var before = await T.rect('.ck-stage'), act0 = await T.active();
     var ok = await T.page.evaluate(function () { return COOK.notice({ text: '돌아왔어. 보러 갈까?', short: '돌아왔어.', label: '보러 가기', fn: function () {} }); });
@@ -536,7 +555,7 @@ async function L12(browser) {   /* the notice slot: shown, no focus taken, 보�
   var sizes = [[360, 740], [320, 460]];
   for (var s = 0; s < sizes.length; s++) {
     var tag = sizes[s][0] + 'x' + sizes[s][1];
-    var T = await openPage(browser, { vp: { width: sizes[s][0], height: sizes[s][1] }, store: SEEN_ALL });
+    var T = await openPage(browser, { vp: { width: sizes[s][0], height: sizes[s][1] }, store: SEEN_ALL, aria: true });
     await T.tapEl('.ck-prop');
     await T.until(function (x) { return x.kind === 'tap'; }, 2000, 'tap');
     await T.go(700);
@@ -550,7 +569,7 @@ async function L12(browser) {   /* the notice slot: shown, no focus taken, 보�
     check(l.note && (await T.active()) === act0 && sameRect(st0, await T.rect('.ck-stage')), 'L12 ' + tag + ': the notice shows, focus and stage stay');
     check(txt === (l.tight ? '돌아왔어.' : '뚜루가 돌아왔어.'), 'L12 ' + tag + ': ' + (l.tight ? 'short' : 'full') + ' text in the slot (' + txt + ')');
     if (l.tight) check(await T.page.evaluate(function () { return getComputedStyle(document.querySelector('.ck-strip')).visibility === 'hidden'; }), 'L12 ' + tag + ': the strip steps aside on a short screen');
-    check(l.said.indexOf('뚜루가 돌아왔어.') >= 0, 'L12 ' + tag + ': read once by aria-live');
+    check((await T.aria()).filter(function (x) { return x === '뚜루가 돌아왔어.'; }).length === 1, 'L12 ' + tag + ': read once by the aria-live node');
     await T.page.evaluate(function () { localStorage.removeItem('ppolppol_cook_v0'); });
     await T.tapEl('.ck-note-go');
     await T.go(100);
@@ -601,8 +620,243 @@ async function L14(browser) {   /* DOM text: no N/M counts, no digits on any scr
   check(errAll.length === 0, 'L14: no console or page errors in the whole run (' + errAll.length + ')');
 }
 
+/* ---------- second pass: the verifier findings, each as a check ---------- */
+async function toFlipQuiet(T) {   /* tap step by touch (the verb button stays quiet), then the flip step with the heat on */
+  await T.tapEl('.ck-prop');
+  await playTap(T);
+  await T.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 4000, 'flip');
+  await T.go(700); await T.tap(144, 176); await T.go(1000);
+}
+async function rowPoint(T) { var r = await T.rect('.ck-verbrow'); return [r.x + r.w / 2, r.y + r.h / 2]; }
+
+async function L15(browser) {   /* the quiet verb row: a stray touch only shows the button; a flick from it still flips; a click
+                                   with no pointer press (keyboard, screen reader) acts at once */
+  var T = await openPage(browser, { store: SEEN_ALL, q: 'seed=61' });
+  await T.tapEl('.ck-prop');
+  await T.until(function (x) { return x.kind === 'tap' && x.phase === 'step'; }, 3000, 'tap');
+  await T.go(700);
+  var rp = await rowPoint(T), v0 = await T.verb();
+  await T.tapCss(rp);
+  var l = await T.live(), v1 = await T.verb();
+  check(v0.opacity === '0' && v1.opacity === '1' && l.st.hits === 0, 'L15: tap step - a touch on the quiet verb row shows the button and counts nothing (hits ' + l.st.hits + ')');
+  await T.tapCss(rp); await T.go(100);
+  check((await T.live()).st.hits === 3, 'L15: once shown, a touch on the button presses it (one mark, 3 hits)');
+  check(T.errs.length === 0, 'L15: no errors (tap) ' + T.errs.join(' | '));
+  await T.done();
+
+  T = await openPage(browser, { store: SEEN_ALL, q: 'seed=62' });
+  await toFlipQuiet(T);
+  check((await T.verb()).opacity === '0', 'L15: flip step after heat-on, the verb button is still quiet');
+  await T.tapCss(await rowPoint(T)); await T.go(300);
+  l = await T.live();
+  check(l.kind === 'flip' && l.phase === 'step' && l.st.res === null && (await T.verb()).opacity === '1', 'L15: flip - a stray touch on the quiet row never flips (the button shows instead)');
+  check(T.errs.length === 0, 'L15: no errors (stray) ' + T.errs.join(' | '));
+  await T.done();
+
+  T = await openPage(browser, { store: SEEN_ALL, q: 'seed=63' });
+  await toFlipQuiet(T);
+  var p0 = await rowPoint(T);
+  await T.touch('touchStart', p0);
+  for (var i = 1; i <= 5; i++) { await T.go(14); await T.touch('touchMove', [p0[0] + i, p0[1] - i * 22]); await realWait(20); }
+  await T.go(14); await T.touch('touchEnd'); await realWait(40); await T.go(50);
+  l = await T.live();
+  check((l.kind === 'flip' && l.st.res === 0) || l.si === 2, 'L15: flip - a thumb flick that starts on the quiet row (below the stage) flips (' + JSON.stringify([l.kind, l.st && l.st.res, l.si]) + ')');
+  check(T.errs.length === 0, 'L15: no errors (flick) ' + T.errs.join(' | '));
+  await T.done();
+
+  T = await openPage(browser, { store: SEEN_ALL, q: 'seed=64' });
+  await toFlipQuiet(T);
+  await T.verbClick(); await T.go(50);   /* element.click(): what a keyboard or a screen reader press gives (no pointer press) */
+  l = await T.live();
+  check((l.kind === 'flip' && l.st.res === 0) || l.si === 2, 'L15: a click with no pointer press on the quiet button acts at once (flips)');
+  check(T.errs.length === 0, 'L15: no errors (click) ' + T.errs.join(' | '));
+  await T.done();
+}
+
+async function L16(browser) {   /* hints: a first demo is not wiped by presses that change nothing; re-teach after nudges; the
+                                   reveal shows the way back after 5 s; a second tap on the plate does not start a new dish */
+  var T = await openPage(browser, { store: JSON.stringify({ v: 1, day: '', dayN: 0, seen: ['tap', 'slice'], pot: null, book: [] }), q: 'seed=71' });
+  await T.tapEl('.ck-prop');
+  await verbThrough(T, 'tap', 3);
+  await T.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 3000, 'flip');
+  await T.go(2200);   /* the first-time heat-on demo plays out */
+  await T.tap(144, 176); await T.go(60);
+  var l = await T.live();
+  check(l.hint === 'demo', 'L16: heat on, first time -> the up-swipe demo (' + l.hint + ')');
+  for (var i = 0; i < 4; i++) { await T.tap(130 + i * 6, 180); await T.go(150); }   /* nudges: they change nothing */
+  l = await T.live();
+  var seen = (await T.store()).seen;
+  check(l.hint === 'demo' && seen.indexOf('flip') < 0, 'L16: presses that change nothing do not wipe the demo, and flip is not marked seen yet (' + l.hint + ', ' + seen.join(',') + ')');
+  await T.go(600);
+  seen = (await T.store()).seen;
+  check((await T.live()).hint !== 'demo' && seen.indexOf('flip') >= 0, 'L16: after the demo has played to its end, flip counts as seen');
+  for (i = 0; i < 3; i++) { await T.tap(130 + i * 6, 180); await T.go(150); }
+  l = await T.live();
+  check(l.hint === 'teach' && l.stats.teach === 1 && (await T.verb()).opacity === '1', 'L16: three presses that do not flip -> the up-swipe hand once more and the verb button shows');
+  for (i = 0; i < 30; i++) { await T.tap(130 + (i % 4) * 6, 180); await T.go(150); }
+  check((await T.live()).stats.teach === 2, 'L16: the re-teach hand comes at most twice a step');
+  check(T.errs.length === 0, 'L16: no errors (hints) ' + T.errs.join(' | '));
+  await T.done();
+
+  T = await openPage(browser, { store: SEEN_ALL, q: 'seed=72' });
+  await T.tapEl('.ck-prop');
+  await playTap(T); await playFlip(T, 1500); await playSlice(T);
+  await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
+  await T.go(600);
+  check((await T.verb()).opacity === '0' && !(await T.live()).hint, 'L16: reveal on touch, at first nothing extra shows');
+  await T.go(5000);
+  l = await T.live();
+  check(l.hint === 'idle' && (await T.verb()).opacity === '1' && (await T.verb()).text === '돌아가기', 'L16: 5 s with the plate up -> one tap hand on the plate and 돌아가기 shows');
+  await T.go(1500);
+  check((await T.live()).screen === 'reveal', 'L16: ... and it does not go back by itself');
+  var plate = await T.pt(144, 172);
+  await T.tapCss(plate);
+  await T.until(function (x) { return x.screen === 'counter'; }, 2000, 'counter');
+  await T.go(260); await T.tapCss(plate); await T.go(400);
+  check((await T.live()).screen === 'counter', 'L16: a second tap on the plate 300 ms later stays on the counter (no new dish)');
+  await T.go(400); await T.tapEl('.ck-prop'); await T.go(100);
+  check((await T.live()).screen === 'step', 'L16: a tap on the pan after the calm starts the next dish');
+  check(T.errs.length === 0, 'L16: no errors (reveal) ' + T.errs.join(' | '));
+  await T.done();
+}
+
+async function L17(browser) {   /* brief items: 24 px edge, 600 ms title and tap-dismiss, first-seen demos, name tag delay, ?slow=4,
+                                   a bright rim that lasts one 12 fps frame */
+  var T = await openPage(browser, { vp: { width: 320, height: 568 }, store: JSON.stringify({ v: 1, day: '', dayN: 0, seen: [], pot: null, book: [] }), q: 'seed=81' });
+  await T.tapEl('.ck-prop');
+  await T.until(function (x) { return x.kind === 'tap'; }, 2000, 'tap');
+  var l = await T.live();
+  check(l.title, 'L17: a step opens with its title tag');
+  await T.go(550); check((await T.live()).title, 'L17: ... still there at 550 ms');
+  await T.go(100); l = await T.live();
+  check(!l.title && l.hint === 'demo', 'L17: the title goes at 600 ms, then the first-time demo hand plays (' + l.hint + ')');
+  check((await T.store()).seen.indexOf('tap') < 0, 'L17: tap is not marked seen while its demo plays');
+  await T.go(1100);
+  check((await T.store()).seen.indexOf('tap') >= 0, 'L17: tap is marked seen once its demo has played');
+  var st = await T.rect('.ck-stage'), mk = l.st.marks[0], fx0 = (await T.live()).fx, py = st.y + mk.y * st.h / 320;
+  await T.tapCss([st.x + 4, py]);   /* inside the stage but within 24 CSS px of the screen edge */
+  l = await T.live();
+  check(st.x + 4 < 24 && l.fx === fx0 && l.st.hits === 0, 'L17: a touch that starts within 24 px of the screen edge is ignored (x ' + (st.x + 4) + ')');
+  await T.tapCss([st.x + 30, py]);
+  check((await T.live()).fx > fx0, 'L17: ... and 30 px in it counts (a speck or a hit)');
+  var p = await T.pt(mk.x, mk.y), h0 = await T.hash();
+  await T.touch('touchStart', p); await realWait(40); await T.go(17);
+  var h1 = await T.hash(); await T.go(84); var h2 = await T.hash(); await T.touch('touchEnd');
+  check(h1 !== h0 && h2 !== h1, 'L17: the bright rim shows on the next frame and is gone one 12 fps frame later');
+  await T.go(300);
+  for (var i = 0; i < 9; i++) { await T.verbClick(); await T.go(300); if ((await T.live()).kind !== 'tap') break; }
+  await T.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 3000, 'flip');
+  check((await T.live()).title, 'L17: the next step opens with its title');
+  await T.go(300); await T.tap(144, 176); await T.go(20);
+  check(!(await T.live()).title, 'L17: a tap takes the title down at once');
+  await T.done();
+
+  T = await openPage(browser, { store: SEEN_ALL, q: 'seed=82' });
+  await T.tapEl('.ck-prop');
+  await verbThrough(T, 'tap', 3); await verbThrough(T, 'flip', 2); await verbThrough(T, 'slice', 2);
+  await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
+  var tag0 = await T.page.evaluate(function () { return document.querySelector('.ck-name').hidden; });
+  await T.go(450);
+  var tag1 = await T.page.evaluate(function () { var n = document.querySelector('.ck-name'); return !n.hidden && n.textContent; });
+  check(tag0 === true && tag1 === '해초전', 'L17: the name tag waits for the plate to rise, then reads 해초전');
+  await T.done();
+
+  T = await openPage(browser, { store: SEEN_ALL, q: 'seed=83&slow=4' });
+  await T.tapEl('.ck-prop');
+  await T.until(function (x) { return x.screen === 'step'; }, 2000, 'step');
+  await T.go(1500); l = await T.live();
+  check(l.slow === 4 && l.title, 'L17: ?slow=4 stretches every time (the title is still up at 1.5 s)');
+  await T.go(1200);
+  check(!(await T.live()).title, 'L17: ... and goes at 2.4 s');
+  check(T.errs.length === 0, 'L17: no errors ' + T.errs.join(' | '));
+  await T.done();
+}
+
+async function L18(browser) {   /* run id without a clock, kitchen keys only, sizzle back after a hidden tab, auto after the counter
+                                   calm, a lost pointer capture frees the finger, a resumed ?rec=1 recording replays */
+  var ids = [];
+  for (var c = 0; c < 2; c++) {
+    var T = await openPage(browser, { store: null, crypto: 7, q: 'seed=91' });
+    if (c === 1) await T.go(5 * 3600 * 1000);   /* five hours later the same day */
+    await T.tapEl('.ck-prop'); await T.go(100);
+    ids.push((await T.live()).id);
+    await T.done();
+  }
+  var T3 = await openPage(browser, { store: null, crypto: 8, q: 'seed=91' });
+  await T3.tapEl('.ck-prop'); await T3.go(100); ids.push((await T3.live()).id); await T3.done();
+  check(ids[0] && ids[0] === ids[1] && ids[2] !== ids[0], 'L18: the run id does not change with the time a dish starts, only with its random salt (' + ids.join(' ') + ')');
+
+  var MAIN = 'ppolppol_' + 'v2';   /* the main game's save key (never in the cook files) */
+  var K = await openPage(browser, { store: SEEN_ALL });
+  var r = await K.page.evaluate(function (key) {
+    localStorage.setItem(key, '{"fake":"main save"}');
+    COOK.close();
+    var a = COOK.open({ storeKey: key }), k = COOK.live().key;
+    var imp = COOK.importData({ book: [] }, key), exp = COOK.exportData(key);
+    return { open: a, key: k, imp: imp, exp: exp, main: localStorage.getItem(key) };
+  }, MAIN);
+  check(r.open && r.key === 'ppolppol_cook' && r.imp === false && r.exp === null && r.main === '{"fake":"main save"}', 'L18: only kitchen keys: the main save key falls back to ppolppol_cook and is never written (' + JSON.stringify(r) + ')');
+  await K.done();
+
+  var A = await openPage(browser, { store: SEEN_ALL, audio: true, q: 'seed=92' });
+  await A.tapEl('.ck-prop'); await verbThrough(A, 'tap', 3);
+  await A.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 3000, 'flip');
+  await A.go(700); await A.tap(144, 176); await A.go(3500);
+  var n0 = await A.page.evaluate(function () { return window.__acts.length; });
+  await A.page.evaluate(function () {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } });
+    document.dispatchEvent(new Event('visibilitychange'));
+    delete document.hidden; document.dispatchEvent(new Event('visibilitychange'));
+  });
+  var tail = await A.page.evaluate(function (n) { return window.__acts.slice(n).map(function (x) { return x.p.act + (x.p.band != null ? x.p.band : ''); }); }, n0);
+  check(tail.join(',') === 'quiet,sizzle1', 'L18: hidden then shown with the pan on -> quiet, then the sizzle again at the band now (' + tail.join(',') + ')');
+  await A.done();
+
+  var U = await openPage(browser, { store: SEEN_ALL, q: 'seed=93' });
+  await U.page.evaluate(function () { COOK.auto(true); });
+  await U.until(function (x) { return x.screen === 'counter' && x.done === false && x.frames > 0 && x.recipe === null && x.fx > 0; }, 15000, 'back on the counter');
+  await U.go(20);
+  await U.page.evaluate(function () { COOK.auto(true); });
+  var u = await U.until(function (x) { return x.screen === 'step'; }, 3000, 'auto again');
+  check(u.screen === 'step', 'L18: COOK.auto(true) right after returning to the counter still starts the next dish');
+  await U.done();
+
+  var P = await openPage(browser, { store: SEEN_ALL, q: 'seed=94' });
+  await P.tapEl('.ck-prop'); await verbThrough(P, 'tap', 3); await verbThrough(P, 'flip', 2);
+  await P.until(function (x) { return x.kind === 'slice' && x.phase === 'step'; }, 3000, 'slice');
+  await P.go(700);
+  await P.page.evaluate(function () {   /* a finger whose up never arrives (synthetic: the browser cannot drop one on cue) */
+    var st = document.querySelector('.ck-stage'), r = st.getBoundingClientRect(), o = { pointerId: 77, pointerType: 'touch', isPrimary: true, clientX: r.left + 20, clientY: r.bottom - 20, bubbles: true };
+    st.dispatchEvent(new PointerEvent('pointerdown', o));
+    st.dispatchEvent(new PointerEvent('lostpointercapture', o));
+  });
+  var ln = (await P.live()).st.lines[0];
+  await P.drag(line([ln.ax - 10 * ln.ux, ln.ay - 10 * ln.uy], [ln.bx + 10 * ln.ux, ln.by + 10 * ln.uy], 20), 16);
+  await realWait(40); await P.go(100);
+  check((await P.live()).st.lines[0].cut, 'L18: after a lost pointer capture, the next finger cuts (flip and slice follow one finger)');
+  check(P.errs.length === 0, 'L18: no errors ' + P.errs.join(' | '));
+  await P.done();
+
+  var store = null;
+  var R0 = await openPage(browser, { store: SEEN_ALL, q: 'recipe=jeon&seed=95' });
+  await verbThrough(R0, 'tap', 3);
+  await R0.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 3000, 'flip');
+  store = await R0.store(); await R0.done();
+  var R = await openPage(browser, { store: JSON.stringify(store), q: 'rec=1' });
+  await R.tapEl('.ck-prop');
+  await R.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 3000, 'resumed flip');
+  await playFlip(R, 3500); await playSlice(R);
+  var lr = await R.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
+  var rec = await R.page.evaluate(function () { return window.__cookRec; });
+  await R.done();
+  var sb = { console: console, Math: Math, JSON: JSON };
+  vm.createContext(sb); vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/cook.js'), 'utf8'), sb, { filename: 'cook.js' });
+  var out = sb.COOK.simulate(rec.recipe, rec.seed, JSON.parse(JSON.stringify(rec.steps)), { pot: JSON.parse(JSON.stringify(rec.pot)) });
+  check(rec.pot && rec.pot.si === 1 && out.done && JSON.stringify(out.look) === JSON.stringify(lr.look), 'L18: a ?rec=1 recording of a resumed dish replays in node with { pot } to the same look');
+}
+
 (async function main() {
-  var tests = { L1: L1, L2: L2, L3: L3, L4: L4, L5: L5, L6: L6, L7: L7, L8: L8, L9: L9, L10: L10, L11: L11, L12: L12, L13: L13, L14: L14 };
+  var tests = { L1: L1, L2: L2, L3: L3, L4: L4, L5: L5, L6: L6, L7: L7, L8: L8, L9: L9, L10: L10, L11: L11, L12: L12, L13: L13, L14: L14, L15: L15, L16: L16, L17: L17, L18: L18 };
   var browser = await chromium.launch(), t0 = Date.now();
   try {
     for (var name in tests) {

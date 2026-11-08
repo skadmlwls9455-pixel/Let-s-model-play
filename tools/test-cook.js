@@ -662,6 +662,52 @@ section('12b. js/cook-art.js (when present): shared geometry and the dish painte
   check(sm.w === G.small.w && palOk(sm) && Array.prototype.some.call(sm.d, function (v, i) { return i % 4 === 3 && v; }), 'a small buffer gets COOK_ART.dishSmall');
 })();
 
+section('15. verifier fixes (slice 1 second pass)');
+(function () {
+  /* slice guides fit the food along their own axis: a stroke over the whole jeon (and over 90 % of it) cuts each line */
+  var J = A.TUNE.food.jeon, S2 = A.TUNE.slice, g = geom(A, 1);
+  check(g.lines[0].len === Math.min(S2.len, 2 * (J.rx[0] + S2.over) * 2) && g.lines[1].len === Math.min(S2.len, 2 * (J.ry[0] + S2.over) * 2) && g.lines[0].len === 128 && g.lines[1].len === 88,
+    'slice guides: food size + ' + S2.over + ' art px at each end along their own axis (64 / 44 art px)');
+  var cutOk = [0, 0], tried = 0;
+  [1, 0.9].forEach(function (frac) {
+    for (var s = 1; s <= 40; s++) for (var li = 0; li < 2; li++) {
+      var r = runAt(A, s, 2); if (li === 1) A.input(r, { t: r.t0 + 260, k: 'b' });
+      var L = r.st.lines[li], mx = (L.ax + L.bx) / 2, my = (L.ay + L.by) / 2, h = (li === 0 ? J.rx[0] : J.ry[0]) * 2 * frac, ev = [];
+      stroke(ev, li === 0 ? line(mx - h, my, mx + h, my, 4) : line(mx, my - h, mx, my + h, 4), 300, HZ120, 7); A.feed(r, ev, { cadence: 60 });
+      if (r.st.lines[li].cut) cutOk[li]++;
+      if (li === 0) tried++;
+    }
+  });
+  check(cutOk[0] === tried && cutOk[1] === tried, 'a straight stroke over the whole jeon or 90 % of it cuts the line, across and down (' + cutOk.join(' / ') + ' of ' + tried + ')');
+  /* a hold with a huge time jump: bounded catch-up, the same grid afterwards */
+  var rh = runAt(A, 1, 0); A.input(rh, { t: rh.t0 + 300, k: 'd', x: 4, y: 4, p: 't', id: 1 }); A.drain(rh);
+  var t0 = Date.now(); A.tick(rh, rh.t0 + 1e8); var nev = A.drain(rh).length, ms = Date.now() - t0;
+  check(nev <= A.TUNE.tap.catchUp + 2 && ms < 500 && rh.st.press.next % A.TUNE.tap.everyMs === (300 + A.TUNE.tap.holdMs) % A.TUNE.tap.everyMs,
+    'a held finger + a 1e8 ms jump: at most ' + A.TUNE.tap.catchUp + ' auto taps (' + nev + ' events, ' + ms + ' ms), then the same 250 ms grid');
+  var rf = runAt(A, 1, 0), m0 = { x: J.cx * 2, y: J.cy * 2 }; A.input(rf, { t: rf.t0 + 300, k: 'd', x: m0.x, y: m0.y, p: 't', id: 1 }); A.tick(rf, rf.t0 + 1e7);
+  check(rf.looks.length === 1 && rf.looks[0].dents.length === 9, 'a held finger on the food over a huge jump still finishes the tap step (9 dents)');
+  var tS = Date.now(), big = A.simulate('jeon', 5, fullPath(5), { cadence: 1e9, until: 1e12 }), tE = Date.now() - tS;
+  check(big.done && tE < 15000, 'simulate clamps cadence (1..1000 Hz) and until (<= 10 min): returns in ' + tE + ' ms');
+  /* holes in a saved look are refused (Array#every skips holes) */
+  var rp = runAt(A, 5, 2), potH = A.potOf(rp, 1), holes = 0, refused = 0;
+  [function (o) { o.looks[0].dents = [[1, 2], [3, 4], [5, 6]]; delete o.looks[0].dents[1]; }, function (o) { o.looks[0].dents = [[1, 2]]; delete o.looks[0].dents[0][1]; }].forEach(function (f) {
+    var o = JSON.parse(JSON.stringify(potH)); f(o); holes++; if (A.resumeRun(o) === null) refused++;
+  });
+  check(refused === holes, 'a pot whose look arrays have holes is dropped (' + refused + '/' + holes + ')');
+  /* a ?rec=1 recording of a resumed dish replays with simulate(..., { pot }) */
+  var seedR = 4242, p = fullPath(seedR, { flipAt: 4000, deg0: 12, j: 2 }), whole = A.simulate('jeon', seedR, p);
+  var base = drive(IA, [p[0], [], []], seedR, 60, 0, null), potR = JSON.parse(JSON.stringify(A.potOf(base, 1)));
+  var rec = A.simulate('jeon', seedR, [[], p[1], p[2]], { pot: potR });
+  check(potR.si === 1 && rec.done && same(rec.look, whole.look), 'simulate(recipe, seed, steps, { pot }) replays a resumed dish to the same look');
+  check(A.simulate('jeon', seedR + 1, [[], p[1], p[2]], { pot: potR }).look === null, 'simulate with a pot of another seed starts nothing');
+  /* the run id holds no clock */
+  check(A.runIdFor('2026-11-08', 3, 'abc') === A.runIdFor('2026-11-08', 3, 'abc') && A.runIdFor('2026-11-08', 3, 'abc') !== A.runIdFor('2026-11-08', 3, 'abd'), 'runIdFor(day, dayN, nonce): same nonce, same id; another nonce, another id');
+  var live = SRC.split('/* ───────── live ───────── */')[1] || '', calls = live.match(/runIdFor\([^;]*\)/g) || [];
+  check(calls.length >= 1 && calls.every(function (c) { return !/Date\.now|performance\.now|new Date|getTime/.test(c); }), 'the live half never passes a clock into runIdFor (' + calls.length + ' call)');
+  check(/getRandomValues/.test(live), 'the live half salts the run id with crypto.getRandomValues');
+  check(A.TUNE.calmMs >= 400 && A.TUNE.flip.teach >= 2 && A.TUNE.slice.over >= 1 && A.TUNE.tap.catchUp >= 8, 'TUNE carries calmMs, flip.teach, slice.over, tap.catchUp');
+})();
+
 section('14. static checks');
 (function () {
   var MARK = '/* ───────── live ───────── */';
