@@ -173,7 +173,8 @@ Octopus.prototype.chatSituation = function (trip) {
   if (!c || c.tripId !== trip.id || c.asked >= CHAT_MAX) return null;
   var q = (CHAT_Q[trip.kind === 'home' ? 'home' : 'out'])[c.asked];
   c.asked++;
-  return this.offer({ point: 'chat', round: c.asked, q: q, tripId: trip.id, menu: MENU.chat.slice() });
+  /* MCP 만으로 놀 때 이 물음은 사람이 고른 게 아니라 게임이 정해 둔 기본 순서다 — 그렇다고 적는다 (모델을 속이지 않는다) */
+  return this.offer({ point: 'chat', round: c.asked, q: q, asker: 'game', tripId: trip.id, menu: MENU.chat.slice() });
 };
 /* 식탁: 사람이 차렸을 때만 (cli.js table). 산책 중엔 안 묻는다 — 늘 finish 뒤. 상한 넘으면 묻지 않고 기록도 없다 */
 Octopus.prototype.tableSituation = function () {

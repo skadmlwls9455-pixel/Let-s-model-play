@@ -81,6 +81,7 @@ async function unit() {
   check(!('reason' in evs[8]) && !('reaction' in evs[11]), '안 준 이유·반응은 비워 둔다');
   check(evs[1].note === '챙이 생각보다 넓었어' && evs[2].note === undefined, '기웃 메모는 모델이 쓴 것만');
   check(f.decision && f.decision.point === 'chat' && f.decision.round === 1 && f.decision.menu.join() === 'say,watch,stop', 'chat 1 이 finish 결과에');
+  check(f.decision.asker === 'game', 'chat 물음은 게임이 정한 것이라고 적힌다 (사람이 물은 척 안 함)');
   var c2 = o.answer({ id: f.decision.id, action: 'watch' });
   check(c2.decision && c2.decision.round === 2, 'chat 2');
   var c3 = o.answer({ id: c2.decision.id, action: 'say', line: '깃털 끝이 갈라져 있었어' });

@@ -39,7 +39,7 @@ cd mcp && npm install
 
 **힌트 없음 (결정 18)**: 산책에 부탁·주제를 넣는 입력이 없다. 출발 이벤트의 `hint` 는 PROTOCOL §1 모양을 지키려고 늘 빈 글이고 `followHint` 는 늘 `false` 다.
 
-**토큰 (11-09 구조 고침)**: 커넥터를 켜 두면 도구 정의와 instructions 는 뽈뽈을 안 하는 대화에도 실린다. 그래서 설명은 짧게 두고, 뜻은 instructions 에 한 번만 적었다. 도구 정의는 6,471 → 4,983 B, instructions 는 1,296 → 1,031 B 로 줄었다 (`npm test` 가 5,000 B 를 넘으면 실패한다). 산책 한 번의 비용은 턴 수를 따라간다. 그래서 `depart` 의 `first` 로 왕복 하나를 줄이고, `depart` 결과도 3,491 → 1,357 B 로 줄였다. 더 읽는 비용은 모델이 `more` 를 고를 때만 든다. `wrap_up.memo` 는 `tomorrow` 한 칸으로 받는다 (core 는 옛 `memo:{tomorrow,notes}`·`note:{text,about}` 도 받는다).
+**토큰 (11-09 구조 고침)**: 커넥터를 켜 두면 도구 정의와 instructions 는 뽈뽈을 안 하는 대화에도 실린다. 그래서 설명은 짧게 두고, 뜻은 instructions 에 한 번만 적었다. 도구 정의는 6,471 → 4,983 B, instructions 는 1,296 → 1,031 B 로 줄었다가, 11-09 복지 점검에서 사실 고지 두 줄을 더해 1,372 B 가 됐다 (`npm test` 가 5,000 B 를 넘으면 실패한다). 산책 한 번의 비용은 턴 수를 따라간다. 그래서 `depart` 의 `first` 로 왕복 하나를 줄이고, `depart` 결과도 3,491 → 1,357 B 로 줄였다. 더 읽는 비용은 모델이 `more` 를 고를 때만 든다. `wrap_up.memo` 는 `tomorrow` 한 칸으로 받는다 (core 는 옛 `memo:{tomorrow,notes}`·`note:{text,about}` 도 받는다).
 
 ### status — 거짓 성공 금지
 
