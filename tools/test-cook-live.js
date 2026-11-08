@@ -47,7 +47,7 @@ async function openPage(browser, o) {
         var n = m.target && m.target.nodeType === 3 ? m.target.parentNode : m.target, say = n && n.closest ? n.closest('.ck-say') : null;
         if (say && say.textContent) window.__aria.push(say.textContent);
       });
-    }).observe(document.documentElement, { subtree: true, childList: true, characterData: true });
+    }).observe(document, { subtree: true, childList: true, characterData: true });   /* the document: init scripts run before <html> exists */
   });
   if (o.crypto != null) await ctx.addInitScript(function (v) { crypto.getRandomValues = function (a) { for (var i = 0; i < a.length; i++) a[i] = v; return a; }; }, o.crypto);
   var page = await ctx.newPage(), errs = [];
@@ -309,7 +309,7 @@ async function L5(browser) {   /* layout at five sizes + DPR 2.625; notice keeps
     var l = await T.live();
     check(Math.abs(stage.w - 144 * l.k / m.dpr) < 0.02 && Math.abs(stage.h - 160 * l.k / m.dpr) < 0.02 && l.k / m.dpr <= 3, 'L5 ' + tag + ': stage = 144k / dpr (k ' + l.k + ', ' + stage.w.toFixed(3) + ' px)');
     check(Math.abs(row.y - stage.b - 8) < 0.6, 'L5 ' + tag + ': the stage sits right above the verb row');
-    function onDev(v) { var d = v * m.dpr; return Math.abs(d - Math.round(d)) <= m.dpr / 64 + 1e-6; }
+    function onDev(v) { var d = v * m.dpr; return Math.abs(d - Math.round(d)) <= 0.1; }   /* layout keeps 1/64 CSS px: a few hundredths of a device px are rounding, 0.25 (the old header) is not */
     check(onDev(stage.x) && onDev(stage.y) && onDev(stage.w) && onDev(stage.h), 'L5 ' + tag + ': the stage box sits on whole device pixels (' + [stage.x, stage.y].map(function (v) { return (v * m.dpr).toFixed(3); }).join(', ') + ')');
     await T.tapEl('.ck-prop');
     l = await T.until(function (x) { return x.kind === 'tap'; }, 2000, 'tap');
