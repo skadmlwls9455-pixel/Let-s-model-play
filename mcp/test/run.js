@@ -142,20 +142,24 @@ async function unit() {
     if (p.list === 'search') return Promise.resolve(p.srsearch === '없음' ? null : { search: [{ title: p.srsearch }, { title: p.srsearch + ' (동음이의)' }] });
     return Promise.resolve(null);
   }
-  var ol = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: stubQuery, now: function () { return new Date(clock); } });
+  var ol = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: stubQuery, useSnapshot: false, now: function () { return new Date(clock); } });
   var g1 = await ol.go({});
   check(Array.isArray(g1.shelf) && g1.shelf.length === 8 && new Set(g1.shelf).size === 8, '오늘의 서가 8권');
   check(g1.rooms.split(', ').sort().join() === 'hat 모자,octopus_nerves 문어 신경계', '열람실 = 책이 있는 방만, 모퉁이 없음');
-  var orderDays = {}; for (var dd = 0; dd < 10; dd++) { var od = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: stubQuery, now: function () { return new Date(clock + dd * 86400000); } }); orderDays[od.rooms()] = 1; }
+  var orderDays = {}; for (var dd = 0; dd < 10; dd++) { var od = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: stubQuery, useSnapshot: false, now: function () { return new Date(clock + dd * 86400000); } }); orderDays[od.rooms()] = 1; }
   check(Object.keys(orderDays).length === 2, '열람실 순서는 날마다 섞인다 (책 2권 → 두 순서가 다 나온다)');
   ol.finish({});
   var before = qcalls, g2 = await ol.go({});
   check(JSON.stringify(g2.shelf) === JSON.stringify(g1.shelf) && qcalls === before, '같은 날은 같은 서가 · 목록은 한 번만 불러옴');
   ol.finish({});
-  var olN = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: stubQuery, now: function () { return new Date(clock + 86400000); } });
+  var olN = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: stubQuery, useSnapshot: false, now: function () { return new Date(clock + 86400000); } });
   check(JSON.stringify((await olN.go({})).shelf) !== JSON.stringify(g1.shelf), '다음 날은 다른 서가');
-  var oOff = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: function () { return Promise.resolve(null); }, now: function () { return new Date(clock); } });
+  var oOff = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: function () { return Promise.resolve(null); }, useSnapshot: false, now: function () { return new Date(clock); } });
   check((await oOff.go({})).shelf === null, '서가를 못 불러오면 null (지어내지 않음)');
+  var SHELF = require('../../js/shelf.js');
+  var oSnap = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: function () { throw new Error('묻지 않아야 한다'); }, now: function () { return new Date(clock); } });
+  var gs = await oSnap.go({});
+  check(SHELF.pool.length > 300 && JSON.stringify(gs.shelf) === JSON.stringify(SHELF.today(oSnap.dateKey(), BRAIN, 8)), '기본은 js/shelf.js — 게임과 같은 날 같은 서가 (네트워크 없이)');
   var fd = await ol.find({ q: '등대' });
   check(fd.titles && fd.titles[0] === '등대' && !ol.S.running, '찾아보기: 제목만, 산책 기록 안 남김');
   check((await ol.find({ q: '없음' })).status === 'failed' && (await ol.find({})).error, '찾아보기 실패는 failed, 빈 말은 오류');

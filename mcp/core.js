@@ -11,6 +11,7 @@ var fs = require('fs');
 var path = require('path');
 var WORLD = require('../js/world.js');
 var BRAIN = require('../js/brain.js');
+var SHELF = (function () { try { return require('../js/shelf.js'); } catch (e) { return null; } })();   /* 게임과 같은 '오늘의 서가' 목록 (mcp/tools/build-shelf.js) */
 BRAIN.setWorld(WORLD);
 
 /* 고정 문장 (CORE_LOOP_V2 §4.2 초안을 다듬은 것. 모든 모드에서 같은 글) */
@@ -99,6 +100,7 @@ function Octopus(opts) {
   this.fetchWiki = opts.fetchWiki || wikiFetch;
   this.queryWiki = opts.queryWiki || wikiQuery;
   this.shelfPool = null;   /* 알찬 글·좋은 글 제목 (처음 한 번 불러와 둔다) */
+  this.useSnapshot = opts.useSnapshot !== false && !!(SHELF && SHELF.pool && SHELF.pool.length);   /* 기본: js/shelf.js (게임과 같은 서가). 없으면 위키에서 받는다 */
   var lb = loadBooks(opts.booksDir || path.join(__dirname, '..', 'library', 'books'));
   this.books = lb.books; this.bookErrors = lb.errors;   /* 깨진 책은 건너뛴다 (서버는 뜬다). 고칠 곳은 check-books 가 알려 준다 */
   this.now = opts.now || function () { return new Date(); };
@@ -303,6 +305,7 @@ Octopus.prototype.loadShelfPool = async function () {
 };
 /* 오늘의 서가: 날짜로 정해지는 SHELF_N 권 (그날은 같고 날마다 바뀐다). 누가 고른 게 아니라 무작위다 */
 Octopus.prototype.todayShelf = async function () {
+  if (this.useSnapshot) return SHELF.today(this.dateKey(), BRAIN, SHELF_N);
   var pool = (await this.loadShelfPool()).slice();
   if (!pool.length) return null;
   var r = BRAIN.rng(BRAIN.hashSeed('shelf', this.dateKey()));

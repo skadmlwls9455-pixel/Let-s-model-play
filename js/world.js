@@ -20,7 +20,7 @@ var WORLD = (function () {
     sounds:  { name: '소리와 리듬', emoji: '🎵', phrase: '소리 쪽' },
     home:    { name: '집과 사람',   emoji: '🏠', phrase: '집 쪽' },
     mind:    { name: '생각하는 것', emoji: '💭', phrase: '생각 쪽' },
-    wild:    { name: '들판',       emoji: '❔', phrase: '들판 쪽' }
+    wild:    { name: '서가',       emoji: '❔', phrase: '서가 쪽' }
   };
 
   var scenes = ['hands', 'sea', 'sky', 'signs', 'numbers', 'sounds', 'home', 'mind', 'wild'];

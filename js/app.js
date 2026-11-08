@@ -1522,7 +1522,7 @@ var APP = (function () {
   function checkDay(soon) {
     if (busy || !logDay || todayKey() === logDay) return false;
     if (!soon) { var last = null; S.trips.forEach(function (t) { if (t.status === 'done' && (!last || (t.endedAt || 0) > (last.endedAt || 0))) last = t; }); if (last && Date.now() - (last.endedAt || 0) < 120000) return false; }
-    setDayGreeting(); renderLog(); renderAlbum();
+    setDayGreeting(); renderLog(); renderAlbum(); renderShelf();
     return true;
   }
   /* 인사 초상: 자는 중이면 자는 얼굴, 깨어 있으면 웃는 얼굴 (반쯤 감은 차분한 얼굴은 화난 '-_-^' 로 읽힌다는 주인 피드백) */
@@ -1683,11 +1683,11 @@ var APP = (function () {
   /* 공유용 한 줄 (CG R14 · 스포일러 없음 · 힌트 · URL · 제목 없음 — 이모지 사슬은 뺐다, 주인 11-07): 들른 곳은 이름이 아니라 그곳의 갈래 낱말만.
      `뽈뽈 #3 · 비 오는 날 · 손 · 바다 · 들판 · 밖` (방 = 코너 낱말, 위키 · 모르는 곳 = 들판, 바깥 주소 = 밖). 날씨는 '… 날' 로 (방 '비' 와 헷갈리지 않게). 집에 있던 날 `뽈뽈 · 오늘은 집` */
   var WX_WORD = { rain: '비 오는 날', drizzle: '가랑비 오는 날', clear: '맑은 날', snow: '눈 오는 날' };
-  var CORNER_WORD = { hands: '손', sea: '바다', sky: '하늘', signs: '기호', numbers: '수', sounds: '소리', home: '집', mind: '생각', wild: '들판' };
+  var CORNER_WORD = { hands: '손', sea: '바다', sky: '하늘', signs: '기호', numbers: '수', sounds: '소리', home: '집', mind: '생각', wild: '서가' };
   function shareLine(trip) {
     if (trip.kind === 'home') return '뽈뽈 · 오늘은 집';
     var ord = tripOrdinal(trip), stops = (trip.receipt && trip.receipt.stops) || [];
-    var words = stops.map(function (s) { return s.nodeId === 'door_out' ? '밖' : CORNER_WORD[s.corner] || '들판'; })
+    var words = stops.map(function (s) { return s.nodeId === 'door_out' ? '밖' : CORNER_WORD[s.corner] || '서가'; })
       .filter(function (w, i, a) { return i === 0 || w !== a[i - 1]; });   /* 같은 갈래가 잇달아 오면 한 번만 ('손 · 손' 이 틀린 것처럼 읽혀서) */
     return ['뽈뽈 #' + (ord || '?'), WX_WORD[weatherFor(S.room.lantern)] || WX_WORD.rain].concat(words).join(' · ');
   }
@@ -2039,7 +2039,16 @@ var APP = (function () {
       return { id: sv.id, tripId: sv.tripId, name: def ? def.name : sv.id, img: assetPath('souvenir.' + sv.id), icon: window.UIART && UIART.iconSrc && def ? UIART.iconSrc('souvenir/' + sv.id) : null };   /* 그림이 안 오면 16×16 기념품 아이콘 (2D 선반 · js/scene2d.js) — 이모지는 쓰지 않는다 */
     }));
   }
-  function renderAll() { renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderLog(); }
+  function renderAll() { renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderLog(); renderShelf(); }
+  /* 큰 도서관 '오늘의 서가' — 날짜로 정해지는 8편 (js/shelf.js, MCP 서버와 같은 뽑기). 고른 이가 없는 무작위라 문어 마음을 대신 말하지 않는다 */
+  function renderShelf() {
+    var box = $('shelf-today'), ul = $('shelf-list'); if (!box || !ul) return;
+    if (typeof SHELF === 'undefined' || !SHELF.pool || !SHELF.pool.length || !B) { box.hidden = true; return; }
+    ul.innerHTML = SHELF.today(todayKey(), B, 8).map(function (t) {
+      return '<li><a href="https://ko.wikipedia.org/wiki/' + encodeURIComponent(t.replace(/ /g, '_')) + '" target="_blank" rel="noopener">' + esc(t) + '</a></li>';
+    }).join('');
+    box.hidden = false;
+  }
 
   /* ───────────────────────── dialogs: poster · settings · name ───────────────────────── */
   var openTripId = null, flippedOnce = {};
@@ -2754,7 +2763,7 @@ var APP = (function () {
     if (S.octopus.state === 'sleep' && napOver()) S.octopus.state = 'idle';   /* 낮잠이 끝났으면(20분 · 날짜가 바뀜) 깬 채로 연다 → 인사 '기다리고 있었어', 창가에서 */
     applyMotion(); applyFont(); initScene(); applyMotion();
     if (typeof scene.setPlace === 'function') scene.setPlace('attic', { instant: true });   /* 늘 다락에서 연다 (running 여행이 남아 있어도 — resumeRunning) */
-    renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum();
+    renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderShelf();
     bind();
     if (window.AUDIO) AUDIO.init({ hour: hourNow, weather: function () { return weatherFor(S.room.lantern); }, lantern: function () { return S.room.lantern; }, season: function () { return (scene && typeof scene.season === 'function') ? scene.season() : null; } });   /* 소리 (js/audio.js) — 꺼진 채로 시작 */
     if (!storeOK) quietWarn('이 브라우저에선 벽이 오늘만 남아');

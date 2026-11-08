@@ -143,6 +143,12 @@
 <section id="log-sec" aria-label="오늘의 산책">
   <h2 class="sec-h">오늘의 산책</h2>
   <div id="log" role="log" aria-live="polite" tabindex="0"></div>
+  <!-- 큰 도서관 '오늘의 서가' (js/shelf.js): 날짜로 정해지는 위키백과 알찬·좋은 글 8편. MCP 서버도 같은 날 같은 8편을 문어에게 보여 준다 -->
+  <details id="shelf-today" class="shelf-today" hidden>
+    <summary>오늘의 서가</summary>
+    <p class="shelf-note">날마다 바뀌는 위키백과 알찬 글·좋은 글 8편. 모델이 고르는 날엔 문어도 같은 서가를 본다.</p>
+    <ul id="shelf-list"></ul>
+  </details>
 </section>
 
 <!-- ══ DEMO (§7.6) — 개발용: ?dev=1 · localhost · file:// 에서만 보인다 (app.js DEV) ══ -->
@@ -241,6 +247,7 @@
 <script src="vendor/three.min.js" onerror="document.write('<script src=\'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js\'><\/script>')"></script>
 <script src="js/world.js"></script>
 <script src="js/brain.js"></script>
+<script src="js/shelf.js"></script>
 <script src="js/palettes.js"></script>
 <script src="js/clouds.js"></script><!-- 입장 하늘의 몽글한 픽셀 구름 (2D 캔버스, 날씨 × 시각대) -->
 <script src="js/scene3d.js"></script>

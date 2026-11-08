@@ -48,7 +48,7 @@
     door: ['{hint} 문 앞까지 갔다 왔어. 바깥은 못 읽었지만'],
     letter: ['편지의 방 문을 열어 봤어. 아직 비어 있었어'],
     failed: ['{mem} 문은 오늘 안 열렸어. 이름만 기억해 둘래', '{mem}는 못 읽었어. 다음에 다시 가 볼래'],
-    wild: ['들판에서 만난 건 {mem}. {memory}', '링크를 따라가다 {mem}에 닿았어']
+    wild: ['서가에서 만난 건 {mem}. {memory}', '링크를 따라가다 {mem}에 닿았어']
   };
 
   var DEFAULT_HOME = [
@@ -1394,7 +1394,7 @@
         var title = links[Math.min(links.length - 1, Math.floor(rWildIdx * links.length))];
         return safeFetch(fetcher, title, timeoutMs).then(function (res) {
           if (!res.ok) return null;
-          var ws = makeWildStop(title, { viaTangent: true, bridge: '위키 링크를 따라 들판으로' });
+          var ws = makeWildStop(title, { viaTangent: true, bridge: '위키 링크를 따라 서가로' });
           applyFetch(ws, res, online);
           stops.push(ws);
           return ws;
