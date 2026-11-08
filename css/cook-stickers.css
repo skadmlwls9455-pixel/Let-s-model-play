@@ -1,0 +1,29 @@
+/* css/cook-stickers.css — 요리 반응 스티커 (js/cook-stickers.js). 판(host) 위에 겹쳐 뜨고 누를 수 없다.
+   모션: 등장 250ms decelerate (6px 아래에서 → 2px 넘침 → 제자리) · 퇴장 180ms accelerate 위로 4px.
+   픽셀 그림이라 배율 애니메이션 대신 이동만 (cozy-web-game "픽셀 테마에선 배율 대신 2px 이동"). */
+.cook-sticker {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  user-select: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(0 2px 0 rgba(23, 32, 56, .28));
+  animation: cook-sticker-in 250ms cubic-bezier(0, 0, .2, 1) both;
+}
+.cook-sticker.is-out {
+  animation: cook-sticker-out 180ms cubic-bezier(.4, 0, 1, 1) both;
+}
+@keyframes cook-sticker-in {
+  0%   { opacity: 0; transform: translateY(6px); }
+  70%  { opacity: 1; transform: translateY(-2px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes cook-sticker-out {
+  to { opacity: 0; transform: translateY(-4px); }
+}
+/* 모션 줄이기: 이동 없이 투명도만 (없애지는 않는다) */
+.cook-sticker.is-reduced { animation-name: cook-sticker-fade-in; }
+.cook-sticker.is-reduced.is-out { animation-name: cook-sticker-fade-out; }
+@keyframes cook-sticker-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cook-sticker-fade-out { to { opacity: 0; } }
