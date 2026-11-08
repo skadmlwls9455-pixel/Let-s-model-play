@@ -1041,9 +1041,10 @@ var COOK = (function () {
         L.fx++; fxAdd({ k: 'flash' }, e.si); L.nudges = 0;
         if (L.seen.indexOf('flip') < 0) startHand('flick', 'demo', 'flip');   /* seen once it has played to its end */
         break;
-      case 'nudge':   /* a press after heat-on that did not flip: the jeon hops; a few of them -> show the up-swipe again */
+      case 'nudge':   /* a press after heat-on that did not flip: the jeon hops; a few of them (with no hand showing) -> the
+                         up-swipe hand once more and the verb button shows; at most twice a step, so it never nags */
         L.fx++; fxAdd({ k: 'bump' }, e.si);
-        if (++L.nudges >= TUNE.flip.teach && !L.hint) { L.nudges = 0; startHand('flick', 'teach'); L.stats.teach++; L.shown = true; }
+        if (!L.hint && ++L.nudges >= TUNE.flip.teach && L.taught < 2) { L.nudges = 0; L.taught++; startHand('flick', 'teach'); L.stats.teach++; L.shown = true; }
         break;
       case 'flip':
         L.fx++; L.finger = null; L.stats.flips++; L.nudges = 0;
@@ -1065,7 +1066,7 @@ var COOK = (function () {
   function onStart(e) {
     var run = L.run;
     L.prng = mulberry32(fxSeed(run.seed, run.si));
-    L.parts = []; L.dust = []; L.finger = null; L.hint = null; L.demoAt = -1; L.nudges = 0;
+    L.parts = []; L.dust = []; L.finger = null; L.hint = null; L.demoAt = -1; L.nudges = 0; L.taught = 0;
     D.title.textContent = WORDS.title[e.kind] || ''; D.title.hidden = false; L.titleUntil = L.lastT + TUNE.titleMs;
     placeTags(); stripOn(run.si);
   }
@@ -1349,8 +1350,32 @@ var COOK = (function () {
     L.tight = sky < LAY.note + LAY.gap + 4;   /* no room for the notice slot above the header: it lies over the strip */
     D.dlg.classList.toggle('ck-tight', L.tight);
     if (L.note) D.noteT.textContent = L.tight ? L.note.short : L.note.text;
-    sizeStrip(); placeProps(); placeTags();
+    sizeStrip(); placeProps(); placeTags(); wallBg();
     L.dirty = true;
+  }
+  /* the whole dialog stands in the play room's kitchen corner: its backdrop is the plank wall (COOK_ART.wallTile) at the
+     stage's own integer pixel scale, so tall phones show the kitchen wall above the stage instead of an empty page. The
+     dialog's inset frame paints over it; dark colour scheme = the same wall at night. */
+  function darkScheme() {
+    try {
+      var t = document.documentElement.getAttribute('data-theme');
+      if (t === 'dark' || t === 'light') return t === 'dark';
+      return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    } catch (e) { return false; }
+  }
+  function wallBg() {
+    var A = art(); if (!A || typeof A.wallTile !== 'function' || !L) return;
+    var dark = darkScheme(), key = (dark ? 'd' : 'l') + '|' + L.k + '|' + L.dpr;
+    if (L.wallKey === key) return;
+    var t = A.wallTile(dark), cv = document.createElement('canvas'), c = null;
+    cv.width = t.w; cv.height = t.h;
+    try { c = cv.getContext('2d'); } catch (e) { c = null; }
+    if (!c) return;
+    c.putImageData(A.imageData(t), 0, 0);
+    var s = D.dlg.style, px = L.k / L.dpr;
+    s.backgroundImage = 'url(' + cv.toDataURL() + ')'; s.backgroundSize = (t.w * px) + 'px ' + (t.h * px) + 'px';
+    s.backgroundRepeat = 'repeat'; s.backgroundPosition = '0 0'; s.imageRendering = 'pixelated';
+    L.wallKey = key;
   }
 
   /* ---------- frame loop ---------- */
@@ -1487,6 +1512,10 @@ var COOK = (function () {
     d.stage.addEventListener('contextmenu', function (e) { e.preventDefault(); });
     d.dlg.addEventListener('contextmenu', function (e) { if (e.target === d.cv) e.preventDefault(); });
     window.addEventListener('resize', function () { if (L) fit(); });
+    try {   /* light / dark wall follows the colour scheme while open */
+      var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+      if (mq && mq.addEventListener) mq.addEventListener('change', function () { if (L) wallBg(); });
+    } catch (e) { /* old browser: the wall keeps its first look */ }
     if (window.visualViewport) window.visualViewport.addEventListener('resize', function () { if (L) fit(); });
     document.addEventListener('visibilitychange', function () {
       if (!L) return;
@@ -1546,7 +1575,7 @@ var COOK = (function () {
         run: null, runDay: null, screen: 'counter', pot: null, pending: null, plate: null, seen: [], shown: false, finished: null,
         fx: 0, fxq: [], parts: [], dust: [], prng: null, hint: null, hintKey: null, demoAt: -1, titleUntil: 0, finger: null,
         down: {}, rect: null, sndAt: {}, said: [], note: null, auto: null, revealAt: 0, revealFocus: 0, revealDown: null, revealIdle: 0, counterAt: 0,
-        downAt: 0, rowPress: false, nudges: 0,
+        downAt: 0, rowPress: false, nudges: 0, taught: 0,
         stats: { parts: 0, squash: 0, shake: 0, arc: 0, hints: 0, idle: 0, flips: 0, teach: 0, rowPress: 0 }, frames: 0, err: 0, dirty: true,
         buf: art().blank(ART_W, ART_H), img: D.ctx.createImageData(ART_W, ART_H), raf: 0, k: 1, css: 2, cw: LAY.column, tight: false };
       if (L.palette && /^[a-z0-9-]+$/.test(L.palette)) D.dlg.setAttribute('data-palette', L.palette); else D.dlg.removeAttribute('data-palette');

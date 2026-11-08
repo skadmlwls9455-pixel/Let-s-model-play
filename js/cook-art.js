@@ -65,6 +65,7 @@
  *                      { kind: 'flick', x, y (start), f } | { kind: 'line', x0, y0, x1, y1, f }   f 0..3 at 12 fps,
  *                      o.still = true for the reduced-motion pose. The hot spot is the index fingertip.
  *          icon(name) -> 16 x 16 buffer   names: 'tap' (pointer hand pressing), 'flip' (spatula), 'slice' (knife), 'close'
+ *          wallTile(dark) -> 8 x 7 buffer: the dialog's backdrop (the play room's plank wall; dark = at night)
  *          particles(b, list)   list = [{ x, y, k, a, life }]  k = 'crumb' | 'drop' | 'steam' | 'dust' | 'spark' | 'herb'
  *                               1 x 1 art px each, color by age (PART[k][0] young .. [2] old); old steam thins out.
  * MOTION   f = frame counter at 12 fps (83 ms). Reduced motion: pass f: 0, still: true, squash 0, no arc (swap faces),
@@ -283,6 +284,13 @@ var COOK_ART = (function () {
         put(b, x, y, col);
       }
     }
+  }
+  /* backdrop tile for the whole kitchen dialog (js/cook.js repeats it at the stage's own integer scale): the play room's
+     slate plank wall, quieter than the stage's wall strip so the stage stays in front. dark = the same wall at night. */
+  function wallTile(dark) {
+    var t = blank(8, 7), rows = dark ? [C.s2, C.s1, C.s1, C.s1, C.s1, C.s1, C.s0] : [C.s5, C.s4, C.s4, C.s4, C.s4, C.s4, C.s3];
+    for (var y = 0; y < 7; y++) for (var x = 0; x < 8; x++) put(t, x, y, rows[y]);
+    return t;
   }
   function lamp(b, x, y) {           /* small amber wall sconce like the play-room lamp: bracket, shade, warm bulb */
     var G = [
@@ -1290,7 +1298,7 @@ var COOK_ART = (function () {
     counter: counter, tapScene: tapScene, flipScene: flipScene, sliceScene: sliceScene, revealScene: revealScene, frame: frame,
     pan: pan, panHeat: panHeat, board: board, batter: batter, marks: marks, jeon: jeon, bubbles: bubbles, spatula: spatula,
     arrow: arrow, guide: guide, knife: knife, plate: plate, dish: dish, dishSmall: dishSmall, hand: hand, icon: icon,
-    particles: particles, safeLook: safeLook, shake: shake,
+    particles: particles, safeLook: safeLook, shake: shake, wallTile: wallTile,
     toFood: toFood, fromFood: fromFood, inFood: inFood, pullIn: pullIn,
     PAN_STEP: PAN_STEP, PAN_COUNTER: PAN_COUNTER, BUBBLES: BUBBLES
   };
