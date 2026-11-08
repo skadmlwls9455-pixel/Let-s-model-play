@@ -1513,10 +1513,12 @@ async function scenarioWave7(browser) {
   var yo = await ctlOps();
   ok(yo.some(function (x) { return x.over; }) && yo.every(function (x) { return x.over ? x.op === 0 && x.pe === 'none' : x.op === 1; }), '문 앞 긴 말: 말풍선과 겹치는 버튼만 숨김 (글자 위에 아이콘이 안 그려짐) · 나머지는 그대로 ' + JSON.stringify(yo));
   await page.waitForFunction(function () { return document.getElementById('oct-bubble').hidden; }, null, { timeout: 8000 });
-  /* 되돌림은 ui-art 의 0.2 s 타이머가 한다 — 전체 스모크처럼 CPU 가 바쁘면 타이머가 늦으므로 고정 0.4 s 대신 최대 3 s 기다린다 */
-  var ytl = await page.evaluate(function () { return new Promise(function (res) { var out = [], t0 = performance.now(); var iv = setInterval(function () { var bb = document.getElementById('oct-bubble'); out.push(Math.round(performance.now() - t0) + ':' + (bb.hidden ? 'H' : 'V:' + (bb.textContent || '').slice(0, 12)) + ':' + [].map.call(document.querySelectorAll('.yield'), function (e) { return e.id; }).join('+')); if (!document.querySelector('.yield') || performance.now() - t0 > 3000) { clearInterval(iv); res(out); } }, 100); }); });
-  console.log('   yield timeline:', JSON.stringify(ytl));
-  await page.waitForTimeout(100);
+  /* 되돌림은 ui-art 의 0.2 s 타이머 + 0.25 s 페이드 — 전체 스모크처럼 CPU 가 바쁘면 타이머와 애니메이션 프레임이 늦으므로 (표시는 걷혔는데 페이드가 아직 0 에 머문 회차가 있었다)
+     고정 0.4 s 대신 다 돌아올 때까지 최대 3 s 기다린다. 영영 안 돌아오면 아래 검사가 잡는다 */
+  await page.waitForFunction(function () {
+    if (document.querySelector('.yield')) return false;
+    return [].every.call(document.querySelectorAll('#scene-ctl .icon-btn:not([hidden]), #btn-door'), function (btn) { var op = 1, e = btn; while (e && e !== document.body) { op *= +getComputedStyle(e).opacity; e = e.parentElement; } return op === 1; });
+  }, null, { timeout: 3000 }).catch(function () {});
   var yb = await ctlOps();
   ok(yb.every(function (x) { return x.op === 1 && (x.pe !== 'none' || x.spot === 'over'); }) && !(await page.$('.yield')), '말풍선이 사라지면 버튼이 모두 돌아옴 (3D 문 위 투명 문 단추는 원래 pointer-events: none — 톡은 장면이 받는다) ' + JSON.stringify(yb.map(function (x) { return x.id + ':' + x.op; })));
   await page.evaluate(function () { return Promise.race([APP.walkTo('center'), new Promise(function (r) { setTimeout(r, 6000); })]); });
