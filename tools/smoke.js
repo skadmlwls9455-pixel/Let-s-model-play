@@ -1657,7 +1657,7 @@ async function scenarioWave7(browser) {
   await page.waitForFunction(function () { var d = document.getElementById('btn-door'); return APP.oct.state === 'away' && APP.scene.view() === 'exterior' && !d.hidden && d.dataset.spot === 'edge'; }, null, { timeout: 30000 });
   var r0 = await page.evaluate(function () { return document.querySelectorAll('#log .lrow').length; });
   var ed = await page.evaluate(function () {
-    var d = document.getElementById('btn-door'), r = d.getBoundingClientRect(), sc = document.getElementById('scene'), s = sc.getBoundingClientRect(), cs = getComputedStyle(sc), q = d.querySelector('.door-box').getBoundingClientRect(), g = document.querySelector('#scene-ctl .icon-btn:not([hidden]) .snd-box').getBoundingClientRect();
+    var d = document.getElementById('btn-door'), r = d.getBoundingClientRect(), sc = document.getElementById('scene'), s = sc.getBoundingClientRect(), cs = getComputedStyle(sc), q = d.querySelector('.door-box').getBoundingClientRect(), g = document.querySelector('#btn-settings .snd-box').getBoundingClientRect();   /* 맨 오른쪽 ⚙ (앨범 아이콘이 있으면 그 왼쪽에 하나 더) */
     var gap = [q.left - s.left - parseFloat(cs.borderLeftWidth), s.bottom - parseFloat(cs.borderBottomWidth) - q.bottom], gear = [s.right - parseFloat(cs.borderRightWidth) - g.right, g.top - s.top - parseFloat(cs.borderTopWidth)];
     return { w: r.width, h: r.height, corner: r.right < s.left + s.width / 2 && r.top > s.top + s.height / 2, gap: gap.map(Math.round), gear: gear.map(Math.round), box: q.width, img: d.querySelector('img.door-ico').naturalWidth === 16, icon: d.querySelector('img.door-ico').getAttribute('data-icon') };
   });
