@@ -517,6 +517,7 @@ var APP = (function () {
     if (sw) sw.innerHTML = '';
     if (msg) msg.textContent = '지금은 2D 장면이라 이 슬라이더는 적용 안 돼 (3D 그림이 멈춰서 바꿨어)';
     updateSceneDesc();
+    var sd = $('settings-sheet'); if (sd && sd.open) renderSettings();   /* 열려 있던 설정 시트도 2D 모양으로 (3D 미리보기 캔버스 대신 안내 한 줄 — 안 그리면 옛 초상이 남고 칩을 누를 때 조용히 사라진다) */
     toast('3D 그림이 멈춰서 2D로 바꿨어');
   }
   /* part: 'lantern' 등불만 · 'items' 소품·날씨만 · 생략하면 전부 (귀가 연출에서 둘을 200ms 띄운다) */
@@ -528,6 +529,16 @@ var APP = (function () {
     updateSceneDesc();
   }
   function setOctColor(hex) { if (!/^#[0-9a-f]{6}$/i.test(hex)) return; S.settings.octColor = hex; save(); scene.setColor(hex); refreshPortraits(); }
+  /* 장면에 보이는 모습(문어 색 · 내 모습)을 S.settings 에 맞춘다 — 불러오기 · 전체 초기화 · 다른 탭의 저장을 받은 뒤 (renderAll 은 장면을 안 건드려 설정 칩은 새 값인데 3D 캐릭터·미리보기는 옛 모습이던 결함, 리뷰 11-08).
+     내 모습은 장면의 look 과 다를 때만 다시 만든다(지오메트리 7개 교체) · 문어 색은 setColor 가 싸서 그냥 다시 */
+  function syncSceneLook() {
+    if (!scene) return;
+    try {
+      if (typeof scene.setColor === 'function' && /^#[0-9a-f]{6}$/i.test(S.settings.octColor || '')) { scene.setColor(S.settings.octColor); refreshPortraits(); }
+      var have = (typeof scene.player === 'function' && scene.player()) ? JSON.stringify(scene.player().look) : null;
+      if (typeof scene.setPlayer === 'function' && have !== JSON.stringify(S.settings.player)) scene.setPlayer(S.settings.player);
+    } catch (e) { console.warn('[app] syncSceneLook', e); }
+  }
   /* 내 모습 한 칸 바꾸기 (설정 시트 칩): 저장 → 장면이 setPlayer 를 알면 메시 다시 → true. 장면 API 는 이 빌드에 없을 수 있어 typeof 로 지킨다 (2D 는 아무것도 안 그리지만 저장은 된다) */
   function setPlayerPart(cat, id) {
     var P = playerParts();
@@ -859,7 +870,7 @@ var APP = (function () {
   var SKIP_GUARD = 600, skipReady = 0, skipTimer = 0;
   function setBusy(on) {
     busy = on; oct.busy = on;
-    if (!on) { flying = null; if (remoteDirty) { remoteDirty = false; renderAll(); applyMotion(); applyFont(); } }
+    if (!on) { flying = null; if (remoteDirty) { remoteDirty = false; renderAll(); applyMotion(); applyFont(); syncSceneLook(); } }
     var go = $('btn-go'), inp = $('hint-in');
     clearTimeout(skipTimer); skipReady = on ? Date.now() + SKIP_GUARD : 0;
     if (go) {
@@ -2446,14 +2457,14 @@ var APP = (function () {
       toast('이 파일은 뽈뽈 기록이 아닌 것 같아'); return false;
     }
     mine = [];   /* 바꾼 기록에 예전 여행을 다시 얹지 않게 */
-    save(); applyMotion(); applyFont(); octInitial();
+    save(); applyMotion(); applyFont(); syncSceneLook(); octInitial();
     var d = $('settings-sheet'); if (d && d.open) d.close();
     toast('기록을 불러왔어'); return true;
   }
   function resetAll() {
     if (busy) { toast('다녀오는 중이라 지금은 못 지워. 끝나고 다시 해 줘'); return false; }
     store.remove(KEY);
-    S = defaults(); mine = []; save(); setDayGreeting(); renderAll(); octInitial();
+    S = defaults(); mine = []; save(); setDayGreeting(); renderAll(); syncSceneLook(); octInitial();
     var d = $('settings-sheet'); if (d && d.open) d.close();
     openNameDialog();
   }
@@ -2765,7 +2776,7 @@ var APP = (function () {
       if (e.key !== KEY || !e.newValue || e.newValue === lastSaved) return;
       if (!adoptRemote(e.newValue)) return;
       if (busy) { remoteDirty = true; return; }   /* 공개 중엔 로그·등불을 다시 그리지 않는다 → 끝날 때 한 번 (setBusy) */
-      renderAll(); applyMotion(); applyFont();
+      renderAll(); applyMotion(); applyFont(); syncSceneLook();
     });
     $('name-form').addEventListener('submit', function (e) {
       e.preventDefault();

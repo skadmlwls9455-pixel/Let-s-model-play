@@ -3,11 +3,12 @@
  *   node tools/player-shots.js [palette]   # 기본 apollo
  * → tests/evidence/player/pl-attic-day.png (다락 쉬는 자리) · pl-attic-close.png (2× 확대 크롭) · pl-face-close.png (2× 얼굴 크롭 — 사람 얼굴 자기 점검) · pl-blink.png (감은 눈 1프레임) · pl-attic-night.png (밤 자체광)
  *   · pl-walk-strip.png (문 톡 → 문 앞까지 걷기 → 문 열림, 0.1 s × 24 칸, 캐릭터를 따라가는 96×96 CSS px 크롭) · pl-attic-door.png (문 앞에 서서 문을 본다 — 문짝에 안 가린다) · pl-play-day.png (놀이방 쉬는 자리) · pl-play-close.png
- *   · pl-parts-sheet.png (파츠 시트: 줄 = 범주 7(머리 · 머리 색 · 눈 · 눈 색 · 옷 · 신발 · 악세사리, UI 순서) · 칸 = 옵션(기본 cfg 에서 하나씩 바꿈), 놀이방 2× 96×96 크롭 — 머리 줄은 옆 45° 뒤쪽 각도(뒷머리 길이가 보이게), 얼굴 범주는 머리 중심, 옷은 몸통, 신발은 발 중심; 60 KB 를 넘으면 pl-parts-<범주>.png 7장)
- *   · pl-hair-turn.png (머리 6종 × 8방향 1×) · pl-hair-turn-2x.png (머리 6종 × 4방향 2×, 머리 중심) · pl-portrait.png (playerPortrait 64×64 × 머리 6종, navy 배경)
+ *   · pl-parts-sheet.png (파츠 시트: 줄 = 범주 7(머리 · 머리 색 · 눈 · 눈 색 · 옷 · 신발 · 악세사리, UI 순서) · 칸 = 옵션(기본 cfg 에서 하나씩 바꿈), 놀이방 2× 96×96 크롭 — 머리 줄은 옆 45° 뒤쪽 각도(뒷머리 길이가 보이게), 얼굴 범주는 머리 중심, 옷은 몸통, 신발은 발 중심; 60 KB 를 넘으면 pl-parts-<범주>.png 7장; 칸은 눈 뜬 프레임)
+ *   · pl-parts-hair.png (머리 6종 × (정면 · 옆 90° · 뒤 180°) 2× 128 px 크롭 — 꼭대기부터 긴 머리 끝까지 한 칸에) · pl-hair-turn.png (머리 6종 × 8방향 1×) · pl-hair-turn-2x.png (머리 6종 × 4방향 2×, 머리 중심)
+ *   · pl-portrait.png (playerPortrait 64×64: 1줄 머리 6종 · 2줄 악세사리 6종, navy 배경)
  * 검사: 샷마다 고유 색 ≤ 62(시트 칸마다 ≤ 62, 합친 시트 ≤ 96) · 다락 드로우콜 ≤ 150 · 놀이방 ≤ 60 · 셰이더 프로그램 수가 부팅과 같음(내 캐릭터 툰은 문어 툰과 프로그램을 나눠 쓴다) · 모든 파츠 조합에서 드로우콜이 기본값과 같음(메시 수 불변)
- *   · setPlayer 전 옵션 뒤 renderer.info.memory.geometries ≤ 시작 + 7(옛 지오메트리 dispose) · 모르는 id → 기본값 · 얼굴 색 집계(살결 #e7d5b3 ≠ 흰자 #ebede9, 금발이 올리브 #d0da91 로 뜨지 않음) · 깜빡임 프레임에 흰자가 줄고 눈썹 색이 늚
- *   · walkFirst 로 문이 걷기 뒤에 열림 · 콘솔/페이지 에러 0. 어기면 exit 1.
+ *   · setPlayer 전 옵션 뒤 renderer.info.memory.geometries ≤ 시작 + 7(옛 지오메트리 dispose) · 모르는 id → 기본값 · 얼굴 색 집계(살결 #e7d5b3 ≠ 흰자 #ebede9, 금발 #de9e41 ≥ 8 %, 올리브 #d0da91 로 뜨지 않음) · 깜빡임 프레임에 흰자가 줄고 눈썹 색이 늚
+ *   · 초상 12장 모두 0행은 배경만(머리 꼭대기·모자·귀가 안 잘림) · walkFirst 로 문이 걷기 뒤에 열림 · 콘솔/페이지 에러 0. 어기면 exit 1.
  */
 'use strict';
 var fs = require('fs'), path = require('path'), os = require('os'), zlib = require('zlib');
@@ -19,8 +20,8 @@ var OUT = process.env.LOOK_OUT || path.join(ROOT, 'tests/evidence/player');
 fs.mkdirSync(OUT, { recursive: true });
 var W = 360, H = 326, DPR = 2, CROP = 96, FRAMES = 24, STEP = 0.1, PL_H = 1.22, HEAD_Y = 0.87;
 var CATS = ['hair', 'hairColor', 'eyes', 'eyeColor', 'outfit', 'shoes', 'acc'];   /* 파츠 시트 줄 순서 = 설정 시트 UI 순서 */
-var CAT_CY = { hair: 0.72, hairColor: 0.95, eyes: 0.95, eyeColor: 0.95, acc: 0.95, outfit: 0.45, shoes: 0.35 };   /* 2× 크롭(0.89 m)은 키 1.22~1.38 을 다 못 담는다 — 범주마다 보여야 할 곳을 가운데에 (머리 모양은 뒷머리 길이가 갈라 조금 아래) */
-var SKIN = 0xe7d5b3, WHITE = 0xebede9, OLIVE = 0xd0da91, BROW = 0xbe772b;   /* 실광 모델 칸 (docs/PLAYER_PARTS.md §0.1·§2.2): 살결 · 흰자 · v0 금발이 뜨던 올리브 · 금발의 감은 눈 선 색(#b8742e 의 앞면 — 눈썹은 피드백 6 으로 없음) */
+var CAT_CY = { hair: 0.84, hairColor: 0.95, eyes: 0.95, eyeColor: 0.95, acc: 0.95, outfit: 0.45, shoes: 0.35 };   /* 2× 크롭(0.89 m)은 키 1.22~1.38 을 다 못 담는다 — 범주마다 보여야 할 곳을 가운데에 (머리 줄은 꼭대기 1.28 이 들게 0.84 → 0.395~1.285, 뒷머리 길이 전체는 pl-parts-hair 128 px 크롭이 맡는다) */
+var SKIN = 0xe7d5b3, WHITE = 0xebede9, OLIVE = 0xd0da91, BROW = 0xbe772b, BLONDE = 0xde9e41;   /* 실광 모델 칸 (docs/PLAYER_PARTS.md §0.1·§2.2): 살결 · 흰자 · v0 금발이 뜨던 올리브 · 금발의 감은 눈 선 색(#b8742e 의 앞면 — 눈썹은 피드백 6 으로 없음) · 금발 #e8a93a 의 앞면 */
 
 var CRC = (function () { var t = new Int32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
 function crc32(buf) { var c = -1; for (var i = 0; i < buf.length; i++) c = CRC[(c ^ buf[i]) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; }
@@ -79,14 +80,15 @@ function harness() {
   if (PARTS.parts.acc[0].id !== 'none') fails.push('acc 첫 항목은 none');
 
   async function shot(name) { var f = path.join(OUT, name); await page.locator('#scene').screenshot({ path: f }); var u = uniq(f); console.log('  📷 ' + name + '  (고유 색 ' + u + ')'); if (u > 62) fails.push(name + ' 고유 색 ' + u + ' > 62'); return f; }
-  async function cropBuf(cx, cy) {   /* 캐릭터 둘레 CROP×CROP CSS px (원점은 아트 픽셀 배수) → PNG 버퍼 */
-    var x = Math.round(Math.max(0, Math.min(W - CROP, cx - CROP / 2)) / 2) * 2, y = Math.round(Math.max(0, Math.min(H - CROP, cy - CROP / 2)) / 2) * 2;
-    return page.screenshot({ clip: { x: x, y: y, width: CROP, height: CROP } });
+  async function cropBuf(cx, cy, size) {   /* 캐릭터 둘레 size×size CSS px (기본 CROP, 원점은 아트 픽셀 배수) → PNG 버퍼 */
+    size = size || CROP;
+    var x = Math.round(Math.max(0, Math.min(W - size, cx - size / 2)) / 2) * 2, y = Math.round(Math.max(0, Math.min(H - size, cy - size / 2)) / 2) * 2;
+    return page.screenshot({ clip: { x: x, y: y, width: size, height: size } });
   }
   async function crop(name, cx, cy) { var f = path.join(OUT, name); fs.writeFileSync(f, await cropBuf(cx, cy)); console.log('  📷 ' + name); return f; }
   function plScreen(y) { return page.evaluate(function (yy) { var p = SC.player(); return SC.screenOf(p.at[0], yy, p.at[2]); }, y == null ? PL_H / 2 : y); }
   function save(name, buf) { var f = path.join(OUT, name); fs.writeFileSync(f, buf); console.log('  📷 ' + name + '  (' + (buf.length / 1024).toFixed(1) + ' KB)'); return f; }
-  function setPlayer(cfg) { return page.evaluate(function (c) { var l = SC.setPlayer(c); for (var i = 0; i < 3; i++) SC.debugStep(0.1); return { look: l, calls: SC.stats().calls, geos: SC.renderer.info.memory.geometries }; }, cfg); }
+  function setPlayer(cfg) { return page.evaluate(function (c) { var l = SC.setPlayer(c); SC.debugPlayerBlink(0); for (var i = 0; i < 3; i++) SC.debugStep(0.1); return { look: l, calls: SC.stats().calls, geos: SC.renderer.info.memory.geometries }; }, cfg); }   /* 깜빡임을 9 s 미뤄 시트 칸이 감은 눈 프레임에 찍히지 않게 (후드 칸이 눈을 감고 찍혀 '옷이 눈을 바꾸는' 것처럼 보였다) */
 
   /* 1. 다락 쉬는 자리 (낮) + 2× 크롭 + 얼굴 크롭 + 깜빡임 프레임 */
   var a = await page.evaluate(function () { return { pl: SC.player(), stats: SC.stats() }; });
@@ -104,6 +106,7 @@ function harness() {
   if (pct(SKIN) < 8) fails.push('얼굴 크롭: 살결 칸 ' + hex(SKIN) + ' 이 8 % 이상이어야 한다 (' + pct(SKIN).toFixed(1) + ')');
   if (!(pct(WHITE) >= 3 && pct(WHITE) <= 25)) fails.push('얼굴 크롭: 흰자 칸 ' + hex(WHITE) + ' 이 3~25 % 여야 한다 (' + pct(WHITE).toFixed(1) + ') — 큰 눈(피드백 6) 둘 + 깃, 흰자 ≠ 살결');
   if (pct(OLIVE) > 3) fails.push('얼굴 크롭: 금발이 올리브 ' + hex(OLIVE) + ' 로 떴다 (' + pct(OLIVE).toFixed(1) + ' %)');
+  if (pct(BLONDE) < 8) fails.push('얼굴 크롭: 금발 칸 ' + hex(BLONDE) + ' 이 8 % 이상이어야 한다 (' + pct(BLONDE).toFixed(1) + ') — 살결 #e7d5b3 와 두 칸 갈린 머리칼 (리뷰 11-08: #e8c170 은 살결과 한 덩이였다)');
   await page.evaluate(function () { SC.debugPlayerBlink(0.12); SC.debugStep(0.01); });
   var blinkIm = decodeBuf(await cropBuf(c.x, c.y)), bc = census(blinkIm); save('pl-blink.png', grid([[faceBuf, await cropBuf(c.x, c.y)]]));
   console.log('blink census:', 'white', fc[WHITE] || 0, '→', bc[WHITE] || 0, '| brow', fc[BROW] || 0, '→', bc[BROW] || 0);
@@ -178,9 +181,19 @@ function harness() {
   if (sheet.length <= 60 * 1024) { save('pl-parts-sheet.png', sheet); var su = uniq(path.join(OUT, 'pl-parts-sheet.png')); if (su > 96) fails.push('pl-parts-sheet 고유 색 ' + su + ' > 96'); }
   else { console.log('  pl-parts-sheet.png 가 ' + (sheet.length / 1024).toFixed(0) + ' KB → 범주별 7장으로'); rows.forEach(function (r, i) { save('pl-parts-' + CATS[i] + '.png', grid([r])); }); try { fs.unlinkSync(path.join(OUT, 'pl-parts-sheet.png')); } catch (e) {} }
 
+  /* 2b-2. 머리 시트 pl-parts-hair.png: 머리 6종 × (정면 · 옆 90° · 뒤 180°) 2× 128 px 크롭(머리 중심 0.78 → y 0.19~1.37: 꼭대기부터 긴 머리 끝 0.28 까지) — 96 px 시트 줄은 꼭대기나 뒷머리 끝이 잘려 6종이 갈리지 않았다 (리뷰 11-08) */
+  var hrows = [], hi;
+  for (hi = 0; hi < PARTS.parts.hair.length; hi++) {
+    await setPlayer(Object.assign({}, PARTS.def, { hair: PARTS.parts.hair[hi].id }));
+    var hr = [];
+    for (var ai = 0; ai < 3; ai++) { await page.evaluate(function (deg) { SC.debugPlayerYaw(deg); SC.debugStep(0.1); SC.debugStep(0.1); }, b.pl.yaw + [0, 90, 180][ai]); var hs = await plScreen(0.78); hr.push(await cropBuf(hs.x, hs.y, 128)); }
+    hrows.push(hr);
+  }
+  save('pl-parts-hair.png', grid(hrows));
+  await page.evaluate(function () { SC.debugPlayerYaw(null); });
   /* 2c. 머리 8방향 (1×) + 4방향 (2×, 머리 중심): 긴 머리 커튼 · 포니테일 꼬리 · 웨이브 덩어리는 정면 한 장으로 판단할 수 없다 */
   var turn1 = [], turn2 = [];
-  for (var hi = 0; hi < PARTS.parts.hair.length; hi++) {
+  for (hi = 0; hi < PARTS.parts.hair.length; hi++) {
     var hcfg = Object.assign({}, PARTS.def, { hair: PARTS.parts.hair[hi].id }), r1 = [], r2 = [];
     await page.evaluate(function () { SC.zoomStep(0); SC.debugStep(0.1); }); await setPlayer(hcfg);
     for (var d = 0; d < 360; d += 45) { await page.evaluate(function (deg) { SC.debugPlayerYaw(deg); SC.debugStep(0.1); SC.debugStep(0.1); }, d); var s1 = await plScreen(); r1.push(await cropBuf(s1.x, s1.y)); }
@@ -193,18 +206,25 @@ function harness() {
   if (Math.abs(yawBack - b.pl.yaw) > 0.5) fails.push('debugPlayerYaw(null) 뒤 다시 카메라 쪽(' + b.pl.yaw + '°)을 봐야 한다 ' + yawBack);
   await setPlayer(PARTS.def);
 
-  /* 2d. 초상 (playerPortrait): 머리 6종, navy 배경 → 64×64 × 6 띠. 빈 캔버스가 아니어야 한다 */
+  /* 2d. 초상 (playerPortrait): 머리 6종 + 악세사리 6종, navy 배경 → 64×64 × 6 두 줄. 빈 캔버스가 아니어야 하고 0행은 배경만(머리 꼭대기 · 모자 · 귀가 잘리지 않는다 — 리뷰 11-08: hw 1.3 은 밀짚모자 윗부분이 잘렸다) */
   if (await page.evaluate(function () { return typeof SC.playerPortrait === 'function'; })) {
-    var ports = [];
-    for (hi = 0; hi < PARTS.parts.hair.length; hi++) {
-      var pd = await page.evaluate(function (h) { SC.setPlayer(Object.assign({}, SCENE3D.PLAYER_DEFAULT, { hair: h })); var cv = SC.playerPortrait({ bg: 'navy' }); var w = cv.width, hh = cv.height, p = SC.player(); return { url: cv.toDataURL('image/png'), w: w, h: hh, pl: p, calls: SC.stats().calls }; }, PARTS.parts.hair[hi].id);
-      var pbuf = Buffer.from(pd.url.split(',')[1], 'base64'), pim = decodeBuf(pbuf), pu = uniqIm(pim);
+    var ports = [], pacc = [];
+    var portOf = async function (patch, label) {
+      var pd = await page.evaluate(function (c) {
+        SC.setPlayer(Object.assign({}, SCENE3D.PLAYER_DEFAULT, c)); var cv = SC.playerPortrait({ bg: 'navy' }), N = cv.width, d = cv.getContext('2d').getImageData(0, 0, N, cv.height).data;
+        var bg = [d[(N - 1) * N * 4], d[(N - 1) * N * 4 + 1], d[(N - 1) * N * 4 + 2]], top = 0;   /* 왼쪽 아래 구석 = 배경 */
+        for (var x = 0; x < N; x++) { var k = x * 4; if (d[k] !== bg[0] || d[k + 1] !== bg[1] || d[k + 2] !== bg[2]) top++; }
+        return { url: cv.toDataURL('image/png'), w: N, h: cv.height, pl: SC.player(), top: top }; }, patch);
+      var pbuf = Buffer.from(pd.url.split(',')[1], 'base64'), pu = uniqIm(decodeBuf(pbuf));
       if (pd.w !== 64 || pd.h !== 64) fails.push('초상은 64×64 ' + pd.w + '×' + pd.h);
-      if (pu < 6) fails.push('초상(' + PARTS.parts.hair[hi].id + ') 이 비었다 (고유 색 ' + pu + ')');
+      if (pu < 6) fails.push('초상(' + label + ') 이 비었다 (고유 색 ' + pu + ')');
+      if (pd.top) fails.push('초상(' + label + ') 0행에 배경 아닌 픽셀 ' + pd.top + ' — 머리 꼭대기·모자가 잘린다');
       if (pd.pl.walking || Math.abs(pd.pl.at[0] - 0.15) > 0.01) fails.push('초상을 찍은 뒤 캐릭터 상태가 그대로여야 한다 ' + JSON.stringify(pd.pl));
-      ports.push(pbuf);
-    }
-    save('pl-portrait.png', grid([ports], 2));
+      return pbuf;
+    };
+    for (hi = 0; hi < PARTS.parts.hair.length; hi++) ports.push(await portOf({ hair: PARTS.parts.hair[hi].id }, '머리 ' + PARTS.parts.hair[hi].id));
+    for (var ac = 0; ac < PARTS.parts.acc.length; ac++) pacc.push(await portOf({ acc: PARTS.parts.acc[ac].id }, '악세사리 ' + PARTS.parts.acc[ac].id));
+    save('pl-portrait.png', grid([ports, pacc], 2));
     var pstat = await page.evaluate(function () { var p = SC.player(); var t = SC.stats(); return { look: p.look, calls: t.calls, progs: SC.renderer.info.programs.length }; });
     if (pstat.progs !== p0) fails.push('초상 뒤 프로그램 수 ' + p0 + ' → ' + pstat.progs);
     await setPlayer(PARTS.def);

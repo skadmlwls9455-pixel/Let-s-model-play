@@ -896,6 +896,12 @@ async function scenario2D(browser) {
   });
   console.log('   dialog2d:', JSON.stringify(dlg2));
   ok(dlg2.cv && dlg2.drawn > 64 * 64 * 0.5 && dlg2.svg, '2D 폴백: 대화창 행 + SVG 얼굴 초상 캔버스 그려짐');
+  /* 설정 › 내 모습 (2D): 7줄 + 안내 한 줄 · 미리보기 캔버스 없음 · 칩을 누르면 저장은 된다 (2D setPlayer 는 모습만 기억) */
+  await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
+  await page.click('#set-parts .set-part[data-part="hair"] .fchip[data-id="twin"]');
+  var p2d = await page.evaluate(function () { var p = APP.scene.player && APP.scene.player(); return { rows: document.querySelectorAll('#set-parts .set-part').length, note: !!document.getElementById('set-parts-note'), port: !!document.getElementById('set-pl-port'), saved: APP.state.settings.player.hair, stored: JSON.parse(localStorage.getItem('ppolppol_v2')).settings.player.hair, look: p ? p.look.hair : null }; });
+  ok(p2d.rows === 7 && p2d.note && !p2d.port && p2d.saved === 'twin' && p2d.stored === 'twin' && p2d.look === 'twin', '2D 내 모습: 7줄 + 안내 한 줄 · 미리보기 캔버스 없음 · 칩을 누르면 저장 (2D 장면도 look 기억) ' + JSON.stringify(p2d));
+  await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
   await page.screenshot({ path: path.join(SHOTS, 'phone-2d-fallback.png') });
   ok(s.bag.length === 0, '2D 폴백 콘솔/페이지 에러 없음' + (s.bag.length ? ' → ' + s.bag.join(' | ') : ''));
   await s.ctx.close();
@@ -1587,6 +1593,39 @@ async function scenarioWave7(browser) {
   console.log('   parts reload:', JSON.stringify(pr2));
   ok(pr2.saved.hair === 'long' && pr2.saved.eyeColor === 'sea' && pr2.saved.eyes === 'smile' && pr2.on.join() === 'long,sea,smile', '내 모습: 새로 연 탭에서도 고른 모습 그대로 (저장 · 칩 켜짐)');
   if (pr2.mode === '3d' && pr2.setFn === 'function') ok(pr2.look && pr2.look.hair === 'long' && pr2.look.eyes === 'smile', '내 모습 (3D): 새로 연 탭의 장면이 저장된 모습으로 시작 (opts.player) ' + JSON.stringify(pr2.look));
+  /* 2c. 불러오기 · 전체 초기화 · 옛 저장 부팅 (리뷰 11-08: importJSON·resetAll 이 renderAll 만 불러 설정 칩은 새 값인데 3D 캐릭터·미리보기는 옛 모습이었다).
+         저장소를 공유하지 않는 새 컨텍스트에서 — storage 이벤트로 본 탭 기록을 흔들지 않게 */
+  var s3 = await newPage(browser, 'ok', [{ content: "window.__ppolTest = { today: '" + DAY1 + "', forceKind: 'out' };" }]);
+  await routeRepo(s3.page, O);
+  await s3.page.goto(O + '/index.html?dev=0&slow=' + SPEED);
+  await s3.page.waitForSelector('#name-dialog[open]', { timeout: 20000 });
+  await s3.page.fill('#name-in', '뚜루'); await s3.page.click('#name-form button[type=submit]');
+  await s3.page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  var io = await s3.page.evaluate(function () {
+    function look() { var p = APP.scene.player && APP.scene.player(); return p ? [p.look.hair, p.look.hairColor, p.look.acc].join() : 'none'; }
+    APP.setPlayerPart('hair', 'twin'); APP.setPlayerPart('hairColor', 'pink'); APP.setPlayerPart('acc', 'catears');
+    var txt = JSON.stringify(APP.state), exported = look();   /* 내보내기 = 이 기록의 JSON */
+    APP.setPlayerPart('hair', 'bob'); APP.setPlayerPart('hairColor', 'blonde'); APP.setPlayerPart('acc', 'ribbon');
+    var before = look(), r = APP.importJSON(txt), after = look(), sv = APP.state.settings.player;
+    return { mode: APP.sceneMode, exported: exported, before: before, r: r, after: after, saved: [sv.hair, sv.hairColor, sv.acc].join() };
+  });
+  console.log('   import:', JSON.stringify(io));
+  ok(io.r === true && io.exported === 'twin,pink,catears' && io.before === 'bob,blonde,ribbon' && io.saved === 'twin,pink,catears' && (io.mode !== '3d' || io.after === 'twin,pink,catears'), '불러오기: settings.player 와 장면 look 이 같이 바뀐다 (양갈래 · 분홍 · 고양이귀) ' + io.after);
+  /* 전체 초기화 = 설정 시트의 단추 두 번 (첫 탭은 '정말?' 무장) */
+  await s3.page.click('#btn-settings'); await s3.page.waitForSelector('#settings-sheet[open]');
+  await s3.page.click('#set-reset'); await s3.page.click('#set-reset');
+  await s3.page.waitForSelector('#name-dialog[open]', { timeout: 10000 });
+  var rs = await s3.page.evaluate(function () { var p = APP.scene.player && APP.scene.player(), d = SCENE3D.PLAYER_DEFAULT; return { mode: APP.sceneMode, reset: p ? [p.look.hair, p.look.hairColor, p.look.acc].join() : 'none', def: [d.hair, d.hairColor, d.acc].join(), sameDef: JSON.stringify(APP.state.settings.player) === JSON.stringify(d) }; });
+  console.log('   reset:', JSON.stringify(rs));
+  ok(rs.sameDef && (rs.mode !== '3d' || rs.reset === rs.def), '전체 초기화: settings.player 와 장면 look 이 기본값으로 · 이름 대화창 ' + rs.reset);
+  /* 옛 저장(settings.player 가 문자열/없음)으로 부팅 → 그 칸만 기본값, 기록은 그대로 */
+  await s3.page.evaluate(function () { var k = 'ppolppol_v2', o = JSON.parse(localStorage.getItem(k)); o.octopus.name = '뚜루'; o.settings.player = 'bob'; localStorage.setItem(k, JSON.stringify(o)); });
+  await s3.page.reload();
+  await s3.page.waitForFunction(function () { return window.APP && APP.state && APP.scene; }, null, { timeout: 20000 });
+  var old = await s3.page.evaluate(function () { var p = APP.scene.player && APP.scene.player(); return { sameDef: JSON.stringify(APP.state.settings.player) === JSON.stringify(SCENE3D.PLAYER_DEFAULT), look: p ? p.look.hair : null, name: APP.state.octopus.name }; });
+  ok(old.sameDef && old.look === 'bob' && old.name === '뚜루', '옛 저장(settings.player 가 문자열) 부팅: 내 모습만 기본값으로, 기록은 그대로 ' + JSON.stringify(old));
+  ok(s3.bag.length === 0, '[S 불러오기·초기화] 페이지 에러/콘솔 에러 0' + (s3.bag.length ? ' → ' + s3.bag.join(' | ') : ''));
+  await s3.ctx.close();
   await page.click('#set-parts .set-part[data-part="hair"] .fchip[data-id="bob"]');
   await page.click('#set-parts .set-part[data-part="eyeColor"] .preset[data-id="dark"]');
   await page.click('#set-parts .set-part[data-part="eyes"] .fchip[data-id="round"]');   /* 뒤 검사·스크린샷은 기본 모습으로 */

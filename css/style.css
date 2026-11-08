@@ -1113,19 +1113,19 @@ html.intro-reveal .scene-spot, html.intro-reveal .back-note { transition: opacit
 :root[data-font="pixel"] .settings-sheet .set-stats, :root[data-font="pixel"] .settings-sheet .set-who { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 
 /* 4) 설정 › 내 모습 (내 캐릭터 파츠 — docs/PLAYER_PARTS.md §3 · 옷방이 생기기 전까지의 자리): 제목 옆 64×64 초상을 96px 로 (픽셀 그대로) · 줄마다 라벨 + 칩 (좁으면 칩이 줄바꿈).
-   칩 사이 세로 12px: .fchip 32px + 12 = 44px · .preset 36px + 12 = 48px → 줄바꿈되어도 ::before 탭 영역(44px)이 서로 겹치지 않는다. 가로 8px 는 기존 .filters(4px)·.presets(10px) 사이 */
+   칩 사이 세로·가로 12px: .fchip 32px + 12 = 44px · .preset 36px + 12 = 48px → 줄바꿈되어도, 옆 칩끼리도 ::before 탭 영역(44px)이 서로 겹치지 않는다 (가로 8px 땐 글자 칩 탭 영역이 4px 겹쳐 겹친 띠는 뒤 칩이 받았다) */
 .settings-sheet .set-parts-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .settings-sheet .set-parts-h h3 { flex: 1 1 auto; }
 .settings-sheet .pl-port { display: block; flex: 0 0 auto; width: 96px; height: 96px; margin-top: 10px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--rim); image-rendering: pixelated; image-rendering: crisp-edges; }
 .settings-sheet .set-parts { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 6px; }
 .settings-sheet .set-part { display: flex; align-items: flex-start; gap: 8px; min-height: 44px; font-size: 13px; padding: 6px 0; }
 .settings-sheet .set-part-lbl { flex: 0 0 56px; padding-top: 7px; color: var(--muted); word-break: keep-all; }
-.settings-sheet .set-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px 8px; flex: 1 1 auto; min-width: 0; }
+.settings-sheet .set-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; flex: 1 1 auto; min-width: 0; }
 .settings-sheet .set-chips .fchip { margin: 0; flex: 0 0 auto; white-space: nowrap; }
 .settings-sheet .set-chips.colors { padding-top: 2px; }
 .settings-sheet .set-eye-note { text-align: right; margin: -2px 0 0; min-height: 0; }
 .settings-sheet .set-parts-note { margin: 0; min-height: 0; }
 :root[data-font="pixel"] .settings-sheet .pl-port { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .settings-sheet .set-part { font-size: 20px; line-height: 30px; padding: 4px 0; }
-:root[data-font="pixel"] .settings-sheet .set-part-lbl { flex-basis: 72px; padding-top: 2px; }
-:root[data-font="pixel"] .settings-sheet .set-chips { gap: 12px 8px; }   /* 픽셀 .fchip 의 2px 그림자까지 포함해도 44px 간격 */
+:root[data-font="pixel"] .settings-sheet .set-part-lbl { flex-basis: 84px; padding-top: 2px; }   /* '악세사리' = Galmuri 20px × 4자 = 80px — 72px 에선 '악세사/리' 로 꺾였다 */
+:root[data-font="pixel"] .settings-sheet .set-chips { gap: 12px; }   /* 픽셀 .fchip 의 2px 그림자까지 포함해도 44px 간격 */
