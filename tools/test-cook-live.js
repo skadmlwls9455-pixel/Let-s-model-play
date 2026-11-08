@@ -777,7 +777,7 @@ async function L18(browser) {   /* run id without a clock, kitchen keys only, si
   var ids = [];
   for (var c = 0; c < 2; c++) {
     var T = await openPage(browser, { store: null, crypto: 7, q: 'seed=91' });
-    if (c === 1) await T.go(5 * 3600 * 1000);   /* five hours later the same day */
+    if (c === 1) await T.page.clock.setSystemTime(new Date('2026-11-08T15:00:00'));   /* five hours later the same day (Date.now only) */
     await T.tapEl('.ck-prop'); await T.go(100);
     ids.push((await T.live()).id);
     await T.done();
