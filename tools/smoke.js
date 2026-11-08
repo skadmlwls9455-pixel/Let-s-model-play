@@ -9,7 +9,7 @@
  *   P 플레이어 화면(?dev=0): 힌트 칸 없이 산책 한 번 · 출발 행·일기에 힌트 얘기 없음 (결정 18),
  *   L 추억 앨범 아이콘(장면 오른쪽 위 · 점 · 날아가는 포스터 · 320 px 이름) · 이름 창 정직 표기, N 호기심 메모(저장 → 다음 산책 입력 · 모델 메모 · 내려놓기),
  *   M 반응은 모델·사람이 준 그대로 (안 주면 없음 · 네 가지 밖의 말 · 코드 줄 없음),
- *   S 7물결(주인 11-07): 플레이어 화면에 '방 보기' 없음 · ⚙ 설정(문어 색 · 소리 · 화면 · 기록 · 누가 고르나) · 등불·데모 말풍선 · 큰 버튼 건너뛰기(두 번 톡 보호) ·
+ *   S 7물결(주인 11-07): 플레이어 화면에 '방 보기' 없음 · ⚙ 설정(문어 색 · 내 모습(11-08 파츠 v0) · 소리 · 화면 · 기록 · 누가 고르나) · 등불·데모 말풍선 · 큰 버튼 건너뛰기(두 번 톡 보호) ·
  *     놀이방 문 → (8물결) 놀이방 → 오락기 → 달리기 창이 열린 채로 산책이 끝까지 (문 소리 훅 · 잠들 때 반응 훅 · 구석 쪽지) · 자정 넘김 → 오늘 칸만 · 앨범(문어의 요즘 · 일기 탭: 지난 날, 새 날 먼저).
  *   J 8물결: 다락 안 놀이방 문(투명 단추) → 진짜 놀이방 · 오락기 → 달리기 · 키보드 왕복 · 산책 중 놀이방(끌려 나가지 않음 · 구석 쪽지 · 보러 가기) · 두뇌 입력 0 · 모션 줄이기 컷 · 새로고침 · 2D.
  *   SMOKE_ONLY=H,I node tools/smoke.js   # 그 시나리오만
@@ -1527,24 +1527,81 @@ async function scenarioWave7(browser) {
   await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
   var st = await page.evaluate(function () {
     var b = document.getElementById('set-body');
-    return { hs: [].map.call(b.querySelectorAll('h3'), function (x) { return x.textContent; }), hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.preset').length,
+    return { hs: [].map.call(b.querySelectorAll('h3'), function (x) { return x.textContent; }), hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.presets .preset').length,
       music: !!document.getElementById('set-music'), sfx: !!document.getElementById('set-sfx'), motion: !!document.getElementById('set-motion'), pixel: !!document.getElementById('set-pixel'), thumbs: !!document.getElementById('set-thumbs'),
       stats: (document.getElementById('set-stats') || {}).textContent, data: [].map.call(b.querySelectorAll('.set-data .btn'), function (x) { return x.textContent.trim(); }), dataH: [].map.call(b.querySelectorAll('.set-data .btn'), function (x) { return Math.round(x.getBoundingClientRect().height); }),
       who: (document.getElementById('set-who') || {}).textContent, pal: !!b.querySelector('[data-pal]'), focus: document.activeElement && document.activeElement.id, text: document.getElementById('settings-sheet').innerText };
   });
   console.log('   settings:', JSON.stringify({ hs: st.hs, stats: st.stats, data: st.data, who: st.who }));
   ok(st.hs[0] === '문어 색' && st.hue && st.presets === 6, '설정: 맨 위 문어 색 (색 슬라이더 + 프리셋 6)');
+
+  /* 2b. 내 모습 (내 캐릭터 파츠 v0 · docs/PLAYER_PARTS.md §3 — 옷방이 생기기 전까지 여기): 문어 색 바로 아래 h3 · 7줄 (머리 · 머리 색 · 눈 · 눈 색 · 옷 · 신발 · 악세사리) · 줄마다 켜진 칩 하나 ·
+         색 줄은 .preset 동그라미(aria-label 이름) · 나머지는 .fchip 글자 칩(aria-pressed) · 이모지·기호 없음 · 미리보기 캔버스는 3D + playerPortrait 있을 때만 (96px · pixelated), 2D 면 한 줄 안내 */
+  var pp = await page.evaluate(function () {
+    var b = document.getElementById('set-body'), sec = document.getElementById('set-parts'), hs = [].map.call(b.querySelectorAll('h3'), function (x) { return x.textContent; });
+    var rows = sec ? [].map.call(sec.querySelectorAll('.set-part'), function (r) {
+      var chips = [].slice.call(r.querySelectorAll('[data-id]'));
+      return { cat: r.dataset.part, lbl: (r.querySelector('.set-part-lbl') || {}).textContent, n: chips.length, on: chips.filter(function (c) { return c.getAttribute('aria-pressed') === 'true' && c.classList.contains('on'); }).length,
+        kind: chips.every(function (c) { return c.classList.contains(/Color$/.test(r.dataset.part) ? 'preset' : 'fchip'); }), named: chips.every(function (c) { return /Color$/.test(r.dataset.part) ? !!c.getAttribute('aria-label') && !!c.title : !!c.textContent.trim(); }),
+        tall: chips.every(function (c) { return c.getBoundingClientRect().height >= 32; }) };
+    }) : [];
+    var port = document.getElementById('set-pl-port'), pr = port ? port.getBoundingClientRect() : null;
+    return { hs: hs, idx: hs.indexOf('내 모습'), rows: rows, mode: APP.sceneMode, setFn: typeof APP.scene.setPlayer, portFn: typeof APP.scene.playerPortrait, port: !!port, portW: pr ? Math.round(pr.width) : 0, portPx: port ? /pixelated|crisp-edges/.test(getComputedStyle(port).imageRendering) : false,
+      note2d: !!document.getElementById('set-parts-note'), eyeNote: (document.getElementById('set-eye-note') || {}).textContent, emoji: /\p{Extended_Pictographic}/u.test(sec ? sec.parentNode.innerText : ''), look: APP.scene.player && APP.scene.player() ? APP.scene.player().look : undefined, saved: APP.state.settings.player };
+  });
+  console.log('   parts:', JSON.stringify({ idx: pp.idx, rows: pp.rows.map(function (r) { return r.lbl + ':' + r.n; }), mode: pp.mode, setFn: pp.setFn, portFn: pp.portFn, port: pp.port, saved: pp.saved }));
+  var PARTS_CATS = 'hair,hairColor,eyes,eyeColor,outfit,shoes,acc', PARTS_LBL = '머리/머리 색/눈/눈 색/옷/신발/악세사리';
+  ok(pp.idx === 1 && pp.rows.map(function (r) { return r.cat; }).join() === PARTS_CATS && pp.rows.map(function (r) { return r.lbl; }).join('/') === PARTS_LBL, "설정 › 내 모습: 문어 색 바로 아래 · 7줄 (머리 · 머리 색 · 눈 · 눈 색 · 옷 · 신발 · 악세사리) " + JSON.stringify(pp.rows.map(function (r) { return r.lbl; })));
+  ok(pp.rows.length === 7 && pp.rows.every(function (r) { return r.n >= 4 && r.on === 1 && r.kind && r.named && r.tall; }), '내 모습: 줄마다 칩 4개 이상 · 켜진 칩 하나(aria-pressed) · 색은 .preset(aria-label·title 이름) · 나머지 .fchip 글자 · 보이는 높이 32px 이상 ' + JSON.stringify(pp.rows.map(function (r) { return [r.n, r.on, r.kind, r.named, r.tall]; })));
+  ok(!pp.emoji && pp.saved && Object.keys(pp.saved).join() === PARTS_CATS && pp.saved.hair === 'bob' && pp.saved.acc === 'ribbon', '내 모습: 이모지 0 · settings.player 기본값 (단발 · 리본, 키 7개) ' + JSON.stringify(pp.saved));
+  if (pp.mode === '3d') ok(pp.port === (pp.portFn === 'function') && (!pp.port || (pp.portW === 96 && pp.portPx)) && !pp.note2d, '내 모습 미리보기: 3D 에서 playerPortrait 가 있으면 96px pixelated 캔버스, 없으면 생략 (portFn ' + pp.portFn + ' · port ' + pp.port + ' ' + pp.portW + 'px)');
+  else ok(!pp.port && pp.note2d, '내 모습 미리보기: 2D 장면에서는 캔버스 없이 한 줄 안내만');
+  await page.click('#set-parts .set-part[data-part="hair"] .fchip[data-id="long"]');
+  await page.click('#set-parts .set-part[data-part="eyeColor"] .preset[data-id="sea"]');
+  await page.click('#set-parts .set-part[data-part="eyes"] .fchip[data-id="smile"]');
+  var pc = await page.evaluate(function () {
+    var on = function (cat) { var q = document.querySelector('#set-parts .set-part[data-part="' + cat + '"] [aria-pressed="true"]'); return q ? q.dataset.id : null; };
+    var stored = JSON.parse(localStorage.getItem('ppolppol_v2')).settings.player, lk = (APP.scene.player && APP.scene.player()) ? APP.scene.player().look : undefined;
+    return { saved: APP.state.settings.player, stored: stored, on: [on('hair'), on('eyeColor'), on('eyes'), on('hairColor')], ons: document.querySelectorAll('#set-parts [aria-pressed="true"]').length, look: lk, setFn: typeof APP.scene.setPlayer, eyeNote: document.getElementById('set-eye-note').textContent };
+  });
+  console.log('   parts click:', JSON.stringify(pc));
+  ok(pc.saved.hair === 'long' && pc.saved.eyeColor === 'sea' && pc.saved.eyes === 'smile' && pc.saved.hairColor === 'blonde' && pc.stored && pc.stored.hair === 'long' && pc.stored.eyeColor === 'sea' && pc.stored.eyes === 'smile',
+    '내 모습: 긴생머리 · 바다색 눈 · 웃는눈 칩 → settings.player 에 저장 (localStorage ppolppol_v2) · 안 누른 줄은 그대로');
+  ok(pc.on.join() === 'long,sea,smile,blonde' && pc.ons === 7 && /눈 색이 안 보여/.test(pc.eyeNote), '내 모습: 누른 칩만 켜짐 (줄마다 하나, 전체 7) · 웃는눈이면 눈 색 안내 한 줄 ' + JSON.stringify(pc.on));
+  if (pp.mode === '3d' && pc.setFn === 'function') ok(pc.look && pc.look.hair === 'long' && pc.look.eyeColor === 'sea' && pc.look.eyes === 'smile', '내 모습 (3D): scene.player().look 이 고른 대로 ' + JSON.stringify(pc.look));
+  else console.log('   (skip) scene.setPlayer 없음 (' + pp.mode + ' · ' + pc.setFn + ') → look 검사 건너뜀');
+  /* 새로고침 = 같은 저장소를 읽는 새 탭: 고른 모습이 그대로 · 장면도 그 모습으로 시작 (3D + player().look 이 있을 때) */
+  var P2 = await s.ctx.newPage(); watchErrors(P2, s.bag);
+  if (useStubs) { await P2.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await P2.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+  await P2.addInitScript({ content: "window.__ppolTest = { today: '" + DAY1 + "', forceKind: 'out' };" });
+  await routeWiki(P2, 'ok'); await routeRepo(P2, O);
+  await P2.goto(O + '/index.html?dev=0&slow=' + SPEED);
+  await P2.waitForFunction(function () { return window.APP && APP.state.octopus.name === '뚜루'; }, null, { timeout: 20000 });
+  await P2.click('#btn-settings'); await P2.waitForSelector('#settings-sheet[open]');
+  var pr2 = await P2.evaluate(function () {
+    var on = function (cat) { var q = document.querySelector('#set-parts .set-part[data-part="' + cat + '"] [aria-pressed="true"]'); return q ? q.dataset.id : null; };
+    var lk = (APP.scene.player && APP.scene.player()) ? APP.scene.player().look : undefined;
+    return { saved: APP.state.settings.player, on: [on('hair'), on('eyeColor'), on('eyes')], look: lk, mode: APP.sceneMode, setFn: typeof APP.scene.setPlayer };
+  });
+  await P2.close();
+  console.log('   parts reload:', JSON.stringify(pr2));
+  ok(pr2.saved.hair === 'long' && pr2.saved.eyeColor === 'sea' && pr2.saved.eyes === 'smile' && pr2.on.join() === 'long,sea,smile', '내 모습: 새로 연 탭에서도 고른 모습 그대로 (저장 · 칩 켜짐)');
+  if (pr2.mode === '3d' && pr2.setFn === 'function') ok(pr2.look && pr2.look.hair === 'long' && pr2.look.eyes === 'smile', '내 모습 (3D): 새로 연 탭의 장면이 저장된 모습으로 시작 (opts.player) ' + JSON.stringify(pr2.look));
+  await page.click('#set-parts .set-part[data-part="hair"] .fchip[data-id="bob"]');
+  await page.click('#set-parts .set-part[data-part="eyeColor"] .preset[data-id="dark"]');
+  await page.click('#set-parts .set-part[data-part="eyes"] .fchip[data-id="round"]');   /* 뒤 검사·스크린샷은 기본 모습으로 */
+
   ok(st.music && st.sfx, '설정: 소리 칸 (js/audio.js 가 붙인 음악 · 효과음 크기)');
   ok(st.motion && st.pixel && st.thumbs, '설정: 모션 · 픽셀 글꼴 · 포스터 썸네일');
   ok(st.stats === '산책 0 · 함께한 날 0 · 읽음 0' && st.data.join('/') === '내보내기/불러오기/전체 초기화' && st.dataH.every(function (x) { return x >= 44; }), '설정 › 기록: 작은 한 줄 + 내보내기 · 불러오기 · 전체 초기화 (보이는 높이 44px 넘음 ' + st.dataH.join('/') + ')');
   ok(/미리 만든 규칙/.test(st.who) && /고른 이는 포스터와 쪽지 뒷면/.test(st.who) && !/MCP|일기/.test(st.who) && !st.pal && st.focus === 'set-h' && !/방 보기/.test(st.text), "설정: '누가 고르나' 한 줄 (MCP 같은 말 없이 · 고른 이는 포스터·쪽지 뒷면) · 플레이어에겐 팔레트 없음 · 포커스는 시트 제목 · '방 보기' 없음");
-  await page.click('#set-body .preset[data-hex="#4a86d8"]');
-  var c1 = await page.evaluate(function () { return { saved: APP.state.settings.octColor, on: (document.querySelector('#set-body .preset.on') || {}).dataset, hue: +document.getElementById('set-hue').value, stored: JSON.parse(localStorage.getItem('ppolppol_v2')).settings.octColor }; });
+  await page.click('#set-body .presets .preset[data-hex="#4a86d8"]');
+  var c1 = await page.evaluate(function () { return { saved: APP.state.settings.octColor, on: (document.querySelector('#set-body .presets .preset.on') || {}).dataset, hue: +document.getElementById('set-hue').value, stored: JSON.parse(localStorage.getItem('ppolppol_v2')).settings.octColor }; });
   await page.evaluate(function () { var h = document.getElementById('set-hue'); h.value = '120'; h.dispatchEvent(new Event('input', { bubbles: true })); });
-  var c2 = await page.evaluate(function () { return { saved: APP.state.settings.octColor, on: document.querySelectorAll('#set-body .preset.on').length }; });
+  var c2 = await page.evaluate(function () { return { saved: APP.state.settings.octColor, on: document.querySelectorAll('#set-body .presets .preset.on').length }; });   /* .presets = 문어 색 묶음만 (내 모습의 색 칩도 .preset) */
   ok(c1.saved === '#4a86d8' && c1.on && c1.on.hex === '#4a86d8' && c1.hue > 200 && c1.hue < 230 && c1.stored === '#4a86d8', '문어 색: 프리셋 파랑 → 저장 · 칩 켜짐 · 슬라이더도 파랑 (' + c1.hue + '°)');
   ok(/^#[0-9a-f]{6}$/.test(c2.saved) && c2.saved !== '#4a86d8' && c2.on === 0, '문어 색: 슬라이더 120° → 초록 계열로 저장 (' + c2.saved + ') · 프리셋 칩 꺼짐');
-  await page.click('#set-body .preset[data-hex="#e8463c"]');
+  await page.click('#set-body .presets .preset[data-hex="#e8463c"]');
   await page.click('#set-reset');
   var rz = await page.evaluate(function () { return { t: document.getElementById('set-reset').textContent, name: APP.state.octopus.name }; });
   ok(/정말/.test(rz.t) && rz.name === '뚜루', '전체 초기화는 2단계 (한 번 누르면 묻기만)');

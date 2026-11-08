@@ -3,7 +3,7 @@
    DESIGN.md §2 §3 §4 §6 §7 §8 §12.3
    섹션: util · state · migrate · assets · scene(SCENE3D|SCENE2D 브리지) · octopus ·
          invite/reveal · log · posters · album(요즘 · 메모 · 일기) · dialogs(포스터 · 설정 · 이름) · rooms(문어 방 ↔ 놀이방) · tip · demo · boot
-   7물결 (주인 11-07): '방 보기' 는 없앴다 → ⚙ 설정 시트 (문어 색 · 소리 · 모션 · 글꼴 · 기록) · 앨범 (문어의 요즘 · 다음 산책에 가는 메모 · 일기 탭).
+   7물결 (주인 11-07): '방 보기' 는 없앴다 → ⚙ 설정 시트 (문어 색 · 내 모습 · 소리 · 모션 · 글꼴 · 기록) · 앨범 (문어의 요즘 · 다음 산책에 가는 메모 · 일기 탭).
    건너뛰기는 큰 버튼에 합쳤다 (나가 있는 동안 #btn-go = "다녀오는 중…" 글자만, 누르면 skip).
    8물결: 다락 안 진짜 문(#btn-door, 3D 문 위 투명 단추) → goRoom('play') → 진짜 놀이방 (오락기 → 다락방 달리기 · 문 → 문어 방). 자세한 규칙은 rooms 섹션
    플레이어가 보는 버튼 · 탭 · 시트 제목에는 글자나 픽셀 그림만 (이모지 · 유니코드 기호 없음 — 주인 11-07 '실제 사용자에게 바로 나간다고 생각해')
@@ -176,6 +176,37 @@ var APP = (function () {
   /* 스냅 팔레트 (룩 패스 3, settings.palette): 즉흥 램프 또는 js/palettes.js 의 검증 팔레트. 기본값은 SCENE3D.PAL_DEFAULT (docs/LOOK_LOG.md 3행) */
   var PALETTES_UI = [['ramps', '즉흥'], ['apollo', 'Apollo'], ['endesga64', 'Endesga'], ['resurrect64', 'Resurrect']];
   function paletteDefault() { return (typeof SCENE3D !== 'undefined' && SCENE3D.PAL_DEFAULT) || 'ramps'; }
+  /* 내 모습 (내 캐릭터 파츠 — docs/PLAYER_PARTS.md §3): 목록·기본값은 장면(SCENE3D.PLAYER_PARTS · PLAYER_DEFAULT)이 주인. 장면 빌드에 아직 없으면 같은 id 의 비상 목록.
+     옷방(왼쪽 문)이 생기기 전까지는 설정 시트 '내 모습' 섹션에서 고른다 (PLAYER_PROGRESSION 11-08 메모). 저장은 settings.player = { hair, hairColor, eyes, eyeColor, outfit, shoes, acc } (id) */
+  var PLAYER_CATS = [['hair', '머리'], ['hairColor', '머리 색'], ['eyes', '눈'], ['eyeColor', '눈 색'], ['outfit', '옷'], ['shoes', '신발'], ['acc', '악세사리']];
+  var PLAYER_FALLBACK = {
+    hair: [['bob', '단발'], ['short', '짧은머리'], ['long', '긴생머리'], ['twin', '양갈래'], ['pony', '포니테일'], ['wave', '웨이브']],
+    hairColor: [['blonde', '금발', '#ffc16a'], ['brown', '밤갈색', '#9a5a3a'], ['ink', '먹남색', '#1e2a44'], ['silver', '은빛', '#cfc9c0'], ['pink', '분홍', '#de8fa9'], ['lime', '연두', '#a0d070']],
+    eyes: [['round', '동그란눈'], ['sleepy', '졸린눈'], ['almond', '아몬드눈'], ['smile', '웃는눈'], ['dot', '점눈']],
+    eyeColor: [['dark', '흑갈색', '#4d2b32'], ['hazel', '호두색', '#884b2b'], ['sea', '바다색', '#3c5e8b'], ['leaf', '잎새색', '#468232'], ['honey', '꿀색', '#be772b'], ['violet', '제비꽃', '#7a367b']],
+    outfit: [['dress', '원피스'], ['knit', '니트'], ['hoodie', '후드'], ['overall', '멜빵'], ['raincoat', '비옷']],
+    shoes: [['flat', '단화'], ['boot', '부츠'], ['sneaker', '운동화'], ['loafer', '로퍼']],
+    acc: [['none', '없음'], ['ribbon', '리본'], ['beret', '베레모'], ['glasses', '동글안경'], ['catears', '고양이귀'], ['strawhat', '밀짚모자']]
+  };
+  var PLAYER_FALLBACK_DEFAULT = { hair: 'bob', hairColor: 'blonde', eyes: 'round', eyeColor: 'dark', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };
+  function playerParts() {   /* → { hair: [{id, name}], hairColor: [{id, name, hex}], … } 범주마다 1개 이상 */
+    var P = (typeof SCENE3D !== 'undefined' && isObj(SCENE3D.PLAYER_PARTS)) ? SCENE3D.PLAYER_PARTS : null, out = {};
+    PLAYER_CATS.forEach(function (c) {
+      var k = c[0], list = P && Array.isArray(P[k]) ? P[k].filter(function (x) { return isObj(x) && typeof x.id === 'string'; }) : [];
+      out[k] = list.length ? list : PLAYER_FALLBACK[k].map(function (x) { return { id: x[0], name: x[1], hex: x[2] }; });
+    });
+    return out;
+  }
+  function normalizePlayer(cfg) {   /* 아는 범주만 · 모르는 id 는 기본값으로 (장면의 setPlayer 와 같은 규칙) */
+    var P = playerParts(), D = (typeof SCENE3D !== 'undefined' && isObj(SCENE3D.PLAYER_DEFAULT)) ? SCENE3D.PLAYER_DEFAULT : PLAYER_FALLBACK_DEFAULT, out = {};
+    cfg = isObj(cfg) ? cfg : {};
+    PLAYER_CATS.forEach(function (c) {
+      var k = c[0], ids = P[k].map(function (x) { return x.id; }), v = cfg[k], d = ids.indexOf(D[k]) >= 0 ? D[k] : ids[0];
+      out[k] = (typeof v === 'string' && ids.indexOf(v) >= 0) ? v : d;
+    });
+    return out;
+  }
+  function playerDefault() { return normalizePlayer(null); }
   function defaults() {
     return {
       v: 2,
@@ -184,7 +215,7 @@ var APP = (function () {
       trips: [],
       notes: {},   /* §17.1 방마다 최근 메모 1개: { nodeId: { text, tripId, date } } */
       curiosityNotes: [],   /* 호기심 메모 (docs/CURIOSITY_NOTES.md): [{ id:'cn_…', text, about, by, model?, session(여행 id), at, status:'active'|'set_down', setDownAt }] — 오래된 것부터 */
-      settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c', flipped: false, palette: paletteDefault(), pixelFont: true, albumSeen: 0 }   /* albumSeen: 앨범 점 기준 (renderAlbumBtn). 새 기록은 0 = 아직 본 포스터 없음 */
+      settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c', flipped: false, palette: paletteDefault(), pixelFont: true, albumSeen: 0, player: playerDefault() }   /* player: 내 모습 (id 들, normalizePlayer) · albumSeen: 앨범 점 기준 (renderAlbumBtn). 새 기록은 0 = 아직 본 포스터 없음 */
     };
   }
   var S = defaults();
@@ -289,6 +320,7 @@ var APP = (function () {
     s.room.lantern = clamp(s.room.lantern | 0, 0, 8);
     if (!/^#[0-9a-f]{6}$/i.test(s.settings.octColor || '')) s.settings.octColor = '#e8463c';
     if (PALETTES_UI.map(function (p) { return p[0]; }).indexOf(s.settings.palette) < 0) s.settings.palette = paletteDefault();
+    s.settings.player = normalizePlayer(s.settings.player);   /* 옛 기록(player 없음) · 손으로 고친 id 는 기본값으로 */
     return s;
   }
 
@@ -430,7 +462,7 @@ var APP = (function () {
   function sceneOpts() {
     return {
       pixelSize: 3, color: S.settings.octColor, lantern: S.room.lantern, items: itemsFor(S.room.lantern), weather: weatherFor(S.room.lantern), hour: hourNow(),
-      posters: [], souvenirs: [], reducedMotion: reduced(), speed: speed(), assetPath: assetPath, octEl: $('oct'), look: lookNow(), palette: paletteNow(), season: seasonPref(),
+      posters: [], souvenirs: [], reducedMotion: reduced(), speed: speed(), assetPath: assetPath, octEl: $('oct'), look: lookNow(), palette: paletteNow(), season: seasonPref(), player: S.settings.player,
       on: {
         posterTap: function (id) { openPoster(id); },
         souvenirTap: function (sv) { if (sv.tripId && tripById(sv.tripId)) { say((sv.name || sv.id) + ' — 이거 가져온 날', 'happy', 1800, { icon: souvenirIcon(sv.id) }); openPoster(sv.tripId, true); } },   /* 이름 + 말풍선에 기념품 픽셀 그림 */
@@ -496,6 +528,16 @@ var APP = (function () {
     updateSceneDesc();
   }
   function setOctColor(hex) { if (!/^#[0-9a-f]{6}$/i.test(hex)) return; S.settings.octColor = hex; save(); scene.setColor(hex); refreshPortraits(); }
+  /* 내 모습 한 칸 바꾸기 (설정 시트 칩): 저장 → 장면이 setPlayer 를 알면 메시 다시 → true. 장면 API 는 이 빌드에 없을 수 있어 typeof 로 지킨다 (2D 는 아무것도 안 그리지만 저장은 된다) */
+  function setPlayerPart(cat, id) {
+    var P = playerParts();
+    if (!P[cat] || !P[cat].some(function (x) { return x.id === id; })) return false;
+    var next = Object.assign({}, S.settings.player); next[cat] = id;
+    S.settings.player = normalizePlayer(next);
+    save();
+    if (scene && typeof scene.setPlayer === 'function') { try { scene.setPlayer(S.settings.player); } catch (e) { console.warn('[app] setPlayer', e); } }
+    return true;
+  }
 
   /* ───────────────────────── octopus (§7.1 상태 기계 — 그림은 scene 이 그린다) ───────────────────────── */
   var ANCHORS = { door: 1, window: 1, crate: 1, board: 1, blanket: 1, center: 1 };
@@ -2169,7 +2211,7 @@ var APP = (function () {
     Object.keys(v).forEach(function (k) { if (k !== 'door_out' && (!best || v[k] > v[best])) best = k; });
     return best && v[best] >= 2 ? { id: best, n: v[best] } : null;
   }
-  /* ⚙ 설정 시트 (주인 11-07: 방 보기를 없애고 고르는 것만 여기로). 위에서부터 문어 색 · 소리(js/audio.js 가 room_sheet 훅으로 붙인다) · 모션 · 픽셀 글꼴 · 포스터 썸네일 ·
+  /* ⚙ 설정 시트 (주인 11-07: 방 보기를 없애고 고르는 것만 여기로). 위에서부터 문어 색 · 내 모습(renderPlayerParts) · 소리(js/audio.js 가 room_sheet 훅으로 붙인다) · 모션 · 픽셀 글꼴 · 포스터 썸네일 ·
      기록(작은 한 줄 + 내보내기 · 불러오기 · 전체 초기화 2단계) · 누가 고르나(한 줄) · 팔레트(개발 모드만). 글은 짧게 — 사람들은 읽는 걸 싫어한다 */
   var COLOR_PRESETS = [['빨강', '#e8463c'], ['주황', '#f08a3c'], ['보라', '#9a5cc8'], ['파랑', '#4a86d8'], ['초록', '#4fa868'], ['분홍', '#f07aa8']];
   /* 누가 고르나 (정직 표기): 앞 문장은 '데모' 말풍선과 같은 말. '고른 이:' 줄은 포스터·쪽지를 뒤집은 면(일기)에만 있다 — 앨범의 '일기' 탭(지난 날 로그)과 헷갈리지 않게 자리를 말한다 */
@@ -2196,6 +2238,7 @@ var APP = (function () {
     swatchOn();
     frag.appendChild(h('div', { class: 'set hue-row' }, [hueIn]));
     frag.appendChild(sw);
+    renderPlayerParts(frag);   /* 내 모습 — 문어 색 바로 아래 */
     if (window.AUDIO) AUDIO.on('room_sheet', { frag: frag });   /* 소리: 음악·효과음 크기 (js/audio.js — 훅 이름은 예전 그대로) */
     frag.appendChild(h('h3', { text: '화면' }));
     var sel = h('select', { id: 'set-motion' }, [h('option', { value: 'auto', text: '기기 설정 따르기' }), h('option', { value: 'reduce', text: '모션 줄이기' })]);
@@ -2229,6 +2272,49 @@ var APP = (function () {
       frag.appendChild(paletteChips('set-pal'));
     }
     body.innerHTML = ''; body.appendChild(frag);
+  }
+  /* 설정 › 내 모습 (옷방이 생기기 전까지의 자리 — docs/PLAYER_PARTS.md §3 · PLAYER_PROGRESSION 11-08): 줄 순서 머리 · 머리 색 · 눈 · 눈 색 · 옷 · 신발 · 악세사리.
+     색은 .preset 동그라미(aria-label 이름), 나머지는 .fchip 글자 칩 (aria-pressed). 누르면 setPlayerPart → 그 줄 칩 · 미리보기 갱신.
+     미리보기: 3D 장면이 playerPortrait 를 주면 64×64 캔버스를 96px 로(pixelated) 제목 옆에. 2D 면 한 줄 안내만 (칩은 저장된다). 글자·칩에 이모지·기호 없음 */
+  function renderPlayerParts(frag) {
+    var P = playerParts(), cfg = S.settings.player, head = h('div', { class: 'set-parts-h' }, [h('h3', { text: '내 모습' })]);
+    var port = null;
+    if (sceneMode === '3d' && scene && typeof scene.playerPortrait === 'function') { port = h('canvas', { class: 'pl-port', id: 'set-pl-port', width: '64', height: '64', role: 'img', 'aria-label': '내 모습 미리보기' }); head.appendChild(port); }
+    frag.appendChild(head);
+    if (sceneMode !== '3d') frag.appendChild(h('p', { class: 'help set-parts-note', id: 'set-parts-note', text: '2D 장면에서는 미리보기가 없어. 고른 건 저장돼.' }));
+    var wrap = h('div', { class: 'set-parts', id: 'set-parts' }), note = h('p', { class: 'help set-eye-note', id: 'set-eye-note' });
+    function drawPort() {   /* 장면 초상은 캐시라 첫 장만 느리다 (≈ 문어 portrait). 못 그리면 캔버스를 치운다 (빈 네모를 두지 않는다) */
+      if (!port) return;
+      requestAnimationFrame(function () {
+        if (!port) return;
+        try { var src = scene.playerPortrait({ bg: PORT.bg }), cx = port.getContext('2d'); cx.clearRect(0, 0, 64, 64); if (src) cx.drawImage(src, 0, 0); else throw new Error('빈 초상'); }
+        catch (e) { console.warn('[app] playerPortrait', e); if (port.parentNode) port.remove(); port = null; }
+      });
+    }
+    function eyeNote() { note.textContent = (cfg.eyes === 'smile' || cfg.eyes === 'dot') ? '이 눈 모양은 눈 색이 안 보여' : '눈 색은 크게 봐야 잘 보여'; }
+    PLAYER_CATS.forEach(function (c) {
+      var cat = c[0], isColor = cat === 'hairColor' || cat === 'eyeColor';
+      var chips = h('div', { class: 'set-chips' + (isColor ? ' colors' : ''), role: 'group', 'aria-label': c[1] });
+      P[cat].forEach(function (x) {
+        var b;
+        if (isColor) { b = h('button', { type: 'button', class: 'preset pl-color', 'data-part': cat, 'data-id': x.id, 'data-hex': x.hex || null, title: x.name, 'aria-label': x.name }); b.style.background = x.hex || 'var(--panel2)'; }
+        else b = h('button', { type: 'button', class: 'fchip', 'data-part': cat, 'data-id': x.id, text: x.name });
+        chipOn(b, cfg[cat] === x.id);
+        b.addEventListener('click', function () {
+          if (!setPlayerPart(cat, x.id)) return;
+          cfg = S.settings.player;
+          chips.querySelectorAll('[data-id]').forEach(function (q) { chipOn(q, q.dataset.id === cfg[cat]); });
+          if (cat === 'eyes') eyeNote();
+          drawPort();
+        });
+        chips.appendChild(b);
+      });
+      wrap.appendChild(h('div', { class: 'set-part', 'data-part': cat }, [h('span', { class: 'set-part-lbl', text: c[1] }), chips]));
+      if (cat === 'eyeColor') wrap.appendChild(note);
+    });
+    eyeNote();
+    frag.appendChild(wrap);
+    drawPort();
   }
   function openSettings() {
     var d = $('settings-sheet'); if (!d) return;
@@ -2779,7 +2865,7 @@ var APP = (function () {
     posterSVG: posterSVG, receiptHTML: receiptHTML, inspectHTML: inspectHTML, openPoster: openPoster, openSettings: openSettings, openAlbum: openAlbum, goRoom: goRoom,
     importEvents: importEvents, exportJSON: exportJSON, importJSON: importJSON,
     oct: oct, walkTo: walkTo, octState: octState, anchors: ANCHORS, placeholders: PH, commitTrip: commitTrip,
-    get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor,
+    get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPlayerPart: setPlayerPart, playerParts: playerParts, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor,
     portraitFor: portraitFor, say: say, get portraitCache() { return Object.keys(PORT.cache); },
     setSeason: setSeasonPref, get ceremony() { return cer.kind; },
     get room() { return inPlay() ? 'play' : null; }, openMachine: openMachine   /* 8물결: 놀이방에 있는가 · 오락기 (테스트·도구) */
