@@ -278,8 +278,10 @@ Octopus.prototype.depart = function (a) {
    도서관 = 한국어 위키백과 전체. 모델이 보는 길은 셋: 찾아보기 (find) · 오늘의 서가 · 읽은 글의 links. 모퉁이 (카테고리) 는 보여 주지 않는다.
    열람실 = 사람이 쓴 책이 있는 방 (library/books). 그 밖의 방도 id 로 갈 수 있지만 목록에 늘어놓지 않는다 */
 Octopus.prototype.rooms = function () {
-  var self = this;
-  return Object.keys(this.books).sort().map(function (id) { return id + ' ' + WORLD.nodes[id].name; }).join(', ') || null;
+  /* 순서는 날마다 섞는다 (늘 같은 방이 앞에 오면 첫 걸음이 그쪽으로 쏠린다 — 11-10 첫날은 두 줄 모두 열람실에서 시작) */
+  var ids = Object.keys(this.books).sort(), r = BRAIN.rng(BRAIN.hashSeed('rooms', this.dateKey()));
+  for (var i = ids.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), t = ids[i]; ids[i] = ids[j]; ids[j] = t; }
+  return ids.map(function (id) { return id + ' ' + WORLD.nodes[id].name; }).join(', ') || null;
 };
 var SHELF_N = 8, SHELF_CATS = ['분류:알찬 글', '분류:좋은 글'];
 Octopus.prototype.loadShelfPool = async function () {

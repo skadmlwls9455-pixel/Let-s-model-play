@@ -50,7 +50,7 @@ var WORLD = (function () {
       aliases: ['햇', '캡', '밀짚모자', '중절모', '벙거지'],
       keywords: ['챙', '머리', '쓰는 것', '장식', '모자점'],
       wiki: '모자',
-      clue: '모자는 햇빛을 가리려고, 추위를 막으려고, 그리고 누구인지 보여 주려고 썼다. 어느 쪽이 먼저였을까?',
+      clue: '모자는 햇빛을 가리려고, 추위를 막으려고, 그리고 누구인지 보여 주려고 썼다.',
       memories: [
         '옛날엔 모자만 봐도 뭘 하는 사람인지 알았대',
         '밀짚모자는 밀 줄기를 엮어서 만들어',
@@ -146,7 +146,7 @@ var WORLD = (function () {
       related: ['thread'],
       tangents: [
         { to: 'knot_theory', bridge: '매듭을 풀 수 없게 끝을 이어 붙여 보다가' },
-        { to: 'tide', bridge: '뱃사람 매듭이 밀물에 버틴다는 걸 보고' }
+        { to: 'tide', bridge: '배를 묶은 매듭과 물가에서' }
       ]
     }),
     node({
@@ -172,7 +172,7 @@ var WORLD = (function () {
       aliases: ['잠금장치', '패드록', '다이얼자물쇠'],
       keywords: ['열쇠', '걸림쇠', '금고', '잠그기'],
       wiki: '자물쇠',
-      clue: '자물쇠는 못 열게 하는 물건이 아니라 오래 걸리게 하는 물건이라는 말이 있다. 어떤 자물쇠든 결국은 열린다.',
+      clue: '자물쇠는 여는 데 드는 시간과 수고를 늘려서 막는 물건이다.',
       memories: [
         '로마 사람들은 열쇠를 반지처럼 손가락에 끼었대',
         '안쪽 걸림쇠 모양이 안 맞으면 못 돌아가',
@@ -181,7 +181,7 @@ var WORLD = (function () {
       related: ['key'],
       tangents: [
         { to: 'cipher', bridge: '자물쇠도 암호도 열쇠가 있다는 데서' },
-        { to: 'zero', bridge: '다이얼 자물쇠가 0에서 시작하는 걸 보다가' }
+        { to: 'zero', bridge: '다이얼 자물쇠의 숫자판에서' }
       ]
     }),
     node({
@@ -252,8 +252,8 @@ var WORLD = (function () {
       ],
       related: ['octopus'],
       tangents: [
-        { to: 'memory', bridge: '다리가 따로 기억한다는 이야기에서' },
-        { to: 'knot_theory', bridge: '다리 여덟이 엉키지 않는 이유를 따라가다가' }
+        { to: 'memory', bridge: '신경세포라는 말에서 기억으로 건너가다가' },
+        { to: 'knot_theory', bridge: '얽힌 줄 모양을 떠올리다가' }
       ]
     }),
     node({
@@ -261,7 +261,7 @@ var WORLD = (function () {
       aliases: ['조개껍데기', '패각', '소라', '바지락'],
       keywords: ['진주층', '껍데기', '모래사장', '자개'],
       wiki: '조개',
-      clue: '조개껍데기의 줄무늬는 자란 자국이다. 나무의 나이테처럼, 한 줄마다 시간이 있다.',
+      clue: '조개껍데기에는 자라면서 생긴 성장선이 있다. 나무의 나이테처럼 자란 자국이다.',
       memories: [
         '껍데기 안쪽 무늬가 진주층이야',
         '줄무늬는 자란 자국이야. 나무 나이테처럼',
@@ -279,7 +279,7 @@ var WORLD = (function () {
       aliases: ['펄', '진주알', '양식진주'],
       keywords: ['조개', '진주층', '보석', '반짝임'],
       wiki: '진주',
-      clue: '진주는 조개가 몸 안에 들어온 것을 진주층으로 겹겹이 감싸다 생긴다. 아픈 자리가 둥글어진 것이다.',
+      clue: '진주는 조개 몸속에서 진주층이 겹겹이 쌓여 생긴다.',
       memories: [
         '진주는 조개가 아픈 데를 감싸다 생긴 거야',
         '진주층을 수백 겹 두르면 빛이 반짝여',
@@ -323,7 +323,7 @@ var WORLD = (function () {
       related: ['shell', 'octopus'],
       tangents: [
         { to: 'star', bridge: '불가사리를 바다의 별이라 부르는 데서' },
-        { to: 'honeycomb', bridge: '다섯 갈래가 꼭 맞게 벌어진 모양에서' }
+        { to: 'honeycomb', bridge: '갈래가 고르게 벌어진 모양에서' }
       ]
     }),
     node({
@@ -368,7 +368,7 @@ var WORLD = (function () {
       aliases: ['깃', '새털', '솜털', '날개깃'],
       keywords: ['새', '날개', '케라틴', '가볍다'],
       wiki: '깃털',
-      clue: '새 한 마리에 깃털이 몇 개나 있을까? 세어 본 사람들이 있고, 답은 종마다 다르다.',
+      clue: '새 한 마리의 깃털 수는 종마다 다르다. 하나하나 세어 본 기록도 있다.',
       memories: [
         '깃털은 손톱이랑 같은 재료, 케라틴이래',
         '날개 끝 깃털은 한쪽이 더 좁아. 날기 때문에',
@@ -413,7 +413,7 @@ var WORLD = (function () {
       related: ['rain', 'wind'],
       tangents: [
         { to: 'ancient_language', bridge: '구름 이름이 전부 라틴어라는 걸 보고' },
-        { to: 'name', bridge: '구름에 이름을 붙인 사람을 따라가다가' }
+        { to: 'name', bridge: '구름에 붙은 이름에서' }
       ]
     }),
     node({
@@ -430,7 +430,7 @@ var WORLD = (function () {
       related: ['light', 'rain'],
       tangents: [
         { to: 'glass', bridge: '유리 모서리에도 작은 무지개가 생긴다는 걸 보고' },
-        { to: 'riddle', bridge: '무지개 끝에 뭐가 있나 묻는 옛 이야기에서' }
+        { to: 'riddle', bridge: '무지개에 얽힌 옛 이야기에서' }
       ]
     }),
     node({
@@ -465,7 +465,7 @@ var WORLD = (function () {
       related: ['moon', 'light'],
       tangents: [
         { to: 'starfish', bridge: '바다에도 별이 있다는 말에서' },
-        { to: 'name', bridge: '별 이름이 붙은 사연을 따라가다가' }
+        { to: 'name', bridge: '별에 붙은 이름에서' }
       ]
     }),
     node({
@@ -508,7 +508,7 @@ var WORLD = (function () {
       aliases: ['눈송이', '눈 결정', '첫눈', '눈발'],
       keywords: ['결정', '겨울', '여섯 갈래', '조용함', '날씨'],
       wiki: '눈 (날씨)',
-      clue: '눈 결정은 거의 다 여섯 갈래다. 눈 쌓인 날이 조용한 건 눈 사이 공기가 소리를 먹기 때문이다.',
+      clue: '눈 결정은 얼음의 육각 구조를 따라 여섯 방향으로 자란다. 갓 쌓인 눈은 틈이 많아 소리를 잘 흡수한다.',
       memories: [
         '눈 결정은 거의 다 여섯 갈래야',
         '눈 쌓인 날이 조용한 건 눈 사이 공기 때문이야',
@@ -621,7 +621,7 @@ var WORLD = (function () {
       related: ['cuneiform'],
       tangents: [
         { to: 'cloud_names', bridge: '구름 이름이 라틴어라는 걸 보고' },
-        { to: 'octopus', bridge: '문어가 라틴어로 다리 많은 것이라는 데서' }
+        { to: 'octopus', bridge: '동물 이름에 쓰이는 옛말에서' }
       ]
     }),
     node({
@@ -629,7 +629,7 @@ var WORLD = (function () {
       aliases: ['훈민정음', '우리글', '한글 자모'],
       keywords: ['세종', '자음', '모음', '글자', '소리'],
       wiki: '한글',
-      clue: '한글 글자 모양은 입 모양과 혀 모양을 본떴다. 1443년에 만들고 1446년에 알렸다.',
+      clue: '한글 자음은 발음 기관의 모양을, 모음은 하늘·땅·사람을 본떴다. 1443년에 만들고 1446년에 알렸다.',
       memories: [
         '글자 모양이 입 모양, 혀 모양을 본뜬 거야',
         '처음엔 28자였고 지금은 24자를 써',
@@ -637,7 +637,7 @@ var WORLD = (function () {
       ],
       related: ['braille', 'ink'],
       tangents: [
-        { to: 'riddle', bridge: '글자가 입 모양을 본떴다는 수수께끼 같은 말에서' },
+        { to: 'riddle', bridge: '소리와 모양을 짝짓는 말놀이에서' },
         { to: 'echo', bridge: '소리를 적는 글자라는 말을 따라가다가' }
       ]
     }),
@@ -683,7 +683,7 @@ var WORLD = (function () {
       aliases: ['매듭이론', '위상수학', '세잎매듭'],
       keywords: ['고리', '교차', '위상', '수학', '풀기'],
       wiki: '매듭 이론',
-      clue: '수학의 매듭은 끝이 없는 고리다. 그래서 풀 수 없다. 제일 간단한 매듭은 세잎매듭, 교차가 세 번이다.',
+      clue: '수학의 매듭은 끝이 이어진 고리다. 제일 간단한 매듭은 세잎매듭, 교차가 세 번이다.',
       memories: [
         '수학의 매듭은 끝이 없는 고리야. 못 풀어',
         '제일 간단한 매듭은 세잎매듭. 교차가 세 번',
@@ -692,7 +692,7 @@ var WORLD = (function () {
       related: ['mobius', 'prime'],
       tangents: [
         { to: 'knot', bridge: '진짜 끈으로 세잎매듭을 묶어 보다가' },
-        { to: 'octopus_nerves', bridge: '문어 다리가 매듭 없이 움직이는 걸 보고' }
+        { to: 'octopus_nerves', bridge: '여러 갈래로 뻗은 줄기를 떠올리다가' }
       ]
     }),
     node({
@@ -726,7 +726,7 @@ var WORLD = (function () {
       related: ['honeycomb', 'spiral'],
       tangents: [
         { to: 'chalk', bridge: '칠판에 그린 격자에서' },
-        { to: 'snow', bridge: '눈 결정이 바닥을 채우는 모양에서' }
+        { to: 'snow', bridge: '여섯 갈래 눈 결정 모양에서' }
       ]
     }),
     node({
@@ -776,7 +776,7 @@ var WORLD = (function () {
       ],
       related: ['abacus', 'prime'],
       tangents: [
-        { to: 'cuneiform', bridge: '빈자리를 어떻게 적었나 점토판을 보다가' },
+        { to: 'cuneiform', bridge: '점토판에 찍힌 숫자 자국에서' },
         { to: 'sleep', bridge: '아무것도 없음이 수가 된다는 데서' }
       ]
     }),
@@ -804,7 +804,7 @@ var WORLD = (function () {
       aliases: ['자장자장', '브람스 자장가', '잠노래'],
       keywords: ['아기', '잠', '노래', '3박자', '흔들기'],
       wiki: '자장가',
-      clue: '자장가는 어느 나라에나 있다. 느리고, 반복되고, 흔드는 박자에 맞춰 3박자가 많다.',
+      clue: '자장가는 조사된 여러 문화에서 발견된다. 대체로 느리고 같은 가락이 되풀이된다.',
       memories: [
         '자장가는 어느 나라에나 있어. 느리고 반복돼',
         '브람스 자장가는 친구 아기한테 준 노래야',
@@ -821,7 +821,7 @@ var WORLD = (function () {
       aliases: ['박절기', '템포', '똑딱'],
       keywords: ['박자', '리듬', '멜첼', '베토벤', '세기'],
       wiki: '메트로놈',
-      clue: '메트로놈은 1815년 멜첼이 특허를 냈다. 베토벤이 처음으로 악보에 메트로놈 숫자를 적었다.',
+      clue: '메트로놈은 1815년 멜첼이 특허를 냈다. 베토벤은 일찍부터 악보에 메트로놈 숫자를 적었다.',
       memories: [
         '1815년 멜첼이 특허를 냈어',
         '베토벤이 처음으로 악보에 메트로놈 숫자를 썼대',
@@ -846,7 +846,7 @@ var WORLD = (function () {
       ],
       related: ['echo'],
       tangents: [
-        { to: 'octopus', bridge: '같은 바다에 사는 문어를 떠올리다가' },
+        { to: 'octopus', bridge: '바닷속 다른 동물을 떠올리다가' },
         { to: 'memory', bridge: '노래가 해마다 바뀐다는 걸 보고' }
       ]
     }),
@@ -864,7 +864,7 @@ var WORLD = (function () {
       related: ['echo', 'metronome'],
       tangents: [
         { to: 'lighthouse', bridge: '안개 속 배에 울리던 종에서' },
-        { to: 'hangul', bridge: '종 몸에 새긴 글자를 읽다가' }
+        { to: 'hangul', bridge: '종에 새겨진 글자 자리에서' }
       ],
       souvenir: 'bell'
     }),
@@ -907,7 +907,7 @@ var WORLD = (function () {
       aliases: ['심장', '맥박', '박동', '고동'],
       keywords: ['청진기', '리듬', '피', '두근', '몸'],
       wiki: '심장',
-      clue: '청진기는 1816년 의사가 종이를 말아 가슴에 댄 데서 시작됐다. 문어는 심장이 셋이고, 헤엄칠 때 하나는 잠깐 멈춘다.',
+      clue: '청진기는 1816년 의사가 종이를 말아 가슴에 댄 데서 시작됐다.',
       memories: [
         '문어는 심장이 셋이고 헤엄치면 하나는 잠깐 멈춰',
         '청진기는 1816년에 종이 말아서 시작됐어',
@@ -1012,7 +1012,7 @@ var WORLD = (function () {
       aliases: ['소나무 열매', '구과', '잣방울'],
       keywords: ['소나무', '비늘', '씨', '나선', '숲'],
       wiki: '솔방울',
-      clue: '솔방울은 마르면 열리고 젖으면 닫힌다. 비가 올지 솔방울이 먼저 안다.',
+      clue: '솔방울은 마르면 비늘이 벌어지고 젖으면 오므라든다. 습도에 따라 움직인다.',
       memories: [
         '솔방울은 마르면 열리고 젖으면 닫혀',
         '비 올지 솔방울이 먼저 알아',
@@ -1030,7 +1030,7 @@ var WORLD = (function () {
       aliases: ['등잔', '랜턴', '초롱', '등'],
       keywords: ['기름', '심지', '불빛', '밤', '방'],
       wiki: '랜턴',
-      clue: '옛 등잔은 기름에 심지를 담가 불을 붙였다. 등불 하나면 방이 방이 된다.',
+      clue: '옛 등잔은 기름에 심지를 담가 불을 붙였다.',
       memories: [
         '옛 등잔은 기름에 심지를 담갔어',
         '등불 하나 켜면 방이 방이 돼',
@@ -1057,7 +1057,7 @@ var WORLD = (function () {
       ],
       related: ['sleep', 'memory', 'slow_room'],
       tangents: [
-        { to: 'octopus', bridge: '자면서 색이 바뀌는 문어를 보다가' },
+        { to: 'octopus', bridge: '잠든 몸이 달라지는 모습에서' },
         { to: 'moon', bridge: '꿈속에 뜬 달을 따라가다가' }
       ]
     }),
@@ -1074,7 +1074,7 @@ var WORLD = (function () {
       ],
       related: ['dream', 'name'],
       tangents: [
-        { to: 'octopus_nerves', bridge: '다리마다 따로 기억하는 문어에서' },
+        { to: 'octopus_nerves', bridge: '몸에 넓게 퍼진 신경이라는 말에서' },
         { to: 'echo', bridge: '돌아오는 소리가 기억 같아서' }
       ]
     }),
@@ -1083,7 +1083,7 @@ var WORLD = (function () {
       aliases: ['이름 짓기', '명명', '호칭', '별명'],
       keywords: ['부르기', '태풍', '별', '구름', '붙이기'],
       wiki: '이름',
-      clue: '태풍에도 이름을 붙인다. 순서대로 미리 정해 둔 이름을 쓴다. 이름이 붙으면 그게 거기 있다는 뜻이 된다.',
+      clue: '태풍에도 이름을 붙인다. 순서대로 미리 정해 둔 이름을 쓴다.',
       memories: [
         '태풍에도 이름을 붙여. 순서대로',
         '이름을 부르면 그게 거기 있다는 뜻이야',
@@ -1091,7 +1091,7 @@ var WORLD = (function () {
       ],
       related: ['memory', 'riddle'],
       tangents: [
-        { to: 'cloud_names', bridge: '구름에 이름 붙인 사람을 따라가다가' },
+        { to: 'cloud_names', bridge: '이름이 붙은 구름에서' },
         { to: 'hangul', bridge: '이름을 적는 글자를 보다가' }
       ]
     }),
@@ -1100,7 +1100,7 @@ var WORLD = (function () {
       aliases: ['시간', '시간감각', '체감 시간', '하루'],
       keywords: ['기다림', '시계', '빠름', '느림', '리듬'],
       wiki: '시간',
-      clue: '시간을 느끼는 감각 기관은 따로 없다. 그런데 기다릴 땐 길고, 돌아보면 짧다. 왜일까?',
+      clue: '시간을 느끼는 감각 기관은 따로 없다. 기다릴 땐 길게, 돌아보면 짧게 느끼는 경향이 있다.',
       memories: [
         '시간을 느끼는 감각 기관은 따로 없어',
         '몸 안 시계는 하루 24시간쯤으로 맞춰져 있어',
@@ -1118,7 +1118,7 @@ var WORLD = (function () {
       aliases: ['수면', '낮잠', '잠들기', '숙면'],
       keywords: ['꿈', '밤', '쉬기', '문어'],   /* '정리'는 뺐다: 정리해 줘·창고 정리처럼 거의 늘 '치우기·요약' 뜻 */
       wiki: '수면',
-      clue: '문어도 두 가지 잠을 잔다. 조용한 잠, 그리고 피부색이 바뀌는 잠. 잠은 아무것도 안 하는 게 아니다.',
+      clue: '잠에는 렘수면과 비렘수면이 있고, 하룻밤에 여러 번 번갈아 온다.',
       memories: [
         '문어도 두 가지 잠을 자. 조용한 잠, 바뀌는 잠',
         '자는 동안 뇌가 낮에 쌓인 걸 치워',
@@ -1143,7 +1143,7 @@ var WORLD = (function () {
       ],
       related: ['name'],
       tangents: [
-        { to: 'knot_theory', bridge: '풀 수 없는 매듭 같은 질문을 따라가다가' },
+        { to: 'knot_theory', bridge: '얽힌 말을 풀어 가는 이야기에서' },
         { to: 'cipher', bridge: '답을 숨긴 글을 읽다가' }
       ]
     }),

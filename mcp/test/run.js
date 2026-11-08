@@ -145,7 +145,9 @@ async function unit() {
   var ol = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: stubQuery, now: function () { return new Date(clock); } });
   var g1 = await ol.go({});
   check(Array.isArray(g1.shelf) && g1.shelf.length === 8 && new Set(g1.shelf).size === 8, '오늘의 서가 8권');
-  check(g1.rooms === 'hat 모자, octopus_nerves 문어 신경계', '열람실 = 책이 있는 방만, 모퉁이 없음');
+  check(g1.rooms.split(', ').sort().join() === 'hat 모자,octopus_nerves 문어 신경계', '열람실 = 책이 있는 방만, 모퉁이 없음');
+  var orderDays = {}; for (var dd = 0; dd < 10; dd++) { var od = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: stubQuery, now: function () { return new Date(clock + dd * 86400000); } }); orderDays[od.rooms()] = 1; }
+  check(Object.keys(orderDays).length === 2, '열람실 순서는 날마다 섞인다 (책 2권 → 두 순서가 다 나온다)');
   ol.finish({});
   var before = qcalls, g2 = await ol.go({});
   check(JSON.stringify(g2.shelf) === JSON.stringify(g1.shelf) && qcalls === before, '같은 날은 같은 서가 · 목록은 한 번만 불러옴');
