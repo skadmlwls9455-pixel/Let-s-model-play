@@ -1124,20 +1124,33 @@ var COOK = (function () {
     var A = art();
     D.strip.textContent = '';
     r.steps.forEach(function (s) {
-      var cv = el('canvas', { width: '16', height: '16' }), c = cv.getContext('2d');
-      if (c) { var ic = A.icon(s.kind), im = c.createImageData(16, 16); im.data.set(ic.d); c.putImageData(im, 0, 0); }
+      var cv = el('canvas', { width: '16', height: '16' });
+      cv.ckIcon = A.icon(s.kind); cv.ckN = 0;
       D.strip.appendChild(el('span', { class: 'ck-step' }, [cv]));
     });
     sizeStrip();
   }
+  function drawIcon(cv, n) {   /* the 16 x 16 icon at device resolution: every art px an exact n x n block, so the browser maps
+                                  backing pixels 1:1 (a CSS upscale of a 16 x 16 canvas drops or doubles columns at DPR 2.625) */
+    if (!cv.ckIcon || cv.ckN === n) return;
+    var c = null; try { c = cv.getContext('2d'); } catch (e) { c = null; }
+    if (!c) return;
+    var s = cv.ckIcon, W = 16 * n, im, d, x, y, i, o;
+    cv.width = W; cv.height = W; im = c.createImageData(W, W); d = im.data;
+    for (y = 0; y < W; y++) for (x = 0; x < W; x++) {
+      i = (((y / n) | 0) * 16 + ((x / n) | 0)) * 4; o = (y * W + x) * 4;
+      d[o] = s.d[i]; d[o + 1] = s.d[i + 1]; d[o + 2] = s.d[i + 2]; d[o + 3] = s.d[i + 3];
+    }
+    c.putImageData(im, 0, 0); cv.ckN = n;
+  }
   function sizeStrip() {   /* 16 x 16 icons at a whole number of device px per art px, every edge on a device px (DPR 2.625 too) */
-    var dpr = (L && L.dpr) || window.devicePixelRatio || 1, px = 16 * Math.max(1, Math.floor(2 * dpr + 1e-6)) / dpr;
+    var dpr = (L && L.dpr) || window.devicePixelRatio || 1, n = Math.max(1, Math.floor(2 * dpr + 1e-6)), px = 16 * n / dpr;
     function dev(v) { return Math.max(1, Math.round(v * dpr)) / dpr; }
     D.strip.style.paddingLeft = dev(2) + 'px'; D.strip.style.gap = dev(8) + 'px';
     D.strip.style.setProperty('--ck-raise', dev(2) + 'px');   /* the current icon: up 2 px, amber line 2 px under it */
     var mt = Math.round((LAY.head - px) / 2 * dpr) / dpr;
     Array.prototype.forEach.call(D.strip.children, function (s) { s.style.marginTop = mt + 'px'; });
-    Array.prototype.forEach.call(D.strip.querySelectorAll('canvas'), function (c) { c.style.width = px + 'px'; c.style.height = px + 'px'; });
+    Array.prototype.forEach.call(D.strip.querySelectorAll('canvas'), function (c) { drawIcon(c, n); c.style.width = px + 'px'; c.style.height = px + 'px'; });
   }
   function stripOn(si) { Array.prototype.forEach.call(D.strip.children, function (c, i) { c.classList.toggle('on', i === si); }); }
   function renderProps() {
