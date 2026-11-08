@@ -44,6 +44,16 @@ function wikiFetch(title, opts) {
     .then(function (data) { clearTimeout(timer); return BRAIN.parseWikiResponse(title, data); })
     .catch(function (e) { clearTimeout(timer); return { ok: false, reason: e && e.name === 'AbortError' ? 'timeout' : 'network' }; });
 }
+/* 위키 목록 질의 (찾아보기 · 서가 목록). 실패하면 null — 지어내지 않는다 */
+function wikiQuery(params, opts) {
+  opts = opts || {};
+  var ac = new AbortController(), timer = setTimeout(function () { ac.abort(); }, opts.timeoutMs || 6000);
+  var q = Object.keys(params).map(function (k) { return k + '=' + encodeURIComponent(params[k]); }).join('&');
+  return fetch(WIKI_API + '?action=query&format=json&' + q, { signal: ac.signal, headers: { 'User-Agent': UA, 'Api-User-Agent': UA } })
+    .then(function (res) { if (!res.ok) throw new Error('http ' + res.status); return res.json(); })
+    .then(function (d) { clearTimeout(timer); return d && d.query ? d.query : null; })
+    .catch(function () { clearTimeout(timer); return null; });
+}
 /* 출처는 ko.wikipedia 문서 주소만, 사진은 upload.wikimedia.org 만 (brain.js 재생 정규화와 같게) */
 function cleanSource(r) {
   if (!r || !r.ok || !/^https:\/\/ko\.wikipedia\.org\/wiki\/\S+$/.test(r.url || '')) return null;
@@ -87,6 +97,8 @@ function Octopus(opts) {
   this.statePath = opts.statePath || path.join(this.dir, 'state.json');
   this.outDir = opts.outDir || path.join(this.dir, 'out');
   this.fetchWiki = opts.fetchWiki || wikiFetch;
+  this.queryWiki = opts.queryWiki || wikiQuery;
+  this.shelfPool = null;   /* 알찬 글·좋은 글 제목 (처음 한 번 불러와 둔다) */
   var lb = loadBooks(opts.booksDir || path.join(__dirname, '..', 'library', 'books'));
   this.books = lb.books; this.bookErrors = lb.errors;   /* 깨진 책은 건너뛴다 (서버는 뜬다). 고칠 곳은 check-books 가 알려 준다 */
   this.now = opts.now || function () { return new Date(); };
@@ -255,38 +267,53 @@ Octopus.prototype.depart = function (a) {
   var trip = { id: rid('trip'), date: dk, seq: seq, kind: 'out', startedAt: this.now().getTime(), lastT: 0, events: [], stops: [] };
   trip.events.push({ type: 'depart', t: 0, hint: '', followHint: false });
   this.S.running = trip;
-  var out = { tripId: trip.id, library: this.library() };
+  var out = { tripId: trip.id, rooms: this.rooms() };
   /* 메모는 한 차례에 한 번만 (CURIOSITY_NOTES 원칙 4: 거듭 보여 주면 계속 그쪽으로 끈다). look_room 이 이미 보였으면 싣지 않는다 */
   var nb = this.S.notesShownAt === this.S.trips.length ? null : this.notesBlock(); if (nb) out.notes = nb;
   this.save();
   return out;
 };
 
-/* 오늘 열린 방 — 모퉁이마다 OPEN_PER_CORNER 개, 날짜로 정해진다 (날씨처럼 그날은 같고 날마다 바뀐다).
-   주제를 시키지 않는다: 보이는 방만 바뀐다. 목록에 없는 방 id 나 아무 위키 문서로 가는 길은 그대로 열려 있다 */
-var OPEN_PER_CORNER = 2;
-Octopus.prototype.openRooms = function () {
-  var r = BRAIN.rng(BRAIN.hashSeed('open-rooms', this.dateKey())), groups = {};
-  Object.keys(WORLD.nodes).sort().forEach(function (id) { if (id !== 'door_out') (groups[WORLD.nodes[id].corner] = groups[WORLD.nodes[id].corner] || []).push(id); });
-  var open = {};
-  Object.keys(groups).sort().forEach(function (c) {
-    var ids = groups[c].slice();
-    for (var i = ids.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), t = ids[i]; ids[i] = ids[j]; ids[j] = t; }
-    ids.slice(0, OPEN_PER_CORNER).forEach(function (id) { open[id] = 1; });
-  });
-  return open;
+/* ───── 큰 도서관 (11-10) ─────
+   도서관 = 한국어 위키백과 전체. 모델이 보는 길은 셋: 찾아보기 (find) · 오늘의 서가 · 읽은 글의 links. 모퉁이 (카테고리) 는 보여 주지 않는다.
+   열람실 = 사람이 쓴 책이 있는 방 (library/books). 그 밖의 방도 id 로 갈 수 있지만 목록에 늘어놓지 않는다 */
+Octopus.prototype.rooms = function () {
+  var self = this;
+  return Object.keys(this.books).sort().map(function (id) { return id + ' ' + WORLD.nodes[id].name; }).join(', ') || null;
 };
-
-/* 도서관 방 목록 — 오늘 열린 방만, 모퉁이별 한 줄 ('id 이름', * 엉뚱한 방) */
-Octopus.prototype.library = function () {
-  var by = {}, open = this.openRooms();
-  Object.keys(WORLD.nodes).forEach(function (id) {
-    if (id === 'door_out' || !open[id]) return;
-    var n = WORLD.nodes[id], c = WORLD.corners[n.corner], key = n.corner + (c && c.name ? ' ' + c.name : '');
-    (by[key] = by[key] || []).push(id + ' ' + n.name + (n.odd ? '*' : ''));   /* 가 본 횟수는 싣지 않는다 — 다닌 길이 눈에 띄면 그쪽으로 끈다. 처음인지는 peek 의 first 로 안다 */
-  });
-  Object.keys(by).forEach(function (k) { by[k] = by[k].join(', '); });
-  return by;
+var SHELF_N = 8, SHELF_CATS = ['분류:알찬 글', '분류:좋은 글'];
+Octopus.prototype.loadShelfPool = async function () {
+  if (this.shelfPool) return this.shelfPool;
+  var pool = [], self = this;
+  for (var c = 0; c < SHELF_CATS.length; c++) {
+    var cont = null, guard = 0;
+    do {
+      var p = { list: 'categorymembers', cmtitle: SHELF_CATS[c], cmnamespace: 0, cmlimit: 500 };
+      if (cont) p.cmcontinue = cont;
+      var r = await self.queryWiki(p);
+      if (!r || !r.categorymembers) break;
+      r.categorymembers.forEach(function (m) { if (pool.indexOf(m.title) < 0) pool.push(m.title); });
+      cont = r.continue && r.continue.cmcontinue; guard++;
+    } while (cont && guard < 4);
+  }
+  if (pool.length) this.shelfPool = pool.sort();
+  return pool;
+};
+/* 오늘의 서가: 날짜로 정해지는 SHELF_N 권 (그날은 같고 날마다 바뀐다). 누가 고른 게 아니라 무작위다 */
+Octopus.prototype.todayShelf = async function () {
+  var pool = (await this.loadShelfPool()).slice();
+  if (!pool.length) return null;
+  var r = BRAIN.rng(BRAIN.hashSeed('shelf', this.dateKey()));
+  for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+  return pool.slice(0, SHELF_N);
+};
+/* 찾아보기: 제목만 돌려준다 (읽지 않는다 — 읽기는 peek). 산책 기록에는 남기지 않는다 */
+Octopus.prototype.find = async function (a) {
+  a = a || {};
+  if (!str(a.q)) return { error: 'q 에 찾을 말을 넣어.' };
+  var r = await this.queryWiki({ list: 'search', srsearch: a.q, srlimit: 8, srprop: '', srnamespace: 0 });
+  if (!r || !r.search) return { status: 'failed' };
+  return { titles: r.search.map(function (x) { return x.title; }) };
 };
 
 /* 나가면서 바로 첫 곳 (선택) — 왕복 한 번을 줄인다. first 를 안 주면 depart 와 같다 */
@@ -294,7 +321,9 @@ Octopus.prototype.go = async function (a) {
   a = a || {};
   /* 이미 나가 있으면 오류 대신 지금 산책을 이어 준다 (진짜 판: depart 를 두 번 불러 왕복 하나를 버렸다) */
   var out = this.S.running ? { tripId: this.S.running.id, walking: true } : this.depart(a);
-  if (out.error || !a.first) return out;
+  if (out.error) return out;
+  if (!out.walking) { var sh = await this.todayShelf(); if (sh) out.shelf = sh; else out.shelf = null; }   /* 서가 목록을 못 불러오면 null 그대로 */
+  if (!a.first) return out;
   out.peek = await this.peek({ target: a.first, more: a.more });
   return out;
 };

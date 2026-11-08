@@ -50,8 +50,7 @@ async function unit() {
 
   section('산책 왕복 · status 정직');
   var d = keep('ppolppol_depart', o.depart({ hint: '모자의 역사' }));
-  var libAll = Object.keys(d.library).map(function (k) { return d.library[k]; }).join(', ').split(', ');
-  check(d.tripId && libAll.length === 16 && !libAll.some(function (x) { return /^door_out /.test(x); }), 'depart: 모퉁이별 library 한 줄 (밖의 문 제외)');
+  check(d.tripId && !('library' in d) && 'rooms' in d, 'depart: 모퉁이 목록 없음, 열람실 (rooms)');
   check(!('hint' in d) && o.S.running.events[0].hint === '' && o.S.running.events[0].followHint === false, '힌트는 받지 않는다 (결정 18) — 넣어도 이벤트 hint 는 빈 글');
   check(o.depart({}).error, '나가 있는 동안 depart 두 번은 오류 (finish 로 끝내라고 안내)');
   var again = await o.go({});
@@ -135,11 +134,30 @@ async function unit() {
   check(!('nearby' in pn) && JSON.stringify(pn).indexOf('엉키지') < 0, 'peek 결과에 nearby·다리 글 없음');
   on.finish({});
 
-  section('오늘 열린 방 — 날짜로 정해진다');
-  var lib1 = o.library(), libAll1 = Object.keys(lib1).map(function (k) { return lib1[k]; }).join(', ').split(', ');
-  check(libAll1.length === 16 && JSON.stringify(o.library()) === JSON.stringify(lib1), '모퉁이마다 2개 · 같은 날은 같다');
-  var oNext = new core.Octopus({ dir: tmp(), fetchWiki: stubWiki, now: function () { return new Date(clock + 86400000); } });
-  check(JSON.stringify(oNext.library()) !== JSON.stringify(lib1), '다음 날은 바뀐다');
+  section('큰 도서관 — 오늘의 서가 · 찾아보기 · 열람실');
+  var qcalls = 0;
+  function stubQuery(p) {
+    qcalls++;
+    if (p.list === 'categorymembers') return Promise.resolve({ categorymembers: Array.from({ length: p.cmtitle.indexOf('알찬') >= 0 ? 30 : 50 }, function (_, i) { return { title: p.cmtitle.slice(3, 5) + ' 문서 ' + i }; }) });
+    if (p.list === 'search') return Promise.resolve(p.srsearch === '없음' ? null : { search: [{ title: p.srsearch }, { title: p.srsearch + ' (동음이의)' }] });
+    return Promise.resolve(null);
+  }
+  var ol = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: stubQuery, now: function () { return new Date(clock); } });
+  var g1 = await ol.go({});
+  check(Array.isArray(g1.shelf) && g1.shelf.length === 8 && new Set(g1.shelf).size === 8, '오늘의 서가 8권');
+  check(g1.rooms === 'hat 모자, octopus_nerves 문어 신경계', '열람실 = 책이 있는 방만, 모퉁이 없음');
+  ol.finish({});
+  var before = qcalls, g2 = await ol.go({});
+  check(JSON.stringify(g2.shelf) === JSON.stringify(g1.shelf) && qcalls === before, '같은 날은 같은 서가 · 목록은 한 번만 불러옴');
+  ol.finish({});
+  var olN = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: stubQuery, now: function () { return new Date(clock + 86400000); } });
+  check(JSON.stringify((await olN.go({})).shelf) !== JSON.stringify(g1.shelf), '다음 날은 다른 서가');
+  var oOff = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, queryWiki: function () { return Promise.resolve(null); }, now: function () { return new Date(clock); } });
+  check((await oOff.go({})).shelf === null, '서가를 못 불러오면 null (지어내지 않음)');
+  var fd = await ol.find({ q: '등대' });
+  check(fd.titles && fd.titles[0] === '등대' && !ol.S.running, '찾아보기: 제목만, 산책 기록 안 남김');
+  check((await ol.find({ q: '없음' })).status === 'failed' && (await ol.find({})).error, '찾아보기 실패는 failed, 빈 말은 오류');
+
   section('구조 — first 로 나가며 바로 기웃 · more · tripId 생략');
   var g = await o.go({ first: { kind: 'wiki', title: '모자' } });
   check(g.tripId && g.peek && g.peek.status === 'read' && g.peek.material.length <= 160, 'depart first: 왕복 한 번에 첫 기웃');
@@ -210,13 +228,13 @@ async function protocol() {
   var { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
   var dir = tmp();
   var tr = new StdioClientTransport({ command: process.execPath, args: [path.join(__dirname, '..', 'server.js')], stderr: 'ignore',
-    env: Object.assign({}, process.env, { PPOLPPOL_STATE: path.join(dir, 'state.json'), PPOLPPOL_OUT: path.join(dir, 'out') }) });
+    env: Object.assign({}, process.env, { PPOLPPOL_STATE: path.join(dir, 'state.json'), PPOLPPOL_OUT: path.join(dir, 'out'), PPOLPPOL_NO_NET: '1' }) });
   var c = new Client({ name: 'test', version: '0' });
   await c.connect(tr);
   var instr = c.getInstructions() || '';
   check(instr.indexOf(core.FIXED_SENTENCE) >= 0, 'instructions 에 고정 문장');
   var tools = (await c.listTools()).tools;
-  check(tools.length === 7, '도구 7개 (산책 6 + answer)');
+  check(tools.length === 8, '도구 8개 (산책 6 + answer + find)');
   check(tools.every(function (t) { return t.title && t.annotations && typeof t.annotations.readOnlyHint === 'boolean' && typeof t.annotations.destructiveHint === 'boolean'; }), '모든 도구에 title·readOnlyHint·destructiveHint');
   function j(r) { return JSON.parse(r.content[0].text); }
   var lr = j(await c.callTool({ name: 'ppolppol_look_room', arguments: {} }));
@@ -230,7 +248,8 @@ async function protocol() {
   check(bad.isError === true, 'stdio: 잘못된 tripId 는 isError');
   var defs = Buffer.byteLength(JSON.stringify(tools)), ib = Buffer.byteLength(instr);
   console.log('  (도구 정의 ' + defs + ' B · instructions ' + ib + ' B)');
-  check(defs < 5000, '도구 정의 5,000 B 미만 (연결해 두면 모든 대화에 실린다)');
+  /* 11-10: 큰 도서관의 찾아보기 도구로 5,000 → 5,500. SDK 가 도구마다 붙이는 $schema·execution 칸이 약 90 B 씩이다 */
+  check(defs < 5500, '도구 정의 5,500 B 미만 (연결해 두면 모든 대화에 실린다)');
   check(!tools.some(function (t) { return /hint/i.test(JSON.stringify(t.inputSchema)); }), '어느 도구에도 hint 입력 없음');
   await c.close();
 }
