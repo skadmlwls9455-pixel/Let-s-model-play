@@ -3,7 +3,7 @@
  *   node tools/player-shots.js [palette]   # 기본 apollo
  * → tests/evidence/player/pl-attic-day.png (다락 쉬는 자리) · pl-attic-close.png (2× 확대 크롭) · pl-face-close.png (2× 얼굴 크롭 — 사람 얼굴 자기 점검) · pl-blink.png (감은 눈 1프레임) · pl-attic-night.png (밤 자체광)
  *   · pl-walk-strip.png (문 톡 → 문 앞까지 걷기 → 문 열림, 0.1 s × 24 칸, 캐릭터를 따라가는 96×96 CSS px 크롭) · pl-attic-door.png (문 앞에 서서 문을 본다 — 문짝에 안 가린다) · pl-play-day.png (놀이방 쉬는 자리) · pl-play-close.png
- *   · pl-parts-sheet.png (파츠 시트: 줄 = 범주 7(머리 · 머리 색 · 눈 · 눈 색 · 옷 · 신발 · 악세사리, UI 순서) · 칸 = 옵션(기본 cfg 에서 하나씩 바꿈), 놀이방 2× 96×96 크롭 — 얼굴 범주는 머리 중심, 옷은 몸통, 신발은 발 중심; 60 KB 를 넘으면 pl-parts-<범주>.png 7장)
+ *   · pl-parts-sheet.png (파츠 시트: 줄 = 범주 7(머리 · 머리 색 · 눈 · 눈 색 · 옷 · 신발 · 악세사리, UI 순서) · 칸 = 옵션(기본 cfg 에서 하나씩 바꿈), 놀이방 2× 96×96 크롭 — 머리 줄은 옆 45° 뒤쪽 각도(뒷머리 길이가 보이게), 얼굴 범주는 머리 중심, 옷은 몸통, 신발은 발 중심; 60 KB 를 넘으면 pl-parts-<범주>.png 7장)
  *   · pl-hair-turn.png (머리 6종 × 8방향 1×) · pl-hair-turn-2x.png (머리 6종 × 4방향 2×, 머리 중심) · pl-portrait.png (playerPortrait 64×64 × 머리 6종, navy 배경)
  * 검사: 샷마다 고유 색 ≤ 62(시트 칸마다 ≤ 62, 합친 시트 ≤ 96) · 다락 드로우콜 ≤ 150 · 놀이방 ≤ 60 · 셰이더 프로그램 수가 부팅과 같음(내 캐릭터 툰은 문어 툰과 프로그램을 나눠 쓴다) · 모든 파츠 조합에서 드로우콜이 기본값과 같음(메시 수 불변)
  *   · setPlayer 전 옵션 뒤 renderer.info.memory.geometries ≤ 시작 + 7(옛 지오메트리 dispose) · 모르는 id → 기본값 · 얼굴 색 집계(살결 #e7d5b3 ≠ 흰자 #ebede9, 금발이 올리브 #d0da91 로 뜨지 않음) · 깜빡임 프레임에 흰자가 줄고 눈썹 색이 늚
@@ -20,7 +20,7 @@ fs.mkdirSync(OUT, { recursive: true });
 var W = 360, H = 326, DPR = 2, CROP = 96, FRAMES = 24, STEP = 0.1, PL_H = 1.22, HEAD_Y = 0.87;
 var CATS = ['hair', 'hairColor', 'eyes', 'eyeColor', 'outfit', 'shoes', 'acc'];   /* 파츠 시트 줄 순서 = 설정 시트 UI 순서 */
 var CAT_CY = { hair: 0.72, hairColor: 0.95, eyes: 0.95, eyeColor: 0.95, acc: 0.95, outfit: 0.45, shoes: 0.35 };   /* 2× 크롭(0.89 m)은 키 1.22~1.38 을 다 못 담는다 — 범주마다 보여야 할 곳을 가운데에 (머리 모양은 뒷머리 길이가 갈라 조금 아래) */
-var SKIN = 0xe7d5b3, WHITE = 0xebede9, OLIVE = 0xd0da91, BROW = 0xbe772b;   /* 실광 모델 칸 (docs/PLAYER_PARTS.md §0.1·§2.2): 살결 · 흰자 · v0 금발이 뜨던 올리브 · 금발 눈썹(#b8742e 의 앞면) */
+var SKIN = 0xe7d5b3, WHITE = 0xebede9, OLIVE = 0xd0da91, BROW = 0xbe772b;   /* 실광 모델 칸 (docs/PLAYER_PARTS.md §0.1·§2.2): 살결 · 흰자 · v0 금발이 뜨던 올리브 · 금발의 감은 눈 선 색(#b8742e 의 앞면 — 눈썹은 피드백 6 으로 없음) */
 
 var CRC = (function () { var t = new Int32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
 function crc32(buf) { var c = -1; for (var i = 0; i < buf.length; i++) c = CRC[(c ^ buf[i]) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; }
@@ -102,7 +102,7 @@ function harness() {
   console.log('face census:', top(fc, 12), '| skin %', pct(SKIN).toFixed(1), 'white %', pct(WHITE).toFixed(1), 'olive %', pct(OLIVE).toFixed(1), 'brow %', pct(BROW).toFixed(1));
   if (uniqIm(faceIm) > 62) fails.push('pl-face-close 고유 색 ' + uniqIm(faceIm) + ' > 62');
   if (pct(SKIN) < 8) fails.push('얼굴 크롭: 살결 칸 ' + hex(SKIN) + ' 이 8 % 이상이어야 한다 (' + pct(SKIN).toFixed(1) + ')');
-  if (!(pct(WHITE) >= 1 && pct(WHITE) <= 15)) fails.push('얼굴 크롭: 흰자 칸 ' + hex(WHITE) + ' 이 1~15 % 여야 한다 (' + pct(WHITE).toFixed(1) + ') — 흰자 ≠ 살결');
+  if (!(pct(WHITE) >= 3 && pct(WHITE) <= 25)) fails.push('얼굴 크롭: 흰자 칸 ' + hex(WHITE) + ' 이 3~25 % 여야 한다 (' + pct(WHITE).toFixed(1) + ') — 큰 눈(피드백 6) 둘 + 깃, 흰자 ≠ 살결');
   if (pct(OLIVE) > 3) fails.push('얼굴 크롭: 금발이 올리브 ' + hex(OLIVE) + ' 로 떴다 (' + pct(OLIVE).toFixed(1) + ' %)');
   await page.evaluate(function () { SC.debugPlayerBlink(0.12); SC.debugStep(0.01); });
   var blinkIm = decodeBuf(await cropBuf(c.x, c.y)), bc = census(blinkIm); save('pl-blink.png', grid([[faceBuf, await cropBuf(c.x, c.y)]]));
@@ -159,6 +159,7 @@ function harness() {
   var g0 = await page.evaluate(function () { return SC.renderer.info.memory.geometries; }), calls0 = b.stats.calls, rows = [], cellU = [];
   for (var ci = 0; ci < CATS.length; ci++) {
     var cat = CATS[ci], row = [];
+    await page.evaluate(function (deg) { SC.debugPlayerYaw(deg); for (var i = 0; i < 3; i++) SC.debugStep(0.1); }, cat === 'hair' ? b.pl.yaw + 135 : null);   /* 머리 줄만 옆 45° 뒤쪽이 보이는 각도 (주인 11-08: 정면 2× 에선 6개가 거의 같아 보였다) — 뒷머리 길이가 스타일을 가른다 */
     for (var oi = 0; oi < PARTS.parts[cat].length; oi++) {
       var cfg = Object.assign({}, PARTS.def); cfg[cat] = PARTS.parts[cat][oi].id;
       var r = await setPlayer(cfg);

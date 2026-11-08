@@ -8,7 +8,7 @@
    code points inside the CJK ideograph blocks are filled (keeps the rule short), so characters Galmuri does not have
    at all (emoji, symbols like U+2614) never trigger a full download.
    Subset contents: KS X 1001 Hangul (2,350), ASCII, compatibility jamo, U+2000-206F, every non-ASCII char in
-   js/*.js, css/*.css, index.html. Sizes: Galmuri11 492→47 KB, Galmuri11-Bold 162→42 KB, Galmuri9 419→46 KB, Galmuri7 308→39 KB. */
+   js/*.js, css/*.css, index.html. Sizes: Galmuri11 492→47 KB, Galmuri11-Bold 162→42 KB, Galmuri9 419→45 KB, Galmuri7 308→39 KB. */
 
 /* full faces (fallback for characters outside the subset) */
 @font-face { font-family: 'Galmuri11'; src: url('Galmuri11.woff2') format('woff2'); font-weight: 400; font-display: swap;
@@ -90,7 +90,7 @@
 /* subsets — must stay AFTER the full faces */
 @font-face { font-family: 'Galmuri11'; src: url('Galmuri11.sub.woff2') format('woff2'); font-weight: 400; font-display: swap;
   unicode-range: U+20-7E,U+A0,U+A7,U+B0-B2,U+B7,U+BC-BD,U+D7,U+3B8,U+3C0,U+2010-2027,U+2030-203E,U+2043-2049,U+204B,U+2153-2154,U+2190,
-  U+2192,U+2194,U+2197,U+2208,U+220B,U+2212,U+221A,U+221E,U+2229-222A,U+2248,U+2264-2265,U+2460-2463,U+2500,U+2550,
+  U+2192,U+2194,U+2197,U+2208,U+220B,U+2212,U+221A,U+221E,U+2229,U+2248,U+2264-2265,U+2460-2463,U+2500,U+2550,
   U+25A0-25A1,U+25B2,U+25B6,U+25BC,U+25CB-25CC,U+25CF,U+2601-2602,U+2661,U+2709,U+2753,U+283F,U+3002,U+3131-318E,
   U+AC00-AC01,U+AC04,U+AC07-AC0A,U+AC10-AC17,U+AC19-AC1D,U+AC20,U+AC24,U+AC2C-AC2D,U+AC2F-AC31,U+AC38-AC39,U+AC3C,U+AC40,
   U+AC4B,U+AC4D,U+AC54,U+AC58,U+AC5C,U+AC70-AC71,U+AC74,U+AC77-AC78,U+AC7A,U+AC80-AC81,U+AC83-AC86,U+AC89-AC8C,U+AC90,
@@ -345,7 +345,7 @@
   U+D798-D799,U+D79B,U+D79D,U+D7A3; }
 @font-face { font-family: 'Galmuri9'; src: url('Galmuri9.sub.woff2') format('woff2'); font-weight: 400; font-display: swap;
   unicode-range: U+20-7E,U+A0,U+A7,U+B0-B2,U+B7,U+BC-BD,U+D7,U+3B8,U+3C0,U+2010-2027,U+2030-203E,U+2043-2049,U+204B,U+2153-2154,U+2190,
-  U+2192,U+2194,U+2197,U+2208,U+220B,U+2212,U+221A,U+221E,U+2229-222A,U+2248,U+2264-2265,U+2460-2463,U+2500,U+2550,
+  U+2192,U+2194,U+2197,U+2208,U+220B,U+2212,U+221A,U+221E,U+2229,U+2248,U+2264-2265,U+2460-2463,U+2500,U+2550,
   U+25A0-25A1,U+25B2,U+25B6,U+25BC,U+25CB-25CC,U+25CF,U+2601-2602,U+2661,U+2709,U+2753,U+283F,U+3002,U+3131-318E,
   U+AC00-AC01,U+AC04,U+AC07-AC0A,U+AC10-AC17,U+AC19-AC1D,U+AC20,U+AC24,U+AC2C-AC2D,U+AC2F-AC31,U+AC38-AC39,U+AC3C,U+AC40,
   U+AC4B,U+AC4D,U+AC54,U+AC58,U+AC5C,U+AC70-AC71,U+AC74,U+AC77-AC78,U+AC7A,U+AC80-AC81,U+AC83-AC86,U+AC89-AC8C,U+AC90,
@@ -473,7 +473,7 @@
   U+D798-D799,U+D79B,U+D79D,U+D7A3; }
 @font-face { font-family: 'Galmuri7'; src: url('Galmuri7.sub.woff2') format('woff2'); font-weight: 400; font-display: swap;
   unicode-range: U+20-7E,U+A0,U+A7,U+B0-B2,U+B7,U+BC-BD,U+D7,U+2010-2027,U+2030-203E,U+2043-2049,U+204B,U+2153-2154,U+2190,U+2192,
-  U+2194,U+2197,U+2208,U+220B,U+2212,U+221A,U+221E,U+2229-222A,U+2264-2265,U+2460-2463,U+2500,U+2550,U+25A0-25A1,U+25B2,
+  U+2194,U+2197,U+2208,U+220B,U+2212,U+221A,U+221E,U+2229,U+2264-2265,U+2460-2463,U+2500,U+2550,U+25A0-25A1,U+25B2,
   U+25B6,U+25BC,U+25CB-25CC,U+25CF,U+2601-2602,U+2661,U+2709,U+2753,U+283F,U+3002,U+3131-3164,U+AC00-AC01,U+AC04,
   U+AC07-AC0A,U+AC10-AC17,U+AC19-AC1D,U+AC20,U+AC24,U+AC2C-AC2D,U+AC2F-AC31,U+AC38-AC39,U+AC3C,U+AC40,U+AC4B,U+AC4D,
   U+AC54,U+AC58,U+AC5C,U+AC70-AC71,U+AC74,U+AC77-AC78,U+AC7A,U+AC80-AC81,U+AC83-AC86,U+AC89-AC8C,U+AC90,U+AC94,
