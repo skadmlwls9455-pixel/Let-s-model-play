@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko" data-font="pixel">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#d7b594" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10141f" media="(prefers-color-scheme: dark)">
+<title>부엌</title>
+<!-- Kitchen prototype, wave 9 slice 1 (docs/COOK_PROTO.md). It opens the kitchen at load; closing it leaves one
+     button that opens it again. Its own save key: ppolppol_cook_v0. -->
+<link rel="stylesheet" href="vendor/fonts/galmuri.css">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/cook.css">
+</head>
+<body class="ck-page">
+<main class="ck-home">
+  <button type="button" id="ck-door" class="ck-door" aria-haspopup="dialog">부엌</button>
+</main>
+<script src="js/cook-art.js"></script>
+<script src="js/cook.js"></script>
+<script>
+(function () {
+  'use strict';
+  var door = document.getElementById('ck-door'), q = null;
+  try { q = new URLSearchParams(location.search); } catch (e) { q = null; }
+  function get(k) { return q ? q.get(k) : null; }
+  function opts(first) {
+    var o = { opener: door, storeKey: 'ppolppol_cook_v0' }, v;
+    v = get('seed'); if (v !== null && /^\d{1,10}$/.test(v)) o.seed = Number(v);
+    v = get('slow'); if (v !== null && +v > 0) o.slow = +v;
+    if (get('reduced') === '1') o.reduced = true;
+    if (get('rec') === '1') o.rec = true;
+    v = get('recipe'); if (first && v) o.recipe = v;   /* straight into that dish, only on the first open */
+    return o;
+  }
+  function go(first) { try { return !!(window.COOK && COOK.open && COOK.open(opts(first))); } catch (e) { return false; } }
+  door.addEventListener('click', function () { go(false); });
+  go(true);
+})();
+</script>
+</body>
+</html>

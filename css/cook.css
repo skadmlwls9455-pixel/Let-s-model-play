@@ -1,0 +1,130 @@
+/* css/cook.css - the kitchen dialog (js/cook.js, live half; layout = design 5.2). Galmuri 24 / 20 / 16 px only.
+   The stage canvas is the 144 x 160 art at an integer device-pixel scale (js/cook.js fit) with pixelated upscaling;
+   the 2 px stage frame is part of the art, so the stage has no CSS border or padding. js/cook.js sets the row widths,
+   the stage size, the spare height above the header and the tag positions (rounded to device pixels).
+   Colours are the style.css tokens (Apollo) with Apollo fallbacks, so cook.html also works without style.css.
+   Comments stay ASCII (tools/subset-fonts.py reads css/*.css). Reduced motion is the last block. */
+
+html.ck-open { overflow: hidden; overscroll-behavior: none; }   /* no pull-to-refresh behind the dialog */
+html.ck-open body { overscroll-behavior: none; }
+
+/* :root:root raises the weight above style.css ":root[data-font=pixel] dialog" (panel colour, border, 8 px rise):
+   the kitchen is a full-screen dialog like the runner's: page colour, inset frame, no opening animation */
+:root:root dialog.ck-dlg {
+  position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0;
+  padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); box-sizing: border-box;
+  display: none; flex-direction: column; align-items: flex-start;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: none;
+  border: 0; border-radius: 0; color: var(--fg, #341c27); background-color: var(--bg, #d7b594); background-image: none;
+  box-shadow: inset 0 0 0 2px var(--line, #602c2c), inset 0 0 0 4px var(--bg, #d7b594), inset 0 0 0 5px var(--hi-px, #ebede9);
+  font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; letter-spacing: 0;
+  -webkit-font-smoothing: none; -webkit-text-size-adjust: 100%; animation: none;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+:root:root dialog.ck-dlg[open] { display: flex; animation: none; }
+:root:root dialog.ck-dlg::backdrop { background: var(--bg, #d7b594); }
+:root[data-font="pixel"]:root dialog.ck-dlg { background-image: var(--dither-page); background-size: 4px 4px; image-rendering: pixelated; }
+.ck-dlg > * { flex: 0 0 auto; box-sizing: border-box; }
+.ck-sky { height: 8px; }
+.ck-foot { height: 12px; }
+
+/* header: step icon strip (left) + close (right); the strip is hidden on the counter */
+.ck-head { position: relative; display: flex; align-items: center; gap: 8px; height: 44px; }
+.ck-strip { display: flex; align-items: center; gap: 8px; height: 44px; padding-left: 2px; }
+.ck-dlg.ck-counter .ck-strip, .ck-dlg.ck-tight.ck-noting .ck-strip { visibility: hidden; }
+.ck-step { position: relative; display: block; line-height: 0; }
+.ck-step canvas { display: block; width: 32px; height: 32px; image-rendering: pixelated; image-rendering: crisp-edges; }
+.ck-step.on { transform: translateY(-2px); }
+.ck-step.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 2px; background: #de9e41; }
+
+.ck-close, .ck-note-go {
+  min-width: 64px; min-height: 44px; margin: 0; padding: 4px 12px; box-sizing: border-box; flex: 0 0 auto;
+  font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 20px; white-space: nowrap;
+  color: var(--fg, #341c27); background-color: var(--panel, #e7d5b3); border: 2px solid var(--line, #602c2c); border-radius: 0;
+  box-shadow: inset 2px 2px 0 var(--hi-px, #ebede9), inset -2px -2px 0 var(--lo-px, #c09473), 2px 2px 0 var(--line, #602c2c);
+  cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
+}
+.ck-close { margin-left: auto; }
+.ck-close:active, .ck-note-go:active { transform: translate(2px, 2px); box-shadow: inset 2px 2px 0 var(--hi-px, #ebede9), inset -2px -2px 0 var(--lo-px, #c09473); }
+/* focus rings: :root:root .ck-dlg outweighs style.css ":root[data-font=pixel] :focus-visible" (outline outside, offset 2 px) */
+:root:root .ck-dlg .ck-close:focus { outline: none; }
+:root:root .ck-dlg .ck-close:focus-visible, :root:root .ck-dlg .ck-note-go:focus-visible { outline: 2px solid var(--fg, #341c27); outline-offset: -6px; }
+
+/* the notice slot (design 3.4): a paper slip right above the header; on short screens it lies over the strip */
+.ck-note {
+  position: absolute; left: 2px; right: 2px; bottom: calc(100% + 10px); z-index: 2; height: 44px;
+  display: flex; align-items: center; gap: 8px; padding: 0 0 0 10px; box-sizing: border-box; border: 0;
+  color: #341c27; background-color: #e7d5b3; box-shadow: 0 0 0 2px #602c2c, 4px 4px 0 0 #341c27;   /* the border is a shadow: the button keeps 44 px */
+}
+.ck-note[hidden] { display: none; }
+.ck-dlg.ck-tight .ck-note { top: 0; bottom: auto; right: 78px; padding-left: 6px; }
+.ck-note-t { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; }
+.ck-note .ck-note-go { min-height: 44px; height: 44px; min-width: 0; color: #341c27; background-color: #e8c170; border: 0; border-left: 2px solid #602c2c;
+  box-shadow: inset 2px 2px 0 #ebede9, inset -2px -2px 0 #be772b; }
+.ck-note .ck-note-go:active { transform: none; box-shadow: inset 2px 2px 0 #be772b, inset -2px -2px 0 #ebede9; }
+:root:root .ck-dlg .ck-note .ck-note-go:focus-visible { outline-color: #341c27; }
+
+/* stage: canvas + the counter's prop buttons + the title and name tags (DOM text, never drawn on the canvas) */
+.ck-stage { position: relative; margin-top: 8px; line-height: 0; outline: none;
+  touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+:root:root .ck-dlg .ck-stage:focus, :root:root .ck-dlg .ck-stage:focus-visible { outline: none; }   /* a script focus target only (keyboard focus goes to the verb button) */
+.ck-cv { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges;
+  touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.ck-props { position: absolute; inset: 0; pointer-events: none; }
+.ck-props[hidden] { display: none; }
+.ck-prop { position: absolute; display: block; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit;
+  font: inherit; line-height: 0; pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+:root:root .ck-dlg .ck-prop:focus, :root:root .ck-dlg .ck-prop:focus-visible { outline: none; }
+:root:root .ck-dlg.ck-kbd .ck-prop:focus { outline: 2px solid #de9e41; outline-offset: 0; box-shadow: inset 0 0 0 2px #172038; }   /* ring after key input only */
+.ck-tag { position: absolute; top: 0; left: 0; display: block; padding: 0 6px; white-space: nowrap; pointer-events: none;
+  font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; color: #341c27;
+  background-color: #e7d5b3; border: 2px solid #602c2c; box-shadow: 2px 2px 0 #341c27; }
+.ck-tag.ck-more { background-color: #e8c170; }
+.ck-prop:active .ck-tag { transform: translate(2px, 2px); box-shadow: none; }
+
+.ck-title, .ck-name {
+  position: absolute; top: 8px; left: 0; margin: 0; padding: 0 6px; white-space: nowrap; pointer-events: none;
+  font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 28px; font-weight: 400; color: #341c27;
+  border: 16px solid transparent; border-image: url(../assets/ui/frame_paper.png) 8 fill / 16px round; image-rendering: pixelated;
+}
+.ck-title[hidden], .ck-name[hidden] { display: none; }
+
+/* the verb button: always in the DOM, the tab order and the accessibility tree; quiet (opacity 0) on touch until
+   the first idle hint or a press; visible whenever it has focus (design 2.4). Outline style, no fill. */
+.ck-verbrow { height: 56px; margin-top: 8px; }
+.ck-verb {
+  display: block; width: 100%; height: 56px; margin: 0; padding: 0 12px; box-sizing: border-box;
+  font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 24px; white-space: nowrap;
+  color: var(--fg, #341c27); background: transparent; border: 2px solid var(--line, #602c2c); border-radius: 0; box-shadow: none;
+  clip-path: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 0 calc(100% - 2px), 0 2px);
+  opacity: 0; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.ck-verb.ck-shown, .ck-verb:focus { opacity: 1; }
+.ck-verb:active { transform: translate(2px, 2px); }
+:root:root .ck-dlg .ck-verb:focus { outline: none; }
+:root:root .ck-dlg .ck-verb:focus-visible { outline: 2px solid var(--fg, #341c27); outline-offset: -6px; }
+
+.ck-say { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+
+/* cook.html only: the page behind the dialog, one plain button that opens the kitchen again */
+.ck-home { min-height: 100vh; min-height: 100dvh; margin: 0; padding: 16px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center; }
+.ck-door {
+  min-width: 160px; min-height: 56px; margin: 0; padding: 8px 24px; box-sizing: border-box;
+  font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 24px; white-space: nowrap;
+  color: var(--fg, #341c27); background-color: var(--panel, #e7d5b3); border: 2px solid var(--line, #602c2c); border-radius: 0;
+  box-shadow: inset 2px 2px 0 var(--hi-px, #ebede9), inset -2px -2px 0 var(--lo-px, #c09473), 2px 2px 0 var(--line, #602c2c);
+  cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.ck-door:active { transform: translate(2px, 2px); box-shadow: inset 2px 2px 0 var(--hi-px, #ebede9), inset -2px -2px 0 var(--lo-px, #c09473); }
+:root:root .ck-door:focus-visible { outline: 2px solid var(--fg, #341c27); outline-offset: -6px; }
+
+/* reduced motion: the canvas follows COOK.open({ reduced }) / prefers-reduced-motion in js/cook.js. The dialog has no
+   CSS animation; this block keeps it that way. The 2 px press shift and the raised step icon stay (static, not motion). */
+@media (prefers-reduced-motion: reduce) {
+  .ck-dlg, .ck-dlg * { animation: none !important; transition: none !important; }
+}
+:root[data-motion="reduce"] .ck-dlg, :root[data-motion="reduce"] .ck-dlg * { animation: none !important; transition: none !important; }
