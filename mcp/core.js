@@ -74,6 +74,7 @@ function loadBooks(dir) {
     var b = parseBook(fs.readFileSync(path.join(dir, f), 'utf8'), f);
     if (b.error) errors.push(b.error);
     else if (!WORLD.nodes[b.room] || b.room === 'door_out') errors.push(f + ': 그런 방 (' + b.room + ') 이 없다');
+    else if (isNoneNode(WORLD.nodes[b.room])) errors.push(f + ': ' + b.room + ' 은 읽을 것이 없는 방이다 (느린 글의 방·편지의 방) — 책을 두지 않는다');
     else if (books[b.room]) errors.push(f + ': ' + b.room + ' 방에 책이 이미 있다');
     else books[b.room] = b;
   });
@@ -337,7 +338,7 @@ Octopus.prototype.peek = async function (a) {
   if (str(a.aside)) ev.aside = a.aside;
   if (str(a.bridge)) { ev.bridge = a.bridge; ev.viaTangent = true; }
   if (src) ev.source = src;
-  if (book) ev.book = { room: node.id, by: book.by };   /* 무엇을 읽었는지 기록 (게임은 모르는 칸을 건너뛴다) */
+  if (book) ev.book = { room: node.id, title: book.title || node.name, by: book.by };   /* 무엇을 읽었는지 기록 (게임은 모르는 칸을 건너뛴다) */
   trip.lastT = t;
   trip.events.push(ev);
   trip.stops.push({ title: target.title || target.url, id: node ? node.id : null, status: status });

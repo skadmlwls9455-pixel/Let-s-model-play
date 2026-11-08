@@ -120,6 +120,9 @@ async function unit() {
   var evbs = JSON.parse(fs.readFileSync(path.join(ob.outDir, path.basename(fb.saved)), 'utf8'));
   var rpb = BRAIN.replay(evbs, { by: 'mcp', dateKey: '2026-11-08', seq: 1, name: '뚜루', now: new Date(clock), state: {} });
   check(rpb && rpb.receipt.stops.length === 3 && rpb.receipt.stops.every(function (x) { return x.status === 'builtin'; }), '책 산책도 게임 두뇌로 재생된다');
+  check(rpb.receipt.stops[0].book && rpb.receipt.stops[0].book.title === '다리가 생각하는 동물' && rpb.receipt.stops[0].book.by === '이 방 주인', '재생 정류장에 책 제목·쓴 사람');
+  fs.writeFileSync(path.join(bdir, 'slow.md'), '---\nroom: slow_room\nby: 누구\n---\n느린 글\n');
+  check(core.loadBooks(bdir).errors.some(function (e) { return /slow_room/.test(e); }), '읽을 것이 없는 방엔 책을 두지 않는다');
   var big = core.parseBook('---\nroom: hat\nby: 누구\n---\n' + 'ㄱ'.repeat(core.BOOK_MAX + 1), 'big.md');
   check(big.error && /이하/.test(big.error), '1200자 넘으면 오류');
   var lint = cp.spawnSync(process.execPath, [path.join(__dirname, '..', 'tools', 'check-books.js'), bdir], { encoding: 'utf8' });

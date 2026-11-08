@@ -19,7 +19,9 @@ var oct = new core.Octopus({
   outDir: process.env.PPOLPPOL_OUT || undefined,
   booksDir: process.env.PPOLPPOL_BOOKS || undefined,   /* 뽈뽈 도서관 책 폴더 (기본 library/books) */
   name: process.env.PPOLPPOL_NAME || null,
-  model: process.env.PPOLPPOL_MODEL || null
+  model: process.env.PPOLPPOL_MODEL || null,
+  /* 시험용: PPOLPPOL_TODAY=YYYY-MM-DD 면 그 날짜의 지금 시각으로 (등불·오늘 열린 방이 그날 것이 된다) */
+  now: /^\d{4}-\d{2}-\d{2}$/.test(process.env.PPOLPPOL_TODAY || '') ? function () { var d = new Date(), t = process.env.PPOLPPOL_TODAY.split('-'); d.setFullYear(+t[0], +t[1] - 1, +t[2]); return d; } : undefined
 });
 
 var INSTRUCTIONS = [
