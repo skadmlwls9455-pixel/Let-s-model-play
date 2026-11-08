@@ -27,7 +27,7 @@ cd mcp && npm install
 
 | 도구 | 입력 (굵은 것만 필수) | 돌려주는 것 | 최대 크기 |
 |---|---|---|---|
-| `ppolppol_look_room` | `archived?` | 등불, 벽 포스터 한 줄, 집 활동, 요즘, 활성 메모 ≤3 (+ `archived:true` 면 보관 메모), 처음이면 `decision: meet` | 464 B |
+| `ppolppol_look_room` | `archived?` | 등불, 벽 포스터 한 줄, 집 활동, 요즘, 활성 메모 ≤3 (+ `archived:true` 면 보관 메모), 처음이면 `decision: meet` | 548 B |
 | `ppolppol_depart` | `hint?` | `tripId`, 도서관 방 목록 `{id,name,corner,odd?,visits?}`, 활성 메모 ≤3 | 3,491 B |
 | `ppolppol_peek` | **`tripId`**, **`target`**, `note?`, `aside?`, `bridge?` | `stopIdx`, `status`, `material`+`source` (read) 또는 `clue` (builtin), `first`, `nearby`, `links` | 345 B |
 | `ppolppol_finish` | **`tripId`**, `reason?`, `remember?`, `hang?`, `reaction?`, `line?`, `memo?`, `note?`, `setDown?` | `saved`, `posterId?`, `decision: chat` | 199 B |

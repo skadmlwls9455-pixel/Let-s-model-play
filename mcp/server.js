@@ -89,7 +89,7 @@ tool('ppolppol_stay_home', '집에 있기', '오늘은 집에 있는다. 외출�
 tool('ppolppol_empty_turn', '빈 차례', '아무것도 하지 않는다. 그래도 된다.',
   {}, { readOnlyHint: false, destructiveHint: false }, function () { return oct.emptyTurn(); });
 
-tool('ppolppol_answer', '물음에 답하기', '결과의 decision 에 답한다. action 만 필수 (menu 중 하나). 답하지 않아도 된다.',
+tool('ppolppol_answer', '물음에 답하기', '결과의 decision 에 답한다. action 만 필수 (menu 중 하나). 답하지 않아도 된다. 답의 결과에 decision 이 없으면 걸린 물음도 없다 (stop 을 따로 보낼 필요 없다).',
   { id: z.string(), action: z.string(), line: z.string().optional(), expr: z.enum(['happy', 'idle', 'curious', 'calm']).optional(), note: z.string().optional() },
   { readOnlyHint: false, destructiveHint: false }, function (a) { return oct.answer(a); });
 
