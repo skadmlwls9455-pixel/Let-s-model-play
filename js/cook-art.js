@@ -305,25 +305,22 @@ var COOK_ART = (function () {
       if (c) put(b, x + i, y + j, c);
     }
   }
-  /* wood planks seen from slightly above. L = { x, y, sy, r1, r2 } light pool, V = { x, y, sy, r } vignette (darker
-     boards beyond r, one checker ring wide). Flat colors, a groove per plank, grain streaks, end joints, some darker boards. */
-  function counterWood(b, x0, y0, x1, y1, heights, seed, L, V) {
+  /* butcher-block worktop seen from slightly above: long strips running the whole width (no end joints, no odd dark
+     boards, so it never reads as a floor or a brick wall). L = { x, y, sy, r1 } lamp pool: the strip edge under each
+     groove catches the light only inside r1 (no checker ring on 1-px rows). A groove per strip, sparse grain streaks;
+     every third strip is a shade deeper (the grain of a glued block), the strips nearest the viewer a little taller. */
+  function counterWood(b, x0, y0, x1, y1, heights, seed, L) {
     var y = y0, k = 0;
     while (y < y1) {
-      var ph = heights[Math.min(k, heights.length - 1)], off = ih(k, seed, 7) % 61, joint = 46 + ih(k, seed, 9) % 34;
-      var g1 = 2 + ih(k, seed, 11) % Math.max(1, ph - 3), g2 = 2 + ih(k, seed, 13) % Math.max(1, ph - 3);
+      var ph = heights[Math.min(k, heights.length - 1)], deep = (ih(k, seed, 5) % 3) === 0;
+      var g1 = 2 + ih(k, seed, 11) % Math.max(1, ph - 3), off = ih(k, seed, 7) % 61;
       for (var r = 0; r < ph && y < y1; r++, y++) {
         for (var x = x0; x < x1; x++) {
-          var seg = idiv(x + off, joint), darkBoard = (ih(k, seg, seed) % 7) === 0;
-          var lit = pool(x, y, L.x, L.y, L.sy, L.r1, L.r2);
-          var sx2 = seg * joint - off + (joint >> 1) - V.x, sy2 = (y - r + (ph >> 1) - V.y) * V.sy, far = sx2 * sx2 + sy2 * sy2 > V.r * V.r ? 1 : 0;
-          var body = darkBoard || far ? C.w3 : C.w4, col;
-          if (r === 0) col = darkBoard || far ? C.w1 : C.w2;                           /* groove */
-          else if (((x + off) % joint) === 0) col = C.w2;                            /* end joint */
-          else if (r === 1) col = lit ? C.w5 : body === C.w4 ? (lit === 0 && !far ? C.w4 : C.w4) : C.w3;   /* edge under the groove */
-          else if ((r === g1 || r === g2) && (ih(k * 7 + r, (x + off) >> 3, seed) & 3) === 0) col = body === C.w4 ? C.w3 : C.w2;   /* grain */
+          var lit = pool(x, y, L.x, L.y, L.sy, L.r1, L.r1) === 2, body = deep ? C.w3 : C.w4, col;
+          if (r === 0) col = deep ? C.w2 : C.w3;                                       /* glue line (soft; deeper by a darker strip) */
+          else if (r === 1) col = lit ? C.w5 : body;                                   /* strip edge, lit near the lamp */
+          else if (r === g1 && (ih(k * 7 + r, (x + off) >> 3, seed) & 3) === 0) col = deep ? C.w2 : C.w3;   /* grain streak */
           else col = body;
-          if (r === 1 && lit && !darkBoard) col = C.w5;
           put(b, x, y, col);
         }
       }
@@ -341,10 +338,9 @@ var COOK_ART = (function () {
 
   /* close stage background for the step scenes: wall strip + counter planks (lamp off-stage, upper left) */
   function bgStep(b) {
-    wallPlanks(b, 2, 2, W - 2, 2 + GEO.wallH, 6, -10, 24, 34);
+    wallPlanks(b, 2, 2, W - 2, 2 + GEO.wallH, 6, -10, 0, 0);   /* the lamp is off stage: no light pool on this strip */
     trim(b, 2 + GEO.wallH);
-    counterWood(b, 2, 5 + GEO.wallH, W - 2, H - 2, [15, 16, 17, 18, 18, 19, 20, 20, 20], 31,
-      { x: 6, y: 10, sy: 1, r1: 34, r2: 42 }, { x: 40, y: 50, sy: 1, r: 118 });
+    counterWood(b, 2, 5 + GEO.wallH, W - 2, H - 2, [7, 7, 7, 8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11], 31, { x: 6, y: 10, sy: 1, r1: 40 });
   }
 
   /* =====================================================================================
@@ -414,24 +410,30 @@ var COOK_ART = (function () {
     }
     return M;
   }
-  /* heat: the front of the side band glows amber, flame tongues peek out under the pan (2-frame flicker, f = frame) */
+  /* heat: the lowest two rows of the pan's side band glow, and five small flame tongues lick up the front of the pan from
+     under it, their tips over the dark side band (2-frame flicker, f = frame). */
+  var TONGUE = [   /* 5 x 7, bottom row first: orange edge (1 = a1), body (2 = a2), yellow core (3 = a3); two flicker shapes */
+    ['.121.', '12321', '12321', '.132.', '.12..', '..2..', '..1..'],
+    ['.121.', '12321', '.2321', '.231.', '..21.', '..2..', '...1.']];
+  var TONGUE_K = { 1: 'a1', 2: 'a2', 3: 'a3' };
   function panHeat(b, P, f) {
-    var cx = P.cx, cy = P.cy, rx = P.rx, ry = P.ry, d = P.depth, ph = (f >> 1) & 1, M = panMask(P);
-    for (var x = -rx + 3; x <= rx - 3; x++) {
-      var yb = -1;
-      for (var y = ry + d; y >= 0; y--) { if (mhas(M, cx + x, cy + y)) { yb = y; break; } }
-      if (yb < 0) continue;
-      var px = cx + x, py = cy + yb, edge = Math.abs(x) > rx - 10;
-      put(b, px, py, ((x + ph * 3) % 7) === 0 ? C.a3 : C.a2);
-      if (!edge) put(b, px, py - 1, C.a1);
-      if (!edge && ((x + ph * 2) % 5) === 0) put(b, px, py - 2, C.r1);
+    var cx = P.cx, cy = P.cy, rx = P.rx, ry = P.ry, d = P.depth, ph = (f >> 1) & 1, M = panMask(P), x, y;
+    function bottom(px) { for (var yy = ry + d; yy >= -ry; yy--) if (mhas(M, px, cy + yy)) return cy + yy; return -1; }
+    for (x = -rx + 4; x <= rx - 4; x++) {   /* glow on the side band, just above the outline */
+      var yb = bottom(cx + x); if (yb < 0) continue;
+      if (inE(x, yb - cy, rx, ry)) continue;            /* only where the side band shows under the rim */
+      put(b, cx + x, yb, C.a1);
+      if (!inE(x, yb - 1 - cy, rx, ry)) put(b, cx + x, yb - 1, ((x + ph * 3) % 6) === 0 ? C.a2 : C.r1);
     }
-    for (var i = -5; i <= 5; i++) {   /* flame tongues */
-      var fx = cx + i * idiv(rx - 8, 5), fyb = -1;
-      for (var yy = ry + d; yy >= 0; yy--) if (mhas(M, fx, cy + yy)) { fyb = yy; break; }
-      if (fyb < 0) continue;
-      var base = cy + fyb + 1, tall = 2 + ((i + ph) & 1) + (Math.abs(i) < 2 ? 1 : 0);
-      for (var t = 0; t < tall; t++) { put(b, fx, base + t, t === tall - 1 ? C.a1 : t === 0 ? C.a3 : C.a2); if (t < tall - 1) put(b, fx + 1, base + t, t === 0 ? C.a2 : C.a1); }
+    var n = 4, half = rx - 16, span = idiv(half * 2, n - 1);
+    for (var i = 0; i < n; i++) {   /* tongues licking up the front of the pan */
+      var fx = cx - half + i * span, fb = bottom(fx); if (fb < 0) continue;
+      var G = TONGUE[(i + ph) & 1], baseY = fb + 2 - ((i === 1 || i === 2) ? 0 : 1);   /* the base under the pan, the tip over its side band */
+      for (var r = 0; r < G.length; r++) for (var c = 0; c < 5; c++) {
+        var k = TONGUE_K[G[r].charAt(c)]; if (!k) continue;
+        x = fx - 2 + c; y = baseY - r;
+        if (y > cy && (!mhas(M, x, y) || !inE(x - cx, y - cy, rx, ry))) put(b, x, y, C[k]);   /* never over the rim or the pan floor */
+      }
     }
   }
 
@@ -451,26 +453,67 @@ var COOK_ART = (function () {
     if (herb === 'tot') return end ? C.g0 : C.g1;
     return end ? (cooked ? C.g3 : C.g4) : (cooked ? C.g2 : C.g3);
   }
+  /* seaweed through the batter: short wavy strands (3-5 px) and a few 2 x 2 clumps, about 5 % of a full-size face, so it
+     reads as haecho-jeon and not as a plain pancake with pepper. Each strand: lit end (upper left), body, shaded end.
+     parae = bright green ramp, tot = the dark ramp. Positions are in 1/64 of the radius (inside 0.8). */
+  var STRAND = [
+    [-44, -14, 0], [-20, -38, 1], [8, -30, 2], [34, -20, 3], [-52, 10, 4], [-28, 4, 2], [-4, -10, 0], [18, 8, 1], [42, 4, 4],
+    [-36, 30, 3], [-8, 24, 4], [16, 34, 0], [30, -40, 1], [-24, -24, 3], [2, 44, 2], [48, 22, 0]];
+  var STRAND_G = [
+    [[0, 0], [1, 0], [2, -1], [3, -1]], [[0, 0], [1, 1], [2, 1], [3, 2]], [[0, 0], [0, 1], [1, 2], [1, 3]],
+    [[0, 0], [1, -1], [2, -1], [3, 0], [4, 0]], [[0, 0], [1, 0], [2, 1], [3, 1], [4, 2]]];
+  var CLUMP = [[-14, -24], [26, -4], [-40, -4], [8, 18]];
+  function strandCol(herb, cooked, j, n) {   /* j = pixel index along the strand */
+    if (herb === 'tot') return j === n - 1 ? C.g0 : C.g1;
+    if (j === 0) return cooked ? C.g3 : C.g4;
+    return j === n - 1 ? (cooked ? C.g1 : C.g2) : (cooked ? C.g2 : C.g3);
+  }
   function flecks(b, cx, cy, rx, ry, herb, cooked, clip, n) {
-    var shapes = herb === 'tot' ? TOT : PARAE, cnt = n == null ? (herb === 'tot' ? 11 : 16) : n;
-    for (var i = 0; i < cnt && i < FLECK.length; i++) {
-      var fx = cx + idiv(FLECK[i][0] * rx, 64), fy = cy + idiv(FLECK[i][1] * ry, 64), sh = shapes[i % shapes.length];
-      for (var j = 0; j < sh.length; j++) { var x = fx + sh[j][0], y = fy + sh[j][1]; if (!clip || clip(x, y)) put(b, x, y, herbCol(herb, cooked, j === sh.length - 1 && sh.length > 1)); }
+    var i, j, x, y;
+    if (rx < 16) {   /* tiny pictures (counter, small dish): 1-2 px specks still read best */
+      var shapes = herb === 'tot' ? TOT : PARAE, cnt = n == null ? (herb === 'tot' ? 11 : 16) : n;
+      for (i = 0; i < cnt && i < FLECK.length; i++) {
+        var fx = cx + idiv(FLECK[i][0] * rx, 64), fy = cy + idiv(FLECK[i][1] * ry, 64), sh = shapes[i % shapes.length];
+        for (j = 0; j < sh.length; j++) { x = fx + sh[j][0]; y = fy + sh[j][1]; if (!clip || clip(x, y)) put(b, x, y, herbCol(herb, cooked, j === sh.length - 1 && sh.length > 1)); }
+      }
+      return;
+    }
+    var ns = n == null ? STRAND.length : Math.min(STRAND.length, n), nc = Math.min(CLUMP.length, Math.max(1, ns >> 2));
+    for (i = 0; i < ns; i++) {
+      var s = STRAND[i], g = STRAND_G[s[2]], sx = cx + idiv(s[0] * rx, 64), sy = cy + idiv(s[1] * ry, 64);
+      for (j = 0; j < g.length; j++) { x = sx + g[j][0]; y = sy + g[j][1]; if (!clip || clip(x, y)) put(b, x, y, strandCol(herb, cooked, j, g.length)); }
+    }
+    for (i = 0; i < nc; i++) {
+      var q = CLUMP[i], qx = cx + idiv(q[0] * rx, 64), qy = cy + idiv(q[1] * ry, 64);
+      [[0, 0, 0], [1, 0, 1], [0, 1, 1], [1, 1, 3]].forEach(function (p) { if (!clip || clip(qx + p[0], qy + p[1])) put(b, qx + p[0], qy + p[1], strandCol(herb, cooked, p[2], 4)); });
     }
   }
-  /* fingertip pits. Each dent is a small plus-shaped core centred on (x, y); overlapping dents merge into one crater.
-     Light from the upper left: the pit's upper-left wall is in shade, its lower-right wall catches the light. */
+  /* fingertip dimples. Hits within 3 px of each other are one press spot (a finger lands 2-3 px apart each time): each
+     spot is one round pit that grows with its hit count (1: 4 x 3, 2: 5 x 4, 3 or more: 6 x 4). Light from the upper
+     left: the pit's upper-left inner wall is in shade (1 px), the floor is the core colour, the lower-right rim outside
+     the pit catches the light (1 px). Integer only; the spot centre is the rounded mean of its hits. */
+  var PIT = [null, ['.##.', '####', '.##.'], ['.###.', '#####', '#####', '.###.'], ['.####.', '######', '######', '.####.']];
   function dents(b, list, core, dark, lite, clip) {
     if (!list || !list.length) return;
+    var pts = list.map(function (d) { return [d[0] | 0, d[1] | 0]; }), grp = pts.map(function (p, i) { return i; }), i, j;
+    function root(i) { while (grp[i] !== i) i = grp[i] = grp[grp[i]]; return i; }
+    for (i = 0; i < pts.length; i++) for (j = i + 1; j < pts.length; j++) {
+      var dx = pts[i][0] - pts[j][0], dy = pts[i][1] - pts[j][1];
+      if (dx * dx + dy * dy <= 9) grp[root(j)] = root(i);
+    }
+    var spots = {};
+    pts.forEach(function (p, k) { var r = root(k), s = spots[r] || (spots[r] = { sx: 0, sy: 0, n: 0 }); s.sx += p[0]; s.sy += p[1]; s.n++; });
     var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-    list.forEach(function (d) { x0 = Math.min(x0, d[0] | 0); y0 = Math.min(y0, d[1] | 0); x1 = Math.max(x1, d[0] | 0); y1 = Math.max(y1, d[1] | 0); });
-    var M = mk(x0 - 3, y0 - 3, x1 - x0 + 7, y1 - y0 + 7);
-    list.forEach(function (d) { var x = d[0] | 0, y = d[1] | 0; [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (q) { mset(M, x + q[0], y + q[1], 1); }); });
+    pts.forEach(function (d) { x0 = Math.min(x0, d[0]); y0 = Math.min(y0, d[1]); x1 = Math.max(x1, d[0]); y1 = Math.max(y1, d[1]); });
+    var M = mk(x0 - 6, y0 - 6, x1 - x0 + 13, y1 - y0 + 13);
+    Object.keys(spots).forEach(function (k) {
+      var s = spots[k], G = PIT[Math.min(3, s.n)], cx = iround(s.sx, s.n), cy = iround(s.sy, s.n), ox = cx - ((G[0].length - 1) >> 1), oy = cy - ((G.length - 1) >> 1);
+      for (var r = 0; r < G.length; r++) for (var c = 0; c < G[r].length; c++) if (G[r].charAt(c) === '#') mset(M, ox + c, oy + r, 1);
+    });
     for (var y = M.y0; y < M.y0 + M.h; y++) for (var x = M.x0; x < M.x0 + M.w; x++) {
       if (clip && !clip(x, y)) continue;
-      if (mhas(M, x, y)) { put(b, x, y, mhas(M, x - 1, y) && mhas(M, x, y - 1) ? core : dark); continue; }
-      if (mhas(M, x + 1, y) || mhas(M, x, y + 1)) put(b, x, y, dark);
-      else if (mhas(M, x - 1, y) || mhas(M, x, y - 1)) put(b, x, y, lite);
+      if (mhas(M, x, y)) { put(b, x, y, mhas(M, x - 1, y) && mhas(M, x, y - 1) ? core : dark); continue; }   /* shaded wall, then the floor */
+      if (mhas(M, x - 1, y) || mhas(M, x, y - 1)) put(b, x, y, lite);                                       /* lit lower-right rim */
     }
   }
   /* squash frames (bottom anchored, pre-drawn as two radius sets): 0 rest, 1 wide + short, 2 narrow + tall */
@@ -517,7 +560,7 @@ var COOK_ART = (function () {
     mOutline(b, T, o.flash ? C.s6 : C.w4, o.flash ? null : function (x, y) { return mhas(T, x, y - 1) || mhas(T, x - 1, y) ? C.w3 : C.w4; });
     mEach(T, function (x, y) { if (!mhas(M, x, y)) put(b, x, y, mhas(T, x, y + 1) ? C.w5 : C.w4); });
     /* body: highlight cap toward the lamp, shade toward the lower right */
-    var hx = cx - (rx >> 2) - 2, hy = ccy - (ry >> 2) - 1, hrx = Math.max(2, (rx * (stage === 0 ? 3 : 2)) >> 3), hry = Math.max(1, (ry * 2) >> 3);
+    var hx = cx - (rx >> 2) - 2, hy = ccy - (ry >> 2) - 1, hrx = 2, hry = 1;   /* a small wet glint, not a flat white cap */
     mEach(M, function (x, y) {
       var col = C.w6;
       if (!mhas(M, x + 1, y + 1) || !mhas(M, x + 1, y)) col = C.w5;
@@ -538,6 +581,7 @@ var COOK_ART = (function () {
   /* jeon face palettes. top = raw side up while it cooks (the rim shows the browning; tiny bubbles open up),
      bottom = cooked face after the flip (soft #e8c170 / golden #de9e41 / crisp #be772b, edge #884b2b). */
   var FACE = {
+    raw: { body: C.w6, lite: C.s6, pit: C.w5, edge: C.w5, line: C.w3, side: C.w4, holes: 0 },   /* cold pan: nothing cooks yet */
     top: [
       { body: C.w6, lite: C.s6, pit: C.w5, edge: C.a3, line: C.w4, side: C.a3, holes: 3 },
       { body: C.w6, lite: C.s6, pit: C.w5, edge: C.a2, line: C.a1, side: C.a2, holes: 6 },
@@ -545,7 +589,8 @@ var COOK_ART = (function () {
     bottom: [
       { body: C.a3, lite: C.w6, pale: C.w6, brown: C.a2, edge: C.a2, line: C.r1, side: C.a1, pit: C.a2, pitD: C.a1 },
       { body: C.a2, lite: C.a3, pale: C.a3, brown: C.a1, edge: C.a1, line: C.r1, side: C.r1, pit: C.a1, pitD: C.r1 },
-      { body: C.a1, lite: C.a2, pale: C.a2, brown: C.r1, edge: C.r1, line: C.r1, side: C.r1, pit: C.r1, pitD: C.r0, lace: C.a3 }]
+      /* crisp: lacy golden-brown, never charred: no #602c2c anywhere, patches lighter than the body, golden lace on the rim */
+      { body: C.a1, lite: C.a2, pale: C.a3, brown: C.a2, edge: C.a1, line: C.r1, side: C.r1, pit: C.a1, pitD: C.r1, lace: C.a3 }]
   };
   /* designed browning patches / bubble holes, in 1/64 of the radius: [x, y, size] */
   var BLOB = [[-34, -22, 2], [12, -36, 1], [36, -6, 2], [-48, 12, 1], [-12, 6, 2], [22, 24, 1], [-28, 34, 1], [44, 26, 2], [4, -14, 1],
@@ -557,9 +602,9 @@ var COOK_ART = (function () {
   /* render one jeon face into its own buffer. o = { rx, ry, face 'top'|'bottom', band, herb, dents [[dx, dy]] (from centre),
      flash, thick } -> { buf, cx, cy } (centre inside buf) */
   function jeonBuf(o) {
-    var rx = o.rx, ry = Math.max(1, o.ry), th = o.thick == null ? 2 : o.thick, pad = 3, band = clampI(o.band, 0, 2), top = o.face === 'top';
+    var rx = o.rx, ry = Math.max(1, o.ry), th = o.thick == null ? 2 : o.thick, pad = 3, band = clampI(o.band, 0, 2), raw = o.face === 'raw', top = raw || o.face === 'top';
     var bw = 2 * rx + 1 + 2 * pad, bh = 2 * ry + 1 + 2 * pad + th, cx = rx + pad, cy = ry + pad;
-    var b = blank(bw, bh), F = FACE[top ? 'top' : 'bottom'][band], crisp = !top && band === 2;
+    var b = blank(bw, bh), F = raw ? FACE.raw : FACE[top ? 'top' : 'bottom'][band], crisp = !top && band === 2;
     var M = mk(0, 0, bw, bh), k;
     for (k = 0; k <= th; k++) mEll(M, cx, cy + k, rx, ry, 1);
     var lace = [];
@@ -596,7 +641,7 @@ var COOK_ART = (function () {
       flecks(b, cx, cy, rx, ry, o.herb, !top, clip, o.herb === 'tot' ? 11 : 16);
       dents(b, (o.dents || []).map(function (d) { return [cx + (d[0] | 0), cy + (d[1] | 0)]; }), top ? C.w5 : F.pit, top ? C.w4 : F.pitD, top ? C.s6 : F.lite, clip);
     }
-    if (crisp) lace.forEach(function (q, n) { if (n % 2 === 0) { put(b, q[0], q[1], F.lace); } });
+    if (crisp) lace.forEach(function (q) { put(b, q[0], q[1], F.lace); });
     if (o.flash) mOutline(b, M, C.s6);
     return { buf: b, cx: cx, cy: cy, M: M };
   }
@@ -607,7 +652,7 @@ var COOK_ART = (function () {
     var ds = (o.dents || []).slice(0, 9).map(function (d) { return [(d[0] | 0) - 32, (d[1] | 0) - 24]; });
     if (ry !== GEO.food.ry[2]) ds = ds.map(function (d) { return [d[0], idiv(d[1] * ry, GEO.food.ry[2])]; });
     var cuts = (o.cuts || []).map(function (c) { return [Math.round(+c.deg || 0), c.x == null ? 0 : (c.x | 0) - cx, c.y == null ? 0 : (c.y | 0) - cy]; });
-    var face = o.face === 'top' ? 'top' : 'bottom', band = clampI(o.band, 0, 2), herb = o.herb === 'tot' ? 'tot' : 'parae', th = o.thick == null ? 2 : o.thick | 0;
+    var face = o.face === 'top' || o.face === 'raw' ? o.face : 'bottom', band = clampI(o.band, 0, 2), herb = o.herb === 'tot' ? 'tot' : 'parae', th = o.thick == null ? 2 : o.thick | 0;
     var sep = o.sep == null ? 1 : o.sep | 0, key = ['J', rx, ry, face, band, herb, o.flash ? 1 : 0, th, JSON.stringify(ds), JSON.stringify(cuts), sep, o.cutFlash ? 1 : 0].join('|');
     var R = remember(key, function () {
       var J = jeonBuf({ rx: rx, ry: ry, face: face, band: band, herb: herb, dents: ds, flash: o.flash, thick: th });
@@ -651,8 +696,10 @@ var COOK_ART = (function () {
    *  MARKS, BUBBLES, TOOLS, GUIDE
    * ===================================================================================== */
   var ARC = [[0, -4096], [3547, 2048], [-3547, 2048]];   /* arc centres at 12, 4 and 8 o'clock (unit x 4096) */
-  /* list = [[x, y, left]] left = hits still wanted (3..1, 0 = finished -> not drawn). Three amber arcs, one per hit:
-     a hit takes the arc at 12 first, then 4, then 8. f = frame counter (the centre blinks slowly, 0 = still). */
+  /* list = [[x, y, left]] left = hits still wanted (3..1, 0 = finished -> not drawn). Three arcs, one per hit, always
+     drawn as one ring: the arcs still wanted are amber, the ones already hit sink into the batter (raw-batter tone), so a
+     mark never turns into a horseshoe or a hook. A hit takes the arc at 12 first, then 4, then 8. f = frame counter
+     (the centre blinks slowly, 0 = still). */
   function marks(b, list, f) {
     (list || []).forEach(function (m) {
       var x = m[0] | 0, y = m[1] | 0, left = clampI(m[2], 0, 3); if (!left) return;
@@ -661,10 +708,13 @@ var COOK_ART = (function () {
         var q = 4 * (dx * dx + dy * dy); if (q < (2 * r - 1) * (2 * r - 1) || q >= (2 * r + 1) * (2 * r + 1)) continue;
         var arc = -1, best = -1e9;
         for (var a2 = 0; a2 < 3; a2++) { var dot = dx * ARC[a2][0] + dy * ARC[a2][1]; if (dot > best) { best = dot; arc = a2; } }
-        if (arc >= 3 - left && best > 0 && best * best >= 2400 * 2400 * (dx * dx + dy * dy)) mset(ring, x + dx, y + dy, 1);
+        if (best > 0 && best * best >= 2400 * 2400 * (dx * dx + dy * dy)) mset(ring, x + dx, y + dy, arc >= 3 - left ? 1 : 2);
       }
-      mOutline(b, ring, C.r1);
-      mEach(ring, function (px, py) { put(b, px, py, (px - x) + (py - y) < -3 ? C.a3 : C.a2); });
+      var lit = mk(ring.x0, ring.y0, ring.w, ring.h);   /* outline only the arcs still wanted */
+      mEach(ring, function (px, py, v) { if (v === 1) mset(lit, px, py, 1); });
+      mEach(ring, function (px, py, v) { if (v === 2) put(b, px, py, C.w5); });
+      mOutline(b, lit, C.r1);
+      mEach(lit, function (px, py) { put(b, px, py, (px - x) + (py - y) < -3 ? C.a3 : C.a2); });
       var blink = ((f | 0) >> 3) & 1;
       put(b, x - 1, y, C.r1); put(b, x + 1, y, C.r1); put(b, x, y - 1, C.r1); put(b, x, y + 1, C.r1);
       put(b, x, y, blink ? C.s6 : C.a3);
@@ -876,11 +926,17 @@ var COOK_ART = (function () {
   function dishSmall0(b, L, herb) {
     var cx = GEO.small.w >> 1, cy = 10, o = { herb: herb };
     plate(b, L.plate, { cx: cx, cy: cy, rx: 17, ry: 9, th: 2, rim: 3 });
-    var cuts = GEO.cross.map(function (g, i) { return { deg: g + L.cuts[i] }; });
     var J = jeonBuf({ rx: 11, ry: 6, face: 'bottom', band: L.band, herb: o.herb === 'tot' ? 'tot' : 'parae', dents: [], thick: 1 });
     flecks(J.buf, J.cx, J.cy, 11, 6, o.herb === 'tot' ? 'tot' : 'parae', true, function (x, y) { return inE(x - J.cx, y - J.cy, 9, 4); }, 6);
-    var R = cutBuf(J, cuts.map(function (c) { return [c.deg, 0, 0]; }), 1, false);
-    blit(b, R.buf, cx + R.ox, cy - 1 + R.oy);
+    /* at this size the pieces stay together: each cut is a 1-px scored line (no plate-coloured gap, so no white cross) */
+    GEO.cross.forEach(function (g, i) {
+      var d = g + L.cuts[i], c = icos(d), s2 = isin(d);
+      for (var u = -12; u <= 12; u++) {
+        var px = J.cx + iround(u * c, 4096), py = J.cy + iround(u * s2, 4096);
+        if (inE(px - J.cx, py - J.cy, 10, 5)) put(J.buf, px, py, C.r1);
+      }
+    });
+    blit(b, J.buf, cx - J.cx, cy - 1 - J.cy);
     return b;
   }
 
@@ -945,7 +1001,8 @@ var COOK_ART = (function () {
     return b;
   }
   var ICON_G = {
-    tap: [            /* pointer hand pressing down: index finger on the left, a small amber spot under the tip */
+    tap: [            /* pointer hand pressing down: index finger on the left, small grey press lines under the tip (the
+                         strip's only amber is the current-step line) */
       '.....ooooooo....',
       '....oWWWWWWYo...',
       '...oWYYYYYYYXo..',
@@ -959,9 +1016,9 @@ var COOK_ART = (function () {
       '....oWYoWYoo....',
       '....oWYooo......',
       '....oWYo........',
-      '..E.oWWo.E......',
-      '.E...oo...E.....',
-      '....DEED........'],
+      '..X.oWWo.X......',
+      '.X...oo...X.....',
+      '....XYYX........'],
     flip: [
       '................',
       '.ooooooooo......',
@@ -1022,7 +1079,7 @@ var COOK_ART = (function () {
     return clone(iconCache[name]);
   }
   var PART = {
-    crumb: [C.a2, C.a1, C.r1], drop: [C.s6, C.w6, C.w5], steam: [C.s6, C.s5, C.s4],
+    crumb: [C.a2, C.a1, C.r1], drop: [C.s6, C.w4, C.w3], steam: [C.s6, C.s5, C.s4],
     dust: [C.w5, C.w4, C.w3], spark: [C.s6, C.a3, C.a2], herb: [C.g4, C.g3, C.g2]
   };
   function particles(b, list) {
@@ -1030,6 +1087,7 @@ var COOK_ART = (function () {
       var k = PART[p.k] ? p.k : 'crumb', life = Math.max(1, p.life | 0 || 6), a = clampI(p.a, 0, life), x = Math.round(p.x), y = Math.round(p.y);
       var i = Math.min(2, idiv(a * 3, life + 1));
       if (k === 'steam' && i === 2 && ((x + y + a) & 1)) return;
+      if (k === 'drop') put(b, x, y + 1, C.w3);   /* batter drops: a dark underside, so they read on the cream batter and on the pan */
       put(b, x, y, PART[k][i]);
     });
     return b;
@@ -1049,14 +1107,20 @@ var COOK_ART = (function () {
       wallPlanks(c, 2, 2, W - 2, 42, 18, 12, 22, 30);
       lamp(c, 12, 4);
       trim(c, 42);
-      counterWood(c, 2, 45, W - 2, 146, [10, 11, 12, 12, 13, 14, 14, 15, 15], 7,
-        { x: 20, y: 44, sy: 2, r1: 30, r2: 38 }, { x: 40, y: 70, sy: 1, r: 112 });
-      /* front lip of the counter + top of the cabinet (play-room cabinet colors) */
-      for (var x = 2; x < W - 2; x++) {
-        put(c, x, 146, C.w5); put(c, x, 147, C.w3); put(c, x, 148, C.w3); put(c, x, 149, C.w2); put(c, x, 150, C.w1);
-        for (var y = 151; y < H - 2; y++) put(c, x, y, (x === 72 || x === 73) ? C.r0 : y === 151 ? C.r0 : C.r1);
+      counterWood(c, 2, 45, W - 2, 141, [6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 9, 9, 9], 7, { x: 20, y: 44, sy: 2, r1: 34 });
+      /* front lip of the worktop, then the cabinet front (play-room cabinet colours): four doors, seams, amber knobs */
+      var x, y;
+      for (x = 2; x < W - 2; x++) {
+        put(c, x, 141, C.w5); put(c, x, 142, C.w3); put(c, x, 143, C.w3); put(c, x, 144, C.w2); put(c, x, 145, C.w1);
+        for (y = 146; y < H - 2; y++) put(c, x, y, y === 146 ? C.r0 : C.r1);
       }
-      [[64, 154], [79, 154]].forEach(function (k) { put(c, k[0], k[1], C.a2); put(c, k[0], k[1] + 1, C.a1); });
+      [[2, 37], [37, 72], [72, 107], [107, W - 2]].forEach(function (d, i) {
+        for (y = 147; y < H - 2; y++) { put(c, d[0], y, C.r0); }                                   /* seam */
+        for (x = d[0] + 3; x < d[1] - 2; x++) { put(c, x, 149, C.r0); put(c, x, H - 5, C.a1); }   /* panel: shade on top, light below */
+        for (y = 149; y < H - 4; y++) { put(c, d[0] + 3, y, C.r0); put(c, d[1] - 3, y, C.a1); }
+        var kx = i % 2 === 0 ? d[1] - 6 : d[0] + 5;                                               /* knobs meet at the pair's centre seam */
+        put(c, kx, 151, C.a2); put(c, kx, 152, C.a1);
+      });
       board(c, 16, 96, 46, 36, true, true);
       pan(c, PAN_COUNTER);
       frame(c);
@@ -1064,8 +1128,9 @@ var COOK_ART = (function () {
     var pend = o.pending;
     if (pend) {
       var si = clampI(pend.si, 0, 2);
-      if (si === 0) ellipse(b, PAN_COUNTER.cx, PAN_COUNTER.cy + 2, 6, 4, C.w6);
-      else { var J = jeonBuf({ rx: 13, ry: 8, face: si === 1 ? 'top' : 'bottom', band: pend.band | 0, herb: pend.herb, dents: [], thick: 1 }); blit(b, J.buf, PAN_COUNTER.cx - J.cx, PAN_COUNTER.cy + 2 - J.cy); }
+      var J = si === 0 ? jeonBuf({ rx: 9, ry: 5, face: 'raw', band: 0, herb: pend.herb, dents: [], thick: 1 })   /* a raw lump of batter */
+        : jeonBuf({ rx: 13, ry: 8, face: si === 1 ? 'top' : 'bottom', band: pend.band | 0, herb: pend.herb, dents: [], thick: 1 });
+      blit(b, J.buf, PAN_COUNTER.cx - J.cx, PAN_COUNTER.cy + 2 - J.cy);
     }
     if (o.plate && o.plate.look) {
       var s = blank(GEO.small.w, GEO.small.h);
@@ -1087,7 +1152,7 @@ var COOK_ART = (function () {
   function tapScene(b, o) {
     o = o || {};
     copy(b, stepBase('pan'));
-    (o.dust || []).forEach(function (d) { var q = pt(d); put(b, q[0], q[1], C.w5); put(b, q[0] + 1, q[1] + 1, C.w4); });
+    (o.dust || []).forEach(function (d) { var q = pt(d); put(b, q[0], q[1], C.w6); put(b, q[0] + 1, q[1] + 1, C.w2); });   /* reads on wood and pan */
     batter(b, { shape: o.shape == null ? o.stage : o.shape, herb: o.herb, dents: o.dents, flash: o.flash, squash: o.squash });
     marks(b, markList(o.marks, o.per), o.f);
     frame(b);
@@ -1104,22 +1169,29 @@ var COOK_ART = (function () {
     var arc = o.arc;
     if (arc) {
       var af = clampI(arc.f, 0, 3), lift = +arc.lift <= 3 ? LIFT[clampI(arc.lift, 1, 3)] : clampI(arc.lift, 0, 48);
-      var LF = [idiv(lift, 2), lift, idiv(lift * 5, 8), 0][af], RY = [idiv(ry * 5, 8), 2, idiv(ry * 5, 8), ry][af];
+      var RY = [idiv(ry * 5, 8), 3, idiv(ry * 5, 8), ry][af], farRim = GEO.pan.cy - GEO.pan.ry;
+      var LF = Math.min([idiv(lift, 2), lift, idiv(lift * 5, 8), 0][af], Math.max(0, cy - farRim - RY - 6));   /* stays clear of the far rim */
       var face = af < 2 ? 'top' : 'bottom';
       /* shadow on the floor, smaller when high */
       var srx = rx - idiv(LF, 3), sry = ry - idiv(LF, 4);
       for (var y = -sry; y <= sry; y++) for (var x = -srx; x <= srx; x++) if (inE(x, y, srx, sry) && ((x + y) & 1) === 0) put(b, cx + x, cy + 2 + y, C.s0);
-      if (af === 1) {   /* edge-on, turning: a thin disc, raw side on top, cooked side under */
-        var E = mk(cx - rx - 2, cy - LF - 4, 2 * rx + 5, 9), ey;
-        for (ey = -1; ey <= 2; ey++) for (x = -rx; x <= rx; x++) if (inE(x, ey < 1 ? ey : ey - 1, rx, 1)) mset(E, cx + x, cy - LF + ey, ey < 1 ? 1 : 2);
-        mOutline(b, E, FACE.bottom[band].line);
-        mEach(E, function (px, py, v) { put(b, px, py, v === 1 ? (py === cy - LF - 1 ? C.s6 : C.w6) : (py === cy - LF + 2 ? FACE.bottom[band].side : FACE.bottom[band].body)); });
+      if (af === 1) {   /* edge-on, turning: a narrow tilted disc, the raw side on top, one row of the cooked face under it */
+        var E = mk(cx - rx - 2, cy - LF - 7, 2 * rx + 5, 15), F1 = FACE.bottom[band], yc;
+        for (x = -rx; x <= rx; x++) {
+          yc = cy - LF + iround(-2 * x, rx);   /* tilted: the left edge a little lower (it is turning over toward the viewer) */
+          for (y = -RY; y <= RY; y++) if (inE(x, y, rx, RY)) mset(E, cx + x, yc + y, y < 1 ? 1 : y === 1 ? 2 : 3);
+        }
+        mOutline(b, E, F1.line);
+        mEach(E, function (px, py, v) {
+          var up = !mhas(E, px, py - 1);
+          put(b, px, py, v === 1 ? (up ? C.s6 : C.w6) : v === 2 ? F1.edge : F1.body);
+        });
       } else {
         var sq = af === 3 ? [rx + 2, ry - 1] : [rx, RY];
         jeon(b, { cx: cx, cy: cy - LF + (af === 3 ? 1 : 0), rx: sq[0], ry: sq[1], face: face, band: band, herb: o.herb, dents: o.dents, thick: af === 3 ? 2 : 1, flash: o.flash });
       }
     } else {
-      jeon(b, { cx: cx, cy: cy, rx: rx, ry: ry, face: flipped ? 'bottom' : 'top', band: o.heat || flipped ? band : 0, herb: o.herb, dents: o.dents, flash: o.flash });
+      jeon(b, { cx: cx, cy: cy, rx: rx, ry: ry, face: flipped ? 'bottom' : o.heat ? 'top' : 'raw', band: band, herb: o.herb, dents: o.dents, flash: o.flash });
     }
     var sp = o.spatula === undefined ? GEO.rest.spatula : o.spatula;   /* undefined = resting in the pan, null = hidden */
     if (sp) spatula(b, sp[0], sp[1]);

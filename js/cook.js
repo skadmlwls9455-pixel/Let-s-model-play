@@ -19,7 +19,8 @@
  *   The sim applies: the TUNE.gateMs gate for new pointers and 'b'; only pointers pressed in this step count;
  *   flip and slice follow the first finger only; tap counts every pointerdown. The host applies TUNE.edgeCss.
  *   rec = { si, t (step clock), k, x, y, p, id } or null. ?rec=1: push rec into window.__cookRec =
- *   { recipe, seed, steps: [[rec minus si, ...] per si] }; COOK.simulate(recipe, seed, steps) replays it.
+ *   { recipe, seed, steps: [[rec minus si, ...] per si], pot (the saved pot of a resumed dish, else null) };
+ *   COOK.simulate(recipe, seed, steps, { pot }) replays it.
  * RUN    plain JSON (JSON round trip gives an equal object). Read it, never write it.
  *   v 1, ver VERSION, id 'ck_...', recipe 'jeon', seed uint32, swaps { herb: 'parae'|'tot' }, plate 0..2,
  *   n steps, si current step 0..n-1 (n once revealed), phase 'step' | 'between' (a step just finished, inputs
@@ -36,7 +37,8 @@
  *   flip:  heat (bool), heatAt (step ms) or null, band 0..2 colour now (0 soft, 1 golden, 2 crisp; it rises every
  *          bandMs after heat-on and waits at 2), res (band it was flipped at) or null, bandMs 3000,
  *          stroke { id, x0, y0, t0, b0 } or null. The jeon colour on screen is band (res once flipped).
- *   slice: lines [{ ax, ay, bx, by (logical), ux, uy, off (art px, -4..4), bins [0|1 x 40] knife score along
+ *   slice: lines [{ ax, ay, bx, by (logical), len (A to B, logical: the food's size along the line + 3 art px at
+ *          each end, at most 128), ux, uy, off (art px, -4..4), bins [0|1 x 40] knife score along
  *          A to B, n painted bins, cut (bool), how null|'drag'|'cross'|'b', ang (cut angle, multiple of 6,
  *          -30..30), ws, as (internal) }], cur (lit guide; one at a time), band (half width, logical px),
  *          hand { x, y } logical ints of the knife hand or null, pen (internal).
@@ -57,7 +59,8 @@
  * HELPERS COOK.verb(run) button label, COOK.hintAt(run) step ms when the idle ghost hand is due (null = none),
  *   COOK.describe(recipe, tags), COOK.potOf(run, at), COOK.resumeRun(pot), COOK.resultOf(run, { madeAt, day }),
  *   COOK.bookLine(result), COOK.normStore(obj), COOK.bookAdd(store, line), COOK.seedFor(day, dayN),
- *   COOK.runIdFor(day, dayN, startedAt), COOK.fxSeed(seed, si) (particles: COOK.mulberry32(..) gives uint32).
+ *   COOK.runIdFor(day, dayN, nonce) (nonce: random or a counter, never a clock), COOK.fxSeed(seed, si)
+ *   (particles: COOK.mulberry32(..) gives uint32).
  * ART    COOK.drawDish(recipe, look, seed, w, h) -> { w, h, d: Uint8ClampedArray } never throws (default 96 x 66).
  *   If a global COOK_ART.dish exists it paints a blank img of that size in place: COOK_ART.dish(img, look, { herb,
  *   recipe, seed, swaps }) with a checked look (COOK_ART.dishSmall instead when img is smaller than COOK_ART.GEO.dish).
@@ -85,6 +88,7 @@ var COOK = (function () {
     edgeCss: 24,        /* live: a touch that starts within 24 CSS px of the screen's left/right edge is ignored */
     fps: 12,            /* stepped reactions: squash, steam, bubbles, particles */
     reveal: { frames: 6, stepPx: 2, focusMs: 450 },  /* plate rises 6 frames at 12 fps, 2 art px a frame; focus after 450 ms */
+    calmMs: 500,        /* live: back on the counter, a press that began within 500 ms (a double tap on the plate) starts nothing */
     sndGapMs: 120,      /* live: the same act at most every 120 ms (except step, done, pick, quiet) */
     simTail: 3000,      /* simulate(): keep ticking this long after a step's last event (a held finger keeps tapping) */
     tap: {
@@ -95,17 +99,21 @@ var COOK = (function () {
       at: [[-14, -5], [15, -6], [1, 8]],  /* mark spots, art px from the food centre (= cook-art GEO.markBase) */
       jitter: 3,        /* seeded +-3 art px per mark (stays on the drawn batter) */
       shapeAt: [3, 6],  /* the batter spreads one stage at hit 3 and at hit 6 */
-      dents: 9          /* at most 9 dents */
+      dents: 9,         /* at most 9 dents */
+      catchUp: 40       /* tick() catches up at most 40 auto taps (10 s of hold) per call, then skips ahead on the same grid */
     },
     flip: {
       bandMs: 3000,     /* after heat-on: soft 0-3 s, golden 3-6 s, crisp from 6 s on (it waits there) */
       flick: 32,        /* an upward stroke of >= 32 logical px from where it was pressed ... */
       cone: 45,         /* ... within +-45 deg of straight up flips; speed does not matter */
       lift: [0.5, 1.2], /* arc height (art only): px per ms of the flick; below 0.5 = 1, below 1.2 = 2, else 3 */
-      crispHintMs: 5000 /* after heat-on the only idle hint is 5 s after crisp */
+      crispHintMs: 5000,/* after heat-on the only idle hint is 5 s after crisp */
+      teach: 3          /* live: 3 presses after heat-on that do not flip -> the up-swipe hand once more (not an idle hint) */
     },
     slice: {
-      len: 128,         /* guide length, logical px (64 art px) */
+      len: 128,         /* longest guide, logical px (64 art px); the band below is sized from it */
+      over: 3,          /* a guide reaches 3 art px past the food at each end: (radius + 3) x 2 along its own axis, at most
+                           len (jeon: 64 art px across, 44 down), so a stroke over the whole food cuts the line */
       bins: 40,         /* the guide is split into 40 bins ... */
       cover: 0.8,       /* ... a line is cut at 80 % of them */
       bandMin: 24,      /* band half width = max(24, 0.25 x len) */
@@ -186,7 +194,9 @@ var COOK = (function () {
 
   /* ---------- seeds ---------- */
   function seedFor(day, dayN) { return hash32(day + '|cook|' + dayN); }
-  function runIdFor(day, dayN, startedAt) { return 'ck_' + hash32(day + '|' + dayN + '|' + startedAt).toString(36); }
+  /* run id: nonce = a per-dish random number (crypto) or a per-device counter, never a clock: an id next to madeAt
+     must not give away how long the dish took (design 4.1: no time anywhere in the result or the book) */
+  function runIdFor(day, dayN, nonce) { return 'ck_' + hash32(day + '|' + dayN + '|' + nonce).toString(36); }
   function stepSeed(seed, si) { return hash32(seed + '|' + si); }
   function fxSeed(seed, si) { return hash32('cook|' + seed + '|' + si + '|fx'); }
   function recipe(id) { for (var i = 0; i < RECIPES.length; i++) if (RECIPES[i].id === id) return RECIPES[i]; return null; }
@@ -272,8 +282,11 @@ var COOK = (function () {
     up: function (st, s) { if (st.press && st.press.id === s.id) st.press = null; },
     cancel: function (st, s) { if (!s || (st.press && st.press.id === s.id)) st.press = null; },
     tick: function (st, t) {
-      var p = st.press, every = TUNE.tap.everyMs;
-      while (p && !st.done && t >= p.next) { tapHit(st, p.x, p.y, p.next, 'auto'); p.next += every; }
+      var p = st.press, every = TUNE.tap.everyMs, n = 0;
+      while (p && !st.done && t >= p.next) {
+        if (++n > TUNE.tap.catchUp) { p.next += every * (Math.floor((t - p.next) / every) + 1); break; }   /* a huge time jump: skip ahead, same grid */
+        tapHit(st, p.x, p.y, p.next, 'auto'); p.next += every;
+      }
     },
     alt: function (st, t) {   /* one press = the next mark gets its 3 hits, dents at the mark centre */
       if (st.done) return;
@@ -341,10 +354,10 @@ var COOK = (function () {
   function sliceLine(ax, ay, bx, by, off) {
     var len = dist(ax, ay, bx, by), bins = [];
     for (var i = 0; i < TUNE.slice.bins; i++) bins.push(0);
-    return { ax: ax, ay: ay, bx: bx, by: by, ux: z((bx - ax) / len), uy: z((by - ay) / len), off: off, bins: bins, n: 0, cut: false, how: null, ang: 0, ws: 0, as: 0 };
+    return { ax: ax, ay: ay, bx: bx, by: by, len: len, ux: z((bx - ax) / len), uy: z((by - ay) / len), off: off, bins: bins, n: 0, cut: false, how: null, ang: 0, ws: 0, as: 0 };
   }
   function proj(L, x, y) { var dx = x - L.ax, dy = y - L.ay; return { u: z(dx * L.ux + dy * L.uy), v: z(dy * L.ux - dx * L.uy) }; }
-  function inBand(st, P) { var len = TUNE.slice.len; return Math.abs(P.v) <= st.band && P.u >= -st.band && P.u <= len + st.band; }
+  function inBand(st, L, P) { return Math.abs(P.v) <= st.band && P.u >= -st.band && P.u <= L.len + st.band; }
   function subAdd(sub, P) {
     if (sub.n === 0) { sub.fu = P.u; sub.fv = P.v; sub.lo = P.u; sub.hi = P.u; }
     sub.n++; sub.su += P.u; sub.sv += P.v; sub.suu += P.u * P.u; sub.svv += P.v * P.v; sub.suv += P.u * P.v;
@@ -396,7 +409,7 @@ var COOK = (function () {
   function sliceSeg(st, px, py, qx, qy, t) {
     var L = st.lines[st.cur], pen = st.pen, S2 = TUNE.slice;
     if (!L || L.cut) return;
-    var P = proj(L, px, py), Q = proj(L, qx, qy), inP = inBand(st, P), inQ = inBand(st, Q);
+    var P = proj(L, px, py), Q = proj(L, qx, qy), inP = inBand(st, L, P), inQ = inBand(st, L, Q);
     if (inQ) {   /* in-band samples feed the angle; leaving the band closes the stroke part */
       if (!pen.sub) { pen.sub = { n: 0, su: 0, sv: 0, suu: 0, svv: 0, suv: 0, fu: 0, fv: 0, lu: 0, lv: 0, lo: 0, hi: 0 }; if (inP) subAdd(pen.sub, P); }
       subAdd(pen.sub, Q);
@@ -405,13 +418,13 @@ var COOK = (function () {
       var hb = pen.hist[Math.max(0, pen.hist.length - S2.dirSegs)] || [px, py], mx = qx - hb[0], my = qy - hb[1], m = Math.sqrt(mx * mx + my * my);
       if (m < S2.step) { mx = qx - px; my = qy - py; m = Math.sqrt(mx * mx + my * my); }   /* a turn on the spot: use the last segment */
       if (m > 0 && Math.abs(mx * L.ux + my * L.uy) / m >= Math.cos(S2.axis * Math.PI / 180)) {
-        var added = paint(L, P.u / S2.len, Q.u / S2.len);
+        var added = paint(L, P.u / L.len, Q.u / L.len);
         if (added) { st.prog = t; emit(st, 'score', { i: st.cur, n: added }); }
       }
     }
     if (!pen.nocross && ((P.v < 0 && Q.v >= 0) || (P.v > 0 && Q.v <= 0))) {
       var uc = P.u + (Q.u - P.u) * (P.v / (P.v - Q.v)), h0 = pen.hist[0];
-      if (uc >= S2.cross[0] * S2.len && uc <= S2.cross[1] * S2.len && h0) {
+      if (uc >= S2.cross[0] * L.len && uc <= S2.cross[1] * L.len && h0) {
         var cx = qx - h0[0], cy = qy - h0[1], cl = Math.sqrt(cx * cx + cy * cy);
         if (cl >= S2.crossMin && Math.abs(cx * L.ux + cy * L.uy) / cl <= Math.cos(S2.crossDeg * Math.PI / 180)) { cutLine(st, 'cross', t); return; }
       }
@@ -438,12 +451,14 @@ var COOK = (function () {
   KIND.slice = {
     multi: false, sayHalf: false,
     init: function (step, seed, food) {
-      var S2 = TUNE.slice, sc = TUNE.stage.scale, rng = mulberry32(seed), n = clampInt(step.lines, 1, 3, 2), half = S2.len / 2, lines = [];
+      var S2 = TUNE.slice, sc = TUNE.stage.scale, rng = mulberry32(seed), n = clampInt(step.lines, 1, 3, 2), lines = [];
       var cx = food.cx * sc, cy = food.cy * sc, j = S2.jitter;
+      var rx = food.rx ? food.rx[food.rx.length - 1] : food.w >> 1, ry = food.ry ? food.ry[food.ry.length - 1] : food.h >> 1;
+      var hx = Math.min(S2.len, 2 * (rx + S2.over) * sc) / 2, hy = Math.min(S2.len, 2 * (ry + S2.over) * sc) / 2;   /* half guide, logical */
       for (var i = 0; i < n; i++) {
         var off = (rng() % (2 * j + 1)) - j;
-        if (step.cross && n === 2) lines.push(i === 0 ? sliceLine(cx - half, cy + off * sc, cx + half, cy + off * sc, off) : sliceLine(cx + off * sc, cy - half, cx + off * sc, cy + half, off));
-        else { var x = cx + ((2 * i - (n - 1)) * S2.gap / 2 + off) * sc; lines.push(sliceLine(x, cy - half, x, cy + half, off)); }
+        if (step.cross && n === 2) lines.push(i === 0 ? sliceLine(cx - hx, cy + off * sc, cx + hx, cy + off * sc, off) : sliceLine(cx + off * sc, cy - hy, cx + off * sc, cy + hy, off));
+        else { var x = cx + ((2 * i - (n - 1)) * S2.gap / 2 + off) * sc; lines.push(sliceLine(x, cy - hy, x, cy + hy, off)); }
       }
       return base('slice', { box: boxOf(food), lines: lines, cur: 0, band: Math.max(S2.bandMin, S2.bandK * S2.len), hand: null, pen: null });
     },
@@ -562,7 +577,7 @@ var COOK = (function () {
   function feed(run, evs, opts) {
     if (!run || run.phase !== 'step') return run;
     opts = opts || {};
-    var hz = num(opts.cadence), dt = 1000 / (hz && hz > 0 ? hz : 60), si = run.si, list = Array.isArray(evs) ? evs : [];
+    var hz = num(opts.cadence), dt = 1000 / (hz && hz > 0 ? Math.max(1, Math.min(1000, hz)) : 60), si = run.si, list = Array.isArray(evs) ? evs : [];
     if (run.t0 === null) tick(run, num(opts.t0) === null ? 0 : opts.t0);
     var origin = run.t0, frame = run.t, last = run.t;
     function frames(until) {   /* frame ticks up to 'until'; stops where the next step would start */
@@ -583,7 +598,7 @@ var COOK = (function () {
       last = run.t;
     }
     if (run.phase === 'step' && run.si === si) {
-      var end = Math.max(last + TUNE.simTail, origin + (num(opts.until) || 0));
+      var end = Math.max(last + TUNE.simTail, origin + Math.max(0, Math.min(600000, num(opts.until) || 0)));   /* at most 10 min of ticks */
       frames(end);
       if (run.phase === 'step' && run.si === si) tick(run, end);
     }
@@ -595,15 +610,18 @@ var COOK = (function () {
       steps: r.steps.map(function (s, i) { return { kind: s.kind, status: i < run.tags.length ? 'done' : 'open', tag: i < run.tags.length ? run.tags[i] : null }; }),
       look: lookOf(run) };
   }
-  /* simulate(recipeId, seed, steps, { cadence, t0, until, run }) -> { done, si, steps, look } (+ run if opts.run) */
+  /* simulate(recipeId, seed, steps, { cadence 1..1000 Hz, t0, until (<= 10 min), run, pot }) -> { done, si, steps, look }
+     (+ run if opts.run). opts.pot (a saved pot, as in a ?rec=1 recording of a resumed dish) starts from resumeRun(pot):
+     steps before pot.si stay empty and are skipped; recipe and seed must match the pot. */
   function simulate(recipeId, seed, steps, opts) {
     opts = opts || {};
     try {
-      var run = createRun(recipeId, seed, opts.id ? { id: opts.id } : null);
+      var run = opts.pot ? resumeRun(opts.pot) : createRun(recipeId, seed, opts.id ? { id: opts.id } : null);
+      if (run && opts.pot && (run.recipe !== recipeId || run.seed !== toU32(seed))) run = null;
       if (!run) return { done: false, si: 0, steps: [], look: null };
       tick(run, num(opts.t0) === null ? 0 : opts.t0);
       var list = Array.isArray(steps) ? steps : [];
-      for (var si = 0; si < run.n; si++) {
+      for (var si = run.si; si < run.n; si++) {
         if (run.phase !== 'step' || run.si !== si) break;
         feed(run, list[si], opts);
         if (run.phase !== 'between') break;
@@ -674,18 +692,23 @@ var COOK = (function () {
   }
   function isIntIn(v, lo, hi) { return isInt(v) && v >= lo && v <= hi; }
   function sameKeys(o, keys) { return o && typeof o === 'object' && !Array.isArray(o) && Object.keys(o).sort().join() === keys.slice().sort().join(); }
+  function allOf(a, fn) {   /* like Array#every, but a hole in the array fails (every() skips holes) */
+    if (!Array.isArray(a)) return false;
+    for (var i = 0; i < a.length; i++) if (!(i in a) || !fn(a[i])) return false;
+    return true;
+  }
   function validLook(r, si, lk) {
     var step = r.steps[si], food = TUNE.food[step.food] || TUNE.food[r.id] || TUNE.food.jeon;
     if (step.kind === 'tap') {
-      return sameKeys(lk, ['dents']) && Array.isArray(lk.dents) && lk.dents.length <= TUNE.tap.dents && lk.dents.every(function (d) {
-        return Array.isArray(d) && d.length === 2 && isIntIn(d[0], 0, food.w - 1) && isIntIn(d[1], 0, food.h - 1); });
+      return sameKeys(lk, ['dents']) && Array.isArray(lk.dents) && lk.dents.length <= TUNE.tap.dents && allOf(lk.dents, function (d) {
+        return Array.isArray(d) && d.length === 2 && allOf(d, function () { return true; }) && isIntIn(d[0], 0, food.w - 1) && isIntIn(d[1], 0, food.h - 1); });
     }
     if (step.kind === 'flip') return sameKeys(lk, ['band']) && isIntIn(lk.band, 0, BANDS.length - 1);
     if (step.kind === 'slice') {
       var n = clampInt(step.lines, 1, 3, 2), S2 = TUNE.slice;
       return sameKeys(lk, ['cuts', 'offs']) && Array.isArray(lk.cuts) && Array.isArray(lk.offs) && lk.cuts.length === n && lk.offs.length === n &&
-        lk.cuts.every(function (a) { return isIntIn(a, -S2.angMax, S2.angMax) && a % S2.angStep === 0; }) &&
-        lk.offs.every(function (o) { return isIntIn(o, -S2.jitter, S2.jitter); });
+        allOf(lk.cuts, function (a) { return isIntIn(a, -S2.angMax, S2.angMax) && a % S2.angStep === 0; }) &&
+        allOf(lk.offs, function (o) { return isIntIn(o, -S2.jitter, S2.jitter); });
     }
     return false;
   }
@@ -842,7 +865,8 @@ var COOK = (function () {
    * Storage: one key (opts.storeKey, default 'ppolppol_cook'); the pot is saved at step boundaries, on hidden, pagehide
    * and close; a finished dish adds one book line. open() never throws. */
   var KEY0 = 'ppolppol_cook';
-  var LAY = { head: 44, gap: 8, verb: 56, top: 8, bot: 12, botShort: 8, side: 16, column: 288, maxCss: 3, note: 44 };
+  var KEY_RE = /^ppolppol_cook(_[a-z0-9]{1,16})?$/;          /* only the kitchen's own keys (never the main save) */
+  var LAY ={ head: 44, gap: 8, verb: 56, top: 8, bot: 12, botShort: 8, side: 16, column: 288, maxCss: 3, note: 44 };
   var FMS = 1000 / TUNE.fps;                                  /* one 12 fps frame */
   var ART_W = TUNE.stage.w / TUNE.stage.scale, ART_H = TUNE.stage.h / TUNE.stage.scale;
   var SND_FREE = { step: 1, done: 1, pick: 1, quiet: 1 };   /* acts that skip the 120 ms gap */
@@ -954,22 +978,24 @@ var COOK = (function () {
     }
     return null;
   }
-  function startHand(kind, why) {   /* one ghost hand: the 4-frame motion three times (about 1 s), a still pose when reduced */
+  function startHand(kind, why, seenKey) {   /* one ghost hand: the 4-frame motion three times (about 1 s), a still pose when
+                                                reduced. It stays until progress or its own end (a press that changes nothing
+                                                does not wipe it); seenKey = the step kind a finished demo marks as seen */
     var spec = handSpec(kind); if (!spec) return;
-    L.hint = { spec: spec, at: L.lastT, dur: 12 * FMS, why: why }; L.dirty = true; L.stats.hints++;
+    L.hint = { spec: spec, at: L.lastT, dur: 12 * FMS, why: why, seen: seenKey || null }; L.dirty = true; L.stats.hints++;
   }
   function markSeen(k) {
     if (!L || L.seen.indexOf(k) >= 0) return;
     L.seen.push(k);
     patchStore(function (o) { if (o.seen.indexOf(k) < 0) o.seen.push(k); });
   }
-  function maybeDemo() {   /* first time this device sees a step kind: one ghost hand right after the title (no text) */
+  function maybeDemo() {   /* first time this device sees a step kind: one ghost hand right after the title (no text); the
+                              kind counts as seen once that demo has played to its end, or once the step is done */
     var run = L.run; if (!run || run.phase !== 'step' || L.demoAt === run.si || L.hint) return;
     L.demoAt = run.si;
     var k = run.st.kind;
     if (L.seen.indexOf(k) >= 0 || run.st.progress > 0) return;
-    startHand(k === 'flip' ? 'tap' : k, 'demo');   /* flip: first the heat-on tap; the up-swipe follows right after heat-on */
-    if (k !== 'flip') markSeen(k);
+    startHand(k === 'flip' ? 'tap' : k, 'demo', k === 'flip' ? null : k);   /* flip: first the heat-on tap; the up-swipe demo follows heat-on */
   }
   function checkIdle(run) {   /* no progress for 5 s: one ghost hand, and from then on the verb button shows (design 2.3, 2.4) */
     if (L.hint || L.titleUntil) return;
@@ -998,8 +1024,10 @@ var COOK = (function () {
     L.dirty = true;
     updVerb();
   }
+  var PROGRESS = { hit: 1, heat: 1, flip: 1, score: 1, cut: 1 };   /* a ghost hand gives way to these (the hand is doing it) */
   function onEvent(e) {
     var run = L.run, st = run && run.st, G = art().GEO, d, ln;
+    if (PROGRESS[e.type] && L.hint) { L.hint = null; L.dirty = true; }
     switch (e.type) {
       case 'start': onStart(e); break;
       case 'hit':
@@ -1010,12 +1038,15 @@ var COOK = (function () {
       case 'pat': L.fx++; fxAdd({ k: 'flash' }, e.si); break;
       case 'dust': L.fx++; L.dust.push([e.x >> 1, e.y >> 1]); if (L.dust.length > 12) L.dust.shift(); break;
       case 'heat':
-        L.fx++; fxAdd({ k: 'flash' }, e.si);
-        if (L.seen.indexOf('flip') < 0) { startHand('flick', 'demo'); markSeen('flip'); }
+        L.fx++; fxAdd({ k: 'flash' }, e.si); L.nudges = 0;
+        if (L.seen.indexOf('flip') < 0) startHand('flick', 'demo', 'flip');   /* seen once it has played to its end */
         break;
-      case 'nudge': L.fx++; fxAdd({ k: 'bump' }, e.si); break;
+      case 'nudge':   /* a press after heat-on that did not flip: the jeon hops; a few of them -> show the up-swipe again */
+        L.fx++; fxAdd({ k: 'bump' }, e.si);
+        if (++L.nudges >= TUNE.flip.teach && !L.hint) { L.nudges = 0; startHand('flick', 'teach'); L.stats.teach++; L.shown = true; }
+        break;
       case 'flip':
-        L.fx++; L.finger = null; L.stats.flips++;
+        L.fx++; L.finger = null; L.stats.flips++; L.nudges = 0;
         fxAdd({ k: 'arc', lift: e.lift }, e.si);
         burst('crumb', G.food.cx - 22, G.food.cy + 4, 2, 3, 2); burst('crumb', G.food.cx + 22, G.food.cy + 4, 2, 3, 2);
         fxAdd({ k: 'shake', from: 3, dx: 0, dy: 1 }, e.si);
@@ -1034,7 +1065,7 @@ var COOK = (function () {
   function onStart(e) {
     var run = L.run;
     L.prng = mulberry32(fxSeed(run.seed, run.si));
-    L.parts = []; L.dust = []; L.finger = null; L.hint = null; L.demoAt = -1;
+    L.parts = []; L.dust = []; L.finger = null; L.hint = null; L.demoAt = -1; L.nudges = 0;
     D.title.textContent = WORDS.title[e.kind] || ''; D.title.hidden = false; L.titleUntil = L.lastT + TUNE.titleMs;
     placeTags(); stripOn(run.si);
   }
@@ -1047,6 +1078,7 @@ var COOK = (function () {
   }
   function onReveal(e) {
     L.screen = 'reveal'; L.revealAt = L.lastT; L.revealFocus = L.lastT + TUNE.reveal.focusMs; L.revealDown = null; L.down = {};
+    L.revealIdle = L.revealFocus + TUNE.idleMs;   /* 5 s with the plate up and no press: a tap hand on the plate, the back button shows */
     L.hint = null; L.parts = [];
     fxAdd({ k: 'rise' }, e.si); fxAdd({ k: 'shake', from: TUNE.reveal.frames - 1, dx: 0, dy: 1 }, e.si);
     stripOn(-1);
@@ -1097,8 +1129,13 @@ var COOK = (function () {
     });
     sizeStrip();
   }
-  function sizeStrip() {
-    var dpr = window.devicePixelRatio || 1, px = 16 * Math.max(1, Math.floor(2 * dpr + 1e-6)) / dpr;
+  function sizeStrip() {   /* 16 x 16 icons at a whole number of device px per art px, every edge on a device px (DPR 2.625 too) */
+    var dpr = (L && L.dpr) || window.devicePixelRatio || 1, px = 16 * Math.max(1, Math.floor(2 * dpr + 1e-6)) / dpr;
+    function dev(v) { return Math.max(1, Math.round(v * dpr)) / dpr; }
+    D.strip.style.paddingLeft = dev(2) + 'px'; D.strip.style.gap = dev(8) + 'px';
+    D.strip.style.setProperty('--ck-raise', dev(2) + 'px');   /* the current icon: up 2 px, amber line 2 px under it */
+    var mt = Math.round((LAY.head - px) / 2 * dpr) / dpr;
+    Array.prototype.forEach.call(D.strip.children, function (s) { s.style.marginTop = mt + 'px'; });
     Array.prototype.forEach.call(D.strip.querySelectorAll('canvas'), function (c) { c.style.width = px + 'px'; c.style.height = px + 'px'; });
   }
   function stripOn(si) { Array.prototype.forEach.call(D.strip.children, function (c, i) { c.classList.toggle('on', i === si); }); }
@@ -1153,24 +1190,36 @@ var COOK = (function () {
     setScreenClass(); renderProps(); updVerb(); stripOn(-1);
     L.dirty = true;
   }
+  function nonce(o) {   /* run id salt: a random number (crypto), never a clock; without crypto, the book length */
+    try { var a = new Uint32Array(2); window.crypto.getRandomValues(a); return a[0].toString(36) + a[1].toString(36); }
+    catch (e) { return 'b' + o.book.length; }
+  }
+  function calm() {   /* back on the counter: ignore a press that began in the first calmMs (a second tap on the plate) */
+    var now = performance.now();
+    if (!L.counterAt) return false;
+    if (now - L.counterAt < TUNE.gateMs) return true;
+    return !!L.downAt && now - L.downAt < 2000 && L.downAt < L.counterAt + TUNE.calmMs;
+  }
   function pick(recipeId) {   /* a counter prop: resume its pot (the current step restarts) or start a new dish */
-    if (!L || L.screen !== 'counter') return;
-    if (L.counterAt && performance.now() - L.counterAt < TUNE.gateMs) return;   /* holdover calm after the plate reveal */
+    if (!L || L.screen !== 'counter' || calm()) return;
     var r = recipe(recipeId); if (!r) return;
     sound({ act: 'pick', dish: r.id });
-    var o = readStore(), day = today(), run = null;
-    if (o.pot && o.pot.recipe === r.id) run = resumeRun(o.pot);
+    var o = readStore(), day = today(), run = null, pot = null;
+    if (o.pot && o.pot.recipe === r.id) { run = resumeRun(o.pot); if (run) pot = clone(o.pot); }
     if (!run) {
       if (o.day !== day) { o.day = day; o.dayN = 0; }
       o.dayN = Math.min(1e6, o.dayN + 1);
-      run = createRun(r.id, L.seed !== null ? L.seed : seedFor(day, o.dayN), { id: runIdFor(day, o.dayN, Date.now()) });
+      run = createRun(r.id, L.seed !== null ? L.seed : seedFor(day, o.dayN), { id: runIdFor(day, o.dayN, nonce(o)) });
       if (!run) return;
       o.pot = potOf(run, Date.now());
       writeStore(o);
     }
     L.run = run; L.runDay = day; L.screen = 'step'; L.shown = false; L.finished = null; L.hintKey = null; L.hint = null;
-    L.fxq = []; L.parts = []; L.dust = []; L.down = {}; L.finger = null;
-    if (L.rec) { var steps = []; for (var i = 0; i < run.n; i++) steps.push([]); window.__cookRec = { recipe: run.recipe, seed: run.seed, steps: steps }; }
+    L.fxq = []; L.parts = []; L.dust = []; L.down = {}; L.finger = null; L.rowPress = false; L.nudges = 0;
+    if (L.rec) {   /* a resumed dish keeps its pot: COOK.simulate(recipe, seed, steps, { pot }) replays it */
+      var steps = []; for (var i = 0; i < run.n; i++) steps.push([]);
+      window.__cookRec = { recipe: run.recipe, seed: run.seed, steps: steps, pot: pot };
+    }
     buildStrip(r); setScreenClass(); renderProps();
     tick(run, simT());
     handle(drain(run));
@@ -1179,7 +1228,7 @@ var COOK = (function () {
   function backToCounter() {
     if (!L || L.screen !== 'reveal') return;
     var made = L.run ? L.run.recipe : PROPS[0].recipe;
-    L.run = null; L.screen = 'counter'; L.down = {}; L.hint = null; L.fxq = []; L.parts = []; L.revealDown = null; L.counterAt = performance.now();
+    L.run = null; L.screen = 'counter'; L.down = {}; L.hint = null; L.fxq = []; L.parts = []; L.revealDown = null; L.revealIdle = 0; L.counterAt = performance.now();
     D.name.hidden = true; hideTitle();
     refreshCounter();
     focusEl(propFor(made));
@@ -1206,13 +1255,12 @@ var COOK = (function () {
     if (!st || st.kind !== 'flip' || !st.stroke || st.stroke.id !== id || st.done) return;
     L.finger = [Math.round(q.x / TUNE.stage.scale), Math.round(q.y / TUNE.stage.scale) - 6]; L.dirty = true;
   }
-  function onDown(e) {
+  function onDown(e, routed) {   /* routed: a stroke that began on the quiet verb row belongs to the stage */
     if (!L) return;
-    if (e.target && e.target.closest && e.target.closest('button')) return;   /* counter props handle their own click */
+    if (!routed && e.target && e.target.closest && e.target.closest('button')) return;   /* counter props handle their own click */
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    hideTitle();
-    if (L.hint) { L.hint = null; L.dirty = true; }
-    if (L.screen === 'reveal') { e.preventDefault(); if (L.lastT >= L.revealFocus) L.revealDown = e.pointerId; return; }
+    hideTitle();   /* a ghost hand stays until progress or its own end: a press that changes nothing does not wipe it */
+    if (L.screen === 'reveal') { e.preventDefault(); L.revealIdle = L.lastT + TUNE.idleMs; if (L.lastT >= L.revealFocus) L.revealDown = e.pointerId; return; }
     if (L.screen !== 'step' || !L.run) return;
     if (e.pointerType !== 'mouse' && (e.clientX < TUNE.edgeCss || e.clientX > window.innerWidth - TUNE.edgeCss)) return;   /* OS back swipe */
     e.preventDefault();
@@ -1253,10 +1301,22 @@ var COOK = (function () {
   }
   function onVerb(e) {   /* the verb button: the browser's own press only (Enter / Space / click), no dialog-wide keys */
     if (!L) return;
+    var shownBy = L.rowPress; L.rowPress = false;
+    if (shownBy && e && e.detail > 0) { updVerb(); return; }   /* the finger / mouse press that showed the quiet button does not act */
     L.shown = true;
     if (L.screen === 'reveal') { backToCounter(); return; }
-    if (L.screen === 'step' && L.run) { hideTitle(); L.hint = null; send({ t: simT(evAt(e)), k: 'b' }); }
+    if (L.screen === 'step' && L.run) { hideTitle(); send({ t: simT(evAt(e)), k: 'b' }); }
     updVerb();
+  }
+  function quietVerb() { return !!D && !!L && !D.verb.hidden && !L.shown && document.activeElement !== D.verb; }
+  function onRowDown(e) {   /* a finger or mouse press on the quiet (invisible) verb row never does the verb: it shows the
+                               button (a visible reaction), and in a step the stroke goes to the stage, so a thumb flick
+                               that starts below the stage still flips and a stray tap there never flips or cuts. Keyboard
+                               and screen-reader presses (a click with no pointer press) act at once. */
+    if (!L || (L.screen !== 'step' && L.screen !== 'reveal') || !quietVerb()) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    L.rowPress = true; L.shown = true; L.stats.rowPress++; updVerb(); L.dirty = true;
+    if (L.screen === 'step') onDown(e, true);
   }
   function cancelAll() { if (L && L.run) { L.down = {}; L.finger = null; send({ t: simT(), k: 'c' }); } }
 
@@ -1273,12 +1333,16 @@ var COOK = (function () {
     while (k > 1 && k / dpr > LAY.maxCss + 1e-9) k--;
     var w = ART_W * k / dpr, h = ART_H * k / dpr, cw = Math.max(w, Math.min(LAY.column, availW));
     function snap(v) { return Math.round(v * dpr) / dpr; }
+    function snapUp(v) { return Math.ceil(v * dpr - 1e-6) / dpr; }
+    function snapDn(v) { return Math.floor(v * dpr + 1e-6) / dpr; }
     var left = snap(Math.max(0, (vw - cw) / 2));
-    var top = Math.max(padT + LAY.top + LAY.head + LAY.gap, snap(padT + inner - (LAY.verb + LAY.gap + bot) - h));   /* stage top on a device px */
-    var sky = top - padT - LAY.head - LAY.gap;
+    var top = Math.max(snapUp(padT + LAY.top + LAY.head + LAY.gap), snap(padT + inner - (LAY.verb + LAY.gap + bot) - h));   /* stage top on a device px */
+    var headTop = snapDn(top - LAY.gap - LAY.head);   /* the header (step icons, close) on a device px too; the gap is 8 css px give or take a device px */
+    var sky = headTop - padT;
     D.sky.style.height = sky + 'px';
     D.head.style.width = cw + 'px'; D.head.style.marginLeft = left + 'px';
     D.stage.style.width = w + 'px'; D.stage.style.height = h + 'px'; D.stage.style.marginLeft = snap(left + (cw - w) / 2) + 'px';
+    D.stage.style.marginTop = (top - headTop - LAY.head) + 'px';
     D.verbRow.style.width = cw + 'px'; D.verbRow.style.marginLeft = left + 'px';
     D.foot.style.height = bot + 'px';
     L.k = k; L.dpr = dpr; L.css = w / ART_W; L.cw = cw; L.rect = null;
@@ -1298,14 +1362,27 @@ var COOK = (function () {
       if (!L.titleUntil && L.demoAt !== run.si) maybeDemo();
       checkIdle(run);
     }
-    if (L.hint && t - L.hint.at >= L.hint.dur) { L.hint = null; L.dirty = true; }
+    if (L.hint && t - L.hint.at >= L.hint.dur) { if (L.hint.seen) markSeen(L.hint.seen); L.hint = null; L.dirty = true; }
     if (L.screen === 'reveal') {
       if (D.name.hidden && t - L.revealAt >= (TUNE.reveal.frames - 1) * FMS) { D.name.hidden = false; placeTags(); }
       if (L.revealFocus && t >= L.revealFocus) { L.revealFocus = 0; focusEl(kbd ? D.verb : D.stage); }
+      if (L.revealIdle && t >= L.revealIdle && !L.hint) {   /* nothing says how to go on: one tap hand on the plate, the button shows */
+        L.revealIdle = 0; startHand('tap', 'idle'); L.stats.idle++;
+        if (!L.shown) { L.shown = true; updVerb(); }
+      }
     }
     if (L.auto) autoStep(t);
-    var jf = Math.floor(t / FMS);
+    var jf = frameSig(t);
     if (jf !== L.jf) { L.jf = jf; L.dirty = true; }
+  }
+  /* redraw when any 12 fps frame changes: the global grid (bubbles, flames) and every reaction's own frame count from its
+     start (a bright rim lasts exactly one 83 ms frame, not until the next global tick) */
+  function frameSig(t) {
+    var s = Math.floor(t / FMS) >>> 0, i;
+    for (i = 0; i < L.fxq.length; i++) s = (Math.imul(s, 31) + Math.floor((t - L.fxq[i].at) / FMS)) >>> 0;
+    for (i = 0; i < L.parts.length; i++) s = (Math.imul(s, 31) + Math.floor((t - L.parts[i].at) / FMS)) >>> 0;
+    if (L.hint) s = (Math.imul(s, 31) + Math.floor((t - L.hint.at) / FMS)) >>> 0;
+    return s;
   }
   function render() {
     if (!L.dirty) return;
@@ -1354,7 +1431,7 @@ var COOK = (function () {
   }
   function autoStep(t) {   /* tests: the button path with short pauses, one dish, then back to the counter */
     var a = L.auto, run = L.run;
-    if (L.screen === 'counter') { if (a.started) L.auto = null; else { a.started = true; pick(PROPS[0].recipe); } return; }
+    if (L.screen === 'counter') { if (a.started) L.auto = null; else { pick(PROPS[0].recipe); if (L.screen !== 'counter') a.started = true; } return; }   /* retried until the counter's calm is over */
     if (L.screen === 'step' && run && run.phase === 'step') {
       if (run.t - run.t0 >= TUNE.gateMs + 50 && t >= a.next) { a.next = t + 300; send({ t: t, k: 'b' }); }
       return;
@@ -1393,10 +1470,15 @@ var COOK = (function () {
     d.dlg.addEventListener('keydown', function (e) {   /* a held Enter / Space presses once (design 2.3, test L11) */
       if (e.repeat && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) { e.preventDefault(); e.stopPropagation(); }
     }, true);
+    d.dlg.addEventListener('pointerdown', function () { if (L) { L.downAt = performance.now(); L.rowPress = false; } }, true);   /* every press, first */
+    d.verbRow.addEventListener('pointerdown', function (e) { try { onRowDown(e); } catch (x) { if (L) L.err++; } }, true);
     d.stage.addEventListener('pointerdown', function (e) { try { onDown(e); } catch (x) { if (L) L.err++; } });
     d.stage.addEventListener('pointermove', function (e) { try { onMove(e); } catch (x) { if (L) L.err++; } });
     d.stage.addEventListener('pointerup', function (e) { try { onUp(e); } catch (x) { if (L) L.err++; } });
     d.stage.addEventListener('pointercancel', function (e) { try { onCancel(e); } catch (x) { if (L) L.err++; } });
+    d.stage.addEventListener('lostpointercapture', function (e) {   /* an up that never came: free the finger (flip and slice follow one) */
+      try { if (L && L.down[e.pointerId]) onCancel(e); } catch (x) { if (L) L.err++; }
+    });
     d.stage.addEventListener('click', function (e) {   /* plate reveal: a fresh tap anywhere on the stage goes back to the counter */
       if (!L || L.screen !== 'reveal' || L.revealDown === null) return;
       if (e.target && e.target.closest && e.target.closest('button')) return;
@@ -1410,7 +1492,11 @@ var COOK = (function () {
       if (!L) return;
       try {
         if (document.hidden) { cancelAll(); freeze(); savePot(); sound({ act: 'quiet' }); }
-        else { thaw(); cancelAll(); L.dirty = true; }
+        else {
+          thaw(); cancelAll(); L.dirty = true;
+          var st = L.run && L.run.phase === 'step' ? L.run.st : null;   /* the pan is still on: the sizzle comes back (quiet stopped it) */
+          if (st && st.kind === 'flip' && st.heat && !st.done) sound({ act: 'sizzle', band: st.band });
+        }
       } catch (e) { L.err++; }
     });
     window.addEventListener('pagehide', function () { try { if (L) savePot(); } catch (e) { /* storage */ } });
@@ -1449,7 +1535,7 @@ var COOK = (function () {
       build();
       if (typeof D.dlg.showModal !== 'function') return false;
       if (L) { settle0(L); L = null; }
-      curKey = typeof opts.storeKey === 'string' && /^[A-Za-z0-9_.-]{1,64}$/.test(opts.storeKey) ? opts.storeKey : KEY0;
+      curKey = typeof opts.storeKey === 'string' && KEY_RE.test(opts.storeKey) ? opts.storeKey : KEY0;
       var slow = num(opts.slow) || num(parseFloat(urlOpt('slow'))) || 1, seed = opts.seed;
       L = { opener: opts.opener || document.activeElement, day: typeof opts.day === 'string' && DAY_RE.test(opts.day) ? opts.day : null,
         reduced: wantReduced(opts.reduced), slow: Math.max(0.25, Math.min(16, slow)), rec: !!(opts.rec || urlOpt('rec') === '1'),
@@ -1459,8 +1545,9 @@ var COOK = (function () {
         clock: { base: 0, since: document.hidden ? null : performance.now() }, lastT: 0, jf: -1,
         run: null, runDay: null, screen: 'counter', pot: null, pending: null, plate: null, seen: [], shown: false, finished: null,
         fx: 0, fxq: [], parts: [], dust: [], prng: null, hint: null, hintKey: null, demoAt: -1, titleUntil: 0, finger: null,
-        down: {}, rect: null, sndAt: {}, said: [], note: null, auto: null, revealAt: 0, revealFocus: 0, revealDown: null, counterAt: 0,
-        stats: { parts: 0, squash: 0, shake: 0, arc: 0, hints: 0, idle: 0, flips: 0 }, frames: 0, err: 0, dirty: true,
+        down: {}, rect: null, sndAt: {}, said: [], note: null, auto: null, revealAt: 0, revealFocus: 0, revealDown: null, revealIdle: 0, counterAt: 0,
+        downAt: 0, rowPress: false, nudges: 0,
+        stats: { parts: 0, squash: 0, shake: 0, arc: 0, hints: 0, idle: 0, flips: 0, teach: 0, rowPress: 0 }, frames: 0, err: 0, dirty: true,
         buf: art().blank(ART_W, ART_H), img: D.ctx.createImageData(ART_W, ART_H), raf: 0, k: 1, css: 2, cw: LAY.column, tight: false };
       if (L.palette && /^[a-z0-9-]+$/.test(L.palette)) D.dlg.setAttribute('data-palette', L.palette); else D.dlg.removeAttribute('data-palette');
       D.note.hidden = true; D.dlg.classList.remove('ck-noting'); D.title.hidden = true; D.name.hidden = true; D.say.textContent = ''; D.strip.textContent = '';
@@ -1503,16 +1590,17 @@ var COOK = (function () {
   }
 
   /* ---------- data in and out (the main game's export / import carries the notebook; the pot never travels) ---------- */
-  function exportData(key) {
+  function exportData(key) {   /* key (optional): another kitchen key, e.g. cook.html's; anything else is refused */
     var keep = curKey;
-    try { if (typeof key === 'string' && key) curKey = key; var o = readStore(); return { v: 1, seen: o.seen.slice(), book: clone(o.book) }; }
+    try { if (key != null && !(typeof key === 'string' && KEY_RE.test(key))) return null; if (key) curKey = key; var o = readStore(); return { v: 1, seen: o.seen.slice(), book: clone(o.book) }; }
     catch (e) { return null; } finally { curKey = keep; }
   }
   function importData(obj, key) {
     var keep = curKey;
     try {
       if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
-      if (typeof key === 'string' && key) curKey = key;
+      if (key != null && !(typeof key === 'string' && KEY_RE.test(key))) return false;
+      if (key) curKey = key;
       var inc = normStore(obj), o = readStore();
       o.book = inc.book; o.pot = null;
       inc.seen.forEach(function (k) { if (o.seen.indexOf(k) < 0 && o.seen.length < 8) o.seen.push(k); });

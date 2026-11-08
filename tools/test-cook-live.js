@@ -233,7 +233,7 @@ async function L3(browser) {   /* touch: quiet verb button, still in the tab ord
   await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
   await T.go(700); await T.tap(144, 150);
   await T.until(function (x) { return x.screen === 'counter'; }, 2000, 'counter');
-  await T.go(400); await T.tapEl('.ck-prop');
+  await T.go(700); await T.tapEl('.ck-prop');   /* past the counter's calm (TUNE.calmMs) */
   await T.until(function (x) { return x.screen === 'step'; }, 2000, 'step');
   await T.go(700);
   v = await T.verb();
@@ -399,7 +399,7 @@ async function L6(browser) {   /* sound off is the main case: every counted inpu
     var tail = await A.page.evaluate(function (n) { return window.__acts.slice(n).map(function (x) { return x.p.act; }); }, n0);
     check(tail.indexOf('quiet') >= 0, 'L6: quiet on ' + label + ' (' + tail.join(',') + ')');
   }
-  await A.go(300); await A.tap(144, 150); await A.go(500); await A.tapEl('.ck-prop'); await A.go(900);
+  await A.go(300); await A.tap(144, 150); await A.go(700); await A.tapEl('.ck-prop'); await A.go(900);
   await quietAfter('hidden tab', function () {
     return A.page.evaluate(function () {
       Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } });

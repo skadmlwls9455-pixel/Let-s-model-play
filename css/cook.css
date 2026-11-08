@@ -30,12 +30,14 @@ html.ck-open body { overscroll-behavior: none; }
 
 /* header: step icon strip (left) + close (right); the strip is hidden on the counter */
 .ck-head { position: relative; display: flex; align-items: center; gap: 8px; height: 44px; }
-.ck-strip { display: flex; align-items: center; gap: 8px; height: 44px; padding-left: 2px; }
+/* js/cook.js sizeStrip() puts every icon edge on a device pixel: padding, gap, top margin and --ck-raise (2 px rounded
+   to whole device px), so the 16 x 16 icons stay crisp at DPR 2.625 / 2.75 too */
+.ck-strip { display: flex; align-items: flex-start; gap: 8px; height: 44px; padding-left: 2px; }
 .ck-dlg.ck-counter .ck-strip, .ck-dlg.ck-tight.ck-noting .ck-strip { visibility: hidden; }
-.ck-step { position: relative; display: block; line-height: 0; }
+.ck-step { position: relative; display: block; margin-top: 6px; line-height: 0; }
 .ck-step canvas { display: block; width: 32px; height: 32px; image-rendering: pixelated; image-rendering: crisp-edges; }
-.ck-step.on { transform: translateY(-2px); }
-.ck-step.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 2px; background: #de9e41; }
+.ck-step.on { transform: translateY(calc(-1 * var(--ck-raise, 2px))); }
+.ck-step.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: calc(-2 * var(--ck-raise, 2px)); height: var(--ck-raise, 2px); background: #de9e41; }
 
 .ck-close, .ck-note-go {
   min-width: 64px; min-height: 44px; margin: 0; padding: 4px 12px; box-sizing: border-box; flex: 0 0 auto;
