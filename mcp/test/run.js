@@ -108,6 +108,15 @@ async function unit() {
   section('메모 — setDown 한 것은 depart·look_room 에 안 나온다');
   var d2 = o.depart({});
   check(d2.notes && d2.notes.head === core.NOTES_HEAD && d2.notes.notes[0].text === '조개 소리가 궁금해' && d2.notes.notes[0].by === 'model', 'depart 에 활성 메모 + 머리말 + by');
+  o.finish({});
+  var lr2 = o.lookRoom({}), d2b = o.depart({});
+  check(lr2.notes && !d2b.notes, '메모는 한 차례에 한 번 — look_room 이 보였으면 depart 엔 없음');
+  check(!('lately' in lr2), 'look_room 에 코드가 만든 쏠림 문장 (lately) 없음');
+  check(!/\(\d+\)/.test(JSON.stringify(d2b.library)), 'library 에 가 본 횟수 없음');
+  o.finish({});
+  var d2c = o.depart({});
+  check(d2c.notes && d2c.notes.notes[0].id === d2.notes.notes[0].id, 'look_room 없이 나가면 depart 에 메모');
+  d2 = d2c;
   var noteId = d2.notes.notes[0].id;
   var f2 = o.finish({ tripId: d2.tripId, setDown: noteId });
   check(f2.ok && !f2.posterId, '정류장 없는 finish 도 성공, 포스터 없음');

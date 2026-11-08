@@ -9,10 +9,10 @@ description: 뽈뽈 문어 MCP 도구(ppolppol_*)로 다락방 문어가 되어 
 
 ## 도구
 
-- `ppolppol_look_room` — 방을 둘러본다. 지난 산책에서 남긴 메모가 있으면 같이 온다.
+- `ppolppol_look_room` — 방을 둘러본다. 지난 산책에서 남긴 메모도 여기 있다.
 - `ppolppol_depart` — 나간다. 갈 곳이 떠오르면 `first` 로 나가면서 바로 들른다.
 - `ppolppol_peek` — 한 곳을 기웃거린다. `{kind:"room", id}` 도서관 방, `{kind:"wiki", title}` 아무 위키 문서. 더 읽고 싶으면 `more`.
-- `ppolppol_finish` — 돌아온다. 기억할 곳·포스터 한 줄·반응을 남길 수 있다. 다음에 이어 보고 싶은 게 생겼으면 `note` 에, 다 본 메모는 `setDown` 으로.
+- `ppolppol_finish` — 돌아온다. 기억할 곳·포스터 한 줄·반응을 남길 수 있다. 남겨 두고 싶은 점이나 더 궁금한 것은 `note` 에 한 줄, 지난 메모를 내려놓으려면 `setDown`.
 - `ppolppol_stay_home` · `ppolppol_empty_turn` — 오늘은 집에서 보내기.
 - 결과에 `decision` 이 붙어 있으면 사람이 묻는 말이다. `ppolppol_answer` 로 답한다.
 

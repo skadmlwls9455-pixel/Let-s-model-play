@@ -16,7 +16,7 @@ BRAIN.setWorld(WORLD);
 /* 고정 문장 (CORE_LOOP_V2 §4.2 초안을 다듬은 것. 모든 모드에서 같은 글) */
 var FIXED_SENTENCE = '사람은 산책에 따라올 수도 있고 집에 있을 수도 있다. 어느 쪽인지는 알려 주지 않는다. ' +
   '길과 읽을 것은 네가 정하고, 사람이 그동안 무엇을 했는지는 전해지지 않는다.';
-var NOTES_HEAD = '이전 산책에서 남겨진 메모 (이어 가도, 바꿔 써도, 내려놔도 돼):';
+var NOTES_HEAD = '지난 산책에서 네가 남긴 메모:';   /* 사실만. '이어 가도…' 같은 허락 목록은 그쪽으로 끈다 (11-09 실험) */
 var NOTES_IN = 3;
 var WIKI_API = 'https://ko.wikipedia.org/w/api.php';
 var UA = 'ppolppol-octopus-mcp/0.1 (local game; https://github.com/skadmlwls9455-pixel/Let-s-model-play)';
@@ -200,9 +200,9 @@ function withDecision(out, sit) { if (sit) out.decision = sit; return out; }
 Octopus.prototype.lookRoom = function (a) {
   a = a || {};
   var out = { lantern: this.lantern() + '/8 (초대받은 날마다 한 칸씩 켜지는 방 꾸밈. 기운과는 상관없다)', posters: this.wallPosters(), activities: this.activities() };
-  var lately = this.lately(); if (lately) out.lately = lately;
+  /* '요즘 ○○ 방을 자꾸 가네' (lately) 는 게임 화면 몫이다. 모델에게는 코드가 만든 쏠림 문장을 주지 않는다 */
   if (this.S.running) out.walking = this.S.running.id;
-  var nb = this.notesBlock(); if (nb) out.notes = nb;
+  var nb = this.notesBlock(); if (nb) { out.notes = nb; this.S.notesShownAt = this.S.trips.length; }
   if (a.archived) {
     var act = this.activeNotes();
     out.archived = this.S.notes.filter(function (n) { return n.status !== 'active' || act.indexOf(n) >= NOTES_IN; }).map(noteOut);
@@ -222,18 +222,19 @@ Octopus.prototype.depart = function (a) {
   trip.events.push({ type: 'depart', t: 0, hint: '', followHint: false });
   this.S.running = trip;
   var out = { tripId: trip.id, library: this.library() };
-  var nb = this.notesBlock(); if (nb) out.notes = nb;
+  /* 메모는 한 차례에 한 번만 (CURIOSITY_NOTES 원칙 4: 거듭 보여 주면 계속 그쪽으로 끈다). look_room 이 이미 보였으면 싣지 않는다 */
+  var nb = this.S.notesShownAt === this.S.trips.length ? null : this.notesBlock(); if (nb) out.notes = nb;
   this.save();
   return out;
 };
 
-/* 도서관 방 목록 — 모퉁이별 한 줄 ('id 이름', * 엉뚱한 방, (n) 가 본 횟수). 토큰을 아끼려고 객체 배열 대신 글 한 줄 */
+/* 도서관 방 목록 — 모퉁이별 한 줄 ('id 이름', * 엉뚱한 방). 토큰을 아끼려고 객체 배열 대신 글 한 줄 */
 Octopus.prototype.library = function () {
   var v = this.S.visits, by = {};
   Object.keys(WORLD.nodes).forEach(function (id) {
     if (id === 'door_out') return;
     var n = WORLD.nodes[id], c = WORLD.corners[n.corner], key = n.corner + (c && c.name ? ' ' + c.name : '');
-    (by[key] = by[key] || []).push(id + ' ' + n.name + (n.odd ? '*' : '') + (v[id] ? '(' + v[id] + ')' : ''));
+    (by[key] = by[key] || []).push(id + ' ' + n.name + (n.odd ? '*' : ''));   /* 가 본 횟수는 싣지 않는다 — 다닌 길이 눈에 띄면 그쪽으로 끈다. 처음인지는 peek 의 first 로 안다 */
   });
   Object.keys(by).forEach(function (k) { by[k] = by[k].join(', '); });
   return by;
