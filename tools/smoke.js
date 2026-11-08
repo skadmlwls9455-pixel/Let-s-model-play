@@ -1650,16 +1650,20 @@ async function scenarioWave7(browser) {
   var k1 = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { n: APP.state.trips.length, st: t.status, kind: t.kind, txt: document.getElementById('btn-go').textContent }; });
   ok(k1.n === 1 && k1.st === 'done' && k1.kind === 'out' && Date.now() - tS < 15000 && k1.txt === '뽈뽈 다녀와', "0.6 s 뒤 큰 버튼 → 바로 데려옴 (여행 1 · done · 버튼은 다시 '뽈뽈 다녀와' 글자만)");
 
-  /* 5. 놀이방 (8물결): 산책 중 바깥이 보이는 동안 #btn-door = 장면 오른쪽 아래 픽셀 문 단추(data-spot edge) → 놀이방 → 오락기 → 달리기 창을 연 채로 산책이 끝까지 ·
+  /* 5. 놀이방 (8물결): 산책 중 바깥이 보이는 동안 #btn-door = 장면 왼쪽 아래 픽셀 집 단추(data-spot edge, 주인 11-08 밤) → 놀이방 → 오락기 → 달리기 창을 연 채로 산책이 끝까지 ·
         문 소리 훅 open · close (놀이방) · 잠들 때 반응 훅 (D-1) · 창을 닫으면 오락기로 포커스 · 놀이방 그대로 · 구석 쪽지 → 보러 가기 → 다락 (포커스는 다락 문) */
   await page.evaluate(function () { window.__aud.length = 0; });
   await page.click('#btn-go');
   await page.waitForFunction(function () { var d = document.getElementById('btn-door'); return APP.oct.state === 'away' && APP.scene.view() === 'exterior' && !d.hidden && d.dataset.spot === 'edge'; }, null, { timeout: 30000 });
   var r0 = await page.evaluate(function () { return document.querySelectorAll('#log .lrow').length; });
-  var ed = await page.evaluate(function () { var d = document.getElementById('btn-door'), r = d.getBoundingClientRect(), sc = document.getElementById('scene').getBoundingClientRect(), q = d.querySelector('.door-box').getBoundingClientRect(); return { w: r.width, h: r.height, edge: sc.right - r.right < 8 && r.bottom <= sc.bottom + 0.5, box: q.width, img: d.querySelector('img.door-ico').naturalWidth === 16 }; });
-  ok(ed.w >= 44 && ed.h >= 44 && ed.edge && ed.box >= 30 && ed.img, '산책 중 바깥이 보이는 동안: 놀이방 문은 장면 오른쪽 아래 픽셀 문 단추 (44px · 16×16 그림) ' + JSON.stringify(ed));
-  var av = await page.evaluate(function () { var q = document.querySelector('#btn-door .door-box').getBoundingClientRect(); return { door: UIART.avoidCtl({ left: q.left - 100, right: q.left + 10, top: q.top + 2, bottom: q.bottom - 2 }, 4), clear: UIART.avoidCtl({ left: q.left - 120, right: q.left - 5, top: q.top, bottom: q.bottom }, 4) }; });
-  ok(Math.round(av.door) === -14 && av.clear === 0, '말풍선 ↔ 바깥의 놀이방 문 단추: 겹치면 문 상자 왼쪽 4px 까지 비킴 ' + JSON.stringify(av));
+  var ed = await page.evaluate(function () {
+    var d = document.getElementById('btn-door'), r = d.getBoundingClientRect(), sc = document.getElementById('scene'), s = sc.getBoundingClientRect(), cs = getComputedStyle(sc), q = d.querySelector('.door-box').getBoundingClientRect(), g = document.querySelector('#scene-ctl .icon-btn:not([hidden]) .snd-box').getBoundingClientRect();
+    var gap = [q.left - s.left - parseFloat(cs.borderLeftWidth), s.bottom - parseFloat(cs.borderBottomWidth) - q.bottom], gear = [s.right - parseFloat(cs.borderRightWidth) - g.right, g.top - s.top - parseFloat(cs.borderTopWidth)];
+    return { w: r.width, h: r.height, corner: r.right < s.left + s.width / 2 && r.top > s.top + s.height / 2, gap: gap.map(Math.round), gear: gear.map(Math.round), box: q.width, img: d.querySelector('img.door-ico').naturalWidth === 16, icon: d.querySelector('img.door-ico').getAttribute('data-icon') };
+  });
+  ok(ed.w >= 44 && ed.h >= 44 && ed.corner && Math.abs(ed.gap[0] - ed.gear[0]) <= 1 && Math.abs(ed.gap[1] - ed.gear[1]) <= 1 && ed.box >= 30 && ed.img && ed.icon === 'ctl/home', '산책 중 바깥이 보이는 동안: 놀이방 가는 단추는 장면 왼쪽 아래 빨간 지붕 집 (44px · 16×16 그림 · 틀에서 설정 아이콘과 같은 간격) ' + JSON.stringify(ed));
+  var av = await page.evaluate(function () { var q = document.querySelector('#btn-door .door-box').getBoundingClientRect(); return { door: UIART.avoidCtl({ left: q.right - 10, right: q.right + 100, top: q.top + 2, bottom: q.bottom - 2 }, 4), clear: UIART.avoidCtl({ left: q.right + 5, right: q.right + 120, top: q.top, bottom: q.bottom }, 4) }; });
+  ok(Math.round(av.door) === 14 && av.clear === 0, '말풍선 ↔ 바깥의 집 단추 (왼쪽 아래): 겹치면 상자 오른쪽 4px 까지 비킴 ' + JSON.stringify(av));
   await page.click('#btn-door');
   await page.waitForFunction(function () { var m = document.getElementById('btn-machine'); return APP.scene.view() === 'play' && m && !m.hidden; }, null, { timeout: 20000 });
   var d0 = await page.evaluate(function () { return { running: APP.state.trips.some(function (t) { return t.status === 'running'; }), door: window.__aud.filter(function (a) { return a.n === 'door'; }).map(function (a) { return a.d.act + ':' + a.d.room; }), focus: document.activeElement && document.activeElement.id, place: APP.scene.place() }; });
@@ -1830,10 +1834,10 @@ async function scenarioWave8(browser) {
   var g1 = await page.evaluate(function () { return { ev: window.__ev.map(function (e) { return e.n + ':' + e.act + '@' + e.view; }), view: APP.scene.view(), room: APP.scene.room() }; });
   ok(g1.ev.slice(0, 2).join() === 'door:open@play,door:close@attic' && !g1.room && g1.view !== 'play', '놀이방에서 큰 버튼 → 먼저 문으로 다락 (문 소리 open · close) → 출발 ' + JSON.stringify(g1.ev));
 
-  /* 6. 산책 중: 바깥이 보이는 동안 문 단추(오른쪽 아래) → 놀이방. 로그 행이 쌓이고, 화면은 끌려 나가지 않는다 → 문어가 돌아오면 구석 쪽지 */
+  /* 6. 산책 중: 바깥이 보이는 동안 집 단추(왼쪽 아래) → 놀이방. 로그 행이 쌓이고, 화면은 끌려 나가지 않는다 → 문어가 돌아오면 구석 쪽지 */
   await page.waitForFunction(function () { var d = document.getElementById('btn-door'); return APP.scene.view() === 'exterior' && !d.hidden && d.dataset.spot === 'edge'; }, null, { timeout: 30000 });
   var e0 = await spots();
-  ok(e0.door.spot === 'edge' && e0.door.w >= 44 && e0.door.h >= 44 && e0.door.inside && !e0.door.ctl, '산책 중 바깥: 놀이방 문 단추는 장면 오른쪽 아래 (44px · 오른쪽 위 묶음과 안 겹침)');
+  ok(e0.door.spot === 'edge' && e0.door.w >= 44 && e0.door.h >= 44 && e0.door.inside && !e0.door.ctl, '산책 중 바깥: 놀이방 가는 집 단추는 장면 왼쪽 아래 (44px · 오른쪽 위 묶음과 안 겹침)');
   await page.locator('#scene').screenshot({ path: path.join(SHOTS, 'w8-exterior-door.png') });
   await page.click('#btn-door'); await inPlay();
   var w0 = await page.evaluate(function () {
@@ -2375,7 +2379,7 @@ async function scenarioGlyphs(browser) {
   await page.click('#rn-stop'); await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
   await page.waitForTimeout(200); await scan('놀이방 (달리기를 닫음 · 오락기 포커스)');
   await clickSpot(page, '#btn-play-door'); await inAttic(); await scan('놀이방에서 문어 방으로');
-  /* 8b. 산책 중 놀이방: 바깥이 보이는 동안 장면 오른쪽 아래 문 단추 → 놀이방 → 문어가 돌아오면 구석 쪽지 → 보러 가기 (scan 이 상태마다 두 테마를 다 본다) */
+  /* 8b. 산책 중 놀이방: 바깥이 보이는 동안 장면 왼쪽 아래 집 단추 → 놀이방 → 문어가 돌아오면 구석 쪽지 → 보러 가기 (scan 이 상태마다 두 테마를 다 본다) */
   for (var nf of ['pixel']) {
     await page.click('#btn-go');
     await page.waitForFunction(function () { var d = document.getElementById('btn-door'); return APP.scene.view() === 'exterior' && !d.hidden && d.dataset.spot === 'edge'; }, null, { timeout: 30000 });

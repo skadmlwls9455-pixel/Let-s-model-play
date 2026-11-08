@@ -1007,10 +1007,11 @@ button.pips::before { content: ''; position: absolute; inset: -12px -4px; }   /*
 @media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .tip { transition: none; transform: none; } }
 :root[data-motion="reduce"] .tip { transition: none; transform: none; }
 
-/* 2) 놀이방 문 (임시, 장면 오른쪽 아래 끝): 누르는 곳 44×44 · 보이는 상자 36×36 · 그림 16×16 ×2 (그림이 안 오면 글자 '문' — 이모지 없음). 문어가 나가 있어도 누를 수 있다.
+/* 2) 놀이방 가는 단추 (산책 중 바깥이 보이는 동안, 장면 왼쪽 아래): 누르는 곳 44×44 · 보이는 상자 36×36 · 그림 16×16 ×2 빨간 지붕 집 (그림이 안 오면 글자 '집' — 이모지 없음). 문어가 나가 있어도 누를 수 있다.
+      주인 11-08 밤: 오른쪽 아래 끝은 문어가 나가는 길목이라 집에 들어가는 단추로 어색하고, 틀에 딱 붙어 있어 이상했다 → 왼쪽 아래 · 보이는 상자가 틀에서 설정 아이콘과 같은 간격 (left/bottom 4px + 상자 안 여백 4px = 8px).
       말풍선이 겹치면 아이콘 묶음처럼 비켜 서고(js/ui-art.js avoidCtl), 그래도 겹치면 말풍선이 보이는 동안 숨는다 (.yield — 규칙은 위 아이콘 묶음 블록) */
 .scene-door {
-  position: absolute; right: 0; bottom: 0; z-index: 10; width: 44px; height: 44px; margin: 0; padding: 0; border: 0; background: none;
+  position: absolute; left: 4px; bottom: 4px; z-index: 10; width: 44px; height: 44px; margin: 0; padding: 0; border: 0; background: none;
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   transition: opacity var(--t-ui) var(--ease-enter);
 }
