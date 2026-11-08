@@ -51,7 +51,7 @@ async function unit() {
   section('산책 왕복 · status 정직');
   var d = keep('ppolppol_depart', o.depart({ hint: '모자의 역사' }));
   var libAll = Object.keys(d.library).map(function (k) { return d.library[k]; }).join(', ').split(', ');
-  check(d.tripId && libAll.length > 50 && !libAll.some(function (x) { return /^door_out /.test(x); }), 'depart: 모퉁이별 library 한 줄 (밖의 문 제외)');
+  check(d.tripId && libAll.length === 16 && !libAll.some(function (x) { return /^door_out /.test(x); }), 'depart: 모퉁이별 library 한 줄 (밖의 문 제외)');
   check(!('hint' in d) && o.S.running.events[0].hint === '' && o.S.running.events[0].followHint === false, '힌트는 받지 않는다 (결정 18) — 넣어도 이벤트 hint 는 빈 글');
   check(o.depart({}).error, '나가 있는 동안 depart 두 번은 오류 (finish 로 끝내라고 안내)');
   var again = await o.go({});
@@ -94,6 +94,11 @@ async function unit() {
   check(rp.posterHung === true && rp.reactionBy !== 'demo-rules', 'replay: 포스터 걸림, 반응을 데모가 대신 고르지 않음');
   check(rp.receipt.stops[0].noteBy === 'model', 'replay: 기웃 메모 noteBy model');
 
+  section('오늘 열린 방 — 날짜로 정해진다');
+  var lib1 = o.library(), libAll1 = Object.keys(lib1).map(function (k) { return lib1[k]; }).join(', ').split(', ');
+  check(libAll1.length === 16 && JSON.stringify(o.library()) === JSON.stringify(lib1), '모퉁이마다 2개 · 같은 날은 같다');
+  var oNext = new core.Octopus({ dir: tmp(), fetchWiki: stubWiki, now: function () { return new Date(clock + 86400000); } });
+  check(JSON.stringify(oNext.library()) !== JSON.stringify(lib1), '다음 날은 바뀐다');
   section('구조 — first 로 나가며 바로 기웃 · more · tripId 생략');
   var g = await o.go({ first: { kind: 'wiki', title: '모자' } });
   check(g.tripId && g.peek && g.peek.status === 'read' && g.peek.material.length <= 160, 'depart first: 왕복 한 번에 첫 기웃');

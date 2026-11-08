@@ -228,11 +228,26 @@ Octopus.prototype.depart = function (a) {
   return out;
 };
 
-/* 도서관 방 목록 — 모퉁이별 한 줄 ('id 이름', * 엉뚱한 방). 토큰을 아끼려고 객체 배열 대신 글 한 줄 */
+/* 오늘 열린 방 — 모퉁이마다 OPEN_PER_CORNER 개, 날짜로 정해진다 (날씨처럼 그날은 같고 날마다 바뀐다).
+   주제를 시키지 않는다: 보이는 방만 바뀐다. 목록에 없는 방 id 나 아무 위키 문서로 가는 길은 그대로 열려 있다 */
+var OPEN_PER_CORNER = 2;
+Octopus.prototype.openRooms = function () {
+  var r = BRAIN.rng(BRAIN.hashSeed('open-rooms', this.dateKey())), groups = {};
+  Object.keys(WORLD.nodes).sort().forEach(function (id) { if (id !== 'door_out') (groups[WORLD.nodes[id].corner] = groups[WORLD.nodes[id].corner] || []).push(id); });
+  var open = {};
+  Object.keys(groups).sort().forEach(function (c) {
+    var ids = groups[c].slice();
+    for (var i = ids.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), t = ids[i]; ids[i] = ids[j]; ids[j] = t; }
+    ids.slice(0, OPEN_PER_CORNER).forEach(function (id) { open[id] = 1; });
+  });
+  return open;
+};
+
+/* 도서관 방 목록 — 오늘 열린 방만, 모퉁이별 한 줄 ('id 이름', * 엉뚱한 방) */
 Octopus.prototype.library = function () {
-  var v = this.S.visits, by = {};
+  var by = {}, open = this.openRooms();
   Object.keys(WORLD.nodes).forEach(function (id) {
-    if (id === 'door_out') return;
+    if (id === 'door_out' || !open[id]) return;
     var n = WORLD.nodes[id], c = WORLD.corners[n.corner], key = n.corner + (c && c.name ? ' ' + c.name : '');
     (by[key] = by[key] || []).push(id + ' ' + n.name + (n.odd ? '*' : ''));   /* 가 본 횟수는 싣지 않는다 — 다닌 길이 눈에 띄면 그쪽으로 끈다. 처음인지는 peek 의 first 로 안다 */
   });
