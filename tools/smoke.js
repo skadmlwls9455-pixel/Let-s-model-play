@@ -1566,8 +1566,8 @@ async function scenarioWave7(browser) {
   });
   console.log('   parts click:', JSON.stringify(pc));
   ok(pc.saved.hair === 'long' && pc.saved.eyeColor === 'sea' && pc.saved.eyes === 'smile' && pc.saved.hairColor === 'blonde' && pc.stored && pc.stored.hair === 'long' && pc.stored.eyeColor === 'sea' && pc.stored.eyes === 'smile',
-    '내 모습: 긴생머리 · 바다색 눈 · 웃는눈 칩 → settings.player 에 저장 (localStorage ppolppol_v2) · 안 누른 줄은 그대로');
-  ok(pc.on.join() === 'long,sea,smile,blonde' && pc.ons === 7 && /눈 색이 안 보여/.test(pc.eyeNote), '내 모습: 누른 칩만 켜짐 (줄마다 하나, 전체 7) · 웃는눈이면 눈 색 안내 한 줄 ' + JSON.stringify(pc.on));
+    '내 모습: 긴생머리 · 바다색 눈 · 웃는 눈 칩 → settings.player 에 저장 (localStorage ppolppol_v2) · 안 누른 줄은 그대로');
+  ok(pc.on.join() === 'long,sea,smile,blonde' && pc.ons === 7 && /눈 색이 안 보여/.test(pc.eyeNote), '내 모습: 누른 칩만 켜짐 (줄마다 하나, 전체 7) · 웃는 눈이면 눈 색 안내 한 줄 ' + JSON.stringify(pc.on));
   if (pp.mode === '3d' && pc.setFn === 'function') ok(pc.look && pc.look.hair === 'long' && pc.look.eyeColor === 'sea' && pc.look.eyes === 'smile', '내 모습 (3D): scene.player().look 이 고른 대로 ' + JSON.stringify(pc.look));
   else console.log('   (skip) scene.setPlayer 없음 (' + pp.mode + ' · ' + pc.setFn + ') → look 검사 건너뜀');
   /* 새로고침 = 같은 저장소를 읽는 새 탭: 고른 모습이 그대로 · 장면도 그 모습으로 시작 (3D + player().look 이 있을 때) */
