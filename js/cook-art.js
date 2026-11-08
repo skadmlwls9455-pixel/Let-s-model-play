@@ -45,7 +45,8 @@
  *                      arc: null | { f: 0..3, lift: 1..3 (the flip event's level; > 3 = art px) }, herb, dents,
  *                      spatula: undefined (rest pose) | null (hidden) | [x, y] art px (blade centre, follows the hand),
  *                      arrow: null | 0 | 1 (bob frame; drawn above the spatula), bump (1-frame hop), flash, still, f }
- *                      before the flip the raw side is up and its rim shows the band; after it the cooked face is up.
+ *                      heat off: the raw batter palette (nothing browns yet); heat on, before the flip: the raw side is
+ *                      up and its rim shows the band; after the flip the cooked face is up.
  *                      arc frames: 0 tilt (raw side), 1 edge-on, 2 tilt (cooked side), 3 landing squash.
  *   sliceScene(b, o)   board + cooked jeon. o = { band (the flip look), herb, dents, lines (st.lines: { ax, ay, bx, by, bins,
  *                      cut, ang } logical, or { x, y, deg, len, cells, cut, cutDeg } art px), cur | guide (lit line index,
@@ -56,7 +57,9 @@
  *   revealScene(b, o)  o = { look, herb, f 0..5 }: the plate rises 2 px per frame (6 frames at 12 fps), f >= 5 = at rest.
  *   frame(b)           2-art-px stage frame (the scenes already call it last).
  * PIECES   pan(b, P) panHeat(b, P, f) (P = PAN_STEP | PAN_COUNTER) board(b, x, y, w, h, small, handle) batter(b, o)
- *          marks(b, list, f) jeon(b, { cx, cy, rx, ry, face: 'top' | 'bottom', band, herb, dents, cuts, flash })
+ *          marks(b, list, f) (each mark stays a whole ring: arcs still wanted amber, arcs already hit sunk in)
+ *          jeon(b, { cx, cy, rx, ry, face: 'raw' | 'top' | 'bottom', band, herb, dents, cuts, flash })
+ *          dents: hits within 3 px are one round dimple that grows with its count; herbs: wavy strands + clumps
  *          bubbles(b, list, f, still) spatula(b, x, y) arrow(b, x, y, f) guide(b, x, y, deg, len, f, cells)
  *          knife(b, x, y, deg) (x, y = edge point under the finger; handle always to the right / below)
  *          plate(b, color, o) dish(b, look, o) (o = { herb, x, y }; GEO.dish 96 x 66, centred in b unless x / y given)
@@ -466,7 +469,8 @@ var COOK_ART = (function () {
      parae = bright green ramp, tot = the dark ramp. Positions are in 1/64 of the radius (inside 0.8). */
   var STRAND = [
     [-44, -14, 0], [-20, -38, 1], [8, -30, 2], [34, -20, 3], [-52, 10, 4], [-28, 4, 2], [-4, -10, 0], [18, 8, 1], [42, 4, 4],
-    [-36, 30, 3], [-8, 24, 4], [16, 34, 0], [30, -40, 1], [-24, -24, 3], [2, 44, 2], [48, 22, 0]];
+    [-36, 30, 3], [-8, 24, 4], [16, 34, 0], [30, -40, 1], [-24, -24, 3], [2, 44, 2], [48, 22, 0], [-14, 40, 1], [36, 32, 2],
+    [-44, -20, 0], [24, -14, 3]];
   var STRAND_G = [
     [[0, 0], [1, 0], [2, -1], [3, -1]], [[0, 0], [1, 1], [2, 1], [3, 2]], [[0, 0], [0, 1], [1, 2], [1, 3]],
     [[0, 0], [1, -1], [2, -1], [3, 0], [4, 0]], [[0, 0], [1, 0], [2, 1], [3, 1], [4, 2]]];
@@ -646,7 +650,7 @@ var COOK_ART = (function () {
           blob(b, bx, by, q[2], n % 3 === 2 ? F.pale : F.brown, clip);
         });
       }
-      flecks(b, cx, cy, rx, ry, o.herb, !top, clip, o.herb === 'tot' ? 11 : 16);
+      flecks(b, cx, cy, rx, ry, o.herb, !top, clip, rx < 16 ? (o.herb === 'tot' ? 11 : 16) : STRAND.length);
       dents(b, (o.dents || []).map(function (d) { return [cx + (d[0] | 0), cy + (d[1] | 0)]; }), top ? C.w5 : F.pit, top ? C.w4 : F.pitD, top ? C.s6 : F.lite, clip);
     }
     if (crisp) lace.forEach(function (q) { put(b, q[0], q[1], F.lace); });
