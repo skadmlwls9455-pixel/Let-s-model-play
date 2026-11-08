@@ -95,6 +95,36 @@ async function unit() {
   check(rp.posterHung === true && rp.reactionBy !== 'demo-rules', 'replay: 포스터 걸림, 반응을 데모가 대신 고르지 않음');
   check(rp.receipt.stops[0].noteBy === 'model', 'replay: 기웃 메모 noteBy model');
 
+  section('뽈뽈 도서관 — library/books');
+  var bdir = tmp();
+  var longText = '문어의 신경세포는 약 5억 개이고 그중 3분의 2가 다리에 있다고 알려져 있다. '.repeat(12).trim();
+  fs.writeFileSync(path.join(bdir, 'octopus_nerves.md'), '---\nroom: octopus_nerves\ntitle: 다리가 생각하는 동물\nby: 이 방 주인\nwritten: 2026-11-10\n---\n' + longText + '\n');
+  fs.writeFileSync(path.join(bdir, 'hat.md'), '---\nroom: hat\ntitle: 모자\nby: 이 방 주인\n---\n모자는 아주 오래전부터 머리를 가리는 데 썼다. 너는 이걸 좋아하게 될 거야.\n');
+  fs.writeFileSync(path.join(bdir, 'nobody.md'), '---\nroom: tide\n---\n쓴 사람이 없는 책\n');
+  fs.writeFileSync(path.join(bdir, 'ghost.md'), '---\nroom: no_such_room\nby: 누구\n---\n없는 방\n');
+  fs.writeFileSync(path.join(bdir, '_template.md'), '---\nroom: 방id\n---\n틀\n');
+  var ob = new core.Octopus({ dir: tmp(), booksDir: bdir, fetchWiki: stubWiki, now: function () { return new Date(clock); } });
+  check(Object.keys(ob.books).sort().join() === 'hat,octopus_nerves', '책 2권만 (by 없음·없는 방·_틀 은 건너뜀)');
+  check(ob.bookErrors.length === 2 && ob.bookErrors.some(function (e) { return /by/.test(e); }) && ob.bookErrors.some(function (e) { return /no_such_room/.test(e); }), '건너뛴 이유가 남는다');
+  ob.depart({});
+  var pb = await ob.peek({ target: { kind: 'room', id: 'octopus_nerves' } });
+  check(pb.status === 'builtin' && pb.book && pb.book.by === '이 방 주인' && pb.book.title === '다리가 생각하는 동물', '책이 있는 방: status builtin + book (누가 썼는지와 함께)');
+  check(pb.book.more === true && pb.book.text.length === core.BOOK_HEAD + 1, '긴 책은 앞 500자 + … , more 표시');
+  var pbm = await ob.peek({ target: { kind: 'room', id: 'octopus_nerves' }, more: true });
+  check(pbm.book.text === longText && !pbm.book.more, 'more 면 책 전부');
+  var ph = await ob.peek({ target: { kind: 'room', id: 'hat' } });
+  check(ph.book && ph.wiki === '모자' && ph.status === 'builtin', '위키가 있는 방이면 위키로 가는 길 (wiki) 도 같이');
+  var evb = ob.S.running.events.filter(function (e) { return e.type === 'peek'; });
+  check(evb[0].book && evb[0].book.room === 'octopus_nerves' && evb[0].status === 'builtin', '기록: peek.book {room, by}');
+  var fb = ob.finish({});
+  var evbs = JSON.parse(fs.readFileSync(path.join(ob.outDir, path.basename(fb.saved)), 'utf8'));
+  var rpb = BRAIN.replay(evbs, { by: 'mcp', dateKey: '2026-11-08', seq: 1, name: '뚜루', now: new Date(clock), state: {} });
+  check(rpb && rpb.receipt.stops.length === 3 && rpb.receipt.stops.every(function (x) { return x.status === 'builtin'; }), '책 산책도 게임 두뇌로 재생된다');
+  var big = core.parseBook('---\nroom: hat\nby: 누구\n---\n' + 'ㄱ'.repeat(core.BOOK_MAX + 1), 'big.md');
+  check(big.error && /이하/.test(big.error), '1200자 넘으면 오류');
+  var lint = cp.spawnSync(process.execPath, [path.join(__dirname, '..', 'tools', 'check-books.js'), bdir], { encoding: 'utf8' });
+  check(/문어에게 말 걸기/.test(lint.stdout) && /느낄 것 정해 주기/.test(lint.stdout) && lint.status === 1, 'check-books: 말 걸기·느낌 정해 주기 경고, 깨진 책은 오류');
+
   section('오늘 열린 방 — 날짜로 정해진다');
   var lib1 = o.library(), libAll1 = Object.keys(lib1).map(function (k) { return lib1[k]; }).join(', ').split(', ');
   check(libAll1.length === 16 && JSON.stringify(o.library()) === JSON.stringify(lib1), '모퉁이마다 2개 · 같은 날은 같다');

@@ -41,6 +41,10 @@ cd mcp && npm install
 
 **토큰 (11-09 구조 고침)**: 커넥터를 켜 두면 도구 정의와 instructions 는 뽈뽈을 안 하는 대화에도 실린다. 그래서 설명은 짧게 두고, 뜻은 instructions 에 한 번만 적었다. 도구 정의는 6,471 → 4,983 B, instructions 는 1,296 → 1,031 B 로 줄었다가, 11-09 복지 점검에서 사실 고지 두 줄을 더해 1,372 B 가 됐다 (`npm test` 가 5,000 B 를 넘으면 실패한다). 산책 한 번의 비용은 턴 수를 따라간다. 그래서 `depart` 의 `first` 로 왕복 하나를 줄이고, `depart` 결과도 3,491 → 1,357 B 로 줄였다. 더 읽는 비용은 모델이 `more` 를 고를 때만 든다. `wrap_up.memo` 는 `tomorrow` 한 칸으로 받는다 (core 는 옛 `memo:{tomorrow,notes}`·`note:{text,about}` 도 받는다).
 
+### 뽈뽈 도서관 (11-09)
+
+방에 사람이 쓴 책 (`library/books/<방id>.md`) 이 있으면 `peek` 는 위키 대신 그 책을 읽는다. 결과는 `status:'builtin'` 과 `book {title, by, text}` 다. 앞 500자를 주고, 나머지는 `more` 로 준다 (책은 1,200자 이하). 쓴 사람 (`by`) 은 늘 같이 간다. 위키가 있는 방이면 `wiki` 제목도 같이 줘서 위키로도 갈 수 있다. 기록에는 `peek.book {room, by}` 가 남는다. 쓰는 법·점검은 [library/README.md](../library/README.md) (`npm run check-books` · `npm run echo-check`). 환경 변수 `PPOLPPOL_BOOKS` 로 폴더를 바꿀 수 있다.
+
 ### status — 거짓 성공 금지
 
 | target | 서버가 하는 일 | status |

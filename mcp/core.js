@@ -51,12 +51,43 @@ function cleanSource(r) {
   return { url: r.url, extract: String(r.extract || '').slice(0, 160), thumb: th, license: 'CC BY-SA 4.0', attribution: 'Wikipedia (ko)' };
 }
 
+/* ───── 뽈뽈 도서관 (library/books/<방id>.md) ─────
+   사람이 쓴 짧은 책. 방에 책이 있으면 위키 대신 그 책을 읽는다 (네트워크 없음 · 크기 고정).
+   책은 '자료' 다: 누가 썼는지 (by) 를 늘 같이 보낸다. 쓴 사람의 글은 고치지 않는다 */
+var BOOK_HEAD = 500, BOOK_MAX = 1200;
+function parseBook(txt, file) {
+  var m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(String(txt).replace(/\r\n/g, '\n'));
+  if (!m) return { error: file + ': 맨 위 --- 머리말이 없다' };
+  var meta = {};
+  m[1].split('\n').forEach(function (l) { var k = /^([a-z]+):\s*(.*)$/.exec(l.trim()); if (k) meta[k[1]] = k[2].trim(); });
+  var body = m[2].trim();
+  if (!meta.room) return { error: file + ': room 이 없다' };
+  if (!meta.by) return { error: file + ': by (쓴 사람) 가 없다' };
+  if (!body) return { error: file + ': 본문이 비었다' };
+  if (body.length > BOOK_MAX) return { error: file + ': 본문이 ' + body.length + '자 — ' + BOOK_MAX + '자 이하로' };
+  return { room: meta.room, title: meta.title || null, by: meta.by, written: meta.written || null, sources: meta.sources || null, text: body };
+}
+function loadBooks(dir) {
+  var books = {}, errors = [];
+  var files = []; try { files = fs.readdirSync(dir).filter(function (f) { return /\.md$/.test(f) && f[0] !== '_'; }); } catch (e) { return { books: books, errors: errors }; }
+  files.forEach(function (f) {
+    var b = parseBook(fs.readFileSync(path.join(dir, f), 'utf8'), f);
+    if (b.error) errors.push(b.error);
+    else if (!WORLD.nodes[b.room] || b.room === 'door_out') errors.push(f + ': 그런 방 (' + b.room + ') 이 없다');
+    else if (books[b.room]) errors.push(f + ': ' + b.room + ' 방에 책이 이미 있다');
+    else books[b.room] = b;
+  });
+  return { books: books, errors: errors };
+}
+
 function Octopus(opts) {
   opts = opts || {};
   this.dir = opts.dir || __dirname;
   this.statePath = opts.statePath || path.join(this.dir, 'state.json');
   this.outDir = opts.outDir || path.join(this.dir, 'out');
   this.fetchWiki = opts.fetchWiki || wikiFetch;
+  var lb = loadBooks(opts.booksDir || path.join(__dirname, '..', 'library', 'books'));
+  this.books = lb.books; this.bookErrors = lb.errors;   /* 깨진 책은 건너뛴다 (서버는 뜬다). 고칠 곳은 check-books 가 알려 준다 */
   this.now = opts.now || function () { return new Date(); };
   this.model = opts.model || null;          /* 알 때만 (PPOLPPOL_MODEL) */
   this.name = opts.name || null;            /* 사람이 지어 준 이름 (PPOLPPOL_NAME). 없으면 넣지 않는다 */
@@ -146,6 +177,7 @@ Octopus.prototype.talkRecord = function (sit, o) {
   if (o.by === 'model' && this.model) e.model = this.model;
   if (o.action) e.action = o.action;
   if (sit.q) e.q = sit.q;
+  if (sit.tripId) e.tripId = sit.tripId;   /* 어느 산책 뒤의 대화인지 (echo-check 가 잇는다) */
   if (sit.point === 'table') e.offer = sit.offer;
   e.text = o.text == null ? null : o.text;
   if (o.expr) e.expr = o.expr;
@@ -275,7 +307,9 @@ Octopus.prototype.peek = async function (a) {
     node = W.nodes[tg.id];
     if (!node || tg.id === 'door_out') return { error: '그런 방 id 는 없어. depart 의 library 에서 고르거나, { kind: "wiki", title } 로 들판에 가도 돼.' };
     target = { kind: 'room', id: node.id, title: node.name, wiki: node.wiki || null };
-    if (isNoneNode(node)) status = 'none';
+    var book = this.books[node.id];
+    if (isNoneNode(node) && !book) status = 'none';
+    else if (book) { status = 'builtin'; }   /* 이 방 책장의 책을 읽었다. 기록 status 는 PROTOCOL 다섯 값 안의 builtin (제안: 'book') */
     else {
       var r = node.wiki ? await this.fetchWiki(node.wiki, { timeoutMs: 6000, sentences: a.more ? 6 : 2 }) : { ok: false, reason: 'no_wiki' };
       src = cleanSource(r);
@@ -303,6 +337,7 @@ Octopus.prototype.peek = async function (a) {
   if (str(a.aside)) ev.aside = a.aside;
   if (str(a.bridge)) { ev.bridge = a.bridge; ev.viaTangent = true; }
   if (src) ev.source = src;
+  if (book) ev.book = { room: node.id, by: book.by };   /* 무엇을 읽었는지 기록 (게임은 모르는 칸을 건너뛴다) */
   trip.lastT = t;
   trip.events.push(ev);
   trip.stops.push({ title: target.title || target.url, id: node ? node.id : null, status: status });
@@ -314,6 +349,12 @@ Octopus.prototype.peek = async function (a) {
   /* 기록 (source.extract) 은 늘 160자. 모델에게는 more 일 때만 더 길게 (≤600자) */
   if (src) { out.material = a.more ? String(raw.extract || '').slice(0, 600) : src.extract; out.source = src.url; }
   if (clue) out.clue = clue;
+  if (book) {
+    var cut = !a.more && book.text.length > BOOK_HEAD;
+    out.book = { title: book.title || node.name, by: book.by, text: cut ? book.text.slice(0, BOOK_HEAD) + '…' : book.text };
+    if (cut) out.book.more = true;   /* 나머지는 more 로 */
+    if (node.wiki) out.wiki = node.wiki;   /* 위키로도 갈 수 있다: {kind:'wiki', title} */
+  }
   if (node) { out.first = visits === 0; if (visits) out.visits = visits; }
   if (node && node.tangents && node.tangents.length) out.nearby = node.tangents.map(function (x) { return { id: x.to, bridge: x.bridge }; });
   if (links && links.length) out.links = links.slice(0, 8);
@@ -436,4 +477,4 @@ Octopus.prototype.answer = function (a) {
   return withDecision({ ok: true }, next);
 };
 
-module.exports = { Octopus: Octopus, FIXED_SENTENCE: FIXED_SENTENCE, NOTES_HEAD: NOTES_HEAD, wikiFetch: wikiFetch, MENU: MENU };
+module.exports = { parseBook: parseBook, loadBooks: loadBooks, BOOK_HEAD: BOOK_HEAD, BOOK_MAX: BOOK_MAX, Octopus: Octopus, FIXED_SENTENCE: FIXED_SENTENCE, NOTES_HEAD: NOTES_HEAD, wikiFetch: wikiFetch, MENU: MENU };
