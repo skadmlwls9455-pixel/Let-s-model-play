@@ -288,6 +288,7 @@ var APP = (function () {
     if (!isObj(s.octopus.visits)) s.octopus.visits = {};
     s.room.lantern = clamp(s.room.lantern | 0, 0, 8);
     if (!/^#[0-9a-f]{6}$/i.test(s.settings.octColor || '')) s.settings.octColor = '#e8463c';
+    if (s.settings.claudeRoom != null && !(isObj(s.settings.claudeRoom) && /^[A-Za-z0-9_-]{32,64}$/.test(s.settings.claudeRoom.key || '') && /^https:\/\/[^\s"<>]+\/api\/mcp\/[A-Za-z0-9_-]{32,64}$/.test(s.settings.claudeRoom.mcp || ''))) s.settings.claudeRoom = null;
     if (PALETTES_UI.map(function (p) { return p[0]; }).indexOf(s.settings.palette) < 0) s.settings.palette = paletteDefault();
     return s;
   }
@@ -2190,6 +2191,70 @@ var APP = (function () {
     var reads = S.trips.reduce(function (n, t) { return n + ((t.receipt && t.receipt.counts && t.receipt.counts.read) | 0); }, 0);
     return '산책 ' + S.octopus.trips + ' · 함께한 날 ' + S.octopus.days.length + ' · 읽음 ' + reads;
   }
+  /* ───── 내 Claude 와 연결 (원격 뽈뽈 방 · mcp/http.js) ─────
+     방 열쇠는 서버가 만든다 (/api/room). 사람은 주소를 claude.ai 커넥터에 붙여 넣고, 문어가 대화에서 다녀온 산책은 /api/walks 로 가져와 재생한다 (고른 이: 모델).
+     열쇠는 이 기기 기록 (settings.claudeRoom) 에만. 연결 끊기는 이 기기에서 잊는 것이다 (서버의 방은 그대로 — 그렇다고 적는다) */
+  var CLAUDE_KEY_RE = /^[A-Za-z0-9_-]{32,64}$/;
+  function claudeRoom() { var r = S.settings.claudeRoom; return r && CLAUDE_KEY_RE.test(r.key || '') ? r : null; }
+  function claudeSection(frag) {
+    frag.appendChild(h('h3', { text: '내 Claude 와 연결' }));
+    var r = claudeRoom();
+    if (!r) {
+      frag.appendChild(h('p', { class: 'set-note', text: 'claude.ai (웹 · 모바일) 의 내 Claude 가 이 문어가 되어 산책해. 다녀온 산책은 여기서 재생돼.' }));
+      var mk = h('button', { type: 'button', class: 'btn sm pressable', id: 'set-claude-make', text: '연결할 방 만들기' });
+      mk.addEventListener('click', function () {
+        mk.disabled = true;
+        fetch('/api/room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: S.octopus.name || '' }) })
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .then(function (j) {
+            if (!j || !j.ok || !CLAUDE_KEY_RE.test(j.key || '')) { toast('지금은 방을 만들 수 없어. 조금 뒤에 다시 해 봐'); mk.disabled = false; return; }
+            S.settings.claudeRoom = { key: j.key, mcp: String(j.mcp || ''), last: null }; save(); renderSettings();
+          }).catch(function () { toast('지금은 방을 만들 수 없어 (연결 안 됨)'); mk.disabled = false; });
+      });
+      frag.appendChild(h('div', { class: 'btn-row' }, [mk]));
+      return;
+    }
+    var url = h('input', { type: 'text', id: 'set-claude-url', readonly: 'readonly', 'aria-label': '커넥터 주소' }); url.value = r.mcp;
+    var cp = h('button', { type: 'button', class: 'btn sm pressable', text: '주소 복사' });
+    cp.addEventListener('click', function () { copyText(r.mcp); });
+    frag.appendChild(h('p', { class: 'set-note', text: '커넥터 주소' }));
+    frag.appendChild(url);
+    frag.appendChild(h('p', { class: 'set-note', text: 'claude.ai › 설정 › 커넥터 › 커스텀 커넥터 추가에 이 주소를 붙여 넣어. 웹에서 한 번 넣으면 모바일 앱에서도 같이 써.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '이 주소를 아는 사람은 이 방에 들어올 수 있어. 남에게 보여 주지 마. 방에는 산책 기록과 메모만 있어.' }));
+    var sy = h('button', { type: 'button', class: 'btn sm pressable', text: '다녀온 산책 가져오기' });
+    sy.addEventListener('click', function () { claudeSync(true); });
+    var off = h('button', { type: 'button', class: 'btn sm pressable', text: '이 기기에서 연결 끊기' });
+    off.addEventListener('click', function () {
+      if (off.dataset.armed !== '1') { off.dataset.armed = '1'; off.textContent = '한 번 더 누르면 끊겨 (서버의 방은 남아)'; return; }
+      S.settings.claudeRoom = null; save(); renderSettings();
+    });
+    frag.appendChild(h('div', { class: 'btn-row' }, [cp, sy, off]));
+  }
+  /* 가져오기: 새 산책을 한 개씩 재생한다 (APP.importEvents 와 같은 길 · 고른 이: 모델). 바쁘면 기다린다 */
+  var claudeSyncing = false;
+  function claudeSync(manual) {
+    var r = claudeRoom(); if (!r || claudeSyncing) return;
+    claudeSyncing = true;
+    var q = r.last ? '?after=' + encodeURIComponent(r.last) : '';
+    fetch('/api/walks/' + encodeURIComponent(r.key) + q, { cache: 'no-store' })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (j) {
+        if (!j || !j.ok) { claudeSyncing = false; if (manual) toast('지금은 가져올 수 없어'); return; }
+        var list = (j.walks || []).filter(function (w) { return w && typeof w.file === 'string' && Array.isArray(w.events) && w.events.length; });
+        if (!list.length) { claudeSyncing = false; if (manual) toast('새로 다녀온 산책이 없어'); return; }
+        (function next() {
+          var w = list.shift();
+          if (!w) { claudeSyncing = false; if (j.more) setTimeout(function () { claudeSync(false); }, 800); return; }
+          (function tryImport() {
+            if (busy) return setTimeout(tryImport, 700);
+            var ok = importEvents(w.events);
+            r.last = w.file; save();   /* 재생에 실패한 기록도 다시 잡지 않게 넘긴다 (그대로 서버에 남아 있다) */
+            if (!ok) return next();
+            (function waitDone() { if (busy) return setTimeout(waitDone, 700); next(); })();
+          })();
+        })();
+      }).catch(function () { claudeSyncing = false; if (manual) toast('지금은 가져올 수 없어 (연결 안 됨)'); });
+  }
   function renderSettings() {
     var body = $('set-body'); if (!body) return;
     var frag = document.createDocumentFragment();
@@ -2220,6 +2285,7 @@ var APP = (function () {
     var cb = h('input', { type: 'checkbox', id: 'set-thumbs' }); cb.checked = S.settings.thumbs !== false;
     cb.addEventListener('change', function () { S.settings.thumbs = cb.checked; save(); renderWall(); renderAlbum(); });
     frag.appendChild(h('label', { class: 'set' }, [h('span', { text: '포스터 썸네일' }), cb]));
+    claudeSection(frag);   /* 내 Claude 와 연결 (원격 뽈뽈 방) */
     frag.appendChild(h('h3', { text: '기록' }));
     frag.appendChild(h('p', { class: 'set-stats', id: 'set-stats', text: statsLine() }));
     var file = h('input', { type: 'file', accept: 'application/json,.json', id: 'set-import' });
@@ -2686,7 +2752,8 @@ var APP = (function () {
       if (DEV) { if (uiPref().demoOpen) demoEl.open = true; demoEl.addEventListener('toggle', function () { setUiPref('demoOpen', demoEl.open); }); }
     }
     /* 탭을 떠날 때 저장 · 다른 탭이 저장하면 다시 그린다 (R4, R5) */
-    document.addEventListener('visibilitychange', function () { if (document.hidden && S.octopus.name) save(); else if (!document.hidden) checkDay(); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden && S.octopus.name) save(); else if (!document.hidden) { checkDay(); claudeSync(false); } });
+    setTimeout(function () { claudeSync(false); }, 2500);   /* 열 때 한 번: Claude 에서 다녀온 산책 (연결했을 때만) */
     window.addEventListener('storage', function (e) {
       if (e.key !== KEY || !e.newValue || e.newValue === lastSaved) return;
       if (!adoptRemote(e.newValue)) return;

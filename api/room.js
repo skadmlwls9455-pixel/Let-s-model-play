@@ -10,7 +10,7 @@ function send(res, status, obj) { res.statusCode = status; res.setHeader('Conten
 module.exports = async function room(req, res) {
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return send(res, 405, { ok: false, error: 'method' }); }
   var host = String(req.headers.host || ''), origin = req.headers.origin;
-  if (origin && origin !== 'https://' + host) return send(res, 403, { ok: false, error: 'origin' });
+  if (origin && (function () { try { return new URL(origin).host !== host; } catch (e) { return true; } })()) return send(res, 403, { ok: false, error: 'origin' });
   var ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
   var hour = new Date().toISOString().slice(0, 13), k = ip + '|' + hour, n = (made.get(k) || 0) + 1;
   made.set(k, n); if (made.size > 5000) made.clear();
