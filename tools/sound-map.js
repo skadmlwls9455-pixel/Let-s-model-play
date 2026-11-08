@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* tools/sound-map.js — 행동 → 실제로 재생된 소리 기록 (docs/PLAYTEST_FIXES.md "D. 소리"). 저장소를 http 로 띄우고 소리를 켠 채로 논다.
  *   node tools/sound-map.js [out.json]     → 단계마다 "한 일 → 난 소리 · 그때 BGM" 을 찍고, out.json 에 저장 (생략하면 찍기만)
- * 순서: 소리 켜기 → 문어 톡 → 꾹(쓰다듬기) → 창문 톡 → ⚙ 설정 열기/닫기 → 산책(외출 강제) → 포스터 열기/뒤집기/닫기 → 집에 있기(강제)
+ * 순서: 소리 켜기 (⚙ → 설정 › 소리 맨 위 '켜기' 체크 칸 → 닫기, 11-08 부터 장면 위 스피커는 없다) → 문어 톡 → 꾹(쓰다듬기) → 창문 톡 → ⚙ 설정 열기/닫기 → 산책(외출 강제) → 포스터 열기/뒤집기/닫기 → 집에 있기(강제)
  *       → 잠든 문어 톡 → 빈 차례(강제) → 건너뛰기(큰 버튼) → 놀이방 문(달리기) → 등불 8칸까지. 소리 id 는 AUDIO.state().played (시각으로 단계마다 자른다).
  * 주의: '잠든 문어 톡'은 시작 때 잡은 문어 좌표를 쓴다. 문어가 담요로 옮겨 갔으면 빗맞아 '(없음)'이 나올 수 있다.
  */
@@ -29,7 +29,7 @@ const OUT = []; let mark = 0;
   await p.addInitScript(() => { window.__ppolLook = undefined; });
   await p.goto(base);
   await p.waitForSelector('#name-dialog[open]'); await p.fill('#name-in', '뚜루'); await p.click('#name-form button[type=submit]'); await p.waitForTimeout(800);
-  await step('소리 켜기 (스피커 버튼)', () => p.click('#btn-sound'), 3000);
+  await step('소리 켜기 (설정 › 소리 체크 칸)', async () => { await p.click('#btn-settings'); await p.click('#set-sound'); await p.click('#set-close'); }, 3000);
   const oc = await p.evaluate(() => APP.scene.octScreenPos());
   await step('문어 톡', () => p.touchscreen.tap(oc.x, oc.y - 8));
   await step('문어 꾹 (쓰다듬기)', async () => { await p.mouse.move(oc.x, oc.y - 8); await p.mouse.down(); await p.waitForTimeout(600); await p.mouse.up(); }, 2500);

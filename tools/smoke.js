@@ -9,7 +9,7 @@
  *   P 플레이어 화면(?dev=0): 힌트 칸 없이 산책 한 번 · 출발 행·일기에 힌트 얘기 없음 (결정 18),
  *   L 추억 앨범 아이콘(장면 오른쪽 위 · 점 · 날아가는 포스터 · 320 px 이름) · 이름 창 정직 표기, N 호기심 메모(저장 → 다음 산책 입력 · 모델 메모 · 내려놓기),
  *   M 반응은 모델·사람이 준 그대로 (안 주면 없음 · 네 가지 밖의 말 · 코드 줄 없음),
- *   S 7물결(주인 11-07): 플레이어 화면에 '방 보기' 없음 · ⚙ 설정(문어 색 · 내 모습(11-08 파츠 v0) · 소리 · 화면 · 기록 · 누가 고르나) · 등불·데모 말풍선 · 큰 버튼 건너뛰기(두 번 톡 보호) ·
+ *   S 7물결(주인 11-07): 플레이어 화면에 '방 보기' 없음 · ⚙ 설정(문어 색 · 내 모습(11-08 파츠 v0) · 소리 · 화면 · 기록 · 누가 고르나) · 소리 켜기는 설정 › 소리 맨 위 '켜기' 체크 칸 (11-08 — 장면 위 스피커 없음) · 등불·데모 말풍선 · 큰 버튼 건너뛰기(두 번 톡 보호) ·
  *     놀이방 문 → (8물결) 놀이방 → 오락기 → 달리기 창이 열린 채로 산책이 끝까지 (문 소리 훅 · 잠들 때 반응 훅 · 구석 쪽지) · 자정 넘김 → 오늘 칸만 · 앨범(문어의 요즘 · 일기 탭: 지난 날, 새 날 먼저).
  *   J 8물결: 다락 안 놀이방 문(투명 단추) → 진짜 놀이방 · 오락기 → 달리기 · 키보드 왕복 · 산책 중 놀이방(끌려 나가지 않음 · 구석 쪽지 · 보러 가기) · 두뇌 입력 0 · 모션 줄이기 컷 · 새로고침 · 2D.
  *   SMOKE_ONLY=H,I node tools/smoke.js   # 그 시나리오만
@@ -878,7 +878,7 @@ async function scenario2D(browser) {
   console.log('   ember0:', JSON.stringify(ember0));
   ok(ember0 && ember0.n >= 3 && ember0.ints && ember0.crisp === 'crispEdges' && ember0.fills.every(function (f) { return ['#be772b', '#de9e41', '#e8c170'].indexOf(f) >= 0; }), '2D 등불 0칸: 등불 속 불씨 레이어 (정수 좌표 · crispEdges · Apollo 호박)');
   ok(ember0 && ember0.title === '불씨 하나 켜진 다락', "등불 0칸 방 제목 '불씨 하나 켜진 다락' (" + (ember0 && ember0.title) + ')');
-  ok(await page.evaluate(function () { function vis(id) { var e = document.getElementById(id), r = e && e.getBoundingClientRect(); return !!r && r.width >= 44 && r.height >= 44; } return vis('btn-settings') && vis('btn-door') && vis('btn-sound'); }), '2D 폴백에도 ⚙ 설정 · 놀이방 문 · 소리 (누르는 곳 44px)');
+  ok(await page.evaluate(function () { function vis(id) { var e = document.getElementById(id), r = e && e.getBoundingClientRect(); return !!r && r.width >= 44 && r.height >= 44; } return vis('btn-settings') && vis('btn-door') && !document.getElementById('btn-sound'); }), '2D 폴백에도 ⚙ 설정 · 놀이방 문 (누르는 곳 44px) · 장면 위 소리 단추 없음 (설정 안으로, 11-08)');
   await page.fill('#hint-in', '모자의 역사');
   await page.click('#btn-go');
   await skipAway(page);
@@ -1068,7 +1068,7 @@ async function scenarioPlayer(browser) {
   await s.ctx.close();
 }
 
-/* L. 추억 앨범 아이콘 (DESIGN §6.3 · §7.2): 앨범은 페이지 흐름에서 빠지고 장면 오른쪽 위 묶음(앨범 · 소리)의 아이콘으로 연다.
+/* L. 추억 앨범 아이콘 (DESIGN §6.3 · §7.2): 앨범은 페이지 흐름에서 빠지고 장면 오른쪽 위 묶음(앨범 · 설정)의 아이콘으로 연다.
    첫 화면 정직 표기(이름 창) · 첫 포스터 전엔 아이콘 숨김 · 산책 뒤 새 포스터 점(숫자 없음) + 아이콘으로 날아가는 포스터(≤0.6 s, 정수 px 계단) ·
    Enter 로 열기 · 포커스 · 필터 · 포스터 창 · Esc 로 닫으면 아이콘으로 포커스 · 열면 점 사라짐(새로고침 뒤에도) · 모션 줄이기면 날지 않고 점만 ·
    320–412 px 픽셀·시스템 테마에서 1–4 글자 이름이 안 잘리고 가로 스크롤 없음 */
@@ -1083,9 +1083,9 @@ async function scenarioAlbumIcon(browser) {
   ok(!(await page.$('#album-sec')) && !!(await page.$('#log-sec')), '페이지 흐름에 앨범 칸(#album-sec) 없음 · 로그는 그대로');
   await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
-  var b0 = await page.evaluate(function () { var b = document.getElementById('btn-album'); return { hidden: b.hidden, inCtl: !!b.closest('#scene #scene-ctl'), sound: !!document.getElementById('btn-sound').closest('#scene-ctl'), gear: !!document.getElementById('btn-settings').closest('#scene-ctl'),
-    order: [].map.call(document.querySelectorAll('#scene-ctl .icon-btn'), function (x) { return x.id; }).join(','), statusIcons: document.querySelectorAll('#status #btn-album, #status #btn-sound, #status #btn-settings').length }; });
-  ok(b0.hidden && b0.inCtl && b0.sound && b0.gear && b0.order === 'btn-album,btn-settings,btn-sound' && b0.statusIcons === 0, '첫 포스터 전엔 앨범 아이콘 숨김 · 앨범 · ⚙ · 소리 = 장면 오른쪽 위 묶음 · 상태 줄엔 아이콘 없음 ' + JSON.stringify(b0));
+  var b0 = await page.evaluate(function () { var b = document.getElementById('btn-album'); return { hidden: b.hidden, inCtl: !!b.closest('#scene #scene-ctl'), sound: !!document.querySelector('#btn-sound, .sound-btn'), gear: !!document.getElementById('btn-settings').closest('#scene-ctl'),
+    order: [].map.call(document.querySelectorAll('#scene-ctl .icon-btn'), function (x) { return x.id; }).join(','), statusIcons: document.querySelectorAll('#status #btn-album, #status #btn-settings, #status .icon-btn').length }; });
+  ok(b0.hidden && b0.inCtl && !b0.sound && b0.gear && b0.order === 'btn-album,btn-settings' && b0.statusIcons === 0, '첫 포스터 전엔 앨범 아이콘 숨김 · 앨범 · ⚙ = 장면 오른쪽 위 묶음 (소리는 설정 안, 11-08) · 상태 줄엔 아이콘 없음 ' + JSON.stringify(b0));
   var rs = await page.evaluate(function () { APP.openSettings(); var t = document.getElementById('set-body').textContent; document.getElementById('settings-sheet').close(); return t; });
   ok(/누가 고르나/.test(rs) && /모델이 아니라 미리 만든 규칙이 골라/.test(rs) && /고른 이는 포스터와 쪽지 뒷면/.test(rs) && !/MCP/.test(rs), "설정 '누가 고르나' 한 줄: 규칙이 고른다 · 고른 이는 포스터·쪽지 뒷면 (MCP 같은 말 없이 — 이름 창과 같다)");
   /* 날아가는 포스터 관찰: #scene 에 붙었다 떨어지는 .album-fly, 붙는 순간의 애니메이션 길이·칸 위치 */
@@ -1631,6 +1631,26 @@ async function scenarioWave7(browser) {
   await page.click('#set-parts .set-part[data-part="eyes"] .fchip[data-id="round"]');   /* 뒤 검사·스크린샷은 기본 모습으로 */
 
   ok(st.music && st.sfx, '설정: 소리 칸 (js/audio.js 가 붙인 음악 · 효과음 크기)');
+  /* 소리 켜기·끄기 (주인 11-08 "환경 설정에서 음량 음소거 하게"): 장면 위 스피커는 없고, 설정 › 소리 칸 맨 위 '켜기' 체크 칸 하나 — AUDIO 상태와 같이 간다 */
+  function sndNow() { return page.evaluate(function () {
+    var c = document.getElementById('set-sound'), row = c && c.closest('label'), h = document.getElementById('rs-sound'), r = row && row.getBoundingClientRect(), n = document.getElementById('rs-sound-note');
+    return { ctl: [].map.call(document.querySelectorAll('#scene-ctl button'), function (x) { return x.id; }).join(','), speaker: !!document.querySelector('#btn-sound, .sound-btn, #scene-ctl [aria-label*="소리"]'),
+      has: !!c, type: c && c.type, name: row && row.textContent.trim(), cls: row && row.className, first: !!h && !!row && h.nextElementSibling === row && !!(row.compareDocumentPosition(document.getElementById('set-music')) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(row.compareDocumentPosition(document.getElementById('set-sfx')) & Node.DOCUMENT_POSITION_FOLLOWING),
+      checked: c && c.checked, en: AUDIO.enabled(), avail: AUDIO.state().available, focusable: !!c && c.tabIndex >= 0 && !c.disabled, h: r ? Math.round(r.height) : 0, note: n ? (n.hidden ? '' : n.textContent) : null };
+  }); }
+  var sn0 = await sndNow();
+  sn0.axName = await page.getByRole('checkbox', { name: '소리 켜기', exact: true }).count();   /* 화면 낭독기 이름 = 칸 제목 '소리' + 글자 '켜기' (aria-labelledby) */
+  console.log('   sound:', JSON.stringify(sn0));
+  ok(!sn0.speaker && sn0.ctl === 'btn-album,btn-settings', '장면 오른쪽 위 묶음에 소리 단추 없음 (앨범 · 설정뿐) — ' + sn0.ctl);
+  ok(sn0.has && sn0.type === 'checkbox' && sn0.name === '켜기' && sn0.axName === 1 && sn0.cls === 'set' && sn0.first && sn0.focusable && sn0.h >= 44, "설정 › 소리 맨 위 '켜기' 체크 칸 ('소리 / 소리' 겹침 없이 · 낭독 이름 '소리 켜기' · 음악 · 효과음 위 · 다른 켜고 끄기 줄과 같은 모양 · Tab 으로 감 · 줄 높이 " + sn0.h + 'px)');
+  ok(sn0.avail && sn0.checked === false && sn0.en === false && sn0.note === '', '처음엔 빈 칸 = 꺼짐 (AUDIO 와 같음) · 보통 때 안내 줄 없음');
+  await page.click('#set-sound');
+  await page.waitForFunction(function () { var x = AUDIO.state(); return x.started && x.ctx === 'running'; }, null, { timeout: 15000 }).catch(function () {});
+  var sn1 = await sndNow();
+  await page.keyboard.press('Space');   /* 포커스는 체크 칸에 남아 있다 → 키보드로 끈다 */
+  await page.waitForTimeout(300);
+  var sn2 = await sndNow();
+  ok(sn1.checked === true && sn1.en === true && sn2.checked === false && sn2.en === false && sn2.note === '', '체크 칸 톡 → 켜짐 (AUDIO 켜짐 · 체크) · Space → 꺼짐 (빈 칸) — ' + JSON.stringify({ on: [sn1.checked, sn1.en], off: [sn2.checked, sn2.en] }));
   ok(st.motion && st.pixel && st.thumbs, '설정: 모션 · 픽셀 글꼴 · 포스터 썸네일');
   ok(st.stats === '산책 0 · 함께한 날 0 · 읽음 0' && st.data.join('/') === '내보내기/불러오기/전체 초기화' && st.dataH.every(function (x) { return x >= 44; }), '설정 › 기록: 작은 한 줄 + 내보내기 · 불러오기 · 전체 초기화 (보이는 높이 44px 넘음 ' + st.dataH.join('/') + ')');
   ok(/미리 만든 규칙/.test(st.who) && /고른 이는 포스터와 쪽지 뒷면/.test(st.who) && !/MCP|일기/.test(st.who) && !st.pal && st.focus === 'set-h' && !/방 보기/.test(st.text), "설정: '누가 고르나' 한 줄 (MCP 같은 말 없이 · 고른 이는 포스터·쪽지 뒷면) · 플레이어에겐 팔레트 없음 · 포커스는 시트 제목 · '방 보기' 없음");
@@ -1726,16 +1746,20 @@ async function scenarioWave7(browser) {
   var k1 = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { n: APP.state.trips.length, st: t.status, kind: t.kind, txt: document.getElementById('btn-go').textContent }; });
   ok(k1.n === 1 && k1.st === 'done' && k1.kind === 'out' && Date.now() - tS < 15000 && k1.txt === '뽈뽈 다녀와', "0.6 s 뒤 큰 버튼 → 바로 데려옴 (여행 1 · done · 버튼은 다시 '뽈뽈 다녀와' 글자만)");
 
-  /* 5. 놀이방 (8물결): 산책 중 바깥이 보이는 동안 #btn-door = 장면 오른쪽 아래 픽셀 문 단추(data-spot edge) → 놀이방 → 오락기 → 달리기 창을 연 채로 산책이 끝까지 ·
+  /* 5. 놀이방 (8물결): 산책 중 바깥이 보이는 동안 #btn-door = 장면 왼쪽 아래 픽셀 집 단추(data-spot edge, 주인 11-08 밤) → 놀이방 → 오락기 → 달리기 창을 연 채로 산책이 끝까지 ·
         문 소리 훅 open · close (놀이방) · 잠들 때 반응 훅 (D-1) · 창을 닫으면 오락기로 포커스 · 놀이방 그대로 · 구석 쪽지 → 보러 가기 → 다락 (포커스는 다락 문) */
   await page.evaluate(function () { window.__aud.length = 0; });
   await page.click('#btn-go');
   await page.waitForFunction(function () { var d = document.getElementById('btn-door'); return APP.oct.state === 'away' && APP.scene.view() === 'exterior' && !d.hidden && d.dataset.spot === 'edge'; }, null, { timeout: 30000 });
   var r0 = await page.evaluate(function () { return document.querySelectorAll('#log .lrow').length; });
-  var ed = await page.evaluate(function () { var d = document.getElementById('btn-door'), r = d.getBoundingClientRect(), sc = document.getElementById('scene').getBoundingClientRect(), q = d.querySelector('.door-box').getBoundingClientRect(); return { w: r.width, h: r.height, edge: sc.right - r.right < 8 && r.bottom <= sc.bottom + 0.5, box: q.width, img: d.querySelector('img.door-ico').naturalWidth === 16 }; });
-  ok(ed.w >= 44 && ed.h >= 44 && ed.edge && ed.box >= 30 && ed.img, '산책 중 바깥이 보이는 동안: 놀이방 문은 장면 오른쪽 아래 픽셀 문 단추 (44px · 16×16 그림) ' + JSON.stringify(ed));
-  var av = await page.evaluate(function () { var q = document.querySelector('#btn-door .door-box').getBoundingClientRect(); return { door: UIART.avoidCtl({ left: q.left - 100, right: q.left + 10, top: q.top + 2, bottom: q.bottom - 2 }, 4), clear: UIART.avoidCtl({ left: q.left - 120, right: q.left - 5, top: q.top, bottom: q.bottom }, 4) }; });
-  ok(Math.round(av.door) === -14 && av.clear === 0, '말풍선 ↔ 바깥의 놀이방 문 단추: 겹치면 문 상자 왼쪽 4px 까지 비킴 ' + JSON.stringify(av));
+  var ed = await page.evaluate(function () {
+    var d = document.getElementById('btn-door'), r = d.getBoundingClientRect(), sc = document.getElementById('scene'), s = sc.getBoundingClientRect(), cs = getComputedStyle(sc), q = d.querySelector('.door-box').getBoundingClientRect(), g = document.querySelector('#btn-settings .snd-box').getBoundingClientRect();   /* 맨 오른쪽 ⚙ (앨범 아이콘이 있으면 그 왼쪽에 하나 더) */
+    var gap = [q.left - s.left - parseFloat(cs.borderLeftWidth), s.bottom - parseFloat(cs.borderBottomWidth) - q.bottom], gear = [s.right - parseFloat(cs.borderRightWidth) - g.right, g.top - s.top - parseFloat(cs.borderTopWidth)];
+    return { w: r.width, h: r.height, corner: r.right < s.left + s.width / 2 && r.top > s.top + s.height / 2, gap: gap.map(Math.round), gear: gear.map(Math.round), box: q.width, img: d.querySelector('img.door-ico').naturalWidth === 16, icon: d.querySelector('img.door-ico').getAttribute('data-icon') };
+  });
+  ok(ed.w >= 44 && ed.h >= 44 && ed.corner && Math.abs(ed.gap[0] - ed.gear[0]) <= 1 && Math.abs(ed.gap[1] - ed.gear[1]) <= 1 && ed.box >= 30 && ed.img && ed.icon === 'ctl/home', '산책 중 바깥이 보이는 동안: 놀이방 가는 단추는 장면 왼쪽 아래 빨간 지붕 집 (44px · 16×16 그림 · 틀에서 설정 아이콘과 같은 간격) ' + JSON.stringify(ed));
+  var av = await page.evaluate(function () { var q = document.querySelector('#btn-door .door-box').getBoundingClientRect(); return { door: UIART.avoidCtl({ left: q.right - 10, right: q.right + 100, top: q.top + 2, bottom: q.bottom - 2 }, 4), clear: UIART.avoidCtl({ left: q.right + 5, right: q.right + 120, top: q.top, bottom: q.bottom }, 4) }; });
+  ok(Math.round(av.door) === 14 && av.clear === 0, '말풍선 ↔ 바깥의 집 단추 (왼쪽 아래): 겹치면 상자 오른쪽 4px 까지 비킴 ' + JSON.stringify(av));
   await page.click('#btn-door');
   await page.waitForFunction(function () { var m = document.getElementById('btn-machine'); return APP.scene.view() === 'play' && m && !m.hidden; }, null, { timeout: 20000 });
   var d0 = await page.evaluate(function () { return { running: APP.state.trips.some(function (t) { return t.status === 'running'; }), door: window.__aud.filter(function (a) { return a.n === 'door'; }).map(function (a) { return a.d.act + ':' + a.d.room; }), focus: document.activeElement && document.activeElement.id, place: APP.scene.place() }; });
@@ -1906,10 +1930,10 @@ async function scenarioWave8(browser) {
   var g1 = await page.evaluate(function () { return { ev: window.__ev.map(function (e) { return e.n + ':' + e.act + '@' + e.view; }), view: APP.scene.view(), room: APP.scene.room() }; });
   ok(g1.ev.slice(0, 2).join() === 'door:open@play,door:close@attic' && !g1.room && g1.view !== 'play', '놀이방에서 큰 버튼 → 먼저 문으로 다락 (문 소리 open · close) → 출발 ' + JSON.stringify(g1.ev));
 
-  /* 6. 산책 중: 바깥이 보이는 동안 문 단추(오른쪽 아래) → 놀이방. 로그 행이 쌓이고, 화면은 끌려 나가지 않는다 → 문어가 돌아오면 구석 쪽지 */
+  /* 6. 산책 중: 바깥이 보이는 동안 집 단추(왼쪽 아래) → 놀이방. 로그 행이 쌓이고, 화면은 끌려 나가지 않는다 → 문어가 돌아오면 구석 쪽지 */
   await page.waitForFunction(function () { var d = document.getElementById('btn-door'); return APP.scene.view() === 'exterior' && !d.hidden && d.dataset.spot === 'edge'; }, null, { timeout: 30000 });
   var e0 = await spots();
-  ok(e0.door.spot === 'edge' && e0.door.w >= 44 && e0.door.h >= 44 && e0.door.inside && !e0.door.ctl, '산책 중 바깥: 놀이방 문 단추는 장면 오른쪽 아래 (44px · 오른쪽 위 묶음과 안 겹침)');
+  ok(e0.door.spot === 'edge' && e0.door.w >= 44 && e0.door.h >= 44 && e0.door.inside && !e0.door.ctl, '산책 중 바깥: 놀이방 가는 집 단추는 장면 왼쪽 아래 (44px · 오른쪽 위 묶음과 안 겹침)');
   await page.locator('#scene').screenshot({ path: path.join(SHOTS, 'w8-exterior-door.png') });
   await page.click('#btn-door'); await inPlay();
   var w0 = await page.evaluate(function () {
@@ -2451,7 +2475,7 @@ async function scenarioGlyphs(browser) {
   await page.click('#rn-stop'); await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
   await page.waitForTimeout(200); await scan('놀이방 (달리기를 닫음 · 오락기 포커스)');
   await clickSpot(page, '#btn-play-door'); await inAttic(); await scan('놀이방에서 문어 방으로');
-  /* 8b. 산책 중 놀이방: 바깥이 보이는 동안 장면 오른쪽 아래 문 단추 → 놀이방 → 문어가 돌아오면 구석 쪽지 → 보러 가기 (scan 이 상태마다 두 테마를 다 본다) */
+  /* 8b. 산책 중 놀이방: 바깥이 보이는 동안 장면 왼쪽 아래 집 단추 → 놀이방 → 문어가 돌아오면 구석 쪽지 → 보러 가기 (scan 이 상태마다 두 테마를 다 본다) */
   for (var nf of ['pixel']) {
     await page.click('#btn-go');
     await page.waitForFunction(function () { var d = document.getElementById('btn-door'); return APP.scene.view() === 'exterior' && !d.hidden && d.dataset.spot === 'edge'; }, null, { timeout: 30000 });
