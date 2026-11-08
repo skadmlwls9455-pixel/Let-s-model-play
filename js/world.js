@@ -1443,6 +1443,10 @@ var WORLD = (function () {
     departLine: function (name) {   /* 집 목소리 (힌트 없는 출발 행) */
       return name ? name + nameJosa(name, '이', '가') + ' 산책 나갔어' : '산책 나갔어';
     },
+    backNote: function (name) {   /* 집 목소리 (8물결 · 놀이방에 있는 동안 문어가 돌아오면 구석 쪽지). 이름이 없으면 '문어가' */
+      name = name || '문어';
+      return name + nameJosa(name, '이', '가') + ' 돌아왔어.';
+    },
     firstToast: '힌트는 비워 둬도 돼.',   /* 개발 모드에서만 (플레이어 화면엔 힌트 칸이 없다) */
     namePrompt: '문어 이름을 지어 줘',
     nameExamples: '예: 뚜루, 안개, 삐죠…',

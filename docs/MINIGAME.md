@@ -3,9 +3,11 @@
 크롬 공룡식 아주 작은 러너. 주인공은 문어, 무대는 다락방. 나중에 랭킹 서버가 **입력 리플레이로 점수를 검증**할 수 있게 만들었다.
 
 - 파일: `js/runner.js` (전역 `RUNNER`), `css/runner.css`, 테스트 `tools/test-runner.js`, 스모크 시나리오 `R` (`tools/smoke.js`)
-- 입구 (7물결, 11-07): 장면 오른쪽 끝 **놀이방 문** `#btn-door` → `APP.goRoom('play')` → 문 끼익 (`AUDIO.on('door', { act: 'open', room: 'play' })`) + `RUNNER.open({ opener })`.
-  임시 문이다. 8물결에 다락 안 진짜 문 → 놀이방의 달리기 기계로 바뀐다 (같은 이름 `goRoom`). 옛 입구 (방 보기 시트 `#room-sheet` 에 끼우던 "같이 놀기" 버튼) 는 방 보기와 같이 없앴다.
-  전체 화면 `<dialog id="runner-dlg">`, 닫으면 연 단추 (문) 로 포커스가 돌아간다. 창이 열려 있어도 산책은 이어진다.
+- 입구 (8물결, 11-08): 다락 오른쪽 바닥 끝에 선 **놀이방 문** (3D 문 위 투명 단추 `#btn-door`, aria-label "놀이방") → `APP.goRoom('play')` → 문 끼익 열림 → 가로 전환 → **놀이방** →
+  뒷벽의 **'다락방 달리기' 오락기** (투명 단추 `#btn-machine`, aria-label "다락방 달리기", `aria-haspopup="dialog"`) → `RUNNER.open({ opener: 오락기 단추 })` → 전체 화면 `<dialog id="runner-dlg">`.
+  닫으면 오락기로 포커스가 돌아가고 놀이방은 그대로다. 놀이방 왼쪽 벽 문 (`#btn-play-door`, "문어 방") → `APP.goRoom('attic')` 로 문어 방에 돌아온다.
+  문어가 나가 있는 동안(바깥이 보이는 동안)엔 `#btn-door` 가 장면 오른쪽 아래 픽셀 문 단추라 기다리는 동안 놀이방에 갈 수 있다. 창이 열려 있어도 산책은 이어진다.
+  (7물결의 임시 입구 = 장면 오른쪽 끝 문 → 바로 달리기 창. 그 전의 방 보기 시트 "같이 놀기" 버튼은 방 보기와 같이 없앴다.) 규칙 전체는 `docs/SCENE.md` '방 셋 · 놀이방'.
 
 ## 조작
 | 입력 | 동작 |

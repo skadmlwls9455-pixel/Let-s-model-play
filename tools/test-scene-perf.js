@@ -7,6 +7,7 @@
  *   T2 pickAt: 포스터 중앙 → 포스터 · 외딴 기념품 12 px 밖 → 기념품 · 빈 바닥 → null · 몸 → 문어 · 히트 구 여백 → 문어 · 두 표적 사이(모호) → null · 바깥 = 문어만 · away = 없음
  *   T3 부팅 셰이더 예열: 첫 바깥 전환에서 프로그램 수가 늘지 않음
  *   T4 화면 밖: 렌더 0 · 비 스텝·출발 의식은 계속 진행 · 돌아오면 다시 렌더 · debugStep 은 화면 밖에서도 정확한 dt 로 렌더
+ *   T5 놀이방 (8물결): 지연 생성 · 문 4프레임 + 가로 전환(위아래 0 · 한 프레임 한 장소) · 드로우콜 ≤ 60 · 두 왕복 뒤 셰이더 프로그램 그대로 · 놀이방에 있는 동안 의식이 화면을 안 바꿈 · 누르는 곳 · 모션 감소 컷 · 톡은 캔버스가 받아 문 · 오락기 단추로 (pickAt 'spot') · 2× 확대에도 단추는 보이는 문 조각 위
  */
 'use strict';
 var fs = require('fs'), path = require('path'), os = require('os');
@@ -141,6 +142,88 @@ function harness() {
     ok(away.p === null && away.n === 0, 'T2 바깥 기웃 중(away): 문어 탭 없음 (' + JSON.stringify(away) + ')');
     await page.evaluate(function () { SC.setPlace('attic', { instant: true }); SC.setOctState('idle'); SC.jumpTo('center'); });
     await run(60, F60);
+
+    /* ── T5 놀이방 (8물결): 지연 생성 · 문 4프레임 + 가로 전환(위아래 0, 한 프레임 한 장소) · 드로우콜 ≤ 60 · 셰이더 프로그램 그대로 · 이야기 장소 붙잡기 · 누르는 곳 · 모션 감소 ── */
+    await page.evaluate(function () {
+      ['atticPlay', 'playAttic', 'machine'].forEach(function (id) { var bt = document.createElement('button'); bt.id = 'hs-' + id; bt.style.cssText = 'position:absolute;right:0;bottom:0;width:44px;height:44px;opacity:0;z-index:10'; document.getElementById('scene').appendChild(bt); });
+      SC.hotspots({ atticPlay: document.getElementById('hs-atticPlay'), playAttic: document.getElementById('hs-playAttic'), machine: document.getElementById('hs-machine') });
+      window.__frames = function (n) {   /* 손 rAF 한 프레임씩 + 그 프레임의 장소·미끄럼·문 상태 */
+        var out = [];
+        for (var i = 0; i < n; i++) {
+          __raf.run(1, 1000 / 60); var m = SC.motion();
+          var vis = ['attic', 'exterior', 'play'].filter(function (nm) { var g = SC.scene.getObjectByName(nm); return g && g.visible; });
+          out.push({ v: m.view, sy: m.slideY, su: m.slideUpPx, sx: m.slidePx, nvis: vis.length, da: m.doorAttic, dp: m.doorPlay, dq: m.dq });
+        }
+        return out;
+      };
+      window.__hs = function () { var o = {}; ['atticPlay', 'playAttic', 'machine'].forEach(function (id) { var e = document.getElementById('hs-' + id); o[id] = e.hidden ? null : { l: e.offsetLeft, t: e.offsetTop, w: e.offsetWidth, h: e.offsetHeight, spot: e.dataset.spot }; }); return o; };
+    });
+    var t5 = await page.evaluate(function () { var s = SC.stats(); return { built: s.playBuilt, view: SC.view(), room: SC.room(), hs: __hs(), spot: SC.spotRect('atticPlay') }; });
+    ok(t5.built === false && t5.view === 'attic' && t5.room === null, 'T5 놀이방은 처음 들어갈 때까지 안 만든다 (시작 비용 0): built ' + t5.built + ' · view ' + t5.view);
+    var sceneBox = await page.evaluate(function () { var r = document.getElementById('scene'); return { w: r.clientWidth, h: r.clientHeight }; });
+    var inBox = function (q) { return !!q && q.w >= 44 && q.h >= 44 && q.l >= 0 && q.t >= 0 && q.l + q.w <= sceneBox.w && q.t + q.h <= sceneBox.h; };
+    ok(inBox(t5.hs.atticPlay) && t5.hs.atticPlay.spot === 'over' && !t5.hs.playAttic && !t5.hs.machine, 'T5 다락: 다락 문 단추만 3D 문 위 (' + JSON.stringify(t5.hs.atticPlay) + ', 장면 ' + sceneBox.w + '×' + sceneBox.h + ')');
+    /* 톡은 캔버스가 받아 그린 순서대로 단추를 누른다 (단추는 그림 위에서 pointer-events: none): 문 가운데 → 'spot' atticPlay */
+    var dpk = await page.evaluate(function () { var r = SC.spotRect('atticPlay'); return r && r.client ? SC.pickAt(r.client.x + r.client.w / 2, r.client.y + r.client.h * 0.45) : 'no-rect'; });
+    ok(dpk && dpk.kind === 'spot' && dpk.id === 'atticPlay', 'T5 다락 문 그림을 톡 → 문 단추 (pickAt ' + JSON.stringify(dpk) + ')');
+    /* 확대(2×): 단추는 화면에 보이는 문 조각 위에만 (예전엔 문 전체 높이를 장면 안으로 옮겨 문 위 바닥까지 덮었다) */
+    var zc = await page.evaluate(function () {
+      SC.zoomStep(6); __raf.run(6, 1000 / 60);
+      var r = SC.spotRect('atticPlay'), W = document.getElementById('scene').clientWidth, H = document.getElementById('scene').clientHeight;
+      var out = { r: r && [r.x, r.y, r.w, r.h], art: r && r.art, W: W, H: H };
+      if (r && r.mode === 'over') { var a = r.art, vl = Math.max(0, a.l), vt = Math.max(0, a.t), vr = Math.min(W, a.r), vb = Math.min(H, a.b);
+        out.ok = r.y >= Math.min(vt, vb - 44) - 1 && r.y + r.h <= Math.max(vb, vt + 44) + 1 && r.x >= Math.min(vl, vr - 44) - 1 && r.x + r.w <= Math.max(vr, vl + 44) + 1; } else out.ok = !r;
+      SC.zoomStep(0); __raf.run(6, 1000 / 60); return out;
+    });
+    ok(zc.ok, 'T5 2× 확대: 다락 문 단추는 보이는 문 조각 위 (44 넓힘만) ' + JSON.stringify(zc));
+    await page.evaluate(function () { window.__ev = []; window.__res = null; SC.goRoom('play', { onDoor: function (e) { __ev.push(e.act + ':' + e.room + ':' + e.door + '@' + SC.view()); } }).then(function (r) { __res = r; }); });
+    var fr = await page.evaluate(function () { return __frames(90); });
+    var ev5 = await page.evaluate(function () { return { ev: __ev, res: __res, hs: __hs() }; });
+    var doorSeq = fr.map(function (f) { return f.da; }).filter(function (d, i, a) { return i === 0 || d !== a[i - 1]; }).join('');
+    var closeSeq = fr.map(function (f) { return f.dp; }).filter(function (d, i, a) { return i === 0 || d !== a[i - 1]; }).join('');
+    var sx = fr.map(function (f) { return f.sx; });
+    ok(doorSeq.indexOf('1234') === 0 && closeSeq.indexOf('43210') >= 0, 'T5 문짝 4프레임 열림 (다락 ' + doorSeq + ') → 들어온 문 4프레임 닫힘 (놀이방 ' + closeSeq + ')');
+    ok(fr.every(function (f) { return f.sy === 0 && f.su === 0 && f.nvis === 1; }), 'T5 가로 전환: 위아래 움직임 0 · 한 프레임에 한 장소만 (' + fr.filter(function (f) { return f.sy !== 0 || f.su !== 0 || f.nvis !== 1; }).length + ' 프레임 어긋남)');
+    ok(Math.min.apply(null, sx) < -20 && Math.max.apply(null, sx) > 20 && sx.every(function (v) { return v === Math.round(v); }), 'T5 다락은 왼쪽으로 나가고 놀이방은 오른쪽에서 들어옴, 정수 아트px (최소 ' + Math.min.apply(null, sx) + ' · 최대 ' + Math.max.apply(null, sx) + ')');
+    ok(JSON.stringify(ev5.ev) === JSON.stringify(['open:play:atticPlay@attic', 'close:play:playAttic@play']) && ev5.res && ev5.res.ok && ev5.res.view === 'play', 'T5 문 알림 열림 1 · 닫힘 1 → Promise ' + JSON.stringify(ev5.ev) + ' ' + JSON.stringify(ev5.res));
+    await run(10, F60);
+    var pl = await page.evaluate(function () { var s = SC.stats(), c = document.getElementById('scene').getBoundingClientRect(); return { calls: s.calls, callsPlay: s.callsPlay, place: SC.place(), view: SC.view(), progs: SC.renderer.info.programs.length, tg: SC.targets().length, pick: (function () { var r = SC.spotRect('machine'), d = SC.spotRect('playAttic'); return { floor: SC.pickAt(c.left + c.width / 2, c.top + c.height * 0.82), machine: r && SC.pickAt(r.client.x + r.client.w / 2, r.client.y + r.client.h / 2), door: d && SC.pickAt(d.client.x + d.client.w / 2, d.client.y + d.client.h / 2) }; })(), osp: SC.octScreenPos(), hs: __hs() }; });
+    ok(pl.view === 'play' && pl.place === 'attic', 'T5 놀이방: view play · 이야기 장소(place)는 attic 그대로 (' + pl.view + '/' + pl.place + ')');
+    ok(pl.calls <= 60 && pl.callsPlay > 0 && pl.callsPlay <= 60, 'T5 놀이방만 보일 때 드로우콜 ' + pl.calls + ' ≤ 60 (callsPlay ' + pl.callsPlay + ')');
+    ok(pl.progs === p0, 'T5 놀이방 첫 방문에도 새 셰이더 프로그램 없음 (부팅 ' + p0 + ' → ' + pl.progs + ')');
+    ok(pl.tg === 0 && pl.pick.floor === null && pl.pick.machine && pl.pick.machine.id === 'machine' && pl.pick.door && pl.pick.door.id === 'playAttic' && pl.osp === null, 'T5 놀이방: 톡 표적은 문 · 오락기 단추 칸뿐 (빈 바닥 null) · 숨은 문어 위치 없음 (targets ' + pl.tg + ', pick ' + JSON.stringify(pl.pick) + ', octScreenPos ' + JSON.stringify(pl.osp) + ')');
+    ok(!pl.hs.atticPlay && inBox(pl.hs.playAttic) && inBox(pl.hs.machine), 'T5 놀이방: 문·기계 단추 44×44 이상 장면 안 ' + JSON.stringify([pl.hs.playAttic, pl.hs.machine]));
+    /* 붙잡기: 놀이방에 있는 동안 출발 의식이 끝까지 돌아도 화면은 놀이방 */
+    await page.evaluate(function () { window.__cer5 = 0; SC.departCeremony(function () { window.__cer5++; }); });
+    var held = [], doneD = false;
+    for (var k5 = 0; k5 < 30 && !doneD; k5++) { held = held.concat(await page.evaluate(function () { return __frames(30).map(function (f) { return f.v; }); })); doneD = await page.evaluate(function () { return window.__cer5 === 1; }); }
+    var hp = await page.evaluate(function () { return { place: SC.place(), view: SC.view(), cer: SC.ceremony() }; });
+    ok(doneD && held.every(function (v) { return v === 'play'; }) && hp.place === 'exterior' && hp.view === 'play', 'T5 놀이방에 있는 동안 출발 의식이 끝나도 화면은 놀이방 (' + held.length + ' 프레임, place ' + hp.place + ', view ' + hp.view + ')');
+    await page.evaluate(function () { window.__res = null; SC.goRoom('attic').then(function (r) { __res = r; }); });
+    await run(90, F60);
+    var back = await page.evaluate(function () { return { res: __res, view: SC.view(), room: SC.room(), hs: __hs(), progs: SC.renderer.info.programs.length }; });
+    ok(back.res && back.res.ok && back.view === 'exterior' && back.room === null && back.hs.atticPlay && back.hs.atticPlay.spot === 'edge' && !back.hs.machine, 'T5 산책 중 놀이방을 나오면 바깥 (view ' + back.view + ') · 다락 문 단추는 가장자리(edge) 모드');
+    /* 바깥에서 다시 놀이방 → 나와서 다락으로 → 두 번째 왕복: 프로그램 수 그대로 */
+    await page.evaluate(function () { window.__ev = []; SC.goRoom('play', { onDoor: function (e) { __ev.push(e.act + ':' + (e.door || '-') + '@' + SC.view()); } }); });
+    await run(90, F60);
+    var r2 = await page.evaluate(function () { return { ev: __ev, view: SC.view(), progs: SC.renderer.info.programs.length }; });
+    ok(r2.view === 'play' && JSON.stringify(r2.ev) === JSON.stringify(['open:-@exterior', 'close:playAttic@play']), 'T5 바깥(산책 중)에서도 놀이방으로 (문 그림 없이 알림만): ' + JSON.stringify(r2.ev));
+    await page.evaluate(function () { SC.setPlace('attic', { instant: true }); SC.setOctState('idle'); SC.jumpTo('center'); SC.goRoom('attic'); });
+    await run(90, F60);
+    var p5a = await page.evaluate(function () { return { view: SC.view(), progs: SC.renderer.info.programs.length }; });
+    await page.evaluate(function () { SC.goRoom('play'); }); await run(90, F60);
+    await page.evaluate(function () { SC.goRoom('attic'); }); await run(90, F60);
+    var p5b = await page.evaluate(function () { return { view: SC.view(), progs: SC.renderer.info.programs.length }; });
+    ok(p5a.view === 'attic' && p5b.view === 'attic' && p5b.progs === p5a.progs && p5a.progs === p0, 'T5 두 번째 왕복 뒤 프로그램 수 그대로 (부팅 ' + p0 + ' → 첫 왕복 ' + p5a.progs + ' → 둘째 ' + p5b.progs + ')');
+    /* 모션 감소: 열린 문 한 장 → 컷 (미끄럼 0) → 닫힌 문 */
+    await page.evaluate(function () { SC.setReducedMotion(true); SC.goRoom('play'); });
+    var rf = await page.evaluate(function () { return __frames(30); });
+    var firstPlay = rf.findIndex(function (f) { return f.v === 'play'; });
+    ok(rf.every(function (f) { return f.sx === 0 && f.sy === 0; }) && rf[0].v === 'attic' && rf[0].da === 4 && firstPlay > 0 && rf[firstPlay].dp === 0, 'T5 모션 감소: 열린 문 한 장(' + firstPlay + ' 프레임) → 컷, 미끄럼 0, 들어온 문은 닫힌 채');
+    await page.evaluate(function () { SC.goRoom('attic'); }); await run(30, F60);
+    await page.evaluate(function () { SC.setReducedMotion(false); SC.hotspots({}); ['atticPlay', 'playAttic', 'machine'].forEach(function (id) { var e = document.getElementById('hs-' + id); e.parentNode.removeChild(e); }); SC.setOctState('idle'); SC.jumpTo('center'); });
+    await run(60, F60);
+    ok(await page.evaluate(function () { return SC.view() === 'attic' && SC.room() === null && SC.place() === 'attic'; }), 'T5 다락으로 돌아옴 (view attic · room null)');
 
     /* ── T4 화면 밖: 렌더 패스만 건너뛰고 시뮬레이션은 계속 ── */
     await page.evaluate(function () { window.scrollTo(0, 2000); });

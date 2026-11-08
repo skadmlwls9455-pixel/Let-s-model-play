@@ -1039,6 +1039,49 @@ button.pips::before { content: ''; position: absolute; inset: -12px -4px; }   /*
 html.intro-on .scene-door { opacity: 0; visibility: hidden; }
 html.intro-reveal .scene-door { transition: opacity var(--t-ui) var(--ease-enter); transition-delay: calc(120ms * var(--speed)); }
 
+/* 2b) 8물결 · 방 문과 오락기 (js/scene3d.js hotspots · js/scene2d.js 같은 API): 장면이 3D 문·기계 위에 진짜 <button> 을 맞춘다 (left · top · width · height 인라인, 44×44 이상, hidden 도 장면이).
+       data-spot="over" = 그림 위 투명 단추 (보이는 건 장면의 문 · 기계 그림 그대로) — 키보드 포커스일 때만 링. 링은 장면 위라 두 테마 모두 Apollo 밝은 호박 + 안쪽 남색 (밝은 그림 · 어두운 그림 어디서든 보인다).
+       #btn-door 는 문어가 나가 바깥이 보이는 동안 data-spot="edge" → 위 7물결 모양(오른쪽 아래 픽셀 문 단추) 그대로. 장면 오른쪽 위 묶음(10)보다 아래 층 */
+.scene-spot { position: absolute; left: 0; top: 0; width: 44px; height: 44px; z-index: 8; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.scene-spot[hidden], .scene-door[hidden] { display: none; }
+.scene-door[data-spot="over"] { z-index: 8; }
+/* 그림 위 단추는 손가락 · 마우스를 그냥 통과시킨다: 밀기 · 핀치 · 휠이 문 · 오락기 위에서 시작해도 장면이 받고, 톡은 장면이 그린 순서대로 가려 그 단추를 누른다
+   (문어가 문 앞이면 문어 — js/scene3d.js pick · js/scene2d.js). 키보드 Tab/Enter · 화면 낭독기는 단추 그대로. 바깥의 가장자리 문 단추(edge)는 보이는 단추라 그대로 받는다 */
+.scene-spot[data-spot="over"], .scene-door[data-spot="over"] { pointer-events: none; }
+#scene .scene-spot.ring-off:focus-visible, #scene .scene-door.ring-off:focus-visible { outline: none; box-shadow: none; }   /* 손가락 · 마우스로 방을 옮긴 뒤 도착한 쪽 단추: 포커스는 두되 링은 없이 (js/app.js focusRoomBtn) */
+#scene .scene-door.ring-off:focus-visible .door-box { outline: none; }
+.scene-door[data-spot="over"] .door-box { display: none; }   /* 그림 위에선 상자 없이 (js/ui-art.js 의 말풍선 비키기도 너비 0 상자는 셈하지 않는다) */
+.scene-spot:focus-visible, .scene-door[data-spot="over"]:focus-visible,
+:root[data-font="pixel"] .scene-spot:focus-visible, :root[data-font="pixel"] .scene-door[data-spot="over"]:focus-visible { outline: 2px solid #e8c170; outline-offset: -2px; box-shadow: inset 0 0 0 4px #172038; }
+html.intro-on .scene-spot, html.intro-on .back-note { opacity: 0; visibility: hidden; }
+html.intro-reveal .scene-spot, html.intro-reveal .back-note { transition: opacity var(--t-ui) var(--ease-enter); transition-delay: calc(120ms * var(--speed)); }
+/* 놀이방이 보이는 동안: 문어는 다락에 있다 → 문어 머리 위에 뜨는 것(2D 문어 · 이름표 · 말풍선 · 파티클)과 다락 그림(2D 레이어 · 선반 · 벽 포스터)은 숨는다. 2D 놀이방 그림은 #play2d (js/scene2d.js) */
+#scene[data-view="play"] .ua-fx, #scene[data-view="play"] #oct { visibility: hidden; }
+#scene.mode-2d[data-view="play"] :is(#layers, #window-fx, #souvenir-row, #wall-posts) { visibility: hidden; }
+#play2d { position: absolute; inset: 0; z-index: 5; }
+#play2d[hidden] { display: none; }
+#play2d svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; shape-rendering: crispEdges; }
+/* 구석 쪽지 (놀이방에 있는 동안 문어가 돌아오면): 장면 아래 왼쪽 (오른쪽 위 묶음과 안 겹친다) · 글 한 줄 + 보러 가기 (누르는 곳 44px). 기호 · 숫자 없음.
+   모션 줄이기면 그냥 나타난다. 픽셀 테마 = 종이 판 + 2px 선 + 베벨 */
+.back-note {
+  position: absolute; left: 8px; bottom: 8px; z-index: 9; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  max-width: calc(100% - 16px); box-sizing: border-box; padding: 6px 6px 6px 12px;
+  background: var(--panel); color: var(--fg); border: 1px solid var(--rim); border-radius: 12px; box-shadow: var(--shadow);
+  animation: note-in var(--t-ui) var(--ease-enter) both;
+}
+.back-note[hidden] { display: none; }
+.back-note .bn-txt { margin: 0; font-size: 14px; line-height: 1.4; display: flex; flex: 1 1 auto; min-width: 0; white-space: nowrap; }   /* 글은 한 줄 — 긴 이름만 줄임표 (상태 줄처럼), 단추는 모자라면 다음 줄 → 쪽지는 많아야 두 줄 */
+.back-note .bn-name { flex: 0 1 auto; min-width: 2em; overflow: hidden; text-overflow: ellipsis; }
+.back-note .bn-rest { flex: 0 0 auto; }
+.back-note .bn-go { min-height: 44px; flex: 0 0 auto; }
+.back-note .bn-go::before { display: none; }   /* 보이는 상자가 이미 44px (.btn.sm 의 넓힌 탭 영역은 필요 없다) */
+@keyframes note-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+:root[data-font="pixel"] .back-note { border: 2px solid var(--line); border-radius: 0; background-color: var(--panel2); box-shadow: var(--bevel), 2px 2px 0 var(--line); padding: 4px 4px 4px 10px; animation-timing-function: steps(2, jump-end); }
+:root[data-font="pixel"] .back-note .bn-txt { font-family: var(--f-body); font-size: 20px; line-height: 30px; }
+:root[data-font="pixel"] .back-note .bn-go { min-height: 44px; }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .back-note { animation: none; } }
+:root[data-motion="reduce"] .back-note { animation: none; }
+
 /* 3) 설정 시트: 색 슬라이더는 한 줄 가득 · 기록은 작은 한 줄 + 버튼 셋 한 줄 (좁으면 줄바꿈) · 누가 고르나 한 줄 */
 .settings-sheet .hue-row input[type=range] { flex: 1 1 auto; min-width: 0; }
 /* 문어 색 슬라이더: 길 자체가 색상환 (소리 슬라이더처럼 길에 색이 보이게 — 7물결 점검 a). 누르는 높이 44px · 키보드(←→ · Home/End)는 기본 range 그대로.

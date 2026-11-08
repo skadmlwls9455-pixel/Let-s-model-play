@@ -95,11 +95,20 @@
       <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M1 4h2v4H1zM3 3h1v6H3zM4 2h1v8H4zM5 1h1v10H5z"/><path class="w-on" d="M7 4h1v4H7zM8 2h1v1H8zM9 3h1v6H9zM8 9h1v1H8z"/><path class="w-off" d="M7 4h1v1H7zM8 5h2v2H8zM10 4h1v1H10zM7 7h1v1H7zM10 7h1v1H10z"/></svg></span>
     </button>
   </div>
-  <!-- 놀이방 문 (임시 · 장면 오른쪽 끝): 누르면 문이 끼익 → 놀이방 (오늘은 다락방 달리기 창, js/runner.js). 문어가 나가 있어도 된다 (산책은 그대로 이어진다).
-       8물결에서 다락 안 진짜 문으로 바뀐다 — 앱 쪽 이름은 goRoom('play'). 그림은 16×16 픽셀 아이콘 ×2 (tools/ui-art/sprites.js 'ctl.door', 주소는 js/ui-art.js 가 채운다) -->
-  <button type="button" id="btn-door" class="scene-door" aria-label="놀이방" title="놀이방" aria-haspopup="dialog">
+  <!-- 방 문 · 오락기 (8물결): 3D 장면 위에 겹친 진짜 <button> — 자리 · 크기 · hidden 은 장면이 매 프레임 맞춘다 (scene.hotspots, 누르는 곳 44×44 이상). #scene3d(aria-hidden) 밖에 둔다.
+       #btn-door = 다락 안 놀이방 문 (data-spot="over" 일 땐 투명 · 문어가 나가 바깥이 보이는 동안은 data-spot="edge" 로 장면 오른쪽 아래 픽셀 문 단추 — 그림은 16×16 ×2 'ctl.door', 안 오면 글자 '문').
+       누르면 끼익 → 놀이방 (APP.goRoom('play')). #btn-play-door = 놀이방 왼쪽 벽 문 → 문어 방 (goRoom('attic')) · #btn-machine = 다락방 달리기 오락기 → 달리기 창.
+       그림 위('over')에선 pointer-events: none — 손가락은 장면이 받아 그린 순서대로 단추를 누른다 (밀기 · 핀치가 문 위에서도 된다). 두 문 단추는 aria-describedby 로 지금 장소 설명(#scene-desc)을 읽힌다 (방을 옮기면 도착한 곳이 들린다) -->
+  <button type="button" id="btn-door" class="scene-door" aria-label="놀이방" title="놀이방" aria-describedby="scene-desc">
     <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/door" alt="" width="32" height="32" draggable="false"><span class="door-txt">문</span></span>
   </button>
+  <button type="button" id="btn-play-door" class="scene-spot" aria-label="문어 방" title="문어 방" aria-describedby="scene-desc" hidden></button>
+  <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
+  <!-- 구석 쪽지 (8물결): 놀이방에 있는 동안 문어가 돌아오면 "뚜루가 돌아왔어." + 보러 가기 (놀이방 문으로 다락에). 장면 아래 왼쪽 · 놀이방을 나가면 사라진다 -->
+  <div id="back-note" class="back-note" hidden>
+    <p id="back-note-txt" class="bn-txt" role="status" aria-live="polite"></p>
+    <button type="button" id="btn-back-see" class="btn sm pressable bn-go">보러 가기</button>
+  </div>
 </section>
 
 <!-- ══ STATUS (§7.2) — 한 줄: 이름 [데모] · 방 제목 | 등불 ■■□□□□□□ n/8.

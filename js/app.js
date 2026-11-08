@@ -2,9 +2,10 @@
    뽈뽈 문어 — js/app.js (전역 APP)
    DESIGN.md §2 §3 §4 §6 §7 §8 §12.3
    섹션: util · state · migrate · assets · scene(SCENE3D|SCENE2D 브리지) · octopus ·
-         invite/reveal · log · posters · album(요즘 · 메모 · 일기) · dialogs(포스터 · 설정 · 이름) · rooms(놀이방 문) · tip · demo · boot
+         invite/reveal · log · posters · album(요즘 · 메모 · 일기) · dialogs(포스터 · 설정 · 이름) · rooms(문어 방 ↔ 놀이방) · tip · demo · boot
    7물결 (주인 11-07): '방 보기' 는 없앴다 → ⚙ 설정 시트 (문어 색 · 소리 · 모션 · 글꼴 · 기록) · 앨범 (문어의 요즘 · 다음 산책에 가는 메모 · 일기 탭).
-   건너뛰기는 큰 버튼에 합쳤다 (나가 있는 동안 #btn-go = "다녀오는 중…" 글자만, 누르면 skip). 놀이방은 장면 끝 문(#btn-door) → goRoom('play')
+   건너뛰기는 큰 버튼에 합쳤다 (나가 있는 동안 #btn-go = "다녀오는 중…" 글자만, 누르면 skip).
+   8물결: 다락 안 진짜 문(#btn-door, 3D 문 위 투명 단추) → goRoom('play') → 진짜 놀이방 (오락기 → 다락방 달리기 · 문 → 문어 방). 자세한 규칙은 rooms 섹션
    플레이어가 보는 버튼 · 탭 · 시트 제목에는 글자나 픽셀 그림만 (이모지 · 유니코드 기호 없음 — 주인 11-07 '실제 사용자에게 바로 나간다고 생각해')
    로드 순서: three.min.js → world.js → brain.js → scene3d.js → scene2d.js → app.js (type="module" 금지)
    장면: SCENE = SCENE3D.supported() ? SCENE3D : SCENE2D (§13.1). APP 은 그 API 하나만 본다.
@@ -442,7 +443,9 @@ var APP = (function () {
           walkTo('window').then(function () { if (!oct.busy) { octState('idle'); var w = weatherFor(S.room.lantern), hr = new Date().getHours(); say(w === 'clear' ? (hr >= 19 || hr < 6 ? '별이 보여' : '맑네') : w === 'snow' ? '눈이 와' : '비가 와', 'calm', 2000); } });
         },
         anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ },
-        place: function () { updateSceneDesc(); }   /* 3D: 의식이 다락 ↔ 집 바깥을 바꾼 순간 (2D 는 runCeremony 의 250 ms 틱이 따라간다) */
+        place: function () { updateSceneDesc(); },   /* 3D: 의식이 다락 ↔ 집 바깥을 바꾼 순간 (2D 는 runCeremony 의 250 ms 틱이 따라간다). 놀이방에 있는 동안에도 온다 (이야기 장소만 바뀜) */
+        door: function (ev) { if (window.AUDIO && ev) AUDIO.on('door', { act: ev.act, room: ev.room }); },   /* 8물결: 방 문이 열리고 닫힐 때 끼익 (장면은 AUDIO 를 부르지 않는다) */
+        view: function (v) { syncRoomUI(v); }   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
       }
     };
   }
@@ -457,6 +460,7 @@ var APP = (function () {
     if (!scene) { scene = SCENE2D.init(host, opts); sceneMode = '2d'; }
     host.classList.toggle('mode-3d', sceneMode === '3d');
     $('scene3d').hidden = sceneMode !== '3d';
+    bindSpots();   /* 방 문 · 오락기 단추를 장면에 넘긴다 (자리 · hidden 은 장면이) */
     if (!timeTimer) timeTimer = setInterval(function () { scene.setTime(hourNow()); updateSceneDesc(); checkDay(); }, 60000);   /* 1분마다: 시각 · 자정이 지나면 오늘 칸 넘기기 */
   }
   /* WebGL 컨텍스트를 잃고 3 s 안에 돌아오지 않음 (scene3d 의 opts.onLost, docs/research/a11y-and-mobile-perf.md 3): 검게 멈춘 3D 를 버리고 같은 initScene 경로로 2D 폴백.
@@ -466,10 +470,12 @@ var APP = (function () {
     console.warn('[app] WebGL 컨텍스트가 돌아오지 않음 → 2D 폴백');
     if (window.INTRO && ['sky', 'title'].indexOf(INTRO.phase) >= 0) { try { INTRO.dismiss(); } catch (e) { /* 입장 레이어 없음 */ } }   /* 멈춘 하늘에 갇히지 않게 */
     var old = scene; scene = null;
-    try { old.destroy(); } catch (e) { console.warn('[app] scene3d destroy', e); }
+    try { if (typeof old.hotspots === 'function') old.hotspots({}); } catch (e) { /* 단추 묶음 풀기 실패 — 아래에서 손으로 */ }
+    try { old.destroy(); } catch (e) { console.warn('[app] scene3d destroy', e); }   /* 돌던 문 작업은 destroy 가 끝낸다 (goRoom 의 Promise 도 풀린다) */
+    resetRoomUI();   /* 놀이방에 있었어도 2D 는 다락에서 다시 시작 (쪽지 · 단추 · data-view) */
     var el = $('oct'), stage = $('stage');   /* destroy 가 중간에 멈췄어도 문어 DOM 은 2D 무대로 */
     if (el && stage && el.parentNode !== stage) stage.appendChild(el);
-    if (el) { el.classList.remove('overlay3d'); el.style.transform = ''; }
+    if (el) { el.classList.remove('overlay3d'); el.style.transform = ''; el.style.display = ''; }   /* 놀이방에서 잃었으면 장면이 숨겨 둔 문어 (display:none) 도 다시 */
     initScene(true);
     renderScene(); renderSouvenirs(); renderWall();
     scene.jumpTo(oct.anchor); scene.setOctState(oct.state === 'carry' ? 'walk' : oct.state);   /* 들고 오던 포스터 그림은 3D 쪽에만 있었다 → 걷는 자세로 */
@@ -514,6 +520,8 @@ var APP = (function () {
   var DOING_DESC = { idle: '쉬고 있어', stay: '쉬고 있어', sleep: '자고 있어', pet: '쓰다듬받고 있어', happy: '신나 있어', anticipate: '나갈 채비 중이야', hang: '포스터를 붙이고 있어', carry: '포스터를 들고 있어' };
   function partOfDay(hr) { return hr < 5 ? '밤' : hr < 9 ? '아침' : hr < 17 ? '낮' : hr < 19 ? '저녁' : '밤'; }
   function sceneDescText() {
+    if (sceneView() === 'play')   /* 놀이방 (8물결): 문어는 다락(또는 산책) — 놀이방엔 오지 않는다 */
+      return '놀이방, ' + partOfDay(hourNow()) + '. 다락방 달리기 오락기랑 작은 부엌이 있어. ' + (oct.state === 'away' || sceneCeremony() === 'depart' ? '문어는 산책 나갔어.' : '문어는 다락방에 있어.');
     var lv = S.room.lantern, outside = sceneMode === '3d' && !!scene && typeof scene.place === 'function' && scene.place() === 'exterior';   /* 2D 무대는 바깥을 그리지 않는다 (장소 값만 기억) → 늘 다락 */
     var where = outside ? '집 바깥' : lv ? '등불 ' + lv + '칸 켜진 다락' : '불씨 하나 켜진 다락';   /* 0칸이어도 등불 속 불씨는 켜져 있다 */
     var wx = WX_DESC[weatherFor(lv)], st = oct.state, cname = sceneCeremony();
@@ -645,7 +653,7 @@ var APP = (function () {
       if (shown) return; shown = true; cancelAnimationFrame(raf);
       show();
       if (window.AUDIO) AUDIO.on('peek', { status: st, corner: arg.corner, roomId: arg.roomId, url: tg.kind === 'url', first: arg.first, skip: skipFlag });   /* 소리: 기웃 결과(상태 그대로) + 장소 테마 */
-      if (skipFlag) return;   /* 건너뛰면 말풍선 없이 행만 */
+      if (skipFlag || inPlay()) return;   /* 건너뛰면 · 놀이방에 있으면 말풍선 없이 행만 (문어는 놀이방에 오지 않는다 — 8물결) */
       var ms = reduced() ? 900 : 1700;
       liftOverlay(ms); bubble(b.text, ms, b.kind, { raw: b.raw, icon: b.icon });
     }
@@ -734,6 +742,7 @@ var APP = (function () {
   }
   /* kind → 말풍선 모양 (js/ui-art.js) · 말풍선 목소리 (js/audio.js). opt: { icon: 'memory/sea' (말 뒤 픽셀 그림), raw: 'model'|… (남이 쓴 말), rawText: 그중 남의 글 부분 (없으면 전부) } */
   function bubble(text, ms, kind, opt) {
+    if (text && inPlay()) return;   /* 놀이방에 있는 동안 문어의 말풍선은 띄우지 않는다 (문어는 다락에 · 말풍선 소리도 없이). 로그 행은 그대로 (say) */
     scene.bubble(text, ms);
     var b = $('oct-bubble');
     if (b && text && !b.hidden && opt) {   /* 장면은 글자만 넣는다 (textContent) → 남의 글 표시 · 그림은 여기서 덧붙인다 (재는 건 그 뒤 UIART.onBubble) */
@@ -825,6 +834,15 @@ var APP = (function () {
   }
   /* #btn-go: 집에 있으면 초대, 나가 있으면 (막 누른 직후가 아니면) 바로 데려오기 */
   function goTap() {
+    if (inPlay() || roomJob) {   /* 놀이방이면 먼저 문으로 문어 방에 돌아와서 (8물결). 누른 *그때* 의 뜻대로: 다녀오는 중이었으면 데려오기(건너뛰기)만 — 문을 지나는 사이 산책이 끝났으면 아무것도 안 한다 (새 산책이 되지 않게) */
+      var wasBusy = busy;
+      backToOctRoom().then(function (ok) {
+        if (!ok) return;
+        if (wasBusy) { if (busy && Date.now() >= skipReady) skip(); }
+        else if (!busy) invite();
+      });
+      return;
+    }
     if (!busy) { invite(); return; }
     if (Date.now() < skipReady) return;
     skip();
@@ -897,6 +915,8 @@ var APP = (function () {
   }
   function invite(hintText) {
     if (busy) return Promise.resolve(null);
+    if (inPlay() || roomJob) return backToOctRoom().then(function (ok) { return ok ? invite(hintText) : null; });   /* 출발은 문어 방에서 본다: 놀이방이면 문을 지나 돌아온 뒤 (8물결) */
+    hideBackNote();
     if (!S.octopus.name) { openNameDialog(); return Promise.resolve(null); }
     checkDay(true);   /* 자정을 넘겨 다시 부르면 어제 로그는 앨범 일기로, 오늘 칸부터 새로 */
     if (!B || typeof B.plan !== 'function') { toast('두뇌(brain.js)가 아직 없어'); return Promise.resolve(null); }
@@ -1022,11 +1042,12 @@ var APP = (function () {
         /* 들고 오는 포스터 = 이 여행의 것 (id: 장면이 걸 때 그 포스터의 벽 칸으로 날린다 — 건너뛰기·데모 재생처럼 벽에 먼저 붙었어도) */
         var mode = trip.poster ? 'carry' : 'walk', carryX = trip.poster ? { svg: posterSVG(trip, 48, 64, { mini: true, noExternal: true }), id: trip.id } : null;
         var wasOut = !!(revealing && revealing.outside);
-        if (fast) { if (wasOut && typeof scene.leaveOutside === 'function') scene.leaveOutside(); if (!jumpCeremony()) abandonCeremony(); bubble('', 0); dropOverlay(); ensureAttic(); octPlace('board'); octState(mode, carryX); return Promise.resolve(); }
+        if (fast) { if (wasOut && typeof scene.leaveOutside === 'function') scene.leaveOutside(); if (!jumpCeremony()) abandonCeremony(); bubble('', 0); dropOverlay(); ensureAttic(); octPlace('board'); octState(mode, carryX); noteBack(); return Promise.resolve(); }
         /* (바깥 기웃을 했으면 같은 출구로 퇴장) → 귀가 의식(길 → 계단 → 현관 → 다락 문) → 보드까지 걸어가 포스터 걸기 */
         var back = (hasCeremony() && oct.state === 'away') ? (wasOut ? runCeremony('leave') : Promise.resolve()).then(function () { dropOverlay(); return runCeremony('return'); }) : Promise.resolve();
         return back.then(function () {
           ensureAttic(); octPlace('door');
+          noteBack();   /* 놀이방에 있으면 구석 쪽지 "뚜루가 돌아왔어." (문어가 다락 문으로 막 들어온 때 — 8물결) */
           if (skipFlag) { octPlace('board'); octState(mode, carryX); return; }
           octState(mode, carryX);
           return walkTo('board', mode).then(function () { octState(mode, carryX); });
@@ -1874,7 +1895,7 @@ var APP = (function () {
   function flyToAlbum(trip) {
     var b = $('btn-album'), sc = $('scene');
     renderAlbumBtn();
-    if (!b || !sc || b.hidden || reduced() || typeof sc.animate !== 'function' || document.querySelector('dialog[open]')) return Promise.resolve();
+    if (!b || !sc || b.hidden || reduced() || typeof sc.animate !== 'function' || document.querySelector('dialog[open]') || inPlay()) return Promise.resolve();   /* 놀이방에선 날지 않는다 (점만) */
     var box = b.querySelector('.snd-box') || b, sr = sc.getBoundingClientRect(), br = box.getBoundingClientRect();
     if (!sr.width || !br.width) return Promise.resolve();
     var W2 = 16, H2 = 21, g = pixelFont() ? 2 : 1, N = 6, kf = [], pos = null;
@@ -2351,17 +2372,126 @@ var APP = (function () {
     openNameDialog();
   }
 
-  /* ───────────────────────── rooms: 놀이방 문 (임시) ───────────────────────── */
-  /* 다른 방으로 가기 (주인 11-07: 문어 달리기는 다른 방에서). 지금은 장면 오른쪽 아래 '놀이방' 문(#btn-door) 하나 → 문이 끼익 열리는 소리 + 다락방 달리기 창.
-     8물결에서 다락 안 진짜 문(그리고 나중엔 걸어다니는 플레이어 캐릭터가 문 앞에 서면)으로 바뀌어도 이 이름으로 부른다. 문어가 나가 있어도 된다 — 산책은 그대로 이어진다 */
-  var ROOMS = {
-    play: function (opener) { if (window.RUNNER && typeof RUNNER.open === 'function') { RUNNER.open({ opener: opener || null }); return true; } return false; }
-  };
-  function goRoom(name, opener) {
-    var go = ROOMS[name]; if (!go) return false;
-    if (window.AUDIO) AUDIO.on('door', { act: 'open', room: name });   /* 소리: 문 끼익 (js/audio.js) */
+  /* ───────────────────────── rooms: 문어 방 ↔ 놀이방 (8물결 · 카드 18) ───────────────────────── */
+  /* 주인 11-07: "방 클릭하면 캐릭터가 그 방문 앞으로 가면 끼익 열리면서 다른 방으로 넘어가는 류". 세 방 = 왼쪽 옷방(나중) · 가운데 문어 방(다락) · 오른쪽 놀이방.
+     다락 오른쪽 바닥 끝에 선 진짜 문(#btn-door — 장면이 3D 문 위에 투명 단추로 맞춘다, aria-label '놀이방') → goRoom('play') → 문이 끼익 열림 → 가로 0.6 s → 놀이방.
+     놀이방: 왼쪽 벽 문(#btn-play-door '문어 방') → goRoom('attic') · 뒷벽 오락기(#btn-machine '다락방 달리기') → RUNNER.open (닫으면 오락기로 포커스 · 놀이방 그대로).
+     화살표 · 밀어서 넘기기 · 문 앞 질문은 없다. 문어는 놀이방에 오지 않는다 (문어의 방은 다락). 놀이방에서 하는 일은 산책 · 두뇌 · 저장(S)에 닿지 않는다 (0 바이트).
+     산책 중(바깥이 보이는 동안)엔 #btn-door 가 장면 오른쪽 아래 픽셀 문 단추(data-spot="edge")라 기다리는 동안 놀이방에 갈 수 있다. 산책은 놀이방에서도 그대로 흐르고(로그 행이 쌓인다),
+     장면은 놀이방에 있는 동안 의식이 장소를 바꿔도 화면을 끌고 가지 않는다 (scene3d setPlaceNow). 문어가 돌아오면 구석 쪽지 "뚜루가 돌아왔어." + 보러 가기.
+     큰 버튼(뽈뽈 다녀와 · 다녀오는 중…)은 문어 방의 일 → 놀이방이면 먼저 문으로 돌아와서 한다. 새로고침은 늘 문어 방 (지금 방은 저장하지 않는다).
+     나중의 걸어 다니는 내 캐릭터: walkFirst — 장면의 playerWalkTo(문 앞 앵커 atticPlayDoor · playAtticDoor)가 걸어가서 풀리면 그때 문이 열린다 (지금은 캐릭터가 없어 바로 풀린다) */
+  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine' };
+  var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
+  var roomJob = null;   /* 지금 도는 문 작업 (Promise) — 끝날 때까지 두 번째 문은 열지 않는다 */
+  function sceneView() { return scene && typeof scene.view === 'function' ? scene.view() : (scene && typeof scene.place === 'function' ? scene.place() : 'attic'); }
+  function inPlay() { return !!scene && typeof scene.room === 'function' && scene.room() === 'play'; }
+  function introUp() { return !!(window.INTRO && ['sky', 'title'].indexOf(INTRO.phase) >= 0); }
+  function bindSpots() {
+    var map = {};
+    Object.keys(ROOM_SPOT).forEach(function (k) { var el = $(ROOM_SPOT[k]); if (el) map[k] = el; });
+    if (scene && typeof scene.hotspots === 'function') scene.hotspots(map);
+    syncRoomUI();
+  }
+  /* 보이는 장소 → #scene[data-view] (css: 놀이방이면 문어 머리 위 것 · 2D 다락 그림을 숨긴다) · 장면 이름(aria-label) · 장면 설명. 놀이방을 벗어나면 쪽지는 걷는다 */
+  function syncRoomUI(v) {
+    v = v || sceneView();
+    var sc = $('scene'); if (!sc) return;
+    if (sc.getAttribute('data-view') !== v) sc.setAttribute('data-view', v);
+    var lbl = v === 'play' ? '놀이방' : '문어의 다락방';
+    if (sc.getAttribute('aria-label') !== lbl) sc.setAttribute('aria-label', lbl);
+    if (v !== 'play') hideBackNote();
+    updateSceneDesc();
+  }
+  function resetRoomUI() {   /* 장면을 바꿀 때 (sceneLost): 단추는 새 장면이 다시 맡는다 · 그 전까지 놀이방 단추는 숨김 */
+    roomJob = null; hideBackNote();
+    ['btn-play-door', 'btn-machine'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
+    var d = $('btn-door'); if (d) { d.hidden = false; d.removeAttribute('data-spot'); ['left', 'top', 'width', 'height', 'right', 'bottom'].forEach(function (k) { d.style[k] = ''; }); }
+    var sc = $('scene'); if (sc) { sc.setAttribute('data-view', 'attic'); sc.setAttribute('aria-label', '문어의 다락방'); }
+  }
+  function goRoom(name, opener, kbd) {   /* → Promise<{ ok, reason?, view, room, place }> (예전 7물결엔 bool). kbd = 키보드 · 화면 낭독기로 눌렀다 (도착한 쪽 단추에 포커스 링) */
+    var to = name === 'play' ? 'play' : name === 'attic' || name === 'back' ? 'attic' : null;
+    function no(why) { return Promise.resolve({ ok: false, reason: why, view: sceneView(), room: inPlay() ? 'play' : null }); }
+    if (!to) return no('unknown');
+    if (!scene || typeof scene.goRoom !== 'function') return no('scene');
+    if (introUp()) return no('intro');
+    if (roomJob) return no('busy');
+    var ae = document.activeElement, keep = !ae || ae === document.body || ae === opener || isRoomButton(ae);
     hideTip();
-    return go(opener);
+    if (to === 'attic') hideBackNote();
+    var job = roomJob = Promise.resolve(scene.goRoom(to, { walkFirst: true })).then(fin, function (e) { console.warn('[app] goRoom', e); return fin({ ok: false, reason: 'error' }); });
+    function fin(r) {
+      if (roomJob === job) roomJob = null;
+      r = r || { ok: false };
+      syncRoomUI();
+      if (r.ok) {   /* 들어온 문의 맞은편 단추로 포커스 (누른 단추는 숨어서 포커스가 body 로 떨어진다) — 그사이 다른 곳(설정 등)으로 옮겼으면 두고 */
+        var cur = document.activeElement, b = $(ROOM_BACK[to]);
+        if (b && !b.hidden && (keep || !cur || cur === document.body) && (!cur || cur === document.body || isRoomButton(cur))) focusRoomBtn(b, !!kbd);
+      }
+      return r;
+    }
+    return job;
+  }
+  /* 도착한 방의 단추로 포커스: 키보드로 왔으면 링, 손가락 · 마우스로 왔으면 링 없이 (장면이 그림 위 톡을 단추 click() 으로 넘기므로 브라우저의 :focus-visible 짐작이 '키보드' 로 기울 수 있다).
+     focusVisible 옵션을 모르는 브라우저는 .ring-off (css) — 키를 누르거나 포커스가 떠나면 걷힌다 */
+  function focusRoomBtn(b, ring) {
+    if (!ring) b.classList.add('ring-off'); else b.classList.remove('ring-off');
+    try { b.focus(ring ? { preventScroll: true } : { preventScroll: true, focusVisible: false }); } catch (e) { b.focus(); }
+  }
+  function kbdClick(e) { return !!e && e.isTrusted && e.detail === 0; }   /* Enter · Space · 화면 낭독기 = 진짜(isTrusted) click 인데 detail 0 — 마우스는 detail ≥ 1, 장면이 대신 누른 톡은 isTrusted false */
+  function isRoomButton(el) { return !!el && !!el.id && (el.id === 'btn-back-see' || Object.keys(ROOM_SPOT).some(function (k) { return ROOM_SPOT[k] === el.id; })); }
+  /* 놀이방이면 문으로 문어 방(또는 문어가 나가 있으면 바깥)에 돌아온다 → Promise<bool> 이제 놀이방 밖이다. 문이 도는 중이면 끝나길 기다린다 */
+  function backToOctRoom() {
+    return (roomJob || Promise.resolve()).then(function () {
+      if (!inPlay()) return !roomJob;
+      return goRoom('attic').then(function () { return !inPlay() && !roomJob; });
+    });
+  }
+  function openMachine(opener, kbd) {   /* 오락기 → 다락방 달리기 창 (js/runner.js 그대로). 닫으면 runner 가 opener(오락기 단추)로 포커스를 돌려준다 · 놀이방은 그대로 */
+    if (!inPlay() || roomJob) return false;
+    if (!window.RUNNER || typeof RUNNER.open !== 'function') return false;
+    hideTip();   /* 구석 쪽지는 그대로 (달리기 창은 모달 — 닫으면 다시 보인다) */
+    opener = opener || $('btn-machine');
+    if (opener && document.activeElement !== opener && !opener.hidden) focusRoomBtn(opener, !!kbd);   /* 장면이 대신 누른 톡이면 포커스가 오락기에 없다 → 먼저 옮겨 둔다 (창을 닫을 때 브라우저가 돌려주는 자리 = 오락기) */
+    RUNNER.open({ opener: opener });
+    return true;
+  }
+  /* 구석 쪽지: 놀이방에 있는 동안 문어가 산책에서 돌아오면 (sceneFor 'return'). 이름 + 조사 (WORLD.strings.backNote) · 보러 가기 = 문으로 다락에.
+     놀이방을 벗어나면(어느 길로든) 걷는다. 글은 보인 뒤에 넣는다 (role=status 가 읽어 준다) */
+  var noteTimer = 0;
+  function noteBack() {
+    if (!inPlay()) return;
+    var n = $('back-note'), t = $('back-note-txt'); if (!n || !t) return;
+    var nm = S.octopus.name || '', txt = typeof STR.backNote === 'function' ? STR.backNote(nm) : (nm || '문어') + ' 돌아왔어.';
+    if (!n.hidden && t.textContent === txt) return;
+    clearTimeout(noteTimer); t.textContent = ''; n.hidden = false;
+    noteTimer = setTimeout(function () {   /* 이름은 따로 (긴 이름은 css 가 줄임표로 — 쪽지가 두 줄을 넘지 않게). 읽어 주는 글은 온전한 문장 그대로 */
+      if (n.hidden) return;
+      var who = nm || '문어';
+      if (txt.indexOf(who) !== 0) { t.textContent = txt; return; }
+      var a = document.createElement('span'), b = document.createElement('span');
+      a.className = 'bn-name'; a.textContent = who; b.className = 'bn-rest'; b.textContent = txt.slice(who.length);
+      t.appendChild(a); t.appendChild(b);
+    }, 60);
+  }
+  function hideBackNote() {
+    clearTimeout(noteTimer);
+    var n = $('back-note'), t = $('back-note-txt');
+    if (n && !n.hidden) { if (n.contains(document.activeElement)) { var d = $('btn-play-door'); if (d && !d.hidden) d.focus({ preventScroll: true }); } n.hidden = true; }
+    if (t) t.textContent = '';
+  }
+  function bindRooms() {
+    function on(id, fn) {
+      var b = $(id); if (!b) return;
+      b.addEventListener('click', function (e) { fn(e.currentTarget, kbdClick(e)); });
+      b.addEventListener('blur', function () { b.classList.remove('ring-off'); });
+      b.addEventListener('keydown', function (e) { if (e.repeat && (e.key === 'Enter' || e.key === ' ')) e.preventDefault(); });   /* Enter 를 누르고 있으면: 도착한 방의 맞은편 문으로 포커스가 옮겨 가 자동 반복이 그 문을 또 연다 → 반복 키는 삼킨다 */
+    }
+    on('btn-door', function (b, k) { goRoom('play', b, k); });
+    on('btn-play-door', function (b, k) { goRoom('attic', b, k); });
+    on('btn-machine', function (b, k) { openMachine(b, k); });
+    on('btn-back-see', function (b, k) { goRoom('attic', b, k); });
+    document.addEventListener('keydown', function () { var r = document.querySelectorAll('.ring-off'); for (var i = 0; i < r.length; i++) r[i].classList.remove('ring-off'); }, true);   /* 키를 누르면 링은 다시 (키보드로 이어 가는 사람) */
   }
 
   /* ───────────────────────── tip: 상태 줄의 작은 말풍선 ───────────────────────── */
@@ -2521,7 +2651,7 @@ var APP = (function () {
     $('hint-in').addEventListener('blur', function () { scene.lookAt(window.innerWidth / 2, window.innerHeight / 2); });
     $('btn-settings').addEventListener('click', openSettings);
     $('set-close').addEventListener('click', function () { $('settings-sheet').close(); });
-    $('btn-door').addEventListener('click', function (e) { goRoom('play', e.currentTarget); });
+    bindRooms();   /* 방 문 · 오락기 · 구석 쪽지 (8물결) */
     bindTip();   /* '데모' · 등불 → 작은 말풍선 */
     $('pd-flip').addEventListener('click', flipPoster);
     $('pd-front').addEventListener('click', flipPoster);
@@ -2651,6 +2781,7 @@ var APP = (function () {
     oct: oct, walkTo: walkTo, octState: octState, anchors: ANCHORS, placeholders: PH, commitTrip: commitTrip,
     get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor,
     portraitFor: portraitFor, say: say, get portraitCache() { return Object.keys(PORT.cache); },
-    setSeason: setSeasonPref, get ceremony() { return cer.kind; }
+    setSeason: setSeasonPref, get ceremony() { return cer.kind; },
+    get room() { return inPlay() ? 'play' : null; }, openMachine: openMachine   /* 8물결: 놀이방에 있는가 · 오락기 (테스트·도구) */
   };
 })();

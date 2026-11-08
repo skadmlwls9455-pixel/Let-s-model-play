@@ -16,7 +16,7 @@
  *  8. 방 완성 팡파르 중 끄고 켜기 → BGM 덕킹 풀림 · 못 받는 집 테마는 매초 다시 받지 않는다
  *  9. D-1 자장가 규칙 (훅 이벤트로): 낮 + 덤덤 / 낮 + 반응 없음 → 자장가 없음 · 낮 + 졸림 → 자장가 · 밤 → 자장가 · 반응 키 없으면 마무리 줄의 반응
  *     · 문 이벤트 door{act:'open'} → 끼익 (한 벌에 door_open 이 없으면 audio.js 가 만든 door_creak_open — 시트 소리 아님, 크기는 export 잣대) · close → 짧은 끼익
- *     · 모르는 act·이름은 조용히 · 놀이방 문(#btn-door)을 누르면 끼익 한 번 + 달리기 창
+ *     · 모르는 act·이름은 조용히 · 놀이방 문(#btn-door)을 누르면 끼익 열림 · 닫힘 + 놀이방 (8물결) → 오락기 → 달리기 창
  * 모든 페이지: 콘솔 오류 0 (바깥 글꼴 같은 외부 요청 실패만 무시), audio/ 응답은 전부 200.
  */
 'use strict';
@@ -512,18 +512,34 @@ async function scenarioRules(browser, base) {
   await page.waitForTimeout(400);
   pd = await playedSince(page, t);
   ok(pd.length === 0, "모르는 act · act 없음 · 모르는 이름 → 조용히 (" + pd.join(',') + ')');
-  /* 장면의 놀이방 문(#btn-door, 7물결 임시 문)을 실제로 누르면: 문 소리 한 번 · 탭 소리 없음 (장면 안) · 달리기 창은 시트가 아니라 여는 소리가 겹치지 않는다 */
+  /* 장면의 놀이방 문(#btn-door — 8물결: 다락 안 3D 문 위 투명 단추)을 실제로 누르면: 끼익 열림 한 번 → (가로 전환) → 놀이방에서 닫힘 한 번 · 탭 소리 없음 (장면 안) ·
+     달리기 창은 아직 아니다 (놀이방의 오락기 #btn-machine 을 눌러야) · 놀이방 문(#btn-play-door)으로 돌아오면 또 열림 · 닫힘 */
   var hasDoor = await page.evaluate(function () { var b = document.getElementById('btn-door'); return !!(b && !b.hidden && b.offsetParent !== null); });
   if (hasDoor) {
     await page.waitForTimeout(300);
     t = (await st(page)).time;
-    await page.click('#btn-door');
-    await waitState(page, function (t1) { return AUDIO.state().played.some(function (p) { return p.t >= t1 - 0.02; }); }, t, 4000);
+    await clickSpot(page, '#btn-door');
+    await page.waitForFunction(function () { var m = document.getElementById('btn-machine'); return m && !m.hidden && APP.scene.view() === 'play'; }, null, { timeout: 20000 });
     await page.waitForTimeout(400);
     pd = await playedSince(page, t);
     var rOpen = await page.evaluate(function () { var d = document.getElementById('runner-dlg'); return !!(d && d.open); });
-    ok(pd.filter(function (id) { return doorIds.indexOf(id) >= 0; }).length === 1 && !pd.some(function (id) { return /^ui_tap_/.test(id); }) && rOpen, '놀이방 문 누르기 → 문 소리 한 번 · 탭 소리 없음 · 달리기 창 열림 (' + pd.join(',') + ')');
+    var cIds = dClose.ids;
+    ok(pd.filter(function (id) { return doorIds.indexOf(id) >= 0; }).length === 1 && pd.filter(function (id) { return cIds.indexOf(id) >= 0; }).length === 1 && pd.indexOf(doorIds[0]) <= pd.indexOf(cIds[0]) && !pd.some(function (id) { return /^ui_tap_/.test(id); }) && !rOpen,
+      '놀이방 문 누르기 → 문 열림 한 번 · 놀이방에서 닫힘 한 번 · 탭 소리 없음 · 달리기 창은 아직 (' + pd.join(',') + ')');
+    t = (await st(page)).time;
+    await clickSpot(page, '#btn-machine');
+    await page.waitForSelector('#runner-dlg[open]');
+    await page.waitForTimeout(400);
+    pd = await playedSince(page, t);
+    ok(!pd.some(function (id) { return doorIds.indexOf(id) >= 0 || cIds.indexOf(id) >= 0 || /^ui_tap_/.test(id); }), '오락기 누르기 → 달리기 창 (문 소리 · 탭 소리 없음) (' + pd.join(',') + ')');
     await page.evaluate(function () { var d = document.getElementById('runner-dlg'); if (d && d.open) d.close(); });
+    await page.waitForTimeout(300);
+    t = (await st(page)).time;
+    await clickSpot(page, '#btn-play-door');
+    await page.waitForFunction(function () { var d = document.getElementById('btn-door'); return d && !d.hidden && APP.scene.view() === 'attic'; }, null, { timeout: 20000 });
+    await page.waitForTimeout(400);
+    pd = await playedSince(page, t);
+    ok(pd.filter(function (id) { return doorIds.indexOf(id) >= 0; }).length === 1 && pd.filter(function (id) { return cIds.indexOf(id) >= 0; }).length === 1, '놀이방 문(문어 방) 누르기 → 열림 · 닫힘 한 번씩 (' + pd.join(',') + ')');
     await page.waitForTimeout(300);
   } else console.log('   (놀이방 문 #btn-door 없음 — 훅 이벤트만 봄)');
 
@@ -556,6 +572,22 @@ async function scenarioRules(browser, base) {
   await sleepCase("AUDIO.on('state', { state: 'sleep', reaction: '덤덤' });", '밤 21시 + 덤덤', true);
   reportErrors(s.bag, 'rules');
   await s.ctx.close();
+}
+
+/* 8물결: 그림 위 문 · 오락기 단추는 pointer-events: none (톡은 장면이 받아 그린 순서대로 단추를 누른다). 진짜 손가락처럼 그 단추 칸 안에서
+   장면이 그 단추로 고르는 자리(3D = pickAt 'spot', 2D = 문어가 아닌 그림)를 찾아 마우스로 누른다 — 문 앞에 문어가 서 있으면 문어 몸은 피한다 */
+async function clickSpot(pg, sel) {
+  var pt = await pg.evaluate(function (sel) {
+    var b = document.querySelector(sel); b.scrollIntoView({ block: 'nearest' });
+    var r = b.getBoundingClientRect(), oct = document.getElementById('oct'), id = { 'btn-door': 'atticPlay', 'btn-play-door': 'playAttic', 'btn-machine': 'machine' }[b.id], F = [0.5, 0.35, 0.65, 0.2, 0.8, 0.1, 0.9];
+    for (var i = 0; i < F.length; i++) for (var j = 0; j < F.length; j++) {
+      var x = r.left + r.width * F[j], y = r.top + r.height * F[i];
+      if (APP.sceneMode === '3d') { var k = APP.scene.pickAt(x, y); if (k && k.kind === 'spot' && k.id === id) return [x, y]; }
+      else { var e = document.elementFromPoint(x, y); if (e && e.closest('#stage') && !(oct && oct.contains(e))) return [x, y]; }
+    }
+    return [r.left + r.width / 2, r.top + r.height / 2];
+  }, sel);
+  await pg.mouse.click(pt[0], pt[1]);
 }
 
 (async function main() {

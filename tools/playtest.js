@@ -59,17 +59,19 @@ const WIKI = { query: { pages: { '1': { pageid: 1, title: '고래', extract: '�
   await p.evaluate(() => window.scrollTo(0, 0));
   await p.fill('#hint-in', '고래'); await p.tap('#btn-go'); note('go#2', 'hint 고래');
   await waitTripDone('trip2'); await shot('trip2-done');
-  /* 6. ⚙ 설정 (예전 방 보기 자리) → 닫고 놀이방 문 (다락방 달리기) */
+  /* 6. ⚙ 설정 (예전 방 보기 자리) → 닫고 놀이방 문 → 놀이방 → 오락기 (다락방 달리기) → 문어 방 (8물결) */
   await p.tap('#btn-settings'); await p.waitForTimeout(900); await shot('settings'); note('settings', await txt('#set-body'));
   await p.keyboard.press('Escape'); await p.waitForTimeout(400);
   const play = await p.$('#btn-door');
   note('play door', !!play);
   if (play) {
-    await play.tap(); await p.waitForTimeout(1200); await shot('runner-open'); note('runner text', await txt('#runner-dlg'));
+    await play.tap({ force: true }); await p.waitForFunction(() => { const m = document.getElementById('btn-machine'); return m && !m.hidden; }, null, { timeout: 20000 }); await shot('play-room'); note('play room', await p.evaluate(() => document.getElementById('scene-desc').textContent));
+    await p.tap('#btn-machine', { force: true }); await p.waitForTimeout(1200); await shot('runner-open'); note('runner text', await txt('#runner-dlg'));
     const box = await p.evaluate(() => { const c = document.querySelector('#runner-dlg canvas'); if (!c) return null; const r = c.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
     if (box) { for (let i = 0; i < 40; i++) { await p.touchscreen.tap(box.x, box.y); await p.waitForTimeout(450); } }
     await p.waitForTimeout(1500); await shot('runner-after'); note('runner text after', await txt('#runner-dlg'));
     await p.keyboard.press('Escape'); await p.waitForTimeout(600);
+    await p.tap('#btn-play-door', { force: true }); await p.waitForFunction(() => { const d = document.getElementById('btn-door'); return d && !d.hidden; }, null, { timeout: 20000 });
   }
   await p.keyboard.press('Escape'); await p.waitForTimeout(400);
   /* 7. 셋째 산책 */
