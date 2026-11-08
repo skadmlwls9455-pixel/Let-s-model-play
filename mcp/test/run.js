@@ -128,6 +128,13 @@ async function unit() {
   var lint = cp.spawnSync(process.execPath, [path.join(__dirname, '..', 'tools', 'check-books.js'), bdir], { encoding: 'utf8' });
   check(/문어에게 말 걸기/.test(lint.stdout) && /느낄 것 정해 주기/.test(lint.stdout) && lint.status === 1, 'check-books: 말 걸기·느낌 정해 주기 경고, 깨진 책은 오류');
 
+  section('옆길 다리 글은 모델에게 안 간다');
+  var on = new core.Octopus({ dir: tmp(), fetchWiki: stubWiki, now: function () { return new Date(clock); } });
+  on.depart({});
+  var pn = await on.peek({ target: { kind: 'room', id: 'octopus_nerves' } });
+  check(!('nearby' in pn) && JSON.stringify(pn).indexOf('엉키지') < 0, 'peek 결과에 nearby·다리 글 없음');
+  on.finish({});
+
   section('오늘 열린 방 — 날짜로 정해진다');
   var lib1 = o.library(), libAll1 = Object.keys(lib1).map(function (k) { return lib1[k]; }).join(', ').split(', ');
   check(libAll1.length === 16 && JSON.stringify(o.library()) === JSON.stringify(lib1), '모퉁이마다 2개 · 같은 날은 같다');

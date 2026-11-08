@@ -29,7 +29,7 @@ cd mcp && npm install
 |---|---|---|---|
 | `ppolppol_look_room` | `archived?` | 등불, 벽 포스터 한 줄, 집 활동, 요즘, 활성 메모 ≤3 (+ `archived:true` 면 보관 메모), 처음이면 `decision: meet` | 548 B |
 | `ppolppol_depart` | `first?` (target), `more?` | `tripId`, 오늘 열린 방 16개 (모퉁이마다 2개, 날짜로 정해짐) 모퉁이별 한 줄 `library {"hands 손과 물건": "hat 모자, …, octopus_nerves 문어 신경계*"}`, 활성 메모 ≤3, `first` 를 주면 `peek` 결과. 나가 있는 동안 다시 부르면 지금 산책을 잇는다 | 529 B |
-| `ppolppol_peek` | **`target`**, `more?`, `note?`, `aside?`, `bridge?`, `tripId?` | `stopIdx`, `status`, `material`+`source` (read, 기본 ≤160자 · `more` 면 ≤600자) 또는 `clue` (builtin), `first`, `nearby`, `links` | 345 B (more 면 더) |
+| `ppolppol_peek` | **`target`**, `more?`, `note?`, `aside?`, `bridge?`, `tripId?` | `stopIdx`, `status`, `material`+`source` (read, 기본 ≤160자 · `more` 면 ≤600자) 또는 `clue` (builtin), `first`, `links` (위키 문서의 링크. 옆길 다리 글은 보내지 않는다) | 345 B (more 면 더) |
 | `ppolppol_finish` | `reason?`, `remember?`, `hang?`, `reaction?`, `line?`, `tomorrow?`, `note?`, `setDown?`, `tripId?` | `saved`, `posterId?`, `decision: chat` | 199 B |
 | `ppolppol_stay_home` | `activity?`, `detail?`, `line?`, `reaction?`, `tomorrow?`, `note?`, `setDown?` | `tripId`, `saved`, `decision: chat` | 192 B |
 | `ppolppol_empty_turn` | — | `tripId`, `saved` (대화 없음) | 66 B |

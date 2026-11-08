@@ -357,7 +357,8 @@ Octopus.prototype.peek = async function (a) {
     if (node.wiki) out.wiki = node.wiki;   /* 위키로도 갈 수 있다: {kind:'wiki', title} */
   }
   if (node) { out.first = visits === 0; if (visits) out.visits = visits; }
-  if (node && node.tangents && node.tangents.length) out.nearby = node.tangents.map(function (x) { return { id: x.to, bridge: x.bridge }; });
+  /* 옆길 다리 글 (tangents) 은 모델에게 보내지 않는다 (11-10 주인 결정): 게임이 고른 길·문장이 끌림이 된다 (MCP_PLAYTEST 옆길 A/B).
+     건너갈 길은 읽은 위키 문서 자체의 links 뿐이다. 게임 화면·데모 규칙은 다리 글을 그대로 쓴다 */
   if (links && links.length) out.links = links.slice(0, 8);
   return out;
 };
