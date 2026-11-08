@@ -1,0 +1,178 @@
+#!/usr/bin/env node
+/* mcp/test/run.js — 카드 9 검수 (네트워크 없이. 위키 fetch 는 stub, 진짜 MCP 왕복은 stdio 로 서버를 띄워서)
+ *   cd mcp && npm test
+ */
+'use strict';
+var fs = require('fs'), os = require('os'), path = require('path'), cp = require('child_process');
+var core = require('../core.js');
+var WORLD = require('../../js/world.js');
+var BRAIN = require('../../js/brain.js');
+BRAIN.setWorld(WORLD);
+
+var fails = 0, passes = 0, sizes = {};
+function check(c, msg) { if (c) passes++; else { fails++; console.error('  FAIL ' + msg); } }
+function section(n) { console.log('== ' + n); }
+function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'ppol-')); }
+function measure(name, out) { var b = Buffer.byteLength(JSON.stringify(out)); sizes[name] = Math.max(sizes[name] || 0, b); return out; }
+
+/* 위키 stub: '모자' 읽힘, '없는문서' 없음, 그 밖은 네트워크 실패 */
+function stubWiki(title) {
+  if (title === '모자' || title === '깃털') return Promise.resolve({ ok: true, title: title, extract: title + '는(은) … 요약 두 문장.', url: 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(title),
+    thumb: { url: 'https://upload.wikimedia.org/x.jpg', w: 10, h: 10 }, links: ['깃펜', '장식'] });
+  if (title === '나쁜출처') return Promise.resolve({ ok: true, title: title, extract: '…', url: 'https://evil.example/wiki/x', thumb: null, links: [] });
+  if (title === '없는문서') return Promise.resolve({ ok: false, reason: 'missing' });
+  return Promise.resolve({ ok: false, reason: 'network' });
+}
+var clock = Date.parse('2026-11-08T10:00:00+09:00');
+function mk(dir) { return new core.Octopus({ dir: dir, fetchWiki: stubWiki, now: function () { return new Date(clock); }, name: '뚜루' }); }
+var HUMAN_KEYS = ['together', 'withUser', 'items', 'pocket', 'cooking', 'kept', 'swim', 'user', 'userItems', 'picked'];
+function humanKeys(o) {
+  var bad = [];
+  (function walk(x) { if (x && typeof x === 'object') Object.keys(x).forEach(function (k) { if (HUMAN_KEYS.indexOf(k) >= 0) bad.push(k); walk(x[k]); }); })(o);
+  return bad;
+}
+
+async function unit() {
+  var dir = tmp(), o = mk(dir), outs = [];
+  function keep(name, x) { outs.push(x); return measure(name, x); }
+
+  section('look_room · meet (처음 한 번, watch·stop)');
+  var lr = keep('ppolppol_look_room', o.lookRoom({}));
+  check(lr.decision && lr.decision.point === 'meet', 'meet 이 처음 look_room 에 걸린다');
+  check(lr.decision.menu.indexOf('watch') >= 0 && lr.decision.menu.indexOf('stop') >= 0, 'meet menu 에 watch·stop');
+  check(lr.decision.facts.name === '뚜루', 'meet facts 에 이름');
+  var a1 = o.answer({ id: lr.decision.id, action: 'say', line: '안녕, 나는 뚜루야. 사실은 Claude 야.' });
+  check(a1.ok, 'meet 답하기');
+  check(!o.lookRoom({}).decision, 'meet 은 두 번 묻지 않는다');
+  var talk = JSON.parse(fs.readFileSync(path.join(dir, 'out/talk.json'), 'utf8'));
+  check(talk[0].kind === 'intro' && talk[0].by === 'model' && talk[0].text === '안녕, 나는 뚜루야. 사실은 Claude 야.', 'intro 원문 그대로 S.talk 모양');
+
+  section('산책 왕복 · status 정직');
+  var d = keep('ppolppol_depart', o.depart({ hint: '모자의 역사' }));
+  check(d.tripId && d.library.length > 50 && !d.library.some(function (x) { return x.id === 'door_out'; }), 'depart: library (밖의 문 제외)');
+  check(o.depart({}).error, '나가 있는 동안 depart 두 번은 오류 (finish 로 끝내라고 안내)');
+  var p1 = keep('ppolppol_peek', await o.peek({ tripId: d.tripId, target: { kind: 'room', id: 'hat' }, note: '챙이 생각보다 넓었어' }));
+  check(p1.status === 'read' && /^https:\/\/ko\.wikipedia\.org\/wiki\//.test(p1.source), 'room + 위키 성공 → read, 출처는 ko 위키');
+  var p2 = keep('ppolppol_peek', await o.peek({ tripId: d.tripId, target: { kind: 'wiki', title: '없는문서' } }));
+  check(p2.status === 'failed' && !p2.material, '위키 문서 없음 → failed, 지어낸 요약 없음');
+  var p3 = await o.peek({ tripId: d.tripId, target: { kind: 'wiki', title: '아무거나' } });
+  check(p3.status === 'failed', '네트워크 실패 → failed');
+  var p4 = await o.peek({ tripId: d.tripId, target: { kind: 'room', id: 'button' } });
+  check(p4.status === 'builtin' && p4.clue, 'room + fetch 실패 → builtin (책장 메모)');
+  var p5 = await o.peek({ tripId: d.tripId, target: { kind: 'url', url: 'https://example.org/x' } });
+  check(p5.status === 'simulated', 'url → simulated');
+  var p6 = await o.peek({ tripId: d.tripId, target: { kind: 'room', id: 'slow_room' } });
+  check(p6.status === 'none', '느린 글의 방 → none');
+  var p7 = await o.peek({ tripId: d.tripId, target: { kind: 'wiki', title: '나쁜출처' } });
+  check(p7.status === 'failed', 'ko.wikipedia 가 아닌 출처 → read 로 올리지 않음');
+  check((await o.peek({ tripId: d.tripId, target: { kind: 'room', id: 'nope' } })).error, '없는 방 id 는 오류');
+
+  section('finish — 이유·메모 없이도 · chat 두 번까지');
+  var f = keep('ppolppol_finish', o.finish({ tripId: d.tripId, remember: { stopIdx: 0, line: '모자 보러 갔다가' }, note: { text: '조개 소리가 궁금해', about: { kind: 'node', id: 'shell' } } }));
+  check(f.ok && f.saved, 'finish 성공');
+  var evs = JSON.parse(fs.readFileSync(path.join(dir, f.saved), 'utf8'));
+  check(evs.map(function (e) { return e.type; }).join() === 'depart,peek,peek,peek,peek,peek,peek,peek,return,remember,hang_poster,wrap_up', '이벤트 순서 PROTOCOL §1');
+  check(evs[0].followHint === true, '첫 기웃이 힌트 방이면 followHint true');
+  check(!('reason' in evs[8]) && !('reaction' in evs[11]), '안 준 이유·반응은 비워 둔다');
+  check(evs[1].note === '챙이 생각보다 넓었어' && evs[2].note === undefined, '기웃 메모는 모델이 쓴 것만');
+  check(f.decision && f.decision.point === 'chat' && f.decision.round === 1 && f.decision.menu.join() === 'say,watch,stop', 'chat 1 이 finish 결과에');
+  var c2 = o.answer({ id: f.decision.id, action: 'watch' });
+  check(c2.decision && c2.decision.round === 2, 'chat 2');
+  var c3 = o.answer({ id: c2.decision.id, action: 'say', line: '깃털 끝이 갈라져 있었어' });
+  check(c3.ok && !c3.decision, 'chat 상한 2 — 세 번째는 묻지 않는다');
+  check(o.answer({ id: 'dp_x', action: 'say' }).error, '걸린 물음 없으면 오류 (답 안 해도 된다는 말)');
+
+  section('재생 — 게임 두뇌(BRAIN.replay)로');
+  var rp = BRAIN.replay(evs, { by: 'mcp', dateKey: '2026-11-08', seq: 1, name: '뚜루', now: new Date(clock), state: {} });
+  check(rp && rp.receipt && rp.receipt.stops.length === 7, 'replay: 정류장 7');
+  check(rp.noteOut && rp.noteOut.text === '조개 소리가 궁금해', 'replay: wrap_up.note → noteOut 그대로');
+  check(rp.posterHung === true && rp.reactionBy !== 'demo-rules', 'replay: 포스터 걸림, 반응을 데모가 대신 고르지 않음');
+  check(rp.receipt.stops[0].noteBy === 'model', 'replay: 기웃 메모 noteBy model');
+
+  section('메모 — setDown 한 것은 depart·look_room 에 안 나온다');
+  var d2 = o.depart({});
+  check(d2.notes && d2.notes.head === core.NOTES_HEAD && d2.notes.notes[0].text === '조개 소리가 궁금해' && d2.notes.notes[0].by === 'model', 'depart 에 활성 메모 + 머리말 + by');
+  var noteId = d2.notes.notes[0].id;
+  var f2 = o.finish({ tripId: d2.tripId, setDown: noteId });
+  check(f2.ok && !f2.posterId, '정류장 없는 finish 도 성공, 포스터 없음');
+  var lr2 = o.lookRoom({});
+  check(!lr2.notes, 'look_room: 내려놓은 메모 안 나옴 (있다는 말도 없음)');
+  check(!o.depart({}).notes, 'depart: 내려놓은 메모 안 나옴');
+  o.finish({ tripId: o.S.running.id });
+  check(o.lookRoom({ archived: true }).archived.some(function (n) { return n.id === noteId; }), 'archived:true 일 때만 보관 메모');
+
+  section('집 · 빈 차례');
+  var sh = keep('ppolppol_stay_home', o.stayHome({}));
+  var shEv = JSON.parse(fs.readFileSync(path.join(dir, sh.saved), 'utf8'));
+  check(shEv.length === 1 && shEv[0].type === 'stay_home' && !shEv[0].activity, '아무것도 안 고른 집: 이벤트 하나, 지어낸 활동 없음');
+  check(sh.decision && sh.decision.q === '뭐 했어?', '집에 있는 날 chat 은 뭐 했어?');
+  var et = keep('ppolppol_empty_turn', o.emptyTurn());
+  check(et.ok && !et.decision, '빈 차례: 대화 없음');
+  var talk2 = JSON.parse(fs.readFileSync(path.join(dir, 'out/talk.json'), 'utf8'));
+  check(talk2.some(function (t) { return t.kind === 'chat' && t.by === 'fallback' && t.text === null; }), '답하지 않고 지나간 chat 은 fallback 으로만');
+
+  section('식탁 — finish 뒤에만 · 상한');
+  o.putDish('미역탕', 4);
+  var d3 = o.depart({});
+  check(!d3.decision, '산책 시작에 식탁 안 물음');
+  check(!(await o.peek({ tripId: d3.tripId, target: { kind: 'room', id: 'hat' } })).decision, '산책 중엔 식탁 안 물음');
+  var f3 = o.finish({ tripId: d3.tripId });
+  check(f3.decision.point === 'chat', 'finish 결과엔 chat (식탁을 finish 안에 끼우지 않는다)');
+  var t1 = o.answer({ id: f3.decision.id, action: 'stop' });
+  check(t1.decision && t1.decision.point === 'table' && t1.decision.menu.indexOf('watch') >= 0 && t1.decision.menu.indexOf('stop') >= 0, 'chat 그만 뒤 식탁 (watch·stop 포함)');
+  check(t1.decision.offer.name === '미역탕' && humanKeys(t1.decision).length === 0, '식탁엔 그 한 접시만');
+  measure('ppolppol_answer', t1);
+  o.answer({ id: t1.decision.id, action: 'taste', line: '짭짤해' });
+  o.putDish('죽', 1);
+  check(!o.lookRoom({}).decision, '30초 안에 두 번째 식탁 → 안 물음');
+  check(!o.S.table.offer, '상한 넘은 접시는 기록 없이 사라짐 (식탁엔 그대로라는 뜻)');
+
+  section('사람 키 0개');
+  check(outs.every(function (x) { return humanKeys(x).length === 0; }), '모든 도구 결과에 사람 키 0');
+  check(fs.readdirSync(path.join(dir, 'out')).every(function (fn) { return humanKeys(JSON.parse(fs.readFileSync(path.join(dir, 'out', fn), 'utf8'))).length === 0; }), '기록 파일에도 사람 키 0');
+}
+
+/* 진짜 MCP 왕복: 서버를 stdio 로 띄워 SDK 클라이언트로 부른다 (위키 안 건드리는 길만) */
+async function protocol() {
+  section('MCP stdio 왕복');
+  var { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+  var { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
+  var dir = tmp();
+  var tr = new StdioClientTransport({ command: process.execPath, args: [path.join(__dirname, '..', 'server.js')], stderr: 'ignore',
+    env: Object.assign({}, process.env, { PPOLPPOL_STATE: path.join(dir, 'state.json'), PPOLPPOL_OUT: path.join(dir, 'out') }) });
+  var c = new Client({ name: 'test', version: '0' });
+  await c.connect(tr);
+  var instr = c.getInstructions() || '';
+  check(instr.indexOf(core.FIXED_SENTENCE) >= 0, 'instructions 에 고정 문장');
+  var tools = (await c.listTools()).tools;
+  check(tools.length === 7, '도구 7개 (산책 6 + answer)');
+  check(tools.every(function (t) { return t.annotations && t.annotations.title && typeof t.annotations.readOnlyHint === 'boolean' && typeof t.annotations.destructiveHint === 'boolean'; }), '모든 도구에 title·readOnlyHint·destructiveHint');
+  function j(r) { return JSON.parse(r.content[0].text); }
+  var lr = j(await c.callTool({ name: 'ppolppol_look_room', arguments: {} }));
+  check(lr.decision && lr.decision.point === 'meet', 'stdio: look_room + meet');
+  var d = j(await c.callTool({ name: 'ppolppol_depart', arguments: {} }));
+  var p = j(await c.callTool({ name: 'ppolppol_peek', arguments: { tripId: d.tripId, target: { kind: 'url', url: 'https://example.org' } } }));
+  check(p.status === 'simulated', 'stdio: peek');
+  var f = j(await c.callTool({ name: 'ppolppol_finish', arguments: { tripId: d.tripId } }));
+  check(f.ok && fs.existsSync(path.join(dir, f.saved)), 'stdio: finish → out 파일');
+  var bad = await c.callTool({ name: 'ppolppol_finish', arguments: { tripId: 'trip_zzz' } });
+  check(bad.isError === true, 'stdio: 잘못된 tripId 는 isError');
+  await c.close();
+}
+
+function gitClean() {
+  section('git — state.json·out/ 이 올라가지 않는다');
+  var root = path.join(__dirname, '..', '..');
+  var ig = cp.spawnSync('git', ['check-ignore', 'mcp/state.json', 'mcp/out/x.json', 'mcp/node_modules/x'], { cwd: root, encoding: 'utf8' }).stdout.trim().split('\n');
+  check(ig.length === 3, 'state.json · out/ · node_modules 무시됨');
+}
+
+(async function () {
+  await unit();
+  await protocol();
+  gitClean();
+  console.log('\n도구별 최대 반환 크기 (바이트):');
+  Object.keys(sizes).forEach(function (k) { console.log('  ' + k + ': ' + sizes[k]); });
+  console.log('\n' + passes + ' 통과, ' + fails + ' 실패');
+  process.exit(fails ? 1 : 0);
+})().catch(function (e) { console.error(e); process.exit(1); });

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ppolppol": {
+      "command": "node",
+      "args": ["mcp/server.js"]
+    }
+  }
+}

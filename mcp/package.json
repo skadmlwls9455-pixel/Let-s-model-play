@@ -1,0 +1,22 @@
+{
+  "name": "ppolppol-octopus-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "뽈뽈 문어 MCP 서버 — 진짜 모델이 문어가 되어 산책을 고른다 (stdio)",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "bin": {
+    "ppolppol-octopus-mcp": "server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/run.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^4.6.7"
+  }
+}
