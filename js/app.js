@@ -863,7 +863,8 @@ var APP = (function () {
     return {
       seed: trip.seed, dateKey: trip.date, seq: trip.seq, hint: trip.hint.raw, name: S.octopus.name || '', id: trip.id,
       state: withNotes({ visits: S.octopus.visits, affinity: S.octopus.affinity, lantern: S.room.lantern, lanternLeft: lanternLeft(trip.date), owned: ownedSouvenirs(), recent: recent, todayOut: todayOut, lastVisit: lastVisitMap(trip), posters: wallPosters() }),
-      now: new Date(), online: navigator.onLine !== false, by: 'demo'
+      now: new Date(), online: navigator.onLine !== false, by: 'demo',
+      shelf: (typeof SHELF !== 'undefined' && SHELF.today && B) ? SHELF.today(trip.date, B, 8) : undefined   /* 큰 도서관 '오늘의 서가' — 데모 문어도 그날 서가에서 걷는다 */
     };
   }
   /* 호기심 메모 넘기기 (계약 R2 · CURIOSITY_NOTES "다음 모델에게 전달하는 모양"): 내려놓지 않은(active) 메모 최근 3개, 새것부터. 내려놓은 메모는 넣지 않고 개수도 알리지 않는다.
@@ -2045,7 +2046,7 @@ var APP = (function () {
     var box = $('shelf-today'), ul = $('shelf-list'); if (!box || !ul) return;
     if (typeof SHELF === 'undefined' || !SHELF.pool || !SHELF.pool.length || !B) { box.hidden = true; return; }
     ul.innerHTML = SHELF.today(todayKey(), B, 8).map(function (t) {
-      return '<li><a href="https://ko.wikipedia.org/wiki/' + encodeURIComponent(t.replace(/ /g, '_')) + '" target="_blank" rel="noopener">' + esc(t) + '</a></li>';
+      return '<li><a href="https://ko.wikipedia.org/wiki/' + encodeURIComponent(t.replace(/ /g, '_')) + '" target="_blank" rel="noopener">' + rawH(t, 'wiki') + '</a></li>';   /* 위키백과 제목 그대로 (남의 글) */
     }).join('');
     box.hidden = false;
   }

@@ -32,6 +32,7 @@
     '의', '을', '를', '이', '가', '은', '는', '도', '에', '로', '와', '과'];
   var SPECIAL = { door_out: 1, slow_room: 1, letter_room: 1 };
   var STATUSES = ['read', 'builtin', 'simulated', 'failed', 'none'];
+  var SHELF_WALK_P = 0.5;   /* 큰 도서관: '오늘의 서가' 가 있을 때 외출의 절반은 서가에서 걷는다 (데모 규칙) */
   var REACTIONS = ['폴짝', '우쭐', '졸림', '덤덤'];
   var NOTE_BOOST = 3;        /* 활성 호기심 메모가 가리키는 방: 길 고르기 가중치 × 3 (곱하기만, 새 난수 없음) */
   var NOTES_IN = 3;          /* 두뇌가 읽는 활성 메모 수 (최근 것부터, CURIOSITY_NOTES) */
@@ -1356,6 +1357,16 @@
       ((state.visits[hintNode.id] || 0) > 0 || state.lastVisit[hintNode.id]));
     var route = buildRoute(W, state, R, startId, prefix, 5, { deeper: revisit, avoid: avoidId });
     var stops = route.stops;
+    /* 3½. 큰 도서관 — 앱이 '오늘의 서가' (input.shelf) 를 줄 때만, 힌트 없이, 온라인일 때.
+       난수는 따로 (shelfR) 뽑는다: 원래 R 의 순서는 그대로라 shelf 가 없으면 산책은 예전과 바이트 하나까지 같다.
+       서가에서 한 권 → 그 글의 링크를 따라 1~2 걸음. 방 길은 쓰지 않는다 (draw 는 위에서 그대로 했다) */
+    var shelfList = Array.isArray(input.shelf) ? input.shelf.filter(function (x) { return typeof x === 'string' && x; }) : [];
+    var shelfR = rng(hashSeed('shelf-walk', seed));
+    var shelfWalk = !!(online && shelfList.length && match.kind === 'none' && shelfR() < SHELF_WALK_P);
+    var shelfFirst = shelfList.length ? shelfList[Math.floor(shelfR() * shelfList.length)] : null;
+    var shelfHops = shelfR() < 0.5 ? 2 : 1, shelfPicks = [shelfR(), shelfR()];
+    var routeReason = route.reason;
+    if (shelfWalk) { stops = [makeWildStop(shelfFirst, { viaTangent: false, bridge: '오늘의 서가에서' })]; routeReason = 'enough'; }
     if (revisit && stops[0] && stops[0].id === hintNode.id) stops[0].aside = revisitAside(roomWord(hintNode.name), state.lastVisit[hintNode.id], dateKey);
 
     /* 4. 미리 뽑아 두는 난수 (fetch 와 무관하게 고정) */
@@ -1380,7 +1391,24 @@
         tasks.forEach(function (t, k) { applyFetch(t.stop, results[k], online); });
         stops.forEach(function (s) { if (!s.status) applyFetch(s, null, online); });
 
-        /* 6. 들판 걸음 (후보는 직전 정류장의 링크, 인덱스는 미리 뽑은 r) */
+        /* 6a. 큰 도서관 걸음: 서가 글의 링크를 따라 shelfHops 번 (못 읽으면 거기서 멈춘다 — 읽은 척 안 함) */
+        if (shelfWalk) {
+          var hop = function (h) {
+            if (h >= shelfHops) return null;
+            var last = stops[stops.length - 1];
+            var ls = ((last.fetchResult && last.fetchResult.ok && last.fetchResult.links) || []).filter(function (t) { return !stops.some(function (s) { return s.title === t; }); });
+            if (!ls.length) return null;
+            var title = ls[Math.min(ls.length - 1, Math.floor(shelfPicks[h] * ls.length))];
+            return safeFetch(fetcher, title, timeoutMs).then(function (res) {
+              if (!res.ok) return null;
+              var ws = makeWildStop(title, { viaTangent: true, bridge: '위키 링크를 따라' });
+              applyFetch(ws, res, online); stops.push(ws);
+              return hop(h + 1);
+            });
+          };
+          return hop(0);
+        }
+        /* 6. 서가 걸음 (후보는 직전 정류장의 링크, 인덱스는 미리 뽑은 r) */
         if (!wildPlanned || stops.length >= 5 || route.reason === 'linger') return null;
         var last = stops[stops.length - 1];
         var links = (last.fetchResult && last.fetchResult.ok && last.fetchResult.links) || [];
@@ -1404,7 +1432,7 @@
         stops.forEach(function (s, k) { s.ms = msArr[Math.min(k, msArr.length - 1)]; });
         var out = assemble({
           stops: stops, match: match, intent: intent, follow: follow, hintNode: hintNode, urlNode: urlNode,
-          hintRaw: hintRaw, name: name, hour: hour, reason: route.reason, rr: rr, owned: state.owned
+          hintRaw: hintRaw, name: name, hour: hour, reason: routeReason, rr: rr, owned: state.owned
         });
 
         /* 7. 이벤트 */
@@ -1412,7 +1440,7 @@
         events.push({ type: 'depart', t: 0, hint: hintRaw, followHint: out.hint.followed === 'followed' || out.hint.followed === 'left', match: match, note: out.hint.note || undefined });
         if (!events[0].note) delete events[0].note;
         stops.forEach(function (s, k) { t += gaps[Math.min(k, gaps.length - 1)]; events.push(peekEvent(s, t)); });
-        t += gReturn; events.push({ type: 'return', t: t, reason: route.reason });
+        t += gReturn; events.push({ type: 'return', t: t, reason: routeReason });
         if (out.remIdx >= 0) { t += gRemember; events.push({ type: 'remember', t: t, stopIdx: out.remIdx, sticker: out.sticker, line: out.line }); }
         t += gHang; events.push({ type: 'hang_poster', t: t, posterId: input.id || input.tripId || null });
         var memoInfo = {};
