@@ -119,7 +119,7 @@ var UIART = (function () {
   }
   function isShout(text, kind) { return kind === 'happy' || kind === 'excited' || kind === 'shout' || /찾았|!$/.test(String(text || '')); }
   /* 장면 위 버튼들의 보이는 상자와 겹치는 말풍선 → 왼쪽으로 밀 양(px, 음수) · 안 겹치면 0. 버튼 무리마다 따로 잰다:
-     오른쪽 위 아이콘 묶음(#scene-ctl: 추억 앨범 · ⚙ 설정 · 소리) 하나, 오른쪽 아래 놀이방 문(#btn-door) 하나 — 둘 다 장면 오른쪽 끝이라 왼쪽으로 비키면 된다.
+     오른쪽 위 아이콘 묶음(#scene-ctl: 추억 앨범 · ⚙ 설정) 하나, 오른쪽 아래 놀이방 문(#btn-door) 하나 — 둘 다 장면 오른쪽 끝이라 왼쪽으로 비키면 된다.
      r = 밀기 전 풍선 상자. 입장 연출로 숨은 것 · 숨은 버튼은 셈하지 않는다. 2D 무대(app.js keepBubble2D)도 같이 쓴다 */
   function boxesOf(host, sel) {
     if (!host || host.hidden || getComputedStyle(host).visibility === 'hidden') return null;
@@ -139,7 +139,7 @@ var UIART = (function () {
   }
   /* 비켜 서도 겹치면(좁은 폭에서 문어가 보드·문 앞 = 아이콘 바로 아래일 때 — 꼬리를 문어 위에 두면 더는 못 민다) 말풍선이 보이는 동안 그 말풍선과 겹치는 버튼만 숨긴다
      (css .icon-btn.yield · .scene-door.yield: 투명 · 탭은 아래로 통과 · 키보드 포커스가 가면 다시 보임). 문어의 말이 먼저 읽히게 —
-     예전처럼 옅게(0.3) 두면 아이콘 셋(앨범 · 설정 · 소리)이 말풍선 글자 위에 그려졌다. 겹치지 않는 버튼은 그대로. 말풍선이 사라지면 돌아온다.
+     예전처럼 옅게(0.3) 두면 아이콘(앨범 · 설정 — 11-08 까지는 소리도)이 말풍선 글자 위에 그려졌다. 겹치지 않는 버튼은 그대로. 말풍선이 사라지면 돌아온다.
      r = 비킨 뒤의 풍선 상자 { left, right, top, bottom } (true = 모두 · false = 모두 되돌림) */
   function ctlYield(r) {
     [].forEach.call(document.querySelectorAll('#scene-ctl .icon-btn, #btn-door'), function (btn) {

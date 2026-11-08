@@ -4,7 +4,8 @@
    참고 구현 audio/soundboard.html 의 덕킹·마디선 전환·말풍선 목소리 로직을 게임 상태에 맞게 옮겼다.
 
    - 꺼진 채로 시작한다 (브라우저 자동재생 정책 + 조용한 게임). 켜면 audio_on 한 번. 설정 = localStorage 'ppolppol_audio' { on, music, sfx }
-     켜 둔 채 새로고침하면 첫 탭(어디든)에서 다시 흐른다 — 사용자 동작 없이는 소리를 내지 않는다. 그렇게 탭을 기다리는 동안 토글은 '소리 켜기'.
+     켜고 끄는 곳은 설정 시트 › 소리 칸 맨 위 '켜기' 체크 칸 (#set-sound, 화면 낭독기 이름 '소리 켜기' — 주인 11-08: 장면 위 스피커를 설정 안으로). 장면 위엔 소리 단추가 없다.
+     켜 둔 채 새로고침하면 첫 탭(어디든)에서 다시 흐른다 — 사용자 동작 없이는 소리를 내지 않는다. 그렇게 탭을 기다리는 동안 체크 칸은 비어 있다 (들리는 대로).
    - 켜기 전에는 audio/ 에 요청을 하나도 보내지 않는다. 켠 뒤에도 지금 필요한 것만: 지금 BGM · 지금 환경음 · 효과음은 처음 쓸 때.
      예외 하나: 말풍선 음절(voice_*) 16개 + 기웃 결과음(peek_*) 11개 (파일 56 KB · 디코드 1 MB 미만) + 움츠림·나감·앉음·끄는 소리 8개(46 KB)는 켠 뒤 2.5초에 한꺼번에 미리 받는다 —
      음절을 처음 받는 데 0.8 s 넘게 걸리면 그 말을 통째로 건너뛰어서 느린 기기에선 첫 말풍선들이 조용했고, 결과음이 늦게 오면 음절과 겹쳤다.
@@ -92,7 +93,7 @@ var AUDIO = (function () {
   var ctx = null, nd = {}, M = null, byId = {}, groups = {}, manifestP = null, fmt = null;
   var cache = {}, cacheBytes = 0, useTick = 0, requests = 0;
   var slots = { bgm: null, amb: null, layer: null, warm: null, season: null }, want = {};
-  var pend = null, rest = null, started = false, starting = false, inited = false, armed = false, btn = null, toldFile = false;
+  var pend = null, rest = null, started = false, starting = false, inited = false, armed = false, btn = null, noteEl = null, toldFile = false;   /* btn · noteEl = 지금 설정 시트의 '켜기' 체크 칸 · 안내 줄 (시트를 열 때마다 새로 그린다) */
   var band = bandOf(null), wx = 'rain', season = seasonOf(), lantern = 0;
   var played = [], lastAt = {}, lastPick = {}, shots = [], live = [], evQ = [], evEnd = 0, evP = Promise.resolve(0), pauseUntil = 0;
   var duckInfo = { db: 0, until: 0, lastDb: 0, lastAt: -1 };
@@ -945,9 +946,15 @@ var AUDIO = (function () {
   }
   /* 켜 둔 채 새로고침: 첫 사용자 동작에서 다시 흐른다 (그 전엔 요청도 소리도 없음) */
   var UNLOCK = ['pointerup', 'keydown', 'touchend', 'mousedown'];
+  /* 설정 › 소리 › '켜기' 줄(체크 칸 · 글자)을 누른 건 그 칸이 맡는다 (change → onToggle) — 여기서 먼저 켜면 그 칸이 바로 다시 꺼 버린다.
+     키는 칸을 뒤집는 Space 만 그 칸 몫. Enter · Tab · Esc 는 칸을 안 뒤집으니 다른 키처럼 여기서 다시 흐르게 (옛 스피커 단추는 Enter 로도 켜졌다) */
+  function rowOwns(e) {
+    if (!e || !e.target || !e.target.closest || !e.target.closest('#set-sound-row')) return false;
+    return e.type !== 'keydown' || e.key === ' ' || e.key === 'Spacebar';
+  }
   function onUnlock(e) {
     if (!pref.on || reason) { disarm(); return; }
-    if (e && e.target && e.target.closest && e.target.closest('#btn-sound')) return;
+    if (rowOwns(e)) return;
     if (started && ctx && ctx.state === 'running') { disarm(); return; }
     if (started && ctx) { try { ctx.resume().catch(noop); } catch (x) { /* noop */ } return; }
     start(false);
@@ -960,13 +967,13 @@ var AUDIO = (function () {
   function arm() { if (armed) return; armed = true; UNLOCK.forEach(function (n) { document.addEventListener(n, unlockFn, true); }); paint(); }
   function disarm() { if (!armed) return; armed = false; UNLOCK.forEach(function (n) { document.removeEventListener(n, unlockFn, true); }); paint(); }
 
-  /* ───────────────────────── 화면: 토글 · 안내 · 설정 시트의 소리 칸 ───────────────────────── */
-  /* 설정 시트 안에서 읽는 한 줄. 스피커 토글은 장면 오른쪽 위 아이콘 묶음(앨범 · 설정 · 소리)에 있다 */
+  /* ───────────────────────── 화면: 설정 시트의 소리 칸 (켜기 · 끄기 · 크기 · 안내) ───────────────────────── */
+  /* 소리 칸 아래 한 줄: 소리를 못 내는 곳에서만 왜 그런지 (그때 체크 칸은 기억만 한다). 보통 때는 비운다 — 체크 칸이 곧 말이다 (주인 11-08: 글은 적게) */
   function noteText() {
     if (reason === 'file') return '파일(file://)로 열면 브라우저가 소리를 막아. 웹 주소로 열면 들려.';
     if (reason === 'no-webaudio' || reason === 'no-fetch') return '이 브라우저는 소리를 못 내. 소리 없이도 다 할 수 있어.';
     if (reason === 'manifest') return '소리 목록을 못 읽었어. 소리 없이 계속할게.';
-    return isLit() ? '오른쪽 위 스피커로 끌 수 있어.' : '처음엔 꺼져 있어. 오른쪽 위 스피커로 켜.';
+    return '';
   }
   function tellUnavailable() {
     if (toldFile) return; toldFile = true;
@@ -975,31 +982,30 @@ var AUDIO = (function () {
     t.classList.add('show');
     setTimeout(function () { if (t.textContent && /소리/.test(t.textContent)) t.classList.remove('show'); }, 2800);
   }
-  /* 토글은 지금 들리는 대로: 켜 둔 채 새로고침했거나 iOS 가 멈춰 둬서 탭을 기다리는 동안(armed)은 '소리 켜기' (누르면 켜진다).
-     켜는 중(starting)·소리를 못 내는 곳(reason — 기억은 켜짐)은 눌린 채 */
+  /* 체크 칸은 지금 들리는 대로: 켜 둔 채 새로고침했거나 iOS 가 멈춰 둬서 탭을 기다리는 동안(armed)은 빈 칸 (누르면 켜진다).
+     켜는 중(starting)·소리를 못 내는 곳(reason — 기억은 켜짐)은 체크 */
   function isLit() { return pref.on && (!!reason || starting || !armed); }
   function paint() {
-    if (!btn) return;
-    var lit = isLit();
-    var lab = lit ? '소리 끄기' : '소리 켜기';
-    btn.setAttribute('aria-pressed', lit ? 'true' : 'false');
-    btn.setAttribute('aria-label', lab);
-    btn.title = reason ? lab + ' · ' + noteText() : lab;
-    btn.classList.toggle('na', !!reason);
-    var n = document.getElementById('rs-sound-note'); if (n) n.textContent = noteText();
+    if (btn) btn.checked = isLit();
+    if (noteEl) { var t = noteText(); noteEl.textContent = t; noteEl.hidden = !t; }
   }
-  function bindButton() {
-    btn = document.getElementById('btn-sound');
-    if (!btn) return;
-    btn.addEventListener('click', guard(function (e) {
-      if (e) e.preventDefault();
-      if (pref.on && !isLit()) {   /* 탭을 기다리던 중('소리 켜기'로 보임) → 이 탭이 첫 동작: 다시 흐르게 */
-        if (started && ctx) { try { ctx.resume().catch(noop); } catch (x) { /* noop */ } } else start(true);
-        return;
-      }
-      setEnabled(!pref.on, true);
-    }));
+  /* '켜기' 체크 칸을 바꿨다 (톡 · Space · 글자 톡). 체크 표시는 브라우저가 이미 뒤집었지만 늘 paint() 로 실제 상태에 맞춘다 */
+  function onToggle() {
+    if (pref.on && !isLit()) {   /* 탭을 기다리던 중(빈 칸으로 보임) → 이 탭이 첫 동작: 다시 흐르게 */
+      if (started && ctx) { try { ctx.resume().catch(noop); } catch (x) { /* noop */ } } else start(true);
+    } else setEnabled(!pref.on, true);
     paint();
+  }
+  /* 설정 시트 › 소리 칸 맨 위 줄: 다른 켜고 끄기 줄('픽셀 글꼴' · '포스터 썸네일')과 같은 모양 <label class="set"><span>켜기</span><input type=checkbox></label>.
+     보이는 글자는 '켜기' — 바로 위 칸 제목이 '소리' 라 '소리 / 소리' 로 겹쳐 읽히지 않게. 화면 낭독기 이름은 제목 + 글자 = '소리 켜기' (aria-labelledby).
+     시트는 열 때마다 새로 그려서 그때마다 새 체크 칸에 묶고 칠한다 */
+  function toggleRow() {
+    var inp = el('input', { type: 'checkbox', id: 'set-sound', 'aria-labelledby': 'rs-sound set-sound-lbl', 'aria-describedby': 'rs-sound-note' });
+    inp.addEventListener('change', guard(onToggle));
+    btn = inp;
+    var row = el('label', { class: 'set', id: 'set-sound-row' });
+    row.appendChild(el('span', { id: 'set-sound-lbl' }, '켜기')); row.appendChild(inp);
+    return row;
   }
   function el(tag, attrs, text) {
     var x = document.createElement(tag);
@@ -1022,9 +1028,11 @@ var AUDIO = (function () {
   function roomSheet(frag) {
     if (!frag || typeof frag.appendChild !== 'function') return;
     frag.appendChild(el('h3', { id: 'rs-sound' }, '소리'));
+    frag.appendChild(toggleRow());
     frag.appendChild(slider('음악', 'music', 'set-music'));
     frag.appendChild(slider('효과음', 'sfx', 'set-sfx'));
-    frag.appendChild(el('p', { class: 'help snd-note', id: 'rs-sound-note' }, noteText()));
+    noteEl = frag.appendChild(el('p', { class: 'help snd-note', id: 'rs-sound-note' }));
+    paint();
   }
   function isSheet(x) { return !!(x && x.tagName === 'DIALOG' && x.classList && x.classList.contains('sheet')); }
   /* 시트를 여닫는 버튼: 소리는 시트가 낸다 (bindSheets) — aria-controls 로 시트를 가리키는 버튼 · 시트 안의 닫기 버튼(…-close / '닫기') */
@@ -1034,13 +1042,14 @@ var AUDIO = (function () {
     return !!b.closest('dialog.sheet') && (/(^|-)close$/.test(b.id || '') || (b.textContent || '').trim() === '닫기');
   }
   function bindClicks() {
-    /* 주요 버튼의 작은 소리 (sfx_ui). 다녀와(움츠림 징글)·스피커(자기 소리)·장면 안(앨범·설정·놀이방 문 아이콘 포함)·시트 여닫기는 빼고 */
+    /* 주요 버튼의 작은 소리 (sfx_ui). 다녀와(움츠림 징글)·장면 안(앨범·설정·놀이방 문 아이콘 포함)·시트 여닫기는 빼고.
+       설정 › 소리의 '켜기' 체크 칸은 단추가 아니라 여기 안 걸린다 — 켤 때 audio_on · 끌 때 toggle_off 가 그 칸의 소리 */
     document.addEventListener('click', guard(function (e) {
       if (!active()) return;
       var b = e.target && e.target.closest ? e.target.closest('button, summary') : null;
       if (!b || b.disabled || b.closest('#scene')) return;
       var id = b.id, U = mp().ui || {};
-      if (id === 'btn-sound' || id === 'btn-go' || id === 'btn-look' || sheetButton(b)) return;   /* btn-look = 옛 방 보기 (7물결에 지움 — 남아 있는 동안만) */
+      if (id === 'btn-go' || id === 'btn-look' || sheetButton(b)) return;   /* btn-look = 옛 방 보기 (7물결에 지움 — 남아 있는 동안만) */
       if (id === 'pd-close') play(U.sheet_close);
       else if (id === 'pd-flip' || id === 'pd-front') play(U.card_flip);
       else if (b.classList.contains('pcard')) play(U.album_open);
@@ -1091,7 +1100,7 @@ var AUDIO = (function () {
       inited = true;
       loadPref(); syncVol();
       rnd = mulberry32(hashStr('ppolppol-audio|' + todayKey()));
-      bindButton(); bindClicks(); bindSheets(); bindVisibility();
+      bindClicks(); bindSheets(); bindVisibility();
       if (pref.on && !reason) arm();
     } catch (e) { warn('init', e); }
     return api;
@@ -1120,7 +1129,7 @@ var AUDIO = (function () {
     enabled: function () { return pref.on; },
     setVolume: setVolume, state: state
   };
-  /* app.js 가 없거나 init 을 안 불러도 토글은 동작하게 (init 은 여러 번 불러도 된다 — 뒤의 것이 게임 값 읽는 함수만 바꾼다) */
+  /* app.js 가 init 을 안 불러도 설정·탭 대기는 동작하게 (init 은 여러 번 불러도 된다 — 뒤의 것이 게임 값 읽는 함수만 바꾼다) */
   window.addEventListener('load', function () { if (!inited) init({}); });
   return api;
 })();
