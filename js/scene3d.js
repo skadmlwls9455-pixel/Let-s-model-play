@@ -1529,6 +1529,7 @@ var SCENE3D = (function () {
         if (s === 'idle' || s === 'stay') { sy = 1 - 0.03 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2)); sx = 1 + 0.02 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2)); }
         if (ex === 'sleep') { sy = 0.94 - 0.02 * Math.sin(tb * Math.PI / 2.5); sx = 1.03; }
         var gs = gaitBody(); sx *= gs[0]; sy *= gs[1]; by += gs[2];   /* 뒤뚱: 디딤 눌림 · 예비 눌림 · 걸음 중간 1px · 정착 통통 */
+        if (oct.nudgeT > 0) { oct.nudgeT = Math.max(0, oct.nudgeT - dt); if (oct.nudgeT > 0.09) by += 2 * pxUp() / OCT_R; }   /* 톡 받음: 아트 2px 위로 90 ms → 제자리 (nudge, 11-08) */
         if (s === 'anticipate') { var ak = Math.min(1, oct.animT / 0.6); sx = 1 + 0.05 * ak; sy = 1 - 0.08 * ak; }
         if (ex === 'pet') { var pk = 0.5 + 0.5 * Math.sin(t * Math.PI / 0.6); sx = 1.06 + 0.03 * pk; sy = 0.88 - 0.03 * pk; rz = Math.sin(t * Math.PI / 0.8) * 4 * DEG; }
         if (ex === 'curious') rz = -8 * DEG * dir;
@@ -1955,7 +1956,7 @@ var SCENE3D = (function () {
       if (p === PLACE.vis) { PLACE.cur = p; return; }
       PLACE.cur = p;
       if (o.instant || st.reduced || !ready) { showPlace(p); swap(p); PLACE.fade = 0; return; }
-      PLACE.trans = { from: PLACE.vis, to: p, t: 0, swapped: false, swap: swap, axis: 'y', sgn: 1, D: TRANS_DY };
+      PLACE.trans = { from: PLACE.vis, to: p, t: 0, swapped: false, swap: swap, axis: 'y', sgn: 1, D: TRANS_DY, dur: o.dur > 0 ? o.dur : 0 };
     }
     function transSwap(tr) { tr.swapped = true; groupOf(tr.from).position.set(0, 0, 0); if (tr.resolve) tr.to = tr.resolve(); showPlace(tr.to); tr.swap(tr.to); }   /* 가운데 한 프레임: 나가는 장소 → 들어오는 장소 (resolve = 그때 정하는 목적지) */
     function finishTrans() { var tr = PLACE.trans; if (!tr) return; if (!tr.swapped) transSwap(tr); groupOf(tr.to).position.set(0, 0, 0); PLACE.fade = 0; PLACE.trans = null; }
@@ -1964,7 +1965,7 @@ var SCENE3D = (function () {
     }
     function stepTrans(dt) {
       var tr = PLACE.trans; if (!tr) return;
-      tr.t += dt; var k = Math.min(1, tr.t / TRANS_DUR);
+      tr.t += dt; var k = Math.min(1, tr.t / (tr.dur || TRANS_DUR));   /* dur = 짧은 전환 (데려온 귀가 0.3 s) */
       if (k < 0.5) { var a = k / 0.5; transOff(groupOf(tr.from), -tr.sgn * tr.D * a * a, tr); PLACE.fade = a; }   /* 세로: 아래로 · 가로 sgn +1: 왼쪽으로 (놀이방은 오른쪽 방) */
       else {
         if (!tr.swapped) transSwap(tr);
@@ -2231,7 +2232,7 @@ var SCENE3D = (function () {
       return it;
     }
     function cerDo(fn, dur) { return { dur: st.reduced ? 0 : (dur || 0), start: fn }; }
-    function cerTrans(p, onSwap) { var it = { dur: 0 }; it.start = function () { it.dur = st.reduced ? 0 : TRANS_DUR; setPlace(p, { onSwap: onSwap }); }; it.end = function () { if (PLACE.trans && !PLACE.trans.door) finishTrans(); }; return it; }
+    function cerTrans(p, onSwap, dur) { var it = { dur: 0 }; it.start = function () { it.dur = st.reduced ? 0 : (dur || TRANS_DUR); setPlace(p, { onSwap: onSwap, dur: dur }); }; it.end = function () { if (PLACE.trans && !PLACE.trans.door) finishTrans(); }; return it; }   /* dur = 짧은 전환 (기본 TRANS_DUR) */
     function cerRun(name, items, onDone) {
       if (CER.active) { CER.walk = false; oct.hop = 0; WAVE.on = false; }   /* 앞 의식은 조용히 취소 (onDone 안 부름) */
       if (oct.walking) { oct.walking.cancel(); oct.walking = null; }   /* 돌아다니던 걸음(moveTo)이 의식 위치를 덮어쓰지 않게 */
@@ -2275,8 +2276,21 @@ var SCENE3D = (function () {
       items.push(cerDo(function () { setOctState('away'); }));
       return cerRun('depart', items, onDone);
     }
-    function returnCeremony(onDone) {
+    /* o.quick = 데려온 귀가 (큰 버튼, 주인 11-08): 길 · 계단 · 현관은 건너뛰고 — 바깥 문어는 숨기고 → 다락으로 0.3 s 전환 (같은 디더 · 미끄럼) → 문간에서 나타나
+       2배 빠르기로 문 앞까지 걸어 나온다 (≈ 0.55 s). 이미 다락이면 전환 없이 문간에서. 모션 감소면 마디마다 0 s (한 프레임) */
+    function returnCeremony(onDone, o) {
       var items = [];
+      if (o && o.quick) {
+        var atDoor = function () { jumpTo('door'); oct.pos.copy(V(DOOR_IN)); snapScreen(octG.position.copy(oct.pos)); setOctFade(0); };
+        items.push(cerDo(function () { pkReset(); WAVE.on = false; DOOR_EXT.want = 0; CER.walk = false; if (storyVis() !== 'attic' || storyTrans()) setOctFade(0); setOctState('walk'); }));   /* 바깥(기웃 자리)에 보이던 문어는 지금 숨긴다 */
+        var tr = { dur: 0 };
+        tr.start = function () { if (storyVis() === 'attic' && !storyTrans()) { tr.dur = 0; atDoor(); } else { tr.dur = st.reduced ? 0 : TRANS_DUR / 2; setPlace('attic', { onSwap: atDoor, dur: TRANS_DUR / 2 }); } };
+        tr.end = function () { if (PLACE.trans && !PLACE.trans.door) finishTrans(); };
+        items.push(tr);
+        items.push(cerWalk(ANCHORS.door, DOOR_SPEED * 2, 0, [0, 1]));
+        items.push(cerDo(function () { oct.anchor = 'door'; if (st.octState === 'walk') setOctState('idle'); }));
+        return cerRun('return', items, onDone);
+      }
       items.push(cerDo(function () {
         if (storyVis() !== 'exterior' || storyTrans()) setPlace('exterior', { instant: true, onSwap: function () {} });
         pkReset(); WAVE.on = false; oct.pos.copy(V(EXT_P.edge)); snapScreen(octG.position.copy(oct.pos)); setOctFade(0); setOctState('walk');
@@ -3715,7 +3729,8 @@ var SCENE3D = (function () {
       extSpot: extSpot, peekOutside: peekOutside, leaveOutside: leaveOutside, EXT_SPOTS: Object.keys(EXT_SPOTS),
       peek: function () { return { on: PK.on, key: PK.key, hold: PK.hold, onSpot: PK.onSpot, status: PK.status, t: +PK.t.toFixed(2), lean: +(PK.leanQ / DEG).toFixed(1), sit: PK.sit, arm: PK.arm, mail: PK.mail, rustle: PK.rustle && rustleM.visible, ripple: rippleM.visible }; },
       setPosters: setPosters, setSouvenirs: setSouvenirs,
-      bubble: bubble, lookAt: function (x, y) { oct.lookTarget = { x: x, y: y }; }, octScreenPos: function () { if (PLACE.vis === 'play') return null; var p = octScreen(), r = canvas.getBoundingClientRect(); return { x: r.left + p.x - S.offX, y: r.top + p.y - S.offY }; },   /* 놀이방: null (문어가 화면에 없다 — 말풍선·파티클·앨범 날기는 문어 자리에 안 붙는다) */
+      bubble: bubble, nudge: function () { if (!st.reduced) { oct.nudgeT = 0.18; dither.still = 0; } },   /* 톡 받음 (APP 이 깨어 있는 톡마다 · 모션 감소면 APP 이 눈 깜빡으로) */
+      lookAt: function (x, y) { oct.lookTarget = { x: x, y: y }; }, octScreenPos: function () { if (PLACE.vis === 'play') return null; var p = octScreen(), r = canvas.getBoundingClientRect(); return { x: r.left + p.x - S.offX, y: r.top + p.y - S.offY }; },   /* 놀이방: null (문어가 화면에 없다 — 말풍선·파티클·앨범 날기는 문어 자리에 안 붙는다) */
       setReducedMotion: function (r) { st.reduced = !!r; lampDirty = true; },
       setLook: function (o) {
         var re = false;

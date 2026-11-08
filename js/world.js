@@ -1244,27 +1244,36 @@ var WORLD = (function () {
      maxLantern: 비를 말하는 활동은 비가 확실한 등불 6까지만. 날씨는 두뇌 입력에 없고 app 이 등불로 정한다:
        0~5 비 · 6 가랑비 · 7 맑음(창에 별, 아래 roomLevels) · 8 부터는 날마다 다름 → 7 부터는 비라고 말할 수 없다.
      나머지 활동의 줄은 날씨를 말하지 않는다 (check-world 가 지킨다). */
+  /* tap: 그 활동 뒤 문어를 톡 하면 나오는 한 줄 후보 둘 (주인 11-08 '톡 한 줄', BRAIN.tapLine). 이 활동의 앞면 · 뒷면 · 자리에서 나오는 사실만 —
+     앞면 · 뒷면과 같은 말(이나 그 속에 든 말)은 아니고, 새 기분 · 길이(쭉 · 한참) · 날씨 · '오늘은' · 처음 · 걸은 얘기 없음. 숫자는 앞면 · 뒷면에 있는 것만 (check-world) */
   var homeActivities = [
     { id: 'count_rain', memo: '창가에서 비 셌어', line: '창가에서 빗방울을 세다가 잠들었어',
       detail: '열일곱까지 셌어. 그다음은 기억이 안 나.\n빗소리가 좋아서 집에 있었어.',
+      tap: ['창가 자리에서 잠들었어', '열일곱에서 잠이 들었어'],
       anchor: 'window', weight: 3, maxLantern: 6, reactions: ['졸림'] },
     { id: 'nap', memo: '담요 속에서 낮잠 잤어', line: '담요 속에서 낮잠 잤어',
       detail: '담요 안은 바깥보다 조용했어. 그게 좋았어.\n오늘은 그걸로 충분했어.',
+      tap: ['조용한 담요 속에 있었어', '담요를 덮고 한숨 잤어'],
       anchor: 'blanket', weight: 3, reactions: ['졸림'] },
     { id: 'window_watch', memo: '창밖을 그냥 봤어', line: '창밖을 그냥 봤어',
       detail: '비가 오고, 비가 오고, 비가 왔어.\n아무 일도 없었어. 그게 다였어.',
+      tap: ['창밖엔 비만 왔어', '창가 자리에 있었어'],
       anchor: 'window', weight: 2, maxLantern: 6, reactions: ['덤덤', '졸림'] },
     { id: 'moss', memo: '이끼 화분을 오래 들여다봤어', line: '창턱 이끼 화분을 오래 들여다봤어',
       detail: '이끼는 뿌리가 없어. 온몸으로 물을 마셔.\n오늘은 흠뻑이야.',
+      tap: ['이끼가 흠뻑 젖어 있었어', '창턱 이끼 화분 앞에 있었어'],
       anchor: 'window', weight: 2, requiresLantern: 1, reactions: ['덤덤'] },
     { id: 'reread_poster', memo: '포스터 뒷면을 다시 읽었어', line: '벽 포스터 뒷면을 다시 읽었어',   /* '어제' 아님: 같은 날 앞 산책의 포스터일 수도 있다 */
       detail: '일기 글씨가 작아서 가까이 가서 봤어.\n다 기억나더라.',
+      tap: ['벽 포스터 앞에 있었어', '뒷면 일기가 다 기억났어'],
       anchor: 'board', weight: 2, requiresPoster: true, reactions: ['덤덤'] },
     { id: 'rearrange', memo: '벽 포스터 자리를 한 칸 바꿨어', line: '벽 포스터 자리를 한 칸 바꿨어',
       detail: '왼쪽 게 더 잘 보여서.\n벽도 가끔은 바뀌어야 해.',
+      tap: ['포스터 순서가 바뀌었어', '벽 앞에서 포스터를 옮겼어'],
       anchor: 'board', weight: 1, requiresPoster: true, effect: 'rotatePosters', reactions: ['덤덤'] },
     { id: 'hum', memo: '아무 노래나 흥얼거렸어', line: '아무 노래나 흥얼거렸어',
       detail: '가사는 없고 박자만 있는 노래.\n박자는 내 맘대로였어.',
+      tap: ['가사 없이 흥얼거렸어', '박자는 마음대로 맞췄어'],
       anchor: 'crate', weight: 2, reactions: ['덤덤'] },
     { id: 'nothing', line: '…',
       detail: '',
@@ -1339,6 +1348,33 @@ var WORLD = (function () {
       '우연히 들른 데가 있어. {mem}. 처음 듣는 이름이야',
       '길을 벗어나 {mem}까지 갔어'
     ]
+  };
+
+  /* ---------- 톡 한 줄 (주인 11-08, BRAIN.tapLine) ----------
+     깨어 있는 문어를 톡 하면 그날 마지막으로 끝낸 데모 산책에 대해 한 줄 (말풍선만 — 로그 · 앨범 · 저장에 안 남는다). 포스터에 없는 사실 하나를 기록에서만.
+     치환자: {p} 기념품이 나온 방 · {s} 기념품 · {w} 들판 글 제목 · {t} 한눈팔기 전 방 · {b} 다른 방 · {a} 포스터 곳 · {l} 마지막 곳 · {x} 못 읽은 · 문 앞까지만 간 곳 ·
+       {f} 첫 곳 · {r} 읽은 방 · {n} 들른 곳 수 · {m} 그 밖의 곳 수. 조사는 두뇌 꼴 그대로 ({s}을 · {b}로 · {x}은 — 받침에 맞춰 바뀐다).
+     한글 · 숫자 · 띄어쓰기 · 마침표만. 기분 · 취향 · 시간 말(오늘 · 아까 · 내일) · '여기까지' 없음. 22자 안 (check-world · test-brain) */
+  var tapTemplates = {
+    souvenir: ['{p}에서 {s} 하나 가져왔어'],
+    souvenirAny: ['{s} 하나 챙겨 왔어', '{s}을 하나 들고 왔어'],
+    wildLink: ['링크 따라 {w}까지 가 봤어'],
+    wild: ['들판에서 {w}을 만났어'],
+    slowRoom: ['느린 글의 방에선 앉아만 있었어'],
+    tangent: ['{t}에서 {b}로 샜어', '{t} 보다가 {b}로 넘어갔어'],
+    other: ['{a} 말고 {b}에도 갔어', '{b}에도 기웃거렸어'],
+    revisit: ['{b}에 다시 가 봤어'],
+    firstOther: ['{b}은 처음이었어', '{b}은 처음 가 봤어'],
+    longest: ['{b}에 제일 오래 있었어'],
+    tired: ['{l}쯤에서 다리가 무거워졌어'],
+    enough: ['{l}에서 이만 돌아왔어', '{l}까지 가니 이만하면 됐다 싶었어'],
+    failed: ['{x} 문은 안 열렸어', '{x}은 이름만 보고 왔어'],
+    simulated: ['{x}은 문 앞까지만 가 봤어'],
+    doorOut: ['바깥 주소는 문 앞까지만 가 봤어'],
+    start: ['맨 처음엔 {f}에 갔어'],
+    readOne: ['{r} 얘기를 읽고 왔어'],
+    count: ['{n} 군데 들렀다 왔어'],
+    countMore: ['{a} 말고도 {m} 군데 더 갔어']
   };
 
   /* ---------- 그때 남긴 메모 (§17.1) ----------
@@ -1497,6 +1533,7 @@ var WORLD = (function () {
     homeActivities: homeActivities,
     reactions: reactions,
     lineTemplates: lineTemplates,
+    tapTemplates: tapTemplates,
     memoTemplates: memoTemplates,
     roomLevels: roomLevels,
     stickers: stickers,

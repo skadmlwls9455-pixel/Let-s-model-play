@@ -24,12 +24,20 @@ var APP = (function () {
   var FOLLOW_LABEL = { followed: '따라감', ignored: '무시함', left: '도중에 벗어남', none: '없음' };
   var BY_LABEL = { demo: '데모 두뇌(규칙)', human: '사람이 조작', mcp: '모델(MCP)', legacy: '복원된 기록' };
   var LOG_LABEL = { depart: '출발', peek: '기웃', 'return': '귀가', remember: '기억', hang_poster: '포스터', wrap_up: '마무리', stay_home: '집', empty_turn: '…' };
-  var VOICE_LABELS = ['귀가', '기억', '마무리', '집', '인사', '방', '혼잣말', '어제 메모', '지난 메모'];   /* 문어 목소리 행 → 픽셀 테마에서 호박색 탭 + 초상 대화창 (§15.2) */
+  var VOICE_LABELS = ['귀가', '기억', '마무리', '집', '인사', '혼잣말', '어제 메모', '지난 메모'];   /* '방'(등불 소품 줄)은 11-08 부터 집 목소리 사실 문장 (DIALOGUE_UI §4.3) */   /* 문어 목소리 행 → 픽셀 테마에서 호박색 탭 + 초상 대화창 (§15.2) */
   /* 문어 목소리 행의 표정 (DESIGN §15.2): 귀가 calm · 기억 curious · 마무리 폴짝/우쭐 happy, 졸림 sleepy, 덤덤 calm · 집 활동 calm (낮잠 sleep) · 빈 차례 sleep · 인사 깨어 있으면 happy / 자는 중 sleep · 방(소품) happy · 말풍선 ♡ pet, ? curious */
   var REACT_EXPR = { '폴짝': 'happy', '우쭐': 'happy', '덤덤': 'calm', '졸림': 'sleepy' };
   var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' };   /* 상태의 기본 표정 (SCENE.md 초상·표정) — 대화창 표정은 4 s 뒤 여기로 돌아온다 */
-  /* 자는 문어를 누르면 · 깨어 있는 문어를 톡 누르면 (말풍선 + 혼잣말 행). 소리(js/audio.js)는 글자가 아니라 kind('sleep' · 'curious')로 고른다 */
+  /* 자는 문어를 누르면 · 깨어 있는 문어를 톡 누르면 (말풍선만 — 로그 · 저장에 안 남는다, 11-08). 소리(js/audio.js)는 글자가 아니라 kind('sleep' · 'curious' · 'say')로 고른다.
+     깨어 있으면 '응?' 대신 그날 마지막으로 끝낸 차례에 대한 한 줄 (BRAIN.tapLine · 주인 11-08) — 없으면 '응?' */
   var SLEEP_SAY = '쿨쿨…', TAP_SAY = '응?';
+  var TAP_CLIP = 24;   /* 모델 · 사람이 쓴 톡 한 줄: 화면엔 24글자 + '…' (원문은 기록 그대로) */
+  /* 돌아온 뒤 담요에서 깨어 있는 틈 (주인 11-08 '자동으로 쉬는 느낌'): 보이는 다락에서 90 s → 그다음 낮잠. 탭을 떠났거나 놀이방 · 창이 열린 동안은 세지 않고,
+     돌아오면 적어도 15 s 는 깨어 있다. 저장하지 않는다 (새로고침이면 차례가 끝난 시각부터 센다). 졸림으로 마무리한 차례는 틈 없이 바로 잔다 */
+  var AWAKE_MS = 90000, AWAKE_SEEN = 15000;
+  /* 화면에 줄일 때 글자 = 사람이 보는 한 글자 (이모지 묶음을 쪼개지 않는다). Intl.Segmenter 가 없으면 코드 포인트 */
+  var GSEG = null; try { GSEG = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('ko', { granularity: 'grapheme' }) : null; } catch (e) { GSEG = null; }
+  function clipG(s, n) { s = String(s == null ? '' : s); var a = GSEG ? Array.from(GSEG.segment(s), function (x) { return x.segment; }) : Array.from(s); return a.length > n ? a.slice(0, n).join('') + '…' : s; }
   var REACT_WORDS = { '폴짝': 1, '우쭐': 1, '덤덤': 1, '졸림': 1 };   /* 아는 반응 넷 — 화면엔 단어만 (예전 이모지는 뺐다, 주인 11-07) */
   /* 화면에 줄여 보일 때: n 글자(코드 포인트) 넘으면 n 글자 + '…'. 원문은 기록에 그대로 (MODEL_VOICE §3) */
   function clip(s, n) { s = String(s == null ? '' : s); var a = Array.from(s); return a.length > n ? a.slice(0, n).join('') + '…' : s; }
@@ -111,9 +119,10 @@ var APP = (function () {
   /* 방 이름: 등불 칸수에 따라 (CG R17) */
   /* 등불 0칸에도 등불 안에 작은 불씨가 켜져 있다 (밤에도 다락이 깜깜하지 않게, 결정 14) → 처음 단계 이름도 '어두운' 이 아니다 */
   function roomTitle(lv) { return lv >= 8 ? '문어의 다락' : lv >= 5 ? '살림이 생긴 다락' : lv >= 2 ? '등불 켜진 다락' : '불씨 하나 켜진 다락'; }
-  /* 등불 칸이 켜질 때 문어 목소리로 한 줄 (WORLD.roomLevels 순서) */
-  var ITEM_LINE = { 1: '창턱에 이끼 화분을 올려뒀어', 2: '낡은 나무 상자를 끌어다 책상 삼았어', 3: '구석에 양초를 켰어. 그림자가 흔들려', 4: '담요 한 장 깔았어. 좀 따뜻해졌어',
-    5: '벽에 포스터 붙일 판을 걸었어', 6: '비가 잦아들었어. 창밖이 조용해', 7: '선반을 달았어. 창문에 별도 보여', 8: '커튼을 쳤어. 이제 진짜 내 다락이야' };
+  /* 등불 칸이 켜질 때 집 목소리 사실 한 줄 (WORLD.roomLevels 순서 · DIALOGUE_UI §4.3): 문어 초상 없이. 코드가 지은 기분('따뜻해졌어' · '진짜 내 다락') ·
+     낮에 틀린 말('별도 보여')은 뺐다 — 데려오기 · 모션 줄이기에서도 이 행이 보이게 된 11-08 부터 */
+  var ITEM_LINE = { 1: '창턱에 이끼 화분이 놓였어', 2: '낡은 나무 상자가 책상이 됐어', 3: '구석에 양초가 켜졌어', 4: '담요 한 장이 깔렸어',
+    5: '벽에 포스터 판이 걸렸어', 6: '비가 잦아들었어', 7: '선반이 생겼어. 창밖이 맑아', 8: '커튼이 걸렸어' };
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function dateKey(d) { d = d || new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
   /* 테스트 훅: window.__ppolTest.today = 'YYYY-MM-DD' 가 있을 때만 '오늘'을 그 날짜로 (tools/smoke.js 둘째 날). js/runner.js · js/audio.js 도 같은 규칙 */
@@ -436,10 +445,10 @@ var APP = (function () {
         souvenirTap: function (sv) { if (sv.tripId && tripById(sv.tripId)) { say((sv.name || sv.id) + ' — 이거 가져온 날', 'happy', 1800, { icon: souvenirIcon(sv.id) }); openPoster(sv.tripId, true); } },   /* 이름 + 말풍선에 기념품 픽셀 그림 */
         albumTap: function () { openAlbum(); },   /* 2D 벽의 '+N' (앨범으로) */
         pet: pet,
-        tap: function () { if (oct.state === 'sleep') say(SLEEP_SAY, 'sleep', 1500); else if (!oct.busy && oct.state !== 'pet') say(TAP_SAY, 'curious', 1600); },   /* 글자만 (예전 '…zZ' · '?' 는 기호로 읽혀 뺐다 — 주인 11-07) */
+        tap: tapOct,   /* 글자만 (예전 '…zZ' · '?' 는 기호로 읽혀 뺐다 — 주인 11-07). 깨어 있으면 그날 마지막 차례 한 줄 (11-08) */
         windowTap: function () {
           if (oct.busy) return;
-          if (oct.state === 'sleep') { say(SLEEP_SAY, 'sleep', 1500); return; }   /* 자는 중엔 깨우지 않는다 (쓰다듬기·탭과 같은 말) */
+          if (oct.state === 'sleep') { bubble(SLEEP_SAY, 1500, 'sleep'); return; }   /* 자는 중엔 깨우지 않는다 (쓰다듬기·탭과 같은 말 · 말풍선만) */
           walkTo('window').then(function () { if (!oct.busy) { octState('idle'); var w = weatherFor(S.room.lantern), hr = new Date().getHours(); say(w === 'clear' ? (hr >= 19 || hr < 6 ? '별이 보여' : '맑네') : w === 'snow' ? '눈이 와' : '비가 와', 'calm', 2000); } });
         },
         anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ },
@@ -588,11 +597,13 @@ var APP = (function () {
   function runCeremony(kind, arg) {
     if (!hasCeremony() || typeof scene[CER_FN[kind]] !== 'function') return Promise.resolve({ ink: false, cancelled: false });
     var my = ++cer.seq, t0 = Date.now();
+    /* quick = 데려온 귀가 (큰 버튼, 11-08): 길·계단은 건너뛰고 다락 문으로 짧게 들어온다 (장면이 0.3 s 전환 + 2배 걸음). 건너뛰기여도 감지 않는다 */
+    var quick = kind === 'return' && !!(arg && arg.quick);
     cer.kind = kind; cer.ink = false;
     if (window.AUDIO) AUDIO.on('ceremony', { kind: kind, skip: skipFlag });   /* 소리: 출발·귀가 징글 (js/audio.js) */
-    var p = kind === 'peek' ? scene.peekOutside(arg) : scene[CER_FN[kind]]();
+    var p = kind === 'peek' ? scene.peekOutside(arg) : quick ? scene.returnCeremony(null, { quick: true }) : scene[CER_FN[kind]]();
     if (kind === 'depart' && sceneMode === '3d') watchDoorExit(my);
-    if (skipFlag) jumpCeremony();
+    if (skipFlag && !quick) jumpCeremony();
     return new Promise(function (resolve) {
       var done = false, iv = null, seen = sceneCeremony() === kind, blank = 0, stuck = 0;
       function fin(cancelled) {
@@ -610,7 +621,7 @@ var APP = (function () {
         if (name === kind) { seen = true; blank = 0; }
         else if (name && seen) { fin(true); return; }        /* 끝났으면 p 가 먼저 풀렸다 → 여기 오면 다른 의식이 덮은 것 */
         else if (!name && ++blank > 2) { fin(false); return; }   /* 장면이 조용히 끝냈는데 Promise 를 못 받음 — 흐름은 멈추지 않는다 */
-        if (document.hidden || skipFlag || Date.now() - t0 > 30000 * speed()) {
+        if (document.hidden || (skipFlag && !quick) || Date.now() - t0 > 30000 * speed()) {
           if (jumpCeremony()) stuck = 0;
           else if (++stuck > 3) { abandonCeremony(); fin(false); }   /* 1 s 동안 감아도 그대로 */
         }
@@ -680,12 +691,87 @@ var APP = (function () {
   /* 낮잠 (DESIGN §5.9): 산책·집에 있던 날 뒤 담요에서 잠들고, 마지막으로 끝낸 차례(빈 차례 제외)에서 20분이 지나거나 그 뒤 날짜가 바뀌면 스스로 깬다.
      문어 자신의 상태일 뿐 — 타이머·연속 기록·보상 없음. 다음 초대도 깨운다(wakeUp) */
   var NAP_MS = 20 * 60 * 1000;
-  function napOver() {
+  /* 쉬게 하는 차례 = 마지막으로 끝낸 빈 차례 아닌 차례 (옛 기록 제외 · 끝난 시각 순, 같으면 뒤의 것) */
+  function lastRestTrip() {
     var l = null;
-    S.trips.forEach(function (t) { if (t.status === 'done' && t.kind !== 'empty') l = t; });
+    S.trips.forEach(function (t) { if (t && t.status === 'done' && t.kind !== 'empty' && t.by !== 'legacy' && (!l || (t.endedAt || 0) >= (l.endedAt || 0))) l = t; });
+    return l;
+  }
+  function napOver() {
+    var l = lastRestTrip();
     if (!l || !l.endedAt) return true;
     var endDay = hookToday() ? l.date : dateKey(new Date(l.endedAt));   /* 끝난 날 (날짜 훅이 있으면 훅이 정한 그 여행의 날) */
     return endDay !== todayKey() || Date.now() - l.endedAt > NAP_MS;
+  }
+  /* ── 깨어 있는 틈 (주인 11-08): 돌아오면 (데려왔든 아니든) 담요에서 잠깐 깨어 있다가 눕는다 — 그동안 톡 하면 그 차례 한 줄.
+     S.octopus.state 'sleep' = 쉬는 중 (깨어 있는 틈 + 낮잠, 차례를 반영할 때 저장 — 예전 그대로). 틈은 이 탭에서만 센다 (rest, 저장 없음):
+     보이는 다락에서만 줄어들고 (탭을 떠남 · 놀이방 · 창이 열림 · 입장 연출이면 멈춤) 다시 보이면 적어도 AWAKE_SEEN 은 남긴다.
+     눕는 순간 상태 훅 'sleep' 한 번 (그 차례의 반응과 함께 — 자장가 규칙 D-1 그대로). 낮잠 끝(차례 끝 + 20분 · 새 날)은 예전 그대로 ── */
+  var rest = null, restTimer = 0, restSeen = null;
+  function awakeMs() { var v = window.__ppolAwakeMs; return typeof v === 'number' && v >= 0 && isFinite(v) ? v : AWAKE_MS; }   /* 테스트 훅 (플레이어는 쓰지 않는다) */
+  function seenMin() { return Math.min(AWAKE_SEEN, awakeMs()); }
+  /* 이 차례 뒤에 깨어 있는 틈을 줄까: 졸림으로 마무리했으면 (데모 규칙이든 모델 · 사람이 골랐든) 그 뜻대로 바로 잔다 */
+  function wantsAwake(t) { return !!t && t.kind !== 'empty' && awakeMs() > 0 && reactionOf(t).r !== '졸림'; }
+  /* 새로고침 · 다른 탭: 차례가 끝난 지 틈보다 덜 지났으면 깨어 있다 */
+  function awakeByClock(t) { return wantsAwake(t) && !napOver() && Date.now() - (t.endedAt || 0) < awakeMs(); }
+  function watching() { return !document.hidden && !inPlay() && !introUp() && !document.querySelector('dialog[open]'); }
+  function restPhase() {
+    var t = lastRestTrip();
+    if (S.octopus.state !== 'sleep' || !t || napOver()) return 'up';
+    return (rest && rest.id === t.id) || (!rest && oct.state !== 'sleep' && awakeByClock(t)) ? 'awake' : 'nap';
+  }
+  function clearRest() { clearTimeout(restTimer); restTimer = 0; rest = null; }
+  function armRest(t, left) {   /* left 0 = 틈 없이 바로 눕는다 (졸림 · 테스트 훅 0) — 그때는 말풍선을 기다리지 않는다 (예전처럼) */
+    clearRest(); restSeen = t.id;
+    rest = { id: t.id, left: Math.max(0, left), last: Date.now(), away: !watching(), wait: 0, now: !(left > 0) };
+    restTick();
+  }
+  function restTick() {
+    clearTimeout(restTimer); restTimer = 0;
+    if (!rest) return;
+    var now = Date.now(), w = watching();
+    if (w) { if (rest.away) { rest.left = Math.max(rest.left, seenMin()); rest.away = false; } else rest.left -= now - rest.last; }
+    else rest.away = true;
+    rest.last = now;
+    if (rest.left <= 0) { lieDown(); return; }
+    restTimer = setTimeout(restTick, w ? Math.max(30, Math.min(1000, rest.left + 20)) : 1000);
+  }
+  /* 눕기: 다른 차례 · 다녀오는 중이면 버림. 낮잠 시간이 이미 지났으면(오래 떠나 있었음) 깬 채로. 쓰다듬는 중 · 걷는 중 · 말풍선이 떠 있으면 조금 뒤 (최대 8 s).
+     담요 자리가 아니면 걸어가서 (6 s 안에 못 가면 그 자리에 놓고) 잠든다 */
+  function lieDown() {
+    if (!rest) return;
+    var t = lastRestTrip(), my = rest.id;
+    var other = S.trips.some(function (x) { return x.status === 'running' && x.id !== my; });   /* 새 차례가 시작됐다 (초대는 wakeUp 이 먼저 걷는다) */
+    if (!t || t.id !== my || other || oct.state === 'away') { clearRest(); return; }
+    if (S.octopus.state !== 'sleep' || napOver()) { clearRest(); if (S.octopus.state === 'sleep') { S.octopus.state = 'idle'; save(); } return; }
+    var b = $('oct-bubble');
+    if (!rest.now && (oct.state === 'pet' || (b && !b.hidden && b.textContent)) && rest.wait < 8000 && watching()) { rest.wait += 700; clearTimeout(restTimer); restTimer = setTimeout(lieDown, 700); return; }
+    if (rest.lying) return;
+    rest.lying = true;
+    if (!watching()) { sleepNow(t, true); return; }   /* 보는 사람이 없다: 걷지 않고 담요에서 */
+    var guard = setTimeout(function () { if (rest && rest.id === my && rest.lying) sleepNow(t, true); }, 6000);
+    walkTo('blanket').then(function () { clearTimeout(guard); if (rest && rest.id === my) sleepNow(t); });
+  }
+  function sleepNow(t, place) {
+    clearRest(); restSeen = t ? t.id : restSeen;
+    if (place) { if (scene && typeof scene.finishWalk === 'function') scene.finishWalk(); octPlace('blanket'); }
+    if (oct.state === 'sleep') return;
+    var rx = t && t.events ? reactionOf(t) : null;
+    sleepReaction = rx ? (rx.r || rx.raw || null) : null;   /* 소리(D-1): 이 차례의 반응을 잠드는 훅에 (네 가지면 그 말, 아니면 받은 말 그대로, 없으면 null) */
+    octState('sleep'); sleepReaction = null;
+    if (S.octopus.state !== 'sleep') { S.octopus.state = 'sleep'; save(); }
+    updateSceneDesc();
+  }
+  /* 다른 탭이 차례를 끝냈거나 · 이 탭이 다시 보일 때: 쉬는 차례가 바뀌었으면 맞춘다 (틈 안이면 깨어 있게, 지났으면 담요에서 잔다, 날이 바뀌었으면 그대로) */
+  function syncRest() {
+    if (busy || oct.busy || lookHook() || S.trips.some(function (t) { return t.status === 'running'; })) return;
+    var t = lastRestTrip();
+    if (rest && (!t || rest.id !== t.id || S.octopus.state !== 'sleep')) clearRest();
+    if (rest) { restTick(); return; }
+    if (!t || S.octopus.state !== 'sleep' || napOver() || t.id === restSeen) return;
+    restSeen = t.id;
+    if (oct.state === 'sleep') return;
+    armRest(t, awakeByClock(t) ? Math.max(awakeMs() - (Date.now() - (t.endedAt || 0)), seenMin()) : 0);
   }
   /* 스스로 깸: 작은 혼잣말 '…응?' 은 말풍선만 (로그에 남기지 않는다). 말풍선은 졸린 귓속말 모양, 얼굴은 눈을 뜬 curious —
      반쯤 감은 calm·sleepy 는 주인이 '-_-^'(화남)로 읽었다 (DIALOGUE_UI: '…응?' + 눈 뜨기) */
@@ -712,7 +798,7 @@ var APP = (function () {
   function scheduleWander() {
     stopWander();
     oct.wanderTimer = setTimeout(function () {
-      if (oct.busy || oct.state !== 'idle' || document.hidden) { scheduleWander(); return; }
+      if (oct.busy || oct.state !== 'idle' || document.hidden || rest) { scheduleWander(); return; }   /* 깨어 있는 틈엔 담요에 있는다 */
       var opts = allowedIdleAnchors().filter(function (a) { return a !== oct.anchor; });
       var next = opts[Math.floor(uiRng() * opts.length)] || 'center';
       scheduleWander();   /* 다음 산책은 지금 예약: 걷기가 다른 이동에 끊기면 그 Promise 는 풀리지 않는다 → .then 에서 걸면 산책이 영영 멈춘다 */
@@ -725,31 +811,85 @@ var APP = (function () {
     return Object.keys(S.notes || {}).map(function (k) { return S.notes[k]; }).filter(function (n) { return n && typeof n.text === 'string' && n.text; })
       .sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; }).slice(0, 6);
   }
-  function thinkLine() {   /* → { text, note } — note = 그때 남긴 메모 그대로 (말풍선에서 그 부분만 남의 글 표시) */
+  function thinkLine() {   /* → { text, note } — note = 그때 남긴 메모 (24글자 넘으면 + '…' · 원문은 S.notes 그대로, 말풍선에서 그 부분만 남의 글 표시) */
     var pool = recentNotes(); if (!pool.length) return null;
-    var n = pool[Math.floor(uiRng() * pool.length)];
-    return { text: typeof MEMO_STR.thinking === 'function' ? MEMO_STR.thinking(n.text) : n.text + ' 생각 중', note: n.text, by: rawBy(tripById(n.tripId)) };
+    var n = pool[Math.floor(uiRng() * pool.length)], note = clipG(n.text, 24);   /* 긴 메모가 말풍선을 여러 줄로 키워 문어를 덮지 않게 (11-08) */
+    return { text: typeof MEMO_STR.thinking === 'function' ? MEMO_STR.thinking(note) : note + ' 생각 중', note: note, by: rawBy(tripById(n.tripId)) };
   }
   function scheduleThink() {
     clearTimeout(thinkTimer);
     thinkTimer = setTimeout(function () {
       var dlgOpen = !!document.querySelector('dialog[open]');
-      if (!oct.busy && oct.state === 'idle' && !document.hidden && !dlgOpen && !lookHook()) {
+      if (!oct.busy && oct.state === 'idle' && !document.hidden && !dlgOpen && !lookHook() && !rest) {   /* 깨어 있는 틈엔 생각 말풍선 없음 (톡 한 줄을 덮지 않게) */
         var t = thinkLine(); if (t) { bubble(t.text, 3600, 'think', { raw: t.by, rawText: t.note }); expressRow('curious'); }
       }
       scheduleThink();
     }, (20 + uiRng() * 20) * 1000);
   }
   /* kind → 말풍선 모양 (js/ui-art.js) · 말풍선 목소리 (js/audio.js). opt: { icon: 'memory/sea' (말 뒤 픽셀 그림), raw: 'model'|… (남이 쓴 말), rawText: 그중 남의 글 부분 (없으면 전부) } */
+  /* opt.silent = 소리 없이 (같은 톡 한 줄을 또 누름) · opt.tap = 톡 한 줄 (말풍선에 표시를 남겨 다음 톡이 알아본다) */
   function bubble(text, ms, kind, opt) {
     if (text && inPlay()) return;   /* 놀이방에 있는 동안 문어의 말풍선은 띄우지 않는다 (문어는 다락에 · 말풍선 소리도 없이). 로그 행은 그대로 (say) */
+    if (tapGivenBy && !(opt && opt.tap)) { tapGivenBy = null; clearTimeout(tapTagTimer); renderBrainTag(); }   /* 모델 · 사람의 톡 한 줄이 내려가면 '데모' 꼬리표도 돌아온다 */
     scene.bubble(text, ms);
     var b = $('oct-bubble');
+    if (b) { if (text && opt && opt.tap) b.setAttribute('data-tap', '1'); else b.removeAttribute('data-tap'); }
     if (b && text && !b.hidden && opt) {   /* 장면은 글자만 넣는다 (textContent) → 남의 글 표시 · 그림은 여기서 덧붙인다 (재는 건 그 뒤 UIART.onBubble) */
       if (opt.raw) { b.textContent = ''; withRaw(text, opt.rawText || text, opt.raw).forEach(function (n) { b.appendChild(n); }); }
       var im = opt.icon ? ico(opt.icon, 'ua-bub') : null; if (im) b.appendChild(im);
     }
-    if (window.UIART) UIART.onBubble(text, kind); if (window.AUDIO) AUDIO.on('bubble', { text: text, kind: kind }); keepBubble2D();
+    if (window.UIART) UIART.onBubble(text, kind); if (window.AUDIO && !(opt && opt.silent)) AUDIO.on('bubble', { text: text, kind: kind }); keepBubble2D();
+  }
+  /* ── 톡 한 줄 (주인 11-08 "눌렀을 때 응? 대신 직전에 다녀온 뽈뽈에 대한 짧은 대사 하나") ──
+     그날 마지막으로 끝낸 차례(빈 차례 포함 · 옛 기록 제외)의 BRAIN.tapLine. 말풍선만 — 로그 행 · 저장 · 앨범에 안 남고, 난수도 두뇌 입력도 건드리지 않는다.
+     규칙이 지은 줄은 '데모' 꼬리표가 보일 때만 · 모델 · 사람이 쓴 줄은 그대로 (24글자 넘으면 + '…') 이고 그 말풍선이 떠 있는 동안 '데모' 꼬리표를 숨긴다 (모델 재생과 같은 규칙).
+     얼굴은 늘 idle (반응을 다시 짓지 않는다). 같은 줄이 떠 있으면 소리 · 얼굴 없이 다시 세우고, 20 s 안에 같은 줄이면 소리 없이. 깨어 있는 톡마다 몸이 2px 톡 (모션 줄이기면 눈 깜빡) */
+  var tapShown = null, tapGivenBy = null, tapTagTimer = 0, nudgeTimer = 0, TAP_VOICE_MS = 20000;
+  function lastTurn() {
+    var best = null;
+    S.trips.forEach(function (t) { if (t && t.status === 'done' && t.by !== 'legacy' && (!best || (t.endedAt || 0) >= (best.endedAt || 0))) best = t; });
+    if (!best) return null;
+    var endDay = hookToday() ? best.date : dateKey(new Date(best.endedAt || 0));   /* 끝난 날 (napOver 와 같은 규칙) */
+    return endDay === todayKey() ? best : null;
+  }
+  function demoTagShown() { var tg = $('brain-tag'); return !!tg && !tg.hidden && /^데모/.test((tg.textContent || '').trim()); }
+  function tapLineNow() {
+    var t = lastTurn(); if (!t || !B || typeof B.tapLine !== 'function') return null;
+    var r = null; try { r = B.tapLine(t); } catch (e) { r = null; }
+    if (!r || typeof r.text !== 'string' || !r.text.trim()) return null;
+    if (r.by === 'demo-rules') { if (!demoTagShown()) return null; }   /* 규칙이 지은 말은 '데모' 꼬리표 아래에서만 */
+    else if (r.by !== 'model' && r.by !== 'human') return null;
+    var given = r.by !== 'demo-rules';
+    return { trip: t, text: given ? clipG(r.text, TAP_CLIP) : r.text, full: r.text, by: r.by, part: given ? null : (r.part || null), src: r.src || '' };
+  }
+  function tapNudge() {   /* 톡 받았다는 작은 몸짓: 3D 2px 톡 · 2D 2px · 모션 줄이기면 눈만 한 번 깜빡 (얼굴은 곧 돌아온다) */
+    if (!scene) return;
+    if (reduced()) {
+      var prev = typeof scene.expression === 'function' ? scene.expression() : 'idle';
+      if (prev === 'blink' || prev === 'sleep') return;
+      scene.setExpression('blink'); clearTimeout(nudgeTimer);
+      nudgeTimer = setTimeout(function () { if (scene && typeof scene.expression === 'function' && scene.expression() === 'blink') scene.setExpression(prev); }, 160);
+      return;
+    }
+    if (sceneMode === '3d') { if (typeof scene.nudge === 'function') scene.nudge(); return; }
+    var el = $('oct'); if (!el) return;
+    el.classList.remove('nudge'); void el.offsetWidth; el.classList.add('nudge');
+    clearTimeout(nudgeTimer); nudgeTimer = setTimeout(function () { el.classList.remove('nudge'); }, 260);
+  }
+  function tapOct() {
+    if (oct.state === 'sleep') { bubble(SLEEP_SAY, 1500, 'sleep'); return; }   /* 자는 중엔 깨우지 않는다 */
+    if (oct.busy || oct.state === 'pet' || oct.state === 'away') return;
+    var L = tapLineNow();
+    if (!L) { bubble(TAP_SAY, 1600, 'curious'); expressRow('curious'); tapNudge(); return; }
+    var b = $('oct-bubble'), up = !!(b && !b.hidden && b.getAttribute('data-tap') === '1' && tapShown && tapShown.text === L.text);
+    var ms = clamp(2000 + 90 * Array.from(L.text).length, 2600, 4600);   /* 읽는 시간 (--speed 와 상관없이) */
+    var again = !!(tapShown && tapShown.text === L.text && Date.now() - tapShown.at < TAP_VOICE_MS);
+    if (!again) tapShown = { text: L.text, at: Date.now() };
+    var given = L.by === 'model' ? 'model' : L.by === 'human' ? 'human' : null;
+    bubble(L.text, ms, 'say', { tap: true, silent: up || again, raw: given || (L.part ? 'wiki' : null), rawText: given ? L.text : L.part });
+    if (given) { tapGivenBy = given; renderBrainTag(); clearTimeout(tapTagTimer); tapTagTimer = setTimeout(function () { tapGivenBy = null; renderBrainTag(); }, ms + 60); }
+    if (!up) expressRow('idle');
+    tapNudge();
   }
   /* 2D 무대: 문 앞(무대 오른쪽 끝)에서 말풍선(최대 150px)이 장면 밖으로 잘리지 않게 옆으로 민다 (--bub-dx → css #oct-bubble left, 무대 px).
      보이는 동안 문어가 걸어가도 5 Hz 로 따라간다. 3D 픽셀 말풍선은 js/ui-art.js keepInside 가 맡는다 */
@@ -759,15 +899,17 @@ var APP = (function () {
     var b = $('oct-bubble'), sc = $('scene'); if (!b || !sc) return;
     function fit() {
       var UA = window.UIART && UIART.avoidCtl && UIART.ctlYield ? UIART : null;
-      if (b.hidden || sceneMode !== '2d') { clearInterval(bubFit); bubFit = null; b.style.removeProperty('--bub-dx'); if (UA && sceneMode === '2d') UA.ctlYield(false); return; }
-      var px = parseFloat(getComputedStyle(sc).getPropertyValue('--px')) || 1, cur = parseFloat(b.style.getPropertyValue('--bub-dx')) || 0;
+      if (b.hidden || sceneMode !== '2d') { clearInterval(bubFit); bubFit = null; b.style.removeProperty('--bub-dx'); if (sceneMode === '2d') b.style.removeProperty('--bub-dy'); if (UA && sceneMode === '2d') UA.ctlYield(false); return; }
+      var px = parseFloat(getComputedStyle(sc).getPropertyValue('--px')) || 1, cur = parseFloat(b.style.getPropertyValue('--bub-dx')) || 0, curY = parseFloat(b.style.getPropertyValue('--bub-dy')) || 0;
       var s = sc.getBoundingClientRect(), r = b.getBoundingClientRect(), pad = 4, l = r.left - cur * px, rt = r.right - cur * px, dx = 0;
+      var top0 = r.top - curY * px, need = s.top + pad - top0, dy = need > 0 ? Math.ceil(need / px) : 0;   /* 위쪽에 잘리면 그만큼 아래로 (무대 px — 3D 는 js/ui-art.js keepInside, 11-08) */
+      if (dy !== curY) { if (dy) b.style.setProperty('--bub-dy', dy + 'px'); else b.style.removeProperty('--bub-dy'); }
       if (rt > s.right - pad) dx = (s.right - pad - rt) / px; else if (l < s.left + pad) dx = (s.left + pad - l) / px;
       /* 장면 위 버튼(오른쪽 위 묶음: 앨범 · ⚙ — 2D 엔 바깥 집 단추가 없다)과 겹치면 그 왼쪽으로 (풍선이 문어 위를 벗어나지 않는 만큼까지 · 왼쪽 가장자리 안) — js/ui-art.js avoidCtl 과 3D 규칙이 같다 */
       var cs = UA ? UA.avoidCtl({ left: l, right: rt, top: r.top, bottom: r.bottom }, pad) : 0;
       if (cs < 0) dx = Math.min(dx, Math.max(cs, s.left + pad - l, -Math.max(0, r.width / 2 - 28)) / px);
       dx = Math.round(dx);
-      if (UA) UA.ctlYield({ left: l + dx * px, right: rt + dx * px, top: r.top, bottom: r.bottom });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 (3D 와 같다) */
+      if (UA) UA.ctlYield({ left: l + dx * px, right: rt + dx * px, top: top0 + dy * px, bottom: r.bottom - curY * px + dy * px });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 (3D 와 같다) */
       if (dx !== cur) { if (dx) b.style.setProperty('--bub-dx', dx + 'px'); else b.style.removeProperty('--bub-dx'); }
     }
     fit();
@@ -785,15 +927,24 @@ var APP = (function () {
   function octInitial() {
     var hk = lookHook();
     if (hk) { octPlace(hk.anchor || 'center'); octState(hk.octState || 'idle'); return; }   /* 고정 앵글: 산책 없음 */
-    if (S.octopus.state === 'sleep') { octPlace('blanket'); octState('sleep'); }
+    if (S.octopus.state === 'sleep') {
+      octPlace('blanket');
+      var t = lastRestTrip();
+      if (t && awakeByClock(t)) { octState('idle'); armRest(t, Math.max(awakeMs() - (Date.now() - (t.endedAt || 0)), seenMin())); }   /* 깨어 있는 틈 안에 다시 열었다 */
+      else { if (t) restSeen = t.id; octState('sleep'); }
+    }
     else { octPlace('window'); octState('idle'); }
     scheduleWander();
   }
-  function wakeUp() { if (oct.state === 'sleep') { octState('idle'); S.octopus.state = 'idle'; save(); } }
+  /* 다음 초대가 깨운다 — 깨어 있는 틈이었어도 쉬는 표시를 걷는다 (빈 차례가 끝나며 다시 재우지 않게) */
+  function wakeUp() {
+    clearRest();
+    if (oct.state === 'sleep' || S.octopus.state === 'sleep') { if (oct.state === 'sleep') octState('idle'); S.octopus.state = 'idle'; save(); }
+  }
   var petTimer = null;
   function pet() {
     if (oct.busy || oct.state === 'away') return;
-    if (oct.state === 'sleep') { say(SLEEP_SAY, 'sleep', 1500); return; }
+    if (oct.state === 'sleep') { bubble(SLEEP_SAY, 1500, 'sleep'); return; }   /* 말풍선만 (11-08) */
     octState('pet');
     if (window.UIART) UIART.fx('heart');
     if (window.AUDIO) AUDIO.on('pet');   /* 소리: 쓰다듬기 */
@@ -801,6 +952,7 @@ var APP = (function () {
     petTimer = setTimeout(function () {
       if (oct.state !== 'pet') return;
       if (uiRng() < 0.7) { octState('idle'); say('…좋아', 'pet', 1800); }   /* 글자만 (예전 하트 기호는 뺐다 — 하트는 픽셀 테마 파티클이 띄운다) */
+      else if (rest) octState('idle');   /* 깨어 있는 틈: 담요에서 말없이 그대로 (뽑기는 그대로 — '…좋아' 가 더 잦아지지 않게) */
       else { var opts = allowedIdleAnchors().filter(function (a) { return a !== oct.anchor; }); walkTo(opts[Math.floor(uiRng() * opts.length)] || 'center').then(function () { if (!oct.busy) octState('idle'); }); }
     }, 2000);
   }
@@ -848,7 +1000,8 @@ var APP = (function () {
     skip();
   }
   /* 상태 줄 이름 옆 '데모' 표시 (정직 표기, index.html #brain-tag): 데모 두뇌(규칙)가 고르는 동안 늘. 모델(MCP)이 고른 여행을 재생하는 동안만 숨긴다 */
-  function renderBrainTag() { var tg = $('brain-tag'); if (tg) tg.hidden = !!(flying && flying.by === 'mcp'); }
+  /* 모델 · 사람이 쓴 톡 한 줄이 떠 있는 동안도 숨긴다 (그 말을 '규칙이 골라' 아래 두지 않게 — 11-08) */
+  function renderBrainTag() { var tg = $('brain-tag'); if (tg) tg.hidden = !!(flying && flying.by === 'mcp') || !!tapGivenBy; }
   function tripsOn(key) { return S.trips.filter(function (t) { return t.date === key; }); }
   function newTripId(seed) {
     var base = 'trip_' + (seed >>> 0).toString(36).slice(-4);
@@ -954,7 +1107,9 @@ var APP = (function () {
     });
   }
   /* 건너뛰기 (큰 버튼 · 나가 있는 동안): 걷던 길은 그 자리에서 도착 (2D·3D 장면의 finishWalk — moveTo 의 Promise 도 지금 풀린다) · 의식은 감고 · 틈은 깨운다 */
-  function skip() { skipFlag = true; if (scene && typeof scene.finishWalk === 'function') scene.finishWalk(); if (cer.kind) jumpCeremony(); if (revealing && revealing.wake) revealing.wake(); }
+  /* 데려오기는 보여 주는 속도만 바꾼다: 산책은 출발 전에 두뇌가 다 정했고 (plan), 반영은 한 번 (commitTrip) — 기록은 안 데려온 것과 같다.
+     귀가가 시작되면(homing) 다시 눌러도 그대로 둔다 → 짧은 귀가(문 · 포스터 · 토스트 · 등불, 2초 안)는 끝까지 보인다 (주인 11-08) */
+  function skip() { if (revealing && revealing.homing) return; skipFlag = true; if (scene && typeof scene.finishWalk === 'function') scene.finishWalk(); if (cer.kind) jumpCeremony(); if (revealing && revealing.wake) revealing.wake(); }
   /* 움츠림 → 1.03 overshoot 로 풀기 (2D 는 CSS, 3D 는 idle 복귀). 끝나면 idle */
   function settleOct() {
     var el = $('oct'); octState('idle');
@@ -1003,15 +1158,16 @@ var APP = (function () {
       finalPose(trip);
     });
   }
-  /* 귀가 연출 (UI R25 · GF R15/R18): 로그 끝 → 포스터 올라옴 → 토스트 → 등불 칸 → 200ms 뒤 소품 + 문어 한 줄. 건너뛰기/축소 모션이면 즉시 */
+  /* 귀가 연출 (UI R25 · GF R15/R18): 로그 끝 → 포스터 올라옴 → 토스트 → 등불 칸 → 200ms 뒤 소품 + 집 한 줄.
+     데려왔으면 같은 순서를 반 박자로 (≈ 0.9 s · 11-08), 모션 줄이기면 기다림 없이 한꺼번에 (토스트 · 등불 칸 · 소품 줄은 그대로 보인다) */
   function startCeremony() {
     if (!revealing) return Promise.resolve();
     if (revealing.ceremony) return revealing.ceremony;
     var d = revealing.deferred, trip = revealing.trip;
     if (!d) { revealing.ceremony = Promise.resolve(); return revealing.ceremony; }
     revealing.deferred = null;
-    var fast = skipFlag || reduced(), lit = S.room.lantern > d.prevL, lv = S.room.lantern;
-    function wait(ms) { return fast ? Promise.resolve() : sleep(ms * speed()); }
+    var k = reduced() ? 0 : skipFlag ? 0.5 : 1, lit = S.room.lantern > d.prevL, lv = S.room.lantern;
+    function wait(ms) { return k ? sleep(ms * k * speed()) : Promise.resolve(); }
     revealing.ceremony = Promise.resolve().then(function () {
       renderAlbum();                                   /* 포스터(정점): 앨범 아이콘으로 날아간다 (앨범을 열면 새 카드만 올라온다) */
       if (!trip.poster) return;
@@ -1025,7 +1181,7 @@ var APP = (function () {
       return wait(200);                                /* follow-through: 소품은 칸 뒤 200ms */
     }).then(function () {
       renderScene('items');
-      if (lit && ITEM_LINE[lv]) appendLogRow(ensureTodaySection(), logRow('방', ITEM_LINE[lv], 'c-amber', true, 'happy'));
+      if (lit && ITEM_LINE[lv]) appendLogRow(ensureTodaySection(), logRow('방', ITEM_LINE[lv], 'c-amber', true, null));   /* 집 목소리 (문어 초상 없음) */
     });
     return revealing.ceremony;
   }
@@ -1042,6 +1198,17 @@ var APP = (function () {
         /* 들고 오는 포스터 = 이 여행의 것 (id: 장면이 걸 때 그 포스터의 벽 칸으로 날린다 — 건너뛰기·데모 재생처럼 벽에 먼저 붙었어도) */
         var mode = trip.poster ? 'carry' : 'walk', carryX = trip.poster ? { svg: posterSVG(trip, 48, 64, { mini: true, noExternal: true }), id: trip.id } : null;
         var wasOut = !!(revealing && revealing.outside);
+        /* 큰 버튼으로 데려왔다 (11-08): 귀가를 자르지 않고 짧게 — 바깥에 남은 것(기웃 · 퇴장)은 감고, 다락 문으로 들어와(0.3 s 전환 + 문간에서 나타나 2배로 걸어 나옴) 문 앞에.
+           포스터는 머리 위에서 앨범으로 날아간다 (들고 오는 그림 대신). 모션 줄이기면 장면이 한 프레임에 끝낸다. 2D 는 문 앞에서 .settle 한 번 */
+        var homing = skipFlag && !!revealing && revealing.trip === trip;
+        if (homing) revealing.homing = true;
+        if (homing && oct.state === 'away' && hasCeremony()) {
+          bubble('', 0); dropOverlay(); jumpCeremony();   /* 남은 기웃 · 퇴장 (이 함수 안의 cer 는 wrap_up 의 지역 변수라 쓰지 않는다) */
+          return runCeremony('return', { quick: true }).then(function () {
+            ensureAttic(); octPlace('door'); noteBack(); octState('idle');
+            if (sceneMode === '2d') settleOct();
+          });
+        }
         if (fast) { if (wasOut && typeof scene.leaveOutside === 'function') scene.leaveOutside(); if (!jumpCeremony()) abandonCeremony(); bubble('', 0); dropOverlay(); ensureAttic(); octPlace('board'); octState(mode, carryX); noteBack(); return Promise.resolve(); }
         /* (바깥 기웃을 했으면 같은 출구로 퇴장) → 귀가 의식(길 → 계단 → 현관 → 다락 문) → 보드까지 걸어가 포스터 걸기 */
         var back = (hasCeremony() && oct.state === 'away') ? (wasOut ? runCeremony('leave') : Promise.resolve()).then(function () { dropOverlay(); return runCeremony('return'); }) : Promise.resolve();
@@ -1054,6 +1221,7 @@ var APP = (function () {
         });
       case 'hang_poster':
         if (!trip.poster) return Promise.resolve();
+        if (revealing && revealing.homing) { renderWall(); return Promise.resolve(); }   /* 데려온 귀가: 문 앞에서 벽에 바로 (보드까지 걸어가 붙이지 않는다) */
         octState('hang');
         return sleep(fast ? 0 : 520 * speed()).then(function () { renderWall(); });
       case 'wrap_up':
@@ -1080,13 +1248,19 @@ var APP = (function () {
         return Promise.resolve();
     }
   }
+  /* 차례가 끝난 자세: 빈 차례는 그대로. 아니면 담요로 — 깨어 있는 틈(AWAKE_MS, 졸림이 아니면)을 주고 그 뒤 눕는다 (lieDown). 틈이 없으면 담요에 닿는 대로 잔다.
+     trip 이 기록이 아니면(복구 resumeRunning 의 { kind }) 마지막 쉬는 차례로 */
   function finalPose(trip) {
     ensureAttic(); dropOverlay();
     if (trip.kind === 'empty') { octState(S.octopus.state === 'sleep' ? 'sleep' : 'idle'); return; }
-    octPlace('blanket');
-    var rx = trip.events ? reactionOf(trip) : null;   /* 복구(resumeRunning) 는 { kind } 만 넘긴다 → 반응 없음 */
-    sleepReaction = rx ? (rx.r || rx.raw || null) : null;   /* 소리(D-1): 이 차례의 반응을 잠드는 훅에 (네 가지면 그 말, 아니면 받은 말 그대로, 없으면 null) */
-    octState('sleep'); sleepReaction = null; S.octopus.state = 'sleep'; save();
+    var t = trip.events ? trip : (lastRestTrip() || trip);
+    S.octopus.state = 'sleep'; save();   /* 쉬는 중 (깨어 있는 틈이든 낮잠이든) — 지금 새로고침해도 담요에서 */
+    stopWander();
+    if (!t.id) { sleepNow(t, true); return; }
+    if (!wantsAwake(t)) { armRest(t, 0); return; }   /* 졸림: 담요에 닿는 대로 잔다 */
+    armRest(t, awakeMs());
+    var my = t.id;
+    walkTo('blanket').then(function () { if (rest && rest.id === my && oct.state === 'walk') octState('idle'); });   /* 이미 담요면 바로 (걸어온 귀가) · 데려왔으면 문에서 걸어간다 */
   }
   /* 상태 반영: 등불 · 방문 · 취향 · 기념품 · 함께한 날 (한 번만) */
   function commitTrip(trip) {
@@ -1095,9 +1269,9 @@ var APP = (function () {
     lastNewPoster = trip.poster ? trip.id : null;
     save(); mine.push({ trip: trip, at: Date.now() });
     renderSouvenirs();
-    var live = revealing && revealing.trip === trip && !skipFlag && !reduced();
+    var live = revealing && revealing.trip === trip;   /* 데려와도 · 모션 줄이기여도 귀가 연출은 한다 (11-08: 박자만 짧게 · 없이 — startCeremony) */
     if (live) revealing.deferred = { prevL: prevL };   /* 상태는 지금 저장, 보이는 건 로그가 끝난 뒤 순서대로 (startCeremony) */
-    else { renderStatus(S.room.lantern > prevL); renderScene(); renderAlbum(); if (trip.poster && revealing && revealing.trip === trip) flyToAlbum(trip); }   /* 건너뛰기: 연출 없이 반영하되 새 포스터는 앨범 아이콘으로 (모션 줄이기면 점만) */
+    else { renderStatus(S.room.lantern > prevL); renderScene(); renderAlbum(); }   /* 공개 없이 반영 (새로고침 복구 · 다른 탭) */
     /* 포스터는 hang_poster 연출 뒤에 벽에 붙는다 (공개 중이 아니면 바로) */
     var pendingHang = live && trip.poster && (trip.events || []).some(function (e) { return e.type === 'hang_poster'; });
     if (!pendingHang) renderWall();
@@ -1532,7 +1706,7 @@ var APP = (function () {
   function setDayGreeting() {
     greetingRow = memoRow = null;
     if (!S.octopus.name) return;
-    var asleep = S.octopus.state === 'sleep';
+    var t = lastRestTrip(), asleep = S.octopus.state === 'sleep' && !(rest || (oct.state !== 'sleep' && t && awakeByClock(t)));   /* 깨어 있는 틈이면 '…는 다락방에 있어' */
     /* 집 목소리 줄 (문어 초상 없음): '좋은 아침. 뚜루는 다락방에 있어.' / '… 뚜루는 아직 자고 있어.' — 문어가 자기 이름을 부르는 꼴이 되지 않게 (DIALOGUE_UI §3 표) */
     var hello = greetingByHour(new Date().getHours());
     greetingRow = logRow('오늘', typeof STR.dayGreeting === 'function' ? STR.dayGreeting(hello, S.octopus.name, asleep) : hello + '. ' + S.octopus.name + (asleep ? '은 아직 자고 있어.' : '은 다락방에 있어.'), '', true, null);
@@ -2674,12 +2848,12 @@ var APP = (function () {
       if (DEV) { if (uiPref().demoOpen) demoEl.open = true; demoEl.addEventListener('toggle', function () { setUiPref('demoOpen', demoEl.open); }); }
     }
     /* 탭을 떠날 때 저장 · 다른 탭이 저장하면 다시 그린다 (R4, R5) */
-    document.addEventListener('visibilitychange', function () { if (document.hidden && S.octopus.name) save(); else if (!document.hidden) checkDay(); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden && S.octopus.name) save(); else if (!document.hidden) { checkDay(); syncRest(); } if (rest) restTick(); });   /* 깨어 있는 틈은 보이는 동안만 센다 */
     window.addEventListener('storage', function (e) {
       if (e.key !== KEY || !e.newValue || e.newValue === lastSaved) return;
       if (!adoptRemote(e.newValue)) return;
       if (busy) { remoteDirty = true; return; }   /* 공개 중엔 로그·등불을 다시 그리지 않는다 → 끝날 때 한 번 (setBusy) */
-      renderAll(); applyMotion(); applyFont();
+      renderAll(); applyMotion(); applyFont(); syncRest();   /* 다른 탭이 차례를 끝냈으면 이 탭 문어도 (깨어 있는 틈 · 낮잠) */
     });
     $('name-form').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -2767,7 +2941,7 @@ var APP = (function () {
     if (window.INTRO && INTRO.start(scene, { mode: sceneMode, reduced: reduced(), host: $('scene') })) INTRO.onDone(afterIntro); else afterIntro();
     loadManifest().then(function (ok) { if (ok) { scene.refresh(); renderSouvenirs(); } });
     warmStickers().then(function (got) { if (got && sceneMode === '3d' && S.room.posterOrder.length) { scene.setPosters([]); renderWall(); } });   /* 벽 텍스처를 스티커 그림과 함께 다시 굽는다 (한 번) */
-    resumeRunning().then(function (kind) { if (kind) finalPose({ kind: kind }); });   /* 빈 차례뿐이면 재우지 않는다 (commitTrip 과 같은 규칙) */
+    resumeRunning().then(function (kind) { if (kind) finalPose({ kind: kind }); });   /* 빈 차례뿐이면 재우지 않는다 (commitTrip 과 같은 규칙) · 아니면 마지막 쉬는 차례로 (깨어 있는 틈부터) */
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
@@ -2782,6 +2956,9 @@ var APP = (function () {
     get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor,
     portraitFor: portraitFor, say: say, get portraitCache() { return Object.keys(PORT.cache); },
     setSeason: setSeasonPref, get ceremony() { return cer.kind; },
-    get room() { return inPlay() ? 'play' : null; }, openMachine: openMachine   /* 8물결: 놀이방에 있는가 · 오락기 (테스트·도구) */
+    get room() { return inPlay() ? 'play' : null; }, openMachine: openMachine,   /* 8물결: 놀이방에 있는가 · 오락기 (테스트·도구) */
+    /* 11-08 톡 한 줄 · 깨어 있는 틈 (테스트·도구 — 화면엔 안 나온다): 지금 톡 하면 나올 줄 · 장면의 톡 처리 그대로 · 쉬는 단계 ('up' | 'awake' | 'nap') */
+    tapLine: function () { var L = tapLineNow(); return L ? { text: L.text, full: L.full, by: L.by, part: L.part, src: L.src, trip: L.trip.id } : null; },
+    tapOct: tapOct, restPhase: restPhase, get rest() { return rest ? { id: rest.id, left: Math.max(0, Math.round(rest.left)), away: rest.away } : null; }
   };
 })();

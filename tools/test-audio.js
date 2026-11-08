@@ -73,6 +73,7 @@ function watch(page, origin) {
 }
 async function newPage(browser, look, origin) {
   var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, locale: 'ko-KR', colorScheme: 'light' });
+  await ctx.addInitScript('window.__ppolAwakeMs = 0;');   /* 11-08 깨어 있는 틈 (90 s) 없이 — 예전 검사는 '산책 직후 잠'. 틈을 보는 검사(9b)는 페이지에서 덮는다 */
   if (look) await ctx.addInitScript('window.__ppolLook = ' + JSON.stringify(look) + ';');
   var page = await ctx.newPage();
   return { ctx: ctx, page: page, bag: watch(page, origin) };

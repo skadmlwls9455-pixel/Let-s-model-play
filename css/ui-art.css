@@ -80,7 +80,7 @@
 :root[data-font="pixel"] #scene3d #oct-bubble[data-ua] {
   border: 16px solid transparent; border-image: url(../assets/ui/bubble_say.png) 8 fill / 16px round;
   border-radius: 0; background: none; box-shadow: none; padding: 0 4px; color: #172038;
-  bottom: calc(100% - 16px); image-rendering: pixelated;   /* 꼬리(16px) 끝이 머리 위 ≈20px 에 오게 */
+  bottom: calc(100% - 16px - var(--bub-dy, 0px)); image-rendering: pixelated;   /* 꼬리(16px) 끝이 머리 위 ≈20px 에 오게 · --bub-dy = 장면 위쪽에 잘리면 내림 (js/ui-art.js keepInside) */
 }
 :root[data-font="pixel"] #scene3d #oct-bubble[data-ua="think"] { border-image-source: url(../assets/ui/bubble_think.png); }
 :root[data-font="pixel"] #scene3d #oct-bubble[data-ua="whisper"] { border-image-source: url(../assets/ui/bubble_whisper.png); }
@@ -90,6 +90,7 @@
 }
 :root[data-font="pixel"] #scene3d #oct-bubble[data-ua="think"]::after { background-image: url(../assets/ui/tail_think.png); top: calc(100% + 12px); }
 :root[data-font="pixel"] #scene3d #oct-bubble[data-ua="whisper"]::after { background-image: url(../assets/ui/tail_whisper.png); top: calc(100% + 12px); }
+:root[data-font="pixel"] #scene3d #oct-bubble[data-tail="off"]::after { display: none; }   /* 많이 내려와 머리에 닿으면 꼬리는 뺀다 (keepInside) */
 
 /* 외침 ("찾았다!" · "처음 와 봤어!") 은 따로 그리지 않는다 (주인 11-07: 가시 테두리 없이 효과음과 연출만). 보통 풍선이 2px 씩 두 번 통통 —
    두 테마 공통, 칸마다 정수 px (steps). 동작 줄이기면 없음 (js/ui-art.js 가 data-pop 을 안 붙이고, 여기서도 한 번 더 막는다) */

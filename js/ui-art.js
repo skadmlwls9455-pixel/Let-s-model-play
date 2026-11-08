@@ -156,19 +156,27 @@ var UIART = (function () {
       if (btn.classList.contains('yield') !== on) btn.classList.toggle('yield', on);
     });
   }
-  /* 9-slice 테두리로 넓어진 풍선이 장면 가장자리에서 잘리지 않게 옆으로 민다 (꼬리는 문어 위에 그대로).
-     장면 오른쪽 위 아이콘 묶음과 겹치면 그 왼쪽까지 민다 (두 테마 — 시스템 테마 풍선은 꼬리가 없어 가장자리 규칙은 픽셀만). 한도는 같다: 꼬리가 풍선 아랫변 안 */
+  /* 풍선이 장면(#scene) 밖으로 잘리지 않게 (11-08 — 장면 칸은 overflow:hidden 이라 삐져나간 글자는 그냥 사라진다). 두 테마 같은 규칙, P = 4px (픽셀 틀 테두리 + 베벨):
+     1 폭: 220px (좁은 장면이면 장면 폭 − 2P) · 2 옆: 가장자리 안으로 민다, 오른쪽 위 아이콘 묶음 · 바깥 집 단추와 겹치면 그 옆까지 (장면 가장자리 밖으론 안 민다).
+       민 만큼 픽셀 꼬리는 거꾸로 옮겨 문어를 가리키되 풍선 아랫변 안 (가운데에서 ± 폭/2 − 20) · 3 위: 장면 위쪽을 넘으면 그만큼 아래로 (--bub-dy),
+       12px 넘게 내려오면 머리에 닿으니 픽셀 꼬리는 뺀다 (data-tail="off"). 픽셀 테마는 2px 격자 */
   function keepInside(b) {
-    b.style.marginLeft = ''; b.style.removeProperty('--ua-tail');
-    var sc = $('scene'); if (!sc || !b.closest('#scene3d')) return;
-    var s = sc.getBoundingClientRect(), r = b.getBoundingClientRect(), pad = 4, shift = 0;
-    if (pixel()) { if (r.left < s.left + pad) shift = s.left + pad - r.left; else if (r.right > s.right - pad) shift = s.right - pad - r.right; }
-    var cs = avoidCtl(r, pad);   /* 아이콘을 피하되 장면 가장자리 밖으로는 안 민다 */
-    if (cs < 0) shift = Math.min(shift, Math.max(cs, s.left + pad - r.left));
-    else if (cs > 0) shift = Math.max(shift, Math.min(cs, s.right - pad - r.right));
-    var lim = Math.max(0, r.width / 2 - 28); shift = even(Math.max(-lim, Math.min(lim, shift)));
-    if (shift) { b.style.marginLeft = shift + 'px'; if (pixel()) b.style.setProperty('--ua-tail', (-shift) + 'px'); }
-    ctlYield({ left: r.left + shift, right: r.right + shift, top: r.top, bottom: r.bottom });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 */
+    var sc = $('scene'); if (!sc || !b.closest('#scene3d')) { b.style.marginLeft = ''; b.style.maxWidth = ''; b.style.removeProperty('--ua-tail'); b.removeAttribute('data-tail'); return; }   /* 2D 무대는 app.js keepBubble2D (--bub-dy 도 거기서) */
+    b.style.marginLeft = ''; b.style.removeProperty('--ua-tail'); b.style.removeProperty('--bub-dy'); b.removeAttribute('data-tail');
+    var s = sc.getBoundingClientRect(), P = 4, px = pixel(), shift = 0;
+    var mw = Math.max(96, Math.min(220, Math.floor(s.width - 2 * P))) + 'px';
+    if (b.style.maxWidth !== mw) b.style.maxWidth = mw;
+    var r = b.getBoundingClientRect();
+    if (r.left < s.left + P) shift = s.left + P - r.left; else if (r.right > s.right - P) shift = s.right - P - r.right;
+    var cs = avoidCtl(r, P);   /* 아이콘을 피하되 장면 가장자리 밖으로는 안 민다 */
+    if (cs < 0) shift = Math.min(shift, Math.max(cs, s.left + P - r.left));
+    else if (cs > 0) shift = Math.max(shift, Math.min(cs, s.right - P - r.right));
+    shift = px ? even(shift) : Math.round(shift);
+    var need = (s.top + P) - r.top, dy = need > 0 ? (px ? Math.ceil(need / 2) * 2 : Math.ceil(need)) : 0;
+    if (shift) b.style.marginLeft = shift + 'px';
+    if (px && shift) { var lim = Math.max(0, r.width / 2 - 20), tail = even(Math.max(-lim, Math.min(lim, -shift))); if (tail) b.style.setProperty('--ua-tail', tail + 'px'); }
+    if (dy) { b.style.setProperty('--bub-dy', dy + 'px'); if (px && dy > 12) b.setAttribute('data-tail', 'off'); }
+    ctlYield({ left: r.left + shift, right: r.right + shift, top: r.top + dy, bottom: r.bottom + dy });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 */
   }
   var bubTimer = null;
   function onBubble(text, kind) {
