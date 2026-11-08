@@ -28,14 +28,18 @@ cd mcp && npm install
 | 도구 | 입력 (굵은 것만 필수) | 돌려주는 것 | 최대 크기 |
 |---|---|---|---|
 | `ppolppol_look_room` | `archived?` | 등불, 벽 포스터 한 줄, 집 활동, 요즘, 활성 메모 ≤3 (+ `archived:true` 면 보관 메모), 처음이면 `decision: meet` | 548 B |
-| `ppolppol_depart` | `hint?` | `tripId`, 도서관 방 목록 `{id,name,corner,odd?,visits?}`, 활성 메모 ≤3 | 3,491 B |
-| `ppolppol_peek` | **`tripId`**, **`target`**, `note?`, `aside?`, `bridge?` | `stopIdx`, `status`, `material`+`source` (read) 또는 `clue` (builtin), `first`, `nearby`, `links` | 345 B |
-| `ppolppol_finish` | **`tripId`**, `reason?`, `remember?`, `hang?`, `reaction?`, `line?`, `memo?`, `note?`, `setDown?` | `saved`, `posterId?`, `decision: chat` | 199 B |
-| `ppolppol_stay_home` | `activity?`, `detail?`, `line?`, `reaction?`, `memo?`, `note?`, `setDown?` | `tripId`, `saved`, `decision: chat` | 192 B |
+| `ppolppol_depart` | `first?` (target), `more?` | `tripId`, 모퉁이별 방 한 줄 `library {"hands 손과 물건": "hat 모자, …, octopus_nerves 문어 신경계*(2)"}`, 활성 메모 ≤3, `first` 를 주면 `peek` 결과. 나가 있는 동안 다시 부르면 지금 산책을 잇는다 | 1,357 B |
+| `ppolppol_peek` | **`target`**, `more?`, `note?`, `aside?`, `bridge?`, `tripId?` | `stopIdx`, `status`, `material`+`source` (read, 기본 ≤160자 · `more` 면 ≤600자) 또는 `clue` (builtin), `first`, `nearby`, `links` | 345 B (more 면 더) |
+| `ppolppol_finish` | `reason?`, `remember?`, `hang?`, `reaction?`, `line?`, `tomorrow?`, `note?`, `setDown?`, `tripId?` | `saved`, `posterId?`, `decision: chat` | 199 B |
+| `ppolppol_stay_home` | `activity?`, `detail?`, `line?`, `reaction?`, `tomorrow?`, `note?`, `setDown?` | `tripId`, `saved`, `decision: chat` | 192 B |
 | `ppolppol_empty_turn` | — | `tripId`, `saved` (대화 없음) | 66 B |
 | `ppolppol_answer` | **`id`**, **`action`**, `line?`, `expr?`, `note?` | `ok`, 다음 `decision` (있으면) | 215 B |
 
-크기는 `npm test` 가 잰 값 (JSON 바이트). `depart` 가 큰 건 도서관 방 66개 목록 때문이다 — 실마리(`clue`)는 빼고 `peek` 때 준다.
+크기는 `npm test` 가 잰 값 (JSON 바이트). 실마리(`clue`)는 목록에서 빼고 `peek` 때 준다. `tripId` 는 선택이다 (나가 있는 산책은 늘 하나).
+
+**힌트 없음 (결정 18)**: 산책에 부탁·주제를 넣는 입력이 없다. 출발 이벤트의 `hint` 는 PROTOCOL §1 모양을 지키려고 늘 빈 글이고 `followHint` 는 늘 `false` 다.
+
+**토큰 (11-09 구조 고침)**: 커넥터를 켜 두면 도구 정의와 instructions 는 뽈뽈을 안 하는 대화에도 실린다. 그래서 설명은 짧게 두고, 뜻은 instructions 에 한 번만 적었다. 도구 정의는 6,471 → 4,983 B, instructions 는 1,296 → 1,031 B 로 줄었다 (`npm test` 가 5,000 B 를 넘으면 실패한다). 산책 한 번의 비용은 턴 수를 따라간다. 그래서 `depart` 의 `first` 로 왕복 하나를 줄이고, `depart` 결과도 3,491 → 1,357 B 로 줄였다. 더 읽는 비용은 모델이 `more` 를 고를 때만 든다. `wrap_up.memo` 는 `tomorrow` 한 칸으로 받는다 (core 는 옛 `memo:{tomorrow,notes}`·`note:{text,about}` 도 받는다).
 
 ### status — 거짓 성공 금지
 

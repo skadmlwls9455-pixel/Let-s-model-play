@@ -16,8 +16,9 @@ function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), 'ppol-')); }
 function measure(name, out) { var b = Buffer.byteLength(JSON.stringify(out)); sizes[name] = Math.max(sizes[name] || 0, b); return out; }
 
 /* 위키 stub: '모자' 읽힘, '없는문서' 없음, 그 밖은 네트워크 실패 */
-function stubWiki(title) {
-  if (title === '모자' || title === '깃털') return Promise.resolve({ ok: true, title: title, extract: title + '는(은) … 요약 두 문장.', url: 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(title),
+function stubWiki(title, opts) {
+  var long = opts && opts.sentences > 2;
+  if (title === '모자' || title === '깃털') return Promise.resolve({ ok: true, title: title, extract: long ? (title + '는(은) 길게 읽은 글. ').repeat(40) : title + '는(은) … 요약 두 문장.', url: 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(title),
     thumb: { url: 'https://upload.wikimedia.org/x.jpg', w: 10, h: 10 }, links: ['깃펜', '장식'] });
   if (title === '나쁜출처') return Promise.resolve({ ok: true, title: title, extract: '…', url: 'https://evil.example/wiki/x', thumb: null, links: [] });
   if (title === '없는문서') return Promise.resolve({ ok: false, reason: 'missing' });
@@ -49,8 +50,12 @@ async function unit() {
 
   section('산책 왕복 · status 정직');
   var d = keep('ppolppol_depart', o.depart({ hint: '모자의 역사' }));
-  check(d.tripId && d.library.length > 50 && !d.library.some(function (x) { return x.id === 'door_out'; }), 'depart: library (밖의 문 제외)');
+  var libAll = Object.keys(d.library).map(function (k) { return d.library[k]; }).join(', ').split(', ');
+  check(d.tripId && libAll.length > 50 && !libAll.some(function (x) { return /^door_out /.test(x); }), 'depart: 모퉁이별 library 한 줄 (밖의 문 제외)');
+  check(!('hint' in d) && o.S.running.events[0].hint === '' && o.S.running.events[0].followHint === false, '힌트는 받지 않는다 (결정 18) — 넣어도 이벤트 hint 는 빈 글');
   check(o.depart({}).error, '나가 있는 동안 depart 두 번은 오류 (finish 로 끝내라고 안내)');
+  var again = await o.go({});
+  check(again.tripId === d.tripId && again.walking === true && !again.error, '도구 depart 를 다시 불러도 오류 없이 지금 산책 (go)');
   var p1 = keep('ppolppol_peek', await o.peek({ tripId: d.tripId, target: { kind: 'room', id: 'hat' }, note: '챙이 생각보다 넓었어' }));
   check(p1.status === 'read' && /^https:\/\/ko\.wikipedia\.org\/wiki\//.test(p1.source), 'room + 위키 성공 → read, 출처는 ko 위키');
   var p2 = keep('ppolppol_peek', await o.peek({ tripId: d.tripId, target: { kind: 'wiki', title: '없는문서' } }));
@@ -72,7 +77,7 @@ async function unit() {
   check(f.ok && f.saved, 'finish 성공');
   var evs = JSON.parse(fs.readFileSync(path.join(dir, f.saved), 'utf8'));
   check(evs.map(function (e) { return e.type; }).join() === 'depart,peek,peek,peek,peek,peek,peek,peek,return,remember,hang_poster,wrap_up', '이벤트 순서 PROTOCOL §1');
-  check(evs[0].followHint === true, '첫 기웃이 힌트 방이면 followHint true');
+  check(evs[0].hint === '' && evs[0].followHint === false, '출발 이벤트에 힌트 없음');
   check(!('reason' in evs[8]) && !('reaction' in evs[11]), '안 준 이유·반응은 비워 둔다');
   check(evs[1].note === '챙이 생각보다 넓었어' && evs[2].note === undefined, '기웃 메모는 모델이 쓴 것만');
   check(f.decision && f.decision.point === 'chat' && f.decision.round === 1 && f.decision.menu.join() === 'say,watch,stop', 'chat 1 이 finish 결과에');
@@ -88,6 +93,17 @@ async function unit() {
   check(rp.noteOut && rp.noteOut.text === '조개 소리가 궁금해', 'replay: wrap_up.note → noteOut 그대로');
   check(rp.posterHung === true && rp.reactionBy !== 'demo-rules', 'replay: 포스터 걸림, 반응을 데모가 대신 고르지 않음');
   check(rp.receipt.stops[0].noteBy === 'model', 'replay: 기웃 메모 noteBy model');
+
+  section('구조 — first 로 나가며 바로 기웃 · more · tripId 생략');
+  var g = await o.go({ first: { kind: 'wiki', title: '모자' } });
+  check(g.tripId && g.peek && g.peek.status === 'read' && g.peek.material.length <= 160, 'depart first: 왕복 한 번에 첫 기웃');
+  var pm = await o.peek({ target: { kind: 'wiki', title: '깃털' }, more: true });
+  check(pm.status === 'read' && pm.material.length > 160 && pm.material.length <= 600, 'peek more: 모델에게만 더 길게 (≤600)');
+  check(o.S.running.events[2].source.extract.length <= 160, 'more 여도 기록 source.extract 는 160자');
+  var fg = o.finish({ tomorrow: '내일은 깃털 얘기' });
+  check(fg.ok && fg.saved, 'tripId 없이 finish (나가 있는 산책 하나)');
+  check(JSON.parse(fs.readFileSync(path.join(dir, fg.saved), 'utf8')).filter(function (e) { return e.type === 'wrap_up'; })[0].memo.tomorrow === '내일은 깃털 얘기', 'tomorrow → wrap_up.memo.tomorrow (PROTOCOL 모양 그대로)');
+  if (fg.decision) o.answer({ id: fg.decision.id, action: 'stop' });
 
   section('메모 — setDown 한 것은 depart·look_room 에 안 나온다');
   var d2 = o.depart({});
@@ -146,7 +162,7 @@ async function protocol() {
   check(instr.indexOf(core.FIXED_SENTENCE) >= 0, 'instructions 에 고정 문장');
   var tools = (await c.listTools()).tools;
   check(tools.length === 7, '도구 7개 (산책 6 + answer)');
-  check(tools.every(function (t) { return t.annotations && t.annotations.title && typeof t.annotations.readOnlyHint === 'boolean' && typeof t.annotations.destructiveHint === 'boolean'; }), '모든 도구에 title·readOnlyHint·destructiveHint');
+  check(tools.every(function (t) { return t.title && t.annotations && typeof t.annotations.readOnlyHint === 'boolean' && typeof t.annotations.destructiveHint === 'boolean'; }), '모든 도구에 title·readOnlyHint·destructiveHint');
   function j(r) { return JSON.parse(r.content[0].text); }
   var lr = j(await c.callTool({ name: 'ppolppol_look_room', arguments: {} }));
   check(lr.decision && lr.decision.point === 'meet', 'stdio: look_room + meet');
@@ -157,6 +173,10 @@ async function protocol() {
   check(f.ok && fs.existsSync(path.join(dir, f.saved)), 'stdio: finish → out 파일');
   var bad = await c.callTool({ name: 'ppolppol_finish', arguments: { tripId: 'trip_zzz' } });
   check(bad.isError === true, 'stdio: 잘못된 tripId 는 isError');
+  var defs = Buffer.byteLength(JSON.stringify(tools)), ib = Buffer.byteLength(instr);
+  console.log('  (도구 정의 ' + defs + ' B · instructions ' + ib + ' B)');
+  check(defs < 5000, '도구 정의 5,000 B 미만 (연결해 두면 모든 대화에 실린다)');
+  check(!tools.some(function (t) { return /hint/i.test(JSON.stringify(t.inputSchema)); }), '어느 도구에도 hint 입력 없음');
   await c.close();
 }
 

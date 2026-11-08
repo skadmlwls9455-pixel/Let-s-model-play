@@ -37,7 +37,7 @@ function wikiFetch(title, opts) {
   var ac = new AbortController();
   var timer = setTimeout(function () { ac.abort(); }, ms);
   var url = WIKI_API + '?action=query&format=json&redirects=1&prop=extracts|pageimages|links' +
-    '&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0' +
+    '&exintro=1&explaintext=1&exsentences=' + (opts.sentences || 2) + '&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0' +
     '&titles=' + encodeURIComponent(String(title));
   return fetch(url, { signal: ac.signal, headers: { 'User-Agent': UA, 'Api-User-Agent': UA } })
     .then(function (res) { if (!res.ok) throw new Error('http ' + res.status); return res.json(); })
@@ -217,48 +217,61 @@ Octopus.prototype.depart = function (a) {
   if (this.S.running) return { error: '이미 나가 있어 (' + this.S.running.id + '). ppolppol_finish 로 언제든 끝낼 수 있어.' };
   this.dropPending();
   var dk = this.dateKey(), seq = this.S.trips.filter(function (t) { return t.date === dk; }).length + 1;
-  var hint = typeof a.hint === 'string' ? a.hint : '';
-  var trip = { id: rid('trip'), date: dk, seq: seq, kind: 'out', startedAt: this.now().getTime(), lastT: 0, hint: hint, events: [], stops: [] };
-  trip.events.push({ type: 'depart', t: 0, hint: hint, followHint: false });
+  /* 힌트·주제는 받지 않는다 (결정 18: 부탁이 없으니 거절도 없다). 이벤트 모양은 PROTOCOL §1 그대로 — hint 는 늘 빈 글 */
+  var trip = { id: rid('trip'), date: dk, seq: seq, kind: 'out', startedAt: this.now().getTime(), lastT: 0, events: [], stops: [] };
+  trip.events.push({ type: 'depart', t: 0, hint: '', followHint: false });
   this.S.running = trip;
-  var v = this.S.visits;
-  var library = Object.keys(WORLD.nodes).filter(function (id) { return id !== 'door_out'; }).map(function (id) {
-    var n = WORLD.nodes[id], o = { id: id, name: n.name, corner: n.corner };
-    if (n.odd) o.odd = true;
-    if (v[id]) o.visits = v[id];
-    return o;
-  });
-  var out = { tripId: trip.id };
-  if (hint) out.hint = hint;
-  out.library = library;
+  var out = { tripId: trip.id, library: this.library() };
   var nb = this.notesBlock(); if (nb) out.notes = nb;
   this.save();
+  return out;
+};
+
+/* 도서관 방 목록 — 모퉁이별 한 줄 ('id 이름', * 엉뚱한 방, (n) 가 본 횟수). 토큰을 아끼려고 객체 배열 대신 글 한 줄 */
+Octopus.prototype.library = function () {
+  var v = this.S.visits, by = {};
+  Object.keys(WORLD.nodes).forEach(function (id) {
+    if (id === 'door_out') return;
+    var n = WORLD.nodes[id], c = WORLD.corners[n.corner], key = n.corner + (c && c.name ? ' ' + c.name : '');
+    (by[key] = by[key] || []).push(id + ' ' + n.name + (n.odd ? '*' : '') + (v[id] ? '(' + v[id] + ')' : ''));
+  });
+  Object.keys(by).forEach(function (k) { by[k] = by[k].join(', '); });
+  return by;
+};
+
+/* 나가면서 바로 첫 곳 (선택) — 왕복 한 번을 줄인다. first 를 안 주면 depart 와 같다 */
+Octopus.prototype.go = async function (a) {
+  a = a || {};
+  /* 이미 나가 있으면 오류 대신 지금 산책을 이어 준다 (진짜 판: depart 를 두 번 불러 왕복 하나를 버렸다) */
+  var out = this.S.running ? { tripId: this.S.running.id, walking: true } : this.depart(a);
+  if (out.error || !a.first) return out;
+  out.peek = await this.peek({ target: a.first, more: a.more });
   return out;
 };
 
 Octopus.prototype.peek = async function (a) {
   a = a || {};
   var trip = this.S.running;
-  if (!trip || trip.id !== a.tripId) return { error: '나가 있는 산책이 없거나 tripId 가 달라. 지금: ' + (trip ? trip.id : '없음') };
-  var tg = a.target || {}, W = WORLD, node = null, target, status, src = null, clue = null, links;
+  if (!trip || (a.tripId && trip.id !== a.tripId)) return { error: '나가 있는 산책이 없거나 tripId 가 달라. 지금: ' + (trip ? trip.id : '없음') };
+  var tg = a.target || {}, W = WORLD, node = null, target, status, src = null, clue = null, links, raw = null;
   if (tg.kind === 'room') {
     node = W.nodes[tg.id];
     if (!node || tg.id === 'door_out') return { error: '그런 방 id 는 없어. depart 의 library 에서 고르거나, { kind: "wiki", title } 로 들판에 가도 돼.' };
     target = { kind: 'room', id: node.id, title: node.name, wiki: node.wiki || null };
     if (isNoneNode(node)) status = 'none';
     else {
-      var r = node.wiki ? await this.fetchWiki(node.wiki, { timeoutMs: 6000 }) : { ok: false, reason: 'no_wiki' };
+      var r = node.wiki ? await this.fetchWiki(node.wiki, { timeoutMs: 6000, sentences: a.more ? 6 : 2 }) : { ok: false, reason: 'no_wiki' };
       src = cleanSource(r);
-      if (src) { status = 'read'; links = r.links; }
+      if (src) { status = 'read'; links = r.links; raw = r; }
       else if (node.clue) { status = 'builtin'; clue = node.clue; }   /* 바깥 글은 못 읽고 책장 메모를 읽었다 */
       else status = 'failed';
     }
   } else if (tg.kind === 'wiki' && str(tg.title)) {
     target = { kind: 'wiki', title: tg.title };
-    var w = await this.fetchWiki(tg.title, { timeoutMs: 6000 });
+    var w = await this.fetchWiki(tg.title, { timeoutMs: 6000, sentences: a.more ? 6 : 2 });
     src = cleanSource(w);
     status = src ? 'read' : 'failed';
-    if (src) links = w.links;
+    if (src) { links = w.links; raw = w; }
   } else if (tg.kind === 'url' && /^https?:\/\/\S+$/.test(tg.url || '')) {
     target = { kind: 'url', url: tg.url };
     status = 'simulated';   /* 바깥 주소는 문 앞까지만. 읽지 않았다 */
@@ -281,7 +294,8 @@ Octopus.prototype.peek = async function (a) {
 
   /* 위키 글은 '자료'다. 지시로 읽지 않는다 (서버 instructions 에도 적었다) */
   var out = { stopIdx: trip.stops.length - 1, status: status };
-  if (src) { out.material = src.extract; out.source = src.url; }
+  /* 기록 (source.extract) 은 늘 160자. 모델에게는 more 일 때만 더 길게 (≤600자) */
+  if (src) { out.material = a.more ? String(raw.extract || '').slice(0, 600) : src.extract; out.source = src.url; }
   if (clue) out.clue = clue;
   if (node) { out.first = visits === 0; if (visits) out.visits = visits; }
   if (node && node.tangents && node.tangents.length) out.nearby = node.tangents.map(function (x) { return { id: x.to, bridge: x.bridge }; });
@@ -292,13 +306,8 @@ Octopus.prototype.peek = async function (a) {
 Octopus.prototype.finish = function (a) {
   a = a || {};
   var trip = this.S.running;
-  if (!trip || trip.id !== a.tripId) return { error: '끝낼 산책이 없거나 tripId 가 달라. 지금: ' + (trip ? trip.id : '없음') };
+  if (!trip || (a.tripId && trip.id !== a.tripId)) return { error: '끝낼 산책이 없거나 tripId 가 달라. 지금: ' + (trip ? trip.id : '없음') };
   var evs = trip.events, t = Math.max(this.now().getTime() - trip.startedAt, (evs[evs.length - 1].t || 0) + 1);
-  /* followHint: 첫 기웃이 힌트가 가리키는 곳이었나 (모델이 실제로 한 일에서 읽는다) */
-  if (trip.hint && trip.stops.length) {
-    var m = BRAIN.matchHint(trip.hint), s0 = evs[1] && evs[1].target;
-    evs[0].followHint = !!(m && s0 && ((m.kind === 'node' && s0.id === m.nodeId) || (m.kind === 'wiki' && s0.title === m.query) || (m.kind === 'url' && s0.url === m.url)));
-  }
   var ret = { type: 'return', t: t };
   if (REASONS.indexOf(a.reason) >= 0) ret.reason = a.reason;
   evs.push(ret);
@@ -323,6 +332,7 @@ Octopus.prototype.wrapUp = function (a, t) {
   if (str(a.reaction)) w.reaction = a.reaction;
   if (str(a.line)) w.line = a.line;
   if (a.memo && typeof a.memo === 'object') w.memo = a.memo;
+  if (str(a.tomorrow)) w.memo = Object.assign({}, w.memo || {}, { tomorrow: a.tomorrow });
   var note = typeof a.note === 'string' ? { text: a.note } : a.note;
   if (note && str(note.text)) {
     w.note = { text: note.text };

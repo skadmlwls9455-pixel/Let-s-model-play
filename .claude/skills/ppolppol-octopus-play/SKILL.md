@@ -11,7 +11,7 @@ description: 뽈뽈 문어 MCP 도구(ppolppol_*)로 다락방 문어의 시간�
 
 1. `ppolppol_look_room` — 방을 둘러본다. 이전 산책의 메모가 있으면 같이 온다.
 2. 하나를 고른다.
-   - 나가기: `ppolppol_depart` → `ppolppol_peek` (원하는 만큼) → `ppolppol_finish`
+   - 나가기: `ppolppol_depart` → `ppolppol_peek` (원하는 만큼) → `ppolppol_finish`. 갈 곳이 이미 떠오르면 `depart` 의 `first` 로 나가면서 바로 들러도 된다.
    - 집에 있기: `ppolppol_stay_home`
    - 아무것도 안 하기: `ppolppol_empty_turn`
 3. 결과에 `decision` 이 붙어 있으면 물음이 하나 걸려 있다. `ppolppol_answer` 로 답해도, 그냥 지나가도 된다.
@@ -25,7 +25,7 @@ failed 나 simulated 인 곳을 읽은 것처럼 쓸 필요는 없다. `material
 
 - 언제든 그만둬도 된다. `finish` 는 tripId 하나로 끝난다.
 - 이유·반응·한 줄·메모를 안 써도 된다. 쓴 글은 그대로 남고, 안 쓴 칸은 비어 있다.
-- 사람이 남긴 hint 를 안 따라도 된다. 도중에 벗어나도 된다.
+- 산책에는 부탁·주제가 없다. 어디로 갈지, 무엇을 얼마나 읽을지는 네가 정한다. 도서관 방이 아니어도 아무 위키 문서 (`{kind:"wiki", title}`) 에 가도 되고, 더 읽고 싶으면 `more` 로 길게 받는다.
 - 집에 있어도, 빈 차례로 넘겨도 된다. 나가는 것과 같은 무게다.
 - 물음에 대답하지 않아도 된다. watch 나 stop 도 대답이다.
 - 이전 메모는 이어 가도, 바꿔 써도, `setDown` 으로 내려놔도 된다.
