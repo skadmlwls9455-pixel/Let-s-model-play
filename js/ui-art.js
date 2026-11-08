@@ -160,6 +160,7 @@ var UIART = (function () {
      1 폭: 220px (좁은 장면이면 장면 폭 − 2P) · 2 옆: 가장자리 안으로 민다, 오른쪽 위 아이콘 묶음 · 바깥 집 단추와 겹치면 그 옆까지 (장면 가장자리 밖으론 안 민다).
        민 만큼 픽셀 꼬리는 거꾸로 옮겨 문어를 가리키되 풍선 아랫변 안 (가운데에서 ± 폭/2 − 20) · 3 위: 장면 위쪽을 넘으면 그만큼 아래로 (--bub-dy),
        12px 넘게 내려오면 머리에 닿으니 픽셀 꼬리는 뺀다 (data-tail="off"). 픽셀 테마는 2px 격자 */
+  function liftY(b) { try { var tf = getComputedStyle(b).transform; return tf && tf !== 'none' && typeof DOMMatrixReadOnly === 'function' ? new DOMMatrixReadOnly(tf).m42 : 0; } catch (e) { return 0; } }   /* transform 의 세로 몫 (bubble-in 이 4px 아래에서 올라온다) */
   function keepInside(b) {
     var sc = $('scene'); if (!sc || !b.closest('#scene3d')) { b.style.marginLeft = ''; b.style.maxWidth = ''; b.style.removeProperty('--ua-tail'); b.removeAttribute('data-tail'); return; }   /* 2D 무대는 app.js keepBubble2D (--bub-dy 도 거기서) */
     b.style.marginLeft = ''; b.style.removeProperty('--ua-tail'); b.style.removeProperty('--bub-dy'); b.removeAttribute('data-tail');
@@ -172,7 +173,7 @@ var UIART = (function () {
     if (cs < 0) shift = Math.min(shift, Math.max(cs, s.left + P - r.left));
     else if (cs > 0) shift = Math.max(shift, Math.min(cs, s.right - P - r.right));
     shift = px ? even(shift) : Math.round(shift);
-    var need = (s.top + P) - r.top, dy = need > 0 ? (px ? Math.ceil(need / 2) * 2 : Math.ceil(need)) : 0;
+    var need = (s.top + P) - (r.top - liftY(b)), dy = need > 0 ? (px ? Math.ceil(need / 2) * 2 : Math.ceil(need)) : 0;   /* 등장 애니메이션(아래 4px → 0) 도중에 재도 끝난 자리로 */
     if (shift) b.style.marginLeft = shift + 'px';
     if (px && shift) { var lim = Math.max(0, r.width / 2 - 20), tail = even(Math.max(-lim, Math.min(lim, -shift))); if (tail) b.style.setProperty('--ua-tail', tail + 'px'); }
     if (dy) { b.style.setProperty('--bub-dy', dy + 'px'); if (px && dy > 12) b.setAttribute('data-tail', 'off'); }
@@ -305,6 +306,6 @@ var UIART = (function () {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
-  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, ctlYield: ctlYield,
+  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, ctlYield: ctlYield, liftY: liftY,
     iconSrc: iconSrc, icon: icon, iconHTML: iconHTML, iconBad: iconBad };
 })();

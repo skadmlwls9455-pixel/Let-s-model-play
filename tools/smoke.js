@@ -2704,9 +2704,10 @@ async function scenarioBringBack(browser) {
   var tRet = first(function (x) { return x.cer === 'return'; }), tToast = first(function (x) { return /^새 포스터 · /.test(x.toast); }), tPip = first(function (x) { return x.pip; }), tDone = first(function (x) { return !x.away; });
   console.log('   데려오기 시간표 (ms, 누른 뒤): 귀가 ' + tRet + ' · 토스트 ' + tToast + ' · 등불 ' + tPip + ' · 버튼 ' + tDone + ' · 누름 ' + clicks.length);
   ok(clicks.length >= 2, '나가 있는 동안 두 번 눌렀다 (데려오기 + 귀가 중 한 번 더)');
-  ok(tRet >= 0 && tRet <= 900, '누르면 곧 다락 문으로 귀가가 시작된다 (' + tRet + ' ms)');
-  ok(tToast > tRet && tToast <= 2200 && tPip >= tToast, "짧은 귀가에 '새 포스터 · …' 토스트 → 등불 칸 (토스트 " + tToast + ' · 등불 ' + tPip + ' ms)');
-  ok(tDone > 0 && tDone <= 3200, '버튼은 짧은 귀가 뒤 돌아온다 (' + tDone + ' ms · 귀가 중 한 번 더 눌러도 새 산책 없음: 차례 ' + Bq.ntrips + ')');
+  /* 폰(60 fps)에선 귀가 ≈ 0.7 s · 토스트 ≈ 1 s · 버튼 ≈ 2 s. 헤드리스 소프트웨어 GL 은 프레임이 느려(장면 dt 상한 0.1 s) 장면 시간이 벽시계보다 늦게 간다 → 여유 있게 */
+  ok(tRet >= 0 && tRet <= 1500, '누르면 곧 다락 문으로 귀가가 시작된다 (' + tRet + ' ms)');
+  ok(tToast > tRet && tToast <= 4500 && tPip >= tToast, "짧은 귀가에 '새 포스터 · …' 토스트 → 등불 칸 (토스트 " + tToast + ' · 등불 ' + tPip + ' ms)');
+  ok(tDone > 0 && tDone <= 6500, '버튼은 짧은 귀가 뒤 돌아온다 (' + tDone + ' ms · 귀가 중 한 번 더 눌러도 새 산책 없음: 차례 ' + Bq.ntrips + ')');
   ok(Bq.fly >= 1 && Bq.phase === 'awake' && Bq.sleeps === 0, '포스터가 앨범으로 날아가고 · 문어는 깨어 있다 (잠 훅 아직 0 · ' + Bq.phase + ')');
   ok(Bq.roomRow.length === 1 && Bq.roomRow[0].text === '창턱에 이끼 화분이 놓였어' && !Bq.roomRow[0].expr, "데려와도 '방' 줄 — 집 목소리 사실 문장, 문어 초상 없음 (" + JSON.stringify(Bq.roomRow) + ')');
   var sl = await Bq.page.waitForFunction(function () { return window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; }).length >= 1; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
