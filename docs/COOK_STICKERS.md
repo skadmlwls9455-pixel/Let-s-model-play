@@ -1,6 +1,6 @@
 # 요리 반응 스티커 (COOK_STICKERS)
 
-> 11-08. 요리 놀이(카드 7, 놀이방 부엌) 하는 동안 판 가장자리에 **요리사 모자 쓴 문어 스티커**가 톡 떴다 사라진다. 방송 이모트 세트처럼 따봉·감동·만세 같은 반응 16종.
+> 11-08. 요리 놀이(카드 7, 놀이방 부엌) 하는 동안 판 가장자리에 **요리사 모자 쓴 문어 스티커**가 톡 떴다 사라진다. 방송 이모트 세트처럼 따봉·감동·만세 같은 반응 19종.
 > 요리 순간(재료 떨어뜨림·합쳐짐·가득·완성·차리기…)마다 **자동으로** 뜬다. 요리마다 '요리 스크립트'를 두어 그 요리의 특정 순간에 특정 스티커가 뜨게 할 수 있다.
 
 ## 파일
@@ -9,7 +9,7 @@
 |---|---|
 | `tools/ui-art/cook-stickers.js` | 그림 정의 (32×32, Apollo 팔레트, 작은 붓으로 몸·모자·얼굴·소품을 겹침) |
 | `tools/make-cook-stickers.js` | PNG 생성 + 장면 외곽선 규칙 + manifest `sticker.cook.*` + 미리보기 `tests/evidence/cook-stickers/sheet.png` |
-| `assets/stickers/cook/*.png` | 결과 16장 (1x). ×2 · ×3 정수 배로만 띄운다 |
+| `assets/stickers/cook/*.png` | 결과 19장 (1x). ×2 · ×3 정수 배로만 띄운다 |
 | `js/cook-stickers.js` | 전역 `COOK_STICKERS` — 규칙 · 요리 스크립트 · 시드 고르기 · 띄우기 |
 | `css/cook-stickers.css` | 등장·퇴장 모션, 모션 줄이기 |
 | `tools/ui-art/cook-stickers.html` | 개발용 시험대 (act 단추 · 요리 고르기 · 자동 재생). 캡처 `tests/evidence/cook-stickers/demo.png` |
@@ -17,7 +17,7 @@
 
 그림을 고치면 `node tools/make-cook-stickers.js` → `node tools/test-cook-stickers.js`.
 
-## 스티커 16종
+## 스티커 19종
 
 | id | 라벨 | 그림 | 기본으로 뜨는 순간 |
 |---|---|---|---|
@@ -37,6 +37,9 @@
 | `hmm` | 갸웃 | 물음표 | 재료 몇 개마다 |
 | `love` | 뿅 | 하트 눈 | 5단계 이상 합쳐짐 |
 | `sprinkle` | 솔솔 | 양념병 기울이기 | 재료 몇 개마다 |
+| `busy` | 바빠 | 다리 넷으로 국자·거품기·뒤집개·양념병을 한꺼번에 | 재료 몇 개마다 |
+| `ink` | 퓻 | 놀라서 먹물 뿜기 | 5단계 이상 합쳐짐 |
+| `flush` | 두근 | 몸 색이 분홍으로 (문어 색 바뀜) | 완성 |
 
 ## 자동 발동
 

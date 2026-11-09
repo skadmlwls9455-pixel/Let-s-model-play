@@ -2,7 +2,7 @@
    뽈뽈 문어 — js/cook-stickers.js (전역 COOK_STICKERS) · 요리 반응 스티커 (docs/COOK_STICKERS.md)
 
    요리하는 동안 화면 가장자리에 요리사 모자 쓴 문어 스티커가 톡 떴다 사라진다 (방송 이모트처럼).
-   그림 16종: assets/stickers/cook/*.png (32×32, node tools/make-cook-stickers.js). 정수 배(×2 · ×3)로만 띄운다.
+   그림 19종: assets/stickers/cook/*.png (32×32, node tools/make-cook-stickers.js). 정수 배(×2 · ×3)로만 띄운다.
 
    발동은 자동이다. 요리 놀이(cook.js, 카드 7)가 이미 소리 훅으로 부르는 순간마다 한 줄만 더 부르면 된다:
        window.COOK_STICKERS && COOK_STICKERS.cue(act, detail)
@@ -27,7 +27,7 @@
 var COOK_STICKERS = (function () {
   'use strict';
 
-  /* ── 그림 16종 (라벨은 개발용 · 대체 글은 그림 설명이지 문어의 말이 아니다) ── */
+  /* ── 그림 19종 (라벨은 개발용 · 대체 글은 그림 설명이지 문어의 말이 아니다) ── */
   var CATALOG = {
     thumbs:      { label: '따봉',   alt: '엄지 척 하는 요리사 문어 스티커' },
     moved:       { label: '감동',   alt: '반짝이는 눈물을 흘리는 요리사 문어 스티커' },
@@ -44,7 +44,10 @@ var COOK_STICKERS = (function () {
     sleepy:      { label: '꾸벅',   alt: '꾸벅 조는 요리사 문어 스티커' },
     hmm:         { label: '갸웃',   alt: '고개를 갸웃하는 요리사 문어 스티커' },
     love:        { label: '뿅',     alt: '하트 눈의 요리사 문어 스티커' },
-    sprinkle:    { label: '솔솔',   alt: '양념병을 기울여 솔솔 뿌리는 요리사 문어 스티커' }
+    sprinkle:    { label: '솔솔',   alt: '양념병을 기울여 솔솔 뿌리는 요리사 문어 스티커' },
+    busy:        { label: '바빠',   alt: '다리 여러 개로 국자·거품기·뒤집개를 한꺼번에 든 요리사 문어 스티커' },
+    ink:         { label: '퓻',     alt: '깜짝 놀라 먹물을 뿜는 요리사 문어 스티커' },
+    flush:       { label: '두근',   alt: '몸 색이 분홍으로 물든 요리사 문어 스티커' }
   };
 
   /* ── 공통 규칙: 요리 스크립트에 맞는 줄이 없을 때 ──
@@ -53,13 +56,13 @@ var COOK_STICKERS = (function () {
   var RULES = [
     { on: 'start', pick: ['peek', 'stir'], chance: 0.8 },
     { on: 'drop', nth: 1, pick: 'peek' },
-    { on: 'drop', every: 4, pick: ['stir', 'sprinkle', 'hmm'], chance: 0.6 },
-    { on: 'merge', minTier: 5, pick: ['shock', 'love'], force: true },
+    { on: 'drop', every: 4, pick: ['stir', 'sprinkle', 'hmm', 'busy'], chance: 0.6 },
+    { on: 'merge', minTier: 5, pick: ['shock', 'love', 'ink'], force: true },
     { on: 'merge', minTier: 3, pick: ['thumbs', 'clap'], chance: 0.7 },
     { on: 'merge', pick: ['thumbs', 'stir', 'taste'], chance: 0.25 },
     { on: 'full', pick: 'sweat', force: true },
     { on: 'done', reason: 'full', pick: ['star', 'cheer'], force: true },
-    { on: 'done', pick: ['star', 'moved', 'cheer'], force: true },
+    { on: 'done', pick: ['star', 'moved', 'cheer', 'flush'], force: true },
     { on: 'serve', pick: 'heart_plate', force: true },
     { on: 'eat', pick: ['munch', 'taste'] },
     { on: 'idle', pick: 'sleepy', once: true }
@@ -82,13 +85,13 @@ var COOK_STICKERS = (function () {
     ] },
     seafood_pancake: { name: '해물 파전', cues: [
       { on: 'merge', tier: 2, pick: 'clap' },
-      { on: 'merge', tier: 4, pick: 'shock', force: true },
+      { on: 'merge', tier: 4, pick: ['shock', 'ink'], force: true },
       { on: 'full', pick: 'sweat', force: true },
       { on: 'done', pick: ['cheer', 'star'] },
       { on: 'serve', pick: 'heart_plate' }
     ] },
     clam_soup: { name: '조개탕', cues: [
-      { on: 'drop', every: 3, pick: 'stir' },
+      { on: 'drop', every: 3, pick: ['stir', 'busy'] },
       { on: 'merge', minTier: 3, pick: 'taste' },
       { on: 'done', pick: 'moved' },
       { on: 'eat', pick: 'munch' }
@@ -101,7 +104,7 @@ var COOK_STICKERS = (function () {
     ] },
     star_jelly: { name: '별 젤리', cues: [
       { on: 'merge', minTier: 4, pick: 'love', force: true },
-      { on: 'done', pick: 'star' },
+      { on: 'done', pick: ['star', 'flush'] },
       { on: 'serve', pick: ['heart_plate', 'love'] }
     ] }
   };

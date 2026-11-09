@@ -268,4 +268,48 @@ def('sprinkle', '솔솔', '요리사 모자 쓴 문어가 양념병을 기울여
   cv.dots([[4, 10], [3, 12], [5, 13], [2, 15], [4, 16], [3, 18], [5, 19]], 'F');
 });
 
+/* 몸 색 바꾸기: 이미 그린 문어 몸(빨강 계열)만 다른 색으로. 모자(흰·회색)·소품은 그대로 */
+function recolor(cv, map) { for (var i = 0; i < cv.c.length; i++) if (map[cv.c[i]]) cv.c[i] = map[cv.c[i]]; }
+
+/* 17. 바빠 — 다리 여러 개로 한꺼번에 (국자·거품기·뒤집개·양념) */
+def('busy', '바빠', '요리사 모자 쓴 문어가 다리 여러 개로 국자·거품기·뒤집개를 한꺼번에 듦', function (cv) {
+  hat(cv, 0, 3); head(cv, 0, 3); face(cv, 0, 3, { eyes: 'squint', mouth: 'grin', ey: 19 });
+  legs(cv, 0, 3, 'down');
+  /* 왼쪽 위: 국자 */
+  tentacleArm(cv, [[7, 22], [5, 21], [4, 19], [3, 17]]);
+  cv.dots([[3, 16], [3, 15], [3, 14], [3, 13], [3, 12]], 'X'); cv.rect(1, 9, 4, 3, 'W'); cv.rect(2, 9, 2, 1, 'Z');
+  /* 오른쪽 위: 거품기 */
+  tentacleArm(cv, [[24, 22], [26, 21], [27, 19], [28, 17]]);
+  cv.dots([[28, 16], [28, 15], [28, 14]], 'X');
+  cv.dots([[27, 13], [26, 12], [26, 11], [27, 10], [28, 9], [29, 10], [30, 11], [30, 12], [29, 13], [28, 12], [28, 11], [28, 10]], 'Y');
+  /* 왼쪽 아래: 뒤집개 */
+  tentacleArm(cv, [[6, 26], [4, 27]]);
+  cv.dots([[3, 27], [2, 28]], 'C'); cv.rect(0, 28, 3, 3, 'W'); cv.px(0, 28, 'Z');
+  /* 오른쪽 아래: 양념병 */
+  tentacleArm(cv, [[26, 26], [28, 27]]);
+  cv.rect(28, 25, 3, 5, 'D'); cv.rect(28, 25, 3, 1, 'C'); cv.px(28, 26, 'F'); cv.px(28, 23, 'F'); cv.px(30, 22, 'F');
+  sweat(cv, 24, 6);
+});
+/* 18. 퓻 — 놀라서 먹물 */
+def('ink', '퓻', '요리사 모자 쓴 문어가 깜짝 놀라 먹물을 퓻 뿜음', function (cv) {
+  var o = 3; hat(cv, o, 1, 1); head(cv, o, 1); face(cv, o, 1, { eyes: 'wow', mouth: 'o', blush: false }); legs(cv, o, 1, 'down');
+  /* 먹물 구름 (왼쪽 아래로 퍼짐) */
+  cv.blob(5, 25, 4.6, 4, ['5', '4', '3', '2', '2']);
+  cv.blob(9.5, 28.5, 3.2, 2.4, ['5', '4', '3', '2', '2']);
+  cv.blob(2.5, 20, 2.2, 2, ['5', '4', '3', '3', '3']);
+  cv.px(3, 23, '6'); cv.px(4, 22, '6'); cv.px(1, 19, '6');
+  cv.dots([[7, 17], [5, 15], [9, 16]], '4');   /* 튄 방울 */
+  /* 놀람선 */
+  cv.dots([[30, 7], [29, 8], [31, 11], [30, 11]], 'X');
+});
+/* 19. 두근 — 몸 색이 분홍으로 (문어는 기분·잠에 따라 색이 바뀐다) */
+def('flush', '두근', '요리사 모자 쓴 문어의 몸 색이 분홍으로 물듦', function (cv) {
+  hat(cv, 0, 2); head(cv, 0, 2); face(cv, 0, 2, { eyes: 'happy', mouth: 'w', blush: false }); legs(cv, 0, 2, 'down');
+  recolor(cv, { L: 'R', K: 'Q', J: 'P', I: 'O', F: 'R' });
+  cv.rect(8, 22, 2, 1, 'Z'); cv.rect(22, 22, 2, 1, 'Z');
+  cv.px(9, 15, 'Z'); cv.px(10, 14, 'Z');
+  heartIcon(cv, 1, 5, false); heartIcon(cv, 26, 3, false);
+  tinySpark(cv, 29, 12, 'R'); tinySpark(cv, 3, 14, 'R');
+});
+
 module.exports = { W: W, H: H, Canvas: Canvas, STICKERS: STICKERS };
