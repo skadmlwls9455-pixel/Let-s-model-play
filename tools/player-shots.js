@@ -8,7 +8,7 @@
  *   · pl-portrait.png (playerPortrait 64×64: 1줄 머리 6종 · 2줄 악세사리 6종, navy 배경)
  *   · pl-stick-walk-strip.png (스틱 입력 setPlayerInput 화면 왼쪽으로 0.1 s × 12 칸, 2× 크롭 — 뒤로 남는 발자국이 보여야 한다, brief MOVE.md)
  * 검사: 샷마다 고유 색 ≤ 62(시트 칸마다 ≤ 62, 합친 시트 ≤ 96) · 다락 드로우콜 ≤ 150 · 놀이방 ≤ 60 · 셰이더 프로그램 수가 부팅과 같음(내 캐릭터 툰·눈 재질은 문어 툰과 프로그램을 나눠 쓴다) · 모든 파츠 조합에서 드로우콜이 기본값과 같음(메시 수 불변)
- *   · setPlayer 전 옵션 뒤 renderer.info.memory.geometries ≤ 시작 + 7(옛 지오메트리 dispose) · textures 가 시작과 같음(눈 아틀라스는 다시 그릴 뿐 새 텍스처가 아니다) · 모르는 id → 기본값 · 얼굴 색 집계(살결 #e7d5b3 ≠ 흰자 #ebede9, 흰자 1~12 % — 상한은 눈 텍스처가 빠져 흰 네모가 된 상태를 잡는다, 금발 #de9e41 ≥ 8 %, 올리브 #d0da91 로 뜨지 않음) · 깜빡임 프레임에 흰자가 줄고 감은 눈 선 색이 늚
+ *   · setPlayer 전 옵션 뒤 renderer.info.memory.geometries ≤ 시작 + 7(옛 지오메트리 dispose) · textures 가 시작과 같음(눈 아틀라스는 다시 그릴 뿐 새 텍스처가 아니다) · 모르는 id → 기본값 · 얼굴 색 집계(살결 #e7d5b3 ≠ 흰색 #ebede9, 흰색 0.3~8 % = 글린트 + 깃 — 눈은 흰자 없는 홍채 콩이라 상한은 눈 텍스처가 빠져 흰 네모가 된 상태(≥ 11 %)를 잡는다, 금발 #de9e41 ≥ 8 %, 올리브 #d0da91 로 뜨지 않음) · 깜빡임 프레임에 홍채 색이 줄고 감은 눈 선 색이 늚
  *   · **눈 튀어나옴(11-09)**: 머리 6종 × 8방향(1×) · 8방향(2×) 칸마다 눈 켠 · 눈 끈(debugPlayerEyes) · 캐릭터 숨긴(debugPlayerHide) 세 프레임을 비교 — 눈 픽셀(켬 ≠ 끔) 가운데 캐릭터 픽셀(끔 ≠ 숨김: 머리 · 몸 · 윤곽 잉크)도 아니고 4-이웃에도 캐릭터가 없는 픽셀(= 윤곽 밖으로 1 px 이상 나온 눈) 이 0 이어야 한다. 윤곽선 위에 걸친 눈 픽셀(이웃이 캐릭터)은 'rim' 으로 집계만(옆 90° 에서 눈이 얇은 선으로 보이는 것)
  *   · 초상 12장 모두 0행은 배경만(머리 꼭대기·모자·귀가 안 잘림) · walkFirst 로 문이 걷기 뒤에 열림 · 스틱 12 칸 내내 walking · 발자국 수 증가(≥ 5) · 자국 픽셀(발자국 메시 숨김 전후 차, 2× 1단 ≥ 40 · 2단 ≥ 16 · 1× 1단 ≥ 12 · 2단 ≥ 6) · 드로우콜 ≤ 기준 + 2 · 놓으면 멈춤 · 2.3 s 뒤 자국 0 · 콘솔/페이지 에러 0. 어기면 exit 1.
  */
@@ -23,7 +23,7 @@ fs.mkdirSync(OUT, { recursive: true });
 var W = 360, H = 326, DPR = 2, CROP = 96, FRAMES = 24, STEP = 0.1, PL_H = 1.22, HEAD_Y = 0.87;
 var CATS = ['hair', 'hairColor', 'eyes', 'eyeColor', 'outfit', 'shoes', 'acc'];   /* 파츠 시트 줄 순서 = 설정 시트 UI 순서 */
 var CAT_CY = { hair: 0.84, hairColor: 0.95, eyes: 0.95, eyeColor: 0.95, acc: 0.95, outfit: 0.45, shoes: 0.35 };   /* 2× 크롭(0.89 m)은 키 1.22~1.38 을 다 못 담는다 — 범주마다 보여야 할 곳을 가운데에 (머리 줄은 꼭대기 1.28 이 들게 0.84 → 0.395~1.285, 뒷머리 길이 전체는 pl-parts-hair 128 px 크롭이 맡는다) */
-var SKIN = 0xe7d5b3, WHITE = 0xebede9, OLIVE = 0xd0da91, BROW = 0xbe772b, BLONDE = 0xde9e41;   /* 실광 모델 칸 (docs/PLAYER_PARTS.md §0.1·§2.2): 살결 · 흰자 · v0 금발이 뜨던 올리브 · 금발의 감은 눈 선 색(#b8742e 의 앞면 — 눈썹은 피드백 6 으로 없음) · 금발 #e8a93a 의 앞면 */
+var SKIN = 0xe7d5b3, WHITE = 0xebede9, IRIS = 0x602c2c, OLIVE = 0xd0da91, BROW = 0xbe772b, BLONDE = 0xde9e41;   /* 실광 모델 칸 (docs/PLAYER_PARTS.md §0.1·§2.2): 살결 · 흰색(글린트·깃) · 기본 눈 색 흑갈색 #6a3a30 의 화면 칸 · v0 금발이 뜨던 올리브 · 금발의 감은 눈 선 색(#b8742e 의 앞면 — 눈썹은 피드백 6 으로 없음) · 금발 #e8a93a 의 앞면 */
 
 var CRC = (function () { var t = new Int32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
 function crc32(buf) { var c = -1; for (var i = 0; i < buf.length; i++) c = CRC[(c ^ buf[i]) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; }
@@ -106,17 +106,18 @@ function harness() {
   console.log('face census:', top(fc, 12), '| skin %', pct(SKIN).toFixed(1), 'white %', pct(WHITE).toFixed(1), 'olive %', pct(OLIVE).toFixed(1), 'brow %', pct(BROW).toFixed(1));
   if (uniqIm(faceIm) > 62) fails.push('pl-face-close 고유 색 ' + uniqIm(faceIm) + ' > 62');
   if (pct(SKIN) < 8) fails.push('얼굴 크롭: 살결 칸 ' + hex(SKIN) + ' 이 8 % 이상이어야 한다 (' + pct(SKIN).toFixed(1) + ')');
-  if (!(pct(WHITE) >= 1 && pct(WHITE) <= 12)) fails.push('얼굴 크롭: 흰자 칸 ' + hex(WHITE) + ' 이 1~12 % 여야 한다 (' + pct(WHITE).toFixed(1) + ') — 눈 텍스처 흰 테 둘 + 깃(≈ 8 %), 흰자 ≠ 살결 · 상한은 map 이 빠져 흰 네모가 된 눈을 잡는다');
+  if (!(pct(WHITE) >= 0.3 && pct(WHITE) <= 8)) fails.push('얼굴 크롭: 흰색 칸 ' + hex(WHITE) + ' 이 0.3~8 % 여야 한다 (' + pct(WHITE).toFixed(1) + ') — 글린트 둘 + 깃(≈ 4 %), 흰색 ≠ 살결 · 상한은 map 이 빠져 흰 네모가 된 눈(≥ 11 %)을 잡는다');
   if (pct(OLIVE) > 3) fails.push('얼굴 크롭: 금발이 올리브 ' + hex(OLIVE) + ' 로 떴다 (' + pct(OLIVE).toFixed(1) + ' %)');
   if (pct(BLONDE) < 8) fails.push('얼굴 크롭: 금발 칸 ' + hex(BLONDE) + ' 이 8 % 이상이어야 한다 (' + pct(BLONDE).toFixed(1) + ') — 살결 #e7d5b3 와 두 칸 갈린 머리칼 (리뷰 11-08: #e8c170 은 살결과 한 덩이였다)');
   await page.evaluate(function () { SC.debugPlayerBlink(0.12); SC.debugStep(0.01); });
   var blinkIm = decodeBuf(await cropBuf(c.x, c.y)), bc = census(blinkIm); save('pl-blink.png', grid([[faceBuf, await cropBuf(c.x, c.y)]]));
-  console.log('blink census:', 'white', fc[WHITE] || 0, '→', bc[WHITE] || 0, '| brow', fc[BROW] || 0, '→', bc[BROW] || 0);
-  if (!((fc[WHITE] || 0) - (bc[WHITE] || 0) >= 800)) fails.push('깜빡임 프레임: 흰자(두 눈 텍스처 흰 테 ≈ 1600 px, 깃은 그대로)가 800 px 이상 줄어야 한다 ' + (fc[WHITE] || 0) + ' → ' + (bc[WHITE] || 0));
-  if (!((bc[BROW] || 0) - (fc[BROW] || 0) >= 40)) fails.push('깜빡임 프레임: 감은 눈 선(머리색 한 칸 어둡게, 10 아트px × 2 = 80 px)이 40 px 이상 늘어야 한다 ' + (fc[BROW] || 0) + ' → ' + (bc[BROW] || 0));
+  console.log('blink census:', 'iris', fc[IRIS] || 0, '→', bc[IRIS] || 0, '| white', fc[WHITE] || 0, '→', bc[WHITE] || 0, '| brow', fc[BROW] || 0, '→', bc[BROW] || 0);
+  if (!((fc[IRIS] || 0) - (bc[IRIS] || 0) >= 600)) fails.push('깜빡임 프레임: 홍채 색(두 눈 콩 ≈ 47 텍셀 × 16 px × 2, 문짝에 가린 왼눈 가장자리 빼고)이 600 px 이상 줄어야 한다 ' + (fc[IRIS] || 0) + ' → ' + (bc[IRIS] || 0));
+  if (!((fc[WHITE] || 0) - (bc[WHITE] || 0) >= 80)) fails.push('깜빡임 프레임: 글린트(눈마다 5 텍셀 × 16 px, 깃은 그대로)가 80 px 이상 줄어야 한다 ' + (fc[WHITE] || 0) + ' → ' + (bc[WHITE] || 0));
+  if (!((bc[BROW] || 0) - (fc[BROW] || 0) >= 40)) fails.push('깜빡임 프레임: 감은 눈 선(머리색 한 칸 어둡게, 8 아트px × 2 = 64 px)이 40 px 이상 늘어야 한다 ' + (fc[BROW] || 0) + ' → ' + (bc[BROW] || 0));
   await page.evaluate(function () { for (var i = 0; i < 3; i++) SC.debugStep(0.1); });
   var open2 = census(decodeBuf(await cropBuf(c.x, c.y)));
-  if ((open2[WHITE] || 0) < (fc[WHITE] || 0) * 0.8) fails.push('깜빡임 뒤 흰자가 돌아와야 한다 ' + (fc[WHITE] || 0) + ' → ' + (open2[WHITE] || 0));
+  if ((open2[IRIS] || 0) < (fc[IRIS] || 0) * 0.9) fails.push('깜빡임 뒤 눈(홍채 색)이 돌아와야 한다 ' + (fc[IRIS] || 0) + ' → ' + (open2[IRIS] || 0));
   await page.evaluate(function () { SC.zoomStep(0); SC.setTime(22.5, true); for (var i = 0; i < 3; i++) SC.debugStep(0.1); });
   await shot('pl-attic-night.png');
   await page.evaluate(function () { SC.setTime(14, true); for (var i = 0; i < 3; i++) SC.debugStep(0.1); });
