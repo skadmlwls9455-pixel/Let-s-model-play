@@ -890,5 +890,21 @@
     "frames": 3,
     "cell": 32,
     "note": "「퓻」 움직이는 칸 3개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.cook.cheer.anim": {
+    "src": "assets/stickers/cook/cheer_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「만세」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.cook.flush.anim": {
+    "src": "assets/stickers/cook/flush_anim.png",
+    "w": 128,
+    "h": 32,
+    "frames": 4,
+    "cell": 32,
+    "note": "「두근」 움직이는 칸 4개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
   }
 }

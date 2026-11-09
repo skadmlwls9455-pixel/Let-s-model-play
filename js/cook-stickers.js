@@ -37,7 +37,7 @@ var COOK_STICKERS = (function () {
     taste:       { label: '맛보기', alt: '숟가락을 입에 댄 요리사 문어 스티커' },
     stir:        { label: '휘휘',   anim: 2,   alt: '냄비를 젓는 요리사 문어 스티커' },
     sweat:       { label: '진땀',   alt: '진땀 흘리며 힘주는 요리사 문어 스티커' },
-    cheer:       { label: '만세',   alt: '다리 둘을 번쩍 든 요리사 문어 스티커' },
+    cheer:       { label: '만세',   anim: 2, fps: 3,   alt: '다리 둘을 번쩍 든 요리사 문어 스티커' },
     peek:        { label: '빼꼼',   alt: '냄비 가장자리 위로 빼꼼 내다보는 요리사 문어 스티커' },
     clap:        { label: '짝짝',   anim: 2,   alt: '다리 둘을 앞에서 맞대고 짝 하고 박수 치는 요리사 문어 스티커' },
     munch:       { label: '냠',     alt: '볼 빵빵하게 오물거리는 요리사 문어 스티커' },
@@ -47,7 +47,7 @@ var COOK_STICKERS = (function () {
     sprinkle:    { label: '솔솔',   alt: '양념병을 기울여 솔솔 뿌리는 요리사 문어 스티커' },
     busy:        { label: '바빠',   alt: '다리 여러 개로 국자·거품기·뒤집개를 한꺼번에 든 요리사 문어 스티커' },
     ink:         { label: '퓻',     anim: 3, fps: 6,     alt: '깜짝 놀라 먹물을 뿜는 요리사 문어 스티커' },
-    flush:       { label: '두근',   alt: '몸 색이 분홍으로 물든 요리사 문어 스티커' }
+    flush:       { label: '두근',   anim: 4,   alt: '몸 색이 분홍으로 물든 요리사 문어 스티커' }
   };
 
   /* ── 공통 규칙: 요리 스크립트에 맞는 줄이 없을 때 ──

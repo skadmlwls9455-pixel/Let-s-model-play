@@ -208,14 +208,26 @@ def('sweat', '진땀', '요리사 모자 쓴 문어가 진땀을 흘리며 힘�
   sweat(cv, 26, 12); sweat(cv, 4, 15); sweat(cv, 28, 19);
 });
 /* 9. 만세 — 다리 둘을 번쩍 */
-def('cheer', '만세', '요리사 모자 쓴 문어가 다리 둘을 번쩍 듦', function (cv) {
-  hat(cv, 0, 4); head(cv, 0, 4); face(cv, 0, 4, { eyes: 'happy', mouth: 'open' });
-  tentacleArm(cv, [[7, 22], [5, 20], [4, 18], [3, 16], [3, 14], [2, 12]]);
-  tentacleArm(cv, [[24, 22], [26, 20], [27, 18], [28, 16], [28, 14], [29, 12]]);
-  cv.px(2, 11, 'K'); cv.px(29, 11, 'K'); cv.px(3, 15, SUCKER); cv.px(28, 15, SUCKER);
+/* 만세는 움직이는 스티커: 칸 0 = 다리 번쩍(정지 그림), 칸 1 = 다리 내리고 살짝 웅크림 */
+function cheerPose(cv, down) {
+  var oy = down ? 5 : 4;
+  hat(cv, 0, oy); head(cv, 0, oy, down ? 1 : 0); face(cv, 0, oy, { eyes: 'happy', mouth: down ? 'smile' : 'open' });
+  if (!down) {
+    tentacleArm(cv, [[7, 22], [5, 20], [4, 18], [3, 16], [3, 14], [2, 12]]);
+    tentacleArm(cv, [[24, 22], [26, 20], [27, 18], [28, 16], [28, 14], [29, 12]]);
+    cv.px(2, 11, 'K'); cv.px(29, 11, 'K'); cv.px(3, 15, SUCKER); cv.px(28, 15, SUCKER);
+  } else {
+    /* 어깨 높이로 내린 다리 (끝이 살짝 위로 말림) */
+    tentacleArm(cv, [[7, 23], [5, 23], [4, 22], [3, 21], [2, 20]]);
+    tentacleArm(cv, [[24, 23], [26, 23], [27, 22], [28, 21], [29, 20]]);
+    cv.px(2, 19, 'K'); cv.px(29, 19, 'K'); cv.px(4, 23, SUCKER); cv.px(27, 23, SUCKER);
+  }
   legs(cv, 0, 4, 'down');
-  sparkle(cv, 7, 3); sparkle(cv, 26, 2, 'Z'); tinySpark(cv, 16, 1, 'E');
-});
+  if (!down) { sparkle(cv, 7, 3); sparkle(cv, 26, 2, 'Z'); tinySpark(cv, 16, 1, 'E'); }
+  else { tinySpark(cv, 6, 6, 'F'); tinySpark(cv, 25, 5, 'Z'); }
+}
+def('cheer', '만세', '요리사 모자 쓴 문어가 다리 둘을 번쩍 듦', function (cv) { cheerPose(cv, false); },
+  [function (cv) { cheerPose(cv, false); }, function (cv) { cheerPose(cv, true); }]);
 /* 10. 빼꼼 — 냄비 가장자리에서 */
 def('peek', '빼꼼', '요리사 모자 쓴 문어가 냄비 가장자리 위로 빼꼼', function (cv) {
   hat(cv, 0, 4); head(cv, 0, 4); face(cv, 0, 4, { eyes: 'big', mouth: 'none', ey: 18 });
@@ -356,13 +368,18 @@ def('ink', '퓻', '요리사 모자 쓴 문어가 깜짝 놀라 먹물을 퓻 �
   [function (cv) { inkPose(cv, 0); }, function (cv) { inkPose(cv, 1); }, function (cv) { inkPose(cv, 2); }]);
 
 /* 19. 두근 — 몸 색이 분홍으로 (문어는 기분·잠에 따라 색이 바뀐다) */
-def('flush', '두근', '요리사 모자 쓴 문어의 몸 색이 분홍으로 물듦', function (cv) {
-  hat(cv, 0, 2); head(cv, 0, 2); face(cv, 0, 2, { eyes: 'happy', mouth: 'w', blush: false }); legs(cv, 0, 2, 'down');
-  recolor(cv, { L: 'R', K: 'Q', J: 'P', I: 'O', F: 'R' });
-  cv.rect(8, 22, 2, 1, 'Z'); cv.rect(22, 22, 2, 1, 'Z');
-  cv.px(9, 15, 'Z'); cv.px(10, 14, 'Z');
-  heartIcon(cv, 1, 5, false); heartIcon(cv, 26, 3, false);
-  tinySpark(cv, 29, 12, 'R'); tinySpark(cv, 3, 14, 'R');
-});
+/* 두근은 움직이는 스티커: 색이 다리부터 차올랐다 빠졌다 — 칸 0 = 온통 분홍(정지 그림) → 1 = 반쯤 → 2 = 원래 빨강 → 3 = 반쯤 */
+var PINK = { L: 'R', K: 'Q', J: 'P', I: 'O', F: 'R' };
+function flushPose(cv, level) {   /* level 2 = 온통 분홍, 1 = 아래 반만, 0 = 빨강 */
+  hat(cv, 0, 2); head(cv, 0, 2); face(cv, 0, 2, { eyes: 'happy', mouth: 'w', blush: level === 0 }); legs(cv, 0, 2, 'down');
+  if (level === 2) recolor(cv, PINK);
+  else if (level === 1) { for (var i = 18 * W; i < cv.c.length; i++) if (PINK[cv.c[i]]) cv.c[i] = PINK[cv.c[i]]; }
+  if (level > 0) { cv.rect(8, 22, 2, 1, 'Z'); cv.rect(22, 22, 2, 1, 'Z'); }
+  if (level === 2) { cv.px(9, 15, 'Z'); cv.px(10, 14, 'Z'); }
+  if (level === 2) { heartIcon(cv, 1, 5, false); heartIcon(cv, 26, 3, false); tinySpark(cv, 29, 12, 'R'); tinySpark(cv, 3, 14, 'R'); }
+  else if (level === 1) { heartIcon(cv, 2, 8, false); tinySpark(cv, 28, 6, 'R'); }
+}
+def('flush', '두근', '요리사 모자 쓴 문어의 몸 색이 분홍으로 물듦', function (cv) { flushPose(cv, 2); },
+  [function (cv) { flushPose(cv, 2); }, function (cv) { flushPose(cv, 1); }, function (cv) { flushPose(cv, 0); }, function (cv) { flushPose(cv, 1); }]);
 
 module.exports = { W: W, H: H, Canvas: Canvas, STICKERS: STICKERS };
