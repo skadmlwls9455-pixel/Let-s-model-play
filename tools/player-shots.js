@@ -6,9 +6,10 @@
  *   · pl-parts-sheet.png (파츠 시트: 줄 = 범주 7(머리 · 머리 색 · 눈 · 눈 색 · 옷 · 신발 · 악세사리, UI 순서) · 칸 = 옵션(기본 cfg 에서 하나씩 바꿈), 놀이방 2× 96×96 크롭 — 머리 줄은 옆 45° 뒤쪽 각도(뒷머리 길이가 보이게), 얼굴 범주는 머리 중심, 옷은 몸통, 신발은 발 중심; 60 KB 를 넘으면 pl-parts-<범주>.png 7장; 칸은 눈 뜬 프레임)
  *   · pl-parts-hair.png (머리 6종 × (정면 · 옆 90° · 뒤 180°) 2× 128 px 크롭 — 꼭대기부터 긴 머리 끝까지 한 칸에) · pl-hair-turn.png (머리 6종 × 8방향 1×) · pl-hair-turn-2x.png (머리 6종 × 4방향 2×, 머리 중심)
  *   · pl-portrait.png (playerPortrait 64×64: 1줄 머리 6종 · 2줄 악세사리 6종, navy 배경)
+ *   · pl-stick-walk-strip.png (스틱 입력 setPlayerInput 화면 왼쪽으로 0.1 s × 12 칸, 2× 크롭 — 뒤로 남는 발자국이 보여야 한다, brief MOVE.md)
  * 검사: 샷마다 고유 색 ≤ 62(시트 칸마다 ≤ 62, 합친 시트 ≤ 96) · 다락 드로우콜 ≤ 150 · 놀이방 ≤ 60 · 셰이더 프로그램 수가 부팅과 같음(내 캐릭터 툰은 문어 툰과 프로그램을 나눠 쓴다) · 모든 파츠 조합에서 드로우콜이 기본값과 같음(메시 수 불변)
  *   · setPlayer 전 옵션 뒤 renderer.info.memory.geometries ≤ 시작 + 7(옛 지오메트리 dispose) · 모르는 id → 기본값 · 얼굴 색 집계(살결 #e7d5b3 ≠ 흰자 #ebede9, 금발 #de9e41 ≥ 8 %, 올리브 #d0da91 로 뜨지 않음) · 깜빡임 프레임에 흰자가 줄고 눈썹 색이 늚
- *   · 초상 12장 모두 0행은 배경만(머리 꼭대기·모자·귀가 안 잘림) · walkFirst 로 문이 걷기 뒤에 열림 · 콘솔/페이지 에러 0. 어기면 exit 1.
+ *   · 초상 12장 모두 0행은 배경만(머리 꼭대기·모자·귀가 안 잘림) · walkFirst 로 문이 걷기 뒤에 열림 · 스틱 12 칸 내내 walking · 발자국 수 증가(≥ 5) · 드로우콜 ≤ 기준 + 1 · 놓으면 멈춤 · 2.3 s 뒤 자국 0 · 콘솔/페이지 에러 0. 어기면 exit 1.
  */
 'use strict';
 var fs = require('fs'), path = require('path'), os = require('os'), zlib = require('zlib');
@@ -149,6 +150,7 @@ function harness() {
   if (!atDoor.res || !atDoor.res.ok || atDoor.view !== 'play') fails.push('goRoom(play, walkFirst) 가 ok 로 풀려야 한다 ' + JSON.stringify(atDoor.res));
   if (atDoor.pl.place !== 'play' || atDoor.pl.group !== 'play') fails.push('놀이방 도착: 내 캐릭터가 놀이방 그룹에 ' + JSON.stringify(atDoor.pl));
   for (i = 0; i < 25; i++) await page.evaluate(function () { SC.debugStep(0.1); });
+  await page.evaluate(function () { for (var i = 0; i < 30 && SC.player().footprints; i++) SC.debugStep(0.1); });   /* 쉬는 자리로 걸어온 발자국이 사라질 때까지 (기준 드로우콜은 자국 없는 값) */
   var b = await page.evaluate(function () { return { pl: SC.player(), stats: SC.stats() }; });
   console.log('play:', JSON.stringify(b.pl), 'calls', b.stats.calls, 'programs', b.stats.programs);
   if (b.pl.walking || b.pl.pending || Math.abs(b.pl.at[0] - 0.15) > 0.01 || Math.abs(b.pl.at[2] - 0.45) > 0.01) fails.push('놀이방 쉬는 자리에 서 있어야 한다 ' + JSON.stringify(b.pl));
@@ -241,6 +243,56 @@ function harness() {
   console.log('back:', JSON.stringify(d2));
   if (!d2.res || !d2.res.ok || d2.view !== 'attic' || d2.pl.place !== 'attic' || d2.pl.walking || Math.abs(d2.pl.at[0] - 1.65) > 0.01) fails.push('다락으로 돌아와 쉬는 자리에 ' + JSON.stringify(d2));
   if (d2.programs !== p0) fails.push('왕복 뒤 프로그램 수 ' + p0 + ' → ' + d2.programs);
+  /* 3b. 스틱 걷기 스트립 (brief MOVE.md): 다락 쉬는 자리에서 setPlayerInput 화면 왼쪽(−x +z, 빈 바닥)으로 0.1 s × 12 칸, 2× 크롭 — 뒤로 발자국이 남는다 (12 칸 = 1.2 s → 자국 ≤ 2.1 s 라 다 보인다).
+     검사: 걷는 동안 walking · input · 발자국 수가 늘어난다 · 놓으면 멈춘다(walking false) · 2.3 s 뒤 자국 0 · 드로우콜은 자국 +1 안 · 프로그램 그대로. 자국이 실제로 그려지는지는 스트립을 눈으로 본다 (잉크색 반투명 → 바닥 널보다 어두운 칸) */
+  /* 쉬는 자리(1.65, −0.1)에서 화면 왼쪽으로 가면 앞의 다락 문짝과 가운데 문어가 자국을 가린다 → 문어는 창가로, 캐릭터는 빈 뒤쪽 바닥(0.8, −1.5)에서 출발 (상자 둘레 x ≥ 1.23 밖) */
+  var calls0s = await page.evaluate(function () { SC.jumpTo('window'); SC.debugPlayerAt(0.8, -1.5); SC.zoomStep(6); for (var i = 0; i < 30 && SC.player().footprints; i++) SC.debugStep(0.1); var mx = 0; for (i = 0; i < 6; i++) { SC.debugStep(0.1); mx = Math.max(mx, SC.stats().calls); } return mx; });   /* 자국 0 · 기준 드로우콜 = 가만히 6칸 최대 (불꽃·깜빡임 프레임 차 포함) */
+  var sframes = [], slog = [];
+  await page.evaluate(function () { SC.setPlayerInput({ x: -1, y: 0 }); });
+  for (i = 0; i < 12; i++) {
+    var sm = await page.evaluate(function (o) { SC.debugStep(o.dt); var p = SC.player(); return { pl: p, calls: SC.stats().calls, scr: SC.screenOf(p.at[0], 0, p.at[2]) }; }, { dt: STEP });
+    slog.push({ at: sm.pl.at, walking: sm.pl.walking, moving: sm.pl.moving, frame: sm.pl.frame, input: sm.pl.input, foot: sm.pl.footprints, calls: sm.calls });
+    sframes.push(await cropBuf(sm.scr.x + 24, sm.scr.y - 16, 128));   /* 발밑 기준, 자국이 남는 뒤쪽(화면 오른쪽 위)으로 치우친 128 px 크롭 */
+  }
+  save('pl-stick-walk-strip.png', strip(sframes));
+  /* 3c. 자국이 실제로 그려지는지 (리뷰 11-09: 개수만 세면 팔레트 스냅에 다 먹혀도 통과했다): 마지막 칸 프레임에서 footprints 메시만 숨겨 한 프레임(debugStep(1e-6) — 0 은 기본 dt 로 떨어져 장면이 움직인다) 더 찍고,
+     instanceMatrix 의 자국 자리마다 ±R device px 창에서 Δ>8 인 픽셀 수를 센다 — 2×: 1단(배율 1) ≥ 40 · 2단(0.75) ≥ 16 · 1×: 1단 ≥ 12 · 2단 ≥ 6. 캐릭터 몸(발밑 ±36 px · 위 140 px)과 겹치는 자국은 제외 */
+  async function fpVisible(label, R, need0, need1) {
+    var A = decodeBuf(await page.screenshot());
+    var info = await page.evaluate(function () {
+      var fp = SC.scene.getObjectByName('footprints'), a = fp.instanceMatrix.array, out = [], p = SC.player(), ps = SC.screenOf(p.at[0], 0, p.at[2]);
+      for (var i = 0; i < fp.count; i++) { var x = a[i * 16 + 12], y = a[i * 16 + 13], z = a[i * 16 + 14], s = Math.hypot(a[i * 16], a[i * 16 + 2]), sc = SC.screenOf(x, y, z); out.push({ x: +x.toFixed(2), z: +z.toFixed(2), s: +s.toFixed(2), sx: sc.x, sy: sc.y }); }
+      fp.visible = false; SC.debugStep(1e-6); return { list: out, pl: ps, calls: SC.stats().calls };
+    });
+    var B = decodeBuf(await page.screenshot());
+    await page.evaluate(function () { SC.scene.getObjectByName('footprints').visible = true; SC.debugStep(1e-6); });
+    var rows = [], bad = [];
+    info.list.forEach(function (f) {
+      var cx = Math.round(f.sx * DPR), cy = Math.round(f.sy * DPR), dxs = cx - info.pl.x * DPR, dys = info.pl.y * DPR - cy;
+      if (Math.abs(dxs) <= 36 && dys >= -12 && dys <= 140) { rows.push('(' + f.x + ',' + f.z + ')s' + f.s + ':몸'); return; }
+      var n = 0;
+      for (var y = cy - R; y <= cy + R; y++) for (var x = cx - R; x <= cx + R; x++) { if (x < 0 || y < 0 || x >= A.w || y >= A.h) continue; var i = (y * A.w + x) * A.bpp, d = Math.max(Math.abs(A.px[i] - B.px[i]), Math.abs(A.px[i + 1] - B.px[i + 1]), Math.abs(A.px[i + 2] - B.px[i + 2])); if (d > 8) n++; }
+      var k = f.s > 0.9 ? 0 : f.s > 0.6 ? 1 : 2, need = k === 0 ? need0 : k === 1 ? need1 : 0;
+      rows.push('(' + f.x + ',' + f.z + ')s' + f.s + ':' + n + 'px'); if (n < need) bad.push('(' + f.x + ',' + f.z + ') 배율 ' + f.s + ' → ' + n + ' px < ' + need);
+    });
+    console.log('footprints ' + label + ':', rows.join('  '), '| calls', info.calls);
+    if (!info.list.length) fails.push('발자국 그림 검사(' + label + '): 자국이 하나도 없다');
+    if (bad.length) fails.push('발자국이 그림에 안 보인다(' + label + ', 팔레트 스냅에 먹힘): ' + bad.join(' · '));
+  }
+  await fpVisible('2x', 8, 40, 16);
+  await page.evaluate(function () { SC.zoomStep(0); SC.debugStep(1e-6); });
+  await fpVisible('1x', 5, 12, 6);
+  await page.evaluate(function () { SC.zoomStep(6); SC.debugStep(1e-6); });
+  var sEnd = await page.evaluate(function () { SC.setPlayerInput(null); SC.debugStep(0.05); var a = SC.player(); for (var i = 0; i < 24; i++) SC.debugStep(0.1); return { stop: a, later: SC.player(), progs: SC.renderer.info.programs.length }; });
+  console.log('stick:', JSON.stringify(slog.map(function (w) { return [w.at[0], w.at[2], w.walking ? 'w' + w.frame : '-', w.foot, w.calls]; })), 'stop', JSON.stringify(sEnd.stop.at), sEnd.stop.walking, 'later foot', sEnd.later.footprints);
+  if (!slog.every(function (w) { return w.walking && w.moving && w.input && w.input[0] === -1; })) fails.push('스틱: 12 칸 내내 walking · moving · input [-1,0] 이어야 한다 ' + JSON.stringify(slog.map(function (w) { return [w.walking, w.moving, w.input]; })));
+  var sd = Math.hypot(slog[11].at[0] - 0.8, slog[11].at[2] + 1.5);
+  if (!(Math.abs(sd - 1.44) < 0.1 && slog[11].at[0] < 0.8 && slog[11].at[2] > -1.5)) fails.push('스틱 화면 왼쪽 1.2 s → 월드 −x +z 로 ≈ 1.44 m 가야 한다 (' + sd.toFixed(3) + ')');
+  if (!(slog[11].foot >= 5 && slog.every(function (w, j) { return j === 0 || w.foot >= slog[j - 1].foot; }))) fails.push('스틱: 발자국이 걸음마다 늘어야 한다 (0.1 s 칸은 디딤 프레임을 건너뛰기도 해 12 칸에 5 개 이상) ' + JSON.stringify(slog.map(function (w) { return w.foot; })));
+  if (Math.max.apply(null, slog.map(function (w) { return w.calls; })) > calls0s + 2) fails.push('스틱 걷기 드로우콜 ' + Math.max.apply(null, slog.map(function (w) { return w.calls; })) + ' > 기준 ' + calls0s + ' + 2 (발자국은 인스턴스 한 메시 = 뷰티 1 + 노멀 1)');
+  if (sEnd.stop.walking || sEnd.later.footprints !== 0) fails.push('스틱을 놓으면 멈추고 2.3 s 뒤 자국 0 ' + JSON.stringify([sEnd.stop.walking, sEnd.later.footprints]));
+  if (sEnd.progs !== p0) fails.push('스틱 걷기 뒤 프로그램 수 ' + p0 + ' → ' + sEnd.progs);
+  await page.evaluate(function () { SC.zoomStep(0); SC.jumpTo('center'); for (var i = 0; i < 3; i++) SC.debugStep(0.1); });
   /* 4. 모션 감소: 걷기 없이 바로 */
   await page.evaluate(function () { SC.setReducedMotion(true); window.__res = null; window.__walked = false; SC.goRoom('play', { walkFirst: true }).then(function (r) { __res = r; }); });
   for (i = 0; i < 12; i++) await page.evaluate(function () { SC.debugStep(0.1); if (SC.player().walking) window.__walked = true; });   /* 걷기 Promise 는 마이크로태스크라 evaluate 사이에 풀린다 */

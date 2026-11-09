@@ -743,12 +743,18 @@
     "src": "assets/icons/ctl/door.png",
     "w": 16,
     "h": 16,
-    "note": "장면 위 버튼 아이콘 16×16 (ctl.home = 산책 중 바깥 화면 오른쪽 아래 #btn-door 의 빨간 지붕 집 · ctl.door = 로그·앨범의 바깥 주소 표시) — ×2 = 32px 로만. 두 테마 다 보인다 (js/ui-art.js fillIcons 가 주소를 채운다)."
+    "note": "장면 위 버튼 아이콘 16×16 (ctl.home = 산책 중 바깥 화면 왼쪽 아래 #btn-door 의 빨간 지붕 집 · ctl.walk = 왼쪽 아래 발자국 손잡이(#stick) 의 발자국 둘 · ctl.door = 로그·앨범의 바깥 주소 표시) — ×2 = 32px 로만. 두 테마 다 보인다 (js/ui-art.js fillIcons 가 주소를 채운다)."
   },
   "icon.ctl.home": {
     "src": "assets/icons/ctl/home.png",
     "w": 16,
     "h": 16,
-    "note": "장면 위 버튼 아이콘 16×16 (ctl.home = 산책 중 바깥 화면 오른쪽 아래 #btn-door 의 빨간 지붕 집 · ctl.door = 로그·앨범의 바깥 주소 표시) — ×2 = 32px 로만. 두 테마 다 보인다 (js/ui-art.js fillIcons 가 주소를 채운다)."
+    "note": "장면 위 버튼 아이콘 16×16 (ctl.home = 산책 중 바깥 화면 왼쪽 아래 #btn-door 의 빨간 지붕 집 · ctl.walk = 왼쪽 아래 발자국 손잡이(#stick) 의 발자국 둘 · ctl.door = 로그·앨범의 바깥 주소 표시) — ×2 = 32px 로만. 두 테마 다 보인다 (js/ui-art.js fillIcons 가 주소를 채운다)."
+  },
+  "icon.ctl.walk": {
+    "src": "assets/icons/ctl/walk.png",
+    "w": 16,
+    "h": 16,
+    "note": "장면 위 버튼 아이콘 16×16 (ctl.home = 산책 중 바깥 화면 왼쪽 아래 #btn-door 의 빨간 지붕 집 · ctl.walk = 왼쪽 아래 발자국 손잡이(#stick) 의 발자국 둘 · ctl.door = 로그·앨범의 바깥 주소 표시) — ×2 = 32px 로만. 두 테마 다 보인다 (js/ui-art.js fillIcons 가 주소를 채운다)."
   }
 }

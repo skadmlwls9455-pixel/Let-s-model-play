@@ -487,7 +487,9 @@ var APP = (function () {
         anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ },
         place: function () { updateSceneDesc(); },   /* 3D: 의식이 다락 ↔ 집 바깥을 바꾼 순간 (2D 는 runCeremony 의 250 ms 틱이 따라간다). 놀이방에 있는 동안에도 온다 (이야기 장소만 바뀜) */
         door: function (ev) { if (window.AUDIO && ev) AUDIO.on('door', { act: ev.act, room: ev.room }); },   /* 8물결: 방 문이 열리고 닫힐 때 끼익 (장면은 AUDIO 를 부르지 않는다) */
-        view: function (v) { syncRoomUI(v); }   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
+        view: function (v) { syncRoomUI(v); },   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
+        playerInput: function (allowed) { stickShow(allowed); },   /* 11-08 움직이기: 내 캐릭터를 움직일 수 있는 때가 바뀐 프레임 (바뀔 때만 온다) → 발자국 손잡이 hidden */
+        playerStep: function () { if (window.AUDIO) AUDIO.on('step', { who: 'player' }); }   /* 내 캐릭터 한 걸음 (장면은 AUDIO 를 부르지 않는다) — js/audio.js 에 'step' 갈래가 생기면 발소리 step_* (지금은 조용히) */
       }
     };
   }
@@ -503,6 +505,7 @@ var APP = (function () {
     host.classList.toggle('mode-3d', sceneMode === '3d');
     $('scene3d').hidden = sceneMode !== '3d';
     bindSpots();   /* 방 문 · 오락기 단추를 장면에 넘긴다 (자리 · hidden 은 장면이) */
+    stickSync();   /* 발자국 손잡이: 지금 장면이 움직이기를 허락하는가 (2D · API 없음 = 숨김) */
     if (!timeTimer) timeTimer = setInterval(function () { scene.setTime(hourNow()); updateSceneDesc(); checkDay(); }, 60000);   /* 1분마다: 시각 · 자정이 지나면 오늘 칸 넘기기 */
   }
   /* WebGL 컨텍스트를 잃고 3 s 안에 돌아오지 않음 (scene3d 의 opts.onLost, docs/research/a11y-and-mobile-perf.md 3): 검게 멈춘 3D 를 버리고 같은 initScene 경로로 2D 폴백.
@@ -2764,6 +2767,7 @@ var APP = (function () {
     if (sc.getAttribute('aria-label') !== lbl) sc.setAttribute('aria-label', lbl);
     if (v !== 'play') hideBackNote();
     updateSceneDesc();
+    stickSync();   /* 보이는 장소가 바뀌면 발자국 손잡이도 다시 (장면의 on.playerInput 이 먼저지만, 같은 답을 한 번 더 묻는 건 싸다) */
   }
   function resetRoomUI() {   /* 장면을 바꿀 때 (sceneLost): 단추는 새 장면이 다시 맡는다 · 그 전까지 놀이방 단추는 숨김 */
     roomJob = null; hideBackNote();
@@ -2854,6 +2858,107 @@ var APP = (function () {
     on('btn-machine', function (b, k) { openMachine(b, k); });
     on('btn-back-see', function (b, k) { goRoom('attic', b, k); });
     document.addEventListener('keydown', function () { var r = document.querySelectorAll('.ring-off'); for (var i = 0; i < r.length; i++) r[i].classList.remove('ring-off'); }, true);   /* 키를 누르면 링은 다시 (키보드로 이어 가는 사람) */
+  }
+
+  /* ───────────────────────── stick: 내 캐릭터 움직이기 — 발자국 손잡이(가상 스틱) + 방향키 (주인 11-08) ───────────────────────── */
+  /* 주인 11-08: 모바일 게임의 왼쪽 아래 흐린 동그라미 + 발자국 아이콘을 보고 "바닥 톡보다 훨씬 자연스럽다" → 1차 조작 = 장면(#scene) 왼쪽 아래 발자국 손잡이(#stick), 보조 = 방향키 · WASD (데스크톱).
+     바닥 톡으로 걷기 · 가상 D패드는 만들지 않는다 (docs/OWNER_DECISIONS.md 11-08). 장면 계약은 docs/SCENE.md '내 캐릭터 › 움직이기': setPlayerInput({ x, y } | null) · playerInputAllowed() · on.playerInput(allowed) · on.playerStep().
+     스틱 위에서 시작한 포인터는 스틱만 잡는다 (setPointerCapture — 문어 쪽 손가락 문법(밀기 · 핀치 · 돌려 보기 · 톡)과 안 겹친다, 캔버스로 안 간다). 중심에서의 벡터를 반지름 22px 로 나눠 0..1 로 자르고, 데드존 0.15 안이면 { 0, 0 } (잡고만 있음),
+     밖이면 데드존을 뺀 비율 → scene.setPlayerInput({ x, y }) (화면 위 = +y) · 손을 떼면 null (장면이 멈추고 도착 눌림 한 번). 손잡이(와 발자국 그림)는 벡터만큼 (최대 22px, --kx · --ky). 잡고 있는 동안 .on (또렷).
+     키보드: 눌린 키 집합 → 합성 벡터(대각선 정규화) → 같은 API, 다 떼면 null. 열린 <dialog> 가 있거나 포커스가 글자 입력 · select · 슬라이더 · 장면 밖 스크롤 영역(#log) 이면 무시 (그땐 preventDefault 도 안 한다 — 시트 안 조작 · 글자 입력 · 로그 굴리기 그대로); 단추 포커스는 무시하지 않는다 (문을 지나면 포커스가 문 단추에 있다). 처리할 땐 preventDefault (페이지 스크롤 방지).
+     WASD 는 e.code 로 본다 (한글 자판에서 ㅈㅁㄴㅇ 를 눌러도 같은 자리). 두 입력이 겹치면 스틱이 이긴다 (스틱을 잡은 동안 키는 쌓이기만 하고, 놓으면 키 쪽으로).
+     보이기: 장면이 on.playerInput(allowed) 를 바뀔 때만 보낸다 (다락 · 놀이방이 보일 때만 — 바깥 · 입장 연출 · 문 작업 · 전환 · 놀이 kit 중엔 false) → hidden 과 #scene.stick-on (구석 쪽지가 위로 비킨다).
+     2D 폴백 · 장면에 API 가 없으면 늘 숨김. 숨을 땐 잡고 있던 손가락 · 키도 놓는다 (멈춤). 설정의 모션 줄이기와 무관하게 쓸 수 있다.
+     소리: 장면이 on.playerStep() 을 쏘면 AUDIO.on('step') — js/audio.js 엔 아직 'step' 갈래가 없어 조용하다 (발소리 step_1~4 는 소리 한 벌에 있다 · 소리 세션 몫, BACKLOG '안 불리는 소리 연결') */
+  var STICK_R = 22, STICK_DEAD = 0.15;
+  var STICK_KEYS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1], KeyA: [-1, 0], KeyD: [1, 0], KeyW: [0, 1], KeyS: [0, -1] };
+  var stk = { allowed: false, pid: null, keys: {}, vec: null, sent: 0 };
+  function stickApi() { return !!scene && sceneMode === '3d' && typeof scene.setPlayerInput === 'function'; }
+  function stickSend(v) {   /* 장면에 입력 벡터 (같은 값은 다시 안 보낸다 — 키 자동 반복 · 데드존 안 움직임) */
+    var nv = v ? { x: +v.x || 0, y: +v.y || 0 } : null;
+    var same = (!nv && !stk.vec) || (!!nv && !!stk.vec && nv.x === stk.vec.x && nv.y === stk.vec.y);
+    stk.vec = nv;
+    if (same || !stickApi()) return;
+    stk.sent++;
+    try { scene.setPlayerInput(nv ? { x: nv.x, y: nv.y } : null); } catch (e) { console.warn('[app] setPlayerInput', e); }
+  }
+  function stickKnob(dx, dy) {   /* 손잡이 + 발자국 그림을 벡터만큼 (정수 px, 최대 반지름) */
+    var el = $('stick'); if (!el) return;
+    if (!dx && !dy) { el.style.removeProperty('--kx'); el.style.removeProperty('--ky'); return; }
+    el.style.setProperty('--kx', Math.round(dx) + 'px'); el.style.setProperty('--ky', Math.round(dy) + 'px');
+  }
+  function stickFromPointer(el, e) {
+    var r = el.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), len = Math.hypot(dx, dy);
+    var k = Math.min(1, len / STICK_R);   /* 0..1 */
+    stickKnob(len ? dx / len * k * STICK_R : 0, len ? dy / len * k * STICK_R : 0);
+    if (!len || k < STICK_DEAD) { stickSend({ x: 0, y: 0 }); return; }   /* 데드존: 잡고만 있다 (멈춤 · 도착 눌림은 놓을 때 한 번) */
+    var m = (k - STICK_DEAD) / (1 - STICK_DEAD);
+    stickSend({ x: dx / len * m, y: -dy / len * m });   /* 화면 위 = +y */
+  }
+  function stickKeyVec() {   /* 눌린 키들의 합성 벡터 (없으면 null · 서로 상쇄면 { 0, 0 }) */
+    var x = 0, y = 0, any = false;
+    Object.keys(stk.keys).forEach(function (k) { var d = STICK_KEYS[k]; if (d) { x += d[0]; y += d[1]; any = true; } });
+    if (!any) return null;
+    var l = Math.hypot(x, y); return l ? { x: x / l, y: y / l } : { x: 0, y: 0 };
+  }
+  function stickRelease(el) {   /* 손을 뗌 (또는 숨김 · 탭을 떠남): 멈춤 · 손잡이 가운데로 · 키가 남아 있으면 그쪽으로 */
+    el = el || $('stick');
+    if (stk.pid != null) { var pid = stk.pid; stk.pid = null; if (el) { try { el.releasePointerCapture(pid); } catch (e) { /* 이미 풀림 */ } } }
+    if (el) { el.classList.remove('on'); stickKnob(0, 0); }
+    stickSend(stickKeyVec());
+  }
+  function stickKeyIgnored() {   /* 열린 창 · 글자 입력(input · textarea · select · contenteditable · 슬라이더) · 장면 밖 스크롤 영역(#log 등 role=log) 에 포커스가 있으면 방향키를 그대로 둔다 (시트 안 조작 · 로그 굴리기와 안 섞이게).
+                                    단추 포커스는 무시하지 않는다 — 방을 옮기면 focusRoomBtn 이 도착한 문 단추에, 시트를 닫으면 브라우저가 연 단추에 포커스를 두므로 단추를 뺐다간 문을 지난 뒤 · 설정을 닫은 뒤 방향키가 아무 일도 안 했다 (리뷰 11-09, 단추는 방향키를 안 쓴다) */
+    if (!stk.allowed || !stickApi()) return true;
+    if (document.querySelector('dialog[open]')) return true;
+    var ae = document.activeElement;
+    if (!ae || ae === document.body || ae === document.documentElement) return false;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable || ae.getAttribute('role') === 'slider') return true;
+    var sc = $('scene');
+    return !!(ae.closest && (ae.closest('[role="log"]') || (ae.scrollHeight > ae.clientHeight + 1 && !(sc && sc.contains(ae)))));
+  }
+  function stickKey(e, down) {
+    if (!e) return;
+    var k = /^Key[WASD]$/.test(e.code || '') ? e.code : e.key;
+    if (!STICK_KEYS[k]) return;
+    if (down) {
+      if (e.ctrlKey || e.metaKey || e.altKey) { if (!stk.keys[k]) return; delete stk.keys[k]; }   /* 수정키 조합(브라우저 단축키)은 새 누름이 아니다 — 이미 눌린 키면 놓은 것으로 (keyup 은 수정키와 상관없이 지운다: 방향키를 누른 채 Ctrl/Cmd 를 누르고 떼면 keyup 이 버려져 손을 뗀 뒤에도 걸었다, 리뷰 11-09) */
+      else { if (stickKeyIgnored()) return; if (e.repeat) { if (stk.keys[k]) e.preventDefault(); return; }   /* 자동 반복은 이미 눌린 키만 유지하고 새로 등록하지 않는다 (창이 열린 채 누르고 있던 키가 창이 닫히는 순간 걷게 하지 않게) */
+        stk.keys[k] = 1; e.preventDefault(); }
+    }
+    else { if (!stk.keys[k]) return; delete stk.keys[k]; }
+    if (stk.pid != null) return;   /* 스틱을 잡고 있으면 스틱이 이긴다 */
+    stickSend(stickKeyVec());
+  }
+  function stickShow(allowed) {   /* 장면의 on.playerInput(allowed) · stickSync: hidden 과 #scene.stick-on. 숨길 땐 다 놓는다 */
+    var el = $('stick'), sc = $('scene');
+    allowed = !!allowed && stickApi();
+    if (!allowed) { stk.keys = {}; stickRelease(el); }
+    stk.allowed = allowed;
+    if (el && el.hidden !== !allowed) el.hidden = !allowed;
+    if (sc && sc.classList.contains('stick-on') !== allowed) sc.classList.toggle('stick-on', allowed);
+  }
+  function stickSync() { stickShow(stickApi() && typeof scene.playerInputAllowed === 'function' ? !!scene.playerInputAllowed() : false); }
+  function bindStick() {
+    var el = $('stick'); if (!el) return;
+    el.addEventListener('pointerdown', function (e) {
+      if (!stk.allowed || !stickApi() || el.hidden) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (stk.pid != null) return;   /* 두 번째 손가락은 무시 */
+      e.preventDefault(); e.stopPropagation();
+      stk.pid = e.pointerId;
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* 캡처 못 함: 그래도 스틱 위에서의 move 는 받는다 */ }
+      el.classList.add('on');
+      stickFromPointer(el, e);
+    });
+    el.addEventListener('pointermove', function (e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.preventDefault(); e.stopPropagation(); stickFromPointer(el, e); });
+    function up(e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.stopPropagation(); stickRelease(el); }
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
+    el.addEventListener('contextmenu', function (e) { e.preventDefault(); });   /* 길게 누르고 있어도 메뉴가 뜨지 않게 */
+    document.addEventListener('keydown', function (e) { stickKey(e, true); });
+    document.addEventListener('keyup', function (e) { stickKey(e, false); });
+    window.addEventListener('blur', function () { stk.keys = {}; stickRelease(el); });   /* 탭 · 창을 떠나면 다 놓는다 (keyup 을 못 받는다) */
+    document.addEventListener('visibilitychange', function () { if (document.hidden) { stk.keys = {}; stickRelease(el); } });
   }
 
   /* ───────────────────────── tip: 상태 줄의 작은 말풍선 ───────────────────────── */
@@ -3014,6 +3119,7 @@ var APP = (function () {
     $('btn-settings').addEventListener('click', openSettings);
     $('set-close').addEventListener('click', function () { $('settings-sheet').close(); });
     bindRooms();   /* 방 문 · 오락기 · 구석 쪽지 (8물결) */
+    bindStick();   /* 발자국 손잡이 · 방향키 (11-08 움직이기) */
     bindTip();   /* '데모' · 등불 → 작은 말풍선 */
     $('pd-flip').addEventListener('click', flipPoster);
     $('pd-front').addEventListener('click', flipPoster);
@@ -3148,6 +3254,7 @@ var APP = (function () {
     portraitFor: portraitFor, say: say, get portraitCache() { return Object.keys(PORT.cache); },
     setSeason: setSeasonPref, get ceremony() { return cer.kind; },
     get room() { return inPlay() ? 'play' : null; }, openMachine: openMachine,   /* 8물결: 놀이방에 있는가 · 오락기 (테스트·도구) */
+    get stick() { return { allowed: stk.allowed, input: stk.vec ? { x: stk.vec.x, y: stk.vec.y } : null, pointer: stk.pid != null, keys: Object.keys(stk.keys), sent: stk.sent }; },   /* 11-08 움직이기 (테스트·도구): 발자국 손잡이 상태 — 보이는가 · 지금 장면에 보낸 벡터 · 손가락 · 눌린 키 */
     /* 11-08 톡 한 줄 · 깨어 있는 틈 (테스트·도구 — 화면엔 안 나온다): 지금 톡 하면 나올 줄 · 장면의 톡 처리 그대로 · 쉬는 단계 ('up' | 'awake' | 'nap') */
     tapLine: function () { var L = tapLineNow(); return L ? { text: L.text, full: L.full, by: L.by, part: L.part, src: L.src, trip: L.trip.id } : null; },
     get goResting() { return goRapid(Date.now()); },   /* 지금 큰 버튼을 누르면 '연달아 누름' 으로 받지 않는가 (테스트 · 도구가 다음 초대 전에 기다린다) */

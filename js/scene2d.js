@@ -720,7 +720,8 @@ var SCENE2D = (function () {
       PLACES: ['attic', 'exterior', 'play'], view: function () { return R.view; }, room: function () { return R.room; },
       goRoom: goRoom, playerWalkTo: playerWalkTo, doorAnchors: DOOR_ANCHORS, finishRoom: function () { if (roomFin) roomFin(); },
       /* 내 캐릭터 (3D 계약, docs/PLAYER_PARTS.md §3): 2D 는 그리지 않는다 — setPlayer 는 모습만 기억(무동작), player() 는 다락 자리 + look */
-      setPlayer: function (cfg) { plLook = normPlayer(cfg); return Object.assign({}, plLook); }, player: function () { return { place: 'attic', at: [0, 0, 0], walking: false, pending: '', visible: false, look: Object.assign({}, plLook) }; },
+      setPlayer: function (cfg) { plLook = normPlayer(cfg); return Object.assign({}, plLook); }, player: function () { return { place: 'attic', at: [0, 0, 0], walking: false, moving: false, pending: '', visible: false, look: Object.assign({}, plLook), input: null, footprints: 0 }; },
+      setPlayerInput: function () { /* 2D 엔 캐릭터가 없다 — 스틱은 늘 숨김 */ }, playerInputAllowed: function () { return false; },
       hotspots: setHotspots, spotRect: function (id) { var s = spotInfo(id); if (!s) return null; var r = container.getBoundingClientRect(); s.client = { x: r.left + container.clientLeft + s.x, y: r.top + container.clientTop + s.y, w: s.w, h: s.h }; return s; },
       setSeason: function (s) { st.seasonMode = ['spring', 'summer', 'autumn', 'winter'].indexOf(s) >= 0 ? s : 'auto'; var m = new Date().getMonth() + 1; st.season = st.seasonMode !== 'auto' ? st.seasonMode : m >= 3 && m <= 5 ? 'spring' : m >= 6 && m <= 8 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter'; },
       season: function () { return st.season; }, seasonMode: function () { return st.seasonMode || 'auto'; },

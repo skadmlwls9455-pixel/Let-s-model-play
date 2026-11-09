@@ -129,8 +129,8 @@ var UIART = (function () {
     return L === Infinity ? null : { L: L, R: R, T: T, B: B };
   }
   function ctlGroups() {
-    var door = $('btn-door');
-    return [boxesOf($('scene-ctl'), '.icon-btn:not([hidden]) .snd-box'), door && !door.hidden ? boxesOf(door, '.door-box') : null].filter(Boolean);
+    var door = $('btn-door'), stick = $('stick');   /* 왼쪽 아래 발자국 손잡이(11-08)도 왼쪽 무리 — 보일 때만 (바깥의 집 단추와는 같은 자리 · 배타적) */
+    return [boxesOf($('scene-ctl'), '.icon-btn:not([hidden]) .snd-box'), door && !door.hidden ? boxesOf(door, '.door-box') : null, stick && !stick.hidden ? boxesOf(stick) : null].filter(Boolean);
   }
   function avoidCtl(r, pad) {
     if (!r) return 0;
@@ -290,11 +290,11 @@ var UIART = (function () {
     if (st === 'away') fx('ink');
   }
 
-  /* ── 장면 위 버튼 그림 (img[data-icon="ctl/door"]): 주소는 iconSrc 규칙 (단일 파일 번들 = data URI). 안 오면 버튼에 .no-img → 글자 '문' (두 테마 다 보인다 · 이모지는 쓰지 않는다) ── */
+  /* ── 장면 위 버튼 그림 (img[data-icon]: 집 단추 ctl/home · 발자국 손잡이 ctl/walk): 주소는 iconSrc 규칙 (단일 파일 번들 = data URI). 안 오면 그 단추(또는 #stick)에 .no-img → 글자 '집' · '걷기' (두 테마 다 보인다 · 이모지는 쓰지 않는다) ── */
   function fillIcons() {
     Array.prototype.forEach.call(document.querySelectorAll('img[data-icon]'), function (img) {
       if (img.getAttribute('src')) return;
-      var btn = img.closest('button');
+      var btn = img.closest('button, .stick');
       img.onerror = function () { if (btn) btn.classList.add('no-img'); };
       img.src = iconSrc(img.getAttribute('data-icon'));
     });

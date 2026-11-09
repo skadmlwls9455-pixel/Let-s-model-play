@@ -1894,6 +1894,33 @@ async function scenarioWave8(browser) {
   /* 프레임마다 장면 움직임을 적는다 (가로 전환 · 한 프레임 한 장소 · 위아래 움직임 없음) */
   function watchMotion() { return page.evaluate(function () { window.__mo = []; (function f() { var m = APP.scene.motion(); window.__mo.push({ view: m.view, dq: m.dq, x: m.slidePx, up: m.slideUpPx, axis: m.transAxis, da: m.doorAttic, dp: m.doorPlay }); if (window.__mo.length < 400) window.__moRaf = requestAnimationFrame(f); })(); }); }
   function stopMotion() { return page.evaluate(function () { cancelAnimationFrame(window.__moRaf); return window.__mo; }); }
+  /* 11-08 움직이기 — 발자국 손잡이(#stick, 장면 왼쪽 아래 가상 스틱): 자리 · 크기 · 겹침 · 글자(이모지 0) · 장면 API 유무 */
+  function stickInfo(pg) { return (pg || page).evaluate(function () {
+    var st = document.getElementById('stick'), q = st.getBoundingClientRect(), sc = document.getElementById('scene').getBoundingClientRect(), ctl = document.getElementById('scene-ctl').getBoundingClientRect();
+    function ov(id) { var e = document.getElementById(id); if (!e || e.hidden) return false; var box = e.querySelector('.door-box'), r = box && box.getBoundingClientRect().width ? box.getBoundingClientRect() : e.getBoundingClientRect(); return r.width > 0 && q.left < r.right && q.right > r.left && q.top < r.bottom && q.bottom > r.top; }
+    var ico = st.querySelector('.stick-ico'), sticks = window.APP && APP.stick;
+    return { hidden: st.hidden, w: Math.round(q.width), h: Math.round(q.height), left: Math.round(q.left - sc.left), bottom: Math.round(sc.bottom - q.bottom),
+      inside: q.left >= sc.left - 0.5 && q.right <= sc.right + 0.5 && q.top >= sc.top - 0.5 && q.bottom <= sc.bottom + 0.5, ctl: q.left < ctl.right && q.right > ctl.left && q.top < ctl.bottom && q.bottom > ctl.top,
+      door: ov('btn-door'), pdoor: ov('btn-play-door'), mach: ov('btn-machine'), note: ov('back-note'), edge: !document.getElementById('btn-door').hidden && document.getElementById('btn-door').dataset.spot === 'edge',
+      text: st.textContent.replace(/\s+/g, ''), icon: !!ico && ico.complete && ico.naturalWidth > 0 && getComputedStyle(ico).display !== 'none', noImg: st.classList.contains('no-img'), aria: st.getAttribute('aria-hidden'),
+      pe: getComputedStyle(st).pointerEvents, ta: getComputedStyle(st).touchAction, api: typeof APP.scene.setPlayerInput === 'function', allowed: !!(sticks && sticks.allowed), view: APP.scene.view(), mode: APP.sceneMode };
+  }); }
+  /* 프레임마다: 스틱과 바깥의 집 단추(edge)가 같은 프레임에 둘 다 보이는 일이 없는지 · 보이는 장소별로 스틱이 보인 프레임 수 */
+  function watchBoth() { return page.evaluate(function () { window.__both = { frames: 0, both: 0, byView: {} }; (function f() { var st = document.getElementById('stick'), d = document.getElementById('btn-door'), v = APP.scene.view(), b = window.__both, sv = !st.hidden, dv = !d.hidden && d.dataset.spot === 'edge'; b.frames++; if (sv && dv) b.both++; var k = b.byView[v] = b.byView[v] || { n: 0, stick: 0, edge: 0 }; k.n++; if (sv) k.stick++; if (dv) k.edge++; window.__bothRaf = requestAnimationFrame(f); })(); }); }
+  function stopBoth() { return page.evaluate(function () { cancelAnimationFrame(window.__bothRaf); return window.__both; }); }
+  /* 스틱 가운데를 누르고 (dx, dy) 만큼 끌어 ms 동안 잡고 있다가 놓는다 → 잡는 중 · 놓은 뒤의 스틱 · 캐릭터 상태 */
+  async function dragStick(dx, dy, ms) {
+    var c = await page.evaluate(function () { var r = document.getElementById('stick').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+    function snap() { return page.evaluate(function () { var st = document.getElementById('stick'), k = st.querySelector('.stick-knob'), s = APP.stick; return { on: st.classList.contains('on'), input: s.input, pointer: s.pointer, knob: getComputedStyle(k).transform, pl: APP.scene.player(), view: APP.scene.view(), doorEv: window.__ev.filter(function (e) { return e.n === 'door'; }).length }; }); }
+    await page.mouse.move(c[0], c[1]); await page.mouse.down(); await page.mouse.move(c[0] + dx, c[1] + dy, { steps: 4 });
+    await page.waitForTimeout(150);
+    var mid = await snap();
+    await page.waitForTimeout(ms);
+    await page.mouse.up(); await page.waitForTimeout(200);
+    var end = await snap();
+    return { mid: mid, end: end };
+  }
+  function dist2(a, b) { return a && b ? Math.hypot((a[0] || 0) - (b[0] || 0), (a[2] || 0) - (b[2] || 0)) : NaN; }
 
   /* 1. 다락: 문 단추는 3D 문 위 (장면 안 · 44px 이상 · 그 자리가 장면이 투영한 문 상자) */
   var a0 = await spots(), sp0 = await page.evaluate(function () { return APP.scene.spotRect('atticPlay'); });
@@ -1902,6 +1929,38 @@ async function scenarioWave8(browser) {
   ok(a0.view === 'attic' && a0.door.label === '놀이방' && !a0.door.hidden && a0.door.spot === 'over' && a0.door.w >= 44 && a0.door.h >= 44 && a0.door.inside && !a0.door.ctl && !a0.door.popup, "다락: 놀이방 문 단추 = 3D 문 위 투명 단추 (aria-label '놀이방' · 44px 이상 · 장면 안 · 오른쪽 위 묶음과 안 겹침)");
   ok(!!sp0 && sp0.mode === 'over' && sp0.art.r - sp0.art.l >= 8 && sp0.art.b - sp0.art.t >= 30 && a0.pdoor.hidden && a0.mach.hidden, '3D 문이 화면에 보인다 (투영 상자 ' + (sp0 ? (sp0.art.r - sp0.art.l) + '×' + (sp0.art.b - sp0.art.t) : '-') + ' px) · 놀이방 단추는 숨음');
   await page.locator('#scene').screenshot({ path: path.join(SHOTS, 'w8-attic-door.png') });
+
+  /* 1b. 발자국 손잡이 (11-08 움직이기): 다락이 보이면 장면 왼쪽 아래에 보인다 (hidden false · 44px 이상 · 장면 안 · 오른쪽 위 묶음 · 문 단추와 안 겹침 · 손가락을 받는다 · 글자는 '걷기' 뿐).
+     끌면 APP.scene.player().at 이 바뀌고 놓으면 멈춘다 · 끄는 동안 장면 톡(문)은 안 난다 · 방향키 · WASD 도 같은 입력, 열린 창이 있으면 무시 */
+  var st0 = await stickInfo();
+  console.log('   stick(attic):', JSON.stringify(st0));
+  var stickApi = st0.api;
+  if (!stickApi) console.log('   (skip) 장면에 setPlayerInput 이 아직 없음 — 스틱 보임 · 끌기 · 키보드 검사는 건너뜀 (숨김 · 글자 검사만)');
+  ok(/^(걷기)?$/.test(st0.text) && st0.aria === 'true' && st0.pe === 'auto' && st0.ta === 'none', "스틱: 글자는 '걷기' 폴백뿐 (이모지 0) · aria-hidden · pointer-events auto · touch-action none " + JSON.stringify({ text: st0.text, icon: st0.icon, noImg: st0.noImg }));
+  if (stickApi) {
+    ok(!st0.hidden && st0.allowed && st0.w >= 44 && st0.h >= 44 && st0.inside && !st0.ctl && !st0.door && !st0.edge && st0.left >= 8 && st0.bottom >= 8 && (st0.icon || st0.noImg), '다락: 스틱이 왼쪽 아래에 보인다 (' + st0.w + '×' + st0.h + ' · 장면 안 · 오른쪽 위 묶음 · 문 단추와 안 겹침 · 집 단추는 숨음 · 발자국 그림)');
+    await page.evaluate(function () { window.__ev.length = 0; if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
+    var at0 = await page.evaluate(function () { return APP.scene.player().at; });
+    var dg = await dragStick(-30, 0, 350);   /* 왼쪽(문 반대쪽)으로 — 오른쪽으로 끌면 캐릭터가 문 앞에 서서 아래 문 톡의 pick 을 가린다 */
+    var moved = dist2(at0, dg.end.pl.at);
+    console.log('   drag:', JSON.stringify({ at0: at0, mid: { input: dg.mid.input, walking: dg.mid.pl.walking, knob: dg.mid.knob }, end: { at: dg.end.pl.at, input: dg.end.input, walking: dg.end.pl.walking }, moved: Math.round(moved * 1000) / 1000 }));
+    ok(dg.mid.on && dg.mid.pointer && dg.mid.input && dg.mid.input.x < -0.9 && Math.abs(dg.mid.input.y) < 0.05 && dg.mid.knob !== 'none' && dg.mid.view === 'attic', '스틱을 왼쪽으로 끌면: .on · 손가락 잡음 · 장면에 { x: -1, y: 0 } · 손잡이가 움직인다 ' + JSON.stringify(dg.mid.input));
+    ok(moved > 0.05 && !dg.end.on && !dg.end.pointer && dg.end.input === null && dg.end.view === 'attic' && !dg.end.doorEv, '끄는 동안 내 캐릭터가 걸었다 (' + Math.round(moved * 100) / 100 + ' m) · 놓으면 null · .on 해제 · 장면 톡(문 · 밀기)은 안 났다');
+    await page.locator('#scene').screenshot({ path: path.join(SHOTS, 'w8-stick.png') });
+    await page.keyboard.down('ArrowUp'); await page.waitForTimeout(120);
+    var k0 = await page.evaluate(function () { return { s: APP.stick, w: APP.scene.player().walking }; });
+    await page.keyboard.down('d'); await page.waitForTimeout(80);
+    var k1 = await page.evaluate(function () { return APP.stick; });
+    await page.keyboard.up('ArrowUp'); await page.keyboard.up('d'); await page.waitForTimeout(80);
+    var k2 = await page.evaluate(function () { return APP.stick; });
+    ok(k0.s.input && Math.abs(k0.s.input.y - 1) < 1e-6 && k0.s.input.x === 0 && k1.input && Math.abs(k1.input.x - Math.SQRT1_2) < 1e-6 && Math.abs(k1.input.y - Math.SQRT1_2) < 1e-6 && k2.input === null && !k2.keys.length, '키보드: 위 화살표 = { 0, 1 } · + D(e.code) = 대각선 정규화 · 다 떼면 null ' + JSON.stringify({ up: k0.s.input, diag: k1.input, off: k2.input }));
+    await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
+    await page.keyboard.down('ArrowLeft'); await page.waitForTimeout(80);
+    var k3 = await page.evaluate(function () { return APP.stick; });
+    await page.keyboard.up('ArrowLeft'); await page.keyboard.press('Escape'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' }); await page.waitForTimeout(100);
+    ok(k3.input === null && !k3.keys.length, '열린 창(설정 시트)이 있으면 방향키는 스틱 입력이 아니다');
+    await page.evaluate(function () { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });   /* 시트를 닫으면 포커스가 설정 단추로 돌아온다 → 아래 문 톡의 '도착한 쪽 단추 포커스' 규칙(포커스가 딴 데 있으면 안 옮긴다)이 원래 흐름(body)대로 돌게 */
+  }
 
   /* 2. 문 톡 → 문 소리 open (다락이 보일 때) → 가로 전환 → 놀이방 → close */
   await page.evaluate(function () { window.__ev.length = 0; });
@@ -1917,6 +1976,25 @@ async function scenarioWave8(browser) {
   ok(p1.view === 'play' && p1.room === 'play' && p1.place === 'attic' && p1.door.hidden && !p1.pdoor.hidden && !p1.mach.hidden && p1.pdoor.label === '문어 방' && p1.mach.label === '다락방 달리기' && p1.mach.popup === 'dialog'
     && [p1.pdoor, p1.mach].every(function (b) { return b.spot === 'over' && b.w >= 44 && b.h >= 44 && b.inside && !b.ctl; }), "놀이방: '문어 방' 문 · '다락방 달리기' 오락기 단추 (44px 이상 · 장면 안) · 다락 문 단추는 숨음 · 이야기 장소는 다락 그대로");
   ok(!p1.oct && p1.label === '놀이방' && /^놀이방/.test(p1.desc) && /다락방에 있어/.test(p1.desc) && p1.focus === 'btn-play-door', '놀이방엔 문어가 없다 (이름표 · 말풍선 숨김) · 장면 이름 · 설명 · 포커스는 놀이방 문 ' + JSON.stringify(p1.desc));
+  var stP = await stickInfo();
+  console.log('   stick(play):', JSON.stringify({ hidden: stP.hidden, allowed: stP.allowed, ctl: stP.ctl, pdoor: stP.pdoor, mach: stP.mach }));
+  if (stickApi) ok(!stP.hidden && stP.allowed && stP.inside && !stP.ctl && !stP.pdoor && !stP.mach && !stP.edge, '놀이방: 스틱이 보인다 (장면 안 · 오른쪽 위 묶음 · 문어 방 문 · 오락기 단추와 안 겹침)');
+  if (stickApi) {   /* 11-09 리뷰 고침: 문으로 도착한 뒤(포커스 = 문 단추) 방향키가 걷는다 · 방향키를 누른 채 수정키를 눌렀다 떼도 키가 남지 않는다 · 로그에 포커스가 있으면 방향키는 로그 몫 */
+    var kf0 = await page.evaluate(function () { return document.activeElement && document.activeElement.id; });
+    await page.keyboard.down('ArrowDown'); await page.waitForTimeout(150);
+    var kd = await page.evaluate(function () { return { s: APP.stick, w: APP.scene.player().walking, ae: document.activeElement && document.activeElement.id }; });
+    await page.keyboard.up('ArrowDown'); await page.waitForTimeout(80);
+    ok(kf0 === 'btn-play-door' && kd.s.input && kd.s.input.y === -1 && kd.w && kd.ae === 'btn-play-door', '문으로 도착해 포커스가 문 단추에 있어도 방향키로 걷는다 (단추는 방향키를 안 쓴다) ' + JSON.stringify({ focus: kf0, input: kd.s.input, walking: kd.w }));
+    await page.keyboard.down('ArrowRight'); await page.waitForTimeout(60); await page.keyboard.down('Control'); await page.keyboard.up('ArrowRight'); await page.keyboard.up('Control'); await page.waitForTimeout(300);
+    var km = await page.evaluate(function () { return { s: APP.stick, w: APP.scene.player().walking }; });
+    ok(!km.s.keys.length && km.s.input === null && !km.w, '방향키를 누른 채 Ctrl 을 눌렀다 떼도 키가 남지 않는다 (keyup 은 수정키와 상관없이 지운다) ' + JSON.stringify(km));
+    await page.evaluate(function () { document.getElementById('log').focus(); });
+    await page.keyboard.down('ArrowDown'); await page.waitForTimeout(80);
+    var kl = await page.evaluate(function () { return APP.stick; });
+    await page.keyboard.up('ArrowDown');
+    ok(kl.input === null && !kl.keys.length, '로그(#log)에 포커스가 있으면 방향키는 스틱 입력이 아니다 (로그 굴리기)');
+    await page.evaluate(function () { var d = document.getElementById('btn-play-door'); if (d) d.focus({ preventScroll: true }); APP.scene.debugPlayerAt(0.15, 0.45); });   /* 원래 흐름으로 (포커스 = 놀이방 문 · 쉬는 자리) */
+  }
   await page.locator('#scene').screenshot({ path: path.join(SHOTS, 'w8-play.png') });
 
   /* 3. 오락기 → 달리기 창 → 한 판 → 닫으면 오락기로 포커스 · 놀이방 그대로 · 저장(S) 그대로 */
@@ -1942,6 +2020,7 @@ async function scenarioWave8(browser) {
   /* 5. 놀이방에서 큰 버튼 (뽈뽈 다녀와): 먼저 문으로 다락 → 그다음 출발 (출발 의식은 다락에서 보인다) */
   await page.keyboard.press('Enter'); await inPlay();
   await page.evaluate(function () { window.__ev.length = 0; });
+  await watchBoth();   /* 여기부터 바깥이 보일 때까지: 스틱과 집 단추가 같은 프레임에 둘 다 보이는 일이 없는지 */
   await page.click('#btn-go');
   await page.waitForFunction(function () { return document.getElementById('btn-go').classList.contains('away'); }, null, { timeout: 20000 });
   var g1 = await page.evaluate(function () { return { ev: window.__ev.map(function (e) { return e.n + ':' + e.act + '@' + e.view; }), view: APP.scene.view(), room: APP.scene.room() }; });
@@ -1949,8 +2028,10 @@ async function scenarioWave8(browser) {
 
   /* 6. 산책 중: 바깥이 보이는 동안 집 단추(왼쪽 아래) → 놀이방. 로그 행이 쌓이고, 화면은 끌려 나가지 않는다 → 문어가 돌아오면 구석 쪽지 */
   await page.waitForFunction(function () { var d = document.getElementById('btn-door'); return APP.scene.view() === 'exterior' && !d.hidden && d.dataset.spot === 'edge'; }, null, { timeout: 30000 });
-  var e0 = await spots();
+  var e0 = await spots(), stE = await stickInfo(), both = await stopBoth();
   ok(e0.door.spot === 'edge' && e0.door.w >= 44 && e0.door.h >= 44 && e0.door.inside && !e0.door.ctl, '산책 중 바깥: 놀이방 가는 집 단추는 장면 왼쪽 아래 (44px · 오른쪽 위 묶음과 안 겹침)');
+  console.log('   stick(exterior):', JSON.stringify({ hidden: stE.hidden, allowed: stE.allowed, edge: stE.edge, both: both.both, frames: both.frames, byView: both.byView }));
+  ok(stE.hidden && !stE.allowed && stE.edge && both.frames > 10 && both.both === 0 && (!both.byView.exterior || !both.byView.exterior.stick) && (!stickApi || (both.byView.play && both.byView.play.stick > 0)), '바깥이 보일 땐 스틱은 숨고 집 단추만 — 놀이방 → 다락 → 바깥 ' + both.frames + ' 프레임 동안 둘 다 보인 프레임 0 · 바깥에서 스틱 0 프레임');
   await page.locator('#scene').screenshot({ path: path.join(SHOTS, 'w8-exterior-door.png') });
   await page.click('#btn-door'); await inPlay();
   var w0 = await page.evaluate(function () {
@@ -1967,6 +2048,8 @@ async function scenarioWave8(browser) {
   console.log('   in play during walk:', JSON.stringify({ w0: w0, w1: w1 }));
   ok(w0.running && w0.place === 'exterior' && w1.rows > w0.rows && w1.place === 'attic' && w1.view === 'play' && !w1.left.length, '산책은 놀이방에서도 그대로 (로그 행 ' + w0.rows + ' → ' + w1.rows + ' · 이야기 장소 바깥 → 다락) · 화면은 한 번도 놀이방을 떠나지 않음');
   ok(w1.txt === '뚜루가 돌아왔어.' && w1.role === 'status' && w1.btn.t === '보러 가기' && w1.btn.h >= 44 && w1.btn.w >= 44 && w1.inside && !w1.ctl && !w1.bub, "구석 쪽지: '뚜루가 돌아왔어.' (조사 · 기호 없음 · role=status) + '보러 가기' (44px) · 장면 안 · 오른쪽 위 묶음과 안 겹침 · 문어 말풍선은 놀이방에 안 뜬다");
+  var stN = await stickInfo();
+  if (stickApi) ok(!stN.hidden && !stN.note, '구석 쪽지가 떠 있어도 놀이방 스틱과 안 겹친다 (쪽지가 스틱 위로 올라간다) ' + JSON.stringify({ stick: { left: stN.left, bottom: stN.bottom }, overlap: stN.note }));
   await page.locator('#scene').screenshot({ path: path.join(SHOTS, 'w8-note.png') });
   var plans = await page.evaluate(function () { return window.__plans.slice(); });
   var KEYS = 'by,dateKey,hint,id,name,online,seed,seq,state', SKEYS = ['affinity', 'lantern', 'lanternLeft', 'lastVisit', 'notes', 'owned', 'posters', 'recent', 'todayOut', 'visits'];
@@ -2017,6 +2100,8 @@ async function scenarioWave8(browser) {
   await p.waitForTimeout(500);
   var t0 = await p.evaluate(function () { var d = document.getElementById('btn-door').getBoundingClientRect(), L = document.querySelector('#layers .layer[data-key="door.play"]'), q = L && L.getBoundingClientRect(); return { w: d.width, h: d.height, spot: document.getElementById('btn-door').dataset.spot, drawn: !!q && d.left <= q.left + 1 && d.right >= q.right - 1 && d.top <= q.top + 1 && d.bottom >= q.bottom - 1 }; });
   ok(t0.spot === 'over' && t0.w >= 44 && t0.h >= 44 && t0.drawn, '2D: 다락 벽에 놀이방 문 그림 · 그 위 단추 (44px 이상) ' + JSON.stringify(t0));
+  var st2 = await stickInfo(p);
+  ok(st2.hidden && !st2.allowed && st2.mode === '2d', '2D 폴백: 발자국 손잡이는 늘 숨김 (내 캐릭터가 없다)');
   /* 2D 문어가 문 앞(가운데 · 상자 자리)에 서 있으면 그 몸을 누른 톡은 문어 몫 (문 단추는 그림 위에서 pointer-events: none · 그린 순서대로) */
   for (var an of ['center', 'crate']) {
     await p.evaluate(function (a) { APP.scene.jumpTo(a); window.__ev.length = 0; }, an); await p.waitForTimeout(300);

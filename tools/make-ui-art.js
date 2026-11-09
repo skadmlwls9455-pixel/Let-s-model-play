@@ -105,7 +105,7 @@ var NOTES = {
   souvenir: '기념품 픽셀 아이콘 16×16 (장면 외곽선 규칙, Apollo). souvenir.* 플레이스홀더의 픽셀 버전 — 1x·2x 정수 배로만 쓸 것.',
   memory: '기억 코너 아이콘 16×16 — 로그 "기억" 행 · 포스터 열람 기록 줄.',
   log: '산책 로그 행 아이콘 16×16 (도구 라벨·읽기 상태). 실패도 빨강 없이 같은 모양 언어.',
-  ctl: '장면 위 버튼 아이콘 16×16 (ctl.home = 산책 중 바깥 화면 오른쪽 아래 #btn-door 의 빨간 지붕 집 · ctl.door = 로그·앨범의 바깥 주소 표시) — ×2 = 32px 로만. 두 테마 다 보인다 (js/ui-art.js fillIcons 가 주소를 채운다).'
+  ctl: '장면 위 버튼 아이콘 16×16 (ctl.home = 산책 중 바깥 화면 왼쪽 아래 #btn-door 의 빨간 지붕 집 · ctl.walk = 왼쪽 아래 발자국 손잡이(#stick) 의 발자국 둘 · ctl.door = 로그·앨범의 바깥 주소 표시) — ×2 = 32px 로만. 두 테마 다 보인다 (js/ui-art.js fillIcons 가 주소를 채운다).'
 };
 function fileOf(key, dir) { var parts = key.split('.'); return 'assets/' + dir + '/' + parts.slice(1).join('_') + '.png'; }
 function makeSprites() {
