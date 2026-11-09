@@ -812,12 +812,16 @@
      - 데모 규칙 차례(by 'demo'): 포스터에 없는 사실 하나 (가져온 것 · 들판 · 한눈판 길 · 다른 곳 · 다시 · 처음 · 제일 오래 · 돌아온 까닭 · 못 읽은 곳).
        기록에 있는 것만 말한다: 기분 · 취향 · 시간 말(오늘 · 아까 · 내일) 없음. TAP_MAX 자 안 (TAP_SOFT 자 안을 먼저).
        포스터 한 줄 · 반응 줄과 같은 말이거나 그 속에 든 말이면 다른 것. 빈 칸이 남는 줄은 버린다 (fillTemplate 처럼 지우고 넘어가지 않는다)
-     - 집에 있는 날: 그 활동의 tap 두 줄 중 하나 (world.js homeActivities[].tap — 쪽지 앞면 · 뒷면에 든 말은 안 고른다). 없으면 null
+     - 집에 있는 날: 그 활동의 tap 두 줄 중 하나 (world.js homeActivities[].tap — 쪽지 앞면 · 뒷면에 든 말은 안 고른다 · 젖었다는 말은 기록의 날씨가 비 · 가랑비일 때만). 없으면 null
      - 모델 · 사람 차례(by mcp · human): 그들이 마무리에 쓴 말만 — wrap_up.line (없으면 그들이 쓴 네 가지 밖의 반응 글). 글자 그대로 (화면이 줄이면 '…').
        그 자리에서 한 한마디(aside) · 기웃 메모 · 쪽지 · 기억 줄은 그때 그곳의 말이라 지금 다시 말하지 않는다 (MODEL_VOICE §3). 아무것도 안 썼으면 null
      - 빈 데모 차례 · 옛 기록(legacy) · 모르는 by → null (화면은 '응?')
      → null | { text, by: 'demo-rules'|'model'|'human', src, part } — part = 그 줄 속 남의 글(위키 문서 제목 · 재생에서 받은 이름) 한 조각 또는 null */
   var TAP_MAX = 22, TAP_SOFT = 18;
+  /* 세계의 방이 아닌 곳(위키 문서 제목 · 재생에서 받은 이름)을 '…을 만났어 · …까지 가 봤어 · … 말고' 같은 문어의 말 틀에 넣으면 제목이 문어의 기분이나 어두운 말로 읽힌다
+     ('들판에서 사랑을 만났어' · '링크 따라 행복까지 가 봤어' · '들판에서 죽음을 만났어' — 검증 11-08). 이런 제목은 톡 한 줄에서 부르지 않고 다른 사실로 넘어간다
+     (포스터 · 일기 · 로그에는 그대로). 기분 · 취향 · 시간 말 (톡 금지 말과 같은 것) + 감정 이름 + 죽음 · 폭력 · 재난 같은 무거운 말 */
+  var TAP_TITLE_AVOID = /좋아|좋았|좋은|사랑|싫|미워|미움|증오|최애|취향|즐겨|반했|단골|그리|설레|맛있|맛없|재밌|재미|신나|신났|행복|불행|즐거|기쁨|기뻐|기뻤|슬픔|슬퍼|아쉬|미안|외로|고독|심심|우울|불안|공포|두려|무서|분노|화남|질투|후회|절망|희망|고통|괴로|쾌락|눈물|이별|그립|오늘|내일|어제|아까|방금|여기까지|기다|보고 싶|죽음|죽은|죽이|사망|자살|자해|살인|살해|학살|처형|사형|고문|전쟁|전투|전사|폭력|폭행|폭탄|테러|학대|강간|성폭|납치|마약|참사|재난|재해|장례|시신|시체|유골|무덤|지옥|악마|저주|홀로코스트|원폭|핵무기|총기|흉기/;
   var DEFAULT_TAP = {
     souvenir: ['{p}에서 {s} 하나 가져왔어'],
     souvenirAny: ['{s} 하나 챙겨 왔어', '{s}을 하나 들고 왔어'],
@@ -880,9 +884,11 @@
       var list = def && Array.isArray(def.tap) ? def.tap.filter(function (x) { return typeof x === 'string' && x.trim(); }) : [];
       if (!list.length) return null;
       var front = String(act.line || (trip.poster && trip.poster.line) || ''), back = String(act.detail || '');
+      var wet = /^(rain|drizzle)$/.test(String(trip.weather || ''));   /* 기록의 날씨 (app 이 초대 때 등불로 정해 저장 — 7 부터는 맑을 수 있다). 없으면 모른다 = 젖었다고 하지 않는다 */
       var v0 = Math.min(list.length - 1, Math.floor(rVar * list.length));
       for (var hv = 0; hv < list.length; hv++) {
         var ht = list[(v0 + hv) % list.length];
+        if (!wet && /흠뻑|젖/.test(ht)) continue;   /* '이끼가 흠뻑 젖어 있었어' 는 비 · 가랑비 날만 */
         if (ht !== front && front.indexOf(ht) < 0 && back.indexOf(ht) < 0 && fresh(ht) && codeLen(ht) <= TAP_MAX) return { text: ht, by: 'demo-rules', src: 'home:' + act.id, part: null };
       }
       return null;
@@ -896,6 +902,7 @@
       return /[()]/.test(v) ? '' : v;   /* '고래의 노래 (동물)' 같은 제목은 조사도 못 붙이고 줄이 길어진다 → 부르지 않는다 */
     }
     function rawOf(s) { return isRoom(s) ? null : (nm(s) || null); }
+    function sayable(s) { return isRoom(s) || !TAP_TITLE_AVOID.test(nm(s)); }   /* 방이 아닌 곳의 이름은 무겁거나 기분처럼 읽히면 부르지 않는다 (TAP_TITLE_AVOID) */
     function pick(list) { return list[Math.min(list.length - 1, Math.floor(rStop * list.length))]; }
     var tiers = [[], [], []];   /* 0 드문 것 · 1 길 · 2 그 밖 */
     function add(tier, key, keys, map, idx, part, w) {   /* idx = 이 줄이 이름을 부르는 정류장 ('many' = 여러 곳을 들렀다는 말) */
@@ -905,7 +912,7 @@
     var only = /만 봤어|하나만/.test(pl);   /* 포스터가 '그곳만 봤어' 라고 했으면 다른 곳 이름 · 여러 곳 이야기는 하지 않는다 (힌트 산책 — 개발용) */
     var others = []; st.forEach(function (s, i) { if (i !== remI) others.push(i); });
     var rooms = others.filter(function (i) { return isRoom(st[i]); });
-    var aName = rem ? nm(rem) : '', aPart = rem ? rawOf(rem) : null;
+    var aName = rem && sayable(rem) ? nm(rem) : '', aPart = aName ? rawOf(rem) : null;   /* 이름이 비면 '{a} 말고' 줄은 버려진다 (fillTap) */
     /* 0. 가져온 것 · 들판 · 느린 글의 방 */
     var sv = rc.souvenir && W && W.souvenirs && W.souvenirs[rc.souvenir];
     if (sv && sv.name) {
@@ -915,7 +922,7 @@
       if (only && fromI !== remI) p = '';
       add(0, 'souvenir', ['souvenir', 'souvenirAny'], { p: p, s: sv.name }, p ? [fromI] : []);
     }
-    var wilds = others.filter(function (i) { return st[i].wild && st[i].status === 'read' && nm(st[i]); });
+    var wilds = others.filter(function (i) { return st[i].wild && st[i].status === 'read' && nm(st[i]) && sayable(st[i]); });
     if (wilds.length) { var wi = pick(wilds); add(0, 'wild', st[wi].viaTangent ? ['wildLink', 'wild'] : ['wild'], { w: nm(st[wi]) }, [wi], nm(st[wi])); }
     var slow = others.filter(function (i) { return st[i].nodeId === 'slow_room'; });
     if (slow.length) add(0, 'slowRoom', ['slowRoom'], {}, [slow[0]]);
@@ -923,7 +930,7 @@
     var tans = /한눈/.test(pl) ? [] : others.filter(function (i) { return i > 0 && st[i].viaTangent && !st[i].wild && isRoom(st[i]) && isRoom(st[i - 1]); });
     if (tans.length) { var ti = pick(tans); add(1, 'tangent', ['tangent'], { t: nm(st[ti - 1]), b: nm(st[ti]) }, [ti - 1, ti]); }
     if (rem && rooms.length) { var oi = pick(rooms); add(1, 'other', ['other'], { a: aName, b: nm(st[oi]) }, [oi], aPart, 0.5); }
-    var revs = /다시/.test(pl) ? [] : rooms.filter(function (i) { return !st[i].first; });
+    var revs = /다시/.test(pl) || /처음|모르는 데/.test(rl) ? [] : rooms.filter(function (i) { return !st[i].first; });   /* 반응 줄이 처음 · 모르는 데를 말했으면 ('오늘 길은 처음이었어…' · '모르는 데로 한 발…') '다시 가 봤어' 는 하지 않는다 */
     if (revs.length) { var ri = pick(revs); add(1, 'revisit', ['revisit'], { b: nm(st[ri]) }, [ri]); }
     var firsts = /처음/.test(pl) ? [] : rooms.filter(function (i) { return st[i].first; });
     if (firsts.length) { var fi = pick(firsts); add(1, 'firstOther', ['firstOther'], { b: nm(st[fi]) }, [fi]); }
@@ -933,9 +940,9 @@
     var lastI = n - 1, last = st[lastI];
     if (rc.returnReason === 'tired' && isRoom(last) && reaction !== '졸림' && !/다리/.test(rl)) add(1, 'tired', ['tired'], { l: nm(last) }, [lastI]);
     if (rc.returnReason === 'enough' && isRoom(last) && lastI !== remI && !/됐어/.test(rl)) add(1, 'enough', ['enough'], { l: nm(last) }, [lastI]);
-    var miss = others.filter(function (i) { return st[i].status === 'failed' && nm(st[i]); });
+    var miss = others.filter(function (i) { return st[i].status === 'failed' && nm(st[i]) && sayable(st[i]); });
     if (miss.length) { var mi = pick(miss); add(1, 'failed', ['failed'], { x: nm(st[mi]) }, [mi], rawOf(st[mi])); }
-    var sims = others.filter(function (i) { return st[i].status === 'simulated' && st[i].nodeId !== 'door_out' && nm(st[i]); });
+    var sims = others.filter(function (i) { return st[i].status === 'simulated' && st[i].nodeId !== 'door_out' && nm(st[i]) && sayable(st[i]); });
     if (sims.length) { var si = pick(sims); add(1, 'simulated', ['simulated'], { x: nm(st[si]) }, [si], rawOf(st[si])); }
     var doors = others.filter(function (i) { return st[i].nodeId === 'door_out'; });
     if (doors.length) add(1, 'doorOut', ['doorOut'], {}, [doors[0]]);
@@ -1765,6 +1772,7 @@
   BRAIN.TAP_MAX = TAP_MAX;
   BRAIN.TAP_SOFT = TAP_SOFT;
   BRAIN.DEFAULT_TAP = DEFAULT_TAP;
+  BRAIN.TAP_TITLE_AVOID = TAP_TITLE_AVOID;   /* 톡 한 줄에서 부르지 않는 방 밖 이름 (tools/test-brain.js) */
   BRAIN.pickStart = pickStart;
   BRAIN.stayProbability = stayProbability;
   BRAIN.computeReaction = computeReaction;

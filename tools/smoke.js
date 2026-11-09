@@ -123,7 +123,8 @@ async function pickName(page, hint) {
   }, hint == null ? '모자의 역사' : hint);
 }
 async function waitIdle(page, ms) {
-  await page.waitForFunction(function () { var b = document.getElementById('btn-go'); return b && !b.classList.contains('away'); }, null, { timeout: ms || 30000 });
+  /* 큰 버튼이 '뽈뽈 다녀와' 로 돌아오고, 막 데려온 뒤 연달아 누름으로 받지 않는 짧은 틈(APP.goResting — 모션 줄이기면 귀가가 한 프레임이라 다음 초대가 그 안에 온다)도 지난 뒤 */
+  await page.waitForFunction(function () { var b = document.getElementById('btn-go'); return b && !b.classList.contains('away') && !(window.APP && APP.goResting); }, null, { timeout: ms || 30000 });
 }
 /* 8물결: 그림 위 문 · 오락기 단추는 pointer-events: none (톡은 장면이 받아 그린 순서대로 단추를 누른다). 진짜 손가락처럼 그 단추 칸 안에서
    장면이 그 단추로 고르는 자리(3D = pickAt 'spot', 2D = 문어가 아닌 그림)를 찾아 마우스로 누른다 — 문 앞에 문어가 서 있으면 문어 몸은 피한다 */
@@ -1516,7 +1517,8 @@ async function scenarioWave7(browser) {
     });
   }); }
   var yo = await ctlOps();
-  ok(yo.some(function (x) { return x.over; }) && yo.every(function (x) { return x.over ? x.op === 0 && x.pe === 'none' : x.op === 1; }), '문 앞 긴 말: 말풍선과 겹치는 버튼만 숨김 (글자 위에 아이콘이 안 그려짐) · 나머지는 그대로 ' + JSON.stringify(yo));
+  /* 11-08: 말풍선은 이제 아이콘 옆까지 끝까지 비켜 선다 (한도는 꼬리만 — js/ui-art.js keepInside) → 보통은 아무 버튼과도 겹치지 않는다. 그래도 겹치면 그 버튼만 숨는다 */
+  ok(yo.every(function (x) { return x.over ? x.op === 0 && x.pe === 'none' : x.op === 1; }), '문 앞 긴 말: 말풍선이 아이콘 옆으로 비켜 서고, 그래도 겹치는 버튼만 숨김 (글자 위에 아이콘이 안 그려짐) · 나머지는 그대로 ' + JSON.stringify(yo));
   await page.waitForFunction(function () { return document.getElementById('oct-bubble').hidden; }, null, { timeout: 8000 });
   /* 되돌림은 ui-art 의 0.2 s 타이머 + 0.25 s 페이드 — 전체 스모크처럼 CPU 가 바쁘면 타이머와 애니메이션 프레임이 늦으므로 (표시는 걷혔는데 페이드가 아직 0 에 머문 회차가 있었다)
      고정 0.4 s 대신 다 돌아올 때까지 최대 3 s 기다린다. 영영 안 돌아오면 아래 검사가 잡는다 */
@@ -1526,6 +1528,16 @@ async function scenarioWave7(browser) {
   }, null, { timeout: 3000 }).catch(function () {});
   var yb = await ctlOps();
   ok(yb.every(function (x) { return x.op === 1 && (x.pe !== 'none' || x.spot === 'over'); }) && !(await page.$('.yield')), '말풍선이 사라지면 버튼이 모두 돌아옴 (3D 문 위 투명 문 단추는 원래 pointer-events: none — 톡은 장면이 받는다) ' + JSON.stringify(yb.map(function (x) { return x.id + ':' + x.op; })));
+  /* 1c. 비켜 설 수 없을 때 (검증 11-08 — 이제 말풍선은 보통 아이콘 옆으로 비켜 서서 숨기기 길은 위에서 안 쓰인다): ⚙ 를 장면 안쪽으로 밀어 두면 (시험용 CSS)
+         긴 말풍선이 장면 왼쪽 끝까지 가도 못 피한다 → 겹친 그 버튼만 말풍선이 보이는 동안 숨는다 · 말풍선이 사라지면 돌아온다 */
+  await page.evaluate(function () { var st = document.createElement('style'); st.id = 'smoke-ovl'; st.textContent = '#btn-settings { margin-right: 120px !important; }'; document.head.appendChild(st); APP.say('여기 창문 너머로 빗소리가 들려. 오늘은 어디 갈까 생각 중이야', 'happy', 1600); });
+  await page.waitForTimeout(700);
+  var yf = await ctlOps();
+  ok(yf.some(function (x) { return x.id === 'btn-settings' && x.over && x.op === 0 && x.pe === 'none'; }) && yf.every(function (x) { return x.over ? x.op === 0 && x.pe === 'none' : x.op === 1; }), '못 비켜 서면 겹친 버튼만 말풍선이 보이는 동안 숨는다 (⚙ 를 안쪽으로 민 시험) ' + JSON.stringify(yf));
+  await page.waitForFunction(function () { return document.getElementById('oct-bubble').hidden; }, null, { timeout: 8000 }).catch(function () {});
+  await page.evaluate(function () { var st = document.getElementById('smoke-ovl'); if (st) st.remove(); });
+  await page.waitForFunction(function () { return !document.querySelector('.yield'); }, null, { timeout: 3000 }).catch(function () {});
+  ok(!(await page.$('.yield')), '그 말풍선이 사라지면 ⚙ 도 돌아온다');
   await page.evaluate(function () { return Promise.race([APP.walkTo('center'), new Promise(function (r) { setTimeout(r, 6000); })]); });
 
   /* 2. ⚙ 설정 시트: 문어 색 · 소리(js/audio.js) · 화면 · 기록 · 누가 고르나 (플레이어에겐 팔레트 없음) */
@@ -2526,14 +2538,14 @@ async function nameOct(page, nm) {
 }
 async function scenarioTapLine(browser) {
   console.log('\n== T. 톡 한 줄 (말풍선만) · 데려와도 짧은 귀가 뒤 깨어 있는 틈 → 낮잠 (주인 11-08)');
-  var s = await newPage(browser, 'ok', [{ content: "window.__ppolAwakeMs = 4000; window.__ppolTest = window.__ppolTest || { forceKind: 'out' };" }, { content: TAP_SPY }]);
+  var s = await newPage(browser, 'ok', [{ content: "window.__ppolAwakeMs = 9000; window.__ppolTest = window.__ppolTest || { forceKind: 'out' };" }, { content: TAP_SPY }]);
   var page = s.page;
-  await page.clock.install({ time: new Date(2026, 10, 8, 14, 0, 0) });   /* 낮 14시 (밤이면 졸림 → 틈 없이 잔다) · 시간은 그대로 흐른다 */
+  await page.clock.install({ time: new Date(2026, 10, 8, 14, 0, 0) });   /* 낮 14시 (밤이면 졸림 → 틈이 짧다) · 시간은 그대로 흐른다 */
   await page.goto(INDEX + '?dev=0');
   await nameOct(page, '톡문어');
   /* 1. 산책 전: '응?' · 로그 행 없음 */
   var r0 = await page.evaluate(function () { var n = document.querySelectorAll('#log .lrow').length; APP.tapOct(); return { b: document.getElementById('oct-bubble').textContent, rows: document.querySelectorAll('#log .lrow').length - n, line: APP.tapLine(), awake: window.__ppolAwakeMs }; });
-  ok(r0.awake === 4000, '시험 훅: 이 시나리오는 깨어 있는 틈 4 s (공통 0 을 덮음)');
+  ok(r0.awake === 9000, '시험 훅: 이 시나리오는 깨어 있는 틈 9 s (공통 0 을 덮음)');
   ok(r0.b === '응?' && r0.rows === 0 && r0.line === null, "산책 전 톡 → '응?' · 말풍선만 (로그 행 +" + r0.rows + ')');
   /* 2. 산책 → 큰 버튼으로 데려옴 → 깨어 있는 틈 */
   await page.click('#btn-go'); await skipAway(page); await waitIdle(page);
@@ -2547,14 +2559,12 @@ async function scenarioTapLine(browser) {
     return new Promise(function (res) {
       var rows = document.querySelectorAll('#log .lrow').length, st = JSON.stringify(APP.state), ls = localStorage.getItem('ppolppol_v2');
       window.__aud = []; APP.tapOct(); APP.tapOct(); APP.tapOct();
-      var b = document.getElementById('oct-bubble'), text = b.hidden ? '' : b.textContent, hop = 0, n = 0;
-      (function f() { var m = APP.scene.motion ? APP.scene.motion() : null; if (m && m.hop > hop) hop = m.hop; if (++n < 14) requestAnimationFrame(f); else go(); })();
-      function go() {
-        setTimeout(function () { APP.tapOct(); setTimeout(function () { APP.tapOct();
-          res({ text: text, rows: document.querySelectorAll('#log .lrow').length - rows, sameState: JSON.stringify(APP.state) === st, sameLS: localStorage.getItem('ppolppol_v2') === ls,
-            voice: window.__aud.filter(function (a) { return a.n === 'bubble'; }).length, tag: !document.getElementById('brain-tag').hidden, hop: hop, tapAttr: b.getAttribute('data-tap') });
-        }, 120); }, 120);
-      }
+      var b = document.getElementById('oct-bubble'), text = b.hidden ? '' : b.textContent, sr = document.getElementById('oct-say');
+      setTimeout(function () { var srText = sr ? sr.textContent : null; APP.tapOct(); setTimeout(function () { APP.tapOct();
+        res({ text: text, rows: document.querySelectorAll('#log .lrow').length - rows, sameState: JSON.stringify(APP.state) === st, sameLS: localStorage.getItem('ppolppol_v2') === ls,
+          voice: window.__aud.filter(function (a) { return a.n === 'bubble'; }).length, tag: !document.getElementById('brain-tag').hidden, tapAttr: b.getAttribute('data-tap'),
+          sr: srText, srLive: sr ? sr.getAttribute('aria-live') + '/' + sr.getAttribute('role') + '/' + sr.className : null, srLog: !!(sr && sr.closest('#log')) });
+      }, 120); }, 160);
     });
   });
   console.log('   톡:', JSON.stringify(r3));
@@ -2562,7 +2572,17 @@ async function scenarioTapLine(browser) {
   ok(r3.rows === 0 && r3.sameState && r3.sameLS, '톡 다섯 번: 로그 행 · 상태 · 저장 그대로 (말풍선만 — 결과물 없음 · 두뇌 입력 그대로)');
   ok(r3.voice === 1, '같은 줄을 다시 눌러도 목소리는 한 번 (' + r3.voice + ')');
   ok(r3.tag, "데모 규칙이 지은 줄은 '데모' 꼬리표가 보이는 동안");
-  ok(r3.hop > 0, '톡마다 몸이 작게 톡 (3D 2px · motion().hop ' + r3.hop + ')');
+  ok(r3.sr === r3.text && r3.srLive === 'polite/status/sr-only' && !r3.srLog, '화면 낭독기: 같은 한 줄을 보이지 않는 칸(role=status · aria-live polite)에 — 로그 행 아님 (' + JSON.stringify([r3.sr, r3.srLive]) + ')');
+  /* 3a. 톡마다 몸이 작게 톡: 담요에서 가만히 있을 때 잰다 (걸으며 통통하는 몸짓과 섞이지 않게). 장면 시계는 손으로 1/60 s 씩 — 기계가 바빠 프레임이 느려도 같은 값 */
+  await page.waitForFunction(function () { var m = APP.scene.motion ? APP.scene.motion() : null; return APP.oct.state === 'idle' && APP.restPhase() === 'awake' && !!m && !(m.gait && m.gait.moving); }, null, { timeout: 20000 }).catch(function () {});
+  var hp = await page.evaluate(function () {
+    var sc = APP.scene; if (typeof sc.debugStep !== 'function') return null;
+    function peak(n) { var m = -1; for (var i = 0; i < n; i++) { sc.debugStep(1 / 60); m = Math.max(m, sc.motion().hop); } return m; }
+    function settle(n) { for (var i = 0; i < n; i++) sc.debugStep(1 / 60); return sc.motion().hop; }
+    var base = peak(4); APP.tapOct(); var tap = peak(4); var after = settle(40); sc.resume();   /* 2px 위로 90 ms → 0.67 s 뒤엔 제자리 */
+    return { base: base, tap: tap, after: after, oct: APP.oct.state, phase: APP.restPhase() };
+  });
+  ok(hp && hp.oct === 'idle' && hp.tap - hp.base >= 0.02 && hp.after - hp.base < 0.02, '톡마다 몸이 작게 톡 (담요에서 가만히 · 3D 2px 위로 90 ms → 제자리: hop ' + JSON.stringify(hp) + ')');
   /* 4. 틈이 끝나면 담요에서 잠 — 잠 훅 한 번 · 이 차례의 반응 */
   var slept = await page.waitForFunction(function () { return APP.oct.state === 'sleep'; }, null, { timeout: 25000 }).then(function () { return true; }, function () { return false; });
   await page.waitForTimeout(400);
@@ -2608,6 +2628,95 @@ async function scenarioTapLine(browser) {
   reportErrors(s.bag, 'T');
   await s.ctx.close();
   await scenarioTapFit(browser);
+  await scenarioAwakeMore(browser);
+}
+/* T-3. 깨어 있는 틈 더 (검증 11-08): 창 · 숨은 탭 · 장면을 아래로 내려 둔 동안 멈춤 → 돌아오면 적어도 틈만큼 · 그동안 초대 → 다음 차례 · 졸림은 25 s 까지 ·
+   새로고침은 이 탭의 남은 틈을 이어 받는다 (sessionStorage, 게임 기록엔 없음) · 다른 탭이 차례를 끝내면 앞 낮잠에 자던 이 탭 문어도 깨어 같은 틈 */
+async function scenarioAwakeMore(browser) {
+  console.log('\n== T-3. 깨어 있는 틈: 멈춤 · 초대 · 졸림 25 s · 새로고침 · 두 탭 (검증 11-08)');
+  var s = await newPage(browser, 'ok', [{ content: "window.__ppolAwakeMs = 6000; window.__ppolTest = window.__ppolTest || { forceKind: 'out' };" }, { content: TAP_SPY }]);
+  var page = s.page;
+  await page.clock.install({ time: new Date(2026, 10, 8, 14, 0, 0) });   /* 낮 14시 · 시간은 그대로 흐른다 */
+  await page.goto(INDEX + '?dev=0');
+  await nameOct(page, '틈문어');
+  function sleeps(pg) { return (pg || page).evaluate(function () { return window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; }).length; }); }
+  function asleep(pg, ms) { return (pg || page).waitForFunction(function () { return APP.oct.state === 'sleep'; }, null, { timeout: ms || 60000 }).then(function () { return true; }, function () { return false; }); }
+  async function bringBack(pg) { pg = pg || page; await pg.click('#btn-go'); await skipAway(pg); await waitIdle(pg, 90000); }
+  /* 1. 앨범이 열린 동안 멈춤 */
+  await bringBack();
+  var p0 = await page.evaluate(function () { return APP.restPhase(); });
+  await page.click('#btn-album'); await page.waitForSelector('#album-sheet[open]');
+  await page.waitForTimeout(8000);
+  var p1 = await page.evaluate(function () { return { phase: APP.restPhase(), oct: APP.oct.state, rest: APP.rest }; }), n1 = await sleeps();
+  await page.click('#al-close'); await page.waitForSelector('#album-sheet[open]', { state: 'hidden' });
+  var t1 = Date.now(), z1 = await asleep(), dt1 = Date.now() - t1, n2 = await sleeps();
+  ok(p0 === 'awake' && p1.phase === 'awake' && p1.oct !== 'sleep' && n1 === 0, '앨범이 열린 8 s (틈 6 s 보다 김) 동안 틈이 줄지 않는다 ' + JSON.stringify(p1));
+  ok(z1 && dt1 >= 5000 && n2 === 1, '앨범을 닫으면 적어도 틈만큼 (6 s) 더 깨어 있다가 잠 훅 한 번 (' + dt1 + ' ms · ' + n2 + ')');
+  /* 2. 탭이 숨은 동안 멈춤 */
+  await bringBack();
+  await page.evaluate(function () { Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } }); Object.defineProperty(document, 'visibilityState', { configurable: true, get: function () { return 'hidden'; } }); document.dispatchEvent(new Event('visibilitychange')); });
+  await page.waitForTimeout(8000);
+  var h1 = await page.evaluate(function () { return { phase: APP.restPhase(), oct: APP.oct.state }; }), hn1 = await sleeps();
+  var t2 = Date.now();
+  await page.evaluate(function () { delete document.hidden; delete document.visibilityState; document.dispatchEvent(new Event('visibilitychange')); });
+  var z2 = await asleep(), dt2 = Date.now() - t2, hn2 = await sleeps();
+  ok(h1.phase === 'awake' && h1.oct !== 'sleep' && hn1 === 1, '탭이 숨은 8 s 동안 틈이 줄지 않는다 ' + JSON.stringify(h1));
+  ok(z2 && dt2 >= 5000 && hn2 === 2, '다시 보이면 적어도 틈만큼 깨어 있다가 잠 훅 한 번 더 (' + dt2 + ' ms · ' + hn2 + ')');
+  /* 3. 로그를 읽으려고 장면을 아래로 내려 둔 동안 멈춤 */
+  await bringBack();
+  await page.evaluate(function () { document.body.style.paddingBottom = '3000px'; var r = document.getElementById('scene').getBoundingClientRect(); window.scrollTo(0, window.scrollY + r.bottom + 10); });
+  await page.waitForTimeout(8000);
+  var c1 = await page.evaluate(function () { return { phase: APP.restPhase(), oct: APP.oct.state, sceneBottom: Math.round(document.getElementById('scene').getBoundingClientRect().bottom) }; }), cn1 = await sleeps();
+  await page.evaluate(function () { window.scrollTo(0, 0); document.body.style.paddingBottom = ''; });
+  var z3 = await asleep(), cn2 = await sleeps();
+  ok(c1.phase === 'awake' && c1.oct !== 'sleep' && c1.sceneBottom <= 0 && cn1 === 2 && z3 && cn2 === 3, '장면을 아래로 내려 둔 8 s 동안 틈이 줄지 않고, 다시 올려 보면 이어 센 뒤 잠 ' + JSON.stringify(c1));
+  /* 4. 틈 안에서 초대 → 다음 차례가 바로 · 틈은 걷힘 · 그 차례 뒤 새 틈 · 끊긴 틈은 잠 훅을 내지 않는다 */
+  await bringBack();
+  var w0 = await page.evaluate(function () { return { phase: APP.restPhase(), n: APP.state.trips.length }; });
+  await page.waitForTimeout(1000);
+  await page.click('#btn-go'); await page.waitForSelector('#btn-go.away', { timeout: 10000 });
+  var w1 = await page.evaluate(function () { return { n: APP.state.trips.length, saved: APP.state.octopus.state, rest: APP.rest }; });
+  await skipAway(page); await waitIdle(page, 90000);
+  var w2 = await page.evaluate(function () { return APP.restPhase(); }), wn = await sleeps();
+  ok(w0.phase === 'awake' && w1.n === w0.n + 1 && w1.rest === null && w1.saved === 'idle', '틈 안에서 초대: 다음 차례가 바로 · 틈은 걷힘 · 저장은 깬 상태 ' + JSON.stringify(w1));
+  ok(w2 === 'awake' && wn === 3, '그 차례 뒤엔 새 틈 · 끊긴 틈은 잠 훅을 내지 않는다 (' + w2 + ' · 잠 훅 ' + wn + ')');
+  /* 5. 졸림으로 마무리한 차례도 잠깐 깨어 있다 — 틈은 25 s 까지 (훅이 60 s 여도) */
+  await page.evaluate(function () { window.__ppolAwakeMs = 60000; });
+  await page.waitForTimeout(1000);
+  ok(await page.evaluate(function () { return APP.importEvents(JSON.stringify([{ type: 'stay_home', t: 0, activity: 'nap', line: '담요 속에서 낮잠 잤어' }, { type: 'wrap_up', t: 1500, reaction: '졸림', line: '눈이 감겨' }])); }), '졸림 집 차례 재생 시작');
+  await skipAway(page); await waitIdle(page, 90000);
+  var zz = await page.evaluate(function () { return { phase: APP.restPhase(), rest: APP.rest, oct: APP.oct.state }; });
+  ok(zz.phase === 'awake' && zz.rest && zz.rest.left > 0 && zz.rest.left <= 25000 && zz.oct !== 'sleep', '졸림으로 마무리한 차례 뒤에도 깨어 있는 틈 — 25 s 까지 (훅 60 s): ' + JSON.stringify(zz));
+  /* 6. 새로고침: 이 탭의 남은 틈을 이어 받는다 (앨범으로 멈췄던 만큼) — sessionStorage · 읽으면 지움 · 게임 기록엔 없음 */
+  await page.waitForTimeout(1000);
+  await bringBack();
+  await page.click('#btn-album'); await page.waitForSelector('#album-sheet[open]');
+  await page.waitForTimeout(12000);
+  await page.click('#al-close'); await page.waitForSelector('#album-sheet[open]', { state: 'hidden' });
+  var b6 = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { left: APP.rest ? APP.rest.left : -1, clock: 60000 - (Date.now() - t.endedAt) }; });
+  await page.addInitScript({ content: 'window.__ppolAwakeMs = 60000;' });
+  await page.reload(); await waitIdle(page); await page.waitForTimeout(300);
+  var r6 = await page.evaluate(function () { var g = JSON.parse(localStorage.getItem('ppolppol_v2') || '{}'), t = g.trips[g.trips.length - 1]; return { phase: APP.restPhase(), left: APP.rest ? APP.rest.left : -1, clock: 60000 - (Date.now() - t.endedAt), kept: sessionStorage.getItem('ppolppol_rest'), inSave: /"left"|"rest"/.test(JSON.stringify(g.octopus)) }; });
+  ok(r6.phase === 'awake' && r6.left > r6.clock + 5000 && Math.abs(r6.left - b6.left) < 5000 && r6.kept === null && !r6.inSave, '틈 안에 새로고침: 앨범으로 멈췄던 만큼 남은 틈을 이어 받는다 (sessionStorage · 읽으면 지움 · 게임 기록엔 없음) ' + JSON.stringify({ before: b6, after: r6 }));
+  /* 7. 두 탭: 이 탭(B) 문어는 앞 낮잠에 자는 중 → 다른 탭(A)이 차례를 끝내면 B 문어도 담요에서 깨어 그 틈 · B 에서 톡하면 A 차례의 한 줄 */
+  await page.evaluate(function () { window.__ppolAwakeMs = 1500; });
+  await page.waitForTimeout(1000);
+  await bringBack();
+  var bz = await asleep(page, 60000);
+  await page.evaluate(function () { window.__ppolAwakeMs = 30000; });
+  var nowB = await page.evaluate(function () { return Date.now(); });
+  var A = await s.ctx.newPage(); watchErrors(A, s.bag);
+  await A.clock.install({ time: new Date(nowB) });   /* 두 탭이 같은 시계 (끝난 시각을 서로 잰다) */
+  await A.addInitScript({ content: "window.__ppolTest = { forceKind: 'out' };" });
+  await routeWiki(A, 'ok');
+  await A.goto(INDEX + '?dev=0'); await A.waitForSelector('#btn-go'); await A.waitForTimeout(500);
+  await bringBack(A);
+  var tw = await page.waitForFunction(function () { return APP.restPhase() === 'awake' && APP.oct.state !== 'sleep'; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
+  var r7 = await page.evaluate(function () { var L = APP.tapLine(); APP.tapOct(); var b = document.getElementById('oct-bubble'); return { phase: APP.restPhase(), oct: APP.oct.state, anchor: APP.oct.anchor, rest: APP.rest, line: L && L.text, b: b.hidden ? '' : b.textContent, last: APP.state.trips[APP.state.trips.length - 1].id }; });
+  ok(bz && tw && r7.line && r7.b === r7.line && r7.rest && r7.rest.id === r7.last, '두 탭: 자던 이 탭 문어도 다른 탭이 끝낸 차례 뒤 담요에서 깨어 있다 · 톡 → 그 차례 한 줄 ' + JSON.stringify(r7));
+  await A.close();
+  reportErrors(s.bag, 'T-3');
+  await s.ctx.close();
 }
 /* T-2. 말풍선 맞추기 (3D): 폰 세 폭 × 두 테마 × 앵커 여섯 × 줄 셋 — 풍선이 장면 칸 안 4px 안쪽에 · 많이 내려오면 꼬리 없음 */
 async function scenarioTapFit(browser) {
@@ -2629,10 +2738,10 @@ async function scenarioTapFit(browser) {
           var r = await page.evaluate(function (o) {
             return new Promise(function (res) {
               APP.scene.jumpTo(o.a); APP.say(o.t, 'say', 8000);
-              setTimeout(function () { requestAnimationFrame(function () {
+              setTimeout(function () { requestAnimationFrame(function () { requestAnimationFrame(function () {
                 var b = document.getElementById('oct-bubble'), s = document.getElementById('scene').getBoundingClientRect(), r = b.getBoundingClientRect(), dy = parseFloat(b.style.getPropertyValue('--bub-dy')) || 0;
                 res({ l: r.left - s.left, r: s.right - r.right, t: r.top - s.top, b: s.bottom - r.bottom, w: Math.round(r.width), h: Math.round(r.height), dy: dy, tail: b.getAttribute('data-tail'), hidden: b.hidden });
-              }); }, 260);
+              }); }); }, 520);   /* 순간이동 뒤 5 Hz 다시 맞추기가 두 번 돈 다음 (바쁜 기계에선 첫 프레임이 옛 자리를 잴 수 있다) */
             });
           }, { a: a, t: LINES[li] });
           n++;
@@ -2670,15 +2779,29 @@ async function scenarioBringBack(browser) {
       window.__tl = []; window.__fly = 0; var t0 = performance.now();
       new MutationObserver(function (ms) { ms.forEach(function (m) { m.addedNodes.forEach(function (x) { if (x.classList && x.classList.contains('album-fly')) window.__fly++; }); }); }).observe(document.getElementById('scene'), { childList: true, subtree: true });
       document.getElementById('btn-go').addEventListener('click', function () { window.__tl.push({ k: 'click', t: performance.now() - t0, away: document.getElementById('btn-go').classList.contains('away') }); }, true);
+      new MutationObserver(function () { window.__tl.push({ k: 'flip', t: performance.now() - t0, away: document.getElementById('btn-go').classList.contains('away') }); }).observe(document.getElementById('btn-go'), { attributes: true, attributeFilter: ['class'] });
+      window.__retFrames = 0; (function fr() { if (APP.ceremony === 'return') window.__retFrames++; requestAnimationFrame(fr); })();
       (function tick() { var tst = document.getElementById('toast'), pip = document.querySelector('#pips .pip.on'); window.__tl.push({ k: 'tick', t: performance.now() - t0, cer: APP.ceremony, toast: tst && tst.classList.contains('show') ? tst.textContent : '', pip: !!pip, away: document.getElementById('btn-go').classList.contains('away'), oct: APP.oct.state }); if (window.__tl.length < 3000) setTimeout(tick, 25); })();
     });
     await page.click('#btn-go');
+    var dbl = null;
     if (mode !== 'watch') {
       await page.waitForSelector('#btn-go.can-skip', { timeout: 10000 });
       await page.waitForFunction(function () { return APP.scene.ceremony() === '' && APP.oct.state === 'away'; }, null, { timeout: 15000, polling: 50 }).catch(function () {});   /* 나간 뒤 (바깥) */
-      await page.click('#btn-go');
-      await page.waitForFunction(function () { return APP.ceremony === 'return'; }, null, { timeout: 4000, polling: 20 }).catch(function () {});
-      await page.evaluate(function () { document.getElementById('btn-go').click(); });   /* 귀가 중 한 번 더 */
+      if (mode === 'reduce') {
+        /* 모션 줄이기: 귀가가 한 프레임이라 두 번 톡의 둘째는 버튼이 '뽈뽈 다녀와' 로 돌아온 뒤에 온다 → 새 산책이 되면 안 된다 (둘째 톡 = 돌아온 바로 그때, 페이지 안에서) */
+        dbl = await page.evaluate(function () { return new Promise(function (res) {
+          var go = document.getElementById('btn-go'), n0 = APP.state.trips.length, t0 = performance.now(), second = -1;
+          var mo = new MutationObserver(function () { if (second < 0 && !go.classList.contains('away')) { second = performance.now() - t0; go.click(); } });
+          mo.observe(go, { attributes: true, attributeFilter: ['class'] });
+          go.click();
+          setTimeout(function () { mo.disconnect(); res({ n0: n0, n: APP.state.trips.length, second: Math.round(second), away: go.classList.contains('away') }); }, 1500);
+        }); });
+      } else {
+        await page.click('#btn-go');
+        await page.waitForFunction(function () { return APP.ceremony === 'return'; }, null, { timeout: 4000, polling: 20 }).catch(function () {});
+        await page.evaluate(function () { document.getElementById('btn-go').click(); });   /* 귀가 중 한 번 더 */
+      }
     }
     await waitIdle(page, 90000); await page.waitForTimeout(300);
     var out = await page.evaluate(function () {
@@ -2687,11 +2810,11 @@ async function scenarioBringBack(browser) {
       S.room.souvenirs.forEach(function (x) { delete x.at; }); S.curiosityNotes.forEach(function (x) { delete x.at; });
       var o = S.octopus;
       return { trip: t, room: S.room, oct: { trips: o.trips, invites: o.invites, days: o.days, affinity: o.affinity, visits: o.visits, state: o.state }, notes: S.notes, cn: S.curiosityNotes, ntrips: S.trips.length,
-        tl: window.__tl, fly: window.__fly, phase: APP.restPhase(), octNow: APP.oct.state, rows: [].map.call(document.querySelectorAll('#log .lrow .ltool'), function (x) { return x.textContent; }),
+        tl: window.__tl, fly: window.__fly, retFrames: window.__retFrames, phase: APP.restPhase(), octNow: APP.oct.state, rows: [].map.call(document.querySelectorAll('#log .lrow .ltool'), function (x) { return x.textContent; }),
         roomRow: [].filter.call(document.querySelectorAll('#log .lrow'), function (r) { return r.querySelector('.ltool').textContent === '방'; }).map(function (r) { return { text: r.querySelector('.ltext').textContent, expr: r.dataset.expr || '' }; }),
         sleeps: window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; }).length };
     });
-    out.page = page; out.ctx = ctx; out.bag = bag;
+    out.page = page; out.ctx = ctx; out.bag = bag; out.dbl = dbl;
     return out;
   }
   var A = await run('watch'), Bq = await run('bring');
@@ -2701,13 +2824,16 @@ async function scenarioBringBack(browser) {
   /* 데려온 쪽의 시간표 (누른 순간부터) */
   var tl = Bq.tl, clicks = tl.filter(function (x) { return x.k === 'click' && x.away; }), c0 = clicks.length ? clicks[0].t : 0;
   function first(f) { for (var i = 0; i < tl.length; i++) if (tl[i].k === 'tick' && tl[i].t >= c0 && f(tl[i])) return Math.round(tl[i].t - c0); return -1; }
-  var tRet = first(function (x) { return x.cer === 'return'; }), tToast = first(function (x) { return /^새 포스터 · /.test(x.toast); }), tPip = first(function (x) { return x.pip; }), tDone = first(function (x) { return !x.away; });
+  var tRet = first(function (x) { return x.cer === 'return'; }), tToast = first(function (x) { return /^새 포스터 · /.test(x.toast); }), tPip = first(function (x) { return x.pip; }), tDone = (function () { for (var i = 0; i < tl.length; i++) if (tl[i].k === 'flip' && tl[i].t >= c0 && !tl[i].away) return Math.round(tl[i].t - c0); return -1; })();
   console.log('   데려오기 시간표 (ms, 누른 뒤): 귀가 ' + tRet + ' · 토스트 ' + tToast + ' · 등불 ' + tPip + ' · 버튼 ' + tDone + ' · 누름 ' + clicks.length);
   ok(clicks.length >= 2, '나가 있는 동안 두 번 눌렀다 (데려오기 + 귀가 중 한 번 더)');
-  /* 폰(60 fps)에선 귀가 ≈ 0.7 s · 토스트 ≈ 1 s · 버튼 ≈ 2 s. 헤드리스 소프트웨어 GL 은 프레임이 느려(장면 dt 상한 0.1 s) 장면 시간이 벽시계보다 늦게 간다 → 여유 있게 */
-  ok(tRet >= 0 && tRet <= 1500, '누르면 곧 다락 문으로 귀가가 시작된다 (' + tRet + ' ms)');
-  ok(tToast > tRet && tToast <= 4500 && tPip >= tToast, "짧은 귀가에 '새 포스터 · …' 토스트 → 등불 칸 (토스트 " + tToast + ' · 등불 ' + tPip + ' ms)');
-  ok(tDone > 0 && tDone <= 6500, '버튼은 짧은 귀가 뒤 돌아온다 (' + tDone + ' ms · 귀가 중 한 번 더 눌러도 새 산책 없음: 차례 ' + Bq.ntrips + ')');
+  /* 폰(60 fps)에선 귀가 ≈ 0.7 s · 토스트 ≈ 1 s · 버튼 ≈ 2 s. 헤드리스 소프트웨어 GL · 다른 일로 바쁜 기계에선 프레임과 타이머가 늦어(장면 dt 상한 0.1 s) 벽시계로는 몇 배까지 늘어난다 →
+     짧은 귀가인지는 프레임 수로 (긴 귀가 = 길 · 계단 · 현관 ≈ 8 s 장면 시간 = 80 프레임 넘게, 짧은 귀가 ≈ 0.7 s = 7~45 프레임), 벽시계는 순서와 넉넉한 상한만 */
+  ok(tRet >= 0 && tRet <= 3000, '누르면 곧 다락 문으로 귀가가 시작된다 (' + tRet + ' ms)');
+  /* 아래 한도: 짧은 귀가는 장면 시간 ≈ 0.55 s 이고 장면 dt 상한이 0.1 s 라 기계가 바빠도 5 프레임 넘게 걸린다 — 귀가 중 한 번 더 누른 게 의식을 감아 버리면 1~2 프레임 */
+  ok(Bq.retFrames >= 5 && Bq.retFrames <= 45, '귀가 의식은 짧은 판 (다락 문 0.3 s 전환 + 문간에서 2배 걸음 — 길 · 계단 없음) · 귀가 중 한 번 더 눌러도 감기지 않는다: ' + Bq.retFrames + ' 프레임');
+  ok(tToast > tRet && tToast <= 12000 && tPip >= tToast, "짧은 귀가에 '새 포스터 · …' 토스트 → 등불 칸 (토스트 " + tToast + ' · 등불 ' + tPip + ' ms)');
+  ok(tDone >= tPip && tDone <= 16000, '버튼은 짧은 귀가 뒤 돌아온다 (' + tDone + ' ms · 귀가 중 한 번 더 눌러도 새 산책 없음: 차례 ' + Bq.ntrips + ')');
   ok(Bq.fly >= 1 && Bq.phase === 'awake' && Bq.sleeps === 0, '포스터가 앨범으로 날아가고 · 문어는 깨어 있다 (잠 훅 아직 0 · ' + Bq.phase + ')');
   ok(Bq.roomRow.length === 1 && Bq.roomRow[0].text === '창턱에 이끼 화분이 놓였어' && !Bq.roomRow[0].expr, "데려와도 '방' 줄 — 집 목소리 사실 문장, 문어 초상 없음 (" + JSON.stringify(Bq.roomRow) + ')');
   var sl = await Bq.page.waitForFunction(function () { return window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; }).length >= 1; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
@@ -2720,11 +2846,12 @@ async function scenarioBringBack(browser) {
   var R = await run('reduce');
   var toastR = R.tl.some(function (x) { return x.k === 'tick' && /^새 포스터 · /.test(x.toast); }), pipR = R.tl.some(function (x) { return x.k === 'tick' && x.pip; });
   ok(R.fly === 0 && toastR && pipR && R.roomRow.length === 1, "모션 줄이기 + 데려오기: 앨범으로 날지 않지만 토스트 · 등불 칸 · '방' 줄은 보인다 (fly " + R.fly + ')');
+  ok(R.dbl && R.dbl.second >= 0 && R.dbl.second < 900 && R.dbl.n === R.dbl.n0 && !R.dbl.away && R.ntrips === 1, '모션 줄이기 + 두 번 톡: 둘째 톡(버튼이 돌아온 바로 그때)은 새 산책이 되지 않는다 ' + JSON.stringify(R.dbl));
   ok(!R.bag.length, '[K 모션 줄이기] 페이지 에러 0' + (R.bag.length ? ': ' + R.bag.join(' | ') : ''));
   await R.ctx.close();
   /* 모델(MCP) 차례를 데려와도 기록은 같다 */
   var EV = [{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 1000, target: { kind: 'room', id: 'hat' }, status: 'builtin', ms: 3000, aside: '챙이 넓네' }, { type: 'peek', t: 2000, target: { kind: 'room', id: 'shell' }, status: 'builtin', ms: 2000 }, { type: 'return', t: 3000, reason: 'enough' }, { type: 'remember', t: 3500, stopIdx: 1, line: '조개 줄무늬를 셌어' }, { type: 'hang_poster', t: 4000 }, { type: 'wrap_up', t: 4500, reaction: '덤덤', line: '조용히 다녀왔어' }];
-  async function model(bring) {
+  async function model(bring) {   /* bring: false 끝까지 (빠르게) · true 나가자마자 데려오기 · 'returning' 길을 걸어 오는 중에 데려오기 (보통 속도) */
     var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR' });
     await ctx.addInitScript({ content: "window.__ppolAwakeMs = 0; window.__ppolTest = { today: '" + DAY + "' };" });
     var page = await ctx.newPage(), bag = []; bag.ignored = []; watchErrors(page, bag);
@@ -2732,15 +2859,31 @@ async function scenarioBringBack(browser) {
     await routeWiki(page, 'ok');
     await page.goto(INDEX + '?dev=0' + (bring ? '' : '&slow=0.2')); await nameOct(page, '데려와');
     await page.evaluate(function (e) { APP.importEvents(e); }, EV);
-    if (bring) await skipAway(page);
+    var rp = null;
+    if (bring === true) await skipAway(page);
+    if (bring === 'returning') rp = await page.evaluate(function () { return new Promise(function (res) {
+      /* 바깥 길에서 집으로 걸어 오는 중 (귀가 의식 · 바깥 · 문어가 보임)에 큰 버튼 — 프레임마다 문어 자리 · 귀가 의식 프레임 수 */
+      var go = document.getElementById('btn-go'), log = [], pressed = false, frames = 0, t0 = performance.now();
+      (function f() {
+        var m = APP.scene.motion ? APP.scene.motion() : {};
+        if (!pressed && APP.ceremony === 'return' && m.place === 'exterior' && m.octVisible) { pressed = true; go.click(); }
+        if (pressed) { var k = APP.oct.anchor + '/' + APP.oct.state + '/' + m.place; if (log[log.length - 1] !== k) log.push(k); if (APP.ceremony === 'return') frames++; }
+        if (pressed && !go.classList.contains('away')) { res({ log: log, frames: frames }); return; }
+        if (performance.now() - t0 > 150000) { res({ timeout: true, pressed: pressed, log: log.slice(-6) }); return; }
+        requestAnimationFrame(f);
+      })();
+    }); });
     await waitIdle(page, 90000); await page.waitForTimeout(200);
     var t = await page.evaluate(function () { var S = JSON.parse(JSON.stringify(APP.state)), t = S.trips[S.trips.length - 1]; delete t.startedAt; delete t.endedAt; return { t: t, lantern: S.room.lantern, visits: S.octopus.visits }; });
     await ctx.close();
-    return { r: t, bag: bag };
+    return { r: t, bag: bag, rp: rp };
   }
-  var M1 = await model(false), M2 = await model(true);
+  var M1 = await model(false), M2 = await model(true), M3 = await model('returning');
   ok(M1.r.t.by === 'mcp' && same(M1.r, M2.r), '모델 차례를 데려와도 기록이 같다 (큰 버튼은 모델에게 아무것도 보내지 않는다 — 보이는 속도만)');
-  ok(!M1.bag.length && !M2.bag.length, '[K 모델] 페이지 에러 0');
+  var rl = (M3.rp && M3.rp.log) || [], atDoor = rl.some(function (x) { return /^door\/.*\/attic$/.test(x); }), atBoard = rl.some(function (x) { return /^board\//.test(x); });
+  ok(M3.rp && !M3.rp.timeout && atDoor && !atBoard && M3.rp.frames >= 5 && M3.rp.frames <= 45, '길을 걸어 오는 중에 데려와도 자르지 않는다: 짧은 귀가로 다락 문에 들어와 문 앞 (보드 앞에 툭 나타나지 않음) · 귀가 ' + (M3.rp && M3.rp.frames) + ' 프레임 · ' + JSON.stringify(rl.slice(0, 6)));
+  ok(same(M1.r, M3.r), '길을 걸어 오는 중에 데려와도 기록이 같다');
+  ok(!M1.bag.length && !M2.bag.length && !M3.bag.length, '[K 모델] 페이지 에러 0' + (M3.bag.length ? ': ' + M3.bag.join(' | ') : ''));
 }
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);

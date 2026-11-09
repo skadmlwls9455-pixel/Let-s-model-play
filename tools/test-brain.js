@@ -1692,6 +1692,62 @@ async function tapSuite(label, W) {
       .forEach(function (x) { var rr = BRAIN.tapLine(x); if (rr && /다리가/.test(rr.text)) legs++; });
   }
   check(legs === 0, "no '다리가 무거워졌어' after a 졸림 reaction or a reaction line about legs (" + legs + ')');
+  /* 무겁거나 기분처럼 읽히는 방 밖 이름(위키 제목)은 톡 한 줄에서 부르지 않는다 — 들판 · 포스터 곳('{a} 말고') · 못 읽은 곳 (검증 11-08: '들판에서 죽음을 만났어' · '링크 따라 행복까지 가 봤어') */
+  var SENS = ['사랑', '행복', '죽음', '전쟁', '슬픔', '자살', '외로움', '오늘'], named = 0, sensLines = 0, sensErr = [];
+  SENS.forEach(function (x) { if (!BRAIN.TAP_TITLE_AVOID.test(x)) sensErr.push('not avoided: ' + x); });
+  for (sd = 1; sd <= 80; sd++) SENS.forEach(function (x, xi) {
+    var wildStop = { nodeId: null, name: x, title: x, wild: true, status: 'read', ms: 3000 + xi, viaTangent: sd % 2 === 0 };
+    [mk({ seed: sd, receipt: { rememberedIdx: 0, returnReason: null, stops: [stop(a0), wildStop, stop(a1)] } }),
+     mk({ seed: sd, receipt: { rememberedIdx: 1, returnReason: null, stops: [stop(a0), wildStop, stop(a1, { first: true })] } }),
+     mk({ seed: sd, receipt: { rememberedIdx: 0, returnReason: null, stops: [stop(a0), { nodeId: null, name: x, title: x, status: 'failed', ms: 2000 }, stop(a2)] } })]
+      .forEach(function (tt) { var rr = BRAIN.tapLine(tt); if (rr) { sensLines++; if (rr.text.indexOf(x) >= 0) { named++; if (sensErr.length < 4) sensErr.push(rr.text); } } });
+  });
+  /* 위키가 그런 제목을 링크로 줄 때 (실제 계획): 300 계획 */
+  var SENS_LINKS = ['깃털', '밀짚', '베레모', '사랑', '행복', '전쟁', '죽음', '고래', '등대', '슬픔', '바람'];
+  var sensFetch = function (title) { var hh = 0; for (var q = 0; q < title.length; q++) hh = (hh * 31 + title.charCodeAt(q)) >>> 0; var l = []; for (var q2 = 0; q2 < 4; q2++) l.push(SENS_LINKS[(hh + q2 * 7) % SENS_LINKS.length]); return Promise.resolve({ ok: true, title: title, extract: title + '는 무엇이다. 둘째 문장.', url: 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(title), thumb: null, links: l }); };
+  var planNamed = 0, planWild = 0;
+  for (var ps = 1; ps <= 300; ps++) {
+    var pt = await BRAIN.plan(baseInput(ps * 104729, { fetchWiki: sensFetch, state: { visits: {}, affinity: {}, lantern: ps % 8, recent: [], todayOut: 0, posters: 1, owned: [] } }));
+    pt.status = 'done';
+    var pr = BRAIN.tapLine(pt); if (!pr || pt.kind !== 'out') continue;
+    if (pt.receipt.stops.some(function (s) { return s.wild && BRAIN.TAP_TITLE_AVOID.test(s.title || s.name || ''); })) planWild++;
+    if (SENS_LINKS.some(function (x) { return BRAIN.TAP_TITLE_AVOID.test(x) && pr.text.indexOf(x) >= 0; })) { planNamed++; if (sensErr.length < 6) sensErr.push('plan ' + ps + ': ' + pr.text); }
+    var why2 = tapFactOk(W, pt, pr); if (why2) sensErr.push('plan ' + ps + ': ' + pr.text + ' (' + why2 + ')');
+  }
+  check(named === 0 && planNamed === 0 && sensLines > 0 && sensErr.length === 0, 'heavy / feeling-like titles outside the rooms are never named in a tap line — it falls through to another fact (' + sensLines + ' fixture lines · ' + planWild + ' plans met such a title' + (sensErr.length ? ' · ' + sensErr.slice(0, 4).join(' | ') : '') + ')');
+  /* 반응 줄이 '처음' · '모르는 데' 를 말했으면 '다시 가 봤어' 는 없다 */
+  var revBad = 0, revSeen = 0;
+  for (sd = 1; sd <= 80; sd++) {
+    ['오늘 길은 처음이었어. 또 가도 처음일 것 같아', '모르는 데로 한 발 디뎠어. 그게 재밌었어', '그냥 그런 산책이었어. 그래도 다녀왔어'].forEach(function (line, li) {
+      var rv = BRAIN.tapLine(mk({ seed: sd, reaction: li < 2 ? '폴짝' : '덤덤', reactionLine: line, receipt: { rememberedIdx: 0, returnReason: null, stops: [stop(a0), stop(a1, { first: false }), stop(a2, { first: false })] } }));
+      if (rv && rv.src === 'demo:revisit') { if (li < 2) revBad++; else revSeen++; }
+    });
+  }
+  check(revBad === 0 && revSeen > 0, "no '다시 가 봤어' after a reaction line about a first / unknown place (" + revBad + ' bad · ' + revSeen + " revisit lines after '그냥 그런 산책')");
+  /* fresh(): 포스터 한 줄 · 반응 줄과 같은 말은 고르지 않는다 — 고를 줄을 일부러 포스터 · 반응 줄에 넣어도 다른 줄 */
+  var freshTried = 0, freshSame = 0;
+  for (var fs2 = 1; fs2 <= 200; fs2++) {
+    var ftp = await BRAIN.plan(baseInput(fs2 * 7907, { state: { visits: {}, affinity: {}, lantern: fs2 % 8, recent: [], todayOut: 0, posters: 1, owned: [] } }));
+    ftp.status = 'done';
+    var fr0 = BRAIN.tapLine(ftp); if (!fr0) continue;
+    ['poster', 'reaction'].forEach(function (where) {
+      var cp = JSON.parse(JSON.stringify(ftp));
+      if (where === 'poster') { cp.poster = cp.poster || {}; cp.poster.line = fr0.text; } else { cp.reactionLine = fr0.text; if (cp.receipt) cp.receipt.reactionLine = fr0.text; }
+      var fr1 = BRAIN.tapLine(cp); freshTried++;
+      if (fr1 && fr1.text === fr0.text) freshSame++;
+    });
+  }
+  check(freshTried > 100 && freshSame === 0, 'a line already on the poster or in the reaction line is never picked again (' + freshSame + ' repeats / ' + freshTried + ' tries)');
+  /* 젖었다는 말('이끼가 흠뻑 젖어 있었어')은 기록의 날씨가 비 · 가랑비일 때만 (등불 7 은 맑음) */
+  var mossDef = (W.homeActivities || []).filter(function (a) { return a.id === 'moss' && Array.isArray(a.tap); })[0];
+  if (mossDef) {
+    var wetDry = 0, wetRain = 0;
+    for (sd = 1; sd <= 120; sd++) ['clear', 'snow', undefined, 'rain', 'drizzle'].forEach(function (wx, wi) {
+      var mt = { by: 'demo', kind: 'home', status: 'done', seed: sd, weather: wx, poster: { type: 'note', line: mossDef.line }, receipt: { activity: { id: 'moss', line: mossDef.line, detail: mossDef.detail } } };
+      var mr = BRAIN.tapLine(mt); if (mr && /흠뻑|젖/.test(mr.text)) { if (wi < 3) wetDry++; else wetRain++; }
+    });
+    check(wetDry === 0 && wetRain > 0, "moss: '흠뻑 젖어' only on a recorded rain / drizzle day (" + wetDry + ' on dry or unknown days · ' + wetRain + ' on rainy days)');
+  }
 }
 
 /* ───────── main ───────── */

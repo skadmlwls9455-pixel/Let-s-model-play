@@ -23,7 +23,7 @@ function wikiBody(title) {   /* 제목으로 만든 가짜 요약 — 받침 유
 var wikiSeen = [];
 
 async function shot(page, name) { await page.screenshot({ path: path.join(SHOTS, name) }); console.log('  📷 ' + name); }
-async function waitIdle(page) { await page.waitForFunction(function () { var b = document.getElementById('btn-go'); return b && !b.classList.contains('away'); }, null, { timeout: 40000 }); }
+async function waitIdle(page) { await page.waitForFunction(function () { var b = document.getElementById('btn-go'); return b && !b.classList.contains('away') && !(window.APP && APP.goResting); }, null, { timeout: 40000 }); }   /* 막 데려온 뒤의 짧은 틈(연달아 누름으로 안 받음)도 지난 뒤 */
 /* 나가 있는 동안 큰 버튼(#btn-go = "다녀오는 중…") = 건너뛰기. 막 누른 직후 0.6 s 는 안 되니 .can-skip 을 기다린다 */
 async function skipAway(page) { await page.waitForSelector('#btn-go.can-skip'); await page.click('#btn-go'); }
 async function inviteSkip(page, hint) {
