@@ -46,8 +46,8 @@ function outlineOf(hex) {
   return (OC[hex] = o);
 }
 
-function render(st) {
-  var cv = new CS.Canvas(); st.draw(cv);
+function render(st, drawFn) {
+  var cv = new CS.Canvas(); (drawFn || st.draw)(cv);
   var W = CS.W, H = CS.H;
   var cells = cv.c.map(function (k) { if (k == null) return null; if (!SP.KEY[k]) throw new Error(st.id + ': 모르는 색 글자 ' + k); return SP.KEY[k]; });
   var out = cells.slice();
@@ -64,16 +64,27 @@ function render(st) {
 }
 function toRGBA(cells) { var px = Buffer.alloc(cells.length * 4); cells.forEach(function (c, i) { if (!c) return; var r = hexRgb(c); px[i * 4] = r[0]; px[i * 4 + 1] = r[1]; px[i * 4 + 2] = r[2]; px[i * 4 + 3] = 255; }); return px; }
 
-var ids = Object.keys(CS.STICKERS), rendered = {}, manifestAdd = {};
+var ids = Object.keys(CS.STICKERS), rendered = {}, manifestAdd = {}, animIds = [];
 fs.mkdirSync(path.join(ROOT, 'assets/stickers/cook'), { recursive: true });
 ids.forEach(function (id) {
   var st = CS.STICKERS[id], r = render(st), rel = 'assets/stickers/cook/' + id + '.png';
   rendered[id] = r.cells;
   fs.writeFileSync(path.join(ROOT, rel), encodePNG(CS.W, CS.H, toRGBA(r.cells)));
   if (r.touch) console.warn('  ! ' + id + ': 가장자리에 닿은 칸 ' + r.touch + '개 (외곽선 잘림)');
+  if (st.frames) {   /* 움직이는 칸: 32×32 칸을 가로로 이어 붙인 스트립 */
+    var n = st.frames.length, SW2 = CS.W * n, strip = Buffer.alloc(SW2 * CS.H * 4);
+    st.frames.forEach(function (fn, f) {
+      var px = toRGBA(render(st, fn).cells);
+      for (var y = 0; y < CS.H; y++) px.copy(strip, (y * SW2 + f * CS.W) * 4, y * CS.W * 4, (y + 1) * CS.W * 4);
+    });
+    var arel = 'assets/stickers/cook/' + id + '_anim.png';
+    fs.writeFileSync(path.join(ROOT, arel), encodePNG(SW2, CS.H, strip));
+    manifestAdd['sticker.cook.' + id + '.anim'] = { src: arel, w: SW2, h: CS.H, frames: n, cell: CS.W, note: '「' + st.label + '」 움직이는 칸 ' + n + '개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝.' };
+    animIds.push(id);
+  }
   manifestAdd['sticker.cook.' + id] = { src: rel, w: CS.W, h: CS.H, note: '요리 반응 스티커 「' + st.label + '」 — ' + st.alt + '. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js).' };
 });
-console.log('stickers: ' + ids.length + ' PNG → assets/stickers/cook/');
+console.log('stickers: ' + ids.length + ' PNG → assets/stickers/cook/' + (animIds.length ? ' · 움직이는 스트립: ' + animIds.join(', ') : ''));
 
 /* manifest: sticker.cook.* 만 덮어쓴다 */
 var man = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));

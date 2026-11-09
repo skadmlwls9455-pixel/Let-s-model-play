@@ -3,7 +3,8 @@
  *
  *   node tools/test-cook-stickers.js
  *
- * - 그림 16종이 있고 32×32 PNG, manifest 의 sticker.cook.* 와 CATALOG 가 같다
+ * - 그림이 있고 32×32 PNG, manifest 의 sticker.cook.* 와 CATALOG 가 같다
+ * - 움직이는 스티커(anim)는 스트립이 칸 수만큼 넓고, 칸 0 이 정지 그림과 픽셀까지 같다
  * - 공통 규칙·요리 스크립트가 고르는 스티커가 전부 CATALOG 에 있다
  * - 같은 판 id + 같은 순간 순서 = 같은 스티커 (시드), Math.random 0건, 맛·취향 낱말 0건
  * - 큰 순간(가득·완성·차리기)은 쉬는 틈과 상관없이 뜬다, 요리 스크립트가 공통 규칙보다 먼저다
@@ -18,7 +19,7 @@ function fresh() { delete require.cache[require.resolve('../js/cook-stickers.js'
 
 var C = fresh(), ids = Object.keys(C.CATALOG);
 var man = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets/manifest.json'), 'utf8'));
-var keys = Object.keys(man).filter(function (k) { return /^sticker\.cook\./.test(k); }).map(function (k) { return k.slice(13); }).sort();
+var keys = Object.keys(man).filter(function (k) { return /^sticker\.cook\./.test(k) && !/\.anim$/.test(k); }).map(function (k) { return k.slice(13); }).sort();
 check(ids.length >= 12, '스티커가 12종 이상');
 check(JSON.stringify(keys) === JSON.stringify(ids.slice().sort()), 'manifest sticker.cook.* = CATALOG (' + keys.join(',') + ')');
 ids.forEach(function (id) {
@@ -28,6 +29,30 @@ ids.forEach(function (id) {
   var b = fs.readFileSync(f);
   check(b.readUInt32BE(16) === 32 && b.readUInt32BE(20) === 32, id + '.png 32×32');
   check(/요리사 문어 스티커$/.test(C.CATALOG[id].alt), id + ' 대체 글은 그림 설명');
+});
+
+/* 움직이는 스티커: 스트립 = 칸 수 × 32, 칸 0 = 정지 그림 */
+function rgba(f) {   /* make-cook-stickers.js 가 쓴 PNG (RGBA 8bit, 필터 0) 만 읽는다 */
+  var b = fs.readFileSync(f), w = b.readUInt32BE(16), h = b.readUInt32BE(20), i = 8, idat = [];
+  while (i < b.length) { var len = b.readUInt32BE(i), t = b.toString('ascii', i + 4, i + 8); if (t === 'IDAT') idat.push(b.slice(i + 8, i + 8 + len)); i += 12 + len; }
+  var raw = require('zlib').inflateSync(Buffer.concat(idat)), px = Buffer.alloc(w * h * 4);
+  for (var y = 0; y < h; y++) raw.copy(px, y * w * 4, y * (w * 4 + 1) + 1, (y + 1) * (w * 4 + 1));
+  return { w: w, h: h, px: px };
+}
+var animated = ids.filter(function (id) { return C.CATALOG[id].anim; });
+check(animated.indexOf('clap') >= 0, '짝짝은 움직이는 스티커');
+animated.forEach(function (id) {
+  var n = C.CATALOG[id].anim, m = man['sticker.cook.' + id + '.anim'], f = path.join(ROOT, 'assets/stickers/cook/' + id + '_anim.png');
+  check(m && m.frames === n && m.cell === 32 && m.w === 32 * n, id + ' manifest .anim 칸 ' + n);
+  if (!fs.existsSync(f)) { check(false, id + '_anim.png 있음'); return; }
+  var a = rgba(f), st = rgba(path.join(ROOT, 'assets/stickers/cook/' + id + '.png')), same = true, diff = false;
+  check(a.w === 32 * n && a.h === 32, id + '_anim.png ' + (32 * n) + '×32');
+  for (var y = 0; y < 32; y++) for (var x = 0; x < 32; x++) for (var c = 0; c < 4; c++) {
+    if (a.px[(y * a.w + x) * 4 + c] !== st.px[(y * 32 + x) * 4 + c]) same = false;
+    if (a.px[(y * a.w + x) * 4 + c] !== a.px[(y * a.w + 32 + x) * 4 + c]) diff = true;
+  }
+  check(same, id + ' 칸 0 = 정지 그림 (모션 줄이기·폴백이 같은 그림)');
+  check(diff, id + ' 칸 1 은 칸 0 과 다르다');
 });
 
 function picks(p) { return Array.isArray(p) ? p : [p]; }

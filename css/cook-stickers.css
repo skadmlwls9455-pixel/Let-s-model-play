@@ -27,3 +27,20 @@
 .cook-sticker.is-reduced.is-out { animation-name: cook-sticker-fade-out; }
 @keyframes cook-sticker-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cook-sticker-fade-out { to { opacity: 0; } }
+
+/* 움직이는 스티커 (짝짝 등): 스트립을 칸 단위로 끊어 넘긴다 — 4 fps, 부드러운 보간 없음 (장면 입자와 같은 톡톡 박자).
+   --frames · --w 는 js 가 넣는다. 모션 줄이기면 js 가 정지 그림 <img> 를 쓰므로 여기 오지 않는다. */
+.cook-sticker-frames {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  animation: cook-sticker-frames calc(var(--frames, 2) * 250ms) steps(var(--frames, 2)) infinite;
+}
+.cook-sticker-frames.is-still { animation: none; }
+@keyframes cook-sticker-frames {
+  to { background-position: calc(-1 * var(--frames, 2) * var(--w, 96px)) 0; }
+}

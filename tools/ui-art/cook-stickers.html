@@ -58,7 +58,7 @@
 (function () {
   var C = COOK_STICKERS, $ = function (id) { return document.getElementById(id); };
   var base = '../../assets/stickers/cook/';
-  C.mount($('board'), { src: function (id) { return base + id + '.png'; } });
+  C.mount($('board'), { src: function (id, anim) { return base + id + (anim ? '_anim' : '') + '.png'; } });
 
   Object.keys(C.RECIPES).forEach(function (id) { var o = document.createElement('option'); o.value = id; o.textContent = C.RECIPES[id].name + ' (' + id + ')'; $('recipe').appendChild(o); });
   Object.keys(C.CATALOG).forEach(function (id) {

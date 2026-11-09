@@ -39,7 +39,7 @@ var COOK_STICKERS = (function () {
     sweat:       { label: '진땀',   alt: '진땀 흘리며 힘주는 요리사 문어 스티커' },
     cheer:       { label: '만세',   alt: '다리 둘을 번쩍 든 요리사 문어 스티커' },
     peek:        { label: '빼꼼',   alt: '냄비 가장자리 위로 빼꼼 내다보는 요리사 문어 스티커' },
-    clap:        { label: '짝짝',   alt: '다리 둘을 앞에서 맞대고 짝 하고 박수 치는 요리사 문어 스티커' },
+    clap:        { label: '짝짝',   anim: 2,   alt: '다리 둘을 앞에서 맞대고 짝 하고 박수 치는 요리사 문어 스티커' },
     munch:       { label: '냠',     alt: '볼 빵빵하게 오물거리는 요리사 문어 스티커' },
     sleepy:      { label: '꾸벅',   alt: '꾸벅 조는 요리사 문어 스티커' },
     hmm:         { label: '갸웃',   alt: '고개를 갸웃하는 요리사 문어 스티커' },
@@ -180,10 +180,11 @@ var COOK_STICKERS = (function () {
   }
 
   /* ── 그리기 ── */
-  function srcOf(id) {
-    if (opts.src) return opts.src(id);
-    var m = (typeof window !== 'undefined') && (window.ASSETS_INLINE || window.ASSETS), a = m && m['sticker.cook.' + id];
-    return (a && (typeof a === 'string' ? a : a.src)) || ('assets/stickers/cook/' + id + '.png');
+  /* anim=true 면 움직이는 스트립 (assets/stickers/cook/<id>_anim.png, manifest sticker.cook.<id>.anim) */
+  function srcOf(id, anim) {
+    if (opts.src) return opts.src(id, anim);
+    var m = (typeof window !== 'undefined') && (window.ASSETS_INLINE || window.ASSETS), a = m && m['sticker.cook.' + id + (anim ? '.anim' : '')];
+    return (a && (typeof a === 'string' ? a : a.src)) || ('assets/stickers/cook/' + id + (anim ? '_anim' : '') + '.png');
   }
   function reduced() {
     if (typeof document === 'undefined') return false;
@@ -214,14 +215,36 @@ var COOK_STICKERS = (function () {
     var used = {}; Array.prototype.forEach.call(live, function (n) { used[n.dataset.slot] = true; });
     var s = (o.slot || 0) % SLOTS.length, tries = 0;
     while (used[s] && tries++ < SLOTS.length) s = (s + 1) % SLOTS.length;
-    var p = SLOTS[s], img = document.createElement('img');
+    var p = SLOTS[s], size = 32 * scale, frames = CATALOG[id].anim | 0, img;
+    if (frames > 1 && !reduced()) {
+      /* 움직이는 스티커: 바깥 칸은 등장·퇴장, 안쪽 칸은 스트립을 4 fps 로 넘긴다 (css steps). 칸 0 = 정지 그림 */
+      img = document.createElement('div');
+      img.setAttribute('role', 'img'); img.setAttribute('aria-label', CATALOG[id].alt);
+      var fr = document.createElement('span'), anim = srcOf(id, true);
+      fr.className = 'cook-sticker-frames';
+      fr.style.setProperty('--frames', frames); fr.style.setProperty('--w', size + 'px');
+      fr.style.backgroundImage = 'url("' + anim + '")';
+      fr.style.backgroundSize = (size * frames) + 'px ' + size + 'px';
+      img.appendChild(fr);
+      /* 스트립을 못 받으면 정지 그림으로 (그것도 없으면 아래 onerror 처럼 지운다) */
+      var probe = new Image();
+      probe.onerror = function () {
+        var still = new Image();
+        still.onload = function () { fr.classList.add('is-still'); fr.style.backgroundImage = 'url("' + still.src + '")'; fr.style.backgroundSize = size + 'px ' + size + 'px'; };
+        still.onerror = function () { img.remove(); };
+        still.src = srcOf(id);
+      };
+      probe.src = anim;
+    } else {
+      img = document.createElement('img');
+      img.src = srcOf(id); img.alt = CATALOG[id].alt; img.width = size; img.height = size;
+      img.decoding = 'async'; img.draggable = false;
+      img.onerror = function () { img.remove(); };   /* 그림이 없으면 조용히 지운다 (이모지로 대신하지 않는다) */
+    }
     img.className = 'cook-sticker' + (reduced() ? ' is-reduced' : '');
-    img.src = srcOf(id); img.alt = CATALOG[id].alt; img.width = 32 * scale; img.height = 32 * scale;
-    img.decoding = 'async'; img.draggable = false;
     img.dataset.sticker = id; img.dataset.slot = s;
-    img.style.width = img.style.height = (32 * scale) + 'px';
+    img.style.width = img.style.height = size + 'px';
     ['l', 'r', 't', 'b'].forEach(function (k) { if (p[k]) img.style[{ l: 'left', r: 'right', t: 'top', b: 'bottom' }[k]] = p[k]; });
-    img.onerror = function () { img.remove(); };   /* 그림이 없으면 조용히 지운다 (이모지로 대신하지 않는다) */
     host.appendChild(img);
     setTimeout(function () { img.classList.add('is-out'); }, LIFE_MS - 180);
     setTimeout(function () { img.remove(); }, LIFE_MS + 40);

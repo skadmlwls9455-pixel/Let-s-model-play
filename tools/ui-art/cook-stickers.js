@@ -124,7 +124,8 @@ function tear(cv, x, y, len) { for (var j = 0; j < len; j++) { cv.px(x, y + j, j
 
 /* ───── 스티커 목록 ───── */
 var STICKERS = {};
-function def(id, label, alt, draw) { STICKERS[id] = { id: id, label: label, alt: alt, draw: draw }; }
+/* frames 가 있으면 움직이는 스티커: 칸 0 은 정지 그림과 같아야 한다 (모션 줄이기·그림 못 받을 때 그 칸만 보인다) */
+function def(id, label, alt, draw, frames) { STICKERS[id] = { id: id, label: label, alt: alt, draw: draw, frames: frames || null }; }
 
 /* 1. 따봉 — 다리 하나를 들어 엄지 척 */
 def('thumbs', '따봉', '요리사 모자 쓴 문어가 다리 하나로 엄지 척', function (cv) {
@@ -216,22 +217,38 @@ def('peek', '빼꼼', '요리사 모자 쓴 문어가 냄비 가장자리 위로
   cv.dots([[3, 21], [2, 19], [29, 20]], 'Y');
 });
 /* 11. 짝짝 — 박수 */
-def('clap', '짝짝', '요리사 모자 쓴 문어가 빨판 쪽 다리 둘을 앞에서 맞대고 짝 하고 박수', function (cv) {
+/* 짝짝은 움직이는 스티커: 칸 0 = 맞닿음(정지 그림·모션 줄이기), 칸 1 = 벌림 */
+function clapPose(cv, apart) {
   hat(cv, 0, -1); head(cv, 0, -2); face(cv, 0, -2, { eyes: 'happy', mouth: 'open' });
   legs(cv, 0, -2, 'down');
   /* 다리 둘의 빨판 쪽(연한 살구색)을 앞으로 — 빨간 몸 위에서도 또렷하다. 바깥 테두리만 빨강.
-     위는 맞닿고(가운데 이음선 d) 아래는 벌어진 V — 손이 둘로 읽힌다 */
-  var L = ['....Kd', '...Kfd', '..Kfed', '.Kffed', '.Kfefd', 'Kffef.', 'Kfeff.', '.KffK.', '..JJ..'];
-  var R = ['dK....', 'dfK...', 'defK..', 'deffK.', 'dfefK.', '.feffK', '.ffefK', '.KffK.', '..JJ..'];
-  L.forEach(function (r, j) { for (var i = 0; i < r.length; i++) if (r[i] !== '.') cv.px(10 + i, 20 + j, r[i]); });
-  R.forEach(function (r, j) { for (var i = 0; i < r.length; i++) if (r[i] !== '.') cv.px(16 + i, 20 + j, r[i]); });
-  /* 짝! 맞닿은 꼭대기에서 퍼지는 충격선 */
-  cv.dots([[15, 19], [16, 19]], 'Z');
-  cv.dots([[12, 19], [11, 18], [19, 19], [20, 18]], 'F');
-  /* 흔들림 호 (몸 양옆 바깥) */
-  cv.dots([[5, 22], [4, 23], [4, 24], [5, 25]], 'E'); cv.dots([[26, 22], [27, 23], [27, 24], [26, 25]], 'E');
-  sparkle(cv, 3, 17, 'F'); sparkle(cv, 28, 17, 'F');
-});
+     맞닿을 땐 위는 붙고(가운데 이음선 d) 아래는 벌어진 V — 손이 둘로 읽힌다 */
+  var L, R, lx, rx;
+  if (!apart) {
+    L = ['....Kd', '...Kfd', '..Kfed', '.Kffed', '.Kfefd', 'Kffef.', 'Kfeff.', '.KffK.', '..JJ..'];
+    R = ['dK....', 'dfK...', 'defK..', 'deffK.', 'dfefK.', '.feffK', '.ffefK', '.KffK.', '..JJ..'];
+    lx = 10; rx = 16;
+  } else {
+    /* 벌림: 손바닥이 바깥으로 젖혀져 서로 마주 봄 (빨판 면이 안쪽) */
+    L = ['..KK..', '.KffK.', 'KfeffK', 'KffefK', 'KfeffK', 'KffefK', '.KffK.', '..KJ..', '..JJ..'];
+    R = ['..KK..', '.KffK.', 'KffefK', 'KfeffK', 'KffefK', 'KfeffK', '.KffK.', '..JK..', '..JJ..'];
+    lx = 7; rx = 19;
+  }
+  L.forEach(function (r, j) { for (var i = 0; i < r.length; i++) if (r[i] !== '.') cv.px(lx + i, 20 + j, r[i]); });
+  R.forEach(function (r, j) { for (var i = 0; i < r.length; i++) if (r[i] !== '.') cv.px(rx + i, 20 + j, r[i]); });
+  if (!apart) {
+    /* 짝! 맞닿은 꼭대기에서 퍼지는 충격선 + 양옆 반짝 */
+    cv.dots([[15, 19], [16, 19]], 'Z');
+    cv.dots([[12, 19], [11, 18], [19, 19], [20, 18]], 'F');
+    cv.dots([[5, 22], [4, 23], [4, 24], [5, 25]], 'E'); cv.dots([[26, 22], [27, 23], [27, 24], [26, 25]], 'E');
+    sparkle(cv, 3, 17, 'F'); sparkle(cv, 28, 17, 'F');
+  } else {
+    /* 다가오는 움직임 선 (손 사이 빈칸) */
+    cv.dots([[14, 23], [14, 25], [17, 23], [17, 25]], 'E');
+  }
+}
+def('clap', '짝짝', '요리사 모자 쓴 문어가 빨판 쪽 다리 둘을 앞에서 맞대고 짝 하고 박수', function (cv) { clapPose(cv, false); },
+  [function (cv) { clapPose(cv, false); }, function (cv) { clapPose(cv, true); }]);
 /* 12. 냠 — 볼 빵빵 */
 def('munch', '냠', '요리사 모자 쓴 문어가 볼 빵빵하게 오물오물', function (cv) {
   hat(cv, 0, 1); head(cv, 0, 1, 1); face(cv, 0, 1, { eyes: 'happy', mouth: 'puff', blush: false });

@@ -858,5 +858,13 @@
     "w": 32,
     "h": 32,
     "note": "요리 반응 스티커 「두근」 — 요리사 모자 쓴 문어의 몸 색이 분홍으로 물듦. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.clap.anim": {
+    "src": "assets/stickers/cook/clap_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「짝짝」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
   }
 }
