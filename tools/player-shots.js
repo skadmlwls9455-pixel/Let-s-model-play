@@ -3,7 +3,7 @@
  *   node tools/player-shots.js [palette]   # 기본 apollo
  * → tests/evidence/player/pl-attic-day.png (다락 쉬는 자리) · pl-attic-close.png (2× 확대 크롭) · pl-face-close.png (2× 얼굴 크롭 — 사람 얼굴 자기 점검, **놀이방** 빈 바닥에서: 다락 쉬는 자리는 거울 코너 문짝이 왼눈을 가린다) · pl-blink.png (다락 2× 얼굴 크롭 뜬 눈 · 감은 눈 1프레임) · pl-attic-night.png (밤 자체광)
  *   · pl-walk-strip.png (문 톡 → 문 앞까지 걷기 → 문 열림, 0.1 s × 24 칸, 캐릭터를 따라가는 96×96 CSS px 크롭) · pl-attic-door.png (문 앞에 서서 문을 본다 — 문짝에 안 가린다) · pl-play-day.png (놀이방 쉬는 자리) · pl-play-close.png
- *   · pl-parts-sheet.png (파츠 시트: 줄 = 범주 7(머리 · 머리 색 · 눈 · 눈 색 · 옷 · 신발 · 악세사리, UI 순서) · 칸 = 옵션(기본 cfg 에서 하나씩 바꿈), 놀이방 2× 96×96 크롭 — 머리 줄은 옆 45° 뒤쪽 각도(뒷머리 길이가 보이게), 얼굴 범주는 머리 중심, 옷은 몸통, 신발은 발 중심; 60 KB 를 넘으면 pl-parts-<범주>.png 7장; 칸은 눈 뜬 프레임)
+ *   · pl-parts-sheet.png (파츠 시트: 줄 = 범주(전체 10: 머리 · 머리 색 · 눈 · 눈 색 · 코 · 입 · 볼 · 옷 · 신발 · 악세사리, UI 순서) · 칸 = 옵션(기본 cfg 에서 하나씩 바꿈), 놀이방 2× 96×96 크롭 — 머리 줄은 옆 45° 뒤쪽 각도(뒷머리 길이가 보이게), 얼굴 범주는 머리 중심, 옷은 몸통, 신발은 발 중심; 몸 범주 5줄(머리 · 머리 색 · 옷 · 신발 · 악세사리)만; 칸은 눈 뜬 프레임) · pl-parts-face.png (같은 크롭으로 얼굴 범주 5줄: 눈 · 눈 색 · 코 · 입 · 볼)
  *   · pl-parts-hair.png (머리 6종 × (정면 · 옆 90° · 뒤 180°) 2× 128 px 크롭 — 꼭대기부터 긴 머리 끝까지 한 칸에) · pl-hair-turn.png (머리 6종 × 8방향 1×) · pl-hair-turn-2x.png (머리 6종 × 8방향 2×, 머리 중심 — 눈 튀어나옴은 여기서 판정)
  *   · pl-portrait.png (playerPortrait 64×64: 1줄 머리 6종 · 2줄 악세사리 6종, navy 배경)
  *   · pl-stick-walk-strip.png (스틱 입력 setPlayerInput 화면 왼쪽으로 0.1 s × 12 칸, 2× 크롭 — 뒤로 남는 발자국이 보여야 한다, brief MOVE.md)
@@ -21,8 +21,9 @@ var PALETTE = process.argv[2] ? String(process.argv[2]).replace(/[^A-Za-z0-9_]/g
 var OUT = process.env.LOOK_OUT || path.join(ROOT, 'tests/evidence/player');
 fs.mkdirSync(OUT, { recursive: true });
 var W = 360, H = 326, DPR = 2, CROP = 96, FRAMES = 24, STEP = 0.1, PL_H = 1.22, HEAD_Y = 0.87;
-var CATS = ['hair', 'hairColor', 'eyes', 'eyeColor', 'outfit', 'shoes', 'acc'];   /* 파츠 시트 줄 순서 = 설정 시트 UI 순서 */
-var CAT_CY = { hair: 0.84, hairColor: 0.95, eyes: 0.95, eyeColor: 0.95, acc: 0.95, outfit: 0.45, shoes: 0.35 };   /* 2× 크롭(0.89 m)은 키 1.22~1.38 을 다 못 담는다 — 범주마다 보여야 할 곳을 가운데에 (머리 줄은 꼭대기 1.28 이 들게 0.84 → 0.395~1.285, 뒷머리 길이 전체는 pl-parts-hair 128 px 크롭이 맡는다) */
+var CATS = ['hair', 'hairColor', 'eyes', 'eyeColor', 'nose', 'mouth', 'cheek', 'outfit', 'shoes', 'acc'];   /* 파츠 시트 줄 순서 = 설정 시트 UI 순서 */
+var FACE_CATS = ['eyes', 'eyeColor', 'nose', 'mouth', 'cheek'];   /* 얼굴 범주 → pl-parts-face.png */
+var CAT_CY = { hair: 0.84, hairColor: 0.95, eyes: 0.95, eyeColor: 0.95, nose: 0.95, mouth: 0.95, cheek: 0.95, acc: 0.95, outfit: 0.45, shoes: 0.35 };   /* 2× 크롭(0.89 m)은 키 1.22~1.38 을 다 못 담는다 — 범주마다 보여야 할 곳을 가운데에 (머리 줄은 꼭대기 1.28 이 들게 0.84 → 0.395~1.285, 뒷머리 길이 전체는 pl-parts-hair 128 px 크롭이 맡는다) */
 var SKIN = 0xe7d5b3, WHITE = 0xebede9, IRIS = 0x602c2c, OLIVE = 0xd0da91, BROW = 0xbe772b, BLONDE = 0xde9e41;   /* 실광 모델 칸 (docs/PLAYER_PARTS.md §0.1·§2.2): 살결 · 흰색(글린트·깃) · 기본 눈 색 흑갈색 #6a3a30 의 화면 칸 · v0 금발이 뜨던 올리브 · 금발의 감은 눈 선 색(#b8742e 의 앞면 — 눈썹은 피드백 6 으로 없음) · 금발 #e8a93a 의 앞면 */
 
 var CRC = (function () { var t = new Int32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
@@ -78,8 +79,9 @@ function harness() {
   await page.evaluate(function () { SC.pause(); SC.setOctState('idle'); SC.jumpTo('center'); for (var i = 0; i < 6; i++) SC.debugStep(0.1); });
   var p0 = await page.evaluate(function () { return SC.renderer.info.programs.length; });
   var PARTS = await page.evaluate(function () { return { parts: SCENE3D.PLAYER_PARTS, def: SCENE3D.PLAYER_DEFAULT }; });
-  CATS.forEach(function (c) { if (!PARTS.parts[c] || PARTS.parts[c].length < 4 || PARTS.parts[c].length > 6) fails.push('PLAYER_PARTS.' + c + ' 는 4~6 개여야 한다'); if (!PARTS.parts[c].some(function (p) { return p.id === PARTS.def[c]; })) fails.push('PLAYER_DEFAULT.' + c + ' 가 목록에 없다'); });
-  if (PARTS.parts.acc[0].id !== 'none') fails.push('acc 첫 항목은 none');
+  CATS.forEach(function (c) { if (!PARTS.parts[c] || PARTS.parts[c].length < 3 || PARTS.parts[c].length > 6) fails.push('PLAYER_PARTS.' + c + ' 는 3~6 개여야 한다'); if (!PARTS.parts[c].some(function (p) { return p.id === PARTS.def[c]; })) fails.push('PLAYER_DEFAULT.' + c + ' 가 목록에 없다'); });
+  ['acc', 'nose', 'mouth', 'cheek'].forEach(function (c) { if (PARTS.parts[c][0].id !== 'none') fails.push(c + ' 첫 항목은 none (없음을 고를 수 있어야 한다 — 주인 11-08 "입을 없애자")'); });
+  if (Object.keys(PARTS.parts).sort().join() !== CATS.slice().sort().join()) fails.push('PLAYER_PARTS 범주가 시트 줄(CATS)과 같아야 한다 ' + Object.keys(PARTS.parts).join());
 
   async function shot(name) { var f = path.join(OUT, name); await page.locator('#scene').screenshot({ path: f }); var u = uniq(f); console.log('  📷 ' + name + '  (고유 색 ' + u + ')'); if (u > 62) fails.push(name + ' 고유 색 ' + u + ' > 62'); return f; }
   async function cropBuf(cx, cy, size) {   /* 캐릭터 둘레 size×size CSS px (기본 CROP, 원점은 아트 픽셀 배수) → PNG 버퍼 */
@@ -183,9 +185,12 @@ function harness() {
   console.log('parts sheet: cells', cellU.length, 'uniq max', Math.max.apply(null, cellU), '| geometries', g0, '→', g1, '| textures', t0, '→', t1);
   if (g1 > g0 + 7) fails.push('setPlayer 전 옵션 뒤 지오메트리 ' + g0 + ' → ' + g1 + ' (옛 지오메트리 dispose 안 됨)');
   if (t1 !== t0) fails.push('setPlayer 전 옵션 뒤 텍스처 수 ' + t0 + ' → ' + t1 + ' (눈 아틀라스는 하나를 다시 그려야 한다)');
-  var sheet = grid(rows);
-  if (sheet.length <= 60 * 1024) { save('pl-parts-sheet.png', sheet); var su = uniq(path.join(OUT, 'pl-parts-sheet.png')); if (su > 96) fails.push('pl-parts-sheet 고유 색 ' + su + ' > 96'); }
-  else { console.log('  pl-parts-sheet.png 가 ' + (sheet.length / 1024).toFixed(0) + ' KB → 범주별 7장으로'); rows.forEach(function (r, i) { save('pl-parts-' + CATS[i] + '.png', grid([r])); }); try { fs.unlinkSync(path.join(OUT, 'pl-parts-sheet.png')); } catch (e) {} }
+  /* 시트 둘: pl-parts-sheet.png = 몸 범주(머리 · 머리 색 · 옷 · 신발 · 악세사리) · pl-parts-face.png = 얼굴 범주(눈 · 눈 색 · 코 · 입 · 볼). 열 줄을 한 장에 담으면 60 KB 를 넘는다 (11-09) */
+  [['pl-parts-sheet.png', CATS.filter(function (c) { return FACE_CATS.indexOf(c) < 0; })], ['pl-parts-face.png', FACE_CATS]].forEach(function (sh) {
+    var buf = grid(sh[1].map(function (c) { return rows[CATS.indexOf(c)]; })); save(sh[0], buf);
+    var su = uniq(path.join(OUT, sh[0])); if (su > 96) fails.push(sh[0] + ' 고유 색 ' + su + ' > 96');
+    if (buf.length > 60 * 1024) fails.push(sh[0] + ' 가 ' + (buf.length / 1024).toFixed(0) + ' KB > 60 KB');
+  });
 
   /* 2b-2. 머리 시트 pl-parts-hair.png: 머리 6종 × (정면 · 옆 90° · 뒤 180°) 2× 128 px 크롭(머리 중심 0.78 → y 0.19~1.37: 꼭대기부터 긴 머리 끝 0.28 까지) — 96 px 시트 줄은 꼭대기나 뒷머리 끝이 잘려 6종이 갈리지 않았다 (리뷰 11-08) */
   var hrows = [], hi;

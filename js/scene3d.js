@@ -287,13 +287,16 @@ var SCENE3D = (function () {
     hair: [{ id: 'bob', name: '단발' }, { id: 'short', name: '짧은머리' }, { id: 'long', name: '긴생머리' }, { id: 'twin', name: '양갈래' }, { id: 'pony', name: '포니테일' }, { id: 'wave', name: '웨이브' }],
     hairColor: [{ id: 'blonde', name: '금발', hex: '#e8a93a' },{ id: 'brown', name: '밤갈색', hex: '#9a5a3a' }, { id: 'ink', name: '먹남색', hex: '#1e2a44' }, { id: 'silver', name: '은빛', hex: '#cfc9c0' }, { id: 'pink', name: '분홍', hex: '#de8fa9' }, { id: 'lime', name: '연두', hex: '#a0d070' }],   /* 금발 #e8a93a → 필 빛에서 #de9e41 (amber[3] 은 #e8c170 로 살결 #e7d5b3 와 거의 같은 칸이라 1× 에서 머리가 한 덩이 공으로 읽혔다 — 리뷰 11-08) */
     eyes: [{ id: 'round', name: '동그란' }, { id: 'sparkle', name: '반짝' }, { id: 'sleepy', name: '졸린' }, { id: 'almond', name: '또렷' }, { id: 'smile', name: '웃는' }, { id: 'dot', name: '점' }],   /* 눈동자 그림 스타일 (주인 11-08 피드백 6: 눈 모양이 아니라 '눈동자 그림', 전부 귀엽게) */
+    nose: [{ id: 'none', name: '없음' }, { id: 'dot', name: '콩코' }, { id: 'tri', name: '세모코' }],
+    mouth: [{ id: 'none', name: '없음' }, { id: 'smile', name: '미소' }, { id: 'line', name: '새침' }, { id: 'pout', name: '뾰로통' }, { id: 'open', name: '활짝' }, { id: 'o', name: '오' }],
+    cheek: [{ id: 'none', name: '없음' }, { id: 'blush', name: '발그레' }, { id: 'freckle', name: '주근깨' }],   /* 코 · 입 · 볼 (11-09 주인 "동물의 숲 같은 기존 게임들 얼굴 느낌 참고") — 눈과 같은 아틀라스의 도트 그림 */
     eyeColor: [{ id: 'dark', name: '흑갈색', hex: '#6a3a30', hi: '#884b2b' }, { id: 'hazel', name: '호두색', hex: '#884b2b', hi: '#be772b' }, { id: 'sea', name: '바다색', hex: '#3c5e8b', hi: '#4f8fba' }, { id: 'leaf', name: '잎새색', hex: '#468232', hi: '#75a743' }, { id: 'honey', name: '꿀색', hex: '#be772b', hi: '#de9e41' }, { id: 'violet', name: '제비꽃', hex: '#7a367b', hi: '#c65197' }],   /* hex = 홍채 텍셀(앞면 칸: 흑갈 #602c2c · 호두 #7a4841 · 나머지는 apollo 그대로) · hi = '반짝' 홍채 · 한 칸 밝은 홍채. 흑갈색 옛 #4d2b32 는 동공 #151d28 과 두 칸뿐이라 2× 에서 한 덩어리였고 램프 디더에 #411d31 로 떨어졌다 (11-09) */
     outfit: [{ id: 'dress', name: '원피스' }, { id: 'knit', name: '니트' }, { id: 'hoodie', name: '후드' }, { id: 'overall', name: '멜빵' }, { id: 'raincoat', name: '비옷' }],
     shoes: [{ id: 'flat', name: '단화' }, { id: 'boot', name: '부츠' }, { id: 'sneaker', name: '운동화' }, { id: 'loafer', name: '로퍼' }],
     acc: [{ id: 'none', name: '없음' }, { id: 'ribbon', name: '리본' }, { id: 'beret', name: '베레모' }, { id: 'glasses', name: '동글안경' }, { id: 'catears', name: '고양이귀' }, { id: 'strawhat', name: '밀짚모자' }] };
-  var PLAYER_DEFAULT = { hair: 'bob', hairColor: 'blonde', eyes: 'round', eyeColor: 'dark', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };   /* v0 모습 (단발 · 금발 · 동그란 눈 · 어두운 눈 · 남색 원피스 · 단화 · 리본) */
+  var PLAYER_DEFAULT = { hair: 'bob', hairColor: 'blonde', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'blush', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };   /* 기본 모습 (단발 · 금발 · 동그란 눈 · 어두운 눈 · 세모코 · 미소 · 발그레 · 남색 원피스 · 단화 · 리본) */
   function plPart(cat, id) { var L = PLAYER_PARTS[cat] || []; for (var i = 0; i < L.length; i++) if (L[i].id === id) return L[i]; return null; }
-  function normalizePlayer(cfg) {   /* cfg → 일곱 범주가 다 있는 새 객체. 모르는 범주는 버리고 모르는 id 는 기본값 */
+  function normalizePlayer(cfg) {   /* cfg → 열 범주가 다 있는 새 객체. 모르는 범주는 버리고 모르는 id 는 기본값 */
     var out = {}; cfg = cfg && typeof cfg === 'object' ? cfg : {};
     Object.keys(PLAYER_DEFAULT).forEach(function (k) { out[k] = plPart(k, cfg[k]) ? cfg[k] : PLAYER_DEFAULT[k]; });
     return out;
@@ -1730,9 +1733,10 @@ var SCENE3D = (function () {
        문어와 같은 길: 원시 도형 + 정점색(mergeParts) + 툰 3단(toonP) + 같은 후처리(팔레트 스냅 · 외곽선 · 디더), 위치는 화면 픽셀 격자 스냅(snapScreen) · 통통은 세로 정수 px(snapUp) · 걸음은 간 거리로 도는 위상 · 방향은 45° 계단(8방향).
        비율(동숲풍 — 머리 크고 통통·짧뚱, m · 발바닥 y 0): 키 PL_H 1.22(머리칼 실루엣 1.28 · 모자 ≤ 1.38 · p=2 에서 33 px · 문어 0.76 의 1.6 배 · 문 1.68 아래) · 머리 r 0.35 중심 0.87(지름 = 키의 57 %, 목 없음) ·
        몸통 y 0.24~0.56(보이는 8 px) · 팔 어깨 (±0.24, 0.50) 길이 0.22 · 다리 엉덩이 (±0.115, 0.24) · 신발 0.06 · 폭 0.66(문 0.72 안). 6 cm 미만은 안 만든다(단추 · 안경 테 · 소매 띠만 1 px 점·선 의도 — 눈 안의 동공·글린트는 텍셀이다).
-       얼굴(11-09 얼굴 수술, 주인 "옆으로 돌렸을 때 눈동자가 튀어나온 게 무서워 · 귀여움 기준 미달" — 레시피 FACE_V3 §5): **눈 둘뿐**, 눈은 입체가 아니라 머리 곡면에 붙은 **텍스처 조각 2장**(plEyePatch · toonEye · 아틀라스 plEyeTex).
+       얼굴(11-09 얼굴 수술, 주인 "옆으로 돌렸을 때 눈동자가 튀어나온 게 무서워 · 귀여움 기준 미달" — 레시피 FACE_V3 §5): 이목구비는 전부 입체가 아니라 머리 곡면에 붙은 **텍스처 조각**(plPatch · toonEye · 아틀라스 plEyeTex) — 눈 2장 + 고른 코 · 입 · 볼 조각(없음이면 조각도 없다).
        눈 하나 = 화면 4×5 px(1×) = 0.148 × 0.185 m(머리 폭의 21 %) — 텍셀 1 = 화면 1 px 라 1× 에서 '홍채 콩 + 동공 2×2 + 글린트 1' 이 그린 대로 나오고, 2× 는 8×10 텍셀(작은 글린트까지), p=3 은 2×3. 흰자는 안 그린다(흰 테가 눈을 땡그랗게 만든다 — 주인 11-09). 눈 중심 y 0.90(머리 중심 +0.03) · x ±0.148(두 눈 틈 4 px), 조각은 머리 표면 +0.3 cm 를 따라가므로 어느 방향에서도 윤곽 밖으로 안 나온다.
-       눈 스타일 6(동그란 · 반짝 · 졸린 · 또렷 · 웃는 · 점) = 도트 배열 6 벌(PL_PARTS.eyes), 눈 색 6 = 홍채 텍셀 색(eyeColor.hex · 반짝은 hi). 깜빡임 = 아틀라스 '감은 눈' 칸으로 uv 전환. 눈썹 · 입 · 코 · 홍조 없음.
+       눈 스타일 6(동그란 · 반짝 · 졸린 · 또렷 · 웃는 · 점) = 도트 배열 6 벌(PL_PARTS.eyes), 눈 색 6 = 홍채 텍셀 색(eyeColor.hex · 반짝은 hi). 깜빡임 = 아틀라스 '감은 눈' 칸으로 uv 전환. 눈썹 없음.
+       코 3 · 입 6 · 볼 3 (11-09 주인 "동물의 숲 같은 기존 게임들 얼굴 느낌 참고" — 느낌만: 두 눈 사이 작은 코 · 한두 px 입 · 눈 밑 분홍 볼. 주인 11-08 "입은 없는 게 더 귀엽다"는 '없음' 칩으로 남는다): 눈과 같은 메시의 도트 조각(PL_PARTS.nose/mouth/cheek · PL_FEAT), 기본 = 세모코 · 미소 · 발그레.
        머리칼(주인 11-08 "머리가 저게 뭐야"): 모든 조각이 같은 r 0.38 의 얇은 구 껍질 조각(중심 (0, 0.90, −0.03), phi·theta 창을 서로 보완하게 잘라 겹침 없음) — 윗덮개(앞 104° 비움 — 옆머리가 눈을 안 덮고 뺨 살결 1 px) + 앞머리 세 가닥(끝 1.071 / 1.093 / 1.113 — 사선 가르마, 눈 윗선과 화면 1~2 px) + 스타일별 옆·뒷머리.
        두개골 위에 구를 얹지 않는다(구는 매듭 · 다발 끝 · 컬만). 뒷머리 덩어리(긴 머리 커튼 · 웨이브 끝단)는 닫힌 납작 원기둥 — toonP 가 FrontSide 라 열린 반껍질은 안쪽이 컬링돼 틈으로 배경이 비쳤다.
        색은 '실광 모델'(쉬는 자리는 해 그림자 안 — 푸른 필 #a9cbe2 + 헤미가 칠한다)로 apollo 칸을 미리 계산해 골랐다(문서 §2.2): 살결 #ffd096 → #e7d5b3(흰자 #ebede9 와 다른 칸) · 금발 #e8a93a → #de9e41(살결과 두 칸 차 — amber[3] 의 #e8c170 은 살결과 한 덩이로 읽혔다, v0 #ffd27a 는 올리브 #d0da91 로 떴다).
@@ -1748,7 +1752,8 @@ var SCENE3D = (function () {
     var PL_FACE = { atticPlayDoor: Math.PI / 2, playAtticDoor: -Math.PI / 2 };   /* 문 앞에 서서 보는 쪽 (다락 문은 +x 벽 · 놀이방 문은 −x 벽) — 들어올 땐 반대(방 안쪽) */
     var PLC = (function () {
       var skin = '#ffd096';   /* ≈ mixHex(amber[4], dusk[3], .5) — 필 빛에서 #e7d5b3 로 앉아 흰자 #ebede9 와 한 칸 갈린다 (v0 의 paper·dusk 섞음은 앞면이 흰자와 같은 칸이었다) */
-      return { skin: skin, white: PAL.white, sclera: '#fff4e0', pupil: '#1b1b1b', lid: '#c09473', smileArc: '#4d2b32', red: '#c04040', orange: '#e89030', straw: '#dcb878' };   /* sclera(흰자·글린트 텍셀) #fff4e0 → 앞 #ebede9 · 2단 #c7cfcc (#ffffff 는 2단이 물빛 #a4dddb 라 뒤돌아볼 때 청록 눈 조각이 보였다) · lid = 졸린 눈 꺼풀 선(살결 두 칸 아래) · smileArc = 웃는 눈 호 · 코·홍조·입은 없다(11-09 얼굴 수술: 홍조는 이 머리에선 눈 밑 띠 자리뿐, 주인 11-08 "입은 없는 게 더 귀엽다") · red = 리본·방울·니트·운동화 */
+      return { skin: skin, white: PAL.white, sclera: '#fff4e0', pupil: '#1b1b1b', lid: '#c09473', smileArc: '#4d2b32', red: '#c04040', orange: '#e89030', straw: '#dcb878',
+        nose: '#c09473', noseTri: '#e89a5a', mouth: '#7a3b34', mouthLo: '#c09473', tongue: '#d5604a', blush: '#f09aa2', freckle: '#c98a5a' };   /* sclera(흰자·글린트 텍셀) #fff4e0 → 앞 #ebede9 · 2단 #c7cfcc (#ffffff 는 2단이 물빛 #a4dddb 라 뒤돌아볼 때 청록 눈 조각이 보였다) · lid = 졸린 눈 꺼풀 선(살결 두 칸 아래) · smileArc = 웃는 눈 호 · nose = 콩코(살결 두 칸 아래 #c09473) · noseTri = 세모코(주황 칸) · mouth = 입 선 · mouthLo = 옅은 입꼬리 · tongue = 입 안 · blush = 볼(분홍 칸 #df84a5 — #f09a9a 는 초상의 밝은 쪽 볼이 주황 칸으로 떴고, 더 푸른 #f08ab0 은 1× 그늘 쪽이 보라 칸으로 떨어졌다. #f09aa2 가 둘 다 분홍) · freckle = 주근깨 — 전부 실험실에서 '필 빛 → apollo 칸'을 보고 고른 값(더 옅은 #c98050 · #f4b6a0 은 살결 칸으로 떨어져 안 보였다) · red = 리본·방울·니트·운동화 */
     })();
     function plBrowHex(hc) {   /* 감은 눈 선 색(깜빡임 recolor 용 — 눈썹은 피드백 6 으로 없앴다): 머리칼보다 한 칸 이상 어둡고 살결 위에서 읽히게 색마다 따로 (mixHex(hair, ink) 공식은 금발·은빛·연두에서 푸른 회색이 됐다) */
       return hc === 'brown' ? mixHex('#9a5a3a', FIXED.ink, 0.45) : hc === 'ink' ? FIXED.ink : hc === 'silver' ? mixHex('#cfc9c0', PAL.slate[1], 0.6) : hc === 'pink' ? mixHex('#de8fa9', PAL.rose[0], 0.6) : hc === 'lime' ? PAL.moss[0] : '#b8742e';   /* 금발 → #be772b (두 단 어두운 꿀색) */
@@ -1760,21 +1765,39 @@ var SCENE3D = (function () {
     var PL_EYE = { x: 4 / 27, y: 0.90, z: 0.306, ry: 0.25, px: 1 / 27, cw: 4, ch: 5, lift: 0.003, bias: 0.02 / 27 };   /* z·ry 는 안경(EM) 용 — 눈 중심의 머리 표면 z 0.306 · 곡면 노멀 각 ≈ 0.25 rad */
     PL_EYE.sv = (Math.round((PL_EYE.y * Math.cos(TILT) - PL_EYE.z * Math.sin(TILT)) / PL_EYE.px - (PL_EYE.ch % 2) / 2) + (PL_EYE.ch % 2) / 2) * PL_EYE.px;   /* 눈 중심의 화면 세로 좌표(월드 m, 발바닥 기준) = 16.5 px (세로 칸 수가 홀수면 반 픽셀, 짝수면 정수 px) */
     function EM(s, dx, dy, dz, rz, sx, sy, sz, ex) { return M(s * (ex == null ? PL_EYE.x : ex), PL_EYE.y, PL_EYE.z, 0, s * PL_EYE.ry, 0).multiply(M(dx, dy, dz, 0, 0, rz || 0, sx, sy, sz)); }   /* 눈 좌표계 부품 행렬 (s = −1 왼눈 · +1 오른눈) — 지금은 안경만 쓴다 */
-    function plEyePatch(s) {   /* 눈 곡면 조각 (s = −1 왼눈 · +1 오른눈): (cw+1)×(ch+1) 정점, uv 는 0~1 (아틀라스 칸으로의 사상은 plEyeUV 가 한다 — 두 눈이 같은 uv 라 글린트가 둘 다 왼쪽 위) */
-      var nx = PL_EYE.cw, ny = PL_EYE.ch, px = PL_EYE.px, c = Math.cos(TILT), sn = Math.sin(TILT), A = PL_HEAD_R + PL_EYE.lift, B = PL_HEAD_R * 0.98 + PL_EYE.lift, Cc = PL_HEAD_R * 0.94 + PL_EYE.lift;
-      var pos = [], uv = [], idx = [], nnx = s * PL_EYE.x / (A * A), nny = (PL_EYE.y - PL_HEAD_Y) / (B * B), nnz = PL_EYE.z / (Cc * Cc), nl = Math.hypot(nnx, nny, nnz), nor = [];
+    function plPatch(cx, sv0, nx, ny, lift, at, flip) {   /* 머리 곡면 조각: 화면 사각형(중심 cx · sv0 m, nx×ny px 칸)을 쉬는 자세의 카메라 방향으로 머리 타원체(+lift)에 투영한 (nx+1)×(ny+1) 정점 격자, uv 는 0~1 (아틀라스 칸으로의 사상은 plEyeUV). at = [x, y, z] 면 정점 노멀이 전부 그 점의 머리 노멀 하나(눈 — 안쪽 음영 고리 0), 없으면 정점마다 제 자리의 머리 노멀(코 · 입 · 볼 — 살결 텍셀이 밑의 머리와 같은 툰 단에 앉아 조각 네모가 안 보인다). flip = uv 가로 뒤집기(오른쪽 볼) */
+      var px = PL_EYE.px, c = Math.cos(TILT), sn = Math.sin(TILT), A = PL_HEAD_R + lift, B = PL_HEAD_R * 0.98 + lift, Cc = PL_HEAD_R * 0.94 + lift;
+      var pos = [], uv = [], idx = [], nor = [], fn = null;
+      if (at) { var nnx = at[0] / (A * A), nny = (at[1] - PL_HEAD_Y) / (B * B), nnz = at[2] / (Cc * Cc), nl = Math.hypot(nnx, nny, nnz); fn = [nnx / nl, nny / nl, nnz / nl]; }
       for (var j = 0; j <= ny; j++) for (var i = 0; i <= nx; i++) {
-        var sx = s * PL_EYE.x + (i - nx / 2) * px + PL_EYE.bias, sv = PL_EYE.sv + (ny / 2 - j) * px + PL_EYE.bias;   /* 화면 좌표 (우 · 상, m) */
-        /* 시선 광선 p(t) = (sx, sv·cos + t·sin, −sv·sin + t·cos) 과 타원체의 카메라 쪽 교점. 비껴가면 가장 가까운 점을 타원체 안쪽으로 끌어당긴다(4×5 · x ±4 px 에선 비껴가는 정점이 없다 — tools/player-shots.js 가 센다; 6×6 ±4 px 땐 바깥 아래 모서리 하나가 비껴갔다) */
+        var sx = cx + (i - nx / 2) * px + PL_EYE.bias, sv = sv0 + (ny / 2 - j) * px + PL_EYE.bias;   /* 화면 좌표 (우 · 상, m) */
+        /* 시선 광선 p(t) = (sx, sv·cos + t·sin, −sv·sin + t·cos) 과 타원체의 카메라 쪽 교점. 비껴가면 가장 가까운 점을 타원체 안쪽으로 끌어당긴다(눈 4×5 · x ±4 px 에선 비껴가는 정점이 없다 — tools/player-shots.js 가 센다; 6×6 ±4 px 땐 바깥 아래 모서리 하나가 비껴갔다) */
         var ay = sn / B, by = (sv * c - PL_HEAD_Y) / B, az = c / Cc, bz = -sv * sn / Cc, qa = ay * ay + az * az, qb = 2 * (ay * by + az * bz), qc = (sx / A) * (sx / A) + by * by + bz * bz - 1, disc = qb * qb - 4 * qa * qc;
         var t = disc < 0 ? -qb / (2 * qa) : (-qb + Math.sqrt(disc)) / (2 * qa), X = sx / A, Y = (sv * c + t * sn - PL_HEAD_Y) / B, Z = (-sv * sn + t * c) / Cc;
         if (disc < 0) { var k = Math.hypot(X, Y, Z) / 0.985; X /= k; Y /= k; Z /= k; }   /* 비껴간 모서리 정점은 이상 타원체 표면 1.5 % 안쪽으로 — 모서리 쿼드가 찌그러져 그 텍셀의 픽셀 표본점이 쿼드 밖으로 떨어지고 머리 픽셀이 보인다. 정면에선 이 정점도 아직 머리 구 폴리곤(18×13, 현 처짐 ≈ 5.3 mm)보다 6.3 mm 앞이라 '머리에 가려지는' 게 아니다(레이캐스트 11-09) — 가려지는 건 요 45° 부터. 그래서 그 텍셀은 살결이어야 한다 */
-        pos.push(A * X, PL_HEAD_Y + B * Y, Cc * Z); nor.push(nnx / nl, nny / nl, nnz / nl); uv.push(i / nx, 1 - j / ny);
+        pos.push(A * X, PL_HEAD_Y + B * Y, Cc * Z);
+        if (fn) nor.push(fn[0], fn[1], fn[2]); else { var ex = X / A, ey = Y / B, ez = Z / Cc, el = Math.hypot(ex, ey, ez); nor.push(ex / el, ey / el, ez / el); }
+        uv.push(flip ? 1 - i / nx : i / nx, 1 - j / ny);
         if (i < nx && j < ny) { var a = j * (nx + 1) + i, b = a + 1, cI = a + nx + 1, d = cI + 1; idx.push(a, cI, b, b, cI, d); }
       }
       var g = new T.BufferGeometry();
       g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
       return g;
+    }
+    function plEyePatch(s) { return plPatch(s * PL_EYE.x, PL_EYE.sv, PL_EYE.cw, PL_EYE.ch, PL_EYE.lift, [s * PL_EYE.x, PL_EYE.y, PL_EYE.z]); }   /* 눈 곡면 조각 (s = −1 왼눈 · +1 오른눈): 두 눈이 같은 uv 라 글린트가 둘 다 왼쪽 위 */
+    /* 코 · 입 · 볼 (11-09 주인 "동물의 숲 같은 기존 게임들 얼굴 느낌 참고"): 눈과 같은 곡면 조각 + 같은 아틀라스 · 같은 재질(메시 · 드로우콜 · 프로그램 그대로). 조각 크기 = 고른 그림의 1× 줄 크기(가로×세로 px), 자리 = 화면 px(얼굴 한가운데가 픽셀 경계 0):
+       코 · 입은 가운데(가로 짝수 px 여야 가장자리가 픽셀 경계에 앉는다) · top = 윗변의 화면 세로 px(발바닥 기준, 눈은 14~19) · 볼은 안쪽 변이 ±inner px(그림마다 FA 의 넷째 · 다섯째 값이 이 기본을 덮는다). lift 는 눈(0.003)보다 낮아 겹쳐도 눈이 앞 */
+    var PL_FEAT = { lift: 0.0015, nose: { tag: 3, top: 16 }, mouth: { tag: 4, top: 14 }, cheek: { tag: 5, top: 14, inner: 3 } }, PL_FEAT_CATS = ['nose', 'mouth', 'cheek'];
+    function FA(a, b, c, top, inner) { var r = [a, b, c]; if (top != null) r.top = top; if (inner != null) r.inner = inner; return r; }
+    function plArtSize(rows) { return [rows[0].replace(/ /g, '').length, rows.length]; }
+    function plFacePatches(cfg) {
+      var L = [];
+      PL_FEAT_CATS.forEach(function (cat) {
+        var art = PL_PARTS[cat][cfg[cat]], f = PL_FEAT[cat]; if (!art) return;
+        var sz = plArtSize(art[1]), top = art.top == null ? f.top : art.top, sv0 = (top - sz[1] / 2) * PL_EYE.px;
+        (f.inner != null ? [-1, 1] : [0]).forEach(function (sd) { L.push({ g: plPatch(sd ? sd * ((art.inner == null ? f.inner : art.inner) + sz[0] / 2) * PL_EYE.px : 0, sv0, sz[0], sz[1], PL_FEAT.lift, null, sd > 0), c: '#ffffff', tag: f.tag }); });
+      });
+      return L;
     }
     /* 눈 아틀라스 64×64 캔버스 (CanvasTexture, Nearest, sRGB): 줄 = LOD(0: 2×3 텍셀 p=3 용 · 1: 4×5 1× · 2: 8×10 2× — [가로, 세로]), 칸 = 왼눈 · 오른눈 · 감은 눈, 칸 간격 16 px(빈 곳은 살결색). 눈 스타일·눈 색이 바뀌면 다시 그리고 needsUpdate — 텍스처 객체는 하나뿐이라 메모리·프로그램 변화 없음 */
     var PL_ATLAS = { size: 64, pitch: 16, lod: [[2, 3], [4, 5], [8, 10]] };
@@ -1784,9 +1807,16 @@ var SCENE3D = (function () {
       var ec = plPart('eyeColor', look.eyeColor), iris = ec.hex, dark = look.eyes === 'dot' ? mixHex(iris, FIXED.ink, 0.5) : PLC.smileArc;
       return { '.': PLC.skin, W: PLC.sclera, G: PLC.sclera, g: PLC.sclera, I: iris, H: ec.hi || iris, P: PLC.pupil, D: dark, S: mixHex(iris, FIXED.ink, 0.45), L: closed ? plBrowHex(look.hairColor) : PLC.lid };
     }
+    function plFaceCell(cat, l) { return cat === 'nose' ? [48, l * 16] : cat === 'cheek' ? [56, l * 16] : [l * 16, 48]; }   /* 코 · 볼 = 넷째 칸 줄(x 48 · 56, LOD 줄마다 8×16 씩) · 입 = 맨 아랫줄(y 48, LOD 마다 16×16) */
+    function plFacePal(look) { return { N: look.nose === 'tri' ? PLC.noseTri : PLC.nose, M: PLC.mouth, m: PLC.mouthLo, T: PLC.tongue, B: PLC.blush, F: PLC.freckle }; }   /* 코 · 입 · 볼 도트 기호 → hex */
     function plDrawEyes(look) {
       var x = plEyeCv.getContext('2d'), art = PL_PARTS.eyes[look.eyes] || PL_PARTS.eyes.round;
       x.fillStyle = PLC.skin; x.fillRect(0, 0, PL_ATLAS.size, PL_ATLAS.size);
+      var fpal = plFacePal(look);
+      PL_FEAT_CATS.forEach(function (cat) {
+        var fa = PL_PARTS[cat][look[cat]]; if (!fa) return;
+        for (var l = 0; l < 3; l++) { var o = plFaceCell(cat, l); fa[l].forEach(function (row, r) { row = row.replace(/ /g, ''); for (var cI = 0; cI < row.length; cI++) { if (row[cI] === '.') continue; x.fillStyle = fpal[row[cI]] || PLC.skin; x.fillRect(o[0] + cI, o[1] + r, 1, 1); } }); }
+      });
       PL_ATLAS.lod.forEach(function (sz, l) {
         [art[l], art[l], PL_PARTS.eyes.closed[l]].forEach(function (rows, col) {
           var pal = plEyePal(look, col === 2), ox = col * PL_ATLAS.pitch, oy = l * PL_ATLAS.pitch;
@@ -1798,8 +1828,10 @@ var SCENE3D = (function () {
     function plEyeUV() {   /* 눈 메시 uv 를 지금 상태(LOD · 감김)의 아틀라스 칸으로 (tag 1 = 왼눈 칸 0 · tag 2 = 오른눈 칸 1 · 감으면 둘 다 칸 2). 정점 속성 업로드만 — 메시·드로우콜·텍스처 변화 없음 */
       if (!PL || !plEyes) return;
       var g = plEyes.geometry, a = g.attributes.uv, b = g.userData.uv0, tags = g.userData.tags; if (!a || !b) return;
-      var l = PL.lod, sz = PL_ATLAS.lod[l], S0 = PL_ATLAS.size, oy = l * PL_ATLAS.pitch;
-      for (var i = 0; i < tags.length; i++) { var ox = (PL.shut ? 2 : tags[i] === 1 ? 0 : 1) * PL_ATLAS.pitch; a.setXY(i, (ox + b[i * 2] * sz[0]) / S0, 1 - (oy + (1 - b[i * 2 + 1]) * sz[1]) / S0); }
+      var l = PL.lod, sz = PL_ATLAS.lod[l], S0 = PL_ATLAS.size, cells = {};
+      cells[1] = [(PL.shut ? 2 : 0) * PL_ATLAS.pitch, l * PL_ATLAS.pitch, sz[0], sz[1]]; cells[2] = [(PL.shut ? 2 : 1) * PL_ATLAS.pitch, l * PL_ATLAS.pitch, sz[0], sz[1]];
+      PL_FEAT_CATS.forEach(function (cat) { var fa = PL_PARTS[cat][PL.look[cat]]; if (fa) { var o = plFaceCell(cat, l), fs = plArtSize(fa[l]); cells[PL_FEAT[cat].tag] = [o[0], o[1], fs[0], fs[1]]; } });
+      for (var i = 0; i < tags.length; i++) { var r = cells[tags[i]]; if (r) a.setXY(i, (r[0] + b[i * 2] * r[2]) / S0, 1 - (r[1] + (1 - b[i * 2 + 1]) * r[3]) / S0); }
       a.needsUpdate = true;
     }
     function plEyeLod() {   /* 8×10 은 텍셀 ≥ 1.0 px 가 되는 N 53 이상(= 2× 멈춤 54 뿐) · 4×5 는 N 27~48(1.00~1.78 px, 빠지는 열 없음) · 2×3 은 p=3 의 N 18~26(가로 텍셀 1.33~1.9 px) */
@@ -1877,6 +1909,22 @@ var SCENE3D = (function () {
         closed: [['. .', 'L L', '. .'],
           ['. . . .', '. . . .', '. . . .', 'L L L L', '. . . .'],
           ['. . . . . . . .', '. . . . . . . .', '. . . . . . . .', '. . . . . . . .', '. . . . . . . .', '. . . . . . . .', 'L . . . . . . L', '. L L L L L L .', '. . . . . . . .', '. . . . . . . .']] },   /* 감은 눈 (깜빡임 120 ms): 머리색 한 칸 어두운 선 하나 (2× 는 양 끝이 한 칸 올라간 ‿) */
+      /* 코 · 입 · 볼 그림 (11-09, 주인 "동물의 숲 같은 기존 게임들 얼굴 느낌 참고") — 눈과 같은 메시 · 같은 아틀라스의 도트 조각. FA([p=3 줄], [1× 줄], [2× 줄], 윗변 세로 px, 볼 안쪽 변 px).
+         조각 크기 = 1× 줄 크기(가로×세로 px) · 2× 는 꼭 그 두 배 텍셀 · 코 · 입은 가로 짝수 px(얼굴 한가운데가 픽셀 경계). 조각은 모두 세로 2 px 이상 — p=3(18 px/m)에서 1.33 px 라 어느 격자 위상에서도 한 줄은 잡힌다(1 px 짜리 조각은 0.67 px 라 깜빡였다) · p=3 그림은 조각 전체를 한두 텍셀로 칠한다.
+         자리(1×, 발바닥 기준 세로 px): 눈 14~18 · 코 15(두 눈 사이, 눈 중심 바로 아래) · 입 13~12(가운데 선은 12 — 11 은 깃이 가리고 턱 곡면에서 조각이 머리 안으로 든다) · 볼 13(눈 바깥 반쪽 바로 아래).
+         기호: N 코 · M 입 선 · m 옅은 입꼬리(살결 두 칸 아래 — 1× 에서 곡선을 한 칸으로 흉내) · T 입 안 · B 볼 · F 주근깨 · . 살결 */
+      nose: { none: null,
+        dot: FA(['N'], ['N N', '. .'], ['. N N .', '. N N .', '. . . .', '. . . .'], 16),   /* 콩코: 살구빛 점 */
+        tri: FA(['N'], ['N N', '. .'], ['. N N .', 'N N N N', '. . . .', '. . . .'], 16) },   /* 세모코: 주황 세모 (plFacePal 이 색을 바꾼다) */
+      mouth: { none: null,
+        smile: FA(['M M'], ['m . . m', '. M M .'], ['. . . . . . . .', '. M . . . . M .', '. . M M M M . .', '. . . . . . . .'], 14),   /* 미소 ‿ */
+        line: FA(['M'], ['. .', 'M M'], ['. . . .', '. . . .', 'M M M M', '. . . .'], 14),   /* 새침 ㅡ */
+        pout: FA(['M M'], ['. M M .', 'm . . m'], ['. . . M M . . .', '. . M . . M . .', '. M . . . . M .', '. . . . . . . .'], 14),   /* 뾰로통 ㅅ */
+        open: FA(['M'], ['M M', 'T T'], ['M M M M', 'M T T M', '. T T .', '. . . .'], 14),   /* 활짝 ▽ */
+        o: FA(['M'], ['M M', 'M M'], ['. M M .', 'M T T M', 'M T T M', '. M M .'], 14) },   /* 오 */
+      cheek: { none: null,
+        blush: FA(['B B'], ['B B B', '. . .'], ['B B B B B B', '. B B B B .', '. . . . . .', '. . . . . .'], 14, 3),   /* 발그레 */
+        freckle: FA(['. .'], ['F . F', '. . .'], ['. F . . F .', '. . . F . .', '. . . . . .', '. . . . . .'], 14, 3) },   /* 주근깨 (p=3 에선 안 그린다) */
       outfit: {   /* torso(L) 몸통 부품 · arm(L) 소매(손은 공통) · leg 다리 색 · legR 다리 원기둥 반지름 · cuff 접은 단 */
         dress: { torso: function (L) {   /* 원피스(기본): 흰 깃 + 어두운 A 라인 + 밑단 띠 + 리본 매듭 + 단추 2 — v0 그대로, 치수만 통통 */
             L.push({ g: Cyl(0.20, 0.245, 0.32), m: M(0, 0.40, 0), c: PAL.navy[3] }, { g: Cyl(0.25, 0.25, 0.035), m: M(0, 0.255, 0), c: PAL.navy[2] }, { g: Cyl(0.21, 0.19, 0.05), m: M(0, 0.54, 0), c: PAL.paper[3] },
@@ -1907,11 +1955,11 @@ var SCENE3D = (function () {
     /* 7 메시의 부품 목록 (cfg 는 normalizePlayer 를 거친 것) */
     function plHeadParts(cfg) {
       var hair = plPart('hairColor', cfg.hairColor).hex;
-      var L = [{ g: Sph(PL_HEAD_R, 18, 13), m: M(0, PL_HEAD_Y, 0, 0, 0, 0, 1, 0.98, 0.94), c: PLC.skin }];   /* 살결 머리 구 (얼굴 앞면 z 0.329). 얼굴은 눈 둘뿐 — 눈썹 · 입(주인 11-08 피드백 6) · 코 · 홍조(11-09: 이 머리에선 눈 밑 띠 자리뿐) 없음 */
+      var L = [{ g: Sph(PL_HEAD_R, 18, 13), m: M(0, PL_HEAD_Y, 0, 0, 0, 0, 1, 0.98, 0.94), c: PLC.skin }];   /* 살결 머리 구 (얼굴 앞면 z 0.329). 눈 · 코 · 입 · 볼은 이 구 위의 텍스처 조각(plEyeParts) — 눈썹 없음 */
       PL_PARTS.hair[cfg.hair](L, cfg, hair); PL_PARTS.acc[cfg.acc](L, cfg);
       return L;
     }
-    function plEyeParts(cfg) { return [-1, 1].map(function (s) { return { g: plEyePatch(s), c: '#ffffff', tag: s < 0 ? 1 : 2 }; }); }   /* 눈 = 곡면 조각 2장 (정점색 흰색 → 텍스처색이 알베도), tag 1 왼눈 · 2 오른눈 (plEyeUV 의 아틀라스 칸). 스타일·색은 지오메트리가 아니라 아틀라스 그림 */
+    function plEyeParts(cfg) { return [-1, 1].map(function (s) { return { g: plEyePatch(s), c: '#ffffff', tag: s < 0 ? 1 : 2 }; }).concat(plFacePatches(cfg)); }   /* 눈 = 곡면 조각 2장 (정점색 흰색 → 텍스처색이 알베도), tag 1 왼눈 · 2 오른눈 (plEyeUV 의 아틀라스 칸). 스타일·색은 지오메트리가 아니라 아틀라스 그림 */
     function plTorsoParts(cfg) { var L = []; PL_PARTS.outfit[cfg.outfit].torso(L); return L; }
     function plArmParts(cfg) { var L = []; PL_PARTS.outfit[cfg.outfit].arm(L); L.push({ g: Sph(0.06, 7, 5), m: M(0, -0.19, 0), c: PLC.skin }); return L; }   /* 소매 + 손 (손 밑 y 0.25 = 엉덩이 높이) */
     function plLegParts(cfg) {   /* 다리 색 원기둥(신발 위만) + 신발 */
@@ -2043,7 +2091,7 @@ var SCENE3D = (function () {
       FP.list = FP.list.filter(function (f) { return f.k < FP_SCALE.length; });
       if (dirty || FP.list.length !== n0) fpLayout();
     }
-    var PPORT = { cache: {}, yaw: 30 * DEG, tilt: 15 * DEG, dist: 10, hw: 1.5, down: -0.08, n: 0, ms: 0 };   /* 내 캐릭터 초상 프레이밍 (아래 playerPortrait): 반폭 1.5 r = 0.525 m · 타깃 y 0.95 → 화면 위 = (y − 0.95)·cos 15° + (카메라 쪽 거리)·sin 15° ≤ 0.525: 밀짚모자 크라운 앞 가장자리 (1.38, 0.33) → 0.501 ✓ (hw 1.3 · down 0.05 는 머리 꼭대기·모자·귀가 잘렸다 — 리뷰 11-08) */
+    var PPORT = { cache: {}, yaw: 0, tilt: 15 * DEG, dist: 10, hw: 1.5, down: -0.08, n: 0, ms: 0 };   /* 내 캐릭터 초상 프레이밍 (아래 playerPortrait): 정면 (요 0° — 11-09: 요 30° 는 코 · 입 · 볼 조각이 돌아가 4×5 칸에서 뭉개졌다. 얼굴을 고르는 미리보기라 정면이 맞다) · 반폭 1.5 r = 0.525 m · 타깃 y 0.95 → 화면 위 = (y − 0.95)·cos 15° + (카메라 쪽 거리)·sin 15° ≤ 0.525: 밀짚모자 크라운 앞 가장자리 (1.38, 0.33) → 0.501 ✓ (hw 1.3 · down 0.05 는 머리 꼭대기·모자·귀가 잘렸다 — 리뷰 11-08) */
     function setPlayer(cfg) {   /* 파츠 교체 (앱 설정 시트 '내 모습'): 모르는 범주·id 는 기본값 · 위치·걷기 상태(PL)는 그대로 · 7 메시의 지오메트리만 다시 만들고 옛것은 dispose(keep 목록에서도 교체) → 메시 수·드로우콜 불변. 초상 캐시는 비운다 */
       var look = normalizePlayer(cfg), geos = plGeos(look);
       plMeshes.forEach(function (m, i) { var old = m.geometry, k = disposables.indexOf(old); if (k >= 0) disposables.splice(k, 1); old.dispose(); m.geometry = keep(geos[i]); });
@@ -2190,7 +2238,7 @@ var SCENE3D = (function () {
       var sc = renderer.getClearColor(_cc).clone(), sa = renderer.getClearAlpha(), octL2 = [];
       octG.traverse(function (o) { if (o.isMesh && (o.layers.mask & 4)) { octL2.push(o); o.layers.disable(2); } });
       plMeshes.forEach(function (m) { m.layers.enable(2); });
-      PL.shut = false; PL.lod = 1; plEyeUV();   /* 눈 뜨고 4×5 칸으로: 요 30° 에서 먼 눈 조각이 돌아가 8×10 텍셀은 0.84 px 로 열이 빠진다 (4×5 는 1.67 px) — 주인이 눈 스타일을 고르는 바로 그 미리보기라 한쪽 눈이 깨지면 안 된다 */
+      PL.shut = false; PL.lod = 2; plEyeUV();   /* 눈 뜨고 8×10 칸으로: 정면 61 px/m 는 장면 2× (54 px/m) 보다 촘촘해 2× 그림이 텍셀 ≈ 1.1 px 로 열이 안 빠진다 (요 30° 시절엔 먼 눈 조각이 0.84 px 라 4×5 로 찍었다) — 주인이 눈 · 코 · 입 · 볼을 고르는 바로 그 미리보기라 한쪽이 깨지면 안 된다 */
       plBody.scale.set(1, 1, 1); plBody.position.y = 0; plBody.rotation.z = 0; plG.rotation.y = 0;
       plLimbs.forEach(function (m) { m.rotation.x = 0; }); plArmL.rotation.z = -0.16; plArmR.rotation.z = 0.16;
       plG.visible = true; if (plG.parent) plG.parent.visible = true; octG.visible = true; if (octG.parent) octG.parent.visible = true; octG.rotation.y = 0;   /* 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */

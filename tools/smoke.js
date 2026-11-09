@@ -902,11 +902,11 @@ async function scenario2D(browser) {
   });
   console.log('   dialog2d:', JSON.stringify(dlg2));
   ok(dlg2.cv && dlg2.drawn > 64 * 64 * 0.5 && dlg2.svg, '2D 폴백: 대화창 행 + SVG 얼굴 초상 캔버스 그려짐');
-  /* 설정 › 내 모습 (2D): 7줄 + 안내 한 줄 · 미리보기 캔버스 없음 · 칩을 누르면 저장은 된다 (2D setPlayer 는 모습만 기억) */
+  /* 설정 › 내 모습 (2D): 10줄 + 안내 한 줄 · 미리보기 캔버스 없음 · 칩을 누르면 저장은 된다 (2D setPlayer 는 모습만 기억) */
   await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
   await page.click('#set-parts .set-part[data-part="hair"] .fchip[data-id="twin"]');
   var p2d = await page.evaluate(function () { var p = APP.scene.player && APP.scene.player(); return { rows: document.querySelectorAll('#set-parts .set-part').length, note: !!document.getElementById('set-parts-note'), port: !!document.getElementById('set-pl-port'), saved: APP.state.settings.player.hair, stored: JSON.parse(localStorage.getItem('ppolppol_v2')).settings.player.hair, look: p ? p.look.hair : null }; });
-  ok(p2d.rows === 7 && p2d.note && !p2d.port && p2d.saved === 'twin' && p2d.stored === 'twin' && p2d.look === 'twin', '2D 내 모습: 7줄 + 안내 한 줄 · 미리보기 캔버스 없음 · 칩을 누르면 저장 (2D 장면도 look 기억) ' + JSON.stringify(p2d));
+  ok(p2d.rows === 10 && p2d.note && !p2d.port && p2d.saved === 'twin' && p2d.stored === 'twin' && p2d.look === 'twin', '2D 내 모습: 10줄 + 안내 한 줄 · 미리보기 캔버스 없음 · 칩을 누르면 저장 (2D 장면도 look 기억) ' + JSON.stringify(p2d));
   await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
   await page.screenshot({ path: path.join(SHOTS, 'phone-2d-fallback.png') });
   ok(s.bag.length === 0, '2D 폴백 콘솔/페이지 에러 없음' + (s.bag.length ? ' → ' + s.bag.join(' | ') : ''));
@@ -1573,10 +1573,10 @@ async function scenarioWave7(browser) {
       note2d: !!document.getElementById('set-parts-note'), eyeNote: (document.getElementById('set-eye-note') || {}).textContent, emoji: /\p{Extended_Pictographic}/u.test(sec ? sec.parentNode.innerText : ''), look: APP.scene.player && APP.scene.player() ? APP.scene.player().look : undefined, saved: APP.state.settings.player };
   });
   console.log('   parts:', JSON.stringify({ idx: pp.idx, rows: pp.rows.map(function (r) { return r.lbl + ':' + r.n; }), mode: pp.mode, setFn: pp.setFn, portFn: pp.portFn, port: pp.port, saved: pp.saved }));
-  var PARTS_CATS = 'hair,hairColor,eyes,eyeColor,outfit,shoes,acc', PARTS_LBL = '머리/머리 색/눈/눈 색/옷/신발/악세사리';
-  ok(pp.idx === 1 && pp.rows.map(function (r) { return r.cat; }).join() === PARTS_CATS && pp.rows.map(function (r) { return r.lbl; }).join('/') === PARTS_LBL, "설정 › 내 모습: 문어 색 바로 아래 · 7줄 (머리 · 머리 색 · 눈 · 눈 색 · 옷 · 신발 · 악세사리) " + JSON.stringify(pp.rows.map(function (r) { return r.lbl; })));
-  ok(pp.rows.length === 7 && pp.rows.every(function (r) { return r.n >= 4 && r.on === 1 && r.kind && r.named && r.tall; }), '내 모습: 줄마다 칩 4개 이상 · 켜진 칩 하나(aria-pressed) · 색은 .preset(aria-label·title 이름) · 나머지 .fchip 글자 · 보이는 높이 32px 이상 ' + JSON.stringify(pp.rows.map(function (r) { return [r.n, r.on, r.kind, r.named, r.tall]; })));
-  ok(!pp.emoji && pp.saved && Object.keys(pp.saved).join() === PARTS_CATS && pp.saved.hair === 'bob' && pp.saved.acc === 'ribbon', '내 모습: 이모지 0 · settings.player 기본값 (단발 · 리본, 키 7개) ' + JSON.stringify(pp.saved));
+  var PARTS_CATS = 'hair,hairColor,eyes,eyeColor,nose,mouth,cheek,outfit,shoes,acc', PARTS_LBL = '머리/머리 색/눈/눈 색/코/입/볼/옷/신발/악세사리';
+  ok(pp.idx === 1 && pp.rows.map(function (r) { return r.cat; }).join() === PARTS_CATS && pp.rows.map(function (r) { return r.lbl; }).join('/') === PARTS_LBL, "설정 › 내 모습: 문어 색 바로 아래 · 10줄 (머리 · 머리 색 · 눈 · 눈 색 · 코 · 입 · 볼 · 옷 · 신발 · 악세사리) " + JSON.stringify(pp.rows.map(function (r) { return r.lbl; })));
+  ok(pp.rows.length === 10 && pp.rows.every(function (r) { return r.n >= 3 && r.on === 1 && r.kind && r.named && r.tall; }), '내 모습: 줄마다 칩 3개 이상 · 켜진 칩 하나(aria-pressed) · 색은 .preset(aria-label·title 이름) · 나머지 .fchip 글자 · 보이는 높이 32px 이상 ' + JSON.stringify(pp.rows.map(function (r) { return [r.n, r.on, r.kind, r.named, r.tall]; })));
+  ok(!pp.emoji && pp.saved && Object.keys(pp.saved).join() === PARTS_CATS && pp.saved.hair === 'bob' && pp.saved.acc === 'ribbon' && pp.saved.nose === 'tri' && pp.saved.mouth === 'smile' && pp.saved.cheek === 'blush', '내 모습: 이모지 0 · settings.player 기본값 (단발 · 리본 · 세모코 · 미소 · 발그레, 키 10개) ' + JSON.stringify(pp.saved));
   if (pp.mode === '3d') ok(pp.port === (pp.portFn === 'function') && (!pp.port || (pp.portW === 96 && pp.portPx)) && !pp.note2d, '내 모습 미리보기: 3D 에서 playerPortrait 가 있으면 96px pixelated 캔버스, 없으면 생략 (portFn ' + pp.portFn + ' · port ' + pp.port + ' ' + pp.portW + 'px)');
   else ok(!pp.port && pp.note2d, '내 모습 미리보기: 2D 장면에서는 캔버스 없이 한 줄 안내만');
   await page.click('#set-parts .set-part[data-part="hair"] .fchip[data-id="long"]');
@@ -1590,7 +1590,7 @@ async function scenarioWave7(browser) {
   console.log('   parts click:', JSON.stringify(pc));
   ok(pc.saved.hair === 'long' && pc.saved.eyeColor === 'sea' && pc.saved.eyes === 'smile' && pc.saved.hairColor === 'blonde' && pc.stored && pc.stored.hair === 'long' && pc.stored.eyeColor === 'sea' && pc.stored.eyes === 'smile',
     '내 모습: 긴생머리 · 바다색 눈 · 웃는 눈 칩 → settings.player 에 저장 (localStorage ppolppol_v2) · 안 누른 줄은 그대로');
-  ok(pc.on.join() === 'long,sea,smile,blonde' && pc.ons === 7 && /눈 색이 안 보여/.test(pc.eyeNote), '내 모습: 누른 칩만 켜짐 (줄마다 하나, 전체 7) · 웃는 눈이면 눈 색 안내 한 줄 ' + JSON.stringify(pc.on));
+  ok(pc.on.join() === 'long,sea,smile,blonde' && pc.ons === 10 && /눈 색이 안 보여/.test(pc.eyeNote), '내 모습: 누른 칩만 켜짐 (줄마다 하나, 전체 10) · 웃는 눈이면 눈 색 안내 한 줄 ' + JSON.stringify(pc.on));
   if (pp.mode === '3d' && pc.setFn === 'function') ok(pc.look && pc.look.hair === 'long' && pc.look.eyeColor === 'sea' && pc.look.eyes === 'smile', '내 모습 (3D): scene.player().look 이 고른 대로 ' + JSON.stringify(pc.look));
   else console.log('   (skip) scene.setPlayer 없음 (' + pp.mode + ' · ' + pc.setFn + ') → look 검사 건너뜀');
   /* 새로고침 = 같은 저장소를 읽는 새 탭: 고른 모습이 그대로 · 장면도 그 모습으로 시작 (3D + player().look 이 있을 때) */
