@@ -217,6 +217,16 @@
   <button type="button" class="btn wide pressable" id="set-close">닫기</button>
 </dialog>
 
+<!-- ══ 내 모습 옷장 (11-09 주인: "외관도 이런 느낌 ui로 각 항목별로 고를 수 있게 카테고리 나눠도 좋을 듯") — 설정 › 내 모습 › '모습 바꾸기' 로 연다 (설정 시트 위에 겹친다).
+     왼쪽 세로 탭(갈래 여섯: 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식) · 가운데 썸네일 타일 · 오른쪽 전신 미리보기(앞 · 뒤). 고르면 바로 입는다 (app.js openLook · docs/PLAYER_PARTS.md §3).
+     본문(#look-body)은 app.js 가 채운다. 폰은 바텀시트, ≥600px 은 가운데 ══ -->
+<dialog id="look-sheet" class="sheet look-sheet" aria-labelledby="look-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="look-h" class="set-h dlg-top" tabindex="-1">내 모습</h2>
+  <div id="look-body" class="look-body"></div>
+  <button type="button" class="btn wide pressable" id="look-close">다 골랐어</button>
+</dialog>
+
 <!-- ══ 추억 앨범 (§6.3) — 장면 오른쪽 위 앨범 버튼(#btn-album)으로 여는 시트. 폰은 바텀시트, ≥600px 은 가운데. 카드를 누르면 포스터 열람 창이 그 위에 열린다.
      맨 위 '문어의 요즘' 한두 줄 · 카드 · '남긴 메모'(호기심 메모 전부, 다음 산책에 같이 가는 최근 3개엔 표시 — docs/CURIOSITY_NOTES.md) · '일기' 칩 = 지난 날 로그 (오늘은 아래 '오늘의 산책') ══ -->
 <dialog id="album-sheet" class="sheet album-sheet" aria-labelledby="al-h">

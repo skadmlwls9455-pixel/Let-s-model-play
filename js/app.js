@@ -190,7 +190,7 @@ var APP = (function () {
      옷방(왼쪽 문)이 생기기 전까지는 설정 시트 '내 모습' 섹션에서 고른다 (PLAYER_PROGRESSION 11-08 메모). 저장은 settings.player = { hair, hairColor, eyes, eyeColor, nose, mouth, cheek, outfit, shoes, acc } (id). 코 · 입 · 볼은 11-09 에 생겼다 — 옛 기록엔 없어 normalizePlayer 가 기본(세모코 · 미소 · 발그레)으로 채운다 */
   var PLAYER_CATS = [['hair', '머리'], ['hairColor', '머리 색'], ['eyes', '눈'], ['eyeColor', '눈 색'], ['nose', '코'], ['mouth', '입'], ['cheek', '볼'], ['outfit', '옷'], ['shoes', '신발'], ['acc', '악세사리']];
   var PLAYER_FALLBACK = {
-    hair: [['bob', '단발'], ['short', '짧은머리'], ['long', '긴생머리'], ['twin', '양갈래'], ['pony', '포니테일'], ['wave', '웨이브']],
+    hair: [['bob', '단발'], ['short', '숏컷'], ['long', '긴생머리'], ['twin', '양갈래'], ['pony', '포니테일'], ['wave', '웨이브']],
     hairColor: [['blonde', '금발', '#ffc16a'], ['brown', '밤갈색', '#9a5a3a'], ['ink', '먹남색', '#1e2a44'], ['silver', '은빛', '#cfc9c0'], ['pink', '분홍', '#de8fa9'], ['lime', '연두', '#a0d070']],
     eyes: [['round', '동그란'], ['sparkle', '반짝'], ['sleepy', '졸린'], ['almond', '또렷'], ['smile', '웃는'], ['dot', '점']],
     eyeColor: [['dark', '흑갈색', '#6a3a30'], ['hazel', '호두색', '#884b2b'], ['sea', '바다색', '#3c5e8b'], ['leaf', '잎새색', '#468232'], ['honey', '꿀색', '#be772b'], ['violet', '제비꽃', '#7a367b']],
@@ -533,6 +533,7 @@ var APP = (function () {
     if (sw) sw.innerHTML = '';
     if (msg) msg.textContent = '지금은 2D 장면이라 이 슬라이더는 적용 안 돼 (3D 그림이 멈춰서 바꿨어)';
     updateSceneDesc();
+    var ld = $('look-sheet'); if (ld && ld.open) renderLook();   /* 옷장도: 그림 타일 → 글자 타일 */
     var sd = $('settings-sheet'); if (sd && sd.open) renderSettings();   /* 열려 있던 설정 시트도 2D 모양으로 (3D 미리보기 캔버스 대신 안내 한 줄 — 안 그리면 옛 초상이 남고 칩을 누를 때 조용히 사라진다) */
     toast('3D 그림이 멈춰서 2D로 바꿨어');
   }
@@ -2419,7 +2420,7 @@ var APP = (function () {
   }
   function bindDialogs() {
     var supportsClosedBy = (typeof HTMLDialogElement !== 'undefined') && ('closedBy' in HTMLDialogElement.prototype);
-    ['poster-dialog', 'settings-sheet', 'album-sheet', 'name-dialog'].forEach(function (id) {
+    ['poster-dialog', 'settings-sheet', 'album-sheet', 'look-sheet', 'name-dialog'].forEach(function (id) {
       var d = $(id); if (!d) return;
       if (supportsClosedBy && id !== 'name-dialog') d.setAttribute('closedby', 'any');
       d.addEventListener('close', function () {
@@ -2555,16 +2556,17 @@ var APP = (function () {
     }
     body.innerHTML = ''; body.appendChild(frag);
   }
-  /* 설정 › 내 모습 (옷방이 생기기 전까지의 자리 — docs/PLAYER_PARTS.md §3 · PLAYER_PROGRESSION 11-08): 줄 순서 머리 · 머리 색 · 눈 · 눈 색 · 코 · 입 · 볼 · 옷 · 신발 · 악세사리.
-     색은 .preset 동그라미(aria-label 이름), 나머지는 .fchip 글자 칩 (aria-pressed). 누르면 setPlayerPart → 그 줄 칩 · 미리보기 갱신.
-     미리보기: 3D 장면이 playerPortrait 를 주면 64×64 캔버스를 96px 로(pixelated) 제목 옆에. 2D 면 한 줄 안내만 (칩은 저장된다). 글자·칩에 이모지·기호 없음 */
+  /* 설정 › 내 모습 (docs/PLAYER_PARTS.md §3): 제목 옆 초상(3D 장면이 playerPortrait 를 주면 64×64 캔버스를 96px 로 · 2D 면 한 줄 안내) + 한 줄 = 지금 모습 한마디 · '모습 바꾸기'.
+     고르는 건 옷장(#look-sheet · 아래 renderLook)에서 — 11-09 주인 "외관도 이런 느낌 ui로 각 항목별로 고를 수 있게 카테고리 나눠도 좋을 듯". 글자에 이모지·기호 없음 */
   function renderPlayerParts(frag) {
-    var P = playerParts(), cfg = S.settings.player, head = h('div', { class: 'set-parts-h' }, [h('h3', { text: '내 모습' })]);
+    var head = h('div', { class: 'set-parts-h' }, [h('h3', { text: '내 모습' })]);
     var port = null;
     if (sceneMode === '3d' && scene && typeof scene.playerPortrait === 'function') { port = h('canvas', { class: 'pl-port', id: 'set-pl-port', width: '64', height: '64', role: 'img', 'aria-label': '내 모습 미리보기' }); head.appendChild(port); }
     frag.appendChild(head);
     if (sceneMode !== '3d') frag.appendChild(h('p', { class: 'help set-parts-note', id: 'set-parts-note', text: '2D 장면에서는 미리보기가 없어. 고른 건 저장돼.' }));
-    var wrap = h('div', { class: 'set-parts', id: 'set-parts' }), note = h('p', { class: 'help set-eye-note', id: 'set-eye-note' });
+    var sum = h('span', { id: 'set-look-sum' }), open = h('button', { type: 'button', class: 'btn sm pressable', id: 'set-look-open', 'aria-haspopup': 'dialog', text: '모습 바꾸기' });
+    open.addEventListener('click', openLook);
+    frag.appendChild(h('div', { class: 'set set-look' }, [sum, open]));
     function drawPort() {   /* 장면 초상은 캐시라 첫 장만 느리다 (≈ 문어 portrait). 못 그리면 캔버스를 치운다 (빈 네모를 두지 않는다) */
       if (!port) return;
       requestAnimationFrame(function () {
@@ -2573,30 +2575,156 @@ var APP = (function () {
         catch (e) { console.warn('[app] playerPortrait', e); if (port.parentNode) port.remove(); port = null; }
       });
     }
-    function eyeNote() { note.textContent = (cfg.eyes === 'smile' || cfg.eyes === 'dot') ? '이 눈 모양은 눈 색이 안 보여' : '눈 색은 크게 봐야 잘 보여'; }
-    PLAYER_CATS.forEach(function (c) {
-      var cat = c[0], isColor = cat === 'hairColor' || cat === 'eyeColor';
-      var chips = h('div', { class: 'set-chips' + (isColor ? ' colors' : ''), role: 'group', 'aria-label': c[1] });
+    LOOK.onChange = function () { sum.textContent = lookSummary(); drawPort(); };   /* 옷장이 닫힐 때도 부른다 (bind 의 close) */
+    LOOK.onChange();
+  }
+  /* 내 모습 옷장 (#look-sheet · docs/PLAYER_PARTS.md §3): 왼쪽 갈래 탭 여섯(tablist — 화살표 · Home · End, 고르면 바로 바뀐다) · 가운데 물건 타일(tabpanel) · 오른쪽 전신 미리보기(앞 · 뒤).
+     타일 그림 = 지금 모습에서 그 한 가지만 바꿔 입은 내 캐릭터 (scene.playerShot — 갈래마다 구도가 다르다: secs 의 셋째 값). 그래서 하나 고르면 보이는 타일을 다시 그린다 (장면 쪽 캐시라 본 건 바로).
+     한 프레임에 6ms 어치만 그려 손가락을 막지 않는다. 색은 .preset 동그라미. 2D 장면이면 그림 없이 글자 타일 + 안내 한 줄 (고른 건 저장된다).
+     고른 표시: .on + aria-pressed (chipOn). 타일을 누르면 setPlayerPart → 방의 캐릭터도 바로 바뀐다 */
+  var LOOK_TABS = [
+    { id: 'hair', name: '머리', icon: 'look/hair', secs: [['hair', '모양', 'hair'], ['hairColor', '색']] },
+    { id: 'eyes', name: '눈', icon: 'look/eyes', secs: [['eyes', '모양', 'face'], ['eyeColor', '색']] },
+    { id: 'face', name: '얼굴', icon: 'look/face', secs: [['nose', '코', 'face'], ['mouth', '입', 'face'], ['cheek', '볼', 'face']] },
+    { id: 'outfit', name: '옷', icon: 'look/outfit', secs: [['outfit', '옷', 'body']] },
+    { id: 'shoes', name: '신발', icon: 'look/shoes', secs: [['shoes', '신발', 'feet']] },
+    { id: 'acc', name: '장식', icon: 'look/acc', secs: [['acc', '장식', 'head']] }
+  ];
+  var LOOK = { tab: 'hair', back: false, raf: 0, queue: [], onChange: null, ro: null };
+  function lookCanShot() { return sceneMode === '3d' && !!scene && typeof scene.playerShot === 'function'; }
+  function lookNarrow() { return !!(window.matchMedia && window.matchMedia('(max-width: 359px)').matches); }   /* css: 이 폭부터 탭이 위 가로 줄 */
+  function lookTab(id) { for (var i = 0; i < LOOK_TABS.length; i++) if (LOOK_TABS[i].id === id) return LOOK_TABS[i]; return LOOK_TABS[0]; }
+  function lookCatName(cat) { for (var i = 0; i < PLAYER_CATS.length; i++) if (PLAYER_CATS[i][0] === cat) return PLAYER_CATS[i][1]; return cat; }
+  function lookPartName(cat, id) { var l = playerParts()[cat] || []; for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i].name; return ''; }
+  function lookSummary() {   /* 설정 줄의 한마디: 머리 · 옷 · 장식 (없음은 뺀다) */
+    var c = S.settings.player, out = [];
+    ['hair', 'outfit', 'acc'].forEach(function (k) { var n = c[k] === 'none' ? '' : lookPartName(k, c[k]); if (n) out.push(n); });
+    return out.join(' · ');
+  }
+  function lookEyeNote() { var n = $('look-eye-note'), c = S.settings.player; if (n) n.textContent = (c.eyes === 'smile' || c.eyes === 'dot') ? '이 눈 모양은 눈 색이 안 보여' : '눈 색은 크게 봐야 잘 보여'; }
+  function lookNow() {   /* 미리보기 아래: 이 갈래에서 지금 고른 것들 */
+    var n = $('look-now'); if (!n) return;
+    var c = S.settings.player;
+    n.textContent = lookTab(LOOK.tab).secs.map(function (sec) { return c[sec[0]] === 'none' ? sec[1] + ' 없음' : lookPartName(sec[0], c[sec[0]]); }).join(' · ');
+  }
+  function lookDrawStage() {
+    var cv = $('look-stage-cv'); if (!cv || !lookCanShot()) return;
+    cv.setAttribute('aria-label', LOOK.back ? '내 모습 뒷모습' : '내 모습 앞모습');
+    try { var src = scene.playerShot({ frame: LOOK.back ? 'back' : 'full', shared: true }), cx = cv.getContext('2d'); if (!src) throw new Error('빈 전신'); cx.clearRect(0, 0, 64, 96); cx.drawImage(src, 0, 0); }
+    catch (e) { console.warn('[app] playerShot', e); }
+  }
+  function lookThumbStep() {
+    LOOK.raf = 0;
+    var d = $('look-sheet'), t0 = performance.now();
+    if (!d || !d.open || !lookCanShot()) { LOOK.queue = []; return; }
+    while (LOOK.queue.length && performance.now() - t0 < 6) {
+      var b = LOOK.queue.shift(), cv = b.querySelector('.look-thumb');
+      if (!cv || !document.contains(b)) continue;
+      try {
+        var look = {}; look[b.dataset.part] = b.dataset.id;
+        var src = scene.playerShot({ look: look, frame: b._frame || 'head', shared: true });
+        if (!src) throw new Error('빈 그림');
+        var cx = cv.getContext('2d'); cx.clearRect(0, 0, 32, 32); cx.drawImage(src, 0, 0); cv.dataset.drawn = '1';
+      } catch (e) { console.warn('[app] playerShot', e); cv.remove(); }
+    }
+    if (LOOK.queue.length) LOOK.raf = requestAnimationFrame(lookThumbStep);
+  }
+  function lookQueueThumbs() {
+    var box = $('look-items');
+    LOOK.queue = (box && lookCanShot()) ? [].slice.call(box.querySelectorAll('.look-tile')) : [];
+    if (LOOK.queue.length && !LOOK.raf) LOOK.raf = requestAnimationFrame(lookThumbStep);
+  }
+  function lookMoreSync() {   /* 고를 것 칸 아래에 굴릴 것이 남았으면 #look-body.more (css: 아래 가장자리 띠 + 화살) — 굴림 막대를 숨겼으니 '더 있다' 를 이걸로 알린다.
+                                 칸 크기가 바뀔 때마다 불리니 탭 줄의 방향(aria-orientation — 좁은 폭에선 가로 줄)도 여기서 맞춘다 */
+    var body = $('look-body'), it = $('look-items'), rail = $('look-rail'); if (!body || !it) return;
+    if (rail) rail.setAttribute('aria-orientation', lookNarrow() ? 'horizontal' : 'vertical');
+    body.classList.toggle('more', it.scrollHeight - it.clientHeight - it.scrollTop > 4);
+  }
+  function lookPick(cat, id) {
+    if (!setPlayerPart(cat, id)) return;
+    var box = $('look-items'), c = S.settings.player;
+    if (box) box.querySelectorAll('[data-part="' + cat + '"][data-id]').forEach(function (q) { chipOn(q, q.dataset.id === c[cat]); });
+    lookEyeNote(); lookNow(); lookDrawStage(); lookQueueThumbs();
+  }
+  function lookRenderItems() {
+    var box = $('look-items'); if (!box) return;
+    var t = lookTab(LOOK.tab), P = playerParts(), c = S.settings.player, shot = lookCanShot(), multi = t.secs.length > 1, frag = document.createDocumentFragment();
+    box.setAttribute('aria-labelledby', 'look-tab-' + t.id);
+    if (!shot) frag.appendChild(h('p', { class: 'help look-note', id: 'look-note', text: '2D 장면에서는 미리보기가 없어. 고른 건 저장돼.' }));
+    t.secs.forEach(function (sec) {
+      var cat = sec[0], isColor = cat === 'hairColor' || cat === 'eyeColor';
+      if (multi) frag.appendChild(h('h3', { class: 'look-sec', text: sec[1] }));
+      var grp = h('div', { class: isColor ? 'look-colors' : 'look-tiles', role: 'group', 'aria-label': multi ? lookCatName(cat) : t.name, 'data-part': cat });
       P[cat].forEach(function (x) {
         var b;
         if (isColor) { b = h('button', { type: 'button', class: 'preset pl-color', 'data-part': cat, 'data-id': x.id, 'data-hex': x.hex || null, title: x.name, 'aria-label': x.name }); b.style.background = x.hex || 'var(--panel2)'; }
-        else b = h('button', { type: 'button', class: 'fchip', 'data-part': cat, 'data-id': x.id, text: x.name });
-        chipOn(b, cfg[cat] === x.id);
-        b.addEventListener('click', function () {
-          if (!setPlayerPart(cat, x.id)) return;
-          cfg = S.settings.player;
-          chips.querySelectorAll('[data-id]').forEach(function (q) { chipOn(q, q.dataset.id === cfg[cat]); });
-          if (cat === 'eyes') eyeNote();
-          drawPort();
-        });
-        chips.appendChild(b);
+        else {
+          b = h('button', { type: 'button', class: 'look-tile', 'data-part': cat, 'data-id': x.id }, [shot ? h('canvas', { class: 'look-thumb', width: '32', height: '32', 'aria-hidden': 'true' }) : null, h('span', { class: 'look-name', text: x.name })]);
+          b._frame = sec[2];
+        }
+        chipOn(b, c[cat] === x.id);
+        b.addEventListener('click', function () { lookPick(cat, x.id); });
+        grp.appendChild(b);
       });
-      wrap.appendChild(h('div', { class: 'set-part', 'data-part': cat }, [h('span', { class: 'set-part-lbl', text: c[1] }), chips]));
-      if (cat === 'eyeColor') wrap.appendChild(note);
+      frag.appendChild(grp);
+      if (cat === 'eyeColor') frag.appendChild(h('p', { class: 'help look-eye-note', id: 'look-eye-note' }));
     });
-    eyeNote();
-    frag.appendChild(wrap);
-    drawPort();
+    box.innerHTML = ''; box.appendChild(frag); box.scrollTop = 0;
+    lookEyeNote(); lookNow(); lookQueueThumbs(); lookMoreSync();
+  }
+  function lookSelectTab(id, focus) {
+    var rail = $('look-rail'); if (!rail) return;
+    LOOK.tab = lookTab(id).id;
+    rail.querySelectorAll('.look-tab').forEach(function (b) {
+      var on = b.dataset.tab === LOOK.tab;
+      b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1;
+      if (on && focus) b.focus();
+    });
+    lookRenderItems();
+  }
+  function lookRailKey(e) {   /* tablist: 화살표(세로 · 가로 둘 다) · Home · End — 포커스가 가면 바로 고른다 */
+    var n = LOOK_TABS.length, i = LOOK_TABS.indexOf(lookTab(LOOK.tab)), j;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') j = (i + 1) % n;
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') j = (i + n - 1) % n;
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = n - 1;
+    else return;
+    e.preventDefault(); e.stopPropagation();
+    lookSelectTab(LOOK_TABS[j].id, true);
+  }
+  function renderLook() {
+    var body = $('look-body'); if (!body) return;
+    var shot = lookCanShot(), frag = document.createDocumentFragment();
+    body.classList.toggle('no-shot', !shot);
+    var rail = h('div', { class: 'look-rail', id: 'look-rail', role: 'tablist', 'aria-label': '고를 갈래', 'aria-orientation': lookNarrow() ? 'horizontal' : 'vertical' });
+    LOOK_TABS.forEach(function (t) {
+      var b = h('button', { type: 'button', class: 'look-tab', id: 'look-tab-' + t.id, role: 'tab', 'data-tab': t.id, 'aria-selected': 'false', 'aria-controls': 'look-items', tabindex: '-1' }, [ico(t.icon, 'look-tab-ico'), h('span', { class: 'look-tab-lbl', text: t.name })]);
+      b.addEventListener('click', function () { lookSelectTab(t.id, false); });
+      rail.appendChild(b);
+    });
+    rail.addEventListener('keydown', lookRailKey);
+    frag.appendChild(rail);
+    var items = h('div', { class: 'look-items', id: 'look-items', role: 'tabpanel' });
+    items.addEventListener('scroll', lookMoreSync, { passive: true });
+    frag.appendChild(items);
+    frag.appendChild(h('div', { class: 'look-more', 'aria-hidden': 'true' }));
+    if (LOOK.ro) LOOK.ro.disconnect();
+    if (window.ResizeObserver) { LOOK.ro = LOOK.ro || new ResizeObserver(lookMoreSync); LOOK.ro.observe(items); }   /* 시트가 열리며 칸 크기가 정해질 때 · 화면을 돌릴 때 */
+    if (shot) {
+      var turn = h('button', { type: 'button', class: 'btn sm pressable', id: 'look-turn', text: LOOK.back ? '앞 보기' : '뒤 보기' });
+      turn.addEventListener('click', function () { LOOK.back = !LOOK.back; turn.textContent = LOOK.back ? '앞 보기' : '뒤 보기'; lookDrawStage(); });
+      frag.appendChild(h('div', { class: 'look-stage' }, [h('canvas', { class: 'look-stage-cv', id: 'look-stage-cv', width: '64', height: '96', role: 'img', 'aria-label': '내 모습 앞모습' }), turn, h('p', { class: 'look-now', id: 'look-now' })]));
+    }
+    body.innerHTML = ''; body.appendChild(frag);
+    lookSelectTab(LOOK.tab, false);
+    lookDrawStage();
+  }
+  function openLook() {
+    var d = $('look-sheet'); if (!d) return;
+    if (!d.open) { sheetDragReset(d); d._openedAt = performance.now(); LOOK.back = false; }   /* 열 때마다 제자리 · 앞모습부터 (갈래는 마지막에 보던 대로) */
+    renderLook();
+    showDialog(d);
+    lookMoreSync();
   }
   function openSettings() {
     var d = $('settings-sheet'); if (!d) return;
@@ -3132,11 +3260,14 @@ var APP = (function () {
     $('poster-dialog').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     $('pd-back').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('.copy[data-share]'); if (b) { e.stopPropagation(); copyText(b.getAttribute('data-share')); } });
     $('settings-sheet').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
+    $('look-close').addEventListener('click', function () { $('look-sheet').close(); });
+    $('look-sheet').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
+    $('look-sheet').addEventListener('close', function () { LOOK.queue = []; if (LOOK.onChange) LOOK.onChange(); });   /* 설정 줄의 한마디 · 초상을 새 모습으로 */
     $('btn-album').addEventListener('click', openAlbum);
     $('al-close').addEventListener('click', function () { $('album-sheet').close(); });
     $('album-sheet').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     $('album-sheet').addEventListener('close', markAlbumSeen);   /* 열어 둔 사이에 붙은 포스터도 본 것으로 */
-    bindDialogs(); watchLogScroll(); bindAlbumPress(); bindSheetDrag('settings-sheet'); bindSheetDrag('album-sheet');
+    bindDialogs(); watchLogScroll(); bindAlbumPress(); bindSheetDrag('settings-sheet'); bindSheetDrag('album-sheet'); bindSheetDrag('look-sheet');
     document.addEventListener('touchstart', function () { /* 빈 리스너: iOS Safari 는 터치 리스너가 있어야 :active(눌림) 모양을 그린다 */ }, { passive: true });
     /* 데모 <details>: 개발 모드에서만 보인다 (index.html 에선 hidden 으로 시작). 접힌 채 시작, 뷰어별로 펼침 기억 (UI R2) */
     var demoEl = $('demo');
@@ -3250,7 +3381,7 @@ var APP = (function () {
     get state() { return S; },
     save: save, load: load, invite: invite, skip: skip, reveal: reveal,
     renderAll: renderAll, renderStatus: renderStatus, renderScene: renderScene, renderLog: renderLog, renderWall: renderWall, renderAlbum: renderAlbum, renderSouvenirs: renderSouvenirs,
-    posterSVG: posterSVG, receiptHTML: receiptHTML, inspectHTML: inspectHTML, openPoster: openPoster, openSettings: openSettings, openAlbum: openAlbum, goRoom: goRoom,
+    posterSVG: posterSVG, receiptHTML: receiptHTML, inspectHTML: inspectHTML, openPoster: openPoster, openSettings: openSettings, openLook: openLook, openAlbum: openAlbum, goRoom: goRoom,
     importEvents: importEvents, exportJSON: exportJSON, importJSON: importJSON,
     oct: oct, walkTo: walkTo, octState: octState, anchors: ANCHORS, placeholders: PH, commitTrip: commitTrip,
     get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPlayerPart: setPlayerPart, playerParts: playerParts, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor,

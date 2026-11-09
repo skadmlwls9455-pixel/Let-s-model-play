@@ -766,8 +766,8 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
    카드 줄은 예전 #album 그대로(가로 스크롤), 아래 '남긴 메모' = 호기심 메모 전부 (다음 산책에 같이 가는 최근 3개 · 내려놓은 메모는 표시를 달고 그대로, docs/CURIOSITY_NOTES.md 원칙 4).
    '일기' 칩 = 지난 날 로그 (날짜마다 접힘, 새 날이 위 · 읽기만) ── */
 .album-sheet .al-top { align-items: center; flex-wrap: wrap; row-gap: 4px; }
-.album-sheet .al-h, .settings-sheet .set-h { font-size: 15px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0; color: var(--fg); }
-.album-sheet .al-h:focus, .settings-sheet .set-h:focus { outline: none; }
+.album-sheet .al-h, .settings-sheet .set-h, .look-sheet .set-h { font-size: 15px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0; color: var(--fg); }
+.album-sheet .al-h:focus, .settings-sheet .set-h:focus, .look-sheet .set-h:focus { outline: none; }
 .al-recent { margin: 8px 0 2px; }
 .al-recent h3 { margin: 0 0 2px; }
 .al-recent p { margin: 0; }
@@ -799,7 +799,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .cnote .cn-tag.next { color: var(--amber); border-color: var(--amber); }   /* 다음 산책에 같이 가는 메모 (최근 active 3개) */
 .cnote.down .cn-text { color: var(--muted); }
 #album-notes h3 { margin-top: 12px; }
-:root[data-font="pixel"] .album-sheet .al-h, :root[data-font="pixel"] .settings-sheet .set-h { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
+:root[data-font="pixel"] .album-sheet .al-h, :root[data-font="pixel"] .settings-sheet .set-h, :root[data-font="pixel"] .look-sheet .set-h { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
 :root[data-font="pixel"] .al-recent h3 { margin: 4px 0 0; }
 :root[data-font="pixel"] .sheet .al-recent p { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }   /* 요즘 한두 줄은 작게 (카드가 먼저 보이게) */
 :root[data-font="pixel"] .sheet .al-recent p.ua-ico-line { display: flex; align-items: center; line-height: 32px; }
@@ -965,11 +965,11 @@ html.intro-reveal #scene-ctl { transition: opacity var(--t-ui) var(--ease-enter)
 :root[data-font="pixel"] :where(#album) .pcard:active:not(.down) { transform: none; box-shadow: 2px 2px 0 var(--line); }
 :root[data-font="pixel"] :where(#album) .pcard.down { box-shadow: none; }
 :root[data-font="pixel"] :where(#album) .pcard.down:not(.in) { transform: translate(2px, 2px); }
-/* 2) 설정 · 앨범 시트: 손잡이와 시트 머리 띠(맨 위 30px · 폭 전체 = 손잡이의 ::before, 위치 기준은 시트 자신)만 끌 수 있다.
+/* 2) 설정 · 앨범 · 옷장 시트: 손잡이와 시트 머리 띠(맨 위 30px · 폭 전체 = 손잡이의 ::before, 위치 기준은 시트 자신)만 끌 수 있다.
       touch-action: none 은 그 띠에만 → 굴러가는 본문의 스크롤은 그대로. 끄는 동안의 transform 과 놓은 뒤 500ms 되돌아가기는 app.js 가 인라인으로 준다 (모션 감소면 바로) */
-:is(#settings-sheet, #album-sheet) > .handle { touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
-:is(#settings-sheet, #album-sheet) > .handle::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px; }
-:is(#settings-sheet, #album-sheet).dragging, :is(#settings-sheet, #album-sheet).dragging > .handle { cursor: grabbing; }
+:is(#settings-sheet, #album-sheet, #look-sheet) > .handle { touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
+:is(#settings-sheet, #album-sheet, #look-sheet) > .handle::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px; }
+:is(#settings-sheet, #album-sheet, #look-sheet).dragging, :is(#settings-sheet, #album-sheet, #look-sheet).dragging > .handle { cursor: grabbing; }
 
 /* ══ 7물결 (주인 11-07 · 방 보기 없앰): 상태 줄의 작은 말풍선 · 놀이방 문 · 설정 시트 줄 ══
    1) '데모'·등불은 누를 수 있다 → 같은 작은 말풍선 #tip (app.js tip): 2.5 s · 다시 누르면 닫힘 · role=status(polite) · 모션 줄이기면 그냥 나타난다.
@@ -1134,20 +1134,110 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 .settings-sheet #set-close { margin-top: 12px; }
 :root[data-font="pixel"] .settings-sheet .set-stats, :root[data-font="pixel"] .settings-sheet .set-who { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 
-/* 4) 설정 › 내 모습 (내 캐릭터 파츠 — docs/PLAYER_PARTS.md §3 · 옷방이 생기기 전까지의 자리): 제목 옆 64×64 초상을 96px 로 (픽셀 그대로) · 줄마다 라벨 + 칩 (좁으면 칩이 줄바꿈).
-   칩 사이 세로·가로 12px: .fchip 32px + 12 = 44px · .preset 36px + 12 = 48px → 줄바꿈되어도, 옆 칩끼리도 ::before 탭 영역(44px)이 서로 겹치지 않는다 (가로 8px 땐 글자 칩 탭 영역이 4px 겹쳐 겹친 띠는 뒤 칩이 받았다) */
+/* 4) 설정 › 내 모습 (내 캐릭터 파츠 — docs/PLAYER_PARTS.md §3): 제목 옆 64×64 초상을 96px 로 (픽셀 그대로) · 아래 한 줄 = 지금 모습 한마디 + '모습 바꾸기' (→ 옷장 #look-sheet, 아래 5).
+   고르는 칩 열 줄은 11-09 옷장으로 옮겼다 */
 .settings-sheet .set-parts-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .settings-sheet .set-parts-h h3 { flex: 1 1 auto; }
 .settings-sheet .pl-port { display: block; flex: 0 0 auto; width: 96px; height: 96px; margin-top: 10px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--rim); image-rendering: pixelated; image-rendering: crisp-edges; }
-.settings-sheet .set-parts { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 6px; }
-.settings-sheet .set-part { display: flex; align-items: flex-start; gap: 8px; min-height: 44px; font-size: 13px; padding: 6px 0; }
-.settings-sheet .set-part-lbl { flex: 0 0 56px; padding-top: 7px; color: var(--muted); word-break: keep-all; }
-.settings-sheet .set-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; flex: 1 1 auto; min-width: 0; }
-.settings-sheet .set-chips .fchip { margin: 0; flex: 0 0 auto; white-space: nowrap; }
-.settings-sheet .set-chips.colors { padding-top: 2px; }
-.settings-sheet .set-eye-note { text-align: right; margin: -2px 0 0; min-height: 0; }
+.settings-sheet .set-look { margin: 4px 0 6px; }
+.settings-sheet .set-look > span { color: var(--muted); word-break: keep-all; }
+.settings-sheet .set-look .btn.sm, :root[data-font="pixel"] .settings-sheet .set-look .btn.sm { flex: 0 0 auto; min-height: 44px; white-space: nowrap; }
 .settings-sheet .set-parts-note { margin: 0; min-height: 0; }
 :root[data-font="pixel"] .settings-sheet .pl-port { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); }
-:root[data-font="pixel"] .settings-sheet .set-part { font-size: 20px; line-height: 30px; padding: 4px 0; }
-:root[data-font="pixel"] .settings-sheet .set-part-lbl { flex-basis: 84px; padding-top: 2px; }   /* '악세사리' = Galmuri 20px × 4자 = 80px — 72px 에선 '악세사/리' 로 꺾였다 */
-:root[data-font="pixel"] .settings-sheet .set-chips { gap: 12px; }   /* 픽셀 .fchip 의 2px 그림자까지 포함해도 44px 간격 */
+
+/* 5) 내 모습 옷장 (#look-sheet — 주인 11-09 "외관도 이런 느낌 ui로 각 항목별로 고를 수 있게 카테고리 나눠도 좋을 듯" · docs/PLAYER_PARTS.md §3 · app.js renderLook):
+      [갈래 탭 48] [물건 타일 — 안에서 굴러간다] [전신 미리보기 128×192 + 뒤 보기]   ← 360px 부터. 그보다 좁으면 탭이 위 가로 줄로 올라간다.
+   · 그림은 전부 정수배: 썸네일 32→64px · 전신 64×96→128×192px (캔버스는 content-box — 테두리가 그림을 줄이지 않게) · 탭 그림 16→32px (두 테마 다).
+   · 타일 칸: 폰은 두 줄(360px 에서 칸 69px ≥ 그림 64 + 테두리 4), ≥600px 은 세 줄. 칸 수를 고정해 둔다 (auto-fill 은 1px 모자라면 한 줄로 떨어진다).
+   · 굴러가는 칸은 스크롤 막대를 감춘다 (데스크톱 막대 15px 이 두 줄을 한 줄로 만든다) — '더 있다' 는 칸 아래 띠 .look-more (시스템 = 바닥색 그라데이션 · 픽셀 = 체커 + 아래 꺾쇠) 가 알린다. 아래로 4px 넘게 남았을 때만 #look-body.more 로 켠다 (app.js lookMoreSync). 포커스 링 · 2px 그림자 자리로 안쪽 여백 2/4/4/2.
+   · 고른 타일 = 호박 테 + 오른쪽 위 체크 딱지 (글자 '✓' 아님 — 마스크로 그린 7×6 픽셀 그림). 색은 설정과 같은 .preset 동그라미 (36px + 12px 간격 = 탭 영역 44px 이 안 겹친다) */
+.look-sheet, :root[data-font="pixel"] .look-sheet { padding-left: 8px; padding-right: 8px; }
+.look-sheet .set-h { padding: 0 4px; }
+.look-sheet { --look-stage-w: 132px; }   /* 미리보기 칸 = 캔버스 128 + 테두리 2 + 여백 2 — 고정이라 갈래를 바꿔도 타일 칸 폭이 안 흔들린다 */
+:root[data-font="pixel"] .look-sheet { --look-stage-w: 136px; }   /* 128 + 테두리 4 + 블록 그림자 자리 4 */
+.look-body { display: grid; grid-template-columns: 48px minmax(0, 1fr) var(--look-stage-w); gap: 4px; height: min(348px, max(260px, calc(86dvh - 152px))); margin: 8px 0 0; }
+.look-body.no-shot { grid-template-columns: 48px minmax(0, 1fr); }
+.look-rail { grid-column: 1; grid-row: 1; }
+.look-items, .look-more { grid-column: 2; grid-row: 1; }
+.look-stage { grid-column: 3; grid-row: 1; }
+.look-rail { display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 0; overflow-y: auto; scrollbar-width: none; padding: 2px; margin: -2px; }
+.look-rail::-webkit-scrollbar, .look-items::-webkit-scrollbar, .look-stage::-webkit-scrollbar { display: none; }
+.look-tab {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; flex: 0 0 auto; width: 48px; height: 52px; padding: 0;
+  border: 1px solid var(--rim); border-radius: 10px; background: var(--panel2); color: var(--muted); font-size: 12px; line-height: 16px; cursor: pointer;
+  transition: background var(--t-morph) var(--ease-inout), color var(--t-morph) var(--ease-inout), border-color var(--t-morph) var(--ease-inout);
+}
+.look-tab .ua-ico.ua-both, :root[data-font="pixel"] .look-tab .ua-ico.ua-both { display: block; width: 32px; height: 32px; margin: 0; }
+.look-tab[aria-selected="true"] { background: var(--amber-g); border-color: var(--amber); color: var(--amber); }
+.look-items { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 2px 4px 4px 2px; }
+.look-more { align-self: end; justify-self: stretch; position: relative; z-index: 1; height: 32px; pointer-events: none; opacity: 0; background: linear-gradient(to bottom, transparent, var(--panel) 60%); transition: opacity var(--t-morph) var(--ease-inout); }
+.look-body.more .look-more { opacity: 1; }
+.look-more::after {
+  content: ''; position: absolute; left: 50%; bottom: 2px; width: 14px; height: 8px; margin-left: -7px; background: var(--muted);
+  -webkit-mask: var(--look-down) center / 14px 8px no-repeat; mask: var(--look-down) center / 14px 8px no-repeat;
+}
+.look-sheet { --look-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 4' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h2v1h-2zM5 0h2v1h-2zM1 1h2v1h-2zM4 1h2v1h-2zM2 2h3v1h-3zM3 3h1v1h-1z'/%3E%3C/svg%3E"); }
+.look-sheet .look-sec { margin: 4px 0 -2px; }
+.look-sheet .look-sec:first-child { margin-top: 0; }
+.look-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.look-tile {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-width: 0; padding: 0 0 2px;
+  border: 1px solid var(--rim); border-radius: 10px; background: var(--panel2); color: var(--muted); font-size: 12px; line-height: 18px; cursor: pointer;
+  transition: transform var(--t-press) var(--ease-out), border-color var(--t-morph) var(--ease-inout), color var(--t-morph) var(--ease-inout);
+}
+.look-tile:active { transform: scale(.97); }
+.look-thumb { display: block; flex: 0 0 auto; width: 64px; height: 64px; image-rendering: pixelated; image-rendering: crisp-edges; }
+.look-name { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; }
+.look-tile.on { border-color: var(--amber); color: var(--fg); box-shadow: 0 0 0 1px var(--amber); }
+.look-tile.on::before { content: ''; position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--amber); }
+.look-tile.on::after {
+  content: ''; position: absolute; top: 6px; right: 5px; width: 14px; height: 12px; background: var(--on-accent);
+  -webkit-mask: var(--look-check) center / 14px 12px no-repeat; mask: var(--look-check) center / 14px 12px no-repeat;
+}
+.look-sheet { --look-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 6' shape-rendering='crispEdges'%3E%3Cpath d='M6 0h1v1h-1zM5 1h2v1h-2zM0 2h1v1h-1zM4 2h2v1h-2zM0 3h2v1h-2zM3 3h2v1h-2zM1 4h3v1h-3zM2 5h1v1h-1z'/%3E%3C/svg%3E"); }
+.look-body.no-shot .look-tile { min-height: 44px; justify-content: center; padding: 4px 2px; }
+.look-colors { display: flex; flex-wrap: wrap; gap: 12px; padding: 4px; }
+.look-sheet .look-eye-note, .look-sheet .look-note { margin: 0; min-height: 0; }
+.look-items > * { flex: 0 0 auto; }   /* 세로 flex 안이라 min-height: 0 인 글 줄이 넘칠 때 0 으로 눌린다 (2D 안내 줄이 갈래 제목과 겹쳤다, 11-09) */
+.look-stage { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; min-height: 0; overflow-y: auto; scrollbar-width: none; padding: 2px 2px 2px 0; }
+.look-stage-cv { display: block; flex: 0 0 auto; box-sizing: content-box; width: 128px; height: 192px; border: 1px solid var(--rim); border-radius: 10px; background: var(--panel2); image-rendering: pixelated; image-rendering: crisp-edges; }
+.look-stage .btn.sm { flex: 0 0 auto; white-space: nowrap; }
+.look-sheet .look-now { margin: 0; width: 100%; text-align: center; font-size: 12px; color: var(--muted); word-break: keep-all; }
+.look-sheet #look-close { margin-top: 12px; }
+@media (max-width: 359px) {
+  .look-body, .look-body.no-shot { grid-template-columns: minmax(0, 1fr) var(--look-stage-w); grid-template-rows: auto minmax(0, 1fr); height: min(408px, max(320px, calc(86dvh - 152px))); }
+  .look-body.no-shot { grid-template-columns: minmax(0, 1fr); }
+  .look-rail { grid-column: 1 / -1; grid-row: 1; flex-direction: row; overflow: visible; }
+  .look-items, .look-more { grid-column: 1; grid-row: 2; }
+  .look-stage { grid-column: 2; grid-row: 2; }
+  .look-tab { flex: 1 1 0; width: auto; min-width: 0; }
+}
+@media (min-width: 600px) { .look-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+:root[data-font="pixel"] .look-rail { gap: 6px; padding: 2px 4px 4px 2px; margin: -2px -4px -4px -2px; }
+:root[data-font="pixel"] .look-tab {
+  width: 46px; height: 52px; padding: 0 0 2px; border-radius: 0; border: 2px solid var(--line); font-family: var(--f-meta); font-size: 16px; line-height: 16px;
+  box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line); transition: none;
+}
+:root[data-font="pixel"] .look-tab .ua-ico.ua-both { margin: -1px 0; }   /* 안쪽 48px = 그림 32 − 2(위아래 빈 줄을 1px 씩 겹친다) + 글자 16 + 아래 숨 2 (받침 글자가 안쪽 그림자 줄에 안 붙게). 탭 6 × 52 + 틈 5 × 6 = 342 ≤ 몸통 348 */
+:root[data-font="pixel"] .look-tab:active { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
+:root[data-font="pixel"] .look-tab[aria-selected="true"] { background: var(--amber-fill); border-color: var(--line); color: var(--on-accent); box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo), 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .look-tile {
+  border-radius: 0; border: 2px solid var(--line); font-family: var(--f-meta); font-size: 16px; line-height: 20px; padding: 0;
+  box-shadow: 2px 2px 0 var(--line); transition: none;
+}
+:root[data-font="pixel"] .look-tile:active { transform: translate(2px, 2px); box-shadow: none; }
+:root[data-font="pixel"] .look-tile.on { border-color: var(--line); background: var(--amber-fill); color: var(--on-accent); box-shadow: inset 0 0 0 2px var(--amber-hi), 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .look-tile.on .look-thumb { background: var(--panel2); }
+:root[data-font="pixel"] .look-tile.on::before { top: 0; right: 0; width: 20px; height: 18px; border-radius: 0; background: var(--amber-fill); border-left: 2px solid var(--line); border-bottom: 2px solid var(--line); }
+:root[data-font="pixel"] .look-tile.on::after { top: 2px; right: 2px; }
+:root[data-font="pixel"] .look-body.no-shot .look-tile { padding: 4px 2px; }
+:root[data-font="pixel"] .look-more { height: 16px; background: repeating-conic-gradient(var(--panel) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px; transition: none; }
+:root[data-font="pixel"] .look-more::before { content: ''; position: absolute; left: 50%; bottom: 0; width: 26px; height: 14px; margin-left: -13px; background: var(--panel); border: 2px solid var(--line); border-bottom: 0; }
+:root[data-font="pixel"] .look-more::after { bottom: 2px; background: var(--line); }
+:root[data-font="pixel"] .look-stage { padding: 2px 4px 4px 0; }
+:root[data-font="pixel"] .look-stage-cv { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .look-sheet .look-now { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
+@media (max-width: 359px) {
+  :root[data-font="pixel"] .look-rail { padding: 0 0 2px; margin: 0; }
+  :root[data-font="pixel"] .look-tab { width: auto; }
+}

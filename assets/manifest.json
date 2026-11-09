@@ -756,5 +756,41 @@
     "w": 16,
     "h": 16,
     "note": "장면 위 버튼 아이콘 16×16 (ctl.home = 산책 중 바깥 화면 왼쪽 아래 #btn-door 의 빨간 지붕 집 · ctl.walk = 왼쪽 아래 발자국 손잡이(#stick) 의 발자국 둘 · ctl.door = 로그·앨범의 바깥 주소 표시) — ×2 = 32px 로만. 두 테마 다 보인다 (js/ui-art.js fillIcons 가 주소를 채운다)."
+  },
+  "icon.look.hair": {
+    "src": "assets/icons/look/hair.png",
+    "w": 16,
+    "h": 16,
+    "note": "내 모습 옷장(#look-sheet) 갈래 탭 그림 16×16 — 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식. 두 테마 다 ×2 = 32 px 로 보인다."
+  },
+  "icon.look.eyes": {
+    "src": "assets/icons/look/eyes.png",
+    "w": 16,
+    "h": 16,
+    "note": "내 모습 옷장(#look-sheet) 갈래 탭 그림 16×16 — 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식. 두 테마 다 ×2 = 32 px 로 보인다."
+  },
+  "icon.look.face": {
+    "src": "assets/icons/look/face.png",
+    "w": 16,
+    "h": 16,
+    "note": "내 모습 옷장(#look-sheet) 갈래 탭 그림 16×16 — 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식. 두 테마 다 ×2 = 32 px 로 보인다."
+  },
+  "icon.look.outfit": {
+    "src": "assets/icons/look/outfit.png",
+    "w": 16,
+    "h": 16,
+    "note": "내 모습 옷장(#look-sheet) 갈래 탭 그림 16×16 — 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식. 두 테마 다 ×2 = 32 px 로 보인다."
+  },
+  "icon.look.shoes": {
+    "src": "assets/icons/look/shoes.png",
+    "w": 16,
+    "h": 16,
+    "note": "내 모습 옷장(#look-sheet) 갈래 탭 그림 16×16 — 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식. 두 테마 다 ×2 = 32 px 로 보인다."
+  },
+  "icon.look.acc": {
+    "src": "assets/icons/look/acc.png",
+    "w": 16,
+    "h": 16,
+    "note": "내 모습 옷장(#look-sheet) 갈래 탭 그림 16×16 — 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식. 두 테마 다 ×2 = 32 px 로 보인다."
   }
 }

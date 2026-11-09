@@ -411,7 +411,7 @@ games/cards/{week}/{…같은 꼴…}.json         games-ids/cards/{week}/{runId
 ### 7.1 흐름
 ```
 주가 닫힘 → 창 열 때 checkAwards → awards[] 도착
- ├ 내 것: wardrobe 에 id 추가 → 설정 › 내 모습 (옷방 전까지의 자리, PLAYER_PARTS §3) 칩이 생김 → 톡 하면 바로 입음 (setPlayer)
+ ├ 내 것: wardrobe 에 id 추가 → 설정 › 내 모습 › 모습 바꾸기 (옷장 시트, PLAYER_PARTS §3) 의 그 갈래에 타일이 생김 → 톡 하면 바로 입음 (setPlayer)
  └ 문어 것: gift.box 에 { id, from:{ game, week }, got } 추가 → 설정 › 내 모습 아래 '문어 선물 상자' 줄
        → [내밀기] (문어가 집에 있고 깨어 있을 때만 보임 — [보여 주기] 와 같은 조건, 하루 한 번 — §7.2)
        → 상자에서 1~3개 고름 → '내밀기' 누름
@@ -435,7 +435,7 @@ games/cards/{week}/{…같은 꼴…}.json         games-ids/cards/{week}/{runId
 | 하루 한 번 | `gift.today = { day, n }`; 같은 날 두 번째 [내밀기] 는 버튼이 없다(설명 줄 '오늘은 한 번 내밀었어' 한 줄, 남은 시간 없음). **이 카운터는 DESIGN §16.1 '선물 고르기(뭐 갖고 싶어?)' 와 공유하는 하루 한 번의 유일한 '내밀기' 몫이다**(ACHIEVEMENTS §4.3 '§16.1 과 같은 묶음') — 둘 중 먼저 한 쪽이 그날 몫을 쓴다. PLAYER_PROGRESSION §7.4 [보여 주기] 는 묻지 않는 알림이라 **별도**(여기 안 센다). §16.1 은 아직 코드가 없으므로 카운터 자리는 일단 `ppolppol_games.gift.today` 에 두되, §16.1 이 들어올 때 옮길지 **§11 질문 9** | 같음 |
 | 벗기 | 문어가 입은 것은 **사람이 못 벗긴다**. 내밀 때 '아무것도 안 입기' 카드를 함께 내밀 수 있다(문어가 고르면 그 슬롯 비움) — **§11 질문 6** | 선택지에 '벗기' 포함 |
 
-### 7.3 설정 시트 '내 모습' 에 덧붙는 줄 (옷방 전까지)
+### 7.3 설정 시트 '내 모습' 에 덧붙는 줄 (옷방 전까지 — 11-09 부터 고르는 곳은 옷장 시트라, 상으로 받은 옷은 옷장의 그 갈래 타일로 들어간다)
 | 줄 | 내용 |
 |---|---|
 | acc 칩 줄 | 기존 6 + **받은** 모자·관(없으면 그대로 6) |
@@ -539,7 +539,7 @@ games/cards/{week}/{…같은 꼴…}.json         games-ids/cards/{week}/{runId
 | **K** 칩 화면 | 칩 3개 보임 · 각 버튼 ≥ 56 px · '최고 N'·'아직 안 해 봤어' · '뒤로' → 포커스 `#btn-machine` · 가로 스크롤 없음 · `tests/evidence/arcade-chips.png` |
 | **X** 플래피 | 칩 톡 → 준비 문구 /헤엄/ → 탭 → 부딪힘(봇 없음, 자연 낙하 **≈ 27틱** 또는 탭 몇 번) → `#rn-final` ∈ 해초·산호·그물·모래 문구 → `ppolppol_games.games.flappy.last.version==='flappy-1'` · `FLAPPY.simulate` 점수 = 저장 = `#rn-score` · `verify` 통과 · 쉬는 중 → 탭 → `last.inputs` 에 그 `sw` 가 있음 · `tests/evidence/flappy-{start,mid,over}.png` · `flappy-live-run.json` |
 | **Y** 카드 | 칩 톡 → `#rn-board` 버튼 20 (`#rn-cv` 숨김) → 스크립트로 전부 뒤집어 완주(덱은 `CARDS.simulate(seed,[]).deck` 로 읽음) → '다 맞췄어!' · `score ≥ 1000` · 재시뮬 = 저장 · **카드 버튼 CSS 크기 ≥ 44 px(360×740 @2x 에서 56)** · 판 중 `#rn-moss` 숨김 · 결과판에 '뒤집기' 글자 · `cards-{board,over}.png` · `cards-live-run.json` |
-| **Z** 상·내밀기 | `page.route('/api/games/**')` 가짜 award 응답 `awards:['pirate_cape','pirate_patch','pirate_hat'] final:true` → 창 열면 `#ar-award` /해적 망토/ → 설정 › 내 모습 에 '해적' 칩 3 · 선물 상자 3+3 → 내밀기(가짜 시계로 문어 깨어 있음) → 결정 줄 /^선물: 문어가/ + '데모 규칙' 꼬리표 → 문어가 골랐으면 `scene.octWear()` 슬롯 채워짐 · 초상 캐시 갱신(`portrait('idle')` 픽셀이 바뀜) · 두뇌 입력 JSON 에 /runner\|play\|놀이방\|오락기\|달리기\|등\|점수\|순위/ 0건 · 가짜 `awards:['paper_crown']` 만이면 `#ar-award[hidden]` · `tests/evidence/costume-{mine,octo}.png` |
+| **Z** 상·내밀기 | `page.route('/api/games/**')` 가짜 award 응답 `awards:['pirate_cape','pirate_patch','pirate_hat'] final:true` → 창 열면 `#ar-award` /해적 망토/ → 옷장 시트(설정 › 내 모습 › 모습 바꾸기)에 '해적' 타일 3 · 선물 상자 3+3 → 내밀기(가짜 시계로 문어 깨어 있음) → 결정 줄 /^선물: 문어가/ + '데모 규칙' 꼬리표 → 문어가 골랐으면 `scene.octWear()` 슬롯 채워짐 · 초상 캐시 갱신(`portrait('idle')` 픽셀이 바뀜) · 두뇌 입력 JSON 에 /runner\|play\|놀이방\|오락기\|달리기\|등\|점수\|순위/ 0건 · 가짜 `awards:['paper_crown']` 만이면 `#ar-award[hidden]` · `tests/evidence/costume-{mine,octo}.png` |
 | 가로 모드(F 단계) | 뷰포트 740×360 @2x → 테두리 0, 캔버스 배율 = floor(min(740·2/192, 360·2/108)) = 6 장치 px → CSS 576×324 · 버튼 겹침 · 결과판 ≤ 420 px · 카드 보드 칸 64 · `tests/evidence/arcade-landscape.png` |
 
 ### 9.4 그 밖에

@@ -284,7 +284,7 @@ var SCENE3D = (function () {
      id 순서 = 설정 시트 칩 순서, name 은 칩 글자(한국어 4자 안팎). hairColor·eyeColor 의 hex 는 알베도 — 툰 3단 · 푸른 필 빛을 거쳐 apollo 어느 칸에 앉는지는 문서 §2.2·§2.4 (금발 amber[3] → #e8c170, v0 #ffd27a 는 올리브로 떴다).
      기하 빌더는 init 안 PL_PARTS (T·PAL 이 필요하다). 모르는 범주·id 는 normalizePlayer 가 기본값으로 — 앱의 설정 복원도 같은 함수를 쓴다 */
   var PLAYER_PARTS = {
-    hair: [{ id: 'bob', name: '단발' }, { id: 'short', name: '짧은머리' }, { id: 'long', name: '긴생머리' }, { id: 'twin', name: '양갈래' }, { id: 'pony', name: '포니테일' }, { id: 'wave', name: '웨이브' }],
+    hair: [{ id: 'bob', name: '단발' }, { id: 'short', name: '숏컷' }, { id: 'long', name: '긴생머리' }, { id: 'twin', name: '양갈래' }, { id: 'pony', name: '포니테일' }, { id: 'wave', name: '웨이브' }],
     hairColor: [{ id: 'blonde', name: '금발', hex: '#e8a93a' },{ id: 'brown', name: '밤갈색', hex: '#9a5a3a' }, { id: 'ink', name: '먹남색', hex: '#1e2a44' }, { id: 'silver', name: '은빛', hex: '#cfc9c0' }, { id: 'pink', name: '분홍', hex: '#de8fa9' }, { id: 'lime', name: '연두', hex: '#a0d070' }],   /* 금발 #e8a93a → 필 빛에서 #de9e41 (amber[3] 은 #e8c170 로 살결 #e7d5b3 와 거의 같은 칸이라 1× 에서 머리가 한 덩이 공으로 읽혔다 — 리뷰 11-08) */
     eyes: [{ id: 'round', name: '동그란' }, { id: 'sparkle', name: '반짝' }, { id: 'sleepy', name: '졸린' }, { id: 'almond', name: '또렷' }, { id: 'smile', name: '웃는' }, { id: 'dot', name: '점' }],   /* 눈동자 그림 스타일 (주인 11-08 피드백 6: 눈 모양이 아니라 '눈동자 그림', 전부 귀엽게) */
     nose: [{ id: 'none', name: '없음' }, { id: 'dot', name: '콩코' }, { id: 'tri', name: '세모코' }],
@@ -2229,8 +2229,9 @@ var SCENE3D = (function () {
     }
     /* 내 캐릭터 초상 (설정 시트 '내 모습' 미리보기, 64×64): 문어 portrait 과 같은 길 — 레이어 2 전용 3점 조명(문어 rig) · pCam · rtP/rtPN/rtPO · postP · 캐시(키 = cfg + 문어 색 + 팔레트 + 배경).
        찍는 동안만 내 캐릭터 7 메시를 레이어 2 에 넣고 문어의 레이어 2 메시는 뺀다(문어 초상엔 내 캐릭터가, 내 초상엔 문어가 안 들어온다). 조명 rig 는 octG 안에 있어 octG 를 보이게 하고 요를 0 으로 맞춘다(빛 방향이 문어 요를 따라 돌지 않게).
-       프레이밍: 타깃 = 머리 중심 0.08 위(y 0.95) · 위에서 15° · 요 +30°(포니테일·단발 뒷선이 보이게, 얼굴은 다 보인다) · 반폭 1.5 r(머리 지름 ≈ 43 px, 밀짚모자 1.38 까지 다 들고 아래는 가슴 0.425 까지) · 정지 자세 · 깜빡임 없음 · 밤 자체광 없음. 초상 조명은 3점 흰빛이라 색 칸이 장면과 다를 수 있다 — '모양 미리보기' 다 */
-    function renderPlayerPortrait(bgHex) {
+       프레이밍: 타깃 = 머리 중심 0.08 위(y 0.95) · 위에서 15° · 요 0°(정면 — 얼굴 조각이 안 뭉개진다, PPORT 주석. 옆 · 뒷선은 옷장 샷의 'hair' · 'back' 틀이 맡는다) · 반폭 1.5 r(머리 지름 ≈ 43 px, 밀짚모자 1.38 까지 다 들고 아래는 가슴 0.425 까지) · 정지 자세 · 깜빡임 없음 · 밤 자체광 없음. 초상 조명은 3점 흰빛이라 색 칸이 장면과 다를 수 있다 — '모양 미리보기' 다 */
+    function renderPlayerPortrait(bgHex, fr) {   /* fr = 틀 { y 타깃 높이(m) · hw 반폭(m) · lod 얼굴 아틀라스 줄 · up 화면 위쪽으로 미는 거리(m) } — 없으면 초상 틀. 옷장 샷(playerShot)이 같은 길을 틀만 바꿔 쓴다 */
+      fr = fr || { y: PL_HEAD_Y - PPORT.down, hw: PPORT.hw * PL_HEAD_R, lod: 2, up: 0, yaw: PPORT.yaw };
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       var sv = { sx: plBody.scale.x, sy: plBody.scale.y, sz: plBody.scale.z, py: plBody.position.y, rz: plBody.rotation.z, gy: plG.rotation.y, vis: plG.visible, pvis: plG.parent ? plG.parent.visible : true,
         limbs: plLimbs.map(function (m) { return [m.rotation.x, m.rotation.z]; }), shut: PL.shut, lod: PL.lod, eem: toonEye.emissive.clone(), ecol: toonEye.color.clone(),
@@ -2238,16 +2239,17 @@ var SCENE3D = (function () {
       var sc = renderer.getClearColor(_cc).clone(), sa = renderer.getClearAlpha(), octL2 = [];
       octG.traverse(function (o) { if (o.isMesh && (o.layers.mask & 4)) { octL2.push(o); o.layers.disable(2); } });
       plMeshes.forEach(function (m) { m.layers.enable(2); });
-      PL.shut = false; PL.lod = 2; plEyeUV();   /* 눈 뜨고 8×10 칸으로: 정면 61 px/m 는 장면 2× (54 px/m) 보다 촘촘해 2× 그림이 텍셀 ≈ 1.1 px 로 열이 안 빠진다 (요 30° 시절엔 먼 눈 조각이 0.84 px 라 4×5 로 찍었다) — 주인이 눈 · 코 · 입 · 볼을 고르는 바로 그 미리보기라 한쪽이 깨지면 안 된다 */
-      plBody.scale.set(1, 1, 1); plBody.position.y = 0; plBody.rotation.z = 0; plG.rotation.y = 0;
+      PL.shut = false; PL.lod = fr.lod; plEyeUV();   /* 눈 뜨고 8×10 칸으로: 정면 61 px/m 는 장면 2× (54 px/m) 보다 촘촘해 2× 그림이 텍셀 ≈ 1.1 px 로 열이 안 빠진다 (요 30° 시절엔 먼 눈 조각이 0.84 px 라 4×5 로 찍었다) — 주인이 눈 · 코 · 입 · 볼을 고르는 바로 그 미리보기라 한쪽이 깨지면 안 된다 */
+      plBody.scale.set(1, 1, 1); plBody.position.y = 0; plBody.rotation.z = 0; plG.rotation.y = -(fr.yaw || 0);   /* 요 = 카메라가 아니라 내 캐릭터를 돌린다 (카메라 · 3점 빛은 그대로 → 돌려 찍어도 앞에서 받는 빛) */
       plLimbs.forEach(function (m) { m.rotation.x = 0; }); plArmL.rotation.z = -0.16; plArmR.rotation.z = 0.16;
       plG.visible = true; if (plG.parent) plG.parent.visible = true; octG.visible = true; if (octG.parent) octG.parent.visible = true; octG.rotation.y = 0;   /* 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */
       toonP.emissive.setRGB(0, 0, 0); toonP.color.setScalar(0.8); toonEye.emissive.setRGB(0, 0, 0); toonEye.color.setScalar(0.8);   /* 3점 흰빛 rig 는 장면 필보다 밝아 금발 윗면이 올리브 #d0da91 로 떴다 → 재질 색만 0.8 로 눌러 찍는다 (유니폼, 프로그램 그대로). 눈 재질도 같이 — 안 누르면 흰자가 살결보다 한 칸 떠 번쩍인다 */
       plG.updateMatrixWorld(true); octG.updateMatrixWorld(true);
-      var ty = PL_HEAD_Y - PPORT.down, ct = Math.cos(PPORT.tilt);
-      _pt.set(0, ty, 0); plG.localToWorld(_pt);
-      _pp.set(PPORT.dist * ct * Math.sin(PPORT.yaw), ty + PPORT.dist * Math.sin(PPORT.tilt), PPORT.dist * ct * Math.cos(PPORT.yaw)); plG.localToWorld(_pp);
-      var hw = PPORT.hw * PL_HEAD_R; pCam.left = -hw; pCam.right = hw; pCam.top = hw; pCam.bottom = -hw; pCam.updateProjectionMatrix();
+      var ty = fr.y, ct = Math.cos(PPORT.tilt), stl = Math.sin(PPORT.tilt), up = fr.up || 0, yw = fr.yaw == null ? PPORT.yaw : fr.yaw;
+      var ux = -stl * Math.sin(yw) * up, uy = ct * up, uz = -stl * Math.cos(yw) * up;   /* 카메라 '위' 벡터(내 캐릭터 로컬) × up — 타깃과 카메라를 같이 밀어 화면만 세로로 옮긴다 (전신 샷이 64×64 두 장을 이어 붙인다) */
+      _pt.set(ux, ty + uy, uz); plG.localToWorld(_pt);
+      _pp.set(PPORT.dist * ct * Math.sin(yw) + ux, ty + PPORT.dist * stl + uy, PPORT.dist * ct * Math.cos(yw) + uz); plG.localToWorld(_pp);
+      var hw = fr.hw; pCam.left = -hw; pCam.right = hw; pCam.top = hw; pCam.bottom = -hw; pCam.updateProjectionMatrix();
       pCam.position.copy(_pp); pCam.up.set(0, 1, 0); pCam.lookAt(_pt); pCam.updateMatrixWorld();
       scene.background = bgHex ? C(bgHex) : null; renderer.setClearColor(bgHex ? C(bgHex) : 0x000000, bgHex ? 1 : 0);
       renderer.setRenderTarget(rtP); renderer.clear(true, true, false); renderer.render(scene, pCam);
@@ -2276,6 +2278,48 @@ var SCENE3D = (function () {
       if (!e) e = PPORT.cache[k] = { cv: renderPlayerPortrait(portraitBg(o)) };
       if (o && o.shared) return e.cv;
       var cv = document.createElement('canvas'); cv.width = cv.height = PORT.N; cv.getContext('2d').drawImage(e.cv, 0, 0); return cv;
+    }
+    /* 옷장 샷 (docs/PLAYER_PARTS.md §3 '내 모습 옷장'): 초상과 같은 길을 틀(frame)만 바꿔 찍는다 — 전신 미리보기와 고를 것 썸네일.
+       · look = 지금 모습 위에 덮어쓸 범주들 ({ hair: 'pony' } → 그 머리만 바꾼 모습). 지금 모습과 다르면 찍는 동안만 7 메시의 지오메트리와 얼굴 아틀라스를 잠깐 바꿨다가 되돌린다 (plWithLook — 임시 지오메트리는 바로 dispose, 메시·재질·프로그램·텍스처 수 그대로).
+       · frame: 'full' 64×96(전신: 64×64 두 장을 ±16 px 로 찍어 가운데서 잇는다 — 16 px = 0.2625 m 는 베이어 무늬 주기의 배수라 이음매가 안 보인다) · 'back' 64×96(전신 뒷모습: 요 π) · 'head' 32×32(30.5 px/m · LOD 1: 머리 · 모자가 다 든다) · 'hair' 32×32(head 를 요 0.9 로 돌리고 0.08 내려 찍는다 — 얼굴은 남기고 긴머리 자락 · 양갈래 · 포니 꼬리 · 웨이브 끝이 갈린다. 요 0.35 는 여섯 머리가 거의 같아 보였다, 11-09) · 'face' · 'body' · 'feet' 32×32(61 px/m · LOD 2: 초상과 같은 촘촘함의 가운데 크롭).
+         얼굴 조각은 텍셀 ≈ 1.13 px 일 때만 안 뭉개진다 → 61 px/m × LOD 2 아니면 30.5 px/m × LOD 1 둘만 쓴다.
+       · 캐시: 키 = 모습 + 틀 + 문어 색 + 팔레트 + 배경, 최근 200 장 (setPlayer 로 안 비운다 — 같은 모습으로 돌아오면 그대로 쓴다). 컨텍스트 잃음 = 빈 캔버스(캐시 안 함). */
+    var PSHOT = { cache: {}, keys: [], cap: 200, n: 0, frames: {
+      full: { w: 64, h: 96, y: 0.70, hw: 0.525, lod: 2, tiles: [0.2625, -0.2625] },
+      head: { w: 32, h: 32, y: 0.93, hw: 1.05, lod: 1 },
+      back: { w: 64, h: 96, y: 0.70, hw: 0.525, lod: 2, tiles: [0.2625, -0.2625], yaw: Math.PI },
+      hair: { w: 32, h: 32, y: 0.80, hw: 1.05, lod: 1, yaw: 0.9 },
+      face: { w: 32, h: 32, y: 0.86, hw: 0.525, lod: 2 },
+      body: { w: 32, h: 32, y: 0.40, hw: 0.525, lod: 2 },
+      feet: { w: 32, h: 32, y: 0.09, hw: 0.525, lod: 2 } } };
+    function plWithLook(look, fn) {
+      var live = PL.look; if (JSON.stringify(look) === JSON.stringify(live)) return fn();
+      var liveG = plMeshes.map(function (m) { return m.geometry; }), tmp = plGeos(look);
+      try { plMeshes.forEach(function (m, i) { m.geometry = tmp[i]; }); PL.look = look; plEyeBase(); plDrawEyes(look); return fn(); }
+      finally { plMeshes.forEach(function (m, i) { m.geometry = liveG[i]; }); tmp.forEach(function (g) { g.dispose(); }); PL.look = live; plDrawEyes(live); plEyeUV(); }
+    }
+    function renderPlayerShot(look, fr, bgHex) {
+      var cv = document.createElement('canvas'); cv.width = fr.w; cv.height = fr.h; var cx = cv.getContext('2d'), N = PORT.N;
+      plWithLook(look, function () {
+        if (fr.tiles) {
+          var a = renderPlayerPortrait(bgHex, { y: fr.y, hw: fr.hw, lod: fr.lod, yaw: fr.yaw, up: fr.tiles[0] }), b = renderPlayerPortrait(bgHex, { y: fr.y, hw: fr.hw, lod: fr.lod, yaw: fr.yaw, up: fr.tiles[1] });
+          cx.drawImage(a, 0, 0); cx.clearRect(0, 48, N, 48); cx.drawImage(b, 0, 16, N, 48, 0, 48, N, 48);   /* 위 장 0~47 줄 + 아래 장 16~63 줄 → 가장자리 16 줄(윤곽선이 바깥을 못 보는 곳)은 둘 다 버린다 */
+        } else { var c = renderPlayerPortrait(bgHex, { y: fr.y, hw: fr.hw, lod: fr.lod, yaw: fr.yaw, up: 0 }); cx.drawImage(c, (N - fr.w) / 2, (N - fr.h) / 2, fr.w, fr.h, 0, 0, fr.w, fr.h); }
+      });
+      PSHOT.n++; return cv;
+    }
+    function playerShot(o) {   /* → 캔버스 (복사본, o.shared = 캐시 캔버스 그대로). o = { look?: 덮어쓸 범주들, frame?: 'full'(기본) | 'back' | 'head' | 'hair' | 'face' | 'body' | 'feet', bg?: 'transparent'(기본) | 'navy' | '#rrggbb', shared? } */
+      o = o || {};
+      var name = PSHOT.frames[o.frame] ? o.frame : 'full', fr = PSHOT.frames[name], bg = portraitBg(o);
+      var look = o.look ? normalizePlayer(Object.assign({}, PL.look, o.look)) : PL.look;
+      var k = JSON.stringify(look) + '|' + name + '|' + st.color + '|' + PAL.source + '|' + (bg || 't'), e = PSHOT.cache[k];
+      if (!e && ctxLost()) { var blank = document.createElement('canvas'); blank.width = fr.w; blank.height = fr.h; return blank; }
+      if (!e) {
+        e = PSHOT.cache[k] = { cv: renderPlayerShot(look, fr, bg) }; PSHOT.keys.push(k);
+        while (PSHOT.keys.length > PSHOT.cap) delete PSHOT.cache[PSHOT.keys.shift()];
+      }
+      if (o.shared) return e.cv;
+      var cv = document.createElement('canvas'); cv.width = fr.w; cv.height = fr.h; cv.getContext('2d').drawImage(e.cv, 0, 0); return cv;
     }
     var octState = { carrySvg: null, hang: null, carryId: null };   /* carryId = 들고 있는 포스터의 여행 id (APP 의 carry { svg, id }) */
     function setOctState(s, extra) {
@@ -4669,7 +4713,7 @@ var SCENE3D = (function () {
       view: function () { return PLACE.vis; }, room: function () { return PLACE.room; }, goRoom: goRoom, playerWalkTo: playerWalkTo, player: plInfo, finishRoom: dqFinish,
       /* 내 캐릭터 파츠 (docs/PLAYER_PARTS.md §3): setPlayer(cfg) → 정규화된 cfg (지오메트리만 교체, 위치·걷기 그대로) · player().look · playerPortrait({ bg }) → 64×64 캔버스 (레이어 2 조명, 캐시) ·
          debugPlayerYaw(deg | null) 8방향 샷용 (null = 다시 카메라 쪽) · debugPlayerBlink(s) 깜빡임 강제 (tools/player-shots.js) */
-      setPlayer: setPlayer, playerPortrait: playerPortrait,
+      setPlayer: setPlayer, playerPortrait: playerPortrait, playerShot: playerShot,
       /* 움직이기 (brief MOVE.md · docs/SCENE.md '내 캐릭터 · 움직이기'): setPlayerInput({ x, y } | null) 화면 축 벡터(오른쪽 +x · 위 +y · 길이 0..1) → 매 프레임 1.2 m/s · playerInputAllowed() 보이는 때 규칙 ·
          on.playerInput(allowed) 바뀔 때만 · on.playerStep() 걸음마다 · player().input / footprints · debugPlayerAt(x, z) 자리 옮김 (검사용) */
       setPlayerInput: setPlayerInput, playerInputAllowed: playerInputAllowed,

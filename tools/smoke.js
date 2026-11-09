@@ -9,7 +9,7 @@
  *   P 플레이어 화면(?dev=0): 힌트 칸 없이 산책 한 번 · 출발 행·일기에 힌트 얘기 없음 (결정 18),
  *   L 추억 앨범 아이콘(장면 오른쪽 위 · 점 · 날아가는 포스터 · 320 px 이름) · 이름 창 정직 표기, N 호기심 메모(저장 → 다음 산책 입력 · 모델 메모 · 내려놓기),
  *   M 반응은 모델·사람이 준 그대로 (안 주면 없음 · 네 가지 밖의 말 · 코드 줄 없음),
- *   S 7물결(주인 11-07): 플레이어 화면에 '방 보기' 없음 · ⚙ 설정(문어 색 · 내 모습(11-08 파츠 v0) · 소리 · 화면 · 기록 · 누가 고르나) · 소리 켜기는 설정 › 소리 맨 위 '켜기' 체크 칸 (11-08 — 장면 위 스피커 없음) · 등불·데모 말풍선 · 큰 버튼 건너뛰기(두 번 톡 보호) ·
+ *   S 7물결(주인 11-07): 플레이어 화면에 '방 보기' 없음 · ⚙ 설정(문어 색 · 내 모습(11-09 옷장 시트 — 설정엔 요약 줄 + 모습 바꾸기) · 소리 · 화면 · 기록 · 누가 고르나) · 소리 켜기는 설정 › 소리 맨 위 '켜기' 체크 칸 (11-08 — 장면 위 스피커 없음) · 등불·데모 말풍선 · 큰 버튼 건너뛰기(두 번 톡 보호) ·
  *     놀이방 문 → (8물결) 놀이방 → 오락기 → 달리기 창이 열린 채로 산책이 끝까지 (문 소리 훅 · 잠들 때 반응 훅 · 구석 쪽지) · 자정 넘김 → 오늘 칸만 · 앨범(문어의 요즘 · 일기 탭: 지난 날, 새 날 먼저).
  *   J 8물결: 다락 안 놀이방 문(투명 단추) → 진짜 놀이방 · 오락기 → 달리기 · 키보드 왕복 · 산책 중 놀이방(끌려 나가지 않음 · 구석 쪽지 · 보러 가기) · 두뇌 입력 0 · 모션 줄이기 컷 · 새로고침 · 2D.
  *   T 톡 한 줄(주인 11-08: 깨어 있으면 그 차례 한 줄 · 말풍선만 · 모델 줄은 그대로 24자 + … · 다음 날 · 빈 차례 '응?') · 깨어 있는 틈 → 잠 훅 한 번 · 장면 말풍선 맞추기(T-2),
@@ -902,11 +902,27 @@ async function scenario2D(browser) {
   });
   console.log('   dialog2d:', JSON.stringify(dlg2));
   ok(dlg2.cv && dlg2.drawn > 64 * 64 * 0.5 && dlg2.svg, '2D 폴백: 대화창 행 + SVG 얼굴 초상 캔버스 그려짐');
-  /* 설정 › 내 모습 (2D): 10줄 + 안내 한 줄 · 미리보기 캔버스 없음 · 칩을 누르면 저장은 된다 (2D setPlayer 는 모습만 기억) */
+  /* 설정 › 내 모습 (2D): 안내 한 줄 · 미리보기 캔버스 없음 · '모습 바꾸기' → 옷장은 그림 없는 글자 타일 + 안내 한 줄, 전신 칸 없음 · 타일을 누르면 저장은 된다 (2D setPlayer 는 모습만 기억) */
   await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
-  await page.click('#set-parts .set-part[data-part="hair"] .fchip[data-id="twin"]');
-  var p2d = await page.evaluate(function () { var p = APP.scene.player && APP.scene.player(); return { rows: document.querySelectorAll('#set-parts .set-part').length, note: !!document.getElementById('set-parts-note'), port: !!document.getElementById('set-pl-port'), saved: APP.state.settings.player.hair, stored: JSON.parse(localStorage.getItem('ppolppol_v2')).settings.player.hair, look: p ? p.look.hair : null }; });
-  ok(p2d.rows === 10 && p2d.note && !p2d.port && p2d.saved === 'twin' && p2d.stored === 'twin' && p2d.look === 'twin', '2D 내 모습: 10줄 + 안내 한 줄 · 미리보기 캔버스 없음 · 칩을 누르면 저장 (2D 장면도 look 기억) ' + JSON.stringify(p2d));
+  var p2s = await page.evaluate(function () { return { note: !!document.getElementById('set-parts-note'), port: !!document.getElementById('set-pl-port'), sum: (document.getElementById('set-look-sum') || {}).textContent }; });
+  await page.click('#set-look-open'); await page.waitForSelector('#look-sheet[open]');
+  await page.click('#look-items .look-tile[data-part="hair"][data-id="twin"]');
+  var p2d = await page.evaluate(function () {
+    var p = APP.scene.player && APP.scene.player(), d = document.getElementById('look-sheet'), it = document.getElementById('look-items'), on = it.querySelector('[data-part="hair"][aria-pressed="true"]'), tiles = it.querySelectorAll('.look-tile');
+    return { tabs: d.querySelectorAll('[role=tab]').length, tiles: tiles.length, names: [].every.call(tiles, function (b) { return !!(b.querySelector('.look-name') || {}).textContent; }), canvases: d.querySelectorAll('canvas').length,
+      note: (document.getElementById('look-note') || {}).textContent, noShot: document.getElementById('look-body').classList.contains('no-shot'), stage: !!document.getElementById('look-stage-cv') || !!document.getElementById('look-turn'), on: on ? on.dataset.id : null,
+      over: d.scrollWidth - d.clientWidth, vover: d.scrollHeight - d.clientHeight, doc: document.documentElement.scrollWidth - window.innerWidth,
+      saved: APP.state.settings.player.hair, stored: JSON.parse(localStorage.getItem('ppolppol_v2')).settings.player.hair, look: p ? p.look.hair : null };
+  });
+  ok(p2s.note && !p2s.port && p2s.sum === '단발 · 원피스 · 리본', '2D 내 모습 (설정): 안내 한 줄 · 미리보기 캔버스 없음 · 요약 줄 ' + JSON.stringify(p2s));
+  ok(p2d.tabs === 6 && p2d.tiles === 6 && p2d.names && p2d.canvases === 0 && /미리보기가 없어/.test(p2d.note || '') && p2d.noShot && !p2d.stage && p2d.over <= 0 && p2d.vover <= 0 && p2d.doc <= 0,
+    '2D 옷장: 갈래 탭 6 · 그림 없는 글자 타일 + 안내 한 줄 · 전신 칸 없음 · 넘침 없음 ' + JSON.stringify(p2d));
+  ok(p2d.on === 'twin' && p2d.saved === 'twin' && p2d.stored === 'twin' && p2d.look === 'twin', '2D 옷장: 타일을 누르면 켜지고 저장 (2D 장면도 look 기억) ' + JSON.stringify([p2d.on, p2d.saved, p2d.stored, p2d.look]));
+  await page.screenshot({ path: path.join(SHOTS, 'phone-2d-look.png') });
+  await page.click('#look-close'); await page.waitForSelector('#look-sheet[open]', { state: 'hidden' });
+  await page.waitForFunction(function (t) { return document.getElementById('set-look-sum').textContent === t; }, '양갈래 · 원피스 · 리본', { timeout: 3000 }).catch(function () {});   /* close 이벤트는 닫힌 뒤 한 박자 늦게 온다 — 요약 줄은 그때 바뀐다 */
+  var p2c = await page.evaluate(function () { return { sum: document.getElementById('set-look-sum').textContent, under: document.getElementById('settings-sheet').open, focus: document.activeElement && document.activeElement.id }; });
+  ok(p2c.sum === '양갈래 · 원피스 · 리본' && p2c.under && p2c.focus === 'set-look-open', "2D 옷장: '다 골랐어' → 설정으로 돌아옴 · 요약 줄이 새 모습 " + JSON.stringify(p2c));
   await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
   await page.screenshot({ path: path.join(SHOTS, 'phone-2d-fallback.png') });
   ok(s.bag.length === 0, '2D 폴백 콘솔/페이지 에러 없음' + (s.bag.length ? ' → ' + s.bag.join(' | ') : ''));
@@ -1558,41 +1574,156 @@ async function scenarioWave7(browser) {
   console.log('   settings:', JSON.stringify({ hs: st.hs, stats: st.stats, data: st.data, who: st.who }));
   ok(st.hs[0] === '문어 색' && st.hue && st.presets === 6, '설정: 맨 위 문어 색 (색 슬라이더 + 프리셋 6)');
 
-  /* 2b. 내 모습 (내 캐릭터 파츠 v0 · docs/PLAYER_PARTS.md §3 — 옷방이 생기기 전까지 여기): 문어 색 바로 아래 h3 · 7줄 (머리 · 머리 색 · 눈 · 눈 색 · 옷 · 신발 · 악세사리) · 줄마다 켜진 칩 하나 ·
-         색 줄은 .preset 동그라미(aria-label 이름) · 나머지는 .fchip 글자 칩(aria-pressed) · 이모지·기호 없음 · 미리보기 캔버스는 3D + playerPortrait 있을 때만 (96px · pixelated), 2D 면 한 줄 안내 */
+  /* 2b. 내 모습 (docs/PLAYER_PARTS.md §3 · 주인 11-09 옷장): 설정에는 요약 한 줄 + '모습 바꾸기' 단추만 — 고르기는 그 단추가 여는 옷장 시트(#look-sheet)에서.
+         문어 색 바로 아래 h3 · 미리보기 캔버스는 3D + playerPortrait 있을 때만 (96px · pixelated), 2D 면 한 줄 안내 · 이모지·기호 없음 */
+  var PARTS_CATS = 'hair,hairColor,eyes,eyeColor,nose,mouth,cheek,outfit,shoes,acc', LOOK_IDS = ['hair', 'eyes', 'face', 'outfit', 'shoes', 'acc'];
   var pp = await page.evaluate(function () {
-    var b = document.getElementById('set-body'), sec = document.getElementById('set-parts'), hs = [].map.call(b.querySelectorAll('h3'), function (x) { return x.textContent; });
-    var rows = sec ? [].map.call(sec.querySelectorAll('.set-part'), function (r) {
-      var chips = [].slice.call(r.querySelectorAll('[data-id]'));
-      return { cat: r.dataset.part, lbl: (r.querySelector('.set-part-lbl') || {}).textContent, n: chips.length, on: chips.filter(function (c) { return c.getAttribute('aria-pressed') === 'true' && c.classList.contains('on'); }).length,
-        kind: chips.every(function (c) { return c.classList.contains(/Color$/.test(r.dataset.part) ? 'preset' : 'fchip'); }), named: chips.every(function (c) { return /Color$/.test(r.dataset.part) ? !!c.getAttribute('aria-label') && !!c.title : !!c.textContent.trim(); }),
-        tall: chips.every(function (c) { return c.getBoundingClientRect().height >= 32; }) };
-    }) : [];
-    var port = document.getElementById('set-pl-port'), pr = port ? port.getBoundingClientRect() : null;
-    return { hs: hs, idx: hs.indexOf('내 모습'), rows: rows, mode: APP.sceneMode, setFn: typeof APP.scene.setPlayer, portFn: typeof APP.scene.playerPortrait, port: !!port, portW: pr ? Math.round(pr.width) : 0, portPx: port ? /pixelated|crisp-edges/.test(getComputedStyle(port).imageRendering) : false,
-      note2d: !!document.getElementById('set-parts-note'), eyeNote: (document.getElementById('set-eye-note') || {}).textContent, emoji: /\p{Extended_Pictographic}/u.test(sec ? sec.parentNode.innerText : ''), look: APP.scene.player && APP.scene.player() ? APP.scene.player().look : undefined, saved: APP.state.settings.player };
+    var b = document.getElementById('set-body'), hs = [].map.call(b.querySelectorAll('h3'), function (x) { return x.textContent; });
+    var port = document.getElementById('set-pl-port'), pr = port ? port.getBoundingClientRect() : null, open = document.getElementById('set-look-open'), sum = document.getElementById('set-look-sum'), row = open ? open.parentNode : null;
+    return { hs: hs, idx: hs.indexOf('내 모습'), sum: sum ? sum.textContent : null, open: open ? open.textContent.trim() : null, pop: open ? open.getAttribute('aria-haspopup') : null, openH: open ? Math.round(open.getBoundingClientRect().height) : 0, chips: b.querySelectorAll('[data-part]').length,
+      mode: APP.sceneMode, setFn: typeof APP.scene.setPlayer, portFn: typeof APP.scene.playerPortrait, shotFn: typeof APP.scene.playerShot, port: !!port, portW: pr ? Math.round(pr.width) : 0, portPx: port ? /pixelated|crisp-edges/.test(getComputedStyle(port).imageRendering) : false,
+      note2d: !!document.getElementById('set-parts-note'), emoji: /\p{Extended_Pictographic}/u.test(row ? row.innerText : ''), saved: APP.state.settings.player };
   });
-  console.log('   parts:', JSON.stringify({ idx: pp.idx, rows: pp.rows.map(function (r) { return r.lbl + ':' + r.n; }), mode: pp.mode, setFn: pp.setFn, portFn: pp.portFn, port: pp.port, saved: pp.saved }));
-  var PARTS_CATS = 'hair,hairColor,eyes,eyeColor,nose,mouth,cheek,outfit,shoes,acc', PARTS_LBL = '머리/머리 색/눈/눈 색/코/입/볼/옷/신발/악세사리';
-  ok(pp.idx === 1 && pp.rows.map(function (r) { return r.cat; }).join() === PARTS_CATS && pp.rows.map(function (r) { return r.lbl; }).join('/') === PARTS_LBL, "설정 › 내 모습: 문어 색 바로 아래 · 10줄 (머리 · 머리 색 · 눈 · 눈 색 · 코 · 입 · 볼 · 옷 · 신발 · 악세사리) " + JSON.stringify(pp.rows.map(function (r) { return r.lbl; })));
-  ok(pp.rows.length === 10 && pp.rows.every(function (r) { return r.n >= 3 && r.on === 1 && r.kind && r.named && r.tall; }), '내 모습: 줄마다 칩 3개 이상 · 켜진 칩 하나(aria-pressed) · 색은 .preset(aria-label·title 이름) · 나머지 .fchip 글자 · 보이는 높이 32px 이상 ' + JSON.stringify(pp.rows.map(function (r) { return [r.n, r.on, r.kind, r.named, r.tall]; })));
+  console.log('   look row:', JSON.stringify({ idx: pp.idx, sum: pp.sum, open: pp.open, openH: pp.openH, mode: pp.mode, setFn: pp.setFn, portFn: pp.portFn, shotFn: pp.shotFn, port: pp.port, saved: pp.saved }));
+  ok(pp.idx === 1 && pp.sum === '단발 · 원피스 · 리본' && pp.open === '모습 바꾸기' && pp.pop === 'dialog' && pp.openH >= 32 && pp.chips === 0,
+    "설정 › 내 모습: 문어 색 바로 아래 · 요약 한 줄 (단발 · 원피스 · 리본) + '모습 바꾸기' 단추 (aria-haspopup=dialog · 높이 32px 이상) · 고르는 칩은 설정 안에 없음 " + JSON.stringify([pp.idx, pp.sum, pp.open, pp.pop, pp.openH, pp.chips]));
   ok(!pp.emoji && pp.saved && Object.keys(pp.saved).join() === PARTS_CATS && pp.saved.hair === 'bob' && pp.saved.acc === 'ribbon' && pp.saved.nose === 'tri' && pp.saved.mouth === 'smile' && pp.saved.cheek === 'blush', '내 모습: 이모지 0 · settings.player 기본값 (단발 · 리본 · 세모코 · 미소 · 발그레, 키 10개) ' + JSON.stringify(pp.saved));
   if (pp.mode === '3d') ok(pp.port === (pp.portFn === 'function') && (!pp.port || (pp.portW === 96 && pp.portPx)) && !pp.note2d, '내 모습 미리보기: 3D 에서 playerPortrait 가 있으면 96px pixelated 캔버스, 없으면 생략 (portFn ' + pp.portFn + ' · port ' + pp.port + ' ' + pp.portW + 'px)');
   else ok(!pp.port && pp.note2d, '내 모습 미리보기: 2D 장면에서는 캔버스 없이 한 줄 안내만');
-  await page.click('#set-parts .set-part[data-part="hair"] .fchip[data-id="long"]');
-  await page.click('#set-parts .set-part[data-part="eyeColor"] .preset[data-id="sea"]');
-  await page.click('#set-parts .set-part[data-part="eyes"] .fchip[data-id="smile"]');
+
+  /* 2b-1. 옷장 시트 (설정 위에 겹쳐 뜬다): 갈래 탭 여섯(tablist) · 고를 것(tabpanel — 그림 타일 / 색 동그라미) · 3D 면 전신 미리보기(앞 · 뒤). 2D 면 글자 타일 + 안내 한 줄.
+           그림 검사는 3D + scene.playerShot 이 있을 때만 (CAN_SHOT) */
+  var CAN_SHOT = pp.mode === '3d' && pp.shotFn === 'function';
+  function portSig(pg) {   /* 설정 줄의 미리보기 그림 지문 — 두 프레임 기다린 뒤 (다시 그리기는 rAF) */
+    return pg.evaluate(function () {
+      return new Promise(function (res) { requestAnimationFrame(function () { requestAnimationFrame(function () {
+        var cv = document.getElementById('set-pl-port'); if (!cv) return res(null);
+        var d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data, hsh = 0, ink = 0;
+        for (var i = 0; i < d.length; i += 4) { if (d[i + 3] > 0) ink++; hsh = (hsh * 31 + d[i] * 3 + d[i + 1] * 5 + d[i + 2] * 7 + d[i + 3]) >>> 0; }
+        res({ ink: ink, h: hsh });
+      }); }); });
+    });
+  }
+  function lookWait(pg) {   /* 3D: 보이는 타일 그림이 다 그려질 때까지 (한 프레임에 6ms 어치씩 그린다) */
+    if (!CAN_SHOT) return pg.waitForTimeout(60);
+    return pg.waitForFunction(function () { var t = document.querySelectorAll('#look-items .look-tile'); return t.length > 0 && [].every.call(t, function (b) { var c = b.querySelector('.look-thumb'); return !c || c.dataset.drawn === '1'; }); }, null, { timeout: 20000 }).catch(function () {});
+  }
+  async function lookTabGo(pg, id) { await pg.click('#look-tab-' + id); await lookWait(pg); }
+  function lookRead(pg) {
+    return pg.evaluate(function () {
+      function sig(cv) { try { var d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data, hsh = 0, ink = 0; for (var i = 0; i < d.length; i += 4) { if (d[i + 3] > 0) ink++; hsh = (hsh * 31 + d[i] * 3 + d[i + 1] * 5 + d[i + 2] * 7 + d[i + 3]) >>> 0; } return { ink: ink, h: hsh }; } catch (e) { return { ink: -1, h: 0 }; } }
+      function px(el) { return /pixelated|crisp-edges/.test(getComputedStyle(el).imageRendering); }
+      var sheet = document.getElementById('look-sheet'), body = document.getElementById('look-body'), rail = document.getElementById('look-rail'), it = document.getElementById('look-items'), cv = document.getElementById('look-stage-cv'),
+        turn = document.getElementById('look-turn'), now = document.getElementById('look-now'), note = document.getElementById('look-note'), eye = document.getElementById('look-eye-note'), close = document.getElementById('look-close');
+      var tabs = [].map.call(rail.querySelectorAll('[role=tab]'), function (t) { var r = t.getBoundingClientRect(), ic = t.querySelector('.look-tab-ico'); return { id: t.dataset.tab, name: t.textContent.trim(), sel: t.getAttribute('aria-selected'), ti: t.tabIndex, ctl: t.getAttribute('aria-controls'), w: Math.round(r.width), h: Math.round(r.height), ico: !!ic && ic.getBoundingClientRect().width >= 16 }; });
+      var groups = [].map.call(it.querySelectorAll('[role=group]'), function (g) {
+        var bs = [].slice.call(g.querySelectorAll('[data-id]')), color = g.classList.contains('look-colors'), on = bs.filter(function (b) { return b.getAttribute('aria-pressed') === 'true' && b.classList.contains('on'); });
+        var th = bs.map(function (b) { return b.querySelector('canvas.look-thumb'); }).filter(Boolean), sg = th.map(sig), seen = {}; sg.forEach(function (x) { seen[x.h] = 1; });
+        return { part: g.dataset.part, color: color, label: g.getAttribute('aria-label'), n: bs.length, on: on.length, onId: on[0] ? on[0].dataset.id : null,
+          kind: bs.every(function (b) { return b.dataset.part === g.dataset.part && (color ? b.classList.contains('preset') && b.classList.contains('pl-color') : b.classList.contains('look-tile')); }),
+          named: bs.every(function (b) { return color ? !!b.getAttribute('aria-label') && !!b.title : !!(b.querySelector('.look-name') || {}).textContent; }),
+          tall: bs.every(function (b) { var r = b.getBoundingClientRect(); return r.height >= 32 && r.width >= 32; }),
+          thumbs: th.length, drawn: th.filter(function (c) { return c.dataset.drawn === '1'; }).length, ink: sg.length ? Math.min.apply(null, sg.map(function (x) { return x.ink; })) : 0, distinct: Object.keys(seen).length, sigs: sg.map(function (x) { return x.h; }),
+          thW: th[0] ? th[0].clientWidth : 0, thPx: th[0] ? px(th[0]) : false };
+      });
+      var cs = cv ? sig(cv) : null, kr = close.getBoundingClientRect();
+      return { open: sheet.open, under: document.getElementById('settings-sheet').open, focus: document.activeElement ? document.activeElement.id : null, rail: { role: rail.getAttribute('role'), label: rail.getAttribute('aria-label'), ori: rail.getAttribute('aria-orientation') }, tabs: tabs,
+        sel: tabs.filter(function (t) { return t.sel === 'true'; }).map(function (t) { return t.id; }).join(), zero: tabs.filter(function (t) { return t.ti === 0; }).map(function (t) { return t.id; }).join(),
+        panel: { role: it.getAttribute('role'), by: it.getAttribute('aria-labelledby') }, secs: [].map.call(it.querySelectorAll('h3.look-sec'), function (x) { return x.textContent; }), groups: groups,
+        note2d: note ? note.textContent : null, noShot: body.classList.contains('no-shot'), more: body.classList.contains('more'), room: it.scrollHeight - it.clientHeight - it.scrollTop,
+        stage: cv ? { w: cv.width, h: cv.height, cw: cv.clientWidth, ch: cv.clientHeight, px: px(cv), role: cv.getAttribute('role'), label: cv.getAttribute('aria-label'), ink: cs.ink, sig: cs.h } : null,
+        turn: turn ? turn.textContent.trim() : null, now: now ? now.textContent : null, eye: eye ? eye.textContent : null, close: close.textContent.trim(), closeIn: kr.top >= 0 && kr.bottom <= window.innerHeight + 0.5,
+        emoji: /\p{Extended_Pictographic}/u.test(sheet.innerText), canvases: sheet.querySelectorAll('canvas').length };
+    });
+  }
+  async function lookUntil(pg, fn) { var x; for (var i = 0; i < 80; i++) { x = await lookRead(pg); if (fn(x)) break; await pg.waitForTimeout(100); } return x; }
+  function lookOn(x) { return x.groups.map(function (g) { return g.on === 1 ? g.onId : '?' + g.on; }).join(); }
+  var port0 = await portSig(page);
+  await page.click('#set-look-open'); await page.waitForSelector('#look-sheet[open]'); await lookWait(page);
+  var lookSt = { hair: await lookRead(page) };
+  for (var lookI = 1; lookI < LOOK_IDS.length; lookI++) { await lookTabGo(page, LOOK_IDS[lookI]); lookSt[LOOK_IDS[lookI]] = await lookRead(page); }
+  var lookAll = LOOK_IDS.map(function (id) { return lookSt[id]; }), lookGroups = [].concat.apply([], lookAll.map(function (x) { return x.groups; })), stage0 = lookSt.hair.stage;
+  console.log('   look:', JSON.stringify({ focus: lookSt.hair.focus, rail: lookSt.hair.rail, tabs: lookSt.hair.tabs.map(function (t) { return t.name + ' ' + t.w + 'x' + t.h; }), groups: lookGroups.map(function (g) { return g.part + ':' + g.n + (g.thumbs ? ' 그림 ' + g.drawn + ' 서로 다른 ' + g.distinct + ' 잉크≥' + g.ink : ''); }),
+    stage: stage0, now: lookAll.map(function (x) { return x.now; }), more: lookAll.map(function (x) { return [x.more, x.room]; }) }));
+  ok(lookSt.hair.open && lookSt.hair.under && lookSt.hair.focus === 'look-h' && lookSt.hair.close === '다 골랐어' && lookSt.hair.closeIn, "옷장: '모습 바꾸기' → 설정 위에 옷장 시트 · 포커스는 제목으로 · 아래 '다 골랐어' 단추가 화면 안 " + JSON.stringify([lookSt.hair.focus, lookSt.hair.close, lookSt.hair.closeIn]));
+  ok(lookSt.hair.rail.role === 'tablist' && lookSt.hair.rail.label === '고를 갈래' && lookSt.hair.rail.ori === 'vertical' && lookSt.hair.tabs.map(function (t) { return t.id; }).join() === LOOK_IDS.join() && lookSt.hair.tabs.map(function (t) { return t.name; }).join('/') === '머리/눈/얼굴/옷/신발/장식'
+    && lookSt.hair.tabs.every(function (t) { return t.ctl === 'look-items' && t.ico && t.w >= 44 && t.h >= 44; }), '옷장 갈래 탭: tablist(360px 에선 세로) · 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식 · 탭마다 픽셀 그림 + 이름 · 44px 이상 ' + JSON.stringify(lookSt.hair.tabs.map(function (t) { return [t.name, t.w, t.h, t.ico]; })));
+  ok(LOOK_IDS.every(function (id) { var x = lookSt[id]; return x.sel === id && x.zero === id && x.panel.role === 'tabpanel' && x.panel.by === 'look-tab-' + id; }), '옷장 갈래 탭: 누른 탭 하나만 aria-selected · tabindex 0 (나머지 -1) · 고를 것 칸(tabpanel)의 이름 = 그 탭 ' + JSON.stringify(lookAll.map(function (x) { return [x.sel, x.zero, x.panel.by]; })));
+  ok(lookGroups.map(function (g) { return g.part; }).join() === PARTS_CATS && lookGroups.map(function (g) { return g.label; }).join('/') === '머리/머리 색/눈/눈 색/코/입/볼/옷/신발/장식' && lookAll.map(function (x) { return x.secs.join('+'); }).join('/') === '모양+색/모양+색/코+입+볼///',
+    '옷장: 여섯 갈래에 열 가지 (머리: 모양 · 색 / 눈: 모양 · 색 / 얼굴: 코 · 입 · 볼 / 옷 / 신발 / 장식) · 묶음마다 이름(role=group) · 한 가지뿐인 갈래엔 작은 제목 없음 ' + JSON.stringify(lookGroups.map(function (g) { return g.label; })));
+  ok(lookGroups.length === 10 && lookGroups.every(function (g) { return g.n >= 3 && g.on === 1 && g.kind && g.named && g.tall; }), '옷장: 묶음마다 고를 것 3개 이상 · 켜진 것 하나(.on + aria-pressed) · 색은 .preset(aria-label·title 이름) · 나머지는 이름 있는 타일 · 32px 이상 ' + JSON.stringify(lookGroups.map(function (g) { return [g.part, g.n, g.on, g.kind, g.named, g.tall]; })));
+  ok(lookAll.every(function (x) { return !x.emoji; }) && lookSt.eyes.eye === '눈 색은 크게 봐야 잘 보여', '옷장: 이모지 0 · 눈 갈래엔 눈 색 안내 한 줄 (' + lookSt.eyes.eye + ')');
+  if (CAN_SHOT) {
+    var lookTiles = lookGroups.filter(function (g) { return !g.color; });
+    ok(lookAll.every(function (x) { return !x.noShot && x.note2d === null; }) && lookTiles.length === 8 && lookTiles.every(function (g) { return g.thumbs === g.n && g.drawn === g.n && g.thW === 64 && g.thPx && g.ink > 40 && g.distinct === g.n; }) && lookGroups.every(function (g) { return !g.color || g.thumbs === 0; }),
+      '옷장 (3D): 타일마다 그림 (32×32 → 64px pixelated · 다 그려짐 · 빈 그림 없음 · 한 묶음 안에서 서로 다른 그림) · 색 동그라미엔 그림 없음 ' + JSON.stringify(lookTiles.map(function (g) { return [g.part, g.thumbs, g.drawn, g.distinct, g.ink, g.thW]; })));
+    ok(stage0 && stage0.w === 64 && stage0.h === 96 && stage0.cw === 128 && stage0.ch === 192 && stage0.px && stage0.role === 'img' && stage0.label === '내 모습 앞모습' && stage0.ink > 300 && lookSt.hair.turn === '뒤 보기', '옷장 (3D): 전신 미리보기 64×96 → 128×192px pixelated · role=img 앞모습 · 그려짐 · 뒤 보기 단추 ' + JSON.stringify(stage0));
+    ok(lookAll.map(function (x) { return x.now; }).join(' / ') === '단발 · 금발 / 동그란 · 흑갈색 / 세모코 · 미소 · 발그레 / 원피스 / 단화 / 리본', '옷장 (3D): 미리보기 아래 한 줄 = 그 갈래에서 지금 고른 것 ' + JSON.stringify(lookAll.map(function (x) { return x.now; })));
+    await page.click('#look-turn'); var lookBack = await lookRead(page);
+    await page.click('#look-turn'); var lookFront = await lookRead(page);
+    ok(lookBack.turn === '앞 보기' && lookBack.stage.label === '내 모습 뒷모습' && lookBack.stage.ink > 300 && lookBack.stage.sig !== stage0.sig && lookFront.turn === '뒤 보기' && lookFront.stage.label === '내 모습 앞모습' && lookFront.stage.sig === stage0.sig,
+      "옷장 (3D): '뒤 보기' → 뒷모습 그림 + 단추는 '앞 보기' · 다시 누르면 처음 앞모습 그대로 " + JSON.stringify([lookBack.turn, lookBack.stage.label, lookFront.turn, lookFront.stage.label]));
+  } else {
+    ok(lookAll.every(function (x) { return x.noShot && /미리보기가 없어/.test(x.note2d || '') && !x.stage && x.turn === null && x.canvases === 0; }), '옷장 (2D): 그림 없는 글자 타일 + 안내 한 줄 · 전신 칸 없음');
+  }
+  /* 키보드: 탭 줄에서 화살표(세로 · 가로) · Home · End — 포커스가 가면 바로 고른다 · 끝에서 처음으로 돈다 */
+  await lookTabGo(page, 'hair'); await page.focus('#look-tab-hair');
+  var lookKeys = [];
+  for (var lookKey of ['ArrowDown', 'End', 'ArrowDown', 'ArrowUp', 'Home', 'ArrowRight', 'ArrowLeft']) {
+    await page.keyboard.press(lookKey);
+    lookKeys.push(await page.evaluate(function () { var s = document.querySelector('#look-rail [aria-selected="true"]'); return (s ? s.dataset.tab : '?') + '|' + (document.activeElement ? document.activeElement.id : '') + '|' + document.getElementById('look-items').getAttribute('aria-labelledby') + '|' + document.getElementById('look-sheet').open; }));
+  }
+  ok(lookKeys.join(' ') === ['eyes', 'acc', 'hair', 'acc', 'hair', 'eyes', 'hair'].map(function (id) { return id + '|look-tab-' + id + '|look-tab-' + id + '|true'; }).join(' '), '옷장 키보드: ↓ 눈 · End 장식 · ↓ 머리(돈다) · ↑ 장식 · Home 머리 · → 눈 · ← 머리 — 포커스와 고른 탭이 같이 간다 ' + JSON.stringify(lookKeys.map(function (k) { return k.split('|')[0]; })));
+  /* '더 있다' 띠: 고를 것 칸에 굴릴 것이 남았을 때만 #look-body.more — 끝까지 굴리면 꺼지고, 올리면 다시 */
+  var moreTab = LOOK_IDS.filter(function (id) { return lookSt[id].room > 4; })[0];
+  ok(lookAll.every(function (x) { return x.more === (x.room > 4); }) && !!moreTab, "옷장: 굴릴 것이 남은 갈래에만 '더 있다' 띠 (#look-body.more) " + JSON.stringify(lookAll.map(function (x) { return [x.sel, x.more, x.room]; })));
+  if (moreTab) {
+    await lookTabGo(page, moreTab);
+    await page.evaluate(function () { var it = document.getElementById('look-items'); it.scrollTop = it.scrollHeight; });
+    await page.waitForFunction(function () { return !document.getElementById('look-body').classList.contains('more'); }, null, { timeout: 3000 }).catch(function () {});
+    var moreEnd = await page.evaluate(function () { var it = document.getElementById('look-items'), r = { more: document.getElementById('look-body').classList.contains('more'), top: it.scrollTop }; it.scrollTop = 0; return r; });
+    await page.waitForFunction(function () { return document.getElementById('look-body').classList.contains('more'); }, null, { timeout: 3000 }).catch(function () {});
+    var moreTop = await page.evaluate(function () { return document.getElementById('look-body').classList.contains('more'); });
+    ok(!moreEnd.more && moreEnd.top > 4 && moreTop, "옷장 (" + moreTab + "): 끝까지 굴리면 '더 있다' 띠가 꺼지고 · 맨 위로 오면 다시 켜진다 " + JSON.stringify([moreEnd, moreTop]));
+  }
+  /* 고르기: 타일 · 색을 누르면 바로 저장 · 방의 캐릭터 · 전신 미리보기 · 아래 한 줄 · 보이는 타일 그림이 같이 바뀐다 */
+  await lookTabGo(page, 'hair');
+  if (CAN_SHOT) {
+    var hairSig0 = (await lookRead(page)).groups[0].sigs;
+    await page.click('#look-items .preset[data-part="hairColor"][data-id="pink"]');
+    var hairPink = await lookUntil(page, function (x) { return x.groups[0].sigs.every(function (s, i) { return s !== hairSig0[i]; }); });
+    await page.click('#look-items .preset[data-part="hairColor"][data-id="blonde"]');
+    var hairBack = await lookUntil(page, function (x) { return x.groups[0].sigs.join() === hairSig0.join(); });
+    ok(hairPink.groups[0].sigs.every(function (s, i) { return s !== hairSig0[i]; }) && hairPink.now === '단발 · 분홍' && hairPink.stage.sig !== stage0.sig && hairBack.groups[0].sigs.join() === hairSig0.join() && hairBack.stage.sig === stage0.sig,
+      '옷장 (3D): 머리 색을 바꾸면 보이는 머리 타일 여섯 장이 전부 그 색으로 다시 그려진다 (전신 · 아래 한 줄도) · 되돌리면 그림도 제자리 ' + JSON.stringify([hairPink.now, lookOn(hairPink), lookOn(hairBack)]));
+  }
+  await page.click('#look-items .look-tile[data-part="hair"][data-id="long"]');
+  var pickHair = await lookRead(page);
+  await lookTabGo(page, 'eyes');
+  await page.click('#look-items .preset[data-part="eyeColor"][data-id="sea"]');
+  await page.click('#look-items .look-tile[data-part="eyes"][data-id="smile"]');
+  var pickEyes = await lookRead(page);
+  await lookTabGo(page, 'face');
+  var pickFace = await lookRead(page);
   var pc = await page.evaluate(function () {
-    var on = function (cat) { var q = document.querySelector('#set-parts .set-part[data-part="' + cat + '"] [aria-pressed="true"]'); return q ? q.dataset.id : null; };
-    var stored = JSON.parse(localStorage.getItem('ppolppol_v2')).settings.player, lk = (APP.scene.player && APP.scene.player()) ? APP.scene.player().look : undefined;
-    return { saved: APP.state.settings.player, stored: stored, on: [on('hair'), on('eyeColor'), on('eyes'), on('hairColor')], ons: document.querySelectorAll('#set-parts [aria-pressed="true"]').length, look: lk, setFn: typeof APP.scene.setPlayer, eyeNote: document.getElementById('set-eye-note').textContent };
+    var stored = JSON.parse(localStorage.getItem('ppolppol_v2')).settings.player, cur = (APP.scene.player && APP.scene.player()) ? APP.scene.player().look : undefined;
+    return { saved: APP.state.settings.player, stored: stored, look: cur, setFn: typeof APP.scene.setPlayer };
   });
-  console.log('   parts click:', JSON.stringify(pc));
+  console.log('   look pick:', JSON.stringify({ hair: lookOn(pickHair), eyes: lookOn(pickEyes), now: [pickHair.now, pickEyes.now], eye: pickEyes.eye, saved: pc.saved, look: pc.look }));
   ok(pc.saved.hair === 'long' && pc.saved.eyeColor === 'sea' && pc.saved.eyes === 'smile' && pc.saved.hairColor === 'blonde' && pc.stored && pc.stored.hair === 'long' && pc.stored.eyeColor === 'sea' && pc.stored.eyes === 'smile',
-    '내 모습: 긴생머리 · 바다색 눈 · 웃는 눈 칩 → settings.player 에 저장 (localStorage ppolppol_v2) · 안 누른 줄은 그대로');
-  ok(pc.on.join() === 'long,sea,smile,blonde' && pc.ons === 10 && /눈 색이 안 보여/.test(pc.eyeNote), '내 모습: 누른 칩만 켜짐 (줄마다 하나, 전체 10) · 웃는 눈이면 눈 색 안내 한 줄 ' + JSON.stringify(pc.on));
-  if (pp.mode === '3d' && pc.setFn === 'function') ok(pc.look && pc.look.hair === 'long' && pc.look.eyeColor === 'sea' && pc.look.eyes === 'smile', '내 모습 (3D): scene.player().look 이 고른 대로 ' + JSON.stringify(pc.look));
+    '옷장: 긴생머리 · 바다색 눈 · 웃는 눈 → settings.player 에 저장 (localStorage ppolppol_v2) · 안 누른 것은 그대로');
+  ok(lookOn(pickHair) === 'long,blonde' && lookOn(pickEyes) === 'smile,sea' && /눈 색이 안 보여/.test(pickEyes.eye || ''), '옷장: 누른 것만 켜짐 (묶음마다 하나) · 웃는 눈이면 눈 색 안내가 바뀐다 ' + JSON.stringify([lookOn(pickHair), lookOn(pickEyes), pickEyes.eye]));
+  if (pp.mode === '3d' && pc.setFn === 'function') ok(pc.look && pc.look.hair === 'long' && pc.look.eyeColor === 'sea' && pc.look.eyes === 'smile', '옷장 (3D): scene.player().look 이 고른 대로 ' + JSON.stringify(pc.look));
   else console.log('   (skip) scene.setPlayer 없음 (' + pp.mode + ' · ' + pc.setFn + ') → look 검사 건너뜀');
+  if (CAN_SHOT) ok(pickHair.stage.sig !== stage0.sig && pickEyes.stage.sig !== pickHair.stage.sig && pickHair.now === '긴생머리 · 금발' && pickEyes.now === '웃는 · 바다색' && pickFace.groups.every(function (g, i) { return g.drawn === g.n && g.sigs.every(function (s, j) { return s !== lookSt.face.groups[i].sigs[j]; }); }),
+    '옷장 (3D): 고르면 전신 미리보기 · 아래 한 줄이 바뀌고 (머리 · 눈) · 다른 갈래의 타일 그림도 지금 모습(긴생머리 · 웃는 눈)으로 그려진다 ' + JSON.stringify([pickHair.now, pickEyes.now]));
+  if (CAN_SHOT) await page.click('#look-turn');   /* 뒷모습인 채로 닫는다 — 다시 열면 앞모습부터 (2d 에서 본다) */
+  await page.click('#look-close'); await page.waitForSelector('#look-sheet[open]', { state: 'hidden' });
+  await page.waitForFunction(function (t) { return document.getElementById('set-look-sum').textContent === t; }, '긴생머리 · 원피스 · 리본', { timeout: 3000 }).catch(function () {});   /* close 이벤트는 닫힌 뒤 한 박자 늦게 온다 — 요약 줄은 그때 바뀐다 */
+  var port1 = await portSig(page);
+  var lookClosed = await page.evaluate(function () { return { under: document.getElementById('settings-sheet').open, sum: document.getElementById('set-look-sum').textContent, focus: document.activeElement && document.activeElement.id }; });
+  ok(lookClosed.under && lookClosed.sum === '긴생머리 · 원피스 · 리본' && lookClosed.focus === 'set-look-open', "옷장: '다 골랐어' → 옷장만 닫히고 설정은 그대로 · 요약 줄이 새 모습 · 포커스는 '모습 바꾸기' 로 " + JSON.stringify(lookClosed));
+  if (port0 && port1) ok(port0.ink > 0 && port1.h !== port0.h, '옷장을 닫으면 설정의 미리보기 그림도 새 모습으로 다시 그려진다');
   /* 새로고침 = 같은 저장소를 읽는 새 탭: 고른 모습이 그대로 · 장면도 그 모습으로 시작 (3D + player().look 이 있을 때) */
   var P2 = await s.ctx.newPage(); watchErrors(P2, s.bag);
   if (useStubs) { await P2.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await P2.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
@@ -1601,14 +1732,18 @@ async function scenarioWave7(browser) {
   await P2.goto(O + '/index.html?dev=0&slow=' + SPEED);
   await P2.waitForFunction(function () { return window.APP && APP.state.octopus.name === '뚜루'; }, null, { timeout: 20000 });
   await P2.click('#btn-settings'); await P2.waitForSelector('#settings-sheet[open]');
+  var sum2 = await P2.evaluate(function () { return document.getElementById('set-look-sum').textContent; });
+  await P2.click('#set-look-open'); await P2.waitForSelector('#look-sheet[open]');
   var pr2 = await P2.evaluate(function () {
-    var on = function (cat) { var q = document.querySelector('#set-parts .set-part[data-part="' + cat + '"] [aria-pressed="true"]'); return q ? q.dataset.id : null; };
-    var lk = (APP.scene.player && APP.scene.player()) ? APP.scene.player().look : undefined;
-    return { saved: APP.state.settings.player, on: [on('hair'), on('eyeColor'), on('eyes')], look: lk, mode: APP.sceneMode, setFn: typeof APP.scene.setPlayer };
+    var on = function (cat) { var q = document.querySelector('#look-items [data-part="' + cat + '"][aria-pressed="true"]'); return q ? q.dataset.id : null; };
+    var cur = (APP.scene.player && APP.scene.player()) ? APP.scene.player().look : undefined, tab = document.querySelector('#look-rail [aria-selected="true"]').dataset.tab, hair = on('hair');
+    document.getElementById('look-tab-eyes').click();   /* 탭 누름은 그 자리에서 다시 그린다 → 바로 읽어도 된다 */
+    return { saved: APP.state.settings.player, tab: tab, on: [hair, on('eyeColor'), on('eyes')], look: cur, mode: APP.sceneMode, setFn: typeof APP.scene.setPlayer };
   });
+  pr2.sum = sum2;
   await P2.close();
-  console.log('   parts reload:', JSON.stringify(pr2));
-  ok(pr2.saved.hair === 'long' && pr2.saved.eyeColor === 'sea' && pr2.saved.eyes === 'smile' && pr2.on.join() === 'long,sea,smile', '내 모습: 새로 연 탭에서도 고른 모습 그대로 (저장 · 칩 켜짐)');
+  console.log('   look reload:', JSON.stringify(pr2));
+  ok(pr2.saved.hair === 'long' && pr2.saved.eyeColor === 'sea' && pr2.saved.eyes === 'smile' && pr2.sum === '긴생머리 · 원피스 · 리본' && pr2.tab === 'hair' && pr2.on.join() === 'long,sea,smile', '내 모습: 새로 연 탭에서도 고른 모습 그대로 (저장 · 요약 줄 · 옷장의 켜진 타일 — 옷장은 첫 갈래 머리부터)');
   if (pr2.mode === '3d' && pr2.setFn === 'function') ok(pr2.look && pr2.look.hair === 'long' && pr2.look.eyes === 'smile', '내 모습 (3D): 새로 연 탭의 장면이 저장된 모습으로 시작 (opts.player) ' + JSON.stringify(pr2.look));
   /* 2c. 불러오기 · 전체 초기화 · 옛 저장 부팅 (리뷰 11-08: importJSON·resetAll 이 renderAll 만 불러 설정 칩은 새 값인데 3D 캐릭터·미리보기는 옛 모습이었다).
          저장소를 공유하지 않는 새 컨텍스트에서 — storage 이벤트로 본 탭 기록을 흔들지 않게 */
@@ -1643,9 +1778,50 @@ async function scenarioWave7(browser) {
   ok(old.sameDef && old.look === 'bob' && old.name === '뚜루', '옛 저장(settings.player 가 문자열) 부팅: 내 모습만 기본값으로, 기록은 그대로 ' + JSON.stringify(old));
   ok(s3.bag.length === 0, '[S 불러오기·초기화] 페이지 에러/콘솔 에러 0' + (s3.bag.length ? ' → ' + s3.bag.join(' | ') : ''));
   await s3.ctx.close();
-  await page.click('#set-parts .set-part[data-part="hair"] .fchip[data-id="bob"]');
-  await page.click('#set-parts .set-part[data-part="eyeColor"] .preset[data-id="dark"]');
-  await page.click('#set-parts .set-part[data-part="eyes"] .fchip[data-id="round"]');   /* 뒤 검사·스크린샷은 기본 모습으로 */
+  /* 2d. 옷장 다시 열기 → 마지막에 보던 갈래 · 앞모습부터 → 기본 모습으로 되돌린다 (뒤 검사·스크린샷은 기본 모습으로) → 320–412 px · 픽셀·시스템 · 여섯 갈래 넘침 검사 → Esc 는 옷장만 닫는다 */
+  await page.click('#set-look-open'); await page.waitForSelector('#look-sheet[open]'); await lookWait(page);
+  var lookRe = await lookRead(page);
+  ok(lookRe.sel === 'face' && lookRe.focus === 'look-h' && (!CAN_SHOT || (lookRe.turn === '뒤 보기' && lookRe.stage.label === '내 모습 앞모습')), '옷장을 다시 열면: 마지막에 보던 갈래(얼굴) 그대로 · 미리보기는 앞모습부터 ' + JSON.stringify([lookRe.sel, lookRe.turn, lookRe.stage && lookRe.stage.label]));
+  await lookTabGo(page, 'eyes');
+  await page.click('#look-items .preset[data-part="eyeColor"][data-id="dark"]');
+  await page.click('#look-items .look-tile[data-part="eyes"][data-id="round"]');
+  await lookTabGo(page, 'hair');
+  await page.click('#look-items .look-tile[data-part="hair"][data-id="bob"]');
+  var lookDef = await lookRead(page);
+  if (CAN_SHOT) ok(lookDef.stage.sig === stage0.sig && lookDef.now === '단발 · 금발', '옷장 (3D): 기본 모습으로 되돌리면 전신 미리보기도 처음 그림 그대로 (' + lookDef.now + ')');
+  var lookWide = [];
+  for (var lookW of [320, 360, 412]) {
+    await page.setViewportSize({ width: lookW, height: 740 });
+    for (var lookFont of ['pixel', 'system']) {
+      await page.evaluate(function (f) { document.documentElement.setAttribute('data-font', f); }, lookFont);
+      for (var lookT of LOOK_IDS) {
+        await page.click('#look-tab-' + lookT);
+        await page.waitForFunction(function (narrow) { var b = document.getElementById('look-body'), it = document.getElementById('look-items'), r = document.getElementById('look-rail'); return r.getAttribute('aria-orientation') === (narrow ? 'horizontal' : 'vertical') && b.classList.contains('more') === (it.scrollHeight - it.clientHeight - it.scrollTop > 4); }, lookW < 360, { timeout: 3000 }).catch(function () {});
+        var lookM = await page.evaluate(function () {
+          var d = document.getElementById('look-sheet'), b = document.getElementById('look-body'), it = document.getElementById('look-items'), rail = document.getElementById('look-rail'), k = document.getElementById('look-close').getBoundingClientRect(), dr = d.getBoundingClientRect(), cols = {}, tabs = [].slice.call(rail.querySelectorAll('[role=tab]'));
+          [].forEach.call(it.querySelectorAll('.look-tile'), function (t) { cols[Math.round(t.getBoundingClientRect().left)] = 1; });
+          var names = [].map.call(it.querySelectorAll('.look-name'), function (n) { return n.scrollWidth - n.clientWidth; }).concat(tabs.map(function (t) { return t.scrollWidth - t.clientWidth; }));
+          return { sheet: d.scrollWidth - d.clientWidth, v: d.scrollHeight - d.clientHeight, doc: document.documentElement.scrollWidth, items: it.scrollWidth - it.clientWidth, name: Math.max.apply(null, names.concat([0])),
+            closeIn: k.top >= 0 && k.bottom <= window.innerHeight + 0.5 && k.left >= 0 && k.right <= window.innerWidth + 0.5, inView: dr.left >= -0.5 && dr.right <= window.innerWidth + 0.5 && dr.top >= -0.5,
+            ori: rail.getAttribute('aria-orientation'), cols: Object.keys(cols).length, tabMin: Math.round(Math.min.apply(null, tabs.map(function (t) { var r = t.getBoundingClientRect(); return Math.min(r.width, r.height); })) * 10) / 10,
+            moreOk: b.classList.contains('more') === (it.scrollHeight - it.clientHeight - it.scrollTop > 4) };
+        });
+        lookM.w = lookW; lookM.font = lookFont; lookM.tab = lookT; lookWide.push(lookM);
+      }
+      if (lookFont === 'pixel' && lookW !== 412) { await lookTabGo(page, 'hair'); await page.waitForTimeout(350); await page.screenshot({ path: path.join(SHOTS, 'look-' + lookW + '.png') }); }
+    }
+  }
+  await page.evaluate(function () { document.documentElement.setAttribute('data-font', 'pixel'); });
+  await page.setViewportSize({ width: 360, height: 740 });
+  await page.waitForFunction(function () { return document.getElementById('look-rail').getAttribute('aria-orientation') === 'vertical'; }, null, { timeout: 3000 }).catch(function () {});
+  var lookBad = lookWide.filter(function (x) { return x.sheet > 0 || x.v > 0 || x.doc > x.w || x.items > 0 || x.name > 0 || !x.closeIn || !x.inView || !x.moreOk || x.ori !== (x.w < 360 ? 'horizontal' : 'vertical') || x.tabMin < 44 || (CAN_SHOT && x.cols !== 2); });
+  console.log('   look wide:', JSON.stringify(lookWide.filter(function (x) { return x.tab === 'hair'; }).map(function (x) { return [x.w, x.font, x.ori, x.cols, x.tabMin]; })));
+  ok(lookWide.length === 36 && !lookBad.length, '옷장 320–412 px · 픽셀·시스템 · 여섯 갈래: 가로·세로 넘침 없음 · 이름 안 잘림 · 닫기 단추가 화면 안 · 탭 44px 이상 · 타일 두 줄(3D) · 320 px 에선 탭이 가로 줄 (aria-orientation 도 따라간다)' + (lookBad.length ? ' ✗ ' + JSON.stringify(lookBad.slice(0, 6)) : ''));
+  await page.keyboard.press('Escape'); await page.waitForSelector('#look-sheet[open]', { state: 'hidden' });
+  await page.waitForFunction(function (t) { return document.getElementById('set-look-sum').textContent === t; }, '단발 · 원피스 · 리본', { timeout: 3000 }).catch(function () {});   /* close 이벤트는 닫힌 뒤 한 박자 늦게 온다 — 요약 줄은 그때 바뀐다 */
+  var port2 = await portSig(page);
+  var lookEnd = await page.evaluate(function () { return { under: document.getElementById('settings-sheet').open, sum: document.getElementById('set-look-sum').textContent, focus: document.activeElement && document.activeElement.id, def: JSON.stringify(APP.state.settings.player) === JSON.stringify(SCENE3D.PLAYER_DEFAULT) }; });
+  ok(lookEnd.under && lookEnd.sum === '단발 · 원피스 · 리본' && lookEnd.focus === 'set-look-open' && lookEnd.def && (!port0 || (!!port2 && port2.h === port0.h)), "Esc 는 맨 위 옷장만 닫는다 (설정은 그대로) · 요약 줄 · 미리보기 · 저장이 기본 모습으로 · 포커스는 '모습 바꾸기' 로 " + JSON.stringify(lookEnd));
 
   ok(st.music && st.sfx, '설정: 소리 칸 (js/audio.js 가 붙인 음악 · 효과음 크기)');
   /* 소리 켜기·끄기 (주인 11-08 "환경 설정에서 음량 음소거 하게"): 장면 위 스피커는 없고, 설정 › 소리 칸 맨 위 '켜기' 체크 칸 하나 — AUDIO 상태와 같이 간다 */
@@ -2402,6 +2578,10 @@ async function scenarioGlyphs(browser) {
   await page.click('#brain-tag'); await page.waitForTimeout(250); await scan('데모 말풍선');
   await page.click('#brain-tag'); await page.waitForTimeout(100);
   await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]'); await scan('설정');
+  /* 옷장 (설정 › 내 모습 › 모습 바꾸기): 여섯 갈래의 탭 이름 · 타일 이름 · 색 이름(aria-label · title) · 안내 줄 */
+  await page.click('#set-look-open'); await page.waitForSelector('#look-sheet[open]');
+  for (var lookTab of [['hair', '머리'], ['eyes', '눈'], ['face', '얼굴'], ['outfit', '옷'], ['shoes', '신발'], ['acc', '장식']]) { await page.click('#look-tab-' + lookTab[0]); await page.waitForTimeout(120); await scan('옷장 · ' + lookTab[1]); }
+  await page.click('#look-close'); await page.waitForSelector('#look-sheet[open]', { state: 'hidden' });
   await page.click('#set-reset'); await page.waitForTimeout(150); await scan('설정 · 초기화 한 번 누름 (다시 누르면 지워짐)');
   var dl = page.waitForEvent('download', { timeout: 4000 }).catch(function () { return null; });
   await page.click('#set-export'); await dl; await scan('설정 · 내보내기');
