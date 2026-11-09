@@ -8,14 +8,16 @@
 | 경로 | 역할 |
 |---|---|
 | `tools/ui-art/cook-stickers.js` | 그림 정의 (32×32, Apollo 팔레트, 작은 붓으로 몸·모자·얼굴·소품을 겹침) |
-| `tools/make-cook-stickers.js` | PNG 생성 + 장면 외곽선 규칙 + manifest `sticker.cook.*` + 미리보기 `tests/evidence/cook-stickers/sheet.png` |
+| `tools/make-stickers.js` (옛 이름 `make-cook-stickers.js` 도 됨) | PNG 생성 + 장면 외곽선 규칙 + manifest `sticker.cook.*` + 미리보기 `tests/evidence/cook-stickers/sheet.png` |
 | `assets/stickers/cook/*.png` | 결과 19장 (1x). ×2 · ×3 정수 배로만 띄운다 |
 | `js/cook-stickers.js` | 전역 `COOK_STICKERS` — 규칙 · 요리 스크립트 · 시드 고르기 · 띄우기 |
 | `css/cook-stickers.css` | 등장·퇴장 모션, 모션 줄이기 |
 | `tools/ui-art/cook-stickers.html` | 개발용 시험대 (act 단추 · 요리 고르기 · 자동 재생). 캡처 `tests/evidence/cook-stickers/demo.png` |
 | `tools/test-cook-stickers.js` | 검사 (`npm test` 에 들어 있음) |
 
-그림을 고치면 `node tools/make-cook-stickers.js` → `node tools/test-cook-stickers.js`.
+그림을 고치면 `node tools/make-stickers.js cook` → `node tools/test-cook-stickers.js`.
+
+달리기·헤엄 세트와 엔진을 같이 쓴다 → [PLAY_STICKERS.md](PLAY_STICKERS.md). 엔진 `PPOL_STICKERS` 는 `js/cook-stickers.js` 안에 있다.
 
 ## 스티커 19종
 

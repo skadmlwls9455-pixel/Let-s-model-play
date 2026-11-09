@@ -32,7 +32,7 @@ ids.forEach(function (id) {
 });
 
 /* 움직이는 스티커: 스트립 = 칸 수 × 32, 칸 0 = 정지 그림 */
-function rgba(f) {   /* make-cook-stickers.js 가 쓴 PNG (RGBA 8bit, 필터 0) 만 읽는다 */
+function rgba(f) {   /* make-stickers.js 가 쓴 PNG (RGBA 8bit, 필터 0) 만 읽는다 */
   var b = fs.readFileSync(f), w = b.readUInt32BE(16), h = b.readUInt32BE(20), i = 8, idat = [];
   while (i < b.length) { var len = b.readUInt32BE(i), t = b.toString('ascii', i + 4, i + 8); if (t === 'IDAT') idat.push(b.slice(i + 8, i + 8 + len)); i += 12 + len; }
   var raw = require('zlib').inflateSync(Buffer.concat(idat)), px = Buffer.alloc(w * h * 4);

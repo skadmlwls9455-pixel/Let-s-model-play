@@ -906,5 +906,177 @@
     "frames": 4,
     "cell": 32,
     "note": "「두근」 움직이는 칸 4개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.runner.dash.anim": {
+    "src": "assets/stickers/runner/dash_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「쌩」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.runner.dash": {
+    "src": "assets/stickers/runner/dash.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「쌩」 — 머리띠 두른 문어가 다리를 번갈아 쌩 달림. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.hop.anim": {
+    "src": "assets/stickers/runner/hop_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「폴짝」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.runner.hop": {
+    "src": "assets/stickers/runner/hop.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「폴짝」 — 머리띠 두른 문어가 폴짝 뛰어오름. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.duck": {
+    "src": "assets/stickers/runner/duck.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「납작」 — 머리띠 두른 문어가 납작 엎드려 거미줄 밑을 지나감. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.phew": {
+    "src": "assets/stickers/runner/phew.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「휴」 — 머리띠 두른 문어가 다리로 이마를 훔치며 휴 함. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.moss": {
+    "src": "assets/stickers/runner/moss.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「이끼 득」 — 머리띠 두른 문어가 이끼 한 줌을 번쩍 듦. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.fire.anim": {
+    "src": "assets/stickers/runner/fire_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「활활」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.runner.fire": {
+    "src": "assets/stickers/runner/fire.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「활활」 — 머리띠 두른 문어 뒤로 불꽃이 활활. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.trophy": {
+    "src": "assets/stickers/runner/trophy.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「최고!」 — 머리띠 두른 문어가 트로피를 높이 듦. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.bonk.anim": {
+    "src": "assets/stickers/runner/bonk_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「콩」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.runner.bonk": {
+    "src": "assets/stickers/runner/bonk.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「콩」 — 머리띠 두른 문어가 콩 부딪혀 머리 위로 별이 빙글. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.again": {
+    "src": "assets/stickers/runner/again.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「한 판 더」 — 머리띠 두른 문어가 다리 주먹을 불끈 쥠. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.splash": {
+    "src": "assets/stickers/swim/splash.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「풍덩」 — 물안경 올린 문어가 풍덩 뛰어듦. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.flap.anim": {
+    "src": "assets/stickers/swim/flap_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「톡」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.swim.flap": {
+    "src": "assets/stickers/swim/flap.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「톡」 — 물안경 올린 문어가 다리를 쫙 펴서 헤엄침. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.bubble.anim": {
+    "src": "assets/stickers/swim/bubble_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「보글」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.swim.bubble": {
+    "src": "assets/stickers/swim/bubble.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「보글」 — 물안경 올린 문어가 보글보글 거품을 냄. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.bump": {
+    "src": "assets/stickers/swim/bump.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「퐁」 — 물안경 올린 문어가 퐁 부딪혀 눈을 질끈 감음. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.pickup": {
+    "src": "assets/stickers/swim/pickup.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「주웠다」 — 물안경 올린 문어가 조개껍데기를 주워 듦. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.jet": {
+    "src": "assets/stickers/swim/jet.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「쓩」 — 물안경 올린 문어가 먹물을 뒤로 퓻 뿜으며 앞으로 쓩. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.wave.anim": {
+    "src": "assets/stickers/swim/wave_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「같이 가자」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.swim.wave": {
+    "src": "assets/stickers/swim/wave.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「같이 가자」 — 물안경 올린 문어가 다리를 흔들며 손짓함. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.float.anim": {
+    "src": "assets/stickers/swim/float_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「둥둥」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.swim.float": {
+    "src": "assets/stickers/swim/float.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「둥둥」 — 물안경 올린 문어가 눈 감고 둥둥 떠 있음. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.arrive": {
+    "src": "assets/stickers/swim/arrive.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「도착」 — 물안경 올린 문어가 깃발을 들고 도착함. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
   }
 }
