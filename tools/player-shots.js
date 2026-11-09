@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 /* tools/player-shots.js — 내 캐릭터 증거 (docs/SCENE.md "내 캐릭터" · docs/PLAYER_PARTS.md §5). SwiftShader 로 WebGL 강제, 360×326 장면 @2x, p=2 (exterior-shots 와 같은 독립 하네스).
  *   node tools/player-shots.js [palette]   # 기본 apollo
- * → tests/evidence/player/pl-attic-day.png (다락 쉬는 자리) · pl-attic-close.png (2× 확대 크롭) · pl-face-close.png (2× 얼굴 크롭 — 사람 얼굴 자기 점검) · pl-blink.png (감은 눈 1프레임) · pl-attic-night.png (밤 자체광)
+ * → tests/evidence/player/pl-attic-day.png (다락 쉬는 자리) · pl-attic-close.png (2× 확대 크롭) · pl-face-close.png (2× 얼굴 크롭 — 사람 얼굴 자기 점검, **놀이방** 빈 바닥에서: 다락 쉬는 자리는 거울 코너 문짝이 왼눈을 가린다) · pl-blink.png (다락 2× 얼굴 크롭 뜬 눈 · 감은 눈 1프레임) · pl-attic-night.png (밤 자체광)
  *   · pl-walk-strip.png (문 톡 → 문 앞까지 걷기 → 문 열림, 0.1 s × 24 칸, 캐릭터를 따라가는 96×96 CSS px 크롭) · pl-attic-door.png (문 앞에 서서 문을 본다 — 문짝에 안 가린다) · pl-play-day.png (놀이방 쉬는 자리) · pl-play-close.png
  *   · pl-parts-sheet.png (파츠 시트: 줄 = 범주 7(머리 · 머리 색 · 눈 · 눈 색 · 옷 · 신발 · 악세사리, UI 순서) · 칸 = 옵션(기본 cfg 에서 하나씩 바꿈), 놀이방 2× 96×96 크롭 — 머리 줄은 옆 45° 뒤쪽 각도(뒷머리 길이가 보이게), 얼굴 범주는 머리 중심, 옷은 몸통, 신발은 발 중심; 60 KB 를 넘으면 pl-parts-<범주>.png 7장; 칸은 눈 뜬 프레임)
- *   · pl-parts-hair.png (머리 6종 × (정면 · 옆 90° · 뒤 180°) 2× 128 px 크롭 — 꼭대기부터 긴 머리 끝까지 한 칸에) · pl-hair-turn.png (머리 6종 × 8방향 1×) · pl-hair-turn-2x.png (머리 6종 × 4방향 2×, 머리 중심)
+ *   · pl-parts-hair.png (머리 6종 × (정면 · 옆 90° · 뒤 180°) 2× 128 px 크롭 — 꼭대기부터 긴 머리 끝까지 한 칸에) · pl-hair-turn.png (머리 6종 × 8방향 1×) · pl-hair-turn-2x.png (머리 6종 × 8방향 2×, 머리 중심 — 눈 튀어나옴은 여기서 판정)
  *   · pl-portrait.png (playerPortrait 64×64: 1줄 머리 6종 · 2줄 악세사리 6종, navy 배경)
  *   · pl-stick-walk-strip.png (스틱 입력 setPlayerInput 화면 왼쪽으로 0.1 s × 12 칸, 2× 크롭 — 뒤로 남는 발자국이 보여야 한다, brief MOVE.md)
- * 검사: 샷마다 고유 색 ≤ 62(시트 칸마다 ≤ 62, 합친 시트 ≤ 96) · 다락 드로우콜 ≤ 150 · 놀이방 ≤ 60 · 셰이더 프로그램 수가 부팅과 같음(내 캐릭터 툰은 문어 툰과 프로그램을 나눠 쓴다) · 모든 파츠 조합에서 드로우콜이 기본값과 같음(메시 수 불변)
- *   · setPlayer 전 옵션 뒤 renderer.info.memory.geometries ≤ 시작 + 7(옛 지오메트리 dispose) · 모르는 id → 기본값 · 얼굴 색 집계(살결 #e7d5b3 ≠ 흰자 #ebede9, 금발 #de9e41 ≥ 8 %, 올리브 #d0da91 로 뜨지 않음) · 깜빡임 프레임에 흰자가 줄고 눈썹 색이 늚
- *   · 초상 12장 모두 0행은 배경만(머리 꼭대기·모자·귀가 안 잘림) · walkFirst 로 문이 걷기 뒤에 열림 · 스틱 12 칸 내내 walking · 발자국 수 증가(≥ 5) · 드로우콜 ≤ 기준 + 1 · 놓으면 멈춤 · 2.3 s 뒤 자국 0 · 콘솔/페이지 에러 0. 어기면 exit 1.
+ * 검사: 샷마다 고유 색 ≤ 62(시트 칸마다 ≤ 62, 합친 시트 ≤ 96) · 다락 드로우콜 ≤ 150 · 놀이방 ≤ 60 · 셰이더 프로그램 수가 부팅과 같음(내 캐릭터 툰·눈 재질은 문어 툰과 프로그램을 나눠 쓴다) · 모든 파츠 조합에서 드로우콜이 기본값과 같음(메시 수 불변)
+ *   · setPlayer 전 옵션 뒤 renderer.info.memory.geometries ≤ 시작 + 7(옛 지오메트리 dispose) · textures 가 시작과 같음(눈 아틀라스는 다시 그릴 뿐 새 텍스처가 아니다) · 모르는 id → 기본값 · 얼굴 색 집계(살결 #e7d5b3 ≠ 흰자 #ebede9, 흰자 1~12 % — 상한은 눈 텍스처가 빠져 흰 네모가 된 상태를 잡는다, 금발 #de9e41 ≥ 8 %, 올리브 #d0da91 로 뜨지 않음) · 깜빡임 프레임에 흰자가 줄고 감은 눈 선 색이 늚
+ *   · **눈 튀어나옴(11-09)**: 머리 6종 × 8방향(1×) · 8방향(2×) 칸마다 눈 켠 · 눈 끈(debugPlayerEyes) · 캐릭터 숨긴(debugPlayerHide) 세 프레임을 비교 — 눈 픽셀(켬 ≠ 끔) 가운데 캐릭터 픽셀(끔 ≠ 숨김: 머리 · 몸 · 윤곽 잉크)도 아니고 4-이웃에도 캐릭터가 없는 픽셀(= 윤곽 밖으로 1 px 이상 나온 눈) 이 0 이어야 한다. 윤곽선 위에 걸친 눈 픽셀(이웃이 캐릭터)은 'rim' 으로 집계만(옆 90° 에서 눈이 얇은 선으로 보이는 것)
+ *   · 초상 12장 모두 0행은 배경만(머리 꼭대기·모자·귀가 안 잘림) · walkFirst 로 문이 걷기 뒤에 열림 · 스틱 12 칸 내내 walking · 발자국 수 증가(≥ 5) · 자국 픽셀(발자국 메시 숨김 전후 차, 2× 1단 ≥ 40 · 2단 ≥ 16 · 1× 1단 ≥ 12 · 2단 ≥ 6) · 드로우콜 ≤ 기준 + 2 · 놓으면 멈춤 · 2.3 s 뒤 자국 0 · 콘솔/페이지 에러 0. 어기면 exit 1.
  */
 'use strict';
 var fs = require('fs'), path = require('path'), os = require('os'), zlib = require('zlib');
@@ -100,19 +101,19 @@ function harness() {
   await shot('pl-attic-day.png');
   await page.evaluate(function () { SC.zoomStep(6); for (var i = 0; i < 3; i++) SC.debugStep(0.1); });
   var c = await plScreen(); await crop('pl-attic-close.png', c.x, c.y);
-  c = await plScreen(HEAD_Y); var faceBuf = await cropBuf(c.x, c.y); save('pl-face-close.png', faceBuf);
+  c = await plScreen(HEAD_Y); c.x += 8; var faceBuf = await cropBuf(c.x, c.y);   /* 다락 얼굴 크롭(집계·깜빡임 비교용, pl-blink 왼 칸): 쉬는 자리 왼쪽의 거울 코너 문짝이 장면 안에서 왼눈 바깥 4~5 텍셀을 가린다 — 크롭 중심을 옮겨도 가림은 그대로라(판정 1회차 +8 → +16 시도) 판정용 pl-face-close.png 는 아래 놀이방 2×(빈 바닥)에서 찍는다 (FACE_V3 §8-1 의 두 번째 길) */
   var faceIm = decodeBuf(faceBuf), fc = census(faceIm), tot = faceIm.w * faceIm.h, pct = function (k) { return 100 * (fc[k] || 0) / tot; };
   console.log('face census:', top(fc, 12), '| skin %', pct(SKIN).toFixed(1), 'white %', pct(WHITE).toFixed(1), 'olive %', pct(OLIVE).toFixed(1), 'brow %', pct(BROW).toFixed(1));
   if (uniqIm(faceIm) > 62) fails.push('pl-face-close 고유 색 ' + uniqIm(faceIm) + ' > 62');
   if (pct(SKIN) < 8) fails.push('얼굴 크롭: 살결 칸 ' + hex(SKIN) + ' 이 8 % 이상이어야 한다 (' + pct(SKIN).toFixed(1) + ')');
-  if (!(pct(WHITE) >= 3 && pct(WHITE) <= 25)) fails.push('얼굴 크롭: 흰자 칸 ' + hex(WHITE) + ' 이 3~25 % 여야 한다 (' + pct(WHITE).toFixed(1) + ') — 큰 눈(피드백 6) 둘 + 깃, 흰자 ≠ 살결');
+  if (!(pct(WHITE) >= 1 && pct(WHITE) <= 12)) fails.push('얼굴 크롭: 흰자 칸 ' + hex(WHITE) + ' 이 1~12 % 여야 한다 (' + pct(WHITE).toFixed(1) + ') — 눈 텍스처 흰 테 둘 + 깃(≈ 8 %), 흰자 ≠ 살결 · 상한은 map 이 빠져 흰 네모가 된 눈을 잡는다');
   if (pct(OLIVE) > 3) fails.push('얼굴 크롭: 금발이 올리브 ' + hex(OLIVE) + ' 로 떴다 (' + pct(OLIVE).toFixed(1) + ' %)');
   if (pct(BLONDE) < 8) fails.push('얼굴 크롭: 금발 칸 ' + hex(BLONDE) + ' 이 8 % 이상이어야 한다 (' + pct(BLONDE).toFixed(1) + ') — 살결 #e7d5b3 와 두 칸 갈린 머리칼 (리뷰 11-08: #e8c170 은 살결과 한 덩이였다)');
   await page.evaluate(function () { SC.debugPlayerBlink(0.12); SC.debugStep(0.01); });
   var blinkIm = decodeBuf(await cropBuf(c.x, c.y)), bc = census(blinkIm); save('pl-blink.png', grid([[faceBuf, await cropBuf(c.x, c.y)]]));
   console.log('blink census:', 'white', fc[WHITE] || 0, '→', bc[WHITE] || 0, '| brow', fc[BROW] || 0, '→', bc[BROW] || 0);
-  if (!((fc[WHITE] || 0) - (bc[WHITE] || 0) >= 400)) fails.push('깜빡임 프레임: 흰자(두 눈 ≈ 1000 px, 깃은 그대로)가 400 px 이상 줄어야 한다 ' + (fc[WHITE] || 0) + ' → ' + (bc[WHITE] || 0));
-  if (!((bc[BROW] || 0) - (fc[BROW] || 0) >= 200)) fails.push('깜빡임 프레임: 눈썹 색 감은 눈 선이 200 px 이상 늘어야 한다 ' + (fc[BROW] || 0) + ' → ' + (bc[BROW] || 0));
+  if (!((fc[WHITE] || 0) - (bc[WHITE] || 0) >= 800)) fails.push('깜빡임 프레임: 흰자(두 눈 텍스처 흰 테 ≈ 1600 px, 깃은 그대로)가 800 px 이상 줄어야 한다 ' + (fc[WHITE] || 0) + ' → ' + (bc[WHITE] || 0));
+  if (!((bc[BROW] || 0) - (fc[BROW] || 0) >= 40)) fails.push('깜빡임 프레임: 감은 눈 선(머리색 한 칸 어둡게, 10 아트px × 2 = 80 px)이 40 px 이상 늘어야 한다 ' + (fc[BROW] || 0) + ' → ' + (bc[BROW] || 0));
   await page.evaluate(function () { for (var i = 0; i < 3; i++) SC.debugStep(0.1); });
   var open2 = census(decodeBuf(await cropBuf(c.x, c.y)));
   if ((open2[WHITE] || 0) < (fc[WHITE] || 0) * 0.8) fails.push('깜빡임 뒤 흰자가 돌아와야 한다 ' + (fc[WHITE] || 0) + ' → ' + (open2[WHITE] || 0));
@@ -159,9 +160,10 @@ function harness() {
   await shot('pl-play-day.png');
   await page.evaluate(function () { SC.zoomStep(6); for (var i = 0; i < 3; i++) SC.debugStep(0.1); });
   c = await plScreen(); await crop('pl-play-close.png', c.x, c.y);
+  c = await plScreen(HEAD_Y); await crop('pl-face-close.png', c.x, c.y);   /* 2× 얼굴 크롭(판정용): 놀이방 빈 바닥이라 문짝·거울이 눈을 안 가린다 (다락 쉬는 자리는 거울 코너 문짝이 왼눈을 가렸다 — 판정 1회차) */
 
   /* 2b. 파츠 시트 (놀이방 2×, 빈 바닥): 범주마다 기본 cfg 에서 하나씩 바꿔 96×96 크롭 → 격자. 드로우콜 불변 · 칸 고유 색 ≤ 62 · 지오메트리 dispose 확인 */
-  var g0 = await page.evaluate(function () { return SC.renderer.info.memory.geometries; }), calls0 = b.stats.calls, rows = [], cellU = [];
+  var g0 = await page.evaluate(function () { return SC.renderer.info.memory.geometries; }), t0 = await page.evaluate(function () { return SC.renderer.info.memory.textures; }), calls0 = b.stats.calls, rows = [], cellU = [];
   for (var ci = 0; ci < CATS.length; ci++) {
     var cat = CATS[ci], row = [];
     await page.evaluate(function (deg) { SC.debugPlayerYaw(deg); for (var i = 0; i < 3; i++) SC.debugStep(0.1); }, cat === 'hair' ? b.pl.yaw + 135 : null);   /* 머리 줄만 옆 45° 뒤쪽이 보이는 각도 (주인 11-08: 정면 2× 에선 6개가 거의 같아 보였다) — 뒷머리 길이가 스타일을 가른다 */
@@ -176,9 +178,10 @@ function harness() {
     }
     rows.push(row);
   }
-  var g1 = (await setPlayer(PARTS.def)).geos;
-  console.log('parts sheet: cells', cellU.length, 'uniq max', Math.max.apply(null, cellU), '| geometries', g0, '→', g1);
+  var g1 = (await setPlayer(PARTS.def)).geos, t1 = await page.evaluate(function () { return SC.renderer.info.memory.textures; });
+  console.log('parts sheet: cells', cellU.length, 'uniq max', Math.max.apply(null, cellU), '| geometries', g0, '→', g1, '| textures', t0, '→', t1);
   if (g1 > g0 + 7) fails.push('setPlayer 전 옵션 뒤 지오메트리 ' + g0 + ' → ' + g1 + ' (옛 지오메트리 dispose 안 됨)');
+  if (t1 !== t0) fails.push('setPlayer 전 옵션 뒤 텍스처 수 ' + t0 + ' → ' + t1 + ' (눈 아틀라스는 하나를 다시 그려야 한다)');
   var sheet = grid(rows);
   if (sheet.length <= 60 * 1024) { save('pl-parts-sheet.png', sheet); var su = uniq(path.join(OUT, 'pl-parts-sheet.png')); if (su > 96) fails.push('pl-parts-sheet 고유 색 ' + su + ' > 96'); }
   else { console.log('  pl-parts-sheet.png 가 ' + (sheet.length / 1024).toFixed(0) + ' KB → 범주별 7장으로'); rows.forEach(function (r, i) { save('pl-parts-' + CATS[i] + '.png', grid([r])); }); try { fs.unlinkSync(path.join(OUT, 'pl-parts-sheet.png')); } catch (e) {} }
@@ -193,16 +196,38 @@ function harness() {
   }
   save('pl-parts-hair.png', grid(hrows));
   await page.evaluate(function () { SC.debugPlayerYaw(null); });
-  /* 2c. 머리 8방향 (1×) + 4방향 (2×, 머리 중심): 긴 머리 커튼 · 포니테일 꼬리 · 웨이브 덩어리는 정면 한 장으로 판단할 수 없다 */
-  var turn1 = [], turn2 = [];
+  /* 2c. 머리 8방향 (1×) + 8방향 (2×, 머리 중심): 긴 머리 커튼 · 포니테일 꼬리 · 웨이브 덩어리는 정면 한 장으로 판단할 수 없다. 칸마다 눈 튀어나옴 집계(머리 주석) — 카메라 요 45° 라 d 45 = 정면, d 0 · 90 = 45° 돌림, d 315 · 135 = 옆 90°, d 270 · 180 = 뒤 135° */
+  var turn1 = [], turn2 = [], eyeOut = [], eyeRim = 0, eyeN = 0;
+  async function eyeCheck(cx, cy, label) {   /* 눈 켬 / 눈 끔 / 캐릭터 숨김 세 프레임 → 눈 픽셀 · 캐릭터 밖 눈 픽셀(out) · 윤곽에 걸친 눈 픽셀(rim) */
+    var on = await cropBuf(cx, cy);
+    await page.evaluate(function () { SC.debugPlayerEyes(false); SC.debugStep(0.01); }); var off = await cropBuf(cx, cy);
+    await page.evaluate(function () { SC.debugPlayerHide(true); SC.debugStep(0.01); }); var gone = await cropBuf(cx, cy);
+    await page.evaluate(function () { SC.debugPlayerHide(false); SC.debugPlayerEyes(true); SC.debugStep(0.01); });
+    var a = decodeBuf(on), bI = decodeBuf(off), cI = decodeBuf(gone), A = DPR * 2, w = a.w / A | 0, h = a.h / A | 0, eye = 0, out = 0, rim = 0;   /* 아트 픽셀 단위(1 아트px = p 2 × DPR 2 = 4 장치px, 크롭 원점은 4 의 배수)로 센다 — 장치 픽셀로 세면 1 아트px 선의 바깥 3/4 이 '이웃 없음' 이 된다 */
+    function k(im, x, y) { var i = (y * A * im.w + x * A) * im.bpp; return (im.px[i] << 16) | (im.px[i + 1] << 8) | im.px[i + 2]; }
+    function body(x, y) { return k(bI, x, y) !== k(cI, x, y); }   /* 눈을 꺼도 캐릭터(머리 · 몸 · 윤곽 잉크 · 접지 그림자)가 차지한 아트 픽셀 */
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+      if (k(a, x, y) === k(bI, x, y)) continue; eye++;
+      if (body(x, y)) continue;
+      var near = (x > 0 && body(x - 1, y)) || (x < w - 1 && body(x + 1, y)) || (y > 0 && body(x, y - 1)) || (y < h - 1 && body(x, y + 1));
+      if (near) rim++; else out++;
+    }
+    eyeN += eye; eyeRim += rim; if (out) eyeOut.push(label + ':' + out);
+    return on;
+  }
+  await page.evaluate(function () { SC.setReducedMotion(true); });   /* 돌려보기 동안 숨쉬기(8 fps 스텝 1 px)를 끈다 — 눈 켬/끔 두 프레임 사이에 몸 윤곽이 1 px 흔들리면 눈 픽셀로 잘못 센다. 요 회전은 즉시 */
   for (hi = 0; hi < PARTS.parts.hair.length; hi++) {
     var hcfg = Object.assign({}, PARTS.def, { hair: PARTS.parts.hair[hi].id }), r1 = [], r2 = [];
     await page.evaluate(function () { SC.zoomStep(0); SC.debugStep(0.1); }); await setPlayer(hcfg);
-    for (var d = 0; d < 360; d += 45) { await page.evaluate(function (deg) { SC.debugPlayerYaw(deg); SC.debugStep(0.1); SC.debugStep(0.1); }, d); var s1 = await plScreen(); r1.push(await cropBuf(s1.x, s1.y)); }
+    for (var d = 0; d < 360; d += 45) { await page.evaluate(function (deg) { SC.debugPlayerYaw(deg); SC.debugStep(0.1); SC.debugStep(0.1); }, d); var s1 = await plScreen(); r1.push(await eyeCheck(s1.x, s1.y, hcfg.hair + '/1x/' + d)); }
     await page.evaluate(function () { SC.zoomStep(6); SC.debugStep(0.1); });
-    for (d = 0; d < 360; d += 90) { await page.evaluate(function (deg) { SC.debugPlayerYaw(deg); SC.debugStep(0.1); SC.debugStep(0.1); }, d); var s2 = await plScreen(0.95); r2.push(await cropBuf(s2.x, s2.y)); }
+    for (d = 0; d < 360; d += 45) { await page.evaluate(function (deg) { SC.debugPlayerYaw(deg); SC.debugStep(0.1); SC.debugStep(0.1); }, d); var s2 = await plScreen(0.95); r2.push(await eyeCheck(s2.x, s2.y, hcfg.hair + '/2x/' + d)); }
     turn1.push(r1); turn2.push(r2);
   }
+  await page.evaluate(function () { SC.setReducedMotion(false); });
+  console.log('eye protrusion: eye px', eyeN, '| rim', eyeRim, '| outside', eyeOut.length ? eyeOut.join(' ') : 0);
+  if (eyeOut.length) fails.push('눈이 머리 윤곽 밖으로 나왔다 (머리/배율/요: 픽셀 수) ' + eyeOut.join(' '));
+  if (eyeN < 96 * 20 / 16) fails.push('눈 픽셀이 너무 적다 ' + eyeN + ' (눈 텍스처가 안 보인다?)');
   save('pl-hair-turn.png', grid(turn1)); save('pl-hair-turn-2x.png', grid(turn2));
   var yawBack = await page.evaluate(function () { SC.debugPlayerYaw(null); SC.zoomStep(0); for (var i = 0; i < 6; i++) SC.debugStep(0.1); return SC.player().yaw; });
   if (Math.abs(yawBack - b.pl.yaw) > 0.5) fails.push('debugPlayerYaw(null) 뒤 다시 카메라 쪽(' + b.pl.yaw + '°)을 봐야 한다 ' + yawBack);
