@@ -73,6 +73,7 @@ function watch(page, origin) {
 }
 async function newPage(browser, look, origin) {
   var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, locale: 'ko-KR', colorScheme: 'light' });
+  await ctx.addInitScript('window.__ppolAwakeMs = 0;');   /* 11-08 깨어 있는 틈 (90 s) 없이 — 예전 검사는 '산책 직후 잠'. 틈을 보는 검사(9b)는 페이지에서 덮는다 */
   if (look) await ctx.addInitScript('window.__ppolLook = ' + JSON.stringify(look) + ';');
   var page = await ctx.newPage();
   return { ctx: ctx, page: page, bag: watch(page, origin) };
@@ -689,6 +690,43 @@ async function clickSpot(pg, sel) {
   await pg.mouse.click(pt[0], pt[1]);
 }
 
+/* 10. 깨어 있는 틈 (주인 11-08): 돌아온 뒤 담요에서 잠깐 깨어 있다가 잔다 — 잠드는 소리는 그때 한 번, 반응 규칙(D-1)은 그 차례 그대로.
+   졸림으로 마무리한 차례는 틈이 짧고 (25 s · 여기선 훅 1.5 s) 그 뒤 자장가 */
+async function scenarioAwake(browser, base) {
+  console.log('\n== 10. 깨어 있는 틈 → 잠드는 소리 한 번 · 졸림이면 짧은 틈 뒤 자장가 (11-08)');
+  var s = await newPage(browser, { hour: 14 }, base);
+  var page = s.page;
+  await page.addInitScript('window.__ppolAwakeMs = 1500;');   /* 공통 0 을 덮는다 */
+  await page.goto(base + '/index.html');
+  await nameIt(page);
+  await clickSound(page);
+  await waitState(page, function () { return AUDIO.state().bgm === 'theme_day_rain'; }, null, 15000);
+  await page.evaluate(function () { window.__sl = []; (function f() { var x = AUDIO.state(); window.__sl.push([performance.now(), x.sleeping, x.played.filter(function (p) { return p.id === 'sleep_settle'; }).length, x.played.some(function (p) { return /^mood_/.test(p.id); })]); if (window.__sl.length < 4000) setTimeout(f, 30); })(); });
+  await page.evaluate(function (evs) { APP.importEvents(JSON.stringify(evs)); }, TRIP);
+  var slept = await waitState(page, function () { var x = AUDIO.state(); return x.sleeping && x.played.some(function (p) { return p.id === 'sleep_settle'; }); }, null, 150000);   /* 산책 한 번 끝까지 (바쁜 기계에선 1분을 넘는다) */
+  await page.waitForTimeout(1200);
+  var r = await page.evaluate(function () {
+    var moodAt = -1, sleepAt = -1, settles = 0;
+    window.__sl.forEach(function (x) { if (moodAt < 0 && x[3]) moodAt = x[0]; if (sleepAt < 0 && x[1]) sleepAt = x[0]; settles = Math.max(settles, x[2]); });
+    var x = AUDIO.state();
+    return { gap: Math.round(sleepAt - moodAt), settles: x.played.filter(function (p) { return p.id === 'sleep_settle'; }).length, phase: x.sleepPhase, rx: x.sleepReaction, lull: x.played.some(function (p) { return p.id === 'special_lullaby'; }) || x.bgm === 'special_lullaby' };
+  });
+  console.log('   폴짝 차례:', JSON.stringify(r));
+  ok(slept && r.gap >= 1200, '돌아온 뒤 깨어 있는 틈: 마무리 징글(mood_*) 뒤 ' + r.gap + ' ms 동안 잠들지 않는다 (≥ 1.2 s)');
+  ok(r.settles === 1 && r.phase === 'home' && !r.lull, '틈이 끝나 누울 때 잠드는 소리(sleep_settle) 한 번 · 낮 + 폴짝 → 자장가 없음 (D-1 그대로)');
+  /* 졸림 집 차례: 짧은 틈 (훅 1.5 s) 뒤 담요에서 잠 → 자장가 · 잠드는 소리는 또 한 번만 */
+  await page.evaluate(function () { window.__sl = []; window.__s0 = AUDIO.state().played.filter(function (p) { return p.id === 'sleep_settle'; }).length; });
+  await page.evaluate(function () { APP.importEvents(JSON.stringify([{ type: 'stay_home', t: 0, activity: 'nap', line: '담요 속에서 낮잠 잤어' }, { type: 'wrap_up', t: 1500, reaction: '졸림' }])); });
+  await waitState(page, function () { return !document.getElementById('btn-go').classList.contains('away'); }, null, 60000);
+  var r1 = await page.evaluate(function () { return { phase: APP.restPhase(), rest: APP.rest, sleeping: AUDIO.state().sleeping }; });
+  var lull = await waitState(page, function () { var x = AUDIO.state(); return x.sleeping && (x.sleepPhase === 'lullaby' || x.bgm === 'special_lullaby' || x.pending === 'special_lullaby'); }, null, 30000);
+  var r2 = await page.evaluate(function () { return { phase: APP.restPhase(), rest: APP.rest, settles: AUDIO.state().played.filter(function (p) { return p.id === 'sleep_settle'; }).length - window.__s0 }; });
+  ok(r1.phase === 'awake' && !!r1.rest && !r1.sleeping, '졸림으로 마무리한 차례도 돌아온 뒤 잠깐 깨어 있다 (' + JSON.stringify(r1) + ')');
+  ok(lull && r2.phase === 'nap' && !r2.rest && r2.settles <= 1, '그 짧은 틈 뒤 담요에서 잠 · 자장가 (D-1: 졸림) · 잠드는 소리 한 번 (' + JSON.stringify(r2) + ')');
+  reportErrors(s.bag, "10. 깨어 있는 틈");
+  await s.ctx.close();
+}
+
 (async function main() {
   var srv = await serve(), base = 'http://127.0.0.1:' + srv.address().port;
   console.log('test-audio: ' + base + ' · shots → ' + SHOTS);
@@ -699,6 +737,7 @@ async function clickSpot(pg, sel) {
     await scenarioNight(browser, base);
     await scenarioToggle(browser, base);
     await scenarioRules(browser, base);
+    await scenarioAwake(browser, base);
     await scenarioFile(browser);
   } catch (e) {
     fails++; console.error('\nCRASH: ' + (e && e.stack || e));

@@ -179,12 +179,12 @@ a { color: var(--teal); touch-action: manipulation; }
 }
 /* 2D 무대는 --px = 1 (본문 폭 600px 상한) 이라 글자를 그대로 10px 로 — 6·7px 는 못 읽는다. 3D 는 아래 #scene3d 규칙이 덮는다 */
 #oct-bubble {
-  position: absolute; left: calc(50% + var(--bub-dx, 0px)); bottom: calc(100% + 8px); transform: translateX(-50%);   /* --bub-dx: 2D 무대 가장자리(문 앞)에서 안으로 미는 양 (app.js keepBubble2D) */
+  position: absolute; left: calc(50% + var(--bub-dx, 0px)); bottom: calc(100% + 8px - var(--bub-dy, 0px)); transform: translateX(-50%);   /* --bub-dx: 2D 무대 가장자리(문 앞)에서 안으로 미는 양 (app.js keepBubble2D) · --bub-dy: 장면 위쪽에 잘리면 그만큼 아래로 (두 장면 · 11-08) */
   background: var(--paper0); color: var(--ink); border-radius: 4px; padding: 2px 4px;
   font-size: 10px; line-height: 1.3; width: max-content; max-width: 150px; white-space: normal; text-align: center;
   box-shadow: var(--shadow-xs); animation: bubble-in var(--t-ui) var(--ease-enter) both;
 }
-#oct-label:not(:empty) ~ #oct-bubble { bottom: calc(100% + 14px); }   /* 이름표(자는 중 · 꿈꾸는 중 · 출발 중…)가 있으면 그 위로 */
+#oct-label:not(:empty) ~ #oct-bubble { bottom: calc(100% + 14px - var(--bub-dy, 0px)); }   /* 이름표(자는 중 · 꿈꾸는 중 · 출발 중…)가 있으면 그 위로 */
 @keyframes bubble-in { from { opacity: 0; transform: translate(-50%, 4px); } to { opacity: 1; transform: translate(-50%, 0); } }
 /* 상태별 모션 */
 .st-idle #oct-inner, .st-stay #oct-inner { animation: breathe var(--t-idle) ease-in-out infinite; }
@@ -193,7 +193,9 @@ a { color: var(--teal); touch-action: manipulation; }
 @keyframes blink { 0%, 97.6%, 100% { opacity: 0; } 97.7%, 99.9% { opacity: 1; } }
 .st-anticipate #oct-inner { animation: anticipate var(--t-windup) var(--ease-inout) both; }
 @keyframes anticipate { 0% { transform: none; } 60% { transform: scale(1.05, .92); } 100% { transform: scale(1.05, .92); } }
-#oct.settle #oct-inner { animation: settle var(--t-scene) var(--ease-out) both; }   /* 집에 있을 땐 같은 움츠림이 풀리며 1.03 overshoot */
+#oct.settle #oct-inner { animation: settle var(--t-scene) var(--ease-out) both; }
+#oct.nudge #oct-inner { animation: tap-nudge 200ms linear 1; }   /* 깨어 있는 문어를 톡: 2px 위로 한 번 (정수 px · 모션 줄이기면 app.js 가 눈 깜빡으로, 11-08) */
+@keyframes tap-nudge { 0%, 49.9% { transform: translateY(-2px); } 50%, 100% { transform: none; } }   /* 집에 있을 땐 같은 움츠림이 풀리며 1.03 overshoot */
 @keyframes settle { 0% { transform: scale(1.05, .92); } 55% { transform: scale(.98, 1.03); } 100% { transform: none; } }
 .st-walk #oct-inner, .st-carry #oct-inner { animation: hop var(--t-step) ease-in-out infinite; }
 @keyframes hop { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-3px) scale(.98, 1.03); } }
@@ -864,7 +866,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 #scene3d #oct { pointer-events: none; z-index: 6; }
 #scene3d #oct-inner { display: none; }
 #scene3d #oct-label { font-size: 12px; }
-#scene3d #oct-bubble { font-size: 12px; padding: 4px 8px; border-radius: 8px; max-width: 200px; }
+#scene3d #oct-bubble { font-size: 12px; padding: 4px 8px; border-radius: 8px; max-width: 220px; }   /* 220: 톡 한 줄(22자 · 모델 24자 + …)이 픽셀 2~3줄 · 시스템 1~2줄 (js/ui-art.js keepInside 가 좁은 장면이면 더 줄인다) */
 .rdrop.snow { width: 2px; height: 2px; background: #f7f1d8; opacity: .8; }
 /* 설정: 문어 색 */
 .presets { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; }

@@ -1548,6 +1548,208 @@ async function drawOrderSuite() {
   check(nOut === 80 && drawErr.length === 0, 'mcp/human replay draws the same numbers as demo-rules replay (sticker pos · paper · souvenir · memory) (' + drawErr.length + ' diffs)' + (drawErr.length ? ' e.g. ' + drawErr[0] : ''));
 }
 
+/* ───────── 톡 한 줄 (주인 11-08, BRAIN.tapLine) ─────────
+   깨어 있는 문어를 톡 → 그날 마지막 차례의 한 줄. 기록에서만 · 시드로 정해짐 · 아무것도 안 바꿈 · 포스터 · 반응 줄과 겹치지 않음 ·
+   데모 줄은 22자 안 (거의 다 18자 안) · 줄마다 그 사실이 기록에 있다 (갈래별로 다시 확인 — 비평 11-08: 제일 오래는 모든 정류장 중 하나뿐인 최댓값, 처음은 '도' 없이 등) */
+var TAP_BAN = /좋아|좋았|사랑|싫어|싫었|미워|최애|취향|즐겨|반했|단골|그리워|설레|맛있|재밌|재미있|신나|신났|행복|즐거|기뻐|기뻤|슬퍼|아쉬|미안|외로|심심|내일|여기까지|기다렸|보고 싶|오늘|아까|방금/;
+function tapRoomWord(name) {   /* js/brain.js roomWord 와 같은 규칙 (숫자로 시작하는 방 이름 → '…이라는 방') */
+  name = String(name == null ? '' : name);
+  if (!/^[0-9]/.test(name)) return name;
+  var last = name.charAt(name.length - 1), code = last.charCodeAt(0);
+  var jong = /[0-9]/.test(last) ? '1101001110'.charAt(+last) === '1' : (code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 > 0);
+  return name + (jong ? '이라는 방' : '라는 방');
+}
+var TAP_KEYS = { souvenir: ['souvenir', 'souvenirAny'], wild: ['wildLink', 'wild'], count: ['count', 'countMore'] };   /* 한 갈래가 쓰는 템플릿 묶음 (js/brain.js tapDemo 의 add) */
+function tapRegexes(W, key) {   /* 그 갈래 템플릿 → 정규식 (치환자 = 이름 붙은 묶음, 조사 = 두 꼴 다) */
+  var list = []; (TAP_KEYS[key] || [key]).forEach(function (k) { list = list.concat((W.tapTemplates && W.tapTemplates[k]) || BRAIN.DEFAULT_TAP[k] || []); });
+  var JO = { '은': '(?:은|는)', '는': '(?:은|는)', '이': '(?:이|가)', '가': '(?:이|가)', '을': '(?:을|를)', '를': '(?:을|를)', '과': '(?:과|와)', '와': '(?:과|와)', '으로': '(?:으로|로)', '로': '(?:으로|로)' };
+  return list.map(function (tpl) {
+    var re = '', i = 0, m, rx = /\{(\w+)\}(으로|은|는|이|가|을|를|과|와|로)?/g;
+    while ((m = rx.exec(tpl))) { re += tpl.slice(i, m.index).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?<' + m[1] + '>.+?)' + (m[2] ? JO[m[2]] : ''); i = m.index + m[0].length; }
+    re += tpl.slice(i).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return { tpl: tpl, re: new RegExp('^' + re + '$') };
+  });
+}
+function tapParse(W, key, text) { var rs = tapRegexes(W, key); for (var i = 0; i < rs.length; i++) { var m = rs[i].re.exec(text); if (m) return { tpl: rs[i].tpl, g: m.groups || {} }; } return null; }
+function tapFactOk(W, t, r) {   /* → '' 이면 맞음, 아니면 까닭 */
+  var key = r.src.replace(/^demo:/, ''), rc = t.receipt, st = rc.stops, remI = rc.rememberedIdx, pl = (t.poster && t.poster.line) || '', rl = t.reactionLine || '';
+  var p = tapParse(W, key, r.text); if (!p) return 'no template matches';
+  var g = p.g;
+  function isRoom(s) { return !!s && !!s.nodeId && s.nodeId !== 'door_out' && !!W.nodes[s.nodeId]; }
+  function nameOf(s) { return isRoom(s) ? tapRoomWord(s.name) : (s.title || s.name || ''); }
+  function idxOf(v, pred) { for (var i = 0; i < st.length; i++) if (nameOf(st[i]) === v && (!pred || pred(st[i], i))) return i; return -1; }
+  function notPoster(s, i) { return i !== remI; }
+  var ms = st.map(function (s) { return typeof s.ms === 'number' ? s.ms : 0; }), max = Math.max.apply(null, ms);
+  switch (key) {
+    case 'souvenir':
+      var sv = rc.souvenir && W.souvenirs[rc.souvenir]; if (!sv || g.s !== sv.name) return 'souvenir name';
+      if (g.p != null && idxOf(g.p, function (s) { return isRoom(s) && W.nodes[s.nodeId].souvenir === rc.souvenir; }) < 0) return 'souvenir room';
+      return '';
+    case 'wild': var wi = idxOf(g.w, function (s, i) { return notPoster(s, i) && s.wild && s.status === 'read'; }); if (wi < 0 || r.part !== g.w) return 'wild stop'; if (/링크/.test(p.tpl) && !st[wi].viaTangent) return 'link without tangent'; return '';
+    case 'slowRoom': return st.some(function (s, i) { return s.nodeId === 'slow_room' && i !== remI; }) ? '' : 'slow room';
+    case 'tangent': for (var k = 1; k < st.length; k++) if (k !== remI && st[k].viaTangent && isRoom(st[k]) && isRoom(st[k - 1]) && nameOf(st[k]) === g.b && nameOf(st[k - 1]) === g.t) return /한눈/.test(pl) ? 'poster says 한눈' : ''; return 'tangent pair';
+    case 'other': return idxOf(g.b, function (s, i) { return notPoster(s, i) && isRoom(s); }) >= 0 && (g.a == null || g.a === nameOf(st[remI])) ? '' : 'other room';
+    case 'revisit': return !/다시/.test(pl) && idxOf(g.b, function (s, i) { return notPoster(s, i) && isRoom(s) && !s.first; }) >= 0 ? '' : 'revisit';
+    case 'firstOther': return !/처음/.test(pl) && idxOf(g.b, function (s, i) { return notPoster(s, i) && isRoom(s) && s.first; }) >= 0 ? '' : 'first';
+    case 'longest':
+      var li = idxOf(g.b, function (s, i) { return notPoster(s, i) && isRoom(s) && ms[i] === max; });
+      return li >= 0 && ms.filter(function (x) { return x === max; }).length === 1 && !/오래/.test(pl) ? '' : 'longest';
+    case 'tired': return rc.returnReason === 'tired' && g.l === nameOf(st[st.length - 1]) && t.reaction !== '졸림' && !/다리/.test(rl) ? '' : 'tired';
+    case 'enough': return rc.returnReason === 'enough' && g.l === nameOf(st[st.length - 1]) && st.length - 1 !== remI && !/됐어/.test(rl) ? '' : 'enough';
+    case 'failed': return idxOf(g.x, function (s, i) { return notPoster(s, i) && s.status === 'failed'; }) >= 0 ? '' : 'failed';
+    case 'simulated': return idxOf(g.x, function (s, i) { return notPoster(s, i) && s.status === 'simulated'; }) >= 0 ? '' : 'simulated';
+    case 'doorOut': return st.some(function (s, i) { return s.nodeId === 'door_out' && i !== remI; }) ? '' : 'door';
+    case 'start': return st.length >= 3 && remI !== 0 && isRoom(st[0]) && g.f === nameOf(st[0]) && !/처음/.test(pl) ? '' : 'start';
+    case 'readOne': return idxOf(g.r, function (s, i) { return notPoster(s, i) && isRoom(s) && s.status === 'read'; }) >= 0 ? '' : 'read';
+    case 'count':
+      var W1 = ['', '한', '두', '세', '네', '다섯', '여섯', '일곱', '여덟'];
+      if (g.n != null) return W1[st.length] === g.n ? '' : 'count';
+      return W1[st.length - 1] === g.m && g.a === nameOf(st[remI]) ? '' : 'count more';
+    default: return 'unknown src ' + key;
+  }
+}
+async function tapSuite(label, W) {
+  section('tapLine — ' + label);
+  var real = !!(W.tapTemplates && W.homeActivities.some(function (a) { return Array.isArray(a.tap); }));
+  /* 템플릿 글자: 한글 · 숫자 · 띄어쓰기 · 마침표 · 치환자 · 금지 말 없음 */
+  var tpls = []; Object.keys(BRAIN.DEFAULT_TAP).forEach(function (k) { tpls = tpls.concat(BRAIN.DEFAULT_TAP[k]); });
+  if (W.tapTemplates) Object.keys(W.tapTemplates).forEach(function (k) { tpls = tpls.concat(W.tapTemplates[k]); });
+  (W.homeActivities || []).forEach(function (a) { if (Array.isArray(a.tap)) tpls = tpls.concat(a.tap); });
+  var badT = tpls.filter(function (x) { return !/^[가-힣0-9 .{}a-z]+$/.test(x) || TAP_BAN.test(x); });
+  check(tpls.length >= 20 && badT.length === 0, 'tap templates: Hangul/digits/spaces/. only, no feeling/time words (' + tpls.length + ' · ' + badT.join(' | ') + ')');
+  var errs = [], lens = [], soft = 0, kinds = { out: 0, home: 0, empty: 0 }, nulls = { out: 0, home: 0, empty: 0 }, srcs = {};
+  var online = [true, true, true, false];
+  for (var seed = 1; seed <= 500; seed++) {
+    var visits = {}; if (seed % 3 === 0) Object.keys(W.nodes).forEach(function (k, i) { if (i % 2) visits[k] = 1; });
+    var inp = baseInput(seed * 7919, { online: online[seed % 4], hint: seed % 17 === 0 ? 'https://example.org/x' : '', state: { visits: visits, affinity: {}, lantern: seed % 8, recent: [], todayOut: seed % 5 === 0 ? 2 : 0, posters: seed % 3, owned: [] } });
+    var t = await BRAIN.plan(inp);
+    t.status = 'done';
+    kinds[t.kind]++;
+    var before = JSON.stringify(t), r = BRAIN.tapLine(t), r2 = BRAIN.tapLine(t), r3 = BRAIN.tapLine(JSON.parse(before));
+    if (JSON.stringify(t) !== before) errs.push(seed + ': tapLine changed the trip');
+    if (JSON.stringify(r) !== JSON.stringify(r2) || JSON.stringify(r) !== JSON.stringify(r3)) errs.push(seed + ': not deterministic');
+    if (!r) { nulls[t.kind]++; if (t.kind === 'out' && !/만 봤어|하나만/.test(t.poster && t.poster.line || '')) errs.push(seed + ': out walk without a line'); continue; }
+    if (t.kind === 'empty') { errs.push(seed + ': empty demo turn has a line ' + r.text); continue; }
+    srcs[r.src] = (srcs[r.src] || 0) + 1;
+    var L = Array.from(r.text).length; lens.push(L); if (L <= BRAIN.TAP_SOFT) soft++;
+    if (r.by !== 'demo-rules') errs.push(seed + ': by ' + r.by);
+    if (L > BRAIN.TAP_MAX) errs.push(seed + ': too long ' + r.text);
+    var pl = (t.poster && t.poster.line) || '';
+    if (r.text === pl || pl.indexOf(r.text) >= 0) errs.push(seed + ': repeats the poster ' + r.text);
+    if (r.text === t.reactionLine) errs.push(seed + ': repeats the reaction line ' + r.text);
+    if (TAP_BAN.test(r.text)) errs.push(seed + ': banned word ' + r.text);
+    var outside = r.part ? r.text.split(r.part).join('') : r.text;
+    if (!/^[가-힣0-9 .]+$/.test(outside)) errs.push(seed + ': odd chars outside part ' + r.text);
+    if (r.part && r.text.indexOf(r.part) < 0) errs.push(seed + ': part not in text');
+    if (/[{}]/.test(r.text) || /^ |  | $/.test(r.text)) errs.push(seed + ': unfilled/blank slot ' + JSON.stringify(r.text));
+    if (t.kind === 'home') {
+      var act = W.homeActivities.filter(function (a) { return a.id === t.receipt.activity.id; })[0];
+      if (!act || !Array.isArray(act.tap) || act.tap.indexOf(r.text) < 0) errs.push(seed + ': home line not from the activity ' + r.text);
+      if (act && (String(act.line).indexOf(r.text) >= 0 || String(act.detail).indexOf(r.text) >= 0)) errs.push(seed + ': home line repeats the note ' + r.text);
+    } else {
+      var why = tapFactOk(W, t, r); if (why) errs.push(seed + ': ' + r.src + ' «' + r.text + '» not backed by the record (' + why + ')');
+    }
+  }
+  check(errs.length === 0, 'tapLine over 500 plans: deterministic, read-only, ≤ ' + BRAIN.TAP_MAX + ' chars, no poster/reaction repeat, every fact backed by the record (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 3).join(' | ') : ''));
+  check(lens.length > 300 && soft / lens.length >= 0.95, 'tap lines are short: ≥ 95 % within ' + BRAIN.TAP_SOFT + ' chars (' + soft + '/' + lens.length + ')');
+  check(kinds.empty === 0 || nulls.empty === kinds.empty, 'empty demo turns say nothing (' + nulls.empty + '/' + kinds.empty + ')');
+  if (real) check(kinds.home === 0 || nulls.home === 0, 'every real home activity has its own tap line (' + nulls.home + ' home nulls / ' + kinds.home + ')');
+  else check(nulls.home === kinds.home, 'activities without tap lines say nothing (' + nulls.home + '/' + kinds.home + ')');
+  console.log('  tap srcs: ' + JSON.stringify(srcs));
+  /* 정해진 경우 */
+  check(BRAIN.tapLine(null) === null && BRAIN.tapLine({ by: 'legacy', kind: 'out', status: 'done' }) === null && BRAIN.tapLine({ by: 'robot', kind: 'out', status: 'done', seed: 1, receipt: { stops: [] } }) === null, 'legacy / unknown author → null');
+  check(BRAIN.tapLine({ by: 'demo', kind: 'out', status: 'running', seed: 1, receipt: { stops: [{ nodeId: 'hat', name: '모자' }] } }) === null, 'unfinished trip → null');
+  var crashFree = true;
+  try { [{ by: 'demo', kind: 'out', status: 'done', seed: 3 }, { by: 'demo', kind: 'out', status: 'done', seed: 3, receipt: {} }, { by: 'demo', kind: 'out', status: 'done', seed: 3, receipt: { stops: [{}, { nodeId: 'nope' }] } }, { by: 'demo', kind: 'home', status: 'done', seed: 3 }].forEach(function (x) { BRAIN.tapLine(x); }); } catch (e) { crashFree = false; }
+  check(crashFree, 'records missing receipt / returnReason / counts / names do not crash');
+  var ids = Object.keys(W.nodes).filter(function (id) { return !/door_out|slow_room|letter_room/.test(id) && W.nodes[id].corner !== 'wild'; });
+  var a0 = W.nodes[ids[0]], a1 = W.nodes[ids[1]], a2 = W.nodes[ids[2]];
+  function mk(o) { return Object.assign({ by: 'demo', kind: 'out', status: 'done', seed: 77, poster: { line: '테스트 포스터 한 줄' }, reactionLine: '테스트 반응', reaction: '덤덤' }, o); }
+  function stop(nd, o) { return Object.assign({ nodeId: nd.id, name: nd.name, status: 'builtin', first: false, viaTangent: false, ms: 5000 }, o || {}); }
+  /* 제일 오래: 들판이 더 오래였으면 방 이름으로 '제일 오래' 라고 하지 않는다 · 최댓값이 둘이면 안 한다 */
+  var wildLonger = mk({ receipt: { rememberedIdx: 0, returnReason: null, stops: [stop(a0, { ms: 4000 }), stop(a1, { ms: 9000 }), { nodeId: null, name: '깃펜', title: '깃펜', wild: true, status: 'read', ms: 9500, viaTangent: true }] } });
+  var tie = mk({ receipt: { rememberedIdx: 0, returnReason: null, stops: [stop(a0, { ms: 4000 }), stop(a1, { ms: 9000 }), stop(a2, { ms: 9000 })] } });
+  var many = 0;
+  for (var sd = 1; sd <= 60; sd++) { [wildLonger, tie].forEach(function (x) { x.seed = sd; var rr = BRAIN.tapLine(x); if (rr && rr.src === 'demo:longest') many++; }); }
+  check(many === 0, "'제일 오래' only for a unique maximum over all stops (a longer wild stop or a tie → never) (" + many + ')');
+  /* 처음: '도' 없이, 그 방이 정말 처음일 때만 */
+  var firsts = 0, wrongFirst = 0;
+  for (sd = 1; sd <= 60; sd++) { var ft = mk({ seed: sd, receipt: { rememberedIdx: 0, returnReason: null, stops: [stop(a0, { first: false }), stop(a1, { first: true }), stop(a2, { first: false })] } }); var fr = BRAIN.tapLine(ft); if (fr && fr.src === 'demo:firstOther') { firsts++; if (fr.text.indexOf(tapRoomWord(a1.name)) !== 0 || /도 처음/.test(fr.text)) wrongFirst++; } }
+  check(firsts > 0 && wrongFirst === 0, "first-visit line names only the room that was new, without '도' (" + firsts + ' lines, ' + wrongFirst + ' wrong)');
+  /* 링크 따라: 샛길로 온 들판만 */
+  var linkBad = 0;
+  for (sd = 1; sd <= 80; sd++) { var lt = mk({ seed: sd, receipt: { rememberedIdx: 0, returnReason: null, stops: [stop(a0), { nodeId: null, name: '깃펜', title: '깃펜', wild: true, status: 'read', ms: 3000, viaTangent: false }] } }); var lr = BRAIN.tapLine(lt); if (lr && /링크/.test(lr.text)) linkBad++; }
+  check(linkBad === 0, "'링크 따라' only for a wild stop reached through a link (" + linkBad + ')');
+  /* 포스터 곳이 밖의 문이면 '{a} 말고' 줄은 이름이 비지 않는다 (빈 칸이 남는 줄은 버린다) */
+  var blank = 0;
+  for (sd = 1; sd <= 80; sd++) { var dt = mk({ seed: sd, receipt: { rememberedIdx: 0, returnReason: null, stops: [{ nodeId: 'door_out', name: '밖의 문', status: 'simulated', ms: 1000 }, stop(a1), stop(a2)] } }); var dr = BRAIN.tapLine(dt); if (dr && (/^ |^말고/.test(dr.text) || /  /.test(dr.text))) blank++; }
+  check(blank === 0, 'no line with an empty name when the poster place is the outside door (' + blank + ')');
+  /* 졸림 · 다리 반응 뒤엔 '다리가 무거워졌어' 를 하지 않는다 */
+  var legs = 0;
+  for (sd = 1; sd <= 80; sd++) {
+    [mk({ seed: sd, reaction: '졸림', receipt: { rememberedIdx: 0, returnReason: 'tired', stops: [stop(a0), stop(a1), stop(a2), stop(W.nodes[ids[3]])] } }),
+     mk({ seed: sd, reactionLine: '처음 가 본 데가 있었어. 다리가 아직 들썩거려', reaction: '폴짝', receipt: { rememberedIdx: 0, returnReason: 'tired', stops: [stop(a0), stop(a1), stop(a2), stop(W.nodes[ids[3]])] } })]
+      .forEach(function (x) { var rr = BRAIN.tapLine(x); if (rr && /다리가/.test(rr.text)) legs++; });
+  }
+  check(legs === 0, "no '다리가 무거워졌어' after a 졸림 reaction or a reaction line about legs (" + legs + ')');
+  /* 무겁거나 기분처럼 읽히는 방 밖 이름(위키 제목)은 톡 한 줄에서 부르지 않는다 — 들판 · 포스터 곳('{a} 말고') · 못 읽은 곳 (검증 11-08: '들판에서 죽음을 만났어' · '링크 따라 행복까지 가 봤어') */
+  var SENS = ['사랑', '행복', '죽음', '전쟁', '슬픔', '자살', '외로움', '오늘'], named = 0, sensLines = 0, sensErr = [];
+  SENS.forEach(function (x) { if (!BRAIN.TAP_TITLE_AVOID.test(x)) sensErr.push('not avoided: ' + x); });
+  for (sd = 1; sd <= 80; sd++) SENS.forEach(function (x, xi) {
+    var wildStop = { nodeId: null, name: x, title: x, wild: true, status: 'read', ms: 3000 + xi, viaTangent: sd % 2 === 0 };
+    [mk({ seed: sd, receipt: { rememberedIdx: 0, returnReason: null, stops: [stop(a0), wildStop, stop(a1)] } }),
+     mk({ seed: sd, receipt: { rememberedIdx: 1, returnReason: null, stops: [stop(a0), wildStop, stop(a1, { first: true })] } }),
+     mk({ seed: sd, receipt: { rememberedIdx: 0, returnReason: null, stops: [stop(a0), { nodeId: null, name: x, title: x, status: 'failed', ms: 2000 }, stop(a2)] } })]
+      .forEach(function (tt) { var rr = BRAIN.tapLine(tt); if (rr) { sensLines++; if (rr.text.indexOf(x) >= 0) { named++; if (sensErr.length < 4) sensErr.push(rr.text); } } });
+  });
+  /* 위키가 그런 제목을 링크로 줄 때 (실제 계획): 300 계획 */
+  var SENS_LINKS = ['깃털', '밀짚', '베레모', '사랑', '행복', '전쟁', '죽음', '고래', '등대', '슬픔', '바람'];
+  var sensFetch = function (title) { var hh = 0; for (var q = 0; q < title.length; q++) hh = (hh * 31 + title.charCodeAt(q)) >>> 0; var l = []; for (var q2 = 0; q2 < 4; q2++) l.push(SENS_LINKS[(hh + q2 * 7) % SENS_LINKS.length]); return Promise.resolve({ ok: true, title: title, extract: title + '는 무엇이다. 둘째 문장.', url: 'https://ko.wikipedia.org/wiki/' + encodeURIComponent(title), thumb: null, links: l }); };
+  var planNamed = 0, planWild = 0;
+  for (var ps = 1; ps <= 300; ps++) {
+    var pt = await BRAIN.plan(baseInput(ps * 104729, { fetchWiki: sensFetch, state: { visits: {}, affinity: {}, lantern: ps % 8, recent: [], todayOut: 0, posters: 1, owned: [] } }));
+    pt.status = 'done';
+    var pr = BRAIN.tapLine(pt); if (!pr || pt.kind !== 'out') continue;
+    if (pt.receipt.stops.some(function (s) { return s.wild && BRAIN.TAP_TITLE_AVOID.test(s.title || s.name || ''); })) planWild++;
+    if (SENS_LINKS.some(function (x) { return BRAIN.TAP_TITLE_AVOID.test(x) && pr.text.indexOf(x) >= 0; })) { planNamed++; if (sensErr.length < 6) sensErr.push('plan ' + ps + ': ' + pr.text); }
+    var why2 = tapFactOk(W, pt, pr); if (why2) sensErr.push('plan ' + ps + ': ' + pr.text + ' (' + why2 + ')');
+  }
+  check(named === 0 && planNamed === 0 && sensLines > 0 && sensErr.length === 0, 'heavy / feeling-like titles outside the rooms are never named in a tap line — it falls through to another fact (' + sensLines + ' fixture lines · ' + planWild + ' plans met such a title' + (sensErr.length ? ' · ' + sensErr.slice(0, 4).join(' | ') : '') + ')');
+  /* 반응 줄이 '처음' · '모르는 데' 를 말했으면 '다시 가 봤어' 는 없다 */
+  var revBad = 0, revSeen = 0;
+  for (sd = 1; sd <= 80; sd++) {
+    ['오늘 길은 처음이었어. 또 가도 처음일 것 같아', '모르는 데로 한 발 디뎠어. 그게 재밌었어', '그냥 그런 산책이었어. 그래도 다녀왔어'].forEach(function (line, li) {
+      var rv = BRAIN.tapLine(mk({ seed: sd, reaction: li < 2 ? '폴짝' : '덤덤', reactionLine: line, receipt: { rememberedIdx: 0, returnReason: null, stops: [stop(a0), stop(a1, { first: false }), stop(a2, { first: false })] } }));
+      if (rv && rv.src === 'demo:revisit') { if (li < 2) revBad++; else revSeen++; }
+    });
+  }
+  check(revBad === 0 && revSeen > 0, "no '다시 가 봤어' after a reaction line about a first / unknown place (" + revBad + ' bad · ' + revSeen + " revisit lines after '그냥 그런 산책')");
+  /* fresh(): 포스터 한 줄 · 반응 줄과 같은 말은 고르지 않는다 — 고를 줄을 일부러 포스터 · 반응 줄에 넣어도 다른 줄 */
+  var freshTried = 0, freshSame = 0;
+  for (var fs2 = 1; fs2 <= 200; fs2++) {
+    var ftp = await BRAIN.plan(baseInput(fs2 * 7907, { state: { visits: {}, affinity: {}, lantern: fs2 % 8, recent: [], todayOut: 0, posters: 1, owned: [] } }));
+    ftp.status = 'done';
+    var fr0 = BRAIN.tapLine(ftp); if (!fr0) continue;
+    ['poster', 'reaction'].forEach(function (where) {
+      var cp = JSON.parse(JSON.stringify(ftp));
+      if (where === 'poster') { cp.poster = cp.poster || {}; cp.poster.line = fr0.text; } else { cp.reactionLine = fr0.text; if (cp.receipt) cp.receipt.reactionLine = fr0.text; }
+      var fr1 = BRAIN.tapLine(cp); freshTried++;
+      if (fr1 && fr1.text === fr0.text) freshSame++;
+    });
+  }
+  check(freshTried > 100 && freshSame === 0, 'a line already on the poster or in the reaction line is never picked again (' + freshSame + ' repeats / ' + freshTried + ' tries)');
+  /* 젖었다는 말('이끼가 흠뻑 젖어 있었어')은 기록의 날씨가 비 · 가랑비일 때만 (등불 7 은 맑음) */
+  var mossDef = (W.homeActivities || []).filter(function (a) { return a.id === 'moss' && Array.isArray(a.tap); })[0];
+  if (mossDef) {
+    var wetDry = 0, wetRain = 0;
+    for (sd = 1; sd <= 120; sd++) ['clear', 'snow', undefined, 'rain', 'drizzle'].forEach(function (wx, wi) {
+      var mt = { by: 'demo', kind: 'home', status: 'done', seed: sd, weather: wx, poster: { type: 'note', line: mossDef.line }, receipt: { activity: { id: 'moss', line: mossDef.line, detail: mossDef.detail } } };
+      var mr = BRAIN.tapLine(mt); if (mr && /흠뻑|젖/.test(mr.text)) { if (wi < 3) wetDry++; else wetRain++; }
+    });
+    check(wetDry === 0 && wetRain > 0, "moss: '흠뻑 젖어' only on a recorded rain / drizzle day (" + wetDry + ' on dry or unknown days · ' + wetRain + ' on rainy days)');
+  }
+}
+
 /* ───────── main ───────── */
 (async function main() {
   try {
@@ -1555,6 +1757,7 @@ async function drawOrderSuite() {
     global.WORLD = W;
     await unitTests();
     await planSuite('fake WORLD', W, true);
+    await tapSuite('fake WORLD', W);
     await drawOrderSuite();
 
     var worldFile = path.join(ROOT, 'js/world.js');
@@ -1567,6 +1770,7 @@ async function drawOrderSuite() {
           global.WORLD = RW;
           var hasHat = !!(RW.nodes.hat && BRAIN.matchHint('모자의 역사').nodeId === 'hat');
           await planSuite('real js/world.js (' + Object.keys(RW.nodes).length + ' nodes)', RW, hasHat);
+          await tapSuite('real js/world.js', RW);
         } else console.log('\n(js/world.js loaded but WORLD.nodes empty — skipped)');
       } catch (e) { console.log('\n(js/world.js could not be loaded: ' + e.message + ' — skipped)'); failures++; }
     } else console.log('\n(js/world.js not present yet — only fake WORLD run)');

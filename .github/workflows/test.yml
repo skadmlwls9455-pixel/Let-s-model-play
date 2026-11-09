@@ -1,5 +1,5 @@
 # 테스트 — push(모든 브랜치)와 PR 마다 돈다. 여러 작업이 동시에 고치니 서로 깨뜨린 걸 바로 알게.
-#   fast  : 빠른 묶음 (필수) — world 불변식 · brain · runner · api · 요리 시뮬레이션 (test-cook, 9물결)
+#   fast  : 빠른 묶음 (필수) — world 불변식 · brain · runner · api · 요리 시뮬레이션 (test-cook, 9물결) · 미용실 규칙 (test-salon)
 #   fonts : 글꼴 부분 집합 점검 (필수) — 화면 문구의 글자가 Galmuri 서브셋에 다 있는지
 #   slow  : 느린 묶음 (선택) — Playwright 스모크 A,B,I · 장면 성능 · 요리 창 (test-cook-live, cook.html). 실패해도 run 은 빨갛게 되지 않는다
 #           (continue-on-error: 로컬에서 스모크 I 의 '새로고침 뒤 지정 계절 유지' 가 3번 중 1번 흔들렸다)
@@ -37,6 +37,8 @@ jobs:
       - run: node tools/test-api.js
       - run: node tools/test-model-voice.js
       - run: node tools/test-cook.js
+      # 미용실 규칙 (js/salon.js): 시드 대답 · 하루 한 번 · 같은 색 7일 쉼 · 문구 · 모델 요청. TZ=Asia/Seoul 자식 프로세스를 스스로 띄운다
+      - run: node tools/test-salon.js
 
   fonts:
     name: 글꼴 점검

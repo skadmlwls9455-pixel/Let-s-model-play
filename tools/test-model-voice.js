@@ -12,6 +12,7 @@
  *   3. 코드가 만든 문구(템플릿)에 취향·감정 말이 횟수에서 파생되어 들어가지 않는다 (§4 · CURIOSITY_NOTES 원칙 1)
  *   4. set_down 메모는 다음 요청(두뇌 입력)에 들어가지 않고, 결과에도 나오지 않는다 (§4 · CURIOSITY_NOTES 원칙 4)
  *   5. 그만두기 행동: 프로토콜에 빈 차례·집에 있기가 있고, 빈 차례를 골라도 아무것도 지어내지 않는다 (§1)
+ *   6. 톡 한 줄 (주인 11-08): 모델·사람 차례는 그들이 마무리에 쓴 말만 글자 그대로 (없으면 null = '응?'), 데모 규칙 줄은 by 'demo' 에만, 템플릿에 기분·시간 말 없음
  *   (블라인드 선택 순서는 아직 그 기능이 없어서 재지 않는다 — 컵 놀이를 모델에 이을 때 넣는다)
  */
 'use strict';
@@ -220,6 +221,7 @@ function byValues(o, out, k) {
     addAll(W.lineTemplates);
     var M = W.memoTemplates || {}; addAll(M.lead); addAll(M.next); addAll(M.nextNone); addAll(M.home); addAll([M.revisit, M.revisitToday, M.revisitUndated]);
     Object.keys(W.reactions || {}).forEach(function (r) { var x = W.reactions[r]; addAll(x.lines); addAll(x.home); addAll(x.when); });
+    addAll(W.tapTemplates); (W.homeActivities || []).forEach(function (act) { addAll(act.tap); });   /* 톡 한 줄 (11-08) */
     /* 두뇌 안의 기본 문구 (세계가 안 줄 때): js/brain.js 의 글자열 (주석 빼고) */
     var src = fs.readFileSync(path.join(ROOT, 'js/brain.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     var lits = src.match(/'(?:[^'\\\n]|\\.)*'/g) || [];
@@ -285,6 +287,53 @@ function byValues(o, out, k) {
     check(/`reaction`[^\n|]*선택|reaction\?/.test(proto), 'PROTOCOL: wrap_up reaction is optional');
     var et = B.replay([{ type: 'empty_turn', t: 0 }], { by: 'mcp' });
     check(et.kind === 'empty' && et.reaction === null && et.reactionBy === null && et.memo === null && et.noteOut === null && et.poster === null && et.receipt === null, 'model empty turn: no reaction, memo, note or poster invented');
+
+    /* ───────── 6. 톡 한 줄은 그 차례를 고른 쪽의 말만 ───────── */
+    section("6. tap line is the author's own words (model/human: their wrap-up only · demo rules only for by 'demo')");
+    errs = []; var n6 = 0, given6 = 0, none6 = 0;
+    for (i = 0; i < 300; i++) {
+      var who = i % 3 === 0 ? 'human' : 'mcp', a6 = pick(ROOMS), b6 = pick(ROOMS);
+      var wl = i % 4 === 0 ? null : pick(SAYINGS), wraw = i % 5 === 0 ? pick(SAYINGS) : null;
+      var wrap6 = { type: 'wrap_up', t: 6, note: pick(SAYINGS), memo: { tomorrow: pick(SAYINGS) } };
+      if (wl) wrap6.line = wl;
+      wrap6.reaction = wraw || (i % 7 === 0 ? undefined : pick(B.REACTIONS));
+      var ev6 = [{ type: 'depart', t: 0, hint: '' },
+        { type: 'peek', t: 1, target: { kind: 'room', id: a6 }, status: 'builtin', aside: pick(SAYINGS), note: pick(SAYINGS) },
+        { type: 'peek', t: 2, target: { kind: 'room', id: b6 }, status: 'read', note: pick(SAYINGS) },   /* 읽었다는데 출처 없음 → 화면에서 빼고 noteGiven */
+        { type: 'return', t: 3, reason: 'enough' },
+        { type: 'remember', t: 4, stopIdx: 0, line: pick(SAYINGS) },
+        { type: 'hang_poster', t: 5 }, wrap6];
+      if (i % 9 === 0) ev6 = [{ type: 'stay_home', t: 0, activity: 'nap', line: pick(SAYINGS), detail: pick(SAYINGS) }, wrap6];
+      if (i % 11 === 0) ev6 = [{ type: 'empty_turn', t: 0 }, wrap6];
+      var t6 = B.replay(JSON.parse(JSON.stringify(ev6)), { by: who, state: { lantern: 3, posters: 1 } }); t6.by = who; t6.status = 'done';
+      var keep6 = JSON.stringify(t6), r6 = B.tapLine(t6); n6++;
+      var want6 = wl ? wl : (wraw && B.REACTIONS.indexOf(wraw.trim()) < 0 ? wraw : null);
+      if (JSON.stringify(t6) !== keep6) errs.push(i + ': tapLine changed the record');
+      if (!want6) { none6++; if (r6) errs.push(i + ': said «' + r6.text + '» though the author wrote no wrap-up words (' + r6.src + ')'); continue; }
+      given6++;
+      if (!r6) { errs.push(i + ': lost the author\'s line'); continue; }
+      if (r6.text !== want6) errs.push(i + ': not byte-identical «' + r6.text + '» vs «' + want6 + '»');
+      if (r6.by !== (who === 'mcp' ? 'model' : 'human')) errs.push(i + ': by ' + r6.by);
+      if (['wrap_up.line', 'wrap_up.reaction'].indexOf(r6.src) < 0) errs.push(i + ': src ' + r6.src);
+    }
+    check(errs.length === 0 && given6 > 100 && none6 > 30, 'model/human tap line = their own wrap-up line (or free reaction words) byte for byte, never an aside / stop note / noteGiven / poster line / template; nothing written → null (' + n6 + ' trips, ' + given6 + ' with words, ' + none6 + ' without; ' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 2).join(' | ') : ''));
+    var demoReplay = B.replay([{ type: 'depart', t: 0 }, { type: 'peek', t: 1, target: { kind: 'room', id: ROOMS[0] }, status: 'builtin' }, { type: 'peek', t: 2, target: { kind: 'room', id: ROOMS[1] }, status: 'builtin' }, { type: 'return', t: 3, reason: 'enough' }, { type: 'wrap_up', t: 4 }], { by: 'demo', seed: 5 });
+    demoReplay.status = 'done';
+    var dr6 = B.tapLine(demoReplay), lg = Object.assign({}, demoReplay, { by: 'legacy' }), un = Object.assign({}, demoReplay, { by: 'someone' });
+    check(dr6 && dr6.by === 'demo-rules' && B.tapLine(lg) === null && B.tapLine(un) === null, "a demo-rules tap line only for by 'demo' trips (legacy / unknown → null)");
+    var TAP_BAN = /좋아|좋았|사랑|싫어|싫었|미워|최애|취향|즐겨|반했|단골|그리워|설레|맛있|재밌|재미있|신나|신났|행복|즐거|기뻐|기뻤|슬퍼|아쉬|미안|외로|심심|내일|여기까지|기다렸|보고 싶/;
+    var tapStrs = []; function addTap(x) { if (typeof x === 'string') tapStrs.push(x); else if (Array.isArray(x)) x.forEach(addTap); else if (x && typeof x === 'object') Object.keys(x).forEach(function (k) { addTap(x[k]); }); }
+    addTap(W.tapTemplates); addTap(B.DEFAULT_TAP); (W.homeActivities || []).forEach(function (act) { addTap(act.tap); });
+    var badTap = tapStrs.filter(function (x) { return TAP_BAN.test(x); });
+    errs = []; var nDemo = 0;
+    for (seed = 1; seed <= 200; seed++) {
+      var tp6 = await B.plan({ seed: seed, now: NOW, dateKey: '2026-11-07', online: seed % 4 !== 0, fetchWiki: quick, state: { visits: seed % 2 ? {} : heavy, lantern: seed % 8, posters: 2 } });
+      tp6.status = 'done';
+      var rr6 = B.tapLine(tp6); if (!rr6) continue; nDemo++;
+      if (TAP_BAN.test(rr6.part ? rr6.text.split(rr6.part).join(' ') : rr6.text)) errs.push(seed + ': ' + rr6.text);
+      if (rr6.by !== 'demo-rules') errs.push(seed + ': demo plan line labelled ' + rr6.by);
+    }
+    check(tapStrs.length > 30 && badTap.length === 0 && nDemo > 150 && errs.length === 0, 'tap templates and generated demo tap lines carry no feeling / preference / tomorrow words (' + tapStrs.length + ' strings, ' + nDemo + ' lines; ' + badTap.concat(errs).slice(0, 3).join(' | ') + ')');
   } catch (e) {
     failures++;
     console.error('UNCAUGHT', e && e.stack || e);

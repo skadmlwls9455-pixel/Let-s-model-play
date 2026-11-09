@@ -264,6 +264,46 @@ ok(!HOME_WX.test(W.strings.homeStay || ''), 'strings.homeStay 가 날씨를 주�
 var rearr = acts.filter(function (a) { return a.id === 'rearrange'; })[0];
 ok(rearr && rearr.effect === 'rotatePosters' && rearr.requiresPoster === true, 'rearrange 는 effect:rotatePosters + requiresPoster');
 
+/* ---- 톡 한 줄 (주인 11-08, BRAIN.tapLine) ----
+   tapTemplates: 아는 치환자만 · 한글 · 숫자 · 띄어쓰기 · 마침표만 · 기분 · 시간 말 없음 · 갈래마다 가장 긴 세계 이름으로 채워도 22자 안인 꼴이 하나는 있다.
+   homeActivities[].tap: 활동마다(nothing 빼고) 빈칸 없는 두 줄 · 그 활동의 앞면 · 뒷면과 같은 말(이나 그 속에 든 말)이 아니다 · 집 규칙(날씨 · 포스터 · 이끼) ·
+   숫자는 앞면 · 뒷면에 있는 것만 · '오늘은' · 처음 · 걸은 얘기 · 내일 · 여기까지 · 쭉 · 한참 없음 */
+var TAP_KEYS = { p: 1, s: 1, w: 1, t: 1, b: 1, a: 1, l: 1, x: 1, f: 1, r: 1, n: 1, m: 1 };
+var TAP_BAD = /좋아|좋았|사랑|싫어|싫었|미워|최애|취향|즐겨|반했|단골|그리워|설레|맛있|재밌|재미있|신나|신났|행복|즐거|기뻐|기뻤|슬퍼|아쉬|미안|외로|심심|내일|여기까지|기다렸|보고 싶|오늘|아까|방금/;
+var TAP_SITU = ['souvenir', 'souvenirAny', 'wildLink', 'wild', 'slowRoom', 'tangent', 'other', 'revisit', 'firstOther', 'longest', 'tired', 'enough', 'failed', 'simulated', 'doorOut', 'start', 'readOne', 'count', 'countMore'];
+ok(W.tapTemplates && typeof W.tapTemplates === 'object', 'tapTemplates 가 없다 (톡 한 줄)');
+var longName = ids.filter(function (id) { return id !== 'door_out'; }).map(function (id) { return nodes[id].name; }).sort(function (x, y) { return Array.from(y).length - Array.from(x).length; })[0] || '';
+var longSv = Object.keys(W.souvenirs).map(function (k) { return W.souvenirs[k].name; }).sort(function (x, y) { return Array.from(y).length - Array.from(x).length; })[0] || '';
+TAP_SITU.forEach(function (k) {
+  var list = (W.tapTemplates || {})[k];
+  ok(Array.isArray(list) && list.length >= 1, 'tapTemplates.' + k + ' 가 비었다');
+  if (!Array.isArray(list)) return;
+  var fits = 0;
+  list.forEach(function (tp) {
+    ok(typeof tp === 'string' && /^[가-힣0-9 .{}a-z]+$/.test(tp), 'tapTemplates.' + k + ' 글자는 한글·숫자·띄어쓰기·마침표만: ' + tp);
+    ok(!TAP_BAD.test(tp), 'tapTemplates.' + k + ' 에 기분·시간 말: ' + tp);
+    (String(tp).match(/\{(\w+)\}/g) || []).forEach(function (m) { ok(TAP_KEYS[m.slice(1, -1)] === 1, 'tapTemplates.' + k + ' 모르는 치환자 ' + m + ': ' + tp); });
+    var filled = String(tp).replace(/\{s\}/g, longSv).replace(/\{[nm]\}/g, '다섯').replace(/\{w\}/g, '가나다라마바').replace(/\{\w+\}/g, longName).replace(/(은|는|이|가|을|를|과|와|으로|로)(?= |$)/g, '$1');
+    if (Array.from(filled).length <= 23) fits++;   /* 조사 한 글자 여유 */
+  });
+  ok(fits > 0, 'tapTemplates.' + k + ': 가장 긴 이름(' + longName + ')으로 채우면 모든 꼴이 22자를 넘는다');
+});
+var NUM_ROOTS = ['하나', '둘', '셋', '넷', '다섯', '여섯', '일곱', '여덟', '아홉', '열', '스물', '서른', '마흔', '쉰'];
+acts.forEach(function (a) {
+  if (a.id === 'nothing') return;
+  ok(Array.isArray(a.tap) && a.tap.length === 2 && a.tap.every(function (x) { return typeof x === 'string' && x.trim(); }), '활동 ' + a.id + ' tap 은 빈칸 없는 두 줄');
+  (a.tap || []).forEach(function (x) {
+    var front = String(a.line || ''), back = String(a.detail || '');
+    ok(x !== front && front.indexOf(x) < 0 && back.indexOf(x) < 0, '활동 ' + a.id + ' tap 이 쪽지 앞면·뒷면과 같은 말: ' + x);
+    ok(/^[가-힣0-9 .]+$/.test(x) && Array.from(x).length <= 22, '활동 ' + a.id + ' tap 은 한글 22자 안: ' + x);
+    ok(!TAP_BAD.test(x) && !/오늘은|처음|걸었|다녀왔|갔다 왔|산책|쭉|한참/.test(x), '활동 ' + a.id + ' tap 에 기분·시간·걸은 얘기·길이 말: ' + x);
+    if (/비|빗|눈이|눈 오|맑|흐려|흐린|날씨|안개|천둥/.test(x)) ok(typeof a.maxLantern === 'number' && a.maxLantern < clearFrom, '활동 ' + a.id + ' tap 이 날씨를 말하니 maxLantern < ' + clearFrom + ' 필요: ' + x);
+    if (/포스터/.test(x)) ok(a.requiresPoster === true, '활동 ' + a.id + ' tap 이 포스터를 말하니 requiresPoster 필요: ' + x);
+    if (/이끼|화분/.test(x)) ok(typeof a.requiresLantern === 'number' && a.requiresLantern >= 1, '활동 ' + a.id + ' tap 이 이끼 화분을 말하니 requiresLantern ≥ 1: ' + x);
+    NUM_ROOTS.forEach(function (nr) { if (x.indexOf(nr) >= 0 && !/열렸|열어|열리/.test(x)) ok((front + back).indexOf(nr) >= 0, '활동 ' + a.id + ' tap 의 수(' + nr + ')가 쪽지에 없다: ' + x); });
+  });
+});
+
 /* ---- 반응 ----
    lines = 언제 말해도 참인 줄, when.first/missed/long = 그 일이 있었을 때만 더하는 줄 */
 var WHEN_KEYS = ['first', 'missed', 'long'];
