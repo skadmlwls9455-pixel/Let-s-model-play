@@ -55,7 +55,8 @@ jobs:
   slow:
     name: 느린 테스트 (선택)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # 장면 성능 묶음이 109 항목으로 늘어 CI 러너에서 10~17 분 걸린다 (스모크 4~6 분 · 요리 창 2 분 · 설치 2 분 더하면 느린 러너에서 25 분을 넘겨 중간에 끊겼다)
+    timeout-minutes: 40
     continue-on-error: true
     env:
       SHOTS: ${{ github.workspace }}/ci-shots
