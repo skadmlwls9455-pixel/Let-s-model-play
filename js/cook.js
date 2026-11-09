@@ -24,7 +24,7 @@
  * RUN    plain JSON (JSON round trip gives an equal object). Read it, never write it.
  *   v 1, ver VERSION, id 'ck_...', recipe 'jeon', seed uint32, swaps { herb: 'parae'|'tot' }, plate 0..2,
  *   n steps, si current step 0..n-1 (n once revealed), phase 'step' | 'between' (a step just finished, inputs
- *   ignored for TUNE.betweenMs) | 'reveal' (dish done), done (true once the last step is finished, already in
+ *   ignored for COOK.betweenOf(kind): TUNE.betweenMs, a flip TUNE.flip.betweenMs) | 'reveal' (dish done), done (true once the last step is finished, already in
  *   its 'between'), t0 / t / doneAt (caller clock ms), looks[] + tags[] (one per finished step), st (current step
  *   state; in 'between' and 'reveal' the finished one), ptr (internal), ev (queue: use COOK.drain).
  * STEP STATE (run.st) shared: kind, progress 0..1 (never falls), half, done, doneT (step ms), tag, prog (step ms
@@ -83,13 +83,13 @@ var COOK = (function () {
     dish: { w: 96, h: 66 },   /* drawDish() default buffer (= cook-art GEO.dish) */
     gateMs: 250,        /* a step ignores new pointers and the verb button for its first 250 ms */
     titleMs: 600,       /* title tag (live): 600 ms, a tap dismisses it */
-    betweenMs: 400,     /* finished step: last mark + 'step' sound, then the next step starts */
+    betweenMs: 400,     /* finished step: last mark + 'step' sound, then the next step starts (flip: flip.betweenMs) */
     idleMs: 5000,       /* no progress for 5 s: one ghost hand (live; on touch the verb button shows from then on) */
     edgeCss: 24,        /* live: a touch that starts within 24 CSS px of the screen's left/right edge is ignored */
     fps: 12,            /* stepped reactions: squash, steam, bubbles, particles */
     reveal: { frames: 6, stepPx: 2, focusMs: 450 },  /* plate rises 6 frames at 12 fps, 2 art px a frame; focus after 450 ms */
     calmMs: 500,        /* live: back on the counter, a press that began within 500 ms (a double tap on the plate) starts nothing */
-    sndGapMs: 120,      /* live: the same act at most every 120 ms (except step, done, pick, quiet) */
+    sndGapMs: 120,      /* live: the same act at most every 120 ms (except tap, step, done, pick, quiet; tap is already 90 ms apart) */
     simTail: 3000,      /* simulate(): keep ticking this long after a step's last event (a held finger keeps tapping) */
     tap: {
       reach: 80,        /* logical px from the nearest unfinished mark; farther = a dust speck, not counted */
@@ -108,7 +108,9 @@ var COOK = (function () {
       cone: 45,         /* ... within +-45 deg of straight up flips; speed does not matter */
       lift: [0.5, 1.2], /* arc height (art only): px per ms of the flick; below 0.5 = 1, below 1.2 = 2, else 3 */
       crispHintMs: 5000,/* after heat-on the only idle hint is 5 s after crisp */
-      teach: 3          /* live: 3 presses after heat-on that do not flip -> the up-swipe hand once more (not an idle hint) */
+      teach: 3,         /* live: 3 presses after heat-on that do not flip -> the up-swipe hand once more (not an idle hint) */
+      betweenMs: 1000   /* the flipped jeon stays in the pan this long before the board: the arc lands at 250 ms, then about
+                           750 ms (9 frames) of the landing burst, boil and steam in the pan (betweenOf) */
     },
     slice: {
       len: 128,         /* longest guide, logical px (64 art px); the band below is sized from it */
@@ -478,6 +480,8 @@ var COOK = (function () {
   };
 
   /* ---------- run state machine ---------- */
+  /* how long a finished step of this kind stays on screen ('between') before the next one starts */
+  function betweenOf(kind) { var k = TUNE[kind]; return k && typeof k.betweenMs === 'number' ? k.betweenMs : TUNE.betweenMs; }
   function initStep(run, si) {
     var r = recipe(run.recipe), step = r.steps[si], food = TUNE.food[step.food] || TUNE.food[r.id] || TUNE.food.jeon;
     return KIND[step.kind].init(step, stepSeed(run.seed, si), food);
@@ -509,7 +513,7 @@ var COOK = (function () {
     emit(run, 'quiet', { si: run.si, snd: { act: 'quiet' } });
   }
   function advance(run) {
-    var start = run.doneAt + TUNE.betweenMs;
+    var start = run.doneAt + betweenOf(run.st.kind);
     run.doneAt = null; run.ptr = { live: [], prim: null };
     if (run.si + 1 >= run.n) {
       run.si = run.n; run.phase = 'reveal';
@@ -532,7 +536,7 @@ var COOK = (function () {
     if (run.t0 === null) run.t0 = t;
     for (var guard = 0; guard <= run.n; guard++) {
       if (run.phase === 'step') { var K = KIND[run.st.kind]; if (K.tick) K.tick(run.st, t - run.t0); settle(run); }
-      if (run.phase === 'between' && t >= run.doneAt + TUNE.betweenMs) { advance(run); continue; }
+      if (run.phase === 'between' && t >= run.doneAt + betweenOf(run.st.kind)) { advance(run); continue; }
       break;
     }
     return run;
@@ -583,7 +587,7 @@ var COOK = (function () {
     function frames(until) {   /* frame ticks up to 'until'; stops where the next step would start */
       while (frame + dt <= until) {
         frame += dt;
-        if (run.phase === 'between' && Math.round(frame) >= run.doneAt + TUNE.betweenMs) return false;
+        if (run.phase === 'between' && Math.round(frame) >= run.doneAt + betweenOf(run.st.kind)) return false;
         tick(run, frame);
       }
       return true;
@@ -592,7 +596,7 @@ var COOK = (function () {
       var e = list[i], et = e && typeof e === 'object' ? num(e.t) : null;
       if (et === null) continue;
       var at = Math.max(last, Math.round(origin + et));
-      if (run.phase === 'between' && at >= run.doneAt + TUNE.betweenMs) break;   /* the rest belongs to no step */
+      if (run.phase === 'between' && at >= run.doneAt + betweenOf(run.st.kind)) break;   /* the rest belongs to no step */
       if (!frames(at)) break;
       input(run, { t: at, k: e.k, x: e.x, y: e.y, p: e.p, id: e.id });
       last = run.t;
@@ -625,7 +629,7 @@ var COOK = (function () {
         if (run.phase !== 'step' || run.si !== si) break;
         feed(run, list[si], opts);
         if (run.phase !== 'between') break;
-        tick(run, run.doneAt + TUNE.betweenMs);
+        tick(run, run.doneAt + betweenOf(run.st.kind));
       }
       var out = summary(run);
       if (opts.run) out.run = run;
@@ -846,7 +850,7 @@ var COOK = (function () {
   var API = {
     VERSION: VERSION, TUNE: TUNE, TUNE_HASH: TUNE_HASH, WORDS: WORDS, RECIPES: RECIPES, PROPS: PROPS, KIND: KIND, BANDS: BANDS,
     hash32: hash32, mulberry32: mulberry32, seedFor: seedFor, runIdFor: runIdFor, stepSeed: stepSeed, fxSeed: fxSeed,
-    recipe: recipe, swapsFor: swapsFor, plateFor: plateFor,
+    recipe: recipe, swapsFor: swapsFor, plateFor: plateFor, betweenOf: betweenOf,
     createRun: createRun, resumeRun: resumeRun, input: input, tick: tick, drain: drain, feed: feed, simulate: simulate,
     lookOf: lookOf, normLook: normLook, resultOf: resultOf, bookLine: bookLine, potOf: potOf, normStore: normStore, bookAdd: bookAdd,
     verb: verb, describe: describe, hintAt: hintAt, drawDish: drawDish
@@ -869,7 +873,8 @@ var COOK = (function () {
   var LAY ={ head: 44, gap: 8, verb: 56, top: 8, bot: 12, botShort: 8, side: 16, column: 288, maxCss: 3, note: 44 };
   var FMS = 1000 / TUNE.fps;                                  /* one 12 fps frame */
   var ART_W = TUNE.stage.w / TUNE.stage.scale, ART_H = TUNE.stage.h / TUNE.stage.scale;
-  var SND_FREE = { step: 1, done: 1, pick: 1, quiet: 1 };   /* acts that skip the 120 ms gap */
+  var SND_FREE = { tap: 1, step: 1, done: 1, pick: 1, quiet: 1 };   /* acts that skip the 120 ms gap (a counted tap is >= 90 ms
+                                                                         after the last one already: TUNE.tap.mergeMs) */
   var D = null, L = null, kbd = false, curKey = KEY0;
 
   function art() { return typeof COOK_ART !== 'undefined' && COOK_ART && typeof COOK_ART.counter === 'function' ? COOK_ART : null; }
@@ -955,7 +960,7 @@ var COOK = (function () {
       else if (q.k === 'flash') { if (fr === 0) J.flash = true; on = fr < 1; }
       else if (q.k === 'bump') { if (fr === 0) { if (L.reduced) J.flash = true; else J.bump = true; } on = fr < 1; }
       else if (q.k === 'arc') { if (!L.reduced && fr <= 3) J.arc = { f: fr, lift: q.lift }; on = fr <= 3; }
-      else if (q.k === 'cut') { if (fr === 0) J.cut = q.i; on = fr < 1; }
+      else if (q.k === 'cut') { if (fr <= 1) J.cut = q.i; on = fr < 2; }   /* two frames: the cut sound's crunch lands 70-130 ms in */
       else if (q.k === 'shake') { if (!L.reduced && fr >= q.from && fr <= q.from + 1) J.shake = fr === q.from ? [q.dx, q.dy] : [-q.dx, -q.dy]; on = fr <= q.from + 1; }
       else if (q.k === 'rise') { J.rise = L.reduced ? TUNE.reveal.frames - 1 : Math.min(TUNE.reveal.frames - 1, fr); on = fr < TUNE.reveal.frames - 1; }
       if (on) keep.push(q);
@@ -1049,6 +1054,7 @@ var COOK = (function () {
       case 'flip':
         L.fx++; L.finger = null; L.stats.flips++; L.nudges = 0;
         fxAdd({ k: 'arc', lift: e.lift }, e.si);
+        L.landAt = L.lastT + 3 * FMS;   /* art: the landing frame (arc frame 3) is fl 0; the bloom carries onto the board */
         burst('crumb', G.food.cx - 22, G.food.cy + 4, 2, 3, 2); burst('crumb', G.food.cx + 22, G.food.cy + 4, 2, 3, 2);
         fxAdd({ k: 'shake', from: 3, dx: 0, dy: 1 }, e.si);
         break;
@@ -1066,6 +1072,7 @@ var COOK = (function () {
   function onStart(e) {
     var run = L.run;
     L.prng = mulberry32(fxSeed(run.seed, run.si));
+    if (run.si === 0 || e.kind === 'flip') L.landAt = null;   /* a resumed dish can start at the flip */
     L.parts = []; L.dust = []; L.finger = null; L.hint = null; L.demoAt = -1; L.nudges = 0; L.taught = 0;
     D.title.textContent = WORDS.title[e.kind] || ''; D.title.hidden = false; L.titleUntil = L.lastT + TUNE.titleMs;
     placeTags(); stripOn(run.si);
@@ -1414,29 +1421,46 @@ var COOK = (function () {
     if (jf !== L.jf) { L.jf = jf; L.dirty = true; }
   }
   /* redraw when any 12 fps frame changes: the global grid (bubbles, flames) and every reaction's own frame count from its
-     start (a bright rim lasts exactly one 83 ms frame, not until the next global tick) */
+     start (a bright rim lasts exactly one 83 ms frame, not until the next global tick), and the art's own counters
+     (fh, fbc, fl, t: each runs from its event, so each is painted once per frame, never held a frame and then skipped) */
   function frameSig(t) {
-    var s = Math.floor(t / FMS) >>> 0, i;
+    var s = Math.floor(t / FMS) >>> 0, i, fx;
     for (i = 0; i < L.fxq.length; i++) s = (Math.imul(s, 31) + Math.floor((t - L.fxq[i].at) / FMS)) >>> 0;
     for (i = 0; i < L.parts.length; i++) s = (Math.imul(s, 31) + Math.floor((t - L.parts[i].at) / FMS)) >>> 0;
     if (L.hint) s = (Math.imul(s, 31) + Math.floor((t - L.hint.at) / FMS)) >>> 0;
+    if (!L.reduced && L.run) {
+      fx = fxNow(L.run, t);
+      [fx.fh, fx.fbc, fx.fl, fx.t].forEach(function (v) { s = (Math.imul(s, 31) + (v == null ? 0x5bd1 : v + 1)) >>> 0; });
+    }
     return s;
+  }
+  var FL_MAX = 48;   /* the landing counter stops at 4 s (the art's landing bloom ends at 36): no more redraws for it */
+  function fxNow(run, t) {   /* frame counters for the art's stateless heat effects (12 fps); null = not known */
+    var st = run && run.st, o = { seed: run ? fxSeed(run.seed, 0) & 0x7fffffff : null, fh: null, fbc: null, fl: null, t: null };
+    if (st && st.kind === 'flip' && st.heat && st.heatAt != null && run.t0 != null) {
+      var ms = t - run.t0 - st.heatAt;
+      o.fh = Math.max(0, Math.floor(ms / FMS));
+      if (st.band > 0) o.fbc = Math.max(0, Math.floor((ms - st.band * st.bandMs) / FMS));
+    }
+    if (L.landAt != null && t >= L.landAt && L.screen === 'step' && run && run.phase !== 'reveal') o.fl = Math.min(FL_MAX, Math.floor((t - L.landAt) / FMS));   /* the pan and the board only */
+    if (run && run.phase === 'reveal' && !L.reduced) o.t = Math.max(0, Math.floor((t - L.revealAt) / FMS));
+    return o;
   }
   function render() {
     if (!L.dirty) return;
     L.dirty = false; L.frames++;
-    var A = art(), b = L.buf, t = L.lastT, run = L.run, J = juiceAt(t), f = L.reduced ? 0 : Math.floor(t / FMS);
+    var A = art(), b = L.buf, t = L.lastT, run = L.run, J = juiceAt(t), f = L.reduced ? 0 : Math.floor(t / FMS), fx = fxNow(run, t);
     if (!run || L.screen === 'counter') A.counter(b, { plate: L.plate, pending: L.pending });
-    else if (run.phase === 'reveal') A.revealScene(b, { look: lookOf(run), herb: run.swaps.herb, f: J.rise });
+    else if (run.phase === 'reveal') A.revealScene(b, { look: lookOf(run), herb: run.swaps.herb, f: J.rise, t: fx.t, seed: fx.seed, still: L.reduced });
     else {
       var st = run.st, herb = run.swaps.herb, d0 = run.looks[0] && run.looks[0].dents ? run.looks[0].dents : [];
       if (st.kind === 'tap') A.tapScene(b, { shape: st.shape, dents: st.dents, marks: st.marks, per: st.per, herb: herb, flash: J.flash, squash: J.squash, dust: L.dust, f: f });
       else if (st.kind === 'flip') {
         A.flipScene(b, { heat: st.heat, band: st.band, res: J.arc ? null : st.res, arc: J.arc, herb: herb, dents: d0,
           spatula: L.finger && !J.arc ? L.finger : undefined, arrow: st.heat && st.res === null ? (f >> 2) & 1 : null,
-          bump: J.bump, flash: J.flash, still: L.reduced, f: f });
+          bump: J.bump, flash: J.flash, still: L.reduced, f: f, seed: fx.seed, fh: fx.fh, fbc: fx.fbc, fl: fx.fl });
       } else if (st.kind === 'slice') {
-        A.sliceScene(b, { band: run.looks[1] ? run.looks[1].band : 1, herb: herb, dents: d0, lines: st.lines, cur: st.cur, flash: J.cut, hand: st.hand, f: f });
+        A.sliceScene(b, { band: run.looks[1] ? run.looks[1].band : 1, herb: herb, dents: d0, lines: st.lines, cur: st.cur, flash: J.cut, hand: st.hand, f: f, seed: fx.seed, fl: fx.fl, still: L.reduced });
       }
     }
     if (J.squash) L.stats.squash++;

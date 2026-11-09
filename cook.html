@@ -8,14 +8,33 @@
 <meta name="theme-color" content="#10141f" media="(prefers-color-scheme: dark)">
 <title>부엌</title>
 <!-- Kitchen prototype, wave 9 slice 1 (docs/COOK_PROTO.md). It opens the kitchen at load; closing it leaves one
-     button that opens it again. Its own save key: ppolppol_cook_v0. -->
+     button that opens it again. Its own save key: ppolppol_cook_v0.
+     Sound: js/audio.js (the game's own, same origin, so it follows the saved sound setting: off unless the player
+     turned it on). ?sound=1 turns it on for this page only (never saved: the game's own setting stays as it was); it
+     still starts only on the first touch or key. The kitchen sounds live in foley/ (credits: credits.html). -->
 <link rel="stylesheet" href="vendor/fonts/galmuri.css">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/cook.css">
+<style>
+/* cook.html only: one quiet text link to the credits (the kitchen sounds are recordings by other people).
+   Shown on the counter screen, in the empty strip where the verb button sits during a step, and on the closed
+   page under the door button. Never during a step or the plate reveal. */
+.ckh-credits { display: none; }
+.ck-dlg.ck-counter > .ckh-credits, .ck-home > .ckh-credits {
+  display: block; position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); padding: 10px 12px; margin: 0;
+  font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; white-space: nowrap;
+  color: var(--muted, #602c2c); text-decoration: underline; text-underline-offset: 4px;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.ckh-credits:focus { outline: none; }
+.ckh-credits:focus-visible { outline: 2px solid var(--fg, #341c27); outline-offset: -2px; }
+</style>
 </head>
 <body class="ck-page">
 <main class="ck-home">
   <button type="button" id="ck-door" class="ck-door" aria-haspopup="dialog">부엌</button>
+  <a class="ckh-credits" href="credits.html?from=cook">만든 것들</a>
 </main>
 <script src="js/cook-art.js"></script>
 <script src="js/cook.js"></script>
@@ -34,7 +53,26 @@
     v = get('recipe'); if (first && v) o.recipe = v;   /* straight into that dish, only on the first open */
     return o;
   }
-  function go(first) { try { return !!(window.COOK && COOK.open && COOK.open(opts(first))); } catch (e) { return false; } }
+  /* the same small link inside the kitchen dialog (cook.css never shows it; the style above shows it on the counter only) */
+  function creditLink() {
+    var d = document.getElementById('cook-dlg');
+    if (!d || d.querySelector('.ckh-credits')) return;
+    var a = document.createElement('a');
+    a.className = 'ckh-credits'; a.href = 'credits.html?from=cook'; a.textContent = '만든 것들';
+    d.appendChild(a);
+  }
+  function go(first) { try { var ok = !!(window.COOK && COOK.open && COOK.open(opts(first))); if (ok) creditLink(); return ok; } catch (e) { return false; } }
+  /* sound: the game's js/audio.js, unless the page already has an AUDIO (the kitchen tests put a recording one in first) */
+  function sound() {
+    try {
+      if (window.AUDIO && AUDIO.init) AUDIO.init({ on: get('sound') === '1' || undefined, warm: false });
+    } catch (e) { /* sound is a bonus */ }
+  }
+  if (!window.AUDIO) {
+    var s = document.createElement('script');
+    s.src = 'js/audio.js'; s.onload = sound;
+    document.head.appendChild(s);
+  }
   door.addEventListener('click', function () { go(false); });
   go(true);
 })();

@@ -7,6 +7,7 @@
  *   4 idle 60 s  5 flip bands and taps that never flip  6 slice angle and the slash across  7 two fingers and hold
  *   9 resume at every step boundary + JSON round trip after every event  10 pot rules  11 result envelope
  *   12 drawDish  14 static checks (clock, Math.random, main-game names, banned words, KS X 1001, glyphs)
+ *   16 the painter (js/cook-art.js): palette, determinism, loop, heat beats, raw side, crisp, thumbnail, board steam
  * Test paths use their own mulberry32 noise (seeded), never Math.random.
  */
 'use strict';
@@ -98,20 +99,20 @@ function drive(I, steps, seed, hz, t0, cb, run) {
     var frames = function (until) {
       while (frame + dt <= until) {
         frame += dt;
-        if (run.phase === 'between' && Math.round(frame) >= run.doneAt + C.TUNE.betweenMs) return false;
+        if (run.phase === 'between' && Math.round(frame) >= run.doneAt + C.betweenOf(run.st.kind)) return false;
         C.tick(run, frame); if (cb) cb(run, 'tick');
       }
       return true;
     };
     for (var i = 0; i < list.length && !stop; i++) {
       var e = list[i], at = Math.max(last, Math.round(origin + e.t));
-      if (run.phase === 'between' && at >= run.doneAt + C.TUNE.betweenMs) break;
+      if (run.phase === 'between' && at >= run.doneAt + C.betweenOf(run.st.kind)) break;
       if (!frames(at)) break;
       C.input(run, { t: at, k: e.k, x: e.x, y: e.y, p: e.p, id: e.id }); last = run.t; if (cb) cb(run, 'input');
     }
     if (run.phase === 'step') { var end = last + C.TUNE.simTail; frames(end); if (run.phase === 'step') { C.tick(run, end); if (cb) cb(run, 'tick'); } }
     if (run.phase !== 'between') break;
-    C.tick(run, run.doneAt + C.TUNE.betweenMs); if (cb) cb(run, 'tick');
+    C.tick(run, run.doneAt + C.betweenOf(run.st.kind)); if (cb) cb(run, 'tick');
   }
   return run;
 }
@@ -122,7 +123,7 @@ function runAt(C, seed, upTo) {
   while (run.si < upTo && run.phase === 'step') {
     var at = run.t0 + 300; C.input(run, { t: at, k: 'b' });
     while (run.phase === 'step' && run.si < upTo) { at += 300; C.input(run, { t: at, k: 'b' }); }
-    C.tick(run, run.doneAt + C.TUNE.betweenMs);
+    C.tick(run, run.doneAt + C.betweenOf(run.st.kind));
   }
   C.drain(run);
   return run;
@@ -141,7 +142,7 @@ section('1. verb button path: every step in <= 3 presses (flip 2)');
       presses.push(n);
       if (n > (run.st.kind === 'flip' ? 2 : 3)) ok = false;
       if (run.phase !== 'between') ok = false;
-      var next = run.doneAt + A.TUNE.betweenMs;
+      var next = run.doneAt + A.betweenOf(run.st.kind);
       A.tick(run, next - 1); if (run.phase !== 'between') ok = false;
       A.tick(run, next); if (si < 2 && run.t0 !== next) ok = false;
     }
@@ -150,7 +151,9 @@ section('1. verb button path: every step in <= 3 presses (flip 2)');
     var res = A.resultOf(run, { madeAt: 1762576800000, day: '2026-11-08' });
     if (!res || res.out.steps[0].tag !== null || res.out.steps[1].tag !== 'soft' || res.out.steps[2].tag !== 'straight') ok = false;
   });
-  check(ok, 'button path finishes every step, tap 3 / flip 2 / slice 2 presses (' + presses.slice(0, 3).join(',') + '), next step starts exactly betweenMs later');
+  check(ok, 'button path finishes every step, tap 3 / flip 2 / slice 2 presses (' + presses.slice(0, 3).join(',') + '), next step starts exactly betweenOf(kind) later');
+  check(A.betweenOf('tap') === A.TUNE.betweenMs && A.betweenOf('slice') === A.TUNE.betweenMs && A.betweenOf('flip') === A.TUNE.flip.betweenMs && A.TUNE.flip.betweenMs >= 850,
+    'the flipped jeon stays in the pan ' + A.betweenOf('flip') + ' ms (the landing at 250 ms + its burst), other steps ' + A.betweenOf('tap') + ' ms');
   var run = A.createRun('jeon', 5); A.tick(run, 0);
   A.input(run, { t: 100, k: 'b' }); A.input(run, { t: 249, k: 'b' });
   check(run.st.hits === 0, 'the verb button is gated for the first 250 ms of a step too');
@@ -500,7 +503,7 @@ section('9b. host clocks: one continuous clock, or one that restarts at 0 on eve
         while (i < list.length && list[i].t <= clock) { var e = list[i++]; A.input(run, { t: origin + e.t, k: e.k, x: e.x, y: e.y, p: e.p, id: e.id }); }
         if (run.si !== si) break;
         clock += 16; A.tick(run, origin + clock);
-        if (run.phase === 'between' && run.t >= run.doneAt + A.TUNE.betweenMs) break;
+        if (run.phase === 'between' && run.t >= run.doneAt + A.betweenOf(run.st.kind)) break;
       }
       if (run.si === si) break;
       si = run.si; A.tick(run, 7 + s);   /* the restart: far back on the caller's clock */
@@ -649,11 +652,11 @@ section('12b. js/cook-art.js (when present): shared geometry and the dish painte
   check(same(G.cross, [0, 90]) && IW.recipe('jeon').steps[2].cross, 'cut order: line 0 horizontal, line 1 vertical = GEO.cross');
   check(G.dish && G.dish.w === IW.TUNE.dish.w && G.dish.h === IW.TUNE.dish.h, 'drawDish default size = GEO.dish');
   function hashImg(img) { var h = 0x811c9dc5; for (var i = 0; i < img.d.length; i++) { h ^= img.d[i]; h = Math.imul(h, 0x01000193); } return h >>> 0; }
-  var set = {}; sb.COOK_ART.APOLLO.forEach(function (h) { set[h] = 1; });
+  var set = {}; sb.COOK_ART.APOLLO.concat(sb.COOK_ART.FOOD || []).forEach(function (h) { set[h] = 1; });   /* props Apollo, food FOOD */
   function palOk(img) { for (var i = 0; i < img.d.length; i += 4) { var a = img.d[i + 3]; if (!a) continue; if (a !== 255) return false; var hx = '#' + [0, 1, 2].map(function (k) { var v = img.d[i + k]; return (v < 16 ? '0' : '') + v.toString(16); }).join(''); if (!set[hx]) return false; } return true; }
   var run = drive({ C: IW }, fullPath(31, { flipAt: 7000, deg0: 18 }), 31, 60, 0, null), look = IW.lookOf(run);
   var a = IW.drawDish('jeon', look, 31), b = IW.drawDish('jeon', JSON.parse(js(look)), 31), stubbed = A.drawDish('jeon', look, 31);
-  check(hashImg(a) === hashImg(b) && palOk(a), 'COOK_ART painter: same look -> same pixels, Apollo only');
+  check(hashImg(a) === hashImg(b) && palOk(a), 'COOK_ART painter: same look -> same pixels, Apollo + FOOD only');
   check(hashImg(a) !== hashImg(stubbed), 'drawDish really uses COOK_ART.dish when it is loaded (not the stub)');
   var l2 = JSON.parse(js(look)); l2.band = (look.band + 1) % 3;
   var l3 = JSON.parse(js(look)); l3.dents = [];
@@ -757,6 +760,186 @@ section('14. static checks');
   check(leaves.every(function (w) { return Array.from(w).every(function (ch) { return !/[가-힣]/.test(ch) || ksOk(ch); }); }), 'WORDS: every Hangul character inside KS X 1001');
   var desc = A.describe('jeon', [null, 'crisp', 'straight']);
   check(!(desc.match(BAD) || []).length && !/\d/.test(desc), 'plate description passes the same glyph rules (' + desc + ')');
+})();
+
+section('16. js/cook-art.js look: palette, determinism, the 96-frame loop, heat and beats, raw side, crisp, thumbnail');
+(function () {
+  var ART = path.join(ROOT, 'js/cook-art.js'); if (!fs.existsSync(ART)) return;
+  function fresh() { var sb = {}; vm.createContext(sb); vm.runInContext(fs.readFileSync(ART, 'utf8'), sb, { filename: 'cook-art.js' }); return sb.COOK_ART; }
+  var K = fresh(), K2 = fresh(), W = K.W, H = K.H, F = K.F || {}, CX = 72, CY = 86;
+  var M9 = [[18, 19], [16, 21], [20, 18], [47, 18], [49, 20], [45, 17], [33, 32], [31, 30], [35, 33]];
+  var LINES = [{ x: 72, y: 85, deg: 0, len: 64, cut: true, cutDeg: 6 }, { x: 72, y: 86, deg: 90, len: 48, cut: true, cutDeg: 84 }];
+  var L0 = { x: 72, y: 85, deg: 0, len: 64 }, L1 = { x: 72, y: 86, deg: 90, len: 48 };
+  function look(bd, pl, cuts) { return { v: 1, dents: M9, band: bd, cuts: cuts || [6, -6], offs: [1, -1], plate: pl }; }
+  function shot(L, fn, o) { var b = L.blank(W, H); L[fn](b, o); return b; }
+  function pan(L, bd, f, ex) { var o = { heat: true, band: bd, res: null, dents: M9, f: f, fh: 300 + f, fbc: 300 + f, seed: 3, arrow: null }; for (var k in ex || {}) o[k] = ex[k]; return shot(L, 'flipScene', o); }
+  function px(b, x, y) { var i = (y * b.w + x) << 2; return (b.d[i] << 16) | (b.d[i + 1] << 8) | b.d[i + 2]; }
+  function eqb(a, b) { return a.w === b.w && a.h === b.h && Buffer.compare(Buffer.from(a.d.buffer, a.d.byteOffset, a.d.byteLength), Buffer.from(b.d.buffer, b.d.byteOffset, b.d.byteLength)) === 0; }   /* COOK_ART.hash is slow inside a vm context */
+  function diff(a, b, m) { var n = 0; for (var i = 0, p = 0; i < a.d.length; i += 4, p++) { if (m && !m[p]) continue; if (a.d[i] !== b.d[i] || a.d[i + 1] !== b.d[i + 1] || a.d[i + 2] !== b.d[i + 2]) n++; } return n; }
+  function eff(o, m) { return diff(shot(K, 'flipScene', o), shot(K, 'flipScene', Object.assign({}, o, { still: true, f: 0 })), m); }
+  function hx(h) { return parseInt(h.slice(1), 16); }
+  var ID = {}; Object.keys(F).forEach(function (k) { ID[hx(F[k])] = k; });
+  var ANN = new Uint8Array(W * H), x, y, f, i;   /* the oil ring and a little past it, round the pan-size jeon */
+  for (y = 0; y < H; y++) for (x = 0; x < W; x++) { var e1 = Math.pow((x - CX) / 38, 2) + Math.pow((y - CY) / 26, 2), e0 = Math.pow((x - CX) / 25, 2) + Math.pow((y - CY) / 15, 2); if (e1 <= 1 && e0 > 1) ANN[y * W + x] = 1; }
+  /* palette, alpha, determinism */
+  var food = K.FOOD || [];
+  check(food.length > 0 && food.length <= 24 && new Set(food).size === food.length && food.every(function (h) { return K.APOLLO.indexOf(h) < 0; }), 'FOOD: ' + food.length + ' distinct colours, none of them Apollo');
+  function frames(L) {
+    var out = [shot(L, 'counter', {}), shot(L, 'counter', { plate: { look: look(1, 1), herb: 'parae' }, pending: { si: 1, band: 2, herb: 'tot' } }),
+      shot(L, 'tapScene', { shape: 0, dents: [], marks: [], f: 3 }), shot(L, 'tapScene', { shape: 2, dents: M9, marks: [], herb: 'tot', flash: true, f: 4 }),
+      shot(L, 'flipScene', { heat: false, band: 0, dents: M9, f: 0 })];
+    for (var bd = 0; bd < 3; bd++) for (var g = 0; g < 4; g++) out.push(pan(L, bd, 100 + g * 5));
+    for (g = 0; g < 4; g++) out.push(pan(L, 0, g, { fh: g, fbc: 999, flash: g === 0 }), pan(L, 2, 40 + g, { fbc: g }));
+    for (g = 0; g < 4; g++) out.push(shot(L, 'flipScene', { heat: true, band: 1, res: null, dents: M9, f: 300 + g, fh: 200 + g, arc: { f: g, lift: 2 }, fl: g === 3 ? 0 : null }));
+    for (g = 1; g < 10; g += 2) out.push(pan(L, 2, 304 + g, { res: 2, fl: g }));
+    out.push(pan(L, 1, 0, { still: true }), shot(L, 'sliceScene', { band: 1, dents: M9, lines: LINES, f: 0 }));
+    for (g = 0; g < 3; g++) out.push(shot(L, 'sliceScene', { band: g, dents: M9, lines: g ? LINES : [L0, L1], cur: 0, f: 10 + g, fl: g * 5, seed: 3 }), shot(L, 'revealScene', { look: look(g, g), f: 3 + g, t: 7 * g, seed: 3 }));
+    var d = L.blank(96, 66); L.dish(d, look(2, 2), { herb: 'tot' }); out.push(d);
+    var s = L.blank(40, 26); L.dishSmall(s, look(0, 1), {}); out.push(s);
+    return out;
+  }
+  var FR = frames(K), FR2 = frames(K2), allow = {}, bad = 0, part = 0;
+  K.APOLLO.concat(food).forEach(function (h) { allow[hx(h)] = 1; });
+  FR.forEach(function (b) { for (var q = 0; q < b.d.length; q += 4) { if (!b.d[q + 3]) continue; if (b.d[q + 3] !== 255) part++; if (!allow[(b.d[q] << 16) | (b.d[q + 1] << 8) | b.d[q + 2]]) bad++; } });
+  check(part === 0, 'art: alpha 0 or 255 only (' + FR.length + ' frames over every scene)');
+  check(bad === 0, 'art: every painted pixel is Apollo or FOOD');
+  /* FOOD colours are for food, sauce, oil, glints and steam only: every prop painter on its own paints Apollo only */
+  var foodSet = {}; food.forEach(function (h) { foodSet[hx(h)] = 1; });
+  function foodPx(b) { var n = 0; for (var q = 0; q < b.d.length; q += 4) if (b.d[q + 3] && foodSet[(b.d[q] << 16) | (b.d[q + 1] << 8) | b.d[q + 2]]) n++; return n; }
+  function prop(fn) { var b = K.blank(W, H); fn(b); return b; }
+  var props = {
+    'pan (step)': prop(function (b) { K.pan(b, K.PAN_STEP); }), 'pan (counter)': prop(function (b) { K.pan(b, K.PAN_COUNTER); }),
+    'panHeat': prop(function (b) { K.pan(b, K.PAN_STEP); K.panHeat(b, K.PAN_STEP, 0); K.panHeat(b, K.PAN_STEP, 2); }),
+    'board': prop(function (b) { K.board(b, 10, 36, 124, 100, false, false); K.board(b, 20, 20, 40, 30, true, true); }),
+    'spatula': prop(function (b) { K.spatula(b, 72, 80); }), 'arrow': prop(function (b) { K.arrow(b, 72, 60, 0); K.arrow(b, 40, 60, 1); }),
+    'guide': prop(function (b) { K.guide(b, 72, 85, 0, 64, 3, null); K.guide(b, 72, 86, 90, 48, 5, null); }),
+    'knife': prop(function (b) { K.knife(b, 100, 124, 0); K.knife(b, 60, 60, 24); }),
+    'plates': prop(function (b) { [0, 1, 2].forEach(function (c) { K.plate(b, c, { cx: 30 + 40 * c, cy: 60, rx: 18, ry: 10 }); }); }),
+    'hand': prop(function (b) { K.hand(b, { kind: 'tap', x: 40, y: 60, f: 1 }); K.hand(b, { kind: 'flick', x: 90, y: 100, f: 2 }); K.hand(b, { kind: 'line', x0: 30, y0: 120, x1: 110, y1: 120, f: 3 }); }),
+    'frame': prop(function (b) { K.frame(b); }), 'counter (empty)': prop(function (b) { K.counter(b, {}); })
+  };
+  (K.ICONS || []).forEach(function (n) { props['icon ' + n] = K.icon(n); });
+  props['wall tile'] = K.wallTile(false); props['wall tile (dark)'] = K.wallTile(true);
+  var withFood = Object.keys(props).filter(function (k) { return foodPx(props[k]) > 0; });
+  check(Object.keys(props).length >= 14 && withFood.length === 0, 'art: props paint Apollo only, no FOOD colour (' + Object.keys(props).length + ' prop pictures' + (withFood.length ? '; FOOD in ' + withFood.join(', ') : '') + ')');
+  check(FR.every(function (b, k) { return eqb(b, FR2[k]); }), 'art: the same inputs paint the same bytes in a fresh instance');
+  /* the loop, activity per band, ring motion (consecutive frames, inside the oil-ring annulus) */
+  var loopOk = true;
+  [0, 1, 2].forEach(function (bd) { for (f = 0; f < 96; f += 13) if (!eqb(pan(K, bd, 400 + f), pan(K, bd, 496 + f))) loopOk = false; });
+  for (f = 0; f < 96; f += 19) {
+    if (!eqb(shot(K, 'sliceScene', { band: 1, dents: M9, lines: LINES, f: 400 + f }), shot(K, 'sliceScene', { band: 1, dents: M9, lines: LINES, f: 496 + f }))) loopOk = false;
+    if (!eqb(shot(K, 'revealScene', { look: look(1, 0), f: 5, t: 400 + f }), shot(K, 'revealScene', { look: look(1, 0), f: 5, t: 496 + f }))) loopOk = false;
+  }
+  check(loopOk, 'art: steady frames repeat exactly every 96 frames (pan bands 0-2, board, reveal)');
+  var ring = [], all = [];
+  [0, 1, 2].forEach(function (bd) { var prev = pan(K, bd, 399), r = 0, a = 0; for (f = 400; f < 496; f++) { var cur = pan(K, bd, f); r += diff(prev, cur, ANN); a += diff(prev, cur); prev = cur; } ring.push(r / 96); all.push(a / 96); });
+  check(ring[0] >= 22 && ring[0] <= 45 && ring[1] >= 1.6 * ring[0] && ring[2] >= 3 * ring[0] && all[2] >= 3.5 * all[0],
+    'art: the oil ring moves ' + ring.map(function (v) { return v.toFixed(0); }).join(' / ') + ' px per frame at bands 0 / 1 / 2 (whole stage ' + all.map(function (v) { return v.toFixed(0); }).join(' / ') + ')');
+  /* band 0 bubbles visibly: every frame of the loop changes the ring zone against the loop's resting picture */
+  var fr0 = []; for (f = 400; f < 496; f++) fr0.push(pan(K, 0, f));
+  var mode = new Int32Array(W * H), quiet0 = 0;
+  for (var p = 0; p < W * H; p++) { if (!ANN[p]) continue; var cnt = new Map(), best = 0, bv = -1; for (var k = 0; k < 96; k++) { var v = px(fr0[k], p % W, (p / W) | 0), n = (cnt.get(v) || 0) + 1; cnt.set(v, n); if (n > bv) { bv = n; best = v; } } mode[p] = best; }
+  fr0.forEach(function (b) { var n = 0; for (var q = 0; q < W * H; q++) if (ANN[q] && px(b, q % W, (q / W) | 0) !== mode[q]) n++; if (n < 6) quiet0++; });
+  check(quiet0 === 0, 'art: band 0 bubbles in every frame (frames with a still oil ring: ' + quiet0 + ' of 96)');
+  /* beats: heat on, band change (ring zone), the flip landing (whole stage) against the steady states */
+  var st0 = 0, st2 = 0, r1 = 0, r2 = 0;
+  for (f = 40; f < 52; f++) {
+    st0 += eff({ heat: 1, band: 0, f: f, seed: 3, fh: 300 + f, fbc: 300 }); st2 += eff({ heat: 1, band: 2, f: f, seed: 3, fh: 300 + f, fbc: 300 });
+    r1 += eff({ heat: 1, band: 1, f: f, seed: 3, fh: 300 + f, fbc: 300 }, ANN); r2 += eff({ heat: 1, band: 2, f: f, seed: 3, fh: 300 + f, fbc: 300 }, ANN);
+  }
+  st0 /= 12; st2 /= 12; r1 /= 12; r2 /= 12;
+  var on0 = eff({ heat: 1, band: 0, f: 40, seed: 3, fh: 0, fbc: 0, flash: true });
+  check(on0 >= 1.5 * st0, 'art: heat on flashes the oil (' + on0 + ' px against ' + st0.toFixed(0) + ' steady)');
+  var b1 = eff({ heat: 1, band: 1, f: 40, seed: 3, fh: 340, fbc: 0 }, ANN), b2 = eff({ heat: 1, band: 2, f: 40, seed: 3, fh: 340, fbc: 0 }, ANN);
+  check(b1 >= 1.5 * r1 && b2 >= 1.5 * r2, 'art: a band change pops round the ring (' + b1 + ' / ' + b2 + ' px against ' + r1.toFixed(0) + ' / ' + r2.toFixed(0) + ' steady)');
+  var land = [];
+  [1, 2].forEach(function (bd) { for (var fl = 0; fl < 4; fl++) land.push(eff(fl ? { heat: 1, band: bd, res: bd, f: 600 + fl, seed: 3, fh: 300 + fl, fbc: 300, fl: fl } : { heat: 1, band: bd, res: null, arc: { f: 3, lift: 2 }, f: 600, seed: 3, fh: 300, fbc: 300, fl: 0 })); });
+  check(land.every(function (v) { return v >= 2 * st2; }), 'art: the flip landing is at least twice as busy as steady crisp for fl 0..3 (' + land.map(function (v) { return (v / st2).toFixed(1); }).join(' ') + ' x)');
+  /* landing drops: bright pixels the landing adds, 6..14 px past the rim on fl 1..3 */
+  var RF = K.jeonComp({ face: 'bottom', band: 1, dents: M9 }), RJ = RF.J, fm = new Uint8Array(W * H), edge = [];
+  for (y = 0; y < RJ.buf.h; y++) for (x = 0; x < RJ.buf.w; x++) if (RJ.K[y * RJ.buf.w + x]) fm[(CY - RJ.cy + y) * W + CX - RJ.cx + x] = 1;
+  for (i = 0; i < W * H; i++) if (fm[i] && (!fm[i - 1] || !fm[i + 1] || !fm[i - W] || !fm[i + W])) edge.push(i);
+  var far = 0;
+  [1, 2, 3].forEach(function (fl) {
+    var o = { heat: 1, band: 1, res: 1, f: 600 + fl, seed: 3, fh: 300 + fl, fbc: 300, fl: fl }, a = shot(K, 'flipScene', o), r = shot(K, 'flipScene', Object.assign({}, o, { fl: 999 }));
+    for (var q = 0; q < W * H; q++) {
+      if (fm[q]) continue; var v = px(a, q % W, (q / W) | 0); if (v === px(r, q % W, (q / W) | 0) || !/^(G0|J6|J5|J4)$/.test(ID[v] || '')) continue;
+      var dm = 1e9; edge.forEach(function (e) { var dx = (e % W) - (q % W), dy = ((e / W) | 0) - ((q / W) | 0); dm = Math.min(dm, dx * dx + dy * dy); });
+      if (dm >= 36 && dm <= 196) far++;
+    }
+  });
+  check(far >= 120, 'art: landing drops fly 6..14 px past the rim (' + far + ' drop px over fl 1..3)');
+  /* the raw side: a golden setting band 2 -> 4 -> 7 px, a 4..6 px streak glint up left */
+  var GOLD = { J1: 1, J2: 1, J3: 1, J4: 1, J5: 1 }, gw = [];
+  [0, 1, 2].forEach(function (bd) {
+    var J = K.jeonComp({ face: 'top', band: bd, dents: M9 }).J, w = J.buf.w, runs = [];
+    var idAt = function (x2, y2) { return J.ID[(J.cy + y2) * w + J.cx + x2]; }, kAt = function (x2, y2) { return J.K[(J.cy + y2) * w + J.cx + x2]; };
+    function run(x0, y0, dx, dy) { var x2 = x0, y2 = y0, n = 0; while (kAt(x2, y2) !== 1 && Math.abs(x2) < 60 && Math.abs(y2) < 60) { x2 += dx; y2 += dy; } while (kAt(x2, y2) === 1 && GOLD[idAt(x2, y2)]) { n++; x2 += dx; y2 += dy; } return n; }
+    [-6, -3, 0, 3, 6].forEach(function (r) { runs.push(run(-J.rx - 3, r, 1, 0), run(J.rx + 3, r, -1, 0), run(r, -J.ry - 3, 0, 1)); });
+    runs.sort(function (a, b) { return a - b; }); gw.push(runs[runs.length >> 1]);
+    if (bd === 1) {
+      var g = 0; for (y = -J.ry; y < 0; y++) for (x = -J.rx; x < 0; x++) if (idAt(x, y) === 'G0' && Math.abs(x - (J.hero[0] - J.cx)) <= 3 && Math.abs(y - (J.hero[1] - J.cy)) <= 2) g++;
+      check(g >= 4 && g <= 6, 'art: the raw side has a ' + g + ' px streak glint up left');
+    }
+  });
+  check(gw[0] >= 1 && gw[0] <= 3 && gw[1] >= 3 && gw[1] <= 6 && gw[2] >= 5 && gw[2] <= 9, 'art: the golden setting band widens ' + gw.join(' -> ') + ' px from the rim');
+  /* crisp against golden: a continuous 2-px deep-brown crust, more lace, dark freckles */
+  function crust(bd) {
+    var J = K.jeonComp({ face: 'bottom', band: bd, dents: M9 }).J, w = J.buf.w, h = J.buf.h, D = new Uint8Array(w * h), out = { r1: 0, n1: 0, r2: 0, n2: 0, lace: 0, fr: 0 };
+    for (var q = 0; q < w * h; q++) D[q] = J.K[q] === 1 || J.K[q] === 4 ? 99 : 0;
+    for (var it = 1; it <= 2; it++) for (var y2 = 0; y2 < h; y2++) for (var x2 = 0; x2 < w; x2++) { var q2 = y2 * w + x2; if (D[q2] !== 99) continue; if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(function (d) { var X = x2 + d[0], Y = y2 + d[1]; return X < 0 || Y < 0 || X >= w || Y >= h || (D[Y * w + X] < it && J.K[Y * w + X] !== 2); })) D[q2] = it; }
+    for (q = 0; q < w * h; q++) { var id = J.ID[q]; if (J.K[q] === 3) out.lace++; if (D[q] === 1) { out.n1++; if (id === 'J0' || id === 'J1') out.r1++; } if (D[q] === 2) { out.n2++; if (/^J[012]$/.test(id)) out.r2++; } if (D[q] === 99 && id === 'J1') out.fr++; }
+    return out;
+  }
+  var cg = crust(1), cc = crust(2);
+  check(cc.r1 === cc.n1 && cc.r2 >= 0.9 * cc.n2 && cg.r1 === 0, 'art: crisp has an unbroken deep-brown crust ring (' + cc.r1 + '/' + cc.n1 + ', ' + cc.r2 + '/' + cc.n2 + '); golden has none');
+  check(cc.lace >= 2 * cg.lace && cc.fr >= 5, 'art: crisp lace ' + cc.lace + ' px (golden ' + cg.lace + '), ' + cc.fr + ' dark freckle px');
+  /* the 40 x 26 thumbnail: no cut cross, crisp readable */
+  var s1 = K.blank(40, 26), s2 = K.blank(40, 26); K.dishSmall(s1, look(1, 0, [0, 0])); K.dishSmall(s2, look(1, 0, [18, -24]));
+  check(eqb(s1, s2), 'art: the 40 x 26 thumbnail has no cut lines (cut angles do not change it)');
+  function rimDark(bd) { var s = K.blank(40, 26), set = {}, rim = 0, dk = 0; K.dishSmall(s, look(bd, 0)); for (y = 0; y < 26; y++) for (x = 0; x < 40; x++) if (/^[JGP]/.test(ID[px(s, x, y)] || '')) set[y * 40 + x] = 1; Object.keys(set).forEach(function (k) { k = +k; if (!set[k - 1] || !set[k + 1] || !set[k - 40] || !set[k + 40]) { rim++; if (/^J[012]$/.test(ID[px(s, k % 40, (k / 40) | 0)])) dk++; } }); return dk / rim; }
+  var rd1 = rimDark(1), rd2 = rimDark(2);
+  check(rd2 >= 0.8 && rd1 <= 0.6, 'art: on the thumbnail crisp shows a dark rim (' + (rd2 * 100).toFixed(0) + ' % against golden ' + (rd1 * 100).toFixed(0) + ' %)');
+  /* parae: long tangled strands; the board steams in discs and curls */
+  var J0 = K.jeonComp({ face: 'raw', band: 0, dents: M9 }).J, list = [];
+  for (i = 0; i < J0.ID.length; i++) if (J0.K[i] === 1 && /^P/.test(J0.ID[i] || '')) list.push(i);
+  var seen = {}, ext = [];
+  list.forEach(function (s0) { if (seen[s0]) return; var st = [s0], xs = [], ys = []; seen[s0] = 1; while (st.length) { var c = st.pop(); xs.push(c % J0.buf.w); ys.push((c / J0.buf.w) | 0); [-1, 1, -J0.buf.w, J0.buf.w, -J0.buf.w - 1, -J0.buf.w + 1, J0.buf.w - 1, J0.buf.w + 1].forEach(function (d) { var nn = c + d; if (!seen[nn] && list.indexOf(nn) >= 0) { seen[nn] = 1; st.push(nn); } }); } ext.push(Math.max(Math.max.apply(null, xs) - Math.min.apply(null, xs), Math.max.apply(null, ys) - Math.min.apply(null, ys)) + 1); });
+  ext.sort(function (a, b) { return a - b; });
+  check(ext.length >= 8 && ext[ext.length >> 1] >= 6, 'art: ' + ext.length + ' parae strands, median ' + ext[ext.length >> 1] + ' px long');
+  /* tot (hijiki): 15+ short glossy dark sprigs on the pan-size face, not a few 1-2 px pepper flecks (phone check 11-09) */
+  var JT = K.jeonComp({ face: 'bottom', band: 1, dents: M9, herb: 'tot' }).J, tw = JT.buf.w, tset = {}, tsz = [];
+  for (i = 0; i < JT.ID.length; i++) if (JT.K[i] === 1 && /^T/.test(JT.ID[i] || '')) tset[i] = 1;
+  Object.keys(tset).forEach(function (s0) { s0 = +s0; if (tset[s0] !== 1) return; var st = [s0], sz = 0; tset[s0] = 2; while (st.length) { var c = st.pop(); sz++; [-1, 1, -tw, tw, -tw - 1, -tw + 1, tw - 1, tw + 1].forEach(function (d) { if (tset[c + d] === 1) { tset[c + d] = 2; st.push(c + d); } }); } tsz.push(sz); });
+  tsz.sort(function (a, b) { return a - b; });
+  check(tsz.length >= 15 && tsz[tsz.length >> 1] >= 3, 'art: tot shows ' + tsz.length + ' dark sprigs on the pan-size face, median ' + tsz[tsz.length >> 1] + ' px');
+  /* the light board steams as a see-through haze: checker discs and soft curls one step lighter (s6 on the board's w6), never
+     solid white balls (a 3 x 3 patch all steam) and never the hard white G0 zigzag (phone check 11-09: 'cotton balls, lightning') */
+  function haze(o) {
+    var b = shot(K, 'sliceScene', o), n = 0, solid = 0, hard = 0;
+    for (y = 44; y < 64; y++) for (x = 22; x < 122; x++) {
+      var v = px(b, x, y); if (v === 0xfffef2) hard++;
+      if (v !== 0xebede9) continue; n++;
+      var full = true; for (var dy = 0; dy < 3 && full; dy++) for (var dx = 0; dx < 3; dx++) if (px(b, x + dx, y + dy) !== 0xebede9) { full = false; break; }
+      if (full) solid++;
+    }
+    return { n: n, solid: solid, hard: hard };
+  }
+  var hz = [], hmax = 0, hb = 0, hsolid = 0, hhard = 0;
+  for (f = 40; f < 64; f += 4) hz.push(haze({ band: 1, dents: M9, lines: [L0, L1], cur: 0, f: f, seed: 3 }));
+  for (var fl2 = 9; fl2 < 36; fl2 += 3) { var hq = haze({ band: 2, dents: M9, lines: [L0, L1], cur: 0, f: 30 + fl2, fl: fl2, seed: 3 }); hz.push(hq); hb = Math.max(hb, hq.n); }
+  hz.forEach(function (q, k) { if (k < 6) hmax = Math.max(hmax, q.n); hsolid = Math.max(hsolid, q.solid); hhard += q.hard; });
+  check(hmax >= 25 && hb >= 120 && hsolid <= 4 && hhard === 0, 'art: the board steams as a see-through haze (' + hmax + ' px steady, ' + hb + ' as the landing steam arrives; solid 3 x 3 patches at most ' + hsolid + ', hard white ' + hhard + ')');
+  /* cost: warm frames on desktop node */
+  var b0 = K.blank(W, H), worst = 0;
+  [function (k) { K.flipScene(b0, { heat: true, band: 2, res: null, dents: M9, f: k, fh: k + 50, fbc: 999, arrow: k & 1 }); },
+    function (k) { K.flipScene(b0, { heat: true, band: 2, res: 2, dents: M9, f: k, fh: k + 50, fl: k % 24 }); },
+    function (k) { K.sliceScene(b0, { band: 1, dents: M9, lines: LINES, f: k + 1 }); },
+    function (k) { K.revealScene(b0, { look: look(1, 1), f: 5, t: k }); }].forEach(function (fn) {
+    for (var k = 0; k < 30; k++) fn(k);
+    var t0 = process.hrtime.bigint(); for (k = 0; k < 200; k++) fn(k + 30); worst = Math.max(worst, Number(process.hrtime.bigint() - t0) / 1e6 / 200);
+  });
+  check(worst < 2, 'art: warm frames under 2 ms on desktop node (worst ' + worst.toFixed(2) + ' ms)');
 })();
 
 console.log('\n' + passes + ' passed, ' + fails + ' failed');

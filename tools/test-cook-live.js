@@ -723,14 +723,19 @@ async function L16(browser) {   /* hints: a first demo is not wiped by presses t
 async function L17(browser) {   /* brief items: 24 px edge, 600 ms title and tap-dismiss, first-seen demos, name tag delay, ?slow=4,
                                    a bright rim that lasts one 12 fps frame */
   var T = await openPage(browser, { vp: { width: 320, height: 568 }, store: JSON.stringify({ v: 1, day: '', dayN: 0, seen: [], pot: null, book: [] }), q: 'seed=81' });
+  /* the title's 600 ms is timed on a paused clock: Playwright's installed clock otherwise also flows with real time
+     between runFor calls, so a busy machine or a cold first frame could eat the 50 ms margin of the 550 ms check.
+     Paused before the tap (on the idle counter, a little ahead so the target is never in the past). */
+  await T.page.clock.pauseAt(await T.page.evaluate(function () { return Date.now() + 250; }));
   await T.tapEl('.ck-prop');
-  await T.until(function (x) { return x.kind === 'tap'; }, 2000, 'tap');
   var l = await T.live();
-  check(l.title, 'L17: a step opens with its title tag');
+  for (var w0 = 0; w0 < 200 && !(l.kind === 'tap' && l.title); w0++) { await T.go(10); l = await T.live(); }
+  check(l.kind === 'tap' && l.title, 'L17: a step opens with its title tag');
   await T.go(550); check((await T.live()).title, 'L17: ... still there at 550 ms');
   await T.go(100); l = await T.live();
   check(!l.title && l.hint === 'demo', 'L17: the title goes at 600 ms, then the first-time demo hand plays (' + l.hint + ')');
   check((await T.store()).seen.indexOf('tap') < 0, 'L17: tap is not marked seen while its demo plays');
+  await T.page.clock.resume();
   await T.go(1100);
   check((await T.store()).seen.indexOf('tap') >= 0, 'L17: tap is marked seen once its demo has played');
   var st = await T.rect('.ck-stage'), mk = l.st.marks[0], fx0 = (await T.live()).fx, py = st.y + mk.y * st.h / 320;

@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>부엌 소리 들어 보기</title>
+<link rel="icon" href="data:,">
+<style>
+:root { color-scheme: light dark; --bg: #fbf7f1; --fg: #2b2622; --muted: #6b625a; --line: #e4dccf; --card: #ffffff; }
+@media (prefers-color-scheme: dark) { :root { --bg: #16181d; --fg: #ece7e1; --muted: #a39a90; --line: #2c3038; --card: #1e2128; } }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+main { max-width: 640px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 1.35rem; margin: 8px 0 4px; } h2 { font-size: 1.1rem; margin: 28px 0 8px; }
+p { margin: 6px 0; color: var(--muted); }
+.row { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 10px 0; }
+.id { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85rem; color: var(--muted); }
+.what { margin: 2px 0 8px; } .meta { font-size: .85rem; color: var(--muted); margin-top: 4px; }
+audio { width: 100%; height: 40px; }
+button { font: inherit; font-size: .95rem; padding: 8px 12px; margin: 6px 6px 0 0; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; min-height: 40px; }
+button:active { transform: translateY(1px); } .fmt label { margin-right: 14px; white-space: nowrap; }
+#wa-note { min-height: 1.4em; }
+</style>
+</head>
+<body>
+<main>
+<h1>부엌 소리 들어 보기</h1>
+<p>해초전과 나중 요리에 쓰는 효과음이다(OpenGameArt 의 소리를 잘라 겹쳤다, 출처는 맨 아래). 줄마다 언제 나는 소리인지 적었다. 크기는 게임에서 나는 크기 그대로라 작은 소리는 작게 들린다(폰 소리를 조금 키우고 들어 보면 좋다).</p>
+<p>만든 쪽은 들을 수 없어서 숫자와 그림으로만 골랐다. 이상하게 들리는 줄이 있으면 id 를 알려 주면 다시 굽는다.</p>
+<h2>루프와 견주기</h2>
+<p>게임처럼 Web Audio 로 돈다(loopStart/loopEnd). 이 단추들은 웹서버로 열어야 한다: 이 폴더에서 <code>python3 -m http.server</code> 뒤 <code>http://localhost:8000/listen.html</code>. 견주기 단추는 필터를 켠 채 다시 구웠을 때와 같은 크기로 맞춰서 튼다.</p>
+<div class="row fmt"><label><input type="radio" name="fmt" value="ogg" checked> Opus (.ogg, 게임이 먼저 쓰는 것)</label><label><input type="radio" name="fmt" value="m4a"> AAC (.m4a)</label><div class="meta" id="wa-note"></div></div>
+<div class="row"><div class="what">지글 0 -> 1 -> 2 이어 듣기: 불 켜고 1초 페이드인, 3초마다 0.15초 크로스페이드와 치익 한 번(+4 dB, 0.5초에 제 크기로), 2 는 멈출 때까지 돈다.</div><button data-act="chain">그대로</button><button data-act="chain" data-mode="warm">10 kHz 위 -3 dB (더 따뜻하게)</button><button data-act="stop">멈춤</button></div>
+<div class="row"><div class="what">루프로 듣기 (끝없이 돈다: 이음새와 되풀이 확인)</div><button data-act="loop" data-id="cook_sizzle_0">지글 0</button><button data-act="loop" data-id="cook_sizzle_1">지글 1</button><button data-act="loop" data-id="cook_sizzle_2">지글 2 (바삭, 10초)</button><button data-act="loop" data-id="cook_simmer">보글</button><button data-act="loop" data-id="cook_sizzle_2" data-mode="warm">지글 2, 10 kHz 위 -3 dB</button><button data-act="stop">멈춤</button></div>
+<div class="row"><div class="what">톡톡 9번 (0.28초 간격, 변형 1~4 차례로)</div><button data-act="pats">그대로</button><button data-act="pats" data-mode="dark">어둡게 (3.5 kHz 저역 통과)</button><button data-act="stop">멈춤</button></div>
+<div class="row"><div class="what">뒤집기: 바삭 루프가 돌다가 2초에 뒤집고, 0.4초 뒤 단계 톡과 함께 지글이 잦아든다(게임 순서). 철퍽은 뒤집은 뒤 0.256초, 게임의 착지 그림 때.</div><button data-act="flip" data-n="1">뒤집기 1</button><button data-act="flip" data-n="2">뒤집기 2</button><button data-act="stop">멈춤</button></div>
+<h2>해초전 (지금 게임)</h2>
+<div class="row">
+<div class="id">cook_pick_1</div>
+<div class="what">조리대에서 팬을 눌러 요리를 시작할 때. 팬을 살짝 드는 가벼운 금속 톡</div>
+<audio controls preload="none"><source src="cook/cook_pick_1.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_pick_1.m4a" type="audio/mp4"></audio>
+<div class="meta">0.18 s, BGM 대비 -14 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_pat_1</div>
+<div class="what">톡톡 단계: 차가운 팬 위 반죽을 한 번 두드릴 때 (9번, 변형 4개를 돌려 씀)</div>
+<audio controls preload="none"><source src="cook/cook_pat_1.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_pat_1.m4a" type="audio/mp4"></audio>
+<div class="meta">0.15 s, BGM 대비 -14 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_pat_2</div>
+<div class="what">톡톡 단계: 반죽 두드림 (변형 2)</div>
+<audio controls preload="none"><source src="cook/cook_pat_2.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_pat_2.m4a" type="audio/mp4"></audio>
+<div class="meta">0.11 s, BGM 대비 -14 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_pat_3</div>
+<div class="what">톡톡 단계: 반죽 두드림 (변형 3)</div>
+<audio controls preload="none"><source src="cook/cook_pat_3.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_pat_3.m4a" type="audio/mp4"></audio>
+<div class="meta">0.12 s, BGM 대비 -14 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_pat_4</div>
+<div class="what">톡톡 단계: 반죽 두드림 (변형 4, 가장 작고 가벼움)</div>
+<audio controls preload="none"><source src="cook/cook_pat_4.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_pat_4.m4a" type="audio/mp4"></audio>
+<div class="meta">0.09 s, BGM 대비 -14 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_step</div>
+<div class="what">단계 하나가 끝날 때 아주 작은 나무 톡</div>
+<audio controls preload="none"><source src="cook/cook_step.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_step.m4a" type="audio/mp4"></audio>
+<div class="meta">0.11 s, BGM 대비 -16 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_heat_on_1</div>
+<div class="what">불 켜기 단추를 누를 때 (sizzle band 0 이 처음 올 때 한 번). 가스레인지 손잡이 딸깍 + 불이 붙는 부드러운 화르륵</div>
+<audio controls preload="none"><source src="cook/cook_heat_on_1.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_heat_on_1.m4a" type="audio/mp4"></audio>
+<div class="meta">1.01 s, BGM 대비 -18 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_heat_on_2</div>
+<div class="what">불 켜기 (변형 2). 같은 손잡이의 두 번째 딸깍-깍 + 화르륵</div>
+<audio controls preload="none"><source src="cook/cook_heat_on_2.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_heat_on_2.m4a" type="audio/mp4"></audio>
+<div class="meta">1.04 s, BGM 대비 -18 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_sizzle_0</div>
+<div class="what">불을 켠 뒤 보들보들(0~3초) 동안 도는 루프. 작고 성긴 지글</div>
+<audio controls preload="none"><source src="cook/cook_sizzle_0.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_sizzle_0.m4a" type="audio/mp4"></audio>
+<div class="meta">루프 5.80 s, BGM 대비 -15 dB. 루프 파일: 이 줄은 한 번만 재생된다(앞 0.5초, 뒤 1초 여유 포함). 위 &quot;루프로 듣기&quot; 가 게임처럼 돌린다.</div>
+</div>
+<div class="row">
+<div class="id">cook_sizzle_1</div>
+<div class="what">노릇노릇(3~6초) 루프. 기름에 전이 지글지글 굽는 고른 소리</div>
+<audio controls preload="none"><source src="cook/cook_sizzle_1.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_sizzle_1.m4a" type="audio/mp4"></audio>
+<div class="meta">루프 4.50 s, BGM 대비 -12 dB. 루프 파일. 게임에서는 0번에서 0.15초에 넘어오며 치익 한 번(+4 dB). 위 &quot;루프로 듣기&quot; 가 게임처럼 돌린다.</div>
+</div>
+<div class="row">
+<div class="id">cook_sizzle_2</div>
+<div class="what">바삭바삭(6초부터 뒤집을 때까지) 루프. 탁탁 튀는 기름이 많고 조금 더 밝고 크다</div>
+<audio controls preload="none"><source src="cook/cook_sizzle_2.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_sizzle_2.m4a" type="audio/mp4"></audio>
+<div class="meta">루프 10.00 s, BGM 대비 -10 dB. 루프 파일. 뒤집을 때까지 돈다. 위 &quot;루프로 듣기&quot; 가 게임처럼 돌린다.</div>
+</div>
+<div class="row">
+<div class="id">cook_flip_1</div>
+<div class="what">뒤집개로 뒤집을 때. 휙 + 철퍽 + 지글이 확 커졌다가 1초쯤에 잦아듦</div>
+<audio controls preload="none"><source src="cook/cook_flip_1.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_flip_1.m4a" type="audio/mp4"></audio>
+<div class="meta">1.57 s, BGM 대비 -8 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_flip_2</div>
+<div class="what">뒤집을 때 (변형 2)</div>
+<audio controls preload="none"><source src="cook/cook_flip_2.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_flip_2.m4a" type="audio/mp4"></audio>
+<div class="meta">1.76 s, BGM 대비 -8 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_cut_1</div>
+<div class="what">썰기에서 한 줄이 잘릴 때. 바삭한 껍질이 사각 + 칼이 나무 도마에 톡 (바삭이 가장 큰 변형)</div>
+<audio controls preload="none"><source src="cook/cook_cut_1.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_cut_1.m4a" type="audio/mp4"></audio>
+<div class="meta">0.36 s, BGM 대비 -11 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_cut_2</div>
+<div class="what">썰기 (변형 2, 껍질이 두 번에 나뉘어 깨짐)</div>
+<audio controls preload="none"><source src="cook/cook_cut_2.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_cut_2.m4a" type="audio/mp4"></audio>
+<div class="meta">0.40 s, BGM 대비 -11 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_cut_3</div>
+<div class="what">썰기 (변형 3, 가장 빠른 칼질)</div>
+<audio controls preload="none"><source src="cook/cook_cut_3.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_cut_3.m4a" type="audio/mp4"></audio>
+<div class="meta">0.32 s, BGM 대비 -11 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_plate_1</div>
+<div class="what">다 된 접시를 보여 줄 때 (done). 사기 접시를 나무 식탁에 살며시 놓는 소리</div>
+<audio controls preload="none"><source src="cook/cook_plate_1.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_plate_1.m4a" type="audio/mp4"></audio>
+<div class="meta">0.30 s, BGM 대비 -10 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_plate_2</div>
+<div class="what">다 된 접시 (변형 2, 조금 더 또렷하게 놓음)</div>
+<audio controls preload="none"><source src="cook/cook_plate_2.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_plate_2.m4a" type="audio/mp4"></audio>
+<div class="meta">0.33 s, BGM 대비 -10 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_steam</div>
+<div class="what">(고르면) 접시를 낼 때 김이 피어오르는 작은 쉬익. 접시 소리보다 작게</div>
+<audio controls preload="none"><source src="cook/cook_steam.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_steam.m4a" type="audio/mp4"></audio>
+<div class="meta">0.85 s, BGM 대비 -20 dB</div>
+</div>
+<h2>나중 요리 (미역국, 톳 주먹밥)</h2>
+<div class="row">
+<div class="id">cook_stir_1</div>
+<div class="what">(나중: 미역국) 국자로 국을 저을 때 찰랑</div>
+<audio controls preload="none"><source src="cook/cook_stir_1.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_stir_1.m4a" type="audio/mp4"></audio>
+<div class="meta">0.56 s, BGM 대비 -13 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_stir_2</div>
+<div class="what">(나중) 젓기 변형 2: 찰랑 + 국자가 살짝 닿음</div>
+<audio controls preload="none"><source src="cook/cook_stir_2.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_stir_2.m4a" type="audio/mp4"></audio>
+<div class="meta">0.54 s, BGM 대비 -13 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_stir_3</div>
+<div class="what">(나중) 젓기 변형 3: 찰랑 끝에 국자가 냄비에 작게 띵</div>
+<audio controls preload="none"><source src="cook/cook_stir_3.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_stir_3.m4a" type="audio/mp4"></audio>
+<div class="meta">0.91 s, BGM 대비 -13 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_clink</div>
+<div class="what">(나중) 숟가락으로 냄비 가장자리를 톡 칠 때 작은 쇠 소리</div>
+<audio controls preload="none"><source src="cook/cook_clink.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_clink.m4a" type="audio/mp4"></audio>
+<div class="meta">0.29 s, BGM 대비 -14 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_simmer</div>
+<div class="what">(나중: 미역국) 냄비가 끓는 동안 도는 보글보글 루프</div>
+<audio controls preload="none"><source src="cook/cook_simmer.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_simmer.m4a" type="audio/mp4"></audio>
+<div class="meta">루프 9.99 s, BGM 대비 -14 dB. 루프 파일. 위 &quot;루프로 듣기&quot; 가 게임처럼 돌린다.</div>
+</div>
+<div class="row">
+<div class="id">cook_place_1</div>
+<div class="what">(나중: 톳 주먹밥) 주먹밥을 접시에 놓을 때 폭</div>
+<audio controls preload="none"><source src="cook/cook_place_1.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_place_1.m4a" type="audio/mp4"></audio>
+<div class="meta">0.23 s, BGM 대비 -13 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_place_2</div>
+<div class="what">(나중) 주먹밥 놓기 변형 2</div>
+<audio controls preload="none"><source src="cook/cook_place_2.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_place_2.m4a" type="audio/mp4"></audio>
+<div class="meta">0.19 s, BGM 대비 -13 dB</div>
+</div>
+<div class="row">
+<div class="id">cook_lift</div>
+<div class="what">(나중) 한 조각을 집어 올릴 때 아주 작게 (back 은 같은 소리를 더 작게)</div>
+<audio controls preload="none"><source src="cook/cook_lift.ogg" type="audio/ogg; codecs=opus"><source src="cook/cook_lift.m4a" type="audio/mp4"></audio>
+<div class="meta">0.15 s, BGM 대비 -20 dB</div>
+</div>
+<h2>출처</h2>
+<p>OpenGameArt.org 의 CC0 · CC BY 소리를 잘라 겹쳤다. 모든 출처와 바꾼 것: <a href="CREDITS.md">CREDITS.md</a> · 게임의 <a href="../credits.html">만든 것들</a>.</p>
+<p class="by" lang="en">&quot;Kitchen Ambience, SFX&quot; (slow_chops_on_cutting_board.wav) by DavidW, <a href="https://opengameart.org/content/kitchen-ambience-sfx" target="_blank" rel="noopener">https://opengameart.org/content/kitchen-ambience-sfx</a>, CC BY 4.0 (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">https://creativecommons.org/licenses/by/4.0/</a>). Changes: trimmed, mixed to mono, filtered, faded, layered with other recordings, level-adjusted, re-encoded (Opus, AAC). <span class="id">(cook_cut_1, cook_cut_2, cook_cut_3)</span></p>
+<p class="by" lang="en">&quot;Water sounds&quot; (water_sounds.wav) by Vinrax (Vladislav Krotov, <a href="http://vinraxarts.ru" target="_blank" rel="noopener">http://vinraxarts.ru</a>), <a href="https://opengameart.org/content/water-sounds" target="_blank" rel="noopener">https://opengameart.org/content/water-sounds</a>, CC BY 3.0 (<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">https://creativecommons.org/licenses/by/3.0/</a>). Changes: trimmed, mixed to mono, filtered, faded, slowed to 0.89x (pitched -2.0 semitones), level-adjusted, re-encoded (Opus, AAC). <span class="id">(cook_stir_1, cook_stir_2, cook_stir_3)</span></p>
+<script type="application/json" id="snd-data">{"cook_pick_1":{"loop":null},"cook_pat_1":{"loop":null,"dark_gain_db":1.63},"cook_pat_2":{"loop":null,"dark_gain_db":1.42},"cook_pat_3":{"loop":null,"dark_gain_db":1.83},"cook_pat_4":{"loop":null,"dark_gain_db":1.53},"cook_heat_on_1":{"loop":null},"cook_heat_on_2":{"loop":null},"cook_sizzle_0":{"loop":{"start":0.5,"end":6.3},"warm_gain_db":1.3},"cook_sizzle_1":{"loop":{"start":0.5,"end":5.0},"warm_gain_db":1.5},"cook_sizzle_2":{"loop":{"start":0.5,"end":10.5},"warm_gain_db":1.6},"cook_flip_1":{"loop":null},"cook_flip_2":{"loop":null},"cook_step":{"loop":null},"cook_cut_1":{"loop":null},"cook_cut_2":{"loop":null},"cook_cut_3":{"loop":null},"cook_plate_1":{"loop":null},"cook_plate_2":{"loop":null},"cook_steam":{"loop":null},"cook_stir_1":{"loop":null},"cook_stir_2":{"loop":null},"cook_stir_3":{"loop":null},"cook_clink":{"loop":null},"cook_simmer":{"loop":{"start":0.5,"end":10.494667}},"cook_place_1":{"loop":null},"cook_place_2":{"loop":null},"cook_lift":{"loop":null}}</script>
+<script>
+(function () {
+  var D = JSON.parse(document.getElementById('snd-data').textContent);
+  var ctx = null, cache = {}, voices = [], note = document.getElementById('wa-note');
+  function say(t) { note.textContent = t; }
+  function fmt() { var r = document.querySelector('input[name=fmt]:checked'); return r ? r.value : 'ogg'; }
+  function ensure() {
+    if (!ctx) { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) { say('이 브라우저는 Web Audio 가 없다.'); return false; } ctx = new AC(); }
+    if (ctx.state === 'suspended') ctx.resume();
+    return true;
+  }
+  function fetchDecode(url) {
+    return fetch(url).then(function (r) { if (!r.ok) throw new Error(url + ' ' + r.status); return r.arrayBuffer(); })
+      .then(function (ab) { return new Promise(function (res, rej) { ctx.decodeAudioData(ab, res, function (e) { rej(e || new Error('decode ' + url)); }); }); });
+  }
+  function load(id) {
+    var f = fmt(), key = id + '.' + f;
+    if (!cache[key]) {
+      cache[key] = fetchDecode('cook/' + id + '.' + f).then(function (b) { return { buf: b, fmt: f }; }, function (err) {
+        if (f === 'ogg') return fetchDecode('cook/' + id + '.m4a').then(function (b) { return { buf: b, fmt: 'm4a' }; });
+        throw err;
+      });
+      cache[key].catch(function () { delete cache[key]; });
+    }
+    return cache[key];
+  }
+  function db(x) { return Math.pow(10, x / 20); }
+  function curve(param, t, dur, up, peak) {     /* equal-power: sin rising (to peak, default 1) or cos falling over dur */
+    var n = 64, c = new Float32Array(n);
+    for (var i = 0; i < n; i++) { var a = (i / (n - 1)) * Math.PI / 2; c[i] = (peak || 1) * (up ? Math.sin(a) : Math.cos(a)); }
+    param.setValueCurveAtTime(c, t, dur);
+  }
+  function route(id, mode) {                     /* source -> [compare filter + same-loudness gain] -> voice gain -> out */
+    var g = ctx.createGain(), head = g, s = D[id];
+    if (mode === 'warm' && s.warm_gain_db != null) {
+      var hs = ctx.createBiquadFilter(); hs.type = 'highshelf'; hs.frequency.value = 10000; hs.gain.value = -3;
+      var cw = ctx.createGain(); cw.gain.value = db(s.warm_gain_db); hs.connect(cw); cw.connect(g); head = hs;
+    } else if (mode === 'dark' && s.dark_gain_db != null) {
+      var lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3500; lp.Q.value = Math.SQRT1_2;
+      var cd = ctx.createGain(); cd.gain.value = db(s.dark_gain_db); lp.connect(cd); cd.connect(g); head = lp;
+    }
+    g.connect(ctx.destination);
+    return { head: head, g: g };
+  }
+  function play(id, buf, t, mode, loop) {
+    var src = ctx.createBufferSource(), r = route(id, mode), L = D[id].loop;
+    src.buffer = buf; src.connect(r.head);
+    if (loop && L) { src.loop = true; src.loopStart = L.start; src.loopEnd = L.end; src.start(t, L.start); } else src.start(t);
+    var v = { src: src, g: r.g }; voices.push(v); return v;
+  }
+  function stopAll(fade) {
+    if (!ctx) return;
+    var now = ctx.currentTime;
+    voices.forEach(function (v) {
+      try {
+        if (v.g.gain.cancelAndHoldAtTime) v.g.gain.cancelAndHoldAtTime(now); else v.g.gain.cancelScheduledValues(now);
+        v.g.gain.setTargetAtTime(0, now, (fade || 0.25) / 3); v.src.stop(now + (fade || 0.25) + 0.1);
+      } catch (e) {}
+    });
+    voices = [];
+  }
+  function fail(err) { say('못 틀었다: ' + (err && err.message || err) + '. 루프·견주기는 웹서버로 열어야 한다(이 폴더에서 python3 -m http.server).'); }
+  function shown(r) { say('지금 형식: ' + (r.fmt === 'ogg' ? 'Opus (.ogg)' : 'AAC (.m4a)') + (fmt() === 'ogg' && r.fmt !== 'ogg' ? ' (이 브라우저는 Opus 를 못 읽어 AAC 로)' : '')); }
+  var acts = {
+    loop: function (id, mode) {
+      return load(id).then(function (r) {
+        shown(r); var t = ctx.currentTime + 0.05, v = play(id, r.buf, t, mode, true);
+        v.g.gain.setValueAtTime(0, t); v.g.gain.linearRampToValueAtTime(1, t + 0.3);
+      });
+    },
+    chain: function (mode) {                     /* 0 -> 1 -> 2 like the game: 1 s fade-in, 3 s per band, 0.15 s equal-power crossfades, each with a +4 dB swell */
+      var ids = ['cook_sizzle_0', 'cook_sizzle_1', 'cook_sizzle_2'];
+      return Promise.all(ids.map(load)).then(function (rs) {
+        shown(rs[0]); var t0 = ctx.currentTime + 0.05, XF = 0.15;
+        rs.forEach(function (r, b) {
+          var t = t0 + 3 * b, v = play(ids[b], r.buf, t, mode, true);
+          if (b === 0) { v.g.gain.setValueAtTime(0, t); v.g.gain.linearRampToValueAtTime(1, t + 1.0); }
+          else { curve(v.g.gain, t, XF, true, 1.585); v.g.gain.linearRampToValueAtTime(1, t + XF + 0.5); }   /* the band change: up to +4 dB, back over 0.5 s */
+          if (b < 2) { curve(v.g.gain, t0 + 3 * (b + 1), XF, false); v.src.stop(t0 + 3 * (b + 1) + XF + 0.05); }
+        });
+      });
+    },
+    pats: function (mode) {                      /* 9 pats, 0.28 s apart, variants 1..4 in turn */
+      var ids = ['cook_pat_1', 'cook_pat_2', 'cook_pat_3', 'cook_pat_4'];
+      return Promise.all(ids.map(load)).then(function (rs) {
+        shown(rs[0]); var t0 = ctx.currentTime + 0.05;
+        for (var i = 0; i < 9; i++) play(ids[i % 4], rs[i % 4].buf, t0 + 0.28 * i, mode, false);
+      });
+    },
+    flip: function (n) {                         /* crisp loop, the flip at 2 s, then step + quiet (0.25 s fade) like the game */
+      var ids = ['cook_sizzle_2', 'cook_flip_' + n, 'cook_step'];
+      return Promise.all(ids.map(load)).then(function (rs) {
+        shown(rs[0]); var t0 = ctx.currentTime + 0.05, tf = t0 + 2.0, v = play(ids[0], rs[0].buf, t0, '', true);
+        v.g.gain.setValueAtTime(0, t0); v.g.gain.linearRampToValueAtTime(1, t0 + 0.5);
+        play(ids[1], rs[1].buf, tf, '', false);
+        play(ids[2], rs[2].buf, tf + 0.4, '', false);
+        v.g.gain.setValueAtTime(1, tf + 0.4); v.g.gain.linearRampToValueAtTime(0, tf + 0.65); v.src.stop(tf + 0.7);
+      });
+    }
+  };
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-act]'); if (!b) return;
+    var a = b.getAttribute('data-act');
+    stopAll(0.15);
+    if (a === 'stop') return;
+    if (!ensure()) return;
+    var p = a === 'loop' ? acts.loop(b.getAttribute('data-id'), b.getAttribute('data-mode') || '')
+      : a === 'chain' ? acts.chain(b.getAttribute('data-mode') || '')
+      : a === 'pats' ? acts.pats(b.getAttribute('data-mode') || '')
+      : acts.flip(b.getAttribute('data-n') || '1');
+    p.catch(fail);
+  });
+  document.addEventListener('change', function (ev) { if (ev.target.name === 'fmt') { stopAll(0.15); say(''); } });
+  if (location.protocol === 'file:') say('파일로 열려 있다: 아래 줄마다 한 번씩 듣기는 되지만, 루프·견주기 단추는 웹서버가 필요하다(이 폴더에서 python3 -m http.server).');
+})();
+</script>
+</main>
+</body>
+</html>
