@@ -40,7 +40,8 @@ function rgba(f) {   /* make-cook-stickers.js 가 쓴 PNG (RGBA 8bit, 필터 0) 
   return { w: w, h: h, px: px };
 }
 var animated = ids.filter(function (id) { return C.CATALOG[id].anim; });
-check(animated.indexOf('clap') >= 0, '짝짝은 움직이는 스티커');
+['clap', 'stir', 'sleepy', 'ink'].forEach(function (id) { check(animated.indexOf(id) >= 0, id + ' 는 움직이는 스티커'); });
+animated.forEach(function (id) { var f = C.CATALOG[id].fps; check(f == null || (f >= 1 && f <= 12), id + ' fps 1~12'); });
 animated.forEach(function (id) {
   var n = C.CATALOG[id].anim, m = man['sticker.cook.' + id + '.anim'], f = path.join(ROOT, 'assets/stickers/cook/' + id + '_anim.png');
   check(m && m.frames === n && m.cell === 32 && m.w === 32 * n, id + ' manifest .anim 칸 ' + n);

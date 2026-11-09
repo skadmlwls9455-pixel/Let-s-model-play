@@ -866,5 +866,29 @@
     "frames": 2,
     "cell": 32,
     "note": "「짝짝」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.cook.stir.anim": {
+    "src": "assets/stickers/cook/stir_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「휘휘」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.cook.sleepy.anim": {
+    "src": "assets/stickers/cook/sleepy_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「꾸벅」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.cook.ink.anim": {
+    "src": "assets/stickers/cook/ink_anim.png",
+    "w": 96,
+    "h": 32,
+    "frames": 3,
+    "cell": 32,
+    "note": "「퓻」 움직이는 칸 3개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
   }
 }

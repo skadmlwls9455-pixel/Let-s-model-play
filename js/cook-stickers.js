@@ -35,18 +35,18 @@ var COOK_STICKERS = (function () {
     star:        { label: '다 됐다', alt: '별을 높이 든 요리사 문어 스티커' },
     shock:       { label: '깜짝',   alt: '눈이 휘둥그레진 요리사 문어 스티커' },
     taste:       { label: '맛보기', alt: '숟가락을 입에 댄 요리사 문어 스티커' },
-    stir:        { label: '휘휘',   alt: '냄비를 젓는 요리사 문어 스티커' },
+    stir:        { label: '휘휘',   anim: 2,   alt: '냄비를 젓는 요리사 문어 스티커' },
     sweat:       { label: '진땀',   alt: '진땀 흘리며 힘주는 요리사 문어 스티커' },
     cheer:       { label: '만세',   alt: '다리 둘을 번쩍 든 요리사 문어 스티커' },
     peek:        { label: '빼꼼',   alt: '냄비 가장자리 위로 빼꼼 내다보는 요리사 문어 스티커' },
     clap:        { label: '짝짝',   anim: 2,   alt: '다리 둘을 앞에서 맞대고 짝 하고 박수 치는 요리사 문어 스티커' },
     munch:       { label: '냠',     alt: '볼 빵빵하게 오물거리는 요리사 문어 스티커' },
-    sleepy:      { label: '꾸벅',   alt: '꾸벅 조는 요리사 문어 스티커' },
+    sleepy:      { label: '꾸벅',   anim: 2, fps: 2,   alt: '꾸벅 조는 요리사 문어 스티커' },
     hmm:         { label: '갸웃',   alt: '고개를 갸웃하는 요리사 문어 스티커' },
     love:        { label: '뿅',     alt: '하트 눈의 요리사 문어 스티커' },
     sprinkle:    { label: '솔솔',   alt: '양념병을 기울여 솔솔 뿌리는 요리사 문어 스티커' },
     busy:        { label: '바빠',   alt: '다리 여러 개로 국자·거품기·뒤집개를 한꺼번에 든 요리사 문어 스티커' },
-    ink:         { label: '퓻',     alt: '깜짝 놀라 먹물을 뿜는 요리사 문어 스티커' },
+    ink:         { label: '퓻',     anim: 3, fps: 6,     alt: '깜짝 놀라 먹물을 뿜는 요리사 문어 스티커' },
     flush:       { label: '두근',   alt: '몸 색이 분홍으로 물든 요리사 문어 스티커' }
   };
 
@@ -223,6 +223,7 @@ var COOK_STICKERS = (function () {
       var fr = document.createElement('span'), anim = srcOf(id, true);
       fr.className = 'cook-sticker-frames';
       fr.style.setProperty('--frames', frames); fr.style.setProperty('--w', size + 'px');
+      fr.style.setProperty('--ms', Math.round(1000 / (CATALOG[id].fps || 4)) + 'ms');   /* 칸 하나 머무는 시간 (기본 4 fps) */
       fr.style.backgroundImage = 'url("' + anim + '")';
       fr.style.backgroundSize = (size * frames) + 'px ' + size + 'px';
       img.appendChild(fr);
