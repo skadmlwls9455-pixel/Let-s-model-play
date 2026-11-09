@@ -39,7 +39,7 @@ var COOK_STICKERS = (function () {
     sweat:       { label: '진땀',   alt: '진땀 흘리며 힘주는 요리사 문어 스티커' },
     cheer:       { label: '만세',   alt: '다리 둘을 번쩍 든 요리사 문어 스티커' },
     peek:        { label: '빼꼼',   alt: '냄비 가장자리 위로 빼꼼 내다보는 요리사 문어 스티커' },
-    clap:        { label: '짝짝',   alt: '다리로 박수 치는 요리사 문어 스티커' },
+    clap:        { label: '짝짝',   alt: '다리 둘을 앞에서 맞대고 짝 하고 박수 치는 요리사 문어 스티커' },
     munch:       { label: '냠',     alt: '볼 빵빵하게 오물거리는 요리사 문어 스티커' },
     sleepy:      { label: '꾸벅',   alt: '꾸벅 조는 요리사 문어 스티커' },
     hmm:         { label: '갸웃',   alt: '고개를 갸웃하는 요리사 문어 스티커' },

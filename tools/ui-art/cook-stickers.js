@@ -216,13 +216,21 @@ def('peek', '빼꼼', '요리사 모자 쓴 문어가 냄비 가장자리 위로
   cv.dots([[3, 21], [2, 19], [29, 20]], 'Y');
 });
 /* 11. 짝짝 — 박수 */
-def('clap', '짝짝', '요리사 모자 쓴 문어가 다리로 박수', function (cv) {
-  hat(cv, 0, 0); head(cv, 0, 0); face(cv, 0, 0, { eyes: 'happy', mouth: 'w' });
-  legs(cv, 0, 0, 'down');
-  tentacleArm(cv, [[9, 23], [11, 25], [13, 26]]); tentacleArm(cv, [[22, 23], [20, 25], [18, 26]]);
-  cv.blob(15.5, 27, 3, 2.2, BODY);
-  cv.dots([[12, 29], [11, 30]], 'F'); cv.dots([[19, 29], [20, 30]], 'F'); cv.dots([[15, 30], [16, 31]], 'F');
-  cv.dots([[4, 24], [3, 23], [27, 24], [28, 23]], 'E');
+def('clap', '짝짝', '요리사 모자 쓴 문어가 빨판 쪽 다리 둘을 앞에서 맞대고 짝 하고 박수', function (cv) {
+  hat(cv, 0, -1); head(cv, 0, -2); face(cv, 0, -2, { eyes: 'happy', mouth: 'open' });
+  legs(cv, 0, -2, 'down');
+  /* 다리 둘의 빨판 쪽(연한 살구색)을 앞으로 — 빨간 몸 위에서도 또렷하다. 바깥 테두리만 빨강.
+     위는 맞닿고(가운데 이음선 d) 아래는 벌어진 V — 손이 둘로 읽힌다 */
+  var L = ['....Kd', '...Kfd', '..Kfed', '.Kffed', '.Kfefd', 'Kffef.', 'Kfeff.', '.KffK.', '..JJ..'];
+  var R = ['dK....', 'dfK...', 'defK..', 'deffK.', 'dfefK.', '.feffK', '.ffefK', '.KffK.', '..JJ..'];
+  L.forEach(function (r, j) { for (var i = 0; i < r.length; i++) if (r[i] !== '.') cv.px(10 + i, 20 + j, r[i]); });
+  R.forEach(function (r, j) { for (var i = 0; i < r.length; i++) if (r[i] !== '.') cv.px(16 + i, 20 + j, r[i]); });
+  /* 짝! 맞닿은 꼭대기에서 퍼지는 충격선 */
+  cv.dots([[15, 19], [16, 19]], 'Z');
+  cv.dots([[12, 19], [11, 18], [19, 19], [20, 18]], 'F');
+  /* 흔들림 호 (몸 양옆 바깥) */
+  cv.dots([[5, 22], [4, 23], [4, 24], [5, 25]], 'E'); cv.dots([[26, 22], [27, 23], [27, 24], [26, 25]], 'E');
+  sparkle(cv, 3, 17, 'F'); sparkle(cv, 28, 17, 'F');
 });
 /* 12. 냠 — 볼 빵빵 */
 def('munch', '냠', '요리사 모자 쓴 문어가 볼 빵빵하게 오물오물', function (cv) {
