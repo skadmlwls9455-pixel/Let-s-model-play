@@ -497,54 +497,59 @@ function harness() {
     var t7b = await page.evaluate(function () {
       var up = __push(0.9, 0.9, { x: 0, y: 1 }, 30).at;   /* 문어(0, 0.2)는 r 0.6 — (0.9, 0.9) 에서 멀어지는 쪽(−x −z) 0.6 m 끝 (0.48, 0.48) 은 문어에서 0.55 라 막힌다 → 문어를 창가로 */
       SC.jumpTo('window'); __st(2); var up2 = __push(0.9, 0.9, { x: 0, y: 1 }, 30).at;
-      var wall = __push(1.2, 0.5, { x: 0.7071, y: -0.7071 }, 180).at;   /* 월드 +x = 화면 오른쪽 − 위 → +x 벽 (2.5 − 0.35 = 2.15) */
-      SC.debugPlayerAt(2.15, 0.5); __st(1); SC.setPlayerInput({ x: 0.5, y: -0.866 }); var slide = __st(30).at; SC.setPlayerInput(null); __st(2);   /* 벽에 비스듬히 → x 는 벽, z 만 간다 */
+      var wall = __push(1.2, 0.5, { x: 0.7071, y: -0.7071 }, 180).at;   /* 월드 +x = 화면 오른쪽 − 위 → +x 벽 (다락 앞쪽은 RF 3.5 까지: 3.5 − 0.35 = 3.15) */
+      SC.debugPlayerAt(3.15, 0.5); __st(1); SC.setPlayerInput({ x: 0.5, y: -0.866 }); var slide = __st(30).at; SC.setPlayerInput(null); __st(2);   /* 벽에 비스듬히 → x 는 벽, z 만 간다 */
       var crate = __push(1.9, 0.6, { x: 0.7071, y: 0.7071 }, 150).at;   /* 월드 −z → 상자 (z 면 −0.31, +0.25) */
       var crateIn = __push(1.0, -0.7, { x: 0.7071, y: -0.7071 }, 150).at;   /* 월드 +x → 상자 (x 면 1.48, +0.25) */
       var rest = __push(1.65, -0.1, { x: 0.7071, y: 0.7071 }, 30).at;   /* 쉬는 자리는 상자 둘레 안 4 cm — 더 파고드는 쪽(−z)은 0 */
       var restX = __push(1.65, -0.1, { x: -0.7071, y: 0.7071 }, 30).at;  /* 둘레 안이어도 옆(−x)으로는 간다 */
       SC.jumpTo('center'); __st(2); var oct = __push(0.9, 0.2, { x: -0.7071, y: 0.7071 }, 120).at, octAt = SC.motion().gait.at;
-      var doorA = __push(1.7, 1.92, { x: 0.7071, y: -0.7071 }, 60).at;   /* 다락 문 앞 앵커 (1.95, 1.92) 를 지나 벽까지 */
+      var doorA = __push(1.7, 1.92, { x: 0.7071, y: -0.7071 }, 60).at;   /* 다락 문 앞 앵커 (RF − 0.55 = 2.95, 1.92) 를 지나 벽까지 */
       return { up: up, up2: up2, wall: wall, slide: slide, crate: crate, crateIn: crateIn, rest: rest, restX: restX, oct: oct, octAt: octAt, doorA: doorA, crateBox: (function () { var m = SC.scene.getObjectByName('attic').children.filter(function (o) { return o.userData && o.userData.decalR === 0.8; })[0]; return m ? [m.position.x, m.position.z] : null; })() };
     });
     var du = [t7b.up2[0] - 0.9, t7b.up2[2] - 0.9], dul = Math.hypot(du[0], du[1]), dotF = (du[0] * AX.f[0] + du[1] * AX.f[1]) / (dul || 1);
     ok(Math.abs(dul - 1.1) < 0.05 && dotF > 0.995 && du[0] < 0 && du[1] < 0, 'T7 {x:0,y:1} 0.5 s → 카메라에서 멀어지는 쪽(−x −z) ' + dul.toFixed(3) + ' m (방향 일치 ' + dotF.toFixed(4) + ')');
     ok(Math.hypot(t7b.up[0], t7b.up[2] - 0.2) >= 0.59, 'T7 같은 입력이라도 가운데 문어(r 0.6) 앞에선 멈춘다: 문어까지 ' + Math.hypot(t7b.up[0], t7b.up[2] - 0.2).toFixed(3) + ' m');
-    ok(Math.abs(t7b.wall[0] - 2.15) < 0.011 && Math.abs(t7b.wall[2] - 0.5) < 1e-6, 'T7 +x 벽 쪽으로 3 s 밀어도 방 안쪽 0.35 m (x ' + t7b.wall[0] + ', z 그대로 ' + t7b.wall[2] + ')');
-    ok(Math.abs(t7b.slide[0] - 2.15) < 0.011 && t7b.slide[2] > 0.5 + 0.1, 'T7 벽에 비스듬히 밀면 벽을 따라 미끄러진다 (x ' + t7b.slide[0] + ' · z 0.5 → ' + t7b.slide[2] + ')');
+    ok(Math.abs(t7b.wall[0] - 3.15) < 0.011 && Math.abs(t7b.wall[2] - 0.5) < 1e-6, 'T7 +x 벽 쪽으로 3 s 밀어도 방 안쪽 0.35 m (x ' + t7b.wall[0] + ', z 그대로 ' + t7b.wall[2] + ')');
+    ok(Math.abs(t7b.slide[0] - 3.15) < 0.011 && t7b.slide[2] > 0.5 + 0.1, 'T7 벽에 비스듬히 밀면 벽을 따라 미끄러진다 (x ' + t7b.slide[0] + ' · z 0.5 → ' + t7b.slide[2] + ')');
+    var STEP = 2.2 / 60 + 0.0011;   /* 장애물 앞에서는 한 프레임 걸음(2.2 m/s ÷ 60)보다 가까이 못 붙는다 — plMove 는 겹치는 걸음을 통째로 버린다 */
     var cb = t7b.crateBox, crateZ = cb ? cb[1] + 0.44 + 0.25 : -0.06, crateX = cb ? cb[0] - 0.52 - 0.25 : 1.23;
-    ok(!!cb && t7b.crate[2] >= crateZ - 0.0011 && t7b.crate[2] <= crateZ + 0.021 && Math.abs(t7b.crate[0] - 1.9) < 1e-6, 'T7 상자 쪽(−z)으로 밀어도 상자 둘레 +0.25 에서 멈춤 (z ' + t7b.crate[2] + ' ≥ ' + crateZ.toFixed(3) + ')');
-    ok(!!cb && t7b.crateIn[0] <= crateX + 0.0011 && t7b.crateIn[0] >= crateX - 0.021 && Math.abs(t7b.crateIn[2] + 0.7) < 1e-6, 'T7 상자 쪽(+x)으로 밀어도 x ' + t7b.crateIn[0] + ' ≤ ' + crateX.toFixed(3) + ' (상자 안으로 못 들어감)');
+    ok(!!cb && t7b.crate[2] >= crateZ - 0.0011 && t7b.crate[2] <= crateZ + STEP && Math.abs(t7b.crate[0] - 1.9) < 1e-6, 'T7 상자 쪽(−z)으로 밀어도 상자 둘레 +0.25 에서 멈춤 (z ' + t7b.crate[2] + ' ≥ ' + crateZ.toFixed(3) + ')');
+    ok(!!cb && t7b.crateIn[0] <= crateX + 0.0011 && t7b.crateIn[0] >= crateX - STEP && Math.abs(t7b.crateIn[2] + 0.7) < 1e-6, 'T7 상자 쪽(+x)으로 밀어도 x ' + t7b.crateIn[0] + ' ≤ ' + crateX.toFixed(3) + ' (상자 안으로 못 들어감)');
     ok(Math.abs(t7b.rest[2] + 0.1) < 1e-6 && Math.abs(t7b.rest[0] - 1.65) < 1e-6 && t7b.restX[0] < 1.65 - 0.5, 'T7 쉬는 자리(상자 둘레 안 4 cm)에서 상자 쪽은 0 · 옆으로는 간다 (' + JSON.stringify(t7b.rest) + ' / x → ' + t7b.restX[0] + ')');
     var dOct = Math.hypot(t7b.oct[0] - t7b.octAt[0], t7b.oct[2] - t7b.octAt[2]);
     ok(dOct >= 0.55 && dOct <= 0.66 && t7b.oct[0] > 0.5, 'T7 문어 쪽으로 밀어도 0.6 m 안으로 못 들어감 (거리 ' + dOct.toFixed(3) + ' — 문어 그림 자리는 격자 스냅이라 ±0.05)');
-    ok(t7b.doorA[0] >= 1.95 && Math.abs(t7b.doorA[2] - 1.92) < 1e-6, 'T7 다락 문 앞 앵커 자리(1.95, 1.92)를 지나갈 수 있다 (x → ' + t7b.doorA[0] + ')');
-    /* DQ.pending (문 앞까지 걷는 동안) 스틱 무시 → 문 → 놀이방: 쉬는 자리로 가던 길을 스틱이 끊는다 · 놀이방 드로우콜 ≤ 60 · 문 앞 앵커(−1.35 = 안쪽 경계) · 조리대 · 프로그램 */
+    ok(t7b.doorA[0] >= 2.95 && Math.abs(t7b.doorA[2] - 1.92) < 1e-6, 'T7 다락 문 앞 앵커 자리(2.95, 1.92)를 지나갈 수 있다 (x → ' + t7b.doorA[0] + ')');
+    /* DQ.pending (문 앞까지 걷는 동안) 스틱 무시 → 문 → 놀이방: 쉬는 자리로 가던 길을 스틱이 끊는다 · 놀이방 드로우콜 ≤ 60 · 문 앞 앵커(−2.45 = 안쪽 경계) · 조리대 · 프로그램 */
     var t7c = await page.evaluate(async function () {
       SC.debugPlayerAt(1.65, -0.1); __st(2); var n0 = __pi.length;
       window.__res = null; SC.goRoom('play', { walkFirst: true }).then(function (r) { __res = r; });
       await new Promise(function (r) { setTimeout(r, 0); });
       __st(3); var dur = SC.player(), al = SC.playerInputAllowed(); SC.setPlayerInput({ x: -1, y: 0 }); var w = [];
-      for (var i = 0; i < 150 && SC.player().walking; i++) { __st(1); w.push(SC.player().at); }   /* 쉬는 자리 → 문 앞 2.04 m ≈ 1.8 s */
+      for (var i = 0; i < 150 && SC.player().walking; i++) { __st(1); w.push(SC.player().at); }   /* 쉬는 자리 → 문 앞 2.40 m ≈ 1.4 s (혼자 걷기 1.8 m/s) */
       var arrived = SC.player(); SC.setPlayerInput(null);
       var guard = 0; while (guard++ < 300 && !__res) { __st(1); await new Promise(function (r) { setTimeout(r, 0); }); }
       var entered = SC.player(), piDoor = __pi.slice(n0);
-      __st(6); var resting = SC.player(); SC.setPlayerInput({ x: 0, y: -1 }); __st(2); SC.setPlayerInput(null); var cut = __st(2);
+      __st(6); var resting = SC.player(); __st(60); var stay = SC.player(); SC.setPlayerInput({ x: 0, y: -1 }); __st(2); SC.setPlayerInput(null); var cut = __st(2);
       var maxCalls = 0; SC.debugPlayerAt(0.15, 0.45); __st(1); SC.setPlayerInput({ x: 1, y: 0 }); for (i = 0; i < 30; i++) { __st(1); maxCalls = Math.max(maxCalls, SC.stats().calls); } var pf = SC.player(); SC.setPlayerInput(null); __st(2);
-      var door = __push(-1.0, -0.33, { x: -0.7071, y: 0.7071 }, 90).at;   /* 월드 −x → 놀이방 문 앞 앵커 (−1.35, −0.33) 는 안쪽 경계와 같다 */
-      var counter = __push(0.95, -0.3, { x: 0.7071, y: 0.7071 }, 90).at;   /* 월드 −z → 부엌 조리대 (윗판 z −1.05 까지, +0.25 → −0.80) */
-      var machine = __push(-0.94, -0.3, { x: 0.7071, y: 0.7071 }, 90).at;   /* 오락기 (z −1.10 까지, +0.25 → −0.85) */
+      var door = __push(-1.0, -0.33, { x: -0.7071, y: 0.7071 }, 90).at;   /* 월드 −x → 놀이방 문 앞 앵커 (−(PLAY_R 2.8 − 0.35) = −2.45, −0.33) 는 안쪽 경계와 같다 */
+      var counter = __push(0.95, -0.3, { x: 0.7071, y: 0.7071 }, 90).at;   /* 월드 −z → 부엌 조리대 (뒷벽 −2.74 + 0.27 + 0.32 = 윗판 z −2.15 까지, +0.25 → −1.90) */
+      var machine = __push(-1.8, -0.3, { x: 0.7071, y: 0.7071 }, 90).at;   /* 오락기 (x −1.8 · z −2.74 + 0.54 = −2.20 까지, +0.25 → −1.95) */
+      var leg = __push(1.0, -1.0, { x: 0.7071, y: -0.7071 }, 90).at;   /* 월드 +x → ㄱ자 조리대 다리 (legBox x 2.17 부터, −0.25 → 1.92) */
       return { dur: { walking: dur.walking, pending: SC.motion().dq, allowed: al }, w: w, arrived: arrived.at, res: __res, entered: { place: entered.place, group: entered.group, pending: entered.pending, foot: entered.footprints }, piDoor: piDoor,
-        resting: { walking: resting.walking, pending: resting.pending, at: resting.at }, cut: { walking: cut.walking, pending: cut.pending, input: cut.input }, maxCalls: maxCalls, foot: pf.footprints, door: door, counter: counter, machine: machine, progs: SC.stats().programs, view: SC.view() };
+        resting: { walking: resting.walking, pending: resting.pending, at: resting.at }, stay: { walking: stay.walking, moving: stay.moving, pending: stay.pending, at: stay.at }, leg: leg, cut: { walking: cut.walking, pending: cut.pending, input: cut.input }, maxCalls: maxCalls, foot: pf.footprints, door: door, counter: counter, machine: machine, progs: SC.stats().programs, view: SC.view() };
     });
-    ok(t7c.dur.walking && t7c.dur.allowed === false && t7c.w.length > 3 && t7c.w.every(function (p, i) { return i === 0 || p[0] >= t7c.w[i - 1][0] - 1e-9; }) && Math.abs(t7c.arrived[0] - 1.95) < 0.01 && Math.abs(t7c.arrived[2] - 1.92) < 0.01,
+    ok(t7c.dur.walking && t7c.dur.allowed === false && t7c.w.length > 3 && t7c.w.every(function (p, i) { return i === 0 || p[0] >= t7c.w[i - 1][0] - 1e-9; }) && Math.abs(t7c.arrived[0] - 2.95) < 0.01 && Math.abs(t7c.arrived[2] - 1.92) < 0.01,
       'T7 문 앞까지 걷는 동안(DQ.pending) 스틱(−x) 무시 · playerInputAllowed false → 문 앞 앵커 도착 ' + JSON.stringify(t7c.arrived));
     ok(t7c.res && t7c.res.ok && t7c.view === 'play' && t7c.entered.place === 'play' && t7c.entered.group === 'play' && t7c.entered.foot === 0, 'T7 문을 지나 놀이방: 방이 바뀌면 발자국 0 (' + JSON.stringify(t7c.entered) + ')');
     ok(JSON.stringify(t7c.piDoor) === JSON.stringify([false, true]), 'T7 on.playerInput: 문 앞 걷기 시작에 false → 문이 닫히고 true, 그 사이 알림 없음 (' + JSON.stringify(t7c.piDoor) + ')');
-    ok(t7c.resting.walking && t7c.resting.pending === '' && !t7c.cut.walking && t7c.cut.pending === '' && t7c.cut.input === null, 'T7 쉬는 자리로 가던 길을 스틱이 끊는다 (걷는 중 → 스틱 → 놓음: walking ' + t7c.cut.walking + ')');
+    ok(!t7c.resting.walking && t7c.resting.pending === '' && !t7c.stay.walking && !t7c.stay.moving && t7c.stay.pending === '' && Math.abs(t7c.stay.at[0] + 2.45) < 1e-6 && Math.abs(t7c.stay.at[2] + 0.33) < 1e-6,
+      'T7 문을 지난 뒤 들어온 문 앞(−2.45, −0.33)에 그대로 선다 — 쉬는 자리로 혼자 걸어가지 않는다 (11-10 · 1 s 뒤 ' + JSON.stringify(t7c.stay) + ')');
+    ok(!t7c.cut.walking && t7c.cut.pending === '' && t7c.cut.input === null, 'T7 문 앞에서 스틱을 밀었다 놓으면 바로 선다 (walking ' + t7c.cut.walking + ' · 남은 걷기 없음)');
     ok(t7c.maxCalls <= 60 && t7c.foot >= 2, 'T7 놀이방에서 발자국 ' + t7c.foot + ' 개 보이며 걸어도 드로우콜 최대 ' + t7c.maxCalls + ' ≤ 60');
-    ok(Math.abs(t7c.door[0] + 1.35) < 0.011 && Math.abs(t7c.door[2] + 0.33) < 1e-6, 'T7 놀이방 문 앞 앵커 (−1.35, −0.33) = 안쪽 경계까지 간다 (' + JSON.stringify(t7c.door) + ')');
-    ok(t7c.counter[2] >= -0.80 - 0.0011 && t7c.counter[2] <= -0.80 + 0.021 && t7c.machine[2] >= -0.85 - 0.0011 && t7c.machine[2] <= -0.85 + 0.021, 'T7 조리대 · 오락기 둘레 +0.25 에서 멈춤 (z ' + t7c.counter[2] + ' ≥ −0.80 · ' + t7c.machine[2] + ' ≥ −0.85)');
+    ok(Math.abs(t7c.door[0] + 2.45) < 0.011 && Math.abs(t7c.door[2] + 0.33) < 1e-6, 'T7 놀이방 문 앞 앵커 (−2.45, −0.33) = 안쪽 경계까지 간다 (' + JSON.stringify(t7c.door) + ')');
+    ok(t7c.counter[2] >= -1.90 - 0.0011 && t7c.counter[2] <= -1.90 + STEP && t7c.machine[2] >= -1.95 - 0.0011 && t7c.machine[2] <= -1.95 + STEP, 'T7 조리대 · 오락기 둘레 +0.25 에서 멈춤 (z ' + t7c.counter[2] + ' ≥ −1.90 · ' + t7c.machine[2] + ' ≥ −1.95)');
+    ok(t7c.leg[0] <= 1.92 + 0.0011 && t7c.leg[0] >= 1.92 - STEP && Math.abs(t7c.leg[2] + 1.0) < 1e-6, 'T7 ㄱ자 조리대 다리 둘레 +0.25 에서 멈춤 (x ' + t7c.leg[0] + ' ≤ 1.92)');
     ok(t7c.progs === p0, 'T7 스틱 · 발자국 · 놀이방 뒤 셰이더 프로그램 그대로 (' + t7c.progs + ' = 부팅 ' + p0 + ' — 발자국 InstancedMesh 변형은 부팅 첫 프레임에)');
     /* 모션 감소: 움직이되 자국 없음 · 바깥이 보이면 false + 알림 false → 다락으로 돌아오면 true */
     var t7d = await page.evaluate(async function () {
@@ -556,7 +561,7 @@ function harness() {
       SC.setOctState('idle'); SC.jumpTo('center'); __st(2); SC.resume();
       return { red: red, ext: ext, back: back, place: SC.player().place, view: SC.view() };
     });
-    ok(Math.abs(t7d.red.d - 0.6) < 0.05 && t7d.red.foot === 0 && t7d.red.moving === false, 'T7 모션 감소: 스틱으로 움직이되(' + t7d.red.d.toFixed(3) + ' m) 자국 없음 · 걸음 동작 없음');
+    ok(Math.abs(t7d.red.d - 1.1) < 0.05 && t7d.red.foot === 0 && t7d.red.moving === false, 'T7 모션 감소: 스틱으로 움직이되(' + t7d.red.d.toFixed(3) + ' m) 자국 없음 · 걸음 동작 없음');
     ok(t7d.ext.allowed === false && t7d.ext.input === null && JSON.stringify(t7d.ext.pi) === '[false]' && t7d.back.allowed === true && JSON.stringify(t7d.back.pi) === '[false,true]' && t7d.view === 'attic',
       'T7 바깥이 보이면 playerInputAllowed false · 누르던 입력 놓음 · on.playerInput(false) → 다락으로 돌아오면 true (' + JSON.stringify(t7d.back.pi) + ')');
 

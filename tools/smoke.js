@@ -943,8 +943,8 @@ async function scenario2D(browser) {
       saved: APP.state.settings.player.hair, stored: JSON.parse(localStorage.getItem('ppolppol_v2')).settings.player.hair, look: p ? p.look.hair : null };
   });
   ok(p2s.note && !p2s.port && p2s.sum === '단발 · 원피스 · 리본', '2D 내 모습 (설정): 안내 한 줄 · 미리보기 캔버스 없음 · 요약 줄 ' + JSON.stringify(p2s));
-  ok(p2d.tabs === 6 && p2d.tiles === 6 && p2d.names && p2d.canvases === 0 && /미리보기가 없어/.test(p2d.note || '') && p2d.noShot && !p2d.stage && p2d.over <= 0 && p2d.vover <= 0 && p2d.doc <= 0,
-    '2D 옷장: 갈래 탭 6 · 그림 없는 글자 타일 + 안내 한 줄 · 전신 칸 없음 · 넘침 없음 ' + JSON.stringify(p2d));
+  ok(p2d.tabs === 6 && p2d.tiles === 11 && p2d.names && p2d.canvases === 0 && /미리보기가 없어/.test(p2d.note || '') && p2d.noShot && !p2d.stage && p2d.over <= 0 && p2d.vover <= 0 && p2d.doc <= 0,
+    '2D 옷장: 갈래 탭 6 · 그림 없는 글자 타일 11 (머리 6 + 앞머리 5, 11-10) + 안내 한 줄 · 전신 칸 없음 · 넘침 없음 ' + JSON.stringify(p2d));
   ok(p2d.on === 'twin' && p2d.saved === 'twin' && p2d.stored === 'twin' && p2d.look === 'twin', '2D 옷장: 타일을 누르면 켜지고 저장 (2D 장면도 look 기억) ' + JSON.stringify([p2d.on, p2d.saved, p2d.stored, p2d.look]));
   await page.screenshot({ path: path.join(SHOTS, 'phone-2d-look.png') });
   await page.click('#look-close'); await page.waitForSelector('#look-sheet[open]', { state: 'hidden' });
@@ -1137,7 +1137,7 @@ async function scenarioAlbumIcon(browser) {
     order: [].map.call(document.querySelectorAll('#scene-ctl .icon-btn'), function (x) { return x.id; }).join(','), statusIcons: document.querySelectorAll('#status #btn-album, #status #btn-settings, #status .icon-btn').length,
     one: document.documentElement.getAttribute('data-layout') === 'one', today: !document.getElementById('btn-today').hidden }; });
   /* 한 화면 배치 (주인 11-08 · 3D): 묶음 맨 앞에 '오늘의 산책' 쪽지 단추가 하나 더 있다 (2D 폴백에선 숨는다 — 목록이 페이지에 그대로 있으므로) */
-  ok(b0.hidden && b0.inCtl && !b0.sound && b0.gear && b0.order === 'btn-today,btn-album,btn-settings' && b0.today === b0.one && b0.statusIcons === 0, '첫 포스터 전엔 앨범 아이콘 숨김 · [오늘의 산책 (한 화면 배치만 보임)] 앨범 · ⚙ = 장면 오른쪽 위 묶음 (소리는 설정 안, 11-08) · 상태 줄엔 아이콘 없음 ' + JSON.stringify(b0));
+  ok(b0.hidden && b0.inCtl && !b0.sound && b0.gear && b0.order === 'btn-today,btn-furn,btn-album,btn-settings' && b0.today === b0.one && b0.statusIcons === 0, '첫 포스터 전엔 앨범 아이콘 숨김 · [오늘의 산책 (한 화면 배치만 보임)] 가구 (11-10) · 앨범 · ⚙ = 장면 오른쪽 위 묶음 (소리는 설정 안, 11-08) · 상태 줄엔 아이콘 없음 ' + JSON.stringify(b0));
   var rs = await page.evaluate(function () { APP.openSettings(); var t = document.getElementById('set-body').textContent; document.getElementById('settings-sheet').close(); return t; });
   ok(/누가 고르나/.test(rs) && /모델이 아니라 미리 만든 규칙이 골라/.test(rs) && /고른 이는 포스터와 쪽지 뒷면/.test(rs) && !/MCP/.test(rs), "설정 '누가 고르나' 한 줄: 규칙이 고른다 · 고른 이는 포스터·쪽지 뒷면 (MCP 같은 말 없이 — 이름 창과 같다)");
   /* 날아가는 포스터 관찰: #scene 에 붙었다 떨어지는 .album-fly, 붙는 순간의 애니메이션 길이·칸 위치 */
@@ -1156,7 +1156,8 @@ async function scenarioAlbumIcon(browser) {
       corner: r.right <= sc.right + 0.5 && r.top >= sc.top - 0.5 && sc.right - r.right < 50 + 88 && r.top - sc.top < 50 && document.getElementById('scene-ctl').getBoundingClientRect().right > sc.right - 10, fly: window.__fly.slice(), font: document.documentElement.getAttribute('data-font') };
   });
   console.log('   album icon:', JSON.stringify({ w: a1.w, h: a1.h, dot: a1.dot, fly: a1.fly }));
-  ok(!a1.hidden && a1.w >= 44 && a1.h >= 44 && a1.label === '추억 앨범' && a1.corner, "앨범 아이콘: 장면 오른쪽 위 · 누르는 곳 44×44 · aria-label '추억 앨범'");
+  /* 11-10 위쪽 바: 아이콘이 넷이라 360 폭에선 한 칸 40×44 (css ≤379 — 이름이 안 잘리게), 380 부터 44×44. 폭마다 재는 건 아래 '좁은 폭' 검사 */
+  ok(!a1.hidden && a1.w === 40 && a1.h >= 44 && a1.label === '추억 앨범' && a1.corner, "앨범 아이콘: 장면 오른쪽 위 · 누르는 곳 40×44 (360 폭 · " + a1.w + '×' + a1.h + ") · aria-label '추억 앨범'");
   ok(a1.dot && a1.desc === '새로 붙은 포스터가 있어', '산책 뒤 새 포스터 점 (숫자 없음) + 화면 낭독기 설명');
   var f = a1.fly[0] || {}, g = a1.font === 'pixel' ? 2 : 1;
   var snapped = (f.kf || []).length >= 4 && f.kf.every(function (t) { var m = /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(t || ''); return m && +m[1] % g === 0 && +m[2] % g === 0; });
@@ -1232,7 +1233,7 @@ async function scenarioAlbumIcon(browser) {
   ok(!a4.poster || (a4.fly === 0 && a4.open && !a4.dot && a4.cards === nPost && !a4b.dot), '앨범을 연 채 산책이 끝남: 막 뒤로 날지 않음 · 새 카드는 시트 안에 · 점 없음 · 닫아도 점 없음 ' + JSON.stringify({ a4: a4, after: a4b, trips: n4 + 1 }));
   /* 좁은 폭: 1–4 글자 이름 · 두 테마 · 가로 스크롤 없음 · 아이콘 묶음은 화면 안 */
   var fit = [];
-  for (var w of [320, 340, 360, 375, 412]) {
+  for (var w of [320, 340, 360, 375, 380, 412, 420, 480]) {
     await page.setViewportSize({ width: w, height: 740 });
     for (var font of ['pixel', 'system']) {
       var r = await page.evaluate(async function (font) {
@@ -1247,14 +1248,18 @@ async function scenarioAlbumIcon(browser) {
         }
         APP.state.octopus.name = keep; APP.renderStatus(false);
         out.docW = document.documentElement.scrollWidth; out.ctlRight = Math.max(document.getElementById('scene-ctl').getBoundingClientRect().right, document.getElementById('btn-door').getBoundingClientRect().right);
+        var bs = [].filter.call(document.querySelectorAll('#scene-ctl .icon-btn'), function (x) { return !x.hidden && getComputedStyle(x).display !== 'none'; }).map(function (x) { return x.getBoundingClientRect(); });
+        out.btnN = bs.length; out.btnW = Math.min.apply(null, bs.map(function (q) { return q.width; })); out.btnH = Math.min.apply(null, bs.map(function (q) { return q.height; }));
+        out.ctlLeft = document.getElementById('scene-ctl').getBoundingClientRect().left; out.stRight = Math.max.apply(null, [].map.call(document.querySelectorAll('#oct-name, #pips'), function (x) { return x.getBoundingClientRect().right; }));
         return out;
       }, font);
-      fit.push({ w: w, font: font, cut: r.cut, docW: r.docW, ctl: Math.round(r.ctlRight) });
+      fit.push({ w: w, font: font, cut: r.cut, docW: r.docW, ctl: Math.round(r.ctlRight), btnN: r.btnN, btnW: r.btnW, btnH: r.btnH, over: Math.round(r.stRight - r.ctlLeft) });
       if (w === 320 && font === 'pixel') await page.screenshot({ path: path.join(SHOTS, 'status-320-pixel.png'), clip: { x: 0, y: 0, width: 320, height: 420 } });
     }
   }
-  var bad = fit.filter(function (x) { return x.cut.length || x.docW > x.w || x.ctl > x.w; });
-  ok(!bad.length, '320–412 px · 픽셀·시스템: 1–4 글자 이름 안 잘림 · 가로 스크롤 없음 · 아이콘 묶음 · 놀이방 문 화면 안' + (bad.length ? ' ✗ ' + JSON.stringify(bad) : ''));
+  /* 아이콘 넷(오늘 · 가구 · 앨범 · 설정)의 누르는 곳: 높이는 늘 44, 폭은 380 부터 44 · 340–379 는 40 · 그 아래는 36 (css 11-10 위쪽 바). 이름 · 등불은 아이콘 묶음 밑으로 들어가지 않는다 */
+  var bad = fit.filter(function (x) { return x.cut.length || x.docW > x.w || x.ctl > x.w || x.btnN !== 4 || x.btnH < 44 || x.btnW !== (x.w >= 380 ? 44 : x.w >= 340 ? 40 : 36) || x.over > 0; });
+  ok(!bad.length && fit.length === 16, '320–480 px · 픽셀·시스템: 1–4 글자 이름 안 잘림 · 가로 스크롤 없음 · 아이콘 넷 (높이 44 · 폭 44/40/36) · 이름 · 등불이 묶음과 안 겹침 · 놀이방 문 화면 안' + (bad.length ? ' ✗ ' + JSON.stringify(bad) : ''));
   await page.evaluate(function () { document.documentElement.setAttribute('data-font', 'pixel'); });
   await page.setViewportSize({ width: 360, height: 740 });
   reportErrors(s.bag, 'L');
