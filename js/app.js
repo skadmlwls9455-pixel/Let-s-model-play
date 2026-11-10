@@ -298,6 +298,7 @@ var APP = (function () {
     if (!isObj(s.octopus.visits)) s.octopus.visits = {};
     s.room.lantern = clamp(s.room.lantern | 0, 0, 8);
     if (!/^#[0-9a-f]{6}$/i.test(s.settings.octColor || '')) s.settings.octColor = '#e8463c';
+    if (s.settings.claudeRoom != null && !(isObj(s.settings.claudeRoom) && /^[A-Za-z0-9_-]{32,64}$/.test(s.settings.claudeRoom.key || '') && /^https:\/\/[^\s"<>]+\/api\/mcp\/[A-Za-z0-9_-]{32,64}$/.test(s.settings.claudeRoom.mcp || ''))) s.settings.claudeRoom = null;
     if (PALETTES_UI.map(function (p) { return p[0]; }).indexOf(s.settings.palette) < 0) s.settings.palette = paletteDefault();
     return s;
   }
@@ -647,7 +648,8 @@ var APP = (function () {
        없으면 상태 사실만 담담하게 (로그 행의 상태 글자와 같은 말, 외침·속삭임 모양 없이) */
     if (givenTrip(trip)) {
       if (ev.aside) return { text: clip(ev.aside, REACT_RAW_SHOW), kind: 'say', raw: rawBy(trip) };   /* 그들이 쓴 말 그대로 (40자) */
-      var fact = id === 'letter_room' ? '아직 비어 있었어' : st === 'failed' ? '닫혀 있었어' : st === 'simulated' ? '문 앞까지만' : st === 'none' ? '…' : (ev.first ? '처음 온 곳 · ' : '') + (STATUS_LABEL[st] || '읽음');
+      var bookT = st === 'builtin' && ev.book && ev.book.title ? '책 「' + clip(String(ev.book.title), 14) + '」' : null;   /* 뽈뽈 도서관의 책을 읽은 곳 */
+      var fact = id === 'letter_room' ? '아직 비어 있었어' : st === 'failed' ? '닫혀 있었어' : st === 'simulated' ? '문 앞까지만' : st === 'none' ? '…' : (ev.first ? '처음 온 곳 · ' : '') + (bookT || STATUS_LABEL[st] || '읽음');
       return { text: fact, kind: 'say', icon: st === 'read' || st === 'builtin' ? ic : null };
     }
     if (id === 'letter_room') return { text: '아직 비어 있었어', kind: 'say' };
@@ -1062,7 +1064,8 @@ var APP = (function () {
     return {
       seed: trip.seed, dateKey: trip.date, seq: trip.seq, hint: trip.hint.raw, name: S.octopus.name || '', id: trip.id,
       state: withNotes({ visits: S.octopus.visits, affinity: S.octopus.affinity, lantern: S.room.lantern, lanternLeft: lanternLeft(trip.date), owned: ownedSouvenirs(), recent: recent, todayOut: todayOut, lastVisit: lastVisitMap(trip), posters: wallPosters() }),
-      now: new Date(), online: navigator.onLine !== false, by: 'demo'
+      now: new Date(), online: navigator.onLine !== false, by: 'demo',
+      shelf: (typeof SHELF !== 'undefined' && SHELF.today && B) ? SHELF.today(trip.date, B, 8) : undefined   /* 큰 도서관 '오늘의 서가' — 데모 문어도 그날 서가에서 걷는다 */
     };
   }
   /* 호기심 메모 넘기기 (계약 R2 · CURIOSITY_NOTES "다음 모델에게 전달하는 모양"): 내려놓지 않은(active) 메모 최근 3개, 새것부터. 내려놓은 메모는 넣지 않고 개수도 알리지 않는다.
@@ -1786,7 +1789,7 @@ var APP = (function () {
   function checkDay(soon) {
     if (busy || !logDay || todayKey() === logDay) return false;
     if (!soon) { var last = null; S.trips.forEach(function (t) { if (t.status === 'done' && (!last || (t.endedAt || 0) > (last.endedAt || 0))) last = t; }); if (last && Date.now() - (last.endedAt || 0) < 120000) return false; }
-    setDayGreeting(); renderLog(); renderAlbum();
+    setDayGreeting(); renderLog(); renderAlbum(); renderShelf();
     return true;
   }
   /* 인사 초상: 자는 중이면 자는 얼굴, 깨어 있으면 웃는 얼굴 (반쯤 감은 차분한 얼굴은 화난 '-_-^' 로 읽힌다는 주인 피드백) */
@@ -1947,11 +1950,11 @@ var APP = (function () {
   /* 공유용 한 줄 (CG R14 · 스포일러 없음 · 힌트 · URL · 제목 없음 — 이모지 사슬은 뺐다, 주인 11-07): 들른 곳은 이름이 아니라 그곳의 갈래 낱말만.
      `뽈뽈 #3 · 비 오는 날 · 손 · 바다 · 들판 · 밖` (방 = 코너 낱말, 위키 · 모르는 곳 = 들판, 바깥 주소 = 밖). 날씨는 '… 날' 로 (방 '비' 와 헷갈리지 않게). 집에 있던 날 `뽈뽈 · 오늘은 집` */
   var WX_WORD = { rain: '비 오는 날', drizzle: '가랑비 오는 날', clear: '맑은 날', snow: '눈 오는 날' };
-  var CORNER_WORD = { hands: '손', sea: '바다', sky: '하늘', signs: '기호', numbers: '수', sounds: '소리', home: '집', mind: '생각', wild: '들판' };
+  var CORNER_WORD = { hands: '손', sea: '바다', sky: '하늘', signs: '기호', numbers: '수', sounds: '소리', home: '집', mind: '생각', wild: '서가' };
   function shareLine(trip) {
     if (trip.kind === 'home') return '뽈뽈 · 오늘은 집';
     var ord = tripOrdinal(trip), stops = (trip.receipt && trip.receipt.stops) || [];
-    var words = stops.map(function (s) { return s.nodeId === 'door_out' ? '밖' : CORNER_WORD[s.corner] || '들판'; })
+    var words = stops.map(function (s) { return s.nodeId === 'door_out' ? '밖' : CORNER_WORD[s.corner] || '서가'; })
       .filter(function (w, i, a) { return i === 0 || w !== a[i - 1]; });   /* 같은 갈래가 잇달아 오면 한 번만 ('손 · 손' 이 틀린 것처럼 읽혀서) */
     return ['뽈뽈 #' + (ord || '?'), WX_WORD[weatherFor(S.room.lantern)] || WX_WORD.rain].concat(words).join(' · ');
   }
@@ -2023,7 +2026,7 @@ var APP = (function () {
     return out;
   }
   /* 뒷면 영수증 HTML (§6.2) — 링크 클릭 가능. 출처 링크는 위키백과(한국어) 주소일 때만 (두뇌도 거르지만 옛 기록·불러온 기록까지) */
-  var WIKI_SRC = /^https:\/\/ko\.wikipedia\.org\//;
+  var WIKI_SRC = /^https:\/\/(ko|en)\.wikipedia\.org\//;   /* en: 먼 바다 문 */
   function receiptHTML(trip) {
     var r = trip.receipt, p = trip.poster || {}, out = '<div class="receipt">';
     out += '<h3>일기' + (trip.date ? ' · ' + esc(fmtDate(trip.date, true)) : '') + '</h3>';   /* 화면 말은 '일기' (코드 이름 receipt* 는 그대로). 여행 id 는 보이지 않는다 */
@@ -2049,13 +2052,14 @@ var APP = (function () {
       var st = s.status || 'failed';
       var sti = icoH('log/' + (STATUS_LABEL[st] ? st : 'failed'), 'ua-status');   /* 코너 그림 + 이름 + [상태 그림] 상태 단어 (예전 이모지는 뺐다) */
       out += '<div class="row"><span class="n">' + (i + 1) + '</span><span>' + iwH(icoH(cornerIcon(s.corner, s.nodeId === 'door_out' ? 'url' : null), 'ua-mem'), rawH(s.name || s.title || '', stopRawBy(trip, s.nodeId, null)), true) +
-        ' <span class="st' + (sti ? ' ua-st' : '') + '">' + iwH(sti, esc(STATUS_LABEL[st] || st) + (s.ms ? '\u00a0·\u00a0' + secs(s.ms) : '')) + '</span>' + (s.first ? ' <span class="first-tag">처음 온 곳</span>' : '');   /* 처음 온 곳은 점 없이 따로 — 줄이 바뀌어도 '·' 가 줄 끝·줄 앞에 홀로 남지 않게 */
+        ' <span class="st' + (sti ? ' ua-st' : '') + '">' + iwH(sti, esc((st === 'builtin' && s.book) ? '책장의 책' : (STATUS_LABEL[st] || st)) + (s.ms ? '\u00a0·\u00a0' + secs(s.ms) : '')) + '</span>' + (s.first ? ' <span class="first-tag">처음 온 곳</span>' : '');   /* 처음 온 곳은 점 없이 따로 — 줄이 바뀌어도 '·' 가 줄 끝·줄 앞에 홀로 남지 않게 */
       if (s.bridge) out += '<span class="bridge">' + esc(s.bridge) + '</span>';
       /* 모델·사람이 쓴 메모(noteBy)는 따옴표 없이, 누가 썼는지 붙여서 — 따옴표는 위키백과 요약에만 (모델 말이 인용문처럼 보이지 않게, MODEL_VOICE) */
       var wikiSrc = st === 'read' && s.source && WIKI_SRC.test(s.source.url || '');
       if (s.note && s.noteBy) out += '<span class="note">' + rawH(s.note, s.noteBy === 'model' ? 'model' : 'human') + ' <span class="dim">· ' + (s.noteBy === 'model' ? '모델' : '사람') + '이 쓴 메모</span></span>';
       else if (s.note) out += '<span class="note">' + (st === 'read' ? '“' + rawH(s.note, 'wiki') + '”' : esc(s.note)) + '</span>';   /* 위키백과 요약 그대로 */
       if (s.noteBy && wikiSrc && s.source.extract) out += '<span class="note">“' + rawH(s.source.extract, 'wiki') + '”</span>';
+      if (st === 'builtin' && s.book) out += '<span class="note dim">「' + esc(s.book.title) + '」 · ' + esc(s.book.by) + ' 씀</span>';   /* 뽈뽈 도서관 — 누가 쓴 자료인지 화면에도 */
       if (wikiSrc) out += '<a href="' + esc(s.source.url) + '" target="_blank" rel="noopener">출처: ' + esc(s.source.attribution || 'Wikipedia (ko)') + ' · <span class="ua-iw">' + esc(s.source.license || 'CC BY-SA') + '</span></a>';   /* 예전 ↗ 는 뺐다 — 링크는 새 창. 출처 이름 · 라이선스는 두뇌의 상수(우리 글)라 data-raw 를 달지 않는다 (지킴이가 본다) */
       out += '</span></div>';
     });
@@ -2302,7 +2306,16 @@ var APP = (function () {
       return { id: sv.id, tripId: sv.tripId, name: def ? def.name : sv.id, img: assetPath('souvenir.' + sv.id), icon: window.UIART && UIART.iconSrc && def ? UIART.iconSrc('souvenir/' + sv.id) : null };   /* 그림이 안 오면 16×16 기념품 아이콘 (2D 선반 · js/scene2d.js) — 이모지는 쓰지 않는다 */
     }));
   }
-  function renderAll() { renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderLog(); }
+  function renderAll() { renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderLog(); renderShelf(); }
+  /* 큰 도서관 '오늘의 서가' — 날짜로 정해지는 8편 (js/shelf.js, MCP 서버와 같은 뽑기). 고른 이가 없는 무작위라 문어 마음을 대신 말하지 않는다 */
+  function renderShelf() {
+    var box = $('shelf-today'), ul = $('shelf-list'); if (!box || !ul) return;
+    if (typeof SHELF === 'undefined' || !SHELF.pool || !SHELF.pool.length || !B) { box.hidden = true; return; }
+    ul.innerHTML = SHELF.today(todayKey(), B, 8).map(function (t) {
+      return '<li><a href="https://ko.wikipedia.org/wiki/' + encodeURIComponent(t.replace(/ /g, '_')) + '" target="_blank" rel="noopener">' + rawH(t, 'wiki') + '</a></li>';   /* 위키백과 제목 그대로 (남의 글) */
+    }).join('');
+    box.hidden = false;
+  }
 
   /* ───────────────────────── dialogs: poster · settings · name ───────────────────────── */
   var openTripId = null, flippedOnce = {};
@@ -2443,6 +2456,91 @@ var APP = (function () {
     var reads = S.trips.reduce(function (n, t) { return n + ((t.receipt && t.receipt.counts && t.receipt.counts.read) | 0); }, 0);
     return '산책 ' + S.octopus.trips + ' · 함께한 날 ' + S.octopus.days.length + ' · 읽음 ' + reads;
   }
+  /* ───── 내 Claude 와 연결 (원격 뽈뽈 방 · mcp/http.js) ─────
+     방 열쇠는 서버가 만든다 (/api/room). 사람은 주소를 claude.ai 커넥터에 붙여 넣고, 문어가 대화에서 다녀온 산책은 /api/walks 로 가져와 재생한다 (고른 이: 모델).
+     열쇠는 이 기기 기록 (settings.claudeRoom) 에만. 연결 끊기는 이 기기에서 잊는 것이다 (서버의 방은 그대로 — 그렇다고 적는다) */
+  var CLAUDE_KEY_RE = /^[A-Za-z0-9_-]{32,64}$/;
+  function claudeRoom() { var r = S.settings.claudeRoom; return r && CLAUDE_KEY_RE.test(r.key || '') ? r : null; }
+  function claudeSection(frag) {
+    frag.appendChild(h('h3', { text: '내 Claude 와 연결' }));
+    var r = claudeRoom();
+    if (!r) {
+      frag.appendChild(h('p', { class: 'set-note', text: 'claude.ai (웹 · 모바일) 의 내 Claude 가 이 문어가 되어 산책해. 다녀온 산책은 여기서 재생돼.' }));
+      var mk = h('button', { type: 'button', class: 'btn sm pressable', id: 'set-claude-make', text: '연결할 방 만들기' });
+      mk.addEventListener('click', function () {
+        mk.disabled = true;
+        fetch('/api/room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: S.octopus.name || '' }) })
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .then(function (j) {
+            if (!j || !j.ok || !CLAUDE_KEY_RE.test(j.key || '')) { toast('지금은 방을 만들 수 없어. 조금 뒤에 다시 해 봐'); mk.disabled = false; return; }
+            S.settings.claudeRoom = { key: j.key, mcp: String(j.mcp || ''), last: null }; save(); renderSettings();
+          }).catch(function () { toast('지금은 방을 만들 수 없어 (연결 안 됨)'); mk.disabled = false; });
+      });
+      frag.appendChild(h('div', { class: 'btn-row' }, [mk]));
+      return;
+    }
+    var url = h('input', { type: 'text', id: 'set-claude-url', readonly: 'readonly', 'aria-label': '커넥터 주소' }); url.value = r.mcp;
+    var cp = h('button', { type: 'button', class: 'btn sm pressable', text: '주소 복사' });
+    cp.addEventListener('click', function () { copyText(r.mcp); });
+    frag.appendChild(h('p', { class: 'set-note', text: '커넥터 주소' }));
+    frag.appendChild(url);
+    frag.appendChild(h('p', { class: 'set-note', text: 'claude.ai › 설정 › 커넥터 › 커스텀 커넥터 추가에 이 주소를 붙여 넣어. 웹에서 한 번 넣으면 모바일 앱에서도 같이 써.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '이 주소를 아는 사람은 이 방에 들어올 수 있어. 남에게 보여 주지 마. 방에는 산책 기록과 메모만 있어.' }));
+    var sy = h('button', { type: 'button', class: 'btn sm pressable', text: '다녀온 산책 가져오기' });
+    sy.addEventListener('click', function () { claudeSync(true); });
+    var off = h('button', { type: 'button', class: 'btn sm pressable', text: '이 기기에서 연결 끊기' });
+    off.addEventListener('click', function () {
+      if (off.dataset.armed !== '1') { off.dataset.armed = '1'; off.textContent = '한 번 더 누르면 끊겨 (서버의 방은 남아)'; return; }
+      S.settings.claudeRoom = null; save(); renderSettings();
+    });
+    frag.appendChild(h('div', { class: 'btn-row' }, [cp, sy, off]));
+  }
+  /* 먼 바다 문: 문어가 제안했으면 사람에게 한 번 (이 탭에서 한 번). 대답은 /api/far 로 — 모델은 이 대답을 대신할 수 없다 */
+  var farPending = null, farShown = false;
+  function farAsk() {
+    var r = claudeRoom(), d = $('far-dialog'); if (!r || !farPending || farShown || !d) return;
+    if (busy) return setTimeout(farAsk, 800);
+    farShown = true;
+    var ln = $('far-line');
+    if (farPending.line) { ln.textContent = ''; ln.appendChild(h('span', { 'data-raw': 'model' }, [document.createTextNode(String(farPending.line).slice(0, 200))])); ln.appendChild(document.createTextNode(' · 문어가 쓴 말')); ln.hidden = false; } else ln.hidden = true;
+    function answer(open) {
+      $('far-open').disabled = $('far-keep').disabled = true;
+      fetch('/api/far/' + encodeURIComponent(r.key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ open: open }) })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (j) { d.close(); farPending = null; toast(j && j.ok ? (open ? '먼 바다 문을 열었어' : '알았어. 그대로 둘게') : '지금은 대답을 전하지 못했어. 다음에 다시 물을게'); if (!(j && j.ok)) farShown = false; })
+        .catch(function () { d.close(); farShown = false; toast('지금은 대답을 전하지 못했어 (연결 안 됨)'); })
+        .then(function () { $('far-open').disabled = $('far-keep').disabled = false; });
+    }
+    $('far-open').onclick = function () { answer(true); };
+    $('far-keep').onclick = function () { answer(false); };
+    showDialog(d);
+  }
+  /* 가져오기: 새 산책을 한 개씩 재생한다 (APP.importEvents 와 같은 길 · 고른 이: 모델). 바쁘면 기다린다 */
+  var claudeSyncing = false;
+  function claudeSync(manual) {
+    var r = claudeRoom(); if (!r || claudeSyncing) return;
+    claudeSyncing = true;
+    var q = r.last ? '?after=' + encodeURIComponent(r.last) : '';
+    fetch('/api/walks/' + encodeURIComponent(r.key) + q, { cache: 'no-store' })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (j) {
+        if (!j || !j.ok) { claudeSyncing = false; if (manual) toast('지금은 가져올 수 없어'); return; }
+        if (j.far && j.far.state === 'proposed') farPending = j.far;   /* 먼 바다 문 제안 — 산책 재생이 끝난 뒤 한 번 묻는다 */
+        var list = (j.walks || []).filter(function (w) { return w && typeof w.file === 'string' && Array.isArray(w.events) && w.events.length; });
+        if (!list.length) { claudeSyncing = false; if (manual && !farPending) toast('새로 다녀온 산책이 없어'); farAsk(); return; }
+        (function next() {
+          var w = list.shift();
+          if (!w) { claudeSyncing = false; if (j.more) setTimeout(function () { claudeSync(false); }, 800); else farAsk(); return; }
+          (function tryImport() {
+            if (busy) return setTimeout(tryImport, 700);
+            var ok = importEvents(w.events);
+            r.last = w.file; save();   /* 재생에 실패한 기록도 다시 잡지 않게 넘긴다 (그대로 서버에 남아 있다) */
+            if (!ok) return next();
+            (function waitDone() { if (busy) return setTimeout(waitDone, 700); next(); })();
+          })();
+        })();
+      }).catch(function () { claudeSyncing = false; if (manual) toast('지금은 가져올 수 없어 (연결 안 됨)'); });
+  }
   function renderSettings() {
     var body = $('set-body'); if (!body) return;
     var frag = document.createDocumentFragment();
@@ -2473,6 +2571,7 @@ var APP = (function () {
     var cb = h('input', { type: 'checkbox', id: 'set-thumbs' }); cb.checked = S.settings.thumbs !== false;
     cb.addEventListener('change', function () { S.settings.thumbs = cb.checked; save(); renderWall(); renderAlbum(); });
     frag.appendChild(h('label', { class: 'set' }, [h('span', { text: '포스터 썸네일' }), cb]));
+    claudeSection(frag);   /* 내 Claude 와 연결 (원격 뽈뽈 방) */
     frag.appendChild(h('h3', { text: '기록' }));
     frag.appendChild(h('p', { class: 'set-stats', id: 'set-stats', text: statsLine() }));
     var file = h('input', { type: 'file', accept: 'application/json,.json', id: 'set-import' });
@@ -2941,7 +3040,8 @@ var APP = (function () {
       if (DEV) { if (uiPref().demoOpen) demoEl.open = true; demoEl.addEventListener('toggle', function () { setUiPref('demoOpen', demoEl.open); }); }
     }
     /* 탭을 떠날 때 저장 · 다른 탭이 저장하면 다시 그린다 (R4, R5) */
-    document.addEventListener('visibilitychange', function () { if (document.hidden && S.octopus.name) save(); else if (!document.hidden) { checkDay(); syncRest(); } if (rest) restTick(); });   /* 깨어 있는 틈은 보이는 동안만 센다 */
+    document.addEventListener('visibilitychange', function () { if (document.hidden && S.octopus.name) save(); else if (!document.hidden) { checkDay(); syncRest(); claudeSync(false); } if (rest) restTick(); });   /* 깨어 있는 틈은 보이는 동안만 센다 · Claude 에서 다녀온 산책 */
+    setTimeout(function () { claudeSync(false); }, 2500);   /* 열 때 한 번: Claude 에서 다녀온 산책 (연결했을 때만) */
     window.addEventListener('pagehide', restKeep);   /* 새로고침: 남은 틈을 이 탭에 넘긴다 (octInitial 이 읽고 지운다) */
     window.addEventListener('pageshow', function (e) { if (e.persisted) { try { sessionStorage.removeItem(REST_KEY); } catch (err) { /* noop */ } } });   /* 뒤로 가기 캐시에서 돌아왔으면 넘길 것 없음 (틈은 그대로 이어진다) */
     window.addEventListener('scroll', function () { if (rest && !rest.lying) { clearTimeout(scrollRest); scrollRest = setTimeout(restTick, 120); } }, { passive: true });   /* 장면을 다시 올려 보면 곧바로 이어 센다 */
@@ -3022,7 +3122,7 @@ var APP = (function () {
     if (S.octopus.state === 'sleep' && napOver()) S.octopus.state = 'idle';   /* 낮잠이 끝났으면(20분 · 날짜가 바뀜) 깬 채로 연다 → 인사 '기다리고 있었어', 창가에서 */
     applyMotion(); applyFont(); initScene(); applyMotion();
     if (typeof scene.setPlace === 'function') scene.setPlace('attic', { instant: true });   /* 늘 다락에서 연다 (running 여행이 남아 있어도 — resumeRunning) */
-    renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum();
+    renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderShelf();
     bind();
     if (window.AUDIO) AUDIO.init({ hour: hourNow, weather: function () { return weatherFor(S.room.lantern); }, lantern: function () { return S.room.lantern; }, season: function () { return (scene && typeof scene.season === 'function') ? scene.season() : null; } });   /* 소리 (js/audio.js) — 꺼진 채로 시작 */
     if (!storeOK) quietWarn('이 브라우저에선 벽이 오늘만 남아');

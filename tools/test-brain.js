@@ -89,6 +89,41 @@ function fakeWorld() {
   };
 }
 
+/* ───────── 큰 도서관: '오늘의 서가' 산책 (input.shelf) ───────── */
+async function shelfSuite(W) {
+  section('plan — 큰 도서관 (오늘의 서가)');
+  global.WORLD = W; BRAIN.setWorld(null);
+  var SH = ['쿼카', '모자', '우산', '잉크'];
+  var walks = 0, ok = true, sameNoShelf = true, hopsOk = true;
+  for (var seed = 1; seed <= 120; seed++) {
+    var a = await BRAIN.plan(baseInput(seed, { shelf: SH }));
+    var b = await BRAIN.plan(baseInput(seed, { shelf: SH }));
+    if (JSON.stringify(a.events) !== JSON.stringify(b.events)) ok = false;
+    var st = (a.receipt && a.receipt.stops) || [];
+    if (a.kind === 'out' && st[0] && st[0].bridge === '오늘의 서가에서') {
+      walks++;
+      if (SH.indexOf(st[0].title || st[0].name) < 0 || st.some(function (x) { return x.nodeId; }) || st.length > 3) hopsOk = false;
+    }
+    if (seed <= 40) {
+      var c = await BRAIN.plan(baseInput(seed)), d = await BRAIN.plan(baseInput(seed, { shelf: [] }));
+      if (JSON.stringify(c.events) !== JSON.stringify(d.events)) sameNoShelf = false;
+    }
+  }
+  check(ok, 'shelf: 같은 시드 → 같은 산책 (Math.random 없음)');
+  check(walks > 10 && walks < 80, 'shelf: 외출의 일부가 서가 산책 (' + walks + '/120)');
+  check(hopsOk, 'shelf: 첫 정류장은 서가의 책, 방 없이 링크 1~2 걸음 (최대 3 정류장)');
+  check(sameNoShelf, 'shelf 가 비면 산책은 예전과 같다');
+  var off = 0, hinted = 0;
+  for (var s2 = 1; s2 <= 60; s2++) {
+    var o = await BRAIN.plan(baseInput(s2, { shelf: SH, online: false }));
+    if (o.receipt && o.receipt.stops && o.receipt.stops[0] && o.receipt.stops[0].bridge === '오늘의 서가에서') off++;
+    var h = await BRAIN.plan(baseInput(s2, { shelf: SH, hint: '모자' }));
+    if (h.receipt && h.receipt.stops && h.receipt.stops[0] && h.receipt.stops[0].bridge === '오늘의 서가에서') hinted++;
+  }
+  check(off === 0, 'shelf: 오프라인이면 서가 산책 안 함 (못 읽을 곳에 가지 않는다)');
+  check(hinted === 0, 'shelf: 힌트가 있으면 (개발 모드) 예전 길');
+}
+
 /* ───────── fetch stub ───────── */
 var OK_LINKS = ['베레모', '2010년', '모자 목록', 'Hat', '실크해트', '분류:모자', '왕관', '깃털', '아주아주아주아주긴제목이야열셋', '단추'];
 var OK_TITLES = { '쿼카': 1, '모자': 1, '단추': 1, '조개': 1, '비': 1, '구름': 1, '베레모': 1, '실크해트': 1, '왕관': 1, '우산': 1, '잉크': 1, '매듭': 1, '소수': 1, '점자': 1 };
@@ -1759,6 +1794,7 @@ async function tapSuite(label, W) {
     await planSuite('fake WORLD', W, true);
     await tapSuite('fake WORLD', W);
     await drawOrderSuite();
+    await shelfSuite(W);
 
     var worldFile = path.join(ROOT, 'js/world.js');
     if (fs.existsSync(worldFile)) {

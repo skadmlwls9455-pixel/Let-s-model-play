@@ -1104,3 +1104,17 @@ html.intro-reveal .scene-spot, html.intro-reveal .back-note { transition: opacit
 .settings-sheet .set-who { color: var(--muted); }
 .settings-sheet #set-close { margin-top: 12px; }
 :root[data-font="pixel"] .settings-sheet .set-stats, :root[data-font="pixel"] .settings-sheet .set-who { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
+
+/* 큰 도서관 '오늘의 서가' (오늘의 산책 아래, 접힌 한 줄) */
+.shelf-today { margin: 8px 0 4px; }
+.shelf-today summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.shelf-today .shelf-note { font-size: 12px; color: var(--muted); margin: 6px 0; }
+.shelf-today ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.shelf-today li a { display: inline-block; padding: 4px 8px; border: 1px solid var(--rim); border-radius: 6px; font-size: 13px; color: var(--fg); text-decoration: none; }
+/* 설정 › 내 Claude 와 연결 */
+.set-note { font-size: 12px; color: var(--muted); margin: 4px 0 8px; line-height: 1.5; }
+#set-claude-url { display: block; width: 100%; box-sizing: border-box; font-size: 12px; padding: 6px; margin-bottom: 6px; }
+/* 먼 바다 문: 두 단추 같은 크기 */
+.far-btns { display: flex; flex-direction: column; gap: 8px; }   /* 위아래로 같은 폭 — 한쪽 글이 길어도 크기가 같다 */
+.far-btns .btn { width: 100%; white-space: nowrap; margin: 0; }
+.far-line { font-size: 13px; margin: 6px 0; }

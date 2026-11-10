@@ -1,0 +1,63 @@
+[
+ {
+  "type": "depart",
+  "t": 0,
+  "hint": "",
+  "followHint": false
+ },
+ {
+  "type": "peek",
+  "t": 2039,
+  "target": {
+   "kind": "room",
+   "id": "octopus_nerves",
+   "title": "문어 신경계",
+   "wiki": null
+  },
+  "status": "builtin",
+  "ms": 2039,
+  "first": true
+ },
+ {
+  "type": "peek",
+  "t": 2909,
+  "target": {
+   "kind": "room",
+   "id": "rain",
+   "title": "비",
+   "wiki": "비"
+  },
+  "status": "read",
+  "ms": 870,
+  "first": true,
+  "source": {
+   "url": "https://ko.wikipedia.org/wiki/%EB%B9%84",
+   "extract": "비는 다음 등을 가리킨다. 비: 대기 중의 수증기가 높은 곳에서 찬 공기를 만나 식어서 엉기어 무게를 못버텨 떨어지거나 천둥 번개와 함께 땅 위로 떨어지는 물방울 비: 먼지나 미세먼지 등을 쓸어 내는 기구.",
+   "thumb": null,
+   "license": "CC BY-SA 4.0",
+   "attribution": "Wikipedia (ko)"
+  }
+ },
+ {
+  "type": "return",
+  "t": 5691,
+  "reason": "enough"
+ },
+ {
+  "type": "remember",
+  "t": 6191,
+  "stopIdx": 0,
+  "line": "신경세포 3분의 2는 다리에 있다"
+ },
+ {
+  "type": "hang_poster",
+  "t": 6691,
+  "posterId": "poster_olifqu"
+ },
+ {
+  "type": "wrap_up",
+  "t": 7191,
+  "reaction": "덤덤",
+  "line": "다리가 따로 기억한다니, 비 오는 날엔 좀 믿고 싶어졌어."
+ }
+]
