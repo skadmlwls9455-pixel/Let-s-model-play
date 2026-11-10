@@ -3929,13 +3929,14 @@ var APP = (function () {
     var sh = layoutOne() && $('shell') ? $('shell').getBoundingClientRect() : hr, lo = sh.left + 16 - hr.left, hi = sh.right - 16 - w - hr.left;   /* 한 화면 배치에선 상태 줄이 좁은 쪽지라 화면(#shell) 폭 안에서 맞춘다 */
     var left = Math.round(clamp(cx - w / 2, lo, Math.max(lo, hi)));   /* 상태 줄 바깥 상자 기준 (테두리 포함) */
     t.style.left = (left - host.clientLeft) + 'px'; t.style.setProperty('--tip-x', Math.round(clamp(cx - left, 10, Math.max(10, w - 10))) + 'px');   /* left 는 테두리 안쪽(패딩 상자) 기준이라 테두리 폭만큼 뺀다 */
+    t.style.top = ar.bottom > hr.bottom ? Math.round(ar.bottom - hr.top - host.clientTop + 8) + 'px' : '';   /* 좁은 폰에선 '데모' 꼬리표가 바 아래에 매달려 있다 — 말풍선이 제 꼬리표를 덮지 않게 그 밑으로 (보통은 css 의 바 밑 4px) */
     t.classList.add('show'); anchor.setAttribute('aria-expanded', 'true');
     tipTimer = setTimeout(hideTip, TIP_MS);   /* 읽는 시간이라 --speed(개발용 느리게)와 상관없이 2.5 s */
   }
   /* 닫을 때 자리도 비운다: 가로 화면에서 정한 left 가 남으면 세로로 돌렸을 때 빈 말풍선이 화면 밖으로 나가 옆으로 밀린다 */
   function hideTip() {
     clearTimeout(tipTimer);
-    var t = $('tip'); if (t) { t.classList.remove('show'); t.textContent = ''; t.style.left = ''; t.style.removeProperty('--tip-x'); }
+    var t = $('tip'); if (t) { t.classList.remove('show'); t.textContent = ''; t.style.left = ''; t.style.top = ''; t.style.removeProperty('--tip-x'); }
     if (tipFor) tipFor.setAttribute('aria-expanded', 'false');
     tipFor = null;
   }
