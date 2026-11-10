@@ -1628,6 +1628,9 @@ var APP = (function () {
        밖의 파일을 못 읽는 그림(벽 텍스처 · 날아가는 포스터 · PNG 저장)은 data URI 일 때만 (opts.inlineSticker 로 넘겨받거나 번들) */
     var pos = p.stickerPos || { x: 70, y: 28, rot: 0 };
     var stx = sx + sw * (pos.x / 100), sty = sy + sh * (pos.y / 100), want = w * (note ? 0.18 : 0.2), ss = want >= 12 ? 16 * Math.max(1, Math.round(want / 16)) : want >= 6 ? 8 : want;   /* 정수 배 (작은 벽 텍스처는 8px = 반) */
+    /* 방 그림(art)이 붙은 포스터: 주제 스티커가 그림과 겹치고 기울어 계단이 졌다 (주인 11-10) → 오른쪽 가장자리 세로 띠에만 놓고 (그림 칸 밖),
+       반 크기 정수 배 (300px 포스터 = 32px) · 기울기 0 (픽셀 그대로). 높이는 저장된 stickerPos.y 그대로라 포스터마다 다르다. 저장 데이터는 안 바꾼다 */
+    if (art) { ss = 16 * Math.max(1, Math.round(w * 0.107 / 16)); stx = sx + sw * ((81 + (Math.abs(pos.x | 0) % 7)) / 100); sty = sy + sh * (Math.max(14, Math.min(84, pos.y)) / 100); pos = { x: pos.x, y: pos.y, rot: 0 }; }
     var stHref = opts.inlineSticker || stickerSrc(trip);
     if (stHref && !/^data:/.test(stHref) && window.UIART && UIART.iconBad && UIART.iconBad(stHref)) stHref = null;   /* 한 번 안 온 그림은 넣지 않는다 (깨진 그림 표시 대신 스티커 없이) */
     if (stHref && (!opts.noExternal || /^data:/.test(stHref))) {
