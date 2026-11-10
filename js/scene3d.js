@@ -2425,7 +2425,7 @@ var SCENE3D = (function () {
       if (to === 'attic' || to === 'play') {
         var g = groupOf(to); if (plG.parent !== g) g.add(plG); fpClear(g);
         var an = to === 'play' ? 'playAtticDoor' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
-        plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false; PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
+        plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false; PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
       } else { if (plG.parent !== atticG) atticG.add(plG); fpClear(atticG); PL.place = 'attic'; plRest(true); }
     }
     function playerWalkTo(anchor) {   /* goRoom 의 walkFirst: 문 앞 앵커까지 걷고 문 쪽을 보며 서면 푼다 → { ok, walked, anchor, at }. 그 방에 없으면(바깥에서 들어갈 때) 걷기 없이 바로 */
@@ -2458,6 +2458,7 @@ var SCENE3D = (function () {
       });
     }
     function stepPlayer(dt) {
+      PL.doorCd = Math.max(0, (PL.doorCd || 0) - dt);   /* 문으로 막 들어온 뒤의 짧은 쉼 — 스틱을 쥐든 안 쥐든 흐른다 */
       PL.t += dt;
       var allowed = playerInputAllowed();
       if (!allowed) { PL_IN.v = null; PL_IN.held = false; }   /* 막힌 동안은 매 프레임 누르던 입력을 놓는다 (전이 프레임만 지우면 막힌 채 들어온 입력이 남아 방이 다시 보일 때 입력 없이 움직였다 — 리뷰 11-09) */
@@ -2479,9 +2480,9 @@ var SCENE3D = (function () {
         /* 문에 닿은 채 문 쪽으로 걸으면 넘어간다 (주인 11-10 "닿은 채로 걸어가면 슥 넘어가는"): 문 앞 앵커 0.45 m 안에서 문이 있는 벽 쪽(다락 문 = +x · 놀이방 문 = −x)으로 밀 때 한 번 on.playerDoor(가는 방).
            방금 그 문으로 들어왔으면(PL.doorArm false) 문 앞을 한 번 벗어났다 와야 한다 — 들어오자마자 되돌아가지 않게 */
         var dAn = PL.place === 'play' ? DOOR_ANCHORS.playAtticDoor : DOOR_ANCHORS.atticPlayDoor, dAx = Math.abs(PL.pos.x - dAn[0]), dAz = Math.abs(PL.pos.z - dAn[2]), dPush = (PL.place === 'play' ? -wx : wx) / (Math.hypot(wx, wz) || 1);
-        if (dAx > 0.9 || dAz > 1.0) PL.doorArm = true;   /* 문 앞 구역(벽에서 0.6 m · 문 양옆 0.7 m)을 넉넉히 — 11-10 주인: 놀이방 → 다락은 가까이 가도 안 넘어갔다 (0.45 m 원이 너무 작았다) */
-        else if (PL.doorArm && dAx < 0.6 && dAz < 0.7 && dPush > 0.25 && !DQ.active && !DQ.pending && !PLACE.trans) { PL.doorArm = false; emit('playerDoor', PL.place === 'play' ? 'attic' : 'play'); }
-      } else if (PL.held && !held) { PL.faceCam = true; if (PL.heldStop) { PL.settleT = 0; PL.heldStop = false; } }   /* 손을 떼면(막힌 채 서 있다 떼도 · 데드존에 잡고만 있다 떼도) 다시 카메라 쪽 + 도착 눌림 한 번 — 전이는 '잡고 있었나'(held) 기준 */
+        /* 11-10 (2): '문 앞을 한 번 벗어나야 다시 켜짐' 잠금을 없앴다 — 들어온 자리가 곧 문 앞이라, 바로 돌아서 문 쪽으로 밀면 잠긴 채 벽을 타고 미끄러져 문 앞을 지나쳐 버렸다 (주인이 여러 번 말한 '부엌 → 방이 안 넘어감'). 되튐은 들어온 뒤 0.5 s 쉼(plEnter 의 doorCd)으로만 막는다 — 들어올 때 밀던 방향은 어차피 새 방의 문 반대쪽이다 */
+        if (!PL.doorCd && dAx < 0.75 && dAz < 0.85 && dPush > 0.25 && !DQ.active && !DQ.pending && !PLACE.trans) { PL.doorCd = 0.4; emit('playerDoor', PL.place === 'play' ? 'attic' : 'play'); }   /* 한 번 쏘고 꺼지지 않는다: 앱이 바쁜 틈이라 못 받았어도 계속 밀고 있으면 0.4 s 뒤 다시 쏜다 */
+      } else if (PL.held && !held) { PL.doorArm = true; PL.faceCam = true; if (PL.heldStop) { PL.settleT = 0; PL.heldStop = false; } }   /* 손을 떼면(막힌 채 서 있다 떼도 · 데드존에 잡고만 있다 떼도) 다시 카메라 쪽 + 도착 눌림 한 번 — 전이는 '잡고 있었나'(held) 기준 */
       if (allowed && !PL.walking && PL.place === 'attic' && !PL.sit && !PL.hop) {   /* 문어가 걸어와 내 캐릭터 위에 서면(문어 걷기는 플레이어를 모른다 — 걷기 시작 때 plAvoidOct 가 미리 비켜세우지만 길이 지나가기도 한다) 둥근 장애물 밖으로 밀려난다 — 걷는 속도로, 스틱을 쥐고 있어도(문어가 미는 셈), 미끄러짐은 plMove 몫 (리뷰 11-09) */
         var circ = plCircles(), pen = plPen(PL.pos.x, PL.pos.z, [], circ);
         if (pen > 1e-3) {
