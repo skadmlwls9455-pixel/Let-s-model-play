@@ -1389,3 +1389,15 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
   :root[data-layout="one"] .dlg-host { left: 50%; bottom: calc(12px + var(--go-h) + 12px + var(--safe-b)); }
   :root[data-layout="one"] #scene .back-note, :root[data-layout="one"].dlg-on #scene .back-note { bottom: calc(92px + var(--safe-b)); max-width: calc(50% - 20px); }
 }
+
+/* ── 11-10 설정 시트 위계 (주인 UI 개선안 5): 갈래 제목이 본문보다 작던 것을 뒤집는다 — 제목은 굵게 + 위에 가는 줄, 값은 본문색, 안내 글은 작고 흐리게, 내 모습 초상은 제목 왼쪽에 ── */
+.settings-sheet #set-body h3 { font-size: 14px; font-weight: 700; color: var(--fg); letter-spacing: 0; margin: 20px 0 8px; padding-top: 12px; border-top: 1px solid var(--rim); }
+.settings-sheet #set-body > :first-child h3, .settings-sheet #set-body > h3:first-child { border-top: 0; padding-top: 0; margin-top: 8px; }
+:root[data-font="pixel"] .settings-sheet #set-body h3 { font-family: var(--f-ui); font-size: 20px; line-height: 30px; font-weight: 700; margin: 20px 0 8px; padding-top: 12px; border-top: 2px solid var(--rim); }
+.settings-sheet .set-parts-h { flex-direction: row-reverse; justify-content: flex-end; align-items: center; margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--rim); }
+:root[data-font="pixel"] .settings-sheet .set-parts-h { border-top: 2px solid var(--rim); }
+.settings-sheet #set-body .set-parts-h h3, :root[data-font="pixel"] .settings-sheet #set-body .set-parts-h h3 { border-top: 0; padding-top: 0; margin: 0; }
+.settings-sheet .pl-port { width: 64px; height: 64px; margin-top: 0; }
+.settings-sheet .set-look > span { color: var(--fg); }
+.settings-sheet .set-note, .settings-sheet .help, .settings-sheet .snd-note { color: var(--muted); }
+:root[data-font="pixel"] .settings-sheet .set-note { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }

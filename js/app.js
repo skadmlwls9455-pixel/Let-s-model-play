@@ -127,7 +127,7 @@ var APP = (function () {
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function dateKey(d) { d = d || new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
   /* 테스트 훅: window.__ppolTest.today = 'YYYY-MM-DD' 가 있을 때만 '오늘'을 그 날짜로 (tools/smoke.js 둘째 날). js/runner.js · js/audio.js 도 같은 규칙 */
-  function hookHint() { var t = window.__ppolTest; return (t && typeof t === 'object' && typeof t.hint === 'string') ? t.hint.trim() : ''; }   /* 테스트 훅 (플레이어 · 개발 화면 어디에도 입력 칸 없음) */
+  function hookHint() { var t = window.__ppolTest; if (!(t && typeof t === 'object' && typeof t.hint === 'string')) return ''; var h = t.hint.trim(); delete t.hint; return h; }   /* 테스트 훅: 한 번 쓰고 지운다 (예전 입력 칸이 초대 뒤 비워지던 것과 같게) ·  (플레이어 · 개발 화면 어디에도 입력 칸 없음) */
   function hookToday() { var t = window.__ppolTest; return (t && typeof t === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(t.today || '')) ? t.today : null; }
   function todayKey() { return hookToday() || dateKey(); }
   function keyAdd(key, n) { var p = String(key).split('-'); return dateKey(new Date(+p[0], +p[1] - 1, +p[2] + n)); }

@@ -200,7 +200,6 @@ async function scenarioMain(browser) {
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   ok((await page.textContent('#oct-name')).trim() === name, '이름 저장: ' + name);
   ok(await page.$('#log .lrow'), '첫 인사 로그 있음');
-  ok((await page.textContent('#toast')).indexOf('비워 둬도') >= 0, '첫 실행 토스트');
   await page.screenshot({ path: path.join(SHOTS, 'phone-light-start.png') });
 
   await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
@@ -508,7 +507,7 @@ async function scenarioMigrate(browser) {
   /* 축소 모션에서도 초대 한 번 (즉시 이동 경로) */
   await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, 'https://example.org/page');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
   /* 그날 시드가 집·빈 차례면 URL 정류장도 건너뛰기도 시험이 안 된다 → 이 초대만 외출로 강제 (brain.js 테스트 훅, plan 때 읽음 · 난수 순서 그대로) */
-  await page.evaluate(function () { window.__ppolTest = { forceKind: 'out' }; });
+  await page.evaluate(function () { window.__ppolTest = Object.assign(window.__ppolTest || {}, { forceKind: 'out' }); });
   await page.click('#btn-go');
   await skipAway(page);
   await waitIdle(page);
