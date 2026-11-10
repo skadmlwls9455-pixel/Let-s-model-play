@@ -1344,7 +1344,7 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 @media (max-width: 359px) { :root[data-layout="one"] { --bar-h: 58px; } }
 /* 바의 오른쪽 끝 136px 은 아이콘 묶음이 같은 바탕 · 같은 밑줄로 잇는다 (상태 줄은 #scene 밖이라 위에 겹치면 아이콘을 덮는다) */
 :root[data-layout="one"] .scene-ctl { top: var(--safe-t); right: 0; width: 136px; height: var(--bar-h); box-sizing: border-box; justify-content: flex-end; align-items: center; padding-right: 2px; background-color: var(--panel); border-bottom: 1px solid var(--rim); }
-:root[data-font="pixel"][data-layout="one"] .scene-ctl { top: calc(var(--safe-t) - 2px); right: -2px; border-bottom: 2px solid var(--line); box-shadow: 0 2px 0 rgba(27, 21, 34, .35); }
+:root[data-font="pixel"][data-layout="one"] .scene-ctl { top: calc(var(--safe-t) - 2px); right: -2px; background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated; border-bottom: 2px solid var(--line); box-shadow: 0 2px 0 rgba(27, 21, 34, .35); }
 :root[data-layout="one"] .scene-ctl .icon-btn .snd-box, :root[data-font="pixel"][data-layout="one"] .scene-ctl .icon-btn .snd-box { border-color: transparent; background: transparent; box-shadow: none; color: var(--fg); }
 :root[data-font="pixel"][data-layout="one"] .scene-ctl .icon-btn:active .snd-box { box-shadow: none; }
 :root[data-layout="one"] .scene-ctl :is(.album-btn, .today-btn) .ib-dot { box-shadow: 0 0 0 2px var(--panel); }
