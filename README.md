@@ -88,6 +88,9 @@
 | `js/scene3d.js` | Three.js 픽셀아트 3D 다락방 + 문어 (전역 `SCENE3D`, 작업 중) |
 | `js/intro.js` · `css/intro.css` | 입장 레이어: 하늘에서 내려오는 카메라 + 장면 위 타이틀, 누르면 바로 게임 (전역 `INTRO`, [docs/UI_ART.md](docs/UI_ART.md)). `?intro=0` 생략 · `?intro=1` 강제 |
 | `js/app.js` | 상태·영속·마이그레이션, 공개 타이머, 렌더, 포스터 SVG, 데모 조작, 내보내기/불러오기 (전역 `APP`) |
+| `cook.html` (+ `js/cook.js` · `js/cook-art.js` · `css/cook.css`) | 부엌 시제품: 해초전 한 접시 (톡톡 → 뒤집기 → 썰기). 따로 여는 쪽이고 본 게임에는 아직 잇지 않았다 ([docs/COOK_PROTO.md](docs/COOK_PROTO.md)) |
+| `foley/` | 부엌의 녹음 소리 한 벌 (소리를 켰을 때만 받는다. `js/audio.js` 가 튼다). 출처·라이선스는 [foley/CREDITS.md](foley/CREDITS.md) |
+| `credits.html` | 플레이어가 보는 '만든 것들'. 설정 맨 아래와 부엌 조리대의 링크에서 간다 |
 | `assets/` | 2D 폴백용 플레이스홀더 SVG, `manifest.json`, 캐릭터 레퍼런스 |
 | `vendor/` | `three.min.js` (r128, MIT) |
 | `tools/` | 검사·번들·스크린샷 스크립트 |
@@ -117,6 +120,8 @@ node tools/bundle.js        # dist/ppolppol.html 단일 파일
 
 - `vendor/three.min.js` — three.js r128, MIT ([vendor/THREE-LICENSE.txt](vendor/THREE-LICENSE.txt)).
 - 위키백과 요약·썸네일 — 한국어 위키백과에서 가져오며 일기에 출처 링크와 `CC BY-SA 4.0` 을 함께 표시한다. 저장 데이터에도 라이선스 표기를 남긴다.
+- 부엌 소리 (`foley/`) — OpenGameArt.org 에 올라온 소리 28개를 잘라 겹쳐 만든 27개다. 원본은 `CC0 1.0` 이 26개, `CC BY` 가 2개다 (`CC BY 4.0`: DavidW 의 도마 소리 → 썰기, `CC BY 3.0`: Vinrax 의 물소리 → 젓기). 출처·라이선스·바꾼 것은 [foley/CREDITS.md](foley/CREDITS.md) 에 있다.
+- 플레이어가 보는 크레딧 — [credits.html](credits.html) '만든 것들': 부엌 소리의 CC BY 두 줄과 CC0 원본, 글꼴 Galmuri (SIL OFL 1.1, [vendor/fonts/GALMURI-LICENSE.txt](vendor/fonts/GALMURI-LICENSE.txt)), three.js, 위키백과. 설정 맨 아래와 부엌 조리대 (`cook.html`) 의 링크에서 간다. 음악과 그 밖의 효과음 (`audio/`) 은 이 게임을 위해 직접 만든 것이다.
 - 게임 코드의 라이선스는 작성자가 정한다. **아직 미정**이다.
 - 복지 아이디어 문서의 저작권은 원저자에게 있다(아래 크레딧).
 

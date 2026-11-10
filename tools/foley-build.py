@@ -1150,7 +1150,8 @@ def write_manifest(entries, fam=None):
                          pad='파일 앞 0.5 s = 몸통 끝 복사, 뒤 1.0 s = 몸통 앞 복사(이음새용 여유).',
                          start='루프는 처음과 끝에 0.25~1.0 s 페이드를 준다(몸통 한가운데서 시작하므로).'),
             bus='모두 sfx_event(효과음 슬라이더). 지글·보글 루프도 앞에 서는 요리 소리라 amb 가 아니다. duck_db 0: 한 번짜리 소리는 '
-                'BGM 을 내리지 않는다. 지글·보글 루프가 도는 동안만 js/audio.js 가 음악을 살짝 내린다(BGM -4 dB, 환경음 -2 dB).',
+                'BGM 을 내리지 않는다. 대신 js/audio.js 가 부엌이 열려 있는 동안 음악을 내려 두고(BGM -6 dB, 환경음 -9 dB), '
+                '지글·보글 루프가 도는 동안은 더 내린다(BGM -10 dB, 환경음 -13 dB).',
             sizzle_family=family_text(fam),
             durations='duration 은 마스터(= .ogg 디코드) 길이다. .m4a 를 ffmpeg 로 디코드하면 AAC 의 마지막 1024 샘플 묶음이 '
                       '남아 0.7~21 ms 더 길다(뒤는 디지털 무음). Chrome decodeAudioData 는 정확한 길이. 루프 지점과 뒤 여유에는 '
@@ -1399,7 +1400,7 @@ def write_readme(entries, demo=None, fam=None):
                                                        e['level']['unit'], srcs))
     o.append('')
     o.append('해초전 한 판: `pick` -> `tap` x 9 -> `step` `quiet` -> `sizzle(0)`(불 켜기 + 지글 0) -> `sizzle(1)` -> `sizzle(2)` '
-             '-> `flip` -> `step` `quiet` -> `cut` x 2~4 -> `step` `quiet` -> `done`(접시 + 김). '
+             '-> `flip` -> `step` `quiet` -> `cut` x 2 -> `step` `quiet` -> `done`(접시 + 김). '
              'act 와 group 의 짝은 manifest.json 의 `map.cook`.\n')
     o.append('## 정직 메모\n')
     o.append('- **만든 쪽(Claude)은 소리를 들을 수 없다.** 고른 구간과 겹치기는 숫자(크기, 피크, 스펙트럼 무게중심, 대역별 크기, '

@@ -142,7 +142,8 @@
 그림: Apollo 팔레트로 코드가 그리는 픽셀 아트 (캔버스, 2px 격자, 정수 배).
 소리: audio/ 는 쓰지 않는다. 그 순간마다 window.AUDIO && AUDIO.on && AUDIO.on('cook', { act }) 한 줄만 부른다 (js/app.js 와 같은 훅. AUDIO.sfx 는 없다).
   act: 'drop' 재료를 떨어뜨림 · 'merge' 합쳐짐 ({ act, tier } — 새 단계) · 'done' 요리 완성 (가득 참·"이걸로 할래") · 'serve' 식탁에 차리기.
-  지금 js/audio.js 의 on(name, d) 은 모르는 이름을 그냥 넘긴다 (switch 의 default) — 소리 세션이 'cook' 을 더하면 난다. js/audio.js 는 고치지 않는다.
+  (11-09 고침) js/audio.js 에 case 'cook' 이 생겼다: 9물결 해초전의 부엌 소리다 (act 표는 docs/COOK_PROTO.md §8, 소리 파일은 foley/).
+  그 표에 없는 act (drop · merge · serve) 는 조용히 지나가지만, 'done' 은 그 부엌의 접시 소리를 낸다. js/audio.js 는 고치지 않는다.
   CORE_LOOP_V2 §5.1 금지 표의 '`onEvent`만 낸다' 는 11-07 카드 검토로 이 AUDIO.on 한 줄로 바꿨다. onEvent 로는 소리를 내지 않는다 — PR 설명에 이렇게 적는다.
   COOK_PROTO.md 에 소리 세션에 넘길 표: 이벤트 · act · 언제 · 느낌 (CORE_LOOP_V2 §5.5 '냄비 퐁'·'접시 내려놓기').
 하지 말 것:

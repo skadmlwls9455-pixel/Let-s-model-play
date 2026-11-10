@@ -7,7 +7,10 @@
  * Design 6.7 L1-L14, restricted to slice 1 (no stir / place, no notebook screen). Touch goes through CDP
  * Input.dispatchTouchEvent: trusted touches, so pointer capture and coalesced events work (Playwright's touchscreen
  * only taps). Most tests install Playwright's fake clock, which also drives event timestamps, so the 12 fps frames,
- * the 250 ms gate and the flip bands are exact. Exit 1 on any failure.
+ * the 250 ms gate and the flip bands are exact. That clock still flows with real time between two calls: a check that
+ * needs times to the millisecond pauses it first (T.pause in L17; openPage's `paused` stops it before the page loads,
+ * as L19 does). L15-L18 are the verifier findings, L19 is the art wiring (what cook.js hands the painters).
+ * Exit 1 on any failure.
  */
 'use strict';
 var fs = require('fs'), path = require('path'), os = require('os'), vm = require('vm');
@@ -26,6 +29,20 @@ function section(t) { console.log('== ' + t); }
 function line(a, b, n) { var out = []; for (var i = 0; i <= n; i++) out.push([a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n]); return out; }
 function realWait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }   /* Chrome delivers touchmove on its next real frame */
 function sameRect(a, b) { return a && b && ['x', 'y', 'w', 'h'].every(function (k) { return Math.abs(a[k] - b[k]) < 0.01; }); }
+
+/* Pause the installed clock a little ahead of the page's own time: until clock.resume(), time moves in T.go only.
+   Reading the page's time and pausing it are separate round trips and the clock flows with real time between them,
+   so on a busy machine a short margin is sometimes already in the past ("Cannot fast-forward to the past"). Then try
+   again with a longer one. (A pauseAt that fails this way has already stopped the clock, so the second try reads a
+   time that no longer moves.) Returns the margin that worked. */
+async function pauseClock(page) {
+  var margins = [250, 1000, 3000], err = null;
+  for (var i = 0; i < margins.length; i++) {
+    try { await page.clock.pauseAt(await page.evaluate(function (m) { return Date.now() + m; }, margins[i])); return margins[i]; }
+    catch (e) { err = e; if (!/fast-forward to the past/i.test(String(e && e.message))) throw e; }
+  }
+  throw err;
+}
 
 /* ---------- one page: context options, init scripts, fake clock, CDP touch, small helpers ---------- */
 async function openPage(browser, o) {
@@ -50,14 +67,34 @@ async function openPage(browser, o) {
     }).observe(document, { subtree: true, childList: true, characterData: true });   /* the document: init scripts run before <html> exists */
   });
   if (o.crypto != null) await ctx.addInitScript(function (v) { crypto.getRandomValues = function (a) { for (var i = 0; i < a.length; i++) a[i] = v; return a; }; }, o.crypto);
+  if (o.art) await ctx.addInitScript(function () {   /* what cook.js hands the three scene painters, call by call (they still paint).
+                                                        js/cook-art.js says `var COOK_ART = ...`: that assignment lands in this setter */
+    window.__art = [];
+    var real;
+    function spy(A, name) {
+      var paint = A[name];
+      A[name] = function (b, opts) {
+        var r = { s: name, now: performance.now() };
+        ['seed', 'fh', 'fbc', 'fl', 't', 'still', 'f', 'heat', 'band'].forEach(function (k) { r[k] = opts && k in opts && opts[k] !== undefined ? opts[k] : '-'; });   /* '-' = not passed */
+        window.__art.push(r);
+        return paint.apply(this, arguments);
+      };
+    }
+    Object.defineProperty(window, 'COOK_ART', { configurable: true, enumerable: true, get: function () { return real; },
+      set: function (A) { real = A; ['flipScene', 'sliceScene', 'revealScene'].forEach(function (n) { if (A && typeof A[n] === 'function') spy(A, n); }); } });
+  });
   var page = await ctx.newPage(), errs = [];
   page.on('pageerror', function (e) { errs.push('pageerror: ' + e.message); });
   page.on('console', function (m) { if (m.type() === 'error') errs.push('console: ' + m.text()); });
   if (o.clock !== false) await page.clock.install({ time: new Date('2026-11-08T10:00:00') });
+  if (o.paused) await pauseClock(page);   /* before the page exists: its whole life then runs on T.go only, to the millisecond */
   await page.goto(URL0 + (o.q ? '?' + o.q : ''));
   var cdp = await ctx.newCDPSession(page);
   var T = { page: page, ctx: ctx, cdp: cdp, errs: errs };
   T.go = function (ms) { return o.clock === false ? page.waitForTimeout(ms) : page.clock.runFor(ms); };
+  T.pause = function () { return pauseClock(page); };
+  T.now = function () { return page.evaluate(function () { return performance.now(); }); };
+  T.art = function (from) { return page.evaluate(function (n) { return (window.__art || []).slice(n); }, from || 0); };
   T.live = function () { return page.evaluate(function () { return COOK.live(); }); };
   T.rect = function (sel) {
     return page.evaluate(function (s) { var e = document.querySelector(s); if (!e) return null; var r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, r: r.right, b: r.bottom }; }, sel);
@@ -94,6 +131,7 @@ async function openPage(browser, o) {
     return page.evaluate(function () { var d = document.querySelector('.ck-dlg'); if (!d) return ''; var c = d.cloneNode(true); var s = c.querySelector('.ck-say'); if (s) s.remove(); return c.textContent; });
   };
   T.done = async function () { errAll = errAll.concat(errs); await ctx.close(); };
+  if (o.paused) T.t0 = await T.now();   /* the page's clock as it loaded = where the kitchen's own clock starts (cook.html opens it at load) */
   await T.go(o.settle || 600);
   return T;
 }
@@ -271,6 +309,8 @@ async function L4(browser) {   /* flip with the fake clock: bands, waiting, no e
   await verbThrough(T2, 'tap', 3);
   await T2.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 3000, 'flip');
   await T2.go(700);
+  await T2.pause();   /* the hand is due 11 s after heat-on and the loop below stops 170 ms short of it: exact on a paused clock,
+                         while a clock that also flows with real time loses that room on a slow machine (see L17) */
   await T2.tap(144, 176);
   var heat = (await T2.live()).st.heatAt, hintSeen = false;
   for (var w = 0; w < 10800; w += 400) { await T2.go(400); if ((await T2.live()).hint) hintSeen = true; }
@@ -442,6 +482,8 @@ async function L7(browser) {   /* reduced motion: no shake, squash, particles, a
   await T.tapEl('.ck-prop');
   await T.until(function (x) { return x.kind === 'tap'; }, 2000, 'tap');
   await T.go(700);
+  await T.pause();   /* the idle hand comes 5 s after the tap below and stays 1 s; the three pictures of it are taken 5.5 to 5.7 s
+                        after the tap: exact on a paused clock (see L17) */
   var l = await T.live(), mk = l.st.marks[0];
   check(l.reduced, 'L7: reduced motion is on');
   var h0 = await T.hash(), p = await T.pt(mk.x, mk.y);
@@ -600,6 +642,8 @@ async function L13(browser) {   /* ?rec=1 touch session replayed by COOK.simulat
 async function L14(browser) {   /* DOM text: no N/M counts, no digits on any screen; console errors 0 across the run */
   var T = await openPage(browser, { store: null, q: 'seed=3' }), texts = [];
   texts.push(await T.dlgText());
+  await T.pause();   /* the loop presses the verb button three times a step, 300 ms apart; the slice step is done at the second
+                        press and 400 ms later the same button means "back". Paused, the third press always falls before that */
   await T.tapEl('.ck-prop');
   for (var k = 0; k < 3; k++) {
     await T.until(function (x) { return x.phase === 'step' && x.si === k; }, 3000, 'step ' + k);
@@ -680,6 +724,8 @@ async function L16(browser) {   /* hints: a first demo is not wiped by presses t
   await verbThrough(T, 'tap', 3);
   await T.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 3000, 'flip');
   await T.go(2200);   /* the first-time heat-on demo plays out */
+  await T.pause();    /* the up-swipe demo lasts 1 s from heat-on and the presses below take 810 ms of it: paused, so that a slow
+                         machine cannot stretch them past its end */
   await T.tap(144, 176); await T.go(60);
   var l = await T.live();
   check(l.hint === 'demo', 'L16: heat on, first time -> the up-swipe demo (' + l.hint + ')');
@@ -700,7 +746,10 @@ async function L16(browser) {   /* hints: a first demo is not wiped by presses t
 
   T = await openPage(browser, { store: SEEN_ALL, q: 'seed=72' });
   await T.tapEl('.ck-prop');
-  await playTap(T); await playFlip(T, 1500); await playSlice(T);
+  await playTap(T); await playFlip(T, 1500);
+  await T.pause();    /* from the last cut on, the times count: the plate's hand shows 5.45 to 6.45 s after the reveal, and the
+                         second tap must land within 500 ms of the way back. Paused before the cuts, so both are exact */
+  await playSlice(T);
   await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
   await T.go(600);
   check((await T.verb()).opacity === '0' && !(await T.live()).hint, 'L16: reveal on touch, at first nothing extra shows');
@@ -725,8 +774,10 @@ async function L17(browser) {   /* brief items: 24 px edge, 600 ms title and tap
   var T = await openPage(browser, { vp: { width: 320, height: 568 }, store: JSON.stringify({ v: 1, day: '', dayN: 0, seen: [], pot: null, book: [] }), q: 'seed=81' });
   /* the title's 600 ms is timed on a paused clock: Playwright's installed clock otherwise also flows with real time
      between runFor calls, so a busy machine or a cold first frame could eat the 50 ms margin of the 550 ms check.
-     Paused before the tap (on the idle counter, a little ahead so the target is never in the past). */
-  await T.page.clock.pauseAt(await T.page.evaluate(function () { return Date.now() + 250; }));
+     Paused before the tap, on the idle counter (T.pause: a little ahead, and again with more room if a slow machine
+     has already passed that point). From here to the end of this page the checks do not depend on how fast the machine
+     is: the demo's end, the one-frame rim, the next step's title and the tap that takes it down are timed as well. */
+  await T.pause();
   await T.tapEl('.ck-prop');
   var l = await T.live();
   for (var w0 = 0; w0 < 200 && !(l.kind === 'tap' && l.title); w0++) { await T.go(10); l = await T.live(); }
@@ -735,7 +786,6 @@ async function L17(browser) {   /* brief items: 24 px edge, 600 ms title and tap
   await T.go(100); l = await T.live();
   check(!l.title && l.hint === 'demo', 'L17: the title goes at 600 ms, then the first-time demo hand plays (' + l.hint + ')');
   check((await T.store()).seen.indexOf('tap') < 0, 'L17: tap is not marked seen while its demo plays');
-  await T.page.clock.resume();
   await T.go(1100);
   check((await T.store()).seen.indexOf('tap') >= 0, 'L17: tap is marked seen once its demo has played');
   var st = await T.rect('.ck-stage'), mk = l.st.marks[0], fx0 = (await T.live()).fx, py = st.y + mk.y * st.h / 320;
@@ -860,8 +910,108 @@ async function L18(browser) {   /* run id without a clock, kitchen keys only, si
   check(rec.pot && rec.pot.si === 1 && out.done && JSON.stringify(out.look) === JSON.stringify(lr.look), 'L18: a ?rec=1 recording of a resumed dish replays in node with { pot } to the same look');
 }
 
+/* ---------- third pass: the art wiring ---------- */
+async function L19(browser) {   /* what cook.js hands the scene painters, frame by frame: seed, fh (12 fps frames since heat-on), fbc
+                                   (since the last band change), fl (since the flip landed), t (reveal frame), still - and that a
+                                   frame is painted the moment one of them moves. The clock is paused before the page loads, so
+                                   every time below is exact, however slow the machine is. */
+  var FMS = 1000 / 12, LAND = 3 * FMS;   /* cook.js: the landing frame (fl 0) is arc frame 3, three 12 fps frames after the flick */
+  var T = await openPage(browser, { store: SEEN_ALL, q: 'recipe=jeon&seed=101', art: true, paused: true });
+  function frames(from, at) { return Math.floor((at - from) / FMS); }   /* whole 12 fps frames from an event to a moment */
+  function of(list, s) { return list.filter(function (r) { return r.s === s; }); }
+  function vals(list, k) { return list.map(function (r) { return r[k]; }).filter(function (v, i, a) { return a.indexOf(v) === i; }); }
+  /* the frames lo..hi of counter k (it started at `from`) that were not painted within one display frame (17 ms) of their own start */
+  function late(recs, k, from, lo, hi) { var out = []; for (var i = lo; i <= hi; i++) if (!recs.some(function (r) { var d = r.now - (from + i * FMS); return r[k] === i && d > -0.01 && d < 17; })) out.push(i); return out; }
+  /* run the clock on until the moment `ahead` ms from then lies `ms` into a global 12 fps frame (those start at T.t0 + n * FMS).
+     A counter started there ticks in the middle of global frames: a paint on time for it can only come from the counter itself */
+  async function toPhase(ms, ahead) { var n = await T.now(), x = n; while (Math.floor((x + (ahead || 0) - T.t0) % FMS) !== ms) x++; await T.go(x - n); return x; }
+  /* wait in real time, the clock standing still, until the page has handled the touch just sent */
+  async function handled(fn, label) { for (var w = 0; w < 400; w++) { if (fn(await T.live())) return; await realWait(10); } throw new Error('timeout: ' + label); }
+
+  await verbThrough(T, 'tap', 3);
+  var l = await T.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 3000, 'flip');
+  await T.go(700);
+  var bandMs = l.st.bandMs, per = frames(0, bandMs), cold = of(await T.art(), 'flipScene');
+  check(cold.length > 0 && cold.every(function (r) { return r.heat === false && r.fh === null && r.fbc === null && r.fl === null; }), 'L19: a cold pan gets no counters (fh, fbc and fl are null)');
+
+  var heatAt = await toPhase(33);
+  await T.touch('touchStart', await T.pt(144, 176));
+  await handled(function (x) { return x.st && x.st.heat; }, 'heat');
+  await T.go(30); await T.touch('touchEnd');
+  await T.go(2 * bandMs + 170);                          /* soft, golden, then 200 ms into crisp */
+  var s0 = await T.pt(144, 236), s1 = await T.pt(145, 150);
+  await T.touch('touchStart', s0);
+  var flipAt = await toPhase(33), landAt = flipAt + LAND;
+  await T.touch('touchMove', s1);                        /* one long move up: the flick */
+  await handled(function (x) { return x.st && x.st.res != null; }, 'flip');   /* Chrome hands a touchmove over on its next real frame */
+  await T.go(16); await T.touch('touchEnd');
+  await T.until(function (x) { return x.kind === 'slice' && x.phase === 'step'; }, 3000, 'slice');
+  await T.go(1400);
+  await T.verbClick(); await T.go(300);                  /* first line */
+  /* second line: the plate comes betweenOf('slice') later, on the next display frame. Cut so that this is mid global frame too */
+  var gap = await T.page.evaluate(function () { return COOK.betweenOf('slice'); }), cutAt = await toPhase(33, gap);
+  await T.verbClick();
+  await T.go(gap + 2000);
+
+  var all = await T.art(), pan = of(all, 'flipScene').filter(function (r) { return r.heat === true; }), board = of(all, 'sliceScene'), plate = of(all, 'revealScene');
+  var plateAt = plate.length ? plate[0].now : 0;         /* the first reveal frame */
+  check(of(all, 'flipScene').concat(board).every(function (r) { return r.f === frames(T.t0, r.now); }), 'L19: f is the global 12 fps frame of the kitchen clock (so the events sit where toPhase put them)');
+  var kh = pan.length ? frames(heatAt, pan[pan.length - 1].now) : -1;
+  check(pan.length > 0 && pan.every(function (r) { return r.fh === frames(heatAt, r.now); }) && vals(pan, 'fh').length === kh + 1,
+    'L19: fh = 12 fps frames since heat-on, on every frame of the hot pan, none skipped (0..' + kh + ')');
+  var gold = pan.filter(function (r) { return r.band === 1; }), crisp = pan.filter(function (r) { return r.band === 2; });
+  check(pan.length > 0 && pan.every(function (r) { return r.fbc === (r.band > 0 ? frames(heatAt + r.band * bandMs, r.now) : null); }) && pan[0].fbc === null &&
+    gold.length > 0 && gold[0].fbc === 0 && gold[gold.length - 1].fbc === per - 1 && crisp.length > 0 && crisp[0].fbc === 0 && crisp[crisp.length - 1].fbc > 0,
+    'L19: fbc is null while soft, back at 0 on each band change (golden, crisp) and counts from there (golden ' + JSON.stringify(vals(gold, 'fbc').slice(0, 3)) + ' .., crisp ' + JSON.stringify(vals(crisp, 'fbc').slice(0, 3)) + ' ..)');
+  var lateFh = late(pan, 'fh', heatAt, 2, per - 1);
+  check(lateFh.length === 0, 'L19: each fh frame is painted as it begins (within one display frame), not held until the next global frame (late: ' + lateFh.join(',') + ')');
+  function fl(r) { return r.now >= landAt ? frames(landAt, r.now) : null; }
+  var arc = pan.filter(function (r) { return r.now >= flipAt && r.now < landAt; });
+  check(pan.length > 0 && pan.every(function (r) { return r.fl === fl(r); }) && arc.length > 0 && late(pan, 'fl', landAt, 0, 0).length === 0,
+    'L19: fl is null before the flick and through its arc (' + arc.length + ' frames), then 0 on the landing frame ' + LAND + ' ms after the flick (' + JSON.stringify(vals(pan, 'fl')) + ')');
+  var b0 = board.length && typeof board[0].fl === 'number' ? board[0].fl : 0;
+  check(board.length > 0 && board.every(function (r) { return r.fl === fl(r); }) && b0 > 0,
+    'L19: fl counts on into the slice step without a restart (the pan ended at ' + (pan.length ? pan[pan.length - 1].fl : '?') + ', the board shows ' + JSON.stringify(vals(board, 'fl').slice(0, 3)) + ' ..)');
+  var lateFl = late(board, 'fl', landAt, b0 + 1, b0 + 12);
+  check(lateFl.length === 0, 'L19: on the board each fl frame is painted as it begins too (late: ' + lateFl.join(',') + ')');
+  var kt = plate.length ? frames(plateAt, plate[plate.length - 1].now) : -1;
+  check(plate.length > 0 && plateAt >= cutAt + gap && plateAt - (cutAt + gap) < 17 && plate.every(function (r) { return r.t === frames(plateAt, r.now); }) && vals(plate, 't').length === kt + 1,
+    'L19: the reveal gets t = 12 fps frames since the plate came, none skipped (0..' + kt + ', got ' + JSON.stringify(vals(plate, 't').slice(0, 3)) + ' .., the plate ' + (plateAt - cutAt) + ' ms after the last cut)');
+  var lateT = late(plate, 't', plateAt, 8, 20);
+  check(lateT.length === 0, 'L19: each reveal frame t is painted as it begins (late: ' + lateT.join(',') + ')');
+  var seeds = vals(all, 'seed');
+  check(pan.length > 0 && board.length > 0 && plate.length > 0 && seeds.length === 1 && typeof seeds[0] === 'number' && seeds[0] >= 0 && seeds[0] % 1 === 0,
+    'L19: one seed for the whole dish: the pan, the board and the plate get the same whole number (' + JSON.stringify(seeds) + ')');
+  check(all.length > 0 && all.every(function (r) { return r.still === false; }), 'L19: with motion on, every painter call gets still false (' + JSON.stringify(vals(all, 'still')) + ')');
+
+  await T.verbClick();                                   /* back to the counter, then a second dish up to its flip step */
+  await T.until(function (x) { return x.screen === 'counter'; }, 2000, 'counter');
+  await T.go(700); await T.tapEl('.ck-prop');
+  await handled(function (x) { return x.screen === 'step'; }, 'second dish');
+  await verbThrough(T, 'tap', 3);
+  await T.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 3000, 'flip again');
+  await T.go(300);
+  var next = of(await T.art(all.length), 'flipScene');
+  check(next.length > 0 && next.every(function (r) { return r.heat === false && r.fh === null && r.fbc === null && r.fl === null; }),
+    'L19: the next dish starts clean: its cold pan has no landing counter left over from the last flip (fl ' + JSON.stringify(vals(next, 'fl')) + ')');
+  check((await T.live()).err === 0 && T.errs.length === 0, 'L19: no errors ' + T.errs.join(' | '));
+  await T.done();
+
+  var R = await openPage(browser, { reduced: true, store: SEEN_ALL, q: 'recipe=jeon&reduced=1&seed=102', art: true, paused: true });
+  await verbThrough(R, 'tap', 3); await verbThrough(R, 'flip', 2); await verbThrough(R, 'slice', 2);
+  await R.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
+  await R.go(600);
+  var red = await R.art(), rp = of(red, 'revealScene'), seeds2 = vals(red, 'seed');
+  check(of(red, 'flipScene').length > 0 && of(red, 'sliceScene').length > 0 && rp.length > 0 && red.every(function (r) { return r.still === true; }),
+    'L19 reduced motion: still is true on the pan, the board and the plate (' + JSON.stringify(vals(red, 'still')) + ')');
+  check(rp.length > 0 && rp.every(function (r) { return r.t === null; }), 'L19 reduced motion: the reveal gets t null, its still picture (' + JSON.stringify(vals(rp, 't')) + ')');
+  check(seeds2.length === 1 && typeof seeds2[0] === 'number' && seeds2[0] !== seeds[0], 'L19: another dish seed gives another art seed, again one for the whole dish (' + JSON.stringify(seeds2) + ')');
+  check((await R.live()).err === 0 && R.errs.length === 0, 'L19: no errors (reduced motion) ' + R.errs.join(' | '));
+  await R.done();
+}
+
 (async function main() {
-  var tests = { L1: L1, L2: L2, L3: L3, L4: L4, L5: L5, L6: L6, L7: L7, L8: L8, L9: L9, L10: L10, L11: L11, L12: L12, L13: L13, L14: L14, L15: L15, L16: L16, L17: L17, L18: L18 };
+  var tests = { L1: L1, L2: L2, L3: L3, L4: L4, L5: L5, L6: L6, L7: L7, L8: L8, L9: L9, L10: L10, L11: L11, L12: L12, L13: L13, L14: L14, L15: L15, L16: L16, L17: L17, L18: L18, L19: L19 };
   var browser = await chromium.launch(), t0 = Date.now();
   try {
     for (var name in tests) {

@@ -83,7 +83,7 @@ numpy 와 ffmpeg(libopus, aac)만 쓴다. 난수가 없고 ffmpeg 를 `-bitexact
 | `cook_place_2` | (나중) 주먹밥 놓기 변형 2 | 0.19 s | -13 RMS | Kenney |
 | `cook_lift` | (나중) 한 조각을 집어 올릴 때 아주 작게 (back 은 같은 소리를 더 작게) | 0.15 s | -20 RMS | Kenney |
 
-해초전 한 판: `pick` -> `tap` x 9 -> `step` `quiet` -> `sizzle(0)`(불 켜기 + 지글 0) -> `sizzle(1)` -> `sizzle(2)` -> `flip` -> `step` `quiet` -> `cut` x 2~4 -> `step` `quiet` -> `done`(접시 + 김). act 와 group 의 짝은 manifest.json 의 `map.cook`.
+해초전 한 판: `pick` -> `tap` x 9 -> `step` `quiet` -> `sizzle(0)`(불 켜기 + 지글 0) -> `sizzle(1)` -> `sizzle(2)` -> `flip` -> `step` `quiet` -> `cut` x 2 -> `step` `quiet` -> `done`(접시 + 김). act 와 group 의 짝은 manifest.json 의 `map.cook`.
 
 ## 정직 메모
 
