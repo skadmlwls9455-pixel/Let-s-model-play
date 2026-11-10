@@ -1,18 +1,22 @@
 #!/usr/bin/env node
-/* tools/test-audio.js — 소리 연결 검사 (js/audio.js · js/app.js 훅 · 장면 오른쪽 위 토글 · 설정 시트의 소리 칸). node + Playwright. 실패하면 exit 1.
+/* tools/test-audio.js — 소리 연결 검사 (js/audio.js · js/app.js 훅 · 설정 시트의 소리 칸: 맨 위 '켜기' 체크 칸 #set-sound (낭독 이름 '소리 켜기') + 음악 · 효과음). node + Playwright. 실패하면 exit 1.
+ *   소리 켜기·끄기는 11-08 (주인) 부터 설정 › 소리 칸 맨 위 체크 칸이다 — 장면 오른쪽 위엔 앨범 · 설정만 (스피커 없음). 켜고 끌 때는 손가락처럼 ⚙ 를 눌러 열고 칸을 누른다.
  *   node tools/test-audio.js
- *   SHOTS=/path node tools/test-audio.js   # 스크린샷 폴더 (toggle-off.png · toggle-on.png · settings-sound.png, 폰 360×740 @2x)
+ *   SHOTS=/path node tools/test-audio.js   # 스크린샷 폴더 (toggle-off.png · toggle-on.png = 설정 › 소리 칸 · settings-sound.png, 폰 360×740 @2x)
  * http: node http 로 저장소 루트를 빈 포트에 띄워서 연다 (manifest·소리 파일 fetch 는 http(s) 에서만 된다).
- *  1. 기본은 꺼짐 · 켜기 전엔 audio/ 요청 0 · 스크린샷(꺼짐)
- *  2. 토글 → AudioContext running · audio_on · 시계(훅 14시)×날씨(등불 0 = 비) → theme_day_rain · 환경음 amb_rain
+ *  1. 기본은 꺼짐 · 장면 오른쪽 위 묶음에 소리 단추 없음 · 설정 › 소리 맨 위 '켜기' 체크 칸 ('소리 / 소리' 겹침 없음 · 낭독 이름 '소리 켜기' · 빈 칸 · 음악·효과음 위 · 누르는 줄 44px) · 켜기 전엔 audio/ 요청 0 · 스크린샷(꺼짐)
+ *  2. 체크 칸 첫 톡 → AudioContext running · audio_on · 시계(훅 14시)×날씨(등불 0 = 비) → theme_day_rain · 환경음 amb_rain
  *  3. 이벤트 재생(APP.importEvents): 출발 → depart_windup·depart_leave + 덕킹 · 기웃 failed → peek_failed (성공음 없음) + 바다 장소 테마
  *     · 귀가 → return_home · 마무리 폴짝 → mood_poljjak · 잠 (낮 + 폴짝) → sleep_settle 만, 집 테마 그대로 (D-1: 자장가 없음)
  *  3b. 집에 있는 날 + 창가 + 비 → stay_settle · special_window_rain · 빗방울 세기 · 낮 + 졸림 → 자장가
- *  4. 설정 시트(옛 방 보기도 받는다): 여닫을 때 sheet_open·sheet_close (탭 소리 겹침 없음) · 음악·효과음 슬라이더 (저장) · 소리 안내 문구 · 스크린샷
+ *  4. 설정 시트(옛 방 보기도 받는다): 여닫을 때 sheet_open·sheet_close (탭 소리 겹침 없음) · 체크 칸은 들리는 대로(체크) · 음악·효과음 슬라이더 (저장) · 보통 때 안내 줄 없음 · 스크린샷
  *     · 추억 앨범 시트도 같은 소리 (앨범 아이콘은 장면 안이라 탭 소리 없음)
- *  5. 끄기 → 새로고침해도 꺼짐 (요청 0) · 켜 둔 채 새로고침 → 첫 탭에서 다시 흐름
+ *  5. 끄기 (칸 자체의 탭 소리 없음) → 새로고침해도 꺼짐 (요청 0) · 켜 둔 채 새로고침 → (시트 닫힌 채) 장면 첫 탭에서 다시 흐름 · 연 시트의 칸은 체크
+ *     · 켜 둔 채 새로고침 → 시트를 연 채(칸은 빈 칸 = 아직 안 들림) 키 하나 → 다시 흐르고 열린 시트의 칸이 따라 체크로
+ *     · 켜 둔 채 새로고침 → 빈 칸에 포커스 + Enter (칸을 안 뒤집는 키) → 다시 흐름 · 체크
+ *     · 켜 둔 채 새로고침 → 칸 줄(글자 '켜기')을 눌러도 다시 흐른다 (꺼지지 않는다)
  *  6. 밤 21시 + 맑음 → theme_night_clear · 마스터 -3 dB · 탭 숨김 suspend · 방 완성 일시정지 · 날씨/시간대 전환 · 집에 있는 날 자리 규칙
- *  7. file:// → 토글을 켜도 페이지 오류 0 · 소리 없음 안내
+ *  7. file:// → 체크 칸을 켜도 페이지 오류 0 · 소리 없음 안내 (토스트 · 소리 칸 아래 한 줄)
  *  8. 방 완성 팡파르 중 끄고 켜기 → BGM 덕킹 풀림 · 못 받는 집 테마는 매초 다시 받지 않는다
  *  9. D-1 자장가 규칙 (훅 이벤트로): 낮 + 덤덤 / 낮 + 반응 없음 → 자장가 없음 · 낮 + 졸림 → 자장가 · 밤 → 자장가 · 반응 키 없으면 마무리 줄의 반응
  *     · 문 이벤트 door{act:'open'} → 끼익 (한 벌에 door_open 이 없으면 audio.js 가 만든 door_creak_open — 시트 소리 아님, 크기는 export 잣대) · close → 짧은 끼익
@@ -69,6 +73,7 @@ function watch(page, origin) {
 }
 async function newPage(browser, look, origin) {
   var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, locale: 'ko-KR', colorScheme: 'light' });
+  await ctx.addInitScript('window.__ppolAwakeMs = 0;');   /* 11-08 깨어 있는 틈 (90 s) 없이 — 예전 검사는 '산책 직후 잠'. 틈을 보는 검사(9b)는 페이지에서 덮는다 */
   if (look) await ctx.addInitScript('window.__ppolLook = ' + JSON.stringify(look) + ';');
   var page = await ctx.newPage();
   return { ctx: ctx, page: page, bag: watch(page, origin) };
@@ -95,12 +100,35 @@ async function settingsBtn(page) {
 }
 /* 소리 칸(#set-music)이 든 시트를 연다 → 그 시트 id */
 async function openSettings(page) {
+  if (await page.$('#settings-sheet[open]')) return { sel: '(이미 열림)', id: 'settings-sheet' };
   var sel = await settingsBtn(page);
   if (!sel) return { sel: null, id: null };
   await page.click(sel);
   await page.waitForSelector('#set-music', { state: 'visible', timeout: 8000 }).catch(function () {});
   var id = await page.evaluate(function () { var m = document.getElementById('set-music'), d = m && m.closest('dialog'); return d && d.open ? d.id : null; });
   return { sel: sel, id: id };
+}
+/* 소리 켜기·끄기 = 설정 › 소리 맨 위 '켜기' 체크 칸 (#set-sound, 낭독 이름 '소리 켜기' — 주인 11-08). 시트가 닫혀 있으면 ⚙ 를 눌러 연다 (꺼져 있을 땐 아무 소리도 요청도 없다) */
+async function ensureSettings(page) {
+  if (!(await page.$('#settings-sheet[open]'))) await page.click('#btn-settings');
+  await page.waitForSelector('#set-sound', { state: 'visible', timeout: 8000 });
+}
+/* 체크 칸을 한 번 누른다. keep 이 아니면 닫기 단추로 시트를 닫는다 */
+async function clickSound(page, keep) {
+  await ensureSettings(page);
+  await page.click('#set-sound');
+  if (!keep) await closeSheet(page, 'settings-sheet');
+}
+/* 체크 칸이 보여 주는 것 (시트를 닫아도 칸은 DOM 에 남아 계속 칠해진다 — 시트를 열 때마다 새로 그린다) */
+function soundUI(page) {
+  return page.evaluate(function () {
+    var c = document.getElementById('set-sound'); if (!c) return null;
+    var row = c.closest('label'), h = document.getElementById('rs-sound'), m = document.getElementById('set-music'), n = document.getElementById('rs-sound-note');
+    var r = row.getBoundingClientRect();
+    return { checked: c.checked, type: c.type, name: (row.textContent || '').trim(), rowId: row.id, rowCls: row.className, afterHead: !!h && h.nextElementSibling === row, aboveMusic: !!m && !!(row.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING),
+      focusable: c.tabIndex >= 0 && !c.disabled, w: r.width, h: r.height, left: r.left, right: r.right, vw: innerWidth, note: n ? n.textContent : null, noteHidden: n ? n.hidden : null,
+      describedBy: c.getAttribute('aria-describedby'), ls: JSON.parse(localStorage.getItem('ppolppol_audio') || 'null') };
+  });
 }
 /* 시트 안의 닫기 버튼 (…-close 또는 '닫기') 을 누른다 */
 async function closeSheet(page, id) {
@@ -141,23 +169,35 @@ async function scenarioHttp(browser, base) {
   var page = s.page;
   await page.goto(base + '/index.html?slow=0.5');
   await nameIt(page);
-  var off = await page.evaluate(function () { var b = document.getElementById('btn-sound'); return { has: !!window.AUDIO, en: AUDIO.enabled(), pressed: b && b.getAttribute('aria-pressed'), label: b && b.getAttribute('aria-label'), ls: localStorage.getItem('ppolppol_audio'), st: AUDIO.state() }; });
+  var off = await page.evaluate(function () {
+    return { has: !!window.AUDIO, en: AUDIO.enabled(), ls: localStorage.getItem('ppolppol_audio'), st: AUDIO.state(), ctl: [].map.call(document.querySelectorAll('#scene-ctl button'), function (x) { return x.id; }).join(','),
+      speaker: !!document.querySelector('#btn-sound, .sound-btn, #scene-ctl [aria-label*="소리"]'), early: !!document.getElementById('set-sound') };
+  });
   ok(off.has && off.en === false && off.st.ctx === 'none', '처음엔 꺼짐, AudioContext 없음');
-  ok(off.pressed === 'false' && off.label === '소리 켜기', '토글: aria-pressed=false · "소리 켜기"');
-  var box = await page.evaluate(function () { var r = document.getElementById('btn-sound').getBoundingClientRect(), st2 = document.getElementById('status').getBoundingClientRect(); return { w: r.width, h: r.height, right: r.right, vw: innerWidth, sth: st2.height }; });
-  ok(box.w >= 44 && box.h >= 44 && box.right <= box.vw, '토글 누르는 곳 ≥ 44×44, 화면 안 (' + box.w + '×' + box.h + ', 상태 줄 ' + box.sth + 'px)');
+  ok(!off.speaker && off.ctl === 'btn-album,btn-settings' && !off.early, '장면 오른쪽 위 묶음 = 앨범 · 설정뿐 (소리 단추 없음 — 11-08 설정 안으로) · 체크 칸은 설정을 열 때 그려짐 (' + off.ctl + ')');
+  await ensureSettings(page);
+  var u0 = await soundUI(page);
+  console.log('   toggle:', JSON.stringify(u0));
+  u0.axName = await page.getByRole('checkbox', { name: '소리 켜기', exact: true }).count();   /* 낭독 이름 = 칸 제목 '소리' + 글자 '켜기' (aria-labelledby) */
+  ok(u0 && u0.type === 'checkbox' && u0.name === '켜기' && u0.axName === 1 && u0.checked === false && u0.focusable && u0.rowCls === 'set', "설정 › 소리: '켜기' 체크 칸 (다른 켜고 끄기 줄과 같은 모양 · 제목 '소리' 바로 아래라 '소리 / 소리' 로 겹치지 않게 · 낭독 이름 '소리 켜기' · 빈 칸 · Tab 으로 감)");
+  ok(u0 && u0.afterHead && u0.aboveMusic, '체크 칸은 소리 칸 맨 위 (제목 바로 아래 · 음악 · 효과음 슬라이더 위)');
+  ok(u0 && u0.w >= 44 && u0.h >= 44 && u0.left >= 0 && u0.right <= u0.vw, '누르는 줄 ≥ 44×44, 화면 안 (' + Math.round(u0.w) + '×' + Math.round(u0.h) + ')');
+  ok(u0 && u0.note === '' && u0.noteHidden === true && u0.describedBy === 'rs-sound-note', '보통 때(꺼짐) 안내 줄 없음 — 체크 칸이 곧 말 (글은 적게, 11-08)');
+  await page.evaluate(function () { var el = document.getElementById('rs-sound'); el.scrollIntoView({ block: 'start' }); var d = el.closest('dialog'); if (d) d.scrollTop -= 8; });
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: path.join(SHOTS, 'toggle-off.png') });
+  await closeSheet(page, 'settings-sheet');
   await page.mouse.click(180, 400);   /* 장면 아무 데나 탭 (꺼져 있으면 아무 일 없음) */
   await page.waitForTimeout(800);
-  ok(s.bag.audioReq.length === 0, '켜기 전 audio/ 요청 0 (' + s.bag.audioReq.length + ')');
-  await page.screenshot({ path: path.join(SHOTS, 'toggle-off.png') });
+  ok(s.bag.audioReq.length === 0, '켜기 전 audio/ 요청 0 — 설정을 열고 닫아도 (' + s.bag.audioReq.length + ')');
 
   console.log('\n== 2. 켜기 → AudioContext running · audio_on · 집 테마(낮 14시 × 비)');
-  await page.click('#btn-sound');
+  await clickSound(page, true);   /* 첫 사용자 동작 = 체크 칸 톡 (시트는 연 채로) */
   var started = await waitState(page, function () { var x = AUDIO.state(); return x.started && x.ctx === 'running'; });
   var a = await st(page);
   ok(started, 'AudioContext running (' + (a && a.ctx) + ')');
-  var lab = await page.evaluate(function () { var b = document.getElementById('btn-sound'); return { p: b.getAttribute('aria-pressed'), l: b.getAttribute('aria-label'), ls: JSON.parse(localStorage.getItem('ppolppol_audio') || 'null') }; });
-  ok(lab.p === 'true' && lab.l === '소리 끄기' && lab.ls && lab.ls.on === true, '토글: aria-pressed=true · "소리 끄기" · ppolppol_audio.on 저장');
+  var lab = await soundUI(page);
+  ok(lab.checked === true && lab.ls && lab.ls.on === true, '체크 칸: 체크 · ppolppol_audio.on 저장');
   await waitState(page, function () { return AUDIO.state().bgm === 'theme_day_rain'; }, null, 15000);
   a = await st(page);
   console.log('   state:', JSON.stringify({ bgm: a.bgm, amb: a.amb, band: a.band, weather: a.weather, fmt: a.fmt, master: a.master, played: playedIds(a) }));
@@ -166,7 +206,11 @@ async function scenarioHttp(browser, base) {
   ok(a.amb.indexOf('amb_rain') >= 0 && a.amb.indexOf('layer_drips') >= 0, '환경음 = amb_rain + layer_drips (' + a.amb.join(',') + ')');
   ok(a.fmt === 'ogg' && s.bag.audioReq.every(function (u) { return /\.(json|ogg)$/.test(u); }), 'Opus(.ogg) 선택 · 필요한 것만 (' + s.bag.audioReq.length + '개 요청)');
   ok(Math.abs(a.master - 1) < 0.05, '낮 마스터 1.0 (' + a.master + ')');
+  ok(!playedIds(a).some(function (id) { return /^ui_tap_/.test(id); }), '켤 때 들린 건 audio_on 쪽만 · 탭 소리 없음 (이 순간엔 아직 꺼져 있어 탭 소리가 날 수 없다 — 칸 자체의 탭 소리 검사는 5. 끌 때)');
+  await page.evaluate(function () { var el = document.getElementById('rs-sound'); el.scrollIntoView({ block: 'start' }); var d = el.closest('dialog'); if (d) d.scrollTop -= 8; });
+  await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(SHOTS, 'toggle-on.png') });
+  await closeSheet(page, 'settings-sheet');
 
   console.log('\n== 3. 이벤트 재생: 출발 · 기웃(실패) · 귀가 · 마무리 · 잠');
   await page.evaluate(function () {
@@ -228,9 +272,11 @@ async function scenarioHttp(browser, base) {
   await page.waitForTimeout(450);
   var p4 = await playedSince(page, t4);
   ok(p4.filter(function (id) { return /^sheet_open_/.test(id); }).length === 1 && !p4.some(function (id) { return /^ui_tap_/.test(id); }), '시트 열기 → sheet_open 한 번 · 탭 소리 겹침 없음 (' + p4.join(',') + ')');
-  var info = await page.evaluate(function () { var m = document.getElementById('set-music'), f = document.getElementById('set-sfx'), n = document.getElementById('rs-sound-note'), hh = document.getElementById('rs-sound'); return { m: m && m.value, f: f && f.value, note: n && n.textContent, h: hh && hh.textContent }; });
+  var info = await page.evaluate(function () { var m = document.getElementById('set-music'), f = document.getElementById('set-sfx'), n = document.getElementById('rs-sound-note'), hh = document.getElementById('rs-sound'); return { m: m && m.value, f: f && f.value, note: n && n.textContent, hidden: n && n.hidden, h: hh && hh.textContent, text: hh && hh.closest('dialog').innerText }; });
+  var u4 = await soundUI(page);
   ok(info.h === '소리' && info.m === '80' && info.f === '80', '설정 › 소리: 음악 80 · 효과음 80');
-  ok(/오른쪽 위 스피커/.test(info.note || '') && !/등불 옆/.test(info.note || ''), '소리 안내가 지금 스피커 자리(장면 오른쪽 위)를 말함: "' + info.note + '"');
+  ok(u4 && u4.checked === true && u4.afterHead && u4.aboveMusic, '다시 연 시트에도 체크 칸이 맨 위 · 들리는 대로 체크 (시트를 열 때마다 새로 그려도)');
+  ok(info.note === '' && info.hidden === true && !/스피커|오른쪽 위/.test(info.text || ''), '보통 때(켜짐) 안내 줄 없음 · 없는 스피커를 가리키는 말 없음');
   await page.evaluate(function () { var el = document.getElementById('rs-sound'); el.scrollIntoView({ block: 'start' }); var d = el.closest('dialog'); if (d) d.scrollTop -= 8; });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(SHOTS, 'settings-sound.png') });
@@ -268,9 +314,16 @@ async function scenarioHttp(browser, base) {
   ok(p4c.filter(function (id) { return /^sheet_close_/.test(id); }).length === 1, 'Esc 로 닫아도 sheet_close (' + p4c.join(',') + ')');
 
   console.log('\n== 5. 끄기 · 새로고침');
-  await page.click('#btn-sound');
-  var o2 = await page.evaluate(function () { var b2 = document.getElementById('btn-sound'); return { p: b2.getAttribute('aria-pressed'), l: b2.getAttribute('aria-label'), ls: JSON.parse(localStorage.getItem('ppolppol_audio')), st: AUDIO.state() }; });
-  ok(o2.p === 'false' && o2.l === '소리 켜기' && o2.ls.on === false && o2.st.enabled === false && o2.st.bgm === null, '끄기: 토글 꺼짐 · 저장 · BGM 멈춤');
+  await ensureSettings(page);
+  await page.waitForTimeout(500);
+  var t5 = (await st(page)).time;
+  await clickSound(page, true);
+  await page.waitForTimeout(300);
+  var p5off = await playedSince(page, t5);
+  var o2 = await page.evaluate(function () { var c = document.getElementById('set-sound'); return { c: c.checked, ls: JSON.parse(localStorage.getItem('ppolppol_audio')), st: AUDIO.state() }; });
+  ok(o2.c === false && o2.ls.on === false && o2.st.enabled === false && o2.st.bgm === null, '끄기: 체크 칸 빈 칸 · 저장 · BGM 멈춤');
+  ok(!p5off.some(function (id) { return /^ui_tap_/.test(id); }), '끌 때도 체크 칸의 탭 소리 없음 (' + p5off.join(',') + ')');
+  await closeSheet(page, 'settings-sheet');
   reportErrors(s.bag, 'http');
   s.bag.audioReq.length = 0;
   await page.reload();
@@ -278,23 +331,67 @@ async function scenarioHttp(browser, base) {
   await page.waitForTimeout(600);
   await page.mouse.click(180, 400);
   await page.waitForTimeout(900);
-  var o3 = await page.evaluate(function () { var b3 = document.getElementById('btn-sound'); return { p: b3.getAttribute('aria-pressed'), st: AUDIO.state() }; });
-  ok(o3.p === 'false' && o3.st.enabled === false && o3.st.ctx === 'none' && s.bag.audioReq.length === 0, '새로고침 뒤에도 꺼짐 · 탭해도 요청 0 (' + s.bag.audioReq.length + ')');
-  await page.click('#btn-sound');
+  await ensureSettings(page);
+  var o3 = await page.evaluate(function () { return { c: document.getElementById('set-sound').checked, st: AUDIO.state() }; });
+  ok(o3.c === false && o3.st.enabled === false && o3.st.ctx === 'none' && s.bag.audioReq.length === 0, '새로고침 뒤에도 꺼짐 (빈 칸) · 탭해도 · 설정을 열어도 요청 0 (' + s.bag.audioReq.length + ')');
+  await clickSound(page);
   await waitState(page, function () { return AUDIO.state().started; }, null, 10000);
-  s.bag.audioReq.length = 0;
-  await page.reload();
-  await page.waitForSelector('#btn-go');
-  await page.waitForTimeout(600);
-  var o4 = await page.evaluate(function () { var b4 = document.getElementById('btn-sound'); return { p: b4.getAttribute('aria-pressed'), l: b4.getAttribute('aria-label'), st: AUDIO.state() }; });
-  /* 기억은 켜짐이지만 아직 아무것도 안 들린다 → 토글은 들리는 대로 '소리 켜기' (누르면 켜진다 — "소리 끄기"가 소리를 켜지 않게) */
-  ok(o4.p === 'false' && o4.l === '소리 켜기' && o4.st.enabled && !o4.st.started && s.bag.audioReq.length === 0, '켜 둔 채 새로고침: 기억은 켜짐 · 토글은 "소리 켜기"(아직 안 들림) · 사용자 동작 전엔 요청·소리 없음');
+  /* 켜 둔 채 새로고침: 사용자 동작 전엔 요청도 소리도 없다. 다시 흐르게 하는 첫 동작 넷을 하나씩 —
+     A 시트를 닫은 채 장면 탭 (폰에서 가장 흔한 길) · B 시트를 연 채 키 하나 · C 빈 칸에 포커스 + Enter · D 칸 줄(글자 '켜기') 톡 */
+  async function reloadOn() {
+    s.bag.audioReq.length = 0;
+    await page.reload();
+    await page.waitForSelector('#btn-go');
+    await page.waitForTimeout(600);
+  }
+  function runningNow() { var x = AUDIO.state(); return x.started && x.ctx === 'running' && !!(x.bgm || x.pending); }
+  /* A. 시트는 닫힌 채 장면 아무 데나 첫 탭 */
+  await reloadOn();
+  var o4 = await page.evaluate(function () { return { st: AUDIO.state(), open: document.getElementById('settings-sheet').open }; });
+  ok(o4.st.enabled && !o4.st.started && o4.st.ctx === 'none' && !o4.open && s.bag.audioReq.length === 0, '켜 둔 채 새로고침: 기억은 켜짐 · 사용자 동작 전엔 요청·소리 없음 (' + s.bag.audioReq.length + ')');
   await page.mouse.click(180, 400);
-  var back = await waitState(page, function () { var x = AUDIO.state(); return x.started && x.ctx === 'running' && !!(x.bgm || x.pending); }, null, 15000);
+  var back = await waitState(page, runningNow, null, 15000);
   var o5 = await st(page);
-  var p5 = await page.evaluate(function () { return document.getElementById('btn-sound').getAttribute('aria-pressed'); });
-  ok(back && playedIds(o5).indexOf('audio_on') < 0 && p5 === 'true', '첫 탭에서 다시 흐름 (audio_on 은 토글할 때만) · 토글 눌림 — bgm ' + (o5.bgm || o5.pending));
-  reportErrors(s.bag, 'http 새로고침');
+  await ensureSettings(page);   /* 그 뒤 ⚙ 를 열면 칸은 들리는 대로 체크 */
+  var p5 = await soundUI(page);
+  ok(back && playedIds(o5).indexOf('audio_on') < 0 && p5 && p5.checked === true, '시트를 닫은 채 장면 첫 탭에서 다시 흐름 (audio_on 은 켤 때만) · 그 뒤 연 설정의 칸은 체크 — bgm ' + (o5.bgm || o5.pending));
+  await closeSheet(page, 'settings-sheet');
+  reportErrors(s.bag, 'http 새로고침 · 장면 탭');
+  /* B. 시트는 사용자 동작 없이 연다 (APP.openSettings — 탭이 아니다). 기억은 켜짐이지만 아직 아무것도 안 들린다 → 칸은 들리는 대로 빈 칸 (체크가 소리 없이 보이지 않게).
+     첫 동작 = 시트가 열린 채로 키 하나 (포커스는 시트 제목) → 다시 흐르고, 열린 시트의 칸이 늦게 와도 따라 칠해진다 */
+  await reloadOn();
+  await page.evaluate(function () { APP.openSettings(); });
+  await page.waitForSelector('#set-sound', { state: 'visible' });
+  var o6 = await page.evaluate(function () { return { c: document.getElementById('set-sound').checked, st: AUDIO.state() }; });
+  ok(o6.c === false && o6.st.enabled && !o6.st.started && s.bag.audioReq.length === 0, '켜 둔 채 새로고침 + 동작 없이 연 시트: 칸은 빈 칸(아직 안 들림) · 요청·소리 없음');
+  await page.keyboard.press('Shift');
+  var back2 = await waitState(page, runningNow, null, 15000);
+  await waitState(page, function () { return document.getElementById('set-sound').checked; }, null, 3000);
+  var o7 = await st(page);
+  var p7 = await page.evaluate(function () { return { c: document.getElementById('set-sound').checked, open: document.getElementById('settings-sheet').open }; });
+  ok(back2 && playedIds(o7).indexOf('audio_on') < 0 && p7.c === true && p7.open, '시트를 연 채 첫 키에서 다시 흐름 · 열린 시트의 칸이 따라 체크 — bgm ' + (o7.bgm || o7.pending));
+  reportErrors(s.bag, 'http 새로고침 · 키');
+  await page.evaluate(function () { document.getElementById('settings-sheet').close(); });
+  /* C. 빈 칸에 포커스만 옮기고(동작 아님) Enter: 체크 칸은 Enter 로 안 뒤집히지만 다른 키처럼 첫 동작이다 → 다시 흐르고 체크 (옛 스피커 단추는 Enter 로 켜졌다) */
+  await reloadOn();
+  var o8a = await page.evaluate(function () { APP.openSettings(); document.getElementById('set-sound').focus(); return { c: document.getElementById('set-sound').checked, focus: document.activeElement && document.activeElement.id, st: AUDIO.state() }; });
+  await page.keyboard.press('Enter');
+  var back3 = await waitState(page, runningNow, null, 15000);
+  await waitState(page, function () { return document.getElementById('set-sound').checked; }, null, 3000);
+  var o8 = await page.evaluate(function () { return { c: document.getElementById('set-sound').checked, en: AUDIO.enabled(), ls: JSON.parse(localStorage.getItem('ppolppol_audio')) }; });
+  ok(o8a.c === false && o8a.focus === 'set-sound' && o8a.st.enabled && !o8a.st.started && back3 && o8.c === true && o8.en && o8.ls.on === true, '켜 둔 채 새로고침 → 빈 칸에 포커스 + Enter → 다시 흐름 · 체크 (꺼지지 않음) ' + JSON.stringify({ focus: o8a.focus, before: o8a.c, after: o8.c, en: o8.en }));
+  reportErrors(s.bag, 'http 새로고침 · Enter');
+  await page.evaluate(function () { document.getElementById('settings-sheet').close(); });
+  /* D. 첫 동작이 바로 그 칸 줄 톡이면: 끄지 않고 다시 흐르게 (빈 칸으로 보이니 누르면 켜진다) */
+  await reloadOn();
+  await page.evaluate(function () { APP.openSettings(); });
+  await page.waitForSelector('#set-sound', { state: 'visible' });
+  var o9a = await page.evaluate(function () { return { c: document.getElementById('set-sound').checked, st: AUDIO.state() }; });
+  await page.click('#set-sound-row > span');   /* 칸 옆 글자 '켜기' 를 톡 (줄 전체가 누르는 곳 — 탭 대기가 먼저 켜고 이 칸이 다시 끄면 안 된다) */
+  var back4 = await waitState(page, function () { var x = AUDIO.state(); return x.started && x.ctx === 'running'; }, null, 15000);
+  var o9 = await page.evaluate(function () { return { c: document.getElementById('set-sound').checked, en: AUDIO.enabled(), ls: JSON.parse(localStorage.getItem('ppolppol_audio')) }; });
+  ok(o9a.c === false && o9a.st.enabled && !o9a.st.started && back4 && o9.c === true && o9.en && o9.ls.on === true, '켜 둔 채 새로고침 → 빈 칸 줄(글자 \'켜기\')을 눌러도 꺼지지 않고 다시 흐름 · 체크 (' + JSON.stringify({ before: o9a.c, after: o9.c, en: o9.en }) + ')');
+  reportErrors(s.bag, 'http 새로고침 · 칸 톡');
   await s.ctx.close();
 }
 
@@ -304,7 +401,7 @@ async function scenarioNight(browser, base) {
   var page = s.page;
   await page.goto(base + '/index.html');
   await nameIt(page);
-  await page.click('#btn-sound');
+  await clickSound(page);
   await waitState(page, function () { return AUDIO.state().bgm === 'theme_night_clear'; }, null, 15000);
   await page.waitForTimeout(800);
   var a = await st(page);
@@ -378,7 +475,7 @@ async function scenarioStay(browser, base) {
   var page = s.page;
   await page.goto(base + '/index.html?slow=0.5');
   await nameIt(page);
-  await page.click('#btn-sound');
+  await clickSound(page);
   await waitState(page, function () { return AUDIO.state().bgm === 'theme_day_rain'; }, null, 15000);
   await page.evaluate(function () {
     window.__seen = {}; window.__sIv = setInterval(function () { var x = AUDIO.state(); if (x.bgm) window.__seen[x.bgm] = 1; if (x.pending) window.__seen[x.pending] = 1; }, 40);
@@ -401,14 +498,15 @@ async function scenarioToggle(browser, base) {
   var page = s.page;
   await page.goto(base + '/index.html');
   await nameIt(page);
-  await page.click('#btn-sound');
+  await clickSound(page, true);   /* 시트를 연 채로 둔다 — 팡파르 중 끄고 켜기를 같은 칸에서 */
   await waitState(page, function () { return AUDIO.state().bgm === 'theme_day_rain'; }, null, 15000);
   await page.evaluate(function () { AUDIO.on('lantern', { n: 8 }); });
   var pz = await waitState(page, function () { var x = AUDIO.state(); return x.paused && x.duck < 0.05; }, null, 8000);
-  await page.click('#btn-sound');
+  await page.click('#set-sound');
   await page.waitForTimeout(400);
-  await page.click('#btn-sound');
+  await page.click('#set-sound');
   var un = await waitState(page, function () { var x = AUDIO.state(); return x.started && x.bgm === 'theme_day_rain' && x.duck > 0.95; }, null, 10000);
+  await closeSheet(page, 'settings-sheet');
   var a = await st(page);
   ok(pz && un, '팡파르(BGM 멈춤) 중 끄고 켜기 → 다시 켜면 덕킹 풀림 (duck ' + a.duck + ', bgm ' + a.bgm + ')');
   reportErrors(s.bag, 'toggle');
@@ -419,7 +517,7 @@ async function scenarioToggle(browser, base) {
   await s.ctx.route(/\/audio\/.*theme_day_rain\.(ogg|m4a)$/, function (r) { return r.fulfill({ status: 404, body: '404' }); });
   await page.goto(base + '/index.html');
   await nameIt(page);
-  await page.click('#btn-sound');
+  await clickSound(page);
   await page.waitForTimeout(6000);
   var n = s.bag.audioReq.filter(function (u) { return /theme_day_rain/.test(u); }).length, m = await st(page);
   ok(n >= 1 && n <= 2 && m.bgm === null && m.amb.indexOf('amb_rain') >= 0, '없는 집 테마: 6초 동안 ' + n + '번만 받아 봄 (매초 다시 받지 않음) · 환경음은 그대로 (' + m.amb.join(',') + ')');
@@ -428,15 +526,17 @@ async function scenarioToggle(browser, base) {
 }
 
 async function scenarioFile(browser) {
-  console.log('\n== 7. file:// → 토글을 켜도 오류 0 · 소리 없음 안내');
+  console.log('\n== 7. file:// → 체크 칸을 켜도 오류 0 · 소리 없음 안내');
   var s = await newPage(browser, null, 'file://');
   var page = s.page;
   await page.goto('file://' + path.join(ROOT, 'index.html'));
   await nameIt(page);
-  await page.click('#btn-sound');
+  await clickSound(page, true);
   await page.waitForTimeout(600);
-  var a = await page.evaluate(function () { var b = document.getElementById('btn-sound'); return { p: b.getAttribute('aria-pressed'), st: AUDIO.state(), toast: document.getElementById('toast').textContent }; });
-  ok(a.p === 'true' && a.st.enabled && !a.st.available && a.st.reason === 'file' && a.st.ctx === 'none', 'file://: 토글은 켜짐(기억) · 소리 없음 (reason=file, AudioContext 안 만듦)');
+  var a = await page.evaluate(function () { var n = document.getElementById('rs-sound-note'); return { c: document.getElementById('set-sound').checked, st: AUDIO.state(), toast: document.getElementById('toast').textContent, note: n.textContent, noteShown: !n.hidden }; });
+  ok(a.c === true && a.st.enabled && !a.st.available && a.st.reason === 'file' && a.st.ctx === 'none', 'file://: 체크 칸은 체크(기억) · 소리 없음 (reason=file, AudioContext 안 만듦)');
+  ok(a.noteShown && /웹 주소/.test(a.note), 'file://: 열린 시트의 소리 칸 아래 한 줄이 바로 왜인지 말함 ("' + a.note + '")');
+  await closeSheet(page, 'settings-sheet');
   ok(/웹 주소/.test(a.toast), 'file://: 한 줄 안내 토스트 ("' + a.toast + '")');
   var fsh = await openSettings(page);
   var note = await page.textContent('#rs-sound-note').catch(function () { return ''; });
@@ -473,7 +573,7 @@ async function scenarioRules(browser, base) {
   });
   await page.goto(base + '/index.html');
   await nameIt(page);
-  await page.click('#btn-sound');
+  await clickSound(page);
   await waitState(page, function () { return AUDIO.state().bgm === 'theme_day_rain'; }, null, 15000);
   await page.waitForTimeout(600);
   var MAN = JSON.parse(fs.readFileSync(path.join(ROOT, 'audio', 'manifest.json'), 'utf8'));
@@ -590,6 +690,43 @@ async function clickSpot(pg, sel) {
   await pg.mouse.click(pt[0], pt[1]);
 }
 
+/* 10. 깨어 있는 틈 (주인 11-08): 돌아온 뒤 담요에서 잠깐 깨어 있다가 잔다 — 잠드는 소리는 그때 한 번, 반응 규칙(D-1)은 그 차례 그대로.
+   졸림으로 마무리한 차례는 틈이 짧고 (25 s · 여기선 훅 1.5 s) 그 뒤 자장가 */
+async function scenarioAwake(browser, base) {
+  console.log('\n== 10. 깨어 있는 틈 → 잠드는 소리 한 번 · 졸림이면 짧은 틈 뒤 자장가 (11-08)');
+  var s = await newPage(browser, { hour: 14 }, base);
+  var page = s.page;
+  await page.addInitScript('window.__ppolAwakeMs = 1500;');   /* 공통 0 을 덮는다 */
+  await page.goto(base + '/index.html');
+  await nameIt(page);
+  await clickSound(page);
+  await waitState(page, function () { return AUDIO.state().bgm === 'theme_day_rain'; }, null, 15000);
+  await page.evaluate(function () { window.__sl = []; (function f() { var x = AUDIO.state(); window.__sl.push([performance.now(), x.sleeping, x.played.filter(function (p) { return p.id === 'sleep_settle'; }).length, x.played.some(function (p) { return /^mood_/.test(p.id); })]); if (window.__sl.length < 4000) setTimeout(f, 30); })(); });
+  await page.evaluate(function (evs) { APP.importEvents(JSON.stringify(evs)); }, TRIP);
+  var slept = await waitState(page, function () { var x = AUDIO.state(); return x.sleeping && x.played.some(function (p) { return p.id === 'sleep_settle'; }); }, null, 150000);   /* 산책 한 번 끝까지 (바쁜 기계에선 1분을 넘는다) */
+  await page.waitForTimeout(1200);
+  var r = await page.evaluate(function () {
+    var moodAt = -1, sleepAt = -1, settles = 0;
+    window.__sl.forEach(function (x) { if (moodAt < 0 && x[3]) moodAt = x[0]; if (sleepAt < 0 && x[1]) sleepAt = x[0]; settles = Math.max(settles, x[2]); });
+    var x = AUDIO.state();
+    return { gap: Math.round(sleepAt - moodAt), settles: x.played.filter(function (p) { return p.id === 'sleep_settle'; }).length, phase: x.sleepPhase, rx: x.sleepReaction, lull: x.played.some(function (p) { return p.id === 'special_lullaby'; }) || x.bgm === 'special_lullaby' };
+  });
+  console.log('   폴짝 차례:', JSON.stringify(r));
+  ok(slept && r.gap >= 1200, '돌아온 뒤 깨어 있는 틈: 마무리 징글(mood_*) 뒤 ' + r.gap + ' ms 동안 잠들지 않는다 (≥ 1.2 s)');
+  ok(r.settles === 1 && r.phase === 'home' && !r.lull, '틈이 끝나 누울 때 잠드는 소리(sleep_settle) 한 번 · 낮 + 폴짝 → 자장가 없음 (D-1 그대로)');
+  /* 졸림 집 차례: 짧은 틈 (훅 1.5 s) 뒤 담요에서 잠 → 자장가 · 잠드는 소리는 또 한 번만 */
+  await page.evaluate(function () { window.__sl = []; window.__s0 = AUDIO.state().played.filter(function (p) { return p.id === 'sleep_settle'; }).length; });
+  await page.evaluate(function () { APP.importEvents(JSON.stringify([{ type: 'stay_home', t: 0, activity: 'nap', line: '담요 속에서 낮잠 잤어' }, { type: 'wrap_up', t: 1500, reaction: '졸림' }])); });
+  await waitState(page, function () { return !document.getElementById('btn-go').classList.contains('away'); }, null, 60000);
+  var r1 = await page.evaluate(function () { return { phase: APP.restPhase(), rest: APP.rest, sleeping: AUDIO.state().sleeping }; });
+  var lull = await waitState(page, function () { var x = AUDIO.state(); return x.sleeping && (x.sleepPhase === 'lullaby' || x.bgm === 'special_lullaby' || x.pending === 'special_lullaby'); }, null, 30000);
+  var r2 = await page.evaluate(function () { return { phase: APP.restPhase(), rest: APP.rest, settles: AUDIO.state().played.filter(function (p) { return p.id === 'sleep_settle'; }).length - window.__s0 }; });
+  ok(r1.phase === 'awake' && !!r1.rest && !r1.sleeping, '졸림으로 마무리한 차례도 돌아온 뒤 잠깐 깨어 있다 (' + JSON.stringify(r1) + ')');
+  ok(lull && r2.phase === 'nap' && !r2.rest && r2.settles <= 1, '그 짧은 틈 뒤 담요에서 잠 · 자장가 (D-1: 졸림) · 잠드는 소리 한 번 (' + JSON.stringify(r2) + ')');
+  reportErrors(s.bag, "10. 깨어 있는 틈");
+  await s.ctx.close();
+}
+
 (async function main() {
   var srv = await serve(), base = 'http://127.0.0.1:' + srv.address().port;
   console.log('test-audio: ' + base + ' · shots → ' + SHOTS);
@@ -600,6 +737,7 @@ async function clickSpot(pg, sel) {
     await scenarioNight(browser, base);
     await scenarioToggle(browser, base);
     await scenarioRules(browser, base);
+    await scenarioAwake(browser, base);
     await scenarioFile(browser);
   } catch (e) {
     fails++; console.error('\nCRASH: ' + (e && e.stack || e));

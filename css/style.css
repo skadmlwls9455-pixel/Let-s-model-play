@@ -179,12 +179,12 @@ a { color: var(--teal); touch-action: manipulation; }
 }
 /* 2D 무대는 --px = 1 (본문 폭 600px 상한) 이라 글자를 그대로 10px 로 — 6·7px 는 못 읽는다. 3D 는 아래 #scene3d 규칙이 덮는다 */
 #oct-bubble {
-  position: absolute; left: calc(50% + var(--bub-dx, 0px)); bottom: calc(100% + 8px); transform: translateX(-50%);   /* --bub-dx: 2D 무대 가장자리(문 앞)에서 안으로 미는 양 (app.js keepBubble2D) */
+  position: absolute; left: calc(50% + var(--bub-dx, 0px)); bottom: calc(100% + 8px - var(--bub-dy, 0px)); transform: translateX(-50%);   /* --bub-dx: 2D 무대 가장자리(문 앞)에서 안으로 미는 양 (app.js keepBubble2D) · --bub-dy: 장면 위쪽에 잘리면 그만큼 아래로 (두 장면 · 11-08) */
   background: var(--paper0); color: var(--ink); border-radius: 4px; padding: 2px 4px;
   font-size: 10px; line-height: 1.3; width: max-content; max-width: 150px; white-space: normal; text-align: center;
   box-shadow: var(--shadow-xs); animation: bubble-in var(--t-ui) var(--ease-enter) both;
 }
-#oct-label:not(:empty) ~ #oct-bubble { bottom: calc(100% + 14px); }   /* 이름표(자는 중 · 꿈꾸는 중 · 출발 중…)가 있으면 그 위로 */
+#oct-label:not(:empty) ~ #oct-bubble { bottom: calc(100% + 14px - var(--bub-dy, 0px)); }   /* 이름표(자는 중 · 꿈꾸는 중 · 출발 중…)가 있으면 그 위로 */
 @keyframes bubble-in { from { opacity: 0; transform: translate(-50%, 4px); } to { opacity: 1; transform: translate(-50%, 0); } }
 /* 상태별 모션 */
 .st-idle #oct-inner, .st-stay #oct-inner { animation: breathe var(--t-idle) ease-in-out infinite; }
@@ -193,7 +193,9 @@ a { color: var(--teal); touch-action: manipulation; }
 @keyframes blink { 0%, 97.6%, 100% { opacity: 0; } 97.7%, 99.9% { opacity: 1; } }
 .st-anticipate #oct-inner { animation: anticipate var(--t-windup) var(--ease-inout) both; }
 @keyframes anticipate { 0% { transform: none; } 60% { transform: scale(1.05, .92); } 100% { transform: scale(1.05, .92); } }
-#oct.settle #oct-inner { animation: settle var(--t-scene) var(--ease-out) both; }   /* 집에 있을 땐 같은 움츠림이 풀리며 1.03 overshoot */
+#oct.settle #oct-inner { animation: settle var(--t-scene) var(--ease-out) both; }
+#oct.nudge #oct-inner { animation: tap-nudge 200ms linear 1; }   /* 깨어 있는 문어를 톡: 2px 위로 한 번 (정수 px · 모션 줄이기면 app.js 가 눈 깜빡으로, 11-08) */
+@keyframes tap-nudge { 0%, 49.9% { transform: translateY(-2px); } 50%, 100% { transform: none; } }   /* 집에 있을 땐 같은 움츠림이 풀리며 1.03 overshoot */
 @keyframes settle { 0% { transform: scale(1.05, .92); } 55% { transform: scale(.98, 1.03); } 100% { transform: none; } }
 .st-walk #oct-inner, .st-carry #oct-inner { animation: hop var(--t-step) ease-in-out infinite; }
 @keyframes hop { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-3px) scale(.98, 1.03); } }
@@ -600,7 +602,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .pip.on { background: var(--amber-fill); box-shadow: inset 0 0 0 1px var(--line), inset 2px 2px 0 var(--amber-hi); text-shadow: none; }
 /* 좁은 폰(< 380px): 이름 옆 '데모' 표시가 차지하는 폭만큼 오른쪽 여백을 조금 덜어 흔한 이름이 데모 표시 전처럼 다 보이게 (320px: 픽셀 세 글자 · 시스템 네 글자, 340px: 픽셀 네 글자).
    시스템은 등불 칸 틈 4→2, 픽셀은 줄 틈 8→6 · '등불' 글자 뒤 −2px(글자 자체 여백이 있어 보이는 틈은 남는다). 등불 네모 크기·네모 사이 틈은 그대로.
-   (소리 버튼은 장면 오른쪽 위 묶음으로 옮겼다 → 320 px 픽셀 테마에서도 네 글자 이름이 다 보인다. tools/smoke.js L) */
+   (상태 줄엔 소리 버튼이 없다 — 장면 오른쪽 위 묶음으로 옮겼다가 11-08 부터는 설정 › 소리 맨 위 체크 칸 → 320 px 픽셀 테마에서도 네 글자 이름이 다 보인다. tools/smoke.js L) */
 @media (max-width: 379px) {
   #status .pips { gap: 2px; }
   :root[data-font="pixel"] #status .srow { gap: 6px; }
@@ -864,7 +866,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 #scene3d #oct { pointer-events: none; z-index: 6; }
 #scene3d #oct-inner { display: none; }
 #scene3d #oct-label { font-size: 12px; }
-#scene3d #oct-bubble { font-size: 12px; padding: 4px 8px; border-radius: 8px; max-width: 200px; }
+#scene3d #oct-bubble { font-size: 12px; padding: 4px 8px; border-radius: 8px; max-width: 220px; }   /* 220: 톡 한 줄(22자 · 모델 24자 + …)이 픽셀 2~3줄 · 시스템 1~2줄 (js/ui-art.js keepInside 가 좁은 장면이면 더 줄인다) */
 .rdrop.snow { width: 2px; height: 2px; background: #f7f1d8; opacity: .8; }
 /* 설정: 문어 색 */
 .presets { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; }
@@ -897,9 +899,9 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"][data-theme="dark"] #name-dialog .honest { color: var(--muted); }
 @media (prefers-color-scheme: dark) { :root[data-font="pixel"]:not([data-theme="light"]) #name-dialog .honest { color: var(--muted); } }
 
-/* ── 장면 오른쪽 위 아이콘 묶음 (#scene-ctl, DESIGN §7.2): 추억 앨범 · ⚙ 설정 · 소리 토글 (js/audio.js) · 설정 › 소리 크기 ──
+/* ── 장면 오른쪽 위 아이콘 묶음 (#scene-ctl, DESIGN §7.2): 추억 앨범 · ⚙ 설정 · 설정 › 소리 크기 (켜기·끄기는 설정 › 소리 맨 위 체크 칸 — 주인 11-08, 장면 위 스피커는 없앴다) ──
    상태 줄에 아이콘 두 개를 두면 320 px 에서 두 글자 이름부터 잘려서 장면 틀 안 오른쪽 위로 옮겼다 (픽셀 베벨 ::after 9 보다 위 · 문어 6 보다 위).
-   버튼은 누르는 곳 44×44 · 보이는 상자 28×28 (틀에서 8px 안쪽). 켜면 호박색 상자 + 물결, 끄면 종이색 상자 + ×.
+   버튼은 누르는 곳 44×44 · 보이는 상자 28×28 (틀에서 8px 안쪽).
    크기 슬라이더는 등불 칸과 같은 말: 켜진 쪽 호박 · 꺼진 쪽 --pip-off, 손잡이는 베벨 블록 */
 .scene-ctl { position: absolute; top: 0; right: 0; z-index: 10; display: flex; transition: opacity var(--t-ui) var(--ease-enter); }
 /* 말풍선이 비켜 서도 버튼과 겹칠 때(좁은 폭 · 보드·문 앞 말)만, 말풍선이 보이는 동안 겹치는 그 버튼을 숨긴다 — 문어의 말이 먼저 읽힌다 (js/ui-art.js ctlYield).
@@ -916,11 +918,6 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .icon-btn[hidden], .icon-btn .ib-dot[hidden] { display: none; }
 .icon-btn .snd-box { display: grid; place-items: center; box-sizing: border-box; width: 28px; height: 28px; border: 1px solid var(--rim); border-radius: 8px; background: var(--panel2); color: var(--muted); }
 .icon-btn svg { display: block; width: 24px; height: 24px; }
-.sound-btn .w-on { display: none; }
-.sound-btn[aria-pressed="true"] .snd-box { color: var(--amber); }
-.sound-btn[aria-pressed="true"] .w-on { display: inline; }
-.sound-btn[aria-pressed="true"] .w-off { display: none; }
-.sound-btn.na[aria-pressed="true"] .snd-box { opacity: .6; }   /* 켜 뒀지만 여기선 못 냄 (file:// 등) */
 .icon-btn:focus-visible { outline: none; }
 .icon-btn:focus-visible .snd-box { outline: 2px solid var(--amber); outline-offset: 2px; }
 /* 앨범 점: 지난번에 앨범을 연 뒤 새 포스터가 붙었을 때만. 숫자 없음 · 깜빡임 없음 · 열면 사라진다 (재촉이 아니라 작은 표시) */
@@ -939,12 +936,7 @@ html.intro-reveal #scene-ctl { transition: opacity var(--t-ui) var(--ease-enter)
   width: 28px; height: 28px; border: 2px solid var(--line); border-radius: 0; background-color: var(--panel2); color: var(--muted);
   box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line);
 }
-:root[data-font="pixel"] .sound-btn[aria-pressed="true"] .snd-box {
-  background-color: var(--amber-fill); color: var(--on-accent);
-  box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo), 2px 2px 0 var(--line);
-}
 :root[data-font="pixel"] .icon-btn:active .snd-box { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
-:root[data-font="pixel"] .sound-btn[aria-pressed="true"]:active .snd-box { box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo); }
 :root[data-font="pixel"] .icon-btn:focus-visible .snd-box { outline: 2px solid var(--fg); outline-offset: 2px; }
 :root[data-font="pixel"] .album-btn .ib-dot { top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 0; background: var(--amber-fill); box-shadow: 0 0 0 2px var(--line); }
 :root[data-font="pixel"] .album-fly { box-shadow: 2px 2px 0 var(--line); }
@@ -1017,10 +1009,11 @@ button.pips::before { content: ''; position: absolute; inset: -12px -4px; }   /*
 @media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .tip { transition: none; transform: none; } }
 :root[data-motion="reduce"] .tip { transition: none; transform: none; }
 
-/* 2) 놀이방 문 (임시, 장면 오른쪽 아래 끝): 누르는 곳 44×44 · 보이는 상자 36×36 · 그림 16×16 ×2 (그림이 안 오면 글자 '문' — 이모지 없음). 문어가 나가 있어도 누를 수 있다.
+/* 2) 놀이방 가는 단추 (산책 중 바깥이 보이는 동안, 장면 왼쪽 아래): 누르는 곳 44×44 · 보이는 상자 36×36 · 그림 16×16 ×2 빨간 지붕 집 (그림이 안 오면 글자 '집' — 이모지 없음). 문어가 나가 있어도 누를 수 있다.
+      주인 11-08 밤: 오른쪽 아래 끝은 문어가 나가는 길목이라 집에 들어가는 단추로 어색하고, 틀에 딱 붙어 있어 이상했다 → 왼쪽 아래 · 보이는 상자가 틀에서 설정 아이콘과 같은 간격 (left/bottom 4px + 상자 안 여백 4px = 8px).
       말풍선이 겹치면 아이콘 묶음처럼 비켜 서고(js/ui-art.js avoidCtl), 그래도 겹치면 말풍선이 보이는 동안 숨는다 (.yield — 규칙은 위 아이콘 묶음 블록) */
 .scene-door {
-  position: absolute; right: 0; bottom: 0; z-index: 10; width: 44px; height: 44px; margin: 0; padding: 0; border: 0; background: none;
+  position: absolute; left: 4px; bottom: 4px; z-index: 10; width: 44px; height: 44px; margin: 0; padding: 0; border: 0; background: none;
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   transition: opacity var(--t-ui) var(--ease-enter);
 }

@@ -118,14 +118,15 @@ var UIART = (function () {
     return 'say';
   }
   function isShout(text, kind) { return kind === 'happy' || kind === 'excited' || kind === 'shout' || /찾았|!$/.test(String(text || '')); }
-  /* 장면 위 버튼들의 보이는 상자와 겹치는 말풍선 → 왼쪽으로 밀 양(px, 음수) · 안 겹치면 0. 버튼 무리마다 따로 잰다:
-     오른쪽 위 아이콘 묶음(#scene-ctl: 추억 앨범 · ⚙ 설정 · 소리) 하나, 오른쪽 아래 놀이방 문(#btn-door) 하나 — 둘 다 장면 오른쪽 끝이라 왼쪽으로 비키면 된다.
+  /* 장면 위 버튼들의 보이는 상자와 겹치는 말풍선 → 밀 양(px: 음수 = 왼쪽, 양수 = 오른쪽) · 안 겹치면 0. 버튼 무리마다 따로 잰다:
+     오른쪽 위 아이콘 묶음(#scene-ctl: 추억 앨범 · ⚙ 설정) 은 왼쪽으로, 산책 중 바깥의 왼쪽 아래 집 단추(#btn-door edge, 주인 11-08 밤) 는 오른쪽으로 비킨다
+     (무리의 가운데가 장면 가운데보다 왼쪽이면 왼쪽 무리).
      r = 밀기 전 풍선 상자. 입장 연출로 숨은 것 · 숨은 버튼은 셈하지 않는다. 2D 무대(app.js keepBubble2D)도 같이 쓴다 */
   function boxesOf(host, sel) {
     if (!host || host.hidden || getComputedStyle(host).visibility === 'hidden') return null;
-    var L = Infinity, T = Infinity, B = -Infinity;
-    [].forEach.call(sel ? host.querySelectorAll(sel) : [host], function (x) { var q = x.getBoundingClientRect(); if (!q.width) return; L = Math.min(L, q.left); T = Math.min(T, q.top); B = Math.max(B, q.bottom); });
-    return L === Infinity ? null : { L: L, T: T, B: B };
+    var L = Infinity, T = Infinity, B = -Infinity, R = -Infinity;
+    [].forEach.call(sel ? host.querySelectorAll(sel) : [host], function (x) { var q = x.getBoundingClientRect(); if (!q.width) return; L = Math.min(L, q.left); R = Math.max(R, q.right); T = Math.min(T, q.top); B = Math.max(B, q.bottom); });
+    return L === Infinity ? null : { L: L, R: R, T: T, B: B };
   }
   function ctlGroups() {
     var door = $('btn-door');
@@ -133,13 +134,17 @@ var UIART = (function () {
   }
   function avoidCtl(r, pad) {
     if (!r) return 0;
-    var shift = 0;
-    ctlGroups().forEach(function (g) { if (r.bottom <= g.T || r.top >= g.B || r.right <= g.L - pad) return; shift = Math.min(shift, g.L - pad - r.right); });
+    var shift = 0, sc = $('scene'), s = sc ? sc.getBoundingClientRect() : null, mid = s ? (s.left + s.right) / 2 : Infinity;
+    ctlGroups().forEach(function (g) {
+      if (r.bottom <= g.T || r.top >= g.B) return;
+      if ((g.L + g.R) / 2 < mid) { if (r.left >= g.R + pad) return; shift = Math.max(shift, g.R + pad - r.left); }   /* 왼쪽 무리 → 오른쪽으로 */
+      else { if (r.right <= g.L - pad) return; shift = Math.min(shift, g.L - pad - r.right); }
+    });
     return shift;
   }
   /* 비켜 서도 겹치면(좁은 폭에서 문어가 보드·문 앞 = 아이콘 바로 아래일 때 — 꼬리를 문어 위에 두면 더는 못 민다) 말풍선이 보이는 동안 그 말풍선과 겹치는 버튼만 숨긴다
      (css .icon-btn.yield · .scene-door.yield: 투명 · 탭은 아래로 통과 · 키보드 포커스가 가면 다시 보임). 문어의 말이 먼저 읽히게 —
-     예전처럼 옅게(0.3) 두면 아이콘 셋(앨범 · 설정 · 소리)이 말풍선 글자 위에 그려졌다. 겹치지 않는 버튼은 그대로. 말풍선이 사라지면 돌아온다.
+     예전처럼 옅게(0.3) 두면 아이콘(앨범 · 설정 — 11-08 까지는 소리도)이 말풍선 글자 위에 그려졌다. 겹치지 않는 버튼은 그대로. 말풍선이 사라지면 돌아온다.
      r = 비킨 뒤의 풍선 상자 { left, right, top, bottom } (true = 모두 · false = 모두 되돌림) */
   function ctlYield(r) {
     [].forEach.call(document.querySelectorAll('#scene-ctl .icon-btn, #btn-door'), function (btn) {
@@ -151,29 +156,47 @@ var UIART = (function () {
       if (btn.classList.contains('yield') !== on) btn.classList.toggle('yield', on);
     });
   }
-  /* 9-slice 테두리로 넓어진 풍선이 장면 가장자리에서 잘리지 않게 옆으로 민다 (꼬리는 문어 위에 그대로).
-     장면 오른쪽 위 아이콘 묶음과 겹치면 그 왼쪽까지 민다 (두 테마 — 시스템 테마 풍선은 꼬리가 없어 가장자리 규칙은 픽셀만). 한도는 같다: 꼬리가 풍선 아랫변 안 */
+  /* 풍선이 장면(#scene) 밖으로 잘리지 않게 (11-08 — 장면 칸은 overflow:hidden 이라 삐져나간 글자는 그냥 사라진다). 두 테마 같은 규칙, P = 4px (픽셀 틀 테두리 + 베벨):
+     1 폭: 220px (좁은 장면이면 장면 폭 − 2P) · 2 옆: 가장자리 안으로 민다, 오른쪽 위 아이콘 묶음 · 바깥 집 단추와 겹치면 그 옆까지 (장면 가장자리 밖으론 안 민다).
+       민 만큼 픽셀 꼬리는 거꾸로 옮겨 문어를 가리키되 풍선 아랫변 안 (가운데에서 ± 폭/2 − 20) · 3 위: 장면 위쪽을 넘으면 그만큼 아래로 (--bub-dy),
+       12px 넘게 내려오면 머리에 닿으니 픽셀 꼬리는 뺀다 (data-tail="off"). 픽셀 테마는 2px 격자 */
+  function liftY(b) { try { var tf = getComputedStyle(b).transform; return tf && tf !== 'none' && typeof DOMMatrixReadOnly === 'function' ? new DOMMatrixReadOnly(tf).m42 : 0; } catch (e) { return 0; } }   /* transform 의 세로 몫 (bubble-in 이 4px 아래에서 올라온다) */
   function keepInside(b) {
-    b.style.marginLeft = ''; b.style.removeProperty('--ua-tail');
-    var sc = $('scene'); if (!sc || !b.closest('#scene3d')) return;
-    var s = sc.getBoundingClientRect(), r = b.getBoundingClientRect(), pad = 4, shift = 0;
-    if (pixel()) { if (r.left < s.left + pad) shift = s.left + pad - r.left; else if (r.right > s.right - pad) shift = s.right - pad - r.right; }
-    var cs = avoidCtl(r, pad); if (cs < 0) shift = Math.min(shift, Math.max(cs, s.left + pad - r.left));   /* 아이콘을 피하되 왼쪽 가장자리 밖으로는 안 민다 */
-    var lim = Math.max(0, r.width / 2 - 28); shift = even(Math.max(-lim, Math.min(lim, shift)));
-    if (shift) { b.style.marginLeft = shift + 'px'; if (pixel()) b.style.setProperty('--ua-tail', (-shift) + 'px'); }
-    ctlYield({ left: r.left + shift, right: r.right + shift, top: r.top, bottom: r.bottom });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 */
+    var sc = $('scene'); if (!sc || !b.closest('#scene3d')) { b.style.marginLeft = ''; b.style.maxWidth = ''; b.style.removeProperty('--ua-tail'); b.removeAttribute('data-tail'); return; }   /* 2D 무대는 app.js keepBubble2D (--bub-dy 도 거기서) */
+    b.style.marginLeft = ''; b.style.removeProperty('--ua-tail'); b.style.removeProperty('--bub-dy'); b.removeAttribute('data-tail');
+    var s = sc.getBoundingClientRect(), P = 4, px = pixel(), shift = 0;
+    var mw = Math.max(96, Math.min(220, Math.floor(s.width - 2 * P))) + 'px';
+    if (b.style.maxWidth !== mw) b.style.maxWidth = mw;
+    /* 등장 애니메이션(아래 4px → 0) 도중에 재도 끝난 자리로 — 위 잘림만이 아니라 아이콘 피하기 · 숨기기도 (검증 11-08: 도중에 재면 아이콘과 위아래로 비껴 보여 그대로 두었다가 0.1 s 뒤 80px 옆으로 튀었다) */
+    var r0 = b.getBoundingClientRect(), ly = liftY(b), r = { left: r0.left, right: r0.right, top: r0.top - ly, bottom: r0.bottom - ly, width: r0.width, height: r0.height };
+    if (r.left < s.left + P) shift = s.left + P - r.left; else if (r.right > s.right - P) shift = s.right - P - r.right;
+    var cs = avoidCtl(r, P);   /* 아이콘을 피하되 장면 가장자리 밖으로는 안 민다 */
+    if (cs < 0) shift = Math.min(shift, Math.max(cs, s.left + P - r.left));
+    else if (cs > 0) shift = Math.max(shift, Math.min(cs, s.right - P - r.right));
+    shift = px ? even(shift) : Math.round(shift);
+    var need = (s.top + P + 2) - r.top, dy = need > 0 ? (px ? Math.ceil(need / 2) * 2 : Math.ceil(need)) : 0;   /* +2 = 숨쉬기로 머리 자리가 1px 오르내려도 4px 안 */
+    if (shift) b.style.marginLeft = shift + 'px';
+    if (px && shift) { var lim = Math.max(0, r.width / 2 - 20), tail = even(Math.max(-lim, Math.min(lim, -shift))); if (tail) b.style.setProperty('--ua-tail', tail + 'px'); }
+    if (dy) { b.style.setProperty('--bub-dy', dy + 'px'); if (px && dy > 12) b.setAttribute('data-tail', 'off'); }
+    ctlYield({ left: r.left + shift, right: r.right + shift, top: r.top + dy, bottom: r.bottom + dy });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 */
   }
-  var bubTimer = null;
+  var bubRaf = 0;
   function onBubble(text, kind) {
     var b = $('oct-bubble'); if (!b || !text) return;
     b.setAttribute('data-ua', bubbleSkin(text, kind));
     b.removeAttribute('data-pop');
     if (isShout(text, kind) && !reduced()) { void b.offsetWidth; b.setAttribute('data-pop', ''); }   /* 다시 붙여야 애니메이션이 처음부터 */
     keepInside(b);
-    requestAnimationFrame(function () { if (!b.hidden) keepInside(b); });   /* 장면이 다음 프레임에 풍선을 문어 위로 옮긴 뒤 한 번 더 (첫 0.2 s 동안 아이콘과 겹쳐 보이지 않게) */
-    /* 문어가 걸어가도 풍선이 따라가며 가장자리 안에 머물게 (보이는 동안만 5 Hz) */
-    clearInterval(bubTimer);
-    bubTimer = setInterval(function () { if (b.hidden) { clearInterval(bubTimer); bubTimer = null; ctlYield(false); return; } keepInside(b); }, 200);
+    /* 문어가 걸어가도 풍선이 따라가며 가장자리 안에 머물게 (보이는 동안만): 문어가 화면에서 움직이는 동안은 프레임마다, 가만히 있으면 5 Hz.
+       예전 5 Hz 만으로는 320px 폰에서 문 → 담요로 걷는 동안 몇 프레임 가장자리를 3~7px 넘었다 (검증 11-08). 첫 프레임은 장면이 풍선을 문어 위로 옮긴 뒤 한 번 더 */
+    cancelAnimationFrame(bubRaf);
+    var last = 0, lastPos = null;
+    bubRaf = requestAnimationFrame(function follow(ts) {
+      if (b.hidden) { bubRaf = 0; ctlYield(false); return; }
+      var p = octPos(), moved = !!p && (!lastPos || Math.abs(p.x - lastPos.x) + Math.abs(p.y - lastPos.y) >= 1);
+      if (moved || !last || ts - last >= 200) { keepInside(b); last = ts; lastPos = p; }
+      bubRaf = requestAnimationFrame(follow);
+    });
     if (kind === 'curious') fx('question');   /* 톡 누름 ('응?') — 픽셀 테마 물음표 파티클 */
   }
 
@@ -290,6 +313,6 @@ var UIART = (function () {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
-  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, ctlYield: ctlYield,
+  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, ctlYield: ctlYield, liftY: liftY,
     iconSrc: iconSrc, icon: icon, iconHTML: iconHTML, iconBad: iconBad };
 })();

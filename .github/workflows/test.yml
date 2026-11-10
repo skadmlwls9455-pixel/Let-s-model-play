@@ -1,7 +1,8 @@
 # 테스트 — push(모든 브랜치)와 PR 마다 돈다. 여러 작업이 동시에 고치니 서로 깨뜨린 걸 바로 알게.
-#   fast  : 빠른 묶음 (필수) — world 불변식 · brain · runner · api
+#   fast  : 빠른 묶음 (필수) — world 불변식 · brain · runner · api · 요리 시뮬레이션 (test-cook, 9물결) · 미용실 규칙 (test-salon)
 #   fonts : 글꼴 부분 집합 점검 (필수) — 화면 문구의 글자가 Galmuri 서브셋에 다 있는지
-#   slow  : 느린 묶음 (선택) — Playwright 스모크 A,B,I · 장면 성능. 실패해도 run 은 빨갛게 되지 않는다
+#   slow  : 느린 묶음 (선택) — Playwright 스모크 A,B,I · 장면 성능 · 요리 창 (test-cook-live, cook.html) · 부엌 소리 (test-cook-audio,
+#           cook.html?sound=1 · foley/ · credits.html). 실패해도 run 은 빨갛게 되지 않는다
 #           (continue-on-error: 로컬에서 스모크 I 의 '새로고침 뒤 지정 계절 유지' 가 3번 중 1번 흔들렸다)
 # package.json 의 scripts 는 쓰지 않고 node 명령을 그대로 부른다. 이 워크플로는 아무것도 커밋하지 않는다.
 name: test
@@ -36,6 +37,9 @@ jobs:
       - run: node tools/test-runner.js
       - run: node tools/test-api.js
       - run: node tools/test-model-voice.js
+      - run: node tools/test-cook.js
+      # 미용실 규칙 (js/salon.js): 시드 대답 · 하루 한 번 · 같은 색 7일 쉼 · 문구 · 모델 요청. TZ=Asia/Seoul 자식 프로세스를 스스로 띄운다
+      - run: node tools/test-salon.js
 
   fonts:
     name: 글꼴 점검
@@ -70,6 +74,17 @@ jobs:
           SMOKE_ONLY: A,B,I
       - run: node tools/test-scene-perf.js
         if: ${{ !cancelled() }}
+      # 요리 창 (cook.html, file://) — 손가락 · 키보드 · 반응 프레임 · 저장. 캡처는 ci-shots/cook 로
+      - run: node tools/test-cook-live.js
+        if: ${{ !cancelled() }}
+        env:
+          COOK_SHOTS: ${{ github.workspace }}/ci-shots/cook
+      # 부엌 소리 (cook.html?sound=1 · js/audio.js 의 'cook' 갈래 · foley/ · credits.html) — 진짜 Web Audio 로 한 판 굽는다. 소리 파일은
+      # http 에서만 받을 수 있어서 저장소 뿌리를 스스로 띄운다 (127.0.0.1 빈 포트). 받는 것은 .ogg (Opus). 캡처는 ci-shots/cook-audio 로
+      - run: node tools/test-cook-audio.js
+        if: ${{ !cancelled() }}
+        env:
+          SHOTS: ${{ github.workspace }}/ci-shots/cook-audio
       - uses: actions/upload-artifact@v7
         if: ${{ always() }}
         with:

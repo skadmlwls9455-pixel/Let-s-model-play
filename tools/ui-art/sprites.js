@@ -605,6 +605,25 @@ var ICONS = {
     '...PPPPPPPPPO...',
     '....OOOOOOOO....'],
 
+  /* ── 장면 위 버튼 (11-08 주인: "빨간 지붕에 관념적인 집"): 산책 중 바깥 화면 오른쪽 아래 단추 (#btn-door, data-spot="edge") — 빨간 박공지붕(햇빛 쪽 호박색 가장자리) ·
+        밝은 돌 굴뚝(어두운 바탕에서도 보이게) · 파란 창 · 나무 문 + 호박색 손잡이. ×2 = 32px. 'ctl.door' 는 로그·앨범의 '바깥 주소' 표시로 그대로 남는다 ── */
+  'ctl.home': [
+    '................',
+    '..........YX....',
+    '.......KJ.XW....',
+    '......LKJJXW....',
+    '.....LKKJJJW....',
+    '....LKKKJJJJ....',
+    '...LKKKKJJJJJ...',
+    '..LKKKKKJJJJJJ..',
+    '.LKKKKKKJJJJJJI.',
+    '..eeeeeeeeeeed..',
+    '..f67fffbbbfed..',
+    '..f56fffbccfed..',
+    '..ffffffbccfed..',
+    '..ffffffbcEfed..',
+    '..ffffffbccfed..',
+    '................'],
   /* ── 장면 위 버튼 (7물결): 놀이방 문 — 둥근 머리 나무 문 · 불 켜진 작은 창(문 너머 방) · 호박색 손잡이 · 돌 문턱. ×2 = 32px (#btn-door) ── */
   'ctl.door': [
     '................',

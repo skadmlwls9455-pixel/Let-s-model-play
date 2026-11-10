@@ -78,7 +78,7 @@
       <div id="oct-bubble" hidden></div>
     </div>
   </div>
-  <!-- 장면 오른쪽 위 아이콘 묶음 (DESIGN §7.2 · §6.3): 추억 앨범(첫 포스터·메모가 생긴 뒤부터) · ⚙ 설정 · 소리 토글 (js/audio.js — id 로만 찾는다).
+  <!-- 장면 오른쪽 위 아이콘 묶음 (DESIGN §7.2 · §6.3): 추억 앨범(첫 포스터·메모가 생긴 뒤부터) · ⚙ 설정. 소리 켜기·끄기는 설정 › 소리 칸 맨 위 (주인 11-08 — 장면 위 스피커는 없앴다).
        누르는 곳 44×44 · 보이는 상자 28×28 · 그림은 12칸 격자 ×2 (currentColor, 두 테마). 앨범 점은 지난번에 앨범을 연 뒤 새 포스터가 붙었을 때만 (숫자 없음, 열면 사라진다) -->
   <div id="scene-ctl" class="scene-ctl">
     <button type="button" id="btn-album" class="icon-btn album-btn" aria-label="추억 앨범" title="추억 앨범" aria-haspopup="dialog" aria-controls="album-sheet" aria-describedby="album-new" hidden>
@@ -86,21 +86,17 @@
       <span class="ib-dot" aria-hidden="true" hidden></span>
       <span id="album-new" class="sr-only"></span>
     </button>
-    <!-- ⚙ 설정 (문어 색 · 소리 크기 · 모션 · 글꼴 · 기록): 예전 '방 보기' 자리 (주인 11-07: 방 보기는 없앴다) -->
+    <!-- ⚙ 설정 (문어 색 · 소리 켜기·크기 · 모션 · 글꼴 · 기록): 예전 '방 보기' 자리 (주인 11-07: 방 보기는 없앴다) -->
     <button type="button" id="btn-settings" class="icon-btn settings-btn" aria-label="설정" title="설정" aria-haspopup="dialog" aria-controls="settings-sheet">
-      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M5 0h2v2H5zM5 10h2v2H5zM0 5h2v2H0zM10 5h2v2h-2zM2 2h1v1H2zM9 2h1v1H9zM2 9h1v1H2zM9 9h1v1H9zM4 2h4v1H4zM3 3h6v1H3zM2 4h3v4H2zM7 4h3v4H7zM5 4h2v1H5zM5 7h2v1H5zM3 8h6v1H3zM4 9h4v1H4z"/></svg></span>
-    </button>
-    <!-- 소리 토글 (js/audio.js): 꺼진 채로 시작. 켜면 스피커 물결, 끄면 × -->
-    <button type="button" id="btn-sound" class="icon-btn sound-btn" aria-pressed="false" aria-label="소리 켜기" title="소리 켜기">
-      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M1 4h2v4H1zM3 3h1v6H3zM4 2h1v8H4zM5 1h1v10H5z"/><path class="w-on" d="M7 4h1v4H7zM8 2h1v1H8zM9 3h1v6H9zM8 9h1v1H8z"/><path class="w-off" d="M7 4h1v1H7zM8 5h2v2H8zM10 4h1v1H10zM7 7h1v1H7zM10 7h1v1H10z"/></svg></span>
+      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M5 1h2v1H5zM2 2h2v1H2zM5 2h2v1H5zM8 2h2v1H8zM2 3h8v1H2zM3 4h2v1H3zM7 4h2v1H7zM1 5h3v1H1zM8 5h3v1H8zM1 6h3v1H1zM8 6h3v1H8zM3 7h2v1H3zM7 7h2v1H7zM2 8h8v1H2zM2 9h2v1H2zM5 9h2v1H5zM8 9h2v1H8zM5 10h2v1H5z"/></svg></span>
     </button>
   </div>
   <!-- 방 문 · 오락기 (8물결): 3D 장면 위에 겹친 진짜 <button> — 자리 · 크기 · hidden 은 장면이 매 프레임 맞춘다 (scene.hotspots, 누르는 곳 44×44 이상). #scene3d(aria-hidden) 밖에 둔다.
-       #btn-door = 다락 안 놀이방 문 (data-spot="over" 일 땐 투명 · 문어가 나가 바깥이 보이는 동안은 data-spot="edge" 로 장면 오른쪽 아래 픽셀 문 단추 — 그림은 16×16 ×2 'ctl.door', 안 오면 글자 '문').
+       #btn-door = 다락 안 놀이방 문 (data-spot="over" 일 땐 투명 · 문어가 나가 바깥이 보이는 동안은 data-spot="edge" 로 장면 왼쪽 아래 픽셀 집 단추 (틀에서 설정 아이콘과 같은 8px 안) — 그림은 16×16 ×2 'ctl.home' (빨간 지붕 집, 주인 11-08), 안 오면 글자 '집').
        누르면 끼익 → 놀이방 (APP.goRoom('play')). #btn-play-door = 놀이방 왼쪽 벽 문 → 문어 방 (goRoom('attic')) · #btn-machine = 다락방 달리기 오락기 → 달리기 창.
        그림 위('over')에선 pointer-events: none — 손가락은 장면이 받아 그린 순서대로 단추를 누른다 (밀기 · 핀치가 문 위에서도 된다). 두 문 단추는 aria-describedby 로 지금 장소 설명(#scene-desc)을 읽힌다 (방을 옮기면 도착한 곳이 들린다) -->
   <button type="button" id="btn-door" class="scene-door" aria-label="놀이방" title="놀이방" aria-describedby="scene-desc">
-    <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/door" alt="" width="32" height="32" draggable="false"><span class="door-txt">문</span></span>
+    <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/home" alt="" width="32" height="32" draggable="false"><span class="door-txt">집</span></span>
   </button>
   <button type="button" id="btn-play-door" class="scene-spot" aria-label="문어 방" title="문어 방" aria-describedby="scene-desc" hidden></button>
   <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
@@ -113,7 +109,7 @@
 
 <!-- ══ STATUS (§7.2) — 한 줄: 이름 [데모] · 방 제목 | 등불 ■■□□□□□□ n/8.
      [데모] 를 누르면 누가 고르는지 한 줄, 등불을 누르면 "초대한 날마다 한 칸 켜져" — 같은 작은 말풍선(#tip, 2.5 s · 다시 누르면 닫힘 · 화면 낭독기 polite).
-     추억 앨범 · 설정 · 소리 버튼은 장면 오른쪽 위 묶음(#scene-ctl): 320 px 에서 아이콘을 이 줄에 두면 두 글자 이름부터 잘렸다 (DESIGN §7.2) ══ -->
+     추억 앨범 · 설정 버튼은 장면 오른쪽 위 묶음(#scene-ctl): 320 px 에서 아이콘을 이 줄에 두면 두 글자 이름부터 잘렸다 (DESIGN §7.2) ══ -->
 <div id="status">
   <div class="srow">
     <!-- #brain-tag: 데모 두뇌(규칙)가 고르는 동안 늘 보이는 아주 작은 표시 (정직 표기). 모델(MCP) 여행을 재생하는 동안만 숨긴다 (app.js renderBrainTag) -->
@@ -212,7 +208,7 @@
   </div>
 </dialog>
 
-<!-- ══ 설정 (⚙, 장면 오른쪽 위) — 문어 색 · 소리(js/audio.js 가 채운다) · 모션 · 픽셀 글꼴 · 포스터 썸네일 · 기록 · 누가 고르나. 예전 '방 보기' 시트는 없앴다 (주인 11-07) ══ -->
+<!-- ══ 설정 (⚙, 장면 오른쪽 위) — 문어 색 · 소리(켜기 · 음악 · 효과음 — js/audio.js 가 채운다) · 모션 · 픽셀 글꼴 · 포스터 썸네일 · 기록 · 누가 고르나. 예전 '방 보기' 시트는 없앴다 (주인 11-07) ══ -->
 <dialog id="settings-sheet" class="sheet settings-sheet" aria-labelledby="set-h">
   <div class="handle" aria-hidden="true"></div>
   <h2 id="set-h" class="set-h dlg-top" tabindex="-1">설정</h2><!-- 열 때 포커스는 여기 (app.js showDialog) -->

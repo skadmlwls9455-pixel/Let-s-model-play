@@ -82,6 +82,22 @@ var SCENE2D = (function () {
     'item.board': function () { return svgWrap(72, 56, '<rect width="72" height="56" fill="#5c4028"/><rect x="3" y="3" width="66" height="50" fill="#c49a66"/><rect x="5" y="5" width="62" height="46" fill="#b78c5a" opacity=".6"/>'); },
     'item.shelf': function () { return svgWrap(56, 14, '<rect x="0" y="8" width="56" height="4" fill="#5c4028"/><rect x="0" y="12" width="56" height="2" fill="#3a2a18"/><rect x="6" y="12" width="2" height="2" fill="#3a2a18"/><rect x="48" y="12" width="2" height="2" fill="#3a2a18"/>'); },
     'item.curtain': function () { return svgWrap(80, 20, '<rect x="0" y="0" width="80" height="3" fill="#3a2a18"/><rect x="2" y="3" width="76" height="17" fill="#9a5058"/><rect x="10" y="3" width="2" height="17" fill="#7a4048"/><rect x="24" y="3" width="2" height="17" fill="#7a4048"/><rect x="40" y="3" width="2" height="17" fill="#7a4048"/><rect x="56" y="3" width="2" height="17" fill="#7a4048"/><rect x="70" y="3" width="2" height="17" fill="#7a4048"/>'); },
+    /* 미용실 거울 코너 (docs/SALON.md §2.2): 왼쪽 벽 창 오른쪽 (무대 x 112–142), 벽과 같은 skewY(26.565) — 벽 좌표 u(벽을 따라) · v(아래로), 바닥 선 = v 76.
+       아치 거울 (틀 #4d2b32 · 유리 테 #819796 · 면 #a8b5b2 · 빛줄기 2) + 거울 속 문어 (문어가 거울 옆일 때만) + 병 선반 + 병 6 (왼쪽부터 빨강 주황 보라 파랑 초록 분홍) + '처음 색' 병 (바닥, 내밀 때만).
+       높이는 3D 와 같은 비율 (50 px/m: 거울 아래 0.62 m · 위 1.44 m · 선반 0.42 m). 오른쪽 벽 x 166 쪽은 놀이방 문 자리라 피한다 · Apollo 색만 (병은 SALON 프리셋 그대로) */
+    'item.salon': function () {
+      var s = '<defs><clipPath id="sal2d-glass"><path d="M8 42V15A7 7 0 0 1 22 15V42Z"/></clipPath></defs><g transform="skewY(26.565)">';
+      s += '<path d="M4 46V15A11 11 0 0 1 26 15V46Z" fill="#4d2b32"/><path d="M7 43V15A8 8 0 0 1 23 15V43Z" fill="#819796"/><path d="M8 42V15A7 7 0 0 1 22 15V42Z" fill="#a8b5b2"/>';
+      s += '<path d="M16 25L20 16M19 31L21 27" stroke="#ebede9" stroke-width="1" fill="none"/>';
+      s += '<g class="sal-refl" clip-path="url(#sal2d-glass)" opacity="0"><circle data-c="refl" cx="12" cy="38" r="5" fill="#e8463c"/><rect x="9" y="36" width="2" height="2" fill="#fff6ee"/><rect x="13" y="36" width="2" height="2" fill="#fff6ee"/><rect x="10" y="37" width="1" height="1" fill="#1b1f2e"/><rect x="14" y="37" width="1" height="1" fill="#1b1f2e"/></g>';
+      s += '<rect x="3" y="55" width="24" height="2" fill="#7a4841"/><rect x="3" y="57" width="24" height="1" fill="#4d2b32"/><rect x="5" y="58" width="1" height="3" fill="#4d2b32"/><rect x="24" y="58" width="1" height="3" fill="#4d2b32"/>';
+      ['#e8463c', '#f08a3c', '#9a5cc8', '#4a86d8', '#4fa868', '#f07aa8', '#e8463c'].forEach(function (c, i) {
+        var u = i < 6 ? 3 + i * 4 : 26, v = i < 6 ? 49 : 69;   /* 병 몸 3 × 6 px + 왼쪽 1px 밝은 줄 + 코르크 1 × 2 px · 일곱째('처음 색')는 선반 오른쪽 아래 바닥 */
+        s += '<g class="sal-b" data-b="' + i + '"' + (i < 6 ? '' : ' opacity="0"') + '><rect data-bc="' + i + '" x="' + u + '" y="' + v + '" width="3" height="6" fill="' + c + '"/><rect data-bh="' + i + '" x="' + u + '" y="' + (v + 1) + '" width="1" height="3" fill="' + shade(c, 0.35) + '"/><rect x="' + (u + 1) + '" y="' + (v - 2) + '" width="1" height="2" fill="#ad7757"/></g>';
+      });
+      s += '<rect class="sal-spark" x="0" y="0" width="1" height="1" fill="#ebede9" opacity="0"/></g>';
+      return svgWrap(30, 92, s);
+    },
     /* 8물결 · 놀이방 문 (36×104 상자, 다락 그림의 오른쪽 벽 면에 맞춰 기울임 skewY −26.565° = 벽 기울기 1:2). 칠은 3D 다락 문과 같다:
        크림 문틀 · 초록 문짝 + 판 · 둥근 창(문 너머 불 켜진 방, 호박) · 호박 손잡이 · 문턱. Apollo 색만 */
     'door.play': function () { return svgWrap(36, 104, '<g transform="translate(0 18) skewY(-26.565)">' + doorSVG() + '</g>'); },
@@ -146,13 +162,15 @@ var SCENE2D = (function () {
     { key: 'item.crate', x: 222, y: 116, w: 44, h: 36, item: 'crate' },
     { key: 'item.candle', x: 236, y: 96, w: 14, h: 22, item: 'candle', cls: 'candle' },
     { key: 'item.blanket', x: 92, y: 176, w: 56, h: 20, item: 'blanket' },
+    { key: 'item.salon', x: 112, y: 100, w: 30, h: 92, item: 'salon', cls: 'salon' },   /* 미용실 거울 코너 (등불 2칸 — 앱 ITEM_LEVEL.salon) */
     { key: 'door.play', x: 166, y: 93, w: 36, h: 104 }   /* 8물결: 오른쪽 벽, 모서리와 포스터 판 사이 — 놀이방 문 (#btn-door 가 이 위에) */
   ];
-  /* 8물결 · 문 · 오락기 누르는 곳 (320×240 무대 칸, [x, y, w, h, 보이는 장소]) — 3D 의 hotspots 와 같은 계약 (앱이 넘긴 진짜 <button> 을 맞추고 hidden 을 쥔다) */
-  var SPOT_BOX = { atticPlay: [166, 93, 36, 104, 'attic'], playAttic: [100, 84, 36, 104, 'play'], machine: [174, 71, 44, 122, 'play'] };
+  /* 8물결 · 문 · 오락기 누르는 곳 (320×240 무대 칸, [x, y, w, h, 보이는 장소]) — 3D 의 hotspots 와 같은 계약 (앱이 넘긴 진짜 <button> 을 맞추고 hidden 을 쥔다) ·
+     salon = 미용실 거울 + 병 선반 (코너가 보이고 앱이 setSalonOpen(true) 로 허락했을 때만 — 등불 2칸 전엔 숨긴다) */
+  var SPOT_BOX = { atticPlay: [166, 93, 36, 104, 'attic'], playAttic: [100, 84, 36, 104, 'play'], machine: [174, 71, 44, 122, 'play'], salon: [115, 105, 24, 70, 'attic'] };
   var DOOR_ANCHORS = { atticPlayDoor: [190, 200], playAtticDoor: [126, 192] };   /* 문 앞 자리 (나중의 내 캐릭터) — 2D 무대 발끝 좌표 */
-  /* §7.1 표 (발끝 좌표). window 는 창턱 '앞'으로 내렸다 */
-  var ANCHORS = { door: [296, 196], window: [90, 138], crate: [214, 150], board: [244, 112], blanket: [120, 186], center: [160, 180] };
+  /* §7.1 표 (발끝 좌표). window 는 창턱 '앞'으로 내렸다 · salon = 거울 왼쪽 아래 (거울·병을 가리지 않는다) */
+  var ANCHORS = { door: [296, 196], window: [90, 138], crate: [214, 150], board: [244, 112], blanket: [120, 186], center: [160, 180], salon: [92, 202] };
 
   function supported() { return true; }
 
@@ -173,12 +191,16 @@ var SCENE2D = (function () {
     octEl.querySelectorAll('[fill="#e8463c"]').forEach(function (e) { e.setAttribute('data-c', 'body'); });
     octEl.querySelectorAll('[fill="#d93d33"]').forEach(function (e) { e.setAttribute('data-c', 'dark'); });
     octEl.querySelectorAll('[stroke="#e8463c"]').forEach(function (e) { e.setAttribute('data-c', 'lid'); });
-    function setColor(hex) {
+    function setColor(hex, o) {   /* o.still: 3D 와 같은 인자 (2D 는 흔들기가 없어 그대로) */
       if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return;
-      st.color = hex; var dark = shade(hex, -0.12);
+      st.color = hex; paintOct(hex);
+    }
+    function paintOct(hex) {   /* 문어 SVG 몸색만 칠한다 (st.color 는 그대로 — 미용실 색 2칸 교차의 섞은 칸) · 거울 속 문어도 같이 */
+      var dark = shade(hex, -0.12);
       octEl.querySelectorAll('[data-c="body"]').forEach(function (e) { e.setAttribute('fill', hex); });
       octEl.querySelectorAll('[data-c="dark"]').forEach(function (e) { e.setAttribute('fill', dark); });
       octEl.querySelectorAll('[data-c="lid"]').forEach(function (e) { e.setAttribute('stroke', hex); });
+      if (layersEl) layersEl.querySelectorAll('[data-c="refl"]').forEach(function (e) { e.setAttribute('fill', hex); });
     }
 
     /* ───────── 레이어 ───────── */
@@ -223,6 +245,7 @@ var SCENE2D = (function () {
       });
       renderWindowFx();
       container.dataset.items = st.items.join(' ');
+      salSync();   /* 미용실 층을 다시 그렸으면 내민 병 · 거울 속 문어를 다시 얹는다 */
     }
     function renderWindowFx() {
       if (!fx) return;
@@ -289,7 +312,7 @@ var SCENE2D = (function () {
     }
 
     /* ───────── 문어 ───────── */
-    function octPlace(x, y) { oct.x = Math.round(x); oct.y = Math.round(y); octEl.style.transform = 'translate(' + (oct.x - 24) + 'px,' + (oct.y - 48) + 'px)'; }
+    function octPlace(x, y) { oct.x = Math.round(x); oct.y = Math.round(y); octEl.style.transform = 'translate(' + (oct.x - 24) + 'px,' + (oct.y - 48) + 'px)'; salReflect(); }
     function octFlip(f) { oct.flip = !!f; octEl.classList.toggle('flip', oct.flip); }
     function setCarry(onOff) {
       var c = inner.querySelector('.carry-poster');
@@ -312,6 +335,8 @@ var SCENE2D = (function () {
       if (s === 'carry') setCarry(true);
       else if (s === 'hang') { setCarry(false); flyPoster(); }
       else setCarry(false);
+      if (inner) inner.style.transform = s === 'ponder' && !st.reduced ? 'scale(1.05, .92)' : '';   /* 미용실 움츠림 (scaleY .92 · scaleX 1.05, 발끝 기준 — CSS 에 st-ponder 칸이 없어 인라인으로) · 모션 줄이기면 멈춤만 */
+      salReflect();   /* 나가 있으면 (away) 거울 속 문어도 없다 */
       setExpression({ happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' }[s] || 'idle');
     }
     /* ── 표정·초상 폴백 (DESIGN §15.2, 3D 와 같은 API): 표정은 `ex-<name>` 클래스로만 남기고, 초상은 **인라인 SVG 얼굴 8종**(64×64, 머리 원 + 눈·눈꺼풀·입·홍조)을 같은 도형 목록에서
@@ -330,8 +355,9 @@ var SCENE2D = (function () {
     function rect(x, y, w, hh) { return 'M' + f2(x) + ' ' + f2(y) + 'h' + f2(w) + 'v' + f2(hh) + 'h' + f2(-w) + 'z'; }
     function arc(cx, cy, r, up) { return 'M' + f2(cx - r) + ' ' + f2(cy) + 'a' + f2(r) + ' ' + f2(r) + ' 0 0 ' + (up ? 1 : 0) + ' ' + f2(2 * r) + ' 0'; }   /* up = ^ (위로 볼록), 아니면 u */
     /* 표정별 도형 목록 [{ d, fill | stroke, w }] — 정지 자세: pet 눌림·sleep 납작·sleepy 살짝 납작·curious 8° 기울임 (SCENE.md 표) */
-    function faceShapes(expr) {
-      var body = expr === 'pet' ? shade(st.color, 0.12) : expr === 'sleep' ? shade(st.color, 0.04) : st.color, dark = shade(st.color, -0.35);
+    function faceShapes(expr, col) {   /* col = 그 몸색으로 (첫 실행 창 미리 보기 · 지난 날 초상) — 없으면 지금 몸색 */
+      col = /^#[0-9a-f]{6}$/i.test(col || '') ? col : st.color;
+      var body = expr === 'pet' ? shade(col, 0.12) : expr === 'sleep' ? shade(col, 0.04) : col, dark = shade(col, -0.35);
       var big = expr === 'curious' ? 1.3 : 1, closed = expr === 'blink' || expr === 'sleep', arcs = expr === 'happy' || expr === 'pet';
       var out = [{ d: circ(32, 36, 28), fill: INK }, { d: circ(32, 36, 26), fill: body }, { d: ell(22, 20, 6, 3), fill: shade(body, 0.14) }];
       [22, 42].forEach(function (ex) {
@@ -344,7 +370,7 @@ var SCENE2D = (function () {
         if (expr === 'calm') out.push({ d: rect(ex - 10, 30, 20, 10), fill: body });                                               /* 반눈: 위 50 % */
         if (expr === 'sleepy') out.push({ d: rect(ex - 10, 30, 20, 13), fill: body });                                             /* 65 % */
       });
-      if (expr === 'pet') [12, 52].forEach(function (bx) { out.push({ d: ell(bx, 46, 4, 3), fill: shade(st.color, 0.3) }); });  /* 홍조 원판 2 */
+      if (expr === 'pet') [12, 52].forEach(function (bx) { out.push({ d: ell(bx, 46, 4, 3), fill: shade(col, 0.3) }); });  /* 홍조 원판 2 */
       out.push({ d: rect(28, 51, 8, 2), fill: dark });                                                                              /* `_` 입 */
       if (arcs) out.push({ d: arc(32, 48, 4, false), stroke: dark, w: 2 });                                                        /* `u` 웃는 입 */
       return out;
@@ -356,7 +382,7 @@ var SCENE2D = (function () {
       var x = faceXform(expr), bg = portraitBg(o);
       var s = bg ? '<rect width="64" height="64" fill="' + bg + '"/>' : '';
       s += '<g transform="translate(32 36) rotate(' + x.rot + ') scale(' + x.sx + ' ' + x.sy + ') translate(-32 -36)">';
-      faceShapes(expr).forEach(function (sh) { s += '<path d="' + sh.d + '"' + (sh.fill ? ' fill="' + sh.fill + '"' : ' fill="none" stroke="' + sh.stroke + '" stroke-width="' + sh.w + '"') + '/>'; });
+      faceShapes(expr, o && o.color).forEach(function (sh) { s += '<path d="' + sh.d + '"' + (sh.fill ? ' fill="' + sh.fill + '"' : ' fill="none" stroke="' + sh.stroke + '" stroke-width="' + sh.w + '"') + '/>'; });
       return svgWrap(64, 64, s + '</g>');
     }
     function portrait(expr, o) {
@@ -365,7 +391,7 @@ var SCENE2D = (function () {
       if (bg) { x.fillStyle = bg; x.fillRect(0, 0, 64, 64); }
       x.save(); x.translate(32, 36); x.rotate(xf.rot * Math.PI / 180); x.scale(xf.sx, xf.sy); x.translate(-32, -36);
       x.lineCap = 'round';
-      faceShapes(expr).forEach(function (sh) {
+      faceShapes(expr, o && o.color).forEach(function (sh) {
         var p = (typeof Path2D === 'function') ? new Path2D(sh.d) : null;
         if (!p) return;
         if (sh.fill) { x.fillStyle = sh.fill; x.fill(p); } else { x.strokeStyle = sh.stroke; x.lineWidth = sh.w; x.stroke(p); }
@@ -425,6 +451,149 @@ var SCENE2D = (function () {
     }
     function octScreenPos() { if (R.view === 'play') return null; var r = octEl.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top }; }   /* 놀이방이 보이는 동안 문어는 화면에 없다 */
 
+    /* ───────── 미용실 (docs/SALON.md §2.2 · §8.2 — 3D 와 같은 이름) ─────────
+       코너 층 'item.salon' (거울 + 병 선반) · 거울 속 문어 (문어가 거울 옆일 때만) · '바꾸기' 동안만 바닥에 대야 층 + 물 + 물보라 판.
+       salonOffer(hex|null) 병이 한 칸 앞으로 (+ 1px 반짝, 눈이 그 병으로) · salonDye(hex, { joy, look, pause|id, onBeat }) → Promise: 대야 → 병이 테로 → 멈춤 → 붓기·물들기 →
+       제자리 폴짝 → 물보라 + 색 2칸 (섞은 색 → 새 색, 120 ms) → 털기 → (joy) 폴짝 2 → (look) 멈춤 → 물 빠짐·치움. 대야 속 폴짝은 없다 · salonKeep() 병이 제자리로 · salonFinish() 끝 상태로.
+       2D 는 프레임 루프가 없어 setTimeout 사다리로 돈다 (탭이 숨으면 끝 상태로 — 재생은 결정이 아니다). 박자 알림 = on.salon(ev) · onBeat(ev) (3D 와 같은 act).
+       끝으로 감기면 남은 박자 알림은 오지 않는다: 아직 색이 안 바뀐 '바꾸기'면 'done' { skipped: true } 하나뿐 ('tub' { on: false } · 'drain' 없음) — 정리는 'done' 이나 Promise 에 건다 */
+    var SAL_HEX2 = ['#e8463c', '#f08a3c', '#9a5cc8', '#4a86d8', '#4fa868', '#f07aa8'];
+    var SAL2 = { open: false, offer: -1, offerHex: null, active: '', beat: '', hex: null, idx: -1, joy: false, look: false, colored: false, away: false, timers: [], done: null, onBeat: null, tint: null, water: null, waterS: 1, tilt: 0, tub: 0, custom: SAL_HEX2[0] }, salTubEl = null, salFxEl = null;
+    function salNorm2(hx) { hx = String(hx || '').toLowerCase(); return /^#[0-9a-f]{6}$/.test(hx) ? hx : null; }
+    function mix2(a, b, k) { var A = parseInt(a.slice(1), 16), B = parseInt(b.slice(1), 16); function ch(s) { var x = (A >> s) & 255, y = (B >> s) & 255; return ('0' + Math.round(x + (y - x) * k).toString(16)).slice(-2); } return '#' + ch(16) + ch(8) + ch(0); }
+    function salLayer() { return layerEls['item.salon'] || null; }
+    function salSync() {   /* 층을 다시 그린 뒤 (renderLayers) 상태를 다시 얹는다: 내민 병 · 테로 간 병 · '처음 색' 병 색 · 거울 속 문어 */
+      var L = salLayer(); if (!L) return;
+      for (var i = 0; i < 7; i++) {
+        var g = L.querySelector('[data-b="' + i + '"]'); if (!g) continue;
+        var away = SAL2.away && i === SAL2.idx, off = i === SAL2.offer && !away;
+        g.setAttribute('transform', off ? 'translate(1 1)' : '');
+        g.setAttribute('opacity', away || (i === 6 && !off) ? '0' : '1');
+      }
+      var c6 = L.querySelector('[data-bc="6"]'), h6 = L.querySelector('[data-bh="6"]');
+      if (c6) c6.setAttribute('fill', SAL2.custom); if (h6) h6.setAttribute('fill', shade(SAL2.custom, 0.35));
+      L.querySelectorAll('[data-c="refl"]').forEach(function (e) { e.setAttribute('fill', SAL2.tint || st.color); });
+      salReflect();
+    }
+    function salReflect() {   /* 문어가 거울 옆 (ANCHORS.salon 에서 24 px 안) 이면 거울 속 문어가 보인다 */
+      var L = SAL2 && salLayer(); if (!L) return;
+      var a = ANCHORS.salon, near = Math.hypot(oct.x - a[0], oct.y - a[1]) < 24 && st.octState !== 'away' && (!R || R.view !== 'play');
+      var g = L.querySelector('.sal-refl'); if (g && g.getAttribute('opacity') !== (near ? '1' : '0')) g.setAttribute('opacity', near ? '1' : '0');
+    }
+    function salSpark2(i) {   /* 1px 반짝 2칸 (내민 병 오른쪽 위) */
+      var L = salLayer(), sp = L && L.querySelector('.sal-spark'); if (!sp) return;
+      if (i < 0) { clearTimeout(SAL2.sparkT); sp.setAttribute('opacity', '0'); return; }
+      sp.setAttribute('x', String(i < 6 ? 3 + i * 4 + 4 : 30)); sp.setAttribute('y', String(i < 6 ? 46 : 66)); sp.setAttribute('opacity', '1');
+      clearTimeout(SAL2.sparkT); SAL2.sparkT = setTimeout(function () { var L2 = salLayer(), s2 = L2 && L2.querySelector('.sal-spark'); if (s2) s2.setAttribute('opacity', '0'); }, 333);   /* 4칸 @12 fps (3D 와 같다 — 폰에서 2칸은 놓친다) · 연출 타이머와 따로 (연출이 끝나며 지워도 반짝은 꺼진다) */
+    }
+    function salBottleClient(i) {   /* 병 i 의 화면 자리 (눈이 따라간다) — 무대 좌표 → 클라이언트 px */
+      var L = salLayer(); if (!L) return null;
+      var r = L.getBoundingClientRect(), k = r.width / 30, u = i < 6 ? 3 + i * 4 + 1.5 : 27.5, v = i < 6 ? 52 : 72;
+      return { x: r.left + u * k, y: r.top + (v + 0.5 * u) * k };
+    }
+    function salEmit2(ev) { emit('salon', ev); if (typeof SAL2.onBeat === 'function') { try { SAL2.onBeat(ev); } catch (e) { console.error('[scene2d] salon onBeat', e); } } }
+    function salT(fn, ms) { var id = setTimeout(function () { SAL2.timers = SAL2.timers.filter(function (t) { return t !== id; }); fn(); }, ms); SAL2.timers.push(id); return id; }
+    function salTubPaint() {   /* 대야 (28 × 26 무대 px): 몸 · 테 띠 2 · 테 · 안 (빈 대야 = 어둡게 · 물 = 2톤 + 1px 어두운 테) · 테 위 병 (붓는 동안 기울어진다) */
+      if (!salTubEl) return;
+      var w = SAL2.water, k = w == null ? -1 : w, base = k < 0 ? null : k >= 1 ? SAL2.hex : mix2('#a8b5b2', SAL2.hex || '#a8b5b2', Math.max(0, k)), s = SAL2.waterS;
+      var x = '<ellipse cx="14" cy="23" rx="12" ry="3" fill="#4d2b32"/><rect x="2" y="13" width="24" height="10" fill="#ad7757"/><rect x="2" y="15" width="24" height="1" fill="#4d2b32"/><rect x="2" y="20" width="24" height="1" fill="#4d2b32"/>';
+      x += '<ellipse cx="14" cy="13" rx="12" ry="4" fill="#7a4841"/><ellipse cx="14" cy="13" rx="10" ry="3" fill="#341c27"/>';
+      if (base && s > 0) x += '<ellipse cx="14" cy="13" rx="' + Math.max(1, Math.round(10 * s)) + '" ry="' + Math.max(1, Math.round(3 * s)) + '" fill="' + shade(base, -0.3) + '"/><ellipse cx="14" cy="13" rx="' + Math.max(1, Math.round(9 * s)) + '" ry="' + Math.max(1, Math.round(2 * s)) + '" fill="' + base + '"/>' + (s > 0.5 ? '<rect x="9" y="12" width="3" height="1" fill="' + shade(base, 0.4) + '"/>' : '');
+      if (SAL2.away) x += '<g transform="rotate(' + Math.round(SAL2.tilt) + ' 19 11)"><rect x="18" y="5" width="3" height="6" fill="' + (SAL2.hex || '#e8463c') + '"/><rect x="19" y="3" width="1" height="2" fill="#ad7757"/></g>';
+      salTubEl.innerHTML = svgWrap(28, 26, x);
+    }
+    function salTub(f) {   /* 0 없음 · 1 놓이는 칸 (1px 위) · 2 쉬는 자리 */
+      SAL2.tub = f;
+      if (!f) { if (salTubEl) { salTubEl.remove(); salTubEl = null; } return; }
+      if (!salTubEl && layersEl) { salTubEl = h('div', { class: 'layer sal-tub', 'aria-hidden': 'true' }); salTubEl.style.cssText = 'left:118px;top:178px;width:28px;height:26px;z-index:5'; layersEl.appendChild(salTubEl); }
+      if (salTubEl) salTubEl.style.top = (f === 1 ? 177 : 178) + 'px';
+      salTubPaint();
+    }
+    var SPL2 = [[[66, 50], [60, 44], [54, 41], [62, 54], [56, 48], [50, 45]], [[22, 40], [30, 36], [38, 40], [20, 50], [32, 47], [42, 52], [26, 57], [36, 58]], [[18, 48], [30, 46], [42, 50], [22, 58], [34, 57], [44, 60]], [[16, 66], [28, 70], [40, 68], [48, 70]]];
+    function salFx(drops) {   /* 물보라 · 털기 물방울 판 (무대 x 60–160 · y 130–210, 문어 위 7층) — drops = [[x, y, 한 변, hex], …] · 없으면 치움 */
+      if (!drops || !drops.length) { if (salFxEl) { salFxEl.remove(); salFxEl = null; } return; }
+      if (!salFxEl && layersEl) { salFxEl = h('div', { class: 'layer sal-fx', 'aria-hidden': 'true' }); salFxEl.style.cssText = 'left:60px;top:130px;width:100px;height:80px;z-index:7;pointer-events:none'; layersEl.appendChild(salFxEl); }
+      if (!salFxEl) return;
+      salFxEl.innerHTML = svgWrap(100, 80, drops.map(function (d) { var n = d[2], x0 = Math.round(d[0] - n / 2), y0 = Math.round(d[1] - n / 2); return '<rect x="' + x0 + '" y="' + y0 + '" width="' + n + '" height="' + n + '" fill="' + d[3] + '"/>'; }).join(''));
+    }
+    function salSplashFrame2(f) { var base = SAL2.hex, lite = shade(base, 0.35), sz = [2, 4, 3, 1][f]; salFx(SPL2[f].map(function (p, j) { return [p[0], p[1], f === 1 && (j & 1) ? 3 : sz, (j & 1) ? lite : base]; })); }
+    function salShakeFrame2(f) { if (f > 1) { salFx(null); return; } var R0 = f ? 30 : 24, d = []; [-1, 1].forEach(function (s) { [36, 46, 56].forEach(function (y, j) { d.push([32 + s * R0, y + (f ? 6 : 0), f ? 1 : 2, SAL2.hex]); }); }); salFx(d); }
+    function salHop2(n) { if (st.reduced || !inner || typeof inner.animate !== 'function') return; try { inner.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-6px)', offset: 0.5 }, { transform: 'translateY(0)' }], { duration: 450 * st.speed, iterations: n || 1, easing: 'steps(4, end)' }); } catch (e) { /* 애니메이션 없음 */ } }
+    function salApply2(skipped) { if (SAL2.colored || !SAL2.hex) return; SAL2.colored = true; SAL2.tint = null; setColor(SAL2.hex, { still: true }); salSync(); salEmit2({ act: 'done', color: SAL2.hex, joy: SAL2.joy, skipped: !!skipped }); }
+    function salDone2(skipped) {
+      var d = SAL2.done; SAL2.done = null;
+      SAL2.timers.forEach(clearTimeout); SAL2.timers = [];
+      SAL2.active = ''; SAL2.beat = ''; SAL2.tint = null; SAL2.onBeat = null; updateSpots();
+      if (d) d({ ok: true, skipped: !!skipped, color: st.color });
+    }
+    function salFinish2() {   /* 남은 연출을 한 번에: ('바꾸기'면) 새 색 · 대야·물보라 치움 · 병 제자리 → Promise 는 skipped 로 */
+      var was = SAL2.active;
+      SAL2.timers.forEach(clearTimeout); SAL2.timers = [];
+      if (was === 'dye') salApply2(true);
+      SAL2.away = false; SAL2.water = null; SAL2.waterS = 1; SAL2.tilt = 0; SAL2.offer = -1; SAL2.offerHex = null; SAL2.tint = null;
+      salTub(0); salFx(null); salSpark2(-1); salSync();
+      salDone2(!!was);
+    }
+    function salRun2(kind, steps, o) {   /* steps = [{ name, ms, start }] — 차례로, 탭이 숨었거나 무대가 없으면 바로 끝 상태로 */
+      SAL2.active = kind; SAL2.onBeat = o && o.onBeat; updateSpots();
+      var p = new Promise(function (res) { SAL2.done = res; }), i = 0;
+      if (document.hidden || !layersEl || st.items.indexOf('salon') < 0 || R.view !== 'attic') { salFinish2(); return p; }
+      (function next() {
+        if (SAL2.active !== kind) return;
+        if (i >= steps.length) { salDone2(false); return; }
+        var s = steps[i++]; SAL2.beat = s.name; if (s.start) s.start();
+        salT(next, Math.max(0, s.ms * st.speed));
+      })();
+      return p;
+    }
+    function salonOffer2(hex) {
+      hex = salNorm2(hex);
+      if (SAL2.active) return SAL2.offerHex;
+      var i = hex ? (SAL_HEX2.indexOf(hex) >= 0 ? SAL_HEX2.indexOf(hex) : 6) : -1;
+      if (i === SAL2.offer && hex === SAL2.offerHex) return hex;
+      SAL2.offer = i; SAL2.offerHex = hex; if (i === 6) SAL2.custom = hex;
+      salSync(); salSpark2(i);
+      var c = i >= 0 && salBottleClient(i); if (c) pupilsTowards(c.x, c.y);
+      return hex;
+    }
+    function salonDye2(hex, o) {
+      o = o || {}; hex = salNorm2(hex);
+      if (!hex) return Promise.resolve({ ok: false, reason: 'hex', color: st.color });
+      if (SAL2.active) salFinish2();
+      var i = SAL_HEX2.indexOf(hex) >= 0 ? SAL_HEX2.indexOf(hex) : 6, red = st.reduced, old = st.color, steps = [];
+      var pause = o.pause > 0 ? +o.pause : o.id != null ? 0.3 + (hash(String(o.id)) % 1000) / 1000 * 0.3 : 0.45;
+      if (i === 6) SAL2.custom = hex;
+      SAL2.hex = hex; SAL2.idx = i; SAL2.joy = !!o.joy; SAL2.look = !!o.look; SAL2.colored = false; SAL2.away = false; SAL2.water = null; SAL2.waterS = 1; SAL2.tilt = 0;
+      function bottleToRim() { SAL2.away = true; SAL2.tilt = 0; salSync(); salTubPaint(); }
+      if (!red) {
+        steps.push({ name: 'tub', ms: 170, start: function () { salTub(1); SAL2.water = 0; salEmit2({ act: 'tub', on: true }); salT(function () { salTub(2); }, 85 * st.speed); } });
+        steps.push({ name: 'bottle', ms: 300, start: function () { salT(bottleToRim, 150 * st.speed); } });
+        steps.push({ name: 'pause', ms: pause * 1000 });
+        steps.push({ name: 'pour', ms: 500, start: function () { salEmit2({ act: 'pour' }); [30, 60, 95].forEach(function (a, f) { salT(function () { SAL2.tilt = a; salTubPaint(); }, f * 83 * st.speed); }); [1, 2, 3].forEach(function (f) { salT(function () { SAL2.water = f / 3; salTubPaint(); }, (2 + f) * 83 * st.speed); }); } });
+        steps.push({ name: 'jump', ms: 500, start: function () { salT(function () { salHop2(1); }, 120 * st.speed); } });
+        steps.push({ name: 'splash', ms: 333, start: function () { salEmit2({ act: 'splash' }); salSplashFrame2(0); salT(function () { salSplashFrame2(1); SAL2.tint = mix2(old, hex, 0.5); paintOct(SAL2.tint); salSync(); }, 83 * st.speed); salT(function () { salSplashFrame2(2); salApply2(); }, 203 * st.speed); salT(function () { salSplashFrame2(3); }, 250 * st.speed); } });
+        steps.push({ name: 'shake', ms: 400, start: function () { salFx(null); SAL2.tilt = 0; salTubPaint(); salShakeFrame2(0); salT(function () { salShakeFrame2(1); }, 83 * st.speed); salT(function () { salShakeFrame2(2); }, 166 * st.speed); } });
+        if (SAL2.joy) steps.push({ name: 'joy', ms: 900, start: function () { setExpression('happy'); salHop2(2); salEmit2({ act: 'joy' }); } });
+        if (SAL2.look) steps.push({ name: 'look', ms: 900 });
+        steps.push({ name: 'drain', ms: 300, start: function () { salEmit2({ act: 'drain' }); [0.7, 0.4, 0.15].forEach(function (s, f) { salT(function () { SAL2.water = 1; SAL2.waterS = s; if (f === 2) { SAL2.away = false; salSync(); } salTubPaint(); }, f * 100 * st.speed); }); } });
+      } else {   /* 모션 줄이기: 움직임 없이 칸만 — 대야 1칸 · 멈춤 0.2 · 붓기 1칸 · 색 2칸 (120 ms 씩) · 거울 보기는 멈춤 0.6 s 만 · 치우기 1칸 */
+        steps.push({ name: 'tub', ms: 83, start: function () { salTub(2); SAL2.water = 0; bottleToRim(); salEmit2({ act: 'tub', on: true }); } });
+        steps.push({ name: 'pause', ms: 200 });
+        steps.push({ name: 'pour', ms: 83, start: function () { salEmit2({ act: 'pour' }); SAL2.tilt = 95; SAL2.water = 1; salTubPaint(); } });
+        steps.push({ name: 'splash', ms: 240, start: function () { salEmit2({ act: 'splash' }); SAL2.tint = mix2(old, hex, 0.5); paintOct(SAL2.tint); salSync(); salT(function () { salApply2(); }, 120 * st.speed); } });
+        if (SAL2.joy) steps.push({ name: 'joy', ms: 0, start: function () { setExpression('happy'); salEmit2({ act: 'joy' }); } });
+        if (SAL2.look) steps.push({ name: 'look', ms: 600 });
+        steps.push({ name: 'drain', ms: 83, start: function () { salEmit2({ act: 'drain' }); SAL2.away = false; SAL2.water = null; salSync(); salTubPaint(); } });
+      }
+      steps.push({ name: 'end', ms: 0, start: function () { salApply2(); SAL2.away = false; SAL2.water = null; SAL2.waterS = 1; SAL2.offer = -1; SAL2.offerHex = null; salTub(0); salFx(null); salSync(); salEmit2({ act: 'tub', on: false }); } });
+      return salRun2('dye', steps, o);
+    }
+    function salonKeep2(o) {
+      if (SAL2.active) salFinish2();
+      return salRun2('keep', [{ name: 'back', ms: st.reduced ? 0 : 300, start: function () { SAL2.offer = -1; SAL2.offerHex = null; salSync(); salSpark2(-1); } }, { name: 'turn', ms: 300 }], o || {});
+    }
+    function salMotion2() { return { visible: st.items.indexOf('salon') >= 0, open: SAL2.open, offer: SAL2.offerHex, bottle: SAL2.offer, active: SAL2.active, beat: SAL2.beat, tub: SAL2.tub > 0, water: SAL2.water == null ? null : SAL2.water >= 1 ? SAL2.hex : SAL2.water > 0 ? 'mix' : 'clear', waterK: SAL2.water == null ? 0 : SAL2.water, splash: !!salFxEl, reflect: !!(salLayer() && salLayer().querySelector('.sal-refl[opacity="1"]')), tint: SAL2.tint }; }
+
     /* ───────── 8물결 · 장소 셋 (3D 와 같은 말): place() 이야기 장소(다락 · 바깥 — 2D 는 바깥을 그리지 않는다) · view() 보이는 장소(다락 · 놀이방) · room() 플레이어가 있는 방 ─────────
        goRoom('play' | 'attic') → Promise: 문 앞까지 걷기(walkFirst — 지금은 캐릭터가 없어 바로) → on.door open → 0.15 s → 컷(놀이방 그림 ↔ 다락 그림, 미끄럼 없음) → on.door close → 풀림.
        놀이방 그림(#play2d)은 처음 들어갈 때 만든다. 놀이방에 있는 동안 setPlace 는 값만 바꾼다 (원래도 그렇다) */
@@ -442,6 +611,7 @@ var SCENE2D = (function () {
     function spotInfo(id) {
       var b = SPOT_BOX[id]; if (!b || R.busy) return null;
       if (b[4] === 'play' ? R.view !== 'play' : R.view === 'play') return null;
+      if (id === 'salon' && (!SAL2.open || SAL2.active || st.items.indexOf('salon') < 0)) return null;   /* 미용실: 코너가 있고 (등불 2칸) 앱이 허락했고 연출 중이 아닐 때만 */
       var W = container.clientWidth, H = container.clientHeight, px = scenePx(), ox = W / 2 - 160 * px;
       var l = ox + b[0] * px, t = b[1] * px, w0 = b[2] * px, h0 = b[3] * px;
       var w = Math.min(W, Math.round(Math.max(44, w0))), hh = Math.min(H, Math.round(Math.max(44, h0)));
@@ -517,7 +687,7 @@ var SCENE2D = (function () {
     });
     listen(document, 'pointermove', function (e) { if (e.pointerType !== 'touch' && st.octState !== 'sleep') pupilsTowards(e.clientX, e.clientY); }, { passive: true });
     listen(window, 'resize', function () { fit(); updateSpots(); });
-    listen(document, 'visibilitychange', function () { if (!document.hidden) { fit(); updateSpots(); } });
+    listen(document, 'visibilitychange', function () { if (document.hidden && SAL2.active) salFinish2(); if (!document.hidden) { fit(); updateSpots(); } });   /* 탭이 숨으면 미용실 연출은 끝 상태로 */
 
     /* ───────── 초기 렌더 ───────── */
     fit(); setColor(st.color); renderLayers(true); renderWall(); renderSouvenirs();
@@ -528,10 +698,14 @@ var SCENE2D = (function () {
     return {
       kind: '2d',
       setLantern: function (n) { st.lantern = n | 0; renderLayers(false); },
-      setItems: function (items) { st.items = (items || []).slice(); renderLayers(false); renderSouvenirs(); },
+      setItems: function (items) { st.items = (items || []).slice(); renderLayers(false); renderSouvenirs(); if (st.items.indexOf('salon') < 0) { if (SAL2.active) salFinish2(); SAL2.offer = -1; SAL2.offerHex = null; } updateSpots(); },
       setWeather: function (w) { st.weather = w || 'rain'; renderLayers(false); },
       setTime: function () { /* 2D 는 시각 조명 없음 */ },
-      setColor: setColor,
+      setColor: setColor, color: function () { return st.color; },   /* setColor(hex, { still }) · color() = 지금 몸색 (시험용) */
+      /* 미용실 (docs/SALON.md §8.2, 3D 와 같은 이름): setSalonOpen · salonOffer · salonDye → Promise · salonKeep → Promise · salonFinish · motion().salon */
+      setSalonOpen: function (on) { SAL2.open = !!on; updateSpots(); return SAL2.open; },
+      salonOffer: salonOffer2, salonDye: salonDye2, salonKeep: salonKeep2, salonFinish: function () { salFinish2(); },
+      motion: function () { return { place: st.place || 'attic', view: R.view, room: R.room, reduced: st.reduced, octVisible: true, salon: salMotion2() }; },
       setOctState: setOctState,
       setExpression: setExpression, expression: function () { return st.expr; }, EXPRESSIONS: EXPRESSIONS.slice(), portrait: portrait, portraitURL: portraitURL, portraitSVG: portraitSVG,
       setCarry: function (svg, id) { st.carrySvg = svg || ''; st.carryId = id || null; },
@@ -566,10 +740,10 @@ var SCENE2D = (function () {
       setLook: function () { /* 3D 전용 */ }, setPalette: function () { /* 3D 전용 */ }, paletteName: function () { return 'ramps'; }, palette: function () { return []; }, stats: function () { return { calls: 0 }; },
       refresh: function () { renderLayers(true); renderSouvenirs(); },
       pause: function () { st.paused = true; }, resume: function () { st.paused = false; },
-      destroy: function () { if (roomFin) roomFin(); clearSpots(); if (play2d) { play2d.remove(); play2d = null; } delete container.dataset.view; unbind.forEach(function (f) { f(); }); unbind = []; if (oct.walking) oct.walking.cancel(); container.classList.remove('mode-2d'); },
+      destroy: function () { if (roomFin) roomFin(); if (SAL2.active) salFinish2(); salTub(0); salFx(null); clearSpots(); if (play2d) { play2d.remove(); play2d = null; } delete container.dataset.view; unbind.forEach(function (f) { f(); }); unbind = []; if (oct.walking) oct.walking.cancel(); container.classList.remove('mode-2d'); },
       anchors: ANCHORS, placeholders: PH
     };
   }
 
-  return { supported: supported, init: init, PH: PH, ANCHORS: ANCHORS };
+  return { supported: supported, init: init, PH: PH, ANCHORS: ANCHORS, ITEM_LEVEL: { salon: 2 } };   /* ITEM_LEVEL = 장면이 그리는 새 소품의 등불 칸 (앱 ITEM_LEVEL 이 같은 값을 쓴다) */
 })();
