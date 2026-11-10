@@ -1587,3 +1587,14 @@ html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 :root[data-font="pixel"] .sew-chip { border: 0; border-radius: 0; box-shadow: inset 0 0 0 2px var(--line); }
 :root[data-font="pixel"] .sew-chip.on { box-shadow: inset 0 0 0 2px var(--fg); }
 :root[data-font="pixel"] .sew-sw { border-radius: 0; }
+
+/* 이번 주 할 일 (살림 시트): 줄마다 할 일 · 진행 · '바꾸기 n'. 끝난 줄은 흐리게 */
+.week-list { list-style: none; margin: 6px 0 10px; padding: 0; display: grid; gap: 4px; }
+.week-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 2px 0; border-bottom: 1px solid var(--rim); }
+.week-row .week-txt { flex: 1 1 auto; min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.week-row .week-n { flex: 0 0 auto; color: var(--muted); font-size: 13px; }
+.week-row.done .week-txt { color: var(--muted); }
+.week-row .week-rr { flex: 0 0 auto; min-height: 36px; }
+.bag-tag.has-gift::after { content: ''; position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); }
+:root[data-font="pixel"] .bag-tag.has-gift::after { border-radius: 0; }
+:root[data-font="pixel"] .week-row { border-bottom: 2px solid var(--line); }

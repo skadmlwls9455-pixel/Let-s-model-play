@@ -541,11 +541,11 @@ var APP = (function () {
         anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ },
         place: function () { updateSceneDesc(); },   /* 3D: 의식이 다락 ↔ 집 바깥을 바꾼 순간 (2D 는 runCeremony 의 250 ms 틱이 따라간다). 놀이방에 있는 동안에도 온다 (이야기 장소만 바뀜) */
         door: function (ev) { if (window.AUDIO && ev) AUDIO.on('door', { act: ev.act, room: ev.room }); },   /* 8물결: 방 문이 열리고 닫힐 때 끼익 (장면은 AUDIO 를 부르지 않는다) */
-        view: function (v) { syncRoomUI(v); },   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
+        view: function (v) { syncRoomUI(v); if (v === 'loft') questMark('loft'); else if (v === 'play') questMark('kitchen'); },   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
         playerInput: function (allowed) { stickShow(allowed); },
         /* 11-10 인테리어 v0: 가구를 꾹 눌러 옮기면 자리를 저장 (S.room.layout) · 소파 위 노란 점 = 앉기 */
         furnEdit: function (stt) { furnUI(stt); },   /* 배치 모드 시작 · 바뀜 · 끝(null) */
-        furnMove: function (d) { if (!d || !d.id) return; if (!isObj(S.room.layout)) S.room.layout = {}; S.room.layout[d.id] = [d.x, d.z, d.rot | 0, +d.scale || 1]; save(); },
+        furnMove: function (d) { if (!d || !d.id) return; if (!isObj(S.room.layout)) S.room.layout = {}; S.room.layout[d.id] = [d.x, d.z, d.rot | 0, +d.scale || 1]; save(); questMark('furn'); },
         sofaSpot: function (p) { var b = $('btn-sofa'); if (!b) return; if (!p) { b.hidden = true; return; } b.style.left = (p.x - 22) + 'px'; b.style.top = (p.y - 22) + 'px'; b.hidden = false; },
         playerDoor: function (to) { if (!roomJob && !busyRoomWalk()) goRoom(to === 'attic' ? 'attic' : to === 'loft' ? 'loft' : 'play', $(to === 'attic' ? (roomNow() === 'loft' ? 'btn-loft-stair' : 'btn-play-door') : to === 'loft' ? 'btn-stair' : 'btn-door'), false); },   /* 문에 닿은 채 걸어 들어감 (장면이 한 번만 쏜다) */   /* 11-08 움직이기: 내 캐릭터를 움직일 수 있는 때가 바뀐 프레임 (바뀔 때만 온다) → 발자국 손잡이 hidden */
         playerStep: function () { if (window.AUDIO) AUDIO.on('step', { who: 'player' }); }   /* 내 캐릭터 한 걸음 (장면은 AUDIO 를 부르지 않는다) — js/audio.js 에 'step' 갈래가 생기면 발소리 step_* (지금은 조용히) */
@@ -1692,6 +1692,7 @@ var APP = (function () {
     checkDay(true);   /* 자정을 넘겨 다시 부르면 어제 로그는 앨범 일기로, 오늘 칸부터 새로 */
     if (!B || typeof B.plan !== 'function') { toast('두뇌(brain.js)가 아직 없어'); return Promise.resolve(null); }
     /* 힌트 칸은 개발 모드에만 있다 (결정 18): 플레이어 산책은 늘 빈 힌트. 두뇌의 힌트 이해는 그대로 둔다 (개발·테스트·MCP 이벤트) */
+    questMark('ask');   /* 이번 주 할 일: 묻는 것만 센다 (나갈지는 문어가 정한다) */
     var hint = hookHint();   /* 힌트 칸은 없앴다 (주인 11-10) — 사람이 주제를 건넬 길은 없다. 스모크만 테스트 훅으로 두뇌의 옛 길을 탄다 */
     var dk = todayKey(), seq = tripsOn(dk).length + 1;
     var seed = B.hashSeed(dk, hint, seq, S.octopus.name);
@@ -2948,7 +2949,7 @@ var APP = (function () {
   /* 일기 전체 보기: .flip = 두 칸 아래로 뒷면 일기(코드 이름 receipt, 링크 포함)를 펼친 상태 */
   function setReceiptOpen(on) {
     var fl = $('flipper'), b = $('pd-flip');
-    fl.classList.toggle('flip', on);
+    fl.classList.toggle('flip', on); if (on) questMark('diary');
     b.setAttribute('aria-expanded', on ? 'true' : 'false'); b.textContent = on ? '일기 접기' : '일기 전체 보기';
   }
   function flipPoster() {
@@ -3197,7 +3198,7 @@ var APP = (function () {
     var wear = Object.assign({}, giftWear());
     if (!c && !wear.head && !wear.back) { toast(name + '는 아무것도 안 쓰고 있어'); return; }
     var sh = $('settings-sheet'); if (sh && sh.open) sh.close();
-    giftBusy = true; S.settings.giftN = (S.settings.giftN | 0) + 1;
+    giftBusy = true; S.settings.giftN = (S.settings.giftN | 0) + 1; questMark('gift');
     var rng = mkRng(B ? B.hashSeed(todayKey(), c ? c.id : 'off', S.settings.giftN, name) : S.settings.giftN * 2654435761);
     expressRow('curious'); bubble('…', 1200, 'think');   /* 들여다보는 틈 1.3 s — 고르는 과정을 보여 준다 */
     setTimeout(function () {
@@ -3441,7 +3442,7 @@ var APP = (function () {
   }
   function openLook() {
     var d = $('look-sheet'); if (!d) return;
-    if (!d.open) { sheetDragReset(d); d._openedAt = performance.now(); LOOK.back = false; }   /* 열 때마다 제자리 · 앞모습부터 (갈래는 마지막에 보던 대로) */
+    if (!d.open) { sheetDragReset(d); d._openedAt = performance.now(); LOOK.back = false; questMark('look'); }   /* 열 때마다 제자리 · 앞모습부터 (갈래는 마지막에 보던 대로) */
     renderLook();
     showDialog(d);
     lookMoreSync();
@@ -4209,7 +4210,7 @@ var APP = (function () {
     if (!r || !r.id) return 0; var u = userState(); if (u.earned.indexOf(r.id) >= 0) return 0;
     var n = clamp(2 + Math.floor((r.score | 0) / 150), 2, 8);
     u.earned.push(r.id); if (u.earned.length > 50) u.earned.splice(0, u.earned.length - 50);
-    u.shells += n; save(); renderBagChip(); toast('조개 ' + n + '개 · 이제 ' + u.shells + '개');
+    u.shells += n; save(); renderBagChip(); toast('조개 ' + n + '개 · 이제 ' + u.shells + '개'); questMark('run');
     return n;
   }
   function dailyGift() {   /* 그날 처음 열었을 때 한 번 */
@@ -4219,13 +4220,70 @@ var APP = (function () {
     u.shells += 3 + extra; u.seeds += 1; save(); renderBagChip();
     toast('오늘 선물: 조개 ' + (3 + extra) + ' · 씨앗 1 (들어온 날 ' + n + '일째)');
   }
-  function renderBagChip() { var b = $('btn-bag'); if (!b) return; var u = userState(); b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = '조개 ' + u.shells; }
+  /* ───────────────────────── 이번 주 할 일 (11-10 주인: "일주일 단위 퀘스트 · 하루 시간 제한은 촉박 · 문어한테 산책 갈지 묻기 · 하나하나 새로고침 3번") ─────────────────────────
+     · 주마다(월요일부터) 일곱 가지가 시드로 정해진다. 그중 **다섯 가지**를 하면 주간 선물 (조개 12 + 씨앗 2). 일곱을 다 할 필요 없음.
+     · 칸마다 '바꾸기' 3번 (마음에 안 들거나 지금 못 하는 일은 다른 일로 — 진행은 0 부터).
+     · 못 해도 잃는 것 없음 · 이어 하기(연속) 없음 · 알림 · 재촉 없음. 주가 바뀌면 새 일곱 가지로 조용히 바뀐다.
+     · '문어한테 산책 갈지 묻기' 는 묻는 것만 센다 — 나갈지 집에 있을지는 문어가 정한다.
+     저장: S.user.week = { key: 그 주 월요일, q: [{ id, n, rr }] × 7, claimed } */
+  var QUESTS = [['ask', '문어한테 산책 갈지 묻기', 2], ['run', '다락방 달리기 한 판', 1], ['water', '텃밭에 물 주기', 2], ['plant', '씨앗 심기', 1], ['harvest', '꽃 거두기', 1], ['furn', '가구 하나 옮겨 놓기', 1],
+    ['loft', '위층 옷방 올라가 보기', 1], ['kitchen', '부엌 방 들르기', 1], ['look', '내 모습 열어 보기', 1], ['diary', '포스터 일기 펼쳐 보기', 1], ['gift', '선물 상자에서 하나 내밀기', 1], ['days', '이번 주에 사흘 들어오기', 3]];
+  var WEEK_NEED = 5, WEEK_REROLL = 3, WEEK_GIFT = { shells: 12, seeds: 2 };
+  function questOf(id) { for (var i = 0; i < QUESTS.length; i++) if (QUESTS[i][0] === id) return QUESTS[i]; return null; }
+  function weekKeyOf(dk) { var p = String(dk).split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return dateKey(d); }   /* 그 주 월요일 */
+  function weekPick(key, slot, rr, taken) {
+    var pool = QUESTS.filter(function (q) { return taken.indexOf(q[0]) < 0; }), rng = mkRng(hash(['week', key, slot, rr, S.octopus.name || ''].join('|')));
+    return pool[Math.floor(rng() * pool.length)][0];
+  }
+  function weekState() {
+    var u = userState(), key = weekKeyOf(todayKey()), w = u.week;
+    if (!isObj(w) || w.key !== key || !Array.isArray(w.q) || w.q.length !== 7 || w.q.some(function (x) { return !isObj(x) || !questOf(x.id); })) {
+      var taken = []; w = u.week = { key: key, q: [], claimed: false };
+      for (var i = 0; i < 7; i++) { var id = i === 0 ? 'ask' : weekPick(key, i, 0, taken); taken.push(id); w.q.push({ id: id, n: 0, rr: 0 }); }   /* 첫 칸은 늘 '문어한테 산책 갈지 묻기' (바꿀 수는 있다) */
+    }
+    return w;
+  }
+  function questN(x, w) { if (x.id !== 'days') return x.n | 0; var u = userState(), end = new Date(w.key.replace(/-/g, '/')); end.setDate(end.getDate() + 6); var ek = dateKey(end); return u.days.filter(function (d) { return d >= w.key && d <= ek; }).length; }
+  function questDone(x, w) { return questN(x, w) >= questOf(x.id)[2]; }
+  function weekDoneN(w) { return w.q.filter(function (x) { return questDone(x, w); }).length; }
+  function questMark(id) {   /* 한 일 하나를 적는다 (이번 주 일곱 가지에 있을 때만). 조용히 — 토스트 · 알림 없음, 살림 꼬리표에 작은 점만 */
+    if (!S.octopus.name) return;
+    var w = weekState(), hit = false;
+    w.q.forEach(function (x) { if (x.id === id && !questDone(x, w)) { x.n = (x.n | 0) + 1; hit = true; } });
+    if (hit) { save(); renderBagChip(); if ($('bag-sheet') && $('bag-sheet').open) renderBag(); }
+  }
+  function weekReroll(i) {
+    var w = weekState(), x = w.q[i]; if (!x || w.claimed || questDone(x, w) || (x.rr | 0) >= WEEK_REROLL) return;
+    var id = weekPick(w.key, i, (x.rr | 0) + 1, w.q.map(function (y) { return y.id; }));
+    w.q[i] = { id: id, n: 0, rr: (x.rr | 0) + 1 }; save(); renderBag();
+  }
+  function weekClaim() {
+    var w = weekState(), u = userState(); if (w.claimed || weekDoneN(w) < WEEK_NEED) return;
+    w.claimed = true; u.shells += WEEK_GIFT.shells; u.seeds += WEEK_GIFT.seeds; save(); renderBag(); renderBagChip();
+    toast('주간 선물: 조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds);
+  }
+  function renderWeek(frag) {
+    var w = weekState(), done = weekDoneN(w);
+    frag.appendChild(h('h3', { text: '이번 주 할 일' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '일곱 가지 중 다섯 가지를 하면 선물이 있어 (' + done + '/' + WEEK_NEED + '). 주가 바뀌면 새로 바뀌고, 못 해도 잃는 건 없어.' }));
+    var list = h('ul', { class: 'week-list' });
+    w.q.forEach(function (x, i) {
+      var q = questOf(x.id), n = Math.min(questN(x, w), q[2]), ok = n >= q[2], left = WEEK_REROLL - (x.rr | 0);
+      var li = h('li', { class: 'week-row' + (ok ? ' done' : '') }, [h('span', { class: 'week-txt', text: q[1] }), h('span', { class: 'week-n', text: ok ? '했어' : n + '/' + q[2] })]);
+      if (!ok && !w.claimed && left > 0) { var b = h('button', { type: 'button', class: 'fchip week-rr', text: '바꾸기 ' + left, 'aria-label': q[1] + ' 다른 일로 바꾸기 (' + left + '번 남음)' }); b.addEventListener('click', function () { weekReroll(i); }); li.appendChild(b); }
+      list.appendChild(li);
+    });
+    frag.appendChild(list);
+    if (w.claimed) frag.appendChild(h('p', { class: 'set-note', text: '이번 주 선물은 받았어.' }));
+    else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim', text: '주간 선물 받기 (조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds + ')' }); c.addEventListener('click', weekClaim); frag.appendChild(c); }
+  }
+  function renderBagChip() { var b = $('btn-bag'); if (!b) return; var u = userState(); b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = '조개 ' + u.shells; if (S.octopus.name) { var w = weekState(); b.classList.toggle('has-gift', !w.claimed && weekDoneN(w) >= WEEK_NEED); } }
   function gardenAct(i) {
     var u = userState(), g = u.garden[i], dk = todayKey();
-    if (!g) { if (u.seeds < 1) { toast('씨앗이 없어. 들어온 날 선물로 하나씩 생겨'); return; } u.seeds--; var rng = mkRng(B ? B.hashSeed('seed', dk, i, u.days.length, u.seeds) : Date.now()); u.garden[i] = { color: DYES[Math.floor(rng() * DYES.length)][0], water: 0, wateredDay: '' }; toast('씨앗을 심었어'); }
-    else if (g.water >= 2) { u.dyes[g.color] = (u.dyes[g.color] | 0) + 1; u.garden[i] = null; toast(dyeOf(g.color)[1] + ' 염료 1개를 얻었어'); }
+    if (!g) { if (u.seeds < 1) { toast('씨앗이 없어. 들어온 날 선물로 하나씩 생겨'); return; } u.seeds--; var rng = mkRng(B ? B.hashSeed('seed', dk, i, u.days.length, u.seeds) : Date.now()); u.garden[i] = { color: DYES[Math.floor(rng() * DYES.length)][0], water: 0, wateredDay: '' }; toast('씨앗을 심었어'); questMark('plant'); }
+    else if (g.water >= 2) { u.dyes[g.color] = (u.dyes[g.color] | 0) + 1; u.garden[i] = null; toast(dyeOf(g.color)[1] + ' 염료 1개를 얻었어'); questMark('harvest'); }
     else if (g.wateredDay === dk) { toast('오늘은 물을 줬어. 내일 또 줄 수 있어'); return; }
-    else { g.water++; g.wateredDay = dk; toast(g.water >= 2 ? '꽃이 피었어' : '물을 줬어'); }
+    else { g.water++; g.wateredDay = dk; toast(g.water >= 2 ? '꽃이 피었어' : '물을 줬어'); questMark('water'); }
     save(); renderBag();
   }
   function applyDye() { if (scene && typeof scene.setPlayerDye === 'function') { try { scene.setPlayerDye(userState().dye || null); } catch (e) { console.warn('[app] setPlayerDye', e); } } }
@@ -4266,7 +4324,8 @@ var APP = (function () {
   function renderBag() {
     var body = $('bag-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment(), dk = todayKey();
     frag.appendChild(h('p', { class: 'bag-line', text: '조개 ' + u.shells + ' · 씨앗 ' + u.seeds + ' · 들어온 날 ' + u.days.length + '일' }));
-    frag.appendChild(h('p', { class: 'set-note', text: '조개는 다락방 달리기에서, 씨앗은 들어온 날 선물로 생겨. 쉬어도 잃는 건 없어.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '조개와 씨앗은 다락방 달리기, 들어온 날 선물, 주간 선물에서 생겨. 쉬어도 잃는 건 없어.' }));
+    renderWeek(frag);
     frag.appendChild(h('h3', { text: '텃밭' }));
     var plots = h('div', { class: 'bag-plots', role: 'group', 'aria-label': '텃밭' });
     u.garden.forEach(function (g, i) {
