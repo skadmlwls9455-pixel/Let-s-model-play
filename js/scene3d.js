@@ -1913,7 +1913,7 @@ var SCENE3D = (function () {
         short: function (L, cfg, hex) { L.push({ g: Sph(PL_HR, 18, 15, 142, 256, 0, 1.95), m: HM(), c: hex }); PL_PARTS.hair._fringe(L, hex); PL_PARTS.hair._pole(L, hex);
           [[205, 2.12], [235, 2.2], [270, 2.26], [305, 2.2], [335, 2.12]].forEach(function (t) { plLock(L, plHP(t[0], 1.62, PL_HR - 0.03), plHP(t[0], t[1], PL_HR + 0.03), 0.085, 0.03, hex); });   /* 목덜미로 삐죽 내려오는 끝 다섯 (뒤가 민머리 공이던 것) */
           [-1, 1].forEach(function (s) { plLock(L, [s * 0.31, 0.98, 0.14], [s * 0.33, 0.80, 0.16], 0.075, 0.035, hex); });   /* 귀 앞 짧은 구레나룻 가닥 */
-          plLock(L, [0.0, 1.265, -0.02], [0.07, 1.36, 0.02], 0.04, 0.018, hex); },   /* 정수리 삐침 한 가닥 */   /* 짧은머리: 귀(0.76)까지 한 장(앞 104° 비움 — 70° 창은 옆머리 끝 ±0.217 이 새 눈 ±0.259 를 덮었다, 11-09) + 같은 앞머리 세 가닥, 옆머리 없음. theta 칸 0.13 (15/1.95) = 가닥 칸의 두 배라 이음 고리가 맞는다 */
+          if (cfg.acc !== 'beret' && cfg.acc !== 'strawhat') plLock(L, [0.0, 1.265, -0.02], [0.07, 1.36, 0.02], 0.04, 0.018, hex); },   /* 정수리 삐침 한 가닥 — 모자(베레모 · 밀짚모자)를 쓰면 뺀다 (모자를 뚫고 나왔다, 주인 11-10) */   /* 짧은머리: 귀(0.76)까지 한 장(앞 104° 비움 — 70° 창은 옆머리 끝 ±0.217 이 새 눈 ±0.259 를 덮었다, 11-09) + 같은 앞머리 세 가닥, 옆머리 없음. theta 칸 0.13 (15/1.95) = 가닥 칸의 두 배라 이음 고리가 맞는다 */
         long: function (L, cfg, hex) {
           PL_PARTS.hair._cap(L, hex);
           L.push({ g: Sph(PL_HR, 18, 6, 142, 256, 1.30, 0.90), m: HM(), c: hex }, { g: Cyl(0.31, 0.23, 0.40, 16), m: M(0, 0.48, -0.20, 0, 0, 0, 1, 1, 0.42), c: hex });   /* 긴생머리: 옆+뒷머리(0.676) + 뒷머리 커튼 = 아래로 좁아지는 닫힌 납작 원기둥 y 0.28~0.68, 폭 0.62 → 0.46(어깨 0.48 안 — 위아래 같은 폭 0.68 은 뒤에서 몸보다 넓은 판자로 읽혔다, 리뷰 11-08) */
@@ -2224,7 +2224,7 @@ var SCENE3D = (function () {
       if (to === 'attic' || to === 'play') {
         var g = groupOf(to); if (plG.parent !== g) g.add(plG); fpClear(g);
         var an = to === 'play' ? 'playAtticDoor' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
-        plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false; PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = 'rest'; plSnap();
+        plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false; PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
       } else { if (plG.parent !== atticG) atticG.add(plG); fpClear(atticG); PL.place = 'attic'; plRest(true); }
     }
     function playerWalkTo(anchor) {   /* goRoom 의 walkFirst: 문 앞 앵커까지 걷고 문 쪽을 보며 서면 푼다 → { ok, walked, anchor, at }. 그 방에 없으면(바깥에서 들어갈 때) 걷기 없이 바로 */
@@ -2247,6 +2247,11 @@ var SCENE3D = (function () {
         var wx = PL_IN.rh.x * v.x + PL_IN.fh.x * v.y, wz = PL_IN.rh.z * v.x + PL_IN.fh.z * v.y, step = PL_RUN * dt / (st.speed || 1);   /* 스틱 · 방향키는 종종 달리기 2.2 m/s (주인 11-10 "억지로 느리게 한 느낌" — 1.2 는 방 하나 건너는 데 4초였다). 문 앞까지 혼자 걷기는 1.8 */
         stick = plMove(wx * step, wz * step);
         PL.faceCam = false; PL.wantYaw = Math.atan2(wx, wz);
+        /* 문에 닿은 채 문 쪽으로 걸으면 넘어간다 (주인 11-10 "닿은 채로 걸어가면 슥 넘어가는"): 문 앞 앵커 0.45 m 안에서 문이 있는 벽 쪽(다락 문 = +x · 놀이방 문 = −x)으로 밀 때 한 번 on.playerDoor(가는 방).
+           방금 그 문으로 들어왔으면(PL.doorArm false) 문 앞을 한 번 벗어났다 와야 한다 — 들어오자마자 되돌아가지 않게 */
+        var dAn = PL.place === 'play' ? DOOR_ANCHORS.playAtticDoor : DOOR_ANCHORS.atticPlayDoor, dDist = Math.hypot(PL.pos.x - dAn[0], PL.pos.z - dAn[2]), dPush = (PL.place === 'play' ? -wx : wx) / (Math.hypot(wx, wz) || 1);
+        if (dDist > 0.7) PL.doorArm = true;
+        else if (PL.doorArm && dDist < 0.45 && dPush > 0.5 && !DQ.active && !DQ.pending && !PLACE.trans) { PL.doorArm = false; emit('playerDoor', PL.place === 'play' ? 'attic' : 'play'); }
       } else if (PL.held && !held) { PL.faceCam = true; if (PL.heldStop) { PL.settleT = 0; PL.heldStop = false; } }   /* 손을 떼면(막힌 채 서 있다 떼도 · 데드존에 잡고만 있다 떼도) 다시 카메라 쪽 + 도착 눌림 한 번 — 전이는 '잡고 있었나'(held) 기준 */
       if (allowed && !PL.walking && PL.place === 'attic') {   /* 문어가 걸어와 내 캐릭터 위에 서면(문어 걷기는 플레이어를 모른다 — 걷기 시작 때 plAvoidOct 가 미리 비켜세우지만 길이 지나가기도 한다) 둥근 장애물 밖으로 밀려난다 — 걷는 속도로, 스틱을 쥐고 있어도(문어가 미는 셈), 미끄러짐은 plMove 몫 (리뷰 11-09) */
         var circ = plCircles(), pen = plPen(PL.pos.x, PL.pos.z, [], circ);
@@ -2291,7 +2296,7 @@ var SCENE3D = (function () {
         /* 눈 깜빡임 3~7 s 시드 간격 · 120 ms (문어와 같은 규칙) */
         if (PL.blinkLeft > 0) PL.blinkLeft -= dt; else { PL.blinkT -= dt; if (PL.blinkT <= 0) { PL.blinkLeft = 0.12; PL.blinkT = 3 + (hash('plb' + Math.floor(PL.t * 10)) % 1000) / 1000 * 4; } }
       } else PL.blinkLeft = 0;
-      var shut = PL.blinkLeft > 0;
+      var shut = PL.blinkLeft > 0 && PL.look.eyes !== 'smile';   /* 웃는 눈(^^)은 깜빡이지 않는다 — 실눈이 깜빡이면 무섭다 (주인 11-10) */
       if (shut !== PL.shut) { PL.shut = shut; plEyeUV(); }   /* 감은 눈 = 아틀라스의 '감은 눈' 칸으로 uv 전환 (머리색 한 칸 어두운 선 하나 — 메시·드로우콜·텍스처 추가 없음) */
       plBody.scale.set(sx, sy, sx); plBody.position.y = snapUp(by);
     }

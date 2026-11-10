@@ -495,7 +495,8 @@ var APP = (function () {
         place: function () { updateSceneDesc(); },   /* 3D: 의식이 다락 ↔ 집 바깥을 바꾼 순간 (2D 는 runCeremony 의 250 ms 틱이 따라간다). 놀이방에 있는 동안에도 온다 (이야기 장소만 바뀜) */
         door: function (ev) { if (window.AUDIO && ev) AUDIO.on('door', { act: ev.act, room: ev.room }); },   /* 8물결: 방 문이 열리고 닫힐 때 끼익 (장면은 AUDIO 를 부르지 않는다) */
         view: function (v) { syncRoomUI(v); },   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
-        playerInput: function (allowed) { stickShow(allowed); },   /* 11-08 움직이기: 내 캐릭터를 움직일 수 있는 때가 바뀐 프레임 (바뀔 때만 온다) → 발자국 손잡이 hidden */
+        playerInput: function (allowed) { stickShow(allowed); },
+        playerDoor: function (to) { if (!roomJob && !busyRoomWalk()) goRoom(to === 'attic' ? 'attic' : 'play', $(to === 'attic' ? 'btn-play-door' : 'btn-door'), false); },   /* 문에 닿은 채 걸어 들어감 (장면이 한 번만 쏜다) */   /* 11-08 움직이기: 내 캐릭터를 움직일 수 있는 때가 바뀐 프레임 (바뀔 때만 온다) → 발자국 손잡이 hidden */
         playerStep: function () { if (window.AUDIO) AUDIO.on('step', { who: 'player' }); }   /* 내 캐릭터 한 걸음 (장면은 AUDIO 를 부르지 않는다) — js/audio.js 에 'step' 갈래가 생기면 발소리 step_* (지금은 조용히) */
       }
     };
@@ -3248,6 +3249,7 @@ var APP = (function () {
     var m = Math.min(1, (k - STICK_DEAD) / (STICK_FULL - STICK_DEAD));   /* 반쯤만 밀어도 제 속도 — 22px 손잡이에서 끝까지 밀어야 빨라지면 답답하다 (주인 11-10) */
     stickSend({ x: dx / len * m, y: -dy / len * m });   /* 화면 위 = +y */
   }
+  function busyRoomWalk() { return !!document.querySelector('dialog[open]'); }
   function stickKeyVec() {   /* 눌린 키들의 합성 벡터 (없으면 null · 서로 상쇄면 { 0, 0 }) */
     var x = 0, y = 0, any = false;
     Object.keys(stk.keys).forEach(function (k) { var d = STICK_KEYS[k]; if (d) { x += d[0]; y += d[1]; any = true; } });
@@ -3277,7 +3279,8 @@ var APP = (function () {
     if (down) {
       if (e.ctrlKey || e.metaKey || e.altKey) { if (!stk.keys[k]) return; delete stk.keys[k]; }   /* 수정키 조합(브라우저 단축키)은 새 누름이 아니다 — 이미 눌린 키면 놓은 것으로 (keyup 은 수정키와 상관없이 지운다: 방향키를 누른 채 Ctrl/Cmd 를 누르고 떼면 keyup 이 버려져 손을 뗀 뒤에도 걸었다, 리뷰 11-09) */
       else { if (stickKeyIgnored()) return; if (e.repeat) { if (stk.keys[k]) e.preventDefault(); return; }   /* 자동 반복은 이미 눌린 키만 유지하고 새로 등록하지 않는다 (창이 열린 채 누르고 있던 키가 창이 닫히는 순간 걷게 하지 않게) */
-        stk.keys[k] = 1; e.preventDefault(); }
+        stk.keys[k] = 1; e.preventDefault();
+        var fa = document.activeElement; if (fa && fa.blur && fa.closest && fa.closest('.scene-spot, .scene-door')) fa.blur(); }   /* 걷기 키를 누르면 방 단추(오락기 · 문)의 포커스를 놓는다 — 브라우저가 키 입력에 :focus-visible 노란 테두리를 켰다 (주인 11-10). Tab 으로 옮겨 온 링은 걷기 전까지 그대로 */
     }
     else { if (!stk.keys[k]) return; delete stk.keys[k]; }
     if (stk.pid != null) return;   /* 스틱을 잡고 있으면 스틱이 이긴다 */
