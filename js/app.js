@@ -2701,7 +2701,7 @@ var APP = (function () {
     al.hidden = albumFilter === 'diary';   /* 일기 탭: 카드 줄 대신 지난 날 로그 */
     if (albumFilter === 'diary') return;
     var trips = all.filter(function (t) { return albumFilter === 'all' || t.poster.type === albumFilter; });
-    if (!trips.length) { al.appendChild(h('div', { class: 'lempty', text: albumFilter === 'note' ? '아직 쪽지는 없어. 집에 있는 날 하나 써 둘게.' : '아직 붙인 포스터가 없어. '산책 갈래?'를 눌러 봐.' })); return; }
+    if (!trips.length) { al.appendChild(h('div', { class: 'lempty', text: albumFilter === 'note' ? '아직 쪽지는 없어. 집에 있는 날 하나 써 둘게.' : "아직 붙인 포스터가 없어. '산책 갈래?'를 눌러 봐." })); return; }
     var newest = null; all.forEach(function (t) { if (t.date === todayKey() && (!newest || (t.endedAt || 0) >= (newest.endedAt || 0))) newest = t; });
     var byDay = {}, days = [];
     trips.forEach(function (t) { if (!byDay[t.date]) { byDay[t.date] = []; days.push(t.date); } byDay[t.date].push(t); });
