@@ -17,12 +17,15 @@ var SCENE3D = (function () {
   var ZOOM_STEPS = [0, 1, 2, 3, 4, 5, 6].map(function (k) { return Math.pow(2, k / 6); }), ZOOM_OLD = [1, 1.25, 1.5, 2];
   /* 방 5×5 m (x,z ∈ [-2.5, 2.5]). 뒷벽 오른쪽 끝의 문으로 나간다 (§13.2 의 앞쪽 문은 직교 시점에서 바닥을 가려 뒷벽으로 옮김) */
   var R = 2.5;
+  /* 11-10 방 넓히기 (주인: "캐릭터랑 문어 대비 방이 너무너무 좁은 느낌 — 넓혀 줘 · 다닥다닥 답답한 느낌을 지워 줘"): 뒷벽(−z) · 왼벽(−x)과 벽에 붙은 것들은 그대로 두고, **앞쪽(카메라 쪽) 바닥을 +x · +z 로 RF 까지** 넓힌다
+     → 바닥 5 × 5 m → 6 × 6 m (넓이 +44 %), 늘어난 곳은 전부 빈 바닥. 화면 폭(1× 195 아트px)보다 방(229 px)이 넓어져 양 끝 모서리는 화면 밖 — 다락은 1× 에서도 화면을 밀 수 있고, 내 캐릭터가 가장자리로 가면 화면이 따라간다 */
+  var RF = 3.5, R_SPAN = R + RF, R_MID = (RF - R) / 2;
   var ANCHORS = { door: [1.95, 0, -2.05], window: [-1.8, 0, 0.4], crate: [1.25, 0, -1.0], board: [0.1, 0, -2.0], blanket: [-1.0, 0, 1.5], center: [0, 0, 0.2],
     salon: [-1.75, 0, -1.1] };   /* salon = 미용실 거울 옆 (docs/SALON.md §2.1): 거울의 왼쪽 아래에 서서 거울을 가리지 않는다 · 상자 더미 앞면에서 0.53 m · 대야 자리에서 0.79 m */
   /* 놀이방 (8물결, docs/SCENE.md '놀이방'): 다락·바깥처럼 따로 그리는 세 번째 장소 'play'. 바닥 ±PLAY_R · 벽 PLAY_H (받침 포함 화면 높이 ≈ 135 아트px). 처음 들어갈 때만 만든다.
      문 앞 앵커 = 나중의 걸어 다니는 내 캐릭터가 문을 열기 전에 서는 자리 (각 장소 그룹 좌표, 그룹은 원점). 문어 앵커(ANCHORS)와 따로 — 문어는 놀이방에 안 간다 */
-  var PLAY_R = 1.7, PLAY_H = 2.2;   /* ROOM_EXPANSION §5.2 의 3.6 × 2.4 m 는 360×640 장면(139 아트px)에 145 px 라 위아래가 잘려, 카드의 둘째 후보 3.4 × 2.2 m (≈ 135 px) 로 — scene-api.md '크기' */
-  var DOOR_ANCHORS = { atticPlayDoor: [1.95, 0, 1.92], playAtticDoor: [-1.35, 0, -0.33] };   /* 내 캐릭터가 문을 열기 전에 서는 자리. 다락 문은 +x 벽에서 카메라 쪽으로 서 있어 문 바로 안쪽(z 1.4)에 서면 문짝 뒤에 다 가려진다 → 손잡이 쪽 옆(z 1.92, 문 끝 1.76 에서 0.16 m)에 선다 · 놀이방 문은 −x 벽이라 문 앞(x −1.35)이 문보다 앞에 보인다 */
+  var PLAY_R = 2.4, PLAY_H = 2.2;   /* 11-10: 1.7 → 2.4 (바닥 3.4 → 4.8 m, 넓이 두 배 — 주인 "부엌~게임기 쪽이 너무 좁음, 특히 넓혀 줘"). 한 화면 배치로 장면이 화면을 다 써서 세로가 넉넉하다 */   /* ROOM_EXPANSION §5.2 의 3.6 × 2.4 m 는 360×640 장면(139 아트px)에 145 px 라 위아래가 잘려, 카드의 둘째 후보 3.4 × 2.2 m (≈ 135 px) 로 — scene-api.md '크기' */
+  var DOOR_ANCHORS = { atticPlayDoor: [RF - 0.55, 0, 1.92], playAtticDoor: [-(PLAY_R - 0.35), 0, -0.33] };   /* 내 캐릭터가 문을 열기 전에 서는 자리. 다락 문은 +x 벽에서 카메라 쪽으로 서 있어 문 바로 안쪽(z 1.4)에 서면 문짝 뒤에 다 가려진다 → 손잡이 쪽 옆(z 1.92, 문 끝 1.76 에서 0.16 m)에 선다 · 놀이방 문은 −x 벽이라 문 앞(x −1.35)이 문보다 앞에 보인다 */
   var EXPRESSIONS = ['idle', 'blink', 'happy', 'pet', 'sleep', 'curious', 'calm', 'sleepy'];   /* 표정 8 (DESIGN §15.2) — 장면과 초상이 setExpression 하나로 공유 */
 
   /* ───────────────────────── 색 수학 (sRGB ↔ 선형 ↔ OKLab) ───────────────────────── */
@@ -386,7 +389,7 @@ var SCENE3D = (function () {
     var PLAY_YC = (0.848 * PLAY_H - 0.75 * 6 / 27 - 0.407) / 2 / 0.848, PLAY_TARGET = new T.Vector3(0, snapPos(PLAY_YC), 0);
     /* 짧은 장면 (높이 250 px = 아트 125 px: 320×568 · 가로 폰): 방(받침 포함 ≈ 136 아트px, 360×740 에서 잼)이 다 안 들어가면 위를 지킨다 —
        벽 꼭대기 · 문 · 오락기 · 등이 위 여백 3 px 로 다 보이고, 잘리는 건 아래 받침(≈ 11 px)과 빈 바닥 앞 끝뿐. 각도 · 밀도(1× = 27 px/m)는 다락과 같다 · 다 들어가면 예전처럼 가운데 */
-    var PLAY_SPAN_PX = 136 / 27, PLAY_TOP_PX = 3;
+    var PLAY_SPAN_PX = 0.848 * PLAY_H + 1.5 * PLAY_R + 0.621, PLAY_TOP_PX = 3;   /* 방(받침 포함)의 화면 세로 길이 (m): 벽 높이 + 바닥 대각선 + 받침 — PLAY_R 1.7 일 때 136/27 */
     function framePlay() {
       var N0 = Math.round(baseN()), need = PLAY_SPAN_PX * N0, d = PLAY_TOP_PX - (S.rh - need) / 2;
       PLAY_TARGET.y = snapPos(PLAY_YC + (d > 0 ? d / N0 / 0.848 : -liftOf(0, PLAY_YC, 0, FRAME_PT.play)));
@@ -395,8 +398,8 @@ var SCENE3D = (function () {
        → 높은 장면에서만 타깃을 내려(= 방을 화면 위로) 바닥 앞 모서리를 화면 높이의 FRAME_Y 에 둔다. 꼭대기(벽 위 · 굴뚝)는 위 여백 FRAME_TOP CSS px (상태 줄 40 px 밑 — 아트 픽셀이 커지는 느린 기기 폴백 p=3 · 4 에서도 같은 자리) 을 지킨다 —
        그래서 낮은 장면(360×326 · 가로 폰 · 쌓는 배치)에선 올릴 자리가 없어 보정이 정확히 0 이고 예전 구도 그대로다. 각도 · 밀도 · 밀기 경계(panBox 는 타깃을 따라간다)는 안 바뀐다.
        FRAME_PT[장소] = [바닥 앞 모서리, 꼭대기 점] (월드 m). 바깥의 꼭대기는 상자 모서리가 아니라 굴뚝 테 — 화면에서 가장 높은 건 그쪽이다 */
-    var FRAME_Y = 0.62, FRAME_TOP = 48, UP_Y = Math.cos(TILT), UP_XZ = Math.sin(TILT) * Math.SQRT1_2, ATTIC_Y = camTarget.y, EXT_Y = EXT_TARGET.y;
-    var FRAME_PT = { attic: [[2.72, 0, 2.72], [-2.72, 3.0, -2.72]], exterior: [[3.42, 0, 3.42], [-1.5, 3.3, -1.52]], play: [[PLAY_R, 0, PLAY_R], [-PLAY_R, PLAY_H, -PLAY_R]] };
+    var FRAME_Y = 0.68, FRAME_TOP = 48, UP_Y = Math.cos(TILT), UP_XZ = Math.sin(TILT) * Math.SQRT1_2, ATTIC_Y = camTarget.y, EXT_Y = EXT_TARGET.y;
+    var FRAME_PT = { attic: [[RF + 0.22, 0, RF + 0.22], [-2.72, 3.0, -2.72]], exterior: [[3.42, 0, 3.42], [-1.5, 3.3, -1.52]], play: [[PLAY_R, 0, PLAY_R], [-PLAY_R, PLAY_H, -PLAY_R]] };
     function liftOf(bx, by, bz, pt) {   /* 기본 타깃 (bx, by, bz) 에서 타깃을 내릴 월드 y (≥ 0, 아트 픽셀 정수 배) */
       var N0 = Math.round(baseN()), f = pt[0], t = pt[1];
       var below = ((by - f[1]) * UP_Y + (f[0] - bx + f[2] - bz) * UP_XZ) * N0, above = ((t[1] - by) * UP_Y + (bx - t[0] + bz - t[2]) * UP_XZ) * N0;   /* 화면 가운데에서 앞 모서리까지 아래로 · 꼭대기까지 위로 (아트 px, 1×) */
@@ -446,7 +449,7 @@ var SCENE3D = (function () {
        1× 에선 경계가 0 (가로·세로 고무줄만, 떼면 가운데로 · §3.4 '1×') — 첫 멈춤까지 경계가 줌에 비례해 열린다. 놀이(PLAY)·문어 초점(look-shots close) 중엔 꺼짐 */
     var PAN = { x: 0, y: 0, vx: 0, vy: 0, mode: '', t: 0, dur: 0, fx: 0, fy: 0, tx: 0, ty: 0, cut: false };   /* cut = 장소가 막 바뀜 (다음 따라가기는 미끄러지지 않고 바로) */
     var GEST = { mode: '', pts: {}, n: 0, hold: false, wheelT: 0 };   /* 손가락 상태기계 하나 (아래 '입력'): '' | press | pan | multi | pinch | twist | yaw | done */
-    var PLACE_BOX = { attic: [[-2.72, 2.72], [-0.48, 3.0], [-2.72, 2.72]], exterior: [[-3.42, 3.42], [-0.48, 3.3], [-3.42, 3.42]],
+    var PLACE_BOX = { attic: [[-2.72, RF + 0.22], [-0.48, 3.0], [-2.72, RF + 0.22]], exterior: [[-3.42, 3.42], [-0.48, 3.3], [-3.42, 3.42]],
       play: [[-PLAY_R - 6 / 27, PLAY_R + 6 / 27], [-0.48, PLAY_H], [-PLAY_R - 6 / 27, PLAY_R + 6 / 27]] };   /* 받침 포함 (x · y · z) */
     function panOn() { return !PLAY && st.look.focus !== 'oct'; }
     function panLocked() { return INTRO.on || !!(CER && CER.active && PLACE.vis !== 'play') || !!PLACE.trans || DQ.active; }   /* 연출 중: 손가락 밀기 X (문어가 화면 밖으로 안 나가게). 줌은 된다 · 놀이방에선 안 보이는 의식이 밀기를 잠그지 않는다 */
@@ -457,7 +460,7 @@ var SCENE3D = (function () {
         if (a < a0) a0 = a; if (a > a1) a1 = a; if (c < c0) c0 = c; if (c > c1) c1 = c;
       }
       var x0 = a0 - m + hw, x1 = a1 + m - hw, y0 = c0 - m + hh, y1 = c1 + m - hh;
-      var s = clamp((st.zoomF - 1) / (ZOOM_STEPS[1] - 1), 0, 1);   /* 1× = 0 (고무줄만 — 360 폭에서도 기본 구도가 비뚤게 남지 않는다) → 첫 멈춤(1.12×)에서 온전한 경계. 핀치가 1× 로 돌아올 때 한 번에 튀지 않게 비례 */
+      var s = PLACE.vis === 'attic' ? 1 : clamp((st.zoomF - 1) / (ZOOM_STEPS[1] - 1), 0, 1);   /* 다락은 1× 에서도 방이 화면보다 넓다 (11-10 넓히기) → 늘 온전한 경계 */   /* 1× = 0 (고무줄만 — 360 폭에서도 기본 구도가 비뚤게 남지 않는다) → 첫 멈춤(1.12×)에서 온전한 경계. 핀치가 1× 로 돌아올 때 한 번에 튀지 않게 비례 */
       return [Math.min(x0, x1, 0) * s, Math.max(x0, x1, 0) * s, Math.min(y0, y1, 0) * s, Math.max(y0, y1, 0) * s];
     }
     function band(v, lo, hi) {   /* 고무줄: 경계 밖 e → M(1 − e^(−0.4 e / M)) (기울기 0.4 로 시작, M = 20 아트px 에 포화). 모션 감소면 딱 멈춤 */
@@ -500,6 +503,15 @@ var SCENE3D = (function () {
       }   /* 안 보이면 목표 = 지금 자리 (경계 안) → 움직이던 화면은 같은 감속으로 선다 */
       return [clamp(Math.round(tx * S.N) / S.N, b[0], b[1]), clamp(Math.round(ty * S.N) / S.N, b[2], b[3])];
     }
+    function plFollow() {   /* 스틱 · 방향키로 걷는 동안만: 캐릭터가 화면 안쪽(가장자리에서 1.1 m)에 들도록 밀 목표. 이미 들어 있으면 null (화면을 빼앗지 않는다) */
+      if (typeof PL === 'undefined' || !PL || !PL.stick || PLACE.vis !== 'attic' || PL.place !== 'attic') return null;
+      var b = panBox();
+      _fw.copy(PL.pos).setY(0.6).sub(camTargetNow());
+      var ox = _fw.dot(_r), oy = _fw.dot(_u), hx = Math.max(0, S.rw / 2 / S.N - 1.1), hy = Math.max(0, S.rh / 2 / S.N - 1.4);
+      var tx = clamp(PAN.x, ox - hx, ox + hx), ty = clamp(PAN.y, oy - hy, oy + hy);
+      tx = clamp(Math.round(tx * S.N) / S.N, b[0], b[1]); ty = clamp(Math.round(ty * S.N) / S.N, b[2], b[3]);
+      return (Math.abs(tx - PAN.x) < 0.5 / S.N && Math.abs(ty - PAN.y) < 0.5 / S.N && PAN.mode !== 'follow') ? null : [tx, ty];
+    }
     function stepPan(dt) {
       if (!panOn()) { PAN.x = PAN.y = PAN.vx = PAN.vy = 0; PAN.mode = ''; PAN.cut = false; return; }
       if (panLocked()) {
@@ -508,7 +520,12 @@ var SCENE3D = (function () {
         PAN.cut = false;
         if (PAN.mode === 'follow') PAN.mode = '';   /* 따라가다 1× 로 줄였거나 연출이 바뀜 → 아래 0 으로 */
         if ((PAN.x || PAN.y) && PAN.mode !== 'home') panTo(0, 0, 0.3, 'home');
-      } else { PAN.cut = false; if (PAN.mode === 'follow') panSettle(); }   /* 의식이 끝나면 따라가던 자리에서 정수 px 로 */
+      } else {
+        PAN.cut = false;
+        var pf = plFollow();   /* 내 캐릭터가 화면 가장자리로 걸어가면 화면이 따라간다 (넓어진 다락) */
+        if (pf !== null) { followStep(pf, dt); return; }
+        if (PAN.mode === 'follow') panSettle();   /* 의식이 끝나면 따라가던 자리에서 정수 px 로 */
+      }
       if (!PAN.mode) return;
       dither.still = 0;
       if (PAN.mode === 'coast') {
@@ -623,11 +640,11 @@ var SCENE3D = (function () {
     var lamp = new T.PointLight(C('#ffb066').getHex(), 0, 6, 2); lamp.position.set(0, -0.1, 0);   /* 등불 그룹의 자식 (룩 패스 7: 흔들림을 따라간다) — 아래 lampG.add */
     var candleLight = new T.PointLight(C('#ffb066').getHex(), 0, 2, 2); atticG.add(candleLight);   /* 양초 = 두 번째 작은 따뜻한 점광 (0.35, d 2) */
     /* 빛 차폐 (룩 패스 4): 보이지 않는 지붕·앞벽·오른벽. 그림자만 던지고(colorWrite 끔) 노멀 패스에서는 숨긴다 → 태양·달이 창으로만 들어와 바닥에 창 모양 빛 조각 */
-    var SHADE = [[-3.1, 3.1], [-0.6, 3.25], [-3.1, 3.1]];   /* 그림자 카메라 피팅용 상자 (x · y · z) */
+    var SHADE = [[-3.1, RF + 0.6], [-0.6, 3.25], [-3.1, RF + 0.6]];   /* 그림자 카메라 피팅용 상자 (x · y · z) */
     var SHADE_EXT = [[-3.7, 3.7], [-0.6, 3.6], [-3.7, 3.7]];   /* 바깥: 받침 + 집(용마루 2.94 · 굴뚝 3.3) + 나무 — 장소마다 그림자 카메라를 다시 맞춘다 */
     var SHADE_PLAY = [[-PLAY_R - 0.6, PLAY_R + 0.6], [-0.6, PLAY_H + 0.1], [-PLAY_R - 0.6, PLAY_R + 0.6]];   /* 놀이방: 받침 + 벽 + 차폐 */
-    var shade = new T.Mesh(keep(mergeParts([{ g: box(6.2, 0.05, 6.2), m: M(0, 3.08, 0), c: '#000000' }, { g: box(6.2, 3.7, 0.05), m: M(0, 1.35, 3.05), c: '#000000' }, { g: box(0.05, 3.7, 6.2), m: M(3.05, 1.35, 0), c: '#000000' },
-      { g: box(0.05, 3.7, 0.7), m: M(-2.6, 1.35, 2.75), c: '#000000' }])),   /* 왼쪽 벽 앞 날개: 벽 끝(z 2.5)과 앞벽 차폐 사이로 새는 빛을 막는다 */
+    var shade = new T.Mesh(keep(mergeParts([{ g: box(R_SPAN + 1.2, 0.05, R_SPAN + 1.2), m: M(R_MID, 3.08, R_MID), c: '#000000' }, { g: box(R_SPAN + 1.2, 3.7, 0.05), m: M(R_MID, 1.35, RF + 0.55), c: '#000000' }, { g: box(0.05, 3.7, R_SPAN + 1.2), m: M(RF + 0.55, 1.35, R_MID), c: '#000000' },
+      { g: box(0.05, 3.7, 0.7), m: M(-2.6, 1.35, RF + 0.25), c: '#000000' }])),   /* 왼쪽 벽 앞 날개: 벽 끝(z 2.5)과 앞벽 차폐 사이로 새는 빛을 막는다 */
       keep(new T.MeshBasicMaterial({ colorWrite: false, depthWrite: false })));
     shade.castShadow = true; shade.receiveShadow = false; shade.frustumCulled = false; shade.renderOrder = -10; atticG.add(shade);
     var _sm = new T.Matrix4(), _sv = new T.Vector3();
@@ -749,46 +766,46 @@ var SCENE3D = (function () {
     function seg(list, a, b, r, hex, sides) { list.push({ g: new T.CylinderGeometry(r, r, Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), sides || 4), m: segM(a, b), c: hex }); }
     /* 바닥: 밑판(이음 색 W2) 위에 널 23줄 — 피치 0.217 m, 널 0.127 + 이음 0.09(≈ 1 아트픽셀), 길이 1.0~2.4 m 로 엇갈림, 2색(W3/W4) 교대. 널 윗면 y=0.004 */
     var FLOOR_SEAM = 0.05, FLOOR_PITCH = 2 * R / 23;   /* 이음 0.05 m ≈ 1.35 px @ p=2 (룩 패스 8: 0.09 는 p=2 에서 2~3 px 띠였다) */
-    parts.push({ g: box(2 * R, 0.1, 2 * R), m: M(0, -0.05, 0), c: MAT.floorSeam });
-    for (var i = 0; i < 23; i++) {
+    parts.push({ g: box(R_SPAN, 0.1, R_SPAN), m: M(R_MID, -0.05, R_MID), c: MAT.floorSeam });
+    for (var i = 0; i < Math.round(R_SPAN / FLOOR_PITCH); i++) {
       var fx = -R + FLOOR_PITCH * (i + 0.5), fz = -R, k = 0;
-      while (fz < R) {
-        var len = 1.0 + (hash('fl' + i + '_' + k) % 100) / 100 * 1.4, last = fz + len > R - 0.5;
-        if (last) len = R - fz;
+      while (fz < RF) {
+        var len = 1.0 + (hash('fl' + i + '_' + k) % 100) / 100 * 1.4, last = fz + len > RF - 0.5;
+        if (last) len = RF - fz;
         parts.push({ g: box(FLOOR_PITCH - FLOOR_SEAM, 0.02, last ? len : len - FLOOR_SEAM), m: M(fx, -0.006, fz + (last ? len : len - FLOOR_SEAM) / 2), c: (i + k) % 2 ? MAT.floorA : MAT.floorB });
         fz += len; k++;
       }
     }
     [[0.62, 0.9], [-1.48, -1.62], [1.72, 1.58]].forEach(function (p) { parts.push({ g: box(0.09, 0.012, 0.09), m: M(snapPos(p[0]), 0.0, snapPos(p[1])), c: MAT.knot }); propCount++; });   /* 옹이·못 3 (1px 점, 격자 스냅) */
     /* 디오라마 받침 (룩 패스 5: 치수를 아트 픽셀 배수로 — 돌출 4px(0.222 m) · 위 지층 4px + 1px 줄 + 아래 지층 4px = 9px = 0.5 m. 줄은 0.01 만 돌출해 깊이로 앞에 오되 외곽선(6 cm) 은 안 생긴다) */
-    var SLAB_OV = 6 * PX, SLAB_W = 2 * R + 2 * SLAB_OV;   /* p=2 격자: 돌출 6px(0.222 m) · 지층 6px + 1px 줄 + 6px = 13px = 0.48 m (룩 패스 8, 세계 치수는 패스 5 와 같다) */
-    parts.push({ g: box(SLAB_W, 6 * PX, SLAB_W), m: M(0, -3 * PX, 0), c: MAT.slabTop });
-    parts.push({ g: box(SLAB_W + 0.02, PX, SLAB_W + 0.02), m: M(0, -6.5 * PX, 0), c: MAT.slabLine });
-    parts.push({ g: box(SLAB_W, 6 * PX, SLAB_W), m: M(0, -10 * PX, 0), c: MAT.slabBase });
+    var SLAB_OV = 6 * PX, SLAB_W = R_SPAN + 2 * SLAB_OV;   /* p=2 격자: 돌출 6px(0.222 m) · 지층 6px + 1px 줄 + 6px = 13px = 0.48 m (룩 패스 8, 세계 치수는 패스 5 와 같다) */
+    parts.push({ g: box(SLAB_W, 6 * PX, SLAB_W), m: M(R_MID, -3 * PX, R_MID), c: MAT.slabTop });
+    parts.push({ g: box(SLAB_W + 0.02, PX, SLAB_W + 0.02), m: M(R_MID, -6.5 * PX, R_MID), c: MAT.slabLine });
+    parts.push({ g: box(SLAB_W, 6 * PX, SLAB_W), m: M(R_MID, -10 * PX, R_MID), c: MAT.slabBase });
     /* 벽 2면: 가로 널 10줄 0.3 m (창·문 구멍) + 줄 사이 1px 이음(W2, 0.045 m 높이 ≈ 1.2 px @ p=2 — 룩 패스 8, 전엔 0.08) + 세로 샛기둥 3개씩 */
     for (i = 0; i < 10; i++) {
       var y = 0.15 + i * 0.3, cwall = i % 2 ? MAT.wallA : MAT.wallB, cback = i % 2 ? MAT.wallB : MAT.wallA;
       if (y + 0.15 > WIN.y0 && y - 0.15 < WIN.y1) {
         parts.push({ g: box(0.12, 0.3, WIN.z0 + R, 1, 1, 4), m: M(-R, y, (-R + WIN.z0) / 2), c: cwall });
-        parts.push({ g: box(0.12, 0.3, R - WIN.z1, 1, 1, 3), m: M(-R, y, (WIN.z1 + R) / 2), c: cwall });
-      } else parts.push({ g: box(0.12, 0.3, 2 * R, 1, 1, 8), m: M(-R, y, 0), c: cwall });
+        parts.push({ g: box(0.12, 0.3, RF - WIN.z1, 1, 1, 4), m: M(-R, y, (WIN.z1 + RF) / 2), c: cwall });
+      } else parts.push({ g: box(0.12, 0.3, R_SPAN, 1, 1, 10), m: M(-R, y, R_MID), c: cwall });
       if (y - 0.15 < DOOR.h) {
         parts.push({ g: box(DOOR.x0 + R, 0.3, 0.12, 7, 1, 1), m: M((-R + DOOR.x0) / 2, y, -R), c: cback });
-        parts.push({ g: box(R - DOOR.x1, 0.3, 0.12, 1, 1, 1), m: M((DOOR.x1 + R) / 2, y, -R), c: cback });
-      } else parts.push({ g: box(2 * R, 0.3, 0.12, 8, 1, 1), m: M(0, y, -R), c: cback });
+        parts.push({ g: box(RF - DOOR.x1, 0.3, 0.12, 2, 1, 1), m: M((DOOR.x1 + RF) / 2, y, -R), c: cback });
+      } else parts.push({ g: box(R_SPAN, 0.3, 0.12, 10, 1, 1), m: M(R_MID, y, -R), c: cback });
       if (i === 0) continue;
       var yb = i * 0.3;   /* 줄 경계 이음 */
       if (yb > WIN.y0 && yb < WIN.y1) {
         parts.push({ g: box(0.02, 0.045, WIN.z0 + R), m: M(-R + 0.065, yb, (-R + WIN.z0) / 2), c: MAT.wallSeam });
-        parts.push({ g: box(0.02, 0.045, R - WIN.z1), m: M(-R + 0.065, yb, (WIN.z1 + R) / 2), c: MAT.wallSeam });
-      } else parts.push({ g: box(0.02, 0.045, 2 * R), m: M(-R + 0.065, yb, 0), c: MAT.wallSeam });
+        parts.push({ g: box(0.02, 0.045, RF - WIN.z1), m: M(-R + 0.065, yb, (WIN.z1 + RF) / 2), c: MAT.wallSeam });
+      } else parts.push({ g: box(0.02, 0.045, R_SPAN), m: M(-R + 0.065, yb, R_MID), c: MAT.wallSeam });
       if (yb < DOOR.h) {
         parts.push({ g: box(DOOR.x0 + R, 0.045, 0.02), m: M((-R + DOOR.x0) / 2, yb, -R + 0.065), c: MAT.wallSeam });
-        parts.push({ g: box(R - DOOR.x1, 0.045, 0.02), m: M((DOOR.x1 + R) / 2, yb, -R + 0.065), c: MAT.wallSeam });
-      } else parts.push({ g: box(2 * R, 0.08, 0.02), m: M(0, yb, -R + 0.065), c: MAT.wallSeam });
+        parts.push({ g: box(RF - DOOR.x1, 0.045, 0.02), m: M((DOOR.x1 + RF) / 2, yb, -R + 0.065), c: MAT.wallSeam });
+      } else parts.push({ g: box(R_SPAN, 0.08, 0.02), m: M(R_MID, yb, -R + 0.065), c: MAT.wallSeam });
     }
-    [-1.9, -1.1, 1.85].forEach(function (z) { parts.push({ g: box(0.14, 3.0, 0.14), m: M(-R + 0.09, 1.5, z), c: MAT.stud }); propCount++; });   /* 왼쪽 벽 샛기둥 (벽면에서 0.1 돌출) */
-    [-1.9, -0.9, 1.12].forEach(function (x) { parts.push({ g: box(0.14, 3.0, 0.14), m: M(x, 1.5, -R + 0.09), c: MAT.stud }); propCount++; });   /* 뒷벽 샛기둥 */
+    [-1.9, -1.1, 1.85, RF - 0.25].forEach(function (z) { parts.push({ g: box(0.14, 3.0, 0.14), m: M(-R + 0.09, 1.5, z), c: MAT.stud }); propCount++; });   /* 왼쪽 벽 샛기둥 (벽면에서 0.1 돌출) */
+    [-1.9, -0.9, 1.12, RF - 0.25].forEach(function (x) { parts.push({ g: box(0.14, 3.0, 0.14), m: M(x, 1.5, -R + 0.09), c: MAT.stud }); propCount++; });   /* 뒷벽 샛기둥 */
     parts.push({ g: box(0.2, 3.1, 0.2), m: M(-R, 1.55, -R), c: W[1] });                                                                             /* 모서리 기둥 */
     /* 지붕: 서까래 5 (x 방향, 5.7° 경사 y = 3.75 + 0.2x; 먼 쪽 3개는 통짜, 가까운 2개는 잘라낸 단면) + 도리 2 (z 방향, x=-2.1 / -1.6 = 옛 들보). 카메라 가까운 머리 위 목재는 창·보드를 가리므로 먼 모서리에만 둔다 */
     var RAFTER_K = 0.2, RAFTER_Y = 3.75;
@@ -796,9 +813,9 @@ var SCENE3D = (function () {
       var xc = (x0 + x1) / 2, L = (x1 - x0) * Math.sqrt(1 + RAFTER_K * RAFTER_K);
       hiParts.push({ g: box(L, 0.2, 0.24), m: M(xc, RAFTER_Y + RAFTER_K * xc, z, 0, 0, Math.atan(RAFTER_K)), c: W[2] }); propCount++;
     }
-    rafter(-2.3, -2.8, 2.8); rafter(-1.75, -2.8, 2.8); rafter(-1.2, -2.8, 2.8); rafter(-0.65, -2.8, -0.6); rafter(-0.1, -2.8, -1.3);
-    hiParts.push({ g: box(0.26, 0.26, 5.6), m: M(-2.1, 3.31, 0), c: W[1] }); propCount++;
-    hiParts.push({ g: box(0.26, 0.26, 5.6), m: M(-1.6, 3.36, 0), c: W[1] }); propCount++;
+    rafter(-2.3, -2.8, RF + 0.3); rafter(-1.75, -2.8, RF + 0.3); rafter(-1.2, -2.8, RF + 0.3); rafter(-0.65, -2.8, -0.6); rafter(-0.1, -2.8, -1.3);
+    hiParts.push({ g: box(0.26, 0.26, R_SPAN + 0.6), m: M(-2.1, 3.31, R_MID), c: W[1] }); propCount++;
+    hiParts.push({ g: box(0.26, 0.26, R_SPAN + 0.6), m: M(-1.6, 3.36, R_MID), c: W[1] }); propCount++;
     /* 창: 턱·틀·살 */
     parts.push({ g: box(0.5, 0.08, WIN.z1 - WIN.z0 + 0.5), m: M(-R + 0.22, WIN.y0, (WIN.z0 + WIN.z1) / 2), c: W[2] });                                 /* 창턱 */
     [[WIN.y0 - 0.05, 0], [WIN.y1 + 0.05, 0]].forEach(function (f) { parts.push({ g: box(0.1, 0.1, WIN.z1 - WIN.z0 + 0.2), m: M(-R + 0.1, f[0], (WIN.z0 + WIN.z1) / 2), c: W[1] }); });
@@ -931,7 +948,7 @@ var SCENE3D = (function () {
     /* 다락 쪽 문 (나): 다락엔 오른쪽 벽이 없으므로 오른쪽 바닥 끝(x 2.38)에 혼자 선 문틀 — 상자·양초(x 2.0, z −0.75) 앞쪽, 바깥 문(뒷벽 x 1.5~2.4)과 멀리.
        z 1.4: 1.0 이면 상자 자리(집에 있는 날 문어가 머무는 곳)의 문어를 약 21% 가렸다 → 1.4 에서 약 4%. 더 앞(1.7~)은 320×568 에서 문 발치가 잘리고 가운데 자리 문어를 가린다.
        덧그림이라 다른 소품은 그대로이고, 그림자를 안 던진다 (해가 −x 에서 오므로 그림자는 문 너머 허공으로 — 던지지 않으면 문 자리 밖 픽셀은 붙이기 전과 같다) */
-    var ATTIC_DOOR = makeDoor(Object.assign({ name: 'atticPlay', parent: atticG, x: 2.38, z: 1.4, w: 0.72, h: 1.68, cast: false, seam: true }, DOOR_PAINT));
+    var ATTIC_DOOR = makeDoor(Object.assign({ name: 'atticPlay', parent: atticG, x: RF - 0.12, z: 1.4, w: 0.72, h: 1.68, cast: false, seam: true }, DOOR_PAINT));
     function doorsApplyLight() {   /* 둥근 창: 낮엔 유리, 노을·밤엔 건너편 방의 따뜻한 불빛 (밤에 어두운 문짝이 '불 켜진 방으로 가는 문' 으로 읽히게) — 발광은 창 안에만 (블룸 2px 는 문짝 안) */
       var em = light.em == null ? 1 : light.em, nk = clamp((em - 0.25) / 0.75, 0, 1);
       [ATTIC_DOOR, PLAY_DOOR].forEach(function (D) {
@@ -2063,6 +2080,8 @@ var SCENE3D = (function () {
     function playerInputAllowed() {   /* '보이는 때' 규칙: 캐릭터가 지금 그려지는 방(다락·놀이방)에 있고, 연출·문 작업·전환·놀이 kit 이 아니다 */
       return ready && !INTRO.on && !DQ.active && !DQ.pending && !PLACE.trans && !PLAY && (PLACE.vis === 'attic' || PLACE.vis === 'play') && PL.place === PLACE.vis && plG.parent === groupOf(PLACE.vis) && plG.parent.visible;
     }
+    function plLim() { return PL.place === 'play' ? [-(PLAY_R - PL_MARGIN), PLAY_R - PL_MARGIN] : [-(R - PL_MARGIN), RF - PL_MARGIN]; }   /* 걸을 수 있는 범위 [낮은 쪽, 높은 쪽] (x · z 같은 값 — 다락은 앞쪽이 RF 까지) */
+    function plInRoom(x, z) { var l = plLim(); return x >= l[0] && x <= l[1] && z >= l[0] && z <= l[1]; }
     function plBoxes() {   /* 지금 방의 장애물 [x0, x1, z0, z1] (반지름만큼 키운 것) — 소품 위치·치수를 코드에서 읽는다. 담요·깔개는 밟아도 된다 */
       var out = [], r = PL_RAD;
       function bx(cx, cz, hw, hd) { out.push([cx - hw - r, cx + hw + r, cz - hd - r, cz + hd + r]); }
@@ -2095,18 +2114,18 @@ var SCENE3D = (function () {
                                    스틱을 쥐고 있거나 · 이미 걷는 중(문 앞 걷기 등) · 막힌 때(다른 방이 보임 · 문 작업)는 안 한다 — 그땐 stepPlayer 의 밀려나기가 받는다 */
       if (PL.place !== 'attic' || plG.parent !== atticG || PL.walking || PL_IN.held || !playerInputAllowed()) return;
       var dx = PL.pos.x - to.x, dz = PL.pos.z - to.z; if (Math.hypot(dx, dz) >= PL_OCT_R) return;
-      var boxes = plBoxes(), lim = R - PL_MARGIN, rr = PL_OCT_R + 0.1, a0 = Math.atan2(dx, dz), best = null, bd = Infinity;
+      var boxes = plBoxes(), rr = PL_OCT_R + 0.1, a0 = Math.atan2(dx, dz), best = null, bd = Infinity;
       for (var i = 0; i < 8; i++) {
         var a = a0 + i * Math.PI / 4, x = to.x + Math.sin(a) * rr, z = to.z + Math.cos(a) * rr;
-        if (Math.abs(x) > lim || Math.abs(z) > lim || plPen(x, z, boxes, []) > 0) continue;
+        if (!plInRoom(x, z) || plPen(x, z, boxes, []) > 0) continue;
         var d = Math.hypot(x - PL.pos.x, z - PL.pos.z); if (d < bd) { bd = d; best = [x, z]; }
       }
       if (best) plWalkTo(new T.Vector3(best[0], 0, best[1]), null);
     }
     function plMove(dx, dz) {   /* → 실제로 움직였나. 방 안쪽 범위로 자르고 장애물은 전체 → x 만 → z 만 (미끄러짐). 이미 겹쳐 있으면 더 파고들지 않는 쪽만 */
-      var lim = (PL.place === 'play' ? PLAY_R : R) - PL_MARGIN, boxes = plBoxes(), circ = plCircles();
+      var lm = plLim(), boxes = plBoxes(), circ = plCircles();
       var x0 = PL.pos.x, z0 = PL.pos.z, p0 = plPen(x0, z0, boxes, circ) + 1e-6;
-      var nx = clamp(x0 + dx, -lim, lim), nz = clamp(z0 + dz, -lim, lim);
+      var nx = clamp(x0 + dx, lm[0], lm[1]), nz = clamp(z0 + dz, lm[0], lm[1]);
       if (plPen(nx, nz, boxes, circ) <= p0) PL.pos.set(nx, 0, nz);
       else if (plPen(nx, z0, boxes, circ) <= p0) PL.pos.x = nx;
       else if (plPen(x0, nz, boxes, circ) <= p0) PL.pos.z = nz;
@@ -2176,11 +2195,11 @@ var SCENE3D = (function () {
       return slab(ax, dx, b[0], b[1]) && slab(az, dz, b[2], b[3]);
     }
     function plRoute(from, to) {   /* 경유점 (리뷰 11-09: 직선 lerp 는 상자 속을 걸어 지나갔다): 직선이 장애물 상자를 지나면 상자 모서리(둘레 +0.05) 하나 또는 이웃한 둘을 거친다 — 모든 선분이 상자를 안 지나는 길 중 가장 짧은 것. 없으면(출발·도착이 둘레 안 등) 직선 그대로 (plMove 가 미끄러뜨린다) */
-      var boxes = plBoxes(), lim = (PL.place === 'play' ? PLAY_R : R) - PL_MARGIN, hit = null, i;
+      var boxes = plBoxes(), hit = null, i;
       for (i = 0; i < boxes.length; i++) if (plSegHits(from.x, from.z, to.x, to.z, boxes[i])) { hit = boxes[i]; break; }
       if (!hit) return [to];
       var m = 0.05, cs = [[hit[0] - m, hit[2] - m], [hit[1] + m, hit[2] - m], [hit[1] + m, hit[3] + m], [hit[0] - m, hit[3] + m]];   /* 모서리 4개, 둘레 순서 */
-      function okPt(c) { return Math.abs(c[0]) <= lim && Math.abs(c[1]) <= lim && plPen(c[0], c[1], boxes, []) <= 0; }
+      function okPt(c) { return plInRoom(c[0], c[1]) && plPen(c[0], c[1], boxes, []) <= 0; }
       function free(ax, az, bx, bz) { for (var j = 0; j < boxes.length; j++) if (plSegHits(ax, az, bx, bz, boxes[j])) return false; return true; }
       function len(ax, az, bx, bz) { return Math.hypot(bx - ax, bz - az); }
       var best = null, bl = Infinity;
@@ -3130,7 +3149,7 @@ var SCENE3D = (function () {
       holes.forEach(function (h) { var nx = []; out.forEach(function (s) { if (h[1] <= s[0] || h[0] >= s[1]) nx.push(s); else { if (h[0] > s[0]) nx.push([s[0], h[0]]); if (h[1] < s[1]) nx.push([h[1], s[1]]); } }); out = nx; });
       return out.filter(function (s) { return s[1] - s[0] > 1e-4; });
     }
-    var PLAY_WIN = { z0: 0.72, z1: 1.52, y0: 0.9, y1: 1.8 }, PLAY_DOOR_Z = snapPos(DOOR_ANCHORS.playAtticDoor[2]), PLAY_MX = -0.94;
+    var PLAY_WIN = { z0: 0.72, z1: 1.52, y0: 0.9, y1: 1.8 }, PLAY_DOOR_Z = snapPos(DOOR_ANCHORS.playAtticDoor[2]), PLAY_MX = -1.5;   /* 11-10: 방을 넓히며 오락기를 왼쪽으로 (조리대와 사이를 띄운다) */
     var SCR = { bg: PAL.navy[4], run: PAL.rose[2], hide: PAL.navy[4] };
     function buildPlayRoom() {
       var Rp = PLAY_R, H = PLAY_H, g = new T.Group(); g.name = 'play'; g.visible = false; scene.add(g);
