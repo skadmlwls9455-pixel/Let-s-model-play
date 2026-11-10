@@ -14,6 +14,8 @@
  *   J 8물결: 다락 안 놀이방 문(투명 단추) → 진짜 놀이방 · 오락기 → 달리기 · 키보드 왕복 · 산책 중 놀이방(끌려 나가지 않음 · 구석 쪽지 · 보러 가기) · 두뇌 입력 0 · 모션 줄이기 컷 · 새로고침 · 2D.
  *   T 톡 한 줄(주인 11-08: 깨어 있으면 그 차례 한 줄 · 말풍선만 · 모델 줄은 그대로 24자 + … · 다음 날 · 빈 차례 '응?') · 깨어 있는 틈 → 잠 훅 한 번 · 장면 말풍선 맞추기(T-2),
  *   K 다녀오는 중… 을 눌러 데려오기: 기록은 안 데려온 것과 같다 · 짧은 귀가(문 · 토스트 · 등불 · 방 줄) · 두 번 눌러도 그대로 · 모션 줄이기 · 모델 차례.
+ *   O 한 화면 배치(주인 11-08 · 3D 일 때 data-layout=one): 장면이 창을 다 씀 · 오늘의 산책 쪽지(단추 · Enter · Esc · 바깥 톡) · 닫아 둔 사이 새 줄 = 점 + 한 줄 알림(data-raw 그대로) ·
+ *     혼잣말은 낭독기 한 줄만 · 대사 자리(APP.dlgDemo, 개발 모드) · 3D 가 멈추면 위아래 배치(2D) · 플레이어 화면 스크롤 없음 · 저장 경고 띠. 치수 · 사진은 tools/layout-shots.js
  *   (모든 문맥은 window.__ppolAwakeMs = 0 으로 시작 — 예전 시나리오는 '산책 직후 잠'. T · K 가 덮는다)
  *   SMOKE_ONLY=H,I node tools/smoke.js   # 그 시나리오만
  * 등불은 초대한 날마다 1칸 (DESIGN §4): 같은 날 두 번째 초대는 칸을 켜지 않는다 → 날을 넘기는 곳은 window.__ppolTest.today 로.
@@ -107,6 +109,15 @@ async function newPage(browser, wikiMode, initScripts) {
   for (var s of (initScripts || [])) await page.addInitScript(s);
   await routeWiki(page, wikiMode);
   return { ctx: ctx, page: page, bag: bag };
+}
+/* 한 화면 배치(3D): 로그는 '오늘의 산책' 쪽지(#log-sheet) 안에 있다 — 닫힌 쪽지 안의 로그는 크기가 없어서, 로그의 모양 · 자리(아이콘 폭 · 잘림 · 스크롤)를 재는 검사는 쪽지를 열고 잰다.
+   여닫는 길은 플레이어와 같이 오늘 단추(#btn-today) · 닫기 단추(#log-close). 위아래 배치(2D)에선 아무것도 안 한다. 돌려주는 값: 한 화면 배치인지 */
+async function logSheetOf(pg, on) {
+  var st = await pg.evaluate(function () { var d = document.getElementById('log-sheet'); return { one: document.documentElement.getAttribute('data-layout') === 'one', open: !!(d && d.open) }; });
+  if (!st.one || st.open === on) return st.one;
+  if (on) { await pg.click('#btn-today'); await pg.waitForSelector('#log-sheet[open]', { timeout: 5000 }); }
+  else { await pg.click('#log-close'); await pg.waitForFunction(function () { return !document.querySelector('#log-sheet[open]'); }, null, { timeout: 5000 }); }
+  return true;
 }
 async function pickName(page, hint) {
   /* 이름에 따라 시드가 바뀐다. 오늘 시드로 '외출'이 되는 이름을 고른다(집에 있는 날도 정당한 결말이지만 일기 정류장 ≥2 를 보려고).
@@ -249,7 +260,8 @@ async function scenarioMain(browser) {
   var stChips = await page.evaluate(function () { return [].map.call(document.querySelectorAll('#log .ltext .st'), function (x) { return { w: x.textContent, img: !!x.querySelector('img.ua-ico.ua-both') }; }); });
   ok(stChips.length >= 1 && stChips.every(function (x) { return /^(읽음|책장 메모|모의 방문|못 읽음|앉아만 있었음)/.test(x.w) && x.img; }) && !/[\u2190-\u27BF]|[\uD83C-\uD83E][\uDC00-\uDFFF]/.test(logText),
     '로그 읽기 상태: 픽셀 그림 + 단어 (이모지 없음 — 주인 11-07) ' + JSON.stringify(stChips.slice(0, 2)));
-  /* UI 아트 (css/ui-art.css · js/ui-art.js, docs/UI_ART.md) — 픽셀 모드 */
+  /* UI 아트 (css/ui-art.css · js/ui-art.js, docs/UI_ART.md) — 픽셀 모드. 한 화면 배치에선 쪽지를 열고 잰다 (아이콘 폭 · 보이는 라벨) */
+  await logSheetOf(page, true);
   var ua = await page.evaluate(function () {
     var sheet = Array.prototype.filter.call(document.styleSheets, function (x) { return /css\/ui-art\.css$/.test(x.href || ''); })[0], rules = 0;
     try { rules = sheet ? sheet.cssRules.length : 0; } catch (e) { rules = -1; }   /* file:// 에서는 cssRules 를 못 읽는다 → 아래 탐침으로 */
@@ -267,6 +279,7 @@ async function scenarioMain(browser) {
       stImg: !!(stImg && stImg.naturalWidth === 16), stWord: st ? st.textContent.replace(/[^가-힣]/g, '') : '' };
   });
   console.log('   ui-art:', JSON.stringify(ua));
+  await logSheetOf(page, false);
   ok(ua.uiart && (ua.rules > 10 || (ua.rules === -1 && ua.probe !== 'inline')), 'css/ui-art.css · js/ui-art.js 로드됨 (UIART, 탐침 display ' + ua.probe + ') — 콘솔 에러 0 은 아래 [A] 에서');
   if (ua.font === 'pixel') {
     ok(ua.voice && /frame_dialog\.png/.test(ua.voiceBorder), '목소리 행에 대화창 틀 클래스 (.ua-frame-dialog → ui.frame.dialog)');
@@ -375,13 +388,15 @@ async function scenarioMain(browser) {
   await page.evaluate(function (d) { window.__ppolTest = { today: d }; }, dayAfter(1));   /* 새 날 → 그날 첫 차례라 등불이 켜진다 */
   await page.fill('#d-json', JSON.stringify([{ type: 'stay_home', t: 0, activity: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', anchor: 'window' }, { type: 'wrap_up', t: 2000, reaction: '졸림' }]));
   await page.click('#d-import'); await skipAway(page); await waitIdle(page);
-  var home = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { kind: t.kind, type: t.poster && t.poster.type, trips: APP.state.octopus.trips, lantern: APP.state.room.lantern, log: document.getElementById('log').textContent }; });
+  var home = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { id: t.id, kind: t.kind, type: t.poster && t.poster.type, trips: APP.state.octopus.trips, lantern: APP.state.room.lantern, log: document.getElementById('log').textContent }; });
   ok(home.kind === 'home' && home.type === 'note', '집에 있는 날 → 쪽지');
   ok(home.log.indexOf('오늘은 집. 등불 +1') >= 0 && !/미안|아쉽/.test(home.log), "로그 '오늘은 집. 등불 +1', 사과 문구 없음");
   await openAlbum(page);
   await page.click('.fchip[data-f="note"]');
   ok((await page.$$('#album .pcard.note')).length >= 1, '앨범 필터 쪽지 → 쪽지 카드');
-  await page.click('#album .pcard.note'); await page.waitForSelector('#poster-dialog[open]');
+  /* 방금 그 차례의 쪽지를 연다 (data-trip). 첫 쪽지 카드를 누르면 안 된다: 위 '두 번째 초대' 가 그날 시드에 따라 집에 있는 날이 되기도 하는데(예: 2026-11-10),
+     앨범은 날짜순이라 그 쪽지가 먼저 오고 그 뒷면엔 '+1' 이 없다 (같은 날 두 번째 차례는 칸을 안 켠다) */
+  await page.click('#album .pcard.note[data-trip="' + home.id + '"]'); await page.waitForSelector('#poster-dialog[open]');
   ok((await page.textContent('#pd-back')).indexOf('오늘은 집. 등불 +1') >= 0, "쪽지 뒷면 '오늘은 집. 등불 +1'");
   await page.screenshot({ path: path.join(SHOTS, 'note-front.png') });
   await closePoster(page, true); await page.click('.fchip[data-f="all"]'); await closeAlbum(page);
@@ -1140,13 +1155,14 @@ async function scenarioAlbumIcon(browser) {
     var o = { one: document.documentElement.getAttribute('data-layout') === 'one', over: UIART.avoidCtl({ left: L - 100, right: L + 10, top: q.top + 2, bottom: q.bottom + 40 }, 4), below: UIART.avoidCtl({ left: L - 100, right: L + 10, top: q.bottom + 1, bottom: q.bottom + 60 }, 4), clear: UIART.avoidCtl({ left: L - 120, right: L - 5, top: q.top, bottom: q.bottom }, 4) };
     if (o.one) {   /* 위 띠 = 상태 줄 + 아이콘 묶음. 풍선이 어느 상자와 옆으로 겹치면 그 상자 밑 + 4px 가 위 한계, 둘 사이 틈에 다 들어가면 0 */
       var st = document.getElementById('status').getBoundingClientRect();
-      o.band = UIART.topBand({ left: L - 100, right: L + 10 }, 4) - (q.bottom + 4); o.bandSt = UIART.topBand({ left: st.left + 10, right: st.left + 60 }, 4) - (st.bottom + 4);
+      o.band = UIART.topBand({ left: L + 6, right: L + 40 }, 4) - (q.bottom + 4); o.bandSt = UIART.topBand({ left: st.left + 10, right: st.left + 60 }, 4) - (st.bottom + 4);   /* 묶음하고만 · 상태 줄하고만 겹치는 풍선 */
+      o.both = UIART.topBand({ left: st.right - 20, right: L + 10 }, 4) - (Math.max(st.bottom, q.bottom) + 4);   /* 둘 다 걸치면 더 낮은 쪽 밑 */
       o.gapW = Math.round(L - st.right); o.gap = o.gapW > 12 ? UIART.topBand({ left: st.right + 5, right: L - 5 }, 4) : 0;
     }
     return o;
   });
   /* 한 화면 배치: 옆으로 비킬 틈이 없어 (왼쪽엔 상태 줄) 묶음은 옆 비킴 무리에서 빠지고, 위 띠를 아래로 비킨다 (UIART.topBand). 2D 폴백은 예전처럼 왼쪽으로 */
-  if (av.one) ok(av.over === 0 && av.below === 0 && av.clear === 0 && Math.abs(av.band) < 0.5 && Math.abs(av.bandSt) < 0.5 && av.gap === 0, '말풍선 ↔ 위 띠 (한 화면 배치): 옆으로 안 밀고 · 겹치는 상자 밑 4px 가 위 한계 · 상태 줄과 묶음 사이 틈(' + av.gapW + 'px)에선 그대로 ' + JSON.stringify(av));
+  if (av.one) ok(av.over === 0 && av.below === 0 && av.clear === 0 && Math.abs(av.band) < 0.5 && Math.abs(av.bandSt) < 0.5 && Math.abs(av.both) < 0.5 && av.gap === 0, '말풍선 ↔ 위 띠 (한 화면 배치): 옆으로 안 밀고 · 겹치는 상자 밑 4px 가 위 한계 (둘 다 걸치면 더 낮은 쪽) · 상태 줄과 묶음 사이 틈(' + av.gapW + 'px)에선 그대로 ' + JSON.stringify(av));
   else ok(Math.round(av.over) === -14 && av.below === 0 && av.clear === 0, '말풍선 ↔ 아이콘 묶음: 겹치면 상자 왼쪽 4px 까지 비킴 · 안 겹치면 그대로 ' + JSON.stringify(av));
   /* 새 플레이어의 첫 새로고침: 앨범을 안 열었으면 점은 그대로 — 첫 저장부터 settings.albumSeen 0 이 적혀 있어 '옛 기록'으로 오인해 본 것으로 치지 않는다 */
   var sv0 = await page.evaluate(function () { var o = JSON.parse(localStorage.getItem('ppolppol_v2') || '{}'); return o.settings && 'albumSeen' in o.settings ? o.settings.albumSeen : 'none'; });
@@ -1577,8 +1593,8 @@ async function scenarioWave7(browser) {
   ok(!(await page.$('.yield')), '그 말풍선이 사라지면 ⚙ 도 돌아온다');
   if (yOne) {
     /* 숨기기 규칙 자체 (말풍선이 없을 때 직접): ⚙ 상자와 겹치는 풍선 상자를 주면 ⚙ 만 숨고(투명 · 탭 통과), false 를 주면 돌아온다 */
-    await page.evaluate(function () { var q = document.querySelector('#btn-settings .snd-box').getBoundingClientRect(); UIART.ctlYield({ left: q.left - 30, right: q.left + 6, top: q.top + 4, bottom: q.bottom + 30 }); });
-    await page.waitForTimeout(450);
+    await page.evaluate(function () { var q = document.querySelector('#btn-settings .snd-box').getBoundingClientRect(); UIART.ctlYield({ left: q.left + 4, right: q.left + 20, top: q.top + 4, bottom: q.bottom + 30 }); });   /* ⚙ 상자 안쪽만 (옆 단추 상자는 16px 떨어져 있다) */
+    await page.waitForFunction(function () { return +getComputedStyle(document.getElementById('btn-settings')).opacity === 0; }, null, { timeout: 3000 }).catch(function () {});   /* 0.25 s 로 옅어진다 — 바쁜 기계에선 프레임이 늦다 */
     var yd = await ctlOps(), ydCls = await page.evaluate(function () { return [].map.call(document.querySelectorAll('.yield'), function (x) { return x.id; }).join(','); });
     await page.evaluate(function () { UIART.ctlYield(false); });
     await page.waitForFunction(function () { return +getComputedStyle(document.getElementById('btn-settings')).opacity === 1; }, null, { timeout: 3000 }).catch(function () {});
@@ -1919,7 +1935,7 @@ async function scenarioWave7(browser) {
   ok(auto.at2 === true && auto.ms >= 2450 && auto.ms < 4500, '2.5 s 뒤 저절로 닫힘 (2 s 에는 아직 보임 · ' + auto.ms + ' ms)');
   /* 말풍선 자체를 누르면: 말풍선만 닫히고 아래 큰 버튼은 눌리지 않는다 (산책 안 나감) */
   await page.click('#pips'); await page.waitForTimeout(200);
-  var tq = await page.evaluate(function () { var r = document.getElementById('tip').getBoundingClientRect(), g = document.getElementById('btn-go').getBoundingClientRect(), x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2), e = document.elementFromPoint(x, y); return { x: x, y: y, overGo: r.bottom > g.top && r.top < g.bottom, onTip: !!(e && e.closest('#tip')), overScene: !!document.getElementById('tip').closest('#scene'), n: APP.state.trips.length }; });
+  var tq = await page.evaluate(function () { var r = document.getElementById('tip').getBoundingClientRect(), g = document.getElementById('btn-go').getBoundingClientRect(), x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2), e = document.elementFromPoint(x, y); return { x: x, y: y, overGo: r.bottom > g.top && r.top < g.bottom, onTip: !!(e && e.closest('#tip')), overScene: (function () { var sc = document.getElementById('scene').getBoundingClientRect(); return x >= sc.left && x <= sc.right && y >= sc.top && y <= sc.bottom; })(), n: APP.state.trips.length }; });   /* overScene: 말풍선이 장면 그림 위에 떠 있다 (DOM 으로는 상태 쪽지의 자식) */
   await page.mouse.click(tq.x, tq.y); await page.waitForTimeout(300);
   var tq2 = await page.evaluate(function () { return { n: APP.state.trips.length, away: document.getElementById('btn-go').classList.contains('away'), show: document.getElementById('tip').classList.contains('show') }; });
   /* 한 화면 배치 (11-10): 말풍선은 위 쪽지 아래(장면 위)에 뜨고 큰 버튼은 맨 아래라 서로 안 겹친다 → 누름을 말풍선이 받는지 · 그 밑(장면)으로 새지 않는지만 본다 */
@@ -2582,8 +2598,9 @@ async function scenarioGlyphs(browser) {
     if (font) await page.evaluate(function (f) { document.documentElement.setAttribute('data-font', f); }, font);
     await page.evaluate(function () { window.__glyph.logWatch(true); });
     await page.click('#btn-go'); await page.waitForSelector('#btn-go.away', { timeout: 10000 });
-    for (var i = 0; i < 40; i++) { await page.waitForTimeout(700); if (i % 4 === 0) await scan(label + ' (나가 있는 중)'); if (!(await page.$('#btn-go.away'))) break; }
+    for (var i = 0; i < 40; i++) { await page.waitForTimeout(700); if (i === 6) await logSheet(true); if (i % 4 === 0) await scan(label + ' (나가 있는 중)'); if (!(await page.$('#btn-go.away'))) break; }
     await page.evaluate(function () { window.__glyph.logWatch(false); });
+    await logSheet(false);
     await page.evaluate(function () { document.documentElement.setAttribute('data-font', 'pixel'); });
     if (w) await page.setViewportSize({ width: 360, height: 740 });
     await skipAway(page).catch(function () {}); await waitIdle(page); await page.waitForTimeout(400);
@@ -2591,10 +2608,12 @@ async function scenarioGlyphs(browser) {
   async function importAndWait(evs, label, w) {
     if (w) await page.setViewportSize({ width: w, height: 740 });
     must(await page.evaluate(function (e) { return APP.importEvents(e); }, evs), label + ' 재생 시작');
-    for (var k = 0; k < 40; k++) { await page.waitForTimeout(700); if (k % 4 === 0) await scan(label + ' (나가 있는 중)'); if (!(await page.$('#btn-go.away'))) break; }
+    for (var k = 0; k < 40; k++) { await page.waitForTimeout(700); if (k === 6) await logSheet(true); if (k % 4 === 0) await scan(label + ' (나가 있는 중)'); if (!(await page.$('#btn-go.away'))) break; }
+    await logSheet(false);
     await skipAway(page).catch(function () {}); await waitIdle(page); await page.waitForTimeout(400);
     if (w) await page.setViewportSize({ width: 360, height: 740 });
   }
+  function logSheet(on) { return logSheetOf(page, on); }   /* 나가 있는 동안 앞쪽은 쪽지를 닫은 채(새 줄 알림의 글자도 문서 관찰자가 본다), 뒤쪽(4 s 뒤)은 열고 본다 */
   function toastSays(re) { return page.waitForFunction(function (src) { var t = document.getElementById('toast'); return t && t.classList.contains('show') && new RegExp(src).test(t.textContent); }, re.source, { timeout: 5000 }).then(function () { return true; }, function () { return false; }); }
 
   /* 1. 입장 (?intro=1 — 자동화 브라우저는 기본 생략) → 이름 창 */
@@ -2663,6 +2682,7 @@ async function scenarioGlyphs(browser) {
   /* 5. 읽는 사람이 로그를 조금(한 행보다 덜 — 60px) 올리면 다음 행이 와도 그 자리 그대로 (GF R13 · 검증 7b: 예전엔 우리 스크롤 길 안이라고 보고 끌어내렸다) */
   await page.setViewportSize({ width: 360, height: 740 });
   await page.click('#btn-go'); await page.waitForSelector('#btn-go.away', { timeout: 10000 });
+  var yOne = await logSheet(true);   /* 한 화면 배치: 로그는 쪽지 안 — 열어 두고 잰다 (닫힌 쪽지 안의 로그는 크기가 없다) */
   var yready = await page.waitForFunction(function () {
     var l = document.getElementById('log'), g = window.__yk || (window.__yk = { y: -1, n: 0 }), y = l.scrollTop;
     g.n = Math.abs(y - g.y) < 1 ? g.n + 1 : 0; g.y = y;
@@ -2678,7 +2698,8 @@ async function scenarioGlyphs(browser) {
     await page.evaluate(function () { var l = document.getElementById('log'); l.scrollTop = l.scrollHeight; });   /* 읽는 사람이 다시 맨 아래로 → 다시 따라간다 */
   }
   console.log('   로그 조금 올림:', JSON.stringify(yk));
-  ok(yk.ready && yk.row && Math.abs(yk.y1 - yk.y0) <= 4, '로그를 60px 올려 두면 다음 행이 와도 끌어내리지 않음 (' + yk.y0 + ' → ' + yk.y1 + ')');
+  ok(yk.ready && yk.row && Math.abs(yk.y1 - yk.y0) <= 4, '로그를 60px 올려 두면 다음 행이 와도 끌어내리지 않음 (' + yk.y0 + ' → ' + yk.y1 + ')' + (yOne ? ' · 오늘의 산책 쪽지 안' : ''));
+  await logSheet(false);
   await skipAway(page).catch(function () {}); await waitIdle(page); await page.waitForTimeout(400);
   /* 데모 산책이 기억한 곳이 기호가 든 위키 문서였다면 (우리 문구 속 제목만 data-raw — 로그 기억 행 · 포스터 앞면 글 · 열람 첫 줄 · 일기 '기억으로 고른 곳' · 카드 이름표 · 제목) */
   var wt = await page.evaluate(function (T) {
@@ -2697,13 +2718,15 @@ async function scenarioGlyphs(browser) {
   await scan('위키 제목에 기호 (로그)');
   /* 로그 잘림 (7물결 점검 c): 산책 동안 멈춘 상태마다 + 지금 로그를 폭 셋 × 테마 둘로 다시 그려서 — 다시 그린 뒤 자리 잡기를 3 s 까지 기다린다 */
   var cutRes = await page.evaluate(function () { return window.__glyph.logRes.slice(); });
+  var cutOne = await logSheet(true);   /* 한 화면 배치: 쪽지를 연 채 폭 · 테마를 바꿔 가며 다시 그린다 */
   for (var cw of [320, 360, 412]) for (var cf of ['pixel', 'system']) {
     await page.setViewportSize({ width: cw, height: 740 });
     await page.evaluate(function (f) { document.documentElement.setAttribute('data-font', f); APP.renderLog(); }, cf);
     var q = await page.evaluate(function () { return window.__glyph.logSettle(3000).then(function (x) { if (x) { x.w = innerWidth; x.font = document.documentElement.getAttribute('data-font'); x.key = 'renderLog'; } return x; }); });
     if (q) cutRes.push(q);
-    if (cw === 320 && cf === 'pixel') await page.locator('#log-sec').screenshot({ path: path.join(SHOTS, 'log-snap-320.png') });
+    if (cw === 320 && cf === 'pixel') await page.locator(cutOne ? '#log-sheet' : '#log-sec').screenshot({ path: path.join(SHOTS, 'log-snap-320.png') });
   }
+  await logSheet(false);
   await page.evaluate(function () { document.documentElement.setAttribute('data-font', 'pixel'); });
   await page.setViewportSize({ width: 360, height: 740 });
   var cutBad = cutRes.filter(function (x) { return x.cut.length || (!x.newestFull && !x.newestTall); });
@@ -3283,6 +3306,206 @@ async function scenarioBringBack(browser) {
   ok(same(M1.r, M3.r), '길을 걸어 오는 중에 데려와도 기록이 같다');
   ok(!M1.bag.length && !M2.bag.length && !M3.bag.length, '[K 모델] 페이지 에러 0' + (M3.bag.length ? ': ' + M3.bag.join(' | ') : ''));
 }
+/* ── O. 한 화면 배치 (주인 11-08: "문어 대사가 아래에 슥 뜨고 실제로는 방 움직이고 돌아다니는 쪽으로 … 화면이 반으로 나뉘어져있는 느낌인 게 불편해서") ──
+   3D 일 때만 <html data-layout="one">: 장면이 창을 다 쓰고 상태 쪽지(위) · 큰 버튼(아래)이 그 위에 얹힌다. 오늘의 산책은 쪽지(#log-sheet — 단추 · Enter · Esc · 바깥 톡).
+   쪽지를 닫아 둔 사이의 새 줄은 점(숫자 없음) + 한 줄 알림(남의 글 표시 data-raw 그대로), 열어 둔 동안엔 둘 다 없음. 혼잣말은 말풍선으로 보였으니 낭독기 한 줄(#say-live)만.
+   대사 자리(#dlg-host — 개발 모드의 APP.dlgDemo, 플레이어 화면에선 아무것도 안 뜸). 3D 그림이 3 s 넘게 멈추면 위아래 배치(2D)로 되돌아가고 목록도 제자리로.
+   플레이어 화면(?dev=0)은 스크롤이 없고, 저장 경고 띠가 떠도 그 높이만큼 장면이 줄어 스크롤이 안 생긴다. 네 화면 크기의 치수 · 증거 사진은 tools/layout-shots.js */
+async function scenarioLayoutOne(browser) {
+  console.log('\n== O. 한 화면 배치 (3D): 장면이 창을 다 씀 · 오늘의 산책 쪽지 · 새 줄 점 + 알림 · 대사 자리 · 3D 가 멈추면 위아래 배치 · 저장 경고 띠');
+  var O = 'http://ppolppol.example', DAY1 = '2026-11-03', SPEED = 0.4;
+  var HOOK = { content: "window.__ppolTest = window.__ppolTest || { today: '" + DAY1 + "', forceKind: 'out' };" };
+  function layOf(pg) {
+    return pg.evaluate(function () {
+      function rc(id) { var e = document.getElementById(id); if (!e) return null; var r = e.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), r: Math.round(r.right), b: Math.round(r.bottom) }; }
+      function shown(id) { var e = document.getElementById(id); if (!e) return false; var r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; }
+      var root = document.documentElement, log = document.getElementById('log'), bt = document.getElementById('btn-today'), t = document.getElementById('toast'), d = document.getElementById('log-sheet');
+      var dot = bt && bt.querySelector('.ib-dot'), dh = document.getElementById('dlg-host'), w = document.getElementById('save-warn'), rows = log ? log.querySelectorAll('.lrow') : [];
+      var last = rows.length ? rows[rows.length - 1].getBoundingClientRect() : null, lr = log ? log.getBoundingClientRect() : null;
+      return { one: root.getAttribute('data-layout'), mode: APP.sceneMode, vw: innerWidth, vh: innerHeight, docW: root.scrollWidth, docH: root.scrollHeight,
+        scene: rc('scene'), status: rc('status'), go: rc('btn-go'), stick: rc('stick'), sheetBox: rc('log-sheet'), host: rc('dlg-host'), warn: w && !w.hidden ? rc('save-warn') : null,
+        logIn: log && log.parentNode.id, logShown: shown('log'), secShown: shown('log-sec'), today: !!bt && !bt.hidden && shown('btn-today'), hint: shown('hint-in'),
+        dot: !!(dot && !dot.hidden), sr: (document.getElementById('today-new') || {}).textContent || '', sheet: !!(d && d.open),
+        newest: !!(last && lr && last.top >= lr.top - 1 && last.bottom <= lr.bottom + 1),
+        dlg: !!(dh && dh.classList.contains('show')), dlgOn: root.classList.contains('dlg-on'), dlgH: root.style.getPropertyValue('--dlg-h'), warnH: root.style.getPropertyValue('--warn-h'),
+        toast: { show: t.classList.contains('show'), row: t.classList.contains('row'), ico: !!t.querySelector('svg.t-ico'), txt: (t.querySelector('.t-txt') || {}).textContent || '', all: t.textContent, box: rc('toast') },
+        rows: rows.length, ae: document.activeElement && document.activeElement.id, say: (document.getElementById('say-live') || {}).textContent || '' };
+    });
+  }
+  function apart(a, b) { return !a || !b || a.r <= b.x || b.r <= a.x || a.b <= b.y || b.b <= a.y; }
+  function sheetShut(pg) { return pg.waitForFunction(function () { return !document.querySelector('#log-sheet[open]'); }, null, { timeout: 5000 }); }
+  function rowToastGone(pg) { return pg.waitForFunction(function () { var t = document.getElementById('toast'); return !t.classList.contains('show'); }, null, { timeout: 10000 }); }
+
+  var s = await newPage(browser, 'ok', [HOOK]);
+  var page = s.page;
+  function lay() { return layOf(page); }
+  await routeRepo(page, O);
+  await page.goto(O + '/index.html?dev=1&slow=' + SPEED);
+  await nameOct(page, '뚜루');
+  await page.waitForSelector('#btn-go:not(.away)');
+
+  /* 1. 틀: 장면이 창을 다 쓰고 나머지는 그 위에. 목록은 닫힌 쪽지 안, 예전 목록 칸은 안 보임 */
+  var L = await lay();
+  console.log('   틀:', JSON.stringify({ one: L.one, mode: L.mode, scene: L.scene, status: L.status, go: L.go, stick: L.stick, logIn: L.logIn, doc: [L.docW, L.docH] }));
+  must(L.one === 'one' && L.mode === '3d', '3D 장면이면 <html data-layout="one"> (' + L.one + ' · ' + L.mode + ')');
+  ok(L.scene.x === 0 && L.scene.y === 0 && L.scene.w === L.vw && L.scene.h === L.vh && L.docW <= L.vw, '장면이 창을 다 쓴다 (' + L.scene.w + '×' + L.scene.h + ' / ' + L.vw + '×' + L.vh + ') · 가로 스크롤 없음');
+  ok(L.status.y >= 0 && L.status.b < L.vh / 2 && L.go.y > L.vh / 2 && L.go.b <= L.vh && L.go.r <= L.vw && L.go.w >= 44 && L.go.h >= 44 && apart(L.go, L.stick), '상태 쪽지는 위 · 큰 버튼은 아래 (창 안 · 44px 이상 · 발자국 손잡이와 안 겹침)');
+  ok(L.logIn === 'log-slot' && !L.logShown && !L.secShown && L.today && !L.sheet && !L.dot && L.sr === '', '오늘의 산책 목록은 닫힌 쪽지(#log-slot) 안 · 예전 목록 칸은 안 보임 · 오늘 단추 보임(점 없음)');
+  ok(!L.dlg && !L.dlgOn && L.dlgH === '', '대사 자리는 대사가 있을 때만 (지금은 숨김)');
+
+  /* 2. 쪽지 열고 닫기: 단추 → 닫기 단추(포커스가 단추로 돌아옴) · Enter → Esc · 바깥 톡 */
+  await page.click('#btn-today'); await page.waitForSelector('#log-sheet[open]');
+  L = await lay();
+  ok(L.sheet && L.logShown && L.ae === 'log-h' && L.sheetBox.b <= L.vh + 1 && L.sheetBox.w <= L.vw, '오늘 단추 → 쪽지가 열리고 목록이 보인다 (포커스는 제목 — ' + L.ae + ')');
+  await page.click('#log-close'); await sheetShut(page);
+  L = await lay();
+  ok(!L.sheet && !L.logShown && L.ae === 'btn-today', '닫기 → 쪽지 닫힘 · 포커스는 오늘 단추로 (' + L.ae + ')');
+  await page.keyboard.press('Enter'); await page.waitForSelector('#log-sheet[open]');
+  await page.keyboard.press('Escape'); await sheetShut(page);
+  L = await lay();
+  ok(!L.sheet && L.ae === 'btn-today', '키보드: Enter 로 열고 Esc 로 닫기 · 포커스는 오늘 단추로 (' + L.ae + ')');
+  await page.click('#btn-today'); await page.waitForSelector('#log-sheet[open]'); await page.waitForTimeout(450);
+  var sb = (await lay()).sheetBox;
+  await page.mouse.click(Math.round(sb.x + sb.w / 2), Math.max(4, Math.round(sb.y / 2)));
+  var outShut = await sheetShut(page).then(function () { return true; }, function () { return false; });
+  ok(outShut && sb.y > 40, '쪽지 바깥(위쪽 장면)을 톡 → 닫힘 (쪽지 위 가장자리 y ' + sb.y + ')');
+  if (!outShut) { await page.evaluate(function () { document.getElementById('log-sheet').close(); }); await sheetShut(page); }
+
+  /* 3. 닫아 둔 사이 새 줄: 점 + 한 줄 알림 (오늘 그림 + 글) — 큰 버튼 · 상태 쪽지와 안 겹침 */
+  await rowToastGone(page).catch(function () {});
+  await page.fill('#hint-in', '모자의 역사');
+  await page.click('#btn-go'); await page.waitForSelector('#btn-go.away', { timeout: 10000 });
+  var gotRow = await page.waitForFunction(function () { var t = document.getElementById('toast'); return t.classList.contains('show') && t.classList.contains('row'); }, null, { timeout: 15000, polling: 50 }).then(function () { return true; }, function () { return false; });
+  L = await lay();
+  console.log('   새 줄 알림:', JSON.stringify(L.toast), '점', L.dot, '·', L.sr);
+  ok(gotRow && L.toast.ico && L.toast.txt.length > 0 && L.dot && L.sr === '새 줄이 있어', '쪽지를 닫아 둔 사이 새 줄 → 오늘 단추에 점(낭독기: 새 줄이 있어) + 한 줄 알림(오늘 그림 + 글 «' + L.toast.txt.slice(0, 24) + '»)');
+  ok(gotRow && apart(L.toast.box, L.go) && apart(L.toast.box, L.status) && L.toast.box.x >= 0 && L.toast.box.r <= L.vw && L.toast.box.b <= L.vh, '한 줄 알림은 창 안 · 큰 버튼 · 상태 쪽지와 안 겹침 (' + JSON.stringify(L.toast.box) + ')');
+  await page.screenshot({ path: path.join(SHOTS, 'one-row-toast.png') });
+
+  /* 4. 나가 있는 중에 쪽지를 열면: 점 · 알림이 바로 사라지고, 열어 둔 동안 오는 줄은 목록에서 바로 읽는다 (점 · 알림 없음 · 가장 새 줄이 보임) */
+  await page.click('#btn-today'); await page.waitForSelector('#log-sheet[open]');
+  L = await lay();
+  ok(L.sheet && !L.dot && L.sr === '' && !(L.toast.show && L.toast.row), '쪽지를 열면 점 · 한 줄 알림이 사라진다');
+  var n0 = L.rows;
+  var more = await page.waitForFunction(function (n) { return document.querySelectorAll('#log .lrow').length > n; }, n0, { timeout: 20000, polling: 100 }).then(function () { return true; }, function () { return false; });
+  /* 줄은 붙은 뒤에 글이 채워지며 키가 큰다 (기웃 → 읽은 글) → 목록이 다시 따라 내려갈 때까지 잠깐(≤0.5 s) 아래가 잘려 보인다. 자리 잡은 상태를 본다:
+     가장 새 줄이 다 보이고 스크롤이 0.3 s 그대로 (8 s 안에 그런 상태가 없으면 따라가지 못한 것) */
+  var settled = await page.evaluate(function () {
+    return new Promise(function (res) {
+      var t0 = Date.now(), last = -1, same = 0;
+      (function tick() {
+        var l = document.getElementById('log'), rs = l.querySelectorAll('.lrow'), q = rs[rs.length - 1].getBoundingClientRect(), r = l.getBoundingClientRect();
+        var full = q.top >= r.top - 1 && q.bottom <= r.bottom + 1, st = Math.round(l.scrollTop);
+        same = st === last ? same + 1 : 0; last = st;
+        if (full && same >= 2) { res({ ok: true, ms: Date.now() - t0 }); return; }
+        if (Date.now() - t0 > 8000) { res({ ok: false, st: st, sh: l.scrollHeight, ch: l.clientHeight, row: [Math.round(q.top - r.top), Math.round(q.height)] }); return; }
+        setTimeout(tick, 150);
+      })();
+    });
+  });
+  L = await lay();
+  ok(more && !L.dot && !(L.toast.show && L.toast.row) && settled.ok, '쪽지를 열어 둔 동안 온 줄: 점 · 알림 없음 · 목록이 따라 내려가 가장 새 줄이 다 보임 (' + n0 + ' → ' + L.rows + '줄' + (settled.ok ? '' : ' ✗ ' + JSON.stringify(settled)) + ')');
+  await page.screenshot({ path: path.join(SHOTS, 'one-log-sheet.png') });
+  await page.click('#log-close'); await sheetShut(page);
+  await skipAway(page).catch(function () {}); await waitIdle(page);
+  var dotBack = await page.waitForFunction(function () { var d = document.querySelector('#btn-today .ib-dot'); return d && !d.hidden; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
+  ok(dotBack, '닫은 뒤 돌아오며 붙은 줄 → 점이 다시 켜짐');
+  await page.click('#btn-today'); await page.waitForSelector('#log-sheet[open]');
+  L = await lay();
+  ok(!L.dot && L.sr === '', '다시 열면 점이 꺼짐');
+  await page.click('#log-close'); await sheetShut(page);
+  await page.waitForTimeout(600);
+
+  /* 5. 혼잣말: 말풍선으로 보였으니 점 · 알림 없이 낭독기 한 줄만 (닫힌 쪽지 안의 role=log 는 읽히지 않는다) */
+  await rowToastGone(page).catch(function () {});
+  var r0 = (await lay()).rows;
+  await page.evaluate(function () { APP.say('바람이 좋다'); });
+  await page.waitForTimeout(500);
+  L = await lay();
+  ok(L.say === '혼잣말 · 바람이 좋다' && !L.dot && !(L.toast.show && L.toast.row) && L.rows === r0 + 1, '혼잣말: 낭독기 한 줄(#say-live «' + L.say + '») · 점 · 알림 없음 · 목록엔 한 줄 남음');
+
+  /* 6. 모델이 쓴 말(이모지 포함)이 한 줄 알림에 뜰 때도 남의 글 표시(data-raw) 안에 원문 그대로 — 알림이 뜰 때마다 적어 둔다 */
+  var ASIDE = '챙이 넓어 🎩', NOTE = '안쪽 띠가 좋아 🧵';
+  await page.evaluate(function () {
+    window.__rowT = [];
+    var t = document.getElementById('toast');
+    new MutationObserver(function () {
+      if (!t.classList.contains('row') || !t.classList.contains('show')) return;
+      var raw = [].map.call(t.querySelectorAll('[data-raw]'), function (e) { return e.getAttribute('data-raw') + '|' + e.textContent; });
+      var c = t.cloneNode(true); [].forEach.call(c.querySelectorAll('[data-raw]'), function (e) { e.remove(); });
+      var k = raw.join('¦') + '¦¦' + c.textContent;
+      if (window.__rowT.indexOf(k) < 0) window.__rowT.push(k);
+    }).observe(t, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+  });
+  must(await page.evaluate(function (e) { return APP.importEvents(e); }, [{ type: 'depart', t: 0, hint: '' },
+    { type: 'peek', t: 800, target: { kind: 'room', id: 'hat', title: '모자' }, status: 'builtin', ms: 2500, aside: ASIDE, note: NOTE },
+    { type: 'return', t: 4500, reason: 'enough' }, { type: 'wrap_up', t: 5500, reaction: '두근 ✨', line: '좋았어 😌' }]), '모델 차례 재생 시작');
+  await page.waitForSelector('#btn-go.away', { timeout: 10000 }).catch(function () {});
+  for (var i = 0; i < 40; i++) { await page.waitForTimeout(500); if (!(await page.$('#btn-go.away'))) break; }
+  await waitIdle(page); await page.waitForTimeout(800);
+  var rowT = await page.evaluate(function () { return window.__rowT; });
+  console.log('   모델 차례 동안 뜬 한 줄 알림:', JSON.stringify(rowT));
+  var EMO = /[\u{1F300}-\u{1FAFF}✨]/u;
+  var rawOk = rowT.some(function (k) { return k.split('¦¦')[0].split('¦').some(function (r) { return /^model\|/.test(r) && EMO.test(r); }); });
+  var leak = rowT.filter(function (k) { return EMO.test(k.split('¦¦')[1] || ''); });
+  ok(rowT.length >= 1 && rawOk && !leak.length, '모델이 쓴 말이 뜬 한 줄 알림: 남의 글 표시(data-raw="model") 안에 원문 그대로 · 표시 밖엔 이모지 없음' + (leak.length ? ' ✗ ' + JSON.stringify(leak) : ''));
+
+  /* 7. 대사 자리 (개발 모드의 APP.dlgDemo — 진짜 대사창은 다음 물결): 아래에서 뜨고 큰 버튼 · 손잡이를 밀어 올리지 않고 덮지도 않는다. 대사를 누르면 끝나고 자리도 사라진다 */
+  await rowToastGone(page).catch(function () {});
+  var DTEXT = '오늘은 등대 아래까지 걸어가 보고 싶어. 바람이 좀 불어도 괜찮아.';
+  var dStart = await page.evaluate(function (t) { window.__dlgDone = false; var p = APP.dlgDemo(t, 'wait'); if (!p) return false; p.then(function () { window.__dlgDone = true; }); return true; }, DTEXT);
+  await page.waitForTimeout(400);
+  L = await lay();
+  var dTxt = await page.evaluate(function () { var x = document.querySelector('#dlg-host .dlg-text'); return x ? x.textContent : ''; });
+  console.log('   대사 자리:', JSON.stringify({ host: L.host, dlgH: L.dlgH, go: L.go, stick: L.stick }));
+  ok(dStart && L.dlg && L.dlgOn && /^\d+px$/.test(L.dlgH) && dTxt === DTEXT, '대사 자리: APP.dlgDemo → #dlg-host 가 뜨고 html.dlg-on · --dlg-h (' + L.dlgH + ') · 대사 글 그대로');
+  ok(L.host && L.host.y > L.vh / 2 && L.host.b <= L.vh && L.host.x >= 0 && L.host.r <= L.vw && apart(L.host, L.status), '대사 자리는 창 아래쪽 (창 안 · 상태 쪽지와 안 겹침 — ' + JSON.stringify(L.host) + ')');
+  await page.screenshot({ path: path.join(SHOTS, 'one-dialogue.png') });
+  await page.click('#dlg-host .dlg-next');
+  var dDone = await page.waitForFunction(function () { return window.__dlgDone === true; }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+  L = await lay();
+  ok(dDone && !L.dlg && !L.dlgOn && L.dlgH === '', '대사를 누르면 끝난다 → 대사 자리가 사라지고 --dlg-h 도 지워짐');
+
+  /* 8. 3D 그림이 멈추면 (컨텍스트를 잃고 3 s 안에 안 돌아옴) 위아래 배치(2D)로: 속성이 떨어지고 목록은 제자리 · 열려 있던 쪽지는 닫힘 · 오늘 단추 숨김 */
+  await page.click('#btn-today'); await page.waitForSelector('#log-sheet[open]');
+  var lost = await page.evaluate(function () {
+    var c = document.querySelector('#scene3d canvas'); if (!c) return 'no canvas';
+    var gl = c.getContext('webgl2') || c.getContext('webgl'); if (!gl) return 'no context';
+    var x = gl.getExtension('WEBGL_lose_context'); if (!x) return 'no extension';
+    x.loseContext(); return 'lost';
+  });
+  var fell = await page.waitForFunction(function () { return APP.sceneMode === '2d'; }, null, { timeout: 12000 }).then(function () { return true; }, function () { return false; });
+  await page.waitForTimeout(500);
+  L = await lay();
+  console.log('   3D 멈춤:', lost, JSON.stringify({ one: L.one, mode: L.mode, logIn: L.logIn, sheet: L.sheet, today: L.today, scene: L.scene, status: L.status, toast: L.toast.all }));
+  ok(lost === 'lost' && fell && L.one === null && L.logIn === 'log-sec' && L.logShown && L.secShown && !L.sheet && !L.today && !L.dot, '3D 그림이 멈추면 2D · 위아래 배치로: data-layout 없음 · 목록은 #log-sec 로 · 쪽지 닫힘 · 오늘 단추 숨김');
+  ok(L.scene.h < L.vh && L.status.y >= L.scene.b - 1 && /3D 그림이 멈춰서 2D로 바꿨어/.test(L.toast.all), '위아래 배치: 상태 줄은 장면 아래 (장면 높이 ' + L.scene.h + ') · 알림 «3D 그림이 멈춰서 2D로 바꿨어»');
+  await page.screenshot({ path: path.join(SHOTS, 'one-fallback-2d.png') });
+  reportErrors(s.bag, 'O');
+  await s.ctx.close();
+
+  /* 9. 플레이어 화면 (?dev=0): 같은 배치 · 스크롤 없음 · 힌트 칸 없음 · APP.dlgDemo 는 아무것도 안 띄움. 저장 경고 띠가 뜨면 그 높이만큼 장면이 줄고 스크롤은 여전히 없음 */
+  var s2 = await newPage(browser, 'ok', [HOOK]);
+  var p2 = s2.page;
+  await routeRepo(p2, O);
+  await p2.goto(O + '/index.html?dev=0');
+  await nameOct(p2, '뚜루');
+  await p2.waitForSelector('#btn-go:not(.away)');
+  var P = await layOf(p2);
+  var pDemo = await p2.evaluate(function () { return APP.dlgDemo('x', 'wait') === null && !document.getElementById('dlg-host').classList.contains('show'); });
+  ok(P.one === 'one' && P.scene.w === P.vw && P.scene.h === P.vh && P.docW <= P.vw && P.docH <= P.vh && !P.hint && !P.warn && P.warnH === '', '플레이어 화면: 한 화면 배치 · 세로 · 가로 스크롤 없음 (' + P.docW + '×' + P.docH + ' / ' + P.vw + '×' + P.vh + ') · 힌트 칸 없음');
+  ok(pDemo, '플레이어 화면: APP.dlgDemo 는 아무것도 안 띄운다 (개발 모드 전용)');
+  await p2.evaluate(function () { window.__setItem = Storage.prototype.setItem; Storage.prototype.setItem = function () { throw new Error('막힘'); }; APP.save(); });
+  await p2.waitForTimeout(300);
+  P = await layOf(p2);
+  console.log('   저장 경고 띠:', JSON.stringify({ warn: P.warn, warnH: P.warnH, scene: P.scene, doc: [P.docW, P.docH], go: P.go }));
+  ok(P.warn && P.warn.h > 0 && P.warnH === P.warn.h + 'px' && P.scene.y === P.warn.b && P.scene.h === P.vh - P.warn.h && P.docH <= P.vh && P.go.b <= P.vh, '저장 경고 띠가 뜨면 그 높이(' + P.warnH + ')만큼 장면이 줄어든다 · 스크롤 없음 · 큰 버튼은 창 안');
+  await p2.screenshot({ path: path.join(SHOTS, 'one-save-warn.png') });
+  await p2.evaluate(function () { Storage.prototype.setItem = window.__setItem; });
+  reportErrors(s2.bag, 'O-2');
+  await s2.ctx.close();
+}
+
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
@@ -3295,7 +3518,7 @@ async function scenarioBringBack(browser) {
       ['W', function () { return scenarioWake(browser); }], ['V', function () { return scenarioDevPanel(browser); }], ['P', function () { return scenarioPlayer(browser); }],
       ['L', function () { return scenarioAlbumIcon(browser); }], ['N', function () { return scenarioNotes(browser); }], ['M', function () { return scenarioReactions(browser); }],
       ['R', function () { return scenarioRunner(); }], ['S', function () { return scenarioWave7(browser); }], ['J', function () { return scenarioWave8(browser); }], ['U', function () { return scenarioGlyphs(browser); }],
-      ['T', function () { return scenarioTapLine(browser); }], ['K', function () { return scenarioBringBack(browser); }]];
+      ['T', function () { return scenarioTapLine(browser); }], ['K', function () { return scenarioBringBack(browser); }], ['O', function () { return scenarioLayoutOne(browser); }]];
     for (var sc of all) {   /* 한 시나리오가 터져도 (부하 큰 기계의 시간 초과 등) 뒤 시나리오는 돈다 — 터진 것은 실패 하나로 센다 */
       if (only.length && only.indexOf(sc[0]) < 0) continue;
       try { await sc[1](); } catch (e) { fails++; console.error('\nCRASH in ' + sc[0] + ': ' + (e && e.stack || e)); }
