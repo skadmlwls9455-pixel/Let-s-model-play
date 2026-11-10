@@ -34,6 +34,9 @@ var WIKI_OK = { query: { pages: { '1': { pageid: 1, title: '모자', extract: '�
 
 async function newPage(browser) {
   var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR' });
+  /* 11-08 깨어 있는 틈: 돌아온 문어는 담요에서 90 s 깨어 있다가 잔다. 다른 브라우저 시험 (tools/smoke.js · tools/test-audio.js) 처럼 틈 없이 (훅 0).
+     틈이 없어도 복구된 문어는 담요까지 걸어가서 눕는다 → one() 이 그 걸음이 끝나길 기다린다 */
+  await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
   var page = await ctx.newPage();
   var bag = [];
   page.on('pageerror', function (e) { bag.push('pageerror: ' + e.message); });
@@ -66,6 +69,9 @@ async function one(browser, when, i) {
   await page.reload();
   await page.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
   var done = await page.waitForFunction(function () { return APP.state.trips.length > 0 && APP.state.trips.every(function (t) { return t.status === 'done'; }); }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  /* 복구된 문어는 담요까지 걸어간 뒤에 눕는다 (11-08. 걷는 동안 st-walk — 이 기계에서 2 s 쯤, 앱은 6 s 안에 못 가면 그 자리에 눕힌다: js/app.js lieDown).
+     그 걸음이 끝나길 기다렸다가 본다. 끝내 안 끝나면 아래 '문어 상태 유효' 가 그대로 떨어진다 (기다림만 더했다. 판정은 그대로) */
+  await page.waitForFunction(function () { return !/\bst-walk\b/.test(document.getElementById('oct').className); }, null, { timeout: 10000, polling: 100 }).catch(function () {});
   var r = await page.evaluate(function (k) {
     var sv = null; try { sv = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) {}
     /* 여행이 실제로 한 일 — kind 표지와 따로, 저장된 events·receipt 에서: 기웃(+영수증 정류장) → out, 집 활동(+영수증 활동) → home, 빈 차례 행뿐(영수증 없음) → empty, 그 밖 → '?' */

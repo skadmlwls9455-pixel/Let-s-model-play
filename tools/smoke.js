@@ -396,8 +396,8 @@ async function scenarioMain(browser) {
   await openAlbum(page);
   await page.click('.fchip[data-f="note"]');
   ok((await page.$$('#album .pcard.note')).length >= 1, '앨범 필터 쪽지 → 쪽지 카드');
-  /* 방금 그 차례의 쪽지를 연다 (data-trip). 첫 쪽지 카드를 누르면 안 된다: 위 '두 번째 초대' 가 그날 시드에 따라 집에 있는 날이 되기도 하는데(예: 2026-11-10),
-     앨범은 날짜순이라 그 쪽지가 먼저 오고 그 뒷면엔 '+1' 이 없다 (같은 날 두 번째 차례는 칸을 안 켠다) */
+  /* 이 차례의 쪽지를 연다 (data-trip) — 앨범의 첫 쪽지가 아니다. 위 '두 번째 초대' 는 종류를 정해 두지 않아서 그날 시드와 시각에 따라 집에 있는 날이 된다
+     (js/brain.js stayProbability: 0~5시엔 +0.20 — CI 11-10 05:45 UTC 가 그랬다). 그러면 그 쪽지가 앨범에 먼저 있고, 그 뒷면은 '오늘은 집' 뿐이다 (그날 등불은 첫 초대가 이미 켰다) */
   await page.click('#album .pcard.note[data-trip="' + home.id + '"]'); await page.waitForSelector('#poster-dialog[open]');
   ok((await page.textContent('#pd-back')).indexOf('오늘은 집. 등불 +1') >= 0, "쪽지 뒷면 '오늘은 집. 등불 +1'");
   await page.screenshot({ path: path.join(SHOTS, 'note-front.png') });
@@ -710,9 +710,14 @@ async function scenarioDay2(browser) {
 
 /* I. 출발·귀가 의식 (DESIGN §15.3): 외출 초대 → 나가 있는 동안 바깥 → 귀가 의식 → 다락 → 포스터 걸림.
    건너뛰기 = 의식을 감아 다락으로. 나가 있는 중 새로고침 → 바깥을 한 번도 안 보이고 다락에서 즉시 귀가 */
-var PLACE_PROBE = "window.__lsLen0 = (function () { try { return localStorage.length; } catch (e) { return -1; } })(); window.__placeLog = []; (function poll() { try { if (window.APP && APP.scene && APP.scene.place) { var p = APP.scene.place(), L = window.__placeLog; if (L[L.length - 1] !== p) L.push(p); } } catch (e) {} setTimeout(poll, 16); })();";
+/* 초기 스크립트 (문서가 시작될 때, 페이지 스크립트보다 먼저 돈다) 에서는 localStorage 를 건드리지 않는다. 11-10 까지는 여기서 localStorage.length 를 읽어 두었다
+   (__lsLen0 — I-4 가 흔들려서 들여다보려던 것, 11-04). 그런데 크로미움에서는 바로 그 읽기가 그 문서의 저장소를 흔들었다: 문서가 빈 저장소로 시작하거나
+   그 문서가 쓴 값이 브라우저 쪽으로 넘어가지 않아서, 새로고침하면 지정 계절이 사라졌다 (11-10 에 따로 재 봄: 읽으면 새 문맥 60번 중 17번, 안 읽으면 40번 중 0번).
+   게임은 그렇게 일찍 저장소를 읽지 않는다 — 시험이 만든 경합이었다 */
+var PLACE_PROBE = "window.__placeLog = []; (function poll() { try { if (window.APP && APP.scene && APP.scene.place) { var p = APP.scene.place(), L = window.__placeLog; if (L[L.length - 1] !== p) L.push(p); } } catch (e) {} setTimeout(poll, 16); })();";
 /* 크로미움은 localStorage 쓰기를 브라우저 프로세스로 늦게 넘긴다. 넘어가기 전에 새로고침하면 새 문서가 예전 스냅숏을 읽는다 (CI 11-07: ls0 1, 지정 전 값).
-   같은 file:// 저장소를 보는 둘째 쪽(앱을 안 띄우는 JSON 파일)에서 값이 보일 때까지 기다린다. 끝내 안 보이면 저장이 정말 안 된 것 → false */
+   같은 file:// 저장소를 보는 둘째 쪽(앱을 안 띄우는 JSON 파일)에서 값이 보일 때까지 기다린다. 끝내 안 보이면 저장이 정말 안 된 것 → false.
+   (11-10: 그 CI 실패의 원인은 PLACE_PROBE 의 저장소 읽기였다 — 위. 이 기다림은 둘째 쪽에서도 값이 보이는지 확인하는 것으로 남긴다) */
 async function waitCommitted(ctx, key, test, ms) {
   var probe = await ctx.newPage(), until = Date.now() + (ms || 5000), seen = false;
   try {
@@ -830,15 +835,13 @@ async function scenarioCeremony(browser) {
   var ov = await page.evaluate(function () { return { season: APP.scene.season(), mode: APP.scene.seasonMode(), saved: JSON.parse(localStorage.getItem('ppolppol_look') || '{}').season }; });
   ok(ov.season === other[0] && ov.mode === other[0] && ov.saved === other[0], '지정 → scene.setSeason · ppolppol_look.season 저장 (' + JSON.stringify(ov) + ')');
   ok((await seasonLine()) === '계절: ' + other[1] + ' (지정)', '데모 패널: 계절: ' + other[1] + ' (지정)');
-  var keysBefore = await page.evaluate(function () { return localStorage.length; });
   var committed = await waitCommitted(s.ctx, 'ppolppol_look', function (v) { try { return JSON.parse(v || '{}').season === other[0]; } catch (e) { return false; } });
   await page.reload();
   await page.waitForSelector('#btn-go:not(.away)');
-  var ov2 = await page.evaluate(function () { var on = document.querySelector('#dv-season .fchip.on'); return { season: APP.scene.season(), on: on ? on.dataset.season : null, ls0: window.__lsLen0 }; });
-  /* 룩 설정(ppolppol_look)은 기록과 달리 탭 미러가 없다 → 크로미움 저장소 경합(H 원인과 같은 것: 페이지 안에선 써졌는데 브라우저 쪽 저장소로 안 넘어감)이 나면 지정이 사라지는 게 정상.
-     그 표시: (1) 다른 탭(probe)이 5초 안에 못 봄, 또는 (2) 새로고침 직후 키 수가 그 전보다 적음 — 계절 코드가 지울 수 없는 다른 키(ppolppol_ui)까지 같이 사라진다. 그때만 건너뛰고, 넘어간 판에선 늘 검사한다 (#41) */
-  if (!committed || ov2.ls0 < keysBefore) console.log('   (크로미움 저장소 경합: probe ' + (committed ? '봄' : '못 봄') + ' · 키 ' + keysBefore + ' → ' + ov2.ls0 + ' — 룩 설정 유지 검사 건너뜀)');
-  else ok(ov2.season === other[0] && ov2.on === other[0], '새로고침 뒤에도 지정 계절 유지 (' + JSON.stringify(ov2) + ')');
+  var ov2 = await page.evaluate(function () { var on = document.querySelector('#dv-season .fchip.on'); return { season: APP.scene.season(), on: on ? on.dataset.season : null }; });
+  /* 룩 설정(ppolppol_look)은 기록과 달리 탭 미러가 없다 → 저장소만 믿고 새로고침을 넘는다. 11-10 까지는 '크로미움 저장소 경합' 이 보이면 이 검사를 건너뛰었다 (#41).
+     그 경합은 이 시험의 초기 스크립트가 localStorage 를 읽어서 생긴 것이었고 (위 PLACE_PROBE), 이제 읽지 않으니 늘 검사한다. 둘째 쪽이 5초 안에 값을 못 본 것도 실패다 */
+  ok(committed && ov2.season === other[0] && ov2.on === other[0], '새로고침 뒤에도 지정 계절 유지 (' + JSON.stringify(ov2) + (committed ? '' : ' · 둘째 쪽이 5초 안에 못 봄') + ')');
   if (!(await page.evaluate(function () { return document.getElementById('demo').open; }))) await page.click('#demo summary');
   await page.click('#dv-season .fchip[data-season="auto"]');
   var ov3 = await page.evaluate(function () { return { mode: APP.scene.seasonMode(), saved: JSON.parse(localStorage.getItem('ppolppol_look') || '{}').season }; });

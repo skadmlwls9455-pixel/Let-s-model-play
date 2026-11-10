@@ -138,9 +138,11 @@ var AUDIO = (function () {
   var pre = {};   /* id → { f, p: Promise<ArrayBuffer> }: 켜 둔 채 부엌을 열면 첫 손길 전에 받아만 둔 첫 소리 (디코드는 AudioContext 가 생긴 뒤 load 에서) */
   function isBad(id) { var b = bad[id]; return !!(b && Date.now() < b.until); }
   function has(x) { return !!(x && (byId[x] || groups[x]) && !isBad(x)); }
+  var unpick = null;   /* 방금 pick 이 그룹에서 골랐으면 [그룹, 그 전의 lastPick] — play 가 그 소리를 걸지 않고 버릴 때 되돌린다 (dropped) */
   /* 정확한 이름이 먼저 (lantern_3 · chime_day), 아니면 그룹에서 직전과 다른 것 (시드 PRNG).
      못 받은 변형(isBad)은 고르지 않는다 — 둘짜리 그룹(뒤집기 · 불 켜기 · 접시)에서 하나가 없으면 번갈아 조용해지고 고를 때마다 다시 받았다 */
   function pick(x) {
+    unpick = null;
     if (Array.isArray(x)) x = x.length ? x[Math.floor(rnd() * x.length)] : null;
     if (!x) return null;
     if (byId[x]) return x;
@@ -150,9 +152,13 @@ var AUDIO = (function () {
     if (g.length === 1) return g[0];
     var c = g.filter(function (id) { return id !== lastPick[x]; });
     var p = c[Math.floor(rnd() * c.length)] || c[0];
+    unpick = [x, lastPick[x]];
     lastPick[x] = p;
     return p;
   }
+  /* play 가 고른 변형을 걸지 않고 돌아간다 (건너뛰는 중 · 간격 문 · 동시 한도): '직전 것' 기록을 고르기 전으로 되돌린다. 안 그러면 다음 고르기가
+     아무도 못 들은 변형과 견줘서, 들린 소리가 연달아 같을 수 있다 (부엌 단추 톡톡: 한 번 누름에 tap 셋이 80 ms 안에 와서 둘이 버려진다) */
+  function dropped() { if (unpick) { lastPick[unpick[0]] = unpick[1]; unpick = null; } return Promise.resolve(0); }
   function mp() { return (M && M.map) || {}; }
   function ev(path) { var o = mp(); for (var i = 0; i < path.length && o != null; i++) o = o[path[i]]; return o; }
   function busFor(s) {
@@ -338,16 +344,16 @@ var AUDIO = (function () {
     if (!o.direct && !active()) return Promise.resolve(0);
     var id = pick(x); if (!id) return Promise.resolve(0);
     var s = byId[id], g = s.group || id, bus = o.bus || busFor(s);
-    if (gs.skipping && !o.always && bus !== 'sfx_ui') return Promise.resolve(0);   /* 건너뛰는 중엔 귀가·등불만 */
+    if (gs.skipping && !o.always && bus !== 'sfx_ui') return dropped();   /* 건너뛰는 중엔 귀가·등불만 */
     var t0 = now(), tt = o.at || t0, gap = (s.min_gap_ms || 0) / 1000, beat = s.quantize === 'beat';
     /* 비 오는 날 나감 소리 덧층(depart_rain_extra)은 일부러 겹친다. 시간대 종은 곡 전환에 맞춘 자리 그대로 (다른 것이 피해 간다) */
     var queued = !o.direct && bus === 'sfx_event' && s.kind === 'jingle' && g !== 'depart_rain_extra', d = s.duration || 0.3;
     if (queued && g !== 'chime') tt = fitEv(Math.max(tt, t0 + 0.01), d, beat && !o.at, beat);
-    if (gap && lastAt[g] != null && Math.abs(tt - lastAt[g]) < gap) return Promise.resolve(0);
+    if (gap && lastAt[g] != null && Math.abs(tt - lastAt[g]) < gap) return dropped();
     /* 동시에 6개까지: 새 소리가 시작하는 순간 울리고 있을 것만 센다 (미리 예약한 말풍선 음절은 서로 겹치지 않는다) */
     shots = shots.filter(function (x) { return x.e > t0; });
     var over = shots.filter(function (x) { return x.s <= tt + 0.02 && x.e > tt; }).length;
-    if (over >= MAX_SHOTS + (bus === 'sfx_event' ? 2 : 0)) return Promise.resolve(0);
+    if (over >= MAX_SHOTS + (bus === 'sfx_event' ? 2 : 0)) return dropped();
     lastAt[g] = tt;
     shots.push({ s: tt, e: tt + d + 0.05 });
     var resv = null, at = o.at || 0, ready = load(id);

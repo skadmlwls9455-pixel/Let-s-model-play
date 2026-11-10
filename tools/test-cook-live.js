@@ -449,9 +449,9 @@ async function L6(browser) {   /* sound off is the main case: every counted inpu
   check(fi >= 0 && names.slice(fi + 1).indexOf('quiet') >= 0 && names.slice(fi + 1, fi + 3).indexOf('quiet') >= 0, 'L6: quiet right after the flip');
   var steps = acts.filter(function (x) { return x.p.act === 'step'; });
   check(steps.length === 3 && steps.every(function (x) { var k = names.indexOf('quiet', acts.indexOf(x)); return k === acts.indexOf(x) + 1; }), 'L6: every step end is followed by quiet');
-  var gaps = {};
-  acts.forEach(function (x) { var a = x.p.act; if (['step', 'done', 'pick', 'quiet'].indexOf(a) >= 0) return; if (gaps[a] != null && x.t - gaps[a] < 120) gaps.bad = (gaps.bad || 0) + 1; gaps[a] = x.t; });
-  check(!gaps.bad, 'L6: the same act is never sent twice within 120 ms');
+  var gaps = {}, FREE = ['tap', 'step', 'done', 'pick', 'quiet'];   /* js/cook.js SND_FREE: these skip the 120 ms gap (TUNE.sndGapMs) */
+  acts.forEach(function (x) { var a = x.p.act; if (FREE.indexOf(a) >= 0) return; if (gaps[a] != null && x.t - gaps[a] < 120) gaps.bad = (gaps.bad || 0) + 1; gaps[a] = x.t; });
+  check(!gaps.bad, 'L6: a rate-limited act (any but ' + FREE.join(', ') + ') is never sent twice within 120 ms');
   async function quietAfter(label, fn) {
     var n0 = await A.page.evaluate(function () { return window.__acts.length; });
     await fn(); await realWait(80); await A.go(100);   /* the dialog's close event comes on Chrome's next real frame */

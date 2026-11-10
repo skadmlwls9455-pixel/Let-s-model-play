@@ -10,7 +10,8 @@
  *     지글 0 루프 1 s 페이드인 → 3 s 노릇 = 지글 1 로 0.15 s 크로스페이드 + 치익(+4 dB) → 6 s 바삭 = 지글 2 → 위로 쓸기 = 뒤집기 한 번 + quiet 에
  *     루프 멈춤, 그 단계의 톡은 철퍽 뒤 → 썰기 2번 (변형 다름) → 접시 (+0.4 s) + 김 (+0.15 s) · 부엌 덕킹: 열려 있으면 음악 -6 dB, 지글 동안
  *     -10 dB, 닫으면 풀림 · 진짜 출력: 지글 동안 소리, 멈춘 뒤 조용 (음악 0)
- *  B. ?reduced=1 + 단추 길 (COOK.auto): 뒤집기는 휙을 건너뛴다 (off 0.21) · 접시는 공개와 같이 · 톡톡 i 0 · 3 · 6 의 빠르기
+ *  B. ?reduced=1 + 단추 길 (COOK.auto): 뒤집기는 휙을 건너뛴다 (off 0.21) · 접시는 공개와 같이 · 톡톡 i 0 · 3 · 6 의 빠르기 ·
+ *     단추를 많이 눌러도 (33번) 들린 톡 변형이 연달아 같지 않다 (한 번 누름에 tap 셋 — 버려진 둘이 '직전 것' 으로 남지 않는다)
  *  C. 소리 꺼짐 (기본): 손가락으로 한 판 내내 AudioContext 없음 · 재생 0 · audio/ · foley/ 요청 0
  *  D. 파일이 없다: foley/manifest.json 404 · foley/cook/* 404 → 조용히, 페이지 오류 0, 부엌 오류 0, 한 판 끝까지
  *  E. file:// + ?sound=1 → 조용히 (reason 'file' · 저장 안 함) · 오류 0
@@ -285,6 +286,31 @@ async function scenarioB(browser, base) {
   ok(pats.length === 3 && pats.every(function (x, j) { return Math.abs((x.rate || 1) - want[j]) < 0.002; }), '단추 길 톡톡 (한 번에 표시 하나 = i 0 · 3 · 6) 의 빠르기 ' + pats.map(function (x) { return x.rate || 1; }).join(', '));
   var lg = s.cook.log.map(function (x) { return x.ev + ':' + x.id; });
   ok(lg[0] === 'start:cook_sizzle_0' && lg[lg.length - 1] === 'stop:cook_sizzle_0' && ids(s, /^cook_heat_on_\d$/).length === 1, '단추로 불 켜고 바로 뒤집기: heat_on + 지글 0 → 멈춤 ' + lg.join(' '));
+  /* 단추를 많이 누른다. 단추 한 번 = 표시 하나 = tap 셋이 한 프레임에 와서 간격 문(80 ms)이 둘을 버린다 — 버려진 고르기가 '직전 것' 으로 남으면
+     들린 톡이 연달아 같아진다 (js/audio.js pick · play, 11-10). 톡톡 단계는 세 번 누르면 끝나니, 두 번 누르고 부엌을 닫았다 다시 연다
+     (하던 판은 그 단계 처음부터) × PAT_ROUNDS. 들린 것 = AUDIO.state().played */
+  var PAT_ROUNDS = 15, heard = pats.map(function (x) { return x.id; }), lastT = pats.length ? pats[pats.length - 1].t : 0;
+  await K.until(function (x) { return x.screen === 'counter'; }, 5000, 'counter');   /* COOK.auto 가 접시에서 조리대로 돌아온 뒤 */
+  for (var c = 0; c < PAT_ROUNDS; c++) {
+    await K.page.evaluate(function () { COOK.close(); });
+    await K.until(function (x) { return x.screen === 'closed'; }, 3000, 'closed');
+    await K.page.evaluate(function () { document.getElementById('ck-door').click(); });
+    await K.until(function (x) { return x.screen === 'counter'; }, 3000, 'counter');
+    await K.page.evaluate(function () { document.querySelector('.ck-prop').click(); });
+    await K.until(function (x) { return x.kind === 'tap' && x.phase === 'step' && x.st.hits === 0; }, 3000, 'tap step');
+    await wait(260);   /* 단계 처음 250 ms 는 단추를 받지 않는다 */
+    for (var k = 1; k <= 2; k++) {
+      for (var tries = 0; tries < 20; tries++) {   /* 그 누름이 세어질 때까지 (너무 이른 누름은 버려진다) */
+        await K.page.evaluate(function () { document.querySelector('.ck-verb').click(); });
+        await wait(130);
+        var lv = await K.live();
+        if (lv.st && lv.st.hits >= 3 * k) break;
+      }
+    }
+    ids(await K.st(), /^cook_pat_\d$/).forEach(function (x) { if (x.t > lastT) { heard.push(x.id); lastT = x.t; } });
+  }
+  ok(heard.length >= 3 + Math.floor(1.6 * PAT_ROUNDS) && heard.every(function (id, j) { return j === 0 || id !== heard[j - 1]; }),
+    '단추를 ' + (3 + 2 * PAT_ROUNDS) + '번 눌러도 들린 톡 변형이 연달아 같지 않다 (들린 톡 ' + heard.length + ': ' + heard.map(function (id) { return id.slice(-1); }).join('') + ')');
   noErrors(K, 'B');
   await K.close();
 }
