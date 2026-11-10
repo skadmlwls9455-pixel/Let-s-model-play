@@ -2274,7 +2274,7 @@ var SCENE3D = (function () {
         if (salG.visible) bx(SALC.x, SALC.sz, SALC.sw / 2, 0.06);   /* 미용실 병 선반 (뒷벽) */
       } else if (PL.place === 'play' && PROOM) {
         var mb = PROOM.machineBox, cb = PROOM.counterBox;
-        out.push([mb.min.x - r, mb.max.x + r, mb.min.z - r, mb.max.z + r], [cb.min.x - r, cb.max.x + r, cb.min.z - r, cb.max.z + r]);   /* 오락기 · 부엌 조리대 */
+        out.push([mb.min.x - r, mb.max.x + r, mb.min.z - r, mb.max.z + r], [cb.min.x - r, cb.max.x + r, cb.min.z - r, cb.max.z + r]); var lb = PROOM.legBox; out.push([lb.min.x - r, lb.max.x + r, lb.min.z - r, lb.max.z + r]);   /* ㄱ자 다리 */   /* 오락기 · 부엌 조리대 */
       }
       return out;
     }
@@ -3443,6 +3443,39 @@ var SCENE3D = (function () {
         pp.push({ g: new T.CylinderGeometry(j[1], j[1], j[2], 7), m: M(j[0], 1.575 + j[2] / 2, -Rp + 0.18), c: j[3] });
         pp.push({ g: new T.CylinderGeometry(j[1] + 0.005, j[1] + 0.005, 0.03, 7), m: M(j[0], 1.575 + j[2] + 0.015, -Rp + 0.18), c: W[1] });
       }); n++;
+      /* 11-10 부엌 넓히기 (주인: "빈 공간에 ㄱ자로 · 오븐 · 조리 기구 벽에 · 선반도"): 뒷벽 줄을 오른쪽 구석까지 잇고(오븐 레인지 + 후드), 거기서 카메라 쪽으로 꺾인 다리(개수대 · 도마), 뒷벽에 걸이 봉 + 조리 기구, 윗선반 */
+      var ox = 2.02, lx = 2.07, lz0 = zb + 0.54, lz1 = -0.2, lzc = (lz0 + lz1) / 2, ll = lz1 - lz0;
+      pp.push({ g: box(0.66, 0.82, 0.54), m: M(ox, 0.41, cz), c: PAL.slate[1] });                                   /* 오븐 몸 */
+      pp.push({ g: box(0.5, 0.4, 0.02), m: M(ox, 0.36, cz + 0.28), c: PAL.slate[2] }); pp.push({ g: box(0.34, 0.2, 0.02), m: M(ox, 0.38, cz + 0.29), c: PAL.navy[0] });   /* 오븐 문 + 유리 */
+      pp.push({ g: box(0.44, 0.03, 0.04), m: M(ox, 0.6, cz + 0.3), c: PAL.paper[2] });                              /* 손잡이 */
+      [-0.2, -0.07, 0.07, 0.2].forEach(function (d, k) { pp.push({ g: box(0.05, 0.05, 0.03), m: M(ox + d, 0.73, cz + 0.285), c: k === 1 ? PAL.rose[2] : PAL.amber[3] }); });   /* 불 조절 단추 4 */
+      pp.push({ g: box(0.7, 0.04, 0.58), m: M(ox, 0.84, cz + 0.01), c: PAL.slate[0] });                             /* 화구 판 */
+      [[-0.15, -0.1], [0.16, -0.1], [-0.15, 0.14], [0.16, 0.14]].forEach(function (q) { pp.push({ g: new T.CylinderGeometry(0.085, 0.085, 0.02, 8), m: M(ox + q[0], 0.87, cz + q[1]), c: PAL.slate[2] }); });
+      pp.push({ g: new T.CylinderGeometry(0.1, 0.12, 0.14, 8), m: M(ox - 0.15, 0.95, cz - 0.1), c: PAL.rose[2] }); pp.push({ g: new T.SphereGeometry(0.03, 6, 5), m: M(ox - 0.15, 1.04, cz - 0.1), c: PAL.ink });
+      pp.push({ g: box(0.16, 0.03, 0.03), m: M(ox - 0.02, 1.0, cz - 0.1, 0, 0, 0.5), c: PAL.rose[1] }); n += 2;      /* 주전자 */
+      pp.push({ g: box(0.7, 0.16, 0.44), m: M(ox, 1.62, -Rp + 0.28), c: PAL.slate[2] }); pp.push({ g: box(0.74, 0.04, 0.48), m: M(ox, 1.53, -Rp + 0.3), c: PAL.slate[1] });
+      pp.push({ g: box(0.26, H - 1.7, 0.22), m: M(ox, (H + 1.7) / 2, -Rp + 0.17), c: PAL.slate[2] }); n++;          /* 후드 + 연통 */
+      pp.push({ g: box(0.54, 0.8, ll), m: M(lx, 0.42, lzc), c: W[3] });                                              /* 꺾인 다리 */
+      pp.push({ g: box(0.02, 0.06, ll - 0.04), m: M(lx - 0.275, 0.03, lzc), c: W[1] });
+      [lz0 + ll * 0.25, lz0 + ll * 0.75].forEach(function (z) { pp.push({ g: box(0.02, 0.56, ll / 2 - 0.08), m: M(lx - 0.28, 0.46, z), c: W[4] }); pp.push({ g: box(0.03, 0.05, 0.04), m: M(lx - 0.295, 0.62, z + (z < lzc ? 0.22 : -0.22)), c: PAL.amber[3] }); });
+      pp.push({ g: box(0.6, 0.05, ll + 0.06), m: M(lx - 0.02, 0.845, lzc + 0.03), c: PAL.paper[2] }); n++;
+      pp.push({ g: box(0.36, 0.02, 0.46), m: M(lx, 0.872, lz0 + 0.42), c: PAL.slate[1] }); pp.push({ g: box(0.3, 0.012, 0.4), m: M(lx, 0.884, lz0 + 0.42), c: PAL.slate[0] });   /* 개수대 */
+      pp.push({ g: new T.CylinderGeometry(0.018, 0.018, 0.2, 6), m: M(lx + 0.2, 0.97, lz0 + 0.42), c: PAL.paper[1] }); pp.push({ g: box(0.14, 0.03, 0.03), m: M(lx + 0.14, 1.07, lz0 + 0.42), c: PAL.paper[1] }); n++;   /* 수도꼭지 */
+      pp.push({ g: box(0.3, 0.025, 0.4), m: M(lx - 0.02, 0.883, lz1 - 0.42), c: W[4] });                             /* 도마 */
+      pp.push({ g: new T.SphereGeometry(0.055, 7, 5), m: M(lx - 0.06, 0.94, lz1 - 0.48), c: PAL.rose[2] }); pp.push({ g: new T.SphereGeometry(0.05, 7, 5), m: M(lx + 0.04, 0.935, lz1 - 0.36), c: PAL.amber[3] });
+      pp.push({ g: box(0.16, 0.012, 0.03), m: M(lx - 0.02, 0.9, lz1 - 0.26, 0, 0.3, 0), c: PAL.paper[1] }); n += 2;
+      /* 걸이 봉 + 조리 기구 (뒷벽, 조리대 위) */
+      var ry = 1.3, rz = -Rp + 0.1;
+      pp.push({ g: box(1.3, 0.03, 0.03), m: M(cx, ry, rz), c: PAL.slate[1] }); [0.35, 1.55].forEach(function (x) { pp.push({ g: box(0.04, 0.04, 0.08), m: M(x, ry, -Rp + 0.08), c: PAL.slate[1] }); });
+      pp.push({ g: box(0.025, 0.24, 0.02), m: M(0.5, ry - 0.13, rz), c: W[1] }); pp.push({ g: new T.SphereGeometry(0.05, 6, 5), m: M(0.5, ry - 0.28, rz), c: PAL.slate[2] });          /* 국자 */
+      pp.push({ g: box(0.025, 0.2, 0.02), m: M(0.72, ry - 0.11, rz), c: W[1] }); pp.push({ g: box(0.08, 0.11, 0.015), m: M(0.72, ry - 0.26, rz), c: PAL.slate[2] });                 /* 뒤집개 */
+      pp.push({ g: box(0.03, 0.14, 0.02), m: M(1.0, ry - 0.08, rz), c: W[1] }); pp.push({ g: new T.CylinderGeometry(0.11, 0.11, 0.03, 9), m: M(1.0, ry - 0.26, rz, Math.PI / 2, 0, 0), c: PAL.slate[1] });   /* 걸린 팬 */
+      pp.push({ g: box(0.025, 0.14, 0.02), m: M(1.28, ry - 0.08, rz), c: W[1] }); pp.push({ g: new T.SphereGeometry(0.045, 5, 4), m: M(1.28, ry - 0.2, rz, 0, 0, 0, 1, 1.6, 0.6), c: PAL.paper[1] });      /* 거품기 */
+      pp.push({ g: box(0.1, 0.16, 0.012), m: M(1.47, ry - 0.1, rz), c: PAL.rose[2] }); n += 5;                                                                                    /* 냄비 장갑 */
+      /* 윗선반: 접시 · 컵 */
+      pp.push({ g: box(1.2, 0.05, 0.24), m: M(cx, 1.92, -Rp + 0.18), c: W[2] }); [0.45, 1.45].forEach(function (x) { pp.push({ g: box(0.04, 0.14, 0.18), m: M(x, 1.83, -Rp + 0.15), c: W[1] }); });
+      [0.56, 0.62, 0.68].forEach(function (x) { pp.push({ g: new T.CylinderGeometry(0.09, 0.09, 0.015, 9), m: M(x, 2.04, -Rp + 0.18, 0, 0, Math.PI / 2), c: PAL.paper[1] }); });
+      [[0.95, PAL.sky[2]], [1.12, PAL.rose[2]], [1.29, PAL.moss[2]]].forEach(function (q) { pp.push({ g: new T.CylinderGeometry(0.045, 0.04, 0.09, 7), m: M(q[0], 1.99, -Rp + 0.18), c: q[1] }); }); n += 2;
       /* 벽 등 2 (받침 — 갓·전구는 아래 빛 안 받는 발광 메시: 낮에도 켜진 등으로 읽히게) */
       var SC = [[-0.3, 1.7, -Rp + 0.24, 'z'], [-Rp + 0.24, 1.7, snapPos(0.39), 'x']];
       SC.forEach(function (q) {
@@ -3475,7 +3508,7 @@ var SCENE3D = (function () {
         { g: box(0.05, H + 1.2, 2 * Rp + 1.2), m: M(Rp + 0.55, H / 2, 0), c: '#000000' }, { g: box(0.05, H + 1.2, 0.7), m: M(-Rp - 0.1, H / 2, Rp + 0.3), c: '#000000' }])), shade.material);
       shp.castShadow = true; shp.receiveShadow = false; shp.frustumCulled = false; shp.renderOrder = -10; g.add(shp);
       PROOM = { g: g, room: room, glass: gl, screen: scr, screenGeo: scrGeo, screenEm: scrEm, bulbs: bulbs, bulbEm: bulbEm, lA: lA, lB: lB, shade: shp, props: n,
-        machineBox: new T.Box3(new T.Vector3(MX - 0.36, 0, zb), new T.Vector3(MX + 0.36, 1.66, zb + 0.54)), counterBox: new T.Box3(new T.Vector3(cx - 0.73, 0, cz - 0.28), new T.Vector3(cx + 0.73, 0.87, cz + 0.32)), scr: { t: 0, f: 0 } };   /* counterBox = 조리대 윗판 둘레 (내 캐릭터 장애물) */
+        machineBox: new T.Box3(new T.Vector3(MX - 0.36, 0, zb), new T.Vector3(MX + 0.36, 1.66, zb + 0.54)), counterBox: new T.Box3(new T.Vector3(cx - 0.73, 0, cz - 0.28), new T.Vector3(ox + 0.35, 0.87, cz + 0.32)), legBox: new T.Box3(new T.Vector3(lx - 0.3, 0, lz0), new T.Vector3(lx + 0.3, 0.87, lz1 + 0.06)), scr: { t: 0, f: 0 } };   /* counterBox = 조리대 윗판 둘레 (내 캐릭터 장애물) */
       playApplyLight(); doorsApplyLight();
       return PROOM;
     }
