@@ -549,6 +549,8 @@ var APP = (function () {
     var root = document.documentElement, one = sceneMode === '3d', log = $('log'), home = $(one ? 'log-slot' : 'log-sec'), b = $('btn-today'), d = $('log-sheet');
     if (one) root.setAttribute('data-layout', 'one'); else root.removeAttribute('data-layout');
     if (log && home && log.parentNode !== home) home.appendChild(log);   /* 노드를 그대로 옮긴다 (행 · 스크롤 리스너 · UIART 의 지켜보기가 따라온다) */
+    var shelf = $('shelf-today');
+    if (shelf && home && shelf.parentNode !== home) home.appendChild(shelf);   /* '오늘의 서가' 도 목록을 따라간다 — 한 화면 배치에선 #log-sec 가 숨어서 서가가 안 보였다 */
     if (b) b.hidden = !one;
     if (!one) { if (d && d.open) d.close(); todayDot(false); dlgShow(false); }
     warnFit();
