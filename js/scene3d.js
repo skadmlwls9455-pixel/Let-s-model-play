@@ -303,10 +303,11 @@ var SCENE3D = (function () {
     mouth: [{ id: 'none', name: '없음' }, { id: 'smile', name: '미소' }, { id: 'line', name: '새침' }, { id: 'pout', name: '뾰로통' }, { id: 'open', name: '활짝' }, { id: 'o', name: '오' }],
     cheek: [{ id: 'none', name: '없음' }, { id: 'freckle', name: '주근깨' }],   /* 코 · 입 · 볼 (11-09 주인 "동물의 숲 같은 기존 게임들 얼굴 느낌 참고") — 눈과 같은 아틀라스의 도트 그림. 볼터치('blush' 발그레)는 주인 11-10 "볼터치가 이상하게 보여서 없애는 게 나을 듯" 으로 뺐다 — 저장된 'blush' 는 모르는 id 라 기본값(없음)이 된다 */
     eyeColor: [{ id: 'dark', name: '흑갈색', hex: '#6a3a30', hi: '#884b2b', sh: '#be772b' }, { id: 'hazel', name: '호두색', hex: '#884b2b', hi: '#be772b', sh: '#de9e41' }, { id: 'sea', name: '바다색', hex: '#3c5e8b', hi: '#4f8fba', sh: '#73bed3' }, { id: 'leaf', name: '잎새색', hex: '#468232', hi: '#75a743', sh: '#a8ca58' }, { id: 'honey', name: '꿀색', hex: '#be772b', hi: '#de9e41', sh: '#de9e41' }, { id: 'violet', name: '제비꽃', hex: '#7a367b', hi: '#c65197', sh: '#df84a5' }],   /* hex = 홍채 텍셀(앞면 칸: 흑갈 #602c2c · 호두 #884b2b · 나머지는 apollo 그대로) · hi = 한 칸 밝은 홍채('반짝' 눈의 아랫빛) · sh = 반짝 점(11-10 — 흰색 글린트 대신 **눈 색을 두 칸 밝힌 색 점** 하나: 흑갈 눈엔 호박색, 바다 눈엔 하늘색. 꿀색은 한 칸만 — 두 칸 위 #e8c170 은 살결 옆에서 흰 점처럼 떴다). 흑갈색 옛 #4d2b32 는 동공 #151d28 과 두 칸뿐이라 2× 에서 한 덩어리였고 램프 디더에 #411d31 로 떨어졌다 (11-09) */
-    outfit: [{ id: 'dress', name: '원피스' }, { id: 'knit', name: '니트' }, { id: 'hoodie', name: '후드' }, { id: 'overall', name: '멜빵' }, { id: 'raincoat', name: '비옷' }],
+    skin: [{ id: 'peach', name: '살구', hex: '#ffd096' }, { id: 'fair', name: '밝은', hex: '#ffe2c4' }, { id: 'honey', name: '꿀빛', hex: '#e9b27c' }, { id: 'chestnut', name: '밤빛', hex: '#c48a5c' }, { id: 'cocoa', name: '카카오', hex: '#8f5d3e' }],   /* 피부색 (주인 11-10 "피부색도 고를 수 있게") */
+    outfit: [{ id: 'dress', name: '원피스' }, { id: 'knit', name: '니트' }, { id: 'hoodie', name: '후드' }, { id: 'overall', name: '멜빵' }, { id: 'raincoat', name: '비옷' }, { id: 'hanbok', name: '한복' }, { id: 'uniform', name: '교복' }, { id: 'varsity', name: '야구점퍼' }, { id: 'flannel', name: '체크셔츠' }],   /* 11-10: 한복 · 한국 교복 · 미국풍 둘 (일본풍은 넣지 않는다 — 주인) */
     shoes: [{ id: 'flat', name: '단화' }, { id: 'boot', name: '부츠' }, { id: 'sneaker', name: '운동화' }, { id: 'loafer', name: '로퍼' }],
     acc: [{ id: 'none', name: '없음' }, { id: 'ribbon', name: '리본' }, { id: 'beret', name: '베레모' }, { id: 'glasses', name: '동글안경' }, { id: 'catears', name: '고양이귀' }, { id: 'strawhat', name: '밀짚모자' }] };
-  var PLAYER_DEFAULT = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };   /* 기본 모습 (단발 · 금발 · 동그란 눈 · 어두운 눈 · 세모코 · 미소 · 볼 없음 · 남색 원피스 · 단화 · 리본) */
+  var PLAYER_DEFAULT = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };   /* 기본 모습 (단발 · 금발 · 동그란 눈 · 어두운 눈 · 세모코 · 미소 · 볼 없음 · 남색 원피스 · 단화 · 리본) */
   function plPart(cat, id) { var L = PLAYER_PARTS[cat] || []; for (var i = 0; i < L.length; i++) if (L[i].id === id) return L[i]; return null; }
   function normalizePlayer(cfg) {   /* cfg → 열 범주가 다 있는 새 객체. 모르는 범주는 버리고 모르는 id 는 기본값 */
     var out = {}; cfg = cfg && typeof cfg === 'object' ? cfg : {};
@@ -1968,8 +1969,13 @@ var SCENE3D = (function () {
       return { '.': PLC.skin, I: iris, H: ec.hi || iris, '*': ec.sh || ec.hi || iris, P: PLC.pupil, D: dark, S: mixHex(iris, FIXED.ink, 0.45), K: mixHex(iris, FIXED.ink, 0.7), L: closed ? plBrowHex(look.hairColor) : PLC.lid };
     }
     function plFaceCell(cat, l) { return cat === 'nose' ? [48, l * 16] : cat === 'cheek' ? [56, l * 16] : [l * 16, 48]; }   /* 코 · 볼 = 넷째 칸 줄(x 48 · 56, LOD 줄마다 8×16 씩) · 입 = 맨 아랫줄(y 48, LOD 마다 16×16) */
+    function plSkin(look) {   /* 피부색과 거기서 나오는 얼굴 선 색 (코 · 꺼풀 · 옅은 입꼬리 · 주근깨)을 고른 색으로 — 부품 · 얼굴 그림을 만들기 직전마다 */
+      var sk = (plPart('skin', look && look.skin) || plPart('skin', 'peach')).hex;
+      PLC.skin = sk; PLC.nose = PLC.lid = PLC.mouthLo = mixHex(sk, '#6a3a2a', 0.34); PLC.noseTri = mixHex(sk, '#e0703a', 0.5); PLC.freckle = mixHex(sk, '#7a4a30', 0.45); PLC.mouth = mixHex(sk, '#5a2420', 0.72);
+    }
     function plFacePal(look) { return { N: look.nose === 'tri' ? PLC.noseTri : PLC.nose, M: PLC.mouth, m: PLC.mouthLo, T: PLC.tongue, F: PLC.freckle }; }   /* 코 · 입 · 볼 도트 기호 → hex */
     function plDrawEyes(look) {
+      plSkin(look);
       var x = plEyeCv.getContext('2d'), art = PL_PARTS.eyes[look.eyes] || PL_PARTS.eyes.round;
       x.fillStyle = PLC.skin; x.fillRect(0, 0, PL_ATLAS.size, PL_ATLAS.size);
       var fpal = plFacePal(look);
@@ -2141,6 +2147,30 @@ var SCENE3D = (function () {
               { g: box(0.042, 0.27, 0.04), m: M(0, 0.49, -0.212, 0.12, 0, 0.42), c: D }, { g: box(0.042, 0.27, 0.04), m: M(0, 0.49, -0.212, 0.12, 0, -0.42), c: D },
               { g: Sph(0.028, 6, 5), m: M(-0.07, 0.47, 0.232), c: PAL.amber[3] }, { g: Sph(0.028, 6, 5), m: M(0.07, 0.47, 0.232), c: PAL.amber[3] }); },
           arm: function (L) { plPuff(L, PAL.paper[3]); plArmTube(L, PLC.skin, -0.05, -0.185); }, leg: '#4a78b0', legR: [0.078, 0.072], cuff: true },   /* 짧은 소매 + 살결 팔 */
+        hanbok: { torso: function (L) {   /* 한복: 짧은 미색 저고리 + 가슴에서 퍼지는 다홍 치마 + 분홍 고름 두 가닥 + 흰 동정 */
+            var JE = '#f4ecd8', CH = '#d8425a', CD = '#a82f48', GO = '#f08aa8';
+            L.push({ g: Cyl(0.20, 0.215, 0.12), m: M(0, 0.50, 0), c: JE }, { g: Cyl(0.215, 0.33, 0.27), m: M(0, 0.325, 0), c: CH }, { g: Cyl(0.335, 0.338, 0.03), m: M(0, 0.20, 0), c: CD },
+              { g: box(0.03, 0.11, 0.03), m: M(-0.035, 0.515, 0.203, 0, 0, -0.5), c: '#ffffff' }, { g: box(0.03, 0.11, 0.03), m: M(0.035, 0.515, 0.203, 0, 0, 0.5), c: '#ffffff' },
+              { g: box(0.04, 0.16, 0.03), m: M(0.045, 0.40, 0.25, 0, 0, 0.12), c: GO }, { g: box(0.04, 0.12, 0.03), m: M(0.10, 0.42, 0.245, 0, 0, 0.3), c: GO }, { g: Sph(0.03, 6, 5), m: M(0.06, 0.475, 0.225), c: GO }); },
+          arm: function (L) { plPuff(L, '#f4ecd8'); L.push({ g: Cyl(0.045, 0.07, 0.155, 10), m: M(0, -0.108, 0), c: '#f4ecd8' }, { g: Cyl(0.072, 0.072, 0.03, 10), m: M(0, -0.172, 0), c: '#d8425a' }); }, leg: PAL.paper[3] },   /* 넓어지는 소매 + 끝동 */
+        uniform: { torso: function (L) {   /* 교복: 흰 셔츠 + 남색 재킷(앞섶이 열려 셔츠가 보인다) + 빨간 넥타이 + 회색 체크 치마 + 가슴 배지 */
+            var BZ = PAL.navy[3], SK = PAL.slate[2];
+            L.push({ g: Cyl(0.20, 0.22, 0.32), m: M(0, 0.40, 0), c: PAL.paper[3] }, { g: new T.CylinderGeometry(0.215, 0.235, 0.21, 14, 1, false, 20 * DEG, 320 * DEG), m: M(0, 0.455, 0), c: BZ },
+              { g: box(0.036, 0.13, 0.03), m: M(0, 0.47, 0.212), c: '#c8323a' }, { g: Sph(0.024, 5, 4), m: M(0.11, 0.51, 0.20), c: PAL.amber[3] },
+              { g: Cyl(0.232, 0.30, 0.12), m: M(0, 0.295, 0), c: SK }, { g: Cyl(0.283, 0.292, 0.022), m: M(0, 0.262, 0), c: PAL.slate[1] }, { g: Cyl(0.252, 0.262, 0.018), m: M(0, 0.315, 0), c: PAL.slate[1] }); },
+          arm: function (L) { plSleeve(L, PAL.navy[3], PAL.paper[3]); }, leg: PAL.navy[2] },
+        varsity: { torso: function (L) {   /* 야구점퍼: 빨간 몸판 + 흰 소매 · 흰 깃과 밑단 줄 + 가슴 글자 + 청바지 */
+            var RD = '#b8322e', WH = '#f1ede2', DN = '#3f5f8f';
+            L.push({ g: Cyl(0.215, 0.238, 0.25), m: M(0, 0.435, 0), c: RD }, { g: Cyl(0.172, 0.172, 0.035), m: M(0, 0.565, 0), c: WH }, { g: Cyl(0.241, 0.241, 0.035), m: M(0, 0.315, 0), c: WH },
+              { g: box(0.075, 0.085, 0.02), m: M(-0.085, 0.47, 0.222), c: WH }, { g: box(0.02, 0.2, 0.02), m: M(0.01, 0.44, 0.236), c: '#8a2420' },
+              { g: Cyl(0.225, 0.235, 0.07), m: M(0, 0.27, 0), c: DN }); },
+          arm: function (L) { plSleeve(L, '#f1ede2', '#b8322e'); }, leg: '#3f5f8f', legR: [0.075, 0.07] },
+        flannel: { torso: function (L) {   /* 체크셔츠: 빨간 플란넬에 어두운 가로줄 둘 · 앞 여밈 줄 + 흰 티 목선 + 청바지 */
+            var RD = '#b4423a', DK = '#5a2a2a', DN = '#3f5f8f';
+            L.push({ g: Cyl(0.21, 0.232, 0.28), m: M(0, 0.42, 0), c: RD }, { g: Cyl(0.223, 0.226, 0.028), m: M(0, 0.47, 0), c: DK }, { g: Cyl(0.229, 0.232, 0.028), m: M(0, 0.37, 0), c: DK },
+              { g: box(0.03, 0.27, 0.02), m: M(0, 0.42, 0.232), c: DK }, { g: box(0.03, 0.27, 0.02), m: M(0.12, 0.42, 0.195), c: DK }, { g: box(0.03, 0.27, 0.02), m: M(-0.12, 0.42, 0.195), c: DK },
+              { g: Cyl(0.165, 0.165, 0.03), m: M(0, 0.565, 0), c: PAL.paper[3] }, { g: Cyl(0.225, 0.235, 0.06), m: M(0, 0.265, 0), c: DN }); },
+          arm: function (L) { plSleeve(L, '#b4423a', '#5a2a2a'); }, leg: '#3f5f8f', legR: [0.075, 0.07] },
         raincoat: { torso: function (L) {   /* 비옷: 어깨에서 밑단까지 넓게 퍼지는 주황 사다리꼴 + 후드 + 단추 줄 */
             L.push({ g: Cyl(0.21, 0.30, 0.36), m: M(0, 0.38, 0), c: PLC.orange }, { g: Sph(0.12, 10, 8), m: M(0, 0.58, -0.20), c: PLC.orange },
               { g: Sph(0.022, 5, 4), m: M(0, 0.48, 0.24), c: PAL.wood[1] }, { g: Sph(0.022, 5, 4), m: M(0, 0.40, 0.26), c: PAL.wood[1] }, { g: Sph(0.022, 5, 4), m: M(0, 0.32, 0.28), c: PAL.wood[1] }); },
@@ -2165,7 +2195,7 @@ var SCENE3D = (function () {
       if (o.cuff && s.len > 0.15) L.push({ g: Cyl(0.08, 0.08, 0.04, 8), m: M(0, -0.17, 0), c: PAL.paper[2] });   /* 멜빵 바지 접은 단 (단화일 때만 보인다) */
       s.parts(L); return L;
     }
-    function plGeos(cfg) { return [plHeadParts(cfg), plEyeParts(cfg), plTorsoParts(cfg), plArmParts(cfg), plArmParts(cfg), plLegParts(cfg), plLegParts(cfg)].map(mergeParts); }
+    function plGeos(cfg) { plSkin(cfg); return [plHeadParts(cfg), plEyeParts(cfg), plTorsoParts(cfg), plArmParts(cfg), plArmParts(cfg), plLegParts(cfg), plLegParts(cfg)].map(mergeParts); }
     var PL_LOOK0 = normalizePlayer(opts.player), plGeo0 = plGeos(PL_LOOK0);
     function plMesh(g, x, y, cast, mat) { var m = new T.Mesh(keep(g), mat || toonP); m.castShadow = cast !== false; m.receiveShadow = true; if (x != null) m.position.set(x, y, 0); plBody.add(m); return m; }
     var plHead = plMesh(plGeo0[0]), plEyes = plMesh(plGeo0[1], null, 0, false, toonEye), plTorso = plMesh(plGeo0[2]);

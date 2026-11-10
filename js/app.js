@@ -190,7 +190,7 @@ var APP = (function () {
   function paletteDefault() { return (typeof SCENE3D !== 'undefined' && SCENE3D.PAL_DEFAULT) || 'ramps'; }
   /* 내 모습 (내 캐릭터 파츠 — docs/PLAYER_PARTS.md §3): 목록·기본값은 장면(SCENE3D.PLAYER_PARTS · PLAYER_DEFAULT)이 주인. 장면 빌드에 아직 없으면 같은 id 의 비상 목록.
      옷방(왼쪽 문)이 생기기 전까지는 설정 시트 '내 모습' 섹션에서 고른다 (PLAYER_PROGRESSION 11-08 메모). 저장은 settings.player = { hair, hairColor, eyes, eyeColor, nose, mouth, cheek, outfit, shoes, acc } (id). 코 · 입 · 볼은 11-09 에 생겼다 — 옛 기록엔 없어 normalizePlayer 가 기본(세모코 · 미소 · 볼 없음)으로 채운다. 볼터치('blush')는 11-10 에 뺐다 — 저장돼 있던 값은 모르는 id 라 '없음' 이 된다 */
-  var PLAYER_CATS = [['hair', '머리'], ['bangs', '앞머리'], ['hairColor', '머리 색'], ['eyes', '눈'], ['eyeColor', '눈 색'], ['nose', '코'], ['mouth', '입'], ['cheek', '볼'], ['outfit', '옷'], ['shoes', '신발'], ['acc', '악세사리']];
+  var PLAYER_CATS = [['hair', '머리'], ['bangs', '앞머리'], ['hairColor', '머리 색'], ['skin', '피부색'], ['eyes', '눈'], ['eyeColor', '눈 색'], ['nose', '코'], ['mouth', '입'], ['cheek', '볼'], ['outfit', '옷'], ['shoes', '신발'], ['acc', '악세사리']];
   var PLAYER_FALLBACK = {
     hair: [['bob', '단발'], ['short', '숏컷'], ['long', '긴생머리'], ['twin', '양갈래'], ['pony', '포니테일'], ['wave', '웨이브']],
     bangs: [['spiky', '삐죽'], ['full', '일자'], ['side', '옆가르마'], ['center', '가운데'], ['see', '시스루']],
@@ -200,11 +200,12 @@ var APP = (function () {
     nose: [['none', '없음'], ['dot', '콩코'], ['tri', '세모코']],
     mouth: [['none', '없음'], ['smile', '미소'], ['line', '새침'], ['pout', '뾰로통'], ['open', '활짝'], ['o', '오']],
     cheek: [['none', '없음'], ['freckle', '주근깨']],
-    outfit: [['dress', '원피스'], ['knit', '니트'], ['hoodie', '후드'], ['overall', '멜빵'], ['raincoat', '비옷']],
+    skin: [['peach', '살구', '#ffd096'], ['fair', '밝은', '#ffe2c4'], ['honey', '꿀빛', '#e9b27c'], ['chestnut', '밤빛', '#c48a5c'], ['cocoa', '카카오', '#8f5d3e']],
+    outfit: [['dress', '원피스'], ['knit', '니트'], ['hoodie', '후드'], ['overall', '멜빵'], ['raincoat', '비옷'], ['hanbok', '한복'], ['uniform', '교복'], ['varsity', '야구점퍼'], ['flannel', '체크셔츠']],
     shoes: [['flat', '단화'], ['boot', '부츠'], ['sneaker', '운동화'], ['loafer', '로퍼']],
     acc: [['none', '없음'], ['ribbon', '리본'], ['beret', '베레모'], ['glasses', '동글안경'], ['catears', '고양이귀'], ['strawhat', '밀짚모자']]
   };
-  var PLAYER_FALLBACK_DEFAULT = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };
+  var PLAYER_FALLBACK_DEFAULT = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };
   function playerParts() {   /* → { hair: [{id, name}], hairColor: [{id, name, hex}], … } 범주마다 1개 이상 */
     var P = (typeof SCENE3D !== 'undefined' && isObj(SCENE3D.PLAYER_PARTS)) ? SCENE3D.PLAYER_PARTS : null, out = {};
     PLAYER_CATS.forEach(function (c) {
@@ -2731,21 +2732,7 @@ var APP = (function () {
   function renderSettings() {
     var body = $('set-body'); if (!body) return;
     var frag = document.createDocumentFragment();
-    frag.appendChild(h('h3', { text: '문어 색' }));
-    var hueIn = h('input', { type: 'range', id: 'set-hue', min: '0', max: '360', step: '1', 'aria-label': '문어 색상' });
-    hueIn.value = String(hexHue(S.settings.octColor));
-    hueIn.addEventListener('input', function () { setOctColor(hslHex(+hueIn.value, 0.76, 0.57)); swatchOn(); });
-    var sw = h('div', { class: 'presets', role: 'group', 'aria-label': '색 프리셋' });
-    COLOR_PRESETS.forEach(function (p) {
-      var b = h('button', { type: 'button', class: 'preset', 'data-hex': p[1], title: p[0], 'aria-label': p[0] });
-      b.style.background = p[1];
-      b.addEventListener('click', function () { setOctColor(p[1]); hueIn.value = String(hexHue(p[1])); swatchOn(); });
-      sw.appendChild(b);
-    });
-    function swatchOn() { sw.querySelectorAll('.preset').forEach(function (b) { chipOn(b, b.dataset.hex === S.settings.octColor); }); }
-    swatchOn();
-    frag.appendChild(h('div', { class: 'set hue-row' }, [hueIn]));
-    frag.appendChild(sw);
+    /* 문어 색 고르기는 뺐다 (주인 11-10: "문어 색 사용자가 멋대로 바꿀 수 있게 하는 기능은 제거") — 문어 색은 미용실 거울 앞에서 문어가 정한다 */
     renderPlayerParts(frag);   /* 내 모습 — 문어 색 바로 아래 */
     if (window.AUDIO) AUDIO.on('room_sheet', { frag: frag });   /* 소리: '켜기' 체크 칸 + 음악·효과음 크기 (js/audio.js — 훅 이름은 예전 그대로) */
     frag.appendChild(h('h3', { text: '화면' }));
@@ -2813,7 +2800,7 @@ var APP = (function () {
   var LOOK_TABS = [
     { id: 'hair', name: '머리', icon: 'look/hair', secs: [['hair', '모양', 'hair'], ['bangs', '앞머리', 'head'], ['hairColor', '색']] },
     { id: 'eyes', name: '눈', icon: 'look/eyes', secs: [['eyes', '모양', 'face'], ['eyeColor', '색']] },
-    { id: 'face', name: '얼굴', icon: 'look/face', secs: [['nose', '코', 'face'], ['mouth', '입', 'face'], ['cheek', '볼', 'face']] },
+    { id: 'face', name: '얼굴', icon: 'look/face', secs: [['skin', '피부색'], ['nose', '코', 'face'], ['mouth', '입', 'face'], ['cheek', '볼', 'face']] },
     { id: 'outfit', name: '옷', icon: 'look/outfit', secs: [['outfit', '옷', 'body']] },
     { id: 'shoes', name: '신발', icon: 'look/shoes', secs: [['shoes', '신발', 'feet']] },
     { id: 'acc', name: '장식', icon: 'look/acc', secs: [['acc', '장식', 'head']] }
