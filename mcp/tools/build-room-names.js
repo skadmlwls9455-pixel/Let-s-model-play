@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* mcp/data/rooms.i18n.json 만들기 — 도서관 방 (js/world.js nodes) 의 이름 · 위키 제목을 en · ja 로.
    ko.wikipedia 의 언어 링크 (prop=langlinks) 로 그 언어의 같은 글을 찾는다. 이름은 그 글의 제목에서 괄호 설명을 뗀 것.
-   언어 링크가 없는 방은 빠진다 (서버는 ko 이름 · ko 글로 되돌아간다). 손으로 고치지 않는다 — 다시 돌린다.
+   언어 링크가 없는 방은 빠진다 — 그런 방 (과 엉뚱한 링크) 은 data/rooms.manual.json 에 손으로 적는다 (core 가 그 파일을 위에 덮는다). 이 파일은 손으로 고치지 않는다 — 다시 돌린다.
    usage: node tools/build-room-names.js */
 'use strict';
 var fs = require('fs'), path = require('path');

@@ -1,0 +1,182 @@
+{
+ "_note": "손으로 적은 열람실 이름·위키 제목 — rooms.i18n.json (언어 링크) 위에 덮는다 (core.ROOMS_I18N). 언어 링크가 없거나 엉뚱한 곳 (불가사리 → Bulgasari) 을 가리키는 방. 제목은 그 언어 위키에 글이 있는지 API 로 확인했다 (2026-11-10). 위키가 없는 방 (octopus_nerves · slow_room · letter_room) 은 이름만.",
+ "rain": {
+  "en": {
+   "name": "Rain",
+   "wiki": "Rain"
+  },
+  "ja": {
+   "name": "雨",
+   "wiki": "雨"
+  },
+  "de": {
+   "name": "Regen",
+   "wiki": "Regen"
+  },
+  "fr": {
+   "name": "Pluie",
+   "wiki": "Pluie"
+  },
+  "es": {
+   "name": "Lluvia",
+   "wiki": "Lluvia"
+  }
+ },
+ "cipher": {
+  "en": {
+   "name": "Cipher",
+   "wiki": "Cipher"
+  },
+  "ja": {
+   "name": "暗号",
+   "wiki": "暗号"
+  },
+  "de": {
+   "name": "Verschlüsselung",
+   "wiki": "Verschlüsselung"
+  },
+  "fr": {
+   "name": "Chiffrement",
+   "wiki": "Chiffrement"
+  },
+  "es": {
+   "name": "Cifrado",
+   "wiki": "Cifrado (criptografía)"
+  }
+ },
+ "blanket": {
+  "en": {
+   "name": "Blanket",
+   "wiki": "Blanket"
+  },
+  "ja": {
+   "name": "毛布",
+   "wiki": "毛布"
+  },
+  "de": {
+   "name": "Decke",
+   "wiki": "Decke (Textilie)"
+  },
+  "fr": {
+   "name": "Couverture",
+   "wiki": "Couverture (literie)"
+  },
+  "es": {
+   "name": "Manta",
+   "wiki": "Frazada"
+  }
+ },
+ "pinecone": {
+  "en": {
+   "name": "Pine cone",
+   "wiki": "Cone (botany)"
+  },
+  "de": {
+   "name": "Zapfen",
+   "wiki": "Zapfen (Botanik)"
+  },
+  "fr": {
+   "name": "Cône",
+   "wiki": "Cône (botanique)"
+  },
+  "es": {
+   "name": "Cono",
+   "wiki": "Cono (botánica)"
+  }
+ },
+ "starfish": {
+  "en": {
+   "name": "Starfish",
+   "wiki": "Starfish"
+  },
+  "ja": {
+   "name": "ヒトデ",
+   "wiki": "ヒトデ"
+  },
+  "de": {
+   "name": "Seestern",
+   "wiki": "Seesterne"
+  },
+  "fr": {
+   "name": "Étoile de mer",
+   "wiki": "Étoile de mer"
+  },
+  "es": {
+   "name": "Estrella de mar",
+   "wiki": "Asteroidea"
+  }
+ },
+ "shell": {
+  "ja": {
+   "name": "貝",
+   "wiki": "貝"
+  },
+  "de": {
+   "name": "Muschel",
+   "wiki": "Muscheln"
+  }
+ },
+ "honeycomb": {
+  "ja": {
+   "name": "蜂の巣",
+   "wiki": "ハニカム構造"
+  }
+ },
+ "chalk": {
+  "de": {
+   "name": "Kreide",
+   "wiki": "Tafelkreide"
+  }
+ },
+ "octopus_nerves": {
+  "en": {
+   "name": "Octopus nervous system"
+  },
+  "ja": {
+   "name": "タコの神経系"
+  },
+  "de": {
+   "name": "Nervensystem des Oktopus"
+  },
+  "fr": {
+   "name": "Système nerveux du poulpe"
+  },
+  "es": {
+   "name": "Sistema nervioso del pulpo"
+  }
+ },
+ "slow_room": {
+  "en": {
+   "name": "Room of slow words"
+  },
+  "ja": {
+   "name": "ゆっくりした言葉の部屋"
+  },
+  "de": {
+   "name": "Zimmer der langsamen Worte"
+  },
+  "fr": {
+   "name": "Chambre des mots lents"
+  },
+  "es": {
+   "name": "Sala de las palabras lentas"
+  }
+ },
+ "letter_room": {
+  "en": {
+   "name": "Letter room"
+  },
+  "ja": {
+   "name": "手紙の部屋"
+  },
+  "de": {
+   "name": "Zimmer der Briefe"
+  },
+  "fr": {
+   "name": "Chambre des lettres"
+  },
+  "es": {
+   "name": "Sala de las cartas"
+  }
+ }
+}

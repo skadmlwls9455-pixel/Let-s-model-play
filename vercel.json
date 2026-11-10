@@ -35,6 +35,12 @@
         "icn1"
       ],
       "maxDuration": 10
+    },
+    "api/lang/[key].js": {
+      "regions": [
+        "icn1"
+      ],
+      "maxDuration": 10
     }
   },
   "headers": [

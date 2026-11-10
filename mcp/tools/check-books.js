@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* library/books (책) · library/cards (서가 카드) 점검 — 머리말·길이·id 는 오류, 글이 '자료' 에서 벗어나는 말은 경고 (고칠지는 쓴 사람이 정한다).
-   번역본 (<폴더>/en · ja) 도 원본과 나란히 본다: 빠진 번역, 원문이 바뀐 번역 (original: 지문 — tools/stamp-translations.js), 남은 한글, 빠진 숫자, 문단 수, 물음표.
+   번역본 (<폴더>/<lang>, ko 밖의 다섯) 도 원본과 나란히 본다: 빠진 번역 (오류 — 모든 글은 여섯 언어 전부), 원문이 바뀐 번역 (original: 지문 — tools/stamp-translations.js), 남은 한글, 빠진 숫자, 문단 수, 물음표.
    usage: node tools/check-books.js [booksDir] [cardsDir] */
 'use strict';
 var path = require('path');
@@ -39,7 +39,7 @@ function lintTr(base, byLang) {
     var o = base[k], fp = core.fingerprint(o.text);
     TR_LANGS.forEach(function (lang) {
       var t = byLang[lang] && byLang[lang][k], lines = [];
-      if (!t) { console.log('⚠ ' + k + ' — ' + lang + ' 번역 없음'); warns++; return; }
+      if (!t) { console.log('✗ ' + k + ' — ' + lang + ' 번역 없음 (모든 책·카드는 여섯 언어 전부 있어야 한다 — 주인 2026-11-10)'); errors++; return; }
       n[lang] = (n[lang] || 0) + 1;
       if (!t.original) lines.push('원본 지문 (original:) 없음 — node tools/stamp-translations.js');
       else if (t.original !== fp) lines.push('원본이 바뀜 (지문 ' + t.original + ' ≠ ' + fp + ') — 번역을 다시 보고 stamp');

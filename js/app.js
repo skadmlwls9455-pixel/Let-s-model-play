@@ -3126,6 +3126,20 @@ var APP = (function () {
     frag.appendChild(url);
     frag.appendChild(h('p', { class: 'set-note', text: 'claude.ai › 설정 › 커넥터 › 커스텀 커넥터 추가에 이 주소를 붙여 넣어. 웹에서 한 번 넣으면 모바일 앱에서도 같이 써.' }));
     frag.appendChild(h('p', { class: 'set-note', text: '이 주소를 아는 사람은 이 방에 들어올 수 있어. 남에게 보여 주지 마. 방에는 산책 기록과 메모만 있어.' }));
+    /* 방의 언어 — 문어가 남기는 글의 언어. 자동이면 Claude 와 나누는 대화의 언어를 따라간다 (모델이 look_room 의 lang 으로 알려 준다). 고르면 고정 (/api/lang, 모델은 못 바꾼다) */
+    var LANG_NAMES = { ko: '한국어', en: 'English', ja: '日本語', de: 'Deutsch', fr: 'Français', es: 'Español' }, cur = LANG_NAMES[r.lang] ? r.lang : null;
+    var sel = h('select', { id: 'set-claude-lang', 'aria-label': '방의 언어' }, [h('option', { value: 'auto', text: '자동 · Claude 대화를 따라감' + (cur && !r.pin ? ' (지금 ' + LANG_NAMES[cur] + ')' : '') })].concat(Object.keys(LANG_NAMES).map(function (k) { return h('option', { value: k, text: LANG_NAMES[k] }); })));
+    sel.value = r.pin && cur ? cur : 'auto';
+    sel.addEventListener('change', function () {
+      var v = sel.value; sel.disabled = true;
+      fetch('/api/lang/' + encodeURIComponent(r.key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang: v }) })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (j) { if (!j || !j.ok) { toast('지금은 언어를 바꿀 수 없어'); return; } r.lang = LANG_NAMES[j.lang] ? j.lang : null; r.pin = !!j.pin; save(); toast(j.pin ? '방의 언어를 정했어: ' + LANG_NAMES[j.lang] : '이제 Claude 대화의 언어를 따라가'); })
+        .catch(function () { toast('지금은 언어를 바꿀 수 없어 (연결 안 됨)'); })
+        .then(function () { sel.disabled = false; renderSettings(); });
+    });
+    frag.appendChild(h('p', { class: 'set-note', text: '방의 언어 — 문어가 남기는 글의 언어야. 자동이면 Claude 와 나누는 대화의 언어를 따라가.' }));
+    frag.appendChild(sel);
     var sy = h('button', { type: 'button', class: 'btn sm pressable', text: '다녀온 산책 가져오기' });
     sy.addEventListener('click', function () { claudeSync(true); });
     var off = h('button', { type: 'button', class: 'btn sm pressable', text: '이 기기에서 연결 끊기' });
@@ -3166,6 +3180,7 @@ var APP = (function () {
       .then(function (j) {
         if (!j || !j.ok) { claudeSyncing = false; if (manual) toast('지금은 가져올 수 없어'); return; }
         if (j.far && j.far.state === 'proposed') farPending = j.far;   /* 먼 바다 문 제안 — 산책 재생이 끝난 뒤 한 번 묻는다 */
+        if (typeof j.lang === 'string' || j.lang === null) { r.lang = typeof j.lang === 'string' ? j.lang : null; r.pin = !!j.pin; save(); }   /* 방의 언어 (설정 화면이 보여 준다) */
         var list = (j.walks || []).filter(function (w) { return w && typeof w.file === 'string' && Array.isArray(w.events) && w.events.length; });
         if (!list.length) { claudeSyncing = false; if (manual && !farPending) toast('새로 다녀온 산책이 없어'); farAsk(); return; }
         (function next() {

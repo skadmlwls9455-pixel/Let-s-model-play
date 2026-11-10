@@ -15,7 +15,13 @@ var SHELF = (function () { try { return require('../js/shelf.js'); } catch (e) {
 var I18N = require('./i18n.js');   /* 방의 언어 (ko · en · ja) — 모델에게 가는 글 */
 BRAIN.setWorld(WORLD);
 /* 방 이름 · 방의 위키 제목을 다른 언어로 (mcp/tools/build-room-names.js 가 ko.wikipedia 의 언어 링크로 만든다). 없으면 ko 그대로 */
-var ROOMS_I18N = (function () { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'rooms.i18n.json'), 'utf8')); } catch (e) { return {}; } })();
+/* 열람실 이름 · 위키 제목 (언어별): data/rooms.i18n.json (ko.wikipedia 언어 링크, tools/build-room-names.js) 위에 data/rooms.manual.json (손으로 적고 확인한 것 — 링크가 없거나 엉뚱한 방) 을 덮는다 → 모든 방이 여섯 언어 전부 (시험이 본다) */
+var ROOMS_I18N = (function () {
+  function rd(f) { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'data', f), 'utf8')); } catch (e) { return {}; } }
+  var auto = rd('rooms.i18n.json'), manual = rd('rooms.manual.json'), out = {};
+  Object.keys(auto).concat(Object.keys(manual)).forEach(function (id) { if (id[0] !== '_') out[id] = Object.assign({}, auto[id] || {}, manual[id] || {}); });
+  return out;
+})();
 
 /* 고정 문장 (CORE_LOOP_V2 §4.2 초안을 다듬은 것. 모든 모드에서 같은 글) */
 var FIXED_SENTENCE = '사람은 산책에 따라올 수도 있고 집에 있을 수도 있다. 어느 쪽인지는 알려 주지 않는다. ' +
@@ -26,7 +32,7 @@ function wikiApi(lang) { return 'https://' + (I18N.norm(lang) || 'ko') + '.wikip
 var UA ='ppolppol-octopus-mcp/0.1 (local game; https://github.com/skadmlwls9455-pixel/Let-s-model-play)';
 var MENU = { meet: ['say', 'wave', 'watch', 'stop'], chat: ['say', 'watch', 'stop'], table: ['eat', 'taste', 'save', 'watch', 'stop'], far: ['propose', 'watch', 'stop'] };
 /* 먼 바다 문 (11-10 주인 결정): 등불 FAR_LANTERN 칸이면 문어에게 한 번 묻는다 → 문어가 제안하면 사람이 한 번 [열어 줘]/[지금은 그대로].
-   열리면 영어 위키백과 (lang:'en') 도 읽는다. 문어가 안 고르면 FAR_RETRY 일 뒤, 사람이 '그대로' 면 FAR_KEEP 일 뒤에야 다시 묻는다 (조르지 않는다) */
+   열리면 나머지 다섯 언어의 위키백과 (peek target 의 lang) 도 읽는다 — 어느 방이든 같은 양. 문어가 안 고르면 FAR_RETRY 일 뒤, 사람이 '그대로' 면 FAR_KEEP 일 뒤에야 다시 묻는다 (조르지 않는다) */
 var FAR_LANTERN = 4, FAR_RETRY = 7, FAR_KEEP = 14;
 var EXPRS =['happy', 'idle', 'curious', 'calm'];
 var REASONS = ['enough', 'tired', 'linger'];
@@ -158,7 +164,7 @@ function parseBook(txt, file, key, lang) {
   if (meta.original) b.original = meta.original;   /* 번역본: 원본 (ko) 본문의 지문 */
   return b;
 }
-/* 번역본: <폴더>/<lang>/<같은 파일>.md (lang 은 en · ja). 머리말의 lang 이 폴더와 다르면 폴더가 이긴다. 원본 (ko) 이 없는 번역본은 쓰지 않는다 */
+/* 번역본: <폴더>/<lang>/<같은 파일>.md (lang 은 ko 밖의 다섯 — 모든 책·카드에 다 있어야 한다, check-books 가 오류로 막는다). 머리말의 lang 이 폴더와 다르면 폴더가 이긴다. 원본 (ko) 이 없는 번역본은 쓰지 않는다 */
 function loadTranslations(dir, base, key, parse) {
   var byLang = {}, errors = [];
   I18N.LANGS.forEach(function (lang) {
@@ -228,17 +234,18 @@ function Octopus(opts) {
   this.now = opts.now || function () { return new Date(); };
   this.model = opts.model || null;          /* 알 때만 (PPOLPPOL_MODEL) */
   this.name = opts.name || null;            /* 사람이 지어 준 이름 (PPOLPPOL_NAME). 없으면 넣지 않는다 */
-  this._lang = I18N.norm(opts.lang) || null;   /* 방을 만들 때 정한 언어 (원격 meta.lang · stdio PPOLPPOL_LANG). 있으면 모델이 바꾸지 못한다 */
+  this._lang = I18N.norm(opts.lang) || null;   /* 밖에서 온 언어: 원격 meta.lang (기기 언어, 또는 사람이 게임에서 정한 것) · stdio PPOLPPOL_LANG */
+  this._pin = !!(opts.langPinned && this._lang);   /* 사람이 정해 둔 언어 (게임 설정 · 환경 변수) — 모델이 바꾸지 못한다 */
   this.S = this.load();
   this.L = I18N.T(this.lang());
 }
-/* 방의 언어: 만들 때 정한 것 > 모델이 look_room 으로 한 번 정한 것 (S.lang) > ko */
-Octopus.prototype.lang = function () { return this._lang || this.S.lang || 'ko'; };
-Octopus.prototype.far = function () { return I18N.FAR[this.lang()] || ['en']; };   /* 먼 바다 문 너머의 위키 언어 목록 (영어 방은 나머지 전부) */
-Octopus.prototype.setLang = function (l) {
+/* 방의 언어: 사람이 정해 둔 것 (pin) > 모델이 look_room 의 lang 으로 알려 준 대화의 언어 (S.lang — 바뀌면 방도 바뀐다) > 만들 때의 기기 언어 > ko */
+Octopus.prototype.lang = function () { return this._pin ? this._lang : (this.S.lang || this._lang || 'ko'); };
+Octopus.prototype.far = function () { return I18N.FAR[this.lang()] || []; };   /* 먼 바다 문 너머의 위키 언어 목록 — 어느 방이든 나머지 다섯 전부 */
+Octopus.prototype.setLang = function (l) {   /* 모델이 알려 준 대화의 언어. true = 받아들임 (방이 그 언어). 사람이 정해 둔 방 · 모르는 언어는 false */
   l = I18N.norm(l);
-  if (!l || this._lang || this.S.lang) return false;   /* 이미 정해진 방은 그대로 */
-  this.S.lang = l; this.L = I18N.T(l); this.save();
+  if (!l || this._pin) return false;
+  if (this.S.lang !== l) { this.S.lang = l; this.L = I18N.T(l); this.save(); }
   return true;
 };
 /* 책 · 카드 · 방 이름을 방의 언어로 (번역본이 있으면 그것, 없으면 원본 ko) */
@@ -264,7 +271,7 @@ Octopus.prototype.load = function () {
     notes: Array.isArray(s.notes) ? s.notes : [],
     talk: Array.isArray(s.talk) ? s.talk : [],
     met: !!s.met,
-    lang: I18N.norm(s.lang) || null,         /* 모델이 look_room 으로 정한 언어 (방을 만들 때 정한 언어가 없을 때만) */
+    lang: I18N.norm(s.lang) || null,         /* 모델이 look_room 의 lang 으로 알려 준 대화의 언어 (사람이 정해 둔 방에선 안 쓴다) */
     far: s.far && typeof s.far === 'object' ? s.far : { state: 'closed' },   /* 먼 바다 문: closed · proposed · open */
     pending: s.pending || null,              /* 지금 걸려 있는 결정 지점 하나 */
     chat: s.chat || null,                    /* { tripId, asked } */
@@ -416,7 +423,11 @@ function withDecision(out, sit) { if (sit) out.decision = sit; return out; }
 /* ───── 도구 ───── */
 Octopus.prototype.lookRoom = function (a) {
   a = a || {};
-  var out = { lantern: this.L.lantern(this.lantern()), posters: this.wallPosters(), activities: this.activities() };
+  var before = this.lang(), want = I18N.norm(a.lang);   /* lang: 사람이 대화에서 쓰는 언어 — 방이 따라간다 (사람이 게임에서 정해 둔 방은 그대로) */
+  if (want) this.setLang(want);
+  var out = { lang: this.lang(), lantern: this.L.lantern(this.lantern()), posters: this.wallPosters(), activities: this.activities() };
+  if (this.lang() !== before) out.langNote = this.L.langChanged;   /* 방이 그 언어로 바뀌었다 — 그 언어로 알린다 */
+  else if (want && want !== this.lang() && this._pin) out.langNote = this.L.langPinned;   /* 사람이 정해 둔 방: 왜 안 바뀌는지 */
   /* '요즘 ○○ 방을 자꾸 가네' (lately) 는 게임 화면 몫이다. 모델에게는 코드가 만든 쏠림 문장을 주지 않는다 */
   if (this.S.running) out.walking = this.S.running.id;
   var nb = this.notesBlock(); if (nb) { out.notes = nb; this.S.notesShownAt = this.S.trips.length; }
@@ -552,10 +563,9 @@ Octopus.prototype.peek = async function (a) {
       else status = 'failed';
     }
   } else if (tg.kind === 'wiki' && str(tg.title)) {
-    /* 위키 언어: 방의 언어 (기본) 또는 먼 바다 문 너머의 언어 (문이 열렸을 때만). 그 밖의 언어는 이 방의 지도에 없다 */
-    var lang = I18N.norm(tg.lang) || home, far = this.far(), isFar = lang !== home && far.indexOf(lang) >= 0;
-    if (lang !== home && !isFar) return { error: this.L.wikiUnreachable(lang, home, far) };
-    if (isFar && this.S.far.state !== 'open') return { error: this.L.farClosed(far, home) };
+    /* 위키 언어: 방의 언어 (기본) 또는 먼 바다 문 너머의 언어 — 나머지 다섯 전부, 문이 열렸을 때만 (언어로 거절하지 않는다) */
+    var lang = I18N.norm(tg.lang) || home, isFar = lang !== home;
+    if (isFar && this.S.far.state !== 'open') return { error: this.L.farClosed(this.far(), home) };
     target = { kind: 'wiki', title: tg.title };
     if (lang !== 'ko') target.lang = lang;
     var w = await this.fetchWiki(tg.title, { timeoutMs: 6000, sentences: a.more ? 6 : 2, lang: lang });

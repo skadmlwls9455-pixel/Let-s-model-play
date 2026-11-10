@@ -85,7 +85,7 @@ async function handleMcp(req, res, opts) {
   var state = null;
   try { state = isCall ? await ST.readState(store, key) : null; } catch (e) { return rpcError(res, 502, H.storage); }
   var oct = new core.Octopus({
-    remote: { initialState: state }, booksDir: opts.booksDir, cardsDir: opts.cardsDir, name: meta.name || null, model: null, lang: meta.lang || null,
+    remote: { initialState: state }, booksDir: opts.booksDir, cardsDir: opts.cardsDir, name: meta.name || null, model: null, lang: meta.lang || null, langPinned: !!meta.pin,
     now: opts.now, queryWiki: opts.queryWiki, fetchWiki: opts.fetchWiki
   });
   var server = buildServer(oct, {
@@ -97,6 +97,7 @@ async function handleMcp(req, res, opts) {
       }
       for (var i = 0; i < names.length; i++) await store.write(ST.roomPath(key, 'out/' + names[i]), box[names[i]]);
       if (oct.remote.dirty) await store.write(ST.roomPath(key, 'state.json'), JSON.stringify(oct.S));
+      if (!meta.pin && oct.S.lang && oct.S.lang !== meta.lang) meta.lang = oct.S.lang;   /* 모델이 알려 준 대화의 언어를 방에 비춘다 — 다음 initialize 의 안내문·도구가 그 언어 (사람이 정한 방은 그대로) */
       await store.write(ST.roomPath(key, 'meta.json'), JSON.stringify(meta));
       oct.remote.outbox = {}; oct.remote.dirty = false;
     },

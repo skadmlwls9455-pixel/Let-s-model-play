@@ -1,6 +1,6 @@
 /* mcp/store.js — 원격 뽈뽈 방 저장소 (방 열쇠마다 상태 · 산책 기록)
  *
- *   rooms/<열쇠>/meta.json   { v, created, name?, hour, calls }   — 방이 있다는 표지 + 시간당 호출 수
+ *   rooms/<열쇠>/meta.json   { v, created, name?, lang?, pin?, hour, calls }   — 방이 있다는 표지 + 방의 언어 (pin: 사람이 정함) + 시간당 호출 수
  *   rooms/<열쇠>/state.json  core.js 의 S (메모·대화·산책 목록)
  *   rooms/<열쇠>/out/<날짜>-<n>.json · talk.json   게임이 그대로 재생하는 이벤트 배열
  *
@@ -89,12 +89,22 @@ async function createRoom(store, opts) {
   var key = newKey(), now = new Date().toISOString();
   var meta = { v: 1, created: now, hour: null, calls: 0 };
   if (typeof opts.name === 'string' && opts.name.trim()) meta.name = opts.name.trim().slice(0, 12);
-  var I = require('./i18n.js'), lang = I.norm(opts.lang) || (String(opts.lang || '').trim() ? I.DEFAULT : null); if (lang) meta.lang = lang;   /* 기기 언어가 있는데 모르는 언어면 영어 (주인: 영어가 메인) */   /* 방의 언어 (게임이 기기 언어를 보낸다). 없으면 모델이 look_room 으로 한 번 정한다 */
+  var I = require('./i18n.js'), lang = I.norm(opts.lang) || (String(opts.lang || '').trim() ? I.DEFAULT : null); if (lang) meta.lang = lang;   /* 방의 첫 언어 = 기기 언어 (게임이 보낸다; 모르는 언어면 영어 — 주인: 영어가 메인). 그 뒤 모델이 look_room 의 lang 으로 알려 주는 대화의 언어를 따라간다 (http.js 가 meta.lang 에 비춘다); 사람이 api/lang 으로 정하면 고정 (pin) */
   await store.write(roomPath(key, 'meta.json'), JSON.stringify(meta));
   return key;
 }
 async function readMeta(store, key) { return validKey(key) ? parse(await store.read(roomPath(key, 'meta.json'))) : null; }
 async function readState(store, key) { return parse(await store.read(roomPath(key, 'state.json'))); }
 
+/* 방의 언어를 사람이 정한다 (게임 설정 → api/lang). lang 이 여섯 중 하나면 고정 (pin), 'auto' 면 고정을 풀고 모델이 알려 준 대화의 언어 (state.lang) 로 돌아간다 */
+async function setRoomLang(store, key, lang) {
+  var I = require('./i18n.js'), meta = await readMeta(store, key);
+  if (!meta) return null;
+  if (lang === 'auto') { delete meta.pin; var st = await readState(store, key), l = I.norm(st && st.lang); if (l) meta.lang = l; }
+  else { var n = I.norm(lang); if (!n) return { error: 'lang' }; meta.lang = n; meta.pin = true; }
+  await store.write(roomPath(key, 'meta.json'), JSON.stringify(meta));
+  return { lang: meta.lang || null, pin: !!meta.pin };
+}
+
 module.exports = { memoryStore: memoryStore, fileStore: fileStore, blobStore: blobStore, newKey: newKey, validKey: validKey,
-  roomPath: roomPath, createRoom: createRoom, readMeta: readMeta, readState: readState, parse: parse, KEY_RE: KEY_RE };
+  roomPath: roomPath, createRoom: createRoom, readMeta: readMeta, readState: readState, setRoomLang: setRoomLang, parse: parse, KEY_RE: KEY_RE };
