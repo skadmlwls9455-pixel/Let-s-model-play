@@ -147,7 +147,7 @@ node tools/test-export.js --crawl         # 묶음만 띄워 놀아 본다 (Play
 - `vendor/three.min.js` — three.js r128, MIT ([vendor/THREE-LICENSE.txt](vendor/THREE-LICENSE.txt)).
 - 위키백과 요약·썸네일 — 한국어 위키백과에서 가져오며 일기에 출처 링크와 `CC BY-SA 4.0` 을 함께 표시한다. 저장 데이터에도 라이선스 표기를 남긴다.
 - 부엌 소리 (`foley/`) — OpenGameArt.org 에 올라온 소리 28개를 잘라 겹쳐 만든 27개다. 원본은 `CC0 1.0` 이 26개, `CC BY` 가 2개다 (`CC BY 4.0`: DavidW 의 도마 소리 → 썰기, `CC BY 3.0`: Vinrax 의 물소리 → 젓기). 출처·라이선스·바꾼 것은 [foley/CREDITS.md](foley/CREDITS.md) 에 있다.
-- 플레이어가 보는 크레딧 — [credits.html](credits.html) '만든 것들': 부엌 소리의 CC BY 두 줄과 CC0 원본, 글꼴 Galmuri (SIL OFL 1.1, [vendor/fonts/GALMURI-LICENSE.txt](vendor/fonts/GALMURI-LICENSE.txt)), three.js, 위키백과. 설정 맨 아래와 부엌 조리대 (`cook.html`) 의 링크에서 간다. 음악과 그 밖의 효과음 (`audio/`) 은 이 게임을 위해 직접 만든 것이다.
+- 플레이어가 보는 크레딧 — [credits.html](credits.html) '만든 것들': 부엌 소리의 CC BY 두 줄과 CC0 원본, 글꼴 Galmuri (SIL OFL 1.1, [vendor/fonts/GALMURI-LICENSE.txt](vendor/fonts/GALMURI-LICENSE.txt)) 와 힌디어 글자용 GNU Unifont 데바나가리 서브셋 (SIL OFL 1.1, [vendor/fonts/UNIFONT-LICENSE.txt](vendor/fonts/UNIFONT-LICENSE.txt)), 색 팔레트, three.js, 위키백과. 설정 맨 아래와 부엌 조리대 (`cook.html`) 의 링크에서 간다. 음악과 그 밖의 효과음 (`audio/`) 은 이 게임을 위해 직접 만든 것이다.
 - `vendor/mcp-apps/` — MCP 엽서 화면이 불러오는 `@modelcontextprotocol/ext-apps` 1.7.5 묶음. 라이선스는 [vendor/mcp-apps/LICENSE](vendor/mcp-apps/LICENSE) 그대로다 (Apache-2.0, 옛 기여분은 MIT).
 - 색 팔레트 (`js/palettes.js`) — Lospec 에 올라온 커뮤니티 팔레트 넷: Apollo (AdamCYounis) · Endesga 64 (ENDESGA) · Resurrect 64 (Kerrie Lake) · Sweetie 16 (GrafxKid). 따로 적힌 라이선스는 없고 만든 이를 밝히는 것이 관례라 [credits.html](credits.html) '색' 에 적는다.
 - 이 게임의 코드 · 그림 · 글 · 소리 (직접 만든 음악과 효과음) — © 2026 Katherine Nahm. 모든 권리 보유 (All rights reserved). 라이선스를 주지 않았으므로 허락 없이 가져다 쓸 수 없다. 위에 적은 남의 것은 각자의 라이선스 그대로이고, 위키백과에서 가져온 글은 `CC BY-SA 4.0` 그대로다.
