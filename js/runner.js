@@ -468,6 +468,7 @@ var RUNNER = (function () {
     var r = record(end); st.last = r;
     if (r.score > (st.best | 0)) { st.best = r.score; L.newBest = true; }
     store(st); L.store = st;
+    try { if (window.APP && typeof APP.earnFromPlay === 'function') APP.earnFromPlay({ game: 'runner', id: 'runner_' + (st.runs | 0) + '_' + (st.day || ''), score: r.score | 0 }); } catch (e) { /* 지갑이 없어도 달리기는 그대로 */ }   /* 조개: 내 놀이에서만 (11-10) */
   }
   function over(end) {
     L.state = 'over'; L.hitAt = performance.now();

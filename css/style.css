@@ -1546,3 +1546,23 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 
 /* 11-10: 미용실 시트가 열려 장면이 위로 밀릴 때 드러나는 빈 곳이 흰색이던 것 → 장면 허공색 */
 :root[data-layout="one"] #scene, :root[data-layout="one"] #shell { background-color: #090a14; }
+
+/* ── 11-10 살림: 가방 꼬리표 (바 아래 오른쪽) + 시트 (텃밭 세 칸 · 염료) ── */
+.bag-tag { position: absolute; z-index: 8; top: calc(var(--bar-h, 44px) + var(--safe-t, 0px) + 3px); right: 6px; min-height: 28px; margin: 0; padding: 2px 10px; font: inherit; font-size: 13px; color: var(--fg); background-color: var(--panel); border: 1px solid var(--rim); border-radius: 8px; cursor: pointer; }
+.bag-tag::before { content: ''; position: absolute; inset: -8px -6px; }   /* 누르는 곳 44px */
+.bag-tag[hidden] { display: none; }
+:root[data-font="pixel"] .bag-tag { font-family: var(--f-meta); font-size: 16px; line-height: 20px; border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
+:root:not([data-layout="one"]) .bag-tag { position: static; margin: 6px 16px; }
+html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
+.bag-sheet .bag-line { margin: 8px 0 2px; font-weight: 700; color: var(--fg); }
+:root[data-font="pixel"] .bag-sheet .bag-line { font-family: var(--f-ui); font-size: 20px; line-height: 30px; }
+.bag-sheet h3 { font-size: 14px; font-weight: 700; color: var(--fg); letter-spacing: 0; margin: 16px 0 8px; padding-top: 10px; border-top: 1px solid var(--rim); }
+:root[data-font="pixel"] .bag-sheet h3 { font-family: var(--f-ui); font-size: 20px; line-height: 30px; border-top: 2px solid var(--rim); }
+.bag-plots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.bag-plot { display: grid; justify-items: center; gap: 4px; min-height: 104px; margin: 0; padding: 8px 4px; font: inherit; color: var(--fg); background: var(--panel2); border: 1px solid var(--rim); border-radius: 10px; cursor: pointer; }
+:root[data-font="pixel"] .bag-plot { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); font-family: var(--f-meta); font-size: 16px; line-height: 20px; }
+.bag-pot { position: relative; display: block; width: 36px; height: 36px; image-rendering: pixelated; background: linear-gradient(#7a4a30 0 0) 6px 24px / 24px 10px no-repeat, linear-gradient(#5a3422 0 0) 4px 22px / 28px 4px no-repeat; }
+.bag-pot.st0 { background: linear-gradient(#3a2a20 0 0) 16px 18px / 4px 4px no-repeat, linear-gradient(#7a4a30 0 0) 6px 24px / 24px 10px no-repeat, linear-gradient(#5a3422 0 0) 4px 22px / 28px 4px no-repeat; }
+.bag-pot.st1 { background: linear-gradient(#4fa868 0 0) 16px 12px / 4px 10px no-repeat, linear-gradient(#4fa868 0 0) 12px 12px / 12px 4px no-repeat, linear-gradient(#7a4a30 0 0) 6px 24px / 24px 10px no-repeat, linear-gradient(#5a3422 0 0) 4px 22px / 28px 4px no-repeat; }
+.bag-pot.st2 { background: linear-gradient(var(--fl, #f07aa8) 0 0) 10px 2px / 16px 12px no-repeat, linear-gradient(#ffe08a 0 0) 16px 6px / 4px 4px no-repeat, linear-gradient(#4fa868 0 0) 16px 12px / 4px 10px no-repeat, linear-gradient(#7a4a30 0 0) 6px 24px / 24px 10px no-repeat, linear-gradient(#5a3422 0 0) 4px 22px / 28px 4px no-repeat; }
+.bag-act { color: var(--muted); }

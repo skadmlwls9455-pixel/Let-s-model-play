@@ -4109,6 +4109,7 @@ var APP = (function () {
       $('name-dialog').close(); renderStatus(false); renderScene();
       if (first) {
         checkDay(true);   /* 앱을 연 채로 자정을 넘겨 이름을 지었으면 먼저 새 날로 넘긴다 (아래 renderLog 가 넘기며 자기소개를 날 인사로 덮지 않게) */
+        setTimeout(function () { renderBagChip(); dailyGift(); }, 1500);   /* 첫날도 선물 */
         setGreeting(typeof STR.firstGreeting === 'function' ? STR.firstGreeting(v) : '안녕, 나는 ' + v + '야. 비 오는 다락방에 온 걸 환영해.', 'happy');   /* 문어의 자기소개 (웃는 얼굴) */
         renderLog();
       }
@@ -4164,6 +4165,83 @@ var APP = (function () {
       img.src = src;
     });
   }
+  /* ───────────────────────── 살림: 조개 · 들어온 날 선물 · 텃밭 · 염료 (11-10 주인) ─────────────────────────
+     · 조개는 내 놀이에서만 (다락방 달리기 한 판 → 2~8개). 문어 산책은 조개를 낳지 않는다.
+     · 들어온 날 선물: 그날 처음 열면 조개 3 + 씨앗 1. **연속 출석이 아니라 들어온 날 수만 센다** — 며칠을 쉬어도 끊기는 것 · 잃는 것 없음. 다섯 번째 날마다 조개 10 을 더.
+       ("게임 할 시간 없거나 잘 못하는 사람도 재화 일부는 챙기게")
+     · 텃밭 세 칸: 씨앗 심기 → 물 두 번(칸마다 하루 한 번) → 꽃 → 거두면 그 색 염료 1. 물을 안 줘도 시들지 않는다 (멈춰 있을 뿐). 꽃 색은 시드 (심은 날 · 칸 · 몇 번째).
+     · 염료는 사지 않는다. 옷 물들이기에 1 개 쓴다 (원래 색으로 돌리기는 공짜).
+     저장: S.user = { shells, seeds, dyes: { 색: n }, days: [날짜…], giftDay, garden: [{ color, water, wateredDay } | null × 3], dye: hex | null, earned: [놀이 판 id…(최근 50)] } */
+  var DYES = [['red', '빨강', '#c8323a'], ['yellow', '노랑', '#e8a93a'], ['green', '초록', '#4fa868'], ['blue', '파랑', '#4a86d8'], ['purple', '보라', '#9a5cc8'], ['pink', '분홍', '#f07aa8']];
+  function dyeOf(id) { for (var i = 0; i < DYES.length; i++) if (DYES[i][0] === id) return DYES[i]; return null; }
+  function userState() {
+    var u = isObj(S.user) ? S.user : (S.user = {});
+    u.shells = Math.max(0, u.shells | 0); u.seeds = Math.max(0, u.seeds | 0);
+    if (!isObj(u.dyes)) u.dyes = {}; if (!Array.isArray(u.days)) u.days = []; if (!Array.isArray(u.earned)) u.earned = [];
+    if (!Array.isArray(u.garden)) u.garden = [null, null, null]; while (u.garden.length < 3) u.garden.push(null);
+    return u;
+  }
+  function earnFromPlay(r) {   /* 놀이 한 판 → 조개 (같은 판 id 는 한 번만) */
+    if (!r || !r.id) return 0; var u = userState(); if (u.earned.indexOf(r.id) >= 0) return 0;
+    var n = clamp(2 + Math.floor((r.score | 0) / 150), 2, 8);
+    u.earned.push(r.id); if (u.earned.length > 50) u.earned.splice(0, u.earned.length - 50);
+    u.shells += n; save(); renderBagChip(); toast('조개 ' + n + '개 · 이제 ' + u.shells + '개');
+    return n;
+  }
+  function dailyGift() {   /* 그날 처음 열었을 때 한 번 */
+    if (!S.octopus.name) return; var u = userState(), dk = todayKey(); if (u.giftDay === dk) return;
+    u.giftDay = dk; if (u.days.indexOf(dk) < 0) u.days.push(dk);
+    var n = u.days.length, extra = n % 5 === 0 ? 10 : 0;
+    u.shells += 3 + extra; u.seeds += 1; save(); renderBagChip();
+    toast('오늘 선물: 조개 ' + (3 + extra) + ' · 씨앗 1 (들어온 날 ' + n + '일째)');
+  }
+  function renderBagChip() { var b = $('btn-bag'); if (!b) return; var u = userState(); b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = '조개 ' + u.shells; }
+  function gardenAct(i) {
+    var u = userState(), g = u.garden[i], dk = todayKey();
+    if (!g) { if (u.seeds < 1) { toast('씨앗이 없어. 들어온 날 선물로 하나씩 생겨'); return; } u.seeds--; var rng = mkRng(B ? B.hashSeed('seed', dk, i, u.days.length, u.seeds) : Date.now()); u.garden[i] = { color: DYES[Math.floor(rng() * DYES.length)][0], water: 0, wateredDay: '' }; toast('씨앗을 심었어'); }
+    else if (g.water >= 2) { u.dyes[g.color] = (u.dyes[g.color] | 0) + 1; u.garden[i] = null; toast(dyeOf(g.color)[1] + ' 염료 1개를 얻었어'); }
+    else if (g.wateredDay === dk) { toast('오늘은 물을 줬어. 내일 또 줄 수 있어'); return; }
+    else { g.water++; g.wateredDay = dk; toast(g.water >= 2 ? '꽃이 피었어' : '물을 줬어'); }
+    save(); renderBag();
+  }
+  function applyDye() { if (scene && typeof scene.setPlayerDye === 'function') { try { scene.setPlayerDye(userState().dye || null); } catch (e) { console.warn('[app] setPlayerDye', e); } } }
+  function dyeUse(id) {
+    var u = userState();
+    if (id === null) { u.dye = null; save(); applyDye(); renderBag(); toast('원래 색으로 돌렸어'); return; }
+    var d = dyeOf(id); if (!d || (u.dyes[id] | 0) < 1) return;
+    u.dyes[id]--; u.dye = d[2]; save(); applyDye(); renderBag(); toast('옷을 ' + d[1] + '으로 물들였어');
+  }
+  function renderBag() {
+    var body = $('bag-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment(), dk = todayKey();
+    frag.appendChild(h('p', { class: 'bag-line', text: '조개 ' + u.shells + ' · 씨앗 ' + u.seeds + ' · 들어온 날 ' + u.days.length + '일' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '조개는 다락방 달리기에서, 씨앗은 들어온 날 선물로 생겨. 쉬어도 잃는 건 없어.' }));
+    frag.appendChild(h('h3', { text: '텃밭' }));
+    var plots = h('div', { class: 'bag-plots', role: 'group', 'aria-label': '텃밭' });
+    u.garden.forEach(function (g, i) {
+      var st = !g ? '빈 칸' : g.water >= 2 ? dyeOf(g.color)[1] + ' 꽃' : g.water === 1 ? '새싹' : '씨앗', act = !g ? '심기' : g.water >= 2 ? '거두기' : g.wateredDay === dk ? '내일' : '물 주기';
+      var b = h('button', { type: 'button', class: 'bag-plot pressable' }, [h('span', { class: 'bag-pot' + (g ? ' st' + Math.min(2, g.water) : ''), 'aria-hidden': 'true' }), h('span', { class: 'bag-st', text: st }), h('span', { class: 'bag-act', text: act })]);
+      if (g && g.water >= 2) b.querySelector('.bag-pot').style.setProperty('--fl', dyeOf(g.color)[2]);
+      b.addEventListener('click', function () { gardenAct(i); });
+      plots.appendChild(b);
+    });
+    frag.appendChild(plots);
+    frag.appendChild(h('h3', { text: '옷 물들이기' }));
+    var have = DYES.filter(function (d) { return (u.dyes[d[0]] | 0) > 0; });
+    if (!have.length && !u.dye) frag.appendChild(h('p', { class: 'set-note', text: '염료가 아직 없어. 텃밭에서 꽃을 길러 거두면 생겨.' }));
+    var row = h('div', { class: 'filters', role: 'group', 'aria-label': '염료' });
+    have.forEach(function (d) { var b = h('button', { type: 'button', class: 'fchip', text: d[1] + ' ' + (u.dyes[d[0]] | 0) }); b.style.borderColor = d[2]; b.addEventListener('click', function () { dyeUse(d[0]); }); row.appendChild(b); });
+    if (u.dye) { var off = h('button', { type: 'button', class: 'fchip', text: '원래 색으로' }); off.addEventListener('click', function () { dyeUse(null); }); row.appendChild(off); }
+    frag.appendChild(row);
+    body.textContent = ''; body.appendChild(frag); renderBagChip();
+  }
+  function bagInit() {
+    userState(); renderBagChip(); applyDye();
+    var b = $('btn-bag'), sh = $('bag-sheet'); if (!b || !sh) return;
+    b.addEventListener('click', function () { renderBag(); showDialog(sh); });
+    $('bag-close').addEventListener('click', function () { sh.close(); });
+    sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
+    setTimeout(dailyGift, 2500);
+  }
   function boot() {
     var q = new URLSearchParams(location.search), slow = parseFloat(q.get('slow'));
     fillAssetImgs();
@@ -4173,7 +4251,7 @@ var APP = (function () {
     applyMotion(); applyFont(); initScene(); applyMotion();
     if (typeof scene.setPlace === 'function') scene.setPlace('attic', { instant: true });   /* 늘 다락에서 연다 (running 여행이 남아 있어도 — resumeRunning) */
     renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderShelf();
-    bind();
+    bind(); bagInit();   /* 살림: 조개 · 선물 · 텃밭 · 염료 */
     if (window.AUDIO) AUDIO.init({ hour: hourNow, weather: function () { return weatherFor(S.room.lantern); }, lantern: function () { return S.room.lantern; }, season: function () { return (scene && typeof scene.season === 'function') ? scene.season() : null; } });   /* 소리 (js/audio.js) — 꺼진 채로 시작 */
     if (!storeOK) quietWarn('이 브라우저에선 벽이 오늘만 남아');
     setDayGreeting();
@@ -4199,7 +4277,7 @@ var APP = (function () {
     posterSVG: posterSVG, receiptHTML: receiptHTML, inspectHTML: inspectHTML, openPoster: openPoster, openSettings: openSettings, openLook: openLook, openAlbum: openAlbum, openLog: openLog, dlgDemo: dlgDemo, goRoom: goRoom,
     importEvents: importEvents, exportJSON: exportJSON, importJSON: importJSON,
     oct: oct, walkTo: walkTo, octState: octState, anchors: ANCHORS, placeholders: PH, commitTrip: commitTrip,
-    get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPlayerPart: setPlayerPart, playerParts: playerParts, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor,
+    get scene() { return scene; }, get sceneMode() { return sceneMode; }, earnFromPlay: earnFromPlay, dailyGift: dailyGift, setOctColor: setOctColor, setPlayerPart: setPlayerPart, playerParts: playerParts, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor,
     portraitFor: portraitFor, say: say, get portraitCache() { return Object.keys(PORT.cache); },
     setSeason: setSeasonPref, get ceremony() { return cer.kind; },
     get room() { return inPlay() ? 'play' : null; }, openMachine: openMachine,   /* 8물결: 놀이방에 있는가 · 오락기 (테스트·도구) */
