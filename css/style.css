@@ -1559,7 +1559,7 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 .bag-tag::before { content: ''; position: absolute; inset: -8px -6px; }   /* 누르는 곳 44px */
 .bag-tag[hidden] { display: none; }
 :root[data-font="pixel"] .bag-tag { font-family: var(--f-meta); font-size: 16px; line-height: 20px; border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
-:root:not([data-layout="one"]) .bag-tag { position: static; margin: 6px 16px; }
+:root:not([data-layout="one"]) .bag-tag { position: relative; top: auto; right: auto; margin: 6px 16px; }   /* static 이면 누르는 곳(::before, absolute)이 #scene 전체를 덮어 2D 장면의 톡(문어 · 문)을 다 가로챘다 */
 html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 .bag-sheet .bag-line { margin: 8px 0 2px; font-weight: 700; color: var(--fg); }
 :root[data-font="pixel"] .bag-sheet .bag-line { font-family: var(--f-ui); font-size: 20px; line-height: 30px; }

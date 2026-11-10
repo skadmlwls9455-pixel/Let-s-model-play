@@ -2624,7 +2624,7 @@ async function scenarioWave8(browser) {
       inside: q.left >= sc.left - 0.5 && q.right <= sc.right + 0.5 && q.top >= sc.top - 0.5 && q.bottom <= sc.bottom + 0.5, ctl: q.left < ctl.right && q.right > ctl.left && q.top < ctl.bottom && q.bottom > ctl.top,
       door: ov('btn-door'), pdoor: ov('btn-play-door'), mach: ov('btn-machine'), note: ov('back-note'), edge: !document.getElementById('btn-door').hidden && document.getElementById('btn-door').dataset.spot === 'edge',
       text: st.textContent.replace(/\s+/g, ''), icon: !!ico && ico.complete && ico.naturalWidth > 0 && getComputedStyle(ico).display !== 'none', noImg: st.classList.contains('no-img'), aria: st.getAttribute('aria-hidden'),
-      pe: getComputedStyle(st).pointerEvents, ta: getComputedStyle(st).touchAction, api: typeof APP.scene.setPlayerInput === 'function', allowed: !!(sticks && sticks.allowed), view: APP.scene.view(), mode: APP.sceneMode };
+      pe: getComputedStyle(st).pointerEvents, ta: getComputedStyle(st).touchAction, zone: (function () { var z = document.getElementById('stick-zone'); if (!z) return null; var zr = z.getBoundingClientRect(), zs = getComputedStyle(z); return { hidden: z.hidden, aria: z.getAttribute('aria-hidden'), pe: zs.pointerEvents, ta: zs.touchAction, covers: zr.left <= q.left && zr.right >= q.right && zr.top <= q.top && zr.bottom >= q.bottom, text: z.textContent }; })(), api: typeof APP.scene.setPlayerInput === 'function', allowed: !!(sticks && sticks.allowed), view: APP.scene.view(), mode: APP.sceneMode };
   }); }
   /* 프레임마다: 스틱과 바깥의 집 단추(edge)가 같은 프레임에 둘 다 보이는 일이 없는지 · 보이는 장소별로 스틱이 보인 프레임 수 */
   function watchBoth() { return page.evaluate(function () { window.__both = { frames: 0, both: 0, byView: {} }; (function f() { var st = document.getElementById('stick'), d = document.getElementById('btn-door'), v = APP.scene.view(), b = window.__both, sv = !st.hidden, dv = !d.hidden && d.dataset.spot === 'edge'; b.frames++; if (sv && dv) b.both++; var k = b.byView[v] = b.byView[v] || { n: 0, stick: 0, edge: 0 }; k.n++; if (sv) k.stick++; if (dv) k.edge++; window.__bothRaf = requestAnimationFrame(f); })(); }); }
@@ -2645,7 +2645,10 @@ async function scenarioWave8(browser) {
 
   /* 1. 다락: 문 단추는 3D 문 위 (장면 안 · 44px 이상 · 그 자리가 장면이 투영한 문 상자) */
   var a0 = await spots(), sp0 = await page.evaluate(function () { return APP.scene.spotRect('atticPlay'); });
-  var S0 = await page.evaluate(function () { return localStorage.getItem('ppolppol_v2'); });
+  /* 살림(11-10): 저장의 user 칸(조개 · 씨앗 · 들어온 날 선물)은 놀이방에서 한 일로 바뀐다 (달리기 한 판 → 조개 · 부팅 2.5 s 뒤 오늘 선물) → 문어 쪽(user 를 뺀 나머지)이 한 바이트도 안 바뀌는지를 본다.
+     저장할 때마다 찍히는 시각 도장(settings.lastSeen)도 뺀다 — 조개를 적으며 save() 가 한 번 돌기 때문. 문어 · 방 · 산책 · 그 밖의 설정은 그대로여야 한다 */
+  function saveParts() { return page.evaluate(function () { var o = JSON.parse(localStorage.getItem('ppolppol_v2')), u = o.user || null; delete o.user; if (o.settings) delete o.settings.lastSeen; return { rest: JSON.stringify(o), user: u, keys: Object.keys(o).join() }; }); }
+  var SV0 = await saveParts(), S0 = SV0.rest;
   console.log('   attic:', JSON.stringify({ door: a0.door, sp: sp0 && sp0.art, view: a0.view, programs: a0.programs }));
   ok(a0.view === 'attic' && a0.door.label === '놀이방' && !a0.door.hidden && a0.door.spot === 'over' && a0.door.w >= 44 && a0.door.h >= 44 && a0.door.inside && !a0.door.ctl && !a0.door.popup, "다락: 놀이방 문 단추 = 3D 문 위 투명 단추 (aria-label '놀이방' · 44px 이상 · 장면 안 · 오른쪽 위 묶음과 안 겹침)");
   ok(!!sp0 && sp0.mode === 'over' && sp0.art.r - sp0.art.l >= 8 && sp0.art.b - sp0.art.t >= 30 && a0.pdoor.hidden && a0.mach.hidden, '3D 문이 화면에 보인다 (투영 상자 ' + (sp0 ? (sp0.art.r - sp0.art.l) + '×' + (sp0.art.b - sp0.art.t) : '-') + ' px) · 놀이방 단추는 숨음');
@@ -2657,7 +2660,9 @@ async function scenarioWave8(browser) {
   console.log('   stick(attic):', JSON.stringify(st0));
   var stickApi = st0.api;
   if (!stickApi) console.log('   (skip) 장면에 setPlayerInput 이 아직 없음 — 스틱 보임 · 끌기 · 키보드 검사는 건너뜀 (숨김 · 글자 검사만)');
-  ok(/^(걷기)?$/.test(st0.text) && st0.aria === 'true' && st0.pe === 'auto' && st0.ta === 'none', "스틱: 글자는 '걷기' 폴백뿐 (이모지 0) · aria-hidden · pointer-events auto · touch-action none " + JSON.stringify({ text: st0.text, icon: st0.icon, noImg: st0.noImg }));
+  /* 11-10 떠다니는 스틱: 손가락은 보이지 않는 구역(#stick-zone, 장면 왼쪽 아래)이 받고 #stick 은 그림만 (pointer-events none) */
+  ok(/^(걷기)?$/.test(st0.text) && st0.aria === 'true' && st0.pe === 'none' && !!st0.zone && st0.zone.aria === 'true' && st0.zone.text === '' && (!stickApi || (!st0.zone.hidden && st0.zone.pe === 'auto' && st0.zone.ta === 'none' && st0.zone.covers)),
+    "스틱: 글자는 '걷기' 폴백뿐 (이모지 0) · aria-hidden · 그림은 pointer-events none · 누르는 구역(#stick-zone)이 그림을 덮고 pointer-events auto · touch-action none " + JSON.stringify({ text: st0.text, icon: st0.icon, noImg: st0.noImg, zone: st0.zone }));
   if (stickApi) {
     ok(!st0.hidden && st0.allowed && st0.w >= 44 && st0.h >= 44 && st0.inside && !st0.ctl && !st0.door && !st0.edge && st0.left >= 8 && st0.bottom >= 8 && (st0.icon || st0.noImg), '다락: 스틱이 왼쪽 아래에 보인다 (' + st0.w + '×' + st0.h + ' · 장면 안 · 오른쪽 위 묶음 · 문 단추와 안 겹침 · 집 단추는 숨음 · 발자국 그림)');
     await page.evaluate(function () { window.__ev.length = 0; if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
@@ -2705,7 +2710,7 @@ async function scenarioWave8(browser) {
     await page.keyboard.down('ArrowDown'); await page.waitForTimeout(150);
     var kd = await page.evaluate(function () { return { s: APP.stick, w: APP.scene.player().walking, ae: document.activeElement && document.activeElement.id }; });
     await page.keyboard.up('ArrowDown'); await page.waitForTimeout(80);
-    ok(kf0 === 'btn-play-door' && kd.s.input && kd.s.input.y === -1 && kd.w && kd.ae === 'btn-play-door', '문으로 도착해 포커스가 문 단추에 있어도 방향키로 걷는다 (단추는 방향키를 안 쓴다) ' + JSON.stringify({ focus: kf0, input: kd.s.input, walking: kd.w }));
+    ok(kf0 === 'btn-play-door' && kd.s.input && kd.s.input.y === -1 && kd.w && kd.ae !== 'btn-play-door' && kd.ae !== 'btn-machine', '문으로 도착해 포커스가 문 단추에 있어도 방향키로 걷는다 · 걷기 키를 누르면 방 단추의 포커스를 놓는다 (11-10 — 포커스 링이 걷는 내내 켜져 있지 않게) ' + JSON.stringify({ focus: kf0, after: kd.ae, input: kd.s.input, walking: kd.w }));
     await page.keyboard.down('ArrowRight'); await page.waitForTimeout(60); await page.keyboard.down('Control'); await page.keyboard.up('ArrowRight'); await page.keyboard.up('Control'); await page.waitForTimeout(300);
     var km = await page.evaluate(function () { return { s: APP.stick, w: APP.scene.player().walking }; });
     ok(!km.s.keys.length && km.s.input === null && !km.w, '방향키를 누른 채 Ctrl 을 눌렀다 떼도 키가 남지 않는다 (keyup 은 수정키와 상관없이 지운다) ' + JSON.stringify(km));
@@ -2728,20 +2733,25 @@ async function scenarioWave8(browser) {
   await page.focus('#rn-cv'); await page.keyboard.press(' '); await page.waitForTimeout(600); await page.keyboard.press(' ');
   await page.waitForTimeout(400);
   await page.keyboard.press('Escape'); await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
-  var p2 = await spots(), S1 = await page.evaluate(function () { return { s: localStorage.getItem('ppolppol_v2'), r: !!localStorage.getItem('ppolppol_runner') }; });
+  var p2 = await spots(), SV1 = await saveParts(), S1 = { s: SV1.rest, r: await page.evaluate(function () { return !!localStorage.getItem('ppolppol_runner'); }) };
   ok(p2.focus === 'btn-machine' && p2.view === 'play' && !p2.mach.hidden, '달리기 창을 닫으면 포커스는 오락기 · 놀이방 그대로');
-  ok(S1.s === S0 && S1.r, '놀이방에서 한 일(문 · 오락기 · 달리기 한 판)은 문어 저장(ppolppol_v2)을 한 바이트도 바꾸지 않는다 (달리기는 제 열쇠만)');
+  ok(S1.s === S0 && S1.r && /octopus/.test(SV0.keys) && /room/.test(SV0.keys) && /trips/.test(SV0.keys) && /settings/.test(SV0.keys), '놀이방에서 한 일(문 · 오락기 · 달리기 한 판)은 문어 저장(ppolppol_v2 의 문어 · 방 · 산책 · 설정 — user 칸과 저장 시각 도장을 뺀 전부)을 한 바이트도 바꾸지 않는다 (달리기는 제 열쇠만)');
+  var sh0 = SV0.user ? SV0.user.shells | 0 : 0, sh1 = SV1.user ? SV1.user.shells | 0 : -1, ern = SV1.user && SV1.user.earned ? SV1.user.earned.length : 0;
+  ok(SV1.user && sh1 >= sh0 && sh1 - sh0 <= 8 + 13 && ern <= 1 && (ern === 0 || sh1 - sh0 >= 2), '살림: 바뀐 건 user 칸뿐 — 달리기 한 판이 기록됐으면 조개 2–8 (한 판 한 번) · 오늘 선물은 많아야 한 번 ' + JSON.stringify({ shells: [sh0, sh1], earned: ern, giftDay: SV1.user && SV1.user.giftDay }));
 
   /* 4. 키보드 왕복: Shift+Tab → 놀이방 문 · Enter → 다락 (포커스 다락 문) · Enter → 놀이방 (포커스 놀이방 문) · 셰이더 프로그램 수 그대로 */
-  await page.keyboard.press('Shift+Tab'); var kf = await page.evaluate(function () { return document.activeElement && document.activeElement.id; });
+  /* 오락기에서 Shift+Tab: 가방 칩(#btn-bag, 11-10 살림 — 문과 오락기 사이에 있다)을 지나 놀이방 문으로 */
+  var kfSeen = [], kf = '';
+  for (var kfi = 0; kfi < 2 && kf !== 'btn-play-door'; kfi++) { await page.keyboard.press('Shift+Tab'); kf = await page.evaluate(function () { return document.activeElement && document.activeElement.id; }); kfSeen.push(kf); }
+  console.log('   Shift+Tab:', kfSeen.join(' → '));
   await page.keyboard.press('Enter'); await inAttic();
   var k1 = await spots();
   await page.keyboard.press('Enter'); await inPlay();
   await page.keyboard.press('Enter'); await inAttic();
   var k2 = await spots();
-  ok(kf === 'btn-play-door' && k1.view === 'attic' && k1.focus === 'btn-door' && k2.focus === 'btn-door' && k1.oct, '키보드: Tab 으로 놀이방 문 · Enter 로 다락 (포커스는 다락 문) · Enter 로 다시 놀이방 · 다락에선 문어가 다시 보인다');
+  ok(kf === 'btn-play-door' && kfSeen.join() === 'btn-bag,btn-play-door' && k1.view === 'attic' && k1.focus === 'btn-door' && k2.focus === 'btn-door' && k1.oct, '키보드: Shift+Tab 으로 (가방 칩을 지나) 놀이방 문 · Enter 로 다락 (포커스는 다락 문) · Enter 로 다시 놀이방 · 다락에선 문어가 다시 보인다');
   ok(k2.programs === k1.programs && k1.programs === p1.programs, '셰이더 프로그램 수: 첫 방문 ' + p1.programs + ' → 왕복 뒤 ' + k1.programs + ' → 두 번째 왕복 뒤 ' + k2.programs);
-  ok((await page.evaluate(function () { return localStorage.getItem('ppolppol_v2'); })) === S0, '문 왕복 세 번 뒤에도 문어 저장 그대로');
+  ok((await saveParts()).rest === S0, '문 왕복 세 번 뒤에도 문어 저장 그대로 (user 칸을 뺀 전부)');
 
   /* 5. 놀이방에서 큰 버튼 (뽈뽈 다녀와): 먼저 문으로 다락 → 그다음 출발 (출발 의식은 다락에서 보인다) */
   await page.keyboard.press('Enter'); await inPlay();
@@ -2778,9 +2788,10 @@ async function scenarioWave8(browser) {
   if (stickApi) ok(!stN.hidden && !stN.note, '구석 쪽지가 떠 있어도 놀이방 스틱과 안 겹친다 (쪽지가 스틱 위로 올라간다) ' + JSON.stringify({ stick: { left: stN.left, bottom: stN.bottom }, overlap: stN.note }));
   await page.locator('#scene').screenshot({ path: path.join(SHOTS, 'w8-note.png') });
   var plans = await page.evaluate(function () { return window.__plans.slice(); });
-  var KEYS = 'by,dateKey,hint,id,name,online,seed,seq,state', SKEYS = ['affinity', 'lantern', 'lanternLeft', 'lastVisit', 'notes', 'owned', 'posters', 'recent', 'todayOut', 'visits'];
-  var pOk = plans.length >= 1 && plans.every(function (j) { var o = JSON.parse(j); return Object.keys(o).sort().join() === KEYS && Object.keys(o.state).every(function (k) { return SKEYS.indexOf(k) >= 0; }) && !/runner|play|놀이방|오락기|달리기/.test(j); });
-  ok(pOk, '두뇌 입력은 놀이방을 모른다 (알던 칸만 · 달리기 · 놀이방 낱말 0) — 두뇌 호출 ' + plans.length + '번');
+  /* 큰 도서관 (11-10): 입력에 '오늘의 서가' shelf (문서 제목 글자열 몇 개) 가 하나 더 있다 — 위키 문서 제목뿐, 놀이방 · 살림(조개) 은 여전히 모른다 */
+  var KEYS = 'by,dateKey,hint,id,name,online,seed,seq,shelf,state', SKEYS = ['affinity', 'lantern', 'lanternLeft', 'lastVisit', 'notes', 'owned', 'posters', 'recent', 'todayOut', 'visits'];
+  var pOk = plans.length >= 1 && plans.every(function (j) { var o = JSON.parse(j); return Object.keys(o).sort().join() === KEYS && Array.isArray(o.shelf) && o.shelf.length >= 1 && o.shelf.length <= 8 && o.shelf.every(function (t) { return typeof t === 'string' && !!t; }) && !/shells|seeds|조개|user/.test(j) && Object.keys(o.state).every(function (k) { return SKEYS.indexOf(k) >= 0; }) && !/runner|play|놀이방|오락기|달리기/.test(j); });
+  ok(pOk, '두뇌 입력은 놀이방 · 살림을 모른다 (알던 칸 + 오늘의 서가 제목 ≤ 8 · 달리기 · 놀이방 · 조개 낱말 0) — 두뇌 호출 ' + plans.length + '번');
   await page.click('#btn-back-see');
   await inAttic();
   await page.evaluate(function () { window.__inPlay = false; });
