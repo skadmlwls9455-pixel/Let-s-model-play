@@ -4,6 +4,7 @@
  * 장면 6장: 등불0 밤 · 등불4 낮 · 등불8 맑은 밤(별) · 쓰다듬기 · 외출(빈 방) · 다크 UI(전체 페이지).
  * 순도: 3d-lantern4-day.png 의 고유 색 수 ≤ 팔레트 + 6 (컨테이너 배경 + 오버레이 글자) — 넘으면 exit 1.
  *   순도는 장면 왼쪽 아래 발자국 손잡이(#stick, 11-08 — 주인 결정으로 가만히 있을 땐 반투명 .45 라 바닥 픽셀과 섞여 색이 는다)를 잠깐 숨긴 같은 장면으로 잰다 (임시 파일) · 증거 그림 자체는 손잡이가 보이는 실제 화면.
+ *   한 화면 배치 (11-10): 장면이 화면 전체고 이름 쪽지(#status) · 초대 줄(#invite) · 대사 자리(#dlg-host)가 그 위에 겹쳐 뜬다 → 순도 사본에선 이것들도 숨긴다 (증거 그림엔 그대로 보인다).
  * 콘솔/페이지 에러가 하나라도 있으면 exit 1. 드로우콜은 APP.scene.stats() 로 찍는다.
  */
 'use strict';
@@ -68,12 +69,13 @@ var WIKI_OK = { query: { pages: { '1': { pageid: 1, title: '모자', extract: '�
     await page.waitForTimeout(700);
     await page.locator('#scene').screenshot({ path: path.join(OUT, name) });
     console.log('  📷 ' + name + '  (hour ' + hour + ', ' + weather + ', lantern ' + lantern + (extra ? ', ' + extra : '') + ')');
-    if (purity) {   /* 순도용 사본: 반투명 발자국 손잡이만 숨기고 같은 장면 (3D 렌더의 팔레트만 본다) */
-      await page.evaluate(function () { var s = document.getElementById('stick'); if (s) s.style.visibility = 'hidden'; });
+    if (purity) {   /* 순도용 사본: 반투명 발자국 손잡이 + 장면 위에 겹쳐 뜨는 UI (한 화면 배치 11-10: 이름 쪽지 · 초대 줄 · 대사 자리 — 글자 가장자리가 색을 늘린다) 를 숨기고 같은 장면 (3D 렌더의 팔레트만 본다) */
+      await page.evaluate(function (sel) { [].forEach.call(document.querySelectorAll(sel), function (s) { s.style.visibility = 'hidden'; }); }, PURE_HIDE);
       await page.locator('#scene').screenshot({ path: purity });
-      await page.evaluate(function () { var s = document.getElementById('stick'); if (s) s.style.visibility = ''; });
+      await page.evaluate(function (sel) { [].forEach.call(document.querySelectorAll(sel), function (s) { s.style.visibility = ''; }); }, PURE_HIDE);
     }
   }
+  var PURE_HIDE = '#stick, #status, #invite, #dlg-host';
   var PURE = path.join(os.tmpdir(), 'ppol-evidence3d-' + process.pid), pureDay = path.join(PURE, 'day.png'), pureNight = path.join(PURE, 'night.png');
   fs.mkdirSync(PURE, { recursive: true });
   /* 포스터·기념품이 생기게 외출 두 번 (건너뛰기) */

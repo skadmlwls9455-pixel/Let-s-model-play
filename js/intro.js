@@ -2,7 +2,7 @@
  *
  * 따로 노는 타이틀 화면이 아니라, 진짜 게임 화면 위에 얹는 얇은 레이어다.
  *  1) 하늘: 장면 카메라가 구름층과 비를 지나 다락으로 내려온다 (SCENE3D.intro, 픽셀 격자 스냅). 장면 밖은 장면 허공색으로 덮어 한 화면처럼 이어진다.
- *  2) 타이틀: 방이 거의 착지할 즈음 "뽈뽈 문어" 로고가 장면 아래 가장자리에 걸쳐 슥 올라온다 (아트 1px 단위 스텝). 빛 알갱이가 깜빡이고, 다 올라오면 반짝 한 번.
+ *  2) 타이틀: 방이 거의 착지할 즈음 "뽈뽈 문어" 로고가 장면 아래 가장자리에 걸쳐 (한 화면 배치에선 방 아래 빈 띠에) 슥 올라온다 (아트 1px 단위 스텝). 빛 알갱이가 깜빡이고, 다 올라오면 반짝 한 번.
  *  3) 누르면: 로고가 살짝 눌렸다가 위로 빠지고, 덮개가 걷히고, 아래 UI 가 차례로 올라온다 → 바로 게임. 첫 실행이면 그다음 이름 짓기.
  * 하늘 단계에서 누르면 바로 착지 + 바로 게임 (기다리게 하지 않는다). Enter · Space · Esc 도 같다.
  *
@@ -73,14 +73,18 @@ var INTRO = (function () {
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); go(); }
   }
 
-  /* 장면 사각형에 구멍 · 로고(장면 아래 가장자리에 걸침) · 안내 글자를 맞춘다. 배율은 정수 (1~3) */
+  /* 장면 사각형에 구멍 · 로고(장면 아래 가장자리에 걸침) · 안내 글자를 맞춘다. 배율은 정수 (1~3).
+     한 화면 배치(html[data-layout="one"], 장면 = 화면 전체)에선 아래 가장자리가 화면 끝이라 걸칠 데가 없다 → 방 아래 빈 띠(장면 높이의 68 %)에 로고를 두고,
+     안내 글자까지 화면 안에 들어오게 위로 당긴다. 가로로 눕힌 낮은 화면에선 로고가 높이의 26 % 를 넘지 않게 배율을 낮춘다 */
   function layout() {
     if (!st.el || !st.host) return;
-    var r = st.host.getBoundingClientRect(), vw = window.innerWidth;
+    var r = st.host.getBoundingClientRect(), vw = window.innerWidth, one = root.getAttribute('data-layout') === 'one';
     var s = Math.max(1, Math.min(3, Math.floor((Math.min(r.width, vw) - 32) / LOGO.w)));
+    if (one) s = Math.max(1, Math.min(s, Math.floor(r.height * 0.26 / LOGO.h)));
     st.s = s; st.el.style.setProperty('--s', s);
     var hs = st.hole.style; hs.left = Math.round(r.left) + 'px'; hs.top = Math.round(r.top) + 'px'; hs.width = Math.round(r.width) + 'px'; hs.height = Math.round(r.height) + 'px';
-    var lw = LOGO.w * s, lh = LOGO.h * s, left = Math.round(r.left + (r.width - lw) / 2), top = Math.round(r.bottom - lh * 0.62);
+    var lw = LOGO.w * s, lh = LOGO.h * s, left = Math.round(r.left + (r.width - lw) / 2);
+    var top = one ? Math.round(Math.min(r.top + r.height * 0.68, r.bottom - lh - 24 * s - 16)) : Math.round(r.bottom - lh * 0.62);   /* 24 × 배율 = 안내 글자까지 (틈 14 + 글자 10) */
     var ts = st.title.style; ts.left = left + 'px'; ts.top = top + 'px'; ts.width = lw + 'px'; ts.height = lh + 'px';
     st.logo.width = lw; st.logo.height = lh;
     st.lift.querySelectorAll('.intro-mote').forEach(function (d) { d.style.left = (+d.dataset.x * s) + 'px'; d.style.top = (+d.dataset.y * s) + 'px'; });

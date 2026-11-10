@@ -10,6 +10,7 @@ html.intro-on:not(.intro-live) #scene { visibility: hidden; }
 
 /* ── 연출 동안: 아래 UI 는 숨겨 두었다가(아래로 12px), 들어갈 때 차례로 올라온다 ── */
 html.intro-on, html.intro-on body { overflow: hidden; }
+html.intro-on #dlg-host { visibility: hidden; }   /* 한 화면 배치의 대사 상자: 입장 동안엔 없다 (상태 줄 · 큰 버튼은 아래 목록이 내려놓는다) */
 html.intro-on :is(#status, #invite, #log-sec, #album-sec, #demo, .foot) { opacity: 0; transform: translateY(12px); }
 :root.intro-reveal body, :root.intro-reveal[data-font] body { transition: background-color calc(420ms * var(--speed)) linear; }
 html.intro-reveal :is(#status, #invite, #log-sec, #album-sec, #demo, .foot) {

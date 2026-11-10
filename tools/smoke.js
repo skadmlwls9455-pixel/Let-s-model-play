@@ -194,7 +194,8 @@ async function scenarioMain(browser) {
   await page.waitForSelector('#btn-go.away', { timeout: 10000 });
   ok((await page.textContent('#btn-go')).indexOf('다녀오는 중') >= 0, '나가 있는 동안 버튼 라벨');
   ok(await page.evaluate(function () { return APP.state.trips.length === 1 && APP.state.trips[0].status === 'running'; }), 'running 여행이 저장됨');
-  await page.waitForSelector('#log .lrow.typing, #log .lrow.c-amber', { timeout: 10000 });
+  /* 한 화면 배치 (주인 11-08): 3D 에선 기록(#log)이 닫힌 '오늘 기록' 시트 안에 있어 눈에 안 보인다 — 줄이 '생겼는지'(attached)만 기다린다. 2D 폴백에선 예전처럼 보이는 자리 */
+  await page.waitForSelector('#log .lrow.typing, #log .lrow.c-amber', { state: 'attached', timeout: 10000 });
   await page.waitForTimeout(1200);
   await page.click('#btn-go');   /* 큰 버튼 = 바로 데려오기 (0.6 s 지난 뒤) */
   await waitIdle(page);
@@ -1106,8 +1107,10 @@ async function scenarioAlbumIcon(browser) {
   await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   var b0 = await page.evaluate(function () { var b = document.getElementById('btn-album'); return { hidden: b.hidden, inCtl: !!b.closest('#scene #scene-ctl'), sound: !!document.querySelector('#btn-sound, .sound-btn'), gear: !!document.getElementById('btn-settings').closest('#scene-ctl'),
-    order: [].map.call(document.querySelectorAll('#scene-ctl .icon-btn'), function (x) { return x.id; }).join(','), statusIcons: document.querySelectorAll('#status #btn-album, #status #btn-settings, #status .icon-btn').length }; });
-  ok(b0.hidden && b0.inCtl && !b0.sound && b0.gear && b0.order === 'btn-album,btn-settings' && b0.statusIcons === 0, '첫 포스터 전엔 앨범 아이콘 숨김 · 앨범 · ⚙ = 장면 오른쪽 위 묶음 (소리는 설정 안, 11-08) · 상태 줄엔 아이콘 없음 ' + JSON.stringify(b0));
+    order: [].map.call(document.querySelectorAll('#scene-ctl .icon-btn'), function (x) { return x.id; }).join(','), statusIcons: document.querySelectorAll('#status #btn-album, #status #btn-settings, #status .icon-btn').length,
+    one: document.documentElement.getAttribute('data-layout') === 'one', today: !document.getElementById('btn-today').hidden }; });
+  /* 한 화면 배치 (주인 11-08 · 3D): 묶음 맨 앞에 '오늘의 산책' 쪽지 단추가 하나 더 있다 (2D 폴백에선 숨는다 — 목록이 페이지에 그대로 있으므로) */
+  ok(b0.hidden && b0.inCtl && !b0.sound && b0.gear && b0.order === 'btn-today,btn-album,btn-settings' && b0.today === b0.one && b0.statusIcons === 0, '첫 포스터 전엔 앨범 아이콘 숨김 · [오늘의 산책 (한 화면 배치만 보임)] 앨범 · ⚙ = 장면 오른쪽 위 묶음 (소리는 설정 안, 11-08) · 상태 줄엔 아이콘 없음 ' + JSON.stringify(b0));
   var rs = await page.evaluate(function () { APP.openSettings(); var t = document.getElementById('set-body').textContent; document.getElementById('settings-sheet').close(); return t; });
   ok(/누가 고르나/.test(rs) && /모델이 아니라 미리 만든 규칙이 골라/.test(rs) && /고른 이는 포스터와 쪽지 뒷면/.test(rs) && !/MCP/.test(rs), "설정 '누가 고르나' 한 줄: 규칙이 고른다 · 고른 이는 포스터·쪽지 뒷면 (MCP 같은 말 없이 — 이름 창과 같다)");
   /* 날아가는 포스터 관찰: #scene 에 붙었다 떨어지는 .album-fly, 붙는 순간의 애니메이션 길이·칸 위치 */
@@ -1134,9 +1137,17 @@ async function scenarioAlbumIcon(browser) {
   /* 장면 말풍선은 아이콘 묶음의 보이는 상자와 겹치면 그 왼쪽으로 비켜 선다 (UIART.avoidCtl — 3D keepInside · 2D keepBubble2D 공용) */
   var av = await page.evaluate(function () {
     var q = document.querySelector('#scene-ctl #btn-album .snd-box').getBoundingClientRect(), L = Math.min.apply(null, [].map.call(document.querySelectorAll('#scene-ctl .icon-btn:not([hidden]) .snd-box'), function (x) { return x.getBoundingClientRect().left; }));
-    return { over: UIART.avoidCtl({ left: L - 100, right: L + 10, top: q.top + 2, bottom: q.bottom + 40 }, 4), below: UIART.avoidCtl({ left: L - 100, right: L + 10, top: q.bottom + 1, bottom: q.bottom + 60 }, 4), clear: UIART.avoidCtl({ left: L - 120, right: L - 5, top: q.top, bottom: q.bottom }, 4) };
+    var o = { one: document.documentElement.getAttribute('data-layout') === 'one', over: UIART.avoidCtl({ left: L - 100, right: L + 10, top: q.top + 2, bottom: q.bottom + 40 }, 4), below: UIART.avoidCtl({ left: L - 100, right: L + 10, top: q.bottom + 1, bottom: q.bottom + 60 }, 4), clear: UIART.avoidCtl({ left: L - 120, right: L - 5, top: q.top, bottom: q.bottom }, 4) };
+    if (o.one) {   /* 위 띠 = 상태 줄 + 아이콘 묶음. 풍선이 어느 상자와 옆으로 겹치면 그 상자 밑 + 4px 가 위 한계, 둘 사이 틈에 다 들어가면 0 */
+      var st = document.getElementById('status').getBoundingClientRect();
+      o.band = UIART.topBand({ left: L - 100, right: L + 10 }, 4) - (q.bottom + 4); o.bandSt = UIART.topBand({ left: st.left + 10, right: st.left + 60 }, 4) - (st.bottom + 4);
+      o.gapW = Math.round(L - st.right); o.gap = o.gapW > 12 ? UIART.topBand({ left: st.right + 5, right: L - 5 }, 4) : 0;
+    }
+    return o;
   });
-  ok(Math.round(av.over) === -14 && av.below === 0 && av.clear === 0, '말풍선 ↔ 아이콘 묶음: 겹치면 상자 왼쪽 4px 까지 비킴 · 안 겹치면 그대로 ' + JSON.stringify(av));
+  /* 한 화면 배치: 옆으로 비킬 틈이 없어 (왼쪽엔 상태 줄) 묶음은 옆 비킴 무리에서 빠지고, 위 띠를 아래로 비킨다 (UIART.topBand). 2D 폴백은 예전처럼 왼쪽으로 */
+  if (av.one) ok(av.over === 0 && av.below === 0 && av.clear === 0 && Math.abs(av.band) < 0.5 && Math.abs(av.bandSt) < 0.5 && av.gap === 0, '말풍선 ↔ 위 띠 (한 화면 배치): 옆으로 안 밀고 · 겹치는 상자 밑 4px 가 위 한계 · 상태 줄과 묶음 사이 틈(' + av.gapW + 'px)에선 그대로 ' + JSON.stringify(av));
+  else ok(Math.round(av.over) === -14 && av.below === 0 && av.clear === 0, '말풍선 ↔ 아이콘 묶음: 겹치면 상자 왼쪽 4px 까지 비킴 · 안 겹치면 그대로 ' + JSON.stringify(av));
   /* 새 플레이어의 첫 새로고침: 앨범을 안 열었으면 점은 그대로 — 첫 저장부터 settings.albumSeen 0 이 적혀 있어 '옛 기록'으로 오인해 본 것으로 치지 않는다 */
   var sv0 = await page.evaluate(function () { var o = JSON.parse(localStorage.getItem('ppolppol_v2') || '{}'); return o.settings && 'albumSeen' in o.settings ? o.settings.albumSeen : 'none'; });
   await page.reload(); await page.waitForSelector('#btn-go:not(.away)'); await page.waitForTimeout(300);
@@ -1555,11 +1566,26 @@ async function scenarioWave7(browser) {
   await page.evaluate(function () { var st = document.createElement('style'); st.id = 'smoke-ovl'; st.textContent = '#btn-settings { margin-right: 120px !important; }'; document.head.appendChild(st); APP.say('여기 창문 너머로 빗소리가 들려. 오늘은 어디 갈까 생각 중이야', 'happy', 1600); });
   await page.waitForTimeout(700);
   var yf = await ctlOps();
-  ok(yf.some(function (x) { return x.id === 'btn-settings' && x.over && x.op === 0 && x.pe === 'none'; }) && yf.every(function (x) { return x.over ? x.op === 0 && x.pe === 'none' : x.op === 1; }), '못 비켜 서면 겹친 버튼만 말풍선이 보이는 동안 숨는다 (⚙ 를 안쪽으로 민 시험) ' + JSON.stringify(yf));
+  var yOne = await page.evaluate(function () { return document.documentElement.getAttribute('data-layout') === 'one'; });
+  /* 한 화면 배치 (11-10): 말풍선은 옆이 아니라 **위 띠 아래로** 비킨다 (js/ui-art.js topBand — 띠의 상자가 어디 있든 그 밑) → ⚙ 를 안쪽으로 밀어도 안 겹치고 아무것도 안 숨는다.
+     숨기기 길(.yield)은 이 배치에선 놀이방 문에만 남으므로, 규칙 자체는 아래에서 ctlYield 를 바로 불러 본다 */
+  if (yOne) ok(yf.every(function (x) { return !x.over && x.op === 1; }), '한 화면 배치: ⚙ 를 안쪽으로 밀어도 말풍선이 띠 아래로 비켜 서서 아무 버튼과도 안 겹침 · 아무것도 안 숨음 ' + JSON.stringify(yf));
+  else ok(yf.some(function (x) { return x.id === 'btn-settings' && x.over && x.op === 0 && x.pe === 'none'; }) && yf.every(function (x) { return x.over ? x.op === 0 && x.pe === 'none' : x.op === 1; }), '못 비켜 서면 겹친 버튼만 말풍선이 보이는 동안 숨는다 (⚙ 를 안쪽으로 민 시험) ' + JSON.stringify(yf));
   await page.waitForFunction(function () { return document.getElementById('oct-bubble').hidden; }, null, { timeout: 8000 }).catch(function () {});
   await page.evaluate(function () { var st = document.getElementById('smoke-ovl'); if (st) st.remove(); });
   await page.waitForFunction(function () { return !document.querySelector('.yield'); }, null, { timeout: 3000 }).catch(function () {});
   ok(!(await page.$('.yield')), '그 말풍선이 사라지면 ⚙ 도 돌아온다');
+  if (yOne) {
+    /* 숨기기 규칙 자체 (말풍선이 없을 때 직접): ⚙ 상자와 겹치는 풍선 상자를 주면 ⚙ 만 숨고(투명 · 탭 통과), false 를 주면 돌아온다 */
+    await page.evaluate(function () { var q = document.querySelector('#btn-settings .snd-box').getBoundingClientRect(); UIART.ctlYield({ left: q.left - 30, right: q.left + 6, top: q.top + 4, bottom: q.bottom + 30 }); });
+    await page.waitForTimeout(450);
+    var yd = await ctlOps(), ydCls = await page.evaluate(function () { return [].map.call(document.querySelectorAll('.yield'), function (x) { return x.id; }).join(','); });
+    await page.evaluate(function () { UIART.ctlYield(false); });
+    await page.waitForFunction(function () { return +getComputedStyle(document.getElementById('btn-settings')).opacity === 1; }, null, { timeout: 3000 }).catch(function () {});
+    var ye = await ctlOps();
+    ok(ydCls === 'btn-settings' && yd.every(function (x) { return x.id === 'btn-settings' ? x.op === 0 && x.pe === 'none' : x.op === 1; }) && ye.every(function (x) { return x.op === 1; }) && !(await page.$('.yield')),
+      '숨기기 규칙 (ctlYield 직접): 겹친 ⚙ 만 투명 · 탭 통과, 나머지는 그대로 · 풀면 돌아옴 ' + JSON.stringify({ cls: ydCls, on: yd.map(function (x) { return x.id + ':' + x.op + ':' + x.pe; }), off: ye.map(function (x) { return x.id + ':' + x.op; }) }));
+  }
   await page.evaluate(function () { return Promise.race([APP.walkTo('center'), new Promise(function (r) { setTimeout(r, 6000); })]); });
 
   /* 2. ⚙ 설정 시트: 문어 색 · 소리(js/audio.js) · 화면 · 기록 · 누가 고르나 (플레이어에겐 팔레트 없음) */
@@ -1834,7 +1860,8 @@ async function scenarioWave7(browser) {
   var sn0 = await sndNow();
   sn0.axName = await page.getByRole('checkbox', { name: '소리 켜기', exact: true }).count();   /* 화면 낭독기 이름 = 칸 제목 '소리' + 글자 '켜기' (aria-labelledby) */
   console.log('   sound:', JSON.stringify(sn0));
-  ok(!sn0.speaker && sn0.ctl === 'btn-album,btn-settings', '장면 오른쪽 위 묶음에 소리 단추 없음 (앨범 · 설정뿐) — ' + sn0.ctl);
+  /* 한 화면 배치 (11-10)엔 맨 앞에 '오늘의 산책' 쪽지 단추가 하나 더 있다 (2D 폴백엔 없다 — 목록이 페이지에 그대로 보여서) */
+  ok(!sn0.speaker && (sn0.ctl === 'btn-album,btn-settings' || (yOne && sn0.ctl === 'btn-today,btn-album,btn-settings')), '장면 오른쪽 위 묶음에 소리 단추 없음 (' + (yOne ? '오늘의 산책 · ' : '') + '앨범 · 설정뿐) — ' + sn0.ctl);
   ok(sn0.has && sn0.type === 'checkbox' && sn0.name === '켜기' && sn0.axName === 1 && sn0.cls === 'set' && sn0.first && sn0.focusable && sn0.h >= 44, "설정 › 소리 맨 위 '켜기' 체크 칸 ('소리 / 소리' 겹침 없이 · 낭독 이름 '소리 켜기' · 음악 · 효과음 위 · 다른 켜고 끄기 줄과 같은 모양 · Tab 으로 감 · 줄 높이 " + sn0.h + 'px)');
   ok(sn0.avail && sn0.checked === false && sn0.en === false && sn0.note === '', '처음엔 빈 칸 = 꺼짐 (AUDIO 와 같음) · 보통 때 안내 줄 없음');
   await page.click('#set-sound');
@@ -1875,11 +1902,14 @@ async function scenarioWave7(browser) {
 
   /* 3. 등불 · 데모를 누르면 작은 말풍선 (2.5 s · 다시 누르면 닫힘 · polite · 모션 줄이기면 그냥) · 폰 폭에선 첫 줄 = 방 제목 (상태 줄에서 숨긴 것)
         말풍선은 큰 버튼 위에 겹친다 → 말풍선을 누르면 말풍선만 닫히고 산책은 나가지 않는다 · 가로에서 띄운 뒤 세로로 돌려도 옆으로 밀리지 않는다 */
-  function tipNow() { return page.evaluate(function () { var t = document.getElementById('tip'), r = t.getBoundingClientRect(), p = document.getElementById('pips').getBoundingClientRect(); return { text: t.textContent, head: (t.querySelector('.tip-head') || {}).textContent || '', line: (t.querySelector('.tip-line') || {}).textContent || '', room: document.getElementById('room-title').textContent, show: t.classList.contains('show'), role: t.getAttribute('role'), live: t.getAttribute('aria-live'), left: r.left, right: r.right, top: r.top, pb: p.bottom, vw: innerWidth, docW: document.documentElement.scrollWidth, exp: document.getElementById('pips').getAttribute('aria-expanded') }; }); }
+  function tipNow() { return page.evaluate(function () { var t = document.getElementById('tip'), r = t.getBoundingClientRect(), p = document.getElementById('pips').getBoundingClientRect(); return { text: t.textContent, head: (t.querySelector('.tip-head') || {}).textContent || '', line: (t.querySelector('.tip-line') || {}).textContent || '', room: document.getElementById('room-title').textContent, show: t.classList.contains('show'), role: t.getAttribute('role'), live: t.getAttribute('aria-live'), left: r.left, right: r.right, top: r.top, pb: p.bottom, vw: innerWidth, docW: document.documentElement.scrollWidth, exp: document.getElementById('pips').getAttribute('aria-expanded'), pl: document.getElementById('pips').getAttribute('aria-label'), numOff: getComputedStyle(document.querySelector('#pips .pips-n')).display === 'none' }; }); }
   await page.click('#pips'); await page.waitForTimeout(300);
   var t1 = await tipNow();
   console.log('   tip:', JSON.stringify(t1));
-  ok(t1.line === '초대한 날마다 한 칸 켜져' && t1.head === t1.room && t1.room.length > 0 && t1.show && t1.role === 'status' && t1.live === 'polite' && t1.exp === 'true', "등불 누름 → 말풍선 '" + t1.head + "' / '초대한 날마다 한 칸 켜져' (360 px: 첫 줄 방 제목 · role=status · polite)");
+  /* 한 화면 배치 (11-10)는 폭 ≤ 419 에서 쪽지의 등불 숫자(n/8)도 숨긴다 → 숨긴 것은 설명 머리에 그대로 붙는다: '방 제목 · 등불 n/8' (app.js pipsHead) */
+  var t1Head = t1.numOff ? t1.room + ' · ' + t1.pl : t1.room;
+  ok(yOne === t1.numOff, '등불 숫자: 한 화면 배치 360 px 에선 쪽지에서 숨김 · 2D 폴백에선 보임 (' + JSON.stringify({ one: yOne, numOff: t1.numOff }) + ')');
+  ok(t1.line === '초대한 날마다 한 칸 켜져' && t1.head === t1Head && t1.room.length > 0 && /^등불 \d\/8$/.test(t1.pl) && t1.show && t1.role === 'status' && t1.live === 'polite' && t1.exp === 'true', "등불 누름 → 말풍선 '" + t1.head + "' / '초대한 날마다 한 칸 켜져' (360 px: 첫 줄 = 쪽지에서 숨긴 것 — 방 제목" + (t1.numOff ? ' · 등불 수' : '') + ' · role=status · polite)');
   ok(t1.left >= 15.5 && t1.right <= t1.vw - 15.5 && t1.top >= t1.pb - 0.5 && t1.docW <= t1.vw, '말풍선은 등불 아래 · 화면 안 16px 여백 · 가로 스크롤 없음');
   /* 다시 누르기는 페이지 안 한 틱에서 (느린 기계에서 page.click 이 2.5 s 를 넘겨 저절로 닫힌 뒤 다시 여는 일이 없게) */
   var t2 = await page.evaluate(function () { var t = document.getElementById('tip'), was = t.classList.contains('show'); document.getElementById('pips').click(); return { was: was, show: t.classList.contains('show'), text: t.textContent, exp: document.getElementById('pips').getAttribute('aria-expanded') }; });
@@ -1889,10 +1919,12 @@ async function scenarioWave7(browser) {
   ok(auto.at2 === true && auto.ms >= 2450 && auto.ms < 4500, '2.5 s 뒤 저절로 닫힘 (2 s 에는 아직 보임 · ' + auto.ms + ' ms)');
   /* 말풍선 자체를 누르면: 말풍선만 닫히고 아래 큰 버튼은 눌리지 않는다 (산책 안 나감) */
   await page.click('#pips'); await page.waitForTimeout(200);
-  var tq = await page.evaluate(function () { var r = document.getElementById('tip').getBoundingClientRect(), g = document.getElementById('btn-go').getBoundingClientRect(), x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2); return { x: x, y: y, overGo: r.bottom > g.top && r.top < g.bottom, n: APP.state.trips.length }; });
+  var tq = await page.evaluate(function () { var r = document.getElementById('tip').getBoundingClientRect(), g = document.getElementById('btn-go').getBoundingClientRect(), x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2), e = document.elementFromPoint(x, y); return { x: x, y: y, overGo: r.bottom > g.top && r.top < g.bottom, onTip: !!(e && e.closest('#tip')), overScene: !!document.getElementById('tip').closest('#scene'), n: APP.state.trips.length }; });
   await page.mouse.click(tq.x, tq.y); await page.waitForTimeout(300);
   var tq2 = await page.evaluate(function () { return { n: APP.state.trips.length, away: document.getElementById('btn-go').classList.contains('away'), show: document.getElementById('tip').classList.contains('show') }; });
-  ok(tq.overGo && tq2.n === tq.n && !tq2.away && !tq2.show, '큰 버튼 위에 겹친 말풍선을 누르면 말풍선만 닫힘 (산책 안 나감) ' + JSON.stringify({ overGo: tq.overGo, trips: tq.n + '→' + tq2.n, away: tq2.away }));
+  /* 한 화면 배치 (11-10): 말풍선은 위 쪽지 아래(장면 위)에 뜨고 큰 버튼은 맨 아래라 서로 안 겹친다 → 누름을 말풍선이 받는지 · 그 밑(장면)으로 새지 않는지만 본다 */
+  if (yOne) ok(!tq.overGo && tq.onTip && tq.overScene && tq2.n === tq.n && !tq2.away && !tq2.show, '한 화면 배치: 말풍선은 큰 버튼과 안 겹침 · 말풍선을 누르면 말풍선만 닫힘 (산책 안 나감) ' + JSON.stringify({ overGo: tq.overGo, onTip: tq.onTip, trips: tq.n + '→' + tq2.n, away: tq2.away }));
+  else ok(tq.overGo && tq2.n === tq.n && !tq2.away && !tq2.show, '큰 버튼 위에 겹친 말풍선을 누르면 말풍선만 닫힘 (산책 안 나감) ' + JSON.stringify({ overGo: tq.overGo, trips: tq.n + '→' + tq2.n, away: tq2.away }));
   /* 가로(740)에서 띄운 말풍선: 열린 채 세로로 돌리면 닫히고, 저절로 닫힌 뒤 돌려도 빈 말풍선이 화면 밖에 남지 않는다 */
   await page.setViewportSize({ width: 740, height: 360 }); await page.waitForTimeout(150);
   await page.click('#pips'); await page.waitForTimeout(150);
@@ -1915,7 +1947,7 @@ async function scenarioWave7(browser) {
   await page.click('#pips');
   var rm = await page.evaluate(function () { var cs = getComputedStyle(document.getElementById('tip')); return { op: cs.opacity, dur: cs.transitionDuration, tf: cs.transform }; });
   ok(rm.op === '1' && /^0s(, 0s)*$/.test(rm.dur) && rm.tf === 'none', '모션 줄이기: 말풍선이 움직임 없이 바로 ' + JSON.stringify(rm));
-  await page.screenshot({ path: path.join(SHOTS, 'lantern-tip.png'), clip: { x: 0, y: 200, width: 360, height: 220 } });
+  await page.screenshot({ path: path.join(SHOTS, 'lantern-tip.png'), clip: { x: 0, y: yOne ? 0 : 200, width: 360, height: 220 } });   /* 한 화면 배치: 쪽지 · 말풍선이 장면 맨 위 */
   await page.mouse.click(180, 600); await page.emulateMedia({ reducedMotion: 'no-preference' });
 
   /* 4. 큰 버튼 건너뛰기: 나가 있는 동안 "다녀오는 중…" 글자만 (꺼지지 않음 · 44px · 기호 없음 — 주인 11-07) · 바로 한 번 더 톡은 무시 · 0.6 s 뒤(.can-skip) 누르면 바로 데려옴 */
@@ -2164,11 +2196,16 @@ async function scenarioWave8(browser) {
     await page.keyboard.down('ArrowRight'); await page.waitForTimeout(60); await page.keyboard.down('Control'); await page.keyboard.up('ArrowRight'); await page.keyboard.up('Control'); await page.waitForTimeout(300);
     var km = await page.evaluate(function () { return { s: APP.stick, w: APP.scene.player().walking }; });
     ok(!km.s.keys.length && km.s.input === null && !km.w, '방향키를 누른 채 Ctrl 을 눌렀다 떼도 키가 남지 않는다 (keyup 은 수정키와 상관없이 지운다) ' + JSON.stringify(km));
+    /* 한 화면 배치 (11-10): 로그는 '오늘의 산책' 쪽지 시트 안에 있다 — 닫힌 시트 안의 #log 는 포커스를 못 받으므로 시트를 열고 본다 (2D 폴백은 페이지에 그대로 있다) */
+    var klOne = await page.evaluate(function () { var one = document.documentElement.getAttribute('data-layout') === 'one'; if (one) APP.openLog(); return one; });
+    if (klOne) await page.waitForSelector('#log-sheet[open]');
     await page.evaluate(function () { document.getElementById('log').focus(); });
+    var klAe = await page.evaluate(function () { return document.activeElement && document.activeElement.id; });
     await page.keyboard.down('ArrowDown'); await page.waitForTimeout(80);
     var kl = await page.evaluate(function () { return APP.stick; });
     await page.keyboard.up('ArrowDown');
-    ok(kl.input === null && !kl.keys.length, '로그(#log)에 포커스가 있으면 방향키는 스틱 입력이 아니다 (로그 굴리기)');
+    ok(klAe === 'log' && kl.input === null && !kl.keys.length, '로그(#log)에 포커스가 있으면 방향키는 스틱 입력이 아니다 (로그 굴리기' + (klOne ? ' · 오늘의 산책 쪽지 안' : '') + ') — 포커스 ' + klAe);
+    if (klOne) { await page.evaluate(function () { document.getElementById('log-sheet').close(); }); await page.waitForFunction(function () { return !document.querySelector('dialog[open]'); }); }
     await page.evaluate(function () { var d = document.getElementById('btn-play-door'); if (d) d.focus({ preventScroll: true }); APP.scene.debugPlayerAt(0.15, 0.45); });   /* 원래 흐름으로 (포커스 = 놀이방 문 · 쉬는 자리) */
   }
   await page.locator('#scene').screenshot({ path: path.join(SHOTS, 'w8-play.png') });

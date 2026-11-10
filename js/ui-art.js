@@ -128,9 +128,18 @@ var UIART = (function () {
     [].forEach.call(sel ? host.querySelectorAll(sel) : [host], function (x) { var q = x.getBoundingClientRect(); if (!q.width) return; L = Math.min(L, q.left); R = Math.max(R, q.right); T = Math.min(T, q.top); B = Math.max(B, q.bottom); });
     return L === Infinity ? null : { L: L, R: R, T: T, B: B };
   }
+  function layoutOne() { return document.documentElement.getAttribute('data-layout') === 'one'; }
   function ctlGroups() {
     var door = $('btn-door'), stick = $('stick');   /* 왼쪽 아래 발자국 손잡이(11-08)도 왼쪽 무리 — 보일 때만 (바깥의 집 단추와는 같은 자리 · 배타적) */
-    return [boxesOf($('scene-ctl'), '.icon-btn:not([hidden]) .snd-box'), door && !door.hidden ? boxesOf(door, '.door-box') : null, stick && !stick.hidden ? boxesOf(stick) : null].filter(Boolean);
+    return [layoutOne() ? null : boxesOf($('scene-ctl'), '.icon-btn:not([hidden]) .snd-box'), door && !door.hidden ? boxesOf(door, '.door-box') : null, stick && !stick.hidden ? boxesOf(stick) : null].filter(Boolean);
+  }
+  /* 한 화면 배치 (주인 11-08): 장면 위에 왼쪽 상태 줄 · 오른쪽 아이콘이 한 띠로 얹혀 옆으로 비킬 틈이 없다 (360 폭에서 둘 사이 89px < 풍선 최소 96px).
+     그래서 옆이 아니라 아래로 — 풍선이 띠의 어느 상자와 옆으로 겹치면 그 상자 밑(+pad)이 풍선의 위 한계. 안 겹치면 0 (장면 위 가장자리 규칙 그대로) */
+  function topBand(r, pad) {
+    if (!layoutOne()) return 0;
+    var y = 0;
+    [boxesOf($('status')), boxesOf($('scene-ctl'), '.icon-btn:not([hidden]) .snd-box')].forEach(function (g) { if (g && r.left < g.R + pad && r.right > g.L - pad) y = Math.max(y, g.B + pad); });
+    return y;
   }
   function avoidCtl(r, pad) {
     if (!r) return 0;
@@ -159,7 +168,8 @@ var UIART = (function () {
   /* 풍선이 장면(#scene) 밖으로 잘리지 않게 (11-08 — 장면 칸은 overflow:hidden 이라 삐져나간 글자는 그냥 사라진다). 두 테마 같은 규칙, P = 4px (픽셀 틀 테두리 + 베벨):
      1 폭: 220px (좁은 장면이면 장면 폭 − 2P) · 2 옆: 가장자리 안으로 민다, 오른쪽 위 아이콘 묶음 · 바깥 집 단추와 겹치면 그 옆까지 (장면 가장자리 밖으론 안 민다).
        민 만큼 픽셀 꼬리는 거꾸로 옮겨 문어를 가리키되 풍선 아랫변 안 (가운데에서 ± 폭/2 − 20) · 3 위: 장면 위쪽을 넘으면 그만큼 아래로 (--bub-dy),
-       12px 넘게 내려오면 머리에 닿으니 픽셀 꼬리는 뺀다 (data-tail="off"). 픽셀 테마는 2px 격자 */
+       12px 넘게 내려오면 머리에 닿으니 픽셀 꼬리는 뺀다 (data-tail="off"). 픽셀 테마는 2px 격자.
+       한 화면 배치에선 위 한계가 장면 가장자리가 아니라 위 띠(상태 줄 · 아이콘) 밑 — topBand */
   function liftY(b) { try { var tf = getComputedStyle(b).transform; return tf && tf !== 'none' && typeof DOMMatrixReadOnly === 'function' ? new DOMMatrixReadOnly(tf).m42 : 0; } catch (e) { return 0; } }   /* transform 의 세로 몫 (bubble-in 이 4px 아래에서 올라온다) */
   function keepInside(b) {
     var sc = $('scene'); if (!sc || !b.closest('#scene3d')) { b.style.marginLeft = ''; b.style.maxWidth = ''; b.style.removeProperty('--ua-tail'); b.removeAttribute('data-tail'); return; }   /* 2D 무대는 app.js keepBubble2D (--bub-dy 도 거기서) */
@@ -174,7 +184,7 @@ var UIART = (function () {
     if (cs < 0) shift = Math.min(shift, Math.max(cs, s.left + P - r.left));
     else if (cs > 0) shift = Math.max(shift, Math.min(cs, s.right - P - r.right));
     shift = px ? even(shift) : Math.round(shift);
-    var need = (s.top + P + 2) - r.top, dy = need > 0 ? (px ? Math.ceil(need / 2) * 2 : Math.ceil(need)) : 0;   /* +2 = 숨쉬기로 머리 자리가 1px 오르내려도 4px 안 */
+    var need = Math.max(s.top + P + 2, topBand({ left: r.left + shift, right: r.right + shift }, P)) - r.top, dy = need > 0 ? (px ? Math.ceil(need / 2) * 2 : Math.ceil(need)) : 0;   /* +2 = 숨쉬기로 머리 자리가 1px 오르내려도 4px 안 */
     if (shift) b.style.marginLeft = shift + 'px';
     if (px && shift) { var lim = Math.max(0, r.width / 2 - 20), tail = even(Math.max(-lim, Math.min(lim, -shift))); if (tail) b.style.setProperty('--ua-tail', tail + 'px'); }
     if (dy) { b.style.setProperty('--bub-dy', dy + 'px'); if (px && dy > 12) b.setAttribute('data-tail', 'off'); }
@@ -313,6 +323,6 @@ var UIART = (function () {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
-  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, ctlYield: ctlYield, liftY: liftY,
+  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, topBand: topBand, ctlYield: ctlYield, liftY: liftY,
     iconSrc: iconSrc, icon: icon, iconHTML: iconHTML, iconBad: iconBad };
 })();
