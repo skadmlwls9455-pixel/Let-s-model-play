@@ -72,6 +72,13 @@ var APP = (function () {
   function icoH(path, cls) { return window.UIART && UIART.iconHTML ? UIART.iconHTML(path, 'ua-both' + (cls ? ' ' + cls : '')) : ''; }
   /* 기억 코너 아이콘 (icon.memory.<코너>): 방 정류장은 그 방의 코너, 바깥 주소(url)는 문 그림, 그 밖(위키 · 모르는 곳)은 들판 */
   var CORNER_ICONS = { hands: 1, sea: 1, sky: 1, signs: 1, numbers: 1, sounds: 1, home: 1, mind: 1, wild: 1 };
+  /* 정류장 한 줄의 그림: 그 방의 픽셀 그림(js/poster-art.js, 32px 그대로)이 있으면 그것, 없으면 예전처럼 주제 아이콘 (주소 문 · 도서관 밖 글).
+     방 그림은 32px 원본이라 글꼴 모드와 상관없이 32px 로 둔다 (시스템 글꼴 모드의 16px 로 줄이면 칸이 빠진다) — 줄 높이를 안 밀게 위아래 여백을 뺀다 */
+  function stopIcoH(s) {
+    var a = (s && s.nodeId !== 'door_out' && window.POSTER_ART && POSTER_ART.forStop) ? POSTER_ART.forStop(s) : null;
+    if (a && a.kind === 'room') return '<img class="ua-ico ua-both ua-mem ua-art" src="' + a.src + '" alt="" aria-hidden="true" width="32" height="32" draggable="false" style="width:32px;height:32px;margin:-6px 4px -6px 0;vertical-align:-9px">';
+    return icoH(cornerIcon(s && s.corner, s && s.nodeId === 'door_out' ? 'url' : null), 'ua-mem');
+  }
   function cornerIcon(corner, kind) { return kind === 'url' ? 'ctl/door' : 'memory/' + (CORNER_ICONS[corner] ? corner : 'wild'); }
   function souvenirIcon(id) { return W && W.souvenirs && W.souvenirs[id] ? 'souvenir/' + id : null; }
   /* 남이 쓴 글 표시 (data-raw): 모델이 쓴 말(MCP) · 사람(데모 조작)이 쓴 말 · 위키백과 글 · 플레이어가 쓴 글은 바이트 그대로 보인다 (docs/MODEL_VOICE.md — 이모지가 있어도 고치지 않는다).
@@ -1737,7 +1744,7 @@ var APP = (function () {
          정류장마다 한 덩이(.stop): 시스템 테마는 글처럼 흐르고(사이 ' · '), 픽셀 테마는 32px 그림이라 한 줄에 하나씩 (사이 점 .sep 은 숨김 — 줄 끝에 '·' 만 남지 않게, css/ui-art.css) */
       var chain = stops.map(function (s, i) {
         var st = s.status || 'failed', cls = i === remIdx ? 'kw' : s.first ? 'first' : '';
-        var name = icoH(cornerIcon(s.corner, s.nodeId === 'door_out' ? 'url' : null), 'ua-mem') + rawH(s.name || s.title || '', stopRawBy(trip, s.nodeId, null));
+        var name = stopIcoH(s) + rawH(s.name || s.title || '', stopRawBy(trip, s.nodeId, null));
         return '<span class="stop">' + (cls ? '<span class="' + cls + '">' + name + '</span>' : name) +
           (s.first && i !== remIdx ? '<span class="first-chip">처음</span>' : '') +
           (st === 'failed' || st === 'simulated' ? '<span class="miss">' + iwH(icoH('log/' + st, 'ua-status'), esc(MISS_WORD[st])) + '</span>' : '') + '</span>';
@@ -1790,7 +1797,7 @@ var APP = (function () {
     if (r && r.stops) r.stops.forEach(function (s, i) {
       var st = s.status || 'failed';
       var sti = icoH('log/' + (STATUS_LABEL[st] ? st : 'failed'), 'ua-status');   /* 코너 그림 + 이름 + [상태 그림] 상태 단어 (예전 이모지는 뺐다) */
-      out += '<div class="row"><span class="n">' + (i + 1) + '</span><span>' + iwH(icoH(cornerIcon(s.corner, s.nodeId === 'door_out' ? 'url' : null), 'ua-mem'), rawH(s.name || s.title || '', stopRawBy(trip, s.nodeId, null)), true) +
+      out += '<div class="row"><span class="n">' + (i + 1) + '</span><span>' + iwH(stopIcoH(s), rawH(s.name || s.title || '', stopRawBy(trip, s.nodeId, null)), true) +
         ' <span class="st' + (sti ? ' ua-st' : '') + '">' + iwH(sti, esc(STATUS_LABEL[st] || st) + (s.ms ? '\u00a0·\u00a0' + secs(s.ms) : '')) + '</span>' + (s.first ? ' <span class="first-tag">처음 온 곳</span>' : '');   /* 처음 온 곳은 점 없이 따로 — 줄이 바뀌어도 '·' 가 줄 끝·줄 앞에 홀로 남지 않게 */
       if (s.bridge) out += '<span class="bridge">' + esc(s.bridge) + '</span>';
       /* 모델·사람이 쓴 메모(noteBy)는 따옴표 없이, 누가 썼는지 붙여서 — 따옴표는 위키백과 요약에만 (모델 말이 인용문처럼 보이지 않게, MODEL_VOICE) */
