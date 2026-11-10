@@ -1602,11 +1602,13 @@ var APP = (function () {
     s += '<rect width="' + w + '" height="' + hgt + '" rx="' + Math.max(1, w * 0.01) + '" fill="' + pal[0] + '"/>';
     s += '<rect x="0.5" y="0.5" width="' + (w - 1) + '" height="' + (hgt - 1) + '" rx="' + Math.max(1, w * 0.01) + '" fill="none" stroke="' + pal[1] + '"/>';
     /* 장면 */
-    s += '<g clip-path="url(#' + uid + 'c)"><rect x="' + sx + '" y="' + sy + '" width="' + sw + '" height="' + sh + '" fill="url(#' + uid + ')"/>' + sceneShapes(trip.seed, sx, sy, sw, sh);
-    var sceneHref = opts.inlineScene || (opts.noExternal ? null : scenePath(p.scene));
+    /* 주제의 픽셀 배경 (js/poster-art.js, data URI) — 있으면 임시 벡터 장면 대신. 작은 포스터(mini)는 예전 그대로 색 띠만 */
+    var bg = (!opts.mini && window.POSTER_ART && POSTER_ART.sceneSvg) ? POSTER_ART.sceneSvg(p.scene || 'home', sx, sy, sw, sh) : '';
+    s += '<g clip-path="url(#' + uid + 'c)"><rect x="' + sx + '" y="' + sy + '" width="' + sw + '" height="' + sh + '" fill="url(#' + uid + ')"/>' + (bg || sceneShapes(trip.seed, sx, sy, sw, sh));
+    var sceneHref = bg ? null : opts.inlineScene || (opts.noExternal ? null : scenePath(p.scene));
     if (sceneHref) s += '<image href="' + esc(sceneHref) + '" x="' + sx + '" y="' + sy + '" width="' + sw + '" height="' + sh + '" preserveAspectRatio="xMidYMid slice"/>';
     /* 그 방의 픽셀 그림 (js/poster-art.js) — 있으면 위키 사진 대신 이것을 붙인다 (사진은 장면과 따로 놀았다, 주인 11-10). 출처·사진 출처는 일기에 그대로 */
-    var art = (!opts.mini && !note && window.POSTER_ART) ? POSTER_ART.svg(trip, sx + sw * 0.08, sy + sh * 0.12, sw * 0.5, sh * 0.62, W) : '';
+    var art = (!opts.mini && window.POSTER_ART) ? (note ? POSTER_ART.svg(trip, sx + sw * 0.25, sy + sh * 0.08, sw * 0.5, sh * 0.84, W) : POSTER_ART.svg(trip, sx + sw * 0.08, sy + sh * 0.12, sw * 0.5, sh * 0.62, W)) : '';   /* 쪽지 = 그날 집 활동 그림 (가운데) */
     if (art) s += art;
     else if (!opts.mini && p.thumb && p.thumb.url && S.settings.thumbs !== false && !note) {
       var th = opts.inlineThumb || (opts.noExternal ? null : p.thumb.url);
@@ -1637,6 +1639,8 @@ var APP = (function () {
     /* 모델·사람이 쓴 한 줄은 줄째 그대로 · 두뇌가 지은 줄은 그 속 정류장 이름(위키 제목 · 모델이 준 제목)만 <tspan data-raw> */
     var lb = lineBy(trip), rp = lb ? { part: '', by: null } : remPart(trip), lineRaw = lb ? ' data-raw="' + lb + '"' : '', lineH = svgLinesH(p.line || '', lines, rp.part, rp.by);
     lines.forEach(function (ln, i) { s += '<text x="' + (w / 2) + '" y="' + (ly + i * lf * 1.5).toFixed(1) + '" text-anchor="middle" font-family="Noto Serif KR, serif" font-weight="600" font-size="' + lf.toFixed(1) + '" fill="#2a2620"' + lineRaw + '>' + (lb ? esc(ln) : lineH[i]) + '</text>'; });
+    /* 들른 곳 줄: 한 줄 글과 날짜 사이 빈 곳에 그날 들른 정류장 그림을 순서대로 (일기의 정류장 그대로, js/poster-art.js) */
+    if (window.POSTER_ART && POSTER_ART.trailSvg) { var tTop = ly + Math.max(0, lines.length - 1) * lf * 1.5 + lf * 0.4, tBot = hgt - m * 1.1 - w * 0.04; s += POSTER_ART.trailSvg(trip, sx, tTop, sw, tBot - tTop); }
     /* 날짜 · N번째 */
     var ord = tripOrdinal(trip), meta = fmtDate(trip.date, true) + (ord ? ' · ' + ord + '번째 뽈뽈' : note ? ' · 오늘은 집' : '');
     s += '<text x="' + (w / 2) + '" y="' + (hgt - m * 1.1).toFixed(1) + '" text-anchor="middle" font-family="Noto Sans KR, sans-serif" font-size="' + (w * 0.036).toFixed(1) + '" fill="#5f5849">' + esc(meta) + '</text>';

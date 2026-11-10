@@ -10,13 +10,27 @@
 - `js/poster-art.js` 가 없거나 못 읽으면 예전처럼 사진을 붙인다 (설정 › 화면 › 포스터 썸네일은 그때만 쓰인다).
 - 작은 포스터(벽 · 앨범 카드 · 날아가는 포스터)는 예전에도 사진이 없었고 지금도 그림을 안 붙인다 (32px 보다 작아서 뭉개진다).
 
+## 포스터가 비어 보이던 것 채우기 (11-10 둘째 판)
+
+앞면은 장면(위 56%) + 한 줄 글 + 맨 밑 날짜뿐이라 글과 날짜 사이가 통째로 빈 종이였고, 장면 배경은 임시 벡터 그림이었다. 셋을 더했다:
+
+| 무엇 | 어디 | 어떻게 |
+|---|---|---|
+| **주제 배경 9장** | 장면 칸 전체 | 66×56 픽셀 배경 (`sceneSvg`). 장면 칸이 300px 포스터에서 264×224 라 정확히 ×4. 임시 벡터 장면(`assets/scenes/*.svg`)과 흐린 도형 대신. 작은 포스터(mini: 벽·날아가는 포스터)는 예전 그대로 색 띠 |
+| **들른 곳 줄** | 한 줄 글과 날짜 사이 | 그날 들른 정류장의 그림을 **들른 순서대로** 놓고 점 둘로 잇는다 (`trailSvg`). 기억한 곳 밑에 빨간 작은 표시, 못 읽은 곳(문 앞까지만 · 못 읽음 · 앉아만 있음)은 흐리게. 글이 한 줄이고 다 들어가면 64px, 아니면 32px. 넘치면 앞에서부터 + 점 셋 (기억한 곳은 꼭 보인다). 정류장이 한 곳뿐이면 안 그린다 (큰 그림과 같아서) |
+| **쪽지 그림 8장** | 집에 있던 날 쪽지의 장면 가운데 | 그날 집 활동(`receipt.activity.id`)을 하는 문어: 빗방울 세기 · 낮잠 · 창밖 보기 · 이끼 화분 · 포스터 다시 읽기 · 포스터 자리 바꾸기 · 흥얼거리기 · … (아무것도 안 함). 모르는 활동이면 안 붙인다 |
+
+들른 곳 줄은 일기(뒷면)의 정류장 목록과 같은 데이터다 — 새로 지어내는 것이 없다. 읽기 상태의 정확한 말(읽음 · 책장 메모 · 모의 방문 · 못 읽음 · 앉아만 있었음)은 여전히 일기가 말하고, 앞면은 '읽었다 / 못 읽었다' 만 흐림으로 가른다.
+
+미리보기: `tests/evidence/poster-art/scenes.png` (배경 9장) · `posters.png` (여러 경우) · `real-poster.png` · `album.png` (진짜 산책으로 만든 포스터).
+
 ## 고르는 순서
 
 1. 기억한 방의 그림 — `poster.sticker` (방 id), 없으면 기억한 정류장의 id
 2. 그 방·정류장의 **주제 그림** — 도서관 밖 글(모델이 고른 위키 글 등)을 기억했을 때
 3. 포스터 장면(`poster.scene`)의 주제 그림 → 그것도 없으면 들판
 
-쪽지(집에 있던 날)와 복원된 옛 포스터에는 붙이지 않는다.
+집에 있던 날 쪽지는 집 활동 그림, 복원된 옛 포스터에는 붙이지 않는다. 기억한 정류장은 일기에 저장된 `nodeId` 로 찾는다.
 그림은 '그 방이 무엇인지' 보여 주는 삽화다. 문어가 무엇을 봤다·읽었다는 기록이 아니다 — 읽기 상태는 일기가 말한다.
 
 ## 그림 목록
@@ -42,9 +56,11 @@
 | `tools/ui-art/poster/kit.js` | 붓 (사각·점·덩이·선·고리·격자·모양 함수, 색 단계 표) |
 | `tools/ui-art/poster/<주제>.js` | 방 그림 (방 id → `[이름, 그리는 함수]`) |
 | `tools/ui-art/poster/corners.js` | 주제 그림 |
+| `tools/ui-art/poster/stay.js` | 쪽지(집 활동) 그림 |
+| `tools/ui-art/poster/scenes.js` | 주제 배경 (66×56, 칸마다 색을 돌려주는 함수) |
 | `tools/make-poster-art.js` | `assets/poster/*.png` + `js/poster-art-data.js` + 미리보기 |
-| `js/poster-art-data.js` | **만든 파일.** 그림을 base64 로 (약 34 KB). 손으로 고치지 않는다 |
-| `js/poster-art.js` | 전역 `POSTER_ART` — `forTrip` · `svg` · `room` · `corner` |
+| `js/poster-art-data.js` | **만든 파일.** 그림을 base64 로 (약 43 KB). 손으로 고치지 않는다 |
+| `js/poster-art.js` | 전역 `POSTER_ART` — `forTrip` · `forStop` · `svg` · `sceneSvg` · `trail` · `trailSvg` |
 | `tools/test-poster-art.js` | 검사 (`npm test`) |
 
 그림을 data URI 로 싣는 까닭: 포스터 SVG 는 그림으로 굽힐 때(3D 벽 텍스처 · PNG 저장) 밖의 파일을 못 읽는다. 주소 대신 그림 자체를 넣으면 `file://` · 번들 · 저장본이 모두 같은 길로 간다. manifest 에는 넣지 않는다 (번들이 같은 그림을 두 번 담지 않게).
@@ -58,4 +74,4 @@
 ## 본 게임에 넣은 줄 (app.js 묶음)
 
 - `index.html`: `js/app.js` 앞에 `js/poster-art-data.js` · `js/poster-art.js` 두 줄
-- `js/app.js` `posterSVG`: 사진을 붙이던 `if` 앞에 `var art = … POSTER_ART.svg(…)` 와 `if (art) s += art; else`, 사진 출처 줄 조건에 `!art &&` — 모두 7줄
+- `js/app.js` `posterSVG`: 사진을 붙이던 `if` 앞에 `var art = … POSTER_ART.svg(…)` 와 `if (art) s += art; else`, 사진 출처 줄 조건에 `!art &&` · 장면을 그리는 줄 앞에 `var bg = … POSTER_ART.sceneSvg(…)` (있으면 벡터 장면을 건너뜀) · 날짜 줄 앞에 `POSTER_ART.trailSvg(…)` — 모두 12줄쯤

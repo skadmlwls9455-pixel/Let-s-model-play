@@ -56,31 +56,51 @@ CORNERS.forEach(function (corner) {
   var mod = require(f);
   Object.keys(mod).forEach(function (id) { all.push({ key: id, id: id, corner: corner, name: mod[id][0], cells: render(id, mod[id][1]) }); });
 });
+var sf = path.join(__dirname, 'ui-art/poster/stay.js');
+if (fs.existsSync(sf)) { var sm = require(sf); Object.keys(sm).forEach(function (id) { all.push({ key: 'stay_' + id, id: id, corner: 'stay', isStay: true, name: sm[id][0], cells: render('stay_' + id, sm[id][1]) }); }); }
 var cf = path.join(__dirname, 'ui-art/poster/corners.js');
 if (fs.existsSync(cf)) { var cm = require(cf); CORNERS.forEach(function (k) { if (cm[k]) all.push({ key: 'corner_' + k, id: k, corner: k, isCorner: true, name: cm[k][0], cells: render('corner_' + k, cm[k][1]) }); }); }
 
 fs.mkdirSync(path.join(ROOT, 'assets/poster'), { recursive: true });
 /* manifest 에는 넣지 않는다: 게임은 js/poster-art-data.js 만 쓰고, 번들이 같은 그림을 두 번 담지 않게. assets/poster/*.png 는 보기·다른 도구용 */
-var data = { room: {}, corner: {} };
+var data = { room: {}, corner: {}, stay: {}, scene: {} };
 all.forEach(function (a) {
   var png = encodePNG(KIT.W, KIT.H, toRGBA(a.cells)), rel = 'assets/poster/' + a.key + '.png';
   fs.writeFileSync(path.join(ROOT, rel), png);
-  data[a.isCorner ? 'corner' : 'room'][a.id] = png.toString('base64');
+  data[a.isCorner ? 'corner' : a.isStay ? 'stay' : 'room'][a.id] = png.toString('base64');
 });
+/* 장면 배경 9장 (66×56, 외곽선 없음) + 미리보기 tests/evidence/poster-art/scenes.png (×3) */
+var SC = require('./ui-art/poster/scenes.js'), scenePx = {};
+CORNERS.forEach(function (k) {
+  if (!SC[k]) return;
+  var px = Buffer.alloc(SC.W * SC.H * 4);
+  for (var y = 0; y < SC.H; y++) for (var x = 0; x < SC.W; x++) { var key = SC[k][1](x, y); if (!SP.KEY[key]) throw new Error('scene ' + k + ': 빈 칸·모르는 색 (' + x + ',' + y + ') ' + key); var r = hexRgb(SP.KEY[key]), i = (y * SC.W + x) * 4; px[i] = r[0]; px[i + 1] = r[1]; px[i + 2] = r[2]; px[i + 3] = 255; }
+  var png = encodePNG(SC.W, SC.H, px); scenePx[k] = px;
+  fs.writeFileSync(path.join(ROOT, 'assets/poster/scene_' + k + '.png'), png); data.scene[k] = png.toString('base64');
+});
+(function () {
+  var Z = 3, G = 6, COLS2 = 3, cw = SC.W * Z + G, chh = SC.H * Z + G, sw2 = COLS2 * cw + G, sh2 = Math.ceil(Object.keys(scenePx).length / COLS2) * chh + G, buf = Buffer.alloc(sw2 * sh2 * 4);
+  for (var i = 0; i < sw2 * sh2; i++) { buf[i * 4] = 42; buf[i * 4 + 1] = 47; buf[i * 4 + 2] = 58; buf[i * 4 + 3] = 255; }
+  Object.keys(scenePx).forEach(function (k, n) { var ox = G + (n % COLS2) * cw, oy = G + Math.floor(n / COLS2) * chh, px = scenePx[k];
+    for (var y = 0; y < SC.H * Z; y++) for (var x = 0; x < SC.W * Z; x++) { var si = (Math.floor(y / Z) * SC.W + Math.floor(x / Z)) * 4, di = ((oy + y) * sw2 + ox + x) * 4; px.copy(buf, di, si, si + 4); } });
+  fs.mkdirSync(path.join(ROOT, 'tests/evidence/poster-art'), { recursive: true });
+  fs.writeFileSync(path.join(ROOT, 'tests/evidence/poster-art/scenes.png'), encodePNG(sw2, sh2, buf));
+})();
+
 fs.writeFileSync(path.join(ROOT, 'js/poster-art-data.js'),
   '/* js/poster-art-data.js — 만든 파일 (node tools/make-poster-art.js). 손으로 고치지 않는다. 포스터 픽셀 그림 32×32 PNG 를 base64 로. */\n' +
-  'var POSTER_ART_DATA = ' + JSON.stringify(data, null, 0).replace(/"room":/, '\n"room":').replace(/,"corner":/, ',\n"corner":').replace(/","/g, '",\n"') + ';\n' +
+  'var POSTER_ART_DATA = ' + JSON.stringify(data, null, 0).replace(/"room":/, '\n"room":').replace(/,"corner":/, ',\n"corner":').replace(/,"stay":/, ',\n"stay":').replace(/,"scene":/, ',\n"scene":').replace(/","/g, '",\n"') + ';\n' +
   "if (typeof module !== 'undefined' && module.exports) module.exports = POSTER_ART_DATA;\n");
 
 /* 미리보기: 주제마다 한 줄, ×4, 종이 바탕 + 밤 바탕 */
-var S = 4, PAD = 6, CELL = KIT.W * S + PAD * 2, COLS = 11, rowsN = CORNERS.length;
+var S = 4, PAD = 6, CELL = KIT.W * S + PAD * 2, COLS = 11, ROWS = CORNERS.concat(['stay']), rowsN = ROWS.length;
 var SW = COLS * CELL, SH = rowsN * CELL * 2, sheet = Buffer.alloc(SW * SH * 4);
 function fill(x0, y0, w, h, rgb) { for (var y = y0; y < y0 + h; y++) for (var x = x0; x < x0 + w; x++) { var i = (y * SW + x) * 4; sheet[i] = rgb[0]; sheet[i + 1] = rgb[1]; sheet[i + 2] = rgb[2]; sheet[i + 3] = 255; } }
 fill(0, 0, SW, SH / 2, hexRgb('#e7d5b3')); fill(0, SH / 2, SW, SH / 2, hexRgb('#253a5e'));
-[0, 1].forEach(function (band) { CORNERS.forEach(function (corner, r) {
+[0, 1].forEach(function (band) { ROWS.forEach(function (corner, r) {
   var list = all.filter(function (a) { return a.corner === corner; }).sort(function (a, b) { return (b.isCorner ? 1 : 0) - (a.isCorner ? 1 : 0); });
   list.forEach(function (a, n) { var cx = n * CELL + PAD, cy = band * SH / 2 + r * CELL + PAD; a.cells.forEach(function (c, i) { if (c) fill(cx + (i % KIT.W) * S, cy + Math.floor(i / KIT.W) * S, S, S, hexRgb(c)); }); });
 }); });
 var ev = path.join(ROOT, 'tests/evidence/poster-art'); fs.mkdirSync(ev, { recursive: true });
 fs.writeFileSync(path.join(ev, 'sheet.png'), encodePNG(SW, SH, sheet));
-console.log('poster art: 방 ' + Object.keys(data.room).length + ' · 주제 ' + Object.keys(data.corner).length + ' → assets/poster/ · js/poster-art-data.js (' + Math.round(fs.statSync(path.join(ROOT, 'js/poster-art-data.js')).size / 1024) + ' KB) · tests/evidence/poster-art/sheet.png');
+console.log('poster art: 방 ' + Object.keys(data.room).length + ' · 주제 ' + Object.keys(data.corner).length + ' · 쪽지 ' + Object.keys(data.stay).length + ' · 배경 ' + Object.keys(data.scene).length + ' → assets/poster/ · js/poster-art-data.js (' + Math.round(fs.statSync(path.join(ROOT, 'js/poster-art-data.js')).size / 1024) + ' KB) · tests/evidence/poster-art/sheet.png');
