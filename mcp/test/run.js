@@ -371,7 +371,8 @@ async function cardsUnit() {
   check(pcd.stops[0].label === '서가 카드' && pcd.stops[0].book.title === '첫 카드', '엽서: 서가 카드');
   /* 저장소의 진짜 카드 */
   var real = core.loadCards(path.join(__dirname, '..', '..', 'library', 'cards')), ids = Object.keys(real.cards);
-  check(ids.length === 60 && real.errors.length === 0, '저장소 카드 60장 · 오류 0' + (real.errors.length ? ': ' + real.errors[0] : ''));
+  var mdN = fs.readdirSync(path.join(__dirname, '..', '..', 'library', 'cards')).filter(function (f) { return /\.md$/.test(f); }).length;
+  check(ids.length === mdN && ids.length >= 82 && real.errors.length === 0, '저장소 카드 전부 읽힘 (' + ids.length + '장, GPT 60 + Grok 22 이상) · 오류 0' + (real.errors.length ? ': ' + real.errors[0] : ''));
   check(ids.every(function (id) { var c = real.cards[id]; return !/[?？]/.test(c.text) && !/(일까|는가|을까|ㄹ까|다면)$/.test(c.title) && c.text.length >= 150 && c.text.length <= core.BOOK_MAX && !!c.sources; }), '카드에 질문 없음 (본문·제목) · 길이 · 출처');
 }
 
