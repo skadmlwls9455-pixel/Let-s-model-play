@@ -18,7 +18,7 @@
         "icn1"
       ],
       "maxDuration": 60,
-      "includeFiles": "{library/books/**,library/cards/**,js/world.js,js/brain.js,js/shelf.js}"
+      "includeFiles": "{library/books/**,library/cards/**,js/world.js,js/brain.js,js/shelf.js,mcp/data/**}"
     },
     "api/room.js": {
       "regions": [
@@ -33,6 +33,12 @@
       "maxDuration": 10
     },
     "api/far/[key].js": {
+      "regions": [
+        "icn1"
+      ],
+      "maxDuration": 10
+    },
+    "api/lang/[key].js": {
       "regions": [
         "icn1"
       ],
