@@ -18,6 +18,7 @@
  *     혼잣말은 낭독기 한 줄만 · 대사 자리(APP.dlgDemo, 개발 모드) · 3D 가 멈추면 위아래 배치(2D) · 플레이어 화면 스크롤 없음 · 저장 경고 띠. 치수 · 사진은 tools/layout-shots.js
  *   (모든 문맥은 window.__ppolAwakeMs = 0 으로 시작 — 예전 시나리오는 '산책 직후 잠'. T · K 가 덮는다)
  *   SMOKE_ONLY=H,I node tools/smoke.js   # 그 시나리오만
+ *   SMOKE_THROTTLE=4 node tools/smoke.js # 페이지 CPU 를 4배 늦춘다 (느린 CI 러너 흉내 — 시간에 기대는 검사의 경합을 여기서 다시 낸다)
  * 등불은 초대한 날마다 1칸 (DESIGN §4): 같은 날 두 번째 초대는 칸을 켜지 않는다 → 날을 넘기는 곳은 window.__ppolTest.today 로.
  * 시나리오: 이름 → 힌트 '모자의 역사' → 초대 → 건너뛰기 → 앨범 1·벽 1·등불 1 → 새로고침 → 그대로 →
  *           카드 탭 → 앞면 → 뒤집기 → 일기(뒷면) 정류장 ≥2 → 스크린샷 (라이트/다크/앞면/뒷면)
@@ -34,6 +35,7 @@ function dayAfter(n) { var d = new Date(); d.setDate(d.getDate() + n); return d.
 var SHOTS = process.env.SHOTS || '/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/build/shots/';
 var haveReal = fs.existsSync(path.join(ROOT, 'js/world.js')) && fs.existsSync(path.join(ROOT, 'js/brain.js'));
 var useStubs = !haveReal || process.env.SMOKE_STUBS === '1';
+var THROTTLE = +process.env.SMOKE_THROTTLE || 0;
 fs.mkdirSync(SHOTS, { recursive: true });
 
 var fails = 0, passes = 0;
@@ -99,6 +101,7 @@ async function newPage(browser, wikiMode, initScripts) {
   /* 11-08 깨어 있는 틈: 돌아온 뒤 90 s 깨어 있다가 잔다 — 예전 시나리오는 '산책 직후 잠' 을 보므로 훅 0 으로 (이 문맥의 모든 탭. 새 시나리오 T · K 는 페이지 init 으로 덮는다) */
   await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
   var page = await ctx.newPage();
+  if (THROTTLE > 1) { try { await (await ctx.newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: THROTTLE }); } catch (e) { console.log('   (CPU 늦추기 실패: ' + e.message + ')'); } }
   var bag = []; bag.ignored = [];
   watchErrors(page, bag);
   if (useStubs) {
@@ -737,6 +740,13 @@ async function scenarioCeremony(browser) {
     window.__ink = []; window.__bub = [];
     if (window.UIART) { var ob = UIART.onBubble; UIART.onBubble = function (text, kind) { if (text) window.__bub.push({ text: text, kind: kind, skin: UIART.bubbleSkin(text, kind), place: APP.scene.place(), state: APP.oct.state, peekRows: [].filter.call(document.querySelectorAll('#log .lrow .ltool'), function (e) { return e.textContent === '기웃'; }).length, ov: getComputedStyle(document.getElementById('oct')).visibility }); return ob.apply(this, arguments); }; }
     if (window.UIART) { var f = UIART.fx; UIART.fx = function (n) { if (n === 'ink') window.__ink.push({ place: APP.scene.place(), m: APP.scene.motion ? APP.scene.motion() : null }); return f.apply(this, arguments); }; }
+    /* '출발' 행이 공개되는 바로 그 순간의 장면 상태를 페이지 안에서 적어 둔다. 밖에서 행을 본 뒤 다시 물으면 그사이(다음 이벤트까지 0.55~1.2 s, --speed 0.5)에
+       첫 바깥 기웃이 시작돼 있을 수 있다 — 느린 러너(소프트웨어 렌더 · 한 화면 배치로 커진 장면)에선 늘 그랬다 (CI 11-10: cer 'peek'). 재현: taskset -c 0 */
+    window.__dep = null;
+    new MutationObserver(function () {
+      if (window.__dep || ![].some.call(document.querySelectorAll('#log .lrow .ltool'), function (e) { return e.textContent === '출발'; })) return;
+      window.__dep = { place: APP.scene.place(), cer: APP.scene.ceremony(), oct: document.getElementById('oct').className, busy: document.getElementById('btn-go').classList.contains('away'), state: APP.oct.state };
+    }).observe(document.getElementById('log'), { childList: true, subtree: true, characterData: true });
     return APP.sceneMode;
   });
   ok(await page.evaluate(function () { return APP.scene.place() === 'attic'; }), '처음엔 다락 (' + mode + ')');
@@ -747,10 +757,11 @@ async function scenarioCeremony(browser) {
     ok(!(await hasLabel(page, '출발')), '출발 의식 동안엔 아직 공개 전 (출발 행 없음)');
   }
   await page.waitForFunction(function () { return APP.oct.state === 'away' && APP.scene.place() === 'exterior'; }, null, { timeout: 20000 });
-  await page.waitForFunction(function () { return [].some.call(document.querySelectorAll('#log .lrow .ltool'), function (e) { return e.textContent === '출발'; }); }, null, { timeout: 10000 });
-  var away = await page.evaluate(function () { return { place: APP.scene.place(), cer: APP.scene.ceremony(), oct: document.getElementById('oct').className, busy: document.getElementById('btn-go').classList.contains('away'), ink: window.__ink, log: window.__placeLog.slice() }; });
-  console.log('   away:', JSON.stringify({ place: away.place, cer: away.cer, oct: away.oct.trim(), ink: away.ink.map(function (x) { return x.place + (x.m ? '/vis=' + x.m.octVisible + '/door=' + x.m.door : ''); }), log: away.log }));
-  ok(away.place === 'exterior' && away.cer === '' && away.busy && /st-away/.test(away.oct), '나가 있는 동안 바깥 장면 유지 (의식 끝, 공개 중)');
+  await page.waitForFunction(function () { return !!window.__dep; }, null, { timeout: 10000 });
+  var away = await page.evaluate(function () { var d = window.__dep; return { place: d.place, cer: d.cer, oct: d.oct, busy: d.busy, state: d.state, now: { place: APP.scene.place(), cer: APP.scene.ceremony(), busy: document.getElementById('btn-go').classList.contains('away') }, ink: window.__ink, log: window.__placeLog.slice() }; });
+  console.log('   away:', JSON.stringify({ place: away.place, cer: away.cer, oct: away.oct.trim(), now: away.now, ink: away.ink.map(function (x) { return x.place + (x.m ? '/vis=' + x.m.octVisible + '/door=' + x.m.door : ''); }), log: away.log }));
+  /* 출발 행이 공개된 순간: 출발 의식은 끝났고(cer '') 바깥 · 나가 있는 중. 그 뒤로도(지금) 바깥 그대로 — 그사이 시작된 바깥 기웃('peek')은 공개의 일부다 */
+  ok(away.place === 'exterior' && away.cer === '' && away.busy && away.state === 'away' && /st-away/.test(away.oct) && away.now.place === 'exterior' && away.now.busy && (away.now.cer === '' || away.now.cer === 'peek'), '나가 있는 동안 바깥 장면 유지 (의식 끝, 공개 중)');
   if (mode === '3d') ok(away.ink.length === 1 && away.ink[0].place === 'exterior' && away.ink[0].m.octVisible, '먹물은 한 번, 문어가 현관문을 나설 때 (바깥 · 문어 보임)');
   await page.waitForTimeout(300);
   await page.screenshot({ path: path.join(SHOTS, 'phone-away-exterior.png') });
