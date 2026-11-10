@@ -127,6 +127,33 @@ async function unit() {
   var lint = cp.spawnSync(process.execPath, [path.join(__dirname, '..', 'tools', 'check-books.js'), bdir], { encoding: 'utf8' });
   check(/문어에게 말 걸기/.test(lint.stdout) && /느낄 것 정해 주기/.test(lint.stdout) && lint.status === 1, 'check-books: 말 걸기·느낌 정해 주기 경고, 깨진 책은 오류');
 
+  section('먼 바다 문 — 등불 4칸 · 문어가 제안 · 사람이 한 번');
+  var dayMs = 86400000, fday = clock;
+  var of = new core.Octopus({ dir: tmp(), fetchWiki: function (t, o) { return Promise.resolve({ ok: true, title: t, extract: (o && o.lang === 'en' ? 'An English summary of ' : '요약 ') + t + '.', url: 'https://' + (o && o.lang === 'en' ? 'en' : 'ko') + '.wikipedia.org/wiki/' + encodeURIComponent(t), thumb: null, links: [] }); }, now: function () { return new Date(fday); } });
+  of.S.met = true;
+  check(!of.lookRoom({}).decision, '등불 4칸 전엔 묻지 않음');
+  ['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04'].forEach(function (d, i) { of.S.trips.push({ id: 'tf' + i, date: d, seq: 1, kind: 'home', file: 'x', stops: 0 }); });
+  of.depart({});
+  check((await of.peek({ target: { kind: 'wiki', title: 'Octopus', lang: 'en' } })).error, '열리기 전엔 영어 위키 안 됨 (오류로 알림)');
+  of.finish({}); if (of.S.pending) of.answer({ id: of.S.pending.id, action: 'stop' });
+  var lf = of.lookRoom({});
+  check(lf.decision && lf.decision.point === 'far' && lf.decision.menu.join() === 'propose,watch,stop', '4칸이면 문어에게 한 번 물음 (watch·stop 늘)');
+  of.answer({ id: lf.decision.id, action: 'watch' });
+  check(of.S.far.state === 'closed' && of.S.far.next && !of.lookRoom({}).decision, 'watch → 고르지 않음, 며칠 동안 다시 안 물음');
+  fday = clock + 8 * dayMs;
+  var lf2 = of.lookRoom({});
+  check(lf2.decision && lf2.decision.point === 'far', '7일 뒤 다시 한 번');
+  of.answer({ id: lf2.decision.id, action: 'propose', line: '영어로 된 바다도 보고 싶어' });
+  check(of.S.far.state === 'proposed' && of.S.far.line === '영어로 된 바다도 보고 싶어' && /proposed/.test(of.lookRoom({}).far), '제안 → 사람 대답을 기다림 (말은 그대로)');
+  check(of.setFar(false).state === 'closed' && of.S.far.next > of.dateKey(), '사람이 \'그대로\' → 14일 동안 안 물음');
+  of.S.far = { state: 'proposed', line: null };
+  check(of.setFar(true).state === 'open' && /open/.test(of.lookRoom({}).far), '사람이 \'열어 줘\' → 열림, look_room 에 알림');
+  of.depart({});
+  var pe = await of.peek({ target: { kind: 'wiki', title: 'Octopus', lang: 'en' } });
+  check(pe.status === 'read' && /^https:\/\/en\.wikipedia\.org\//.test(pe.source) && of.S.running.events[1].source.attribution === 'Wikipedia (en)' && of.S.running.events[1].target.lang === 'en', '열리면 영어 위키 읽음 (출처 en, 표기 en)');
+  check(of.setFar(true).error, '걸린 제안이 없으면 사람 대답도 없음');
+  of.finish({});
+
   section('감염 막기 — 지시·주소·복사 권유·개인 정보');
   var SC = core.screenArgs;
   check(!SC('ppolppol_finish', { line: '물은 달을 따라 하루 두 번 돌아온다', note: '세이시가 궁금해' }), '보통 글은 통과');

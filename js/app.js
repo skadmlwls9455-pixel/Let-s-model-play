@@ -2026,7 +2026,7 @@ var APP = (function () {
     return out;
   }
   /* 뒷면 영수증 HTML (§6.2) — 링크 클릭 가능. 출처 링크는 위키백과(한국어) 주소일 때만 (두뇌도 거르지만 옛 기록·불러온 기록까지) */
-  var WIKI_SRC = /^https:\/\/ko\.wikipedia\.org\//;
+  var WIKI_SRC = /^https:\/\/(ko|en)\.wikipedia\.org\//;   /* en: 먼 바다 문 */
   function receiptHTML(trip) {
     var r = trip.receipt, p = trip.poster || {}, out = '<div class="receipt">';
     out += '<h3>일기' + (trip.date ? ' · ' + esc(fmtDate(trip.date, true)) : '') + '</h3>';   /* 화면 말은 '일기' (코드 이름 receipt* 는 그대로). 여행 id 는 보이지 않는다 */
@@ -2495,6 +2495,26 @@ var APP = (function () {
     });
     frag.appendChild(h('div', { class: 'btn-row' }, [cp, sy, off]));
   }
+  /* 먼 바다 문: 문어가 제안했으면 사람에게 한 번 (이 탭에서 한 번). 대답은 /api/far 로 — 모델은 이 대답을 대신할 수 없다 */
+  var farPending = null, farShown = false;
+  function farAsk() {
+    var r = claudeRoom(), d = $('far-dialog'); if (!r || !farPending || farShown || !d) return;
+    if (busy) return setTimeout(farAsk, 800);
+    farShown = true;
+    var ln = $('far-line');
+    if (farPending.line) { ln.textContent = ''; ln.appendChild(h('span', { 'data-raw': 'model' }, [document.createTextNode(String(farPending.line).slice(0, 200))])); ln.appendChild(document.createTextNode(' · 문어가 쓴 말')); ln.hidden = false; } else ln.hidden = true;
+    function answer(open) {
+      $('far-open').disabled = $('far-keep').disabled = true;
+      fetch('/api/far/' + encodeURIComponent(r.key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ open: open }) })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (j) { d.close(); farPending = null; toast(j && j.ok ? (open ? '먼 바다 문을 열었어' : '알았어. 그대로 둘게') : '지금은 대답을 전하지 못했어. 다음에 다시 물을게'); if (!(j && j.ok)) farShown = false; })
+        .catch(function () { d.close(); farShown = false; toast('지금은 대답을 전하지 못했어 (연결 안 됨)'); })
+        .then(function () { $('far-open').disabled = $('far-keep').disabled = false; });
+    }
+    $('far-open').onclick = function () { answer(true); };
+    $('far-keep').onclick = function () { answer(false); };
+    showDialog(d);
+  }
   /* 가져오기: 새 산책을 한 개씩 재생한다 (APP.importEvents 와 같은 길 · 고른 이: 모델). 바쁘면 기다린다 */
   var claudeSyncing = false;
   function claudeSync(manual) {
@@ -2505,11 +2525,12 @@ var APP = (function () {
       .then(function (res) { return res.ok ? res.json() : null; })
       .then(function (j) {
         if (!j || !j.ok) { claudeSyncing = false; if (manual) toast('지금은 가져올 수 없어'); return; }
+        if (j.far && j.far.state === 'proposed') farPending = j.far;   /* 먼 바다 문 제안 — 산책 재생이 끝난 뒤 한 번 묻는다 */
         var list = (j.walks || []).filter(function (w) { return w && typeof w.file === 'string' && Array.isArray(w.events) && w.events.length; });
-        if (!list.length) { claudeSyncing = false; if (manual) toast('새로 다녀온 산책이 없어'); return; }
+        if (!list.length) { claudeSyncing = false; if (manual && !farPending) toast('새로 다녀온 산책이 없어'); farAsk(); return; }
         (function next() {
           var w = list.shift();
-          if (!w) { claudeSyncing = false; if (j.more) setTimeout(function () { claudeSync(false); }, 800); return; }
+          if (!w) { claudeSyncing = false; if (j.more) setTimeout(function () { claudeSync(false); }, 800); else farAsk(); return; }
           (function tryImport() {
             if (busy) return setTimeout(tryImport, 700);
             var ok = importEvents(w.events);

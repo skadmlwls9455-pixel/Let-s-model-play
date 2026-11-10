@@ -37,8 +37,8 @@ module.exports = function buildServer(oct, hooks) {
   }
 
   /* 도구 정의는 연결해 두면 모든 대화에 실린다 → 설명은 짧게, 뜻은 instructions 에 한 번만 */
-  var target = z.object({ kind: z.enum(['room', 'wiki', 'url']), id: z.string().optional(), title: z.string().optional(), url: z.string().optional() })
-    .describe('room:{id} 열람실 · wiki:{title} 위키 문서 · url:{url} 문 앞까지만');
+  var target = z.object({ kind: z.enum(['room', 'wiki', 'url']), id: z.string().optional(), title: z.string().optional(), lang: z.enum(['ko', 'en']).optional(), url: z.string().optional() })
+    .describe('room:{id} 열람실 · wiki:{title} 위키 문서 (먼 바다 문이 열리면 lang:"en") · url:{url} 문 앞까지만');
   var wrapFields = {
     reaction: z.string().optional().describe('폴짝·우쭐·덤덤·졸림 또는 아무 글'),
     line: z.string().optional(),

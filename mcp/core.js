@@ -21,7 +21,11 @@ var NOTES_HEAD = '지난 산책에서 네가 남긴 메모:';   /* 사실만. '�
 var NOTES_IN = 3;
 var WIKI_API = 'https://ko.wikipedia.org/w/api.php';
 var UA = 'ppolppol-octopus-mcp/0.1 (local game; https://github.com/skadmlwls9455-pixel/Let-s-model-play)';
-var MENU = { meet: ['say', 'wave', 'watch', 'stop'], chat: ['say', 'watch', 'stop'], table: ['eat', 'taste', 'save', 'watch', 'stop'] };
+var MENU = { meet: ['say', 'wave', 'watch', 'stop'], chat: ['say', 'watch', 'stop'], table: ['eat', 'taste', 'save', 'watch', 'stop'], far: ['propose', 'watch', 'stop'] };
+/* 먼 바다 문 (11-10 주인 결정): 등불 FAR_LANTERN 칸이면 문어에게 한 번 묻는다 → 문어가 제안하면 사람이 한 번 [열어 줘]/[지금은 그대로].
+   열리면 영어 위키백과 (lang:'en') 도 읽는다. 문어가 안 고르면 FAR_RETRY 일 뒤, 사람이 '그대로' 면 FAR_KEEP 일 뒤에야 다시 묻는다 (조르지 않는다) */
+var FAR_LANTERN = 4, FAR_RETRY = 7, FAR_KEEP = 14;
+var WIKI_EN_API = 'https://en.wikipedia.org/w/api.php';
 var EXPRS = ['happy', 'idle', 'curious', 'calm'];
 var REASONS = ['enough', 'tired', 'linger'];
 var CHAT_MAX = 2, TABLE_GAP_MS = 30000, TABLE_DAY_MAX = 5;
@@ -37,12 +41,13 @@ function wikiFetch(title, opts) {
   var ms = opts.timeoutMs || 6000;
   var ac = new AbortController();
   var timer = setTimeout(function () { ac.abort(); }, ms);
-  var url = WIKI_API + '?action=query&format=json&redirects=1&prop=extracts|pageimages|links' +
+  var en = opts.lang === 'en';
+  var url = (en ? WIKI_EN_API : WIKI_API) + '?action=query&format=json&redirects=1&prop=extracts|pageimages|links' +
     '&exintro=1&explaintext=1&exsentences=' + (opts.sentences || 2) + '&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0' +
     '&titles=' + encodeURIComponent(String(title));
   return fetch(url, { signal: ac.signal, headers: { 'User-Agent': UA, 'Api-User-Agent': UA } })
     .then(function (res) { if (!res.ok) throw new Error('http ' + res.status); return res.json(); })
-    .then(function (data) { clearTimeout(timer); return BRAIN.parseWikiResponse(title, data); })
+    .then(function (data) { clearTimeout(timer); var r = BRAIN.parseWikiResponse(title, data); if (en && r && typeof r.url === 'string') r.url = r.url.replace('https://ko.wikipedia.org/', 'https://en.wikipedia.org/'); return r; })
     .catch(function (e) { clearTimeout(timer); return { ok: false, reason: e && e.name === 'AbortError' ? 'timeout' : 'network' }; });
 }
 /* 위키 목록 질의 (찾아보기 · 서가 목록). 실패하면 null — 지어내지 않는다 */
@@ -117,10 +122,11 @@ function screenArgs(tool, a) {
 }
 
 /* 출처는 ko.wikipedia 문서 주소만, 사진은 upload.wikimedia.org 만 (brain.js 재생 정규화와 같게) */
-function cleanSource(r) {
-  if (!r || !r.ok || !/^https:\/\/ko\.wikipedia\.org\/wiki\/\S+$/.test(r.url || '')) return null;
+function cleanSource(r, lang) {
+  var en = lang === 'en';
+  if (!r || !r.ok || !(en ? /^https:\/\/en\.wikipedia\.org\/wiki\/\S+$/ : /^https:\/\/ko\.wikipedia\.org\/wiki\/\S+$/).test(r.url || '')) return null;
   var th = r.thumb && /^https:\/\/upload\.wikimedia\.org\/\S+$/.test(r.thumb.url || '') ? { url: r.thumb.url, w: r.thumb.w || null, h: r.thumb.h || null } : null;
-  return { url: r.url, extract: plain(r.extract).slice(0, 160), thumb: th, license: 'CC BY-SA 4.0', attribution: 'Wikipedia (ko)' };
+  return { url: r.url, extract: plain(r.extract).slice(0, 160), thumb: th, license: 'CC BY-SA 4.0', attribution: en ? 'Wikipedia (en)' : 'Wikipedia (ko)' };
 }
 
 /* ───── 뽈뽈 도서관 (library/books/<방id>.md) ─────
@@ -184,6 +190,7 @@ Octopus.prototype.load = function () {
     notes: Array.isArray(s.notes) ? s.notes : [],
     talk: Array.isArray(s.talk) ? s.talk : [],
     met: !!s.met,
+    far: s.far && typeof s.far === 'object' ? s.far : { state: 'closed' },   /* 먼 바다 문: closed · proposed · open */
     pending: s.pending || null,              /* 지금 걸려 있는 결정 지점 하나 */
     chat: s.chat || null,                    /* { tripId, asked } */
     table: s.table || { offer: null, asked: [] },
@@ -256,6 +263,7 @@ Octopus.prototype.offer = function (sit) {
 Octopus.prototype.dropPending = function () {
   var p = this.S.pending; if (!p) return;
   if (p.point !== 'table') this.talkRecord(p, { by: 'fallback', text: null });
+  if (p.point === 'far') this.S.far = { state: 'closed', next: addDays(this.dateKey(), FAR_RETRY) };   /* 답 없이 지나감 = 고르지 않음 */
   this.S.pending = null;
 };
 Octopus.prototype.talkRecord = function (sit, o) {
@@ -283,6 +291,22 @@ Octopus.prototype.meetSituation = function () {
   var facts = { firstInRoom: true, timeOfDay: h < 6 ? '밤' : h < 11 ? '아침' : h < 17 ? '낮' : h < 21 ? '저녁' : '밤' };
   if (this.name) facts = Object.assign({ name: this.name }, facts);
   return this.offer({ point: 'meet', facts: facts, menu: MENU.meet.slice() });
+};
+function addDays(dk, n) { var d = new Date(dk + 'T12:00:00'); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+Octopus.prototype.farSituation = function () {
+  var f = this.S.far;
+  if (f.state !== 'closed' || this.lantern() < FAR_LANTERN || this.S.running) return null;
+  if (f.next && this.dateKey() < f.next) return null;
+  return this.offer({ point: 'far', facts: { lantern: this.lantern() + '/8', door: '먼 바다 문 — 열리면 영어 위키백과까지 갈 수 있다. 사람이 한 번 열어 줘야 한다' }, menu: MENU.far.slice() });
+};
+/* 사람의 대답 (게임 · cli). 제안이 걸려 있을 때만 */
+Octopus.prototype.setFar = function (open) {
+  var f = this.S.far;
+  if (f.state !== 'proposed') return { error: '걸려 있는 제안이 없어 (' + f.state + ')' };
+  if (open) this.S.far = { state: 'open', line: f.line || null, openedAt: this.now().toISOString() };
+  else this.S.far = { state: 'closed', next: addDays(this.dateKey(), FAR_KEEP), keptAt: this.now().toISOString() };
+  this.save();
+  return { ok: true, state: this.S.far.state };
 };
 var CHAT_Q = { out: ['어디 갔어?', '뭐 봤어?'], home: ['뭐 했어?', '어땠어?'] };
 Octopus.prototype.chatSituation = function (trip) {
@@ -325,7 +349,9 @@ Octopus.prototype.lookRoom = function (a) {
     var act = this.activeNotes();
     out.archived = this.S.notes.filter(function (n) { return n.status !== 'active' || act.indexOf(n) >= NOTES_IN; }).map(noteOut);
   }
-  var sit = this.meetSituation() || this.tableSituation();
+  if (this.S.far.state === 'open') out.far = 'open — 먼 바다 문이 열려 있다. 영어 위키백과도 읽을 수 있다 (peek target 에 lang:"en")';
+  else if (this.S.far.state === 'proposed') out.far = 'proposed — 사람의 대답을 기다리는 중';
+  var sit = this.meetSituation() || this.farSituation() || this.tableSituation();
   this.save();
   return withDecision(out, sit);
 };
@@ -423,9 +449,12 @@ Octopus.prototype.peek = async function (a) {
       else status = 'failed';
     }
   } else if (tg.kind === 'wiki' && str(tg.title)) {
+    var lang = tg.lang === 'en' ? 'en' : 'ko';
+    if (lang === 'en' && this.S.far.state !== 'open') return { error: '먼 바다 문 (영어 위키백과) 은 아직 닫혀 있어. 한국어 위키는 그대로 갈 수 있어.' };
     target = { kind: 'wiki', title: tg.title };
-    var w = await this.fetchWiki(tg.title, { timeoutMs: 6000, sentences: a.more ? 6 : 2 });
-    src = cleanSource(w);
+    if (lang === 'en') target.lang = 'en';
+    var w = await this.fetchWiki(tg.title, { timeoutMs: 6000, sentences: a.more ? 6 : 2, lang: lang });
+    src = cleanSource(w, lang);
     status = src ? 'read' : 'failed';
     if (src) { links = w.links; raw = w; }
   } else if (tg.kind === 'url' && /^https?:\/\/\S+$/.test(tg.url || '')) {
@@ -580,9 +609,12 @@ Octopus.prototype.answer = function (a) {
     var trip = this.S.trips.filter(function (t) { return t.id === p.tripId; })[0];
     if (trip) next = this.chatSituation(trip);
   } else if (p.point === 'chat') this.S.chat = null;   /* 그만 → 대화는 조용히 끝. 다시 묻지 않는다 */
+  else if (p.point === 'far') {
+    this.S.far = a.action === 'propose' ? { state: 'proposed', line: str(a.line) || null, at: this.now().toISOString() } : { state: 'closed', next: addDays(this.dateKey(), FAR_RETRY) };
+  }
   if (!next) next = this.tableSituation();
   this.save();
   return withDecision({ ok: true }, next);
 };
 
-module.exports = { screenArgs: screenArgs, suspectText: suspectText, privateText: privateText, checkArgs: checkArgs, plain: plain, CAPS: CAPS, parseBook: parseBook, loadBooks: loadBooks, BOOK_HEAD: BOOK_HEAD, BOOK_MAX: BOOK_MAX, Octopus: Octopus, FIXED_SENTENCE: FIXED_SENTENCE, NOTES_HEAD: NOTES_HEAD, wikiFetch: wikiFetch, MENU: MENU };
+module.exports = { FAR_LANTERN: FAR_LANTERN, addDays: addDays, screenArgs: screenArgs, suspectText: suspectText, privateText: privateText, checkArgs: checkArgs, plain: plain, CAPS: CAPS, parseBook: parseBook, loadBooks: loadBooks, BOOK_HEAD: BOOK_HEAD, BOOK_MAX: BOOK_MAX, Octopus: Octopus, FIXED_SENTENCE: FIXED_SENTENCE, NOTES_HEAD: NOTES_HEAD, wikiFetch: wikiFetch, MENU: MENU };

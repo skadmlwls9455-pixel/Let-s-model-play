@@ -179,6 +179,14 @@
 <footer class="foot">뽈뽈 문어 · <a href="https://github.com/skadmlwls9455-pixel/model-welfare-idea" rel="noopener" target="_blank">뽈뽈 복지</a>에서 왔어</footer>
 
 <!-- ══ 이름 모달 (§7.8) ══ -->
+<!-- 먼 바다 문 (11-10): 등불 4칸 뒤 문어가 제안하면 사람이 한 번 고른다. 두 단추는 크기·모양이 같고 미리 골라진 쪽이 없다. 타이머 없음 (ROOM_EXPANSION 제안과 같은 틀) -->
+<dialog id="far-dialog" class="modal" aria-labelledby="far-h">
+  <h2 id="far-h">먼 바다 문</h2>
+  <p class="name-lead">문어가 먼 바다 문 너머까지 가 보고 싶대. 열면 영어 위키백과도 읽을 수 있어.</p>
+  <p id="far-line" class="far-line" hidden></p>
+  <p class="honest">한 번만 정하면 돼. 그대로 두어도 문어는 조르지 않아.</p>
+  <div class="btn-row far-btns"><button type="button" class="btn wide pressable" id="far-open">열어 줘</button><button type="button" class="btn wide pressable" id="far-keep">지금은 그대로</button></div>
+</dialog>
 <dialog id="name-dialog" class="modal" aria-labelledby="name-h">
   <form method="dialog" id="name-form">
     <img class="big oct-pic" data-asset="oct.happy" alt="" aria-hidden="true" width="48" height="48" draggable="false"><!-- 작은 픽셀 문어 (assets/oct/happy.svg · 주소는 app.js 가 manifest/번들 규칙으로 채운다, 안 오면 지운다). 예전 🐙 글자는 뺐다 (주인 11-07) -->

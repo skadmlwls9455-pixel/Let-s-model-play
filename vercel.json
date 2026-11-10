@@ -29,6 +29,12 @@
         "icn1"
       ],
       "maxDuration": 10
+    },
+    "api/far/[key].js": {
+      "regions": [
+        "icn1"
+      ],
+      "maxDuration": 10
     }
   },
   "headers": [

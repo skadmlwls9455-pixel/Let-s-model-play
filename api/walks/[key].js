@@ -25,7 +25,9 @@ module.exports = async function walks(req, res) {
       var ev = ST.parse(await store.read(prefix + names[i]));
       if (Array.isArray(ev)) out.push({ file: names[i], events: ev });
     }
-    return send(res, 200, { ok: true, walks: out, more: names.length > out.length });
+    var st = ST.parse(await store.read(ST.roomPath(key, 'state.json'))) || {}, f = st.far || {};
+    var far = f.state === 'proposed' ? { state: 'proposed', line: typeof f.line === 'string' ? f.line : null } : { state: f.state === 'open' ? 'open' : 'closed' };   /* 먼 바다 문 제안 → 게임이 사람에게 묻는다 */
+    return send(res, 200, { ok: true, walks: out, more: names.length > out.length, far: far });
   } catch (e) {
     console.error('walks: storage', e && e.name);
     return send(res, 502, { ok: false, error: 'storage' });

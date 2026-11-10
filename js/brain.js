@@ -584,7 +584,7 @@
   BRAIN.wikiUrl = function (title) { return WIKI_PAGE + encodeURIComponent(String(title).replace(/ /g, '_')); };
 
   /* 재생 입력이 준 출처는 이 꼴일 때만 믿는다: 위키백과(한국어) 문서 · 위키미디어 공용 사진 (https 만) */
-  function isWikiPageUrl(u) { return typeof u === 'string' && /^https:\/\/ko\.wikipedia\.org\/wiki\/\S+$/.test(u); }
+  function isWikiPageUrl(u) { return typeof u === 'string' && /^https:\/\/(ko|en)\.wikipedia\.org\/wiki\/\S+$/.test(u); }   /* en: 먼 바다 문이 열린 모델 산책 (MCP 가 사람의 동의 뒤에만 읽는다) */
   function safeThumb(t) {
     if (!t || typeof t !== 'object' || typeof t.url !== 'string' || !/^https:\/\/upload\.wikimedia\.org\/\S+$/.test(t.url)) return null;
     return { url: t.url, w: (typeof t.w === 'number' && isFinite(t.w)) ? t.w : null, h: (typeof t.h === 'number' && isFinite(t.h)) ? t.h : null };
