@@ -374,4 +374,4 @@
 - `mcp/tools/import-cards.js` 가 사실 문장 + "읽을 때 구분할 것" 만 남긴다 (질문 문장 5 · 권유 문장 8 제거, 질문꼴 제목 25개는 서술형으로). `by: ChatGPT 조사 · Claude 다듬음`, 출처는 열람 범위까지 그대로.
 - 자리: `library/cards/<ID>.md` (방에 매이지 않음). `depart` 가 날마다 3장을 `cards` 로 올리고 (AI 서가는 하루 한 장까지 — 문어 이야기에 쏠렸던 것처럼 '자기 이야기' 로 쏠리지 않게), `peek {kind:"card", id}` 로 읽는다. 결과는 책과 같다 (`builtin` + `book`). 게임·엽서는 "서가 카드" 로 표시.
 - 토큰: 카드가 많아져도 모델이 보는 건 날마다 제목 3줄 (~80 토큰) 과, 읽기로 고른 카드 한 장 (≤ 500자, 책과 같음) 뿐이다. 서가 크기는 비용과 무관하다.
-- 같이 받은 `library_books_fact_drafts_2026-11-10` (GPT 가 쓴 책 초안 8권 — 주인이 쓰기로 한 8개 방) 은 `check-books` 통과 · 질문 0 · 권유 0 · 출처 범위 정직. 넣을지는 주인이 정한다 (by 가 ChatGPT 가 된다).
+- 같이 받은 `library_books_fact_drafts_2026-11-10` (GPT 가 쓴 책 초안 8권 — 주인이 쓰기로 한 8개 방: cuneiform · feather · hat · octopus_nerves · pinecone · time_sense · whale_song · zero) 은 `check-books` 통과 · 질문 0 · 권유 0 · 출처 범위 정직 (초록만 읽은 자료는 그렇게 표시). 주인 결정 "일단 이대로 넣어줘. 나중에 내가 바꿀게" → `by: ChatGPT` 그대로 넣었다 (책 32권). 이 8개는 주인이 직접 쓴 책으로 바꿀 자리다.

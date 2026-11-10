@@ -25,7 +25,8 @@ function stubWiki(title, opts) {
   return Promise.resolve({ ok: false, reason: 'network' });
 }
 var clock = Date.parse('2026-11-08T10:00:00+09:00');
-function mk(dir) { return new core.Octopus({ dir: dir, fetchWiki: stubWiki, now: function () { return new Date(clock); }, name: '뚜루' }); }
+/* booksDir 는 빈 폴더 — 일반 시험은 저장소에 어떤 책이 있든 (주인이 방을 채워 가도) 같은 답을 내야 한다. 책은 unit() 의 책 시험에서 따로 본다 */
+function mk(dir) { return new core.Octopus({ dir: dir, booksDir: tmp(), fetchWiki: stubWiki, now: function () { return new Date(clock); }, name: '뚜루' }); }
 var HUMAN_KEYS = ['together', 'withUser', 'items', 'pocket', 'cooking', 'kept', 'swim', 'user', 'userItems', 'picked'];
 function humanKeys(o) {
   var bad = [];
