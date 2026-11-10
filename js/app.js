@@ -1609,14 +1609,15 @@ var APP = (function () {
     s += '<rect width="' + w + '" height="' + hgt + '" rx="' + Math.max(1, w * 0.01) + '" fill="' + pal[0] + '"/>';
     s += '<rect x="0.5" y="0.5" width="' + (w - 1) + '" height="' + (hgt - 1) + '" rx="' + Math.max(1, w * 0.01) + '" fill="none" stroke="' + pal[1] + '"/>';
     /* 장면 */
-    /* 주제의 픽셀 배경 (js/poster-art.js, data URI) — 있으면 임시 벡터 장면 대신. 작은 포스터(mini)는 예전 그대로 색 띠만 */
-    var bg = (!opts.mini && window.POSTER_ART && POSTER_ART.sceneSvg) ? POSTER_ART.sceneSvg(p.scene || 'home', sx, sy, sw, sh) : '';
+    /* 주제의 픽셀 배경 (js/poster-art.js, data URI) — 있으면 임시 벡터 장면 대신. 작은 포스터(mini: 벽 · 들고 오는 · 날아가는)에도 넣는다 (부드럽게 줄여서) */
+    var bg = (window.POSTER_ART && POSTER_ART.sceneSvg) ? POSTER_ART.sceneSvg(p.scene || 'home', sx, sy, sw, sh, !!opts.mini) : '';
     s += '<g clip-path="url(#' + uid + 'c)"><rect x="' + sx + '" y="' + sy + '" width="' + sw + '" height="' + sh + '" fill="url(#' + uid + ')"/>' + (bg || sceneShapes(trip.seed, sx, sy, sw, sh));
     var sceneHref = bg ? null : opts.inlineScene || (opts.noExternal ? null : scenePath(p.scene));
     if (sceneHref) s += '<image href="' + esc(sceneHref) + '" x="' + sx + '" y="' + sy + '" width="' + sw + '" height="' + sh + '" preserveAspectRatio="xMidYMid slice"/>';
     /* 그 방의 픽셀 그림 (js/poster-art.js) — 있으면 위키 사진 대신 이것을 붙인다 (사진은 장면과 따로 놀았다, 주인 11-10). 출처·사진 출처는 일기에 그대로 */
     var art = (!opts.mini && window.POSTER_ART) ? (note ? POSTER_ART.svg(trip, sx + sw * 0.25, sy + sh * 0.08, sw * 0.5, sh * 0.84, W) : POSTER_ART.svg(trip, sx + sw * 0.08, sy + sh * 0.12, sw * 0.5, sh * 0.62, W)) : '';   /* 쪽지 = 그날 집 활동 그림 (가운데) */
-    if (art) s += art;
+    var miniArt = (opts.mini && window.POSTER_ART && POSTER_ART.miniSvg) ? POSTER_ART.miniSvg(trip, sx, sy, sw, sh, W) : '';   /* 작은 포스터: 그 방 그림을 장면 가운데에 (벽에서 포스터끼리 구분되게) */
+    if (art || miniArt) s += art || miniArt;
     else if (!opts.mini && p.thumb && p.thumb.url && S.settings.thumbs !== false && !note) {
       var th = opts.inlineThumb || (opts.noExternal ? null : p.thumb.url);
       if (th) s += '<g clip-path="url(#' + uid + 't)"><image href="' + esc(th) + '" x="' + (sx + sw * 0.08) + '" y="' + (sy + sh * 0.12) + '" width="' + (sw * 0.5) + '" height="' + (sh * 0.62) + '" preserveAspectRatio="xMidYMid slice"/></g>';
@@ -1633,6 +1634,7 @@ var APP = (function () {
     if (art) { ss = 16 * Math.max(1, Math.round(w * 0.107 / 16)); stx = sx + sw * ((81 + (Math.abs(pos.x | 0) % 7)) / 100); sty = sy + sh * (Math.max(14, Math.min(84, pos.y)) / 100); pos = { x: pos.x, y: pos.y, rot: 0 }; }
     var stHref = opts.inlineSticker || stickerSrc(trip);
     if (stHref && !/^data:/.test(stHref) && window.UIART && UIART.iconBad && UIART.iconBad(stHref)) stHref = null;   /* 한 번 안 온 그림은 넣지 않는다 (깨진 그림 표시 대신 스티커 없이) */
+    if (miniArt) stHref = null;   /* 작은 포스터에 방 그림이 있으면 주제 스티커는 뺀다 (둘이 겹쳐 뭉개진다) */
     if (stHref && (!opts.noExternal || /^data:/.test(stHref))) {
       /* 기울기는 <image> 에 (바깥 g.stk 는 새 카드 등장 애니메이션 scale/fade 가 transform 을 덮어쓴다 — 거기 두면 기울기 · 자리가 풀린다) */
       s += '<g class="stk"><image href="' + esc(stHref) + '" x="' + (stx - ss / 2).toFixed(1) + '" y="' + (sty - ss / 2).toFixed(1) + '" width="' + ss.toFixed(1) + '" height="' + ss.toFixed(1) + '" transform="rotate(' + (pos.rot || 0) + ' ' + stx.toFixed(1) + ' ' + sty.toFixed(1) + ')" image-rendering="optimizeSpeed" style="image-rendering:pixelated"/></g>';

@@ -66,6 +66,11 @@ corners.forEach(function (c) { check(!!A.scene(c), '배경 있음: ' + c); });
 var bg = A.sceneSvg('sea', 18, 23.4, 264, 224);
 check(/width="264" height="224"/.test(bg) && /href="data:image\/png/.test(bg) && /pixelated/.test(bg), '배경 <image>: 칸을 덮고 data URI');
 check(A.sceneSvg('없는장면', 0, 0, 10, 10) === '', '모르는 장면이면 빈 문자열 (예전 벡터 장면으로)');
+/* 작은 포스터 (벽 · 들고 오는 · 날아가는) */
+var ms = A.miniSvg(trip('hat', 'hands'), 2.88, 3.74, 42.2, 35.8, WORLD), mm = /width="([\d.]+)"/.exec(ms);
+check(mm && Math.abs(+mm[1] - 35.8 * 0.82) < 0.02 && /data-art="room:hat"/.test(ms) && !/pixelated/.test(ms), '작은 포스터 그림: 칸의 82% · 부드럽게');
+check(!/pixelated/.test(A.sceneSvg('sea', 2, 3, 42, 36, true)) && /data-scene="sea"/.test(A.sceneSvg('sea', 2, 3, 42, 36, true)), '작은 포스터 배경: 부드럽게');
+check(A.miniSvg({ poster: { type: 'note' } }, 0, 0, 40, 30, WORLD) === '', '작은 포스터도 붙일 게 없으면 빈 문자열');
 /* 들른 곳 줄 */
 function walk(stops, rem) { return { by: 'demo-rules', poster: { type: 'poster', sticker: 'hat', scene: 'hands' }, receipt: { stops: stops, rememberedIdx: rem } }; }
 var w3 = walk([{ nodeId: 'hat', status: 'read' }, { nodeId: 'feather', status: 'failed' }, { corner: 'sea', status: 'simulated' }, { status: 'none' }], 0), tr = A.trail(w3);

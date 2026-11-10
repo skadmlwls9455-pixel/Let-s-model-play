@@ -60,9 +60,17 @@ var POSTER_ART = (function () {
     return img(a.src, x + (w - s) / 2, y + (h - s) / 2, s, ' class="poster-art" data-art="' + a.kind + ':' + a.id + '"');
   }
 
+  /* 작은 포스터(mini: 벽 · 들고 오는 포스터 · 날아가는 포스터)의 그림: 장면 칸 가운데에 칸의 82% 크기로, 부드럽게 줄여서. 붙일 그림이 없으면 '' */
+  function miniSvg(trip, x, y, w, h, world) {
+    var a = forTrip(trip, world); if (!a) return '';
+    var s = Math.min(w, h) * 0.82;
+    return '<image class="poster-art" data-art="' + a.kind + ':' + a.id + '" href="' + a.src + '" x="' + (x + (w - s) / 2).toFixed(2) + '" y="' + (y + (h - s) / 2).toFixed(2) + '" width="' + s.toFixed(2) + '" height="' + s.toFixed(2) + '"/>';
+  }
+
   /* 장면 배경: 장면 칸(x, y, w, h)을 덮는 <image>. 가로는 칸 너비에 맞추고 (300px 포스터 = ×4) 넘치는 위아래는 잘린다 (쪽지는 칸이 낮다). 모르는 장면이면 '' */
-  function sceneSvg(id, x, y, w, h) {
+  function sceneSvg(id, x, y, w, h, smooth) {
     var src = scene(id); if (!src) return '';
+    if (smooth) return '<image class="poster-scene" data-scene="' + id + '" href="' + src + '" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid slice"/>';   /* 작은 포스터: 칸이 66px 보다 좁아 정수 배가 안 된다 → 부드럽게 줄인다 (벽 텍스처는 장면이 다시 픽셀로 만든다) */
     return '<image class="poster-scene" data-scene="' + id + '" href="' + src + '" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid slice" image-rendering="optimizeSpeed" style="image-rendering:pixelated"/>';
   }
 
@@ -90,7 +98,7 @@ var POSTER_ART = (function () {
   }
 
   return { SIZE: SIZE, SCENE_W: SCENE_W, SCENE_H: SCENE_H, room: room, corner: corner, stay: stay, scene: scene,
-    forTrip: forTrip, forStop: forStop, svg: svg, sceneSvg: sceneSvg, trail: trail, trailSvg: trailSvg,
+    forTrip: forTrip, forStop: forStop, svg: svg, miniSvg: miniSvg, sceneSvg: sceneSvg, trail: trail, trailSvg: trailSvg,
     rooms: function () { return Object.keys(D.room); }, corners: function () { return Object.keys(D.corner); }, stays: function () { return Object.keys(D.stay); }, scenes: function () { return Object.keys(D.scene); } };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = POSTER_ART;
