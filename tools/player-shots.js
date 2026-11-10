@@ -8,8 +8,9 @@
  *   · pl-portrait.png (playerPortrait 64×64: 1줄 머리 6종 · 2줄 악세사리 6종, navy 배경)
  *   · pl-stick-walk-strip.png (스틱 입력 setPlayerInput 화면 왼쪽으로 0.1 s × 12 칸, 2× 크롭 — 뒤로 남는 발자국이 보여야 한다, brief MOVE.md)
  * 검사: 샷마다 고유 색 ≤ 62(시트 칸마다 ≤ 62, 합친 시트 ≤ 96) · 다락 드로우콜 ≤ 150 · 놀이방 ≤ 60 · 셰이더 프로그램 수가 부팅과 같음(내 캐릭터 툰·눈 재질은 문어 툰과 프로그램을 나눠 쓴다) · 모든 파츠 조합에서 드로우콜이 기본값과 같음(메시 수 불변)
- *   · setPlayer 전 옵션 뒤 renderer.info.memory.geometries ≤ 시작 + 7(옛 지오메트리 dispose) · textures 가 시작과 같음(눈 아틀라스는 다시 그릴 뿐 새 텍스처가 아니다) · 모르는 id → 기본값 · 얼굴 색 집계(살결 #e7d5b3 ≠ 흰색 #ebede9, 흰색 0.3~8 % = 글린트 + 깃 — 눈은 흰자 없는 홍채 콩이라 상한은 눈 텍스처가 빠져 흰 네모가 된 상태(≥ 11 %)를 잡는다, 금발 #de9e41 ≥ 8 %, 올리브 #d0da91 로 뜨지 않음) · 깜빡임 프레임에 홍채 색이 줄고 감은 눈 선 색이 늚
+ *   · setPlayer 전 옵션 뒤 renderer.info.memory.geometries ≤ 시작 + 7(옛 지오메트리 dispose) · textures 가 시작과 같음(눈 아틀라스는 다시 그릴 뿐 새 텍스처가 아니다) · 모르는 id → 기본값 · 얼굴 색 집계(살결 #e7d5b3 ≠ 흰색 #ebede9, 흰색 0.3~8 % = 깃뿐 — 11-10 부터 눈엔 흰색이 없다. 상한은 눈 텍스처가 빠져 흰 네모가 된 상태(≥ 11 %)를 잡는다, 금발 #de9e41 ≥ 8 %, 올리브 #d0da91 로 뜨지 않음) · 깜빡임 프레임의 눈 창 안에서 달라진 픽셀: 뜬 눈의 눈 색(그늘 · 홍채 · 동공) ≥ 1000 px · 색 반짝 점 ≥ 60 px 가 사라지고 감은 눈 선 ≥ 40 px 가 생기며 뜬 눈 자리에 흰색 0 px
  *   · **눈 튀어나옴(11-09)**: 머리 6종 × 8방향(1×) · 8방향(2×) 칸마다 눈 켠 · 눈 끈(debugPlayerEyes) · 캐릭터 숨긴(debugPlayerHide) 세 프레임을 비교 — 눈 픽셀(켬 ≠ 끔) 가운데 캐릭터 픽셀(끔 ≠ 숨김: 머리 · 몸 · 윤곽 잉크)도 아니고 4-이웃에도 캐릭터가 없는 픽셀(= 윤곽 밖으로 1 px 이상 나온 눈) 이 0 이어야 한다. 윤곽선 위에 걸친 눈 픽셀(이웃이 캐릭터)은 'rim' 으로 집계만(옆 90° 에서 눈이 얇은 선으로 보이는 것)
+ *   · **눈 그림 규칙(11-10, 주인 "흰자위를 없애고 눈을 좀 동글하고 귀엽게 · 세로 타원형이라 좀 무섭게 느껴짐")**: 화면에 찍힌 눈 픽셀(눈 조각 켬 − 끔)에 흰색 · 흰색에 가까운 칸(#ebede9 · #c7cfcc · #a4dddb)이 0 — 눈 스타일 6 × 눈 색 6(2×) 과 돌려보기 96 칸 모두 · 기본 '동그란' 눈은 코 · 입 · 볼을 끄고 재서 눈마다 가로 = 세로(2× 8×8 = 52 px · 1× 4×4 = 12 px) + 네 모서리 살결 · 눈 색 6 개가 동그란 눈에서 2× · 1× 모두 서로 다른 색 구성
  *   · 초상 12장 모두 0행은 배경만(머리 꼭대기·모자·귀가 안 잘림) · walkFirst 로 문이 걷기 뒤에 열림 · 스틱 12 칸 내내 walking · 발자국 수 증가(≥ 5) · 자국 픽셀(발자국 메시 숨김 전후 차, 2× 1단 ≥ 40 · 2단 ≥ 16 · 1× 1단 ≥ 12 · 2단 ≥ 6) · 드로우콜 ≤ 기준 + 2 · 놓으면 멈춤 · 2.3 s 뒤 자국 0 · 콘솔/페이지 에러 0. 어기면 exit 1.
  */
 'use strict';
@@ -24,7 +25,8 @@ var W = 360, H = 326, DPR = 2, CROP = 96, FRAMES = 24, STEP = 0.1, PL_H = 1.22, 
 var CATS = ['hair', 'hairColor', 'eyes', 'eyeColor', 'nose', 'mouth', 'cheek', 'outfit', 'shoes', 'acc'];   /* 파츠 시트 줄 순서 = 설정 시트 UI 순서 */
 var FACE_CATS = ['eyes', 'eyeColor', 'nose', 'mouth', 'cheek'];   /* 얼굴 범주 → pl-parts-face.png */
 var CAT_CY = { hair: 0.84, hairColor: 0.95, eyes: 0.95, eyeColor: 0.95, nose: 0.95, mouth: 0.95, cheek: 0.95, acc: 0.95, outfit: 0.45, shoes: 0.35 };   /* 2× 크롭(0.89 m)은 키 1.22~1.38 을 다 못 담는다 — 범주마다 보여야 할 곳을 가운데에 (머리 줄은 꼭대기 1.28 이 들게 0.84 → 0.395~1.285, 뒷머리 길이 전체는 pl-parts-hair 128 px 크롭이 맡는다) */
-var SKIN = 0xe7d5b3, WHITE = 0xebede9, IRIS = 0x602c2c, OLIVE = 0xd0da91, BROW = 0xbe772b, BLONDE = 0xde9e41;   /* 실광 모델 칸 (docs/PLAYER_PARTS.md §0.1·§2.2): 살결 · 흰색(글린트·깃) · 기본 눈 색 흑갈색 #6a3a30 의 화면 칸 · v0 금발이 뜨던 올리브 · 금발의 감은 눈 선 색(#b8742e 의 앞면 — 눈썹은 피드백 6 으로 없음) · 금발 #e8a93a 의 앞면 */
+var SKIN = 0xe7d5b3, WHITE = 0xebede9, IRIS = 0x602c2c, OLIVE = 0xd0da91, BROW = 0xbe772b, BLONDE = 0xde9e41;   /* 실광 모델 칸 (docs/PLAYER_PARTS.md §0.1·§2.2): 살결 · 흰색(깃 — 눈엔 없다) · 기본 눈 색 흑갈색 #6a3a30 의 화면 칸 · v0 금발이 뜨던 올리브 · 금발의 감은 눈 선 색(#b8742e 의 앞면 — 눈썹은 피드백 6 으로 없음) · 금발 #e8a93a 의 앞면 */
+var SHINE = 0xbe772b, EYE_WHITE = [0xebede9, 0xc7cfcc, 0xa4dddb];   /* 기본(흑갈색) 눈의 색 반짝 점 #be772b 의 화면 칸(금발의 감은 눈 선 BROW 와 같은 칸) · 눈 픽셀이 앉으면 안 되는 흰색 계열 칸(옛 글린트 #fff4e0 의 앞면 · 2단 · #ffffff 의 2단 물빛) — 주인 11-10 "흰자위를 없애고" */
 
 var CRC = (function () { var t = new Int32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } return t; })();
 function crc32(buf) { var c = -1; for (var i = 0; i < buf.length; i++) c = CRC[(c ^ buf[i]) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; }
@@ -49,6 +51,7 @@ function grid(rows, gap) {   /* rows = [[png buffer | null, …], …] → 격�
 }
 function strip(frames) { return grid([frames], 2); }
 function census(im) { var m = {}; for (var i = 0; i < im.w * im.h; i++) { var k = (im.px[i * im.bpp] << 16) | (im.px[i * im.bpp + 1] << 8) | im.px[i * im.bpp + 2]; m[k] = (m[k] || 0) + 1; } return m; }
+function pxOf(im, i) { return (im.px[i * im.bpp] << 16) | (im.px[i * im.bpp + 1] << 8) | im.px[i * im.bpp + 2]; }
 function uniqIm(im) { return Object.keys(census(im)).length; }
 function uniq(file) { return uniqIm(LM.decodePNG(file)); }
 function hex(k) { return '#' + ('000000' + k.toString(16)).slice(-6); }
@@ -86,10 +89,10 @@ function harness() {
   if (Object.keys(PARTS.parts).sort().join() !== CATS.slice().sort().join()) fails.push('PLAYER_PARTS 범주가 시트 줄(CATS)과 같아야 한다 ' + Object.keys(PARTS.parts).join());
 
   async function shot(name) { var f = path.join(OUT, name); await page.locator('#scene').screenshot({ path: f }); var u = uniq(f); console.log('  📷 ' + name + '  (고유 색 ' + u + ')'); if (u > 62) fails.push(name + ' 고유 색 ' + u + ' > 62'); return f; }
+  function cropXY(cx, cy, size) { size = size || CROP; return { x: Math.round(Math.max(0, Math.min(W - size, cx - size / 2)) / 2) * 2, y: Math.round(Math.max(0, Math.min(H - size, cy - size / 2)) / 2) * 2, size: size }; }   /* 크롭 원점 (CSS px, 아트 픽셀 배수) */
   async function cropBuf(cx, cy, size) {   /* 캐릭터 둘레 size×size CSS px (기본 CROP, 원점은 아트 픽셀 배수) → PNG 버퍼 */
-    size = size || CROP;
-    var x = Math.round(Math.max(0, Math.min(W - size, cx - size / 2)) / 2) * 2, y = Math.round(Math.max(0, Math.min(H - size, cy - size / 2)) / 2) * 2;
-    return page.screenshot({ clip: { x: x, y: y, width: size, height: size } });
+    var o = cropXY(cx, cy, size);
+    return page.screenshot({ clip: { x: o.x, y: o.y, width: o.size, height: o.size } });
   }
   async function crop(name, cx, cy) { var f = path.join(OUT, name); fs.writeFileSync(f, await cropBuf(cx, cy)); console.log('  📷 ' + name); return f; }
   function plScreen(y) { return page.evaluate(function (yy) { var p = SC.player(); return SC.screenOf(p.at[0], yy, p.at[2]); }, y == null ? PL_H / 2 : y); }
@@ -110,15 +113,27 @@ function harness() {
   console.log('face census:', top(fc, 12), '| skin %', pct(SKIN).toFixed(1), 'white %', pct(WHITE).toFixed(1), 'olive %', pct(OLIVE).toFixed(1), 'brow %', pct(BROW).toFixed(1));
   if (uniqIm(faceIm) > 62) fails.push('pl-face-close 고유 색 ' + uniqIm(faceIm) + ' > 62');
   if (pct(SKIN) < 8) fails.push('얼굴 크롭: 살결 칸 ' + hex(SKIN) + ' 이 8 % 이상이어야 한다 (' + pct(SKIN).toFixed(1) + ')');
-  if (!(pct(WHITE) >= 0.3 && pct(WHITE) <= 8)) fails.push('얼굴 크롭: 흰색 칸 ' + hex(WHITE) + ' 이 0.3~8 % 여야 한다 (' + pct(WHITE).toFixed(1) + ') — 글린트 둘 + 깃(≈ 4 %), 흰색 ≠ 살결 · 상한은 map 이 빠져 흰 네모가 된 눈(≥ 11 %)을 잡는다');
+  if (!(pct(WHITE) >= 0.3 && pct(WHITE) <= 8)) fails.push('얼굴 크롭: 흰색 칸 ' + hex(WHITE) + ' 이 0.3~8 % 여야 한다 (' + pct(WHITE).toFixed(1) + ') — 깃뿐(≈ 3.5 %, 눈엔 흰색이 없다 — 11-10), 흰색 ≠ 살결 · 상한은 map 이 빠져 흰 네모가 된 눈(≥ 11 %)을 잡는다');
   if (pct(OLIVE) > 3) fails.push('얼굴 크롭: 금발이 올리브 ' + hex(OLIVE) + ' 로 떴다 (' + pct(OLIVE).toFixed(1) + ' %)');
   if (pct(BLONDE) < 8) fails.push('얼굴 크롭: 금발 칸 ' + hex(BLONDE) + ' 이 8 % 이상이어야 한다 (' + pct(BLONDE).toFixed(1) + ') — 살결 #e7d5b3 와 두 칸 갈린 머리칼 (리뷰 11-08: #e8c170 은 살결과 한 덩이였다)');
   await page.evaluate(function () { SC.debugPlayerBlink(0.12); SC.debugStep(0.01); });
   var blinkIm = decodeBuf(await cropBuf(c.x, c.y)), bc = census(blinkIm); save('pl-blink.png', grid([[faceBuf, await cropBuf(c.x, c.y)]]));
-  console.log('blink census:', 'iris', fc[IRIS] || 0, '→', bc[IRIS] || 0, '| white', fc[WHITE] || 0, '→', bc[WHITE] || 0, '| brow', fc[BROW] || 0, '→', bc[BROW] || 0);
-  if (!((fc[IRIS] || 0) - (bc[IRIS] || 0) >= 600)) fails.push('깜빡임 프레임: 홍채 색(두 눈 콩 ≈ 47 텍셀 × 16 px × 2, 문짝에 가린 왼눈 가장자리 빼고)이 600 px 이상 줄어야 한다 ' + (fc[IRIS] || 0) + ' → ' + (bc[IRIS] || 0));
-  if (!((fc[WHITE] || 0) - (bc[WHITE] || 0) >= 80)) fails.push('깜빡임 프레임: 글린트(눈마다 5 텍셀 × 16 px, 깃은 그대로)가 80 px 이상 줄어야 한다 ' + (fc[WHITE] || 0) + ' → ' + (bc[WHITE] || 0));
-  if (!((bc[BROW] || 0) - (fc[BROW] || 0) >= 40)) fails.push('깜빡임 프레임: 감은 눈 선(머리색 한 칸 어둡게, 8 아트px × 2 = 64 px)이 40 px 이상 늘어야 한다 ' + (fc[BROW] || 0) + ' → ' + (bc[BROW] || 0));
+  /* 깜빡임은 '눈 창 안에서 달라진 픽셀'로 센다 (11-10): 반짝 점이 흰색 글린트에서 눈 색을 밝힌 색(흑갈색 눈 → #be772b)이 됐고 그 칸이 금발의 감은 눈 선(BROW)과 같아, 색 집계의 차로는 '점이 사라짐'과 '선이 생김'이 서로 지워진다.
+     눈 창 = 발밑 화면 점에서 위로 34 아트px(2× 의 눈 중심 = PL_EYE.sv 17 px × 2) · 좌우 ±8 아트px 에 놓인 8×8 아트px 눈 둘 + 여유 2 아트px (CSS px 로는 가로 ±28 · 세로 −80~−56) — 창 밖은 등불 깜빡임 디더(머리칼 · 리본 몇 픽셀)가 섞여 뺀다.
+     body = 뜬 쪽이 살결도 반짝 점도 아닌 것(그늘 · 홍채 · 동공) · shine = 뜬 쪽이 반짝 점 · line = 감은 쪽이 선 색 · white = 뜬 쪽이 흰색 계열 */
+  var bd = { body: 0, shine: 0, line: 0, white: 0 }, bo = cropXY(c.x, c.y), bft = await plScreen(0);
+  var wx0 = Math.max(0, Math.round((bft.x - 28 - bo.x) * DPR)), wx1 = Math.min(faceIm.w, Math.round((bft.x + 28 - bo.x) * DPR)), wy0 = Math.max(0, Math.round((bft.y - 80 - bo.y) * DPR)), wy1 = Math.min(faceIm.h, Math.round((bft.y - 56 - bo.y) * DPR));
+  for (var by = wy0; by < wy1; by++) for (var bx = wx0; bx < wx1; bx++) {
+    var ka = pxOf(faceIm, by * faceIm.w + bx), kb = pxOf(blinkIm, by * faceIm.w + bx); if (ka === kb) continue;
+    if (ka === SHINE) bd.shine++; else if (ka !== SKIN) bd.body++;
+    if (EYE_WHITE.indexOf(ka) >= 0) bd.white++;
+    if (kb === BROW) bd.line++;
+  }
+  console.log('blink census:', 'iris', fc[IRIS] || 0, '→', bc[IRIS] || 0, '| white', fc[WHITE] || 0, '→', bc[WHITE] || 0, '| brow', fc[BROW] || 0, '→', bc[BROW] || 0, '| eye window', [wx0, wy0, wx1, wy1].join(','), 'changed', JSON.stringify(bd));
+  if (!(bd.body >= 1000)) fails.push('깜빡임 프레임: 뜬 눈의 눈 색 픽셀(그늘 · 홍채 · 동공 = 눈마다 48 텍셀 × 16 px, 문짝에 가린 왼눈 가장자리 빼고 ≈ 1380)이 1000 px 이상 사라져야 한다 ' + bd.body);
+  if (!(bd.shine >= 60)) fails.push('깜빡임 프레임: 색 반짝 점(눈마다 4 텍셀 × 16 px, 둘 = 128 px)이 60 px 이상 사라져야 한다 ' + bd.shine);
+  if (bd.white) fails.push('뜬 눈 자리에 흰색 계열 픽셀 ' + bd.white + ' px — 눈엔 흰자 · 흰 글린트가 없어야 한다 (주인 11-10)');
+  if (!(bd.line >= 40)) fails.push('깜빡임 프레임: 감은 눈 선(머리색 한 칸 어둡게, 눈마다 8 텍셀 × 16 px, 문짝에 가린 쪽 빼고 ≈ 220 px)이 40 px 이상 생겨야 한다 ' + bd.line);
   await page.evaluate(function () { for (var i = 0; i < 3; i++) SC.debugStep(0.1); });
   var open2 = census(decodeBuf(await cropBuf(c.x, c.y)));
   if ((open2[IRIS] || 0) < (fc[IRIS] || 0) * 0.9) fails.push('깜빡임 뒤 눈(홍채 색)이 돌아와야 한다 ' + (fc[IRIS] || 0) + ' → ' + (open2[IRIS] || 0));
@@ -205,22 +220,22 @@ function harness() {
   save('pl-parts-hair.png', grid(hrows));
   await page.evaluate(function () { SC.debugPlayerYaw(null); });
   /* 2c. 머리 8방향 (1×) + 8방향 (2×, 머리 중심): 긴 머리 커튼 · 포니테일 꼬리 · 웨이브 덩어리는 정면 한 장으로 판단할 수 없다. 칸마다 눈 튀어나옴 집계(머리 주석) — 카메라 요 45° 라 d 45 = 정면, d 0 · 90 = 45° 돌림, d 315 · 135 = 옆 90°, d 270 · 180 = 뒤 135° */
-  var turn1 = [], turn2 = [], eyeOut = [], eyeRim = 0, eyeN = 0;
+  var turn1 = [], turn2 = [], eyeOut = [], eyeRim = 0, eyeN = 0, eyeWhite = [];
   async function eyeCheck(cx, cy, label) {   /* 눈 켬 / 눈 끔 / 캐릭터 숨김 세 프레임 → 눈 픽셀 · 캐릭터 밖 눈 픽셀(out) · 윤곽에 걸친 눈 픽셀(rim) */
     var on = await cropBuf(cx, cy);
     await page.evaluate(function () { SC.debugPlayerEyes(false); SC.debugStep(0.01); }); var off = await cropBuf(cx, cy);
     await page.evaluate(function () { SC.debugPlayerHide(true); SC.debugStep(0.01); }); var gone = await cropBuf(cx, cy);
     await page.evaluate(function () { SC.debugPlayerHide(false); SC.debugPlayerEyes(true); SC.debugStep(0.01); });
-    var a = decodeBuf(on), bI = decodeBuf(off), cI = decodeBuf(gone), A = DPR * 2, w = a.w / A | 0, h = a.h / A | 0, eye = 0, out = 0, rim = 0;   /* 아트 픽셀 단위(1 아트px = p 2 × DPR 2 = 4 장치px, 크롭 원점은 4 의 배수)로 센다 — 장치 픽셀로 세면 1 아트px 선의 바깥 3/4 이 '이웃 없음' 이 된다 */
+    var a = decodeBuf(on), bI = decodeBuf(off), cI = decodeBuf(gone), A = DPR * 2, w = a.w / A | 0, h = a.h / A | 0, eye = 0, out = 0, rim = 0, white = 0;   /* 아트 픽셀 단위(1 아트px = p 2 × DPR 2 = 4 장치px, 크롭 원점은 4 의 배수)로 센다 — 장치 픽셀로 세면 1 아트px 선의 바깥 3/4 이 '이웃 없음' 이 된다 */
     function k(im, x, y) { var i = (y * A * im.w + x * A) * im.bpp; return (im.px[i] << 16) | (im.px[i + 1] << 8) | im.px[i + 2]; }
     function body(x, y) { return k(bI, x, y) !== k(cI, x, y); }   /* 눈을 꺼도 캐릭터(머리 · 몸 · 윤곽 잉크 · 접지 그림자)가 차지한 아트 픽셀 */
     for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
-      if (k(a, x, y) === k(bI, x, y)) continue; eye++;
+      if (k(a, x, y) === k(bI, x, y)) continue; eye++; if (EYE_WHITE.indexOf(k(a, x, y)) >= 0) white++;
       if (body(x, y)) continue;
       var near = (x > 0 && body(x - 1, y)) || (x < w - 1 && body(x + 1, y)) || (y > 0 && body(x, y - 1)) || (y < h - 1 && body(x, y + 1));
       if (near) rim++; else out++;
     }
-    eyeN += eye; eyeRim += rim; if (out) eyeOut.push(label + ':' + out);
+    eyeN += eye; eyeRim += rim; if (out) eyeOut.push(label + ':' + out); if (white) eyeWhite.push(label + ':' + white);
     return on;
   }
   await page.evaluate(function () { SC.setReducedMotion(true); });   /* 돌려보기 동안 숨쉬기(8 fps 스텝 1 px)를 끈다 — 눈 켬/끔 두 프레임 사이에 몸 윤곽이 1 px 흔들리면 눈 픽셀로 잘못 센다. 요 회전은 즉시 */
@@ -233,12 +248,59 @@ function harness() {
     turn1.push(r1); turn2.push(r2);
   }
   await page.evaluate(function () { SC.setReducedMotion(false); });
-  console.log('eye protrusion: eye px', eyeN, '| rim', eyeRim, '| outside', eyeOut.length ? eyeOut.join(' ') : 0);
+  console.log('eye protrusion: eye px', eyeN, '| rim', eyeRim, '| outside', eyeOut.length ? eyeOut.join(' ') : 0, '| white', eyeWhite.length ? eyeWhite.join(' ') : 0);
+  if (eyeWhite.length) fails.push('돌려보기: 눈 픽셀이 흰색 계열 칸에 앉았다 (머리/배율/요: 픽셀 수) ' + eyeWhite.join(' '));
   if (eyeOut.length) fails.push('눈이 머리 윤곽 밖으로 나왔다 (머리/배율/요: 픽셀 수) ' + eyeOut.join(' '));
   if (eyeN < 96 * 20 / 16) fails.push('눈 픽셀이 너무 적다 ' + eyeN + ' (눈 텍스처가 안 보인다?)');
   save('pl-hair-turn.png', grid(turn1)); save('pl-hair-turn-2x.png', grid(turn2));
   var yawBack = await page.evaluate(function () { SC.debugPlayerYaw(null); SC.zoomStep(0); for (var i = 0; i < 6; i++) SC.debugStep(0.1); return SC.player().yaw; });
   if (Math.abs(yawBack - b.pl.yaw) > 0.5) fails.push('debugPlayerYaw(null) 뒤 다시 카메라 쪽(' + b.pl.yaw + '°)을 봐야 한다 ' + yawBack);
+  await setPlayer(PARTS.def);
+
+  /* 2c-2. 눈 그림 규칙 (주인 11-10 "흰자위를 없애고 눈을 좀 동글하고 귀엽게 · 지금은 세로 타원형이라 좀 무섭게 느껴짐") — 화면에 찍힌 눈 픽셀(눈 조각 켬 − 끔, 아트 픽셀 단위 · 놀이방 정면)로 잰다:
+     ① 눈 스타일 6 × 눈 색 6 (2×) 어느 칸에도 흰색 계열 칸(EYE_WHITE)이 없다 ② 기본 '동그란' 눈은 코 · 입 · 볼을 끄고 재서 눈마다 가로 = 세로(2× 8×8 · 1× 4×4) · 네 모서리 살결 · 픽셀 수 52 / 12(폭 4·6·8·8·8·8·6·4 / 2·4·4·2 의 합)
+     ③ 눈 색 6 개가 동그란 눈에서 2× · 1× 모두 서로 다른 색 구성으로 찍힌다(눈 색을 골라도 안 바뀌는 그림이면 실패) */
+  async function eyePx(cy) {   /* → [[x, y, 색]…] 눈 조각이 그린 아트 픽셀 (숨쉬기를 끈 상태에서 부른다 — eyeCheck 와 같은 이유) */
+    var es = await plScreen(cy), on = decodeBuf(await cropBuf(es.x, es.y));
+    await page.evaluate(function () { SC.debugPlayerEyes(false); SC.debugStep(0.01); }); var off = decodeBuf(await cropBuf(es.x, es.y));
+    await page.evaluate(function () { SC.debugPlayerEyes(true); SC.debugStep(0.01); });
+    var A = DPR * 2, w = on.w / A | 0, h = on.h / A | 0, out = [];
+    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) { var ka = pxOf(on, y * A * on.w + x * A), kb = pxOf(off, y * A * off.w + x * A); if (ka !== kb) out.push([x, y, ka]); }
+    return out;
+  }
+  function eyeSig(list) { var m = {}; list.forEach(function (p) { m[p[2]] = (m[p[2]] || 0) + 1; }); return Object.keys(m).sort().map(function (k) { return hex(+k) + '×' + m[k]; }).join(' '); }
+  function eyeBoxes(list) {   /* 눈 픽셀을 좌우 두 덩이로 → 덩이마다 가로 · 세로 · 픽셀 수 · 채워진 모서리 수 */
+    if (!list.length) return [];
+    var mx = list.reduce(function (t, p) { return t + p[0]; }, 0) / list.length;
+    return [list.filter(function (p) { return p[0] < mx; }), list.filter(function (p) { return p[0] >= mx; })].map(function (g) {
+      var xs = g.map(function (p) { return p[0]; }), ys = g.map(function (p) { return p[1]; }), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys), has = {};
+      g.forEach(function (p) { has[p[0] + ',' + p[1]] = 1; });
+      return { w: x1 - x0 + 1, h: y1 - y0 + 1, n: g.length, corners: (has[x0 + ',' + y0] || 0) + (has[x1 + ',' + y0] || 0) + (has[x0 + ',' + y1] || 0) + (has[x1 + ',' + y1] || 0) };
+    });
+  }
+  await page.evaluate(function () { SC.setReducedMotion(true); SC.zoomStep(6); SC.debugStep(0.1); });
+  var eyeWhiteBad = [], sig = { 2: {}, 1: {} }, bare = { nose: 'none', mouth: 'none', cheek: 'none' };
+  for (var si = 0; si < PARTS.parts.eyes.length; si++) for (var ei = 0; ei < PARTS.parts.eyeColor.length; ei++) {
+    var ecfg = { eyes: PARTS.parts.eyes[si].id, eyeColor: PARTS.parts.eyeColor[ei].id };
+    await setPlayer(Object.assign({}, PARTS.def, ecfg));
+    var ep = await eyePx(0.95), wn = ep.filter(function (p) { return EYE_WHITE.indexOf(p[2]) >= 0; }).length;
+    if (wn) eyeWhiteBad.push(ecfg.eyes + '/' + ecfg.eyeColor + ':' + wn);
+    if (ep.length < 8) fails.push('눈 ' + ecfg.eyes + '/' + ecfg.eyeColor + ' 가 2× 에서 안 보인다 (눈 픽셀 ' + ep.length + ')');
+    if (ecfg.eyes === PARTS.def.eyes) sig[2][ecfg.eyeColor] = eyeSig(ep);
+  }
+  if (eyeWhiteBad.length) fails.push('눈 픽셀이 흰색 계열 칸에 앉았다 (스타일/색: 2× 아트 픽셀 수) ' + eyeWhiteBad.join(' ') + ' — 흰자 · 흰 글린트 금지 (주인 11-10)');
+  var roundBox = {};
+  for (var zi = 0; zi < 2; zi++) {   /* 2× → 1× */
+    var zk = zi ? 1 : 2, side = zi ? 4 : 8, cnt = zi ? 12 : 52;
+    await page.evaluate(function (z) { SC.zoomStep(z); SC.debugStep(0.1); }, zi ? 0 : 6);
+    await setPlayer(Object.assign({}, PARTS.def, bare));
+    var boxes = eyeBoxes(await eyePx(0.95)); roundBox[zk + 'x'] = boxes;
+    if (boxes.length !== 2 || boxes.some(function (b) { return b.w !== side || b.h !== side || b.n !== cnt || b.corners; })) fails.push('기본 눈(' + PARTS.def.eyes + ') ' + zk + '× 실루엣: 눈마다 가로 = 세로 = ' + side + ' px · 모서리 살결 · ' + cnt + ' px 여야 한다 ' + JSON.stringify(boxes) + ' — 세로 타원 · 네모 금지 (주인 11-10)');
+    if (zi) for (ei = 0; ei < PARTS.parts.eyeColor.length; ei++) { await setPlayer(Object.assign({}, PARTS.def, { eyeColor: PARTS.parts.eyeColor[ei].id })); sig[1][PARTS.parts.eyeColor[ei].id] = eyeSig(await eyePx(0.95)); }
+  }
+  [2, 1].forEach(function (z) { var seen = {}; Object.keys(sig[z]).forEach(function (id) { if (seen[sig[z][id]]) fails.push('눈 색 ' + id + ' 와 ' + seen[sig[z][id]] + ' 가 ' + z + '× 기본 눈에서 같은 색 구성이다 (' + sig[z][id] + ')'); seen[sig[z][id]] = id; }); });
+  console.log('eye rules: white', eyeWhiteBad.length ? eyeWhiteBad.join(' ') : 0, '| round box', JSON.stringify(roundBox), '| colours 2×', Object.keys(sig[2]).length, '1×', Object.keys(sig[1]).length, '| 1× dark:', sig[1][PARTS.def.eyeColor]);
+  await page.evaluate(function () { SC.setReducedMotion(false); SC.zoomStep(0); for (var i = 0; i < 3; i++) SC.debugStep(0.1); });
   await setPlayer(PARTS.def);
 
   /* 2d. 초상 (playerPortrait): 머리 6종 + 악세사리 6종, navy 배경 → 64×64 × 6 두 줄. 빈 캔버스가 아니어야 하고 0행은 배경만(머리 꼭대기 · 모자 · 귀가 잘리지 않는다 — 리뷰 11-08: hw 1.3 은 밀짚모자 윗부분이 잘렸다) */
