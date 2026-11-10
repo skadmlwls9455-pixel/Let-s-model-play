@@ -993,7 +993,7 @@ var COOK_ART = (function () {
         if (kd(x + 1, y) || kd(x - 1, y) || kd(x, y + 1) || kd(x, y - 1)) pf(x, y, x / rx + y / ry > 0.55 ? 'J0' : 'J1');
       }
     }
-    return { buf: b, cx: cx, cy: cy, K: K, ID: ID, rx: rx, ry: ry, th: th, hero: [cx + hx, cy + hy], face: face, band: band, seed: seed };
+    return { buf: b, cx: cx, cy: cy, K: K, ID: ID, rx: rx, ry: ry, th: th, hero: [cx + hx, cy + hy], face: face, band: band, seed: seed, herb: herb };
   }
   /* the texture seed of a dish comes from what the player's hands did (the dents), so the pan, the board, the reveal, the
      counter plate and the notebook all show the same jeon without anyone passing a seed */
@@ -1084,13 +1084,13 @@ var COOK_ART = (function () {
     if (gap) gaps.forEach(function (g) {
       var x = g[0], y = g[1], col;
       if ((isOcc(x - 1, y) && isOcc(x + 1, y)) || (isOcc(x, y - 1) && isOcc(x, y + 1))) col = gap;
-      else if (isOcc(x, y - 1)) col = fc(ih(x, y, seed + 9) % 5 === 0 ? 'P1' : 'J5');
+      else if (isOcc(x, y - 1)) col = fc(ih(x, y, seed + 9) % 5 === 0 ? (J.herb === 'tot' ? 'T1' : 'P1') : 'J5');
       else if (isOcc(x, y - 2) && !isOcc(x, y - 1)) col = fc(T.side[0]);
       else col = C.w1;
       put(out, x, y, col);
     });
     faces.forEach(function (f) {
-      var q2 = f[2], col = q2 === 0 ? T.side[1] : q2 === 1 ? js(T.base, 1) : q2 === 3 ? T.side[0] : (ih(f[0], f[1], seed + 9) % 5 === 0 ? 'P1' : 'B1');
+      var q2 = f[2], col = q2 === 0 ? T.side[1] : q2 === 1 ? js(T.base, 1) : q2 === 3 ? T.side[0] : (ih(f[0], f[1], seed + 9) % 5 === 0 ? (J.herb === 'tot' ? 'T1' : 'P1') : 'B1');
       put(out, f[0], f[1], fc(col));
     });
     return { buf: out, ox: -J.cx - P, oy: -J.cy - P, gaps: gaps };
@@ -2120,7 +2120,7 @@ var COOK_ART = (function () {
     }
     if (o.arrow === 0 || o.arrow === 1) arrow(b, (sp ? sp[0] : GEO.rest.spatula[0]) + 1, (sp ? sp[1] : GEO.rest.spatula[1]) - 18, o.arrow);
     frame(b);
-    if (!arc && !still) prewarmFlip(band, herb, dl, tseed);
+    if (!arc) prewarmFlip(band, herb, dl, tseed);
     return b;
   }
 
@@ -2190,7 +2190,7 @@ var COOK_ART = (function () {
     }
     steamPass(b, function (px, py) { var X = px - x0, Y = py - y0; return X >= 0 && Y >= 0 && X < rb.w && Y < rb.h && rb.d[((Y * rb.w + X) << 2) + 3] ? 1 : 0; }, true);
     frame(b);
-    if (!still) prewarmReveal(band, herb, dl);
+    prewarmReveal(band, herb, dl);
     return b;
   }
   function lineIf(b, x0, y0, x1, y1, ok, c) {
