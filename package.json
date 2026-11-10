@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "node tools/check-world.js && node tools/test-brain.js && node tools/test-model-voice.js && node tools/test-runner.js && node tools/test-api.js && node tools/test-cook.js && node tools/test-salon.js && node tools/test-cook-stickers.js && node tools/test-play-stickers.js && node tools/test-poster-art.js && node tools/test-art-extra.js",
-    "test:slow": "node tools/test-scene-perf.js && node tools/test-play.js && node tools/test-audio.js && node tools/test-resume.js && node tools/smoke.js && node tools/test-cook-live.js && node tools/test-cook-audio.js"
+    "test:slow": "node tools/test-scene-perf.js && node tools/test-play.js && node tools/test-audio.js && node tools/test-resume.js && node tools/smoke.js && node tools/test-cook-live.js && node tools/test-cook-audio.js && node tools/test-cook-stickers-live.js"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.2",

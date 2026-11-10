@@ -1,8 +1,10 @@
 # 테스트 — push(모든 브랜치)와 PR 마다 돈다. 여러 작업이 동시에 고치니 서로 깨뜨린 걸 바로 알게.
 #   fast  : 빠른 묶음 (필수) — world 불변식 · brain · runner · api · 요리 시뮬레이션 (test-cook, 9물결) · 미용실 규칙 (test-salon)
+#           · 반응 스티커 그림 · 규칙 (test-cook-stickers · test-play-stickers) · 포스터 · 배지 · 기념품 그림 (test-poster-art · test-art-extra)
 #   fonts : 글꼴 부분 집합 점검 (필수) — 화면 문구의 글자가 Galmuri 서브셋에 다 있는지
 #   slow  : 느린 묶음 (선택) — Playwright 스모크 A,B,I · 장면 성능 · 요리 창 (test-cook-live, cook.html) · 부엌 소리 (test-cook-audio,
-#           cook.html?sound=1 · foley/ · credits.html). 실패해도 run 은 빨갛게 되지 않는다
+#           cook.html?sound=1 · foley/ · credits.html) · 부엌에 붙인 반응 스티커 (test-cook-stickers-live, cook.html +
+#           js/cook-stickers.js). 실패해도 run 은 빨갛게 되지 않는다
 #           (continue-on-error: 로컬에서 스모크 I 의 '새로고침 뒤 지정 계절 유지' 가 3번 중 1번 흔들렸다)
 # package.json 의 scripts 는 쓰지 않고 node 명령을 그대로 부른다. 이 워크플로는 아무것도 커밋하지 않는다.
 name: test
@@ -40,6 +42,11 @@ jobs:
       - run: node tools/test-cook.js
       # 미용실 규칙 (js/salon.js): 시드 대답 · 하루 한 번 · 같은 색 7일 쉼 · 문구 · 모델 요청. TZ=Asia/Seoul 자식 프로세스를 스스로 띄운다
       - run: node tools/test-salon.js
+      # 반응 스티커 (js/cook-stickers.js · js/play-stickers.js): 그림 파일 · manifest · 규칙이 고르는 스티커 · 시드 · 금지 낱말. 노드만 쓴다
+      - run: node tools/test-cook-stickers.js
+      - run: node tools/test-play-stickers.js
+      - run: node tools/test-poster-art.js
+      - run: node tools/test-art-extra.js
 
   fonts:
     name: 글꼴 점검
@@ -86,6 +93,11 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           SHOTS: ${{ github.workspace }}/ci-shots/cook-audio
+      # 부엌에 붙인 반응 스티커 (cook.html + js/cook-stickers.js) — 요리 순간마다 스티커가 뜨는지 (시드 · 자리 · 머무는 시간), 손길을 가로채지
+      # 않는지, 닫으면 남는 것이 없는지, 동작 줄이기, 소리 꺼짐, 스티커 파일이 없어도 부엌이 그대로인지. 대부분 file:// 이고, 소리 꺼짐과
+      # 파일 막기는 http 라 저장소 뿌리를 스스로 띄운다 (127.0.0.1 빈 포트). 캡처는 남기지 않는다
+      - run: node tools/test-cook-stickers-live.js
+        if: ${{ !cancelled() }}
       - uses: actions/upload-artifact@v7
         if: ${{ always() }}
         with:

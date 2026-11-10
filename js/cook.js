@@ -865,7 +865,8 @@ var COOK = (function () {
    * Input (6.2, 6.3): one visible clock that freezes while the tab is hidden (sim t = visible ms / slow). Every pointer
    * sample goes through input() (it ticks first), every frame runs tick() + drain(). The host drops touches that start
    * within TUNE.edgeCss of the screen's left / right edge. Juice (5.4) is drawn from drained events on a 12 fps grid;
-   * sound (5.5) goes to AUDIO.on('cook', snd) in the same handler; aria-live gets the say words only.
+   * sound (5.5) goes to AUDIO.on('cook', snd) in the same handler; aria-live gets the say words only. The same acts go
+   * to the reaction stickers when js/cook-stickers.js is loaded (sticker(): pictures only, the kitchen never needs them).
    * Storage: one key (opts.storeKey, default 'ppolppol_cook'); the pot is saved at step boundaries, on hidden, pagehide
    * and close; a finished dish adds one book line. open() never throws. */
   var KEY0 = 'ppolppol_cook';
@@ -933,6 +934,29 @@ var COOK = (function () {
     }
     try { if (window.AUDIO && AUDIO.on) AUDIO.on('cook', clone(snd)); } catch (e) { /* sound is a bonus */ }
   }
+  /* reaction stickers (js/cook-stickers.js, docs/COOK_STICKERS.md): optional pictures, never needed. The kitchen hands
+     them its cooking moments under the act names of the sound table (design 5.5): handle() every sim event that carries
+     a sound act, pick() the new dish. Not from sound(): that is also called to hush a hidden tab and to bring the sizzle
+     back, and neither is a new moment. The dish seed names their run (same dish, same moments, same pictures). They
+     mount on D.stick: a layer over the canvas and under the kitchen's own tags that never takes a touch and that screen
+     readers do not see (css/cook.css .ck-stick). They belong to the steps and the plate reveal: unstick() empties the
+     layer on the way back to the counter and when the kitchen closes. Whatever goes wrong in there stays in there. */
+  var stickOn = null;   /* the COOK_STICKERS object now mounted on D.stick */
+  function sticker(snd) {
+    try {
+      var stk = window.COOK_STICKERS;
+      if (!stk || typeof stk.cue !== 'function' || !D || !L || !snd || typeof snd.act !== 'string') return;
+      if (stickOn !== stk) { if (typeof stk.mount === 'function') stk.mount(D.stick, { scale: 2 }); stickOn = stk; }
+      var d = clone(snd);
+      if (snd.act === 'pick' && L.run) d.runId = L.run.seed;
+      if (!stk.cue(snd.act, d)) return;
+      var kids = D.stick.children, slot = kids.length ? kids[kids.length - 1].getAttribute('data-slot') : null;
+      for (var i = kids.length - 2; i >= 0 && slot !== null; i--) {   /* one picture a corner: a new one takes the place of the one there */
+        if (kids[i].getAttribute('data-slot') === slot) kids[i].remove();
+      }
+    } catch (e) { /* decoration only */ }
+  }
+  function unstick() { try { if (D && D.stick) D.stick.textContent = ''; } catch (e) { /* decoration only */ } }
   function say(text) {   /* one polite line; cleared first so the same words are read again */
     if (!D || !text) return;
     if (L) { L.said.push(text); if (L.said.length > 32) L.said.shift(); }
@@ -1020,7 +1044,7 @@ var COOK = (function () {
     var words = [];
     for (var i = 0; i < evs.length; i++) {
       var e = evs[i];
-      if (e.snd) sound(e.snd);
+      if (e.snd) { sound(e.snd); sticker(e.snd); }
       if (e.say) words.push(e.say);
       onEvent(e);
       if (!L) return;
@@ -1237,6 +1261,7 @@ var COOK = (function () {
     }
     L.run = run; L.runDay = day; L.screen = 'step'; L.shown = false; L.finished = null; L.hintKey = null; L.hint = null;
     L.fxq = []; L.parts = []; L.dust = []; L.down = {}; L.finger = null; L.rowPress = false; L.nudges = 0;
+    sticker({ act: 'pick', dish: r.id });   /* here, not beside the sound above: the run (its seed) has to exist first */
     if (L.rec) {   /* a resumed dish keeps its pot: COOK.simulate(recipe, seed, steps, { pot }) replays it */
       var steps = []; for (var i = 0; i < run.n; i++) steps.push([]);
       window.__cookRec = { recipe: run.recipe, seed: run.seed, steps: steps, pot: pot };
@@ -1250,7 +1275,7 @@ var COOK = (function () {
     if (!L || L.screen !== 'reveal') return;
     var made = L.run ? L.run.recipe : PROPS[0].recipe;
     L.run = null; L.screen = 'counter'; L.down = {}; L.hint = null; L.fxq = []; L.parts = []; L.revealDown = null; L.revealIdle = 0; L.counterAt = performance.now();
-    D.name.hidden = true; hideTitle();
+    D.name.hidden = true; hideTitle(); unstick();
     refreshCounter();
     focusEl(propFor(made));
   }
@@ -1367,6 +1392,7 @@ var COOK = (function () {
     D.verbRow.style.width = cw + 'px'; D.verbRow.style.marginLeft = left + 'px';
     D.foot.style.height = bot + 'px';
     L.k = k; L.dpr = dpr; L.css = w / ART_W; L.cw = cw; L.rect = null;
+    D.stick.style.zoom = Math.abs(L.css - 2) < 1e-6 ? '' : String(L.css / 2);   /* a sticker pixel (2 px there) = one art pixel here */
     L.tight = sky < LAY.note + LAY.gap + 4;   /* no room for the notice slot above the header: it lies over the strip */
     D.dlg.classList.toggle('ck-tight', L.tight);
     if (L.note) D.noteT.textContent = L.tight ? L.note.short : L.note.text;
@@ -1513,10 +1539,11 @@ var COOK = (function () {
     d.close = el('button', { type: 'button', class: 'ck-close', text: WORDS.close });
     d.head = el('div', { class: 'ck-head' }, [d.note, d.strip, d.close]);
     d.cv = el('canvas', { class: 'ck-cv', width: String(ART_W), height: String(ART_H), 'aria-hidden': 'true' });
+    d.stick = el('div', { class: 'ck-stick', 'aria-hidden': 'true' });   /* reaction stickers mount here: sticker() */
     d.props = el('div', { class: 'ck-props' });
     d.title = el('p', { class: 'ck-title', 'aria-hidden': 'true', hidden: '' });
     d.name = el('p', { class: 'ck-name', 'aria-hidden': 'true', hidden: '' });
-    d.stage = el('div', { class: 'ck-stage', tabindex: '-1' }, [d.cv, d.props, d.title, d.name]);
+    d.stage = el('div', { class: 'ck-stage', tabindex: '-1' }, [d.cv, d.stick, d.props, d.title, d.name]);
     d.verb = el('button', { type: 'button', class: 'ck-verb', hidden: '' });
     d.verbRow = el('div', { class: 'ck-verbrow' }, [d.verb]);
     d.foot = el('div', { class: 'ck-foot', 'aria-hidden': 'true' });
@@ -1576,6 +1603,7 @@ var COOK = (function () {
     L = keep;
     try { window.cancelAnimationFrame(me.raf); } catch (e) { /* none */ }
     clearTimeout(say.timer);
+    unstick();
     document.documentElement.classList.remove('ck-open');
   }
   function onClosed() {

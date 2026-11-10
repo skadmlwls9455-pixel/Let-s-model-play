@@ -11,10 +11,14 @@
      button that opens it again. Its own save key: ppolppol_cook_v0.
      Sound: js/audio.js (the game's own, same origin, so it follows the saved sound setting: off unless the player
      turned it on). ?sound=1 turns it on for this page only (never saved: the game's own setting stays as it was); it
-     still starts only on the first touch or key. The kitchen sounds live in foley/ (credits: credits.html). -->
+     still starts only on the first touch or key. The kitchen sounds live in foley/ (credits: credits.html).
+     Reaction stickers: css/cook-stickers.css + js/cook-stickers.js, after js/cook.js (docs/COOK_STICKERS.md). Pictures
+     only. js/cook.js hands them its cooking moments itself (no COOK_STICKERS.listenAudio() here: both would show every
+     sticker twice), so they need no sound; without the two files the kitchen plays just the same. -->
 <link rel="stylesheet" href="vendor/fonts/galmuri.css">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/cook.css">
+<link rel="stylesheet" href="css/cook-stickers.css">
 <style>
 /* cook.html only: one quiet text link to the credits (the kitchen sounds are recordings by other people).
    Shown on the counter screen, in the empty strip where the verb button sits during a step, and on the closed
@@ -38,12 +42,16 @@
 </main>
 <script src="js/cook-art.js"></script>
 <script src="js/cook.js"></script>
+<script src="js/cook-stickers.js"></script>
 <script>
 (function () {
   'use strict';
   var door = document.getElementById('ck-door'), q = null;
   try { q = new URLSearchParams(location.search); } catch (e) { q = null; }
   function get(k) { return q ? q.get(k) : null; }
+  /* ?reduced=1 reaches the kitchen as an option (opts below). The reaction stickers only look at the page's motion
+     switch, so it is set here too (the main game sets data-motion from its own setting) */
+  if (get('reduced') === '1') document.documentElement.setAttribute('data-motion', 'reduce');
   function opts(first) {
     var o = { opener: door, storeKey: 'ppolppol_cook_v0' }, v;
     v = get('seed'); if (v !== null && /^\d{1,10}$/.test(v)) o.seed = Number(v);

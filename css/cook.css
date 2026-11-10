@@ -73,6 +73,16 @@ html.ck-open body { overscroll-behavior: none; }
 :root:root .ck-dlg .ck-stage:focus, :root:root .ck-dlg .ck-stage:focus-visible { outline: none; }   /* a script focus target only (keyboard focus goes to the verb button) */
 .ck-cv { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges;
   touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* the layer js/cook.js hands the reaction stickers (js/cook-stickers.js + css/cook-stickers.css, optional). Pictures
+   only: over the canvas, under the prop buttons and the title and name tags (z-index 0 keeps their own z-index in
+   here); it never takes a touch, never grows the stage or scrolls, and screen readers do not see it (aria-hidden in
+   js/cook.js). js/cook.js fit() sets its zoom so that one sticker pixel is one art pixel of the stage. */
+.ck-stick { position: absolute; inset: 0; z-index: 0; overflow: hidden; contain: layout paint; pointer-events: none;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* their two places (the stage's top corners, given in percent) put on the art grid: 4 art px in from the side, 3 down
+   (2 px in this layer = one art pixel). !important because the sticker script sets the percent inline */
+.ck-stick > [data-slot="0"] { left: 8px !important; top: 6px !important; }
+.ck-stick > [data-slot="1"] { right: 8px !important; top: 6px !important; }
 .ck-props { position: absolute; inset: 0; pointer-events: none; }
 .ck-props[hidden] { display: none; }
 .ck-prop { position: absolute; display: block; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit;
@@ -127,8 +137,11 @@ html.ck-open body { overscroll-behavior: none; }
 :root:root .ck-door:focus-visible { outline: 2px solid var(--fg, #341c27); outline-offset: -6px; }
 
 /* reduced motion: the canvas follows COOK.open({ reduced }) / prefers-reduced-motion in js/cook.js. The dialog has no
-   CSS animation; this block keeps it that way. The 2 px press shift and the raised step icon stay (static, not motion). */
+   CSS animation of its own; this block keeps it that way. The 2 px press shift and the raised step icon stay (static,
+   not motion). One thing is left alone: a reaction sticker's own box (.cook-sticker), which under reduced motion only
+   fades in and out (css/cook-stickers.css .is-reduced: opacity, no travel). A moving strip inside it is stopped here
+   like everything else, so it rests on its first cell. */
 @media (prefers-reduced-motion: reduce) {
-  .ck-dlg, .ck-dlg * { animation: none !important; transition: none !important; }
+  .ck-dlg, .ck-dlg *:not(.cook-sticker) { animation: none !important; transition: none !important; }
 }
-:root[data-motion="reduce"] .ck-dlg, :root[data-motion="reduce"] .ck-dlg * { animation: none !important; transition: none !important; }
+:root[data-motion="reduce"] .ck-dlg, :root[data-motion="reduce"] .ck-dlg *:not(.cook-sticker) { animation: none !important; transition: none !important; }
