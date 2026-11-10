@@ -3109,23 +3109,41 @@ var APP = (function () {
   var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
   var furnHinted = false;
   /* 가구 배치 모드 화면 (주인 11-10 참고 화면): 위에 '가구 배치 · 이름' + 바꿔 들 가구 칩, 오른쪽 아래에 돌리기 · 크게 · 작게 · 취소 · 놓기. 큰 버튼(뽈뽈 다녀와)은 그동안 숨긴다. 캐릭터는 스틱 · 방향키로 그대로 움직인다 */
-  function furnUI(stt) {
+  var furnMode = false;
+  function furnOpen(on) {   /* 위쪽 바의 소파 아이콘: 배치 모드 켜기 · 끄기 (들고 있던 건 놓는다) */
+    if (!scene || typeof scene.furnItems !== 'function') return;
+    if (!on && scene.furnEditing && scene.furnEditing()) scene.furnConfirm();
+    furnMode = !!on; furnUI(on && scene.furnEditing ? scene.furnEditing() : null);
+  }
+  function furnUI(stt) {   /* stt = 들고 있는 가구 상태 | null. 모드가 켜져 있으면 가구 줄은 늘 보이고, 고른 게 있을 때만 슬라이더 · 취소 · 놓기 */
     var ui = $('furn-ui'); if (!ui) return;
-    document.documentElement.classList.toggle('furn-on', !!stt);
-    ui.hidden = !stt; if (!stt) return;
-    $('furn-title').textContent = '가구 배치 · ' + stt.name + (stt.scale !== 1 ? ' (' + Math.round(stt.scale * 100) + '%)' : '');
-    var box = $('furn-items'); box.textContent = '';
-    (stt.items || []).forEach(function (it) {
-      var b = document.createElement('button'); b.type = 'button'; b.className = 'fchip' + (it.id === stt.id ? ' on' : ''); b.textContent = it.name; b.setAttribute('aria-pressed', it.id === stt.id ? 'true' : 'false');
-      b.addEventListener('click', function () { if (scene && scene.furnCarry) scene.furnCarry(it.id); });
+    if (stt) furnMode = true;
+    var on = furnMode && sceneMode === '3d';
+    document.documentElement.classList.toggle('furn-on', on);
+    ui.hidden = !on; var fb = $('btn-furn'); if (fb) fb.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (!on) return;
+    $('furn-title').textContent = stt ? stt.name : '가구를 골라';
+    $('furn-tools').hidden = !stt;
+    if (stt) { $('furn-rot').value = String(Math.round(stt.rot / 15) * 15 % 360); $('furn-size').value = String(Math.round(stt.scale * 100)); }
+    var box = $('furn-items'), items = scene.furnItems ? scene.furnItems() : []; box.textContent = '';
+    items.forEach(function (it) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'furn-tile pressable' + (stt && it.id === stt.id ? ' on' : ''); b.setAttribute('aria-pressed', stt && it.id === stt.id ? 'true' : 'false');
+      var sw = document.createElement('span'); sw.className = 'furn-sw furn-sw-' + it.id; sw.setAttribute('aria-hidden', 'true');
+      var nm = document.createElement('span'); nm.className = 'furn-nm'; nm.textContent = it.name;
+      b.appendChild(sw); b.appendChild(nm);
+      b.addEventListener('click', function () { if (scene.furnCarry) scene.furnCarry(it.id); });
       box.appendChild(b);
     });
-    if (!furnHinted) { furnHinted = true; toast('캐릭터를 움직여 자리를 잡고 놓기를 눌러'); }
+    if (!furnHinted) { furnHinted = true; toast('가구를 고르고, 캐릭터를 움직여 자리를 잡아'); }
   }
   function bindFurn() {
-    var map = { 'furn-rot': 'furnRotate', 'furn-ok': 'furnConfirm', 'furn-x': 'furnCancel' };
-    Object.keys(map).forEach(function (id) { var b = $(id); if (b) b.addEventListener('click', function () { if (scene && typeof scene[map[id]] === 'function') scene[map[id]](); }); });
-    [['furn-big', 1], ['furn-small', -1]].forEach(function (q) { var b = $(q[0]); if (b) b.addEventListener('click', function () { if (scene && scene.furnScale) scene.furnScale(q[1]); }); });
+    var fb = $('btn-furn'); if (fb) fb.addEventListener('click', function () { furnOpen(!furnMode); });
+    var dn = $('furn-done'); if (dn) dn.addEventListener('click', function () { furnOpen(false); });
+    var ok = $('furn-ok'); if (ok) ok.addEventListener('click', function () { if (scene && scene.furnConfirm) scene.furnConfirm(); });
+    var no = $('furn-x'); if (no) no.addEventListener('click', function () { if (scene && scene.furnCancel) scene.furnCancel(); });
+    var rt = $('furn-rot'); if (rt) rt.addEventListener('input', function () { if (scene && scene.furnSetRot) scene.furnSetRot(+rt.value); });
+    [rt, $('furn-size')].forEach(function (el) { if (el) el.addEventListener('change', function () { el.blur(); }); });   /* 슬라이더를 놓으면 포커스도 놓는다 (방향키가 다시 캐릭터로) */
+    var sz = $('furn-size'); if (sz) sz.addEventListener('input', function () { if (scene && scene.furnSetScale) scene.furnSetScale(+sz.value / 100); });
   }
   var roomJob = null;   /* 지금 도는 문 작업 (Promise) — 끝날 때까지 두 번째 문은 열지 않는다 */
   function sceneView() { return scene && typeof scene.view === 'function' ? scene.view() : (scene && typeof scene.place === 'function' ? scene.place() : 'attic'); }

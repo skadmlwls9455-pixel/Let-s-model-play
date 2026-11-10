@@ -94,6 +94,10 @@
       <span class="ib-dot" aria-hidden="true" hidden></span>
       <span id="today-new" class="sr-only"></span>
     </button>
+    <!-- 가구 배치 (11-10 주인: "소파 모양을 포스터 아이콘 왼쪽에") — 누르면 배치 모드: 아래에 가구 줄, 고르면 캐릭터 앞에 붙는다. 다락이 보일 때만 (app.js furnBtnSync) -->
+    <button type="button" id="btn-furn" class="icon-btn furn-btn" aria-label="가구 배치" title="가구 배치" aria-pressed="false">
+      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M3 2h6v1H3zM2 3h1v3H2zM9 3h1v3H9zM3 3h6v2H3zM1 5h1v4H1zM10 5h1v4h-1zM2 6h8v3H2zM2 9h1v2H2zM9 9h1v2H9z"/></svg></span>
+    </button>
     <button type="button" id="btn-album" class="icon-btn album-btn" aria-label="추억 앨범" title="추억 앨범" aria-haspopup="dialog" aria-controls="album-sheet" aria-describedby="album-new" hidden>
       <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M1 2h10v1H1zM1 10h10v1H1zM1 3h1v7H1zM10 3h1v7h-1z"/><path class="al-pic" d="M3 6h1v1H3zM2 7h3v1H2zM6 5h1v1H6zM5 6h3v1H5zM4 7h5v1H4zM2 8h8v2H2zM8 4h1v1H8z"/></svg></span>
       <span class="ib-dot" aria-hidden="true" hidden></span>
@@ -116,14 +120,14 @@
   <button type="button" id="btn-sofa" class="sofa-dot" aria-label="소파에 앉기" title="소파에 앉기" hidden><span aria-hidden="true"></span></button>
   <!-- 가구 배치 모드 (11-10): 가구를 꾹 누르면 뜬다. 가구가 내 캐릭터 앞에 붙어 따라오고, 여기서 돌리기 · 크기 · 취소 · 놓기 (app.js furnUI · 장면 furnCarry) -->
   <div id="furn-ui" class="furn-ui" hidden>
-    <div class="furn-top"><strong id="furn-title">가구 배치</strong><span id="furn-items" class="furn-items" role="group" aria-label="옮길 가구"></span></div>
-    <div class="furn-col" role="group" aria-label="가구 배치">
-      <button type="button" class="btn sm pressable" id="furn-rot">돌리기</button>
-      <button type="button" class="btn sm pressable" id="furn-big">크게</button>
-      <button type="button" class="btn sm pressable" id="furn-small">작게</button>
-      <button type="button" class="btn sm pressable" id="furn-x">취소</button>
-      <button type="button" class="btn sm primary pressable" id="furn-ok">놓기</button>
+    <div class="furn-top"><button type="button" class="btn sm pressable" id="furn-done">끝내기</button><strong id="furn-title">가구 배치</strong></div>
+    <!-- 고른 가구가 있을 때만: 회전 · 크기 슬라이더 + 취소 · 놓기 (참고 화면의 오른쪽 세로 슬라이더 · ✕ ✓ 자리) -->
+    <div id="furn-tools" class="furn-tools" hidden>
+      <label class="furn-sl"><span>회전</span><input type="range" id="furn-rot" min="0" max="345" step="15" value="0" aria-label="회전"></label>
+      <label class="furn-sl"><span>크기</span><input type="range" id="furn-size" min="70" max="150" step="5" value="100" aria-label="크기"></label>
+      <div class="furn-yn"><button type="button" class="btn sm pressable" id="furn-x">취소</button><button type="button" class="btn sm primary pressable" id="furn-ok">놓기</button></div>
     </div>
+    <div id="furn-items" class="furn-strip" role="group" aria-label="가구"></div>
   </div>
   <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
   <!-- 발자국 손잡이 (가상 스틱, 주인 11-08 "바닥 톡보다 훨씬 자연스럽다"): 장면 왼쪽 아래 72px 고리 + 28px 손잡이. 끌면 그 화면 방향으로 내 캐릭터가 걷는다 (js/app.js stick 절 · scene.setPlayerInput).

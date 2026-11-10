@@ -1322,12 +1322,12 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 /* 320–359 폭: 한 줄엔 다 안 들어간다 — 픽셀 네 글자 이름 80 + 데모 23 + 등불 칸 94 + 여백 = 221 > 320 − 아이콘 138 = 182. 이름을 자르지 않고 **두 줄 쪽지**로: 윗줄 이름, 아랫줄 등불 + 데모.
    .who 를 풀어(display: contents) 이름 · 데모 · 등불이 한 격자의 칸이 되게 한다 (격자라 쪽지 폭 = 긴 줄 폭 — flex 줄바꿈은 한 줄로 잰 폭이 남아 빈 자리가 생긴다).
    두 단추(데모 · 등불)가 같은 줄에 나란해 누르는 곳 44px 이 서로 덮지 않는다. 이름은 아주 길 때만(쪽지 상한) … 로 줄어든다 (tools/smoke.js L) */
-@media (max-width: 359px) {
+@media (max-width: 379px) {
   :root[data-layout="one"] #status .srow { display: grid; grid-template-columns: auto auto; justify-content: start; align-items: center; gap: 0 6px; min-height: 0; }
   :root[data-layout="one"] #status .who { display: contents; }
-  :root[data-layout="one"] #status .name { grid-column: 1 / -1; grid-row: 1; line-height: 22px; }
-  :root[data-layout="one"] #status .pips, :root[data-layout="one"][data-font="pixel"] #status .pips { grid-column: 1; grid-row: 2; line-height: 12px; min-height: 12px; }
-  :root[data-layout="one"] #status .brain-tag { grid-column: 2; grid-row: 2; margin-left: 0; justify-self: start; }
+  :root[data-layout="one"] #status .name { grid-column: 1; grid-row: 1; line-height: 22px; }
+  :root[data-layout="one"] #status .pips, :root[data-layout="one"][data-font="pixel"] #status .pips { grid-column: 2; grid-row: 1; line-height: 12px; min-height: 12px; }   /* 등불은 이름 바로 오른쪽 (주인 11-10) */
+  :root[data-layout="one"] #status .brain-tag { grid-column: 1; grid-row: 2; margin-left: 0; justify-self: start; }
   :root[data-layout="one"] #status button.pips::before, :root[data-layout="one"][data-font="pixel"] #status button.pips::before { inset: -16px -4px; }   /* 칸 줄 12px + 위아래 16px = 누르는 곳 44px */
 }
 
@@ -1335,16 +1335,16 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
    왼쪽 위 쪽지를 화면 폭 한 줄 바로 편다. 오른쪽 140px 은 아이콘 셋(44 × 3) 자리 — 아이콘은 바 안의 납작한 그림 (따로 뜬 흰 상자 없음, 같은 선 · 같은 바탕).
    320–359 폭의 두 줄 쪽지 규칙은 그대로라 그때는 바가 두 줄 높이가 된다 */
 :root[data-layout="one"] #status, :root[data-font="pixel"][data-layout="one"] #status {
-  top: var(--safe-t); left: 0; right: 136px; width: auto; max-width: none; min-height: var(--bar-h); box-sizing: border-box;
+  top: var(--safe-t); left: 0; right: var(--ctl-w); width: auto; max-width: none; min-height: var(--bar-h); box-sizing: border-box;
   padding: 0 4px 0 12px; border: 0; border-bottom: 1px solid var(--rim); border-radius: 0; background-color: var(--panel);
 }
 :root[data-font="pixel"][data-layout="one"] #status { border-bottom: 2px solid var(--line); box-shadow: 0 2px 0 rgba(27, 21, 34, .35); }
 :root[data-layout="one"] #status .srow { min-height: calc(var(--bar-h) - 2px); align-items: center; justify-content: flex-start; gap: 12px; }
-:root[data-layout="one"] { --bar-h: 44px; }
+:root[data-layout="one"] { --bar-h: 44px; --ctl-w: 180px; }   /* 아이콘 넷 (오늘 · 가구 · 앨범 · 설정) × 44 + 여백 */
 @media (max-width: 399px) { :root[data-layout="one"] #status, :root[data-font="pixel"][data-layout="one"] #status { padding-left: 8px; padding-right: 2px; } :root[data-layout="one"] #status .srow { gap: 6px; } }   /* 360 폭: 픽셀 네 글자 이름 80 + 데모 23 + 등불 칸 94 가 바(224) 안에 다 들게 */
-@media (max-width: 359px) { :root[data-layout="one"] { --bar-h: 58px; } }
+@media (max-width: 379px) { :root[data-layout="one"] { --bar-h: 58px; } }
 /* 바의 오른쪽 끝 136px 은 아이콘 묶음이 같은 바탕 · 같은 밑줄로 잇는다 (상태 줄은 #scene 밖이라 위에 겹치면 아이콘을 덮는다) */
-:root[data-layout="one"] .scene-ctl { top: var(--safe-t); right: 0; width: 136px; height: var(--bar-h); box-sizing: border-box; justify-content: flex-end; align-items: center; padding-right: 2px; background-color: var(--panel); border-bottom: 1px solid var(--rim); }
+:root[data-layout="one"] .scene-ctl { top: var(--safe-t); right: 0; width: var(--ctl-w); height: var(--bar-h); box-sizing: border-box; justify-content: flex-end; align-items: center; padding-right: 2px; background-color: var(--panel); border-bottom: 1px solid var(--rim); }
 :root[data-font="pixel"][data-layout="one"] .scene-ctl { top: calc(var(--safe-t) - 2px); right: -2px; background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated; border-bottom: 2px solid var(--line); box-shadow: 0 2px 0 rgba(27, 21, 34, .35); }
 :root[data-layout="one"] .scene-ctl .icon-btn .snd-box, :root[data-font="pixel"][data-layout="one"] .scene-ctl .icon-btn .snd-box { border-color: transparent; background: transparent; box-shadow: none; color: var(--fg); }
 :root[data-font="pixel"][data-layout="one"] .scene-ctl .icon-btn:active .snd-box { box-shadow: none; }
@@ -1423,3 +1423,35 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 .furn-col { position: absolute; right: 8px; bottom: calc(12px + var(--safe-b, 0px)); display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
 .furn-col .btn { min-width: 84px; min-height: 44px; margin: 0; }
 :root.furn-on #invite { visibility: hidden; }
+
+/* ── 11-10 위쪽 바 2: 등불은 이름 바로 오른쪽 · 가구 아이콘 추가 ── */
+:root[data-layout="one"] #status .who { display: contents; }
+:root[data-layout="one"] #status .name { order: 1; }
+:root[data-layout="one"] #status .pips { order: 2; }
+:root[data-layout="one"] #status .brain-tag { order: 3; }
+:root[data-layout="one"] #status .room-title { order: 4; }
+.icon-btn.furn-btn[aria-pressed="true"] .snd-box { color: var(--amber); }
+:root:not([data-layout="one"]) .furn-btn { display: none; }   /* 2D 폴백 · 쌓는 배치엔 가구 배치가 없다 */
+
+/* ── 11-10 가구 배치 모드 2 (주인: 참고 게임 화면 그대로 — 아래 가구 줄 · 회전/크기 슬라이더 · 취소/놓기) ── */
+.furn-top { gap: 10px; }
+.furn-top .btn { margin: 0; min-height: 36px; }
+.furn-strip { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 8px; padding: 8px 10px calc(8px + var(--safe-b, 0px)); overflow-x: auto; background-color: var(--panel); border-top: 1px solid var(--rim); pointer-events: auto; scrollbar-width: none; }
+:root[data-font="pixel"] .furn-strip { border-top: 2px solid var(--line); }
+.furn-tile { flex: 0 0 auto; width: 72px; min-height: 72px; margin: 0; padding: 6px 4px 4px; display: grid; justify-items: center; gap: 4px; background: var(--panel2); color: var(--fg); border: 1px solid var(--rim); border-radius: 10px; cursor: pointer; font: inherit; }
+:root[data-font="pixel"] .furn-tile { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); font-family: var(--f-meta); font-size: 16px; line-height: 20px; }
+.furn-tile.on, :root[data-font="pixel"] .furn-tile.on { border-color: var(--amber); box-shadow: inset 0 0 0 2px var(--amber); }
+.furn-sw { display: block; width: 36px; height: 28px; image-rendering: pixelated; }
+.furn-sw-sofa { background: linear-gradient(#e8702a 0 0) 6px 12px / 24px 10px no-repeat, linear-gradient(#c2551e 0 0) 2px 8px / 6px 16px no-repeat, linear-gradient(#c2551e 0 0) 28px 8px / 6px 16px no-repeat, linear-gradient(#f08a45 0 0) 6px 4px / 24px 10px no-repeat; }
+.furn-sw-crate { background: linear-gradient(#a8744a 0 0) 6px 4px / 24px 22px no-repeat; box-shadow: inset 0 0 0 2px transparent; outline: 2px solid #7a4a30; outline-offset: -6px; }
+.furn-sw-blanket { background: linear-gradient(#4a6fa8 0 0) 2px 10px / 32px 12px no-repeat, linear-gradient(#7a9ad0 0 0) 6px 14px / 24px 4px no-repeat; }
+.furn-tools { position: absolute; right: 8px; bottom: calc(100px + var(--safe-b, 0px)); width: min(190px, 52vw); display: grid; gap: 6px; padding: 8px 10px; background-color: var(--panel); border: 1px solid var(--rim); border-radius: 10px; pointer-events: auto; }
+:root[data-font="pixel"] .furn-tools { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
+.furn-tools[hidden] { display: none; }
+.furn-sl { display: grid; grid-template-columns: 36px 1fr; align-items: center; gap: 6px; font-size: 13px; color: var(--fg); }
+:root[data-font="pixel"] .furn-sl { font-family: var(--f-meta); font-size: 16px; }
+.furn-sl input[type="range"] { width: 100%; min-height: 32px; margin: 0; accent-color: var(--amber); touch-action: pan-y; }
+.furn-yn { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.furn-yn .btn { margin: 0; min-height: 44px; }
+:root.furn-on #scene .stick { bottom: calc(104px + var(--safe-b, 0px)); }   /* 가구 줄 위로 */
+:root.furn-on .stick-zone { height: min(42%, 340px); }
