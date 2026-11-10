@@ -547,7 +547,7 @@ var APP = (function () {
         furnEdit: function (stt) { furnUI(stt); },   /* 배치 모드 시작 · 바뀜 · 끝(null) */
         furnMove: function (d) { if (!d || !d.id) return; if (!isObj(S.room.layout)) S.room.layout = {}; S.room.layout[d.id] = [d.x, d.z, d.rot | 0, +d.scale || 1]; save(); },
         sofaSpot: function (p) { var b = $('btn-sofa'); if (!b) return; if (!p) { b.hidden = true; return; } b.style.left = (p.x - 22) + 'px'; b.style.top = (p.y - 22) + 'px'; b.hidden = false; },
-        playerDoor: function (to) { if (!roomJob && !busyRoomWalk()) goRoom(to === 'attic' ? 'attic' : 'play', $(to === 'attic' ? 'btn-play-door' : 'btn-door'), false); },   /* 문에 닿은 채 걸어 들어감 (장면이 한 번만 쏜다) */   /* 11-08 움직이기: 내 캐릭터를 움직일 수 있는 때가 바뀐 프레임 (바뀔 때만 온다) → 발자국 손잡이 hidden */
+        playerDoor: function (to) { if (!roomJob && !busyRoomWalk()) goRoom(to === 'attic' ? 'attic' : to === 'loft' ? 'loft' : 'play', $(to === 'attic' ? (roomNow() === 'loft' ? 'btn-loft-stair' : 'btn-play-door') : to === 'loft' ? 'btn-stair' : 'btn-door'), false); },   /* 문에 닿은 채 걸어 들어감 (장면이 한 번만 쏜다) */   /* 11-08 움직이기: 내 캐릭터를 움직일 수 있는 때가 바뀐 프레임 (바뀔 때만 온다) → 발자국 손잡이 hidden */
         playerStep: function () { if (window.AUDIO) AUDIO.on('step', { who: 'player' }); }   /* 내 캐릭터 한 걸음 (장면은 AUDIO 를 부르지 않는다) — js/audio.js 에 'step' 갈래가 생기면 발소리 step_* (지금은 조용히) */
       }
     };
@@ -3642,8 +3642,8 @@ var APP = (function () {
      장면은 놀이방에 있는 동안 의식이 장소를 바꿔도 화면을 끌고 가지 않는다 (scene3d setPlaceNow). 문어가 돌아오면 구석 쪽지 "뚜루가 돌아왔어." + 보러 가기.
      큰 버튼(뽈뽈 다녀와 · 다녀오는 중…)은 문어 방의 일 → 놀이방이면 먼저 문으로 돌아와서 한다. 새로고침은 늘 문어 방 (지금 방은 저장하지 않는다).
      내 캐릭터 (SCENE.md '내 캐릭터'): walkFirst — 장면의 playerWalkTo(문 앞 앵커 atticPlayDoor · playAtticDoor)가 문 앞까지 걸어가서 풀리면 그때 문이 열린다 (2D 폴백엔 캐릭터가 없어 바로 풀린다) */
-  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon' };   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
-  var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
+  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew' };   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
+  var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door', loft: 'btn-loft-stair' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
   var furnHinted = false;
   /* 가구 배치 모드 화면 (주인 11-10 참고 화면): 위에 '가구 배치 · 이름' + 바꿔 들 가구 칩, 오른쪽 아래에 돌리기 · 크게 · 작게 · 취소 · 놓기. 큰 버튼(뽈뽈 다녀와)은 그동안 숨긴다. 캐릭터는 스틱 · 방향키로 그대로 움직인다 */
   var furnMode = false;
@@ -3684,7 +3684,8 @@ var APP = (function () {
   }
   var roomJob = null;   /* 지금 도는 문 작업 (Promise) — 끝날 때까지 두 번째 문은 열지 않는다 */
   function sceneView() { return scene && typeof scene.view === 'function' ? scene.view() : (scene && typeof scene.place === 'function' ? scene.place() : 'attic'); }
-  function inPlay() { return !!scene && typeof scene.room === 'function' && scene.room() === 'play'; }
+  function roomNow() { return scene && typeof scene.room === 'function' ? scene.room() || null : null; }
+  function inPlay() { return !!roomNow(); }   /* 문어가 없는 '내 방'(놀이방 · 위층 다락)에 있는가 */
   function introUp() { return !!(window.INTRO && ['sky', 'title'].indexOf(INTRO.phase) >= 0); }
   function bindSpots() {
     var map = {};
@@ -3698,7 +3699,7 @@ var APP = (function () {
     v = v || sceneView();
     var sc = $('scene'); if (!sc) return;
     if (sc.getAttribute('data-view') !== v) sc.setAttribute('data-view', v);
-    var lbl = v === 'play' ? '놀이방' : '문어의 다락방';
+    var lbl = v === 'play' ? '놀이방' : v === 'loft' ? '위층 다락 옷방' : '문어의 다락방';
     if (sc.getAttribute('aria-label') !== lbl) sc.setAttribute('aria-label', lbl);
     if (v !== 'play') hideBackNote();
     updateSceneDesc();
@@ -3706,13 +3707,13 @@ var APP = (function () {
   }
   function resetRoomUI() {   /* 장면을 바꿀 때 (sceneLost): 단추는 새 장면이 다시 맡는다 · 그 전까지 놀이방 단추는 숨김 */
     roomJob = null; hideBackNote();
-    ['btn-play-door', 'btn-machine', 'btn-salon'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
+    ['btn-play-door', 'btn-machine', 'btn-salon', 'btn-stair', 'btn-loft-stair', 'btn-sew'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
     var d = $('btn-door'); if (d) { d.hidden = false; d.removeAttribute('data-spot'); ['left', 'top', 'width', 'height', 'right', 'bottom'].forEach(function (k) { d.style[k] = ''; }); }
     var sc = $('scene'); if (sc) { sc.setAttribute('data-view', 'attic'); sc.setAttribute('aria-label', '문어의 다락방'); }
   }
   function goRoom(name, opener, kbd) {   /* → Promise<{ ok, reason?, view, room, place }> (예전 7물결엔 bool). kbd = 키보드 · 화면 낭독기로 눌렀다 (도착한 쪽 단추에 포커스 링) */
-    var to = name === 'play' ? 'play' : name === 'attic' || name === 'back' ? 'attic' : null;
-    function no(why) { return Promise.resolve({ ok: false, reason: why, view: sceneView(), room: inPlay() ? 'play' : null }); }
+    var to = name === 'play' ? 'play' : name === 'loft' ? 'loft' : name === 'attic' || name === 'back' ? 'attic' : null;
+    function no(why) { return Promise.resolve({ ok: false, reason: why, view: sceneView(), room: roomNow() }); }
     if (!to) return no('unknown');
     if (!scene || typeof scene.goRoom !== 'function') return no('scene');
     if (introUp()) return no('intro');
@@ -3792,6 +3793,9 @@ var APP = (function () {
     on('btn-door', function (b, k) { goRoom('play', b, k); });
     on('btn-play-door', function (b, k) { goRoom('attic', b, k); });
     on('btn-machine', function (b, k) { openMachine(b, k); });
+    on('btn-stair', function (b, k) { goRoom('loft', b, k); });
+    on('btn-loft-stair', function (b, k) { goRoom('attic', b, k); });
+    on('btn-sew', function () { openSew(); });
     on('btn-salon', function () { openSalon(); });   /* 미용실 거울 (그림 위 투명 단추 — 톡은 장면이 그린 순서대로 넘긴다: 문어가 거울 옆이면 문어가 먼저) */
     on('btn-back-see', function (b, k) { goRoom('attic', b, k); });
     document.addEventListener('keydown', function () { var r = document.querySelectorAll('.ring-off'); for (var i = 0; i < r.length; i++) r[i].classList.remove('ring-off'); }, true);   /* 키를 누르면 링은 다시 (키보드로 이어 가는 사람) */
@@ -4230,6 +4234,34 @@ var APP = (function () {
     var d = dyeOf(id); if (!d || (u.dyes[id] | 0) < 1) return;
     u.dyes[id]--; u.dye = d[2]; save(); applyDye(); renderBag(); toast('옷을 ' + d[1] + '으로 물들였어');
   }
+  /* 위층 옷방 재봉틀 (11-10 주인: "여기서 사용자가 재화 써서 옷 색도 바꿀 수 있게"): 기른 염료가 있으면 그걸 1 개 쓰고, 없으면 조개 DYE_COST 개로 그 색 옷감을 산다. 원래 색으로 돌리기는 공짜 */
+  var DYE_COST = 6;
+  function sewDye(id) {
+    var u = userState();
+    if (id === null) { u.dye = null; save(); applyDye(); renderSew(); toast('원래 색으로 돌렸어'); return; }
+    var d = dyeOf(id); if (!d) return;
+    if ((u.dyes[id] | 0) > 0) u.dyes[id]--;
+    else if (u.shells >= DYE_COST) u.shells -= DYE_COST;
+    else { toast('조개가 ' + (DYE_COST - u.shells) + '개 모자라. 다락방 달리기나 들어온 날 선물로 생겨'); return; }
+    u.dye = d[2]; save(); applyDye(); renderSew(); renderBagChip(); toast('옷을 ' + d[1] + '으로 물들였어');
+  }
+  function renderSew() {
+    var body = $('sew-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment();
+    frag.appendChild(h('p', { class: 'bag-line', text: '조개 ' + u.shells }));
+    frag.appendChild(h('p', { class: 'set-note', text: '기른 염료가 있으면 그걸 하나 쓰고, 없으면 조개 ' + DYE_COST + '개로 물들여. 지금 입은 옷의 큰 색이 바뀌어.' }));
+    var row = h('div', { class: 'sew-grid', role: 'group', 'aria-label': '옷 색' });
+    DYES.forEach(function (d) {
+      var own = u.dyes[d[0]] | 0, cur = u.dye === d[2];
+      var b = h('button', { type: 'button', class: 'sew-chip pressable' + (cur ? ' on' : ''), 'aria-pressed': cur ? 'true' : 'false' }, [h('span', { class: 'sew-sw', 'aria-hidden': 'true' }), h('span', { class: 'sew-name', text: d[1] }), h('span', { class: 'sew-cost', text: cur ? '입는 중' : own ? '염료 ' + own : '조개 ' + DYE_COST })]);
+      b.querySelector('.sew-sw').style.background = d[2];
+      if (!cur) b.addEventListener('click', function () { sewDye(d[0]); });
+      row.appendChild(b);
+    });
+    frag.appendChild(row);
+    if (u.dye) { var off = h('button', { type: 'button', class: 'btn wide pressable', text: '원래 색으로 (공짜)' }); off.addEventListener('click', function () { sewDye(null); }); frag.appendChild(off); }
+    body.textContent = ''; body.appendChild(frag);
+  }
+  function openSew() { var sh = $('sew-sheet'); if (!sh) return; renderSew(); showDialog(sh); }
   function renderBag() {
     var body = $('bag-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment(), dk = todayKey();
     frag.appendChild(h('p', { class: 'bag-line', text: '조개 ' + u.shells + ' · 씨앗 ' + u.seeds + ' · 들어온 날 ' + u.days.length + '일' }));
@@ -4244,13 +4276,9 @@ var APP = (function () {
       plots.appendChild(b);
     });
     frag.appendChild(plots);
-    frag.appendChild(h('h3', { text: '옷 물들이기' }));
+    frag.appendChild(h('h3', { text: '염료' }));
     var have = DYES.filter(function (d) { return (u.dyes[d[0]] | 0) > 0; });
-    if (!have.length && !u.dye) frag.appendChild(h('p', { class: 'set-note', text: '염료가 아직 없어. 텃밭에서 꽃을 길러 거두면 생겨.' }));
-    var row = h('div', { class: 'filters', role: 'group', 'aria-label': '염료' });
-    have.forEach(function (d) { var b = h('button', { type: 'button', class: 'fchip', text: d[1] + ' ' + (u.dyes[d[0]] | 0) }); b.style.borderColor = d[2]; b.addEventListener('click', function () { dyeUse(d[0]); }); row.appendChild(b); });
-    if (u.dye) { var off = h('button', { type: 'button', class: 'fchip', text: '원래 색으로' }); off.addEventListener('click', function () { dyeUse(null); }); row.appendChild(off); }
-    frag.appendChild(row);
+    frag.appendChild(h('p', { class: 'set-note', text: (have.length ? have.map(function (d) { return d[1] + ' ' + (u.dyes[d[0]] | 0); }).join(' · ') + '. ' : '아직 없어. 꽃을 길러 거두면 생겨. ') + '옷 물들이기는 위층 옷방 재봉틀에서 해.' }));
     body.textContent = ''; body.appendChild(frag); renderBagChip();
   }
   function bagInit() {
@@ -4259,6 +4287,7 @@ var APP = (function () {
     b.addEventListener('click', function () { renderBag(); showDialog(sh); });
     $('bag-close').addEventListener('click', function () { sh.close(); });
     sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
+    var sw = $('sew-sheet'); if (sw) { $('sew-close').addEventListener('click', function () { sw.close(); }); sw.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); }); }
     setTimeout(dailyGift, 2500);
   }
   function boot() {
@@ -4299,7 +4328,7 @@ var APP = (function () {
     get scene() { return scene; }, get sceneMode() { return sceneMode; }, earnFromPlay: earnFromPlay, dailyGift: dailyGift, setOctColor: setOctColor, setPlayerPart: setPlayerPart, playerParts: playerParts, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor,
     portraitFor: portraitFor, say: say, get portraitCache() { return Object.keys(PORT.cache); },
     setSeason: setSeasonPref, get ceremony() { return cer.kind; },
-    get room() { return inPlay() ? 'play' : null; }, openMachine: openMachine,   /* 8물결: 놀이방에 있는가 · 오락기 (테스트·도구) */
+    get room() { return roomNow(); }, openMachine: openMachine,   /* 8물결: 놀이방에 있는가 · 오락기 (테스트·도구) */
     get stick() { return { allowed: stk.allowed, input: stk.vec ? { x: stk.vec.x, y: stk.vec.y } : null, pointer: stk.pid != null, keys: Object.keys(stk.keys), sent: stk.sent }; },   /* 11-08 움직이기 (테스트·도구): 발자국 손잡이 상태 — 보이는가 · 지금 장면에 보낸 벡터 · 손가락 · 눌린 키 */
     /* 11-08 톡 한 줄 · 깨어 있는 틈 (테스트·도구 — 화면엔 안 나온다): 지금 톡 하면 나올 줄 · 장면의 톡 처리 그대로 · 쉬는 단계 ('up' | 'awake' | 'nap') */
     tapLine: function () { var L = tapLineNow(); return L ? { text: L.text, full: L.full, by: L.by, part: L.part, src: L.src, trip: L.trip.id } : null; },
