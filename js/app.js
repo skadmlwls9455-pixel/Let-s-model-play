@@ -2737,7 +2737,7 @@ var APP = (function () {
   function giftAwards() { try { var r = JSON.parse(localStorage.getItem('ppolppol_runner') || '{}'), a = (r.net && r.net.awards) || {}; return { paper_crown: !!(a.paper_crown && a.paper_crown.length), emperor_cape: !!(a.emperor_cape && a.emperor_cape.length) }; } catch (e) { return {}; } }
   function giftList() { var C = (typeof SCENE3D !== 'undefined' && Array.isArray(SCENE3D.COSTUMES)) ? SCENE3D.COSTUMES : [], aw = giftAwards(); return C.filter(function (c) { return !c.award || aw[c.id]; }); }
   function giftWear() { return isObj(S.settings.octWear) ? S.settings.octWear : {}; }
-  function giftOffer(id) {   /* id = 코스튬 | null(벗어 볼래? 권하기) */
+  function giftOffer(id) {   /* id = 코스튬 | null('맨머리도 괜찮아' — 벗어도 된다고 알려 주기) */
     if (giftBusy) return;
     var name = S.octopus.name || '문어', list = giftList(), c = null; list.forEach(function (x) { if (x.id === id) c = x; });
     if (sceneMode !== '3d' || !scene || typeof scene.setOctWear !== 'function') { toast('지금 화면에서는 내밀 수 없어'); return; }
@@ -2778,7 +2778,7 @@ var APP = (function () {
     frag.appendChild(row);
     var go = h('button', { type: 'button', class: 'btn sm pressable', id: 'gift-go', text: '내밀기' }); go.disabled = !giftPick;
     go.addEventListener('click', function () { if (giftPick) giftOffer(giftPick); });
-    var off = h('button', { type: 'button', class: 'btn sm pressable', id: 'gift-off', text: '벗어 볼래? 권하기' });
+    var off = h('button', { type: 'button', class: 'btn sm pressable', id: 'gift-off', text: '맨머리도 괜찮아' });   /* 11-10 주인: '벗어 볼래? 권하기' 는 어감이 어색 — 벗으라고 시키는 말이 아니라 '안 써도 된다' 고 알려 주는 말로 */
     off.addEventListener('click', function () { giftOffer(null); });
     frag.appendChild(h('div', { class: 'btn-row' }, [go, off]));
   }
