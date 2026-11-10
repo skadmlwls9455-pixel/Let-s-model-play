@@ -65,4 +65,18 @@ function surface(fn, na, nb, a1, b0, b1) {
   return function (u, v) { var x = Math.floor(u * G), y = Math.floor(v * G); if (x < 0 || y < 0 || x >= W || y >= W) return null; var at = y * W + x; return has[at] ? [nx[at], ny[at], nz[at]] : null; };
 }
 
-module.exports = { K: K, sd: sd, bez: bez, mat: mat, starPts: starPts, ngon: ngon, cloud: cloud, note: note, drop: drop, dropSdf: dropSdf, heartSdf: heartSdf, oct: oct, surface: surface };
+/* 조각보 (담요): 4.4칸 조각이 세 색으로 번갈아, 이음매는 한 단계 어둡게 */
+var PATCH = [mat('crimson'), mat('blue'), mat('gold', { spec: 0 })];
+function patch(ox, oy) { return function (u, v) { return PATCH[(((Math.floor((u - ox) / 4.4) + Math.floor((v - oy) / 4.4)) % 3) + 3) % 3]; }; }
+function seam(ox, oy) { return function (u, v, t) { var a = (((u - ox) % 4.4) + 4.4) % 4.4, b = (((v - oy) % 4.4) + 4.4) % 4.4; return a < 0.55 || b < 0.55 ? Math.min(4, t + 1) : t; }; }
+/* 들꽃: 꽃잎 넷 + 가운데 + 줄기 */
+function flower(S, x, y, key, stem) {
+  S.stroke([[x, y + 1], [x, y + (stem || 3)]], 1, 'u', { ol: 'r' });
+  [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(function (d) { S.flat(sd.box(x + d[0], y + d[1], 0.5, 0.5, 0), key, { ol: key === 'Z' ? 'X' : 'O' }); });
+  S.flat(sd.box(x, y, 0.5, 0.5, 0), 'F');
+  return S;
+}
+/* 작은 물방울 (단색): 덩어리로 그리면 32px 에서 검은 점이 된다 */
+function dot(S, x, y, r, key, ol) { return S.flat(sd.circle(x, y, r || 0.9), key || '6', { ol: ol || '4' }); }
+
+module.exports = { patch: patch, seam: seam, flower: flower, dot: dot, K: K, sd: sd, bez: bez, mat: mat, starPts: starPts, ngon: ngon, cloud: cloud, note: note, drop: drop, dropSdf: dropSdf, heartSdf: heartSdf, oct: oct, surface: surface };

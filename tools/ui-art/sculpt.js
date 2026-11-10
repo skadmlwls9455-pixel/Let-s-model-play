@@ -141,10 +141,17 @@ Scene.prototype.face = function (f, tone, m, opt) { return this.add(face(f, tone
 Scene.prototype.flat = function (f, key, opt) { return this.add(flat(f), key, Object.assign({ shadow: false }, opt || {})); };
 /* 선 (굵기는 적어도 1px) */
 Scene.prototype.stroke = function (pts, w, key, opt) { return this.flat(sd.path(pts, Math.max(w / 2, 0.5 * this.px)), key, opt); };
-/* 네 갈래 반짝 */
+/* 반짝: 칸에 맞춘 십자 (팔 길이 = r 에 따라 1~3칸) + 가운데 흰 칸. 찌그러지지 않게 중심을 칸 가운데로 당긴다 */
 Scene.prototype.spark = function (cx, cy, r, key, opt) {
-  var th = Math.max(0.32 * r, 0.55 * this.px);
-  return this.flat(function (u, v) { var dx = Math.abs(u - cx), dy = Math.abs(v - cy); return Math.min(dx / r + dy / th, dy / r + dx / th) - 1; }, key || 'F', Object.assign({ ol: 'D' }, opt || {}));
+  var px = this.px, x0 = (Math.floor(cx / px) + 0.5) * px, y0 = (Math.floor(cy / px) + 0.5) * px, n = Math.max(1, Math.min(3, Math.round(r / 1.3))) * px, k = key || 'F', ol = (opt && opt.ol) || 'D';
+  this.flat(function (u, v) { var dx = Math.abs(u - x0), dy = Math.abs(v - y0); return (dx < 0.5 * px && dy < n + 0.5 * px) || (dy < 0.5 * px && dx < n + 0.5 * px) ? -1 : 1; }, k, Object.assign({}, opt || {}, { ol: ol }));
+  if (k !== 'Z') this.flat(function (u, v) { return Math.abs(u - x0) < 0.5 * px && Math.abs(v - y0) < 0.5 * px ? -1 : 1; }, 'Z', { ol: ol });
+  return this;
+};
+/* 칸을 직접 찍기 (글씨처럼 한 칸이 중요한 것): rows 의 글자 = 색, '.' = 비움. (x, y) = 왼쪽 위 칸 */
+Scene.prototype.grid = function (x, y, rows, opt) {
+  return this.add(function (u, v) { var i = Math.floor(u - x), j = Math.floor(v - y); return j >= 0 && j < rows.length && i >= 0 && i < rows[j].length && rows[j][i] !== '.' ? true : null; },
+    function (u, v) { return rows[Math.floor(v - y)][Math.floor(u - x)]; }, Object.assign({ shadow: false }, opt || {}));
 };
 
 function local(xf, u, v) { while (xf) { var x = u - xf.cx, y = v - xf.cy; u = xf.cx + x * xf.c + y * xf.s; v = xf.cy - x * xf.s + y * xf.c; xf = xf.up; } return [u, v]; }
