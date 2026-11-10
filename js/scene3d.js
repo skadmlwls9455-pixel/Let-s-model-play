@@ -292,6 +292,7 @@ var SCENE3D = (function () {
      기하 빌더는 init 안 PL_PARTS (T·PAL 이 필요하다). 모르는 범주·id 는 normalizePlayer 가 기본값으로 — 앱의 설정 복원도 같은 함수를 쓴다 */
   var PLAYER_PARTS = {
     hair: [{ id: 'bob', name: '단발' }, { id: 'short', name: '숏컷' }, { id: 'long', name: '긴생머리' }, { id: 'twin', name: '양갈래' }, { id: 'pony', name: '포니테일' }, { id: 'wave', name: '웨이브' }],
+    bangs: [{ id: 'spiky', name: '삐죽' }, { id: 'full', name: '일자' }, { id: 'side', name: '옆가르마' }, { id: 'center', name: '가운데' }, { id: 'see', name: '시스루' }, { id: 'none', name: '이마' }],   /* 앞머리 (주인 11-10 "몇 종류로 확실히 나눠서 선택 가능하게") — 머리 모양과 따로 고른다 */
     hairColor: [{ id: 'blonde', name: '금발', hex: '#e8a93a' },{ id: 'brown', name: '밤갈색', hex: '#9a5a3a' }, { id: 'ink', name: '먹남색', hex: '#1e2a44' }, { id: 'silver', name: '은빛', hex: '#cfc9c0' }, { id: 'pink', name: '분홍', hex: '#de8fa9' }, { id: 'lime', name: '연두', hex: '#a0d070' }],   /* 금발 #e8a93a → 필 빛에서 #de9e41 (amber[3] 은 #e8c170 로 살결 #e7d5b3 와 거의 같은 칸이라 1× 에서 머리가 한 덩이 공으로 읽혔다 — 리뷰 11-08) */
     eyes: [{ id: 'round', name: '동그란' }, { id: 'sparkle', name: '반짝' }, { id: 'sleepy', name: '졸린' }, { id: 'almond', name: '또렷' }, { id: 'smile', name: '웃는' }, { id: 'dot', name: '점' }],   /* 눈동자 그림 스타일 (주인 11-08 피드백 6: 눈 모양이 아니라 '눈동자 그림', 전부 귀엽게) */
     nose: [{ id: 'none', name: '없음' }, { id: 'dot', name: '콩코' }, { id: 'tri', name: '세모코' }],
@@ -301,7 +302,7 @@ var SCENE3D = (function () {
     outfit: [{ id: 'dress', name: '원피스' }, { id: 'knit', name: '니트' }, { id: 'hoodie', name: '후드' }, { id: 'overall', name: '멜빵' }, { id: 'raincoat', name: '비옷' }],
     shoes: [{ id: 'flat', name: '단화' }, { id: 'boot', name: '부츠' }, { id: 'sneaker', name: '운동화' }, { id: 'loafer', name: '로퍼' }],
     acc: [{ id: 'none', name: '없음' }, { id: 'ribbon', name: '리본' }, { id: 'beret', name: '베레모' }, { id: 'glasses', name: '동글안경' }, { id: 'catears', name: '고양이귀' }, { id: 'strawhat', name: '밀짚모자' }] };
-  var PLAYER_DEFAULT = { hair: 'bob', hairColor: 'blonde', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };   /* 기본 모습 (단발 · 금발 · 동그란 눈 · 어두운 눈 · 세모코 · 미소 · 볼 없음 · 남색 원피스 · 단화 · 리본) */
+  var PLAYER_DEFAULT = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };   /* 기본 모습 (단발 · 금발 · 동그란 눈 · 어두운 눈 · 세모코 · 미소 · 볼 없음 · 남색 원피스 · 단화 · 리본) */
   function plPart(cat, id) { var L = PLAYER_PARTS[cat] || []; for (var i = 0; i < L.length; i++) if (L[i].id === id) return L[i]; return null; }
   function normalizePlayer(cfg) {   /* cfg → 열 범주가 다 있는 새 객체. 모르는 범주는 버리고 모르는 id 는 기본값 */
     var out = {}; cfg = cfg && typeof cfg === 'object' ? cfg : {};
@@ -1872,7 +1873,11 @@ var SCENE3D = (function () {
     function Sph(r, ws, hs, p0, pl, t0, tl) { return p0 == null ? new T.SphereGeometry(r, ws, hs) : new T.SphereGeometry(r, ws, hs, p0 * DEG, pl * DEG, t0, tl); }   /* 구 껍질 조각: phi 는 도(0 = −x · 90 = +z 얼굴 · 180 = +x · 270 = −z 뒤통수), theta 는 rad(0 = 꼭대기) */
     function Cyl(rt, rb, h, seg) { return new T.CylinderGeometry(rt, rb, h, seg || 12); }
     function HM() { return M(PL_HC[0], PL_HC[1], PL_HC[2]); }   /* 머리칼 껍질 중심 (머리 구 중심보다 +0.03 위 · −0.03 뒤) */
-    function plSleeve(L, hex, cuff) { L.push({ g: Cyl(0.055, 0.06, 0.16, 8), m: M(0, -0.08, 0), c: hex }); if (cuff) L.push({ g: Cyl(0.062, 0.062, 0.04, 8), m: M(0, -0.15, 0), c: cuff }); }   /* 긴 소매 (+ 소매 끝 띠 1 px) */
+    /* 11-10 팔 다시 (주인: "팔을 직사각형으로 잡는 게 문제 — 얇은 원통 같은 느낌으로", 동물의 숲 주민 참고): 굵기가 같은 짧은 통(지름 3 px × 길이 4 px)이라 몸 옆에 붙은 네모로 읽혔다
+       → 어깨에서 가늘게 시작해 손목으로 살짝 굵어지는 **얇은 원통**(지름 2 px) + 어깨의 둥근 소매 볼륨 + 팔보다 큰 **동그란 손**, 그리고 몸에서 더 벌린다(plArm 의 rotation.z) */
+    function plArmTube(L, hex, y0, y1) { L.push({ g: Cyl(0.036, 0.046, y0 - y1, 10), m: M(0, (y0 + y1) / 2, 0), c: hex }); }   /* y0(위) → y1(아래), 아래로 갈수록 살짝 굵게 */
+    function plPuff(L, hex) { L.push({ g: Sph(0.068, 9, 7), m: M(0, -0.03, 0, 0, 0, 0, 1, 0.9, 1), c: hex }); }   /* 어깨의 둥근 소매 */
+    function plSleeve(L, hex, cuff) { plPuff(L, hex); plArmTube(L, hex, -0.03, -0.185); if (cuff) L.push({ g: Cyl(0.052, 0.052, 0.03, 10), m: M(0, -0.172, 0), c: cuff }); }   /* 긴 소매 (+ 소매 끝 띠 1 px) */
     /* 파츠 빌더 카탈로그 (docs/PLAYER_PARTS.md §2): 범주 → id → 부품 {g, m, c, tag} 를 목록에 밀어 넣는다. 모든 머리칼 조각은 r PL_HR 0.38 · HM() 중심 · 머리 색 하나 (툰 3단이 음영을 준다) */
     /* 11-10 머리 다시 (주인 "헤어가 어색하고 이상한 게 치명적"): 두개골에 붙은 매끈한 공 한 겹이라 뒤에선 민머리 · 앞에선 살결과 한 덩어리였다 → ① 앞머리는 이마 위로 떨어지는 **뾰족한 가닥**(끝 높이가 들쭉날쭉한 지그재그 실루엣),
        ② 얼굴 옆을 감싸는 **옆머리 가닥**, ③ 귀 아래 층은 한 톤 어두운 **속머리**(plHairDk) 로 겹을 만들고, ④ 끝단은 두개골보다 넓게 퍼진다. 가닥은 전부 테이퍼 원기둥 + 끝 구라 깊이 외곽선이 가닥마다 선을 긋는다 */
@@ -1880,11 +1885,26 @@ var SCENE3D = (function () {
     function plHP(phi, th, R) { var r = R == null ? PL_HR : R, st = Math.sin(th); return [PL_HC[0] - Math.cos(phi * DEG) * st * r, PL_HC[1] + Math.cos(th) * r, PL_HC[2] + Math.sin(phi * DEG) * st * r]; }   /* 머리칼 구 위의 점 (phi 도: 90 = 얼굴 정면 · theta rad: 0 = 정수리) */
     function plLock(L, a, b, r0, r1, hex) { plTaper(L, a, b, r0, r1, hex, 7); L.push({ g: Sph(r0 * 0.98, 7, 5), m: M(a[0], a[1], a[2]), c: hex }, { g: Sph(r1, 6, 4), m: M(b[0], b[1], b[2]), c: hex }); }   /* 가닥 하나: 굵은 뿌리 → 가는 끝 (양 끝을 구로 막는다) */
     function plHem(L, y, rt, rb, h, hex, zs) { L.push({ g: new T.CylinderGeometry(rt, rb, h, 16, 1, false, 52 * DEG, 256 * DEG), m: M(PL_HC[0], y, PL_HC[2], 0, 0, 0, 1, 1, zs || 1), c: hex }); }   /* 뒤 256° 만 두른 끝단 고리 (앞 104° 는 얼굴) */
+    /* 앞머리 여섯 (11-10): 밑판 = 앞 창 104°(phi 38~142°)를 셋으로 나눈 구 껍질 조각(끝 theta 를 종류마다 다르게) + 그 위의 가닥들. 끝이 눈 윗선(y 0.97)을 덮지 않게 theta ≤ 1.22 */
+    var PL_BANG = 'spiky';
+    function plBangBase(L, hex, ends) { ends.forEach(function (e, i) { L.push({ g: Sph(PL_HR, 5, Math.max(6, Math.round(e / 0.065)), 38 + i * 104 / 3, 104 / 3, 0, e), m: HM(), c: hex }); }); }
+    function plBangLock(L, hex, p0, t0, p1, t1, r0, r1) { plLock(L, plHP(p0, t0, PL_HR - 0.045), plHP(p1, t1, PL_HR + 0.012), r0, r1 == null ? 0.022 : r1, hex); }
+    var PL_BANGS = {
+      spiky: function (L, hex) { plBangBase(L, hex, [1.105, 1.04, 0.975]);   /* 삐죽: 끝 높이가 들쭉날쭉한 뾰족 가닥 여섯 */
+        [[46, 1.20, 0.085], [64, 1.06, 0.08], [82, 1.16, 0.09], [100, 1.04, 0.08], [117, 1.14, 0.085], [134, 1.22, 0.085]].forEach(function (t) { plBangLock(L, hex, t[0], 0.62, t[0], t[1], t[2]); }); },
+      full: function (L, hex) { plBangBase(L, hex, [1.105, 1.105, 1.105]);   /* 일자: 눈 위에서 반듯하게 자른 두꺼운 앞머리 (끝이 뭉툭) */
+        [46, 60, 75, 90, 105, 120, 134].forEach(function (ph) { plBangLock(L, hex, ph, 0.7, ph, 1.16, 0.09, 0.075); }); },
+      side: function (L, hex) { plBangBase(L, hex, [1.17, 1.04, 0.85]);   /* 옆가르마: 한쪽 가르마에서 반대쪽으로 비스듬히 쓸어 넘긴다 */
+        [[122, 46, 1.22, 0.09], [120, 62, 1.14, 0.09], [118, 78, 1.06, 0.085], [116, 94, 0.98, 0.08], [128, 134, 1.12, 0.07]].forEach(function (t) { plBangLock(L, hex, t[0], 0.5, t[1], t[2], t[3]); }); },
+      center: function (L, hex) { plBangBase(L, hex, [1.0, 0.7, 1.0]);   /* 가운데 가르마: 이마 가운데가 보이고 양옆으로 커튼처럼 갈라진다 */
+        [[86, 42, 1.24, 0.09], [84, 58, 1.12, 0.08], [94, 138, 1.24, 0.09], [96, 122, 1.12, 0.08]].forEach(function (t) { plBangLock(L, hex, t[0], 0.42, t[1], t[2], t[3]); }); },
+      see: function (L, hex) { plBangBase(L, hex, [0.86, 0.86, 0.86]);   /* 시스루: 이마가 비치는 가는 가닥 몇 올 */
+        [[52, 1.16], [70, 1.2], [88, 1.14], [106, 1.2], [126, 1.16]].forEach(function (t) { plBangLock(L, hex, t[0], 0.7, t[0], t[1], 0.04, 0.014); }); },
+      none: function (L, hex) { plBangBase(L, hex, [0.74, 0.7, 0.74]); } };   /* 이마: 앞머리를 넘겨 이마가 다 보인다 */
     var PL_PARTS = {
       hair: {
         _pole: function (L, hex) { L.push({ g: Sph(0.06, 6, 4), m: M(PL_HC[0], PL_HC[1] + 0.325, PL_HC[2]), c: hex }); },   /* 정수리 꼭지: 껍질 조각들이 극점에서 만나는 이음새가 2× 에서 검은 점으로 찍혔다(리뷰 11-08) → 머리 색 작은 구로 덮는다 (꼭대기 1.285, 껍질 밖 0.005 = 돌기 아님) */
-        _fringe: function (L, hex) { L.push({ g: Sph(PL_HR, 5, 17, 38, 104 / 3, 0, 1.105), m: HM(), c: hex }, { g: Sph(PL_HR, 5, 16, 38 + 104 / 3, 104 / 3, 0, 1.04), m: HM(), c: hex }, { g: Sph(PL_HR, 5, 15, 38 + 208 / 3, 104 / 3, 0, 0.975), m: HM(), c: hex });
-          [[46, 1.20, 0.085], [64, 1.06, 0.08], [82, 1.16, 0.09], [100, 1.04, 0.08], [117, 1.14, 0.085], [134, 1.22, 0.085]].forEach(function (t) { plLock(L, plHP(t[0], 0.62, PL_HR - 0.045), plHP(t[0], t[1], PL_HR + 0.012), t[2], 0.022, hex); }); },   /* 앞머리 세 가닥 (주인 11-08 "앞머리 넣어줘"): 앞 창 104°(phi 38~142°) 를 셋으로, 보는 사람 왼쪽부터 끝 1.071 / 1.093 / 1.113 — 사선 가르마. 11-09: 눈 윗선(화면 19 px)과 ≥ 1 px 띄우려고 두 칸(0.046) 올렸다 → 화면 틈 1.1 / 1.8 / 2.4 px(1×). theta 칸 0.065 (17·16·15) = 윗덮개 칸 0.13 의 절반이라 이음 고리가 맞는다 */
+        _fringe: function (L, hex) { (PL_BANGS[PL_BANG] || PL_BANGS.spiky)(L, hex); },   /* 앞머리는 따로 고르는 갈래 (PL_BANGS — plHeadParts 가 PL_BANG 을 정해 둔다) */
         _cap: function (L, hex) { L.push({ g: Sph(PL_HR, 18, 10, 142, 256, 0, 1.30), m: HM(), c: hex }); PL_PARTS.hair._fringe(L, hex); PL_PARTS.hair._pole(L, hex); },   /* 기본 캡: 윗덮개(앞 104° 비움 — 옆머리 안쪽 끝 x ±0.299 가 눈 바깥 끝 ±0.222 를 안 덮고 뺨 살결 2 px 를 남긴다, 아래 끝 y 1.00) + 앞머리 세 가닥 + 정수리 꼭지.
                                                                                                                                                                                                                                       이웃 조각이 만나는 phi 45°·90°·135° 선의 theta 칸을 전부 0.13 rad 로 맞춘다(10/1.30 · 8/1.04 · 7/0.91) — 칸이 어긋나면 T-이음에서 1 px 구멍이 뚫려 2× 에서 검은 점으로 찍혔다(리뷰 11-08) */
         bob: function (L, cfg, hex) { PL_PARTS.hair._cap(L, hex); L.push({ g: Sph(PL_HR, 18, 8, 142, 256, 1.30, 1.25), m: HM(), c: hex });
@@ -1972,7 +1992,7 @@ var SCENE3D = (function () {
             L.push({ g: Cyl(0.20, 0.245, 0.32), m: M(0, 0.40, 0), c: PAL.navy[3] }, { g: Cyl(0.25, 0.25, 0.035), m: M(0, 0.255, 0), c: PAL.navy[2] }, { g: Cyl(0.21, 0.19, 0.05), m: M(0, 0.54, 0), c: PAL.paper[3] },
               { g: Sph(0.042, 7, 5), m: M(-0.05, 0.50, 0.205), c: PLC.red }, { g: Sph(0.042, 7, 5), m: M(0.05, 0.50, 0.205), c: PLC.red }, { g: Sph(0.03, 6, 4), m: M(0, 0.50, 0.225), c: PLC.red },
               { g: Sph(0.022, 5, 4), m: M(0, 0.42, 0.225), c: PAL.paper[3] }, { g: Sph(0.022, 5, 4), m: M(0, 0.35, 0.235), c: PAL.paper[3] }); },
-          arm: function (L) { plSleeve(L, PAL.paper[3]); }, leg: PAL.paper[2] },
+          arm: function (L) { plPuff(L, PAL.paper[3]); plArmTube(L, PLC.skin, -0.05, -0.185); }, leg: PAL.paper[2] },   /* 볼록한 반소매 + 살결 팔 */
         knit: { torso: function (L) {   /* 니트: 둥근 목 띠 빨간 스웨터 + 허리에서 퍼지는 짧은 회색 플레어 — 종 모양 */
             L.push({ g: Cyl(0.21, 0.22, 0.20), m: M(0, 0.46, 0), c: PLC.red }, { g: Cyl(0.17, 0.17, 0.04), m: M(0, 0.56, 0), c: PAL.rose[1] }, { g: Cyl(0.19, 0.27, 0.14), m: M(0, 0.31, 0), c: PAL.slate[2] }, { g: Cyl(0.275, 0.275, 0.035), m: M(0, 0.255, 0), c: PAL.slate[1] }); },
           arm: function (L) { plSleeve(L, PLC.red, PAL.rose[1]); }, leg: PAL.paper[2] },
@@ -1990,7 +2010,7 @@ var SCENE3D = (function () {
               { g: box(0.042, 0.03, 0.30), m: M(-0.075, 0.588, 0), c: D }, { g: box(0.042, 0.03, 0.30), m: M(0.075, 0.588, 0), c: D },
               { g: box(0.042, 0.27, 0.04), m: M(0, 0.49, -0.212, 0.12, 0, 0.42), c: D }, { g: box(0.042, 0.27, 0.04), m: M(0, 0.49, -0.212, 0.12, 0, -0.42), c: D },
               { g: Sph(0.028, 6, 5), m: M(-0.07, 0.47, 0.232), c: PAL.amber[3] }, { g: Sph(0.028, 6, 5), m: M(0.07, 0.47, 0.232), c: PAL.amber[3] }); },
-          arm: function (L) { L.push({ g: Cyl(0.062, 0.062, 0.07, 8), m: M(0, -0.035, 0), c: PAL.paper[3] }, { g: Cyl(0.05, 0.05, 0.09, 8), m: M(0, -0.115, 0), c: PLC.skin }); }, leg: '#4a78b0', legR: [0.078, 0.072], cuff: true },   /* 짧은 소매 + 살결 팔 */
+          arm: function (L) { plPuff(L, PAL.paper[3]); plArmTube(L, PLC.skin, -0.05, -0.185); }, leg: '#4a78b0', legR: [0.078, 0.072], cuff: true },   /* 짧은 소매 + 살결 팔 */
         raincoat: { torso: function (L) {   /* 비옷: 어깨에서 밑단까지 넓게 퍼지는 주황 사다리꼴 + 후드 + 단추 줄 */
             L.push({ g: Cyl(0.21, 0.30, 0.36), m: M(0, 0.38, 0), c: PLC.orange }, { g: Sph(0.12, 10, 8), m: M(0, 0.58, -0.20), c: PLC.orange },
               { g: Sph(0.022, 5, 4), m: M(0, 0.48, 0.24), c: PAL.wood[1] }, { g: Sph(0.022, 5, 4), m: M(0, 0.40, 0.26), c: PAL.wood[1] }, { g: Sph(0.022, 5, 4), m: M(0, 0.32, 0.28), c: PAL.wood[1] }); },
@@ -2004,12 +2024,12 @@ var SCENE3D = (function () {
     function plHeadParts(cfg) {
       var hair = plPart('hairColor', cfg.hairColor).hex;
       var L = [{ g: Sph(PL_HEAD_R, 18, 13), m: M(0, PL_HEAD_Y, 0, 0, 0, 0, 1, 0.98, 0.94), c: PLC.skin }];   /* 살결 머리 구 (얼굴 앞면 z 0.329). 눈 · 코 · 입 · 볼은 이 구 위의 텍스처 조각(plEyeParts) — 눈썹 없음 */
-      PL_PARTS.hair[cfg.hair](L, cfg, hair); PL_PARTS.acc[cfg.acc](L, cfg);
+      PL_BANG = cfg.bangs; PL_PARTS.hair[cfg.hair](L, cfg, hair); PL_PARTS.acc[cfg.acc](L, cfg);
       return L;
     }
     function plEyeParts(cfg) { return [-1, 1].map(function (s) { return { g: plEyePatch(s), c: '#ffffff', tag: s < 0 ? 1 : 2 }; }).concat(plFacePatches(cfg)); }   /* 눈 = 곡면 조각 2장 (정점색 흰색 → 텍스처색이 알베도), tag 1 왼눈 · 2 오른눈 (plEyeUV 의 아틀라스 칸). 스타일·색은 지오메트리가 아니라 아틀라스 그림 */
     function plTorsoParts(cfg) { var L = []; PL_PARTS.outfit[cfg.outfit].torso(L); return L; }
-    function plArmParts(cfg) { var L = []; PL_PARTS.outfit[cfg.outfit].arm(L); L.push({ g: Sph(0.06, 7, 5), m: M(0, -0.19, 0), c: PLC.skin }); return L; }   /* 소매 + 손 (손 밑 y 0.25 = 엉덩이 높이) */
+    function plArmParts(cfg) { var L = []; PL_PARTS.outfit[cfg.outfit].arm(L); L.push({ g: Sph(0.064, 9, 7), m: M(0, -0.225, 0), c: PLC.skin }); return L; }   /* 소매 + 팔 + 동그란 손 (팔 지름 2 px 보다 큰 3.5 px 공) */
     function plLegParts(cfg) {   /* 다리 색 원기둥(신발 위만) + 신발 */
       var o = PL_PARTS.outfit[cfg.outfit], s = PL_PARTS.shoes[cfg.shoes], r = o.legR || [0.07, 0.068], L = [{ g: Cyl(r[0], r[1], s.len, 8), m: M(0, -s.len / 2, 0), c: o.leg }];
       if (o.cuff && s.len > 0.15) L.push({ g: Cyl(0.08, 0.08, 0.04, 8), m: M(0, -0.17, 0), c: PAL.paper[2] });   /* 멜빵 바지 접은 단 (단화일 때만 보인다) */
@@ -2260,7 +2280,7 @@ var SCENE3D = (function () {
       PL.frame = f;
       plLegL.rotation.x = -sw * PL_LEG; plLegR.rotation.x = sw * PL_LEG;
       plArmL.rotation.x = sw * PL_ARM; plArmR.rotation.x = -sw * PL_ARM;
-      var out = moving ? 0.10 : 0.16; plArmL.rotation.z = -out; plArmR.rotation.z = out;   /* 팔은 살짝 벌려 늘어뜨린다 — 걸을 땐 조금 붙인다 */
+      var out = moving ? 0.30 : 0.42; plArmL.rotation.z = -out; plArmR.rotation.z = out;   /* 팔은 살짝 벌려 늘어뜨린다 — 걸을 땐 조금 붙인다 */
       plBody.rotation.z = sw * PL_SWAY;
       var sx = 1, sy = 1, by = 0, tb = Math.floor(PL.t * 8) / 8;
       if (!red) {
@@ -2289,7 +2309,7 @@ var SCENE3D = (function () {
       plMeshes.forEach(function (m) { m.layers.enable(2); });
       PL.shut = false; PL.lod = fr.lod; plEyeUV();   /* 눈 뜨고 8×8 칸으로: 정면 61 px/m 는 장면 2× (54 px/m) 보다 촘촘해 2× 그림이 텍셀 ≈ 1.1 px 로 열이 안 빠진다 (요 30° 시절엔 먼 눈 조각이 0.84 px 라 4×5 로 찍었다) — 주인이 눈 · 코 · 입 · 볼을 고르는 바로 그 미리보기라 한쪽이 깨지면 안 된다 */
       plBody.scale.set(1, 1, 1); plBody.position.y = 0; plBody.rotation.z = 0; plG.rotation.y = -(fr.yaw || 0);   /* 요 = 카메라가 아니라 내 캐릭터를 돌린다 (카메라 · 3점 빛은 그대로 → 돌려 찍어도 앞에서 받는 빛) */
-      plLimbs.forEach(function (m) { m.rotation.x = 0; }); plArmL.rotation.z = -0.16; plArmR.rotation.z = 0.16;
+      plLimbs.forEach(function (m) { m.rotation.x = 0; }); plArmL.rotation.z = -0.42; plArmR.rotation.z = 0.42;
       plG.visible = true; if (plG.parent) plG.parent.visible = true; octG.visible = true; if (octG.parent) octG.parent.visible = true; octG.rotation.y = 0;   /* 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */
       toonP.emissive.setRGB(0, 0, 0); toonP.color.setScalar(0.8); toonEye.emissive.setRGB(0, 0, 0); toonEye.color.setScalar(0.8);   /* 3점 흰빛 rig 는 장면 필보다 밝아 금발 윗면이 올리브 #d0da91 로 떴다 → 재질 색만 0.8 로 눌러 찍는다 (유니폼, 프로그램 그대로). 눈 재질도 같이 — 안 누르면 흰자가 살결보다 한 칸 떠 번쩍인다 */
       plG.updateMatrixWorld(true); octG.updateMatrixWorld(true);
