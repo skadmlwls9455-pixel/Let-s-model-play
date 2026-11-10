@@ -3366,6 +3366,7 @@ var APP = (function () {
     var box = $('look-items'), c = S.settings.player;
     if (box) box.querySelectorAll('[data-part="' + cat + '"][data-id]').forEach(function (q) { chipOn(q, q.dataset.id === c[cat]); });
     lookEyeNote(); lookNow(); lookDrawStage(); lookQueueThumbs();
+    var got = setsCheck(); if (got) toast('세트 도감에 적었어: ' + got);
   }
   function lookRenderItems() {
     var box = $('look-items'); if (!box) return;
@@ -4294,6 +4295,33 @@ var APP = (function () {
     u.dyes[id]--; u.dye = d[2]; save(); applyDye(); renderBag(); toast('옷을 ' + d[1] + '으로 물들였어');
   }
   /* 위층 옷방 재봉틀 (11-10 주인: "여기서 사용자가 재화 써서 옷 색도 바꿀 수 있게"): 기른 염료가 있으면 그걸 1 개 쓰고, 없으면 조개 DYE_COST 개로 그 색 옷감을 산다. 원래 색으로 돌리기는 공짜 */
+  /* 세트 도감 (11-10 주인 "세트 도감은 완전 찬성"): 옷 · 신발 · 장식 셋을 맞춰 입으면 그 세트가 도감에 적힌다 (뽑기 없음 · 값 없음 — 가진 옷으로 스스로 찾아내는 수집).
+     아직 못 찾은 세트는 옷 이름만 보이고 나머지는 '?' (힌트). 찾은 세트는 '다시 입기'. 다 모아도 보상은 없다 (재촉하지 않는다) — 도감이 채워지는 것뿐.
+     저장: S.user.sets = { 세트 id: 처음 맞춰 입은 날 } (코드는 '입었다' 는 사실만 적는다) */
+  var LOOK_SETS = [['newyear', '설날 나들이', 'hanbok', 'flat', 'ribbon'], ['school', '등굣길', 'uniform', 'loafer', 'glasses'], ['ballgame', '경기 보는 날', 'varsity', 'sneaker', 'beret'],
+    ['cabin', '오두막 주말', 'flannel', 'boot', 'strawhat'], ['rainy', '비 오는 날', 'raincoat', 'boot', 'none'], ['attic', '다락방 차림', 'dress', 'flat', 'ribbon'],
+    ['garden', '텃밭지기', 'overall', 'boot', 'strawhat'], ['library', '도서관 가는 날', 'knit', 'loafer', 'glasses'], ['sunday', '늦잠 일요일', 'hoodie', 'sneaker', 'catears']];
+  function setsFound() { var u = userState(); if (!isObj(u.sets)) u.sets = {}; return u.sets; }
+  function setsCheck() {   /* 지금 차림이 어느 세트와 맞으면 적는다 → 새로 찾은 세트 이름 | '' */
+    var c = S.settings.player, f = setsFound(), got = ''; if (!isObj(c) || !S.octopus.name) return '';
+    LOOK_SETS.forEach(function (q) { if (!f[q[0]] && c.outfit === q[2] && c.shoes === q[3] && c.acc === q[4]) { f[q[0]] = todayKey(); got = q[1]; } });
+    if (got) save();
+    return got;
+  }
+  function partName(cat, id) { var P = playerParts(), n = ''; (P[cat] || []).forEach(function (x) { if (x.id === id) n = x.name; }); return n || id; }
+  function setWear(q) { setPlayerPart('outfit', q[2]); setPlayerPart('shoes', q[3]); setPlayerPart('acc', q[4]); renderSew(); toast(q[1] + ' 차림으로 입었어'); }
+  function renderSets(frag) {
+    setsCheck(); var f = setsFound(), n = LOOK_SETS.filter(function (q) { return f[q[0]]; }).length;
+    frag.appendChild(h('h3', { text: '세트 도감 ' + n + '/' + LOOK_SETS.length }));
+    frag.appendChild(h('p', { class: 'set-note', text: '옷 · 신발 · 장식을 맞춰 입으면 여기에 적혀. 내 모습에서 이것저것 입어 보며 찾아봐.' }));
+    var list = h('ul', { class: 'week-list' });
+    LOOK_SETS.forEach(function (q) {
+      var ok = !!f[q[0]], li = h('li', { class: 'week-row' + (ok ? '' : ' done') }, [h('span', { class: 'week-txt' }, [h('b', { text: ok ? q[1] : '아직 못 찾은 차림' }), h('br'), h('span', { class: 'week-n', text: partName('outfit', q[2]) + ' · ' + (ok ? partName('shoes', q[3]) + ' · ' + (q[4] === 'none' ? '장식 없음' : partName('acc', q[4])) : '? · ?') })])]);
+      if (ok) { var b = h('button', { type: 'button', class: 'fchip week-rr', text: '다시 입기', 'aria-label': q[1] + ' 차림 다시 입기' }); b.addEventListener('click', function () { setWear(q); }); li.appendChild(b); }
+      list.appendChild(li);
+    });
+    frag.appendChild(list);
+  }
   var DYE_COST = 6;
   function sewDye(id) {
     var u = userState();
@@ -4318,6 +4346,7 @@ var APP = (function () {
     });
     frag.appendChild(row);
     if (u.dye) { var off = h('button', { type: 'button', class: 'btn wide pressable', text: '원래 색으로 (공짜)' }); off.addEventListener('click', function () { sewDye(null); }); frag.appendChild(off); }
+    renderSets(frag);
     body.textContent = ''; body.appendChild(frag);
   }
   function openSew() { var sh = $('sew-sheet'); if (!sh) return; renderSew(); showDialog(sh); }
