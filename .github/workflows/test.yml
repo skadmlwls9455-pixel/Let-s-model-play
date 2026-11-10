@@ -1,10 +1,14 @@
-# 테스트 — push(모든 브랜치)와 PR 마다 돈다. 여러 작업이 동시에 고치니 서로 깨뜨린 걸 바로 알게.
+# 테스트 — push (모든 브랜치) 마다 빠른 묶음과 글꼴 점검이 돈다. 여러 작업이 동시에 고치니 서로 깨뜨린 걸 바로 알게.
+#   11-10 에 줄였다: 계정의 Actions 사용 한도가 바닥나 검사가 아예 시작을 못 했다. 그 전에는 같은 커밋을 push 와
+#   pull_request 로 두 번 돌렸고 그때마다 느린 묶음이 20~35 분씩 들었다. 이제 커밋마다 한 번만 돌고 (PR 에도 그 결과가 보인다),
+#   느린 묶음은 사람이 누를 때만 돈다 (Actions 탭 → test → Run workflow). 느린 묶음은 푸시 전에 각자 로컬에서 돌린다 (npm run test:slow).
 #   fast  : 빠른 묶음 (필수) — world 불변식 · brain · runner · api · 요리 시뮬레이션 (test-cook, 9물결) · 미용실 규칙 (test-salon)
 #           · 반응 스티커 그림 · 규칙 (test-cook-stickers · test-play-stickers) · 포스터 · 배지 · 기념품 그림 (test-poster-art · test-art-extra)
+#           · 배포 묶음 (test-export: 게임 파일만 나가는지 · 가리키는 파일이 다 실렸는지)
 #   fonts : 글꼴 부분 집합 점검 (필수) — 화면 문구의 글자가 Galmuri 서브셋에 다 있는지
-#   slow  : 느린 묶음 (선택) — Playwright 스모크 A,B,I · 장면 성능 · 요리 창 (test-cook-live, cook.html) · 부엌 소리 (test-cook-audio,
+#   slow  : 느린 묶음 (선택 · 수동 실행 때만) — Playwright 스모크 A,B,I · 장면 성능 · 요리 창 (test-cook-live, cook.html) · 부엌 소리 (test-cook-audio,
 #           cook.html?sound=1 · foley/ · credits.html) · 부엌에 붙인 반응 스티커 (test-cook-stickers-live, cook.html +
-#           js/cook-stickers.js). 실패해도 run 은 빨갛게 되지 않는다
+#           js/cook-stickers.js) · 배포 묶음만 띄워 놀아 보기 (test-export --crawl). 실패해도 run 은 빨갛게 되지 않는다
 #           (continue-on-error: 로컬에서 스모크 I 의 '새로고침 뒤 지정 계절 유지' 가 3번 중 1번 흔들렸다)
 # package.json 의 scripts 는 쓰지 않고 node 명령을 그대로 부른다. 이 워크플로는 아무것도 커밋하지 않는다.
 name: test
@@ -12,7 +16,7 @@ name: test
 on:
   push:
     branches: ['**']
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -47,6 +51,9 @@ jobs:
       - run: node tools/test-play-stickers.js
       - run: node tools/test-poster-art.js
       - run: node tools/test-art-extra.js
+      # 배포 묶음 (tools/export-site.js): 임시 폴더로 내보내서 게임 파일만 나가는지 (문서 · 스킬 · 도구 · 시험 · 서버 코드 없음), 쪽 · 스타일 · 스크립트 ·
+      # 목록이 가리키는 파일이 다 실렸는지, 저장소 맨 위의 새 폴더가 '싣는다 / 안 싣는다' 로 정해졌는지. 노드만 쓴다
+      - run: node tools/test-export.js
 
   fonts:
     name: 글꼴 점검
@@ -62,6 +69,8 @@ jobs:
 
   slow:
     name: 느린 테스트 (선택)
+    # 수동 실행 (workflow_dispatch) 때만 돈다 — 한 번에 20~35 분이라 푸시마다 돌리면 한 달 한도가 며칠 만에 바닥난다
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     # 장면 성능 묶음이 109 항목으로 늘어 CI 러너에서 10~17 분 걸린다 (스모크 4~6 분 · 요리 창 2 분 · 설치 2 분 더하면 느린 러너에서 25 분을 넘겨 중간에 끊겼다)
     timeout-minutes: 40
@@ -97,6 +106,10 @@ jobs:
       # 않는지, 닫으면 남는 것이 없는지, 동작 줄이기, 소리 꺼짐, 스티커 파일이 없어도 부엌이 그대로인지. 대부분 file:// 이고, 소리 꺼짐과
       # 파일 막기는 http 라 저장소 뿌리를 스스로 띄운다 (127.0.0.1 빈 포트). 캡처는 남기지 않는다
       - run: node tools/test-cook-stickers-live.js
+        if: ${{ !cancelled() }}
+      # 배포 묶음만 띄워 놀아 보기 (tools/export-site.js 로 임시 폴더에 내보낸 것만 127.0.0.1 빈 포트에): 본 게임 첫 실행 · 산책 한 번 · 부엌 한 접시 (소리) ·
+      # 만든 것들. 우리 주소로 간 요청이 하나도 실패하지 않고 콘솔 · 페이지 오류가 없는지. 다른 곳 (글꼴 · 위키) 은 막는다. 캡처는 남기지 않는다
+      - run: node tools/test-export.js --crawl
         if: ${{ !cancelled() }}
       - uses: actions/upload-artifact@v7
         if: ${{ always() }}
