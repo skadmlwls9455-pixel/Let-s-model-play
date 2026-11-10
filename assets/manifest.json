@@ -792,5 +792,555 @@
     "w": 16,
     "h": 16,
     "note": "내 모습 옷장(#look-sheet) 갈래 탭 그림 16×16 — 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식. 두 테마 다 ×2 = 32 px 로 보인다."
+  },
+  "sticker.cook.thumbs": {
+    "src": "assets/stickers/cook/thumbs.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「따봉」 — 요리사 모자 쓴 문어가 다리 하나로 엄지 척. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.moved": {
+    "src": "assets/stickers/cook/moved.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「감동」 — 요리사 모자 쓴 문어가 반짝이는 눈으로 눈물을 흘림. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.heart_plate": {
+    "src": "assets/stickers/cook/heart_plate.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「한 접시」 — 요리사 모자 쓴 문어가 하트 얹은 접시를 내밂. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.star": {
+    "src": "assets/stickers/cook/star.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「다 됐다」 — 요리사 모자 쓴 문어가 별을 높이 듦. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.shock": {
+    "src": "assets/stickers/cook/shock.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「깜짝」 — 요리사 모자 쓴 문어가 눈을 휘둥그레 뜸. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.taste": {
+    "src": "assets/stickers/cook/taste.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「맛보기」 — 요리사 모자 쓴 문어가 숟가락을 입에 댐. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.stir": {
+    "src": "assets/stickers/cook/stir.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「휘휘」 — 요리사 모자 쓴 문어가 냄비 뒤에서 국자로 저음. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.sweat": {
+    "src": "assets/stickers/cook/sweat.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「진땀」 — 요리사 모자 쓴 문어가 진땀을 흘리며 힘줌. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.cheer": {
+    "src": "assets/stickers/cook/cheer.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「만세」 — 요리사 모자 쓴 문어가 다리 둘을 번쩍 듦. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.peek": {
+    "src": "assets/stickers/cook/peek.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「빼꼼」 — 요리사 모자 쓴 문어가 냄비 가장자리 위로 빼꼼. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.clap": {
+    "src": "assets/stickers/cook/clap.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「짝짝」 — 요리사 모자 쓴 문어가 빨판 쪽 다리 둘을 앞에서 맞대고 짝 하고 박수. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.munch": {
+    "src": "assets/stickers/cook/munch.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「냠」 — 요리사 모자 쓴 문어가 볼 빵빵하게 오물오물. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.sleepy": {
+    "src": "assets/stickers/cook/sleepy.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「꾸벅」 — 요리사 모자 쓴 문어가 꾸벅 졺. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.hmm": {
+    "src": "assets/stickers/cook/hmm.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「갸웃」 — 요리사 모자 쓴 문어가 고개를 갸웃. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.love": {
+    "src": "assets/stickers/cook/love.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「뿅」 — 요리사 모자 쓴 문어가 하트 눈으로 반짝. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.sprinkle": {
+    "src": "assets/stickers/cook/sprinkle.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「솔솔」 — 요리사 모자 쓴 문어가 양념병을 기울여 솔솔 뿌림. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.busy": {
+    "src": "assets/stickers/cook/busy.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「바빠」 — 요리사 모자 쓴 문어가 다리 여러 개로 국자·거품기·뒤집개를 한꺼번에 듦. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.ink": {
+    "src": "assets/stickers/cook/ink.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「퓻」 — 요리사 모자 쓴 문어가 깜짝 놀라 먹물을 퓻 뿜음. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.flush": {
+    "src": "assets/stickers/cook/flush.png",
+    "w": 32,
+    "h": 32,
+    "note": "요리 반응 스티커 「두근」 — 요리사 모자 쓴 문어의 몸 색이 분홍으로 물듦. 32×32, ×2·×3 정수 배로만 (js/cook-stickers.js)."
+  },
+  "sticker.cook.clap.anim": {
+    "src": "assets/stickers/cook/clap_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「짝짝」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.cook.stir.anim": {
+    "src": "assets/stickers/cook/stir_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「휘휘」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.cook.sleepy.anim": {
+    "src": "assets/stickers/cook/sleepy_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「꾸벅」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.cook.ink.anim": {
+    "src": "assets/stickers/cook/ink_anim.png",
+    "w": 96,
+    "h": 32,
+    "frames": 3,
+    "cell": 32,
+    "note": "「퓻」 움직이는 칸 3개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.cook.cheer.anim": {
+    "src": "assets/stickers/cook/cheer_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「만세」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.cook.flush.anim": {
+    "src": "assets/stickers/cook/flush_anim.png",
+    "w": 128,
+    "h": 32,
+    "frames": 4,
+    "cell": 32,
+    "note": "「두근」 움직이는 칸 4개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.runner.dash.anim": {
+    "src": "assets/stickers/runner/dash_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「쌩」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.runner.dash": {
+    "src": "assets/stickers/runner/dash.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「쌩」 — 머리띠 두른 문어가 다리를 번갈아 쌩 달림. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.hop.anim": {
+    "src": "assets/stickers/runner/hop_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「폴짝」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.runner.hop": {
+    "src": "assets/stickers/runner/hop.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「폴짝」 — 머리띠 두른 문어가 폴짝 뛰어오름. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.duck": {
+    "src": "assets/stickers/runner/duck.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「납작」 — 머리띠 두른 문어가 납작 엎드려 거미줄 밑을 지나감. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.phew": {
+    "src": "assets/stickers/runner/phew.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「휴」 — 머리띠 두른 문어가 다리로 이마를 훔치며 휴 함. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.moss": {
+    "src": "assets/stickers/runner/moss.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「이끼 득」 — 머리띠 두른 문어가 이끼 한 줌을 번쩍 듦. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.fire.anim": {
+    "src": "assets/stickers/runner/fire_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「활활」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.runner.fire": {
+    "src": "assets/stickers/runner/fire.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「활활」 — 머리띠 두른 문어 뒤로 불꽃이 활활. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.trophy": {
+    "src": "assets/stickers/runner/trophy.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「최고!」 — 머리띠 두른 문어가 트로피를 높이 듦. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.bonk.anim": {
+    "src": "assets/stickers/runner/bonk_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「콩」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.runner.bonk": {
+    "src": "assets/stickers/runner/bonk.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「콩」 — 머리띠 두른 문어가 콩 부딪혀 머리 위로 별이 빙글. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.runner.again": {
+    "src": "assets/stickers/runner/again.png",
+    "w": 32,
+    "h": 32,
+    "note": "다락방 달리기 반응 스티커 「한 판 더」 — 머리띠 두른 문어가 다리 주먹을 불끈 쥠. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.splash": {
+    "src": "assets/stickers/swim/splash.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「풍덩」 — 물안경 올린 문어가 풍덩 뛰어듦. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.flap.anim": {
+    "src": "assets/stickers/swim/flap_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「톡」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.swim.flap": {
+    "src": "assets/stickers/swim/flap.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「톡」 — 물안경 올린 문어가 다리를 쫙 펴서 헤엄침. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.bubble.anim": {
+    "src": "assets/stickers/swim/bubble_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「보글」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.swim.bubble": {
+    "src": "assets/stickers/swim/bubble.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「보글」 — 물안경 올린 문어가 보글보글 거품을 냄. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.bump": {
+    "src": "assets/stickers/swim/bump.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「퐁」 — 물안경 올린 문어가 퐁 부딪혀 눈을 질끈 감음. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.pickup": {
+    "src": "assets/stickers/swim/pickup.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「주웠다」 — 물안경 올린 문어가 조개껍데기를 주워 듦. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.jet": {
+    "src": "assets/stickers/swim/jet.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「쓩」 — 물안경 올린 문어가 먹물을 뒤로 퓻 뿜으며 앞으로 쓩. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.wave.anim": {
+    "src": "assets/stickers/swim/wave_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「같이 가자」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.swim.wave": {
+    "src": "assets/stickers/swim/wave.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「같이 가자」 — 물안경 올린 문어가 다리를 흔들며 손짓함. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.float.anim": {
+    "src": "assets/stickers/swim/float_anim.png",
+    "w": 64,
+    "h": 32,
+    "frames": 2,
+    "cell": 32,
+    "note": "「둥둥」 움직이는 칸 2개 가로 스트립 (칸 0 = 정지 그림). 4 fps 스텝."
+  },
+  "sticker.swim.float": {
+    "src": "assets/stickers/swim/float.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「둥둥」 — 물안경 올린 문어가 눈 감고 둥둥 떠 있음. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "sticker.swim.arrive": {
+    "src": "assets/stickers/swim/arrive.png",
+    "w": 32,
+    "h": 32,
+    "note": "헤엄 반응 스티커 「도착」 — 물안경 올린 문어가 깃발을 들고 도착함. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "badge.hello": {
+    "src": "assets/badges/hello.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #1 「안녕, ○○」 — 테 flag · 등급 bronze. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.send_off": {
+    "src": "assets/badges/send_off.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #2 「잘 다녀와」 — 테 flag · 등급 bronze. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.days_7": {
+    "src": "assets/badges/days_7.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #5 「일곱 날 친구」 — 테 flag · 등급 silver. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.runner_first": {
+    "src": "assets/badges/runner_first.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #23 「상자에 콩!」 — 테 medal · 등급 bronze. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.runner_30": {
+    "src": "assets/badges/runner_30.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #24 「다락 단골」 — 테 medal · 등급 silver. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.my_look": {
+    "src": "assets/badges/my_look.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #26 「내 모습」 — 테 medal · 등급 bronze. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.place_first": {
+    "src": "assets/badges/place_first.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #27 「여기 어때?」 — 테 medal · 등급 bronze. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.place_10": {
+    "src": "assets/badges/place_10.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #28 「내 손으로」 — 테 medal · 등급 silver. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.first_10": {
+    "src": "assets/badges/first_10.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #32 「처음 가 본 곳 10곳」 — 테 drop · 등급 hidden. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.stay_home": {
+    "src": "assets/badges/stay_home.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #33 「오늘은 집」 — 테 drop · 등급 hidden. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.still_day": {
+    "src": "assets/badges/still_day.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #34 「가만히 있던 날」 — 테 drop · 등급 hidden. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.eight_ways": {
+    "src": "assets/badges/eight_ways.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #35 「여덟 갈래」 — 테 drop · 등급 hidden. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "ribbon.bronze": {
+    "src": "assets/badges/ribbon_bronze.png",
+    "w": 16,
+    "h": 16,
+    "note": "등급 리본 (bronze) 16×16."
+  },
+  "ribbon.silver": {
+    "src": "assets/badges/ribbon_silver.png",
+    "w": 16,
+    "h": 16,
+    "note": "등급 리본 (silver) 16×16."
+  },
+  "ribbon.gold": {
+    "src": "assets/badges/ribbon_gold.png",
+    "w": 16,
+    "h": 16,
+    "note": "등급 리본 (gold) 16×16."
+  },
+  "ribbon.hidden": {
+    "src": "assets/badges/ribbon_hidden.png",
+    "w": 16,
+    "h": 16,
+    "note": "등급 리본 (hidden) 16×16."
+  },
+  "icon.coin": {
+    "src": "assets/badges/coin.png",
+    "w": 16,
+    "h": 16,
+    "note": "조개 동전 16×16 (×2 = 32px, 지갑 머리). 금빛 동전 테 안에 조개 무늬 — 기념품 조개껍데기와 다른 그림."
+  },
+  "icon.coin8": {
+    "src": "assets/badges/coin8.png",
+    "w": 8,
+    "h": 8,
+    "note": "조개 동전 8×8 (×2 = 16px, 글줄 안)."
+  },
+  "prop.badge.bell": {
+    "src": "assets/badges/prop_bell.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 소품 「배웅 종 (문가 벽걸이 — 소리 안 나는 장식)」 24×24 (2D 그림 — 3D 소품은 장면 쪽)."
+  },
+  "prop.badge.pebble_jar": {
+    "src": "assets/badges/prop_pebble_jar.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 소품 「조약돌 병 (함께한 날마다 조약돌 하나)」 24×24 (2D 그림 — 3D 소품은 장면 쪽)."
+  },
+  "souvenir32.feather": {
+    "src": "assets/souvenirs32/feather.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「깃털」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.feather."
+  },
+  "souvenir32.shell": {
+    "src": "assets/souvenirs32/shell.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「조개껍데기」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.shell."
+  },
+  "souvenir32.pebble": {
+    "src": "assets/souvenirs32/pebble.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「조약돌」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.pebble."
+  },
+  "souvenir32.button": {
+    "src": "assets/souvenirs32/button.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「단추」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.button."
+  },
+  "souvenir32.leaf": {
+    "src": "assets/souvenirs32/leaf.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「나뭇잎」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.leaf."
+  },
+  "souvenir32.marble": {
+    "src": "assets/souvenirs32/marble.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「유리구슬」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.marble."
+  },
+  "souvenir32.yarn": {
+    "src": "assets/souvenirs32/yarn.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「실뭉치」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.yarn."
+  },
+  "souvenir32.stamp": {
+    "src": "assets/souvenirs32/stamp.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「우표」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.stamp."
+  },
+  "souvenir32.matchbox": {
+    "src": "assets/souvenirs32/matchbox.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「성냥갑」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.matchbox."
+  },
+  "souvenir32.key": {
+    "src": "assets/souvenirs32/key.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「열쇠」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.key."
+  },
+  "souvenir32.pinecone": {
+    "src": "assets/souvenirs32/pinecone.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「솔방울」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.pinecone."
+  },
+  "souvenir32.paper_boat": {
+    "src": "assets/souvenirs32/paper_boat.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「종이배」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.paper_boat."
+  },
+  "souvenir32.bell": {
+    "src": "assets/souvenirs32/bell.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「작은 종」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.bell."
+  },
+  "souvenir32.map_piece": {
+    "src": "assets/souvenirs32/map_piece.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「지도 조각」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.map_piece."
+  },
+  "souvenir32.chalk": {
+    "src": "assets/souvenirs32/chalk.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「분필」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.chalk."
+  },
+  "souvenir32.stained_glass": {
+    "src": "assets/souvenirs32/stained_glass.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「색유리」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.stained_glass."
   }
 }

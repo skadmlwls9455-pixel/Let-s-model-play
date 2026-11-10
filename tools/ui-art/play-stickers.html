@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>놀이 스티커 시험대</title>
+<link rel="stylesheet" href="../../css/runner.css">
+<link rel="stylesheet" href="../../css/cook-stickers.css">
+<style>
+  /* 개발용 시험대 (플레이어 화면 아님). 달리기·헤엄 스티커와 규칙을 눌러 보고, 진짜 다락방 달리기 위에서 자동 발동을 본다. */
+  :root { --paper: #e7d5b3; --ink: #172038; --line: #ad7757; --accent: #be772b; --panel: #f3e9d6; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper: #172038; --ink: #ebede9; --line: #3c5e8b; --accent: #e8c170; --panel: #202e37; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--paper); color: var(--ink); font: 15px/1.65 system-ui, sans-serif; word-break: keep-all; }
+  h1 { font-size: 18px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 24px 0 8px; }
+  p.note { margin: 0 0 8px; font-size: 13px; opacity: .8; }
+  .board { position: relative; height: 220px; border: 2px solid var(--line); background: var(--panel); overflow: hidden; max-width: 640px; }
+  .ctl { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  button, select { font: inherit; font-size: 16px; min-height: 44px; padding: 0 12px; border: 2px solid var(--line); background: var(--paper); color: var(--ink); }
+  button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.main { background: var(--accent); color: #172038; border-color: var(--accent); }
+  .log { font: 12px/1.6 ui-monospace, monospace; height: 120px; overflow: auto; border: 2px solid var(--line); padding: 8px; background: var(--panel); max-width: 640px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; max-width: 980px; }
+  .grid button { display: flex; flex-direction: column; align-items: center; gap: 4px; height: auto; padding: 8px 4px; font-size: 13px; }
+  .grid img { width: 64px; height: 64px; image-rendering: pixelated; }
+</style>
+</head>
+<body>
+<h1>놀이 스티커 시험대</h1>
+<p class="note">개발용. 다락방 달리기(머리띠 문어)와 헤엄(물안경 문어) 스티커. 그림을 누르면 바로 뜨고, 순간 단추를 누르면 규칙대로 자동으로 뜬다.</p>
+
+<h2>다락방 달리기</h2>
+<div class="ctl"><button class="main" id="rn-real">진짜 달리기 열기 (자동 감지)</button></div>
+<div class="board" id="rn-board" aria-label="달리기 판"></div>
+<div class="ctl" id="rn-acts"></div>
+<div class="log" id="rn-log" role="log" aria-live="polite" tabindex="0"></div>
+<div class="grid" id="rn-grid"></div>
+
+<h2>헤엄</h2>
+<div class="ctl"><label>코스 <select id="sw-course"><option value="">(정하지 않음 — 공통 규칙)</option></select></label><button class="main" id="sw-auto">한 구간 자동 재생</button></div>
+<div class="board" id="sw-board" aria-label="헤엄 판"></div>
+<div class="ctl" id="sw-acts"></div>
+<div class="log" id="sw-log" role="log" aria-live="polite" tabindex="0"></div>
+<div class="grid" id="sw-grid"></div>
+
+<script src="../../js/runner.js"></script>
+<script src="../../js/cook-stickers.js"></script>
+<script src="../../js/play-stickers.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  function src(set) { return function (id, anim) { return '../../assets/stickers/' + set + '/' + id + (anim ? '_anim' : '') + '.png'; }; }
+  function line(el, t) { var d = document.createElement('div'); d.textContent = t; el.appendChild(d); el.scrollTop = 1e9; }
+  function setup(S, set, board, acts, log, grid, detailOf) {
+    S.mount(board, { src: src(set) });
+    S.onFire(function (e) { line(log, '#' + e.i + ' ' + e.act + ' → ' + e.sticker + '  (' + e.from + ', ' + e.by + ')'); });
+    Object.keys(S.CATALOG).forEach(function (id) {
+      var b = document.createElement('button'), i = document.createElement('img');
+      i.src = src(set)(id); i.alt = ''; b.appendChild(i); b.appendChild(document.createTextNode(S.CATALOG[id].label + ' · ' + id + (S.CATALOG[id].anim ? ' (움직임)' : '')));
+      b.onclick = function () { S.show(id, { slot: Math.floor(performance.now()) }); };
+      grid.appendChild(b);
+    });
+    acts.forEach(function (a) {
+      var b = document.createElement('button'); b.textContent = a[0]; b.onclick = function () { var r = S.cue(a[1], detailOf(a)); if (!r) line(log, '   ' + a[0] + ' → (안 띄움)'); };
+      $(set === 'runner' ? 'rn-acts' : 'sw-acts').appendChild(b);
+    });
+  }
+  setup(RUNNER_STICKERS, 'runner', $('rn-board'), [['start', 'start'], ['jump', 'jump'], ['duck', 'duck'], ['pass 아슬', 'pass'], ['moss', 'moss'], ['speed', 'speed'], ['over', 'over'], ['best', 'best'], ['again', 'again']],
+    $('rn-log'), $('rn-grid'), function (a) { return a[1] === 'pass' ? { clear: 1 } : a[1] === 'speed' ? { level: 2 } : {}; });
+  Object.keys(SWIM_STICKERS.SCRIPTS).forEach(function (id) { var o = document.createElement('option'); o.value = id; o.textContent = SWIM_STICKERS.SCRIPTS[id].name + ' (' + id + ')'; $('sw-course').appendChild(o); });
+  setup(SWIM_STICKERS, 'swim', $('sw-board'), [['start', 'start'], ['flap 나', 'flap'], ['flap 문어', 'flap-o'], ['bump', 'bump'], ['ink', 'ink'], ['pickup', 'pickup'], ['end played', 'end'], ['end auto', 'end-a']],
+    $('sw-log'), $('sw-grid'), function (a) { return { who: a[1] === 'flap-o' ? 'octopus' : 'me', status: a[1] === 'end-a' ? 'auto' : 'played', course: $('sw-course').value || undefined }; });
+  /* 순간 단추의 act 이름 정리 (flap-o → flap, end-a → end) */
+  var cue = SWIM_STICKERS.cue; SWIM_STICKERS.cue = function (a, d) { return cue(a.replace(/-.*$/, ''), d); };
+
+  var SWIM = [['start', {}], ['flap', { who: 'me' }], ['flap', { who: 'me' }], ['flap', { who: 'octopus' }], ['flap', { who: 'me' }], ['pickup', {}], ['flap', { who: 'octopus' }], ['bump', {}], ['flap', { who: 'me' }], ['ink', { who: 'octopus' }], ['flap', { who: 'me' }], ['end', { status: 'played' }]];
+  window.playSwim = function (gap) {
+    var c = $('sw-course').value || null, i = 0; $('sw-log').textContent = ''; SWIM_STICKERS.begin({ runId: 'demo-swim', course: c });
+    (function step() { if (i >= SWIM.length) { window.SWIM_DONE = true; return; } var s = SWIM[i++]; var r = SWIM_STICKERS.cue(s[0], s[1]); if (!r) line($('sw-log'), '   ' + s[0] + ' → (안 띄움)'); setTimeout(step, gap || 900); })();
+  };
+  $('sw-auto').onclick = function () { window.playSwim(); };
+
+  /* 진짜 달리기: runner.js 를 그대로 열고, 스티커는 RUNNER.live() 를 지켜봐서 자동으로 뜬다 */
+  RUNNER_STICKERS.watch();
+  RUNNER_STICKERS.onFire(function (e) { if (e.run.indexOf('runner|') === 0) line($('rn-log'), '(진짜 판) ' + e.act + ' → ' + e.sticker); });
+  $('rn-real').onclick = function () { RUNNER.open({ opener: $('rn-real') }); };
+  window.DEMO_READY = true;
+})();
+</script>
+</body>
+</html>

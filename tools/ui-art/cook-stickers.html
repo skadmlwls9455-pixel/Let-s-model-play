@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>요리 스티커 시험대</title>
+<link rel="stylesheet" href="../../css/cook-stickers.css">
+<style>
+  /* 개발용 시험대 (플레이어 화면 아님). 요리 놀이(cook.html, 카드 7)가 생기기 전에 스티커·규칙·요리 스크립트를 눌러 본다. */
+  :root { --paper: #e7d5b3; --ink: #172038; --line: #ad7757; --accent: #be772b; --panel: #f3e9d6; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper: #172038; --ink: #ebede9; --line: #3c5e8b; --accent: #e8c170; --panel: #202e37; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--paper); color: var(--ink); font: 15px/1.65 system-ui, sans-serif; word-break: keep-all; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.note { margin: 0 0 16px; font-size: 13px; opacity: .8; }
+  .wrap { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); max-width: 980px; }
+  @media (min-width: 760px) { .wrap { grid-template-columns: minmax(0, 1fr) 320px; } }
+  #board { position: relative; height: 360px; border: 2px solid var(--line); background: var(--panel); overflow: hidden; }
+  #pot { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); width: 160px; height: 96px; background: #3c5e8b; border-top: 8px solid #a8b5b2; border-radius: 0 0 48px 48px; }
+  #pot-label { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font-size: 13px; }
+  .ctl { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  button, select, input { font: inherit; font-size: 16px; min-height: 44px; padding: 0 12px; border: 2px solid var(--line); background: var(--paper); color: var(--ink); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.main { background: var(--accent); color: #172038; border-color: var(--accent); }
+  input[type=number] { width: 72px; }
+  #log { font: 12px/1.6 ui-monospace, monospace; height: 200px; overflow: auto; border: 2px solid var(--line); padding: 8px; background: var(--panel); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin-top: 16px; }
+  .grid button { display: flex; flex-direction: column; align-items: center; gap: 4px; height: auto; padding: 8px 4px; font-size: 13px; }
+  .grid img { width: 64px; height: 64px; image-rendering: pixelated; }
+</style>
+</head>
+<body>
+<h1>요리 스티커 시험대</h1>
+<p class="note">개발용. 요리 순간(act — 진짜 부엌 놀이 js/cook.js 의 소리 act 그대로)을 누르면 요리 스크립트 → 공통 규칙 순서로 스티커가 자동으로 뜬다. 판 id 가 같으면 같은 순서로 같은 스티커가 나온다.</p>
+<div class="wrap">
+  <section>
+    <div id="board" aria-label="냄비 판"><div id="pot"></div><div id="pot-label">냄비</div></div>
+    <div class="ctl">
+      <label>요리 <select id="recipe"><option value="">(정하지 않음 — 공통 규칙)</option></select></label>
+      <label>판 id <input id="run" value="demo-1" size="8"></label>
+      <button id="start">새 판</button>
+    </div>
+    <div class="ctl">
+      <label>i · band <input id="tier" type="number" min="0" max="8" value="0"></label>
+    </div>
+    <div class="ctl" id="acts"></div>
+    <div class="ctl"><button class="main" id="auto">요리 스크립트 자동 재생</button></div>
+  </section>
+  <section>
+    <div id="log" role="log" aria-live="polite" tabindex="0"></div>
+  </section>
+</div>
+<div class="grid" id="grid"></div>
+
+<script src="../../js/cook-stickers.js"></script>
+<script>
+(function () {
+  var C = COOK_STICKERS, $ = function (id) { return document.getElementById(id); };
+  var base = '../../assets/stickers/cook/';
+  C.mount($('board'), { src: function (id, anim) { return base + id + (anim ? '_anim' : '') + '.png'; } });
+
+  Object.keys(C.RECIPES).forEach(function (id) { var o = document.createElement('option'); o.value = id; o.textContent = C.RECIPES[id].name + ' (' + id + ')'; $('recipe').appendChild(o); });
+  Object.keys(C.CATALOG).forEach(function (id) {
+    var b = document.createElement('button'), i = document.createElement('img');
+    i.src = base + id + '.png'; i.alt = ''; b.appendChild(i); b.appendChild(document.createTextNode(C.CATALOG[id].label + ' · ' + id));
+    b.onclick = function () { C.show(id, { slot: Math.floor(performance.now()) }); };
+    $('grid').appendChild(b);
+  });
+
+  function line(t) { var d = document.createElement('div'); d.textContent = t; $('log').appendChild(d); $('log').scrollTop = 1e9; }
+  C.onFire(function (e) { line('#' + e.i + ' ' + e.act + ' → ' + e.sticker + '  (' + e.from + ', ' + e.by + ')'); });
+
+  function detail(act) { var n = +$('tier').value; return { i: n, band: Math.min(2, n), kind: 'tap', dish: (act === 'done' || act === 'pick') && $('recipe').value ? $('recipe').value : undefined }; }
+  function fire(act) { var r = C.cue(act, detail(act)); if (!r) line('   ' + act + ' → (안 띄움)'); }
+  ['pick', 'tap', 'sizzle', 'flip', 'cut', 'step', 'done', 'serve', 'eat', 'idle'].forEach(function (a) {
+    var b = document.createElement('button'); b.textContent = a; b.onclick = function () { fire(a); }; $('acts').appendChild(b);
+  });
+  $('start').onclick = function () { $('log').textContent = ''; C.begin({ runId: $('run').value, recipe: $('recipe').value || null }); line('새 판 ' + $('run').value + ' · 요리 ' + ($('recipe').value || '없음')); };
+
+  /* 자동 재생: 진짜 부엌 놀이가 보내는 차례 그대로 (고름 → 톡톡 9 → 불 → 굽기 → 뒤집음 → 썰기 2 → 접시 → 차리기 → 냠) */
+  var SCRIPT = [['pick', {}]].concat([0, 1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return ['tap', { i: i }]; }),
+    [['step', { kind: 'tap' }], ['sizzle', { band: 0 }], ['sizzle', { band: 1 }], ['flip', { band: 1 }], ['step', { kind: 'flip' }], ['cut', { i: 0 }], ['cut', { i: 1 }], ['step', { kind: 'slice' }], ['done', {}], ['serve', {}], ['eat', {}]]);
+  window.playScript = function (gap) {
+    var rid = $('recipe').value || null, i = 0;
+    $('log').textContent = ''; C.begin({ runId: $('run').value, recipe: rid }); line('자동 재생 · 요리 ' + (rid || '없음'));
+    (function step() {
+      if (i >= SCRIPT.length) { window.SCRIPT_DONE = true; return; }
+      var s = SCRIPT[i++], d = Object.assign({}, s[1]); if ((s[0] === 'done' || s[0] === 'pick') && rid) d.dish = rid;
+      var r = C.cue(s[0], d); if (!r) line('   ' + s[0] + ' → (안 띄움)');
+      setTimeout(step, gap || 1100);
+    })();
+  };
+  $('auto').onclick = function () { window.playScript(); };
+  window.DEMO_READY = true;
+})();
+</script>
+</body>
+</html>

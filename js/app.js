@@ -85,6 +85,13 @@ var APP = (function () {
   function icoH(path, cls) { return window.UIART && UIART.iconHTML ? UIART.iconHTML(path, 'ua-both' + (cls ? ' ' + cls : '')) : ''; }
   /* 기억 코너 아이콘 (icon.memory.<코너>): 방 정류장은 그 방의 코너, 바깥 주소(url)는 문 그림, 그 밖(위키 · 모르는 곳)은 들판 */
   var CORNER_ICONS = { hands: 1, sea: 1, sky: 1, signs: 1, numbers: 1, sounds: 1, home: 1, mind: 1, wild: 1 };
+  /* 정류장 한 줄의 그림: 그 방의 픽셀 그림(js/poster-art.js, 32px 그대로)이 있으면 그것, 없으면 예전처럼 주제 아이콘 (주소 문 · 도서관 밖 글).
+     방 그림은 32px 원본이라 글꼴 모드와 상관없이 32px 로 둔다 (시스템 글꼴 모드의 16px 로 줄이면 칸이 빠진다) — 줄 높이를 안 밀게 위아래 여백을 뺀다 */
+  function stopIcoH(s) {
+    var a = (s && s.nodeId !== 'door_out' && window.POSTER_ART && POSTER_ART.forStop) ? POSTER_ART.forStop(s) : null;
+    if (a && a.kind === 'room') return '<img class="ua-ico ua-both ua-mem ua-art" src="' + a.src + '" alt="" aria-hidden="true" width="32" height="32" draggable="false" style="width:32px;height:32px;margin:-6px 4px -6px 0;vertical-align:-9px">';
+    return icoH(cornerIcon(s && s.corner, s && s.nodeId === 'door_out' ? 'url' : null), 'ua-mem');
+  }
   function cornerIcon(corner, kind) { return kind === 'url' ? 'ctl/door' : 'memory/' + (CORNER_ICONS[corner] ? corner : 'wild'); }
   function souvenirIcon(id) { return W && W.souvenirs && W.souvenirs[id] ? 'souvenir/' + id : null; }
   /* 남이 쓴 글 표시 (data-raw): 모델이 쓴 말(MCP) · 사람(데모 조작)이 쓴 말 · 위키백과 글 · 플레이어가 쓴 글은 바이트 그대로 보인다 (docs/MODEL_VOICE.md — 이모지가 있어도 고치지 않는다).
@@ -2456,22 +2463,32 @@ var APP = (function () {
     s += '<rect width="' + w + '" height="' + hgt + '" rx="' + Math.max(1, w * 0.01) + '" fill="' + pal[0] + '"/>';
     s += '<rect x="0.5" y="0.5" width="' + (w - 1) + '" height="' + (hgt - 1) + '" rx="' + Math.max(1, w * 0.01) + '" fill="none" stroke="' + pal[1] + '"/>';
     /* 장면 */
-    s += '<g clip-path="url(#' + uid + 'c)"><rect x="' + sx + '" y="' + sy + '" width="' + sw + '" height="' + sh + '" fill="url(#' + uid + ')"/>' + sceneShapes(trip.seed, sx, sy, sw, sh);
-    var sceneHref = opts.inlineScene || (opts.noExternal ? null : scenePath(p.scene));
+    /* 주제의 픽셀 배경 (js/poster-art.js, data URI) — 있으면 임시 벡터 장면 대신. 작은 포스터(mini: 벽 · 들고 오는 · 날아가는)에도 넣는다 (부드럽게 줄여서) */
+    var bg = (window.POSTER_ART && POSTER_ART.sceneSvg) ? POSTER_ART.sceneSvg(p.scene || 'home', sx, sy, sw, sh, !!opts.mini) : '';
+    s += '<g clip-path="url(#' + uid + 'c)"><rect x="' + sx + '" y="' + sy + '" width="' + sw + '" height="' + sh + '" fill="url(#' + uid + ')"/>' + (bg || sceneShapes(trip.seed, sx, sy, sw, sh));
+    var sceneHref = bg ? null : opts.inlineScene || (opts.noExternal ? null : scenePath(p.scene));
     if (sceneHref) s += '<image href="' + esc(sceneHref) + '" x="' + sx + '" y="' + sy + '" width="' + sw + '" height="' + sh + '" preserveAspectRatio="xMidYMid slice"/>';
-    if (!opts.mini && p.thumb && p.thumb.url && S.settings.thumbs !== false && !note) {
+    /* 그 방의 픽셀 그림 (js/poster-art.js) — 있으면 위키 사진 대신 이것을 붙인다 (사진은 장면과 따로 놀았다, 주인 11-10). 출처·사진 출처는 일기에 그대로 */
+    var art = (!opts.mini && window.POSTER_ART) ? (note ? POSTER_ART.svg(trip, sx + sw * 0.25, sy + sh * 0.08, sw * 0.5, sh * 0.84, W) : POSTER_ART.svg(trip, sx + sw * 0.08, sy + sh * 0.12, sw * 0.5, sh * 0.62, W)) : '';   /* 쪽지 = 그날 집 활동 그림 (가운데) */
+    var miniArt = (opts.mini && window.POSTER_ART && POSTER_ART.miniSvg) ? POSTER_ART.miniSvg(trip, sx, sy, sw, sh, W) : '';   /* 작은 포스터: 그 방 그림을 장면 가운데에 (벽에서 포스터끼리 구분되게) */
+    if (art || miniArt) s += art || miniArt;
+    else if (!opts.mini && p.thumb && p.thumb.url && S.settings.thumbs !== false && !note) {
       var th = opts.inlineThumb || (opts.noExternal ? null : p.thumb.url);
       if (th) s += '<g clip-path="url(#' + uid + 't)"><image href="' + esc(th) + '" x="' + (sx + sw * 0.08) + '" y="' + (sy + sh * 0.12) + '" width="' + (sw * 0.5) + '" height="' + (sh * 0.62) + '" preserveAspectRatio="xMidYMid slice"/></g>';
     }
     s += '</g>';
-    if (!opts.mini && p.thumb && p.thumb.url && S.settings.thumbs !== false && !note) s += '<text x="' + (sx + 2) + '" y="' + (sy + sh - 3) + '" font-size="' + (w * 0.028) + '" fill="#fff" opacity=".75" font-family="Noto Sans KR, sans-serif">사진: 위키미디어 공용</text>';
+    if (!art && !opts.mini && p.thumb && p.thumb.url && S.settings.thumbs !== false && !note) s += '<text x="' + (sx + 2) + '" y="' + (sy + sh - 3) + '" font-size="' + (w * 0.028) + '" fill="#fff" opacity=".75" font-family="Noto Sans KR, sans-serif">사진: 위키미디어 공용</text>';
     /* 스티커 하나 = 픽셀 아이콘 (예전 이모지 글자 대신 — 주인 11-07): 외출은 기억한 곳의 코너 그림, 집에 있던 날 쪽지는 집, 복원된 옛 포스터는 포스터 그림.
        주소는 iconSrc (단일 파일 번들 = data URI). 16px 원본을 정수 배(16·32·64…)로, 픽셀 그대로. 자리·기울기는 예전 그대로 (stickerPos).
        밖의 파일을 못 읽는 그림(벽 텍스처 · 날아가는 포스터 · PNG 저장)은 data URI 일 때만 (opts.inlineSticker 로 넘겨받거나 번들) */
     var pos = p.stickerPos || { x: 70, y: 28, rot: 0 };
     var stx = sx + sw * (pos.x / 100), sty = sy + sh * (pos.y / 100), want = w * (note ? 0.18 : 0.2), ss = want >= 12 ? 16 * Math.max(1, Math.round(want / 16)) : want >= 6 ? 8 : want;   /* 정수 배 (작은 벽 텍스처는 8px = 반) */
+    /* 방 그림(art)이 붙은 포스터: 주제 스티커가 그림과 겹치고 기울어 계단이 졌다 (주인 11-10) → 오른쪽 가장자리 세로 띠에만 놓고 (그림 칸 밖),
+       반 크기 정수 배 (300px 포스터 = 32px) · 기울기 0 (픽셀 그대로). 높이는 저장된 stickerPos.y 그대로라 포스터마다 다르다. 저장 데이터는 안 바꾼다 */
+    if (art) { ss = 16 * Math.max(1, Math.round(w * 0.107 / 16)); stx = sx + sw * ((81 + (Math.abs(pos.x | 0) % 7)) / 100); sty = sy + sh * (Math.max(14, Math.min(84, pos.y)) / 100); pos = { x: pos.x, y: pos.y, rot: 0 }; }
     var stHref = opts.inlineSticker || stickerSrc(trip);
     if (stHref && !/^data:/.test(stHref) && window.UIART && UIART.iconBad && UIART.iconBad(stHref)) stHref = null;   /* 한 번 안 온 그림은 넣지 않는다 (깨진 그림 표시 대신 스티커 없이) */
+    if (miniArt) stHref = null;   /* 작은 포스터에 방 그림이 있으면 주제 스티커는 뺀다 (둘이 겹쳐 뭉개진다) */
     if (stHref && (!opts.noExternal || /^data:/.test(stHref))) {
       /* 기울기는 <image> 에 (바깥 g.stk 는 새 카드 등장 애니메이션 scale/fade 가 transform 을 덮어쓴다 — 거기 두면 기울기 · 자리가 풀린다) */
       s += '<g class="stk"><image href="' + esc(stHref) + '" x="' + (stx - ss / 2).toFixed(1) + '" y="' + (sty - ss / 2).toFixed(1) + '" width="' + ss.toFixed(1) + '" height="' + ss.toFixed(1) + '" transform="rotate(' + (pos.rot || 0) + ' ' + stx.toFixed(1) + ' ' + sty.toFixed(1) + ')" image-rendering="optimizeSpeed" style="image-rendering:pixelated"/></g>';
@@ -2488,6 +2505,8 @@ var APP = (function () {
     /* 모델·사람이 쓴 한 줄은 줄째 그대로 · 두뇌가 지은 줄은 그 속 정류장 이름(위키 제목 · 모델이 준 제목)만 <tspan data-raw> */
     var lb = lineBy(trip), rp = lb ? { part: '', by: null } : remPart(trip), lineRaw = lb ? ' data-raw="' + lb + '"' : '', lineH = svgLinesH(p.line || '', lines, rp.part, rp.by);
     lines.forEach(function (ln, i) { s += '<text x="' + (w / 2) + '" y="' + (ly + i * lf * 1.5).toFixed(1) + '" text-anchor="middle" font-family="Noto Serif KR, serif" font-weight="600" font-size="' + lf.toFixed(1) + '" fill="#2a2620"' + lineRaw + '>' + (lb ? esc(ln) : lineH[i]) + '</text>'; });
+    /* 들른 곳 줄: 한 줄 글과 날짜 사이 빈 곳에 그날 들른 정류장 그림을 순서대로 (일기의 정류장 그대로, js/poster-art.js) */
+    if (window.POSTER_ART && POSTER_ART.trailSvg) { var tTop = ly + Math.max(0, lines.length - 1) * lf * 1.5 + lf * 0.4, tBot = hgt - m * 1.1 - w * 0.04; s += POSTER_ART.trailSvg(trip, sx, tTop, sw, tBot - tTop); }
     /* 날짜 · N번째 */
     var ord = tripOrdinal(trip), meta = fmtDate(trip.date, true) + (ord ? ' · ' + ord + '번째 뽈뽈' : note ? ' · 오늘은 집' : '');
     s += '<text x="' + (w / 2) + '" y="' + (hgt - m * 1.1).toFixed(1) + '" text-anchor="middle" font-family="Noto Sans KR, sans-serif" font-size="' + (w * 0.036).toFixed(1) + '" fill="#5f5849">' + esc(meta) + '</text>';
@@ -2584,7 +2603,7 @@ var APP = (function () {
          정류장마다 한 덩이(.stop): 시스템 테마는 글처럼 흐르고(사이 ' · '), 픽셀 테마는 32px 그림이라 한 줄에 하나씩 (사이 점 .sep 은 숨김 — 줄 끝에 '·' 만 남지 않게, css/ui-art.css) */
       var chain = stops.map(function (s, i) {
         var st = s.status || 'failed', cls = i === remIdx ? 'kw' : s.first ? 'first' : '';
-        var name = icoH(cornerIcon(s.corner, s.nodeId === 'door_out' ? 'url' : null), 'ua-mem') + rawH(s.name || s.title || '', stopRawBy(trip, s.nodeId, null));
+        var name = stopIcoH(s) + rawH(s.name || s.title || '', stopRawBy(trip, s.nodeId, null));
         return '<span class="stop">' + (cls ? '<span class="' + cls + '">' + name + '</span>' : name) +
           (s.first && i !== remIdx ? '<span class="first-chip">처음</span>' : '') +
           (st === 'failed' || st === 'simulated' ? '<span class="miss">' + iwH(icoH('log/' + st, 'ua-status'), esc(MISS_WORD[st])) + '</span>' : '') + '</span>';
@@ -2637,7 +2656,7 @@ var APP = (function () {
     if (r && r.stops) r.stops.forEach(function (s, i) {
       var st = s.status || 'failed';
       var sti = icoH('log/' + (STATUS_LABEL[st] ? st : 'failed'), 'ua-status');   /* 코너 그림 + 이름 + [상태 그림] 상태 단어 (예전 이모지는 뺐다) */
-      out += '<div class="row"><span class="n">' + (i + 1) + '</span><span>' + iwH(icoH(cornerIcon(s.corner, s.nodeId === 'door_out' ? 'url' : null), 'ua-mem'), rawH(s.name || s.title || '', stopRawBy(trip, s.nodeId, null)), true) +
+      out += '<div class="row"><span class="n">' + (i + 1) + '</span><span>' + iwH(stopIcoH(s), rawH(s.name || s.title || '', stopRawBy(trip, s.nodeId, null)), true) +
         ' <span class="st' + (sti ? ' ua-st' : '') + '">' + iwH(sti, esc((st === 'builtin' && s.book) ? (s.book.card ? '서가 카드' : '책장의 책') : (STATUS_LABEL[st] || st)) + (s.ms ? '\u00a0·\u00a0' + secs(s.ms) : '')) + '</span>' + (s.first ? ' <span class="first-tag">처음 온 곳</span>' : '');   /* 처음 온 곳은 점 없이 따로 — 줄이 바뀌어도 '·' 가 줄 끝·줄 앞에 홀로 남지 않게 */
       if (s.bridge) out += '<span class="bridge">' + esc(s.bridge) + '</span>';
       /* 모델·사람이 쓴 메모(noteBy)는 따옴표 없이, 누가 썼는지 붙여서 — 따옴표는 위키백과 요약에만 (모델 말이 인용문처럼 보이지 않게, MODEL_VOICE) */

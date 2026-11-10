@@ -147,7 +147,8 @@
   (11-09 고침) js/audio.js 에 case 'cook' 이 생겼다: 9물결 해초전의 부엌 소리다 (act 표는 docs/COOK_PROTO.md §8, 소리 파일은 foley/).
   그 표에 없는 act (drop · merge · serve) 는 조용히 지나가지만, 'done' 은 그 부엌의 접시 소리를 낸다. js/audio.js 는 고치지 않는다.
   CORE_LOOP_V2 §5.1 금지 표의 '`onEvent`만 낸다' 는 11-07 카드 검토로 이 AUDIO.on 한 줄로 바꿨다. onEvent 로는 소리를 내지 않는다 — PR 설명에 이렇게 적는다.
-  COOK_PROTO.md 에 소리 세션에 넘길 표: 이벤트 · act · 언제 · 느낌 (CORE_LOOP_V2 §5.5 '냄비 퐁'·'접시 내려놓기').
+스티커 (11-08 추가 · 11-10 진짜 놀이에 맞춤, docs/COOK_STICKERS.md): css/cook-stickers.css · js/cook-stickers.js 를 js/cook.js 뒤에 싣고 COOK_STICKERS.listenAudio() 한 줄.
+  cook.js 는 고치지 않는다 — 스티커가 위의 AUDIO.on('cook', { act }) 를 엿듣는다 (pick · tap · sizzle · flip · cut · step · done). 무대 위쪽 두 모서리에 뜬다.
 하지 말 것:
 - ppolppol_v2 · APP · BRAIN · S 를 읽거나 쓰기 (사람 놀이가 문어 기록에 닿지 않게)
 - 조개(돈)·지갑을 보이거나 정하기 — 결과만 낸다. 조개는 본 게임이 접시가 완성될 때 정한다
