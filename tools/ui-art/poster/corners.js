@@ -1,66 +1,77 @@
-/* 주제 9개 대표 그림 — 도서관 방이 아닌 곳(모델이 고른 바깥 글 등)을 기억했을 때 그 주제의 그림으로 쓴다 */
+/* 주제 9개 대표 그림 (둘째 판) — 도서관 방이 아닌 곳을 기억했을 때 그 주제의 그림으로 쓴다 */
 'use strict';
+var L = require('./lib.js'), K = L.K, sd = L.sd, bez = L.bez, mat = L.mat;
+var MOON = mat('gold', { ramp: ['Z', 'f', 'F', 'E', 'D'], ol: 'C', spec: 0 }), CL = mat('cloud', { ol: 'U' });
 module.exports = {
-  hands: ['손과 물건', function (c) {   /* 실뭉치 · 바늘 · 단추 */
-    c.disc(13, 17, 10, function (x, y) { var b = Math.floor((x - y + 40) / 3) % 2; return x + y < 24 ? (b ? 'L' : 'K') : (b ? 'K' : 'J'); });
-    c.S(function (x, y) { var d = Math.hypot(x + 0.5 - 13, y + 0.5 - 17); return d <= 10 && d > 4 && Math.floor((x + y) / 4) % 3 === 0 && x > 10 ? 'I' : null; });
-    c.L(21, 23, 26, 27, 'K').L(26, 27, 30, 25, 'K').dot(31, 24, 'J');
-    c.L(19, 2, 29, 14, 'Y').L(20, 2, 30, 14, 'X').dot(20, 3, '1').dot(19, 2, 'Z');
-    c.disc(25.5, 21.5, 3.5, function (x, y) { return x + y < 46 ? '6' : '5'; }).D([[24, 21], [26, 21]], '2');
-    c.spark(4, 5, 'F');
+  hands: ['손과 물건', function (S) {   /* 실뭉치 · 바늘 · 단추 */
+    S.stroke(bez([20, 25], [25, 29.6], [30.6, 26], 6), 1.3, 'J', { ol: 'H' });
+    S.ball(13, 17.4, 10.4, 10.4, 'red', { tone: function (u, v, t) { return Math.round((u - v) * 0.6) % 2 ? t : Math.min(4, t + 1); } });
+    S.add(K.clip(K.ball(13, 17.4, 10.4, 10.4), function (u, v) { return Math.abs((u - 13) * 0.5 + (v - 17.4) * 0.9) < 2.7; }), mat('crimson'),
+      { shadow: false, tone: function (u, v, t) { return Math.round((u + v) * 0.6) % 2 ? t : Math.min(4, t + 1); } });
+    S.rotate(24.5, 9, 35, function () { S.solid(sd.path([[24.5, 1.5], [24.5, 16.5]], 0.85, 0.3), 0.85, 'iron'); S.flat(sd.ellipse(24.5, 3.4, 0.3, 0.9), '1'); });
+    S.solid(sd.circle(26, 22, 3.7), 1.3, 'blue');
+    S.flat(sd.box(24.5, 21.5, 0.5, 0.5, 0), '2').flat(sd.box(26.5, 21.5, 0.5, 0.5, 0), '2');
   }],
-  sea: ['바다와 생물', function (c) {   /* 말려 올라가는 물결 + 소라 */
-    c.S(function (x, y) { var d = Math.hypot(x + 0.5 - 13, y + 0.5 - 16); if (d > 11.5 || d < 5.5) return null; if (x > 13 && y > 14) return null; return d > 10 ? 'Z' : (x + y) % 4 === 0 ? '7' : y < 12 ? '6' : '5'; });
-    c.S(function (x, y) { var top = 22 + Math.round(Math.sin(x / 2.6) * 1.2); return y >= top && y <= 28 && x >= 1 && x <= 30 ? (y === top ? 'Z' : y === top + 1 ? '7' : y > 26 ? '4' : '5') : null; });
-    c.D([[20, 7], [23, 10], [18, 4], [25, 14]], '7').dot(21, 6, 'Z');
-    c.G(22, 23, ['..ef.', '.efed', 'efedc', '.dcc.']);
+  sea: ['바다와 생물', function (S) {   /* 말려 올라가는 물결 + 소라 */
+    var top = function (u) { return 23.4 + 1.1 * Math.sin(u / 2.7); };
+    S.solid(sd.inter(sd.sub(sd.circle(12.5, 17, 11.6), sd.circle(15.8, 19.6, 7.6)), sd.half(0, 1, -25.5)), 2.8, 'blue',
+      { tone: function (u, v, t) { var d = Math.hypot(u - 12.5, v - 17); return d > 10.2 ? 0 : t; } });
+    L.cloud(S, [[21.2, 10.6, 2.3], [23.4, 12.8, 1.7], [19, 8.8, 1.7]], mat('cloud', { ol: '4' }));
+    S.solid(function (u, v) { return Math.max(top(u) - v, v - 29.2, 1.6 - u, u - 30.4); }, 2.2, 'blue');
+    var crest = []; for (var u = 1.6; u <= 30.4; u += 0.8) crest.push([u, top(u) + 0.3]);
+    S.stroke(crest, 1, 'Z', { ol: '3' });
+    L.dot(S, 26.5, 7.5, 0.9, '7', '4'); L.dot(S, 28.5, 12.5, 0.6, '7', '4'); L.dot(S, 24.5, 4.5, 0.6, '7', '4');
+    S.solid(sd.ellipse(25.5, 27.2, 3.2, 2.1), 1.5, 'cream'); S.flat(sd.box(25.5, 27.5, 0.5, 0.5, 0), 'd');
   }],
-  sky: ['하늘과 날씨', function (c) {   /* 구름 뒤 해 */
-    c.disc(21, 11, 7, function (x, y) { return x + y < 30 ? 'F' : 'E'; });
-    for (var i = 0; i < 8; i++) { var a = i * Math.PI / 4; c.L(Math.round(21 + Math.cos(a) * 9), Math.round(11 + Math.sin(a) * 9), Math.round(21 + Math.cos(a) * 11), Math.round(11 + Math.sin(a) * 11), 'F'); }
-    var t = ['Z', 'Z', 'Z', 'Y', 'X'];
-    c.B(9, 20, 6, 4.5, t).B(16, 18, 7, 5.5, t).B(23, 21, 5.5, 4, t).B(16, 23, 12, 3.2, t);
-    c.D([[7, 28], [14, 29], [21, 28]], '6');
+  sky: ['하늘과 날씨', function (S) {   /* 구름 뒤 해 */
+    for (var i = 0; i < 8; i++) { var a = i * Math.PI / 4; S.stroke([[21 + Math.cos(a) * 9.4, 11 + Math.sin(a) * 9.4], [21 + Math.cos(a) * 12, 11 + Math.sin(a) * 12]], 1.4, 'F', { ol: 'D' }); }
+    S.ball(21, 11, 7.2, 7.2, MOON, { flat: 0.35 });
+    L.cloud(S, [[8.6, 21.6, 5.6, 4.4], [22.8, 22.4, 5.4, 3.9], [15.4, 19, 7.2, 5.8], [16, 24.2, 12.2, 3.2]], CL);
   }],
-  signs: ['기호와 언어', function (c) {   /* 펼친 책 + 깃펜 */
-    c.S(function (x, y) { if (y < 10 || y > 26 || x < 2 || x > 29) return null; var sag = Math.round((1 - Math.abs(x - 15.5) / 14) * 3); return y >= 10 + sag ? (y > 24 ? 'c' : x === 15 || x === 16 ? 'e' : x < 15 ? 'Z' : 'f') : null; });
-    [[4, 14, 9], [4, 17, 7], [4, 20, 9], [19, 14, 8], [19, 17, 9], [19, 20, 6]].forEach(function (l) { for (var i = 0; i < l[2]; i++) if (i % 4 !== 3) c.dot(l[0] + i, l[1], '3'); });
-    for (var i = 0; i < 10; i++) c.R(27 - i - 1, 2 + i, i < 2 ? 2 : 4, 1, i % 2 ? 'Y' : 'Z');
-    c.L(17, 12, 14, 16, 'c').dot(13, 17, '1');
+  signs: ['기호와 언어', function (S) {   /* 펼친 책 + 깃펜 */
+    S.stroke([[2.5, 25.8], [16, 28], [29.5, 25.8]], 1.6, 'c', { ol: 'a' });
+    S.solid(sd.poly([[2.5, 11.8], [15.6, 14], [15.6, 26.4], [2.5, 24.2]]), 0.9, 'paper');
+    S.solid(sd.poly([[16.4, 14], [29.5, 11.8], [29.5, 24.2], [16.4, 26.4]]), 0.9, 'cream');
+    [[4.8, 15.6, 13.4, 17], [4.8, 18.6, 11.4, 19.7], [4.8, 21.6, 13.4, 23], [18.6, 17, 27.2, 15.6], [18.6, 20, 25.2, 18.9], [18.6, 23, 27.2, 21.6]].forEach(function (l) { S.stroke([[l[0], l[1]], [l[2], l[3]]], 1, '3'); });
+    S.rotate(23, 8, 40, function () {
+      S.solid(function (u, v) { var t = (15 - v) / 13; if (t < 0 || t > 1) return 1; var w = 3.6 * Math.pow(Math.sin(Math.PI * Math.min(1, 0.05 + t * 0.97)), 0.55) * (0.7 + 0.3 * t); return Math.abs(u - 23) - w; }, 2.2, 'white');
+      S.stroke([[23, 2.6], [23, 15]], 1, 'X');
+      S.solid(sd.path([[23, 14.6], [23, 18]], 0.8, 0.35), 0.8, 'wood');
+    });
   }],
-  numbers: ['수와 모양', function (c) {   /* 세모 · 동그라미 · 네모 + 삼각자 눈금 */
-    c.S(function (x, y) { return y >= 4 && y <= 16 && x >= 3 && x <= 3 + (y - 4) ? (y === 16 || x === 3 ? 'D' : 'E') : null; });
-    c.D([[4, 8], [4, 11], [4, 14], [7, 15], [10, 15], [13, 15]], 'C');
-    c.disc(23, 9.5, 6, function (x, y) { return x + y < 31 ? '6' : '5'; }).dot(21, 7, 'Z');
-    c.R(6, 20, 9, 9, 'P').R(6, 20, 9, 1, 'R').R(14, 21, 1, 8, 'O');
-    c.S(function (x, y) { var dx = Math.abs(x + 0.5 - 23), dy = y - 19; return dy >= 0 && dy <= 10 && dx <= dy * 0.6 ? (x < 23 ? 'u' : 't') : null; });
-    c.D([[17, 17], [16, 3]], 'F');
+  numbers: ['수와 모양', function (S) {   /* 삼각자 · 동그라미 · 네모 · 세모 */
+    S.solid(sd.sub(sd.poly([[2.6, 3.6], [2.6, 17.6], [16.6, 17.6]]), sd.poly([[5.4, 10.2], [5.4, 14.8], [10, 14.8]])), 1, 'gold');
+    S.ball(23.6, 9.6, 6.4, 6.4, 'blue', { flat: 0.25 });
+    S.solid(sd.box(9.4, 24.4, 5.2, 5, 0.8), 1.5, 'purple');
+    S.solid(sd.poly([[23.6, 17.8], [29.8, 29], [17.4, 29]]), 1.5, 'green');
   }],
-  sounds: ['소리와 리듬', function (c) {   /* 이어진 음표 둘 + 퍼지는 소리 */
-    c.R(9, 5, 14, 3, '2').R(9, 5, 2, 17, '2').R(21, 5, 2, 15, '2');
-    c.B(7, 23, 4.5, 3.4, ['4', '3', '2', '2', '1']).B(19, 21, 4.5, 3.4, ['4', '3', '2', '2', '1']);
-    c.ring(24, 14, 6, 1.1, function (x, y) { return x > 27 ? 'F' : null; }).ring(24, 14, 9, 1.1, function (x, y) { return x > 29 ? 'E' : null; });
-    c.D([[4, 6], [3, 12], [27, 27]], 'F');
+  sounds: ['소리와 리듬', function (S) {   /* 이어진 음표 둘 */
+    S.stroke(bez([3.6, 4.5], [1.8, 8], [3.6, 11.5], 6), 1, 'F', { ol: 'D' }).stroke(bez([6.6, 6], [5.4, 8], [6.6, 10], 4), 1, 'F', { ol: 'D' });
+    S.solid(sd.box(12, 14.4, 0.95, 9.4, 0.2), 0.8, 'navy').solid(sd.box(24.4, 12.6, 0.95, 9.2, 0.2), 0.8, 'navy');
+    S.solid(sd.poly([[11, 4.6], [25.4, 2.4], [25.4, 6.6], [11, 8.8]]), 0.9, 'navy');
+    S.rotate(8.6, 23.8, -20, function () { S.ball(8.6, 23.8, 4.4, 3.3, 'navy'); });
+    S.rotate(21, 21.8, -20, function () { S.ball(21, 21.8, 4.4, 3.3, 'navy'); });
   }],
-  home: ['집과 사람', function (c) {   /* 불 켜진 작은 집 */
-    c.S(function (x, y) { return y >= 4 && y <= 14 && Math.abs(x + 0.5 - 16) <= (y - 3) * 1.25 ? (y > 12 ? 'I' : x < 16 ? 'K' : 'J') : null; });
-    c.R(6, 15, 20, 13, 'e').R(6, 15, 2, 13, 'f').R(24, 15, 2, 13, 'd').R(6, 27, 20, 1, 'c');
-    c.R(9, 18, 6, 6, 'F').R(9, 18, 6, 1, 'Z').R(12, 18, 1, 6, 'c').R(9, 21, 6, 1, 'c');
-    c.R(18, 19, 5, 9, 'b').dot(22, 24, 'F').R(21, 5, 3, 5, 'c');
-    c.D([[22, 3], [23, 1], [21, 0]], 'Y');
-    c.S(function (x, y) { return y >= 28 && y <= 29 && (x * 3 + y) % 4 < 3 ? 'u' : null; });
+  home: ['집과 사람', function (S) {   /* 불 켜진 작은 집 */
+    S.solid(sd.box(16, 29.8, 14.6, 1.3, 0.6), 0.9, 'green');
+    S.solid(sd.box(23, 7.4, 1.8, 3.4, 0.3), 0.8, 'wood');
+    S.solid(sd.box(16, 22, 10, 7.2, 0.6), 1, 'cream');
+    S.solid(sd.poly([[2.4, 15.8], [16, 3.6], [29.6, 15.8]]), 1.7, 'crimson');
+    S.grid(9, 19, ['ZFcFF', 'FFcFF', 'ccccc', 'FFcFF', 'FFcFF']);
+    S.solid(sd.box(20.6, 24.8, 2.5, 4.4, 0.7), 0.8, 'wood'); S.flat(sd.box(21.5, 25.5, 0.5, 0.5, 0), 'F');
+    S.ball(24.4, 2.6, 1.4, 1.2, CL, { shadow: false });
   }],
-  mind: ['생각하는 것', function (c) {   /* 생각 구름 + 반짝 */
-    var t = ['Z', 'Z', 'Y', 'X', 'W'];
-    c.B(10, 12, 7, 6, t).B(18, 9, 8, 7, t).B(24, 14, 6, 5.5, t).B(16, 16, 11, 5, t);
-    c.spark(16, 12, 'F').spark(22, 15, 'E').D([[11, 14], [20, 8]], 'F');
-    c.disc(9, 24, 2.4, 'Y').disc(5, 28.5, 1.5, 'X');
+  mind: ['생각하는 것', function (S) {   /* 생각 구름 + 반짝 */
+    S.ball(9.2, 24.6, 2.7, 2.7, CL).ball(4.8, 28.8, 1.6, 1.6, CL);
+    L.cloud(S, [[10, 13, 6.6, 5.6], [23.4, 14, 6, 5.2], [17.4, 10, 8, 6.6], [16.6, 16.6, 11, 4.6]], CL);
+    S.spark(15.5, 12.5, 3, 'F').spark(22.5, 15.5, 2, 'E');
   }],
-  wild: ['들판', function (c) {   /* 풀밭의 이정표 + 들꽃 */
-    c.R(15, 6, 2, 22, 'c').R(16, 6, 1, 22, 'b');
-    c.G(7, 8, ['.dddddddddddd', 'dfffffffffffe', 'dffffffffffee', '.eeeeeeeeeee.']).G(13, 15, ['ddddddddddd.', 'dfffffffffed', 'dfffffffffee', '.eeeeeeeee..']);
-    c.L(4, 9, 6, 9, 'd').L(4, 10, 6, 10, 'd').L(25, 16, 27, 17, 'd');
-    c.S(function (x, y) { return y >= 26 && y <= 30 && c.get(x, y) == null && (x * 5 + y * 3) % 4 < 3 ? (y < 28 ? ((x % 3) ? null : 'v') : y < 29 ? 'v' : 'u') : null; });
-    c.G(4, 22, ['.R.', 'RFR', '.R.', '.u.', '.u.']).G(24, 21, ['.Z.', 'ZFZ', '.Z.', '.u.', '.u.', '.u.']).G(9, 24, ['F', 'u']);
+  wild: ['들판', function (S) {   /* 풀밭의 이정표 + 들꽃 */
+    S.solid(sd.ellipse(16, 29.6, 14.6, 2.3), 1.5, 'green');
+    S.solid(sd.box(16, 17.6, 1.3, 11.6, 0.4), 1, 'wood');
+    S.solid(sd.poly([[4.4, 9.6], [7.4, 6.8], [22, 6.8], [22, 12.4], [7.4, 12.4]]), 0.9, 'cream');
+    S.solid(sd.poly([[11, 14.8], [25, 14.8], [28, 17.6], [25, 20.4], [11, 20.4]]), 0.9, mat('cream', { ramp: ['f', 'e', 'e', 'd', 'c'] }));
+    S.stroke([[9.5, 9.5], [18.5, 9.5]], 1, 'c').stroke([[13.5, 17.5], [22.5, 17.5]], 1, 'c');
+    L.flower(S, 5.5, 24.5, 'R', 3); L.flower(S, 26.5, 23.5, 'Z', 3.6);
   }]
 };

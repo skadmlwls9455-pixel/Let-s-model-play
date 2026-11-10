@@ -1,62 +1,71 @@
-/* 수와 모양 — 방 8개 */
+/* 수와 모양 — 방 8개 (둘째 판) */
 'use strict';
+var L = require('./lib.js'), K = L.K, sd = L.sd, bez = L.bez, mat = L.mat;
 module.exports = {
-  prime: ['소수', function (c) {   /* 체에 걸러 남은 칸 (2 3 5 7 11 13 17 19 23) */
+  prime: ['소수', function (S) {   /* 체에 걸러 남은 칸 (2 3 5 7 11 13 17 19 23) */
     var primes = { 2: 1, 3: 1, 5: 1, 7: 1, 11: 1, 13: 1, 17: 1, 19: 1, 23: 1 };
-    for (var n = 1; n <= 25; n++) { var gx = 2 + ((n - 1) % 5) * 6, gy = 2 + Math.floor((n - 1) / 5) * 6, p = primes[n]; c.R(gx, gy, 5, 5, p ? 'E' : 'e').R(gx, gy, 5, 1, p ? 'F' : 'f').R(gx, gy + 4, 5, 1, p ? 'D' : 'd'); if (p) c.dot(gx + 2, gy + 2, 'Z'); else c.L(gx + 1, gy + 3, gx + 3, gy + 1, 'c'); }
-  }],
-  knot_theory: ['매듭 이론', function (c) {   /* 세잎 매듭 */
-    var tube = function (hi, lo) { return function (x, y) { return x + y < 30 ? hi : lo; }; };
-    c.ring(16, 11, 8, 2.6, tube('6', '5')).ring(10.5, 20.5, 8, 2.6, tube('7', '6')).ring(21.5, 20.5, 8, 2.6, tube('5', '4'));
-    /* 위·아래 엇갈림: 겹치는 자리 세 곳을 다시 덮어 그린다 */
-    c.ring(16, 11, 8, 2.6, function (x, y) { return x < 14 && y > 13 ? (x + y < 30 ? '6' : '5') : null; });
-    c.ring(10.5, 20.5, 8, 2.6, function (x, y) { return y > 22 && x > 13 ? '7' : null; });
-    c.ring(21.5, 20.5, 8, 2.6, function (x, y) { return y < 17 && x > 19 ? '5' : null; });
-    c.D([[4, 4], [28, 5]], '7');
-  }],
-  mobius: ['뫼비우스 띠', function (c) {   /* 한 번 꼬인 띠 */
-    c.S(function (x, y) { var dx = (x + 0.5 - 16) / 14, dy = (y + 0.5 - 16) / 9, d = dx * dx + dy * dy; var din = Math.pow((x + 0.5 - 16) / 8.5, 2) + Math.pow((y + 0.5 - 16) / 4, 2); if (d > 1 || din < 1) return null; return y < 16 ? (x < 16 ? 'R' : 'Q') : (x < 16 ? 'P' : 'O'); });
-    /* 꼬임: 앞쪽 가운데에서 색이 뒤집힌다 */
-    c.S(function (x, y) { return y >= 20 && y <= 25 && x >= 12 && x <= 19 && c.get(x, y) ? (x + (y - 20) < 17 ? 'R' : 'O') : null; });
-    c.L(13, 25, 19, 20, 'Z').L(3, 16, 5, 12, 'Z').dot(9, 9, 'Z');
-    c.L(12, 20, 12, 25, 'N').L(20, 20, 20, 25, 'N');   /* 꼬인 자리의 접힌 선 */
-  }],
-  tessellation: ['테셀레이션', function (c) {   /* 빈틈없이 맞물린 마름모 (정육면체로 보이는 무늬) */
-    c.S(function (x, y) {
-      if (x < 2 || x > 29 || y < 2 || y > 29) return null;
-      var u = x - 2, v = y - 2, row = Math.floor(v / 7), ox = row % 2 ? 4 : 0, lx = ((u + ox) % 8 + 8) % 8, ly = v % 7;
-      if (ly < 3) { var half = ly + 1; return Math.abs(lx - 3.5) < half * 1.4 ? 'F' : (lx < 4 ? '5' : 'P'); }
-      return lx < 4 ? 'P' : '5';
-    });
-    c.R(2, 2, 28, 1, 'Z');
-  }],
-  honeycomb: ['벌집', function (c) {
-    function hex(cx, cy, full) { c.S(function (x, y) { var dx = Math.abs(x + 0.5 - cx), dy = Math.abs(y + 0.5 - cy); if (dy > 4.2 || dx > 5 - dy * 0.55) return null; var edge = dy > 3.2 || dx > 4 - dy * 0.55; return edge ? 'D' : full ? (y < cy ? 'F' : 'E') : 'B'; }); }
-    [[8, 7, 1], [18, 7, 1], [13, 15, 1], [23, 15, 0], [3, 15, 1], [8, 23, 0], [18, 23, 1], [28, 23, 1], [28, 7, 0]].forEach(function (h) { hex(h[0], h[1], h[2]); });
-    c.G(20, 12, ['.ZZ.', 'F1F1', 'F1F1', '.11.']).dot(19, 13, 'Y');   /* 벌 */
-    c.D([[9, 6], [19, 22]], 'Z');
-  }],
-  spiral: ['나선', function (c) {   /* 앵무조개: 로그 나선 한 줄 + 방을 나누는 칸막이 */
-    c.disc(17, 17, 14, function (x, y) { return x + y < 26 ? 'f' : x + y > 42 ? 'd' : 'e'; });
-    var k = 0.2, prev = null;
-    for (var th = 0; th < 13.2; th += 0.03) { var r = 0.9 * Math.exp(k * th), x = Math.round(16.5 + Math.cos(th) * r), y = Math.round(16.5 + Math.sin(th) * r); if (r > 14) break; c.dot(x, y, 'b'); if (r > 4) c.dot(x, y + 1, 'c'); prev = [x, y]; }
-    for (var t2 = 3.2; t2 < 13; t2 += 0.62) { var r1 = 0.9 * Math.exp(k * t2), r0 = 0.9 * Math.exp(k * (t2 - 2 * Math.PI)); if (r0 < 0.9) r0 = 0.9; if (r1 > 14) break; c.L(Math.round(16.5 + Math.cos(t2) * (r0 + 1)), Math.round(16.5 + Math.sin(t2) * (r0 + 1)), Math.round(16.5 + Math.cos(t2 + 0.25) * (r1 - 1)), Math.round(16.5 + Math.sin(t2 + 0.25) * (r1 - 1)), 'c'); }
-    c.S(function (x, y) { return Math.hypot(x + 0.5 - 17, y + 0.5 - 17) > 14 ? '_' : null; });
-    c.D([[9, 8], [10, 7]], 'Z');
-  }],
-  zero: ['0', function (c) {   /* 큼직한 0 — 가운데는 비어 있다 */
-    c.S(function (x, y) { var dx = (x + 0.5 - 16) / 10, dy = (y + 0.5 - 16) / 14, d = dx * dx + dy * dy, ix = (x + 0.5 - 16) / 5, iy = (y + 0.5 - 16) / 9; if (d > 1 || ix * ix + iy * iy < 1) return null; return x + y < 26 ? '7' : x + y > 40 ? '4' : '5'; });
-    c.D([[14, 14], [18, 14], [16, 17], [14, 20], [18, 20]], 'Y');   /* 빈 자리 점 */
-    c.spark(27, 5, '7').dot(4, 27, '6');
-  }],
-  abacus: ['주판', function (c) {
-    c.R(2, 4, 28, 24, 'c').R(2, 4, 28, 1, 'd').R(4, 6, 24, 20, 'f').R(4, 11, 24, 2, 'c').R(4, 12, 24, 1, 'b');
-    for (var i = 0; i < 5; i++) {
-      var x = 6 + i * 5; c.R(x, 6, 1, 20, 'W');
-      c.R(x - 1, i % 2 ? 6 : 8, 3, 2, 'J').dot(x - 1, i % 2 ? 6 : 8, 'K');
-      var n = [3, 1, 4, 2, 0][i];
-      for (var b = 0; b < 4; b++) { var by = b < n ? 13 + b * 3 : 15 + b * 3 - 1; c.R(x - 1, by, 3, 2, 'E').dot(x - 1, by, 'F'); }
+    for (var n = 1; n <= 25; n++) {
+      var cx = 4.5 + ((n - 1) % 5) * 6, cy = 4.5 + Math.floor((n - 1) / 5) * 6;
+      S.solid(sd.box(cx, cy, 2.4, 2.4, 0.5), 1, primes[n] ? mat('gold', { spec: 0 }) : mat('cream'));
+      if (!primes[n]) S.stroke([[cx - 1.2, cy + 1.2], [cx + 1.2, cy - 1.2]], 0.9, 'c');
     }
-    c.R(2, 27, 28, 1, 'b');
+  }],
+  knot_theory: ['매듭 이론', function (S) {   /* 세잎 매듭 (진짜 곡선: 위아래로 엇갈리는 관) */
+    var C = function (t) { return [Math.sin(t) + 2 * Math.sin(2 * t), Math.cos(t) - 2 * Math.cos(2 * t), -Math.sin(3 * t)]; };
+    var tube = L.surface(function (t, p) {
+      var c = C(t), d = C(t + 0.01), tx = d[0] - c[0], ty = d[1] - c[1], tz = d[2] - c[2], l = Math.hypot(tx, ty, tz); tx /= l; ty /= l; tz /= l;
+      var nx = -ty, ny = tx, nz = 0, nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;                       /* 화면 평면 안의 수직 */
+      var bx = ty * nz - tz * ny, by = tz * nx - tx * nz, bz = tx * ny - ty * nx, r = 1.75;
+      return [16 + c[0] * 4.3 + r * (Math.cos(p) * nx + Math.sin(p) * bx), 17.4 + c[1] * 4.3 + r * (Math.cos(p) * ny + Math.sin(p) * by), c[2] * 3 + r * (Math.cos(p) * nz + Math.sin(p) * bz)];
+    }, 900, 28, 2 * Math.PI, 0, 2 * Math.PI);
+    S.add(tube, 'blue');
+  }],
+  mobius: ['뫼비우스 띠', function (S) {   /* 한 번 꼬인 띠 (진짜 곡면을 기울여 본 모습) */
+    var ph = 1.02, cp = Math.cos(ph), sp = Math.sin(ph);
+    var band = L.surface(function (th, w) {
+      var r = 1 + w * Math.cos(th / 2), x = r * Math.cos(th), y = r * Math.sin(th), z = w * Math.sin(th / 2);
+      return [16 + x * 10.6, 16.5 + (y * cp - z * sp) * 10.6, (y * sp + z * cp) * 10.6];
+    }, 1100, 70, 2 * Math.PI, -0.4, 0.4);
+    S.add(band, mat('pink', { ramp: ['Z', 'R', 'Q', 'P', 'O'], ol: 'N' }), { th: [0.9, 0.62, 0.3, 0.05] });
+  }],
+  tessellation: ['테셀레이션', function (S) {   /* 빈틈없이 맞물린 마름모 (쌓인 정육면체로 보인다) */
+    var a = 5.8, hexS = sd.poly(L.ngon(16, 16, 14, 6, 0));
+    S.add(K.flat(hexS), function (u, v) {
+      var x = u - 16, y = v - 16, q = (Math.sqrt(3) / 3 * x - y / 3) / a, r = (2 / 3 * y) / a, s2 = -q - r;
+      var rq = Math.round(q), rr = Math.round(r), rs = Math.round(s2), dq = Math.abs(rq - q), dr = Math.abs(rr - r), ds = Math.abs(rs - s2);
+      if (dq > dr && dq > ds) rq = -rr - rs; else if (dr > ds) rr = -rq - rs;
+      var cx = a * Math.sqrt(3) * (rq + rr / 2), cy = a * 1.5 * rr, ang = Math.atan2(y - cy, x - cx) * 180 / Math.PI;
+      return ang >= -150 && ang < -30 ? 'F' : ang >= -30 && ang < 90 ? 'P' : '5';
+    }, { ol: 'M', shadow: false });
+  }],
+  honeycomb: ['벌집', function (S) {
+    var d = 7.6, cells = [[16, 16, 1]];
+    for (var i = 0; i < 6; i++) { var an = i * Math.PI / 3; cells.push([16 + Math.cos(an) * d, 16 + Math.sin(an) * d, i === 1 || i === 4 ? 0 : 1]); }
+    cells.forEach(function (c) { S.flat(sd.poly(L.ngon(c[0], c[1], 5, 6, 0)), 'D', { ol: 'B' }); });
+    cells.forEach(function (c) { S.solid(sd.poly(L.ngon(c[0], c[1], 3.9, 6, 0)), 1.6, c[2] ? 'honey' : mat('amber', { ramp: ['C', 'B', 'B', 'A', 'A'], ol: 'A' }), { shadow: false }); });
+    S.ball(21.4, 12.4, 1.9, 1.5, 'glass', { shadow: false }).ball(24, 11.6, 1.9, 1.5, 'glass', { shadow: false });   /* 벌 */
+    S.ball(22.6, 14.4, 3, 2.1, function (u) { return Math.floor((u - 19.6) / 1.2) % 2 ? mat('dark', { ramp: ['U', 'T', 'S', '1', '0'] }) : mat('gold', { spec: 0 }); });
+  }],
+  spiral: ['나선', function (S) {   /* 앵무조개: 로그 나선 + 방을 나누는 칸막이 */
+    S.ball(16.5, 16.5, 13.6, 13.6, 'cream', { flat: 0.55 });
+    var k = 0.2, pts = [], th;
+    for (th = 0.4; th < 13.4; th += 0.12) { var r = 0.9 * Math.exp(k * th); if (r > 13) break; pts.push([16.5 + Math.cos(th) * r, 16.5 + Math.sin(th) * r]); }
+    for (th = 3.4; th < 13.2; th += 0.66) { var r1 = 0.9 * Math.exp(k * th), r0 = Math.max(0.9, 0.9 * Math.exp(k * (th - 2 * Math.PI))); if (r1 > 13) break; S.stroke([[16.5 + Math.cos(th) * (r0 + 0.6), 16.5 + Math.sin(th) * (r0 + 0.6)], [16.5 + Math.cos(th + 0.28) * (r1 - 0.6), 16.5 + Math.sin(th + 0.28) * (r1 - 0.6)]], 0.9, 'd'); }
+    S.stroke(pts, 1.1, 'b');
+  }],
+  zero: ['0', function (S) {   /* 큼직한 0 */
+    S.solid(sd.sub(sd.ellipse(16, 16, 10.4, 14), sd.ellipse(16, 16, 4.6, 8.4)), 2.9, 'blue');
+    S.spark(27.5, 5.5, 2.4, 'Z', { ol: '4' });
+  }],
+  abacus: ['주판', function (S) {   /* 대 넷 · 위 알 하나 · 아래 알 셋 */
+    var X = [7.8, 13.3, 18.7, 24.2];
+    X.forEach(function (x) { S.stroke([[x, 6], [x, 26]], 1, 'W'); });
+    S.solid(sd.box(16, 11.6, 12.2, 0.9, 0), 0.8, 'wood');
+    S.solid(sd.sub(sd.box(16, 16, 14.2, 12.2, 1.8), sd.box(16, 16, 12, 10, 0.6)), 1.4, 'wood');
+    X.forEach(function (x, i) {
+      var n = [2, 0, 3, 1][i];
+      S.ball(x, i % 2 ? 7.8 : 9.3, 2.3, 1.4, 'crimson');
+      for (var b = 0; b < 3; b++) S.ball(x, b < n ? 14.4 + b * 3 : 17.4 + b * 3, 2.3, 1.4, 'gold');
+    });
   }]
 };
