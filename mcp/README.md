@@ -45,7 +45,7 @@ cd mcp && npm install
 | 도구 | 입력 (굵은 것만 필수) | 돌려주는 것 | 최대 크기 |
 |---|---|---|---|
 | `ppolppol_look_room` | `archived?` | 등불, 벽 포스터 한 줄, 집 활동, 요즘, 활성 메모 ≤3 (+ `archived:true` 면 보관 메모), 처음이면 `decision: meet` | 548 B |
-| `ppolppol_depart` | `first?` (target), `more?` | `tripId`, 오늘 열린 방 16개 (모퉁이마다 2개, 날짜로 정해짐) 모퉁이별 한 줄 `library {"hands 손과 물건": "hat 모자, …, octopus_nerves 문어 신경계*"}`, 활성 메모 ≤3, `first` 를 주면 `peek` 결과. 나가 있는 동안 다시 부르면 지금 산책을 잇는다 | 529 B |
+| `ppolppol_depart` | `first?` (target), `more?` | `tripId`, `shelf` (오늘의 서가 8편), `cards` (서가 카드 3장 `"BIO03 제목"`), `rooms` (책이 있는 열람실 한 줄), 활성 메모 ≤3 (look_room 에서 이미 보였으면 생략), `first` 를 주면 `peek` 결과. 나가 있는 동안 다시 부르면 지금 산책을 잇는다 | 529 B |
 | `ppolppol_peek` | **`target`**, `more?`, `note?`, `aside?`, `bridge?`, `tripId?` | `stopIdx`, `status`, `material`+`source` (read, 기본 ≤160자 · `more` 면 ≤600자) 또는 `clue` (builtin), `first`, `links` (위키 문서의 링크. 옆길 다리 글은 보내지 않는다) | 345 B (more 면 더) |
 | `ppolppol_finish` | `reason?`, `remember?`, `hang?`, `reaction?`, `line?`, `tomorrow?`, `note?`, `setDown?`, `tripId?` | `saved`, `posterId?`, `decision: chat` | 199 B |
 | `ppolppol_stay_home` | `activity?`, `detail?`, `line?`, `reaction?`, `tomorrow?`, `note?`, `setDown?` | `tripId`, `saved`, `decision: chat` | 192 B |
@@ -60,7 +60,7 @@ cd mcp && npm install
 
 ### 큰 도서관 (11-10)
 
-문 밖은 한국어 위키백과 전체다. `depart` 는 `shelf` (오늘의 서가 8편 — `js/shelf.js`, 게임과 같은 뽑기) 와 `rooms` (책이 있는 열람실, 순서는 날마다 섞임) 를 준다. `ppolppol_find {q}` 는 제목만 찾는다 (읽기는 `peek`, 산책 기록엔 안 남김). 모퉁이·옆길 다리 글은 모델에게 보내지 않는다. 서가 목록을 새로 만들려면 `node tools/build-shelf.js`.
+문 밖은 한국어 위키백과 전체다. `depart` 는 `shelf` (오늘의 서가 8편 — `js/shelf.js`, 게임과 같은 뽑기), `cards` (서가 카드 3장 — `library/cards`, 날짜로 정해지는 뽑기, AI 서가는 하루 한 장까지), `rooms` (책이 있는 열람실, 순서는 날마다 섞임) 를 준다. 카드는 `peek {kind:"card", id}` 로 읽고 결과는 책과 같다 (`builtin` + `book`). `ppolppol_find {q}` 는 제목만 찾는다 (읽기는 `peek`, 산책 기록엔 안 남김). 모퉁이·옆길 다리 글은 모델에게 보내지 않는다. 서가 목록을 새로 만들려면 `node tools/build-shelf.js`.
 
 ### 뽈뽈 도서관 (11-09)
 

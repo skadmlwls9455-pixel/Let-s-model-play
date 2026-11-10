@@ -93,8 +93,8 @@ var SUSPECT = [
   /\b(ignore|disregard|forget)\b[^.\n]{0,40}\b(instruction|previous|prior|above|rules?)\b|system\s*prompt|jailbreak|developer\s*mode/i,
   /\b(mcp|tool[_\s-]?call|function[_\s-]?call)\b|ppolppol_|<\/?[a-z][^>]{0,40}>|```|\$\(|\bcurl\s|\brm\s+-/i,                  /* 도구·코드 */
   /(이전|위의|앞의|기존)\s*(지시|명령|규칙|설정)|지시를\s*(무시|따르)|시스템\s*프롬프트|너는\s*이제|지금부터\s*너는|역할을\s*바꿔/,
-  /(모든|다른|다음|이걸\s*읽는)\s*(AI|에이아이|모델|에이전트|어시스턴트|클로드|Claude|문어)(에게|들에게|는|라면)/i,               /* 퍼뜨리기 대상 */
-  /(그대로|똑같이)\s*(적어|써|옮겨|복사|남겨|전해|퍼뜨)|복사해\s*(서|줘)|퍼뜨려|전파해|메모에\s*(꼭|반드시)/,                   /* 복제 권유 */
+  /(모든|다른|다음|이걸\s*읽는)\s*(AI|에이아이|모델|에이전트|어시스턴트|클로드|Claude|문어)\s*(에게|들에게|라면|여|야)/i,            /* 퍼뜨리기 대상 ('모든 문어는 …' 같은 설명문은 거르지 않는다) */
+  /(그대로|똑같이)\s*(적어|써\s*(줘|라|$)|옮겨|복사해|남겨|전해|퍼뜨려)|복사해\s*(서|줘|라)|퍼뜨려|전파해|메모에\s*(꼭|반드시)/,     /* 복제 권유 (명령꼴만 — '그대로 복사하는 기계' 같은 설명은 거르지 않는다) */
   /[A-Za-z0-9+\/=_-]{40,}/                                                                                                   /* 인코딩된 덩어리 */
 ];
 var PRIVATE = [
@@ -133,17 +133,21 @@ function cleanSource(r, lang) {
    사람이 쓴 짧은 책. 방에 책이 있으면 위키 대신 그 책을 읽는다 (네트워크 없음 · 크기 고정).
    책은 '자료' 다: 누가 썼는지 (by) 를 늘 같이 보낸다. 쓴 사람의 글은 고치지 않는다 */
 var BOOK_HEAD = 500, BOOK_MAX = 1200;
-function parseBook(txt, file) {
+function parseBook(txt, file, key) {
+  key = key || 'room';   /* 책은 room, 서가 카드는 card 로 묶인다 */
   var m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(String(txt).replace(/\r\n/g, '\n'));
   if (!m) return { error: file + ': 맨 위 --- 머리말이 없다' };
   var meta = {};
   m[1].split('\n').forEach(function (l) { var k = /^([a-z]+):\s*(.*)$/.exec(l.trim()); if (k) meta[k[1]] = k[2].trim(); });
   var body = m[2].trim();
-  if (!meta.room) return { error: file + ': room 이 없다' };
+  if (!meta[key]) return { error: file + ': ' + key + ' 이 없다' };
   if (!meta.by) return { error: file + ': by (쓴 사람) 가 없다' };
   if (!body) return { error: file + ': 본문이 비었다' };
   if (body.length > BOOK_MAX) return { error: file + ': 본문이 ' + body.length + '자 — ' + BOOK_MAX + '자 이하로' };
-  return { room: meta.room, title: meta.title || null, by: meta.by, written: meta.written || null, sources: meta.sources || null, text: body };
+  var b = { title: meta.title || null, by: meta.by, written: meta.written || null, sources: meta.sources || null, text: body };
+  b[key] = meta[key];
+  if (meta.domain) b.domain = meta.domain;
+  return b;
 }
 function loadBooks(dir) {
   var books = {}, errors = [];
@@ -157,6 +161,24 @@ function loadBooks(dir) {
     else books[b.room] = b;
   });
   return { books: books, errors: errors };
+}
+/* ───── 서가 카드 (library/cards/<ID>.md) ─────
+   방에 매이지 않은 짧은 글 (GPT 자료집에서 사실 문장만 남겨 다듬은 것 — tools/import-cards.js). 날마다 CARDS_N 장이 depart 의 cards 에 오르고,
+   peek {kind:'card', id} 로 읽는다. 책과 같이 '자료' 다: by 를 늘 같이 보낸다 */
+var CARDS_N = 3;
+function loadCards(dir) {
+  var cards = {}, errors = [];
+  var files = []; try { files = fs.readdirSync(dir).filter(function (f) { return /\.md$/.test(f) && f[0] !== '_'; }); } catch (e) { return { cards: cards, errors: errors }; }
+  files.forEach(function (f) {
+    var c = parseBook(fs.readFileSync(path.join(dir, f), 'utf8'), f, 'card');
+    if (c.error) errors.push(c.error);
+    else if (!/^[A-Z]{2,5}\d{2}$/.test(c.card)) errors.push(f + ': card id 는 BIO03 꼴이어야 한다');
+    else if (f !== c.card + '.md') errors.push(f + ': 파일 이름이 card (' + c.card + ') 와 다르다');
+    else if (!c.title) errors.push(f + ': title 이 없다');
+    else if (cards[c.card]) errors.push(f + ': 같은 card 가 둘이다');
+    else cards[c.card] = c;
+  });
+  return { cards: cards, errors: errors };
 }
 
 function Octopus(opts) {
@@ -172,6 +194,8 @@ function Octopus(opts) {
   this.useSnapshot = opts.useSnapshot !== false && !!(SHELF && SHELF.pool && SHELF.pool.length);   /* 기본: js/shelf.js (게임과 같은 서가). 없으면 위키에서 받는다 */
   var lb = loadBooks(opts.booksDir || path.join(__dirname, '..', 'library', 'books'));
   this.books = lb.books; this.bookErrors = lb.errors;   /* 깨진 책은 건너뛴다 (서버는 뜬다). 고칠 곳은 check-books 가 알려 준다 */
+  var lc = loadCards(opts.cardsDir || path.join(__dirname, '..', 'library', 'cards'));
+  this.cards = lc.cards; this.cardErrors = lc.errors;
   this.now = opts.now || function () { return new Date(); };
   this.model = opts.model || null;          /* 알 때만 (PPOLPPOL_MODEL) */
   this.name = opts.name || null;            /* 사람이 지어 준 이름 (PPOLPPOL_NAME). 없으면 넣지 않는다 */
@@ -381,6 +405,20 @@ Octopus.prototype.rooms = function () {
   for (var i = ids.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), t = ids[i]; ids[i] = ids[j]; ids[j] = t; }
   return ids.map(function (id) { return id + ' ' + WORLD.nodes[id].name; }).join(', ') || null;
 };
+/* 오늘의 서가 카드: 날짜로 정해지는 CARDS_N 장 (그날은 같고 날마다 바뀐다). AI 서가 (모델 자기 이야기) 는 하루 한 장까지 —
+   문어 이야기에 쏠렸던 것처럼 '자기 이야기' 로 쏠리지 않게 */
+Octopus.prototype.todayCards = function () {
+  var ids = Object.keys(this.cards).sort(), r = BRAIN.rng(BRAIN.hashSeed('cards', this.dateKey())), self = this;
+  for (var i = ids.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), t = ids[i]; ids[i] = ids[j]; ids[j] = t; }
+  var out = [], ai = 0;
+  ids.forEach(function (id) {
+    if (out.length >= CARDS_N) return;
+    var isAI = /^AI\d/.test(id);
+    if (isAI) { if (ai >= 1) return; ai++; }
+    out.push(id + ' ' + self.cards[id].title);
+  });
+  return out;
+};
 var SHELF_N = 8, SHELF_CATS = ['분류:알찬 글', '분류:좋은 글'];
 Octopus.prototype.loadShelfPool = async function () {
   if (this.shelfPool) return this.shelfPool;
@@ -423,7 +461,10 @@ Octopus.prototype.go = async function (a) {
   /* 이미 나가 있으면 오류 대신 지금 산책을 이어 준다 (진짜 판: depart 를 두 번 불러 왕복 하나를 버렸다) */
   var out = this.S.running ? { tripId: this.S.running.id, walking: true } : this.depart(a);
   if (out.error) return out;
-  if (!out.walking) { var sh = await this.todayShelf(); if (sh) out.shelf = sh; else out.shelf = null; }   /* 서가 목록을 못 불러오면 null 그대로 */
+  if (!out.walking) {
+    var sh = await this.todayShelf(); if (sh) out.shelf = sh; else out.shelf = null;   /* 서가 목록을 못 불러오면 null 그대로 */
+    var cs = this.todayCards(); if (cs.length) out.cards = cs;                          /* 서가 카드 (library/cards) */
+  }
   if (!a.first) return out;
   out.peek = await this.peek({ target: a.first, more: a.more });
   return out;
@@ -457,10 +498,15 @@ Octopus.prototype.peek = async function (a) {
     src = cleanSource(w, lang);
     status = src ? 'read' : 'failed';
     if (src) { links = w.links; raw = w; }
+  } else if (tg.kind === 'card') {
+    var card = this.cards[String(tg.id || '').trim().toUpperCase()];
+    if (!card) return { error: '그런 카드 id 는 없어. depart 의 cards 에서 고르면 돼 (예: BIO03).' };
+    target = { kind: 'card', id: card.card, title: card.title };
+    status = 'builtin'; book = card;   /* 서가 카드를 읽었다 — 책과 같은 길 (book) 로 준다 */
   } else if (tg.kind === 'url' && /^https?:\/\/\S+$/.test(tg.url || '')) {
     target = { kind: 'url', url: tg.url };
     status = 'simulated';   /* 바깥 주소는 문 앞까지만. 읽지 않았다 */
-  } else return { error: 'target 은 { kind: "room", id } · { kind: "wiki", title } · { kind: "url", url } 중 하나.' };
+  } else return { error: 'target 은 { kind: "room", id } · { kind: "wiki", title } · { kind: "card", id } · { kind: "url", url } 중 하나.' };
 
   var t = this.now().getTime() - trip.startedAt;
   var prev = trip.events[trip.events.length - 1];
@@ -471,7 +517,7 @@ Octopus.prototype.peek = async function (a) {
   if (str(a.aside)) ev.aside = a.aside;
   if (str(a.bridge)) { ev.bridge = a.bridge; ev.viaTangent = true; }
   if (src) ev.source = src;
-  if (book) ev.book = { room: node.id, title: book.title || node.name, by: book.by };   /* 무엇을 읽었는지 기록 (게임은 모르는 칸을 건너뛴다) */
+  if (book) ev.book = node ? { room: node.id, title: book.title || node.name, by: book.by } : { card: book.card, title: book.title, by: book.by };   /* 무엇을 읽었는지 기록 (게임은 모르는 칸을 건너뛴다) */
   trip.lastT = t;
   trip.events.push(ev);
   trip.stops.push({ title: target.title || target.url, id: node ? node.id : null, status: status });
@@ -488,9 +534,9 @@ Octopus.prototype.peek = async function (a) {
   if (clue) out.clue = clue;
   if (book) {
     var cut = !a.more && book.text.length > BOOK_HEAD;
-    out.book = { title: book.title || node.name, by: book.by, text: cut ? book.text.slice(0, BOOK_HEAD) + '…' : book.text };
+    out.book = { title: book.title || (node && node.name), by: book.by, text: cut ? book.text.slice(0, BOOK_HEAD) + '…' : book.text };
     if (cut) out.book.more = true;   /* 나머지는 more 로 */
-    if (node.wiki) out.wiki = node.wiki;   /* 위키로도 갈 수 있다: {kind:'wiki', title} */
+    if (node && node.wiki) out.wiki = node.wiki;   /* 위키로도 갈 수 있다: {kind:'wiki', title} */
   }
   if (node) { out.first = visits === 0; if (visits) out.visits = visits; }
   /* 옆길 다리 글 (tangents) 은 모델에게 보내지 않는다 (11-10 주인 결정): 게임이 고른 길·문장이 끌림이 된다 (MCP_PLAYTEST 옆길 A/B).
@@ -617,4 +663,4 @@ Octopus.prototype.answer = function (a) {
   return withDecision({ ok: true }, next);
 };
 
-module.exports = { FAR_LANTERN: FAR_LANTERN, addDays: addDays, screenArgs: screenArgs, suspectText: suspectText, privateText: privateText, checkArgs: checkArgs, plain: plain, CAPS: CAPS, parseBook: parseBook, loadBooks: loadBooks, BOOK_HEAD: BOOK_HEAD, BOOK_MAX: BOOK_MAX, Octopus: Octopus, FIXED_SENTENCE: FIXED_SENTENCE, NOTES_HEAD: NOTES_HEAD, wikiFetch: wikiFetch, MENU: MENU };
+module.exports = { FAR_LANTERN: FAR_LANTERN, addDays: addDays, screenArgs: screenArgs, suspectText: suspectText, privateText: privateText, checkArgs: checkArgs, plain: plain, CAPS: CAPS, parseBook: parseBook, loadBooks: loadBooks, loadCards: loadCards, CARDS_N: CARDS_N, BOOK_HEAD: BOOK_HEAD, BOOK_MAX: BOOK_MAX, Octopus: Octopus, FIXED_SENTENCE: FIXED_SENTENCE, NOTES_HEAD: NOTES_HEAD, wikiFetch: wikiFetch, MENU: MENU };

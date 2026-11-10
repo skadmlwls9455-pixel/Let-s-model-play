@@ -25,7 +25,8 @@ function stubWiki(title, opts) {
   return Promise.resolve({ ok: false, reason: 'network' });
 }
 var clock = Date.parse('2026-11-08T10:00:00+09:00');
-function mk(dir) { return new core.Octopus({ dir: dir, fetchWiki: stubWiki, now: function () { return new Date(clock); }, name: '뚜루' }); }
+/* booksDir 는 빈 폴더 — 일반 시험은 저장소에 어떤 책이 있든 (주인이 방을 채워 가도) 같은 답을 내야 한다. 책은 unit() 의 책 시험에서 따로 본다 */
+function mk(dir) { return new core.Octopus({ dir: dir, booksDir: tmp(), fetchWiki: stubWiki, now: function () { return new Date(clock); }, name: '뚜루' }); }
 var HUMAN_KEYS = ['together', 'withUser', 'items', 'pocket', 'cooking', 'kept', 'swim', 'user', 'userItems', 'picked'];
 function humanKeys(o) {
   var bad = [];
@@ -153,6 +154,15 @@ async function unit() {
   check(pe.status === 'read' && /^https:\/\/en\.wikipedia\.org\//.test(pe.source) && of.S.running.events[1].source.attribution === 'Wikipedia (en)' && of.S.running.events[1].target.lang === 'en', '열리면 영어 위키 읽음 (출처 en, 표기 en)');
   check(of.setFar(true).error, '걸린 제안이 없으면 사람 대답도 없음');
   of.finish({});
+
+  section('산책 엽서 (MCP App) — 기록의 사실만');
+  var PCD = require('../postcard.js').data;
+  var card = PCD([{ type: 'depart', t: 0 }, { type: 'peek', t: 1, target: { kind: 'room', id: 'tide', title: '밀물과 썰물' }, status: 'builtin', book: { room: 'tide', title: '바다가 두 번 부푸는 까닭', by: 'Claude (AI)' } },
+    { type: 'peek', t: 2, target: { kind: 'wiki', title: 'Seiche', lang: 'en' }, status: 'read', source: { url: 'https://en.wikipedia.org/wiki/Seiche', attribution: 'Wikipedia (en)' } },
+    { type: 'return', t: 3 }, { type: 'remember', t: 4, stopIdx: 0, line: '물은 달을 따라 돈다' }, { type: 'wrap_up', t: 5, reaction: '덤덤', note: { text: '세이시가 궁금해' } }], { name: '뚜루', date: '2026-11-10' });
+  check(card.kind === 'out' && card.stops.length === 2 && card.stops[0].label === '책장의 책' && card.stops[0].book.by === 'Claude (AI)' && card.stops[1].source.label === 'Wikipedia (en)' && card.poster === '물은 달을 따라 돈다' && card.note === '세이시가 궁금해' && card.reaction === '덤덤', '엽서 내용: 들른 곳 · 책 · 출처 · 모델 글 그대로');
+  var homeCard = PCD([{ type: 'stay_home', t: 0, activity: 'count_rain' }], {});
+  check(homeCard.kind === 'home' && homeCard.home === '창가에서 비 셌어' && !homeCard.line, '집에 있던 날: 활동 이름 (사실) 만, 코드가 느낌을 쓰지 않음');
 
   section('감염 막기 — 지시·주소·복사 권유·개인 정보');
   var SC = core.screenArgs;
@@ -287,7 +297,14 @@ async function protocol() {
   var instr = c.getInstructions() || '';
   check(instr.indexOf(core.FIXED_SENTENCE) >= 0, 'instructions 에 고정 문장');
   var tools = (await c.listTools()).tools;
-  check(tools.length === 8, '도구 8개 (산책 6 + answer + find)');
+  var appOnly = function (t) { var v = t._meta && t._meta.ui && t._meta.ui.visibility; return Array.isArray(v) && v.indexOf('model') < 0; };
+  var modelTools = tools.filter(function (t) { return !appOnly(t); });
+  check(modelTools.length === 8 && tools.length === 9, '모델이 보는 도구 8개 (산책 6 + answer + find) + 화면 전용 엽서 1개');
+  var pc = tools.filter(function (t) { return t.name === 'ppolppol_postcard'; })[0];
+  check(pc && appOnly(pc) && tools.filter(function (t) { return t.name === 'ppolppol_finish' || t.name === 'ppolppol_stay_home'; }).every(function (t) { return t._meta && t._meta.ui && t._meta.ui.resourceUri === 'ui://ppolppol/postcard'; }), '엽서: finish·stay_home 에 연결, 엽서 도구는 화면 전용 (모델 X)');
+  var rr = await c.readResource({ uri: 'ui://ppolppol/postcard' });
+  var rc = rr.contents[0];
+  check(rc.mimeType === 'text/html;profile=mcp-app' && /import \{ App \} from "https:\/\/unpkg\.com\/@modelcontextprotocol\/ext-apps@1\.7\.5\//.test(rc.text) && !/innerHTML/.test(rc.text) && rc._meta.ui.csp.resourceDomains.join() === 'https://unpkg.com', '엽서 리소스: MCP App MIME · 고정 버전 스크립트만 · innerHTML 안 씀');
   check(tools.every(function (t) { return t.title && t.annotations && typeof t.annotations.readOnlyHint === 'boolean' && typeof t.annotations.destructiveHint === 'boolean'; }), '모든 도구에 title·readOnlyHint·destructiveHint');
   function j(r) { return JSON.parse(r.content[0].text); }
   var lr = j(await c.callTool({ name: 'ppolppol_look_room', arguments: {} }));
@@ -299,7 +316,8 @@ async function protocol() {
   check(f.ok && fs.existsSync(path.join(dir, f.saved)), 'stdio: finish → out 파일');
   var bad = await c.callTool({ name: 'ppolppol_finish', arguments: { tripId: 'trip_zzz' } });
   check(bad.isError === true, 'stdio: 잘못된 tripId 는 isError');
-  var defs = Buffer.byteLength(JSON.stringify(tools)), ib = Buffer.byteLength(instr);
+  /* 모델이 보는 것만 잰다: 화면 전용 도구와 _meta (화면용 꼬리표) 는 뺀다 */
+  var defs = Buffer.byteLength(JSON.stringify(modelTools.map(function (t) { var o = Object.assign({}, t); delete o._meta; return o; }))), ib = Buffer.byteLength(instr);
   console.log('  (도구 정의 ' + defs + ' B · instructions ' + ib + ' B)');
   /* 11-10: 큰 도서관의 찾아보기 도구로 5,000 → 5,500. SDK 가 도구마다 붙이는 $schema·execution 칸이 약 90 B 씩이다 */
   check(defs < 5500, '도구 정의 5,500 B 미만 (연결해 두면 모든 대화에 실린다)');
@@ -314,10 +332,66 @@ function gitClean() {
   check(ig.length === 3, 'state.json · out/ · node_modules 무시됨');
 }
 
+/* 서가 카드 (library/cards) — 방에 매이지 않은 짧은 글. 책과 같은 길 (builtin + book) 로 간다 */
+async function cardsUnit() {
+  console.log('== 서가 카드');
+  var cdir = tmp();
+  function card(id, title, by, text) { return '---\ncard: ' + id + '\ndomain: 시험\ntitle: ' + title + '\nby: ' + by + '\nwritten: 2026-11-10\n---\n' + text + '\n'; }
+  var long = '카드 본문. '.repeat(120);
+  fs.writeFileSync(path.join(cdir, 'BIO01.md'), card('BIO01', '첫 카드', '시험 · 다듬음', long));
+  fs.writeFileSync(path.join(cdir, 'COS01.md'), card('COS01', '둘째 카드', '시험', '짧은 사실 문장. '.repeat(20)));
+  fs.writeFileSync(path.join(cdir, 'AI01.md'), card('AI01', 'AI 하나', '시험', '사실. '.repeat(40)));
+  fs.writeFileSync(path.join(cdir, 'AI02.md'), card('AI02', 'AI 둘', '시험', '사실. '.repeat(40)));
+  fs.writeFileSync(path.join(cdir, 'AI03.md'), card('AI03', 'AI 셋', '시험', '사실. '.repeat(40)));
+  fs.writeFileSync(path.join(cdir, 'LAN01.md'), card('LAN02', '이름 다름', '시험', '사실. '.repeat(40)));
+  fs.writeFileSync(path.join(cdir, 'MATH01.md'), '---\ncard: MATH01\ntitle: 쓴 사람 없음\n---\n' + '사실. '.repeat(40) + '\n');
+  var oc = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: cdir, fetchWiki: stubWiki, now: function () { return new Date(clock); } });
+  check(Object.keys(oc.cards).sort().join() === 'AI01,AI02,AI03,BIO01,COS01' && oc.cardErrors.length === 2, '카드 5장만 (파일 이름 다름 · by 없음은 건너뜀, 이유 남김)');
+  var tc = oc.todayCards();
+  check(tc.length === core.CARDS_N && tc.filter(function (s) { return /^AI/.test(s); }).length <= 1 && tc.every(function (s) { return /^[A-Z]+\d\d .+/.test(s); }), '오늘의 카드 3장 · AI 서가는 하루 한 장까지 · "ID 제목" 꼴');
+  var seen = {};
+  for (var d = 0; d < 10; d++) { var od = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: cdir, fetchWiki: stubWiki, now: function () { return new Date(clock + d * 86400000); } }); seen[od.todayCards().join('|')] = 1; }
+  check(Object.keys(seen).length >= 2, '날마다 다른 카드');
+  var g = await oc.go({});
+  check(Array.isArray(g.cards) && g.cards.length === core.CARDS_N, 'depart 에 cards');
+  var pc = await oc.peek({ target: { kind: 'card', id: 'bio01' } });
+  check(pc.status === 'builtin' && pc.book && pc.book.title === '첫 카드' && pc.book.by === '시험 · 다듬음' && pc.book.more === true && pc.book.text.length === core.BOOK_HEAD + 1 && !pc.wiki, '카드 읽기: builtin + book (앞 500자 + more) · 소문자 id 도');
+  var pcm = await oc.peek({ target: { kind: 'card', id: 'BIO01' }, more: true });
+  check(pcm.book.text === long.trim() && !pcm.book.more, 'more 면 카드 전부');
+  var bad = await oc.peek({ target: { kind: 'card', id: 'ZZZ99' } });
+  check(bad.error && /카드 id/.test(bad.error), '없는 카드는 오류');
+  var evc = oc.S.running.events.filter(function (e) { return e.type === 'peek'; });
+  check(evc[0].target.kind === 'card' && evc[0].target.id === 'BIO01' && evc[0].book && evc[0].book.card === 'BIO01' && evc[0].book.by === '시험 · 다듬음', '기록: target {kind card, id} · book {card, title, by}');
+  var fc = oc.finish({});
+  var evcs = JSON.parse(fs.readFileSync(path.join(oc.outDir, path.basename(fc.saved)), 'utf8'));
+  var rpc = BRAIN.replay(evcs, { by: 'mcp', dateKey: '2026-11-08', seq: 1, name: '뚜루', now: new Date(clock), state: {} });
+  check(rpc && rpc.receipt.stops.length === 2 && rpc.receipt.stops[0].status === 'builtin' && rpc.receipt.stops[0].book && rpc.receipt.stops[0].book.card === true && rpc.receipt.stops[0].book.title === '첫 카드', '카드 산책 재생: 정류장 builtin + book {card:true}');
+  var pcd = require('../postcard.js').data(evcs, { name: '뚜루', date: '2026-11-08' });
+  check(pcd.stops[0].label === '서가 카드' && pcd.stops[0].book.title === '첫 카드', '엽서: 서가 카드');
+  /* 저장소의 진짜 카드 */
+  var real = core.loadCards(path.join(__dirname, '..', '..', 'library', 'cards')), ids = Object.keys(real.cards);
+  check(ids.length === 60 && real.errors.length === 0, '저장소 카드 60장 · 오류 0' + (real.errors.length ? ': ' + real.errors[0] : ''));
+  check(ids.every(function (id) { var c = real.cards[id]; return !/[?？]/.test(c.text) && !/(일까|는가|을까|ㄹ까|다면)$/.test(c.title) && c.text.length >= 150 && c.text.length <= core.BOOK_MAX && !!c.sources; }), '카드에 질문 없음 (본문·제목) · 길이 · 출처');
+}
+
+/* Vercel 함수 런타임은 require(esm) 을 못 한다 — api 진입점이 ESM 전용 패키지를 require 하면 로컬 (Node 22+) 에선 되고 배포에서만 500 이 난다
+ * (2026-11-10 @modelcontextprotocol/ext-apps 로 겪음). Node 의 --no-experimental-require-module 로 그 런타임을 흉내 내 본다 */
+function loaderGuard() {
+  var root = path.join(__dirname, '..', '..');
+  var flag = process.allowedNodeEnvironmentFlags.has('--experimental-require-module') ? ['--no-experimental-require-module'] : [];
+  ['api/mcp/[key].js', 'api/room.js', 'api/walks/[key].js', 'api/far/[key].js', 'mcp/server.js'].forEach(function (f) {
+    var r = cp.spawnSync(process.execPath, flag.concat(['-e', 'require(process.argv[1])', path.join(root, f)]),
+      { cwd: root, encoding: 'utf8', timeout: 20000, stdio: ['ignore', 'pipe', 'pipe'], env: Object.assign({}, process.env, { PPOLPPOL_NO_NET: '1', PPOLPPOL_STATE: path.join(os.tmpdir(), 'ppol-guard-state.json') }) });
+    check(r.status === 0 && !/ERR_REQUIRE_ESM/.test(r.stderr || ''), f + ' 을 require(esm) 없이 불러올 수 있다 (Vercel 런타임)' + (r.status !== 0 ? ' — ' + String(r.stderr || '').split('\n').filter(Boolean)[0] : ''));
+  });
+}
+
 (async function () {
   await unit();
+  await cardsUnit();
   await protocol();
   gitClean();
+  loaderGuard();
   console.log('\n도구별 최대 반환 크기 (바이트):');
   Object.keys(sizes).forEach(function (k) { console.log('  ' + k + ': ' + sizes[k]); });
   console.log('\n' + passes + ' 통과, ' + fails + ' 실패');
