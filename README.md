@@ -21,10 +21,10 @@
 ## 바로 열기
 
 - **파일로**: `index.html` 을 브라우저에서 바로 연다(`file://`). `type="module"` 을 쓰지 않아 로컬 파일로도 동작한다.
-- **GitHub Pages**: 저장소 루트를 Pages로 올리면 `index.html` 이 그대로 열린다(배포 주소는 예정).
+- **웹에서**: <https://ppolppol-octopus.vercel.app> (Vercel). 저장소를 통째로 올리지 않고 게임 파일만 내보낸다 — 아래 [배포](#배포).
 - **단일 파일**: `node tools/bundle.js` → `dist/ppolppol.html` 한 파일이 생긴다. CSS·JS·에셋이 모두 인라인되어 어디서나 열린다.
 
-외부 의존성은 `vendor/three.min.js` 하나이며 빌드 도구는 없다. 폰트는 Google Fonts를 쓰되 없어도 시스템 폰트로 동작한다.
+외부 의존성은 `vendor/three.min.js` 하나이며 빌드 도구는 없다 (배포 때 나갈 파일을 골라 복사하는 `tools/export-site.js` 가 있을 뿐이다). 폰트는 Google Fonts를 쓰되 없어도 시스템 폰트로 동작한다.
 
 ## 핵심 루프 (초대 한 번)
 
@@ -106,11 +106,35 @@ node tools/test-brain.js    # 두뇌 단위 테스트(시드 재현성, 힌트 �
 node tools/smoke.js         # Playwright 스모크: 이름→힌트→초대→바로 돌아오기→새로고침→포스터→일기, 위키 성공/없음/중단 라우팅
 node tools/shots.js         # 리뷰용 스크린샷 10장 (360×740, SHOTS=경로 로 폴더 지정)
 node tools/bundle.js        # dist/ppolppol.html 단일 파일
+node tools/export-site.js   # public/ — 배포에 나가는 파일만 (아래 '배포')
+node tools/test-export.js   # 그 묶음에 게임 파일만 있고, 가리키는 파일이 다 실렸는지
 ```
 
 - **데모 조작**: 화면 맨 아래 `▸ 데모 조작 (개발용)` 을 펼치면 출발·기웃·귀가를 사람이 단계별로 눌러 볼 수 있다. 이렇게 만든 산책의 "고른 이"는 `사람이 조작` 으로 적힌다. 이 패널은 플레이어에게 보이지 않는다 — 주소에 `?dev=1` 을 붙이거나(그 탭 동안 기억, `?dev=0` 으로 끔) localhost/127.0.0.1 · `file://` 로 열 때만 나온다. 그 안 룩 슬라이더·계절 지정도 개발 모드에서만 적용된다.
 - **이벤트 JSON 재생**: 같은 패널의 JSON 칸에 [docs/PROTOCOL.md](docs/PROTOCOL.md) 형식의 이벤트 배열을 붙여 넣고 재생하면, 두뇌가 만든 것과 같은 경로로 포스터·일기가 생긴다. 나중에 모델이 보낸 이벤트를 받는 통로와 같다.
 - 테스트 훅: `window.__ppolTest.forceKind='home'` 으로 집에 있는 날을, `window.__ppolTest.today='YYYY-MM-DD'` 로 '오늘'(등불은 초대한 날마다 1칸이라 날을 넘길 때)을 정할 수 있다.
+
+## 배포
+
+주소는 <https://ppolppol-octopus.vercel.app> 이고 Vercel 에 올린다. 저장소를 통째로 내지 않는다.
+
+- **나가는 것**: 푸시하면 Vercel 이 `node tools/export-site.js` 를 돌려 `public/` 을 만들고 **그 폴더만** 정적 파일로 낸다 (`vercel.json` 의 `buildCommand` · `outputDirectory`). 들어가는 것은 쪽 셋 (`index.html` · `cook.html` · `credits.html`) 과 `css/` · `js/` · `assets/` · `audio/` · `foley/` · `vendor/` 에서 게임이 받는 파일이다 (2026-11-10 에 649개 · 60.5 MB, 거의 다 소리).
+- **안 나가는 것**: `docs/` · `.claude/` · `tools/` · `tests/` · `wip/` · `mcp/` · `library/` · 이 README 같은 저장소의 나머지, 그리고 싣는 폴더 안의 만드는 사람용 파일 (`*.md` · 소리 원본 `audio/src/` · 소리 들어 보는 쪽 · 그림 참고 자료 · 컵 놀이 시제품 `play.html`). 무엇을 왜 싣고 빼는지는 `tools/export-site.js` 맨 위 목록에 한 줄씩 있다.
+- **함수**: `api/` 는 Vercel 이 저장소 뿌리에서 따로 묶는다 (`mcp/` · `js/` · `library/` 를 거기서 읽는다). `/api/...` 주소와 `vercel.json` 의 `functions` · `headers` 는 그대로다.
+- **`vercel.json` 을 고칠 때**: 설정 한 줄이 묶음 밖의 것을 내게 만들 수 있다. 맨 위에 새 열쇠 (`rewrites` · `redirects` · `cleanUrls` · `"public": true` 같은 것) 를 넣거나, `includeFiles` 에서 줄을 빼거나 `docs/` 같은 곳을 넣으면 `node tools/test-export.js` 가 멈춘다. 묶음 밖의 것이 나가지 않는지 보고 그 시험의 목록 (`VERCEL_KEYS` · `INCLUDE` · `INCLUDE_SERVER`) 을 같이 고친다. `includeFiles` 에 `js/` · `mcp/` · `library/` 안의 것을 더하는 것은 그냥 된다.
+- **이 설정이 듣는 곳**: 이 설정이 들어 있는 커밋의 배포뿐이다. 이 커밋이 없는 가지를 푸시하면 그 미리보기는 예전처럼 저장소를 통째로 낸다 — 살아 있는 가지에는 이 커밋부터 합친다. 이미 만들어진 배포도 바뀌지 않는다 (배포마다 주소가 따로 있고 그때의 파일을 그대로 낸다). 그것까지 닫으려면 Vercel 프로젝트에서 Deployment Protection 을 켜거나 옛 배포를 지워야 한다 (2026-11-10 현재 둘 다 하지 않았다. 프로젝트 설정이라 주인이 정한다).
+- **새 파일을 넣을 때**: 이미 싣는 폴더 안의 그림 · 소리 · 스크립트면, 목록 (`manifest.json`) 에 넣거나 쪽 · 스타일 · 스크립트가 가리키기만 하면 따라 나간다. 맨 위에 새 폴더나 파일 (새 쪽 포함) 을 만들면 `tools/export-site.js` 의 `TAKE` (게임이 쓴다) 나 `PRIVATE` (내보내지 않는다) 에 한 줄을 넣는다. 안 넣으면 실리지 않고, `node tools/test-export.js` 가 정해 달라고 멈춘다. 같은 시험이 가리키는 파일이 빠졌는지, 아무도 안 쓰는 파일이 실렸는지도 본다.
+- **`package.json` 에 의존성을 더할 때**: 빌드 명령이 있으면 Vercel 의 정적 빌더가 `dependencies` 를 보고 프레임워크를 짐작한다 (vite · parcel · express · hono · h3 · koa 같은 이름이 있으면 그 프레임워크의 기본 설정을 얹는다). 우리 `buildCommand` · `outputDirectory` 가 이기지만, 묶는 도구를 들일 때는 `devDependencies` 에 넣고 미리보기에서 주소를 다시 확인한다.
+- **줄이기 · 읽기 어렵게 하기**: 아직 없다. 파일을 바이트 그대로 복사한다. 넣게 되면 `tools/export-site.js` 의 `transform` 한 곳이다.
+
+내 컴퓨터에서 나가는 묶음만 띄워 보기 (`/api/...` 는 Vercel 함수라 여기선 없다 — 달리기 순위와 설정의 방 연결만 안 된다):
+
+```sh
+node tools/export-site.js                 # public/ 을 만든다 (커밋하지 않는다: .gitignore)
+python3 -m http.server -d public 8000     # http://localhost:8000/?dev=0 (localhost 에선 개발용 패널이 보여서 ?dev=0 으로 끈다)
+node tools/test-export.js                 # 묶음 점검 (npm test 에 들어 있다)
+node tools/test-export.js --crawl         # 묶음만 띄워 놀아 본다 (Playwright)
+```
 
 ## MCP 로드맵
 
@@ -124,7 +148,9 @@ node tools/bundle.js        # dist/ppolppol.html 단일 파일
 - 위키백과 요약·썸네일 — 한국어 위키백과에서 가져오며 일기에 출처 링크와 `CC BY-SA 4.0` 을 함께 표시한다. 저장 데이터에도 라이선스 표기를 남긴다.
 - 부엌 소리 (`foley/`) — OpenGameArt.org 에 올라온 소리 28개를 잘라 겹쳐 만든 27개다. 원본은 `CC0 1.0` 이 26개, `CC BY` 가 2개다 (`CC BY 4.0`: DavidW 의 도마 소리 → 썰기, `CC BY 3.0`: Vinrax 의 물소리 → 젓기). 출처·라이선스·바꾼 것은 [foley/CREDITS.md](foley/CREDITS.md) 에 있다.
 - 플레이어가 보는 크레딧 — [credits.html](credits.html) '만든 것들': 부엌 소리의 CC BY 두 줄과 CC0 원본, 글꼴 Galmuri (SIL OFL 1.1, [vendor/fonts/GALMURI-LICENSE.txt](vendor/fonts/GALMURI-LICENSE.txt)), three.js, 위키백과. 설정 맨 아래와 부엌 조리대 (`cook.html`) 의 링크에서 간다. 음악과 그 밖의 효과음 (`audio/`) 은 이 게임을 위해 직접 만든 것이다.
-- 게임 코드의 라이선스는 작성자가 정한다. **아직 미정**이다.
+- `vendor/mcp-apps/` — MCP 엽서 화면이 불러오는 `@modelcontextprotocol/ext-apps` 1.7.5 묶음. 라이선스는 [vendor/mcp-apps/LICENSE](vendor/mcp-apps/LICENSE) 그대로다 (Apache-2.0, 옛 기여분은 MIT).
+- 색 팔레트 (`js/palettes.js`) — Lospec 에 올라온 커뮤니티 팔레트 넷: Apollo (AdamCYounis) · Endesga 64 (ENDESGA) · Resurrect 64 (Kerrie Lake) · Sweetie 16 (GrafxKid). 따로 적힌 라이선스는 없고 만든 이를 밝히는 것이 관례라 [credits.html](credits.html) '색' 에 적는다.
+- 이 게임의 코드 · 그림 · 글 · 소리 (직접 만든 음악과 효과음) — © 2026 Katherine Nahm. 모든 권리 보유 (All rights reserved). 라이선스를 주지 않았으므로 허락 없이 가져다 쓸 수 없다. 위에 적은 남의 것은 각자의 라이선스 그대로이고, 위키백과에서 가져온 글은 `CC BY-SA 4.0` 그대로다.
 - 복지 아이디어 문서의 저작권은 원저자에게 있다(아래 크레딧).
 
 ## 크레딧

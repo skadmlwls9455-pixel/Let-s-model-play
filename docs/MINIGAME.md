@@ -63,7 +63,7 @@
 - 점수는 이 기기에만 남는다고 화면 아래에 적어 둔다 (http(s) 에선 "올리기 전까지"). 올리기는 사람이 버튼을 눌러야만.
 
 ## 랭킹 서버 (주간 · 리플레이 검증)
-정적 사이트는 그대로(빌드 없음), Vercel Node 함수 4개만 `api/runner/` 에 있다. 저장소는 **private Vercel Blob** (icn1).
+정적 사이트는 게임 파일만 골라 복사한 묶음이고 (배포 때 `node tools/export-site.js` → `public/`, README '배포' — 그 밖의 빌드는 없다), Vercel Node 함수 4개만 `api/runner/` 에 있다. 저장소는 **private Vercel Blob** (icn1).
 공통 부품 `api/_lib/core.js`, 테스트 `npm test` (= `tools/test-api.js`, 네트워크 없음 · 메모리 저장소 · 주입 시계).
 
 | 끝점 | 하는 일 |
