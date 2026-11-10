@@ -2756,7 +2756,7 @@ var APP = (function () {
         if (yes) { wear[c.slot] = c.id; line = name + '가 ' + c.name + (c.slot === 'back' ? ' 두르기로 했어.' : ' 쓰기로 했어.'); }
         else line = name + '는 ' + c.name + (c.slot === 'back' ? ' 안 두르기로 했어.' : ' 안 쓰기로 했어.');
       } else {
-        if (yes) { wear = {}; line = name + '가 다 벗기로 했어.'; } else line = name + '는 그대로 있기로 했어.';
+        if (yes) { wear = {}; line = name + '가 옷장에 넣어 두기로 했어.'; } else line = name + '는 그대로 쓰고 있기로 했어.';
       }
       if (yes) { S.settings.octWear = wear; scene.setOctWear(wear); refreshPortraits(); expressRow('happy'); } else expressRow('calm');
       save();
@@ -2778,7 +2778,7 @@ var APP = (function () {
     frag.appendChild(row);
     var go = h('button', { type: 'button', class: 'btn sm pressable', id: 'gift-go', text: '내밀기' }); go.disabled = !giftPick;
     go.addEventListener('click', function () { if (giftPick) giftOffer(giftPick); });
-    var off = h('button', { type: 'button', class: 'btn sm pressable', id: 'gift-off', text: '맨머리도 괜찮아' });   /* 11-10 주인: '벗어 볼래? 권하기' 는 어감이 어색 — 벗으라고 시키는 말이 아니라 '안 써도 된다' 고 알려 주는 말로 */
+    var off = h('button', { type: 'button', class: 'btn sm pressable', id: 'gift-off', text: '옷장에 넣어둘까?' });   /* 11-10 주인: '벗어 볼래? 권하기' 는 어감이 어색 — 주인이 고른 말 '옷장에 넣어둘까?' (벗으라고 시키는 말이 아니라 묻는 말) */
     off.addEventListener('click', function () { giftOffer(null); });
     frag.appendChild(h('div', { class: 'btn-row' }, [go, off]));
   }
