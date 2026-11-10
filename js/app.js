@@ -1605,12 +1605,15 @@ var APP = (function () {
     s += '<g clip-path="url(#' + uid + 'c)"><rect x="' + sx + '" y="' + sy + '" width="' + sw + '" height="' + sh + '" fill="url(#' + uid + ')"/>' + sceneShapes(trip.seed, sx, sy, sw, sh);
     var sceneHref = opts.inlineScene || (opts.noExternal ? null : scenePath(p.scene));
     if (sceneHref) s += '<image href="' + esc(sceneHref) + '" x="' + sx + '" y="' + sy + '" width="' + sw + '" height="' + sh + '" preserveAspectRatio="xMidYMid slice"/>';
-    if (!opts.mini && p.thumb && p.thumb.url && S.settings.thumbs !== false && !note) {
+    /* 그 방의 픽셀 그림 (js/poster-art.js) — 있으면 위키 사진 대신 이것을 붙인다 (사진은 장면과 따로 놀았다, 주인 11-10). 출처·사진 출처는 일기에 그대로 */
+    var art = (!opts.mini && !note && window.POSTER_ART) ? POSTER_ART.svg(trip, sx + sw * 0.08, sy + sh * 0.12, sw * 0.5, sh * 0.62, W) : '';
+    if (art) s += art;
+    else if (!opts.mini && p.thumb && p.thumb.url && S.settings.thumbs !== false && !note) {
       var th = opts.inlineThumb || (opts.noExternal ? null : p.thumb.url);
       if (th) s += '<g clip-path="url(#' + uid + 't)"><image href="' + esc(th) + '" x="' + (sx + sw * 0.08) + '" y="' + (sy + sh * 0.12) + '" width="' + (sw * 0.5) + '" height="' + (sh * 0.62) + '" preserveAspectRatio="xMidYMid slice"/></g>';
     }
     s += '</g>';
-    if (!opts.mini && p.thumb && p.thumb.url && S.settings.thumbs !== false && !note) s += '<text x="' + (sx + 2) + '" y="' + (sy + sh - 3) + '" font-size="' + (w * 0.028) + '" fill="#fff" opacity=".75" font-family="Noto Sans KR, sans-serif">사진: 위키미디어 공용</text>';
+    if (!art && !opts.mini && p.thumb && p.thumb.url && S.settings.thumbs !== false && !note) s += '<text x="' + (sx + 2) + '" y="' + (sy + sh - 3) + '" font-size="' + (w * 0.028) + '" fill="#fff" opacity=".75" font-family="Noto Sans KR, sans-serif">사진: 위키미디어 공용</text>';
     /* 스티커 하나 = 픽셀 아이콘 (예전 이모지 글자 대신 — 주인 11-07): 외출은 기억한 곳의 코너 그림, 집에 있던 날 쪽지는 집, 복원된 옛 포스터는 포스터 그림.
        주소는 iconSrc (단일 파일 번들 = data URI). 16px 원본을 정수 배(16·32·64…)로, 픽셀 그대로. 자리·기울기는 예전 그대로 (stickerPos).
        밖의 파일을 못 읽는 그림(벽 텍스처 · 날아가는 포스터 · PNG 저장)은 data URI 일 때만 (opts.inlineSticker 로 넘겨받거나 번들) */
