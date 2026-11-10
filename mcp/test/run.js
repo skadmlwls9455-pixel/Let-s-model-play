@@ -331,10 +331,22 @@ function gitClean() {
   check(ig.length === 3, 'state.json · out/ · node_modules 무시됨');
 }
 
+/* Vercel 함수 런타임은 require(esm) 을 못 한다 — api 진입점이 ESM 전용 패키지를 require 하면 로컬 (Node 22+) 에선 되고 배포에서만 500 이 난다
+ * (2026-11-10 @modelcontextprotocol/ext-apps 로 겪음). Node 의 --no-experimental-require-module 로 그 런타임을 흉내 내 본다 */
+function loaderGuard() {
+  var flag = process.allowedNodeEnvironmentFlags.has('--experimental-require-module') ? ['--no-experimental-require-module'] : [];
+  ['api/mcp/[key].js', 'api/room.js', 'api/walks/[key].js', 'api/far/[key].js', 'mcp/server.js'].forEach(function (f) {
+    var r = cp.spawnSync(process.execPath, flag.concat(['-e', 'require(process.argv[1])', path.join(root, f)]),
+      { cwd: root, encoding: 'utf8', timeout: 20000, stdio: ['ignore', 'pipe', 'pipe'], env: Object.assign({}, process.env, { PPOLPPOL_NO_NET: '1', PPOLPPOL_STATE: path.join(os.tmpdir(), 'ppol-guard-state.json') }) });
+    check(r.status === 0 && !/ERR_REQUIRE_ESM/.test(r.stderr || ''), f + ' 을 require(esm) 없이 불러올 수 있다 (Vercel 런타임)' + (r.status !== 0 ? ' — ' + String(r.stderr || '').split('\n').filter(Boolean)[0] : ''));
+  });
+}
+
 (async function () {
   await unit();
   await protocol();
   gitClean();
+  loaderGuard();
   console.log('\n도구별 최대 반환 크기 (바이트):');
   Object.keys(sizes).forEach(function (k) { console.log('  ' + k + ': ' + sizes[k]); });
   console.log('\n' + passes + ' 통과, ' + fails + ' 실패');

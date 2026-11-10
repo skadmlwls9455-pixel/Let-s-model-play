@@ -8,7 +8,23 @@ var core = require('./core.js');
 var fs = require('fs');
 var path = require('path');
 var postcard = require('./postcard.js');
-var APPS = require('@modelcontextprotocol/ext-apps/server');   /* MCP Apps: 산책 엽서 (대화 안의 화면) */
+
+/* MCP Apps (산책 엽서) 등록 도우미 — @modelcontextprotocol/ext-apps/server 1.7.5 의 registerAppTool · registerAppResource 와 같은 일.
+ * 그 패키지는 ESM 전용이라 Vercel 함수 런타임이 require() 로 못 불러 (ERR_REQUIRE_ESM → /api/mcp 가 500). 몇 줄이라 여기 둔다.
+ * 시험: `node --no-experimental-require-module -e "require('./api/mcp/[key].js')"` 가 통과해야 한다 (test/run.js 가 확인). */
+var APPS = {
+  RESOURCE_MIME_TYPE: 'text/html;profile=mcp-app',
+  RESOURCE_URI_META_KEY: 'ui/resourceUri',   /* 옛 호스트용 키 — 새 키 _meta.ui.resourceUri 와 둘 다 적는다 */
+  registerAppTool: function (server, name, cfg, cb) {
+    var meta = cfg._meta || {}, ui = meta.ui, legacy = meta[APPS.RESOURCE_URI_META_KEY], m = meta;
+    if (ui && ui.resourceUri && !legacy) { m = Object.assign({}, meta); m[APPS.RESOURCE_URI_META_KEY] = ui.resourceUri; }
+    else if (legacy && !(ui && ui.resourceUri)) m = Object.assign({}, meta, { ui: Object.assign({}, ui, { resourceUri: legacy }) });
+    return server.registerTool(name, Object.assign({}, cfg, { _meta: m }), cb);
+  },
+  registerAppResource: function (server, name, uri, cfg, cb) {
+    return server.registerResource(name, uri, Object.assign({ mimeType: APPS.RESOURCE_MIME_TYPE }, cfg), cb);
+  }
+};
 
 module.exports = function buildServer(oct, hooks) {
   hooks = hooks || {};
