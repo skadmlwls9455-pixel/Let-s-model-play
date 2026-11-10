@@ -2949,6 +2949,7 @@ function glyphGuardInit() {
     els.forEach(function (el) {
       if (el.closest('#demo, #hint-box')) return;
       if (el.children.length) push(out, seen, 'data-raw', el, '요소', '안에 요소가 있음: ' + el.innerHTML.slice(0, 60));
+      else if (el.closest('#shelf-list')) { if (!(window.SHELF && SHELF.pool.indexOf(el.textContent) >= 0)) push(out, seen, 'data-raw', el, '서가에 없는 제목', el.textContent); }   /* 큰 도서관 '오늘의 서가' (11-10): 위키백과 제목 그대로 = js/shelf.js 후보 목록의 한 줄과 글자 하나까지 같아야 한다 */
       else if (!fromSource(el.textContent, src)) push(out, seen, 'data-raw', el, '원문 아님', el.textContent);
     });
   }

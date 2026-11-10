@@ -1212,7 +1212,11 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 
 /* 큰 도서관 '오늘의 서가' (오늘의 산책 아래, 접힌 한 줄) */
 .shelf-today { margin: 8px 0 4px; }
-.shelf-today summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.shelf-today summary { cursor: pointer; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; list-style: none; }
+/* 접힘 표시: 브라우저 기본 ▶ ▼ 글자 대신 앨범 일기와 같은 2px 계단 픽셀 꺾쇠 (플레이어 화면엔 장식 기호를 쓰지 않는다 — tools/smoke.js U) */
+.shelf-today summary::-webkit-details-marker { display: none; }
+.shelf-today summary::before { content: ''; flex: 0 0 auto; width: 6px; height: 10px; background: currentColor; clip-path: polygon(0 0, 2px 0, 2px 2px, 4px 2px, 4px 4px, 6px 4px, 6px 6px, 4px 6px, 4px 8px, 2px 8px, 2px 10px, 0 10px); }
+.shelf-today[open] summary::before { width: 10px; height: 6px; clip-path: polygon(0 0, 10px 0, 10px 2px, 8px 2px, 8px 4px, 6px 4px, 6px 6px, 4px 6px, 4px 4px, 2px 4px, 2px 2px, 0 2px); }
 .shelf-today .shelf-note { font-size: 12px; color: var(--muted); margin: 6px 0; }
 .shelf-today ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .shelf-today li a { display: inline-block; padding: 4px 8px; border: 1px solid var(--rim); border-radius: 6px; font-size: 13px; color: var(--fg); text-decoration: none; }
