@@ -99,7 +99,7 @@ check(/width="16\.0"/.test(A.svg(trip('hat', 'hands'), 0, 0, 16, 20, WORLD)), '3
 check(A.svg({ poster: { type: 'note' } }, 0, 0, 100, 100, WORLD) === '', '붙일 게 없으면 빈 문자열');
 check(/POSTER_ART\.sceneSvg\(/.test(fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8')) && /POSTER_ART\.trailSvg\(/.test(fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8')), 'app.js 가 배경·들른 곳 줄을 부른다');
 
-var html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), iD = html.indexOf('js/poster-art-data.js'), iA = html.indexOf('js/poster-art.js'), iApp = html.indexOf('js/app.js');
+var html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), iD = html.indexOf('<script src="js/poster-art-data.js"'), iA = html.indexOf('<script src="js/poster-art.js"'), iApp = html.indexOf('<script src="js/app.js"');   /* 스크립트 태그의 자리로 본다 (주석 속 'js/app.js' 가 앞에 있어도 흔들리지 않게) */
 check(iD > 0 && iD < iA && iA < iApp, 'index.html: poster-art-data.js → poster-art.js → app.js');
 var app = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
 check(/POSTER_ART\.svg\(trip/.test(app), 'app.js posterSVG 가 POSTER_ART.svg 를 부른다');
