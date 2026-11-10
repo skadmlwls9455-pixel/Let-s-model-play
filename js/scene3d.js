@@ -22,7 +22,7 @@ var SCENE3D = (function () {
   /* 놀이방 (8물결, docs/SCENE.md '놀이방'): 다락·바깥처럼 따로 그리는 세 번째 장소 'play'. 바닥 ±PLAY_R · 벽 PLAY_H (받침 포함 화면 높이 ≈ 135 아트px). 처음 들어갈 때만 만든다.
      문 앞 앵커 = 나중의 걸어 다니는 내 캐릭터가 문을 열기 전에 서는 자리 (각 장소 그룹 좌표, 그룹은 원점). 문어 앵커(ANCHORS)와 따로 — 문어는 놀이방에 안 간다 */
   var PLAY_R = 1.7, PLAY_H = 2.2;   /* ROOM_EXPANSION §5.2 의 3.6 × 2.4 m 는 360×640 장면(139 아트px)에 145 px 라 위아래가 잘려, 카드의 둘째 후보 3.4 × 2.2 m (≈ 135 px) 로 — scene-api.md '크기' */
-  var DOOR_ANCHORS = { atticPlayDoor: [1.95, 0, 1.4], playAtticDoor: [-1.35, 0, -0.33] };
+  var DOOR_ANCHORS = { atticPlayDoor: [1.95, 0, 1.92], playAtticDoor: [-1.35, 0, -0.33] };   /* 내 캐릭터가 문을 열기 전에 서는 자리. 다락 문은 +x 벽에서 카메라 쪽으로 서 있어 문 바로 안쪽(z 1.4)에 서면 문짝 뒤에 다 가려진다 → 손잡이 쪽 옆(z 1.92, 문 끝 1.76 에서 0.16 m)에 선다 · 놀이방 문은 −x 벽이라 문 앞(x −1.35)이 문보다 앞에 보인다 */
   var EXPRESSIONS = ['idle', 'blink', 'happy', 'pet', 'sleep', 'curious', 'calm', 'sleepy'];   /* 표정 8 (DESIGN §15.2) — 장면과 초상이 setExpression 하나로 공유 */
 
   /* ───────────────────────── 색 수학 (sRGB ↔ 선형 ↔ OKLab) ───────────────────────── */
@@ -280,6 +280,28 @@ var SCENE3D = (function () {
   function phaseOf(h) { return h < 6 ? 'night' : h < 9 ? 'dawn' : h < 17 ? 'day' : h < 19 ? 'dusk' : 'night'; }
 
   /* ═══════════════════════════ init ═══════════════════════════ */
+  /* ── 내 캐릭터 파츠 카탈로그 (docs/PLAYER_PARTS.md §2·§3) — 정적 export (SCENE3D.PLAYER_PARTS · PLAYER_DEFAULT, 2D 폴백도 SCENE3D 가 있으면 읽는다).
+     id 순서 = 설정 시트 칩 순서, name 은 칩 글자(한국어 4자 안팎). hairColor·eyeColor 의 hex 는 알베도 — 툰 3단 · 푸른 필 빛을 거쳐 apollo 어느 칸에 앉는지는 문서 §2.2·§2.4 (금발 amber[3] → #e8c170, v0 #ffd27a 는 올리브로 떴다).
+     기하 빌더는 init 안 PL_PARTS (T·PAL 이 필요하다). 모르는 범주·id 는 normalizePlayer 가 기본값으로 — 앱의 설정 복원도 같은 함수를 쓴다 */
+  var PLAYER_PARTS = {
+    hair: [{ id: 'bob', name: '단발' }, { id: 'short', name: '숏컷' }, { id: 'long', name: '긴생머리' }, { id: 'twin', name: '양갈래' }, { id: 'pony', name: '포니테일' }, { id: 'wave', name: '웨이브' }],
+    hairColor: [{ id: 'blonde', name: '금발', hex: '#e8a93a' },{ id: 'brown', name: '밤갈색', hex: '#9a5a3a' }, { id: 'ink', name: '먹남색', hex: '#1e2a44' }, { id: 'silver', name: '은빛', hex: '#cfc9c0' }, { id: 'pink', name: '분홍', hex: '#de8fa9' }, { id: 'lime', name: '연두', hex: '#a0d070' }],   /* 금발 #e8a93a → 필 빛에서 #de9e41 (amber[3] 은 #e8c170 로 살결 #e7d5b3 와 거의 같은 칸이라 1× 에서 머리가 한 덩이 공으로 읽혔다 — 리뷰 11-08) */
+    eyes: [{ id: 'round', name: '동그란' }, { id: 'sparkle', name: '반짝' }, { id: 'sleepy', name: '졸린' }, { id: 'almond', name: '또렷' }, { id: 'smile', name: '웃는' }, { id: 'dot', name: '점' }],   /* 눈동자 그림 스타일 (주인 11-08 피드백 6: 눈 모양이 아니라 '눈동자 그림', 전부 귀엽게) */
+    nose: [{ id: 'none', name: '없음' }, { id: 'dot', name: '콩코' }, { id: 'tri', name: '세모코' }],
+    mouth: [{ id: 'none', name: '없음' }, { id: 'smile', name: '미소' }, { id: 'line', name: '새침' }, { id: 'pout', name: '뾰로통' }, { id: 'open', name: '활짝' }, { id: 'o', name: '오' }],
+    cheek: [{ id: 'none', name: '없음' }, { id: 'freckle', name: '주근깨' }],   /* 코 · 입 · 볼 (11-09 주인 "동물의 숲 같은 기존 게임들 얼굴 느낌 참고") — 눈과 같은 아틀라스의 도트 그림. 볼터치('blush' 발그레)는 주인 11-10 "볼터치가 이상하게 보여서 없애는 게 나을 듯" 으로 뺐다 — 저장된 'blush' 는 모르는 id 라 기본값(없음)이 된다 */
+    eyeColor: [{ id: 'dark', name: '흑갈색', hex: '#6a3a30', hi: '#884b2b', sh: '#be772b' }, { id: 'hazel', name: '호두색', hex: '#884b2b', hi: '#be772b', sh: '#de9e41' }, { id: 'sea', name: '바다색', hex: '#3c5e8b', hi: '#4f8fba', sh: '#73bed3' }, { id: 'leaf', name: '잎새색', hex: '#468232', hi: '#75a743', sh: '#a8ca58' }, { id: 'honey', name: '꿀색', hex: '#be772b', hi: '#de9e41', sh: '#de9e41' }, { id: 'violet', name: '제비꽃', hex: '#7a367b', hi: '#c65197', sh: '#df84a5' }],   /* hex = 홍채 텍셀(앞면 칸: 흑갈 #602c2c · 호두 #884b2b · 나머지는 apollo 그대로) · hi = 한 칸 밝은 홍채('반짝' 눈의 아랫빛) · sh = 반짝 점(11-10 — 흰색 글린트 대신 **눈 색을 두 칸 밝힌 색 점** 하나: 흑갈 눈엔 호박색, 바다 눈엔 하늘색. 꿀색은 한 칸만 — 두 칸 위 #e8c170 은 살결 옆에서 흰 점처럼 떴다). 흑갈색 옛 #4d2b32 는 동공 #151d28 과 두 칸뿐이라 2× 에서 한 덩어리였고 램프 디더에 #411d31 로 떨어졌다 (11-09) */
+    outfit: [{ id: 'dress', name: '원피스' }, { id: 'knit', name: '니트' }, { id: 'hoodie', name: '후드' }, { id: 'overall', name: '멜빵' }, { id: 'raincoat', name: '비옷' }],
+    shoes: [{ id: 'flat', name: '단화' }, { id: 'boot', name: '부츠' }, { id: 'sneaker', name: '운동화' }, { id: 'loafer', name: '로퍼' }],
+    acc: [{ id: 'none', name: '없음' }, { id: 'ribbon', name: '리본' }, { id: 'beret', name: '베레모' }, { id: 'glasses', name: '동글안경' }, { id: 'catears', name: '고양이귀' }, { id: 'strawhat', name: '밀짚모자' }] };
+  var PLAYER_DEFAULT = { hair: 'bob', hairColor: 'blonde', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };   /* 기본 모습 (단발 · 금발 · 동그란 눈 · 어두운 눈 · 세모코 · 미소 · 볼 없음 · 남색 원피스 · 단화 · 리본) */
+  function plPart(cat, id) { var L = PLAYER_PARTS[cat] || []; for (var i = 0; i < L.length; i++) if (L[i].id === id) return L[i]; return null; }
+  function normalizePlayer(cfg) {   /* cfg → 열 범주가 다 있는 새 객체. 모르는 범주는 버리고 모르는 id 는 기본값 */
+    var out = {}; cfg = cfg && typeof cfg === 'object' ? cfg : {};
+    Object.keys(PLAYER_DEFAULT).forEach(function (k) { out[k] = plPart(k, cfg[k]) ? cfg[k] : PLAYER_DEFAULT[k]; });
+    return out;
+  }
+
   function init(container, opts) {
     T = THREE; opts = opts || {};
     var on = opts.on || {};
@@ -359,7 +381,27 @@ var SCENE3D = (function () {
     var PLAY_SPAN_PX = 136 / 27, PLAY_TOP_PX = 3;
     function framePlay() {
       var N0 = Math.round(baseN()), need = PLAY_SPAN_PX * N0, d = PLAY_TOP_PX - (S.rh - need) / 2;
-      PLAY_TARGET.y = snapPos(PLAY_YC + (d > 0 ? d / N0 / 0.848 : 0));
+      PLAY_TARGET.y = snapPos(PLAY_YC + (d > 0 ? d / N0 / 0.848 : -liftOf(0, PLAY_YC, 0, FRAME_PT.play)));
+    }
+    /* 한 화면 배치 (주인 11-08 "화면이 반으로 나뉘어져있는 느낌인 게 불편해서"): 장면이 화면을 다 차지하면 방이 한가운데에 놓여, 아래쪽에 뜨는 대사창 · 큰 버튼 · 조이스틱이 바닥을 가린다.
+       → 높은 장면에서만 타깃을 내려(= 방을 화면 위로) 바닥 앞 모서리를 화면 높이의 FRAME_Y 에 둔다. 꼭대기(벽 위 · 굴뚝)는 위 여백 FRAME_TOP CSS px (상태 줄 40 px 밑 — 아트 픽셀이 커지는 느린 기기 폴백 p=3 · 4 에서도 같은 자리) 을 지킨다 —
+       그래서 낮은 장면(360×326 · 가로 폰 · 쌓는 배치)에선 올릴 자리가 없어 보정이 정확히 0 이고 예전 구도 그대로다. 각도 · 밀도 · 밀기 경계(panBox 는 타깃을 따라간다)는 안 바뀐다.
+       FRAME_PT[장소] = [바닥 앞 모서리, 꼭대기 점] (월드 m). 바깥의 꼭대기는 상자 모서리가 아니라 굴뚝 테 — 화면에서 가장 높은 건 그쪽이다 */
+    var FRAME_Y = 0.62, FRAME_TOP = 48, UP_Y = Math.cos(TILT), UP_XZ = Math.sin(TILT) * Math.SQRT1_2, ATTIC_Y = camTarget.y, EXT_Y = EXT_TARGET.y;
+    var FRAME_PT = { attic: [[2.72, 0, 2.72], [-2.72, 3.0, -2.72]], exterior: [[3.42, 0, 3.42], [-1.5, 3.3, -1.52]], play: [[PLAY_R, 0, PLAY_R], [-PLAY_R, PLAY_H, -PLAY_R]] };
+    function liftOf(bx, by, bz, pt) {   /* 기본 타깃 (bx, by, bz) 에서 타깃을 내릴 월드 y (≥ 0, 아트 픽셀 정수 배) */
+      var N0 = Math.round(baseN()), f = pt[0], t = pt[1];
+      var below = ((by - f[1]) * UP_Y + (f[0] - bx + f[2] - bz) * UP_XZ) * N0, above = ((t[1] - by) * UP_Y + (bx - t[0] + bz - t[2]) * UP_XZ) * N0;   /* 화면 가운데에서 앞 모서리까지 아래로 · 꼭대기까지 위로 (아트 px, 1×) */
+      return Math.round(clamp(S.rh / 2 + below - FRAME_Y * S.rh, 0, Math.max(0, S.rh / 2 - above - FRAME_TOP / S.p))) / N0 / UP_Y;
+    }
+    function frameView() {
+      camTarget.y = ATTIC_Y - liftOf(camTarget.x, ATTIC_Y, camTarget.z, FRAME_PT.attic);
+      EXT_TARGET.y = EXT_Y - liftOf(EXT_TARGET.x, EXT_Y, EXT_TARGET.z, FRAME_PT.exterior);
+      framePlay();
+    }
+    function frameY() {   /* 지금 보이는 장소의 바닥 앞 모서리가 장면 높이의 어디에 있나 (0 = 위 끝 · 1 = 아래 끝). 실제 카메라로 투영 — 줌 · 밀기 · 입장 연출도 그대로 반영 (stats().frameY · tools/layout-shots.js) */
+      var f = (FRAME_PT[PLACE.vis] || FRAME_PT.attic)[0], p = _pnt.set(f[0], f[1], f[2]).project(camera);
+      return Math.round((S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch) / Math.max(S.H, 1) * 1000) / 1000;
     }
     /* 장소 (8물결): cur = 이야기 장소 'attic' | 'exterior' (문어가 있는 곳, place() · 의식·앱이 쓴다) · vis = 지금 그려지는 장소 'attic' | 'exterior' | 'play' (전환 앞 절반은 나가는 쪽) ·
        room = 내가 들어가 있는 방 ('play' | null). room 이 있는 동안 setPlace('attic'|'exterior') 는 cur 만 바꾸고 화면은 그대로 (의식이 나를 놀이방에서 끌어내지 않는다) */
@@ -518,7 +560,7 @@ var SCENE3D = (function () {
       renderer.setSize(S.cw, S.ch, false); canvas.style.width = S.cw + 'px'; canvas.style.height = S.ch + 'px';
       rt.setSize(rw, rh); rtN.setSize(rw, rh); rtE.setSize(rw, rh); rtB.setSize(rw, rh); post.uniforms.uRes.value.set(rw, rh);
       blurOn = p < 4;
-      framePlay();
+      frameView();
       applyZoom();
     }
     function applyZoom() {   /* 줌만 바뀔 때 (핀치·휠): 프러스텀·N·pw·카메라·입자 재스냅만 — renderer.setSize 는 캔버스 버퍼를 다시 잡아 한 프레임 비므로 resize() 에서만 */
@@ -527,6 +569,7 @@ var SCENE3D = (function () {
       S.pw = (camera.right - camera.left) / S.rw;   /* pixelWorldSize = 직교 프러스텀 폭 / 렌더 타깃 폭 (= 1/N: p=3 줌 1 → 1/18 m, p=2 → 1/27, 줌 ×2 → 1/36) */
       placeCamera();
       if (ready) { clampPan(); panRest(); placeCamera(); layoutWeather(false); if (CURT.frame) curtainFrame(1); anim.dustInit = false; extApplyWeather(); }   /* 룩 패스 7: 격자가 바뀌면 비·눈·물방울·커튼·먼지를 새 픽셀 중심에 재스냅 */
+      plEyeLod();   /* 내 캐릭터 눈 텍스처 LOD (N 에 따라 2×3 · 4×5 · 8×10 텍셀 칸) — 함수 선언이라 끌어올려져 있고, PL 이 아직 없으면 안에서 그냥 돌아온다 */
     }
     function zoomStepOf(f) { return clamp(Math.round(Math.log(f) / Math.LN2 * 6), 0, ZOOM_STEPS.length - 1); }
     function setZoom(f, cx, cy) {   /* 배율 f 로. (cx, cy) = 클라이언트 px 기준점: 그 아래 있던 곳이 줌 뒤에도 그 아래 (경계 안으로 자름). 연출 중·기준점 없음 = 가운데 */
@@ -633,6 +676,7 @@ var SCENE3D = (function () {
       hemi.intensity = base.hemiI + Math.max(0, FL.hemiI - base.hemiI) * wh;
       fill.intensity = base.fillI + Math.max(0, FL.fillI - base.fillI) * w;
       toon.emissive.copy(flC(FL.glow)).multiplyScalar(nk * (FL.glow0 + (FL.glow8 - FL.glow0) * clamp(st.lantern / 8, 0, 1)));
+      toonP.emissive.copy(toon.emissive); toonEye.emissive.copy(toon.emissive);   /* 내 캐릭터(눈 평면 포함)도 밤엔 같은 첫 불 자체광 — 훅이 emissive × diffuseColor 라 흰자·글린트만 한 칸 뜨고 동공은 어둡다 */
     }
     function setTime(h, instant) {
       st.hour = h; var ph = LIGHTS[phaseOf(h)];
@@ -651,7 +695,9 @@ var SCENE3D = (function () {
     /* ── 재질 ── */
     /* 방·소품 재질: r128 Lambert 는 직접광 합을 정점에서 계산하고 그림자 마스크 하나를 곱한다 → 닫힌 방(지붕 차폐)에선 태양 그림자가 필·등불·양초까지 지워 버린다. Phong(광택 0 = 같은 난반사)은 프래그먼트별·광원별 그림자라 등불 웅덩이·필이 그림자 안에서도 산다 (룩 패스 4) */
     var lambert = keep(new T.MeshPhongMaterial({ vertexColors: true, shininess: 0, specular: 0x000000 }));
-    var toon = keep(new T.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: keep(gradientTex()) }));
+    /* whiteTex: 1×1 흰 캔버스를 toon · toonP 의 map 으로 꽂아 눈 재질 toonEye(map = 눈 아틀라스)와 프로그램 캐시 키(map · mapEncoding · vertexUvs)를 같게 한다 → 셋이 셰이더 하나 (uv 가 없는 지오메트리는 GL 범용 속성 기본값 (0,0) → 흰 텍셀 → 알베도 그대로). canvasTex 와 같은 sRGBEncoding */
+    var whiteTex = keep(canvasTex((function () { var cv = document.createElement('canvas'); cv.width = cv.height = 1; var x = cv.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, 1, 1); return cv; })()));
+    var toon = keep(new T.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: keep(gradientTex()), map: whiteTex }));
     toon.blendSrc = T.SrcAlphaFactor; toon.blendDst = T.OneMinusSrcAlphaFactor; toon.blendSrcAlpha = T.OneFactor; toon.blendDstAlpha = T.ZeroFactor;   /* CustomBlending 일 때만 (체크 사라짐, fadeLook): 남김 = 문어 색, 구멍 = 뒤 색 그대로 · 알파는 셰이더 값(1/0) 그대로 */
     /* 문어 자체광 (첫 불): 툰의 emissive 를 정점색(알베도)에 곱한다 → 문어에만 닿는 흐린 따뜻한 채움빛. 몸·흰자는 한 칸 뜨고 동공·입(어두운 정점색)은 어두운 채라 얼굴이 안 뭉개진다. 값은 applyFloor (밤에만, 초상은 0) */
     /* 문어 체크 사라짐 (INTERIOR_MODE 0단계): uOctFade = 남길 몫 (1 = 변화 없음, k/8 = 8단계). 4×4 Bayer 로 아트 픽셀(저해상 타깃의 gl_FragCoord)마다 남김(알파 1)·구멍(알파 0).
@@ -660,12 +706,19 @@ var SCENE3D = (function () {
        빨판·다리 밑면이 다리 위로 비친다 (repro: 프레임당 최대 96 px). 그래서 구멍도 문어 깊이는 쓰고 색은 뒤 그대로(SrcAlpha 섞기), 알파 0 을 표시로 남겨
        후처리가 구멍 픽셀엔 잉크선·하이라이트·비네트를 안 긋는다 (FRAG om). 섞기·정렬·그림자·접지 그림자는 fadeLook 이 바꾼다 */
     var OCT_FADE = { value: 1 };
-    toon.onBeforeCompile = function (sh) {
-      sh.uniforms.uOctFade = OCT_FADE;
-      sh.fragmentShader = 'uniform float uOctFade;\nfloat octBayer2(vec2 a){ a = mod(floor(a), 2.0); return fract(a.x * 0.5 + a.y * 0.75); }\n' + sh.fragmentShader
-        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= diffuseColor.rgb;')
-        .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n\tgl_FragColor.a = octBayer2(gl_FragCoord.xy * 0.5) * 0.25 + octBayer2(gl_FragCoord.xy) < uOctFade ? 1.0 : 0.0;');
-    };
+    function toonFadeHook(FADE_U) {   /* 같은 글자의 훅 → 같은 프로그램 캐시 키 (customProgramCacheKey = onBeforeCompile.toString()) — 문어 툰과 내 캐릭터 툰이 셰이더 하나를 나눠 쓰고 유니폼(사라짐 몫)만 따로 */
+      return function (sh) {
+        sh.uniforms.uOctFade = FADE_U;
+        sh.fragmentShader = 'uniform float uOctFade;\nfloat octBayer2(vec2 a){ a = mod(floor(a), 2.0); return fract(a.x * 0.5 + a.y * 0.75); }\n' + sh.fragmentShader
+          .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance *= diffuseColor.rgb;')
+          .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n\tgl_FragColor.a = octBayer2(gl_FragCoord.xy * 0.5) * 0.25 + octBayer2(gl_FragCoord.xy) < uOctFade ? 1.0 : 0.0;');
+      };
+    }
+    toon.onBeforeCompile = toonFadeHook(OCT_FADE);
+    var PL_FADE = { value: 1 }, toonP = keep(new T.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: toon.gradientMap, map: whiteTex }));   /* 내 캐릭터 툰: 문어와 같은 3단 · 정점색 · 밤 자체광, 사라짐은 늘 1 (문어가 체크로 사라져도 그대로) */
+    toonP.onBeforeCompile = toonFadeHook(PL_FADE);
+    var toonEye = keep(new T.MeshToonMaterial({ color: 0xffffff, vertexColors: true, gradientMap: toon.gradientMap, map: whiteTex }));   /* 내 캐릭터 눈 평면 전용 (11-09 얼굴 수술): map 만 눈 아틀라스(아래 plEyeTex)로 바뀐다 — 절대 null 이 되지 않는다(null 로 한 번 그려지면 USE_MAP 없는 28번째 프로그램이 생겨 눈이 흰 네모로 남는다). 같은 훅 글자 → 같은 프로그램 */
+    toonEye.onBeforeCompile = toonFadeHook(PL_FADE);
     var rtex = keep(radialTex());
     var decalMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C('#1b1522'), transparent: true, opacity: 0.42, depthWrite: false }));
     var glowMat = keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[3]), transparent: true, opacity: 0.55, depthWrite: false }));
@@ -804,8 +857,9 @@ var SCENE3D = (function () {
       parts.push({ g: box(0.07, 0.48, 0.48), m: M(cx, c[1], cz), c: W[3] }); propCount++;
     });
     /* 짜임 깔개 2.3×1.7 (담요 자리 아래, 윗면 y 0.008 < 데칼 0.01): 테 navy3 · 줄무늬 glass1/2 (0.18 m, 그늘에서도 읽히게 밝은 쪽) · 술 paper0 */
+    var ATTIC_RUG = { x: snapPos(-1.0), z: snapPos(1.55), w: 2.3, d: 1.7, h: 0.016 };   /* 내 캐릭터 발자국 높이(plFloorY)도 이 값을 읽는다 */
     (function () {
-      var RUG = { x: snapPos(-1.0), z: snapPos(1.55), w: 2.3, d: 1.7, h: 0.016 }, bw = 0.14;
+      var RUG = ATTIC_RUG, bw = 0.14;
       [-1, 1].forEach(function (s) { parts.push({ g: box(RUG.w, RUG.h, bw), m: M(RUG.x, 0, RUG.z + s * (RUG.d / 2 - bw / 2)), c: MAT.rugEdge }); parts.push({ g: box(bw, RUG.h, RUG.d - 2 * bw), m: M(RUG.x + s * (RUG.w / 2 - bw / 2), 0, RUG.z), c: MAT.rugEdge }); });
       var n = 8, sw = (RUG.d - 2 * bw) / n;
       for (var j = 0; j < n; j++) parts.push({ g: box(RUG.w - 2 * bw, RUG.h, sw), m: M(RUG.x, 0, RUG.z - RUG.d / 2 + bw + sw * (j + 0.5)), c: j % 2 ? MAT.rugB : MAT.rugA });
@@ -1672,6 +1726,7 @@ var SCENE3D = (function () {
     }
     function walkPoint(to, done, val) {   /* 점까지 뒤뚱 걸음 (moveTo 와 놀이 kit.walkTo 공용) → Promise(val). done = 도착 콜백 */
       var from = oct.pos.clone();
+      plAvoidOct(to);   /* 목표 자리에 내 캐릭터가 서 있으면 미리 비켜선다 (아래 '내 캐릭터 · 움직이기') */
       if (oct.walking) { oct.walking.cancel(); oct.walking = null; }
       var d = to.clone().sub(from), dist = d.length();
       if (st.reduced || ctxLost() || dist < 0.05) { oct.pos.copy(to); snapScreen(octG.position.copy(to)); oct.wantYaw = camYaw(); done(); return Promise.resolve(val); }   /* 컨텍스트를 잃으면 프레임이 안 돌아 걸음이 안 끝난다 → 바로 도착 */
@@ -1692,6 +1747,602 @@ var SCENE3D = (function () {
           oct.hop = 0; oct.walking = null; oct.wantYaw = camYaw(); done(); resolve(val);
         } };
       });
+    }
+    /* ── 내 캐릭터 (걸어 다니는 내 캐릭터 v1 · 파츠 시스템 — 치수 전부 docs/PLAYER_PARTS.md · ROADMAP '그 뒤' · 주인 11-07 "캐릭터가 그 방문 앞으로 가면 끼익 열리면서") ──
+       레퍼런스: 파넬라 '나나곰쿠키' · 동숲 주민 — 실루엣 종류·비율·색 분위기만 참고 (모양은 베끼지 않았고 파츠 이름도 새로 지었다). 4방향 걷기 스프라이트(서기 · 왼발 · 서기 · 오른발 4프레임).
+       문어와 같은 길: 원시 도형 + 정점색(mergeParts) + 툰 3단(toonP) + 같은 후처리(팔레트 스냅 · 외곽선 · 디더), 위치는 화면 픽셀 격자 스냅(snapScreen) · 통통은 세로 정수 px(snapUp) · 걸음은 간 거리로 도는 위상 · 방향은 45° 계단(8방향).
+       비율(동숲풍 — 머리 크고 통통·짧뚱, m · 발바닥 y 0): 키 PL_H 1.22(머리칼 실루엣 1.28 · 모자 ≤ 1.38 · p=2 에서 33 px · 문어 0.76 의 1.6 배 · 문 1.68 아래) · 머리 r 0.35 중심 0.87(지름 = 키의 57 %, 목 없음) ·
+       몸통 y 0.24~0.56(보이는 8 px) · 팔 어깨 (±0.24, 0.50) 길이 0.22 · 다리 엉덩이 (±0.115, 0.24) · 신발 0.06 · 폭 0.66(문 0.72 안). 6 cm 미만은 안 만든다(단추 · 안경 테 · 소매 띠만 1 px 점·선 의도 — 눈 안의 동공·글린트는 텍셀이다).
+       얼굴(11-09 얼굴 수술, 주인 "옆으로 돌렸을 때 눈동자가 튀어나온 게 무서워 · 귀여움 기준 미달" — 레시피 FACE_V3 §5): 이목구비는 전부 입체가 아니라 머리 곡면에 붙은 **텍스처 조각**(plPatch · toonEye · 아틀라스 plEyeTex) — 눈 2장 + 고른 코 · 입 · 볼 조각(없음이면 조각도 없다).
+       눈 하나 = 화면 4×4 px(1×) = 0.148 × 0.148 m(머리 폭의 21 %, 가로 = 세로 — 주인 11-10 "세로 타원형이라 좀 무섭게 느껴짐") — 텍셀 1 = 화면 1 px 라 1× 에서 '동그란 홍채 + 동공 + 색 반짝 점 1' 이 그린 대로 나오고, 2× 는 8×8 텍셀, p=3 은 2×2. 흰자도 흰 글린트도 안 그린다(흰 테는 눈을 땡그랗게 — 주인 11-09, 흰 글린트 덩어리는 흰자위로 읽혔다 — 주인 11-10 "흰자위를 없애고"). 눈 중심 y 0.93(머리 중심 +0.06 — 화면 17 px: 윗변은 4×5 때 그대로 19 px, 아랫변 15 px) · x ±0.148(두 눈 틈 4 px), 조각은 머리 표면 +0.3 cm 를 따라가므로 어느 방향에서도 윤곽 밖으로 안 나온다.
+       눈 스타일 6(동그란 · 반짝 · 졸린 · 또렷 · 웃는 · 점) = 도트 배열 6 벌(PL_PARTS.eyes), 눈 색 6 = 홍채 텍셀 색(eyeColor.hex · 밝은 홍채 hi · 반짝 점 sh). 깜빡임 = 아틀라스 '감은 눈' 칸으로 uv 전환. 눈썹 없음.
+       코 3 · 입 6 · 볼 2 (11-09 주인 "동물의 숲 같은 기존 게임들 얼굴 느낌 참고" — 느낌만: 두 눈 사이 작은 코 · 한두 px 입. 주인 11-08 "입은 없는 게 더 귀엽다"는 '없음' 칩으로 남는다 · 눈 밑 분홍 볼터치는 주인 11-10 "이상하게 보여서" 뺐다 — 볼은 없음 · 주근깨): 눈과 같은 메시의 도트 조각(PL_PARTS.nose/mouth/cheek · PL_FEAT), 기본 = 세모코 · 미소 · 볼 없음.
+       머리칼(주인 11-08 "머리가 저게 뭐야"): 모든 조각이 같은 r 0.38 의 얇은 구 껍질 조각(중심 (0, 0.90, −0.03), phi·theta 창을 서로 보완하게 잘라 겹침 없음) — 윗덮개(앞 104° 비움 — 옆머리가 눈을 안 덮고 뺨 살결 1 px) + 앞머리 세 가닥(끝 1.071 / 1.093 / 1.113 — 사선 가르마, 눈 윗선과 화면 1~2 px) + 스타일별 옆·뒷머리.
+       두개골 위에 구를 얹지 않는다(구는 매듭 · 다발 끝 · 컬만). 뒷머리 덩어리(긴 머리 커튼 · 웨이브 끝단)는 닫힌 납작 원기둥 — toonP 가 FrontSide 라 열린 반껍질은 안쪽이 컬링돼 틈으로 배경이 비쳤다.
+       색은 '실광 모델'(쉬는 자리는 해 그림자 안 — 푸른 필 #a9cbe2 + 헤미가 칠한다)로 apollo 칸을 미리 계산해 골랐다(문서 §2.2): 살결 #ffd096 → #e7d5b3(흰자 #ebede9 와 다른 칸) · 금발 #e8a93a → #de9e41(살결과 두 칸 차 — amber[3] 의 #e8c170 은 살결과 한 덩이로 읽혔다, v0 #ffd27a 는 올리브 #d0da91 로 떴다).
+       부품 사이엔 깊이 잉크선이 안 생기므로(이웃 칸 0.28 m 차부터) 얼굴·옷 경계는 전부 '다른 apollo 칸'으로만 만든다.
+       재질 toonP · toonEye = 문어 툰과 같은 셰이더(같은 onBeforeCompile 글자 + 셋 다 map 이 있어 프로그램 캐시 키가 같다 — toon·toonP 는 1×1 흰 whiteTex, toonEye 만 눈 아틀라스)라 프로그램 수가 늘지 않는다(부팅 30 = 27 + 발자국 인스턴싱 변형 3), 문어가 체크로 사라져도 내 캐릭터는 그대로. 밤 자체광(첫 불)은 문어와 같이 받는다.
+       메시 7(머리 · 눈 · 몸통 · 팔 2 · 다리 2) + 데칼 1 — 파츠를 바꿔도 메시 수 · 드로우콜 · 텍스처 수 그대로(setPlayer 는 지오메트리만 교체하고 옛것을 dispose, 눈 아틀라스는 다시 그린다). 머리칼 · 악세사리 → 머리 메시, 눈 → 눈 메시(조각 2장, tag 1 왼눈 · 2 오른눈),
+       옷 → 몸통, 소매 · 손 → 팔, 다리 색 · 신발 → 다리. 정적 카탈로그 PLAYER_PARTS · PLAYER_DEFAULT · normalizePlayer 는 파일 위쪽(init 밖).
+       방: 다락 ↔ 놀이방을 문으로 오간다 (문어는 놀이방에 안 간다). 쉬는 자리 PL_REST · 문 앞은 DOOR_ANCHORS. 바깥엔 안 나간다 — 바깥이 보이는 동안은 다락 그룹과 같이 숨는다.
+       흐름: 문 톡 → playerWalkTo(문 앞 앵커: 1.2 m/s, 서 있다 출발하면 120 ms 예비 눌림) → 도착해 문을 보고 섬 → (goRoom) 문 열림 → 가로 전환 가운데 프레임에 plEnter(건너편 문 앞, 방 안쪽을 보고)
+       → 문 닫힘 → 쉬는 자리로 걷는다. 모션 감소 = 걷기 없이 바로. 탭 숨음 · 컨텍스트 잃음 · 준비 전 = 바로 (Promise 가 걸려 있지 않게, walkPoint 와 같다). */
+    var PL_H = 1.22, PL_HEAD_R = 0.35, PL_HEAD_Y = 0.87, PL_HR = 0.38, PL_HC = [0, 0.90, -0.03], PL_SPEED = 1.2, PL_STRIDE = 0.40, PL_ANTIC = 0.12, PL_LEG = 0.45, PL_ARM = 0.4, PL_SWAY = 0.045;   /* 짧뚱한 몸 = 종종걸음(한 걸음 0.4 m) + 디딤 프레임 좌우 뒤뚱 0.045 rad(머리 꼭대기 ≈ 1 px) */
+    var PL_REST = { attic: [1.65, 0, -0.1], play: [0.15, 0, 0.45] };   /* 쉬는 자리: 다락 오른쪽 — 가운데 문어와 상자 사이, 화면에서 문어(가운데 앵커)·문짝(x−z 0.62~1.34)과 안 겹친다 (x−z 1.75) · 문 앞까지 1.5 m · 놀이방 빈 바닥 가운데 (문까지 1.7 m) */
+    var PL_FACE = { atticPlayDoor: Math.PI / 2, playAtticDoor: -Math.PI / 2 };   /* 문 앞에 서서 보는 쪽 (다락 문은 +x 벽 · 놀이방 문은 −x 벽) — 들어올 땐 반대(방 안쪽) */
+    var PLC = (function () {
+      var skin = '#ffd096';   /* ≈ mixHex(amber[4], dusk[3], .5) — 필 빛에서 #e7d5b3 로 앉아 흰자 #ebede9 와 한 칸 갈린다 (v0 의 paper·dusk 섞음은 앞면이 흰자와 같은 칸이었다) */
+      return { skin: skin, white: PAL.white, pupil: '#1b1b1b', lid: '#c09473', smileArc: '#4d2b32', red: '#c04040', orange: '#e89030', straw: '#dcb878',
+        nose: '#c09473', noseTri: '#e89a5a', mouth: '#7a3b34', mouthLo: '#c09473', tongue: '#d5604a', freckle: '#c98a5a' };   /* 눈에 흰색은 없다(옛 sclera #fff4e0 = 흰자·글린트 텍셀은 11-10 에 삭제 — 화면 #ebede9 · 2단 #c7cfcc 가 흰자위로 읽혔다) · lid = 졸린 눈 꺼풀 선(살결 두 칸 아래) · smileArc = 웃는 눈 호 · nose = 콩코(살결 두 칸 아래 #c09473) · noseTri = 세모코(주황 칸) · mouth = 입 선 · mouthLo = 옅은 입꼬리 · tongue = 입 안 · blush = 볼(분홍 칸 #df84a5 — #f09a9a 는 초상의 밝은 쪽 볼이 주황 칸으로 떴고, 더 푸른 #f08ab0 은 1× 그늘 쪽이 보라 칸으로 떨어졌다. #f09aa2 가 둘 다 분홍) · freckle = 주근깨 — 전부 실험실에서 '필 빛 → apollo 칸'을 보고 고른 값(더 옅은 #c98050 · #f4b6a0 은 살결 칸으로 떨어져 안 보였다) · red = 리본·방울·니트·운동화 */
+    })();
+    function plBrowHex(hc) {   /* 감은 눈 선 색(깜빡임 recolor 용 — 눈썹은 피드백 6 으로 없앴다): 머리칼보다 한 칸 이상 어둡고 살결 위에서 읽히게 색마다 따로 (mixHex(hair, ink) 공식은 금발·은빛·연두에서 푸른 회색이 됐다) */
+      return hc === 'brown' ? mixHex('#9a5a3a', FIXED.ink, 0.45) : hc === 'ink' ? FIXED.ink : hc === 'silver' ? mixHex('#cfc9c0', PAL.slate[1], 0.6) : hc === 'pink' ? mixHex('#de8fa9', PAL.rose[0], 0.6) : hc === 'lime' ? PAL.moss[0] : '#b8742e';   /* 금발 → #be772b (두 단 어두운 꿀색) */
+    }
+    /* 눈 (11-09 얼굴 수술, FACE_V3 §5): 흰자 구를 얹는 대신 **머리 곡면에 붙은 텍스처 조각 2장**. 눈 하나 = 화면 **4×4 px**(가로 4 · 세로 4, 1×, 27 px/m — 머리 폭 19 px 의 21 %; 6×6 = 32 % 는 주인 11-09 "너무 땡그래 · 너무 큼", 4×5 세로 타원은 주인 11-10 "세로 타원형이라 좀 무섭게 느껴짐" → 가로 그대로 · 맨 아랫줄 하나를 덜어 정원)짜리 사각형을 쉬는 자세의 카메라 방향으로 머리 타원체(반지름 +PL_EYE.lift)에 투영한 곡면 조각(4×4 칸 격자)
+       → 정면에선 텍셀 1 = 화면 정확히 1 px(어느 줌 멈춤에서도 비율이 정수인 1×·2× 에서), 옆·뒤로 돌아도 조각이 머리 표면에서 0.3 cm(머리 구 폴리곤의 정점은 이상 타원체 위라 조각이 늘 바깥) 이상 안 떠서 눈이 얼굴 윤곽 밖으로 나오지 않는다(옛 흰자 구는 45° 에서 반구 덩어리가 불거졌다 — 주인 11-09 "눈동자가 튀어나온 게 무서워").
+       눈 중심 y 0.93(주인 11-08: 0.85 는 아래로 몰려 보였다 → 0.90, 11-10 정원으로 줄이며 0.93) · x ±4 px(0.148, 두 눈 틈 4 px — 가로 4 px 는 짝수라 중심이 정수 px 여야 가장자리가 픽셀 경계에 앉는다; 2× 에선 ±8 px) · 화면 세로 중심 17 px(0.93·cos32° − 표면 z·sin32° = 16.97 px 를, 세로 4 px 가 짝수라 정수 px 자리로 — 윗변 19 px · 아랫변 15 px: 4×5 때(윗변 19 · 아랫변 14, 중심 16.5)와 윗변이 같고 **아랫줄 하나를 덜었다** → 중심 +0.5 px. 아랫줄이 볼 줄(13 px)과 살결 한 줄 떨어져야 동그라미가 읽힌다 — 윗줄을 던 판(14~17 px 줄)은 눈 아랫줄이 볼에 붙어 1× 에서 눈 + 볼이 한 덩이였다) · 위상 바이어스 0.02 px(픽셀 중심이 텍셀 경계에 정확히 떨어지는 격자 위상에서 Nearest 가 열을 건너뛰거나 겹치지 않게).
+       정점 노멀은 전부 눈 중심의 머리 노멀 하나 → 눈 안은 툰 1단 하나(음영 고리 0), 노멀 하이라이트도 안쪽엔 없다. 재질 toonEye(map = plEyeTex 아틀라스), 깜빡임·LOD 는 uv 만 바꾼다(plEyeUV) */
+    var PL_EYE = { x: 4 / 27, y: 0.93, z: 0.302, ry: 0.25, px: 1 / 27, cw: 4, ch: 4, lift: 0.003, bias: 0.02 / 27 };   /* z·ry 는 안경(EM) 용 — 눈 중심의 머리 표면 z 0.302 · 곡면 노멀 각 ≈ 0.25 rad. y 0.90 → 0.93 · z 0.306 → 0.302 (11-10): 4×4 눈의 화면 중심 17 px 에 해당하는 높이 — 안경이 같이 따라온다 */
+    PL_EYE.sv = (Math.round((PL_EYE.y * Math.cos(TILT) - PL_EYE.z * Math.sin(TILT)) / PL_EYE.px - (PL_EYE.ch % 2) / 2) + (PL_EYE.ch % 2) / 2) * PL_EYE.px;   /* 눈 중심의 화면 세로 좌표(월드 m, 발바닥 기준) = 17 px (세로 칸 수가 홀수면 반 픽셀, 짝수면 정수 px — 지금 4 칸: 16.97 → 17) */
+    function EM(s, dx, dy, dz, rz, sx, sy, sz, ex) { return M(s * (ex == null ? PL_EYE.x : ex), PL_EYE.y, PL_EYE.z, 0, s * PL_EYE.ry, 0).multiply(M(dx, dy, dz, 0, 0, rz || 0, sx, sy, sz)); }   /* 눈 좌표계 부품 행렬 (s = −1 왼눈 · +1 오른눈) — 지금은 안경만 쓴다 */
+    function plPatch(cx, sv0, nx, ny, lift, at, flip) {   /* 머리 곡면 조각: 화면 사각형(중심 cx · sv0 m, nx×ny px 칸)을 쉬는 자세의 카메라 방향으로 머리 타원체(+lift)에 투영한 (nx+1)×(ny+1) 정점 격자, uv 는 0~1 (아틀라스 칸으로의 사상은 plEyeUV). at = [x, y, z] 면 정점 노멀이 전부 그 점의 머리 노멀 하나(눈 — 안쪽 음영 고리 0), 없으면 정점마다 제 자리의 머리 노멀(코 · 입 · 볼 — 살결 텍셀이 밑의 머리와 같은 툰 단에 앉아 조각 네모가 안 보인다). flip = uv 가로 뒤집기(오른쪽 볼) */
+      var px = PL_EYE.px, c = Math.cos(TILT), sn = Math.sin(TILT), A = PL_HEAD_R + lift, B = PL_HEAD_R * 0.98 + lift, Cc = PL_HEAD_R * 0.94 + lift;
+      var pos = [], uv = [], idx = [], nor = [], fn = null;
+      if (at) { var nnx = at[0] / (A * A), nny = (at[1] - PL_HEAD_Y) / (B * B), nnz = at[2] / (Cc * Cc), nl = Math.hypot(nnx, nny, nnz); fn = [nnx / nl, nny / nl, nnz / nl]; }
+      for (var j = 0; j <= ny; j++) for (var i = 0; i <= nx; i++) {
+        var sx = cx + (i - nx / 2) * px + PL_EYE.bias, sv = sv0 + (ny / 2 - j) * px + PL_EYE.bias;   /* 화면 좌표 (우 · 상, m) */
+        /* 시선 광선 p(t) = (sx, sv·cos + t·sin, −sv·sin + t·cos) 과 타원체의 카메라 쪽 교점. 비껴가면 가장 가까운 점을 타원체 안쪽으로 끌어당긴다(눈 4×4 · x ±4 px 에선 비껴가는 정점이 없다 — tools/player-shots.js 가 센다; 6×6 ±4 px 땐 바깥 아래 모서리 하나가 비껴갔다) */
+        var ay = sn / B, by = (sv * c - PL_HEAD_Y) / B, az = c / Cc, bz = -sv * sn / Cc, qa = ay * ay + az * az, qb = 2 * (ay * by + az * bz), qc = (sx / A) * (sx / A) + by * by + bz * bz - 1, disc = qb * qb - 4 * qa * qc;
+        var t = disc < 0 ? -qb / (2 * qa) : (-qb + Math.sqrt(disc)) / (2 * qa), X = sx / A, Y = (sv * c + t * sn - PL_HEAD_Y) / B, Z = (-sv * sn + t * c) / Cc;
+        if (disc < 0) { var k = Math.hypot(X, Y, Z) / 0.985; X /= k; Y /= k; Z /= k; }   /* 비껴간 모서리 정점은 이상 타원체 표면 1.5 % 안쪽으로 — 모서리 쿼드가 찌그러져 그 텍셀의 픽셀 표본점이 쿼드 밖으로 떨어지고 머리 픽셀이 보인다. 정면에선 이 정점도 아직 머리 구 폴리곤(18×13, 현 처짐 ≈ 5.3 mm)보다 6.3 mm 앞이라 '머리에 가려지는' 게 아니다(레이캐스트 11-09) — 가려지는 건 요 45° 부터. 그래서 그 텍셀은 살결이어야 한다 */
+        pos.push(A * X, PL_HEAD_Y + B * Y, Cc * Z);
+        if (fn) nor.push(fn[0], fn[1], fn[2]); else { var ex = X / A, ey = Y / B, ez = Z / Cc, el = Math.hypot(ex, ey, ez); nor.push(ex / el, ey / el, ez / el); }
+        uv.push(flip ? 1 - i / nx : i / nx, 1 - j / ny);
+        if (i < nx && j < ny) { var a = j * (nx + 1) + i, b = a + 1, cI = a + nx + 1, d = cI + 1; idx.push(a, cI, b, b, cI, d); }
+      }
+      var g = new T.BufferGeometry();
+      g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+      return g;
+    }
+    function plEyePatch(s) { return plPatch(s * PL_EYE.x, PL_EYE.sv, PL_EYE.cw, PL_EYE.ch, PL_EYE.lift, [s * PL_EYE.x, PL_EYE.y, PL_EYE.z]); }   /* 눈 곡면 조각 (s = −1 왼눈 · +1 오른눈): 두 눈이 같은 uv 라 반짝 점이 둘 다 왼쪽 위 */
+    /* 코 · 입 · 볼 (11-09 주인 "동물의 숲 같은 기존 게임들 얼굴 느낌 참고"): 눈과 같은 곡면 조각 + 같은 아틀라스 · 같은 재질(메시 · 드로우콜 · 프로그램 그대로). 조각 크기 = 고른 그림의 1× 줄 크기(가로×세로 px), 자리 = 화면 px(얼굴 한가운데가 픽셀 경계 0):
+       코 · 입은 가운데(가로 짝수 px 여야 가장자리가 픽셀 경계에 앉는다) · top = 윗변의 화면 세로 px(발바닥 기준, 눈은 15~19) · 볼은 안쪽 변이 ±inner px(그림마다 FA 의 넷째 · 다섯째 값이 이 기본을 덮는다). lift 는 눈(0.003)보다 낮아 겹쳐도 눈이 앞 */
+    var PL_FEAT = { lift: 0.0015, nose: { tag: 3, top: 16 }, mouth: { tag: 4, top: 14 }, cheek: { tag: 5, top: 14, inner: 3 } }, PL_FEAT_CATS = ['nose', 'mouth', 'cheek'];
+    function FA(a, b, c, top, inner) { var r = [a, b, c]; if (top != null) r.top = top; if (inner != null) r.inner = inner; return r; }
+    function plArtSize(rows) { return [rows[0].replace(/ /g, '').length, rows.length]; }
+    function plFacePatches(cfg) {
+      var L = [];
+      PL_FEAT_CATS.forEach(function (cat) {
+        var art = PL_PARTS[cat][cfg[cat]], f = PL_FEAT[cat]; if (!art) return;
+        var sz = plArtSize(art[1]), top = art.top == null ? f.top : art.top, sv0 = (top - sz[1] / 2) * PL_EYE.px;
+        (f.inner != null ? [-1, 1] : [0]).forEach(function (sd) { L.push({ g: plPatch(sd ? sd * ((art.inner == null ? f.inner : art.inner) + sz[0] / 2) * PL_EYE.px : 0, sv0, sz[0], sz[1], PL_FEAT.lift, null, sd > 0), c: '#ffffff', tag: f.tag }); });
+      });
+      return L;
+    }
+    /* 눈 아틀라스 64×64 캔버스 (CanvasTexture, Nearest, sRGB): 줄 = LOD(0: 2×2 텍셀 p=3 용 · 1: 4×4 1× · 2: 8×8 2× — [가로, 세로]), 칸 = 왼눈 · 오른눈 · 감은 눈, 칸 간격 16 px(빈 곳은 살결색). 눈 스타일·눈 색이 바뀌면 다시 그리고 needsUpdate — 텍스처 객체는 하나뿐이라 메모리·프로그램 변화 없음 */
+    var PL_ATLAS = { size: 64, pitch: 16, lod: [[2, 2], [4, 4], [8, 8]] };
+    var plEyeCv = document.createElement('canvas'); plEyeCv.width = plEyeCv.height = PL_ATLAS.size;
+    var plEyeTex = keep(canvasTex(plEyeCv)); toonEye.map = plEyeTex;   /* 첫 벌은 아래 PL 을 만들 때 그린다(prewarm 전) */
+    function plEyePal(look, closed) {   /* 도트 기호 → hex: . 살결 · I 홍채 · H 밝은 홍채(hi) · * 반짝 점(sh — 눈 색을 밝힌 색, 흰색 아님) · P 동공 · S 홍채 그늘 · K 짙은 그늘(눈 색을 먹색과 0.45 / 0.7 섞은 것 — 윗꺼풀 그늘, K 는 동공과 한 덩이로 읽혀 홍채가 '테'로 안 보인다) · D 어두운 점·호 · L 선(졸린 눈 꺼풀 / 감은 눈 = 머리색 한 칸 어둡게).
+         **흰색 · 흰색에 가까운 기호는 없다**(주인 11-10 "흰자위를 없애고" — 옛 W 흰자 · G/g 글린트 #fff4e0 삭제: 화면에서 #ebede9 덩어리가 흰자위로 읽혔다). 모르는 기호는 살결로 떨어진다 */
+      var ec = plPart('eyeColor', look.eyeColor), iris = ec.hex, dark = look.eyes === 'dot' ? mixHex(iris, FIXED.ink, 0.5) : PLC.smileArc;
+      return { '.': PLC.skin, I: iris, H: ec.hi || iris, '*': ec.sh || ec.hi || iris, P: PLC.pupil, D: dark, S: mixHex(iris, FIXED.ink, 0.45), K: mixHex(iris, FIXED.ink, 0.7), L: closed ? plBrowHex(look.hairColor) : PLC.lid };
+    }
+    function plFaceCell(cat, l) { return cat === 'nose' ? [48, l * 16] : cat === 'cheek' ? [56, l * 16] : [l * 16, 48]; }   /* 코 · 볼 = 넷째 칸 줄(x 48 · 56, LOD 줄마다 8×16 씩) · 입 = 맨 아랫줄(y 48, LOD 마다 16×16) */
+    function plFacePal(look) { return { N: look.nose === 'tri' ? PLC.noseTri : PLC.nose, M: PLC.mouth, m: PLC.mouthLo, T: PLC.tongue, F: PLC.freckle }; }   /* 코 · 입 · 볼 도트 기호 → hex */
+    function plDrawEyes(look) {
+      var x = plEyeCv.getContext('2d'), art = PL_PARTS.eyes[look.eyes] || PL_PARTS.eyes.round;
+      x.fillStyle = PLC.skin; x.fillRect(0, 0, PL_ATLAS.size, PL_ATLAS.size);
+      var fpal = plFacePal(look);
+      PL_FEAT_CATS.forEach(function (cat) {
+        var fa = PL_PARTS[cat][look[cat]]; if (!fa) return;
+        for (var l = 0; l < 3; l++) { var o = plFaceCell(cat, l); fa[l].forEach(function (row, r) { row = row.replace(/ /g, ''); for (var cI = 0; cI < row.length; cI++) { if (row[cI] === '.') continue; x.fillStyle = fpal[row[cI]] || PLC.skin; x.fillRect(o[0] + cI, o[1] + r, 1, 1); } }); }
+      });
+      PL_ATLAS.lod.forEach(function (sz, l) {
+        [art[l], art[l], PL_PARTS.eyes.closed[l]].forEach(function (rows, col) {
+          var pal = plEyePal(look, col === 2), ox = col * PL_ATLAS.pitch, oy = l * PL_ATLAS.pitch;
+          for (var r = 0; r < sz[1]; r++) { var row = (rows[r] || '').replace(/ /g, ''); for (var cI = 0; cI < sz[0]; cI++) { var ch = row[cI] || '.'; if (ch === '.') continue; x.fillStyle = pal[ch] || pal['.']; x.fillRect(ox + cI, oy + r, 1, 1); } }
+        });
+      });
+      plEyeTex.needsUpdate = true;
+    }
+    function plEyeUV() {   /* 눈 메시 uv 를 지금 상태(LOD · 감김)의 아틀라스 칸으로 (tag 1 = 왼눈 칸 0 · tag 2 = 오른눈 칸 1 · 감으면 둘 다 칸 2). 정점 속성 업로드만 — 메시·드로우콜·텍스처 변화 없음 */
+      if (!PL || !plEyes) return;
+      var g = plEyes.geometry, a = g.attributes.uv, b = g.userData.uv0, tags = g.userData.tags; if (!a || !b) return;
+      var l = PL.lod, sz = PL_ATLAS.lod[l], S0 = PL_ATLAS.size, cells = {};
+      cells[1] = [(PL.shut ? 2 : 0) * PL_ATLAS.pitch, l * PL_ATLAS.pitch, sz[0], sz[1]]; cells[2] = [(PL.shut ? 2 : 1) * PL_ATLAS.pitch, l * PL_ATLAS.pitch, sz[0], sz[1]];
+      PL_FEAT_CATS.forEach(function (cat) { var fa = PL_PARTS[cat][PL.look[cat]]; if (fa) { var o = plFaceCell(cat, l), fs = plArtSize(fa[l]); cells[PL_FEAT[cat].tag] = [o[0], o[1], fs[0], fs[1]]; } });
+      for (var i = 0; i < tags.length; i++) { var r = cells[tags[i]]; if (r) a.setXY(i, (r[0] + b[i * 2] * r[2]) / S0, 1 - (r[1] + (1 - b[i * 2 + 1]) * r[3]) / S0); }
+      a.needsUpdate = true;
+    }
+    function plEyeLod() {   /* 8×8 은 텍셀 ≥ 1.0 px 가 되는 N 53 이상(= 2× 멈춤 54 뿐) · 4×4 는 N 27~48(1.00~1.78 px, 빠지는 열 없음) · 2×2 는 p=3 의 N 18~26(텍셀 1.33~1.9 px) */
+      if (!PL || !plEyes) return;
+      var l = S.N >= 53 ? 2 : S.N >= 27 ? 1 : 0;
+      if (l !== PL.lod) { PL.lod = l; plEyeUV(); }
+    }
+    var plG = new T.Group(), plBody = new T.Group(); plG.name = 'player'; plG.add(plBody); atticG.add(plG);
+    function plTaper(list, a, b, r0, r1, hex, sides) { list.push({ g: new T.CylinderGeometry(r1, r0, Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), sides || 8), m: segM(a, b), c: hex }); }   /* a→b 테이퍼 원기둥 (r0 가 a 쪽) */
+    function Sph(r, ws, hs, p0, pl, t0, tl) { return p0 == null ? new T.SphereGeometry(r, ws, hs) : new T.SphereGeometry(r, ws, hs, p0 * DEG, pl * DEG, t0, tl); }   /* 구 껍질 조각: phi 는 도(0 = −x · 90 = +z 얼굴 · 180 = +x · 270 = −z 뒤통수), theta 는 rad(0 = 꼭대기) */
+    function Cyl(rt, rb, h, seg) { return new T.CylinderGeometry(rt, rb, h, seg || 12); }
+    function HM() { return M(PL_HC[0], PL_HC[1], PL_HC[2]); }   /* 머리칼 껍질 중심 (머리 구 중심보다 +0.03 위 · −0.03 뒤) */
+    function plSleeve(L, hex, cuff) { L.push({ g: Cyl(0.055, 0.06, 0.16, 8), m: M(0, -0.08, 0), c: hex }); if (cuff) L.push({ g: Cyl(0.062, 0.062, 0.04, 8), m: M(0, -0.15, 0), c: cuff }); }   /* 긴 소매 (+ 소매 끝 띠 1 px) */
+    /* 파츠 빌더 카탈로그 (docs/PLAYER_PARTS.md §2): 범주 → id → 부품 {g, m, c, tag} 를 목록에 밀어 넣는다. 모든 머리칼 조각은 r PL_HR 0.38 · HM() 중심 · 머리 색 하나 (툰 3단이 음영을 준다) */
+    var PL_PARTS = {
+      hair: {
+        _pole: function (L, hex) { L.push({ g: Sph(0.06, 6, 4), m: M(PL_HC[0], PL_HC[1] + 0.325, PL_HC[2]), c: hex }); },   /* 정수리 꼭지: 껍질 조각들이 극점에서 만나는 이음새가 2× 에서 검은 점으로 찍혔다(리뷰 11-08) → 머리 색 작은 구로 덮는다 (꼭대기 1.285, 껍질 밖 0.005 = 돌기 아님) */
+        _fringe: function (L, hex) { L.push({ g: Sph(PL_HR, 5, 17, 38, 104 / 3, 0, 1.105), m: HM(), c: hex }, { g: Sph(PL_HR, 5, 16, 38 + 104 / 3, 104 / 3, 0, 1.04), m: HM(), c: hex }, { g: Sph(PL_HR, 5, 15, 38 + 208 / 3, 104 / 3, 0, 0.975), m: HM(), c: hex }); },   /* 앞머리 세 가닥 (주인 11-08 "앞머리 넣어줘"): 앞 창 104°(phi 38~142°) 를 셋으로, 보는 사람 왼쪽부터 끝 1.071 / 1.093 / 1.113 — 사선 가르마. 11-09: 눈 윗선(화면 19 px)과 ≥ 1 px 띄우려고 두 칸(0.046) 올렸다 → 화면 틈 1.1 / 1.8 / 2.4 px(1×). theta 칸 0.065 (17·16·15) = 윗덮개 칸 0.13 의 절반이라 이음 고리가 맞는다 */
+        _cap: function (L, hex) { L.push({ g: Sph(PL_HR, 18, 10, 142, 256, 0, 1.30), m: HM(), c: hex }); PL_PARTS.hair._fringe(L, hex); PL_PARTS.hair._pole(L, hex); },   /* 기본 캡: 윗덮개(앞 104° 비움 — 옆머리 안쪽 끝 x ±0.299 가 눈 바깥 끝 ±0.222 를 안 덮고 뺨 살결 2 px 를 남긴다, 아래 끝 y 1.00) + 앞머리 세 가닥 + 정수리 꼭지.
+                                                                                                                                                                                                                                      이웃 조각이 만나는 phi 45°·90°·135° 선의 theta 칸을 전부 0.13 rad 로 맞춘다(10/1.30 · 8/1.04 · 7/0.91) — 칸이 어긋나면 T-이음에서 1 px 구멍이 뚫려 2× 에서 검은 점으로 찍혔다(리뷰 11-08) */
+        bob: function (L, cfg, hex) { PL_PARTS.hair._cap(L, hex); L.push({ g: Sph(PL_HR, 18, 8, 142, 256, 1.30, 1.25), m: HM(), c: hex }); },   /* 단발: 옆+뒷머리를 턱 위(0.585)까지 — 두개골을 고르게 감싸는 헬멧 실루엣 (기본) */
+        short: function (L, cfg, hex) { L.push({ g: Sph(PL_HR, 18, 15, 142, 256, 0, 1.95), m: HM(), c: hex }); PL_PARTS.hair._fringe(L, hex); PL_PARTS.hair._pole(L, hex); },   /* 짧은머리: 귀(0.76)까지 한 장(앞 104° 비움 — 70° 창은 옆머리 끝 ±0.217 이 새 눈 ±0.259 를 덮었다, 11-09) + 같은 앞머리 세 가닥, 옆머리 없음. theta 칸 0.13 (15/1.95) = 가닥 칸의 두 배라 이음 고리가 맞는다 */
+        long: function (L, cfg, hex) {
+          PL_PARTS.hair._cap(L, hex);
+          L.push({ g: Sph(PL_HR, 18, 6, 142, 256, 1.30, 0.90), m: HM(), c: hex }, { g: Cyl(0.31, 0.23, 0.40, 16), m: M(0, 0.48, -0.20, 0, 0, 0, 1, 1, 0.42), c: hex });   /* 긴생머리: 옆+뒷머리(0.676) + 뒷머리 커튼 = 아래로 좁아지는 닫힌 납작 원기둥 y 0.28~0.68, 폭 0.62 → 0.46(어깨 0.48 안 — 위아래 같은 폭 0.68 은 뒤에서 몸보다 넓은 판자로 읽혔다, 리뷰 11-08) */
+          [-1, 1].forEach(function (s) { plTaper(L, [s * 0.28, 0.68, 0.12], [s * 0.30, 0.44, 0.15], 0.055, 0.045, hex, 8); L.push({ g: Sph(0.045, 7, 5), m: M(s * 0.30, 0.42, 0.15), c: hex }); }); },   /* 얼굴 양옆 긴 가닥 둘 (어깨 앞) */
+        twin: function (L, cfg, hex) {
+          PL_PARTS.hair._cap(L, hex); L.push({ g: Sph(PL_HR, 18, 6, 142, 256, 1.30, 0.60), m: HM(), c: hex });   /* 양갈래: 옆+뒷머리 귀까지 */
+          var tie = PLC.red;   /* 방울: 빨강 (rose[1] 은 밤갈색 머리와 같은 칸이고 금발 옆에선 갈색 덩어리) */
+          [-1, 1].forEach(function (s) {
+            L.push({ g: Sph(0.065, 8, 6), m: M(s * 0.36, 0.80, -0.02), c: hex });   /* 매듭 (껍질 밖 0.06) */
+            plTaper(L, [s * 0.37, 0.78, -0.02], [s * 0.43, 0.63, 0], 0.07, 0.06, hex, 8); plTaper(L, [s * 0.43, 0.63, 0], [s * 0.40, 0.47, 0.03], 0.06, 0.045, hex, 8);   /* 다발 체인: 살짝 벌어졌다 모임 */
+            L.push({ g: Sph(0.055, 7, 5), m: M(s * 0.40, 0.45, 0.03), c: hex }, { g: Sph(0.04, 6, 5), m: M(s * 0.43, 0.82, 0.03), c: tie }); }); },
+        pony: function (L, cfg, hex) {
+          PL_PARTS.hair._cap(L, hex);
+          L.push({ g: Sph(PL_HR, 18, 6, 142, 256, 1.30, 0.55), m: HM(), c: hex }, { g: Sph(PL_HR, 6, 4, 142, 25, 1.85, 0.25), m: HM(), c: hex }, { g: Sph(PL_HR, 6, 4, 13, 25, 1.85, 0.25), m: HM(), c: hex }, { g: Sph(0.075, 8, 6), m: M(0, 0.92, -0.36), c: hex });   /* 포니테일: 매끈한 캡 + 귀 아래 짧은 옆 가닥 둘 + 뒤통수 낮은 매듭 */
+          plTaper(L, [0.04, 0.90, -0.40], [0.14, 0.72, -0.42], 0.07, 0.06, hex, 8); plTaper(L, [0.14, 0.72, -0.42], [0.30, 0.52, -0.33], 0.06, 0.045, hex, 8);
+          L.push({ g: Sph(0.05, 7, 5), m: M(0.305, 0.50, -0.325), c: hex }); },   /* 꼬리는 매듭에서 60° 아래로 떨어지며 +x(오른쪽 어깨 뒤)로 호를 그린다 — 첫 마디가 거의 수평(0.99 → 0.86)이던 v1 은 옆에서 머리 옆 뿔처럼 보였다(리뷰 11-08). 끝 x 0.355 가 소매 0.30 밖이라 정면에서도 1.5 px 보인다 */
+        wave: function (L, cfg, hex) {
+          PL_PARTS.hair._cap(L, hex);
+          L.push({ g: Sph(PL_HR, 18, 8, 142, 256, 1.30, 1.10), m: HM(), c: hex }, { g: Cyl(0.27, 0.33, 0.24, 16), m: M(0, 0.49, -0.17, 0, 0, 0, 1, 1, 0.55), c: hex });   /* 웨이브: 위는 매끈(0.62) + 어깨 높이 뒤 끝단 닫힌 납작 원기둥 y 0.37~0.61 */
+          [[-0.325, -0.14], [0.325, -0.14], [-0.21, -0.31], [0.21, -0.31], [0, -0.35]].forEach(function (p) { L.push({ g: Sph(0.065, 8, 6), m: M(p[0], 0.37, p[1]), c: hex }); });   /* 끝단 컬 5 (타원 테두리 위) */
+          [-1, 1].forEach(function (s) { L.push({ g: Sph(0.065, 8, 6), m: M(s * 0.26, 0.60, 0.05), c: hex }); }); } },   /* 턱 옆 '뻗친 끝' 컬 */
+      acc: {
+        none: function () {},
+        ribbon: function (L, cfg) { var c = PLC.red; L.push({ g: Sph(0.055, 8, 6), m: M(0.30, 1.04, 0.17), c: c }, { g: Sph(0.055, 8, 6), m: M(0.35, 0.98, 0.16), c: c }, { g: Sph(0.035, 6, 4), m: M(0.325, 1.01, 0.175), c: c }); },   /* 오른쪽 귀 위 작은 리본 (고리 2 + 매듭, 껍질 밖 0.03~0.06) — 빨강 #a53030: rose[1] 은 금발 옆에서 어두운 갈색 덩어리였다 */
+        beret: function (L, cfg) { var c = cfg.hairColor === 'brown' ? PAL.moss[1] : PLC.red; L.push({ g: Sph(0.40, 16, 8, 0, 360, 0, 1.25), m: M(0.03, 1.10, -0.02, 0, 0, -0.20, 1, 0.55, 1), c: c }, { g: Sph(0.035, 6, 4), m: M(0.03, 1.335, -0.02), c: c }); },   /* 납작한 타원이 왼쪽으로 기움 + 꼭지. 테두리 1.169 → 앞머리·눈은 보인다. 빨강 #a53030 (rose[0] 와인색 r 0.42 × 0.6 은 금발 위 어두운 팬케이크로 읽혔다 — 리뷰 11-08), 꼭대기 1.32 > 머리칼 1.285 */
+        glasses: function (L) { var c = PAL.slate[1]; [-1, 1].forEach(function (s) { L.push({ g: new T.TorusGeometry(0.125, 0.016, 6, 16), m: EM(s, 0, 0.045, 0.07), c: c }); }); L.push({ g: box(0.05, 0.03, 0.04), m: M(0, PL_EYE.y + 0.045, 0.37), c: c }); },   /* 동글안경: 구멍 r 0.109 ≥ 눈 조각 반높이 0.074(4×4 정원 — 11-10) 라 눈이 다 보인다(고리 중심 x = 눈 중심 ±4 px · 눈 앞 0.07 · y +0.045 — 눈 앞으로 나온 만큼 화면에선 1.2 px 내려가 눈 윗줄이 테에 걸렸다, 11-09). 고리 · 다리는 PL_EYE.y 를 따라가므로 11-10 눈 중심 0.90 → 0.93 과 같이 올라갔다(화면에서 고리 중심 = 눈 중심 17 px, 치수는 그대로). 4×5 눈에 맞춰 고리 0.14 → 0.125(두 고리 사이 콧등 1 px), 테 관 0.016 = 1 px 선 의도(0.025 먹색은 2× 에서 고글처럼 두꺼웠다 — 리뷰 11-08) · 회청 slate[1], 알은 비움(새 재질 금지) */
+        catears: function (L, cfg) {
+          var c = cfg.hairColor === 'ink' ? PAL.slate[2] : PAL.slate[0];   /* 먹남색 머리면 한 칸 밝은 회청 */
+          [-1, 1].forEach(function (s) { L.push({ g: new T.ConeGeometry(0.075, 0.18, 6), m: M(s * 0.20, 1.28, -0.02, 0, 0, -s * 0.25), c: c }, { g: new T.ConeGeometry(0.04, 0.10, 5), m: M(s * 0.20, 1.28, 0.015, 0, 0, -s * 0.25), c: PAL.dusk[2] }); });   /* 바깥으로 기운 세모 귀 둘 (끝 1.37 = 머리칼 위 2.4 px) + 귀 속 */
+          L.push({ g: new T.TorusGeometry(0.385, 0.03, 6, 20, 198 * DEG), m: M(PL_HC[0], PL_HC[1], PL_HC[2], 0.35, 0, -0.16), c: c }); },   /* 머리띠 (껍질 바로 밖, 앞으로 20° 기움) */
+        strawhat: function (L) { L.push({ g: Cyl(0.45, 0.45, 0.06, 18), m: M(0, 1.17, -0.03), c: PLC.straw }, { g: Cyl(0.33, 0.34, 0.18, 14), m: M(0, 1.29, -0.03), c: PLC.straw }, { g: Cyl(0.345, 0.345, 0.06, 14), m: M(0, 1.23, -0.03), c: PAL.rose[1] }); } },   /* 챙 1.14~1.20(가림 한계 1.065 > 눈 윗선 0.955) + 낮은 크라운 + 띠, 키 1.38 */
+      eyes: {   /* 눈동자 그림 스타일 6 = 도트 배열 (11-09 얼굴 수술, FACE_V3 §5.3 · 11-10 '동글 + 색 반짝'): 스타일마다 [2×2 (p=3) · 4×4 (1×) · 8×8 (2×)] 세 벌(가로×세로), closed 는 공통 '감은 눈' 세 벌. 크기는 주인 11-09 "너무 땡그래 · 너무 큼" 으로 6×6 → 가로 4 px(머리 폭의 21 %), 주인 11-10 "세로 타원형이라 좀 무섭게 느껴짐 · 동글하고 귀엽게" 로 4×5 → **4×4 정원**(아랫줄 하나를 덜었다 — 윗변 19 px 는 그대로, 볼과 살결 한 줄).
+                   기호(plEyePal): . 살결 · I 홍채(eyeColor.hex) · H 밝은 홍채(hi) · * 반짝 점(sh) · P 동공 · S 홍채 그늘 · K 짙은 그늘 · D 어두운 점·호 · L 선.
+                   규칙 ① **흰색을 안 쓴다** — 흰자도 흰 글린트도 없다(주인 11-10 "흰자위를 없애고": 옛 흰 글린트 2×2 덩어리가 화면에서 흰자위로 읽혔다). 반짝임은 눈 색을 밝힌 **색 점**(* — 왼쪽 위, 사방 이웃이 그늘·홍채·동공이라 점으로 읽힌다) 하나, '반짝' 눈만 작은 것 하나 더.
+                   ② 채운 눈은 **가로 = 세로 + 모서리 텍셀 살결**(4×4 는 폭 2·4·4·2, 8×8 은 폭 4·6·8·8·8·8·6·4 — 네모도 세로 타원도 아닌 동그라미. p=3 의 2×2 는 깎을 모서리가 없다).
+                   ③ 홍채를 동공 둘레에 밝은 '테'로 두르지 않는다(동공 사방이 밝으면 치켜뜬 눈 — 11-09 "너무 땡그래") — 윗부분은 짙은 그늘(K)이 동공과 한 덩이로 이어져 윗꺼풀 그늘처럼 덮고, 눈 색은 양옆 · 아래 U 자로만 보인다(차분한 눈).
+                   두 눈이 같은 그림(안 뒤집음)이라 반짝 점이 둘 다 왼쪽 위. 2× 그림은 1× 를 두 배로 불린 게 아니라 따로 찍은 것(불리면 계단이 뭉툭하다). 4×4 · ±4 px 에선 plEyePatch 의 모서리 정점이 타원체를 비껴가지 않는다 */
+        round: [['K K', 'I I'],
+          ['. K K .', 'I * P I', 'I P P I', '. I I .'],
+          ['. . K K K K . .', '. K * * K K K .', 'S S * * P P S S', 'I S P P P P S I', 'I I P P P P I I', 'I I I P P I I I', '. I I I I I I .', '. . I I I I . .']],   /* 동그란 (기본): 정원 + 윗줄 짙은 그늘(2× 는 K 두 줄 → S 한 겹 → 홍채로 풀리는 세 단) + 가운데 동공(2× 는 폭 2·4·4·2 의 동그란 덩이 12 텍셀) + 눈 색 U 자(8×8 의 52 텍셀 중 22) + 색 반짝 점 하나(1× 1 px · 2× 는 2×2 — 그늘과 동공 왼쪽 위에 반씩 걸친다. 동공 안쪽 사분면을 파낸 판 · ◤ 3 텍셀 판은 동공이 ㄴ자로 남아 초상(텍셀 1.13 px)에서 세로로 째진 눈처럼 깨졌다) */
+        sparkle: [['I I', 'H H'],
+          ['. S S .', 'I * P I', 'H P P H', '. H H .'],
+          ['. . S S S S . .', '. S * * S S S .', 'S I * * P P I S', 'I I P P P P I I', 'H H P P P P H H', 'H H H P P * H H', '. H H H H H H .', '. . H H H H . .']],   /* 반짝: 한 칸씩 밝은 보석 눈 — 위 옅은 그늘(S) → 홍채 → 아래 절반 밝은 홍채(hi) 세 단 + 색 반짝 점 둘(왼쪽 위 2×2 · 2× 에서만 오른쪽 아래 1) */
+        sleepy: [['L L', 'I I'],
+          ['. . . .', 'L L L L', 'I P P I', '. I I .'],
+          ['. . . . . . . .', '. . . . . . . .', '. L L L L L L .', 'L I P P P P I L', 'I I * P P P I I', 'I I I P P I I I', '. I I I I I I .', '. . I I I I . .']],   /* 졸린: 위 반이 살결(꺼풀) + 살결 그늘색 꺼풀 선 1 px + 아래 반달 — 꺼풀 선을 홍채 그늘(S)로 그리면 찌푸린 눈썹으로 읽혔다(11-09 실험). 반짝 점은 2× 에 작은 것 하나뿐(졸린 눈은 덜 반짝인다) */
+        almond: [['P P', 'P P'],
+          ['. P P .', 'P * P P', 'P P P P', '. I I .'],
+          ['. . P P P P . .', '. P * P P P P .', 'P * * P P P P P', 'P P P P P P P P', 'P P P P P P P P', 'I P P P P P P I', '. I I I I I I .', '. . I I I I . .']],   /* 또렷 (id 는 옛 'almond' 그대로 — 저장값 호환): 까만 눈동자가 정원을 거의 채우고 맨 아래에만 눈 색 초승달 + 색 반짝 점(2× 는 왼쪽 위 가장자리를 따라 굽은 3 텍셀 — 까만 눈 한가운데의 2×2 색 네모는 '빛나는 동공'으로 읽혔다) */
+        smile: [['D D', '. .'],
+          ['. . . .', '. D D .', 'D . . D', '. . . .'],
+          ['. . . . . . . .', '. . . . . . . .', '. . D D D D . .', '. D D D D D D .', 'D D D . . D D D', 'D D . . . . D D', '. . . . . . . .', '. . . . . . . .']],   /* 웃는: 따뜻한 짙은 갈색 ∩ 호 (^ ^) — eyeColor 영향 없음. 눈 칸 가운데 두 줄(1× 화면 17 · 16 px 줄 — 4×5 때보다 1 px 위) */
+        dot: [['D D', 'D D'],
+          ['. . . .', '. D D .', '. D D .', '. . . .'],
+          ['. . . . . . . .', '. . . . . . . .', '. . . D D . . .', '. . D * D D . .', '. . D D D D . .', '. . . D D . . .', '. . . . . . . .', '. . . . . . . .']],   /* 점: 작고 동그란 어두운 점 2×2(2× 는 폭 2·4·4·2 — eyeColor 를 먹색과 반반) + 색 반짝 점은 2× 에서만 1 텍셀 — 머리 가운데 높이의 작은 점이라 문어의 큰 검은 눈과 다르다 */
+        closed: [['. .', 'L L'],
+          ['. . . .', '. . . .', 'L L L L', '. . . .'],
+          ['. . . . . . . .', '. . . . . . . .', '. . . . . . . .', '. . . . . . . .', 'L . . . . . . L', '. L L L L L L .', '. . . . . . . .', '. . . . . . . .']] },   /* 감은 눈 (깜빡임 120 ms): 머리색 한 칸 어두운 선 하나 (2× 는 양 끝이 한 칸 올라간 ‿) — 눈 칸의 아래에서 둘째 줄(1× 화면 16 px 줄) */
+      /* 코 · 입 · 볼 그림 (11-09, 주인 "동물의 숲 같은 기존 게임들 얼굴 느낌 참고") — 눈과 같은 메시 · 같은 아틀라스의 도트 조각. FA([p=3 줄], [1× 줄], [2× 줄], 윗변 세로 px, 볼 안쪽 변 px).
+         조각 크기 = 1× 줄 크기(가로×세로 px) · 2× 는 꼭 그 두 배 텍셀 · 코 · 입은 가로 짝수 px(얼굴 한가운데가 픽셀 경계). 조각은 모두 세로 2 px 이상 — p=3(18 px/m)에서 1.33 px 라 어느 격자 위상에서도 한 줄은 잡힌다(1 px 짜리 조각은 0.67 px 라 깜빡였다) · p=3 그림은 조각 전체를 한두 텍셀로 칠한다.
+         자리(1×, 발바닥 기준 세로 px): 눈 15~18 · 코 15(두 눈 사이, 눈 아랫줄 높이) · 입 13~12(가운데 선은 12 — 11 은 깃이 가리고 턱 곡면에서 조각이 머리 안으로 든다) · 볼 13(눈 바깥 반쪽 아래 — 눈 아랫줄 15 와 살결 한 줄 띄고).
+         기호: N 코 · M 입 선 · m 옅은 입꼬리(살결 두 칸 아래 — 1× 에서 곡선을 한 칸으로 흉내) · T 입 안 · F 주근깨 · . 살결 (B 볼터치는 11-10 에 뺐다) */
+      nose: { none: null,
+        dot: FA(['N'], ['N N', '. .'], ['. N N .', '. N N .', '. . . .', '. . . .'], 16),   /* 콩코: 살구빛 점 */
+        tri: FA(['N'], ['N N', '. .'], ['. N N .', 'N N N N', '. . . .', '. . . .'], 16) },   /* 세모코: 주황 세모 (plFacePal 이 색을 바꾼다) */
+      mouth: { none: null,
+        smile: FA(['M M'], ['m . . m', '. M M .'], ['. . . . . . . .', '. M . . . . M .', '. . M M M M . .', '. . . . . . . .'], 14),   /* 미소 ‿ */
+        line: FA(['M'], ['. .', 'M M'], ['. . . .', '. . . .', 'M M M M', '. . . .'], 14),   /* 새침 ㅡ */
+        pout: FA(['M M'], ['. M M .', 'm . . m'], ['. . . M M . . .', '. . M . . M . .', '. M . . . . M .', '. . . . . . . .'], 14),   /* 뾰로통 ㅅ */
+        open: FA(['M'], ['M M', 'T T'], ['M M M M', 'M T T M', '. T T .', '. . . .'], 14),   /* 활짝 ▽ */
+        o: FA(['M'], ['M M', 'M M'], ['. M M .', 'M T T M', 'M T T M', '. M M .'], 14) },   /* 오 */
+      cheek: { none: null,
+        freckle: FA(['. .'], ['F . F', '. . .'], ['. F . . F .', '. . . F . .', '. . . . . .', '. . . . . .'], 14, 3) },   /* 주근깨 (p=3 에선 안 그린다) */
+      outfit: {   /* torso(L) 몸통 부품 · arm(L) 소매(손은 공통) · leg 다리 색 · legR 다리 원기둥 반지름 · cuff 접은 단 */
+        dress: { torso: function (L) {   /* 원피스(기본): 흰 깃 + 어두운 A 라인 + 밑단 띠 + 리본 매듭 + 단추 2 — v0 그대로, 치수만 통통 */
+            L.push({ g: Cyl(0.20, 0.245, 0.32), m: M(0, 0.40, 0), c: PAL.navy[3] }, { g: Cyl(0.25, 0.25, 0.035), m: M(0, 0.255, 0), c: PAL.navy[2] }, { g: Cyl(0.21, 0.19, 0.05), m: M(0, 0.54, 0), c: PAL.paper[3] },
+              { g: Sph(0.042, 7, 5), m: M(-0.05, 0.50, 0.205), c: PLC.red }, { g: Sph(0.042, 7, 5), m: M(0.05, 0.50, 0.205), c: PLC.red }, { g: Sph(0.03, 6, 4), m: M(0, 0.50, 0.225), c: PLC.red },
+              { g: Sph(0.022, 5, 4), m: M(0, 0.42, 0.225), c: PAL.paper[3] }, { g: Sph(0.022, 5, 4), m: M(0, 0.35, 0.235), c: PAL.paper[3] }); },
+          arm: function (L) { plSleeve(L, PAL.paper[3]); }, leg: PAL.paper[2] },
+        knit: { torso: function (L) {   /* 니트: 둥근 목 띠 빨간 스웨터 + 허리에서 퍼지는 짧은 회색 플레어 — 종 모양 */
+            L.push({ g: Cyl(0.21, 0.22, 0.20), m: M(0, 0.46, 0), c: PLC.red }, { g: Cyl(0.17, 0.17, 0.04), m: M(0, 0.56, 0), c: PAL.rose[1] }, { g: Cyl(0.19, 0.27, 0.14), m: M(0, 0.31, 0), c: PAL.slate[2] }, { g: Cyl(0.275, 0.275, 0.035), m: M(0, 0.255, 0), c: PAL.slate[1] }); },
+          arm: function (L) { plSleeve(L, PLC.red, PAL.rose[1]); }, leg: PAL.paper[2] },
+        hoodie: { torso: function (L) {   /* 후드: 회색 위아래 + 목 뒤 둥근 후드 + 앞 주머니 선 + 끈 두 가닥 */
+            L.push({ g: Cyl(0.21, 0.23, 0.32), m: M(0, 0.40, 0), c: PAL.slate[3] }, { g: Sph(0.12, 10, 8), m: M(0, 0.58, -0.20), c: PAL.slate[3] }, { g: box(0.20, 0.035, 0.03), m: M(0, 0.33, 0.235), c: PAL.slate[2] },
+              { g: box(0.03, 0.08, 0.03), m: M(-0.04, 0.50, 0.22), c: FIXED.white }, { g: box(0.03, 0.08, 0.03), m: M(0.04, 0.50, 0.22), c: FIXED.white }); },
+          arm: function (L) { plSleeve(L, PAL.slate[3]); }, leg: PAL.navy[3], legR: [0.075, 0.07] },
+        overall: { torso: function (L) {   /* 멜빵: 밝은 반팔 티 + 푸른 가슴판 · 어깨 끈 · 끈 단추 + 통 넓은 바지 */
+            L.push({ g: Cyl(0.20, 0.22, 0.14), m: M(0, 0.49, 0), c: PAL.paper[3] }, { g: box(0.16, 0.11, 0.05), m: M(0, 0.47, 0.20), c: PAL.sky[0] },
+              { g: box(0.06, 0.12, 0.04), m: M(-0.07, 0.58, 0.19, -0.25, 0, 0), c: PAL.sky[0] }, { g: box(0.06, 0.12, 0.04), m: M(0.07, 0.58, 0.19, -0.25, 0, 0), c: PAL.sky[0] },
+              { g: Sph(0.022, 5, 4), m: M(-0.07, 0.525, 0.235), c: PAL.amber[2] }, { g: Sph(0.022, 5, 4), m: M(0.07, 0.525, 0.235), c: PAL.amber[2] }, { g: Cyl(0.225, 0.25, 0.20), m: M(0, 0.34, 0), c: PAL.sky[0] }); },
+          arm: function (L) { L.push({ g: Cyl(0.062, 0.062, 0.07, 8), m: M(0, -0.035, 0), c: PAL.paper[3] }, { g: Cyl(0.05, 0.05, 0.09, 8), m: M(0, -0.115, 0), c: PLC.skin }); }, leg: PAL.sky[0], legR: [0.078, 0.072], cuff: true },   /* 짧은 소매 + 살결 팔 */
+        raincoat: { torso: function (L) {   /* 비옷: 어깨에서 밑단까지 넓게 퍼지는 주황 사다리꼴 + 후드 + 단추 줄 */
+            L.push({ g: Cyl(0.21, 0.30, 0.36), m: M(0, 0.38, 0), c: PLC.orange }, { g: Sph(0.12, 10, 8), m: M(0, 0.58, -0.20), c: PLC.orange },
+              { g: Sph(0.022, 5, 4), m: M(0, 0.48, 0.24), c: PAL.wood[1] }, { g: Sph(0.022, 5, 4), m: M(0, 0.40, 0.26), c: PAL.wood[1] }, { g: Sph(0.022, 5, 4), m: M(0, 0.32, 0.28), c: PAL.wood[1] }); },
+          arm: function (L) { plSleeve(L, PLC.orange, PAL.amber[1]); }, leg: PAL.paper[2] } },
+      shoes: {   /* len = 그 위에 남는 다리 색 원기둥 길이 (엉덩이 y 0 → 바닥 −0.24). 폭 ≤ 0.16 → 두 신발 틈 0.07 (2 px) */
+        flat: { len: 0.18, parts: function (L) { L.push({ g: box(0.16, 0.06, 0.18), m: M(0, -0.21, 0.01), c: PAL.slate[1] }); } },   /* 단화(기본): 어두운 회색 납작 덩어리 (갈색은 바닥 널에 묻힌다) */
+        boot: { len: 0.06, parts: function (L) { L.push({ g: box(0.15, 0.12, 0.18), m: M(0, -0.18, 0.01), c: PAL.navy[1] }, { g: box(0.16, 0.06, 0.19), m: M(0, -0.09, 0.01), c: PAL.navy[3] }); } },   /* 부츠: 통 + 커프, 위에 타이츠 띠 0.06 */
+        sneaker: { len: 0.12, parts: function (L) { L.push({ g: box(0.15, 0.06, 0.18), m: M(0, -0.15, 0.01), c: PLC.red }, { g: box(0.16, 0.06, 0.19), m: M(0, -0.21, 0.01), c: FIXED.white }); } },   /* 운동화: 빨간 몸체 + 밝은 밑창 줄 */
+        loafer: { len: 0.11, parts: function (L) { L.push({ g: box(0.15, 0.06, 0.17), m: M(0, -0.21, 0.015), c: PAL.rose[0] }, { g: Sph(0.065, 7, 5), m: M(0, -0.21, 0.09), c: PAL.rose[0] }, { g: Cyl(0.075, 0.07, 0.07, 8), m: M(0, -0.145, 0), c: FIXED.white }); } } } };   /* 로퍼: 둥근 앞코 + 흰 양말 한 칸 */
+    /* 7 메시의 부품 목록 (cfg 는 normalizePlayer 를 거친 것) */
+    function plHeadParts(cfg) {
+      var hair = plPart('hairColor', cfg.hairColor).hex;
+      var L = [{ g: Sph(PL_HEAD_R, 18, 13), m: M(0, PL_HEAD_Y, 0, 0, 0, 0, 1, 0.98, 0.94), c: PLC.skin }];   /* 살결 머리 구 (얼굴 앞면 z 0.329). 눈 · 코 · 입 · 볼은 이 구 위의 텍스처 조각(plEyeParts) — 눈썹 없음 */
+      PL_PARTS.hair[cfg.hair](L, cfg, hair); PL_PARTS.acc[cfg.acc](L, cfg);
+      return L;
+    }
+    function plEyeParts(cfg) { return [-1, 1].map(function (s) { return { g: plEyePatch(s), c: '#ffffff', tag: s < 0 ? 1 : 2 }; }).concat(plFacePatches(cfg)); }   /* 눈 = 곡면 조각 2장 (정점색 흰색 → 텍스처색이 알베도), tag 1 왼눈 · 2 오른눈 (plEyeUV 의 아틀라스 칸). 스타일·색은 지오메트리가 아니라 아틀라스 그림 */
+    function plTorsoParts(cfg) { var L = []; PL_PARTS.outfit[cfg.outfit].torso(L); return L; }
+    function plArmParts(cfg) { var L = []; PL_PARTS.outfit[cfg.outfit].arm(L); L.push({ g: Sph(0.06, 7, 5), m: M(0, -0.19, 0), c: PLC.skin }); return L; }   /* 소매 + 손 (손 밑 y 0.25 = 엉덩이 높이) */
+    function plLegParts(cfg) {   /* 다리 색 원기둥(신발 위만) + 신발 */
+      var o = PL_PARTS.outfit[cfg.outfit], s = PL_PARTS.shoes[cfg.shoes], r = o.legR || [0.07, 0.068], L = [{ g: Cyl(r[0], r[1], s.len, 8), m: M(0, -s.len / 2, 0), c: o.leg }];
+      if (o.cuff && s.len > 0.15) L.push({ g: Cyl(0.08, 0.08, 0.04, 8), m: M(0, -0.17, 0), c: PAL.paper[2] });   /* 멜빵 바지 접은 단 (단화일 때만 보인다) */
+      s.parts(L); return L;
+    }
+    function plGeos(cfg) { return [plHeadParts(cfg), plEyeParts(cfg), plTorsoParts(cfg), plArmParts(cfg), plArmParts(cfg), plLegParts(cfg), plLegParts(cfg)].map(mergeParts); }
+    var PL_LOOK0 = normalizePlayer(opts.player), plGeo0 = plGeos(PL_LOOK0);
+    function plMesh(g, x, y, cast, mat) { var m = new T.Mesh(keep(g), mat || toonP); m.castShadow = cast !== false; m.receiveShadow = true; if (x != null) m.position.set(x, y, 0); plBody.add(m); return m; }
+    var plHead = plMesh(plGeo0[0]), plEyes = plMesh(plGeo0[1], null, 0, false, toonEye), plTorso = plMesh(plGeo0[2]);
+    function plEyeBase() { var g = plEyes.geometry; g.userData.uv0 = Float32Array.from(g.attributes.uv.array); }   /* 눈 지오메트리의 0~1 uv 를 따로 보관 (plEyeUV 가 아틀라스 칸으로 사상한다) */
+    plEyeBase();
+    var plArmL = plMesh(plGeo0[3], -0.24, 0.50), plArmR = plMesh(plGeo0[4], 0.24, 0.50), plLegL = plMesh(plGeo0[5], -0.115, 0.24), plLegR = plMesh(plGeo0[6], 0.115, 0.24);   /* 어깨 ±0.24(소매 바깥 2.4 px 가 몸통 밖) · 엉덩이 ±0.115(두 신발 틈 0.07) */
+    var plMeshes = [plHead, plEyes, plTorso, plArmL, plArmR, plLegL, plLegR], plLimbs = [plArmL, plArmR, plLegL, plLegR];
+    var plDecal = new T.Mesh(keep(new T.PlaneGeometry(0.95, 0.95)), decalMat); plDecal.rotation.x = -Math.PI / 2; plDecal.position.y = 0.012; plDecal.renderOrder = 1; plG.add(plDecal);   /* 접지 그림자 (문어와 같은 데칼) */
+    var PL = { place: 'attic', pos: new T.Vector3(PL_REST.attic[0], 0, PL_REST.attic[2]), yaw: 0, wantYaw: 0, faceCam: true, walking: null, pending: '', phase: 0, n: 0, last: new T.Vector3(), moving: false, antic: 0, settleT: 9, t: 0, stick: false, held: false, heldStop: false, pushed: false, dir8: null,
+      blinkT: 4 + (hash('plblink') % 1000) / 1000 * 3, blinkLeft: 0, shut: false, lod: 1, walks: 0, look: PL_LOOK0 };   /* shut = 눈 uv 가 지금 '감은 눈' 칸인가 · lod = 눈 아틀라스 줄(0 · 1 · 2, plEyeLod) · look = 정규화된 cfg · stick·held·heldStop·pushed·dir8 = 움직이기 상태(아래 '움직이기') */
+    plDrawEyes(PL_LOOK0); plEyeLod(); plEyeUV();   /* 첫 눈 그림 + 지금 N 의 LOD 칸 — prewarm(renderer.compile) 전이라 toonEye 가 처음부터 눈 텍스처로 컴파일된다 */
+    PL.last.copy(PL.pos);
+    /* ── 움직이기 (주인 11-08 결정: 왼쪽 아래 발자국 손잡이(가상 스틱) + 데스크톱 방향키 · 바닥 톡 없음): 앱이 setPlayerInput({ x, y }) 로 화면 축 벡터(오른쪽 +x · 위 +y · 길이 0..1)를 주면 매 프레임 PL.pos 를 v × 1.2 m/s × dt 만큼 민다.
+       화면 → 월드: 카메라 우축 _r 의 수평 성분 = 화면 오른쪽, 그에 수직인 '카메라에서 멀어지는' 수평 방향 = 화면 위 (placeCamera 가 쓰는 _r). 걷는 동안은 plWalkTo 와 같은 걸음 코드(간 거리 위상 · 4프레임 · 8방향 계단 · 디딤 −1 px).
+       스틱이 들어오면 가던 길(쉬는 자리 등)은 취소되고 PL.pending 도 지운다. 막는 때 = playerInputAllowed() false: 입장 연출 · 문 작업(DQ.active/pending — 문 앞까지 걷는 동안 포함) · 전환 · 캐릭터가 보이는 방에 없을 때 · 놀이 kit.
+       범위·장애물: 방 안쪽 0.35 m · 장애물 AABB(코드의 실제 좌표)를 캐릭터 반지름 0.25 만큼 키움 · 문어는 r 0.6 둥근 장애물 — 전체 → x 만 → z 만 순서로 시도해 벽을 따라 미끄러진다.
+       이미 겹쳐 있으면(다락 쉬는 자리가 상자 둘레 0.25 안에 4 cm 들어 있다) 더 파고드는 움직임만 막는다. 문 앞 앵커 자리(놀이방 문 x −1.35 = 안쪽 경계)는 갈 수 있다. 스틱으로 간 자리는 저장하지 않는다 */
+    var PL_IN = { v: null, held: false, allowed: null, dir: new T.Vector3(0, 0, 1), rh: new T.Vector3(), fh: new T.Vector3() }, PL_RAD = 0.25, PL_MARGIN = 0.35, PL_OCT_R = 0.6;
+    function setPlayerInput(v) {   /* v = 객체면 '잡고 있다'(held — 데드존 { 0, 0 } 도 잡고만 있는 것: 멈추되 카메라 쪽으로 돌지 않고 도착 눌림은 놓을 때 한 번) · null = 놓음. 막힌 때(playerInputAllowed false)는 받지 않는다 */
+      if (!v || !isFinite(+v.x) || !isFinite(+v.y) || !playerInputAllowed()) { PL_IN.v = null; PL_IN.held = false; return; }
+      var x = +v.x, y = +v.y, l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
+      PL_IN.held = true;
+      PL_IN.v = l > 1e-6 ? { x: x, y: y } : null;
+    }
+    function playerInputAllowed() {   /* '보이는 때' 규칙: 캐릭터가 지금 그려지는 방(다락·놀이방)에 있고, 연출·문 작업·전환·놀이 kit 이 아니다 */
+      return ready && !INTRO.on && !DQ.active && !DQ.pending && !PLACE.trans && !PLAY && (PLACE.vis === 'attic' || PLACE.vis === 'play') && PL.place === PLACE.vis && plG.parent === groupOf(PLACE.vis) && plG.parent.visible;
+    }
+    function plBoxes() {   /* 지금 방의 장애물 [x0, x1, z0, z1] (반지름만큼 키운 것) — 소품 위치·치수를 코드에서 읽는다. 담요·깔개는 밟아도 된다 */
+      var out = [], r = PL_RAD;
+      function bx(cx, cz, hw, hd) { out.push([cx - hw - r, cx + hw + r, cz - hd - r, cz + hd + r]); }
+      if (PL.place === 'attic') {
+        if (props.crate.visible) bx(props.crate.position.x, props.crate.position.z, 0.52, 0.44);   /* 상자 더미 1.04 × 0.88 (양초는 그 위) */
+        if (props.moss.visible) bx(props.moss.position.x, props.moss.position.z, 0.22, 0.22);     /* 창가 화분 */
+        if (props.curtain.visible) { bx(props.curtain.position.x, WIN.z0 - 0.3, 0.04, 0.25); bx(props.curtain.position.x, WIN.z1 + 0.3, 0.04, 0.25); }   /* 커튼 천 두 폭 */
+        if (salG.visible) bx(SALC.x, SALC.sz, SALC.sw / 2, 0.06);   /* 미용실 병 선반 (뒷벽) */
+      } else if (PL.place === 'play' && PROOM) {
+        var mb = PROOM.machineBox, cb = PROOM.counterBox;
+        out.push([mb.min.x - r, mb.max.x + r, mb.min.z - r, mb.max.z + r], [cb.min.x - r, cb.max.x + r, cb.min.z - r, cb.max.z + r]);   /* 오락기 · 부엌 조리대 */
+      }
+      return out;
+    }
+    function plCircles() {   /* 둥근 장애물 [x, z, r]: 문어(같은 방에 보일 때 · 미용실 앞에 있어도) · '바꾸기' 중 대야 */
+      var out = [];
+      if (PL.place === 'attic') {
+        if (octG.parent === atticG && octG.visible && st.octState !== 'away') out.push([oct.pos.x, oct.pos.z, PL_OCT_R]);
+        if (salG.visible && salE.visible) out.push([SALC.tx, SALC.tz, 0.30 + PL_RAD]);
+      }
+      return out;
+    }
+    function plPen(x, z, boxes, circles) {   /* (x, z) 가 장애물에 파고든 깊이 (0 = 밖) */
+      var p = 0, i, b, d;
+      for (i = 0; i < boxes.length; i++) { b = boxes[i]; d = Math.min(x - b[0], b[1] - x, z - b[2], b[3] - z); if (d > p) p = d; }
+      for (i = 0; i < circles.length; i++) { b = circles[i]; d = b[2] - Math.hypot(x - b[0], z - b[1]); if (d > p) p = d; }
+      return p;
+    }
+    function plAvoidOct(to) {   /* 문어 걷기 시작(moveTo · 의식 · 미용실 · 놀이 kit — walkPoint): 목표점이 내 캐릭터에서 r 0.6 안이면 목표 둘레(0.6 + 0.1) 위 8방향 중 비어 있고 가장 가까운 자리로 미리 걸어 비켜선다 — 두 캐릭터가 한 자리에 겹치지 않게 (리뷰 11-09).
+                                   스틱을 쥐고 있거나 · 이미 걷는 중(문 앞 걷기 등) · 막힌 때(다른 방이 보임 · 문 작업)는 안 한다 — 그땐 stepPlayer 의 밀려나기가 받는다 */
+      if (PL.place !== 'attic' || plG.parent !== atticG || PL.walking || PL_IN.held || !playerInputAllowed()) return;
+      var dx = PL.pos.x - to.x, dz = PL.pos.z - to.z; if (Math.hypot(dx, dz) >= PL_OCT_R) return;
+      var boxes = plBoxes(), lim = R - PL_MARGIN, rr = PL_OCT_R + 0.1, a0 = Math.atan2(dx, dz), best = null, bd = Infinity;
+      for (var i = 0; i < 8; i++) {
+        var a = a0 + i * Math.PI / 4, x = to.x + Math.sin(a) * rr, z = to.z + Math.cos(a) * rr;
+        if (Math.abs(x) > lim || Math.abs(z) > lim || plPen(x, z, boxes, []) > 0) continue;
+        var d = Math.hypot(x - PL.pos.x, z - PL.pos.z); if (d < bd) { bd = d; best = [x, z]; }
+      }
+      if (best) plWalkTo(new T.Vector3(best[0], 0, best[1]), null);
+    }
+    function plMove(dx, dz) {   /* → 실제로 움직였나. 방 안쪽 범위로 자르고 장애물은 전체 → x 만 → z 만 (미끄러짐). 이미 겹쳐 있으면 더 파고들지 않는 쪽만 */
+      var lim = (PL.place === 'play' ? PLAY_R : R) - PL_MARGIN, boxes = plBoxes(), circ = plCircles();
+      var x0 = PL.pos.x, z0 = PL.pos.z, p0 = plPen(x0, z0, boxes, circ) + 1e-6;
+      var nx = clamp(x0 + dx, -lim, lim), nz = clamp(z0 + dz, -lim, lim);
+      if (plPen(nx, nz, boxes, circ) <= p0) PL.pos.set(nx, 0, nz);
+      else if (plPen(nx, z0, boxes, circ) <= p0) PL.pos.x = nx;
+      else if (plPen(x0, nz, boxes, circ) <= p0) PL.pos.z = nz;
+      return Math.abs(PL.pos.x - x0) + Math.abs(PL.pos.z - z0) > 1e-9;
+    }
+    /* 발자국: InstancedMesh 하나(최대 16) · 작은 평면 0.16 × 0.21 m(1× 에서 4×5 px) 에 6×8 캔버스 알파 발 모양(둥근 앞 + 작은 뒤꿈치, NearestFilter) · 재질은 불투명 널 틈 색 #394a50(depthWrite false · renderOrder 1 · 바닥 위 0.011 — 담요 위 0.13 · 깔개 위 0.021, plFloorY).
+       반투명 잉크(opacity 0.35)는 팔레트 스냅(OKLab)에 먹혀 바닥 널 색으로 되돌아가 1× 에서 아무것도 안 보였다(리뷰 11-09 — 678행 주석의 그 현상) → 스냅에서 살아남는 불투명 한 색으로 '바닥에 패인 자국' 처럼.
+       걸음마다(디딤 프레임 1 · 3 — 0.2 m 마다 왼·오 번갈아) 하나, 진행 축에서 ±0.07 m 옆, 진행 방향으로 회전. 인스턴스 알파가 없어 배율 3단(1 → 0.75 → 0.5 → 숨김, 각 0.7 s)으로 옅어진다 — 12 fps 스텝 (0.3 배율은 1× 에서 1 px 미만이라 스냅에서 사라졌다).
+       방 그룹의 자식(plG 와 같이 옮기지 않는다) — 방이 바뀌면(plEnter) 비우고 새 방 그룹으로. 모션 감소면 자국 없음. USE_INSTANCING 으로 MeshBasic·노멀 프로그램이 하나씩 늘지만 부팅 첫 프레임(인스턴스 0개라도 그린다)에 컴파일되므로
+       '프로그램 수 그대로' 검사의 기준값(부팅 뒤)엔 들어 있다. 드로우콜 +2 (뷰티 패스 + 노멀 패스(overrideMaterial) 에 각각 — 자국이 보일 때만, 0개면 three 가 그리지 않는다). instanceMatrix 는 걸음·페이드 틱마다 다시 올리니 DynamicDrawUsage */
+    var FP_N = 16, FP_STAGE = 0.7, FP_SCALE = [1, 0.75, 0.5];
+    function footTex() {   /* 6×8 알파 발 모양: 평면 0.16 × 0.21 m 에 → 1× 에서 ≈ 4×5 px · 2× 에서 ≈ 8×11 px (텍셀은 NearestFilter 로 늘어난다) */
+      var cv = document.createElement('canvas'); cv.width = 6; cv.height = 8;
+      var cx = cv.getContext('2d'), im = cx.createImageData(6, 8), rows = ['.XXXX.', 'XXXXXX', 'XXXXXX', 'XXXXXX', '.XXXX.', '......', '.XXXX.', '..XX..'];
+      for (var y = 0; y < 8; y++) for (var x = 0; x < 6; x++) { var i = (y * 6 + x) * 4, on = rows[y][x] === 'X'; im.data[i] = im.data[i + 1] = im.data[i + 2] = 255; im.data[i + 3] = on ? 255 : 0; }
+      cx.putImageData(im, 0, 0);
+      var t = new T.CanvasTexture(cv); t.minFilter = t.magFilter = T.NearestFilter; t.generateMipmaps = false;
+      return t;
+    }
+    var fpGeo = keep(new T.PlaneGeometry(0.16, 0.21)); fpGeo.rotateX(-Math.PI / 2); fpGeo.rotateY(Math.PI);   /* 바닥에 눕히고 그림 위쪽(발끝)이 +z = 진행 방향 */
+    var fpMat = keep(new T.MeshBasicMaterial({ map: keep(footTex()), color: C('#394a50'), transparent: true, opacity: 1, depthWrite: false }));
+    var fpMesh = keep(new T.InstancedMesh(fpGeo, fpMat, FP_N)); fpMesh.name = 'footprints'; fpMesh.count = 0; fpMesh.frustumCulled = false; fpMesh.castShadow = false; fpMesh.receiveShadow = false; fpMesh.renderOrder = 1; fpMesh.instanceMatrix.setUsage(T.DynamicDrawUsage); atticG.add(fpMesh);
+    var FP = { list: [], acc: 0, m: new T.Matrix4(), p: new T.Vector3(), q: new T.Quaternion(), s: new T.Vector3(), ay: new T.Vector3(0, 1, 0) };
+    function fpLayout() {
+      FP.list.forEach(function (f, i) { var s = FP_SCALE[f.k] || 0; FP.q.setFromAxisAngle(FP.ay, f.yaw); FP.m.compose(FP.p.set(f.x, f.y, f.z), FP.q, FP.s.set(s, 1, s)); fpMesh.setMatrixAt(i, FP.m); });
+      fpMesh.count = FP.list.length; fpMesh.instanceMatrix.needsUpdate = true;
+    }
+    function fpClear(g) { FP.list = []; FP.acc = 0; fpMesh.count = 0; if (g && fpMesh.parent !== g) g.add(fpMesh); }
+    function plFloorY(x, z) {   /* 자국이 놓일 바닥 높이 (방 그룹 좌표): 담요(윗면 0.12 · 베개 0.155) · 다락 깔개(0.016) 위면 그 위로 — 밟아도 되는 소품이라 자국이 그 속에 묻히지 않게 (리뷰 11-09). 그 밖은 바닥 위 0.011 */
+      if (PL.place === 'attic') {
+        var b = props.blanket;
+        if (b && b.visible && Math.abs(x - b.position.x) <= 0.7 && Math.abs(z - b.position.z) <= 0.5) return (Math.abs(x - b.position.x) <= 0.55 && Math.abs(z - (b.position.z - 0.25)) <= 0.15 ? 0.155 : 0.12) + 0.01;
+        if (Math.abs(x - ATTIC_RUG.x) <= ATTIC_RUG.w / 2 && Math.abs(z - ATTIC_RUG.z) <= ATTIC_RUG.d / 2) return ATTIC_RUG.h + 0.005;
+      }
+      return 0.011;
+    }
+    function plFoot(side) {   /* 디딤 한 번 (왼 −1 · 오른 +1): on.playerStep() + 자국 하나 (16개가 다 차면 가장 오래된 것부터) */
+      emit('playerStep');
+      if (st.reduced) return;
+      var d = PL_IN.dir, x = PL.pos.x + d.z * 0.07 * side, z = PL.pos.z - d.x * 0.07 * side;
+      if (FP.list.length >= FP_N) FP.list.shift();
+      FP.list.push({ x: x, y: plFloorY(x, z), z: z, yaw: Math.atan2(d.x, d.z), t: 0, k: 0 });
+      fpLayout();
+    }
+    function stepFoot(dt) {   /* 12 fps 스텝으로 나이 → 단계 k = floor(t / 0.7) · 3 이상은 지운다 */
+      if (!FP.list.length) return;
+      FP.acc += dt; var ticks = Math.floor(FP.acc * 12 + 1e-6); if (ticks <= 0) return; FP.acc -= ticks / 12;
+      var dirty = false, n0 = FP.list.length;
+      FP.list.forEach(function (f) { f.t += ticks / 12; var k = Math.floor(f.t / FP_STAGE + 1e-6); if (k !== f.k) { f.k = k; dirty = true; } });
+      FP.list = FP.list.filter(function (f) { return f.k < FP_SCALE.length; });
+      if (dirty || FP.list.length !== n0) fpLayout();
+    }
+    var PPORT = { cache: {}, yaw: 0, tilt: 15 * DEG, dist: 10, hw: 1.5, down: -0.08, n: 0, ms: 0 };   /* 내 캐릭터 초상 프레이밍 (아래 playerPortrait): 정면 (요 0° — 11-09: 요 30° 는 코 · 입 · 볼 조각이 돌아가 4×5 칸에서 뭉개졌다. 얼굴을 고르는 미리보기라 정면이 맞다) · 반폭 1.5 r = 0.525 m · 타깃 y 0.95 → 화면 위 = (y − 0.95)·cos 15° + (카메라 쪽 거리)·sin 15° ≤ 0.525: 밀짚모자 크라운 앞 가장자리 (1.38, 0.33) → 0.501 ✓ (hw 1.3 · down 0.05 는 머리 꼭대기·모자·귀가 잘렸다 — 리뷰 11-08) */
+    function setPlayer(cfg) {   /* 파츠 교체 (앱 설정 시트 '내 모습'): 모르는 범주·id 는 기본값 · 위치·걷기 상태(PL)는 그대로 · 7 메시의 지오메트리만 다시 만들고 옛것은 dispose(keep 목록에서도 교체) → 메시 수·드로우콜 불변. 초상 캐시는 비운다 */
+      var look = normalizePlayer(cfg), geos = plGeos(look);
+      plMeshes.forEach(function (m, i) { var old = m.geometry, k = disposables.indexOf(old); if (k >= 0) disposables.splice(k, 1); old.dispose(); m.geometry = keep(geos[i]); });
+      PL.look = look; PL.shut = false; PPORT.cache = {}; dither.still = 0;
+      plEyeBase(); plDrawEyes(look); plEyeUV();   /* 눈 아틀라스를 새 스타일·색으로 다시 그리고(텍스처 객체는 그대로, needsUpdate) 새 지오메트리의 uv 를 지금 LOD 칸으로 */
+      return Object.assign({}, look);
+    }
+    function plSnap() { snapScreen(plG.position.copy(PL.pos)); }
+    function plStop() { if (PL.walking) { PL.walking.cancel(); PL.walking = null; } PL.antic = 0; }
+    function plFaceAfter(face) { PL.faceCam = face == null; PL.wantYaw = face == null ? camYaw() : face; }
+    function plSegHits(ax, az, bx, bz, b) {   /* 선분 a→b 가 상자 [x0, x1, z0, z1] 를 지나나 (slab) */
+      var t0 = 0, t1 = 1, dx = bx - ax, dz = bz - az;
+      function slab(p, d, lo, hi) { if (Math.abs(d) < 1e-9) return p >= lo && p <= hi; var ta = (lo - p) / d, tb = (hi - p) / d; if (ta > tb) { var t = ta; ta = tb; tb = t; } t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); return t0 <= t1; }
+      return slab(ax, dx, b[0], b[1]) && slab(az, dz, b[2], b[3]);
+    }
+    function plRoute(from, to) {   /* 경유점 (리뷰 11-09: 직선 lerp 는 상자 속을 걸어 지나갔다): 직선이 장애물 상자를 지나면 상자 모서리(둘레 +0.05) 하나 또는 이웃한 둘을 거친다 — 모든 선분이 상자를 안 지나는 길 중 가장 짧은 것. 없으면(출발·도착이 둘레 안 등) 직선 그대로 (plMove 가 미끄러뜨린다) */
+      var boxes = plBoxes(), lim = (PL.place === 'play' ? PLAY_R : R) - PL_MARGIN, hit = null, i;
+      for (i = 0; i < boxes.length; i++) if (plSegHits(from.x, from.z, to.x, to.z, boxes[i])) { hit = boxes[i]; break; }
+      if (!hit) return [to];
+      var m = 0.05, cs = [[hit[0] - m, hit[2] - m], [hit[1] + m, hit[2] - m], [hit[1] + m, hit[3] + m], [hit[0] - m, hit[3] + m]];   /* 모서리 4개, 둘레 순서 */
+      function okPt(c) { return Math.abs(c[0]) <= lim && Math.abs(c[1]) <= lim && plPen(c[0], c[1], boxes, []) <= 0; }
+      function free(ax, az, bx, bz) { for (var j = 0; j < boxes.length; j++) if (plSegHits(ax, az, bx, bz, boxes[j])) return false; return true; }
+      function len(ax, az, bx, bz) { return Math.hypot(bx - ax, bz - az); }
+      var best = null, bl = Infinity;
+      cs.forEach(function (c, ci) {
+        if (!okPt(c)) return;
+        if (free(from.x, from.z, c[0], c[1]) && free(c[0], c[1], to.x, to.z)) { var l1 = len(from.x, from.z, c[0], c[1]) + len(c[0], c[1], to.x, to.z); if (l1 < bl) { bl = l1; best = [c]; } }
+        [cs[(ci + 1) % 4], cs[(ci + 3) % 4]].forEach(function (c2) {
+          if (!okPt(c2) || !free(from.x, from.z, c[0], c[1]) || !free(c[0], c[1], c2[0], c2[1]) || !free(c2[0], c2[1], to.x, to.z)) return;
+          var l2 = len(from.x, from.z, c[0], c[1]) + len(c[0], c[1], c2[0], c2[1]) + len(c2[0], c2[1], to.x, to.z); if (l2 < bl) { bl = l2; best = [c, c2]; }
+        });
+      });
+      return best ? best.map(function (c) { return new T.Vector3(c[0], 0, c[1]); }).concat([to]) : [to];
+    }
+    function plWalkTo(to, face) {   /* 점까지 걷기 → Promise<walked:boolean>. face = 도착해 볼 방향(rad, 없으면 카메라 쪽). 모션 감소 · 숨은 탭 · 컨텍스트 잃음 · 준비 전 · 5 cm 미만 = 바로.
+                                       걸음은 스틱과 같은 plMove(1.2 m/s · 범위·장애물 미끄러짐) 로 경유점(plRoute)을 차례로 — 목표 5 cm 안이면 도착(마지막 점은 정확히 그 자리로), 세 프레임 연속 못 움직이면 다음 점으로(마지막이면 거기서 끝) · 길이 × 1.5 + 0.3 s 가 지나면 끝 (Promise 가 걸리지 않게) */
+      plStop();
+      var from = PL.pos.clone(), d = to.clone().sub(from), dist = Math.hypot(d.x, d.z);
+      if (st.reduced || ctxLost() || st.hidden || !ready || dist < 0.05) { PL.pos.copy(to); plFaceAfter(face); PL.yaw = PL.wantYaw; PL.moving = false; plSnap(); return Promise.resolve(false); }
+      var pts = plRoute(from, to), total = 0, prev = from;
+      pts.forEach(function (p) { total += Math.hypot(p.x - prev.x, p.z - prev.z); prev = p; });
+      PL.faceCam = false; PL.wantYaw = Math.atan2(pts[0].x - from.x, pts[0].z - from.z);
+      var dur = total / PL_SPEED * st.speed, hold = PL.moving ? 0 : PL_ANTIC * st.speed, k = 0, cancelled = false, stuck = 0;
+      PL.antic = hold; PL.walks++;
+      return new Promise(function (resolve) {
+        function arrive(snap) { cancelled = true; if (snap) PL.pos.copy(to); PL.walking = null; PL.antic = 0; plFaceAfter(face); resolve(true); }
+        PL.walking = { cancel: function () { cancelled = true; }, finish: function () { if (!cancelled) arrive(true); },
+          step: function (dt) {
+            if (cancelled) return;
+            k += dt; PL.antic = Math.max(0, hold - k);
+            if (k < hold) return;
+            if (k - hold > dur * 1.5 + 0.3) { arrive(false); return; }
+            var tg = pts[0], dx = tg.x - PL.pos.x, dz = tg.z - PL.pos.z, dd = Math.hypot(dx, dz), step = Math.min(dd, PL_SPEED * dt / (st.speed || 1));
+            if (dd > 1e-6) { PL.wantYaw = Math.atan2(dx, dz); if (plMove(dx / dd * step, dz / dd * step) || plMove(dx / dd * step / 2, dz / dd * step / 2)) stuck = 0; else stuck++; }   /* 한 걸음이 장애물 둘레에 걸리면 반 걸음으로 한 번 더 (큰 dt 에서 둘레 앞까지 붙게) */
+            dd = Math.hypot(tg.x - PL.pos.x, tg.z - PL.pos.z);
+            if (dd < 0.05 || stuck >= 3) { if (pts.length > 1) { pts.shift(); stuck = 0; } else arrive(dd < 0.2); }   /* 마지막 점: 5 cm 안이면 도착 · 막혔어도 20 cm 안이면 그 자리로(쉬는 자리처럼 둘레 안에 둔 목표) · 더 멀면 거기서 끝(관통 금지) */
+          } };
+      });
+    }
+    function plRest(instant) { var r = PL_REST[PL.place] || PL_REST.attic, to = new T.Vector3(r[0], 0, r[2]); PL.pending = ''; if (instant) { plStop(); PL.pos.copy(to); plFaceAfter(null); PL.yaw = PL.wantYaw; PL.moving = false; plSnap(); } else plWalkTo(to, null); }
+    function plEnter(to) {   /* 문 전환 가운데 프레임 (runDoor 의 swap): 들어온 방 문 앞에 서서 방 안쪽을 보고, 문이 닫히면 쉬는 자리로. 바깥(문어가 아직 산책 중)으로 나왔으면 내 캐릭터는 다락 쉬는 자리에 (안 보이는 곳에서 바로) */
+      if (to === 'attic' || to === 'play') {
+        var g = groupOf(to); if (plG.parent !== g) g.add(plG); fpClear(g);
+        var an = to === 'play' ? 'playAtticDoor' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
+        plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false; PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = 'rest'; plSnap();
+      } else { if (plG.parent !== atticG) atticG.add(plG); fpClear(atticG); PL.place = 'attic'; plRest(true); }
+    }
+    function playerWalkTo(anchor) {   /* goRoom 의 walkFirst: 문 앞 앵커까지 걷고 문 쪽을 보며 서면 푼다 → { ok, walked, anchor, at }. 그 방에 없으면(바깥에서 들어갈 때) 걷기 없이 바로 */
+      var a = DOOR_ANCHORS[anchor], at = a ? a.slice() : [0, 0, 0], room = anchor === 'playAtticDoor' ? 'play' : 'attic';
+      if (!a || PL.place !== room || plG.parent !== groupOf(room)) return Promise.resolve({ ok: true, walked: false, anchor: anchor, at: at });
+      PL.pending = '';
+      return plWalkTo(new T.Vector3(a[0], 0, a[2]), PL_FACE[anchor]).then(function (walked) { return { ok: true, walked: walked, anchor: anchor, at: at }; });
+    }
+    function plFinish() { if (PL.walking && PL.walking.finish) PL.walking.finish(); if (PL.pending) plRest(true); }   /* 컨텍스트 잃음 · destroy: 걷던 길을 지금 도착시킨다 (Promise 는 푼다) */
+    function plInfo() { return { place: PL.place, at: [+PL.pos.x.toFixed(3), 0, +PL.pos.z.toFixed(3)], walking: !!PL.walking || !!PL.stick, moving: !!PL.moving, pending: PL.pending, yaw: +(plG.rotation.y / DEG).toFixed(1), frame: PL.frame | 0, group: plG.parent ? plG.parent.name : '', visible: !!(plG.parent && plG.parent.visible), walks: PL.walks, height: PL_H, look: Object.assign({}, PL.look), input: PL_IN.v ? [+PL_IN.v.x.toFixed(3), +PL_IN.v.y.toFixed(3)] : null, footprints: FP.list.length }; }
+    function stepPlayer(dt) {
+      PL.t += dt;
+      var allowed = playerInputAllowed();
+      if (!allowed) { PL_IN.v = null; PL_IN.held = false; }   /* 막힌 동안은 매 프레임 누르던 입력을 놓는다 (전이 프레임만 지우면 막힌 채 들어온 입력이 남아 방이 다시 보일 때 입력 없이 움직였다 — 리뷰 11-09) */
+      if (allowed !== PL_IN.allowed) { PL_IN.allowed = allowed; emit('playerInput', allowed); }   /* 바뀔 때만 (앱이 스틱 hidden 을 쥔다) */
+      var v = PL_IN.v, held = PL_IN.held, stick = false, pushed = false;
+      if (v) {   /* 스틱 · 방향키: 가던 길(쉬는 자리 등)은 취소, 화면 축 → 월드 수평 축, 범위·장애물 보정 뒤 적용. 막혀서 한 발짝도 못 가면 서서 그쪽을 본다 */
+        if (PL.walking) plStop(); PL.pending = ''; PL.antic = 0; PL.heldStop = false;
+        PL_IN.rh.set(_r.x, 0, _r.z).normalize(); PL_IN.fh.set(PL_IN.rh.z, 0, -PL_IN.rh.x);   /* 화면 오른쪽 · 화면 위 = 카메라에서 멀어지는 수평 방향 */
+        var wx = PL_IN.rh.x * v.x + PL_IN.fh.x * v.y, wz = PL_IN.rh.z * v.x + PL_IN.fh.z * v.y, step = PL_SPEED * dt / (st.speed || 1);
+        stick = plMove(wx * step, wz * step);
+        PL.faceCam = false; PL.wantYaw = Math.atan2(wx, wz);
+      } else if (PL.held && !held) { PL.faceCam = true; if (PL.heldStop) { PL.settleT = 0; PL.heldStop = false; } }   /* 손을 떼면(막힌 채 서 있다 떼도 · 데드존에 잡고만 있다 떼도) 다시 카메라 쪽 + 도착 눌림 한 번 — 전이는 '잡고 있었나'(held) 기준 */
+      if (allowed && !PL.walking && PL.place === 'attic') {   /* 문어가 걸어와 내 캐릭터 위에 서면(문어 걷기는 플레이어를 모른다 — 걷기 시작 때 plAvoidOct 가 미리 비켜세우지만 길이 지나가기도 한다) 둥근 장애물 밖으로 밀려난다 — 걷는 속도로, 스틱을 쥐고 있어도(문어가 미는 셈), 미끄러짐은 plMove 몫 (리뷰 11-09) */
+        var circ = plCircles(), pen = plPen(PL.pos.x, PL.pos.z, [], circ);
+        if (pen > 1e-3) {
+          var cc = null; circ.forEach(function (c) { if (c[2] - Math.hypot(PL.pos.x - c[0], PL.pos.z - c[1]) >= pen - 1e-9) cc = c; });
+          var ox = PL.pos.x - cc[0], oz = PL.pos.z - cc[1], ol = Math.hypot(ox, oz); if (ol < 1e-6) { ox = _r.x; oz = _r.z; ol = Math.hypot(ox, oz) || 1; }
+          var ps = Math.min(pen + 0.02, PL_SPEED * dt / (st.speed || 1));
+          pushed = plMove(ox / ol * ps, oz / ol * ps);
+          if (pushed && !v) { PL.faceCam = false; PL.wantYaw = Math.atan2(ox, oz); }
+        }
+      }
+      if (PL.pushed && !pushed && !held) PL.faceCam = true;   /* 밀려나기가 끝나면 다시 카메라 쪽 */
+      PL.stick = stick; PL.held = held; PL.pushed = pushed;
+      if (PL.walking) PL.walking.step(dt);
+      if (PL.pending === 'rest' && !DQ.active && !PLACE.trans) plRest(false);   /* 들어온 문이 닫힌 뒤: 쉬는 자리로 */
+      var red = st.reduced, moving = ((!!PL.walking && PL.antic <= 0) || stick || pushed) && !red;
+      var mx = PL.pos.x - PL.last.x, mz = PL.pos.z - PL.last.z; if (Math.hypot(mx, mz) > 1e-6) PL_IN.dir.set(mx, 0, mz).normalize();   /* 진행 방향 (발자국 회전·옆 오프셋) */
+      if (moving) { if (!PL.moving) { PL.last.copy(PL.pos); PL.n = Math.floor(PL.phase); } PL.phase += Math.min(0.3, Math.hypot(PL.pos.x - PL.last.x, PL.pos.z - PL.last.z)) / PL_STRIDE; }
+      else if (PL.moving) { PL.phase = Math.ceil(PL.phase - 1e-6); if (held) PL.heldStop = true; else PL.settleT = 0; }   /* 멈춤 = 서기 프레임 + 착지 눌림 한 번 (잡은 채 멈췄으면 — 데드존 · 벽에 막힘 — 눌림은 놓을 때) */
+      PL.last.copy(PL.pos); PL.moving = moving; PL.settleT += dt;
+      stepFoot(dt);
+      if (PL.faceCam && !PL.walking) PL.wantYaw = camYaw();   /* 쉴 땐 카메라 쪽 (돌려 보기를 따라간다) */
+      var dy = angDiff(PL.wantYaw, PL.yaw);
+      PL.yaw = red ? PL.wantYaw : PL.yaw + dy * Math.min(1, dt * 10); PL.yaw = Math.atan2(Math.sin(PL.yaw), Math.cos(PL.yaw));
+      if (PL.dir8 == null || red || Math.abs(angDiff(PL.yaw, PL.dir8 * (Math.PI / 4))) > Math.PI / 8 + 0.12) PL.dir8 = Math.round(PL.yaw / (Math.PI / 4));   /* 8방향 계단 + 히스테리시스 ≈ 7°: 스틱 각이 22.5° 경계 근처에서 흔들려도 칸이 매 프레임 45° 씩 왔다 갔다 하지 않는다 (리뷰 11-09) */
+      plG.rotation.y = PL.dir8 * (Math.PI / 4);   /* 8방향 계단 (스프라이트처럼 — 매끈한 회전은 둥근 머리 외곽이 매 프레임 1 px 흘러 반짝인다) */
+      plSnap();
+      /* 4프레임 걸음: 위상 n.u → 프레임 floor(4u) = 서기 · 왼발 앞 · 서기 · 오른발 앞. 팔은 다리 반대. 디딤 프레임(1 · 3)에서 몸 −1 px + 좌우 뒤뚱 (스프라이트처럼 다리가 벌어지면 엉덩이가 내려간다, 짧뚱한 몸은 뒤뚱거린다) */
+      var u = PL.phase - Math.floor(PL.phase), f = moving ? Math.floor(u * 4) & 3 : 0, sw = [0, 1, 0, -1][f];
+      if (moving && (f & 1) && f !== PL.frame) plFoot(f === 1 ? -1 : 1);   /* 디딤 프레임에 들어설 때 = 한 걸음: 발자국 + on.playerStep() */
+      PL.frame = f;
+      plLegL.rotation.x = -sw * PL_LEG; plLegR.rotation.x = sw * PL_LEG;
+      plArmL.rotation.x = sw * PL_ARM; plArmR.rotation.x = -sw * PL_ARM;
+      var out = moving ? 0.10 : 0.16; plArmL.rotation.z = -out; plArmR.rotation.z = out;   /* 팔은 살짝 벌려 늘어뜨린다 — 걸을 땐 조금 붙인다 */
+      plBody.rotation.z = sw * PL_SWAY;
+      var sx = 1, sy = 1, by = 0, tb = Math.floor(PL.t * 8) / 8;
+      if (!red) {
+        if (!moving && PL.settleT > 0.3) sy = 1 - 0.012 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2));   /* 숨쉬기 8 fps 스텝 (1 px 안쪽, 가끔 1 px) */
+        if (PL.antic > 0) { sy = 0.94; sx = 1.03; }                                                       /* 출발 예비 눌림 */
+        else if (!moving && PL.settleT < 0.1) { sy = 0.95; sx = 1.02; }                                   /* 도착 눌림 80 ms */
+        if (moving && (f & 1)) by = -pxUp();
+        /* 눈 깜빡임 3~7 s 시드 간격 · 120 ms (문어와 같은 규칙) */
+        if (PL.blinkLeft > 0) PL.blinkLeft -= dt; else { PL.blinkT -= dt; if (PL.blinkT <= 0) { PL.blinkLeft = 0.12; PL.blinkT = 3 + (hash('plb' + Math.floor(PL.t * 10)) % 1000) / 1000 * 4; } }
+      } else PL.blinkLeft = 0;
+      var shut = PL.blinkLeft > 0;
+      if (shut !== PL.shut) { PL.shut = shut; plEyeUV(); }   /* 감은 눈 = 아틀라스의 '감은 눈' 칸으로 uv 전환 (머리색 한 칸 어두운 선 하나 — 메시·드로우콜·텍스처 추가 없음) */
+      plBody.scale.set(sx, sy, sx); plBody.position.y = snapUp(by);
+    }
+    /* 내 캐릭터 초상 (설정 시트 '내 모습' 미리보기, 64×64): 문어 portrait 과 같은 길 — 레이어 2 전용 3점 조명(문어 rig) · pCam · rtP/rtPN/rtPO · postP · 캐시(키 = cfg + 문어 색 + 팔레트 + 배경).
+       찍는 동안만 내 캐릭터 7 메시를 레이어 2 에 넣고 문어의 레이어 2 메시는 뺀다(문어 초상엔 내 캐릭터가, 내 초상엔 문어가 안 들어온다). 조명 rig 는 octG 안에 있어 octG 를 보이게 하고 요를 0 으로 맞춘다(빛 방향이 문어 요를 따라 돌지 않게).
+       프레이밍: 타깃 = 머리 중심 0.08 위(y 0.95) · 위에서 15° · 요 0°(정면 — 얼굴 조각이 안 뭉개진다, PPORT 주석. 옆 · 뒷선은 옷장 샷의 'hair' · 'back' 틀이 맡는다) · 반폭 1.5 r(머리 지름 ≈ 43 px, 밀짚모자 1.38 까지 다 들고 아래는 가슴 0.425 까지) · 정지 자세 · 깜빡임 없음 · 밤 자체광 없음. 초상 조명은 3점 흰빛이라 색 칸이 장면과 다를 수 있다 — '모양 미리보기' 다 */
+    function renderPlayerPortrait(bgHex, fr) {   /* fr = 틀 { y 타깃 높이(m) · hw 반폭(m) · lod 얼굴 아틀라스 줄 · up 화면 위쪽으로 미는 거리(m) } — 없으면 초상 틀. 옷장 샷(playerShot)이 같은 길을 틀만 바꿔 쓴다 */
+      fr = fr || { y: PL_HEAD_Y - PPORT.down, hw: PPORT.hw * PL_HEAD_R, lod: 2, up: 0, yaw: PPORT.yaw };
+      var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+      var sv = { sx: plBody.scale.x, sy: plBody.scale.y, sz: plBody.scale.z, py: plBody.position.y, rz: plBody.rotation.z, gy: plG.rotation.y, vis: plG.visible, pvis: plG.parent ? plG.parent.visible : true,
+        limbs: plLimbs.map(function (m) { return [m.rotation.x, m.rotation.z]; }), shut: PL.shut, lod: PL.lod, eem: toonEye.emissive.clone(), ecol: toonEye.color.clone(),
+        ovis: octG.visible, opvis: octG.parent ? octG.parent.visible : true, oy: octG.rotation.y, em: toonP.emissive.clone(), col: toonP.color.clone(), bg: scene.background };
+      var sc = renderer.getClearColor(_cc).clone(), sa = renderer.getClearAlpha(), octL2 = [];
+      octG.traverse(function (o) { if (o.isMesh && (o.layers.mask & 4)) { octL2.push(o); o.layers.disable(2); } });
+      plMeshes.forEach(function (m) { m.layers.enable(2); });
+      PL.shut = false; PL.lod = fr.lod; plEyeUV();   /* 눈 뜨고 8×8 칸으로: 정면 61 px/m 는 장면 2× (54 px/m) 보다 촘촘해 2× 그림이 텍셀 ≈ 1.1 px 로 열이 안 빠진다 (요 30° 시절엔 먼 눈 조각이 0.84 px 라 4×5 로 찍었다) — 주인이 눈 · 코 · 입 · 볼을 고르는 바로 그 미리보기라 한쪽이 깨지면 안 된다 */
+      plBody.scale.set(1, 1, 1); plBody.position.y = 0; plBody.rotation.z = 0; plG.rotation.y = -(fr.yaw || 0);   /* 요 = 카메라가 아니라 내 캐릭터를 돌린다 (카메라 · 3점 빛은 그대로 → 돌려 찍어도 앞에서 받는 빛) */
+      plLimbs.forEach(function (m) { m.rotation.x = 0; }); plArmL.rotation.z = -0.16; plArmR.rotation.z = 0.16;
+      plG.visible = true; if (plG.parent) plG.parent.visible = true; octG.visible = true; if (octG.parent) octG.parent.visible = true; octG.rotation.y = 0;   /* 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */
+      toonP.emissive.setRGB(0, 0, 0); toonP.color.setScalar(0.8); toonEye.emissive.setRGB(0, 0, 0); toonEye.color.setScalar(0.8);   /* 3점 흰빛 rig 는 장면 필보다 밝아 금발 윗면이 올리브 #d0da91 로 떴다 → 재질 색만 0.8 로 눌러 찍는다 (유니폼, 프로그램 그대로). 눈 재질도 같이 — 안 누르면 흰자가 살결보다 한 칸 떠 번쩍인다 */
+      plG.updateMatrixWorld(true); octG.updateMatrixWorld(true);
+      var ty = fr.y, ct = Math.cos(PPORT.tilt), stl = Math.sin(PPORT.tilt), up = fr.up || 0, yw = fr.yaw == null ? PPORT.yaw : fr.yaw;
+      var ux = -stl * Math.sin(yw) * up, uy = ct * up, uz = -stl * Math.cos(yw) * up;   /* 카메라 '위' 벡터(내 캐릭터 로컬) × up — 타깃과 카메라를 같이 밀어 화면만 세로로 옮긴다 (전신 샷이 64×64 두 장을 이어 붙인다) */
+      _pt.set(ux, ty + uy, uz); plG.localToWorld(_pt);
+      _pp.set(PPORT.dist * ct * Math.sin(yw) + ux, ty + PPORT.dist * stl + uy, PPORT.dist * ct * Math.cos(yw) + uz); plG.localToWorld(_pp);
+      var hw = fr.hw; pCam.left = -hw; pCam.right = hw; pCam.top = hw; pCam.bottom = -hw; pCam.updateProjectionMatrix();
+      pCam.position.copy(_pp); pCam.up.set(0, 1, 0); pCam.lookAt(_pt); pCam.updateMatrixWorld();
+      scene.background = bgHex ? C(bgHex) : null; renderer.setClearColor(bgHex ? C(bgHex) : 0x000000, bgHex ? 1 : 0);
+      renderer.setRenderTarget(rtP); renderer.clear(true, true, false); renderer.render(scene, pCam);
+      scene.overrideMaterial = normalMat; scene.background = null;
+      renderer.setRenderTarget(rtPN); renderer.clear(true, true, false); renderer.render(scene, pCam);
+      scene.overrideMaterial = null;
+      quad.material = postP; renderer.setRenderTarget(rtPO); renderer.render(quadScene, quadCam); quad.material = post;
+      renderer.readRenderTargetPixels(rtPO, 0, 0, PORT.N, PORT.N, pBuf);
+      /* 되돌리기 */
+      scene.background = sv.bg; renderer.setClearColor(sc, sa); renderer.setRenderTarget(null);
+      plMeshes.forEach(function (m) { m.layers.disable(2); }); octL2.forEach(function (o) { o.layers.enable(2); });
+      plBody.scale.set(sv.sx, sv.sy, sv.sz); plBody.position.y = sv.py; plBody.rotation.z = sv.rz; plG.rotation.y = sv.gy; plG.visible = sv.vis; if (plG.parent) plG.parent.visible = sv.pvis;
+      plLimbs.forEach(function (m, i) { m.rotation.x = sv.limbs[i][0]; m.rotation.z = sv.limbs[i][1]; });
+      PL.shut = sv.shut; PL.lod = sv.lod; plEyeUV(); toonEye.emissive.copy(sv.eem); toonEye.color.copy(sv.ecol);
+      octG.visible = sv.ovis; if (octG.parent) octG.parent.visible = sv.opvis; octG.rotation.y = sv.oy; toonP.emissive.copy(sv.em); toonP.color.copy(sv.col);
+      var N = PORT.N, cv = document.createElement('canvas'); cv.width = cv.height = N;
+      var cx = cv.getContext('2d'), img = cx.createImageData(N, N);
+      for (var y = 0; y < N; y++) img.data.set(pBuf.subarray((N - 1 - y) * N * 4, (N - y) * N * 4), y * N * 4);   /* GL 은 아래→위 */
+      cx.putImageData(img, 0, 0);
+      if (t0) PPORT.ms = +(performance.now() - t0).toFixed(2); PPORT.n++;
+      return cv;
+    }
+    function playerPortrait(o) {   /* → 64×64 캔버스 (복사본, o.shared = 캐시 캔버스 그대로). opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb'. 컨텍스트 잃음 = 빈 캔버스(캐시 안 함 → 복구 뒤 다시 그림) */
+      var k = JSON.stringify(PL.look) + '|' + st.color + '|' + PAL.source + '|' + (portraitBg(o) || 't'), e = PPORT.cache[k];   /* 문어 색도 키에 (setColor 는 스냅 팔레트의 문어 램프를 바꾸는데 PPORT 캐시는 안 비운다 — 리뷰 11-08) */
+      if (!e && ctxLost()) { var blank = document.createElement('canvas'); blank.width = blank.height = PORT.N; return blank; }
+      if (!e) e = PPORT.cache[k] = { cv: renderPlayerPortrait(portraitBg(o)) };
+      if (o && o.shared) return e.cv;
+      var cv = document.createElement('canvas'); cv.width = cv.height = PORT.N; cv.getContext('2d').drawImage(e.cv, 0, 0); return cv;
+    }
+    /* 옷장 샷 (docs/PLAYER_PARTS.md §3 '내 모습 옷장'): 초상과 같은 길을 틀(frame)만 바꿔 찍는다 — 전신 미리보기와 고를 것 썸네일.
+       · look = 지금 모습 위에 덮어쓸 범주들 ({ hair: 'pony' } → 그 머리만 바꾼 모습). 지금 모습과 다르면 찍는 동안만 7 메시의 지오메트리와 얼굴 아틀라스를 잠깐 바꿨다가 되돌린다 (plWithLook — 임시 지오메트리는 바로 dispose, 메시·재질·프로그램·텍스처 수 그대로).
+       · frame: 'full' 64×96(전신: 64×64 두 장을 ±16 px 로 찍어 가운데서 잇는다 — 16 px = 0.2625 m 는 베이어 무늬 주기의 배수라 이음매가 안 보인다) · 'back' 64×96(전신 뒷모습: 요 π) · 'head' 32×32(30.5 px/m · LOD 1: 머리 · 모자가 다 든다) · 'hair' 32×32(head 를 요 0.9 로 돌리고 0.08 내려 찍는다 — 얼굴은 남기고 긴머리 자락 · 양갈래 · 포니 꼬리 · 웨이브 끝이 갈린다. 요 0.35 는 여섯 머리가 거의 같아 보였다, 11-09) · 'face' · 'body' · 'feet' 32×32(61 px/m · LOD 2: 초상과 같은 촘촘함의 가운데 크롭).
+         얼굴 조각은 텍셀 ≈ 1.13 px 일 때만 안 뭉개진다 → 61 px/m × LOD 2 아니면 30.5 px/m × LOD 1 둘만 쓴다.
+       · 캐시: 키 = 모습 + 틀 + 문어 색 + 팔레트 + 배경, 최근 200 장 (setPlayer 로 안 비운다 — 같은 모습으로 돌아오면 그대로 쓴다). 컨텍스트 잃음 = 빈 캔버스(캐시 안 함). */
+    var PSHOT = { cache: {}, keys: [], cap: 200, n: 0, frames: {
+      full: { w: 64, h: 96, y: 0.70, hw: 0.525, lod: 2, tiles: [0.2625, -0.2625] },
+      head: { w: 32, h: 32, y: 0.93, hw: 1.05, lod: 1 },
+      back: { w: 64, h: 96, y: 0.70, hw: 0.525, lod: 2, tiles: [0.2625, -0.2625], yaw: Math.PI },
+      hair: { w: 32, h: 32, y: 0.80, hw: 1.05, lod: 1, yaw: 0.9 },
+      face: { w: 32, h: 32, y: 0.86, hw: 0.525, lod: 2 },
+      body: { w: 32, h: 32, y: 0.40, hw: 0.525, lod: 2 },
+      feet: { w: 32, h: 32, y: 0.09, hw: 0.525, lod: 2 } } };
+    function plWithLook(look, fn) {
+      var live = PL.look; if (JSON.stringify(look) === JSON.stringify(live)) return fn();
+      var liveG = plMeshes.map(function (m) { return m.geometry; }), tmp = plGeos(look);
+      try { plMeshes.forEach(function (m, i) { m.geometry = tmp[i]; }); PL.look = look; plEyeBase(); plDrawEyes(look); return fn(); }
+      finally { plMeshes.forEach(function (m, i) { m.geometry = liveG[i]; }); tmp.forEach(function (g) { g.dispose(); }); PL.look = live; plDrawEyes(live); plEyeUV(); }
+    }
+    function renderPlayerShot(look, fr, bgHex) {
+      var cv = document.createElement('canvas'); cv.width = fr.w; cv.height = fr.h; var cx = cv.getContext('2d'), N = PORT.N;
+      plWithLook(look, function () {
+        if (fr.tiles) {
+          var a = renderPlayerPortrait(bgHex, { y: fr.y, hw: fr.hw, lod: fr.lod, yaw: fr.yaw, up: fr.tiles[0] }), b = renderPlayerPortrait(bgHex, { y: fr.y, hw: fr.hw, lod: fr.lod, yaw: fr.yaw, up: fr.tiles[1] });
+          cx.drawImage(a, 0, 0); cx.clearRect(0, 48, N, 48); cx.drawImage(b, 0, 16, N, 48, 0, 48, N, 48);   /* 위 장 0~47 줄 + 아래 장 16~63 줄 → 가장자리 16 줄(윤곽선이 바깥을 못 보는 곳)은 둘 다 버린다 */
+        } else { var c = renderPlayerPortrait(bgHex, { y: fr.y, hw: fr.hw, lod: fr.lod, yaw: fr.yaw, up: 0 }); cx.drawImage(c, (N - fr.w) / 2, (N - fr.h) / 2, fr.w, fr.h, 0, 0, fr.w, fr.h); }
+      });
+      PSHOT.n++; return cv;
+    }
+    function playerShot(o) {   /* → 캔버스 (복사본, o.shared = 캐시 캔버스 그대로). o = { look?: 덮어쓸 범주들, frame?: 'full'(기본) | 'back' | 'head' | 'hair' | 'face' | 'body' | 'feet', bg?: 'transparent'(기본) | 'navy' | '#rrggbb', shared? } */
+      o = o || {};
+      var name = PSHOT.frames[o.frame] ? o.frame : 'full', fr = PSHOT.frames[name], bg = portraitBg(o);
+      var look = o.look ? normalizePlayer(Object.assign({}, PL.look, o.look)) : PL.look;
+      var k = JSON.stringify(look) + '|' + name + '|' + st.color + '|' + PAL.source + '|' + (bg || 't'), e = PSHOT.cache[k];
+      if (!e && ctxLost()) { var blank = document.createElement('canvas'); blank.width = fr.w; blank.height = fr.h; return blank; }
+      if (!e) {
+        e = PSHOT.cache[k] = { cv: renderPlayerShot(look, fr, bg) }; PSHOT.keys.push(k);
+        while (PSHOT.keys.length > PSHOT.cap) delete PSHOT.cache[PSHOT.keys.shift()];
+      }
+      if (o.shared) return e.cv;
+      var cv = document.createElement('canvas'); cv.width = fr.w; cv.height = fr.h; cv.getContext('2d').drawImage(e.cv, 0, 0); return cv;
     }
     var octState = { carrySvg: null, hang: null, carryId: null };   /* carryId = 들고 있는 포스터의 여행 id (APP 의 carry { svg, id }) */
     function setOctState(s, extra) {
@@ -2334,7 +2985,7 @@ var SCENE3D = (function () {
 
     /* ── 방 문 (8물결 · 카드 18): goRoom('play') = 지금 보이는 곳에서 놀이방으로 (다락이면 다락 문을 열고, 바깥이면 문 없이) · goRoom('attic') = 놀이방 문을 열고 이야기 장소로
        (place(): 문어가 집이면 다락, 나가 있으면 바깥 — 놀이방에 있는 동안 산책이 진행됐으면 그 자리로). 순서:
-       [문 앞으로 걷기: opts.walkFirst — 지금은 캐릭터가 없어 바로] → 문짝 열림 4프레임(12 fps) + on.door({act:'open'}) → 가로 전환 0.6 s (앞 0.3 s 나가는 방이 옆으로 밀려 나가며
+       [문 앞으로 걷기: opts.walkFirst — 내 캐릭터가 문 앞 앵커까지 걷고 문을 보며 선다 (playerWalkTo)] → 문짝 열림 4프레임(12 fps) + on.door({act:'open'}) → 가로 전환 0.6 s (앞 0.3 s 나가는 방이 옆으로 밀려 나가며
        디더로 허공색, 뒤 0.3 s 들어오는 방이 옆에서 들어옴 · 화면 가로 정수 px · 한 프레임엔 한 장소) → 들어온 쪽 문이 닫힘 4프레임 + on.door({act:'close'}) → Promise.
        모션 감소 = 열린 문 한 장(0.15 s) → 컷 → 닫힌 문 (소리 알림은 같다). instant = 문 프레임 없이 바로 컷 (알림은 그대로). 문 작업은 의식 큐(CER)와 따로 돈다 ── */
     var DOOR_HOLD_REDUCED = 0.15, PLAY_DOOR = null;
@@ -2354,7 +3005,7 @@ var SCENE3D = (function () {
         dt = c.until ? 0 : c.t - c.dur; if (c.end) c.end(); DQ.cur = null;
       }
     }
-    function dqFinish() { if (!DQ.active) return; DQ.instant = true; if (PLACE.trans && PLACE.trans.door) finishTrans(); stepDQ(0); }   /* 컨텍스트 잃음·destroy: 남은 문 작업을 지금 끝낸다 (Promise 는 푼다) */
+    function dqFinish() { plFinish(); if (!DQ.active) return; DQ.instant = true; if (PLACE.trans && PLACE.trans.door) finishTrans(); stepDQ(0); }   /* 컨텍스트 잃음·destroy: 남은 문 작업을 지금 끝낸다 (Promise 는 푼다) */
     function doorEvent(ev) { emit('door', ev); if (typeof DQ.onDoor === 'function') { try { DQ.onDoor(ev); } catch (e) { console.error('[scene3d] onDoor', e); } } }
     function doorItem(getD, open, getEv) {   /* 문짝 4프레임 (D 가 없으면 알림만) */
       var it = { dur: 0 }, D = null;
@@ -2377,9 +3028,6 @@ var SCENE3D = (function () {
       };
       it.until = function () { return !tr || PLACE.trans !== tr; };
       return it;
-    }
-    function playerWalkTo(anchor) {   /* 나중의 걸어 다니는 내 캐릭터 자리: 문 앞 앵커까지 걷고 도착하면 푼다. 지금은 캐릭터가 없어 바로 푼다 (walked: false) */
-      return Promise.resolve({ ok: true, walked: false, anchor: anchor, at: (DOOR_ANCHORS[anchor] || [0, 0, 0]).slice() });
     }
     function goRoom(room, o) {
       o = o || {};
@@ -2409,12 +3057,12 @@ var SCENE3D = (function () {
         var AD = from === 'attic' ? ATTIC_DOOR : null;
         PLACE.room = 'play'; container.dataset.room = 'play';   /* 지금부터 의식은 이야기 장소만 바꾼다 (문이 열리는 동안에도 끌려 나가지 않게) */
         items = [doorItem(function () { return AD; }, true, function () { return { act: 'open', room: 'play', door: AD ? 'atticPlay' : null, from: from }; }),
-          slideItem(from, function () { return 'play'; }, 1, function () { setLeaf(ATTIC_DOOR, 0); setLeaf(PLAY_DOOR, 4); }),
+          slideItem(from, function () { return 'play'; }, 1, function () { setLeaf(ATTIC_DOOR, 0); setLeaf(PLAY_DOOR, 4); plEnter('play'); }),
           doorItem(function () { return PLAY_DOOR; }, false, function () { return { act: 'close', room: 'play', door: 'playAttic', from: from }; })];
       } else {
         items = [doorItem(function () { return PLAY_DOOR; }, true, function () { return { act: 'open', room: PLACE.cur, door: 'playAttic', from: 'play' }; }),
           slideItem('play', function () { PLACE.room = null; container.dataset.room = ''; ctx.to = PLACE.cur; return ctx.to; }, -1,   /* 목적지는 가운데 프레임에서 정한다 (문이 열리는 사이 문어가 돌아왔으면 다락) · 거기서 방을 놓는다 */
-            function (to) { setLeaf(PLAY_DOOR, 0); if (to === 'attic') setLeaf(ATTIC_DOOR, 4); }),
+            function (to) { setLeaf(PLAY_DOOR, 0); if (to === 'attic') setLeaf(ATTIC_DOOR, 4); plEnter(to); }),
           doorItem(function () { return ctx.to === 'attic' ? ATTIC_DOOR : null; }, false, function () { return { act: 'close', room: ctx.to, door: ctx.to === 'attic' ? 'atticPlay' : null, from: 'play' }; })];
       }
       var p = dqRun(enter ? 'enter' : 'leave', items, o.onDoor);
@@ -2546,7 +3194,7 @@ var SCENE3D = (function () {
         { g: box(0.05, H + 1.2, 2 * Rp + 1.2), m: M(Rp + 0.55, H / 2, 0), c: '#000000' }, { g: box(0.05, H + 1.2, 0.7), m: M(-Rp - 0.1, H / 2, Rp + 0.3), c: '#000000' }])), shade.material);
       shp.castShadow = true; shp.receiveShadow = false; shp.frustumCulled = false; shp.renderOrder = -10; g.add(shp);
       PROOM = { g: g, room: room, glass: gl, screen: scr, screenGeo: scrGeo, screenEm: scrEm, bulbs: bulbs, bulbEm: bulbEm, lA: lA, lB: lB, shade: shp, props: n,
-        machineBox: new T.Box3(new T.Vector3(MX - 0.36, 0, zb), new T.Vector3(MX + 0.36, 1.66, zb + 0.54)), scr: { t: 0, f: 0 } };
+        machineBox: new T.Box3(new T.Vector3(MX - 0.36, 0, zb), new T.Vector3(MX + 0.36, 1.66, zb + 0.54)), counterBox: new T.Box3(new T.Vector3(cx - 0.73, 0, cz - 0.28), new T.Vector3(cx + 0.73, 0.87, cz + 0.32)), scr: { t: 0, f: 0 } };   /* counterBox = 조리대 윗판 둘레 (내 캐릭터 장애물) */
       playApplyLight(); doorsApplyLight();
       return PROOM;
     }
@@ -3215,7 +3863,7 @@ var SCENE3D = (function () {
     }
     function frame(ts) {
       var octQuiet = PLACE.vis === 'play' || ((st.octState === 'idle' || st.octState === 'sleep' || st.octState === 'stay') && !oct.walking && !(G.settleT < GAIT.settle));   /* 놀이방이 보이는 동안 문어(다락 · 산책 중 바깥)는 안 보이므로 30 fps (움직이는 건 2 fps 오락기 화면뿐) */
-      var idle = octQuiet && !GEST.mode && !PAN.mode && !ZT && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !(CER.active && PLACE.vis !== 'play') && !DQ.active && !SAL.active && !(SAL.spark > 0) && !(SAL.offerT >= 0);   /* 손가락·관성 · 미용실 연출 중엔 60 fps */
+      var idle = octQuiet && !PL.walking && !PL.stick && !PL_IN.v && !GEST.mode && !PAN.mode && !ZT && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !(CER.active && PLACE.vis !== 'play') && !DQ.active && !SAL.active && !(SAL.spark > 0) && !(SAL.offerT >= 0);   /* 손가락·관성 · 미용실 연출 중엔 60 fps */
       /* 프레임 상한은 *시간* 기준 (docs/research/a11y-and-mobile-perf.md 1): 가만히(또는 화면 밖) 30fps · 그 밖 60fps — 120Hz 폰도 60. 건너뛴 콜백의 시간은 버리지 않고
          다음에 그리는 프레임의 dt 로 넘긴다 (예전 홀수 콜백 건너뛰기는 dt 째 버려서 가만히 있을 때 비·양초·먼지·깜빡임·커튼이 반속도였다). debugStep(st.force) 은 항상 주어진 dt 로 진행·렌더 */
       if (!st.force && lastDraw && ts - lastDraw < (idle || st.offscreen ? 1000 / 30 : 1000 / 60) - 1) return;
@@ -3243,7 +3891,7 @@ var SCENE3D = (function () {
       if (atticG.visible) stepWeather(dt); if (extG.visible) stepExt(dt); if (PROOM && PROOM.g.visible) stepPlayRoom(dt);
       post.uniforms.uFade.value = PLACE.fade; if (PLACE.fade > 0) { var fk = hexToOklab(LIGHTS[phaseOf(st.hour)].bg); post.uniforms.uFadeOk.value.set(fk[0], fk[1], fk[2]); }
       stepSalon(dt);   /* 미용실 연출 (몸 층 SAL.body 를 stepOct 가 읽는다) · 거울 속 문어 */
-      stepOct(dt); if (PLAY) PLAY.step(dt);   /* 놀이 kit: stepOct 가 매 프레임 새로 쓴 몸·팔 값 위에 덮어쓴다 */
+      stepOct(dt); stepPlayer(dt); if (PLAY) PLAY.step(dt);   /* 놀이 kit: stepOct 가 매 프레임 새로 쓴 몸·팔 값 위에 덮어쓴다 */
       stepHang(dt); stepIntro(dt);
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(camera.quaternion);
       stepZoom(dt); stepPan(dt); placeCamera(); updateOverlay();
@@ -4083,9 +4731,20 @@ var SCENE3D = (function () {
       /* 바깥·계절·전환 (DESIGN §15.3, docs/SCENE.md): 장소 'attic' | 'exterior' · 계절 'spring' | 'summer' | 'autumn' | 'winter' | 'auto'(실제 월) · 출발/귀가 의식 (onDone 콜백 + Promise) */
       setPlace: function (p, o) { setPlace(p, o); }, place: function () { return PLACE.cur; },
       /* 놀이방 (8물결, scratchpad scene-api.md · docs/SCENE.md '놀이방'): view() 지금 그려지는 장소 'attic'|'exterior'|'play' · room() 내가 들어가 있는 방 'play'|null ·
-         goRoom('play'|'attic', { walkFirst, instant, onDoor }) → Promise<{ ok, reason?, view, room, place }> · playerWalkTo(anchor) → Promise (지금은 바로) ·
+         goRoom('play'|'attic', { walkFirst, instant, onDoor }) → Promise<{ ok, reason?, view, room, place }> · playerWalkTo(anchor) → Promise<{ ok, walked, anchor, at }> (내 캐릭터가 문 앞까지 걷는다) · player() → { place, at, walking, pending, yaw, frame, group, visible, walks, height, look } ·
          hotspots({ atticPlay, playAttic, machine }, { edge }) 진짜 <button> 을 문·기계 위에 · spotRect(id) → {mode, x, y, w, h, art, client} | null (#scene 안쪽 CSS px) · finishRoom() 문 작업 즉시 끝 */
-      view: function () { return PLACE.vis; }, room: function () { return PLACE.room; }, goRoom: goRoom, playerWalkTo: playerWalkTo, finishRoom: dqFinish,
+      view: function () { return PLACE.vis; }, room: function () { return PLACE.room; }, goRoom: goRoom, playerWalkTo: playerWalkTo, player: plInfo, finishRoom: dqFinish,
+      /* 내 캐릭터 파츠 (docs/PLAYER_PARTS.md §3): setPlayer(cfg) → 정규화된 cfg (지오메트리만 교체, 위치·걷기 그대로) · player().look · playerPortrait({ bg }) → 64×64 캔버스 (레이어 2 조명, 캐시) ·
+         debugPlayerYaw(deg | null) 8방향 샷용 (null = 다시 카메라 쪽) · debugPlayerBlink(s) 깜빡임 강제 (tools/player-shots.js) */
+      setPlayer: setPlayer, playerPortrait: playerPortrait, playerShot: playerShot,
+      /* 움직이기 (brief MOVE.md · docs/SCENE.md '내 캐릭터 · 움직이기'): setPlayerInput({ x, y } | null) 화면 축 벡터(오른쪽 +x · 위 +y · 길이 0..1) → 매 프레임 1.2 m/s · playerInputAllowed() 보이는 때 규칙 ·
+         on.playerInput(allowed) 바뀔 때만 · on.playerStep() 걸음마다 · player().input / footprints · debugPlayerAt(x, z) 자리 옮김 (검사용) */
+      setPlayerInput: setPlayerInput, playerInputAllowed: playerInputAllowed,
+      debugPlayerAt: function (x, z) { plStop(); PL.pending = ''; PL.pos.set(+x || 0, 0, +z || 0); PL.moving = false; plSnap(); return plInfo(); },
+      debugPlayerYaw: function (deg) { if (deg == null) { PL.faceCam = true; return; } PL.faceCam = false; PL.wantYaw = PL.yaw = deg * DEG; },
+      debugPlayerBlink: function (s) { PL.blinkLeft = s == null ? 0.12 : Math.max(0, +s || 0); if (!PL.blinkLeft) PL.blinkT = 9; },   /* 0 = 눈을 뜨고 9 s 동안 안 감는다 (파츠 시트 칸이 깜빡임 프레임에 찍히지 않게) */
+      debugPlayerEyes: function (v) { plEyes.visible = v !== false; return { lod: PL.lod, shut: PL.shut }; },
+      debugPlayerHide: function (v) { plG.visible = v === false; },   /* 눈 조각 숨기기/보이기 · 캐릭터 통째 숨기기(true = 숨김) — player-shots 의 '눈이 머리 윤곽 밖으로 나오나' 검사: 눈 켠 프레임 − 끈 프레임 의 차이 픽셀이 전부 캐릭터(끈 프레임 − 숨긴 프레임) 위에 있어야 한다 */
       hotspots: setHotspots,
       spotRect: function (id) { var s = spotInfo(id); if (!s || s.mode !== 'over') return s; var r = container.getBoundingClientRect(); s.client = { x: r.left + s.x, y: r.top + s.y, w: s.w, h: s.h }; return s; },
       doorAnchors: JSON.parse(JSON.stringify(DOOR_ANCHORS)),
@@ -4149,9 +4808,9 @@ var SCENE3D = (function () {
       pickAt: function (x, y) { scene.updateMatrixWorld(); camera.updateMatrixWorld(); var o = pick(+x, +y); return o ? { kind: o.userData.kind, id: tapId(o) } : null; },
       screenOf: function (x, y, z) { var p = _hp.set(x, y, z).project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 월드 → 컨테이너 CSS px (스트립 크롭 중심) */
       msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
-      motion: function () { var vg = groupOf(PLACE.vis); return { salon: salMotion(), place: PLACE.vis, view: PLACE.vis, room: PLACE.room, dq: DQ.name, slidePx: Math.round(vg.position.dot(_r) / S.pw), slideUpPx: Math.round(vg.position.dot(_u) / S.pw), slideY: +vg.position.y.toFixed(4), transAxis: PLACE.trans ? PLACE.trans.axis : '', doorAttic: ATTIC_DOOR.f, doorPlay: PLAY_DOOR ? PLAY_DOOR.f : 0, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, octFade: FADE.d, wave: WAVE.on, peek: PK.on ? PK.key + (PK.hold ? ':hold' : ':walk') : '', extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
+      motion: function () { var vg = groupOf(PLACE.vis); return { salon: salMotion(), player: plInfo(), place: PLACE.vis, view: PLACE.vis, room: PLACE.room, dq: DQ.name, slidePx: Math.round(vg.position.dot(_r) / S.pw), slideUpPx: Math.round(vg.position.dot(_u) / S.pw), slideY: +vg.position.y.toFixed(4), transAxis: PLACE.trans ? PLACE.trans.axis : '', doorAttic: ATTIC_DOOR.f, doorPlay: PLAY_DOOR ? PLAY_DOOR.f : 0, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, octFade: FADE.d, wave: WAVE.on, peek: PK.on ? PK.key + (PK.hold ? ':hold' : ':walk') : '', extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
       gaitStyle: function (s) { if (s === 'stepped' || s === 'smooth') GAIT.stepped = s === 'stepped'; return GAIT.stepped ? 'stepped' : 'smooth'; },   /* 디버그: 걸음 굴림 3단 스텝(기본) / 매끈 — tools/walk-strip.js 비교용 */   /* 룩 패스 7·8 디버그 */
-      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: +(S.N / baseN()).toFixed(4), props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, view: PLACE.vis, room: PLACE.room, season: SEASON.cur, offscreen: !!st.offscreen, draws: drawN, callsAttic: callsBy.attic, callsExt: callsBy.exterior, callsPlay: callsBy.play, extProps: extPropN, playBuilt: !!PROOM, playProps: PROOM ? PROOM.props : 0, programs: renderer.info.programs ? renderer.info.programs.length : 0 }; },
+      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: +(S.N / baseN()).toFixed(4), props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, view: PLACE.vis, room: PLACE.room, frameY: frameY(), season: SEASON.cur, offscreen: !!st.offscreen, draws: drawN, callsAttic: callsBy.attic, callsExt: callsBy.exterior, callsPlay: callsBy.play, extProps: extPropN, playBuilt: !!PROOM, playProps: PROOM ? PROOM.props : 0, programs: renderer.info.programs ? renderer.info.programs.length : 0 }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastDraw = 0; loop(); },
       destroy: function () {
@@ -4172,5 +4831,6 @@ var SCENE3D = (function () {
     };
   }
 
-  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, DOOR_ANCHORS: DOOR_ANCHORS, ITEM_LEVEL: { salon: 2 },   /* ITEM_LEVEL = 장면이 그리는 새 소품의 등불 칸 (앱 ITEM_LEVEL 이 같은 값을 쓴다) */ PLAY_SIZE: { floor: 2 * PLAY_R, wall: PLAY_H }, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS, FIRST_LIGHT: FIRST_LIGHT, EXPRESSIONS: EXPRESSIONS.slice() };
+  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, DOOR_ANCHORS: DOOR_ANCHORS, ITEM_LEVEL: { salon: 2 },   /* ITEM_LEVEL = 장면이 그리는 새 소품의 등불 칸 (앱 ITEM_LEVEL 이 같은 값을 쓴다) */ PLAY_SIZE: { floor: 2 * PLAY_R, wall: PLAY_H }, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS, FIRST_LIGHT: FIRST_LIGHT, EXPRESSIONS: EXPRESSIONS.slice(),
+    PLAYER_PARTS: PLAYER_PARTS, PLAYER_DEFAULT: PLAYER_DEFAULT, normalizePlayer: normalizePlayer };   /* 내 캐릭터 파츠 카탈로그 · 기본값 · 정규화 (docs/PLAYER_PARTS.md §3) */
 })();

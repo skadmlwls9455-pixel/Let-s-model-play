@@ -317,8 +317,8 @@
 | 문어 그룹 | 문어는 다락 · 바깥에만 (놀이방에 오지 않는다). 놀이방이 보이는 동안 `octScreenPos()` null · `#oct` 숨김 |
 | 놀이방 만들기 | `buildPlayRoom()` — **처음 `goRoom('play')` 때만** (안 열면 시작 비용 0, `stats().playBuilt`) |
 | 놀이방 빛 | 벽등 2 = 점광 2 (다락과 같은 수 → 셰이더 프로그램 27 그대로, 왕복 두 번 뒤도 27). 낮에도 밤에도 켜짐. 재질은 있는 것만 |
-| 앵커 | 문 앞 자리 `atticPlayDoor (1.95, 0, 1.4)` · `playAtticDoor (-1.35, 0, -0.33)` (`DOOR_ANCHORS` — 문어 `ANCHORS` 가 아님, 나중 내 캐릭터용) |
-| 오가기 API | `goRoom(room, { walkFirst, instant, onDoor }) → Promise` · `playerWalkTo(anchor) → Promise` (지금은 바로) · `hotspots({ atticPlay, playAttic, machine })` · `spotRect(id)` · `finishRoom()` · 콜백 `on.door` · `on.view`. `setPlace('play')` = `goRoom('play')` |
+| 앵커 | 문 앞 자리 `atticPlayDoor (1.95, 0, 1.92)` (문 손잡이 쪽 옆 — 문짝 뒤에 안 가리게, SCENE.md '앵커') · `playAtticDoor (-1.35, 0, -0.33)` (`DOOR_ANCHORS` — 문어 `ANCHORS` 가 아님, 내 캐릭터용) |
+| 오가기 API | `goRoom(room, { walkFirst, instant, onDoor }) → Promise` · `playerWalkTo(anchor) → Promise` (내 캐릭터가 문 앞까지 걷는다, SCENE.md '내 캐릭터') · `hotspots({ atticPlay, playAttic, machine })` · `spotRect(id)` · `finishRoom()` · 콜백 `on.door` · `on.view`. `setPlace('play')` = `goRoom('play')` |
 | 고르기 | 문 · 오락기는 그 위의 진짜 `<button>` (키보드 · 화면 낭독기) — 손가락 · 마우스는 캔버스가 받아(`pointer-events: none`) 그린 순서대로 고른다: 다락 문 메시도 거리순 레이캐스트에 들고, 빗나가면 문 단추 칸(44×44 이상) → 그 단추 `click()` (`pickAt` → `{ kind:'spot', id }`). 놀이방의 빈 바닥은 null. 확대 · 밀기에도 단추는 화면에 보이는 문 조각 위에만 |
 | 통계 | `callsPlay` (놀이방만 21 낮 / 22 밤, ≤ 60) · `programs` · `playBuilt` · `playProps`. 다락은 문 덧그림으로 69/71 → 75/80 (밤엔 문틈 불빛 +2 포함) |
 | 2D | `js/scene2d.js` 같은 API — 문 그림 레이어 + `#play2d` 놀이방 그림 + 컷 |

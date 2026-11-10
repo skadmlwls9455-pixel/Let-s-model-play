@@ -3,7 +3,7 @@
    DESIGN.md §2 §3 §4 §6 §7 §8 §12.3
    섹션: util · state · migrate · assets · scene(SCENE3D|SCENE2D 브리지) · octopus ·
          invite/reveal · log · posters · album(요즘 · 메모 · 일기) · dialogs(포스터 · 설정 · 이름) · rooms(문어 방 ↔ 놀이방) · tip · demo · boot
-   7물결 (주인 11-07): '방 보기' 는 없앴다 → ⚙ 설정 시트 (문어 색 · 소리 · 모션 · 글꼴 · 기록) · 앨범 (문어의 요즘 · 다음 산책에 가는 메모 · 일기 탭).
+   7물결 (주인 11-07): '방 보기' 는 없앴다 → ⚙ 설정 시트 (문어 색 · 내 모습 · 소리 · 모션 · 글꼴 · 기록) · 앨범 (문어의 요즘 · 다음 산책에 가는 메모 · 일기 탭).
    건너뛰기는 큰 버튼에 합쳤다 (나가 있는 동안 #btn-go = "다녀오는 중…" 글자만, 누르면 skip).
    8물결: 다락 안 진짜 문(#btn-door, 3D 문 위 투명 단추) → goRoom('play') → 진짜 놀이방 (오락기 → 다락방 달리기 · 문 → 문어 방). 자세한 규칙은 rooms 섹션
    플레이어가 보는 버튼 · 탭 · 시트 제목에는 글자나 픽셀 그림만 (이모지 · 유니코드 기호 없음 — 주인 11-07 '실제 사용자에게 바로 나간다고 생각해')
@@ -145,12 +145,13 @@ var APP = (function () {
   function nodeOf(id) { return (W && W.nodes && W.nodes[id]) || null; }
   function cornerName(c) { return (W && W.corners && W.corners[c] && W.corners[c].name) || c; }
   function greetingByHour(hr) { return hr < 6 ? '밤이 깊었네' : hr < 9 ? '좋은 아침' : hr < 17 ? '좋은 오후' : hr < 19 ? '노을이 지네' : '밤이네'; }
-  var toastTimer = null;
+  var toastTimer = null, toastRow = false;   /* toastRow: 지금 떠 있는 게 '새 줄 알림'(rowToast)인가 */
   function toast(msg, raw) {   /* <output aria-live=polite> 하나, 한 번에 하나, 2.5초 (UI R21). raw = { part, by }: 그 안의 남의 글(위키 제목 등)만 data-raw */
     var t = $('toast'); if (!t) return;
+    clearTimeout(rowTimer); rowWait = null; toastRow = false; t.classList.remove('row');   /* 보통 알림이 새 줄 알림을 밀어낸다 (거꾸로는 아니다 — rowToast) */
     var moved = raiseToast(t);
     if (moved && !t.classList.contains('show')) void t.offsetWidth;   /* 옮긴 직후에도 나타나는 전환이 돌게 */
-    t.textContent = ''; partRaw(msg, raw && raw.part, raw && raw.by).forEach(function (n) { t.appendChild(n); }); t.classList.add('show');
+    t.textContent = ''; partRaw(msg, raw && raw.part, raw && raw.by).forEach(function (n) { t.appendChild(n); }); toastPlace(t); t.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2500);
   }
   /* 모달 <dialog> 가 열려 있으면 그 밖은 inert 라 토스트가 대화상자 밑에 깔리고 화면 낭독기에도 안 읽힌다 (복사·저장·불러오기 결과).
@@ -180,12 +181,46 @@ var APP = (function () {
   function parseState(raw) { if (!raw) return null; try { var o = JSON.parse(raw); return (o && typeof o === 'object') ? o : null; } catch (e) { return null; } }
   function seenOf(o) { return (o && o.settings && typeof o.settings.lastSeen === 'number') ? o.settings.lastSeen : 0; }
   function isQuota(e) { return !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014); }
-  function quietWarn(text) { var w = $('save-warn'); if (!w) return; if (w.textContent === text && !w.hidden) return; w.textContent = text; w.hidden = false; }
+  function quietWarn(text) { var w = $('save-warn'); if (!w) return; if (w.textContent === text && !w.hidden) return; w.textContent = text; w.hidden = false; warnFit(); }
 
   /* ───────────────────────── state ───────────────────────── */
   /* 스냅 팔레트 (룩 패스 3, settings.palette): 즉흥 램프 또는 js/palettes.js 의 검증 팔레트. 기본값은 SCENE3D.PAL_DEFAULT (docs/LOOK_LOG.md 3행) */
   var PALETTES_UI = [['ramps', '즉흥'], ['apollo', 'Apollo'], ['endesga64', 'Endesga'], ['resurrect64', 'Resurrect']];
   function paletteDefault() { return (typeof SCENE3D !== 'undefined' && SCENE3D.PAL_DEFAULT) || 'ramps'; }
+  /* 내 모습 (내 캐릭터 파츠 — docs/PLAYER_PARTS.md §3): 목록·기본값은 장면(SCENE3D.PLAYER_PARTS · PLAYER_DEFAULT)이 주인. 장면 빌드에 아직 없으면 같은 id 의 비상 목록.
+     옷방(왼쪽 문)이 생기기 전까지는 설정 시트 '내 모습' 섹션에서 고른다 (PLAYER_PROGRESSION 11-08 메모). 저장은 settings.player = { hair, hairColor, eyes, eyeColor, nose, mouth, cheek, outfit, shoes, acc } (id). 코 · 입 · 볼은 11-09 에 생겼다 — 옛 기록엔 없어 normalizePlayer 가 기본(세모코 · 미소 · 볼 없음)으로 채운다. 볼터치('blush')는 11-10 에 뺐다 — 저장돼 있던 값은 모르는 id 라 '없음' 이 된다 */
+  var PLAYER_CATS = [['hair', '머리'], ['hairColor', '머리 색'], ['eyes', '눈'], ['eyeColor', '눈 색'], ['nose', '코'], ['mouth', '입'], ['cheek', '볼'], ['outfit', '옷'], ['shoes', '신발'], ['acc', '악세사리']];
+  var PLAYER_FALLBACK = {
+    hair: [['bob', '단발'], ['short', '숏컷'], ['long', '긴생머리'], ['twin', '양갈래'], ['pony', '포니테일'], ['wave', '웨이브']],
+    hairColor: [['blonde', '금발', '#ffc16a'], ['brown', '밤갈색', '#9a5a3a'], ['ink', '먹남색', '#1e2a44'], ['silver', '은빛', '#cfc9c0'], ['pink', '분홍', '#de8fa9'], ['lime', '연두', '#a0d070']],
+    eyes: [['round', '동그란'], ['sparkle', '반짝'], ['sleepy', '졸린'], ['almond', '또렷'], ['smile', '웃는'], ['dot', '점']],
+    eyeColor: [['dark', '흑갈색', '#6a3a30'], ['hazel', '호두색', '#884b2b'], ['sea', '바다색', '#3c5e8b'], ['leaf', '잎새색', '#468232'], ['honey', '꿀색', '#be772b'], ['violet', '제비꽃', '#7a367b']],
+    nose: [['none', '없음'], ['dot', '콩코'], ['tri', '세모코']],
+    mouth: [['none', '없음'], ['smile', '미소'], ['line', '새침'], ['pout', '뾰로통'], ['open', '활짝'], ['o', '오']],
+    cheek: [['none', '없음'], ['freckle', '주근깨']],
+    outfit: [['dress', '원피스'], ['knit', '니트'], ['hoodie', '후드'], ['overall', '멜빵'], ['raincoat', '비옷']],
+    shoes: [['flat', '단화'], ['boot', '부츠'], ['sneaker', '운동화'], ['loafer', '로퍼']],
+    acc: [['none', '없음'], ['ribbon', '리본'], ['beret', '베레모'], ['glasses', '동글안경'], ['catears', '고양이귀'], ['strawhat', '밀짚모자']]
+  };
+  var PLAYER_FALLBACK_DEFAULT = { hair: 'bob', hairColor: 'blonde', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };
+  function playerParts() {   /* → { hair: [{id, name}], hairColor: [{id, name, hex}], … } 범주마다 1개 이상 */
+    var P = (typeof SCENE3D !== 'undefined' && isObj(SCENE3D.PLAYER_PARTS)) ? SCENE3D.PLAYER_PARTS : null, out = {};
+    PLAYER_CATS.forEach(function (c) {
+      var k = c[0], list = P && Array.isArray(P[k]) ? P[k].filter(function (x) { return isObj(x) && typeof x.id === 'string'; }) : [];
+      out[k] = list.length ? list : PLAYER_FALLBACK[k].map(function (x) { return { id: x[0], name: x[1], hex: x[2] }; });
+    });
+    return out;
+  }
+  function normalizePlayer(cfg) {   /* 아는 범주만 · 모르는 id 는 기본값으로 (장면의 setPlayer 와 같은 규칙) */
+    var P = playerParts(), D = (typeof SCENE3D !== 'undefined' && isObj(SCENE3D.PLAYER_DEFAULT)) ? SCENE3D.PLAYER_DEFAULT : PLAYER_FALLBACK_DEFAULT, out = {};
+    cfg = isObj(cfg) ? cfg : {};
+    PLAYER_CATS.forEach(function (c) {
+      var k = c[0], ids = P[k].map(function (x) { return x.id; }), v = cfg[k], d = ids.indexOf(D[k]) >= 0 ? D[k] : ids[0];
+      out[k] = (typeof v === 'string' && ids.indexOf(v) >= 0) ? v : d;
+    });
+    return out;
+  }
+  function playerDefault() { return normalizePlayer(null); }
   function defaults() {
     return {
       v: 2,
@@ -194,7 +229,7 @@ var APP = (function () {
       trips: [],
       notes: {},   /* §17.1 방마다 최근 메모 1개: { nodeId: { text, tripId, date } } */
       curiosityNotes: [],   /* 호기심 메모 (docs/CURIOSITY_NOTES.md): [{ id:'cn_…', text, about, by, model?, session(여행 id), at, status:'active'|'set_down', setDownAt }] — 오래된 것부터 */
-      settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c', flipped: false, palette: paletteDefault(), pixelFont: true, albumSeen: 0 }   /* albumSeen: 앨범 점 기준 (renderAlbumBtn). 새 기록은 0 = 아직 본 포스터 없음 */
+      settings: { motion: 'auto', thumbs: true, lastSeen: null, octColor: '#e8463c', flipped: false, palette: paletteDefault(), pixelFont: true, albumSeen: 0, player: playerDefault() }   /* player: 내 모습 (id 들, normalizePlayer) · albumSeen: 앨범 점 기준 (renderAlbumBtn). 새 기록은 0 = 아직 본 포스터 없음 */
     };
   }
   var S = defaults();
@@ -300,6 +335,7 @@ var APP = (function () {
     if (!/^#[0-9a-f]{6}$/i.test(s.settings.octColor || '')) s.settings.octColor = '#e8463c';
     if (s.settings.claudeRoom != null && !(isObj(s.settings.claudeRoom) && /^[A-Za-z0-9_-]{32,64}$/.test(s.settings.claudeRoom.key || '') && /^https:\/\/[^\s"<>]+\/api\/mcp\/[A-Za-z0-9_-]{32,64}$/.test(s.settings.claudeRoom.mcp || ''))) s.settings.claudeRoom = null;
     if (PALETTES_UI.map(function (p) { return p[0]; }).indexOf(s.settings.palette) < 0) s.settings.palette = paletteDefault();
+    s.settings.player = normalizePlayer(s.settings.player);   /* 옛 기록(player 없음) · 손으로 고친 id 는 기본값으로 */
     return s;
   }
 
@@ -441,7 +477,7 @@ var APP = (function () {
   function sceneOpts() {
     return {
       pixelSize: 3, color: S.settings.octColor, lantern: S.room.lantern, items: itemsFor(S.room.lantern), weather: weatherFor(S.room.lantern), hour: hourNow(),
-      posters: [], souvenirs: [], reducedMotion: reduced(), speed: speed(), assetPath: assetPath, octEl: $('oct'), look: lookNow(), palette: paletteNow(), season: seasonPref(),
+      posters: [], souvenirs: [], reducedMotion: reduced(), speed: speed(), assetPath: assetPath, octEl: $('oct'), look: lookNow(), palette: paletteNow(), season: seasonPref(), player: S.settings.player,
       on: {
         posterTap: function (id) { openPoster(id); },
         souvenirTap: function (sv) { if (sv.tripId && tripById(sv.tripId)) { say((sv.name || sv.id) + ' — 이거 가져온 날', 'happy', 1800, { icon: souvenirIcon(sv.id) }); openPoster(sv.tripId, true); } },   /* 이름 + 말풍선에 기념품 픽셀 그림 */
@@ -456,7 +492,9 @@ var APP = (function () {
         anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ },
         place: function () { updateSceneDesc(); },   /* 3D: 의식이 다락 ↔ 집 바깥을 바꾼 순간 (2D 는 runCeremony 의 250 ms 틱이 따라간다). 놀이방에 있는 동안에도 온다 (이야기 장소만 바뀜) */
         door: function (ev) { if (window.AUDIO && ev) AUDIO.on('door', { act: ev.act, room: ev.room }); },   /* 8물결: 방 문이 열리고 닫힐 때 끼익 (장면은 AUDIO 를 부르지 않는다) */
-        view: function (v) { syncRoomUI(v); }   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
+        view: function (v) { syncRoomUI(v); },   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
+        playerInput: function (allowed) { stickShow(allowed); },   /* 11-08 움직이기: 내 캐릭터를 움직일 수 있는 때가 바뀐 프레임 (바뀔 때만 온다) → 발자국 손잡이 hidden */
+        playerStep: function () { if (window.AUDIO) AUDIO.on('step', { who: 'player' }); }   /* 내 캐릭터 한 걸음 (장면은 AUDIO 를 부르지 않는다) — js/audio.js 에 'step' 갈래가 생기면 발소리 step_* (지금은 조용히) */
       }
     };
   }
@@ -468,10 +506,12 @@ var APP = (function () {
       try { scene = SCENE3D.init($('scene3d'), opts); sceneMode = '3d'; }
       catch (e) { console.warn('[app] scene3d init 실패 → 2D 폴백', e); scene = null; }
     }
-    if (!scene) { scene = SCENE2D.init(host, opts); sceneMode = '2d'; }
+    if (!scene) { document.documentElement.removeAttribute('data-layout'); scene = SCENE2D.init(host, opts); sceneMode = '2d'; }   /* 2D 는 쌓는 배치 크기로 재야 한다 → 그리기 전에 뗀다 */
     host.classList.toggle('mode-3d', sceneMode === '3d');
     $('scene3d').hidden = sceneMode !== '3d';
+    layoutSync();
     bindSpots();   /* 방 문 · 오락기 단추를 장면에 넘긴다 (자리 · hidden 은 장면이) */
+    stickSync();   /* 발자국 손잡이: 지금 장면이 움직이기를 허락하는가 (2D · API 없음 = 숨김) */
     if (!timeTimer) timeTimer = setInterval(function () { scene.setTime(hourNow()); updateSceneDesc(); checkDay(); }, 60000);   /* 1분마다: 시각 · 자정이 지나면 오늘 칸 넘기기 */
   }
   /* WebGL 컨텍스트를 잃고 3 s 안에 돌아오지 않음 (scene3d 의 opts.onLost, docs/research/a11y-and-mobile-perf.md 3): 검게 멈춘 3D 를 버리고 같은 initScene 경로로 2D 폴백.
@@ -496,7 +536,124 @@ var APP = (function () {
     if (sw) sw.innerHTML = '';
     if (msg) msg.textContent = '지금은 2D 장면이라 이 슬라이더는 적용 안 돼 (3D 그림이 멈춰서 바꿨어)';
     updateSceneDesc();
+    var ld = $('look-sheet'); if (ld && ld.open) renderLook();   /* 옷장도: 그림 타일 → 글자 타일 */
+    var sd = $('settings-sheet'); if (sd && sd.open) renderSettings();   /* 열려 있던 설정 시트도 2D 모양으로 (3D 미리보기 캔버스 대신 안내 한 줄 — 안 그리면 옛 초상이 남고 칩을 누를 때 조용히 사라진다) */
     toast('3D 그림이 멈춰서 2D로 바꿨어');
+  }
+  /* ───────────────────────── 한 화면 배치 (주인 11-08) ─────────────────────────
+     3D 일 때만 <html data-layout="one">: 장면이 화면을 다 쓰고 상태 쪽지 · 큰 버튼 · 대사 · 알림이 그 위에 얹힌다 (css/style.css 맨 아래 묶음).
+     오늘의 산책 목록(#log)은 그때 #log-sheet 안에 산다 — 닫힌 시트 안이라 새 줄은 화면에 안 보이고, 대신 '오늘' 단추의 점 + 한 줄 알림으로 알린다.
+     2D 폴백 · 컨텍스트를 잃은 뒤에는 속성을 떼고 목록을 #log-sec 로 돌려놓는다 (예전 쌓는 배치 그대로) */
+  function layoutOne() { return document.documentElement.getAttribute('data-layout') === 'one'; }
+  function layoutSync() {
+    var root = document.documentElement, one = sceneMode === '3d', log = $('log'), home = $(one ? 'log-slot' : 'log-sec'), b = $('btn-today'), d = $('log-sheet');
+    if (one) root.setAttribute('data-layout', 'one'); else root.removeAttribute('data-layout');
+    if (log && home && log.parentNode !== home) home.appendChild(log);   /* 노드를 그대로 옮긴다 (행 · 스크롤 리스너 · UIART 의 지켜보기가 따라온다) */
+    if (b) b.hidden = !one;
+    if (!one) { if (d && d.open) d.close(); todayDot(false); dlgShow(false); }
+    warnFit();
+  }
+  /* 저장 경고 띠(#save-warn)가 뜨면 그 높이만큼 장면 틀(#shell)을 줄인다 — 띠 + 100dvh 로 본문이 넘쳐 스크롤이 생기지 않게 */
+  function warnFit() {
+    var w = $('save-warn'), root = document.documentElement, hh = w && !w.hidden ? Math.ceil(w.getBoundingClientRect().height) : 0;
+    if (hh) root.style.setProperty('--warn-h', hh + 'px'); else root.style.removeProperty('--warn-h');
+  }
+  function logOpen() { var d = $('log-sheet'); return !!(d && d.open); }
+  function todayDot(on) {   /* 앨범 단추의 '새 것' 점과 같은 규칙: 숫자 없이 점 하나 + 화면 낭독기용 한마디 */
+    var b = $('btn-today'), dot = b && b.querySelector('.ib-dot'), sr = $('today-new');
+    if (dot) dot.hidden = !on;
+    if (sr) sr.textContent = on ? '새 줄이 있어' : '';
+  }
+  function openLog() {
+    var d = $('log-sheet'), log = $('log'), t = $('toast'); if (!d || !layoutOne()) return;
+    clearTimeout(rowTimer); rowWait = null;
+    if (t && toastRow) { clearTimeout(toastTimer); t.classList.remove('show'); toastRow = false; }   /* 방금 알린 줄은 이제 목록에서 읽는다 */
+    if (!d.open) {
+      sheetDragReset(d); d._openedAt = performance.now();
+      if (log) [].forEach.call(log.querySelectorAll('.lrow.in'), function (r) { r.classList.remove('in'); });   /* 닫힌 사이에 붙은 행들이 열 때 한꺼번에 등장 애니메이션을 다시 돌지 않게 */
+    }
+    showDialog(d); todayDot(false); logJump();
+  }
+  function logJump() {   /* 시트를 열면 가장 새 줄부터 (닫힌 동안엔 display:none 이라 scrollLog 가 잴 게 없었다) */
+    var log = $('log'); if (!log) return;
+    logStick = true; clearTimeout(logSettle);
+    if (window.UIART && UIART.syncLog) UIART.syncLog();
+    var top = logSnapTop(log);
+    progScrollUntil = Date.now() + 80; logTarget = -1; log.scrollTop = top; logLastY = log.scrollTop;
+  }
+  /* 새 줄 알림: 시트가 닫혀 있을 때 붙은 행을 한 줄(오늘 그림 + 라벨 · 글, 넘치면 말줄임)로 2.5 s. 한꺼번에 쏟아지면 마지막 줄만 (120 ms 모음).
+     혼잣말(say)은 방금 말풍선으로 보였으니 알림도 점도 없이 낭독기용 한 줄(#say-live)만 — 닫힌 시트 안의 #log(role=log)는 읽히지 않는다 */
+  var rowTimer = 0, rowWait = null;
+  function rowNote(row) {
+    if (!layoutOne() || logOpen()) return;
+    if (row.dataset.say) { var sl = $('say-live'); if (sl) sl.textContent = '혼잣말 · ' + row.dataset.say; return; }
+    todayDot(true);
+    rowWait = row; clearTimeout(rowTimer); rowTimer = setTimeout(rowToast, 120);
+  }
+  function rowLine(src, out) {   /* 행의 글을 한 줄로: 곁줄(.sub) · 그림은 빼고, 남의 글 표시(data-raw)는 그대로 옮긴다 */
+    [].forEach.call(src.childNodes, function (n) {
+      if (n.nodeType === 3) { out.appendChild(document.createTextNode(n.nodeValue)); return; }
+      if (n.nodeType !== 1 || n.hidden || n.classList.contains('sub') || n.classList.contains('sr-only')) return;
+      if (n.hasAttribute('data-raw')) { var sp = document.createElement('span'); sp.setAttribute('data-raw', n.getAttribute('data-raw')); sp.textContent = n.textContent; out.appendChild(sp); return; }
+      rowLine(n, out);
+    });
+  }
+  function rowToast() {
+    var row = rowWait, t = $('toast'); rowWait = null;
+    if (!row || !t || !document.body.contains(row) || !layoutOne() || logOpen()) return;
+    if (t.classList.contains('show') && !toastRow) return;   /* 보통 알림(저장 · 복사 …)은 밀어내지 않는다. 점은 이미 켜져 있다 */
+    var lab = row.querySelector('.ltool'), txt = row.querySelector('.ltext'), src = document.querySelector('#btn-today .snd-box svg'), body = h('span', { class: 't-txt' });
+    if (!txt) return;
+    if (lab && lab.textContent) body.appendChild(document.createTextNode(lab.textContent + ' · '));
+    rowLine(txt, body);
+    var moved = raiseToast(t); if (moved && !t.classList.contains('show')) void t.offsetWidth;
+    t.textContent = ''; t.classList.add('row');
+    if (src) { var ic = src.cloneNode(true); ic.setAttribute('class', 't-ico'); ic.setAttribute('width', '16'); ic.setAttribute('height', '16'); ic.setAttribute('aria-hidden', 'true'); t.appendChild(ic); }
+    t.appendChild(body); toastRow = true; toastPlace(t); t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); toastRow = false; }, 2500);
+  }
+  /* 알림 자리: 기본은 바닥 줄 바로 위(--stack-b). 떠 있는 대사 · '돌아왔어' 쪽지와 겹치면 그 위로 올린다 (--toast-b).
+     등장 애니메이션(transform)에 속지 않게 자리는 offset 으로 잰다. 시트 안으로 옮겨 간 알림은 건드리지 않는다 */
+  function restRect(el) {
+    var x = 0, y = 0, n = el;
+    while (n) { x += n.offsetLeft; y += n.offsetTop; var p = n.offsetParent; if (p) { x += p.clientLeft; y += p.clientTop; } n = p; }
+    x -= window.pageXOffset; y -= window.pageYOffset;
+    return { left: x, top: y, right: x + el.offsetWidth, bottom: y + el.offsetHeight };
+  }
+  function toastPlace(t) {
+    t.style.removeProperty('--toast-b');
+    if (!layoutOne() || t.parentNode !== document.body) return;
+    var vw = window.innerWidth, vh = window.innerHeight, w = t.offsetWidth, hh = t.offsetHeight, i, pass;
+    var obs = [$('dlg-host'), $('back-note')].filter(function (el) { return el && !el.hidden && (el.id !== 'dlg-host' || el.classList.contains('show')); }).map(restRect);
+    for (pass = 0; pass < 2; pass++) {
+      var b = parseFloat(getComputedStyle(t).bottom) || 0, top = vh - b - hh, left = (vw - w) / 2, up = 0;
+      for (i = 0; i < obs.length; i++) if (obs[i].right > left && obs[i].left < left + w && obs[i].bottom > top - 4 && obs[i].top < vh - b + 4) up = Math.max(up, vh - obs[i].top + 8);
+      if (!up) break;
+      t.style.setProperty('--toast-b', Math.round(up) + 'px');
+    }
+  }
+  function toastRefit() { var t = $('toast'); if (t && t.classList.contains('show')) toastPlace(t); }
+  /* 대사 자리 (이번 물결은 자리만 — 실제 대사 흐름은 대사창 v1 물결에서 붙인다. docs/DIALOGUE_UI.md §3.2).
+     스텁(js/dialogue-stub.js)은 처음 쓸 때 만든다. APP.dlgDemo 는 개발 모드에서만: 증거 사진 · 자리 점검용 */
+  var dlgN = 0, dlgReady = false;
+  function dlgHost() {
+    var hst = $('dlg-host'); if (!hst || !window.DLG) return null;
+    if (!dlgReady) { DLG.init(hst, { name: function () { return S.octopus.name || ''; } }); dlgReady = true; }
+    return hst;
+  }
+  function dlgShow(on) {
+    var hst = $('dlg-host'), root = document.documentElement; if (!hst) return;
+    hst.classList.toggle('show', !!on); root.classList.toggle('dlg-on', !!on);
+    if (on) root.style.setProperty('--dlg-h', Math.ceil(hst.offsetHeight) + 'px'); else root.style.removeProperty('--dlg-h');
+    toastRefit();
+  }
+  function dlgDemo(text, pace) {
+    if (!DEV) return null;
+    var hst = dlgHost(); if (!hst) return null;
+    dlgN++;
+    var p = DLG.say({ voice: 'octopus', by: 'demo-rules', text: String(text == null ? '' : text), pace: pace === 'wait' ? 'wait' : 'flow' });
+    dlgShow(true);
+    return p.then(function () { dlgN = Math.max(0, dlgN - 1); if (!dlgN) dlgShow(false); });
   }
   /* part: 'lantern' 등불만 · 'items' 소품·날씨만 · 생략하면 전부 (귀가 연출에서 둘을 200ms 띄운다) */
   function renderScene(part) {
@@ -507,6 +664,26 @@ var APP = (function () {
     updateSceneDesc();
   }
   function setOctColor(hex) { if (!/^#[0-9a-f]{6}$/i.test(hex)) return; S.settings.octColor = hex; save(); scene.setColor(hex); refreshPortraits(); }
+  /* 장면에 보이는 모습(문어 색 · 내 모습)을 S.settings 에 맞춘다 — 불러오기 · 전체 초기화 · 다른 탭의 저장을 받은 뒤 (renderAll 은 장면을 안 건드려 설정 칩은 새 값인데 3D 캐릭터·미리보기는 옛 모습이던 결함, 리뷰 11-08).
+     내 모습은 장면의 look 과 다를 때만 다시 만든다(지오메트리 7개 교체) · 문어 색은 setColor 가 싸서 그냥 다시 */
+  function syncSceneLook() {
+    if (!scene) return;
+    try {
+      if (typeof scene.setColor === 'function' && /^#[0-9a-f]{6}$/i.test(S.settings.octColor || '')) { scene.setColor(S.settings.octColor); refreshPortraits(); }
+      var have = (typeof scene.player === 'function' && scene.player()) ? JSON.stringify(scene.player().look) : null;
+      if (typeof scene.setPlayer === 'function' && have !== JSON.stringify(S.settings.player)) scene.setPlayer(S.settings.player);
+    } catch (e) { console.warn('[app] syncSceneLook', e); }
+  }
+  /* 내 모습 한 칸 바꾸기 (설정 시트 칩): 저장 → 장면이 setPlayer 를 알면 메시 다시 → true. 장면 API 는 이 빌드에 없을 수 있어 typeof 로 지킨다 (2D 는 아무것도 안 그리지만 저장은 된다) */
+  function setPlayerPart(cat, id) {
+    var P = playerParts();
+    if (!P[cat] || !P[cat].some(function (x) { return x.id === id; })) return false;
+    var next = Object.assign({}, S.settings.player); next[cat] = id;
+    S.settings.player = normalizePlayer(next);
+    save();
+    if (scene && typeof scene.setPlayer === 'function') { try { scene.setPlayer(S.settings.player); } catch (e) { console.warn('[app] setPlayer', e); } }
+    return true;
+  }
 
   /* ───────────────────────── octopus (§7.1 상태 기계 — 그림은 scene 이 그린다) ───────────────────────── */
   var ANCHORS = { door: 1, window: 1, crate: 1, board: 1, blanket: 1, center: 1 };
@@ -1017,7 +1194,7 @@ var APP = (function () {
   function goRapid(now) { var since = now - backAt; return !busy && broughtBack && since < GO_CAP && (since < GO_SETTLE || now - lastGo < GO_REST); }
   function setBusy(on) {
     busy = on; oct.busy = on;
-    if (!on) { flying = null; if (remoteDirty) { remoteDirty = false; renderAll(); applyMotion(); applyFont(); } }
+    if (!on) { flying = null; if (remoteDirty) { remoteDirty = false; renderAll(); applyMotion(); applyFont(); syncSceneLook(); } }
     var go = $('btn-go'), inp = $('hint-in');
     clearTimeout(skipTimer); skipReady = on ? Date.now() + SKIP_GUARD : 0;
     if (go) {
@@ -1547,7 +1724,7 @@ var APP = (function () {
     burst.n = (now - burst.at < 400) ? Math.min(burst.n + 1, 5) : 0; burst.at = now;
     row.classList.add('in'); row.style.setProperty('--i', String(burst.n));
     var empty = $('log') && $('log').querySelector('.lempty'); if (empty) empty.remove();   /* 첫 행이 들어오면 '아직 아무 데도…' 는 뺀다 */
-    parent.appendChild(row); scrollLog();
+    parent.appendChild(row); scrollLog(); rowNote(row);
     if (row.dataset.expr) expressRow(row.dataset.expr);
   }
   function secs(ms) { return ms ? Math.round(ms / 1000) + '초' : ''; }
@@ -2373,7 +2550,7 @@ var APP = (function () {
   }
   function bindDialogs() {
     var supportsClosedBy = (typeof HTMLDialogElement !== 'undefined') && ('closedBy' in HTMLDialogElement.prototype);
-    ['poster-dialog', 'settings-sheet', 'album-sheet', 'name-dialog'].forEach(function (id) {
+    ['poster-dialog', 'settings-sheet', 'album-sheet', 'look-sheet', 'log-sheet', 'name-dialog'].forEach(function (id) {
       var d = $(id); if (!d) return;
       if (supportsClosedBy && id !== 'name-dialog') d.setAttribute('closedby', 'any');
       d.addEventListener('close', function () {
@@ -2397,7 +2574,10 @@ var APP = (function () {
     /* 토스트를 app 의 toast() 를 거치지 않고 띄우는 곳(js/audio.js 의 소리 안내)도: 지금 열린 대화상자(없으면 body)가 아닌 곳에 있으면 옮긴다 */
     var t = $('toast');
     if (t && window.MutationObserver) {
-      var lift = function () { if (t.classList.contains('show') && t.parentNode !== (openDialog() || document.body)) raiseToast(t); };
+      var lift = function () {
+        if (t.classList.contains('row') && !t.querySelector('.t-txt')) { t.classList.remove('row'); toastRow = false; }   /* 다른 곳(audio.js)이 글을 바꿔 썼으면 한 줄 알림 모양을 벗긴다 */
+        if (t.classList.contains('show') && t.parentNode !== (openDialog() || document.body)) raiseToast(t);
+      };
       new MutationObserver(lift).observe(t, { attributes: true, attributeFilter: ['class'] });
       /* 대화상자가 새로 열릴 때도: js/runner.js 는 showDialog 를 거치지 않고 showModal 을 바로 부른다 → 떠 있던 토스트가 그 밑에 깔리지 않게 새 대화상자 위로 */
       new MutationObserver(function (ms) { if (ms.some(function (m) { return m.target.tagName === 'DIALOG'; })) lift(); }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
@@ -2447,7 +2627,7 @@ var APP = (function () {
     Object.keys(v).forEach(function (k) { if (k !== 'door_out' && (!best || v[k] > v[best])) best = k; });
     return best && v[best] >= 2 ? { id: best, n: v[best] } : null;
   }
-  /* ⚙ 설정 시트 (주인 11-07: 방 보기를 없애고 고르는 것만 여기로). 위에서부터 문어 색 · 소리(켜기 · 음악 · 효과음 — js/audio.js 가 room_sheet 훅으로 붙인다. 주인 11-08: 장면 위 스피커를 여기로) · 모션 · 픽셀 글꼴 · 포스터 썸네일 ·
+  /* ⚙ 설정 시트 (주인 11-07: 방 보기를 없애고 고르는 것만 여기로). 위에서부터 문어 색 · 내 모습(renderPlayerParts) · 소리(켜기 · 음악 · 효과음 — js/audio.js 가 room_sheet 훅으로 붙인다. 주인 11-08: 장면 위 스피커를 여기로) · 모션 · 픽셀 글꼴 · 포스터 썸네일 ·
      기록(작은 한 줄 + 내보내기 · 불러오기 · 전체 초기화 2단계) · 누가 고르나(한 줄) · 팔레트(개발 모드만). 글은 짧게 — 사람들은 읽는 걸 싫어한다 */
   var COLOR_PRESETS = [['빨강', '#e8463c'], ['주황', '#f08a3c'], ['보라', '#9a5cc8'], ['파랑', '#4a86d8'], ['초록', '#4fa868'], ['분홍', '#f07aa8']];
   /* 누가 고르나 (정직 표기): 앞 문장은 '데모' 말풍선과 같은 말. '고른 이:' 줄은 포스터·쪽지를 뒤집은 면(일기)에만 있다 — 앨범의 '일기' 탭(지난 날 로그)과 헷갈리지 않게 자리를 말한다 */
@@ -2559,6 +2739,7 @@ var APP = (function () {
     swatchOn();
     frag.appendChild(h('div', { class: 'set hue-row' }, [hueIn]));
     frag.appendChild(sw);
+    renderPlayerParts(frag);   /* 내 모습 — 문어 색 바로 아래 */
     if (window.AUDIO) AUDIO.on('room_sheet', { frag: frag });   /* 소리: '켜기' 체크 칸 + 음악·효과음 크기 (js/audio.js — 훅 이름은 예전 그대로) */
     frag.appendChild(h('h3', { text: '화면' }));
     var sel = h('select', { id: 'set-motion' }, [h('option', { value: 'auto', text: '기기 설정 따르기' }), h('option', { value: 'reduce', text: '모션 줄이기' })]);
@@ -2595,6 +2776,176 @@ var APP = (function () {
     /* 맨 아래 조용한 글자 링크 하나: 만든 것들 (credits.html — 부엌 소리 CC BY 크레딧 · CC0 녹음 · 글꼴 · three.js). 글자는 작아도 누르는 곳 44px */
     frag.appendChild(h('p', { class: 'help set-credits' }, [h('a', { href: 'credits.html', id: 'set-credits', text: '만든 것들', style: 'display:inline-block;padding:12px 4px;margin:-6px 0 -12px' })]));
     body.innerHTML = ''; body.appendChild(frag);
+  }
+  /* 설정 › 내 모습 (docs/PLAYER_PARTS.md §3): 제목 옆 초상(3D 장면이 playerPortrait 를 주면 64×64 캔버스를 96px 로 · 2D 면 한 줄 안내) + 한 줄 = 지금 모습 한마디 · '모습 바꾸기'.
+     고르는 건 옷장(#look-sheet · 아래 renderLook)에서 — 11-09 주인 "외관도 이런 느낌 ui로 각 항목별로 고를 수 있게 카테고리 나눠도 좋을 듯". 글자에 이모지·기호 없음 */
+  function renderPlayerParts(frag) {
+    var head = h('div', { class: 'set-parts-h' }, [h('h3', { text: '내 모습' })]);
+    var port = null;
+    if (sceneMode === '3d' && scene && typeof scene.playerPortrait === 'function') { port = h('canvas', { class: 'pl-port', id: 'set-pl-port', width: '64', height: '64', role: 'img', 'aria-label': '내 모습 미리보기' }); head.appendChild(port); }
+    frag.appendChild(head);
+    if (sceneMode !== '3d') frag.appendChild(h('p', { class: 'help set-parts-note', id: 'set-parts-note', text: '2D 장면에서는 미리보기가 없어. 고른 건 저장돼.' }));
+    var sum = h('span', { id: 'set-look-sum' }), open = h('button', { type: 'button', class: 'btn sm pressable', id: 'set-look-open', 'aria-haspopup': 'dialog', text: '모습 바꾸기' });
+    open.addEventListener('click', openLook);
+    frag.appendChild(h('div', { class: 'set set-look' }, [sum, open]));
+    function drawPort() {   /* 장면 초상은 캐시라 첫 장만 느리다 (≈ 문어 portrait). 못 그리면 캔버스를 치운다 (빈 네모를 두지 않는다) */
+      if (!port) return;
+      requestAnimationFrame(function () {
+        if (!port) return;
+        try { var src = scene.playerPortrait({ bg: PORT.bg }), cx = port.getContext('2d'); cx.clearRect(0, 0, 64, 64); if (src) cx.drawImage(src, 0, 0); else throw new Error('빈 초상'); }
+        catch (e) { console.warn('[app] playerPortrait', e); if (port.parentNode) port.remove(); port = null; }
+      });
+    }
+    LOOK.onChange = function () { sum.textContent = lookSummary(); drawPort(); };   /* 옷장이 닫힐 때도 부른다 (bind 의 close) */
+    LOOK.onChange();
+  }
+  /* 내 모습 옷장 (#look-sheet · docs/PLAYER_PARTS.md §3): 왼쪽 갈래 탭 여섯(tablist — 화살표 · Home · End, 고르면 바로 바뀐다) · 가운데 물건 타일(tabpanel) · 오른쪽 전신 미리보기(앞 · 뒤).
+     타일 그림 = 지금 모습에서 그 한 가지만 바꿔 입은 내 캐릭터 (scene.playerShot — 갈래마다 구도가 다르다: secs 의 셋째 값). 그래서 하나 고르면 보이는 타일을 다시 그린다 (장면 쪽 캐시라 본 건 바로).
+     한 프레임에 6ms 어치만 그려 손가락을 막지 않는다. 색은 .preset 동그라미. 2D 장면이면 그림 없이 글자 타일 + 안내 한 줄 (고른 건 저장된다).
+     고른 표시: .on + aria-pressed (chipOn). 타일을 누르면 setPlayerPart → 방의 캐릭터도 바로 바뀐다 */
+  var LOOK_TABS = [
+    { id: 'hair', name: '머리', icon: 'look/hair', secs: [['hair', '모양', 'hair'], ['hairColor', '색']] },
+    { id: 'eyes', name: '눈', icon: 'look/eyes', secs: [['eyes', '모양', 'face'], ['eyeColor', '색']] },
+    { id: 'face', name: '얼굴', icon: 'look/face', secs: [['nose', '코', 'face'], ['mouth', '입', 'face'], ['cheek', '볼', 'face']] },
+    { id: 'outfit', name: '옷', icon: 'look/outfit', secs: [['outfit', '옷', 'body']] },
+    { id: 'shoes', name: '신발', icon: 'look/shoes', secs: [['shoes', '신발', 'feet']] },
+    { id: 'acc', name: '장식', icon: 'look/acc', secs: [['acc', '장식', 'head']] }
+  ];
+  var LOOK = { tab: 'hair', back: false, raf: 0, queue: [], onChange: null, ro: null };
+  function lookCanShot() { return sceneMode === '3d' && !!scene && typeof scene.playerShot === 'function'; }
+  function lookNarrow() { return !!(window.matchMedia && window.matchMedia('(max-width: 359px)').matches); }   /* css: 이 폭부터 탭이 위 가로 줄 */
+  function lookTab(id) { for (var i = 0; i < LOOK_TABS.length; i++) if (LOOK_TABS[i].id === id) return LOOK_TABS[i]; return LOOK_TABS[0]; }
+  function lookCatName(cat) { for (var i = 0; i < PLAYER_CATS.length; i++) if (PLAYER_CATS[i][0] === cat) return PLAYER_CATS[i][1]; return cat; }
+  function lookPartName(cat, id) { var l = playerParts()[cat] || []; for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i].name; return ''; }
+  function lookSummary() {   /* 설정 줄의 한마디: 머리 · 옷 · 장식 (없음은 뺀다) */
+    var c = S.settings.player, out = [];
+    ['hair', 'outfit', 'acc'].forEach(function (k) { var n = c[k] === 'none' ? '' : lookPartName(k, c[k]); if (n) out.push(n); });
+    return out.join(' · ');
+  }
+  function lookEyeNote() { var n = $('look-eye-note'), c = S.settings.player; if (n) n.textContent = (c.eyes === 'smile' || c.eyes === 'dot') ? '이 눈 모양은 눈 색이 안 보여' : '눈 색은 크게 봐야 잘 보여'; }
+  function lookNow() {   /* 미리보기 아래: 이 갈래에서 지금 고른 것들 */
+    var n = $('look-now'); if (!n) return;
+    var c = S.settings.player;
+    n.textContent = lookTab(LOOK.tab).secs.map(function (sec) { return c[sec[0]] === 'none' ? sec[1] + ' 없음' : lookPartName(sec[0], c[sec[0]]); }).join(' · ');
+  }
+  function lookDrawStage() {
+    var cv = $('look-stage-cv'); if (!cv || !lookCanShot()) return;
+    cv.setAttribute('aria-label', LOOK.back ? '내 모습 뒷모습' : '내 모습 앞모습');
+    try { var src = scene.playerShot({ frame: LOOK.back ? 'back' : 'full', shared: true }), cx = cv.getContext('2d'); if (!src) throw new Error('빈 전신'); cx.clearRect(0, 0, 64, 96); cx.drawImage(src, 0, 0); }
+    catch (e) { console.warn('[app] playerShot', e); }
+  }
+  function lookThumbStep() {
+    LOOK.raf = 0;
+    var d = $('look-sheet'), t0 = performance.now();
+    if (!d || !d.open || !lookCanShot()) { LOOK.queue = []; return; }
+    while (LOOK.queue.length && performance.now() - t0 < 6) {
+      var b = LOOK.queue.shift(), cv = b.querySelector('.look-thumb');
+      if (!cv || !document.contains(b)) continue;
+      try {
+        var look = {}; look[b.dataset.part] = b.dataset.id;
+        var src = scene.playerShot({ look: look, frame: b._frame || 'head', shared: true });
+        if (!src) throw new Error('빈 그림');
+        var cx = cv.getContext('2d'); cx.clearRect(0, 0, 32, 32); cx.drawImage(src, 0, 0); cv.dataset.drawn = '1';
+      } catch (e) { console.warn('[app] playerShot', e); cv.remove(); }
+    }
+    if (LOOK.queue.length) LOOK.raf = requestAnimationFrame(lookThumbStep);
+  }
+  function lookQueueThumbs() {
+    var box = $('look-items');
+    LOOK.queue = (box && lookCanShot()) ? [].slice.call(box.querySelectorAll('.look-tile')) : [];
+    if (LOOK.queue.length && !LOOK.raf) LOOK.raf = requestAnimationFrame(lookThumbStep);
+  }
+  function lookMoreSync() {   /* 고를 것 칸 아래에 굴릴 것이 남았으면 #look-body.more (css: 아래 가장자리 띠 + 화살) — 굴림 막대를 숨겼으니 '더 있다' 를 이걸로 알린다.
+                                 칸 크기가 바뀔 때마다 불리니 탭 줄의 방향(aria-orientation — 좁은 폭에선 가로 줄)도 여기서 맞춘다 */
+    var body = $('look-body'), it = $('look-items'), rail = $('look-rail'); if (!body || !it) return;
+    if (rail) rail.setAttribute('aria-orientation', lookNarrow() ? 'horizontal' : 'vertical');
+    body.classList.toggle('more', it.scrollHeight - it.clientHeight - it.scrollTop > 4);
+  }
+  function lookPick(cat, id) {
+    if (!setPlayerPart(cat, id)) return;
+    var box = $('look-items'), c = S.settings.player;
+    if (box) box.querySelectorAll('[data-part="' + cat + '"][data-id]').forEach(function (q) { chipOn(q, q.dataset.id === c[cat]); });
+    lookEyeNote(); lookNow(); lookDrawStage(); lookQueueThumbs();
+  }
+  function lookRenderItems() {
+    var box = $('look-items'); if (!box) return;
+    var t = lookTab(LOOK.tab), P = playerParts(), c = S.settings.player, shot = lookCanShot(), multi = t.secs.length > 1, frag = document.createDocumentFragment();
+    box.setAttribute('aria-labelledby', 'look-tab-' + t.id);
+    if (!shot) frag.appendChild(h('p', { class: 'help look-note', id: 'look-note', text: '2D 장면에서는 미리보기가 없어. 고른 건 저장돼.' }));
+    t.secs.forEach(function (sec) {
+      var cat = sec[0], isColor = cat === 'hairColor' || cat === 'eyeColor';
+      if (multi) frag.appendChild(h('h3', { class: 'look-sec', text: sec[1] }));
+      var grp = h('div', { class: isColor ? 'look-colors' : 'look-tiles', role: 'group', 'aria-label': multi ? lookCatName(cat) : t.name, 'data-part': cat });
+      P[cat].forEach(function (x) {
+        var b;
+        if (isColor) { b = h('button', { type: 'button', class: 'preset pl-color', 'data-part': cat, 'data-id': x.id, 'data-hex': x.hex || null, title: x.name, 'aria-label': x.name }); b.style.background = x.hex || 'var(--panel2)'; }
+        else {
+          b = h('button', { type: 'button', class: 'look-tile', 'data-part': cat, 'data-id': x.id }, [shot ? h('canvas', { class: 'look-thumb', width: '32', height: '32', 'aria-hidden': 'true' }) : null, h('span', { class: 'look-name', text: x.name })]);
+          b._frame = sec[2];
+        }
+        chipOn(b, c[cat] === x.id);
+        b.addEventListener('click', function () { lookPick(cat, x.id); });
+        grp.appendChild(b);
+      });
+      frag.appendChild(grp);
+      if (cat === 'eyeColor') frag.appendChild(h('p', { class: 'help look-eye-note', id: 'look-eye-note' }));
+    });
+    box.innerHTML = ''; box.appendChild(frag); box.scrollTop = 0;
+    lookEyeNote(); lookNow(); lookQueueThumbs(); lookMoreSync();
+  }
+  function lookSelectTab(id, focus) {
+    var rail = $('look-rail'); if (!rail) return;
+    LOOK.tab = lookTab(id).id;
+    rail.querySelectorAll('.look-tab').forEach(function (b) {
+      var on = b.dataset.tab === LOOK.tab;
+      b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1;
+      if (on && focus) b.focus();
+    });
+    lookRenderItems();
+  }
+  function lookRailKey(e) {   /* tablist: 화살표(세로 · 가로 둘 다) · Home · End — 포커스가 가면 바로 고른다 */
+    var n = LOOK_TABS.length, i = LOOK_TABS.indexOf(lookTab(LOOK.tab)), j;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') j = (i + 1) % n;
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') j = (i + n - 1) % n;
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = n - 1;
+    else return;
+    e.preventDefault(); e.stopPropagation();
+    lookSelectTab(LOOK_TABS[j].id, true);
+  }
+  function renderLook() {
+    var body = $('look-body'); if (!body) return;
+    var shot = lookCanShot(), frag = document.createDocumentFragment();
+    body.classList.toggle('no-shot', !shot);
+    var rail = h('div', { class: 'look-rail', id: 'look-rail', role: 'tablist', 'aria-label': '고를 갈래', 'aria-orientation': lookNarrow() ? 'horizontal' : 'vertical' });
+    LOOK_TABS.forEach(function (t) {
+      var b = h('button', { type: 'button', class: 'look-tab', id: 'look-tab-' + t.id, role: 'tab', 'data-tab': t.id, 'aria-selected': 'false', 'aria-controls': 'look-items', tabindex: '-1' }, [ico(t.icon, 'look-tab-ico'), h('span', { class: 'look-tab-lbl', text: t.name })]);
+      b.addEventListener('click', function () { lookSelectTab(t.id, false); });
+      rail.appendChild(b);
+    });
+    rail.addEventListener('keydown', lookRailKey);
+    frag.appendChild(rail);
+    var items = h('div', { class: 'look-items', id: 'look-items', role: 'tabpanel' });
+    items.addEventListener('scroll', lookMoreSync, { passive: true });
+    frag.appendChild(items);
+    frag.appendChild(h('div', { class: 'look-more', 'aria-hidden': 'true' }));
+    if (LOOK.ro) LOOK.ro.disconnect();
+    if (window.ResizeObserver) { LOOK.ro = LOOK.ro || new ResizeObserver(lookMoreSync); LOOK.ro.observe(items); }   /* 시트가 열리며 칸 크기가 정해질 때 · 화면을 돌릴 때 */
+    if (shot) {
+      var turn = h('button', { type: 'button', class: 'btn sm pressable', id: 'look-turn', text: LOOK.back ? '앞 보기' : '뒤 보기' });
+      turn.addEventListener('click', function () { LOOK.back = !LOOK.back; turn.textContent = LOOK.back ? '앞 보기' : '뒤 보기'; lookDrawStage(); });
+      frag.appendChild(h('div', { class: 'look-stage' }, [h('canvas', { class: 'look-stage-cv', id: 'look-stage-cv', width: '64', height: '96', role: 'img', 'aria-label': '내 모습 앞모습' }), turn, h('p', { class: 'look-now', id: 'look-now' })]));
+    }
+    body.innerHTML = ''; body.appendChild(frag);
+    lookSelectTab(LOOK.tab, false);
+    lookDrawStage();
+  }
+  function openLook() {
+    var d = $('look-sheet'); if (!d) return;
+    if (!d.open) { sheetDragReset(d); d._openedAt = performance.now(); LOOK.back = false; }   /* 열 때마다 제자리 · 앞모습부터 (갈래는 마지막에 보던 대로) */
+    renderLook();
+    showDialog(d);
+    lookMoreSync();
   }
   function openSettings() {
     var d = $('settings-sheet'); if (!d) return;
@@ -2726,14 +3077,14 @@ var APP = (function () {
       toast('이 파일은 뽈뽈 기록이 아닌 것 같아'); return false;
     }
     mine = [];   /* 바꾼 기록에 예전 여행을 다시 얹지 않게 */
-    save(); applyMotion(); applyFont(); octInitial();
+    save(); applyMotion(); applyFont(); syncSceneLook(); octInitial();
     var d = $('settings-sheet'); if (d && d.open) d.close();
     toast('기록을 불러왔어'); return true;
   }
   function resetAll() {
     if (busy) { toast('다녀오는 중이라 지금은 못 지워. 끝나고 다시 해 줘'); return false; }
     store.remove(KEY);
-    S = defaults(); mine = []; save(); setDayGreeting(); renderAll(); octInitial();
+    S = defaults(); mine = []; save(); setDayGreeting(); renderAll(); syncSceneLook(); octInitial();
     var d = $('settings-sheet'); if (d && d.open) d.close();
     openNameDialog();
   }
@@ -2746,7 +3097,7 @@ var APP = (function () {
      산책 중(바깥이 보이는 동안)엔 #btn-door 가 장면 왼쪽 아래 픽셀 집 단추(data-spot="edge", 주인 11-08 밤)라 기다리는 동안 놀이방에 갈 수 있다. 산책은 놀이방에서도 그대로 흐르고(로그 행이 쌓인다),
      장면은 놀이방에 있는 동안 의식이 장소를 바꿔도 화면을 끌고 가지 않는다 (scene3d setPlaceNow). 문어가 돌아오면 구석 쪽지 "뚜루가 돌아왔어." + 보러 가기.
      큰 버튼(뽈뽈 다녀와 · 다녀오는 중…)은 문어 방의 일 → 놀이방이면 먼저 문으로 돌아와서 한다. 새로고침은 늘 문어 방 (지금 방은 저장하지 않는다).
-     나중의 걸어 다니는 내 캐릭터: walkFirst — 장면의 playerWalkTo(문 앞 앵커 atticPlayDoor · playAtticDoor)가 걸어가서 풀리면 그때 문이 열린다 (지금은 캐릭터가 없어 바로 풀린다) */
+     내 캐릭터 (SCENE.md '내 캐릭터'): walkFirst — 장면의 playerWalkTo(문 앞 앵커 atticPlayDoor · playAtticDoor)가 문 앞까지 걸어가서 풀리면 그때 문이 열린다 (2D 폴백엔 캐릭터가 없어 바로 풀린다) */
   var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine' };
   var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
   var roomJob = null;   /* 지금 도는 문 작업 (Promise) — 끝날 때까지 두 번째 문은 열지 않는다 */
@@ -2768,6 +3119,7 @@ var APP = (function () {
     if (sc.getAttribute('aria-label') !== lbl) sc.setAttribute('aria-label', lbl);
     if (v !== 'play') hideBackNote();
     updateSceneDesc();
+    stickSync();   /* 보이는 장소가 바뀌면 발자국 손잡이도 다시 (장면의 on.playerInput 이 먼저지만, 같은 답을 한 번 더 묻는 건 싸다) */
   }
   function resetRoomUI() {   /* 장면을 바꿀 때 (sceneLost): 단추는 새 장면이 다시 맡는다 · 그 전까지 놀이방 단추는 숨김 */
     roomJob = null; hideBackNote();
@@ -2830,7 +3182,7 @@ var APP = (function () {
     var n = $('back-note'), t = $('back-note-txt'); if (!n || !t) return;
     var nm = S.octopus.name || '', txt = typeof STR.backNote === 'function' ? STR.backNote(nm) : (nm || '문어') + ' 돌아왔어.';
     if (!n.hidden && t.textContent === txt) return;
-    clearTimeout(noteTimer); t.textContent = ''; n.hidden = false;
+    clearTimeout(noteTimer); t.textContent = ''; n.hidden = false; toastRefit();
     noteTimer = setTimeout(function () {   /* 이름은 따로 (긴 이름은 css 가 줄임표로 — 쪽지가 두 줄을 넘지 않게). 읽어 주는 글은 온전한 문장 그대로 */
       if (n.hidden) return;
       var who = nm || '문어';
@@ -2860,6 +3212,107 @@ var APP = (function () {
     document.addEventListener('keydown', function () { var r = document.querySelectorAll('.ring-off'); for (var i = 0; i < r.length; i++) r[i].classList.remove('ring-off'); }, true);   /* 키를 누르면 링은 다시 (키보드로 이어 가는 사람) */
   }
 
+  /* ───────────────────────── stick: 내 캐릭터 움직이기 — 발자국 손잡이(가상 스틱) + 방향키 (주인 11-08) ───────────────────────── */
+  /* 주인 11-08: 모바일 게임의 왼쪽 아래 흐린 동그라미 + 발자국 아이콘을 보고 "바닥 톡보다 훨씬 자연스럽다" → 1차 조작 = 장면(#scene) 왼쪽 아래 발자국 손잡이(#stick), 보조 = 방향키 · WASD (데스크톱).
+     바닥 톡으로 걷기 · 가상 D패드는 만들지 않는다 (docs/OWNER_DECISIONS.md 11-08). 장면 계약은 docs/SCENE.md '내 캐릭터 › 움직이기': setPlayerInput({ x, y } | null) · playerInputAllowed() · on.playerInput(allowed) · on.playerStep().
+     스틱 위에서 시작한 포인터는 스틱만 잡는다 (setPointerCapture — 문어 쪽 손가락 문법(밀기 · 핀치 · 돌려 보기 · 톡)과 안 겹친다, 캔버스로 안 간다). 중심에서의 벡터를 반지름 22px 로 나눠 0..1 로 자르고, 데드존 0.15 안이면 { 0, 0 } (잡고만 있음),
+     밖이면 데드존을 뺀 비율 → scene.setPlayerInput({ x, y }) (화면 위 = +y) · 손을 떼면 null (장면이 멈추고 도착 눌림 한 번). 손잡이(와 발자국 그림)는 벡터만큼 (최대 22px, --kx · --ky). 잡고 있는 동안 .on (또렷).
+     키보드: 눌린 키 집합 → 합성 벡터(대각선 정규화) → 같은 API, 다 떼면 null. 열린 <dialog> 가 있거나 포커스가 글자 입력 · select · 슬라이더 · 장면 밖 스크롤 영역(#log) 이면 무시 (그땐 preventDefault 도 안 한다 — 시트 안 조작 · 글자 입력 · 로그 굴리기 그대로); 단추 포커스는 무시하지 않는다 (문을 지나면 포커스가 문 단추에 있다). 처리할 땐 preventDefault (페이지 스크롤 방지).
+     WASD 는 e.code 로 본다 (한글 자판에서 ㅈㅁㄴㅇ 를 눌러도 같은 자리). 두 입력이 겹치면 스틱이 이긴다 (스틱을 잡은 동안 키는 쌓이기만 하고, 놓으면 키 쪽으로).
+     보이기: 장면이 on.playerInput(allowed) 를 바뀔 때만 보낸다 (다락 · 놀이방이 보일 때만 — 바깥 · 입장 연출 · 문 작업 · 전환 · 놀이 kit 중엔 false) → hidden 과 #scene.stick-on (구석 쪽지가 위로 비킨다).
+     2D 폴백 · 장면에 API 가 없으면 늘 숨김. 숨을 땐 잡고 있던 손가락 · 키도 놓는다 (멈춤). 설정의 모션 줄이기와 무관하게 쓸 수 있다.
+     소리: 장면이 on.playerStep() 을 쏘면 AUDIO.on('step') — js/audio.js 엔 아직 'step' 갈래가 없어 조용하다 (발소리 step_1~4 는 소리 한 벌에 있다 · 소리 세션 몫, BACKLOG '안 불리는 소리 연결') */
+  var STICK_R = 22, STICK_DEAD = 0.15;
+  var STICK_KEYS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1], KeyA: [-1, 0], KeyD: [1, 0], KeyW: [0, 1], KeyS: [0, -1] };
+  var stk = { allowed: false, pid: null, keys: {}, vec: null, sent: 0 };
+  function stickApi() { return !!scene && sceneMode === '3d' && typeof scene.setPlayerInput === 'function'; }
+  function stickSend(v) {   /* 장면에 입력 벡터 (같은 값은 다시 안 보낸다 — 키 자동 반복 · 데드존 안 움직임) */
+    var nv = v ? { x: +v.x || 0, y: +v.y || 0 } : null;
+    var same = (!nv && !stk.vec) || (!!nv && !!stk.vec && nv.x === stk.vec.x && nv.y === stk.vec.y);
+    stk.vec = nv;
+    if (same || !stickApi()) return;
+    stk.sent++;
+    try { scene.setPlayerInput(nv ? { x: nv.x, y: nv.y } : null); } catch (e) { console.warn('[app] setPlayerInput', e); }
+  }
+  function stickKnob(dx, dy) {   /* 손잡이 + 발자국 그림을 벡터만큼 (정수 px, 최대 반지름) */
+    var el = $('stick'); if (!el) return;
+    if (!dx && !dy) { el.style.removeProperty('--kx'); el.style.removeProperty('--ky'); return; }
+    el.style.setProperty('--kx', Math.round(dx) + 'px'); el.style.setProperty('--ky', Math.round(dy) + 'px');
+  }
+  function stickFromPointer(el, e) {
+    var r = el.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), len = Math.hypot(dx, dy);
+    var k = Math.min(1, len / STICK_R);   /* 0..1 */
+    stickKnob(len ? dx / len * k * STICK_R : 0, len ? dy / len * k * STICK_R : 0);
+    if (!len || k < STICK_DEAD) { stickSend({ x: 0, y: 0 }); return; }   /* 데드존: 잡고만 있다 (멈춤 · 도착 눌림은 놓을 때 한 번) */
+    var m = (k - STICK_DEAD) / (1 - STICK_DEAD);
+    stickSend({ x: dx / len * m, y: -dy / len * m });   /* 화면 위 = +y */
+  }
+  function stickKeyVec() {   /* 눌린 키들의 합성 벡터 (없으면 null · 서로 상쇄면 { 0, 0 }) */
+    var x = 0, y = 0, any = false;
+    Object.keys(stk.keys).forEach(function (k) { var d = STICK_KEYS[k]; if (d) { x += d[0]; y += d[1]; any = true; } });
+    if (!any) return null;
+    var l = Math.hypot(x, y); return l ? { x: x / l, y: y / l } : { x: 0, y: 0 };
+  }
+  function stickRelease(el) {   /* 손을 뗌 (또는 숨김 · 탭을 떠남): 멈춤 · 손잡이 가운데로 · 키가 남아 있으면 그쪽으로 */
+    el = el || $('stick');
+    if (stk.pid != null) { var pid = stk.pid; stk.pid = null; if (el) { try { el.releasePointerCapture(pid); } catch (e) { /* 이미 풀림 */ } } }
+    if (el) { el.classList.remove('on'); stickKnob(0, 0); }
+    stickSend(stickKeyVec());
+  }
+  function stickKeyIgnored() {   /* 열린 창 · 글자 입력(input · textarea · select · contenteditable · 슬라이더) · 장면 밖 스크롤 영역(#log 등 role=log) 에 포커스가 있으면 방향키를 그대로 둔다 (시트 안 조작 · 로그 굴리기와 안 섞이게).
+                                    단추 포커스는 무시하지 않는다 — 방을 옮기면 focusRoomBtn 이 도착한 문 단추에, 시트를 닫으면 브라우저가 연 단추에 포커스를 두므로 단추를 뺐다간 문을 지난 뒤 · 설정을 닫은 뒤 방향키가 아무 일도 안 했다 (리뷰 11-09, 단추는 방향키를 안 쓴다) */
+    if (!stk.allowed || !stickApi()) return true;
+    if (document.querySelector('dialog[open]')) return true;
+    var ae = document.activeElement;
+    if (!ae || ae === document.body || ae === document.documentElement) return false;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable || ae.getAttribute('role') === 'slider') return true;
+    var sc = $('scene');
+    return !!(ae.closest && (ae.closest('[role="log"]') || (ae.scrollHeight > ae.clientHeight + 1 && !(sc && sc.contains(ae)))));
+  }
+  function stickKey(e, down) {
+    if (!e) return;
+    var k = /^Key[WASD]$/.test(e.code || '') ? e.code : e.key;
+    if (!STICK_KEYS[k]) return;
+    if (down) {
+      if (e.ctrlKey || e.metaKey || e.altKey) { if (!stk.keys[k]) return; delete stk.keys[k]; }   /* 수정키 조합(브라우저 단축키)은 새 누름이 아니다 — 이미 눌린 키면 놓은 것으로 (keyup 은 수정키와 상관없이 지운다: 방향키를 누른 채 Ctrl/Cmd 를 누르고 떼면 keyup 이 버려져 손을 뗀 뒤에도 걸었다, 리뷰 11-09) */
+      else { if (stickKeyIgnored()) return; if (e.repeat) { if (stk.keys[k]) e.preventDefault(); return; }   /* 자동 반복은 이미 눌린 키만 유지하고 새로 등록하지 않는다 (창이 열린 채 누르고 있던 키가 창이 닫히는 순간 걷게 하지 않게) */
+        stk.keys[k] = 1; e.preventDefault(); }
+    }
+    else { if (!stk.keys[k]) return; delete stk.keys[k]; }
+    if (stk.pid != null) return;   /* 스틱을 잡고 있으면 스틱이 이긴다 */
+    stickSend(stickKeyVec());
+  }
+  function stickShow(allowed) {   /* 장면의 on.playerInput(allowed) · stickSync: hidden 과 #scene.stick-on. 숨길 땐 다 놓는다 */
+    var el = $('stick'), sc = $('scene');
+    allowed = !!allowed && stickApi();
+    if (!allowed) { stk.keys = {}; stickRelease(el); }
+    stk.allowed = allowed;
+    if (el && el.hidden !== !allowed) el.hidden = !allowed;
+    if (sc && sc.classList.contains('stick-on') !== allowed) sc.classList.toggle('stick-on', allowed);
+  }
+  function stickSync() { stickShow(stickApi() && typeof scene.playerInputAllowed === 'function' ? !!scene.playerInputAllowed() : false); }
+  function bindStick() {
+    var el = $('stick'); if (!el) return;
+    el.addEventListener('pointerdown', function (e) {
+      if (!stk.allowed || !stickApi() || el.hidden) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (stk.pid != null) return;   /* 두 번째 손가락은 무시 */
+      e.preventDefault(); e.stopPropagation();
+      stk.pid = e.pointerId;
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* 캡처 못 함: 그래도 스틱 위에서의 move 는 받는다 */ }
+      el.classList.add('on');
+      stickFromPointer(el, e);
+    });
+    el.addEventListener('pointermove', function (e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.preventDefault(); e.stopPropagation(); stickFromPointer(el, e); });
+    function up(e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.stopPropagation(); stickRelease(el); }
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
+    el.addEventListener('contextmenu', function (e) { e.preventDefault(); });   /* 길게 누르고 있어도 메뉴가 뜨지 않게 */
+    document.addEventListener('keydown', function (e) { stickKey(e, true); });
+    document.addEventListener('keyup', function (e) { stickKey(e, false); });
+    window.addEventListener('blur', function () { stk.keys = {}; stickRelease(el); });   /* 탭 · 창을 떠나면 다 놓는다 (keyup 을 못 받는다) */
+    document.addEventListener('visibilitychange', function () { if (document.hidden) { stk.keys = {}; stickRelease(el); } });
+  }
+
   /* ───────────────────────── tip: 상태 줄의 작은 말풍선 ───────────────────────── */
   /* '데모'·등불을 누르면 그 아래 짧은 한 줄 (#tip, role=status · polite). 2.5 s 뒤 사라지고, 같은 것을 다시 누르거나 다른 곳을 누르면 바로 닫힌다.
      모양 전환은 css (모션 줄이기면 그냥 나타난다). 자리: 누른 것 아래 가운데, 상태 줄 안쪽 16px 안 (정수 px).
@@ -2874,7 +3327,8 @@ var APP = (function () {
     if (head) t.appendChild(h('span', { class: 'tip-head', text: head }));
     t.appendChild(h('span', { class: 'tip-line', text: text }));
     var hr = host.getBoundingClientRect(), ar = anchor.getBoundingClientRect(), w = Math.ceil(t.getBoundingClientRect().width), cx = ar.left + ar.width / 2 - hr.left;
-    var left = Math.round(clamp(cx - w / 2, 16, Math.max(16, hr.width - 16 - w)));   /* 상태 줄 바깥 상자 기준 (테두리 포함) */
+    var sh = layoutOne() && $('shell') ? $('shell').getBoundingClientRect() : hr, lo = sh.left + 16 - hr.left, hi = sh.right - 16 - w - hr.left;   /* 한 화면 배치에선 상태 줄이 좁은 쪽지라 화면(#shell) 폭 안에서 맞춘다 */
+    var left = Math.round(clamp(cx - w / 2, lo, Math.max(lo, hi)));   /* 상태 줄 바깥 상자 기준 (테두리 포함) */
     t.style.left = (left - host.clientLeft) + 'px'; t.style.setProperty('--tip-x', Math.round(clamp(cx - left, 10, Math.max(10, w - 10))) + 'px');   /* left 는 테두리 안쪽(패딩 상자) 기준이라 테두리 폭만큼 뺀다 */
     t.classList.add('show'); anchor.setAttribute('aria-expanded', 'true');
     tipTimer = setTimeout(hideTip, TIP_MS);   /* 읽는 시간이라 --speed(개발용 느리게)와 상관없이 2.5 s */
@@ -2887,9 +3341,16 @@ var APP = (function () {
     tipFor = null;
   }
   /* 폰에서(상태 줄이 방 제목을 숨기는 폭) 등불 말풍선 첫 줄 = 방 제목. 넓은 화면은 상태 줄에 이미 보이니 빼고 한 줄만 */
+  /* 등불 설명의 첫 줄 = 상태 줄에서 숨긴 것들: 방 제목 · (좁은 폰의 한 화면 배치에서) 등불 숫자 */
+  function pipsHead() {
+    var out = [], rt = hiddenRoomTitle(), n = document.querySelector('#pips .pips-n');
+    if (rt) out.push(rt);
+    if (n && n.textContent && getComputedStyle(n).display === 'none') out.push('등불 ' + n.textContent);
+    return out.join(' · ');
+  }
   function hiddenRoomTitle() { var rt = $('room-title'); return rt && rt.textContent && getComputedStyle(rt).display === 'none' ? rt.textContent : ''; }
   function bindTip() {
-    $('pips').addEventListener('click', function (e) { tip(e.currentTarget, LANTERN_TIP, hiddenRoomTitle()); });
+    $('pips').addEventListener('click', function (e) { tip(e.currentTarget, LANTERN_TIP, pipsHead()); });
     $('brain-tag').addEventListener('click', function (e) { tip(e.currentTarget, BRAIN_TIP); });
     var t = $('tip');
     /* 말풍선을 누르면 말풍선만 닫는다 — 아래 큰 버튼으로 새지 않게 click 을 여기서 멈춘다. 누르는 동안엔 저절로 닫히지 않는다 (닫히면 손을 뗄 때 아래 버튼이 눌린다) */
@@ -3010,6 +3471,7 @@ var APP = (function () {
   function bind() {
     /* 힌트 칸: 개발 모드에서만 (index.html 에선 hidden 으로 시작 → 플레이어에겐 자리도 깜빡임도 없다). 결정 18 */
     var hintBox = $('hint-box'); if (hintBox) hintBox.hidden = !DEV;
+    document.documentElement.classList.toggle('hint-on', DEV);   /* 한 화면 배치: 힌트 칸이 있으면 바닥 줄이 그만큼 높다 (--hint-h) */
     $('btn-go').addEventListener('click', goTap);
     $('hint-in').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); invite(); } });
     $('hint-in').addEventListener('input', updateHintHelp);
@@ -3018,6 +3480,7 @@ var APP = (function () {
     $('btn-settings').addEventListener('click', openSettings);
     $('set-close').addEventListener('click', function () { $('settings-sheet').close(); });
     bindRooms();   /* 방 문 · 오락기 · 구석 쪽지 (8물결) */
+    bindStick();   /* 발자국 손잡이 · 방향키 (11-08 움직이기) */
     bindTip();   /* '데모' · 등불 → 작은 말풍선 */
     $('pd-flip').addEventListener('click', flipPoster);
     $('pd-front').addEventListener('click', flipPoster);
@@ -3027,11 +3490,18 @@ var APP = (function () {
     $('poster-dialog').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     $('pd-back').addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('.copy[data-share]'); if (b) { e.stopPropagation(); copyText(b.getAttribute('data-share')); } });
     $('settings-sheet').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
+    $('look-close').addEventListener('click', function () { $('look-sheet').close(); });
+    $('look-sheet').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
+    $('look-sheet').addEventListener('close', function () { LOOK.queue = []; if (LOOK.onChange) LOOK.onChange(); });   /* 설정 줄의 한마디 · 초상을 새 모습으로 */
     $('btn-album').addEventListener('click', openAlbum);
     $('al-close').addEventListener('click', function () { $('album-sheet').close(); });
     $('album-sheet').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     $('album-sheet').addEventListener('close', markAlbumSeen);   /* 열어 둔 사이에 붙은 포스터도 본 것으로 */
-    bindDialogs(); watchLogScroll(); bindAlbumPress(); bindSheetDrag('settings-sheet'); bindSheetDrag('album-sheet');
+    $('btn-today').addEventListener('click', openLog);
+    $('log-close').addEventListener('click', function () { $('log-sheet').close(); });
+    $('log-sheet').addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
+    window.addEventListener('resize', function () { warnFit(); toastRefit(); });
+    bindDialogs(); watchLogScroll(); bindAlbumPress(); bindSheetDrag('settings-sheet'); bindSheetDrag('album-sheet'); bindSheetDrag('look-sheet'); bindSheetDrag('log-sheet');
     document.addEventListener('touchstart', function () { /* 빈 리스너: iOS Safari 는 터치 리스너가 있어야 :active(눌림) 모양을 그린다 */ }, { passive: true });
     /* 데모 <details>: 개발 모드에서만 보인다 (index.html 에선 hidden 으로 시작). 접힌 채 시작, 뷰어별로 펼침 기억 (UI R2) */
     var demoEl = $('demo');
@@ -3049,7 +3519,7 @@ var APP = (function () {
       if (e.key !== KEY || !e.newValue || e.newValue === lastSaved) return;
       if (!adoptRemote(e.newValue)) return;
       if (busy) { remoteDirty = true; return; }   /* 공개 중엔 로그·등불을 다시 그리지 않는다 → 끝날 때 한 번 (setBusy) */
-      renderAll(); applyMotion(); applyFont(); syncRest();   /* 다른 탭이 차례를 끝냈으면 이 탭 문어도 (깨어 있는 틈 · 낮잠) */
+      renderAll(); applyMotion(); applyFont(); syncSceneLook(); syncRest();   /* 다른 탭이 차례를 끝냈으면 이 탭 문어도 (깨어 있는 틈 · 낮잠) */
     });
     $('name-form').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -3146,13 +3616,14 @@ var APP = (function () {
     get state() { return S; },
     save: save, load: load, invite: invite, skip: skip, reveal: reveal,
     renderAll: renderAll, renderStatus: renderStatus, renderScene: renderScene, renderLog: renderLog, renderWall: renderWall, renderAlbum: renderAlbum, renderSouvenirs: renderSouvenirs,
-    posterSVG: posterSVG, receiptHTML: receiptHTML, inspectHTML: inspectHTML, openPoster: openPoster, openSettings: openSettings, openAlbum: openAlbum, goRoom: goRoom,
+    posterSVG: posterSVG, receiptHTML: receiptHTML, inspectHTML: inspectHTML, openPoster: openPoster, openSettings: openSettings, openLook: openLook, openAlbum: openAlbum, openLog: openLog, dlgDemo: dlgDemo, goRoom: goRoom,
     importEvents: importEvents, exportJSON: exportJSON, importJSON: importJSON,
     oct: oct, walkTo: walkTo, octState: octState, anchors: ANCHORS, placeholders: PH, commitTrip: commitTrip,
-    get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor,
+    get scene() { return scene; }, get sceneMode() { return sceneMode; }, setOctColor: setOctColor, setPlayerPart: setPlayerPart, playerParts: playerParts, setPalette: setPalette, weatherFor: weatherFor, itemsFor: itemsFor,
     portraitFor: portraitFor, say: say, get portraitCache() { return Object.keys(PORT.cache); },
     setSeason: setSeasonPref, get ceremony() { return cer.kind; },
     get room() { return inPlay() ? 'play' : null; }, openMachine: openMachine,   /* 8물결: 놀이방에 있는가 · 오락기 (테스트·도구) */
+    get stick() { return { allowed: stk.allowed, input: stk.vec ? { x: stk.vec.x, y: stk.vec.y } : null, pointer: stk.pid != null, keys: Object.keys(stk.keys), sent: stk.sent }; },   /* 11-08 움직이기 (테스트·도구): 발자국 손잡이 상태 — 보이는가 · 지금 장면에 보낸 벡터 · 손가락 · 눌린 키 */
     /* 11-08 톡 한 줄 · 깨어 있는 틈 (테스트·도구 — 화면엔 안 나온다): 지금 톡 하면 나올 줄 · 장면의 톡 처리 그대로 · 쉬는 단계 ('up' | 'awake' | 'nap') */
     tapLine: function () { var L = tapLineNow(); return L ? { text: L.text, full: L.full, by: L.by, part: L.part, src: L.src, trip: L.trip.id } : null; },
     get goResting() { return goRapid(Date.now()); },   /* 지금 큰 버튼을 누르면 '연달아 누름' 으로 받지 않는가 (테스트 · 도구가 다음 초대 전에 기다린다) */
