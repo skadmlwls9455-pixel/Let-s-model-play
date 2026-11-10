@@ -8,7 +8,7 @@
  *   T3 부팅 셰이더 예열: 첫 바깥 전환에서 프로그램 수가 늘지 않음
  *   T4 화면 밖: 렌더 0 · 비 스텝·출발 의식은 계속 진행 · 돌아오면 다시 렌더 · debugStep 은 화면 밖에서도 정확한 dt 로 렌더
  *   T5 놀이방 (8물결): 지연 생성 · 문 4프레임 + 가로 전환(위아래 0 · 한 프레임 한 장소) · 드로우콜 ≤ 60 · 두 왕복 뒤 셰이더 프로그램 그대로 · 놀이방에 있는 동안 의식이 화면을 안 바꿈 · 누르는 곳 · 모션 감소 컷 · 톡은 캔버스가 받아 문 · 오락기 단추로 (pickAt 'spot') · 2× 확대에도 단추는 보이는 문 조각 위
- *   T7 내 캐릭터 움직이기 (brief MOVE.md): setPlayerInput 화면 축 → 월드 1.2 m/s · 방 안쪽 0.35 미끄러짐 · 상자·조리대·오락기 둘레 +0.25 · 문어 0.6 · null 로 멈춤 · DQ.pending 무시 · 바깥 false · on.playerInput 바뀔 때만 · 발자국 걸음마다 + 2 s 뒤 사라짐 · 놀이방 ≤ 60 · 프로그램 그대로 · 모션 감소 자국 없음
+ *   T7 내 캐릭터 움직이기 (brief MOVE.md): setPlayerInput 화면 축 → 월드 2.2 m/s (11-10 빠릿하게) · 방 안쪽 0.35 미끄러짐 · 상자·조리대·오락기 둘레 +0.25 · 문어 0.6 · null 로 멈춤 · DQ.pending 무시 · 바깥 false · on.playerInput 바뀔 때만 · 발자국 걸음마다 + 2 s 뒤 사라짐 · 놀이방 ≤ 60 · 프로그램 그대로 · 모션 감소 자국 없음
  *   T6 미용실 거울 코너 (docs/SALON.md §9.4): hotspots({ salon }) 단추가 코너 위 (44×44 · over) · 거울 가운데 톡 = spot salon · 옆에 선 문어 톡 = 문어 · 유리 60 % 이상 보임 ·
  *      드로우콜 가만히 ≤ 기준 + 8 · '바꾸기' 중 ≤ 기준 + 16 · ≤ 150 (등불 2·8 × 낮·밤) · 셰이더 프로그램 그대로 · Promise (보통 ≈ 5 s · 모션 줄이기 ≤ 1.5 s · 화면 밖 바로) ·
  *      끝나면 color() · 팔레트 문어 램프가 새 색 · 연출 중 초상 = 연출 전 초상 · 병·물 색상 ±25° (6색 × 낮·밤) · ponder · setColor still ·
@@ -467,7 +467,7 @@ function harness() {
     var t6z = await page.evaluate(function () { var m = SC.motion().salon; return { vis: m.visible, active: m.active, pal: SC.stats().palette, progs: SC.stats().programs }; });
     ok(!t6z.vis && !t6z.active && t6z.pal === pal6 && t6z.progs === p0, 'T6 되돌림: 코너·연출 없음 · 팔레트 덧칸 빠짐 (' + t6z.pal + ' = ' + pal6 + ') · 프로그램 ' + t6z.progs);
 
-    /* ── T7 내 캐릭터 움직이기 (brief MOVE.md · docs/SCENE.md '내 캐릭터 · 움직이기'): setPlayerInput 화면 축 → 월드 · 1.2 m/s · 방 안쪽 0.35 미끄러짐 · 상자 · 문어 0.6 · null 로 멈춤 · DQ.pending 무시 · 바깥 false ·
+    /* ── T7 내 캐릭터 움직이기 (brief MOVE.md · docs/SCENE.md '내 캐릭터 · 움직이기'): setPlayerInput 화면 축 → 월드 · 2.2 m/s · 방 안쪽 0.35 미끄러짐 · 상자 · 문어 0.6 · null 로 멈춤 · DQ.pending 무시 · 바깥 false ·
        on.playerInput 바뀔 때만 · 발자국 걸음마다 + 2 s 뒤 사라짐 · 놀이방 드로우콜 ≤ 60 · 프로그램 그대로 · 모션 감소 자국 없음 · 문 앞 앵커 자리 — 루프를 멈추고 debugStep 1/60 으로 민다 (결정적) ── */
     await page.evaluate(function () {
       SC.pause(); SC.setOctState('idle'); SC.jumpTo('center'); SC.setItems(['moss', 'crate', 'candle', 'board', 'shelf']);
@@ -489,10 +489,10 @@ function harness() {
     });
     var dl = Math.hypot(t7a.d[0], t7a.d[1]), dotR = (t7a.d[0] * AX.r[0] + t7a.d[1] * AX.r[1]) / (dl || 1);
     ok(t7a.allowed === true && t7a.pi0.length >= 1 && t7a.pi0[0] === true && t7a.pi0.every(function (v, i) { return i === 0 || v !== t7a.pi0[i - 1]; }), 'T7 다락이 보일 때 playerInputAllowed() true · on.playerInput 은 부팅 때 true 로 시작해 바뀔 때만 (T1~T6 동안 ' + t7a.pi0.length + ' 번, 같은 값 연속 없음)');
-    ok(Math.abs(dl - 0.6) < 0.05 && dotR > 0.995 && t7a.d[0] > 0 && t7a.d[1] < 0, 'T7 setPlayerInput({x:1,y:0}) 0.5 s → 화면 오른쪽(+x −z) 으로 ' + dl.toFixed(3) + ' m (≈ 0.6 · 방향 일치 ' + dotR.toFixed(4) + ') ' + JSON.stringify(t7a.d.map(function (v) { return +v.toFixed(3); })));
+    ok(Math.abs(dl - 1.1) < 0.05 && dotR > 0.995 && t7a.d[0] > 0 && t7a.d[1] < 0, 'T7 setPlayerInput({x:1,y:0}) 0.5 s → 화면 오른쪽(+x −z) 으로 ' + dl.toFixed(3) + ' m (≈ 1.1 = 2.2 m/s · 방향 일치 ' + dotR.toFixed(4) + ') ' + JSON.stringify(t7a.d.map(function (v) { return +v.toFixed(3); })));
     ok(t7a.dur.walking && t7a.dur.moving && JSON.stringify(t7a.dur.input) === '[1,0]' && t7a.dur.foot >= 1 && t7a.dur.steps >= 1, 'T7 걷는 동안 player().walking · moving · input [1,0] · 발자국 ' + t7a.dur.foot + ' · on.playerStep ' + t7a.dur.steps);
     ok(!t7a.stop1.walking && !t7a.stop2.walking && !t7a.stop2.moving && t7a.stop2.input === null, 'T7 null 로 놓으면 바로 walking · moving false · input null (' + JSON.stringify(t7a.stop2) + ')');
-    ok(t7a.feet >= 2 && t7a.feet <= 4 && t7a.gone === 0, 'T7 발자국: 0.6 m 에 ' + t7a.feet + ' 개 (0.2 m 마다, 2~4) → 2.3 s 뒤 0 개 (' + t7a.gone + ')');
+    ok(t7a.feet >= 3 && t7a.feet <= 5 && t7a.gone === 0, 'T7 발자국: 1.1 m 에 ' + t7a.feet + ' 개 (달리기 보폭 0.55 m 의 절반마다, 3~5) → 2.3 s 뒤 0 개 (' + t7a.gone + ')');
     ok(t7a.pi.length === 0, 'T7 다락 안에서 움직이는 동안 on.playerInput 알림 없음 (바뀔 때만: ' + JSON.stringify(t7a.pi) + ')');
     var t7b = await page.evaluate(function () {
       var up = __push(0.9, 0.9, { x: 0, y: 1 }, 30).at;   /* 문어(0, 0.2)는 r 0.6 — (0.9, 0.9) 에서 멀어지는 쪽(−x −z) 0.6 m 끝 (0.48, 0.48) 은 문어에서 0.55 라 막힌다 → 문어를 창가로 */
@@ -508,7 +508,7 @@ function harness() {
       return { up: up, up2: up2, wall: wall, slide: slide, crate: crate, crateIn: crateIn, rest: rest, restX: restX, oct: oct, octAt: octAt, doorA: doorA, crateBox: (function () { var m = SC.scene.getObjectByName('attic').children.filter(function (o) { return o.userData && o.userData.decalR === 0.8; })[0]; return m ? [m.position.x, m.position.z] : null; })() };
     });
     var du = [t7b.up2[0] - 0.9, t7b.up2[2] - 0.9], dul = Math.hypot(du[0], du[1]), dotF = (du[0] * AX.f[0] + du[1] * AX.f[1]) / (dul || 1);
-    ok(Math.abs(dul - 0.6) < 0.05 && dotF > 0.995 && du[0] < 0 && du[1] < 0, 'T7 {x:0,y:1} 0.5 s → 카메라에서 멀어지는 쪽(−x −z) ' + dul.toFixed(3) + ' m (방향 일치 ' + dotF.toFixed(4) + ')');
+    ok(Math.abs(dul - 1.1) < 0.05 && dotF > 0.995 && du[0] < 0 && du[1] < 0, 'T7 {x:0,y:1} 0.5 s → 카메라에서 멀어지는 쪽(−x −z) ' + dul.toFixed(3) + ' m (방향 일치 ' + dotF.toFixed(4) + ')');
     ok(Math.hypot(t7b.up[0], t7b.up[2] - 0.2) >= 0.59, 'T7 같은 입력이라도 가운데 문어(r 0.6) 앞에선 멈춘다: 문어까지 ' + Math.hypot(t7b.up[0], t7b.up[2] - 0.2).toFixed(3) + ' m');
     ok(Math.abs(t7b.wall[0] - 2.15) < 0.011 && Math.abs(t7b.wall[2] - 0.5) < 1e-6, 'T7 +x 벽 쪽으로 3 s 밀어도 방 안쪽 0.35 m (x ' + t7b.wall[0] + ', z 그대로 ' + t7b.wall[2] + ')');
     ok(Math.abs(t7b.slide[0] - 2.15) < 0.011 && t7b.slide[2] > 0.5 + 0.1, 'T7 벽에 비스듬히 밀면 벽을 따라 미끄러진다 (x ' + t7b.slide[0] + ' · z 0.5 → ' + t7b.slide[2] + ')');

@@ -3224,7 +3224,7 @@ var APP = (function () {
      보이기: 장면이 on.playerInput(allowed) 를 바뀔 때만 보낸다 (다락 · 놀이방이 보일 때만 — 바깥 · 입장 연출 · 문 작업 · 전환 · 놀이 kit 중엔 false) → hidden 과 #scene.stick-on (구석 쪽지가 위로 비킨다).
      2D 폴백 · 장면에 API 가 없으면 늘 숨김. 숨을 땐 잡고 있던 손가락 · 키도 놓는다 (멈춤). 설정의 모션 줄이기와 무관하게 쓸 수 있다.
      소리: 장면이 on.playerStep() 을 쏘면 AUDIO.on('step') — js/audio.js 엔 아직 'step' 갈래가 없어 조용하다 (발소리 step_1~4 는 소리 한 벌에 있다 · 소리 세션 몫, BACKLOG '안 불리는 소리 연결') */
-  var STICK_R = 22, STICK_DEAD = 0.15;
+  var STICK_R = 22, STICK_DEAD = 0.15, STICK_FULL = 0.5;
   var STICK_KEYS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1], KeyA: [-1, 0], KeyD: [1, 0], KeyW: [0, 1], KeyS: [0, -1] };
   var stk = { allowed: false, pid: null, keys: {}, vec: null, sent: 0 };
   function stickApi() { return !!scene && sceneMode === '3d' && typeof scene.setPlayerInput === 'function'; }
@@ -3246,7 +3246,7 @@ var APP = (function () {
     var k = Math.min(1, len / STICK_R);   /* 0..1 */
     stickKnob(len ? dx / len * k * STICK_R : 0, len ? dy / len * k * STICK_R : 0);
     if (!len || k < STICK_DEAD) { stickSend({ x: 0, y: 0 }); return; }   /* 데드존: 잡고만 있다 (멈춤 · 도착 눌림은 놓을 때 한 번) */
-    var m = (k - STICK_DEAD) / (1 - STICK_DEAD);
+    var m = Math.min(1, (k - STICK_DEAD) / (STICK_FULL - STICK_DEAD));   /* 반쯤만 밀어도 제 속도 — 22px 손잡이에서 끝까지 밀어야 빨라지면 답답하다 (주인 11-10) */
     stickSend({ x: dx / len * m, y: -dy / len * m });   /* 화면 위 = +y */
   }
   function stickKeyVec() {   /* 눌린 키들의 합성 벡터 (없으면 null · 서로 상쇄면 { 0, 0 }) */
