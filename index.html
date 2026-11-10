@@ -132,6 +132,9 @@
   <!-- 가방 꼬리표 (11-10): 위쪽 바 아래 오른쪽에 매달린 '조개 N' — 누르면 살림 시트 (조개 · 씨앗 · 들어온 날 · 텃밭 · 옷 물들이기). 이름을 지은 뒤부터 보인다 -->
   <button type="button" id="btn-bag" class="bag-tag pressable" aria-haspopup="dialog" aria-controls="bag-sheet" hidden><span id="bag-n">조개 0</span></button>
   <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-stair" class="scene-spot" aria-label="위층으로" title="위층으로" hidden></button>
+  <button type="button" id="btn-loft-stair" class="scene-spot" aria-label="아래층으로" title="아래층으로" hidden></button>
+  <button type="button" id="btn-sew" class="scene-spot" aria-label="재봉틀 · 옷 물들이기" title="재봉틀" aria-haspopup="dialog" hidden></button>
   <!-- 발자국 손잡이 (가상 스틱, 주인 11-08 "바닥 톡보다 훨씬 자연스럽다"): 장면 왼쪽 아래 72px 고리 + 28px 손잡이. 끌면 그 화면 방향으로 내 캐릭터가 걷는다 (js/app.js stick 절 · scene.setPlayerInput).
        다락 · 놀이방이 보일 때만 — hidden 은 장면의 on.playerInput(allowed) 로 앱이 쥔다 (바깥 · 입장 연출 · 문 작업 · 전환 · 2D 폴백에선 숨김). 바깥의 집 단추(#btn-door edge)와 자리는 같은 왼쪽 아래지만 보이는 때가 서로 배타적이다.
        키보드 포커스는 받지 않는다 (aria-hidden — 키보드는 방향키 · WASD). 그림은 16×16 ×2 'ctl.walk' (발자국 둘), 안 오면 글자 '걷기'. 발자국 그림이 곧 손잡이다 (--kx · --ky) — 그 밑의 회색 네모 손잡이는 뺐다 (주인 11-10) -->
@@ -288,6 +291,13 @@
   <h2 id="bag-h" class="set-h dlg-top" tabindex="-1">살림</h2>
   <div id="bag-body"></div>
   <button type="button" class="btn wide pressable" id="bag-close">닫기</button>
+</dialog>
+
+<dialog id="sew-sheet" class="sheet bag-sheet" aria-labelledby="sew-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="sew-h" class="set-h dlg-top" tabindex="-1">옷방 재봉틀</h2>
+  <div id="sew-body"></div>
+  <button type="button" class="btn wide pressable" id="sew-close">닫기</button>
 </dialog>
 
 <dialog id="look-sheet" class="sheet look-sheet" aria-labelledby="look-h">
