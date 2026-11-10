@@ -125,6 +125,11 @@ async function unit() {
   check(core.loadBooks(bdir).errors.some(function (e) { return /slow_room/.test(e); }), '읽을 것이 없는 방엔 책을 두지 않는다');
   var big = core.parseBook('---\nroom: hat\nby: 누구\n---\n' + 'ㄱ'.repeat(core.BOOK_MAX + 1), 'big.md');
   check(big.error && /이하/.test(big.error), '1200자 넘으면 오류');
+  var enHead = '---\nroom: hat\nby: 누구\n---\n';
+  check(core.bookLimits('en').max === 3600 && core.bookLimits('en').head === 1500 && core.bookLimits('ja').max === 1320 && core.bookLimits('xx').max === 1200
+    && !core.parseBook(enHead + 'a'.repeat(2500), 'en.md', 'room', 'en').error && /이하/.test(core.parseBook(enHead + 'a'.repeat(3601), 'en.md', 'room', 'en').error || '')
+    && core.parseBook(enHead + 'a'.repeat(1300), 'en.md', 'room').error && !core.parseBook('---\nroom: hat\nby: 누구\nlang: en\n---\n' + 'a'.repeat(1300), 'en.md').error, '길이 눈금: en 3600 (앞머리 1500) · ja 1320 · 모르는 언어는 ko — 폴더나 머리말의 lang 으로');
+  check(core.fingerprint('가\n나') === core.fingerprint('가\r\n나\n') && /^[0-9a-f]{8}$/.test(core.fingerprint('x')), '원본 지문: 줄 끝·끝 공백 무시, 8자리');
   var lint = cp.spawnSync(process.execPath, [path.join(__dirname, '..', 'tools', 'check-books.js'), bdir], { encoding: 'utf8' });
   check(/문어에게 말 걸기/.test(lint.stdout) && /느낄 것 정해 주기/.test(lint.stdout) && lint.status === 1, 'check-books: 말 걸기·느낌 정해 주기 경고, 깨진 책은 오류');
 
@@ -495,7 +500,9 @@ async function i18nProtocol(lang) {
   check(lr.decision && lr.decision.point === 'meet' && lr.lantern === L.lantern(0), 'look_room: 환경 변수의 언어가 이기고 (lang:ko 무시), 등불 글이 ' + lang);
   var d = j(await c.callTool({ name: 'ppolppol_depart', arguments: {} }));
   var want = lang === 'en' ? 'bell Bell' : 'bell 鐘';
-  check(typeof d.rooms === 'string' && d.rooms.indexOf(want) >= 0 && Array.isArray(d.cards) && d.cards.every(function (x) { return / \(ko\)$/.test(x); }) && Array.isArray(d.shelf) && d.shelf.length === 8 && d.shelf.every(function (t) { return !/[가-힣]/.test(t); }), 'depart: 열람실 이름 ' + lang + ' · 카드는 (ko) 표시 · 서가는 ' + lang + ' 목록');
+  check(typeof d.rooms === 'string' && d.rooms.indexOf(want) >= 0 && Array.isArray(d.cards) && d.cards.length > 0 && d.cards.every(function (x) { return !/ \(ko\)$/.test(x) && !/[가-힣]/.test(x); }) && Array.isArray(d.shelf) && d.shelf.length === 8 && d.shelf.every(function (t) { return !/[가-힣]/.test(t); }), 'depart: 열람실 이름 ' + lang + ' · 카드 제목이 ' + lang + ' 번역본 ((ko) 표시 없음) · 서가는 ' + lang + ' 목록');
+  var pk = j(await c.callTool({ name: 'ppolppol_peek', arguments: { tripId: d.tripId, target: { kind: 'card', id: d.cards[0].split(' ')[0] } } }));
+  check(pk.book && pk.book.lang === undefined && !/[가-힣]/.test(pk.book.title + ' ' + pk.book.text + ' ' + pk.book.by) && /Claude \(AI\)$/.test(pk.book.by), 'peek 카드: ' + lang + ' 번역본을 읽는다 (book.lang 없음 · by 끝에 옮긴 이)');
   var f = j(await c.callTool({ name: 'ppolppol_finish', arguments: { tripId: d.tripId } }));
   check(f.ok && f.decision && f.decision.q === L.chat.out[0], 'finish: 돌아와서 묻는 말이 ' + lang);
   await c.close();

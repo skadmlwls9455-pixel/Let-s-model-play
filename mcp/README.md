@@ -64,7 +64,7 @@ cd mcp && npm install
 
 ### 뽈뽈 도서관 (11-09)
 
-방에 사람이 쓴 책 (`library/books/<방id>.md`) 이 있으면 `peek` 는 위키 대신 그 책을 읽는다. 결과는 `status:'builtin'` 과 `book {title, by, text}` 다. 앞 500자를 주고, 나머지는 `more` 로 준다 (책은 1,200자 이하). 쓴 사람 (`by`) 은 늘 같이 간다. 위키가 있는 방이면 `wiki` 제목도 같이 줘서 위키로도 갈 수 있다. 기록에는 `peek.book {room, by}` 가 남는다. 쓰는 법·점검은 [library/README.md](../library/README.md) (`npm run check-books` · `npm run echo-check`). 환경 변수 `PPOLPPOL_BOOKS` 로 폴더를 바꿀 수 있다.
+방에 사람이 쓴 책 (`library/books/<방id>.md`) 이 있으면 `peek` 는 위키 대신 그 책을 읽는다. 결과는 `status:'builtin'` 과 `book {title, by, text}` 다. 앞 500자를 주고, 나머지는 `more` 로 준다 (책은 1,200자 이하 — 영어 번역본은 ×3, 일본어는 ×1.1 눈금으로 센다: `core.bookLimits`). 방의 언어가 en·ja 면 같은 이름의 번역본 (`library/books/<lang>/`, `library/cards/<lang>/`) 을 준다 — 지금은 책·카드 전부 있다. 쓴 사람 (`by`) 은 늘 같이 간다. 위키가 있는 방이면 `wiki` 제목도 같이 줘서 위키로도 갈 수 있다. 기록에는 `peek.book {room, by}` 가 남는다. 쓰는 법·점검은 [library/README.md](../library/README.md) (`npm run check-books` · `npm run echo-check`). 환경 변수 `PPOLPPOL_BOOKS` 로 폴더를 바꿀 수 있다.
 
 ### status — 거짓 성공 금지
 

@@ -135,8 +135,12 @@ function cleanSource(r, lang) {
 /* ───── 뽈뽈 도서관 (library/books/<방id>.md) ─────
    사람이 쓴 짧은 책. 방에 책이 있으면 위키 대신 그 책을 읽는다 (네트워크 없음 · 크기 고정).
    책은 '자료' 다: 누가 썼는지 (by) 를 늘 같이 보낸다. 쓴 사람의 글은 고치지 않는다 */
-var BOOK_HEAD = 500, BOOK_MAX = 1200;
-function parseBook(txt, file, key) {
+/* 길이는 글자 수로 세되 언어마다 눈금이 다르다 — 같은 글이 영어는 한국어의 2.0~2.8배, 일본어는 0.8~1.0배 (번역본 228편 실측, 2026-11-10). 모델이 받는 토큰은 비슷해진다 */
+var BOOK_HEAD = 500, BOOK_MAX = 1200, LEN_SCALE = { ko: 1, ja: 1.1, en: 3 };
+function bookLimits(lang) { var s = LEN_SCALE[I18N.norm(lang) || 'ko'] || 1; return { head: Math.round(BOOK_HEAD * s), max: Math.round(BOOK_MAX * s) }; }
+/* 원본 지문: 번역본 머리말 original: 에 적어 두면 (tools/stamp-translations.js) 원문이 바뀐 번역본을 check-books 가 알려 준다 */
+function fingerprint(text) { return require('crypto').createHash('sha1').update(String(text).replace(/\r\n/g, '\n').trim()).digest('hex').slice(0, 8); }
+function parseBook(txt, file, key, lang) {
   key = key || 'room';   /* 책은 room, 서가 카드는 card 로 묶인다 */
   var m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(String(txt).replace(/\r\n/g, '\n'));
   if (!m) return { error: file + ': 맨 위 --- 머리말이 없다' };
@@ -146,10 +150,12 @@ function parseBook(txt, file, key) {
   if (!meta[key]) return { error: file + ': ' + key + ' 이 없다' };
   if (!meta.by) return { error: file + ': by (쓴 사람) 가 없다' };
   if (!body) return { error: file + ': 본문이 비었다' };
-  if (body.length > BOOK_MAX) return { error: file + ': 본문이 ' + body.length + '자 — ' + BOOK_MAX + '자 이하로' };
-  var b = { title: meta.title || null, by: meta.by, written: meta.written || null, sources: meta.sources || null, text: body, lang: I18N.norm(meta.lang) || 'ko' };
+  var lim = bookLimits(lang || meta.lang);
+  if (body.length > lim.max) return { error: file + ': 본문이 ' + body.length + '자 — ' + lim.max + '자 이하로' };
+  var b = { title: meta.title || null, by: meta.by, written: meta.written || null, sources: meta.sources || null, text: body, lang: I18N.norm(lang || meta.lang) || 'ko' };
   b[key] = meta[key];
   if (meta.domain) b.domain = meta.domain;
+  if (meta.original) b.original = meta.original;   /* 번역본: 원본 (ko) 본문의 지문 */
   return b;
 }
 /* 번역본: <폴더>/<lang>/<같은 파일>.md (lang 은 en · ja). 머리말의 lang 이 폴더와 다르면 폴더가 이긴다. 원본 (ko) 이 없는 번역본은 쓰지 않는다 */
@@ -160,7 +166,7 @@ function loadTranslations(dir, base, key, parse) {
     var sub = path.join(dir, lang), files = [];
     try { files = fs.readdirSync(sub).filter(function (f) { return /\.md$/.test(f) && f[0] !== '_'; }); } catch (e) { return; }
     files.forEach(function (f) {
-      var b = parse(fs.readFileSync(path.join(sub, f), 'utf8'), lang + '/' + f);
+      var b = parse(fs.readFileSync(path.join(sub, f), 'utf8'), lang + '/' + f, lang);
       if (b.error) { errors.push(b.error); return; }
       b.lang = lang;
       if (!base[b[key]]) { errors.push(lang + '/' + f + ': 원본 (ko) 이 없는 번역본'); return; }
@@ -181,7 +187,7 @@ function loadBooks(dir) {
     else if (books[b.room]) errors.push(f + ': ' + b.room + ' 방에 책이 이미 있다');
     else books[b.room] = b;
   });
-  var tr = loadTranslations(dir, books, 'room', function (txt, f) { return parseBook(txt, f, 'room'); });
+  var tr = loadTranslations(dir, books, 'room', function (txt, f, lang) { return parseBook(txt, f, 'room', lang); });
   return { books: books, errors: errors.concat(tr.errors), byLang: tr.byLang };
 }
 /* ───── 서가 카드 (library/cards/<ID>.md) ─────
@@ -200,7 +206,7 @@ function loadCards(dir) {
     else if (cards[c.card]) errors.push(f + ': 같은 card 가 둘이다');
     else cards[c.card] = c;
   });
-  var tr = loadTranslations(dir, cards, 'card', function (txt, f) { return parseBook(txt, f, 'card'); });
+  var tr = loadTranslations(dir, cards, 'card', function (txt, f, lang) { return parseBook(txt, f, 'card', lang); });
   return { cards: cards, errors: errors.concat(tr.errors), byLang: tr.byLang };
 }
 
@@ -590,8 +596,8 @@ Octopus.prototype.peek = async function (a) {
   }
   if (clue) out.clue = clue;
   if (book) {
-    var cut = !a.more && book.text.length > BOOK_HEAD;
-    out.book = { title: book.title || (node && this.roomName(node)), by: book.by, text: cut ? book.text.slice(0, BOOK_HEAD) + '…' : book.text };
+    var head = bookLimits(book.lang).head, cut = !a.more && book.text.length > head;   /* 글의 언어 눈금으로 자른다 (영어는 더 길게) */
+    out.book = { title: book.title || (node && this.roomName(node)), by: book.by, text: cut ? book.text.slice(0, head) + '…' : book.text };
     if (cut) out.book.more = true;   /* 나머지는 more 로 */
     if (book.lang && book.lang !== home) out.book.lang = book.lang;   /* 방의 언어와 다른 글 (아직 번역본이 없는 책·카드) */
     if (node && rw && rw.lang === home) out.wiki = rw.title;   /* 위키로도 갈 수 있다: {kind:'wiki', title} (방의 언어의 글이 있을 때만) */
@@ -721,4 +727,4 @@ Octopus.prototype.answer = function (a) {
   return withDecision({ ok: true }, next);
 };
 
-module.exports = { FAR_LANTERN: FAR_LANTERN, addDays: addDays, screenArgs: screenArgs, suspectText: suspectText, privateText: privateText, checkArgs: checkArgs, plain: plain, CAPS: CAPS, parseBook: parseBook, loadBooks: loadBooks, loadCards: loadCards, CARDS_N: CARDS_N, BOOK_HEAD: BOOK_HEAD, BOOK_MAX: BOOK_MAX, Octopus: Octopus, FIXED_SENTENCE: FIXED_SENTENCE, NOTES_HEAD: NOTES_HEAD, wikiFetch: wikiFetch, MENU: MENU, I18N: I18N, SHELF_CATS: SHELF_CATS, ROOMS_I18N: ROOMS_I18N };
+module.exports = { FAR_LANTERN: FAR_LANTERN, addDays: addDays, screenArgs: screenArgs, suspectText: suspectText, privateText: privateText, checkArgs: checkArgs, plain: plain, CAPS: CAPS, parseBook: parseBook, loadBooks: loadBooks, loadCards: loadCards, CARDS_N: CARDS_N, BOOK_HEAD: BOOK_HEAD, BOOK_MAX: BOOK_MAX, bookLimits: bookLimits, fingerprint: fingerprint, Octopus: Octopus, FIXED_SENTENCE: FIXED_SENTENCE, NOTES_HEAD: NOTES_HEAD, wikiFetch: wikiFetch, MENU: MENU, I18N: I18N, SHELF_CATS: SHELF_CATS, ROOMS_I18N: ROOMS_I18N };
