@@ -135,8 +135,8 @@ function cleanSource(r, lang) {
 /* ───── 뽈뽈 도서관 (library/books/<방id>.md) ─────
    사람이 쓴 짧은 책. 방에 책이 있으면 위키 대신 그 책을 읽는다 (네트워크 없음 · 크기 고정).
    책은 '자료' 다: 누가 썼는지 (by) 를 늘 같이 보낸다. 쓴 사람의 글은 고치지 않는다 */
-/* 길이는 글자 수로 세되 언어마다 눈금이 다르다 — 같은 글이 영어는 한국어의 2.0~2.8배, 일본어는 0.8~1.0배 (번역본 228편 실측, 2026-11-10). 모델이 받는 토큰은 비슷해진다 */
-var BOOK_HEAD = 500, BOOK_MAX = 1200, LEN_SCALE = { ko: 1, ja: 1.1, en: 3 };
+/* 길이는 글자 수로 세되 언어마다 눈금이 다르다 — 같은 글이 영어는 한국어의 2.0~2.8배, 독일어·프랑스어·스페인어는 2.1~3.4배, 일본어는 0.8~1.0배 (번역본 570편 실측, 2026-11-10). 모델이 받는 토큰은 비슷해진다 */
+var BOOK_HEAD = 500, BOOK_MAX = 1200, LEN_SCALE = { ko: 1, ja: 1.1, en: 3, de: 3.5, fr: 3.5, es: 3.5 };
 function bookLimits(lang) { var s = LEN_SCALE[I18N.norm(lang) || 'ko'] || 1; return { head: Math.round(BOOK_HEAD * s), max: Math.round(BOOK_MAX * s) }; }
 /* 원본 지문: 번역본 머리말 original: 에 적어 두면 (tools/stamp-translations.js) 원문이 바뀐 번역본을 check-books 가 알려 준다 */
 function fingerprint(text) { return require('crypto').createHash('sha1').update(String(text).replace(/\r\n/g, '\n').trim()).digest('hex').slice(0, 8); }
@@ -234,7 +234,7 @@ function Octopus(opts) {
 }
 /* 방의 언어: 만들 때 정한 것 > 모델이 look_room 으로 한 번 정한 것 (S.lang) > ko */
 Octopus.prototype.lang = function () { return this._lang || this.S.lang || 'ko'; };
-Octopus.prototype.far = function () { return I18N.FAR[this.lang()]; };   /* 먼 바다 문 너머의 위키 언어 */
+Octopus.prototype.far = function () { return I18N.FAR[this.lang()] || ['en']; };   /* 먼 바다 문 너머의 위키 언어 목록 (영어 방은 나머지 전부) */
 Octopus.prototype.setLang = function (l) {
   l = I18N.norm(l);
   if (!l || this._lang || this.S.lang) return false;   /* 이미 정해진 방은 그대로 */
@@ -472,7 +472,8 @@ Octopus.prototype.todayCards = function () {
   return out;
 };
 /* 서가 후보 (언어별 '알찬 글' 분류). 저장된 목록: ko 는 js/shelf.js (게임과 같은 뽑기), en·ja 는 data/shelf.<lang>.json (tools/build-shelf.js) */
-var SHELF_N = 8, SHELF_CATS = { ko: ['분류:알찬 글', '분류:좋은 글'], en: ['Category:Featured articles'], ja: ['Category:秀逸な記事', 'Category:良質な記事'] };
+var SHELF_N = 8, SHELF_CATS = { ko: ['분류:알찬 글', '분류:좋은 글'], en: ['Category:Featured articles'], ja: ['Category:秀逸な記事', 'Category:良質な記事'],
+  de: ['Kategorie:Wikipedia:Exzellent', 'Kategorie:Wikipedia:Lesenswert'], fr: ['Catégorie:Article de qualité', 'Catégorie:Bon article'], es: ['Categoría:Wikipedia:Artículos destacados', 'Categoría:Wikipedia:Artículos buenos'] };
 function shelfSnapshot(lang) {
   if (lang === 'ko') return SHELF && SHELF.pool && SHELF.pool.length ? SHELF.pool : null;
   try { var p = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'shelf.' + lang + '.json'), 'utf8')); return Array.isArray(p.pool) && p.pool.length ? p.pool : null; } catch (e) { return null; }
@@ -552,9 +553,9 @@ Octopus.prototype.peek = async function (a) {
     }
   } else if (tg.kind === 'wiki' && str(tg.title)) {
     /* 위키 언어: 방의 언어 (기본) 또는 먼 바다 문 너머의 언어 (문이 열렸을 때만). 그 밖의 언어는 이 방의 지도에 없다 */
-    var lang = I18N.norm(tg.lang) || home, far = this.far();
-    if (lang !== home && lang !== far) return { error: this.L.wikiUnreachable(lang, home, far) };
-    if (lang === far && this.S.far.state !== 'open') return { error: this.L.farClosed(far, home) };
+    var lang = I18N.norm(tg.lang) || home, far = this.far(), isFar = lang !== home && far.indexOf(lang) >= 0;
+    if (lang !== home && !isFar) return { error: this.L.wikiUnreachable(lang, home, far) };
+    if (isFar && this.S.far.state !== 'open') return { error: this.L.farClosed(far, home) };
     target = { kind: 'wiki', title: tg.title };
     if (lang !== 'ko') target.lang = lang;
     var w = await this.fetchWiki(tg.title, { timeoutMs: 6000, sentences: a.more ? 6 : 2, lang: lang });

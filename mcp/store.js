@@ -89,7 +89,7 @@ async function createRoom(store, opts) {
   var key = newKey(), now = new Date().toISOString();
   var meta = { v: 1, created: now, hour: null, calls: 0 };
   if (typeof opts.name === 'string' && opts.name.trim()) meta.name = opts.name.trim().slice(0, 12);
-  var lang = require('./i18n.js').norm(opts.lang); if (lang) meta.lang = lang;   /* 방의 언어 (게임이 기기 언어를 보낸다). 없으면 모델이 look_room 으로 한 번 정한다 */
+  var I = require('./i18n.js'), lang = I.norm(opts.lang) || (String(opts.lang || '').trim() ? I.DEFAULT : null); if (lang) meta.lang = lang;   /* 기기 언어가 있는데 모르는 언어면 영어 (주인: 영어가 메인) */   /* 방의 언어 (게임이 기기 언어를 보낸다). 없으면 모델이 look_room 으로 한 번 정한다 */
   await store.write(roomPath(key, 'meta.json'), JSON.stringify(meta));
   return key;
 }

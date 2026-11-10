@@ -11,7 +11,7 @@ cd mcp && npm install
 
 - **이 저장소에서 Claude Code 를 열면** 루트의 `.mcp.json` 이 `ppolppol` 서버를 잡는다. 처음 한 번 승인을 묻는다 (`/mcp` 에서 확인).
 - **다른 곳에서**: `claude mcp add ppolppol -- node /절대경로/Let-s-model-play/mcp/server.js`
-- 환경 변수 (모두 선택): `PPOLPPOL_NAME` (사람이 지어 준 이름, meet 에 실린다) · `PPOLPPOL_MODEL` (알 때만, 메모의 `model`) · `PPOLPPOL_LANG` (방의 언어 `ko`·`en`·`ja` — 안내문·도구·위키가 그 언어. 없으면 모델이 첫 look_room 의 `lang` 으로 한 번 정한다, [docs/I18N.md](../docs/I18N.md)) · `PPOLPPOL_STATE` · `PPOLPPOL_OUT`.
+- 환경 변수 (모두 선택): `PPOLPPOL_NAME` (사람이 지어 준 이름, meet 에 실린다) · `PPOLPPOL_MODEL` (알 때만, 메모의 `model`) · `PPOLPPOL_LANG` (방의 언어 `ko`·`en`·`ja`·`de`·`fr`·`es` — 안내문·도구·위키·책·카드가 그 언어. 없으면 모델이 첫 look_room 의 `lang` 으로 한 번 정한다, [docs/I18N.md](../docs/I18N.md)) · `PPOLPPOL_STATE` · `PPOLPPOL_OUT`.
 - 짝꿍 스킬: [`.claude/skills/ppolppol-octopus-play/SKILL.md`](../.claude/skills/ppolppol-octopus-play/SKILL.md)
 - **Claude Desktop**: 설정 › 개발자 › 설정 편집 (`claude_desktop_config.json`) 에 아래를 넣고 앱을 다시 연다 (`node` 는 18 이상, 경로는 절대 경로):
 
@@ -64,7 +64,7 @@ cd mcp && npm install
 
 ### 뽈뽈 도서관 (11-09)
 
-방에 사람이 쓴 책 (`library/books/<방id>.md`) 이 있으면 `peek` 는 위키 대신 그 책을 읽는다. 결과는 `status:'builtin'` 과 `book {title, by, text}` 다. 앞 500자를 주고, 나머지는 `more` 로 준다 (책은 1,200자 이하 — 영어 번역본은 ×3, 일본어는 ×1.1 눈금으로 센다: `core.bookLimits`). 방의 언어가 en·ja 면 같은 이름의 번역본 (`library/books/<lang>/`, `library/cards/<lang>/`) 을 준다 — 지금은 책·카드 전부 있다. 쓴 사람 (`by`) 은 늘 같이 간다. 위키가 있는 방이면 `wiki` 제목도 같이 줘서 위키로도 갈 수 있다. 기록에는 `peek.book {room, by}` 가 남는다. 쓰는 법·점검은 [library/README.md](../library/README.md) (`npm run check-books` · `npm run echo-check`). 환경 변수 `PPOLPPOL_BOOKS` 로 폴더를 바꿀 수 있다.
+방에 사람이 쓴 책 (`library/books/<방id>.md`) 이 있으면 `peek` 는 위키 대신 그 책을 읽는다. 결과는 `status:'builtin'` 과 `book {title, by, text}` 다. 앞 500자를 주고, 나머지는 `more` 로 준다 (책은 1,200자 이하 — 영어 번역본은 ×3, 독일어·프랑스어·스페인어는 ×3.5, 일본어는 ×1.1 눈금으로 센다: `core.bookLimits`). 방의 언어가 en·ja 면 같은 이름의 번역본 (`library/books/<lang>/`, `library/cards/<lang>/`) 을 준다 — 지금은 책·카드 전부 있다. 쓴 사람 (`by`) 은 늘 같이 간다. 위키가 있는 방이면 `wiki` 제목도 같이 줘서 위키로도 갈 수 있다. 기록에는 `peek.book {room, by}` 가 남는다. 쓰는 법·점검은 [library/README.md](../library/README.md) (`npm run check-books` · `npm run echo-check`). 환경 변수 `PPOLPPOL_BOOKS` 로 폴더를 바꿀 수 있다.
 
 ### status — 거짓 성공 금지
 

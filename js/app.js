@@ -2631,7 +2631,7 @@ var APP = (function () {
     return out;
   }
   /* 뒷면 영수증 HTML (§6.2) — 링크 클릭 가능. 출처 링크는 위키백과(한국어) 주소일 때만 (두뇌도 거르지만 옛 기록·불러온 기록까지) */
-  var WIKI_SRC = /^https:\/\/(ko|en|ja)\.wikipedia\.org\//;   /* en·ja: 방의 언어 · 먼 바다 문 (MCP) */
+  var WIKI_SRC = /^https:\/\/(ko|en|ja|de|fr|es)\.wikipedia\.org\//;   /* 방의 언어 · 먼 바다 문 (MCP: ko·en·ja·de·fr·es) */
   function receiptHTML(trip) {
     var r = trip.receipt, p = trip.poster || {}, out = '<div class="receipt">';
     out += '<h3>일기' + (trip.date ? ' · ' + esc(fmtDate(trip.date, true)) : '') + '</h3>';   /* 화면 말은 '일기' (코드 이름 receipt* 는 그대로). 여행 id 는 보이지 않는다 */

@@ -8,7 +8,7 @@ var fs = require('fs'), path = require('path');
 var WORLD = require('../../js/world.js');
 var I18N = require('../i18n.js');
 var UA = 'ppolppol-octopus-mcp/0.1 (local game; https://github.com/skadmlwls9455-pixel/Let-s-model-play)';
-var LANGS = I18N.LANGS.filter(function (l) { return l !== 'ko'; });
+var LANGS = process.argv.slice(2).length ? process.argv.slice(2) : I18N.LANGS.filter(function (l) { return l !== 'ko'; });   /* node tools/build-room-names.js [en ja de …] */
 
 function stripParen(t) { return String(t).replace(/\s*[(（][^)）]*[)）]\s*$/, '').trim(); }
 

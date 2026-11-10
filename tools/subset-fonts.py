@@ -95,7 +95,7 @@ def used_chars():
 
 
 def wanted_chars():
-    base = set(range(0x20, 0x7F)) | set(range(0x3131, 0x318F)) | set(range(0x2000, 0x2070))
+    base = set(range(0x20, 0x7F)) | set(range(0xA0, 0x180)) | set(range(0x3131, 0x318F)) | set(range(0x2000, 0x2070))   # 0xA0–0x17F: 라틴 보충·확장 A (독일어·프랑스어·스페인어 제목의 é ü ß ñ …)
     return base | ksx1001_syllables() | used_chars()
 
 

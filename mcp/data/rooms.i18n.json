@@ -9,6 +9,18 @@
   "ja": {
    "name": "帽子",
    "wiki": "帽子"
+  },
+  "de": {
+   "name": "Hut",
+   "wiki": "Hut"
+  },
+  "fr": {
+   "name": "Chapeau",
+   "wiki": "Chapeau"
+  },
+  "es": {
+   "name": "Sombrero",
+   "wiki": "Sombrero"
   }
  },
  "quill": {
@@ -19,6 +31,18 @@
   "ja": {
    "name": "羽根ペン",
    "wiki": "羽根ペン"
+  },
+  "de": {
+   "name": "Federkiel",
+   "wiki": "Federkiel"
+  },
+  "fr": {
+   "name": "Plume",
+   "wiki": "Plume (écriture)"
+  },
+  "es": {
+   "name": "Pluma de ave",
+   "wiki": "Pluma de ave (escritura)"
   }
  },
  "button": {
@@ -29,6 +53,18 @@
   "ja": {
    "name": "ボタン",
    "wiki": "ボタン (服飾)"
+  },
+  "de": {
+   "name": "Knopf",
+   "wiki": "Knopf"
+  },
+  "fr": {
+   "name": "Bouton",
+   "wiki": "Bouton (couture)"
+  },
+  "es": {
+   "name": "Botón",
+   "wiki": "Botón (indumentaria)"
   }
  },
  "umbrella": {
@@ -39,6 +75,18 @@
   "ja": {
    "name": "傘",
    "wiki": "傘"
+  },
+  "de": {
+   "name": "Regenschirm",
+   "wiki": "Regenschirm"
+  },
+  "fr": {
+   "name": "Parapluie",
+   "wiki": "Parapluie"
+  },
+  "es": {
+   "name": "Paraguas",
+   "wiki": "Paraguas"
   }
  },
  "thread": {
@@ -49,6 +97,18 @@
   "ja": {
    "name": "毛糸",
    "wiki": "毛糸"
+  },
+  "de": {
+   "name": "Garn",
+   "wiki": "Garn"
+  },
+  "fr": {
+   "name": "Fil textile",
+   "wiki": "Fil textile"
+  },
+  "es": {
+   "name": "Hilo",
+   "wiki": "Hilo"
   }
  },
  "knot": {
@@ -59,6 +119,18 @@
   "ja": {
    "name": "結び目",
    "wiki": "結び目"
+  },
+  "de": {
+   "name": "Knoten",
+   "wiki": "Knoten (Knüpfen)"
+  },
+  "fr": {
+   "name": "Nœud",
+   "wiki": "Nœud (lien)"
+  },
+  "es": {
+   "name": "Nudo",
+   "wiki": "Nudo (lazo)"
   }
  },
  "key": {
@@ -69,6 +141,18 @@
   "ja": {
    "name": "鍵",
    "wiki": "鍵"
+  },
+  "de": {
+   "name": "Schlüssel",
+   "wiki": "Schlüssel"
+  },
+  "fr": {
+   "name": "Clé",
+   "wiki": "Clé (serrurerie)"
+  },
+  "es": {
+   "name": "Llave",
+   "wiki": "Llave"
   }
  },
  "lock": {
@@ -79,6 +163,18 @@
   "ja": {
    "name": "錠前",
    "wiki": "錠前"
+  },
+  "de": {
+   "name": "Schloss",
+   "wiki": "Schloss (Technik)"
+  },
+  "fr": {
+   "name": "Serrure",
+   "wiki": "Serrure"
+  },
+  "es": {
+   "name": "Cerradura",
+   "wiki": "Cerradura"
   }
  },
  "glass": {
@@ -89,6 +185,18 @@
   "ja": {
    "name": "ガラス",
    "wiki": "ガラス"
+  },
+  "de": {
+   "name": "Glas",
+   "wiki": "Glas"
+  },
+  "fr": {
+   "name": "Verre",
+   "wiki": "Verre"
+  },
+  "es": {
+   "name": "Vidrio",
+   "wiki": "Vidrio"
   }
  },
  "chalk": {
@@ -99,6 +207,14 @@
   "ja": {
    "name": "チョーク",
    "wiki": "チョーク"
+  },
+  "fr": {
+   "name": "Bâton de craie",
+   "wiki": "Bâton de craie"
+  },
+  "es": {
+   "name": "Tiza",
+   "wiki": "Tiza"
   }
  },
  "octopus": {
@@ -109,12 +225,32 @@
   "ja": {
    "name": "ミズダコ",
    "wiki": "ミズダコ"
+  },
+  "de": {
+   "name": "Pazifischer Riesenkrake",
+   "wiki": "Pazifischer Riesenkrake"
+  },
+  "fr": {
+   "name": "Pieuvre géante du Pacifique",
+   "wiki": "Pieuvre géante du Pacifique"
+  },
+  "es": {
+   "name": "Enteroctopus dofleini",
+   "wiki": "Enteroctopus dofleini"
   }
  },
  "shell": {
   "en": {
    "name": "Clam",
    "wiki": "Clam"
+  },
+  "fr": {
+   "name": "Palourde",
+   "wiki": "Palourde"
+  },
+  "es": {
+   "name": "Almeja",
+   "wiki": "Almeja"
   }
  },
  "pearl": {
@@ -125,6 +261,18 @@
   "ja": {
    "name": "真珠",
    "wiki": "真珠"
+  },
+  "de": {
+   "name": "Perle",
+   "wiki": "Perle"
+  },
+  "fr": {
+   "name": "Perle",
+   "wiki": "Perle"
+  },
+  "es": {
+   "name": "Perla",
+   "wiki": "Perla"
   }
  },
  "tide": {
@@ -135,6 +283,18 @@
   "ja": {
    "name": "潮汐",
    "wiki": "潮汐"
+  },
+  "de": {
+   "name": "Gezeiten",
+   "wiki": "Gezeiten"
+  },
+  "fr": {
+   "name": "Marée",
+   "wiki": "Marée"
+  },
+  "es": {
+   "name": "Marea",
+   "wiki": "Marea"
   }
  },
  "starfish": {
@@ -155,6 +315,18 @@
   "ja": {
    "name": "灯台",
    "wiki": "灯台"
+  },
+  "de": {
+   "name": "Leuchtturm",
+   "wiki": "Leuchtturm"
+  },
+  "fr": {
+   "name": "Phare",
+   "wiki": "Phare"
+  },
+  "es": {
+   "name": "Faro",
+   "wiki": "Faro"
   }
  },
  "salt": {
@@ -165,6 +337,18 @@
   "ja": {
    "name": "塩",
    "wiki": "塩"
+  },
+  "de": {
+   "name": "Speisesalz",
+   "wiki": "Speisesalz"
+  },
+  "fr": {
+   "name": "Sel alimentaire",
+   "wiki": "Sel alimentaire"
+  },
+  "es": {
+   "name": "Sal común",
+   "wiki": "Sal común"
   }
  },
  "feather": {
@@ -175,6 +359,18 @@
   "ja": {
    "name": "羽毛",
    "wiki": "羽毛"
+  },
+  "de": {
+   "name": "Feder",
+   "wiki": "Feder"
+  },
+  "fr": {
+   "name": "Plume",
+   "wiki": "Plume"
+  },
+  "es": {
+   "name": "Pluma",
+   "wiki": "Pluma"
   }
  },
  "cloud_names": {
@@ -185,6 +381,18 @@
   "ja": {
    "name": "雲",
    "wiki": "雲"
+  },
+  "de": {
+   "name": "Wolke",
+   "wiki": "Wolke"
+  },
+  "fr": {
+   "name": "Nuage",
+   "wiki": "Nuage"
+  },
+  "es": {
+   "name": "Nube",
+   "wiki": "Nube"
   }
  },
  "rainbow": {
@@ -195,6 +403,18 @@
   "ja": {
    "name": "虹",
    "wiki": "虹"
+  },
+  "de": {
+   "name": "Regenbogen",
+   "wiki": "Regenbogen"
+  },
+  "fr": {
+   "name": "Arc-en-ciel",
+   "wiki": "Arc-en-ciel"
+  },
+  "es": {
+   "name": "Arcoíris",
+   "wiki": "Arcoíris"
   }
  },
  "light": {
@@ -205,6 +425,18 @@
   "ja": {
    "name": "光",
    "wiki": "光"
+  },
+  "de": {
+   "name": "Licht",
+   "wiki": "Licht"
+  },
+  "fr": {
+   "name": "Lumière",
+   "wiki": "Lumière"
+  },
+  "es": {
+   "name": "Luz",
+   "wiki": "Luz"
   }
  },
  "star": {
@@ -215,6 +447,18 @@
   "ja": {
    "name": "恒星",
    "wiki": "恒星"
+  },
+  "de": {
+   "name": "Stern",
+   "wiki": "Stern"
+  },
+  "fr": {
+   "name": "Étoile",
+   "wiki": "Étoile"
+  },
+  "es": {
+   "name": "Estrella",
+   "wiki": "Estrella"
   }
  },
  "moon": {
@@ -225,6 +469,18 @@
   "ja": {
    "name": "月",
    "wiki": "月"
+  },
+  "de": {
+   "name": "Mond",
+   "wiki": "Mond"
+  },
+  "fr": {
+   "name": "Lune",
+   "wiki": "Lune"
+  },
+  "es": {
+   "name": "Luna",
+   "wiki": "Luna"
   }
  },
  "wind": {
@@ -235,6 +491,18 @@
   "ja": {
    "name": "風",
    "wiki": "風"
+  },
+  "de": {
+   "name": "Wind",
+   "wiki": "Wind"
+  },
+  "fr": {
+   "name": "Vent",
+   "wiki": "Vent"
+  },
+  "es": {
+   "name": "Viento",
+   "wiki": "Viento"
   }
  },
  "snow": {
@@ -245,6 +513,18 @@
   "ja": {
    "name": "雪",
    "wiki": "雪"
+  },
+  "de": {
+   "name": "Schnee",
+   "wiki": "Schnee"
+  },
+  "fr": {
+   "name": "Neige",
+   "wiki": "Neige"
+  },
+  "es": {
+   "name": "Nieve",
+   "wiki": "Nieve"
   }
  },
  "ink": {
@@ -255,6 +535,18 @@
   "ja": {
    "name": "インク",
    "wiki": "インク"
+  },
+  "de": {
+   "name": "Tinte",
+   "wiki": "Tinte"
+  },
+  "fr": {
+   "name": "Encre",
+   "wiki": "Encre"
+  },
+  "es": {
+   "name": "Tinta",
+   "wiki": "Tinta"
   }
  },
  "cuneiform": {
@@ -265,6 +557,18 @@
   "ja": {
    "name": "楔形文字",
    "wiki": "楔形文字"
+  },
+  "de": {
+   "name": "Keilschrift",
+   "wiki": "Keilschrift"
+  },
+  "fr": {
+   "name": "Écriture cunéiforme",
+   "wiki": "Écriture cunéiforme"
+  },
+  "es": {
+   "name": "Escritura cuneiforme",
+   "wiki": "Escritura cuneiforme"
   }
  },
  "braille": {
@@ -275,6 +579,18 @@
   "ja": {
    "name": "点字",
    "wiki": "点字"
+  },
+  "de": {
+   "name": "Brailleschrift",
+   "wiki": "Brailleschrift"
+  },
+  "fr": {
+   "name": "Braille",
+   "wiki": "Braille"
+  },
+  "es": {
+   "name": "Braille",
+   "wiki": "Braille"
   }
  },
  "morse": {
@@ -285,6 +601,18 @@
   "ja": {
    "name": "モールス符号",
    "wiki": "モールス符号"
+  },
+  "de": {
+   "name": "Morsecode",
+   "wiki": "Morsecode"
+  },
+  "fr": {
+   "name": "Code Morse international",
+   "wiki": "Code Morse international"
+  },
+  "es": {
+   "name": "Código morse",
+   "wiki": "Código morse"
   }
  },
  "ancient_language": {
@@ -295,6 +623,18 @@
   "ja": {
    "name": "ラテン語",
    "wiki": "ラテン語"
+  },
+  "de": {
+   "name": "Latein",
+   "wiki": "Latein"
+  },
+  "fr": {
+   "name": "Latin",
+   "wiki": "Latin"
+  },
+  "es": {
+   "name": "Latín",
+   "wiki": "Latín"
   }
  },
  "hangul": {
@@ -305,6 +645,18 @@
   "ja": {
    "name": "ハングル",
    "wiki": "ハングル"
+  },
+  "de": {
+   "name": "Koreanisches Alphabet",
+   "wiki": "Koreanisches Alphabet"
+  },
+  "fr": {
+   "name": "Hangeul",
+   "wiki": "Hangeul"
+  },
+  "es": {
+   "name": "Hangul",
+   "wiki": "Hangul"
   }
  },
  "stamp": {
@@ -315,6 +667,18 @@
   "ja": {
    "name": "切手",
    "wiki": "切手"
+  },
+  "de": {
+   "name": "Briefmarke",
+   "wiki": "Briefmarke"
+  },
+  "fr": {
+   "name": "Timbre postal",
+   "wiki": "Timbre postal"
+  },
+  "es": {
+   "name": "Sello postal",
+   "wiki": "Sello postal"
   }
  },
  "prime": {
@@ -325,6 +689,18 @@
   "ja": {
    "name": "素数",
    "wiki": "素数"
+  },
+  "de": {
+   "name": "Primzahl",
+   "wiki": "Primzahl"
+  },
+  "fr": {
+   "name": "Nombre premier",
+   "wiki": "Nombre premier"
+  },
+  "es": {
+   "name": "Número primo",
+   "wiki": "Número primo"
   }
  },
  "knot_theory": {
@@ -335,6 +711,18 @@
   "ja": {
    "name": "結び目理論",
    "wiki": "結び目理論"
+  },
+  "de": {
+   "name": "Knotentheorie",
+   "wiki": "Knotentheorie"
+  },
+  "fr": {
+   "name": "Théorie des nœuds",
+   "wiki": "Théorie des nœuds"
+  },
+  "es": {
+   "name": "Teoría de nudos",
+   "wiki": "Teoría de nudos"
   }
  },
  "mobius": {
@@ -345,6 +733,18 @@
   "ja": {
    "name": "メビウスの帯",
    "wiki": "メビウスの帯"
+  },
+  "de": {
+   "name": "Möbiusband",
+   "wiki": "Möbiusband"
+  },
+  "fr": {
+   "name": "Ruban de Möbius",
+   "wiki": "Ruban de Möbius"
+  },
+  "es": {
+   "name": "Banda de Möbius",
+   "wiki": "Banda de Möbius"
   }
  },
  "tessellation": {
@@ -355,12 +755,36 @@
   "ja": {
    "name": "タイル張り",
    "wiki": "タイル張り"
+  },
+  "de": {
+   "name": "Parkettierung",
+   "wiki": "Parkettierung"
+  },
+  "fr": {
+   "name": "Pavage du plan",
+   "wiki": "Pavage du plan"
+  },
+  "es": {
+   "name": "Teselado",
+   "wiki": "Teselado"
   }
  },
  "honeycomb": {
   "en": {
    "name": "Honeycomb",
    "wiki": "Honeycomb"
+  },
+  "de": {
+   "name": "Bienenwabe",
+   "wiki": "Bienenwabe"
+  },
+  "fr": {
+   "name": "Alvéole d'abeille",
+   "wiki": "Alvéole d'abeille"
+  },
+  "es": {
+   "name": "Panal",
+   "wiki": "Panal"
   }
  },
  "spiral": {
@@ -371,6 +795,18 @@
   "ja": {
    "name": "螺旋",
    "wiki": "螺旋"
+  },
+  "de": {
+   "name": "Helix",
+   "wiki": "Helix"
+  },
+  "fr": {
+   "name": "Hélice",
+   "wiki": "Hélice (géométrie)"
+  },
+  "es": {
+   "name": "Hélice",
+   "wiki": "Hélice (geometría)"
   }
  },
  "zero": {
@@ -381,6 +817,18 @@
   "ja": {
    "name": "0",
    "wiki": "0"
+  },
+  "de": {
+   "name": "Null",
+   "wiki": "Null"
+  },
+  "fr": {
+   "name": "Zéro",
+   "wiki": "Zéro"
+  },
+  "es": {
+   "name": "Cero",
+   "wiki": "Cero"
   }
  },
  "abacus": {
@@ -391,6 +839,18 @@
   "ja": {
    "name": "アバカス",
    "wiki": "アバカス"
+  },
+  "de": {
+   "name": "Abakus",
+   "wiki": "Abakus (Rechenhilfsmittel)"
+  },
+  "fr": {
+   "name": "Abaque",
+   "wiki": "Abaque (calcul)"
+  },
+  "es": {
+   "name": "Ábaco",
+   "wiki": "Ábaco"
   }
  },
  "lullaby": {
@@ -401,6 +861,18 @@
   "ja": {
    "name": "子守唄",
    "wiki": "子守唄"
+  },
+  "de": {
+   "name": "Wiegenlied",
+   "wiki": "Wiegenlied"
+  },
+  "fr": {
+   "name": "Berceuse",
+   "wiki": "Berceuse"
+  },
+  "es": {
+   "name": "Canción de cuna",
+   "wiki": "Canción de cuna"
   }
  },
  "metronome": {
@@ -411,6 +883,18 @@
   "ja": {
    "name": "メトロノーム",
    "wiki": "メトロノーム"
+  },
+  "de": {
+   "name": "Metronom",
+   "wiki": "Metronom"
+  },
+  "fr": {
+   "name": "Métronome",
+   "wiki": "Métronome"
+  },
+  "es": {
+   "name": "Metrónomo",
+   "wiki": "Metrónomo"
   }
  },
  "whale_song": {
@@ -421,6 +905,18 @@
   "ja": {
    "name": "ザトウクジラ",
    "wiki": "ザトウクジラ"
+  },
+  "de": {
+   "name": "Buckelwal",
+   "wiki": "Buckelwal"
+  },
+  "fr": {
+   "name": "Baleine à bosse",
+   "wiki": "Baleine à bosse"
+  },
+  "es": {
+   "name": "Megaptera novaeangliae",
+   "wiki": "Megaptera novaeangliae"
   }
  },
  "bell": {
@@ -431,6 +927,18 @@
   "ja": {
    "name": "鐘",
    "wiki": "鐘"
+  },
+  "de": {
+   "name": "Glocke",
+   "wiki": "Glocke"
+  },
+  "fr": {
+   "name": "Cloche",
+   "wiki": "Cloche"
+  },
+  "es": {
+   "name": "Campana",
+   "wiki": "Campana (instrumento)"
   }
  },
  "echo": {
@@ -441,6 +949,18 @@
   "ja": {
    "name": "反響",
    "wiki": "反響"
+  },
+  "de": {
+   "name": "Echo",
+   "wiki": "Echo"
+  },
+  "fr": {
+   "name": "Écho",
+   "wiki": "Écho (acoustique)"
+  },
+  "es": {
+   "name": "Eco",
+   "wiki": "Eco"
   }
  },
  "thunder": {
@@ -451,6 +971,18 @@
   "ja": {
    "name": "雷鳴",
    "wiki": "雷鳴"
+  },
+  "de": {
+   "name": "Donner",
+   "wiki": "Donner"
+  },
+  "fr": {
+   "name": "Tonnerre",
+   "wiki": "Tonnerre"
+  },
+  "es": {
+   "name": "Trueno",
+   "wiki": "Trueno"
   }
  },
  "heartbeat": {
@@ -461,6 +993,18 @@
   "ja": {
    "name": "心臓",
    "wiki": "心臓"
+  },
+  "de": {
+   "name": "Herz",
+   "wiki": "Herz"
+  },
+  "fr": {
+   "name": "Cœur",
+   "wiki": "Cœur"
+  },
+  "es": {
+   "name": "Corazón",
+   "wiki": "Corazón"
   }
  },
  "window": {
@@ -471,6 +1015,18 @@
   "ja": {
    "name": "窓",
    "wiki": "窓"
+  },
+  "de": {
+   "name": "Fenster",
+   "wiki": "Fenster"
+  },
+  "fr": {
+   "name": "Fenêtre",
+   "wiki": "Fenêtre"
+  },
+  "es": {
+   "name": "Ventana",
+   "wiki": "Ventana"
   }
  },
  "candle": {
@@ -481,6 +1037,18 @@
   "ja": {
    "name": "ろうそく",
    "wiki": "ろうそく"
+  },
+  "de": {
+   "name": "Kerze",
+   "wiki": "Kerze"
+  },
+  "fr": {
+   "name": "Bougie",
+   "wiki": "Bougie"
+  },
+  "es": {
+   "name": "Vela",
+   "wiki": "Vela (iluminación)"
   }
  },
  "tea": {
@@ -491,6 +1059,18 @@
   "ja": {
    "name": "茶",
    "wiki": "茶"
+  },
+  "de": {
+   "name": "Tee",
+   "wiki": "Tee"
+  },
+  "fr": {
+   "name": "Thé",
+   "wiki": "Thé"
+  },
+  "es": {
+   "name": "Té",
+   "wiki": "Té"
   }
  },
  "moss": {
@@ -501,6 +1081,18 @@
   "ja": {
    "name": "コケ植物",
    "wiki": "コケ植物"
+  },
+  "de": {
+   "name": "Moose",
+   "wiki": "Moose"
+  },
+  "fr": {
+   "name": "Bryophyte",
+   "wiki": "Bryophyte"
+  },
+  "es": {
+   "name": "Bryophyta sensu lato",
+   "wiki": "Bryophyta sensu lato"
   }
  },
  "pinecone": {
@@ -517,6 +1109,18 @@
   "ja": {
    "name": "ランタン",
    "wiki": "ランタン (照明器具)"
+  },
+  "de": {
+   "name": "Laterne",
+   "wiki": "Laterne"
+  },
+  "fr": {
+   "name": "Lanterne",
+   "wiki": "Lanterne (éclairage)"
+  },
+  "es": {
+   "name": "Farol",
+   "wiki": "Farol (iluminación)"
   }
  },
  "dream": {
@@ -527,6 +1131,18 @@
   "ja": {
    "name": "夢",
    "wiki": "夢"
+  },
+  "de": {
+   "name": "Traum",
+   "wiki": "Traum"
+  },
+  "fr": {
+   "name": "Rêve",
+   "wiki": "Rêve"
+  },
+  "es": {
+   "name": "Ensueño",
+   "wiki": "Ensueño"
   }
  },
  "memory": {
@@ -537,6 +1153,18 @@
   "ja": {
    "name": "記憶",
    "wiki": "記憶"
+  },
+  "de": {
+   "name": "Gedächtnis",
+   "wiki": "Gedächtnis"
+  },
+  "fr": {
+   "name": "Mémoire",
+   "wiki": "Mémoire (psychologie)"
+  },
+  "es": {
+   "name": "Memoria",
+   "wiki": "Memoria (proceso)"
   }
  },
  "name": {
@@ -547,6 +1175,18 @@
   "ja": {
    "name": "名前",
    "wiki": "名前"
+  },
+  "de": {
+   "name": "Name",
+   "wiki": "Name"
+  },
+  "fr": {
+   "name": "Nom",
+   "wiki": "Nom"
+  },
+  "es": {
+   "name": "Nombre",
+   "wiki": "Nombre"
   }
  },
  "time_sense": {
@@ -557,6 +1197,18 @@
   "ja": {
    "name": "時間",
    "wiki": "時間"
+  },
+  "de": {
+   "name": "Zeit",
+   "wiki": "Zeit"
+  },
+  "fr": {
+   "name": "Temps",
+   "wiki": "Temps"
+  },
+  "es": {
+   "name": "Tiempo",
+   "wiki": "Tiempo"
   }
  },
  "sleep": {
@@ -567,6 +1219,18 @@
   "ja": {
    "name": "睡眠",
    "wiki": "睡眠"
+  },
+  "de": {
+   "name": "Schlaf",
+   "wiki": "Schlaf"
+  },
+  "fr": {
+   "name": "Sommeil",
+   "wiki": "Sommeil"
+  },
+  "es": {
+   "name": "Sueño",
+   "wiki": "Sueño"
   }
  },
  "riddle": {
@@ -577,6 +1241,18 @@
   "ja": {
    "name": "なぞなぞ",
    "wiki": "なぞなぞ"
+  },
+  "de": {
+   "name": "Rätsel",
+   "wiki": "Rätsel"
+  },
+  "fr": {
+   "name": "Énigme",
+   "wiki": "Énigme"
+  },
+  "es": {
+   "name": "Adivinanza",
+   "wiki": "Adivinanza"
   }
  }
 }

@@ -30,7 +30,9 @@ function lint(items, label) {
   });
 }
 /* 번역본 — 원본 (ko) 과 나란히. 원문의 숫자 (연도·치수) 가 번역에 다 있는지는 거친 눈치로만 본다 (날짜 꼴이 바뀌면 틀릴 수 있다 — 사람이 본다) */
-function nums(t) { return (String(t).match(/\d[\d,.]*\d|\d/g) || []).map(function (s) { return s.replace(/[,.]$/, '').replace(/^0+(?=\d)/, ''); }); }
+/* 숫자는 자릿수 구분·소수점 기호를 떼고 (3.66 → 366, 1,000 → 1000, 1 000 → 1000) 비교한다 — 독일어·프랑스어·스페인어는 소수점이 쉼표라서 */
+function digits(t) { return String(t).replace(/(\d)[ \u00a0\u202f.,](?=\d)/g, ''); }
+function nums(t) { return (digits(t).match(/\d+/g) || []).map(function (s) { return s.replace(/^0+(?=\d)/, ''); }); }
 function lintTr(base, byLang) {
   var n = {};
   Object.keys(base).sort().forEach(function (k) {
@@ -42,7 +44,7 @@ function lintTr(base, byLang) {
       if (!t.original) lines.push('원본 지문 (original:) 없음 — node tools/stamp-translations.js');
       else if (t.original !== fp) lines.push('원본이 바뀜 (지문 ' + t.original + ' ≠ ' + fp + ') — 번역을 다시 보고 stamp');
       if (/[가-힣]/.test(t.title + ' ' + t.text + ' ' + t.by)) lines.push('한글이 남음');
-      var miss = nums(o.text).filter(function (x) { return t.text.indexOf(x) < 0; });
+      var td = digits(t.text), miss = nums(o.text).filter(function (x) { return td.indexOf(x) < 0; });
       if (miss.length) lines.push('원문의 숫자가 없음: ' + miss.slice(0, 6).join(' '));
       var po = o.text.split(/\n\s*\n/).length, pt = t.text.split(/\n\s*\n/).length;
       if (po !== pt) lines.push('문단 ' + pt + ' (원문 ' + po + ')');
