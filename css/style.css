@@ -1402,3 +1402,24 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 .settings-sheet .set-look > span { color: var(--fg); }
 .settings-sheet .set-note, .settings-sheet .help, .settings-sheet .snd-note { color: var(--muted); }
 :root[data-font="pixel"] .settings-sheet .set-note { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
+
+/* 11-10 소파 위 노란 점: 누르는 곳 44×44 (투명), 보이는 건 가운데 10px 연한 노란 네모가 천천히 깜빡 (세 번 뒤 멈춤 — 끝없는 반복 금지) */
+.sofa-dot { pointer-events: none; position: absolute; z-index: 8; width: 44px; height: 44px; margin: 0; padding: 0; border: 0; background: none; display: grid; place-items: center; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.sofa-dot[hidden] { display: none; }
+.sofa-dot > span { display: block; width: 10px; height: 10px; background: #ffe08a; opacity: .7; box-shadow: 0 0 0 2px rgba(255, 224, 138, .28); animation: sofa-dot 1.6s steps(2, jump-none) 3; }
+.sofa-dot:focus-visible > span { outline: 2px solid #e8c170; outline-offset: 3px; }
+.sofa-dot:active > span { opacity: 1; }
+@keyframes sofa-dot { 0% { opacity: .35; } 100% { opacity: .8; } }
+html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .sofa-dot > span { animation: none; } }
+:root[data-motion="reduce"] .sofa-dot > span { animation: none; }
+
+/* 11-10 가구 배치 모드: 위 바 바로 아래 이름 줄 + 오른쪽 아래 단추 기둥 (큰 버튼 자리). 왼쪽 아래 스틱 구역은 비워 둔다 */
+.furn-ui { position: absolute; inset: 0; z-index: 9; pointer-events: none; }
+.furn-ui[hidden] { display: none; }
+.furn-top { position: absolute; top: calc(var(--bar-h, 44px) + var(--safe-t, 0px) + 8px); left: 8px; right: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 10px; background-color: var(--panel); border: 1px solid var(--rim); border-radius: 10px; pointer-events: auto; }
+:root[data-font="pixel"] .furn-top { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
+.furn-items { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.furn-col { position: absolute; right: 8px; bottom: calc(12px + var(--safe-b, 0px)); display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
+.furn-col .btn { min-width: 84px; min-height: 44px; margin: 0; }
+:root.furn-on #invite { visibility: hidden; }

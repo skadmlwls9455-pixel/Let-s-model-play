@@ -112,6 +112,19 @@
     <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/home" alt="" width="32" height="32" draggable="false"><span class="door-txt">집</span></span>
   </button>
   <button type="button" id="btn-play-door" class="scene-spot" aria-label="문어 방" title="문어 방" aria-describedby="scene-desc" hidden></button>
+  <!-- 소파 위 연한 노란 점 (11-10): 누르면 내 캐릭터가 소파 앞으로 걸어가 폴짝 뛰어 앉는다. 자리는 장면이 on.sofaSpot 으로 알려 준다 (app.js). 누르는 곳 44×44 · 보이는 점 10px -->
+  <button type="button" id="btn-sofa" class="sofa-dot" aria-label="소파에 앉기" title="소파에 앉기" hidden><span aria-hidden="true"></span></button>
+  <!-- 가구 배치 모드 (11-10): 가구를 꾹 누르면 뜬다. 가구가 내 캐릭터 앞에 붙어 따라오고, 여기서 돌리기 · 크기 · 취소 · 놓기 (app.js furnUI · 장면 furnCarry) -->
+  <div id="furn-ui" class="furn-ui" hidden>
+    <div class="furn-top"><strong id="furn-title">가구 배치</strong><span id="furn-items" class="furn-items" role="group" aria-label="옮길 가구"></span></div>
+    <div class="furn-col" role="group" aria-label="가구 배치">
+      <button type="button" class="btn sm pressable" id="furn-rot">돌리기</button>
+      <button type="button" class="btn sm pressable" id="furn-big">크게</button>
+      <button type="button" class="btn sm pressable" id="furn-small">작게</button>
+      <button type="button" class="btn sm pressable" id="furn-x">취소</button>
+      <button type="button" class="btn sm primary pressable" id="furn-ok">놓기</button>
+    </div>
+  </div>
   <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
   <!-- 발자국 손잡이 (가상 스틱, 주인 11-08 "바닥 톡보다 훨씬 자연스럽다"): 장면 왼쪽 아래 72px 고리 + 28px 손잡이. 끌면 그 화면 방향으로 내 캐릭터가 걷는다 (js/app.js stick 절 · scene.setPlayerInput).
        다락 · 놀이방이 보일 때만 — hidden 은 장면의 on.playerInput(allowed) 로 앱이 쥔다 (바깥 · 입장 연출 · 문 작업 · 전환 · 2D 폴백에선 숨김). 바깥의 집 단추(#btn-door edge)와 자리는 같은 왼쪽 아래지만 보이는 때가 서로 배타적이다.

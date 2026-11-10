@@ -193,7 +193,7 @@ var APP = (function () {
   var PLAYER_CATS = [['hair', '머리'], ['bangs', '앞머리'], ['hairColor', '머리 색'], ['eyes', '눈'], ['eyeColor', '눈 색'], ['nose', '코'], ['mouth', '입'], ['cheek', '볼'], ['outfit', '옷'], ['shoes', '신발'], ['acc', '악세사리']];
   var PLAYER_FALLBACK = {
     hair: [['bob', '단발'], ['short', '숏컷'], ['long', '긴생머리'], ['twin', '양갈래'], ['pony', '포니테일'], ['wave', '웨이브']],
-    bangs: [['spiky', '삐죽'], ['full', '일자'], ['side', '옆가르마'], ['center', '가운데'], ['see', '시스루'], ['none', '이마']],
+    bangs: [['spiky', '삐죽'], ['full', '일자'], ['side', '옆가르마'], ['center', '가운데'], ['see', '시스루']],
     hairColor: [['blonde', '금발', '#ffc16a'], ['brown', '밤갈색', '#9a5a3a'], ['ink', '먹남색', '#1e2a44'], ['silver', '은빛', '#cfc9c0'], ['pink', '분홍', '#de8fa9'], ['lime', '연두', '#a0d070']],
     eyes: [['round', '동그란'], ['sparkle', '반짝'], ['sleepy', '졸린'], ['almond', '또렷'], ['smile', '웃는'], ['dot', '점']],
     eyeColor: [['dark', '흑갈색', '#6a3a30'], ['hazel', '호두색', '#884b2b'], ['sea', '바다색', '#3c5e8b'], ['leaf', '잎새색', '#468232'], ['honey', '꿀색', '#be772b'], ['violet', '제비꽃', '#7a367b']],
@@ -496,6 +496,10 @@ var APP = (function () {
         door: function (ev) { if (window.AUDIO && ev) AUDIO.on('door', { act: ev.act, room: ev.room }); },   /* 8물결: 방 문이 열리고 닫힐 때 끼익 (장면은 AUDIO 를 부르지 않는다) */
         view: function (v) { syncRoomUI(v); },   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
         playerInput: function (allowed) { stickShow(allowed); },
+        /* 11-10 인테리어 v0: 가구를 꾹 눌러 옮기면 자리를 저장 (S.room.layout) · 소파 위 노란 점 = 앉기 */
+        furnEdit: function (stt) { furnUI(stt); },   /* 배치 모드 시작 · 바뀜 · 끝(null) */
+        furnMove: function (d) { if (!d || !d.id) return; if (!isObj(S.room.layout)) S.room.layout = {}; S.room.layout[d.id] = [d.x, d.z, d.rot | 0, +d.scale || 1]; save(); },
+        sofaSpot: function (p) { var b = $('btn-sofa'); if (!b) return; if (!p) { b.hidden = true; return; } b.style.left = (p.x - 22) + 'px'; b.style.top = (p.y - 22) + 'px'; b.hidden = false; },
         playerDoor: function (to) { if (!roomJob && !busyRoomWalk()) goRoom(to === 'attic' ? 'attic' : 'play', $(to === 'attic' ? 'btn-play-door' : 'btn-door'), false); },   /* 문에 닿은 채 걸어 들어감 (장면이 한 번만 쏜다) */   /* 11-08 움직이기: 내 캐릭터를 움직일 수 있는 때가 바뀐 프레임 (바뀔 때만 온다) → 발자국 손잡이 hidden */
         playerStep: function () { if (window.AUDIO) AUDIO.on('step', { who: 'player' }); }   /* 내 캐릭터 한 걸음 (장면은 AUDIO 를 부르지 않는다) — js/audio.js 에 'step' 갈래가 생기면 발소리 step_* (지금은 조용히) */
       }
@@ -508,6 +512,7 @@ var APP = (function () {
       opts.onLost = sceneLost;
       try { scene = SCENE3D.init($('scene3d'), opts); sceneMode = '3d'; }
       catch (e) { console.warn('[app] scene3d init 실패 → 2D 폴백', e); scene = null; }
+      try { if (scene && typeof scene.setLayout === 'function' && isObj(S.room.layout)) scene.setLayout(S.room.layout); } catch (e) { console.warn('[app] setLayout', e); }   /* 저장된 가구 자리 */
     }
     if (!scene) { document.documentElement.removeAttribute('data-layout'); scene = SCENE2D.init(host, opts); sceneMode = '2d'; }   /* 2D 는 쌓는 배치 크기로 재야 한다 → 그리기 전에 뗀다 */
     host.classList.toggle('mode-3d', sceneMode === '3d');
@@ -3102,6 +3107,26 @@ var APP = (function () {
      내 캐릭터 (SCENE.md '내 캐릭터'): walkFirst — 장면의 playerWalkTo(문 앞 앵커 atticPlayDoor · playAtticDoor)가 문 앞까지 걸어가서 풀리면 그때 문이 열린다 (2D 폴백엔 캐릭터가 없어 바로 풀린다) */
   var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine' };
   var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
+  var furnHinted = false;
+  /* 가구 배치 모드 화면 (주인 11-10 참고 화면): 위에 '가구 배치 · 이름' + 바꿔 들 가구 칩, 오른쪽 아래에 돌리기 · 크게 · 작게 · 취소 · 놓기. 큰 버튼(뽈뽈 다녀와)은 그동안 숨긴다. 캐릭터는 스틱 · 방향키로 그대로 움직인다 */
+  function furnUI(stt) {
+    var ui = $('furn-ui'); if (!ui) return;
+    document.documentElement.classList.toggle('furn-on', !!stt);
+    ui.hidden = !stt; if (!stt) return;
+    $('furn-title').textContent = '가구 배치 · ' + stt.name + (stt.scale !== 1 ? ' (' + Math.round(stt.scale * 100) + '%)' : '');
+    var box = $('furn-items'); box.textContent = '';
+    (stt.items || []).forEach(function (it) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'fchip' + (it.id === stt.id ? ' on' : ''); b.textContent = it.name; b.setAttribute('aria-pressed', it.id === stt.id ? 'true' : 'false');
+      b.addEventListener('click', function () { if (scene && scene.furnCarry) scene.furnCarry(it.id); });
+      box.appendChild(b);
+    });
+    if (!furnHinted) { furnHinted = true; toast('캐릭터를 움직여 자리를 잡고 놓기를 눌러'); }
+  }
+  function bindFurn() {
+    var map = { 'furn-rot': 'furnRotate', 'furn-ok': 'furnConfirm', 'furn-x': 'furnCancel' };
+    Object.keys(map).forEach(function (id) { var b = $(id); if (b) b.addEventListener('click', function () { if (scene && typeof scene[map[id]] === 'function') scene[map[id]](); }); });
+    [['furn-big', 1], ['furn-small', -1]].forEach(function (q) { var b = $(q[0]); if (b) b.addEventListener('click', function () { if (scene && scene.furnScale) scene.furnScale(q[1]); }); });
+  }
   var roomJob = null;   /* 지금 도는 문 작업 (Promise) — 끝날 때까지 두 번째 문은 열지 않는다 */
   function sceneView() { return scene && typeof scene.view === 'function' ? scene.view() : (scene && typeof scene.place === 'function' ? scene.place() : 'attic'); }
   function inPlay() { return !!scene && typeof scene.room === 'function' && scene.room() === 'play'; }
@@ -3477,6 +3502,8 @@ var APP = (function () {
   /* ───────────────────────── boot ───────────────────────── */
   function bind() {
     $('btn-go').addEventListener('click', goTap);
+    bindFurn();
+    if ($('btn-sofa')) $('btn-sofa').addEventListener('click', function () { if (scene && typeof scene.playerSit === 'function') scene.playerSit(); });
     $('btn-settings').addEventListener('click', openSettings);
     $('set-close').addEventListener('click', function () { $('settings-sheet').close(); });
     bindRooms();   /* 방 문 · 오락기 · 구석 쪽지 (8물결) */
