@@ -134,6 +134,9 @@
   <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
   <button type="button" id="btn-stair" class="scene-spot" aria-label="위층으로" title="위층으로" hidden></button>
   <button type="button" id="btn-loft-stair" class="scene-spot" aria-label="아래층으로" title="아래층으로" hidden></button>
+  <button type="button" id="btn-plot0" class="scene-spot" aria-label="텃밭 첫째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot1" class="scene-spot" aria-label="텃밭 둘째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot2" class="scene-spot" aria-label="텃밭 셋째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-sew" class="scene-spot" aria-label="재봉틀 · 옷 물들이기" title="재봉틀" aria-haspopup="dialog" hidden></button>
   <!-- 발자국 손잡이 (가상 스틱, 주인 11-08 "바닥 톡보다 훨씬 자연스럽다"): 장면 왼쪽 아래 72px 고리 + 28px 손잡이. 끌면 그 화면 방향으로 내 캐릭터가 걷는다 (js/app.js stick 절 · scene.setPlayerInput).
        다락 · 놀이방이 보일 때만 — hidden 은 장면의 on.playerInput(allowed) 로 앱이 쥔다 (바깥 · 입장 연출 · 문 작업 · 전환 · 2D 폴백에선 숨김). 바깥의 집 단추(#btn-door edge)와 자리는 같은 왼쪽 아래지만 보이는 때가 서로 배타적이다.

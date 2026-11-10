@@ -3644,7 +3644,7 @@ var APP = (function () {
      장면은 놀이방에 있는 동안 의식이 장소를 바꿔도 화면을 끌고 가지 않는다 (scene3d setPlaceNow). 문어가 돌아오면 구석 쪽지 "뚜루가 돌아왔어." + 보러 가기.
      큰 버튼(뽈뽈 다녀와 · 다녀오는 중…)은 문어 방의 일 → 놀이방이면 먼저 문으로 돌아와서 한다. 새로고침은 늘 문어 방 (지금 방은 저장하지 않는다).
      내 캐릭터 (SCENE.md '내 캐릭터'): walkFirst — 장면의 playerWalkTo(문 앞 앵커 atticPlayDoor · playAtticDoor)가 문 앞까지 걸어가서 풀리면 그때 문이 열린다 (2D 폴백엔 캐릭터가 없어 바로 풀린다) */
-  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew' };   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
+  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew', plot0: 'btn-plot0', plot1: 'btn-plot1', plot2: 'btn-plot2' };   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
   var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door', loft: 'btn-loft-stair' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
   var furnHinted = false;
   /* 가구 배치 모드 화면 (주인 11-10 참고 화면): 위에 '가구 배치 · 이름' + 바꿔 들 가구 칩, 오른쪽 아래에 돌리기 · 크게 · 작게 · 취소 · 놓기. 큰 버튼(뽈뽈 다녀와)은 그동안 숨긴다. 캐릭터는 스틱 · 방향키로 그대로 움직인다 */
@@ -3709,7 +3709,7 @@ var APP = (function () {
   }
   function resetRoomUI() {   /* 장면을 바꿀 때 (sceneLost): 단추는 새 장면이 다시 맡는다 · 그 전까지 놀이방 단추는 숨김 */
     roomJob = null; hideBackNote();
-    ['btn-play-door', 'btn-machine', 'btn-salon', 'btn-stair', 'btn-loft-stair', 'btn-sew'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
+    ['btn-play-door', 'btn-machine', 'btn-salon', 'btn-stair', 'btn-loft-stair', 'btn-sew', 'btn-plot0', 'btn-plot1', 'btn-plot2'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
     var d = $('btn-door'); if (d) { d.hidden = false; d.removeAttribute('data-spot'); ['left', 'top', 'width', 'height', 'right', 'bottom'].forEach(function (k) { d.style[k] = ''; }); }
     var sc = $('scene'); if (sc) { sc.setAttribute('data-view', 'attic'); sc.setAttribute('aria-label', '문어의 다락방'); }
   }
@@ -3798,6 +3798,7 @@ var APP = (function () {
     on('btn-stair', function (b, k) { goRoom('loft', b, k); });
     on('btn-loft-stair', function (b, k) { goRoom('attic', b, k); });
     on('btn-sew', function () { openSew(); });
+    [0, 1, 2].forEach(function (i) { on('btn-plot' + i, function () { gardenAct(i); }); });   /* 바깥 텃밭 칸 (바깥이 보일 때만 장면이 단추를 올린다) */
     on('btn-salon', function () { openSalon(); });   /* 미용실 거울 (그림 위 투명 단추 — 톡은 장면이 그린 순서대로 넘긴다: 문어가 거울 옆이면 문어가 먼저) */
     on('btn-back-see', function (b, k) { goRoom('attic', b, k); });
     document.addEventListener('keydown', function () { var r = document.querySelectorAll('.ring-off'); for (var i = 0; i < r.length; i++) r[i].classList.remove('ring-off'); }, true);   /* 키를 누르면 링은 다시 (키보드로 이어 가는 사람) */
@@ -4279,13 +4280,14 @@ var APP = (function () {
     else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim', text: '주간 선물 받기 (조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds + ')' }); c.addEventListener('click', weekClaim); frag.appendChild(c); }
   }
   function renderBagChip() { var b = $('btn-bag'); if (!b) return; var u = userState(); b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = '조개 ' + u.shells; if (S.octopus.name) { var w = weekState(); b.classList.toggle('has-gift', !w.claimed && weekDoneN(w) >= WEEK_NEED); } }
+  function applyGarden() { if (scene && typeof scene.setGarden === 'function') { try { scene.setGarden(userState().garden.map(function (g) { return g ? { color: dyeOf(g.color)[2], water: g.water } : null; })); } catch (e) { console.warn('[app] setGarden', e); } } }
   function gardenAct(i) {
     var u = userState(), g = u.garden[i], dk = todayKey();
     if (!g) { if (u.seeds < 1) { toast('씨앗이 없어. 들어온 날 선물로 하나씩 생겨'); return; } u.seeds--; var rng = mkRng(B ? B.hashSeed('seed', dk, i, u.days.length, u.seeds) : Date.now()); u.garden[i] = { color: DYES[Math.floor(rng() * DYES.length)][0], water: 0, wateredDay: '' }; toast('씨앗을 심었어'); questMark('plant'); }
     else if (g.water >= 2) { u.dyes[g.color] = (u.dyes[g.color] | 0) + 1; u.garden[i] = null; toast(dyeOf(g.color)[1] + ' 염료 1개를 얻었어'); questMark('harvest'); }
     else if (g.wateredDay === dk) { toast('오늘은 물을 줬어. 내일 또 줄 수 있어'); return; }
     else { g.water++; g.wateredDay = dk; toast(g.water >= 2 ? '꽃이 피었어' : '물을 줬어'); questMark('water'); }
-    save(); renderBag();
+    save(); renderBag(); applyGarden();
   }
   function applyDye() { if (scene && typeof scene.setPlayerDye === 'function') { try { scene.setPlayerDye(userState().dye || null); } catch (e) { console.warn('[app] setPlayerDye', e); } } }
   function dyeUse(id) {
@@ -4356,6 +4358,7 @@ var APP = (function () {
     frag.appendChild(h('p', { class: 'set-note', text: '조개와 씨앗은 다락방 달리기, 들어온 날 선물, 주간 선물에서 생겨. 쉬어도 잃는 건 없어.' }));
     renderWeek(frag);
     frag.appendChild(h('h3', { text: '텃밭' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '밭은 집 앞마당에 있어. 문어가 산책 나가 바깥이 보일 때는 밭을 바로 톡 해도 돼.' }));
     var plots = h('div', { class: 'bag-plots', role: 'group', 'aria-label': '텃밭' });
     u.garden.forEach(function (g, i) {
       var st = !g ? '빈 칸' : g.water >= 2 ? dyeOf(g.color)[1] + ' 꽃' : g.water === 1 ? '새싹' : '씨앗', act = !g ? '심기' : g.water >= 2 ? '거두기' : g.wateredDay === dk ? '내일' : '물 주기';
@@ -4371,7 +4374,7 @@ var APP = (function () {
     body.textContent = ''; body.appendChild(frag); renderBagChip();
   }
   function bagInit() {
-    userState(); renderBagChip(); applyDye();
+    userState(); renderBagChip(); applyDye(); applyGarden();
     var b = $('btn-bag'), sh = $('bag-sheet'); if (!b || !sh) return;
     b.addEventListener('click', function () { renderBag(); showDialog(sh); });
     $('bag-close').addEventListener('click', function () { sh.close(); });
