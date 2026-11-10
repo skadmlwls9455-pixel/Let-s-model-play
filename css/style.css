@@ -810,6 +810,71 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .cnote .cn-tag.next { color: var(--amber); box-shadow: inset 0 0 0 2px var(--amber-fill); }
 :root[data-font="pixel"] .cnote button.cn-text:focus-visible { outline-color: var(--fg); }
 
+/* ── 미용실 시트 (#salon-sheet · docs/SALON.md §3.2): 제목 → 병 줄 (병 아래 나무 판 · 작은 글 '지금' · '처음') → 이름 줄 (role=status, 비어도 한 줄 높이) → [물어보기] [닫기] ──
+   뒤 막 없음 (두 테마 — 병이 선반에서 앞으로 나오고 문어 눈이 따라가는 게 보여야 한다). 폭과 상관없이 아래에 붙는다 (가운데 창이면 다락 거울 · 문어를 가린다).
+   병: 보이는 칸 36 px · 누르는 곳 44 px (::before) · 간격 8 px · 그림 16×16 ×2 (물약 칸 = currentColor = 그 병의 색). 6개는 늘 한 줄 (320 px: 6×36 + 5×8 = 256 ≤ 안쪽 288),
+   7개는 안쪽이 300 px 보다 좁으면 (폭 < 332 px) 4 + 3. 지금 색 · 쉬는 색 병도 흐리게 하지 않는다 (흐린 빨강은 분홍으로 읽힌다) — 병 아래 '지금' · 이름 줄 · 낭독 이름이 말한다.
+   [물어보기] 는 병을 고르기 전엔 aria-disabled: 채운 호박색 대신 보통 단추 + 흐린 글자. 픽셀 테마는 판 · 글자가 2px 격자 위 · 눌림은 배율 대신 2px 이동 */
+#salon-sheet::backdrop, :root[data-font="pixel"] #salon-sheet::backdrop { background: none; background-image: none; backdrop-filter: none; }
+.salon-sheet { --b-ink: var(--fg); --b-glass: var(--panel); --b-cork: #ad7757; --b-hi: #fff6ee; --b-edge: var(--rim); --plank: #c09473; --plank-lo: #884b2b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .salon-sheet { --b-ink: var(--muted); --b-glass: var(--dim); --plank: #4d2b32; --plank-lo: #090a14; } }
+:root[data-theme="dark"] .salon-sheet { --b-ink: var(--muted); --b-glass: var(--dim); --plank: #4d2b32; --plank-lo: #090a14; }
+@media (min-width: 600px) {
+  .salon-sheet { inset: auto 0 0 0; margin: 0 auto; height: auto; width: 100%; max-width: 600px; border-radius: 16px 16px 0 0; border-bottom: 0; }
+  .salon-sheet[open] { animation: sheet-in var(--t-ui) var(--ease-enter) both; }
+  :root[data-font="pixel"] .salon-sheet { border-bottom: 0; box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px); }
+}
+.salon-sheet .salon-h { font-size: 15px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0 0 10px; color: var(--fg); }
+.salon-sheet .salon-h:focus { outline: none; }
+.bottles { --cols: 6; display: grid; grid-template-columns: repeat(var(--cols), 36px); column-gap: 8px; row-gap: 6px; justify-content: center; margin: 0 auto; }
+.bottles[data-n="7"] { --cols: 7; }
+@media (max-width: 331px) { .bottles[data-n="7"] { --cols: 4; } }
+@media (max-width: 299px) { .bottles { --cols: 4; } }   /* 접는 폰 바깥 화면 (280 px): 6개도 4 + 2 — 가로 스크롤이 생기지 않게 */
+.bcell { display: flex; flex-direction: column; align-items: center; width: 36px; }
+.bottle {
+  position: relative; display: grid; place-items: center; box-sizing: border-box; width: 36px; height: 36px; margin: 0; padding: 0;
+  border: 1px solid var(--b-edge); border-radius: 8px; background: var(--panel2); cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  transition: transform var(--t-press) var(--ease-out);
+}
+.bottle::before { content: ''; position: absolute; inset: -5px; }   /* 테두리 안쪽(34 px) 기준 → 누르는 곳 44 px */
+.bottle svg { display: block; width: 32px; height: 32px; }
+.bottle .bt-ink { fill: var(--b-ink); }
+.bottle .bt-cork { fill: var(--b-cork); }
+.bottle .bt-glass { fill: var(--b-glass); }
+.bottle .bt-potion { fill: currentColor; }
+.bottle .bt-hi { fill: var(--b-hi); }
+.bottle[aria-pressed="true"] { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber); }
+.bottle:active { transform: scale(.97); }
+.bottle:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+.bplank { display: block; width: 44px; height: 6px; margin: 0 -4px; background: var(--plank); box-shadow: inset 0 -2px 0 var(--plank-lo); }   /* 병 아래 나무 판 (칸 사이 틈까지 이어진다) */
+.bnote { display: block; min-height: 16px; font-size: 11px; line-height: 16px; color: var(--muted); white-space: nowrap; }
+.salon-sheet .salon-name { margin: 6px 0 0; min-height: calc(13px * 1.65); font-size: 13px; line-height: 1.65; text-align: center; color: var(--fg); }
+.salon-btns { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; }
+.salon-btns .salon-ask { flex: 1 1 auto; min-width: 0; }
+.salon-btns #salon-close { flex: 0 0 auto; min-width: 88px; }
+.salon-ask[aria-disabled="true"] { background: var(--panel); border-color: var(--rim); color: var(--muted); box-shadow: inset 0 1px 0 var(--hi); cursor: default; }
+.salon-ask[aria-disabled="true"]:active { transform: none; }
+:root[data-font="pixel"] .salon-sheet .salon-h { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; margin: 0 0 8px; }
+:root[data-font="pixel"] .bottle { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .bottle::before { inset: -6px; }
+:root[data-font="pixel"] .bottle[aria-pressed="true"] { border-color: var(--fg); box-shadow: inset 0 0 0 2px var(--amber-fill), 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .bottle:active { transform: translate(2px, 2px); box-shadow: none; }
+:root[data-font="pixel"] .bottle[aria-pressed="true"]:active { box-shadow: inset 0 0 0 2px var(--amber-fill); }
+:root[data-font="pixel"] .bottle:focus-visible { outline-color: var(--fg); outline-offset: 2px; }
+:root[data-font="pixel"] .bplank { background: var(--strip); box-shadow: inset 0 -2px 0 var(--line); }
+:root[data-font="pixel"] .bnote { font-family: var(--f-meta); font-size: 16px; line-height: 20px; min-height: 20px; }
+:root[data-font="pixel"] .salon-sheet .salon-name { font-family: var(--f-body); font-size: 20px; line-height: 30px; min-height: 30px; margin: 4px 0 0; }
+:root[data-font="pixel"] .salon-ask[aria-disabled="true"] { background-color: var(--panel); border-color: var(--line); color: var(--muted); font-weight: 400; box-shadow: var(--bevel), 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .salon-ask[aria-disabled="true"]:active { transform: none; box-shadow: var(--bevel), 2px 2px 0 var(--line); }
+:root[data-font="pixel"] .btn.salon-ask[aria-disabled="true"]:focus-visible { outline-color: var(--fg); }   /* 꺼진 [물어보기] 는 호박 바탕이 아니라 판 바탕 — 링은 글자색으로 (두 테마에서 보이게) */
+/* 행 3 꼬리 (누가 정했나: 데모 규칙 · 모델 · 사람이 정함) — 결과 문장 뒤 작은 글 */
+.ltext .lby { display: inline-block; margin-left: 6px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+:root[data-font="pixel"] .ltext .lby { font-family: var(--f-meta); font-size: 16px; line-height: 24px; margin-left: 8px; }
+/* 미용실 연출 중: 놀이방 문 단추를 숨긴다 (장면 톡이 문을 열지 않게 앱도 막는다 — 기술 SHOULD 8) */
+#scene.salon-on #btn-door { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])):is([data-font], :not([data-font])) .bottle:active { transform: none; } }   /* 두 글꼴 테마 모두 (픽셀 2px 이동 규칙보다 앞서게) */
+:root[data-motion="reduce"]:is([data-font], :not([data-font])) .bottle:active { transform: none; }
+
 /* ── 축소 모션 (설정 또는 OS): 줄이되 없애지 않는다 — 이동·회전 대신 크로스페이드, 등불은 그대로 밝아진다 ──
    OS 설정은 모션 설정이 "기기 설정 따르기"(data-motion="auto", 또는 아직 안 붙었을 때)일 때만 따른다. 사람이 고른 값(reduce 등)은 아래 [data-motion] 규칙이 정한다 */
 @media (prefers-reduced-motion: reduce) {
@@ -866,7 +931,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 #scene3d #oct-label { font-size: 12px; }
 #scene3d #oct-bubble { font-size: 12px; padding: 4px 8px; border-radius: 8px; max-width: 220px; }   /* 220: 톡 한 줄(22자 · 모델 24자 + …)이 픽셀 2~3줄 · 시스템 1~2줄 (js/ui-art.js keepInside 가 좁은 장면이면 더 줄인다) */
 .rdrop.snow { width: 2px; height: 2px; background: #f7f1d8; opacity: .8; }
-/* 설정: 문어 색 */
+/* 몸 색 칸: 첫 실행 창(#name-colors, 한 줄 · 간격은 아래 이름 창 블록) · 설정의 개발용 칸 (?dev=1 을 직접 붙인 탭만 — docs/SALON.md §1.2) */
 .presets { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; }
 .preset { position: relative; width: 36px; height: 36px; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; }
 .preset::before { content: ''; position: absolute; inset: -4px; }
@@ -890,7 +955,20 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 
 /* ── 이름 짓기 창 (사용자 피드백): 설명은 문장·의미 단위로 줄바꿈, 아래 정직 표기는 작고 연한 갈색 ── */
 #name-dialog .ln { display: block; }
-#name-dialog .name-lead { margin: 4px 0 20px; }
+#name-dialog .name-lead { margin: 4px 0 10px; }
+/* 첫 실행 = 몸 색을 처음 한 번 고르는 곳 (주인 11-08 밤 · docs/SALON.md §1.1): 제목 → 한 줄 → 초상 64 px → 색 6칸 한 줄 → 이름 칸 → 저장 → 정직 줄.
+   색 칸은 보이는 36 px · 누르는 곳 ::before 44 px · 간격 6 px (6×36 + 5×6 = 246 px, 줄바꿈 없음). 320 px 폰에선 기본 대화상자 한도(100% − 6px − 2em)로는
+   안쪽이 246 px 보다 좁아서(픽셀 230 · 시스템 237) 한도를 넓힌다 → 너비는 그대로 min(92vw, 340px) = 안쪽 250 px.
+   제목은 손가락 기기에서 열 때 포커스를 받는다 (자판이 색 줄을 가리지 않게) — 테두리가 생기면 입력 칸처럼 보여 링은 없앤다 */
+#name-dialog { max-width: calc(100vw - 24px); }
+#name-h:focus, #name-h:focus-visible { outline: none; }
+#name-dialog .name-pic { width: 64px; height: 64px; margin: 0 auto 8px; }
+#name-dialog .name-pic canvas, #name-dialog .name-pic img { display: block; width: 64px; height: 64px; margin: 0; image-rendering: pixelated; }   /* 초상 64×64 를 CSS 64 px (픽셀 테마 정수 배율) · 대체 그림도 같은 자리 */
+#name-dialog .name-pic [hidden], #name-dialog .name-colors[hidden] { display: none; }
+#name-dialog .name-colors { justify-content: center; flex-wrap: nowrap; gap: 6px; margin: 0 0 14px; }
+#name-dialog .name-colors .preset { flex: 0 0 auto; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not([data-font="pixel"]) #name-dialog .name-colors .preset:not(.on) { border-color: var(--rim); } }   /* 어두운 바탕에서 칸 가장자리 (픽셀 테마는 원래 var(--line) 테두리) */
+:root[data-theme="dark"]:not([data-font="pixel"]) #name-dialog .name-colors .preset:not(.on) { border-color: var(--rim); }
 #name-dialog .honest { margin: 18px 0 0; font-size: 13px; line-height: 1.6; color: var(--muted); opacity: .85; }
 :root[data-font="pixel"] #name-dialog .name-lead { font-family: var(--f-body); font-size: 20px; line-height: 30px; }
 :root[data-font="pixel"] #name-dialog .honest { font-family: var(--f-meta); font-size: 16px; line-height: 24px; color: #884b2b; opacity: 1; }
@@ -965,9 +1043,9 @@ html.intro-reveal #scene-ctl { transition: opacity var(--t-ui) var(--ease-enter)
 :root[data-font="pixel"] :where(#album) .pcard.down:not(.in) { transform: translate(2px, 2px); }
 /* 2) 설정 · 앨범 · 옷장 시트: 손잡이와 시트 머리 띠(맨 위 30px · 폭 전체 = 손잡이의 ::before, 위치 기준은 시트 자신)만 끌 수 있다.
       touch-action: none 은 그 띠에만 → 굴러가는 본문의 스크롤은 그대로. 끄는 동안의 transform 과 놓은 뒤 500ms 되돌아가기는 app.js 가 인라인으로 준다 (모션 감소면 바로) */
-:is(#settings-sheet, #album-sheet, #look-sheet, #log-sheet) > .handle { touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
-:is(#settings-sheet, #album-sheet, #look-sheet, #log-sheet) > .handle::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px; }
-:is(#settings-sheet, #album-sheet, #look-sheet, #log-sheet).dragging, :is(#settings-sheet, #album-sheet, #look-sheet, #log-sheet).dragging > .handle { cursor: grabbing; }
+:is(#settings-sheet, #album-sheet, #look-sheet, #log-sheet, #salon-sheet) > .handle { touch-action: none; -webkit-user-select: none; user-select: none; cursor: grab; }
+:is(#settings-sheet, #album-sheet, #look-sheet, #log-sheet, #salon-sheet) > .handle::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 30px; }
+:is(#settings-sheet, #album-sheet, #look-sheet, #log-sheet, #salon-sheet).dragging, :is(#settings-sheet, #album-sheet, #look-sheet, #log-sheet, #salon-sheet).dragging > .handle { cursor: grabbing; }
 
 /* ══ 7물결 (주인 11-07 · 방 보기 없앰): 상태 줄의 작은 말풍선 · 놀이방 문 · 설정 시트 줄 ══
    1) '데모'·등불은 누를 수 있다 → 같은 작은 말풍선 #tip (app.js tip): 2.5 s · 다시 누르면 닫힘 · role=status(polite) · 모션 줄이기면 그냥 나타난다.
@@ -1102,6 +1180,7 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 :root[data-motion="reduce"] .stick { transition: none; }
 
 /* 3) 설정 시트: 색 슬라이더는 한 줄 가득 · 기록은 작은 한 줄 + 버튼 셋 한 줄 (좁으면 줄바꿈) · 누가 고르나 한 줄 */
+/* 3) 설정 시트: 색 슬라이더(개발용 · ?dev=1 탭만)는 한 줄 가득 · 기록은 작은 한 줄 + 버튼 셋 한 줄 (좁으면 줄바꿈) · 누가 고르나 한 줄 */
 .settings-sheet .hue-row input[type=range] { flex: 1 1 auto; min-width: 0; }
 /* 문어 색 슬라이더: 길 자체가 색상환 (소리 슬라이더처럼 길에 색이 보이게 — 7물결 점검 a). 누르는 높이 44px · 키보드(←→ · Home/End)는 기본 range 그대로.
    손잡이는 색 위에서도 보이게 밝은 판 + 어두운 테. 시스템 테마 = 부드러운 색상환 · 픽셀 테마 = 30° 마다 한 칸 (계단) */
@@ -1127,7 +1206,7 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 .settings-sheet .set-stats { color: var(--muted); font-variant-numeric: tabular-nums; }
 .settings-sheet .set-data { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 44px; margin: 4px 0; }
 .settings-sheet .set-data .btn.sm, :root[data-font="pixel"] .settings-sheet .set-data .btn.sm { min-height: 44px; }   /* 내보내기 · 불러오기 · 전체 초기화: 보이는 상자부터 44px (픽셀 테마에선 36px 상자 그대로 눌렸다) — 설정의 다른 줄과 같은 높이 */
-.settings-sheet .set-who { color: var(--muted); }
+.settings-sheet .set-who, .settings-sheet .set-color { color: var(--muted); }   /* set-color = 문어 색 안내 한 줄 (거울이 생긴 뒤 · 누르는 것 없음) */
 .settings-sheet #set-close { margin-top: 12px; }
 :root[data-font="pixel"] .settings-sheet .set-stats, :root[data-font="pixel"] .settings-sheet .set-who { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 
@@ -1463,3 +1542,7 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
   :root[data-layout="one"] #status .pip { width: 6px; }
   :root[data-layout="one"] #status .pip-row { gap: 1px; }
 }
+:root[data-font="pixel"] .settings-sheet .set-stats, :root[data-font="pixel"] .settings-sheet .set-who, :root[data-font="pixel"] .settings-sheet .set-color { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
+
+/* 11-10: 미용실 시트가 열려 장면이 위로 밀릴 때 드러나는 빈 곳이 흰색이던 것 → 장면 허공색 */
+:root[data-layout="one"] #scene, :root[data-layout="one"] #shell { background-color: #090a14; }

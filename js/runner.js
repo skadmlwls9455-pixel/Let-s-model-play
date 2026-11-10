@@ -115,7 +115,8 @@ var RUNNER = (function () {
   function dateKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   /* '오늘' = js/app.js todayKey 와 같은 규칙: 테스트 훅 window.__ppolTest.today = 'YYYY-MM-DD' 가 있을 때만 그 날짜 (그날 판 번호·시드도 그 날로) */
   function todayKey(d) { var t = window.__ppolTest; return (t && typeof t === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(t.today || '')) ? t.today : dateKey(d); }
-  function settings() { try { var o = JSON.parse(localStorage.getItem('ppolppol_v2') || 'null'); return (o && o.settings) || {}; } catch (e) { return {}; } }
+  function saved() { try { var o = JSON.parse(localStorage.getItem('ppolppol_v2') || 'null'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; } }
+  function settings() { return saved().settings || {}; }
   function reducedMotion() {
     var m = document.documentElement.getAttribute('data-motion') || settings().motion || 'auto';
     if (m === 'reduce') return true;
@@ -247,7 +248,7 @@ var RUNNER = (function () {
         imgs = fromPortraits(raws); if (imgs) src = 'portrait';
       } catch (e) { imgs = null; }
     }
-    if (!imgs) { var col = settings().octColor || '#e8463c'; imgs = {}; Object.keys(EXPR).forEach(function (k) { imgs[k] = drawnOctopus(EXPR[k], col); }); }
+    if (!imgs) { var oc = saved().octopus, col = (oc && /^#[0-9a-f]{6}$/i.test(oc.color || '') ? oc.color : null) || settings().octColor || '#e8463c'; imgs = {};   /* 몸 색은 octopus.color 먼저 (settings.octColor 는 그 사본 — docs/SALON.md §1.3) */ Object.keys(EXPR).forEach(function (k) { imgs[k] = drawnOctopus(EXPR[k], col); }); }
     var out = { src: src };
     Object.keys(imgs).forEach(function (k) { out[k] = { '-7': toCanvas(imgs[k], -7), '0': toCanvas(imgs[k], 0), '7': toCanvas(imgs[k], 7) }; });
     return out;

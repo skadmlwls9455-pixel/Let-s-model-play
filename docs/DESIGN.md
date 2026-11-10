@@ -7,6 +7,8 @@
 > 복지 문서가 "모델이 스스로 고르는 회복 시간"이라면, 이 게임은 그 선택을 **지켜보는 사람 쪽 화면**이다.
 >
 > **11-07 고침 (주인, 7물결)**: '방 보기' 시트를 없앴다 (§7.5). 고르는 것은 장면 오른쪽 위 **설정**, 문어 이야기·메모는 **앨범**. 따로 된 '⏩ 건너뛰기' 단추도 없다 — 나가 있는 동안 주 버튼 "다녀오는 중…" 을 누르면 바로 돌아온다 (§7.3). 다락방 달리기는 장면 오른쪽 끝 **놀이방 문** 너머 (§7.2, 지금은 임시 문 → 8물결에 다락 안 진짜 문, ROADMAP '다음 물결'). 플레이어 단추·글·제목엔 이모지·유니코드 기호 없이 글자나 픽셀 그림만 (아래 그림 속 기호는 자리 이름일 뿐).
+>
+> **11-08 밤 고침 (주인, 미용실)**: 몸 색은 첫 실행 이름 창에서 사람이 한 번만 고른다. 그 뒤엔 설정에 고르는 칸이 없다. 바꾸고 싶으면 다락 뒷벽 왼쪽 **거울 코너(미용실, 등불 2칸부터)** 에서 사람이 병 하나를 내밀고 묻고, 바꿀지는 문어가 정한다 (§7.1 · §7.5 · §14, 전체는 `docs/SALON.md`).
 
 ---
 
@@ -90,7 +92,7 @@
 |---|---|---|---|
 | 0 | 아무것도 없는 다락방. 창문 너머로 빗소리. | 빈 벽, 창문에 비, 등불 속 **작은 불씨 하나**(밤에도 깜깜하지 않게, 결정 14 — 2D 는 `scene2d` 의 `ember` 레이어, 3D 는 night-light 쪽 등불) | `room.empty` |
 | 1 | 창가에 이끼 화분이 하나 생겼다. | **창턱 위 이끼 화분** (F3의 첫 변화) | `item.moss` |
-| 2 | 낡은 나무 상자가 책상 대신 놓였다. | 바닥 오른쪽 나무 상자 | `item.crate` |
+| 2 | 낡은 나무 상자가 책상 대신 놓였다. | 바닥 오른쪽 나무 상자 + 뒷벽 왼쪽 **거울 코너** (미용실: 아치 거울 · 물감 병 6, 말 없이 나타난다 — `docs/SALON.md` §2) | `item.crate` · items `salon` (2D `item.salon`) |
 | 3 | 구석에 양초가 켜졌다. 그림자가 흔들린다. | 상자 위 양초 + 흔들리는 작은 빛 | `item.candle` |
 | 4 | 담요 한 장. 방이 조금 따뜻해졌다. | 바닥 왼쪽 담요(문어 잠자리) | `item.blanket` |
 | 5 | 벽에 포스터들이 붙기 시작했다. | 포스터 뒤에 **코르크 보드** 등장, 포스터가 보드 위로 | `item.board` |
@@ -301,7 +303,7 @@ matchHint(hint) →
 `idle`(앵커에서 숨쉬기, 20~40초마다 다른 앵커로 산책) → `anticipate`(출발 직전 300ms 움츠림) → `walk`(앵커 간 이동, 속도 40게임픽셀/초, 좌우 미러) → `away`(없음) → `walk`(door→board, 포스터 들고 `carry`) → `hang`(포스터가 보드로 500ms) → `happy|calm` → `walk`(→blanket) → `idle`(깨어 있는 틈 90 s, 산책·생각 말풍선 없음 — 11-08) → `sleep`(색 순환, §3) 또는 `stay`(집에 있는 날: window/crate에서 활동). 데려오면 `away` → 다락 문(짧은 귀가) → `walk`(→blanket) → 같은 틈.
 - **3D 문어(절차적)**: 머리 = 살짝 눌린 구(반지름 1), 눈 = 흰 구 + 검은 동공 + 하이라이트 점(동공이 포인터를 따라감), 입 = 작은 `_`(어두운 납작 박스), 다리 = **짧고 통통한** 테이퍼드 캡슐 8개를 몸통 아래 둘레에 배치(실제 문어보다 훨씬 짧게, 몸 반지름의 0.9배 길이), 아래쪽에 연한 빨판 점. 다리는 사인파로 흐느적, 걸을 땐 좌우 다리가 번갈아 밀고 몸이 통통 튄다. 재질은 플랫/셀 셰이딩에 가깝게(MeshToonMaterial 또는 Lambert + 팔레트 스냅이 알아서 셀 느낌을 만든다).
 - **걸음: 뒤뚱뒤뚱** — 미끄러지지 않고 걷는다. 걸음 위상은 시간이 아니라 간 거리(보폭 0.6 m → 1.2 m/s 에서 한 발 0.5 s, 바깥 1.8 m/s 에선 저절로 빨라짐). 걸음마다 진행 축으로 ±7° 굴림(−7/0/+7 3단, 걸음 중간 정점) · 요 ±4° · 앞으로 5° · 걸음 중간 1 아트px 위로 · 디딤마다 6 % 눌림(y 0.94, xz 1.03) 80 ms 후 회복. 내딛는 쪽 다리 4개가 들려 앞으로 쓸고 다음 걸음에 디딘다(좌우 번갈아, 다리는 몸보다 60 ms 늦게). 출발 120 ms 예비 동작(눌림 + 뒤로 3°) 후 첫 걸음에 방향을 돌고, 멈출 땐 굴림이 한 번 넘었다 돌아오며 1px 통통. 계단 폴짝은 폴짝 그대로. 모션 감소면 없음(즉시 이동).
-- **색 고르기**: 설정 시트 맨 위 '문어 색' 에 색상(hue) 슬라이더 + 프리셋 6개(빨강·주황·보라·파랑·초록·분홍). 저장된다. 몸 색에서 하이라이트(밝게), 다리 밑면(더 밝고 따뜻하게), 그림자(어둡게) 램프를 만들어 팔레트에 넣는다. 잠잘 때 색 순환, 쓰다듬으면 홍조(§14).
+- **몸 색 (11-08 밤 주인 — 처음 한 번 + 미용실)**: 첫 실행 이름 창에서 사람이 한 번 고른다 (색 6칸 빨강·주황·보라·파랑·초록·분홍, 슬라이더 없음, 처음엔 빨강. 누르면 창 안 초상만 바뀌고 장면 문어는 저장 때 한 번 — §7.8). 그 뒤엔 설정에 고르는 칸이 없다 (§7.5). 바꾸려면 다락 거울 코너(**미용실**, 등불 2칸부터)에서 사람이 병 하나를 내밀고 묻고, 바꿀지는 문어가 정한다 ('바꾸기' 면 대야에서 첨벙, '그대로' 면 병이 제자리로. 하루 한 번 — `docs/SALON.md`). 색은 `octopus.color` 하나에서 읽는다 (§8). 몸 색에서 하이라이트(밝게), 다리 밑면(더 밝고 따뜻하게), 그림자(어둡게) 램프를 만들어 팔레트에 넣는다. 잠잘 때 색 순환, 쓰다듬으면 홍조(§14).
 - 2D 폴백(인라인 SVG 문어)도 같은 상태 이름으로 움직인다.
 - `sleep`: 느린 호흡 + **색 순환**(hue-rotate ±18°, 12초 주기). 라벨은 글자만 (옛 `💤` 는 11-07 규칙으로 뺀다, §7 맨 위) → 가끔 `꿈꾸는 중`. (문어의 활성 수면: 자면서 피부색이 바뀐다.)
 - 모든 모션은 `transform/opacity` 만. `prefers-reduced-motion: reduce` 면 걷기 대신 즉시 이동, 비·흔들림 정지, 플립 없이 교체.
@@ -338,7 +340,7 @@ matchHint(hint) →
 
 | 칸 | 무엇 |
 |---|---|
-| 문어 색 | hue 슬라이더 + 프리셋 6개 (§7.1) |
+| 문어 색 | 고르는 칸이 없다 (11-08 밤 주인, §7.1). 등불 2칸 전엔 칸 자체가 없고, 거울이 생기면 제목 + 한 줄 "거울 앞에서 {이름}에게 물어볼 수 있어." (누르는 것 없음). 주소에 `?dev=1` 을 직접 붙인 탭에서만 그 아래 "개발용 · 바로 바꾸기" (옛 슬라이더 + 프리셋 6 — file:// · localhost 자동 개발 모드엔 안 보인다, `docs/SALON.md` §1.2) |
 | 소리 | 맨 위 '켜기' 체크 칸 (켜기·끄기, 11-08 — 장면 위 스피커를 여기로. 칸 제목이 '소리' 라 줄 글자는 '켜기', 낭독 이름 '소리 켜기') + 음악 / 효과음 크기 (`js/audio.js` 가 채운다, §7.9) |
 | 화면 | 모션 (기기 설정 따르기 / 모션 줄이기) · 픽셀 글꼴 · 포스터 썸네일 |
 | 기록 | 한 줄 "산책 N · 함께한 날 N · 읽음 N" (큰 숫자 없음) + [내보내기] [불러오기] [전체 초기화] (2단계 확인) |
@@ -397,7 +399,7 @@ matchHint(hint) →
 - 반응은 고른 이의 것 그대로(§17.5): 모델·사람이 준 반응은 거르거나 바꾸지 않고, 안 주면 반응 자리(마무리 행 · 일기 반응 칸 · 열람 기록 반응 줄 · 말풍선)를 비운다. 모델·사람 차례엔 코드가 지은 말(반응 줄 · '찾았다!' 같은 기웃 외침 · 줄 없는 집 차례의 '오늘은 집에 있을래')을 문어의 말로 보이지 않는다.
 
 ### 7.8 첫 실행
-이름 모달(기존) → 저장 → 로그에 첫 인사(초상은 웃는 얼굴 `happy`. 날 인사도 깨어 있으면 `happy`, 자는 중이면 `sleep` — 반쯤 감은 `calm` 은 화난 '-_-^' 로 읽혀 인사엔 쓰지 않는다) → (개발 모드에서만) 안내 토스트 1회: "힌트는 비워 둬도 돼." 플레이어 화면엔 힌트 칸이 없으니 토스트도 없다(결정 18, DIALOGUE_UI 첫 토스트 지움).
+이름 모달 (제목 → 한 줄 "오늘 처음 보내는 문어야." → 초상 → **몸 색 6칸** → 이름 칸 → [이름 저장] → 정직 줄. 색을 누르면 창 안 초상만 다시 찍고, 장면 문어는 저장 때 한 번 바뀐다. 안 누르면 빨강 `by: 'default'`, 누르면 `by: 'player'` — `docs/SALON.md` §1.1) → 저장 → 로그에 첫 인사(초상은 웃는 얼굴 `happy`. 날 인사도 깨어 있으면 `happy`, 자는 중이면 `sleep` — 반쯤 감은 `calm` 은 화난 '-_-^' 로 읽혀 인사엔 쓰지 않는다) → (개발 모드에서만) 안내 토스트 1회: "힌트는 비워 둬도 돼." 플레이어 화면엔 힌트 칸이 없으니 토스트도 없다(결정 18, DIALOGUE_UI 첫 토스트 지움).
 
 ### 7.9 소리 (`js/audio.js`, 전역 `AUDIO` — 소리 파일·규칙은 `audio/README.md` §3·§4, `audio/manifest.json`)
 - **꺼진 채로 시작.** 설정 › 소리 칸 맨 위 **'켜기' 체크 칸** (`#set-sound`, 다른 켜고 끄기 줄 '픽셀 글꼴' · '포스터 썸네일' 과 같은 모양, 줄 전체가 누르는 곳 44px. 글자는 '켜기' — 바로 위 칸 제목이 '소리' 라 '소리 / 소리' 로 겹쳐 읽히지 않게. 화면 낭독기 이름은 제목 + 글자 = '소리 켜기') 을 켜면 `audio_on` 한 번 → 집 BGM + 환경음, 끄면 `toggle_off`. 칸 자체엔 탭 소리가 없다. 장면 위 스피커는 11-08 에 없앴다 (주인: "환경 설정에서 음량 음소거 하게 음소거 버튼은 거기에"). 설정은 `localStorage['ppolppol_audio'] = { on, music, sfx }`. 켜 둔 채 새로고침하면 첫 탭(어디든 — ⚙ 을 누르는 것도)에서 다시 흐른다(사용자 동작 전엔 요청도 소리도 없음 — 그동안 체크 칸은 들리는 대로 빈 칸이고, 그 칸을 누르면(Space · 글자 톡도) 끄는 게 아니라 다시 흐른다. 칸에 포커스를 두고 Enter · Tab 같은 다른 키를 눌러도 다시 흐른다. iOS 가 잠금·전화 뒤 멈춰 둔 때도 같다). 시트를 열 때마다 칸을 새로 그리고, 열린 동안 상태가 바뀌면(늦게 켜짐 등) 칸이 따라간다. 그 아래 음악(BGM·환경음) / 효과음(징글·UI·말풍선) 슬라이더. 보통 때 안내 글은 없다(글은 적게) — 소리를 못 내는 곳에서만 슬라이더 아래 한 줄로 왜인지.
@@ -420,7 +422,10 @@ matchHint(hint) →
 {
   v: 2,
   octopus: { name, born, trips: 0, invites: 0, days: ['2026-11-04', ...] /*함께한 날*/,
-             affinity: { sea: 3.2, ... }, visits: { feather: 2, ... }, state: 'idle'|'sleep' },
+             affinity: { sea: 3.2, ... }, visits: { feather: 2, ... }, state: 'idle'|'sleep',
+             color: '#e8463c',                                   /* 지금 몸 색. 읽는 곳은 이것 하나 (11-08 밤, docs/SALON.md §7) */
+             colors: [ { at, date, color, how: 'first'|'salon'|'dev', by, ask? } ] },   /* 바뀐 기록, 오래된 것부터. first 의 by: player | default | migrated */
+  salon:   { asks: [ { id, date, at, from, offer, offerKind, status: 'done'|'waiting'|'dropped', action: 'dye'|'keep'|null, by, line, expr, … } ] },   /* 미용실 물음 (docs/SALON.md §7) */
   room:    { lantern: 0..8, souvenirs: [ { id:'feather', tripId, at } ], posterOrder: [tripId...] },
   trips: [ {
       id: 'trip_k7x2', date: '2026-11-04', seq: 1 /*그날 몇 번째*/, seed: 123456,
@@ -442,9 +447,11 @@ matchHint(hint) →
   notes: { [nodeId]: { text, tripId, date } },                 /* §17.1 방마다 최근 메모 1개 */
   curiosityNotes: [ { id:'cn_…', text /*받은 그대로*/, about:{kind:'node'|'object', id}|null, by:'model'|'demo-rules'|'human', model? /*불러온 기록이 알려 줄 때만*/,
                       session /*여행 id*/, at /*ISO*/, status:'active'|'set_down', setDownAt } ],   /* §17.5 호기심 메모, 오래된 것부터. 옛 기록엔 없음 → [] */
-  settings: { motion: 'auto'|'reduce', thumbs: true, lastSeen, albumSeen: 0 /* §6.3 앨범 점 기준 — 새 기록은 0, 없으면 옛 기록 */ }
+  settings: { motion: 'auto'|'reduce', thumbs: true, lastSeen, albumSeen: 0 /* §6.3 앨범 점 기준 — 새 기록은 0, 없으면 옛 기록 */,
+              octColor /* octopus.color 의 사본 */ }
 }
 ```
+- **몸 색 (11-08 밤)**: `octopus.color` 하나만 읽는다 (장면 · 초상 · 달리기 · 장면 설명 · 미용실). `settings.octColor` 는 지우지 않고 사본으로 같이 적는다 — 옛 코드(낡은 탭 · 배포 되돌리기)가 없는 값을 빨강으로 읽어 문어를 몰래 빨갛게 만들지 않게. 이미 놀던 기록은 지금 색 그대로 `colors` 첫 줄 `{ how: 'first', by: 'migrated' }` 로 옮긴다 (`SALON.normalize`, v1 옮기기 결과도 거친다). 미용실 물음 · 색 기록은 `docs/SALON.md` §7.
 - **마이그레이션 v1 → v2**: `ppolppol_v1` 이 있으면 이름·`total_trips`·`light_level`·`hearts`(→ `invites`)를 옮기고, 옛 `posters[]` 는 제목만 있으므로 `kind:'out', by:'legacy', poster:{line:'(복원된 포스터 · 기록 없음)'}` 로 **정직하게** 복원한다. 옮긴 뒤 `ppolppol_v1` 은 `ppolppol_v1_backup` 으로 이름만 바꾼다(삭제 안 함).
 - 파생값(벽, 앨범, 로그, 요즘 취향)은 전부 `trips[]` 에서 계산한다. 포스터 SVG를 저장하지 않는다.
 - 용량: 영수증 `extract` 는 160자에서 잘라 저장. 200건 넘으면 가장 오래된 여행의 `events` 만 비우고 `receipt/poster` 는 남긴다. 저장소가 가득 차면(쿼터) 저장 사본에서만 오래된 여행의 `events` 를 비우고, 이미 호기심 메모로 옮겨 적힌 `noteOut` 사본도 뺀다 — 모델이 쓴 메모 글은 `curiosityNotes` 에 원문 그대로 한 벌 남는다. 메모는 줄이거나 지우지 않는다(원문 보존 · 앨범은 전부, §17.5).
@@ -486,6 +493,7 @@ index.html          화면 뼈대 + 인라인 문어 SVG + 모달/시트
 css/style.css       테마 변수(라이트/다크), 장면, 애니메이션, 컴포넌트
 js/world.js         세계 그래프·코너·기념품·집 활동·문구 (데이터만, 전역 WORLD)
 js/brain.js         PRNG, 힌트 매칭, 길 만들기, 위키 fetch, 기억·반응 선택 → 이벤트 배열 (전역 BRAIN)
+js/salon.js         미용실 규칙 (전역 SALON, DOM 없음, node 시험 tools/test-salon.js — docs/SALON.md)
 js/scene3d.js       three.js 픽셀아트 3D 다락방 + 문어 (전역 SCENE3D, §13 계약). WebGL 없으면 2D 폴백
 vendor/three.min.js three r128 UMD (MIT). cdnjs 폴백
 js/app.js           상태·영속·마이그레이션, 공개(재생) 타이머, 렌더, 포스터 SVG, 모달, 데모 조작, 가져오기/내보내기
@@ -497,6 +505,7 @@ tools/make-placeholders.js  플레이스홀더 SVG 생성
 docs/DESIGN.md      이 문서
 docs/SCENE.md       절차적 3D 장면 명세(기하·팔레트·조명·후처리·상호작용) — 그릴 것 없음
 docs/PROTOCOL.md    §9 상세 + MCP 매핑
+docs/SALON.md       미용실 · 몸 색 잠금 (주인 11-08 밤)
 docs/APPLIED_TIPS.md 리서치에서 실제로 적용한 규칙과 출처
 ```
 - `type="module"` 금지(file:// 에서 막힘). 전역 객체 `WORLD`, `BRAIN`, `APP` 로 연결.
@@ -556,7 +565,7 @@ BRAIN.replay(events, meta) → Trip                      // 사람이 조작한/
 
 ### 12.3 `APP` (js/app.js + index.html + css/style.css)
 - `APP.state`, `APP.save()`, `APP.load()`(마이그레이션 포함), `APP.invite(hintText)`, `APP.skip()`, `APP.render*()`, `APP.posterSVG(trip)`, `APP.openPoster(tripId)`, `APP.importEvents(json)`, `APP.exportJSON()`.
-- DOM id 고정: `#scene`, `#oct`, `#status`, `#hint-in`, `#btn-go`, `#log`, `#album`(이제 `#album-sheet` 안), `#album-sheet`, `#btn-album`, `#btn-settings`, `#settings-sheet`, `#set-sound`(설정 › 소리 체크 칸 — 11-08 에 장면 위 `#btn-sound` 를 없애고 여기로), `#btn-door`, `#btn-play-door`, `#btn-machine`, `#back-note`, `#scene-ctl`, `#poster-dialog`, `#demo` (7물결에 `#btn-skip`·`#btn-look`·`#room-sheet` 는 없앴다). `APP.openAlbum()` 으로 앨범 시트를 연다.
+- DOM id 고정: `#scene`, `#oct`, `#status`, `#hint-in`, `#btn-go`, `#log`, `#album`(이제 `#album-sheet` 안), `#album-sheet`, `#btn-album`, `#btn-settings`, `#settings-sheet`, `#set-sound`(설정 › 소리 체크 칸 — 11-08 에 장면 위 `#btn-sound` 를 없애고 여기로), `#btn-door`, `#btn-play-door`, `#btn-machine`, `#btn-salon`(미용실 거울 단추) · `#salon-sheet`(병 시트, `docs/SALON.md` §3), `#back-note`, `#scene-ctl`, `#poster-dialog`, `#demo` (7물결에 `#btn-skip`·`#btn-look`·`#room-sheet` 는 없앴다). `APP.openAlbum()` 으로 앨범 시트를 연다.
 - 공개(재생) 타이머는 `APP.reveal(trip)`: 이벤트 `t` 가 아니라 §7.4 간격(PRNG)으로 하나씩, `skip` 시 전부.
 - 스모크 테스트 `tools/smoke.js`(Playwright, 설치돼 있음, `require('playwright')`): file:// 로 열기 → 이름 입력 → 힌트 '모자의 역사' → 초대 → 바로 돌아오기 (주 버튼) → 앨범 카드 1개·벽 썸네일 1개·등불 1칸 → **새로고침** → 그대로 남아 있음 → 카드 탭 → 모달 앞면 → 뒤집기 → 일기에 정류장 ≥2 → 스크린샷 저장. 위키 fetch 는 `page.route` 로 가짜 응답(성공/실패 두 경우) 주입.
 
@@ -571,9 +580,10 @@ SCENE3D.supported() → boolean                       // WebGL + THREE 로드 �
 SCENE3D.init(container, opts) → scene               // opts: { pixelSize:3, color:'#e8463c', lantern:0, items:[], weather:'rain', hour:21.5,
                                                     //         posters:[{id, svg}], souvenirs:[{id,emoji,name}], reducedMotion:false,
                                                     //         on:{ posterTap(id), pet(), tap(), windowTap(), anchorReached(anchor) } }
-scene.setLantern(n) · setItems([...]) · setWeather('rain'|'drizzle'|'clear'|'snow') · setTime(hourFloat) · setColor(hex)
-scene.setOctState('idle'|'anticipate'|'walk'|'away'|'carry'|'hang'|'happy'|'sleep'|'stay'|'peek'|'pet')
-scene.moveTo(anchor)                                // 'door'|'window'|'crate'|'board'|'blanket'|'center' — 걸어가서 anchorReached 콜백
+scene.setLantern(n) · setItems([...]) · setWeather('rain'|'drizzle'|'clear'|'snow') · setTime(hourFloat) · setColor(hex, { still })
+scene.setOctState('idle'|'anticipate'|'walk'|'away'|'carry'|'hang'|'happy'|'sleep'|'stay'|'peek'|'pet'|'ponder')
+scene.moveTo(anchor)                                // 'door'|'window'|'crate'|'board'|'blanket'|'center'|'salon' — 걸어가서 anchorReached 콜백
+scene.setSalonOpen(on) · salonOffer(hex|null) · salonDye(hex, o) → Promise · salonKeep() → Promise · salonFinish()   // 미용실 (docs/SALON.md §8.2)
 scene.setPosters([...]) · setSouvenirs([...]) · bubble(text, ms) · pause() · resume() · destroy()
 scene.octScreenPos() → {x,y}                        // 말풍선 투영용
 ```
@@ -617,7 +627,7 @@ QUALITY BAR
 | 가만히 두기 | 20~40초마다 다른 앵커로 산책, 가끔 생각 말풍선: 지난 산책의 기억 조각("어제 본 깃털 생각 중") | 기록에서 뽑는다. 지어내지 않는다 |
 | 기념품 만지기 | 선반의 기념품을 누르면 문어가 가져와 보여 주고 일기(그걸 가져온 날)를 연다 | |
 | 포스터 두드리기 | 보드의 포스터를 누르면 모달(앞면→뒤집기) | §6.3 |
-| 색 고르기 | 설정에서 색을 바꾸면 문어가 몸을 한 번 흔들며 색이 번진다 | 저장 |
+| 미용실 (등불 2칸부터, 11-08 밤 — 옛 '색 고르기') | 거울을 톡 → 사람이 병 하나를 내밀고 [물어보기]. 숨 고르기 뒤 **문어가 정한다**: '바꾸기' 면 대야에서 첨벙 하고 그 색이 된다, '그대로' 면 병이 제자리로 (담담하게 — 시무룩·미안한 말 없음). 하루 한 번, 대답이 무엇이든. '그대로' 한 그 색은 7일 쉰다 | 물음 기록 (`salon.asks`). 아무것도 주지 않는다 — `docs/SALON.md` |
 | 시간 | 아침/낮/노을/밤 조명, 인사말, 밤엔 집에 있을 확률 ↑(§5.2) | 실제 시계 |
 | 문어의 놀이(가끔) | 집에 있는 날 활동에 "병뚜껑 굴리기"를 둔다(문어의 놀이 행동 연구에서) | §5.8 |
 
@@ -666,6 +676,7 @@ QUALITY BAR
 - 선택 가중치는 문어의 "요즘"(코너 affinity)과 기념품·방문 기록에서 나온다 → 선택 자체가 선호 기록이 된다(복지 문서 "선호는 말이 아니라 선택으로").
 - 카탈로그(절차적 소품): 러그 무늬 3종, 쿠션, 책 더미, 작은 수족관(물방울), 별 모빌, 지구본, 꽃병, 등불 갓 색, 창가 풍경(화분 종류), 문어 코스튬(모자·목도리·안경·리본).
 - 일기에 "선물: 문어가 고른 것 — 별 모빌 (내민 것: 쿠션·지구본·별 모빌)" 로 기록.
+- 미용실(`docs/SALON.md`, 11-08 밤)이 같은 선을 먼저 쓴다: 사람이 내밀고 문어가 고른다. 다만 위 '선택 가중치 … 선택 자체가 선호 기록이 된다' 는 미용실에 쓰지 않는다 — 미용실 대답은 취향 점수 · 두뇌 가중치 · `affinity` 에 들어가지 않고, 데모 규칙은 색을 보지 않는다.
 
 ### 16.2 간식
 - "간식 주기" 버튼은 외출 중이 아닐 때만. 문어가 받으면 `happy` 표정 + 짧은 애니메이션 + 한 줄("조개 과자 바삭해"). 배고픔·게이지·알림·감쇠 **없음**. 안 줘도 아무 일도 안 일어난다.

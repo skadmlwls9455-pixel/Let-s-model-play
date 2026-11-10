@@ -103,7 +103,7 @@
       <span class="ib-dot" aria-hidden="true" hidden></span>
       <span id="album-new" class="sr-only"></span>
     </button>
-    <!-- ⚙ 설정 (문어 색 · 소리 켜기·크기 · 모션 · 글꼴 · 기록): 예전 '방 보기' 자리 (주인 11-07: 방 보기는 없앴다) -->
+    <!-- ⚙ 설정 (문어 색 안내 · 소리 켜기·크기 · 모션 · 글꼴 · 기록): 예전 '방 보기' 자리 (주인 11-07: 방 보기는 없앴다) -->
     <button type="button" id="btn-settings" class="icon-btn settings-btn" aria-label="설정" title="설정" aria-haspopup="dialog" aria-controls="settings-sheet">
       <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M5 1h2v1H5zM2 2h2v1H2zM5 2h2v1H5zM8 2h2v1H8zM2 3h8v1H2zM3 4h2v1H3zM7 4h2v1H7zM1 5h3v1H1zM8 5h3v1H8zM1 6h3v1H1zM8 6h3v1H8zM3 7h2v1H3zM7 7h2v1H7zM2 8h8v1H2zM2 9h2v1H2zM5 9h2v1H5zM8 9h2v1H8zM5 10h2v1H5z"/></svg></span>
     </button>
@@ -138,6 +138,9 @@
   <div id="stick" class="stick" hidden aria-hidden="true">
     <div class="stick-ring"><img class="stick-ico" data-icon="ctl/walk" alt="" width="32" height="32" draggable="false"><span class="stick-txt">걷기</span></div>
   </div>
+  <!-- 미용실 거울 (docs/SALON.md §2 · §3.1): 다락 뒷벽 거울 코너(등불 2칸부터) 위 투명 단추 — 자리 · hidden 은 장면이 (앱이 setSalonOpen 으로 허락할 때만: 산책 · 나감 · 연출 중엔 숨김).
+       누르면 미용실 시트 (자는 중이면 '쿨쿨…' · 오늘 이미 물었으면 토스트). 장면 설명을 같이 읽힌다 -->
+  <button type="button" id="btn-salon" class="scene-spot" aria-label="미용실" title="미용실" aria-haspopup="dialog" aria-controls="salon-sheet" aria-describedby="scene-desc" hidden></button>
   <!-- 구석 쪽지 (8물결): 놀이방에 있는 동안 문어가 돌아오면 "뚜루가 돌아왔어." + 보러 가기 (놀이방 문으로 다락에). 장면 아래 왼쪽 · 놀이방을 나가면 사라진다 -->
   <div id="back-note" class="back-note" hidden>
     <p id="back-note-txt" class="bn-txt" role="status" aria-live="polite"></p>
@@ -214,7 +217,6 @@
 
 <footer class="foot">뽈뽈 문어 · <a href="https://github.com/skadmlwls9455-pixel/model-welfare-idea" rel="noopener" target="_blank">뽈뽈 복지</a>에서 왔어</footer>
 
-<!-- ══ 이름 모달 (§7.8) ══ -->
 <!-- 먼 바다 문 (11-10): 등불 4칸 뒤 문어가 제안하면 사람이 한 번 고른다. 두 단추는 크기·모양이 같고 미리 골라진 쪽이 없다. 타이머 없음 (ROOM_EXPANSION 제안과 같은 틀) -->
 <dialog id="far-dialog" class="modal" aria-labelledby="far-h">
   <h2 id="far-h">먼 바다 문</h2>
@@ -223,11 +225,17 @@
   <p class="honest">한 번만 정하면 돼. 그대로 두어도 문어는 조르지 않아.</p>
   <div class="btn-row far-btns"><button type="button" class="btn wide pressable" id="far-open">열어 줘</button><button type="button" class="btn wide pressable" id="far-keep">지금은 그대로</button></div>
 </dialog>
+<!-- ══ 이름 모달 = 첫 실행 (§7.8 · docs/SALON.md §1.1): 제목 → 한 줄 → 초상 → 몸 색 6칸 → 이름 칸 → 저장 → 정직 줄.
+     몸 색은 처음 한 번만 고른다 (주인 11-08 밤). 칸을 누르면 창 안 초상만 그 색으로 (장면 문어는 저장 때 한 번). 라벨 · 색 이름 줄은 화면에 없다 (aria-label 만) ══ -->
 <dialog id="name-dialog" class="modal" aria-labelledby="name-h">
   <form method="dialog" id="name-form">
-    <img class="big oct-pic" data-asset="oct.happy" alt="" aria-hidden="true" width="48" height="48" draggable="false"><!-- 작은 픽셀 문어 (assets/oct/happy.svg · 주소는 app.js 가 manifest/번들 규칙으로 채운다, 안 오면 지운다). 예전 🐙 글자는 뺐다 (주인 11-07) -->
-    <h2 id="name-h">문어 이름을 지어 줘</h2>
-    <p class="name-lead"><span class="ln">오늘 처음 보내는 문어야.</span><span class="ln">이름은 천천히</span><span class="ln">불러 줘도 괜찮아.</span></p>
+    <h2 id="name-h" class="dlg-top" tabindex="-1">문어 이름을 지어 줘</h2><!-- 손가락 기기에선 열 때 포커스가 여기 (자판이 색 줄을 가리지 않게) · 마우스면 이름 칸 (app.js openNameDialog) -->
+    <p class="name-lead"><span class="ln">오늘 처음 보내는 문어야.</span></p>
+    <div class="name-pic" aria-hidden="true">
+      <canvas id="name-port" width="64" height="64" hidden></canvas><!-- 웃는 초상 64×64 (scene.portrait — 누른 색으로) -->
+      <img class="big oct-pic" data-asset="oct.happy" alt="" width="48" height="48" draggable="false"><!-- 초상을 못 그릴 때(3D 컨텍스트 잃음)만 남는 대체 그림 (assets/oct/happy.svg · 주소는 app.js 가 manifest/번들 규칙으로 채운다, 안 오면 지운다). 예전 🐙 글자는 뺐다 (주인 11-07) -->
+    </div>
+    <div id="name-colors" class="presets name-colors" role="group" aria-label="몸 색"></div><!-- 색 6칸 button.preset[type=button][aria-pressed] (app.js 가 js/salon.js PRESETS 로 채운다 · 처음엔 빨강이 눌린 채) -->
     <input class="modal-in" id="name-in" type="text" placeholder="예: 뚜루, 안개, 삐죠…" maxlength="18" autocomplete="off" required>
     <button type="submit" class="btn primary wide pressable">이름 저장</button>
     <p class="honest"><span class="ln">지금은 미리 만든 규칙으로</span><span class="ln">움직이는 체험판이야.</span></p>
@@ -260,7 +268,7 @@
   <button type="button" class="btn wide pressable" id="log-close">닫기</button>
 </dialog>
 
-<!-- ══ 설정 (⚙, 장면 오른쪽 위) — 문어 색 · 소리(켜기 · 음악 · 효과음 — js/audio.js 가 채운다) · 모션 · 픽셀 글꼴 · 포스터 썸네일 · 기록 · 누가 고르나. 예전 '방 보기' 시트는 없앴다 (주인 11-07) ══ -->
+<!-- ══ 설정 (⚙, 장면 오른쪽 위) — 문어 색(거울이 생긴 뒤 안내 한 줄만 — docs/SALON.md §1.2) · 소리(켜기 · 음악 · 효과음 — js/audio.js 가 채운다) · 모션 · 픽셀 글꼴 · 포스터 썸네일 · 기록 · 누가 고르나. 예전 '방 보기' 시트는 없앴다 (주인 11-07) ══ -->
 <dialog id="settings-sheet" class="sheet settings-sheet" aria-labelledby="set-h">
   <div class="handle" aria-hidden="true"></div>
   <h2 id="set-h" class="set-h dlg-top" tabindex="-1">설정</h2><!-- 열 때 포커스는 여기 (app.js showDialog) -->
@@ -299,6 +307,20 @@
   <button type="button" class="btn wide pressable" id="al-close">닫기</button>
 </dialog>
 
+<!-- ══ 미용실 (docs/SALON.md §3.2 — 주인 11-08 밤: 몸 색은 처음 한 번만 · 그 뒤엔 사람이 색을 내밀고 묻고, 바꿀지는 문어가 정한다) ══
+     거울 단추(#btn-salon)로 여는 바텀시트 (폭과 상관없이 아래에 붙는다 · 뒤 막 없음 — 병이 앞으로 나오고 문어 눈이 따라가는 게 보여야 한다).
+     병 6 (+ 처음 색 1) button.bottle[aria-pressed] — app.js 가 js/salon.js 의 bottles 로 채운다 · 이름 줄 role=status (비어도 한 줄 높이) · [물어보기] 는 병을 고르기 전엔 aria-disabled ══ -->
+<dialog id="salon-sheet" class="sheet salon-sheet" aria-labelledby="salon-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="salon-h" class="salon-h dlg-top" tabindex="-1">미용실</h2><!-- 열 때 포커스는 여기 (app.js showDialog) -->
+  <div id="salon-bottles" class="bottles" role="group" aria-label="몸 색"></div>
+  <p id="salon-name" class="salon-name" role="status"></p>
+  <div class="salon-btns">
+    <button type="button" class="btn primary pressable salon-ask" id="salon-ask" aria-disabled="true">물어보기</button>
+    <button type="button" class="btn pressable" id="salon-close">닫기</button>
+  </div>
+</dialog>
+
 <!-- 토스트는 이거 하나. 한 번에 하나, 2.5초. 모달이 열려 있으면 app.js 가 그 안으로 옮겨 popover 로 띄운다 (모달 밖은 inert 라 안 보이고 안 읽힌다) -->
 <p id="say-live" class="sr-only" aria-live="polite"></p>
 <output id="toast" popover="manual" aria-live="polite"></output>
@@ -308,6 +330,7 @@
 <script src="js/world.js"></script>
 <script src="js/brain.js"></script>
 <script src="js/shelf.js"></script>
+<script src="js/salon.js"></script><!-- 미용실 규칙 (전역 SALON, DOM 없음): 몸 색은 처음 한 번만 · 그 뒤엔 미용실에서 문어에게 묻는다 (docs/SALON.md) -->
 <script src="js/palettes.js"></script>
 <script src="js/clouds.js"></script><!-- 입장 하늘의 몽글한 픽셀 구름 (2D 캔버스, 날씨 × 시각대) -->
 <script src="js/scene3d.js"></script>

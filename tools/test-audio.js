@@ -21,6 +21,7 @@
  *  9. D-1 자장가 규칙 (훅 이벤트로): 낮 + 덤덤 / 낮 + 반응 없음 → 자장가 없음 · 낮 + 졸림 → 자장가 · 밤 → 자장가 · 반응 키 없으면 마무리 줄의 반응
  *     · 문 이벤트 door{act:'open'} → 끼익 (한 벌에 door_open 이 없으면 audio.js 가 만든 door_creak_open — 시트 소리 아님, 크기는 export 잣대) · close → 짧은 끼익
  *     · 모르는 act·이름은 조용히 · 놀이방 문(#btn-door)을 누르면 끼익 열림 · 닫힘 + 놀이방 (8물결) → 오락기 → 달리기 창
+ *     · 미용실 훅 AUDIO.on('salon', { act … }) 은 던지지 않고 (경고 없음) '그대로' · 대답 없음 · joy: false 면 기분 징글이 없다 (docs/SALON.md §9.5)
  * 모든 페이지: 콘솔 오류 0 (바깥 글꼴 같은 외부 요청 실패만 무시), audio/ 응답은 전부 200.
  */
 'use strict';
@@ -612,6 +613,23 @@ async function scenarioRules(browser, base) {
   await page.waitForTimeout(400);
   pd = await playedSince(page, t);
   ok(pd.length === 0, "모르는 act · act 없음 · 모르는 이름 → 조용히 (" + pd.join(',') + ')');
+  /* 미용실 훅 (docs/SALON.md §3.9 · §9.5): 앱이 부르는 AUDIO.on('salon', …) 은 던지지 않는다 (audio.js 의 '소리 없이 계속해' 경고 없음 — 짝은 소리 세션 몫이라 지금은 조용히).
+     '그대로' · 대답 없음 · joy: false 에는 기분 징글(mood_*)이 없다 · 날마다 올 수 있는 일이라 rare_sparkle 도 없다 */
+  var salonWarn = [];
+  page.on('console', function (m) { if (m.type() === 'warning' && /\[audio\]/.test(m.text())) salonWarn.push(m.text()); });
+  await page.waitForTimeout(300);
+  t = (await st(page)).time;
+  var thrown = await page.evaluate(function () {
+    var calls = [['pick', { color: '#4a86d8' }], ['ask'], ['answer', { action: 'keep', by: 'demo-rules', joy: false }], ['answer', { action: null, by: 'human', joy: false }], ['answer', { action: 'dye', by: 'human', joy: false }],
+      ['tub', { on: true }], ['splash'], ['done', { color: '#4a86d8', joy: false }], ['drain'], ['tub', { on: false }]], out = [];
+    calls.forEach(function (c) { try { AUDIO.on('salon', Object.assign({ act: c[0] }, c[1] || {})); } catch (e) { out.push(c[0] + ': ' + e.message); } });
+    try { AUDIO.on('salon'); AUDIO.on('salon', null); AUDIO.on('salon', { act: 'nope' }); } catch (e) { out.push('bare: ' + e.message); }
+    return out;
+  });
+  await page.waitForTimeout(600);
+  pd = await playedSince(page, t);
+  ok(thrown.length === 0 && salonWarn.length === 0, "AUDIO.on('salon', { act: pick · ask · answer · tub · splash · done · drain }) 이 던지지 않는다 · 경고 없음 (" + thrown.concat(salonWarn).join(' | ') + ')');
+  ok(!pd.some(function (id) { return /^mood_|rare_sparkle|lullaby/.test(id); }), "미용실 '그대로' · 대답 없음 · joy: false → 기분 징글 없음 (" + (pd.join(',') || '조용') + ')');
   /* 장면의 놀이방 문(#btn-door — 8물결: 다락 안 3D 문 위 투명 단추)을 실제로 누르면: 끼익 열림 한 번 → (가로 전환) → 놀이방에서 닫힘 한 번 · 탭 소리 없음 (장면 안) ·
      달리기 창은 아직 아니다 (놀이방의 오락기 #btn-machine 을 눌러야) · 놀이방 문(#btn-play-door)으로 돌아오면 또 열림 · 닫힘 */
   var hasDoor = await page.evaluate(function () { var b = document.getElementById('btn-door'); return !!(b && !b.hidden && b.offsetParent !== null); });

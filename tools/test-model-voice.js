@@ -13,6 +13,9 @@
  *   4. set_down 메모는 다음 요청(두뇌 입력)에 들어가지 않고, 결과에도 나오지 않는다 (§4 · CURIOSITY_NOTES 원칙 4)
  *   5. 그만두기 행동: 프로토콜에 빈 차례·집에 있기가 있고, 빈 차례를 골라도 아무것도 지어내지 않는다 (§1)
  *   6. 톡 한 줄 (주인 11-08): 모델·사람 차례는 그들이 마무리에 쓴 말만 글자 그대로 (없으면 null = '응?'), 데모 규칙 줄은 by 'demo' 에만, 템플릿에 기분·시간 말 없음
+ *   7. 미용실 (주인 11-08 밤 · docs/SALON.md §9.2): 모델이 준 말(line)은 기록 · 행 2 에 글자 그대로 (말풍선만 24자 + '…'), 말이 없으면 문어 행 0개 · 데모 문구 없음 ·
+ *      데모 결정은 by 'model' 로 적히지 않는다 · 개발용 답은 by 'human' 이고 데모 문구 · 얼굴 · 기쁨이 없다 · 받은 메뉴 밖 답은 재요청 0번 (빈 응답만 한 번 다시)
+ *      (3번 템플릿 검사에도 SALON.LINES · 집 목소리 줄 · 모델 고정 문맥을 넣는다)
  *   (블라인드 선택 순서는 아직 그 기능이 없어서 재지 않는다 — 컵 놀이를 모델에 이을 때 넣는다)
  */
 'use strict';
@@ -28,7 +31,8 @@ function load(file) { vm.runInThisContext(fs.readFileSync(path.join(ROOT, file),
 global.window = global;
 load('js/world.js');
 load('js/brain.js');
-var W = global.WORLD, B = global.BRAIN;
+load('js/salon.js');   /* 미용실 규칙 (BRAIN 의 시드를 쓴다) */
+var W = global.WORLD, B = global.BRAIN, SAL = global.SALON;
 var realRandom = Math.random;
 Math.random = function () { throw new Error('BRAIN 이 Math.random 을 썼어'); };
 var NOW = new Date(2026, 10, 7, 14, 0, 0);
@@ -222,12 +226,17 @@ function byValues(o, out, k) {
     var M = W.memoTemplates || {}; addAll(M.lead); addAll(M.next); addAll(M.nextNone); addAll(M.home); addAll([M.revisit, M.revisitToday, M.revisitUndated]);
     Object.keys(W.reactions || {}).forEach(function (r) { var x = W.reactions[r]; addAll(x.lines); addAll(x.home); addAll(x.when); });
     addAll(W.tapTemplates); (W.homeActivities || []).forEach(function (act) { addAll(act.tap); });   /* 톡 한 줄 (11-08) */
+    /* 미용실 (11-08 밤): 데모 문구 (바꾸기 · 그대로) · 집 목소리 줄 (행 · 토스트 · 이름 줄 · 설정 · 장면 설명) · 꼬리 · 고른 이 풀이 · 모델 고정 문맥 */
+    var nSalon = templates.length;
+    addAll(SAL.LINES); addAll(SAL.TEXT); addAll(SAL.TAILS); addAll(SAL.BY_TEXT); addAll(SAL.CONTEXT);
+    nSalon = templates.length - nSalon;
     /* 두뇌 안의 기본 문구 (세계가 안 줄 때): js/brain.js 의 글자열 (주석 빼고) */
     var src = fs.readFileSync(path.join(ROOT, 'js/brain.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     var lits = src.match(/'(?:[^'\\\n]|\\.)*'/g) || [];
     lits.forEach(function (l) { if (/[가-힣]/.test(l)) templates.push(l.slice(1, -1)); });
     var bad = templates.filter(function (x) { return PREF.test(x); });
     check(templates.length > 50 && bad.length === 0, 'no template / reaction line / memo template / brain literal has a preference word (' + templates.length + ' strings; ' + bad.join(' | ') + ')');
+    check(nSalon >= 40, 'section 3 includes the salon strings: SALON.LINES · house lines · tails · by-texts · model context (' + nSalon + ' strings)');
     /* 만든 글에서 세계 기록(방 기억 조각·실마리·읽은 요약·활동 문구)을 빼면, 남은 코드 말에 취향 말이 없다 — 방문·취향 점수가 아주 커도 */
     var records = [];
     Object.keys(W.nodes).forEach(function (id) { var nd = W.nodes[id]; (nd.memories || []).forEach(function (m) { records.push(String(m)); }); if (nd.clue) records.push(String(nd.clue)); });
@@ -334,6 +343,84 @@ function byValues(o, out, k) {
       if (rr6.by !== 'demo-rules') errs.push(seed + ': demo plan line labelled ' + rr6.by);
     }
     check(tapStrs.length > 30 && badTap.length === 0 && nDemo > 150 && errs.length === 0, 'tap templates and generated demo tap lines carry no feeling / preference / tomorrow words (' + tapStrs.length + ' strings, ' + nDemo + ' lines; ' + badTap.concat(errs).slice(0, 3).join(' | ') + ')');
+
+    /* ───────── 7. 미용실: 고른 이의 말 · 결정 그대로 ───────── */
+    section("7. salon: the chooser's words and choice are kept (no line → no octopus row; demo never 'model'; dev = 'human'; off-menu → no re-ask)");
+    var DEMO_LINES = SAL.LINES.dye.concat(SAL.LINES.keep), BLUE = '#4a86d8', D0 = '2026-11-09';
+    function salonState(extra) {
+      return Object.assign({ octopus: { name: '뚜루', born: 1762600000000, color: '#e8463c', colors: [{ at: 1762600000000, date: '2026-11-01', color: '#e8463c', how: 'first', by: 'player' }] }, room: { lantern: 3 }, settings: { octColor: '#e8463c' }, salon: { asks: [] } }, extra || {});
+    }
+    function octRows(ask) { return SAL.rows(ask, '뚜루').filter(function (r) { return r.voice === 'octopus'; }); }
+    function demoText(ask) { return SAL.rows(ask, '뚜루').some(function (r) { return DEMO_LINES.indexOf(r.text) >= 0; }); }
+    /* 모델이 준 말: 기록 · 행 2 (data-raw model) 에 글자 그대로, 말풍선만 앞 24자 + '…' · 말이 없으면 문어 행 0 · 데모 문구 0 */
+    errs = []; var nModel = 0, nNoLine = 0;
+    SAYINGS.concat([null, undefined, '', '   ', SAL.LINES.dye[0]]).forEach(function (said, k) {
+      ['dye', 'keep', 'DYE ', 'no', '그냥 둘래', null].forEach(function (act, j) {
+        var raw = JSON.stringify(Object.assign({ action: act, expr: ['happy', 'idle', 'sad', null][(k + j) % 4] }, said === undefined ? {} : { line: said }));
+        var rep = SAL.readReply(raw), tag = 'line ' + JSON.stringify(said) + ' action ' + JSON.stringify(act);
+        var ask = SAL.makeAsk(salonState(), { at: Date.parse(D0 + 'T05:00:00Z'), today: D0, offer: BLUE, answer: Object.assign({ by: 'model', raw: raw }, rep) });
+        if (!ask) { errs.push(tag + ': no ask'); return; }
+        nModel++;
+        var given = typeof said === 'string' && /\S/.test(said), rows = octRows(ask), st = SAL.staging(ask);
+        if (ask.by !== 'model') errs.push(tag + ': by ' + ask.by);
+        if (given) {
+          if (ask.line !== said) errs.push(tag + ': record changed ' + JSON.stringify(ask.line));
+          if (rows.length !== 1 || rows[0].text !== said || rows[0].raw !== true) errs.push(tag + ': octopus row not byte-identical / not raw ' + JSON.stringify(rows));
+          var g = Array.from(said);
+          if (st.bubble !== (g.length > SAL.LINE_SHOW ? g.slice(0, SAL.LINE_SHOW).join('') + '…' : said)) errs.push(tag + ': bubble ' + JSON.stringify(st.bubble));
+        } else {
+          nNoLine++;
+          if (ask.line !== null || rows.length !== 0 || st.bubble !== null || demoText(ask)) errs.push(tag + ': code filled the line ' + JSON.stringify([ask.line, rows, st.bubble]));
+        }
+        if (rep.expr === null && rep.exprRaw && ask.expr !== null) errs.push(tag + ': unknown expr became ' + ask.expr);
+      });
+    });
+    check(nModel > 70 && nNoLine >= 24 && errs.length === 0, "model reply: line kept byte for byte in the record and row 2 (data-raw model, bubble = first 24 + '…'); no line → no octopus row, no bubble, no demo text (" + nModel + ' asks, ' + nNoLine + ' without words; ' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.slice(0, 2).join(' | ') : ''));
+    /* 데모 결정은 'model' 로 적히지 않는다: 365일 × 문어 셋 — by 'demo-rules' · 꼬리 '데모 규칙' · 고른 이 풀이도 모델이 아님 */
+    errs = []; var nDemoAsk = 0;
+    ['뚜루', '안개', '삐죠'].forEach(function (nm, k) {
+      var s = salonState(); s.octopus.name = nm; s.octopus.born = 1762600000000 + k * 50000000;
+      for (var d = 0; d < 365; d++) {
+        var day = SAL.addDays('2026-11-09', d), open = SAL.bottles(s, day).filter(function (b) { return b.selectable; });
+        if (!open.length) { nDemoAsk++; continue; }   /* 내밀 병이 없는 날 (지금 색 + 쉬는 색뿐) — 물음 없음 */
+        var ask = SAL.makeAsk(s, { at: Date.parse(day + 'T05:00:00Z'), today: day, offer: open[d % open.length].hex });
+        if (!ask) { errs.push(nm + ' ' + day + ': no ask'); continue; }
+        nDemoAsk++;
+        var r3 = SAL.rows(ask, nm).filter(function (r) { return r.n === 3; })[0];
+        if (ask.by !== 'demo-rules' || ask.model !== null || ask.via !== null || (ask.rule !== 'seed' && ask.rule !== 'first') || !r3 || r3.tail !== '데모 규칙' || octRows(ask).some(function (r) { return r.raw; })) errs.push(nm + ' ' + day + ': ' + JSON.stringify([ask.by, ask.rule, r3 && r3.tail]));
+        SAL.commit(s, ask);
+      }
+      var lk = SAL.look(s, { salon: true });
+      if (lk.changes.some(function (c) { return c.by === 'model'; }) || lk.asks.some(function (a) { return a.by === 'model'; })) errs.push(nm + ': look() says model');
+    });
+    check(nDemoAsk === 3 * 365 && errs.length === 0, "demo-rules answers are never recorded as the model's: by 'demo-rules', tail '데모 규칙', no raw/model/via (" + nDemoAsk + ' asks; ' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs[0] : ''));
+    /* 개발용 '다음 대답' (사람이 정함): by 'human' · 결정만 — 데모 문구 · 말풍선 · 얼굴 · 기쁨 없음 (말 · 얼굴을 몰래 실어 보내도) */
+    errs = [];
+    [['dye'], ['keep'], [null], ['dye', { line: '응, 해 볼래.', expr: 'happy', rule: 'first' }], ['keep', { line: '그냥', expr: 'calm' }]].forEach(function (c) {
+      var ans = Object.assign(SAL.humanAnswer(c[0]), c[1] || {}), ask = SAL.makeAsk(salonState(), { at: Date.parse(D0 + 'T05:00:00Z'), today: D0, offer: BLUE, answer: ans });
+      var st = SAL.staging(ask), r3 = SAL.rows(ask, '뚜루').filter(function (r) { return r.n === 3; })[0];
+      if (!ask || ask.by !== 'human' || ask.line !== null || ask.expr !== null || ask.rule !== null || ask.action !== c[0]) errs.push(JSON.stringify(c) + ' record ' + JSON.stringify(ask && [ask.by, ask.line, ask.expr, ask.rule, ask.action]));
+      else if (octRows(ask).length || demoText(ask) || st.bubble !== null || st.joy || st.expr !== 'idle' || st.look || !r3 || r3.tail !== '사람이 정함') errs.push(JSON.stringify(c) + ' shown ' + JSON.stringify([st, r3]));
+    });
+    check(errs.length === 0, "dev answers are by 'human': decision only — no demo line, bubble, face, joy or look; tail '사람이 정함' (" + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs[0] : ''));
+    /* 받은 메뉴 밖 답 · 못 읽는 답 → 다시 묻지 않는다: 같은 요청을 다시 보내는 건 아무것도 안 왔을 때(empty) 한 번뿐. 그 물음은 끝(done)이라 그날 또 물을 수 없다 */
+    errs = []; var resend = 0, nOff = 0;
+    ['{"action":"no"}', '"그냥 둘래"', '{"action":"maybe","line":"글쎄"}', 'not json', '', '   ', '{"line":"말만"}', '{"action":7}', '{"action":null}', '[]'].forEach(function (raw) {
+      var rep = SAL.readReply(raw); nOff++;
+      if (rep.empty) resend++;
+      if (Object.keys(rep).some(function (k) { return /retry|again|reask|resend/i.test(k); })) errs.push(raw + ': retry signal ' + Object.keys(rep).join(','));
+      var s = salonState(), ask = SAL.makeAsk(s, { at: Date.parse(D0 + 'T05:00:00Z'), today: D0, offer: BLUE, answer: Object.assign({ by: 'model', raw: raw }, rep) });
+      if (!ask || ask.status !== 'done' || ask.action !== null) { errs.push(raw + ': ' + JSON.stringify(ask && [ask.status, ask.action])); return; }
+      SAL.commit(s, ask);
+      if (s.octopus.color !== '#e8463c') errs.push(raw + ': colour changed');
+      if (SAL.canAsk(s, D0, { mirror: true }).reason !== 'asked_today') errs.push(raw + ': could ask again the same day');
+      if (SAL.restingUntil(s, BLUE, D0)) errs.push(raw + ': off-menu reply put the colour to rest');
+    });
+    var emptyRep = SAL.readReply(null);
+    check(resend === 0 && emptyRep.empty === true && nOff === 10 && errs.length === 0, 'off-menu / unreadable replies: 0 re-requests (only a transport failure — nothing received — may be sent once more), done the same day, colour unchanged, no rest (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs[0] : ''));
+    /* 모델 요청: keep 이 첫째 · 이유 칸 없음 · 확률 · 지난 대답 없음 (test-salon 이 자세히 — 여기선 MODEL_VOICE 점검 목록 한 줄) */
+    var rq = SAL.request(salonState(), SAL.makeAsk(salonState(), { at: Date.parse(D0 + 'T05:00:00Z'), today: D0, offer: BLUE })), rqs = JSON.stringify(rq);
+    check(rq && rq.menu[0] === 'keep' && rq.menu.indexOf('dye') > 0 && !/reason|why|0\.625|P_YES|REST|demo|그대로/.test(rqs) && !PREF.test(rqs), 'salon request: keep first, no reason field, no odds / past answers (' + rqs + ')');
   } catch (e) {
     failures++;
     console.error('UNCAUGHT', e && e.stack || e);

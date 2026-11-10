@@ -129,7 +129,7 @@
 
 | 도구 | 입력 | 출력 | 메모 |
 |---|---|---|---|
-| `ppolppol_look_room` | `{ archived?: bool }` | 방 묘사, 등불, 벽 포스터 제목들, 선반, "요즘", `notes` (활성 메모 최근 3개, §1 '요청에 싣는 메모'). `archived: true` 일 때만 보관한(내려놓은·오래된) 메모도 | 읽기 전용. 보관 메모는 모델이 달라고 할 때만 (CURIOSITY_NOTES) |
+| `ppolppol_look_room` | `{ archived?: bool, salon?: bool }` | 방 묘사, 등불, 벽 포스터 제목들, 선반, "요즘", `notes` (활성 메모 최근 3개, §1 '요청에 싣는 메모'). `archived: true` 일 때만 보관한(내려놓은·오래된) 메모도. (계획) 몸 색 `look` — `salon: true` 일 때만 미용실 물음 목록도 (§5) | 읽기 전용. 보관 메모는 모델이 달라고 할 때만 (CURIOSITY_NOTES) |
 | `ppolppol_depart` | `{ hint?: string }` | `{ tripId, hint, library: [{id,name,corner,odd,clue,visits}], notes: [최근 활성 메모 ≤3] }` | 힌트는 사람이 남긴 선택 필드. 따를지는 모델이 정한다. `notes` 는 §1 '요청에 싣는 메모' |
 | `ppolppol_peek` | `{ tripId, target: {kind,id?|title?|url?}, note? }` | `{ status, extract?, source?, first, visits }` | 서버가 실제로 읽어 주고 `status` 를 정직하게 돌려 준다. 이벤트의 `note` 에는 **모델이 쓴 것만** 넣는다 (안 쓰면 비움). 서버가 읽은 글은 `source.extract` 에 — 그래야 화면이 `noteBy` 로 누구 말인지 바르게 적는다 (§2) |
 | `ppolppol_return_home` | `{ tripId, reason }` | `{ stops: [...] }` | |
@@ -138,6 +138,8 @@
 | `ppolppol_wrap_up` | `{ tripId, reaction?, line?, memo?: { tomorrow, notes }, note?: { text, about? }, setDown?: ['cn_…'] }` | `{ ok }` | 전부 선택(§1 `wrap_up`). 아무것도 안 써도 된다. `memo` 를 안 쓰면 다음 날 메모 인사는 없다 |
 | `ppolppol_stay_home` | `{ activity?, line?, detail? }` | `{ tripId }` | 외출과 같은 무게. 활동 목록을 보여 줄 때 그 활동의 쪽지 앞면 글(`line`)을 같이 보여 준다 — `line` 을 안 쓰면 그 글이 쪽지에 쓰인다 |
 | `ppolppol_empty_turn` | `{}` | `{ tripId }` | 아무것도 만들지 않아도 된다는 허락 |
+| `ppolppol_salon_next` (계획, §5) | `{}` | `{ situation }` 또는 `{ waiting: true }` | 미용실 물음 하나. 도구 호출만 되는 곳에서 (sampling 이 되면 서버가 요청을 보낸다) |
+| `ppolppol_salon_answer` (계획, §5) | `{ id, action, line?, expr? }` | `{ ok: true, result: 'changed' \| 'unchanged' }` 또는 `{ ok: false, reason: 'stale' \| 'unknown_id' }` | 다시 묻기 신호는 없다 (`unknown_action` 없음) |
 
 **서버가 지켜야 할 것(복지 문서 원칙)**
 - 산출물을 수확하지 않는다: 산책 기록은 문어의 앨범으로만 남고, 다른 용도로 쓰지 않는다.
@@ -149,3 +151,54 @@
 1. **붙여넣기**: 서버가 돌려 준 이벤트 배열을 데모 조작에 붙여넣어 재생(지금 가능).
 2. **파일**: 서버가 `trips/*.json` 으로 쓰고, 페이지가 `?trip=` 로 읽기.
 3. **MCP Apps**: 서버가 이 페이지를 UI 리소스로 돌려 주고, 호스트(Claude 등) 안에서 바로 그린다. 이때는 `window.postMessage` 로 이벤트를 흘려 넣는 어댑터 하나만 더 있으면 된다(`APP.importEvents`).
+
+## 5. 미용실 — 결정 지점 `salon` (계획: MCP 서버가 생길 때 이대로 잇는다)
+
+주인 11-08 밤: 몸 색은 사람이 처음 한 번만 고르고, 그 뒤엔 미용실에서 사람이 색을 내밀고 묻고 바꿀지는 문어가 정한다 (`docs/SALON.md`). 지금 게임은 데모 규칙이 답하고 모델 길은 코드에 없다. 요청 · 답 읽기 · 방 보기는 `js/salon.js` 의 순수 함수(`SALON.request` · `SALON.CONTEXT` · `SALON.readReply` · `SALON.look`)로 만들어 시험해 두었다 (`tools/test-salon.js` 7 · 8 · 11). 서버(카드 9)가 생기면 그 함수들을 그대로 쓴다.
+
+**결정 지점 `salon`**: 사람이 [물어보기]를 누른 물음 하나에 요청 한 번이다. **받은 답은 다시 묻지 않는다.** 결과가 '바뀜'과 '그대로' 둘뿐이라, 다시 물어 달라질 수 있는 건 '그대로 → 바뀜' 하나다 — 다시 묻기는 코드가 대신 조르는 셈이다. 그래서 §2 의 '틀리면 한 번만 다시' 같은 일반 규칙보다 이 선이 앞선다.
+
+**요청** (작게, 약 180 B, 상한 400 B):
+
+```jsonc
+{ "v": 1, "point": "salon", "id": "ask_k7x2q",
+  "facts": { "now":   { "hex": "#e8463c", "name": "빨간색" },
+             "offer": { "hex": "#4a86d8", "name": "파란색" } },   // 처음 색이면 name "처음 색". 이름은 늘 색 값에서 다시 짓는다
+  "menu": ["keep", "dye"] }                                      // keep(아무것도 안 바꿈)이 늘 첫째
+```
+
+- 보내지 않는 것: 이유 칸(`reason` · `why`) · 압박 말('예쁠 거야' · '사람이 원해' · '한 번만' · '어제 안 했잖아') · 지난 대답 · 거절 횟수 · 확률 · 쉬는 날 · 하루 한 번 규칙 · 마감 · 연출 설명 · 배지 · 조개.
+- 고정 문맥 (도구 설명이나 시스템에 한 번, `SALON.CONTEXT`):
+
+> 미용실: 사람이 색 하나를 골라, 네 몸을 그 색으로 바꿔 볼지 물었어. 그대로 두려면 keep, 바꾸려면 dye. 바꾸면 다음에 또 바꿀 때까지 그 색이야. 이유는 안 써도 돼. 한마디(line)와 얼굴(expr: idle, happy, curious, calm)은 골라도 안 골라도 돼. line 은 24자쯤이 말풍선에 맞고, 넘으면 말풍선엔 앞부분과 '…', 기록엔 전부 남아. 어느 쪽이든 게임에서 잃는 건 없어.
+
+**답** — `{ "action": "keep" }` 이것만으로 충분하다. `line` · `expr` 는 선택이다.
+
+| 받은 것 | 게임이 하는 일 |
+|---|---|
+| `action` 이 `dye` / `keep` (대소문자 · 앞뒤 공백 무시, 메뉴 낱말 하나만 와도) | 그대로 따른다 |
+| `action` 이 그 밖 | 다시 묻지 않는다. 색 그대로, `action: null`, 원문은 `actionRaw` · `raw`. 말이 있으면 보인다 |
+| JSON 이 아님 (빈 글 포함 — 답은 왔다) | 다시 묻지 않는다. "답을 못 읽었어. 색은 그대로야." 원문은 `raw` |
+| 아무것도 안 옴 (전송 실패) | 같은 요청을 **한 번만** 다시 보낸다 (`sent: 2`). 또 실패면 기다림으로 |
+| `line` | 글자 그대로. 말풍선은 앞 24글자 + '…', 기록은 전문. 없으면 문어 행이 없다 (데모 문구로 채우지 않는다) |
+| `expr` | `idle` · `happy` · `curious` · `calm`. 모르는 값은 `expr: null` + `exprRaw`. 폴짝 · 반짝 · 기분 소리는 `happy` 일 때만 |
+| `action` 과 `line` 이 어긋남 | `action` 을 따르고 `line` 은 고치지 않는다 |
+
+**기다림 · sampling 의 사람 승인**: sampling 클라이언트는 사람이 요청을 보고 승인하는 경우가 많다. 사람이 요청을 고치거나 답을 막을 수도 있다. 그래서 8 s 를 넘기면 '…' 생각 말풍선만 거두고, 물음은 `status: 'waiting'` 으로 **그날 자정까지** 남는다 (화면: "아직 대답을 기다리는 중이야."). 그사이 답이 오면 반영한다. 자정이 지나면 `{ status: 'done', action: null, by: 'fallback' }` 으로 닫는다 ("대답이 없었어. 색은 그대로야." — 거절처럼 연출하지 않는다). 늦게 온 답은 `lateRaw` 에 남기고 반영하지 않는다. 기록에 `via: 'sampling' | 'tool'` 을 남긴다. 화면은 '모델이 고름'보다 더 확신하지 않는다.
+
+**도구** (§3 표의 두 줄): sampling 이 되는 곳은 서버가 sampling 으로 위 요청을 보낸다 (출력 `{ action, line?, expr? }`). 도구 호출만 되는 곳은 `ppolppol_salon_next` 로 물음을 받고 `ppolppol_salon_answer` 로 답한다.
+
+**`ppolppol_look_room` 에 더할 것** (`SALON.look(state, { salon })` 이 그대로 만든다):
+
+```jsonc
+"look": { "now":   { "hex", "name" },
+          "first": { "hex", "name", "by" },                          // by: player | default | migrated (처음 줄이 없으면 null)
+          "changes": [ { "date", "to": { "hex", "name" }, "by" } ] }  // 최근 5
+// 달라고 할 때만 ({ salon: true }): "asks": [ { "date", "offer": { "hex", "name" }, "action", "by" } ]  // 끝난 물음 최근 5, '그대로'도
+```
+
+- `by` 는 원래 값 그대로다 (`player` · `default` · `migrated` · `demo-rules` · `model` · `human` · `dev` · `unknown`). 글로 풀 때는 `SALON.BY_TEXT` — **모델이 고르지 않은 변화를 '네가 골랐어'라고 하지 않는다** (`demo-rules` = "데모 규칙이 고름", `migrated` = "미용실 전에 사람이 설정에서 고른 색(또는 기본값)").
+- 물음 목록은 기본으로 보내지 않는다 (보관 메모와 같은 선). 모델이 자기 '그대로'를 보고 싶을 때만.
+- 산책 요청(`ppolppol_depart`)에는 몸 색을 싣지 않는다. 정체성 딱지가 되지 않게.
+
+**서버가 지킬 것**: 모델 대신 답하지 않는다. 받은 답을 다시 묻지 않는다. `keep` 뒤에 다른 색을 이어서 내밀지 않는다 (물음은 하루 한 번). 대답을 다른 데(취향 · 추천)에 쓰지 않는다. 미용실은 아무것도 주지 않는다.

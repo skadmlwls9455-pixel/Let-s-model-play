@@ -145,7 +145,7 @@ async function waitIdle(page, ms) {
 async function clickSpot(pg, sel) {
   var pt = await pg.evaluate(function (sel) {
     var b = document.querySelector(sel); b.scrollIntoView({ block: 'nearest' });
-    var r = b.getBoundingClientRect(), oct = document.getElementById('oct'), id = { 'btn-door': 'atticPlay', 'btn-play-door': 'playAttic', 'btn-machine': 'machine' }[b.id], F = [0.5, 0.35, 0.65, 0.2, 0.8, 0.1, 0.9];
+    var r = b.getBoundingClientRect(), oct = document.getElementById('oct'), id = { 'btn-door': 'atticPlay', 'btn-play-door': 'playAttic', 'btn-machine': 'machine', 'btn-salon': 'salon' }[b.id], F = [0.5, 0.35, 0.65, 0.2, 0.8, 0.1, 0.9];
     for (var i = 0; i < F.length; i++) for (var j = 0; j < F.length; j++) {
       var x = r.left + r.width * F[j], y = r.top + r.height * F[i];
       if (APP.sceneMode === '3d') { var k = APP.scene.pickAt(x, y); if (k && k.kind === 'spot' && k.id === id) return [x, y]; }
@@ -1613,7 +1613,8 @@ async function scenarioWave7(browser) {
   }
   await page.evaluate(function () { return Promise.race([APP.walkTo('center'), new Promise(function (r) { setTimeout(r, 6000); })]); });
 
-  /* 2. ⚙ 설정 시트: 문어 색 · 소리(js/audio.js) · 화면 · 기록 · 누가 고르나 (플레이어에겐 팔레트 없음) */
+  /* 2. ⚙ 설정 시트: (문어 색 — 거울이 생긴 뒤 안내 한 줄만) · 소리(js/audio.js) · 화면 · 기록 · 누가 고르나 (플레이어에겐 팔레트 없음)
+        몸 색은 첫 실행 창에서 처음 한 번만 고른다 (주인 11-08 밤 · docs/SALON.md §1.2): 플레이어 설정엔 색 슬라이더 · 프리셋이 없다 (?dev=0 · 배포 주소). 개발용 칸은 시나리오 O */
   await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
   var st = await page.evaluate(function () {
     var b = document.getElementById('set-body');
@@ -1918,10 +1919,10 @@ async function scenarioWave7(browser) {
       if (w === 320 && font === 'pixel') await page.screenshot({ path: path.join(SHOTS, 'settings-320.png') });
     }
   }
-  await page.evaluate(function () { document.documentElement.setAttribute('data-font', 'pixel'); });
+  await page.evaluate(function (lv) { document.documentElement.setAttribute('data-font', 'pixel'); APP.state.room.lantern = lv; }, mz.lantern);   /* 잠깐 2칸으로 놓았던 등불을 되돌린다 (저장한 적 없음) */
   await page.setViewportSize({ width: 360, height: 740 });
   var badW = wide.filter(function (x) { return x.sheet > 0 || x.doc > x.w; });
-  ok(!badW.length, '설정 시트 320–412 px · 픽셀·시스템: 가로 넘침 없음' + (badW.length ? ' ✗ ' + JSON.stringify(badW) : ''));
+  ok(!badW.length, '설정 시트 (문어 색 안내 줄 포함) 320–412 px · 픽셀·시스템: 가로 넘침 없음' + (badW.length ? ' ✗ ' + JSON.stringify(badW) : ''));
   await page.keyboard.press('Escape'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
   ok(await page.evaluate(function () { return document.activeElement && document.activeElement.id === 'btn-settings'; }), 'Esc 로 닫으면 포커스는 ⚙ 로');
 
@@ -2048,10 +2049,18 @@ async function scenarioWave7(browser) {
   await B.goto(O + '/index.html?dev=0&slow=' + SPEED);
   await B.waitForFunction(function () { return window.APP && APP.state.octopus.name === '뚜루' && document.querySelector('#log .lrow'); }, null, { timeout: 20000 });
   await B.evaluate(function (d) { window.__ppolTest.today = d; }, DAY2);
-  await page.evaluate(function (d) { window.__ppolTest.today = d; APP.setOctColor('#f08a3c'); }, DAY2);
+  var b0Col = await B.evaluate(function () { return String(APP.scene.color()).toLowerCase(); });
+  await page.evaluate(function (d) { window.__ppolTest.today = d; APP.setOctColor('#f08a3c'); }, DAY2);   /* 한 인자 = 개발용 기록 (how dev) — 몸 색을 바꾸는 저장 */
   await B.waitForFunction(function (d) { var x = document.querySelector('#log .lday'); return x && x.dataset.day === d; }, DAY2, { timeout: 5000 });
   var bRows = await B.evaluate(function () { return [].map.call(document.querySelectorAll('#log .lrow .ltool'), function (x) { return x.textContent; }); });
+  /* 다른 탭의 장면 몸색도 저장 이벤트로 따라온다 (adoptRemote → applyLook, 흔들기 없이) · 이 탭 기록엔 개발용 한 줄 { how: 'dev', by: 'dev' } + 사본 */
+  var bCol = await B.waitForFunction(function () { return String(APP.scene.color()).toLowerCase() === '#f08a3c'; }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+  var bSt = await B.evaluate(function () { return { color: APP.state.octopus.color, copy: APP.state.settings.octColor, n: APP.state.octopus.colors.length }; });
   await B.close();
+  var aDev = await page.evaluate(function () { var c = APP.state.octopus.colors, sv = JSON.parse(localStorage.getItem('ppolppol_v2')); return { first: c[0], last: c[c.length - 1], n: c.length, color: APP.state.octopus.color, copy: APP.state.settings.octColor, saved: sv.octopus.color, savedCopy: sv.settings.octColor, scene: String(APP.scene.color()).toLowerCase() }; });
+  ok(aDev.n === 2 && aDev.first.how === 'first' && aDev.first.by === 'default' && aDev.last.how === 'dev' && aDev.last.by === 'dev' && aDev.last.color === '#f08a3c' && aDev.last.date === DAY2 && aDev.color === '#f08a3c' && aDev.copy === '#f08a3c' && aDev.saved === '#f08a3c' && aDev.savedCopy === '#f08a3c' && aDev.scene === '#f08a3c',
+    "APP.setOctColor(hex) 한 인자 = 개발용 기록 한 줄 { how: 'dev', by: 'dev' } (처음 색 줄은 by 'default' — 이름 창에서 색을 안 누름) · octopus.color · 사본 settings.octColor · 저장 · 장면 " + JSON.stringify({ first: aDev.first && aDev.first.by, last: aDev.last }));
+  ok(b0Col === '#e8463c' && bCol && bSt.color === '#f08a3c' && bSt.copy === '#f08a3c' && bSt.n === 2, '다른 탭: 몸 색이 저장 이벤트로 따라온다 (장면 ' + b0Col + ' → #f08a3c · 기록 · 사본) ' + JSON.stringify(bSt));
   await page.evaluate(function (d) { window.__ppolTest.today = d; APP.state.trips.forEach(function (t) { if (t.endedAt) t.endedAt -= 180000; }); document.dispatchEvent(new Event('visibilitychange')); }, DAY2);
   var lg = await page.evaluate(function () { var secs = document.querySelectorAll('#log .lday'); return { days: [].map.call(secs, function (x) { return x.dataset.day; }), labels: [].map.call(document.querySelectorAll('#log .lrow .ltool'), function (x) { return x.textContent; }) }; });
   ok(lg.days.join() === DAY2 && lg.labels[0] === '오늘' && lg.labels.indexOf('기웃') < 0, '자정이 지나면 아래 로그는 새 날 칸만 (인사부터, 어제 산책 행 없음) ' + JSON.stringify(lg.labels));
@@ -2097,6 +2106,470 @@ async function scenarioWave7(browser) {
   reportErrors(s.bag, 'S');
   await s.ctx.close();
 }
+/* O. 첫 실행 몸 색 (주인 11-08 밤 "처음에 선택한 이후로는 사용자가 못 바꾸게" · docs/SALON.md §1 · §9.3):
+ *   이름 창 = 제목 → 한 줄 → 초상 → 몸 색 6칸(type=button · aria-pressed · 짧은 이름) → 이름 칸 → 저장 → 정직 줄. 처음엔 빨강이 눌린 채.
+ *   손가락 기기면 포커스는 제목(링 없음), 마우스면 이름 칸. 파랑을 누르면 창 안 초상만 바뀌고(장면 문어는 빨강 그대로) 폼은 제출되지 않는다.
+ *   저장 → octopus.color 파랑 · colors[0] { how: first, by: player } · 사본 · 장면 문어 파랑 → 새로고침해도 같다. 색을 안 누르면 by 'default'.
+ *   320×568 두 글꼴: 창 스크롤 없음 · 정직 줄 보임 · 색 줄 한 줄 / 320×460: [이름 저장] 보임.
+ *   미용실 전에 놀던 기록(settings.octColor 만)은 지금 색 그대로 by 'migrated' (이름 창 없음) · 설정엔 거울 뒤 안내 한 줄. 전체 초기화 → 같은 창 · 색도 다시.
+ *   설정의 개발용 '바로 바꾸기'(슬라이더 + 프리셋 6)는 ?dev=1 을 직접 붙인 탭만 (file:// 자동 개발 모드로는 안 보임): input 10번은 장면 미리 보기만, change 1번 = 기록 한 줄 */
+async function scenarioFirstColor(browser) {
+  console.log('\n== O. 첫 실행 몸 색: 이름 창 색 6칸 · 처음 한 번만 · 설정 안내 한 줄 · 개발용 칸은 ?dev=1 탭만');
+  var O = 'http://ppolppol.example', bag = [], BLUE = '#4a86d8', RED = '#e8463c', GREEN = '#4fa868';
+  bag.ignored = [];
+  async function open(o) {   /* o = { touch, w, h, init: [initScript] } — 손가락 기기(hasTouch · isMobile)면 (pointer: coarse) */
+    var ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: !!o.touch, isMobile: !!o.touch });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var page = await ctx.newPage(); watchErrors(page, bag);
+    if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+    for (var s of (o.init || [])) await page.addInitScript(s);
+    await routeWiki(page, 'ok'); await routeRepo(page, O);
+    return { ctx: ctx, page: page };
+  }
+  function dlg(pg) { return pg.evaluate(function () {
+    var d = document.getElementById('name-dialog'), f = document.getElementById('name-form'), dr = d.getBoundingClientRect(), row = document.getElementById('name-colors');
+    var bs = [].map.call(row.querySelectorAll('button'), function (b) { var q = b.getBoundingClientRect(); return { hex: b.dataset.hex, type: b.type, label: b.getAttribute('aria-label'), pressed: b.getAttribute('aria-pressed'), top: Math.round(q.top), w: Math.round(q.width), h: Math.round(q.height) }; });
+    var hon = f.querySelector('.honest').getBoundingClientRect(), sub = f.querySelector('button[type=submit]').getBoundingClientRect(), cv = document.getElementById('name-port'), img = f.querySelector('img.oct-pic');
+    var px = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data, sum = 0; for (var i = 0; i < px.length; i += 4) sum += px[i] * 3 + px[i + 1] * 5 + px[i + 2] * 7;
+    return { open: d.open, order: [].filter.call(f.children, function (e) { return !e.hidden && e.getBoundingClientRect().height > 0; }).map(function (e) { return e.id || e.className.split(' ')[0] || e.tagName.toLowerCase(); }).join(' > '),
+      role: row.getAttribute('role'), group: row.getAttribute('aria-label'), bs: bs, oneRow: bs.every(function (b) { return b.top === bs[0].top; }), rowW: Math.round(row.scrollWidth), rowCW: Math.round(row.clientWidth),
+      focus: document.activeElement && (document.activeElement.id || document.activeElement.tagName), outline: getComputedStyle(document.getElementById('name-h')).outlineStyle,
+      scrolls: d.scrollHeight > d.clientHeight + 1, honest: hon.top >= 0 && hon.bottom <= innerHeight && hon.bottom <= dr.bottom + 0.5, submit: sub.top >= 0 && sub.bottom <= innerHeight && sub.bottom <= dr.bottom + 0.5,
+      docW: document.documentElement.scrollWidth, vw: innerWidth, portrait: !cv.hidden && (!img || img.hidden), sum: sum, scene: String(APP.scene.color()).toLowerCase(), name: APP.state.octopus.name, colors: APP.state.octopus.colors.length };
+  }); }
+  function rec(pg) { return pg.evaluate(function () { var sv = JSON.parse(localStorage.getItem('ppolppol_v2') || 'null'), so = (sv && sv.octopus) || {}; return { color: APP.state.octopus.color, colors: APP.state.octopus.colors, copy: APP.state.settings.octColor, saved: so.color, savedN: Array.isArray(so.colors) ? so.colors.length : null, savedCopy: sv && sv.settings && sv.settings.octColor, scene: String(APP.scene.color()).toLowerCase(), dlg: !!document.querySelector('#name-dialog[open]'), today: APP.state.octopus.colors.length && APP.state.octopus.colors[0].date }; }); }
+  async function nameIt(pg, nm) { await pg.fill('#name-in', nm); await pg.click('#name-form button[type=submit]'); await pg.waitForSelector('#name-dialog[open]', { state: 'hidden' }); }
+  function todayKeyIn(pg) { return pg.evaluate(function () { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }); }
+
+  /* 1. 손가락 기기 (360×740): 순서 · 빨강 눌림 · 포커스 제목 (링 없음) · 파랑 → 창 초상만 · 저장 → 파랑 by player · 새로고침 */
+  var A = await open({ touch: true }), pa = A.page;
+  await pa.goto(O + '/index.html?dev=0');
+  await pa.waitForSelector('#name-dialog[open]', { timeout: 20000 });
+  await pa.waitForTimeout(200);
+  var d0 = await dlg(pa);
+  console.log('   dialog:', JSON.stringify({ order: d0.order, bs: d0.bs.map(function (b) { return b.label + ':' + b.pressed; }), focus: d0.focus, portrait: d0.portrait }));
+  ok(d0.order === 'name-h > name-lead > name-pic > name-colors > name-in > btn > honest', '이름 창 순서: 제목 → 한 줄 → 초상 → 색 줄 → 이름 칸 → 저장 → 정직 줄 (' + d0.order + ')');
+  ok(d0.role === 'group' && d0.group === '몸 색' && d0.bs.length === 6 && d0.bs.every(function (b) { return b.type === 'button' && b.w === 36 && b.h === 36; }) && d0.bs.map(function (b) { return b.label; }).join() === '빨강,주황,보라,파랑,초록,분홍',
+    "색 6칸: group '몸 색' · button[type=button] 36 px · aria-label 짧은 이름 (화면엔 라벨 · 이름 줄 없음)");
+  ok(d0.bs.map(function (b) { return b.pressed; }).join() === 'true,false,false,false,false,false' && d0.oneRow && d0.portrait && d0.scene === RED && d0.colors === 0, '처음엔 빨강이 눌린 채 · 한 줄 · 창 안 초상 (대체 그림은 숨김) · 장면 문어 빨강 · 아직 기록 없음');
+  ok(d0.focus === 'name-h' && d0.outline === 'none', '손가락 기기: 열 때 포커스는 제목 (자판이 색 줄을 가리지 않게) · 제목에 링 없음 (' + d0.focus + ')');
+  await pa.evaluate(function () { window.__sub = 0; window.__inv = 0; document.getElementById('name-form').addEventListener('submit', function () { window.__sub++; }, true); document.getElementById('name-in').addEventListener('invalid', function () { window.__inv++; }); });
+  await pa.tap('#name-colors .preset[data-hex="' + BLUE + '"]');
+  await pa.waitForTimeout(150);
+  var d1 = await dlg(pa), sub1 = await pa.evaluate(function () { return { sub: window.__sub, inv: window.__inv }; });
+  ok(d1.open && sub1.sub === 0 && sub1.inv === 0 && d1.name === null && d1.colors === 0, '파랑을 눌러도 폼은 제출되지 않는다 (이름 필수 검사 없음 · 기록 없음) ' + JSON.stringify(sub1));
+  ok(d1.bs.map(function (b) { return b.pressed; }).join() === 'false,false,false,true,false,false' && d1.sum !== d0.sum && d1.portrait && d1.scene === RED, '파랑 → aria-pressed 파랑 · 창 안 초상만 다시 찍힘 (픽셀 바뀜) · 장면 문어는 빨강 그대로 (' + d1.scene + ')');
+  await pa.screenshot({ path: path.join(SHOTS, 'first-color-blue.png') });
+  var today = await todayKeyIn(pa);
+  await nameIt(pa, '뚜루');
+  await pa.waitForTimeout(150);
+  var r1 = await rec(pa);
+  console.log('   saved:', JSON.stringify(r1));
+  ok(r1.color === BLUE && r1.copy === BLUE && r1.colors.length === 1 && r1.colors[0].how === 'first' && r1.colors[0].by === 'player' && r1.colors[0].color === BLUE && r1.colors[0].date === today && typeof r1.colors[0].at === 'number',
+    "저장: octopus.color 파랑 · colors[0] { how: 'first', by: 'player', date: 오늘 } · 사본 settings.octColor 같음");
+  ok(r1.saved === BLUE && r1.savedCopy === BLUE && r1.savedN === 1 && r1.scene === BLUE && !r1.dlg, '이름과 함께 한 번에 저장 · 장면 문어는 저장 때 한 번 파랑으로');
+  await pa.reload(); await pa.waitForSelector('#btn-go:not(.away)'); await pa.waitForTimeout(300);
+  var r2 = await rec(pa);
+  ok(!r2.dlg && r2.color === BLUE && r2.colors.length === 1 && r2.colors[0].by === 'player' && r2.scene === BLUE, '새로고침해도 같다 (이름 창 없음 · 파랑 · 기록 한 줄)');
+  await A.ctx.close();
+
+  /* 2. 320×568 두 글꼴: 스크롤 없음 · 정직 줄 · 색 한 줄 · 가로 스크롤 없음 / 320×460: 저장 보임. 색을 안 누르고 저장 → 빨강 by default */
+  var C = await open({ touch: true, w: 320, h: 568 }), pc = C.page;
+  await pc.goto(O + '/index.html?dev=0');
+  await pc.waitForSelector('#name-dialog[open]', { timeout: 20000 });
+  var fit = [];
+  for (var hgt of [568, 460]) {
+    await pc.setViewportSize({ width: 320, height: hgt });
+    for (var font of ['pixel', 'system']) {
+      await pc.evaluate(function (f) { document.documentElement.setAttribute('data-font', f); return document.fonts && document.fonts.ready; }, font);
+      await pc.waitForTimeout(250);
+      var q = await dlg(pc);
+      fit.push({ h: hgt, font: font, scrolls: q.scrolls, honest: q.honest, submit: q.submit, oneRow: q.oneRow, rowFits: q.rowW <= q.rowCW, docW: q.docW });
+      if (font === 'pixel') await pc.screenshot({ path: path.join(SHOTS, 'first-color-320x' + hgt + '.png') });
+    }
+  }
+  console.log('   fit:', JSON.stringify(fit));
+  var f568 = fit.filter(function (x) { return x.h === 568; }), f460 = fit.filter(function (x) { return x.h === 460; });
+  ok(f568.every(function (x) { return !x.scrolls && x.honest && x.oneRow && x.rowFits && x.docW <= 320; }), '320×568 픽셀 · 시스템: 창이 스크롤되지 않고 정직 줄이 보임 · 색 6칸 한 줄 (줄바꿈 · 넘침 없음) · 가로 스크롤 없음');
+  ok(f460.every(function (x) { return x.submit && x.oneRow; }), '320×460 픽셀 · 시스템: [이름 저장]이 화면 안');
+  await pc.evaluate(function () { document.documentElement.setAttribute('data-font', 'pixel'); });
+  await pc.setViewportSize({ width: 320, height: 568 });
+  await nameIt(pc, '안개');
+  var r3 = await rec(pc);
+  ok(r3.color === RED && r3.colors.length === 1 && r3.colors[0].how === 'first' && r3.colors[0].by === 'default' && r3.colors[0].color === RED && r3.scene === RED, "색을 안 누르고 저장 → 빨강 { how: 'first', by: 'default' }");
+  await C.ctx.close();
+
+  /* 3. 마우스 (pointer: fine): 열 때 포커스는 이름 칸 (예전처럼) */
+  var M = await open({ touch: false }), pm = M.page;
+  await pm.goto(O + '/index.html?dev=0');
+  await pm.waitForSelector('#name-dialog[open]', { timeout: 20000 });
+  var mf = await pm.waitForFunction(function () { return document.activeElement && document.activeElement.id === 'name-in'; }, null, { timeout: 3000 }).then(function () { return true; }, function () { return false; });
+  ok(mf, '마우스(pointer: fine): 열 때 포커스는 이름 칸');
+  await M.ctx.close();
+
+  /* 4. 미용실 전에 놀던 기록 (settings.octColor 만, 옛 설정 슬라이더 색) → 지금 색 그대로 by 'migrated' · 이름 창 없음 · 설정엔 거울 뒤 안내 한 줄 (등불 3칸) · 개발용 칸 없음.
+        전체 초기화 → 같은 이름 창이 색 줄과 함께 다시 (빨강 눌림 · 장면도 빨강) → 초록을 골라 저장 */
+  var OLD = { v: 2, octopus: { name: '옛문어', born: 1762600000000, trips: 2, invites: 3, days: ['2026-11-01', '2026-11-02', '2026-11-03'], affinity: {}, visits: {}, state: 'idle' }, room: { lantern: 3, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [],
+    settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: '#c06040', flipped: false, pixelFont: true, albumSeen: 0 } };
+  var D = await open({ touch: false, init: [{ content: "if (!localStorage.getItem('__o_seed')) { localStorage.setItem('__o_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(OLD)) + '); }' }] }), pd = D.page;
+  await pd.goto(O + '/index.html?dev=0');
+  await pd.waitForSelector('#btn-go:not(.away)', { timeout: 20000 }); await pd.waitForTimeout(300);
+  var r4 = await rec(pd);
+  console.log('   migrated:', JSON.stringify(r4));
+  ok(!r4.dlg && r4.color === '#c06040' && r4.copy === '#c06040' && r4.colors.length === 1 && r4.colors[0].how === 'first' && r4.colors[0].by === 'migrated' && r4.colors[0].color === '#c06040' && r4.colors[0].at === 1762600000000 && r4.colors[0].date === null && r4.scene === '#c06040',
+    "미용실 전 기록: 지금 색(옛 설정 색 #c06040) 그대로 { how: 'first', by: 'migrated', at: born, date: null } · 장면도 그 색 · 이름 창 없음");
+  var s4 = await pd.evaluate(function () { APP.openSettings(); var b = document.getElementById('set-body'), o = { h: (b.querySelector('h3') || {}).textContent, line: (document.getElementById('set-color') || {}).textContent, dev: !!document.getElementById('set-color-dev'), hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.preset').length, who: (document.getElementById('set-who') || {}).textContent }; return o; });
+  ok(s4.h === '문어 색' && s4.line === '거울 앞에서 옛문어에게 물어볼 수 있어.' && !s4.dev && !s4.hue && s4.presets === 0, "설정 (등불 3칸 · 배포 주소): 맨 위 '문어 색' + 안내 한 줄뿐 · 개발용 칸 없음 " + JSON.stringify(s4));
+  ok(s4.who === '지금은 모델이 아니라 미리 만든 규칙이 골라. 고른 이는 포스터와 쪽지 뒷면, 미용실 줄에 적혀.', "설정 '누가 고르나': 고른 이는 포스터와 쪽지 뒷면, 미용실 줄에 (" + s4.who + ')');
+  await pd.click('#set-reset'); await pd.click('#set-reset');
+  await pd.waitForSelector('#name-dialog[open]', { timeout: 10000 });
+  await pd.waitForTimeout(200);
+  var d5 = await dlg(pd);
+  ok(!(await pd.$('#name-colors[hidden]')) && d5.bs.map(function (b) { return b.pressed; }).join() === 'true,false,false,false,false,false' && d5.colors === 0 && d5.scene === RED && d5.name === null, '전체 초기화 → 같은 이름 창 · 색 줄도 다시 (빨강 눌림 · 기록 비움 · 장면 문어 빨강)');
+  await pd.click('#name-colors .preset[data-hex="' + GREEN + '"]');
+  await nameIt(pd, '새문어');
+  var r5 = await rec(pd);
+  ok(r5.color === GREEN && r5.colors.length === 1 && r5.colors[0].by === 'player' && r5.scene === GREEN, '초기화 뒤 다시 고른 색 (초록 · by player)');
+  await D.ctx.close();
+
+  /* 5. 개발용 '바로 바꾸기': file:// (자동 개발 모드 — #demo 패널은 보임)이라도 ?dev=1 을 직접 붙이지 않으면 없다 */
+  var F = await open({ touch: false }), pf = F.page;
+  await pf.goto(INDEX);
+  await pf.waitForSelector('#name-dialog[open]', { timeout: 20000 });
+  await nameIt(pf, '뚜루');
+  var f1 = await pf.evaluate(function () { var keep = APP.state.room.lantern; APP.state.room.lantern = 2; APP.openSettings(); var b = document.getElementById('set-body'), o = { line: !!document.getElementById('set-color'), dev: !!document.getElementById('set-color-dev'), hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.preset').length, demo: !document.getElementById('demo').hidden, explicit: APP.devExplicit }; APP.state.room.lantern = keep; document.getElementById('settings-sheet').close(); return o; });
+  ok(f1.line && !f1.dev && !f1.hue && f1.presets === 0 && f1.demo && f1.explicit === false, "file:// (자동 개발 모드, #demo 는 보임): ?dev=1 이 없으면 '바로 바꾸기' · 슬라이더 · 프리셋 없음 " + JSON.stringify(f1));
+  /* ?dev=1 을 직접 붙인 탭: '개발용 · 바로 바꾸기' + 슬라이더 + 프리셋 6 (거울 전에도). input 10번 = 장면 미리 보기만, change 1번 = 기록 한 줄 · 프리셋 = 한 줄 · 미리 보기만 하고 닫으면 기록 색으로 */
+  await pf.goto(INDEX + '?dev=1');
+  await pf.waitForSelector('#btn-go:not(.away)', { timeout: 20000 });
+  await pf.click('#btn-settings'); await pf.waitForSelector('#settings-sheet[open]');
+  var g0 = await pf.evaluate(function () { var b = document.getElementById('set-body'); return { h: (b.querySelector('h3') || {}).textContent, dev: (document.getElementById('set-color-dev') || {}).textContent, line: !!document.getElementById('set-color'), hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.preset').length, explicit: APP.devExplicit, n: APP.state.octopus.colors.length, lantern: APP.state.room.lantern }; });
+  ok(g0.explicit && g0.h === '문어 색' && g0.dev === '개발용 · 바로 바꾸기' && g0.hue && g0.presets === 6 && !g0.line && g0.lantern < 2, "?dev=1 탭: '문어 색' 아래 '개발용 · 바로 바꾸기' + 슬라이더 + 프리셋 6 (거울 전이라 안내 줄은 없음) " + JSON.stringify(g0));
+  var g1 = await pf.evaluate(function () {
+    var h = document.getElementById('set-hue'), seen = [], saved0 = localStorage.getItem('ppolppol_v2');
+    for (var i = 1; i <= 10; i++) { h.value = String(i * 30); h.dispatchEvent(new Event('input', { bubbles: true })); seen.push(String(APP.scene.color()).toLowerCase()); }
+    var mid = { n: APP.state.octopus.colors.length, color: APP.state.octopus.color, sameSave: localStorage.getItem('ppolppol_v2') === saved0, scenes: seen.filter(function (c, k) { return seen.indexOf(c) === k; }).length };
+    h.dispatchEvent(new Event('change', { bubbles: true }));
+    var c = APP.state.octopus.colors;
+    return { mid: mid, n: c.length, last: c[c.length - 1], color: APP.state.octopus.color, scene: String(APP.scene.color()).toLowerCase(), saved: JSON.parse(localStorage.getItem('ppolppol_v2')).octopus.colors.length };
+  });
+  console.log('   dev slider:', JSON.stringify(g1));
+  ok(g1.mid.n === g0.n && g1.mid.color === RED && g1.mid.sameSave && g1.mid.scenes >= 8, '개발용 슬라이더 input 10번: 장면만 미리 보임 (색 ' + g1.mid.scenes + '가지) · 기록 · 저장 그대로');
+  ok(g1.n === g0.n + 1 && g1.last.how === 'dev' && g1.last.by === 'dev' && g1.last.color === g1.color && g1.scene === g1.color && g1.saved === g1.n, "change 1번 → 기록 한 줄 { how: 'dev', by: 'dev' } · 장면 = 기록 색 (" + g1.color + ')');
+  await pf.click('#set-body .preset[data-hex="' + BLUE + '"]');
+  var g2 = await pf.evaluate(function () { var c = APP.state.octopus.colors; return { n: c.length, last: c[c.length - 1], on: (document.querySelector('#set-body .preset.on') || {}).dataset }; });
+  ok(g2.n === g1.n + 1 && g2.last.how === 'dev' && g2.last.color === BLUE && g2.on && g2.on.hex === BLUE, '개발용 프리셋 파랑 → 한 줄 더 · 칩 켜짐');
+  await pf.evaluate(function () { var h = document.getElementById('set-hue'); h.value = '300'; h.dispatchEvent(new Event('input', { bubbles: true })); });
+  var pv = await pf.evaluate(function () { return String(APP.scene.color()).toLowerCase(); });
+  await pf.click('#set-close'); await pf.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  /* dialog 의 close 이벤트는 닫힌 뒤 따로 오는 일(task)이라 (open 속성은 먼저 빠진다) 그 이벤트가 장면을 되돌릴 때까지 기다린다 (3 s 안) */
+  await pf.waitForFunction(function (c) { return String(APP.scene.color()).toLowerCase() === c; }, BLUE, { timeout: 3000 }).catch(function () {});
+  var g3 = await pf.evaluate(function () { return { scene: String(APP.scene.color()).toLowerCase(), color: APP.state.octopus.color, n: APP.state.octopus.colors.length }; });
+  ok(pv !== BLUE && g3.scene === BLUE && g3.color === BLUE && g3.n === g2.n, '미리 보기만 하고 닫으면 장면은 기록 색으로 (기록 그대로) ' + JSON.stringify({ preview: pv, after: g3.scene }));
+  /* 같은 탭은 ?dev=1 을 기억 (sessionStorage) · ?dev=0 이면 끔 */
+  await pf.goto(INDEX); await pf.waitForSelector('#btn-go:not(.away)', { timeout: 20000 });
+  var e1 = await pf.evaluate(function () { APP.openSettings(); var o = { explicit: APP.devExplicit, dev: !!document.getElementById('set-color-dev') }; document.getElementById('settings-sheet').close(); return o; });
+  await pf.goto(INDEX + '?dev=0'); await pf.waitForSelector('#btn-go:not(.away)', { timeout: 20000 });
+  var e0 = await pf.evaluate(function () { APP.openSettings(); var o = { explicit: APP.devExplicit, dev: !!document.getElementById('set-color-dev'), h: !!document.getElementById('set-color-h') }; document.getElementById('settings-sheet').close(); return o; });
+  ok(e1.explicit && e1.dev && !e0.explicit && !e0.dev && !e0.h, '?dev=1 은 이 탭 동안 기억 · ?dev=0 이면 개발용 칸 없음 (거울 전이라 문어 색 칸 자체도 없음) ' + JSON.stringify({ remembered: e1, off: e0 }));
+  await F.ctx.close();
+  reportErrors(bag, 'O');
+}
+
+/* Y. 미용실 (주인 11-08 밤 "대신 이 색으로 염색해볼까? 이런 식으로 미용실" · docs/SALON.md §3 · §9.3): 플레이어 화면(가짜 http 호스트 + ?dev=0), 날짜는 훅 (__ppolTest.today — 이 탭 sessionStorage 로 새로고침에도).
+ *   등불 2칸: 거울 단추(#btn-salon)가 거울 위 (44×44 이상 · over) · items 에 salon · 장면 설명 끝에 몸 색 · 놀이방 · 산책 중엔 숨음 · 등불 1칸엔 없음.
+ *   톡 → 시트 (포커스 제목 · 뒤 막 없음 두 테마) · 지금 색 병 aria-disabled + '지금' · 파랑 → 장면 병이 앞으로 · 닫기 · Esc → 병 제자리 · 기록 0.
+ *   폭 · 테마 (320×568 · 360×640 · 412×780 × 픽셀 · 시스템 × 밝음 · 어둠): 가로 스크롤 0 · 병 6 한 줄 · 시트 글자에 이모지 · 기호 없음 · 거울 단추 상자와 거울 옆 문어가 시트 윗변보다 위.
+ *   첫 물음 (11-09 · 보통 속도): 행이 박자에 맞춰 (행 1 → 대답 → 몸 색 + 꼬리 '데모 규칙') · 장면은 첨벙까지 옛 색 · 연출 중 거울 단추 · 놀이방 문 숨김 · 기록 { how: 'salon', by: 'demo-rules', ask }.
+ *   다시 톡 → 토스트 '내일 또 물어볼 수 있어.' (시트 없음). 11-10: 답 = SALON.demoAnswer(…, asksBefore 1) = '그대로' · 연출 중 새로고침 → 행 셋이 한 번씩 · 연출 없음 · 색 그대로 →
+ *   그 병은 11-10 … 11-16 쉬고 11-17 에 열림 (시트: aria-disabled · 이름 줄). 11-11 모션 줄이기: [물어보기] → 행 3 까지 4.5 s 안 · 걷기 · 폴짝 · 물보라 없음.
+ *   11-12: 연출 중 주 버튼 → 끝 상태로 감기고 (새 색 · 대야 없음 · 행 셋) 초대가 간다 → 돌아와 자는 문어: 거울 톡 = '쿨쿨…' 만. 앨범 '일기': 물음만 있는 지난 날 · 행 셋.
+ *   file://: ?dev=1 없으면 '다음 미용실 대답' · '바로 바꾸기' 없음 (등불 1칸엔 거울 단추 · 소품도 없음) · ?dev=1 이면 있음 · 2D 장면에서 '그대로' → by 'human' · 문어 행 없음 · 꼬리 '사람이 정함' · '바꾸기' → 2D 몸 색도 */
+async function scenarioSalon(browser) {
+  console.log('\n== Y. 미용실: 거울 단추 · 병 시트 · 묻기 · 연출 · 하루 한 번 · 7일 쉼 · 로그 · 일기 · 모션 줄이기 · 주 버튼 · 폭 · 테마 · 개발용 다음 대답 · 2D');
+  var O = 'http://ppolppol.example', bag = []; bag.ignored = [];
+  var RED = '#e8463c', ORANGE = '#f08a3c', BLUE = '#4a86d8', GREEN = '#4fa868', PINK = '#f07aa8', BORN = 1762600000000;
+  var D1 = '2026-11-09', D2 = '2026-11-10', D3 = '2026-11-11', D4 = '2026-11-12';
+  var GUARD = { content: '(' + glyphGuardInit.toString() + ')();' };
+  function REC(lv) {
+    return { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: lv, days: ['2026-11-06', '2026-11-07', '2026-11-08'].slice(0, lv), affinity: {}, visits: {}, state: 'idle', color: RED,
+      colors: [{ at: BORN, date: '2026-11-06', color: RED, how: 'first', by: 'player' }] }, room: { lantern: lv, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
+      settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
+  }
+  async function open(o) {   /* o = { w, h, dark, rec, file } — 기록을 한 번 심고 (새로고침엔 그대로), 날짜 훅은 이 탭 sessionStorage 에서 */
+    var ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: o.dark ? 'dark' : 'light' });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var page = await ctx.newPage(); watchErrors(page, bag);
+    if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+    await page.addInitScript({ content: "if (!localStorage.getItem('__y_seed')) { localStorage.setItem('__y_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(o.rec || REC(2))) + '); } ' +
+      "window.__ppolTest = { today: sessionStorage.getItem('__y_day') || '" + D1 + "' };" });
+    await page.addInitScript(GUARD);
+    await routeWiki(page, 'ok'); if (!o.file) await routeRepo(page, O);
+    return { ctx: ctx, page: page };
+  }
+  function setDay(pg, d) { return pg.evaluate(function (d) { sessionStorage.setItem('__y_day', d); window.__ppolTest.today = d; }, d); }
+  function st(pg) { return pg.evaluate(function () {
+    var b = document.getElementById('btn-salon'), d = document.getElementById('salon-sheet'), S = APP.state, m = (APP.scene.motion && APP.scene.motion().salon) || {}, bb = document.getElementById('oct-bubble'), t = document.getElementById('toast');
+    var rows = [].map.call(document.querySelectorAll('#log .lrow[data-salon]'), function (r) {
+      var x = r.querySelector('.ltext'), by = x && x.querySelector('.lby'), tx = x ? x.textContent : '';
+      return { id: r.getAttribute('data-salon'), n: +r.getAttribute('data-n'), label: (r.querySelector('.ltool') || {}).textContent, text: by ? tx.slice(0, tx.length - by.textContent.length) : tx, tail: by ? by.textContent : null, voice: r.classList.contains('voice'), raw: !!r.querySelector('[data-raw]'), expr: r.dataset.expr || null };
+    });
+    return { btn: { hidden: b.hidden, spot: b.dataset.spot || null, w: b.offsetWidth, h: b.offsetHeight }, open: d.open, stage: APP.salonStage ? { id: APP.salonStage.id, n: APP.salonStage.n, face: APP.salonStage.face } : null, active: APP.salonActive,
+      door: getComputedStyle(document.getElementById('btn-door')).visibility, offer: m.offer || null, tub: !!m.tub, splash: !!m.splash, beat: m.beat || '', sceneColor: String(APP.scene.color()).toLowerCase(), color: S.octopus.color, copy: S.settings.octColor,
+      colors: S.octopus.colors.map(function (c) { return { how: c.how, by: c.by, color: c.color, ask: c.ask || null }; }), asks: S.salon.asks.map(function (a) { return { id: a.id, date: a.date, action: a.action, by: a.by, line: a.line, offer: a.offer, status: a.status }; }),
+      saved: ((JSON.parse(localStorage.getItem('ppolppol_v2') || '{}').salon || {}).asks || []).length, rows: rows, oct: APP.oct.state, toast: t.classList.contains('show') ? t.textContent : '', bubble: bb && !bb.hidden ? bb.textContent : '' };
+  }); }
+  function rowsOf(s, id) { return s.rows.filter(function (r) { return r.id === id; }); }
+  function sheet(pg) { return pg.evaluate(function () {
+    var d = document.getElementById('salon-sheet'), nm = document.getElementById('salon-name'), a = document.getElementById('salon-ask');
+    return { open: d.open, focus: document.activeElement && document.activeElement.id, ask: a.getAttribute('aria-disabled'), name: nm.textContent, nameH: nm.offsetHeight, offer: (APP.scene.motion().salon || {}).offer || null,
+      bs: [].map.call(d.querySelectorAll('.bcell'), function (c) { var b = c.querySelector('.bottle'), n = c.querySelector('.bnote'); return { hex: b.dataset.hex, label: b.getAttribute('aria-label'), dis: b.getAttribute('aria-disabled'), pressed: b.getAttribute('aria-pressed'), type: b.type, w: b.offsetWidth, h: b.offsetHeight, note: n.textContent, noteShown: n.offsetHeight > 0 && !!n.textContent }; }) };
+  }); }
+  async function openSheet(pg) { if (!(await pg.$('#salon-sheet[open]'))) { await pg.evaluate(function () { APP.openSalon(); }); await pg.waitForSelector('#salon-sheet[open]', { timeout: 5000 }); } await pg.waitForTimeout(200); }
+  function waitStageEnd(pg, ms) { return pg.waitForFunction(function () { return !APP.salonStage; }, null, { timeout: ms || 45000, polling: 100 }).then(function () { return true; }, function () { return false; }); }
+
+  /* 1. 등불 2칸 (11-09): 거울 단추 · items · 장면 설명 · 놀이방에선 숨음 */
+  var A = await open({}), pa = A.page;
+  await pa.goto(O + '/index.html?dev=0');
+  await pa.waitForSelector('#btn-go:not(.away)', { timeout: 20000 }); await pa.waitForTimeout(800);
+  var b0 = await pa.evaluate(function () { var r = APP.scene.spotRect('salon'), b = document.getElementById('btn-salon'), q = b.getBoundingClientRect(); return { r: r && { mode: r.mode, art: r.art, c: r.client }, q: { x: Math.round(q.left), y: Math.round(q.top), w: Math.round(q.width), h: Math.round(q.height) }, hidden: b.hidden, spot: b.dataset.spot, desc: document.getElementById('scene-desc').textContent, label: b.getAttribute('aria-label'), ctl: b.getAttribute('aria-controls'), mode: APP.sceneMode }; });
+  console.log('   mirror button:', JSON.stringify(b0));
+  ok(!b0.hidden && b0.spot === 'over' && b0.q.w >= 44 && b0.q.h >= 44 && b0.r && b0.r.mode === 'over' && Math.abs(b0.r.c.x - b0.q.x) <= 1 && Math.abs(b0.r.c.y - b0.q.y) <= 1 && b0.label === '미용실' && b0.ctl === 'salon-sheet',
+    "등불 2칸: 거울 단추 #btn-salon 이 거울 코너 위 (over · " + b0.q.w + '×' + b0.q.h + " · aria-label '미용실' · aria-controls salon-sheet)");
+  ok(await hasItem(pa, 'salon'), "장면 items 에 'salon' (상자와 같은 날 — 등불 2칸)");
+  ok(/몸은 빨간색이야\.$/.test(b0.desc), '장면 설명 끝에 몸 색 한 마디 (' + b0.desc + ')');
+  await pa.evaluate(function () { return APP.goRoom('play'); });
+  var inPlay = await pa.waitForFunction(function () { return APP.room === 'play' && document.getElementById('btn-salon').hidden; }, null, { timeout: 10000 }).then(function () { return true; }, function () { return false; });
+  await pa.evaluate(function () { return APP.goRoom('attic'); });
+  var back = await pa.waitForFunction(function () { return APP.room === null && !document.getElementById('btn-salon').hidden; }, null, { timeout: 10000 }).then(function () { return true; }, function () { return false; });
+  ok(inPlay && back, '놀이방에선 거울 단추가 숨고 다락으로 돌아오면 다시 보인다');
+
+  /* 2. 톡 → 시트: 포커스 제목 · 뒤 막 없음 (두 테마) · 지금 색 병 · 파랑 고르기 → 장면 병이 앞으로 · 닫기 · Esc → 병 제자리 · 기록 0 */
+  await clickSpot(pa, '#btn-salon');
+  await pa.waitForSelector('#salon-sheet[open]', { timeout: 5000 }); await pa.waitForTimeout(300);
+  var h0 = await sheet(pa);
+  var bd = await pa.evaluate(function () {
+    var d = document.getElementById('salon-sheet'), out = {};
+    ['pixel', 'system'].forEach(function (f) { document.documentElement.setAttribute('data-font', f); var c = getComputedStyle(d, '::backdrop'); out[f] = [c.backgroundColor, c.backgroundImage, c.backdropFilter].join(' / '); });
+    document.documentElement.setAttribute('data-font', 'pixel'); return out;
+  });
+  console.log('   sheet:', JSON.stringify({ focus: h0.focus, bs: h0.bs.map(function (b) { return b.label + (b.dis ? '!' : '') + (b.note ? '[' + b.note + ']' : ''); }), ask: h0.ask, backdrop: bd }));
+  ok(h0.open && h0.focus === 'salon-h', '거울 톡 → 미용실 시트 · 포커스는 제목 (' + h0.focus + ')');
+  ok(/^rgba\(0, 0, 0, 0\) \/ none \/ none$/.test(bd.pixel) && /^rgba\(0, 0, 0, 0\) \/ none \/ none$/.test(bd.system), '미용실 시트만 뒤 막 없음 (픽셀 · 시스템 테마 둘 다: 배경 투명 · 무늬 없음 · backdrop-filter none) ' + JSON.stringify(bd));
+  ok(h0.bs.length === 6 && h0.bs.every(function (b) { return b.type === 'button' && b.w === 36 && b.h === 36; }) && h0.bs.map(function (b) { return b.hex; }).join() === [RED, ORANGE, '#9a5cc8', BLUE, GREEN, PINK].join(),
+    '병 6 (빨강 주황 보라 파랑 초록 분홍) · button[type=button] · 보이는 칸 36 px');
+  var hit = await pa.evaluate(function () {   /* 누르는 곳 44 px: 보이는 칸 밖 3 px (위 · 아래 · 바깥 옆)도 그 병 · 병 사이 간격 8 px */
+    var bs = document.querySelectorAll('#salon-bottles .bottle'), a = bs[0].getBoundingClientRect(), b = bs[1].getBoundingClientRect(), z = bs[5].getBoundingClientRect();
+    function at(x, y) { var e = document.elementFromPoint(x, y); return e && e.closest('.bottle') ? e.closest('.bottle').dataset.hex : null; }
+    return { gap: Math.round(b.left - a.right), up: at(a.left + 18, a.top - 3), down: at(a.left + 18, a.bottom + 3), left: at(a.left - 3, a.top + 18), right: at(z.right + 3, z.top + 18), hexes: [bs[0].dataset.hex, bs[5].dataset.hex] };
+  });
+  ok(hit.gap === 8 && hit.up === hit.hexes[0] && hit.down === hit.hexes[0] && hit.left === hit.hexes[0] && hit.right === hit.hexes[1], '병 사이 간격 8 px · 누르는 곳은 보이는 칸보다 넓다 (밖 3 px 도 그 병 — 44 px) ' + JSON.stringify(hit));
+  ok(h0.bs[0].dis === 'true' && h0.bs[0].label === '빨강, 지금 색' && h0.bs[0].noteShown && h0.bs[0].note === '지금' && h0.bs.slice(1).every(function (b) { return !b.dis && !b.note; }) && h0.ask === 'true' && h0.name === '' && h0.nameH >= 20,
+    "지금 색 병: aria-disabled · '빨강, 지금 색' · 아래 '지금' · [물어보기] aria-disabled · 이름 줄은 비어도 한 줄 높이 (" + h0.nameH + ' px)');
+  await pa.click('#salon-bottles .bottle[data-hex="' + BLUE + '"]'); await pa.waitForTimeout(250);
+  var h1 = await sheet(pa);
+  ok(h1.offer === BLUE && h1.name === '파란색' && h1.ask === 'false' && h1.bs[3].pressed === 'true', "파랑 → aria-pressed · 이름 줄 '파란색' · [물어보기] 켜짐 · scene.motion().salon.offer = " + h1.offer);
+  await pa.click('#salon-bottles .bottle[data-hex="' + RED + '"]', { force: true }); await pa.waitForTimeout(200);   /* aria-disabled 병도 누를 수 있다 (누르면 이름 줄이 까닭을 말한다) — Playwright 는 aria-disabled 를 '꺼짐' 으로 봐서 force */
+  var h2 = await sheet(pa);
+  ok(h2.name === '지금 이 색이야.' && h2.ask === 'true' && h2.offer === null && h2.bs.every(function (b) { return b.pressed === 'false'; }), "지금 색 병을 누르면 이름 줄 '지금 이 색이야.' · 고른 병 놓음 · [물어보기] 다시 꺼짐");
+  await pa.click('#salon-bottles .bottle[data-hex="' + BLUE + '"]');
+  await pa.click('#salon-close'); await pa.waitForSelector('#salon-sheet[open]', { state: 'hidden' }); await pa.waitForTimeout(250);
+  var c1 = await st(pa);
+  await openSheet(pa); await pa.click('#salon-bottles .bottle[data-hex="' + GREEN + '"]');
+  await pa.keyboard.press('Escape'); await pa.waitForSelector('#salon-sheet[open]', { state: 'hidden' }); await pa.waitForTimeout(250);
+  var c2 = await st(pa);
+  ok(!c1.open && c1.offer === null && !c2.open && c2.offer === null && c2.asks.length === 0 && c2.saved === 0 && c2.color === RED, '[닫기] · Esc 로 그만두면 병은 제자리 (offer null) · 기록 0 · 몸 색 그대로');
+
+  /* 3. 폭 · 테마: 320×568 · 360×640 · 412×780 × 픽셀 · 시스템 × 밝음 · 어둠 — 가로 스크롤 0 · 병 한 줄 · 시트 글자 (U 규칙) · 거울 상자 · 거울 옆 문어가 시트 윗변보다 위 */
+  var fits = [];
+  for (var vp of [[320, 568], [360, 640], [412, 780]]) {
+    for (var font of ['pixel', 'system']) {
+      for (var dark of [false, true]) {
+        await pa.setViewportSize({ width: vp[0], height: vp[1] }); await pa.emulateMedia({ colorScheme: dark ? 'dark' : 'light' });
+        await pa.evaluate(function (f) { document.documentElement.setAttribute('data-font', f); window.scrollTo(0, 0); APP.scene.jumpTo('salon'); }, font);
+        await pa.waitForTimeout(400);
+        await openSheet(pa); await pa.evaluate(function () { APP.salonPick('#4a86d8'); }); await pa.waitForTimeout(250);
+        var q = await pa.evaluate(function () {
+          var d = document.getElementById('salon-sheet'), top = d.getBoundingClientRect().top, sp = APP.scene.spotRect('salon'), oc = APP.sceneMode === '3d' ? (APP.scene.targets().filter(function (t) { return t.kind === 'oct'; })[0] || {}).rect : { b: document.getElementById('oct').getBoundingClientRect().bottom };
+          var tops = [].map.call(d.querySelectorAll('.bottle'), function (b) { return Math.round(b.getBoundingClientRect().top); });
+          var g = window.__glyph ? window.__glyph.scan().filter(function (x) { return /salon|bottle|bnote|bcell/.test(x.at); }).map(function (x) { return x.at + ' ' + x.chars; }) : ['검사기 없음'];
+          return { top: Math.round(top), spotB: sp && sp.client ? Math.round(sp.client.y + sp.client.h) : null, octB: oc && isFinite(oc.b) ? Math.round(oc.b) : null, docW: document.documentElement.scrollWidth, vw: innerWidth, oneRow: tops.every(function (t) { return t === tops[0]; }), glyph: g };
+        });
+        q.k = vp.join('x') + ' ' + font + ' ' + (dark ? 'dark' : 'light');
+        fits.push(q);
+        if (vp[0] === 320 && !dark) await pa.screenshot({ path: path.join(SHOTS, 'salon-sheet-320x568-' + font + '.png') });
+      }
+    }
+  }
+  console.log('   fit:', JSON.stringify(fits.map(function (f) { return f.k + ': top ' + f.top + ' · 단추 아래 ' + f.spotB + ' · 문어 아래 ' + f.octB + (f.docW > f.vw ? ' · 가로 ' + f.docW : '') + (f.oneRow ? '' : ' · 두 줄'); })));
+  ok(fits.every(function (f) { return f.docW <= f.vw; }), '12 가지 폭 · 글꼴 · 테마 모두 가로 스크롤 0');
+  ok(fits.every(function (f) { return f.oneRow; }), '병 6 은 어느 폭이든 한 줄');
+  ok(fits.every(function (f) { return f.glyph.length === 0; }), '시트 글자 · aria-label · 장식에 이모지 · 기호 없음 (두 테마, U 규칙) ' + JSON.stringify(fits.filter(function (f) { return f.glyph.length; }).map(function (f) { return f.k + ' ' + f.glyph.join(','); })));
+  ok(fits.every(function (f) { return f.spotB !== null && f.spotB < f.top && f.octB !== null && f.octB < f.top; }), '거울 단추 상자 아래 끝 · 거울 옆에 선 문어가 시트 윗변보다 위 (12 가지 모두)');
+  /* 병 7개 (처음 색이 프리셋이 아니고 지금 색도 아니면 '처음 색' 병 하나 더): 320 px 은 4 + 3 · 360 px 은 한 줄 (메모리만 바꿔 본다 — 저장 안 함) */
+  var seven = [];
+  await pa.evaluate(function () { APP.state.octopus.colors[0].color = '#c06040'; });
+  for (var w7 of [320, 360]) {
+    await pa.setViewportSize({ width: w7, height: 640 }); await pa.evaluate(function () { document.documentElement.setAttribute('data-font', 'pixel'); });
+    await pa.waitForTimeout(250); await openSheet(pa); await pa.evaluate(function () { APP.renderSalonSheet(); });
+    seven.push(await pa.evaluate(function () {
+      var bs = [].map.call(document.querySelectorAll('#salon-bottles .bottle'), function (b) { return Math.round(b.getBoundingClientRect().top); }), rows = bs.filter(function (t, i) { return bs.indexOf(t) === i; });
+      var last = document.querySelector('#salon-bottles .bcell:last-child');
+      return { n: bs.length, perRow: rows.map(function (t) { return bs.filter(function (x) { return x === t; }).length; }).join('+'), note: last.querySelector('.bnote').textContent, label: last.querySelector('.bottle').getAttribute('aria-label'), docW: document.documentElement.scrollWidth, vw: innerWidth };
+    }));
+    if (w7 === 320) await pa.screenshot({ path: path.join(SHOTS, 'salon-sheet-7-320.png') });
+  }
+  await pa.evaluate(function () { APP.state.octopus.colors[0].color = '#e8463c'; APP.renderSalonSheet(); });
+  ok(seven[0].n === 7 && seven[0].perRow === '4+3' && seven[1].perRow === '7' && seven[0].note === '처음' && seven[0].label === '처음 색' && seven.every(function (x) { return x.docW <= x.vw; }),
+    "처음 색이 프리셋이 아니면 일곱째 '처음 색' 병 (아래 '처음'): 320 px 은 4 + 3 · 360 px 은 한 줄 " + JSON.stringify(seven));
+  await pa.keyboard.press('Escape'); await pa.waitForSelector('#salon-sheet[open]', { state: 'hidden' });
+  await pa.setViewportSize({ width: 360, height: 740 }); await pa.emulateMedia({ colorScheme: 'light' });
+  await pa.evaluate(function () { document.documentElement.setAttribute('data-font', 'pixel'); window.scrollTo(0, 0); });
+  await pa.waitForTimeout(300);
+
+  /* 4. 첫 물음 (11-09, 보통 속도): 답은 바로 저장 · 시트 닫힘 · 장면은 첨벙까지 옛 색 · 행은 박자에 맞춰 · 연출 중 단추 숨김 */
+  await openSheet(pa); await pa.click('#salon-bottles .bottle[data-hex="' + BLUE + '"]');
+  await pa.click('#salon-ask');
+  var a0 = await st(pa), t0 = Date.now(), seq = [], firstAt = {}, flipAt = 0, tubSeen = false, bubbleSeen = '', hiddenAll = true;
+  for (var k = 0; k < 400; k++) {
+    var s = await st(pa), el = Date.now() - t0, id = a0.asks[0] && a0.asks[0].id;
+    rowsOf(s, id).forEach(function (r) { if (!(r.n in firstAt)) firstAt[r.n] = el; });
+    if (!flipAt && s.sceneColor === BLUE) flipAt = el;
+    if (s.tub) tubSeen = true;
+    if (s.bubble && !bubbleSeen) bubbleSeen = s.bubble;
+    if (s.stage && (!s.btn.hidden || s.door !== 'hidden')) hiddenAll = false;
+    if (!s.stage) break;
+    await pa.waitForTimeout(120);
+  }
+  var a1 = await st(pa), id1 = a0.asks[0] && a0.asks[0].id, r1 = rowsOf(a1, id1);
+  console.log('   first ask:', JSON.stringify({ at: firstAt, flip: flipAt, rows: r1.map(function (r) { return r.n + ' ' + r.label + ' ' + r.text + (r.tail ? ' [' + r.tail + ']' : ''); }), bubble: bubbleSeen }));
+  ok(a0.asks.length === 1 && a0.saved === 1 && a0.color === BLUE && a0.copy === BLUE && a0.sceneColor === RED && !a0.open && a0.active && !!a0.stage, '[물어보기]: 물음 · 몸 색을 바로 한 번에 저장 · 시트 닫힘 · 장면 문어는 아직 빨강 (연출이 끝날 때까지 옛 색)');
+  ok(hiddenAll, '연출 중엔 거울 단추와 놀이방 문 단추가 숨는다');
+  ok(firstAt[1] !== undefined && firstAt[2] > firstAt[1] && firstAt[3] > firstAt[2] && flipAt > firstAt[2] && flipAt <= firstAt[3] && tubSeen, '행이 박자에 맞춰 붙는다: 행 1 → (숨 고르기 · 움츠림) → 대답 → (대야 · 첨벙에서 파랑) → 몸 색 ' + JSON.stringify(firstAt) + ' · 첨벙 ' + flipAt + ' ms');
+  ok(r1.length === 3 && r1[0].label === '미용실' && r1[0].text === '파란색 어때? 하고 물어봤어.' && !r1[0].voice && r1[1].label === '대답' && r1[1].text === '응, 해 볼래.' && r1[1].voice && r1[1].expr === 'happy' && !r1[1].raw &&
+    r1[2].label === '몸 색' && r1[2].text === '뚜루 몸이 파란색이 됐어.' && r1[2].tail === '데모 규칙', "행 셋: '미용실' 파란색 어때? 하고 물어봤어. → '대답' 응, 해 볼래. (문어 목소리 · 웃는 초상) → '몸 색' 뚜루 몸이 파란색이 됐어. + 꼬리 '데모 규칙'");
+  var lastC = a1.colors[a1.colors.length - 1];
+  ok(a1.color === BLUE && a1.sceneColor === BLUE && lastC.how === 'salon' && lastC.by === 'demo-rules' && lastC.ask === id1 && a1.asks[0].action === 'dye' && a1.asks[0].by === 'demo-rules' && !a1.active && !a1.stage && !a1.btn.hidden && a1.door !== 'hidden' && !a1.tub,
+    "끝: 몸 색 파랑 · colors 마지막 { how: 'salon', by: 'demo-rules', ask } · 대야 없음 · 거울 단추 · 놀이방 문 다시");
+  ok(bubbleSeen === '응, 해 볼래.', '대답 말풍선 (' + bubbleSeen + ')');
+
+  /* 5. 같은 날 다시 톡 → 토스트만 (시트 없음) */
+  await clickSpot(pa, '#btn-salon'); await pa.waitForTimeout(400);
+  var a2 = await st(pa);
+  ok(!a2.open && a2.toast === '내일 또 물어볼 수 있어.' && a2.asks.length === 1, "오늘 이미 물었으면 거울 톡 = 토스트 '내일 또 물어볼 수 있어.' (시트 없음 · 기록 그대로)");
+
+  /* 6. 11-10: 답 = 데모 규칙 시드 ('그대로') · 연출 중 새로고침 → 행 셋이 한 번씩 · 연출 없음 · 색 그대로 */
+  await setDay(pa, D2);
+  var want2 = await pa.evaluate(function (d) { return SALON.demoAnswer({ dateKey: d, name: '뚜루', born: APP.state.octopus.born, asksBefore: 1 }); }, D2);
+  await openSheet(pa); await pa.click('#salon-bottles .bottle[data-hex="' + GREEN + '"]'); await pa.click('#salon-ask');
+  await pa.waitForFunction(function () { return APP.salonStage && APP.salonStage.n >= 1; }, null, { timeout: 5000 });
+  var mid = await st(pa);
+  await pa.reload(); await pa.waitForSelector('#btn-go:not(.away)', { timeout: 20000 }); await pa.waitForTimeout(900);
+  var a3 = await st(pa), ask2 = a3.asks[1] || {}, r2 = rowsOf(a3, ask2.id);
+  console.log('   11-10:', JSON.stringify({ want: want2, ask: ask2, rows: r2.map(function (r) { return r.n + ' ' + r.text + (r.tail ? ' [' + r.tail + ']' : ''); }), midRows: rowsOf(mid, ask2.id).length }));
+  ok(want2.action === 'keep' && ask2.action === want2.action && ask2.line === want2.line && ask2.by === 'demo-rules' && ask2.date === D2, "11-10 답 = SALON.demoAnswer({ dateKey, name, born, asksBefore: 1 }) ('" + want2.action + "' · " + want2.line + ')');
+  ok(rowsOf(mid, ask2.id).length < 3 && r2.length === 3 && r2.map(function (r) { return r.n; }).join() === '1,2,3' && r2[0].text === '초록색 어때? 하고 물어봤어.' && r2[1].text === want2.line && r2[2].text === '색은 그대로야.' && r2[2].tail === '데모 규칙',
+    "연출 중 새로고침 → 행 셋이 한 번씩 (초록색 어때? · " + want2.line + " · 색은 그대로야. + '데모 규칙')");
+  ok(!a3.stage && !a3.active && !a3.tub && a3.color === BLUE && a3.sceneColor === BLUE && !a3.rows.some(function (r) { return r.id === id1; }), '새로고침은 연출을 다시 하지 않는다 · 몸 색 그대로 (파랑) · 지난 날 행은 오늘 칸에 없다');
+
+  /* 7. 그 병은 11-10 … 11-16 쉬고 11-17 에 열린다 (시트: aria-disabled · 이름 줄 · [물어보기] 꺼짐) */
+  await setDay(pa, D3);
+  await openSheet(pa);
+  var g0 = await sheet(pa), gb = g0.bs.filter(function (b) { return b.hex === GREEN; })[0] || {};
+  await pa.click('#salon-bottles .bottle[data-hex="' + GREEN + '"]', { force: true }); await pa.waitForTimeout(200);
+  var g1 = await sheet(pa);
+  var rest = await pa.evaluate(function (G) { var out = {}; ['2026-11-10', '2026-11-13', '2026-11-16', '2026-11-17'].forEach(function (d) { out[d] = SALON.bottles(APP.state, d).filter(function (b) { return b.hex === G; })[0].resting; }); return out; }, GREEN);
+  ok(gb.dis === 'true' && gb.label === '초록, 며칠 뒤에 물어볼 수 있어' && g1.name === '이 색은 며칠 뒤에 물어볼 수 있어.' && g1.ask === 'true' && g1.offer === null, "'그대로' 한 초록 병: aria-disabled · '초록, 며칠 뒤에 물어볼 수 있어' · 이름 줄 '이 색은 며칠 뒤에 물어볼 수 있어.' (남은 날 수는 숨김)");
+  ok(rest['2026-11-10'] && rest['2026-11-13'] && rest['2026-11-16'] && !rest['2026-11-17'], '쉼: 11-10 … 11-16 쉬고 11-17 에 열림 ' + JSON.stringify(rest));
+
+  /* 8. 11-11 모션 줄이기: [물어보기] → 행 3 까지 4.5 s 안 · 걷기 · 폴짝 · 물보라 없음 */
+  await pa.keyboard.press('Escape'); await pa.waitForSelector('#salon-sheet[open]', { state: 'hidden' });
+  await pa.click('#btn-settings'); await pa.waitForSelector('#settings-sheet[open]'); await pa.selectOption('#set-motion', 'reduce'); await pa.click('#set-close'); await pa.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  await pa.evaluate(function () { APP.scene.jumpTo('window'); APP.oct.anchor = 'window'; APP.octState('idle'); });   /* 거울에서 떨어진 곳에서 묻는다 (모션 줄이기면 걷지 않고 그 자리로) */
+  await openSheet(pa); await pa.click('#salon-bottles .bottle[data-hex="' + PINK + '"]');
+  await pa.evaluate(function () {
+    var Y = window.__ys = { walk: false, hop: 0, splash: false, t0: 0, t3: 0, id: null };
+    document.getElementById('salon-ask').addEventListener('click', function () { if (!Y.t0) Y.t0 = performance.now(); }, true);
+    Y.iv = setInterval(function () {
+      if (!Y.t0) return;
+      var s = APP.salonStage; if (s && !Y.id) Y.id = s.id;
+      if (APP.oct.state === 'walk') Y.walk = true;
+      var m = APP.scene.motion(); Y.hop = Math.max(Y.hop, Math.abs(m.hop || 0)); if (m.salon && m.salon.splash) Y.splash = true;
+      if (Y.id && !Y.t3 && document.querySelector('#log .lrow[data-salon="' + Y.id + '"][data-n="3"]')) Y.t3 = performance.now();
+    }, 25);
+  });
+  await pa.click('#salon-ask');
+  var rEnd = await waitStageEnd(pa, 20000);
+  var ys = await pa.evaluate(function () { clearInterval(window.__ys.iv); return window.__ys; }), a4 = await st(pa), ask3 = a4.asks[2] || {};
+  console.log('   reduced:', JSON.stringify({ ms: Math.round(ys.t3 - ys.t0), walk: ys.walk, hop: ys.hop, splash: ys.splash, ask: ask3.action + ' ' + ask3.line }));
+  ok(rEnd && ys.t3 > 0 && ys.t3 - ys.t0 <= 4500, '모션 줄이기: [물어보기] → 행 3 까지 ' + Math.round(ys.t3 - ys.t0) + ' ms (4.5 s 안)');
+  ok(!ys.walk && ys.hop === 0 && !ys.splash, '모션 줄이기: 걷기 · 폴짝 · 물보라 없음 (리듬만 남는다)');
+  ok(ask3.action === 'dye' && a4.color === PINK && a4.sceneColor === PINK, "11-11 '바꾸기' → 분홍 (장면도)");
+  var gives = await pa.evaluate(function () { var S = APP.state; return { lantern: S.room.lantern, days: S.octopus.days.length, souvenirs: S.room.souvenirs.length, invites: S.octopus.invites, trips: S.trips.length, affinity: Object.keys(S.octopus.affinity).length, notes: S.curiosityNotes.length }; });
+  ok(gives.lantern === 2 && gives.days === 2 && gives.souvenirs === 0 && gives.invites === 2 && gives.trips === 0 && gives.affinity === 0 && gives.notes === 0, '미용실은 아무것도 주지 않는다: 물음 셋 뒤에도 등불 · 함께한 날 · 기념품 · 초대 수 · 취향 · 메모 그대로 ' + JSON.stringify(gives));
+  await pa.click('#btn-settings'); await pa.waitForSelector('#settings-sheet[open]'); await pa.selectOption('#set-motion', 'auto'); await pa.click('#set-close'); await pa.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+
+  /* 9. 11-12: 연출 중 주 버튼 → 남은 연출을 한 번에 (새 색 · 대야 없음 · 행 셋) · 초대는 평소대로 → 돌아와 자는 문어는 거울 톡에 '쿨쿨…' 만 */
+  await setDay(pa, D4);
+  var want4 = await pa.evaluate(function (d) { return SALON.demoAnswer({ dateKey: d, name: '뚜루', born: APP.state.octopus.born, asksBefore: 3 }); }, D4);
+  await openSheet(pa); await pa.click('#salon-bottles .bottle[data-hex="' + ORANGE + '"]'); await pa.click('#salon-ask');
+  await pa.waitForFunction(function () { return APP.salonStage && APP.salonStage.n >= 2; }, null, { timeout: 8000 }).catch(function () {});
+  await pa.click('#btn-go');
+  var a5 = await st(pa), ask4 = a5.asks[3] || {}, r4 = rowsOf(a5, ask4.id), col4 = want4.action === 'dye' ? ORANGE : PINK;
+  ok(!a5.stage && !a5.active && !a5.tub && r4.length === (want4.line ? 3 : 2) && r4[r4.length - 1].n === 3 && a5.color === col4 && a5.sceneColor === col4,
+    '연출 중 주 버튼 → 끝 상태로 감김 (행 ' + r4.map(function (r) { return r.n; }).join() + ' · 몸 색 ' + a5.sceneColor + ' · 대야 없음)');
+  var went = await pa.waitForSelector('#btn-go.away', { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+  ok(went, '…그리고 초대는 평소대로 (다녀오는 중…)');
+  await skipAway(pa); await waitIdle(pa);
+  await pa.waitForFunction(function () { return APP.oct.state === 'sleep'; }, null, { timeout: 15000 }).catch(function () {});
+  await pa.evaluate(function () { if (APP.oct.state !== 'sleep') APP.octState('sleep'); });   /* 빈 차례였으면 (자지 않는다) 잠든 문어로 */
+  await pa.waitForTimeout(400);
+  var z0 = await st(pa);
+  await clickSpot(pa, '#btn-salon'); await pa.waitForTimeout(300);
+  var z1 = await st(pa);
+  ok(z0.oct === 'sleep' && !z0.btn.hidden && !z1.open && z1.bubble === '쿨쿨…' && z1.oct === 'sleep' && !z1.toast, "자는 문어: 거울 단추는 보이고, 누르면 말풍선 '쿨쿨…' 만 (깨우지 않음 · 시트 · 토스트 없음)");
+
+  /* 10. 앨범 '일기': 물음만 있는 지난 날 (11-10) · 날 머리 '· 1건' · 행 셋 */
+  await openAlbum(pa); await pa.click('.fchip[data-f="diary"]'); await pa.waitForTimeout(300);
+  if (await pa.$('#album-diary details[data-day="' + D2 + '"]:not([open])')) await pa.click('#album-diary details[data-day="' + D2 + '"] > summary');
+  await pa.waitForTimeout(300);
+  var dy = await pa.evaluate(function (d) {
+    var det = document.querySelector('#album-diary details[data-day="' + d + '"]'); if (!det) return null;
+    var rows = [].map.call(det.querySelectorAll('.lrow[data-salon]'), function (r) { return r.getAttribute('data-n') + ' ' + (r.querySelector('.ltool') || {}).textContent; });
+    return { sum: det.querySelector('summary').textContent, rows: rows, trips: det.querySelectorAll('.lrow:not([data-salon])').length };
+  }, D2);
+  console.log('   diary 11-10:', JSON.stringify(dy));
+  ok(dy && /· 1건$/.test(dy.sum) && dy.rows.join('|') === '1 미용실|2 대답|3 몸 색' && dy.trips === 0, "앨범 '일기': 물음만 있는 지난 날도 나오고 (· 1건) 행 셋 (미용실 · 대답 · 몸 색)");
+  await closeAlbum(pa);
+  await A.ctx.close();
+
+  /* 11. file:// (자동 개발 모드 — #demo 는 보임): 등불 1칸엔 거울 없음 · ?dev=1 이 없으면 '다음 미용실 대답' · '바로 바꾸기' 없음 → ?dev=1&scene=2d: 있음 · '그대로' (사람이 정함) · '바꾸기' (2D 몸 색) */
+  var F = await open({ file: true, rec: REC(1) }), pf = F.page;
+  await pf.goto(INDEX); await pf.waitForSelector('#btn-go:not(.away)', { timeout: 20000 }); await pf.waitForTimeout(600);
+  var f0 = await pf.evaluate(function () { APP.openSettings(); var o = { btn: document.getElementById('btn-salon').hidden, dv: !!document.getElementById('dv-salon'), dev: !!document.getElementById('set-color-dev'), demo: !document.getElementById('demo').hidden, explicit: APP.devExplicit }; document.getElementById('settings-sheet').close(); return o; });
+  ok(f0.btn && !(await hasItem(pf, 'salon')) && !f0.dv && !f0.dev && f0.demo && !f0.explicit, "등불 1칸: 거울 단추 · 소품 없음 · file:// 에서 ?dev=1 이 없으면 '다음 미용실 대답' · '바로 바꾸기' 없음 (#demo 는 보임) " + JSON.stringify(f0));
+  await pf.evaluate(function (r) { return APP.importJSON(JSON.stringify(r)); }, REC(2));
+  await pf.goto(INDEX + '?dev=1&scene=2d'); await pf.waitForSelector('#btn-go:not(.away)', { timeout: 20000 }); await pf.waitForTimeout(600);
+  var f1 = await pf.evaluate(function () { APP.openSettings(); var o = { mode: APP.sceneMode, btn: !document.getElementById('btn-salon').hidden, spot: document.getElementById('btn-salon').dataset.spot, dv: !!document.getElementById('dv-salon'), chips: [].map.call(document.querySelectorAll('[data-salon-next]'), function (b) { return b.textContent + ':' + b.getAttribute('aria-pressed'); }).join(','), dev: (document.getElementById('set-color-dev') || {}).textContent }; document.getElementById('settings-sheet').close(); return o; });
+  ok(f1.mode === '2d' && f1.btn && f1.spot === 'over' && f1.dv && f1.chips === '규칙대로:true,바꾸기:false,그대로:false,대답 없음:false' && f1.dev === '개발용 · 바로 바꾸기', "?dev=1 (2D): 거울 단추 · '다음 미용실 대답' (규칙대로 · 바꾸기 · 그대로 · 대답 없음) · '바로 바꾸기' " + JSON.stringify(f1));
+  await pf.click('#demo summary').catch(function () {});
+  await pf.evaluate(function () { document.getElementById('demo').open = true; });
+  await pf.click('[data-salon-next="keep"]');
+  await openSheet(pf); await pf.click('#salon-bottles .bottle[data-hex="' + BLUE + '"]'); await pf.click('#salon-ask');
+  var e1 = await waitStageEnd(pf, 30000), k1 = await st(pf), hk = k1.asks[k1.asks.length - 1] || {}, rk = rowsOf(k1, hk.id);
+  var chipBack = await pf.evaluate(function () { return (document.querySelector('[data-salon-next][aria-pressed="true"]') || {}).textContent; });
+  ok(e1 && hk.by === 'human' && hk.action === 'keep' && hk.line === null && rk.map(function (r) { return r.n; }).join() === '1,3' && rk[1].text === '색은 그대로야.' && rk[1].tail === '사람이 정함' && k1.color === RED && chipBack === '규칙대로',
+    "개발용 '다음 대답: 그대로' → by 'human' · 문어 행 · 말풍선 없음 · 꼬리 '사람이 정함' · 한 번 쓰면 '규칙대로' 로 " + JSON.stringify({ by: hk.by, rows: rk.map(function (r) { return r.n + ' ' + r.text + ' [' + r.tail + ']'; }), chip: chipBack }));
+  await setDay(pf, D2);
+  await pf.click('[data-salon-next="dye"]');
+  await openSheet(pf); await pf.click('#salon-bottles .bottle[data-hex="' + GREEN + '"]'); await pf.click('#salon-ask');
+  var e2 = await waitStageEnd(pf, 40000), k2 = await st(pf), hd = k2.asks[k2.asks.length - 1] || {}, rd = rowsOf(k2, hd.id);
+  ok(e2 && hd.by === 'human' && hd.action === 'dye' && rd.map(function (r) { return r.n; }).join() === '1,3' && rd[1].text === '뚜루 몸이 초록색이 됐어.' && rd[1].tail === '사람이 정함' && k2.color === GREEN && k2.sceneColor === GREEN,
+    "2D 장면 · 개발용 '바꾸기' → 대야 연출 뒤 2D 문어도 초록 · 행 1 · 3 (사람이 정함) " + JSON.stringify({ scene: k2.sceneColor, rows: rd.map(function (r) { return r.n + ' ' + r.text; }) }));
+  await F.ctx.close();
+  reportErrors(bag, 'Y');
+}
+
 /* J. 8물결 놀이방 (카드 18 · 주인 11-07 "방 클릭하면 … 그 방문 앞으로 가면 끼익 열리면서 다른 방으로"): 플레이어 화면(가짜 http 호스트 + ?dev=0).
  *   다락 안 놀이방 문(#btn-door — 3D 문 위 투명 단추, 장면 안 · 44px 이상) → 문 소리 open 한 번 → 가로 전환(위아래 움직임 없음 · 정수 px) → 놀이방 ('문어 방' · '다락방 달리기' 단추) → close.
  *   오락기 → 달리기 창 → 닫으면 오락기로 포커스 · 놀이방 그대로 · 키보드 Tab/Enter 왕복 · 저장(S)은 놀이방에서 한 일로 1 바이트도 안 바뀐다.
@@ -2436,6 +2909,7 @@ function glyphGuardInit() {
       if (t.by === 'legacy' && t.poster) add(t.poster.title);
     });
     (S.curiosityNotes || []).forEach(function (n) { if (n.by === 'model' || n.by === 'human') add(n.text); });
+    ((S.salon && S.salon.asks) || []).forEach(function (a) { if (a && a.by === 'model') add(a.line); });   /* 미용실: 모델이 준 대답 말 (행 2 · 말풍선 — 그대로) */
     return out;
   }
   function fromSource(text, src) {

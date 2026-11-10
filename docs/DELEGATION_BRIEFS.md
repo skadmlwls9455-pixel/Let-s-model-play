@@ -49,6 +49,8 @@
 | Blender 가 있으면 | 10 픽셀 소품 (모양 참고판) | 게임에 붙지 않는 참고 그림이라 급하지 않다 | **로컬** |
 | 12일째쯤 (11-16) | 5 접근성·성능 점검 | 거의 다 된 게임으로 잰다. 건네기 전에 고칠 줄: localhost 는 개발 모드가 켜지니 `?dev=0` (2D 는 `?scene=2d&dev=0`) 로 플레이어 화면을 잰다 | 어디서나 (`python3 -m http.server`) |
 | 나중 | 1 같이 낙서 · 2 지도 | 사람 시험 뒤. 1 을 줄 때 결과에 판 id · 다 그린 판 · 이름 붙임 표시를 더한다 (ACHIEVEMENTS §9.3) | 클라우드 |
+| 주 세션이 직접 (11-09) | 21 미용실 장면 · 22 미용실 앱 | 주인 11-08 밤 '미용실'. 21 은 1부 (983d436) 로 끝났고, 22 는 2부로 주 세션이 한다 (장면 → 앱 열쇠 차례). 두 카드는 기록이고, 다시 맡길 일 (v2 대야 속 잠수 · 고침) 이 생기면 바탕으로 쓴다 | 주 세션 |
+| 미용실 2부 커밋 뒤 | 23 미용실 소리 짝 | 앱이 `AUDIO.on('salon', …)` 을 부르기 시작한 뒤. `js/audio.js` 는 요리 작업이 고치는 중이라 그 작업이 합쳐진 뒤에 준다 | 소리 세션 |
 | 끝남 · 안 줌 | 3 · 4 · 6 | 3 MCP 초안: 주지 않는다 (9 가 대신한다) · 4 자동 테스트: 합쳤다 (5f5f611) · 6 라이트 테마 대비: 합쳤다 (3a1a720). 남은 건 주인이 고르는 일뿐이다 (NIGHT_LOG 결정거리 4, `docs/research/light-contrast/proposal.md`) | — |
 
 ---
@@ -1083,6 +1085,115 @@ ctx = { lantern, album: { posters, souvenirs }, sofa, octOn, sideBuild } — 부
   덤 검수: 필터가 팔레트 안 · 외곽선 2색 · document.fonts.check('8px Galmuri7', 문구) 참 · 띠 글자 번짐 0 · 가짜 pose 기록이 있을 때만 '포즈 놀이' · 셔터 → 사진첩 1장 → 새로고침 → 지우기 → 되돌리기.
 멈춤: 1)·2) 와 위 검수가 초록이고 PHOTO_PROTO.md 가 차면 (하루에 못 다 하면 위 '순서' 대로 멈춘 데까지) draft PR (feat/photo-furniture → ccr-38ad393e-15xr9t) 을 연다. 덤은 안 해도 된다 —
   하면 같은 PR 에 따로 커밋하고 덤 검수까지 초록이면 멈춘다. '하지 말 것' 의 일로 넓히지 않고 PR 설명 '다음에' 에 적는다. 장면·본 게임 잇기는 열쇠 차례 (11~13일째) 에 이 세션이 한다.
+```
+
+---
+
+## 카드 21. 미용실 장면 — 다락 거울 코너 · 염색 연출 (2026-11-09 · 주인 11-08 밤)
+
+> **11-09 끝남 — 미용실 1부 (983d436) 에서 주 세션이 했다.** 이 카드는 지금 주지 않는다. 남은 v2 (대야 속 잠수) 를 맡길 때 아래 블록의 '다음' 을 목표로 바꿔 준다. 장면 API 는 `docs/SALON.md` §2 · §8.2 · `docs/SCENE.md` '미용실 거울 코너'.
+
+언제: 끝남 (v2 는 스크린샷 확인 뒤) · 크기 **M** · 장면 묶음 열쇠 (`js/scene3d.js` · `js/scene2d.js`)
+
+```text
+카드 21. 미용실 장면 — 다락 거울 코너 · 염색 연출 (docs/SALON.md §2 · §8.2 · §9.4, 2026-11-09)
+브랜치: salon/scene
+맡는 파일: js/scene3d.js, js/scene2d.js, tools/test-scene-perf.js (T6 만)
+읽기만: js/salon.js (SALON.PRESETS 순서 · MIRROR_LEVEL), js/palettes.js, js/app.js, index.html, css/style.css
+먼저 읽기: docs/SALON.md (전부 — 특히 §0 · §2 · §3.4 · §8.2 · §9.4 · §14), docs/SCENE.md (앵커 · 초상 · '방 셋 · 놀이방' 의 hotspots), docs/MODEL_VOICE.md
+주인 11-08 밤 (원문 일부): "…처음에 선택한 이후로는 사용자가 못 바꾸게 픽스하는 건 별로일까? 흠...... 대신 이 색으로 염색해볼까? 이런 식으로 미용실 컨텐츠 추가하는 거야."
+목표: 다락 뒷벽 왼쪽 칸 (샛기둥 x −1.9 · −0.9 사이) 에 아치 거울 + 물감 병 6 + (연출 동안만) 대야. 등불 2칸 (items 'salon') 부터 말 없이.
+  문어 자리 ANCHORS.salon (−1.75, 0, −1.1) 은 거울 옆 (유리 60 % 이상 보임). 누르는 곳 'salon' (hotspots · setSalonOpen · pick 맨 끝).
+  salonOffer(hex|null) 병이 앞으로 · 눈이 병으로 / salonDye(hex, { joy, look, pause|id, onBeat }) → Promise: 대야 → 병 → 멈춤 → 붓기 → 제자리 폴짝 →
+  첨벙 (둘째 칸에서 색) → 털기 → (joy) → (look) → 치우기 / salonKeep() → Promise / salonFinish() / setOctState('ponder') / setColor(hex, { still }) /
+  portrait(expr, { color }) / color() / motion().salon. 2D 도 같은 이름 (대야 속 폴짝 없음, 색 2칸).
+지킬 선:
+- 대답 전에 몸을 미리 칠하지 않는다 (병만 앞으로). 마음 바꾸기를 꾸미지 않는다: 숨 고르기 · 움츠림은 두 답이 같고, 다가가기는 '바꾸기' 일 때만.
+- 폴짝 · 반짝 · 거울 보기는 앱이 넘긴 joy · look 일 때만 (고른 이가 happy · 표정을 줬을 때). '그대로' 는 병이 돌아가고 몸을 카메라 쪽으로 — 시무룩 · 고개 숙임 없음.
+- 장면은 AUDIO 를 부르지 않는다 (박자 알림 on.salon · onBeat 만). 새 재질 · 새 셰이더 없음 (장면 인스턴스 lambert · basicV). 레이어 0 만 (초상에 안 샌다).
+- Promise 는 늘 풀린다 (숨은 탭 · 화면 밖 · 컨텍스트 잃음 · 문 · 의식 · 코너 사라짐 → 끝 상태로). 모션 줄이기 = 움직임 없이 칸만, 리듬은 남긴다.
+하지 말 것: js/app.js · index.html · css/style.css 고치기 (앱은 카드 22). 대야 속 잠수 (v2). 늘 바닥에 있는 대야 (걷는 길을 막는다). 새 코드에 Math.random.
+검수: tools/test-scene-perf.js T6 (docs/SALON.md §9.4 전부 — 드로우콜 기준 + 8 / + 16 · ≤ 150 · 셰이더 그대로 · 초상 픽셀 같음 · 병 · 물 색상 ±25° · 코너 밖 픽셀 0),
+  미용실 API 를 안 부르면 장면이 그 전과 같음 (3D 프레임 · 초상 비교 0 차이), npm test 초록, subset-fonts.py --check.
+멈춤: T6 이 초록이면 끝. 앱 쪽 (시트 · 기록 · 소리) 으로 넓히지 않는다.
+다음 (지금 하지 않는다): v2 대야 속 잠수 — docs/SALON.md §2.1 끝의 맞는 값 (대야 r 0.48–0.5 · 테 0.20–0.22 · 몸 x/z 0.9 배 · 팔 접기 ·
+  0.05–0.08 m 가라앉기 · 폴짝 꼭대기 0.65 r 이상). 스크린샷 확인 뒤.
+```
+
+---
+
+## 카드 22. 미용실 앱 — 몸 색 잠금 · 거울 단추 · 병 시트 · 묻기 · 연출 · 로그 줄 (2026-11-09 · 주인 11-08 밤)
+
+> **미용실 2부 — 주 세션이 직접 한다 (11-09).** 이 카드는 그 일의 계약 요약이고, 주지 않는다. 다시 맡길 일 (고침 · 모델 길) 이 생기면 이 블록을 바탕으로 쓴다.
+
+언제: 2부 (카드 21 = 1부 983d436 뒤, 문어 톡 작업 0f584fd 뒤) · 크기 **M + M** · app.js 묶음 열쇠
+
+```text
+카드 22. 미용실 앱 — 몸 색 잠금 · 거울 단추 · 병 시트 · 묻기 · 연출 · 로그 줄 (docs/SALON.md §1 · §3 · §7 · §8.3 · §9.2 · §9.3 · §9.5, 2026-11-09)
+브랜치: salon/app
+맡는 파일: js/app.js, index.html, css/style.css, js/runner.js (한 줄), tools/smoke.js, tools/test-model-voice.js, tools/test-audio.js
+읽기만: js/salon.js (규칙은 여기 — 앱은 글을 짓지 않고 SALON.TEXT 를 쓴다), js/scene3d.js, js/scene2d.js, js/brain.js, js/audio.js
+먼저 읽기: docs/SALON.md (전부), docs/MODEL_VOICE.md, docs/DESIGN.md §7.1 · §7.5 · §7.8 · §8 · §14,
+  docs/OWNER_DECISIONS.md '주인 답 (11-08 밤: 문어 색은 처음 한 번 · 미용실에서 문어에게 묻기)'
+목표 (차례대로):
+1. 몸 색 잠금 (§1): 이름 창에 색 6칸 (창 안 초상만 다시 찍음 · 장면은 저장 때 한 번) · 설정은 거울 뒤 안내 한 줄 · 개발용 '바로 바꾸기' 는 DEV_EXPLICIT
+   (?dev=1 을 직접 붙인 탭) 만 · setOctColor(hex, meta) 하나로 · applyLook · octopus.color 하나에서 읽기 (settings.octColor 는 사본) · SALON.normalize (v1 결과 포함) · runner.js 한 줄.
+2. 미용실 (§3): #btn-salon (index.html #btn-machine 뒤, ROOM_SPOT · setSalonOpen) · #salon-sheet (뒤 막 없음, 병은 SALON.bottles) · [물어보기] = 다시 읽고 SALON.canAsk →
+   SALON.demoAnswer / humanAnswer → makeAsk → commit → save() 한 번 → salonActive → 행 1 → 숨 고르기 1.0 s + ponder 0.5 s → SALON.staging 대로 salonDye / salonKeep → 행 2 · 3.
+   로그 행 (SALON.rows, dayRows · diaryDays) · 다른 탭 (SALON.merge) · 개발용 '다음 미용실 대답' · 소리 훅.
+지킬 선:
+- MODEL_VOICE: 고르기 전에 끌지 않는다 (시트를 열어도 문어는 하던 대로) · 고른 것 (행동 · 말 · 표정) 을 바꾸지 않는다. keep 이 첫째, 이유를 묻지 않고, 받은 답을 다시 묻지 않는다.
+- '그대로' 는 담담하게 (시무룩 · 죄책 대사 · 마음 바꾸기 연출 없음). 코드가 짓는 글은 사실만 (SALON.TEXT). 데모 줄은 늘 보이는 '데모' 꼬리표 아래에서만.
+- 하루 한 번 (로컬 날짜, 대답이 무엇이든) · '그대로' 한 색 7일 쉼 · 처음 한 번은 꼭 '바꾸기' · 거울은 등불 2칸부터 — 모두 이름 있는 상수 (주인이 바꿀 수 있다).
+  결정은 시드로, Math.random 0.
+- 미용실은 아무것도 주지 않는다 (조개 · 등불 · 배지 · 함께한 날 · 모으기 칸 없음). 대답을 affinity · 두뇌 · 산책 요청에 넣지 않는다. js/dialogue-stub.js 는 따로 둔다.
+- 톡 한 줄 (0f584fd) 과 잇기: 연출 동안 on.tap 은 톡 한 줄도 깨우기도 없다. 깨어 있는 틈 (rest · sessionStorage ppolppol_rest) 이 연출 중에 끝나도
+  연출이 끝난 뒤에 눕는다. 자는 문어에겐 '쿨쿨…' 만 (깨우지 않는다).
+- 소리 훅은 window.AUDIO && AUDIO.on && AUDIO.on('salon', { act, … }) (§3.9). 장면 박자 알림을 그 표의 이름으로 넘긴다.
+- 화면 글자: 이모지 · 꾸밈 기호 없음, 새 글은 KS X 1001 음절만. 설정 시트는 맨 위 '문어 색' 칸만 고친다 (맨 아래 '만든 것들' 은 요리 작업 몫).
+하지 말 것: 요리 작업 파일 (js/cook*.js · css/cook.css · cook.html · js/audio.js · foley/ · credits.html · tools/test-cook*.js) · audio/ (소리 세션) · js/brain.js ·
+  진짜 모델 연결 (순수 함수만 — §6) · 대야 속 잠수 (v2) · 플레이어 화면의 색 고르는 칸.
+검수: npm test (test-salon · test-model-voice 포함) · node tools/test-audio.js · node tools/test-scene-perf.js · node tools/test-resume.js · node tools/test-play.js ·
+  SMOKE_ONLY 로 S (설정 · 다른 탭) · 첫 실행 · 미용실 시나리오 · U (글자) — docs/SALON.md §9.3, subset-fonts.py --check (stale: none),
+  node tools/bundle.js 뒤 dist/ppolppol.html 에서 미용실 한 번. 스모크 · 캡처가 다시 쓴 tests/evidence/ 는 되돌린다.
+멈춤: 위가 초록이면 끝. 모델 길 · v2 · 소리 짝 (카드 23) 으로 넓히지 않는다.
+다음 (지금 하지 않는다): 카드 23 소리 짝 (소리 세션) · 모델 연결 때 PROTOCOL §5 대로 (카드 9) · 앨범 '몸 색' 칩 줄 (나중 생각, 빈칸 없음).
+```
+
+---
+
+## 카드 23. 미용실 소리 짝 — `AUDIO.on('salon', { act })` (2026-11-09 · 소리 세션)
+
+언제: **미용실 2부 커밋 뒤** (앱이 훅을 부르기 시작한 뒤). `js/audio.js` 는 지금 요리 작업이 고치는 중이라 그 작업이 합쳐진 뒤에 준다 · 크기 **S** · 소리 세션 (`audio/` 는 소리 세션 하나만 고친다)
+**주 세션 쪽**: `audio/README.md` 는 소리 세션 것이라 'salon' 훅 표를 이 카드에 싣는다 (`docs/SALON.md` §3.9 와 같은 표). 소리 세션이 README §4 에 옮겨 적는다.
+
+```text
+카드 23. 미용실 소리 짝 — AUDIO.on('salon', { act }) (docs/SALON.md §3.9, 2026-11-09)
+브랜치: audio/salon
+맡는 파일: audio/ (README.md §4 '게임 쪽에서 정한 것' 에 'salon' 줄 · manifest.json · 새 소리 파일과 출처), js/audio.js 의 case 'salon' 한 칸 (+ 그 도우미)
+읽기만: js/app.js (미용실 섹션: 훅을 부르는 곳), js/salon.js, js/scene3d.js · js/scene2d.js (박자 알림 on.salon), docs/SALON.md §3.4 · §3.9, tools/test-audio.js
+먼저 읽기: docs/SALON.md §3 (흐름 · 대답 연출), docs/MODEL_VOICE.md, audio/README.md §3 · §4 · §7
+목표: 앱이 이미 부르는 훅에 소리를 짝짓는다. 지금 js/audio.js 는 모르는 이름 'salon' 을 default: break 로 넘겨 조용하다 (먼저 넣어도 안전했다).
+  훅 표 (앱이 부른다: window.AUDIO && AUDIO.on && AUDIO.on('salon', { act, … })):
+  | act                         | 언제                 | 처음 짝 제안                  |
+  | pick { color }              | 병을 골랐다          | ui_tap                        |
+  | ask                         | [물어보기]           | 짧은 줄 소리                  |
+  | answer { action, by, joy }  | 대답을 보였다        | 없음 (얼굴과 말풍선이 한다)   |
+  | tub { on }                  | 대야가 놓임 / 치워짐 | 나무 쿵 (작게)                |
+  | splash                      | 첨벙                 | 새 CC0 첨벙 (없으면 조용히)   |
+  | done { color, joy }         | 색이 바뀌었다        | joy 일 때만 mood_poljjak      |
+  | drain                       | 물이 빠진다          | (선택) 작은 물소리            |
+지킬 선:
+- '그대로' (keep) · 대답 없음 · joy: false 에는 기분 징글이 없다. 기쁨 소리는 고른 이가 happy 를 줬을 때만. '그대로' 를 아쉬운 소리로 꾸미지 않는다 (내려앉는 음 · 한숨 없음).
+- rare_sparkle 은 날마다 올 수 있는 일에 쓰지 않는다. 미용실은 아무것도 주지 않는다 — 보상 · 획득 소리 (coin_get · 등불 징글) 를 쓰지 않는다.
+- 건너뛰거나 탭이 숨어 끝으로 감긴 연출은 남은 박자가 오지 않는다 (done 에 skipped 가 실려 올 수 있다). 그때 못 낸 소리를 몰아서 내지 않는다.
+- 새 소리 파일은 CC0 또는 직접 합성, 출처는 README §7. 크기는 audio/src/export.py 잣대 그대로 (sheet_open · door_creak 와 같은 효과음 버스, 효과음 슬라이더를 따른다).
+- 모르는 act 는 조용하다. AudioContext 가 없어도 게임으로 오류를 던지지 않는다.
+하지 말 것: js/app.js · js/scene3d.js · js/scene2d.js · js/salon.js 고치기 (훅 이름 · 시점은 정해졌다 — 바꿀 게 보이면 PR 설명에), 요리 소리 (요리 작업 몫),
+  시트 여닫는 소리 (audio.js 가 dialog.sheet 를 보고 이미 낸다).
+검수: node tools/test-audio.js — AUDIO.on('salon', …) 이 던지지 않음 · joy: false 와 keep 에 기분 징글 없음 · act 마다 짝 (있으면) · 크기 · 길이. npm test 초록.
+멈춤: 위가 초록이면 draft PR (audio/salon → ccr-38ad393e-15xr9t) 을 열고 멈춘다.
+다음 (지금 하지 않는다): 모델이 붙어도 같은 규칙 (by: 'model' 이어도 소리는 고른 이가 준 표정만 따른다).
 ```
 
 ---
