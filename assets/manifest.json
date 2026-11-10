@@ -1078,5 +1078,125 @@
     "w": 32,
     "h": 32,
     "note": "헤엄 반응 스티커 「도착」 — 물안경 올린 문어가 깃발을 들고 도착함. 32×32, ×2·×3 정수 배로만 (js/play-stickers.js)."
+  },
+  "badge.hello": {
+    "src": "assets/badges/hello.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #1 「안녕, ○○」 — 테 flag · 등급 bronze. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.send_off": {
+    "src": "assets/badges/send_off.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #2 「잘 다녀와」 — 테 flag · 등급 bronze. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.days_7": {
+    "src": "assets/badges/days_7.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #5 「일곱 날 친구」 — 테 flag · 등급 silver. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.runner_first": {
+    "src": "assets/badges/runner_first.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #23 「상자에 콩!」 — 테 medal · 등급 bronze. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.runner_30": {
+    "src": "assets/badges/runner_30.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #24 「다락 단골」 — 테 medal · 등급 silver. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.my_look": {
+    "src": "assets/badges/my_look.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #26 「내 모습」 — 테 medal · 등급 bronze. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.place_first": {
+    "src": "assets/badges/place_first.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #27 「여기 어때?」 — 테 medal · 등급 bronze. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.place_10": {
+    "src": "assets/badges/place_10.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #28 「내 손으로」 — 테 medal · 등급 silver. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.first_10": {
+    "src": "assets/badges/first_10.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #32 「처음 가 본 곳 10곳」 — 테 drop · 등급 hidden. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.stay_home": {
+    "src": "assets/badges/stay_home.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #33 「오늘은 집」 — 테 drop · 등급 hidden. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.still_day": {
+    "src": "assets/badges/still_day.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #34 「가만히 있던 날」 — 테 drop · 등급 hidden. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "badge.eight_ways": {
+    "src": "assets/badges/eight_ways.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 #35 「여덟 갈래」 — 테 drop · 등급 hidden. 24×24, ×2 = 48px 로 (docs/ACHIEVEMENTS.md §6.2)."
+  },
+  "ribbon.bronze": {
+    "src": "assets/badges/ribbon_bronze.png",
+    "w": 16,
+    "h": 16,
+    "note": "등급 리본 (bronze) 16×16."
+  },
+  "ribbon.silver": {
+    "src": "assets/badges/ribbon_silver.png",
+    "w": 16,
+    "h": 16,
+    "note": "등급 리본 (silver) 16×16."
+  },
+  "ribbon.gold": {
+    "src": "assets/badges/ribbon_gold.png",
+    "w": 16,
+    "h": 16,
+    "note": "등급 리본 (gold) 16×16."
+  },
+  "ribbon.hidden": {
+    "src": "assets/badges/ribbon_hidden.png",
+    "w": 16,
+    "h": 16,
+    "note": "등급 리본 (hidden) 16×16."
+  },
+  "icon.coin": {
+    "src": "assets/badges/coin.png",
+    "w": 16,
+    "h": 16,
+    "note": "조개 동전 16×16 (×2 = 32px, 지갑 머리). 금빛 동전 테 안에 조개 무늬 — 기념품 조개껍데기와 다른 그림."
+  },
+  "icon.coin8": {
+    "src": "assets/badges/coin8.png",
+    "w": 8,
+    "h": 8,
+    "note": "조개 동전 8×8 (×2 = 16px, 글줄 안)."
+  },
+  "prop.badge.bell": {
+    "src": "assets/badges/prop_bell.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 소품 「배웅 종 (문가 벽걸이 — 소리 안 나는 장식)」 24×24 (2D 그림 — 3D 소품은 장면 쪽)."
+  },
+  "prop.badge.pebble_jar": {
+    "src": "assets/badges/prop_pebble_jar.png",
+    "w": 24,
+    "h": 24,
+    "note": "배지 소품 「조약돌 병 (함께한 날마다 조약돌 하나)」 24×24 (2D 그림 — 3D 소품은 장면 쪽)."
   }
 }
