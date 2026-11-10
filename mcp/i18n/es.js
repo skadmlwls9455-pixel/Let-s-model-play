@@ -6,7 +6,7 @@ function C(far) { return [].concat(far).join('|'); }
 
 var S = module.exports = {
   name: 'Español',
-  wiki: { ko: 'Wikipedia en coreano', en: 'Wikipedia en inglés', ja: 'Wikipedia en japonés', de: 'Wikipedia en alemán', fr: 'Wikipedia en francés', es: 'Wikipedia en español' },
+  wiki: { ko: 'Wikipedia en coreano', en: 'Wikipedia en inglés', ja: 'Wikipedia en japonés', de: 'Wikipedia en alemán', fr: 'Wikipedia en francés', es: 'Wikipedia en español', it: 'Wikipedia en italiano', pt: 'Wikipedia en portugués', id: 'Wikipedia en indonesio', hi: 'Wikipedia en hindi' },
   fixed: 'La persona puede acompañarte en el paseo o quedarse en casa; no se te dice cuál. ' +
     'Tú eliges el camino y qué leer, y lo que la persona hizo mientras tanto no te llega.',
   notesHead: 'Notas que dejaste en paseos anteriores:',

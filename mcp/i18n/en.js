@@ -6,7 +6,7 @@ function C(far) { return [].concat(far).join('|'); }
 
 var S = module.exports = {
   name: 'English',
-  wiki: { ko: 'Korean Wikipedia', en: 'English Wikipedia', ja: 'Japanese Wikipedia', de: 'German Wikipedia', fr: 'French Wikipedia', es: 'Spanish Wikipedia' },
+  wiki: { ko: 'Korean Wikipedia', en: 'English Wikipedia', ja: 'Japanese Wikipedia', de: 'German Wikipedia', fr: 'French Wikipedia', es: 'Spanish Wikipedia', it: 'Italian Wikipedia', pt: 'Portuguese Wikipedia', id: 'Indonesian Wikipedia', hi: 'Hindi Wikipedia' },
   fixed: 'The person may come along on the walk or stay home; you are not told which. ' +
     'You choose the route and what to read, and what the person did meanwhile is not passed on.',
   notesHead: 'Notes you left on earlier walks:',

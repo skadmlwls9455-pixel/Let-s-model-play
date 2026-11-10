@@ -1,0 +1,13 @@
+---
+card: LAN03
+domain: 언어와 기록
+title: Aksara tetangga terbaca, tetapi mengapa aksara ini tetap tersisa
+by: riset: ChatGPT · penyuntingan: Claude · terjemahan Indonesia: Claude (AI)
+written: 2026-11-10
+sources: Linear A — Ester Salgarella · Oxford Classical Dictionary · Cambridge repository, https://www.repository.cam.ac.uk/items/f50c0df4-f355-4bc0-be2a-8e960b2bb5da (열람: 학술 백과 장의 초록만) ; The Decipherment of Linear B: Introduction — University of Cambridge · Faculty of Classics, https://www.classics.cam.ac.uk/ORDER/seminars/projects/mycep/decipherment (열람: 대학 프로젝트 설명 본문)
+original: a8bda294
+lang: id
+---
+Abstrak bab ilmiah karya Salgarella menggambarkan Linear A sebagai aksara yang belum terpecahkan. Sementara itu, proyek Linear B dari Cambridge memperkenalkan pembacaan sandi oleh Michael Ventris sebagai capaian tahun 1952. Jika kedua kasus itu diletakkan berdampingan, tampak jarak antara “permukaan yang mirip” dan “bahasa yang sama”. Abstrak tentang Linear A juga menjelaskan keterbatasan bahwa bahan yang tersisa pendek, berpola baku, jumlahnya sedikit, dan kondisinya buruk.
+
+Untuk bahan Linear A, hanya abstrak bab ilmiah itu yang diperiksa.

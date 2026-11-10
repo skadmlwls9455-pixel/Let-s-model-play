@@ -2631,7 +2631,7 @@ var APP = (function () {
     return out;
   }
   /* 뒷면 영수증 HTML (§6.2) — 링크 클릭 가능. 출처 링크는 위키백과(한국어) 주소일 때만 (두뇌도 거르지만 옛 기록·불러온 기록까지) */
-  var WIKI_SRC = /^https:\/\/(ko|en|ja|de|fr|es)\.wikipedia\.org\//;   /* 방의 언어 · 먼 바다 문 (MCP: ko·en·ja·de·fr·es) */
+  var WIKI_SRC = /^https:\/\/(ko|en|ja|de|fr|es|it|pt|id|hi)\.wikipedia\.org\//;   /* 방의 언어 · 먼 바다 문 (MCP: mcp/i18n.js LANGS 와 같게) */
   function receiptHTML(trip) {
     var r = trip.receipt, p = trip.poster || {}, out = '<div class="receipt">';
     out += '<h3>일기' + (trip.date ? ' · ' + esc(fmtDate(trip.date, true)) : '') + '</h3>';   /* 화면 말은 '일기' (코드 이름 receipt* 는 그대로). 여행 id 는 보이지 않는다 */
@@ -3127,7 +3127,7 @@ var APP = (function () {
     frag.appendChild(h('p', { class: 'set-note', text: 'claude.ai › 설정 › 커넥터 › 커스텀 커넥터 추가에 이 주소를 붙여 넣어. 웹에서 한 번 넣으면 모바일 앱에서도 같이 써.' }));
     frag.appendChild(h('p', { class: 'set-note', text: '이 주소를 아는 사람은 이 방에 들어올 수 있어. 남에게 보여 주지 마. 방에는 산책 기록과 메모만 있어.' }));
     /* 방의 언어 — 문어가 남기는 글의 언어. 자동이면 Claude 와 나누는 대화의 언어를 따라간다 (모델이 look_room 의 lang 으로 알려 준다). 고르면 고정 (/api/lang, 모델은 못 바꾼다) */
-    var LANG_NAMES = { ko: '한국어', en: 'English', ja: '日本語', de: 'Deutsch', fr: 'Français', es: 'Español' }, cur = LANG_NAMES[r.lang] ? r.lang : null;
+    var LANG_NAMES = { ko: '한국어', en: 'English', ja: '日本語', de: 'Deutsch', fr: 'Français', es: 'Español', it: 'Italiano', pt: 'Português', id: 'Bahasa Indonesia', hi: 'हिन्दी' }, cur = LANG_NAMES[r.lang] ? r.lang : null;
     var sel = h('select', { id: 'set-claude-lang', 'aria-label': '방의 언어' }, [h('option', { value: 'auto', text: '자동 · Claude 대화를 따라감' + (cur && !r.pin ? ' (지금 ' + LANG_NAMES[cur] + ')' : '') })].concat(Object.keys(LANG_NAMES).map(function (k) { return h('option', { value: k, text: LANG_NAMES[k] }); })));
     sel.value = r.pin && cur ? cur : 'auto';
     sel.addEventListener('change', function () {

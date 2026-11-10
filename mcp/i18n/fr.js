@@ -6,7 +6,7 @@ function C(far) { return [].concat(far).join('|'); }
 
 var S = module.exports = {
   name: 'Français',
-  wiki: { ko: 'Wikipédia en coréen', en: 'Wikipédia en anglais', ja: 'Wikipédia en japonais', de: 'Wikipédia en allemand', fr: 'Wikipédia en français', es: 'Wikipédia en espagnol' },
+  wiki: { ko: 'Wikipédia en coréen', en: 'Wikipédia en anglais', ja: 'Wikipédia en japonais', de: 'Wikipédia en allemand', fr: 'Wikipédia en français', es: 'Wikipédia en espagnol', it: 'Wikipédia en italien', pt: 'Wikipédia en portugais', id: 'Wikipédia en indonésien', hi: 'Wikipédia en hindi' },
   fixed: 'La personne peut venir se promener avec toi ou rester à la maison ; on ne te dit pas lequel. ' +
     'Tu choisis le chemin et ce que tu lis, et ce que la personne a fait pendant ce temps n\'est pas transmis.',
   notesHead: 'Notes que tu as laissées lors des promenades précédentes :',

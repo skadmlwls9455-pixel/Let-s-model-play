@@ -15,7 +15,7 @@ var SHELF = (function () { try { return require('../js/shelf.js'); } catch (e) {
 var I18N = require('./i18n.js');   /* 방의 언어 (ko · en · ja) — 모델에게 가는 글 */
 BRAIN.setWorld(WORLD);
 /* 방 이름 · 방의 위키 제목을 다른 언어로 (mcp/tools/build-room-names.js 가 ko.wikipedia 의 언어 링크로 만든다). 없으면 ko 그대로 */
-/* 열람실 이름 · 위키 제목 (언어별): data/rooms.i18n.json (ko.wikipedia 언어 링크, tools/build-room-names.js) 위에 data/rooms.manual.json (손으로 적고 확인한 것 — 링크가 없거나 엉뚱한 방) 을 덮는다 → 모든 방이 여섯 언어 전부 (시험이 본다) */
+/* 열람실 이름 · 위키 제목 (언어별): data/rooms.i18n.json (ko.wikipedia 언어 링크, tools/build-room-names.js) 위에 data/rooms.manual.json (손으로 적고 확인한 것 — 링크가 없거나 엉뚱한 방) 을 덮는다 → 모든 방이 열 언어 전부 (시험이 본다; manual 의 wiki:null = 그 위키에 글이 없다고 확인한 것) */
 var ROOMS_I18N = (function () {
   function rd(f) { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'data', f), 'utf8')); } catch (e) { return {}; } }
   var auto = rd('rooms.i18n.json'), manual = rd('rooms.manual.json'), out = {};
@@ -142,7 +142,7 @@ function cleanSource(r, lang) {
    사람이 쓴 짧은 책. 방에 책이 있으면 위키 대신 그 책을 읽는다 (네트워크 없음 · 크기 고정).
    책은 '자료' 다: 누가 썼는지 (by) 를 늘 같이 보낸다. 쓴 사람의 글은 고치지 않는다 */
 /* 길이는 글자 수로 세되 언어마다 눈금이 다르다 — 같은 글이 영어는 한국어의 2.0~2.8배, 독일어·프랑스어·스페인어는 2.1~3.4배, 일본어는 0.8~1.0배 (번역본 570편 실측, 2026-11-10). 모델이 받는 토큰은 비슷해진다 */
-var BOOK_HEAD = 500, BOOK_MAX = 1200, LEN_SCALE = { ko: 1, ja: 1.1, en: 3, de: 3.5, fr: 3.5, es: 3.5 };
+var BOOK_HEAD = 500, BOOK_MAX = 1200, LEN_SCALE = { ko: 1, ja: 1.1, en: 3, de: 3.5, fr: 3.5, es: 3.5, it: 3.5, pt: 3.5, id: 3.5, hi: 3.5 };
 function bookLimits(lang) { var s = LEN_SCALE[I18N.norm(lang) || 'ko'] || 1; return { head: Math.round(BOOK_HEAD * s), max: Math.round(BOOK_MAX * s) }; }
 /* 원본 지문: 번역본 머리말 original: 에 적어 두면 (tools/stamp-translations.js) 원문이 바뀐 번역본을 check-books 가 알려 준다 */
 function fingerprint(text) { return require('crypto').createHash('sha1').update(String(text).replace(/\r\n/g, '\n').trim()).digest('hex').slice(0, 8); }
@@ -252,9 +252,10 @@ Octopus.prototype.setLang = function (l) {   /* 모델이 알려 준 대화의 �
 Octopus.prototype.book = function (room) { var m = this.booksByLang[this.lang()]; return (m && m[room]) || this.books[room] || null; };
 Octopus.prototype.card = function (id) { var m = this.cardsByLang[this.lang()]; return (m && m[id]) || this.cards[id] || null; };
 Octopus.prototype.roomName = function (node) { var l = this.lang(), r = ROOMS_I18N[node.id]; return (l !== 'ko' && r && r[l] && r[l].name) || node.name; };
-Octopus.prototype.roomWiki = function (node) {   /* 방의 위키 글: 그 언어의 글이 있으면 그것 (언어 링크), 없으면 ko 글 */
+Octopus.prototype.roomWiki = function (node) {   /* 방의 위키 글: 그 언어의 글이 있으면 그것 (언어 링크), 없으면 영어 글 (영어가 메인 — hi 위키에 없는 방), 그것도 없으면 ko 글 */
   var l = this.lang(), r = ROOMS_I18N[node.id];
   if (l !== 'ko' && r && r[l] && r[l].wiki) return { title: r[l].wiki, lang: l };
+  if (l !== 'ko' && l !== 'en' && r && r.en && r.en.wiki) return { title: r.en.wiki, lang: 'en' };
   return node.wiki ? { title: node.wiki, lang: 'ko' } : null;
 };
 Octopus.prototype.homeLine = function (a) { var h = this.L.home && this.L.home[a.id]; return h && typeof h.line === 'string' ? h.line : a.line; };
@@ -484,7 +485,10 @@ Octopus.prototype.todayCards = function () {
 };
 /* 서가 후보 (언어별 '알찬 글' 분류). 저장된 목록: ko 는 js/shelf.js (게임과 같은 뽑기), en·ja 는 data/shelf.<lang>.json (tools/build-shelf.js) */
 var SHELF_N = 8, SHELF_CATS = { ko: ['분류:알찬 글', '분류:좋은 글'], en: ['Category:Featured articles'], ja: ['Category:秀逸な記事', 'Category:良質な記事'],
-  de: ['Kategorie:Wikipedia:Exzellent', 'Kategorie:Wikipedia:Lesenswert'], fr: ['Catégorie:Article de qualité', 'Catégorie:Bon article'], es: ['Categoría:Wikipedia:Artículos destacados', 'Categoría:Wikipedia:Artículos buenos'] };
+  de: ['Kategorie:Wikipedia:Exzellent', 'Kategorie:Wikipedia:Lesenswert'], fr: ['Catégorie:Article de qualité', 'Catégorie:Bon article'], es: ['Categoría:Wikipedia:Artículos destacados', 'Categoría:Wikipedia:Artículos buenos'],
+  it: ['Categoria:Voci in vetrina su it.wiki', 'Categoria:Voci di qualità su it.wiki'], pt: ['Categoria:!Artigos destacados', 'Categoria:!Artigos bons'], id: ['Kategori:Artikel pilihan', 'Kategori:Artikel bagus'], hi: ['श्रेणी:निर्वाचित लेख', 'श्रेणी:श्रेष्ठ लेख'] };
+/* 알찬 글이 너무 적은 위키 (hi: 44편) 는 다리: 영어 알찬 글 가운데 그 언어 위키에도 있는 글 (언어 링크) 로 서가를 채운다 (tools/build-shelf.js) */
+var SHELF_VIA = { hi: 'en' };
 function shelfSnapshot(lang) {
   if (lang === 'ko') return SHELF && SHELF.pool && SHELF.pool.length ? SHELF.pool : null;
   try { var p = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'shelf.' + lang + '.json'), 'utf8')); return Array.isArray(p.pool) && p.pool.length ? p.pool : null; } catch (e) { return null; }
@@ -738,4 +742,4 @@ Octopus.prototype.answer = function (a) {
   return withDecision({ ok: true }, next);
 };
 
-module.exports = { FAR_LANTERN: FAR_LANTERN, addDays: addDays, screenArgs: screenArgs, suspectText: suspectText, privateText: privateText, checkArgs: checkArgs, plain: plain, CAPS: CAPS, parseBook: parseBook, loadBooks: loadBooks, loadCards: loadCards, CARDS_N: CARDS_N, BOOK_HEAD: BOOK_HEAD, BOOK_MAX: BOOK_MAX, bookLimits: bookLimits, fingerprint: fingerprint, Octopus: Octopus, FIXED_SENTENCE: FIXED_SENTENCE, NOTES_HEAD: NOTES_HEAD, wikiFetch: wikiFetch, MENU: MENU, I18N: I18N, SHELF_CATS: SHELF_CATS, ROOMS_I18N: ROOMS_I18N };
+module.exports = { FAR_LANTERN: FAR_LANTERN, addDays: addDays, screenArgs: screenArgs, suspectText: suspectText, privateText: privateText, checkArgs: checkArgs, plain: plain, CAPS: CAPS, parseBook: parseBook, loadBooks: loadBooks, loadCards: loadCards, CARDS_N: CARDS_N, BOOK_HEAD: BOOK_HEAD, BOOK_MAX: BOOK_MAX, bookLimits: bookLimits, fingerprint: fingerprint, Octopus: Octopus, FIXED_SENTENCE: FIXED_SENTENCE, NOTES_HEAD: NOTES_HEAD, wikiFetch: wikiFetch, MENU: MENU, I18N: I18N, SHELF_CATS: SHELF_CATS, SHELF_VIA: SHELF_VIA, ROOMS_I18N: ROOMS_I18N };

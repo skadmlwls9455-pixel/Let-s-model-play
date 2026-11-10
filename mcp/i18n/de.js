@@ -6,7 +6,7 @@ function C(far) { return [].concat(far).join('|'); }
 
 var S = module.exports = {
   name: 'Deutsch',
-  wiki: { ko: 'koreanische Wikipedia', en: 'englische Wikipedia', ja: 'japanische Wikipedia', de: 'deutsche Wikipedia', fr: 'französische Wikipedia', es: 'spanische Wikipedia' },
+  wiki: { ko: 'koreanische Wikipedia', en: 'englische Wikipedia', ja: 'japanische Wikipedia', de: 'deutsche Wikipedia', fr: 'französische Wikipedia', es: 'spanische Wikipedia', it: 'italienische Wikipedia', pt: 'portugiesische Wikipedia', id: 'indonesische Wikipedia', hi: 'Hindi-Wikipedia' },
   fixed: 'Der Mensch kann auf dem Spaziergang mitkommen oder zu Hause bleiben; du erfährst nicht, was. ' +
     'Weg und Lesestoff wählst du, und was der Mensch derweil getan hat, wird dir nicht übermittelt.',
   notesHead: 'Notizen von früheren Spaziergängen:',

@@ -24,6 +24,16 @@ async function members(lang, cat) {
   } while (cont && guard < 40);
   return out;
 }
+/* 알찬 글이 너무 적은 위키 (core.SHELF_VIA[lang] = 'en'): 영어 알찬 글 전체의 언어 링크로 그 언어의 글을 모은다 — 그 언어 위키에 실제로 있는 글만 */
+async function viaLinks(via, lang, titles) {
+  var out = [];
+  for (var i = 0; i < titles.length; i += 50) {
+    var u = 'https://' + via + '.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&redirects=1&prop=langlinks&lllang=' + lang + '&lllimit=500&titles=' + encodeURIComponent(titles.slice(i, i + 50).join('|'));
+    var d = await (await fetch(u, { headers: { 'User-Agent': UA, 'Api-User-Agent': UA } })).json();
+    ((d.query && d.query.pages) || []).forEach(function (p) { (p.langlinks || []).forEach(function (ll) { if (ll.lang === lang && ll.title && out.indexOf(ll.title) < 0) out.push(ll.title); }); });
+  }
+  return out;
+}
 function sample(pool, lang) {   /* 언어로 정해지는 무작위 표본 (날짜와 무관 — 목록은 고정) */
   var p = pool.slice(), r = BRAIN.rng(BRAIN.hashSeed('shelf-build', lang));
   for (var i = p.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), t = p[i]; p[i] = p[j]; p[j] = t; }
@@ -34,6 +44,8 @@ function sample(pool, lang) {   /* 언어로 정해지는 무작위 표본 (날�
   for (var k = 0; k < langs.length; k++) {
     var lang = langs[k], cats = core.SHELF_CATS[lang], pool = [];
     for (var c of cats) (await members(lang, c)).forEach(function (t) { if (pool.indexOf(t) < 0) pool.push(t); });
+    var via = core.SHELF_VIA && core.SHELF_VIA[lang], own = pool.length;
+    if (via) { var vp = []; for (var c2 of core.SHELF_CATS[via]) (await members(via, c2)).forEach(function (t) { if (vp.indexOf(t) < 0) vp.push(t); }); (await viaLinks(via, lang, vp)).forEach(function (t) { if (pool.indexOf(t) < 0) pool.push(t); }); console.log(lang + ': 자기 분류 ' + own + ' + ' + via + ' 알찬 글의 언어 링크 ' + (pool.length - own)); }
     pool.sort();
     if (pool.length < 100) { console.error(lang + ': 목록이 너무 짧다 (' + pool.length + ') — 쓰지 않는다'); process.exit(1); }
     var day = new Date().toISOString().slice(0, 10);
@@ -57,7 +69,7 @@ function sample(pool, lang) {   /* 언어로 정해지는 무작위 표본 (날�
       var picked = pool.length > SAMPLE ? sample(pool, lang) : pool;
       var file = path.join(__dirname, '..', 'data', 'shelf.' + lang + '.json');
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, JSON.stringify({ lang: lang, built: day, cats: cats, total: pool.length, pool: picked }) + '\n');
+      fs.writeFileSync(file, JSON.stringify({ lang: lang, built: day, cats: cats, via: via || null, total: pool.length, pool: picked }) + '\n');
       console.log(file.replace(/.*mcp\//, 'mcp/') + ': ' + picked.length + '편 (분류 전체 ' + pool.length + ')');
     }
   }
