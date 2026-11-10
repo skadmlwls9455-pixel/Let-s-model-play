@@ -1535,7 +1535,7 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 /* 11-10: 폰(≤419)에서도 바는 늘 한 줄 44px — 이름 + 등불만 바 안에 두고, '데모' 꼬리표는 바 아래 왼쪽에 매단다 (늘 보인다 · 정직 표기). ≤379 는 아이콘 40px, ≤339 는 36px + 등불 칸을 작게 */
 @media (max-width: 419px) {
   :root[data-layout="one"] #status .brain-tag { position: absolute; top: calc(100% + 3px); left: 6px; margin: 0; background-color: var(--panel); }
-  :root[data-layout="one"] #status button.brain-tag::before { inset: -6px -10px -24px; }
+  :root[data-layout="one"] #status button.brain-tag::before { inset: -6px -10px -26px; }   /* 픽셀 꼬리표 12 + 6 + 26 = 44 (−24 는 42px 였다) */
 }
 @media (max-width: 379px) {
   :root[data-layout="one"] { --ctl-w: 164px; }
