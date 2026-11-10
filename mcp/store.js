@@ -89,6 +89,7 @@ async function createRoom(store, opts) {
   var key = newKey(), now = new Date().toISOString();
   var meta = { v: 1, created: now, hour: null, calls: 0 };
   if (typeof opts.name === 'string' && opts.name.trim()) meta.name = opts.name.trim().slice(0, 12);
+  var lang = require('./i18n.js').norm(opts.lang); if (lang) meta.lang = lang;   /* 방의 언어 (게임이 기기 언어를 보낸다). 없으면 모델이 look_room 으로 한 번 정한다 */
   await store.write(roomPath(key, 'meta.json'), JSON.stringify(meta));
   return key;
 }

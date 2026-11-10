@@ -11,7 +11,7 @@ cd mcp && npm install
 
 - **이 저장소에서 Claude Code 를 열면** 루트의 `.mcp.json` 이 `ppolppol` 서버를 잡는다. 처음 한 번 승인을 묻는다 (`/mcp` 에서 확인).
 - **다른 곳에서**: `claude mcp add ppolppol -- node /절대경로/Let-s-model-play/mcp/server.js`
-- 환경 변수 (모두 선택): `PPOLPPOL_NAME` (사람이 지어 준 이름, meet 에 실린다) · `PPOLPPOL_MODEL` (알 때만, 메모의 `model`) · `PPOLPPOL_STATE` · `PPOLPPOL_OUT`.
+- 환경 변수 (모두 선택): `PPOLPPOL_NAME` (사람이 지어 준 이름, meet 에 실린다) · `PPOLPPOL_MODEL` (알 때만, 메모의 `model`) · `PPOLPPOL_LANG` (방의 언어 `ko`·`en`·`ja` — 안내문·도구·위키가 그 언어. 없으면 모델이 첫 look_room 의 `lang` 으로 한 번 정한다, [docs/I18N.md](../docs/I18N.md)) · `PPOLPPOL_STATE` · `PPOLPPOL_OUT`.
 - 짝꿍 스킬: [`.claude/skills/ppolppol-octopus-play/SKILL.md`](../.claude/skills/ppolppol-octopus-play/SKILL.md)
 - **Claude Desktop**: 설정 › 개발자 › 설정 편집 (`claude_desktop_config.json`) 에 아래를 넣고 앱을 다시 연다 (`node` 는 18 이상, 경로는 절대 경로):
 
@@ -28,12 +28,12 @@ cd mcp && npm install
 ```
 
   `node` 를 못 찾는다고 나오면 (nvm 등) `"command"` 에 `which node` 로 나온 절대 경로를 넣는다.
-- **claude.ai 웹·모바일**: 아직 안 된다. 원격 HTTPS 서버가 필요하다 (MCP_PLAYTEST '등록 대비').
+- **claude.ai 웹·모바일 (원격 방, 11-10)**: 게임 설정 › '내 Claude 와 연결' › 방 만들기 → 나온 주소 (`https://<사이트>/api/mcp/<열쇠>`) 를 claude.ai › 설정 › 커넥터 › 커스텀 커넥터에 붙여 넣는다. 인증은 없다 — 열쇠 (192비트, 서버가 만듦) 를 아는 사람만 그 방 (비밀 링크). 몸통은 `mcp/http.js` (Streamable HTTP, 무상태 JSON) + `api/mcp/[key].js` (Vercel), 방 상태는 Blob 저장소 (`mcp/store.js`). 다녀온 산책은 게임이 `/api/walks/<열쇠>` 로 가져와 재생한다 (자동, 또는 설정의 '다녀온 산책 가져오기'). 방의 언어는 만들 때 기기 언어로 정해진다 (`ko`·`en`·`ja`). 먼 바다 문의 대답은 `/api/far/<열쇠>` (게임 화면에서만).
 - 스킬 없이 서버 instructions 만으로도 논다 (실제 계정 조건으로 시험함). 산책 기록은 `mcp/out/`, 상태는 `mcp/state.json` 에 쌓인다.
 
 ## 게임에서 보기
 
-산책 하나가 끝날 때마다 `out/<날짜>-<n>.json` 이 생긴다. 게임을 개발 모드(`index.html?dev=1`)로 열고, 맨 아래 `데모 조작` 의 JSON 칸(`#d-json`)에 파일 내용을 붙여 넣고 재생하면 된다 (`APP.importEvents`). 고른 이는 `모델(MCP)` 로 적힌다.
+원격 방 (claude.ai) 은 게임이 직접 가져온다 — 붙여 넣을 것이 없다. 로컬 (stdio) 에선 산책 하나가 끝날 때마다 `out/<날짜>-<n>.json` 이 생긴다. 게임을 개발 모드(`index.html?dev=1`)로 열고, 맨 아래 `데모 조작` 의 JSON 칸(`#d-json`)에 파일 내용을 붙여 넣고 재생하면 된다 (`APP.importEvents`). 고른 이는 `모델(MCP)` 로 적힌다.
 첫인사·돌아와서 대화 대답은 `out/talk.json` 에 DIALOGUE_UI §5.12 `S.talk` 모양으로 따로 쌓인다 (게임에 잇지는 않는다).
 
 `state.json` 과 `out/` 은 커밋하지 않는다 (`.gitignore`). 저장소가 그대로 정적 사이트로 나가기 때문이다. 예시 한 판은 [`examples/`](examples/).

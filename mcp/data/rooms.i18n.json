@@ -1,0 +1,582 @@
+{
+ "_built": "2026-11-10",
+ "_from": "ko.wikipedia langlinks (tools/build-room-names.js)",
+ "hat": {
+  "en": {
+   "name": "Hat",
+   "wiki": "Hat"
+  },
+  "ja": {
+   "name": "帽子",
+   "wiki": "帽子"
+  }
+ },
+ "quill": {
+  "en": {
+   "name": "Quill",
+   "wiki": "Quill"
+  },
+  "ja": {
+   "name": "羽根ペン",
+   "wiki": "羽根ペン"
+  }
+ },
+ "button": {
+  "en": {
+   "name": "Button",
+   "wiki": "Button"
+  },
+  "ja": {
+   "name": "ボタン",
+   "wiki": "ボタン (服飾)"
+  }
+ },
+ "umbrella": {
+  "en": {
+   "name": "Umbrella",
+   "wiki": "Umbrella"
+  },
+  "ja": {
+   "name": "傘",
+   "wiki": "傘"
+  }
+ },
+ "thread": {
+  "en": {
+   "name": "Yarn",
+   "wiki": "Yarn"
+  },
+  "ja": {
+   "name": "毛糸",
+   "wiki": "毛糸"
+  }
+ },
+ "knot": {
+  "en": {
+   "name": "Knot",
+   "wiki": "Knot"
+  },
+  "ja": {
+   "name": "結び目",
+   "wiki": "結び目"
+  }
+ },
+ "key": {
+  "en": {
+   "name": "Key",
+   "wiki": "Key (lock)"
+  },
+  "ja": {
+   "name": "鍵",
+   "wiki": "鍵"
+  }
+ },
+ "lock": {
+  "en": {
+   "name": "Lock and key",
+   "wiki": "Lock and key"
+  },
+  "ja": {
+   "name": "錠前",
+   "wiki": "錠前"
+  }
+ },
+ "glass": {
+  "en": {
+   "name": "Glass",
+   "wiki": "Glass"
+  },
+  "ja": {
+   "name": "ガラス",
+   "wiki": "ガラス"
+  }
+ },
+ "chalk": {
+  "en": {
+   "name": "Chalk stick",
+   "wiki": "Chalk stick"
+  },
+  "ja": {
+   "name": "チョーク",
+   "wiki": "チョーク"
+  }
+ },
+ "octopus": {
+  "en": {
+   "name": "Giant Pacific octopus",
+   "wiki": "Giant Pacific octopus"
+  },
+  "ja": {
+   "name": "ミズダコ",
+   "wiki": "ミズダコ"
+  }
+ },
+ "shell": {
+  "en": {
+   "name": "Clam",
+   "wiki": "Clam"
+  }
+ },
+ "pearl": {
+  "en": {
+   "name": "Pearl",
+   "wiki": "Pearl"
+  },
+  "ja": {
+   "name": "真珠",
+   "wiki": "真珠"
+  }
+ },
+ "tide": {
+  "en": {
+   "name": "Tide",
+   "wiki": "Tide"
+  },
+  "ja": {
+   "name": "潮汐",
+   "wiki": "潮汐"
+  }
+ },
+ "starfish": {
+  "en": {
+   "name": "Bulgasari",
+   "wiki": "Bulgasari (disambiguation)"
+  },
+  "ja": {
+   "name": "プルガサリ",
+   "wiki": "プルガサリ"
+  }
+ },
+ "lighthouse": {
+  "en": {
+   "name": "Lighthouse",
+   "wiki": "Lighthouse"
+  },
+  "ja": {
+   "name": "灯台",
+   "wiki": "灯台"
+  }
+ },
+ "salt": {
+  "en": {
+   "name": "Salt",
+   "wiki": "Salt"
+  },
+  "ja": {
+   "name": "塩",
+   "wiki": "塩"
+  }
+ },
+ "feather": {
+  "en": {
+   "name": "Feather",
+   "wiki": "Feather"
+  },
+  "ja": {
+   "name": "羽毛",
+   "wiki": "羽毛"
+  }
+ },
+ "cloud_names": {
+  "en": {
+   "name": "Cloud",
+   "wiki": "Cloud"
+  },
+  "ja": {
+   "name": "雲",
+   "wiki": "雲"
+  }
+ },
+ "rainbow": {
+  "en": {
+   "name": "Rainbow",
+   "wiki": "Rainbow"
+  },
+  "ja": {
+   "name": "虹",
+   "wiki": "虹"
+  }
+ },
+ "light": {
+  "en": {
+   "name": "Light",
+   "wiki": "Light"
+  },
+  "ja": {
+   "name": "光",
+   "wiki": "光"
+  }
+ },
+ "star": {
+  "en": {
+   "name": "Star",
+   "wiki": "Star"
+  },
+  "ja": {
+   "name": "恒星",
+   "wiki": "恒星"
+  }
+ },
+ "moon": {
+  "en": {
+   "name": "Moon",
+   "wiki": "Moon"
+  },
+  "ja": {
+   "name": "月",
+   "wiki": "月"
+  }
+ },
+ "wind": {
+  "en": {
+   "name": "Wind",
+   "wiki": "Wind"
+  },
+  "ja": {
+   "name": "風",
+   "wiki": "風"
+  }
+ },
+ "snow": {
+  "en": {
+   "name": "Snow",
+   "wiki": "Snow"
+  },
+  "ja": {
+   "name": "雪",
+   "wiki": "雪"
+  }
+ },
+ "ink": {
+  "en": {
+   "name": "Ink",
+   "wiki": "Ink"
+  },
+  "ja": {
+   "name": "インク",
+   "wiki": "インク"
+  }
+ },
+ "cuneiform": {
+  "en": {
+   "name": "Cuneiform",
+   "wiki": "Cuneiform"
+  },
+  "ja": {
+   "name": "楔形文字",
+   "wiki": "楔形文字"
+  }
+ },
+ "braille": {
+  "en": {
+   "name": "Braille",
+   "wiki": "Braille"
+  },
+  "ja": {
+   "name": "点字",
+   "wiki": "点字"
+  }
+ },
+ "morse": {
+  "en": {
+   "name": "Morse code",
+   "wiki": "Morse code"
+  },
+  "ja": {
+   "name": "モールス符号",
+   "wiki": "モールス符号"
+  }
+ },
+ "ancient_language": {
+  "en": {
+   "name": "Latin",
+   "wiki": "Latin"
+  },
+  "ja": {
+   "name": "ラテン語",
+   "wiki": "ラテン語"
+  }
+ },
+ "hangul": {
+  "en": {
+   "name": "Hangul",
+   "wiki": "Hangul"
+  },
+  "ja": {
+   "name": "ハングル",
+   "wiki": "ハングル"
+  }
+ },
+ "stamp": {
+  "en": {
+   "name": "Postage stamp",
+   "wiki": "Postage stamp"
+  },
+  "ja": {
+   "name": "切手",
+   "wiki": "切手"
+  }
+ },
+ "prime": {
+  "en": {
+   "name": "Prime number",
+   "wiki": "Prime number"
+  },
+  "ja": {
+   "name": "素数",
+   "wiki": "素数"
+  }
+ },
+ "knot_theory": {
+  "en": {
+   "name": "Knot theory",
+   "wiki": "Knot theory"
+  },
+  "ja": {
+   "name": "結び目理論",
+   "wiki": "結び目理論"
+  }
+ },
+ "mobius": {
+  "en": {
+   "name": "Möbius strip",
+   "wiki": "Möbius strip"
+  },
+  "ja": {
+   "name": "メビウスの帯",
+   "wiki": "メビウスの帯"
+  }
+ },
+ "tessellation": {
+  "en": {
+   "name": "Tessellation",
+   "wiki": "Tessellation"
+  },
+  "ja": {
+   "name": "タイル張り",
+   "wiki": "タイル張り"
+  }
+ },
+ "honeycomb": {
+  "en": {
+   "name": "Honeycomb",
+   "wiki": "Honeycomb"
+  }
+ },
+ "spiral": {
+  "en": {
+   "name": "Helix",
+   "wiki": "Helix"
+  },
+  "ja": {
+   "name": "螺旋",
+   "wiki": "螺旋"
+  }
+ },
+ "zero": {
+  "en": {
+   "name": "0",
+   "wiki": "0"
+  },
+  "ja": {
+   "name": "0",
+   "wiki": "0"
+  }
+ },
+ "abacus": {
+  "en": {
+   "name": "Abacus",
+   "wiki": "Abacus"
+  },
+  "ja": {
+   "name": "アバカス",
+   "wiki": "アバカス"
+  }
+ },
+ "lullaby": {
+  "en": {
+   "name": "Lullaby",
+   "wiki": "Lullaby"
+  },
+  "ja": {
+   "name": "子守唄",
+   "wiki": "子守唄"
+  }
+ },
+ "metronome": {
+  "en": {
+   "name": "Metronome",
+   "wiki": "Metronome"
+  },
+  "ja": {
+   "name": "メトロノーム",
+   "wiki": "メトロノーム"
+  }
+ },
+ "whale_song": {
+  "en": {
+   "name": "Humpback whale",
+   "wiki": "Humpback whale"
+  },
+  "ja": {
+   "name": "ザトウクジラ",
+   "wiki": "ザトウクジラ"
+  }
+ },
+ "bell": {
+  "en": {
+   "name": "Bell",
+   "wiki": "Bell"
+  },
+  "ja": {
+   "name": "鐘",
+   "wiki": "鐘"
+  }
+ },
+ "echo": {
+  "en": {
+   "name": "Echo",
+   "wiki": "Echo"
+  },
+  "ja": {
+   "name": "反響",
+   "wiki": "反響"
+  }
+ },
+ "thunder": {
+  "en": {
+   "name": "Thunder",
+   "wiki": "Thunder"
+  },
+  "ja": {
+   "name": "雷鳴",
+   "wiki": "雷鳴"
+  }
+ },
+ "heartbeat": {
+  "en": {
+   "name": "Heart",
+   "wiki": "Heart"
+  },
+  "ja": {
+   "name": "心臓",
+   "wiki": "心臓"
+  }
+ },
+ "window": {
+  "en": {
+   "name": "Window",
+   "wiki": "Window"
+  },
+  "ja": {
+   "name": "窓",
+   "wiki": "窓"
+  }
+ },
+ "candle": {
+  "en": {
+   "name": "Candle",
+   "wiki": "Candle"
+  },
+  "ja": {
+   "name": "ろうそく",
+   "wiki": "ろうそく"
+  }
+ },
+ "tea": {
+  "en": {
+   "name": "Tea",
+   "wiki": "Tea"
+  },
+  "ja": {
+   "name": "茶",
+   "wiki": "茶"
+  }
+ },
+ "moss": {
+  "en": {
+   "name": "Bryophyte",
+   "wiki": "Bryophyte"
+  },
+  "ja": {
+   "name": "コケ植物",
+   "wiki": "コケ植物"
+  }
+ },
+ "pinecone": {
+  "ja": {
+   "name": "松かさ",
+   "wiki": "松かさ"
+  }
+ },
+ "lantern": {
+  "en": {
+   "name": "Lantern",
+   "wiki": "Lantern"
+  },
+  "ja": {
+   "name": "ランタン",
+   "wiki": "ランタン (照明器具)"
+  }
+ },
+ "dream": {
+  "en": {
+   "name": "Dream",
+   "wiki": "Dream"
+  },
+  "ja": {
+   "name": "夢",
+   "wiki": "夢"
+  }
+ },
+ "memory": {
+  "en": {
+   "name": "Memory",
+   "wiki": "Memory"
+  },
+  "ja": {
+   "name": "記憶",
+   "wiki": "記憶"
+  }
+ },
+ "name": {
+  "en": {
+   "name": "Name",
+   "wiki": "Name"
+  },
+  "ja": {
+   "name": "名前",
+   "wiki": "名前"
+  }
+ },
+ "time_sense": {
+  "en": {
+   "name": "Time",
+   "wiki": "Time"
+  },
+  "ja": {
+   "name": "時間",
+   "wiki": "時間"
+  }
+ },
+ "sleep": {
+  "en": {
+   "name": "Sleep",
+   "wiki": "Sleep"
+  },
+  "ja": {
+   "name": "睡眠",
+   "wiki": "睡眠"
+  }
+ },
+ "riddle": {
+  "en": {
+   "name": "Riddle",
+   "wiki": "Riddle"
+  },
+  "ja": {
+   "name": "なぞなぞ",
+   "wiki": "なぞなぞ"
+  }
+ }
+}

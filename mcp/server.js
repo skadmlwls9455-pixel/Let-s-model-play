@@ -20,6 +20,7 @@ var oct = new core.Octopus({
   fetchWiki: process.env.PPOLPPOL_NO_NET ? function () { return Promise.resolve({ ok: false, reason: 'offline' }); } : undefined,
   queryWiki: process.env.PPOLPPOL_NO_NET ? function () { return Promise.resolve(null); } : undefined,   /* 뽈뽈 도서관 책 폴더 (기본 library/books) */
   name: process.env.PPOLPPOL_NAME || null,
+  lang: process.env.PPOLPPOL_LANG || null,   /* 방의 언어 ko · en · ja (없으면 모델이 look_room 의 lang 으로 한 번 정한다) */
   model: process.env.PPOLPPOL_MODEL || null,
   /* 시험용: PPOLPPOL_TODAY=YYYY-MM-DD 면 그 날짜의 지금 시각으로 (등불·오늘 열린 방이 그날 것이 된다) */
   now: /^\d{4}-\d{2}-\d{2}$/.test(process.env.PPOLPPOL_TODAY || '') ? function () { var d = new Date(), t = process.env.PPOLPPOL_TODAY.split('-'); d.setFullYear(+t[0], +t[1] - 1, +t[2]); return d; } : undefined

@@ -16,7 +16,7 @@
         "icn1"
       ],
       "maxDuration": 60,
-      "includeFiles": "{library/books/**,library/cards/**,js/world.js,js/brain.js,js/shelf.js}"
+      "includeFiles": "{library/books/**,library/cards/**,js/world.js,js/brain.js,js/shelf.js,mcp/data/**}"
     },
     "api/room.js": {
       "regions": [

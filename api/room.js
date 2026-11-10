@@ -20,7 +20,7 @@ module.exports = async function room(req, res) {
     var cp = 'rooms-made/' + hour + '.json', c = ST.parse(await store.read(cp)) || { n: 0 };
     if (c.n >= ROOMS_PER_HOUR) return send(res, 429, { ok: false, error: 'busy' });
     c.n++; await store.write(cp, JSON.stringify(c));
-    var key = await ST.createRoom(store, { name: req.body && req.body.name });
+    var key = await ST.createRoom(store, { name: req.body && req.body.name, lang: req.body && req.body.lang });   /* lang: 기기 언어 (ko · en · ja) → 방의 언어 */
     return send(res, 200, { ok: true, key: key, mcp: 'https://' + host + '/api/mcp/' + key });
   } catch (e) {
     console.error('room: storage', e && e.name);

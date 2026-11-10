@@ -2631,7 +2631,7 @@ var APP = (function () {
     return out;
   }
   /* 뒷면 영수증 HTML (§6.2) — 링크 클릭 가능. 출처 링크는 위키백과(한국어) 주소일 때만 (두뇌도 거르지만 옛 기록·불러온 기록까지) */
-  var WIKI_SRC = /^https:\/\/(ko|en)\.wikipedia\.org\//;   /* en: 먼 바다 문 */
+  var WIKI_SRC = /^https:\/\/(ko|en|ja)\.wikipedia\.org\//;   /* en·ja: 방의 언어 · 먼 바다 문 (MCP) */
   function receiptHTML(trip) {
     var r = trip.receipt, p = trip.poster || {}, out = '<div class="receipt">';
     out += '<h3>일기' + (trip.date ? ' · ' + esc(fmtDate(trip.date, true)) : '') + '</h3>';   /* 화면 말은 '일기' (코드 이름 receipt* 는 그대로). 여행 id 는 보이지 않는다 */
@@ -3109,7 +3109,7 @@ var APP = (function () {
       var mk = h('button', { type: 'button', class: 'btn sm pressable', id: 'set-claude-make', text: '연결할 방 만들기' });
       mk.addEventListener('click', function () {
         mk.disabled = true;
-        fetch('/api/room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: S.octopus.name || '' }) })
+        fetch('/api/room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: S.octopus.name || '', lang: String(navigator.language || '') }) })   /* lang: 기기 언어 → 방의 언어 (문어가 그 언어로 쓴다) */
           .then(function (res) { return res.ok ? res.json() : null; })
           .then(function (j) {
             if (!j || !j.ok || !CLAUDE_KEY_RE.test(j.key || '')) { toast('지금은 방을 만들 수 없어. 조금 뒤에 다시 해 봐'); mk.disabled = false; return; }

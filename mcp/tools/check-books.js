@@ -29,6 +29,7 @@ function lint(items, label) {
 }
 var lb = core.loadBooks(booksDir);
 lint(lb.books, '책');
+Object.keys(lb.byLang || {}).forEach(function (l) { lint(lb.byLang[l], '책 ' + l); });   /* 번역본 (library/books/<lang>/) 도 같은 규칙 */
 lb.errors.forEach(function (e) { console.log('✗ ' + e); });
 console.log('\n책 ' + Object.keys(lb.books).length + '권 · 오류 ' + lb.errors.length);
 errors += lb.errors.length;
@@ -37,6 +38,7 @@ var lc = core.loadCards(cardsDir);
 if (Object.keys(lc.cards).length || lc.errors.length) {
   console.log('');
   lint(lc.cards, '카드');
+  Object.keys(lc.byLang || {}).forEach(function (l) { lint(lc.byLang[l], '카드 ' + l); });
   lc.errors.forEach(function (e) { console.log('✗ ' + e); });
   console.log('\n서가 카드 ' + Object.keys(lc.cards).length + '장 · 오류 ' + lc.errors.length);
   errors += lc.errors.length;
