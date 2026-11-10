@@ -405,7 +405,7 @@ var SCENE3D = (function () {
        그래서 낮은 장면(360×326 · 가로 폰 · 쌓는 배치)에선 올릴 자리가 없어 보정이 정확히 0 이고 예전 구도 그대로다. 각도 · 밀도 · 밀기 경계(panBox 는 타깃을 따라간다)는 안 바뀐다.
        FRAME_PT[장소] = [바닥 앞 모서리, 꼭대기 점] (월드 m). 바깥의 꼭대기는 상자 모서리가 아니라 굴뚝 테 — 화면에서 가장 높은 건 그쪽이다 */
     var FRAME_Y = 0.68, FRAME_TOP = 48, UP_Y = Math.cos(TILT), UP_XZ = Math.sin(TILT) * Math.SQRT1_2, ATTIC_Y = camTarget.y, EXT_Y = EXT_TARGET.y;
-    var FRAME_PT = { attic: [[RF + 0.22, 0, RF + 0.22], [-2.6, 4.75, 0.5]], exterior: [[3.42, 0, 3.42], [-1.5, 3.3, -1.52]], play: [[PLAY_R, 0, PLAY_R], [-PLAY_R, PLAY_H, -PLAY_R]] };
+    var FRAME_PT = { attic: [[RF + 0.22, 0, RF + 0.22], [-2.72, 3.0, -2.72]], exterior: [[3.42, 0, 3.42], [-1.5, 3.3, -1.52]], play: [[PLAY_R, 0, PLAY_R], [-PLAY_R, PLAY_H, -PLAY_R]] };
     function liftOf(bx, by, bz, pt) {   /* 기본 타깃 (bx, by, bz) 에서 타깃을 내릴 월드 y (≥ 0, 아트 픽셀 정수 배) */
       var N0 = Math.round(baseN()), f = pt[0], t = pt[1];
       var below = ((by - f[1]) * UP_Y + (f[0] - bx + f[2] - bz) * UP_XZ) * N0, above = ((t[1] - by) * UP_Y + (bx - t[0] + bz - t[2]) * UP_XZ) * N0;   /* 화면 가운데에서 앞 모서리까지 아래로 · 꼭대기까지 위로 (아트 px, 1×) */
@@ -455,7 +455,7 @@ var SCENE3D = (function () {
        1× 에선 경계가 0 (가로·세로 고무줄만, 떼면 가운데로 · §3.4 '1×') — 첫 멈춤까지 경계가 줌에 비례해 열린다. 놀이(PLAY)·문어 초점(look-shots close) 중엔 꺼짐 */
     var PAN = { x: 0, y: 0, vx: 0, vy: 0, mode: '', t: 0, dur: 0, fx: 0, fy: 0, tx: 0, ty: 0, cut: false };   /* cut = 장소가 막 바뀜 (다음 따라가기는 미끄러지지 않고 바로) */
     var GEST = { mode: '', pts: {}, n: 0, hold: false, wheelT: 0 };   /* 손가락 상태기계 하나 (아래 '입력'): '' | press | pan | multi | pinch | twist | yaw | done */
-    var PLACE_BOX = { attic: [[-2.72, RF + 0.22], [-0.48, 4.75], [-2.72, RF + 0.22]], exterior: [[-3.42, 3.42], [-0.48, 3.3], [-3.42, 3.42]],
+    var PLACE_BOX = { attic: [[-2.72, RF + 0.22], [-0.48, 3.0], [-2.72, RF + 0.22]], exterior: [[-3.42, 3.42], [-0.48, 3.3], [-3.42, 3.42]],
       play: [[-PLAY_R - 6 / 27, PLAY_R + 6 / 27], [-0.48, PLAY_H], [-PLAY_R - 6 / 27, PLAY_R + 6 / 27]] };   /* 받침 포함 (x · y · z) */
     function panOn() { return !PLAY && st.look.focus !== 'oct'; }
     function panLocked() { return INTRO.on || !!(CER && CER.active && PLACE.vis !== 'play') || !!PLACE.trans || DQ.active; }   /* 연출 중: 손가락 밀기 X (문어가 화면 밖으로 안 나가게). 줌은 된다 · 놀이방에선 안 보이는 의식이 밀기를 잠그지 않는다 */
@@ -646,7 +646,7 @@ var SCENE3D = (function () {
     var lamp = new T.PointLight(C('#ffb066').getHex(), 0, 6, 2); lamp.position.set(0, -0.1, 0);   /* 등불 그룹의 자식 (룩 패스 7: 흔들림을 따라간다) — 아래 lampG.add */
     var candleLight = new T.PointLight(C('#ffb066').getHex(), 0, 2, 2); atticG.add(candleLight);   /* 양초 = 두 번째 작은 따뜻한 점광 (0.35, d 2) */
     /* 빛 차폐 (룩 패스 4): 보이지 않는 지붕·앞벽·오른벽. 그림자만 던지고(colorWrite 끔) 노멀 패스에서는 숨긴다 → 태양·달이 창으로만 들어와 바닥에 창 모양 빛 조각 */
-    var SHADE = [[-3.1, RF + 0.6], [-0.6, 4.9], [-3.1, RF + 0.6]];   /* 그림자 카메라 피팅용 상자 (x · y · z) */
+    var SHADE = [[-3.1, RF + 0.6], [-0.6, 3.25], [-3.1, RF + 0.6]];   /* 그림자 카메라 피팅용 상자 (x · y · z) */
     var SHADE_EXT = [[-3.7, 3.7], [-0.6, 3.6], [-3.7, 3.7]];   /* 바깥: 받침 + 집(용마루 2.94 · 굴뚝 3.3) + 나무 — 장소마다 그림자 카메라를 다시 맞춘다 */
     var SHADE_PLAY = [[-PLAY_R - 0.6, PLAY_R + 0.6], [-0.6, PLAY_H + 0.1], [-PLAY_R - 0.6, PLAY_R + 0.6]];   /* 놀이방: 받침 + 벽 + 차폐 */
     var shade = new T.Mesh(keep(mergeParts([{ g: box(R_SPAN + 1.2, 0.05, R_SPAN + 1.2), m: M(R_MID, 3.08, R_MID), c: '#000000' }, { g: box(R_SPAN + 1.2, 3.7, 0.05), m: M(R_MID, 1.35, RF + 0.55), c: '#000000' }, { g: box(0.05, 3.7, R_SPAN + 1.2), m: M(RF + 0.55, 1.35, R_MID), c: '#000000' },
@@ -763,7 +763,7 @@ var SCENE3D = (function () {
        room   = 그림자 던짐·받음 (바닥·벽·받침·배경 잡동사니) → 드로우콜 1
        roomHi = 머리 위 목재(서까래·도리·끈·도르래·거미줄). castShadow 끔 → 들보 그림자가 바닥에 긴 띠로 깔리던 패스 1 의 "어두운 띠" 제거 → 드로우콜 1 */
     var W = PAL.wood, parts = [], hiParts = [], propCount = 0;
-    var WIN = { z0: -0.45, z1: 1.25, y0: 1.0, y1: 2.695 }, WIN_R = 0.85,   /* 11-10: 크고 동그란 창 (지름 1.7 m — 주인 "동그란 창문에 + 형태로 가로지르는 나무 · 조금 큰 창문"). WIN 은 그 원을 감싸는 네모 구멍 (비 · 커튼 · 화분이 이 네모를 쓴다) */ DOOR = { x0: 1.5, x1: 2.4, h: 2.1 };
+    var WIN = { z0: -0.3, z1: 1.1, y0: 1.0, y1: 2.3 }, DOOR = { x0: 1.5, x1: 2.4, h: 2.1 };
     function segM(a, b) { /* a→b 를 잇는 y축 원기둥용 행렬 */
       var va = new T.Vector3(a[0], a[1], a[2]), vb = new T.Vector3(b[0], b[1], b[2]), d = vb.clone().sub(va);
       var q = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), d.clone().normalize());
@@ -813,28 +813,20 @@ var SCENE3D = (function () {
     [-1.9, -1.1, 1.85, RF - 0.25].forEach(function (z) { parts.push({ g: box(0.14, 3.0, 0.14), m: M(-R + 0.09, 1.5, z), c: MAT.stud }); propCount++; });   /* 왼쪽 벽 샛기둥 (벽면에서 0.1 돌출) */
     [-1.9, -0.9, 1.12, RF - 0.25].forEach(function (x) { parts.push({ g: box(0.14, 3.0, 0.14), m: M(x, 1.5, -R + 0.09), c: MAT.stud }); propCount++; });   /* 뒷벽 샛기둥 */
     parts.push({ g: box(0.2, 3.1, 0.2), m: M(-R, 1.55, -R), c: W[1] });                                                                             /* 모서리 기둥 */
-    /* 지붕 (11-10 주인: "지붕 쪽 다락방이니까 세모난 면이 벽면이고 기둥 눕힌 것처럼"): 창 있는 왼벽이 **박공벽** — 3 m 위로 세모가 올라가 용마루(z = 방 가운데)에서 4.5 m.
-       그 기울기를 따라 **눕힌 통나무**(x 방향 둥근 도리)가 걸린다. 카메라 가까운 머리 위 통나무는 뒷벽 보드 · 선반을 가리므로 뒤쪽 둘만 방 끝까지 가고, 앞쪽은 벽에서 짧게 나온 마구리만 */
-    var GAB = { y0: 3.0, peak: 4.5, zc: R_MID, half: R_SPAN / 2 };
-    function gabY(z) { return GAB.y0 + (GAB.peak - GAB.y0) * Math.max(0, 1 - Math.abs(z - GAB.zc) / GAB.half); }
-    for (i = 0; i < 5; i++) {
-      var gy = GAB.y0 + 0.15 + i * 0.3, gl = (GAB.peak - gy) / (GAB.peak - GAB.y0) * GAB.half;
-      parts.push({ g: box(0.12, 0.3, gl * 2, 1, 1, 4), m: M(-R, gy, GAB.zc), c: i % 2 ? MAT.wallB : MAT.wallA });
-      parts.push({ g: box(0.02, 0.045, gl * 2 + 0.2), m: M(-R + 0.065, gy - 0.15, GAB.zc), c: MAT.wallSeam });
+    /* 지붕: 서까래 5 (x 방향, 5.7° 경사 y = 3.75 + 0.2x; 먼 쪽 3개는 통짜, 가까운 2개는 잘라낸 단면) + 도리 2 (z 방향, x=-2.1 / -1.6 = 옛 들보). 카메라 가까운 머리 위 목재는 창·보드를 가리므로 먼 모서리에만 둔다 */
+    var RAFTER_K = 0.2, RAFTER_Y = 3.75;
+    function rafter(z, x0, x1) {
+      var xc = (x0 + x1) / 2, L = (x1 - x0) * Math.sqrt(1 + RAFTER_K * RAFTER_K);
+      hiParts.push({ g: box(L, 0.2, 0.24), m: M(xc, RAFTER_Y + RAFTER_K * xc, z, 0, 0, Math.atan(RAFTER_K)), c: W[2] }); propCount++;
     }
-    seg(parts, [-R + 0.03, GAB.y0, -R - 0.05], [-R + 0.03, GAB.peak + 0.08, GAB.zc], 0.09, W[1]); seg(parts, [-R + 0.03, GAB.peak + 0.08, GAB.zc], [-R + 0.03, GAB.y0, RF + 0.05], 0.09, W[1]); propCount++;   /* 박공 테두리 (경사 널) */
-    function logX(z, x0, x1) { hiParts.push({ g: new T.CylinderGeometry(0.13, 0.13, x1 - x0, 8), m: M((x0 + x1) / 2, gabY(z) + 0.12, z, 0, 0, Math.PI / 2), c: W[2] }); hiParts.push({ g: new T.CylinderGeometry(0.1, 0.1, 0.02, 8), m: M(x1 + 0.005, gabY(z) + 0.12, z, 0, 0, Math.PI / 2), c: W[4] }); propCount++; }   /* 눕힌 통나무 + 밝은 마구리 */
-    logX(-2.3, -2.75, RF + 0.3); logX(-1.5, -2.75, RF + 0.3); logX(-0.7, -2.75, -0.9); logX(GAB.zc, -2.75, -1.5); logX(1.7, -2.75, -1.9); logX(2.9, -2.75, -2.1);
+    rafter(-2.3, -2.8, RF + 0.3); rafter(-1.75, -2.8, RF + 0.3); rafter(-1.2, -2.8, RF + 0.3); rafter(-0.65, -2.8, -0.6); rafter(-0.1, -2.8, -1.3);
+    hiParts.push({ g: box(0.26, 0.26, R_SPAN + 0.6), m: M(-2.1, 3.31, R_MID), c: W[1] }); propCount++;
+    hiParts.push({ g: box(0.26, 0.26, R_SPAN + 0.6), m: M(-1.6, 3.36, R_MID), c: W[1] }); propCount++;
     /* 창: 턱·틀·살 */
     parts.push({ g: box(0.5, 0.08, WIN.z1 - WIN.z0 + 0.5), m: M(-R + 0.22, WIN.y0, (WIN.z0 + WIN.z1) / 2), c: W[2] });                                 /* 창턱 */
-    (function () {   /* 동그란 창: 네모 구멍의 네 귀를 벽 색 판(동그란 구멍 뚫린 네모)으로 메우고, 둥근 나무 테 + 십자 살 */
-      var zc = (WIN.z0 + WIN.z1) / 2, yc = (WIN.y0 + WIN.y1) / 2, hs = (WIN.z1 - WIN.z0) / 2 + 0.02, sh = new T.Shape();
-      sh.moveTo(-hs, -hs); sh.lineTo(hs, -hs); sh.lineTo(hs, hs); sh.lineTo(-hs, hs); sh.lineTo(-hs, -hs);
-      var hole = new T.Path(); hole.absarc(0, 0, WIN_R, 0, Math.PI * 2, true); sh.holes.push(hole);
-      parts.push({ g: new T.ShapeGeometry(sh, 20), m: M(-R + 0.062, yc, zc, 0, Math.PI / 2, 0), c: MAT.wallA });
-      parts.push({ g: new T.TorusGeometry(WIN_R, 0.07, 6, 28), m: M(-R + 0.1, yc, zc, 0, Math.PI / 2, 0), c: W[1] });
-      parts.push({ g: box(0.09, WIN_R * 2, 0.09), m: M(-R + 0.1, yc, zc), c: W[1] }); parts.push({ g: box(0.09, 0.09, WIN_R * 2), m: M(-R + 0.1, yc, zc), c: W[1] });   /* 십자 살 */
-    })();
+    [[WIN.y0 - 0.05, 0], [WIN.y1 + 0.05, 0]].forEach(function (f) { parts.push({ g: box(0.1, 0.1, WIN.z1 - WIN.z0 + 0.2), m: M(-R + 0.1, f[0], (WIN.z0 + WIN.z1) / 2), c: W[1] }); });
+    [WIN.z0 - 0.05, WIN.z1 + 0.05, (WIN.z0 + WIN.z1) / 2].forEach(function (z) { parts.push({ g: box(0.1, WIN.y1 - WIN.y0 + 0.2, 0.1), m: M(-R + 0.1, (WIN.y0 + WIN.y1) / 2, z), c: W[1] }); });
+    parts.push({ g: box(0.1, 0.1, WIN.z1 - WIN.z0), m: M(-R + 0.1, (WIN.y0 + WIN.y1) / 2, (WIN.z0 + WIN.z1) / 2), c: W[1] });                            /* 가로 살 */
     [DOOR.x0 - 0.06, DOOR.x1 + 0.06].forEach(function (x) { parts.push({ g: box(0.14, DOOR.h + 0.1, 0.16), m: M(x, (DOOR.h + 0.1) / 2, -R + 0.1), c: W[1] }); });   /* 문틀 */
     parts.push({ g: box(DOOR.x1 - DOOR.x0 + 0.26, 0.14, 0.16), m: M((DOOR.x0 + DOOR.x1) / 2, DOOR.h + 0.07, -R + 0.1), c: W[1] });
     /* 등불 끈은 룩 패스 7 부터 등불 그룹의 자식(lampRope) — 흔들림에 따라 기운다 */
