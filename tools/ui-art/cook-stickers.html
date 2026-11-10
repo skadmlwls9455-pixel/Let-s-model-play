@@ -31,7 +31,7 @@
 </head>
 <body>
 <h1>요리 스티커 시험대</h1>
-<p class="note">개발용. 요리 순간(act)을 누르면 요리 스크립트 → 공통 규칙 순서로 스티커가 자동으로 뜬다. 판 id 가 같으면 같은 순서로 같은 스티커가 나온다.</p>
+<p class="note">개발용. 요리 순간(act — 진짜 부엌 놀이 js/cook.js 의 소리 act 그대로)을 누르면 요리 스크립트 → 공통 규칙 순서로 스티커가 자동으로 뜬다. 판 id 가 같으면 같은 순서로 같은 스티커가 나온다.</p>
 <div class="wrap">
   <section>
     <div id="board" aria-label="냄비 판"><div id="pot"></div><div id="pot-label">냄비</div></div>
@@ -41,8 +41,7 @@
       <button id="start">새 판</button>
     </div>
     <div class="ctl">
-      <label>단계 <input id="tier" type="number" min="1" max="8" value="3"></label>
-      <label>재료 <select id="ing"><option>seaweed</option><option>scallop</option><option>shrimp</option><option>clam</option><option>squid</option></select></label>
+      <label>i · band <input id="tier" type="number" min="0" max="8" value="0"></label>
     </div>
     <div class="ctl" id="acts"></div>
     <div class="ctl"><button class="main" id="auto">요리 스크립트 자동 재생</button></div>
@@ -71,22 +70,22 @@
   function line(t) { var d = document.createElement('div'); d.textContent = t; $('log').appendChild(d); $('log').scrollTop = 1e9; }
   C.onFire(function (e) { line('#' + e.i + ' ' + e.act + ' → ' + e.sticker + '  (' + e.from + ', ' + e.by + ')'); });
 
-  function detail(act) { return { tier: +$('tier').value, ingredient: $('ing').value, reason: act === 'done' ? 'chosen' : undefined, dish: act === 'done' && $('recipe').value ? { id: $('recipe').value } : undefined }; }
+  function detail(act) { var n = +$('tier').value; return { i: n, band: Math.min(2, n), kind: 'tap', dish: (act === 'done' || act === 'pick') && $('recipe').value ? $('recipe').value : undefined }; }
   function fire(act) { var r = C.cue(act, detail(act)); if (!r) line('   ' + act + ' → (안 띄움)'); }
-  ['start', 'drop', 'merge', 'full', 'done', 'serve', 'eat', 'idle'].forEach(function (a) {
-    var b = document.createElement('button'); b.textContent = a; b.onclick = function () { if (a === 'start') return $('start').onclick(); fire(a); }; $('acts').appendChild(b);
+  ['pick', 'tap', 'sizzle', 'flip', 'cut', 'step', 'done', 'serve', 'eat', 'idle'].forEach(function (a) {
+    var b = document.createElement('button'); b.textContent = a; b.onclick = function () { fire(a); }; $('acts').appendChild(b);
   });
-  $('start').onclick = function () { $('log').textContent = ''; C.begin({ runId: $('run').value, recipe: $('recipe').value || null }); line('새 판 ' + $('run').value + ' · 요리 ' + ($('recipe').value || '없음')); C.cue('start', {}); };
+  $('start').onclick = function () { $('log').textContent = ''; C.begin({ runId: $('run').value, recipe: $('recipe').value || null }); line('새 판 ' + $('run').value + ' · 요리 ' + ($('recipe').value || '없음')); };
 
-  /* 자동 재생: 그럴듯한 한 판 (재료 → 합치기 단계 오름 → 가득 → 완성 → 차리기 → 냠) */
-  var SCRIPT = [['drop', { ingredient: 'seaweed' }], ['drop', { ingredient: 'scallop' }], ['merge', { tier: 2 }], ['drop', { ingredient: 'shrimp' }],
-    ['merge', { tier: 3 }], ['drop', { ingredient: 'clam' }], ['merge', { tier: 4 }], ['merge', { tier: 5 }], ['full', {}], ['done', { reason: 'full' }], ['serve', {}], ['eat', {}]];
+  /* 자동 재생: 진짜 부엌 놀이가 보내는 차례 그대로 (고름 → 톡톡 9 → 불 → 굽기 → 뒤집음 → 썰기 2 → 접시 → 차리기 → 냠) */
+  var SCRIPT = [['pick', {}]].concat([0, 1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return ['tap', { i: i }]; }),
+    [['step', { kind: 'tap' }], ['sizzle', { band: 0 }], ['sizzle', { band: 1 }], ['flip', { band: 1 }], ['step', { kind: 'flip' }], ['cut', { i: 0 }], ['cut', { i: 1 }], ['step', { kind: 'slice' }], ['done', {}], ['serve', {}], ['eat', {}]]);
   window.playScript = function (gap) {
     var rid = $('recipe').value || null, i = 0;
     $('log').textContent = ''; C.begin({ runId: $('run').value, recipe: rid }); line('자동 재생 · 요리 ' + (rid || '없음'));
     (function step() {
       if (i >= SCRIPT.length) { window.SCRIPT_DONE = true; return; }
-      var s = SCRIPT[i++], d = Object.assign({}, s[1]); if (s[0] === 'done' && rid) d.dish = { id: rid };
+      var s = SCRIPT[i++], d = Object.assign({}, s[1]); if ((s[0] === 'done' || s[0] === 'pick') && rid) d.dish = rid;
       var r = C.cue(s[0], d); if (!r) line('   ' + s[0] + ' → (안 띄움)');
       setTimeout(step, gap || 1100);
     })();

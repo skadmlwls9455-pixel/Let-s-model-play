@@ -5,23 +5,23 @@
    그림 19종: assets/stickers/cook/*.png (32×32, node tools/make-stickers.js). 정수 배(×2 · ×3)로만 띄운다.
    엔진(PPOL_STICKERS)도 이 파일에 있다 — 달리기·헤엄 세트(js/play-stickers.js)가 같이 쓴다 (docs/PLAY_STICKERS.md).
 
-   발동은 자동이다. 요리 놀이(cook.js, 카드 7)가 이미 소리 훅으로 부르는 순간마다 한 줄만 더 부르면 된다:
-       window.COOK_STICKERS && COOK_STICKERS.cue(act, detail)
-     act: 'start' 판 시작 · 'drop' 재료 떨어뜨림 · 'merge' 합쳐짐 ({tier, ingredient}) · 'full' 냄비 가득
-          'done' 요리 완성 ({dish, reason:'full'|'chosen'}) · 'serve' 식탁에 차리기 · 'eat' 네 그릇 톡(냠) · 'idle' 한참 손 안 댐
-   또는 window 에 CustomEvent('ppol:cook', { detail: { act, ... } }) 를 쏘아도 같다 (cook.js 가 이 파일을 몰라도 됨).
+   발동은 자동이다. 진짜 부엌 놀이(js/cook.js)는 순간마다 소리 훅 AUDIO.on('cook', { act, … }) 를 부른다. 둘 중 하나로 잇는다:
+     (가) COOK_STICKERS.listenAudio() 한 줄 — cook.js 를 고치지 않는다 (그 소리 훅을 한 겹 감싸 같은 act 를 듣는다)
+     (나) cook.js 가 소리 훅 옆에서 window.COOK_STICKERS && COOK_STICKERS.cue(act, detail) 를 직접 부른다
+     act: pick · tap · sizzle · flip · cut · step · done (+ 조각 2 의 stir · simmer · place, 본 게임의 serve · eat · idle) — 아래 RULES 머리말.
+   또는 window 에 CustomEvent('ppol:cook', { detail: { act, ... } }) 를 쏘아도 같다.
 
    무엇을 띄우나:
      1) 지금 만드는 요리의 '요리 스크립트'(RECIPES[dish].cues)에 맞는 줄이 있으면 그것 (먼저 맞는 줄 하나)
      2) 없으면 공통 규칙(RULES)
      같은 줄이 여러 스티커를 주면 판 시드(mulberry32)로 고른다. 확률(chance)도 같은 시드. 시드 없는 난수는 쓰지 않는다.
-   요리 스크립트는 begin({ runId, recipe }) 로 고르거나, 도중에 setRecipe(id) / done 의 detail.dish 로 정해진다.
+   요리 스크립트는 pick · done 의 dish (요리 id) 로 정해진다. begin({ runId, recipe }) · setRecipe(id) 로도 고를 수 있다.
 
    정직 규칙 (cozy-web-game 중요 1·3, DELEGATION 카드 7):
      - 스티커는 그림뿐, 글자를 띄우지 않는다. 맛 평가·취향 말을 코드가 쓰지 않는다 (카드 7 의 금지 낱말 검사와 같다).
      - 문어가 산책 중일 때 요리하므로 스티커는 '문어가 지금 이렇게 반응했다'가 아니라 놀이 화면의 장식이다.
        그래서 기록(log)에는 by:'demo-rules' 로 남기고, 문어 기록(trips)·두뇌 입력·모델 요청에는 넣지 않는다 (CORE_LOOP_V2 약속 2).
-     - 벌·실패 표시 없음: 냄비가 가득 차도 '진땀' 정도. 우는 스티커는 '감동'(반짝 눈물)뿐.
+     - 벌·실패 표시 없음: 어느 굽기로 뒤집어도 같은 축하. 우는 스티커는 '감동'(반짝 눈물)뿐.
    모션: 등장 250 ms (decelerate) → 머묾 1.4 s → 퇴장 180 ms. 모션 줄이기면 위치 이동 없이 투명도만.
    일반 스크립트 · 모듈 없음 · file:// 그대로. DOM 이 없으면(node 테스트) pick 만 하고 그리지 않는다.
    ═══════════════════════════════════════════════════════════════════ */
@@ -102,7 +102,7 @@ var PPOL_STICKERS = (function () {
       var d = detail || {};
       if (!act || typeof act !== 'string') return null;
       var arg = cfg.scriptArg || 'script';
-      if (act === 'start' || !run) { var b = { runId: d.runId }; b[arg] = d[arg] != null ? d[arg] : d.script; begin(b); }
+      if (act === 'start' || (cfg.startActs && cfg.startActs[act]) || !run) { var b = { runId: d.runId }; b[arg] = d[arg] != null ? d[arg] : d.script; begin(b); }
       if (d[arg] && !run.script) setScript(d[arg]);
       var fromAct = cfg.scriptFrom && cfg.scriptFrom(act, d);   /* 순간이 스크립트를 정해 줄 때 (요리: done 의 dish.id) */
       if (fromAct && SCRIPTS[fromAct]) run.script = fromAct;
@@ -236,69 +236,51 @@ var COOK_STICKERS = (function () {
   };
 
   /* ── 공통 규칙: 요리 스크립트에 맞는 줄이 없을 때 ──
-     조건 키: on(act) · tier(정확히) · minTier · ingredient · nth(그 act 의 n번째) · every(n번마다) · reason · once
+     순간 이름은 진짜 부엌 놀이(js/cook.js, docs/COOK_PROTO.md §8)가 소리 훅으로 보내는 act 그대로다:
+       pick { dish } 조리대에서 소품을 고름 · tap { i 0~8 } 톡톡 · sizzle { band 0 불 켬 · 1 노릇 · 2 바삭 } · flip { band } 뒤집음
+       cut { i 0~1 } 썰기 한 줄 · step { kind } 단계 끝 · quiet (스티커 없음) · done { dish } 접시 공개
+       stir · simmer · place = 조각 2 (cook.js 가 아직 안 보냄) · serve · eat · idle = 본 게임 쪽 (식탁에 차리기 · 냠 · 한참 손 안 댐)
+     굽기(band)는 고르는 것이지 맞고 틀림이 아니다 — 어느 굽기에도 벌·실패 그림을 쓰지 않는다.
+     조건 키: on(act) · is{키: 값} · atLeast{} · atMost{} · nth(그 act 의 n번째) · every(n번마다) · once
      pick: 스티커 하나 또는 배열(시드로 고름) · chance: 0~1 (기본 1) · force: 쉬는 틈(gap) 무시 */
   var RULES = [
-    { on: 'start', pick: ['peek', 'stir'], chance: 0.8 },
-    { on: 'drop', nth: 1, pick: 'peek' },
-    { on: 'drop', every: 4, pick: ['stir', 'sprinkle', 'hmm', 'busy'], chance: 0.6 },
-    { on: 'merge', minTier: 5, pick: ['shock', 'love', 'ink'], force: true },
-    { on: 'merge', minTier: 3, pick: ['thumbs', 'clap'], chance: 0.7 },
-    { on: 'merge', pick: ['thumbs', 'stir', 'taste'], chance: 0.25 },
-    { on: 'full', pick: 'sweat', force: true },
-    { on: 'done', reason: 'full', pick: ['star', 'cheer'], force: true },
-    { on: 'done', pick: ['star', 'moved', 'cheer', 'flush'], force: true },
-    { on: 'serve', pick: 'heart_plate', force: true },
+    { on: 'pick', pick: 'peek' },
+    { on: 'tap', is: { i: 0 }, pick: 'busy', chance: 0.6 },
+    { on: 'tap', is: { i: 4 }, pick: 'clap' },
+    { on: 'sizzle', is: { band: 0 }, pick: ['stir', 'sprinkle'] },
+    { on: 'sizzle', is: { band: 1 }, pick: ['love', 'taste'] },
+    { on: 'sizzle', is: { band: 2 }, pick: ['hmm', 'sweat'], chance: 0.7 },
+    { on: 'flip', pick: ['cheer', 'shock', 'ink', 'thumbs'] },
+    { on: 'cut', is: { i: 0 }, pick: 'busy', chance: 0.6 },
+    { on: 'step', pick: ['thumbs', 'clap'], chance: 0.4 },
+    { on: 'done', pick: ['heart_plate', 'star', 'moved', 'flush'] },
+    { on: 'stir', every: 3, pick: 'stir' },
+    { on: 'simmer', pick: 'taste', chance: 0.5 },
+    { on: 'place', pick: 'sprinkle', chance: 0.5 },
+    { on: 'serve', pick: 'heart_plate' },
     { on: 'eat', pick: ['munch', 'taste'] },
     { on: 'idle', pick: 'sleepy', once: true }
   ];
 
   /* ── 요리 스크립트: 요리마다 정해 둔 순간 → 스티커 ──
-     id 는 요리 놀이(카드 7)의 dish.id 와 맞춘다. 카드 7 이 실제 id 를 정하면 여기 키만 바꾸면 된다.
+     id 는 부엌 놀이의 요리 id (COOK_PROTO §2 RECIPES). 지금 있는 요리는 해초전 하나 — 조각 2 가 미역국·톳 주먹밥을 더하면 그 id 로 한 덩이씩 더한다.
      cues 는 위에서부터 보고 먼저 맞는 줄 하나만 쓴다. 맞는 줄이 없으면 공통 규칙으로 내려간다. */
   var RECIPES = {
-    seaweed_soup: { name: '미역국', cues: [
-      { on: 'drop', ingredient: 'seaweed', nth: 1, pick: 'stir' },
-      { on: 'merge', tier: 2, pick: 'taste' },
-      { on: 'done', pick: 'moved' },
-      { on: 'serve', pick: ['heart_plate', 'munch'] }
-    ] },
-    scallop_grill: { name: '가리비 구이', cues: [
-      { on: 'drop', ingredient: 'scallop', pick: 'sprinkle', chance: 0.5 },
-      { on: 'merge', minTier: 3, pick: 'thumbs', force: true },
-      { on: 'done', pick: 'star' }
-    ] },
-    seafood_pancake: { name: '해물 파전', cues: [
-      { on: 'merge', tier: 2, pick: 'clap' },
-      { on: 'merge', tier: 4, pick: ['shock', 'ink'], force: true },
-      { on: 'full', pick: 'sweat', force: true },
-      { on: 'done', pick: ['cheer', 'star'] },
-      { on: 'serve', pick: 'heart_plate' }
-    ] },
-    clam_soup: { name: '조개탕', cues: [
-      { on: 'drop', every: 3, pick: ['stir', 'busy'] },
-      { on: 'merge', minTier: 3, pick: 'taste' },
-      { on: 'done', pick: 'moved' },
-      { on: 'eat', pick: 'munch' }
-    ] },
-    shrimp_rice: { name: '새우 볶음밥', cues: [
-      { on: 'drop', ingredient: 'shrimp', nth: 1, pick: 'hmm' },
-      { on: 'merge', minTier: 3, pick: ['thumbs', 'clap'] },
-      { on: 'done', pick: 'cheer' },
-      { on: 'serve', pick: 'love' }
-    ] },
-    star_jelly: { name: '별 젤리', cues: [
-      { on: 'merge', minTier: 4, pick: 'love', force: true },
-      { on: 'done', pick: ['star', 'flush'] },
-      { on: 'serve', pick: ['heart_plate', 'love'] }
+    jeon: { name: '해초전', cues: [
+      { on: 'tap', is: { i: 8 }, pick: 'clap', force: true },      /* 반죽 다 폄 */
+      { on: 'flip', pick: ['cheer', 'shock'] },                    /* 휙 뒤집음 */
+      { on: 'cut', is: { i: 1 }, pick: 'thumbs' },                 /* 열십자 다 썲 */
+      { on: 'done', pick: ['heart_plate', 'star'] }                /* 접시 공개 */
     ] }
   };
 
   var api = PPOL_STICKERS.make({
     set: 'cook', catalog: CATALOG, rules: RULES, scripts: RECIPES,
     scriptArg: 'recipe', scriptLabel: 'recipe',
-    scriptFrom: function (act, d) { return act === 'done' && d.dish && d.dish.id; },
-    big: { full: true, done: true, serve: true }
+    startActs: { pick: true },   /* 소품을 고르면 새 판 */
+    scriptFrom: function (act, d) { return (act === 'pick' || act === 'done') && d.dish ? (typeof d.dish === 'string' ? d.dish : d.dish.id) : null; },
+    big: { pick: true, flip: true, done: true, serve: true },
+    slots: [{ l: '3%', t: '2%' }, { r: '3%', t: '2%' }]   /* 부엌 무대의 위쪽 두 모서리만 (벽·조리대 뒤) — 팬·손짓 안내·가운데 단계 이름을 가리지 않는다 */
   });
   /* 요리 쪽 이름 (카드 7 이 읽은 이름 그대로) */
   api.RECIPES = RECIPES;
@@ -306,6 +288,27 @@ var COOK_STICKERS = (function () {
   var cur = api.current;
   api.current = function () { var c = cur(); if (c) c.recipe = c.script; return c; };
   api.make = PPOL_STICKERS.make;
+
+  /* ── 자동: cook.js 를 고치지 않고 듣기 ──
+     cook.js 는 순간마다 AUDIO.on('cook', { act, … }) 를 부른다 (소리가 꺼져 있어도 부른다). listenAudio() 는 그 AUDIO.on 을 한 겹 감싸서
+     'cook' 이 지나갈 때 같은 act 로 cue 를 부르고, 원래 함수는 그대로 부른다 (소리는 전과 똑같다). 스티커는 부엌 무대(#cook-dlg .ck-stage) 위에 뜬다.
+     cook.js 가 COOK_STICKERS.cue 를 직접 부르게 되면 이 함수는 쓰지 않는다 (둘 다 하면 두 번 뜬다). AUDIO 가 없으면 false. */
+  api.listenAudio = function () {
+    if (typeof window === 'undefined' || !window.AUDIO || typeof window.AUDIO.on !== 'function') return false;
+    if (window.AUDIO.on.__cookStickers) return true;
+    var orig = window.AUDIO.on, wrapped = function (name, d) {
+      if (name === 'cook' && d && typeof d.act === 'string') {
+        try {
+          var st = document.querySelector('#cook-dlg .ck-stage');
+          if (st && api._host !== st) { api.mount(st, { scale: 2 }); api._host = st; }
+          api.cue(d.act, d);
+        } catch (e) { /* 스티커는 덤 — 소리·놀이를 막지 않는다 */ }
+      }
+      return orig.apply(this, arguments);
+    };
+    wrapped.__cookStickers = true; wrapped.__orig = orig; window.AUDIO.on = wrapped;
+    return true;
+  };
   return api;
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = COOK_STICKERS;

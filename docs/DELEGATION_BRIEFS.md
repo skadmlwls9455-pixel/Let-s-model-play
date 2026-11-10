@@ -144,10 +144,8 @@
   act: 'drop' 재료를 떨어뜨림 · 'merge' 합쳐짐 ({ act, tier } — 새 단계) · 'done' 요리 완성 (가득 참·"이걸로 할래") · 'serve' 식탁에 차리기.
   지금 js/audio.js 의 on(name, d) 은 모르는 이름을 그냥 넘긴다 (switch 의 default) — 소리 세션이 'cook' 을 더하면 난다. js/audio.js 는 고치지 않는다.
   CORE_LOOP_V2 §5.1 금지 표의 '`onEvent`만 낸다' 는 11-07 카드 검토로 이 AUDIO.on 한 줄로 바꿨다. onEvent 로는 소리를 내지 않는다 — PR 설명에 이렇게 적는다.
-스티커 (11-08 추가, docs/COOK_STICKERS.md): 같은 순간마다 window.COOK_STICKERS && COOK_STICKERS.cue(act, detail) 한 줄도 부른다.
-  cook.html 에 css/cook-stickers.css · js/cook-stickers.js 를 붙이고 판 영역에 COOK_STICKERS.mount(판). act 는 소리와 같고 'start' · 'full' · 'eat' · 'idle' 이 더 있다.
-  detail: merge = { tier, ingredient } · done = { dish, reason:'full'|'chosen' } · start = { runId: 판 id }. dish.id 가 RECIPES 키와 같으면 그 요리 스크립트가 먼저 돈다.
-  COOK_PROTO.md 에 소리 세션에 넘길 표: 이벤트 · act · 언제 · 느낌 (CORE_LOOP_V2 §5.5 '냄비 퐁'·'접시 내려놓기').
+스티커 (11-08 추가 · 11-10 진짜 놀이에 맞춤, docs/COOK_STICKERS.md): css/cook-stickers.css · js/cook-stickers.js 를 js/cook.js 뒤에 싣고 COOK_STICKERS.listenAudio() 한 줄.
+  cook.js 는 고치지 않는다 — 스티커가 위의 AUDIO.on('cook', { act }) 를 엿듣는다 (pick · tap · sizzle · flip · cut · step · done). 무대 위쪽 두 모서리에 뜬다.
 하지 말 것:
 - ppolppol_v2 · APP · BRAIN · S 를 읽거나 쓰기 (사람 놀이가 문어 기록에 닿지 않게)
 - 조개(돈)·지갑을 보이거나 정하기 — 결과만 낸다. 조개는 본 게임이 접시가 완성될 때 정한다

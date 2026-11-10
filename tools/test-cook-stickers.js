@@ -7,7 +7,9 @@
  * - 움직이는 스티커(anim)는 스트립이 칸 수만큼 넓고, 칸 0 이 정지 그림과 픽셀까지 같다
  * - 공통 규칙·요리 스크립트가 고르는 스티커가 전부 CATALOG 에 있다
  * - 같은 판 id + 같은 순간 순서 = 같은 스티커 (시드), Math.random 0건, 맛·취향 낱말 0건
- * - 큰 순간(가득·완성·차리기)은 쉬는 틈과 상관없이 뜬다, 요리 스크립트가 공통 규칙보다 먼저다
+ * - 순간 이름은 진짜 부엌 놀이(js/cook.js)의 소리 act 그대로: pick·tap·sizzle·flip·cut·step·done
+ * - 큰 순간(고름·뒤집음·접시·차리기)은 쉬는 틈과 상관없이 뜬다, 요리 스크립트(해초전)가 공통 규칙보다 먼저다
+ * - listenAudio: 소리 훅을 감싸 듣되 원래 소리는 그대로
  * - 기록은 by:'demo-rules'
  */
 'use strict';
@@ -57,7 +59,7 @@ animated.forEach(function (id) {
 });
 
 function picks(p) { return Array.isArray(p) ? p : [p]; }
-var ACTS = ['start', 'drop', 'merge', 'full', 'done', 'serve', 'eat', 'idle'];
+var ACTS = ['pick', 'tap', 'sizzle', 'flip', 'cut', 'step', 'done', 'stir', 'simmer', 'place', 'serve', 'eat', 'idle'];
 C.RULES.forEach(function (r, i) {
   check(ACTS.indexOf(r.on) >= 0, '공통 규칙 ' + i + ' act ' + r.on);
   picks(r.pick).forEach(function (s) { check(!!C.CATALOG[s], '공통 규칙 ' + i + ' 스티커 ' + s); });
@@ -71,41 +73,59 @@ Object.keys(C.RECIPES).forEach(function (id) {
   });
 });
 
-/* 같은 판 = 같은 결과 (시계는 주입) */
-var SEQ = [['start', {}], ['drop', { ingredient: 'seaweed' }], ['drop', { ingredient: 'scallop' }], ['merge', { tier: 2 }], ['drop', {}], ['merge', { tier: 3 }],
-  ['drop', {}], ['merge', { tier: 4 }], ['merge', { tier: 5 }], ['full', {}], ['done', { reason: 'full' }], ['serve', {}], ['eat', {}], ['idle', {}], ['idle', {}]];
-function play(runId, recipe, step) {
+/* 같은 판 = 같은 결과 (시계는 주입). 순간은 진짜 부엌 놀이가 보내는 차례 그대로 (COOK_PROTO §8): 고름 → 톡톡 9 → 불 → 굽기 → 뒤집음 → 썰기 2 → 접시 */
+var SEQ = [['pick', { dish: 'jeon' }]].concat([0, 1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return ['tap', { i: i }]; }),
+  [['step', { kind: 'tap' }], ['quiet', {}], ['sizzle', { band: 0 }], ['sizzle', { band: 1 }], ['flip', { band: 1 }], ['step', { kind: 'flip' }], ['quiet', {}],
+    ['cut', { i: 0 }], ['cut', { i: 1 }], ['step', { kind: 'slice' }], ['done', { dish: 'jeon' }], ['serve', {}], ['eat', {}], ['idle', {}], ['idle', {}]]);
+function play(runId, withRecipe, step) {
   var M = fresh(), t = 0; M.mount(null, { now: function () { return (t += step); } });
-  M.begin({ runId: runId, recipe: recipe });
-  return SEQ.map(function (s) { return s[0] === 'start' ? 'start:' + M.cue('drop', {}) : M.cue(s[0], s[1]); });
+  M.begin({ runId: runId });
+  return SEQ.map(function (s) { var d = Object.assign({}, s[1]); if (!withRecipe) delete d.dish; return s[0] === 'pick' && !withRecipe ? M.cue('tap', { i: -1 }) : M.cue(s[0], d); });
 }
-Object.keys(C.RECIPES).concat([null]).forEach(function (rec) {
+[true, false].forEach(function (rec) {
   var a = play('run-a', rec, 1000), b = play('run-a', rec, 1000);
-  check(JSON.stringify(a) === JSON.stringify(b), (rec || '공통') + ': 같은 판 id → 같은 스티커 ' + a.join(','));
-  check(a.filter(Boolean).length >= 4, (rec || '공통') + ': 한 판에 4장 이상 뜬다');
+  check(JSON.stringify(a) === JSON.stringify(b), (rec ? '해초전' : '공통') + ': 같은 판 id → 같은 스티커 ' + a.join(','));
+  check(a.filter(Boolean).length >= 5, (rec ? '해초전' : '공통') + ': 한 판에 5장 이상 뜬다');
 });
-var diff = 0; for (var n = 0; n < 12; n++) if (JSON.stringify(play('r' + n, null, 1000)) !== JSON.stringify(play('s' + n, null, 1000))) diff++;
+var diff = 0; for (var n = 0; n < 12; n++) if (JSON.stringify(play('r' + n, false, 1000)) !== JSON.stringify(play('s' + n, false, 1000))) diff++;
 check(diff > 0, '판 id 가 다르면 가끔은 다르게 나온다');
+check(ACTS.indexOf('quiet') < 0 && C.RULES.every(function (r) { return r.on !== 'quiet'; }), 'quiet 에는 스티커가 없다');
 
 /* 큰 순간은 틈 무시 (시계가 안 흘러도) */
 (function () {
-  var M = fresh(); M.mount(null, { now: function () { return 5; } }); M.begin({ runId: 'z' });
-  M.cue('drop', {});
-  check(M.cue('full', {}) === 'sweat', '가득 → 진땀 (틈 무시)');
-  check(!!M.cue('done', { reason: 'full' }), '완성은 틈 무시');
+  var M = fresh(); M.mount(null, { now: function () { return 5; } });
+  check(M.cue('pick', { dish: 'jeon' }) === 'peek', '소품 고름 → 빼꼼 (새 판)');
+  check(M.current().recipe === 'jeon', 'pick 의 dish 로 요리가 해초전으로 정해짐');
+  check(!!M.cue('flip', { band: 2 }), '뒤집음은 틈 무시 (어느 굽기든)');
+  var d = M.cue('done', { dish: 'jeon' }); check(d === 'heart_plate' || d === 'star', '접시 공개 → 한 접시·다 됐다 (' + d + ')');
   check(M.cue('serve', {}) === 'heart_plate', '차리기 → 한 접시');
   check(M.log().every(function (e) { return e.by === 'demo-rules'; }), '기록은 by:demo-rules');
+  var id1 = M.current().id; M.cue('pick', { dish: 'jeon' }); check(M.current().id !== id1 && M.current().fired === 1, '다시 고르면 새 판');
 })();
-/* 요리 스크립트가 공통 규칙보다 먼저: 해물 파전 merge tier 4 → 깜짝 */
+/* 요리 스크립트가 공통 규칙보다 먼저: 해초전 톡톡 마지막(i 8) → 짝짝 · 썰기 둘째 줄 → 따봉 */
 (function () {
-  var M = fresh(), t = 0; M.mount(null, { now: function () { return (t += 5000); } }); M.begin({ runId: 'p', recipe: 'seafood_pancake' });
-  check(M.cue('merge', { tier: 4 }) === 'shock', '해물 파전 4단계 → 깜짝');
-  var e = M.log().pop(); check(e && e.from === 'recipe:seafood_pancake', '출처 recipe 로 기록');
-  /* done 의 dish.id 로 요리가 정해진다 */
+  var M = fresh(), t = 0; M.mount(null, { now: function () { return (t += 5000); } }); M.begin({ runId: 'p', recipe: 'jeon' });
+  check(M.cue('tap', { i: 8 }) === 'clap', '해초전 톡톡 끝 → 짝짝');
+  var e = M.log().pop(); check(e && e.from === 'recipe:jeon', '출처 recipe 로 기록');
+  check(M.cue('cut', { i: 1 }) === 'thumbs', '해초전 다 썲 → 따봉');
   var N = fresh(); N.mount(null, { now: function () { return (t += 5000); } }); N.begin({ runId: 'q' });
-  check(N.cue('done', { dish: { id: 'clam_soup' } }) === 'moved', 'done dish.id=조개탕 → 감동');
-  check(N.current().recipe === 'clam_soup', '요리가 조개탕으로 정해짐');
-  check(N.cue('bogus', {}) === null && N.cue(null) === null, '모르는 act 는 조용히 null');
+  check(N.cue('tap', { i: 8 }) === null, '요리가 안 정해졌으면 그 줄은 없다');
+  N.cue('done', { dish: { id: 'jeon' } }); check(N.current().recipe === 'jeon', 'done 의 dish 가 { id } 꼴이어도 정해진다');
+  check(N.cue('bogus', {}) === null && N.cue(null) === null && N.cue('quiet', {}) === null, '모르는 act · quiet 는 조용히 null');
+  /* 굽기는 맞고 틀림이 아니다: 어느 굽기에도 뒤집으면 같은 묶음에서 */
+  [0, 1, 2].forEach(function (b) { var Q = fresh(); Q.mount(null, { now: function () { return 1; } }); Q.begin({ runId: 'band', recipe: 'jeon' }); var r = Q.cue('flip', { band: b }); check(r === 'cheer' || r === 'shock', '굽기 ' + b + ' 에 뒤집음 → ' + r); });
+})();
+/* 소리 훅 듣기 (cook.js 를 안 고친다) */
+(function () {
+  var calls = [], M = fresh();
+  global.window = { AUDIO: { on: function (n, d) { calls.push(n + ':' + (d && d.act)); return 'orig'; } } }; global.document = { querySelector: function () { return null; } };
+  M.mount(null, { now: function () { return 1; } });
+  check(M.listenAudio() === true && M.listenAudio() === true, 'listenAudio 는 한 번만 감싼다');
+  var ret = window.AUDIO.on('cook', { act: 'pick', dish: 'jeon' }); window.AUDIO.on('state', { v: 1 }); window.AUDIO.on('cook', { act: 'quiet' });
+  check(ret === 'orig' && calls.join() === 'cook:pick,state:undefined,cook:quiet', '원래 소리 함수는 그대로 불린다 (' + calls.join() + ')');
+  check(M.log().length === 1 && M.log()[0].sticker === 'peek', "'cook' 만 듣고 스티커를 낸다");
+  delete global.window; delete global.document;
+  check(fresh().listenAudio() === false, 'AUDIO 가 없으면 false');
 })();
 
 var src = fs.readFileSync(path.join(ROOT, 'js/cook-stickers.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'tools/ui-art/cook-stickers.js'), 'utf8');
