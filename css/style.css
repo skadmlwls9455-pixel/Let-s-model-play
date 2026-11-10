@@ -1341,6 +1341,7 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 :root[data-font="pixel"][data-layout="one"] #status { border-bottom: 2px solid var(--line); box-shadow: 0 2px 0 rgba(27, 21, 34, .35); }
 :root[data-layout="one"] #status .srow { min-height: calc(var(--bar-h) - 2px); align-items: center; justify-content: flex-start; gap: 12px; }
 :root[data-layout="one"] { --bar-h: 44px; }
+@media (max-width: 399px) { :root[data-layout="one"] #status, :root[data-font="pixel"][data-layout="one"] #status { padding-left: 8px; padding-right: 2px; } :root[data-layout="one"] #status .srow { gap: 6px; } }   /* 360 폭: 픽셀 네 글자 이름 80 + 데모 23 + 등불 칸 94 가 바(224) 안에 다 들게 */
 @media (max-width: 359px) { :root[data-layout="one"] { --bar-h: 58px; } }
 /* 바의 오른쪽 끝 136px 은 아이콘 묶음이 같은 바탕 · 같은 밑줄로 잇는다 (상태 줄은 #scene 밖이라 위에 겹치면 아이콘을 덮는다) */
 :root[data-layout="one"] .scene-ctl { top: var(--safe-t); right: 0; width: 136px; height: var(--bar-h); box-sizing: border-box; justify-content: flex-end; align-items: center; padding-right: 2px; background-color: var(--panel); border-bottom: 1px solid var(--rim); }

@@ -20,7 +20,8 @@ var SCENE3D = (function () {
   /* 11-10 방 넓히기 (주인: "캐릭터랑 문어 대비 방이 너무너무 좁은 느낌 — 넓혀 줘 · 다닥다닥 답답한 느낌을 지워 줘"): 뒷벽(−z) · 왼벽(−x)과 벽에 붙은 것들은 그대로 두고, **앞쪽(카메라 쪽) 바닥을 +x · +z 로 RF 까지** 넓힌다
      → 바닥 5 × 5 m → 6 × 6 m (넓이 +44 %), 늘어난 곳은 전부 빈 바닥. 화면 폭(1× 195 아트px)보다 방(229 px)이 넓어져 양 끝 모서리는 화면 밖 — 다락은 1× 에서도 화면을 밀 수 있고, 내 캐릭터가 가장자리로 가면 화면이 따라간다 */
   var RF = 3.5, R_SPAN = R + RF, R_MID = (RF - R) / 2;
-  var ANCHORS = { door: [1.95, 0, -2.05], window: [-1.8, 0, 0.4], crate: [1.25, 0, -1.0], board: [0.1, 0, -2.0], blanket: [-1.0, 0, 1.5], center: [0, 0, 0.2],
+  var SOFA = { x0: -R + 0.20, z: 2.0 };   /* 소파: 등 쪽 끝 x (왼벽 샛기둥 앞) · 가운데 z */
+  var ANCHORS = { door: [1.95, 0, -2.05], window: [-1.8, 0, 0.4], crate: [1.25, 0, -1.0], board: [0.1, 0, -2.0], blanket: [-0.65, 0, 1.6], center: [0, 0, 0.2],
     salon: [-1.75, 0, -1.1] };   /* salon = 미용실 거울 옆 (docs/SALON.md §2.1): 거울의 왼쪽 아래에 서서 거울을 가리지 않는다 · 상자 더미 앞면에서 0.53 m · 대야 자리에서 0.79 m */
   /* 놀이방 (8물결, docs/SCENE.md '놀이방'): 다락·바깥처럼 따로 그리는 세 번째 장소 'play'. 바닥 ±PLAY_R · 벽 PLAY_H (받침 포함 화면 높이 ≈ 135 아트px). 처음 들어갈 때만 만든다.
      문 앞 앵커 = 나중의 걸어 다니는 내 캐릭터가 문을 열기 전에 서는 자리 (각 장소 그룹 좌표, 그룹은 원점). 문어 앵커(ANCHORS)와 따로 — 문어는 놀이방에 안 간다 */
@@ -777,6 +778,20 @@ var SCENE3D = (function () {
       }
     }
     [[0.62, 0.9], [-1.48, -1.62], [1.72, 1.58]].forEach(function (p) { parts.push({ g: box(0.09, 0.012, 0.09), m: M(snapPos(p[0]), 0.0, snapPos(p[1])), c: MAT.knot }); propCount++; });   /* 옹이·못 3 (1px 점, 격자 스냅) */
+    /* 소파 (11-10 주인: "넓어진 만큼 카펫 근처에 벽에 등 대는 형태로 소파" — 낮고 통통한 주황 2인용, 참고 그림의 덩어리 쿠션): 왼벽에 등을 대고 방 안쪽(+x)을 본다. 창 바로 옆(z 1.3~2.7), 담요(카펫)는 소파 앞으로 0.35 m 비켜 놓았다 (ANCHORS.blanket). 더 앞쪽(z 2.7~)은 폰 1× 화면에서 왼쪽 밖으로 잘린다.
+       정적 방 지오메트리에 합친다 (드로우콜 0 추가 · 등불 칸과 상관없이 첫날부터 있다). 걷는 범위 장애물은 plBoxes 의 SOFA */
+    (function () {
+      var x0 = SOFA.x0, zc = SOFA.z, OR = '#e8702a', OD = '#c2551e', OL = '#f08a45';
+      parts.push({ g: box(0.80, 0.20, 1.36), m: M(x0 + 0.40, 0.17, zc), c: OD });                                             /* 밑판 */
+      [[0.08, -0.6], [0.08, 0.6], [0.72, -0.6], [0.72, 0.6]].forEach(function (f) { parts.push({ g: box(0.07, 0.07, 0.07), m: M(x0 + f[0], 0.035, zc + f[1]), c: W[1] }); });   /* 발 넷 */
+      [-0.27, 0.27].forEach(function (dz) {
+        parts.push({ g: box(0.56, 0.16, 0.52), m: M(x0 + 0.50, 0.35, zc + dz), c: OR });                                      /* 앉는 쿠션 */
+        parts.push({ g: box(0.50, 0.03, 0.46), m: M(x0 + 0.50, 0.44, zc + dz), c: OL });                                      /* 쿠션 윗면 밝은 칸 */
+        parts.push({ g: box(0.20, 0.42, 0.52), m: M(x0 + 0.13, 0.60, zc + dz, 0, 0, 0.14), c: OR });                          /* 등 쿠션 (살짝 뒤로 기움) */
+      });
+      [-1, 1].forEach(function (sd) { parts.push({ g: box(0.80, 0.40, 0.14), m: M(x0 + 0.40, 0.42, zc + sd * 0.61), c: OR }); parts.push({ g: box(0.74, 0.03, 0.12), m: M(x0 + 0.40, 0.635, zc + sd * 0.61), c: OL }); });   /* 팔걸이 */
+      propCount++;
+    })();
     /* 디오라마 받침 (룩 패스 5: 치수를 아트 픽셀 배수로 — 돌출 4px(0.222 m) · 위 지층 4px + 1px 줄 + 아래 지층 4px = 9px = 0.5 m. 줄은 0.01 만 돌출해 깊이로 앞에 오되 외곽선(6 cm) 은 안 생긴다) */
     var SLAB_OV = 6 * PX, SLAB_W = R_SPAN + 2 * SLAB_OV;   /* p=2 격자: 돌출 6px(0.222 m) · 지층 6px + 1px 줄 + 6px = 13px = 0.48 m (룩 패스 8, 세계 치수는 패스 5 와 같다) */
     parts.push({ g: box(SLAB_W, 6 * PX, SLAB_W), m: M(R_MID, -3 * PX, R_MID), c: MAT.slabTop });
@@ -2086,6 +2101,7 @@ var SCENE3D = (function () {
       var out = [], r = PL_RAD;
       function bx(cx, cz, hw, hd) { out.push([cx - hw - r, cx + hw + r, cz - hd - r, cz + hd + r]); }
       if (PL.place === 'attic') {
+        bx(SOFA.x0 + 0.40, SOFA.z, 0.40, 0.68);   /* 소파 (늘 있다) */
         if (props.crate.visible) bx(props.crate.position.x, props.crate.position.z, 0.52, 0.44);   /* 상자 더미 1.04 × 0.88 (양초는 그 위) */
         if (props.moss.visible) bx(props.moss.position.x, props.moss.position.z, 0.22, 0.22);     /* 창가 화분 */
         if (props.curtain.visible) { bx(props.curtain.position.x, WIN.z0 - 0.3, 0.04, 0.25); bx(props.curtain.position.x, WIN.z1 + 0.3, 0.04, 0.25); }   /* 커튼 천 두 폭 */
@@ -2268,9 +2284,9 @@ var SCENE3D = (function () {
         PL.faceCam = false; PL.wantYaw = Math.atan2(wx, wz);
         /* 문에 닿은 채 문 쪽으로 걸으면 넘어간다 (주인 11-10 "닿은 채로 걸어가면 슥 넘어가는"): 문 앞 앵커 0.45 m 안에서 문이 있는 벽 쪽(다락 문 = +x · 놀이방 문 = −x)으로 밀 때 한 번 on.playerDoor(가는 방).
            방금 그 문으로 들어왔으면(PL.doorArm false) 문 앞을 한 번 벗어났다 와야 한다 — 들어오자마자 되돌아가지 않게 */
-        var dAn = PL.place === 'play' ? DOOR_ANCHORS.playAtticDoor : DOOR_ANCHORS.atticPlayDoor, dDist = Math.hypot(PL.pos.x - dAn[0], PL.pos.z - dAn[2]), dPush = (PL.place === 'play' ? -wx : wx) / (Math.hypot(wx, wz) || 1);
-        if (dDist > 0.7) PL.doorArm = true;
-        else if (PL.doorArm && dDist < 0.45 && dPush > 0.5 && !DQ.active && !DQ.pending && !PLACE.trans) { PL.doorArm = false; emit('playerDoor', PL.place === 'play' ? 'attic' : 'play'); }
+        var dAn = PL.place === 'play' ? DOOR_ANCHORS.playAtticDoor : DOOR_ANCHORS.atticPlayDoor, dAx = Math.abs(PL.pos.x - dAn[0]), dAz = Math.abs(PL.pos.z - dAn[2]), dPush = (PL.place === 'play' ? -wx : wx) / (Math.hypot(wx, wz) || 1);
+        if (dAx > 0.9 || dAz > 1.0) PL.doorArm = true;   /* 문 앞 구역(벽에서 0.6 m · 문 양옆 0.7 m)을 넉넉히 — 11-10 주인: 놀이방 → 다락은 가까이 가도 안 넘어갔다 (0.45 m 원이 너무 작았다) */
+        else if (PL.doorArm && dAx < 0.6 && dAz < 0.7 && dPush > 0.25 && !DQ.active && !DQ.pending && !PLACE.trans) { PL.doorArm = false; emit('playerDoor', PL.place === 'play' ? 'attic' : 'play'); }
       } else if (PL.held && !held) { PL.faceCam = true; if (PL.heldStop) { PL.settleT = 0; PL.heldStop = false; } }   /* 손을 떼면(막힌 채 서 있다 떼도 · 데드존에 잡고만 있다 떼도) 다시 카메라 쪽 + 도착 눌림 한 번 — 전이는 '잡고 있었나'(held) 기준 */
       if (allowed && !PL.walking && PL.place === 'attic') {   /* 문어가 걸어와 내 캐릭터 위에 서면(문어 걷기는 플레이어를 모른다 — 걷기 시작 때 plAvoidOct 가 미리 비켜세우지만 길이 지나가기도 한다) 둥근 장애물 밖으로 밀려난다 — 걷는 속도로, 스틱을 쥐고 있어도(문어가 미는 셈), 미끄러짐은 plMove 몫 (리뷰 11-09) */
         var circ = plCircles(), pen = plPen(PL.pos.x, PL.pos.z, [], circ);
