@@ -3224,7 +3224,7 @@ var APP = (function () {
      소리: 장면이 on.playerStep() 을 쏘면 AUDIO.on('step') — js/audio.js 엔 아직 'step' 갈래가 없어 조용하다 (발소리 step_1~4 는 소리 한 벌에 있다 · 소리 세션 몫, BACKLOG '안 불리는 소리 연결') */
   var STICK_R = 22, STICK_DEAD = 0.15, STICK_FULL = 0.5;
   var STICK_KEYS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1], KeyA: [-1, 0], KeyD: [1, 0], KeyW: [0, 1], KeyS: [0, -1] };
-  var stk = { allowed: false, pid: null, keys: {}, vec: null, sent: 0 };
+  var stk = { allowed: false, pid: null, keys: {}, vec: null, sent: 0, ox: 0, oy: 0 };
   function stickApi() { return !!scene && sceneMode === '3d' && typeof scene.setPlayerInput === 'function'; }
   function stickSend(v) {   /* 장면에 입력 벡터 (같은 값은 다시 안 보낸다 — 키 자동 반복 · 데드존 안 움직임) */
     var nv = v ? { x: +v.x || 0, y: +v.y || 0 } : null;
@@ -3240,7 +3240,7 @@ var APP = (function () {
     el.style.setProperty('--kx', Math.round(dx) + 'px'); el.style.setProperty('--ky', Math.round(dy) + 'px');
   }
   function stickFromPointer(el, e) {
-    var r = el.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), len = Math.hypot(dx, dy);
+    var dx = e.clientX - stk.ox, dy = e.clientY - stk.oy, len = Math.hypot(dx, dy);   /* 가운데 = 처음 누른 자리 (떠다니는 스틱) */
     var k = Math.min(1, len / STICK_R);   /* 0..1 */
     stickKnob(len ? dx / len * k * STICK_R : 0, len ? dy / len * k * STICK_R : 0);
     if (!len || k < STICK_DEAD) { stickSend({ x: 0, y: 0 }); return; }   /* 데드존: 잡고만 있다 (멈춤 · 도착 눌림은 놓을 때 한 번) */
@@ -3256,7 +3256,7 @@ var APP = (function () {
   function stickRelease(el) {   /* 손을 뗌 (또는 숨김 · 탭을 떠남): 멈춤 · 손잡이 가운데로 · 키가 남아 있으면 그쪽으로 */
     el = el || $('stick');
     if (stk.pid != null) { var pid = stk.pid; stk.pid = null; if (el) { try { el.releasePointerCapture(pid); } catch (e) { /* 이미 풀림 */ } } }
-    if (el) { el.classList.remove('on'); stickKnob(0, 0); }
+    if (el) { el.classList.remove('on'); stickKnob(0, 0); el.style.removeProperty('left'); el.style.removeProperty('top'); el.style.removeProperty('bottom'); }   /* 제자리(왼쪽 아래)로 */
     stickSend(stickKeyVec());
   }
   function stickKeyIgnored() {   /* 열린 창 · 글자 입력(input · textarea · select · contenteditable · 슬라이더) · 장면 밖 스크롤 영역(#log 등 role=log) 에 포커스가 있으면 방향키를 그대로 둔다 (시트 안 조작 · 로그 굴리기와 안 섞이게).
@@ -3288,24 +3288,32 @@ var APP = (function () {
     if (!allowed) { stk.keys = {}; stickRelease(el); }
     stk.allowed = allowed;
     if (el && el.hidden !== !allowed) el.hidden = !allowed;
+    var zn = $('stick-zone'); if (zn && zn.hidden !== !allowed) zn.hidden = !allowed;
     if (sc && sc.classList.contains('stick-on') !== allowed) sc.classList.toggle('stick-on', allowed);
   }
   function stickSync() { stickShow(stickApi() && typeof scene.playerInputAllowed === 'function' ? !!scene.playerInputAllowed() : false); }
   function bindStick() {
     var el = $('stick'); if (!el) return;
-    el.addEventListener('pointerdown', function (e) {
+    var zone = $('stick-zone') || el;   /* 누르는 곳은 구역, 보이는 것은 #stick (pointer-events 없음) */
+    zone.addEventListener('pointerdown', function (e) {
       if (!stk.allowed || !stickApi() || el.hidden) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       if (stk.pid != null) return;   /* 두 번째 손가락은 무시 */
       e.preventDefault(); e.stopPropagation();
       stk.pid = e.pointerId;
-      try { el.setPointerCapture(e.pointerId); } catch (err) { /* 캡처 못 함: 그래도 스틱 위에서의 move 는 받는다 */ }
+      try { zone.setPointerCapture(e.pointerId); } catch (err) { /* 캡처 못 함: 그래도 구역 위에서의 move 는 받는다 */ }
+      /* 스틱 가운데를 누른 자리로 (장면 안쪽으로 반 칸 여유) */
+      var host = el.offsetParent || document.body, hr = host.getBoundingClientRect(), half = el.offsetWidth / 2;
+      var cx = Math.max(hr.left + half + 4, Math.min(hr.right - half - 4, e.clientX)), cy = Math.max(hr.top + half + 4, Math.min(hr.bottom - half - 4, e.clientY));
+      stk.ox = cx; stk.oy = cy;
+      el.style.left = Math.round(cx - hr.left - half) + 'px'; el.style.top = Math.round(cy - hr.top - half) + 'px'; el.style.bottom = 'auto';
       el.classList.add('on');
       stickFromPointer(el, e);
     });
-    el.addEventListener('pointermove', function (e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.preventDefault(); e.stopPropagation(); stickFromPointer(el, e); });
+    zone.addEventListener('pointermove', function (e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.preventDefault(); e.stopPropagation(); stickFromPointer(el, e); });
     function up(e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.stopPropagation(); stickRelease(el); }
-    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
+    zone.addEventListener('pointerup', up); zone.addEventListener('pointercancel', up); zone.addEventListener('lostpointercapture', up);
+    zone.addEventListener('contextmenu', function (e) { e.preventDefault(); });
     el.addEventListener('contextmenu', function (e) { e.preventDefault(); });   /* 길게 누르고 있어도 메뉴가 뜨지 않게 */
     document.addEventListener('keydown', function (e) { stickKey(e, true); });
     document.addEventListener('keyup', function (e) { stickKey(e, false); });

@@ -117,7 +117,7 @@ var SCENE3D = (function () {
     'varying vec2 vUv;',
     'uniform sampler2D tDiffuse, tDepth, tNormal, uBayer, tBloom; uniform vec2 uRes; uniform float uNear, uFar;',
     'uniform vec3 uPalOk[72]; uniform vec3 uPalRgb[72]; uniform int uPalN; uniform vec3 uW;',
-    'uniform float uDither, uOutline, uHasNormal, uVig, uBloom, uKeepAlpha, uFade; uniform vec3 uFadeOk;',   /* uFade (바깥·전환): 0 = 끔, 1 = 전부 허공색 — 정렬 Bayer 로 픽셀 단위 디더 페이드 */   /* uKeepAlpha 1 = 뷰티 알파를 그대로 (초상 투명 배경) */
+    'uniform float uDither, uOutline, uHasNormal, uVig, uBloom, uKeepAlpha, uFade, uSky, uStars; uniform vec3 uFadeOk, uSkyOk;',   /* uFade (바깥·전환): 0 = 끔, 1 = 전부 허공색 — 정렬 Bayer 로 픽셀 단위 디더 페이드 */   /* uKeepAlpha 1 = 뷰티 알파를 그대로 (초상 투명 배경) */
     'vec3 srgbToLinear(vec3 c){ vec3 lo = c / 12.92; vec3 hi = pow((c + 0.055) / 1.055, vec3(2.4)); return mix(lo, hi, step(vec3(0.04045), c)); }',
     'vec3 linToOklab(vec3 c){ c = max(c, vec3(0.0));',
     '  float l = 0.412221469470763 * c.r + 0.5363325372617348 * c.g + 0.0514459932675022 * c.b;',
@@ -161,6 +161,13 @@ var SCENE3D = (function () {
     '  ok.x += bayer(ap) * uDither * mix(0.125, 1.0, gate);',                            /* 평지 0.05 칸 · 램프 0.4 칸 (uDither = 0.4 × PAL.step × 슬라이더/0.25) */
     '  float bgk = step(uFar - 0.5, d0) * uVig * (1.0 - om); vec2 vq = (vUv - 0.5) * vec2(uRes.x / uRes.y, 1.0);',   /* 허공(배경)만: 가장자리로 갈수록 어둡게 + 정적 Bayer (비네트) */
     '  ok.x -= bgk * 0.1 * smoothstep(0.3, 0.9, length(vq)); ok.x += bgk * bayer(ap) * 0.06;',
+    /* 허공을 하늘로 (주인 11-10 "방이 허공에 떠 있다"): 방 뒤(세로 가운데 조금 아래)에 지평선 빛 띠 · 위로 갈수록 어두운 하늘 · 아래는 옅은 안개 한 겹 · 밤엔 별.
+       밝기만 건드리고 팔레트 스냅 + 정렬 Bayer 로 띠가 계단 디더가 된다 (색은 허공색 계열 그대로). 바깥 · 입장 연출 · 초상은 uSky 0 */
+    '  float sk = bgk * uSky; float hz = exp(-pow((vUv.y - 0.46) / 0.24, 2.0)); float up = smoothstep(0.46, 1.0, vUv.y);',
+    '  float sa = clamp(0.62 * hz + 0.20 * up + bayer(ap) * 0.14, 0.0, 1.0) * sk;',
+    '  ok = mix(ok, uSkyOk, sa);',
+    '  float sh = fract(sin(dot(ap, vec2(12.9898, 78.233))) * 43758.5453);',
+    '  ok.x += sk * uStars * step(0.9945, sh) * smoothstep(0.5, 0.62, vUv.y) * (0.35 + 0.3 * step(0.9985, sh));',
     '  if (bayer(ap) + 0.5 < uFade) ok = uFadeOk;',   /* 장소 전환 크로스페이드: 아트 픽셀 단위 정렬 디더로 허공색에 덮였다 걷힌다 (uFade 0 이면 bayer+0.5 ≥ 1/32 라 늘 통과 = 변화 없음) */
     '  float best = 1e9, bestL = 0.0; int bi = 0;',
     '  for (int i = 0; i < 72; i++) { if (i >= uPalN) break;',
@@ -339,7 +346,7 @@ var SCENE3D = (function () {
       tDiffuse: { value: rt.texture }, tDepth: { value: rt.depthTexture || rtN.texture }, tNormal: { value: rtN.texture }, tBloom: { value: rtE.texture }, uBloom: { value: BLOOM },
       uRes: { value: new T.Vector2(4, 4) }, uNear: { value: 0.1 }, uFar: { value: 60 },
       uPalOk: { value: new Float32Array(216) }, uPalRgb: { value: new Float32Array(216) }, uPalN: { value: 0 }, uW: { value: new T.Vector3(1, 1.3, 1.3) },
-      uDither: { value: 0 }, uOutline: { value: hasDepthTex ? 1 : 0 }, uHasNormal: { value: 1 }, uVig: { value: hasDepthTex ? 1 : 0 }, uBayer: { value: keep(bayerTex()) }, uKeepAlpha: { value: 0 }, uFade: { value: 0 }, uFadeOk: { value: new T.Vector3(0, 0, 0) } } }));
+      uDither: { value: 0 }, uOutline: { value: hasDepthTex ? 1 : 0 }, uHasNormal: { value: 1 }, uVig: { value: hasDepthTex ? 1 : 0 }, uSky: { value: 0 }, uStars: { value: 0 }, uSkyOk: { value: new T.Vector3(0, 0, 0) }, uBayer: { value: keep(bayerTex()) }, uKeepAlpha: { value: 0 }, uFade: { value: 0 }, uFadeOk: { value: new T.Vector3(0, 0, 0) } } }));
     renderer.autoClear = false;   /* 패스마다 명시적으로 클리어 (발광 패스는 색만 지우고 뷰티 깊이를 쓴다) */
     var quadGeo = keep(new T.BufferGeometry());
     quadGeo.setAttribute('position', new T.Float32BufferAttribute([-1, 3, 0, -1, -1, 0, 3, -1, 0], 3));
@@ -1656,7 +1663,7 @@ var SCENE3D = (function () {
       tDiffuse: { value: rtP.texture }, tDepth: { value: rtP.depthTexture || rtPN.texture }, tNormal: { value: rtPN.texture }, tBloom: { value: rtPN.texture }, uBloom: { value: 0 },
       uRes: { value: new T.Vector2(PORT.N, PORT.N) }, uNear: { value: pCam.near }, uFar: { value: pCam.far },
       uPalOk: post.uniforms.uPalOk, uPalRgb: post.uniforms.uPalRgb, uPalN: post.uniforms.uPalN, uW: post.uniforms.uW,
-      uDither: { value: 0 }, uOutline: { value: hasDepthTex ? 1 : 0 }, uHasNormal: { value: 1 }, uVig: { value: 0 }, uBayer: post.uniforms.uBayer, uKeepAlpha: { value: 1 }, uFade: { value: 0 }, uFadeOk: { value: new T.Vector3(0, 0, 0) } } }));
+      uDither: { value: 0 }, uOutline: { value: hasDepthTex ? 1 : 0 }, uHasNormal: { value: 1 }, uVig: { value: 0 }, uSky: { value: 0 }, uStars: { value: 0 }, uSkyOk: { value: new T.Vector3(0, 0, 0) }, uBayer: post.uniforms.uBayer, uKeepAlpha: { value: 1 }, uFade: { value: 0 }, uFadeOk: { value: new T.Vector3(0, 0, 0) } } }));
     var pBuf = new Uint8Array(PORT.N * PORT.N * 4);
     function portraitBg(o) { var b = o && o.bg; if (!b || b === 'transparent') return null; if (b === 'navy') return '#172038'; return /^#[0-9a-f]{6}$/i.test(b) ? b : null; }   /* 기본 투명 · 'navy' = Apollo 남색 · '#rrggbb' */
     function renderPortrait(expr, bgHex, colorHex) {   /* colorHex = 그 몸색으로 찍기 (장면 몸색·팔레트는 찍은 뒤 그대로 되돌린다 — 첫 실행 창 미리 보기 · 지난 날 초상) */
@@ -3918,6 +3925,7 @@ var SCENE3D = (function () {
         blurMat.uniforms.tSrc.value = rtB.texture; blurMat.uniforms.uDir.value.set(0, 1 / S.rh); renderer.setRenderTarget(rtE); renderer.render(quadScene, quadCam);
         quad.material = post; calls += 2;
       }
+      post.uniforms.uSky.value = (PLACE.vis === 'exterior' || INTRO.on) ? 0 : 1; post.uniforms.uStars.value = clamp((light.em - 0.6) / 0.4, 0, 1); if (light.out) { var so = hexToOklab('#' + light.out.getHexString()); post.uniforms.uSkyOk.value.set(Math.max(so[0] * 0.62, 0.3), so[1] * 0.8, so[2] * 0.8);   /* 창밖 빛(out)을 한 톤 가라앉힌 색 — 밤엔 남색이 팔레트 맨 아래 칸에 묻히지 않게 밝기 바닥 0.3 */ }   /* 허공 하늘: 다락 · 놀이방만 · 별은 밤(자체광 em 1)에만 */
       renderer.setRenderTarget(null); renderer.render(quadScene, quadCam); probeSky();
       calls += 1;
       if (t0) { var ms = performance.now() - t0; perf.ring[perf.i] = ms; perf.i = (perf.i + 1) % 60; if (perf.n < 60) perf.n++; perf.sum += ms; perf.cnt++; }
