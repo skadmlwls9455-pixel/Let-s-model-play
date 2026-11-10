@@ -16,7 +16,7 @@
         "icn1"
       ],
       "maxDuration": 60,
-      "includeFiles": "{library/books/**,js/world.js,js/brain.js,js/shelf.js}"
+      "includeFiles": "{library/books/**,library/cards/**,js/world.js,js/brain.js,js/shelf.js}"
     },
     "api/room.js": {
       "regions": [
@@ -44,6 +44,19 @@
         {
           "key": "Cache-Control",
           "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/vendor/mcp-apps/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
         }
       ]
     }
