@@ -513,6 +513,7 @@ var APP = (function () {
       opts.onLost = sceneLost;
       try { scene = SCENE3D.init($('scene3d'), opts); sceneMode = '3d'; }
       catch (e) { console.warn('[app] scene3d init 실패 → 2D 폴백', e); scene = null; }
+      try { if (scene && typeof scene.setOctWear === 'function' && isObj(S.settings.octWear)) scene.setOctWear(S.settings.octWear); } catch (e) { console.warn('[app] setOctWear', e); }   /* 문어가 쓰기로 한 것 */
       try { if (scene && typeof scene.setLayout === 'function' && isObj(S.room.layout)) scene.setLayout(S.room.layout); } catch (e) { console.warn('[app] setLayout', e); }   /* 저장된 가구 자리 */
     }
     if (!scene) { document.documentElement.removeAttribute('data-layout'); scene = SCENE2D.init(host, opts); sceneMode = '2d'; }   /* 2D 는 쌓는 배치 크기로 재야 한다 → 그리기 전에 뗀다 */
@@ -2729,9 +2730,62 @@ var APP = (function () {
         })();
       }).catch(function () { claudeSyncing = false; if (manual) toast('지금은 가져올 수 없어 (연결 안 됨)'); });
   }
+  /* ── 문어 선물 상자 (11-10 주인: "선물 상자 화면 · 내밀었을 때 문어의 선택 연출", docs/MINIGAMES.md §6·§7) ──
+     사람은 **내밀기만** 한다. 쓸지 말지는 문어가 정한다 — 지금은 데모 규칙(시드: 날짜 · 코스튬 · 몇 번째 내밀기 · 이름)이 고르고, 그 사실을 그대로 적는다 ('데모 규칙이 고름').
+     안 써도 시무룩한 연출 · 다시 조르는 문구 없음. 상으로 받은 것(종이 왕관 · 황제 망토)은 다락방 달리기 주간 상을 받았을 때만 상자에 들어온다 */
+  var giftPick = null, giftBusy = false;
+  function giftAwards() { try { var r = JSON.parse(localStorage.getItem('ppolppol_runner') || '{}'), a = (r.net && r.net.awards) || {}; return { paper_crown: !!(a.paper_crown && a.paper_crown.length), emperor_cape: !!(a.emperor_cape && a.emperor_cape.length) }; } catch (e) { return {}; } }
+  function giftList() { var C = (typeof SCENE3D !== 'undefined' && Array.isArray(SCENE3D.COSTUMES)) ? SCENE3D.COSTUMES : [], aw = giftAwards(); return C.filter(function (c) { return !c.award || aw[c.id]; }); }
+  function giftWear() { return isObj(S.settings.octWear) ? S.settings.octWear : {}; }
+  function giftOffer(id) {   /* id = 코스튬 | null(벗어 볼래? 권하기) */
+    if (giftBusy) return;
+    var name = S.octopus.name || '문어', list = giftList(), c = null; list.forEach(function (x) { if (x.id === id) c = x; });
+    if (sceneMode !== '3d' || !scene || typeof scene.setOctWear !== 'function') { toast('지금 화면에서는 내밀 수 없어'); return; }
+    if (oct.state === 'away' || busy) { toast(name + '가 나가 있어'); return; }
+    if (oct.state === 'sleep') { toast(name + '가 자고 있어'); return; }
+    var wear = Object.assign({}, giftWear());
+    if (!c && !wear.head && !wear.back) { toast(name + '는 아무것도 안 쓰고 있어'); return; }
+    var sh = $('settings-sheet'); if (sh && sh.open) sh.close();
+    giftBusy = true; S.settings.giftN = (S.settings.giftN | 0) + 1;
+    var rng = mkRng(B ? B.hashSeed(todayKey(), c ? c.id : 'off', S.settings.giftN, name) : S.settings.giftN * 2654435761);
+    expressRow('curious'); bubble('…', 1200, 'think');   /* 들여다보는 틈 1.3 s — 고르는 과정을 보여 준다 */
+    setTimeout(function () {
+      giftBusy = false;
+      var yes = rng() < (c ? 0.65 : 0.8), line;
+      if (c) {
+        if (yes) { wear[c.slot] = c.id; line = name + '가 ' + c.name + (c.slot === 'back' ? ' 두르기로 했어.' : ' 쓰기로 했어.'); }
+        else line = name + '는 ' + c.name + (c.slot === 'back' ? ' 안 두르기로 했어.' : ' 안 쓰기로 했어.');
+      } else {
+        if (yes) { wear = {}; line = name + '가 다 벗기로 했어.'; } else line = name + '는 그대로 있기로 했어.';
+      }
+      if (yes) { S.settings.octWear = wear; scene.setOctWear(wear); refreshPortraits(); expressRow('happy'); } else expressRow('calm');
+      save();
+      appendLogRow(ensureTodaySection(), logRow('선물', line + ' (데모 규칙이 고름)', 'c-amber', true));
+      toast(line);
+    }, 1300);
+  }
+  function renderGift(frag) {
+    var list = giftList(), wear = giftWear();
+    frag.appendChild(h('h3', { text: '문어 선물 상자' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '내밀기만 할 수 있어. 쓸지는 문어가 정해.' }));
+    var row = h('div', { class: 'filters gift-chips', role: 'group', 'aria-label': '선물 상자' });
+    list.forEach(function (c) {
+      var b = h('button', { type: 'button', class: 'fchip', text: c.name + (wear[c.slot] === c.id ? ' · 쓰는 중' : '') });
+      chipOn(b, giftPick === c.id);
+      b.addEventListener('click', function () { giftPick = giftPick === c.id ? null : c.id; row.querySelectorAll('.fchip').forEach(function (x, i) { chipOn(x, list[i].id === giftPick); }); go.disabled = !giftPick; });
+      row.appendChild(b);
+    });
+    frag.appendChild(row);
+    var go = h('button', { type: 'button', class: 'btn sm pressable', id: 'gift-go', text: '내밀기' }); go.disabled = !giftPick;
+    go.addEventListener('click', function () { if (giftPick) giftOffer(giftPick); });
+    var off = h('button', { type: 'button', class: 'btn sm pressable', id: 'gift-off', text: '벗어 볼래? 권하기' });
+    off.addEventListener('click', function () { giftOffer(null); });
+    frag.appendChild(h('div', { class: 'btn-row' }, [go, off]));
+  }
   function renderSettings() {
     var body = $('set-body'); if (!body) return;
     var frag = document.createDocumentFragment();
+    renderGift(frag);   /* 문어 선물 상자 (맨 위) */
     /* 문어 색 고르기는 뺐다 (주인 11-10: "문어 색 사용자가 멋대로 바꿀 수 있게 하는 기능은 제거") — 문어 색은 미용실 거울 앞에서 문어가 정한다 */
     renderPlayerParts(frag);   /* 내 모습 — 문어 색 바로 아래 */
     if (window.AUDIO) AUDIO.on('room_sheet', { frag: frag });   /* 소리: '켜기' 체크 칸 + 음악·효과음 크기 (js/audio.js — 훅 이름은 예전 그대로) */

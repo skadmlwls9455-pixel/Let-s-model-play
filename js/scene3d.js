@@ -308,6 +308,10 @@ var SCENE3D = (function () {
     shoes: [{ id: 'flat', name: '단화' }, { id: 'boot', name: '부츠' }, { id: 'sneaker', name: '운동화' }, { id: 'loafer', name: '로퍼' }],
     acc: [{ id: 'none', name: '없음' }, { id: 'ribbon', name: '리본' }, { id: 'beret', name: '베레모' }, { id: 'glasses', name: '동글안경' }, { id: 'catears', name: '고양이귀' }, { id: 'strawhat', name: '밀짚모자' }] };
   var PLAYER_DEFAULT = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };   /* 기본 모습 (단발 · 금발 · 동그란 눈 · 어두운 눈 · 세모코 · 미소 · 볼 없음 · 남색 원피스 · 단화 · 리본) */
+  /* 문어 코스튬 (11-10 주인: "코스튬 그림 · 문어에게 씌우는 장면 코드 · 선물 상자 화면 · 내밀었을 때 문어의 선택 연출 — 진행하자", docs/MINIGAMES.md §6).
+     slot head = 머리 위 · back = 등. award = 다락방 달리기 주간 상으로 받아야 상자에 들어온다 (나머지는 처음부터). 기하 빌더는 init 안 OCT_WEAR */
+  var COSTUMES = [{ id: 'ribbon', name: '리본', slot: 'head' }, { id: 'beret', name: '베레모', slot: 'head' }, { id: 'strawhat', name: '밀짚모자', slot: 'head' }, { id: 'gat', name: '갓', slot: 'head' }, { id: 'partyhat', name: '고깔모자', slot: 'head' },
+    { id: 'paper_crown', name: '종이 왕관', slot: 'head', award: true }, { id: 'emperor_cape', name: '황제 망토', slot: 'back', award: true }];
   function plPart(cat, id) { var L = PLAYER_PARTS[cat] || []; for (var i = 0; i < L.length; i++) if (L[i].id === id) return L[i]; return null; }
   function normalizePlayer(cfg) {   /* cfg → 열 범주가 다 있는 새 객체. 모르는 범주는 버리고 모르는 id 는 기본값 */
     var out = {}; cfg = cfg && typeof cfg === 'object' ? cfg : {};
@@ -1711,6 +1715,29 @@ var SCENE3D = (function () {
        (그림자 패스는 체크를 모른다 → 꽉 찬 그림자. 사라지기 첫 칸에 끄면 낮의 긴 그림자가 몸이 다 있을 때 툭 사라졌다 · 0단계 '접지 그림자는 절반에서'). d = 0 이면 octG 를 숨긴다 */
     var WAVE_N = 5, FADE = { d: 1, on: 1, dbg: null }, octCasters = [head].concat(arms), octToon = [], WAVE = { on: false, t: 0, arm: 0 };
     bodyG.traverse(function (o) { if (o.isMesh && o.material === toon) octToon.push(o); });   /* WAVE.arm 0 = 오른쪽 옆다리 (카메라를 보면 화면 오른쪽 = 나가는 쪽) — 머리 옆으로 들려 윤곽 밖에 보인다 */
+    /* 문어 코스튬 메시: 머리 반지름 1 단위 (머리 중심 y 0.92 · 꼭대기 ≈ 1.80), bodyG 의 자식이라 숨쉬기 · 찌그러짐 · 걷기를 같이 탄다. 문어 툰 재질 · 태그 0 (setColor 가 다시 칠하지 않는다).
+       슬롯마다 메시 하나 (head · back) — 바꿀 때 사라짐(FADE)용 목록(octToon · octCasters)도 같이 고친다 */
+    var OCT_WEAR = {
+      ribbon: function (L) { var c = '#4a86d8'; L.push({ g: new T.SphereGeometry(0.26, 8, 6), m: M(0.36, 1.78, 0.3, 0, 0, 0.5, 1, 0.75, 0.6), c: c }, { g: new T.SphereGeometry(0.26, 8, 6), m: M(0.78, 1.50, 0.26, 0, 0, 0.5, 1, 0.75, 0.6), c: c }, { g: new T.SphereGeometry(0.13, 6, 5), m: M(0.58, 1.64, 0.34), c: '#f1ede2' }); },   /* 파란 리본 (빨강은 빨간 몸에 묻혔다) */
+      beret: function (L) { var c = '#2a3f6a'; L.push({ g: new T.SphereGeometry(0.85, 14, 8, 0, Math.PI * 2, 0, 1.3), m: M(0.08, 1.42, -0.02, 0, 0, -0.2, 1, 0.5, 1), c: c }, { g: new T.SphereGeometry(0.07, 6, 5), m: M(0.0, 1.84, -0.02), c: c }); },
+      strawhat: function (L) { var c = '#dcb878'; L.push({ g: new T.CylinderGeometry(1.02, 1.06, 0.07, 16), m: M(0, 1.66, -0.1), c: c }, { g: new T.CylinderGeometry(0.6, 0.72, 0.42, 12), m: M(0, 1.88, -0.1), c: c }, { g: new T.CylinderGeometry(0.73, 0.73, 0.1, 12), m: M(0, 1.74, -0.1), c: '#4a86d8' }); },
+      gat: function (L) { var c = '#1b1522', d = '#2a2433'; L.push({ g: new T.CylinderGeometry(1.08, 1.12, 0.05, 18), m: M(0, 1.68, -0.12), c: d }, { g: new T.CylinderGeometry(0.48, 0.55, 0.62, 12), m: M(0, 2.0, -0.12), c: c }, { g: new T.CylinderGeometry(0.56, 0.56, 0.07, 12), m: M(0, 1.74, -0.12), c: '#5a4a6a' }); },   /* 갓: 넓고 얇은 양태 + 높은 대우 + 갓끈 자리 띠 */
+      partyhat: function (L) { L.push({ g: new T.ConeGeometry(0.5, 0.95, 10), m: M(0.1, 2.12, 0, 0, 0, -0.12), c: '#4a86d8' }, { g: new T.CylinderGeometry(0.4, 0.46, 0.1, 10), m: M(0.07, 1.78, 0, 0, 0, -0.12), c: '#f0c040' }, { g: new T.SphereGeometry(0.11, 6, 5), m: M(0.16, 2.62, 0), c: '#f0c040' }); },
+      paper_crown: function (L) { var c = '#e8a93a'; L.push({ g: new T.CylinderGeometry(0.66, 0.7, 0.26, 12, 1, true), m: M(0, 1.80, 0), c: c }); for (var i = 0; i < 6; i++) { var a = i / 6 * Math.PI * 2; L.push({ g: new T.ConeGeometry(0.16, 0.3, 4), m: M(Math.sin(a) * 0.66, 2.06, Math.cos(a) * 0.66), c: c }); } },
+      emperor_cape: function (L) { var c = '#a8232e', g = '#f0c040'; L.push({ g: new T.CylinderGeometry(0.9, 1.25, 1.15, 14, 1, true, Math.PI * 0.5, Math.PI), m: M(0, 0.72, -0.12), c: c }, { g: new T.CylinderGeometry(0.93, 0.93, 0.14, 14, 1, true, Math.PI * 0.42, Math.PI * 1.16), m: M(0, 1.3, -0.1), c: g }); } };
+    var octWearM = { head: null, back: null }, octWearId = { head: null, back: null };
+    function octWearSlot(slot, id) {
+      var old = octWearM[slot];
+      if (old) { bodyG.remove(old); [octToon, octCasters].forEach(function (arr) { var k = arr.indexOf(old); if (k >= 0) arr.splice(k, 1); }); if (old.geometry) old.geometry.dispose(); octWearM[slot] = null; }
+      octWearId[slot] = null;
+      var def = null; COSTUMES.forEach(function (c) { if (c.id === id && c.slot === slot) def = c; });
+      if (!def || !OCT_WEAR[id]) return;
+      var L = []; OCT_WEAR[id](L);
+      var m = new T.Mesh(mergeParts(L), toon); m.castShadow = true; m.receiveShadow = true; m.material.side = toon.side;
+      bodyG.add(m); octToon.push(m); octCasters.push(m); octWearM[slot] = m; octWearId[slot] = id;
+    }
+    function setOctWear(w) { w = w && typeof w === 'object' ? w : {}; ['head', 'back'].forEach(function (sl) { if ((w[sl] || null) !== octWearId[sl]) octWearSlot(sl, w[sl] || null); }); portraitFlush(); dither.still = 0; }
+    function octWearNow() { return { head: octWearId.head, back: octWearId.back }; }
     function fadeLook(q) {   /* 그리기 상태만 (밀도 q) */
       var part = q < 1, sh = q >= 0.5; FADE.on = q; OCT_FADE.value = q;
       toon.transparent = part; toon.blending = part ? T.CustomBlending : T.NormalBlending;
@@ -4965,7 +4992,7 @@ var SCENE3D = (function () {
       setLantern: function (n) { st.lantern = n | 0; lampDirty = true; },
       setItems: function (items) { st.items = (items || []).slice(); applyItems(); },
       setWeather: function (w) { st.weather = w || 'rain'; applyWeather(); },
-      setTime: setTime, setColor: setColor, color: function () { return st.color; },   /* setColor(hex, { still }) — still = 흔들기 없음 · color() = 지금 장면 몸색 (시험용) */
+      setTime: setTime, setColor: setColor, color: function () { return st.color; }, setOctWear: setOctWear, octWear: octWearNow,   /* setColor(hex, { still }) — still = 흔들기 없음 · color() = 지금 장면 몸색 (시험용) */
       setOctState: setOctState, setCarry: function (svg) { octState.carrySvg = svg; },
       /* 미용실 (docs/SALON.md §8.2): setSalonOpen(on) 단추 허락 · salonOffer(hex|null) 병이 앞으로/제자리 (눈이 병으로) · salonDye(hex, { joy, look, pause|id, onBeat }) → Promise ·
          salonKeep() → Promise · salonFinish() 지금 연출을 끝 상태로 (새 색 · 대야 없음 · 병 제자리). 박자 알림 = on.salon(ev) / onBeat(ev): { act: 'tub', on } · 'pour' · 'splash' · 'done' { color, joy } · 'joy' · 'drain'.
@@ -5083,5 +5110,5 @@ var SCENE3D = (function () {
   }
 
   return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, DOOR_ANCHORS: DOOR_ANCHORS, ITEM_LEVEL: { salon: 2 },   /* ITEM_LEVEL = 장면이 그리는 새 소품의 등불 칸 (앱 ITEM_LEVEL 이 같은 값을 쓴다) */ PLAY_SIZE: { floor: 2 * PLAY_R, wall: PLAY_H }, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS, FIRST_LIGHT: FIRST_LIGHT, EXPRESSIONS: EXPRESSIONS.slice(),
-    PLAYER_PARTS: PLAYER_PARTS, PLAYER_DEFAULT: PLAYER_DEFAULT, normalizePlayer: normalizePlayer };   /* 내 캐릭터 파츠 카탈로그 · 기본값 · 정규화 (docs/PLAYER_PARTS.md §3) */
+    PLAYER_PARTS: PLAYER_PARTS, PLAYER_DEFAULT: PLAYER_DEFAULT, normalizePlayer: normalizePlayer, COSTUMES: COSTUMES };   /* 내 캐릭터 파츠 카탈로그 · 기본값 · 정규화 (docs/PLAYER_PARTS.md §3) */
 })();
