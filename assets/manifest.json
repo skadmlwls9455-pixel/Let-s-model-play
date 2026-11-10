@@ -1198,5 +1198,101 @@
     "w": 24,
     "h": 24,
     "note": "배지 소품 「조약돌 병 (함께한 날마다 조약돌 하나)」 24×24 (2D 그림 — 3D 소품은 장면 쪽)."
+  },
+  "souvenir32.feather": {
+    "src": "assets/souvenirs32/feather.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「깃털」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.feather."
+  },
+  "souvenir32.shell": {
+    "src": "assets/souvenirs32/shell.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「조개껍데기」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.shell."
+  },
+  "souvenir32.pebble": {
+    "src": "assets/souvenirs32/pebble.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「조약돌」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.pebble."
+  },
+  "souvenir32.button": {
+    "src": "assets/souvenirs32/button.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「단추」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.button."
+  },
+  "souvenir32.leaf": {
+    "src": "assets/souvenirs32/leaf.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「나뭇잎」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.leaf."
+  },
+  "souvenir32.marble": {
+    "src": "assets/souvenirs32/marble.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「유리구슬」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.marble."
+  },
+  "souvenir32.yarn": {
+    "src": "assets/souvenirs32/yarn.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「실뭉치」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.yarn."
+  },
+  "souvenir32.stamp": {
+    "src": "assets/souvenirs32/stamp.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「우표」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.stamp."
+  },
+  "souvenir32.matchbox": {
+    "src": "assets/souvenirs32/matchbox.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「성냥갑」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.matchbox."
+  },
+  "souvenir32.key": {
+    "src": "assets/souvenirs32/key.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「열쇠」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.key."
+  },
+  "souvenir32.pinecone": {
+    "src": "assets/souvenirs32/pinecone.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「솔방울」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.pinecone."
+  },
+  "souvenir32.paper_boat": {
+    "src": "assets/souvenirs32/paper_boat.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「종이배」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.paper_boat."
+  },
+  "souvenir32.bell": {
+    "src": "assets/souvenirs32/bell.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「작은 종」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.bell."
+  },
+  "souvenir32.map_piece": {
+    "src": "assets/souvenirs32/map_piece.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「지도 조각」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.map_piece."
+  },
+  "souvenir32.chalk": {
+    "src": "assets/souvenirs32/chalk.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「분필」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.chalk."
+  },
+  "souvenir32.stained_glass": {
+    "src": "assets/souvenirs32/stained_glass.png",
+    "w": 32,
+    "h": 32,
+    "note": "기념품 「색유리」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.stained_glass."
   }
 }

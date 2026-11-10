@@ -34,3 +34,13 @@
 
 id 는 ACHIEVEMENTS §8 의 예(`hello` · `runner_30`)를 따라 지었다. 배지 장부를 만드는 쪽이 다른 id 를 쓰면 `tools/ui-art/badges.js` 의 `BADGES` 첫 칸만 바꾸고 다시 만든다.
 남은 것: 나머지 배지 24장 (v0.5~v1 — 놀이가 붙을 때) · 대표 판은 있는 종이 테(`ui.frame.paper`)를 쓰면 된다.
+
+## 기념품 큰 판 16종 (32×32)
+
+> 11-10. 기념품은 16px 아이콘(`icon.souvenir.*`)뿐이라 포스터·선반·앨범처럼 크게 보일 자리에 쓸 그림이 없었다. 같은 16종을 32×32 로 새로 그렸다.
+
+- 파일 `assets/souvenirs32/<id>.png` · manifest `souvenir32.<id>` (추가만 — 16px 판과 플레이스홀더 `souvenir.*` 는 그대로).
+- 깃털 · 조개껍데기 · 조약돌 · 단추 · 나뭇잎 · 유리구슬 · 실뭉치 · 우표 · 성냥갑 · 열쇠 · 솔방울 · 종이배 · 작은 종 · 지도 조각 · 분필 · 색유리.
+- 방 그림(`assets/poster`)과 같은 물건(단추·열쇠·솔방울…)도 '주워 온 작은 것' 으로 다르게 그렸다 (빨간 두 구멍 단추 · 녹슨 쇠 열쇠 …).
+- 미리보기 `tests/evidence/souvenirs32/sheet.png`. 다시 만들기 `node tools/make-souvenirs32.js` (그림 `tools/ui-art/souvenirs32.js`). 검사 `node tools/test-art-extra.js` 가 `js/world.js` 의 기념품 전부에 큰 판이 있는지 본다.
+- **아직 게임에는 안 붙였다.** 쓸 자리 후보: 일기의 '가져온 것' 줄 · 앨범의 기념품 칸 · 2D 선반.
