@@ -252,6 +252,13 @@
 - **열리면**: `peek {kind:'wiki', title, lang:'en'}` 로 en.wikipedia 를 읽는다 (같은 글자 상한 · 감염 막기). 출처 표기 'Wikipedia (en)'. 게임 재생 규칙 (`isWikiPageUrl`) 과 일기 출처 링크도 en 을 받는다. 열리기 전에 `lang:'en'` 을 쓰면 '아직 닫혀 있어' 오류다.
 - 브라우저 끝까지 흉내: 제안 → 게임 창 (문어가 쓴 말 표시) → [열어 줘] → 방 상태 open → MCP 로 en 'Seiche' 읽음, 오류 0. 테스트 110개.
 
+### 11-10 MCP Apps — 산책 엽서
+
+- `finish`·`stay_home` 결과에 엽서 화면 (`ui://ppolppol/postcard`, `text/html;profile=mcp-app`) 이 붙는다. 엽서는 결과의 파일 이름으로 **화면 전용 도구** `ppolppol_postcard` (visibility `['app']`, 모델은 보지 않음) 를 불러 내용을 받는다. → 모델이 보는 결과·도구·토큰은 그대로다 (모델이 보는 도구 정의 5,424 B, 화면 전용 도구와 `_meta` 는 빼고 잰다).
+- 엽서 내용은 기록의 사실만이다: 들른 곳 · 읽음 상태 · 책 (제목·쓴 사람) · 출처 링크 (`app.openLink`), 모델이 쓴 글 (포스터 한 줄·한 줄·반응·메모) 은 쓴 그대로. 집에 있던 날은 활동 이름만 쓴다 (코드가 느낌을 쓰지 않는다). 모든 글은 `textContent` 로 넣는다.
+- 화면 스크립트: 배포판은 이 사이트의 `vendor/mcp-apps/app-with-deps-1.7.5.js` (MIT, CORS 허용) 를 불러온다. 로컬 (Desktop/Code) 은 버전을 고정한 unpkg 를 쓴다. CSP 는 그 출처 하나만 허용한다.
+- 확인: SDK 의 `AppBridge` 로 만든 가짜 호스트에서 엽서가 연결되고 → 도구 결과를 받아 → `ppolppol_postcard {file}` 를 부르고 → 그렸다 (캡처). claude.ai 에서의 실제 표시는 운영 배포 뒤 확인한다.
+
 ## 잘 된 것
 
 - 진짜 위키 읽기와 status: 읽은 곳은 `read` + ko 위키 출처, 위키 제목이 없는 방은 `builtin` 으로 왔고, 모델도 "책장 메모에서 읽었어" / "위키백과에서 실제로 읽었어" 로 구분해서 말했다.

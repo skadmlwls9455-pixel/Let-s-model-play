@@ -154,6 +154,15 @@ async function unit() {
   check(of.setFar(true).error, '걸린 제안이 없으면 사람 대답도 없음');
   of.finish({});
 
+  section('산책 엽서 (MCP App) — 기록의 사실만');
+  var PCD = require('../postcard.js').data;
+  var card = PCD([{ type: 'depart', t: 0 }, { type: 'peek', t: 1, target: { kind: 'room', id: 'tide', title: '밀물과 썰물' }, status: 'builtin', book: { room: 'tide', title: '바다가 두 번 부푸는 까닭', by: 'Claude (AI)' } },
+    { type: 'peek', t: 2, target: { kind: 'wiki', title: 'Seiche', lang: 'en' }, status: 'read', source: { url: 'https://en.wikipedia.org/wiki/Seiche', attribution: 'Wikipedia (en)' } },
+    { type: 'return', t: 3 }, { type: 'remember', t: 4, stopIdx: 0, line: '물은 달을 따라 돈다' }, { type: 'wrap_up', t: 5, reaction: '덤덤', note: { text: '세이시가 궁금해' } }], { name: '뚜루', date: '2026-11-10' });
+  check(card.kind === 'out' && card.stops.length === 2 && card.stops[0].label === '책장의 책' && card.stops[0].book.by === 'Claude (AI)' && card.stops[1].source.label === 'Wikipedia (en)' && card.poster === '물은 달을 따라 돈다' && card.note === '세이시가 궁금해' && card.reaction === '덤덤', '엽서 내용: 들른 곳 · 책 · 출처 · 모델 글 그대로');
+  var homeCard = PCD([{ type: 'stay_home', t: 0, activity: 'count_rain' }], {});
+  check(homeCard.kind === 'home' && homeCard.home === '창가에서 비 셌어' && !homeCard.line, '집에 있던 날: 활동 이름 (사실) 만, 코드가 느낌을 쓰지 않음');
+
   section('감염 막기 — 지시·주소·복사 권유·개인 정보');
   var SC = core.screenArgs;
   check(!SC('ppolppol_finish', { line: '물은 달을 따라 하루 두 번 돌아온다', note: '세이시가 궁금해' }), '보통 글은 통과');
@@ -287,7 +296,14 @@ async function protocol() {
   var instr = c.getInstructions() || '';
   check(instr.indexOf(core.FIXED_SENTENCE) >= 0, 'instructions 에 고정 문장');
   var tools = (await c.listTools()).tools;
-  check(tools.length === 8, '도구 8개 (산책 6 + answer + find)');
+  var appOnly = function (t) { var v = t._meta && t._meta.ui && t._meta.ui.visibility; return Array.isArray(v) && v.indexOf('model') < 0; };
+  var modelTools = tools.filter(function (t) { return !appOnly(t); });
+  check(modelTools.length === 8 && tools.length === 9, '모델이 보는 도구 8개 (산책 6 + answer + find) + 화면 전용 엽서 1개');
+  var pc = tools.filter(function (t) { return t.name === 'ppolppol_postcard'; })[0];
+  check(pc && appOnly(pc) && tools.filter(function (t) { return t.name === 'ppolppol_finish' || t.name === 'ppolppol_stay_home'; }).every(function (t) { return t._meta && t._meta.ui && t._meta.ui.resourceUri === 'ui://ppolppol/postcard'; }), '엽서: finish·stay_home 에 연결, 엽서 도구는 화면 전용 (모델 X)');
+  var rr = await c.readResource({ uri: 'ui://ppolppol/postcard' });
+  var rc = rr.contents[0];
+  check(rc.mimeType === 'text/html;profile=mcp-app' && /import \{ App \} from "https:\/\/unpkg\.com\/@modelcontextprotocol\/ext-apps@1\.7\.5\//.test(rc.text) && !/innerHTML/.test(rc.text) && rc._meta.ui.csp.resourceDomains.join() === 'https://unpkg.com', '엽서 리소스: MCP App MIME · 고정 버전 스크립트만 · innerHTML 안 씀');
   check(tools.every(function (t) { return t.title && t.annotations && typeof t.annotations.readOnlyHint === 'boolean' && typeof t.annotations.destructiveHint === 'boolean'; }), '모든 도구에 title·readOnlyHint·destructiveHint');
   function j(r) { return JSON.parse(r.content[0].text); }
   var lr = j(await c.callTool({ name: 'ppolppol_look_room', arguments: {} }));
@@ -299,7 +315,8 @@ async function protocol() {
   check(f.ok && fs.existsSync(path.join(dir, f.saved)), 'stdio: finish → out 파일');
   var bad = await c.callTool({ name: 'ppolppol_finish', arguments: { tripId: 'trip_zzz' } });
   check(bad.isError === true, 'stdio: 잘못된 tripId 는 isError');
-  var defs = Buffer.byteLength(JSON.stringify(tools)), ib = Buffer.byteLength(instr);
+  /* 모델이 보는 것만 잰다: 화면 전용 도구와 _meta (화면용 꼬리표) 는 뺀다 */
+  var defs = Buffer.byteLength(JSON.stringify(modelTools.map(function (t) { var o = Object.assign({}, t); delete o._meta; return o; }))), ib = Buffer.byteLength(instr);
   console.log('  (도구 정의 ' + defs + ' B · instructions ' + ib + ' B)');
   /* 11-10: 큰 도서관의 찾아보기 도구로 5,000 → 5,500. SDK 가 도구마다 붙이는 $schema·execution 칸이 약 90 B 씩이다 */
   check(defs < 5500, '도구 정의 5,500 B 미만 (연결해 두면 모든 대화에 실린다)');

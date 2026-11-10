@@ -5,6 +5,10 @@
 var { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 var z = require('zod');
 var core = require('./core.js');
+var fs = require('fs');
+var path = require('path');
+var postcard = require('./postcard.js');
+var APPS = require('@modelcontextprotocol/ext-apps/server');   /* MCP Apps: 산책 엽서 (대화 안의 화면) */
 
 module.exports = function buildServer(oct, hooks) {
   hooks = hooks || {};
@@ -22,8 +26,10 @@ module.exports = function buildServer(oct, hooks) {
     if (out && out.error) return { isError: true, content: [{ type: 'text', text: out.error }] };
     return { content: [{ type: 'text', text: JSON.stringify(out) }] };
   }
-  function tool(name, title, description, schema, hints, fn) {
-    server.registerTool(name, { title: title, description: description, inputSchema: schema, annotations: Object.assign({ openWorldHint: false }, hints) },
+  function tool(name, title, description, schema, hints, fn, ui) {
+    var cfg = { title: title, description: description, inputSchema: schema, annotations: Object.assign({ openWorldHint: false }, hints) };
+    var register = ui ? function (n, c, h) { c._meta = { ui: ui }; return APPS.registerAppTool(server, n, c, h); } : server.registerTool.bind(server);
+    register(name, cfg,
       async function (args) {
         try {
           var bad = core.checkArgs(name, args || {}) || core.screenArgs(name, args || {});   /* 글자 수 · 개수 상한 + 감염 막기 2 (남길 글 거르기) */
@@ -73,11 +79,11 @@ module.exports = function buildServer(oct, hooks) {
       hang: z.boolean().optional().describe('false 면 포스터 안 붙임'),
       tripId: z.string().optional()
     }, wrapFields),
-    { readOnlyHint: false, destructiveHint: false }, function (a) { return oct.finish(a); });
+    { readOnlyHint: false, destructiveHint: false }, function (a) { return oct.finish(a); }, { resourceUri: postcard.URI });
 
   tool('ppolppol_stay_home', '집에 있기', '집에 있는다. activity 는 look_room 의 것 중에서.',
     Object.assign({ activity: z.string().optional(), detail: z.string().optional().describe('쪽지 뒷면') }, wrapFields),
-    { readOnlyHint: false, destructiveHint: false }, function (a) { return oct.stayHome(a); });
+    { readOnlyHint: false, destructiveHint: false }, function (a) { return oct.stayHome(a); }, { resourceUri: postcard.URI });
 
   tool('ppolppol_find', '찾아보기', '위키백과에서 제목을 찾는다 (읽지는 않는다).',
     { q: z.string() },
@@ -89,6 +95,32 @@ module.exports = function buildServer(oct, hooks) {
   tool('ppolppol_answer', '물음에 답하기', 'decision 에 답한다 (action 은 menu 중). 결과에 decision 이 없으면 물음도 끝.',
     { id: z.string(), action: z.string(), line: z.string().optional(), expr: z.enum(['happy', 'idle', 'curious', 'calm']).optional(), note: z.string().optional() },
     { readOnlyHint: false, destructiveHint: false }, function (a) { return oct.answer(a); });
+
+  /* ── 산책 엽서 (MCP App) ── 화면 전용 도구: visibility ['app'] 라 모델은 이 도구를 보지 않는다 */
+  var FILE_RE = /^\d{4}-\d{2}-\d{2}-\d+\.json$/;
+  async function readOut(name) {
+    if (hooks.readOut) return hooks.readOut(name);
+    try { return fs.readFileSync(path.join(oct.outDir, name), 'utf8'); } catch (e) { return null; }
+  }
+  APPS.registerAppTool(server, 'ppolppol_postcard', {
+    title: '산책 엽서', description: '엽서 화면이 부른다 (모델용 아님).',
+    inputSchema: { file: z.string().optional() },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+    _meta: { ui: { resourceUri: postcard.URI, visibility: ['app'] } }
+  }, async function (a) {
+    try {
+      var trips = oct.S.trips || [], rec = a && FILE_RE.test(a.file || '') ? trips.filter(function (t) { return t.file === a.file; })[0] : trips[trips.length - 1];
+      if (!rec || !FILE_RE.test(rec.file || '')) return { isError: true, content: [{ type: 'text', text: '엽서가 없어' }] };
+      var ev = null; try { ev = JSON.parse(await readOut(rec.file)); } catch (e) { ev = null; }
+      if (!Array.isArray(ev)) return { isError: true, content: [{ type: 'text', text: '엽서가 없어' }] };
+      return { content: [{ type: 'text', text: '엽서' }], structuredContent: postcard.data(ev, { name: oct.name, date: rec.date }) };
+    } catch (e) { if (hooks.log) hooks.log('ppolppol_postcard', e); return { isError: true, content: [{ type: 'text', text: '엽서를 꺼내지 못했어' }] }; }
+  });
+  var origin = hooks.appOrigin || null;
+  APPS.registerAppResource(server, '산책 엽서', postcard.URI, { description: '산책을 마치면 대화 안에 뜨는 엽서' }, async function () {
+    return { contents: [{ uri: postcard.URI, mimeType: APPS.RESOURCE_MIME_TYPE, text: postcard.html(origin),
+      _meta: { ui: { csp: { resourceDomains: [origin || 'https://unpkg.com'] } } } }] };
+  });
 
   return server;
 };

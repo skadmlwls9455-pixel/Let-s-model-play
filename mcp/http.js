@@ -98,6 +98,8 @@ async function handleMcp(req, res, opts) {
       await store.write(ST.roomPath(key, 'meta.json'), JSON.stringify(meta));
       oct.remote.outbox = {}; oct.remote.dirty = false;
     },
+    readOut: function (name) { return store.read(ST.roomPath(key, 'out/' + name)); },   /* 엽서 (MCP App) 가 산책 기록을 읽는다 */
+    appOrigin: opts.appOrigin || null,
     log: function (toolName, e) { console.error('[ppolppol] ' + toolName + ' 실패: ' + (e && e.name) + ' ' + (e && e.message === 'room full' ? '(방 가득)' : '')); }
   });
   var transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
