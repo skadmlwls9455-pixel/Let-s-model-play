@@ -175,7 +175,7 @@ async function scenarioHttp(browser, base) {
       speaker: !!document.querySelector('#btn-sound, .sound-btn, #scene-ctl [aria-label*="소리"]'), early: !!document.getElementById('set-sound') };
   });
   ok(off.has && off.en === false && off.st.ctx === 'none', '처음엔 꺼짐, AudioContext 없음');
-  ok(!off.speaker && off.ctl === 'btn-album,btn-settings' && !off.early, '장면 오른쪽 위 묶음 = 앨범 · 설정뿐 (소리 단추 없음 — 11-08 설정 안으로) · 체크 칸은 설정을 열 때 그려짐 (' + off.ctl + ')');
+  ok(!off.speaker && off.ctl === 'btn-today,btn-furn,btn-album,btn-settings' && !off.early, '장면 오른쪽 위 묶음 = 오늘의 산책 · 가구 배치 · 앨범 · 설정 (소리 단추 없음 — 11-08 설정 안으로) · 체크 칸은 설정을 열 때 그려짐 (' + off.ctl + ')');
   await ensureSettings(page);
   var u0 = await soundUI(page);
   console.log('   toggle:', JSON.stringify(u0));
