@@ -258,17 +258,16 @@ a { color: var(--teal); touch-action: manipulation; }
 /* 폰 가로(높이 ≤ 480px): 붙어 있으면 바가 화면 절반을 덮어 상태 줄·장면이 가려진다 → 제자리에 둔다 */
 @media (max-height: 480px) { #invite { position: static; } }
 .lbl { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-#hint-in, .modal-in, #d-peek-in, #d-json {
+.modal-in, #d-peek-in, #d-json {
   width: 100%; min-height: 44px; padding: 8px 12px; font-size: 16px;
   background: var(--panel); border: 1px solid var(--rim); border-radius: 10px; color: var(--fg);
   box-shadow: inset 0 1px 2px rgba(40,30,10,.06);
 }
-#hint-in:focus { border-color: var(--amber); outline: none; }
-#hint-in::placeholder, .modal-in::placeholder, #d-peek-in::placeholder, #d-json::placeholder { color: var(--muted); opacity: .85; }
+.modal-in::placeholder, #d-peek-in::placeholder, #d-json::placeholder { color: var(--muted); opacity: .85; }
 .help { font-size: 12px; color: var(--muted); margin: 4px 0 0; min-height: 1.6em; }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
-/* 힌트 칸(#hint-box)은 개발 모드에서만 (결정 18). 숨겨져 있으면 초대 바는 버튼 줄만 — 위 여백은 바의 padding 하나 */
-#hint-box[hidden] + .btn-row { margin-top: 0; }
+/* 초대 바는 버튼 줄만 (힌트 칸은 11-10 에 없앴다) — 위 여백은 바의 padding 하나 */
+#invite > .btn-row { margin-top: 0; }
 .btn-row.center { justify-content: center; }
 .btn {
   position: relative; min-height: 44px; padding: 8px 16px; border-radius: 22px;
@@ -622,12 +621,11 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 /* ── 초대: 라벨 Galmuri7, 입력칸은 안으로 들어간 틀, 버튼은 베벨 블록 + 2px 그림자 (누르면 2px 내려앉으며 그림자가 사라진다) ── */
 :root[data-font="pixel"] .lbl, :root[data-font="pixel"] .help { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .help { min-height: 21px; }
-:root[data-font="pixel"] #hint-in, :root[data-font="pixel"] .modal-in, :root[data-font="pixel"] #d-peek-in, :root[data-font="pixel"] #d-json, :root[data-font="pixel"] .sheet select {
+:root[data-font="pixel"] .modal-in, :root[data-font="pixel"] #d-peek-in, :root[data-font="pixel"] #d-json, :root[data-font="pixel"] .sheet select {
   font-family: var(--f-body); font-size: 20px; line-height: 30px; letter-spacing: 0;
   border: 2px solid var(--line); border-radius: 0; background: var(--panel2); color: var(--fg);
   box-shadow: var(--bevel-in); padding: 6px 12px; clip-path: var(--notch);
 }
-:root[data-font="pixel"] #hint-in:focus { border-color: var(--amber-fill); }
 :root[data-font="pixel"] .btn {
   font-family: var(--f-ui); font-size: 24px; line-height: 22px; letter-spacing: 0; border-radius: 0; padding: 8px 14px;
   border: 2px solid var(--line); background-color: var(--panel); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated; color: var(--fg);
@@ -1085,17 +1083,13 @@ html.intro-reveal .scene-spot, html.intro-reveal .back-note { transition: opacit
 .stick[hidden] { display: none; }
 .stick.on { opacity: 1; }
 .stick-ring { position: absolute; inset: 0; box-sizing: border-box; border-radius: 50%; border: 1px solid rgba(235, 237, 233, .55); background: rgba(27, 21, 34, .28); display: grid; place-items: center; }
-.stick-ico, .stick-knob, .stick-txt { pointer-events: none; }
+.stick-ico, .stick-txt { pointer-events: none; }
 .stick-ico { display: block; position: relative; z-index: 2; width: 32px; height: 32px; image-rendering: pixelated; image-rendering: crisp-edges; transform: translate(var(--kx, 0px), var(--ky, 0px)); }
 .stick-txt { display: none; position: relative; z-index: 2; font-size: 14px; line-height: 1; font-weight: 600; color: #ebede9; text-shadow: 0 1px 0 rgba(27, 21, 34, .8); transform: translate(var(--kx, 0px), var(--ky, 0px)); }
 .stick.no-img .stick-ico { display: none; }
 .stick.no-img .stick-txt { display: inline; }
-.stick-knob { position: absolute; z-index: 1; left: 22px; top: 22px; width: 28px; height: 28px; box-sizing: border-box; border-radius: 50%; background: rgba(235, 237, 233, .30); border: 1px solid rgba(235, 237, 233, .6); transform: translate(var(--kx, 0px), var(--ky, 0px)); }
-.stick.on .stick-knob { background: rgba(235, 237, 233, .45); border-color: var(--amber); }
 .stick.on .stick-ring { border-color: var(--amber); }
 :root[data-font="pixel"] .stick-ring { border-radius: 0; border: 2px solid rgba(235, 237, 233, .55); box-shadow: none; }
-:root[data-font="pixel"] .stick-knob { border-radius: 0; border: 2px solid rgba(235, 237, 233, .6); }
-:root[data-font="pixel"] .stick.on .stick-knob { border-color: var(--amber); }
 :root[data-font="pixel"] .stick.on .stick-ring { border-color: var(--amber); }
 :root[data-font="pixel"] .stick-txt { font-family: var(--f-meta); font-size: 16px; font-weight: 400; }
 #scene.stick-on .back-note { bottom: 92px; }
@@ -1283,14 +1277,13 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 #toast .t-txt { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── 틀: 장면이 화면 높이를 다 쓴다. 본문 스크롤 없음 (개발 모드의 데모 조작 칸만 장면 아래에 남는다) ──
-   --stack-b = 바닥 줄(스틱 72 + 12, 큰 버튼 + 개발용 힌트 칸) 바로 위. 대사와 알림이 여기부터 쌓인다. --warn-h 는 app.js warnFit() 이 저장 경고 띠 높이로 채운다 */
+   --stack-b = 바닥 줄(스틱 72 + 12, 큰 버튼) 바로 위. 대사와 알림이 여기부터 쌓인다. --warn-h 는 app.js warnFit() 이 저장 경고 띠 높이로 채운다 */
 :root[data-layout="one"] {
   --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px);
-  --go-h: 52px; --hint-h: 0px;
-  --stack-b: calc(max(84px, 12px + var(--go-h) + var(--hint-h)) + 12px + var(--safe-b));
+  --go-h: 52px;
+  --stack-b: calc(max(84px, 12px + var(--go-h)) + 12px + var(--safe-b));
   overscroll-behavior: none;
 }
-:root[data-layout="one"].hint-on { --hint-h: 44px; }
 :root[data-layout="one"] body { padding-bottom: 0; overscroll-behavior: none; }
 :root[data-layout="one"] #shell { display: block; position: relative; height: calc(100vh - var(--warn-h, 0px)); height: calc(100dvh - var(--warn-h, 0px)); overflow: hidden; }
 :root[data-layout="one"] #scene, :root[data-layout="one"] #scene.mode-3d { height: 100%; }
@@ -1342,9 +1335,6 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 }
 :root[data-layout="one"] #invite .btn-row { margin: 0; flex-wrap: nowrap; justify-content: flex-end; pointer-events: auto; }
 :root[data-layout="one"] #btn-go { flex: 0 0 auto; min-width: 160px; min-height: var(--go-h); }
-:root[data-layout="one"] #hint-box { width: 0; min-width: 100%; pointer-events: auto; }   /* 폭은 버튼을 따른다 (입력칸의 타고난 폭이 줄을 넓히지 않게) */
-:root[data-layout="one"] #hint-box .lbl, :root[data-layout="one"] #hint-box .help { position: absolute; width: 1px; height: 1px; min-height: 0; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
-:root[data-layout="one"] #hint-in { min-height: 0; height: 36px; padding: 0 8px; }
 
 /* ── 대사: 바닥 줄 위에서 16px 올라오며 뜬다 (--t-ui 250ms). 숨어 있을 땐 눌리지 않아 스틱 · 방 터치가 그대로다 ── */
 :root[data-layout="one"] .dlg-host {

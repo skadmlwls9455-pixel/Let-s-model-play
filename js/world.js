@@ -1462,9 +1462,6 @@ var WORLD = (function () {
   /* ---------- UI 문구 (세계와 묶이는 것만; app 이 더 보탤 수 있음) ---------- */
   var strings = {
     appTitle: '뽈뽈 문어',
-    hintPlaceholder: '주제나 링크를 슬쩍 건네줘',   /* 힌트 칸은 개발용 (결정 18) — index.html #hint-in 과 같은 글 */
-    emptyHintHelp: '비워 두면 힌트 없이 나가',   /* 빈 힌트를 '네가 골라봐' 처럼 플레이어 말로 바꾸지 않는다 */
-    urlHintHelp: 'URL은 문 앞까지만 가 볼 수 있어(모의 방문)',
     goButton: '뽈뽈 다녀와',
     awayButton: '다녀오는 중…',
     lookButton: '방 보기',
@@ -1483,7 +1480,6 @@ var WORLD = (function () {
       name = name || '문어';
       return name + nameJosa(name, '이', '가') + ' 돌아왔어.';
     },
-    firstToast: '힌트는 비워 둬도 돼.',   /* 개발 모드에서만 (플레이어 화면엔 힌트 칸이 없다) */
     namePrompt: '문어 이름을 지어 줘',
     nameExamples: '예: 뚜루, 안개, 삐죠…',
     nameLater: '이름은 천천히 불러 줘도 괜찮아.',

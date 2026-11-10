@@ -60,7 +60,6 @@ function measure(page) {
     add('상태 줄', document.getElementById('status'));
     [].forEach.call(document.querySelectorAll('#scene-ctl .icon-btn'), function (b) { add('아이콘 ' + (b.id || '').replace('btn-', ''), b, true); });
     add('큰 버튼', document.getElementById('btn-go'), true);
-    add('힌트 칸', document.getElementById('hint-box'));
     add('발자국 손잡이', document.getElementById('stick'), true);
     var door = document.getElementById('btn-door'); if (door && door.dataset.spot === 'edge') add('집 단추', door, true);   /* 바깥이 보일 때의 왼쪽 아래 집 단추만. 다락에선 같은 요소가 3D 문 위의 투명한 누름 자리(data-spot=over, pointer-events none)라 조작 상자가 아니다 */
     if (document.documentElement.classList.contains('dlg-on')) add('대사창', document.getElementById('dlg-host'));

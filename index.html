@@ -115,10 +115,9 @@
   <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
   <!-- 발자국 손잡이 (가상 스틱, 주인 11-08 "바닥 톡보다 훨씬 자연스럽다"): 장면 왼쪽 아래 72px 고리 + 28px 손잡이. 끌면 그 화면 방향으로 내 캐릭터가 걷는다 (js/app.js stick 절 · scene.setPlayerInput).
        다락 · 놀이방이 보일 때만 — hidden 은 장면의 on.playerInput(allowed) 로 앱이 쥔다 (바깥 · 입장 연출 · 문 작업 · 전환 · 2D 폴백에선 숨김). 바깥의 집 단추(#btn-door edge)와 자리는 같은 왼쪽 아래지만 보이는 때가 서로 배타적이다.
-       키보드 포커스는 받지 않는다 (aria-hidden — 키보드는 방향키 · WASD). 그림은 16×16 ×2 'ctl.walk' (발자국 둘), 안 오면 글자 '걷기'. 손잡이와 그림이 같이 움직인다 (--kx · --ky) -->
+       키보드 포커스는 받지 않는다 (aria-hidden — 키보드는 방향키 · WASD). 그림은 16×16 ×2 'ctl.walk' (발자국 둘), 안 오면 글자 '걷기'. 발자국 그림이 곧 손잡이다 (--kx · --ky) — 그 밑의 회색 네모 손잡이는 뺐다 (주인 11-10) -->
   <div id="stick" class="stick" hidden aria-hidden="true">
     <div class="stick-ring"><img class="stick-ico" data-icon="ctl/walk" alt="" width="32" height="32" draggable="false"><span class="stick-txt">걷기</span></div>
-    <div class="stick-knob"></div>
   </div>
   <!-- 구석 쪽지 (8물결): 놀이방에 있는 동안 문어가 돌아오면 "뚜루가 돌아왔어." + 보러 가기 (놀이방 문으로 다락에). 장면 아래 왼쪽 · 놀이방을 나가면 사라진다 -->
   <div id="back-note" class="back-note" hidden>
@@ -145,14 +144,6 @@
 
 <!-- ══ INVITE (§7.3) ══ -->
 <section id="invite" aria-label="초대">
-  <!-- 힌트 칸은 개발용 (주인 결정 18, docs/NIGHT_LOG.md): 플레이어 화면에선 버튼 줄만. ?dev=1 · localhost · file:// 에서만 app.js 가 보인다 (DEV).
-       hidden 으로 시작해 플레이어에겐 깜빡임·자리 비움이 없다. 두뇌의 힌트 이해는 그대로 (개발·테스트·MCP 이벤트가 쓴다) -->
-  <div id="hint-box" class="hint-box" hidden>
-    <label class="lbl" for="hint-in">힌트 <span class="dim">(선택 · 개발용)</span></label>
-    <input id="hint-in" type="text" maxlength="120" autocomplete="off" enterkeyhint="send"
-           placeholder="주제나 링크를 슬쩍 건네줘">
-    <div id="hint-help" class="help">비워 두면 힌트 없이 나가</div>
-  </div>
   <!-- 큰 버튼 하나 (주인 11-07): 나가 있는 동안엔 "다녀오는 중…" (글자만, 기호 없음) — 누르면 바로 데려온다 (예전 건너뛰기). 따로 된 건너뛰기·방 보기 버튼은 없다 -->
   <div class="btn-row">
     <button type="button" class="btn primary pressable" id="btn-go"><span class="go-txt">뽈뽈 다녀와</span></button>

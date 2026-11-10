@@ -57,7 +57,7 @@ const WIKI = { query: { pages: { '1': { pageid: 1, title: '고래', extract: '�
   if (pc) { await pc.scrollIntoViewIfNeeded(); await pc.tap(); await p.waitForTimeout(900); await shot('poster-open'); note('poster dialog', await txt('#poster-dialog')); await p.keyboard.press('Escape'); await p.waitForTimeout(500); }
   /* 5. 둘째 산책 (힌트) */
   await p.evaluate(() => window.scrollTo(0, 0));
-  await p.fill('#hint-in', '고래'); await p.tap('#btn-go'); note('go#2', 'hint 고래');
+  await p.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '고래'); await p.tap('#btn-go'); note('go#2', 'hint 고래');
   await waitTripDone('trip2'); await shot('trip2-done');
   /* 6. ⚙ 설정 (예전 방 보기 자리) → 닫고 놀이방 문 → 놀이방 → 오락기 (다락방 달리기) → 문어 방 (8물결) */
   await p.tap('#btn-settings'); await p.waitForTimeout(900); await shot('settings'); note('settings', await txt('#set-body'));
@@ -75,7 +75,7 @@ const WIKI = { query: { pages: { '1': { pageid: 1, title: '고래', extract: '�
   }
   await p.keyboard.press('Escape'); await p.waitForTimeout(400);
   /* 7. 셋째 산책 */
-  await p.evaluate(() => window.scrollTo(0, 0)); await p.fill('#hint-in', ''); await p.tap('#btn-go'); note('go#3', 'hint empty');
+  await p.evaluate(() => window.scrollTo(0, 0)); await p.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, ''); await p.tap('#btn-go'); note('go#3', 'hint empty');
   await waitTripDone('trip3'); await shot('trip3-done');
   note('full log day1', await txt('#log'));
   /* 8. 새로고침 (같은 날) */

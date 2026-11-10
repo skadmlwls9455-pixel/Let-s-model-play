@@ -27,7 +27,7 @@ async function waitIdle(page) { await page.waitForFunction(function () { var b =
 /* 나가 있는 동안 큰 버튼(#btn-go = "다녀오는 중…") = 건너뛰기. 막 누른 직후 0.6 s 는 안 되니 .can-skip 을 기다린다 */
 async function skipAway(page) { await page.waitForSelector('#btn-go.can-skip'); await page.click('#btn-go'); }
 async function inviteSkip(page, hint) {
-  await page.fill('#hint-in', hint || '');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, hint || '');
   await page.click('#btn-go');
   await page.waitForTimeout(300);
   await skipAway(page);
@@ -70,7 +70,7 @@ async function inviteSkip(page, hint) {
   await page.waitForTimeout(900);
   await shot(page, '02-idle-light.png');
 
-  await page.fill('#hint-in', '모자의 역사');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');
   await page.click('#btn-go');
   /* 출발 의식(다락 문 → 바깥 → 길 → 화면 밖) 뒤 나가 있는 동안 = 바깥 장면 */
   await page.waitForFunction(function () { return APP.oct.state === 'away' && (!APP.scene.place || APP.scene.place() === 'exterior'); }, null, { timeout: 30000 })

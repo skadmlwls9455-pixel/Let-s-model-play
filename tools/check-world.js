@@ -395,7 +395,7 @@ EXPECT.forEach(function (t, i) {
 });
 
 /* ---- 문구 ---- */
-ok(W.strings && W.strings.emptyHintHelp && W.strings.urlHintHelp && typeof W.strings.firstGreeting === 'function' && W.strings.awayLine, 'strings 최소 집합 누락');
+ok(W.strings && typeof W.strings.firstGreeting === 'function' && W.strings.awayLine, 'strings 최소 집합 누락');
 JSON.stringify(W, function (k, v) { return typeof v === 'function' ? undefined : v; })
   .split('"').forEach(function (s) {
     if (/결과물|리서치|보고서/.test(s)) warn('문구에 수확형 단어가 있다: ' + s);

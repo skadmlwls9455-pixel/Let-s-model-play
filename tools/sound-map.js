@@ -36,7 +36,7 @@ const OUT = []; let mark = 0;
   await step('창문 톡', () => p.touchscreen.tap(60, 70), 4000);
   await step('설정 열기', () => p.click('#btn-settings'), 800);
   await step('설정 닫기', () => p.click('#set-close'), 800);
-  await step('산책 (외출 강제, 끝까지)', async () => { await p.evaluate(() => { window.__ppolTest = { forceKind: 'out' }; }); await p.fill('#hint-in', '바다'); await p.click('#btn-go'); await p.waitForFunction(() => !document.getElementById('btn-go').classList.contains('away'), null, { timeout: 90000 }); }, 2500);
+  await step('산책 (외출 강제, 끝까지)', async () => { await p.evaluate(() => { window.__ppolTest = { forceKind: 'out' }; }); await p.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '바다'); await p.click('#btn-go'); await p.waitForFunction(() => !document.getElementById('btn-go').classList.contains('away'), null, { timeout: 90000 }); }, 2500);
   await step('포스터 열기', async () => { const c = await p.$('#album .pcard'); if (c) await c.click(); }, 1500);
   await step('포스터 뒤집기', () => p.click('#pd-flip').catch(() => {}), 1000);
   await step('포스터 닫기', () => p.click('#pd-close').catch(() => {}), 1000);

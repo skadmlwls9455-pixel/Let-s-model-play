@@ -203,7 +203,7 @@ async function scenarioMain(browser) {
   ok((await page.textContent('#toast')).indexOf('비워 둬도') >= 0, '첫 실행 토스트');
   await page.screenshot({ path: path.join(SHOTS, 'phone-light-start.png') });
 
-  await page.fill('#hint-in', '모자의 역사');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
   await page.click('#btn-go');
   await page.waitForSelector('#btn-go.away', { timeout: 10000 });
   ok((await page.textContent('#btn-go')).indexOf('다녀오는 중') >= 0, '나가 있는 동안 버튼 라벨');
@@ -242,7 +242,7 @@ async function scenarioMain(browser) {
   ok(strip.h <= 44 && strip.rows === 1 && Math.abs(strip.nameTop - strip.pipsTop) < 12, '상태 줄 한 줄 ≤44px (' + strip.h + 'px)');
   ok(/등불/.test(strip.txt) && /1\/8/.test(strip.txt) && !strip.demo && !strip.stat && !/여행|함께한 날/.test(strip.txt), "상태 줄: '등불 … 1/8', 예전 데모 두뇌 칩·여행·함께한 날 없음");
   ok(strip.tag === '데모' && strip.tagSr === '데모 규칙이 움직이는 중' && strip.tagFs <= 11, "이름 옆 작은 '데모' 표시 (" + strip.tagFs + "px, 화면 낭독기 '데모 규칙이 움직이는 중')");
-  ok((await page.getAttribute('#hint-in', 'placeholder')) === '주제나 링크를 슬쩍 건네줘', '힌트 자리표시 문구');
+  ok(!(await page.$('#hint-in')) && !(await page.$('#hint-box')), '힌트 칸은 개발 화면에도 없다 (11-10 에 없앰)');
   ok((await page.$$('#log .lrow')).length >= 5, '로그 행 ≥5');
   await page.waitForTimeout(200);
   var dlg = await page.evaluate(function () {
@@ -341,7 +341,7 @@ async function scenarioMain(browser) {
   await page.emulateMedia({ colorScheme: 'light' });
 
   console.log('\n== 두 번째 초대 (같은 힌트, seq 2 → 다른 시드)');
-  await page.fill('#hint-in', '모자의 역사');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
   await page.click('#btn-go');
   await skipAway(page);
   await waitIdle(page);
@@ -438,7 +438,7 @@ async function scenarioFail(browser, mode, label) {
   var name = await pickName(page);
   await page.fill('#name-in', name);
   await page.click('#name-form button[type=submit]');
-  await page.fill('#hint-in', '모자의 역사');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
   await page.click('#btn-go');
   await skipAway(page);
   await waitIdle(page);
@@ -506,8 +506,7 @@ async function scenarioMigrate(browser) {
   ok(JSON.stringify(rr.away) === JSON.stringify(AWAY_ROWS[rr.kind] || ['?']), '복구 한 줄이 복구된 여행 종류(' + rr.kind + ')대로: ' + JSON.stringify(rr.away) + ' — 기대 ' + JSON.stringify(AWAY_ROWS[rr.kind] || ['?']));
   ok(rr.oct.indexOf('st-sleep') >= 0 || rr.oct.indexOf('st-idle') >= 0, '복구 뒤 문어 상태 유효 (' + rr.oct.trim() + ')');
   /* 축소 모션에서도 초대 한 번 (즉시 이동 경로) */
-  await page.fill('#hint-in', 'https://example.org/page');
-  ok((await page.textContent('#hint-help')).indexOf('모의 방문') >= 0, 'URL 힌트 도움말');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, 'https://example.org/page');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
   /* 그날 시드가 집·빈 차례면 URL 정류장도 건너뛰기도 시험이 안 된다 → 이 초대만 외출로 강제 (brain.js 테스트 훅, plan 때 읽음 · 난수 순서 그대로) */
   await page.evaluate(function () { window.__ppolTest = { forceKind: 'out' }; });
   await page.click('#btn-go');
@@ -531,7 +530,7 @@ async function scenarioForcedHome(browser) {
   await page.click('#name-form button[type=submit]');
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   var before = await page.evaluate(function () { return { l: APP.state.room.lantern, tr: APP.state.octopus.trips, inv: APP.state.octopus.invites }; });
-  await page.fill('#hint-in', '모자의 역사');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
   await page.click('#btn-go');
   await skipAway(page);
   await waitIdle(page);
@@ -632,7 +631,7 @@ async function scenarioDay2(browser) {
   await page.click('#name-form button[type=submit]');
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   async function goTrip() {
-    await page.fill('#hint-in', '모자의 역사');
+    await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
     await page.click('#btn-go');
     await skipAway(page);
     await waitIdle(page);
@@ -750,7 +749,7 @@ async function scenarioCeremony(browser) {
     return APP.sceneMode;
   });
   ok(await page.evaluate(function () { return APP.scene.place() === 'attic'; }), '처음엔 다락 (' + mode + ')');
-  await page.fill('#hint-in', '모자의 역사');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
   await page.click('#btn-go');
   if (mode === '3d') {
     await page.waitForFunction(function () { return APP.scene.ceremony() === 'depart'; }, null, { timeout: 10000 });
@@ -796,7 +795,7 @@ async function scenarioCeremony(browser) {
 
   console.log('\n== I-2. 출발 의식 중 건너뛰기 → 다락');
   await page.evaluate(function () { window.__placeLog = [APP.scene.place()]; });
-  await page.fill('#hint-in', '');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
   await page.click('#btn-go');
   if (mode === '3d') await page.waitForFunction(function () { return APP.scene.ceremony() === 'depart'; }, null, { timeout: 10000 });
   await skipAway(page);
@@ -865,7 +864,7 @@ async function scenarioCeremonyIntro(browser) {
   await page.click('#name-form button[type=submit]');
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   var mode = await page.evaluate(function () { window.__bub = []; if (window.UIART) { var ob = UIART.onBubble; UIART.onBubble = function (t, k) { if (t) window.__bub.push({ t: t, k: k, place: APP.scene.place(), state: APP.oct.state }); return ob.apply(this, arguments); }; } return APP.sceneMode; });
-  await page.fill('#hint-in', '모자의 역사');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
   await page.click('#btn-go');
   await page.waitForFunction(function () { return APP.oct.state === 'away' && APP.scene.place() === 'exterior'; }, null, { timeout: 20000 });
   if (mode === '3d') await page.waitForFunction(function () { return window.__bub.some(function (b) { return b.state === 'away' && b.place === 'exterior'; }); }, null, { timeout: 30000 });
@@ -912,7 +911,7 @@ async function scenario2D(browser) {
   ok(ember0 && ember0.n >= 3 && ember0.ints && ember0.crisp === 'crispEdges' && ember0.fills.every(function (f) { return ['#be772b', '#de9e41', '#e8c170'].indexOf(f) >= 0; }), '2D 등불 0칸: 등불 속 불씨 레이어 (정수 좌표 · crispEdges · Apollo 호박)');
   ok(ember0 && ember0.title === '불씨 하나 켜진 다락', "등불 0칸 방 제목 '불씨 하나 켜진 다락' (" + (ember0 && ember0.title) + ')');
   ok(await page.evaluate(function () { function vis(id) { var e = document.getElementById(id), r = e && e.getBoundingClientRect(); return !!r && r.width >= 44 && r.height >= 44; } return vis('btn-settings') && vis('btn-door') && !document.getElementById('btn-sound'); }), '2D 폴백에도 ⚙ 설정 · 놀이방 문 (누르는 곳 44px) · 장면 위 소리 단추 없음 (설정 안으로, 11-08)');
-  await page.fill('#hint-in', '모자의 역사');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
   await page.click('#btn-go');
   await skipAway(page);
   await page.waitForSelector('#btn-go:not(.away)', { timeout: 30000 });
@@ -2146,7 +2145,7 @@ async function scenarioWave8(browser) {
   /* 스틱 가운데를 누르고 (dx, dy) 만큼 끌어 ms 동안 잡고 있다가 놓는다 → 잡는 중 · 놓은 뒤의 스틱 · 캐릭터 상태 */
   async function dragStick(dx, dy, ms) {
     var c = await page.evaluate(function () { var r = document.getElementById('stick').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
-    function snap() { return page.evaluate(function () { var st = document.getElementById('stick'), k = st.querySelector('.stick-knob'), s = APP.stick; return { on: st.classList.contains('on'), input: s.input, pointer: s.pointer, knob: getComputedStyle(k).transform, pl: APP.scene.player(), view: APP.scene.view(), doorEv: window.__ev.filter(function (e) { return e.n === 'door'; }).length }; }); }
+    function snap() { return page.evaluate(function () { var st = document.getElementById('stick'), k = st.querySelector(st.classList.contains('no-img') ? '.stick-txt' : '.stick-ico'), s = APP.stick;   /* 손잡이 = 발자국 그림 (회색 네모 손잡이는 11-10 에 뺐다) */ return { on: st.classList.contains('on'), input: s.input, pointer: s.pointer, knob: getComputedStyle(k).transform, pl: APP.scene.player(), view: APP.scene.view(), doorEv: window.__ev.filter(function (e) { return e.n === 'door'; }).length }; }); }
     await page.mouse.move(c[0], c[1]); await page.mouse.down(); await page.mouse.move(c[0] + dx, c[1] + dy, { steps: 4 });
     await page.waitForTimeout(150);
     var mid = await snap();
@@ -3384,7 +3383,7 @@ async function scenarioLayoutOne(browser) {
 
   /* 3. 닫아 둔 사이 새 줄: 점 + 한 줄 알림 (오늘 그림 + 글) — 큰 버튼 · 상태 쪽지와 안 겹침 */
   await rowToastGone(page).catch(function () {});
-  await page.fill('#hint-in', '모자의 역사');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
   await page.click('#btn-go'); await page.waitForSelector('#btn-go.away', { timeout: 10000 });
   var gotRow = await page.waitForFunction(function () { var t = document.getElementById('toast'); return t.classList.contains('show') && t.classList.contains('row'); }, null, { timeout: 15000, polling: 50 }).then(function () { return true; }, function () { return false; });
   L = await lay();

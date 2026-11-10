@@ -127,6 +127,7 @@ var APP = (function () {
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function dateKey(d) { d = d || new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
   /* 테스트 훅: window.__ppolTest.today = 'YYYY-MM-DD' 가 있을 때만 '오늘'을 그 날짜로 (tools/smoke.js 둘째 날). js/runner.js · js/audio.js 도 같은 규칙 */
+  function hookHint() { var t = window.__ppolTest; return (t && typeof t === 'object' && typeof t.hint === 'string') ? t.hint.trim() : ''; }   /* 테스트 훅 (플레이어 · 개발 화면 어디에도 입력 칸 없음) */
   function hookToday() { var t = window.__ppolTest; return (t && typeof t === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(t.today || '')) ? t.today : null; }
   function todayKey() { return hookToday() || dateKey(); }
   function keyAdd(key, n) { var p = String(key).split('-'); return dateKey(new Date(+p[0], +p[1] - 1, +p[2] + n)); }
@@ -1197,7 +1198,7 @@ var APP = (function () {
   function setBusy(on) {
     busy = on; oct.busy = on;
     if (!on) { flying = null; if (remoteDirty) { remoteDirty = false; renderAll(); applyMotion(); applyFont(); syncSceneLook(); } }
-    var go = $('btn-go'), inp = $('hint-in');
+    var go = $('btn-go');
     clearTimeout(skipTimer); skipReady = on ? Date.now() + SKIP_GUARD : 0;
     if (go) {
       go.disabled = false; go.classList.toggle('away', on); go.classList.remove('can-skip');
@@ -1206,7 +1207,6 @@ var APP = (function () {
       if (on) { go.setAttribute('aria-label', '다녀오는 중. 누르면 바로 돌아오게 하기'); skipTimer = setTimeout(function () { if (busy) go.classList.add('can-skip'); }, SKIP_GUARD); }
       else go.removeAttribute('aria-label');
     }
-    if (inp) inp.disabled = on;
     if (on) stopWander(); else { ensureAttic(); scheduleWander(); }
     renderBrainTag();
     if (window.AUDIO) AUDIO.on('busy', { on: on });   /* 소리: 건너뛰기 표시 정리 */
@@ -1295,22 +1295,20 @@ var APP = (function () {
     if (trip.posterHung !== false) delete trip.posterHung;   /* false = 모델이 hang_poster 를 내지 않았다 → 벽에 붙이지 않는다 (앨범·일기에는 남는다) */
     buildRecall(trip);
   }
-  function invite(hintText) {
+  function invite() {
     if (busy) return Promise.resolve(null);
-    if (inPlay() || roomJob) return backToOctRoom().then(function (ok) { return ok ? invite(hintText) : null; });   /* 출발은 문어 방에서 본다: 놀이방이면 문을 지나 돌아온 뒤 (8물결) */
+    if (inPlay() || roomJob) return backToOctRoom().then(function (ok) { return ok ? invite() : null; });   /* 출발은 문어 방에서 본다: 놀이방이면 문을 지나 돌아온 뒤 (8물결) */
     hideBackNote();
     if (!S.octopus.name) { openNameDialog(); return Promise.resolve(null); }
     checkDay(true);   /* 자정을 넘겨 다시 부르면 어제 로그는 앨범 일기로, 오늘 칸부터 새로 */
     if (!B || typeof B.plan !== 'function') { toast('두뇌(brain.js)가 아직 없어'); return Promise.resolve(null); }
     /* 힌트 칸은 개발 모드에만 있다 (결정 18): 플레이어 산책은 늘 빈 힌트. 두뇌의 힌트 이해는 그대로 둔다 (개발·테스트·MCP 이벤트) */
-    var hint = String(hintText == null ? (DEV && $('hint-in') ? $('hint-in').value : '') : hintText).trim();
+    var hint = hookHint();   /* 힌트 칸은 없앴다 (주인 11-10) — 사람이 주제를 건넬 길은 없다. 스모크만 테스트 훅으로 두뇌의 옛 길을 탄다 */
     var dk = todayKey(), seq = tripsOn(dk).length + 1;
     var seed = B.hashSeed(dk, hint, seq, S.octopus.name);
     var trip = { id: newTripId(seed), date: dk, seq: seq, seed: seed, kind: null, by: 'demo', hint: { raw: hint, match: null, followed: null },
       status: 'running', startedAt: Date.now(), endedAt: null, events: [], receipt: null, poster: null, weather: weatherFor(S.room.lantern) };
     S.trips.push(trip); save();
-    if ($('hint-in')) $('hint-in').value = '';
-    updateHintHelp();
     setBusy(true); skipFlag = false; flying = trip; broughtBack = false;
     wakeUp();
     bubble('', 0);
@@ -3397,7 +3395,7 @@ var APP = (function () {
     $('d-depart').addEventListener('click', function () {
       if (busy) return;
       skipFlag = false;   /* 앞선 건너뛰기·데모 저장이 남긴 표시 — 이번 출발 의식은 처음부터 */
-      wakeUp(); demo.t0 = Date.now(); demo.hint = ($('hint-in').value || '').trim(); demo.events = [{ type: 'depart', t: 0, hint: demo.hint, followHint: !!demo.hint }];
+      wakeUp(); demo.t0 = Date.now(); demo.hint = ''; demo.events = [{ type: 'depart', t: 0, hint: '', followHint: false }];
       demoLive(demo.events[0]); oct.busy = true; stopWander(); demoSet('out');
       if (!hasCeremony()) { walkTo('door').then(function () { octState('away'); }); return; }
       departOut();
@@ -3465,20 +3463,8 @@ var APP = (function () {
   }
 
   /* ───────────────────────── boot ───────────────────────── */
-  function updateHintHelp() {
-    var inp = $('hint-in'), help = $('hint-help'); if (!inp || !help) return;
-    var v = (inp.value || '').trim();
-    help.textContent = /^https?:\/\//i.test(v) ? 'URL은 문 앞까지만 가 볼 수 있어(모의 방문)' : v ? '힌트는 넌지시 흘리는 거야. 따라갈지는 문어가 정해' : (STR.emptyHintHelp || '비워 두면 힌트 없이 나가');
-  }
   function bind() {
-    /* 힌트 칸: 개발 모드에서만 (index.html 에선 hidden 으로 시작 → 플레이어에겐 자리도 깜빡임도 없다). 결정 18 */
-    var hintBox = $('hint-box'); if (hintBox) hintBox.hidden = !DEV;
-    document.documentElement.classList.toggle('hint-on', DEV);   /* 한 화면 배치: 힌트 칸이 있으면 바닥 줄이 그만큼 높다 (--hint-h) */
     $('btn-go').addEventListener('click', goTap);
-    $('hint-in').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); invite(); } });
-    $('hint-in').addEventListener('input', updateHintHelp);
-    $('hint-in').addEventListener('focus', function () { var r = $('hint-in').getBoundingClientRect(); scene.lookAt(r.left + r.width / 2, r.top); });
-    $('hint-in').addEventListener('blur', function () { scene.lookAt(window.innerWidth / 2, window.innerHeight / 2); });
     $('btn-settings').addEventListener('click', openSettings);
     $('set-close').addEventListener('click', function () { $('settings-sheet').close(); });
     bindRooms();   /* 방 문 · 오락기 · 구석 쪽지 (8물결) */
@@ -3533,7 +3519,6 @@ var APP = (function () {
         checkDay(true);   /* 앱을 연 채로 자정을 넘겨 이름을 지었으면 먼저 새 날로 넘긴다 (아래 renderLog 가 넘기며 자기소개를 날 인사로 덮지 않게) */
         setGreeting(typeof STR.firstGreeting === 'function' ? STR.firstGreeting(v) : '안녕, 나는 ' + v + '야. 비 오는 다락방에 온 걸 환영해.', 'happy');   /* 문어의 자기소개 (웃는 얼굴) */
         renderLog();
-        if (DEV) toast(STR.firstToast || '힌트는 비워 둬도 돼.');   /* 힌트 칸이 있는 개발 모드에서만. 플레이어에겐 힌트 얘기 없음 (결정 18, DIALOGUE_UI: 첫 토스트 지움) */
       }
     });
     $('name-dialog').addEventListener('cancel', function (e) { if (!S.octopus.name) e.preventDefault(); });

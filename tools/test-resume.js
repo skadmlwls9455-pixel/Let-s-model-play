@@ -56,7 +56,7 @@ async function one(browser, when, i) {
   await page.waitForSelector('#name-dialog[open]');
   await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit], #name-form [type=submit]').catch(function () { return page.press('#name-in', 'Enter'); });
   await page.waitForFunction(function () { return !document.getElementById('name-dialog').open; });
-  await page.fill('#hint-in', '모자의 역사');
+  await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');
   await page.click('#btn-go');
   if (when === '300ms' || when === 'empty-snapshot' || when === 'home' || when === 'empty') await page.waitForTimeout(300);
   else if (when === 'peek') await page.waitForFunction(function () { return Array.prototype.some.call(document.querySelectorAll('#log .lrow .ltool'), function (e) { return e.textContent === '기웃'; }); }, null, { timeout: WAIT, polling: 100 });
