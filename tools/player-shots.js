@@ -79,7 +79,9 @@ function harness() {
   await page.evaluate(function () { SC.pause(); SC.setOctState('idle'); SC.jumpTo('center'); for (var i = 0; i < 6; i++) SC.debugStep(0.1); });
   var p0 = await page.evaluate(function () { return SC.renderer.info.programs.length; });
   var PARTS = await page.evaluate(function () { return { parts: SCENE3D.PLAYER_PARTS, def: SCENE3D.PLAYER_DEFAULT }; });
-  CATS.forEach(function (c) { if (!PARTS.parts[c] || PARTS.parts[c].length < 3 || PARTS.parts[c].length > 6) fails.push('PLAYER_PARTS.' + c + ' 는 3~6 개여야 한다'); if (!PARTS.parts[c].some(function (p) { return p.id === PARTS.def[c]; })) fails.push('PLAYER_DEFAULT.' + c + ' 가 목록에 없다'); });
+  var MIN_N = { cheek: 2 };   /* 볼은 없음 · 주근깨 둘 (볼터치는 주인 11-10 "이상하게 보여서 없애는 게 나을 듯" 으로 뺐다). 나머지 범주는 3~6 */
+  CATS.forEach(function (c) { var lo = MIN_N[c] || 3; if (!PARTS.parts[c] || PARTS.parts[c].length < lo || PARTS.parts[c].length > 6) fails.push('PLAYER_PARTS.' + c + ' 는 ' + lo + '~6 개여야 한다'); if (!PARTS.parts[c].some(function (p) { return p.id === PARTS.def[c]; })) fails.push('PLAYER_DEFAULT.' + c + ' 가 목록에 없다'); });
+  if (PARTS.parts.cheek.some(function (p) { return p.id === 'blush'; }) || PARTS.def.cheek !== 'none') fails.push('볼터치(blush)는 목록에 없고 기본 볼은 none 이어야 한다 (주인 11-10) — ' + JSON.stringify(PARTS.parts.cheek.map(function (p) { return p.id; })) + ' · 기본 ' + PARTS.def.cheek);
   ['acc', 'nose', 'mouth', 'cheek'].forEach(function (c) { if (PARTS.parts[c][0].id !== 'none') fails.push(c + ' 첫 항목은 none (없음을 고를 수 있어야 한다 — 주인 11-08 "입을 없애자")'); });
   if (Object.keys(PARTS.parts).sort().join() !== CATS.slice().sort().join()) fails.push('PLAYER_PARTS 범주가 시트 줄(CATS)과 같아야 한다 ' + Object.keys(PARTS.parts).join());
 
