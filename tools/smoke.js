@@ -1995,7 +1995,7 @@ async function scenarioWave7(browser) {
   await page.screenshot({ path: path.join(SHOTS, 'away-skip-button.png') });
   var tS = Date.now(); await page.click('#btn-go'); await waitIdle(page);
   var k1 = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { n: APP.state.trips.length, st: t.status, kind: t.kind, txt: document.getElementById('btn-go').textContent }; });
-  ok(k1.n === 1 && k1.st === 'done' && k1.kind === 'out' && Date.now() - tS < 15000 && k1.txt === '뽈뽈 다녀와', "0.6 s 뒤 큰 버튼 → 바로 데려옴 (여행 1 · done · 버튼은 다시 '뽈뽈 다녀와' 글자만)");
+  ok(k1.n === 1 && k1.st === 'done' && k1.kind === 'out' && Date.now() - tS < 15000 && k1.txt === '산책 갈래?', "0.6 s 뒤 큰 버튼 → 바로 데려옴 (여행 1 · done · 버튼은 다시 '뽈뽈 다녀와' 글자만)");
 
   /* 5. 놀이방 (8물결): 산책 중 바깥이 보이는 동안 #btn-door = 장면 왼쪽 아래 픽셀 집 단추(data-spot edge, 주인 11-08 밤) → 놀이방 → 오락기 → 달리기 창을 연 채로 산책이 끝까지 ·
         문 소리 훅 open · close (놀이방) · 잠들 때 반응 훅 (D-1) · 창을 닫으면 오락기로 포커스 · 놀이방 그대로 · 구석 쪽지 → 보러 가기 → 다락 (포커스는 다락 문) */

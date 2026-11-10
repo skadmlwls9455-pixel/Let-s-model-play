@@ -1462,7 +1462,7 @@ var WORLD = (function () {
   /* ---------- UI 문구 (세계와 묶이는 것만; app 이 더 보탤 수 있음) ---------- */
   var strings = {
     appTitle: '뽈뽈 문어',
-    goButton: '뽈뽈 다녀와',
+    goButton: '산책 갈래?',
     awayButton: '다녀오는 중…',
     lookButton: '방 보기',
     /* 이름이 들어가는 문장은 누가 누구를 부르는지 헷갈리지 않게 (DIALOGUE_UI §3 표): 문어는 자기 이름으로 자기를 소개하고,

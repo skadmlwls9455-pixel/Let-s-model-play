@@ -1582,7 +1582,7 @@ var APP = (function () {
     if (go) {
       go.disabled = false; go.classList.toggle('away', on); go.classList.remove('can-skip');
       if (go.parentNode) go.parentNode.classList.toggle('away', on);
-      go.innerHTML = '<span class="go-txt">' + (on ? '다녀오는 중…' : esc(STR.goButton || '뽈뽈 다녀와')) + '</span>';
+      go.innerHTML = '<span class="go-txt">' + (on ? '다녀오는 중…' : esc(STR.goButton || '산책 갈래?')) + '</span>';
       if (on) { go.setAttribute('aria-label', '다녀오는 중. 누르면 바로 돌아오게 하기'); skipTimer = setTimeout(function () { if (busy) go.classList.add('can-skip'); }, SKIP_GUARD); }
       else go.removeAttribute('aria-label');
     }
@@ -2367,7 +2367,7 @@ var APP = (function () {
     greetRows().forEach(function (g) { sec.appendChild(g); });
     dayRows(tripsOn(today), asksOn(today)).forEach(function (r) { sec.appendChild(r); });   /* 미용실 물음 행도 (연출 중인 물음은 지금 박자까지 — 두 번 그리지 않는다) */
     log.appendChild(sec);
-    if (!log.querySelector('.lrow')) log.appendChild(h('div', { class: 'lempty', text: S.octopus.name ? "아직 아무 데도 안 갔어. '" + (STR.goButton || '뽈뽈 다녀와') + "'를 눌러 봐." : '문어 이름부터 지어 주자.' }));
+    if (!log.querySelector('.lrow')) log.appendChild(h('div', { class: 'lempty', text: S.octopus.name ? "아직 아무 데도 안 갔어. '" + (STR.goButton || '산책 갈래?') + "'를 눌러 봐." : '문어 이름부터 지어 주자.' }));
     logStick = true; scrollLog();
   }
   /* 날이 바뀌었으면 (자정 · 날짜 훅) 오늘 칸을 새로: 인사 · 어제 메모를 다시 짓고 지난 날은 앨범 일기로. 다녀오는 중엔 기다린다.
@@ -2701,7 +2701,7 @@ var APP = (function () {
     al.hidden = albumFilter === 'diary';   /* 일기 탭: 카드 줄 대신 지난 날 로그 */
     if (albumFilter === 'diary') return;
     var trips = all.filter(function (t) { return albumFilter === 'all' || t.poster.type === albumFilter; });
-    if (!trips.length) { al.appendChild(h('div', { class: 'lempty', text: albumFilter === 'note' ? '아직 쪽지는 없어. 집에 있는 날 하나 써 둘게.' : '아직 붙인 포스터가 없어. 뽈뽈 다녀와를 눌러 봐.' })); return; }
+    if (!trips.length) { al.appendChild(h('div', { class: 'lempty', text: albumFilter === 'note' ? '아직 쪽지는 없어. 집에 있는 날 하나 써 둘게.' : '아직 붙인 포스터가 없어. '산책 갈래?'를 눌러 봐.' })); return; }
     var newest = null; all.forEach(function (t) { if (t.date === todayKey() && (!newest || (t.endedAt || 0) >= (newest.endedAt || 0))) newest = t; });
     var byDay = {}, days = [];
     trips.forEach(function (t) { if (!byDay[t.date]) { byDay[t.date] = []; days.push(t.date); } byDay[t.date].push(t); });
