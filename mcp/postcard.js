@@ -36,7 +36,7 @@ function data(events, meta) {
     var t = p.target || {}, node = t.id && WORLD.nodes[t.id];
     var s = { title: String(t.title || (node && node.name) || t.url || C.somewhere).slice(0, 80), status: STATUS.indexOf(p.status) >= 0 ? p.status : 'failed' };
     s.label = p.book ? (p.book.card ? C.shelfCard : C.roomBook) : C.status[s.status];
-    if (p.book && p.book.title) s.book = { title: String(p.book.title).slice(0, 40), by: String(p.book.by || '').slice(0, 30) };
+    if (p.book && p.book.title) s.book = { title: String(p.book.title).slice(0, 160), by: String(p.book.by || '').slice(0, 120) };   /* 번역본은 제목 107자 · 옮긴 이 표기 77자까지 간다 (11-10). 전의 40 · 30 은 ko 만 보고 잡은 값이라 번역본의 '옮긴 이' 가 중간에 잘렸다 */
     if (p.status === 'read' && p.source && WIKI_RE.test(p.source.url || '')) s.source = { url: p.source.url, label: p.source.attribution || 'Wikipedia' };
     if (typeof p.note === 'string' && p.note) s.note = p.note;
     card.stops.push(s);

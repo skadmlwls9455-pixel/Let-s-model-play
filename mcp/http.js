@@ -72,6 +72,9 @@ async function handleMcp(req, res, opts) {
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return rpcError(res, 405, H.postOnly); }   /* 무상태: GET (SSE) · DELETE 없음 */
   var body;
   try { body = await readBody(req); } catch (e) { return rpcError(res, e && e.code === 413 ? 413 : 400, e && e.code === 413 ? H.tooBig : H.badJson); }
+  /* 묶음 (JSON 배열) 요청은 받지 않는다 (11-10). 배열은 아래 isCall 에 안 걸려 상태를 읽지 않고 시간당 횟수도 세지 않는데, SDK 는 그 안의 tools/call 을
+     빈 상태로 돌리고 after 가 그 빈 상태를 저장했다 — 요청 하나가 방의 기록 (등불 · 포스터 · 메모) 을 지웠다. 묶음 안의 호출을 차례로 돌리는 것은 여기서 하지 않는다 (요청 하나 = 호출 하나) */
+  if (Array.isArray(body)) return rpcError(res, 400, H.badJson);
 
   var meta;
   try { meta = await ST.readMeta(store, key); } catch (e) { return rpcError(res, 502, H.storage); }

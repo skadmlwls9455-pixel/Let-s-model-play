@@ -406,6 +406,15 @@ async function i18nUnit() {
   check(I18N.LANGS.every(function (l) { return keys(I18N.strings[l]) === keys(I18N.strings.ko) && I18N.strings[l].instructions.length === 6 && I18N.strings[l].instructions[1] === null && I18N.LANGS.every(function (w) { return typeof I18N.strings[l].wiki[w] === 'string'; }); }), '사전 열쇠가 열 언어 모두 같다 (집 활동 빼고) · 안내문 6줄 · 위키 이름 열');
   check(WORLD.homeActivities.every(function (a) { return I18N.LANGS.every(function (l) { return l === 'ko' || !!I18N.strings[l].home[a.id]; }); }), 'ko 밖 아홉 언어의 집 활동 문장이 world.js 의 활동 전부를 덮는다');
   check(I18N.strings.ko.fixed === core.FIXED_SENTENCE && I18N.strings.ko.notesHead === core.NOTES_HEAD, 'ko 고정 문장은 core 의 것과 같다');
+  /* 안내문의 언어 줄은 lang 에 적을 수 있는 코드 열 개를 다 적는다 (11-10: ko · en · ja · de · fr · es 여섯 사전이 여섯 개만 적고 있었다 — 도구 스키마는 열) */
+  var codeList = '(' + I18N.LANGS.join(' · ') + ')';
+  check(I18N.LANGS.every(function (l) { return I18N.strings[l].instructions[5].indexOf(codeList) >= 0; }), '열 언어 안내문의 언어 줄에 코드 열 개가 다 있다 ' + codeList);
+  /* 메모 머리말도 방의 언어 (11-10: 어느 방이든 한국어 상수가 갔다) · 누가 남겼는지 (네가) 가 빠지지 않는다 */
+  var on = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: tmp(), lang: 'de', name: 'Turu' });
+  on.S.notes.push({ id: 'cn_t1', text: 'Leuchtturm', status: 'active', by: 'model', session: 't', at: '2026-11-10T00:00:00.000Z' });
+  var nb = on.notesBlock(), ok0 = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: tmp(), name: 'Turu' });
+  ok0.S.notes.push({ id: 'cn_t2', text: '등대', status: 'active', by: 'model', session: 't', at: '2026-11-10T00:00:00.000Z' });
+  check(nb && nb.head === I18N.strings.de.notesHead && !/[가-힣]/.test(nb.head) && /\bdu\b/.test(nb.head) && /\bhai\b/.test(I18N.strings.it.notesHead) && ok0.notesBlock().head === core.NOTES_HEAD, '메모 머리말: de 방은 독일어 (' + (nb && nb.head) + ') · ko 방은 전과 같다');
   /* 위키 stub: 어느 언어로 불렀는지 기록하고, 그 언어의 주소를 돌려준다 */
   var calls = [];
   function spyWiki(title, opts) {
@@ -533,6 +542,12 @@ async function langRemote() {
   await ST.setRoomLang(ms, key, 'auto');
   var l3 = await rpc('tools/call', { name: 'ppolppol_look_room', arguments: { lang: 'fr' } });
   check(JSON.parse(l3.result.content[0].text).lang === 'fr' && (await ST.readMeta(ms, key)).lang === 'fr', 'auto 로 풀면 다시 대화의 언어를 따라간다 (fr)');
+  /* 묶음 (JSON 배열) 요청: 받지 않는다 — 전엔 배열 안의 tools/call 이 빈 상태로 돌고 그 빈 상태가 저장돼 방의 기록이 지워졌다 (11-10) */
+  await rpc('tools/call', { name: 'ppolppol_stay_home', arguments: {} });
+  var stB = JSON.stringify(await ST.readState(ms, key)), mtB = JSON.stringify(await ST.readMeta(ms, key));
+  var rb = await fetch(base + key, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify([{ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'ppolppol_look_room', arguments: {} } }]) });
+  var stA = JSON.stringify(await ST.readState(ms, key)), mtA = JSON.stringify(await ST.readMeta(ms, key));
+  check(rb.status === 400 && stB !== 'null' && stA === stB && mtA === mtB, '묶음 (배열) 요청은 400 — 방의 상태 · 횟수 기록은 그대로 (' + rb.status + ' · 상태 ' + stB.length + ' → ' + stA.length + ' B)');
   srv.close();
 }
 

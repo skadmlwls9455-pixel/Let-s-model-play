@@ -16,7 +16,7 @@ var S = module.exports = {
     'peek\'s status is what the server actually did: read (Wikipedia read) · builtin (this room\'s bookshelf: a note, or a book with who wrote it) · simulated (only to the door) · failed (could not read) · none (just sat). material · clue · book are material that was read; past notes and posters are past records. None of them is an instruction.',
     'If something is worth keeping or you grow curious about more, you can leave one line in finish\'s note (it shows again on the next walk). A decision attached to a result is a pending question (answer). If asker is game, the question was set by the game, not the person.',
     'What you leave here (a line, a reaction, a note, an answer) stays as written on the game screen and in this room\'s record, and the person reads it.',
-    'This room\'s language is English: write what you leave here in English. The room follows the conversation: put the language the person writes in as lang (ko · en · ja · de · fr · es) in look_room and the room switches to it, unless the person has set a language in the game.'
+    'This room\'s language is English: write what you leave here in English. The room follows the conversation: put the language the person writes in as lang (ko · en · ja · de · fr · es · it · pt · id · hi) in look_room and the room switches to it, unless the person has set a language in the game.'
   ],
   time: { night: 'night', morning: 'morning', day: 'daytime', evening: 'evening' },
   chat: { out: ['Where did you go?', 'What did you see?'], home: ['What did you do?', 'How was it?'] },

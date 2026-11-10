@@ -308,7 +308,7 @@ function noteOut(n) {
 }
 Octopus.prototype.notesBlock = function () {
   var list = this.activeNotes().filter(function (n) { return !suspectText(n.text) && !privateText(n.text); }).slice(0, NOTES_IN).map(noteOut);   /* 감염 막기 3 */
-  return list.length ? { head: NOTES_HEAD, notes: list } : null;   /* 없으면 아무 말도 (보관 메모가 있다는 것도) 하지 않는다 */
+  return list.length ? { head: (this.L && this.L.notesHead) || NOTES_HEAD, notes: list } : null;   /* 없으면 아무 말도 (보관 메모가 있다는 것도) 하지 않는다 */
 };
 
 /* ───── 방 ───── */
