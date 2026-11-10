@@ -331,6 +331,48 @@ function gitClean() {
   check(ig.length === 3, 'state.json · out/ · node_modules 무시됨');
 }
 
+/* 서가 카드 (library/cards) — 방에 매이지 않은 짧은 글. 책과 같은 길 (builtin + book) 로 간다 */
+async function cardsUnit() {
+  console.log('== 서가 카드');
+  var cdir = tmp();
+  function card(id, title, by, text) { return '---\ncard: ' + id + '\ndomain: 시험\ntitle: ' + title + '\nby: ' + by + '\nwritten: 2026-11-10\n---\n' + text + '\n'; }
+  var long = '카드 본문. '.repeat(120);
+  fs.writeFileSync(path.join(cdir, 'BIO01.md'), card('BIO01', '첫 카드', '시험 · 다듬음', long));
+  fs.writeFileSync(path.join(cdir, 'COS01.md'), card('COS01', '둘째 카드', '시험', '짧은 사실 문장. '.repeat(20)));
+  fs.writeFileSync(path.join(cdir, 'AI01.md'), card('AI01', 'AI 하나', '시험', '사실. '.repeat(40)));
+  fs.writeFileSync(path.join(cdir, 'AI02.md'), card('AI02', 'AI 둘', '시험', '사실. '.repeat(40)));
+  fs.writeFileSync(path.join(cdir, 'AI03.md'), card('AI03', 'AI 셋', '시험', '사실. '.repeat(40)));
+  fs.writeFileSync(path.join(cdir, 'LAN01.md'), card('LAN02', '이름 다름', '시험', '사실. '.repeat(40)));
+  fs.writeFileSync(path.join(cdir, 'MATH01.md'), '---\ncard: MATH01\ntitle: 쓴 사람 없음\n---\n' + '사실. '.repeat(40) + '\n');
+  var oc = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: cdir, fetchWiki: stubWiki, now: function () { return new Date(clock); } });
+  check(Object.keys(oc.cards).sort().join() === 'AI01,AI02,AI03,BIO01,COS01' && oc.cardErrors.length === 2, '카드 5장만 (파일 이름 다름 · by 없음은 건너뜀, 이유 남김)');
+  var tc = oc.todayCards();
+  check(tc.length === core.CARDS_N && tc.filter(function (s) { return /^AI/.test(s); }).length <= 1 && tc.every(function (s) { return /^[A-Z]+\d\d .+/.test(s); }), '오늘의 카드 3장 · AI 서가는 하루 한 장까지 · "ID 제목" 꼴');
+  var seen = {};
+  for (var d = 0; d < 10; d++) { var od = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: cdir, fetchWiki: stubWiki, now: function () { return new Date(clock + d * 86400000); } }); seen[od.todayCards().join('|')] = 1; }
+  check(Object.keys(seen).length >= 2, '날마다 다른 카드');
+  var g = await oc.go({});
+  check(Array.isArray(g.cards) && g.cards.length === core.CARDS_N, 'depart 에 cards');
+  var pc = await oc.peek({ target: { kind: 'card', id: 'bio01' } });
+  check(pc.status === 'builtin' && pc.book && pc.book.title === '첫 카드' && pc.book.by === '시험 · 다듬음' && pc.book.more === true && pc.book.text.length === core.BOOK_HEAD + 1 && !pc.wiki, '카드 읽기: builtin + book (앞 500자 + more) · 소문자 id 도');
+  var pcm = await oc.peek({ target: { kind: 'card', id: 'BIO01' }, more: true });
+  check(pcm.book.text === long.trim() && !pcm.book.more, 'more 면 카드 전부');
+  var bad = await oc.peek({ target: { kind: 'card', id: 'ZZZ99' } });
+  check(bad.error && /카드 id/.test(bad.error), '없는 카드는 오류');
+  var evc = oc.S.running.events.filter(function (e) { return e.type === 'peek'; });
+  check(evc[0].target.kind === 'card' && evc[0].target.id === 'BIO01' && evc[0].book && evc[0].book.card === 'BIO01' && evc[0].book.by === '시험 · 다듬음', '기록: target {kind card, id} · book {card, title, by}');
+  var fc = oc.finish({});
+  var evcs = JSON.parse(fs.readFileSync(path.join(oc.outDir, path.basename(fc.saved)), 'utf8'));
+  var rpc = BRAIN.replay(evcs, { by: 'mcp', dateKey: '2026-11-08', seq: 1, name: '뚜루', now: new Date(clock), state: {} });
+  check(rpc && rpc.receipt.stops.length === 2 && rpc.receipt.stops[0].status === 'builtin' && rpc.receipt.stops[0].book && rpc.receipt.stops[0].book.card === true && rpc.receipt.stops[0].book.title === '첫 카드', '카드 산책 재생: 정류장 builtin + book {card:true}');
+  var pcd = require('../postcard.js').data(evcs, { name: '뚜루', date: '2026-11-08' });
+  check(pcd.stops[0].label === '서가 카드' && pcd.stops[0].book.title === '첫 카드', '엽서: 서가 카드');
+  /* 저장소의 진짜 카드 */
+  var real = core.loadCards(path.join(__dirname, '..', '..', 'library', 'cards')), ids = Object.keys(real.cards);
+  check(ids.length === 60 && real.errors.length === 0, '저장소 카드 60장 · 오류 0' + (real.errors.length ? ': ' + real.errors[0] : ''));
+  check(ids.every(function (id) { var c = real.cards[id]; return !/[?？]/.test(c.text) && !/(일까|는가|을까|ㄹ까|다면)$/.test(c.title) && c.text.length >= 150 && c.text.length <= core.BOOK_MAX && !!c.sources; }), '카드에 질문 없음 (본문·제목) · 길이 · 출처');
+}
+
 /* Vercel 함수 런타임은 require(esm) 을 못 한다 — api 진입점이 ESM 전용 패키지를 require 하면 로컬 (Node 22+) 에선 되고 배포에서만 500 이 난다
  * (2026-11-10 @modelcontextprotocol/ext-apps 로 겪음). Node 의 --no-experimental-require-module 로 그 런타임을 흉내 내 본다 */
 function loaderGuard() {
@@ -345,6 +387,7 @@ function loaderGuard() {
 
 (async function () {
   await unit();
+  await cardsUnit();
   await protocol();
   gitClean();
   loaderGuard();

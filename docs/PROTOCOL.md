@@ -60,6 +60,7 @@
 ```jsonc
 { "kind": "room", "id": "feather", "title": "깃털", "wiki": "깃털" }   // 내장 도서관 방
 { "kind": "wiki", "title": "깃펜" }                                    // 들판 걸음(위키 링크로 간 곳)
+{ "kind": "card", "id": "BIO03", "title": "색 대신 빛의 방향 차이를 보는 눈" }   // 서가 카드 (library/cards, MCP 11-10). status 는 builtin, 같은 이벤트의 book {card, title, by}
 { "kind": "url",  "url": "https://example.org/x" }                     // URL 힌트
 ```
 

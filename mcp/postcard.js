@@ -31,7 +31,7 @@ function data(events, meta) {
   peeks.forEach(function (p) {
     var t = p.target || {}, node = t.id && WORLD.nodes[t.id];
     var s = { title: String(t.title || (node && node.name) || t.url || '어딘가').slice(0, 80), status: STATUS[p.status] ? p.status : 'failed' };
-    s.label = p.book ? '책장의 책' : STATUS[s.status];
+    s.label = p.book ? (p.book.card ? '서가 카드' : '책장의 책') : STATUS[s.status];
     if (p.book && p.book.title) s.book = { title: String(p.book.title).slice(0, 40), by: String(p.book.by || '').slice(0, 30) };
     if (p.status === 'read' && p.source && /^https:\/\/(ko|en)\.wikipedia\.org\/wiki\/\S+$/.test(p.source.url || '')) s.source = { url: p.source.url, label: p.source.attribution || 'Wikipedia' };
     if (typeof p.note === 'string' && p.note) s.note = p.note;

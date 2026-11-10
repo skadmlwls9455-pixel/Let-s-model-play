@@ -83,7 +83,7 @@ async function handleMcp(req, res, opts) {
   var state = null;
   try { state = isCall ? await ST.readState(store, key) : null; } catch (e) { return rpcError(res, 502, '저장소에 닿지 못했어.'); }
   var oct = new core.Octopus({
-    remote: { initialState: state }, booksDir: opts.booksDir, name: meta.name || null, model: null,
+    remote: { initialState: state }, booksDir: opts.booksDir, cardsDir: opts.cardsDir, name: meta.name || null, model: null,
     now: opts.now, queryWiki: opts.queryWiki, fetchWiki: opts.fetchWiki
   });
   var server = buildServer(oct, {

@@ -1183,7 +1183,7 @@
       };
       if (s.kind === 'url') o.url = s.url;
       if (s.reason) o.reason = s.reason;
-      if (s.book) o.book = { title: s.book.title, by: s.book.by };   /* 뽈뽈 도서관의 책 (재생에서만 생긴다) */
+      if (s.book) { o.book = { title: s.book.title, by: s.book.by }; if (s.book.card) o.book.card = true; }   /* 뽈뽈 도서관의 책 · 서가 카드 (재생에서만 생긴다) */
       if (s.kind === 'wild') o.wild = true;
       if (s.noteBy) o.noteBy = s.noteBy;                     /* 모델·사람 재생: 보이는 메모가 그들이 쓴 글 */
       if (s.noteGiven != null) o.noteGiven = s.noteGiven;    /* 모델·사람 재생: 읽음이 확인되지 않아 화면에서 뺀 그들의 메모 (원문) */
@@ -1739,6 +1739,9 @@
         else {
           s.status = (ev.status && STATUSES.indexOf(ev.status) >= 0 && !claimedRead) ? ev.status : 'simulated';
           s.note = voice ? ((!claimedRead && given) || '') : ((!claimedRead && ev.note) || (s.status === 'simulated' ? '내용은 읽지 않았어' : ''));
+          /* 서가 카드 (library/cards): 카드를 읽었으면 책처럼 제목·쓴 사람만 (글은 모델이 읽은 자료라 화면에 옮기지 않는다) */
+          if (tg.kind === 'card' && s.status === 'builtin' && ev.book && typeof ev.book.title === 'string' && typeof ev.book.by === 'string')
+            s.book = { title: ev.book.title.slice(0, 40), by: ev.book.by.slice(0, 30), card: true };
         }
       }
       s.ms = typeof ev.ms === 'number' ? ev.ms : 0;
