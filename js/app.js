@@ -3213,8 +3213,13 @@ var APP = (function () {
     var wear = Object.assign({}, giftWear());
     if (!c && !wear.head && !wear.back) { toast(name + '는 아무것도 안 쓰고 있어'); return; }
     var sh = $('settings-sheet'); if (sh && sh.open) sh.close();
+    /* 11-11: 문어의 대답은 그날 하루 그대로 선다 — 같은 것을 같은 날 다시 내밀어도 주사위를 새로 굴리지 않는다 (예전엔 내밀 때마다 새 주사위라, 거절해도 몇 번 누르면 '쓰기로 했어' 가 나왔다 = 문어의 선택이 아니었다).
+       다른 것은 그날에도 내밀 수 있다. 시드에서 '몇 번째 누름' 을 빼서 같은 날 · 같은 물건이면 답이 같다 */
+    var gk = c ? c.id : 'off', ga = isObj(S.settings.giftAsked) && S.settings.giftAsked.day === todayKey() ? S.settings.giftAsked : (S.settings.giftAsked = { day: todayKey(), ids: {} });
+    if (ga.ids[gk]) { toast('오늘은 이미 물어봤어. 내일 다시 물어볼 수 있어'); return; }
+    ga.ids[gk] = 1;
     giftBusy = true; S.settings.giftN = (S.settings.giftN | 0) + 1; questMark('gift');
-    var rng = mkRng(B ? B.hashSeed(todayKey(), c ? c.id : 'off', S.settings.giftN, name) : S.settings.giftN * 2654435761);
+    var rng = mkRng(B ? B.hashSeed('gift', todayKey(), gk, name) : hash('gift|' + todayKey() + '|' + gk + '|' + name));
     expressRow('curious'); bubble('…', 1200, 'think');   /* 들여다보는 틈 1.3 s — 고르는 과정을 보여 준다 */
     setTimeout(function () {
       giftBusy = false;
