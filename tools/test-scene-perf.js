@@ -59,6 +59,7 @@ function harness() {
     /* ── T3 셰이더 예열: 부팅(첫 프레임들) 프로그램 수 = 첫 바깥 전환 뒤 프로그램 수 ── */
     await run(90, F60);   /* 1.5 s: 첫 프레임 · 초상 워밍업(2번째 프레임) · 디더 쉼 */
     var p0 = (await snap()).progs;
+    await page.evaluate(function () { window.__progKeys = SC.renderer.info.programs.map(function (p) { return p.name + '|' + p.cacheKey; }); });   /* 부팅 때의 셰이더 열쇠 — 뒤에서 수가 늘면 무엇이 새로 생겼는지 말해 준다 */
     await page.evaluate(function () { SC.setPlace('exterior', { instant: true }); });
     await run(30, F60);
     var p1 = (await snap()).progs;
@@ -243,7 +244,9 @@ function harness() {
     var pal6 = await page.evaluate(function () { return SC.stats().palette; });   /* 코너 없을 때 팔레트 칸 수 (덧칸은 코너가 보일 때만) */
     await page.evaluate(function () {
       SC.setReducedMotion(false); SC.setLook({ pixelSize: 2 });   /* 앱 기본 픽셀 — p=3 이면 병(r 0.05)이 2 아트px 남짓이라 색 판정이 이웃에 걸린다 */
-      SC.setLantern(2); SC.setTime(14, true); SC.setItems(['moss', 'crate']); SC.setOctState('idle'); SC.jumpTo('salon');
+      SC.setLantern(2); SC.setTime(14, true); SC.setItems(['moss', 'crate']); SC.setOctState('idle');
+      SC.goRoom('loft', { instant: true });   /* 11-11: 거울 코너는 위층 뒷벽 — 문어가 깨어 있으면 따라 올라온다 (octUp) */
+      SC.jumpTo('salon');
       var G = SC.motion().salon.geom, X = G.x, WZ = G.wz;   /* 코너 기하는 장면에서 읽는다 (숫자를 베끼지 않는다) */
       window.__sal = { G: G, X: X, WZ: WZ, glassZ: WZ + 0.031, midY: G.yc - 0.16, bottles: [0, 1, 2, 3, 4, 5].map(function (i) { return [Math.round((X + (i - 2.5) * G.gap) * 27) / 27, G.sy + 0.07, G.sz]; }), water: [G.tx, G.wy + 0.001, G.tz] };
       window.__frame = function () {   /* 지금 장면을 1 ms 만 밀어 그리고 캔버스 전체를 읽는다 (애니메이션이 거의 안 움직이는 같은 순간 비교용) */
@@ -253,7 +256,7 @@ function harness() {
       };
       window.__cornerBox = function () {   /* 코너(거울 · 병 선반 · 그림자 · '처음 색' 병 자리)의 화면 상자 → 캔버스 px (+4 여유) */
         var cv = SC.renderer.domElement, r = cv.getBoundingClientRect(), c = document.getElementById('scene').getBoundingClientRect(), l = 1e9, t = 1e9, R = -1e9, B = -1e9;
-        [G.x - 0.37, G.x + 0.50].forEach(function (x) { [0, G.yc + G.ro + 0.08].forEach(function (y) { [-2.5, -2.2].forEach(function (z) { var q = SC.screenOf(x, y, z), px = q.x - (r.left - c.left), py = q.y - (r.top - c.top); l = Math.min(l, px); R = Math.max(R, px); t = Math.min(t, py); B = Math.max(B, py); }); }); });
+        [G.x - 0.37, G.x + 0.50].forEach(function (x) { [0, G.yc + G.ro + 0.08].forEach(function (y) { [G.wz - 0.06, G.wz + 0.24].forEach(function (z) {   /* 벽 널 뒤 ~ 선반 앞 (코너가 어느 벽에 있든 — 11-11 위층 뒷벽) */ var q = SC.screenOf(x, y, z), px = q.x - (r.left - c.left), py = q.y - (r.top - c.top); l = Math.min(l, px); R = Math.max(R, px); t = Math.min(t, py); B = Math.max(B, py); }); }); });
         return { l: Math.floor(l) - 4, t: Math.floor(t) - 4, r: Math.ceil(R) + 4, b: Math.ceil(B) + 4 };
       };
       window.__outside = function (A, B, box) {   /* 상자 밖에서 다른 픽셀 수 (gl 행은 아래부터) */
@@ -415,11 +418,11 @@ function harness() {
     var t6i = await page.evaluate(function () {
       var LV8 = ['moss', 'crate', 'candle', 'blanket', 'board', 'shelf', 'curtain'], T = THREE, G = __sal.G, out = [];
       SC.setLantern(8); SC.setTime(14, true); SC.setItems(LV8.concat(['salon'])); SC.setSouvenirs([1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return { id: 'sv' + i }; })); SC.jumpTo('center'); __st(3);
+      /* 11-11: 코너가 위층으로 이사했다 — 가릴 수 있는 것은 위층 살림 전부 (재봉 책상 · 옷감 선반 · 빨랫줄 · 통나무 · 마네킹 …). 코너 자신과 문어 · 내 캐릭터는 뺀다 */
       var occ = []; SC.scene.traverse(function (o) {
-        if (!o.isMesh) return; var vis = true, q = o; while (q) { if (!q.visible) vis = false; q = q.parent; } if (!vis) return;
-        if (o.userData.kind === 'souvenir') { occ.push(o); return; }
-        o.geometry.computeBoundingBox(); var bb = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld);
-        if (bb.min.y > 1.2 && bb.max.y < 2.0 && bb.max.z < -1.9 && bb.max.x - bb.min.x > 1.2) occ.push(o);   /* 등불 7칸 선반 (1.5 m · y 1.37–1.74, 받침 포함) */
+        if (!o.isMesh) return; var vis = true, own = false, q = o; while (q) { if (!q.visible) vis = false; if (q.name === 'salon' || q.name === 'oct' || q.name === 'player') own = true; q = q.parent; } if (!vis || own) return;
+        if (o.material && o.material.colorWrite === false) return;   /* 빛 차폐 판 (안 보임) */
+        occ.push(o);
       });
       var dir = new T.Vector3(); SC.camera.getWorldDirection(dir); var ray = new T.Raycaster(), n = 0, hit = 0, rad = G.ro + 2 / 27;
       for (var th = 0; th <= Math.PI + 1e-9; th += Math.PI / 48) [rad, G.ro + 1 / 27].forEach(function (rr) {
@@ -428,13 +431,13 @@ function harness() {
       });
       return { occ: occ.length, n: n, hit: hit, top: +(G.yc + G.ro).toFixed(2) };
     });
-    ok(t6i.occ >= 9 && t6i.n > 90 && t6i.hit === 0, 'T6 등불 8칸: 선반·받침·기념품 ' + t6i.occ + ' 개가 아치(위 끝 y ' + t6i.top + ')와 그 둘레 2 아트px 를 덮지 않음 (' + t6i.hit + '/' + t6i.n + ' 점 가림)');
+    ok(t6i.occ >= 3 && t6i.n > 90 && t6i.hit === 0, 'T6 위층 살림 (메시 ' + t6i.occ + ' 개)이 아치(위 끝 y ' + t6i.top + ')와 그 둘레 2 아트px 를 덮지 않음 (' + t6i.hit + '/' + t6i.n + ' 점 가림)');
     /* 밤 거울 유리는 진짜 창 유리보다 밝지 않다 (둘째 창처럼 뜨지 않게) · 대야는 놓이는 첫 칸부터 맑은 물 (검은 구멍 없음) */
     var t6j = await page.evaluate(function () {
       SC.setLantern(2); SC.setTime(21, true); SC.setItems(['moss', 'crate', 'salon']); SC.setSouvenirs([{ id: 'sv1' }]); SC.setColor('#e8463c', { still: true }); SC.jumpTo('center'); __st(20, 1 / 30);
       var G = __sal.G, gp = [], wp = [];
       for (var gx = -0.12; gx <= 0.1201; gx += 0.04) for (var gy = G.y0 + 0.16; gy <= G.yc + 0.1; gy += 0.05) gp.push([G.x + gx, gy, G.wz + 0.031]);
-      for (var z = 0.0; z <= 0.9; z += 0.1) for (var y = 1.2; y <= 2.1; y += 0.15) wp.push([-2.5 + 0.02, y, z]);
+      [-0.36, -0.26, -0.16, 0.16, 0.26, 0.36].forEach(function (z) { [1.56, 1.66, 1.76, 1.96, 2.06, 2.16].forEach(function (y) { wp.push([-2.2 + 0.02, y, z]); }); });   /* 11-11: 위층의 동그란 창 (왼벽 x −2.2 · 가운데 y 1.86 · 반지름 0.72 — 십자 살을 피해 네 칸 안쪽) */
       function lum(list) { return list.reduce(function (s, c) { return s + 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }, 0) / list.length; }
       var gl = lum(__px(gp)), wl = lum(__px(wp));
       SC.setTime(14, true); SC.jumpTo('salon'); __st(2); SC.salonDye('#4a86d8', {}); SC.debugStep(1 / 60); var m = SC.motion().salon, first = { beat: m.beat, tub: m.tub, water: m.water }; SC.salonFinish(); SC.setColor('#e8463c', { still: true });
@@ -461,10 +464,16 @@ function harness() {
     await page.evaluate(function () {
       SC.salonFinish(); SC.setSalonOpen(false); SC.hotspots({}); var b = document.getElementById('hs-salon'); if (b) b.parentNode.removeChild(b);
       SC.setColor('#e8463c', { still: true }); SC.setTime(14, true); SC.setLantern(4); SC.setItems(['moss', 'crate', 'candle', 'board', 'shelf']); SC.setSouvenirs([{ id: 'sv1' }]);
-      SC.setLook({ pixelSize: 3 }); SC.setOctState('idle'); SC.jumpTo('center'); SC.resume();
+      SC.goRoom('attic', { instant: true }); SC.setLook({ pixelSize: 3 }); SC.setOctState('idle'); SC.jumpTo('center'); SC.resume();
     });
     await run(60, F60);
     var t6z = await page.evaluate(function () { var m = SC.motion().salon; return { vis: m.visible, active: m.active, pal: SC.stats().palette, progs: SC.stats().programs }; });
+    if (t6z.progs !== p0) console.log('   새 셰이더:', JSON.stringify(await page.evaluate(function () {
+      return SC.renderer.info.programs.map(function (p) { return p.name + '|' + p.cacheKey; }).filter(function (k) { return __progKeys.indexOf(k) < 0; }).map(function (nk) {
+        var a = nk.split(','), best = null, bd = 1e9; __progKeys.forEach(function (ok) { var o = ok.split(','), d = 0; if (ok.split('|')[0] !== nk.split('|')[0]) return;   /* 같은 재질끼리만 견준다 */ for (var i = 0; i < Math.max(a.length, o.length); i++) if (a[i] !== o[i]) d++; if (d < bd) { bd = d; best = o; } });
+        var df = []; for (var i = 0; i < a.length; i++) if (a[i] !== best[i]) df.push(i + ':' + String(best[i]).slice(0, 24) + '>' + String(a[i]).slice(0, 24)); return nk.slice(0, 24) + ' · 다른 칸 ' + df.join(' ; ');
+      });
+    })));
     ok(!t6z.vis && !t6z.active && t6z.pal === pal6 && t6z.progs === p0, 'T6 되돌림: 코너·연출 없음 · 팔레트 덧칸 빠짐 (' + t6z.pal + ' = ' + pal6 + ') · 프로그램 ' + t6z.progs);
 
     /* ── T7 내 캐릭터 움직이기 (brief MOVE.md · docs/SCENE.md '내 캐릭터 · 움직이기'): setPlayerInput 화면 축 → 월드 · 2.2 m/s · 방 안쪽 0.35 미끄러짐 · 상자 · 문어 0.6 · null 로 멈춤 · DQ.pending 무시 · 바깥 false ·

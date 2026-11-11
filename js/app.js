@@ -809,7 +809,7 @@ var APP = (function () {
   /* 거울 단추 (#btn-salon) → 시트. 문어는 하던 대로 있는다 (걷는 건 '바꾸기' 를 고른 뒤뿐) */
   function openSalon() {
     var d = $('salon-sheet');
-    if (!SAL || !scene || !d || salonRun || busy || inPlay() || roomJob || introUp()) return false;
+    if (!SAL || !scene || !d || salonRun || busy || (inPlay() && !octWithMe()) || roomJob || introUp()) return false;
     if (d.open) return true;
     syncFromStore();   /* 다른 탭이 오늘 이미 물었으면 시트 대신 토스트 */
     var r = SAL.canAsk(S, todayKey(), salonOct());
@@ -1076,7 +1076,7 @@ var APP = (function () {
     if (S.room.lantern >= 2) a.push('crate');
     if (S.room.lantern >= 4) a.push('blanket');
     if (S.room.posterOrder.length) a.push('board');
-    if (mirrorUp()) a.push('salon');
+    /* 11-11: 거울은 위층으로 이사했다 — 다락의 빈 벽 앞에 서성이지 않는다 (예전: if (mirrorUp()) a.push('salon')) */
     return a;
   }
   function octPlace(anchor) { oct.anchor = anchorName(anchor); scene.jumpTo(oct.anchor); updateSceneDesc(); }
@@ -1421,7 +1421,7 @@ var APP = (function () {
   /* kind → 말풍선 모양 (js/ui-art.js) · 말풍선 목소리 (js/audio.js). opt: { icon: 'memory/sea' (말 뒤 픽셀 그림), raw: 'model'|… (남이 쓴 말), rawText: 그중 남의 글 부분 (없으면 전부) } */
   /* opt.silent = 소리 없이 (같은 톡 한 줄을 또 누름) · opt.tap = 톡 한 줄 (말풍선에 표시를 남겨 다음 톡이 알아본다) */
   function bubble(text, ms, kind, opt) {
-    if (text && inPlay()) return;   /* 놀이방에 있는 동안 문어의 말풍선은 띄우지 않는다 (문어는 다락에 · 말풍선 소리도 없이). 로그 행은 그대로 (say) */
+    if (text && inPlay() && !octWithMe()) return;   /* 놀이방에 있는 동안 문어의 말풍선은 띄우지 않는다 (문어는 다락에 · 말풍선 소리도 없이). 로그 행은 그대로 (say) */
     if (tapGivenBy && !(opt && opt.tap)) { tapGivenBy = null; clearTimeout(tapTagTimer); renderBrainTag(); }   /* 모델의 톡 한 줄이 내려가면 '데모' 꼬리표도 돌아온다 */
     scene.bubble(text, ms);
     var b = $('oct-bubble');
@@ -3702,7 +3702,8 @@ var APP = (function () {
   var roomJob = null;   /* 지금 도는 문 작업 (Promise) — 끝날 때까지 두 번째 문은 열지 않는다 */
   function sceneView() { return scene && typeof scene.view === 'function' ? scene.view() : (scene && typeof scene.place === 'function' ? scene.place() : 'attic'); }
   function roomNow() { return scene && typeof scene.room === 'function' ? scene.room() || null : null; }
-  function inPlay() { return !!roomNow(); }   /* 문어가 없는 '내 방'(놀이방 · 위층 다락)에 있는가 */
+  function inPlay() { return !!roomNow(); }
+  function octWithMe() { return !!(scene && typeof scene.octUp === 'function' && scene.octUp()); }   /* 위층에 문어가 따라 올라와 있다 (미용실) */   /* 문어가 없는 '내 방'(놀이방 · 위층 다락)에 있는가 */
   function introUp() { return !!(window.INTRO && ['sky', 'title'].indexOf(INTRO.phase) >= 0); }
   function bindSpots() {
     var map = {};
