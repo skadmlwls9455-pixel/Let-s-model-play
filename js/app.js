@@ -799,7 +799,8 @@ var APP = (function () {
     if (!scene || typeof scene.setSalonOpen !== 'function') return;
     var on = !!SAL && mirrorUp() && !busy && !salonRun && !salonActive && oct.state !== 'away' && !furnMode;   /* 가구 배치 중엔 숨긴다 (가구를 들고 있는 손 · 장면 톡은 가구 몫 — 11-10 배치 모드) */
     if (on === salonSpotOn && !force) return;
-    salonSpotOn = on; scene.setSalonOpen(on);
+    try { scene.setSalonOpen(on); salonSpotOn = on; }   /* 장면이 받은 뒤에 적는다: 던졌으면 다음 맞춤 때 다시 준다 (예전엔 먼저 적어서 거울 단추가 새로고침까지 숨었다 — 검증 11-10 E4) */
+    catch (e) { console.warn('[app] setSalonOpen', e); }
   }
   function salonRefusal(reason) {   /* 물을 수 없는 까닭 → 말풍선 · 토스트 (기록 0). 거울 없음 · 나감 · 바쁨은 단추가 숨어 있어야 하는 때라 아무 말 없다 */
     if (reason === 'asleep') { bubble(SLEEP_SAY, 1500, 'sleep'); tapSR(SLEEP_SAY); }   /* 깨우지 않는다 · 시트 없음 */
@@ -837,13 +838,12 @@ var APP = (function () {
     scene.recenter();
     return true;
   }
-  /* 시트를 연 바로 그 톡에서 온 click 인가: click 의 시각(= 그 톡이 끝난 때)이 시트를 연 때보다 뒤가 아니면 그 톡이다 (느린 기기에서 click 이 늦게 처리돼도 맞는다).
-     시각 기준이 다른 옛 브라우저는 연 뒤 350 ms 안의 click 으로 본다 */
+  /* 시트를 연 톡에 딸린 click 인가 (바깥 톡으로 치지 않는다): 연 바로 그 톡의 click (시각이 연 때보다 앞) 과, 거울을 두 번 톡 한 둘째 (연 뒤 SHEET_SETTLE 안) —
+     예전엔 둘째 톡이 방금 연 시트를 닫았다 (검증 11-10 P6 = E12). 잰 것은 click 의 시각 (= 손가락이 떨어진 때 — 느린 기기에서 click 이 늦게 처리돼도 맞는다 · tapTime).
+     시각 기준이 다른 옛 브라우저만 처리하는 지금으로 잰다. 그 뒤의 바깥 톡은 그만두기 그대로. 브라우저가 스스로 하는 바깥 톡 닫기는 이 시트에선 끈다 (bind) */
   function salonOpeningTap(d, e) {
-    var at = d._openedAt || 0, ts = e && e.timeStamp;
-    if (!at) return false;
-    if (typeof ts === 'number' && ts > 0 && ts < 1e11 && ts <= at + 40) return true;
-    return performance.now() - at < 350;
+    var at = d._openedAt || 0;
+    return !!at && tapTime(e) - at < SHEET_SETTLE;
   }
   /* 병 그림 16×16 (×2 = 32 px, 보이는 칸 36 px 안): 코르크 · 목 · 둥근 몸 · 물약(currentColor = 그 병의 색) · 반짝 한 줄. 글자 없음 (낭독은 aria-label) */
   var BOTTLE_SVG = (function () {
@@ -874,6 +874,13 @@ var APP = (function () {
     var b = SAL.bottles(S, todayKey()).filter(function (x) { return x.hex === SAL.normHex(hex); })[0], nm = $('salon-name');
     if (!b) return false;
     salonPickHex = b.selectable ? b.hex : null;
+    /* 시트를 열어 둔 채 날이 바뀌어 병의 쉼이 풀렸으면 (또는 생겼으면) 병을 다시 그린다 — 예전엔 고른 병이 aria-disabled · '며칠 뒤에 …' 라벨 그대로였다 (검증 11-10 E11). 누른 병의 포커스는 새 단추로 */
+    var bq = '#salon-bottles .bottle[data-hex="' + b.hex + '"]', be = document.querySelector(bq);
+    if (be && ((be.getAttribute('aria-disabled') === 'true') === b.selectable || be.getAttribute('aria-label') !== b.aria)) {
+      var hadFocus = document.activeElement === be;
+      renderSalonSheet();
+      if (hadFocus && (be = document.querySelector(bq))) { try { be.focus({ preventScroll: true }); } catch (e) { be.focus(); } }
+    }
     [].forEach.call(document.querySelectorAll('#salon-bottles .bottle'), function (x) { x.setAttribute('aria-pressed', String(x.dataset.hex === salonPickHex)); });
     if (nm) nm.textContent = b.say;   /* role=status: 파란색 · 지금 이 색이야. · 이 색은 며칠 뒤에 물어볼 수 있어. · 처음 색 */
     if (scene && typeof scene.salonOffer === 'function') scene.salonOffer(salonPickHex);
@@ -900,6 +907,10 @@ var APP = (function () {
     if (!ask) { d.close(); return false; }
     if (dev) { salonNext = null; paintSalonNext(); }
     setSalonActive(true);   /* 저장보다 먼저: 다른 탭 · 다시 그리기가 연출 전에 장면 몸색을 바꾸지 않게 (applyLook 을 미룬다) */
+    /* 묻는 그 순간 쓰다듬기 뒤끝을 걷는다 (검증 11-10 E2): 2 s 뒤의 '…좋아' 예약 (pet) 을 지우고, 떠 있던 혼잣말 · 톡 한 줄 · 생각 말풍선을 내린다.
+       예전엔 시트가 닫히는 0.25 s 뒤 (salonSettle) 에야 지워서, 물음 바로 뒤에 코드가 쓴 '…좋아' 가 뜨고 곧이어 '안 바꿀래.' 가 나올 수 있었다 — 마음을 바꾼 것처럼 읽힌다. 대답 말풍선은 이 뒤에 뜬다 */
+    clearTimeout(petTimer); if (oct.state === 'pet') octState('idle');
+    var ob = $('oct-bubble'); if (ob && !ob.hidden) bubble('', 0);
     SAL.commit(S, ask); save(); rememberAsk(ask);   /* 물음 한 줄 + ('바꾸기' 면) colors 한 줄 + octopus.color + 사본 — 한 번에 */
     salonSound('ask');
     salonStage(ask, { focus: opener === $('btn-salon'), ring: !!ring });
@@ -1041,11 +1052,20 @@ var APP = (function () {
         if (oct.state !== 'sleep' && oct.state !== 'away') octState('idle');
       } catch (e) { console.warn('[app] salonFinish', e); }
     }
-    stageRows(my, 3);   /* 남은 행 (두 번 그리지 않는다) */
-    setSalonActive(false);   /* 미룬 몸색 맞춤 (감았으면 여기서 새 색 · 연출이 이미 칠했으면 할 일 없음) · 거울 단추 · 놀이방 문 */
-    relaxFace(fast ? 0 : 3000);
-    if (my.focus && (!document.activeElement || document.activeElement === document.body)) { var b = $('btn-salon'); if (b && !b.hidden) focusRoomBtn(b, my.ring); }   /* 키보드로 물었으면 거울 단추로 돌아온다 (연출 중엔 숨어 있었다) */
-    updateSceneDesc();
+    /* 먼저 푼다, 그다음 행 (검증 11-10 E4): 예전엔 행 3 을 붙이다 (행 DOM · UIART.syncLog · 알림) 오류가 나면 salonActive 가 켜진 채 남았다 — salonRun 은 이미 null 이라 다시 감을 길도 없어
+       새로고침 전까지 거울 · 문 단추가 숨고 톡 · 쓰다듬기 · 돌아다니기 · 낮잠이 멈췄다. 이제 어느 칸이 실패해도 나머지는 그대로 하고 약속(done)도 푼다 */
+    try { setSalonActive(false); }   /* 미룬 몸색 맞춤 (감았으면 여기서 새 색 · 연출이 이미 칠했으면 할 일 없음) · 거울 단추 · 놀이방 문 */
+    catch (e) { salonActive = false; console.warn('[app] salon release', e); }
+    try { stageRows(my, 3); }   /* 남은 행 (두 번 그리지 않는다) */
+    catch (e) { console.warn('[app] salon rows', e); }
+    try {
+      relaxFace(fast ? 0 : 3000);
+      if (my.focus && (!document.activeElement || document.activeElement === document.body)) { var b = $('btn-salon'); if (b && !b.hidden) focusRoomBtn(b, my.ring); }   /* 키보드로 물었으면 거울 단추로 돌아온다 (연출 중엔 숨어 있었다) */
+      updateSceneDesc();
+    } catch (e) { console.warn('[app] salon end', e); }
+    /* 다음 돌아다니기는 대답 뒤 20–40 s (검증 11-10 W10 = P8 의 때 쪽): 연출 중엔 예약이 미뤄지기만 해서 끝나자마자 (1 s 안에) 걸어 나갈 수 있었다 — '안 바꿀래.' 바로 뒤면 돌아서 가 버리는 것처럼 읽힌다.
+       두 답 모두 · 예약이 있던 때만 다시 건다 (산책 중 · 고정 앵글엔 예약이 없다) */
+    if (oct.wanderTimer) scheduleWander();
     my.resolve({ id: my.ask.id, fast: !!fast });
     return true;
   }
@@ -1601,6 +1621,12 @@ var APP = (function () {
      귀가를 지켜본 뒤 한 번 누르면 그대로 '뽈뽈 다녀와'. 글자 · 확인 창 없음 (주인 11-08: 말은 적게) */
   var GO_SETTLE = 600, GO_REST = 900, GO_CAP = 2500, lastGo = 0, backAt = 0, broughtBack = false;
   function goRapid(now) { var since = now - backAt; return !busy && broughtBack && since < GO_CAP && (since < GO_SETTLE || now - lastGo < GO_REST); }
+  /* 시트(대화상자)가 막 닫힌 뒤의 누름도 받지 않는다 (검증 11-10 E1 = P1): 한 화면 배치에선 큰 버튼이 시트의 [닫기] · [물어보기] 바로 밑이라, 두 번 톡의 둘째가 시트가 사라진 자리의 큰 버튼에 떨어졌다
+     — [닫기] 뒤엔 청하지 않은 산책이 나가고, [물어보기] 뒤엔 대답 연출이 한 번에 감겼다. 닫힌 때(sheetShutAt)는 bindDialogs 가 어느 대화상자든 적는다 (설정 · 앨범 · 로그 · 살림 · 포스터 · 달리기 창).
+     누른 때는 click 의 시각 (= 손가락이 떨어진 때 — 느린 기기에서 click 이 늦게 처리돼도 맞는다 · 시각 기준이 다른 옛 브라우저는 처리하는 지금). SHEET_SETTLE 뒤의 누름은 평소대로 */
+  var SHEET_SETTLE = 600, sheetShutAt = -1e9;
+  function tapTime(e) { var now = performance.now(), ts = e && e.timeStamp; return typeof ts === 'number' && ts > 0 && ts <= now + 40 ? ts : now; }
+  function afterSheet(e) { return tapTime(e) - sheetShutAt < SHEET_SETTLE; }
   function setBusy(on) {
     if (on && salonRun) salonFinish();   /* 미용실 연출 중에 산책이 시작되면 (데모 조작 · 이벤트 재생) 남은 연출을 끝 상태로 먼저 */
     busy = on; oct.busy = on;
@@ -1620,7 +1646,8 @@ var APP = (function () {
     if (window.AUDIO) AUDIO.on('busy', { on: on });   /* 소리: 건너뛰기 표시 정리 */
   }
   /* #btn-go: 집에 있으면 초대, 나가 있으면 (막 누른 직후가 아니면) 바로 데려오기 */
-  function goTap() {
+  function goTap(e) {
+    if (afterSheet(e)) return;   /* 시트가 닫힌 바로 뒤 (두 번 톡의 둘째): 초대 · 데려오기 · 연출 감기 어느 것도 하지 않는다 */
     salonFinish();   /* 미용실 연출 중이면 남은 연출을 한 번에 감고 (새 색 · 대야 치움 · 남은 행) 초대는 평소대로 */
     var now = Date.now(), rapid = goRapid(now); lastGo = now;
     if (inPlay() || roomJob) {   /* 놀이방이면 먼저 문으로 문어 방에 돌아와서 (8물결). 누른 *그때* 의 뜻대로: 다녀오는 중이었으면 데려오기(건너뛰기)만 — 문을 지나는 사이 산책이 끝났으면 아무것도 안 한다 (새 산책이 되지 않게) */
@@ -2042,7 +2069,10 @@ var APP = (function () {
   function takeRemote(raw) {
     if (!adoptRemote(raw)) return false;
     if (busy) { remoteDirty = true; return true; }   /* 공개 중엔 로그·등불을 다시 그리지 않는다 → 끝날 때 한 번 (setBusy) */
-    renderAll(); applyMotion(); applyFont(); syncRest();   /* 다른 탭이 차례를 끝냈으면 이 탭 문어도 (깨어 있는 틈 · 낮잠) */
+    /* 이 탭이 연출 중인 물음이 방금 밀렸다 (두 탭이 서로 보기 전에 물었고 그쪽이 일렀다 — dropped): 남은 연출을 여기서 접는다 (검증 11-10 E10).
+       예전엔 밀린 색으로 걷기 · 대야를 끝까지 한 뒤 몸이 그쪽 색으로 툭 바뀌었다. 감기는 행을 붙이지 않고 (stageRows) 장면 몸색은 기록 (그쪽 답) 으로 맞춘다 */
+    if (salonRun) { var mineNow = askById(salonRun.ask.id); if (mineNow && mineNow.status === 'dropped') salonFinish(); }
+    renderAll(); applyMotion(); applyFont(); syncSceneLook(); syncRest();   /* 다른 탭이 차례를 끝냈으면 이 탭 문어도 (깨어 있는 틈 · 낮잠) */
     var ss = $('salon-sheet'); if (ss && ss.open && !salonRun) renderSalonSheet();   /* 미용실 시트가 열려 있으면 병을 다시 (다른 탭이 몸 색을 바꿨거나 '그대로' 쉼이 생김) */
     return true;
   }
@@ -3022,7 +3052,17 @@ var APP = (function () {
     document.addEventListener('close', function (e) {
       var t = $('toast'), d = e.target;
       if (t && d && d.tagName === 'DIALOG' && d.contains(t)) raiseToast(t);
+      if (!window.MutationObserver && d && d.tagName === 'DIALOG') sheetShutAt = performance.now();
     }, true);
+    /* 대화상자가 닫힌 때를 적는다 (큰 버튼의 SHEET_SETTLE — goTap). close 이벤트는 닫힌 뒤 따로 오는 일(task)이라 바쁜 기기에선 둘째 톡의 click 보다 늦을 수 있다
+       → open 속성이 빠지는 것을 지켜본다 (닫은 그 일이 끝나자마자 · 닫기 단추 · 바깥 톡 · Esc · 끌어 닫기 · 코드가 닫음 모두). 나중에 생기는 대화상자(달리기 창)도 본다 */
+    if (window.MutationObserver) new MutationObserver(function (recs) {
+      var shut = false, opened = false;
+      for (var i = 0; i < recs.length; i++) { var x = recs[i].target; if (x && x.tagName === 'DIALOG') { if (x.open) opened = true; else shut = true; } }
+      if (shut) sheetShutAt = performance.now();
+      /* 창이 열리면 누르고 있던 걷기 키도 놓는다 (창을 떠날 때의 blur 와 같다): stickKeyIgnored 는 창이 열린 뒤의 새 누름만 막아서, 방향키를 누른 채 거울을 누르면 내 캐릭터가 열린 시트 뒤에서 계속 걸었다 (검증 11-10 E9) */
+      if (opened && Object.keys(stk.keys).length) { stk.keys = {}; stickRelease(); }
+    }).observe(document.body, { attributes: true, subtree: true, attributeFilter: ['open'] });
     /* 토스트를 app 의 toast() 를 거치지 않고 띄우는 곳(js/audio.js 의 소리 안내)도: 지금 열린 대화상자(없으면 body)가 아닌 곳에 있으면 옮긴다 */
     var t = $('toast');
     if (t && window.MutationObserver) {
@@ -3647,7 +3687,12 @@ var APP = (function () {
     try {
       var obj = typeof text === 'string' ? JSON.parse(text) : text;
       if (!isObj(obj) || obj.v !== 2 || !isObj(obj.octopus)) throw new Error('format');
-      S = normalize(obj); if (S.octopus.state === 'sleep' && napOver()) S.octopus.state = 'idle';   /* 부팅과 같은 낮잠 규칙 */
+      S = normalize(obj);
+      /* 같은 문어(born 이 같다)의 기록이면 이 기기에서 이미 한 미용실 물음은 남긴다 (검증 11-10 W1): 예전엔 묻기 전에 내보낸 파일을 다시 불러오면 그 물음이 사라졌다 —
+         '그대로' 와 그 색의 7일 쉼이 없어지고, 맨 처음 물음 전의 파일이면 '맨 처음은 꼭 바꾸기' 가 다시 살아났다 (문어의 대답을 되감는 길).
+         두 탭 합치기와 같은 규칙 (SALON.merge — 시간 제한 없이): 파일에 없는 물음은 colors 줄과 함께 다시 얹고, 같은 날 둘이면 이른 것이 정한다. 다른 문어의 파일은 그대로 들어온다 (merge 가 물음을 버린다) */
+      if (SAL) S = SAL.merge(prev.S, S, ((prev.S.salon || {}).asks || []).slice()).state;
+      if (S.octopus.state === 'sleep' && napOver()) S.octopus.state = 'idle';   /* 부팅과 같은 낮잠 규칙 */
       setDayGreeting(); renderAll();
     } catch (e) {
       S = prev.S; greetingRow = prev.g; memoRow = prev.m;
@@ -4141,6 +4186,9 @@ var APP = (function () {
       ssh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e) && !salonOpeningTap(e.currentTarget, e)) e.currentTarget.close(); });
     }
     bindDialogs(); watchLogScroll(); bindAlbumPress(); bindSheetDrag('settings-sheet'); bindSheetDrag('album-sheet'); bindSheetDrag('look-sheet'); bindSheetDrag('log-sheet'); bindSheetDrag('salon-sheet');
+    /* 미용실 시트의 바깥 톡 닫기는 위의 click 처리 하나만 쓴다: 브라우저가 스스로 하는 것 (closedby="any" — bindDialogs) 은 톡의 시각을 보지 않아, 거울을 두 번 톡 한 둘째 톡에 방금 연 시트를 닫았다 (검증 11-10 P6 = E12).
+       연 뒤 잠깐만 꺼 두는 타이머는 프레임이 밀리는 기기에서 둘째 톡보다 먼저 풀렸다 → 이 시트는 늘 'closerequest' (Esc · 뒤로 가기는 그대로 닫는다 · closedby 를 모르는 브라우저는 원래 click 처리뿐) */
+    if (ssh && ssh.getAttribute('closedby') != null) ssh.setAttribute('closedby', 'closerequest');
     if (ssh) ssh.addEventListener('close', function () {   /* bindDialogs 의 포커스 돌려주기 뒤 */
       if (!salonRun && scene && typeof scene.salonOffer === 'function') scene.salonOffer(null);   /* 물어보기로 닫은 게 아니면 병은 제자리로 (연출 중엔 내민 병이 연출의 첫 자리) */
       salonPickHex = null; var nm = $('salon-name'); if (nm) nm.textContent = '';
@@ -4373,7 +4421,7 @@ var APP = (function () {
     get stick() { return { allowed: stk.allowed, input: stk.vec ? { x: stk.vec.x, y: stk.vec.y } : null, pointer: stk.pid != null, keys: Object.keys(stk.keys), sent: stk.sent }; },   /* 11-08 움직이기 (테스트·도구): 발자국 손잡이 상태 — 보이는가 · 지금 장면에 보낸 벡터 · 손가락 · 눌린 키 */
     /* 11-08 톡 한 줄 · 깨어 있는 틈 (테스트·도구 — 화면엔 안 나온다): 지금 톡 하면 나올 줄 · 장면의 톡 처리 그대로 · 쉬는 단계 ('up' | 'awake' | 'nap') */
     tapLine: function () { var L = tapLineNow(); return L ? { text: L.text, full: L.full, by: L.by, part: L.part, src: L.src, trip: L.trip.id } : null; },
-    get goResting() { return goRapid(Date.now()); },   /* 지금 큰 버튼을 누르면 '연달아 누름' 으로 받지 않는가 (테스트 · 도구가 다음 초대 전에 기다린다) */
+    get goResting() { return goRapid(Date.now()) || afterSheet(); },   /* 지금 큰 버튼을 누르면 '연달아 누름' 으로 받지 않는가 (테스트 · 도구가 다음 초대 전에 기다린다) */
     tapOct: tapOct, restPhase: restPhase, get rest() { return rest ? { id: rest.id, left: Math.max(0, Math.round(rest.left)), away: rest.away } : null; },
     /* 몸 색 · 미용실 (docs/SALON.md — 테스트 · 도구, 화면엔 안 나온다): 장면 몸색을 기록에 맞춤 · 미용실 연출 중 표시 (켜면 돌아다니기 · 톡 한 줄 · 쓰다듬기 · 낮잠 들기를 멈추고 몸색 맞춤을 미룸) ·
        ?dev=1 을 직접 붙인 탭인가 */
