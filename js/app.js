@@ -4399,6 +4399,18 @@ var APP = (function () {
     renderSets(frag);
     body.textContent = ''; body.appendChild(frag);
   }
+  /* 11-11 (검증 P4): 위층에서 미용실 시트가 열려 있는 동안 시트가 덮은 높이를 장면에 알려 준다 → 장면이 거울 · 문어를 시트 위로 올린다 (scene.setSheetInset). 시트 크기가 바뀌거나(이름 줄이 두 줄) 닫히면 다시 */
+  function salonLiftInit() {
+    var d = $('salon-sheet'); if (!d) return;
+    function sync() {
+      if (!scene || typeof scene.setSheetInset !== 'function') return;
+      var sc = $('scene'), inset = d.open && sc && roomNow() === 'loft' ? Math.max(0, sc.getBoundingClientRect().bottom - (window.innerHeight - d.offsetHeight)) : 0;
+      try { scene.setSheetInset(inset); } catch (e) { console.warn('[app] setSheetInset', e); }
+    }
+    if (window.ResizeObserver) new ResizeObserver(sync).observe(d);
+    if (window.MutationObserver) new MutationObserver(sync).observe(d, { attributes: true, attributeFilter: ['open'] });
+    d.addEventListener('close', sync); window.addEventListener('resize', sync);
+  }
   function openSew() { var sh = $('sew-sheet'); if (!sh) return; renderSew(); showDialog(sh); }
   function renderBag() {
     var body = $('bag-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment(), dk = todayKey();
@@ -4428,6 +4440,7 @@ var APP = (function () {
     $('bag-close').addEventListener('click', function () { sh.close(); });
     sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     var sw = $('sew-sheet'); if (sw) { $('sew-close').addEventListener('click', function () { sw.close(); }); sw.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); }); }
+    salonLiftInit();
     setTimeout(dailyGift, 2500);
   }
   function boot() {

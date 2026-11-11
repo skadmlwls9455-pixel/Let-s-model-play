@@ -449,6 +449,26 @@ var SCENE3D = (function () {
     var S = { W: 0, H: 0, p: DEF_P, rw: 4, rh: 4, cw: 4, ch: 4, N: SNAP_N, pw: PX, offX: 0, offY: 0 };   /* pw = pixelWorldSize: 아트 픽셀 한 변(월드 m), resize 에서 프러스텀 폭 / 타깃 폭 */
     function yawDelta() { var y = clamp(yawDrag + st.look.yaw * DEG, -25 * DEG, 25 * DEG); return Math.round(y / (9 * DEG)) * 9 * DEG; }   /* 9° 스냅 */
     var _off = new T.Vector3(), _r = new T.Vector3(), _u = new T.Vector3(), _ax = new T.Vector3(1, 0, 0), _ay = new T.Vector3(0, 1, 0);
+    /* 11-11 (검증 P4): 위층에서 미용실 시트가 화면 아래를 덮을 때, 거울 코너와 문어가 시트 위로 보이도록 장면을 위로 올린다 (좁은 화면 · 병 7개 · 이름 줄 두 줄이면 문어가 시트 밑에 깔렸다).
+       LIFT.y = 올린 높이 (월드 m, 화면 위쪽) — 밀기(PAN)와 따로라 경계 · 고무줄에 안 걸린다. 시트가 닫히거나 장소가 바뀌면 0 으로 */
+    var LIFT = { y: 0, to: 0 };
+    function setSheetInset(px) {   /* px = 장면 칸 아래쪽을 시트가 덮은 높이 (CSS px) → 올릴 높이 (m) */
+      px = Math.max(0, +px || 0);
+      if (!px || PLACE.vis !== 'loft' || !LSALW || !ready) { LIFT.to = 0; return 0; }
+      scene.updateMatrixWorld(); camera.updateMatrixWorld();
+      var pxPerM = S.ch * 0.5 * Math.abs(camera.projectionMatrix.elements[5]), cur = LIFT.y * pxPerM;
+      function yOf(x, y, z) { var q = _hp.set(x, y, z).project(camera); return S.offY + (1 - (q.y * 0.5 + 0.5)) * S.ch + cur; }   /* 올리기 전 기준의 화면 y */
+      var low = Math.max(yOf(SALC.x + LSAL.dx, SALC.sy - 0.14, SALC.wz + LSAL.dz + 0.13), yOf(ANCHORS.salon[0] + LSAL.dx, 0, ANCHORS.salon[2] + LSAL.dz));
+      if (octUp()) low = Math.max(low, yOf(oct.pos.x + LSAL.dx, 0, oct.pos.z + LSAL.dz));
+      var top = yOf(SALC.x + LSAL.dx, SALC.yc + SALC.ro, SALC.wz + LSAL.dz), H = container.clientHeight || S.ch;
+      var need = Math.min(low + 0.42 * pxPerM - (H - px), top - 56);   /* 발치 아래 0.42 m 까지 (카메라 쪽으로 뻗은 다리 · 접촉 그림자) 보이게 · 거울 꼭대기는 위쪽 바(44 + 12) 아래에 남게 */
+      LIFT.to = need > 0 ? Math.round(need / pxPerM * S.N) / S.N : 0; dither.still = 0;
+      return LIFT.to;
+    }
+    function stepLift(dt) {
+      if (LIFT.y === LIFT.to) return;
+      var d = LIFT.to - LIFT.y; LIFT.y = st.reduced || Math.abs(d) < 0.5 / S.N ? LIFT.to : LIFT.y + d * Math.min(1, dt / 0.1); dither.still = 0;
+    }
     function placeCamera() {
       var tgt = camTargetNow(), ref = tgt;
       _off.set(0, 0, DIST).applyAxisAngle(_ax, -TILT).applyAxisAngle(_ay, YAW + yawDelta());
@@ -457,6 +477,7 @@ var SCENE3D = (function () {
       if (panOn() && (PAN.x || PAN.y)) {   /* 밀기: 카메라를 화면 우/상 축으로 평행이동 (직교라 = 타깃 이동). 스냅 기준도 밀린 타깃 → 1 아트px 계단 */
         ref = _pnt.copy(tgt).addScaledVector(_r, PAN.x).addScaledVector(_u, PAN.y); camera.position.addScaledVector(_r, PAN.x).addScaledVector(_u, PAN.y);
       }
+      if (LIFT.y) { if (ref === tgt) ref = _pnt.copy(tgt); ref.addScaledVector(_u, -LIFT.y); camera.position.addScaledVector(_u, -LIFT.y); }   /* 시트가 아래를 덮는 동안 장면을 위로 (setSheetInset) */
       snapScreen(camera.position, ref);   /* 타깃을 카메라 우/상 축 기준 pixelWorldSize 격자에 스냅 → 패닝/추적 중 픽셀 크리프 없음 */
       camera.updateMatrixWorld();
     }
@@ -533,6 +554,7 @@ var SCENE3D = (function () {
       return (Math.abs(tx - PAN.x) < 0.5 / S.N && Math.abs(ty - PAN.y) < 0.5 / S.N && PAN.mode !== 'follow') ? null : [tx, ty];
     }
     function stepPan(dt) {
+      stepLift(dt);
       if (!panOn()) { PAN.x = PAN.y = PAN.vx = PAN.vy = 0; PAN.mode = ''; PAN.cut = false; return; }
       if (panLocked()) {
         var f = cerFollow();
@@ -3291,7 +3313,7 @@ var SCENE3D = (function () {
       atticG.add(octG); jumpTo(oct.anchor && oct.anchor !== 'salon' ? oct.anchor : 'center'); dither.still = 0; emit('octUp', false);
     }
     function showPlace(p) {
-      var prev = PLACE.vis;
+      var prev = PLACE.vis; LIFT.to = 0; if (p !== 'loft') LIFT.y = 0;
       if (p !== 'loft' && octUp()) octUnmountLoft();
       atticG.visible = p === 'attic'; extG.visible = p === 'exterior'; if (PROOM) PROOM.g.visible = p === 'play'; if (LROOM) LROOM.g.visible = p === 'loft'; PLACE.vis = p;
       atticG.position.set(0, 0, 0); extG.position.set(0, 0, 0); if (PROOM) PROOM.g.position.set(0, 0, 0); if (LROOM) LROOM.g.position.set(0, 0, 0); panReset(); PAN.cut = true;   /* 장소가 바뀌면 밀린 것은 0 (장소마다 경계가 다르다) · 의식 중 확대면 다음 따라가기가 그 자리로 바로 (디더에 덮인 프레임) */
@@ -5382,7 +5404,7 @@ var SCENE3D = (function () {
       peek: function () { return { on: PK.on, key: PK.key, hold: PK.hold, onSpot: PK.onSpot, status: PK.status, t: +PK.t.toFixed(2), lean: +(PK.leanQ / DEG).toFixed(1), sit: PK.sit, arm: PK.arm, mail: PK.mail, rustle: PK.rustle && rustleM.visible, ripple: rippleM.visible }; },
       setPosters: setPosters, setSouvenirs: setSouvenirs,
       bubble: bubble, nudge: function () { if (!st.reduced) { oct.nudgeT = 0.18; dither.still = 0; } },   /* 톡 받음 (APP 이 깨어 있는 톡마다 · 모션 감소면 APP 이 눈 깜빡으로) */
-      lookAt: function (x, y) { oct.lookTarget = { x: x, y: y }; }, octUp: function () { return octUp(); }, octScreenPos: function () { if (isRoomP(PLACE.vis) && !octUp()) return null; var p = octScreen(), r = canvas.getBoundingClientRect(); return { x: r.left + p.x - S.offX, y: r.top + p.y - S.offY }; },   /* 놀이방: null (문어가 화면에 없다 — 말풍선·파티클·앨범 날기는 문어 자리에 안 붙는다) */
+      lookAt: function (x, y) { oct.lookTarget = { x: x, y: y }; }, octUp: function () { return octUp(); }, setSheetInset: setSheetInset, lift: function () { return { y: +LIFT.y.toFixed(4), to: +LIFT.to.toFixed(4) }; }, octScreenPos: function () { if (isRoomP(PLACE.vis) && !octUp()) return null; var p = octScreen(), r = canvas.getBoundingClientRect(); return { x: r.left + p.x - S.offX, y: r.top + p.y - S.offY }; },   /* 놀이방: null (문어가 화면에 없다 — 말풍선·파티클·앨범 날기는 문어 자리에 안 붙는다) */
       setReducedMotion: function (r) { st.reduced = !!r; lampDirty = true; },
       setLook: function (o) {
         var re = false;
