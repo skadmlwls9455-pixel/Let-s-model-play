@@ -272,5 +272,5 @@ PYTHONPATH=… python3 tools/subset-fonts.py --check        # 새 글자가 글�
 - 조각 2 몫의 소리 여덟 개 (`cook_stir` 셋 · `cook_clink` · `cook_simmer` · `cook_place` 둘 · `cook_lift`) 는 파일과 표만 있다. 게임도 시험도 아직 틀어 보지 않았다.
 - 부엌의 브라우저 시험 둘 (`test-cook-live.js` · `test-cook-audio.js`) 은 CI 에서 선택인 느린 일에만 있다. 깨져도 run 이 빨개지지 않으니 결과를 따로 봐야 한다. 꼭 도는 빠른 묶음은 소리 갈래와 크레딧을 보지 않는다.
 - 자동 시험은 Chromium 에서만 돈다. `.m4a` (AAC) 로 실제로 트는 길, iOS 사파리의 첫 손길 풀기, 파이어폭스의 페이드는 실제로 돌려 보지 않았다 (장면 L 이 `cancelAndHoldAtTime` 없는 경우를 흉내 낼 뿐이다). WebKit 에서는 부엌 시험도 아직 돌려 보지 않았다 (설계의 선택 시험: `npx playwright install webkit` 뒤 L5 · L6 · 배관만).
-- `foley/listen.html` · `foley/README.md` 는 만드는 사람용 글인데, 배포에서 빼는 설정이 없어 (`.vercelignore` 없음) 같이 나간다. `listen.html` 은 `noindex` 이고 크레딧 링크가 있다.
+- `foley/listen.html` · `foley/README.md` · `foley/CREDITS.md` 는 만드는 사람용 글이라 배포에 나가지 않는다 (11-10 부터: `tools/export-site.js` 가 게임 파일만 내보낸다, README '배포'). 플레이어가 보는 크레딧은 `credits.html` 이다. `listen.html` 은 저장소에서 열어 듣는다 (`noindex`, 크레딧 링크 있음).
 - 진동은 v0 에서 뺐다.

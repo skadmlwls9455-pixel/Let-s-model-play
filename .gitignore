@@ -3,5 +3,6 @@ node_modules/
 *.log
 dist/*.map
 dist/
+/public/
 __pycache__/
 tests/evidence/playtest/run/

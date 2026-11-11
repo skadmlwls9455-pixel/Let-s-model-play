@@ -9,7 +9,7 @@
  *   - 열쇠 형식 검사 · 없는 방은 404 (방은 만들 때만 생긴다 — 아무 열쇠로 저장소를 채울 수 없다)
  *   - POST 만 · 본문 64KB · 도구 입력 글자 수 상한 (core.checkArgs) · 방마다 시간당 호출 상한
  *   - Host · Origin 확인 (DNS 리바인딩 · 남의 웹페이지가 브라우저로 부르는 것 막기)
- *   - 바깥으로 나가는 요청은 ko.wikipedia.org API 하나뿐 (주소를 입력으로 받지 않는다 — SSRF 없음)
+ *   - 바깥으로 나가는 요청은 {ko,en,ja}.wikipedia.org API 뿐 — 방의 언어와 먼 바다 문의 언어 (주소를 입력으로 받지 않는다 — SSRF 없음)
  *   - 로그에 열쇠 · 글 내용을 남기지 않는다. 오류 응답에 내부 사정을 싣지 않는다
  */
 'use strict';
@@ -18,6 +18,7 @@ var { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/serve
 var core = require('./core.js');
 var buildServer = require('./tools.js');
 var ST = require('./store.js');
+var I18N = require('./i18n.js');
 
 var BODY_MAX = 64 * 1024;
 var CALLS_PER_HOUR = 300;          /* 방 하나가 한 시간에 부를 수 있는 도구 수 (산책 한 번 ≈ 6~12) */
@@ -65,25 +66,29 @@ function overLimit(meta, now) {
 
 /* MCP 요청 하나. opts: { store, key, booksDir?, allowedHosts?, allowedOrigins?, now?, queryWiki?, fetchWiki? } */
 async function handleMcp(req, res, opts) {
-  var store = opts.store, key = opts.key;
-  if (!ST.validKey(key)) return rpcError(res, 404, '방을 찾을 수 없어.');
-  if (!hostOriginOk(req, opts)) return rpcError(res, 403, '허용되지 않은 출처야.');
-  if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return rpcError(res, 405, 'POST 만 받아.'); }   /* 무상태: GET (SSE) · DELETE 없음 */
+  var store = opts.store, key = opts.key, H = I18N.T('ko').http;   /* 방을 알기 전의 오류는 ko. 방을 읽은 뒤엔 그 방의 언어 (meta.lang) */
+  if (!ST.validKey(key)) return rpcError(res, 404, H.notFound);
+  if (!hostOriginOk(req, opts)) return rpcError(res, 403, H.origin);
+  if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return rpcError(res, 405, H.postOnly); }   /* 무상태: GET (SSE) · DELETE 없음 */
   var body;
-  try { body = await readBody(req); } catch (e) { return rpcError(res, e && e.code === 413 ? 413 : 400, e && e.code === 413 ? '요청이 너무 커.' : 'JSON 을 읽을 수 없어.'); }
+  try { body = await readBody(req); } catch (e) { return rpcError(res, e && e.code === 413 ? 413 : 400, e && e.code === 413 ? H.tooBig : H.badJson); }
+  /* 묶음 (JSON 배열) 요청은 받지 않는다 (11-10). 배열은 아래 isCall 에 안 걸려 상태를 읽지 않고 시간당 횟수도 세지 않는데, SDK 는 그 안의 tools/call 을
+     빈 상태로 돌리고 after 가 그 빈 상태를 저장했다 — 요청 하나가 방의 기록 (등불 · 포스터 · 메모) 을 지웠다. 묶음 안의 호출을 차례로 돌리는 것은 여기서 하지 않는다 (요청 하나 = 호출 하나) */
+  if (Array.isArray(body)) return rpcError(res, 400, H.badJson);
 
   var meta;
-  try { meta = await ST.readMeta(store, key); } catch (e) { return rpcError(res, 502, '저장소에 닿지 못했어.'); }
-  if (!meta) return rpcError(res, 404, '방을 찾을 수 없어.');
+  try { meta = await ST.readMeta(store, key); } catch (e) { return rpcError(res, 502, H.storage); }
+  if (!meta) return rpcError(res, 404, H.notFound);
+  H = I18N.T(meta.lang).http;
 
   var isCall = body && !Array.isArray(body) && body.method === 'tools/call';
   var now = opts.now ? opts.now() : new Date();
-  if (isCall && overLimit(meta, now)) return rpcError(res, 429, '이번 시간엔 많이 놀았어. 조금 뒤에 다시 와.');
+  if (isCall && overLimit(meta, now)) return rpcError(res, 429, H.tooMany);
 
   var state = null;
-  try { state = isCall ? await ST.readState(store, key) : null; } catch (e) { return rpcError(res, 502, '저장소에 닿지 못했어.'); }
+  try { state = isCall ? await ST.readState(store, key) : null; } catch (e) { return rpcError(res, 502, H.storage); }
   var oct = new core.Octopus({
-    remote: { initialState: state }, booksDir: opts.booksDir, cardsDir: opts.cardsDir, name: meta.name || null, model: null,
+    remote: { initialState: state }, booksDir: opts.booksDir, cardsDir: opts.cardsDir, name: meta.name || null, model: null, lang: meta.lang || null, langPinned: !!meta.pin,
     now: opts.now, queryWiki: opts.queryWiki, fetchWiki: opts.fetchWiki
   });
   var server = buildServer(oct, {
@@ -95,6 +100,7 @@ async function handleMcp(req, res, opts) {
       }
       for (var i = 0; i < names.length; i++) await store.write(ST.roomPath(key, 'out/' + names[i]), box[names[i]]);
       if (oct.remote.dirty) await store.write(ST.roomPath(key, 'state.json'), JSON.stringify(oct.S));
+      if (!meta.pin && oct.S.lang && oct.S.lang !== meta.lang) meta.lang = oct.S.lang;   /* 모델이 알려 준 대화의 언어를 방에 비춘다 — 다음 initialize 의 안내문·도구가 그 언어 (사람이 정한 방은 그대로) */
       await store.write(ST.roomPath(key, 'meta.json'), JSON.stringify(meta));
       oct.remote.outbox = {}; oct.remote.dirty = false;
     },
@@ -109,7 +115,7 @@ async function handleMcp(req, res, opts) {
     await transport.handleRequest(req, res, body);
   } catch (e) {
     console.error('[ppolppol] 요청 실패: ' + (e && e.name));
-    rpcError(res, 500, '서버 오류가 났어.');
+    rpcError(res, 500, H.server);
   }
 }
 

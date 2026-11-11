@@ -9,7 +9,12 @@
 <title>만든 것들</title>
 <!-- Credits. Reached from the game's settings sheet (bottom link) and from cook.html (counter screen). The two CC BY
      lines are copied word for word from foley/CREDITS.md (licence terms: keep them exact); tools/test-cook-audio.js
-     checks that. No emoji or symbol characters, like the game screens. -->
+     checks that. No emoji or symbol characters, like the game screens.
+     Last section ('이 게임'): the copyright notice for the game's own code, pictures, writing and sound. It has its own
+     heading and a lead-in so it cannot be read as a claim over the parts listed above, which keep their own licences
+     (the notice used to sit as the last line under the Wikipedia heading). It spells "Copyright": the sign is a symbol
+     character (the page's glyph rule) and is not in the font subset.
+     '색': the four community palettes in js/palettes.js (Lospec). They state no licence; naming the author is the norm. -->
 <link rel="stylesheet" href="vendor/fonts/galmuri.css">
 <link rel="stylesheet" href="css/style.css">
 <style>
@@ -23,9 +28,10 @@
 .cr .cr-by .cr-line { margin: 0 0 4px; word-break: normal; }
 .cr .cr-by .cr-use { margin: 0; color: var(--muted); }
 .cr .cr-back { display: inline-block; padding: 10px 12px; margin-right: -12px; min-height: 44px; line-height: 24px; white-space: nowrap; }
+.cr .cr-own { margin: 0; color: var(--muted); }
 :root[data-font="pixel"] .cr h1, :root[data-font="pixel"] .cr h2 { font-family: var(--f-ui); }
 :root[data-font="pixel"] .cr p, :root[data-font="pixel"] .cr li { font-family: var(--f-body); }
-:root[data-font="pixel"] .cr .cr-line { font-family: var(--f-meta); }
+:root[data-font="pixel"] .cr .cr-line, :root[data-font="pixel"] .cr .cr-own { font-family: var(--f-meta); }
 </style>
 </head>
 <body>
@@ -66,6 +72,7 @@
   <h2>글꼴</h2>
   <ul lang="en">
     <li><a href="https://github.com/quiple/galmuri" target="_blank" rel="noopener">Galmuri</a> · Lee Minseo (quiple) · <a href="vendor/fonts/GALMURI-LICENSE.txt">SIL Open Font License 1.1</a></li>
+    <li><a href="https://unifoundry.com/unifont/" target="_blank" rel="noopener">GNU Unifont</a> (Devanagari) · Roman Czyborra, Paul Hardy and others · <a href="vendor/fonts/UNIFONT-LICENSE.txt">SIL Open Font License 1.1</a></li>
   </ul>
 
   <h2>3D</h2>
@@ -73,11 +80,24 @@
     <li><a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> · three.js authors · <a href="vendor/THREE-LICENSE.txt">MIT License</a></li>
   </ul>
 
+  <h2>색</h2>
+  <p>화면의 색은 나눠 준 팔레트에서 골랐어.</p>
+  <ul lang="en">
+    <li>Apollo · AdamCYounis</li>
+    <li>Endesga 64 · ENDESGA</li>
+    <li>Resurrect 64 · Kerrie Lake</li>
+    <li>Sweetie 16 · GrafxKid</li>
+  </ul>
+
   <h2>음악</h2>
   <p>음악과 다른 효과음은 이 게임을 위해 새로 만들었어.</p>
 
   <h2>산책에서 읽는 글</h2>
   <p>위키백과 (CC BY-SA 4.0). 출처는 글마다 그 자리에 적어.</p>
+
+  <h2>이 게임</h2>
+  <p>위에 적은 것 말고, 이 게임의 코드 · 그림 · 글 · 소리는 만든 사람의 것이야.</p>
+  <p class="cr-own" lang="en">Copyright 2026 Katherine Nahm. All rights reserved.</p>
 </main>
 <script>
 (function () {

@@ -122,7 +122,7 @@
 
 | ★ | 약속 | 출처 | 크기 | 코드 근거 없음 확인 | 선행 조건 |
 |---|---|---|---|---|---|
-| ★ | README: 스크린샷 3장 (`tests/evidence/01-light-home.png` 등) · 배포 주소 (Vercel 주소 있음, README 는 'GitHub Pages 예정') · '접근성' 절 6줄 · 라이선스 '아직 미정' | README 19·24·120행 · research a11y 13 | S | `ls tests/evidence` 에 01~03 없음 (3d-*·portrait-* 만) · `README.md:24 '배포 주소는 예정'` · `grep 접근성 README.md` → 0건 · LICENSE 없음 | 라이선스는 주인 (D) |
+| ★ | README: 스크린샷 3장 (`tests/evidence/01-light-home.png` 등) · '접근성' 절 6줄 (배포 주소 · 라이선스 줄은 11-10 에 넣었다: README '바로 열기' · '배포' · '출처·라이선스 메모') | README 19행 · research a11y 13 | S | `ls tests/evidence` 에 01~03 없음 (3d-*·portrait-* 만) · `grep 접근성 README.md` → 0건 | — |
 | ★ | 디렉터리 등록 준비 (HTTPS · 개인정보 처리방침 · 스크린샷) · 접근성·성능 점검 보고서 (카드 5, 12일째쯤) · `tools/lighthouse.sh` · vercel.json 정적 자산 Cache-Control | ROADMAP 4단계 · research a11y 8·9 | M | `grep '개인정보|privacy' js css` → runner 순위 안내만 · `tools/lighthouse.sh` 없음 · `vercel.json headers` 는 `/api/*` no-store 한 줄뿐 · `docs/research/audit-2026-11.md` 없음 | 사람 시험 뒤 |
 | ★ | 대사창 v1 때 자리 정리: 낮은 화면(320×568 · 가로 740×360)에선 대사 자리(`#dlg-host`)가 방 아래쪽(문 · 내 캐릭터)을 덮고, 가로 화면에선 개발용 힌트 칸도 덮는다. 지금은 개발 모드의 `APP.dlgDemo` 로만 뜬다 | DIALOGUE_UI §3.2 · `tools/layout-shots.js` 의 '알려진 겹침' | S | `tests/evidence/layout/one-320x568-dlg.png` · `one-landscape-740x360-dlg.png` | 대사창 v1 |
 | ★ | 스모크 보강: `forceContextLoss` 검사(컨텍스트를 잃은 뒤 2D 로 바뀌는 길은 smoke O 가 본다 — 11-10. 돌아오는 길 · 놀이방 · 의식 중은 아직) · 포스터 문장 80% 서로 다름 검사 · `test-scene-perf` T6~T9(밀기·줌·누르기·고스트) · smoke K 꾸미기 · 달리기 소리 테스트 | research a11y 3 · PLAYTEST_FIXES A7-2 · INTERIOR_MODE §5.6 | S~M | `grep forceContextLoss tools/smoke.js` → 0건 · `tools/smoke.js:2494~2499` 시나리오에 K 없음 · 80% 검사 없음 | 꾸미기 기능이 먼저 |
@@ -155,7 +155,7 @@
 | D17 | 문어 60초 가만히 있을 때 세션당 한 번 '놀자?' 말풍선 + 작은 입구 — 넣을까? | PLAYTEST_FIXES A6-1 | — |
 | D18 | 컵 놀이 소리 — 시험한 사람들이 아쉬워하면 | PLAY_PROTO §14 | — |
 | D19 | scene3d.js init() 클로저 쪼개기(C6) 를 컵 놀이 합친 뒤 할지 | PLAYTEST_FIXES C6 | 모듈화 |
-| D20 | 게임 코드 라이선스 ('아직 미정') | README 120행 | LICENSE |
+| D20 | ~~게임 코드 라이선스 ('아직 미정')~~ **닫힘 (주인 11-10: 모든 권리 보유 · 저작권 줄의 이름은 Katherine Nahm — README '출처·라이선스 메모' · `credits.html` 맨 아래 줄)** | README '출처·라이선스 메모' | — |
 | D21 | 실기기 확인: 걸음·등불 흔들림 rAF · 소리 귀로 · 컵 놀이 공이 쿠키처럼 보이는지 — 폰에서 봐 주기 | LOOK_LOG 패스 10 · NIGHT_LOG 23:35 · PLAY_PROTO §17.4 | 코드로 확인 불가 |
 
 ---

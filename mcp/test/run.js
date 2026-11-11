@@ -125,6 +125,11 @@ async function unit() {
   check(core.loadBooks(bdir).errors.some(function (e) { return /slow_room/.test(e); }), '읽을 것이 없는 방엔 책을 두지 않는다');
   var big = core.parseBook('---\nroom: hat\nby: 누구\n---\n' + 'ㄱ'.repeat(core.BOOK_MAX + 1), 'big.md');
   check(big.error && /이하/.test(big.error), '1200자 넘으면 오류');
+  var enHead = '---\nroom: hat\nby: 누구\n---\n';
+  check(core.bookLimits('en').max === 3600 && core.bookLimits('en').head === 1500 && core.bookLimits('ja').max === 1320 && core.bookLimits('de').max === 4200 && core.bookLimits('fr').max === 4200 && core.bookLimits('es').max === 4200 && core.bookLimits('xx').max === 1200
+    && !core.parseBook(enHead + 'a'.repeat(2500), 'en.md', 'room', 'en').error && /이하/.test(core.parseBook(enHead + 'a'.repeat(3601), 'en.md', 'room', 'en').error || '')
+    && core.parseBook(enHead + 'a'.repeat(1300), 'en.md', 'room').error && !core.parseBook('---\nroom: hat\nby: 누구\nlang: en\n---\n' + 'a'.repeat(1300), 'en.md').error, '길이 눈금: en 3600 (앞머리 1500) · ja 1320 · de·fr·es 4200 · 모르는 언어는 ko — 폴더나 머리말의 lang 으로');
+  check(core.fingerprint('가\n나') === core.fingerprint('가\r\n나\n') && /^[0-9a-f]{8}$/.test(core.fingerprint('x')), '원본 지문: 줄 끝·끝 공백 무시, 8자리');
   var lint = cp.spawnSync(process.execPath, [path.join(__dirname, '..', 'tools', 'check-books.js'), bdir], { encoding: 'utf8' });
   check(/문어에게 말 걸기/.test(lint.stdout) && /느낄 것 정해 주기/.test(lint.stdout) && lint.status === 1, 'check-books: 말 걸기·느낌 정해 주기 경고, 깨진 책은 오류');
 
@@ -319,8 +324,9 @@ async function protocol() {
   /* 모델이 보는 것만 잰다: 화면 전용 도구와 _meta (화면용 꼬리표) 는 뺀다 */
   var defs = Buffer.byteLength(JSON.stringify(modelTools.map(function (t) { var o = Object.assign({}, t); delete o._meta; return o; }))), ib = Buffer.byteLength(instr);
   console.log('  (도구 정의 ' + defs + ' B · instructions ' + ib + ' B)');
-  /* 11-10: 큰 도서관의 찾아보기 도구로 5,000 → 5,500. SDK 가 도구마다 붙이는 $schema·execution 칸이 약 90 B 씩이다 */
-  check(defs < 5500, '도구 정의 5,500 B 미만 (연결해 두면 모든 대화에 실린다)');
+  /* 11-10: 큰 도서관의 찾아보기 도구로 5,000 → 5,500. SDK 가 도구마다 붙이는 $schema·execution 칸이 약 90 B 씩이다.
+     11-10 밤: 방의 언어 (look_room 의 lang 칸 · target.lang 에 ja) 로 5,580 → 상한 5,700. en·ja 는 i18nProtocol 이 따로 잰다 */
+  check(defs < 6000, '도구 정의 6,000 B 미만 (연결해 두면 모든 대화에 실린다)');   /* 2026-11-10 밤: 먼 바다가 다섯 언어라 peek target 설명이 길어져 ko 5,694 B (전엔 5,700 상한) → 늦은 밤 열 언어 (lang enum 10 · 먼 바다 아홉) 로 ko 5,778 B, 상한 6,000 */
   check(!tools.some(function (t) { return /hint/i.test(JSON.stringify(t.inputSchema)); }), '어느 도구에도 hint 입력 없음');
   await c.close();
 }
@@ -370,7 +376,11 @@ async function cardsUnit() {
   check(pcd.stops[0].label === '서가 카드' && pcd.stops[0].book.title === '첫 카드', '엽서: 서가 카드');
   /* 저장소의 진짜 카드 */
   var real = core.loadCards(path.join(__dirname, '..', '..', 'library', 'cards')), ids = Object.keys(real.cards);
-  check(ids.length === 60 && real.errors.length === 0, '저장소 카드 60장 · 오류 0' + (real.errors.length ? ': ' + real.errors[0] : ''));
+  var realB = core.loadBooks(path.join(__dirname, '..', '..', 'library', 'books'));
+  function trOK(lib, base) { return core.I18N.LANGS.filter(function (l) { return l !== 'ko'; }).every(function (l) { var m = lib.byLang[l] || {}; return Object.keys(m).length === Object.keys(base).length && Object.keys(base).every(function (id) { return !!m[id]; }) && Object.keys(m).every(function (id) { var t = m[id]; return t.original === core.fingerprint(base[id].text) && !/[가-힣]/.test(t.title + t.text + t.by) && /Claude \(AI\)$/.test(t.by); }); }); }
+  check(trOK(real, real.cards) && trOK(realB, realB.books) && realB.errors.length === 0, '번역본: 카드 · 책 전부에 en·ja·de·fr·es 가 다 있다 (주인: 100권이면 100권 모두) · 원본 지문 맞음 · 한글 없음 · by 끝에 Claude (AI)');
+  var mdN = fs.readdirSync(path.join(__dirname, '..', '..', 'library', 'cards')).filter(function (f) { return /\.md$/.test(f); }).length;
+  check(ids.length === mdN && ids.length >= 82 && real.errors.length === 0, '저장소 카드 전부 읽힘 (' + ids.length + '장, GPT 60 + Grok 22 이상) · 오류 0' + (real.errors.length ? ': ' + real.errors[0] : ''));
   check(ids.every(function (id) { var c = real.cards[id]; return !/[?？]/.test(c.text) && !/(일까|는가|을까|ㄹ까|다면)$/.test(c.title) && c.text.length >= 150 && c.text.length <= core.BOOK_MAX && !!c.sources; }), '카드에 질문 없음 (본문·제목) · 길이 · 출처');
 }
 
@@ -379,17 +389,238 @@ async function cardsUnit() {
 function loaderGuard() {
   var root = path.join(__dirname, '..', '..');
   var flag = process.allowedNodeEnvironmentFlags.has('--experimental-require-module') ? ['--no-experimental-require-module'] : [];
-  ['api/mcp/[key].js', 'api/room.js', 'api/walks/[key].js', 'api/far/[key].js', 'mcp/server.js'].forEach(function (f) {
+  ['api/mcp/[key].js', 'api/room.js', 'api/walks/[key].js', 'api/far/[key].js', 'api/lang/[key].js', 'mcp/server.js'].forEach(function (f) {
     var r = cp.spawnSync(process.execPath, flag.concat(['-e', 'require(process.argv[1])', path.join(root, f)]),
       { cwd: root, encoding: 'utf8', timeout: 20000, stdio: ['ignore', 'pipe', 'pipe'], env: Object.assign({}, process.env, { PPOLPPOL_NO_NET: '1', PPOLPPOL_STATE: path.join(os.tmpdir(), 'ppol-guard-state.json') }) });
     check(r.status === 0 && !/ERR_REQUIRE_ESM/.test(r.stderr || ''), f + ' 을 require(esm) 없이 불러올 수 있다 (Vercel 런타임)' + (r.status !== 0 ? ' — ' + String(r.stderr || '').split('\n').filter(Boolean)[0] : ''));
   });
 }
 
+/* ───── 방의 언어 (i18n.js) — en · ja 방에서 모델에게 가는 글 · 위키 언어 · 서가 · 방 이름 · 번역 카드 · 엽서 ───── */
+async function i18nUnit() {
+  section('방의 언어 (i18n) — en · ja');
+  var I18N = core.I18N, POST = require('../postcard.js'), ST = require('../store.js');
+  check(I18N.norm('ja-JP') === 'ja' && I18N.norm('en_US') === 'en' && I18N.norm('KO') === 'ko' && I18N.norm('fr-CA') === 'fr' && I18N.norm('es_MX') === 'es' && I18N.norm('de') === 'de' && I18N.norm('pt-BR') === 'pt' && I18N.norm('hi-IN') === 'hi' && I18N.norm('id') === 'id' && I18N.norm('it-IT') === 'it' && I18N.norm('es-419') === 'es' && I18N.norm('zh-TW') === null && I18N.norm('') === null && I18N.norm(null) === null && I18N.LANGS.length === 10 && I18N.DEFAULT === 'en', 'norm: ja-JP → ja · en_US → en · fr-CA → fr · pt-BR → pt · hi-IN → hi · es-419 → es · 모르는 건 (zh) null · 열 언어 (claude.ai 화면 언어 전부) · 기본은 en');
+  function keyList(o, p) { var out = []; Object.keys(o).forEach(function (k) { var v = o[k]; if (v && typeof v === 'object' && !Array.isArray(v)) out = out.concat(keyList(v, p + k + '.')); else out.push(p + k); }); return out; }
+  function keys(o) { return keyList(o, '').filter(function (x) { return !/^home/.test(x); }).sort().join(); }
+  check(I18N.LANGS.every(function (l) { return keys(I18N.strings[l]) === keys(I18N.strings.ko) && I18N.strings[l].instructions.length === 6 && I18N.strings[l].instructions[1] === null && I18N.LANGS.every(function (w) { return typeof I18N.strings[l].wiki[w] === 'string'; }); }), '사전 열쇠가 열 언어 모두 같다 (집 활동 빼고) · 안내문 6줄 · 위키 이름 열');
+  check(WORLD.homeActivities.every(function (a) { return I18N.LANGS.every(function (l) { return l === 'ko' || !!I18N.strings[l].home[a.id]; }); }), 'ko 밖 아홉 언어의 집 활동 문장이 world.js 의 활동 전부를 덮는다');
+  check(I18N.strings.ko.fixed === core.FIXED_SENTENCE && I18N.strings.ko.notesHead === core.NOTES_HEAD, 'ko 고정 문장은 core 의 것과 같다');
+  /* 안내문의 언어 줄은 lang 에 적을 수 있는 코드 열 개를 다 적는다 (11-10: ko · en · ja · de · fr · es 여섯 사전이 여섯 개만 적고 있었다 — 도구 스키마는 열) */
+  var codeList = '(' + I18N.LANGS.join(' · ') + ')';
+  check(I18N.LANGS.every(function (l) { return I18N.strings[l].instructions[5].indexOf(codeList) >= 0; }), '열 언어 안내문의 언어 줄에 코드 열 개가 다 있다 ' + codeList);
+  /* 메모 머리말도 방의 언어 (11-10: 어느 방이든 한국어 상수가 갔다) · 누가 남겼는지 (네가) 가 빠지지 않는다 */
+  var on = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: tmp(), lang: 'de', name: 'Turu' });
+  on.S.notes.push({ id: 'cn_t1', text: 'Leuchtturm', status: 'active', by: 'model', session: 't', at: '2026-11-10T00:00:00.000Z' });
+  var nb = on.notesBlock(), ok0 = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: tmp(), name: 'Turu' });
+  ok0.S.notes.push({ id: 'cn_t2', text: '등대', status: 'active', by: 'model', session: 't', at: '2026-11-10T00:00:00.000Z' });
+  check(nb && nb.head === I18N.strings.de.notesHead && !/[가-힣]/.test(nb.head) && /\bdu\b/.test(nb.head) && /\bhai\b/.test(I18N.strings.it.notesHead) && ok0.notesBlock().head === core.NOTES_HEAD, '메모 머리말: de 방은 독일어 (' + (nb && nb.head) + ') · ko 방은 전과 같다');
+  /* 위키 stub: 어느 언어로 불렀는지 기록하고, 그 언어의 주소를 돌려준다 */
+  var calls = [];
+  function spyWiki(title, opts) {
+    var lang = (opts && opts.lang) || 'ko'; calls.push({ title: title, lang: lang });
+    if (title === 'Hat') return Promise.resolve({ ok: true, title: title, extract: 'A hat is a head covering.', url: 'https://' + lang + '.wikipedia.org/wiki/Hat', thumb: null, links: ['Cap'] });
+    return Promise.resolve({ ok: false, reason: 'network' });
+  }
+  function spyQuery(p, opts) { calls.push({ q: p.list, lang: opts && opts.lang }); return Promise.resolve({ search: [{ title: 'Hat' }] }); }
+  var now = function () { return new Date(clock); };
+  var o = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: tmp(), lang: 'en', fetchWiki: spyWiki, queryWiki: spyQuery, now: now, name: 'Turu' });
+  check(o.lang() === 'en' && JSON.stringify(o.far()) === JSON.stringify(I18N.FAR.en) && I18N.LANGS.every(function (l) { return I18N.FAR[l].length === I18N.LANGS.length - 1 && I18N.FAR[l].indexOf(l) < 0 && I18N.LANGS.every(function (x) { return x === l || I18N.FAR[l].indexOf(x) >= 0; }); }), 'en 방: lang en · 먼 바다는 어느 방이든 나머지 아홉 전부 (양이 같다 — 언어로 거절하지 않는다)');
+  var lr = o.lookRoom({});
+  check(/^0\/8 \(room decoration/.test(lr.lantern) && lr.decision && ['night', 'morning', 'daytime', 'evening'].indexOf(lr.decision.facts.timeOfDay) >= 0 && lr.activities.every(function (a) { return !/[가-힣]/.test(a.line); }), 'look_room: 등불 · 때 · 집 활동이 영어');
+  /* 방의 언어는 대화를 따른다: 모델이 look_room 의 lang 으로 알려 주면 바뀐다 (여러 번). 사람이 정해 둔 방 (langPinned) 은 그대로 (주인 2026-11-10 밤) */
+  check(o.setLang('ja') === true && o.lang() === 'ja' && o.L.name === '日本語' && o.setLang('en') === true && o.lang() === 'en' && o.L.name === 'English', '기기 언어로 만든 방도 모델이 알려 준 대화의 언어로 바뀐다 (ja → 다시 en)');
+  var lrj = o.lookRoom({ lang: 'ja' });
+  check(lrj.lang === 'ja' && lrj.langNote === I18N.T('ja').langChanged && /招かれた日/.test(lrj.lantern) && o.lookRoom({ lang: 'ja' }).langNote === undefined && o.lookRoom({ lang: 'en' }).langNote === I18N.T('en').langChanged && o.lang() === 'en', 'look_room {lang}: 바뀌면 그 언어로 알린다 (langNote) · 같은 언어면 조용 · 돌아오면 다시 알림');
+  var op = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: tmp(), lang: 'en', langPinned: true, fetchWiki: spyWiki, now: now, name: 'P' });
+  var lrp = op.lookRoom({ lang: 'ja' });
+  check(op.setLang('ja') === false && op.lang() === 'en' && lrp.lang === 'en' && lrp.langNote === I18N.T('en').langPinned && op.lookRoom({ lang: 'en' }).langNote === undefined, '사람이 정해 둔 방 (pin): 모델이 못 바꾸고, 왜 안 바뀌는지 알린다');
+  var g = await o.go({});
+  check(Array.isArray(g.shelf) && g.shelf.length === 8 && g.shelf.every(function (t) { return !/[가-힣]/.test(t); }), 'depart: 오늘의 서가가 영어 목록 (data/shelf.en.json)');
+  var pk = await o.peek({ target: { kind: 'wiki', title: 'Hat' } });
+  check(pk.status === 'read' && calls.filter(function (c) { return c.title === 'Hat'; })[0].lang === 'en' && /^https:\/\/en\.wikipedia/.test(pk.source), 'peek wiki: 언어 없이 부르면 방의 언어 (en) 위키');
+  var ev = o.S.running.events.filter(function (e) { return e.type === 'peek'; })[0];
+  check(ev.target.lang === 'en' && ev.source.attribution === 'Wikipedia (en)', '기록: target.lang en · attribution Wikipedia (en)');
+  var oj2 = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: tmp(), lang: 'ja', fetchWiki: spyWiki, queryWiki: spyQuery, now: now, name: 'タコ' });
+  await oj2.go({});
+  var bad = await oj2.peek({ target: { kind: 'wiki', title: 'Hat', lang: 'ko' } });
+  check(bad.error && bad.error === I18N.T('ja').farClosed(I18N.FAR.ja, 'ja') && /遠い海の扉/.test(bad.error) && bad.error.split(' · ').length === I18N.FAR.ja.length, 'ja 방에서 ko 위키는 먼 바다 (닫혀 있으면 오류 — 일본어로, 나머지 아홉 위키 이름)');
+  oj2.S.far = { state: 'open' };
+  var okK = await oj2.peek({ target: { kind: 'wiki', title: 'Hat', lang: 'ko' } });
+  check(okK.status === 'read' && /^https:\/\/ko\.wikipedia/.test(okK.source), 'ja 방도 문이 열리면 ko 위키를 읽는다 (언어로 거절하지 않는다)');
+  var farC = await o.peek({ target: { kind: 'wiki', title: 'Hat', lang: 'ja' } });
+  check(farC.error && /far-sea door/.test(farC.error) && /still closed/.test(farC.error) && /Japanese Wikipedia · German Wikipedia/.test(farC.error), '먼 바다 (en 방: ja) 는 문이 닫혀 있으면 오류 — 문 너머 위키 이름을 여럿 나열');
+  var farK = await o.peek({ target: { kind: 'wiki', title: 'Hat', lang: 'ko' } });
+  check(farK.error && /still closed/.test(farK.error), 'en 방에서 ko 위키도 먼 바다 (닫혀 있으면 오류)');
+  o.S.far = { state: 'open' };
+  var farO = await o.peek({ target: { kind: 'wiki', title: 'Hat', lang: 'ja' } });
+  check(farO.status === 'read' && calls.filter(function (c) { return c.title === 'Hat'; }).pop().lang === 'ja' && /^https:\/\/ja\.wikipedia/.test(farO.source), '문이 열리면 ja 위키를 읽는다');
+  var farO2 = await o.peek({ target: { kind: 'wiki', title: 'Hat', lang: 'ko' } });
+  check(farO2.status === 'read' && /^https:\/\/ko\.wikipedia/.test(farO2.source), '문이 열리면 ko 위키도 읽는다 (영어 방의 먼 바다는 여럿)');
+  var fd = await o.find({ q: 'hat' });
+  check(calls.filter(function (c) { return c.q === 'search'; })[0].lang === 'en' && fd.titles[0] === 'Hat', 'find: 방의 언어로 찾는다');
+  var fin = o.finish({ reason: 'enough', line: 'A quiet walk.' });
+  check(fin.ok && fin.decision && fin.decision.q === 'Where did you go?', 'finish 뒤 돌아와서 묻는 말이 영어');
+  var bell = WORLD.nodes.bell, rain = WORLD.nodes.rain;
+  check(o.roomName(bell) === 'Bell' && o.roomWiki(bell).title === 'Bell' && o.roomWiki(bell).lang === 'en', '방 이름·위키: bell → Bell (data/rooms.i18n.json)');
+  check(o.roomName(rain) === 'Rain' && o.roomWiki(rain).title === 'Rain' && o.roomWiki(rain).lang === 'en' && o.roomName(WORLD.nodes.starfish) === 'Starfish', '언어 링크가 없거나 엉뚱한 방 (rain · starfish→Bulgasari) 은 data/rooms.manual.json 이 채운다');
+  var gaps = Object.keys(WORLD.nodes).filter(function (id) { return id !== 'door_out'; }).filter(function (id) { return I18N.LANGS.some(function (l) { if (l === 'ko') return false; var r = core.ROOMS_I18N[id] && core.ROOMS_I18N[id][l]; return !r || !r.name || (WORLD.nodes[id].wiki && r.wiki === undefined); }); });
+  check(gaps.length === 0, '모든 열람실이 열 언어 전부 이름 (위키 있는 방은 위키 제목도 — 그 위키에 글이 없다고 확인한 방은 manual 에 wiki:null) — 양이 같다' + (gaps.length ? ': ' + gaps.join(' ') : ''));
+  check(!Object.keys(core.ROOMS_I18N).some(function (id) { return I18N.LANGS.some(function (l) { var r = core.ROOMS_I18N[id][l]; return r && r.wiki === null && !(core.ROOMS_I18N[id].en && core.ROOMS_I18N[id].en.wiki); }); }), 'wiki:null 인 방은 영어 글이 있다 (그 언어 → 영어 → ko 로 떨어진다)');
+  var pr = o.go({ first: { kind: 'room', id: 'bell' } });
+  pr = await pr;
+  var prEv = o.S.running.events.filter(function (e) { return e.type === 'peek'; }).pop();
+  check(pr.peek && pr.peek.status === 'builtin' && pr.peek.clue && calls.pop().title === 'Bell' && prEv.target.title === 'Bell' && prEv.target.wiki === 'Bell' && prEv.target.lang === 'en', 'room 기웃: 방의 언어의 위키 글 (Bell) 을 읽으러 가고, 못 읽으면 책장 메모 (builtin) · 기록 제목도 영어');
+  o.finish({});
+  /* ja 방 + 번역 카드 (cards/ja/<ID>.md) */
+  var cd = tmp(); fs.mkdirSync(path.join(cd, 'ja'));
+  var head = function (id, title, lang) { return '---\ncard: ' + id + '\ntitle: ' + title + '\nby: 시험\nwritten: 2026-11-10\nsources: 없음\n' + (lang ? 'lang: ' + lang + '\n' : '') + '---\n'; };
+  fs.writeFileSync(path.join(cd, 'BIO01.md'), head('BIO01', '한국어 제목') + '한국어 글. '.repeat(30));
+  fs.writeFileSync(path.join(cd, 'ja', 'BIO01.md'), head('BIO01', '日本語の題', 'ja') + '日本語の文。'.repeat(30));
+  fs.writeFileSync(path.join(cd, 'BIO02.md'), head('BIO02', '둘째 카드') + '둘째 글. '.repeat(30));
+  fs.writeFileSync(path.join(cd, 'ja', 'ZZZ99.md'), head('ZZZ99', '고아 번역') + '원본 없는 번역. '.repeat(30));
+  var lc = core.loadCards(cd);
+  check(Object.keys(lc.cards).length === 2 && lc.byLang.ja && lc.byLang.ja.BIO01 && lc.byLang.ja.BIO01.lang === 'ja' && lc.errors.length === 1 && /원본/.test(lc.errors[0]), '번역 카드 읽기: ja/BIO01 은 번역본 · 원본 없는 번역본은 오류');
+  var oj = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: cd, lang: 'ja', fetchWiki: spyWiki, now: now, name: 'タコ' });
+  var gj = await oj.go({});
+  check(gj.cards.length === 2 && gj.cards.some(function (c) { return c === 'BIO01 日本語の題'; }) && gj.cards.some(function (c) { return c === 'BIO02 둘째 카드 (ko)'; }), 'ja 방: 번역 카드는 일본어 제목, 없으면 (ko) 표시');
+  var pj = await oj.peek({ target: { kind: 'card', id: 'BIO01' } });
+  check(pj.book.title === '日本語の題' && pj.book.lang === undefined && pj.book.text.indexOf('日本語') === 0, '번역 카드를 읽으면 일본어 글 (lang 표시 없음)');
+  var pj2 = await oj.peek({ target: { kind: 'card', id: 'BIO02' } });
+  check(pj2.book.lang === 'ko' && pj2.book.title === '둘째 카드', '번역 없는 카드는 book.lang ko 로 알린다');
+  var fj = oj.finish({ remember: { stopIdx: 0, line: '一行' }, reaction: 'ぴょん' });
+  var evs = JSON.parse(fs.readFileSync(path.join(oj.outDir, path.basename(fj.saved)), 'utf8'));
+  var pc = POST.data(evs, { name: 'タコ', date: '2026-11-08', lang: 'ja' });
+  check(pc.stops[0].label === '書架カード' && pc.stops[0].book.title === '日本語の題' && pc.poster === '一行' && pc.reaction === 'ぴょん', '엽서 자료: 꼬리표 일본어 · 모델 글 그대로');
+  var hj = POST.html(null, 'ja');
+  check(/<html lang="ja">/.test(hj) && /絵はがきを取り出している/.test(hj) && !/innerHTML/.test(hj) && /<html lang="ko">/.test(POST.html(null)) && /<html lang="en">/.test(POST.html(null, 'en-GB')), '엽서 화면: lang 과 꼬리표가 방의 언어 (모르는 언어는 ko)');
+  var rp = BRAIN.replay(evs, { by: 'mcp', dateKey: '2026-11-08', seq: 1, name: 'タコ', now: new Date(clock), state: {} });
+  check(rp && rp.receipt.stops.length === 2 && rp.receipt.stops[0].book && rp.receipt.stops[0].book.title === '日本語の題', '게임 재생: ja 방의 산책도 그대로 읽힌다');
+  /* 언어 없는 방 (옛 방 · 환경 변수 없는 stdio): 모델이 look_room 의 lang 으로 한 번 정한다 */
+  var on = new core.Octopus({ dir: tmp(), booksDir: tmp(), cardsDir: tmp(), fetchWiki: spyWiki, now: now, name: 'x' });
+  check(on.lang() === 'ko' && on.setLang('ja') === true && on.lang() === 'ja' && /招かれた日/.test(on.lookRoom({}).lantern) && on.setLang('en') === true && on.lang() === 'en' && on.setLang('ja') === true && on.lang() === 'ja', '언어 없는 방: 모델이 알려 준 대화의 언어를 따라가고, 바뀌면 따라 바뀐다');
+  var on2 = new core.Octopus({ dir: on.dir, booksDir: tmp(), cardsDir: tmp(), fetchWiki: spyWiki, now: now, name: 'x' });
+  check(on2.lang() === 'ja' && on.setLang('zz') === false, '정한 언어는 상태 (state.json) 에 남는다 · 모르는 언어는 무시');
+  /* 방 만들기 (store) · 입력 상한 · 거르기 오류도 방의 언어 */
+  var ms = ST.memoryStore(), k1 = await ST.createRoom(ms, { name: 'a', lang: 'ja-JP' }), k2 = await ST.createRoom(ms, { lang: 'xx' }), k3 = await ST.createRoom(ms, { lang: '' }), k4 = await ST.createRoom(ms, { lang: 'de-AT' });
+  check((await ST.readMeta(ms, k1)).lang === 'ja' && (await ST.readMeta(ms, k2)).lang === 'en' && !(await ST.readMeta(ms, k3)).lang && (await ST.readMeta(ms, k4)).lang === 'de', '방 만들기: lang ja-JP → ja · 모르는 언어 (xx) → en (영어가 메인) · 빈 값은 없음 · de-AT → de');
+  var sl1 = await ST.setRoomLang(ms, k1, 'de'), m1 = await ST.readMeta(ms, k1);
+  check(sl1.lang === 'de' && sl1.pin === true && m1.lang === 'de' && m1.pin === true && (await ST.setRoomLang(ms, k1, 'xx')).error === 'lang' && (await ST.setRoomLang(ms, 'nope', 'de')) === null, '사람이 방의 언어를 정한다 (setRoomLang): de 고정 · 모르는 언어는 오류 · 없는 방은 null');
+  await ms.write(ST.roomPath(k1, 'state.json'), JSON.stringify({ v: 1, lang: 'fr' }));
+  var sl2 = await ST.setRoomLang(ms, k1, 'auto'), m2 = await ST.readMeta(ms, k1);
+  check(sl2.lang === 'fr' && sl2.pin === false && !m2.pin && m2.lang === 'fr', 'auto 면 고정을 풀고 모델이 알려 준 대화의 언어 (state.lang) 로 돌아간다');
+  var langApi = require('../../api/lang/[key].js'); langApi._store = function () { return ms; };
+  function fakeRes() { var r = { statusCode: 0, headers: {}, body: '' }; r.setHeader = function (k, v) { r.headers[k] = v; }; r.end = function (x) { r.body = String(x || ''); }; return r; }
+  var rs1 = fakeRes(); await langApi({ method: 'POST', headers: { origin: 'https://g.test', host: 'g.test' }, query: { key: k1 }, body: { lang: 'es' } }, rs1);
+  var rs2 = fakeRes(); await langApi({ method: 'POST', headers: { host: 'g.test' }, query: { key: k1 }, body: { lang: 'es' } }, rs2);
+  var rs3 = fakeRes(); await langApi({ method: 'POST', headers: { origin: 'https://g.test', host: 'g.test' }, query: { key: k1 }, body: { lang: 'zz' } }, rs3);
+  check(rs1.statusCode === 200 && JSON.parse(rs1.body).lang === 'es' && JSON.parse(rs1.body).pin === true && rs2.statusCode === 403 && rs3.statusCode === 400 && (await ST.readMeta(ms, k1)).lang === 'es', '/api/lang: 이 사이트의 화면에서만 (Origin) · 열 중 하나 · 저장된다');
+  check(/characters or fewer/.test(core.checkArgs('x', { line: 'a'.repeat(201) }, I18N.T('en'))) && /に個人情報/.test(core.screenArgs('x', { line: 'mail me at a@b.co' }, I18N.T('ja'))) && /자 이하로/.test(core.checkArgs('x', { line: 'a'.repeat(201) })), '입력 상한 · 거르기 오류가 방의 언어 (없으면 ko)');
+}
+
+/* 원격 방 (http.js): 모델이 알려 준 대화의 언어를 따라간다 (meta.lang 에 비친다 → 다음 initialize 부터 그 언어) · 사람이 정하면 (pin) 그대로 */
+async function langRemote() {
+  section('원격 방 — 언어가 대화를 따라감 · 사람이 정하면 고정');
+  var http = require('http'), HTTP = require('../http.js'), ST = require('../store.js'), I18N = core.I18N, ms = ST.memoryStore();
+  var key = await ST.createRoom(ms, { name: 'R', lang: 'de-DE' });
+  var srv = http.createServer(function (req, res) { HTTP.handleMcp(req, res, { store: ms, key: String(req.url).split('/').pop(), booksDir: tmp(), cardsDir: tmp(), fetchWiki: function () { return Promise.resolve({ ok: false, reason: 'offline' }); }, queryWiki: function () { return Promise.resolve(null); } }); });
+  await new Promise(function (r) { srv.listen(0, '127.0.0.1', r); });
+  var base = 'http://127.0.0.1:' + srv.address().port + '/api/mcp/';
+  async function rpc(method, params) { var r = await fetch(base + key, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: method, params: params || {} }) }); return r.json(); }
+  var init = { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 't', version: '0' } };
+  var i1 = await rpc('initialize', init);
+  check(i1.result && i1.result.instructions.indexOf(I18N.T('de').instructions[5]) >= 0, '기기 언어 de 로 만든 방: 안내문이 독일어');
+  var l1 = await rpc('tools/call', { name: 'ppolppol_look_room', arguments: { lang: 'en' } });
+  var l1t = JSON.parse(l1.result.content[0].text), m1 = await ST.readMeta(ms, key);
+  check(l1t.lang === 'en' && l1t.langNote === I18N.T('en').langChanged && m1.lang === 'en' && !m1.pin, 'look_room {lang:en}: 방이 영어로 — meta.lang 에 비친다');
+  var i2 = await rpc('initialize', init), t2 = await rpc('tools/list', {});
+  check(i2.result.instructions.indexOf(I18N.T('en').instructions[5]) >= 0 && t2.result.tools.some(function (t) { return t.name === 'ppolppol_look_room' && t.title === I18N.T('en').tools.look.title; }), '다음 요청부터 안내문·도구가 영어');
+  await ST.setRoomLang(ms, key, 'ja');
+  var l2 = await rpc('tools/call', { name: 'ppolppol_look_room', arguments: { lang: 'en' } });
+  var l2t = JSON.parse(l2.result.content[0].text), m2 = await ST.readMeta(ms, key);
+  check(l2t.lang === 'ja' && l2t.langNote === I18N.T('ja').langPinned && m2.lang === 'ja' && m2.pin === true, '사람이 ja 로 정한 뒤: 모델의 lang:en 은 무시, 일본어로 "사람이 정했다" 알림');
+  await ST.setRoomLang(ms, key, 'auto');
+  var l3 = await rpc('tools/call', { name: 'ppolppol_look_room', arguments: { lang: 'fr' } });
+  check(JSON.parse(l3.result.content[0].text).lang === 'fr' && (await ST.readMeta(ms, key)).lang === 'fr', 'auto 로 풀면 다시 대화의 언어를 따라간다 (fr)');
+  /* 묶음 (JSON 배열) 요청: 받지 않는다 — 전엔 배열 안의 tools/call 이 빈 상태로 돌고 그 빈 상태가 저장돼 방의 기록이 지워졌다 (11-10) */
+  await rpc('tools/call', { name: 'ppolppol_stay_home', arguments: {} });
+  var stB = JSON.stringify(await ST.readState(ms, key)), mtB = JSON.stringify(await ST.readMeta(ms, key));
+  var rb = await fetch(base + key, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify([{ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'ppolppol_look_room', arguments: {} } }]) });
+  var stA = JSON.stringify(await ST.readState(ms, key)), mtA = JSON.stringify(await ST.readMeta(ms, key));
+  check(rb.status === 400 && stB !== 'null' && stA === stB && mtA === mtB, '묶음 (배열) 요청은 400 — 방의 상태 · 횟수 기록은 그대로 (' + rb.status + ' · 상태 ' + stB.length + ' → ' + stA.length + ' B)');
+  srv.close();
+}
+
+/* stdio (환경 변수 없이): 모델이 look_room 의 lang 으로 알려 주면 방이 바뀌고 도구 정의도 다시 실린다 (update → tools/list_changed) */
+async function langStdio() {
+  section('MCP stdio — 언어가 대화를 따라가며 도구 정의도 바뀜');
+  var { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+  var { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
+  var { ToolListChangedNotificationSchema } = require('@modelcontextprotocol/sdk/types.js');
+  var I18N = core.I18N, dir = tmp();
+  var env = Object.assign({}, process.env, { PPOLPPOL_STATE: path.join(dir, 'state.json'), PPOLPPOL_OUT: path.join(dir, 'out'), PPOLPPOL_NO_NET: '1' }); delete env.PPOLPPOL_LANG;
+  var tr = new StdioClientTransport({ command: process.execPath, args: [path.join(__dirname, '..', 'server.js')], stderr: 'ignore', env: env });
+  var c = new Client({ name: 'test', version: '0' }), changed = 0;
+  c.setNotificationHandler(ToolListChangedNotificationSchema, function () { changed++; });
+  await c.connect(tr);
+  var t0 = (await c.listTools()).tools.filter(function (t) { return t.name === 'ppolppol_look_room'; })[0];
+  var r = JSON.parse((await c.callTool({ name: 'ppolppol_look_room', arguments: { lang: 'de' } })).content[0].text);
+  await new Promise(function (res) { setTimeout(res, 80); });
+  var t1 = (await c.listTools()).tools, look = t1.filter(function (t) { return t.name === 'ppolppol_look_room'; })[0], peek = t1.filter(function (t) { return t.name === 'ppolppol_peek'; })[0];
+  check(t0.title === I18N.T('ko').tools.look.title && r.lang === 'de' && r.langNote === I18N.T('de').langChanged && look.title === I18N.T('de').tools.look.title && !/[가-힣]/.test(JSON.stringify(t1)) && peek.inputSchema.properties.target.description.indexOf('lang:"ko|en|ja|fr|es|it|pt|id|hi"') >= 0 && changed > 0, 'look_room {lang:de}: 방이 독일어로, 도구 제목·설명·스키마가 독일어로 다시 실림 (list_changed ' + changed + ')');
+  var d = JSON.parse((await c.callTool({ name: 'ppolppol_depart', arguments: {} })).content[0].text);
+  check(Array.isArray(d.cards) && d.cards.length && d.cards.every(function (x) { return !/[가-힣]/.test(x) && !/\(ko\)$/.test(x); }), 'depart 도 독일어 (오늘의 카드가 독일어 번역본)');
+  await c.close();
+}
+
+/* en · ja 방의 stdio 왕복: 안내문 · 도구 설명이 그 언어로 실리고, 도구 정의 예산 안이다 */
+async function i18nProtocol(lang) {
+  section('MCP stdio 왕복 — ' + lang + ' 방');
+  var { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+  var { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
+  var I18N = core.I18N, L = I18N.T(lang), dir = tmp();
+  var tr = new StdioClientTransport({ command: process.execPath, args: [path.join(__dirname, '..', 'server.js')], stderr: 'ignore',
+    env: Object.assign({}, process.env, { PPOLPPOL_STATE: path.join(dir, 'state.json'), PPOLPPOL_OUT: path.join(dir, 'out'), PPOLPPOL_NO_NET: '1', PPOLPPOL_LANG: lang }) });
+  var c = new Client({ name: 'test', version: '0' });
+  await c.connect(tr);
+  var instr = c.getInstructions() || '';
+  check(instr.indexOf(L.fixed) >= 0 && instr.indexOf(L.instructions[5]) >= 0 && !/[가-힣]/.test(instr), 'instructions 가 ' + lang + ' (고정 문장 · 언어 줄 · 한글 없음)');
+  var tools = (await c.listTools()).tools;
+  var modelTools = tools.filter(function (t) { var v = t._meta && t._meta.ui && t._meta.ui.visibility; return !(Array.isArray(v) && v.indexOf('model') < 0); });
+  check(modelTools.length === 8 && modelTools.every(function (t) { return t.title === L.tools[{ ppolppol_look_room: 'look', ppolppol_depart: 'depart', ppolppol_peek: 'peek', ppolppol_finish: 'finish', ppolppol_stay_home: 'home', ppolppol_find: 'find', ppolppol_empty_turn: 'empty', ppolppol_answer: 'answer' }[t.name]].title && !/[가-힣]/.test(JSON.stringify(t)); }), '도구 8개의 제목·설명이 ' + lang);
+  var defs = Buffer.byteLength(JSON.stringify(modelTools.map(function (t) { var o = Object.assign({}, t); delete o._meta; return o; })));
+  console.log('  (도구 정의 ' + defs + ' B · instructions ' + Buffer.byteLength(instr) + ' B)');
+  var cap = lang === 'hi' ? 7500 : 6000;   /* 데바나가리는 글자당 3바이트 — 같은 분량이 바이트로는 1.25배 */
+  check(defs < cap, lang + ' 도구 정의 ' + cap.toLocaleString('en') + ' B 미만');   /* 2026-11-10 밤: lang enum 여섯 + 먼 바다 다섯 → ko 5,694 · en 5,628 · ja 5,775 · de 5,706 · fr 5,778 · es 5,769 B (전엔 5,700 상한) → 늦은 밤 열 언어: ko 5,778 · en 5,712 · ja 5,859 · de 5,790 · fr 5,862 · es 5,853 · it 5,852 · pt 5,799 · id 5,854 · hi 7,153 B */
+  function j(r) { return JSON.parse(r.content[0].text); }
+  var lr = j(await c.callTool({ name: 'ppolppol_look_room', arguments: { lang: 'ko' } }));
+  check(lr.decision && lr.decision.point === 'meet' && lr.lantern === L.lantern(0), 'look_room: 환경 변수의 언어가 이기고 (lang:ko 무시), 등불 글이 ' + lang);
+  var d = j(await c.callTool({ name: 'ppolppol_depart', arguments: {} }));
+  var want = { en: 'bell Bell', ja: 'bell 鐘', de: 'bell Glocke', fr: 'bell Cloche', es: 'bell Campana', it: 'bell Campana', pt: 'bell Sino', id: 'bell Lonceng', hi: 'bell घंटी' }[lang];
+  check(typeof d.rooms === 'string' && d.rooms.indexOf(want) >= 0 && Array.isArray(d.cards) && d.cards.length > 0 && d.cards.every(function (x) { return !/ \(ko\)$/.test(x) && !/[가-힣]/.test(x); }) && Array.isArray(d.shelf) && d.shelf.length === 8 && d.shelf.every(function (t) { return !/[가-힣]/.test(t); }), 'depart: 열람실 이름 ' + lang + ' · 카드 제목이 ' + lang + ' 번역본 ((ko) 표시 없음) · 서가는 ' + lang + ' 목록');
+  var pk = j(await c.callTool({ name: 'ppolppol_peek', arguments: { tripId: d.tripId, target: { kind: 'card', id: d.cards[0].split(' ')[0] } } }));
+  check(pk.book && pk.book.lang === undefined && !/[가-힣]/.test(pk.book.title + ' ' + pk.book.text + ' ' + pk.book.by) && /Claude \(AI\)$/.test(pk.book.by), 'peek 카드: ' + lang + ' 번역본을 읽는다 (book.lang 없음 · by 끝에 옮긴 이)');
+  var f = j(await c.callTool({ name: 'ppolppol_finish', arguments: { tripId: d.tripId } }));
+  check(f.ok && f.decision && f.decision.q === L.chat.out[0], 'finish: 돌아와서 묻는 말이 ' + lang);
+  await c.close();
+}
+
 (async function () {
   await unit();
   await cardsUnit();
+  await i18nUnit();
+  await langRemote();
+  await langStdio();
   await protocol();
+  await i18nProtocol('en');
+  await i18nProtocol('ja');
+  await i18nProtocol('de');
+  await i18nProtocol('fr');
+  await i18nProtocol('es');
+  await i18nProtocol('it');
+  await i18nProtocol('pt');
+  await i18nProtocol('id');
+  await i18nProtocol('hi');
   gitClean();
   loaderGuard();
   console.log('\n도구별 최대 반환 크기 (바이트):');

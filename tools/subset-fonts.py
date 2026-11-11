@@ -16,9 +16,19 @@ galmuri.css 는 원본 면을 먼저, 서브셋 면을 뒤에 선언한다. 브�
 기호·이모지 구역(☔ ♾ ❔ 등 Galmuri 에 없는 글자)은 틈을 메우지 않는다 — 그런 글자 하나 때문에 원본 160–500 KB 를
 헛되이 받지 않게.
 
+데바나가리 (힌디어 방, 2026-11-10): Galmuri 에 없어서 GNU Unifont (16px 격자, OFL 1.1 / GPL 2+ 글꼴 예외 이중 라이선스,
+UNIFONT-LICENSE.txt) 의 데바나가리 구역만 떼어 Unifont-Devanagari.sub.woff2 로 두고, Galmuri 세 가족 각각에 같은 family 이름의
+면으로 덧붙인다 (unicode-range 가 그 글자만 가리키므로 힌디어가 화면에 나올 때만 내려받는다). Galmuri 는 2× (16/20/24px) 로
+쓰이는데 Unifont 격자는 16px 라, 정수 배가 되게 size-adjust 를 건다: Galmuri7(16px) 1× · Galmuri9(20px) 0.8 → 16px 1× ·
+Galmuri11(24px) 4/3 → 32px 2×. Unifont 는 글자마다 그림 하나뿐이라 (GSUB 없음) 결합 자음은 할란트(्)가 그대로 보이고
+모음 기호는 브라우저의 인도계 문자 정렬 (ि 를 자음 앞으로) 만 받는다 — 읽히지만 활자체는 아니다. 원본 OTF (5.3 MB) 는
+저장소에 두지 않는다: 다시 만들려면 https://unifoundry.com/pub/unifont/unifont-18.0.01/font-builds/unifont-18.0.01.otf 를
+받아 --unifont 로 가리킨다. 없으면 저장소의 서브셋을 그대로 쓰고 CSS 만 다시 쓴다.
+
 사용:
   python3 tools/subset-fonts.py           # 서브셋 + galmuri.css 다시 쓰기
   python3 tools/subset-fonts.py --check   # 지금 코드 글자가 서브셋에 다 있고 galmuri.css 가 최신인지 (아니면 exit 1)
+  python3 tools/subset-fonts.py --unifont <unifont-18.0.01.otf>   # 데바나가리 서브셋도 다시 만든다
 필요: fontTools + brotli (pip install fonttools brotli). 없는 환경이면 PYTHONPATH 로 둘이 든 폴더를 가리킨다.
 UI 문구에 새 글자를 넣었으면 다시 돌린다. 안 돌려도 깨지지는 않는다 (그 글자만 원본 파일에서 받아 그린다).
 """
@@ -39,6 +49,7 @@ except ImportError:  # pragma: no cover
 
 # 원본 Galmuri11-Bold 의 fsSelection/macStyle 불일치 경고 — 원본 그대로 두므로 숨긴다
 logging.getLogger('fontTools.ttLib.tables.O_S_2f_2').setLevel(logging.ERROR)
+logging.getLogger('fontTools.ttLib.tables._h_e_a_d').setLevel(logging.ERROR)   # Unifont 의 created/modified 가 0 — 경고만
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 FONT_DIR = os.path.join(ROOT, 'vendor', 'fonts')
@@ -52,6 +63,11 @@ FACES = [
     ('Galmuri7', 400, 'Galmuri7'),
 ]
 FULL_RANGE_GAP = 16  # 원본 면 unicode-range: 한자 구역 안에서 cmap 사이 틈이 이 이하면 메운다 (규칙 수를 ~200개로)
+
+# 데바나가리 덧붙임 면 (모듈 설명 참고): (Galmuri family, size-adjust) — 그 family 의 UI 크기에서 Unifont 16px 격자가 정수 배가 되게
+ADDON_NAME = 'Unifont-Devanagari'
+ADDON_RANGES = [(0x0900, 0x097F), (0xA8E0, 0xA8FF), (0x20B9, 0x20B9)]   # 데바나가리 · 데바나가리 확장 · ₹
+ADDON_FAMILIES = [('Galmuri7', '100%'), ('Galmuri9', '80%'), ('Galmuri11', '133.3333%')]
 
 
 def ksx1001_syllables():
@@ -95,7 +111,7 @@ def used_chars():
 
 
 def wanted_chars():
-    base = set(range(0x20, 0x7F)) | set(range(0x3131, 0x318F)) | set(range(0x2000, 0x2070))
+    base = set(range(0x20, 0x7F)) | set(range(0xA0, 0x180)) | set(range(0x3131, 0x318F)) | set(range(0x2000, 0x2070))   # 0xA0–0x17F: 라틴 보충·확장 A (독일어·프랑스어·스페인어 제목의 é ü ß ñ …)
     return base | ksx1001_syllables() | used_chars()
 
 
@@ -169,16 +185,36 @@ CSS_HEAD = """/* Galmuri (갈무리) — Korean pixel fonts by quiple, SIL Open 
    code points inside the CJK ideograph blocks are filled (keeps the rule short), so characters Galmuri does not have
    at all (emoji, symbols like U+2614) never trigger a full download.
    Subset contents: KS X 1001 Hangul (2,350), ASCII, compatibility jamo, U+2000-206F, every non-ASCII char in
-   js/*.js, css/*.css, index.html. Sizes: %s */
+   js/*.js, css/*.css, index.html. Sizes: %s
+   Devanagari (Hindi rooms): Galmuri has none, so the last section adds GNU Unifont's Devanagari block (16px grid,
+   OFL 1.1 / GPL 2+ with font exception, see UNIFONT-LICENSE.txt) to each Galmuri family under the same family name,
+   with size-adjust so the 16px grid lands on whole pixels at the sizes the UI uses (16px 1x, 20px → 16px 1x, 24px → 32px 2x).
+   Unifont has one glyph per code point (no GSUB): conjuncts show an explicit virama; readable, not typeset. */
 """
 
 
-def face_rule(family, weight, filename, ranges):
-    return ("@font-face { font-family: '%s'; src: url('%s') format('woff2'); font-weight: %d; font-display: swap;\n"
-            "  unicode-range: %s; }\n") % (family, filename, weight, unicode_range(ranges))
+def face_rule(family, weight, filename, ranges, extra=''):
+    return ("@font-face { font-family: '%s'; src: url('%s') format('woff2'); font-weight: %d; font-display: swap;%s\n"
+            "  unicode-range: %s; }\n") % (family, filename, weight, (' ' + extra) if extra else '', unicode_range(ranges))
 
 
-def generate():
+def addon_subset(unifont):
+    """데바나가리 덧붙임 서브셋: --unifont 가 있으면 새로 만들고, 없으면 저장소의 서브셋 그대로."""
+    path = os.path.join(FONT_DIR, ADDON_NAME + '.sub.woff2')
+    if unifont:
+        cmap = set(TTFont(unifont).getBestCmap())
+        keep = {cp for a, b in ADDON_RANGES for cp in range(a, b + 1)} & cmap
+        data = build_subset(unifont, keep)
+        missing = sorted(c for c in keep if c not in set(TTFont(io.BytesIO(data)).getBestCmap()))
+        if missing:
+            raise SystemExit('subset-fonts: %s 서브셋에서 빠진 글자: %s' % (ADDON_NAME, ''.join(map(chr, missing))))
+        return path, data, True
+    if not os.path.exists(path):
+        raise SystemExit('subset-fonts: %s 가 없다 — Unifont OTF 를 받아 --unifont 로 가리킨다 (모듈 설명)' % os.path.relpath(path, ROOT))
+    return path, open(path, 'rb').read(), False
+
+
+def generate(unifont=None):
     wanted = wanted_chars()
     used = used_chars()
     full_rules, sub_rules, sizes, outputs, report = [], [], [], {}, []
@@ -204,9 +240,19 @@ def generate():
         report.append('%-15s full %4d KB %5d chars (%3d range parts) → sub %3d KB %4d chars (%4d parts) · code chars not in font: %d'
                       % (name, os.path.getsize(src) // 1024, len(full_cmap), len(fr), len(data) // 1024, len(sub_cmap),
                          len(to_ranges(sub_cmap)), len(not_in_font)))
+    addon_path, addon_data, rebuilt = addon_subset(unifont)
+    if rebuilt:
+        outputs[addon_path] = addon_data
+    addon_cmap = set(TTFont(io.BytesIO(addon_data)).getBestCmap())
+    addon_rules = [face_rule(family, 400, ADDON_NAME + '.sub.woff2', to_ranges(addon_cmap), 'size-adjust: %s;' % adj)
+                   for family, adj in ADDON_FAMILIES]
+    report.append('%-15s %s %3d KB %4d chars (%d parts) · %s' % (ADDON_NAME, 'rebuilt from ' + os.path.basename(unifont) if rebuilt else 'kept',
+                                                                len(addon_data) // 1024, len(addon_cmap), len(to_ranges(addon_cmap)),
+                                                                ' · '.join('%s %s' % fa for fa in ADDON_FAMILIES)))
     css = (CSS_HEAD % (FULL_RANGE_GAP, ', '.join(sizes) + '.')
            + '\n/* full faces (fallback for characters outside the subset) */\n' + ''.join(full_rules)
-           + '\n/* subsets — must stay AFTER the full faces */\n' + ''.join(sub_rules))
+           + '\n/* subsets — must stay AFTER the full faces */\n' + ''.join(sub_rules)
+           + '\n/* Devanagari for Hindi rooms — GNU Unifont subset (UNIFONT-LICENSE.txt), one face per Galmuri family, size-adjust per UI size */\n' + ''.join(addon_rules))
     outputs[CSS_PATH] = css.encode('utf-8')
     return outputs, report, wanted, used
 
@@ -214,8 +260,9 @@ def generate():
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--check', action='store_true', help='파일을 쓰지 않고 최신인지만 확인 (다르면 exit 1)')
+    ap.add_argument('--unifont', metavar='OTF', help='GNU Unifont OTF 경로 — 데바나가리 서브셋 (%s.sub.woff2) 을 다시 만든다' % ADDON_NAME)
     args = ap.parse_args()
-    outputs, report, wanted, used = generate()
+    outputs, report, wanted, used = generate(args.unifont)
     print('wanted %d code points (code uses %d non-ASCII chars)' % (len(wanted), len(used)))
     for line in report:
         print('  ' + line)

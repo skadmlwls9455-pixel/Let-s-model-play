@@ -1,65 +1,72 @@
-/* 바다와 생물 — 방 8개 */
+/* 바다와 생물 — 방 8개 (둘째 판) */
 'use strict';
-var SK = require('../sticker-kit.js');
-function star5(c, cx, cy, R, r, rot, fn) {   /* 별 모양 채우기 */
-  var pts = []; for (var i = 0; i < 10; i++) { var a = rot + i * Math.PI / 5, q = i % 2 ? r : R; pts.push([cx + Math.sin(a) * q, cy - Math.cos(a) * q]); }
-  c.S(function (x, y) { var px = x + 0.5, py = y + 0.5, inside = false; for (var i = 0, j = 9; i < 10; j = i++) { var a = pts[i], b = pts[j]; if ((a[1] > py) !== (b[1] > py) && px < (b[0] - a[0]) * (py - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside; } return inside ? fn(x, y) : null; });
-}
+var L = require('./lib.js'), K = L.K, sd = L.sd, bez = L.bez, mat = L.mat;
+var WHITE = mat('white'), RED = mat('crimson');
+var LEGS = [[[9, 22], [4.5, 23.5], [3.4, 27.2]], [[12.5, 23.5], [10, 27], [7.6, 29.2]], [[16, 24], [16, 27.5], [15.4, 30]], [[19.5, 23.5], [22, 27], [24.4, 29.2]], [[23, 22], [27.5, 23.5], [28.6, 27.2]]];
 module.exports = {
-  octopus: ['문어', function (c) {   /* 모자 없는 문어 + 물방울 */
-    SK.head(c, 0, 0); SK.legs(c, 0, 0, 'down'); SK.face(c, 0, 0, { eyes: 'dot', mouth: 'smile' });
-    c.D([[4, 8], [27, 6]], '6').dot(5, 7, '7').dot(28, 5, '7').D([[3, 12], [29, 11]], '6');
-    c.S(function (x, y) { return y >= 29 && y <= 30 && x >= 3 && x <= 28 && (x + y) % 5 < 3 ? (y === 29 ? 'e' : 'd') : null; });
+  octopus: ['문어', function (S) {
+    L.oct(S, {});
+    [[4.6, 7.4, 1.5], [27.6, 5.6, 1.9], [29.2, 11, 1.1]].forEach(function (b) { S.ball(b[0], b[1], b[2], b[2], 'glass'); });
   }],
-  octopus_nerves: ['문어 신경계', function (c) {   /* 보랏빛 문어 안에 빛나는 신경 줄기 */
-    SK.head(c, 0, 0); SK.legs(c, 0, 0, 'down');
-    SK.recolor(c, { L: 'P', K: 'O', J: 'N', I: 'M', F: 'O' });
-    c.disc(16, 15, 3.2, 'E').disc(16, 15, 1.8, 'F').dot(15, 14, 'Z');                 /* 가운데 뇌 */
-    [[9, 25], [13, 26], [17, 27], [21, 26], [25, 25]].forEach(function (p) { c.L(16, 18, p[0], p[1] - 3, 'E').L(p[0], p[1] - 3, p[0], p[1], 'F'); c.dot(p[0], p[1] - 3, 'Z'); });
-    c.L(16, 15, 9, 13, 'E').L(16, 15, 23, 13, 'E').D([[9, 13], [23, 13], [12, 10], [20, 10]], 'F');
-    c.D([[3, 6], [28, 8], [5, 28]], 'F');
+  octopus_nerves: ['문어 신경계', function (S) {   /* 보랏빛 문어 속에 빛나는 신경 줄기 — 뇌 하나와 다리마다 작은 뇌 */
+    L.oct(S, { m: mat('violet'), eyes: 'none', mouth: 'none', blush: false, shine: false, sucker: 'O' });
+    LEGS.forEach(function (l) { S.stroke([[16, 15]].concat(bez(l[0], l[1], l[2], 6)), 1, 'E'); S.flat(sd.circle(l[2][0], l[2][1], 0.9), 'F'); S.flat(sd.circle(l[0][0], l[0][1], 1.1), 'F'); });
+    S.stroke([[16, 15], [9.5, 12.5]], 1, 'E').stroke([[16, 15], [22.5, 12.5]], 1, 'E').flat(sd.circle(9.5, 12.5, 1), 'F').flat(sd.circle(22.5, 12.5, 1), 'F');
+    S.flat(sd.circle(16, 15, 3.4), 'E').flat(sd.circle(16, 15, 2.2), 'F').flat(sd.circle(15.4, 14.4, 0.9), 'Z');
+    S.spark(4.5, 6, 2, 'F').spark(28, 8, 1.6, 'F');
   }],
-  shell: ['조개', function (c) {   /* 부채꼴 가리비 */
-    c.S(function (x, y) { var dx = x + 0.5 - 16, dy = y + 0.5 - 24, d = Math.hypot(dx, dy); if (dy > 0 || d > 15.5) return null; var a = Math.atan2(-dy, dx), seg = Math.floor(a / Math.PI * 9); return d > 14 ? 'd' : seg % 2 ? (dx + dy < -10 ? 'Z' : 'f') : 'e'; });
-    c.G(11, 24, ['dfeeeeeefd', '.dfeeeefd.', '..dccccd..']);
-    c.D([[8, 13], [12, 11]], 'Z').D([[26, 28], [5, 27]], '6');
+  shell: ['조개', function (S) {   /* 가리비: 골 여덟 줄 · 물결 가장자리 */
+    var ang = function (u, v) { return Math.atan2(24.5 - v, u - 16); }, R = function (a) { return 13.2 + 1.3 * Math.abs(Math.sin(a * 8)); };
+    S.solid(sd.poly([[9.5, 24], [12, 22.5], [20, 22.5], [22.5, 24], [21, 27.6], [11, 27.6]]), 1.2, mat('cream', { ramp: ['f', 'e', 'd', 'c', 'b'] }));   /* 귀 */
+    S.solid(function (u, v) { return Math.max(Math.hypot(u - 16, v - 24.5) - R(ang(u, v)), v - 24.5); }, 4.5,
+      function (u, v) { return Math.floor(ang(u, v) / Math.PI * 8) % 2 ? mat('paper') : mat('cream'); },
+      { tone: function (u, v, t) { var a = ang(u, v), d = Math.hypot(u - 16, v - 24.5); return (Math.abs(Math.sin(a * 8)) < 0.2 && d > 3) ? Math.min(4, t + 1) : t; } });
   }],
-  pearl: ['진주', function (c) {   /* 벌어진 조개 속 진주 */
-    c.S(function (x, y) { var dx = (x + 0.5 - 16) / 14, dy = (y + 0.5 - 15) / 11; return y <= 15 && dx * dx + dy * dy <= 1 ? ((x % 4 === 0) ? 'P' : x + y < 22 ? 'R' : 'Q') : null; });
-    c.S(function (x, y) { var dx = (x + 0.5 - 16) / 14, dy = (y + 0.5 - 17) / 10; return y >= 17 && dx * dx + dy * dy <= 1 ? (y < 20 ? 'f' : (x % 4 === 0) ? 'c' : 'd') : null; });
-    c.R(3, 15, 26, 2, 'O');
-    c.B(16, 17.5, 4.5, 4.5, ['Z', 'Z', 'Y', '7', '6']).dot(14, 15, 'Z');
-    c.spark(25, 6, 'Z').dot(6, 7, 'Z');
+  pearl: ['진주', function (S) {   /* 벌어진 조개 속 진주 */
+    var groove = function (u, v, t) { return Math.abs(Math.sin((u - 16) * 0.62)) < 0.16 ? Math.min(4, t + 1) : t; };
+    S.solid(sd.inter(sd.ellipse(16, 16.5, 14, 11.5), sd.half(0, 1, -17.5)), 3.5, 'pink', { tone: groove });
+    S.flat(sd.ellipse(16, 18, 12.6, 2.4), 'N');
+    S.ball(16, 17.4, 4.5, 4.5, mat('white', { ramp: ['Z', 'Z', 'Y', '7', '6'], ol: '4', spec: 0.985 }));
+    S.solid(sd.inter(sd.ellipse(16, 20.2, 14, 8.6), sd.half(0, -1, 18.6)), 4, 'cream', { tone: groove });
+    S.spark(26.5, 6, 2.2, 'Z', { ol: 'X' });
   }],
-  tide: ['밀물과 썰물', function (c) {   /* 달이 끄는 바다: 달 + 물결 + 모래톱 */
-    c.B(24, 7, 4.5, 4.5, ['Z', 'f', 'F', 'F', 'E']).D([[23, 6], [26, 8]], 'E');
-    c.D([[22, 13], [20, 15], [18, 17]], '7');                                         /* 끌어당기는 점선 */
-    c.S(function (x, y) { var top = 19 + Math.round(Math.sin(x / 3.2) * 1.5) - Math.round((x - 4) / 14); if (y < top || y > 27 || x < 1 || x > 30) return null; return y === top ? 'Z' : y === top + 1 ? '7' : (y + x) % 5 === 0 ? '6' : y > 24 ? '4' : '5'; });
-    c.S(function (x, y) { return y >= 26 && y <= 30 && x >= 1 && x <= 14 - (y - 26) * 0 && x < 16 - (30 - y) ? (y === 26 ? 'f' : 'e') : null; });
-    c.G(4, 27, ['R.R', '.Q.']).dot(10, 29, 'd');
+  tide: ['밀물과 썰물', function (S) {   /* 달이 끄는 바다 */
+    S.ball(24, 7.6, 4.8, 4.8, mat('gold', { ramp: ['Z', 'f', 'F', 'E', 'D'], ol: 'C', spec: 0 }));
+    S.flat(sd.circle(22.6, 6.6, 0.8), 'E').flat(sd.circle(25.6, 8.8, 1), 'E');
+    [[20.6, 13.6], [18.8, 16], [17, 18.4]].forEach(function (p) { S.flat(sd.circle(p[0], p[1], 0.7), 'Z', { ol: '5' }); });
+    var top = function (u) { return 21.2 + 1.5 * Math.sin(u / 3.3) - (u - 4) / 13; };
+    S.solid(function (u, v) { return Math.max(top(u) - v, v - 28.6, 1.6 - u, u - 30.4); }, 2.4, 'blue', { tone: function (u, v, t) { return Math.abs(v - top(u) - 3.2 - Math.sin(u / 2.2)) < 0.4 ? Math.max(0, t - 1) : t; } });
+    var crest = []; for (var u = 1.6; u <= 30.4; u += 0.8) crest.push([u, top(u) + 0.3]);
+    S.stroke(crest, 1, 'Z', { ol: '3' });
   }],
-  starfish: ['불가사리', function (c) {
-    star5(c, 16, 17, 14, 6, 0.2, function (x, y) { return x + y < 28 ? 'L' : x + y > 38 ? 'J' : 'K'; });
-    [[16, 16], [16, 10], [16, 6], [21, 15], [25, 13], [19, 21], [22, 26], [13, 21], [10, 26], [11, 15], [7, 13]].forEach(function (p) { c.dot(p[0], p[1], 'F'); });
-    c.D([[27, 27], [4, 5]], '6');
+  starfish: ['불가사리', function (S) {
+    var pts = L.starPts(16, 17, 13.4, 5.6, 5, 0.2);
+    S.solid(sd.grow(sd.poly(pts), 1.5), 4.2, mat('red', { ramp: ['F', 'L', 'K', 'J', 'I'], ol: 'H' }));
+    for (var i = 0; i < 5; i++) { var a = 0.2 + i * 2 * Math.PI / 5; [0.3, 0.55, 0.8].forEach(function (f) { S.flat(sd.circle(16 + Math.sin(a) * 13.4 * f, 17 - Math.cos(a) * 13.4 * f, 0.7), 'F'); }); }
+    S.flat(sd.circle(16, 17, 0.9), 'F');
   }],
-  lighthouse: ['등대', function (c) {
-    c.S(function (x, y) { if (y < 8 || y > 25) return null; var w = 3 + (y - 8) * 0.14; if (Math.abs(x + 0.5 - 14) > w) return null; var st = Math.floor((y - 8) / 4) % 2; return st ? (x < 14 ? 'Z' : 'Y') : (x < 14 ? 'K' : 'J'); });
-    c.R(11, 5, 6, 3, 'F').R(11, 5, 6, 1, 'Z').R(10, 8, 8, 1, 'U').R(12, 2, 4, 3, 'J').dot(13, 1, 'J').dot(14, 1, 'J');
-    c.S(function (x, y) { return x >= 18 && y >= 2 && y <= 10 && Math.abs(y - 6) <= (x - 17) * 0.35 ? ((x + y) % 2 ? 'F' : null) : null; });
-    c.B(14, 28, 11, 3.5, ['W', 'V', 'V', 'U', 'T']);
-    c.S(function (x, y) { return y >= 29 && y <= 30 && (x < 5 || x > 23) && (x + y) % 4 < 3 ? (y === 29 ? '6' : '5') : null; });
-    c.R(13, 21, 2, 4, 'a');
+  lighthouse: ['등대', function (S) {
+    S.ball(15, 28.6, 12, 3.6, 'stone', { flat: 0.3 });
+    S.stroke(bez([1.5, 30.2], [4, 28.8], [6.5, 30.2], 5), 1, '7', { ol: '4' }).stroke(bez([24, 30.2], [26.5, 28.8], [29.5, 30.2], 5), 1, '7', { ol: '4' });
+    S.lathe(15, 9.4, 26.8, function (v) { return 3.3 + (v - 9.4) * 0.19; }, function (u, v) { return Math.floor((v - 9.4) / 3.5) % 2 ? WHITE : RED; });
+    S.flat(sd.union(sd.box(15, 24.8, 1.2, 2, 0), sd.circle(15, 22.9, 1.2)), 'a');
+    S.solid(sd.box(15, 9, 4.8, 0.9, 0.3), 0.7, 'dark');
+    S.flat(sd.poly([[17.6, 6.7], [31, 2.6], [31, 10.8]]), 'F', { ol: 'E' }).flat(sd.poly([[17.6, 6.7], [31, 5.2], [31, 8.2]]), 'f');   /* 불빛 */
+    S.lathe(15, 5.2, 8.2, function () { return 2.9; }, mat('gold', { ramp: ['Z', 'Z', 'f', 'F', 'E'], spec: 0 }));
+    S.flat(sd.box(15, 6.7, 0.35, 1.5, 0), 'D');
+    S.lathe(15, 1.8, 5.2, function (v) { return 0.5 + (v - 1.8) * 1.0; }, RED);
+    S.ball(15, 1.5, 0.9, 0.9, RED);
   }],
-  salt: ['소금', function (c) {   /* 소금 결정 (정육면체 셋) + 낟알 */
+  salt: ['소금', function (S) {   /* 소금 결정 셋 */
     function cube(x, y, s) {
-      c.S(function (px, py) { var u = px - x, v = py - y; if (u < 0 || u >= s || v < 0 || v >= s) return null; return 'Y'; });
-      c.S(function (px, py) { var u = px - x, v = py - y; return v < 0 && v >= -Math.floor(s / 3) && u + v >= 0 && u + v < s ? 'Z' : null; });
-      c.S(function (px, py) { var u = px - x - s, v = py - y; return u >= 0 && u < Math.floor(s / 3) && v + u >= -Math.floor(s / 3) + 1 - 1 && v + u < s ? 'X' : null; });
-      c.dot(x + 1, y + 1, 'Z').dot(x + 2, y + 1, 'Z').dot(x + s - 2, y + s - 2, '7');
+      var d = s * 0.42, W2 = mat('white');
+      S.face(sd.poly([[x, y], [x + d, y - d], [x + s + d, y - d], [x + s, y]]), 0, W2, { shadow: false });
+      S.face(sd.poly([[x + s, y], [x + s + d, y - d], [x + s + d, y + s - d], [x + s, y + s]]), 4, W2, { shadow: false });
+      S.face(sd.box(x + s / 2, y + s / 2, s / 2, s / 2, 0), 2, W2, { shadow: false });
+      S.flat(sd.box(x + 1.6, y + 1.6, 0.8, 0.8, 0), 'Z');
     }
-    cube(4, 15, 11); cube(16, 9, 9); cube(19, 21, 7);
-    c.D([[3, 29], [7, 30], [12, 29], [15, 30], [28, 30], [30, 28], [1, 26]], 'Z').D([[10, 28], [26, 6]], 'Y');
-    c.spark(27, 4, '7');
+    cube(16.5, 9.5, 8.5); cube(4, 15.5, 10.5); cube(19.5, 21, 6.5);
+    [[3, 29.6], [8, 30.2], [14.5, 29.4], [17, 30.4], [28.5, 30], [30, 27]].forEach(function (p) { S.flat(sd.box(p[0], p[1], 0.6, 0.6, 0), 'Z', { ol: 'W' }); });
+    S.spark(28, 5, 2.2, 'Z', { ol: 'X' });
   }]
 };

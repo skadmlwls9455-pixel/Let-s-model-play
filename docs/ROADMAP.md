@@ -83,7 +83,7 @@
 | 컵 놀이 시제품 마무리 | S | play-proto 세션 |
 | 입장 연출 천천히 | M | **카드 11** |
 | UI 움직임 4~6프레임 (▼·하트·zzz) | M | **카드 12** |
-| ✅ 자동 테스트 (PR 마다) — **기본 브랜치에 합침 (11-07)** | S | `.github/workflows/test.yml`: push·PR 마다 빠른 묶음 (world·brain·runner·api) 과 글꼴 점검이 **필수**, 느린 묶음 (스모크 A·B·I·장면 성능) 은 선택. 로컬 `npm test` 도 같은 빠른 묶음을 돈다 (+ `test-model-voice`, 물결 F). 워크플로 fast 에도 `test-model-voice` 를 넣었다 (6물결). |
+| ✅ 자동 테스트 (PR 마다) — **기본 브랜치에 합침 (11-07)** | S | `.github/workflows/test.yml`: push·PR 마다 빠른 묶음 (world·brain·runner·api) 과 글꼴 점검이 **필수**, 느린 묶음 (스모크 A·B·I·장면 성능) 은 선택. 로컬 `npm test` 도 같은 빠른 묶음을 돈다 (+ `test-model-voice`, 물결 F). 워크플로 fast 에도 `test-model-voice` 를 넣었다 (6물결). **11-10: 계정의 Actions 한도가 바닥나서 줄였다** — 커밋마다 한 번만 돌고 (push 만, pull_request 로 한 번 더 돌리지 않는다), 느린 묶음은 수동 실행 (`workflow_dispatch`) 때만 돈다. 느린 묶음은 푸시 전에 로컬에서 돌린다. |
 
 **폰으로 볼 것**: 밤에 열기 · 문어가 나가는 모습 · 화면 밀기.
 

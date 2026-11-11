@@ -584,7 +584,7 @@
   BRAIN.wikiUrl = function (title) { return WIKI_PAGE + encodeURIComponent(String(title).replace(/ /g, '_')); };
 
   /* 재생 입력이 준 출처는 이 꼴일 때만 믿는다: 위키백과(한국어) 문서 · 위키미디어 공용 사진 (https 만) */
-  function isWikiPageUrl(u) { return typeof u === 'string' && /^https:\/\/(ko|en)\.wikipedia\.org\/wiki\/\S+$/.test(u); }   /* en: 먼 바다 문이 열린 모델 산책 (MCP 가 사람의 동의 뒤에만 읽는다) */
+  function isWikiPageUrl(u) { return typeof u === 'string' && /^https:\/\/(ko|en|ja|de|fr|es|it|pt|id|hi)\.wikipedia\.org\/wiki\/\S+$/.test(u); }   /* 방의 언어 (MCP 방은 mcp/i18n.js LANGS) 와 먼 바다 문 (사람의 동의 뒤에만) */
   function safeThumb(t) {
     if (!t || typeof t !== 'object' || typeof t.url !== 'string' || !/^https:\/\/upload\.wikimedia\.org\/\S+$/.test(t.url)) return null;
     return { url: t.url, w: (typeof t.w === 'number' && isFinite(t.w)) ? t.w : null, h: (typeof t.h === 'number' && isFinite(t.h)) ? t.h : null };
@@ -1010,7 +1010,7 @@
   function reactionEmoji(reaction) {
     var W = world();
     var rec = W && W.reactions && W.reactions[reaction];
-    return (rec && rec.emoji) || { '폴짝': '🎉', '우쭐': '😌', '졸림': '😴', '덤덤': '😶' }[reaction] || '😶';
+    return (rec && rec.emoji) || { '폴짝': '🎉', '우쭐': '😌', '졸림': '😴', '덤덤': '😶', hop: '🎉', proud: '😌', sleepy: '😴', 'so-so': '😶', 'ぴょん': '🎉', '得意': '😌', '眠い': '😴', '淡々': '😶' }[String(reaction).toLowerCase()] || '😶';   /* en·ja 방의 반응 낱말 (mcp/i18n.js wrap.reaction) 도 같은 얼굴 */
   }
 
   /* ───────── 5.9 반응 ───────── */

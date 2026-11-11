@@ -3,12 +3,13 @@
  *
  *   node tools/make-poster-art.js     # assets/poster/<방 id>.png · assets/poster/corner_<주제>.png (32×32) + js/poster-art-data.js + 미리보기
  *
- * 그림: tools/ui-art/poster/<주제>.js (방마다 한 장) · corners.js (주제마다 한 장). 붓은 poster/kit.js. 색은 Apollo 만, 외곽선은 장면 규칙.
+ * 그림: tools/ui-art/poster/<주제>.js (방마다 한 장) · corners.js (주제마다 한 장) · stay.js (쪽지). 형태 음영 렌더러 tools/ui-art/sculpt.js 로 짓는다 (둘째 판, 11-10).
+ * 색은 Apollo 만. 외곽선은 재질마다 정해 둔 어두운 색 (sculpt.js MAT 의 ol).
  * js/poster-art-data.js 는 그림을 data URI 로 담는다 — 포스터 SVG 는 그림으로 굽힐 때(벽 텍스처·PNG 저장) 밖의 파일을 못 읽어서.
  */
 'use strict';
 var fs = require('fs'), path = require('path'), zlib = require('zlib');
-var SP = require('./ui-art/sprites.js'), KIT = require('./ui-art/poster/kit.js');
+var SP = require('./ui-art/sprites.js'), KIT = require('./ui-art/poster/kit.js'), SC = require('./ui-art/sculpt.js');
 var ROOT = path.resolve(__dirname, '..');
 var CORNERS = ['hands', 'sea', 'sky', 'signs', 'numbers', 'sounds', 'home', 'mind', 'wild'];
 
@@ -21,32 +22,14 @@ function encodePNG(w, h, px) {
   for (var y = 0; y < h; y++) px.copy(raw, y * (w * 4 + 1) + 1, y * w * 4, (y + 1) * w * 4);
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
 }
-function s2l(v) { return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
 function hexRgb(h) { return [1, 3, 5].map(function (i) { return parseInt(h.slice(i, i + 2), 16); }); }
-function oklab(hex) {
-  var c = hexRgb(hex).map(function (v) { return s2l(v / 255); });
-  var l = Math.cbrt(0.412221469470763 * c[0] + 0.5363325372617348 * c[1] + 0.0514459932675022 * c[2]);
-  var m = Math.cbrt(0.2119034958178252 * c[0] + 0.6806995506452344 * c[1] + 0.1073969535369406 * c[2]);
-  var s = Math.cbrt(0.0883024591900564 * c[0] + 0.2817188391361215 * c[1] + 0.6299787016738222 * c[2]);
-  return [0.210454268309314 * l + 0.7936177747023054 * m - 0.0040720430116193 * s, 1.9779985324311684 * l - 2.4285922420485799 * m + 0.450593709617411 * s, 0.0259040424655478 * l + 0.7827717124575296 * m - 0.8086757549230774 * s];
-}
-var APOLLO = Object.keys(SP.KEY).map(function (k) { return SP.KEY[k]; }), LAB = APOLLO.map(oklab);
-function nearest(lab) { var best = 1e9, bi = 0; LAB.forEach(function (p, i) { var d = Math.pow(lab[0] - p[0], 2) + Math.pow((lab[1] - p[1]) * 1.3, 2) + Math.pow((lab[2] - p[2]) * 1.3, 2); if (d < best) { best = d; bi = i; } }); return APOLLO[bi]; }
-var OC = {};
-function outlineOf(hex) { if (OC[hex]) return OC[hex]; var lab = oklab(hex), k = 0.62, o = nearest([lab[0] * k, lab[1] * 0.9, lab[2] * 0.9]); while (o === hex && k > 0.2) { k -= 0.1; o = nearest([lab[0] * k, lab[1] * 0.9, lab[2] * 0.9]); } return (OC[hex] = o); }
+/* 방·주제·쪽지 그림: 형태 음영 렌더러 (tools/ui-art/sculpt.js) 로 32px 한 장. 외곽선·그림자는 렌더러가 넣는다 */
 function render(id, draw) {
-  var c = KIT.make(); draw(c);
-  var Wd = KIT.W, Hd = KIT.H, cells = c.c.map(function (k) { if (k == null) return null; if (!SP.KEY[k]) throw new Error(id + ': 모르는 색 글자 ' + k); return SP.KEY[k]; });
-  var out = cells.slice(), n = 0;
-  for (var y = 0; y < Hd; y++) for (var x = 0; x < Wd; x++) {
-    if (cells[y * Wd + x]) { n++; continue; }
-    var nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(function (d) { var X = x + d[0], Y = y + d[1]; return X < 0 || Y < 0 || X >= Wd || Y >= Hd ? null : cells[Y * Wd + X]; }).filter(Boolean);
-    if (!nb.length) continue;
-    nb.sort(function (a, b) { return oklab(a)[0] - oklab(b)[0]; });
-    out[y * Wd + x] = outlineOf(nb[0]);
-  }
+  var S = new SC.Scene(1); draw(S);
+  var r = S.render(), n = 0, cells = r.keys.map(function (k) { if (k == null) return null; n++; return SP.KEY[k]; });
+  if (r.N !== KIT.W) throw new Error(id + ': 크기 ' + r.N);
   if (n < 60) throw new Error(id + ': 칠한 칸이 너무 적다 (' + n + ')');
-  return out;
+  return cells;
 }
 function toRGBA(cells) { var px = Buffer.alloc(cells.length * 4); cells.forEach(function (c, i) { if (!c) return; var r = hexRgb(c); px[i * 4] = r[0]; px[i * 4 + 1] = r[1]; px[i * 4 + 2] = r[2]; px[i * 4 + 3] = 255; }); return px; }
 

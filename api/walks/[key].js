@@ -16,7 +16,8 @@ module.exports = async function walks(req, res) {
   var after = req.query && typeof req.query.after === 'string' && FILE_RE.test(req.query.after) ? req.query.after : null;
   var store = (module.exports._store || ST.blobStore)();
   try {
-    if (!(await ST.readMeta(store, key))) return send(res, 404, { ok: false, error: 'no_room' });
+    var meta = await ST.readMeta(store, key);
+    if (!meta) return send(res, 404, { ok: false, error: 'no_room' });
     var prefix = ST.roomPath(key, 'out/');
     var names = (await store.list(prefix)).map(function (p) { return p.slice(prefix.length); }).filter(function (n) { return FILE_RE.test(n); }).sort(order);
     if (after) names = names.filter(function (n) { return order(n, after) > 0; });
@@ -27,7 +28,7 @@ module.exports = async function walks(req, res) {
     }
     var st = ST.parse(await store.read(ST.roomPath(key, 'state.json'))) || {}, f = st.far || {};
     var far = f.state === 'proposed' ? { state: 'proposed', line: typeof f.line === 'string' ? f.line : null } : { state: f.state === 'open' ? 'open' : 'closed' };   /* 먼 바다 문 제안 → 게임이 사람에게 묻는다 */
-    return send(res, 200, { ok: true, walks: out, more: names.length > out.length, far: far });
+    return send(res, 200, { ok: true, walks: out, more: names.length > out.length, far: far, lang: meta.lang || null, pin: !!meta.pin });   /* lang · pin: 방의 언어와 사람이 정했는지 (게임 설정이 보여 준다) */
   } catch (e) {
     console.error('walks: storage', e && e.name);
     return send(res, 502, { ok: false, error: 'storage' });

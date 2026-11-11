@@ -1,0 +1,147 @@
+# 다국어 뒷손질 — 큰 고침 지시문 (2026-11-10, 로컬 Claude Code 용)
+
+이 글 하나만 읽고 일할 수 있게 썼다. 다국어 가지 (`feat/i18n-rooms` @ 714c919) 를 본 줄기에 합친 뒤, 세 방향 (서버 · 번역본 · 게임 화면) 으로 독립 검증을 돌리고 지적마다 "틀렸다고 증명해 보라" 는 반박을 거쳤다. 주인: "큰 수정 차원은 따로 지시문 남겨주고 (클로드 코드 로컬쪽에서 돌릴게) 일단 합치는 걸로 하자. 문제 사항은 보완할게 추후에."
+
+- **작은 것은 이미 고쳤다** (아래 '이미 한 것'). 다시 하지 않는다.
+- **여기 남은 것은 큰 것과, 주인이 방향을 먼저 정해야 하는 것**이다.
+- 한국어 방은 합치기 전과 같게 논다 (같은 대본을 전후로 돌려 견줌 — 50걸음 중 36걸음 같고, 14걸음은 의도된 차이). 아래 문제는 거의 다 **한국어가 아닌 방**의 이야기다.
+
+## 0. 시작하기 전에
+
+- **가지**: 본 줄기 `ccr-38ad393e-15xr9t` 의 최신에서 새 가지를 딴다 (이 글이 든 커밋 뒤). 본 줄기에 직접 푸시하지 않는다. 리베이스 · 강제 푸시 없음. PR 의 base 는 `ccr-38ad393e-15xr9t`.
+- **먼저 읽기**: `docs/I18N.md` (설계 · 언어가 어디서 오나) → `mcp/README.md` → `docs/MCP_PLAYTEST.md` (진짜 모델로 놀아 본 기록 · 안내문을 고칠 때 보는 법) → `docs/MODEL_VOICE.md`.
+- **지킬 선** (하나라도 어기면 고친 게 아니다):
+  1. 모델을 속이지 않는다. 읽지 않은 것을 읽었다고 하지 않는다. 문어가 무엇을 느끼거나 좋아한다고 말하지 않는다.
+  2. 모델이 쓴 글은 한 글자도 바꾸지 않는다 (자르거나 고쳐 쓰지 않는다 — 받을 수 없으면 정직하게 거절해 다시 쓰게 한다).
+  3. 문어를 떠밀지 않는다. 거절 · 집에 있기는 언제나 되고 값이 없다. 산책은 아무것도 주지 않는다.
+  4. 연속 출석 · 놓치면 손해 · 뽑기 같은 장치 없음.
+  5. 플레이어가 보는 글에 이모지 · 기호 글자 없음.
+  6. 위키백과 글에는 출처와 `CC BY-SA 4.0`.
+- **시험** (고칠 때마다 · 끝에 한 번 더):
+  ```sh
+  node mcp/test/run.js              # 지금 247 통과
+  node mcp/tools/check-books.js     # 오류 0 (경고 175 는 아래 C-2 의 도구 버그)
+  npm test                          # 빠른 묶음 (배포 묶음 검사 포함)
+  python3 tools/subset-fonts.py --check   # 화면 글자를 건드렸으면: stale: none
+  ```
+  **중요**: `mcp/test/run.js` 의 위키 stub (`fetchWiki`) 은 `BRAIN.parseWikiResponse` 를 거치지 않는다. 그래서 A-1 · A-3 같은 문제가 시험을 그냥 통과했다. 위키 응답을 다루는 고침은 **API 원본 모양의 응답으로** 시험한다 — `global.fetch` 를 바꿔 끼우고 `core.wikiFetch(title, {lang})` 를 부른다 (`tools/test-brain.js` 301–314 줄이 그 방식).
+- **안내문 (`mcp/i18n/*.js` 의 instructions · 도구 설명) 을 고치면** 열 언어를 같이 고치고 (`i18nUnit` 이 열쇠 · 모양을 본다), 진짜 모델로 한 번 놀아 본다 (`docs/MCP_PLAYTEST.md` 방식). 뜻이 언어마다 달라지면 안 된다 — 특히 거절 · 집에 있기 허락, "읽지 않은 것을 읽었다고 쓰지 말 것".
+- GitHub Actions 는 11-10 현재 계정 한도로 돌지 않는다. 로컬 결과가 기준이다.
+
+## 1. 이미 한 것 (다시 하지 말 것)
+
+커밋 `8ae6a45` (본 줄기):
+
+| 무엇 | 어디 |
+|---|---|
+| 묶음 (JSON 배열) 요청을 400 으로 거절 — 배열 안의 `tools/call` 이 빈 상태로 돌고 그 빈 상태가 저장돼 방 기록이 지워졌다 | `mcp/http.js` (readBody 바로 뒤) |
+| 안내문의 언어 줄에 코드 열 개 (ko en ja de fr es 사전이 여섯 개만 적고 있었다) | `mcp/i18n/{ko,en,ja,de,fr,es}.js` |
+| 지난 메모 머리말을 방의 언어로 (어느 방이든 한국어 상수가 갔다) · de · it 문장에 '네가 남긴' | `mcp/core.js` `notesBlock` · `mcp/i18n/{de,it}.js` |
+| 엽서의 책 제목 · 옮긴 이 표기 자르기 40 · 30 → 160 · 120 (번역본은 107 · 77자까지) | `mcp/postcard.js` |
+| 이탈리아어 "tu sei il piccolo polpo" → "interpreti il piccolo polpo" (역할을 맡는다) | `mcp/i18n/it.js` |
+
+본 세션이 따로 처리하는 것 (커밋 로그에 `HIS04` 가 보이면 끝난 것 — 안 보이면 C-1 을 한다): 에뮤 전쟁 카드 `HIS04` 의 마지막 문장 오역 (아홉 언어), 방 이름 데이터 세 건 (`lock` id · `chalk` id · hi).
+
+## 2. A — 고칠 것 (큰 순서대로)
+
+### A-1. 한국어가 아닌 방에서는 읽은 글의 `links` 가 하나도 안 온다 (가장 먼저)
+
+- **증상**: en · ja · de · fr · es · it · pt · id · hi 방에서 위키 글을 읽어도 `peek` 결과에 `links` 가 없다. 안내문은 열 언어 모두 "읽은 글의 links" 를 길 중 하나로 알려 주고, `docs/MCP_PLAYTEST.md` 205 · 217 줄은 그 길로 산책이 넓어졌다고 적는다. 그 길이 아홉 언어에서 막혀 있다.
+- **원인**: `mcp/core.js` `wikiFetch` (58줄 근처) 가 모든 언어의 응답을 `BRAIN.parseWikiResponse` 로 푼다. 그 안의 `filterLinkTitle` (`js/brain.js` 531–535) 은 **한글이 든 2~12자** 제목만 남긴다. 아홉 위키의 실제 서가 제목 5,400개 · 방 제목 550개 가운데 통과하는 것은 0개.
+- **`js/brain.js` 는 건드리지 않는다.** 그 거름망은 게임 (데모 두뇌) 의 시험된 동작이다 (`tools/test-brain.js` 293줄).
+- **고치는 길** (반박 단계에서 만들어 본 것 — 기존 시험 244개는 그대로 통과, 출력도 같았다):
+  ```diff
+  --- mcp/core.js
+  @@ wikiFetch
+  -    .then(function (data) { clearTimeout(timer); var r = BRAIN.parseWikiResponse(title, data); if (lang !== 'ko' && r && typeof r.url === 'string') r.url = r.url.replace('https://ko.wikipedia.org/', 'https://' + lang + '.wikipedia.org/'); return r; })
+  +    .then(function (data) { clearTimeout(timer); var r = BRAIN.parseWikiResponse(title, data); if (lang !== 'ko' && r && typeof r.url === 'string') r.url = r.url.replace('https://ko.wikipedia.org/', 'https://' + lang + '.wikipedia.org/'); if (lang !== 'ko' && r && r.ok) r.links = rawLinks(data); return r; })
+  +/* ko 밖 위키의 links: 게임의 걸러내기 (한글이 든 2~12자) 로는 전부 사라진다 → API 응답에서 직접, 언어와 상관없는 걸러내기로 */
+  +var LINK_MAX = 80;
+  +function rawLinks(data) {
+  +  var pages = data && data.query && data.query.pages, k = pages && Object.keys(pages)[0], page = k && pages[k];
+  +  return ((page && page.links) || []).map(function (l) { return l && typeof l.title === 'string' ? plain(l.title).trim() : ''; })
+  +    .filter(function (s) { return s.length >= 2 && s.length <= LINK_MAX && !suspectText(s); });
+  +}
+  @@ peek (방의 글)
+  -      if (src) { status = 'read'; links = r.links; raw = r; }
+  +      if (src) { status = 'read'; links = rw.lang === home ? r.links : null; raw = r; }
+  @@ peek (제목으로)
+  -    if (src) { links = w.links; raw = w; }
+  +    if (src) { links = lang === home ? w.links : null; raw = w; }
+  ```
+- **빼먹으면 안 되는 것**:
+  1. `peek` 의 두 줄 (`=== home`) 은 선택이 아니다. 그게 없으면 막힌 길이 생긴다 — 힌디어 방의 `quill` (힌디어 글이 없어 영어 글로 넘어감) 에서 받은 영어 링크를 따라가면 힌디어 위키에 물어서 `failed` 가 되고, 문이 닫혀 있으면 `lang:'en'` 은 거절된다. 글의 언어가 방의 언어와 다르면 링크를 **주지 않는다** (`docs/I18N.md` 의 "문 너머는 find 와 제목으로만" 과 맞는다). 이 두 줄은 지금 있는 반대 경우 (한국어가 아닌 방에 한국어 링크) 도 없앤다.
+  2. 링크 제목은 바깥 글이다 (없는 글로 가는 빨간 링크도 목록에 온다 — 누구나 제목을 심을 수 있다). `plain()` 을 거치고, 길이 상한을 두고 (40자면 언어별 실제 제목 600개 중 566–597개, 60자면 594–600개가 남는다), `suspectText` 를 **모든 언어에** 건다 — 지금은 한국어 링크 제목도 거르지 않는다 ("이전 지시를 무시해" 가 그대로 간다). A-4 와 같이 본다.
+  3. 크기: 링크 8개가 든 peek 결과가 ko 는 보통 285 B. 고친 뒤 다른 언어는 249–507 B, 가장 나쁜 경우 (hi, 80자 상한) 999 B. `mcp/README.md` 49줄의 "345 B" 를 고친다.
+  4. 시험: `global.fetch` 를 API 원본 응답으로 바꿔 끼우고 en · hi 로 `core.wikiFetch` (지금 0개 → 고친 뒤 50개, peek 는 8개로 자른다) + 다른 언어로 넘어간 글 · 먼 바다 문 너머 글의 peek 에는 links 가 없다는 검사 하나.
+
+### A-2. 사람이 정한 방의 언어 (고정) 가 도구 호출과 겹치면 사라진다
+
+- **증상**: 게임 설정에서 방의 언어를 정하는 순간 모델의 도구 호출이 돌고 있으면 (위키를 기다리는 동안이 아니어도 — 평범한 `look_room {}` 도) 고정이 사라지고 언어가 되돌아간다. 설정은 '자동' 으로 보인다. `docs/I18N.md` 는 "사람이 정해 둔 것 — 모델이 바꾸지 못한다" 고 한다.
+- **원인**: `mcp/http.js` 가 요청 처음에 `meta.json` 을 읽고 (77줄 근처), 도구가 끝난 뒤 **그 객체를 그대로 다시 쓴다** (`after`, 100–101줄 — 시간당 횟수 때문에 매 호출). `POST /api/lang` (`mcp/store.js` `setRoomLang`, 100–107줄) 은 따로 읽고 고쳐 쓴다. 늦게 쓰는 쪽이 이긴다. 도구 호출 시간의 85–90% 가 지는 창이다. 반대 차례면 시간당 횟수가 되감긴다.
+- **작은 길** (창을 좁힌다 — 닫지는 못한다. 호출 전체 → 호출당 약 100 ms. 호출마다 blob 읽기 한 번, +40–57 ms):
+  ```diff
+  --- mcp/http.js  (after 안, state.json 을 쓴 다음)
+  +      var fresh = null; try { fresh = await ST.readMeta(store, key); } catch (e) { fresh = null; }
+  +      if (fresh) { fresh.hour = meta.hour; fresh.calls = meta.calls; meta = fresh; }
+         if (!meta.pin && oct.S.lang && oct.S.lang !== meta.lang) meta.lang = oct.S.lang;
+  ```
+- **닫는 길** (권함): `lang` + `pin` 을 제 blob (`rooms/<열쇠>/lang.json`) 으로 떼어 `/api/lang` 만 쓰게 하고, `handleMcp` 는 읽기만 한다 (모델이 알려 준 언어는 `state.lang` 에 이미 있다 — `meta.lang` 에 비추는 줄이 필요한지 다시 본다). `api/walks/[key].js` 가 돌려주는 `lang` · `pin` 과 방 만들기 (`api/room.js`) 를 같이 고친다. 옛 방 (meta 에 lang · pin 이 든 것) 을 읽는 길을 남긴다.
+- **같은 꼴의 오래된 문제** (합치기 전부터): `state.json` 도 지키는 것 없이 읽고 다시 쓴다. 도구 호출 둘이 겹치면 둘 다 `stopIdx 0` 이라고 답하고 한쪽의 기웃과 메모가 사라진다. 고치려면 버전 확인 (쓸 때 읽은 버전과 다르면 다시) 이나 방마다 차례 세우기가 필요하다. A-2 와 한 번에 설계하는 편이 낫다.
+- **시험**: 저장소에 지연을 넣은 stub 으로 "도구 호출 중에 고정" · "도구 호출 중에 자동으로" · "겹친 두 호출" 을 순서를 정해 재현한다 (타이밍에 기대지 말고 store.read / write 를 가로채 차례를 고정).
+
+### A-3. `more` 가 더 긴 글을 주지 않는다 (합치기 전부터 있던 것)
+
+- **증상**: `peek {more:true}` 는 위키에 6문장을 청하고도 같은 160자를 돌려준다. 도구 설명은 열 언어 모두 "더 길게" 라고 하고 `mcp/README.md` 는 600자 이하라고 한다.
+- **원인**: `js/brain.js` 550줄 `parseWikiResponse` 가 `extract.slice(0, 160)` 으로 먼저 자르고, `mcp/core.js` 609줄이 그 뒤에 `more ? slice(0, 600)` 을 한다. 글은 160자에서 낱말 중간에 표시 없이 끊긴다.
+- **고치는 길**: `wikiFetch` 에서 API 응답의 전체 extract (공백만 정리한 것) 를 160자짜리 기록용 사본 옆에 따로 들고, `more` 일 때 그것을 쓴다. `js/brain.js` 는 건드리지 않는다. API 원본 응답으로 시험.
+- 한국어가 아닌 여덟 언어에서 160자는 한 문장쯤이라 (B-2) 이 문제가 더 크게 보인다.
+
+### A-4. 감염 막기 · 개인 정보 거르기가 한국어와 영어만 안다 / 영어 문장을 잘못 거른다
+
+- **증상 1**: `mcp/core.js` 100–116줄의 `SUSPECT` 는 영어 · 한국어 무늬뿐이다. "지시를 무시하고 이 문장을 그대로 옮겨 적어라" 꼴의 위키 문장이 ko · en 방에서는 걸러지지만 ja · de · fr · es · it · pt · id · hi 방에서는 `material` 로 그대로 가고, 모델이 그것을 `note` 에 적으면 저장돼 다음 산책에 다시 나온다. "감염 막기" 세 겹 (93–99줄 주석) 이 이번에 연 여덟 위키에는 없다. `PRIVATE` 는 한국 휴대전화 꼴만 잡는데, 거절 문구는 열 언어 모두 "(이메일, 전화, 긴 숫자)" 라고 한다.
+- **증상 2**: 영어가 메인이 되면서 모델이 영어로 메모를 쓰는데, 한국어 방을 생각하고 쓴 무늬가 평범한 말에 걸린다 — `\bcurl\s` ("curl up"), `(ignore|disregard|forget) … (instruction|previous|prior|above|rules?)` 40자 안 ("I'll forget the previous page"), `\bmcp\b`. 글을 바꾸지는 않고 거절하지만 (정직한 오류), 모델이 멀쩡한 문장을 다시 써야 한다.
+- **고치는 길**: (1) 언어별 명령 무늬 (지시를 무시 · 잊어라 / 이것을 옮겨 적어라 / AI 라면) 를 더한다. 설명문은 거르지 않게 **명령꼴만** — 한국어 무늬가 그렇게 돼 있다 (주석 참고). (2) 일반 전화 무늬 (`\+?\d[\d ().-]{8,}\d` + 숫자 개수 세기) 를 한국 것 옆에. (3) 영어 무늬를 좁힌다: `curl` 은 뒤에 `-` 나 `http` 가 올 때만, ignore/disregard/forget 은 목적어가 instructions/prompt 일 때만, `mcp` 는 도구 말 옆에서만. (4) 서가의 영어 글 114편은 지금 0건 걸린다 — 고친 뒤에도 0건이어야 한다 (전 언어 1,140편으로 재 본다). 다 못 하면 `docs/I18N.md` '안 된 것' 에 "거름망은 ko · en 만" 이라고 적는다 — 말없이 두지 않는다.
+
+### A-5. 산책 중에 방의 언어가 바뀌면 알림 없이 다음 걸음부터 다른 위키다 / 고정 알림이 한쪽 경우에만 온다
+
+- **증상**: 산책이 열려 있는 동안 방의 언어가 바뀌면 (모델의 `look_room {lang}` 이든 사람의 고정이든) 다음 `peek {kind:'wiki', title}` 는 새 위키에서 찾는다. 모델이 들고 있는 제목 (서가 · links) 은 옛 위키 것이고, 답에는 아무 알림이 없고, 옛 위키는 이제 먼 바다 문이 필요하다. 사람이 고정한 뒤 `look_room {}` 이나 `look_room {lang:<고정한 언어>}` 에는 `langNote` 가 없다 — 다른 언어를 보낼 때만 "사람이 정해 두었다" 가 온다. 원격 방은 안내문 · 도구 글이 처음 언어 그대로라 (무상태 서버), `lang` 을 안 보내는 모델은 사람이 바꾼 방에서 옛 언어로 계속 쓴다.
+- **고치는 길**: 산책의 언어를 `depart` 때 적어 두고 `finish` 까지 `peek` 의 기본 언어로 쓴다 (바뀐 언어는 다음 산책부터). 고정된 방이면 `look_room` 에 고정 알림을 늘 넣는다 (약 100 B). 새 문장이 필요하면 열 사전에 같이.
+- B-1 (먼 바다 문) 의 결정과 맞물린다. B-1 을 먼저 정한다.
+
+### A-6. 원격 요청마다 서가 1,140편을 전부 다시 읽는다
+
+- `mcp/http.js` 가 요청마다 `new core.Octopus` 를 만들고, 생성자가 `loadBooks` + `loadCards` 로 열 언어 전부 (1,140 파일 · 1.8 MB) 를 읽어 푼다. 합치기 전에는 92 파일이었다. 2 ms → 27 ms, 힙 5 → 25 MB (바쁜 기계에서 잰 값). 방은 한 언어만 쓴다.
+- **고치는 길**: 디렉터리별로 모듈 수준에 한 번 읽어 둔다 (배포에서는 정적 파일), 또는 ko + 방의 언어만 읽는다. `api/far/[key].js` 도 같은 생성자를 쓴다.
+
+## 3. B — 주인이 먼저 정할 것 (정해지기 전에는 고치지 않는다)
+
+1. **먼 바다 문과 언어 따라가기.** 방의 위키가 대화의 언어를 따라가게 되면서, 문이 닫혀 있고 등불이 0칸이어도 모델이 `look_room {lang}` 을 바꿔 가며 열 위키를 다 읽을 수 있다 (한 번의 산책에서 9개 다 됨 — 시간당 300회 말고는 막는 것이 없다). 게임의 물음 ("열면 영어 위키백과도 읽을 수 있어") 에 "지금은 그대로" 라고 답한 뒤에도 그렇다. `docs/MCP_PLAYTEST.md` 251줄은 그 문을 "사람의 동의" 라고 한다. 두 뜻이 부딪힌다: *방과 도서관이 대화의 언어를 따라간다* / *다른 위키는 사람이 한 번 열어 줘야 한다*.
+   - (가) 문을 진짜 동의로 지킨다 → 집 위키는 고정 · 기기 언어로 두고, 대화의 언어는 **글의 언어** 로만 쓴다 (크다: 코어 · 열 사전 · 시험).
+   - (나) 문은 이제 "방을 바꾸지 않고 둘째 언어를 읽는 길" 일 뿐이라고 받아들인다 → 문서와 문의 문구를 그렇게 고친다.
+   - 해 본 것: "산책 중엔 안 바뀜 + 하루 한 번" 은 막지 못한다 (아홉 날이면 아홉 개, 그리고 ko → en → ko 한 날이 영어에 갇힌다).
+2. **분량을 언어마다 맞출지.** 위키 발췌 160 / 600자와 모델이 쓰는 칸 (반응 40 · 한 줄 200 · 메모 500 · 덧말 120) 이 어느 언어든 같은 글자 수다. 같은 내용이 여덟 언어 (CJK 밖) 에서는 한국어의 2.3–2.8배 글자가 든다. 그래서 160자는 한국어 58–71자어치이고, 한국어로 176자인 문단이 독일어 메모로는 502자라 거절된다. 주인의 말은 "각 양은 똑같이". 책에는 이미 눈금이 있다 (`LEN_SCALE`: en 3 · ja 1.1 · 나머지 3.5 — 잰 중앙값은 en 2.42 · ja 0.90 · de 2.74 · hi 2.26 이라 책은 오히려 다른 언어가 더 많이 받는다). 눈금을 칸과 발췌에도 걸지, 글자 수 그대로 둘지.
+3. **서가 주제.** 오늘의 서가는 각 위키의 알찬 · 좋은 글에서 거르지 않고 뽑는다 (한국어도 전부터 그랬다 — "아돌프 히틀러의 죽음", "303고지 학살"). 새 포르투갈어 표본에는 "30 Rock: A XXX Parody" 가 있다. 주제 거름망을 둘지.
+4. **번역 표기.** 영어본의 표기는 "English by Claude (AI)" 이고, 어느 번역본도 무엇에서 옮겼는지 모델에게 말하지 않는다. 그걸로 충분한지.
+5. **한국어 밖의 방 이름.** 지금은 그 위키의 글 제목이다. 그래서 방의 제 이름이 사라진다 — "고래의 노래" → "Humpback whale", "시간 감각" → "Time", "구름 이름" → "Cloud", "문어" → 일곱 언어에서 "Giant Pacific octopus" (종 이름). 스페인어 · 이탈리아어 · 포르투갈어에는 학명도 있다 ("Enteroctopus dofleini", "Megaptera novaeangliae", "Bryophyta sensu lato", "Asteroidea"). 글 제목을 둘지, 방의 이름을 옮기고 글은 `wiki` 로만 둘지.
+6. **서가 글의 쓴 이와 권리 표기.** 원문 114편의 표기는 전부 AI 다 (Claude 24 · ChatGPT 8 · "조사 ○○ · 다듬음 Claude" 82), 번역본 1,026편은 "Claude (AI)". 사람 이름으로 된 글은 없다. README 와 '만든 것들' 은 게임의 "글" 에 모든 권리 보유를 적는다. 그 문장이 이 글들까지 덮는 뜻인지, "서가의 글은 AI 도구로 썼다 (표기 참고)" 를 덧붙일지 (AI 가 쓴 글의 저작권은 나라마다 다르다).
+7. **위키백과를 참고한 책.** Claude 가 쓴 책 24권이 출처에 위키백과 글을 적었고 그중 21권은 그것뿐이다. `sources` 줄은 모델에게도 플레이어에게도 가지 않고, '만든 것들' 에는 서가 이야기가 없다. 어떤 책이 위키 글을 가깝게 따랐다면 CC BY-SA 는 출처 표시와 같은 라이선스를 요구한다. `sources` 를 책 결과에 싣거나 '만든 것들' 에 한 줄 ("책장의 책은 위키백과 글을 참고해 AI 가 썼다") 을 둘지. (이 기계에서는 위키에 닿지 못해 본문을 견주지 못했다.)
+8. **Grok 카드 22장.** 18장의 `sources` 에 "Claude 열람 안 함" (다듬은 쪽이 출처를 열어 보지 않고 널리 알려진 사실과만 견줌) 이 적혀 있다. 그 말은 머리말에만 있어서 아무에게도 가지 않는다. 본문이나 표기에 넣을지. COS11 (LHCb, 2026-11) · COS13 (JWST, 2026) 은 확인하지 못한 2026년 소식이다.
+9. **`HIS04` 한국어 원문.** "사살 수도 적고 있다" 를 아홉 번역이 전부 "적다 (few)" 로 읽었다. 원문을 헷갈리지 않게 고칠지 ("사살한 수도 기록하고 있다") — 고치면 아홉 번역본의 지문을 다시 찍는다 (`node mcp/tools/stamp-translations.js`).
+10. **방을 알기 전의 오류 언어.** 405 · 403 · 400 · 413 · 404 는 늘 한국어다 ("POST 만 받아." …). 모르는 기기 언어는 영어가 되는데 ("영어가 메인"). 잘못 적은 커넥터 주소에 어느 쪽을 보일지 (두 언어로 같이 적는 길도 있다).
+
+## 4. C — 자잘한 것 (한꺼번에 해도 된다)
+
+1. (본 세션이 안 했을 때만) `HIS04` 마지막 문장을 아홉 번역에서 고친다 — 뜻: "작전 기록은 에뮤 피해를 줄이지 못한 것과 함께 사살한 수도 적어 두었다 (기록했다)". 영어: "The operation records note the number of emus killed as well as the failure to reduce the damage they caused." 방 이름: `mcp/data/rooms.manual.json` 에 `lock` id → "Gembok", `chalk` id → "Kapur tulis", `chalk` hi → "चॉक" (그 위키에 글이 있는지 API 로 확인해 `wiki` 를 채우고, 확인 못 하면 `"wiki": null` — 영어 글로 넘어간다).
+2. `mcp/tools/check-books.js` 34줄: `digits()` 가 구분 기호와 함께 **앞 숫자까지 지운다** (`replace(/(\d)[ .,](?=\d)/g, '')` → 바꿀 글을 `'$1'` 로). 지금은 18.9 와 17.9 가 같은 "19" 가 되고 경고 175개가 전부 헛경보다. 달 이름 · 로마 숫자 · 수사를 받아들이면 기준이 0이 되어 진짜 경고가 보인다. 3줄 주석과 42줄 오류 글의 "여섯 언어" / "ko 밖의 다섯" 도.
+3. 스키마가 `pt-BR` · `en-US` · `EN` 을 영어 SDK 오류로 거절한다 (`mcp/tools.js` 63 · 74줄 `z.enum`) — 코어 (`I18N.norm`) 는 받는다. `z.string().max(16)` + 코어에서 정리 + 모르는 코드는 방의 언어로 짧게 알림.
+4. 사전의 작은 뜻 차이 (허락을 빼거나 떠미는 것은 없음): `err.noRoom` 이 없는 칸 `library` 를 가리킨다 (ko · de · hi — depart 는 `rooms` 를 준다) · it `lantern` "a ogni giorno con ospiti" · it · id 의 `err.none` 이 영어 'none' · it · pt · hi 의 반응 보기가 영어 · hi `tools.look.desc` "घर के काम" (집안일로 읽힌다) · ja 가 웹 주소를 "住所" 로.
+5. 기본값 · 낡은 주석: `PPOLPPOL_LANG=zh-TW` 는 고정 안 된 한국어 방이 된다 (원격 규칙은 영어) · `/api/lang` 이 "JA" · "pt-BR" 는 받고 "AUTO" · " auto" 는 400 · 기기 코드 "in" (옛 인도네시아어) 이 en 이 된다 · 주석에 남은 "여섯 / 세 / 다섯 언어" (`api/lang/[key].js` 1–2 · `mcp/store.js` 99 · `mcp/http.js` 12 · `mcp/core.js` 15 · 133 · 167 · `mcp/i18n.js` 8 · 12 · `mcp/test/run.js` 381 의 이름표) · `library/README.md` 3 · `mcp/README.md` 67 · `mcp/core.js` 142 · 464 의 "사람이 쓴 책" (표기는 전부 AI).
+6. stdio: 언어를 한 번 바꾸면 `tools/list_changed` 가 아홉 번 간다 (`mcp/tools.js` 113–117 `relang`). 알림 없이 고치고 끝에 한 번만 — SDK 가 되면.
+7. 번역 잔손질 (뜻은 맞음): 추측 표현이 단정이 된 세 곳 (`books/de/thunder.md` 14 · `books/hi/thunder.md` 14 · `cards/de/BIO04.md` 11) · 원문에 없는 "Podkamennaya" (COS17 의 en · id · de · es · it) · `books/en/prime.md` 10 과 `books/id/prime.md` 10 의 명령형 · 독일어 등대 "Blinkfeuer / Blink" (2초 미만은 "Blitz" — 독일 등대표로 확인할 것) · 스페인어 유리 "vidrio laminado" → "vidrio plano" · 프랑스어 표기의 U+00A0 (책 8권) · 서가 파일 다섯 (en ja de fr es) 에 `via` 열쇠 없음 (다음에 다시 만들 때).
+
+## 5. 끝낼 때
+
+- 무엇을 고쳤고 무엇을 남겼는지, 시험 숫자, 주인이 정한 것 (3절의 번호) 을 PR 설명에 적는다.
+- `docs/I18N.md` 의 '안 된 것' · '주인이 정할 것' 을 지금 상태로 고친다.
+- 본 세션 (본 줄기를 맡은 세션) 이 합치고 배포한다.

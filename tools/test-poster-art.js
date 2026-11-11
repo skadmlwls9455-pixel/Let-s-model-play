@@ -103,8 +103,18 @@ var html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), iD = html.ind
 check(iD > 0 && iD < iA && iA < iApp, 'index.html: poster-art-data.js → poster-art.js → app.js');
 var app = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
 check(/POSTER_ART\.svg\(trip/.test(app), 'app.js posterSVG 가 POSTER_ART.svg 를 부른다');
-var src = fs.readFileSync(path.join(ROOT, 'js/poster-art.js'), 'utf8') + fs.readdirSync(path.join(ROOT, 'tools/ui-art/poster')).map(function (f) { return fs.readFileSync(path.join(ROOT, 'tools/ui-art/poster', f), 'utf8'); }).join('\n');
+var src = fs.readFileSync(path.join(ROOT, 'js/poster-art.js'), 'utf8') + fs.readFileSync(path.join(ROOT, 'tools/ui-art/sculpt.js'), 'utf8') + fs.readdirSync(path.join(ROOT, 'tools/ui-art/poster')).map(function (f) { return fs.readFileSync(path.join(ROOT, 'tools/ui-art/poster', f), 'utf8'); }).join('\n');
 check(!/Math\.random/.test(src), 'Math.random 0건 (같은 그림이 늘 같게 나온다)');
+/* 넷째 판: 그림은 형태 음영 렌더러로 짓는다 — 다시 지어도 저장된 그림과 바이트까지 같다 (정의와 그림이 어긋나지 않았다) */
+(function () {
+  var SC = require('./ui-art/sculpt.js'), SPK = require('./ui-art/sprites.js').KEY, zlib = require('zlib');
+  function pixels(b64) { var b = Buffer.from(b64, 'base64'), i = 8, idat = []; while (i < b.length) { var len = b.readUInt32BE(i), t = b.toString('ascii', i + 4, i + 8); if (t === 'IDAT') idat.push(b.slice(i + 8, i + 8 + len)); i += 12 + len; } var raw = zlib.inflateSync(Buffer.concat(idat)), px = []; for (var y = 0; y < 32; y++) for (var x = 0; x < 32; x++) { var o = y * 129 + 1 + x * 4; px.push(raw[o + 3] ? '#' + [raw[o], raw[o + 1], raw[o + 2]].map(function (v) { return (v < 16 ? '0' : '') + v.toString(16); }).join('') : null); } return px; }
+  [['hands', 'hat', 'room'], ['numbers', 'knot_theory', 'room'], ['corners', 'sea', 'corner'], ['stay', 'nap', 'stay']].forEach(function (q) {
+    var S = new SC.Scene(1); require('./ui-art/poster/' + q[0] + '.js')[q[1]][1](S);
+    var want = S.render().keys.map(function (k) { return k ? SPK[k] : null; }), got = pixels(DATA[q[2]][q[1]]);
+    check(JSON.stringify(want) === JSON.stringify(got), q[0] + '/' + q[1] + ': 다시 지은 그림 = 저장된 그림');
+  });
+})();
 
 console.log('test-poster-art: ' + passes + ' ok' + (fails ? ', ' + fails + ' FAIL' : ''));
 process.exit(fails ? 1 : 0);

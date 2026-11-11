@@ -2632,7 +2632,7 @@ var APP = (function () {
     return out;
   }
   /* 뒷면 영수증 HTML (§6.2) — 링크 클릭 가능. 출처 링크는 위키백과(한국어) 주소일 때만 (두뇌도 거르지만 옛 기록·불러온 기록까지) */
-  var WIKI_SRC = /^https:\/\/(ko|en)\.wikipedia\.org\//;   /* en: 먼 바다 문 */
+  var WIKI_SRC = /^https:\/\/(ko|en|ja|de|fr|es|it|pt|id|hi)\.wikipedia\.org\//;   /* 방의 언어 · 먼 바다 문 (MCP: mcp/i18n.js LANGS 와 같게) */
   function receiptHTML(trip) {
     var r = trip.receipt, p = trip.poster || {}, out = '<div class="receipt">';
     out += '<h3>일기' + (trip.date ? ' · ' + esc(fmtDate(trip.date, true)) : '') + '</h3>';   /* 화면 말은 '일기' (코드 이름 receipt* 는 그대로). 여행 id 는 보이지 않는다 */
@@ -3110,7 +3110,7 @@ var APP = (function () {
       var mk = h('button', { type: 'button', class: 'btn sm pressable', id: 'set-claude-make', text: '연결할 방 만들기' });
       mk.addEventListener('click', function () {
         mk.disabled = true;
-        fetch('/api/room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: S.octopus.name || '' }) })
+        fetch('/api/room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: S.octopus.name || '', lang: String(navigator.language || '') }) })   /* lang: 기기 언어 → 방의 언어 (문어가 그 언어로 쓴다) */
           .then(function (res) { return res.ok ? res.json() : null; })
           .then(function (j) {
             if (!j || !j.ok || !CLAUDE_KEY_RE.test(j.key || '')) { toast('지금은 방을 만들 수 없어. 조금 뒤에 다시 해 봐'); mk.disabled = false; return; }
@@ -3127,6 +3127,20 @@ var APP = (function () {
     frag.appendChild(url);
     frag.appendChild(h('p', { class: 'set-note', text: 'claude.ai › 설정 › 커넥터 › 커스텀 커넥터 추가에 이 주소를 붙여 넣어. 웹에서 한 번 넣으면 모바일 앱에서도 같이 써.' }));
     frag.appendChild(h('p', { class: 'set-note', text: '이 주소를 아는 사람은 이 방에 들어올 수 있어. 남에게 보여 주지 마. 방에는 산책 기록과 메모만 있어.' }));
+    /* 방의 언어 — 문어가 남기는 글의 언어. 자동이면 Claude 와 나누는 대화의 언어를 따라간다 (모델이 look_room 의 lang 으로 알려 준다). 고르면 고정 (/api/lang, 모델은 못 바꾼다) */
+    var LANG_NAMES = { ko: '한국어', en: 'English', ja: '日本語', de: 'Deutsch', fr: 'Français', es: 'Español', it: 'Italiano', pt: 'Português', id: 'Bahasa Indonesia', hi: 'हिन्दी' }, cur = LANG_NAMES[r.lang] ? r.lang : null;
+    var sel = h('select', { id: 'set-claude-lang', 'aria-label': '방의 언어' }, [h('option', { value: 'auto', text: '자동 · Claude 대화를 따라감' + (cur && !r.pin ? ' (지금 ' + LANG_NAMES[cur] + ')' : '') })].concat(Object.keys(LANG_NAMES).map(function (k) { return h('option', { value: k, text: LANG_NAMES[k] }); })));
+    sel.value = r.pin && cur ? cur : 'auto';
+    sel.addEventListener('change', function () {
+      var v = sel.value; sel.disabled = true;
+      fetch('/api/lang/' + encodeURIComponent(r.key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang: v }) })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (j) { if (!j || !j.ok) { toast('지금은 언어를 바꿀 수 없어'); return; } r.lang = LANG_NAMES[j.lang] ? j.lang : null; r.pin = !!j.pin; save(); toast(j.pin ? '방의 언어를 정했어: ' + LANG_NAMES[j.lang] : '이제 Claude 대화의 언어를 따라가'); })
+        .catch(function () { toast('지금은 언어를 바꿀 수 없어 (연결 안 됨)'); })
+        .then(function () { sel.disabled = false; renderSettings(); });
+    });
+    frag.appendChild(h('p', { class: 'set-note', text: '방의 언어 — 문어가 남기는 글의 언어야. 자동이면 Claude 와 나누는 대화의 언어를 따라가.' }));
+    frag.appendChild(sel);
     var sy = h('button', { type: 'button', class: 'btn sm pressable', text: '다녀온 산책 가져오기' });
     sy.addEventListener('click', function () { claudeSync(true); });
     var off = h('button', { type: 'button', class: 'btn sm pressable', text: '이 기기에서 연결 끊기' });
@@ -3167,6 +3181,7 @@ var APP = (function () {
       .then(function (j) {
         if (!j || !j.ok) { claudeSyncing = false; if (manual) toast('지금은 가져올 수 없어'); return; }
         if (j.far && j.far.state === 'proposed') farPending = j.far;   /* 먼 바다 문 제안 — 산책 재생이 끝난 뒤 한 번 묻는다 */
+        if (typeof j.lang === 'string' || j.lang === null) { r.lang = typeof j.lang === 'string' ? j.lang : null; r.pin = !!j.pin; save(); }   /* 방의 언어 (설정 화면이 보여 준다) */
         var list = (j.walks || []).filter(function (w) { return w && typeof w.file === 'string' && Array.isArray(w.events) && w.events.length; });
         if (!list.length) { claudeSyncing = false; if (manual && !farPending) toast('새로 다녀온 산책이 없어'); farAsk(); return; }
         (function next() {
