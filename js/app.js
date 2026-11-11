@@ -557,8 +557,12 @@ var APP = (function () {
     var host = $('scene'), opts = sceneOpts();
     if (!force2d && typeof SCENE3D !== 'undefined' && SCENE3D.supported()) {
       opts.onLost = sceneLost;
-      try { scene = SCENE3D.init($('scene3d'), opts); sceneMode = '3d'; }
-      catch (e) { console.warn('[app] scene3d init 실패 → 2D 폴백', e); scene = null; }
+      /* 3D 칸은 숨은 채로 온다 (index.html 의 hidden). 장면을 만들기 *전에* 먼저 드러낸다 (11-11): 숨은 칸은 0×0 으로 재어져 장면이 320×240 어림 크기로 시작하고,
+         진짜 크기는 이 작업이 끝난 뒤 ResizeObserver 로 온다 — 그 사이에 boot 가 시작하는 입장 연출이 어림 크기로 하늘을 지었다. 같은 작업 안이라 그 사이에 그려지는 것은 없다.
+         init 이 실패하면 바로 도로 숨기고(2D 가 재기 전에), 끝에서 sceneMode 로 한 번 더 맞춘다 */
+      var box3 = $('scene3d'); box3.hidden = false;
+      try { scene = SCENE3D.init(box3, opts); sceneMode = '3d'; }
+      catch (e) { console.warn('[app] scene3d init 실패 → 2D 폴백', e); scene = null; box3.hidden = true; }
       try { if (scene && typeof scene.setOctWear === 'function' && isObj(S.settings.octWear)) scene.setOctWear(S.settings.octWear); } catch (e) { console.warn('[app] setOctWear', e); }   /* 문어가 쓰기로 한 것 */
       try { if (scene && typeof scene.setLayout === 'function' && isObj(S.room.layout)) scene.setLayout(S.room.layout); } catch (e) { console.warn('[app] setLayout', e); }   /* 저장된 가구 자리 */
     }

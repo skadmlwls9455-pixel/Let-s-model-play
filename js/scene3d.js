@@ -438,7 +438,7 @@ var SCENE3D = (function () {
        움직이는 건 타깃 y 오프셋 하나뿐이고, 픽셀 격자 스냅은 placeCamera 의 snapScreen 이 그대로 해 준다 (서브픽셀 크리프 없음, 스텝은 정수 px).
        곡선 (카드 11, 11-07): 맨 위에서 top 초 멈춤 → 사다리꼴 속도(처음 28 % 가속 · 가운데 일정 · 끝 38 % 감속)로 움직임의 90 % 에 H → 0,
        86~100 % 에 착지 눌림(D = 아트 2px 만큼 더 내려갔다가 사인으로 복귀). 처음 천천히 · 중간 일정 · 부드러운 착지. 모션 감소면 연출 없이 바로 착지. */
-    var INTRO = { on: false, t: 0, dur: 2.2, top: 0, H: 0, D: 0, resolve: null, sky: null, acc: 0, hold: false, band: 0, bands: null, bg0: null, pass: 0, covered: false };
+    var INTRO = { on: false, t: 0, dur: 2.2, top: 0, H: 0, D: 0, hk: 1.35, fit: '', resolve: null, sky: null, acc: 0, hold: false, band: 0, bands: null, bg0: null, pass: 0, covered: false };   /* hk = 출발 높이 (화면 높이의 배수) · fit = 하늘을 지은 격자 'rw x rh @ N' (introFit) */
     var EASE = { a: 0.28, d: 0.38, land: 0.9, bump: 0.86 };
     function introK() { return clamp((INTRO.t - INTRO.top) / Math.max(INTRO.dur - INTRO.top, 0.1), 0, 1); }   /* 움직임 진행도 (멈춤 뒤부터) */
     function introOffset() {
@@ -637,6 +637,7 @@ var SCENE3D = (function () {
       placeCamera();
       if (ready) { clampPan(); panRest(); placeCamera(); layoutWeather(false); if (CURT.frame) curtainFrame(1); anim.dustInit = false; extApplyWeather(); }   /* 룩 패스 7: 격자가 바뀌면 비·눈·물방울·커튼·먼지를 새 픽셀 중심에 재스냅 */
       plEyeLod();   /* 내 캐릭터 눈 텍스처 LOD (N 에 따라 2×3 · 4×5 · 8×10 텍셀 칸) — 함수 선언이라 끌어올려져 있고, PL 이 아직 없으면 안에서 그냥 돌아온다 */
+      introFit();   /* 입장 연출 중에 격자(타깃 크기 · N)가 바뀌었으면 하늘을 새 크기로 (resize() 도 여기로 끝난다 → 첫 ResizeObserver · 폰 돌리기 · 주소창 · 줌이 한 곳에서). 연출 중이 아니면 비교 한 번뿐 */
     }
     function zoomStepOf(f) { return clamp(Math.round(Math.log(f) / Math.LN2 * 6), 0, ZOOM_STEPS.length - 1); }
     function setZoom(f, cx, cy) {   /* 배율 f 로. (cx, cy) = 클라이언트 px 기준점: 그 아래 있던 곳이 줌 뒤에도 그 아래 (경계 안으로 자름). 연출 중·기준점 없음 = 가운데 */
@@ -4465,9 +4466,11 @@ var SCENE3D = (function () {
       if (st.reduced || o.instant) return Promise.resolve(false);
       INTRO.dur = clamp(+o.dur || 2.2, 0.6, 6); INTRO.t = 0; INTRO.acc = 0; INTRO.hold = !!o.hold;   /* hold: 착지 뒤에도 비네트를 끈 채로 (입장 레이어가 걷힐 때 introRelease) */
       INTRO.top = clamp(+o.top || 0, 0, INTRO.dur * 0.3);   /* 맨 위 멈춤 (초, 카드 11) — dur 안에 든다 */
-      placeCamera();   /* _r · _u 갱신 */
-      var vh = (S.rh / S.N) / Math.max(_u.y, 0.3);
-      INTRO.H = (o.height || 1.35) * vh; INTRO.D = 2 * pxUp();   /* 출발 = 방이 화면 아래로 완전히 빠진 높이 · 착지 눌림 아트 2px */
+      /* 하늘(출발 높이 · 구름 자리 · 뚫는 구름 크기 · 비와 눈 · 별)은 전부 지금 장면 크기에서 나온다 → 짓기 전에 장면 칸을 직접 잰다 (11-11).
+         칸이 숨은 채 init 되었거나(0×0 → 320×240 어림) 칸이 막 바뀌었으면 ResizeObserver 는 이 작업이 끝난 뒤에야 온다. 예전엔 그 어림 크기로 지어서
+         폰에서 구름과 뚫는 구름이 첫 화면에 한 덩어리로 몰렸다 (출발 높이 2.6 화면 → 0.85 화면). 크기가 같으면 아무것도 안 한다 (setSize 는 캔버스를 한 프레임 비운다) */
+      if ((container.clientWidth || 320) !== S.W || (container.clientHeight || 240) !== S.H) resize();
+      INTRO.hk = o.height || 1.35; introSize();
       /* 하늘 띠: [구름 위, 구름 아래 = 원래 허공]. 구름 위는 낮이어도 짙은 남색, 노을·새벽은 남흑, 밤은 거의 검정 (모두 Apollo 칸) */
       /* 구름 위 색은 C() 없이 그 값 그대로 넣는다 (후처리가 sRGB 로 읽는다 → 화면에 그 칸 그대로). 구름 밑은 원래 허공 (화면엔 #090a14 쯤) */
       var ph = phaseOf(st.hour), upHex = ph === 'night' ? '#090a14' : ph === 'day' ? '#172038' : '#241527';
@@ -4491,6 +4494,21 @@ var SCENE3D = (function () {
       }
       placeCamera();
       var r = INTRO.resolve; INTRO.resolve = null; if (r) r(true);
+    }
+    function introSize() {   /* 장면 크기에서 나오는 값: 출발 높이 H = 화면 높이의 hk 배 (방이 화면 아래로 완전히 빠진다) · 착지 눌림 D = 아트 2px · fit = 이 값들을 잰 격자 */
+      placeCamera();   /* _r · _u 갱신 */
+      INTRO.H = INTRO.hk * (S.rh / S.N) / Math.max(_u.y, 0.3); INTRO.D = 2 * pxUp();
+      INTRO.fit = S.rw + 'x' + S.rh + '@' + S.N;
+    }
+    /* 연출 중에 격자가 바뀜 (applyZoom 끝에서 부른다 — 매 프레임이 아니라 크기가 바뀌는 순간에만): 진행도(INTRO.t)와 하늘 띠는 그대로 두고 높이를 다시 재고 하늘을 새로 짓는다.
+       옛 하늘은 바로 버린다 (착지 프레임이 아니라 크기가 바뀌는 프레임이라 미룰 까닭이 없고, 두 겹이 남지 않게). 착지했거나 건너뛴 뒤(INTRO.on = false · hold 만 남음)엔 하늘이 없으니 아무것도 안 한다 */
+    function introFit() {
+      if (!INTRO.on || INTRO.fit === S.rw + 'x' + S.rh + '@' + S.N) return;
+      var old = INTRO.sky; INTRO.sky = null;
+      if (old) { scene.remove(old.g); old.list.forEach(function (d) { if (d && d.dispose) d.dispose(); }); }
+      introSize();
+      if (old) { INTRO.sky = buildSky(); skyLayout(false); }
+      placeCamera();   /* 카메라도 새 높이로 (다음 프레임을 기다리지 않는다 — stats().frameY · 멈춘 루프) */
     }
     function introRelease() { INTRO.hold = false; post.uniforms.uVig.value = hasDepthTex ? 1 : 0; }
     function applyPendingPixel() {   /* 자동 픽셀 폴백 적용: 입장 연출(하늘·타이틀) 동안은 미룬다 — 연출 한가운데서 픽셀 밀도가 바뀌면 구름·로고와 어긋나고 깜빡인다 */
