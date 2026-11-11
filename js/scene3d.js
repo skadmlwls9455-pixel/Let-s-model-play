@@ -28,7 +28,7 @@ var SCENE3D = (function () {
   var PLAY_R = 2.8, PLAY_H = 2.2;   /* 11-10 (3): 2.4 → 2.8 (주인 "너무 좁아 보여, 전처럼 조금만 넓혀 줘") — 화면보다 넓어진 만큼은 거실처럼 카메라가 캐릭터를 따라간다 */   /* 11-10: 1.7 → 2.4 (바닥 3.4 → 4.8 m, 넓이 두 배 — 주인 "부엌~게임기 쪽이 너무 좁음, 특히 넓혀 줘"). 한 화면 배치로 장면이 화면을 다 써서 세로가 넉넉하다 */   /* ROOM_EXPANSION §5.2 의 3.6 × 2.4 m 는 360×640 장면(139 아트px)에 145 px 라 위아래가 잘려, 카드의 둘째 후보 3.4 × 2.2 m (≈ 135 px) 로 — scene-api.md '크기' */
   var LOFT_R = 2.2, LOFT_H = 1.5, LOFT_PEAK = 3.15;   /* 11-10 위층 다락 (지붕 밑 방): 바닥 4.4 m · 무릎벽 1.5 m · 박공 꼭대기 3.15 m */
   var STAIR = { x0: 2.62, x1: 3.46, z0: -2.42, z1: -1.72, top: 2.5 }, HATCH = { x0: 1.3, x1: 2.0, z0: -2.0, z1: -1.2 };   /* 거실 뒷벽 오른쪽 구석의 가파른 계단 · 위층 바닥의 계단 구멍 */
-  var DOOR_ANCHORS = { atticPlayDoor: [RF - 0.55, 0, 1.92], playAtticDoor: [-(PLAY_R - 0.35), 0, -0.33], atticStair: [2.3, 0, -2.05], loftStair: [0.95, 0, -1.6] };   /* 내 캐릭터가 문을 열기 전에 서는 자리. 다락 문은 +x 벽에서 카메라 쪽으로 서 있어 문 바로 안쪽(z 1.4)에 서면 문짝 뒤에 다 가려진다 → 손잡이 쪽 옆(z 1.92, 문 끝 1.76 에서 0.16 m)에 선다 · 놀이방 문은 −x 벽이라 문 앞(x −1.35)이 문보다 앞에 보인다 */
+  var DOOR_ANCHORS = { atticPlayDoor: [RF - 0.55, 0, 1.92], playAtticDoor: [-(PLAY_R - 0.35), 0, -0.33], atticStair: [2.3, 0, -2.05], loftStair: [0.95, 0, -1.35] };   /* 11-11: 옷감 선반(앞면 z −1.72)의 둘레에 걸리지 않게 조금 앞으로 */   /* 내 캐릭터가 문을 열기 전에 서는 자리. 다락 문은 +x 벽에서 카메라 쪽으로 서 있어 문 바로 안쪽(z 1.4)에 서면 문짝 뒤에 다 가려진다 → 손잡이 쪽 옆(z 1.92, 문 끝 1.76 에서 0.16 m)에 선다 · 놀이방 문은 −x 벽이라 문 앞(x −1.35)이 문보다 앞에 보인다 */
   var EXPRESSIONS = ['idle', 'blink', 'happy', 'pet', 'sleep', 'curious', 'calm', 'sleepy'];   /* 표정 8 (DESIGN §15.2) — 장면과 초상이 setExpression 하나로 공유 */
 
   /* ───────────────────────── 색 수학 (sRGB ↔ 선형 ↔ OKLab) ───────────────────────── */
@@ -1615,10 +1615,18 @@ var SCENE3D = (function () {
       dither.still = 0;
       return hex;
     }
+    function salClearView() {   /* 11-11 (검증 P2): '바꾸기' 가 시작될 때 내 캐릭터가 문어 · 대야와 카메라 사이에 서 있으면 (화면 가로로 0.64 m 안 · 카메라 쪽) 옆 구경 자리로 걸어 비켜선다 — 물보라와 색이 바뀌는 순간이 내 캐릭터 뒤에 가리지 않게. 스틱을 쥐고 있거나 걷는 중 · 앉은 중엔 안 한다 */
+      if (PL.place !== 'loft' || !LROOM || plG.parent !== LROOM.g || PL.walking || PL_IN.held || PL.sit) return;
+      var px = PL.pos.x, pz = PL.pos.z;
+      function hides(ax, az) { return Math.abs((px - pz) - (ax - az)) < 0.9 && (px + pz) - (ax + az) > -0.2; }
+      if (!hides(SALC.fx + LSAL.dx, ANCHORS.salon[2] + LSAL.dz) && !hides(ANCHORS.salon[0] + LSAL.dx, ANCHORS.salon[2] + LSAL.dz) && !hides(SALC.tx + LSAL.dx, SALC.tz + LSAL.dz)) return;
+      plWalkTo(new T.Vector3(snapPos(0.35), 0, snapPos(-0.85)), -Math.PI * 0.75);
+    }
     function salonDye(hex, o) {   /* '바꾸기' 연출 → Promise ({ ok, skipped, color }). 문어는 이미 'salon' 자리 (걷기는 앱 몫). o = { joy, look, pause | id, onBeat } */
       o = o || {}; hex = salNorm(hex);
       if (!hex) return Promise.resolve({ ok: false, reason: 'hex', color: st.color });
       if (SAL.active) salFinishNow();
+      salClearView();
       var i = salIndex(hex), sp = st.speed, red = st.reduced, from = SAL.offer === i ? salFront(i) : salHome(i), rim = salRim(), home = salHome(i), items = [];
       var pause = o.pause > 0 ? +o.pause : o.id != null ? 0.3 + (hash(String(o.id)) % 1000) / 1000 * 0.3 : 0.45;   /* 멈춤 0.3–0.6 s (물음 id 시드) */
       if (i === 6) { SAL.bottleHex[6] = hex; recolor(salBGeo, 16, salDark(hex, SAL.night)); }
@@ -3274,7 +3282,7 @@ var SCENE3D = (function () {
     function octMountLoft() {   /* 위층에 막 올라왔다: 문어가 깨어서 집에 있으면 계단 옆으로 따라 올라온다 */
       if (!LSALW || octUp() || octG.parent !== atticG || PLACE.cur !== 'attic' || st.octState === 'away' || st.octState === 'sleep' || (CER && CER.active) || SAL.active) return false;
       if (oct.walking) { oct.walking.cancel(); oct.walking = null; }
-      LSALW.add(octG); oct.pos.set(snapPos(0.5 - LSAL.dx), 0, snapPos(-0.9 - LSAL.dz)); snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = camYaw(); dither.still = 0;
+      LSALW.add(octG); oct.pos.set(snapPos(-0.3 - LSAL.dx), 0, snapPos(0.2 - LSAL.dz));   /* 깔개 쪽 (계단 앞 길목을 막지 않게 — 내 캐릭터가 선반과 문어 사이에 끼었다) */ snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = camYaw(); dither.still = 0;
       emit('octUp', true); return true;
     }
     function octUnmountLoft() {   /* 내려간다 · 의식이 시작된다: 다락의 제 자리로 */
