@@ -870,8 +870,11 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 /* 행 3 꼬리 (누가 정했나: 데모 규칙 · 모델 · 사람이 정함) — 결과 문장 뒤 작은 글 */
 .ltext .lby { display: inline-block; margin-left: 6px; font-size: 11px; color: var(--muted); white-space: nowrap; }
 :root[data-font="pixel"] .ltext .lby { font-family: var(--f-meta); font-size: 16px; line-height: 24px; margin-left: 8px; }
-/* 미용실 연출 중: 놀이방 문 단추를 숨긴다 (장면 톡이 문을 열지 않게 앱도 막는다 — 기술 SHOULD 8) */
-#scene.salon-on #btn-door { visibility: hidden; }
+/* 미용실 행의 라벨 ('미용실' · '몸 색' — 그림 없는 집 행): 픽셀 테마의 16 px 글자 셋은 48 px 라 44 px 칸에서 '미용 / 실' 로 꺾였다 → 그림 있는 행(.ua-row)처럼 48 px 칸 · 한 줄 */
+.lrow[data-salon] .ltool { white-space: nowrap; }
+:root[data-font="pixel"] .lrow[data-salon]:not(.dialog) { grid-template-columns: 48px 1fr; }
+/* 미용실 연출 중: 놀이방 문 · 위층 계단 단추를 숨긴다 (장면 톡 · 캐릭터가 문에 닿아도 앱이 막는다 — 기술 SHOULD 8 · 계단은 11-10 에 생겼다) */
+#scene.salon-on #btn-door, #scene.salon-on #btn-stair { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])):is([data-font], :not([data-font])) .bottle:active { transform: none; } }   /* 두 글꼴 테마 모두 (픽셀 2px 이동 규칙보다 앞서게) */
 :root[data-motion="reduce"]:is([data-font], :not([data-font])) .bottle:active { transform: none; }
 
