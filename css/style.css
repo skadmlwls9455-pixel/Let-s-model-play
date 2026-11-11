@@ -439,7 +439,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .sheet p { margin: 0 0 4px; font-size: 13px; }
 .sheet ul { margin: 0; padding-left: 18px; font-size: 13px; }
 .sheet .set { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; font-size: 13px; }
-.sheet select { min-height: 44px; border-radius: 8px; background: var(--panel2); border: 1px solid var(--rim); padding: 4px 8px; font-size: 16px; }
+.sheet select { min-height: 44px; max-width: 100%; border-radius: 8px; background: var(--panel2); border: 1px solid var(--rim); padding: 4px 8px; font-size: 16px; }   /* max-width: select 는 가장 긴 option 만큼 넓어진다 — 시트보다 넓어지면 시트가 옆으로 밀렸다 (방의 언어 고르기) */
 .sheet input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--amber); }
 /* 기록 불러오기 (#set-import): 기본 파일 칸의 "선택된 파일 없음" 글자는 접고(font-size 0 — 고르면 바로 불러오고 토스트로 알린다),
    버튼만 옆 '내보내기'(.btn.sm)와 같은 모양으로. 입력 그대로라 Tab 포커스 · Enter/Space 로 열기 · 링은 기본 :focus-visible */

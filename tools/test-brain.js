@@ -1338,6 +1338,21 @@ async function huntSuite(label, W) {
   check(rf.poster.thumb === null, 'poster thumb only from upload.wikimedia.org https');
   check(rf.receipt.counts.read === 1 && rf.receipt.counts.simulated === 3, 'counts honest (' + JSON.stringify(rf.receipt.counts) + ')');
   check(rs.every(function (s) { return !s.source || WIKI_PAGE_RE.test(s.source.url); }), 'every receipt source is a ko.wikipedia.org page');
+  /* 출처 이름은 읽은 위키의 것 (2026-11-10 다국어 합침 뒤): 재생은 검사를 통과한 주소의 언어로 'Wikipedia (xx)' 를 붙인다 —
+     입력이 준 attribution 도, 상수 'Wikipedia (ko)' 도 아니다 (전엔 ja · en … 을 읽어도 일기에 'Wikipedia (ko)' 였다). 열 언어 밖 (zh) 은 전처럼 읽음이 아니다 */
+  var labelOf = function (l, tg) {
+    var r1 = BRAIN.replay([{ type: 'depart', t: 0, hint: '' },
+      { type: 'peek', t: 1, target: tg, status: 'read', ms: 1000, source: { url: 'https://' + l + '.wikipedia.org/wiki/Hat', extract: '요약.', license: '퍼블릭 도메인', attribution: '나' } },
+      { type: 'return', t: 2 }, { type: 'wrap_up', t: 3, reaction: '덤덤' }], { by: 'mcp', now: NOW_DAY });
+    var s1 = r1.receipt.stops[0], e1 = r1.events.filter(function (e) { return e.type === 'peek'; })[0];
+    return s1.status === 'read' && s1.source ? s1.source.attribution + ' · ' + s1.source.license + ' · event ' + (e1.source ? e1.source.attribution : 'none') : s1.status;
+  };
+  var TEN = ['ko', 'en', 'ja', 'de', 'fr', 'es', 'it', 'pt', 'id', 'hi'];
+  var wrongWild = TEN.filter(function (l) { return labelOf(l, { kind: 'wiki', title: 'Hat' }) !== 'Wikipedia (' + l + ') · ' + BRAIN.LICENSE + ' · event Wikipedia (' + l + ')'; });
+  check(wrongWild.length === 0, 'replay names the Wikipedia that was read, from the checked address, for all ten languages (wrong: ' + (wrongWild.join(' ') || 'none') + '; ja → ' + labelOf('ja', { kind: 'wiki', title: 'Hat' }) + ')');
+  var wrongRoom = ['ja', 'en', 'hi'].filter(function (l) { return labelOf(l, { kind: 'room', id: clueId }) !== 'Wikipedia (' + l + ') · ' + BRAIN.LICENSE + ' · event Wikipedia (' + l + ')'; });
+  check(wrongRoom.length === 0, 'the same for a room stop read in another language (wrong: ' + (wrongRoom.join(' ') || 'none') + ')');
+  check(labelOf('zh', { kind: 'wiki', title: 'Hat' }).indexOf('Wikipedia') < 0, 'a Wikipedia outside the ten (zh) is still not a read, so it gets no source label (' + labelOf('zh', { kind: 'wiki', title: 'Hat' }) + ')');
   /* R1: 반응은 읽기 정직 표기와 달리 모델의 몫 — 1/5 만 읽었어도 모델이 우쭐이면 우쭐 (읽음 표기는 위에서 그대로 정직하게) */
   check(rf.reaction === '우쭐' && rf.receipt.reaction === '우쭐' && rf.reactionBy === 'model', 'model reaction 우쭐 with 1/5 read is kept as given (' + rf.reaction + ')');
   var peeks = rf.events.filter(function (e) { return e.type === 'peek'; });
