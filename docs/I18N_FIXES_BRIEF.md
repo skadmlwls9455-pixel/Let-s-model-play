@@ -40,7 +40,7 @@
 | 엽서의 책 제목 · 옮긴 이 표기 자르기 40 · 30 → 160 · 120 (번역본은 107 · 77자까지) | `mcp/postcard.js` |
 | 이탈리아어 "tu sei il piccolo polpo" → "interpreti il piccolo polpo" (역할을 맡는다) | `mcp/i18n/it.js` |
 
-본 세션이 따로 처리하는 것 (커밋 로그에 `HIS04` 가 보이면 끝난 것 — 안 보이면 C-1 을 한다): 에뮤 전쟁 카드 `HIS04` 의 마지막 문장 오역 (아홉 언어), 방 이름 데이터 세 건 (`lock` id · `chalk` id · hi). 게임 쪽 둘도 본 세션이 한다: 일기의 출처 이름표가 어느 위키든 "Wikipedia (ko)" 로 나오던 것 (`js/brain.js` · `js/app.js`), 설정의 방의 언어 고르기가 폰 화면보다 넓던 것 (`css/style.css` · `js/app.js`).
+커밋 `6e2beb3` (본 줄기, 11-11) 에서 한 것: 에뮤 전쟁 카드 `HIS04` 의 마지막 문장 오역 (아홉 번역) · 일기의 출처 이름표가 어느 위키든 "Wikipedia (ko)" 로 나오던 것 (`js/brain.js` · `js/app.js` — 이제 읽은 주소의 언어) · 설정의 방의 언어 고르기가 폰 화면보다 넓던 것 (`css/style.css` · `js/app.js`). 방 이름 데이터 세 건 (`lock` id · `chalk` id · hi) 은 **안 했다** — C-1.
 
 ## 2. A — 고칠 것 (큰 순서대로)
 
@@ -137,7 +137,10 @@
 
 ## 4. C — 자잘한 것 (한꺼번에 해도 된다)
 
-1. (본 세션이 안 했을 때만) `HIS04` 마지막 문장을 아홉 번역에서 고친다 — 뜻: "작전 기록은 에뮤 피해를 줄이지 못한 것과 함께 사살한 수도 적어 두었다 (기록했다)". 영어: "The operation records note the number of emus killed as well as the failure to reduce the damage they caused." 방 이름: `mcp/data/rooms.manual.json` 에 `lock` id → "Gembok", `chalk` id → "Kapur tulis", `chalk` hi → "चॉक" (그 위키에 글이 있는지 API 로 확인해 `wiki` 를 채우고, 확인 못 하면 `"wiki": null` — 영어 글로 넘어간다).
+1. 방 이름 데이터 세 건 (반박 단계에서 '자잘한 것' 으로 내려옴 — 모델이 받는 방 목록에는 이 이름이 안 나오고, 그 방을 기웃거릴 때 읽는 글이 엉뚱한 것): `lock` 의 id 가 "Locks-and-keys (komputasi)" (컴퓨터 용어 글), `chalk` 의 id · hi 가 칠판 글 ("Papan tulis" · "श्यामपट्ट"). `mcp/data/rooms.manual.json` 에 손으로 적는데, 조심할 것 둘:
+   - **이미 있는 열쇠 안에 합친다.** 그 파일에 `"lock"` (pt "Cadeado") 과 `"chalk"` (de "Kreide" / "Tafelkreide") 이 이미 있다. 같은 열쇠를 한 번 더 쓰면 JSON 이 뒤의 것만 남겨 pt 자물쇠 · de 분필이 말없이 되돌아간다 (시험 하나만 잡는다). `lock` 안에 `id`, `chalk` 안에 `id` · `hi` 를 넣는다.
+   - **`"wiki": null` 로는 분필이 안 고쳐질 수 있다.** null 이면 영어 글 "Chalk stick" 으로 넘어가는데, 그 글의 언어 링크가 de · id · hi 에서 칠판 글로 간다 (그래서 생긴 문제다). ko '분필' 글의 언어 링크는 분필 글로 간다 — 위키 API 로 그 제목을 확인해 `name` 과 `wiki` 를 같이 적는다 (이름 후보: id "Gembok" · "Kapur tulis", hi "चॉक").
+   - (끝난 것: `HIS04` 번역 아홉 편은 6e2beb3 에서 고쳤다. 원문 "사살 수도 적고 있다" 를 헷갈리지 않게 고칠지는 B-9.)
 2. `mcp/tools/check-books.js` 34줄: `digits()` 가 구분 기호와 함께 **앞 숫자까지 지운다** (`replace(/(\d)[ .,](?=\d)/g, '')` → 바꿀 글을 `'$1'` 로). 지금은 18.9 와 17.9 가 같은 "19" 가 되고 경고 175개가 전부 헛경보다. 달 이름 · 로마 숫자 · 수사를 받아들이면 기준이 0이 되어 진짜 경고가 보인다. 3줄 주석과 42줄 오류 글의 "여섯 언어" / "ko 밖의 다섯" 도.
 3. 스키마가 `pt-BR` · `en-US` · `EN` 을 영어 SDK 오류로 거절한다 (`mcp/tools.js` 63 · 74줄 `z.enum`) — 코어 (`I18N.norm`) 는 받는다. `z.string().max(16)` + 코어에서 정리 + 모르는 코드는 방의 언어로 짧게 알림.
 4. 사전의 작은 뜻 차이 (허락을 빼거나 떠미는 것은 없음): `err.noRoom` 이 없는 칸 `library` 를 가리킨다 (ko · de · hi — depart 는 `rooms` 를 준다) · it `lantern` "a ogni giorno con ospiti" · it · id 의 `err.none` 이 영어 'none' · it · pt · hi 의 반응 보기가 영어 · hi `tools.look.desc` "घर के काम" (집안일로 읽힌다) · ja 가 웹 주소를 "住所" 로.
