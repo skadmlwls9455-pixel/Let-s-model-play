@@ -797,7 +797,7 @@ var APP = (function () {
      자는 중 · 오늘 이미 물었어도 보인다 (누르면 '쿨쿨…' · 토스트) */
   function syncSalonSpot(force) {
     if (!scene || typeof scene.setSalonOpen !== 'function') return;
-    var on = !!SAL && mirrorUp() && !busy && !salonRun && !salonActive && oct.state !== 'away';
+    var on = !!SAL && mirrorUp() && !busy && !salonRun && !salonActive && oct.state !== 'away' && !furnMode;   /* 가구 배치 중엔 숨긴다 (가구를 들고 있는 손 · 장면 톡은 가구 몫 — 11-10 배치 모드) */
     if (on === salonSpotOn && !force) return;
     salonSpotOn = on; scene.setSalonOpen(on);
   }
@@ -809,7 +809,7 @@ var APP = (function () {
   /* 거울 단추 (#btn-salon) → 시트. 문어는 하던 대로 있는다 (걷는 건 '바꾸기' 를 고른 뒤뿐) */
   function openSalon() {
     var d = $('salon-sheet');
-    if (!SAL || !scene || !d || salonRun || busy || inPlay() || roomJob || introUp()) return false;
+    if (!SAL || !scene || !d || salonRun || busy || inPlay() || roomJob || introUp() || furnMode) return false;   /* inPlay = 놀이방 · 위층 옷방 (문어가 없는 방) · furnMode = 가구 배치 중 */
     if (d.open) return true;
     syncFromStore();   /* 다른 탭이 오늘 이미 물었으면 시트 대신 토스트 */
     var r = SAL.canAsk(S, todayKey(), salonOct());
@@ -822,7 +822,28 @@ var APP = (function () {
     var sc = $('scene'), top = sc ? Math.floor(sc.getBoundingClientRect().top) : 0;
     if (top < 0) window.scrollBy(0, top);   /* 장면 위쪽이 화면 밖으로 굴러가 있으면 다 보이게 — 시트는 뒤 막 없이 아래에서 올라오고, 거울 · 문어가 그 위에 보여야 한다 */
     showDialog(d);   /* 포커스는 맨 위 제목 (.dlg-top) */
+    salonFrame(d);
     return true;
+  }
+  /* 한 화면 배치 (11-10): 장면이 화면을 다 쓰고 시트는 그 아래쪽을 덮는다. 기본 구도에선 거울 · 거울 옆 문어가 시트 위에 보이지만 (스모크 Y 가 잰다),
+     손으로 밀어 둔 화면이면 거울 코너가 시트에 가리거나 위쪽 바 밑에 들어가 있을 수 있다 → 그때만 기본 구도로 되돌린다 (scene.recenter, 0.3 s). 확대는 그대로 둔다.
+     48 px × 배율 = 거울 상자 아래로 거울 옆에 선 문어가 더 내려오는 만큼 */
+  function salonFrame(d) {
+    if (!scene || typeof scene.pan !== 'function' || typeof scene.recenter !== 'function' || typeof scene.spotRect !== 'function') return false;
+    var pn = scene.pan(), sp = scene.spotRect('salon'), c = sp && sp.client;
+    if (!pn || !(pn.x || pn.y) || !c) return false;
+    var bar = layoutOne() ? $('status') : null, lo = bar ? bar.getBoundingClientRect().bottom : 0, hi = d.getBoundingClientRect().top;
+    if (c.y >= lo && c.y + c.h + 48 * (pn.zoom || 1) <= hi) return false;
+    scene.recenter();
+    return true;
+  }
+  /* 시트를 연 바로 그 톡에서 온 click 인가: click 의 시각(= 그 톡이 끝난 때)이 시트를 연 때보다 뒤가 아니면 그 톡이다 (느린 기기에서 click 이 늦게 처리돼도 맞는다).
+     시각 기준이 다른 옛 브라우저는 연 뒤 350 ms 안의 click 으로 본다 */
+  function salonOpeningTap(d, e) {
+    var at = d._openedAt || 0, ts = e && e.timeStamp;
+    if (!at) return false;
+    if (typeof ts === 'number' && ts > 0 && ts < 1e11 && ts <= at + 40) return true;
+    return performance.now() - at < 350;
   }
   /* 병 그림 16×16 (×2 = 32 px, 보이는 칸 36 px 안): 코르크 · 목 · 둥근 몸 · 물약(currentColor = 그 병의 색) · 반짝 한 줄. 글자 없음 (낭독은 aria-label) */
   var BOTTLE_SVG = (function () {
@@ -904,7 +925,7 @@ var APP = (function () {
     if (r.voice === 'octopus') row = logRow(r.label, rawSpan(r.text, r.raw ? 'model' : null), 'c-amber', false, r.expr || 'idle');   /* 고른 이의 말 원문 (모델 말은 data-raw — 한 글자도 안 바꾼다) */
     else {
       var fr = document.createDocumentFragment(); fr.appendChild(document.createTextNode(r.text));
-      if (r.tail) fr.appendChild(h('span', { class: 'lby', text: r.tail }));
+      if (r.tail) { fr.appendChild(document.createTextNode(' ')); fr.appendChild(h('span', { class: 'lby', text: r.tail })); }   /* 사이 한 칸: 한 줄 알림(rowToast) · 낭독이 '…그대로야.데모 규칙' 으로 붙지 않게 */
       row = logRow(r.label, fr, 'c-amber', false, null);
     }
     row.setAttribute('data-salon', ask.id); row.setAttribute('data-n', String(r.n));
@@ -3673,6 +3694,7 @@ var APP = (function () {
     if (stt) furnMode = true;
     var on = furnMode && sceneMode === '3d';
     document.documentElement.classList.toggle('furn-on', on);
+    syncSalonSpot();   /* 미용실 거울 단추: 가구 배치 중엔 숨김 · 끝나면 다시 */
     ui.hidden = !on; var fb = $('btn-furn'); if (fb) fb.setAttribute('aria-pressed', on ? 'true' : 'false');
     if (!on) return;
     $('furn-title').textContent = stt ? stt.name : '가구를 골라';
@@ -4114,7 +4136,9 @@ var APP = (function () {
     if (ssh) {
       $('salon-ask').addEventListener('click', function (e) { salonAsk(kbdClick(e)); });
       $('salon-close').addEventListener('click', function () { ssh.close(); });
-      ssh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
+      /* 바깥 톡 = 그만두기. 단, 시트를 연 바로 그 톡의 뒤따르는 click 은 빼고: 손가락으로 거울을 누르면 장면이 pointerup 에서 단추를 눌러 시트가 열리고,
+         브라우저가 같은 톡의 click 을 한 번 더 보낸다 — 시트가 낮아 거울 자리는 '바깥' 이라 열리자마자 닫혔다 (폰에서 시트가 안 열리던 결함, 검증 11-10). 마우스는 그 click 이 캔버스로 간다 */
+      ssh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e) && !salonOpeningTap(e.currentTarget, e)) e.currentTarget.close(); });
     }
     bindDialogs(); watchLogScroll(); bindAlbumPress(); bindSheetDrag('settings-sheet'); bindSheetDrag('album-sheet'); bindSheetDrag('look-sheet'); bindSheetDrag('log-sheet'); bindSheetDrag('salon-sheet');
     if (ssh) ssh.addEventListener('close', function () {   /* bindDialogs 의 포커스 돌려주기 뒤 */

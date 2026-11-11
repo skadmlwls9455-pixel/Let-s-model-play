@@ -1172,10 +1172,12 @@ var SCENE3D = (function () {
     function furnAt(cx, cy) { var p = furnFloor(cx, cy), hit = null; if (!p) return null; ['sofa', 'crate', 'blanket'].forEach(function (id) { var f = FURN[id]; if (!hit && f.m.visible && Math.abs(p.x - f.m.position.x) <= f.hw + 0.1 && Math.abs(p.z - f.m.position.z) <= f.hd + 0.1) hit = id; }); return hit; }
     function furnLim(f) { return [-R + 0.16 + f.hw, RF - 0.1 - f.hw, -R + 0.16 + f.hd, RF - 0.1 - f.hd]; }
     var FURN_KEEP = [[RF - 1.2, RF + 1, 0.7, 2.7], [1.3, 2.6, -R - 1, -1.6]];   /* 놀이방 문 앞 · 바깥 문 앞은 비워 둔다 */
+    var SAL_KEEP = [-R, -0.75, -R, -0.6];   /* 미용실 코너 바닥 [x0, x1, z0, z1]: 문어 자리 (−1.75, −1.1) 둘레 0.42 · 대야 (−1.1, −1.55) r 0.30 · 거울 앞 (docs/SALON.md §2.1) — 가구를 여기 놓으면 '바꾸기' 연출이 가구 속에서 돈다 */
     function furnOk(id, x, z) {
       var f = FURN[id], l = furnLim(f), i, o;
       if (x < l[0] - 1e-6 || x > l[1] + 1e-6 || z < l[2] - 1e-6 || z > l[3] + 1e-6) return false;
       for (i = 0; i < FURN_KEEP.length; i++) { o = FURN_KEEP[i]; if (x + f.hw > o[0] && x - f.hw < o[1] && z + f.hd > o[2] && z - f.hd < o[3]) return false; }
+      if (props.salon && props.salon.visible) { o = SAL_KEEP; if (x + f.hw > o[0] && x - f.hw < o[1] && z + f.hd > o[2] && z - f.hd < o[3]) return false; }   /* 미용실 거울 코너 (거울이 있을 때만): 문어가 서는 자리 · 대야 자리 · 거울 앞은 비워 둔다 — 깔개도 */
       if (f.flat) return true;   /* 담요는 깔개라 어디든 (가구 밑 · 발밑) */
       for (var k in FURN) { o = FURN[k]; if (k === id || o.flat || !o.m.visible) continue; if (Math.abs(x - o.m.position.x) < f.hw + o.hw && Math.abs(z - o.m.position.z) < f.hd + o.hd) return false; }
       if (octG.visible && octG.parent === atticG && Math.abs(x - oct.pos.x) < f.hw + 0.5 && Math.abs(z - oct.pos.z) < f.hd + 0.5) return false;
