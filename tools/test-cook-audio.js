@@ -13,19 +13,25 @@
  *  B. ?reduced=1 + 단추 길 (COOK.auto): 뒤집기는 휙을 건너뛴다 (off 0.21) · 접시는 공개와 같이 · 톡톡 i 0 · 3 · 6 의 빠르기 ·
  *     단추를 많이 눌러도 (33번) 들린 톡 변형이 연달아 같지 않다 (한 번 누름에 tap 셋 — 버려진 둘이 '직전 것' 으로 남지 않는다)
  *  C. 소리 꺼짐 (기본): 손가락으로 한 판 내내 AudioContext 없음 · 재생 0 · audio/ · foley/ 요청 0
- *  D. 파일이 없다: foley/manifest.json 404 · foley/cook/* 404 → 조용히, 페이지 오류 0, 부엌 오류 0, 한 판 끝까지
+ *  D. 파일이 없다: foley/manifest.json 404 · foley/cook/* 404 → 조용히, 페이지 오류 0, 부엌 오류 0, 한 판 끝까지 · 부엌 목록이 없으면 (아직 안 왔어도)
+ *     부엌이 열려 있어도 음악 · 비를 내리지 않는다, 목록이 온 순간부터 내린다
  *  E. file:// + ?sound=1 → 조용히 (reason 'file' · 저장 안 함) · 오류 0
  *  F. 탭 숨김: 지글 중 숨김 → quiet 로 멈춤 → 돌아오면 heat_on 없이 0.3 s 로 다시 (resume)
  *  H. 첫 손길이 바로 불 켜기 (그 탭이 잠금을 푼다): 기억해 둔 불로 heat_on + 지글 0 부터
  *  I. 첫 손길이 바로 팬 (그 탭이 잠금을 푼다): 팬 들기 소리가 사라지지 않는다 (미리 받아 둔 목록 · 바이트), 목록이 늦게 와도 (기억해 둔 act)
  *  J. 못 받은 변형: cook_flip_1 이 404 → 뒤집기마다 cook_flip_2 (조용한 뒤집기 없음), cook_flip_1 은 다시 받지 않는다
  *  K. 효과음 0: 부엌 덕킹 없음 (들리지 않는 지글 때문에 음악이 줄지 않게)
+ *  M. 뒤집기: 간격 문이 버린 뒤집기 · 파일이 0.3 s 넘게 늦어 버려진 뒤집기의 고르기가 '직전 것' 으로 남지 않는다 (들린 변형이 연달아 같지 않다) ·
+ *     뒤집기 파일이 조금 늦게 오면 그 단계의 톡은 뒤집기 소리가 정말 난 때의 철퍽 0.1 s 뒤 · 뒤집기가 버려졌으면 그 톡도 없다 (파일을 둘 다 못 받아
+ *     고를 변형이 없을 때도)
+ *  N. 소리 목록(audio/manifest.json) 503: 한 번이면 첫 손길이 다시 받아 켠다 · 두 번이면 쉰다 (AudioContext 를 돌려 두지 않는다) · 1분 안의 손길은
+ *     다시 받지 않고, 1분 뒤의 손길이 새로고침 없이 다시 받아 켠다 · 새 AudioContext 가 한동안 'suspended' 로 읽히는 브라우저 흉내에서도 돈 채로 남지 않는다
  *  L. 페이드 (OfflineAudioContext, js/audio.js 의 fadeIn · fadeOut 그대로): 페이드인 도중의 quiet · 크로스페이드가 지금 크기에서 부드럽게 내린다
  *     (cancelAndHoldAtTime 이 있든 없든)
  *  G. 크레딧: cook.html 조리대에만 '만든 것들' (단계 중엔 없음, 닫힌 화면에도) → credits.html (CC BY 두 줄이 foley/CREDITS.md 와 글자 그대로 ·
  *     CC0 페이지 모두 · 글꼴 · three.js 라이선스 파일 · 320 px 가로 넘침 없음 · 이모지·기호 없음 · 돌아가기) · 본 게임 설정 시트 맨 아래 '만든 것들'
  *     · 본 게임에서 소리를 켜도 부엌 act 가 없으면 foley/ 요청 0 (부엌 층은 필요할 때만)
- * 콘솔 오류 · 페이지 오류 0 (D 의 일부러 없앤 파일에 대한 브라우저 자신의 'Failed to load resource' 줄만 뺀다). 실패하면 exit 1.
+ * 콘솔 오류 · 페이지 오류 0 (D · J · N 의 일부러 없앤 파일에 대한 브라우저 자신의 'Failed to load resource' 줄만 뺀다). 실패하면 exit 1.
  */
 'use strict';
 var http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
@@ -120,6 +126,7 @@ async function kitchen(browser, o) {
     } catch (e) { /* none */ }
   }, { key: KEY, cook: SEEN_ALL, audio: o.audio ? JSON.stringify(o.audio) : null });
   if (o.route) await o.route(ctx);
+  if (o.init) await ctx.addInitScript(o.init);
   var page = await ctx.newPage(), bag = watch(page, o.allow);
   var cdp = await ctx.newCDPSession(page);
   await page.goto(o.url);
@@ -164,6 +171,14 @@ async function kitchen(browser, o) {
   };
   K.close = function () { return ctx.close(); };
   return K;
+}
+/* 그 주소의 요청을 시험이 놓아 줄 때까지 붙잡아 둔다 (느린 망 흉내: 기다리는 시간을 벽시계에 맡기지 않는다) */
+function hold(glob) {
+  var open, gate = new Promise(function (r) { open = r; }), n = 0;
+  return {
+    route: function (ctx) { return ctx.route(glob, async function (r) { n++; await gate; try { await r.continue(); } catch (e) { /* 쪽이 이미 닫혔다 */ } }); },
+    release: function () { open(); }, asked: function () { return n; }
+  };
 }
 function noErrors(K, label) {
   ok(K.bag.errors.length === 0, label + ': 콘솔 · 페이지 오류 0' + (K.bag.errors.length ? ' — ' + K.bag.errors.slice(0, 3).join(' | ') : ''));
@@ -356,9 +371,26 @@ async function scenarioD(browser, base) {
     ok(s.played.filter(function (x) { return /^cook_/.test(x.id); }).length === 0 && !s.cook.loop, c.tag + ': 부엌 소리는 조용히 건너뜀 (재생 0 · 루프 없음)');
     ok(lv.err === 0 && book === 1, c.tag + ': 부엌은 그대로 끝까지 (부엌 오류 0 · 수첩에 한 줄 ' + book + ')');
     ok(K.bag.net.some(function (u) { return c.re.test(u); }), c.tag + ': (정말 받으려 했고 없었다)');
+    /* 부엌 목록이 없으면 부엌은 낼 소리가 없다: 열려 있어도 음악 · 비를 내리지 않는다 (들리지 않는 부엌 때문에 음악만 줄지 않게) */
+    if (i === 0) ok(lv.screen !== 'closed' && !s.cook.ready && s.cook.bed === 0 && s.cook.duck > 0.95 && s.cook.ambDuck > 0.95,
+      c.tag + ': 부엌이 열려 있어도 음악 · 비를 내리지 않는다 (bed ' + s.cook.bed + ' · ' + s.cook.duck + ', ' + s.cook.ambDuck + ')');
     noErrors(K, 'D ' + c.tag);
     await K.close();
   }
+  /* 부엌 목록이 늦게 온다: 오기 전에는 내리지 않고, 온 순간부터 내린다 (부엌 act 가 없어도) */
+  var H = hold('**/foley/manifest.json');
+  var K2 = await kitchen(browser, { url: base + '/cook.html?sound=1&seed=22', audio: { on: false, music: 0, sfx: 0.8 }, route: H.route });
+  await K2.tapAt([180, 40]);
+  var a0 = await K2.waitSt(function (x) { return x.started && x.ctx === 'running'; }, 15000);
+  await wait(900);
+  var a1 = await K2.st();
+  ok(!!a0 && H.asked() >= 1 && !a1.cook.ready && a1.cook.bed === 0 && a1.cook.duck > 0.95 && a1.cook.ambDuck > 0.95,
+    '부엌 목록이 아직 안 왔다: 소리는 켜졌고 음악 · 비는 제 크기 (bed ' + a1.cook.bed + ' · ' + a1.cook.duck + ', ' + a1.cook.ambDuck + ')');
+  H.release();
+  var a2 = await K2.waitSt(function (x) { return x.cook.ready && x.cook.bed === 1 && Math.abs(x.cook.duck - Math.pow(10, -6 / 20)) < 0.04 && Math.abs(x.cook.ambDuck - Math.pow(10, -9 / 20)) < 0.04; }, 6000);
+  ok(!!a2, '부엌 목록이 온 순간부터 부엌 덕킹 (-6 dB · -9 dB), 부엌 act 없이도 ' + JSON.stringify(a2 ? [a2.cook.duck, a2.cook.ambDuck] : null));
+  noErrors(K2, 'D 늦은 목록');
+  await K2.close();
 }
 
 async function scenarioE(browser) {
@@ -483,6 +515,203 @@ async function scenarioK(browser, base) {
   ok(ls && ls.on === false && ls.sfx === 0.8, 'K: 크기는 저장해도 ?sound=1 의 켜짐은 저장하지 않는다 ' + JSON.stringify(ls));
   noErrors(K, 'K');
   await K.close();
+}
+
+async function scenarioM(browser, base) {
+  console.log('\n== M. 뒤집기: 버려진 고르기는 되돌린다 (간격 문 · 늦은 파일) · 단계 톡은 뒤집기 소리가 정말 난 때부터');
+  var A0 = { on: false, music: 0, sfx: 0.8 }, FLIP = { act: 'flip', band: 1 }, STEP = { act: 'step', kind: 'flip' }, QUIET = { act: 'quiet' };
+  function flips(s) { return ids(s, /^cook_flip_\d$/); }
+  function toks(s, t) { return ids(s, /^cook_step$/).filter(function (x) { return x.t >= t; }); }
+  function fire(K, acts) { return K.page.evaluate(function (a) { var t = AUDIO.state().time; a.forEach(function (d) { AUDIO.on('cook', d); }); return t; }, acts); }
+  /* a: 뒤집기 → 바로 또 뒤집기 (간격 문 300 ms 가 버린다) → 뒤집기. 버려진 고르기가 '직전 것' 으로 남으면 들린 둘이 같은 변형이다 (변형이 둘뿐) */
+  var K = await kitchen(browser, { url: base + '/cook.html?sound=1&recipe=jeon&seed=18', audio: A0 });
+  ok(!!(await K.unlock()), 'M a: 첫 탭 → 켜짐');
+  await fire(K, [{ act: 'sizzle', band: 0 }]);   /* 지글이 뒤집기 두 변형을 미리 받는다 */
+  await wait(900);
+  for (var r = 0; r < 6; r++) { await fire(K, [FLIP, FLIP]); await wait(500); await fire(K, [FLIP]); await wait(500); }
+  var fa = flips(await K.st()).map(function (x) { return x.id.slice(-1); });
+  ok(fa.length === 12 && fa.every(function (x, j) { return j === 0 || x !== fa[j - 1]; }), 'M a: 뒤집기 18번 중 간격 문이 6번을 버려도 들린 12번은 변형이 번갈아 (' + fa.join('') + ')');
+  noErrors(K, 'M a');
+  await K.close();
+  /* b: 뒤집기 파일이 조금 늦게 온다 (0.3 s 안): 그 단계의 톡은 act 때가 아니라 뒤집기 소리가 정말 난 때에서 철퍽(0.256 s) + 0.1 s */
+  var H = hold('**/foley/cook/cook_flip_*.ogg');
+  K = await kitchen(browser, { url: base + '/cook.html?sound=1&recipe=jeon&seed=19', audio: A0, route: H.route });
+  ok(!!(await K.unlock()), 'M b: 첫 탭 → 켜짐');
+  await fire(K, [{ act: 'sizzle', band: 0 }]);
+  await wait(700);
+  var t0 = await fire(K, [FLIP, STEP, QUIET]);
+  await wait(60);
+  H.release();
+  await wait(1200);
+  var s = await K.st(), fl = flips(s), tk = toks(s, t0);
+  if (fl.length) {
+    ok(H.asked() === 2 && fl.length === 1 && fl[0].t - t0 > 0.03 && tk.length === 1 && Math.abs(tk[0].t - (fl[0].t + 0.256) - 0.1) < 0.015,
+      'M b: 뒤집기 소리가 ' + Math.round((fl[0].t - t0) * 1000) + ' ms 늦게 났다 → 톡은 그 철퍽 0.1 s 뒤 (철퍽 뒤 ' + (tk[0] ? Math.round((tk[0].t - fl[0].t - 0.256) * 1000) : '?') + ' ms · 톡 ' + tk.length + ')');
+  } else {
+    console.log('  NOTE M b: 기계가 바빠 뒤집기 파일이 0.3 s 넘게 늦었다 — 이번 실행은 톡의 때(철퍽 0.1 s 뒤)를 재지 못했다. 한가할 때 ONLY=M 으로 다시 돌려 볼 것');
+    ok(H.asked() === 2 && tk.length === 0, 'M b: (기계가 바빠 뒤집기 파일이 0.3 s 넘게 늦었다) 뒤집기가 버려졌으니 그 톡도 없다 (톡 ' + tk.length + ')');
+  }
+  noErrors(K, 'M b');
+  await K.close();
+  /* c: 한 변형(cook_flip_2)의 파일이 한참 안 온다: 그 뒤집기는 0.3 s 늦은 규칙에 버려진다 → 그 톡도 없다 (톡만 혼자 울리지 않는다),
+     버려진 고르기는 '직전 것' 으로 남지 않는다 (다음에 들리는 뒤집기는 마지막에 들린 것과 다른 변형) */
+  H = hold('**/foley/cook/cook_flip_2.ogg');
+  K = await kitchen(browser, { url: base + '/cook.html?sound=1&recipe=jeon&seed=20', audio: A0, route: H.route });
+  ok(!!(await K.unlock()), 'M c: 첫 탭 → 켜짐');
+  await fire(K, [{ act: 'sizzle', band: 0 }]);
+  await wait(900);
+  var seq = [], lone = 0;
+  for (var i = 0; i < 5; i++) {   /* 들린 뒤집기(1) 바로 뒤에 안 들린 뒤집기(2 를 골랐고 파일을 기다린다)가 올 때까지: 많아야 세 번 */
+    var n0 = flips(await K.st()).length, t = await fire(K, [FLIP, STEP, QUIET]);
+    await wait(480);
+    var si = await K.st(), heard = flips(si).length > n0;
+    seq.push(heard ? 'h' : 'p');
+    if (!heard) lone += toks(si, t).length;
+    if (!heard && seq[seq.length - 2] === 'h') break;
+  }
+  var s1 = await K.st(), f1 = flips(s1), n1 = ids(s1, /^cook_step$/).length;
+  ok(/hp$/.test(seq.join('')) && f1.length >= 1 && f1.every(function (x) { return x.id === 'cook_flip_1'; }), 'M c: 파일이 안 온 변형을 고른 뒤집기는 조용하고, 온 변형은 들린다 (' + seq.join('') + ' · ' + f1.map(function (x) { return x.id.slice(-1); }).join('') + ')');
+  ok(lone === 0, 'M c: 뒤집기가 안 났으면 그 단계의 톡도 혼자 울리지 않는다 (혼자 난 톡 ' + lone + ')');
+  H.release();
+  await wait(700);
+  var s2 = await K.st();
+  ok(flips(s2).length === f1.length && ids(s2, /^cook_step$/).length === n1, 'M c: 파일이 뒤늦게 와도 0.3 s 넘게 늦은 뒤집기 · 그 톡은 울리지 않는다');
+  await fire(K, [FLIP]);
+  await wait(500);
+  var f3 = flips(await K.st());
+  ok(f3.length === f1.length + 1 && f3[f3.length - 1].id === 'cook_flip_2', 'M c: 늦어서 버려진 고르기도 되돌린다: 다음 뒤집기는 마지막에 들린 것(1)과 다른 변형 (' + f3.map(function (x) { return x.id.slice(-1); }).join('') + ')');
+  noErrors(K, 'M c');
+  await K.close();
+  /* d: 뒤집기가 아닌 소리도 (고르기를 play 가 한다): 접시 놓기 (변형 둘) 의 한 변형 파일이 한참 안 온다 → 늦어서 버려진 고르기는 되돌린다 */
+  H = hold('**/foley/cook/cook_plate_2.ogg');
+  K = await kitchen(browser, { url: base + '/cook.html?sound=1&recipe=jeon&seed=21', audio: A0, route: H.route });
+  ok(!!(await K.unlock()), 'M d: 첫 탭 → 켜짐');
+  function plates(x) { return ids(x, /^cook_plate_\d$/); }
+  var sq = [];
+  for (var j = 0; j < 5; j++) {   /* 들린 접시(1) 바로 뒤에 안 들린 접시(2 를 골랐고 파일을 기다린다)가 올 때까지. 접시는 act 0.4 s 뒤에 놓인다 (그때부터 0.3 s 늦으면 버린다) */
+    var p0 = plates(await K.st()).length;
+    await fire(K, [{ act: 'done', dish: 'jeon' }]);
+    await wait(900);
+    var hd = plates(await K.st()).length > p0;
+    sq.push(hd ? 'h' : 'p');
+    if (!hd && sq[sq.length - 2] === 'h') break;
+  }
+  var p1 = plates(await K.st());
+  H.release();
+  await wait(700);
+  await fire(K, [{ act: 'done', dish: 'jeon' }]);
+  await wait(900);
+  var p3 = plates(await K.st());
+  ok(/hp$/.test(sq.join('')) && p1.every(function (x) { return x.id === 'cook_plate_1'; }) && p3.length === p1.length + 1 && p3[p3.length - 1].id === 'cook_plate_2',
+    'M d: 늦어서 버려진 접시 고르기도 되돌린다: 다음 접시는 마지막에 들린 것(1)과 다른 변형 (' + sq.join('') + ' · ' + p3.map(function (x) { return x.id.slice(-1); }).join('') + ')');
+  noErrors(K, 'M d');
+  await K.close();
+  /* e: 뒤집기 두 변형을 다 못 받는다 (404): 처음 둘은 받다가 버려지고, 그 뒤로는 고를 변형이 없다 (둘 다 쉬는 중) — 어느 때든 그 단계의 톡은 혼자 울리지 않는다.
+     뒤집기가 아닌 단계의 톡은 여느 때처럼 난다 */
+  var reF = /\/foley\/cook\/cook_flip_/;
+  K = await kitchen(browser, { url: base + '/cook.html?sound=1&recipe=jeon&seed=25', audio: A0, allow: reF,
+    route: function (ctx) { return ctx.route('**/foley/cook/cook_flip_*', function (r) { return r.fulfill({ status: 404, contentType: 'text/plain', body: '404' }); }); } });
+  ok(!!(await K.unlock()), 'M e: 첫 탭 → 켜짐');
+  var loneE = [], tE = 0;
+  for (var e = 0; e < 4; e++) {
+    tE = await fire(K, [FLIP, STEP, QUIET]);
+    await wait(700);
+    loneE.push(toks(await K.st(), tE).length);
+  }
+  var sE = await K.st();
+  ok(flips(sE).length === 0 && loneE.join('') === '0000', 'M e: 뒤집기 파일을 둘 다 못 받는다: 뒤집기 네 번 모두 조용하고 톡도 혼자 울리지 않는다 (뒤집기마다 톡 ' + loneE.join(' ') + ')');
+  var tS = await fire(K, [{ act: 'step', kind: 'tap' }]);
+  await wait(400);
+  ok(toks(await K.st(), tS).length === 1, 'M e: 뒤집기가 아닌 단계의 톡은 여느 때처럼 난다');
+  ok(K.bag.errors.length === 0, 'M e: 콘솔 · 페이지 오류 0' + (K.bag.errors.length ? ' — ' + K.bag.errors.slice(0, 3).join(' | ') : ''));
+  await K.close();
+}
+
+async function scenarioN(browser, base) {
+  console.log('\n== N. 소리 목록(audio/manifest.json)을 못 읽었다: 조용히 쉬고 (AudioContext 를 돌려 두지 않는다), 1분 뒤의 손길에 다시 받아 본다');
+  var re = /\/audio\/manifest\.json$/, A0 = { on: false, music: 0.8, sfx: 0.8 };
+  function failing(times, box) {
+    return function (ctx) { return ctx.route('**/audio/manifest.json', function (r) { box.n++; return box.n <= times ? r.fulfill({ status: 503, contentType: 'text/plain', body: 'busy' }) : r.continue(); }); };
+  }
+  /* a: 한 번 못 읽었다 (쪽을 열 때 미리 받기) → 첫 손길이 바로 다시 받아 켠다 */
+  var b1 = { n: 0 }, K = await kitchen(browser, { url: base + '/cook.html?sound=1&seed=23', audio: A0, allow: re, route: failing(1, b1) });
+  await wait(600);
+  var s0 = await K.st();
+  ok(b1.n === 1 && s0.ctx === 'none' && !s0.reason, 'N a: 쪽을 열 때 한 번 못 읽었다 (아직 AudioContext 없음 · 포기하지 않음)');
+  ok(!!(await K.unlock()) && b1.n === 2, 'N a: 첫 손길이 다시 받아 켠다 (목록 요청 ' + b1.n + ')');
+  noErrors(K, 'N a');
+  await K.close();
+  /* b: 두 번 못 읽었다 (미리 받기 + 첫 손길) → 쉰다. 1분 안의 손길은 다시 받지 않고, 1분 뒤의 손길이 다시 받아 켠다 (새로고침 없이) */
+  var b2 = { n: 0 };
+  K = await kitchen(browser, { url: base + '/cook.html?sound=1&seed=24', audio: A0, allow: re, route: failing(2, b2) });
+  await wait(600);
+  await K.tapAt([180, 40]);
+  var s1 = await K.waitSt(function (x) { return x.reason === 'manifest'; }, 8000);
+  await wait(900);
+  var s2 = await K.st();
+  ok(!!s1 && b2.n === 2 && !s2.started && s2.played.length === 0, "N b: 두 번 못 읽었다 → 소리 없이 (이유 'manifest' · 목록 요청 " + b2.n + ')');
+  ok(s2.ctx !== 'running', 'N b: 낼 소리가 없으면 AudioContext 를 돌려 두지 않는다 (' + s2.ctx + ')');
+  for (var i = 0; i < 2; i++) { await K.tapAt([180, 40]); await wait(500); }
+  var s3 = await K.st();
+  ok(b2.n === 2 && !s3.started && s3.ctx !== 'running', 'N b: 1분 안의 손길은 목록을 다시 받지 않는다 (요청 ' + b2.n + ' · ' + s3.ctx + ')');
+  await K.page.evaluate(function () { var real = Date.now; Date.now = function () { return real.call(Date) + 61000; }; });   /* 1분이 지났다 (js/audio.js 는 이 문을 벽시계로 잰다) */
+  await K.tapAt([180, 40]);
+  var s4 = await K.waitSt(function (x) { return x.started && x.ctx === 'running' && x.cook && x.cook.ready; }, 15000);
+  ok(!!s4 && b2.n === 3 && !s4.reason, 'N b: 1분 뒤의 손길 → 목록을 다시 받아 켜진다, 새로고침 없이 (요청 ' + b2.n + ' · ' + (s4 ? s4.ctx : (await K.st()).ctx) + ')');
+  ok(!!s4 && (/^theme_/.test(s4.bgm || '') || /^theme_/.test(s4.want || '')), 'N b: 켜진 뒤엔 여느 때처럼 (집 BGM ' + (s4 && (s4.bgm || s4.want)) + ')');
+  await K.tapEl('.ck-prop');
+  ok(!!(await K.waitSt(function (x) { return ids(x, /^cook_pick_\d$/).length > 0; }, 4000)), 'N b: 부엌 소리도 난다 (팬 들기)');
+  var ls = await K.page.evaluate(function () { return JSON.parse(localStorage.getItem('ppolppol_audio') || 'null'); });
+  ok(ls && ls.on === false, 'N b: 그래도 ?sound=1 의 켜짐은 저장하지 않는다 ' + JSON.stringify(ls));
+  noErrors(K, 'N b');
+  await K.close();
+  /* c · d: 새 AudioContext 가 오디오 스레드가 뜰 때까지 'suspended' 로 읽히는 브라우저 (Web Audio 명세의 그림. Chromium 은 만들자마자 'running' 이라
+     b 로는 못 본다) — Chromium 안에서 state 읽기만 흉내 낸 것이고, Firefox · Safari 에서 돌린 것이 아니다. 그 사이에 목록 실패가 오면
+     (오프라인처럼 금방) 멈춤을 건너뛰어 AudioContext 가 뒤늦게 돈 채로 남았다.
+       c ('lag'): 스레드가 뜨기 전의 suspend() 를 받아 두는 엔진, 'running' 으로 읽히기 시작할 때 statechange 는 따로 오지 않는다 (이미 왔다)
+                  → 포기하는 순간, 상태를 묻지 않고 건 suspend() 가 듣는다
+       d ('deaf'): 스레드가 뜨기 전의 suspend() 는 아무 일도 안 하는 엔진, 뜨면 statechange → 'running' 으로 바뀌는 순간 다시 멈춘다 */
+  function lateStart(mode) {
+    return '(' + function (mode) {
+      ['AudioContext', 'webkitAudioContext'].forEach(function (k) {
+        var O = window[k]; if (!O) return;
+        window[k] = function () {
+          var c = new O(), up = false, real = function () { return Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, 'state').get.call(c); };
+          Object.defineProperty(c, 'state', { configurable: true, get: function () { return up ? real() : 'suspended'; } });
+          var su = c.suspend.bind(c);
+          window.__early = 0;
+          c.suspend = function () { if (!up) { window.__early++; if (mode === 'deaf') return Promise.resolve(); } return su(); };
+          window.__acUp = function () { var was = real(); up = true; if (mode === 'deaf') c.dispatchEvent(new Event('statechange')); return was; };   /* 오디오 스레드가 떴다 */
+          window.__acReal = real;
+          return c;
+        };
+        window[k].prototype = O.prototype;
+      });
+    }.toString() + ')(' + JSON.stringify(mode) + ');';
+  }
+  var modes = [['c', 'lag'], ['d', 'deaf']];
+  for (var m = 0; m < modes.length; m++) {
+    var tag = 'N ' + modes[m][0] + ' (' + modes[m][1] + ' 흉내)', b3 = { n: 0 };
+    K = await kitchen(browser, { url: base + '/cook.html?sound=1&seed=26', audio: A0, allow: re, route: failing(2, b3), init: lateStart(modes[m][1]) });
+    await wait(600);
+    await K.tapAt([180, 40]);
+    var g1 = await K.waitSt(function (x) { return x.reason === 'manifest'; }, 8000);
+    var early = await K.page.evaluate(function () { return window.__early; });
+    await wait(300);
+    var upAs = await K.page.evaluate(function () { return window.__acUp ? window.__acUp() : 'no AudioContext'; });   /* 포기한 뒤에야 스레드가 뜬다 */
+    await wait(700);
+    var g2 = await K.st(), realNow = await K.page.evaluate(function () { return window.__acReal ? window.__acReal() : 'none'; });
+    await wait(300);
+    var g3 = await K.st();
+    ok(!!g1 && b3.n === 2 && g1.ctx === 'suspended' && !g2.started && (modes[m][1] !== 'deaf' || upAs === 'running'), tag + ": 두 번 못 읽었다 → 포기하는 순간 AudioContext 는 아직 'suspended' 로 읽힌다 (그때 건 suspend() " + early + '번 · 스레드가 뜨기 바로 전 진짜 상태 ' + upAs + ')');
+    ok(realNow !== 'running' && g2.ctx !== 'running' && g3.time === g2.time, tag + ': 뒤늦게 돌기 시작한 AudioContext 를 돌려 두지 않는다 (진짜 상태 ' + realNow + ' · 시계 ' + (g3.time === g2.time ? '멈춤' : '감') + ')');
+    await K.page.evaluate(function () { var realD = Date.now; Date.now = function () { return realD.call(Date) + 61000; }; });
+    await K.tapAt([180, 40]);
+    var g4 = await K.waitSt(function (x) { return x.started && x.ctx === 'running' && x.cook && x.cook.ready; }, 15000);
+    ok(!!g4 && b3.n === 3 && !g4.reason, tag + ': 1분 뒤의 손길 → 다시 받아 켜진다 (요청 ' + b3.n + ' · ' + (g4 ? g4.ctx : (await K.st()).ctx) + ')');
+    noErrors(K, tag);
+    await K.close();
+  }
 }
 
 /* js/audio.js 의 fadeIn · levelAt · fadeOut 을 그대로 잘라 OfflineAudioContext 에서 (상수 1 소스 → 출력 = gain) */
@@ -630,7 +859,7 @@ async function scenarioG(browser, base) {
 (async function main() {
   var srv = await serve(), base = 'http://127.0.0.1:' + srv.address().port, t0 = Date.now();
   var browser = await chromium.launch();
-  var all = { A: scenarioA, B: scenarioB, C: scenarioC, D: scenarioD, E: scenarioE, F: scenarioF, H: scenarioH, I: scenarioI, J: scenarioJ, K: scenarioK, L: scenarioL, G: scenarioG };
+  var all = { A: scenarioA, B: scenarioB, C: scenarioC, D: scenarioD, E: scenarioE, F: scenarioF, H: scenarioH, I: scenarioI, J: scenarioJ, K: scenarioK, M: scenarioM, N: scenarioN, L: scenarioL, G: scenarioG };
   try {
     for (var k in all) {
       if (ONLY.length && ONLY.indexOf(k) < 0) continue;

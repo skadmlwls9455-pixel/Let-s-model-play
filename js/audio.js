@@ -138,7 +138,7 @@ var AUDIO = (function () {
   var pre = {};   /* id → { f, p: Promise<ArrayBuffer> }: 켜 둔 채 부엌을 열면 첫 손길 전에 받아만 둔 첫 소리 (디코드는 AudioContext 가 생긴 뒤 load 에서) */
   function isBad(id) { var b = bad[id]; return !!(b && Date.now() < b.until); }
   function has(x) { return !!(x && (byId[x] || groups[x]) && !isBad(x)); }
-  var unpick = null;   /* 방금 pick 이 그룹에서 골랐으면 [그룹, 그 전의 lastPick] — play 가 그 소리를 걸지 않고 버릴 때 되돌린다 (dropped) */
+  var unpick = null;   /* 방금 pick 이 그룹에서 골랐으면 [그룹, 그 고르기의 기록] — 그 소리를 걸지 않고 버릴 때 되돌린다 (undoPick) */
   /* 정확한 이름이 먼저 (lantern_3 · chime_day), 아니면 그룹에서 직전과 다른 것 (시드 PRNG).
      못 받은 변형(isBad)은 고르지 않는다 — 둘짜리 그룹(뒤집기 · 불 켜기 · 접시)에서 하나가 없으면 번갈아 조용해지고 고를 때마다 다시 받았다 */
   function pick(x) {
@@ -150,15 +150,22 @@ var AUDIO = (function () {
     g = g.filter(function (id) { return !isBad(id); });
     if (!g.length) return null;
     if (g.length === 1) return g[0];
-    var c = g.filter(function (id) { return id !== lastPick[x]; });
-    var p = c[Math.floor(rnd() * c.length)] || c[0];
-    unpick = [x, lastPick[x]];
-    lastPick[x] = p;
+    /* lastPick[그룹] = 버려지지 않은 고르기들 (오래된 것부터, 많아야 4). '직전 것' = 그 마지막: 들렸거나 아직 파일을 기다리는 것 */
+    var h = lastPick[x] || (lastPick[x] = []), last = h.length ? h[h.length - 1].id : undefined;
+    var c = g.filter(function (id) { return id !== last; });
+    var p = c[Math.floor(rnd() * c.length)] || c[0], rec = { id: p };
+    h.push(rec); if (h.length > 4) h.shift();
+    unpick = [x, rec];
     return p;
   }
-  /* play 가 고른 변형을 걸지 않고 돌아간다 (건너뛰는 중 · 간격 문 · 동시 한도): '직전 것' 기록을 고르기 전으로 되돌린다. 안 그러면 다음 고르기가
-     아무도 못 들은 변형과 견줘서, 들린 소리가 연달아 같을 수 있다 (부엌 단추 톡톡: 한 번 누름에 tap 셋이 80 ms 안에 와서 둘이 버려진다) */
-  function dropped() { if (unpick) { lastPick[unpick[0]] = unpick[1]; unpick = null; } return Promise.resolve(0); }
+  /* 방금 한 pick 을 되돌리는 함수 (pick 바로 뒤에 부른다). 고른 변형을 끝내 걸지 않았으면 부른다 — 바로 버림(건너뛰는 중 · 간격 문 · 동시 한도)이든
+     나중 버림(처음 받느라 늦음 · 못 받음 · 그새 꺼짐)이든: 그 고르기의 기록만 뺀다 (그 뒤에 다른 고르기가 있었어도 순서와 상관없이).
+     안 그러면 다음 고르기가 아무도 못 들은 변형과 견줘서, 들린 소리가 연달아 같을 수 있다 (부엌 단추 톡톡: 한 번 누름에 tap 셋이 80 ms 안에 와서
+     둘이 버려진다 · 변형이 둘뿐인 뒤집기는 버려진 것 다음에 늘 같은 것이 들렸다). 0 을 돌려준다 (버린 소리의 '끝나는 때') */
+  function undoPick() {
+    var u = unpick; unpick = null;
+    return function () { if (u) { var h = lastPick[u[0]], i = h ? h.indexOf(u[1]) : -1; if (i >= 0) h.splice(i, 1); u = null; } return 0; };
+  }
   function mp() { return (M && M.map) || {}; }
   function ev(path) { var o = mp(); for (var i = 0; i < path.length && o != null; i++) o = o[path[i]]; return o; }
   function busFor(s) {
@@ -281,10 +288,11 @@ var AUDIO = (function () {
         g.connect(b === 'bgm' ? nd.trim : b === 'amb' ? nd.duckAmb : nd.master);
         nd.bus[b] = g;
       });
-      /* 멈춤이 풀리면 탭 대기를 거두고, 보이는데 멈춰 있으면(iOS 잠금·전화·다른 앱 소리 = suspended/interrupted) 다음 탭에서 다시 깨운다 */
+      /* 멈춤이 풀리면 탭 대기를 거두고, 보이는데 멈춰 있으면(iOS 잠금·전화·다른 앱 소리 = suspended/interrupted) 다음 탭에서 다시 깨운다.
+         목록을 못 읽어 쉬는 중(reason 'manifest')에 뒤늦게 돌기 시작했으면 다시 멈춘다 (ctxRest) */
       ctx.onstatechange = guard(function () {
         if (!ctx) return;
-        if (ctx.state === 'running') { if (started) disarm(); }
+        if (ctx.state === 'running') { if (started) disarm(); else if (reason === 'manifest') ctxRest(); }
         else if (ctx.state !== 'closed' && pref.on && !reason && !document.hidden) arm();
       });
     } catch (e) {
@@ -295,6 +303,10 @@ var AUDIO = (function () {
     }
     return ctx;
   }
+  /* 낼 소리가 없을 때 (소리 목록을 못 읽음) AudioContext 를 멈춰 둔다. 지금 상태가 'running' 인지는 묻지 않는다: 새 AudioContext 가 오디오 스레드가
+     뜰 때까지 'suspended' 로 읽히는 브라우저에서는 금방 온 실패(오프라인)가 멈춤을 건너뛰어, 뒤늦게 돌기 시작한 채로 남았다.
+     그래서 여기서 한 번, 그리고 쉬는 중에 'running' 으로 바뀌면 (onstatechange) 또 한 번 */
+  function ctxRest() { if (ctx && ctx.state !== 'closed') { try { ctx.suspend().catch(noop); } catch (e) { /* noop */ } } }
   function now() { return ctx ? ctx.currentTime : 0; }
   function dbg(db) { return Math.pow(10, db / 20); }
   function curve(x) { return x * x; }
@@ -322,7 +334,9 @@ var AUDIO = (function () {
     played.push(r); if (played.length > 120) played.shift();
   }
   /* o: at (ctx 시각) · gain · bus · always (건너뛰는 중에도) · direct (마스터를 거치지 않음 — 끄는 소리)
-        rate (빠르기, 음높이도 같이) · off (파일 앞을 이만큼 건너뛰고) · late (받느라 이만큼(초) 늦으면 버림) · side (이벤트 징글 줄·말풍선 자리와 상관없는 소리 — 부엌) */
+        rate (빠르기, 음높이도 같이) · off (파일 앞을 이만큼 건너뛰고) · late (받느라 이만큼(초) 늦으면 버림) · side (이벤트 징글 줄·말풍선 자리와 상관없는 소리 — 부엌)
+        began (그 소리를 정말 건 ctx 시각을 받는 함수 — 버려지면 안 부른다)
+     돌려주는 약속: 그 소리가 끝나는 ctx 시각, 걸지 않았으면 0 */
   /* 이벤트 징글 줄 세우기: 받기 전에(매니페스트 길이로) 자리를 잡아 서로 겹치지 않게 (기분+등불, 귀가+등불, 등불+이불…).
      빈 자리가 있으면 앞 예약(시간대 종 등) 사이에도 들어간다. beat0 = 처음 자리도 박에, beat1 = 밀렸으면 박에 · fixed = 이미 걸린 것만 피한다
      받기가 늦으면 순서를 지킨다: 뒤 징글은 앞 징글이 걸릴 때까지(많아야 1.5 s) 기다렸다가 그 뒤로 (움츠림이 나감 뒤에 울리지 않게) */
@@ -343,17 +357,18 @@ var AUDIO = (function () {
     if (!ctx || !M || document.hidden) return Promise.resolve(0);
     if (!o.direct && !active()) return Promise.resolve(0);
     var id = pick(x); if (!id) return Promise.resolve(0);
+    var undo = undoPick();   /* 이 소리를 끝내 걸지 않으면 (아래 버림들 · 늦음 · 못 받음) 고르기를 되돌린다 */
     var s = byId[id], g = s.group || id, bus = o.bus || busFor(s);
-    if (gs.skipping && !o.always && bus !== 'sfx_ui') return dropped();   /* 건너뛰는 중엔 귀가·등불만 */
+    if (gs.skipping && !o.always && bus !== 'sfx_ui') return Promise.resolve(undo());   /* 건너뛰는 중엔 귀가·등불만 */
     var t0 = now(), tt = o.at || t0, gap = (s.min_gap_ms || 0) / 1000, beat = s.quantize === 'beat';
     /* 비 오는 날 나감 소리 덧층(depart_rain_extra)은 일부러 겹친다. 시간대 종은 곡 전환에 맞춘 자리 그대로 (다른 것이 피해 간다) */
     var queued = !o.direct && bus === 'sfx_event' && s.kind === 'jingle' && g !== 'depart_rain_extra', d = s.duration || 0.3;
     if (queued && g !== 'chime') tt = fitEv(Math.max(tt, t0 + 0.01), d, beat && !o.at, beat);
-    if (gap && lastAt[g] != null && Math.abs(tt - lastAt[g]) < gap) return dropped();
+    if (gap && lastAt[g] != null && Math.abs(tt - lastAt[g]) < gap) return Promise.resolve(undo());
     /* 동시에 6개까지: 새 소리가 시작하는 순간 울리고 있을 것만 센다 (미리 예약한 말풍선 음절은 서로 겹치지 않는다) */
     shots = shots.filter(function (x) { return x.e > t0; });
     var over = shots.filter(function (x) { return x.s <= tt + 0.02 && x.e > tt; }).length;
-    if (over >= MAX_SHOTS + (bus === 'sfx_event' ? 2 : 0)) return dropped();
+    if (over >= MAX_SHOTS + (bus === 'sfx_event' ? 2 : 0)) return Promise.resolve(undo());
     lastAt[g] = tt;
     shots.push({ s: tt, e: tt + d + 0.05 });
     var resv = null, at = o.at || 0, ready = load(id);
@@ -388,11 +403,13 @@ var AUDIO = (function () {
       live.push(rec);
       src.onended = function () { try { gn.disconnect(); } catch (e) { /* noop */ } var i = live.indexOf(rec); if (i >= 0) live.splice(i, 1); };
       src.start(t, off);
+      if (typeof o.began === 'function') o.began(t);
       var end = t + len;
       if (bus === 'sfx_event' && !o.side) evEnd = Math.max(evEnd, end);
       note(id, t, (rate !== 1 || off) ? { rate: rate, off: off } : null);
       return end;
-    }).catch(function (e) { if (resv) resv.s = resv.e = -1; warn('소리 파일을 못 틀었어 (' + id + ')', e); return 0; });   /* 못 튼 징글 자리는 비운다 */
+    }).catch(function (e) { if (resv) resv.s = resv.e = -1; warn('소리 파일을 못 틀었어 (' + id + ')', e); return 0; })   /* 못 튼 징글 자리는 비운다 */
+      .then(function (end) { return end || undo(); });   /* 걸지 못했다 (늦음 · 그새 꺼짐 · 못 받음): 고르기를 되돌린다 */
     if (bus === 'sfx_event' && !o.side) evP = p;   /* 말풍선 음절은 이게 자리 잡은 뒤에 (처음 받는 기웃 결과음과 겹치지 않게) */
     if (queued) evChain = p;
     return p;
@@ -912,12 +929,14 @@ var AUDIO = (function () {
                 — 그림의 기포 터짐과 같은 때)
                 탭이 숨었다 돌아와 다시 온 것 (불은 켜진 채): heat_on 없이 그 루프만 0.3 s
        flip → 뒤집기 변형 그대로 (철퍽 봉우리가 파일 0.256 s = arc 착지 그림). 움직임 줄이기면 휙을 건너뛰고 sync.reduced_motion_offset_s 부터
-              그 단계 끝 step 의 톡은 철퍽 뒤 0.1 s 에 (뒤집는 순간 울리면 일찍 떨어진 것처럼 들린다)
+              그 단계 끝 step 의 톡은 철퍽 뒤 0.1 s 에 (뒤집는 순간 울리면 일찍 떨어진 것처럼 들린다). 철퍽은 뒤집기 소리가 정말 난 때부터 잰다
+              (파일이 늦게 와도 톡이 철퍽보다 먼저 나지 않게) · 뒤집기 소리가 버려졌으면 (처음 받느라 0.3 s 넘게 늦음 등) 그 톡도 없다
        quiet → 도는 루프를 0.25 s 에 내리고 멈춘다 (한 번짜리는 끝까지). 뒤집은 바로 뒤에도 온다 — 뒤집기 파일 안에 지글이 잦아드는 꼬리가 있다
        done → 접시가 다 오른 때(+0.4 s, 움직임 줄이기면 바로) 접시 놓기 + 0.15 s 뒤 작은 김 쉬익
        stir · clink · place · lift → 그 소리 (조각 2) · back → lift 를 절반 크기로 · simmer → 루프 (quiet 로 멈춤) · 모르는 act → 조용히
      부엌이 열려 있는 동안 음악·환경음을 내린다 (부엌 덕킹 — 따로 된 노드라 징글 덕킹과 서로 안 덮는다): 열려 있으면 COOK_BED, 지글·보글 루프가
-     도는 동안 더 깊게 COOK_SIZZLE. 효과음 크기가 0 이면 내리지 않는다 (들리지 않는 지글 때문에 음악만 줄지 않게).
+     도는 동안 더 깊게 COOK_SIZZLE. 효과음 크기가 0 이면 내리지 않는다 (들리지 않는 지글 때문에 음악만 줄지 않게). 부엌 목록을 못 받았을 때도
+     내리지 않는다 (부엌이 낼 소리가 없다 — 목록이 오면 그때부터).
      나머지는 다른 소리와 같다: 효과음 슬라이더(sfx_event) · 밤 마스터 · 탭 숨김(cook.js 가 quiet, 돌아오면 sizzle) · 첫 동작 잠금 풀기 · 실패는 조용히.
      꺼져 있거나 아직 안 풀렸을 때도 불(band)은 기억한다: 켜지는 순간 부엌이 열려 있고 불이 켜져 있으면 그 지글부터 (불 켠 바로 그 탭이 잠금을 풀었으면 heat_on 도).
      아직 안 풀렸을 때 온 한 번짜리 act 하나(첫 손길의 팬 들기)도 기억했다가, 풀린 뒤 COOK_EARLY 안이면 튼다 */
@@ -935,7 +954,7 @@ var AUDIO = (function () {
     stir: ['stir', 'place', 'lift', 'clink'], simmer: ['stir', 'clink']
   };
   var FM = null, fmP = null, fmRetry = 0;
-  var CK = { band: null, hid: false, at: -1e9, fresh: false, warmed: false, pending: 0, q: Promise.resolve(), bed: 0, early: null, landAt: -1, log: [] };
+  var CK = { band: null, hid: false, at: -1e9, fresh: false, warmed: false, pending: 0, q: Promise.resolve(), bed: 0, early: null, flip: null, log: [] };
   function loadFoley() {
     if (FM) return Promise.resolve(true);
     if (fmP) return fmP;
@@ -1003,12 +1022,13 @@ var AUDIO = (function () {
   function ckShot(g, o) {
     o = o || {};
     if (!g || !has(g)) return Promise.resolve(0);
-    return play(g, { at: o.at, gain: o.gain, rate: o.rate, off: o.off, bus: 'sfx_event', always: true, side: true, late: num(o.late) ? o.late : COOK_LATE });
+    return play(g, { at: o.at, gain: o.gain, rate: o.rate, off: o.off, began: o.began, bus: 'sfx_event', always: true, side: true, late: num(o.late) ? o.late : COOK_LATE });
   }
-  /* 부엌 덕킹: 0 없음 · 1 부엌이 열려 있음 (COOK_BED) · 2 지글·보글 루프가 돎 (COOK_SIZZLE). 효과음이 0 이면 내리지 않는다 */
+  /* 부엌 덕킹: 0 없음 · 1 부엌이 열려 있음 (COOK_BED) · 2 지글·보글 루프가 돎 (COOK_SIZZLE). 효과음이 0 이면 내리지 않는다.
+     부엌 목록(FM)을 못 받았으면 부엌이 낼 소리가 없으니 내리지 않는다 (받는 중에도 — 목록이 오면 그것을 기다리던 cookResume · cookAct 가 다시 부른다) */
   function ckBed() {
     if (!ctx || !nd.ckB) return;
-    var lvl = !pref.on || !cookOpen() || !(curve(vol.sfx_event) > 0) ? 0 : (slots.cook && !slots.cook.dead) || loading.cook ? 2 : 1;
+    var lvl = !FM || !pref.on || !cookOpen() || !(curve(vol.sfx_event) > 0) ? 0 : (slots.cook && !slots.cook.dead) || loading.cook ? 2 : 1;
     if (CK.bed === lvl) return;
     var down = lvl > CK.bed, D = lvl === 2 ? COOK_SIZZLE : lvl === 1 ? COOK_BED : null, t = now();
     CK.bed = lvl;
@@ -1038,10 +1058,23 @@ var AUDIO = (function () {
   }
   function ckFlip(g) {
     if (!g || !has(g)) return;
-    var id = pick(g); if (!id) return;   /* 변형을 먼저 골라 그 파일의 sync 를 본다 (pick 이 직전 것을 기억) */
+    var id = pick(g);   /* 변형을 먼저 골라 그 파일의 sync 를 본다 (pick 이 직전 것을 기억) */
+    /* 고를 변형이 없다 (둘 다 못 받아 쉬는 중): 버려진 뒤집기로 적어 둔다 — 그 단계의 톡이 뒤집는 순간 혼자 울리지 않게 (아래 p → 0 과 같은 길) */
+    if (!id) { CK.flip = { land: 0.256, until: now() + 0.01 + 0.256, at: 0, p: Promise.resolve(0) }; return; }
+    var undo = undoPick();               /* ckShot 은 그 id 를 그대로 받으니 (다시 고르지 않는다) 버려졌을 때 되돌리는 것은 여기 몫 */
     var sy = byId[id].sync, off = sy && num(sy.reduced_motion_offset_s) && cookReduced() ? sy.reduced_motion_offset_s : 0;
-    CK.landAt = now() + 0.01 + Math.max(0, (sy && num(sy.land_s) ? sy.land_s : 0.256) - off);   /* 철퍽이 들리는 때 (뒤따르는 step 의 톡은 그 뒤에) */
-    ckShot(id, { off: off });
+    /* land = 뒤집기 소리가 난 때부터 철퍽까지 · until = 이 뒤집기의 단계 끝 step 을 기다리는 때 (파일이 제때 왔다면 철퍽이 들릴 때까지)
+       p → 뒤집기 소리를 정말 건 ctx 시각, 버려졌으면 (간격 문 · 처음 받느라 0.3 s 넘게 늦음 · 못 받음) 0 */
+    var F = { land: Math.max(0, (sy && num(sy.land_s) ? sy.land_s : 0.256) - off), until: 0, at: 0, p: null };
+    F.until = now() + 0.01 + F.land;
+    F.p = ckShot(id, { off: off, began: function (t) { F.at = t; } }).then(function (end) { return end ? F.at : undo(); });
+    CK.flip = F;
+  }
+  /* 뒤집기 단계 끝의 톡: 철퍽 0.1 s 뒤. 철퍽은 뒤집기 소리가 정말 난 때부터 잰다 (파일이 늦게 오면 act 때부터 잰 톡이 철퍽보다 먼저 났다).
+     뒤집기 소리가 버려졌으면 톡도 내지 않는다 (톡만 혼자 울리지 않게) */
+  function ckFlipTok(F) {
+    var g = ckRef('step')[0];
+    F.p.then(guard(function (t) { if (t && active()) ckShot(g, { at: t + F.land + 0.1 }); }));
   }
   function ckDone() {
     var r = ckRef('done'), t = now() + (cookReduced() ? 0.02 : COOK_LAND);
@@ -1065,7 +1098,7 @@ var AUDIO = (function () {
     if (act === 'tap') { ckShot(ckRef('tap')[0], { rate: Math.pow(2, 3 * Math.max(0, Math.min(8, d.i | 0)) / 8 / 12) }); return; }
     if (act === 'flip') { ckFlip(ckRef('flip')[0]); return; }
     if (act === 'done') { ckDone(); return; }
-    if (act === 'step' && d.kind === 'flip' && CK.landAt > now()) { ckShot(ckRef('step')[0], { at: CK.landAt + 0.1 }); return; }   /* 철퍽 뒤에 톡 */
+    if (act === 'step' && d.kind === 'flip' && CK.flip && CK.flip.until > now()) { ckFlipTok(CK.flip); return; }   /* 철퍽 뒤에 톡 */
     var g = ckRef(act)[0], s = g && (byId[g] || byId[(groups[g] || [])[0]]);
     if (!s) return;
     if (s.loop) { if (!(slots.cook && !slots.cook.dead && slots.cook.id === s.id) && loading.cook !== s.id) ckLoop(s.id, COOK_FADE.heat, 'start'); return; }   /* 보글 (조각 2) */
@@ -1137,7 +1170,14 @@ var AUDIO = (function () {
     if (cookOpen()) loadFoley();   /* 부엌이 열려 있으면 부엌 목록도 같이 받는다 (첫 톡톡이 늦지 않게) */
     loadManifest().then(guard(function (ok) {
       starting = false;
-      if (!ok) { reason = reason || 'manifest'; paint(); if (fromUser) tellUnavailable(); return; }
+      if (!ok) {
+        /* 목록을 못 읽었다: 낼 소리가 없으니 AudioContext 를 돌려 두지 않는다 (ctxRest). 탭 대기(arm)는 거두지 않고, 없었으면 ('켜기' 칸을 방금 켠 길)
+           여기서 건다 — LIST_RETRY 뒤의 손길이 다시 받아 본다 (onUnlock). 꺼져 있으면 걸지 않는다 */
+        reason = reason || 'manifest'; listRetry = Date.now() + LIST_RETRY;
+        ctxRest();
+        if (pref.on && reason === 'manifest') arm();
+        paint(); if (fromUser) tellUnavailable(); return;
+      }
       if (!pref.on || started) { paint(); return; }
       started = true;
       readGame();
@@ -1216,8 +1256,13 @@ var AUDIO = (function () {
     if (!e || !e.target || !e.target.closest || !e.target.closest('#set-sound-row')) return false;
     return e.type !== 'keydown' || e.key === ' ' || e.key === 'Spacebar';
   }
+  /* 목록(audio/manifest.json)을 못 읽어 쉬는 중(reason 'manifest')이면 탭 대기를 거두지 않는다: LIST_RETRY (부엌 목록과 같은 1분) 뒤의 손길이 다시 받아 본다.
+     설정의 '켜기' 칸이 없는 쪽(cook.html)은 이 길뿐이다 — 안 그러면 새로고침해야 소리가 돌아온다. 본 게임의 '켜기' 칸은 기다리지 않고 바로 (setEnabled),
+     칸을 방금 켰다가 못 읽은 때도 같은 탭 대기를 건다 (start) — 켜 둔 채 새로고침한 때와 똑같이 1분 뒤의 손길이 다시 받아 본다 */
+  var LIST_RETRY = 60000, listRetry = 0;
   function onUnlock(e) {
-    if (!pref.on || reason) { disarm(); return; }
+    if (!pref.on || (reason && reason !== 'manifest')) { disarm(); return; }
+    if (reason) { if (Date.now() < listRetry || rowOwns(e)) return; reason = ''; toldFile = false; }
     if (rowOwns(e)) return;
     if (started && ctx && ctx.state === 'running') { disarm(); return; }
     if (started && ctx) { try { ctx.resume().catch(noop); } catch (x) { /* noop */ } return; }

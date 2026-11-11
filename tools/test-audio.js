@@ -18,6 +18,8 @@
  *  6. 밤 21시 + 맑음 → theme_night_clear · 마스터 -3 dB · 탭 숨김 suspend · 방 완성 일시정지 · 날씨/시간대 전환 · 집에 있는 날 자리 규칙
  *  7. file:// → 체크 칸을 켜도 페이지 오류 0 · 소리 없음 안내 (토스트 · 소리 칸 아래 한 줄)
  *  8. 방 완성 팡파르 중 끄고 켜기 → BGM 덕킹 풀림 · 못 받는 집 테마는 매초 다시 받지 않는다
+ *     · 소리 목록(audio/manifest.json) 503 → 안내 한 줄 · 칸은 체크 · AudioContext 를 돌려 두지 않는다 · 칸을 껐다 켜면 바로 다시 받아 켜진다 ·
+ *       칸을 그대로 두면 1분 뒤의 손길이 다시 받아 켠다
  *  9. D-1 자장가 규칙 (훅 이벤트로): 낮 + 덤덤 / 낮 + 반응 없음 → 자장가 없음 · 낮 + 졸림 → 자장가 · 밤 → 자장가 · 반응 키 없으면 마무리 줄의 반응
  *     · 문 이벤트 door{act:'open'} → 끼익 (한 벌에 door_open 이 없으면 audio.js 가 만든 door_creak_open — 시트 소리 아님, 크기는 export 잣대) · close → 짧은 끼익
  *     · 모르는 act·이름은 조용히 · 놀이방 문(#btn-door)을 누르면 끼익 열림 · 닫힘 + 놀이방 (8물결) → 오락기 → 달리기 창
@@ -523,6 +525,51 @@ async function scenarioToggle(browser, base) {
   var n = s.bag.audioReq.filter(function (u) { return /theme_day_rain/.test(u); }).length, m = await st(page);
   ok(n >= 1 && n <= 2 && m.bgm === null && m.amb.indexOf('amb_rain') >= 0, '없는 집 테마: 6초 동안 ' + n + '번만 받아 봄 (매초 다시 받지 않음) · 환경음은 그대로 (' + m.amb.join(',') + ')');
   ok(s.bag.errors.filter(function (e) { return /pageerror/.test(e); }).length === 0, '없는 파일: 페이지 오류 0');
+  await s.ctx.close();
+  /* 소리 목록(audio/manifest.json)을 못 읽었다 (503 한 번): 안내 한 줄 · 칸은 기억(체크) · AudioContext 를 돌려 두지 않는다 ·
+     칸을 껐다 켜면 기다리지 않고 바로 다시 받아 켜진다 (손길로 다시 받는 1분 문은 '켜기' 칸에는 없다) */
+  s = await newPage(browser, { hour: 14 }, base);
+  page = s.page;
+  var asked = 0;
+  await s.ctx.route('**/audio/manifest.json', function (r) { asked++; return asked <= 1 ? r.fulfill({ status: 503, contentType: 'text/plain', body: 'busy' }) : r.continue(); });
+  await page.goto(base + '/index.html');
+  await nameIt(page);
+  await clickSound(page, true);
+  var gaveUp = await waitState(page, function () { return AUDIO.state().reason === 'manifest'; }, null, 8000);
+  await page.waitForTimeout(700);
+  var l1 = await st(page), u1 = await soundUI(page);
+  ok(gaveUp && asked === 1 && !l1.started && u1.checked === true && /소리 목록을 못 읽었어/.test(u1.note || '') && u1.noteHidden === false, "목록을 못 읽음: 소리 없이 · 칸은 기억(체크) · 안내 한 줄 ('" + u1.note + "')");
+  ok(l1.ctx !== 'running', '목록을 못 읽음: 낼 소리가 없으면 AudioContext 를 돌려 두지 않는다 (' + l1.ctx + ')');
+  await page.click('#set-sound');
+  await page.waitForTimeout(200);
+  await page.click('#set-sound');
+  var back = await waitState(page, function () { var x = AUDIO.state(); return x.started && x.ctx === 'running' && x.bgm === 'theme_day_rain'; }, null, 15000);
+  var l2 = await st(page), u2 = await soundUI(page);
+  ok(back && asked === 2 && !l2.reason && u2.checked === true && u2.noteHidden === true, '칸을 껐다 켜면 바로 다시 받아 켜진다 (목록 요청 ' + asked + ' · ' + l2.ctx + ' · bgm ' + l2.bgm + ')');
+  ok(s.bag.errors.filter(function (e) { return /pageerror/.test(e); }).length === 0, '목록을 못 읽음: 페이지 오류 0');
+  await s.ctx.close();
+  /* '켜기' 칸을 방금 켰는데 목록을 못 읽었다 → 칸을 다시 만지지 않아도, 켜 둔 채 새로고침한 때와 같게: 1분 안의 손길은 다시 받지 않고
+     1분 뒤의 손길이 다시 받아 켠다 */
+  s = await newPage(browser, { hour: 14 }, base);
+  page = s.page;
+  var asked2 = 0;
+  await s.ctx.route('**/audio/manifest.json', function (r) { asked2++; return asked2 <= 1 ? r.fulfill({ status: 503, contentType: 'text/plain', body: 'busy' }) : r.continue(); });
+  await page.goto(base + '/index.html');
+  await nameIt(page);
+  await clickSound(page, true);
+  var gaveUp2 = await waitState(page, function () { return AUDIO.state().reason === 'manifest'; }, null, 8000);
+  await closeSheet(page, 'settings-sheet');
+  for (var k = 0; k < 2; k++) { await page.mouse.click(180, 200); await page.waitForTimeout(300); }
+  var q1 = await st(page);
+  ok(gaveUp2 && asked2 === 1 && q1.reason === 'manifest' && !q1.started && q1.ctx !== 'running', '칸을 켰는데 목록을 못 읽음: 1분 안의 손길은 다시 받지 않는다 (목록 요청 ' + asked2 + ' · ' + q1.ctx + ')');
+  await page.evaluate(function () { var real = Date.now; Date.now = function () { return real.call(Date) + 61000; }; });   /* 1분이 지났다 (js/audio.js 는 이 문을 벽시계로 잰다) */
+  await page.mouse.click(180, 200);
+  var back2 = await waitState(page, function () { var x = AUDIO.state(); return x.started && x.ctx === 'running' && x.bgm === 'theme_day_rain'; }, null, 15000);
+  var q2 = await st(page);
+  await ensureSettings(page);
+  var u3 = await soundUI(page);
+  ok(back2 && asked2 === 2 && !q2.reason && u3.checked === true && u3.noteHidden === true && u3.ls && u3.ls.on === true, '칸을 켰는데 목록을 못 읽음: 1분 뒤의 손길이 다시 받아 켠다, 칸을 다시 만지지 않아도 (목록 요청 ' + asked2 + ' · ' + q2.ctx + ' · bgm ' + q2.bgm + ')');
+  ok(s.bag.errors.filter(function (e) { return /pageerror/.test(e); }).length === 0, '칸을 켰는데 목록을 못 읽음: 페이지 오류 0');
   await s.ctx.close();
 }
 
