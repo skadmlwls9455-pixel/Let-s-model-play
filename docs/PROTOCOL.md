@@ -73,7 +73,7 @@
 | `failed` | `icon.log.failed` + 못 읽음 | 읽으려 했는데 실패했다 |
 | `none` | `icon.log.none` + 앉아만 있었음 | 읽은 것이 없다(느린 글의 방, 편지의 방) |
 
-`source` 는 `read` 일 때만: `{ "url", "extract"(≤160자), "thumb": {"url","w","h"}|null, "license": "CC BY-SA 4.0", "attribution": "Wikipedia (ko)" }`.
+`source` 는 `read` 일 때만: `{ "url", "extract"(≤160자), "thumb": {"url","w","h"}|null, "license": "CC BY-SA 4.0", "attribution": "Wikipedia (<언어>)" }`. `attribution` 의 언어는 읽은 위키백과의 것이다 — `Wikipedia (ko)` · `Wikipedia (en)` · `Wikipedia (ja)` … (방의 언어 열 가지, [I18N.md](I18N.md)). 재생 (`BRAIN.replay`) 은 입력이 준 `attribution` 을 쓰지 않고, 검사를 통과한 `url` 의 언어로 붙인다.
 
 ### 예시 — 외출
 ```json

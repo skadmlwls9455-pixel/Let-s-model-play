@@ -338,6 +338,22 @@ async function scenarioMain(browser) {
   await page.screenshot({ path: path.join(SHOTS, 'settings-dark.png') });
   await page.click('#set-close');
   await page.emulateMedia({ colorScheme: 'light' });
+  /* 연결된 방이 있으면 설정에 '방의 언어' 고르기가 생긴다 (다국어 11-10). select 는 가장 긴 option 만큼 넓어져서, 첫 칸 '자동 · Claude 대화를 따라감 (지금 한국어)' 가
+     360 px 에서 시트보다 114 px 넓었고 시트가 옆으로 밀렸다 → 가장 긴 이름 (Bahasa Indonesia) 으로 잰다. 방은 이 검사 동안만 넣는다 (저장하지 않고 서버에 묻지 않는다) */
+  await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  await page.evaluate(function () { APP.state.settings.claudeRoom = { key: new Array(41).join('k'), mcp: 'https://example.invalid/api/mcp/k', last: null, lang: 'id', pin: false }; });
+  await page.click('#btn-settings');
+  await page.waitForSelector('#set-claude-lang');
+  var lp = await page.evaluate(function () {
+    var d = document.getElementById('settings-sheet'), sel = document.getElementById('set-claude-lang'), cs = getComputedStyle(d);
+    var o = { first: sel.options[0].text, n: sel.options.length, sel: Math.round(sel.getBoundingClientRect().width), room: Math.round(d.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)), side: d.scrollWidth - d.clientWidth };
+    APP.state.settings.claudeRoom = null;   /* 되돌린다 (저장한 적 없음 — 아래 saved 가 본다) */
+    o.saved = !!(JSON.parse(localStorage.getItem('ppolppol_v2') || '{}').settings || {}).claudeRoom;
+    return o;
+  });
+  ok(lp.first === '자동 (지금 Bahasa Indonesia)' && lp.n === 11 && lp.sel <= lp.room && lp.side === 0 && !lp.saved, "설정 › 방의 언어 고르기 (연결된 방 · 자동 + 가장 긴 이름 · 360 px): 시트 안에 들어가고 시트가 옆으로 밀리지 않음 " + JSON.stringify(lp));
+  await page.click('#set-close');
+  await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
 
   console.log('\n== 두 번째 초대 (같은 힌트, seq 2 → 다른 시드)');
   await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
@@ -373,6 +389,14 @@ async function scenarioMain(browser) {
     return [].map.call(d.querySelectorAll('.row .note'), function (e) { return e.textContent; });
   });
   ok(nb.length === 2 && nb[0].indexOf('“') < 0 && /모델이 쓴 메모/.test(nb[0]) && nb[1] === '“모자는 머리에 쓰는 물건이다.”', "일기: 모델 메모는 따옴표 없이 '모델이 쓴 메모', 위키 요약만 따옴표 " + JSON.stringify(nb));
+  /* 출처 이름은 읽은 위키의 것 (다국어 11-10): 일기는 저장된 attribution 이 아니라 주소의 언어로 적는다 — 옛 기록에는 ja · en … 을 읽고도 'Wikipedia (ko)' 가 적혀 있다. ko 와 라이선스는 그대로 */
+  var sl = await page.evaluate(function () {
+    function stop(l, saved) { return { name: 'T', status: 'read', ms: 1000, note: 'x', source: { url: 'https://' + l + '.wikipedia.org/wiki/Hat', extract: 'x', license: 'CC BY-SA 4.0', attribution: saved } }; }
+    var t = { by: 'mcp', kind: 'out', date: '2026-11-10', seq: 9, hint: { raw: '' }, receipt: { stops: [stop('ja', 'Wikipedia (ko)'), stop('en', 'Wikipedia (ko)'), stop('hi'), stop('ko', 'Wikipedia (ko)')], counts: { read: 4 } } };
+    var d = document.createElement('div'); d.innerHTML = APP.receiptHTML(t);
+    return [].map.call(d.querySelectorAll('.row a'), function (a) { return a.textContent; });
+  });
+  ok(sl.join(' | ') === ['ja', 'en', 'hi', 'ko'].map(function (l) { return '출처: Wikipedia (' + l + ') · CC BY-SA 4.0'; }).join(' | '), '일기: 출처 이름은 읽은 위키의 것 (저장된 이름이 달라도 주소의 언어로) ' + JSON.stringify(sl));
 
   console.log('\n== 데모 조작 (사람)');
   ok(await page.evaluate(function () { return document.getElementById('d-peek').disabled && !document.getElementById('d-depart').disabled; }), '출발 전: 출발만 활성');

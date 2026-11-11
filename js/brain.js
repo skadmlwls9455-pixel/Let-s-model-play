@@ -584,14 +584,17 @@
   BRAIN.wikiUrl = function (title) { return WIKI_PAGE + encodeURIComponent(String(title).replace(/ /g, '_')); };
 
   /* 재생 입력이 준 출처는 이 꼴일 때만 믿는다: 위키백과(한국어) 문서 · 위키미디어 공용 사진 (https 만) */
-  function isWikiPageUrl(u) { return typeof u === 'string' && /^https:\/\/(ko|en|ja|de|fr|es|it|pt|id|hi)\.wikipedia\.org\/wiki\/\S+$/.test(u); }   /* 방의 언어 (MCP 방은 mcp/i18n.js LANGS) 와 먼 바다 문 (사람의 동의 뒤에만) */
+  var WIKI_PAGE_RE = /^https:\/\/(ko|en|ja|de|fr|es|it|pt|id|hi)\.wikipedia\.org\/wiki\/\S+$/;   /* 방의 언어 (MCP 방은 mcp/i18n.js LANGS) 와 먼 바다 문 (사람의 동의 뒤에만) */
+  function isWikiPageUrl(u) { return typeof u === 'string' && WIKI_PAGE_RE.test(u); }
   function safeThumb(t) {
     if (!t || typeof t !== 'object' || typeof t.url !== 'string' || !/^https:\/\/upload\.wikimedia\.org\/\S+$/.test(t.url)) return null;
     return { url: t.url, w: (typeof t.w === 'number' && isFinite(t.w)) ? t.w : null, h: (typeof t.h === 'number' && isFinite(t.h)) ? t.h : null };
   }
-  /* 재생의 '읽음'을 fetch 결과 꼴로 (출처 주소는 isWikiPageUrl 를 통과한 것만 들어온다). 라이선스·출처 표기는 입력이 아니라 두뇌가 붙인다 */
+  /* 재생의 '읽음'을 fetch 결과 꼴로 (출처 주소는 isWikiPageUrl 를 통과한 것만 들어온다). 라이선스·출처 표기는 입력이 아니라 두뇌가 붙인다 —
+     출처 이름은 그 검사를 통과한 주소의 언어로 ('Wikipedia (ja)' …). 전엔 어느 위키를 읽었든 상수 'Wikipedia (ko)' 가 붙었다 */
   function replayRead(title, src, note) {
-    return { ok: true, title: title, extract: String(src.extract || note || '').slice(0, 160), url: src.url, thumb: safeThumb(src.thumb), links: [] };
+    var m = WIKI_PAGE_RE.exec(src.url);
+    return { ok: true, title: title, extract: String(src.extract || note || '').slice(0, 160), url: src.url, thumb: safeThumb(src.thumb), links: [], attribution: m ? 'Wikipedia (' + m[1] + ')' : ATTRIBUTION };
   }
 
   /* fetchWiki(stub 가능)를 타임아웃·예외로부터 감싼다. 항상 resolve. */

@@ -2665,7 +2665,7 @@ var APP = (function () {
       else if (s.note) out += '<span class="note">' + (st === 'read' ? '“' + rawH(s.note, 'wiki') + '”' : esc(s.note)) + '</span>';   /* 위키백과 요약 그대로 */
       if (s.noteBy && wikiSrc && s.source.extract) out += '<span class="note">“' + rawH(s.source.extract, 'wiki') + '”</span>';
       if (st === 'builtin' && s.book) out += '<span class="note dim">「' + esc(s.book.title) + '」 · ' + esc(s.book.by) + ' 씀</span>';   /* 뽈뽈 도서관 — 누가 쓴 자료인지 화면에도 */
-      if (wikiSrc) out += '<a href="' + esc(s.source.url) + '" target="_blank" rel="noopener">출처: ' + esc(s.source.attribution || 'Wikipedia (ko)') + ' · <span class="ua-iw">' + esc(s.source.license || 'CC BY-SA') + '</span></a>';   /* 예전 ↗ 는 뺐다 — 링크는 새 창. 출처 이름 · 라이선스는 두뇌의 상수(우리 글)라 data-raw 를 달지 않는다 (지킴이가 본다) */
+      if (wikiSrc) out += '<a href="' + esc(s.source.url) + '" target="_blank" rel="noopener">출처: ' + esc('Wikipedia (' + WIKI_SRC.exec(s.source.url)[1] + ')') + ' · <span class="ua-iw">' + esc(s.source.license || 'CC BY-SA') + '</span></a>';   /* 예전 ↗ 는 뺐다 — 링크는 새 창. 출처 이름은 저장된 attribution 이 아니라 위 검사 (wikiSrc) 를 통과한 주소의 언어로 만든다 — 옛 기록에는 어느 위키를 읽었든 'Wikipedia (ko)' 가 적혀 있다. 라이선스는 두뇌의 상수. 둘 다 우리 글이라 data-raw 를 달지 않는다 (지킴이가 본다) */
       out += '</span></div>';
     });
     out += '<div class="hr"></div>';
@@ -3128,7 +3128,8 @@ var APP = (function () {
     frag.appendChild(h('p', { class: 'set-note', text: '이 주소를 아는 사람은 이 방에 들어올 수 있어. 남에게 보여 주지 마. 방에는 산책 기록과 메모만 있어.' }));
     /* 방의 언어 — 문어가 남기는 글의 언어. 자동이면 Claude 와 나누는 대화의 언어를 따라간다 (모델이 look_room 의 lang 으로 알려 준다). 고르면 고정 (/api/lang, 모델은 못 바꾼다) */
     var LANG_NAMES = { ko: '한국어', en: 'English', ja: '日本語', de: 'Deutsch', fr: 'Français', es: 'Español', it: 'Italiano', pt: 'Português', id: 'Bahasa Indonesia', hi: 'हिन्दी' }, cur = LANG_NAMES[r.lang] ? r.lang : null;
-    var sel = h('select', { id: 'set-claude-lang', 'aria-label': '방의 언어' }, [h('option', { value: 'auto', text: '자동 · Claude 대화를 따라감' + (cur && !r.pin ? ' (지금 ' + LANG_NAMES[cur] + ')' : '') })].concat(Object.keys(LANG_NAMES).map(function (k) { return h('option', { value: k, text: LANG_NAMES[k] }); })));
+    /* 첫 칸은 짧게: select 는 가장 긴 option 만큼 넓어져서, '자동 · Claude 대화를 따라감 (지금 한국어)' 는 360 px 폰에서 시트보다 114 px 넓었다. 자동이 무엇인지는 화면에서 이 select 바로 위의 한 줄이 말한다 ('자동이면 Claude 와 나누는 대화의 언어를 따라가') */
+    var sel = h('select', { id: 'set-claude-lang', 'aria-label': '방의 언어' }, [h('option', { value: 'auto', text: '자동' + (cur && !r.pin ? ' (지금 ' + LANG_NAMES[cur] + ')' : '') })].concat(Object.keys(LANG_NAMES).map(function (k) { return h('option', { value: k, text: LANG_NAMES[k] }); })));
     sel.value = r.pin && cur ? cur : 'auto';
     sel.addEventListener('change', function () {
       var v = sel.value; sel.disabled = true;
