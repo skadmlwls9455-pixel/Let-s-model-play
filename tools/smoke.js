@@ -26,6 +26,8 @@
  *     (11-12 둘째 묶음) 오늘 선물 알림도 볼 수 있을 때 (입장 · 다른 알림 · 가려진 탭 · 새로고침) · 열어 둔 탭의 다음 날 (훅 · 가짜 시계 1분 틱 · 두 탭 한 번) · 묻기 · 가구는 정말 한 것만 ·
  *     바꾸기는 그 칸이 보인 일 · 다 한 일 · 지금 못 하는 일(포스터 없음 · 2D)을 내지 않음 · 받기 단추 자리 · 꼬리표 점과 이름 · 320 px · 키보드 자리 · 놀이방 · 세트 이름 · 세트 도감 · 선물 상자 답 저장.
  *     날짜는 window.__ppolTest.today, 기록은 심어서 — 걸린 시간에 기대는 검사는 없다.
+ *   Z 위층 문어 (11-12 검증 고침): 걷던 문어가 계단을 따라 오르면 idle · 위층에선 안 돌아다님 · 내려오면 다시 · 거울 길 · 대야 · '그대로' 에 비켜서기 · 거울 구석 나오기 ·
+ *     문어 상태마다 거울 한 줄 · 방석 · 가구 배치는 다락을 떠나면 끝 · 장면 설명 · 밀어 둔 화면의 시트 올림 (페이지 시계 + debugStep 으로 민다).
  *   (모든 문맥은 window.__ppolAwakeMs = 0 으로 시작 — 예전 시나리오는 '산책 직후 잠'. T · K 가 덮는다)
  *   SMOKE_ONLY=H,I node tools/smoke.js   # 그 시나리오만
  *   SMOKE_THROTTLE=4 node tools/smoke.js # 페이지 CPU 를 4배 늦춘다 (느린 CI 러너 흉내 — 시간에 기대는 검사의 경합을 여기서 다시 낸다)
@@ -5174,6 +5176,241 @@ async function scenarioWeek(browser) {
   reportErrors(bag, 'Q-2');
 }
 
+/* Z. 위층 문어 (11-12 검증 고침): 걷던 문어가 계단을 따라 오르면 도착으로 끝남 (idle · 폴짝 0) · 위층에선 돌아다니지 않음 · 내려오면 다시 돌아다님 ·
+   거울로 걷는 길 · 대야 · 거울 자리에서 내 캐릭터가 비켜섬 ('바꾸기' · '그대로') · 거울 구석에서 스틱으로 나옴 · 문어 상태마다 거울은 시트 아니면 사실 한 줄 ·
+   방석이 문어 자리에 안 깔림 · 가구 배치는 다락을 떠나면 끝남 · 장면 설명(위층 · 아래층 · 다락에 돌아온 자리) · 밀어 둔 화면의 시트 올림.
+   시간은 페이지 시계(clock)와 장면 debugStep 을 0.1 s 씩 같이 민다 — 기계 속도와 상관없이 같은 순간을 본다 (화면 사진 대신 상태 · 좌표로 잰다: 시트가 열린 사진은 이 브라우저 깃발에서 검게 찍힌다) */
+async function scenarioLoft(browser) {
+  console.log('\n== Z. 위층 문어: 계단 · 돌아다니기 · 거울 길 · 비켜서기 · 거울 구석 · 거울 한 줄 · 방석 · 가구 배치 · 장면 설명 · 시트 올림');
+  var O = 'http://ppolppol.example', bag = []; bag.ignored = [];
+  var RED = '#e8463c', BLUE = '#4a86d8', BORN = 1762600000000;
+  function REC(lv) {
+    return { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: lv, days: ['2026-11-06', '2026-11-07', '2026-11-08'].slice(0, lv), affinity: {}, visits: {}, state: 'idle', color: RED,
+      colors: [{ at: BORN, date: '2026-11-06', color: RED, how: 'first', by: 'player' }] }, room: { lantern: lv, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
+      settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
+  }
+  /* 새 탭: 손가락 기기 · 페이지 시계 고정 · 소리 훅(AUDIO.on 부름을 센다) → 장면 루프를 멈추고 시계를 세운 뒤 tick 으로만 민다 */
+  async function open(o) {
+    o = o || {};
+    var ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+    await ctx.clock.install({ time: new Date('2026-11-09T11:00:00') });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0; window.__snd = []; (function hook() { if (window.AUDIO && AUDIO.on && !AUDIO.__z) { var f = AUDIO.on; AUDIO.on = function (k) { window.__snd.push(k); return f.apply(this, arguments); }; AUDIO.__z = 1; } else setTimeout(hook, 50); })();' });
+    var page = await ctx.newPage(); watchErrors(page, bag);
+    if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+    await page.addInitScript({ content: "if (!localStorage.getItem('__z_seed')) { localStorage.setItem('__z_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(o.rec || REC(2))) + '); } window.__ppolTest = { today: "2026-11-09" };' });
+    await routeWiki(page, 'ok'); await routeRepo(page, O);
+    await page.goto(O + '/index.html?' + (o.q || 'dev=0'));
+    await page.waitForFunction(function () { return window.APP && APP.scene && APP.sceneMode === '3d'; }, null, { timeout: 60000 });
+    await page.waitForSelector('#btn-go:not(.away)', { timeout: 60000 });
+    await page.evaluate(function () { APP.scene.pause(); });
+    var now = await page.evaluate(function () { return Date.now(); });
+    for (var k = 0; k < 5; k++) { try { await page.clock.pauseAt(now + 500 + k * 2000); break; } catch (e) { now = await page.evaluate(function () { return Date.now(); }); } }
+    await tick(page, 0.5);
+    await page.evaluate(function () {   /* 스틱: 월드 수평 방향 (wx, wz) 으로 민다 (화면 축으로 바꿔서) */
+      var sc = APP.scene, o = sc.screenOf(0, 0, 0), ex = sc.screenOf(1, 0, 0), ez = sc.screenOf(0, 0, 1), b = ex.y - o.y, d = ez.y - o.y, a = ex.x - o.x, c = ez.x - o.x;
+      var rh = [d, -b], n = Math.hypot(rh[0], rh[1]); rh = [rh[0] / n, rh[1] / n]; if (a * rh[0] + c * rh[1] < 0) rh = [-rh[0], -rh[1]];
+      var fh = [rh[1], -rh[0]];
+      window.__push = function (wx, wz) { var l = Math.hypot(wx, wz) || 1; wx /= l; wz /= l; sc.setPlayerInput({ x: wx * rh[0] + wz * rh[1], y: wx * fh[0] + wz * fh[1] }); };
+    });
+    return { ctx: ctx, page: page };
+  }
+  /* 시간 밀기: 페이지 타이머 dt + 장면 한 프레임 dt (기본 0.1 s · 가만히 지켜보는 긴 틈은 0.5 s). cond(페이지 안 함수)가 참이면 멈춤. each(t) = 매 n 칸.
+     window.__zEach (페이지 안) = 프레임 바로 뒤 같은 evaluate 에서 — 그 사이엔 페이지 타이머(돌아다니기 20–40 s)가 끼지 못한다 (11-12: 돌아다니기 타이머와 겨루던 읽기를 여기로) */
+  async function tick(pg, secs, cond, each, every, dt) {
+    dt = dt || 0.1;
+    var n = Math.ceil(secs / dt - 1e-9), src = cond ? cond.toString() : null;
+    for (var i = 1; i <= n; i++) {
+      await pg.clock.runFor(Math.round(dt * 1000));
+      var r = await pg.evaluate(function (o) { APP.scene.debugStep(o.dt); if (window.__zEach) window.__zEach(); return o.src ? !!(new Function('return (' + o.src + ')();'))() : false; }, { src: src, dt: dt });
+      if (each && (i % (every || 1) === 0 || r)) await each(+(i * dt).toFixed(2));
+      if (r) return { done: true, t: +(i * dt).toFixed(2) };
+    }
+    return { done: false, t: secs };
+  }
+  async function tap(pg, id) { var r = await pg.evaluate(function (id) { var e = document.getElementById(id); if (!e || e.hidden) return null; var q = e.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; }, id); if (r) await pg.touchscreen.tap(r.x, r.y); return !!r; }
+  async function stair(pg, up) { await tap(pg, up ? 'btn-stair' : 'btn-loft-stair'); var r = await tick(pg, 16, up ? function () { var m = APP.scene.motion(); return APP.room === 'loft' && m.dq === '' && !m.trans; } : function () { var m = APP.scene.motion(); return !APP.room && m.dq === '' && !m.trans; }); await tick(pg, 0.5); return r.done; }
+  async function tapMirror(pg) { var sp = await pg.evaluate(function () { var b = document.getElementById('btn-salon'); if (b.hidden) return null; var r = APP.scene.spotRect('salon'); return r && r.client ? { x: r.client.x + r.client.w / 2, y: r.client.y + r.client.h / 2 } : null; }); if (sp) { await pg.touchscreen.tap(sp.x, sp.y); await tick(pg, 0.6); } return !!sp; }
+  function S(pg) { return pg.evaluate(function () { var m = APP.scene.motion(), t = document.getElementById('toast'), bb = document.getElementById('oct-bubble'), b = document.getElementById('btn-salon');
+    return { room: APP.room, up: APP.scene.octUp(), st: APP.oct.state, an: APP.oct.anchor, at: m.gait.at, mv: m.gait.moving, hop: m.hop, pl: m.player.at, cer: APP.ceremony, btn: b.hidden ? 'hidden' : 'shown', sheet: document.getElementById('salon-sheet').open,
+      toast: t.classList.contains('show') ? t.textContent : '', bubble: bb && !bb.hidden ? bb.textContent : '', rows: document.querySelectorAll('#log .lrow[data-salon]').length, asks: APP.state.salon.asks.length,
+      desc: document.getElementById('scene-desc').textContent, snd: window.__snd.filter(function (k) { return k === 'salon'; }).length, stairVis: getComputedStyle(document.getElementById('btn-stair')).visibility }; }); }
+  function dist(a, b) { return Math.hypot(a[0] - b[0], a[2] - b[2]); }
+  function outOfCorner(at) { return !(at[0] < -0.6 && at[2] < -0.75); }   /* 거울 구석 = 재봉 의자(x −0.61 까지) 왼쪽 · 거울 쪽 바닥 (마네킹 · 거울 · 대야 자리 사이) */
+  var A, pg, s, ZP = String(process.env.SMOKE_Z || '1,2,3,4').split(',');   /* SMOKE_Z=2 → 그 묶음만 (고침을 하나씩 되돌려 볼 때) */
+
+  /* 1. 걷던 문어가 계단을 따라 오른다 (걸음 중간 · 도착 폴짝 중) → 위층에서 idle · 폴짝 0. 위층 65 s (돌아다니기 타이머 20–40 s 가 두 번쯤): 그 자리 그대로.
+        시트를 연 채 45 s 도 그대로 (예전엔 시트 밑으로 걸어 들어갔다). 내려오면 다시 돌아다닌다 */
+  if (ZP.indexOf('1') >= 0) for (var D of [0.6, 0.15]) {
+    A = await open({ w: 320, h: 568 }); pg = A.page;
+    await pg.evaluate(function () { APP.scene.debugPlayerAt(2.3, -2.05); });   /* 계단 앞: 단추를 누르면 바로 오른다 */
+    var w0 = await tick(pg, 60, function () { return APP.oct.state === 'walk'; });   /* 앱이 스스로 돌아다니기 시작 (걸음 첫 프레임까지 0.1 s 씩) */
+    var tg = await pg.evaluate(function () { return APP.scene.anchors[APP.oct.anchor]; });
+    await tick(pg, 10, new Function('var a = APP.scene.motion().gait.at, t = ' + JSON.stringify(tg) + '; return Math.hypot(a[0] - t[0], a[2] - t[2]) < ' + D + ';'));
+    var pre = await S(pg); var upOk = await stair(pg, true); s = await S(pg);
+    ok(w0.done && pre.mv && upOk && s.up && s.st === 'idle' && s.hop === 0, '걷던 문어(목표까지 ' + dist(pre.at, tg).toFixed(2) + ' m)가 계단을 따라 오르면 걸음은 도착으로 끝난다: 위층 · idle · 폴짝 0 ' + JSON.stringify({ up: s.up, st: s.st, hop: s.hop }));
+    if (D !== 0.6) {   /* 다락에서 도착 폴짝 도중에 자리를 옮겨도(앱의 octPlace → jumpTo) 몸이 뜬 채 남지 않는다 */
+      await stair(pg, false);
+      await pg.evaluate(function () { clearTimeout(APP.oct.wanderTimer); APP.walkTo('window').then(function () { APP.octState('idle'); }); });   /* 돌아다니기는 끈다 (그 걸음의 흔들림이 폴짝 읽기에 끼지 않게) */
+      var hp = await tick(pg, 6, function () { return APP.scene.motion().hop > 0.02 && !APP.scene.motion().gait.moving; });
+      await pg.evaluate(function () { APP.scene.jumpTo('center'); APP.oct.anchor = 'center'; APP.octState('idle'); }); await tick(pg, 0.3); s = await S(pg);
+      ok(hp.done && s.hop === 0, '도착 폴짝 도중에 자리를 옮겨도 몸이 뜬 채 남지 않는다 (폴짝 ' + s.hop + ')');
+      reportErrors(bag, 'Z-1b'); await A.ctx.close(); continue;
+    }
+    ok(/^위층 다락 옷방, /.test(s.desc) && /문어는 위층에서 쉬고 있어\./.test(s.desc), '장면 설명: 위층 · 문어도 위층 (' + s.desc + ')');
+    var at0 = s.at, an0 = s.an, moved = null;
+    await tick(pg, 65, null, async function () { var q = await S(pg); if (!moved && (dist(q.at, at0) > 0.001 || q.st !== 'idle' || q.an !== an0)) moved = q; }, 1, 0.5);
+    ok(!moved, '위층에선 65 s 동안 돌아다니지 않는다 (자리 · 상태 · 앱 자리 그대로)' + (moved ? ' ' + JSON.stringify({ at: moved.at, st: moved.st, an: moved.an }) : ''));
+    await pg.evaluate(function () { APP.walkTo('window').then(function () { APP.octState('idle'); }); });   /* 위층에서 다락 자리로 걷기 (낮잠 · 창문 톡이 부르는 길) */
+    await tick(pg, 4); s = await S(pg);
+    ok(dist(s.at, at0) < 0.001, "위층에서 다락 자리('창가')로 걷기를 받아도 문어는 그 자리 (위층 염색통 위로 가지 않는다) " + JSON.stringify(s.at));
+    await pg.evaluate(function (a) { APP.oct.anchor = a; }, an0);
+    var opened = await tapMirror(pg); moved = null;
+    await tick(pg, 45, null, async function () { var q = await S(pg); if (!moved && dist(q.at, at0) > 0.001) moved = q; }, 1, 0.5);
+    s = await S(pg);
+    ok(opened && s.sheet && !moved, '미용실 시트를 연 채 45 s: 문어는 그 자리 (시트 밑으로 걸어 들어가지 않는다)');
+    await pg.evaluate(function () { document.getElementById('salon-close').click(); }); await tick(pg, 0.6);
+    await pg.evaluate(function () { window.__zUn = null; window.__zEach = function () { if (!window.__zUn && !APP.scene.octUp()) window.__zUn = { st: APP.oct.state, hop: APP.scene.motion().hop, an: APP.oct.anchor, walk: APP.scene.motion().gait.moving }; }; });
+    var dnOk = await stair(pg, false); s = await S(pg); var un = await pg.evaluate(function () { window.__zEach = null; return window.__zUn; });   /* 문어가 다락으로 옮겨진 바로 그 프레임 (예전엔 0.5 s 뒤에 읽어 그 틈에 시작한 돌아다니기와 겨뤘다 — 다섯 번에 한 번 'walk') */
+    var wd = await tick(pg, 60, function () { return APP.scene.motion().gait.moving; }, null, 1, 0.5);
+    ok(dnOk && !s.up && un && un.st === 'idle' && un.hop === 0 && !un.walk && un.an !== 'salon' && wd.done, '내려오면 문어도 다락 제자리 · 옮겨진 순간 idle · 폴짝 0 ' + JSON.stringify(un) + ' · 다시 돌아다닌다 (' + wd.t + ' s 뒤)');
+    ok(!/위층|아래층/.test(s.desc) && /^등불 2칸 켜진 다락/.test(s.desc), '다락 장면 설명엔 위층 · 아래층이 없다 (' + s.desc + ')');
+    reportErrors(bag, 'Z-1'); await A.ctx.close();
+  }
+
+  /* 2. 묻기 ('바꾸기' · '그대로') — 내 캐릭터가 선 곳마다: 문어가 거울로 걷는 길 위 · 대야 자리(거울 앞) · 대야 뒤 · 거울 옆 자리 · 문어 바로 앞 (두 곳).
+        길 위면 문어가 오기 전에 비켜선다 (가장 가까울 때도 둘레 밖) · 대야는 내 캐릭터 위에 놓이지 않는다 · 뒤 구석에 끼지 않는다 · 대답이 보이는 박자부터는 문어를 가리지 않는다 (두 답 다).
+        hold = 첫 박자(행 1)에 스틱을 쥐고 있다가 대답 박자 뒤에 놓는다 (그때는 비켜서기가 쉰다) */
+  async function ask(o) {
+    A = await open({ w: o.w || 360, h: o.h || 740, q: 'dev=1' }); pg = A.page;
+    await stair(pg, true);
+    var o0 = await S(pg), g = await pg.evaluate(function () { var m = APP.scene.motion(), g = m.salon.geom, a = APP.scene.anchors.salon; return { tx: g.tx, tz: g.tz, sx: a[0] + (g.x + 1.48), sz: a[2] + 0.3 }; });
+    var P = o.spot === 'tub' ? [g.tx, g.tz] : o.spot === 'behind' ? [g.tx - 0.2, g.tz - 0.2] : o.spot === 'path' ? [(o0.at[0] + g.sx) / 2, (o0.at[2] + g.sz) / 2] : o.spot === 'mirror' ? [g.sx, g.sz]
+      : o.spot === 'front2' ? [o0.at[0] + 0.3, o0.at[2] + 0.6] : [o0.at[0] + 0.45, o0.at[2] + 0.45];   /* mirror = 문어가 갈 거울 옆 자리 · front2 = 문어 앞, 구경 자리로 곧장 가면 문어 둘레에 막히는 곳 */
+    await pg.evaluate(function (p) { APP.scene.debugPlayerAt(p[0], p[1]); }, P); await tick(pg, 0.3);
+    await tapMirror(pg);
+    await pg.evaluate(function (a) { document.querySelector('[data-salon-next="' + a + '"]').click(); }, o.ans);   /* 개발용 '다음 대답' (?dev=1) */
+    var q = await pg.evaluate(function (hex) { var x = document.querySelector('#salon-bottles .bottle[data-hex="' + hex + '"]').getBoundingClientRect(), y = document.getElementById('salon-ask').getBoundingClientRect(); return [x.left + x.width / 2, x.top + x.height / 2, y.left + y.width / 2, y.top + y.height / 2]; }, BLUE);
+    await pg.touchscreen.tap(q[0], q[1]); await tick(pg, 0.4);
+    if (o.hold) await pg.evaluate(function () { APP.scene.setPlayerInput({ x: 0, y: 0 }); });   /* 데드존 = 쥐고만 있다 (안 움직임) */
+    await pg.touchscreen.tap(q[2], q[3]);
+    var r = { minOP: 9, tubD: null, frames: 0, ans: 0, ansHide: 0, P: P, g: g }, held = !!o.hold;
+    await tick(pg, 40, function () { return !APP.salonStage && !APP.scene.motion().salon.active && !APP.scene.motion().player.walking; }, async function (t) {
+      var v = await pg.evaluate(function () { var sc = APP.scene, m = sc.motion(), at = m.gait.at, pl = m.player.at, g = m.salon.geom, ss = APP.salonStage;
+        return { beat: m.salon.beat, dOP: Math.hypot(at[0] - pl[0], at[2] - pl[2]), dTub: Math.hypot(g.tx - pl[0], g.tz - pl[2]), stage: !!ss, n: ss ? ss.n : 0,
+          hide: Math.abs((pl[0] - pl[2]) - (at[0] - at[2])) < 0.9 && (pl[0] + pl[2]) - (at[0] + at[2]) > -0.2 }; });   /* 장면의 '가림' 규칙 (화면 가로 0.64 m 안 · 카메라 쪽) */
+      if (v.stage) { r.minOP = Math.min(r.minOP, v.dOP); r.frames++; }
+      if (v.stage && v.n >= 2) { r.ans++; if (v.hide) r.ansHide++; }   /* 행 2 = 대답이 보인 박자부터 */
+      if (held && v.n >= 2) { held = false; await pg.evaluate(function () { APP.scene.setPlayerInput(null); }); }
+      if (v.beat === 'splash' && r.tubD == null) r.tubD = v.dTub;   /* 첨벙 때 (대야가 놓인 뒤 내 캐릭터가 비켜설 틈 0.8 s) */
+    });
+    await tick(pg, 1.5); r.end = await S(pg);
+    return r;
+  }
+  if (ZP.indexOf('2') >= 0) {
+  var R = await ask({ ans: 'dye', spot: 'path' });
+  ok(R.end.rows >= 2 && R.minOP >= 0.5, "'바꾸기' · 내 캐릭터가 문어가 거울로 걸어갈 길 위: 먼저 비켜서서 문어가 뚫고 지나가지 않는다 (가장 가까울 때 " + R.minOP.toFixed(2) + ' m · 행 ' + R.end.rows + ')');
+  reportErrors(bag, 'Z-2a'); await A.ctx.close();
+  R = await ask({ ans: 'dye', spot: 'tub' });
+  ok(R.end.rows >= 2 && R.tubD != null && R.tubD >= 0.55 && R.minOP >= 0.5 && outOfCorner(R.end.pl), "'바꾸기' · 내 캐릭터가 거울 앞(대야 자리): 첨벙 때 내 캐릭터는 대야 둘레 밖 (" + (R.tubD == null ? '대야 없음' : R.tubD.toFixed(2)) + ' m) · 문어와 ' + R.minOP.toFixed(2) + ' m');
+  ok(/문어는 위층 거울 옆에서 /.test(R.end.desc), "'바꾸기' 뒤 위층 장면 설명: 문어는 위층 거울 옆 (" + R.end.desc + ')');
+  /* 거울 구석에서 나오기: 문어가 거울 자리에 선 채, 거울 앞(대야 자리)에서 스틱 8 방향 2 s 씩 — 둥근 의자가 있던 때는 0/8 (스틱으로 못 나왔다) */
+  var outs = [], octStill = true;
+  for (var k = 0; k < 8; k++) { var a = k * Math.PI / 4; await pg.evaluate(function (p) { APP.scene.debugPlayerAt(p[0], p[1]); }, [R.g.tx, R.g.tz]); await tick(pg, 0.2); await pg.evaluate(function (q) { window.__push(q[0], q[1]); }, [Math.sin(a), Math.cos(a)]); await tick(pg, 2); s = await S(pg); await pg.evaluate(function () { APP.scene.setPlayerInput(null); }); await tick(pg, 0.2); octStill = octStill && s.up && dist(s.at, R.end.at) < 0.01; outs.push(outOfCorner(s.pl) ? 1 : 0); }
+  ok(octStill && outs[1] === 1 && outs.reduce(function (a, b) { return a + b; }, 0) >= 2, '문어가 거울 자리에 선 채 거울 앞에서 스틱으로 나온다 (8 방향 중 ' + outs.reduce(function (a, b) { return a + b; }, 0) + ' · 화면 아래쪽(+x+z) ' + (outs[1] ? '나옴' : '막힘') + ' · 문어 그대로 ' + octStill + ')');
+  /* 다락으로 내려오면: 문어는 다락 제자리 · 앱 자리도 그것 ('거울 옆' 이 아니다 — 다락엔 거울이 없다) */
+  await stair(pg, false); s = await S(pg);
+  ok(!s.up && s.an !== 'salon' && !/거울/.test(s.desc), "'바꾸기' 뒤 내려오면 앱 자리도 다락 자리 (" + s.an + ') · 장면 설명에 거울 없음 (' + s.desc + ')');
+  reportErrors(bag, 'Z-2b'); await A.ctx.close();
+  /* 대야 뒤(벽 쪽) · 거울 옆 자리: 대야가 내 캐릭터 위에 놓이지 않고, 대야 · 문어 둘레 · 가구에 둘러싸인 뒤 구석에 끼지도 않는다 (예전: 뒤 구석 대야 0.55 m 옆에 서서 끝났다).
+     hold: 거울 옆 자리에서 스틱을 쥔 채 연출을 맞다가 대답 뒤에 놓음 — 문어가 거울로 걸어올 때 비켜서되 대야 자리 · 그 뒤 구석으로는 가지 않는다 */
+  for (var cz of [{ spot: 'behind', name: '대야 자리 바로 뒤(벽 쪽)' }, { spot: 'mirror', name: '거울 옆 자리(문어가 갈 곳)' }, { spot: 'mirror', hold: true, name: '거울 옆 자리 · 스틱을 쥔 채 대답까지' }]) {
+    R = await ask({ ans: 'dye', spot: cz.spot, hold: cz.hold });
+    ok(R.end.rows >= 2 && R.tubD != null && R.tubD >= 0.55 && R.minOP >= 0.5 && outOfCorner(R.end.pl), "'바꾸기' · 내 캐릭터가 " + cz.name + ': 첨벙 때 대야 둘레 밖 (' + (R.tubD == null ? '대야 없음' : R.tubD.toFixed(2)) + ' m) · 문어와 ' + R.minOP.toFixed(2) + ' m · 끝 자리 ' + JSON.stringify(R.end.pl) + (outOfCorner(R.end.pl) ? '' : ' ← 뒤 구석'));
+    reportErrors(bag, 'Z-2d'); await A.ctx.close();
+  }
+  /* 대야 바로 뒤에서 스틱을 쥔 채 대답까지 (첫 박자의 비켜서기가 쉰다): 대야가 놓일 때 대야 · 문어 둘레 · 가구에 둘러싸여 구경 자리로 갈 길이 없다 →
+     대야만은 내 캐릭터 위에 놓이지 않고 (둘레 밖으로 물러섬), 연출이 끝나 대야를 치우면 스틱 한 방향(화면 아래쪽 +x+z)으로 구석을 나온다 */
+  R = await ask({ ans: 'dye', spot: 'behind', hold: true });
+  await pg.evaluate(function () { window.__push(1, 1); }); var esc = await tick(pg, 3, function () { var a = APP.scene.motion().player.at; return !(a[0] < -0.6 && a[2] < -0.75); }); await pg.evaluate(function () { APP.scene.setPlayerInput(null); });
+  ok(R.end.rows >= 2 && R.tubD != null && R.tubD >= 0.55 && esc.done, "'바꾸기' · 대야 바로 뒤에서 스틱을 쥔 채 대답까지: 첨벙 때 대야 둘레 밖 (" + (R.tubD == null ? '대야 없음' : R.tubD.toFixed(2)) + ' m) · 끝 자리 ' + JSON.stringify(R.end.pl) + ' · 대야를 치운 뒤 스틱으로 구석을 나옴 ' + (esc.done ? esc.t + ' s' : '못 나옴'));
+  reportErrors(bag, 'Z-2e'); await A.ctx.close();
+  /* '그대로' (그리고 '바꾸기') — 문어 바로 앞 두 곳: 대답이 보이는 박자부터 연출 끝까지 문어를 가리지 않는다 (예전: 대답 말풍선 · 몸 돌리기 동안 내내 가리고, 마지막 0.5 s 에야 걸었다 · front2 는 끝까지 가렸다) */
+  for (var kz of [{ ans: 'keep', spot: 'front' }, { ans: 'keep', spot: 'front2' }, { ans: 'dye', spot: 'front2' }]) {
+    R = await ask(kz);
+    var pe = R.end.pl, oe = R.end.at, hides = Math.abs((pe[0] - pe[2]) - (oe[0] - oe[2])) < 0.9 && (pe[0] + pe[2]) - (oe[0] + oe[2]) > -0.2;
+    ok(R.end.rows >= 2 && R.ans > 5 && R.ansHide === 0 && !hides && R.minOP >= 0.5, (kz.ans === 'keep' ? "'그대로'" : "'바꾸기'") + ' · 내 캐릭터가 문어 앞(' + kz.spot + '): 대답 박자부터 문어를 가리는 프레임 ' + R.ansHide + '/' + R.ans + ' · 끝 자리 ' + JSON.stringify(pe) + (hides ? ' ← 가림' : '') + ' · 문어와 ' + R.minOP.toFixed(2) + ' m');
+    reportErrors(bag, 'Z-2c'); await A.ctx.close();
+  }
+  }
+
+  /* 3. 거울은 문어가 어떤 상태든 시트 아니면 사실 한 줄 (내가 위층에 있을 때): 아래층에서 잠 · 깨어서 아래층 · 따라 올라옴 · 차례(나감 · 나가 있음 · 돌아옴) 동안.
+        깨우지 않는다 · 물음 · 로그 행 0 · 미용실 소리 0. 차례 동안 거울 단추가 숨어 있으면 누를 것이 없다 (그것도 '아무 일 없는 단추' 가 아니다) */
+  if (ZP.indexOf('3') >= 0) {
+  A = await open({ w: 360, h: 740 }); pg = A.page;
+  var lines = [];
+  async function mirror(label, want) {
+    var b0 = await S(pg), tapped = await tapMirror(pg), q = await S(pg);
+    var good = b0.btn === 'hidden' ? !tapped && want.hidden !== false : q.st === b0.st && q.rows === 0 && q.asks === 0 && q.snd === 0 && (want.sheet ? q.sheet && !q.toast : !q.sheet && q.toast === want.toast);
+    lines.push(label + ': ' + (b0.btn === 'hidden' ? '단추 숨음' : q.sheet ? '시트' : JSON.stringify(q.toast)) + (good ? '' : ' ← 틀림 ' + JSON.stringify({ st: [b0.st, q.st], rows: q.rows, asks: q.asks, snd: q.snd, bubble: q.bubble })));
+    if (q.sheet) { await pg.evaluate(function () { document.getElementById('salon-close').click(); }); await tick(pg, 0.6); }
+    await tick(pg, 4);   /* 토스트가 걷힐 때까지 */
+    return good;
+  }
+  await pg.evaluate(function () { APP.octState('sleep'); }); await tick(pg, 0.5);
+  await stair(pg, true); await tick(pg, 4);
+  var allGood = await mirror('아래층에서 잠', { toast: '지금은 아래층에서 자고 있어.', hidden: false });
+  await pg.evaluate(function () { APP.octState('idle'); clearTimeout(APP.oct.wanderTimer); }); await tick(pg, 0.5);   /* 내가 위층에 있는 동안 깼다 (스스로 깸과 같은 상태) — 혼자 올라오지 않는다. 돌아다니기 타이머는 같은 순간에 끈다 (아래층에서 걷기 시작하면 '깨어서 아래층' 읽기와 겨뤘다) */
+  allGood = await mirror('깨어서 아래층', { toast: '지금은 아래층에 있어.', hidden: false }) && allGood;
+  s = await S(pg); allGood = allGood && !s.up && /문어는 아래층 .+에서 쉬고 있어\./.test(s.desc);
+  lines.push('장면 설명: ' + s.desc);
+  await pg.evaluate(function () { APP.walkTo(APP.oct.anchor === 'window' ? 'center' : 'window').then(function () { APP.octState('idle'); }); }); await tick(pg, 0.3);   /* 아래층에서 걷는 중 (내가 위층에서 들으면) */
+  s = await S(pg); allGood = allGood && !s.up && s.st === 'walk' && /문어는 아래층에서 걸어가는 중이야\./.test(s.desc);
+  lines.push('걷는 중 장면 설명: ' + s.desc);
+  await tick(pg, 10, function () { return APP.oct.state === 'idle'; });
+  await stair(pg, false); await stair(pg, true);
+  allGood = await mirror('따라 올라옴', { sheet: true, hidden: false }) && allGood;
+  await tap(pg, 'btn-go');   /* 위층에서 큰 버튼: 내려가서 초대 (차례 시작) */
+  var seen = {}, guard = 0;
+  while (guard++ < 400) {
+    await tick(pg, 0.5); s = await S(pg);
+    var ph = s.cer === 'depart' ? '나가는 중' : s.cer === 'return' ? '돌아오는 중' : s.st === 'away' ? '나가 있음' : null;
+    if (ph && !seen[ph]) {
+      seen[ph] = 1;
+      if (!s.room && s.stairVis === 'visible') await stair(pg, true);
+      allGood = await mirror(ph + ' (' + ((await S(pg)).room || '다락') + ')', { hidden: true, toast: ph === '나가 있음' ? '지금은 산책 나가 있어.' : '' }) && allGood;
+    }
+    if (seen['돌아오는 중'] && !s.cer && s.st !== 'away') break;
+  }
+  console.log('   거울 한 줄:', lines.join(' | '));
+  ok(allGood && seen['나가 있음'], '위층의 거울: 문어 상태마다 시트 아니면 사실 한 줄 (깨우지 않음 · 물음 · 행 · 미용실 소리 0) — ' + Object.keys(seen).join(' · '));
+  reportErrors(bag, 'Z-3'); await A.ctx.close();
+  }
+
+  /* 4. 방석 · 가구 배치 · 시트 올림 */
+  if (ZP.indexOf('4') >= 0) {
+  A = await open({ w: 320, h: 568 }); pg = A.page;
+  await stair(pg, true); s = await S(pg);
+  var cu = await pg.evaluate(function () { return APP.scene.loftProps().cushions; });
+  var gap = Math.min.apply(null, cu.map(function (c) { return Math.hypot(s.at[0] - c[0], s.at[2] - c[1]) - c[2] - 0.42; }));
+  ok(s.up && gap >= 0, '따라 올라온 문어는 빈 바닥에 선다: 방석과 몸(0.42) 사이 ' + gap.toFixed(2) + ' m ' + JSON.stringify({ at: s.at, cushions: cu }));
+  await stair(pg, false);
+  await tap(pg, 'btn-furn'); await tick(pg, 0.5);
+  var f0 = await pg.evaluate(function () { return document.documentElement.classList.contains('furn-on'); });
+  var fUp = await stair(pg, true);
+  var f1 = await pg.evaluate(function () { var g = document.getElementById('btn-go'); return { on: document.documentElement.classList.contains('furn-on'), ui: !document.getElementById('furn-ui').hidden, salon: !document.getElementById('btn-salon').hidden, go: getComputedStyle(g).visibility !== 'hidden' && getComputedStyle(g).display !== 'none' }; });
+  ok(f0 && fUp && !f1.on && !f1.ui && f1.salon && f1.go, '가구 배치 중 계단으로 오르면 배치는 끝난다 (위층에 죽은 판 없음 · 거울 · 큰 버튼 보임) ' + JSON.stringify(f1));
+  /* 밀어 둔 화면(아래로 끌어 둠)에서 거울: 시트가 열리면 기본 구도로 돌아가고, 올림은 기본 구도에서 연 것과 같다 */
+  await tapMirror(pg); await tick(pg, 1); var l0 = await pg.evaluate(function () { return APP.scene.lift().to; });
+  await pg.evaluate(function () { document.getElementById('salon-close').click(); }); await tick(pg, 1);
+  var c = await pg.evaluate(function () { var r = document.getElementById('scene').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height * 0.25]; });
+  await pg.mouse.move(c[0], c[1]); await pg.mouse.down(); for (var i = 1; i <= 8; i++) { await pg.mouse.move(c[0], c[1] + 40 * i); await tick(pg, 0.1); } await pg.mouse.up();
+  await tick(pg, 2); var pan = await pg.evaluate(function () { return APP.scene.pan(); });
+  await tapMirror(pg); await tick(pg, 1.5); var l1 = await pg.evaluate(function () { return { lift: APP.scene.lift().to, pan: APP.scene.pan() }; });
+  ok(pan.y > 10 && Math.abs(l1.lift - l0) < 0.05 && Math.abs(l1.pan.y) < 0.5, '아래로 밀어 둔 화면에서 연 시트: 기본 구도로 돌아가고 올림은 기본 구도에서와 같다 (' + JSON.stringify({ panY: pan.y, lift: [l0, l1.lift], panAfter: l1.pan.y }) + ')');
+  reportErrors(bag, 'Z-4'); await A.ctx.close();
+  }
+}
+
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
@@ -5188,7 +5425,8 @@ async function scenarioWeek(browser) {
       ['O', function () { return scenarioFirstColor(browser); }], ['Y', function () { return scenarioSalon(browser); }],   /* 미용실: 첫 실행 몸 색은 글자 O 의 둘째 묶음 (O 의 첫 묶음 = 한 화면 배치 scenarioLayoutOne 은 아래 줄 — SMOKE_ONLY=O 면 둘 다 돈다, 따로 try/catch) · Y = 미용실 */
       ['R', function () { return scenarioRunner(); }], ['S', function () { return scenarioWave7(browser); }], ['J', function () { return scenarioWave8(browser); }], ['U', function () { return scenarioGlyphs(browser); }],
       ['T', function () { return scenarioTapLine(browser); }], ['K', function () { return scenarioBringBack(browser); }], ['O', function () { return scenarioLayoutOne(browser); }],
-      ['Q', function () { return scenarioWeek(browser); }]];   /* Q = 이번 주 할 일 · 선물 상자 (검증 11-11) */
+      ['Q', function () { return scenarioWeek(browser); }],   /* Q = 이번 주 할 일 · 선물 상자 (검증 11-11) */
+      ['Z', function () { return scenarioLoft(browser); }]];   /* 11-12 위층 문어 (계단 · 돌아다니기 · 거울 길 · 비켜서기 · 거울 한 줄 · 방석 · 가구 배치 · 시트 올림) */
     for (var sc of all) {   /* 한 시나리오가 터져도 (부하 큰 기계의 시간 초과 등) 뒤 시나리오는 돈다 — 터진 것은 실패 하나로 센다 */
       if (only.length && only.indexOf(sc[0]) < 0) continue;
       try { await sc[1](); } catch (e) { fails++; console.error('\nCRASH in ' + sc[0] + ': ' + (e && e.stack || e)); }

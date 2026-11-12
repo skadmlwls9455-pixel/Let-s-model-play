@@ -539,6 +539,7 @@ var APP = (function () {
           walkTo('window').then(function () { if (!oct.busy) { octState('idle'); var w = weatherFor(S.room.lantern), hr = new Date().getHours(); say(w === 'clear' ? (hr >= 19 || hr < 6 ? '별이 보여' : '맑네') : w === 'snow' ? '눈이 와' : '비가 와', 'calm', 2000); } });
         },
         anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ },
+        octUp: function (up, an) { if (!up && an) oct.anchor = an; updateSceneDesc(); },   /* 11-12: 위층 ↔ 다락으로 옮겨진 문어 — 다락에 놓인 자리를 앱 자리로 · 장면 설명 다시 */
         place: function () { updateSceneDesc(); },   /* 3D: 의식이 다락 ↔ 집 바깥을 바꾼 순간 (2D 는 runCeremony 의 250 ms 틱이 따라간다). 놀이방에 있는 동안에도 온다 (이야기 장소만 바뀜) */
         door: function (ev) { if (window.AUDIO && ev) AUDIO.on('door', { act: ev.act, room: ev.room }); },   /* 8물결: 방 문이 열리고 닫힐 때 끼익 (장면은 AUDIO 를 부르지 않는다) */
         view: function (v) { syncRoomUI(v); if (v === 'loft') questMark('loft'); else if (v === 'play') questMark('kitchen'); },   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
@@ -1029,7 +1030,7 @@ var APP = (function () {
     Promise.resolve()
       .then(function () { return wait(red ? 0 : 250); })   /* 시트가 닫힌다 */
       .then(function () { if (!live()) return; stageRows(my, 1); return salonSettle(my); })   /* 행 1 (집 목소리: '파란색 어때? 하고 물어봤어.') · 걷던 걸음은 도착을 기다리고 (4 s) 쓰다듬기는 끝낸다 */
-      .then(function () { return wait(1000); })   /* 숨 고르기 (모션 줄이기에도 리듬은 남긴다) */
+      .then(function () { if (live() && typeof scene.salonClearView === 'function') scene.salonClearView(); return wait(1000); })   /* 숨 고르기 (모션 줄이기에도 리듬은 남긴다) · 11-12 (검증): 내 캐릭터가 문어 · 거울 앞을 가리고 있으면 지금 비켜선다 (두 답이 같다 — 대답이 보이기 전에) */
       .then(function () { if (!live()) return; scene.setOctState('ponder'); return wait(red ? 150 : 500); })   /* 움츠림 (얼굴 idle · 먹물 · 소리 없음 — 두 답이 같다 · 모션 줄이기면 움직임 없이 0.15 s 멈춤만) */
       .then(function () {
         if (!live()) return;
@@ -1145,12 +1146,13 @@ var APP = (function () {
     if (sceneView() === 'play')   /* 놀이방 (8물결): 문어는 다락(또는 산책) — 놀이방엔 오지 않는다 */
       return '놀이방, ' + partOfDay(hourNow()) + '. 다락방 달리기 오락기랑 작은 부엌이 있어. ' + (oct.state === 'away' || sceneCeremony() === 'depart' ? '문어는 산책 나갔어.' : '문어는 다락방에 있어.');
     var lv = S.room.lantern, outside = sceneMode === '3d' && !!scene && typeof scene.place === 'function' && scene.place() === 'exterior';   /* 2D 무대는 바깥을 그리지 않는다 (장소 값만 기억) → 늘 다락 */
-    var where = outside ? '집 바깥' : lv ? '등불 ' + lv + '칸 켜진 다락' : '불씨 하나 켜진 다락';   /* 0칸이어도 등불 속 불씨는 켜져 있다 */
+    var loft = !outside && sceneView() === 'loft', up = loft && octWithMe();   /* 11-12 (검증): 위층에서도 다락 · 다락 자리를 읽었다 — 위층이면 위층, 문어가 따라 올라와 있으면 '위층', 아래층에 있으면 '아래층' */
+    var where = outside ? '집 바깥' : loft ? '위층 다락 옷방' : lv ? '등불 ' + lv + '칸 켜진 다락' : '불씨 하나 켜진 다락';   /* 0칸이어도 등불 속 불씨는 켜져 있다 */
     var wx = WX_DESC[weatherFor(lv)], st = oct.state, cname = sceneCeremony();
     /* 출발·귀가 의식은 장면이 스스로 걷고 장소를 바꾼다 (APP 의 oct.state 는 의식이 끝나야 바뀐다) → 의식 이름대로 */
     var who = cname === 'depart' ? '문어는 나가는 중이야.' : cname === 'return' ? '문어는 돌아오는 중이야.'
-      : st === 'away' ? '문어는 산책 나갔어.' : st === 'walk' ? '문어는 걸어가는 중이야.'
-      : '문어는 ' + (SPOT_DESC[oct.anchor] || '방 가운데') + '에서 ' + (DOING_DESC[st] || '쉬고 있어') + '.';
+      : st === 'away' ? '문어는 산책 나갔어.' : st === 'walk' ? (loft && !up ? '문어는 아래층에서 걸어가는 중이야.' : '문어는 걸어가는 중이야.')   /* 11-12 (검증): 위층에서 들으면 아래층에서 걷는 줄 몰랐다 */
+      : '문어는 ' + (up ? (oct.anchor === 'salon' ? '위층 ' + SPOT_DESC.salon : '위층') : (loft ? '아래층 ' : '') + (SPOT_DESC[oct.anchor] || '방 가운데')) + '에서 ' + (DOING_DESC[st] || '쉬고 있어') + '.';
     /* 몸 색 한 마디 (docs/SALON.md §3.8 — 색이 문어의 일이 됐으니 못 보는 사람도 안다): 집에 있을 때만 · 지금 장면에 보이는 색 (미용실 연출 중엔 첨벙 전까지 옛 색) */
     var home = !cname && st !== 'away', hex = home && SAL ? (scene && typeof scene.color === 'function' ? scene.color() : S.octopus.color) : null, cn = hex ? SAL.colorName(hex) : null;
     return where + ', ' + (wx ? wx + ' ' : '') + partOfDay(hourNow()) + '. ' + who + (cn ? ' ' + SAL.TEXT.desc.replace('{color}', cn) : '');
@@ -3826,6 +3828,7 @@ var APP = (function () {
     var ae = document.activeElement, keep = !ae || ae === document.body || ae === opener || isRoomButton(ae);
     hideTip();
     if (to === 'attic') hideBackNote();
+    if (furnMode && to !== 'attic') furnOpen(false);   /* 11-12 (검증): 가구 배치는 다락 일 — 다락을 떠나면 '끝내기' 와 같이 끝낸다 (위층까지 따라와 거울 · 큰 버튼을 가린 채 눌러도 아무 일 없는 판이 됐다) */
     var job = roomJob = Promise.resolve(scene.goRoom(to, { walkFirst: true })).then(fin, function (e) { console.warn('[app] goRoom', e); return fin({ ok: false, reason: 'error' }); });
     function fin(r) {
       if (roomJob === job) roomJob = null;
