@@ -185,6 +185,11 @@ guard(function () {
   var seedPath = S.demoAnswer({ dateKey: D0, name: '뚜루', born: BORN, asksBefore: 1 }), odd = [undefined, null, NaN, -1, '0', '', 0.5, Infinity, {}];
   var oddBad = odd.filter(function (v) { var x = S.demoAnswer({ dateKey: D0, name: '뚜루', born: BORN, asksBefore: v }); return !same(x, seedPath) || x.rule !== 'seed'; });
   check(oddBad.length === 0 && seedPath.action === 'keep', 'only asksBefore === 0 is the first ask: missing / invalid counts (undefined, null, NaN, -1, \'0\', 0.5, ...) take the seed path, so a caller that forgets the count can never make every answer a dye (spec 4)' + (oddBad.length ? ' bad: ' + js(oddBad.map(String)) : ''));
+  /* 검증 11-10 W8: '맨 처음은 꼭 바꾸기' 는 이름 붙은 상수 (주인이 아직 확인하지 않은 기본값 — 값은 그대로 true). 끄면 맨 처음도 시드 길이다 */
+  var noFirst;
+  try { S.FIRST_DYE = false; noFirst = S.demoAnswer({ dateKey: D0, name: '뚜루', born: BORN, asksBefore: 0 }); } finally { S.FIRST_DYE = true; }
+  check(S.FIRST_DYE === true && same(noFirst, seedPath) && noFirst.rule === 'seed' && S.demoAnswer({ dateKey: D0, name: '뚜루', born: BORN, asksBefore: 0 }).rule === 'first',
+    "FIRST_DYE is a named constant and is true; with it off the very first ask takes the seed path too (" + js(noFirst.action) + "), with it back on the first ask is rule 'first'");
   var diff = 0, n = 0;
   ['뚜루', '안개', '삐죠', 'Octo'].forEach(function (nm, j) {
     for (var d = 0; d < 365; d++) {
@@ -560,9 +565,9 @@ guard(function () {
   var mixed = S.normalize({ octopus: { name: 'x', color: 'zz', colors: [
     { at: 30, color: '#4A86D8', how: 'salon', by: 'demo-rules', ask: 'a1' }, { at: 10, color: RED, how: 'first', by: 'player' }, { at: 20, color: '#00ff00', how: 'dev', by: 'robot' },
     { at: 40, color: 'blue', how: 'dev', by: 'dev' }, { at: 50, color: PINK, how: 'paint', by: 'dev' }, 'junk', null, { at: 60, color: GREEN, how: 'dev', by: 'dev', ask: 7 }] }, settings: {} });
-  check(same(mixed.octopus.colors.map(function (c) { return [c.at, c.color, c.how, c.by]; }), [[10, RED, 'first', 'player'], [20, '#00ff00', 'dev', 'unknown'], [30, BLUE, 'salon', 'demo-rules'], [60, GREEN, 'dev', 'dev']]) &&
+  check(same(mixed.octopus.colors.map(function (c) { return [c.at, c.color, c.how, c.by]; }), [[10, RED, 'first', 'player'], [20, '#00ff00', 'dev', 'unknown'], [30, BLUE, 'salon', 'unknown'], [60, GREEN, 'dev', 'dev']]) &&
     !('ask' in mixed.octopus.colors[3]) && mixed.octopus.colors[2].ask === 'a1',
-    "colors: bad colour / how / non-objects dropped, hex lower-cased, unknown by 'unknown', sorted by at, non-string ask removed");
+    "colors: bad colour / how / non-objects dropped, hex lower-cased, unknown by 'unknown', sorted by at, non-string ask removed; a salon line whose ask 'a1' is not in the record keeps its colour but not its chooser (by 'unknown' — W4)");
   check(mixed.octopus.color === GREEN && mixed.settings.octColor === GREEN, 'invalid octopus.color falls back to the last colors line');
   var MODEL_LINE = '  음… 파랑도 괜찮겠다 🐙✨  \n(진짜로)  ', RAW = '{"action":"dye","line":"음… 🐙"}  ';
   var asks = S.normalize({ octopus: { name: 'x', colors: [{ at: 1, color: RED, how: 'first', by: 'player' }] }, settings: {}, salon: { asks: [
@@ -598,10 +603,34 @@ guard(function () {
     settings: {}, salon: { asks: [{ id: 'late', date: D0, at: 20, from: RED, offer: GREEN, status: 'done', action: 'dye', by: 'demo-rules' }, { id: 'early', date: D0, at: 10, from: RED, offer: BLUE, status: 'done', action: 'dye', by: 'demo-rules' }] } });
   check(twin.salon.asks[0].status === 'dropped' && twin.salon.asks[1].status === 'done' && twin.octopus.color === BLUE && twin.octopus.colors.length === 2,
     'two asks on one day in a saved record: the earliest decides (same rule as merge)');
-  var idem = 0, states = [old, fresh, mixed, w, v1, twin, base()];
+  /* 검증 11-10 W3: 지금 색은 색 기록(colors)의 마지막 줄이 정한다. 내보낸 파일에서 octopus.color (또는 사본) 한 칸만 고쳐도 기록 없는 색이 되지 않는다 */
+  var honest = base(); ask(honest, D0, BLUE, S.humanAnswer('dye'));
+  var edited = clone(honest); edited.octopus.color = '#101010'; edited.settings.octColor = '#101010';
+  S.normalize(edited, { todayKey: D0 });
+  check(honest.octopus.color === BLUE && edited.octopus.color === BLUE && edited.settings.octColor === BLUE && same(edited.octopus.colors, honest.octopus.colors) && S.look(edited).now.hex === BLUE,
+    'a hand-edited octopus.color (#101010) that disagrees with the colour record does not recolour: the last colors line decides (' + edited.octopus.color + '), the copy follows');
+  var noRec = S.normalize({ v: 2, octopus: { name: null, born: null, trips: 0, color: '#123456' }, trips: [], settings: { octColor: RED } }, { todayKey: D0 });
+  check(noRec.octopus.color === '#123456' && noRec.settings.octColor === '#123456' && same(noRec.octopus.colors, []), 'with no colour record yet (a new record) octopus.color is still what is read');
+  /* 검증 11-10 W4: 미용실 색 줄의 고른 이는 그 물음이 뒷받침할 때만 남는다 (같은 id 의 끝난 '바꾸기' 물음 · 같은 고른 이 · 같은 색). 아니면 'unknown' — 줄과 색은 그대로 */
+  function forge(line, asks) {
+    var f = base(); f.octopus.colors.push(Object.assign({ at: at(D0), date: D0, color: PINK, how: 'salon', by: 'model' }, line)); f.octopus.color = f.settings.octColor = (line && line.color) || PINK;
+    f.salon.asks = asks || [];
+    return S.normalize(f, { todayKey: S.addDays(D0, 1) });
+  }
+  function askLine(o) { return Object.assign({ id: 'fa', date: D0, at: at(D0), from: RED, offer: PINK, status: 'done', action: 'dye', by: 'model', line: '해 볼게' }, o); }
+  var f0 = forge({}), f1 = forge({ ask: 'nope' }), f2 = forge({ ask: 'fa' }, [askLine({ action: 'keep' })]), f3 = forge({ ask: 'fa' }, [askLine({ by: 'demo-rules' })]),
+    f4 = forge({ ask: 'fa' }, [askLine({ offer: GREEN })]), f5 = forge({ ask: 'fa' }, [askLine({ status: 'waiting', action: null })]), fOk = forge({ ask: 'fa' }, [askLine({})]);
+  var forged = [f0, f1, f2, f3, f4, f5].map(function (f) { var c = f.octopus.colors[f.octopus.colors.length - 1]; return c.by + '/' + S.look(f).changes.map(function (x) { return x.by; }).join(); });
+  check(forged.every(function (x) { return x === 'unknown/unknown'; }) && [f0, f1, f2, f3, f4, f5].every(function (f) { return f.octopus.colors.length === 2 && f.octopus.color === PINK; }),
+    "a hand-written colors line { how: 'salon', by: 'model' } with no ask, an unknown ask id, a keep ask, another chooser, another colour or a waiting ask becomes by 'unknown' (the line and the colour stay), and look() does not report it as the model's choice: " + js(forged));
+  check(fOk.octopus.colors[1].by === 'model' && S.look(fOk).changes[0].by === 'model' && S.rows(fOk.salon.asks[0], 'x')[2].tail === '모델', "a salon line with its finished dye ask (same id, chooser, colour) keeps by 'model'");
+  var idem = 0, states = [old, fresh, mixed, w, v1, twin, base(), edited, f0, f3, fOk];
   var y = base(); for (var d = 0; d < 20; d++) ask(y, S.addDays(D0, d), HEXES[(d * 5 + 1) % 6] === y.octopus.color ? HEXES[(d + 2) % 6] : HEXES[(d * 5 + 1) % 6]); states.push(y);
   states.forEach(function (st) { var one = js(S.normalize(clone(st), { todayKey: D0 })), two = js(S.normalize(JSON.parse(one), { todayKey: D0 })); if (one !== two) idem++; });
   check(idem === 0, 'normalize is idempotent (' + states.length + ' records, JSON round trip)');
+  var yN = S.normalize(clone(y), { todayKey: S.addDays(D0, 30) });
+  check(same(yN.octopus.colors, y.octopus.colors) && yN.octopus.color === y.octopus.color && y.octopus.colors.filter(function (c) { return c.how === 'salon'; }).length >= 3,
+    'a record made by play (20 asks) is left as it is: every salon line keeps its chooser and the colour is the last line (' + y.octopus.colors.length + ' lines)');
   check(S.normalize(null) && same(S.normalize(null).octopus.colors, []) && S.normalize(null).octopus.color === RED, 'normalize(null) gives a usable empty record');
 });
 
@@ -643,6 +672,21 @@ guard(function () {
   var dm = S.merge(A, dev, [{ ask: aAsk, at: t0 }], t0 + 5000);
   check(dm.state.octopus.color === PINK && same(dm.dropped, [bAsk.id]), 'a later dev change in the other tab still wins over the re-added ask (latest line decides)');
   check(S.merge(A, null, [aAsk]).changed === false, 'a remote that is not a record changes nothing');
+  /* 검증 11-10 W1 (불러오기): 같은 문어의 옛 기록을 불러와도 이 기기에서 이미 한 물음은 남는다 — 앱이 merge(지금 기록, 불러온 기록, 지금 기록의 물음 전부) 를 now 없이 부른다 (60 s 제한 없음) */
+  var dev1 = base(), backup0 = clone(dev1);                                /* 물음이 하나도 없을 때 내보낸 파일 */
+  var first1 = ask(dev1, S.addDays(D0, -9), BLUE, undefined, at(S.addDays(D0, -9)));   /* 맨 처음 물음 (9일 전) = 'first' 바꾸기 */
+  var backup1 = clone(dev1);                                               /* 그 뒤에 내보낸 파일 */
+  var keep1 = ask(dev1, D0, PURPLE, S.humanAnswer('keep'), at(D0));        /* 오늘 '그대로' */
+  var imp1 = S.merge(dev1, clone(backup1), dev1.salon.asks.slice()).state;
+  check(first1.rule === 'first' && imp1.salon.asks.length === 2 && S.canAsk(imp1, D0, 'idle').reason === 'asked_today' && S.restingUntil(imp1, PURPLE, D0) === S.addDays(D0, 7) && imp1.octopus.color === BLUE &&
+    S.rows(S.todaysAsk(imp1, D0), '뚜루').length === 2,
+    "import of a backup from before today's ask (same octopus): the '그대로' stays (asked today, its colour rests until " + S.restingUntil(imp1, PURPLE, D0) + ')');
+  var imp0 = S.merge(dev1, clone(backup0), dev1.salon.asks.slice()).state, next0 = S.makeAsk(imp0, { at: at(S.addDays(D0, 1)), today: S.addDays(D0, 1), offer: GREEN });
+  check(imp0.salon.asks.length === 2 && S.doneCount(imp0) === 2 && imp0.octopus.color === BLUE && imp0.octopus.colors.some(function (c) { return c.ask === first1.id && c.by === 'demo-rules'; }) && next0 && next0.rule === 'seed',
+    "import of a backup from before the very first ask: both asks and the dye's colors line come back (asks older than 60 s too), the colour stays blue, and the next ask is answered by rule '" + (next0 && next0.rule) + "' (no second 'first')");
+  var otherOct = clone(backup0); otherOct.octopus.born = BORN + 7; otherOct.octopus.name = '다른문어';
+  var impX = S.merge(dev1, otherOct, dev1.salon.asks.slice());
+  check(!impX.changed && impX.state.salon.asks.length === 0 && impX.state.octopus.color === RED && impX.state.octopus.name === '다른문어', 'a different octopus (born differs) is imported as it is: none of this octopus\'s asks are carried over');
 });
 
 /* =================================================================== */

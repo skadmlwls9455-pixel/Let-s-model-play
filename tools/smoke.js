@@ -2432,6 +2432,16 @@ async function scenarioSalon(browser) {
   });
   console.log('   sheet:', JSON.stringify({ focus: h0.focus, bs: h0.bs.map(function (b) { return b.label + (b.dis ? '!' : '') + (b.note ? '[' + b.note + ']' : ''); }), ask: h0.ask, backdrop: bd }));
   ok(h0.open && h0.focus === 'salon-h', '거울 톡 → 미용실 시트 · 포커스는 제목 (' + h0.focus + ')');
+  /* 시트의 글자 (검증 11-10 W5): 제목 · 병 묶음 이름 · 단추 둘은 index.html 에 적혀 있다 (앱이 SALON.TEXT 에서 짓지 않는다) → 화면 글자를 스펙 글자 · SALON.TEXT 와 견준다.
+     단추는 '물어보기' 와 '닫기' 뿐 — 조르는 말 ('한 번만' · '부탁' …) 이 단추에 들어오지 않게 */
+  var lab2 = await pa.evaluate(function () {
+    var d = document.getElementById('salon-sheet'), T = SALON.TEXT;
+    function tx(q) { var e = d.querySelector(q); return e ? e.textContent : null; }
+    return { got: { sheet: tx('#salon-h'), group: d.querySelector('#salon-bottles').getAttribute('aria-label'), ask: tx('#salon-ask'), close: tx('#salon-close') }, text: { sheet: T.sheet, group: T.group, ask: T.ask, close: T.close },
+      btns: [].map.call(d.querySelectorAll('button:not(.bottle)'), function (b) { return b.textContent; }), askLabel: d.querySelector('#salon-ask').getAttribute('aria-label') };
+  });
+  ok(JSON.stringify(lab2.got) === JSON.stringify({ sheet: '미용실', group: '몸 색', ask: '물어보기', close: '닫기' }) && JSON.stringify(lab2.got) === JSON.stringify(lab2.text) && lab2.btns.join('|') === '물어보기|닫기' && lab2.askLabel === null,
+    "시트의 글자는 스펙 그대로 (= SALON.TEXT): 제목 '미용실' · 병 묶음 '몸 색' · 단추는 '물어보기' 와 '닫기' 뿐 " + JSON.stringify(lab2.got) + ' ' + JSON.stringify(lab2.btns));
   ok(/^rgba\(0, 0, 0, 0\) \/ none \/ none$/.test(bd.pixel) && /^rgba\(0, 0, 0, 0\) \/ none \/ none$/.test(bd.system), '미용실 시트만 뒤 막 없음 (픽셀 · 시스템 테마 둘 다: 배경 투명 · 무늬 없음 · backdrop-filter none) ' + JSON.stringify(bd));
   ok(h0.bs.length === 6 && h0.bs.every(function (b) { return b.type === 'button' && b.w === 36 && b.h === 36; }) && h0.bs.map(function (b) { return b.hex; }).join() === [RED, ORANGE, '#9a5cc8', BLUE, GREEN, PINK].join(),
     '병 6 (빨강 주황 보라 파랑 초록 분홍) · button[type=button] · 보이는 칸 36 px');
@@ -2452,6 +2462,7 @@ async function scenarioSalon(browser) {
   await pa.click('#salon-bottles .bottle[data-hex="' + BLUE + '"]');
   await pa.click('#salon-close'); await pa.waitForSelector('#salon-sheet[open]', { state: 'hidden' }); await pa.waitForTimeout(250);
   var c1 = await st(pa);
+  ok(!c1.open && c1.asks.length === 0 && c1.saved === 0 && c1.color === RED, '병을 고른 채 [닫기] 로 그만두면 그 자리에서 기록 0 (물음을 만들지 않는다 — 닫기마다 바로 본다. 검증 11-10 E7) ' + JSON.stringify({ asks: c1.asks.length, saved: c1.saved }));
   await openSheet(pa); await pa.click('#salon-bottles .bottle[data-hex="' + GREEN + '"]');
   await pa.keyboard.press('Escape'); await pa.waitForSelector('#salon-sheet[open]', { state: 'hidden' }); await pa.waitForTimeout(250);
   var c2 = await st(pa);
@@ -2483,6 +2494,172 @@ async function scenarioSalon(browser) {
   var t3 = await st(pt);
   ok(!!tp && t1.open && t1.focus === 'salon-h', '손가락 톡으로 거울을 누르면 시트가 열린 채로 남는다 (뒤따르는 click 이 닫지 않는다) ' + JSON.stringify({ at: tp, open: t1.open }));
   ok(t2.open && t2.name === '파란색' && t2.offer === BLUE && !t3.open && t3.offer === null && t3.asks.length === 0 && t3.saved === 0, '손가락으로 병을 고르고 · 나중의 바깥 톡은 그만두기 (병 제자리 · 기록 0) ' + JSON.stringify({ name: t2.name, closed: !t3.open }));
+  /* 2d. 두 번 톡 (검증 11-10 — 손가락):
+         P6 = E12: 거울을 두 번 톡 해도 시트는 열린 채로 (예전엔 둘째 톡이 방금 연 시트를 닫았다 — 브라우저의 바깥 톡 닫기 + 바깥 click). 그 뒤의 바깥 톡은 그만두기 그대로.
+         E1 = P1: 한 화면 배치에선 큰 버튼이 시트의 [닫기] · [물어보기] 오른쪽 밑에 있다 → 두 번 톡의 둘째가 시트가 사라진 자리의 큰 버튼에 떨어져 청하지 않은 산책이 나가고 ([닫기] — 미용실 · 로그 · 앨범 · 살림 · 설정),
+         [물어보기] 뒤엔 대답 연출이 한 번에 감겼다. 시트가 닫힌 뒤 짧은 틈 (SHEET_SETTLE) 의 누름은 큰 버튼이 받지 않는다 — 그 틈이 지난 한 번의 누름은 평소대로 초대 */
+  /* 진짜 두 번 톡: 둘째 톡을 첫 톡의 처리가 끝나기를 기다리지 않고 보낸다 (손가락은 화면이 바쁘다고 기다리지 않는다). touchscreen.tap 을 두 번 부르면 첫 톡이 시트를 여는 일 (바쁜 기계에서 0.5 – 1 s) 이 끝난 뒤에야 둘째가 나가
+     두 톡 사이가 0.55 s 를 넘겼다 (11-11 실측) → 같은 입력을 CDP 로 차례만 지켜 보낸다 (start · end · gap · start · end) */
+  async function tapTwice(pg, x, y, gap) {
+    var c = pg.__cdp || (pg.__cdp = await pg.context().newCDPSession(pg)), at = [{ x: Math.round(x), y: Math.round(y) }];
+    function ev(type, pts) { return c.send('Input.dispatchTouchEvent', { type: type, touchPoints: pts }); }
+    await ev('touchStart', at); var e1 = ev('touchEnd', []);
+    await new Promise(function (r) { setTimeout(r, gap); });
+    var s2 = ev('touchStart', at), e2 = ev('touchEnd', []);
+    await Promise.all([e1, s2, e2]);
+  }
+  function overGo(pg, sel) { return pg.evaluate(function (sel) {   /* 그 단추와 큰 버튼이 겹치는 곳의 가운데 (안 겹치면 null) */
+    /* 11-12 합침: 살림 시트 (주간 할 일이 들어와 길어졌다) · 설정 시트는 안에서 굴러가고 [닫기] 가 맨 아래에 있다 → 손가락이 하듯 [닫기] 까지 굴려 보이게 한 뒤 잰다 (보이는 시트는 그대로) */
+    var el = document.querySelector(sel); try { el.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    var a = el.getBoundingClientRect(), g = document.getElementById('btn-go').getBoundingClientRect();
+    var l = Math.max(a.left, g.left), r = Math.min(a.right, g.right), t = Math.max(a.top, g.top), b = Math.min(a.bottom, g.bottom);
+    return r - l > 8 && b - t > 8 ? { x: Math.round((l + r) / 2), y: Math.round((t + b) / 2), w: Math.round(r - l), h: Math.round(b - t) } : null;
+  }, sel); }
+  function goState(pg) { return pg.evaluate(function () { var g = document.getElementById('btn-go'); return { away: g.classList.contains('away'), running: APP.state.trips.filter(function (t) { return t.status === 'running'; }).length, trips: APP.state.trips.length, dlg: !!document.querySelector('dialog[open]'), rooms: window.__dt.rooms.slice(), room: APP.room }; }); }
+  /* 11-12 합침: 이 탭은 위층에 있다 (거울이 거기). 위층에서 큰 버튼을 누르면 먼저 계단으로 내려가고 (backToOctRoom — 내 캐릭터가 계단까지 걸어간 뒤) 그다음 초대라, 산책은 1 s 넘게 늦게 난다.
+     → 큰 버튼이 받은 누름은 '방 옮기기를 불렀나' (scene.goRoom 호출 — 누른 그 일 바로 뒤) 로 바로 본다. 산책 · 내려감이 있었으면 다시 올라와 문어를 데려온다 */
+  async function ensureUp(pg) { if (!(await pg.evaluate(function () { return APP.room === 'loft' && !!APP.scene.octUp(); }))) await up(pg); }
+  /* 두 번 톡이 정말 두 번 톡이었나를 페이지 안에서 잰다 (바쁜 기계에선 톡 사이가 늘어진다 — 틈(0.6 s)을 넘긴 둘째 톡은 따로 한 번 누른 것이라 검사 거리가 아니다 → 다시 한다):
+     afterShut = 큰 버튼에 떨어진 click 의 시각 − 대화상자가 닫힌 때 · afterOpen = 둘째 손가락이 떨어진 때 − 미용실 시트를 연 때 */
+  await pt.evaluate(function () {
+    var M = window.__dt = { shut: 0, go: [], ups: [], rooms: [] }, sc = APP.scene, gr = sc.goRoom;
+    sc.goRoom = function (to) { M.rooms.push(String(to)); M.roomDone = 0; var r = gr.apply(this, arguments); Promise.resolve(r).then(function () { M.roomDone = performance.now(); }, function () {}); return r; };   /* 큰 버튼이 방을 옮기러 갔나 (위의 goState) · 그 방 옮기기가 끝난 때 */
+    new MutationObserver(function (rs) { rs.forEach(function (r) { if (r.target.tagName === 'DIALOG' && !r.target.open) M.shut = performance.now(); }); }).observe(document.body, { attributes: true, subtree: true, attributeFilter: ['open'] });
+    document.getElementById('btn-go').addEventListener('click', function (e) { M.go.push(e.timeStamp); }, true);
+    window.addEventListener('pointerup', function (e) { M.ups.push(e.timeStamp); }, true);
+  });
+  function dtReset(pg) { return pg.evaluate(function () { var M = window.__dt; M.shut = 0; M.go = []; M.ups = []; M.rooms = []; }); }
+  function dtRead(pg) { return pg.evaluate(function () { var M = window.__dt, d = document.getElementById('salon-sheet'); return { afterShut: M.go.length && M.shut ? Math.round(M.go[0] - M.shut) : null, afterOpen: M.ups.length >= 2 && d._openedAt ? Math.round(M.ups[M.ups.length - 1] - d._openedAt) : null }; }); }
+  var DT_MAX = 550, d1 = null, dm = null, tp2 = null;
+  for (var dti = 0; dti < 3; dti++) {
+    await pt.evaluate(function () { var d = document.getElementById('salon-sheet'); if (d.open) d.close(); }); await pt.waitForTimeout(800);
+    tp2 = await spotOf(pt); if (!tp2) break;
+    await dtReset(pt); await tapTwice(pt, tp2.x, tp2.y, 100);
+    await pt.waitForSelector('#salon-sheet[open]', { timeout: 6000 }).catch(function () {}); await pt.waitForTimeout(900);   /* 바쁜 기계에선 첫 톡이 시트를 여는 데 1 s 까지 걸린다 → 열린 뒤 둘째 톡이 처리될 틈을 더 준다 */
+    dm = await dtRead(pt); d1 = await sheet(pt);
+    if (dm.afterOpen !== null && dm.afterOpen < DT_MAX) break;
+    console.log('   (거울 두 번 톡: 둘째 톡이 시트를 연 뒤 ' + dm.afterOpen + ' ms — 두 번 톡이 아니다 (바쁜 기계). 다시)'); d1 = null;
+  }
+  ok(!!tp2 && !!d1 && d1.open, '거울을 두 번 톡 해도 시트는 열린 채로 남는다 (둘째 톡이 방금 연 시트를 닫지 않는다) ' + JSON.stringify({ open: d1 && d1.open, secondTapAfterOpenMs: dm && dm.afterOpen }));
+  await pt.waitForTimeout(300); await pt.touchscreen.tap(40, 110); await pt.waitForTimeout(600);
+  var d2 = await st(pt);
+  ok(!d2.open && d2.asks.length === 0, '…그 뒤의 바깥 톡은 그만두기 그대로 (기록 0)');
+  /* 느린 두 번 톡 (11-12 합침 — 고침의 다른 반쪽을 지킨다): 둘째 톡이 시트를 연 뒤 0.38 – 0.55 s 에 떨어진다 (검증 11-10 의 120 · 250 · 450 ms 간격 가운데 긴 쪽).
+     위의 빠른 두 번 톡 (0.1 s) 은 예전 규칙 (연 뒤 350 ms 안에 *처리된* click 은 연 톡의 것) 으로도 열린 채라 salonOpeningTap 을 되돌려도 통과했다 →
+     이 간격의 둘째 톡은 예전 규칙이면 바깥 톡으로 닫히고, 지금 규칙 (톡의 시각이 연 뒤 SHEET_SETTLE 안) 이면 열린 채다.
+     바쁜 기계에선 첫 톡이 시트를 여는 데 0.5 – 1.5 s 가 들쭉날쭉하고, 그 뒤 보내는 톡도 1 – 2.5 s 늦게 들어가 (11-12 실측) 간격을 맞춰 보낼 수 없다 →
+     둘째 톡은 그 톡이 *일어난 시각* (CDP 의 timestamp = 시트가 열린 때 + aim ms) 을 달고 보낸다. 늦게 처리돼도 시각은 그대로인 느린 기기의 톡과 같다 — 고친 규칙은 그 시각을 보고, 예전 규칙은 처리하는 지금을 봤다.
+     실제로 페이지에 온 시각 (pointerup 의 timeStamp − 연 때) 을 다시 재고 0.38 – 0.55 s 가 아니면 다시 (4번까지) */
+  async function tapAfterOpen(pg, x, y, aim) {
+    var c = pg.__cdp || (pg.__cdp = await pg.context().newCDPSession(pg)), at = [{ x: Math.round(x), y: Math.round(y) }];
+    function ev(type, pts, t) { var o = { type: type, touchPoints: pts }; if (t) o.timestamp = t; return c.send('Input.dispatchTouchEvent', o); }
+    await ev('touchStart', at); await ev('touchEnd', []);
+    var t0 = await pg.evaluate(function () { return new Promise(function (res) { var d = document.getElementById('salon-sheet'), w0 = performance.now();
+      (function f() { if (d.open && d._openedAt) { res(performance.timeOrigin + d._openedAt); return; } if (performance.now() - w0 > 6000) { res(0); return; } setTimeout(f, 4); })(); }); });
+    if (!t0) return;
+    await ev('touchStart', at, (t0 + aim - 40) / 1000); await ev('touchEnd', [], (t0 + aim) / 1000);
+  }
+  var d3 = null, dm3 = null, tp3 = null, aim3 = 420;
+  for (var dtj = 0; dtj < 4; dtj++) {
+    await pt.evaluate(function () { var d = document.getElementById('salon-sheet'); if (d.open) d.close(); d._openedAt = 0; }); await pt.waitForTimeout(800);
+    tp3 = await spotOf(pt); if (!tp3) break;
+    await dtReset(pt); await tapAfterOpen(pt, tp3.x, tp3.y, aim3);
+    await pt.waitForSelector('#salon-sheet[open]', { timeout: 6000 }).catch(function () {}); await pt.waitForTimeout(900);
+    dm3 = await dtRead(pt); d3 = await sheet(pt);
+    if (dm3.afterOpen !== null && dm3.afterOpen >= 380 && dm3.afterOpen < DT_MAX) break;
+    console.log('   (거울 느린 두 번 톡: 연 뒤 ' + aim3 + ' ms 에 보냄 → 둘째 톡이 연 뒤 ' + dm3.afterOpen + ' ms — 0.38 – 0.55 s 가 아니다. 맞춰 다시)');
+    if (dm3.afterOpen !== null) aim3 = Math.max(0, Math.min(540, aim3 + 450 - dm3.afterOpen)); d3 = null;
+  }
+  ok(!!tp3 && !!d3 && d3.open, '거울을 느리게 두 번 톡 해도 (둘째 톡이 연 뒤 0.38 – 0.55 s) 시트는 열린 채로 남는다 ' + JSON.stringify({ open: d3 && d3.open, aim: aim3, secondTapAfterOpenMs: dm3 && dm3.afterOpen }));
+  await pt.evaluate(function () { var d = document.getElementById('salon-sheet'); if (d.open) d.close(); }); await pt.waitForTimeout(700);
+  var one2 = await pt.evaluate(function () { return document.documentElement.getAttribute('data-layout') === 'one'; }), dbl = [];
+  var SHEETS = [['미용실', function () { APP.openSalon(); }, '#salon-close'], ['로그', function () { APP.openLog(); }, '#log-close'], ['앨범', function () { APP.openAlbum(); }, '#al-close'],
+    ['살림', function () { document.getElementById('btn-bag').click(); }, '#bag-close'], ['설정', function () { APP.openSettings(); }, '#set-close'],
+    ['내 모습', function () { APP.openLook(); }, '#look-close']];   /* 11-12 (검증 N-test-coverage-2d): 내 모습 시트의 [다 골랐어] 도 큰 버튼과 겹친다 */
+  for (var si = 0; one2 && si < SHEETS.length; si++) {
+    for (var sj = 0; sj < 3; sj++) {
+      await waitIdle(pt, 60000); if (si === 0) await ensureUp(pt); await pt.waitForTimeout(300);   /* 미용실 시트는 위층에서만 열린다 */
+      await pt.evaluate(SHEETS[si][1]); await pt.waitForSelector('dialog[open] ' + SHEETS[si][2], { timeout: 5000 }); await pt.waitForTimeout(750);
+      var og = await overGo(pt, SHEETS[si][2]);
+      if (!og) { console.log('   (' + SHEETS[si][0] + ' 시트의 [닫기] 는 이 폭에서 큰 버튼과 겹치지 않는다 — 건너뜀)'); await pt.evaluate(function () { [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); }); }); await pt.waitForTimeout(700); break; }
+      await dtReset(pt); await tapTwice(pt, og.x, og.y, 100);
+      await pt.waitForFunction(function () { return !document.querySelector('dialog[open]'); }, null, { timeout: 6000 }).catch(function () {}); await pt.waitForTimeout(900);
+      var gs = await goState(pt), gm = await dtRead(pt), real = gm.afterShut !== null && gm.afterShut < DT_MAX;
+      if (gs.dlg) { await pt.evaluate(function () { [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); }); }); await pt.waitForTimeout(700); }
+      var goneAway = gs.away || (gs.rooms.length > 0 && await pt.waitForSelector('#btn-go.away', { timeout: 15000 }).then(function () { return true; }, function () { return false; }));   /* 위층에서 받은 누름은 내려간 뒤에야 산책이 난다 — 뒷정리만을 위해 기다린다 (검사 값은 위의 gs) */
+      if (goneAway) { await skipAway(pt); await waitIdle(pt, 60000); await pt.evaluate(function () { if (APP.oct.state === 'sleep') { APP.state.octopus.state = 'idle'; APP.octState('idle'); } }); }   /* 산책이 나갔으면 (고침 전 · 또는 틈을 넘긴 누름) 데려오고, 다음 시트를 위해 깨워 둔다 */
+      if (real) { dbl.push({ sheet: SHEETS[si][0], over: og.w + 'x' + og.h, secondTapAfterCloseMs: gm.afterShut, closed: !gs.dlg, away: gs.away, trips: gs.trips, rooms: gs.rooms.join(), room: gs.room }); break; }
+      console.log('   (' + SHEETS[si][0] + ' [닫기] 두 번 톡: 둘째 톡이 큰 버튼에 ' + (gm.afterShut === null ? '떨어지지 않았다' : '닫힌 뒤 ' + gm.afterShut + ' ms 에 떨어졌다') + ' — 두 번 톡이 아니다 (바쁜 기계). 다시)');
+    }
+  }
+  console.log('   double tap on [닫기]:', JSON.stringify(dbl));
+  if (one2) ok(dbl.length >= 4 && dbl.every(function (x) { return x.closed && !x.away && x.trips === 0 && x.rooms === '' && x.room === 'loft'; }), '시트의 [닫기] 를 두 번 톡 해도 산책이 나가지 않는다 · 위층에서 내려가지도 않는다 (미용실 · 로그 · 앨범 · 살림 · 설정 · 내 모습 가운데 큰 버튼과 겹치는 ' + dbl.length + '개 — 시트만 닫힌다)');
+  if (one2) {
+    await waitIdle(pt, 60000); await ensureUp(pt);
+    await openSheet(pt); await pt.tap('#salon-bottles .bottle[data-hex="' + BLUE + '"]'); await pt.waitForTimeout(700);
+    var oa = await overGo(pt, '#salon-ask');
+    await dtReset(pt);
+    if (oa) await tapTwice(pt, oa.x, oa.y, 100);
+    await pt.waitForSelector('#salon-sheet[open]', { state: 'hidden', timeout: 6000 }).catch(function () {}); await pt.waitForTimeout(700);
+    var da = await st(pt), dg = await goState(pt), am = await dtRead(pt);
+    console.log('   double tap on [물어보기]:', JSON.stringify({ over: oa && oa.w + 'x' + oa.h, secondTapAfterCloseMs: am.afterShut, asks: da.asks.length, stage: !!da.stage, away: dg.away, scene: da.sceneColor }));
+    if (am.afterShut !== null && am.afterShut >= DT_MAX) console.log('   (둘째 톡이 시트가 닫힌 뒤 ' + am.afterShut + ' ms 에 떨어졌다 — 두 번 톡이 아니라 따로 누른 것 (바쁜 기계). 하루 한 번이라 다시 못 한다: 이 검사는 건너뜀)');
+    else ok(!!oa && am.afterShut !== null && da.asks.length === 1 && !!da.stage && da.active && !dg.away && dg.trips === 0 && dg.rooms.length === 0 && da.sceneColor === RED,
+      '[물어보기] 의 큰 버튼과 겹치는 쪽을 두 번 톡 해도 물음은 하나 · 대답 연출이 감기지 않는다 · 산책도 안 나간다 (둘째 톡은 닫힌 뒤 ' + am.afterShut + ' ms)');
+    await pt.evaluate(function () { APP.salonFinish(); }); await pt.waitForTimeout(300);
+    if (dg.away || (dg.rooms.length > 0 && await pt.waitForSelector('#btn-go.away', { timeout: 15000 }).then(function () { return true; }, function () { return false; }))) { await skipAway(pt); await waitIdle(pt, 60000); }
+    /* 그 틈이 지난 뒤의 한 번 누름은 평소대로: 시트를 닫고 → 큰 버튼이 다시 받는 때 (APP.goResting 이 풀림) → 같은 자리를 한 번 톡 → 초대 */
+    await waitIdle(pt, 60000);
+    await pt.evaluate(function () { APP.openLog(); }); await pt.waitForSelector('#log-sheet[open]', { timeout: 5000 }); await pt.waitForTimeout(750);
+    var ol = await overGo(pt, '#log-close'), rest0 = false, tClose = 0, tReady = 0;
+    if (ol) {
+      await dtReset(pt); await pt.touchscreen.tap(ol.x, ol.y); tClose = Date.now();
+      await pt.waitForSelector('#log-sheet[open]', { state: 'hidden', timeout: 5000 });
+      rest0 = await pt.evaluate(function () { return APP.goResting; });
+      await waitIdle(pt, 10000); tReady = Date.now();
+      await pt.touchscreen.tap(ol.x, ol.y);
+    }
+    /* 11-12 합침: 위층에서 받은 누름은 평소대로 먼저 계단으로 내려가고 (블록 9 와 같다 — scene.goRoom('attic')) 방 옮기기가 끝난 뒤 초대한다. 내려가는 걸음은 새로 생긴 단계라 그 끝까지 따로 기다린다 (up 과 같은 15 s) — 초대를 기다리는 5 s 는 그 뒤부터 그대로 */
+    var took2 = !!ol && await pt.waitForFunction(function () { return window.__dt.rooms.length > 0; }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+    var down2 = took2 && await pt.waitForFunction(function () { return window.__dt.roomDone > 0 && APP.room === null; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });   /* 방 옮기기(계단 → 다락)가 다 끝난 때 — 초대는 그 바로 뒤 */
+    var went2 = await pt.waitForSelector('#btn-go.away', { timeout: 5000 }).then(function () { return true; }, function () { return false; }), wm = await dtRead(pt), gs2 = await goState(pt);
+    ok(!!ol && took2 && gs2.rooms.join() === 'attic' && down2 && went2 && wm.afterShut >= 600, '시트를 닫고 틈이 지난 뒤 한 번 누르면 평소대로 (위층이면 먼저 내려가서) 초대 (다녀오는 중… — 닫힌 뒤 ' + wm.afterShut + ' ms 의 누름) ' + JSON.stringify({ restingRightAfterClose: rest0, readyAfterMs: tReady - tClose, rooms: gs2.rooms, down: down2, room: gs2.room }));
+    /* 틈의 크기 (SHEET_SETTLE — 검증 11-12 T-E1-window): 위의 두 번 톡은 둘째가 시트가 닫히기도 전에 처리돼 (닫힌 뒤 −0.3 … −1.4 s) 틈이 50 ms 여도 통과하고,
+       '틈이 지난 뒤' 의 누름은 닫힌 뒤 1.2 – 2.2 s 라 틈이 1.5 s 여도 통과했다. 폰에선 두 번 톡의 둘째가 닫힌 뒤 0.1 – 0.3 s 에 온다 →
+       시트를 닫은 그때 (위의 지켜보기가 적은 닫힌 때) 에서 시각을 단 누름 둘을 큰 버튼에 보낸다 (CDP timestamp — 위의 느린 거울 톡과 같은 길):
+       닫힌 뒤 250 ms 의 누름은 받지 않는다 (두 번 톡의 둘째) · 닫힌 뒤 700 ms 의 누름은 평소대로 (위층이면 먼저 내려간다 — goRoom('attic')).
+       누름은 그 시각이 지난 뒤에 보낸다 (아직 오지 않은 시각은 브라우저가 처리하는 지금으로 바꾼다) · 페이지가 받은 시각 (click 의 timeStamp − 닫힌 때) 도 잰다 */
+    async function tapStamped(pg, x, y, tEpoch) {
+      var c = pg.__cdp || (pg.__cdp = await pg.context().newCDPSession(pg)), at = [{ x: Math.round(x), y: Math.round(y) }];
+      await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at, timestamp: (tEpoch - 40) / 1000 });
+      await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: tEpoch / 1000 });
+    }
+    if (gs2.away || went2 || (gs2.rooms.length > 0 && await pt.waitForSelector('#btn-go.away', { timeout: 15000 }).then(function () { return true; }, function () { return false; }))) await skipAway(pt);
+    await waitIdle(pt, 60000); await pt.evaluate(function () { if (APP.oct.state === 'sleep') { APP.state.octopus.state = 'idle'; APP.octState('idle'); } }); await ensureUp(pt); await waitIdle(pt, 60000); await pt.waitForTimeout(300);
+    await pt.evaluate(function () { APP.openLog(); }); await pt.waitForSelector('#log-sheet[open]', { timeout: 5000 }); await pt.waitForTimeout(750);
+    await dtReset(pt); var tr0 = (await goState(pt)).trips;
+    var tShut = await pt.evaluate(function () { return new Promise(function (res) { var M = window.__dt, w0 = performance.now(); document.getElementById('log-sheet').close();
+      (function f() { if (M.shut) { res(performance.timeOrigin + M.shut); return; } if (performance.now() - w0 > 6000) { res(0); return; } setTimeout(f, 4); })(); }); });
+    var gxy = await pt.evaluate(function () { var r = document.getElementById('btn-go').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    var w250 = null, w700 = null;
+    if (tShut) {
+      await pt.waitForFunction(function () { return performance.now() - window.__dt.shut > 300; }, null, { timeout: 5000 });
+      await tapStamped(pt, gxy.x, gxy.y, tShut + 250);
+      var got1 = await pt.waitForFunction(function () { return window.__dt.go.length >= 1; }, null, { timeout: 8000 }).then(function () { return true; }, function () { return false; });
+      await pt.waitForTimeout(400);
+      w250 = Object.assign(await goState(pt), { got: got1, at: await pt.evaluate(function () { var M = window.__dt; return M.go.length ? Math.round(M.go[0] - M.shut) : null; }) });
+      await pt.waitForFunction(function () { return performance.now() - window.__dt.shut > 800; }, null, { timeout: 5000 });
+      await tapStamped(pt, gxy.x, gxy.y, tShut + 700);
+      var got2 = await pt.waitForFunction(function () { return window.__dt.go.length >= 2; }, null, { timeout: 8000 }).then(function () { return true; }, function () { return false; });
+      await pt.waitForFunction(function () { return window.__dt.rooms.length > 0 || document.getElementById('btn-go').classList.contains('away'); }, null, { timeout: 5000 }).catch(function () {});
+      w700 = Object.assign(await goState(pt), { got: got2, at: await pt.evaluate(function () { var M = window.__dt; return M.go.length >= 2 ? Math.round(M.go[1] - M.shut) : null; }) });
+    }
+    console.log('   stamped presses after a close:', JSON.stringify({ at250: w250, at700: w700 }));
+    ok(!!w250 && w250.got && w250.at >= 240 && w250.at < 300 && !w250.away && w250.trips === tr0 && w250.rooms.length === 0 && w250.room === 'loft',
+      '시트가 닫힌 뒤 250 ms 의 누름 (폰의 두 번 톡 둘째) 은 큰 버튼이 받지 않는다 (산책 · 내려가기 없음 — 닫힌 뒤 ' + (w250 && w250.at) + ' ms)');
+    ok(!!w700 && w700.got && w700.at >= 690 && w700.at < 760 && (w700.rooms.join() === 'attic' || w700.away),
+      '시트가 닫힌 뒤 700 ms 의 누름은 평소대로 받는다 (위층이면 먼저 내려가서 초대 — 닫힌 뒤 ' + (w700 && w700.at) + ' ms · ' + JSON.stringify(w700 && { rooms: w700.rooms, away: w700.away }) + ')');
+  }
   await T.ctx.close();
 
   /* 3. 폭 · 테마: 320×568 · 360×640 · 412×780 × 픽셀 · 시스템 × 밝음 · 어둠 — 가로 스크롤 0 · 병 한 줄 · 시트 글자 (U 규칙) · 거울 상자 · 거울 옆 문어가 시트 윗변보다 위 */
@@ -2717,8 +2894,9 @@ async function scenarioSalon(browser) {
   /* 10b. 다른 탭 (docs/SALON.md §7.5): 탭 B 가 병을 고른 채 시트를 열어 둔 사이 탭 A 가 먼저 묻는다 → B 의 [물어보기] 는 저장소를 다시 읽고 묻지 않는다 (시트 닫힘 · 토스트 · 물음은 A 것 하나 · B 장면도 그 색).
           그 뒤 낡은 기록(물음 없음)이 저장소에 덮여 써지면 A 는 60 s 안의 제 물음 · 색 줄을 다시 얹어 저장한다 (SALON.merge 의 mine) */
   var W = await open({}), wa = W.page;
-  async function tabOf(ctx) {
+  async function tabOf(ctx, deaf) {   /* deaf = 이 탭은 window.__deaf 를 끌 때까지 storage 이벤트를 못 받는다 (먼저 붙은 잡는 단계 듣개가 막는다 — 이벤트가 늦거나 빠진 탭 흉내) */
     var pg = await ctx.newPage(); watchErrors(pg, bag);
+    if (deaf) await pg.addInitScript({ content: "window.__deaf = true; window.addEventListener('storage', function (e) { if (window.__deaf) e.stopImmediatePropagation(); }, true);" });
     if (useStubs) { await pg.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await pg.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
     await pg.addInitScript({ content: "window.__ppolAwakeMs = 0; window.__ppolTest = { today: sessionStorage.getItem('__y_day') || '" + D1 + "' };" });
     await routeWiki(pg, 'ok'); await routeRepo(pg, O);
@@ -2727,14 +2905,20 @@ async function scenarioSalon(browser) {
   await wa.goto(O + '/index.html?dev=0'); await wa.waitForSelector('#btn-go:not(.away)', { timeout: 20000 });
   await wa.waitForFunction(function (d) { return APP.state.user && APP.state.user.giftDay === d && !document.getElementById('toast').classList.contains('show'); }, D1, { timeout: 10000 }).catch(function () {});   /* 그날 선물 알림(살림, 열고 2.5 s 뒤)이 지나간 뒤에 — 둘째 탭은 이미 받은 날이라 알림이 없다 */
   await up(wa);
-  var wb = await tabOf(W.ctx);
+  /* 탭 B 는 storage 이벤트를 못 받는 채로 묻는다 (검증 11-10 E7 — 이벤트가 늦거나 빠진 탭): A 가 물은 뒤에도 B 의 기록엔 물음이 없다 → B 의 [물어보기] 는 그 순간 저장소를 다시 읽어야만 거절할 수 있다 (salonAsk 의 syncFromStore).
+     예전 검사는 B 가 이벤트를 이미 받은 뒤에 눌러서, 다시 읽기를 빼도 통과했다. 거절을 본 뒤엔 다시 듣게 한다 (아래 낡은 기록 · 옷장 검사는 이벤트로 간다) */
+  var wb = await tabOf(W.ctx, true);
   await wb.goto(O + '/index.html?dev=0'); await wb.waitForSelector('#btn-go:not(.away)', { timeout: 20000 }); await wb.waitForTimeout(500); await up(wb);
   await openSheet(wb); await wb.evaluate(function (h) { APP.salonPick(h); }, BLUE);
   await openSheet(wa); await wa.evaluate(function (h) { APP.salonPick(h); APP.salonAsk(); APP.salonFinish(); }, GREEN);
   await wb.waitForTimeout(600);
+  var tb0 = await wb.evaluate(function () { return { asks: APP.state.salon.asks.length, saved: ((JSON.parse(localStorage.getItem('ppolppol_v2') || '{}').salon || {}).asks || []).length, open: document.getElementById('salon-sheet').open, pick: document.getElementById('salon-ask').getAttribute('aria-disabled') }; });
   await wb.evaluate(function () { document.getElementById('salon-ask').click(); });
   await wb.waitForTimeout(600);
   var tb = await st(wb), ta = await st(wa);
+  await wb.evaluate(function () { window.__deaf = false; });
+  ok(tb0.asks === 0 && tb0.saved === 1 && tb0.open && tb0.pick === 'false' && tb.asks.length === 1 && tb.asks[0].id === (ta.asks[0] || {}).id && !tb.open && !tb.stage && tb.saved === 1,
+    'storage 이벤트를 못 받은 탭 (제 기록엔 아직 물음 0 · 저장소엔 1) 도 [물어보기] 순간 저장소를 다시 읽는다: 제 물음을 만들지 않는다 ' + JSON.stringify({ before: tb0, after: { asks: tb.asks.length, stage: !!tb.stage, open: tb.open, saved: tb.saved } }));
   ok(ta.asks.length === 1 && ta.asks[0].offer === GREEN && ta.asks[0].action === 'dye' && tb.asks.length === 1 && tb.asks[0].id === ta.asks[0].id && !tb.open && !tb.stage && tb.toast === '내일 또 물어볼 수 있어.' && tb.color === GREEN && tb.sceneColor === GREEN,
     "다른 탭이 오늘 먼저 물었으면 이 탭의 [물어보기] 는 묻지 않는다 (시트 닫힘 · '내일 또 물어볼 수 있어.' · 물음 하나 · 몸 색은 그 탭의 답) " + JSON.stringify({ b: { asks: tb.asks.length, toast: tb.toast, color: tb.sceneColor, open: tb.open } }));
   await wb.evaluate(function (RED) {   /* 낡은 탭의 저장 흉내: 물음 · 미용실 색 줄이 없는 기록을 더 새 것처럼 덮어쓴다 */
@@ -2746,7 +2930,315 @@ async function scenarioSalon(browser) {
   var ta2 = await st(wa);
   ok(kept && ta2.asks.length === 1 && ta2.asks[0].offer === GREEN && ta2.color === GREEN && ta2.sceneColor === GREEN && ta2.saved === 1 && ta2.colors[ta2.colors.length - 1].how === 'salon' && ta2.colors[ta2.colors.length - 1].ask === ta2.asks[0].id,
     '낡은 기록이 덮어써도 방금 한 물음 · 그 색 줄은 다시 얹혀 저장된다 (하루 한 번 · 색의 출처 하나) ' + JSON.stringify({ asks: ta2.asks.length, color: ta2.color, saved: ta2.saved }));
+  /* 10c. 다른 탭의 옷장 (검증 11-10 E3 — 미용실 밖, 합치며 빠졌던 한 줄): 탭 A 가 내 모습 (머리 · 옷) 을 바꿔 저장하면 탭 B 의 3D 캐릭터도 따라간다 (예전엔 기록 · 설정 칩만 새 값이고 장면은 새로고침까지 옛 모습) */
+  var lk = await wa.evaluate(function () {
+    if (!APP.scene.player || !APP.scene.player()) return null;
+    var P = APP.playerParts(), cur = APP.state.settings.player, out = {};
+    ['hair', 'outfit'].forEach(function (c) { var o = (P[c] || []).filter(function (x) { return x.id !== cur[c]; })[0]; if (o && APP.setPlayerPart(c, o.id)) out[c] = o.id; });
+    return out;
+  });
+  if (lk) {
+    var lkB = await wb.waitForFunction(function (w) { var p = APP.scene.player && APP.scene.player(); return !!p && !!p.look && Object.keys(w).every(function (k) { return p.look[k] === w[k]; }); }, lk, { timeout: 6000 }).then(function () { return true; }, function () { return false; });
+    var lkS = await wb.evaluate(function () { var p = APP.scene.player(); return { rec: { hair: APP.state.settings.player.hair, outfit: APP.state.settings.player.outfit }, scene: p && p.look ? { hair: p.look.hair, outfit: p.look.outfit } : null }; });
+    ok(Object.keys(lk).length === 2 && lkB && lkS.rec.hair === lk.hair && lkS.rec.outfit === lk.outfit, '다른 탭이 내 모습을 바꿔 저장하면 이 탭의 3D 캐릭터도 따라간다 (기록 · 장면 둘 다) ' + JSON.stringify({ want: lk, got: lkS }));
+  } else console.log('   (이 장면엔 내 캐릭터가 없다 — 다른 탭 옷장 검사 건너뜀)');
   await W.ctx.close();
+
+  /* 12. 검증 11-10 의 고침 — 새 탭 하나 (11-09 부터, 물음마다 하루씩):
+         E2  묻는 순간 떠 있던 혼잣말 ('…좋아') 을 내리고 쓰다듬기를 끝낸다 → 물음과 대답 사이에 대답 아닌 말풍선이 없다 (예전엔 '…좋아' 뒤에 '안 바꿀래.' 가 올 수 있었다)
+         W10 연출이 끝나면 다음 돌아다니기를 20–40 s 뒤로 다시 건다 (두 답 모두 — 예전엔 끝나자마자 걸어 나갈 수 있었다)
+         E11 시트를 열어 둔 채 날이 바뀌어 쉼이 풀린 병을 누르면 aria-disabled · '며칠 뒤에 …' 라벨이 걷힌다
+         E4  행 3 을 붙이다 오류가 나도 연출 표시가 풀린다 (거울 · 문 단추 · 약속) · 장면이 거울 단추 허락을 못 받았으면 (던짐) 다음 맞춤 때 다시 준다
+         E10 연출 중인 물음이 다른 탭의 이른 물음에 밀리면 (dropped) 남은 연출을 그 자리에서 접는다 (몸 색 · 행은 그쪽 답)
+         E9  방향키를 누른 채 창을 열면 그 키를 놓는다 (내 캐릭터가 열린 시트 뒤에서 계속 걷지 않는다)
+         (11-12 합침: 거울은 위층에 있다 → 열고 나서 위층에 오른다 (up · 문어가 따라 올라온다). park 의 'center' · 'window' 는 위층에서도 거울 코너 기준의 그 자리로 뛴다 — 블록 3 · 8 과 같다) */
+  var Zc = await open({}), pz = Zc.page;
+  await pz.goto(O + '/index.html?dev=0');
+  await pz.waitForSelector('#btn-go:not(.away)', { timeout: 20000 }); await pz.waitForTimeout(800); await up(pz);
+  await pz.waitForFunction(function () { return !document.getElementById('toast').classList.contains('show'); }, null, { timeout: 8000 }).catch(function () {});
+  await pz.evaluate(function () {   /* 지켜보기: 말풍선에 뜬 글 (차례대로) · 20–40 s 짜리 예약 (돌아다니기) 이 걸린 때 */
+    var Z = window.__yz = { bub: [], to: [] }, b = document.getElementById('oct-bubble'), o = window.setTimeout;
+    new MutationObserver(function () { var t = b.hidden ? '' : b.textContent; if (Z.bub[Z.bub.length - 1] !== t) Z.bub.push(t); }).observe(b, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    window.setTimeout = function (f, ms) { if (ms >= 20000 && ms <= 40000) Z.to.push(performance.now()); return o.apply(window, arguments); };
+  });
+  function askNow(pg, hex) { return pg.evaluate(function (hex) {   /* 한 일(task) 안에서: 시트 → 병 → [물어보기] → 바로 그때의 말풍선 · 문어 상태 */
+    var Z = window.__yz, b = document.getElementById('oct-bubble'), before = b.hidden ? '' : b.textContent, st0 = APP.oct.state;
+    APP.openSalon(); APP.salonPick(hex); Z.bub = []; var okA = APP.salonAsk();
+    return { ok: okA, before: before, after: b.hidden ? '' : b.textContent, state0: st0, state: APP.oct.state, id: APP.salonStage && APP.salonStage.id };
+  }, hex); }
+  function finishCount(pg) { return pg.evaluate(function () { var Z = window.__yz, n0 = Z.to.length; APP.salonFinish(); return { armed: Z.to.length - n0, bub: Z.bub.filter(Boolean), stage: !!APP.salonStage, active: APP.salonActive }; }); }
+  function pickable(pg, n) { return pg.evaluate(function (n) { return SALON.bottles(APP.state, window.__ppolTest.today).filter(function (b) { return b.selectable; }).map(function (b) { return b.hex; })[n || 0]; }, n); }
+  /* 12a. 11-09 (첫 물음 = '바꾸기'): 혼잣말 '…좋아' 가 떠 있는 채로 묻는다 (쓰다듬기 뒤 2–4 s 에 묻는 때와 같은 화면) */
+  await park(pz, 'center');
+  await pz.evaluate(function () { APP.say('…좋아', 'pet', 1800); });
+  var e2a = await askNow(pz, BLUE);
+  await pz.waitForFunction(function () { return APP.salonStage && APP.salonStage.n >= 2; }, null, { timeout: 15000 }).catch(function () {});
+  var e2b = await finishCount(pz), z1 = await st(pz);
+  ok(e2a.ok && e2a.before === '…좋아' && e2a.after === '', "묻는 순간 떠 있던 혼잣말 말풍선 ('" + e2a.before + "') 은 내려간다 (대답 앞에 코드가 쓴 '…좋아' 가 남지 않는다)");
+  ok(e2b.bub.length >= 1 && e2b.bub.every(function (t) { return t === '응, 해 볼래.'; }), '물음과 대답 사이 · 대답 뒤에 뜬 말풍선은 대답뿐 ' + JSON.stringify(e2b.bub));
+  ok(e2b.armed === 1 && !e2b.stage && !e2b.active && z1.color === BLUE && z1.sceneColor === BLUE, "연출이 끝나는 그 자리에서 다음 돌아다니기를 20–40 s 뒤로 다시 건다 ('바꾸기' — 예약 " + e2b.armed + '개)');
+  /* 12b. 11-10 ('그대로' — 블록 6 과 같은 시드): 진짜 쓰다듬기 (문어 위에서 손을 움직임) 가 시작된 채로 곧 (0.6 s 뒤) 묻는다 (2 s 뒤의 '…좋아' 예약이 살아 있을 때 — 예전엔 그 예약 · 쓰다듬기 상태가 시트가 닫히는 0.25 s 뒤까지 남았다) */
+  await setDay(pz, D2);
+  await park(pz, 'center'); await pz.waitForTimeout(400);
+  await pz.evaluate(function (hex) {   /* 쓰다듬기가 시작된 때부터 0.6 s 뒤에 (페이지 안 타이머 — 바쁜 기계에선 0.6 s 넘게 늦기도 한다: 그래도 2 s 예약보다 먼저) 한 일 안에서 시트 → 병 → [물어보기] */
+    window.__e2c = null;
+    var iv = setInterval(function () {
+      if (APP.oct.state !== 'pet') return;
+      clearInterval(iv);
+      setTimeout(function () {
+        var Z = window.__yz, b = document.getElementById('oct-bubble'), st0 = APP.oct.state;
+        APP.openSalon(); APP.salonPick(hex); Z.bub = []; var okA = APP.salonAsk();
+        window.__e2c = { ok: okA, state0: st0, state: APP.oct.state, after: b.hidden ? '' : b.textContent, id: APP.salonStage && APP.salonStage.id };
+        /* 연출이 스스로 끝나는 때를 본다 (같은 일 안에서 건다 — 바쁜 기계에선 다음 evaluate 가 '그대로' 연출 (약 4 s) 보다 늦게 올 수 있다): 끝나는 그 일 안에서 걸린 20–40 s 예약 수 · 끝난 뒤 걷기 시작했나 */
+        Z.endArmed = -1; Z.endAt = 0; Z.walked = false;
+        var sg = APP.salonStage; if (sg) sg.done.then(function () { var now = performance.now(); Z.endArmed = Z.to.filter(function (t) { return t >= now - 200; }).length; Z.endAt = now; });
+        Z.iv = setInterval(function () { if (Z.endAt && APP.oct.state === 'walk') Z.walked = true; }, 30);
+      }, 600);
+    }, 4);
+  }, GREEN);
+  var petOn = false;
+  for (var pi = 0; pi < 3 && !petOn; pi++) {
+    var oq = await pz.evaluate(function () { var p = APP.scene.octScreenPos && APP.scene.octScreenPos(); if (!p) return null; for (var dy = 0; dy <= 60; dy += 6) for (var dx = -12; dx <= 12; dx += 6) { var k = APP.scene.pickAt(p.x + dx, p.y + 20 + dy); if (k && k.kind === 'oct') return [p.x + dx, p.y + 20 + dy]; } return null; });
+    if (!oq) break;
+    await pz.mouse.move(oq[0] - 6, oq[1]); await pz.mouse.down(); for (var mi = 1; mi <= 6; mi++) await pz.mouse.move(oq[0] - 6 + mi * 3, oq[1] + (mi % 2)); await pz.mouse.up();
+    petOn = await pz.waitForFunction(function () { return APP.oct.state === 'pet' || !!window.__e2c; }, null, { timeout: 1200, polling: 20 }).then(function () { return true; }, function () { return false; });
+  }
+  must(petOn, '문어 위에서 손을 움직이면 쓰다듬기가 시작된다 (연출 밖 — 아래 검사의 전제)');
+  await pz.waitForFunction(function () { return !!window.__e2c; }, null, { timeout: 8000 }).catch(function () {});
+  var e2c = (await pz.evaluate(function () { return window.__e2c; })) || {};
+  var endK = await waitStageEnd(pz, 30000);
+  await pz.waitForTimeout(2500);
+  var e2d = await pz.evaluate(function () { var Z = window.__yz; clearInterval(Z.iv); var says = [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.dataset.say || ''; }).filter(Boolean); return { bub: Z.bub.filter(Boolean), armed: Z.endArmed, walked: Z.walked, says: says }; }), z2 = await st(pz), askK = z2.asks[1] || {};
+  console.log('   pet → ask:', JSON.stringify({ ask: e2c, end: e2d, answer: askK.action + ' ' + askK.line }));
+  ok(e2c.ok && e2c.state0 === 'pet' && e2c.state === 'idle', '쓰다듬는 중에 물으면 그 순간 쓰다듬기를 끝낸다 (문어 상태 ' + e2c.state0 + ' → ' + e2c.state + " — 2 s 뒤의 '…좋아' 예약도 지운다)");
+  ok(endK && askK.action === 'keep' && e2d.bub.length >= 1 && e2d.bub.every(function (t) { return t === askK.line; }) && e2d.bub.indexOf('…좋아') < 0, "'그대로' 대답 앞뒤로 '…좋아' 가 뜨지 않는다 (말풍선은 대답 '" + askK.line + "' 뿐) " + JSON.stringify(e2d.bub));
+  ok(e2d.armed >= 1 && !e2d.walked && z2.color === BLUE && z2.sceneColor === BLUE, "'그대로' 연출이 스스로 끝날 때도 돌아다니기를 다시 건다 · 끝난 뒤 2.5 s 동안 걸어 나가지 않는다 " + JSON.stringify({ armed: e2d.armed, walked: e2d.walked }));
+  /* 12c. 초록 병은 11-10 … 11-16 쉰다. 11-16 에 시트를 열어 둔 채 11-17 이 되면: 누른 병이 고를 수 있는 병으로 다시 그려진다 (E11) */
+  await setDay(pz, '2026-11-16'); await openSheet(pz);
+  var m0 = (await sheet(pz)).bs.filter(function (b) { return b.hex === GREEN; })[0] || {};
+  await setDay(pz, '2026-11-17');
+  await pz.click('#salon-bottles .bottle[data-hex="' + GREEN + '"]', { force: true }); await pz.waitForTimeout(200);
+  var m1s = await sheet(pz), m1 = m1s.bs.filter(function (b) { return b.hex === GREEN; })[0] || {}, m1f = await pz.evaluate(function () { var a = document.activeElement; return a && a.dataset ? a.dataset.hex || a.id : null; });
+  ok(m0.dis === 'true' && /며칠 뒤/.test(m0.label) && m1.dis === null && m1.label === '초록' && m1.pressed === 'true' && m1s.name === '초록색' && m1s.ask === 'false' && m1f === GREEN,
+    '시트를 열어 둔 채 날이 바뀌어 쉼이 풀린 병: 누르면 aria-disabled · 쉬는 라벨이 걷히고 고른 병이 된다 (포커스는 그 병) ' + JSON.stringify({ before: [m0.dis, m0.label], after: [m1.dis, m1.label, m1.pressed], focus: m1f }));
+  /* 12d. 11-17: 행 3 을 붙이는 중에 오류 (UIART.syncLog 가 한 번 던진다) → 연출 표시가 풀리고 단추가 돌아오고 약속이 풀린다 (E4) */
+  await pz.click('#salon-ask');
+  await pz.waitForFunction(function () { return APP.salonStage && APP.salonStage.n >= 1; }, null, { timeout: 8000 }).catch(function () {});
+  var f1 = await pz.evaluate(function () {
+    var s = APP.salonStage, id = s && s.id, o = UIART.syncLog, out = { threw: false, err: null, done: false };
+    if (!s) return out;
+    window.__f1 = out; s.done.then(function () { out.done = true; });
+    UIART.syncLog = function () { if (!out.threw && document.querySelector('#log .lrow[data-salon="' + id + '"][data-n="3"]')) { out.threw = true; UIART.syncLog = o; throw new Error('smoke: syncLog at row 3'); } return o.apply(this, arguments); };
+    try { APP.salonFinish(); } catch (e) { out.err = String(e && e.message); }
+    UIART.syncLog = o;
+    return out;
+  });
+  await pz.waitForTimeout(300);
+  var f1s = await st(pz), f1d = await pz.evaluate(function () { return !!(window.__f1 && window.__f1.done); });
+  ok(f1.threw && !f1.err && f1d && !f1s.active && !f1s.stage && !f1s.btn.hidden && f1s.door !== 'hidden' && f1s.sceneColor === f1s.color,
+    '행 3 을 붙이다 오류가 나도 연출 표시는 풀린다 (거울 단추 · 놀이방 문 · 몸 색 · 약속 — 새로고침 없이) ' + JSON.stringify({ threw: f1.threw, leaked: f1.err, done: f1d, active: f1s.active, btnHidden: f1s.btn.hidden, door: f1s.door }));
+  /* 12e. 11-18: 연출 끝에 장면의 setSalonOpen(true) 이 한 번 던진다 → 다음 맞춤 때 다시 준다 (예전엔 준 것으로 적어 놓아 거울 단추가 새로고침까지 숨었다 — E4 의 작은 쪽) */
+  await setDay(pz, '2026-11-18');
+  var h5 = await pickable(pz, 0), f2 = await askNow(pz, h5);
+  var f2r = await pz.evaluate(function () {
+    var sc = APP.scene, o = sc.setSalonOpen, out = { threw: false, err: null };
+    sc.setSalonOpen = function (v) { if (!out.threw && v === true) { out.threw = true; sc.setSalonOpen = o; throw new Error('smoke: setSalonOpen'); } return o.apply(this, arguments); };
+    try { APP.salonFinish(); } catch (e) { out.err = String(e && e.message); }
+    sc.setSalonOpen = o;
+    out.hiddenAfter = document.getElementById('btn-salon').hidden; out.active = APP.salonActive;
+    APP.setSalonActive(false);   /* 다음 맞춤 (산책이 끝날 때 · 방을 옮길 때와 같은 길) */
+    out.hiddenNext = document.getElementById('btn-salon').hidden;
+    return out;
+  });
+  await pz.waitForTimeout(300);
+  var f2s = await st(pz);
+  ok(f2.ok && f2r.threw && !f2r.err && !f2r.active && !f2s.btn.hidden && !f2s.stage, '장면이 거울 단추 허락을 못 받았어도 (던짐) 연출은 끝나고 다음 맞춤 때 단추가 돌아온다 ' + JSON.stringify(f2r));
+  /* 12f. 11-19: 이 탭이 묻고 연출하는 중에 다른 탭의 더 이른 물음이 온다 (두 탭이 서로 보기 전에 물었다) → 이 물음은 밀리고 (dropped) 남은 연출은 그 자리에서 접힌다 (E10) */
+  await setDay(pz, '2026-11-19');
+  var hMine = await pickable(pz, 0), hWin = await pickable(pz, 1);
+  await pz.evaluate(function () { window.__raw0 = localStorage.getItem('ppolppol_v2'); });   /* 이 탭이 묻기 전의 기록 (그쪽 탭이 본 것) */
+  var t0c = (await st(pz)).sceneColor, f3 = await askNow(pz, hMine);
+  await pz.waitForFunction(function () { return APP.salonStage && APP.salonStage.n >= 1; }, null, { timeout: 8000 }).catch(function () {});
+  var win = await pz.evaluate(function (a) {   /* 그쪽 탭의 기록: 묻기 전의 기록 + 이 탭 물음보다 1 ms 이른 물음 ('바꾸기'). 날짜 훅으로 며칠을 몇 초에 지나므로 at 은 앞 물음들보다 뒤 · 이 물음보다 앞이어야 한다 */
+    var R = JSON.parse(window.__raw0), mine = APP.state.salon.asks.filter(function (x) { return x.id === a.id; })[0];
+    var w = mine ? SALON.makeAsk(R, { at: mine.at - 1, today: a.day, offer: a.hex, answer: SALON.humanAnswer('dye') }) : null;
+    if (!w) return null; SALON.commit(R, w); R.settings.lastSeen = Date.now() + 50; window.__win = JSON.stringify(R); return { id: w.id, color: R.octopus.color };
+  }, { day: '2026-11-19', hex: hWin, id: f3.id });
+  var f3m = await st(pz);
+  var f3r = await pz.evaluate(function () { window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: window.__win })); return { stage: !!APP.salonStage, active: APP.salonActive, scene: String(APP.scene.color()).toLowerCase(), color: APP.state.octopus.color }; });
+  await pz.waitForTimeout(300);
+  var f3s = await st(pz), mineA = f3s.asks.filter(function (a) { return a.id === f3.id; })[0] || {};
+  ok(!!win && f3.ok && !!f3m.stage && f3m.sceneColor === t0c && !f3r.stage && !f3r.active && f3r.color === win.color && f3r.scene === win.color && mineA.status === 'dropped' && !f3s.tub && rowsOf(f3s, f3.id).length === 0 && rowsOf(f3s, win.id).length >= 2,
+    '연출 중인 물음이 다른 탭의 이른 물음에 밀리면 남은 연출을 바로 접는다 (몸 색 · 행은 그쪽 답 · 대야 없음) ' + JSON.stringify({ mid: !!f3m.stage, stage: f3r.stage, rec: f3r.color, scene: f3r.scene, want: win && win.color, mine: mineA.status, rowsMine: rowsOf(f3s, f3.id).length, rowsWin: win ? rowsOf(f3s, win.id).length : 0 }));
+  /* 12g. 방향키를 누른 채 창을 연다 (마우스로 설정 단추) → 눌린 키가 놓인다 (E9) */
+  await pz.evaluate(function () { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
+  await pz.keyboard.down('ArrowRight');
+  var k0 = await pz.waitForFunction(function () { return APP.stick.keys.length > 0 && !!APP.stick.input; }, null, { timeout: 3000 }).then(function () { return true; }, function () { return false; });
+  await pz.click('#btn-settings'); await pz.waitForSelector('#settings-sheet[open]', { timeout: 5000 }); await pz.waitForTimeout(200);
+  var k1 = await pz.evaluate(function () { return { keys: APP.stick.keys, input: APP.stick.input }; });
+  await pz.keyboard.up('ArrowRight');
+  await pz.click('#set-close'); await pz.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  ok(k0 && k1.keys.length === 0 && (!k1.input || (k1.input.x === 0 && k1.input.y === 0)), '방향키를 누른 채 창을 열면 그 키를 놓는다 (내 캐릭터가 열린 창 뒤에서 계속 걷지 않는다) ' + JSON.stringify({ held: k0, afterOpen: k1 }));
+  await Zc.ctx.close();
+
+  /* 13. 화면 쪽 지킴 (검증 11-10 W5 · E7 · W1) — 새 탭 하나. 기록에 지난 물음 하나 (11-01 '그대로') 가 있어 '맨 처음은 꼭 바꾸기' 가 끼지 않는다. 물음마다 하루씩 (11-09 · 11-10 · 11-11).
+         모델 길은 앱에 아직 없다 → 모델 답은 SALON.makeAsk 에서 끼워 넣는다 (모델 길이 넘길 것 그대로: readReply(원문) + by 'model').
+         W5  모델의 말은 화면에 글자 그대로: 행 2 (data-raw="model" · 태그 · 이모지 · & 그대로) · 말풍선 (앞 24 글자 + '…' · data-raw) · 꼬리 '모델' · 그 말풍선이 떠 있는 동안 '데모' 꼬리표 숨김
+             '그대로' 의 얼굴: 데모 규칙이면 idle (시무룩 · 반눈 없음), 모델이면 모델이 고른 얼굴 그대로 · 빈칸뿐인 말은 행 2 도 말풍선도 없다
+         E7  [물어보기] 한 번 = 저장 한 번 (그 한 번에 물음 · 새 몸 색 · 색 줄이 다 들어 있다) · 연출 중엔 다른 길이 몸색 맞춤을 불러도 장면은 옛 색 · 연출 중 불러오기는 연출을 먼저 접는다
+         W1  묻기 전에 내보낸 파일을 다시 불러와도 (같은 문어) 그 물음 · '그대로' 의 쉼 · 바뀐 색이 남는다. 다른 문어의 파일은 그대로 들어온다 */
+  var MLINE = '<b>음</b> 파랑은 바다 같아 \u{1F419} 그래도 & 이대로 있을래. 물어봐 줘서 고마워';
+  var MBUB = Array.from(new Intl.Segmenter('ko', { granularity: 'grapheme' }).segment(MLINE), function (x) { return x.segment; }).slice(0, 24).join('') + '…';
+  var recM = REC(2);
+  recM.salon.asks.push({ id: 'ask_y13seed', date: '2026-11-01', at: BORN + 5000, from: RED, offer: ORANGE, offerName: '주황색', offerKind: 'preset', offeredBy: 'player', status: 'done', action: 'keep', actionRaw: null,
+    by: 'demo-rules', rule: 'seed', line: '안 바꿀래.', expr: 'idle', exprRaw: null, seed: 1, via: null, model: null, raw: null, sent: 0, lateRaw: null });
+  recM.salon.asks.push({ id: 'ask_y13drop', date: '2026-11-01', at: BORN + 6000, from: RED, offer: PINK, offerName: '분홍색', offerKind: 'preset', offeredBy: 'player', status: 'dropped', action: 'dye', actionRaw: null,   /* 같은 날 늦게 물어 밀린 물음 (다른 탭) — 색 줄 없음 */
+    by: 'demo-rules', rule: 'seed', line: '응, 해 볼래.', expr: 'happy', exprRaw: null, seed: 2, via: null, model: null, raw: null, sent: 0, lateRaw: null });
+  var Mc = await open({ rec: recM }), pm = Mc.page;
+  await pm.goto(O + '/index.html?dev=0');
+  await pm.waitForSelector('#btn-go:not(.away)', { timeout: 20000 }); await pm.waitForTimeout(800); await up(pm);   /* 11-12 합침: 거울은 위층 (블록 12 와 같다) */
+  await pm.waitForFunction(function () { return !document.getElementById('toast').classList.contains('show'); }, null, { timeout: 8000 }).catch(function () {});
+  await pm.evaluate(function () {   /* 지켜보기: 말풍선이 뜬 그때의 글 · data-raw · '데모' 꼬리표 · 연출의 얼굴 (뜬 그 일 바로 뒤에 불린다) / [물어보기] 한 번에 저장소에 쓴 기록 / makeAsk 에 끼워 넣을 모델 답 */
+    var M = window.__ym = { bub: [], writes: [], inject: null, spy: false }, b = document.getElementById('oct-bubble'), tag = document.getElementById('brain-tag');
+    new MutationObserver(function () {
+      var t = b.hidden ? '' : b.textContent, last = M.bub[M.bub.length - 1];
+      if (!t || (last && last.text === t)) return;
+      var r = b.querySelector('[data-raw]'), s = APP.salonStage;
+      M.bub.push({ text: t, raw: r ? r.getAttribute('data-raw') : null, rawText: r ? r.textContent : null, tagHidden: tag.hidden, face: s ? s.face : null, n: s ? s.n : null });
+    }).observe(b, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    var set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) { if (M.spy && this === window.localStorage && k === 'ppolppol_v2') M.writes.push(String(v)); return set.apply(this, arguments); };
+    var mk = SALON.makeAsk;
+    SALON.makeAsk = function (state, o) { var raw = M.inject; M.inject = null; return raw == null ? mk.call(SALON, state, o) : mk.call(SALON, state, Object.assign({}, o, { answer: Object.assign({}, SALON.readReply(raw), { by: 'model', via: 'sampling', sent: 1 }) })); };
+  });
+  function askM(pg, hex, raw) { return pg.evaluate(function (a) {   /* 한 일(task) 안에서: 시트 → 병 → [물어보기] (그 사이의 저장을 센다) → 바로 몸색 맞춤을 불러 본다 */
+    var M = window.__ym, tag = document.getElementById('brain-tag');
+    var before = { color: APP.state.octopus.color, scene: String(APP.scene.color()).toLowerCase(), tagHidden: tag.hidden, asks: APP.state.salon.asks.length };
+    APP.openSalon(); APP.salonPick(a.hex); M.bub = []; M.writes = []; M.inject = a.raw; M.spy = true;
+    var okA = APP.salonAsk(); M.spy = false; M.inject = null;
+    var s = APP.salonStage, id = s && s.id;
+    var writes = M.writes.map(function (v) { var o = JSON.parse(v), q = ((o.salon || {}).asks || []).filter(function (x) { return x.id === id; })[0]; return { ask: q ? { status: q.status, action: q.action, by: q.by, line: q.line } : null, color: o.octopus.color, copy: o.settings.octColor, lines: o.octopus.colors.filter(function (c) { return c.ask === id; }).length }; });
+    var look = APP.applyLook({ still: true });   /* 다른 탭의 저장 · 다시 그리기가 부르는 것과 같은 길 */
+    return { ok: okA, id: id, before: before, writes: writes, look: look, scene: String(APP.scene.color()).toLowerCase(), color: APP.state.octopus.color, active: APP.salonActive, open: document.getElementById('salon-sheet').open };
+  }, { hex: hex, raw: raw == null ? null : raw }); }
+  function rowsM(pg, id) { return pg.evaluate(function (id) {   /* 그 물음의 행 (글자 그대로 — 다듬지 않고 읽는다) + 기록의 그 물음 */
+    var rows = [].map.call(document.querySelectorAll('#log .lrow[data-salon="' + id + '"]'), function (r) {
+      var x = r.querySelector('.ltext'), raw = x.querySelector('[data-raw]'), by = x.querySelector('.lby');
+      return { n: +r.getAttribute('data-n'), text: x.textContent, raw: raw ? raw.getAttribute('data-raw') : null, rawText: raw ? raw.textContent : null, kids: x.children.length, tail: by ? by.textContent : null, expr: r.dataset.expr || null };
+    });
+    var S = APP.state, a = S.salon.asks.filter(function (x) { return x.id === id; })[0] || null, sv = JSON.parse(localStorage.getItem('ppolppol_v2') || '{}'), day = window.__ppolTest.today, t = document.getElementById('toast');
+    return { rows: rows, ask: a && { status: a.status, action: a.action, by: a.by, line: a.line, expr: a.expr, date: a.date, offer: a.offer }, saved: !!((sv.salon || {}).asks || []).filter(function (x) { return x.id === id; })[0],
+      asks: S.salon.asks.length, can: SALON.canAsk(S, day, 'idle').reason, color: S.octopus.color, scene: String(APP.scene.color()).toLowerCase(), line: S.octopus.colors.filter(function (c) { return c.ask === id; }).map(function (c) { return c.how + '/' + c.by + '/' + c.color; }).join(),
+      stage: !!APP.salonStage, active: APP.salonActive, btnHidden: document.getElementById('btn-salon').hidden, toast: t.classList.contains('show') ? t.textContent : '', name: S.octopus.name, tagHidden: document.getElementById('brain-tag').hidden };
+  }, id); }
+  /* 13z. 앨범 '일기' (검증 11-10 E7 — 앱 쪽 거르기): 지난 날 (11-01) 의 밀린 물음 (dropped) 은 세지도 그리지도 않는다 → 날 머리 '· 1건' · 행은 정한 물음의 셋 */
+  await openAlbum(pm); await pm.click('.fchip[data-f="diary"]'); await pm.waitForTimeout(300);
+  if (await pm.$('#album-diary details[data-day="2026-11-01"]:not([open])')) await pm.click('#album-diary details[data-day="2026-11-01"] > summary');
+  await pm.waitForTimeout(300);
+  var dz = await pm.evaluate(function () {
+    var det = document.querySelector('#album-diary details[data-day="2026-11-01"]'); if (!det) return null;
+    return { sum: det.querySelector('summary').textContent, rows: [].map.call(det.querySelectorAll('.lrow[data-salon]'), function (r) { return r.getAttribute('data-salon') + ':' + r.getAttribute('data-n'); }).join(), rec: APP.state.salon.asks.map(function (a) { return a.id + ':' + a.status; }).join() };
+  });
+  ok(dz && dz.rec === 'ask_y13seed:done,ask_y13drop:dropped' && /· 1건$/.test(dz.sum) && dz.rows === 'ask_y13seed:1,ask_y13seed:2,ask_y13seed:3', "앨범 '일기': 밀린 물음 (dropped) 은 세지 않고 그리지 않는다 (날 머리 '· 1건' · 정한 물음의 행 셋) " + JSON.stringify(dz));
+  await closeAlbum(pm);
+  /* 13a. 11-09: 모델이 '그대로' 를 고르고 긴 말 (태그 · 이모지 · & 가 든 46 글자) 과 얼굴 curious 를 준다 */
+  await park(pm, 'center');
+  var m1 = await askM(pm, BLUE, JSON.stringify({ action: 'keep', line: MLINE, expr: 'curious' }));
+  await pm.waitForFunction(function () { return !APP.salonStage || APP.salonStage.n >= 2; }, null, { timeout: 15000 }).catch(function () {});
+  var m1b = await pm.evaluate(function () { var M = window.__ym, out = M.bub.slice(); APP.salonFinish(); return out; }), m1r = await rowsM(pm, m1.id), mr1 = m1r.rows;
+  var tagBack = await pm.waitForFunction(function () { return !document.getElementById('brain-tag').hidden; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
+  console.log('   model keep:', JSON.stringify({ writes: m1.writes, bubble: m1b, rows: mr1.map(function (r) { return r.n + (r.raw ? '[' + r.raw + ']' : '') + ' ' + r.text.slice(0, 16); }) }));
+  ok(m1.ok && m1.writes.length === 1 && !!m1.writes[0].ask && m1.writes[0].ask.status === 'done' && m1.writes[0].ask.by === 'model' && m1.writes[0].ask.action === 'keep' && m1.writes[0].ask.line === MLINE && m1.writes[0].color === RED && m1.writes[0].lines === 0 && !m1.open,
+    "[물어보기] 한 번 = 저장 한 번 ('그대로'): 그 한 번에 물음 · 모델의 말이 글자 그대로 들어 있다 (저장 " + m1.writes.length + '번)');
+  ok(mr1.map(function (r) { return r.n; }).join() === '1,2,3' && mr1[1].text === MLINE && mr1[1].raw === 'model' && mr1[1].rawText === MLINE && mr1[1].kids === 1 && mr1[1].expr === 'curious' && m1r.ask.line === MLINE && m1r.ask.by === 'model',
+    '모델의 말은 행 2 에 글자 그대로 (태그 · 이모지 · & 포함 ' + Array.from(MLINE).length + ' 글자 · data-raw="model" · 줄이지 않는다 · 초상은 모델이 고른 얼굴) ' + JSON.stringify(mr1[1] && { text: mr1[1].text, raw: mr1[1].raw, kids: mr1[1].kids, expr: mr1[1].expr }));
+  ok(mr1.length === 3 && mr1[2].text === '색은 그대로야. 모델' && mr1[2].tail === '모델' && m1r.color === RED && m1r.scene === RED, "모델이 고른 '그대로': 행 3 '색은 그대로야.' + 꼬리 '모델' · 몸 색 그대로");
+  ok(m1b.length === 1 && m1b[0].text === MBUB && m1b[0].raw === 'model' && m1b[0].rawText === MBUB && m1b[0].n === 2, "모델 말의 말풍선: 앞 24 글자 + '…' 를 글자 그대로 (data-raw=\"model\") — '" + (m1b[0] && m1b[0].text) + "'");
+  ok(m1.before.tagHidden === false && m1b.length === 1 && m1b[0].tagHidden === true && tagBack, "모델의 말풍선이 떠 있는 동안 '데모' 꼬리표는 숨는다 (묻기 전엔 보이고 · 말풍선이 내려가면 돌아온다) " + JSON.stringify({ before: m1.before.tagHidden, during: m1b[0] && m1b[0].tagHidden, back: tagBack }));
+  ok(m1b.length === 1 && m1b[0].face === 'curious', "모델이 '그대로' 와 함께 고른 얼굴 (curious) 을 그대로 쓴다 (" + (m1b[0] && m1b[0].face) + ')');
+  /* 13b. 11-10: 데모 규칙의 '그대로' (블록 6 과 같은 시드). 묻기 전에 내보내 둔 파일을 대답 뒤에 다시 불러온다 (W1) */
+  await setDay(pm, D2); await park(pm, 'center');
+  var wantK = await pm.evaluate(function (d) { return SALON.demoAnswer({ dateKey: d, name: '뚜루', born: APP.state.octopus.born, asksBefore: 2 }); }, D2);
+  var backB = await pm.evaluate(function () { return APP.exportJSON(); });   /* 설정의 [내보내기] 가 부르는 그 함수 (파일 내용 = 돌려주는 글) */
+  var m2 = await askM(pm, GREEN, null);
+  var endB = await waitStageEnd(pm, 30000), m2b = await pm.evaluate(function () { return window.__ym.bub.slice(); }), m2r = await rowsM(pm, m2.id), mr2 = m2r.rows;
+  console.log('   demo keep:', JSON.stringify({ want: wantK.action + ' ' + wantK.line, bubble: m2b, writes: m2.writes.length, rest: m2r.can }));
+  ok(m2.ok && endB && wantK.action === 'keep' && m2r.ask.action === 'keep' && m2r.ask.by === 'demo-rules' && m2b.length === 1 && m2b[0].text === wantK.line && m2b[0].face === 'idle' && m2b[0].n === 2 && mr2.length === 3 && mr2[1].expr === 'idle' && mr2[1].text === wantK.line && mr2[1].raw === null,
+    "데모 규칙의 '그대로': 대답을 보이는 순간의 얼굴은 idle (시무룩 · 반눈 없음) · 행 2 초상도 idle " + JSON.stringify({ face: m2b[0] && m2b[0].face, row: mr2[1] && mr2[1].expr }));
+  ok(m2b.length === 1 && m2b[0].tagHidden === false && m2b[0].raw === null && m2.writes.length === 1 && m2.writes[0].ask && m2.writes[0].ask.action === 'keep', "데모 규칙의 말이 떠 있는 동안엔 '데모' 꼬리표가 보인다 · 저장은 한 번");
+  /* 불러오기는 물은 지 몇 분 뒤 (검증 11-12 T-W1-60s): 두 탭 합치기의 60 s 창 (SALON.MINE_MS) 은 불러오기에 없다 — 며칠 뒤에 불러와도 대답이 남아야 한다.
+     이 테스트 안에선 물음이 늘 60 s 안이라, 불러오기가 그 창을 쓰게 바뀌어도 (merge 에 Date.now() — 오래된 물음을 버림) 통과했다 →
+     이 탭의 물음 (13a · 13b) 을 10 분 전 것으로 돌려 둔다: 기록 · 저장소 · 그때 내보낸 파일 (13a 의 물음) 을 모두 같은 만큼 — 물음 차례 · 날짜는 그대로 */
+  var aged = await pm.evaluate(function (a) {
+    var cut = Date.now() - 5 * 60000, n = 0;
+    function age(asks) { (asks || []).forEach(function (x) { if (typeof x.at === 'number' && x.at > cut) { x.at -= a.age; n++; } }); }
+    age(APP.state.salon.asks);
+    var sv = JSON.parse(localStorage.getItem('ppolppol_v2')); age(sv.salon.asks); localStorage.setItem('ppolppol_v2', JSON.stringify(sv));
+    var f = JSON.parse(a.bk); age(f.salon.asks);
+    var mine = APP.state.salon.asks.filter(function (x) { return x.id === a.id; })[0];
+    return { file: JSON.stringify(f), n: n, oldMs: mine ? Date.now() - mine.at : 0, win: SALON.MINE_MS };
+  }, { bk: backB, age: 600000, id: m2.id });
+  backB = aged.file;
+  var imp = await pm.evaluate(function (bk) {
+    var G = '#4fa868', t = document.getElementById('toast'), out = { had: (JSON.parse(bk).salon.asks || []).length, ok: APP.importJSON(bk) };
+    out.toast = t.classList.contains('show') ? t.textContent : '';
+    out.rest = SALON.bottles(APP.state, window.__ppolTest.today).filter(function (b) { return b.hex === G; })[0].resting; out.until = SALON.restingUntil(APP.state, G, window.__ppolTest.today);
+    out.opened = APP.openSalon(); out.sheet = document.getElementById('salon-sheet').open; out.toast2 = t.classList.contains('show') ? t.textContent : '';
+    return out;
+  }, backB);
+  var m2i = await rowsM(pm, m2.id), m1i = await pm.evaluate(function (id) { var a = APP.state.salon.asks.filter(function (x) { return x.id === id; })[0]; return a ? a.line : null; }, m1.id);
+  ok(aged.n === 5 && aged.oldMs > aged.win && imp.had === 3 && imp.ok && imp.toast === '기록을 불러왔어' && m2i.asks === 4 && !!m2i.ask && m2i.ask.action === 'keep' && m2i.ask.status === 'done' && m2i.saved && m2i.can === 'asked_today' && imp.rest && imp.until === '2026-11-17' &&
+    !imp.opened && !imp.sheet && imp.toast2 === '내일 또 물어볼 수 있어.' && m2i.rows.map(function (r) { return r.n; }).join() === '1,2,3' && m2i.color === RED && m1i === MLINE,
+    "묻기 전에 내보낸 파일을 (물은 지 10 분 뒤 — 두 탭의 60 s 창 밖) 다시 불러와도 (같은 문어) 오늘의 '그대로' 는 남는다: 물음 · 행 셋 · 초록의 쉼 (11-17 까지) · 거울 톡은 '내일 또 물어볼 수 있어.' " + JSON.stringify({ aged: aged.n, askAgeMs: aged.oldMs, file: imp.had, asks: m2i.asks, can: m2i.can, rest: imp.rest, until: imp.until, toast: imp.toast2, rows: m2i.rows.length }));
+  /* 13c. 11-11: 모델이 '바꾸기' 를 고르고 말은 빈칸뿐 → 행 2 · 말풍선 없음. 저장은 한 번 (새 색까지). 연출 중엔 장면이 옛 색. 대야 연출 중에 (묻기 전 파일을) 불러오면 연출을 먼저 접고, 바뀐 색 · 물음은 남는다 */
+  await setDay(pm, D3); await park(pm, 'window');
+  var backC = await pm.evaluate(function () { return JSON.stringify(APP.state); });
+  await pm.evaluate(function (bk) {   /* 대답을 보인 바로 뒤 (n ≥ 2 — 걷기 · 대야가 남았다) 에 페이지 안에서 재고 불러온다: 바쁜 기계에서 다음 evaluate 가 연출보다 늦게 와도 '연출 중' 이 지켜진다 */
+    var M = window.__ym; M.mid = null;
+    M.midIv = setInterval(function () {
+      var s = APP.salonStage; if (!s || s.n < 2) return;
+      clearInterval(M.midIv);
+      var o = { bub: M.bub.length, n: s.n, face: s.face, stage: true, active: APP.salonActive, scene: String(APP.scene.color()).toLowerCase(), had: (JSON.parse(bk).salon.asks || []).length,
+        rows: [].map.call(document.querySelectorAll('#log .lrow[data-salon="' + s.id + '"]'), function (r) { return +r.getAttribute('data-n'); }).join() };
+      o.ok = APP.importJSON(bk); o.stageAfter = !!APP.salonStage; o.activeAfter = APP.salonActive;
+      M.mid = o;
+    }, 20);
+  }, backC);
+  var m3 = await askM(pm, PINK, JSON.stringify({ action: 'dye', line: '   ' }));
+  await pm.waitForFunction(function () { return !!window.__ym.mid; }, null, { timeout: 40000, polling: 100 }).catch(function () {});
+  var m3a = (await pm.evaluate(function () { var M = window.__ym; clearInterval(M.midIv); return M.mid; })) || {};
+  await pm.waitForTimeout(300);
+  var m3r = await rowsM(pm, m3.id), m3b = await pm.evaluate(function () { return window.__ym.bub.slice(); }), mr3 = m3r.rows;
+  console.log('   model dye:', JSON.stringify({ writes: m3.writes, look: m3.look, mid: m3a, rows: mr3.map(function (r) { return r.n + ' ' + r.text; }), line: m3r.line }));
+  ok(m3.ok && m3.writes.length === 1 && !!m3.writes[0].ask && m3.writes[0].ask.status === 'done' && m3.writes[0].ask.action === 'dye' && m3.writes[0].ask.by === 'model' && m3.writes[0].ask.line === null && m3.writes[0].color === PINK && m3.writes[0].copy === PINK && m3.writes[0].lines === 1 && m3.color === PINK,
+    "[물어보기] 한 번 = 저장 한 번 ('바꾸기'): 그 한 번에 물음 · 새 몸 색 · 사본 · 색 줄이 다 들어 있다 (저장 " + m3.writes.length + '번 · ' + JSON.stringify(m3.writes.map(function (w) { return w.color; })) + ')');
+  ok(m3.before.scene === RED && m3.active && m3.look === false && m3.scene === RED && m3a.stage && m3a.scene === RED, '연출 중엔 다른 길이 몸색 맞춤을 불러도 장면 문어는 옛 색 (기록은 이미 분홍 · 장면 ' + m3.scene + ' → 대답 뒤 ' + m3a.scene + ')');
+  ok(m3a.stage && m3a.n >= 2 && m3a.rows === '1' && m3a.bub === 0 && m3b.length === 0 && m3a.face === 'idle' && mr3.map(function (r) { return r.n; }).join() === '1,3' && m3r.ask.line === null,
+    '빈칸뿐인 말: 행 2 도 말풍선도 없다 (데모 문구로 채우지 않는다) · 얼굴은 idle ' + JSON.stringify({ rowsMid: m3a.rows, bubbles: m3b.length, rows: mr3.map(function (r) { return r.n; }).join() }));
+  ok(m3a.stage && m3a.active && m3a.ok && !m3a.stageAfter && !m3a.activeAfter && !m3r.stage && !m3r.active && !m3r.btnHidden, '연출 중에 불러오면 남은 연출을 먼저 접는다 (연출 표시 풀림 · 거울 단추 다시) ' + JSON.stringify({ mid: m3a.stage, ok: m3a.ok, stageAfter: m3a.stageAfter, activeAfter: m3a.activeAfter }));
+  ok(m3a.had === 4 && m3r.asks === 5 && !!m3r.ask && m3r.ask.action === 'dye' && m3r.saved && m3r.can === 'asked_today' && m3r.color === PINK && m3r.scene === PINK && m3r.line === 'salon/model/' + PINK && mr3.length === 2 && mr3[1].text === '뚜루 몸이 분홍색이 됐어. 모델' && mr3[1].tail === '모델',
+    "묻기 전의 파일을 불러와도 '바꾸기' 대답은 남는다: 물음 · 색 줄 (by model) · 몸 색 분홍 (기록 · 장면) · 행 1 · 3 + 꼬리 '모델' " + JSON.stringify({ file: m3a.had, asks: m3r.asks, color: m3r.color, scene: m3r.scene, line: m3r.line }));
+  /* 13d. 다른 문어 (born 이 다름) 의 파일은 그대로 들어온다: 이 문어의 물음을 얹지 않는다 */
+  var recX = REC(2); recX.octopus.born = BORN + 1; recX.octopus.name = '모모';
+  var m4 = await pm.evaluate(function (r) { var out = { ok: APP.importJSON(JSON.stringify(r)) }, S = APP.state; out.asks = S.salon.asks.length; out.color = S.octopus.color; out.scene = String(APP.scene.color()).toLowerCase(); out.name = S.octopus.name; out.can = SALON.canAsk(S, window.__ppolTest.today, 'idle').ok; out.saved = ((JSON.parse(localStorage.getItem('ppolppol_v2')).salon || {}).asks || []).length; return out; }, recX);
+  ok(m4.ok && m4.asks === 0 && m4.saved === 0 && m4.color === RED && m4.scene === RED && m4.name === '모모' && m4.can, '다른 문어의 파일은 그대로 들어온다 (이 문어의 물음을 얹지 않는다 · 몸 색은 그 파일의 색) ' + JSON.stringify(m4));
+  /* 13e. 탭이 숨으면 지킴이 (250 ms 마다) 가 남은 연출을 접는다 (검증 11-10 E7): 묻자마자 document.hidden 이 참이 된다. 이 문어 (13d 의 파일) 의 맨 처음 물음 = '바꾸기' —
+          지킴이가 있으면 숨은 뒤 첫 틱에 끝난다 = 대답을 보이는 박자 (숨 고르기 · 움츠림 1.75 s 뒤) 전에 끝난다 → 대답 말풍선이 한 번도 뜨지 않은 채 행 셋이 붙는다.
+          시각이 아니라 차례로 본다 (바쁜 기계에서 타이머가 밀려도 지킴이 틱이 대답 박자보다 먼저다). 걸린 시간은 참고로만 찍는다 */
+  await park(pm, 'window');
+  var m5 = await pm.evaluate(function (hex) {
+    var M = window.__ym; M.hid = { t0: 0, t1: 0, bub: -1 };
+    APP.openSalon(); APP.salonPick(hex); M.bub = []; var okA = APP.salonAsk(), s = APP.salonStage;
+    if (s) s.done.then(function () { M.hid.t1 = performance.now(); M.hid.bub = M.bub.length; });
+    Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } });
+    M.hid.t0 = performance.now();
+    return { ok: okA, id: s && s.id, rule: (APP.state.salon.asks[0] || {}).rule };
+  }, BLUE);
+  var hidEnd = await pm.waitForFunction(function () { return !APP.salonStage && window.__ym.hid.t1 > 0; }, null, { timeout: 25000, polling: 50 }).then(function () { return true; }, function () { return false; });
+  var m5r = await pm.evaluate(function () { delete document.hidden; var M = window.__ym; return { ms: Math.round(M.hid.t1 - M.hid.t0), bub: M.hid.bub, hidden: document.hidden }; }), m5s = await rowsM(pm, m5.id);
+  ok(m5.ok && m5.rule === 'first' && hidEnd && m5r.bub === 0 && !m5r.hidden && !m5s.stage && !m5s.active && !m5s.btnHidden && m5s.rows.map(function (r) { return r.n; }).join() === '1,2,3' && m5s.color === BLUE && m5s.scene === BLUE,
+    '연출 중에 탭이 숨으면 지킴이가 남은 연출을 바로 접는다 (대답 박자 전에 — 대답 말풍선 ' + m5r.bub + '번 · 숨은 뒤 ' + m5r.ms + ' ms · 행 셋 · 새 색 · 거울 단추 다시) ' + JSON.stringify({ ended: hidEnd, rows: m5s.rows.length, scene: m5s.scene }));
+  await Mc.ctx.close();
 
   /* 11. file:// (자동 개발 모드 — #demo 는 보임): 등불 1칸엔 거울 없음 · ?dev=1 이 없으면 '다음 미용실 대답' · '바로 바꾸기' 없음 → ?dev=1&scene=2d: 있음 · '그대로' (사람이 정함) · '바꾸기' (2D 몸 색) */
   var F = await open({ file: true, rec: REC(1) }), pf = F.page;
