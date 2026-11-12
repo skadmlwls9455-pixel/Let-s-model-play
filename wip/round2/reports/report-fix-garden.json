@@ -1,0 +1,130 @@
+{
+ "summary": "Items A to G are fixed in /home/user/ppolppol-fix-garden. Only js/app.js, js/scene3d.js and tools/smoke.js changed, nothing is committed, and `git status` shows only those three files. A new smoke scenario X covers every item. On the final code it passed 3 times in a row (33 passed, 0 failed each). Reverting each fix on its own in a scratch copy makes a named X check fail: 16 mutations, no fix without a failing check.\n\nOn the other session's commit 66c8110:\n- **Garden refresh after a reset, an import or another tab (G):** most of it holds. With those renderAll lines removed, 5 X checks fail (other tab, two imports, reset, new name). Two things were still missing. An open sew sheet stayed stale, so I added that refresh. And renderAll had become 20 times slower: 7.7 ms per call against 0.4 ms on 6e3f6f4, because it rebuilt the plant mesh and the player's 7 body geometries every time. It is now 0.7 ms.\n- **Plot tap (A):** its ground-plane pick did NOT fix it. On an untouched copy of 34f77ad, my soil-tap repro still acts on the wrong plot: 2 wrong taps at 320 and 360, 4 at 412. The ground pick lands behind the raised soil, in the neighbour plot. A tap on the octopus standing at the fence still planted in the first plot. I replaced the ground pick with a 3D raycast.\n- **Pictures:** the seed now reads as a light mound with a small marker stick, and the fence no longer stands in the first plot. Before/after sheets are in \"pictures\"; the lead should look at them.\n\nSuites:\n- `npm test`: every suite 0 failed.\n- Font check: `stale: none`.\n- `SMOKE_ONLY=A`: 74/0.\n- `node tools/test-scene-perf.js`: 111/0.\n- Load average was about 9 to 11 for the browser runs.\n\nOne merge warning: the merge-2 checkout has moved on to ae505a3. A trial three-way merge of my changes onto it is clean for scene3d.js. It has 1 conflict in app.js and 3 in smoke.js. All four are \"both sides added\" and need both sides kept.",
+ "changes": [
+  {
+   "id": "A",
+   "file": "js/scene3d.js",
+   "lines": "4124-4133 (pick, exterior branch)",
+   "what": "Replaced 66c8110's y=0 ground-plane pick. It now raycasts the octopus body meshes, the plot soil and frame mesh (plotBase) and the plant mesh, nearest first. If the octopus body is hit first, the tap goes to the octopus, or to nothing while the octopus cannot be tapped. If soil or a plant is hit first, the plot is the one whose centre x is nearest the hit point. After that come the old hit sphere and, last, the 2D button boxes. The branch only runs while a plot button is up.",
+   "why": "The ground point of a tap on raised soil lies behind it, inside the neighbour plot (still 2 to 4 wrong taps per size on 34f77ad). A tap on the octopus at the fence went to plot 0."
+  },
+  {
+   "id": "A/B-debug",
+   "file": "js/scene3d.js",
+   "lines": "5498-5503",
+   "what": "Added a debug getter plotsDebug(): plot soil centres in world space, half widths, the fence end post, whether the plant geometry is in the dispose list, the list length and the player geometry id.",
+   "why": "Lets smoke X take positions from the scene's own projection and assert F and the rebuild counts."
+  },
+  {
+   "id": "B-seed",
+   "file": "js/scene3d.js",
+   "lines": "4066-4069",
+   "what": "A seeded plot is drawn as a wider, flatter mound in the lighter wood colour (W[3], radius 0.17) with the seed tip, plus a thin marker stick (W[2]) with a small paper tag (PAL.paper[3]). Sprout and flower are unchanged.",
+   "why": "The old seed was an olive dot of about 4x3 px on dark soil (42 px of difference in the plot box, against 200 px now)."
+  },
+  {
+   "id": "B-fence",
+   "file": "js/scene3d.js",
+   "lines": "2982, 3899, 4048",
+   "what": "Shortened the fence by one segment; it now ends at (0.14, 2.61). The octopus's peek obstacle circles for the fence go from 9 to 7. The three plots moved 0.1 m to +x (xs 0.65, 1.52, 2.39).",
+   "why": "The rail and end post stood in plot 0's soil. Shortening alone would leave the post (to x 0.18) touching the plot frame (from x 0.14), so the plots move too. The fence spot 'numbers' is unchanged."
+  },
+  {
+   "id": "F",
+   "file": "js/scene3d.js",
+   "lines": "4062, 4075",
+   "what": "The plant geometry is registered with keep() like the other rebuilt meshes. On a rebuild the old geometry is spliced out of the dispose list before it is disposed.",
+   "why": "The geometry leaked once when the 3D scene was thrown away, and without the splice the list would grow on every rebuild."
+  },
+  {
+   "id": "G-perf-scene",
+   "file": "js/scene3d.js",
+   "lines": "2286, 4061",
+   "what": "setGarden returns early when the plot state is the same as last time (JSON key), and setPlayerDye returns early when the colour is the same.",
+   "why": "66c8110 made renderAll call both on every render. Each call rebuilt 7 player geometries and the plant mesh: renderAll took 7.7 ms against 0.4 ms before, and takes 0.7 ms now."
+  },
+  {
+   "id": "G",
+   "file": "js/app.js",
+   "lines": "2945",
+   "what": "renderAll also re-renders an open sew sheet, through renderSew as it is.",
+   "why": "After another tab earned shells, an open sew sheet kept the old count. The rest of the stale screen is covered by 66c8110's lines, which I verified and kept."
+  },
+  {
+   "id": "C",
+   "file": "js/app.js",
+   "lines": "4346-4356, 3851, 4450",
+   "what": "New plotView, plotLabel and plotLabels functions. applyGarden sets an aria-label on each outside plot button: plot, what is in it, and what a press does. The sheet's plot buttons get the same label. The outside buttons refresh their label on focus too, because the day or the seed count may have changed. Visible text is unchanged.",
+   "why": "Fixes F14: the outside labels were always \"텃밭 n째 칸\" and the sheet buttons read as glued words."
+  },
+  {
+   "id": "D",
+   "file": "js/app.js",
+   "lines": "4446",
+   "what": "The sheet's \"바로 톡\" sentence is shown only when sceneMode is '3d'.",
+   "why": "Fixes F15: there are no plot buttons in the 2D fallback."
+  },
+  {
+   "id": "E",
+   "file": "js/app.js",
+   "lines": "4261, 4346, 4357-4365, 4449-4452",
+   "what": "userState turns a garden entry that is not an object into null; an entry with an unknown colour is kept as it is. plotView never throws: an unknown colour has an empty name, a null hex (the scene draws its default colour) and the state '꽃'. gardenAct uses plotView: water is clamped, a harvest adds a dye under the saved colour key, and the toast has no colour name. renderBag and applyGarden read through plotView and use only the first three entries.",
+   "why": "Fixes F17 and the second half of C16: an unknown colour made renderBag and gardenAct throw, so the 살림 sheet could not open."
+  },
+  {
+   "id": "tests",
+   "file": "tools/smoke.js",
+   "lines": "24, 4212-4452, 4460",
+   "what": "New scenario X, scenarioGarden, in the style of Q: seeded localStorage, the date hook, waits for a state, positions from the scene's projection. It checks: a 147-point soil grid and 24 points on planted things at 320x568, 360x740 and 412x915; 15 real finger taps per size; the octopus really standing at the fence spot (peekOutside 'numbers') and tapped three times; the keyboard focus ring over its own plot and Enter acting there; labels after every change and on the next day; the 2D sentence; the unknown colour; another tab, two imports, a reset and a new name, including an open sew sheet; seed pixels against the noise floor; the fence outside plot 0; the plant geometry kept without the list growing; no rebuild on renderAll.",
+   "why": "Brief: a check that fails without each fix."
+  }
+ ],
+ "decisions": "- **Plot pick:** I chose a 3D raycast over a stricter ground test. No ground rectangle works for both the soil's raised front edge and a flower head that stands over the next plot. Hitting the drawn meshes is right by construction.\n- **Octopus at the fence:** a hit on the octopus's body takes priority. While the octopus cannot be tapped (away or walking), that tap does nothing, so a tap meant for the octopus never spends a seed.\n- **2D button boxes:** kept as the last fallback, after the hit sphere. They give edge taps the 44 px tolerance and stay the keyboard path. The buttons still overlap by a third, but a tap on drawn soil or plants never reaches them.\n- **Fence:** shortened by one segment AND the plots moved 0.1 m to +x. Shortening alone leaves the end post touching the plot frame. I checked the peek route graph (my routes.js replica): one route changed, entry bottom to numbers, which is now direct.\n- **Seed drawing:** a lighter mound plus a small stick and tag, all from the existing palette (the brief's own example). The sprout and flower are untouched.\n- **Unknown flower colour:** the save is never rewritten. It is drawn in the scene's default flower colour (#e8a93a), named just '꽃', and its dye is counted under the saved key, so a later build that knows the colour gets it.\n- **Label wording:** \"텃밭 첫째 칸, 새싹, 물 주기\". Watered today reads \"…, 오늘은 물을 줬어\" (the same words as the existing toast). An empty plot with no seeds reads \"…, 빈 칸, 씨앗이 없어\".\n- **Refresh (G):** kept 66c8110's approach (everything from renderAll). All three paths go through it: takeRemote, importJSON, and resetAll plus the name dialog. X proves each one, so no second refresh function was added.\n- **renderAll cost:** made setGarden and setPlayerDye skip work on the same input instead of moving the calls out of renderAll.\n- **Other lanes' functions:** renderSew and renderBagChip are called as they are, not changed. Nothing in the weekly, loft or salon functions was edited.\n- **No font regeneration:** no new characters were added, and the font check says stale: none.",
+ "new_text": [
+  "aria-label pattern on the three outside plot buttons and the three 살림 sheet plot buttons: '텃밭 {첫째|둘째|셋째} 칸, ' followed by one of the states below",
+  "텃밭 첫째 칸, 빈 칸, 씨앗 심기",
+  "텃밭 첫째 칸, 빈 칸, 씨앗이 없어",
+  "텃밭 첫째 칸, 씨앗, 물 주기",
+  "텃밭 첫째 칸, 새싹, 물 주기",
+  "텃밭 첫째 칸, 새싹, 오늘은 물을 줬어",
+  "텃밭 첫째 칸, {빨강|노랑|초록|파랑|보라|분홍} 꽃, 거두기",
+  "텃밭 첫째 칸, 꽃, 거두기 (flower of a colour this build does not know)",
+  "Sheet plot state text for an unknown colour: 꽃",
+  "Harvest toast for an unknown colour: 염료 1개를 얻었어",
+  "2D fallback sheet note: 밭은 집 앞마당에 있어. (3D keeps: 밭은 집 앞마당에 있어. 문어가 산책 나가 바깥이 보일 때는 밭을 바로 톡 해도 돼.)"
+ ],
+ "guard": "The checks are in tools/smoke.js scenario X (scenarioGarden, lines 4212-4452, registered as 'X' at 4460). Run alone with `SMOKE_ONLY=X node tools/smoke.js`.\n\nMutation table: each fix was reverted alone in a scratch copy and X was run on it. The copies are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-garden/mut/<name>, made by mutate.py there. The logs are mutlog-<name>.log in the same folder.\n\n- **pick** (back to 66c8110's ground-plane pick): 5 FAIL.\n  - Planted things at 320, 360 and 412: 2 wrong taps each (flower and sprout heads go to the neighbour plot).\n  - 412 soil grid: 14 of 147 wrong.\n  - Octopus at the fence tapped three times: targets [plot0, plot0, plot0].\n- **fence** (old 3-segment fence): FAIL \"울타리 끝 기둥(x 0.80 까지)은 첫째 칸 테(x 0.24 부터) 밖\".\n- **plotshift** (plots back at 0.55): FAIL on the same check (post to x 0.18, frame from x 0.14).\n- **seed** (old seed drawing): FAIL \"씨앗을 심은 칸은 빈 칸과 … 42 px 다르다 (100 px 이상)\". The new drawing gives 200 px; the noise between two empty shots is 0 px.\n- **keep** (no keep, no splice): FAIL \"심은 것 지오메트리는 버릴 목록에 있고 (false)\".\n- **nosplice** (keep but no splice): FAIL \"열 번 다시 지어도 목록 길이 그대로 (180 → 189)\".\n- **samegarden** (setGarden rebuilds every call): FAIL \"renderAll 세 번: 같은 밭 · 같은 옷 색이면 … 다시 짓지 않는다\".\n- **samedye** (setPlayerDye rebuilds every call): FAIL on the same check.\n- **nonobj** (non-object entries kept): FAIL on the unknown-colour check (the 'junk' slot).\n- **tolerant** (plotView throws on an unknown colour, as on the base): 3 FAIL.\n  - The unknown-colour sheet does not open.\n  - Water and harvest do not work.\n  - Page error \"Cannot read properties of null (reading '0')\".\n- **labels** (applyGarden does not set the labels): 4 FAIL (after planting, watered, flower, harvested).\n- **sheetlabels** (sheet buttons get no aria-label): 5 FAIL.\n- **focus** (no refresh on focus): FAIL \"다음 날 (포커스 때 다시)\".\n- **text2d** (the sentence always shown): FAIL \"2D 시트\".\n- **sew** (no sew-sheet refresh): FAIL \"열어 둔 재봉틀 시트도 다른 탭의 조개 수를 따라온다\".\n- **renderall66** (66c8110's renderAll additions removed): 5 FAIL. After another tab; after an import; after importing a save with no 살림; reset (\"hidden\":false, garden [1,2,0]); after the new name.\n\nCaveats on the mutation runs:\n- 12 of the 16 mutants ran with a slightly earlier smoke.js. The later edits only made checks stricter or less flaky: a guard so the unknown-colour step reports a named FAIL instead of crashing, the reset check now starting from plants drawn outside, and the daily-gift day pinned.\n- seed, tolerant, nosplice and renderall66 were run on the final smoke.js.\n- The first renderall66 run showed that the reset check passed for the wrong reason. I fixed the check so it starts from plants drawn outside, and the rerun failed as it should.\n\nOriginal findings reproduced on untouched copies:\n- 6e3f6f4, my soil-tap repro: 2 of 21 wrong taps per size (repro/g-plots-6e3f6f4.out).\n- 34f77ad: still 2, 2 and 4 wrong (repro/g-plots-34f77ad.out).\n- The tester's own t-garden2.js PHASE=map, on a copy with the plot x and mesh box moved by 0.1 m (the unmodified script hard-codes the old geometry): 27 taps, 0 wrong at all three sizes on my tree (t-garden2-mine.out).\n- The stale screen after tab, import and reset is present on 6e3f6f4 and gone on 34f77ad (repro/f-sync-*.out).",
+ "suites": [
+  "npm test (final code): 517, 26, 568, 225, 192, 225 and 46 (test-export) passed, 0 failed in every suite (npm-test-final.log)",
+  "Font check (tools/subset-fonts.py --check): stale: none",
+  "SMOKE_ONLY=X, first set of three: 33/0, 31/2, 33/0. The 2 failures were a bug in my own check, not load. The check set giftDay to tomorrow, so the once-a-minute day gift added a seed mid-check (the labels said '씨앗 심기' instead of '씨앗이 없어'). Fixed by pinning the gift day. Logs: x-final-try1-*.log",
+  "SMOKE_ONLY=X on the final code: 33 passed 0 failed, three runs in a row (247 s, 234 s, 233 s; load average 10.6 to 11.5). Logs: x-final-1.log, x-final-2.log, x-final-3.log",
+  "SMOKE_ONLY=A: 74 passed, 0 failed (310 s, load about 11)",
+  "node tools/test-scene-perf.js: 111 passed, 0 failed (1118 s, load 9 to 10). Includes: no new shader program on the first trip outside (32 to 32). No control run was needed because nothing failed",
+  "renderAll median over 40 calls (repro/rendertime.js, load 1.3): 6e3f6f4 0.4 ms, 34f77ad 7.7 ms, final 0.7 ms",
+  "All logs are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-garden/"
+ ],
+ "left": [
+  "Merge with the current merge-2 head ae505a3 (trial three-way merge in mergetry/). scene3d.js merges clean. app.js has 1 conflict: the week lane changed the renderBagChip line right before my new plotView to applyGarden block; keep both. smoke.js has 3 conflicts: the header list, where the scenario body goes, and the registration of X next to Q and Z; keep all. I did not resolve them because the base is 34f77ad.",
+  "Separately, the week lane changed the empty-plot line in gardenAct (the toast when there are no seeds). It merged without conflict but was not tested together with my gardenAct changes.",
+  "The three outside plot buttons still overlap each other by about a third. Taps on drawn soil or plants no longer depend on them; they are the keyboard path and the last fallback. I left their size alone.",
+  "At night the new seed mound and tag are visible but dim, like everything else in the night scene (see the compare sheets). I did not light them specially.",
+  "Route check with my replica of the octopus peek route graph (routes.js): 8 of 44 routes cross the plot row both before and after my change, because the entry point PK_ENTRY[3] (1.35, 2.68) lies inside the plot row. This is older than my change and outside the brief; not fixed.",
+  "In my tester-style script f-sync.js, the step 'import a save without garden' left the old garden on both base trees. In X the same kind of import (a save with no user block) gives '조개 0' and an empty garden, so I could not reproduce it there. That script does not record importJSON's return value. It is unexplained, and importJSON belongs to the salon lane, so I did not touch it.",
+  "renderAll now calls renderBagChip on every render (66c8110's choice). In ae505a3, renderBagChip also starts the week change. I did not measure that cost on the merged tree."
+ ],
+ "not_verified": [
+  "The merged tree (ae505a3 plus these changes): only a textual trial merge, no run.",
+  "Real phone hardware and a real screen reader: only the aria-label attributes were checked, not what is spoken.",
+  "Pictures at 390x844 and 430x932. The pixel scene renders at the same internal size at 320, 360 and 412, so those crops look identical.",
+  "Reduced-motion mode with the new pick.",
+  "Taps on the plots while the octopus walks across them during a peek: only the octopus standing at the fence spot was tested.",
+  "The 2D fallback garden beyond the sheet sentence: the sheet's plot buttons in 2D were exercised by the tester earlier, not by me."
+ ],
+ "pictures": [
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-garden/garden-compare-320.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-garden/garden-compare-360.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-garden/garden-compare-412.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-garden/shots/ (1x crops before-<w>-<day|night>-<empty|seed|sprout|flower>.png and after-…; plus before/after-<w>-<day|night>-full-seed.png full screens; before = 34f77ad, after = final)"
+ ]
+}

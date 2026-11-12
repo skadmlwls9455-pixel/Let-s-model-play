@@ -20,7 +20,7 @@ index 4ede5d8..2a110ce 100644
  
  .intro-title { position: absolute; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; display: block; outline: none; }
 diff --git a/js/intro.js b/js/intro.js
-index a2dbc14..be84a4e 100644
+index a2dbc14..953b90f 100644
 --- a/js/intro.js
 +++ b/js/intro.js
 @@ -103,6 +103,12 @@ var INTRO = (function () {
@@ -36,21 +36,6 @@ index a2dbc14..be84a4e 100644
    }
    function setLift(px) { st.lift.style.transform = 'translateY(' + Math.round(px) * st.s + 'px)'; }   /* 아트 px → 정수 CSS px */
  
-@@ -195,11 +201,11 @@ var INTRO = (function () {
-       var cut = function (src, i, w, hh) { var c = document.createElement('canvas'); c.width = w; c.height = hh; c.getContext('2d').drawImage(src, i * w, 0, w, hh, 0, 0, w, hh); return c; };
-       sprite(cut(far, 0, 136, 68), Hh * 1.9, 0.3, -W * 0.15); sprite(cut(far, 1, 136, 68), Hh * 2.7, 0.3, W * 0.45);
-       sprite(cut(near, 0, 196, 98), H * 0.86, 0, -W * 0.55); sprite(cut(near, 1, 196, 98), Hh * 1.1, 0, W * 0.5);
--      if (CLOUDS.bank) {   /* 뚫는 구름: 화면보다 넓고 몸이 화면 높이보다 길다 */
-+      if (CLOUDS.bank) {   /* 뚫는 구름: 화면보다 넓다. 높이는 화면의 절반까지, 밑면은 예전 자리 (11-12 주인 결정 — 장면 쪽 CLOUD.bank 와 같다: 화면이 한 색으로 덮이는 순간이 없다). 2D 는 하늘 띠가 안 바뀌어 구름 밑 판이 필요 없다 */
-         var bw = Math.ceil(W / px) + 12, spd = H / ((SKY.dur - SKY.top) * SKY.land) / (1 - 0.33), bh = 0, cv;
--        bh = Math.ceil(CLOUDS.bank.bodyTop(bw) * 0.45 + (Hh + spd * 0.02) / px + 4); cv = CLOUDS.bank({ weather: 'drizzle', phase: 'night', w: bw, h: bh, seed: 'bank2d' });
-+        var bh0 = Math.ceil(CLOUDS.bank.bodyTop(bw) * 0.45 + (Hh + spd * 0.02) / px + 4); bh = Math.min(bh0, Math.floor(Hh / px * 0.5)); cv = CLOUDS.bank({ weather: 'drizzle', phase: 'night', w: bw, h: bh, seed: 'bank2d' });
-         var bodyMid = (cv.bodyTop + (bh - 4 - cv.bodyTop) / 2) * px;
--        sprite(cv, H * 0.58 + (bodyMid - bh * px / 2), 0, -12);
-+        sprite(cv, H * 0.58 + (bodyMid - bh * px / 2) - (bh0 - bh) / 2 * px, 0, -12);
-       }
-     }
-     var t0 = 0, sp = speed();
 @@ -256,7 +262,7 @@ var INTRO = (function () {
      st.inert.forEach(function (c) { c.inert = false; }); st.inert = [];
      if (st.scene && st.scene.introRelease) st.scene.introRelease();   /* 장면 비네트 복귀 (덮개가 걷힌 뒤) */
@@ -61,7 +46,7 @@ index a2dbc14..be84a4e 100644
      markToday();   /* 오늘은 들어왔다 → 같은 날 다시 열면 바로 게임 */
      var cbs = st.cbs; st.cbs = []; cbs.forEach(function (f) { try { f(); } catch (e) { console.error('[intro]', e); } });
 diff --git a/js/scene3d.js b/js/scene3d.js
-index 519cf60..bf34fe1 100644
+index 519cf60..d6ca0b4 100644
 --- a/js/scene3d.js
 +++ b/js/scene3d.js
 @@ -4315,7 +4315,7 @@ var SCENE3D = (function () {
@@ -128,7 +113,7 @@ index 519cf60..bf34fe1 100644
 +      var u = INTRO.on && INTRO.band === 0 && INTRO.sky && INTRO.sky.under; if (!u) return null;
 +      var f = 0.5 - ((u.userData.y - camTargetNow().y) / pxUp() + u.userData.h / 2) / S.rh;   /* 판 윗변: 캔버스 위에서부터의 비 (position.y 는 시선 방향으로 민 값이라 안 쓴다) */
 +      if (f >= 1) return null;
-+      return { y: container.getBoundingClientRect().top + S.offY + Math.max(f, 0) * S.ch, hex: u.userData.hex };
++      return { y: f > 0 ? container.getBoundingClientRect().top + S.offY + f * S.ch : -1e4, hex: u.userData.hex };   /* 판 윗변이 캔버스 위로 나갔으면 덮개 전부 판 색 (캔버스 위 2 px 틈 · 넓은 화면 양옆 맨 위가 띠 바뀔 때 깜빡이지 않게) */
 +    }
      var SKYEST = { src: null, out: null };
      function skyEstimate(hex) {   /* hex 없으면 지금 하늘: 입장 중엔 그 띠, 아니면 시각대 허공색 */
@@ -143,10 +128,10 @@ index 519cf60..bf34fe1 100644
        setPlace: function (p, o) { setPlace(p, o); }, place: function () { return PLACE.cur; },
        /* 놀이방 (8물결, scratchpad scene-api.md · docs/SCENE.md '놀이방'): view() 지금 그려지는 장소 'attic'|'exterior'|'play' · room() 내가 들어가 있는 방 'play'|null ·
 diff --git a/tools/intro-shots.js b/tools/intro-shots.js
-index b127755..af7e7b1 100644
+index b127755..f85c500 100644
 --- a/tools/intro-shots.js
 +++ b/tools/intro-shots.js
-@@ -4,7 +4,12 @@
+@@ -4,14 +4,19 @@
   * 확인하는 것:
   *  0) 부팅 경로 (11-11, 진짜 부팅 ?intro=1 · 시간은 debugStep 으로만 → 기계가 바빠도 같은 값): 하늘은 진짜 장면 크기로 지어진다 —
   *     하늘이 처음 그려질 때의 렌더 크기 = 장면 칸 크기 = 그 뒤(1 s 넘게 지난 뒤)의 크기 · 출발 높이 = 화면 높이의 INTRO.SKY.height 배 (360×740 · 430×932) ·
@@ -160,6 +145,14 @@ index b127755..af7e7b1 100644
   *     예전엔 숨은 칸(0×0 → 320×240 어림)에서 지어 폰에서 0.85 화면 높이 · 폭 368 px 짜리였는데, 3) 은 부팅 뒤에 다시 시작해서 재므로 못 잡았다. BOOT_ONLY=1 이면 0) 만 돌린다.
   *     크기가 바뀔 때 (11-11 보강): 내려가는 중(1.0 s)에 한 번 더 바뀌어도(→ 430×932) 진행도와 높이가 그대로다 (연출이 처음부터 다시 돌지 않는다) · 하늘은 한 겹이다 —
   *     덮임 프레임의 드로우콜 = 그 크기로 바로 부팅한 페이지의 값, 착지 뒤의 드로우콜 · frameY = 연출 없는 부팅(?intro=0)의 값 (옛 하늘이 장면에 남으면 는다) ·
+  *     줌만 바뀌어도(API zoomStep) 높이가 그대로다 · 연출 없는 부팅에서도 장면이 첫 프레임부터 장면 칸 크기다 (app.js 가 칸을 먼저 드러낸다)
+  *  1) 첫 실행: ?intro=1 → 하늘 단계 → 로고 올라옴 → 로고 누름 → 레이어 사라짐 → 이름 창이 그다음에 열림
+  *  2) 다시 열기: 하늘 단계 중에 누르면 바로 착지 + 바로 게임 (이름 창 없음), 아래 UI 가 inert 풀림
+- *  3) 장면 카메라 하강 프레임 스트립 (debugStep, 결정적, INTRO.SKY 와 같은 dur · top · height): 멈춤 끝 · 구름 사이 · 뚫기 직전 · 덮임 · 구름 밑 · 지붕 · 착지
++ *  3) 장면 카메라 하강 프레임 스트립 (debugStep, 결정적, INTRO.SKY 와 같은 dur · top · height): 멈춤 끝 · 구름 사이 · 뚫는 구름 다가옴 · 지나감 · 구름 밑 · 지붕 · 착지 (11-12: 뚫는 구름이 얇아져 다 덮는 프레임은 없다)
+  *  4) ?intro 없이(자동화 브라우저 기본) 레이어가 안 뜬다 — 기존 스모크가 그대로 돈다
+  *  4b) 하루 한 번 (PLAYTEST_FIXES A5-1): ?intro 없이 · navigator.webdriver 를 false 로 덮은 새 context 에서
+  *      첫 열기 → 있음 → 타이틀 눌러 들어감 → 같은 날 다시 열기 → 없음 → 날짜(window.__ppolTest.today)를 바꾼 첫 열기 → 있음
 @@ -37,31 +42,44 @@ function fail(msg) { console.error('✗ ' + msg); process.exitCode = 1; }
    await page.addInitScript(function (h) { window.__ppolLook = h; }, { hour: HOUR, lantern: 8, weather: WEATHER, octState: 'idle', anchor: 'center' });
    async function shot(name) { await page.screenshot({ path: path.join(OUT, name + '.png') }); console.log('  📷 tests/evidence/intro/' + name + '.png'); }

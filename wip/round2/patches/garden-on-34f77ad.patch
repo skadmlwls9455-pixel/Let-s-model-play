@@ -179,7 +179,7 @@ index 519cf60..3a9ad2f 100644
        msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
        motion: function () { var vg = groupOf(PLACE.vis); return { salon: salMotion(), player: plInfo(), place: PLACE.vis, view: PLACE.vis, room: PLACE.room, dq: DQ.name, slidePx: Math.round(vg.position.dot(_r) / S.pw), slideUpPx: Math.round(vg.position.dot(_u) / S.pw), slideY: +vg.position.y.toFixed(4), transAxis: PLACE.trans ? PLACE.trans.axis : '', doorAttic: ATTIC_DOOR.f, doorPlay: PLAY_DOOR ? PLAY_DOOR.f : 0, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, octFade: FADE.d, wave: WAVE.on, peek: PK.on ? PK.key + (PK.hold ? ':hold' : ':walk') : '', extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
 diff --git a/tools/smoke.js b/tools/smoke.js
-index 2f585c3..14512e7 100644
+index 2f585c3..ecae072 100644
 --- a/tools/smoke.js
 +++ b/tools/smoke.js
 @@ -21,6 +21,7 @@
@@ -190,7 +190,7 @@ index 2f585c3..14512e7 100644
   *   (모든 문맥은 window.__ppolAwakeMs = 0 으로 시작 — 예전 시나리오는 '산책 직후 잠'. T · K 가 덮는다)
   *   SMOKE_ONLY=H,I node tools/smoke.js   # 그 시나리오만
   *   SMOKE_THROTTLE=4 node tools/smoke.js # 페이지 CPU 를 4배 늦춘다 (느린 CI 러너 흉내 — 시간에 기대는 검사의 경합을 여기서 다시 낸다)
-@@ -4208,6 +4209,240 @@ async function scenarioLayoutOne(browser) {
+@@ -4208,6 +4209,241 @@ async function scenarioLayoutOne(browser) {
    await s2.ctx.close();
  }
  
@@ -308,14 +308,14 @@ index 2f585c3..14512e7 100644
 +      ok(!kbad.length, '키보드: 단추에 포커스 + Enter → 그 칸에 심었다' + (kbad.length ? ' — 틀림: ' + kbad.join(' ') : ''));
 +
 +      /* 4. 단추 이름: 칸 · 든 것 · 누르면 할 일. 바깥 단추와 살림 시트 단추가 같은 말, 바뀔 때마다 */
-+      await p1.evaluate(function (d) { var u = APP.state.user; u.garden = [null, null, null]; u.seeds = 1; u.giftDay = d; APP.save(); APP.renderAll(); document.getElementById('btn-plot0').focus(); }, NEXT);
++      await p1.evaluate(function (d) { var u = APP.state.user; u.garden = [null, null, null]; u.seeds = 1; u.giftDay = d; APP.save(); APP.renderAll(); document.getElementById('btn-plot0').focus(); }, DAY);   /* 오늘 선물은 받은 날로 (매분 선물이 씨앗을 늘리지 않게) */
 +      var L0 = await labels(p1), S0 = await sheetLabels(p1);
 +      await p1.keyboard.press('Enter'); await planted(p1);
 +      var L1 = await labels(p1), S1 = await sheetLabels(p1);
 +      await p1.evaluate(function () { document.getElementById('btn-plot0').focus(); });
 +      await p1.keyboard.press('Enter'); await p1.waitForFunction(function () { return APP.state.user.garden[0].water === 1; }, null, { timeout: WAIT });
 +      var L2 = await labels(p1);
-+      await p1.evaluate(function (d) { sessionStorage.setItem('__x_day', d); window.__ppolTest.today = d; document.getElementById('btn-plot1').focus(); document.getElementById('btn-plot0').focus(); }, NEXT);   /* 다음 날: 포커스만으로도 이름이 새로 */
++      await p1.evaluate(function (d) { sessionStorage.setItem('__x_day', d); window.__ppolTest.today = d; APP.state.user.giftDay = d; APP.save(); document.getElementById('btn-plot1').focus(); document.getElementById('btn-plot0').focus(); }, NEXT);   /* 다음 날: 포커스만으로도 이름이 새로 */
 +      var L3 = await labels(p1);
 +      await p1.keyboard.press('Enter'); await p1.waitForFunction(function () { return APP.state.user.garden[0].water === 2; }, null, { timeout: WAIT });
 +      var L4 = await labels(p1), S4 = await sheetLabels(p1), fl = await p1.evaluate(function () { var c = APP.state.user.garden[0].color; return { red: '빨강', yellow: '노랑', green: '초록', blue: '파랑', purple: '보라', pink: '분홍' }[c]; });
@@ -416,13 +416,14 @@ index 2f585c3..14512e7 100644
 +  ok(im2.r && im2.chip === '조개 0' && !im2.dot && JSON.stringify(im2.garden) === '[null,null,null]', '살림이 없는 기록을 불러오면: «' + im2.chip + '» · 점 없음 · 빈 밭');
 +  /* 전체 초기화: 이름 창 위에 꼬리표가 남지 않고 · 바깥 밭이 빈다 · 새 이름 뒤에도 빈 밭 · 꼬리표는 새 조개 수 */
 +  await pa.evaluate(function (rec) { APP.importJSON(JSON.stringify(rec)); }, REC(USER({ shells: 40, garden: [{ color: 'red', water: 1, wateredDay: '' }, { color: 'blue', water: 2, wateredDay: '' }, null] })));
++  var r0 = await pa.evaluate(function () { document.getElementById('btn-bag').click(); document.querySelectorAll('#bag-body .bag-plot')[2].click(); document.getElementById('bag-close').click(); return APP.scene.garden().map(function (g) { return g ? g.water : null; }); });   /* 셋째 칸에 심어 (gardenAct 가 직접 그린다) 바깥에 세 칸 다 있는 데서 초기화 */
 +  await pa.evaluate(function () { APP.openSettings(); });
 +  await resetTwice(pa);
 +  await pa.waitForSelector('#name-dialog[open]', { timeout: WAIT });
 +  var r1 = await pa.evaluate(function () { var b = document.getElementById('btn-bag'); return { hidden: b.hidden, garden: APP.scene.garden().map(function (g) { return g ? g.water : null; }) }; });
 +  await pa.fill('#name-in', '구름'); await pa.click('#name-form button[type=submit]');
 +  var r2 = await pa.waitForFunction(function () { var b = document.getElementById('btn-bag'); return !b.hidden && APP.state.user && b.textContent.trim() === '조개 ' + APP.state.user.shells && { chip: b.textContent.trim(), garden: APP.scene.garden().map(function (g) { return g ? g.water : null; }), saved: APP.state.user.garden }; }, null, { timeout: WAIT, polling: 100 }).then(function (h) { return h.jsonValue(); }, function () { return null; });
-+  ok(r1.hidden && JSON.stringify(r1.garden) === '[null,null,null]', '전체 초기화: 이름 창 위에 꼬리표가 안 보이고 바깥 밭이 빈다 (' + JSON.stringify(r1) + ')');
++  ok(JSON.stringify(r0) === '[1,2,0]' && r1.hidden && JSON.stringify(r1.garden) === '[null,null,null]', '전체 초기화: 이름 창 위에 꼬리표가 안 보이고 바깥 밭(전 ' + JSON.stringify(r0) + ')이 빈다 (' + JSON.stringify(r1) + ')');
 +  ok(!!r2 && JSON.stringify(r2.garden) === '[null,null,null]' && JSON.stringify(r2.saved) === '[null,null,null]', '새 이름 뒤: 꼬리표 «' + (r2 && r2.chip) + '» · 바깥 밭도 기록도 빈 밭');
 +  await c5.close();
 +  reportErrors(bag, 'X');
@@ -431,7 +432,7 @@ index 2f585c3..14512e7 100644
  (async function main() {
    console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
    var browser = await chromium.launch();
-@@ -4221,7 +4456,8 @@ async function scenarioLayoutOne(browser) {
+@@ -4221,7 +4457,8 @@ async function scenarioLayoutOne(browser) {
        ['L', function () { return scenarioAlbumIcon(browser); }], ['N', function () { return scenarioNotes(browser); }], ['M', function () { return scenarioReactions(browser); }],
        ['O', function () { return scenarioFirstColor(browser); }], ['Y', function () { return scenarioSalon(browser); }],   /* 미용실: 첫 실행 몸 색은 글자 O 의 둘째 묶음 (O 의 첫 묶음 = 한 화면 배치 scenarioLayoutOne 은 아래 줄 — SMOKE_ONLY=O 면 둘 다 돈다, 따로 try/catch) · Y = 미용실 */
        ['R', function () { return scenarioRunner(); }], ['S', function () { return scenarioWave7(browser); }], ['J', function () { return scenarioWave8(browser); }], ['U', function () { return scenarioGlyphs(browser); }],
