@@ -111,6 +111,7 @@
     PRESETS: PRESETS,
     FIRST: FIRST,
     P_YES: 0.625,        /* 데모 문어가 '바꾸기'를 고르는 몫 (약 5번에 3번). '그대로'가 이어져도 올리지 않는다 */
+    FIRST_DYE: true,     /* 데모 문어의 맨 처음 물음(끝난 물음 0건)은 꼭 '바꾸기' (미용실이 무엇인지 보여 준다). false 면 맨 처음도 시드 길 */
     REST_DAYS: 7,        /* '그대로'라고 한 그 색이 쉬는 날 수. 0 이면 이 규칙이 꺼진다 */
     COUNT_NONE: true,    /* 대답 없음도 그날 물음으로 센다 */
     LINE_SHOW: 24,       /* 말풍선에 보이는 글자 수 (넘으면 앞부분 + '…', 기록엔 전부) */
@@ -322,11 +323,11 @@
 
   /* ---------- 대답 ---------- */
   /* 데모 대답. 받는 것은 날짜, 이름, born, asksBefore 뿐이다 (색, 지난 대답, 쓰다듬기, 등불, 시각은 받지 않는다).
-     맨 처음 한 번(asksBefore 가 정확히 0)은 꼭 '바꾸기' (미용실이 무엇인지 보여 준다). 그 밖엔 시드 첫 값 < P_YES 면 '바꾸기'.
+     맨 처음 한 번(asksBefore 가 정확히 0)은 꼭 '바꾸기' (미용실이 무엇인지 보여 준다 — FIRST_DYE 가 켜져 있을 때). 그 밖엔 시드 첫 값 < P_YES 면 '바꾸기'.
      asksBefore 가 없거나 깨졌으면(undefined, null, NaN, 음수, 글자) 시드 길로 간다: 수를 빠뜨린 호출이 문어의 '그대로'를 지우지 못하게 */
   function demoAnswer(o) {
     o = isObj(o) ? o : {};
-    if (o.asksBefore === 0) return { action: 'dye', by: 'demo-rules', rule: 'first', seed: null, line: LINES.dye[0], expr: 'happy' };
+    if (SALON.FIRST_DYE && o.asksBefore === 0) return { action: 'dye', by: 'demo-rules', rule: 'first', seed: null, line: LINES.dye[0], expr: 'happy' };
     var seed = hashSeed('salon', o.dateKey, o.name, String(o.born || 0));
     var action = rng(seed)() < SALON.P_YES ? 'dye' : 'keep';
     var line = LINES[action][Math.floor(rng((seed ^ 0x9e3779b9) >>> 0)() * LINES[action].length)];
@@ -650,8 +651,9 @@
     var today = toKey(typeof tk === 'function' ? tk() : tk);
     /* 1. colors: '#rrggbb' 이고 how 가 first, salon, dev 인 줄만. at 순 */
     o.colors = byAt((Array.isArray(o.colors) ? o.colors : []).filter(function (c) { return isObj(c) && isHex(c.color) && HOWS.indexOf(c.how) >= 0; }).map(fixColor), -Infinity);
-    /* 2. 지금 색: 유효하면 그대로, 아니면 colors 마지막 색, 사본, 빨강 순. 사본을 맞춘다 */
-    o.color = normHex(o.color) || (o.colors.length ? o.colors[o.colors.length - 1].color : null) || normHex(s.settings.octColor) || DEFAULT_COLOR;
+    /* 2. 지금 색: colors 가 있으면 그 마지막 줄이 정한다 (놀이 중엔 늘 같다 — 내보낸 파일에서 color 한 칸만 고쳐 기록 없는 색이 되지 않게, 검증 11-10 W3).
+          colors 가 비었으면 octopus.color, 사본, 빨강 순. 사본을 맞춘다 */
+    o.color = (o.colors.length ? o.colors[o.colors.length - 1].color : null) || normHex(o.color) || normHex(s.settings.octColor) || DEFAULT_COLOR;
     s.settings.octColor = o.color;
     /* 3. 이미 놀던 기록(이름이나 산책)은 지금 색 그대로 처음 색으로 (새 기록은 비워 두고 첫 실행 창이 넣는다) */
     if (!o.colors.length && played(s)) o.colors.push({ at: finite(o.born) && o.born ? o.born : null, date: null, color: o.color, how: 'first', by: 'migrated' });
@@ -667,6 +669,16 @@
     if (today) s.salon.asks.forEach(function (a) { if (a.status === 'waiting' && a.date < today) { a.status = 'done'; a.action = null; a.by = 'fallback'; } });
     /* 6. 같은 날 그날 물음이 둘 이상이면 이른 것이 정한다 (merge 와 같은 규칙). 'dye' 물음의 빠진 colors 줄은 지어내지 않는다 */
     settle(s);
+    /* 7. 미용실 색 줄(how 'salon')의 고른 이는 그 물음이 뒷받침할 때만 믿는다: 같은 id 의 끝난 '바꾸기' 물음이 있고 고른 이와 색이 같아야 한다.
+          아니면 by 'unknown' (줄과 색은 그대로 둔다 — 지어내지도 지우지도 않는다). 손으로 써 넣은 { how: 'salon', by: 'model' } 줄을
+          방 보기(look)가 모델이 고른 변화로 알리지 않게 (검증 11-10 W4). 놀이가 쓰는 줄은 늘 물음과 함께 적힌다 (commit, merge) */
+    var backing = Object.create(null);
+    s.salon.asks.forEach(function (a) { backing[a.id] = a; });
+    o.colors.forEach(function (c) {
+      if (c.how !== 'salon') return;
+      var a = typeof c.ask === 'string' ? backing[c.ask] : null;
+      if (!(a && a.status === 'done' && a.action === 'dye' && a.by === c.by && a.offer === c.color)) c.by = 'unknown';
+    });
     return s;
   }
 
