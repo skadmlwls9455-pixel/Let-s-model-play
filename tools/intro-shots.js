@@ -5,7 +5,10 @@
  *  0) 부팅 경로 (11-11, 진짜 부팅 ?intro=1 · 시간은 debugStep 으로만 → 기계가 바빠도 같은 값): 하늘은 진짜 장면 크기로 지어진다 —
  *     하늘이 처음 그려질 때의 렌더 크기 = 장면 칸 크기 = 그 뒤(1 s 넘게 지난 뒤)의 크기 · 출발 높이 = 화면 높이의 INTRO.SKY.height 배 (360×740 · 430×932) ·
  *     맨 위 멈춤 중에 화면 크기가 바뀌어도(→ 412×915) 그대로 · 뚫는 구름이 화면 폭을 다 덮는다 (가운데 가로줄이 끝에서 끝까지 구름 몸 색).
- *     예전엔 숨은 칸(0×0 → 320×240 어림)에서 지어 폰에서 0.85 화면 높이 · 폭 368 px 짜리였는데, 3) 은 부팅 뒤에 다시 시작해서 재므로 못 잡았다. BOOT_ONLY=1 이면 0) 만 돌린다
+ *     예전엔 숨은 칸(0×0 → 320×240 어림)에서 지어 폰에서 0.85 화면 높이 · 폭 368 px 짜리였는데, 3) 은 부팅 뒤에 다시 시작해서 재므로 못 잡았다. BOOT_ONLY=1 이면 0) 만 돌린다.
+ *     크기가 바뀔 때 (11-11 보강): 내려가는 중(1.0 s)에 한 번 더 바뀌어도(→ 430×932) 진행도와 높이가 그대로다 (연출이 처음부터 다시 돌지 않는다) · 하늘은 한 겹이다 —
+ *     덮임 프레임의 드로우콜 = 그 크기로 바로 부팅한 페이지의 값, 착지 뒤의 드로우콜 · frameY = 연출 없는 부팅(?intro=0)의 값 (옛 하늘이 장면에 남으면 는다) ·
+ *     줌만 바뀌어도(API zoomStep) 높이가 그대로다 · 연출 없는 부팅에서도 장면이 첫 프레임부터 장면 칸 크기다 (app.js 가 칸을 먼저 드러낸다)
  *  1) 첫 실행: ?intro=1 → 하늘 단계 → 로고 올라옴 → 로고 누름 → 레이어 사라짐 → 이름 창이 그다음에 열림
  *  2) 다시 열기: 하늘 단계 중에 누르면 바로 착지 + 바로 게임 (이름 창 없음), 아래 UI 가 inert 풀림
  *  3) 장면 카메라 하강 프레임 스트립 (debugStep, 결정적, INTRO.SKY 와 같은 dur · top · height): 멈춤 끝 · 구름 사이 · 뚫기 직전 · 덮임 · 구름 밑 · 지붕 · 착지
@@ -34,7 +37,7 @@ function fail(msg) { console.error('✗ ' + msg); process.exitCode = 1; }
   await page.addInitScript(function (h) { window.__ppolLook = h; }, { hour: HOUR, lantern: 8, weather: WEATHER, octState: 'idle', anchor: 'center' });
   async function shot(name) { await page.screenshot({ path: path.join(OUT, name + '.png') }); console.log('  📷 tests/evidence/intro/' + name + '.png'); }
 
-  /* 0) 부팅 경로: 하늘이 진짜 장면 크기로 지어지는가. 페이지가 내놓는 것만 쓴다 (APP.scene.stats · debugStep · introProgress · INTRO.SKY · CLOUDS.ramp) */
+  /* 0) 부팅 경로: 하늘이 진짜 장면 크기로 지어지는가. 페이지가 내놓는 것만 쓴다 (APP.scene.stats · debugStep · introProgress · introSkip · zoomStep · setExpression · INTRO.SKY · CLOUDS.ramp) */
   function raf2(pg) { return pg.evaluate(function () { return new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); }); }); }
   async function midRow(pg) {   /* 장면 캔버스 한가운데 가로 한 줄 (화면에 보이는 그대로) 의 색 세기 */
     await raf2(pg);
@@ -53,53 +56,95 @@ function fail(msg) { console.error('✗ ' + msg); process.exitCode = 1; }
       });
     }, b64);
   }
-  async function bootSky(W, H, W2, H2) {   /* W2 × H2 가 있으면 맨 위 멈춤 중에 그 크기로 바꾼다 */
+  var LOOK = { hour: HOUR, lantern: 8, weather: WEATHER, octState: 'idle', anchor: 'center' }, same = function (x, y) { return x[0] === y[0] && x[1] === y[1]; };
+  async function bootPage(W, H, sky) {   /* 새 context 의 새 페이지. sky = 진짜 부팅 ?intro=1, 아니면 연출 없는 부팅 ?intro=0 */
     var bctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, locale: 'ko-KR' });
-    var bp = await bctx.newPage(), tag = '부팅 ' + W + '×' + H + ': ';
+    var bp = await bctx.newPage();
     bp.on('pageerror', function (e) { errs.push('pageerror(부팅 경로): ' + e.message); });
-    await bp.addInitScript(function (h) { window.__ppolLook = h; }, { hour: HOUR, lantern: 8, weather: WEATHER, octState: 'idle', anchor: 'center' });
-    await bp.addInitScript(function () {   /* 하늘이 처음 그려지는 프레임 바로 앞에서 렌더 크기를 적고 장면 루프를 멈춘다 (이 rAF 는 장면 루프보다 먼저 등록되어 먼저 돈다) */
+    await bp.addInitScript(function (h) { window.__ppolLook = h; }, LOOK);
+    await bp.addInitScript(function (sky) {   /* 하늘이 처음 그려지는 프레임 (sky) · 장면이 생긴 뒤 첫 프레임 (연출 없음) 바로 앞에서 렌더 크기를 적고 장면 루프를 멈춘다 (이 rAF 는 장면 루프보다 먼저 등록되어 먼저 돈다 · 첫 ResizeObserver 보다도 먼저다) */
       window.__boot = null;
       (function tick() {
-        try { if (window.APP && APP.scene && APP.scene.introActive && APP.scene.introActive()) { var t0 = APP.scene.stats().target.slice(); APP.scene.debugStep(0.001); window.__boot = { target0: t0 }; return; } }
+        try { var sc = window.APP && APP.scene; if (sc && sc.stats && sc.debugStep && (!sky || (sc.introActive && sc.introActive()))) { var t0 = sc.stats().target.slice(); sc.debugStep(0.001); window.__boot = { target0: t0 }; return; } }
         catch (e) { window.__boot = { err: String(e) }; return; }
         requestAnimationFrame(tick);
       })();
-    });
-    await bp.goto(INDEX + '?intro=1');
-    await bp.waitForFunction(function () { return !!window.__boot && document.documentElement.classList.contains('intro-live'); }, null, { timeout: 60000 });   /* intro-live = 그 뒤로 세 프레임 → 첫 ResizeObserver 도 이미 왔다 */
-    var read = function () { return bp.evaluate(function () { APP.scene.debugStep(0.001); var s = APP.scene.stats(), el = document.getElementById('scene3d'), k = INTRO.SKY; return { boot: window.__boot, target: s.target, box: [Math.floor(el.clientWidth / s.pixel), Math.floor(el.clientHeight / s.pixel)], frameY: s.frameY, p: APP.scene.introProgress(), on: APP.scene.introActive(), hold: k.top / k.dur, height: k.height, dur: k.dur }; }); };
+    }, !!sky);
+    await bp.goto(INDEX + (sky ? '?intro=1' : '?intro=0'));
+    await bp.waitForFunction(function (sky) { return !!window.__boot && (!sky || document.documentElement.classList.contains('intro-live')); }, !!sky, { timeout: 60000 });   /* intro-live = 그 뒤로 세 프레임 → 첫 ResizeObserver 도 이미 왔다 */
+    if (!sky) await raf2(bp);   /* 연출이 없을 땐 두 프레임 기다려 첫 ResizeObserver 를 받는다 */
+    return bp;
+  }
+  /* 한 걸음(0.001 s) 그리고 읽는다. skip 이면 그 앞에 introSkip() 으로 착지시킨다 */
+  function read(bp, skip) { return bp.evaluate(function (skip) { if (skip) APP.scene.introSkip(); APP.scene.debugStep(0.001); var s = APP.scene.stats(), el = document.getElementById('scene3d'), k = INTRO.SKY; return { boot: window.__boot, target: s.target, box: [Math.floor(el.clientWidth / s.pixel), Math.floor(el.clientHeight / s.pixel)], frameY: s.frameY, calls: s.calls, expr: s.expr, p: APP.scene.introProgress(), on: APP.scene.introActive(), hold: k.top / k.dur, height: k.height, dur: k.dur }; }, !!skip); }
+  async function bootRef(W, H) {   /* 연출 없는 부팅: 장면이 첫 프레임부터 장면 칸 크기인가 (app.js 가 칸을 드러낸 뒤에 장면을 만드는가). 쉬는 자리의 frameY 와 표정별 드로우콜 (callsOf) 을 돌려준다 — 아래에서 견준다. 페이지는 열어 둔다 (끝에서 닫는다) */
+    var bp = await bootPage(W, H, false), tag = '연출 없는 부팅 ' + W + '×' + H + ': ', r = await read(bp);
+    if (r.boot.err) { fail(tag + r.boot.err); await bp.context().close(); return null; }
+    if (!same(r.boot.target0, r.box) || !same(r.target, r.box)) fail(tag + '장면이 생긴 뒤 첫 프레임의 렌더 크기 ' + r.boot.target0.join('×') + ' · 조금 뒤 ' + r.target.join('×') + ' · 장면 칸 ' + r.box.join('×') + ' — 셋이 같아야 한다 (장면 칸을 먼저 드러내고 장면을 만든다: app.js initScene)');
+    console.log('  ' + tag + '첫 프레임의 렌더 크기 ' + r.boot.target0.join('×') + ' (장면 칸 ' + r.box.join('×') + ') · 쉬는 자리 드로우콜 ' + r.calls + ' · frameY ' + r.frameY);
+    /* 쉬는 자리의 드로우콜은 문어 표정에 따라 다르다 (얼굴 덧그림 = +2). 입장 레이어는 타이틀이 뜰 때 표정을 바꾸는데 그 때는 벽시계(안전판 2.5배)로도 오므로, 견줄 때는 같은 표정의 값을 쓴다 */
+    var by = {}; by[r.expr] = r.calls;
+    r.callsOf = async function (expr) { if (!(expr in by)) by[expr] = await bp.evaluate(function (e) { APP.scene.setExpression(e); APP.scene.debugStep(0.001); return APP.scene.stats().calls; }, expr); return by[expr]; };
+    r.close = function () { return bp.context().close(); };
+    return r;
+  }
+  /* o.hold = [w, h]: 맨 위 멈춤 중에 그 크기로 · o.mid = [w, h]: 내려가는 중(1.0 s)에 그 크기로 · o.zoom = k: 뚫는 구름을 지날 때 줌 멈춤 k 로 (API) ·
+     o.ref = 끝 크기와 같은 크기의 연출 없는 부팅 (bootRef) · o.calls = 끝 크기로 바로 부팅한 페이지의 덮임 프레임 드로우콜. 덮임 프레임의 드로우콜을 돌려준다 */
+  async function bootSky(W, H, o) {
+    o = o || {};
+    var bp = await bootPage(W, H, true), tag = '부팅 ' + W + '×' + H + ': ', x = function (s) { return s[0] + '×' + s[1]; };
     /* 시간은 debugStep 으로만 민다. 한 번에 0.1 s 까지 (장면이 dt 를 0.1 s 로 자른다) — 카메라 높이는 진행 시간의 닫힌 식이라 걸음 크기와 상관없고, SwiftShader 는 한 프레임이 비싸서 걸음 수를 아낀다 */
     var step = function (sec) { var n = Math.max(1, Math.ceil(sec / 0.1 - 1e-9)); return bp.evaluate(function (a) { for (var j = 0; j < a.n; j++) APP.scene.debugStep(a.dt); }, { n: n, dt: sec / n }); };
-    var size = async function (w, h, not) { await bp.setViewportSize({ width: w, height: h }); await bp.waitForFunction(function (t) { var s = APP.scene.stats().target; return s[0] !== t[0] || s[1] !== t[1]; }, not, { timeout: 60000 }); };
-    var a = await read(), b = null, same = function (x, y) { return x[0] === y[0] && x[1] === y[1]; };
-    if (a.boot.err) { fail(tag + a.boot.err); await bctx.close(); return; }
+    var size = async function (wh, not) { await bp.setViewportSize({ width: wh[0], height: wh[1] }); await bp.waitForFunction(function (t) { var s = APP.scene.stats().target; return s[0] !== t[0] || s[1] !== t[1]; }, not, { timeout: 60000 }); };
+    var a = await read(bp), b = null, c = null, d = null, z = null, way = [[W, H]];
+    if (a.boot.err) { fail(tag + a.boot.err); await bp.context().close(); return null; }
     if (!(a.on && a.p < a.hold)) fail(tag + '맨 위 멈춤 안에서 못 멈춤 (진행도 ' + a.p + ')');
     if (!same(a.boot.target0, a.box) || !same(a.target, a.box)) fail(tag + '하늘이 처음 그려질 때 렌더 크기 ' + a.boot.target0.join('×') + ' · 조금 뒤 ' + a.target.join('×') + ' · 장면 칸 ' + a.box.join('×') + ' — 셋이 같아야 한다');
-    if (W2) {
-      await size(W2, H2, a.target); b = await read();
+    var cur = a;
+    if (o.hold) {
+      await size(o.hold, a.target); cur = b = await read(bp); way.push(o.hold);
       if (!(b.on && b.p < b.hold)) fail(tag + '크기를 바꾼 뒤 맨 위 멈춤 밖 (진행도 ' + b.p + ')');
-      if (!same(b.target, b.box)) fail(tag + '→ ' + W2 + '×' + H2 + ' 뒤 렌더 크기 ' + b.target.join('×') + ' ≠ 장면 칸 ' + b.box.join('×'));
+      if (!same(b.target, b.box)) fail(tag + '→ ' + x(o.hold) + ' 뒤 렌더 크기 ' + b.target.join('×') + ' ≠ 장면 칸 ' + b.box.join('×'));
     }
-    var cur = b || a;
+    if (o.mid) {   /* 내려가는 중의 크기 바뀜 (폰 돌리기 · 주소창): 진행도는 그대로여야 한다 — 하늘을 새로 짓는다고 연출이 처음부터 다시 돌면 안 된다 */
+      await step(1.0 - cur.p * cur.dur); c = await read(bp); await size(o.mid, c.target); cur = d = await read(bp); way.push(o.mid);
+      if (!(d.on && Math.abs(d.p - c.p) <= 0.005)) fail(tag + '내려가는 중(' + (c.p * c.dur).toFixed(2) + ' s)에 ' + x(o.mid) + ' 로 바뀌자 진행도가 ' + c.p.toFixed(4) + ' → ' + d.p.toFixed(4) + ' (그대로여야 한다)');
+      if (!same(d.target, d.box)) fail(tag + '→ ' + x(o.mid) + ' 뒤 렌더 크기 ' + d.target.join('×') + ' ≠ 장면 칸 ' + d.box.join('×'));
+    }
     await step(1.36 - cur.p * cur.dur);   /* 뚫는 구름 몸 한가운데가 화면 가운데를 지날 무렵 (곡선에서 1.39 s, 다 덮는 프레임은 1.35 ~ 1.37 s) */
-    var mid = await read(), row = await midRow(bp);
+    var mid = await read(bp), row = await midRow(bp);
     if (!same(mid.target, cur.target)) fail(tag + '1 s 넘게 지난 뒤 렌더 크기가 ' + cur.target.join('×') + ' → ' + mid.target.join('×') + ' 로 바뀜');
     if (!(row.share === 1 && row.top === row.body)) fail(tag + '뚫는 구름이 화면 폭(' + row.n + ' px)을 다 못 덮음: 가운데 가로줄의 ' + Math.round(row.share * 1000) / 10 + ' % 가 ' + row.top + ' (구름 몸 색 ' + row.body + ')');
-    await bp.evaluate(function () { APP.scene.introSkip(); });   /* 쉬는 자리 (연출 없는 카메라) 의 frameY 를 재려고 착지시킨다 */
-    var rest = await read(), restA = rest.frameY;
+    /* 하늘은 한 겹: 크기가 바뀐 뒤의 덮임 프레임은 그 크기로 바로 부팅한 페이지의 같은 순간과 드로우콜이 같다 (옛 하늘이 장면에 남으면 그 구름만큼 는다) */
+    if (o.calls != null && mid.calls !== o.calls) fail(tag + '크기가 바뀐 뒤 덮임 프레임의 드로우콜 ' + mid.calls + ' ≠ ' + x(way[way.length - 1]) + ' 로 바로 부팅한 페이지의 ' + o.calls + ' (옛 하늘이 남아 두 겹이면 는다)');
+    if (o.zoom) { await bp.evaluate(function (k) { APP.scene.zoomStep(k); }, o.zoom); z = await read(bp); }   /* 줌만 바뀜 (N 만 바뀌고 resize() 는 안 거친다) */
+    var rest = await read(bp, true), restZ = rest.frameY, callsR = rest.calls;   /* 쉬는 자리 (연출 없는 카메라) 를 재려고 착지시킨다 */
     if (rest.on) fail(tag + 'introSkip 뒤에도 하늘 단계가 안 끝남');
-    if (W2) { await size(W, H, rest.target); restA = (await read()).frameY; }
-    var hA = a.frameY - restA, hB = b ? b.frameY - rest.frameY : null;
+    if (z) { await bp.evaluate(function () { APP.scene.zoomStep(0); }); rest = await read(bp); }
+    /* 착지한 뒤에는 연출 없이 부팅한 페이지와 같다: 카메라 자리 (frameY 는 소수 셋째 자리로 반올림된 값 — 아트 1px 은 0.002 쯤이다) · 드로우콜 (옛 하늘이 장면에 남아 있으면 비 · 별만큼 는다 — 밤 비일 때 가장 잘 보인다. 줌을 건드린 페이지에서는 견주지 않는다) */
+    if (o.ref && Math.abs(rest.frameY - o.ref.frameY) > 0.0015) fail(tag + '착지 뒤 frameY ' + rest.frameY + ' ≠ 연출 없는 부팅의 ' + o.ref.frameY + ' (카메라가 쉬는 자리가 아니다)');
+    var callsN = o.ref && !z ? await o.ref.callsOf(rest.expr) : null;
+    if (callsN != null && callsR !== callsN) fail(tag + '착지 뒤 드로우콜 ' + callsR + ' ≠ 연출 없는 부팅의 ' + callsN + ' (표정 ' + rest.expr + ' · 하늘이 장면에 남았다)');
+    var rests = [], tgt = rest.target, last = way.length - 1; rests[last] = rest.frameY;
+    for (var i = last - 1; i >= 0; i--) { await size(way[i], tgt); var r = await read(bp); rests[i] = r.frameY; tgt = r.target; }   /* 지나온 크기마다 쉬는 자리를 잰다 */
+    var hA = a.frameY - rests[0], hB = b ? b.frameY - rests[1] : null, hC = c ? c.frameY - rests[last - 1] : null, hD = d ? d.frameY - rests[last] : null, hM = mid.frameY - rests[last], hZ = z ? z.frameY - restZ : null;
     if (Math.abs(hA - a.height) > 0.05) fail(tag + '출발 높이가 화면 높이의 ' + hA.toFixed(3) + ' 배 (' + a.height + ' 배여야 한다)');
-    if (b && Math.abs(hB - a.height) > 0.05) fail(tag + '맨 위 멈춤 중 ' + W2 + '×' + H2 + ' 로 바뀐 뒤 출발 높이가 화면 높이의 ' + hB.toFixed(3) + ' 배 (' + a.height + ' 배여야 한다)');
-    console.log('  부팅 ' + W + '×' + H + ': 렌더 크기 ' + a.boot.target0.join('×') + ' (장면 칸 ' + a.box.join('×') + ') · 출발 높이 ' + hA.toFixed(3) + ' 화면' + (b ? ' · → ' + W2 + '×' + H2 + ' (' + b.target.join('×') + ') 뒤 ' + hB.toFixed(3) + ' 화면' : '') + ' · 가운데 가로줄 ' + Math.round(row.share * 1000) / 10 + ' % ' + row.top + ' / ' + row.n + ' px');
-    await bctx.close();
+    if (b && Math.abs(hB - a.height) > 0.05) fail(tag + '맨 위 멈춤 중 ' + x(o.hold) + ' 로 바뀐 뒤 출발 높이가 화면 높이의 ' + hB.toFixed(3) + ' 배 (' + a.height + ' 배여야 한다)');
+    /* 쉬는 자리 위의 높이 (화면 높이의 배수) 는 진행 시간만의 함수다 → 크기나 줌이 바뀌어도 바뀌기 직전과 같아야 한다 (한 걸음 0.001 s 만큼만 다르다) */
+    if (d && Math.abs(hC - hD) > 0.05) fail(tag + '내려가는 중 ' + x(o.mid) + ' 로 바뀌자 높이가 화면 높이의 ' + hC.toFixed(3) + ' → ' + hD.toFixed(3) + ' 배 (같아야 한다)');
+    if (z && Math.abs(hM - hZ) > 0.05) fail(tag + '줌 멈춤 ' + o.zoom + ' 으로 바뀌자 높이가 화면 높이의 ' + hM.toFixed(3) + ' → ' + hZ.toFixed(3) + ' 배 (같아야 한다)');
+    console.log('  ' + tag + '렌더 크기 ' + a.boot.target0.join('×') + ' (장면 칸 ' + a.box.join('×') + ') · 출발 높이 ' + hA.toFixed(3) + ' 화면' + (b ? ' · → ' + x(o.hold) + ' (' + b.target.join('×') + ') 뒤 ' + hB.toFixed(3) + ' 화면' : '') +
+      (d ? ' · ' + (c.p * c.dur).toFixed(2) + ' s 에 → ' + x(o.mid) + ' (' + d.target.join('×') + '): 진행도 ' + c.p.toFixed(4) + ' → ' + d.p.toFixed(4) + ' · 높이 ' + hC.toFixed(3) + ' → ' + hD.toFixed(3) + ' 화면' : '') +
+      ' · 가운데 가로줄 ' + Math.round(row.share * 1000) / 10 + ' % ' + row.top + ' / ' + row.n + ' px · 덮임 프레임 드로우콜 ' + mid.calls + (o.calls != null ? ' (바로 부팅 ' + o.calls + ')' : '') +
+      (z ? ' · 줌 멈춤 ' + o.zoom + ': 높이 ' + hM.toFixed(3) + ' → ' + hZ.toFixed(3) + ' 화면' : ' · 착지 뒤 드로우콜 ' + callsR + (callsN != null ? ' (연출 없는 부팅 ' + callsN + ' · 표정 ' + rest.expr + ')' : '')) + ' · frameY ' + rest.frameY);
+    await bp.context().close(); return mid.calls;
   }
   var bad0 = process.exitCode;
-  await bootSky(360, 740, 412, 915);
-  await bootSky(430, 932);
-  if (process.exitCode === bad0) console.log('  ✓ 부팅 경로: 하늘이 진짜 장면 크기로 지어진다');
+  var ref = await bootRef(430, 932);
+  var direct = await bootSky(430, 932, { zoom: 3, ref: ref });
+  await bootSky(360, 740, { hold: [412, 915], mid: [430, 932], ref: ref, calls: direct });
+  if (ref) await ref.close();
+  if (process.exitCode === bad0) console.log('  ✓ 부팅 경로: 하늘이 진짜 장면 크기로 지어지고, 크기가 바뀌어도 한 겹으로 이어진다');
   if (process.env.BOOT_ONLY) { await browser.close(); if (errs.length) { errs.forEach(function (e) { console.error('  ' + e); }); fail('에러 ' + errs.length + '건'); } console.log(process.exitCode ? '실패' : 'OK — 입장 레이어 (부팅 경로만)'); return; }
 
   /* 1) 첫 실행 */

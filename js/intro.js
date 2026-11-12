@@ -14,7 +14,7 @@
  *   날짜는 앱과 같은 로컬 날짜(YYYY-MM-DD)이고 테스트 날짜 훅 window.__ppolTest.today 를 따른다. 기록은 localStorage 'ppolppol_intro_day' 하나.
  *   저장소가 막혀 있으면 예전처럼 매번 보인다. ?intro=1 은 같은 날에도 강제로 보인다.
  * WebGL 이 없으면 (2D 대체) 같은 곡선으로 무대를 아래에서 올리고, 같은 구름 그림(js/clouds.js)을 화면 구멍 안에서 띄운다.
- * 장면 쪽 새 곡선·하늘 띠·뚫는 구름은 docs/shots/intro-slow/scene3d-intro.patch (주 세션이 장면 열쇠 차례에 넣는다). 패치가 없어도 그대로 돈다 — 옛 곡선으로.
+ * 장면 쪽 곡선·하늘 띠·뚫는 구름은 js/scene3d.js 의 startIntro · buildSky · skyLayout 에 들어 있다 (11-10, docs/INTRO_SLOW_PROTO.md §3). 하늘은 그때의 장면 크기로 짓고 크기가 바뀌면 다시 짓는다 (11-11, §8).
  * 모션 감소: 카메라는 바로 착지, 로고·덮개는 페이드만, 알갱이·깜빡임 정지.
  * 계약: INTRO.start(scene, { mode: '3d'|'2d', reduced, host }) → true 면 연출 중 (끝나면 INTRO.onDone 콜백). app.js boot 가 부른다.
  * 이 파일은 <head> 에서 읽어 html.intro-on 을 먼저 붙인다 (UI 가 한 프레임 보였다 사라지는 깜빡임 방지).
