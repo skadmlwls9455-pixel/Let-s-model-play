@@ -1312,11 +1312,12 @@ async function scenarioNotes(browser) {
   await page.goto(DEV);
   await page.waitForSelector('#name-dialog[open]');
   /* 오늘 첫 산책이 메모(noteOut)를 남기는 이름 — 메모를 쓰지 않는 날도 정당하지만 여기선 이어지는 걸 보려고 */
+  /* 미리 굴리는 입력은 앱(brainInput)과 같게: 온라인 · 그날의 '오늘의 서가' (11-12 — 서가 산책은 방이 없어 메모가 안 생긴다. 서가 없이 굴리면 그런 날 다른 이름을 못 골라 실패했다) */
   var name = await page.evaluate(async function () {
     var names = ['뚜루', '안개', '삐죠', '구름', '조약돌', '먹물', '단추', '파도', '이끼', '별', '솔방울', '종이배'];
     var d = new Date(), dk = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     for (var n of names) {
-      var t = await BRAIN.plan({ seed: BRAIN.hashSeed(dk, '', 1, n), dateKey: dk, seq: 1, hint: '', name: n, state: { visits: {}, affinity: {}, lantern: 0, recent: [], todayOut: 0, lanternLeft: true }, now: d, online: false, by: 'demo' });
+      var t = await BRAIN.plan({ seed: BRAIN.hashSeed(dk, '', 1, n), dateKey: dk, seq: 1, hint: '', name: n, state: { visits: {}, affinity: {}, lantern: 0, recent: [], todayOut: 0, lanternLeft: true }, now: d, online: navigator.onLine !== false, by: 'demo', shelf: (typeof SHELF !== 'undefined' && SHELF.today) ? SHELF.today(dk, BRAIN, 8) : undefined });
       if (t.kind === 'out' && t.noteOut && t.noteOut.text) return n;
     }
     return names[0];
