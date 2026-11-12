@@ -2961,15 +2961,16 @@ async function scenarioWave8(browser) {
   ok(stE.hidden && !stE.allowed && stE.edge && both.frames > 10 && both.both === 0 && (!both.byView.exterior || !both.byView.exterior.stick) && (!stickApi || (both.byView.play && both.byView.play.stick > 0)), '바깥이 보일 땐 스틱은 숨고 집 단추만 — 놀이방 → 다락 → 바깥 ' + both.frames + ' 프레임 동안 둘 다 보인 프레임 0 · 바깥에서 스틱 0 프레임');
   await page.locator('#scene').screenshot({ path: path.join(SHOTS, 'w8-exterior-door.png') });
   await page.click('#btn-door'); await inPlay();
+  /* 행 수는 진짜 행만 센다 (11-12): '…' 쓰는 중 자리 행(.lrow.typing)은 다음 행이 오면 그 자리를 대신한다 — 놀이방에 들어간 순간 그 자리 행이 떠 있으면 귀가 행이 와도 수가 그대로라 맞고 틀림이 기계 속도에 달렸다 */
   var w0 = await page.evaluate(function () {
     window.__left = []; window.__inPlay = true;
     (function f() { if (!window.__inPlay) return; var v = APP.scene.view(); if (v !== 'play') window.__left.push(v); requestAnimationFrame(f); })();
-    return { rows: document.querySelectorAll('#log .lrow').length, place: APP.scene.place(), running: APP.state.trips.some(function (t) { return t.status === 'running'; }) };
+    return { rows: document.querySelectorAll('#log .lrow:not(.typing)').length, place: APP.scene.place(), running: APP.state.trips.some(function (t) { return t.status === 'running'; }) };
   });
   await page.waitForFunction(function () { return !document.getElementById('back-note').hidden && document.getElementById('back-note-txt').textContent; }, null, { timeout: 90000 });
   var w1 = await page.evaluate(function () {
     var n = document.getElementById('back-note'), b = document.getElementById('btn-back-see').getBoundingClientRect(), sc = document.getElementById('scene').getBoundingClientRect(), ctl = document.getElementById('scene-ctl').getBoundingClientRect(), q = n.getBoundingClientRect();
-    return { rows: document.querySelectorAll('#log .lrow').length, place: APP.scene.place(), view: APP.scene.view(), left: window.__left.slice(), txt: document.getElementById('back-note-txt').textContent, role: document.getElementById('back-note-txt').getAttribute('role'), btn: { t: document.getElementById('btn-back-see').textContent, w: Math.round(b.width), h: Math.round(b.height) },
+    return { rows: document.querySelectorAll('#log .lrow:not(.typing)').length, place: APP.scene.place(), view: APP.scene.view(), left: window.__left.slice(), txt: document.getElementById('back-note-txt').textContent, role: document.getElementById('back-note-txt').getAttribute('role'), btn: { t: document.getElementById('btn-back-see').textContent, w: Math.round(b.width), h: Math.round(b.height) },
       inside: q.left >= sc.left && q.right <= sc.right && q.bottom <= sc.bottom + 0.5, ctl: q.left < ctl.right && q.right > ctl.left && q.top < ctl.bottom && q.bottom > ctl.top, oct: getComputedStyle(document.getElementById('oct')).display, bub: !document.getElementById('oct-bubble').hidden && getComputedStyle(document.getElementById('oct')).display !== 'none' };
   });
   console.log('   in play during walk:', JSON.stringify({ w0: w0, w1: w1 }));
