@@ -34,7 +34,7 @@ var APP = (function () {
   var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' };   /* 상태의 기본 표정 (SCENE.md 초상·표정) — 대화창 표정은 4 s 뒤 여기로 돌아온다 */
   /* 자는 문어를 누르면 · 깨어 있는 문어를 톡 누르면 (말풍선만 — 로그 · 저장에 안 남는다, 11-08). 소리(js/audio.js)는 글자가 아니라 kind('sleep' · 'curious' · 'say')로 고른다.
      깨어 있으면 '응?' 대신 그날 마지막으로 끝낸 차례에 대한 한 줄 (BRAIN.tapLine · 주인 11-08) — 없으면 '응?' */
-  var SLEEP_SAY = '쿨쿨…', TAP_SAY = '응?', SLEEP_DOWN_SAY = '지금은 아래층에서 자고 있어.';
+  var SLEEP_SAY = '쿨쿨…', TAP_SAY = '응?', SLEEP_DOWN_SAY = '지금은 아래층에서 자고 있어.', DOWN_SAY = '지금은 아래층에 있어.', AWAY_SAY = '지금은 산책 나가 있어.';
   var TAP_CLIP = 24;   /* 모델 · 사람이 쓴 톡 한 줄: 화면엔 24글자 + '…' (원문은 기록 그대로) */
   /* 돌아온 뒤 담요에서 깨어 있는 틈 (주인 11-08 '자동으로 쉬는 느낌'): 보이는 다락에서 90 s → 그다음 낮잠. 탭을 떠났거나 · 놀이방 · 창이 열렸거나 · 장면을 아래로 내려 둔 동안은 세지 않고,
      돌아오면 적어도 15 s 는 깨어 있다. 게임 기록엔 저장하지 않는다 (이 탭의 새로고침만 남은 틈을 sessionStorage 로 이어 받는다 — 없으면 차례가 끝난 시각부터 센다).
@@ -810,7 +810,7 @@ var APP = (function () {
   function openSalon() {
     var d = $('salon-sheet');
     /* 11-11 미용실은 위층: 3D 에서는 문어가 위층에 따라 올라와 있을 때만 연다. 다락(거울 없음)에서는 열리지 않고, 위층인데 문어가 아래층에서 자고 있으면 한 줄만 (깨우지 않는다 · 기록 0) */
-    if (sceneMode === '3d' && !octWithMe()) { if (SAL && scene && d && roomNow() === 'loft' && oct.state === 'sleep' && !salonRun && !busy && !roomJob) toast(SLEEP_DOWN_SAY); return false; }
+    if (sceneMode === '3d' && !octWithMe()) { if (SAL && scene && d && roomNow() === 'loft' && !salonRun && !busy && !roomJob) toast(oct.state === 'sleep' ? SLEEP_DOWN_SAY : oct.state === 'away' ? AWAY_SAY : DOWN_SAY); return false; }   /* 11-12 (검증): 깨어서 아래층에 있을 때도 한 줄 (혼자 올라오게 하지는 않는다) */
     if (!SAL || !scene || !d || salonRun || busy || (inPlay() && !octWithMe()) || roomJob || introUp() || furnMode) return false;   /* 방(놀이방 · 위층)에서는 문어가 따라 올라와 있을 때만 (11-11 미용실은 위층) · furnMode = 가구 배치 중 */
     if (d.open) return true;
     syncFromStore();   /* 다른 탭이 오늘 이미 물었으면 시트 대신 토스트 */
@@ -1413,7 +1413,7 @@ var APP = (function () {
   function scheduleWander() {
     stopWander();
     oct.wanderTimer = setTimeout(function () {
-      if (oct.busy || salonActive || oct.state !== 'idle' || document.hidden || rest) { scheduleWander(); return; }   /* 깨어 있는 틈엔 담요에 있는다 · 미용실 연출 중엔 그 자리 */
+      if (oct.busy || salonActive || oct.state !== 'idle' || document.hidden || rest || octWithMe()) { scheduleWander(); return; }   /* 11-12: 위층에 따라 올라와 있는 동안엔 온 자리에 있는다 (돌아다닐 자리는 다락 것뿐) */   /* 깨어 있는 틈엔 담요에 있는다 · 미용실 연출 중엔 그 자리 */
       var opts = allowedIdleAnchors().filter(function (a) { return a !== oct.anchor; });
       var next = opts[Math.floor(uiRng() * opts.length)] || 'center';
       scheduleWander();   /* 다음 산책은 지금 예약: 걷기가 다른 이동에 끊기면 그 Promise 는 풀리지 않는다 → .then 에서 걸면 산책이 영영 멈춘다 */
@@ -2938,7 +2938,7 @@ var APP = (function () {
       return { id: sv.id, tripId: sv.tripId, name: def ? def.name : sv.id, img: assetPath('souvenir.' + sv.id), icon: window.UIART && UIART.iconSrc && def ? UIART.iconSrc('souvenir/' + sv.id) : null };   /* 그림이 안 오면 16×16 기념품 아이콘 (2D 선반 · js/scene2d.js) — 이모지는 쓰지 않는다 */
     }));
   }
-  function renderAll() { renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderLog(); renderShelf(); }
+  function renderAll() { renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderLog(); renderShelf(); renderBagChip(); applyGarden(); applyDye(); var bs = $('bag-sheet'); if (bs && bs.open) renderBag(); }   /* 살림(조개 꼬리표 · 바깥 텃밭 · 옷 색)도 — 초기화 · 불러오기 · 다른 탭 뒤 (11-12 검증) */
   /* 큰 도서관 '오늘의 서가' — 날짜로 정해지는 8편 (js/shelf.js, MCP 서버와 같은 뽑기). 고른 이가 없는 무작위라 문어 마음을 대신 말하지 않는다 */
   function renderShelf() {
     var box = $('shelf-today'), ul = $('shelf-list'); if (!box || !ul) return;
@@ -4277,7 +4277,7 @@ var APP = (function () {
      · '문어한테 산책 갈지 묻기' 는 묻는 것만 센다 — 나갈지 집에 있을지는 문어가 정한다.
      저장: S.user.week = { key: 그 주 월요일, q: [{ id, n, rr }] × 7, claimed } */
   var QUESTS = [['ask', '문어한테 산책 갈지 묻기', 2], ['run', '다락방 달리기 한 판', 1], ['water', '텃밭에 물 주기', 2], ['plant', '씨앗 심기', 1], ['harvest', '꽃 거두기', 1], ['furn', '가구 하나 옮겨 놓기', 1],
-    ['loft', '위층 옷방 올라가 보기', 1], ['kitchen', '부엌 방 들르기', 1], ['look', '내 모습 열어 보기', 1], ['diary', '포스터 일기 펼쳐 보기', 1], ['gift', '선물 상자에서 하나 내밀기', 1], ['days', '이번 주에 사흘 들어오기', 3]];
+    ['loft', '위층 옷방 올라가 보기', 1], ['kitchen', '부엌 방 들르기', 1], ['look', '내 모습 열어 보기', 1], ['diary', '포스터 일기 펼쳐 보기', 1], ['days', '이번 주에 사흘 들어오기', 3]];   /* 11-12: '선물 상자에서 하나 내밀기' 는 뺐다 — 선물을 내미는 게 조개 벌이가 되면 문어에게 부담 (주인 11-11 '문어가 부담 가질 수도 있으니까') */
   var WEEK_NEED = 5, WEEK_REROLL = 3, WEEK_GIFT = { shells: 12, seeds: 2 };
   function questOf(id) { for (var i = 0; i < QUESTS.length; i++) if (QUESTS[i][0] === id) return QUESTS[i]; return null; }
   function weekKeyOf(dk) { var p = String(dk).split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return dateKey(d); }   /* 그 주 월요일 */
@@ -4287,7 +4287,16 @@ var APP = (function () {
   }
   function weekState() {
     var u = userState(), key = weekKeyOf(todayKey()), w = u.week;
-    if (!isObj(w) || w.key !== key || !Array.isArray(w.q) || w.q.length !== 7 || w.q.some(function (x) { return !isObj(x) || !questOf(x.id); })) {
+    if (isObj(w) && w.key === key && Array.isArray(w.q) && w.q.length === 7 && w.q.every(isObj)) {   /* 같은 주: 없어진 할 일(11-12 '선물 상자에서 하나 내밀기' 뺌)만 그 칸에서 다시 고른다 — 다른 칸의 진행은 그대로 */
+      w.q.forEach(function (x, i) { if (!questOf(x.id)) { x.id = weekPick(key, i, (x.rr | 0) + 10, w.q.map(function (y) { return y.id; })); x.n = 0; } });
+      return w;
+    }
+    if (isObj(w) && Array.isArray(w.q) && w.key && w.key !== key && !w.claimed && w.q.filter(function (x) { return isObj(x) && questOf(x.id) && questDone(x, w); }).length >= WEEK_NEED) {
+      /* 11-12 (검증): 다섯 가지를 하고 [받기] 를 안 누른 채 주가 바뀌면 선물이 말없이 사라졌다 → 지난주 몫은 그대로 넣어 주고 한 줄 알린다 (잃는 것 없음) */
+      u.shells += WEEK_GIFT.shells; u.seeds += WEEK_GIFT.seeds; w.claimed = true;
+      setTimeout(function () { toast('지난주 선물을 넣어 뒀어: 조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds); renderBagChip(); }, 0);
+    }
+    {
       var taken = []; w = u.week = { key: key, q: [], claimed: false };
       for (var i = 0; i < 7; i++) { var id = i === 0 ? 'ask' : weekPick(key, i, 0, taken); taken.push(id); w.q.push({ id: id, n: 0, rr: 0 }); }   /* 첫 칸은 늘 '문어한테 산책 갈지 묻기' (바꿀 수는 있다) */
     }
@@ -4442,6 +4451,8 @@ var APP = (function () {
     var sw = $('sew-sheet'); if (sw) { $('sew-close').addEventListener('click', function () { sw.close(); }); sw.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); }); }
     salonLiftInit();
     setTimeout(dailyGift, 2500);
+    setInterval(function () { if (!document.hidden) dailyGift(); }, 60000);   /* 11-12 (검증): 열어 둔 채 자정을 넘기면 그날 선물 · 들어온 날이 안 올라갔다 — 1분마다 (그날 한 번만 준다) */
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(dailyGift, 400); });
   }
   function boot() {
     var q = new URLSearchParams(location.search), slow = parseFloat(q.get('slow'));
