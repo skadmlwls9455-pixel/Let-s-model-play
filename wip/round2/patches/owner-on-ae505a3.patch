@@ -1,0 +1,283 @@
+diff --git a/js/app.js b/js/app.js
+index 0f42331..3230751 100644
+--- a/js/app.js
++++ b/js/app.js
+@@ -540,6 +540,7 @@ var APP = (function () {
+         },
+         anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ },
+         octUp: function (up, an) { if (!up && an) oct.anchor = an; updateSceneDesc(); },   /* 11-12: 위층 ↔ 다락으로 옮겨진 문어 — 다락에 놓인 자리를 앱 자리로 · 장면 설명 다시 */
++        octResting: function () { return restPhase() === 'awake'; },   /* 11-12 주인 (검증 W3 (b)): 차례 뒤 깨어 있는 틈 (눕으러 가는 중 포함) 엔 위층에 따라 오르지 않는다 — 잠과 같이. 장면이 오르는 순간에 묻는다 (새로고침 · 다른 탭의 차례도 restPhase 가 안다) */
+         place: function () { updateSceneDesc(); },   /* 3D: 의식이 다락 ↔ 집 바깥을 바꾼 순간 (2D 는 runCeremony 의 250 ms 틱이 따라간다). 놀이방에 있는 동안에도 온다 (이야기 장소만 바뀜) */
+         door: function (ev) { if (window.AUDIO && ev) AUDIO.on('door', { act: ev.act, room: ev.room }); },   /* 8물결: 방 문이 열리고 닫힐 때 끼익 (장면은 AUDIO 를 부르지 않는다) */
+         view: function (v) { syncRoomUI(v); if (v === 'loft') questMark('loft'); else if (v === 'play') questMark('kitchen'); },   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
+@@ -1405,6 +1406,8 @@ var APP = (function () {
+     if (S.octopus.state !== 'sleep') { S.octopus.state = 'sleep'; save(); }
+     updateSceneDesc();
+   }
++  /* 11-12 주인 (검증 W3 (b)): 쉬는 문어 (차례 뒤 깨어 있는 틈 · 낮잠) 는 위층에 따라 와 있지 않다 — 잠과 같이. 위층에 있던 채 쉬기 시작하면 (차례 동안 올라옴 · 다른 탭의 차례) 다락 담요로 (보이지 않는 곳에서 — 걸음 · 소리 · 행 없이) */
++  function restDown() { if (octWithMe() && typeof scene.octDown === 'function') { scene.octDown(); octPlace('blanket'); } }
+   /* 다른 탭이 차례를 끝냈거나 · 이 탭이 다시 보일 때: 쉬는 차례가 바뀌었으면 맞춘다 (틈 안이면 깨어 있게, 지났으면 담요에서 잔다, 날이 바뀌었으면 그대로) */
+   function syncRest() {
+     if (busy || oct.busy || salonActive || lookHook() || S.trips.some(function (t) { return t.status === 'running'; })) return;
+@@ -1414,6 +1417,7 @@ var APP = (function () {
+     if (S.octopus.state !== 'sleep' && oct.state === 'sleep') { octState('idle'); return; }   /* 다른 탭에서 깼다 (초대 뒤 빈 차례 · 스스로 깸 · 낮잠 끝): 이 탭 문어도 담요에서 조용히 깬다 */
+     if (!t || S.octopus.state !== 'sleep' || napOver() || t.id === restSeen) return;
+     restSeen = t.id;
++    restDown();   /* 다른 탭에서 다녀와 쉬는 문어 */
+     var byClock = awakeByClock(t);
+     if (oct.state === 'sleep') { if (!byClock) return; octPlace('blanket'); octState('idle'); }   /* 이 탭 문어는 앞 낮잠에 자고 있었는데 다른 탭이 새 차례를 막 끝냈다 → 담요에서 깨어 그 틈을 같이 */
+     armRest(t, byClock ? Math.max(awakeFor(t) - (Date.now() - (t.endedAt || 0)), seenMin(t)) : 0);
+@@ -1759,6 +1763,7 @@ var APP = (function () {
+       status: 'running', startedAt: Date.now(), endedAt: null, events: [], receipt: null, poster: null, weather: weatherFor(S.room.lantern) };
+     S.trips.push(trip); save();
+     setBusy(true); skipFlag = false; flying = trip; broughtBack = false;
++    var woke = oct.state === 'sleep';   /* 낮잠 자는 문어를 깨운 누름 (11-12 주인: 할 일로 세지 않는다 — 아래 questMark) */
+     wakeUp();
+     bubble('', 0);
+     /* 누른 지 400ms 안에 로그에 첫 반응 (UI R19): 움츠리는 동안 '…' 자리표시 */
+@@ -1775,7 +1780,7 @@ var APP = (function () {
+         pre.remove(); setBusy(false); settleOct(); toast('두뇌가 잠깐 멈췄어. 다시 한 번 불러 줘');
+         return null;
+       }
+-      questMark('ask');   /* 이번 주 할 일: 묻는 것만 센다 (나갈지는 문어가 정한다). 11-12 (검증 F10): 차례가 정해진 뒤에 — 두뇌가 멈춰 없던 일이 된 물음은 세지 않는다 */
++      if (!woke) questMark('ask');   /* 이번 주 할 일: 묻는 것만 센다 (나갈지는 문어가 정한다). 11-12 (검증 F10): 차례가 정해진 뒤에 — 두뇌가 멈춰 없던 일이 된 물음은 세지 않는다. 11-12 주인 (검증 W5 (b)): 자는 문어를 깨운 누름은 세지 않는다 (그 차례 동안 다시 눌러도 초대가 아니다 — busy) */
+       if (trip.status !== 'done') mergePlan(trip, planned);   /* done = 그사이 다른 탭이 데려왔다 (adoptRemote) → 그 기록 그대로 보여 준다 */
+       save();
+       /* 외출: 움츠림 뒤 출발 의식(다락 문 → 바깥 → 화면 밖) → 끝나면 로그 공개. 바깥은 나가 있는 동안 그대로 (계절 입자). 집·빈 차례는 의식 없음 */
+@@ -1976,7 +1981,7 @@ var APP = (function () {
+     if (trip.kind === 'empty') { octState(S.octopus.state === 'sleep' ? 'sleep' : 'idle'); return; }
+     var t = trip.events ? trip : (lastRestTrip() || trip);
+     S.octopus.state = 'sleep'; save();   /* 쉬는 중 (깨어 있는 틈이든 낮잠이든) — 지금 새로고침해도 담요에서 */
+-    stopWander();
++    stopWander(); restDown();   /* 집에 있던 차례 동안 위층에 따라 올라왔으면 */
+     if (!t.id) { sleepNow(t, true); return; }
+     if (!wantsAwake(t)) { armRest(t, 0); return; }   /* 틈이 없다 (테스트 훅 0): 담요에 닿는 대로 잔다 */
+     armRest(t, awakeFor(t));   /* 졸림이면 짧게 */
+@@ -4336,10 +4341,11 @@ var APP = (function () {
+      · 주마다(월요일부터) 일곱 가지가 시드로 정해진다. 그중 **다섯 가지**를 하면 주간 선물 (조개 12 + 씨앗 2). 일곱을 다 할 필요 없음.
+      · 칸마다 '바꾸기' 3번 (마음에 안 들거나 지금 못 하는 일은 다른 일로 — 진행은 0 부터).
+      · 못 해도 잃는 것 없음 · 이어 하기(연속) 없음 · 알림 · 재촉 없음. 주가 바뀌면 새 일곱 가지로 조용히 바뀐다.
+-     · '문어한테 산책 갈지 묻기' 는 묻는 것만 센다 — 나갈지 집에 있을지는 문어가 정한다.
++     · '문어한테 산책 갈지 묻기' 는 묻는 것만 센다 — 나갈지 집에 있을지는 문어가 정한다. 낮잠 자는 문어를 깨운 누름은 세지 않는다 (주인 11-12, 검증 W5 (b) — 깨어 있는 틈의 문어는 깨어 있다: 센다).
++     · 들어온 날만 세는 일 ('이번 주에 사흘 들어오기') 은 뺐다 (주인 11-12, 검증 W4 (b) — 출석 숙제. 들어온 날 기록 user.days · 오늘 선물의 '들어온 날 N일째' 는 그대로). 그 일이 든 옛 주는 모르는 칸처럼 그 칸만 다른 일로 (weekState).
+      저장: S.user.week = { key: 그 주 월요일, q: [{ id, n, rr }] × 7, claimed } */
+   var QUESTS = [['ask', '문어한테 산책 갈지 묻기', 2], ['run', '다락방 달리기 한 판', 1], ['water', '텃밭에 물 주기', 2], ['plant', '씨앗 심기', 1], ['harvest', '꽃 거두기', 1], ['furn', '가구 하나 옮겨 놓기', 1],
+-    ['loft', '위층 옷방 올라가 보기', 1], ['kitchen', '놀이방 들르기', 1], ['look', '내 모습 열어 보기', 1], ['diary', '포스터 일기 펼쳐 보기', 1], ['days', '이번 주에 사흘 들어오기', 3]];   /* 11-12 (검증 F11): '부엌 방' → 문에 적힌 이름 '놀이방'. 11-12: '선물 상자에서 하나 내밀기' 는 뺐다 — 선물을 내미는 게 조개 벌이가 되면 문어에게 부담 (주인 11-11 '문어가 부담 가질 수도 있으니까') */
++    ['loft', '위층 옷방 올라가 보기', 1], ['kitchen', '놀이방 들르기', 1], ['look', '내 모습 열어 보기', 1], ['diary', '포스터 일기 펼쳐 보기', 1]];   /* 11-12 (검증 F11): '부엌 방' → 문에 적힌 이름 '놀이방'. 11-12: '선물 상자에서 하나 내밀기' 는 뺐다 — 선물을 내미는 게 조개 벌이가 되면 문어에게 부담 (주인 11-11 '문어가 부담 가질 수도 있으니까') */
+   var WEEK_NEED = 5, WEEK_REROLL = 3, WEEK_GIFT = { shells: 12, seeds: 2 };
+   function questOf(id) { for (var i = 0; i < QUESTS.length; i++) if (QUESTS[i][0] === id) return QUESTS[i]; return null; }
+   function weekKeyOf(dk) { var p = String(dk).split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return dateKey(d); }   /* 그 주 월요일 */
+@@ -4360,10 +4366,11 @@ var APP = (function () {
+       if (w.q.length !== 7 || !w.q.every(weekOk)) {
+         w.q = w.q.slice(0, 7); taken = w.q.filter(weekOk).map(function (x) { return x.id; });
+         for (i = 0; i < 7; i++) if (!weekOk(w.q[i])) { id = weekPick(key, i, 0, taken) || QUESTS.filter(function (q) { return taken.indexOf(q[0]) < 0; })[0][0]; taken.push(id); w.q[i] = { id: id, n: 0, rr: 0 }; }
++        save();   /* 11-12: 바꾼 칸도 바로 저장 (새 주처럼 — 다음에 열 때 장면이나 포스터가 달라져도 같은 칸) */
+       }
+       return w;
+     }
+-    var due = isObj(w) && Array.isArray(w.q) && !w.claimed && /^\d{4}-\d{2}-\d{2}$/.test(w.key) && w.q.filter(function (x) { return weekOk(x) && questDone(x, w); }).length >= WEEK_NEED;
++    var due = isObj(w) && Array.isArray(w.q) && !w.claimed && /^\d{4}-\d{2}-\d{2}$/.test(w.key) && w.q.filter(function (x) { return weekOk(x) && questDone(x); }).length >= WEEK_NEED;
+     taken = []; w = u.week = { key: key, q: [], claimed: false };
+     for (i = 0; i < 7; i++) { id = i === 0 ? 'ask' : weekPick(key, i, 0, taken); taken.push(id); w.q.push({ id: id, n: 0, rr: 0 }); }   /* 첫 칸은 늘 '문어한테 산책 갈지 묻기' (바꿀 수는 있다) */
+     if (due) { u.shells += WEEK_GIFT.shells; u.seeds += WEEK_GIFT.seeds; w.prev = { shells: WEEK_GIFT.shells, seeds: WEEK_GIFT.seeds }; setTimeout(weekTell, 600); }   /* 알림은 조금 뒤에 (살림을 여는 톡이 넘긴 주면 시트가 뜬 다음) */
+@@ -4382,22 +4389,22 @@ var APP = (function () {
+     if (g) { delete u.giftTell; save(); toast('오늘 선물: 조개 ' + (g.shells | 0) + ' · 씨앗 1 (들어온 날 ' + (g.n | 0) + '일째)'); if (p) weekTellT = setTimeout(weekTell, 1000); return; }
+     p.told = 1; save(); toast('지난주 선물은 살림에 넣어 뒀어. 조개 ' + (p.shells | 0) + ' · 씨앗 ' + (p.seeds | 0));
+   }
+-  function questN(x, w) { if (x.id !== 'days') return x.n | 0; var u = userState(), end = new Date(w.key.replace(/-/g, '/')); end.setDate(end.getDate() + 6); var ek = dateKey(end); return u.days.filter(function (d) { return d >= w.key && d <= ek; }).length; }
+-  function questDone(x, w) { return questN(x, w) >= questOf(x.id)[2]; }
+-  function weekDoneN(w) { return w.q.filter(function (x) { return questDone(x, w); }).length; }
++  function questN(x) { return x.n | 0; }
++  function questDone(x) { return questN(x) >= questOf(x.id)[2]; }
++  function weekDoneN(w) { return w.q.filter(function (x) { return questDone(x); }).length; }
+   function questMark(id) {   /* 한 일 하나를 적는다 (이번 주 일곱 가지에 있을 때만). 조용히 — 토스트 · 알림 없음, 살림 꼬리표에 작은 점만 */
+     if (!S.octopus.name) return;
+     var w = weekState(), hit = false;
+-    w.q.forEach(function (x) { if (x.id === id && !questDone(x, w)) { x.n = (x.n | 0) + 1; hit = true; } });
++    w.q.forEach(function (x) { if (x.id === id && !questDone(x)) { x.n = (x.n | 0) + 1; hit = true; } });
+     if (hit) { save(); renderBagChip(); if ($('bag-sheet') && $('bag-sheet').open) renderBag(); }
+   }
+-  /* 바꾸기로 나올 일 | '' — 목록에 있는 일 · 그 칸이 이번 주에 보여 준 일(x.seen — 옛 기록엔 없다) · 이미 다 한 일(사흘 들어오기는 들어온 날로 센다)은 빼고 (11-12 검증 C11 · F8) */
++  /* 바꾸기로 나올 일 | '' — 목록에 있는 일 · 그 칸이 이번 주에 보여 준 일(x.seen — 옛 기록엔 없다)은 빼고 (11-12 검증 C11 · F8) */
+   function weekSwapTo(w, i) {
+-    var x = w.q[i], no = w.q.map(function (y) { return y.id; }).concat(Array.isArray(x.seen) ? x.seen : []); if (questN({ id: 'days' }, w) >= questOf('days')[2]) no.push('days');
++    var x = w.q[i], no = w.q.map(function (y) { return y.id; }).concat(Array.isArray(x.seen) ? x.seen : []);
+     return weekPick(w.key, i, (x.rr | 0) + 1, no);
+   }
+   function weekReroll(i) {
+-    var w = weekState(), x = w.q[i]; if (!x || w.claimed || questDone(x, w) || (x.rr | 0) >= WEEK_REROLL) return;
++    var w = weekState(), x = w.q[i]; if (!x || w.claimed || questDone(x) || (x.rr | 0) >= WEEK_REROLL) return;
+     var id = weekSwapTo(w, i); if (!id) return;
+     w.q[i] = { id: id, n: 0, rr: (x.rr | 0) + 1, seen: (Array.isArray(x.seen) ? x.seen : []).concat(x.id) }; save(); renderBag();
+     focusIn('#bag-body .week-list', i);
+@@ -4420,7 +4427,7 @@ var APP = (function () {
+     if (isObj(w.prev)) frag.appendChild(h('p', { class: 'set-note', id: 'week-prev', text: '지난주 선물은 살림에 넣어 뒀어 (조개 ' + (w.prev.shells | 0) + ' · 씨앗 ' + (w.prev.seeds | 0) + ').' }));   /* 11-11 (검증 W1): 주가 바뀔 때 넣어 준 선물 — 그 주 동안 */
+     var list = h('ul', { class: 'week-list' });
+     w.q.forEach(function (x, i) {
+-      var q = questOf(x.id), n = Math.min(questN(x, w), q[2]), ok = n >= q[2], left = WEEK_REROLL - (x.rr | 0);
++      var q = questOf(x.id), n = Math.min(questN(x), q[2]), ok = n >= q[2], left = WEEK_REROLL - (x.rr | 0);
+       var li = h('li', { class: 'week-row' + (ok ? ' done' : '') }, [h('span', { class: 'week-txt', tabindex: '-1', text: q[1] }), h('span', { class: 'week-n', text: ok ? '했어' : n + '/' + q[2] })]);
+       if (!ok && !w.claimed && left > 0 && weekSwapTo(w, i)) { var b = h('button', { type: 'button', class: 'fchip week-rr', text: '바꾸기 ' + left, 'aria-label': q[1] + ' 다른 일로 바꾸기 (' + left + '번 남음)' }); b.addEventListener('click', function () { weekReroll(i); }); li.appendChild(b); }
+       list.appendChild(li);
+diff --git a/js/scene3d.js b/js/scene3d.js
+index bac9a2b..662ee7c 100644
+--- a/js/scene3d.js
++++ b/js/scene3d.js
+@@ -389,7 +389,7 @@ var SCENE3D = (function () {
+     var LROOM = null;  /* 위층 다락 (11-10, buildLoft): 처음 올라갈 때 만든다 */
+     function isRoomP(p) { return p === 'play' || p === 'loft'; }
+     /* 11-11 미용실 이사 (주인: "윗층 다락방에 미용실"): 거울 코너(salG)는 위층 뒷벽에 산다. 코너 · 연출의 좌표는 예전 다락 좌표 그대로 두고, 위층 안의 감싸는 그룹 LSALW 를 (dx, 0, dz) 만큼 옮겨 뒷벽에 맞춘다.
+-       문어는 깨어서 집에 있을 때 내가 위층에 오르면 따라 올라온다 (octMountLoft: octG 를 LSALW 로 — 그래서 문어 좌표도 연출 좌표 그대로) · 내려오거나 의식이 시작되면 다락으로 돌아간다 */
++       문어는 깨어서 집에 있을 때 내가 위층에 오르면 따라 올라온다 (octMountLoft: octG 를 LSALW 로 — 그래서 문어 좌표도 연출 좌표 그대로. 차례 뒤 깨어 있는 틈엔 안 온다 — 주인 11-12) · 내려오거나 의식이 시작되면 다락으로 돌아간다 */
+     var LSALW = null, LSAL = { dx: 0, dz: 0 };
+     function octUp() { return !!LSALW && octG.parent === LSALW; }   /* 문어가 없는 '내 방' 들 */
+     var EXT_TARGET = new T.Vector3(0.4, 1.55, 0.0);   /* 바깥 디오라마 카메라 타깃 (같은 요·틸트·픽셀 밀도; 집 용마루·굴뚝과 오른쪽 아래 가장자리 출구가 한 화면에) */
+@@ -3339,8 +3339,10 @@ var SCENE3D = (function () {
+     function storyTrans() { return PLACE.trans && !PLACE.trans.door ? PLACE.trans : null; }   /* 다락 ↔ 바깥 전환만 (방 문 가로 전환은 의식이 끊지 않는다) */   /* 문어 쪽 '보이는' 장소: 놀이방에 있는 동안은 이야기 장소 (의식은 이것만 본다 — 안 보이는 곳에서 그대로 진행) */
+     function emit(name, a, b) { var fn = on[name]; if (typeof fn !== 'function') return; try { fn(a, b); } catch (e) { console.error('[scene3d] on.' + name, e); } }   /* 앱 콜백이 던져도 프레임 루프는 산다 */
+     function octEndWalk() { var w = oct.walking; if (!w) return; if (w.finish) w.finish(); else w.cancel(); oct.walking = null; oct.hop = 0; }   /* 걷던 길을 '도착' 으로 끝낸다 (Promise 가 풀려 앱이 'walk' 에 굳지 않게 — 11-12 검증) */
++    /* 11-12 주인 (검증 W3 (b)): 차례 뒤 깨어 있는 틈 (낮잠 전) 엔 따라 오르지 않는다 — 잠과 같이. 틈은 앱만 안다 (on.octResting — 오르는 그 순간에 묻는다) */
++    function octResting() { var fn = on.octResting; if (typeof fn !== 'function') return false; try { return !!fn(); } catch (e) { console.error('[scene3d] on.octResting', e); return false; } }
+     function octMountLoft() {   /* 위층에 막 올라왔다: 문어가 깨어서 집에 있으면 계단 옆으로 따라 올라온다 */
+-      if (!LSALW || octUp() || octG.parent !== atticG || PLACE.cur !== 'attic' || st.octState === 'away' || st.octState === 'sleep' || (CER && CER.active) || SAL.active) return false;
++      if (!LSALW || octUp() || octG.parent !== atticG || PLACE.cur !== 'attic' || st.octState === 'away' || st.octState === 'sleep' || (CER && CER.active) || SAL.active || octResting()) return false;
+       octEndWalk();
+       LSALW.add(octG); oct.pos.set(snapPos(-0.3 - LSAL.dx), 0, snapPos(0.2 - LSAL.dz));   /* 깔개 쪽 (계단 앞 길목을 막지 않게 — 내 캐릭터가 선반과 문어 사이에 끼었다) */ snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = camYaw(); dither.still = 0;
+       emit('octUp', true); return true;
+@@ -5463,7 +5465,7 @@ var SCENE3D = (function () {
+       peek: function () { return { on: PK.on, key: PK.key, hold: PK.hold, onSpot: PK.onSpot, status: PK.status, t: +PK.t.toFixed(2), lean: +(PK.leanQ / DEG).toFixed(1), sit: PK.sit, arm: PK.arm, mail: PK.mail, rustle: PK.rustle && rustleM.visible, ripple: rippleM.visible }; },
+       setPosters: setPosters, setSouvenirs: setSouvenirs,
+       bubble: bubble, nudge: function () { if (!st.reduced) { oct.nudgeT = 0.18; dither.still = 0; } },   /* 톡 받음 (APP 이 깨어 있는 톡마다 · 모션 감소면 APP 이 눈 깜빡으로) */
+-      lookAt: function (x, y) { oct.lookTarget = { x: x, y: y }; }, octUp: function () { return octUp(); }, setSheetInset: setSheetInset, lift: function () { return { y: +LIFT.y.toFixed(4), to: +LIFT.to.toFixed(4) }; }, octScreenPos: function () { if (isRoomP(PLACE.vis) && !octUp()) return null; var p = octScreen(), r = canvas.getBoundingClientRect(); return { x: r.left + p.x - S.offX, y: r.top + p.y - S.offY }; },   /* 놀이방: null (문어가 화면에 없다 — 말풍선·파티클·앨범 날기는 문어 자리에 안 붙는다) */
++      lookAt: function (x, y) { oct.lookTarget = { x: x, y: y }; }, octUp: function () { return octUp(); }, octDown: octUnmountLoft, setSheetInset: setSheetInset, lift: function () { return { y: +LIFT.y.toFixed(4), to: +LIFT.to.toFixed(4) }; }, octScreenPos: function () { if (isRoomP(PLACE.vis) && !octUp()) return null; var p = octScreen(), r = canvas.getBoundingClientRect(); return { x: r.left + p.x - S.offX, y: r.top + p.y - S.offY }; },   /* 놀이방: null (문어가 화면에 없다 — 말풍선·파티클·앨범 날기는 문어 자리에 안 붙는다) */
+       setReducedMotion: function (r) { st.reduced = !!r; lampDirty = true; },
+       setLook: function (o) {
+         var re = false;
+diff --git a/tools/smoke.js b/tools/smoke.js
+index 1e84bc2..fa63d56 100644
+--- a/tools/smoke.js
++++ b/tools/smoke.js
+@@ -5192,14 +5192,22 @@ async function scenarioLoft(browser) {
+   /* 새 탭: 손가락 기기 · 페이지 시계 고정 · 소리 훅(AUDIO.on 부름을 센다) → 장면 루프를 멈추고 시계를 세운 뒤 tick 으로만 민다 */
+   async function open(o) {
+     o = o || {};
+-    var ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+-    await ctx.clock.install({ time: new Date('2026-11-09T11:00:00') });
+-    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0; window.__snd = []; (function hook() { if (window.AUDIO && AUDIO.on && !AUDIO.__z) { var f = AUDIO.on; AUDIO.on = function (k) { window.__snd.push(k); return f.apply(this, arguments); }; AUDIO.__z = 1; } else setTimeout(hook, 50); })();' });
++    var ctx = o.ctx;   /* o.ctx = 같은 문맥의 둘째 탭 (기록 · 시계 · 깨어 있는 틈 훅은 문맥 것 그대로) */
++    if (!ctx) {
++      ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
++      await ctx.clock.install({ time: new Date('2026-11-09T11:00:00') });
++      await ctx.addInitScript({ content: 'window.__ppolAwakeMs = ' + (o.awake | 0) + '; window.__snd = []; (function hook() { if (window.AUDIO && AUDIO.on && !AUDIO.__z) { var f = AUDIO.on; AUDIO.on = function (k) { window.__snd.push(k); return f.apply(this, arguments); }; AUDIO.__z = 1; } else setTimeout(hook, 50); })();' });   /* awake: 차례 뒤 깨어 있는 틈 (ms, 기본 0 = 바로 눕는다) */
++    }
+     var page = await ctx.newPage(); watchErrors(page, bag);
+     if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+-    await page.addInitScript({ content: "if (!localStorage.getItem('__z_seed')) { localStorage.setItem('__z_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(o.rec || REC(2))) + '); } window.__ppolTest = { today: "2026-11-09" };' });
++    await page.addInitScript({ content: "if (!localStorage.getItem('__z_seed')) { localStorage.setItem('__z_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(o.rec || REC(2))) + '); } window.__ppolTest = Object.assign({ today: "2026-11-09" }, ' + JSON.stringify(o.test || {}) + ');' });   /* test: 두뇌 훅 (forceKind) */
+     await routeWiki(page, 'ok'); await routeRepo(page, O);
+     await page.goto(O + '/index.html?' + (o.q || 'dev=0'));
++    await settle(page);
++    return { ctx: ctx, page: page };
++  }
++  /* 쪽이 열린 뒤 (처음 · 새로고침): 장면 루프를 멈추고 시계를 세운다 · 스틱 도우미 */
++  async function settle(page) {
+     await page.waitForFunction(function () { return window.APP && APP.scene && APP.sceneMode === '3d'; }, null, { timeout: 60000 });
+     await page.waitForSelector('#btn-go:not(.away)', { timeout: 60000 });
+     await page.evaluate(function () { APP.scene.pause(); });
+@@ -5212,7 +5220,6 @@ async function scenarioLoft(browser) {
+       var fh = [rh[1], -rh[0]];
+       window.__push = function (wx, wz) { var l = Math.hypot(wx, wz) || 1; wx /= l; wz /= l; sc.setPlayerInput({ x: wx * rh[0] + wz * rh[1], y: wx * fh[0] + wz * fh[1] }); };
+     });
+-    return { ctx: ctx, page: page };
+   }
+   /* 시간 밀기: 페이지 타이머 dt + 장면 한 프레임 dt (기본 0.1 s · 가만히 지켜보는 긴 틈은 0.5 s). cond(페이지 안 함수)가 참이면 멈춤. each(t) = 매 n 칸.
+      window.__zEach (페이지 안) = 프레임 바로 뒤 같은 evaluate 에서 — 그 사이엔 페이지 타이머(돌아다니기 20–40 s)가 끼지 못한다 (11-12: 돌아다니기 타이머와 겨루던 읽기를 여기로) */
+@@ -5236,7 +5243,7 @@ async function scenarioLoft(browser) {
+       desc: document.getElementById('scene-desc').textContent, snd: window.__snd.filter(function (k) { return k === 'salon'; }).length, stairVis: getComputedStyle(document.getElementById('btn-stair')).visibility }; }); }
+   function dist(a, b) { return Math.hypot(a[0] - b[0], a[2] - b[2]); }
+   function outOfCorner(at) { return !(at[0] < -0.6 && at[2] < -0.75); }   /* 거울 구석 = 재봉 의자(x −0.61 까지) 왼쪽 · 거울 쪽 바닥 (마네킹 · 거울 · 대야 자리 사이) */
+-  var A, pg, s, ZP = String(process.env.SMOKE_Z || '1,2,3,4').split(',');   /* SMOKE_Z=2 → 그 묶음만 (고침을 하나씩 되돌려 볼 때) */
++  var A, pg, s, ZP = String(process.env.SMOKE_Z || '1,2,3,4,5').split(',');   /* SMOKE_Z=2 → 그 묶음만 (고침을 하나씩 되돌려 볼 때) */
+ 
+   /* 1. 걷던 문어가 계단을 따라 오른다 (걸음 중간 · 도착 폴짝 중) → 위층에서 idle · 폴짝 0. 위층 65 s (돌아다니기 타이머 20–40 s 가 두 번쯤): 그 자리 그대로.
+         시트를 연 채 45 s 도 그대로 (예전엔 시트 밑으로 걸어 들어갔다). 내려오면 다시 돌아다닌다 */
+@@ -5409,6 +5416,79 @@ async function scenarioLoft(browser) {
+   ok(pan.y > 10 && Math.abs(l1.lift - l0) < 0.05 && Math.abs(l1.pan.y) < 0.5, '아래로 밀어 둔 화면에서 연 시트: 기본 구도로 돌아가고 올림은 기본 구도에서와 같다 (' + JSON.stringify({ panY: pan.y, lift: [l0, l1.lift], panAfter: l1.pan.y }) + ')');
+   reportErrors(bag, 'Z-4'); await A.ctx.close();
+   }
++
++  /* 5. 차례 뒤 깨어 있는 틈 (낮잠 전) 엔 위층에 따라 오르지 않는다 (주인 11-12, 검증 W3 (b) — 잠과 같이). 틈에 들어오고 나가는 길마다:
++        다락에서 틈이 시작된 뒤 오름 · 틈이 끝나 낮잠 · 집에 있는 차례 동안 올라가 있다가 차례가 끝남 · 틈에 새로고침 · 다른 탭의 차례 · 위층에 있는 동안 날이 바뀌어 틈이 끝남.
++        문어는 다락 담요에 · 깨우지 않는다 · 거울은 '아래층' 한 줄 (물음 · 행 · 미용실 소리 0) · 틈은 보는 다락에서만 준다 (주인 11-08 — 위층에선 그대로). 틈이 끝나 깨어 있으면 예전처럼 따라 온다 */
++  if (ZP.indexOf('5') >= 0) {
++  var AW = 60000, DOWN = '지금은 아래층에 있어.', DOWN_Z = '지금은 아래층에서 자고 있어.';   /* 깨어 있는 틈 60 s (테스트 훅) */
++  function R5(pg) { return pg.evaluate(function () { var t = document.getElementById('toast'); return { room: APP.room, up: APP.scene.octUp(), st: APP.oct.state, an: APP.oct.anchor, phase: APP.restPhase(), rest: APP.rest, saved: APP.state.octopus.state,
++    running: APP.state.trips.some(function (x) { return x.status === 'running'; }), rows: document.querySelectorAll('#log .lrow').length, snd: window.__snd.filter(function (k) { return k === 'salon'; }).length, toast: t.classList.contains('show') ? t.textContent : '' }; }); }
++  function J5(r) { return JSON.stringify({ room: r.room, up: r.up, st: r.st, an: r.an, phase: r.phase, left: r.rest && r.rest.left, saved: r.saved }); }
++  var IDLE5 = function () { return !APP.state.trips.some(function (x) { return x.status === 'running'; }) && APP.restPhase() === 'awake' && !!APP.rest && APP.oct.state === 'idle'; };
++  async function homeTurn(pg) { await tap(pg, 'btn-go'); return (await tick(pg, 90, IDLE5, null, 1, 0.2)).done; }   /* 큰 버튼 (두뇌 훅: 집에 있는 날) → 차례가 끝나 깨어 있는 틈 */
++  async function mirror5(pg) {   /* 거울을 누른다: 시트 없이 한 줄 · 문어 상태 그대로 · 행 · 미용실 소리 없음 */
++    var b = await R5(pg), tapped = await tapMirror(pg), q = await R5(pg), sheet = await pg.evaluate(function () { return document.getElementById('salon-sheet').open; });
++    await tick(pg, 4);
++    return { toast: q.toast, quiet: tapped && !sheet && q.st === b.st && q.rows === b.rows && q.snd === b.snd && !q.up };
++  }
++  if (process.env.Z_PROBE) for (var dl of [0.3, 1, 2, 3, 4, 5, 6, 8]) {
++    A = await open({ awake: AW, rec: REC(4), test: { forceKind: 'home' } }); pg = A.page;
++    await tap(pg, 'btn-go'); var tl = [];
++    await tick(pg, dl, null, async function (t) { var q = await pg.evaluate(function () { return [APP.oct.state, APP.ceremony, APP.state.trips.some(function (x) { return x.status === 'running'; })].join(':'); }); tl.push(t + '=' + q); }, 5);
++    var pu = await stair(pg, true), pq = await R5(pg);
++    var pe = await tick(pg, 90, IDLE5, null, 1, 0.2), pf = await R5(pg);
++    console.log('   PROBE', dl, tl.join(' '), 'stair', pu, J5(pq), 'running', pq.running, '-> end', pe.done, J5(pf));
++    await A.ctx.close();
++  }
++  if (process.env.Z_PROBE) return;
++  /* 5-1. 다락에서 틈이 시작된 뒤 오른다 → 문어는 담요 · 거울 한 줄 · 위층 30 s 동안 틈은 그대로 · 내려오면 틈이 줄어 눕는다 → 다시 올라도 자는 채 아래층 */
++  A = await open({ awake: AW, test: { forceKind: 'home' } }); pg = A.page;
++  var h51 = await homeTurn(pg), z0 = await R5(pg);
++  var u51 = await stair(pg, true), z1 = await R5(pg), m51 = await mirror5(pg);
++  await tick(pg, 30, null, null, 1, 0.5); var z2 = await R5(pg);
++  console.log('   틈 · 다락에서 오름:', J5(z0), '→', J5(z1), '→ 30 s', J5(z2), '거울', m51.toast);
++  ok(h51 && u51 && z0.an === 'blanket' && z1.room === 'loft' && !z1.up && z1.st === 'idle' && z1.an === 'blanket' && z1.phase === 'awake' && z1.saved === 'sleep' && m51.toast === DOWN && m51.quiet && !z2.up && z2.st === 'idle' && z2.phase === 'awake' && z2.rest && z1.rest && z2.rest.left === z1.rest.left,
++    '차례 뒤 깨어 있는 틈에 위층으로 오르면 문어는 따라 오르지 않는다 (다락 담요 · 깨어 있음 · 거울 «' + m51.toast + '» · 위층 30 s 동안 틈 ' + (z2.rest && z2.rest.left) + ' ms 그대로)');
++  await stair(pg, false);
++  var lay5 = await tick(pg, 120, function () { return APP.oct.state === 'sleep' && !APP.rest; }, null, 1, 0.5);
++  await stair(pg, true); var z3 = await R5(pg), m52 = await mirror5(pg);
++  ok(lay5.done && z3.room === 'loft' && !z3.up && z3.st === 'sleep' && z3.phase === 'nap' && m52.toast === DOWN_Z && m52.quiet, '틈이 끝나 담요에서 잠든 뒤 올라도 그대로 (자는 채 아래층 · 거울 «' + m52.toast + '»)');
++  /* 5-2. 위층에 있는 동안 틈이 끝난다 (날이 바뀜 = 낮잠도 끝): 깨어서 아래층 · 다음에 오르면 예전처럼 따라 온다 */
++  await stair(pg, false);
++  var h52 = await homeTurn(pg);   /* 자는 문어를 깨운 차례 → 새 틈 */
++  await stair(pg, true); var z4 = await R5(pg);
++  await pg.evaluate(function () { APP.state.user.giftDay = '2026-11-10'; window.__ppolTest.today = '2026-11-10'; }); await tick(pg, 2);   /* 그날 선물은 받은 날로 (알림이 거울 한 줄과 겹치지 않게) */
++  var z5 = await R5(pg), m53 = await mirror5(pg);
++  await stair(pg, false); await stair(pg, true); var z6 = await R5(pg);
++  ok(h52 && !z4.up && z4.phase === 'awake' && z5.phase === 'up' && !z5.up && z5.st === 'idle' && m53.toast === DOWN && m53.quiet && z6.up && z6.st === 'idle', '위층에 있는 동안 날이 바뀌어 틈이 끝나면: 깨어서 아래층 (거울 «' + m53.toast + '») · 내려갔다 다시 오르면 따라 온다 (' + J5(z6) + ')');
++  reportErrors(bag, 'Z-5a'); await A.ctx.close();
++  /* 5-3. 집에 있는 차례 동안 따라 올라와 있다가 차례가 끝난다 → 문어는 다락 담요로 (보이지 않는 곳에서 — 깨어 있는 틈) · 다시 올라도 오지 않는다. 5-4. 그 틈에 새로고침 → 틈이 이어지고 오르면 오지 않는다 */
++  A = await open({ awake: AW, test: { forceKind: 'home' } }); pg = A.page;
++  await tap(pg, 'btn-go'); await tick(pg, 0.3);
++  var u53 = await stair(pg, true), z7 = await R5(pg);
++  var e53 = await tick(pg, 90, IDLE5, null, 1, 0.2), z8 = await R5(pg), m54 = await mirror5(pg);
++  await stair(pg, false); await stair(pg, true); var z9 = await R5(pg);
++  console.log('   차례 동안 위층:', J5(z7), '→ 차례 끝', J5(z8), '→ 내려갔다 오름', J5(z9));
++  ok(u53 && z7.running && z7.up && e53.done && z8.room === 'loft' && !z8.up && z8.an === 'blanket' && z8.st === 'idle' && z8.phase === 'awake' && z8.saved === 'sleep' && m54.toast === DOWN && m54.quiet && !z9.up && z9.phase === 'awake',
++    '집에 있는 차례 동안 위층에 따라 와 있다가 차례가 끝나면 다락 담요에서 깨어 있는 틈 (거울 «' + m54.toast + '») · 내려갔다 다시 올라도 따라 오지 않는다');
++  await stair(pg, false); var z10 = await R5(pg);
++  await pg.reload(); await settle(pg);
++  var z11 = await R5(pg), u54 = await stair(pg, true), z12 = await R5(pg), m55 = await mirror5(pg);
++  console.log('   틈에 새로고침:', J5(z10), '→', J5(z11), '→ 오름', J5(z12));
++  ok(z10.phase === 'awake' && z11.phase === 'awake' && z11.rest && z11.rest.left > 0 && z11.st === 'idle' && u54 && !z12.up && z12.st === 'idle' && m55.toast === DOWN && m55.quiet, '깨어 있는 틈에 새로고침: 틈이 이어지고 (남은 ' + (z11.rest && z11.rest.left) + ' ms) 위층으로 올라도 따라 오지 않는다 (거울 «' + m55.toast + '»)');
++  reportErrors(bag, 'Z-5b'); await A.ctx.close();
++  /* 5-5. 다른 탭: 이 탭에선 문어가 위층에 따라 와 있는데 (깨어서 집에 — 예전 그대로) 다른 탭이 집에 있는 차례를 끝낸다 → 이 탭 문어도 다락 담요에서 깨어 있는 틈 · 다시 올라도 오지 않는다 */
++  A = await open({ awake: AW }); pg = A.page;
++  var u55 = await stair(pg, true), z13 = await R5(pg);
++  var B5 = await open({ ctx: A.ctx, test: { forceKind: 'home' } }), h55 = await homeTurn(B5.page);
++  var g55 = await tick(pg, 5, function () { return !APP.scene.octUp() && !!APP.rest; }), z14 = await R5(pg), m56 = await mirror5(pg);
++  await stair(pg, false); await stair(pg, true); var z15 = await R5(pg);
++  console.log('   다른 탭의 차례:', J5(z13), '→', J5(z14), '→ 내려갔다 오름', J5(z15));
++  ok(u55 && z13.up && h55 && g55.done && z14.room === 'loft' && !z14.up && z14.an === 'blanket' && z14.st === 'idle' && z14.phase === 'awake' && m56.toast === DOWN && m56.quiet && !z15.up && z15.phase === 'awake',
++    '다른 탭이 차례를 끝내면 이 탭 위층에 따라 와 있던 문어도 다락 담요에서 깨어 있는 틈 (거울 «' + m56.toast + '») · 다시 올라도 오지 않는다');
++  reportErrors(bag, 'Z-5c'); await A.ctx.close();
++  }
+ }
+ 
+ (async function main() {
