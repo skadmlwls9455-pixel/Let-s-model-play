@@ -21,6 +21,11 @@
  *   Y 미용실 (주인 11-08 밤 · docs/SALON.md §3): 거울 단추 (손가락 톡으로도 열린 채 · 놀이방 · 위층 옷방 · 가구 배치 중엔 숨음) · 병 시트 (뒤 막 없음 · 지금 색 · 고르기 · 그만두기 = 기록 0) · 폭 · 테마 12 가지 ·
  *     밀어 둔 화면은 기본 구도로 · 묻기 → 행이 박자에 맞춰 (닫힌 쪽지 안 + 한 줄 알림) · 장면은 끝까지 옛 색 · 하루 한 번 (토스트) · 데모 시드 답 · 연출 중 새로고침 · '그대로' 한 색 7일 쉼 ·
  *     모션 줄이기 4.5 s · 연출 중 주 버튼 · 자는 문어 '쿨쿨…' · 앨범 일기 · 옷 물들이기(재봉틀)와 몸 색은 따로 · 개발용 '다음 대답' (?dev=1 만) · 2D.
+ *   Q 이번 주 할 일 · 선물 상자 (검증 11-11 W1 · C4 · W2 · W12 · W10 · C10): 다섯 가지를 하고 안 받은 주간 선물은 주가 바뀔 때 넣어 준다 (새 주 첫 열기 = 입장 연출이 걷힌 뒤 알림 한 번 ·
+ *     열어 둔 탭 · 두 탭 · 불러오기 · 시계 되돌리기) · 받은 주 · 덜 한 주 · 주 없는 기록은 그대로 · 모르는 칸 하나만 바꾸기 · (5/5) · 씨앗 없음 한 줄 · 내밀자마자 저장 · 안 쓴다는 답은 보통 얼굴.
+ *     (11-12 둘째 묶음) 오늘 선물 알림도 볼 수 있을 때 (입장 · 다른 알림 · 가려진 탭 · 새로고침) · 열어 둔 탭의 다음 날 (훅 · 가짜 시계 1분 틱 · 두 탭 한 번) · 묻기 · 가구는 정말 한 것만 ·
+ *     바꾸기는 그 칸이 보인 일 · 다 한 일 · 지금 못 하는 일(포스터 없음 · 2D)을 내지 않음 · 받기 단추 자리 · 꼬리표 점과 이름 · 320 px · 키보드 자리 · 놀이방 · 세트 이름 · 세트 도감 · 선물 상자 답 저장.
+ *     날짜는 window.__ppolTest.today, 기록은 심어서 — 걸린 시간에 기대는 검사는 없다.
  *   (모든 문맥은 window.__ppolAwakeMs = 0 으로 시작 — 예전 시나리오는 '산책 직후 잠'. T · K 가 덮는다)
  *   SMOKE_ONLY=H,I node tools/smoke.js   # 그 시나리오만
  *   SMOKE_THROTTLE=4 node tools/smoke.js # 페이지 CPU 를 4배 늦춘다 (느린 CI 러너 흉내 — 시간에 기대는 검사의 경합을 여기서 다시 낸다)
@@ -4209,6 +4214,474 @@ async function scenarioLayoutOne(browser) {
   await s2.ctx.close();
 }
 
+/* Q. 이번 주 할 일 · 선물 상자 (검증 11-11). 기록은 심고 날짜는 훅으로 넘긴다. 기다림은 전부 '그 상태가 될 때까지' 이고, 걸린 시간을 재는 검사는 없다 (바쁜 기계).
+   주: 2026-11-09(월)~11-15(일) = 지난주, 11-16(월) = 새 주. 지난주 일곱 가지 가운데 다섯(산책 묻기 2/2 · 내 모습 · 달리기 · 가구 · 사흘 들어오기 = 들어온 날 셋)을 하고 선물은 안 받은 기록 */
+async function scenarioWeek(browser) {
+  console.log('\n== Q. 이번 주 할 일: 안 받은 주간 선물은 주가 바뀔 때 넣어 준다 · 모르는 칸만 바꾸기 · (5/5) · 선물 상자 (바로 저장 · 보통 얼굴)');
+  var O = 'http://ppolppol.example', bag = []; bag.ignored = [];
+  var RED = '#e8463c', BORN = 1762600000000, WK1 = '2026-11-09', SUN = '2026-11-15', MON = '2026-11-16';
+  var WAIT = +process.env.SMOKE_WAIT || 180000;   /* '그 상태가 될 때까지' 의 넉넉한 끝 (검사가 아니다) */
+  var TOLD = '지난주 선물은 살림에 넣어 뒀어. 조개 12 · 씨앗 2', LINE = '지난주 선물은 살림에 넣어 뒀어 (조개 12 · 씨앗 2).';
+  function WEEK(o) { return Object.assign({ key: WK1, q: [{ id: 'ask', n: 2, rr: 0 }, { id: 'look', n: 1, rr: 0 }, { id: 'run', n: 1, rr: 0 }, { id: 'furn', n: 1, rr: 0 }, { id: 'days', n: 0, rr: 0 }, { id: 'harvest', n: 0, rr: 1 }, { id: 'diary', n: 0, rr: 3 }], claimed: false }, o || {}); }
+  function USER(o) { return Object.assign({ shells: 20, seeds: 1, dyes: {}, days: [WK1, '2026-11-11', SUN], earned: [], garden: [null, null, null], giftDay: SUN, week: WEEK() }, o || {}); }
+  function REC(user) {
+    return { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 3, days: ['2026-11-06', '2026-11-07', '2026-11-08'], affinity: {}, visits: {}, state: 'idle', color: RED,
+      colors: [{ at: BORN, date: '2026-11-06', color: RED, how: 'first', by: 'player' }] }, room: { lantern: 3, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
+      settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 }, user: user };
+  }
+  /* 알림(#toast)이 뜰 때마다 글 · 그때의 입장 단계를 적는다 (2.5 s 만 떠 있어 나중에 보면 놓친다) · 장면 표정이 바뀔 때마다 적는다 (4 s 뒤 기본 표정으로 돌아가므로) */
+  /* hid = 그때까지 알림이 몇 번 걷혔나 (11-12: 앞 알림이 걷힌 뒤에 떴는지 — 밀어내고 떴으면 앞 알림과 같은 수) */
+  var REC_UI = "window.__toasts = []; window.__exprs = []; window.__hid = 0; document.addEventListener('DOMContentLoaded', function () { var t = document.getElementById('toast'); if (!t) return; var was = false; " +
+    "new MutationObserver(function (ms) { var on = t.classList.contains('show'); if (was && !on) window.__hid++; was = on; if (on && ms.some(function (m) { return m.type === 'childList'; })) window.__toasts.push({ t: t.textContent, intro: window.INTRO ? INTRO.phase : '', ex: window.__exprs.slice(), hid: window.__hid }); }).observe(t, { childList: true, attributes: true, attributeFilter: ['class'] }); });";
+  async function ctxOf(o) {   /* 기록은 문맥에 한 번만 심는다 (새로고침 · 둘째 탭엔 그대로) · 날짜 훅은 탭마다 sessionStorage */
+    var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light' });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    await ctx.addInitScript({ content: "if (!localStorage.getItem('__q_seed')) { localStorage.setItem('__q_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(o.rec)) + '); } ' +
+      "window.__ppolTest = { today: sessionStorage.getItem('__q_day') || localStorage.getItem('__q_day') || '" + o.day + "' };" + REC_UI });   /* localStorage: 같은 날로 여는 새 탭 (11-12) */
+    return ctx;
+  }
+  async function tab(ctx) {
+    var page = await ctx.newPage(); watchErrors(page, bag);
+    page.on('crash', function () { console.log('   (탭의 렌더러가 죽었다 — ' + page.url() + ')'); });   /* 11-12: 바쁜 기계에서 한 번 본 '닫힌 탭' 이 게임 탓인지 가리려고 */
+    page.setDefaultNavigationTimeout(180000);   /* 바쁜 기계: 쪽 여는 데 걸리는 시간은 검사가 아니다 */
+    if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+    await routeWiki(page, 'ok'); await routeRepo(page, O);
+    return page;
+  }
+  function setDay(pg, d) { return pg.evaluate(function (d) { sessionStorage.setItem('__q_day', d); window.__ppolTest.today = d; }, d); }
+  /* 저장된 기록(disk: 조개 · 씨앗 · 주 · 넣었다는 표시)과 이 탭이 들고 있는 것(mem — 넣을 것 없이 넘어간 새 주는 다음 저장 때 적힌다) */
+  function snap(pg) { return pg.evaluate(function () {
+    var d = JSON.parse(localStorage.getItem('ppolppol_v2') || '{}').user || {}, m = APP.state.user || {}, w = d.week || {}, mw = m.week || {}, b = document.getElementById('btn-bag');
+    return { shells: d.shells, seeds: d.seeds, giftDay: d.giftDay, key: w.key, prev: w.prev || null,
+      mem: { shells: m.shells, seeds: m.seeds, key: mw.key, claimed: mw.claimed, prev: mw.prev || null, q: (mw.q || []).map(function (x) { return x && x.id + ':' + x.n + ':' + x.rr; }) },
+      dot: b.classList.contains('has-gift'), chip: b.textContent.trim(), toasts: window.__toasts.map(function (x) { return x.t; }), told: window.__toasts.filter(function (x) { return /지난주/.test(x.t); }) };
+  }); }
+  /* 살림을 연다 (플레이어와 같은 단추) → 주 목록 둘레의 글을 읽고 닫는다 */
+  function bagOf(pg) { return pg.evaluate(function () {
+    var sh = document.getElementById('bag-sheet'); if (!sh.open) document.getElementById('btn-bag').click();
+    var body = document.getElementById('bag-body'), notes = [].map.call(body.querySelectorAll('.set-note'), function (x) { return x.textContent; }), pv = document.getElementById('week-prev');
+    var o = { open: sh.open, top: (body.querySelector('.bag-line') || {}).textContent || '', note: notes.filter(function (t) { return /일곱 가지/.test(t); })[0] || '', prev: pv ? pv.textContent : null, prevShown: !!pv && pv.offsetHeight > 0, claim: !!document.getElementById('week-claim'), got: notes.indexOf('이번 주 선물은 받았어.') >= 0,
+      rows: [].map.call(body.querySelectorAll('.week-list')[0].querySelectorAll('.week-row'), function (r) { return r.querySelector('.week-txt').textContent + '|' + r.querySelector('.week-n').textContent; }) };
+    document.getElementById('bag-close').click();
+    return o;
+  }); }
+  /* 지금 탭의 기록을 바꿔 저장한다 (다음 검사의 출발점) */
+  function setUser(pg, day, user) { return pg.evaluate(function (a) { sessionStorage.setItem('__q_day', a.day); window.__ppolTest.today = a.day; var u = APP.state.user; Object.keys(a.user).forEach(function (k) { if (a.user[k] === null) delete u[k]; else u[k] = a.user[k]; }); APP.save(); window.__toasts = []; }, { day: day, user: user }); }
+  function toldOf(s) { return !!(s && s.prev && s.prev.told === 1); }   /* 알렸다는 표시가 저장돼 있나 */
+  function toldWait(pg, ms) { return pg.waitForFunction(function () { return window.__toasts.some(function (x) { return /지난주/.test(x.t); }); }, null, { timeout: ms || WAIT, polling: 100 }).then(function () { return true; }, function () { return false; }); }
+
+  /* 1. 새 주에 처음 연다 (입장 연출 켠 채 — 진짜 첫 방문처럼 오늘 선물도 아직): 부팅 때 바로 넣고 새 주와 함께 저장 · 알림은 입장이 걷힌 뒤 한 번 · 새로고침해도 한 번 */
+  var c1 = await ctxOf({ rec: REC(USER()), day: MON }), pa = await tab(c1);
+  await pa.goto(O + '/index.html?dev=0&intro=1');
+  var titled = await pa.waitForFunction(function () { return window.INTRO && INTRO.phase === 'title' && window.APP && !!APP.state.octopus.name; }, null, { timeout: WAIT }).then(function () { return true; }, function () { return false; });
+  var a1 = await snap(pa), gift1 = a1.giftDay === MON ? 1 : 0;   /* 오늘 선물(부팅 2.5 s 뒤 · 조개 3 + 씨앗 1)이 이미 들어왔는지는 같은 사본에서 본다 */
+  console.log('   새 주 첫 열기 (입장 중):', JSON.stringify(a1));
+  ok(titled && a1.key === MON && a1.shells === 32 + 3 * gift1 && a1.seeds === 3 + gift1 && a1.prev && a1.prev.shells === 12 && a1.prev.seeds === 2 && a1.mem.claimed === false && a1.mem.shells === a1.shells && a1.mem.key === MON,
+    '새 주 첫 열기: 안 받은 지난주 선물(조개 12 · 씨앗 2)이 부팅 때 들어가고 새 주(' + a1.key + ')와 함께 저장돼 있다 (조개 20 → ' + a1.shells + (gift1 ? ' = 오늘 선물 3 포함' : '') + ' · 씨앗 1 → ' + a1.seeds + ')');
+  ok(titled && !a1.told.length && !toldOf(a1), '입장 연출이 떠 있는 동안에는 지난주 선물 알림을 띄우지 않는다 (알림 ' + a1.told.length + ' · 알렸다는 표시 ' + toldOf(a1) + ')');
+  /* 알림을 보기 전에 새로고침해도 (입장 중에 닫았다 다시 연 것): 또 넣지 않고, 알림은 다음 입장이 걷힌 뒤에 뜬다 */
+  await pa.reload();
+  var titled2 = await pa.waitForFunction(function () { return window.INTRO && INTRO.phase === 'title' && window.APP && !!APP.state.octopus.name; }, null, { timeout: WAIT }).then(function () { return true; }, function () { return false; });
+  var a1b = await snap(pa);
+  ok(titled2 && a1b.key === MON && a1b.shells === 32 + 3 * (a1b.giftDay === MON ? 1 : 0) && a1b.seeds === 3 + (a1b.giftDay === MON ? 1 : 0) && !a1b.told.length && !toldOf(a1b), '알림 전에 새로고침: 또 넣지 않는다 (조개 ' + a1b.shells + ') · 입장 중이라 아직 안 알림');
+  await pa.evaluate(function () { INTRO.dismiss(); });
+  var told1 = await toldWait(pa);
+  await pa.waitForFunction(function () { return (JSON.parse(localStorage.getItem('ppolppol_v2')).user || {}).giftDay === window.__ppolTest.today; }, null, { timeout: WAIT }).catch(function () {});
+  var a2 = await snap(pa);
+  console.log('   입장 뒤:', JSON.stringify({ toasts: a2.toasts, told: a2.told, shells: a2.shells, seeds: a2.seeds, prev: a2.prev }));
+  var iDay = a2.toasts.map(function (t) { return /^오늘 선물/.test(t); }).indexOf(true), iWeek = a2.toasts.indexOf(TOLD);
+  ok(told1 && a2.told.length === 1 && a2.told[0].t === TOLD && a2.told[0].intro === 'done' && toldOf(a2), '입장이 걷힌 뒤 알림 한 번 «' + TOLD + '» (그때 입장 단계 ' + (a2.told[0] && a2.told[0].intro) + ') · 알렸다는 표시가 저장됨');
+  ok(a2.shells === 35 && a2.seeds === 4 && (iDay < 0 || iDay < iWeek), '오늘 선물까지: 조개 20 + 12 + 3 = ' + a2.shells + ' · 씨앗 1 + 2 + 1 = ' + a2.seeds);
+  await pa.reload();
+  await pa.waitForFunction(function () { return window.INTRO && INTRO.phase === 'title' && window.APP && !!APP.state.octopus.name; }, null, { timeout: WAIT }).catch(function () {});
+  await pa.evaluate(function () { INTRO.dismiss(); });
+  await pa.waitForFunction(function () { return INTRO.phase === 'done'; }, null, { timeout: WAIT }).catch(function () {});
+  await pa.waitForTimeout(1500);
+  var a3 = await snap(pa), b3 = await bagOf(pa);
+  console.log('   새로고침 뒤:', JSON.stringify({ shells: a3.shells, seeds: a3.seeds, toasts: a3.toasts, bag: b3 }));
+  ok(a3.shells === 35 && a3.seeds === 4 && a3.key === MON && !a3.told.length, '새로고침해도 한 번만: 조개 ' + a3.shells + ' · 씨앗 ' + a3.seeds + ' 그대로 · 알림도 다시 안 뜬다');
+  ok(b3.open && b3.prev === LINE && b3.prevShown && /\(0\/5\)/.test(b3.note) && !b3.claim && !b3.got && !a3.dot, '살림 › 이번 주 할 일 아래에 그 주 동안 한 줄 «' + b3.prev + '» · 새 주는 0/5 · 꼬리표 점 없음');
+  await c1.close();
+
+  /* 1-2. 입장 연출 없이 새 주에 처음 연다 (오늘 선물도 아직): 부팅 2.5 s 뒤의 오늘 선물 알림이 먼저 뜨고, 지난주 알림은 그 뒤에 — 먼저 떴다가 오늘 선물 알림에 밀려 사라지지 않는다 */
+  var c1b = await ctxOf({ rec: REC(USER()), day: MON }), pn = await tab(c1b);
+  await pn.goto(O + '/index.html?dev=0');
+  await pn.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
+  var toldN = await toldWait(pn), n1 = await snap(pn);
+  console.log('   입장 없이 새 주 첫 열기:', JSON.stringify({ toasts: n1.toasts, shells: n1.shells, seeds: n1.seeds, prev: n1.prev }));
+  ok(toldN && n1.toasts.length === 2 && /^오늘 선물: 조개 3 · 씨앗 1/.test(n1.toasts[0]) && n1.toasts[1] === TOLD && n1.shells === 35 && n1.seeds === 4 && toldOf(n1), '입장 없이: 오늘 선물 알림 → 그 뒤에 지난주 알림 (' + JSON.stringify(n1.toasts) + ') · 조개 35 · 씨앗 4');
+  await c1b.close();
+
+  /* 2. 일요일에 열어 둔 탭이 월요일을 맞는다 (새로고침 없이): 탭으로 돌아온 순간(visibilitychange → checkDay)에 넣고 저장 · 점이 꺼진다 · 알림 한 번 */
+  var c2 = await ctxOf({ rec: REC(USER()), day: SUN }), pb = await tab(c2);
+  await pb.goto(O + '/index.html?dev=0');
+  await pb.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
+  var s0 = await snap(pb), g0 = await bagOf(pb);
+  ok(s0.mem.key === WK1 && s0.dot && g0.claim && /\(5\/5\)/.test(g0.note) && g0.prev === null && s0.mem.shells === 20, '일요일: 다섯 가지 함 (5/5) · 받기 단추 · 꼬리표 점 · 아직 조개 20 (안 받음)');
+  await setDay(pb, MON);
+  var s1 = await pb.evaluate(function () {
+    document.dispatchEvent(new Event('visibilitychange'));   /* 탭으로 돌아옴: 앱이 새 날을 알아채는 그 길 (1분 틱과 같은 checkDay) */
+    var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user, b = document.getElementById('btn-bag');
+    return { shells: u.shells, seeds: u.seeds, key: u.week.key, prev: u.week.prev || null, dot: b.classList.contains('has-gift'), chip: b.textContent.trim() };
+  });
+  console.log('   열어 둔 탭, 월요일:', JSON.stringify(s1));
+  ok(s1.key === MON && s1.shells === 32 && s1.seeds === 3 && s1.prev && s1.prev.shells === 12 && !s1.dot && s1.chip === '조개 32', '열어 둔 탭: 새 날을 알아챈 그 자리에서 조개 20 → 32 · 씨앗 1 → 3 이 새 주와 함께 저장되고 꼬리표가 «조개 32» · 점 없음으로 다시 그려진다');
+  var told2 = await toldWait(pb);
+  await pb.evaluate(function () { document.dispatchEvent(new Event('visibilitychange')); });
+  var g2 = await bagOf(pb), s2 = await snap(pb), d2i = s2.toasts.map(function (t) { return /^오늘 선물: 조개 3 · 씨앗 1/.test(t); }).indexOf(true);
+  /* 11-12: 34f77ad(66c8110)부터 탭으로 돌아온 순간 그날 선물(조개 3 · 씨앗 1)도 들어온다 — 그 알림이 먼저, 지난주 알림이 그 뒤 (예전 기대 '조개 32' 는 그날 선물이 없던 때의 것) */
+  ok(told2 && s2.told.length === 1 && s2.told[0].t === TOLD && toldOf(s2) && s2.shells === 35 && s2.seeds === 4 && d2i >= 0 && d2i < s2.toasts.indexOf(TOLD) && g2.prev === LINE, '열어 둔 탭: 알림 한 번 «' + TOLD + '» (그날 선물 알림 뒤) · 다시 불러도 조개 35 (32 + 그날 선물 3) 그대로 · 살림에 한 줄');
+
+  /* 3. 넣지 않는 경우 (같은 탭에서 기록을 바꿔 가며 — 살림을 여는 톡이 주를 넘긴다): 이미 받은 주 · 네 가지만 한 주 · 주가 없는 기록 · 같은 주 */
+  async function roll(user, day) { user = Object.assign({ giftDay: day || MON }, user); await setUser(pb, day || MON, user);   /* 그날 선물은 이미 받은 날로 (66c8110 의 1분 틱이 검사 도중 조개 3 을 끼워 넣지 않게) */ var g = await bagOf(pb), s = await snap(pb); await pb.waitForTimeout(900); s.late = (await snap(pb)).told.length; s.bag = g; return s; }
+  var r1 = await roll({ shells: 20, seeds: 1, days: [WK1, '2026-11-11', SUN], week: WEEK({ claimed: true }) });
+  console.log('   받은 주:', JSON.stringify({ disk: [r1.shells, r1.seeds, r1.key], mem: r1.mem, late: r1.late, prev: r1.bag.prev }));
+  ok(r1.mem.key === MON && r1.shells === 20 && r1.seeds === 1 && r1.mem.shells === 20 && !r1.mem.prev && r1.bag.prev === null && !r1.late, '이미 받은 주가 넘어가면 더 넣지 않는다 (조개 20 · 씨앗 1 그대로 · 한 줄 · 알림 없음)');
+  var r2 = await roll({ shells: 20, seeds: 1, days: [WK1, SUN], week: WEEK() });   /* 들어온 날 둘 → '사흘 들어오기' 미완 → 네 가지 */
+  ok(r2.mem.key === MON && r2.shells === 20 && r2.seeds === 1 && r2.mem.shells === 20 && !r2.mem.prev && r2.bag.prev === null && !r2.late && /\(0\/5\)/.test(r2.bag.note), '네 가지만 한 주는 예전처럼 조용히 새 주로 (넣는 것 · 한 줄 · 알림 없음)');
+  var r3 = await roll({ shells: 20, seeds: 1, week: null });
+  ok(r3.mem.key === MON && r3.shells === 20 && r3.mem.shells === 20 && !r3.mem.prev && r3.mem.q.length === 7 && r3.mem.q[0] === 'ask:0:0' && r3.bag.rows.length === 7 && !r3.late, '주가 없는 기록: 새 일곱 가지만 생긴다 (넣는 것 없음)');
+  /* 시계가 한 주 뒤로 갔다가 다시 앞으로: 뒤로 갈 때 한 번 넣고(옛 주가 사라지므로), 돌아와도 또 넣지 않는다 */
+  var r4 = await roll({ shells: 20, seeds: 1, days: [WK1, '2026-11-11', SUN], week: WEEK() }, '2026-11-08');
+  var r5 = await roll({}, SUN);
+  ok(/^조개 32 · 씨앗 3 /.test(r4.bag.top) && r4.bag.prev === LINE && r4.chip === '조개 32', '살림을 여는 톡이 주를 넘겨도 그 시트의 맨 윗줄이 이미 넣은 수 («' + r4.bag.top + '») · 한 줄 · 꼬리표 «' + r4.chip + '»');
+  ok(r4.key === '2026-11-02' && r4.shells === 32 && r4.seeds === 3 && r4.prev && r5.mem.key === WK1 && r5.shells === 32 && r5.seeds === 3 && r5.mem.shells === 32 && !r5.mem.prev, '시계가 한 주 뒤로 갔다 다시 와도 한 번만 넣는다 (뒤로: 조개 ' + r4.shells + ' · 다시 앞으로: ' + r5.shells + ')');
+
+  /* 4. 불러오기: 지난주에 다섯 가지를 하고 안 받은 기록을 새 주에 불러오면, 그 기록을 오늘 연 것과 같다 — 그 기록의 조개 위에 한 번 */
+  await setUser(pb, MON, { shells: 500, seeds: 50 });
+  var imp = await pb.evaluate(function (rec) { return APP.importJSON(JSON.stringify(rec)); }, REC(USER({ shells: 7, seeds: 0, giftDay: MON })));
+  var i1 = await bagOf(pb), i2 = await snap(pb), i3 = (await bagOf(pb), await snap(pb));
+  ok(imp && i2.key === MON && i2.shells === 19 && i2.seeds === 2 && i1.prev === LINE && /^조개 19 · 씨앗 2 /.test(i1.top) && i3.shells === 19 && i3.seeds === 2, '불러오기: 불러온 기록의 조개 7 · 씨앗 0 위에 지난주 선물 한 번 (조개 ' + i2.shells + ' · 씨앗 ' + i2.seeds + ') · 살림에 한 줄 · 다시 열어도 그대로');
+
+  /* 5. 같은 주인데 칸 하나가 모르는 일이면 (나중 빌드가 일을 빼거나 이름을 바꿈) 그 칸만 바꾼다: 받은 표시 · 다른 칸의 진행 · 바꾼 횟수는 그대로. 길이가 모자라면 모자란 칸만 채운다 */
+  var KEEP = ['ask:2:0', null, 'run:1:1', 'look:1:0', 'furn:1:0', 'harvest:0:3', 'water:1:2'];
+  var r6 = await roll({ shells: 40, seeds: 5, week: { key: MON, claimed: true, q: [{ id: 'ask', n: 2, rr: 0 }, { id: 'cook', n: 1, rr: 2 }, { id: 'run', n: 1, rr: 1 }, { id: 'look', n: 1, rr: 0 }, { id: 'furn', n: 1, rr: 0 }, { id: 'harvest', n: 0, rr: 3 }, { id: 'water', n: 1, rr: 2 }] } });
+  var q6 = r6.mem.q, kept = KEEP.every(function (k, i) { return k === null || q6[i] === k; }), fresh = q6[1] || '', ids = q6.map(function (x) { return String(x).split(':')[0]; });
+  console.log('   모르는 칸 하나:', JSON.stringify(q6), '받음', r6.mem.claimed);
+  ok(r6.mem.claimed === true && kept && q6.length === 7 && /^[a-z]+:0:0$/.test(fresh) && fresh.indexOf('cook') < 0 && ids.indexOf(ids[1]) === 1 && ids.lastIndexOf(ids[1]) === 1 && r6.shells === 40 && r6.mem.shells === 40 && r6.bag.got && !r6.bag.claim && r6.bag.rows.length === 7,
+    '모르는 일이 든 칸 하나만 다른 일(' + fresh + ')로: 받은 표시 그대로 · 나머지 여섯 칸의 진행 · 바꾼 횟수 그대로 · 겹치는 일 없음 · 조개 그대로');
+  var r7 = await roll({ shells: 40, seeds: 5, week: { key: MON, claimed: true, q: [{ id: 'ask', n: 2, rr: 0 }, { id: 'run', n: 1, rr: 1 }, null, { id: 'look', n: 1, rr: 0 }] } });
+  var q7 = r7.mem.q;
+  ok(r7.mem.claimed === true && q7.length === 7 && q7[0] === 'ask:2:0' && q7[1] === 'run:1:1' && q7[3] === 'look:1:0' && q7.every(function (x) { return /^[a-z]+:\d:\d$/.test(String(x)); }) && r7.bag.rows.length === 7, '칸이 모자라거나 깨진 주도 받은 표시 · 멀쩡한 칸은 그대로, 빈 칸만 채운다 (' + JSON.stringify(q7) + ')');
+
+  /* 6. 일곱 가지를 다 해도 쪽지의 수는 (5/5) · 씨앗이 없을 때의 한 줄 */
+  var r8 = await roll({ shells: 20, seeds: 0, garden: [null, null, null], days: [MON, '2026-11-17', '2026-11-18'], week: { key: MON, claimed: false, q: [{ id: 'ask', n: 2, rr: 0 }, { id: 'look', n: 1, rr: 0 }, { id: 'run', n: 1, rr: 0 }, { id: 'furn', n: 1, rr: 0 }, { id: 'days', n: 0, rr: 0 }, { id: 'harvest', n: 1, rr: 0 }, { id: 'diary', n: 1, rr: 0 }] } }, '2026-11-18');
+  ok(/\(5\/5\)/.test(r8.bag.note) && !/7\/5/.test(r8.bag.note) && r8.bag.claim && r8.bag.rows.every(function (r) { return /\|했어$/.test(r); }), '일곱 가지를 다 해도 쪽지는 (5/5) — «' + r8.bag.note + '»');
+  var seedT = await pb.evaluate(function () { window.__toasts = []; document.getElementById('btn-bag').click(); document.querySelector('#bag-body .bag-plot').click(); var t = document.getElementById('toast').textContent; document.getElementById('bag-close').click(); return { t: t, seeds: APP.state.user.seeds, plot: APP.state.user.garden[0] }; });
+  ok(seedT.t === '씨앗이 없어. 들어온 날 선물이나 주간 선물로 생겨' && seedT.seeds === 0 && seedT.plot === null, '씨앗 없이 빈 밭을 누르면 «' + seedT.t + '» (주간 선물에서도 생긴다)');
+
+  /* 7. 선물 상자: 내밀자마자 '오늘 물어봄' 이 저장된다 (할 일 목록에 선물 일이 없어도) · 안 쓴다는 답에는 보통 얼굴 (반눈 calm 아님). 답은 게임과 같은 시드(날 · 물건 · 이름)로 미리 알아낸다 */
+  var pick = await pb.evaluate(function () {
+    var list = SCENE3D.COSTUMES.filter(function (c) { return !c.award; }), d = new Date(2026, 10, 18);
+    for (var k = 0; k < 30; k++) {
+      var dk = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+      for (var i = 0; i < list.length; i++) if (!(BRAIN.rng(BRAIN.hashSeed('gift', dk, list[i].id, '뚜루'))() < 0.65)) return { day: dk, i: i, id: list[i].id, name: list[i].name };
+      d.setDate(d.getDate() + 1);
+    }
+    return null;
+  });
+  must(!!pick && await pb.evaluate(function () { return APP.sceneMode === '3d'; }), '선물 상자: 3D 장면 · 데모 규칙이 안 쓴다고 답할 날 · 물건을 찾음 ' + JSON.stringify(pick));
+  var wkOf = await pb.evaluate(function (dk) { var p = dk.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }, pick.day);
+  await setUser(pb, pick.day, { giftDay: pick.day, week: { key: wkOf, claimed: false, q: [{ id: 'ask', n: 0, rr: 0 }, { id: 'look', n: 0, rr: 0 }, { id: 'run', n: 0, rr: 0 }, { id: 'furn', n: 0, rr: 0 }, { id: 'days', n: 0, rr: 0 }, { id: 'harvest', n: 0, rr: 0 }, { id: 'diary', n: 0, rr: 0 }] } });   /* 선물 일이 목록에 없다 → questMark 가 대신 저장해 주지 않는다 */
+  await pb.evaluate(function () { document.dispatchEvent(new Event('visibilitychange')); });   /* 앱이 바뀐 날짜를 먼저 알아채게 (1분 틱이 검사 도중에 오늘 칸을 다시 그려 화면에만 있는 선물 줄을 지우지 않게) */
+  await waitIdle(pb, WAIT);
+  var off = await pb.evaluate(function (p) {
+    var sc = APP.scene, set = sc.setExpression; window.__exprs = []; sc.setExpression = function (e) { window.__exprs.push(e); return set.apply(this, arguments); };
+    window.__toasts = []; APP.openSettings();
+    var chips = document.querySelectorAll('.gift-chips .fchip'); chips[p.i].click(); document.getElementById('gift-go').click();
+    var st = JSON.parse(localStorage.getItem('ppolppol_v2')).settings, ga = st.giftAsked || {};
+    return { chip: chips[p.i].textContent, day: ga.day, asked: !!(ga.ids && ga.ids[p.id]), n: st.giftN, exprs: window.__exprs.slice(), oct: APP.oct.state };
+  }, pick);
+  console.log('   내민 직후:', JSON.stringify(off));
+  ok(off.day === pick.day && off.asked && off.n >= 1 && off.exprs[0] === 'curious', '선물 상자: ' + pick.name + ' 내밀자마자 그날 물어봤다는 기록이 저장돼 있다 (giftAsked ' + off.day + ' · ' + pick.id + ') — 답이 나오기 전');
+  var NO = new RegExp('^뚜루는 ' + pick.name + ' 안 (쓰기|두르기)로 했어\\.$');
+  var ans = await pb.waitForFunction(function () { return window.__toasts.some(function (x) { return /기로 했어\.$/.test(x.t); }); }, null, { timeout: WAIT, polling: 50 }).then(function () { return true; }, function () { return false; });
+  var fin = await pb.evaluate(function () { var a = window.__toasts.filter(function (x) { return /기로 했어\.$/.test(x.t); })[0]; return { toast: a ? a.t : '', exprs: a ? a.ex : [], wear: APP.state.settings.octWear || null, row: [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).filter(function (t) { return /선물/.test(t); }).pop() || '' }; });
+  console.log('   답:', JSON.stringify(fin));
+  ok(ans && NO.test(fin.toast) && /\(데모 규칙이 고름\)/.test(fin.row), '선물 상자: 답은 «' + fin.toast + '» · 기록 줄에 (데모 규칙이 고름)');
+  ok(ans && fin.exprs[0] === 'curious' && fin.exprs[fin.exprs.length - 1] === 'idle' && fin.exprs.indexOf('calm') < 0, '안 쓴다는 답이 뜬 순간까지의 장면 얼굴: 들여다보는 얼굴 → 보통 얼굴 (' + fin.exprs.join(' → ') + ') — 반눈 calm 없음');
+  /* 8. 두 탭을 열어 둔 채 주가 바뀐다 (맨 끝에: 닫히는 탭은 한 번 더 저장하므로 그 뒤에 다른 검사를 두지 않는다). 가려진 탭이 먼저 새 주를 알아채 넣으면: 보이는 탭은 그 기록을 받아 따라가고 (제 차례에 또 넣지 않는다 — 둘 합쳐 한 번), 알림은 보이는 탭에서 뜬다 (가려진 탭은 띄우지 않는다) */
+  await setUser(pb, SUN, { shells: 20, seeds: 1, days: [WK1, '2026-11-11', SUN], giftDay: SUN, week: WEEK() });   /* giftDay 일요일: 일요일 선물은 이미 받음 (11-12 — 34f77ad 부터 탭으로 돌아오면 그날 선물이 들어온다) */
+  await pb.evaluate(function () { document.dispatchEvent(new Event('visibilitychange')); });   /* 이 탭의 '오늘' 을 일요일로 (앞 검사가 넘겨 둔 날짜에서) */
+  var pc = await tab(c2);
+  await pc.addInitScript({ content: "Object.defineProperty(document, 'hidden', { get: function () { return true; }, configurable: true });" });   /* 이 탭은 가려진 탭 (뒤에 있는 탭) */
+  await pc.goto(O + '/index.html?dev=0');
+  await pc.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
+  var t0 = await pc.evaluate(function () { var u = APP.state.user; return { key: u.week && u.week.key, shells: u.shells, day: window.__ppolTest.today, hidden: document.hidden }; });
+  await pb.waitForFunction(function () { return !document.getElementById('toast').classList.contains('show'); }, null, { timeout: 15000 }).catch(function () {});
+  await setDay(pb, MON); await setDay(pc, MON);
+  var t1 = await pc.evaluate(function () { document.getElementById('btn-bag').click(); document.getElementById('bag-close').click(); var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user; return { key: u.week.key, shells: u.shells, seeds: u.seeds, day: u.giftDay === window.__ppolTest.today ? 1 : 0 }; });   /* 가려진 탭에서 주가 넘어간다 (살림 다시 그리기 = 1분 틱의 꼬리표 다시 그리기와 같은 weekState) */
+  /* 보이는 탭의 1분 틱(66c8110)이 이 사이 월요일 선물(조개 3 · 씨앗 1)을 줄 수 있다 — 그 몫은 기록의 giftDay 로 보고 더한다 (주간 선물은 그래도 둘 합쳐 한 번) */
+  var synced = await pb.waitForFunction(function (k) { var u = APP.state.user; return u.week && u.week.key === k && u.shells === 32 + (u.giftDay === k ? 3 : 0); }, MON, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  var toldV = await toldWait(pb);
+  await pc.waitForFunction(function () { var p = APP.state.user.week.prev; return p && p.told === 1; }, null, { timeout: WAIT }).catch(function () {});
+  var gb = await bagOf(pb), gc = await bagOf(pc), tb = await snap(pb), tc = await snap(pc);
+  console.log('   두 탭:', JSON.stringify({ before: t0, paidByHidden: t1, visible: { shells: tb.shells, mem: tb.mem.shells, told: tb.told.length }, hidden: { shells: tc.shells, mem: tc.mem.shells, told: tc.told.length } }));
+  var dk = tb.giftDay === MON ? 1 : 0;
+  ok(t0.key === WK1 && t0.shells === 20 && t0.hidden && t1.key === MON && t1.shells === 32 + 3 * t1.day && synced && tb.shells === 32 + 3 * dk && tb.seeds === 3 + dk && tb.mem.shells === tb.shells && tc.mem.shells === tb.shells && gb.prev === LINE && gc.prev === LINE,
+    '두 탭: 한 탭이 넣으면(조개 32) 다른 탭이 그 기록을 받아 같은 새 주 · 둘 다 살림을 열어도 두 번 넣지 않는다 (둘 합쳐 조개 32 · 씨앗 3' + (dk ? ' + 그날 선물 3 · 1' : '') + ')');
+  ok(toldV && tb.told.length === 1 && tc.told.length === 0 && toldOf(tb), '두 탭: 알림은 보이는 탭에서 한 번 (보이는 탭 ' + tb.told.length + ' · 가려진 탭 ' + tc.told.length + ')');
+  reportErrors(bag, 'Q');
+  await c2.close();
+
+  /* ── 11-12 둘째 묶음 (검증 F19 · F3/C3 · F10 · C12 · C11 · F8 · W13 · C19 · F5 · W8 · F20 · F7 · F6 · F11 · F12 · C14 · F16 · C16) ── 이 묶음의 페이지 에러는 따로 센다 */
+  bag = []; bag.ignored = [];
+  var TUE = '2026-11-17', WED = '2026-11-18', DAYT = /^오늘 선물: 조개 \d+ · 씨앗 1 \(들어온 날 \d+일째\)$/;
+  function keyAddQ(k, n) { var p = k.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2] + n); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function Q7(ids, o) { return Object.assign({ key: MON, claimed: false, q: ids.map(function (id) { return typeof id === 'string' ? { id: id, n: 0, rr: 0 } : id; }) }, o || {}); }
+  function dayToasts(pg) { return pg.evaluate(function () { return window.__toasts.filter(function (x) { return /^오늘 선물/.test(x.t); }).map(function (x) { return { t: x.t, intro: x.intro, hid: x.hid }; }); }); }
+  function dayWait(pg) { return pg.waitForFunction(function () { return window.__toasts.some(function (x) { return /^오늘 선물/.test(x.t); }); }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; }); }
+  function disk(pg) { return pg.evaluate(function () { var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user; return { shells: u.shells, seeds: u.seeds, days: u.days, giftDay: u.giftDay, tell: u.giftTell || null, week: u.week }; }); }
+  function rowsOf(pg) { return pg.evaluate(function () { document.getElementById('btn-bag').click(); var r = [].map.call(document.querySelectorAll('#bag-body .week-list > li'), function (li) { return li.querySelector('.week-txt').textContent + '|' + li.querySelector('.week-n').textContent; }); document.getElementById('bag-close').click(); return r; }); }
+  async function ready(pg, url) { await pg.goto(O + '/index.html?dev=0' + (url || '')); await pg.waitForSelector('#btn-go:not(.away)', { timeout: WAIT }); }
+  /* 버튼을 눌러 (플레이어와 같은 길) 칸마다 바꾸기를 다 쓴다 → 칸마다 보인 일 */
+  function swapAll(pg) { return pg.evaluate(function () {
+    var out = [], sh = document.getElementById('bag-sheet'); if (!sh.open) document.getElementById('btn-bag').click();
+    for (var i = 0; i < 7; i++) { var seen = [APP.state.user.week.q[i].id]; for (var k = 0; k < 3; k++) { var b = document.querySelectorAll('#bag-body .week-list > li')[i].querySelector('.week-rr'); if (!b) break; b.click(); seen.push(APP.state.user.week.q[i].id); } out.push(seen); }
+    document.getElementById('bag-close').click(); return { slots: out, list: APP.state.user.week.q.map(function (x) { return x.id; }) };
+  }); }
+  var FIVE = Q7([{ id: 'ask', n: 2, rr: 0 }, { id: 'look', n: 1, rr: 0 }, { id: 'run', n: 1, rr: 0 }, { id: 'kitchen', n: 1, rr: 0 }, { id: 'furn', n: 1, rr: 0 }, { id: 'harvest', n: 0, rr: 1 }, 'water']);
+
+  /* 9. 오늘 선물 알림은 입장 연출 밑에 깔리지 않는다 (F19): 입장이 떠 있는 동안 선물은 들어가고(저장) 알림 줄은 기다린다 → 그 사이 새로고침해도 줄은 남아, 입장이 걷힌 뒤 한 번 */
+  var c9 = await ctxOf({ rec: REC(USER({ week: WEEK({ claimed: true }), giftDay: SUN })), day: MON }), p9 = await tab(c9);
+  await p9.goto(O + '/index.html?dev=0&intro=1');
+  var given9 = await p9.waitForFunction(function () { var u = (JSON.parse(localStorage.getItem('ppolppol_v2')) || {}).user || {}; return window.INTRO && INTRO.phase === 'title' && u.giftDay === window.__ppolTest.today; }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  var u9 = await disk(p9), d9 = await dayToasts(p9), ph9 = await p9.evaluate(function () { return INTRO.phase; });
+  console.log('   입장 중 오늘 선물:', JSON.stringify({ given: given9, phase: ph9, shells: u9.shells, tell: u9.tell, toasts: d9 }));
+  ok(given9 && ph9 === 'title' && u9.shells === 23 && u9.seeds === 2 && u9.days.indexOf(MON) >= 0 && !d9.length && u9.tell && u9.tell.day === MON, '입장 연출 중: 오늘 선물은 바로 들어가 저장되고 (조개 20 → ' + u9.shells + ') 알림 줄은 띄우지 않고 기다린다 (알림 ' + d9.length + ')');
+  await p9.reload();
+  await p9.waitForFunction(function () { return window.INTRO && INTRO.phase === 'title' && window.APP && !!APP.state.octopus.name; }, null, { timeout: WAIT }).catch(function () {});
+  var d9b = await dayToasts(p9);
+  await p9.evaluate(function () { INTRO.dismiss(); });
+  var seen9 = await dayWait(p9), d9c = await dayToasts(p9), u9c = await disk(p9);
+  ok(!d9b.length && seen9 && d9c.length === 1 && d9c[0].intro === 'done' && d9c[0].t === '오늘 선물: 조개 3 · 씨앗 1 (들어온 날 4일째)' && !u9c.tell && u9c.shells === 23, '입장 중 새로고침해도 오늘 선물 줄은 남아 입장이 걷힌 뒤 한 번 «' + (d9c[0] && d9c[0].t) + '» (그때 ' + (d9c[0] && d9c[0].intro) + ') · 또 주지 않는다 (조개 ' + u9c.shells + ')');
+  await c9.close();
+
+  /* 10. 열어 둔 탭이 다음 날을 맞는다 (66c8110: 탭으로 돌아온 순간 · F3/C3): 그날 선물이 들어가고 '사흘 들어오기' 가 하루 오른다.
+     이 탭은 돌아온 그 순간만 보이고 곧 다시 가려진다 — 1분 틱(보이는 탭에서만)이 대신 주지 못하게 해서 '돌아온 순간' 의 길만 본다. 알림 줄은 보이게 된 뒤에 */
+  var THU = '2026-11-19';
+  var c10 = await ctxOf({ rec: REC(USER({ seeds: 0, days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'days', 'harvest', 'water', 'kitchen']) })), day: MON });
+  await c10.addInitScript({ content: "window.__hide = false; Object.defineProperty(document, 'hidden', { get: function () { return !!window.__hide; }, configurable: true });" });
+  var pd = await tab(c10);
+  await ready(pd);
+  var r10a = await rowsOf(pd);
+  await pd.evaluate(function (d) { window.__hide = true; sessionStorage.setItem('__q_day', d); window.__ppolTest.today = d; window.__toasts = []; window.__hide = false; document.dispatchEvent(new Event('visibilitychange')); window.__hide = true; }, TUE);
+  var gave10 = await pd.waitForFunction(function (d) { return JSON.parse(localStorage.getItem('ppolppol_v2')).user.giftDay === d; }, TUE, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  var hid10 = await dayToasts(pd);
+  await pd.evaluate(function () { window.__hide = false; });
+  var seen10 = await dayWait(pd), u10 = await disk(pd), r10b = await rowsOf(pd), t10a = await dayToasts(pd);
+  console.log('   열어 둔 탭, 다음 날:', JSON.stringify({ rows: [r10a[3], r10b[3]], shells: u10.shells, days: u10.days, hidden: hid10.length, shown: t10a }));
+  ok(gave10 && u10.giftDay === TUE && u10.days.join() === [MON, TUE].join() && u10.shells === 23 && u10.seeds === 1 && r10a[3] === '이번 주에 사흘 들어오기|1/3' && r10b[3] === '이번 주에 사흘 들어오기|2/3' && !hid10.length && seen10 && t10a.length === 1,
+    '열어 둔 탭이 다음 날로 (날짜 훅 + 탭으로 돌아옴): 그날 선물 조개 3 · 씨앗 1 · 들어온 날 ' + u10.days.length + ' · «사흘 들어오기» ' + r10a[3].split('|')[1] + ' → ' + r10b[3].split('|')[1] + ' · 알림은 보일 때 한 번');
+  /* 그날 선물 알림은 떠 있는 다른 알림을 밀어내지 않는다 (F19): 다른 알림(씨앗 없음)이 뜬 채 그날 선물이 들어오면, 그 알림이 걷힌 뒤에 */
+  var other = await pd.evaluate(function (d) { sessionStorage.setItem('__q_day', d); window.__ppolTest.today = d; window.__toasts = []; APP.state.user.seeds = 0;
+    document.getElementById('btn-bag').click(); document.querySelector('#bag-body .bag-plot').click(); document.getElementById('bag-close').click(); var t = document.getElementById('toast').textContent; APP.dailyGift(); return t; }, WED);   /* 날짜 넘김 · 다른 알림 · 그날 선물을 한 번에 (1분 틱이 끼어들 틈 없이) */
+  var seen10b = await dayWait(pd), t10 = await pd.evaluate(function () { return window.__toasts.slice(); });
+  var i10 = t10.map(function (x) { return DAYT.test(x.t); }).indexOf(true);
+  ok(seen10b && /^씨앗이 없어/.test(other) && i10 === 1 && t10[0].t === other && t10[1].hid > t10[0].hid && t10.filter(function (x) { return DAYT.test(x.t); }).length === 1, '그날 선물 알림은 떠 있던 다른 알림(«' + other.slice(0, 8) + '…»)이 걷힌 뒤에 한 번 (밀어내지 않는다 — 걷힘 ' + (t10[0] && t10[0].hid) + ' → ' + (t10[1] && t10[1].hid) + ')');
+
+  /* 두 탭 (둘 다 보이는 탭): 한 탭이 그날 선물을 주면 다른 탭은 그 기록을 받아 또 주지 않는다 · 알림도 둘 합쳐 한 번 */
+  await pd.evaluate(function (d) { localStorage.setItem('__q_day', d); }, WED);   /* 새 탭도 같은 날로 연다 (탭마다의 날짜 훅이 없을 때) */
+  var pd2 = await tab(c10); await ready(pd2);
+  await setDay(pd, THU); await setDay(pd2, THU);
+  await pd.evaluate(function () { window.__toasts = []; APP.dailyGift(); });
+  var sync10 = await pd2.waitForFunction(function (d) { return APP.state.user.giftDay === d; }, THU, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  await pd2.evaluate(function () { window.__toasts = []; APP.dailyGift(); });
+  await dayWait(pd);
+  var u10c = await disk(pd), a10 = await dayToasts(pd), b10 = await dayToasts(pd2);
+  ok(sync10 && u10c.shells === 29 && u10c.seeds === 2 && u10c.days.filter(function (d) { return d === THU; }).length === 1 && a10.length + b10.length === 1, '두 탭: 그날 선물은 둘 합쳐 한 번 (조개 26 → ' + u10c.shells + ' · 알림 ' + a10.length + ' + ' + b10.length + ')');
+  await c10.close();
+
+  /* 11. 가려진 탭 · 1분 틱 (가짜 시계 — 66c8110): 가려진 동안엔 주지도 알리지도 않고, 보이게 된 뒤 1분 틱이 자정을 넘긴 날의 선물을 준다 (한 번) */
+  var c11 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'days', 'harvest', 'water', 'kitchen']) })), day: '' });
+  await c11.addInitScript({ content: "window.__hide = true; Object.defineProperty(document, 'hidden', { get: function () { return !!window.__hide; }, configurable: true });" });
+  var pk = await tab(c11);
+  await pk.clock.install({ time: new Date(2026, 10, 17, 23, 57, 0) });   /* 화요일 밤 (날짜 훅 없이 — 가짜 시계의 날짜) */
+  await ready(pk);
+  var gave11 = await pk.waitForFunction(function () { var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user; return u.giftDay === '2026-11-17'; }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });   /* 가려진 채 연 탭: 부팅 2.5 s 뒤에 주기는 한다 */
+  var k1 = await dayToasts(pk), u11 = await disk(pk);
+  await pk.evaluate(function () { window.__hide = false; });   /* 보이게 된다 (신호 없이 — 탭으로 돌아온 신호의 400 ms 뒤 그날 선물이 아래 시계 넘김에 섞이지 않게) */
+  var seen11 = await dayWait(pk), k2 = await dayToasts(pk);
+  ok(gave11 && !k1.length && u11.tell && seen11 && k2.length === 1, '가려진 탭: 그날 선물은 들어가도 알림 줄은 가려진 동안 띄우지 않고 (' + k1.length + '), 보이게 되면 한 번 (' + k2.length + ')');
+  await pk.evaluate(function () { window.__hide = true; window.__toasts = []; });
+  await pk.clock.fastForward('04:00');   /* 수요일 00:01 — 가려진 탭의 1분 틱 */
+  var u11b = await disk(pk), k3 = await dayToasts(pk);
+  await pk.evaluate(function () { window.__hide = false; });
+  await pk.clock.fastForward('01:05');   /* 보이는 탭의 1분 틱 (탭으로 돌아온 신호 없이) */
+  var seen11c = await dayWait(pk), u11c = await disk(pk), k4 = await dayToasts(pk), r11 = await rowsOf(pk);
+  console.log('   가짜 시계:', JSON.stringify({ hiddenTick: { giftDay: u11b.giftDay, toasts: k3.length }, visibleTick: { giftDay: u11c.giftDay, days: u11c.days, shells: u11c.shells, toasts: k4 }, row: r11[3] }));
+  ok(u11b.giftDay === '2026-11-17' && !k3.length && seen11c && u11c.giftDay === WED && u11c.days.join() === [MON, '2026-11-17', WED].join() && u11c.shells === 26 && k4.length === 1 && r11[3] === '이번 주에 사흘 들어오기|했어', '1분 틱 (가짜 시계로 자정 넘김): 가려진 동안엔 그대로 (' + u11b.giftDay + ') · 보이면 수요일 선물 한 번 · 사흘 들어오기 ' + r11[3].split('|')[1]);
+  await c11.close();
+
+  /* 12. 산책 묻기 · 가구 옮기기는 정말 한 것만 센다 (F10 · C12) */
+  var c12 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'furn', 'look', 'run', 'days', 'harvest', 'water']) })), day: MON }), pf = await tab(c12);
+  await ready(pf);
+  function qn(pg, id) { return pg.evaluate(function (id) { return APP.state.user.week.q.filter(function (x) { return x.id === id; })[0].n | 0; }, id); }
+  var fm = await pf.evaluate(function () {
+    var sc = APP.scene, id = sc.furnItems()[0].id, r = { id: id };
+    function n() { return APP.state.user.week.q[1].n | 0; }
+    r.carry1 = sc.furnCarry(id); sc.furnConfirm(); r.same = n();   /* 들었다가 그 자리에 그대로 놓기 */
+    var a = sc.layout()[id]; r.carry2 = sc.furnCarry(id); sc.furnSetRot((a[2] + 90) % 360); sc.furnConfirm(); r.turned = n();   /* 돌려서 놓기 */
+    return r;
+  });
+  ok(fm.carry1 && fm.carry2 && fm.same === 0 && fm.turned === 1, '가구: 들어 올렸다 그 자리에 그대로 놓으면 안 센다 (' + fm.same + ') · 돌려 놓으면 센다 (' + fm.turned + ')');
+  await pf.evaluate(function () { window.__plan = BRAIN.plan; BRAIN.plan = function () { BRAIN.plan = window.__plan; return Promise.reject(new Error('test: brain stop')); }; window.__toasts = []; document.getElementById('btn-go').click(); });
+  var stop12 = await pf.waitForFunction(function () { return window.__toasts.some(function (x) { return /^두뇌가 잠깐 멈췄어/.test(x.t); }); }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  var ask1 = await qn(pf, 'ask'), trips1 = await pf.evaluate(function () { return APP.state.trips.length; });
+  await waitIdle(pf, WAIT);
+  await pf.evaluate(function () { document.getElementById('btn-go').click(); });
+  var ask2ok = await pf.waitForFunction(function () { return (APP.state.user.week.q[0].n | 0) === 1; }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  ok(stop12 && ask1 === 0 && trips1 === 0 && ask2ok, '산책 묻기: 두뇌가 멈춰 차례가 없던 물음은 안 센다 (' + ask1 + ') · 차례가 시작된 물음은 센다 (1)');
+  await waitIdle(pf, WAIT);
+  await c12.close();
+
+  /* 13. 나눠 주는 일 (C11 · F8 · W13): 바꾸기는 그 칸이 이번 주에 보여 준 일을 다시 내지 않고, 다 한 '사흘 들어오기' 를 내지 않고, 포스터가 없으면 '포스터 일기' 를 내지 않는다 (새 주에도). 낸 목록은 바로 저장 · 다시 열어도 같다 */
+  var c13 = await ctxOf({ rec: REC(USER({ days: [MON, TUE, WED], giftDay: WED, week: Q7(['ask', 'look', 'run', 'furn', 'harvest', 'water', 'kitchen']) })), day: WED }), pr = await tab(c13);
+  await ready(pr);
+  var sw13 = await swapAll(pr), all13 = [].concat.apply([], sw13.slots);
+  var rep13 = sw13.slots.filter(function (s) { return s.some(function (id, k) { return s.indexOf(id) !== k; }); });
+  ok(sw13.slots.every(function (s) { return s.length >= 2; }) && !rep13.length && all13.indexOf('days') < 0 && all13.indexOf('diary') < 0, '바꾸기: 이번 주에 사흘을 다 들어온 뒤엔 «사흘 들어오기» 를 내지 않고 · 포스터가 없으면 «포스터 일기» 도 내지 않는다 · 칸마다 보인 일이 겹치지 않는다 (' + JSON.stringify(sw13.slots) + ')');
+  /* 여러 주에 걸쳐: 새 주의 일곱 가지 + 칸마다 바꾸기 세 번 */
+  var weeks = ['2026-11-23', '2026-11-30', '2026-12-07', '2026-12-14', '2026-12-21'], dealt = [], reps = rep13.length, dia = 0, saved = 0, same = 0;
+  for (var wi = 0; wi < weeks.length; wi++) {
+    await setUser(pr, weeks[wi], { giftDay: weeks[wi], week: null });
+    var w1 = await pr.evaluate(function () { document.getElementById('btn-bag').click(); document.getElementById('bag-close').click(); var d = JSON.parse(localStorage.getItem('ppolppol_v2')).user.week; return { q: d && d.q.map(function (x) { return x.id; }), key: d && d.key }; });
+    await pr.reload(); await pr.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
+    var w2 = await pr.evaluate(function () { return APP.state.user.week.q.map(function (x) { return x.id; }); });
+    if (w1.key === weeks[wi]) saved++; if (w1.q && w1.q.join() === w2.join()) same++;
+    dealt.push(w2.join(',')); if (w2.indexOf('diary') >= 0) dia++;
+    var sw = await swapAll(pr);
+    reps += sw.slots.filter(function (s) { return s.some(function (id, k) { return s.indexOf(id) !== k; }); }).length;
+    dia += [].concat.apply([], sw.slots).filter(function (id) { return id === 'diary'; }).length;
+  }
+  console.log('   나눠 준 주:', JSON.stringify(dealt));
+  ok(reps === 0, '바꾸기: 한 칸이 이번 주에 보여 준 일은 다시 나오지 않는다 (6주 · 42칸 · 바꾸기 세 번씩 — 되돌아온 칸 ' + reps + ')');
+  ok(dia === 0 && saved === weeks.length && same === weeks.length, '새 주: 포스터가 없으면 «포스터 일기» 를 나눠 주지 않는다 (' + dia + ') · 나눈 목록은 바로 저장 (' + saved + '/' + weeks.length + ') · 새로고침해도 같다 (' + same + '/' + weeks.length + ')');
+  /* 포스터가 생기면 다시 나온다 (빼기만 하는 게 아니다) · 예전에 나눠 준 목록은 그대로 · 옛 기록(seen 없음 · 뺀 '선물 상자' 일)도 그대로 열린다 */
+  await setUser(pr, '2026-12-28', { giftDay: '2026-12-28', week: null });
+  await pr.evaluate(function () { APP.state.trips.push({ id: 'tq-poster', date: '2026-12-20', seq: 1, status: 'done', kind: 'out', startedAt: 1, endedAt: 2, events: [], receipt: null, poster: { title: '시험 포스터', type: 'poster' } }); APP.save(); });
+  var withP = 0;
+  for (var pi = 0; pi < 6; pi++) { await setUser(pr, keyAddQ('2026-12-28', 7 * pi), { giftDay: keyAddQ('2026-12-28', 7 * pi), week: null }); var ids = (await pr.evaluate(function () { document.getElementById('btn-bag').click(); document.getElementById('bag-close').click(); return APP.state.user.week.q.map(function (x) { return x.id; }); })); if (ids.indexOf('diary') >= 0) withP++; }
+  await setUser(pr, '2027-03-01', { giftDay: '2027-03-01', week: { key: '2027-03-01', claimed: false, q: [{ id: 'ask', n: 1, rr: 0 }, { id: 'gift', n: 1, rr: 0 }, { id: 'diary', n: 0, rr: 1 }, { id: 'run', n: 1, rr: 2 }, { id: 'look', n: 0, rr: 0 }, { id: 'water', n: 1, rr: 0 }, { id: 'plant', n: 0, rr: 0 }] } });
+  var old13 = await pr.evaluate(function () { APP.state.trips = []; document.getElementById('btn-bag').click(); var q = APP.state.user.week.q.map(function (x) { return x.id + ':' + x.n + ':' + x.rr; }); var b = document.querySelectorAll('#bag-body .week-list > li')[4].querySelector('.week-rr'); if (b) b.click(); var y = APP.state.user.week.q[4]; document.getElementById('bag-close').click(); return { q: q, swapped: y.id + ':' + y.n + ':' + y.rr, seen: y.seen }; });
+  console.log('   옛 목록:', JSON.stringify(old13));
+  ok(withP >= 1 && old13.q[0] === 'ask:1:0' && !/^gift/.test(old13.q[1]) && old13.q[2] === 'diary:0:1' && old13.q[3] === 'run:1:2' && /^[a-z]+:0:1$/.test(old13.swapped) && old13.swapped.indexOf('look') < 0 && JSON.stringify(old13.seen) === '["look"]',
+    '포스터가 생기면 «포스터 일기» 도 다시 나온다 (' + withP + '/6주) · 예전에 나눈 목록은 그대로 (포스터 없이도 «포스터 일기» 칸 유지) · 뺀 선물 일 칸만 다른 일로 · seen 없는 옛 칸도 바꾸기가 된다');
+  await c13.close();
+
+  /* 14. 2D 장면 (C19): '위층 옷방' · '가구' 는 새 주에도 · 바꾸기로도 나눠 주지 않는다 (예전에 나눈 칸은 그대로) */
+  var c14 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'loft', 'furn', 'look', 'run', 'water', 'kitchen']) })), day: MON }), p2 = await tab(c14);
+  await ready(p2, '&scene=2d');
+  var mode14 = await p2.evaluate(function () { return APP.sceneMode; }), keep14 = await rowsOf(p2), bad2d = 0, sw14 = [];
+  for (var ti = 0; ti < 4; ti++) {
+    await setUser(p2, keyAddQ('2026-11-23', 7 * ti), { giftDay: keyAddQ('2026-11-23', 7 * ti), week: null });
+    var sw2 = await swapAll(p2); sw14.push(sw2.slots.map(function (s) { return s.join('>'); }).join(' '));
+    bad2d += [].concat.apply([], sw2.slots).filter(function (id) { return id === 'loft' || id === 'furn'; }).length;
+  }
+  console.log('   2D 주:', JSON.stringify(sw14));
+  ok(mode14 === '2d' && bad2d === 0 && keep14[1] === '위층 옷방 올라가 보기|0/1' && keep14[2] === '가구 하나 옮겨 놓기|0/1', '2D 장면: 새 주 · 바꾸기에서 «위층 옷방» · «가구» 가 나오지 않는다 (4주 — ' + bad2d + ') · 전에 나눈 칸은 그대로');
+  await c14.close();
+
+  /* 15. 살림 시트 (360x740): 다섯 가지를 하면 받기 단추가 쪽지 바로 아래 · 화면 안 (F5). 꼬리표 점은 바탕과 떨어진 색 · 이름에도 (W8). 받으면 '받았어' 줄이 그 자리 · 키보드 자리도 그 줄 (F6) */
+  var c15 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: FIVE, sets: { attic: '2026-11-10', school: '2026-11-12' } })), day: MON }), pg = await tab(c15);
+  await ready(pg);
+  var v15 = await pg.evaluate(function () {
+    var b = document.getElementById('btn-bag'), a = getComputedStyle(b, '::after'), bs = getComputedStyle(b);
+    var r = { aria: b.getAttribute('aria-label'), dot: { w: parseFloat(a.width), anim: a.animationName, bg: a.backgroundColor, frame: bs.borderTopColor, ring: a.boxShadow } };
+    b.click(); var body = document.getElementById('bag-body'), kids = [].slice.call(body.children), note = kids.filter(function (x) { return /일곱 가지/.test(x.textContent); })[0], c = document.getElementById('week-claim'), cr = c.getBoundingClientRect();
+    r.claim = { next: note && note.nextElementSibling === c, beforeList: !!(c.compareDocumentPosition(body.querySelector('.week-list')) & 4), top: Math.round(cr.top), bottom: Math.round(cr.bottom), vh: innerHeight, door: document.getElementById('btn-door').getAttribute('aria-label') };
+    r.kitchen = [].map.call(body.querySelectorAll('.week-txt'), function (x) { return x.textContent; }).filter(function (t) { return /들르기/.test(t); })[0];
+    c.focus(); c.click();
+    var got = document.getElementById('week-got'), n2 = [].slice.call(body.children).filter(function (x) { return /일곱 가지/.test(x.textContent); })[0];
+    r.after = { got: !!got, place: !!got && n2.nextElementSibling === got, focus: document.activeElement === got, aria: b.getAttribute('aria-label'), dot: b.classList.contains('has-gift') };
+    document.getElementById('bag-close').click(); return r;
+  });
+  console.log('   시트 · 꼬리표:', JSON.stringify(v15));
+  ok(v15.claim.next && v15.claim.beforeList && v15.claim.bottom <= v15.claim.vh, '다섯 가지를 하면 «주간 선물 받기» 가 쪽지 바로 아래 · 목록 위 · 360x740 화면 안 (위 ' + v15.claim.top + ' · 아래 ' + v15.claim.bottom + ' / ' + v15.claim.vh + ')');
+  ok(v15.aria === '살림, 조개 20, 주간 선물이 있어' && v15.dot.w >= 10 && v15.dot.anim === 'none' && v15.dot.bg !== v15.dot.frame && /0px 0px 0px 2px/.test(v15.dot.ring), '꼬리표: 이름 «' + v15.aria + '» · 점 ' + v15.dot.w + 'px · 틀(' + v15.dot.frame + ')과 다른 색(' + v15.dot.bg + ') · 바탕색 테두리 · 깜빡임 없음');
+  ok(v15.after.got && v15.after.place && v15.after.focus && v15.after.aria === '살림, 조개 32' && !v15.after.dot, '받은 뒤: «이번 주 선물은 받았어.» 가 단추 자리 · 키보드 자리도 그 줄 · 꼬리표 이름에서 선물이 빠지고 점 없음 («' + v15.after.aria + '»)');
+  ok(v15.kitchen === '놀이방 들르기' && v15.claim.door === '놀이방', '할 일 이름은 문에 적힌 방 이름 그대로 («' + v15.kitchen + '» · 문 «' + v15.claim.door + '»)');
+  /* 바꾸기 · 다시 입기 뒤 키보드 자리 (F6) · 세트 이름 한 번 (F12) */
+  await setUser(pg, MON, { week: FIVE });
+  var f15 = await pg.evaluate(function () {
+    document.getElementById('btn-bag').click(); var li = function (i) { return document.querySelectorAll('#bag-body .week-list > li')[i]; }, r = {};
+    var b = li(6).querySelector('.week-rr'); b.focus(); b.click(); r.rr = li(6).contains(document.activeElement) && document.activeElement !== document.body; r.rrOn = document.activeElement.className;
+    var b5 = li(5).querySelector('.week-rr'); b5.focus(); b5.click(); b5 = li(5).querySelector('.week-rr'); b5.focus(); b5.click(); r.rr2 = li(5).contains(document.activeElement); r.rr2On = document.activeElement.className;   /* 마지막 바꾸기: 단추가 없어지면 그 줄의 글 */
+    document.getElementById('bag-close').click();
+    window.__toasts = []; document.getElementById('btn-sew').click(); var sl = document.querySelectorAll('#sew-body .week-list > li'), at = -1;
+    [].forEach.call(sl, function (x, k) { if (/다락방 차림/.test(x.textContent)) at = k; });
+    var w = sl[at].querySelector('.week-rr'); r.label = w.getAttribute('aria-label'); w.focus(); w.click();
+    r.wear = document.querySelectorAll('#sew-body .week-list > li')[at].querySelector('.week-rr') === document.activeElement; r.toast = document.getElementById('toast').textContent;
+    document.getElementById('sew-close').click(); return r;
+  });
+  console.log('   키보드 자리:', JSON.stringify(f15));
+  ok(f15.rr && /week-rr/.test(f15.rrOn) && f15.rr2 && /week-txt/.test(f15.rr2On) && f15.wear, '키보드 자리: 바꾸기 뒤 같은 줄의 바꾸기 단추 · 단추가 없어지면 그 줄의 글 · 다시 입기 뒤 같은 줄의 다시 입기 (body 로 떨어지지 않는다)');
+  ok(f15.label === '다락방 차림 다시 입기' && f15.toast === '다락방 차림으로 입었어', '세트 이름은 한 번: «' + f15.label + '» · «' + f15.toast + '»');
+  await c15.close();
+
+  /* 16. 320x568: 받기 단추의 수량은 한 줄 (F20) · 바꾸기 · 다시 입기는 누르는 곳 높이 44px, 줄은 그대로, 시트 몸이 옆으로 넘치지 않는다 (F7 · C13) */
+  var c16 = await browser.newContext({ viewport: { width: 320, height: 568 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+  await c16.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+  await c16.addInitScript({ content: "if (!localStorage.getItem('__q_seed')) { localStorage.setItem('__q_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(REC(USER({ days: [MON], giftDay: MON, week: FIVE, sets: { attic: '2026-11-10', school: '2026-11-12' } })))) + '); } ' + "window.__ppolTest = { today: '" + MON + "' };" + REC_UI });
+  var pt = await tab(c16); await ready(pt);
+  var m16 = await pt.evaluate(function () {
+    function hit(x) { x.scrollIntoView({ block: 'center' }); var q = x.getBoundingClientRect(), cx = q.x + q.width / 2, cy = q.y + q.height / 2; return { h: Math.round(q.height), up: document.elementFromPoint(cx, cy - 21.5) === x, down: document.elementFromPoint(cx, cy + 21.5) === x }; }
+    document.getElementById('btn-bag').click(); var body = document.getElementById('bag-body'), r = {};
+    var nb = document.querySelector('#week-claim .nobr'), ys = {}; [].forEach.call(nb.getClientRects(), function (q) { ys[Math.round(q.top)] = 1; }); r.amountLines = Object.keys(ys).length; r.amount = nb.textContent;
+    r.rr = [].map.call(body.querySelectorAll('.week-rr'), hit); r.bagX = body.scrollWidth - body.clientWidth;
+    r.rows = [].map.call(body.querySelectorAll('.week-row'), function (x) { var inner = Math.max.apply(null, [].map.call(x.children, function (c) { return c.getBoundingClientRect().height; })); return Math.round(x.getBoundingClientRect().height - Math.max(44, inner + 4)); });   /* 줄 높이 − max(44, 안의 것 + 위아래 2px) : 단추 때문에 더 커진 만큼 (테두리 2px 까지) */
+    document.getElementById('bag-close').click(); document.getElementById('btn-sew').click(); var sb = document.getElementById('sew-body');
+    r.wear = [].map.call(sb.querySelectorAll('.week-rr'), hit); r.sewX = sb.scrollWidth - sb.clientWidth; document.getElementById('sew-close').click();
+    return r;
+  });
+  console.log('   320:', JSON.stringify(m16));
+  ok(m16.amountLines === 1 && m16.amount === '(조개 12 · 씨앗 2)', '320 px: 받기 단추의 수량 «' + m16.amount + '» 은 한 줄 (끊기지 않는다)');
+  ok(m16.rr.length >= 2 && m16.wear.length === 2 && m16.rr.concat(m16.wear).every(function (x) { return x.up && x.down; }) && m16.rows.every(function (d) { return d <= 2; }) && m16.bagX === 0 && m16.sewX === 0,
+    '320 px: 바꾸기 · 다시 입기는 보이는 높이 ' + m16.rr[0].h + 'px 여도 누르는 곳 44px (위아래 끝 톡이 단추) · 줄이 단추 때문에 더 커지지 않는다 (' + Math.max.apply(null, m16.rows) + ') · 시트 몸 옆 넘침 ' + m16.bagX + ' · ' + m16.sewX);
+  await c16.close();
+
+  /* 17. 세트 도감은 옷 · 신발 · 장식을 바꿨을 때만 본다 (C14): 기본 옷(= '다락방 차림')에서 머리만 바꾸거나 재봉틀 시트를 열어도 적지 않고, 옷을 바꿨다가 기본 옷으로 돌아오면 그때 적는다 */
+  var c17 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'days', 'harvest', 'water', 'kitchen']) })), day: MON }), pl = await tab(c17);
+  await ready(pl);
+  function lookPickQ(pg, tabId, cat, id) { return pg.evaluate(async function (a) { window.__toasts = []; if (!document.getElementById('look-sheet').open) APP.openLook(); document.getElementById('look-tab-' + a.tab).click(); document.querySelector('#look-items [data-part="' + a.cat + '"][data-id="' + a.id + '"]').click(); await Promise.resolve(); var st = APP.state.user.sets || {}; return { toasts: window.__toasts.map(function (x) { return x.t; }), attic: st.attic || null, outfit: APP.state.settings.player && APP.state.settings.player.outfit }; }, { tab: tabId, cat: cat, id: id }); }
+  var h1 = await lookPickQ(pl, 'hair', 'hair', 'short');
+  var sew17 = await pl.evaluate(function () { document.getElementById('look-sheet').close(); document.getElementById('btn-sew').click(); var t = [].map.call(document.querySelectorAll('#sew-body h3'), function (x) { return x.textContent; }).filter(function (x) { return /세트 도감/.test(x); })[0] || ''; document.getElementById('sew-close').click(); return { h: t, attic: (APP.state.user.sets || {}).attic || null }; });
+  var o1 = await lookPickQ(pl, 'outfit', 'outfit', 'knit'), o2 = await lookPickQ(pl, 'outfit', 'outfit', 'dress');
+  console.log('   세트 도감:', JSON.stringify({ hair: h1, sew: sew17, knit: o1, dress: o2 }));
+  ok(h1.outfit === 'dress' && !h1.attic && !h1.toasts.length && !sew17.attic && /0\/9/.test(sew17.h), '기본 옷 그대로 머리만 바꾸면 세트 도감에 적지 않는다 (알림 ' + h1.toasts.length + ') · 재봉틀 시트를 열어도 («' + sew17.h + '»)');
+  ok(!o1.attic && o2.attic === MON && o2.toasts.indexOf('세트 도감에 적었어: 다락방 차림') >= 0, '옷을 바꿨다가 기본 옷으로 돌아오면 그때 «세트 도감에 적었어: 다락방 차림»');
+  await c17.close();
+
+  /* 18. 선물 상자 (F16 · C16): 답은 누른 순간에 정해져 물어봤다는 표시와 같은 저장에 (쓰기로 했으면 쓰는 것까지) — 1.3 s 틈에 새로고침해도 답이 남는다. ids 없는 기록도 그날 처음 묻는 것으로 */
+  var c18 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'days', 'harvest', 'water', 'kitchen']) })), day: MON }), pz = await tab(c18);
+  await ready(pz);
+  var yesPick = await pz.evaluate(function () {
+    var list = SCENE3D.COSTUMES.filter(function (c) { return !c.award; }), d = new Date(2026, 10, 16);
+    for (var k = 0; k < 30; k++) {
+      var dk = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+      for (var i = 0; i < list.length; i++) if (BRAIN.rng(BRAIN.hashSeed('gift', dk, list[i].id, '뚜루'))() < 0.65) return { day: dk, i: i, id: list[i].id, slot: list[i].slot, name: list[i].name };
+      d.setDate(d.getDate() + 1);
+    }
+    return null;
+  });
+  must(!!yesPick, '선물 상자: 쓰기로 할 날 · 물건을 찾음 ' + JSON.stringify(yesPick));
+  await setUser(pz, yesPick.day, { giftDay: yesPick.day });
+  await pz.evaluate(function (d) { APP.state.settings.giftAsked = { day: d }; APP.save(); document.dispatchEvent(new Event('visibilitychange')); }, yesPick.day);   /* ids 없는 그날 기록 (손으로 고친 · 남의 빌드) */
+  await waitIdle(pz, WAIT);
+  var at18 = await pz.evaluate(function (p) {
+    APP.openSettings(); var chips = document.querySelectorAll('.gift-chips .fchip'); chips[p.i].click(); document.getElementById('gift-go').click();
+    var st = JSON.parse(localStorage.getItem('ppolppol_v2')).settings;   /* 누른 바로 그 순간의 저장 (= 이때 새로고침하면 열리는 기록) */
+    return { asked: !!(st.giftAsked && st.giftAsked.ids && st.giftAsked.ids[p.id]), wear: st.octWear || null };
+  }, yesPick);
+  await pz.reload(); await pz.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
+  var re18 = await pz.evaluate(function (p) { window.__toasts = []; APP.openSettings(); var chips = document.querySelectorAll('.gift-chips .fchip'); chips[p.i].click(); document.getElementById('gift-go').click(); var t = document.getElementById('toast').textContent; return { toast: t, wear: APP.state.settings.octWear || null }; }, yesPick);
+  console.log('   선물 상자 (쓰기로):', JSON.stringify({ pick: yesPick, atPress: at18, afterReload: re18 }));
+  ok(at18.asked && at18.wear && at18.wear[yesPick.slot] === yesPick.id && re18.wear && re18.wear[yesPick.slot] === yesPick.id && re18.toast === '오늘은 이미 물어봤어. 내일 다시 물어볼 수 있어',
+    '선물 상자: ' + yesPick.name + ' 을 내민 순간 «물어봄» 과 «쓰기로 함» 이 같이 저장 → 1.3 s 안에 새로고침해도 쓰고 있다 · 다시 내밀면 같은 한 줄');
+  await c18.close();
+  reportErrors(bag, 'Q-2');
+}
+
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
@@ -4222,7 +4695,8 @@ async function scenarioLayoutOne(browser) {
       ['L', function () { return scenarioAlbumIcon(browser); }], ['N', function () { return scenarioNotes(browser); }], ['M', function () { return scenarioReactions(browser); }],
       ['O', function () { return scenarioFirstColor(browser); }], ['Y', function () { return scenarioSalon(browser); }],   /* 미용실: 첫 실행 몸 색은 글자 O 의 둘째 묶음 (O 의 첫 묶음 = 한 화면 배치 scenarioLayoutOne 은 아래 줄 — SMOKE_ONLY=O 면 둘 다 돈다, 따로 try/catch) · Y = 미용실 */
       ['R', function () { return scenarioRunner(); }], ['S', function () { return scenarioWave7(browser); }], ['J', function () { return scenarioWave8(browser); }], ['U', function () { return scenarioGlyphs(browser); }],
-      ['T', function () { return scenarioTapLine(browser); }], ['K', function () { return scenarioBringBack(browser); }], ['O', function () { return scenarioLayoutOne(browser); }]];
+      ['T', function () { return scenarioTapLine(browser); }], ['K', function () { return scenarioBringBack(browser); }], ['O', function () { return scenarioLayoutOne(browser); }],
+      ['Q', function () { return scenarioWeek(browser); }]];   /* Q = 이번 주 할 일 · 선물 상자 (검증 11-11) */
     for (var sc of all) {   /* 한 시나리오가 터져도 (부하 큰 기계의 시간 초과 등) 뒤 시나리오는 돈다 — 터진 것은 실패 하나로 센다 */
       if (only.length && only.indexOf(sc[0]) < 0) continue;
       try { await sc[1](); } catch (e) { fails++; console.error('\nCRASH in ' + sc[0] + ': ' + (e && e.stack || e)); }

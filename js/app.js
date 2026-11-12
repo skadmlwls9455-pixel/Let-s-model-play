@@ -544,8 +544,12 @@ var APP = (function () {
         view: function (v) { syncRoomUI(v); if (v === 'loft') questMark('loft'); else if (v === 'play') questMark('kitchen'); },   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
         playerInput: function (allowed) { stickShow(allowed); },
         /* 11-10 인테리어 v0: 가구를 꾹 눌러 옮기면 자리를 저장 (S.room.layout) · 소파 위 노란 점 = 앉기 */
-        furnEdit: function (stt) { furnUI(stt); },   /* 배치 모드 시작 · 바뀜 · 끝(null) */
-        furnMove: function (d) { if (!d || !d.id) return; if (!isObj(S.room.layout)) S.room.layout = {}; S.room.layout[d.id] = [d.x, d.z, d.rot | 0, +d.scale || 1]; save(); questMark('furn'); },
+        furnEdit: function (stt) { if (stt && (!furnFrom || furnFrom.id !== stt.id)) furnFrom = { id: stt.id, at: typeof scene.layout === 'function' ? scene.layout()[stt.id] : null }; furnUI(stt); },   /* 배치 모드 시작 · 바뀜 · 끝(null). 들어 올린 순간의 자리 · 각도 · 크기를 적어 둔다 */
+        furnMove: function (d) {
+          if (!d || !d.id) return; if (!isObj(S.room.layout)) S.room.layout = {}; S.room.layout[d.id] = [d.x, d.z, d.rot | 0, +d.scale || 1]; save();
+          var a = furnFrom && furnFrom.id === d.id && Array.isArray(furnFrom.at) ? furnFrom.at : null; furnFrom = null;
+          if (!a || [d.x, d.z, d.rot, d.scale].some(function (v, k) { return Math.abs((+v || 0) - (+a[k] || 0)) > 0.001; })) questMark('furn');   /* 11-12 (검증 C12): 든 자리에 그대로 놓으면 '옮겨 놓기' 가 아니다 */
+        },
         sofaSpot: function (p) { var b = $('btn-sofa'); if (!b) return; if (!p) { b.hidden = true; return; } b.style.left = (p.x - 22) + 'px'; b.style.top = (p.y - 22) + 'px'; b.hidden = false; },
         playerDoor: function (to) { if (!roomJob && !busyRoomWalk()) goRoom(to === 'attic' ? 'attic' : to === 'loft' ? 'loft' : 'play', $(to === 'attic' ? (roomNow() === 'loft' ? 'btn-loft-stair' : 'btn-play-door') : to === 'loft' ? 'btn-stair' : 'btn-door'), false); },   /* 문에 닿은 채 걸어 들어감 (장면이 한 번만 쏜다) */   /* 11-08 움직이기: 내 캐릭터를 움직일 수 있는 때가 바뀐 프레임 (바뀔 때만 온다) → 발자국 손잡이 hidden */
         playerStep: function () { if (window.AUDIO) AUDIO.on('step', { who: 'player' }); }   /* 내 캐릭터 한 걸음 (장면은 AUDIO 를 부르지 않는다) — js/audio.js 에 'step' 갈래가 생기면 발소리 step_* (지금은 조용히) */
@@ -1719,7 +1723,6 @@ var APP = (function () {
     checkDay(true);   /* 자정을 넘겨 다시 부르면 어제 로그는 앨범 일기로, 오늘 칸부터 새로 */
     if (!B || typeof B.plan !== 'function') { toast('두뇌(brain.js)가 아직 없어'); return Promise.resolve(null); }
     /* 힌트 칸은 개발 모드에만 있다 (결정 18): 플레이어 산책은 늘 빈 힌트. 두뇌의 힌트 이해는 그대로 둔다 (개발·테스트·MCP 이벤트) */
-    questMark('ask');   /* 이번 주 할 일: 묻는 것만 센다 (나갈지는 문어가 정한다) */
     var hint = hookHint();   /* 힌트 칸은 없앴다 (주인 11-10) — 사람이 주제를 건넬 길은 없다. 스모크만 테스트 훅으로 두뇌의 옛 길을 탄다 */
     var dk = todayKey(), seq = tripsOn(dk).length + 1;
     var seed = B.hashSeed(dk, hint, seq, S.octopus.name);
@@ -1743,6 +1746,7 @@ var APP = (function () {
         pre.remove(); setBusy(false); settleOct(); toast('두뇌가 잠깐 멈췄어. 다시 한 번 불러 줘');
         return null;
       }
+      questMark('ask');   /* 이번 주 할 일: 묻는 것만 센다 (나갈지는 문어가 정한다). 11-12 (검증 F10): 차례가 정해진 뒤에 — 두뇌가 멈춰 없던 일이 된 물음은 세지 않는다 */
       if (trip.status !== 'done') mergePlan(trip, planned);   /* done = 그사이 다른 탭이 데려왔다 (adoptRemote) → 그 기록 그대로 보여 준다 */
       save();
       /* 외출: 움츠림 뒤 출발 의식(다락 문 → 바깥 → 화면 밖) → 끝나면 로그 공개. 바깥은 나가 있는 동안 그대로 (계절 입자). 집·빈 차례는 의식 없음 */
@@ -2048,6 +2052,7 @@ var APP = (function () {
   /* 다른 탭의 기록을 받아 다시 그린다 (storage 이벤트) → 받았으면 true */
   function takeRemote(raw) {
     if (!adoptRemote(raw)) return false;
+    weekTell();   /* 11-11 (검증 W1): 다른 탭이 주를 넘기며 지난주 선물을 넣었고 아직 알리지 못했으면 (그 탭이 가려져 있다) 보이는 이 탭이 알린다 */
     if (busy) { remoteDirty = true; return true; }   /* 공개 중엔 로그·등불을 다시 그리지 않는다 → 끝날 때 한 번 (setBusy) */
     renderAll(); applyMotion(); applyFont(); syncRest();   /* 다른 탭이 차례를 끝냈으면 이 탭 문어도 (깨어 있는 틈 · 낮잠) */
     var ss = $('salon-sheet'); if (ss && ss.open && !salonRun) renderSalonSheet();   /* 미용실 시트가 열려 있으면 병을 다시 (다른 탭이 몸 색을 바꿨거나 '그대로' 쉼이 생김) */
@@ -2411,6 +2416,7 @@ var APP = (function () {
     if (busy || !logDay || todayKey() === logDay) return false;
     if (!soon) { var last = null; S.trips.forEach(function (t) { if (t.status === 'done' && (!last || (t.endedAt || 0) > (last.endedAt || 0))) last = t; }); if (last && Date.now() - (last.endedAt || 0) < 120000) return false; }
     setDayGreeting(); renderLog(); renderAlbum(); renderShelf();
+    renderBagChip();   /* 11-11 (검증 W1): 주가 바뀐 날이면 여기서 새 주로 (열어 둔 탭 — 안 받은 지난주 선물 넣기 · 꼬리표 점 다시) */
     return true;
   }
   /* 인사 초상: 자는 중이면 자는 얼굴, 깨어 있으면 웃는 얼굴 (반쯤 감은 차분한 얼굴은 화난 '-_-^' 로 읽힌다는 주인 피드백) */
@@ -3243,23 +3249,23 @@ var APP = (function () {
     var sh = $('settings-sheet'); if (sh && sh.open) sh.close();
     /* 11-11: 문어의 대답은 그날 하루 그대로 선다 — 같은 것을 같은 날 다시 내밀어도 주사위를 새로 굴리지 않는다 (예전엔 내밀 때마다 새 주사위라, 거절해도 몇 번 누르면 '쓰기로 했어' 가 나왔다 = 문어의 선택이 아니었다).
        다른 것은 그날에도 내밀 수 있다. 시드에서 '몇 번째 누름' 을 빼서 같은 날 · 같은 물건이면 답이 같다 */
-    var gk = c ? c.id : 'off', ga = isObj(S.settings.giftAsked) && S.settings.giftAsked.day === todayKey() ? S.settings.giftAsked : (S.settings.giftAsked = { day: todayKey(), ids: {} });
+    var gk = c ? c.id : 'off', ga = isObj(S.settings.giftAsked) && S.settings.giftAsked.day === todayKey() && isObj(S.settings.giftAsked.ids) ? S.settings.giftAsked : (S.settings.giftAsked = { day: todayKey(), ids: {} });   /* ids 없는 기록(손으로 고친 · 남의 빌드) = 오늘 아무것도 안 물어봄 (11-12 검증 C16) */
     if (ga.ids[gk]) { toast('오늘은 이미 물어봤어. 내일 다시 물어볼 수 있어'); return; }
     ga.ids[gk] = 1;
-    giftBusy = true; S.settings.giftN = (S.settings.giftN | 0) + 1; questMark('gift');
-    var rng = mkRng(B ? B.hashSeed('gift', todayKey(), gk, name) : hash('gift|' + todayKey() + '|' + gk + '|' + name));
+    /* 11-12 (검증 F16): 답은 누른 순간에 정해 물어봤다는 표시와 같은 저장에 (쓰기로 했으면 쓰는 것까지) — 1.3 s 틈에 새로고침해도 물음만 쓰이고 답이 없는 일이 없게. 틈 뒤엔 보여 주기만 */
+    var rng = mkRng(B ? B.hashSeed('gift', todayKey(), gk, name) : hash('gift|' + todayKey() + '|' + gk + '|' + name)), yes = rng() < (c ? 0.65 : 0.8), line;
+    if (c) {
+      if (yes) { wear[c.slot] = c.id; line = name + '가 ' + c.name + (c.slot === 'back' ? ' 두르기로 했어.' : ' 쓰기로 했어.'); }
+      else line = name + '는 ' + c.name + (c.slot === 'back' ? ' 안 두르기로 했어.' : ' 안 쓰기로 했어.');
+    } else {
+      if (yes) { wear = {}; line = name + '가 옷장에 넣어 두기로 했어.'; } else line = name + '는 그대로 쓰고 있기로 했어.';
+    }
+    if (yes) S.settings.octWear = wear;
+    giftBusy = true; S.settings.giftN = (S.settings.giftN | 0) + 1; save(); questMark('gift');   /* 11-11 (검증 W12): 물어본 것은 바로 저장 — 1.3 s 틈의 새로고침 · 다른 탭이 같은 물음을 또 연출하지 않게 */
     expressRow('curious'); bubble('…', 1200, 'think');   /* 들여다보는 틈 1.3 s — 고르는 과정을 보여 준다 */
     setTimeout(function () {
       giftBusy = false;
-      var yes = rng() < (c ? 0.65 : 0.8), line;
-      if (c) {
-        if (yes) { wear[c.slot] = c.id; line = name + '가 ' + c.name + (c.slot === 'back' ? ' 두르기로 했어.' : ' 쓰기로 했어.'); }
-        else line = name + '는 ' + c.name + (c.slot === 'back' ? ' 안 두르기로 했어.' : ' 안 쓰기로 했어.');
-      } else {
-        if (yes) { wear = {}; line = name + '가 옷장에 넣어 두기로 했어.'; } else line = name + '는 그대로 쓰고 있기로 했어.';
-      }
-      if (yes) { S.settings.octWear = wear; scene.setOctWear(wear); refreshPortraits(); expressRow('happy'); } else expressRow('calm');
-      save();
+      if (yes) { scene.setOctWear(wear); refreshPortraits(); expressRow('happy'); } else expressRow('idle');   /* 11-11 (검증 W2): 안 쓴다는 답은 보통 얼굴로 (반눈 calm 은 시무룩해 보인다 — 미용실 '그대로' 와 같게, docs/SALON.md §3.4) */
       appendLogRow(ensureTodaySection(), logRow('선물', line + ' (데모 규칙이 고름)', 'c-amber', true));
       toast(line);
     }, 1300);
@@ -3410,11 +3416,12 @@ var APP = (function () {
     body.classList.toggle('more', it.scrollHeight - it.clientHeight - it.scrollTop > 4);
   }
   function lookPick(cat, id) {
+    var was = normalizePlayer(S.settings.player)[cat];
     if (!setPlayerPart(cat, id)) return;
     var box = $('look-items'), c = S.settings.player;
     if (box) box.querySelectorAll('[data-part="' + cat + '"][data-id]').forEach(function (q) { chipOn(q, q.dataset.id === c[cat]); });
     lookEyeNote(); lookNow(); lookDrawStage(); lookQueueThumbs();
-    var got = setsCheck(); if (got) toast('세트 도감에 적었어: ' + got);
+    var got = /^(outfit|shoes|acc)$/.test(cat) && c[cat] !== was ? setsCheck() : ''; if (got) toast('세트 도감에 적었어: ' + got);   /* 11-12 (검증 C14): 세트는 옷 · 신발 · 장식이 바뀌었을 때만 본다 (기본 옷이 곧 '다락방 차림' 이라 머리만 바꿔도 적혔다) */
   }
   function lookRenderItems() {
     var box = $('look-items'); if (!box) return;
@@ -3694,7 +3701,7 @@ var APP = (function () {
      내 캐릭터 (SCENE.md '내 캐릭터'): walkFirst — 장면의 playerWalkTo(문 앞 앵커 atticPlayDoor · playAtticDoor)가 문 앞까지 걸어가서 풀리면 그때 문이 열린다 (2D 폴백엔 캐릭터가 없어 바로 풀린다) */
   var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew', plot0: 'btn-plot0', plot1: 'btn-plot1', plot2: 'btn-plot2' };   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
   var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door', loft: 'btn-loft-stair' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
-  var furnHinted = false;
+  var furnHinted = false, furnFrom = null;   /* furnFrom = { id, at: [x, z, rot, scale] } 들어 올린 순간 (장면 layout()) */
   /* 가구 배치 모드 화면 (주인 11-10 참고 화면): 위에 '가구 배치 · 이름' + 바꿔 들 가구 칩, 오른쪽 아래에 돌리기 · 크게 · 작게 · 취소 · 놓기. 큰 버튼(뽈뽈 다녀와)은 그동안 숨긴다. 캐릭터는 스틱 · 방향키로 그대로 움직인다 */
   var furnMode = false;
   function furnOpen(on) {   /* 위쪽 바의 소파 아이콘: 배치 모드 켜기 · 끄기 (들고 있던 건 놓는다) */
@@ -4250,7 +4257,7 @@ var APP = (function () {
        ("게임 할 시간 없거나 잘 못하는 사람도 재화 일부는 챙기게")
      · 텃밭 세 칸: 씨앗 심기 → 물 두 번(칸마다 하루 한 번) → 꽃 → 거두면 그 색 염료 1. 물을 안 줘도 시들지 않는다 (멈춰 있을 뿐). 꽃 색은 시드 (심은 날 · 칸 · 몇 번째).
      · 염료는 사지 않는다. 옷 물들이기에 1 개 쓴다 (원래 색으로 돌리기는 공짜).
-     저장: S.user = { shells, seeds, dyes: { 색: n }, days: [날짜…], giftDay, garden: [{ color, water, wateredDay } | null × 3], dye: hex | null, earned: [놀이 판 id…(최근 50)] } */
+     저장: S.user = { shells, seeds, dyes: { 색: n }, days: [날짜…], giftDay, giftTell: { day, shells, n } (아직 못 알린 오늘 선물 줄 — 11-12), garden: [{ color, water, wateredDay } | null × 3], dye: hex | null, earned: [놀이 판 id…(최근 50)] } */
   var DYES = [['red', '빨강', '#c8323a'], ['yellow', '노랑', '#e8a93a'], ['green', '초록', '#4fa868'], ['blue', '파랑', '#4a86d8'], ['purple', '보라', '#9a5cc8'], ['pink', '분홍', '#f07aa8']];
   function dyeOf(id) { for (var i = 0; i < DYES.length; i++) if (DYES[i][0] === id) return DYES[i]; return null; }
   function userState() {
@@ -4267,12 +4274,12 @@ var APP = (function () {
     u.shells += n; save(); renderBagChip(); toast('조개 ' + n + '개 · 이제 ' + u.shells + '개'); questMark('run');
     return n;
   }
-  function dailyGift() {   /* 그날 처음 열었을 때 한 번 */
+  function dailyGift() {   /* 그날 처음 열었을 때 한 번. 11-12 (검증 F19): 선물은 바로, 알림 줄은 볼 수 있을 때 (weekTell — 입장 연출 밑에 깔리거나 다른 알림을 밀어내지 않게, 새로고침해도 이어서) */
     if (!S.octopus.name) return; var u = userState(), dk = todayKey(); if (u.giftDay === dk) return;
     u.giftDay = dk; if (u.days.indexOf(dk) < 0) u.days.push(dk);
     var n = u.days.length, extra = n % 5 === 0 ? 10 : 0;
-    u.shells += 3 + extra; u.seeds += 1; save(); renderBagChip();
-    toast('오늘 선물: 조개 ' + (3 + extra) + ' · 씨앗 1 (들어온 날 ' + n + '일째)');
+    u.shells += 3 + extra; u.seeds += 1; u.giftTell = { day: dk, shells: 3 + extra, n: n };
+    weekTell(); save(); renderBagChip();   /* 바로 띄울 수 있으면 알린 뒤의 기록 한 번만 쓴다 (보이는 다른 탭이 같은 줄을 또 띄우지 않게) */
   }
   /* ───────────────────────── 이번 주 할 일 (11-10 주인: "일주일 단위 퀘스트 · 하루 시간 제한은 촉박 · 문어한테 산책 갈지 묻기 · 하나하나 새로고침 3번") ─────────────────────────
      · 주마다(월요일부터) 일곱 가지가 시드로 정해진다. 그중 **다섯 가지**를 하면 주간 선물 (조개 12 + 씨앗 2). 일곱을 다 할 필요 없음.
@@ -4281,30 +4288,48 @@ var APP = (function () {
      · '문어한테 산책 갈지 묻기' 는 묻는 것만 센다 — 나갈지 집에 있을지는 문어가 정한다.
      저장: S.user.week = { key: 그 주 월요일, q: [{ id, n, rr }] × 7, claimed } */
   var QUESTS = [['ask', '문어한테 산책 갈지 묻기', 2], ['run', '다락방 달리기 한 판', 1], ['water', '텃밭에 물 주기', 2], ['plant', '씨앗 심기', 1], ['harvest', '꽃 거두기', 1], ['furn', '가구 하나 옮겨 놓기', 1],
-    ['loft', '위층 옷방 올라가 보기', 1], ['kitchen', '부엌 방 들르기', 1], ['look', '내 모습 열어 보기', 1], ['diary', '포스터 일기 펼쳐 보기', 1], ['days', '이번 주에 사흘 들어오기', 3]];   /* 11-12: '선물 상자에서 하나 내밀기' 는 뺐다 — 선물을 내미는 게 조개 벌이가 되면 문어에게 부담 (주인 11-11 '문어가 부담 가질 수도 있으니까') */
+    ['loft', '위층 옷방 올라가 보기', 1], ['kitchen', '놀이방 들르기', 1], ['look', '내 모습 열어 보기', 1], ['diary', '포스터 일기 펼쳐 보기', 1], ['days', '이번 주에 사흘 들어오기', 3]];   /* 11-12 (검증 F11): '부엌 방' → 문에 적힌 이름 '놀이방'. 11-12: '선물 상자에서 하나 내밀기' 는 뺐다 — 선물을 내미는 게 조개 벌이가 되면 문어에게 부담 (주인 11-11 '문어가 부담 가질 수도 있으니까') */
   var WEEK_NEED = 5, WEEK_REROLL = 3, WEEK_GIFT = { shells: 12, seeds: 2 };
   function questOf(id) { for (var i = 0; i < QUESTS.length; i++) if (QUESTS[i][0] === id) return QUESTS[i]; return null; }
   function weekKeyOf(dk) { var p = String(dk).split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return dateKey(d); }   /* 그 주 월요일 */
+  /* 11-12 (검증 W13 · C19): 지금 할 수 없는 일은 새로 나눠 주지 않는다 — 포스터가 없으면 '포스터 일기', 2D 장면이면 '위층 옷방' · '가구'. 이미 나눠 준 목록은 그대로 */
+  function questCan(id) { return id === 'diary' ? S.trips.some(function (t) { return t.poster && t.status === 'done'; }) : id === 'loft' || id === 'furn' ? sceneMode !== '2d' : true; }
+  /* taken = 뺄 일 (지금 목록 · 그 칸이 이번 주에 보여 준 일 · 다 한 일). 낼 일이 없으면 '' (그 칸의 바꾸기 단추를 숨긴다) */
   function weekPick(key, slot, rr, taken) {
-    var pool = QUESTS.filter(function (q) { return taken.indexOf(q[0]) < 0; }), rng = mkRng(hash(['week', key, slot, rr, S.octopus.name || ''].join('|')));
-    return pool[Math.floor(rng() * pool.length)][0];
+    var pool = QUESTS.filter(function (q) { return taken.indexOf(q[0]) < 0 && questCan(q[0]); }), rng = mkRng(hash(['week', key, slot, rr, S.octopus.name || ''].join('|')));
+    return pool.length ? pool[Math.floor(rng() * pool.length)][0] : '';
   }
+  /* 11-11 (검증 W1 · C4): 주가 바뀔 때 다섯 가지를 하고도 안 받은 선물은 버리지 않고 넣어 준다 (새 주와 같은 저장 한 번 — 새로고침 · 두 번 부름 · 다른 탭에도 한 번만: 옛 주가 기록에서 사라지는 것이 곧 넣었다는 표시).
+     같은 주면 통째로 새로 만들지 않는다: 받은 표시 · 멀쩡한 칸(진행 · 바꾼 횟수)은 그대로, 모르는 일 · 깨진 칸만 다른 일로 (나중에 일 하나를 빼거나 이름을 바꿔도 그 주가 날아가지 않게).
+     저장: week.prev = { shells, seeds, told } — 지난주 선물을 넣었다는 표시 (그 주 동안 살림에 한 줄 · 알림은 한 번) */
+  function weekOk(x) { return isObj(x) && !!questOf(x.id); }
   function weekState() {
-    var u = userState(), key = weekKeyOf(todayKey()), w = u.week;
-    if (isObj(w) && w.key === key && Array.isArray(w.q) && w.q.length === 7 && w.q.every(isObj)) {   /* 같은 주: 없어진 할 일(11-12 '선물 상자에서 하나 내밀기' 뺌)만 그 칸에서 다시 고른다 — 다른 칸의 진행은 그대로 */
-      w.q.forEach(function (x, i) { if (!questOf(x.id)) { x.id = weekPick(key, i, (x.rr | 0) + 10, w.q.map(function (y) { return y.id; })); x.n = 0; } });
+    var u = userState(), key = weekKeyOf(todayKey()), w = u.week, taken, i, id;
+    if (isObj(w) && w.key === key && Array.isArray(w.q)) {
+      if (w.q.length !== 7 || !w.q.every(weekOk)) {
+        w.q = w.q.slice(0, 7); taken = w.q.filter(weekOk).map(function (x) { return x.id; });
+        for (i = 0; i < 7; i++) if (!weekOk(w.q[i])) { id = weekPick(key, i, 0, taken) || QUESTS.filter(function (q) { return taken.indexOf(q[0]) < 0; })[0][0]; taken.push(id); w.q[i] = { id: id, n: 0, rr: 0 }; }
+      }
       return w;
     }
-    if (isObj(w) && Array.isArray(w.q) && w.key && w.key !== key && !w.claimed && w.q.filter(function (x) { return isObj(x) && questOf(x.id) && questDone(x, w); }).length >= WEEK_NEED) {
-      /* 11-12 (검증): 다섯 가지를 하고 [받기] 를 안 누른 채 주가 바뀌면 선물이 말없이 사라졌다 → 지난주 몫은 그대로 넣어 주고 한 줄 알린다 (잃는 것 없음) */
-      u.shells += WEEK_GIFT.shells; u.seeds += WEEK_GIFT.seeds; w.claimed = true;
-      setTimeout(function () { toast('지난주 선물을 넣어 뒀어: 조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds); renderBagChip(); }, 0);
-    }
-    {
-      var taken = []; w = u.week = { key: key, q: [], claimed: false };
-      for (var i = 0; i < 7; i++) { var id = i === 0 ? 'ask' : weekPick(key, i, 0, taken); taken.push(id); w.q.push({ id: id, n: 0, rr: 0 }); }   /* 첫 칸은 늘 '문어한테 산책 갈지 묻기' (바꿀 수는 있다) */
-    }
+    var due = isObj(w) && Array.isArray(w.q) && !w.claimed && /^\d{4}-\d{2}-\d{2}$/.test(w.key) && w.q.filter(function (x) { return weekOk(x) && questDone(x, w); }).length >= WEEK_NEED;
+    taken = []; w = u.week = { key: key, q: [], claimed: false };
+    for (i = 0; i < 7; i++) { id = i === 0 ? 'ask' : weekPick(key, i, 0, taken); taken.push(id); w.q.push({ id: id, n: 0, rr: 0 }); }   /* 첫 칸은 늘 '문어한테 산책 갈지 묻기' (바꿀 수는 있다) */
+    if (due) { u.shells += WEEK_GIFT.shells; u.seeds += WEEK_GIFT.seeds; w.prev = { shells: WEEK_GIFT.shells, seeds: WEEK_GIFT.seeds }; setTimeout(weekTell, 600); }   /* 알림은 조금 뒤에 (살림을 여는 톡이 넘긴 주면 시트가 뜬 다음) */
+    save();   /* 11-12: 나눠 준 목록은 바로 저장 — 다음에 열 때 장면(2D)이나 포스터가 달라져도 같은 목록 */
     return w;
+  }
+  /* 선물 알림: 볼 수 있을 때 한 번 — 입장 연출 · 가려진 탭 · 떠 있는 다른 알림 · 부팅 2.5 s 뒤의 오늘 선물(giftWait)이 지나간 뒤. 오늘 선물 줄(user.giftTell) 먼저, 그다음 지난주 선물 줄(week.prev).
+     띄우면 기록에서 지운다 · told 를 저장한다 (새로고침 · 다른 탭에도 한 번). 지난 날의 오늘 선물 줄은 버린다 (선물은 이미 들어가 있다) */
+  var weekTellT = 0, giftWait = false;
+  function weekTell() {
+    clearTimeout(weekTellT);
+    var u = isObj(S.user) ? S.user : {}, w = u.week, p = isObj(w) && isObj(w.prev) && !w.prev.told ? w.prev : null, g = isObj(u.giftTell) ? u.giftTell : null, t = $('toast');
+    if (g && g.day !== todayKey()) { delete u.giftTell; g = null; }
+    if ((!p && !g) || !S.octopus.name) return;
+    if (giftWait || document.hidden || (window.INTRO && ['sky', 'title', 'out'].indexOf(INTRO.phase) >= 0) || (t && t.classList.contains('show'))) { weekTellT = setTimeout(weekTell, 1000); return; }
+    if (g) { delete u.giftTell; save(); toast('오늘 선물: 조개 ' + (g.shells | 0) + ' · 씨앗 1 (들어온 날 ' + (g.n | 0) + '일째)'); if (p) weekTellT = setTimeout(weekTell, 1000); return; }
+    p.told = 1; save(); toast('지난주 선물은 살림에 넣어 뒀어. 조개 ' + (p.shells | 0) + ' · 씨앗 ' + (p.seeds | 0));
   }
   function questN(x, w) { if (x.id !== 'days') return x.n | 0; var u = userState(), end = new Date(w.key.replace(/-/g, '/')); end.setDate(end.getDate() + 6); var ek = dateKey(end); return u.days.filter(function (d) { return d >= w.key && d <= ek; }).length; }
   function questDone(x, w) { return questN(x, w) >= questOf(x.id)[2]; }
@@ -4315,36 +4340,50 @@ var APP = (function () {
     w.q.forEach(function (x) { if (x.id === id && !questDone(x, w)) { x.n = (x.n | 0) + 1; hit = true; } });
     if (hit) { save(); renderBagChip(); if ($('bag-sheet') && $('bag-sheet').open) renderBag(); }
   }
+  /* 바꾸기로 나올 일 | '' — 목록에 있는 일 · 그 칸이 이번 주에 보여 준 일(x.seen — 옛 기록엔 없다) · 이미 다 한 일(사흘 들어오기는 들어온 날로 센다)은 빼고 (11-12 검증 C11 · F8) */
+  function weekSwapTo(w, i) {
+    var x = w.q[i], no = w.q.map(function (y) { return y.id; }).concat(Array.isArray(x.seen) ? x.seen : []); if (questN({ id: 'days' }, w) >= questOf('days')[2]) no.push('days');
+    return weekPick(w.key, i, (x.rr | 0) + 1, no);
+  }
   function weekReroll(i) {
     var w = weekState(), x = w.q[i]; if (!x || w.claimed || questDone(x, w) || (x.rr | 0) >= WEEK_REROLL) return;
-    var id = weekPick(w.key, i, (x.rr | 0) + 1, w.q.map(function (y) { return y.id; }));
-    w.q[i] = { id: id, n: 0, rr: (x.rr | 0) + 1 }; save(); renderBag();
+    var id = weekSwapTo(w, i); if (!id) return;
+    w.q[i] = { id: id, n: 0, rr: (x.rr | 0) + 1, seen: (Array.isArray(x.seen) ? x.seen : []).concat(x.id) }; save(); renderBag();
+    focusIn('#bag-body .week-list', i);
   }
   function weekClaim() {
     var w = weekState(), u = userState(); if (w.claimed || weekDoneN(w) < WEEK_NEED) return;
     w.claimed = true; u.shells += WEEK_GIFT.shells; u.seeds += WEEK_GIFT.seeds; save(); renderBag(); renderBagChip();
+    var g = $('week-got'); if (g) g.focus();   /* 11-12 (검증 F6): 누른 단추가 사라진 자리 = '받았어' 줄로 */
     toast('주간 선물: 조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds);
   }
+  /* 시트를 다시 그린 뒤 키보드 자리 (11-12 검증 F6): 목록 i 번째 줄의 단추, 단추가 없어졌으면 그 줄의 글 (tabindex -1) — body 로 떨어지지 않게 */
+  function focusIn(sel, i) { var li = document.querySelectorAll(sel + ' > li')[i], el = li && (li.querySelector('button') || li.querySelector('.week-txt')); if (el) el.focus(); }
   function renderWeek(frag) {
     var w = weekState(), done = weekDoneN(w);
     frag.appendChild(h('h3', { text: '이번 주 할 일' }));
-    frag.appendChild(h('p', { class: 'set-note', text: '일곱 가지 중 다섯 가지를 하면 선물이 있어 (' + done + '/' + WEEK_NEED + '). 주가 바뀌면 새로 바뀌고, 못 해도 잃는 건 없어.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '일곱 가지 중 다섯 가지를 하면 선물이 있어 (' + Math.min(done, WEEK_NEED) + '/' + WEEK_NEED + '). 주가 바뀌면 새로 바뀌고, 못 해도 잃는 건 없어.' }));
+    /* 11-12 (검증 F5 · F20): 받기 단추는 쪽지 바로 아래 (목록 뒤면 360x740 에서 화면 밖이었다) — 받은 뒤엔 '받았어' 줄이 그 자리. 수량은 한 덩어리로 (320 px 에서 '(조개 / 12' 로 끊기지 않게) */
+    if (w.claimed) frag.appendChild(h('p', { class: 'set-note', id: 'week-got', tabindex: '-1', text: '이번 주 선물은 받았어.' }));
+    else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim' }, ['주간 선물 받기 ', h('span', { class: 'nobr', text: '(조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds + ')' })]); c.addEventListener('click', weekClaim); frag.appendChild(c); }
+    if (isObj(w.prev)) frag.appendChild(h('p', { class: 'set-note', id: 'week-prev', text: '지난주 선물은 살림에 넣어 뒀어 (조개 ' + (w.prev.shells | 0) + ' · 씨앗 ' + (w.prev.seeds | 0) + ').' }));   /* 11-11 (검증 W1): 주가 바뀔 때 넣어 준 선물 — 그 주 동안 */
     var list = h('ul', { class: 'week-list' });
     w.q.forEach(function (x, i) {
       var q = questOf(x.id), n = Math.min(questN(x, w), q[2]), ok = n >= q[2], left = WEEK_REROLL - (x.rr | 0);
-      var li = h('li', { class: 'week-row' + (ok ? ' done' : '') }, [h('span', { class: 'week-txt', text: q[1] }), h('span', { class: 'week-n', text: ok ? '했어' : n + '/' + q[2] })]);
-      if (!ok && !w.claimed && left > 0) { var b = h('button', { type: 'button', class: 'fchip week-rr', text: '바꾸기 ' + left, 'aria-label': q[1] + ' 다른 일로 바꾸기 (' + left + '번 남음)' }); b.addEventListener('click', function () { weekReroll(i); }); li.appendChild(b); }
+      var li = h('li', { class: 'week-row' + (ok ? ' done' : '') }, [h('span', { class: 'week-txt', tabindex: '-1', text: q[1] }), h('span', { class: 'week-n', text: ok ? '했어' : n + '/' + q[2] })]);
+      if (!ok && !w.claimed && left > 0 && weekSwapTo(w, i)) { var b = h('button', { type: 'button', class: 'fchip week-rr', text: '바꾸기 ' + left, 'aria-label': q[1] + ' 다른 일로 바꾸기 (' + left + '번 남음)' }); b.addEventListener('click', function () { weekReroll(i); }); li.appendChild(b); }
       list.appendChild(li);
     });
     frag.appendChild(list);
-    if (w.claimed) frag.appendChild(h('p', { class: 'set-note', text: '이번 주 선물은 받았어.' }));
-    else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim', text: '주간 선물 받기 (조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds + ')' }); c.addEventListener('click', weekClaim); frag.appendChild(c); }
   }
-  function renderBagChip() { var b = $('btn-bag'); if (!b) return; var u = userState(); b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = '조개 ' + u.shells; if (S.octopus.name) { var w = weekState(); b.classList.toggle('has-gift', !w.claimed && weekDoneN(w) >= WEEK_NEED); } }
+  function renderBagChip() {   /* 주 먼저 (11-11): 주가 바뀌며 넣은 지난주 선물이 조개 수에 바로 보이게. 11-12 (검증 W8 · F5): 받을 선물이 있으면 이름에도 (점은 눈에만 보인다) */
+    var b = $('btn-bag'); if (!b) return; var u = userState(), w = S.octopus.name ? weekState() : null, gift = !!w && !w.claimed && weekDoneN(w) >= WEEK_NEED; b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = '조개 ' + u.shells;
+    if (w) b.classList.toggle('has-gift', gift); b.setAttribute('aria-label', '살림, 조개 ' + u.shells + (gift ? ', 주간 선물이 있어' : ''));
+  }
   function applyGarden() { if (scene && typeof scene.setGarden === 'function') { try { scene.setGarden(userState().garden.map(function (g) { return g ? { color: dyeOf(g.color)[2], water: g.water } : null; })); } catch (e) { console.warn('[app] setGarden', e); } } }
   function gardenAct(i) {
     var u = userState(), g = u.garden[i], dk = todayKey();
-    if (!g) { if (u.seeds < 1) { toast('씨앗이 없어. 들어온 날 선물로 하나씩 생겨'); return; } u.seeds--; var rng = mkRng(B ? B.hashSeed('seed', dk, i, u.days.length, u.seeds) : Date.now()); u.garden[i] = { color: DYES[Math.floor(rng() * DYES.length)][0], water: 0, wateredDay: '' }; toast('씨앗을 심었어'); questMark('plant'); }
+    if (!g) { if (u.seeds < 1) { toast('씨앗이 없어. 들어온 날 선물이나 주간 선물로 생겨'); return; } u.seeds--; var rng = mkRng(B ? B.hashSeed('seed', dk, i, u.days.length, u.seeds) : Date.now()); u.garden[i] = { color: DYES[Math.floor(rng() * DYES.length)][0], water: 0, wateredDay: '' }; toast('씨앗을 심었어'); questMark('plant'); }
     else if (g.water >= 2) { u.dyes[g.color] = (u.dyes[g.color] | 0) + 1; u.garden[i] = null; toast(dyeOf(g.color)[1] + ' 염료 1개를 얻었어'); questMark('harvest'); }
     else if (g.wateredDay === dk) { toast('오늘은 물을 줬어. 내일 또 줄 수 있어'); return; }
     else { g.water++; g.wateredDay = dk; toast(g.water >= 2 ? '꽃이 피었어' : '물을 줬어'); questMark('water'); }
@@ -4372,15 +4411,16 @@ var APP = (function () {
     return got;
   }
   function partName(cat, id) { var P = playerParts(), n = ''; (P[cat] || []).forEach(function (x) { if (x.id === id) n = x.name; }); return n || id; }
-  function setWear(q) { setPlayerPart('outfit', q[2]); setPlayerPart('shoes', q[3]); setPlayerPart('acc', q[4]); renderSew(); toast(q[1] + ' 차림으로 입었어'); }
+  function setWord(q) { return /차림$/.test(q[1]) ? q[1] : q[1] + ' 차림'; }   /* 11-12 (검증 F12): '다락방 차림 차림' 이 되지 않게 */
+  function setWear(q) { setPlayerPart('outfit', q[2]); setPlayerPart('shoes', q[3]); setPlayerPart('acc', q[4]); renderSew(); focusIn('#sew-body .week-list', LOOK_SETS.indexOf(q)); toast(setWord(q) + '으로 입었어'); }
   function renderSets(frag) {
-    setsCheck(); var f = setsFound(), n = LOOK_SETS.filter(function (q) { return f[q[0]]; }).length;
+    var f = setsFound(), n = LOOK_SETS.filter(function (q) { return f[q[0]]; }).length;   /* 11-12 (검증 C14): 여기서는 적지 않는다 — 옷 · 신발 · 장식을 바꿨을 때만 (lookPick) */
     frag.appendChild(h('h3', { text: '세트 도감 ' + n + '/' + LOOK_SETS.length }));
     frag.appendChild(h('p', { class: 'set-note', text: '옷 · 신발 · 장식을 맞춰 입으면 여기에 적혀. 내 모습에서 이것저것 입어 보며 찾아봐.' }));
     var list = h('ul', { class: 'week-list' });
     LOOK_SETS.forEach(function (q) {
       var ok = !!f[q[0]], li = h('li', { class: 'week-row' + (ok ? '' : ' done') }, [h('span', { class: 'week-txt' }, [h('b', { text: ok ? q[1] : '아직 못 찾은 차림' }), h('br'), h('span', { class: 'week-n', text: partName('outfit', q[2]) + ' · ' + (ok ? partName('shoes', q[3]) + ' · ' + (q[4] === 'none' ? '장식 없음' : partName('acc', q[4])) : '? · ?') })])]);
-      if (ok) { var b = h('button', { type: 'button', class: 'fchip week-rr', text: '다시 입기', 'aria-label': q[1] + ' 차림 다시 입기' }); b.addEventListener('click', function () { setWear(q); }); li.appendChild(b); }
+      if (ok) { var b = h('button', { type: 'button', class: 'fchip week-rr', text: '다시 입기', 'aria-label': setWord(q) + ' 다시 입기' }); b.addEventListener('click', function () { setWear(q); }); li.appendChild(b); }
       list.appendChild(li);
     });
     frag.appendChild(list);
@@ -4427,6 +4467,7 @@ var APP = (function () {
   function openSew() { var sh = $('sew-sheet'); if (!sh) return; renderSew(); showDialog(sh); }
   function renderBag() {
     var body = $('bag-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment(), dk = todayKey();
+    weekState();   /* 11-11 (검증 W1): 주 먼저 — 이 톡이 주를 넘기며 지난주 선물을 넣으면 바로 아랫줄 조개 · 씨앗 수에 들어가 있게 */
     frag.appendChild(h('p', { class: 'bag-line', text: '조개 ' + u.shells + ' · 씨앗 ' + u.seeds + ' · 들어온 날 ' + u.days.length + '일' }));
     frag.appendChild(h('p', { class: 'set-note', text: '조개와 씨앗은 다락방 달리기, 들어온 날 선물, 주간 선물에서 생겨. 쉬어도 잃는 건 없어.' }));
     renderWeek(frag);
@@ -4454,7 +4495,8 @@ var APP = (function () {
     sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     var sw = $('sew-sheet'); if (sw) { $('sew-close').addEventListener('click', function () { sw.close(); }); sw.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); }); }
     salonLiftInit();
-    setTimeout(dailyGift, 2500);
+    giftWait = true; setTimeout(function () { giftWait = false; dailyGift(); }, 2500);
+    weekTell();   /* 11-11 (검증 W1): 지난주 선물 알림을 못 띄운 채 새로고침했으면 이어서 (오늘 선물 알림 뒤에) */
     setInterval(function () { if (!document.hidden) dailyGift(); }, 60000);   /* 11-12 (검증): 열어 둔 채 자정을 넘기면 그날 선물 · 들어온 날이 안 올라갔다 — 1분마다 (그날 한 번만 준다) */
     document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(dailyGift, 400); });
   }

@@ -1598,6 +1598,11 @@ html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 .week-row .week-n { flex: 0 0 auto; color: var(--muted); font-size: 13px; }
 .week-row.done .week-txt { color: var(--muted); }
 .week-row .week-rr { flex: 0 0 auto; min-height: 36px; }
-.bag-tag.has-gift::after { content: ''; position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); }
+.week-row .week-rr::before { inset: min(0px, calc(50% - 22px)) 0; }   /* 11-12 (검증 F7 · C13): 누르는 곳은 높이 44px (보이는 단추 32~36px) — 옆으로는 넓히지 않는다 (320 px 에서 시트 몸이 옆으로 4px 넘쳤다) */
+.week-txt:focus { outline: none; } .week-txt:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }   /* 바꾼 칸에 단추가 없어지면 키보드 자리가 그 줄의 글로 (tabindex -1) */
+#week-claim .nobr { white-space: nowrap; }   /* 11-12 (검증 F20): 수량은 한 덩어리 */
+:root[data-font="pixel"] #week-claim { line-height: 28px; }   /* 픽셀 글꼴(24px)에선 두 줄이 된다 — 단추 기본 22px 줄 간격이면 두 줄이 겹쳐 보였다 (W14) */
+/* 11-12 (검증 F5 · W8): 받을 주간 선물 점 — 틀 색(호박 · 나무)과 겹쳐 틀의 일부로 읽혔다 → 조금 크게, 밝은 호박 + 바탕색 테두리 2px 로 틀에서 떼어 낸다. 깜빡임 · 숫자 없음 */
+.bag-tag.has-gift::after { content: ''; position: absolute; top: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; background: var(--amber-fill, var(--amber)); box-shadow: 0 0 0 2px var(--panel2); }
 :root[data-font="pixel"] .bag-tag.has-gift::after { border-radius: 0; }
 :root[data-font="pixel"] .week-row { border-bottom: 2px solid var(--line); }
