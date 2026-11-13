@@ -2,7 +2,7 @@
 
 Read `/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/COMMON2.md` first for the
 project, the hard lines and how to run things (its base commit is older than yours). Your label (scratch folder):
-`fix-owner3`. You edit only **`/home/user/ppolppol-fix-owner`** (branch `fix-owner`, base **BASE_SHA** = the owner
+`fix-owner3`. You edit only **`/home/user/ppolppol-fix-owner`** (branch `fix-owner`, base **a0483dd** = the owner
 lane committed: decisions 3b, 4b, 5b of 11-12 and their repair; `node_modules` is an untracked symlink, never stage
 it). Do not commit.
 
@@ -50,6 +50,20 @@ Find the smallest change (for example, `restDown` does nothing while the octopus
 player, and the attic placement happens when the octopus comes down). Read `octUnmountLoft`'s `emit('octUp', false,
 anchor)` and the app's `on.octUp` handler before choosing where the blanket placement happens.
 
+## Also: two missing checks from the owner lane's recheck
+
+The recheck of the owner lane (`…/scratchpad/final/report-recheck-owner.json`, problems RO-1 and RO-2, evidence in
+`…/final/recheck-owner/`) found that two lines of the weekly fix (OW-1, `week.kept`) have no failing check. The code
+is right; only the guards are missing. Add them to `Q21` in its style:
+- **RO-1 (should):** the same-week case where the 'days' slot was already replaced (`kept` = 1) and the gift is not
+  claimed: move the date hook to the next Monday, reload, and expect `week.prev` = { shells 12, seeds 2 } and the
+  shells raised by 12 on top of the day gift. It must fail when `+ (w.kept | 0)` is removed from `due` in
+  `weekState`.
+- **RO-2 (nit):** the week-change case with only two visit days in last week (four other tasks done, the slot never
+  replaced): on Monday expect no `week.prev` and only the day gift. It must fail when the `d <= ek` bound is removed
+  from `oldDone`.
+Add both to the mutation table. Do not change the weekly code itself unless a check shows it is wrong.
+
 ## Lanes
 
 Another agent (lane **gnits**, tree `/home/user/ppolppol-fix-gnits`) works at the same time on the outside garden
@@ -57,8 +71,7 @@ Another agent (lane **gnits**, tree `/home/user/ppolppol-fix-gnits`) works at th
 `renderBag`'s garden part, `userState`, `renderBagChip`, the `storage` event listener (a `lastSeen` guard),
 `importJSON`; scenario `X` in `tools/smoke.js`). **Stay out of those.** Your area: `restDown`, `finalPose`,
 `syncRest`, the rest functions next to them, `on.octUp` / `on.octResting` in `js/app.js`; `octMountLoft` /
-`octUnmountLoft` in `js/scene3d.js` only if needed; scenario `Z` (and `Q` only if a check there asserts the old
-move); `docs/ROOM_EXPANSION.md`, `docs/SALON.md` and `docs/OWNER_DECISIONS.md` for the decision text.
+`octUnmountLoft` in `js/scene3d.js` only if needed; scenario `Z`, scenario `Q` (the two checks above, and any check that asserts the old move); `docs/ROOM_EXPANSION.md`, `docs/SALON.md` and `docs/OWNER_DECISIONS.md` for the decision text.
 
 ## Rules
 
@@ -83,7 +96,7 @@ checks that fail (keep the output). A fix with no failing check is not finished.
 ## Suites
 
 `npm test`; the font check; `SMOKE_ONLY=Z` until it passes three times in a row on the final code; `SMOKE_ONLY=Q`
-once; `SMOKE_ONLY=A` once; `SMOKE_ONLY=Y` once (the mirror); `node tools/test-scene-perf.js` once only if you
+until it passes three times in a row; `SMOKE_ONLY=A` once; `SMOKE_ONLY=Y` once (the mirror); `node tools/test-scene-perf.js` once only if you
 changed `js/scene3d.js`. The load rule in COMMON2.md applies (another agent runs browsers too). The disk is shared
 and was full once today: keep scratch copies few and delete them when done (or put bulky ones in `/dev/shm`). Put
 back every tracked evidence file you did not mean to change.
