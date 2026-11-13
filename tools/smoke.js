@@ -465,7 +465,81 @@ async function scenarioMain(browser) {
   ok(await page.evaluate(function () { return typeof APP.posterSVG(APP.state.trips[0], 300, 400) === 'string' && APP.posterSVG(APP.state.trips[0]).indexOf('<svg') === 0; }), 'APP.posterSVG 문자열');
   reportErrors(s.bag, 'A');
   await s.ctx.close();
+  await scenarioHonestLines(browser);
 }
+/* 11-13 (금지선 1): 코드가 쓴 세 줄이 문어 마음을 지어내지 않는다 — 쓰다듬기 말풍선 '…' (예전 '…좋아') · 폴짝/우쭐 뒤 장면 설명 (예전 '신나 있어') ·
+   낮잠 이름표 '자는 중' 하나 (예전 '꿈꾸는 중' 과 번갈음). 고정 앵글 훅(__ppolLook)으로 상태를 정하고, 기다림은 시간이 아니라 상태로 한다 */
+var FEEL_RX = /좋아|신나|기뻐|기쁘|행복|즐거|싫어|슬퍼|외로|심심|맛있|꿈/;
+async function scenarioHonestLines(browser) {
+  console.log('\n== A-2. 코드가 쓴 줄이 문어 마음을 말하지 않는다 (11-13)');
+  /* 0. 정적 글: index.html · cook.html · play.html · credits.html 의 보이는 글(주석·스크립트·스타일 밖, 글자와 alt/title/aria-label/placeholder)과 js/ 의 줄에 '하고 싶대' 같은 바람 말이 없다.
+     (먼 바다 문 첫 줄이 예전 '가 보고 싶대' — 모델은 제안만 했다). js/brain.js · js/world.js 의 데모 두뇌 줄은 '데모' 꼬리표가 붙고 주인이 정할 일이라 뺀다 */
+  var WANT_RX = /싶대|싶어|싶었|싶다|싶은|궁금했|궁금해|끌렸/, wantHits = [];
+  ['index.html', 'cook.html', 'play.html', 'credits.html'].forEach(function (f) {
+    var fp = path.join(ROOT, f); if (!fs.existsSync(fp)) return;
+    var t = fs.readFileSync(fp, 'utf8').replace(/<!--[\s\S]*?-->/g, '').replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '');
+    var bits = t.replace(/<[^>]*>/g, '\n').split('\n').concat(t.match(/(?:alt|title|aria-label|placeholder)="[^"]*"/g) || []);
+    bits.forEach(function (x) { if (WANT_RX.test(x) || FEEL_RX.test(x)) wantHits.push(f + ': ' + x.trim().slice(0, 60)); });
+  });
+  fs.readdirSync(path.join(ROOT, 'js')).filter(function (f) { return /\.js$/.test(f) && f !== 'brain.js' && f !== 'world.js'; }).forEach(function (f) {
+    fs.readFileSync(path.join(ROOT, 'js', f), 'utf8').split('\n').forEach(function (l, i) { if (WANT_RX.test(l)) wantHits.push('js/' + f + ':' + (i + 1) + ': ' + l.trim().slice(0, 60)); });
+  });
+  ok(wantHits.length === 0, '보이는 정적 글 · js 줄에 문어 바람 · 느낌 말 없음' + (wantHits.length ? ': ' + wantHits.join(' | ') : ''));
+  /* 1. 폴짝 · 우쭐 뒤 상태 happy 의 장면 설명: 보이는 몸짓만 (통통 뛴다) */
+  var h = await newPage(browser, 'ok', [{ content: "window.__ppolLook = { octState: 'happy', anchor: 'center' };" }]);
+  await h.page.goto(INDEX + '?dev=0');
+  await h.page.waitForFunction(function () { return window.APP && APP.oct.state === 'happy' && document.getElementById('scene-desc').textContent; }, null, { timeout: 20000 });
+  var hd = await h.page.evaluate(function () { return document.getElementById('scene-desc').textContent; });
+  ok(/통통 뛰고 있어/.test(hd) && !FEEL_RX_IN(hd), "상태 happy 의 장면 설명은 몸짓만 — 느낌 말 없음 ('" + hd + "')");
+  reportErrors(h.bag, 'A-2 happy');
+  await h.ctx.close();
+  /* 2. 낮잠 이름표: 9–15 s 마다 도는 낮잠 타이머를 40 ms 로 줄여 여러 번 돌린다 — 이름표는 늘 '자는 중' */
+  var z = await newPage(browser, 'ok', [{ content: "window.__ppolLook = { octState: 'sleep', anchor: 'blanket' }; window.__napSeen = []; (function () { var o = window.setTimeout; window.setTimeout = function (f, ms) { if (typeof f === 'function' && ms >= 9000 && ms <= 15000 && String(f).indexOf('scheduleDreamLabel') >= 0) { var g = f; f = function () { g(); var l = document.getElementById('oct-label'); window.__napSeen.push(l ? l.textContent : null); }; ms = 40; } return o.apply(window, [f, ms].concat([].slice.call(arguments, 2))); }; })();" }]);
+  await z.page.goto(INDEX + '?dev=0');
+  await z.page.waitForFunction(function () { return window.APP && APP.oct.state === 'sleep' && window.__napSeen.length >= 8; }, null, { timeout: 20000 }).catch(function () {});
+  var nz = await z.page.evaluate(function () { return window.__napSeen.slice(); });
+  ok(nz.length >= 8 && nz.every(function (t) { return t === '자는 중'; }), "낮잠 이름표는 타이머가 " + nz.length + "번 돌아도 늘 '자는 중' ('꿈꾸는 중' 없음) " + JSON.stringify(nz.filter(function (t, i, a) { return a.indexOf(t) === i; })));
+  reportErrors(z.bag, 'A-2 nap');
+  await z.ctx.close();
+  /* 3. 쓰다듬기 (2D 꾹 누르기 — 0.35 s 뒤 쓰다듬기): 2 s 뒤 열에 일곱은 말풍선, 나머지는 다른 자리로 걸어간다 (꾸밈 뽑기 uiRng — 시험이 못 정한다).
+     두 갈래를 다 볼 때까지 (최대 25번) 누르고, 그동안 뜬 말풍선은 전부 '…' 하나 — 걸어가는 갈래에 말이 붙어도 잡힌다 */
+  var q = await newPage(browser, 'ok', [{ content: "window.__ppolLook = { octState: 'idle', anchor: 'center' };" }]);
+  await q.page.goto(INDEX + '?dev=0&scene=2d');
+  await nameOct(q.page, '쓰담문어');
+  var pr = await q.page.evaluate(function () {
+    function until(fn) { return new Promise(function (res) { (function w() { if (fn()) res(); else setTimeout(w, 20); })(); }); }
+    var b = document.getElementById('oct-bubble'), o = document.getElementById('oct'), seen = [], tries = 0, said = [], sawBubble = false, sawWalk = false, multi = 0;
+    new MutationObserver(function () { var t = b.hidden ? '' : b.textContent; if (t && seen[seen.length - 1] !== t) seen.push(t); }).observe(b, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    function once() {
+      tries++; seen.length = 0; var from;
+      return until(function () { return APP.oct.state === 'idle' && !APP.oct.busy; }).then(function () {
+        from = APP.oct.anchor;
+        var r = o.getBoundingClientRect();
+        o.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, pointerType: 'mouse' }));
+        return until(function () { return APP.oct.state === 'pet'; });
+      }).then(function () {
+        o.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerType: 'mouse' }));
+        return until(function () { return APP.oct.state !== 'pet'; });
+      }).then(function () {
+        return until(function () { return APP.oct.state === 'idle' && !APP.oct.busy; });   /* 걸어가는 갈래는 다 걸을 때까지 */
+      }).then(function () { return new Promise(function (res) { setTimeout(res, 60); }); }).then(function () {
+        var walked = APP.oct.anchor !== from;
+        if (seen.length) said.push(seen.slice());
+        if (seen.length > 1) multi++;
+        if (walked) sawWalk = true; else if (seen.length) sawBubble = true;
+        return (sawBubble && sawWalk) || tries >= 25 ? null : once();
+      });
+    }
+    return once().then(function () { return { tries: tries, said: said, sawBubble: sawBubble, sawWalk: sawWalk, multi: multi }; });
+  });
+  console.log('   쓰다듬기:', JSON.stringify(pr));
+  var petAll = [].concat.apply([], pr.said);
+  ok(pr.sawBubble && pr.sawWalk && pr.multi === 0 && petAll.length >= 1 && petAll.every(function (t) { return t === '…' && !FEEL_RX_IN(t); }),
+    "쓰다듬기 뒤 말풍선은 '…' 하나 — 말 없음 (두 갈래 다: 말풍선 " + pr.sawBubble + ' · 걸어감 ' + pr.sawWalk + ', ' + pr.tries + '번: ' + JSON.stringify(pr.said) + ')');
+  reportErrors(q.bag, 'A-2 pet');
+  await q.ctx.close();
+}
+function FEEL_RX_IN(t) { return FEEL_RX.test(String(t || '')); }
 function reducedWait(ms) { return ms; }
 function reportErrors(bag, label) {
   ok(bag.length === 0, '[' + label + '] 페이지 에러/콘솔 에러 0' + (bag.length ? ': ' + bag.join(' | ') : ''));
@@ -2954,7 +3028,7 @@ async function scenarioSalon(browser) {
   await W.ctx.close();
 
   /* 12. 검증 11-10 의 고침 — 새 탭 하나 (11-09 부터, 물음마다 하루씩):
-         E2  묻는 순간 떠 있던 혼잣말 ('…좋아') 을 내리고 쓰다듬기를 끝낸다 → 물음과 대답 사이에 대답 아닌 말풍선이 없다 (예전엔 '…좋아' 뒤에 '안 바꿀래.' 가 올 수 있었다)
+         E2  묻는 순간 떠 있던 혼잣말 (쓰다듬기 '…' — 11-13 전엔 '…좋아') 을 내리고 쓰다듬기를 끝낸다 → 물음과 대답 사이에 대답 아닌 말풍선이 없다 (예전엔 '…좋아' 뒤에 '안 바꿀래.' 가 올 수 있었다)
          W10 연출이 끝나면 다음 돌아다니기를 20–40 s 뒤로 다시 건다 (두 답 모두 — 예전엔 끝나자마자 걸어 나갈 수 있었다)
          E11 시트를 열어 둔 채 날이 바뀌어 쉼이 풀린 병을 누르면 aria-disabled · '며칠 뒤에 …' 라벨이 걷힌다
          E4  행 3 을 붙이다 오류가 나도 연출 표시가 풀린다 (거울 · 문 단추 · 약속) · 장면이 거울 단추 허락을 못 받았으면 (던짐) 다음 맞춤 때 다시 준다
@@ -2977,16 +3051,16 @@ async function scenarioSalon(browser) {
   }, hex); }
   function finishCount(pg) { return pg.evaluate(function () { var Z = window.__yz, n0 = Z.to.length; APP.salonFinish(); return { armed: Z.to.length - n0, bub: Z.bub.filter(Boolean), stage: !!APP.salonStage, active: APP.salonActive }; }); }
   function pickable(pg, n) { return pg.evaluate(function (n) { return SALON.bottles(APP.state, window.__ppolTest.today).filter(function (b) { return b.selectable; }).map(function (b) { return b.hex; })[n || 0]; }, n); }
-  /* 12a. 11-09 (첫 물음 = '바꾸기'): 혼잣말 '…좋아' 가 떠 있는 채로 묻는다 (쓰다듬기 뒤 2–4 s 에 묻는 때와 같은 화면) */
+  /* 12a. 11-09 (첫 물음 = '바꾸기'): 쓰다듬기 혼잣말 '…' 가 떠 있는 채로 묻는다 (쓰다듬기 뒤 2–4 s 에 묻는 때와 같은 화면) */
   await park(pz, 'center');
-  await pz.evaluate(function () { APP.say('…좋아', 'pet', 1800); });
+  await pz.evaluate(function () { APP.say('…', 'pet', 1800); });
   var e2a = await askNow(pz, BLUE);
   await pz.waitForFunction(function () { return APP.salonStage && APP.salonStage.n >= 2; }, null, { timeout: 15000 }).catch(function () {});
   var e2b = await finishCount(pz), z1 = await st(pz);
-  ok(e2a.ok && e2a.before === '…좋아' && e2a.after === '', "묻는 순간 떠 있던 혼잣말 말풍선 ('" + e2a.before + "') 은 내려간다 (대답 앞에 코드가 쓴 '…좋아' 가 남지 않는다)");
+  ok(e2a.ok && e2a.before === '…' && e2a.after === '', "묻는 순간 떠 있던 혼잣말 말풍선 ('" + e2a.before + "') 은 내려간다 (대답 앞에 코드가 쓴 쓰다듬기 말풍선이 남지 않는다)");
   ok(e2b.bub.length >= 1 && e2b.bub.every(function (t) { return t === '응, 해 볼래.'; }), '물음과 대답 사이 · 대답 뒤에 뜬 말풍선은 대답뿐 ' + JSON.stringify(e2b.bub));
   ok(e2b.armed === 1 && !e2b.stage && !e2b.active && z1.color === BLUE && z1.sceneColor === BLUE, "연출이 끝나는 그 자리에서 다음 돌아다니기를 20–40 s 뒤로 다시 건다 ('바꾸기' — 예약 " + e2b.armed + '개)');
-  /* 12b. 11-10 ('그대로' — 블록 6 과 같은 시드): 진짜 쓰다듬기 (문어 위에서 손을 움직임) 가 시작된 채로 곧 (0.6 s 뒤) 묻는다 (2 s 뒤의 '…좋아' 예약이 살아 있을 때 — 예전엔 그 예약 · 쓰다듬기 상태가 시트가 닫히는 0.25 s 뒤까지 남았다) */
+  /* 12b. 11-10 ('그대로' — 블록 6 과 같은 시드): 진짜 쓰다듬기 (문어 위에서 손을 움직임) 가 시작된 채로 곧 (0.6 s 뒤) 묻는다 (2 s 뒤의 쓰다듬기 '…' 예약이 살아 있을 때 — 예전엔 그 예약 · 쓰다듬기 상태가 시트가 닫히는 0.25 s 뒤까지 남았다) */
   await setDay(pz, D2);
   await park(pz, 'center'); await pz.waitForTimeout(400);
   await pz.evaluate(function (hex) {   /* 쓰다듬기가 시작된 때부터 0.6 s 뒤에 (페이지 안 타이머 — 바쁜 기계에선 0.6 s 넘게 늦기도 한다: 그래도 2 s 예약보다 먼저) 한 일 안에서 시트 → 병 → [물어보기] */
@@ -3019,8 +3093,8 @@ async function scenarioSalon(browser) {
   await pz.waitForTimeout(2500);
   var e2d = await pz.evaluate(function () { var Z = window.__yz; clearInterval(Z.iv); var says = [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.dataset.say || ''; }).filter(Boolean); return { bub: Z.bub.filter(Boolean), armed: Z.endArmed, walked: Z.walked, says: says }; }), z2 = await st(pz), askK = z2.asks[1] || {};
   console.log('   pet → ask:', JSON.stringify({ ask: e2c, end: e2d, answer: askK.action + ' ' + askK.line }));
-  ok(e2c.ok && e2c.state0 === 'pet' && e2c.state === 'idle', '쓰다듬는 중에 물으면 그 순간 쓰다듬기를 끝낸다 (문어 상태 ' + e2c.state0 + ' → ' + e2c.state + " — 2 s 뒤의 '…좋아' 예약도 지운다)");
-  ok(endK && askK.action === 'keep' && e2d.bub.length >= 1 && e2d.bub.every(function (t) { return t === askK.line; }) && e2d.bub.indexOf('…좋아') < 0, "'그대로' 대답 앞뒤로 '…좋아' 가 뜨지 않는다 (말풍선은 대답 '" + askK.line + "' 뿐) " + JSON.stringify(e2d.bub));
+  ok(e2c.ok && e2c.state0 === 'pet' && e2c.state === 'idle', '쓰다듬는 중에 물으면 그 순간 쓰다듬기를 끝낸다 (문어 상태 ' + e2c.state0 + ' → ' + e2c.state + " — 2 s 뒤의 '…' 예약도 지운다)");
+  ok(endK && askK.action === 'keep' && e2d.bub.length >= 1 && e2d.bub.every(function (t) { return t === askK.line; }) && e2d.bub.indexOf('…') < 0 && e2d.bub.indexOf('…좋아') < 0, "'그대로' 대답 앞뒤로 쓰다듬기 '…' 가 뜨지 않는다 (말풍선은 대답 '" + askK.line + "' 뿐) " + JSON.stringify(e2d.bub));
   ok(e2d.armed >= 1 && !e2d.walked && z2.color === BLUE && z2.sceneColor === BLUE, "'그대로' 연출이 스스로 끝날 때도 돌아다니기를 다시 건다 · 끝난 뒤 2.5 s 동안 걸어 나가지 않는다 " + JSON.stringify({ armed: e2d.armed, walked: e2d.walked }));
   /* 12c. 초록 병은 11-10 … 11-16 쉰다. 11-16 에 시트를 열어 둔 채 11-17 이 되면: 누른 병이 고를 수 있는 병으로 다시 그려진다 (E11) */
   await setDay(pz, '2026-11-16'); await openSheet(pz);

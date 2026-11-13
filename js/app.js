@@ -29,7 +29,7 @@ var APP = (function () {
   var BY_LABEL = { demo: '데모 두뇌(규칙)', human: '사람이 조작', mcp: '모델(MCP)', legacy: '복원된 기록' };
   var LOG_LABEL = { depart: '출발', peek: '기웃', 'return': '귀가', remember: '기억', hang_poster: '포스터', wrap_up: '마무리', stay_home: '집', empty_turn: '…' };
   var VOICE_LABELS = ['귀가', '기억', '마무리', '집', '인사', '혼잣말', '어제 메모', '지난 메모', '대답'];   /* '방'(등불 소품 줄)은 11-08 부터 집 목소리 사실 문장 (DIALOGUE_UI §4.3) */   /* 문어 목소리 행 → 픽셀 테마에서 호박색 탭 + 초상 대화창 (§15.2) · '대답' = 미용실 행 2 (고른 이의 말, docs/SALON.md §3.7 — '미용실' · '몸 색' 행은 집 목소리) */
-  /* 문어 목소리 행의 표정 (DESIGN §15.2): 귀가 calm · 기억 curious · 마무리 폴짝/우쭐 happy, 졸림 sleepy, 덤덤 calm · 집 활동 calm (낮잠 sleep) · 빈 차례 sleep · 인사 깨어 있으면 happy / 자는 중 sleep · 방(소품) happy · 말풍선 ♡ pet, ? curious */
+  /* 문어 목소리 행의 표정 (DESIGN §15.2): 귀가 calm · 기억 curious · 마무리 폴짝/우쭐 happy, 졸림 sleepy, 덤덤 calm · 집 활동 calm (낮잠 sleep) · 빈 차례 sleep · 인사 깨어 있으면 happy / 자는 중 sleep · 방(소품) happy · 말풍선 … pet (예전 ♡), ? curious */
   var REACT_EXPR = { '폴짝': 'happy', '우쭐': 'happy', '덤덤': 'calm', '졸림': 'sleepy' };
   var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' };   /* 상태의 기본 표정 (SCENE.md 초상·표정) — 대화창 표정은 4 s 뒤 여기로 돌아온다 */
   /* 자는 문어를 누르면 · 깨어 있는 문어를 톡 누르면 (말풍선만 — 로그 · 저장에 안 남는다, 11-08). 소리(js/audio.js)는 글자가 아니라 kind('sleep' · 'curious' · 'say')로 고른다.
@@ -919,8 +919,8 @@ var APP = (function () {
     if (!ask) { d.close(); return false; }
     if (dev) { salonNext = null; paintSalonNext(); }
     setSalonActive(true);   /* 저장보다 먼저: 다른 탭 · 다시 그리기가 연출 전에 장면 몸색을 바꾸지 않게 (applyLook 을 미룬다) */
-    /* 묻는 그 순간 쓰다듬기 뒤끝을 걷는다 (검증 11-10 E2): 2 s 뒤의 '…좋아' 예약 (pet) 을 지우고, 떠 있던 혼잣말 · 톡 한 줄 · 생각 말풍선을 내린다.
-       예전엔 시트가 닫히는 0.25 s 뒤 (salonSettle) 에야 지워서, 물음 바로 뒤에 코드가 쓴 '…좋아' 가 뜨고 곧이어 '안 바꿀래.' 가 나올 수 있었다 — 마음을 바꾼 것처럼 읽힌다. 대답 말풍선은 이 뒤에 뜬다 */
+    /* 묻는 그 순간 쓰다듬기 뒤끝을 걷는다 (검증 11-10 E2): 2 s 뒤의 '…' 예약 (pet — 11-13 전엔 '…좋아') 을 지우고, 떠 있던 혼잣말 · 톡 한 줄 · 생각 말풍선을 내린다.
+       예전엔 시트가 닫히는 0.25 s 뒤 (salonSettle) 에야 지워서, 물음 바로 뒤에 코드가 쓴 그 말풍선이 뜨고 곧이어 '안 바꿀래.' 가 나올 수 있었다 — 마음을 바꾼 것처럼 읽힌다. 대답 말풍선은 이 뒤에 뜬다 */
     clearTimeout(petTimer); if (oct.state === 'pet') octState('idle');
     var ob = $('oct-bubble'); if (ob && !ob.hidden) bubble('', 0);
     SAL.commit(S, ask); save(); rememberAsk(ask);   /* 물음 한 줄 + ('바꾸기' 면) colors 한 줄 + octopus.color + 사본 — 한 번에 */
@@ -1141,7 +1141,7 @@ var APP = (function () {
      장소 · 등불 · 날씨 · 시각대 · 문어 자리와 상태를 지금 값 그대로. 라이브 영역 아님 (사건은 #log 가 읽어 준다). 글자가 바뀔 때만 쓴다 */
   var WX_DESC = { rain: '비 오는', drizzle: '가랑비 오는', clear: '맑은', snow: '눈 오는' };
   var SPOT_DESC = { window: '창가', center: '방 가운데', crate: '나무 상자 옆', blanket: '담요 위', board: '포스터 판 앞', door: '문 앞', salon: (SAL && SAL.TEXT.spot) || '거울 옆' };
-  var DOING_DESC = { idle: '쉬고 있어', stay: '쉬고 있어', sleep: '자고 있어', pet: '쓰다듬받고 있어', happy: '신나 있어', anticipate: '나갈 채비 중이야', hang: '포스터를 붙이고 있어', carry: '포스터를 들고 있어' };
+  var DOING_DESC = { idle: '쉬고 있어', stay: '쉬고 있어', sleep: '자고 있어', pet: '쓰다듬받고 있어', happy: '통통 뛰고 있어', anticipate: '나갈 채비 중이야', hang: '포스터를 붙이고 있어', carry: '포스터를 들고 있어' };
   function partOfDay(hr) { return hr < 5 ? '밤' : hr < 9 ? '아침' : hr < 17 ? '낮' : hr < 19 ? '저녁' : '밤'; }
   function sceneDescText() {
     if (sceneView() === 'play')   /* 놀이방 (8물결): 문어는 다락(또는 산책) — 놀이방엔 오지 않는다 */
@@ -1173,7 +1173,7 @@ var APP = (function () {
     syncSalonSpot();   /* 문어가 나가 있으면 (2D 포함) 거울 단추를 숨긴다 */
   }
   var sleepReaction = null;   /* finalPose 가 잠재우기 직전에 넣는다 → 다음 'sleep' 상태 훅 한 번만 */
-  var SLEEP_LABEL = '자는 중', DREAM_LABEL = '꿈꾸는 중';
+  var SLEEP_LABEL = '자는 중';   /* 11-13 (금지선 1): 예전엔 '꿈꾸는 중' 과 번갈았다 — 문어 속 경험을 지어내는 말이라 뺐다 */
 
   /* ── 출발·귀가 의식 (DESIGN §15.3 · SCENE.md "바깥·계절·전환"): 다락 문 → 전환 → 현관 → 계단 → 길 → 화면 밖 / 그 거꾸로.
      장면이 dt 로 돌리는 작업 큐라 끝날 때까지 moveTo/setOctState 를 부르지 않는다. 건너뛰기 = 남은 의식을 한 번에 감아 끝낸다(jumpCeremony).
@@ -1429,12 +1429,12 @@ var APP = (function () {
     bubble('…응?', 1600, 'sleepy'); expressRow('curious');
   }
   var dreamTimer = null;
+  /* 자는 동안 9–15 s 마다 스스로 깨어날 때인지 본다. 11-13: 이름표는 '자는 중' 그대로 (번갈아 쓰던 '꿈꾸는 중' 은 뺐다 — 이름만 옛날 것) */
   function scheduleDreamLabel() {
     clearTimeout(dreamTimer);
     dreamTimer = setTimeout(function () {
       if (oct.state !== 'sleep') return;
       if (!oct.busy && !salonActive && !document.hidden && !lookHook() && napOver()) { selfWake(); return; }   /* 숨은 탭에선 기다렸다가 돌아와서 (깨는 걸 볼 수 있게) */
-      var lbl = $('oct-label'); if (lbl) lbl.textContent = lbl.textContent === SLEEP_LABEL ? DREAM_LABEL : SLEEP_LABEL;
       scheduleDreamLabel();
     }, 9000 + uiRng() * 6000);
   }
@@ -1579,7 +1579,7 @@ var APP = (function () {
     fit();
     if (!b.hidden && sceneMode === '2d') bubFit = setInterval(fit, 200);
   }
-  /* 말풍선 + 로그 대화창 행 (§15.2 "?" · "비가 와" · "…좋아"): 장면 위 말풍선과 같은 말을 초상과 함께 오늘 칸에 남긴다 (저장 X — 새로고침하면 사라지는 혼잣말). 바로 앞 행과 같은 말이면 행은 생략.
+  /* 말풍선 + 로그 대화창 행 (§15.2 "?" · "비가 와" · "…"): 장면 위 말풍선과 같은 말을 초상과 함께 오늘 칸에 남긴다 (저장 X — 새로고침하면 사라지는 혼잣말). 바로 앞 행과 같은 말이면 행은 생략.
      opt = bubble 의 opt (그림은 말풍선에만) */
   function say(text, expr, ms, opt) {
     bubble(text, ms, expr, opt);
@@ -1616,8 +1616,8 @@ var APP = (function () {
     clearTimeout(petTimer);
     petTimer = setTimeout(function () {
       if (oct.state !== 'pet') return;
-      if (uiRng() < 0.7) { octState('idle'); say('…좋아', 'pet', 1800); }   /* 글자만 (예전 하트 기호는 뺐다 — 하트는 픽셀 테마 파티클이 띄운다) */
-      else if (rest) octState('idle');   /* 깨어 있는 틈: 담요에서 말없이 그대로 (뽑기는 그대로 — '…좋아' 가 더 잦아지지 않게) */
+      if (uiRng() < 0.7) { octState('idle'); say('…', 'pet', 1800); }   /* 말 없이 '…' 만 (예전 하트 기호는 뺐다 — 하트는 픽셀 테마 파티클이 띄운다). 11-13 (금지선 1): '…좋아' 는 코드가 문어 목소리로 좋다고 말한 것이라 뺐다 */
+      else if (rest) octState('idle');   /* 깨어 있는 틈: 담요에서 말없이 그대로 (뽑기는 그대로 — '…' 가 더 잦아지지 않게) */
       else { var opts = allowedIdleAnchors().filter(function (a) { return a !== oct.anchor; }); walkTo(opts[Math.floor(uiRng() * opts.length)] || 'center').then(function () { if (!oct.busy) octState('idle'); }); }
     }, 2000);
   }
