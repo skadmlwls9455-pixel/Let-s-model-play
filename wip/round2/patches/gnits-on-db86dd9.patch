@@ -1,5 +1,5 @@
 diff --git a/js/app.js b/js/app.js
-index a19d130..4c01406 100644
+index a19d130..3bbe7fd 100644
 --- a/js/app.js
 +++ b/js/app.js
 @@ -3701,6 +3701,7 @@ var APP = (function () {
@@ -37,20 +37,54 @@ index a19d130..4c01406 100644
      return u;
    }
    function earnFromPlay(r) {   /* 놀이 한 판 → 조개 (같은 판 id 는 한 번만) */
-@@ -4431,6 +4432,7 @@ var APP = (function () {
+@@ -4431,9 +4432,11 @@ var APP = (function () {
    function renderBagChip() {   /* 주 먼저 (11-11): 주가 바뀌며 넣은 지난주 선물이 조개 수에 바로 보이게. 11-12 (검증 W8 · F5): 받을 선물이 있으면 이름에도 (점은 눈에만 보인다) */
      var b = $('btn-bag'); if (!b) return; var u = userState(), w = S.octopus.name ? weekState() : null, gift = !!w && !w.claimed && weekDoneN(w) >= WEEK_NEED; b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = '조개 ' + u.shells;
      if (w) b.classList.toggle('has-gift', gift); b.setAttribute('aria-label', '살림, 조개 ' + u.shells + (gift ? ', 주간 선물이 있어' : ''));
 +    plotLabels();   /* 11-13: 바깥 밭 단추 이름도 — 씨앗 · 밭 · 날이 바뀌는 길(오늘 선물 · 주간 선물 · 다른 탭 · 불러오기 · 초기화)이 다 여기를 지난다 (포커스 없이 훑는 화면 낭독기) */
    }
-   /* 11-11: 텃밭 칸 하나를 읽는다 — 모르는 색(손댄 기록 · 나중 빌드의 새 색)이어도 던지지 않는다: 이름 없이 '꽃', 그림은 장면 기본색 */
-   function plotView(g, dk) { if (!g) return null; var d = dyeOf(g.color), w = Math.max(0, Math.min(2, g.water | 0)); return { w: w, name: d ? d[1] : '', hex: d ? d[2] : null, today: g.wateredDay === dk, st: w >= 2 ? (d ? d[1] + ' 꽃' : '꽃') : w === 1 ? '새싹' : '씨앗' }; }
+-  /* 11-11: 텃밭 칸 하나를 읽는다 — 모르는 색(손댄 기록 · 나중 빌드의 새 색)이어도 던지지 않는다: 이름 없이 '꽃', 그림은 장면 기본색 */
+-  function plotView(g, dk) { if (!g) return null; var d = dyeOf(g.color), w = Math.max(0, Math.min(2, g.water | 0)); return { w: w, name: d ? d[1] : '', hex: d ? d[2] : null, today: g.wateredDay === dk, st: w >= 2 ? (d ? d[1] + ' 꽃' : '꽃') : w === 1 ? '새싹' : '씨앗' }; }
++  /* 11-11: 텃밭 칸 하나를 읽는다 — 모르는 색(손댄 기록 · 나중 빌드의 새 색)이어도 던지지 않는다: 이름 없이 '꽃', 그림은 FL_UNKNOWN (11-13) */
++  var FL_UNKNOWN = '#787279';   /* 11-13: 모르는 꽃 색 — 장면 PAL.slate[3] 과 같은 회색 · 염료 어느 색도 아니다 (예전엔 바깥은 노랑, 시트는 분홍과 똑같이 칠해 아는 꽃처럼 보였다) */
++  function plotView(g, dk) { if (!g) return null; var d = dyeOf(g.color), w = Math.max(0, Math.min(2, g.water | 0)); return { w: w, name: d ? d[1] : '', hex: d ? d[2] : FL_UNKNOWN, today: g.wateredDay === dk, st: w >= 2 ? (d ? d[1] + ' 꽃' : '꽃') : w === 1 ? '새싹' : '씨앗' }; }
+   var PLOT_NTH = ['첫째', '둘째', '셋째'];
+   function plotLabel(i, u, dk) {   /* 칸 · 든 것 · 누르면 할 일 (11-11 — 바깥 단추 · 살림 시트 단추가 같은 말) */
+     var v = plotView(u.garden[i], dk);
+diff --git a/js/scene3d.js b/js/scene3d.js
+index 21f620a..7f6b9a0 100644
+--- a/js/scene3d.js
++++ b/js/scene3d.js
+@@ -4150,7 +4150,7 @@ var SCENE3D = (function () {
+            화면 상자(꽃 높이까지 든)는 옆 칸과 겹치고, 땅(y 0)에 내린 점은 흙 높이만큼 뒤로 밀려 옆 칸에 들었다. 다 빗나가면 문어 히트 구 → 단추 칸 (44 px 여유) */
+         var bm = octG.visible && octG.parent === extG ? bodyMeshes() : [], hx = ray.intersectObjects(bm.concat(plotPlants ? [plotBase, plotPlants] : [plotBase]), false);
+         if (hx.length && bm.indexOf(hx[0].object) >= 0) return okOct ? hit : null;
+-        if (hx.length) { var lx = extG.worldToLocal(hx[0].point.clone()).x, pi = 0; for (var q = 1; q < 3; q++) if (Math.abs(lx - PLOT.xs[q]) < Math.abs(lx - PLOT.xs[pi])) pi = q; if (SPOTS['plot' + pi] && spotInfo('plot' + pi)) return spotHit('plot' + pi); }
++        if (hx.length) { var lx = extG.worldToLocal(hx[0].point.clone()).x, pi = 0; for (var q = 1; q < 3; q++) if (Math.abs(lx - PLOT.xs[q]) < Math.abs(lx - PLOT.xs[pi])) pi = q; return SPOTS['plot' + pi] && spotInfo('plot' + pi) ? spotHit('plot' + pi) : null; }   /* 11-13: 맞은 칸 단추가 없으면 (밀고 돌려 그 칸이 화면 끝에 조금만 보인다) 아무것도 — 예전엔 아래 단추 칸으로 내려가 옆 칸을 심었다 */
+         if (okOct && ray.intersectObject(hit, false).length) return hit;
+         sp = spotAt(cx, cy, ['plot0', 'plot1', 'plot2']); if (sp) return spotHit(sp);
+       }   /* 놀이방: 문어도 소품도 없다 — 문·오락기 단추 칸만 (진짜 <button> 은 hotspots) */
 diff --git a/tools/smoke.js b/tools/smoke.js
-index de60a72..7b5c376 100644
+index de60a72..c3fa330 100644
 --- a/tools/smoke.js
 +++ b/tools/smoke.js
-@@ -5604,6 +5604,37 @@ async function scenarioGarden(browser) {
+@@ -5602,8 +5602,52 @@ async function scenarioGarden(browser) {
+   ok(u1.open && u1.labels[0] === '텃밭 첫째 칸, 꽃, 거두기' && u1.labels[1] === '텃밭 둘째 칸, 빈 칸, 씨앗 심기' && u1.labels[2] === '텃밭 셋째 칸, 새싹, 물 주기' && JSON.stringify(u1.scene) === '[2,null,1]',
+     '모르는 색 «teal»: 살림이 열린다 · 꽃 · 새싹으로 보이고 이름도 («' + u1.labels[0] + '») · 바깥 밭에도 [' + u1.scene + '] · 객체가 아닌 칸은 빈 칸');
    ok(u1.watered && u1.watered.color === 'teal' && u1.watered.water === 2 && u1.harvested === null && u1.dyes.teal === 1 && u1.toast === '염료 1개를 얻었어', '물 주기 → 꽃 (색 «' + (u1.watered && u1.watered.color) + '» 그대로) · 거두기 → 염료 teal 1 · 알림 «' + u1.toast + '»');
++  /* 11-13: 모르는 색 꽃은 바깥과 살림 시트에서 같은 한 색 · 염료 여섯 색 어느 것과도 OKLab 0.12 넘게 다르다 (예전엔 바깥은 노랑 #e8a93a, 시트는 분홍 #f07aa8 그대로) */
++  var u2 = await p4.evaluate(function () {
++    function hx(c) { var m = /^\s*rgb/.test(c) && String(c).match(/\d+/g); return m && m.length >= 3 ? '#' + m.slice(0, 3).map(function (v) { return ('0' + (+v).toString(16)).slice(-2); }).join('') : String(c).trim().toLowerCase(); }
++    document.getElementById('btn-bag').click(); var pot = document.querySelectorAll('#bag-body .bag-pot')[2], o = { scene: APP.scene.garden()[2] && APP.scene.garden()[2].color, sheet: pot ? hx(getComputedStyle(pot).getPropertyValue('--fl')) : null, st2: !!pot && pot.classList.contains('st2') };
++    document.getElementById('bag-close').click();
++    var u = APP.state.user, keep = u.garden; o.dyes = ['red', 'yellow', 'green', 'blue', 'purple', 'pink'].map(function (c) { u.garden = [{ color: c, water: 2, wateredDay: '' }, null, null]; APP.renderAll(); return APP.scene.garden()[0].color; });
++    u.garden = keep; APP.renderAll(); return o;
++  });
++  function okl(h) { var c = [1, 3, 5].map(function (i) { var v = parseInt(h.slice(i, i + 2), 16) / 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
++    var l = Math.cbrt(0.4122214708 * c[0] + 0.5363325363 * c[1] + 0.0514459929 * c[2]), m = Math.cbrt(0.2119034982 * c[0] + 0.6806995451 * c[1] + 0.1073969566 * c[2]), q = Math.cbrt(0.0883024619 * c[0] + 0.2817188376 * c[1] + 0.6299787005 * c[2]);
++    return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * q, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * q, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * q]; }
++  var u2d = /^#[0-9a-f]{6}$/.test(String(u2.scene)) && u2.dyes.every(function (h) { return /^#[0-9a-f]{6}$/.test(h); }) ? u2.dyes.map(function (h) { var a = okl(u2.scene), b = okl(h); return +Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]).toFixed(3); }) : [];
++  ok(u2.st2 && u2.scene === u2.sheet && u2d.length === 6 && Math.min.apply(null, u2d) > 0.12, '모르는 색 꽃: 바깥 ' + u2.scene + ' · 시트 ' + u2.sheet + ' · 염료 색과의 거리 ' + JSON.stringify(u2d));
    await c4.close();
  
 +  /* 8b. 11-13 손댄 기록 더: 색 글자가 없는 칸은 빈 칸 (거둬도 염료 'undefined' 가 생기지 않는다) · 물 값이 음수 · 글자면 한 번 주면 새싹 · 너무 크면 꽃 ·
@@ -87,7 +121,7 @@ index de60a72..7b5c376 100644
    /* 9. 다른 탭 · 불러오기 · 전체 초기화 뒤 화면이 기록을 따른다 (꼬리표 조개 수 · 점 · 열린 살림 · 열린 재봉틀 시트 · 바깥 밭) */
    var c5 = await ctxOf({ rec: REC(USER({ shells: 10, week: WEEK5 })) }), pa = await tab(c5), pb = await tab(c5);
    await pa.evaluate(function () { document.getElementById('btn-bag').click(); });
-@@ -5630,8 +5661,19 @@ async function scenarioGarden(browser) {
+@@ -5630,8 +5674,19 @@ async function scenarioGarden(browser) {
    var im1 = await pa.evaluate(function (rec) { var r = APP.importJSON(JSON.stringify(rec)), b = document.getElementById('btn-bag'); return { r: r, chip: b.textContent.trim(), dot: b.classList.contains('has-gift'), hidden: b.hidden, garden: APP.scene.garden().map(function (g) { return g ? g.water : null; }) }; },
      REC(USER({ shells: 40, week: WEEK5, garden: [null, null, { color: 'green', water: 2, wateredDay: '' }] })));
    ok(im1.r && im1.chip === '조개 40' && im1.dot && !im1.hidden && JSON.stringify(im1.garden) === '[null,null,2]', '불러오기 뒤: 꼬리표 «' + im1.chip + '» · 점 ' + im1.dot + ' · 바깥 밭 ' + JSON.stringify(im1.garden));
@@ -107,7 +141,7 @@ index de60a72..7b5c376 100644
    /* 전체 초기화: 이름 창 위에 꼬리표가 남지 않고 · 바깥 밭이 빈다 · 새 이름 뒤에도 빈 밭 · 꼬리표는 새 조개 수 */
    await pa.evaluate(function (rec) { APP.importJSON(JSON.stringify(rec)); }, REC(USER({ shells: 40, garden: [{ color: 'red', water: 1, wateredDay: '' }, { color: 'blue', water: 2, wateredDay: '' }, null] })));
    var r0 = await pa.evaluate(function () { document.getElementById('btn-bag').click(); document.querySelectorAll('#bag-body .bag-plot')[2].click(); document.getElementById('bag-close').click(); return APP.scene.garden().map(function (g) { return g ? g.water : null; }); });   /* 셋째 칸에 심어 (gardenAct 가 직접 그린다) 바깥에 세 칸 다 있는 데서 초기화 */
-@@ -5644,6 +5686,33 @@ async function scenarioGarden(browser) {
+@@ -5644,6 +5699,70 @@ async function scenarioGarden(browser) {
    ok(JSON.stringify(r0) === '[1,2,0]' && r1.hidden && JSON.stringify(r1.garden) === '[null,null,null]', '전체 초기화: 이름 창 위에 꼬리표가 안 보이고 바깥 밭(전 ' + JSON.stringify(r0) + ')이 빈다 (' + JSON.stringify(r1) + ')');
    ok(!!r2 && JSON.stringify(r2.garden) === '[null,null,null]' && JSON.stringify(r2.saved) === '[null,null,null]', '새 이름 뒤: 꼬리표 «' + (r2 && r2.chip) + '» · 바깥 밭도 기록도 빈 밭');
    await c5.close();
@@ -138,6 +172,43 @@ index de60a72..7b5c376 100644
 +  var N5 = await labels(p7), nf5 = await noFocus(p7);
 +  ok(N4 === '텃밭 둘째 칸, 빈 칸, 씨앗이 없어' && w7.had && w7.seeds === 2 && nf5 && N5[1] === '텃밭 둘째 칸, 빈 칸, 씨앗 심기', '주간 선물(씨앗 ' + w7.seeds + ')을 받으면 바깥 단추도 «' + N5[1] + '» (전 «' + N4 + '»)');
 +  await c7.close();
++
++  /* 11. 11-13: 돌리고(요 18°) 2× 로 키워 손가락으로 밀어, 가운데 칸이 화면 왼쪽 끝에 7 px 쯤 보이면 (8 px 아래라 그 칸 단추는 숨는다) 그 흙 · 테를 톡 해도 아무 칸도 안 심긴다.
++     예전엔 맞은 칸 단추가 없으면 단추 칸 상자로 내려가, 앞에 겹친 셋째 칸을 심었다. 칸 상자 · 흙은 장면의 투영과 레이캐스트로 찾는다 */
++  var c8 = await ctxOf({ rec: REC(USER({ seeds: 60 })) }), p8 = await tab(c8); await outside(p8);
++  await p8.evaluate(function () { APP.scene.setLook({ yaw: 18 }); APP.scene.zoomStep(6); });
++  var cdp8 = await c8.newCDPSession(p8);
++  function box1() { return p8.evaluate(function () { var d = APP.scene.plotsDebug(), c = d.c[1], l = 1e9, r = -1e9; for (var k = 0; k < 8; k++) { var q = __xp([c[0] + (k & 1 ? 0.4 : -0.4), c[1] - 0.07 + (k & 2 ? 0.75 : 0), c[2] + (k & 4 ? 0.4 : -0.4)]); l = Math.min(l, q[0]); r = Math.max(r, q[0]); } return { l: l, r: r, pan: APP.scene.pan() }; }); }
++  async function swipe8(dx) {   /* 한 손가락 가로 밀기 (끝에서 멈췄다 떼어 관성 없음) → 밀기가 쉴 때까지 */
++    var x0 = 180 - dx / 2, y0 = 300;
++    await cdp8.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0, id: 1 }] });
++    for (var i = 1; i <= 10; i++) await cdp8.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + dx * i / 10, y: y0, id: 1 }] });
++    await p8.waitForTimeout(150); await cdp8.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
++    await p8.waitForFunction(function () { return !APP.scene.pan().mode; }, null, { timeout: WAIT, polling: 50 });
++  }
++  var b8 = await box1(), vis8 = b8.r;
++  for (var it = 0; it < 8 && !(vis8 >= 6 && vis8 <= 7.8); it++) { var want = 7 - vis8, mv = Math.abs(want) < 12 ? (want > 0 ? 40 : -40) : Math.max(-200, Math.min(200, want)); await swipe8(mv); if (Math.abs(want) < 12) await swipe8(-mv + want); b8 = await box1(); vis8 = b8.r; }
++  await frames(p8);
++  var e8 = await p8.evaluate(function () {
++    var d = APP.scene.plotsDebug(), cam = APP.scene.camera, ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), cv = document.getElementById('scene').getBoundingClientRect(), vis = [], pts = [], bad = [];
++    APP.scene.scene.updateMatrixWorld(); APP.scene.scene.traverseVisible(function (o) { if (o.isMesh && o.material && o.material.visible !== false) vis.push(o); });
++    for (var y = cv.top + 0.5; y < cv.bottom; y += 1) for (var x = cv.left + 0.5; x < cv.left + 8; x += 1) {
++      ndc.set(((x - cv.left) / cv.width) * 2 - 1, -((y - cv.top) / cv.height) * 2 + 1); ray.setFromCamera(ndc, cam);
++      var h = ray.intersectObjects(vis, false); if (!h.length) continue; var q = h[0].point;
++      if (Math.abs(q.x - d.c[1][0]) <= 0.39 && Math.abs(q.z - d.c[1][2]) <= 0.39 && q.y > 0.05 && q.y < 0.8) { var k = APP.scene.pickAt(x, y); pts.push([x, y]); if (k) bad.push(k.id + '@' + x + ',' + y); }
++    }
++    return { btn: [0, 1, 2].map(function (i) { return !document.getElementById('btn-plot' + i).hidden; }), pts: pts, bad: bad };
++  });
++  var taps8 = e8.pts.filter(function (q, i) { return i % 4 === 3 || i === e8.pts.length - 1; });   /* 흙 · 테 점의 넷에 하나 (아래 끝 포함) */
++  await p8.evaluate(function () { window.__ups = 0; window.addEventListener('pointerup', function () { window.__ups++; }, true); });   /* 장면은 pointerup 에서 바로 처리한다 → 다 셌으면 다 처리됐다 */
++  for (var t8 of taps8) await p8.touchscreen.tap(t8[0], t8[1]);
++  var f8 = await p8.waitForFunction(function (n) { return window.__ups >= n; }, taps8.length, { timeout: WAIT, polling: 50 }).then(function () { return p8.evaluate(function () {
++    document.getElementById('btn-plot2').click();   /* 끝으로 셋째 칸 단추: 빈 칸이면 심는다 (앞의 톡이 셋째 칸을 심었으면 물을 준다) */
++    var u = APP.state.user; return { g: u.garden.map(function (g) { return g ? g.water : null; }), seeds: u.seeds }; }); }, function () { return null; });
++  console.log('   화면 끝 칸:', JSON.stringify({ vis: vis8, pan: b8.pan, btn: e8.btn, pts: e8.pts.length, bad: e8.bad.slice(0, 4), taps: taps8, after: f8 }));
++  ok(vis8 >= 6 && vis8 <= 7.8 && e8.btn[0] === false && e8.btn[1] === false && e8.btn[2] === true && taps8.length >= 3 && e8.bad.length === 0 && !!f8 && JSON.stringify(f8.g) === '[null,null,0]' && f8.seeds === 59,
++    '돌리고 키워 민 화면: 둘째 칸이 왼쪽 끝에 ' + (+vis8).toFixed(1) + ' px (단추 숨음) · 그 흙 ' + e8.pts.length + '점은 아무 칸도 아님 (옆 칸 ' + e8.bad.length + ') · 진짜 톡 ' + taps8.length + '번 뒤 셋째 칸 톡 → 밭 ' + JSON.stringify(f8 && f8.g) + ' · 씨앗 ' + (f8 && f8.seeds));
++  await c8.close();
    reportErrors(bag, 'X');
  }
  
