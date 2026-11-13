@@ -4710,14 +4710,14 @@ async function scenarioLayoutOne(browser) {
 }
 
 /* Q. 이번 주 할 일 · 선물 상자 (검증 11-11). 기록은 심고 날짜는 훅으로 넘긴다. 기다림은 전부 '그 상태가 될 때까지' 이고, 걸린 시간을 재는 검사는 없다 (바쁜 기계).
-   주: 2026-11-09(월)~11-15(일) = 지난주, 11-16(월) = 새 주. 지난주 일곱 가지 가운데 다섯(산책 묻기 2/2 · 내 모습 · 달리기 · 가구 · 사흘 들어오기 = 들어온 날 셋)을 하고 선물은 안 받은 기록 */
+   주: 2026-11-09(월)~11-15(일) = 지난주, 11-16(월) = 새 주. 지난주 일곱 가지 가운데 다섯(산책 묻기 2/2 · 내 모습 · 달리기 · 가구 · 위층 옷방)을 하고 선물은 안 받은 기록 (11-12: '사흘 들어오기' 를 뺀 뒤 — 주인 W4 (b)) */
 async function scenarioWeek(browser) {
   console.log('\n== Q. 이번 주 할 일: 안 받은 주간 선물은 주가 바뀔 때 넣어 준다 · 모르는 칸만 바꾸기 · (5/5) · 선물 상자 (바로 저장 · 보통 얼굴)');
   var O = 'http://ppolppol.example', bag = []; bag.ignored = [];
   var RED = '#e8463c', BORN = 1762600000000, WK1 = '2026-11-09', SUN = '2026-11-15', MON = '2026-11-16';
   var WAIT = +process.env.SMOKE_WAIT || 180000;   /* '그 상태가 될 때까지' 의 넉넉한 끝 (검사가 아니다) */
   var TOLD = '지난주 선물은 살림에 넣어 뒀어. 조개 12 · 씨앗 2', LINE = '지난주 선물은 살림에 넣어 뒀어 (조개 12 · 씨앗 2).';
-  function WEEK(o) { return Object.assign({ key: WK1, q: [{ id: 'ask', n: 2, rr: 0 }, { id: 'look', n: 1, rr: 0 }, { id: 'run', n: 1, rr: 0 }, { id: 'furn', n: 1, rr: 0 }, { id: 'days', n: 0, rr: 0 }, { id: 'harvest', n: 0, rr: 1 }, { id: 'diary', n: 0, rr: 3 }], claimed: false }, o || {}); }
+  function WEEK(o) { return Object.assign({ key: WK1, q: [{ id: 'ask', n: 2, rr: 0 }, { id: 'look', n: 1, rr: 0 }, { id: 'run', n: 1, rr: 0 }, { id: 'furn', n: 1, rr: 0 }, { id: 'loft', n: 1, rr: 0 }, { id: 'harvest', n: 0, rr: 1 }, { id: 'diary', n: 0, rr: 3 }], claimed: false }, o || {}); }
   function USER(o) { return Object.assign({ shells: 20, seeds: 1, dyes: {}, days: [WK1, '2026-11-11', SUN], earned: [], garden: [null, null, null], giftDay: SUN, week: WEEK() }, o || {}); }
   function REC(user) {
     return { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 3, days: ['2026-11-06', '2026-11-07', '2026-11-08'], affinity: {}, visits: {}, state: 'idle', color: RED,
@@ -4730,7 +4730,7 @@ async function scenarioWeek(browser) {
     "new MutationObserver(function (ms) { var on = t.classList.contains('show'); if (was && !on) window.__hid++; was = on; if (on && ms.some(function (m) { return m.type === 'childList'; })) window.__toasts.push({ t: t.textContent, intro: window.INTRO ? INTRO.phase : '', ex: window.__exprs.slice(), hid: window.__hid }); }).observe(t, { childList: true, attributes: true, attributeFilter: ['class'] }); });";
   async function ctxOf(o) {   /* 기록은 문맥에 한 번만 심는다 (새로고침 · 둘째 탭엔 그대로) · 날짜 훅은 탭마다 sessionStorage */
     var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light' });
-    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = ' + (o.awake | 0) + ';' });   /* 깨어 있는 틈 (기본 0 — 22 만 길게) */
     await ctx.addInitScript({ content: "if (!localStorage.getItem('__q_seed')) { localStorage.setItem('__q_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(o.rec)) + '); } ' +
       "window.__ppolTest = { today: sessionStorage.getItem('__q_day') || localStorage.getItem('__q_day') || '" + o.day + "' };" + REC_UI });   /* localStorage: 같은 날로 여는 새 탭 (11-12) */
     return ctx;
@@ -4832,7 +4832,8 @@ async function scenarioWeek(browser) {
   var r1 = await roll({ shells: 20, seeds: 1, days: [WK1, '2026-11-11', SUN], week: WEEK({ claimed: true }) });
   console.log('   받은 주:', JSON.stringify({ disk: [r1.shells, r1.seeds, r1.key], mem: r1.mem, late: r1.late, prev: r1.bag.prev }));
   ok(r1.mem.key === MON && r1.shells === 20 && r1.seeds === 1 && r1.mem.shells === 20 && !r1.mem.prev && r1.bag.prev === null && !r1.late, '이미 받은 주가 넘어가면 더 넣지 않는다 (조개 20 · 씨앗 1 그대로 · 한 줄 · 알림 없음)');
-  var r2 = await roll({ shells: 20, seeds: 1, days: [WK1, SUN], week: WEEK() });   /* 들어온 날 둘 → '사흘 들어오기' 미완 → 네 가지 */
+  var w4 = WEEK(); w4.q[4] = { id: 'loft', n: 0, rr: 0 };   /* '위층 옷방' 미완 → 네 가지 */
+  var r2 = await roll({ shells: 20, seeds: 1, days: [WK1, SUN], week: w4 });
   ok(r2.mem.key === MON && r2.shells === 20 && r2.seeds === 1 && r2.mem.shells === 20 && !r2.mem.prev && r2.bag.prev === null && !r2.late && /\(0\/5\)/.test(r2.bag.note), '네 가지만 한 주는 예전처럼 조용히 새 주로 (넣는 것 · 한 줄 · 알림 없음)');
   var r3 = await roll({ shells: 20, seeds: 1, week: null });
   ok(r3.mem.key === MON && r3.shells === 20 && r3.mem.shells === 20 && !r3.mem.prev && r3.mem.q.length === 7 && r3.mem.q[0] === 'ask:0:0' && r3.bag.rows.length === 7 && !r3.late, '주가 없는 기록: 새 일곱 가지만 생긴다 (넣는 것 없음)');
@@ -4860,7 +4861,7 @@ async function scenarioWeek(browser) {
   ok(r7.mem.claimed === true && q7.length === 7 && q7[0] === 'ask:2:0' && q7[1] === 'run:1:1' && q7[3] === 'look:1:0' && q7.every(function (x) { return /^[a-z]+:\d:\d$/.test(String(x)); }) && r7.bag.rows.length === 7, '칸이 모자라거나 깨진 주도 받은 표시 · 멀쩡한 칸은 그대로, 빈 칸만 채운다 (' + JSON.stringify(q7) + ')');
 
   /* 6. 일곱 가지를 다 해도 쪽지의 수는 (5/5) · 씨앗이 없을 때의 한 줄 */
-  var r8 = await roll({ shells: 20, seeds: 0, garden: [null, null, null], days: [MON, '2026-11-17', '2026-11-18'], week: { key: MON, claimed: false, q: [{ id: 'ask', n: 2, rr: 0 }, { id: 'look', n: 1, rr: 0 }, { id: 'run', n: 1, rr: 0 }, { id: 'furn', n: 1, rr: 0 }, { id: 'days', n: 0, rr: 0 }, { id: 'harvest', n: 1, rr: 0 }, { id: 'diary', n: 1, rr: 0 }] } }, '2026-11-18');
+  var r8 = await roll({ shells: 20, seeds: 0, garden: [null, null, null], days: [MON, '2026-11-17', '2026-11-18'], week: { key: MON, claimed: false, q: [{ id: 'ask', n: 2, rr: 0 }, { id: 'look', n: 1, rr: 0 }, { id: 'run', n: 1, rr: 0 }, { id: 'furn', n: 1, rr: 0 }, { id: 'loft', n: 1, rr: 0 }, { id: 'harvest', n: 1, rr: 0 }, { id: 'diary', n: 1, rr: 0 }] } }, '2026-11-18');
   ok(/\(5\/5\)/.test(r8.bag.note) && !/7\/5/.test(r8.bag.note) && r8.bag.claim && r8.bag.rows.every(function (r) { return /\|했어$/.test(r); }), '일곱 가지를 다 해도 쪽지는 (5/5) — «' + r8.bag.note + '»');
   var seedT = await pb.evaluate(function () { window.__toasts = []; document.getElementById('btn-bag').click(); document.querySelector('#bag-body .bag-plot').click(); var t = document.getElementById('toast').textContent; document.getElementById('bag-close').click(); return { t: t, seeds: APP.state.user.seeds, plot: APP.state.user.garden[0] }; });
   ok(seedT.t === '씨앗이 없어. 들어온 날 선물이나 주간 선물로 생겨' && seedT.seeds === 0 && seedT.plot === null, '씨앗 없이 빈 밭을 누르면 «' + seedT.t + '» (주간 선물에서도 생긴다)');
@@ -4877,7 +4878,7 @@ async function scenarioWeek(browser) {
   });
   must(!!pick && await pb.evaluate(function () { return APP.sceneMode === '3d'; }), '선물 상자: 3D 장면 · 데모 규칙이 안 쓴다고 답할 날 · 물건을 찾음 ' + JSON.stringify(pick));
   var wkOf = await pb.evaluate(function (dk) { var p = dk.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }, pick.day);
-  await setUser(pb, pick.day, { giftDay: pick.day, week: { key: wkOf, claimed: false, q: [{ id: 'ask', n: 0, rr: 0 }, { id: 'look', n: 0, rr: 0 }, { id: 'run', n: 0, rr: 0 }, { id: 'furn', n: 0, rr: 0 }, { id: 'days', n: 0, rr: 0 }, { id: 'harvest', n: 0, rr: 0 }, { id: 'diary', n: 0, rr: 0 }] } });   /* 선물 일이 목록에 없다 → questMark 가 대신 저장해 주지 않는다 */
+  await setUser(pb, pick.day, { giftDay: pick.day, week: { key: wkOf, claimed: false, q: [{ id: 'ask', n: 0, rr: 0 }, { id: 'look', n: 0, rr: 0 }, { id: 'run', n: 0, rr: 0 }, { id: 'furn', n: 0, rr: 0 }, { id: 'loft', n: 0, rr: 0 }, { id: 'harvest', n: 0, rr: 0 }, { id: 'diary', n: 0, rr: 0 }] } });   /* 선물 일이 목록에 없다 → questMark 가 대신 저장해 주지 않는다 */
   await pb.evaluate(function () { document.dispatchEvent(new Event('visibilitychange')); });   /* 앱이 바뀐 날짜를 먼저 알아채게 (1분 틱이 검사 도중에 오늘 칸을 다시 그려 화면에만 있는 선물 줄을 지우지 않게) */
   await waitIdle(pb, WAIT);
   var off = await pb.evaluate(function (p) {
@@ -4952,10 +4953,10 @@ async function scenarioWeek(browser) {
   ok(!d9b.length && seen9 && d9c.length === 1 && d9c[0].intro === 'done' && d9c[0].t === '오늘 선물: 조개 3 · 씨앗 1 (들어온 날 4일째)' && !u9c.tell && u9c.shells === 23, '입장 중 새로고침해도 오늘 선물 줄은 남아 입장이 걷힌 뒤 한 번 «' + (d9c[0] && d9c[0].t) + '» (그때 ' + (d9c[0] && d9c[0].intro) + ') · 또 주지 않는다 (조개 ' + u9c.shells + ')');
   await c9.close();
 
-  /* 10. 열어 둔 탭이 다음 날을 맞는다 (66c8110: 탭으로 돌아온 순간 · F3/C3): 그날 선물이 들어가고 '사흘 들어오기' 가 하루 오른다.
+  /* 10. 열어 둔 탭이 다음 날을 맞는다 (66c8110: 탭으로 돌아온 순간 · F3/C3): 그날 선물이 들어가고 들어온 날 기록 (user.days · '들어온 날 N일째') 이 하루 오른다 — 할 일 목록은 그대로 (11-12: '사흘 들어오기' 는 뺐다 — 주인 W4 (b)).
      이 탭은 돌아온 그 순간만 보이고 곧 다시 가려진다 — 1분 틱(보이는 탭에서만)이 대신 주지 못하게 해서 '돌아온 순간' 의 길만 본다. 알림 줄은 보이게 된 뒤에 */
   var THU = '2026-11-19';
-  var c10 = await ctxOf({ rec: REC(USER({ seeds: 0, days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'days', 'harvest', 'water', 'kitchen']) })), day: MON });
+  var c10 = await ctxOf({ rec: REC(USER({ seeds: 0, days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'plant', 'harvest', 'water', 'kitchen']) })), day: MON });
   await c10.addInitScript({ content: "window.__hide = false; Object.defineProperty(document, 'hidden', { get: function () { return !!window.__hide; }, configurable: true });" });
   var pd = await tab(c10);
   await ready(pd);
@@ -4966,8 +4967,8 @@ async function scenarioWeek(browser) {
   await pd.evaluate(function () { window.__hide = false; });
   var seen10 = await dayWait(pd), u10 = await disk(pd), r10b = await rowsOf(pd), t10a = await dayToasts(pd);
   console.log('   열어 둔 탭, 다음 날:', JSON.stringify({ rows: [r10a[3], r10b[3]], shells: u10.shells, days: u10.days, hidden: hid10.length, shown: t10a }));
-  ok(gave10 && u10.giftDay === TUE && u10.days.join() === [MON, TUE].join() && u10.shells === 23 && u10.seeds === 1 && r10a[3] === '이번 주에 사흘 들어오기|1/3' && r10b[3] === '이번 주에 사흘 들어오기|2/3' && !hid10.length && seen10 && t10a.length === 1,
-    '열어 둔 탭이 다음 날로 (날짜 훅 + 탭으로 돌아옴): 그날 선물 조개 3 · 씨앗 1 · 들어온 날 ' + u10.days.length + ' · «사흘 들어오기» ' + r10a[3].split('|')[1] + ' → ' + r10b[3].split('|')[1] + ' · 알림은 보일 때 한 번');
+  ok(gave10 && u10.giftDay === TUE && u10.days.join() === [MON, TUE].join() && u10.shells === 23 && u10.seeds === 1 && r10a[3] === '씨앗 심기|0/1' && r10b.join() === r10a.join() && !/사흘/.test(r10b.join()) && !hid10.length && seen10 && t10a.length === 1 && t10a[0].t === '오늘 선물: 조개 3 · 씨앗 1 (들어온 날 2일째)',
+    '열어 둔 탭이 다음 날로 (날짜 훅 + 탭으로 돌아옴): 그날 선물 조개 3 · 씨앗 1 · 들어온 날 ' + u10.days.length + ' · 알림 «' + (t10a[0] && t10a[0].t) + '» 은 보일 때 한 번 · 할 일 목록은 그대로 (들어온 날로 오르는 일 없음)');
   /* 그날 선물 알림은 떠 있는 다른 알림을 밀어내지 않는다 (F19): 다른 알림(씨앗 없음)이 뜬 채 그날 선물이 들어오면, 그 알림이 걷힌 뒤에 */
   var other = await pd.evaluate(function (d) { sessionStorage.setItem('__q_day', d); window.__ppolTest.today = d; window.__toasts = []; APP.state.user.seeds = 0;
     document.getElementById('btn-bag').click(); document.querySelector('#bag-body .bag-plot').click(); document.getElementById('bag-close').click(); var t = document.getElementById('toast').textContent; APP.dailyGift(); return t; }, WED);   /* 날짜 넘김 · 다른 알림 · 그날 선물을 한 번에 (1분 틱이 끼어들 틈 없이) */
@@ -4988,7 +4989,7 @@ async function scenarioWeek(browser) {
   await c10.close();
 
   /* 11. 가려진 탭 · 1분 틱 (가짜 시계 — 66c8110): 가려진 동안엔 주지도 알리지도 않고, 보이게 된 뒤 1분 틱이 자정을 넘긴 날의 선물을 준다 (한 번) */
-  var c11 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'days', 'harvest', 'water', 'kitchen']) })), day: '' });
+  var c11 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'plant', 'harvest', 'water', 'kitchen']) })), day: '' });
   await c11.addInitScript({ content: "window.__hide = true; Object.defineProperty(document, 'hidden', { get: function () { return !!window.__hide; }, configurable: true });" });
   var pk = await tab(c11);
   await pk.clock.install({ time: new Date(2026, 10, 17, 23, 57, 0) });   /* 화요일 밤 (날짜 훅 없이 — 가짜 시계의 날짜) */
@@ -5005,11 +5006,11 @@ async function scenarioWeek(browser) {
   await pk.clock.fastForward('01:05');   /* 보이는 탭의 1분 틱 (탭으로 돌아온 신호 없이) */
   var seen11c = await dayWait(pk), u11c = await disk(pk), k4 = await dayToasts(pk), r11 = await rowsOf(pk);
   console.log('   가짜 시계:', JSON.stringify({ hiddenTick: { giftDay: u11b.giftDay, toasts: k3.length }, visibleTick: { giftDay: u11c.giftDay, days: u11c.days, shells: u11c.shells, toasts: k4 }, row: r11[3] }));
-  ok(u11b.giftDay === '2026-11-17' && !k3.length && seen11c && u11c.giftDay === WED && u11c.days.join() === [MON, '2026-11-17', WED].join() && u11c.shells === 26 && k4.length === 1 && r11[3] === '이번 주에 사흘 들어오기|했어', '1분 틱 (가짜 시계로 자정 넘김): 가려진 동안엔 그대로 (' + u11b.giftDay + ') · 보이면 수요일 선물 한 번 · 사흘 들어오기 ' + r11[3].split('|')[1]);
+  ok(u11b.giftDay === '2026-11-17' && !k3.length && seen11c && u11c.giftDay === WED && u11c.days.join() === [MON, '2026-11-17', WED].join() && u11c.shells === 26 && k4.length === 1 && k4[0].t === '오늘 선물: 조개 3 · 씨앗 1 (들어온 날 3일째)' && r11[3] === '씨앗 심기|0/1', '1분 틱 (가짜 시계로 자정 넘김): 가려진 동안엔 그대로 (' + u11b.giftDay + ') · 보이면 수요일 선물 한 번 «' + (k4[0] && k4[0].t) + '» · 할 일 칸 ' + r11[3]);
   await c11.close();
 
   /* 12. 산책 묻기 · 가구 옮기기는 정말 한 것만 센다 (F10 · C12) */
-  var c12 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'furn', 'look', 'run', 'days', 'harvest', 'water']) })), day: MON }), pf = await tab(c12);
+  var c12 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'furn', 'look', 'run', 'plant', 'harvest', 'water']) })), day: MON }), pf = await tab(c12);
   await ready(pf);
   function qn(pg, id) { return pg.evaluate(function (id) { return APP.state.user.week.q.filter(function (x) { return x.id === id; })[0].n | 0; }, id); }
   var fm = await pf.evaluate(function () {
@@ -5030,12 +5031,12 @@ async function scenarioWeek(browser) {
   await waitIdle(pf, WAIT);
   await c12.close();
 
-  /* 13. 나눠 주는 일 (C11 · F8 · W13): 바꾸기는 그 칸이 이번 주에 보여 준 일을 다시 내지 않고, 다 한 '사흘 들어오기' 를 내지 않고, 포스터가 없으면 '포스터 일기' 를 내지 않는다 (새 주에도). 낸 목록은 바로 저장 · 다시 열어도 같다 */
+  /* 13. 나눠 주는 일 (C11 · F8 · W13): 바꾸기는 그 칸이 이번 주에 보여 준 일을 다시 내지 않고, 뺀 '사흘 들어오기' 를 내지 않고 (주인 11-12 W4 (b)), 포스터가 없으면 '포스터 일기' 를 내지 않는다 (새 주에도). 낸 목록은 바로 저장 · 다시 열어도 같다 */
   var c13 = await ctxOf({ rec: REC(USER({ days: [MON, TUE, WED], giftDay: WED, week: Q7(['ask', 'look', 'run', 'furn', 'harvest', 'water', 'kitchen']) })), day: WED }), pr = await tab(c13);
   await ready(pr);
   var sw13 = await swapAll(pr), all13 = [].concat.apply([], sw13.slots);
   var rep13 = sw13.slots.filter(function (s) { return s.some(function (id, k) { return s.indexOf(id) !== k; }); });
-  ok(sw13.slots.every(function (s) { return s.length >= 2; }) && !rep13.length && all13.indexOf('days') < 0 && all13.indexOf('diary') < 0, '바꾸기: 이번 주에 사흘을 다 들어온 뒤엔 «사흘 들어오기» 를 내지 않고 · 포스터가 없으면 «포스터 일기» 도 내지 않는다 · 칸마다 보인 일이 겹치지 않는다 (' + JSON.stringify(sw13.slots) + ')');
+  ok(sw13.slots.every(function (s) { return s.length >= 2; }) && !rep13.length && all13.indexOf('days') < 0 && all13.indexOf('diary') < 0, '바꾸기: 들어온 날이 사흘이어도 뺀 «사흘 들어오기» 는 나오지 않고 · 포스터가 없으면 «포스터 일기» 도 내지 않는다 · 칸마다 보인 일이 겹치지 않는다 (' + JSON.stringify(sw13.slots) + ')');
   /* 여러 주에 걸쳐: 새 주의 일곱 가지 + 칸마다 바꾸기 세 번 */
   var weeks = ['2026-11-23', '2026-11-30', '2026-12-07', '2026-12-14', '2026-12-21'], dealt = [], reps = rep13.length, dia = 0, saved = 0, same = 0;
   for (var wi = 0; wi < weeks.length; wi++) {
@@ -5136,7 +5137,7 @@ async function scenarioWeek(browser) {
   await c16.close();
 
   /* 17. 세트 도감은 옷 · 신발 · 장식을 바꿨을 때만 본다 (C14): 기본 옷(= '다락방 차림')에서 머리만 바꾸거나 재봉틀 시트를 열어도 적지 않고, 옷을 바꿨다가 기본 옷으로 돌아오면 그때 적는다 */
-  var c17 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'days', 'harvest', 'water', 'kitchen']) })), day: MON }), pl = await tab(c17);
+  var c17 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'plant', 'harvest', 'water', 'kitchen']) })), day: MON }), pl = await tab(c17);
   await ready(pl);
   function lookPickQ(pg, tabId, cat, id) { return pg.evaluate(async function (a) { window.__toasts = []; if (!document.getElementById('look-sheet').open) APP.openLook(); document.getElementById('look-tab-' + a.tab).click(); document.querySelector('#look-items [data-part="' + a.cat + '"][data-id="' + a.id + '"]').click(); await Promise.resolve(); var st = APP.state.user.sets || {}; return { toasts: window.__toasts.map(function (x) { return x.t; }), attic: st.attic || null, outfit: APP.state.settings.player && APP.state.settings.player.outfit }; }, { tab: tabId, cat: cat, id: id }); }
   var h1 = await lookPickQ(pl, 'hair', 'hair', 'short');
@@ -5148,7 +5149,7 @@ async function scenarioWeek(browser) {
   await c17.close();
 
   /* 18. 선물 상자 (F16 · C16): 답은 누른 순간에 정해져 물어봤다는 표시와 같은 저장에 (쓰기로 했으면 쓰는 것까지) — 1.3 s 틈에 새로고침해도 답이 남는다. ids 없는 기록도 그날 처음 묻는 것으로 */
-  var c18 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'days', 'harvest', 'water', 'kitchen']) })), day: MON }), pz = await tab(c18);
+  var c18 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'plant', 'harvest', 'water', 'kitchen']) })), day: MON }), pz = await tab(c18);
   await ready(pz);
   var yesPick = await pz.evaluate(function () {
     var list = SCENE3D.COSTUMES.filter(function (c) { return !c.award; }), d = new Date(2026, 10, 16);
@@ -5174,6 +5175,99 @@ async function scenarioWeek(browser) {
   ok(at18.asked && at18.wear && at18.wear[yesPick.slot] === yesPick.id && re18.wear && re18.wear[yesPick.slot] === yesPick.id && re18.toast === '오늘은 이미 물어봤어. 내일 다시 물어볼 수 있어',
     '선물 상자: ' + yesPick.name + ' 을 내민 순간 «물어봄» 과 «쓰기로 함» 이 같이 저장 → 1.3 s 안에 새로고침해도 쓰고 있다 · 다시 내밀면 같은 한 줄');
   await c18.close();
+
+  /* 19. 뺀 일이 든 옛 주 (주인 11-12, 검증 W4 (b) — '이번 주에 사흘 들어오기' 는 들어온 날만 세는 출석 숙제라 뺐다): 그 칸만 모르는 칸처럼 다른 일로 바뀌고 바로 저장된다.
+         다른 여섯 칸의 진행 · 바꾼 횟수 · 보여 준 일 · 받은 표시 · 조개 · 씨앗 · 들어온 날 기록은 그대로. 새로고침해도 · 같은 기록을 다른 문맥에서 열어도 같은 일 (시드) */
+  var OLD19 = Q7([{ id: 'ask', n: 1, rr: 0 }, { id: 'look', n: 1, rr: 1, seen: ['water'] }, { id: 'run', n: 0, rr: 2 }, { id: 'days', n: 0, rr: 1, seen: ['plant'] }, { id: 'harvest', n: 1, rr: 0 }, { id: 'furn', n: 0, rr: 0 }, { id: 'kitchen', n: 1, rr: 3 }]);
+  var U19 = USER({ shells: 41, seeds: 3, days: [MON, TUE], giftDay: TUE, week: OLD19 });
+  async function open19() {
+    var c = await ctxOf({ rec: REC(U19), day: TUE }), p = await tab(c); await ready(p);
+    var r = await p.evaluate(function () { var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user, w = u.week; return { disk: w.q.map(function (x) { return x.id + ':' + x.n + ':' + x.rr + (x.seen ? ':' + x.seen.join('/') : ''); }), mem: APP.state.user.week.q.map(function (x) { return x.id + ':' + x.n + ':' + x.rr; }), key: w.key, claimed: w.claimed, shells: u.shells, seeds: u.seeds, days: u.days.join(), giftDay: u.giftDay, kept: w.kept === undefined ? null : w.kept }; });
+    r.rows = await rowsOf(p);
+    return { c: c, p: p, r: r };
+  }
+  var o19 = await open19(), a19 = o19.r;
+  await o19.p.reload(); await o19.p.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
+  var b19 = await o19.p.evaluate(function () { return APP.state.user.week.q.map(function (x) { return x.id + ':' + x.n + ':' + x.rr; }); });
+  await o19.c.close();
+  var o19b = await open19(), c19 = o19b.r; await o19b.c.close();
+  var new19 = String(a19.disk[3]).split(':'), ids19 = a19.disk.map(function (x) { return String(x).split(':')[0]; });
+  console.log('   뺀 일이 든 옛 주:', JSON.stringify({ disk: a19.disk, reload: b19, other: c19.disk, rows: a19.rows }));
+  ok(a19.key === MON && a19.claimed === false && a19.disk[0] === 'ask:1:0' && a19.disk[1] === 'look:1:1:water' && a19.disk[2] === 'run:0:2' && a19.disk[4] === 'harvest:1:0' && a19.disk[5] === 'furn:0:0' && a19.disk[6] === 'kitchen:1:3'
+    && new19[0] !== 'days' && new19[1] === '0' && new19[2] === '0' && ids19.indexOf(new19[0]) === 3 && ids19.lastIndexOf(new19[0]) === 3 && a19.mem.join() === a19.disk.map(function (x) { return x.split(':').slice(0, 3).join(':'); }).join()
+    && a19.shells === 41 && a19.seeds === 3 && a19.days === [MON, TUE].join() && a19.giftDay === TUE && a19.rows.length === 7 && !/사흘/.test(a19.rows.join()) && a19.kept === null,
+    "뺀 «이번 주에 사흘 들어오기» 가 든 옛 주: 그 칸만 «" + new19[0] + "» (0 · 바꾸기 그대로 3번) 로 바뀌어 바로 저장 · 나머지 여섯 칸 (진행 · 바꾼 횟수 · 보여 준 일) · 받은 표시 · 조개 41 · 씨앗 3 · 들어온 날 기록 그대로 (들어온 날 둘 — 한 일로 남기지 않는다)");
+  ok(b19.join() === a19.mem.join() && c19.disk.join() === a19.disk.join(), '그 바뀐 칸은 새로고침해도 같고 · 같은 기록을 다른 문맥에서 열어도 같은 일 (' + c19.disk[3] + ')');
+
+  /* 20. 자는 문어를 깨운 «산책 갈래?» 는 '문어한테 산책 갈지 묻기' 로 세지 않는다 (주인 11-12, 검증 W5 (b)). 누름은 그대로 깨우고 차례도 그대로.
+         깨우는 동안 한 번 더 눌러도 (큰 버튼 · APP.invite) 셈이 생기지 않는다. 깨어 있는 문어에게 묻기는 예전처럼 센다 (차례가 정해진 뒤) */
+  var c20 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'plant', 'harvest', 'water', 'kitchen']) })), day: MON }), pw = await tab(c20);   /* 깨어 있는 틈 0 (차례가 끝나면 바로 눕는다) */
+  await ready(pw);
+  await pw.evaluate(function () { window.__ppolTest.forceKind = 'home'; document.getElementById('btn-go').click(); });   /* 깨어 있는 문어에게 (두뇌 훅: 집에 있는 날 — 차례가 끝나면 담요에서 잔다) */
+  var aw20 = await pw.waitForFunction(function () { return (APP.state.user.week.q[0].n | 0) === 1; }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  await waitIdle(pw, WAIT);
+  var slept20 = await pw.waitForFunction(function () { return APP.oct.state === 'sleep' && APP.restPhase() === 'nap'; }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  var w20 = await pw.evaluate(function () {
+    var n0 = APP.state.trips.length, b = document.getElementById('btn-go'), st0 = APP.oct.state;
+    b.click(); var st1 = APP.oct.state; APP.invite(); b.click();   /* 깨우는 누름 · 그 차례 동안 또 묻기 (APP.invite) · 또 큰 버튼 */
+    return { n0: n0, st0: st0, st1: st1 };
+  });
+  var done20 = await pw.waitForFunction(function (n0) { return APP.state.trips.length === n0 + 1 && APP.state.trips.every(function (t) { return t.status === 'done'; }); }, w20.n0, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  await waitIdle(pw, WAIT);
+  var e20 = await pw.evaluate(function () { return { n: APP.state.user.week.q[0].n | 0, disk: JSON.parse(localStorage.getItem('ppolppol_v2')).user.week.q[0].n | 0, trips: APP.state.trips.length }; });
+  console.log('   깨운 누름:', JSON.stringify({ awake: aw20, slept: slept20, press: w20, end: e20 }));
+  ok(aw20 && slept20 && w20.st0 === 'sleep' && w20.st1 !== 'sleep' && done20 && e20.trips === w20.n0 + 1 && e20.n === 1 && e20.disk === 1,
+    '자는 문어를 깨운 «산책 갈래?»: 깨우고 차례는 그대로 (차례 ' + w20.n0 + ' → ' + e20.trips + ') · 묻기 칸은 그대로 1/2 (깨우는 동안 또 눌러도) — 깨어 있을 때 물은 것만 셌다');
+  await c20.close();
+  /* 21. 뺀 «사흘 들어오기» 를 그 주에 이미 한 옛 주 (검증 OW-1): 그 하나는 잃지 않는다. 다른 넷을 했으면 (5/5) 그대로 · 받기 단추 · 꼬리표 점 · 까닭 한 줄 · 받으면 조개 12 + 씨앗 2.
+         같은 주: 들어온 날 MON · TUE + 오늘 WED (부팅 때 고치면 오늘 선물이 아직 오늘을 안 적었다). 주가 바뀜: 그 칸을 고치기 전에 주가 지나갔다 (지난주 11-09 · 11-11 · 11-15) → 월요일에 넣어 준다 */
+  var KEPT = '사흘 들어오기는 목록에서 빠졌지만, 이번 주엔 한 걸로 셌어.';
+  var OLD21 = Q7([{ id: 'ask', n: 2, rr: 0 }, { id: 'look', n: 1, rr: 0 }, { id: 'run', n: 1, rr: 0 }, { id: 'days', n: 0, rr: 0 }, { id: 'harvest', n: 1, rr: 0 }, { id: 'plant', n: 0, rr: 0 }, { id: 'water', n: 0, rr: 0 }]);
+  var c21 = await ctxOf({ rec: REC(USER({ shells: 41, seeds: 3, days: [MON, TUE], giftDay: TUE, week: OLD21 })), day: WED }), p21 = await tab(c21);
+  await ready(p21);
+  await p21.waitForFunction(function () { return JSON.parse(localStorage.getItem('ppolppol_v2')).user.giftDay === window.__ppolTest.today; }, null, { timeout: WAIT, polling: 100 }).catch(function () {});   /* 오늘 선물 (부팅 2.5 s 뒤 조개 3) 이 먼저 — 받기 전후 조개를 견줄 수 있게 */
+  function bag21(pg) { return pg.evaluate(function () {
+    var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user, b = document.getElementById('btn-bag'), sh = document.getElementById('bag-sheet'); if (!sh.open) b.click();
+    var body = document.getElementById('bag-body'), notes = [].map.call(body.querySelectorAll('.set-note'), function (x) { return x.textContent; });
+    var o = { kept: u.week.kept === undefined ? null : u.week.kept, q3: u.week.q[3].id, claimed: u.week.claimed, shells: u.shells, seeds: u.seeds, dot: b.classList.contains('has-gift'), label: b.getAttribute('aria-label'),
+      note: notes.filter(function (t) { return /일곱 가지/.test(t); })[0] || '', line: notes.indexOf('사흘 들어오기는 목록에서 빠졌지만, 이번 주엔 한 걸로 셌어.') >= 0, claim: !!document.getElementById('week-claim'),
+      rows: [].map.call(body.querySelectorAll('.week-list > li'), function (li) { return li.querySelector('.week-txt').textContent + '|' + li.querySelector('.week-n').textContent; }) };
+    document.getElementById('bag-close').click(); return o;
+  }); }
+  var a21 = await bag21(p21);
+  await p21.reload(); await p21.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
+  var r21 = await bag21(p21);
+  var g21 = await p21.evaluate(function () { var s0 = APP.state.user.shells; document.getElementById('btn-bag').click(); var c = document.getElementById('week-claim'); if (c) c.click(); document.getElementById('bag-close').click(); return { before: s0 }; });
+  var e21 = await bag21(p21);
+  console.log('   뺀 일을 이미 한 주:', JSON.stringify({ open: a21, reload: r21, claim: g21, after: e21 }));
+  ok(a21.kept === 1 && a21.q3 !== 'days' && /\(5\/5\)/.test(a21.note) && a21.claim && a21.dot && /주간 선물이 있어/.test(a21.label) && a21.line && a21.rows.length === 7 && !/사흘/.test(a21.rows.join()) && a21.rows.filter(function (r) { return /\|했어$/.test(r); }).length === 4,
+    '그 주에 사흘 들어온 옛 주: «사흘 들어오기» 칸은 «' + a21.q3 + '» 로 바뀌어도 한 일 하나로 남는다 — (5/5) · 받기 단추 · 꼬리표 점 · 까닭 한 줄 «' + KEPT + '» (다 한 줄은 넷)');
+  ok(r21.kept === 1 && r21.claim && r21.dot && /\(5\/5\)/.test(r21.note) && e21.claimed === true && !e21.claim && !e21.dot && e21.shells === g21.before + 12,
+    '새로고침해도 그대로 (저장된 kept ' + r21.kept + ') · 받기를 누르면 조개 ' + g21.before + ' → ' + e21.shells + ' · 받은 뒤 점 없음');
+  await c21.close();
+  var LAST21 = WEEK({ q: [{ id: 'ask', n: 2, rr: 0 }, { id: 'look', n: 1, rr: 0 }, { id: 'run', n: 1, rr: 0 }, { id: 'furn', n: 1, rr: 0 }, { id: 'days', n: 0, rr: 0 }, { id: 'harvest', n: 0, rr: 1 }, { id: 'diary', n: 0, rr: 3 }] });
+  var c21b = await ctxOf({ rec: REC(USER({ week: LAST21 })), day: MON }), p21b = await tab(c21b);
+  await ready(p21b);
+  var m21 = await p21b.evaluate(function () { var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user; return { key: u.week.key, prev: u.week.prev || null, shells: u.shells, seeds: u.seeds, giftDay: u.giftDay }; });
+  console.log('   뺀 일을 이미 한 지난주 → 월요일:', JSON.stringify(m21));
+  ok(m21.key === MON && m21.prev && m21.prev.shells === 12 && m21.prev.seeds === 2 && m21.shells === 32 + (m21.giftDay === MON ? 3 : 0), '«사흘 들어오기» 를 한 채 안 받은 지난주 (다른 넷도 함): 월요일에 주간 선물을 넣어 준다 (조개 20 → ' + m21.shells + ')');
+  await c21b.close();
+
+  /* 22. 차례 뒤 깨어 있는 틈의 문어 (검증 OW-2): 낮잠 전이라 깨어 있다 — «산책 갈래?» 는 '묻기' 로 센다 (20 은 틈 0 이라 이 길을 안 본다). 틈은 10분 (끝나기 전에 누른다) */
+  var c22 = await ctxOf({ rec: REC(USER({ days: [MON], giftDay: MON, week: Q7(['ask', 'look', 'run', 'plant', 'harvest', 'water', 'kitchen']) })), day: MON, awake: 600000 }), pv = await tab(c22);
+  await ready(pv);
+  await pv.evaluate(function () { window.__ppolTest.forceKind = 'home'; document.getElementById('btn-go').click(); });
+  var n22a = await pv.waitForFunction(function () { return (APP.state.user.week.q[0].n | 0) === 1; }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  await waitIdle(pv, WAIT);
+  var up22 = await pv.waitForFunction(function () { return APP.restPhase() === 'awake' && APP.oct.state !== 'sleep' && APP.state.octopus.state === 'sleep'; }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  var w22 = await pv.evaluate(function () { var ph = APP.restPhase(), st = APP.oct.state, n0 = APP.state.trips.length; document.getElementById('btn-go').click(); return { phase: ph, oct: st, n0: n0 }; });
+  var n22b = await pv.waitForFunction(function () { return (APP.state.user.week.q[0].n | 0) === 2; }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
+  await waitIdle(pv, WAIT);
+  var e22 = await pv.evaluate(function () { return { n: APP.state.user.week.q[0].n | 0, disk: JSON.parse(localStorage.getItem('ppolppol_v2')).user.week.q[0].n | 0, trips: APP.state.trips.length }; });
+  console.log('   깨어 있는 틈의 누름:', JSON.stringify({ first: n22a, awake: up22, press: w22, end: e22 }));
+  ok(n22a && up22 && w22.phase === 'awake' && w22.oct !== 'sleep' && n22b && e22.n === 2 && e22.disk === 2 && e22.trips === w22.n0 + 1,
+    '차례 뒤 깨어 있는 틈 (낮잠 전, 문어 ' + w22.oct + ') 에 누른 «산책 갈래?» 는 묻기로 센다: 1/2 → ' + e22.n + '/2 (저장 ' + e22.disk + ')');
+  await c22.close();
   reportErrors(bag, 'Q-2');
 }
 
@@ -5193,14 +5287,22 @@ async function scenarioLoft(browser) {
   /* 새 탭: 손가락 기기 · 페이지 시계 고정 · 소리 훅(AUDIO.on 부름을 센다) → 장면 루프를 멈추고 시계를 세운 뒤 tick 으로만 민다 */
   async function open(o) {
     o = o || {};
-    var ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
-    await ctx.clock.install({ time: new Date('2026-11-09T11:00:00') });
-    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0; window.__snd = []; (function hook() { if (window.AUDIO && AUDIO.on && !AUDIO.__z) { var f = AUDIO.on; AUDIO.on = function (k) { window.__snd.push(k); return f.apply(this, arguments); }; AUDIO.__z = 1; } else setTimeout(hook, 50); })();' });
+    var ctx = o.ctx;   /* o.ctx = 같은 문맥의 둘째 탭 (기록 · 시계 · 깨어 있는 틈 훅은 문맥 것 그대로) */
+    if (!ctx) {
+      ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+      await ctx.clock.install({ time: new Date('2026-11-09T11:00:00') });
+      await ctx.addInitScript({ content: 'window.__ppolAwakeMs = ' + (o.awake | 0) + '; window.__snd = []; (function hook() { if (window.AUDIO && AUDIO.on && !AUDIO.__z) { var f = AUDIO.on; AUDIO.on = function (k) { window.__snd.push(k); return f.apply(this, arguments); }; AUDIO.__z = 1; } else setTimeout(hook, 50); })();' });   /* awake: 차례 뒤 깨어 있는 틈 (ms, 기본 0 = 바로 눕는다) */
+    }
     var page = await ctx.newPage(); watchErrors(page, bag);
     if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
-    await page.addInitScript({ content: "if (!localStorage.getItem('__z_seed')) { localStorage.setItem('__z_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(o.rec || REC(2))) + '); } window.__ppolTest = { today: "2026-11-09" };' });
+    await page.addInitScript({ content: "if (!localStorage.getItem('__z_seed')) { localStorage.setItem('__z_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(o.rec || REC(2))) + '); } window.__ppolTest = Object.assign({ today: "2026-11-09" }, ' + JSON.stringify(o.test || {}) + ');' });   /* test: 두뇌 훅 (forceKind) */
     await routeWiki(page, 'ok'); await routeRepo(page, O);
     await page.goto(O + '/index.html?' + (o.q || 'dev=0'));
+    await settle(page);
+    return { ctx: ctx, page: page };
+  }
+  /* 쪽이 열린 뒤 (처음 · 새로고침): 장면 루프를 멈추고 시계를 세운다 · 스틱 도우미 */
+  async function settle(page) {
     await page.waitForFunction(function () { return window.APP && APP.scene && APP.sceneMode === '3d'; }, null, { timeout: 60000 });
     await page.waitForSelector('#btn-go:not(.away)', { timeout: 60000 });
     await page.evaluate(function () { APP.scene.pause(); });
@@ -5213,7 +5315,6 @@ async function scenarioLoft(browser) {
       var fh = [rh[1], -rh[0]];
       window.__push = function (wx, wz) { var l = Math.hypot(wx, wz) || 1; wx /= l; wz /= l; sc.setPlayerInput({ x: wx * rh[0] + wz * rh[1], y: wx * fh[0] + wz * fh[1] }); };
     });
-    return { ctx: ctx, page: page };
   }
   /* 시간 밀기: 페이지 타이머 dt + 장면 한 프레임 dt (기본 0.1 s · 가만히 지켜보는 긴 틈은 0.5 s). cond(페이지 안 함수)가 참이면 멈춤. each(t) = 매 n 칸.
      window.__zEach (페이지 안) = 프레임 바로 뒤 같은 evaluate 에서 — 그 사이엔 페이지 타이머(돌아다니기 20–40 s)가 끼지 못한다 (11-12: 돌아다니기 타이머와 겨루던 읽기를 여기로) */
@@ -5237,7 +5338,7 @@ async function scenarioLoft(browser) {
       desc: document.getElementById('scene-desc').textContent, snd: window.__snd.filter(function (k) { return k === 'salon'; }).length, stairVis: getComputedStyle(document.getElementById('btn-stair')).visibility }; }); }
   function dist(a, b) { return Math.hypot(a[0] - b[0], a[2] - b[2]); }
   function outOfCorner(at) { return !(at[0] < -0.6 && at[2] < -0.75); }   /* 거울 구석 = 재봉 의자(x −0.61 까지) 왼쪽 · 거울 쪽 바닥 (마네킹 · 거울 · 대야 자리 사이) */
-  var A, pg, s, ZP = String(process.env.SMOKE_Z || '1,2,3,4').split(',');   /* SMOKE_Z=2 → 그 묶음만 (고침을 하나씩 되돌려 볼 때) */
+  var A, pg, s, ZP = String(process.env.SMOKE_Z || '1,2,3,4,5').split(',');   /* SMOKE_Z=2 → 그 묶음만 (고침을 하나씩 되돌려 볼 때) */
 
   /* 1. 걷던 문어가 계단을 따라 오른다 (걸음 중간 · 도착 폴짝 중) → 위층에서 idle · 폴짝 0. 위층 65 s (돌아다니기 타이머 20–40 s 가 두 번쯤): 그 자리 그대로.
         시트를 연 채 45 s 도 그대로 (예전엔 시트 밑으로 걸어 들어갔다). 내려오면 다시 돌아다닌다 */
@@ -5409,6 +5510,70 @@ async function scenarioLoft(browser) {
   await tapMirror(pg); await tick(pg, 1.5); var l1 = await pg.evaluate(function () { return { lift: APP.scene.lift().to, pan: APP.scene.pan() }; });
   ok(pan.y > 10 && Math.abs(l1.lift - l0) < 0.05 && Math.abs(l1.pan.y) < 0.5, '아래로 밀어 둔 화면에서 연 시트: 기본 구도로 돌아가고 올림은 기본 구도에서와 같다 (' + JSON.stringify({ panY: pan.y, lift: [l0, l1.lift], panAfter: l1.pan.y }) + ')');
   reportErrors(bag, 'Z-4'); await A.ctx.close();
+  }
+
+  /* 5. 차례 뒤 깨어 있는 틈 (낮잠 전) 엔 위층에 따라 오르지 않는다 (주인 11-12, 검증 W3 (b) — 잠과 같이). 틈에 들어오고 나가는 길마다:
+        다락에서 틈이 시작된 뒤 오름 · 틈이 끝나 낮잠 · 집에 있는 차례 동안 올라가 있다가 차례가 끝남 · 틈에 새로고침 · 다른 탭의 차례 · 위층에 있는 동안 날이 바뀌어 틈이 끝남.
+        문어는 다락 담요에 · 깨우지 않는다 · 거울은 '아래층' 한 줄 (물음 · 행 · 미용실 소리 0) · 틈은 보는 다락에서만 준다 (주인 11-08 — 위층에선 그대로). 틈이 끝나 깨어 있으면 예전처럼 따라 온다 */
+  if (ZP.indexOf('5') >= 0) {
+  var AW = 60000, DOWN = '지금은 아래층에 있어.', DOWN_Z = '지금은 아래층에서 자고 있어.';   /* 깨어 있는 틈 60 s (테스트 훅) · 등불 4칸 (담요 자리가 있다) */
+  function R5(pg) { return pg.evaluate(function () { var t = document.getElementById('toast'); return { room: APP.room, up: APP.scene.octUp(), st: APP.oct.state, an: APP.oct.anchor, phase: APP.restPhase(), rest: APP.rest, saved: APP.state.octopus.state,
+    running: APP.state.trips.some(function (x) { return x.status === 'running'; }), rows: document.querySelectorAll('#log .lrow').length, snd: window.__snd.filter(function (k) { return k === 'salon'; }).length, toast: t.classList.contains('show') ? t.textContent : '' }; }); }
+  function J5(r) { return JSON.stringify({ room: r.room, up: r.up, st: r.st, an: r.an, phase: r.phase, left: r.rest && r.rest.left, saved: r.saved }); }
+  var IDLE5 = function () { return !APP.state.trips.some(function (x) { return x.status === 'running'; }) && APP.restPhase() === 'awake' && !!APP.rest && APP.oct.state === 'idle'; };
+  async function homeTurn(pg) { await tap(pg, 'btn-go'); return (await tick(pg, 90, IDLE5, null, 1, 0.2)).done; }   /* 큰 버튼 (두뇌 훅: 집에 있는 날) → 차례가 끝나 깨어 있는 틈 */
+  async function mirror5(pg) {   /* 거울을 누른다: 시트 없이 한 줄 · 문어 상태 그대로 · 행 · 미용실 소리 없음 */
+    var b = await R5(pg), tapped = await tapMirror(pg), q = await R5(pg), sheet = await pg.evaluate(function () { return document.getElementById('salon-sheet').open; });
+    await tick(pg, 4);
+    return { toast: q.toast, quiet: tapped && !sheet && q.st === b.st && q.rows === b.rows && q.snd === b.snd && !q.up };
+  }
+  /* 5-1. 다락에서 틈이 시작된 뒤 오른다 → 문어는 담요 · 거울 한 줄 · 위층 30 s 동안 틈은 그대로 · 내려오면 틈이 줄어 눕는다 → 다시 올라도 자는 채 아래층 */
+  A = await open({ awake: AW, rec: REC(4), test: { forceKind: 'home' } }); pg = A.page;
+  var h51 = await homeTurn(pg), z0 = await R5(pg);
+  var u51 = await stair(pg, true), z1 = await R5(pg), m51 = await mirror5(pg);
+  await tick(pg, 30, null, null, 1, 0.5); var z2 = await R5(pg);
+  console.log('   틈 · 다락에서 오름:', J5(z0), '→', J5(z1), '→ 30 s', J5(z2), '거울', m51.toast);
+  ok(h51 && u51 && z0.an === 'blanket' && z1.room === 'loft' && !z1.up && z1.st === 'idle' && z1.an === 'blanket' && z1.phase === 'awake' && z1.saved === 'sleep' && m51.toast === DOWN && m51.quiet && !z2.up && z2.st === 'idle' && z2.phase === 'awake' && z2.rest && z1.rest && z2.rest.left === z1.rest.left,
+    '차례 뒤 깨어 있는 틈에 위층으로 오르면 문어는 따라 오르지 않는다 (다락 담요 · 깨어 있음 · 거울 «' + m51.toast + '» · 위층 30 s 동안 틈 ' + (z2.rest && z2.rest.left) + ' ms 그대로)');
+  await stair(pg, false);
+  var lay5 = await tick(pg, 120, function () { return APP.oct.state === 'sleep' && !APP.rest; }, null, 1, 0.5);
+  await stair(pg, true); var z3 = await R5(pg), m52 = await mirror5(pg);
+  ok(lay5.done && z3.room === 'loft' && !z3.up && z3.st === 'sleep' && z3.phase === 'nap' && m52.toast === DOWN_Z && m52.quiet, '틈이 끝나 담요에서 잠든 뒤 올라도 그대로 (자는 채 아래층 · 거울 «' + m52.toast + '»)');
+  /* 5-2. 위층에 있는 동안 틈이 끝난다 (날이 바뀜 = 낮잠도 끝): 깨어서 아래층 · 다음에 오르면 예전처럼 따라 온다 */
+  await stair(pg, false);
+  var h52 = await homeTurn(pg);   /* 자는 문어를 깨운 차례 → 새 틈 */
+  await stair(pg, true); var z4 = await R5(pg);
+  await pg.evaluate(function () { APP.state.user.giftDay = '2026-11-10'; window.__ppolTest.today = '2026-11-10'; }); await tick(pg, 2);   /* 그날 선물은 받은 날로 (알림이 거울 한 줄과 겹치지 않게) */
+  var z5 = await R5(pg), m53 = await mirror5(pg);
+  await stair(pg, false); await stair(pg, true); var z6 = await R5(pg);
+  ok(h52 && !z4.up && z4.phase === 'awake' && z5.phase === 'up' && !z5.up && z5.st === 'idle' && m53.toast === DOWN && m53.quiet && z6.up && z6.st === 'idle', '위층에 있는 동안 날이 바뀌어 틈이 끝나면: 깨어서 아래층 (거울 «' + m53.toast + '») · 내려갔다 다시 오르면 따라 온다 (' + J5(z6) + ')');
+  reportErrors(bag, 'Z-5a'); await A.ctx.close();
+  /* 5-3. 집에 있는 차례 동안 따라 올라와 있다가 차례가 끝난다 → 문어는 다락 담요로 (보이지 않는 곳에서 — 깨어 있는 틈) · 다시 올라도 오지 않는다. 5-4. 그 틈에 새로고침 → 틈이 이어지고 오르면 오지 않는다 */
+  A = await open({ awake: AW, rec: REC(4), test: { forceKind: 'home' } }); pg = A.page;
+  await pg.evaluate(function () { var f = BRAIN.plan; BRAIN.plan = function () { var a = arguments; BRAIN.plan = f; return new Promise(function (r) { setTimeout(r, 20000); }).then(function () { return f.apply(BRAIN, a); }); }; });   /* 두뇌가 20 s 생각한다 (모델 두뇌처럼) — 그동안 내가 오르면 문어는 깨어 있어 따라 온다 */
+  await tap(pg, 'btn-go'); await tick(pg, 0.3);
+  var u53 = await stair(pg, true), z7 = await R5(pg);
+  var e53 = await tick(pg, 90, IDLE5, null, 1, 0.2), z8 = await R5(pg), m54 = await mirror5(pg);
+  await stair(pg, false); await stair(pg, true); var z9 = await R5(pg);
+  console.log('   차례 동안 위층:', J5(z7), '→ 차례 끝', J5(z8), '→ 내려갔다 오름', J5(z9));
+  ok(u53 && z7.running && z7.up && e53.done && z8.room === 'loft' && !z8.up && z8.an === 'blanket' && z8.st === 'idle' && z8.phase === 'awake' && z8.saved === 'sleep' && m54.toast === DOWN && m54.quiet && !z9.up && z9.phase === 'awake',
+    '집에 있는 차례 동안 위층에 따라 와 있다가 차례가 끝나면 다락 담요에서 깨어 있는 틈 (거울 «' + m54.toast + '») · 내려갔다 다시 올라도 따라 오지 않는다');
+  await stair(pg, false); var z10 = await R5(pg);
+  await pg.reload(); await settle(pg);
+  var z11 = await R5(pg), u54 = await stair(pg, true), z12 = await R5(pg), m55 = await mirror5(pg);
+  console.log('   틈에 새로고침:', J5(z10), '→', J5(z11), '→ 오름', J5(z12));
+  ok(z10.phase === 'awake' && z11.phase === 'awake' && z11.rest && z11.rest.left > 0 && z11.st === 'idle' && u54 && !z12.up && z12.st === 'idle' && m55.toast === DOWN && m55.quiet, '깨어 있는 틈에 새로고침: 틈이 이어지고 (남은 ' + (z11.rest && z11.rest.left) + ' ms) 위층으로 올라도 따라 오지 않는다 (거울 «' + m55.toast + '»)');
+  reportErrors(bag, 'Z-5b'); await A.ctx.close();
+  /* 5-5. 다른 탭: 이 탭에선 문어가 위층에 따라 와 있는데 (깨어서 집에 — 예전 그대로) 다른 탭이 집에 있는 차례를 끝낸다 → 이 탭 문어도 다락 담요에서 깨어 있는 틈 · 다시 올라도 오지 않는다 */
+  A = await open({ awake: AW, rec: REC(4) }); pg = A.page;
+  var u55 = await stair(pg, true), z13 = await R5(pg);
+  var B5 = await open({ ctx: A.ctx, test: { forceKind: 'home' } }), h55 = await homeTurn(B5.page);
+  var g55 = await tick(pg, 5, function () { return !APP.scene.octUp() && !!APP.rest; }), z14 = await R5(pg), m56 = await mirror5(pg);
+  await stair(pg, false); await stair(pg, true); var z15 = await R5(pg);
+  console.log('   다른 탭의 차례:', J5(z13), '→', J5(z14), '→ 내려갔다 오름', J5(z15));
+  ok(u55 && z13.up && h55 && g55.done && z14.room === 'loft' && !z14.up && z14.an === 'blanket' && z14.st === 'idle' && z14.phase === 'awake' && m56.toast === DOWN && m56.quiet && !z15.up && z15.phase === 'awake',
+    '다른 탭이 차례를 끝내면 이 탭 위층에 따라 와 있던 문어도 다락 담요에서 깨어 있는 틈 (거울 «' + m56.toast + '») · 다시 올라도 오지 않는다');
+  reportErrors(bag, 'Z-5c'); await A.ctx.close();
   }
 }
 
