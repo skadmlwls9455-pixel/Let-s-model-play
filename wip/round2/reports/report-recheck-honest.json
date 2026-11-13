@@ -1,0 +1,72 @@
+{
+ "summary": "The repair in /home/user/ppolppol-fix-honest (branch fix-honest, base 6d03faf, nothing committed) holds. Four of the first checker's problems are really gone: S1, S2, N1 and N2. The two owner items, O1 and O2, are correctly left for the owner and listed in the repair report. The repair broke nothing that I could find. No must or should remains. I have three nits, all about how strong the tests and the repo skill are, not about player-facing text.\n\nS1: I opened the far-sea door dialog in a real page. I served a copy and mocked /api/walks with far.state 'proposed'. On base 6d03faf the dialog says '문어가 먼 바다 문 너머까지 가 보고 싶대.' On the fixed tree it says '…가 보자고 했어.' I looked at 360x740 and 320x568, in the pixel and system fonts, light and dark, with and without the model's own line. Nothing overflows and the page does not scroll sideways. Only the model can set 'propose' (mcp/core.js:738, by:'model'), so saying the octopus suggested it is accurate. Reverting the line makes the new static check fail.\n\nN1: I put the old stop-at-first-bubble logic back, together with the checker's mutant M7. That passes 7/0 (bug reproduced). With the repaired check, the same mutant fails exactly the pet check.\n\nS2: the repo skill no longer recommends '꿈꾸는 중'. N2: the comment is fixed.\n\nThe new A-2 checks passed five clean runs in a row (7/0 each, load 8.6-9.1). npm test passes, the font check says 'stale: none', and SMOKE_ONLY=A gives 81 passed, 0 failed. Nothing in tools/ lost strength.",
+ "problems": [
+  {
+   "id": "R-N1",
+   "severity": "nit",
+   "title": "The pet check sees two of the pet's three outcomes; a word on the awake-window branch is not caught",
+   "where": "js/app.js:1621 (`else if (rest) octState('idle');`) vs tools/smoke.js A-2 part 3 (about 504-540)",
+   "what": "After a pet, the code takes one of three paths: the 70 % '…' bubble, the walk away, or staying put on the blanket during the awake window after a turn (`rest`). The repaired check makes sure it sees the first two, but the test never sets up `rest`. A feeling bubble added to that third path goes uncaught. Nothing shows text there today.",
+   "evidence": "My mutant M12 changes `else if (rest) { octState('idle'); say('…좋아', 'pet', 1800); }` and still passes 7/0. Log: /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/mut/M12-pet-rest-branch.log",
+   "suggested_fix": "Either add a static assertion that the pet timer's callback in app.js contains no say( other than say('…', 'pet', …), or add one A-2 pass with the awake window forced on (the same set-up smoke Z uses for rest) and require that no bubble other than '…' appears."
+  },
+  {
+   "id": "R-N2",
+   "severity": "nit",
+   "title": "The repo skill still contradicts itself about hinting at what the octopus feels during sleep",
+   "where": ".claude/skills/cozy-web-game/references/octopus-lore.md:53, :54 (second half), :188",
+   "what": "The label fix at lines 54, 59 and 156 is correct. Three nearby passages still point the other way. Line 53 says the 'reviewing the walk' reading 'can be used carefully'. Line 54 still suggests that a poster sparkling during active sleep hints '오늘 본 걸 다시 그려보는 중' (\"redrawing what it saw today\"). Line 188 says '꿈' (dream) may be written in hedged form. The repaired line 59 now says hedged guesses about the octopus's inside are not written. None of this is player-facing, and grep finds no code that does the poster sparkle. Agents who load this skill get mixed guidance. The repair agent listed line 54 under 'left'.",
+   "evidence": "sed -n '53,54p;188p' .claude/skills/cozy-web-game/references/octopus-lore.md; grep -n '반짝' js/*.js finds no sleep or poster sparkle",
+   "suggested_fix": "Add one clause each: line 54, the poster sparkle is not used, because it would imply an inner experience (hard line 1, 11-13). Lines 53 and 188, hedged wording applies only to science facts in the octopus notes, never to labels about this octopus."
+  },
+  {
+   "id": "R-N3",
+   "severity": "nit",
+   "title": "The happy-description check only knows a fixed list of feeling words",
+   "where": "tools/smoke.js A-2 part 1 (FEEL_RX plus a /통통 뛰고 있어/ substring test)",
+   "what": "The check passes any description that contains '통통 뛰고 있어' and none of the listed words. A feeling word that is not on the list slips through. This code was not changed in the repair; I note it as a cheap way to make the check stronger.",
+   "evidence": "Mutant M13, happy: '들떠서 통통 뛰고 있어', passes 7/0. Log: /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/mut/M13-happy-unlisted-feeling.log",
+   "suggested_fix": "Assert that the description ends with exactly '에서 통통 뛰고 있어.' (or compare it to the exact sentence), so any extra word fails."
+  }
+ ],
+ "per_fix": "id | reproduced before | gone after | guarding check that fails on revert\nS1 (far dialog '가 보고 싶대') | yes: base 6d03faf, real dialog at 360x740 shows '문어가 먼 바다 문 너머까지 가 보고 싶대.' (shots/base-360x740-far-default.png) | yes: '…가 보자고 했어.' at 360x740 and 320x568, pixel and system fonts, light and dark, with and without the model line (shots/fix-*-far-*.png) | A-2 part 0, '보이는 정적 글 · js 줄에 문어 바람 · 느낌 말 없음' (mut/S1-revert.log, 6/1)\nS2 (skill prescribes '꿈꾸는 중?') | yes: base octopus-lore.md lines 54, 59 and 156 recommend the label | yes: grep '꿈꾸는 중' outside wip/ finds only history notes, comments and the new 'do not use' wording | no automated check; it is a doc, and A-2's nap check guards the code\nN1 (pet check stops at the first bubble) | yes: old-style check plus M7 passes 7/0 (mut/N1-oldcheck-M7.log) | yes: repaired check plus M7 fails (mut/N1-newcheck-M7.log, said [['…좋아'],['…']]) | A-2 part 3, \"쓰다듬기 뒤 말풍선은 '…' 하나\"\nN2 (stale '♡' comment) | yes: base app.js:32 '말풍선 ♡ pet' | yes: '말풍선 … pet (예전 ♡)' | comment only; the font check stays 'stale: none'\nO1 and O2 | owner items | not changed, as intended; listed in the repair report's 'left' | n/a",
+ "mutations": "Harness: a copy of the tree in /dev/shm/rh/fix with tools/smoke-h2.js, which runs only A-2 (script /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/mut.sh; logs in the mut/ folder next to it).\n- Clean runs 1 to 5: 7/0 each, load 8.6-9.1, 24-30 s per run. The pet check saw both outcomes within 2-3 presses every time.\n- N1-oldcheck-M7 (old stop-at-first-bubble logic, plus say('…좋아') on the walk branch): 7/0 PASS. This reproduces the original N1 gap.\n- N1-newcheck-M7: FAIL on the pet check.\n- S1-revert ('가 보자고 했어' back to '가 보고 싶대'): FAIL on the static check.\n- M8 (index.html honest line becomes '…서운해하지 않아. 기뻐할 거야.'): FAIL on the static check.\n- M9 (aria-label '문어가 궁금해하던 문' on #far-keep): FAIL on the static check.\n- M10 (app.js toast '가 더 자고 싶대'): FAIL on the static check (js scan).\n- M11 (pet bubble '…헤헤'): FAIL on the pet check.\n- M12 (say('…좋아') on the rest/awake-window branch): PASS 7/0. This branch is not covered (nit R-N1).\n- M13 (happy '들떠서 통통 뛰고 있어'): PASS 7/0. The word list has a gap (nit R-N3).\nThe first checker already covered the reverts R1-R3 and mutants M4-M6; the code they guard is unchanged since then.",
+ "suites": [
+  "npm test on a copy of the tree: exit 0 (recheck-honest/npmtest.log). My first run exited 1 only because test-export saw my own backup file js/app.js.fixed in the copy. After I moved it out, the run was clean.",
+  "Font check (subset-fonts.py --check): 'stale: none'.",
+  "SMOKE_ONLY=A on the copy: 81 passed, 0 failed, 442 s at load 9-11, A-2 included (recheck-honest/smokeA.log).",
+  "A-2-only harness: 5/5 clean runs at 7 passed, 0 failed, plus the mutants listed under mutations.",
+  "Far-dialog probe (recheck-honest/far-probe.js, http.server on port 8743 with a mocked /api/walks): base once at 360x740 and twice at 320x568 as a control; the fixed tree in 6 variants. Answering '지금은 그대로' gives the plain toast '알았어. 그대로 둘게' and the dialog closes.",
+  "First checker's probe, re-run on the fixed copy at 320x568 (recheck-honest/probe3.js, probe-320.json): 2D pet bubble '…' with a '혼잣말 …' log row; 2D nap label '자는 중' 10 out of 10 times; 3D happy description '…포스터 판 앞에서 통통 뛰고 있어.'",
+  "Smoke Y not run: the repair does not touch the code Y exercises, and two agents already showed Y crashing on its 5 s waits under load on the untouched base."
+ ],
+ "held": [
+  "S1 wording is accurate: only the model can set far.state 'proposed' (mcp/core.js:738, by 'model'; the model's MCP text calls it a proposal waiting for the person's answer). '가 보자고 했어' reports that action without adding a want or a reason. The model's own line still shows separately, marked '· 문어가 쓴 말'.",
+  "The new dialog text fits at 360x740 and 320x568 in both font themes and in dark mode. In the pixel font at 360 it now takes 5 lines instead of 4, and the buttons stay in view.",
+  "At 320x568 in the pixel font with a model line, the two buttons sit below the dialog's scroll fold, and the 'today's gift' toast covers the bottom of the dialog. Base 6d03faf is the same (shots/base-320x568-far-pixel-line.png), so this was already there and the repair did not cause it.",
+  "The repair's static scan (A-2 part 0) catches want and feeling words in visible html text and in attributes, and want words in any js line except brain.js and world.js. Three of my mutants (M8, M9, M10) were all caught.",
+  "The repaired pet check is deterministic in practice: 5/5 clean runs, 2-3 presses each.",
+  "No existing check lost strength: the only lines removed from tools/smoke.js are the Y block 12 lines that asserted '…좋아', replaced with equally strict '…' versions.",
+  "The tree is unchanged by me: git status shows the same 9 modified files. The scratch copy in /dev/shm/rh is deleted and the server on port 8743 is stopped.",
+  "No new emoji or symbol characters in player-facing text, and the font subsets cover every new character."
+ ],
+ "not_checked": [
+  "The far dialog on a real phone, and against a live /api/far room: I used a mocked /api/walks response in Chromium mobile emulation.",
+  "Smoke Y, and any smoke letter other than A and the A-2 harness.",
+  "The pet bubble and nap label in 3D at 320x568. I re-checked the 2D path only; the first checker covered 3D, and the app.js code paths have changed only in comments since then.",
+  "Whether the brain.js and world.js demo lines (O1) or the heart, blush and smiling face after petting (O2) should change. Both are owner decisions, left as they are.",
+  "Out of this lane, seen on base and fixed tree alike: when the far dialog opens, '열어 줘' gets a visible focus ring, which can read as a preselected choice even though the dialog's comment says neither button is preselected. I did not dig into this."
+ ],
+ "pictures": [
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/shots/base-360x740-far-default.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/shots/fix-360x740-far-pixel.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/shots/fix-360x740-far-system.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/shots/fix-360x740-far-pixel-line-dark.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/shots/fix-320x568-far-pixel-line.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/shots/fix-320x568-far-system-line.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/shots/fix-320x568-far-pixel-dark.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/shots/base-320x568-far-pixel-line.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/shots/fix-320x568-2d-pet.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-honest/shots/fix-320x568-2d-nap.png"
+ ]
+}
