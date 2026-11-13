@@ -4,14 +4,22 @@
  * 확인하는 것:
  *  0) 부팅 경로 (11-11, 진짜 부팅 ?intro=1 · 시간은 debugStep 으로만 → 기계가 바빠도 같은 값): 하늘은 진짜 장면 크기로 지어진다 —
  *     하늘이 처음 그려질 때의 렌더 크기 = 장면 칸 크기 = 그 뒤(1 s 넘게 지난 뒤)의 크기 · 출발 높이 = 화면 높이의 INTRO.SKY.height 배 (360×740 · 430×932) ·
- *     맨 위 멈춤 중에 화면 크기가 바뀌어도(→ 412×915) 그대로 · 뚫는 구름이 화면 폭을 다 덮는다 (가운데 가로줄이 끝에서 끝까지 구름 몸 색).
+ *     맨 위 멈춤 중에 화면 크기가 바뀌어도(→ 412×915) 그대로.
+ *     구름 지나기 (11-12 주인 결정: 뚫는 구름을 얇게, docs/INTRO_SLOW_PROTO.md §9): 0.9 ~ 2.0 s 를 1/60 s 씩 캔버스 픽셀로 잰다 — 어느 한 색도 맨 위 멈춤 때 구름 위 하늘이 덮은 몫(+2 %)보다
+ *     많이 덮지 않는다 (처음 화면보다 밋밋한 순간이 없다) · 구름 몸 색은 화면의 절반 미만 (그리고 20 % 는 넘게 지나간다) ·
+ *     하늘 띠가 바뀌는 프레임과 그 앞 프레임에 하늘 띠(배경)가 한 픽셀도 안 보인다 (바뀌는 순간이 안 보인다) · 바뀌기 전엔 보이는 하늘 띠가 구름 밑 판과 맞닿은 데가 없다 (사이에 늘 구름) ·
+ *     캔버스 둘레에 보이는 하늘 띠 = 덮개 색, 그리고 구름 몸 윗변(skyCut.top) 위에만 · 구름 밑 판은 장면 물건(방 · 비)을 한 픽셀도 안 가린다 · 구름 밑 판의 색 = 착지 뒤 허공색 (판이 사라져도 안 보인다) ·
+ *     1.5 s 에 입장 레이어가 실제로 칠한 덮개 (창 스크린샷의 장면 둘레 틈 · 넓은 화면 옆 덮개 열): 구름 몸 윗변 위 남색 · 판 윗변 아래 판 색 · 그 사이는 섞인 색이 아래로 갈수록 판 색 쪽 (곧은 금 없음).
+ *     하늘 띠가 보이는 픽셀은 색으로 안 가린다 (노을 · 새벽 방에 구름 위 하늘색과 같은 칸이 있다) — bgProbe 가 배경만 바꿔 두 번 더 그려 다른 픽셀을 센다 (판을 숨겨 한 번 더 그려 판이 가린 물건도 센다).
+ *     재는 페이지는 5 s 넘는 setTimeout 을 늘린다 (intro.js 의 벽시계 안전판이 재는 도중에 오지 않게 — 기계가 바빠도 같은 결과).
+ *     360×740 낮 맑음 (맨 위 멈춤 중에 → 412×915 로 바꿔 판도 다시 짓는다) · 1280×800 노을 비 (넓은 화면: 양옆 덮개가 보인다).
  *     예전엔 숨은 칸(0×0 → 320×240 어림)에서 지어 폰에서 0.85 화면 높이 · 폭 368 px 짜리였는데, 3) 은 부팅 뒤에 다시 시작해서 재므로 못 잡았다. BOOT_ONLY=1 이면 0) 만 돌린다.
  *     크기가 바뀔 때 (11-11 보강): 내려가는 중(1.0 s)에 한 번 더 바뀌어도(→ 430×932) 진행도와 높이가 그대로다 (연출이 처음부터 다시 돌지 않는다) · 하늘은 한 겹이다 —
  *     덮임 프레임의 드로우콜 = 그 크기로 바로 부팅한 페이지의 값, 착지 뒤의 드로우콜 · frameY = 연출 없는 부팅(?intro=0)의 값 (옛 하늘이 장면에 남으면 는다) ·
  *     줌만 바뀌어도(API zoomStep) 높이가 그대로다 · 연출 없는 부팅에서도 장면이 첫 프레임부터 장면 칸 크기다 (app.js 가 칸을 먼저 드러낸다)
  *  1) 첫 실행: ?intro=1 → 하늘 단계 → 로고 올라옴 → 로고 누름 → 레이어 사라짐 → 이름 창이 그다음에 열림
  *  2) 다시 열기: 하늘 단계 중에 누르면 바로 착지 + 바로 게임 (이름 창 없음), 아래 UI 가 inert 풀림
- *  3) 장면 카메라 하강 프레임 스트립 (debugStep, 결정적, INTRO.SKY 와 같은 dur · top · height): 멈춤 끝 · 구름 사이 · 뚫기 직전 · 덮임 · 구름 밑 · 지붕 · 착지
+ *  3) 장면 카메라 하강 프레임 스트립 (debugStep, 결정적, INTRO.SKY 와 같은 dur · top · height): 멈춤 끝 · 구름 사이 · 뚫는 구름 다가옴 · 지나감 · 구름 밑 · 지붕 · 착지 (11-12: 뚫는 구름이 얇아져 다 덮는 프레임은 없다)
  *  4) ?intro 없이(자동화 브라우저 기본) 레이어가 안 뜬다 — 기존 스모크가 그대로 돈다
  *  4b) 하루 한 번 (PLAYTEST_FIXES A5-1): ?intro 없이 · navigator.webdriver 를 false 로 덮은 새 context 에서
  *      첫 열기 → 있음 → 타이틀 눌러 들어감 → 같은 날 다시 열기 → 없음 → 날짜(window.__ppolTest.today)를 바꾼 첫 열기 → 있음
@@ -37,31 +45,54 @@ function fail(msg) { console.error('✗ ' + msg); process.exitCode = 1; }
   await page.addInitScript(function (h) { window.__ppolLook = h; }, { hour: HOUR, lantern: 8, weather: WEATHER, octState: 'idle', anchor: 'center' });
   async function shot(name) { await page.screenshot({ path: path.join(OUT, name + '.png') }); console.log('  📷 tests/evidence/intro/' + name + '.png'); }
 
-  /* 0) 부팅 경로: 하늘이 진짜 장면 크기로 지어지는가. 페이지가 내놓는 것만 쓴다 (APP.scene.stats · debugStep · introProgress · introSkip · zoomStep · setExpression · INTRO.SKY · CLOUDS.ramp) */
+  /* 0) 부팅 경로: 하늘이 진짜 장면 크기로 지어지는가. 페이지가 내놓는 것만 쓴다 (APP.scene.stats · debugStep · introProgress · introSkip · zoomStep · setExpression · skyHex · skyCut · INTRO.SKY · CLOUDS.ramp) */
   function raf2(pg) { return pg.evaluate(function () { return new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); }); }); }
-  async function midRow(pg) {   /* 장면 캔버스 한가운데 가로 한 줄 (화면에 보이는 그대로) 의 색 세기 */
-    await raf2(pg);
-    var clip = await pg.evaluate(function () { var c = document.querySelector('#scene3d canvas').getBoundingClientRect(); return { x: c.left, y: Math.floor(c.top + c.height / 2), width: c.width, height: 1 }; });
-    var b64 = (await pg.screenshot({ clip: clip })).toString('base64');
-    return pg.evaluate(function (src) {
-      return new Promise(function (res, rej) {
-        var im = new Image();
-        im.onload = function () {
-          var cv = document.createElement('canvas'); cv.width = im.width; cv.height = 1; var x = cv.getContext('2d'); x.drawImage(im, 0, 0);
-          var d = x.getImageData(0, 0, im.width, 1).data, cnt = {}, top = null;
-          for (var i = 0; i < d.length; i += 4) { var hx = '#' + ((1 << 24) | (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]).toString(16).slice(1); cnt[hx] = (cnt[hx] || 0) + 1; if (!top || cnt[hx] > cnt[top]) top = hx; }
-          var s = APP.scene.stats(); res({ n: im.width, top: top, share: cnt[top] / im.width, body: CLOUDS.ramp(window.__ppolLook.weather, s.phase, false).t[3] });
-        };
-        im.onerror = function () { rej(new Error('midRow: 그림을 못 읽음')); }; im.src = 'data:image/png;base64,' + src;
-      });
-    }, b64);
-  }
   var LOOK = { hour: HOUR, lantern: 8, weather: WEATHER, octState: 'idle', anchor: 'center' }, same = function (x, y) { return x[0] === y[0] && x[1] === y[1]; };
-  async function bootPage(W, H, sky) {   /* 새 context 의 새 페이지. sky = 진짜 부팅 ?intro=1, 아니면 연출 없는 부팅 ?intro=0 */
+  /* 하늘 띠가 보이는 픽셀 (11-12, 구름 지나기 전용): THREE.WebGLRenderer 를 감싸 뷰티 패스(배경이 Color 인 장면 · 레이어 0 · 렌더 타깃)마다 배경만 자홍 · 초록으로 바꿔
+     두 번 더 그린다 (제 타깃에, 화면 출력은 그대로) → 두 장이 다른 픽셀 = 배경(하늘 띠)이 보이는 곳. 색으로 가리면 노을 · 새벽 방의 #241527 칸이 구름 위 하늘색과 같아 섞인다 */
+  function bgProbe() {
+    var px = null, Wr = null;
+    function hook(r) {
+      var render = r.render, A = null, B = null, C = null, a = null, b = null, c = null;
+      r.render = function (scene, cam) {
+        render.call(this, scene, cam);
+        var t0 = this.getRenderTarget();
+        if (window.__inProbe || !t0 || !scene.background || !scene.background.isColor || scene.overrideMaterial || cam.layers.mask !== 1) return;
+        window.__inProbe = true;
+        var w = t0.width, h = t0.height, bg = scene.background, keep = bg.clone();
+        if (!A || A.width !== w || A.height !== h) { A = new window.THREE.WebGLRenderTarget(w, h); B = new window.THREE.WebGLRenderTarget(w, h); C = new window.THREE.WebGLRenderTarget(w, h); a = new Uint8Array(w * h * 4); b = new Uint8Array(w * h * 4); c = new Uint8Array(w * h * 4); }
+        bg.setRGB(1, 0, 1); this.setRenderTarget(A); this.clear(true, true, false); render.call(this, scene, cam);
+        bg.setRGB(0, 1, 0); this.setRenderTarget(B); this.clear(true, true, false); render.call(this, scene, cam);
+        /* 구름 밑 판(하늘 무리 안에서 userData.hex 를 가진 판)을 숨기고 한 번 더 (배경 자홍): 숨기자 배경이 아닌 것이 드러난 픽셀 = 판이 가린 장면 물건 (방 · 비 …) */
+        var pn = null; scene.traverse(function (o) { if (!pn && o.isMesh && o.visible && o.userData && o.userData.hex && o.userData.h) pn = o; });
+        if (pn) { pn.visible = false; bg.setRGB(1, 0, 1); this.setRenderTarget(C); this.clear(true, true, false); render.call(this, scene, cam); pn.visible = true; this.readRenderTargetPixels(C, 0, 0, w, h, c); }
+        bg.copy(keep); this.readRenderTargetPixels(A, 0, 0, w, h, a); this.readRenderTargetPixels(B, 0, 0, w, h, b);
+        var m = new Uint8Array(w * h), occ = 0;
+        for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+          var i = ((h - 1 - y) * w + x) * 4; if (a[i] !== b[i] || a[i + 1] !== b[i + 1] || a[i + 2] !== b[i + 2]) m[y * w + x] = 1;   /* 위에서부터의 줄로 */
+          if (pn && (a[i] !== c[i] || a[i + 1] !== c[i + 1] || a[i + 2] !== c[i + 2]) && !(c[i] === 255 && c[i + 1] === 0 && c[i + 2] === 255)) occ++;
+        }
+        window.__bgMask = { w: w, h: h, m: m, occ: pn ? occ : null }; this.setRenderTarget(t0); window.__inProbe = false;
+      };
+    }
+    Object.defineProperty(window, 'THREE', { configurable: true, get: function () { return px; }, set: function (v) {   /* three UMD 는 빈 THREE 를 먼저 꽂고 채운다 → Proxy 로 WebGLRenderer 만 감싼다 */
+      px = new Proxy(v, { get: function (o, k) {
+        if (k !== 'WebGLRenderer' || !o.WebGLRenderer) return o[k];
+        if (!Wr) { var O = o.WebGLRenderer; Wr = function (opt) { var r = new O(opt); hook(r); return r; }; Wr.prototype = O.prototype; }
+        return Wr;
+      } });
+    } });
+  }
+  async function bootPage(W, H, sky, look, probe) {   /* 새 context 의 새 페이지. sky = 진짜 부팅 ?intro=1, 아니면 연출 없는 부팅 ?intro=0 · look = __ppolLook (없으면 LOOK) · probe = bgProbe 를 건다 */
     var bctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, locale: 'ko-KR' });
     var bp = await bctx.newPage();
     bp.on('pageerror', function (e) { errs.push('pageerror(부팅 경로): ' + e.message); });
-    await bp.addInitScript(function (h) { window.__ppolLook = h; }, LOOK);
+    await bp.addInitScript(function (h) { window.__ppolLook = h; }, look || LOOK);
+    if (probe) {
+      await bp.addInitScript(bgProbe);
+      /* 구름 지나기는 시간을 debugStep 으로만 민다 → intro.js 의 벽시계 안전판(SKY.dur × 2.5 뒤 로고)이 기계가 바쁘면 재는 도중에 와서 setSky 를 멈춘다. 5 s 넘는 타이머만 1000 배로 늘린다 (재는 동안 안 온다) */
+      await bp.addInitScript(function () { var st0 = window.setTimeout; window.setTimeout = function (f, ms) { if (+ms >= 5000) ms = +ms * 1000; return st0.apply(this, [f, ms].concat([].slice.call(arguments, 2))); }; });
+    }
     await bp.addInitScript(function (sky) {   /* 하늘이 처음 그려지는 프레임 (sky) · 장면이 생긴 뒤 첫 프레임 (연출 없음) 바로 앞에서 렌더 크기를 적고 장면 루프를 멈춘다 (이 rAF 는 장면 루프보다 먼저 등록되어 먼저 돈다 · 첫 ResizeObserver 보다도 먼저다) */
       window.__boot = null;
       (function tick() {
@@ -111,12 +142,11 @@ function fail(msg) { console.error('✗ ' + msg); process.exitCode = 1; }
       if (!(d.on && Math.abs(d.p - c.p) <= 0.005)) fail(tag + '내려가는 중(' + (c.p * c.dur).toFixed(2) + ' s)에 ' + x(o.mid) + ' 로 바뀌자 진행도가 ' + c.p.toFixed(4) + ' → ' + d.p.toFixed(4) + ' (그대로여야 한다)');
       if (!same(d.target, d.box)) fail(tag + '→ ' + x(o.mid) + ' 뒤 렌더 크기 ' + d.target.join('×') + ' ≠ 장면 칸 ' + d.box.join('×'));
     }
-    await step(1.36 - cur.p * cur.dur);   /* 뚫는 구름 몸 한가운데가 화면 가운데를 지날 무렵 (곡선에서 1.39 s, 다 덮는 프레임은 1.35 ~ 1.37 s) */
-    var mid = await read(bp), row = await midRow(bp);
+    await step(1.36 - cur.p * cur.dur);   /* 뚫는 구름이 화면 가운데를 지날 무렵 (몸 한가운데는 곡선에서 1.39 s) — 하늘 물건이 가장 많이 화면에 있다 */
+    var mid = await read(bp);
     if (!same(mid.target, cur.target)) fail(tag + '1 s 넘게 지난 뒤 렌더 크기가 ' + cur.target.join('×') + ' → ' + mid.target.join('×') + ' 로 바뀜');
-    if (!(row.share === 1 && row.top === row.body)) fail(tag + '뚫는 구름이 화면 폭(' + row.n + ' px)을 다 못 덮음: 가운데 가로줄의 ' + Math.round(row.share * 1000) / 10 + ' % 가 ' + row.top + ' (구름 몸 색 ' + row.body + ')');
-    /* 하늘은 한 겹: 크기가 바뀐 뒤의 덮임 프레임은 그 크기로 바로 부팅한 페이지의 같은 순간과 드로우콜이 같다 (옛 하늘이 장면에 남으면 그 구름만큼 는다) */
-    if (o.calls != null && mid.calls !== o.calls) fail(tag + '크기가 바뀐 뒤 덮임 프레임의 드로우콜 ' + mid.calls + ' ≠ ' + x(way[way.length - 1]) + ' 로 바로 부팅한 페이지의 ' + o.calls + ' (옛 하늘이 남아 두 겹이면 는다)');
+    /* 하늘은 한 겹: 크기가 바뀐 뒤의 이 프레임은 그 크기로 바로 부팅한 페이지의 같은 순간과 드로우콜이 같다 (옛 하늘이 장면에 남으면 그 구름만큼 는다) */
+    if (o.calls != null && mid.calls !== o.calls) fail(tag + '크기가 바뀐 뒤 1.36 s 프레임의 드로우콜 ' + mid.calls + ' ≠ ' + x(way[way.length - 1]) + ' 로 바로 부팅한 페이지의 ' + o.calls + ' (옛 하늘이 남아 두 겹이면 는다)');
     if (o.zoom) { await bp.evaluate(function (k) { APP.scene.zoomStep(k); }, o.zoom); z = await read(bp); }   /* 줌만 바뀜 (N 만 바뀌고 resize() 는 안 거친다) */
     var rest = await read(bp, true), restZ = rest.frameY, callsR = rest.calls;   /* 쉬는 자리 (연출 없는 카메라) 를 재려고 착지시킨다 */
     if (rest.on) fail(tag + 'introSkip 뒤에도 하늘 단계가 안 끝남');
@@ -135,16 +165,122 @@ function fail(msg) { console.error('✗ ' + msg); process.exitCode = 1; }
     if (z && Math.abs(hM - hZ) > 0.05) fail(tag + '줌 멈춤 ' + o.zoom + ' 으로 바뀌자 높이가 화면 높이의 ' + hM.toFixed(3) + ' → ' + hZ.toFixed(3) + ' 배 (같아야 한다)');
     console.log('  ' + tag + '렌더 크기 ' + a.boot.target0.join('×') + ' (장면 칸 ' + a.box.join('×') + ') · 출발 높이 ' + hA.toFixed(3) + ' 화면' + (b ? ' · → ' + x(o.hold) + ' (' + b.target.join('×') + ') 뒤 ' + hB.toFixed(3) + ' 화면' : '') +
       (d ? ' · ' + (c.p * c.dur).toFixed(2) + ' s 에 → ' + x(o.mid) + ' (' + d.target.join('×') + '): 진행도 ' + c.p.toFixed(4) + ' → ' + d.p.toFixed(4) + ' · 높이 ' + hC.toFixed(3) + ' → ' + hD.toFixed(3) + ' 화면' : '') +
-      ' · 가운데 가로줄 ' + Math.round(row.share * 1000) / 10 + ' % ' + row.top + ' / ' + row.n + ' px · 덮임 프레임 드로우콜 ' + mid.calls + (o.calls != null ? ' (바로 부팅 ' + o.calls + ')' : '') +
+      ' · 1.36 s 드로우콜 ' + mid.calls + (o.calls != null ? ' (바로 부팅 ' + o.calls + ')' : '') +
       (z ? ' · 줌 멈춤 ' + o.zoom + ': 높이 ' + hM.toFixed(3) + ' → ' + hZ.toFixed(3) + ' 화면' : ' · 착지 뒤 드로우콜 ' + callsR + (callsN != null ? ' (연출 없는 부팅 ' + callsN + ' · 표정 ' + rest.expr + ')' : '')) + ' · frameY ' + rest.frameY);
     await bp.context().close(); return mid.calls;
+  }
+  /* 구름 지나기 (11-12): 뚫는 구름이 띠처럼 지나가고(화면 절반 미만), 하늘 띠가 바뀌는 순간 · 덮개와의 경계가 안 보이는가. 캔버스 픽셀을 렌더 크기로 센다 (그린 프레임 그대로 — 같은 작업 안에서 읽는다) */
+  async function bootPass(W, H, look, hold) {
+    var bp = await bootPage(W, H, true, look, true), tag = '구름 지나기 ' + W + '×' + H + (hold ? ' → ' + hold.join('×') : '') + ' (' + look.hour + '시 ' + look.weather + '): ';
+    var b0 = await bp.evaluate(function () { return window.__boot; });
+    if (b0.err) { fail(tag + b0.err); await bp.context().close(); return; }
+    if (hold) {   /* 맨 위 멈춤 중에 크기가 바뀜 → 하늘(구름 밑 판 포함)을 새로 짓는다 */
+      var t0 = await bp.evaluate(function () { return APP.scene.stats().target; });
+      await bp.setViewportSize({ width: hold[0], height: hold[1] });
+      await bp.waitForFunction(function (t) { var s = APP.scene.stats().target; return s[0] !== t[0] || s[1] !== t[1]; }, t0, { timeout: 60000 });
+    }
+    var scan = function (to) {   /* 지금부터 to 초까지 1/60 s 씩. 상태는 페이지의 __pass 에 이어 간다 */
+      return bp.evaluate(function (to) {
+        var sc = APP.scene, P = window.__pass, k = INTRO.SKY;
+        if (!P) P = window.__pass = { body: CLOUDS.ramp(window.__ppolLook.weather, sc.stats().phase, false).t[3], hi: sc.skyHex(), bodyMax: 0, bodyAt: 0, sw: null, bgSw: null, bgPrev: null, touch: 0, touchAt: 0, edge: 0, edgeAt: 0, occ: 0, occAt: 0, occN: 0, top: 0, topAt: 0, topHex: null, cutHex: null, n: 0, noMask: 0, cv: document.createElement('canvas') };
+        var cv = document.querySelector('#scene3d canvas');
+        while (sc.introActive() && sc.introProgress() * k.dur < to - 1e-6 && !(P.sw != null && sc.introProgress() * k.dur > P.sw + 0.1)) {
+          window.__bgMask = null; sc.debugStep(1 / 60); P.n++;
+          var s = sc.stats(), rw = s.target[0], rh = s.target[1], t = sc.introProgress() * k.dur, cover = sc.skyHex(), cut = sc.skyCut ? sc.skyCut() : null, cr = cv.getBoundingClientRect(), M = window.__bgMask;
+          P.cv.width = rw; P.cv.height = rh; var x2 = P.cv.getContext('2d', { willReadFrequently: true }); x2.imageSmoothingEnabled = false; x2.drawImage(cv, 0, 0, cv.width, cv.height, 0, 0, rw, rh);
+          var d = x2.getImageData(0, 0, rw, rh).data, n = rw * rh, hx = new Array(n), bc = 0, vis = 0;
+          var cnt = {};
+          for (var i = 0, j = 0; i < n; i++, j += 4) { var h = '#' + ((1 << 24) | (d[j] << 16) | (d[j + 1] << 8) | d[j + 2]).toString(16).slice(1); hx[i] = h; cnt[h] = (cnt[h] || 0) + 1; if (h === P.body) bc++; }
+          for (var h1 in cnt) if (cnt[h1] / n > P.top) { P.top = cnt[h1] / n; P.topAt = t; P.topHex = h1; }   /* 한 색이 차지한 가장 큰 몫 (구름 위 하늘 · 구름 · 판 · 허공 무엇이든) */
+          if (!M || M.w !== rw || M.h !== rh) { P.noMask++; M = null; } else for (var q = 0; q < n; q++) vis += M.m[q];
+          if (M && M.occ != null) { P.occN++; if (M.occ > P.occ) { P.occ = M.occ; P.occAt = t; } }   /* 구름 밑 판이 가린 장면 물건 픽셀 (판은 방 · 비보다 뒤 → 늘 0) */
+          if (bc / n > P.bodyMax) { P.bodyMax = bc / n; P.bodyAt = t; }
+          if (cut) P.cutHex = cut.hex;
+          if (P.sw == null && cover !== P.hi) { P.sw = t; P.bgSw = [P.bgPrev, M ? vis : null]; }   /* 띠가 바뀐 프레임: [앞 프레임, 이 프레임] 에 하늘 띠가 보이는 픽셀 수 */
+          P.bgPrev = M ? vis : null;
+          if (P.sw == null && M) {
+            var lo = cut ? cut.hex : null, cutRow = cut ? (cut.y - cr.top) / cr.height * rh : 1e9, topRow = cut ? (cut.top - cr.top) / cr.height * rh : 1e9, tc = 0, ec = 0;
+            for (var y = 0; y < rh; y++) for (var x = 0; x < rw; x++) {
+              var a = y * rw + x, edge = x === 0 || x === rw - 1;
+              if (M.m[a]) {   /* 하늘 띠(구름 위 하늘)가 보이는 픽셀: 구름 밑 판과 맞닿으면 이음매 · 캔버스 둘레면 그 높이의 덮개 색이어야 한다 */
+                if (lo && lo !== P.hi && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(function (o) { var x3 = x + o[0], y3 = y + o[1]; if (x3 < 0 || y3 < 0 || x3 >= rw || y3 >= rh) return false; var c3 = y3 * rw + x3; return !M.m[c3] && hx[c3] === lo && hx[a] !== lo; })) tc++;
+                if (edge && (hx[a] !== cover || y + 0.5 >= topRow)) ec++;   /* 둘레에 보이는 하늘 띠는 덮개가 아직 남색인 높이(구름 몸 윗변 위)에만 */
+              } else if (edge && lo && lo !== P.hi && hx[a] === lo && y + 0.5 < cutRow) ec++;   /* 판이 덮개를 나눈 높이보다 위에 보인다 */
+            }
+            if (tc > P.touch) { P.touch = tc; P.touchAt = t; } if (ec > P.edge) { P.edge = ec; P.edgeAt = t; }
+          }
+        }
+        return { t: sc.introProgress() * k.dur, on: sc.introActive(), P: { body: P.body, hi: P.hi, bodyMax: P.bodyMax, bodyAt: P.bodyAt, sw: P.sw, bgSw: P.bgSw, touch: P.touch, touchAt: P.touchAt, edge: P.edge, edgeAt: P.edgeAt, occ: P.occ, occAt: P.occAt, occN: P.occN, top: P.top, topAt: P.topAt, topHex: P.topHex, cutHex: P.cutHex, n: P.n, noMask: P.noMask } };
+      }, to);
+    };
+    var step = function (sec) { var n = Math.max(1, Math.ceil(sec / 0.1 - 1e-9)); return bp.evaluate(function (a) { for (var j = 0; j < a.n; j++) APP.scene.debugStep(a.dt); }, { n: n, dt: sec / n }); };
+    /* 맨 위 멈춤의 하늘: 한 색(구름 위 하늘)이 캔버스에서 차지한 몫 — 내려가는 동안 어느 한 색도 이보다 많이 덮으면 안 된다 (처음 화면보다 밋밋한 순간이 없다) */
+    var hold = await bp.evaluate(function () {
+      var sc = APP.scene; sc.debugStep(0.001); var s = sc.stats(), rw = s.target[0], rh = s.target[1], c = document.createElement('canvas'); c.width = rw; c.height = rh;
+      var x = c.getContext('2d', { willReadFrequently: true }); x.imageSmoothingEnabled = false; var cv = document.querySelector('#scene3d canvas'); x.drawImage(cv, 0, 0, cv.width, cv.height, 0, 0, rw, rh);
+      var d = x.getImageData(0, 0, rw, rh).data, cnt = {}, best = 0, hex = null;
+      for (var j = 0; j < d.length; j += 4) { var h = (d[j] << 16) | (d[j + 1] << 8) | d[j + 2]; cnt[h] = (cnt[h] || 0) + 1; if (cnt[h] > best) { best = cnt[h]; hex = h; } }
+      return { share: best / (rw * rh), hex: '#' + (0x1000000 | hex).toString(16).slice(1), t: sc.introProgress() * INTRO.SKY.dur };
+    });
+    var p0 = hold.t;
+    await step(0.9 - p0);
+    var r = await scan(1.5);
+    /* 입장 레이어가 실제로 칠한 덮개 (화면 픽셀): 장면 루프는 멈춰 있어도 intro.js 의 rAF 는 돈다 → 두 프레임 뒤 창 스크린샷에서 장면 둘레 틈(캔버스 바로 왼쪽 열)과
+       넓은 화면의 옆 덮개(구멍 왼쪽 열)를 위에서 아래로 읽는다: 구름 몸 윗변 위 = 남색(skyHex) · 판 윗변 아래 = 판 색 · 그 사이 = 둘을 섞은 색이 아래로 갈수록 판 색 쪽, 한 줄에 절반 넘게 뛰지 않는다 (곧은 금 없음) */
+    await raf2(bp);
+    var paint = await bp.evaluate(function () {
+      var c = APP.scene.skyCut(), cv = document.querySelector('#scene3d canvas').getBoundingClientRect(), hole = document.querySelector('.intro-hole').getBoundingClientRect(), el = document.getElementById('intro');
+      return { cut: c, hi: APP.scene.skyHex(), phase: el && el.dataset.phase, cols: [['장면 둘레 틈', Math.floor(cv.left) - 1], ['옆 덮개', Math.floor(hole.left) - 4]].filter(function (q) { return q[1] >= 0; }), H: innerHeight };
+    });
+    var png = paint.cut && paint.cut.y > 0 && paint.cut.y < paint.H ? await bp.screenshot() : null;
+    if (png) paint.bad = await bp.evaluate(function (o) {
+      return new Promise(function (res) {
+        var im = new Image(); im.onload = function () {
+          var cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height; var x = cv.getContext('2d'); x.drawImage(im, 0, 0);
+          var rgb = function (h) { var v = parseInt(h.slice(1), 16); return [v >> 16, (v >> 8) & 255, v & 255]; }, A = rgb(o.hi), B = rgb(o.cut.hex), D = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], dd = D[0] * D[0] + D[1] * D[1] + D[2] * D[2], bad = [];
+          o.cols.forEach(function (col) {
+            var d = x.getImageData(col[1], 0, 1, im.height).data, prev = 0, nb = 0, first = null;
+            for (var y = 0; y < im.height; y++) {
+              var p = [d[y * 4], d[y * 4 + 1], d[y * 4 + 2]], f = ((p[0] - A[0]) * D[0] + (p[1] - A[1]) * D[1] + (p[2] - A[2]) * D[2]) / dd, off = Math.max.apply(null, p.map(function (v, i) { return Math.abs(v - (A[i] + D[i] * f)); }));
+              var want = y + 1 < o.cut.top ? 0 : y > o.cut.y ? 1 : null, ok = off <= 2 && f > -0.02 && f < 1.02 && f >= prev - 0.02 && f - prev <= 0.5 && (want == null || Math.abs(f - want) < 0.02);
+              if (!ok) { nb++; if (!first) first = y + ' px: ' + '#' + ((1 << 24) | (p[0] << 16) | (p[1] << 8) | p[2]).toString(16).slice(1) + ' (섞임 ' + f.toFixed(2) + ')'; }
+              prev = Math.max(0, Math.min(1, f));
+            }
+            if (nb) bad.push(col[0] + ' ' + nb + ' 줄 (처음 ' + first + ')');
+          });
+          res(bad);
+        };
+        im.src = 'data:image/png;base64,' + o.png;
+      });
+    }, Object.assign({ png: png.toString('base64') }, paint));
+    r = await scan(2.1);
+    var P = r.P, voidHex = await bp.evaluate(function () { APP.scene.introSkip(); APP.scene.debugStep(0.001); APP.scene.skyHex(); APP.scene.debugStep(0.001); return APP.scene.skyHex(); });   /* 착지 뒤 허공색 (한 프레임 뒤 캔버스에서 읽은 값) */
+    if (P.noMask) fail(tag + '하늘 띠 픽셀을 못 읽은 프레임 ' + P.noMask + ' 개 (bgProbe 가 렌더러를 못 감쌈)');
+    if (!(P.top <= hold.share + 0.02)) fail(tag + '한 색(' + P.topHex + ')이 캔버스의 ' + (P.top * 100).toFixed(1) + ' % (' + P.topAt.toFixed(2) + ' s) — 맨 위 멈춤의 하늘(' + hold.hex + ' ' + (hold.share * 100).toFixed(1) + ' %) + 2 % 를 넘는다 (화면이 거의 한 색인 순간)');
+    if (!(P.bodyMax < 0.5)) fail(tag + '구름 몸 색이 화면의 ' + (P.bodyMax * 100).toFixed(1) + ' % (' + P.bodyAt.toFixed(2) + ' s) — 절반 미만이어야 한다 (뚫는 구름 높이 ≤ 화면 높이 × CLOUD.bank)');
+    if (!(P.bodyMax >= 0.2)) fail(tag + '뚫는 구름이 안 지나감: 구름 몸 색이 많아야 ' + (P.bodyMax * 100).toFixed(1) + ' %');
+    if (P.sw == null) fail(tag + '2.1 s 까지 하늘 띠가 안 바뀜 (덮개 색 ' + P.hi + ' 그대로)');
+    else if (P.bgSw[0] !== 0 || P.bgSw[1] !== 0) fail(tag + '하늘 띠가 ' + P.sw.toFixed(2) + ' s 에 바뀌는데 하늘 띠가 바로 앞 프레임에 ' + P.bgSw[0] + ' px · 그 프레임에 ' + P.bgSw[1] + ' px 보인다 (바뀌는 순간이 보인다)');
+    if (P.touch) fail(tag + '구름 위 하늘과 구름 밑 판이 ' + P.touch + ' 곳에서 맞닿음 (' + P.touchAt.toFixed(2) + ' s) — 이음매');
+    if (P.edge) fail(tag + '캔버스 둘레 하늘 픽셀 ' + P.edge + ' 개가 그 높이의 덮개 색과 다름 (' + P.edgeAt.toFixed(2) + ' s)');
+    if (!P.cutHex) fail(tag + '구름 밑 판이 화면에 안 들어옴 (skyCut 이 한 번도 안 옴)');
+    else if (P.cutHex !== voidHex) fail(tag + '구름 밑 판 색 ' + P.cutHex + ' ≠ 착지 뒤 허공색 ' + voidHex + ' (판 아래 가장자리 · 하늘을 버리는 순간이 보인다)');
+    if (paint.phase !== 'sky') fail(tag + '1.5 s 에 입장 레이어가 하늘 단계가 아님 (' + paint.phase + ') — 덮개를 못 잰다');
+    else if (!png) fail(tag + '1.5 s 에 구름 밑 판 윗변이 창 안에 없음 (skyCut ' + JSON.stringify(paint.cut) + ') — 덮개를 못 잰다');
+    else if (paint.bad.length) fail(tag + '1.5 s 에 입장 레이어가 칠한 덮개가 장면과 안 맞음 (구름 몸 윗변 ' + Math.round(paint.cut.top) + ' px · 판 윗변 ' + Math.round(paint.cut.y) + ' px, 남색 ' + paint.hi + ' → 판 ' + paint.cut.hex + '): ' + paint.bad.join(' · '));
+    if (!P.occN) fail(tag + '구름 밑 판을 숨겨 견준 프레임이 없음 (bgProbe 가 판을 못 찾음)');
+    else if (P.occ) fail(tag + '구름 밑 판이 장면 물건(방 · 비)을 ' + P.occ + ' px 가림 (' + P.occAt.toFixed(2) + ' s) — 판은 방보다 뒤여야 한다');
+    console.log('  ' + tag + '한 색 최대 ' + (P.top * 100).toFixed(1) + ' % ' + P.topHex + ' (' + P.topAt.toFixed(2) + ' s, 맨 위 멈춤 ' + hold.hex + ' ' + (hold.share * 100).toFixed(1) + ' %) · 구름 몸 색 최대 ' + (P.bodyMax * 100).toFixed(1) + ' % (' + P.bodyAt.toFixed(2) + ' s) · 띠 바뀜 ' + (P.sw == null ? '없음' : P.sw.toFixed(2) + ' s (하늘 띠가 보이는 픽셀 ' + P.bgSw.join(' → ') + ')') + ' · 맞닿음 ' + P.touch + ' · 둘레 어긋남 ' + P.edge + ' · 판 ' + P.cutHex + ' / 허공 ' + voidHex + ' · 판이 가린 물건 ' + P.occ + ' px (' + P.occN + ' 프레임) · 1.5 s 덮개 ' + (paint.cols || []).map(function (q) { return q[0]; }).join(' · ') + ' (구름 몸 윗변 ' + Math.round(paint.cut ? paint.cut.top : NaN) + ' → 판 윗변 ' + Math.round(paint.cut ? paint.cut.y : NaN) + ' px) · ' + P.n + ' 프레임');
+    await bp.context().close();
   }
   var bad0 = process.exitCode;
   var ref = await bootRef(430, 932);
   var direct = await bootSky(430, 932, { zoom: 3, ref: ref });
   await bootSky(360, 740, { hold: [412, 915], mid: [430, 932], ref: ref, calls: direct });
   if (ref) await ref.close();
-  if (process.exitCode === bad0) console.log('  ✓ 부팅 경로: 하늘이 진짜 장면 크기로 지어지고, 크기가 바뀌어도 한 겹으로 이어진다');
+  await bootPass(360, 740, { hour: 13, lantern: 8, weather: 'clear', octState: 'idle', anchor: 'center' }, [412, 915]);
+  await bootPass(1280, 800, { hour: 18, lantern: 8, weather: 'rain', octState: 'idle', anchor: 'center' });
+  if (process.exitCode === bad0) console.log('  ✓ 부팅 경로: 하늘이 진짜 장면 크기로 지어지고, 크기가 바뀌어도 한 겹으로 이어지고, 뚫는 구름은 화면 절반 밑으로 지나가며 하늘 띠가 바뀌는 순간이 안 보인다');
   if (process.env.BOOT_ONLY) { await browser.close(); if (errs.length) { errs.forEach(function (e) { console.error('  ' + e); }); fail('에러 ' + errs.length + '건'); } console.log(process.exitCode ? '실패' : 'OK — 입장 레이어 (부팅 경로만)'); return; }
 
   /* 1) 첫 실행 */

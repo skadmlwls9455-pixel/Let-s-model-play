@@ -24,14 +24,14 @@ html.intro-reveal #album-sec, html.intro-reveal #demo, html.intro-reveal .foot {
 /* :root[data-font="pixel"] #scene (1,2,0) 보다 세게: :root.intro-on[data-font] (1,3,0) */
 :root.intro-on[data-font] #scene, :root.intro-on #scene { border-color: transparent; }
 :root.intro-on[data-font] #scene::after, :root.intro-on #scene::after { opacity: 0; }
-:root.intro-on #scene3d, :root.intro-on[data-font] #scene.mode-3d { background: var(--intro-sky, #090a14); }
+:root.intro-on #scene3d, :root.intro-on[data-font] #scene.mode-3d { background: var(--intro-grad, var(--intro-sky, #090a14)) border-box; }   /* 11-12: 뚫는 구름이 지날 땐 위 남색 · 몸 뒤 몇 칸 · 아래 구름 밑 하늘색 (intro.js setSky) */
 :root.intro-on #scene.mode-2d, :root.intro-on[data-font] #scene.mode-2d { background: var(--intro-sky, #090a14); }   /* 2D 대체: 무대 둘레 종이색 대신 하늘 (무대가 아래에서 올라오는 동안 구멍이 하늘) */
 :root.intro-reveal[data-font] #scene, :root.intro-reveal #scene, :root.intro-reveal #scene::after { transition: border-color var(--t-scene) linear, opacity var(--t-scene) linear; }
 
 /* ── 레이어 ── */
 .intro { position: fixed; inset: 0; z-index: 80; cursor: pointer; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 .intro-veil { position: absolute; inset: 0; overflow: hidden; pointer-events: none; transition: opacity calc(420ms * var(--speed)) var(--ease-exit, ease-in); }
-.intro-hole { position: absolute; box-shadow: 0 0 0 200vmax var(--intro-sky, #090a14); }   /* 장면 자리만 뚫린 덮개 (그림자는 정적, 걷힐 땐 부모 opacity) */
+.intro-hole { position: absolute; box-shadow: var(--intro-shade, 0 0 0 200vmax var(--intro-sky, #090a14)); }   /* 장면 자리만 뚫린 덮개 (그림자는 정적, 걷힐 땐 부모 opacity). 11-12: 뚫는 구름이 지날 땐 그림자 여러 겹 (intro.js setSky --intro-shade) */
 .intro.leaving .intro-veil { opacity: 0; }
 
 .intro-title { position: absolute; padding: 0; margin: 0; border: 0; background: none; cursor: pointer; display: block; outline: none; }

@@ -44,7 +44,7 @@ var INTRO = (function () {
 
   var LOGO = { w: 160, h: 41 };
   /* 하늘 단계 (카드 11): 전체 dur 초 = 맨 위 멈춤 top + 움직임. 높이는 장면 화면 높이의 배수 (예전 1.35). 곡선은 장면이 정한다 (패치: 사다리꼴 속도, 움직임 90 % 에 착지) */
-  var SKY = { dur: 3.0, top: 0.4, height: 2.6, land: 0.9 };
+  var SKY = { dur: 3.0, top: 0.4, height: 2.6, land: 0.9, steps: 6 };
   var TITLE_AT = (SKY.top + SKY.land * (SKY.dur - SKY.top)) / SKY.dur;   /* 타이틀 '딱' = 착지 순간 (장면 진행도). 옛 곡선(0.86 에 착지)에도 착지 뒤 */
   var st = { phase: 'off', scene: null, el: null, s: 2, reduced: false, cbs: [], timers: [], raf: 0, rise: null, ro: null, inert: [], skyLive: false, sky: '', bobs: 0, d2: null };
 
@@ -103,7 +103,20 @@ var INTRO = (function () {
   function setSky(hex) {
     var sky = hex || (st.scene && st.scene.skyHex && st.scene.skyHex()) || '#090a14';
     if (sky !== st.sky) { st.sky = sky; root.style.setProperty('--intro-sky', sky); }
+    /* 11-12: 뚫는 구름이 얇아져 그 밑 하늘(판)이 하늘 띠가 바뀌기 전에 보인다 → 장면 밖 덮개도 장면이 알려 준 높이로 나눈다: 구름 몸 윗변(top) 위 남색 · 판 윗변(y) 아래 판 색 ·
+       그 사이(구름 몸 뒤)는 남색에서 판 색으로 SKY.steps 칸. 넓은 화면 양옆에 곧은 남색/판 색 금이 생기지 않게. 그림자는 앞에 적은 것이 위 (덮개) · 장면 둘레 틈은 같은 칸의 배경 */
+    var cut = !hex && st.scene && st.scene.skyCut ? st.scene.skyCut() : null, r = cut && st.hole ? st.hole.getBoundingClientRect() : null;
+    var y = r ? Math.round(cut.y - r.top) : 0, y0 = r ? Math.min(y, Math.round(cut.top - r.top)) : 0, key = r ? sky + cut.hex + y + ',' + y0 : '';
+    if (key === st.cut) return;
+    st.cut = key; var rs = root.style;
+    if (!r) { rs.removeProperty('--intro-grad'); rs.removeProperty('--intro-shade'); return; }
+    var H = Math.round(r.height), n = SKY.steps, g = [sky + ' ' + y0 + 'px'], sh = [], up = function (b, c) { sh.push('0 calc(' + (b - H) + 'px - 200vmax) 0 200vmax ' + c); };   /* 그림자 아래 끝 = 구멍 위에서 b px */
+    up(y0, sky);
+    for (var i = 0; i < n; i++) { var a = y0 + Math.round((y - y0) * i / n), b = y0 + Math.round((y - y0) * (i + 1) / n), c = mixHex(sky, cut.hex, (i + 0.5) / n); g.push(c + ' ' + a + 'px ' + b + 'px'); up(b, c); }
+    g.push(cut.hex + ' ' + y + 'px'); sh.push('0 0 0 200vmax ' + cut.hex);
+    rs.setProperty('--intro-grad', 'linear-gradient(' + g.join(', ') + ')'); rs.setProperty('--intro-shade', sh.join(', '));
   }
+  function mixHex(p, q, t) { var a = parseInt(p.slice(1), 16), b = parseInt(q.slice(1), 16), o = 0; for (var s = 16; s >= 0; s -= 8) o |= Math.round(((a >> s) & 255) * (1 - t) + ((b >> s) & 255) * t) << s; return '#' + (0x1000000 | o).toString(16).slice(1); }
   function setLift(px) { st.lift.style.transform = 'translateY(' + Math.round(px) * st.s + 'px)'; }   /* 아트 px → 정수 CSS px */
 
   /* 로고 '딱' (카드 11): 슥 올라오는 대신 두 프레임 만에 제자리에 꽂힌다 — 4px 아래 한 프레임 → 제자리 → 2px 튕김 → 제자리 (아트 px 계단, 보간 없음) → 반짝 한 번 */
@@ -256,7 +269,7 @@ var INTRO = (function () {
     st.inert.forEach(function (c) { c.inert = false; }); st.inert = [];
     if (st.scene && st.scene.introRelease) st.scene.introRelease();   /* 장면 비네트 복귀 (덮개가 걷힌 뒤) */
     if (st.el && st.el.parentNode) st.el.parentNode.removeChild(st.el);
-    root.classList.remove('intro-reveal', 'intro-reduced', 'intro-on', 'intro-live'); root.style.removeProperty('--intro-sky');
+    root.classList.remove('intro-reveal', 'intro-reduced', 'intro-on', 'intro-live'); ['--intro-sky', '--intro-grad', '--intro-shade'].forEach(function (k) { root.style.removeProperty(k); }); st.cut = '';
     st.el = null; st.phase = 'done';
     markToday();   /* 오늘은 들어왔다 → 같은 날 다시 열면 바로 게임 */
     var cbs = st.cbs; st.cbs = []; cbs.forEach(function (f) { try { f(); } catch (e) { console.error('[intro]', e); } });
