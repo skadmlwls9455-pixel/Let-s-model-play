@@ -1,4 +1,4 @@
-# 2차 배포 진행 상황 (2026-11-13 13:00 UTC 갱신, 처음 저장 11-12 22:10)
+# 2차 배포 진행 상황 (2026-11-13 15:35 UTC 갱신, 처음 저장 11-12 22:10)
 
 사용량 한도에 걸려 세션이 멈춰도 이어서 할 수 있게 남겨 둔다. 이 폴더는 배포에 나가지 않는다 (`wip/`).
 
@@ -30,10 +30,11 @@
 
 ## 아직 도는 것 (`patches/` 에 그 시점의 고침을 저장)
 
-| 갈래 | 지시문 | 바탕 커밋 | 패치 | 11-13 13:00 상태 |
+| 갈래 | 지시문 | 바탕 커밋 | 패치 | 11-13 15:35 상태 |
 |---|---|---|---|---|
-| 위층 1번 (b) 후속 (OW-3) + 시험 빈틈 RO-1 · RO-2 | `briefs/fix-owner3.md` | `a0483dd` (가지 fix-owner) | `patches/owner3-on-a0483dd.patch` | 고침 → 검증 (`reports/report-check-owner3.json`: should 하나 = 시험 빈틈) → 보수 중 |
-| 배포 전 독립 검증이 찾은 것 (v2) | `briefs/fix-v2.md` | `6d03faf` (가지 fix-v2) | (아직) | 고치는 중 |
+| 위층 1번 (b) 후속 (OW-3) + 시험 빈틈 RO-1 · RO-2 | `briefs/fix-owner3.md` | `a0483dd` (가지 fix-owner) | `patches/owner3-on-a0483dd.patch` | 고침 → 검증 → 보수 끝 (`reports/report-repair-owner3.json`) → 재검증 중 |
+| 배포 전 독립 검증이 찾은 것 (v2) | `briefs/fix-v2.md` | `6d03faf` (가지 fix-v2) | `patches/v2-on-6d03faf.patch` | 고침 끝 (`reports/report-fix-v2.json`) → 독립 검증 중 |
+| 문어 마음을 지어낸 말 셋 (honest) | `briefs/fix-honest.md` | `6d03faf` (가지 fix-honest) | `patches/honest-on-6d03faf.patch` | 고침 끝 (`reports/report-fix-honest.json`) → 독립 검증 중 (주인에게 물어봄, 답 없으면 넣음) |
 
 배포 전 독립 검증 (`6d03faf`, 네 갈래 + 찾은 must · should 마다 따로 재현): `reports/report-v2-*.json`,
 `reports/report-verify2-all.json`. **must 하나**: 지금 배포본(f2c93f1)이 주는 주간 할 일 '선물 상자에서 하나 내밀기' 를

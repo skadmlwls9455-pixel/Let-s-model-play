@@ -1,0 +1,45 @@
+{
+ "summary": "Both checker problems are fixed. The fix tree has a few more uncommitted changes, every suite I ran is green, and nothing was committed.\n\nCO3-1 (should). The checker said that `restPhase() !== 'up'` in on.octUp (js/app.js:542) had no failing check, and that was true: no check read which attic spot an ordinary awake octopus lands on when it comes down from upstairs. I extended Z part 5-2 (block Z-5a). After the day change ends the rest window, the test places the octopus on the window spot. Wandering is switched off so its spot cannot change. The player climbs, the octopus follows, and the player goes down. On the exact frame the octopus is moved back to the attic, the new check requires all of these:\n- the app anchor is still 'window';\n- the scene octopus is at the window anchor (within 0.01);\n- it is idle;\n- restPhase is 'up'.\n\nWith that condition removed (mutant K1: `if (an !== 'blanket') octPlace('blanket')`), Z part 5 gives 16 passed, 1 failed. Only the new check fails: the octopus lands on the blanket (anchor 'blanket', 1.66 m from the window spot). On the repaired tree the new check passes (anchor 'window', 0.0028 m away).\n\nCO3-2 (nit). The `|| octWithMe()` in sleepNow could never be reached:\n- Upstairs, watching() is false, so lieDown always calls sleepNow(t, true).\n- The one call without `place` comes after walkTo('blanket') in the attic. During that walk a resting octopus cannot follow the player up, because octResting is true while rest is set.\n\nI removed it and wrote the reason in the comment. Player behaviour does not change. The real guard against sleeping upstairs is `restDown()` inside `if (place)`, and the earlier mutant MF already showed that 5-5d and 5-6 fail without it.\n\nSuites on the final tree all pass:\n- npm test: every sub-suite 0 failed.\n- Font check: `stale: none`.\n- Z three times in a row: 55/0 each.\n- Q once: 64/0.\n- A once: 74/0.\n- Z part 5 alone: 17/0.\n\nQ ran once, not three times, and Y was not rerun; the reasons are under the suites.",
+ "changes": [
+  {
+   "id": "CO3-2",
+   "file": "js/app.js",
+   "lines": "1401 (sleepNow)",
+   "what": "`if (place || octWithMe())` became `if (place)`. The comment now says why that is enough: upstairs, watching() is false, so the call always has place set.",
+   "why": "The extra condition could never be reached and no check failed without it. The checker offered two remedies (drop it or document it); I dropped it to keep the change small. Behaviour does not change."
+  },
+  {
+   "id": "CO3-1",
+   "file": "tools/smoke.js",
+   "lines": "5569-5576 (scenario Z, part 5-2, block Z-5a)",
+   "what": "Before the player climbs again after the day change, the test turns wandering off and puts the octopus on 'window' (APP.scene.jumpTo plus APP.oct.anchor). After the existing z6 check, a per-frame hook (__zEach) records the first frame on which the octopus is back in the attic: its anchor, state, restPhase and distance to the window anchor. A new ok() requires z6.an === 'window', un52.phase === 'up', un52.an === 'window', un52.d < 0.01 and un52.st === 'idle'.",
+   "why": "This guards the `restPhase() !== 'up'` condition on the blanket placement in on.octUp. Without it, an ordinary awake octopus would land on the blanket every time the player comes down. The check uses lantern 4 (REC(4)), so the blanket spot exists. With fewer lanterns, octPlace('blanket') falls back to 'center', which could hide the bug in Z-1."
+  }
+ ],
+ "decisions": "CO3-1: I put the new check in part 5-2 rather than in Z-1. Z-1 runs with 2 lanterns, so a wrong octPlace('blanket') there resolves to 'center'. Z-1's octopus can also be standing on 'center' already, so the check would not reliably fail. Part 5-2 has 4 lanterns and an octopus that has just left its rest window (restPhase 'up'). Placing it on 'window', with wandering off, makes the expected spot fixed. I read the state on the first attic frame through the scenario's existing __zEach hook, as Z-1 does, so no wandering can start in between.\n\nCO3-2: dropped rather than documented. The checker allowed either. Removing it is the smaller code and leaves no line without a check. The sleeping-upstairs guard that matters stays in place: restDown() inside the place branch.",
+ "new_text": [
+  "No new or changed player-facing text. Only a code comment changed (js/app.js:1401, Korean, dated 11-13) and one test label in tools/smoke.js: '틈이 끝나 따라 온 문어는 내려오면 제 자리 (창가 — 담요로 옮기지 않는다)'."
+ ],
+ "guard": "New check: Z part 5-2 (Z-5a), tools/smoke.js:5575, '틈이 끝나 따라 온 문어는 내려오면 제 자리 (창가 — 담요로 옮기지 않는다)'. An octopus whose rest window has ended (restPhase 'up') follows the player upstairs from the window spot. On the first frame back in the attic it must have anchor 'window', be within 0.01 of the window anchor, be idle and be in phase 'up'.\n\nMutation table, additions for this round (logs in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-owner3/logs/):\n- K1: `restPhase() !== 'up'` removed from on.octUp (js/app.js:542). Z part 5 gives 16 passed, 1 failed. Only the new check fails, reporting {\"an\":\"blanket\",\"st\":\"idle\",\"phase\":\"up\",\"d\":1.6649}. Log: mut-K1.log.\n- Repaired tree: Z part 5 gives 17 passed, 0 failed; the new check reports {\"an\":\"window\",\"st\":\"idle\",\"phase\":\"up\",\"d\":0.0028}. Log: z5-fixed.log.\n\nCO3-2 needs no mutant, because the condition was removed. The first round's mutants MF (no restDown in sleepNow: 5-5d and 5-6 fail) and MA through MW still apply as reported. The removed `|| octWithMe()` branch was not part of any of them. The mutant copy in /dev/shm/ro3 has been deleted.",
+ "suites": [
+  "npm test on the final tree: every sub-suite 0 failed (517, 26, 568, 225, 192, 234, test-export 46 passed, among others). Log: repair-owner3/logs/npm-test.log.",
+  "Font check: stale: none.",
+  "SMOKE_ONLY=Z three runs in a row on the final tree: 55/0, 55/0, 55/0 (one check more than the earlier 54). Load about 8.5, then 4 to 7, then 8 to 11. Logs: repair-owner3/logs/Z1.log, Z2.log, Z3.log.",
+  "SMOKE_ONLY=Z SMOKE_Z=5 on the final tree: 17/0 (logs/z5-fixed.log).",
+  "SMOKE_ONLY=Q once: 64/0 (load 13 to 15.7). Log: logs/Q1.log. It ran once, not three times: this round changed no Q code or weekly code, and Q passed three times in a row on the first round's tree.",
+  "SMOKE_ONLY=A once: 74/0 (load about 14 to 15). Log: logs/A1.log.",
+  "Y was not rerun this round. The only app change is removing a condition that could not be reached, and the mirror code is untouched. The first round's Y run on its final tree was 99/0.",
+  "node tools/test-scene-perf.js was not run, because js/scene3d.js did not change.",
+  "No control runs were needed, because nothing failed. git status shows only the four intended files (js/app.js, tools/smoke.js, docs/SALON.md, docs/ROOM_EXPANSION.md) and no evidence files changed."
+ ],
+ "left": [
+  "Nothing new seen. The first round's open items are unchanged: a stale storage event from another tab, arriving while the player is upstairs after the window has passed, still moves the octopus to the blanket in front of the player. docs/OWNER_DECISIONS.md has no index line for the 11-13 decisions."
+ ],
+ "not_verified": [
+  "Q was run once this round, not three times. This round changed no Q code; Q passed three times on the first round's tree.",
+  "Y (the mirror) was not rerun after this round's small app change.",
+  "The new check covers only the stairs route down for an octopus that is not resting. Going down through the play room, the outside, a ceremony or a reload is still guarded only by reading the code, as the first report says.",
+  "The rest of the first round's not-verified list still applies: the 2D fallback, a day change while the octopus stays upstairs in its window, a real model turn, and runs on a quiet machine."
+ ],
+ "pictures": []
+}

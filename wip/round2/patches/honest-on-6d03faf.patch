@@ -1,0 +1,249 @@
+diff --git a/css/style.css b/css/style.css
+index 165d3ca..2b611fe 100644
+--- a/css/style.css
++++ b/css/style.css
+@@ -184,7 +184,7 @@ a { color: var(--teal); touch-action: manipulation; }
+   font-size: 10px; line-height: 1.3; width: max-content; max-width: 150px; white-space: normal; text-align: center;
+   box-shadow: var(--shadow-xs); animation: bubble-in var(--t-ui) var(--ease-enter) both;
+ }
+-#oct-label:not(:empty) ~ #oct-bubble { bottom: calc(100% + 14px - var(--bub-dy, 0px)); }   /* 이름표(자는 중 · 꿈꾸는 중 · 출발 중…)가 있으면 그 위로 */
++#oct-label:not(:empty) ~ #oct-bubble { bottom: calc(100% + 14px - var(--bub-dy, 0px)); }   /* 이름표(자는 중 · 출발 중…)가 있으면 그 위로 */
+ @keyframes bubble-in { from { opacity: 0; transform: translate(-50%, 4px); } to { opacity: 1; transform: translate(-50%, 0); } }
+ /* 상태별 모션 */
+ .st-idle #oct-inner, .st-stay #oct-inner { animation: breathe var(--t-idle) ease-in-out infinite; }
+diff --git a/docs/DESIGN.md b/docs/DESIGN.md
+index 23fcf11..808bbe3 100644
+--- a/docs/DESIGN.md
++++ b/docs/DESIGN.md
+@@ -305,7 +305,7 @@ matchHint(hint) →
+ - **걸음: 뒤뚱뒤뚱** — 미끄러지지 않고 걷는다. 걸음 위상은 시간이 아니라 간 거리(보폭 0.6 m → 1.2 m/s 에서 한 발 0.5 s, 바깥 1.8 m/s 에선 저절로 빨라짐). 걸음마다 진행 축으로 ±7° 굴림(−7/0/+7 3단, 걸음 중간 정점) · 요 ±4° · 앞으로 5° · 걸음 중간 1 아트px 위로 · 디딤마다 6 % 눌림(y 0.94, xz 1.03) 80 ms 후 회복. 내딛는 쪽 다리 4개가 들려 앞으로 쓸고 다음 걸음에 디딘다(좌우 번갈아, 다리는 몸보다 60 ms 늦게). 출발 120 ms 예비 동작(눌림 + 뒤로 3°) 후 첫 걸음에 방향을 돌고, 멈출 땐 굴림이 한 번 넘었다 돌아오며 1px 통통. 계단 폴짝은 폴짝 그대로. 모션 감소면 없음(즉시 이동).
+ - **몸 색 (11-08 밤 주인 — 처음 한 번 + 미용실)**: 첫 실행 이름 창에서 사람이 한 번 고른다 (색 6칸 빨강·주황·보라·파랑·초록·분홍, 슬라이더 없음, 처음엔 빨강. 누르면 창 안 초상만 바뀌고 장면 문어는 저장 때 한 번 — §7.8). 그 뒤엔 설정에 고르는 칸이 없다 (§7.5). 바꾸려면 다락 거울 코너(**미용실**, 등불 2칸부터)에서 사람이 병 하나를 내밀고 묻고, 바꿀지는 문어가 정한다 ('바꾸기' 면 대야에서 첨벙, '그대로' 면 병이 제자리로. 하루 한 번 — `docs/SALON.md`). 색은 `octopus.color` 하나에서 읽는다 (§8). 몸 색에서 하이라이트(밝게), 다리 밑면(더 밝고 따뜻하게), 그림자(어둡게) 램프를 만들어 팔레트에 넣는다. 잠잘 때 색 순환, 쓰다듬으면 홍조(§14).
+ - 2D 폴백(인라인 SVG 문어)도 같은 상태 이름으로 움직인다.
+-- `sleep`: 느린 호흡 + **색 순환**(hue-rotate ±18°, 12초 주기). 라벨은 글자만 (옛 `💤` 는 11-07 규칙으로 뺀다, §7 맨 위) → 가끔 `꿈꾸는 중`. (문어의 활성 수면: 자면서 피부색이 바뀐다.)
++- `sleep`: 느린 호흡 + **색 순환**(hue-rotate ±18°, 12초 주기). 라벨은 글자만 (옛 `💤` 는 11-07 규칙으로 뺀다, §7 맨 위) → `자는 중` 하나 (11-13, 금지선 1: 가끔 쓰던 `꿈꾸는 중` 은 문어 속 경험을 지어내는 말이라 뺐다). (문어의 활성 수면: 자면서 피부색이 바뀐다 — 색으로만 보이고 글로 풀지 않는다.)
+ - 모든 모션은 `transform/opacity` 만. `prefers-reduced-motion: reduce` 면 걷기 대신 즉시 이동, 비·흔들림 정지, 플립 없이 교체.
+ 
+ ### 7.2 상태줄
+diff --git a/docs/DIALOGUE_UI.md b/docs/DIALOGUE_UI.md
+index ab4a827..2a6e140 100644
+--- a/docs/DIALOGUE_UI.md
++++ b/docs/DIALOGUE_UI.md
+@@ -165,7 +165,7 @@
+ | 코드는 사실만 | 등불 소품 줄을 "놓였어" 같은 사실 문장으로 바꾼다. "이제 진짜 내 다락이야" 같은 감정 주장은 뺀다 | CURIOSITY 원칙 1 |
+ | 압박이 없다 | "기다리고 있었어" 를 뺀다. 📜 버튼에 '안 읽은 줄 N' 배지나 점을 두지 않는다. 건너뛰어도 잃는 게 없다 | 중요 2 |
+ | 산책 박자를 붙잡지 않는다 | 게임은 대사창을 **기다리지 않는다**. 대사창은 받은 줄을 보여 주기만 한다. 모델에게 "누가 읽고 있어" 같은 신호를 보내지 않는다. 예외는 같이 가기(CORE_LOOP_V2) 하나: 화면 **재생 시계만** 기웃에서 최대 6초 멈출 수 있다 (문 앞 선택은 11-07 에 없앴다). 두뇌와 모델은 멈추지 않는다 | PROTOCOL §3 |
+-| 혼잣말은 말풍선으로만 | 톡·쓰다듬기 반응(`…♡`, `?`)은 장면의 기호 말풍선으로만 보인다. 대사창과 다시 보기에 넣지 않는다. 톡 한 줄 · '응?' · '쿨쿨…' 도 말풍선만 (로그 · 대사창 · 다시 보기에 안 남김, 11-08) | 결정 #10 |
++| 혼잣말은 말풍선으로만 | 톡·쓰다듬기 반응(`…♡`, `?` — 지금 쓰다듬기는 말 없이 `…`, 11-13 금지선 1)은 장면의 기호 말풍선으로만 보인다. 대사창과 다시 보기에 넣지 않는다. 톡 한 줄 · '응?' · '쿨쿨…' 도 말풍선만 (로그 · 대사창 · 다시 보기에 안 남김, 11-08) | 결정 #10 |
+ 
+ ### 4.2 기웃 메모는 누구의 말인가
+ 
+diff --git a/docs/SALON.md b/docs/SALON.md
+index 6e883e0..35bbc13 100644
+--- a/docs/SALON.md
++++ b/docs/SALON.md
+@@ -271,7 +271,7 @@ applyLook(opts)          // 장면 색 ≠ S.octopus.color 이면 scene.setColor
+    - 깨어 있는 틈이 연출 중에 끝나도 눕지 않는다. 낮잠은 연출이 끝난 뒤에 시작한다.
+    - 내 캐릭터 (11-10): 연출은 내 캐릭터의 걷기로 끊기지 않는다. 캐릭터는 스틱 · 방향키로 그대로 걷는다. 문에 닿아 걸어도 연출 중엔 방을 옮기지 않는다 (`goRoom` 이 `salon` 으로 거절 — 연출이 끝난 뒤에도 밀고 있으면 그때 넘어간다). 문어가 설 자리(`salon`)에 캐릭터가 서 있으면 장면이 캐릭터를 옆으로 비켜 세우고 (`plAvoidOct`), 대야가 놓일 자리에 서 있으면 밀어낸다 (대야는 둥근 장애물).
+ 4. 행 1 (집 목소리, 라벨 '미용실'): "파란색 어때? 하고 물어봤어."
+-5. 문어가 걷는 중이면 도착을 기다린다(최대 4 s, 넘으면 그 자리로 건너뜀). 쓰다듬기는 [물어보기] 를 누른 그 순간 (2 의 저장과 같은 일 안에서) 끝낸다 (11-11, 검증 E2): 2 s 뒤의 '…좋아' 예약을 지우고, 떠 있던 혼잣말 · 톡 한 줄 · 생각 말풍선을 내린다. 물음과 대답 사이에 뜨는 말풍선은 대답뿐이다 — 코드가 쓴 '…좋아' 뒤에 '안 바꿀래.' 가 오면 마음을 바꾼 것처럼 읽힌다.
++5. 문어가 걷는 중이면 도착을 기다린다(최대 4 s, 넘으면 그 자리로 건너뜀). 쓰다듬기는 [물어보기] 를 누른 그 순간 (2 의 저장과 같은 일 안에서) 끝낸다 (11-11, 검증 E2): 2 s 뒤의 쓰다듬기 말풍선 '…' (11-13 전엔 '…좋아') 예약을 지우고, 떠 있던 혼잣말 · 톡 한 줄 · 생각 말풍선을 내린다. 물음과 대답 사이에 뜨는 말풍선은 대답뿐이다 — 코드가 쓴 '…좋아' 뒤에 '안 바꿀래.' 가 오면 마음을 바꾼 것처럼 읽혔다.
+ 6. 눈이 내민 병으로 간다(이미 가 있음). **숨 고르기 1.0 s + 움츠림 0.5 s**. 움츠림은 장면 상태 `ponder`(`scaleY .92 / scaleX 1.05`, 얼굴 idle)다. 출발용 `anticipate` 를 쓰지 않는다(반눈 calm 얼굴과 출발 먹물이 따라온다). 두 답 모두 같다. 모션 줄이기면 장면은 움츠리지 않고 앱이 그만큼 멈춘다. 모델 길이면 이 박자가 요청 대기를 덮는다.
+ 7. 대답을 보인다 (§3.4).
+ 
+@@ -801,7 +801,7 @@ JSON 그대로 나간다. 들어올 때는 §7.2 를 지난 뒤, **같은 문어
+     - 13 (모델 답은 `SALON.makeAsk` 에서 끼워 넣는다 — 앱에 모델 길이 아직 없다): 13a 모델의 말이 행 2 · 말풍선에 글자 그대로 (data-raw · 꼬리 '모델' · 그동안 '데모' 꼬리표 숨김 · 모델이 고른 얼굴). 13b 데모 '그대로' 의 얼굴 idle · 묻기 전에 내보낸 파일을 불러와도 물음과 쉼이 남는다 (W1 — 물은 지 10 분 뒤로 돌려 놓고 불러온다: 불러오기엔 두 탭 합치기의 60 s 창이 없다). 13c 빈칸뿐인 말은 행 2 · 말풍선 없음 · 저장은 한 번에 (물음 + 새 색) · 연출 중 장면은 옛 색 · 연출 중 불러오기는 연출을 먼저 접고 '바꾸기' 대답은 남는다. 13d 다른 문어의 파일은 그대로. 13z 앨범 '일기' 는 밀린 물음 (dropped) 을 세지도 그리지도 않는다. 13e 연출 중에 탭이 숨으면 (`document.hidden`) 지킴이가 대답 박자 전에 접는다 (시각이 아니라 차례로 본다: 대답 말풍선이 한 번도 안 뜬 채 행 셋).
+     - 2d (손가락): 거울 두 번 톡 → 시트가 열린 채 (P6 = E12). 시트 [닫기] 두 번 톡 (미용실 · 로그 · 앨범 · 살림 · 설정) → 산책이 안 나간다. [물어보기] 두 번 톡 → 물음 하나 · 연출이 안 감긴다 (E1 = P1). 틈이 지난 한 번 누름은 초대. 두 번 톡은 둘째 톡을 첫 톡의 처리를 기다리지 않고 보낸다 (`tapTwice` — CDP 로 차례만 지켜서. `touchscreen.tap` 두 번은 바쁜 기계에서 첫 톡이 시트를 여는 0.5 – 1 s 뒤에야 둘째가 나갔다). 실제 간격은 페이지 안에서 재고 0.55 s 를 넘긴 것은 다시 한다. 11-12 위층 판에 합치며: 2d · 12 · 13 은 위층에서 한다 (`up` — 거울이 위층에 있다). 위층에서 큰 버튼이 받은 누름은 먼저 계단으로 내려가고 산책은 1 s 넘게 뒤에 나서, 두 번 톡 검사는 큰 버튼이 방 옮기기(`scene.goRoom`)를 불렀는지도 본다. 살림 · 설정 시트는 길어서 안에서 굴러가니 [닫기] 를 보이게 굴린 뒤 잰다. 내 모습 시트의 [다 골랐어] 도 잰다. 틈의 크기는 시각을 단 누름 둘로 본다 (CDP timestamp): 시트가 닫힌 뒤 250 ms 의 누름은 받지 않고 700 ms 의 누름은 받는다 (위의 두 번 톡은 둘째가 닫히기 전에 처리돼 틈의 크기를 재지 못했다).
+     - 10c: 다른 탭이 내 모습을 바꾸면 이 탭의 3D 캐릭터도 따라간다 (E3).
+-    - 12a · 12b: 묻는 순간 떠 있던 '…좋아' 가 내려가고 쓰다듬기가 끝난다 · 말풍선은 대답뿐 (E2) · 연출 끝에 돌아다니기 예약 (W10, 두 답). 12c: 날이 바뀌어 쉼이 풀린 병 (E11). 12d · 12e: 행 3 오류 · `setSalonOpen` 오류에도 풀린다 (E4). 12f: 밀린 물음의 연출을 접는다 (E10). 12g: 방향키를 누른 채 창을 열면 키를 놓는다 (E9).
++    - 12a · 12b: 묻는 순간 떠 있던 쓰다듬기 말풍선 '…' (11-13 전엔 '…좋아') 가 내려가고 쓰다듬기가 끝난다 · 말풍선은 대답뿐 (E2) · 연출 끝에 돌아다니기 예약 (W10, 두 답). 12c: 날이 바뀌어 쉼이 풀린 병 (E11). 12d · 12e: 행 3 오류 · `setSalonOpen` 오류에도 풀린다 (E4). 12f: 밀린 물음의 연출을 접는다 (E10). 12g: 방향키를 누른 채 창을 열면 키를 놓는다 (E9).
+ - 시간이 흔들리지 않게 `__ppolTest` 와 `salonFinish` 로 몬다. 기다리기로 맞추지 않는다.
+ - 단 하나, 모션 줄이기 4.5 s 는 벽시계로 잰다 (스펙의 숫자). 11-10 실측: 다른 일이 없는 기계에서 3946 ms, 다른 브라우저 시험이 같이 도는 기계 (부하 4 ~ 8) 에서 4627 · 4663 ms 로 이 한 줄만 실패했다. 문턱은 그대로 두었다.
+ 
+diff --git a/docs/UI_ART.md b/docs/UI_ART.md
+index 4263060..e87d0ea 100644
+--- a/docs/UI_ART.md
++++ b/docs/UI_ART.md
+@@ -124,8 +124,8 @@ manifest 에 `frames`, `cell: 8` 이 적혀 있다.
+ | 들른 곳 사이 → · 못 읽음 뒤 ✕ · 출처 ↗ · 힌트 → | ` · `(픽셀 테마는 32px 그림이라 한 줄에 하나씩, 사이 점 없이) · 상태 그림 + 짧은 낱말(`못 읽음` · `모의`) · `출처:` · ` · ` |
+ | 공유 한 줄 `뽈뽈 #3 ☔🐙 → 🎩 → 🏠` | `뽈뽈 #3 · 비 오는 날 · 손 · 바다 · 들판` — 정류장 이름이 아니라 갈래 낱말만 (방 = 코너 낱말 손 · 바다 · 하늘 · 기호 · 수 · 소리 · 집 · 생각, 위키 · 모르는 곳 = 들판, 바깥 주소 = 밖). 스포일러 · 힌트 · 위키 제목 · 모델이 준 이름 없음 (CG R14). 날씨는 '… 날' (방 '비' 와 헷갈리지 않게). 집에 있던 날 `뽈뽈 · 오늘은 집` |
+ | 이름 창 큰 🐙 | `assets/oct/happy.svg` 48px (`img[data-asset="oct.happy"]`, app.js `fillAssetImgs`) |
+-| 문어 이름표 💤 | '자는 중' ↔ '꿈꾸는 중' |
+-| 쓰다듬기 '…♡' | '…좋아' (하트는 픽셀 테마 파티클 `fx.heart`) |
++| 문어 이름표 💤 | '자는 중' 하나 (11-13, 금지선 1: 번갈아 쓰던 '꿈꾸는 중' 은 문어 속 경험을 지어내는 말이라 뺐다) |
++| 쓰다듬기 '…♡' | '…' 말 없이 (하트는 픽셀 테마 파티클 `fx.heart`). 11-13 (금지선 1): 처음 바꾼 '…좋아' 는 코드가 문어 목소리로 좋다고 말한 것이라 뺐다 |
+ | 자는 문어 누름 · 쓰다듬기 · 창문 '…zZ' · 깨어 있는 문어 톡 '?' (말풍선 + 혼잣말 행) | '쿨쿨…' · 그날 마지막 차례 한 줄 (11-08, 없으면 '응?') — 셋 다 말풍선만 (혼잣말 행 없음). 소리는 글자가 아니라 kind `sleep` · `say`(한 줄 — 목소리 블립, 같은 줄은 20 s 안에 한 번) · `curious`('응?') 로 고른다 (js/audio.js 그대로). 장면 말풍선은 두 테마 모두 장면 칸 안에 맞춘다: 폭 220px · 옆으로 밀고 픽셀 꼬리는 거꾸로 · 위에 잘리면 아래로 (`--bub-dy`, 12px 넘으면 꼬리 `data-tail="off"`) — DIALOGUE_UI §5.15 |
+ | 등불 칸 ○ ● (시스템 테마) | CSS 로 그린 점 (픽셀 테마는 예전처럼 네모) |
+ | 달리기 ▲ 점프 · ▼ 숙이기 | 점프 · 숙이기 |
+diff --git a/js/app.js b/js/app.js
+index 49d8206..b85dd6b 100644
+--- a/js/app.js
++++ b/js/app.js
+@@ -919,8 +919,8 @@ var APP = (function () {
+     if (!ask) { d.close(); return false; }
+     if (dev) { salonNext = null; paintSalonNext(); }
+     setSalonActive(true);   /* 저장보다 먼저: 다른 탭 · 다시 그리기가 연출 전에 장면 몸색을 바꾸지 않게 (applyLook 을 미룬다) */
+-    /* 묻는 그 순간 쓰다듬기 뒤끝을 걷는다 (검증 11-10 E2): 2 s 뒤의 '…좋아' 예약 (pet) 을 지우고, 떠 있던 혼잣말 · 톡 한 줄 · 생각 말풍선을 내린다.
+-       예전엔 시트가 닫히는 0.25 s 뒤 (salonSettle) 에야 지워서, 물음 바로 뒤에 코드가 쓴 '…좋아' 가 뜨고 곧이어 '안 바꿀래.' 가 나올 수 있었다 — 마음을 바꾼 것처럼 읽힌다. 대답 말풍선은 이 뒤에 뜬다 */
++    /* 묻는 그 순간 쓰다듬기 뒤끝을 걷는다 (검증 11-10 E2): 2 s 뒤의 '…' 예약 (pet — 11-13 전엔 '…좋아') 을 지우고, 떠 있던 혼잣말 · 톡 한 줄 · 생각 말풍선을 내린다.
++       예전엔 시트가 닫히는 0.25 s 뒤 (salonSettle) 에야 지워서, 물음 바로 뒤에 코드가 쓴 그 말풍선이 뜨고 곧이어 '안 바꿀래.' 가 나올 수 있었다 — 마음을 바꾼 것처럼 읽힌다. 대답 말풍선은 이 뒤에 뜬다 */
+     clearTimeout(petTimer); if (oct.state === 'pet') octState('idle');
+     var ob = $('oct-bubble'); if (ob && !ob.hidden) bubble('', 0);
+     SAL.commit(S, ask); save(); rememberAsk(ask);   /* 물음 한 줄 + ('바꾸기' 면) colors 한 줄 + octopus.color + 사본 — 한 번에 */
+@@ -1141,7 +1141,7 @@ var APP = (function () {
+      장소 · 등불 · 날씨 · 시각대 · 문어 자리와 상태를 지금 값 그대로. 라이브 영역 아님 (사건은 #log 가 읽어 준다). 글자가 바뀔 때만 쓴다 */
+   var WX_DESC = { rain: '비 오는', drizzle: '가랑비 오는', clear: '맑은', snow: '눈 오는' };
+   var SPOT_DESC = { window: '창가', center: '방 가운데', crate: '나무 상자 옆', blanket: '담요 위', board: '포스터 판 앞', door: '문 앞', salon: (SAL && SAL.TEXT.spot) || '거울 옆' };
+-  var DOING_DESC = { idle: '쉬고 있어', stay: '쉬고 있어', sleep: '자고 있어', pet: '쓰다듬받고 있어', happy: '신나 있어', anticipate: '나갈 채비 중이야', hang: '포스터를 붙이고 있어', carry: '포스터를 들고 있어' };
++  var DOING_DESC = { idle: '쉬고 있어', stay: '쉬고 있어', sleep: '자고 있어', pet: '쓰다듬받고 있어', happy: '통통 뛰고 있어', anticipate: '나갈 채비 중이야', hang: '포스터를 붙이고 있어', carry: '포스터를 들고 있어' };
+   function partOfDay(hr) { return hr < 5 ? '밤' : hr < 9 ? '아침' : hr < 17 ? '낮' : hr < 19 ? '저녁' : '밤'; }
+   function sceneDescText() {
+     if (sceneView() === 'play')   /* 놀이방 (8물결): 문어는 다락(또는 산책) — 놀이방엔 오지 않는다 */
+@@ -1173,7 +1173,7 @@ var APP = (function () {
+     syncSalonSpot();   /* 문어가 나가 있으면 (2D 포함) 거울 단추를 숨긴다 */
+   }
+   var sleepReaction = null;   /* finalPose 가 잠재우기 직전에 넣는다 → 다음 'sleep' 상태 훅 한 번만 */
+-  var SLEEP_LABEL = '자는 중', DREAM_LABEL = '꿈꾸는 중';
++  var SLEEP_LABEL = '자는 중';   /* 11-13 (금지선 1): 예전엔 '꿈꾸는 중' 과 번갈았다 — 문어 속 경험을 지어내는 말이라 뺐다 */
+ 
+   /* ── 출발·귀가 의식 (DESIGN §15.3 · SCENE.md "바깥·계절·전환"): 다락 문 → 전환 → 현관 → 계단 → 길 → 화면 밖 / 그 거꾸로.
+      장면이 dt 로 돌리는 작업 큐라 끝날 때까지 moveTo/setOctState 를 부르지 않는다. 건너뛰기 = 남은 의식을 한 번에 감아 끝낸다(jumpCeremony).
+@@ -1429,12 +1429,12 @@ var APP = (function () {
+     bubble('…응?', 1600, 'sleepy'); expressRow('curious');
+   }
+   var dreamTimer = null;
++  /* 자는 동안 9–15 s 마다 스스로 깰 때인지 본다. 11-13: 이름표는 '자는 중' 그대로 (번갈아 쓰던 '꿈꾸는 중' 은 뺐다 — 이름만 옛날 것) */
+   function scheduleDreamLabel() {
+     clearTimeout(dreamTimer);
+     dreamTimer = setTimeout(function () {
+       if (oct.state !== 'sleep') return;
+       if (!oct.busy && !salonActive && !document.hidden && !lookHook() && napOver()) { selfWake(); return; }   /* 숨은 탭에선 기다렸다가 돌아와서 (깨는 걸 볼 수 있게) */
+-      var lbl = $('oct-label'); if (lbl) lbl.textContent = lbl.textContent === SLEEP_LABEL ? DREAM_LABEL : SLEEP_LABEL;
+       scheduleDreamLabel();
+     }, 9000 + uiRng() * 6000);
+   }
+@@ -1579,7 +1579,7 @@ var APP = (function () {
+     fit();
+     if (!b.hidden && sceneMode === '2d') bubFit = setInterval(fit, 200);
+   }
+-  /* 말풍선 + 로그 대화창 행 (§15.2 "?" · "비가 와" · "…좋아"): 장면 위 말풍선과 같은 말을 초상과 함께 오늘 칸에 남긴다 (저장 X — 새로고침하면 사라지는 혼잣말). 바로 앞 행과 같은 말이면 행은 생략.
++  /* 말풍선 + 로그 대화창 행 (§15.2 "?" · "비가 와" · "…"): 장면 위 말풍선과 같은 말을 초상과 함께 오늘 칸에 남긴다 (저장 X — 새로고침하면 사라지는 혼잣말). 바로 앞 행과 같은 말이면 행은 생략.
+      opt = bubble 의 opt (그림은 말풍선에만) */
+   function say(text, expr, ms, opt) {
+     bubble(text, ms, expr, opt);
+@@ -1616,8 +1616,8 @@ var APP = (function () {
+     clearTimeout(petTimer);
+     petTimer = setTimeout(function () {
+       if (oct.state !== 'pet') return;
+-      if (uiRng() < 0.7) { octState('idle'); say('…좋아', 'pet', 1800); }   /* 글자만 (예전 하트 기호는 뺐다 — 하트는 픽셀 테마 파티클이 띄운다) */
+-      else if (rest) octState('idle');   /* 깨어 있는 틈: 담요에서 말없이 그대로 (뽑기는 그대로 — '…좋아' 가 더 잦아지지 않게) */
++      if (uiRng() < 0.7) { octState('idle'); say('…', 'pet', 1800); }   /* 말 없이 '…' 만 (예전 하트 기호는 뺐다 — 하트는 픽셀 테마 파티클이 띄운다). 11-13 (금지선 1): '…좋아' 는 코드가 문어 목소리로 좋다고 말한 것이라 뺐다 */
++      else if (rest) octState('idle');   /* 깨어 있는 틈: 담요에서 말없이 그대로 (뽑기는 그대로 — '…' 가 더 잦아지지 않게) */
+       else { var opts = allowedIdleAnchors().filter(function (a) { return a !== oct.anchor; }); walkTo(opts[Math.floor(uiRng() * opts.length)] || 'center').then(function () { if (!oct.busy) octState('idle'); }); }
+     }, 2000);
+   }
+diff --git a/tools/smoke.js b/tools/smoke.js
+index a07cd5d..ea262fb 100644
+--- a/tools/smoke.js
++++ b/tools/smoke.js
+@@ -465,7 +465,60 @@ async function scenarioMain(browser) {
+   ok(await page.evaluate(function () { return typeof APP.posterSVG(APP.state.trips[0], 300, 400) === 'string' && APP.posterSVG(APP.state.trips[0]).indexOf('<svg') === 0; }), 'APP.posterSVG 문자열');
+   reportErrors(s.bag, 'A');
+   await s.ctx.close();
++  await scenarioHonestLines(browser);
+ }
++/* 11-13 (금지선 1): 코드가 쓴 세 줄이 문어 마음을 지어내지 않는다 — 쓰다듬기 말풍선 '…' (예전 '…좋아') · 폴짝/우쭐 뒤 장면 설명 (예전 '신나 있어') ·
++   낮잠 이름표 '자는 중' 하나 (예전 '꿈꾸는 중' 과 번갈음). 고정 앵글 훅(__ppolLook)으로 상태를 정하고, 기다림은 시간이 아니라 상태로 한다 */
++var FEEL_RX = /좋아|신나|기뻐|기쁘|행복|즐거|싫어|슬퍼|외로|심심|맛있|꿈/;
++async function scenarioHonestLines(browser) {
++  console.log('\n== A-2. 코드가 쓴 줄이 문어 마음을 말하지 않는다 (11-13)');
++  /* 1. 폴짝 · 우쭐 뒤 상태 happy 의 장면 설명: 보이는 몸짓만 (통통 뛴다) */
++  var h = await newPage(browser, 'ok', [{ content: "window.__ppolLook = { octState: 'happy', anchor: 'center' };" }]);
++  await h.page.goto(INDEX + '?dev=0');
++  await h.page.waitForFunction(function () { return window.APP && APP.oct.state === 'happy' && document.getElementById('scene-desc').textContent; }, null, { timeout: 20000 });
++  var hd = await h.page.evaluate(function () { return document.getElementById('scene-desc').textContent; });
++  ok(/통통 뛰고 있어/.test(hd) && !FEEL_RX_IN(hd), "상태 happy 의 장면 설명은 몸짓만 — 느낌 말 없음 ('" + hd + "')");
++  reportErrors(h.bag, 'A-2 happy');
++  await h.ctx.close();
++  /* 2. 낮잠 이름표: 9–15 s 마다 도는 낮잠 타이머를 40 ms 로 줄여 여러 번 돌린다 — 이름표는 늘 '자는 중' */
++  var z = await newPage(browser, 'ok', [{ content: "window.__ppolLook = { octState: 'sleep', anchor: 'blanket' }; window.__napSeen = []; (function () { var o = window.setTimeout; window.setTimeout = function (f, ms) { if (typeof f === 'function' && ms >= 9000 && ms <= 15000 && String(f).indexOf('scheduleDreamLabel') >= 0) { var g = f; f = function () { g(); var l = document.getElementById('oct-label'); window.__napSeen.push(l ? l.textContent : null); }; ms = 40; } return o.apply(window, [f, ms].concat([].slice.call(arguments, 2))); }; })();" }]);
++  await z.page.goto(INDEX + '?dev=0');
++  await z.page.waitForFunction(function () { return window.APP && APP.oct.state === 'sleep' && window.__napSeen.length >= 8; }, null, { timeout: 20000 }).catch(function () {});
++  var nz = await z.page.evaluate(function () { return window.__napSeen.slice(); });
++  ok(nz.length >= 8 && nz.every(function (t) { return t === '자는 중'; }), "낮잠 이름표는 타이머가 " + nz.length + "번 돌아도 늘 '자는 중' ('꿈꾸는 중' 없음) " + JSON.stringify(nz.filter(function (t, i, a) { return a.indexOf(t) === i; })));
++  reportErrors(z.bag, 'A-2 nap');
++  await z.ctx.close();
++  /* 3. 쓰다듬기 (2D 꾹 누르기 — 0.35 s 뒤 쓰다듬기): 2 s 뒤 말풍선이 뜨면 (열에 일곱 — 꾸밈 뽑기) 글자는 '…' 하나 · 느낌 말 없음. 뜰 때까지 몇 번 */
++  var q = await newPage(browser, 'ok', [{ content: "window.__ppolLook = { octState: 'idle', anchor: 'center' };" }]);
++  await q.page.goto(INDEX + '?dev=0&scene=2d');
++  await nameOct(q.page, '쓰담문어');
++  var pr = await q.page.evaluate(function () {
++    function until(fn) { return new Promise(function (res) { (function w() { if (fn()) res(); else setTimeout(w, 20); })(); }); }
++    var b = document.getElementById('oct-bubble'), o = document.getElementById('oct'), seen = [], tries = 0, said = [];
++    new MutationObserver(function () { var t = b.hidden ? '' : b.textContent; if (t && seen[seen.length - 1] !== t) seen.push(t); }).observe(b, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
++    function once() {
++      tries++; seen.length = 0;
++      return until(function () { return APP.oct.state === 'idle' && !APP.oct.busy; }).then(function () {
++        var r = o.getBoundingClientRect();
++        o.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, pointerType: 'mouse' }));
++        return until(function () { return APP.oct.state === 'pet'; });
++      }).then(function () {
++        o.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerType: 'mouse' }));
++        return until(function () { return APP.oct.state !== 'pet'; });
++      }).then(function () { return new Promise(function (res) { setTimeout(res, 60); }); }).then(function () {
++        if (seen.length) said.push(seen.slice());
++        return said.length || tries >= 10 ? null : once();
++      });
++    }
++    return once().then(function () { return { tries: tries, said: said }; });
++  });
++  console.log('   쓰다듬기:', JSON.stringify(pr));
++  var petSaid = pr.said[0] || [];
++  ok(pr.said.length === 1 && petSaid.length === 1 && petSaid[0] === '…' && !FEEL_RX_IN(petSaid[0]), "쓰다듬기 뒤 말풍선은 '…' 하나 — 말 없음 (" + pr.tries + '번 만에: ' + JSON.stringify(petSaid) + ')');
++  reportErrors(q.bag, 'A-2 pet');
++  await q.ctx.close();
++}
++function FEEL_RX_IN(t) { return FEEL_RX.test(String(t || '')); }
+ function reducedWait(ms) { return ms; }
+ function reportErrors(bag, label) {
+   ok(bag.length === 0, '[' + label + '] 페이지 에러/콘솔 에러 0' + (bag.length ? ': ' + bag.join(' | ') : ''));
+@@ -2954,7 +3007,7 @@ async function scenarioSalon(browser) {
+   await W.ctx.close();
+ 
+   /* 12. 검증 11-10 의 고침 — 새 탭 하나 (11-09 부터, 물음마다 하루씩):
+-         E2  묻는 순간 떠 있던 혼잣말 ('…좋아') 을 내리고 쓰다듬기를 끝낸다 → 물음과 대답 사이에 대답 아닌 말풍선이 없다 (예전엔 '…좋아' 뒤에 '안 바꿀래.' 가 올 수 있었다)
++         E2  묻는 순간 떠 있던 혼잣말 (쓰다듬기 '…' — 11-13 전엔 '…좋아') 을 내리고 쓰다듬기를 끝낸다 → 물음과 대답 사이에 대답 아닌 말풍선이 없다 (예전엔 '…좋아' 뒤에 '안 바꿀래.' 가 올 수 있었다)
+          W10 연출이 끝나면 다음 돌아다니기를 20–40 s 뒤로 다시 건다 (두 답 모두 — 예전엔 끝나자마자 걸어 나갈 수 있었다)
+          E11 시트를 열어 둔 채 날이 바뀌어 쉼이 풀린 병을 누르면 aria-disabled · '며칠 뒤에 …' 라벨이 걷힌다
+          E4  행 3 을 붙이다 오류가 나도 연출 표시가 풀린다 (거울 · 문 단추 · 약속) · 장면이 거울 단추 허락을 못 받았으면 (던짐) 다음 맞춤 때 다시 준다
+@@ -2977,16 +3030,16 @@ async function scenarioSalon(browser) {
+   }, hex); }
+   function finishCount(pg) { return pg.evaluate(function () { var Z = window.__yz, n0 = Z.to.length; APP.salonFinish(); return { armed: Z.to.length - n0, bub: Z.bub.filter(Boolean), stage: !!APP.salonStage, active: APP.salonActive }; }); }
+   function pickable(pg, n) { return pg.evaluate(function (n) { return SALON.bottles(APP.state, window.__ppolTest.today).filter(function (b) { return b.selectable; }).map(function (b) { return b.hex; })[n || 0]; }, n); }
+-  /* 12a. 11-09 (첫 물음 = '바꾸기'): 혼잣말 '…좋아' 가 떠 있는 채로 묻는다 (쓰다듬기 뒤 2–4 s 에 묻는 때와 같은 화면) */
++  /* 12a. 11-09 (첫 물음 = '바꾸기'): 쓰다듬기 혼잣말 '…' 가 떠 있는 채로 묻는다 (쓰다듬기 뒤 2–4 s 에 묻는 때와 같은 화면) */
+   await park(pz, 'center');
+-  await pz.evaluate(function () { APP.say('…좋아', 'pet', 1800); });
++  await pz.evaluate(function () { APP.say('…', 'pet', 1800); });
+   var e2a = await askNow(pz, BLUE);
+   await pz.waitForFunction(function () { return APP.salonStage && APP.salonStage.n >= 2; }, null, { timeout: 15000 }).catch(function () {});
+   var e2b = await finishCount(pz), z1 = await st(pz);
+-  ok(e2a.ok && e2a.before === '…좋아' && e2a.after === '', "묻는 순간 떠 있던 혼잣말 말풍선 ('" + e2a.before + "') 은 내려간다 (대답 앞에 코드가 쓴 '…좋아' 가 남지 않는다)");
++  ok(e2a.ok && e2a.before === '…' && e2a.after === '', "묻는 순간 떠 있던 혼잣말 말풍선 ('" + e2a.before + "') 은 내려간다 (대답 앞에 코드가 쓴 쓰다듬기 말풍선이 남지 않는다)");
+   ok(e2b.bub.length >= 1 && e2b.bub.every(function (t) { return t === '응, 해 볼래.'; }), '물음과 대답 사이 · 대답 뒤에 뜬 말풍선은 대답뿐 ' + JSON.stringify(e2b.bub));
+   ok(e2b.armed === 1 && !e2b.stage && !e2b.active && z1.color === BLUE && z1.sceneColor === BLUE, "연출이 끝나는 그 자리에서 다음 돌아다니기를 20–40 s 뒤로 다시 건다 ('바꾸기' — 예약 " + e2b.armed + '개)');
+-  /* 12b. 11-10 ('그대로' — 블록 6 과 같은 시드): 진짜 쓰다듬기 (문어 위에서 손을 움직임) 가 시작된 채로 곧 (0.6 s 뒤) 묻는다 (2 s 뒤의 '…좋아' 예약이 살아 있을 때 — 예전엔 그 예약 · 쓰다듬기 상태가 시트가 닫히는 0.25 s 뒤까지 남았다) */
++  /* 12b. 11-10 ('그대로' — 블록 6 과 같은 시드): 진짜 쓰다듬기 (문어 위에서 손을 움직임) 가 시작된 채로 곧 (0.6 s 뒤) 묻는다 (2 s 뒤의 쓰다듬기 '…' 예약이 살아 있을 때 — 예전엔 그 예약 · 쓰다듬기 상태가 시트가 닫히는 0.25 s 뒤까지 남았다) */
+   await setDay(pz, D2);
+   await park(pz, 'center'); await pz.waitForTimeout(400);
+   await pz.evaluate(function (hex) {   /* 쓰다듬기가 시작된 때부터 0.6 s 뒤에 (페이지 안 타이머 — 바쁜 기계에선 0.6 s 넘게 늦기도 한다: 그래도 2 s 예약보다 먼저) 한 일 안에서 시트 → 병 → [물어보기] */
+@@ -3019,8 +3072,8 @@ async function scenarioSalon(browser) {
+   await pz.waitForTimeout(2500);
+   var e2d = await pz.evaluate(function () { var Z = window.__yz; clearInterval(Z.iv); var says = [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.dataset.say || ''; }).filter(Boolean); return { bub: Z.bub.filter(Boolean), armed: Z.endArmed, walked: Z.walked, says: says }; }), z2 = await st(pz), askK = z2.asks[1] || {};
+   console.log('   pet → ask:', JSON.stringify({ ask: e2c, end: e2d, answer: askK.action + ' ' + askK.line }));
+-  ok(e2c.ok && e2c.state0 === 'pet' && e2c.state === 'idle', '쓰다듬는 중에 물으면 그 순간 쓰다듬기를 끝낸다 (문어 상태 ' + e2c.state0 + ' → ' + e2c.state + " — 2 s 뒤의 '…좋아' 예약도 지운다)");
+-  ok(endK && askK.action === 'keep' && e2d.bub.length >= 1 && e2d.bub.every(function (t) { return t === askK.line; }) && e2d.bub.indexOf('…좋아') < 0, "'그대로' 대답 앞뒤로 '…좋아' 가 뜨지 않는다 (말풍선은 대답 '" + askK.line + "' 뿐) " + JSON.stringify(e2d.bub));
++  ok(e2c.ok && e2c.state0 === 'pet' && e2c.state === 'idle', '쓰다듬는 중에 물으면 그 순간 쓰다듬기를 끝낸다 (문어 상태 ' + e2c.state0 + ' → ' + e2c.state + " — 2 s 뒤의 '…' 예약도 지운다)");
++  ok(endK && askK.action === 'keep' && e2d.bub.length >= 1 && e2d.bub.every(function (t) { return t === askK.line; }) && e2d.bub.indexOf('…') < 0 && e2d.bub.indexOf('…좋아') < 0, "'그대로' 대답 앞뒤로 쓰다듬기 '…' 가 뜨지 않는다 (말풍선은 대답 '" + askK.line + "' 뿐) " + JSON.stringify(e2d.bub));
+   ok(e2d.armed >= 1 && !e2d.walked && z2.color === BLUE && z2.sceneColor === BLUE, "'그대로' 연출이 스스로 끝날 때도 돌아다니기를 다시 건다 · 끝난 뒤 2.5 s 동안 걸어 나가지 않는다 " + JSON.stringify({ armed: e2d.armed, walked: e2d.walked }));
+   /* 12c. 초록 병은 11-10 … 11-16 쉰다. 11-16 에 시트를 열어 둔 채 11-17 이 되면: 누른 병이 고를 수 있는 병으로 다시 그려진다 (E11) */
+   await setDay(pz, '2026-11-16'); await openSheet(pz);
