@@ -1,0 +1,129 @@
+[
+ {
+  "lens": "import:code",
+  "report": {
+   "summary": "The one-line import fix (`clearRest(); if (octWithMe() …) scene.octDown();` before `octInitial()` in `importJSON`, js/app.js:3738) is correct, and I found no defect it causes. I tested 47 situations in a copy of base2 with the fix. Each one crossed where the player is (attic, upstairs, play room, out on a walk) with where this tab's octopus is (awake in the attic, in an awake window, walking to the blanket, asleep, following the player upstairs, upstairs in a post-turn awake window, downstairs while the player is upstairs) and with what the imported record holds (napping, awake window due, awake, old turn, turn in progress). I also ran: an import while the salon scene plays upstairs, an import in the middle of the stair transition in both directions, a two-tab import, and an import of a file exported in the middle of a turn. Results with the fix: a napping import always ends with the octopus asleep on the attic blanket, and it never spent a frame asleep upstairs. An awake-window import puts the octopus awake on the blanket with a fresh window (rest id = the imported trip, the old one is gone). That window pauses while the player is upstairs and then lies down on the blanket. Awake or old imports go to the attic window, and the octopus follows upstairs again on the next climb. The import is refused while the octopus is away on a walk. No page errors. localStorage, the window.name mirror and APP.state are identical after every import: octDown and the on.octUp handler write nothing, so app state (mirror, the app's anchor, `rest`) cannot drift from the scene. On production f2c93f1 both of the lead's issues reproduce: C-1, the octopus sleeps upstairs (20 frames, not at the blanket), and C-2, the stale rest timer is kept after import. Both are gone with the fix. I found two small defects in the import path that the fix did not cause; both behave the same on production. (1) When another tab has already seen the imported record's last turn, that tab keeps its octopus awake, even upstairs, while the imported record says it is napping. (2) Importing a file exported mid-turn leaves the trip marked \"running\" until a reload. After that, the next turn's octopus never lies down. Both are nits. Probes and logs are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/imp-code/ (notes.md, probe.js…probe5.js, run-*.log, out-*.json). I deleted my tree copies in /dev/shm.",
+   "findings": [
+    {
+     "id": "C-a",
+     "severity": "nit",
+     "title": "Another open tab keeps its octopus awake (even upstairs) after an import of a napping record whose last turn that tab already saw",
+     "where": "js/app.js syncRest (~1416-1426): `if (!t || S.octopus.state !== 'sleep' || napOver() || t.id === restSeen) return;` reached via the storage listener -> takeRemote (~2090)",
+     "what": "Steps: in tab B, turn X ends and the octopus naps. A file F is exported. The player invites again, the turn ends empty and wakes the octopus (record state idle, last rest trip still X). B climbs upstairs and the awake octopus follows. Then tab A imports F (napping after X, within 20 minutes). Tab A shows the octopus asleep on the blanket. Tab B adopts the record (state 'sleep', restPhase 'nap'), but syncRest returns early because t.id === restSeen (X). So B's octopus stays awake upstairs, and after B goes down it stays awake on the blanket ('쉬고 있어'), while the record and tab A say it is asleep. From the code, nothing in B corrects this until a reload or the next invite. It should go down to the blanket and sleep, as in the importing tab. When the imported nap trip has a new id, B sleeps correctly (the matrix shows this path works), but B's own recent trip is carried back by adoptRemote/mine and wins the tie, so the probe's 'new' variant behaved the same.",
+     "evidence": "run2-fix.log: 'B after imp {room:loft, up:true, st:idle, ph:nap, saved:sleep}' -> down: 'st:idle, an:blanket, ph:nap, saved:sleep', +5 s unchanged; A after imp 'st:sleep, ph:nap'. run2-prod.log (f2c93f1): identical.",
+     "confirmed_by_running": true,
+     "caused_by_fix": "no (also on production f2c93f1)",
+     "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/imp-code/probe2.js <tree> (NODE_PATH=$(npm root -g))",
+     "suggested_fix": "In syncRest, do not let `t.id === restSeen` block the case where the record says sleep and this tab's octopus is awake (oct.state !== 'sleep') while restPhase() is 'nap', for example by calling armRest(t, 0) there, which lies it down on the blanket through sleepNow/restDown. Alternatively, reset restSeen when a remote record replaces S from a different save (import)."
+    },
+    {
+     "id": "C-b",
+     "severity": "nit",
+     "title": "Importing a file exported mid-turn leaves the turn 'running' until a reload; the next turn's octopus then never naps",
+     "where": "js/app.js importJSON (~3715-3743), which does not call resumeRunning (~2125); lieDown (~1386-1390) `other` check; syncRest (~1417) running guard",
+     "what": "'내보내기' has no busy check, so a file can hold a running trip. Importing that file later (busy false) keeps the trip 'running' in the record: import does not resume it, unlike boot. The octopus stands idle at the window, and the next invite starts turn Y normally. When Y ends, finalPose arms the awake window, but lieDown sees another running trip and clears the window. The octopus stays awake on the blanket indefinitely while the record says sleep (restPhase 'nap', no '자는 중' label). syncRest from other tabs is also blocked by the running trip. On reload, resumeRunning completes the old trip ('네가 없는 동안 집에 있었어') and things settle. Expected: the import should finish the running turn as boot does (resumeRunning, then finalPose), or the nap should not depend on it.",
+     "evidence": "run3-fix.log: after import 'running:true, trips trip_h9z1:running'; turn Y ended 'ph:awake rest left 30000'; after 120 s 'lay false, st:idle, ph:nap, saved:sleep, running:true, label \"\"'; after reload 'trip_h9z1:done … 집 · 네가 없는 동안 집에 있었어'. run3-prod.log (f2c93f1): same, plus the octopus wandered (st:walk to crate), and the stale rest timer (C-2) was kept after the import.",
+     "confirmed_by_running": true,
+     "caused_by_fix": "no (also on production f2c93f1)",
+     "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/imp-code/probe3.js <tree>",
+     "suggested_fix": "At the end of importJSON, if S.trips has a running trip, run the boot path: `resumeRunning().then(function (k) { if (k) finalPose({ kind: k }); })`, behind the same busy guard. Alternatively, disable 내보내기 while busy."
+    }
+   ],
+   "checked_ok": [
+    "Import matrix with the fix (probe.js, out-imp-code.json, 47 cases, 0 page errors). Tab states A1 attic awake, A2 attic awake window, A3 walking to blanket (lying), A4 asleep, U1 upstairs with octopus following, U2 upstairs with octopus upstairs in an awake window after a turn, U3 upstairs with octopus asleep below, U4 upstairs with octopus in a window below, P1 play room, W1 away on a walk. Imports: nap / window / awake / old / run, plus a same-trip-id window for A2 A3 U2 U4. Every result was as expected.",
+    "Napping import: in every state the octopus ends asleep on the attic blanket (scene position = blanket anchor), phase nap, rest null, sessionStorage REST_KEY empty. It spent 0 frames asleep upstairs, stays below when the player goes down and up again, and the scene-desc reads '…문어는 아래층 담요 위에서 자고 있어'.",
+    "Awake-window import (turn ended 10 s ago): awake on the blanket with rest = the imported trip. Left = awakeFor - elapsed in the attic (13000), or AWAKE_SEEN 15000 when imported upstairs or in the play room (paused away). It does not follow upstairs, then lies down on the blanket after ~14.5 s of attic time.",
+    "Awake and old (nap over) imports: the octopus idle at the attic window, phase 'up', rest null (the old window is cleared: C-2). It follows upstairs on the next climb.",
+    "Upstairs with the octopus following: octDown moves it to the attic before octInitial, so it is never placed at attic coordinates inside the loft (C-1). On production f2c93f1 the same imports leave it asleep upstairs (sleepUp 20 frames, not at the blanket) and keep the stale rest (run-prod.log).",
+    "App state stays in step with the scene: after every import, localStorage === JSON.stringify(APP.state) === the window.name mirror. octDown and on.octUp(false, an) do not save. The app anchor matches the scene (blanket or window), and `rest` matches the scene (null, or a fresh window).",
+    "Order inside importJSON is right: clearRest runs before octDown, so on.octUp's restPhase() reads the imported record. octUnmountLoft finishes any walk (octEndWalk) and the salon scene (salFinishNow). A pending lieDown walk or guard from the old window does nothing after import, even when the imported trip has the same id.",
+    "Import while the salon scene runs upstairs (probe4): salonFinish completes, the ask and colour are kept through SAL.merge, the octopus goes down (nap -> blanket asleep, awake -> window), no errors.",
+    "Import in the middle of the stair transition, up and down, nap and awake (probe5): no frame asleep upstairs. A nap ends on the blanket. An awake octopus follows on arrival when going up and is down at the window when going down.",
+    "Import while the octopus is away on a walk is refused (returns false) and changes nothing.",
+    "The import guard (importSeen/importAt) is unaffected: the fix adds no save, so lastSeen and the 1 s hold behave as before.",
+    "2D scene: octWithMe() is false there (scene2d has no octUp), so the new line does nothing; checked by reading the code, not run."
+   ],
+   "not_checked": [
+    "I did not run the repo suites (npm test, smoke Z-5g); the lead runs them. My probes copy the scenarioLoft helpers instead.",
+    "I did not run the real file-picker path (settings sheet -> 불러오기 with a file). All imports went through APP.importJSON, which is the same function the FileReader onload calls. The play lens covers the picker.",
+    "The 2D fallback (?scene=2d) and reduced motion with an import: checked by reading the code only.",
+    "A turn that ends while the octopus is upstairs under OW-3 (lane owner3), which is not in this tree.",
+    "Screens other than 360x740 touch; no screenshots were taken (code lens).",
+    "An imported record from a different octopus (different born) while another tab holds 'mine' trips: covered by existing code paths, not probed here.",
+    "Under the existing two-tab merge rule (same octopus, within 60 s), another tab's recent turn is re-added to an imported record and written back. That is by design and was not judged as a defect."
+   ]
+  },
+  "verdicts": []
+ },
+ {
+  "lens": "import:play",
+  "report": {
+   "summary": "The import fix works in real play, and I found no must or should. I drove the fixed tree (3f1a51f plus the uncommitted importJSON change) on a 360x740 touch phone, importing real files through settings sheet → 불러오기 and, for timing-sensitive cases, through APP.importJSON. I went up and down the stairs before and after each import and looked at every screenshot.\n\n**C-1 is fixed.** If the octopus has followed the player upstairs (awake, or still awake after a turn that ended upstairs) and the player imports a napping save, the octopus now leaves the upstairs room and sleeps on the attic blanket. The label reads '자는 중'. Tapping the upstairs mirror says '지금은 아래층에서 자고 있어.' Going down shows it asleep on the blanket, and it does not follow on the next climb.\n\n**C-2 is fixed.** After an import, this tab's old awake window is gone (both `rest` and the sessionStorage copy). With an awake save imported, the octopus never lies down later on the old window's timing.\n\n**Other import cases held:**\n- **Save with a turn just ended (awake window due):** the octopus goes awake to the attic blanket. The window holds while the player is upstairs, counts down once they are in the attic, and then the octopus naps.\n- **Awake save:** idle at the attic window.\n- **Old save:** idle at the window.\n- **Import from the play room:** works the same.\n- **Mid-walk to the blanket:** import cancels the lie-down; the octopus stays idle at the window.\n- **Import during the walk down the stairs:** works.\n- **2D fallback:** works.\n- **During a walk:** the import is refused with a toast and nothing changes.\n\n**Production f2c93f1 shows both bugs.** There the octopus sleeps upstairs at the blanket's coordinates, an awake octopus stands upstairs at the attic window's coordinates, the mirror tap does nothing or opens the salon sheet, and the old window survives the import.\n\n**Three small findings:**\n- **Running walk (nit, also in production):** a file exported during a walk keeps the walk marked as running. After importing it, the octopus is shown at home, and after the next turn it never lies down until the page is reloaded. The reload then finishes the walk; nothing is lost.\n- **Own file (nit, intended by the fix comment):** re-importing a file you just exported during an awake window recomputes the window from the clock. This drops the paused time spent upstairs, so the octopus lies down sooner (33 s left became 15 s).\n- **Owner question:** after the fix, importing an awake save while the octopus is upstairs moves it to the attic at once, so it vanishes from beside the player.\n\nProbes, logs and screenshots are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/imp-play/ (notes.md lists them all). Both copies in /dev/shm are deleted and the test server is stopped.",
+   "findings": [
+    {
+     "id": "P-1",
+     "severity": "nit",
+     "title": "Importing a file exported during a walk leaves the walk running until the page is reloaded; meanwhile the octopus never naps after a turn",
+     "where": "js/app.js importJSON (~3715-3745): unlike start-up, it does not resolve running trips (resumeRunning ~2125). The settings sheet, and so 내보내기, can be opened during a walk",
+     "what": "A real export made during a walk holds trips [..., out:running] with octopus.state idle. After importing it (on another device, or later), the octopus is shown at home, idle at the window, while the save still has the walk running. The big button still starts a new turn. When that turn's awake window ends, lieDown sees the other running trip and calls clearRest, so the octopus never lies down: restPhase is 'nap' and the saved state is 'sleep', but the octopus wanders awake with no '자는 중' label. A reload resolves it: resumeRunning finishes the walk (poster, '그래도 다녀왔어') and the octopus sleeps on the blanket. Expected: an import should treat running trips the way start-up does (bring the walk home at once), or at least not leave the octopus in a state that contradicts the save.",
+     "evidence": "p5-new.log: after import 'trips home:done,out:running'. After the new turn: 'phase nap, saved sleep, st idle/walk' for 2 minutes, wandering center→blanket→center. After reload: 'st sleep, trips home:done,out:done,home:done', poster '쾰른 대성당'. p5-prod.log shows the same timeline. p3-new.log section 5 shows the synthetic runOut/runHome records behaving the same, resolved on reload.",
+     "confirmed_by_running": true,
+     "caused_by_fix": "no (same on production f2c93f1)",
+     "repro": "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/imp-play/p4-runexport.js (makes files/walk-export-new.json with a real 내보내기 during a walk), then p5-runimport.js new|prod",
+     "suggested_fix": "In importJSON, after the import is accepted, run the same resumeRunning() path as start-up (then finalPose). Alternatively, settle running trips into done or empty when importing."
+    },
+    {
+     "id": "P-2",
+     "severity": "nit",
+     "title": "Re-importing your own file during an awake window shortens the window (time spent upstairs is counted)",
+     "where": "js/app.js importJSON: clearRest() before octInitial(); octInitial then re-arms from the clock (awakeByClock)",
+     "what": "Say a turn ends with a 40 s window, the player spends 7 s in the attic and some time upstairs (OW-4 pauses the window upstairs), then exports and imports that same file. The in-memory 32.9 s left becomes max(clock remainder, 15 s) = 15 s, so the octopus lies down about 18 s sooner than it would have. A reload, by contrast, keeps the in-memory remainder through sessionStorage. The fix comment says the clock recompute is intended, and the case is very rare. Production also loses track here, worse: it showed the octopus asleep with phase 'awake' and the old rest still running.",
+     "evidence": "p2-new.log section C: 'C right before import ... rest 32893' → 'C after own import ... rest 15000' → down 'rest 13639' → naps. p2-prod.log section C: 'st sleep, phase awake, rest 31868' (inconsistent on production).",
+     "confirmed_by_running": true,
+     "caused_by_fix": "yes (a different, milder outcome than production, which was inconsistent)",
+     "repro": "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/imp-play/p2-ow3.js new, section (c)",
+     "suggested_fix": "Optional: when the imported record's last rest trip has the same id as the current rest, carry rest.left over (or write it with restKeep() before clearRest so restKept picks it up). Otherwise leave it as it is."
+    },
+    {
+     "id": "P-3",
+     "severity": "owner",
+     "title": "Importing an awake save while the octopus is upstairs with the player moves it to the attic at once",
+     "where": "js/app.js importJSON fix line: `if (octWithMe() && typeof scene.octDown === 'function') scene.octDown();` runs whatever the imported octopus state is",
+     "what": "With the fix, an import always takes the octopus that followed upstairs back to the attic. For an awake, non-resting save it then stands idle at the attic window: the octopus visibly vanishes from beside the player, and the mirror says '지금은 아래층에 있어.' Going down and back up brings it along again. Production instead left it upstairs at the attic window's coordinates (inside the upstairs room, by the round window), which was wrong. The owner rule covers only a sleeping octopus.\n\nOptions: (a) keep this (simple, same as a reload, where the player always starts in the attic); (b) for an awake save whose rest phase is 'up', re-mount it upstairs at the follow spot after octInitial (more code in a just-fixed path, needs a test, and is risky right before deploy).",
+     "evidence": "p1-new.log S3: 'S3 up up:true' → after import 'up:false, an window, at [-1.8,-0.01,0.4]'; mirror '지금은 아래층에 있어.'. shots/sheet-p1-new-s23.png frames 4-5. Production: shots/sheet-p1-prod.png frame 3 (octopus inside the upstairs room by the round window).",
+     "confirmed_by_running": true,
+     "caused_by_fix": "yes (a deliberate change from production's wrong placement)",
+     "repro": "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/imp-play/p1-upnap.js new, section S3",
+     "suggested_fix": "Owner decision; (a) needs no change."
+    }
+   ],
+   "checked_ok": [
+    "C-1 via the real UI: octopus following upstairs (awake, no rest) + nap import → leaves the upstairs room, asleep on the attic blanket (-0.65,0.12,1.6), label '자는 중', rest null, sessionStorage null, mirror '지금은 아래층에서 자고 있어.', still asleep on the blanket after going down, does not follow on the next climb (p1-new.log, shots/sheet-p1-new-s1.png)",
+    "OW-3 case: a stay-home turn that ends while the player is upstairs (octopus stays upstairs awake, rest 25 s) + nap import → asleep on the attic blanket, the old window cleared (p2-new.log A, shots/sheet-p2-new.png)",
+    "C-2: OW-3 window upstairs + import of another octopus's awake save → attic window idle, rest null; 45 s downstairs it never lies down (p2-new.log B)",
+    "Upstairs + 'due' save (turn ended 5 s ago): octopus goes awake to the attic blanket; the window holds upstairs (OW-4), counts down in the attic, then the octopus naps on the blanket (p1-new.log S2, shots/sheet-p1-new-s23.png)",
+    "Upstairs + old save (sleep, ended 3 h ago): idle at the attic window, saved state idle (p3-new.log 6)",
+    "Attic during an awake window + nap import: asleep on the blanket, rest null (p3-new.log 2)",
+    "Octopus walking from the door to the blanket after a walk brought back with a skip + awake import: idle at the window, no lie-down 10 s later (p6-new.log b)",
+    "Play room: the gear button is visible; a nap import there shows the octopus asleep on the attic blanket when the player returns (p3-new.log 3)",
+    "During a walk (outside): settings opens, 불러오기 is refused with the toast '다녀오는 중이라 지금은 못 불러와. 끝나고 다시 해 줘', and the state is unchanged (p3-new.log 4, shot p3-new-4-refused.png)",
+    "Nap import during the stair transition down (APP.importJSON mid-slide): asleep on the blanket after the slide; no errors (p6-new.log d)",
+    "Scene description upstairs after a nap import: '위층 다락 옷방 … 문어는 아래층 담요 위에서 자고 있어.'; the nap label is not drawn upstairs (width 0) (p7-new.log)",
+    "2D fallback (?scene=2d): nap import → asleep on the blanket with '자는 중'; due import → awake window armed (p7-new.log)",
+    "The mirror line upstairs after each import matches the octopus state (자고 있어 / 아래층에 있어); no salon sheet opens and no row is written",
+    "No page errors or console errors in any run on the fixed build",
+    "Production f2c93f1 reproduces C-1 and C-2 (p1-prod.log, p2-prod.log, shots/sheet-p1-prod.png), so the fix changes exactly what it intends",
+    "The awake octopus follows on the first climb after a page load (4/4, p8-new.log); the up=false readings in p4/p7 were my probe reading too early"
+   ],
+   "not_checked": [
+    "Import with two tabs open (the importSeen/importAt storage guard); the code lens or earlier lanes cover it",
+    "Import while the salon stage is running (salonFinish then octDown → salFinishNow)",
+    "Import at exactly the moment the octopus mounts at the end of the climb slide (my mid-climb import landed after the slide had already ended)",
+    "320x568 and other phone sizes (360x740 only)",
+    "Reduced motion and a clock moved back",
+    "The repo suites (smoke Z-5g, npm test) were not run; the lead runs them"
+   ]
+  },
+  "verdicts": []
+ }
+]
