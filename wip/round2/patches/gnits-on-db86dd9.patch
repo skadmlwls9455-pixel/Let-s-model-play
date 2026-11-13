@@ -1,0 +1,143 @@
+diff --git a/js/app.js b/js/app.js
+index a19d130..4c01406 100644
+--- a/js/app.js
++++ b/js/app.js
+@@ -3701,6 +3701,7 @@ var APP = (function () {
+     return JSON.stringify(S);
+   }
+   /* 불러오기: 먼저 그려 보고(검사), 되면 그때 저장. 안 되면 원래 기록·화면으로 되돌린다 — 저장된 기록은 건드리지 않는다 */
++  var importSeen = 0;   /* 11-13: 불러온 기록의 lastSeen — 불러오기 전에 쓰인 다른 탭 기록의 storage 이벤트가 늦게 와도 불러온 것을 되돌리지 않게 (닫힌 탭의 마지막 저장이 몇 ms 뒤에 와서 옛 밭 · 조개가 돌아왔다) */
+   function importJSON(text) {
+     if (busy) { toast('다녀오는 중이라 지금은 못 불러와. 끝나고 다시 해 줘'); return false; }
+     salonFinish();   /* 미용실 연출 중이면 끝 상태로 먼저 (그 물음은 이미 저장돼 있다) */
+@@ -3722,7 +3723,7 @@ var APP = (function () {
+       toast('이 파일은 뽈뽈 기록이 아닌 것 같아'); return false;
+     }
+     mine = []; mineAsks = [];   /* 바꾼 기록에 예전 여행 · 미용실 물음을 다시 얹지 않게 */
+-    save(); applyMotion(); applyFont(); syncSceneLook(); octInitial();
++    save(); importSeen = seenOf(S); applyMotion(); applyFont(); syncSceneLook(); octInitial();
+     applyLook({ still: true });   /* 불러온 몸 색 (renderAll 의 renderScene 이 이미 맞췄으면 할 일 없음) */
+     var d = $('settings-sheet'); if (d && d.open) d.close();
+     toast('기록을 불러왔어'); return true;
+@@ -4232,7 +4233,7 @@ var APP = (function () {
+     window.addEventListener('pageshow', function (e) { if (e.persisted) { try { sessionStorage.removeItem(REST_KEY); } catch (err) { /* noop */ } } });   /* 뒤로 가기 캐시에서 돌아왔으면 넘길 것 없음 (틈은 그대로 이어진다) */
+     window.addEventListener('scroll', function () { if (rest && !rest.lying) { clearTimeout(scrollRest); scrollRest = setTimeout(restTick, 120); } }, { passive: true });   /* 장면을 다시 올려 보면 곧바로 이어 센다 */
+     window.addEventListener('storage', function (e) {
+-      if (e.key !== KEY || !e.newValue || e.newValue === lastSaved) return;
++      if (e.key !== KEY || !e.newValue || e.newValue === lastSaved || seenOf(parseState(e.newValue)) < importSeen) return;   /* 11-13: 불러오기 전에 쓰인 기록 (importSeen) */
+       takeRemote(e.newValue);
+     });
+     $('name-form').addEventListener('submit', function (e) {
+@@ -4316,7 +4317,7 @@ var APP = (function () {
+     u.shells = Math.max(0, u.shells | 0); u.seeds = Math.max(0, u.seeds | 0);
+     if (!isObj(u.dyes)) u.dyes = {}; if (!Array.isArray(u.days)) u.days = []; if (!Array.isArray(u.earned)) u.earned = [];
+     if (!Array.isArray(u.garden)) u.garden = [null, null, null]; while (u.garden.length < 3) u.garden.push(null);
+-    for (var gi = 0; gi < u.garden.length; gi++) if (u.garden[gi] != null && !isObj(u.garden[gi])) u.garden[gi] = null;   /* 11-11: 객체가 아닌 칸만 빈 칸으로 (모르는 색은 그대로 둔다 — 나중 빌드가 알 수도 있다) */
++    for (var gi = 0; gi < u.garden.length; gi++) if (u.garden[gi] != null && !(isObj(u.garden[gi]) && typeof u.garden[gi].color === 'string' && u.garden[gi].color)) u.garden[gi] = null;   /* 11-11: 객체가 아닌 칸만 빈 칸으로 (모르는 색은 그대로 둔다 — 나중 빌드가 알 수도 있다). 11-13: 색 글자가 없는 칸도 (심을 때 늘 색을 넣는다 — 거두면 염료 'undefined' 가 생겼다) */
+     return u;
+   }
+   function earnFromPlay(r) {   /* 놀이 한 판 → 조개 (같은 판 id 는 한 번만) */
+@@ -4431,6 +4432,7 @@ var APP = (function () {
+   function renderBagChip() {   /* 주 먼저 (11-11): 주가 바뀌며 넣은 지난주 선물이 조개 수에 바로 보이게. 11-12 (검증 W8 · F5): 받을 선물이 있으면 이름에도 (점은 눈에만 보인다) */
+     var b = $('btn-bag'); if (!b) return; var u = userState(), w = S.octopus.name ? weekState() : null, gift = !!w && !w.claimed && weekDoneN(w) >= WEEK_NEED; b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = '조개 ' + u.shells;
+     if (w) b.classList.toggle('has-gift', gift); b.setAttribute('aria-label', '살림, 조개 ' + u.shells + (gift ? ', 주간 선물이 있어' : ''));
++    plotLabels();   /* 11-13: 바깥 밭 단추 이름도 — 씨앗 · 밭 · 날이 바뀌는 길(오늘 선물 · 주간 선물 · 다른 탭 · 불러오기 · 초기화)이 다 여기를 지난다 (포커스 없이 훑는 화면 낭독기) */
+   }
+   /* 11-11: 텃밭 칸 하나를 읽는다 — 모르는 색(손댄 기록 · 나중 빌드의 새 색)이어도 던지지 않는다: 이름 없이 '꽃', 그림은 장면 기본색 */
+   function plotView(g, dk) { if (!g) return null; var d = dyeOf(g.color), w = Math.max(0, Math.min(2, g.water | 0)); return { w: w, name: d ? d[1] : '', hex: d ? d[2] : null, today: g.wateredDay === dk, st: w >= 2 ? (d ? d[1] + ' 꽃' : '꽃') : w === 1 ? '새싹' : '씨앗' }; }
+diff --git a/tools/smoke.js b/tools/smoke.js
+index de60a72..7b5c376 100644
+--- a/tools/smoke.js
++++ b/tools/smoke.js
+@@ -5604,6 +5604,37 @@ async function scenarioGarden(browser) {
+   ok(u1.watered && u1.watered.color === 'teal' && u1.watered.water === 2 && u1.harvested === null && u1.dyes.teal === 1 && u1.toast === '염료 1개를 얻었어', '물 주기 → 꽃 (색 «' + (u1.watered && u1.watered.color) + '» 그대로) · 거두기 → 염료 teal 1 · 알림 «' + u1.toast + '»');
+   await c4.close();
+ 
++  /* 8b. 11-13 손댄 기록 더: 색 글자가 없는 칸은 빈 칸 (거둬도 염료 'undefined' 가 생기지 않는다) · 물 값이 음수 · 글자면 한 번 주면 새싹 · 너무 크면 꽃 ·
++     밭이 넷 이상이면 살림 단추 · 바깥 밭은 셋, 넷째 칸과 나머지 기록은 그대로 */
++  var G4 = { color: 'green', water: 2, wateredDay: '' };
++  var c6 = await ctxOf({ rec: REC(USER({ seeds: 0, shells: 17, garden: [{ water: 2, wateredDay: '' }, { color: 'red', water: -3, wateredDay: '' }, { color: 'blue', water: 'x', wateredDay: '' }, G4] })) }), p6 = await tab(c6);
++  var d1 = await p6.evaluate(function () {
++    function sheet() { if (!document.getElementById('bag-sheet').open) document.getElementById('btn-bag').click(); return document.querySelectorAll('#bag-body .bag-plot'); }
++    function lab(i) { return document.getElementById('btn-plot' + i).getAttribute('aria-label'); }
++    var o = { n: sheet().length, out0: lab(0), scene: APP.scene.garden().map(function (g) { return g ? g.water : null; }) };
++    var bp = sheet(); if (bp.length < 3) return o;
++    bp[0].click(); o.toast0 = document.getElementById('toast').textContent;
++    sheet()[1].click(); sheet()[2].click();
++    var bp2 = sheet(); o.st = [1, 2].map(function (i) { return bp2[i].querySelector('.bag-st').textContent; }); o.out = [1, 2].map(lab); o.sceneAfter = APP.scene.garden().map(function (g) { return g ? g.water : null; });
++    var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user; o.saved = { dyes: u.dyes, water: [1, 2].map(function (i) { return u.garden[i] && u.garden[i].water; }), g3: u.garden[3], len: u.garden.length, shells: u.shells, days: u.days };
++    document.getElementById('bag-close').click(); return o;
++  });
++  console.log('   손댄 기록:', JSON.stringify(d1));
++  ok(d1.n === 3 && d1.out0 === '텃밭 첫째 칸, 빈 칸, 씨앗이 없어' && d1.scene[0] === null && d1.toast0 === '씨앗이 없어. 들어온 날 선물이나 주간 선물로 생겨' && !!d1.saved && JSON.stringify(d1.saved.dyes) === '{}',
++    '색 글자가 없는 칸은 빈 칸 («' + d1.out0 + '») · 누르면 «' + d1.toast0 + '» · 염료 ' + JSON.stringify(d1.saved && d1.saved.dyes));
++  ok(!!d1.saved && JSON.stringify(d1.saved.water) === '[1,1]' && JSON.stringify(d1.st) === '["새싹","새싹"]' && d1.out[0] === '텃밭 둘째 칸, 새싹, 오늘은 물을 줬어' && d1.out[1] === '텃밭 셋째 칸, 새싹, 오늘은 물을 줬어' && JSON.stringify(d1.sceneAfter.slice(1)) === '[1,1]',
++    '물 값이 -3 · 글자인 칸: 물을 한 번 주면 새싹 (기록 ' + JSON.stringify(d1.saved && d1.saved.water) + ' · 시트 ' + JSON.stringify(d1.st) + ' · 바깥 ' + JSON.stringify(d1.sceneAfter) + ')');
++  ok(d1.n === 3 && d1.scene.length === 3 && !!d1.saved && d1.saved.len === 4 && JSON.stringify(d1.saved.g3) === JSON.stringify(G4) && d1.saved.shells === 17 && d1.saved.days.join() === DAY,
++    '밭 기록이 넷: 살림 단추 ' + d1.n + '개 · 바깥 밭 ' + d1.scene.length + '칸 · 넷째 칸 ' + JSON.stringify(d1.saved && d1.saved.g3) + ' · 조개 · 들어온 날 그대로');
++  var d2 = await p6.evaluate(function () {
++    var u = APP.state.user; u.garden[0] = { color: 'pink', water: 9, wateredDay: '' }; APP.save(); APP.renderAll();
++    var o = { out: document.getElementById('btn-plot0').getAttribute('aria-label'), scene: APP.scene.garden()[0] && APP.scene.garden()[0].water };
++    document.getElementById('btn-bag').click(); document.querySelectorAll('#bag-body .bag-plot')[0].click(); document.getElementById('bag-close').click();
++    o.dyes = JSON.parse(localStorage.getItem('ppolppol_v2')).user.dyes; o.g0 = APP.state.user.garden[0]; return o;
++  });
++  ok(d2.out === '텃밭 첫째 칸, 분홍 꽃, 거두기' && d2.scene === 2 && d2.dyes.pink === 1 && d2.g0 === null, '물 값이 9 인 칸: 꽃 («' + d2.out + '») · 거두면 분홍 염료 1 (' + JSON.stringify(d2.dyes) + ')');
++  await c6.close();
++
+   /* 9. 다른 탭 · 불러오기 · 전체 초기화 뒤 화면이 기록을 따른다 (꼬리표 조개 수 · 점 · 열린 살림 · 열린 재봉틀 시트 · 바깥 밭) */
+   var c5 = await ctxOf({ rec: REC(USER({ shells: 10, week: WEEK5 })) }), pa = await tab(c5), pb = await tab(c5);
+   await pa.evaluate(function () { document.getElementById('btn-bag').click(); });
+@@ -5630,8 +5661,19 @@ async function scenarioGarden(browser) {
+   var im1 = await pa.evaluate(function (rec) { var r = APP.importJSON(JSON.stringify(rec)), b = document.getElementById('btn-bag'); return { r: r, chip: b.textContent.trim(), dot: b.classList.contains('has-gift'), hidden: b.hidden, garden: APP.scene.garden().map(function (g) { return g ? g.water : null; }) }; },
+     REC(USER({ shells: 40, week: WEEK5, garden: [null, null, { color: 'green', water: 2, wateredDay: '' }] })));
+   ok(im1.r && im1.chip === '조개 40' && im1.dot && !im1.hidden && JSON.stringify(im1.garden) === '[null,null,2]', '불러오기 뒤: 꼬리표 «' + im1.chip + '» · 점 ' + im1.dot + ' · 바깥 밭 ' + JSON.stringify(im1.garden));
++  await pa.evaluate(function () { window.__xpre = localStorage.getItem('ppolppol_v2'); });   /* 11-13: 다음 불러오기 전의 기록 (닫힌 탭의 마지막 저장처럼 이벤트가 늦게 오는 것) */
+   var im2 = await pa.evaluate(function (rec) { var r = APP.importJSON(JSON.stringify(rec)), b = document.getElementById('btn-bag'); return { r: r, chip: b.textContent.trim(), dot: b.classList.contains('has-gift'), garden: APP.scene.garden().map(function (g) { return g ? g.water : null; }) }; }, REC(null));
+   ok(im2.r && im2.chip === '조개 0' && !im2.dot && JSON.stringify(im2.garden) === '[null,null,null]', '살림이 없는 기록을 불러오면: «' + im2.chip + '» · 점 없음 · 빈 밭');
++  /* 11-13: 불러오기 전에 쓰인 다른 탭 기록의 storage 이벤트가 불러온 뒤에 오면 버린다 (예전엔 옛 밭 · 조개 40 이 돌아왔다) · 불러온 뒤에 쓰인 기록은 그대로 받는다 */
++  var im3 = await pa.evaluate(function () {
++    window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: window.__xpre }));
++    var b = document.getElementById('btn-bag'), o = { stale: { chip: b.textContent.trim(), shells: APP.state.user.shells, garden: APP.scene.garden().map(function (g) { return g ? g.water : null; }), plot2: document.getElementById('btn-plot2').getAttribute('aria-label') } };
++    var R = JSON.parse(localStorage.getItem('ppolppol_v2')); R.user.shells = 5; R.settings.lastSeen = Date.now() + 1000;
++    window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: JSON.stringify(R) }));
++    o.fresh = { chip: b.textContent.trim(), shells: APP.state.user.shells }; return o;
++  });
++  ok(im3.stale.chip === '조개 0' && im3.stale.shells === 0 && JSON.stringify(im3.stale.garden) === '[null,null,null]' && im3.stale.plot2 === '텃밭 셋째 칸, 빈 칸, 씨앗이 없어' && im3.fresh.chip === '조개 5' && im3.fresh.shells === 5,
++    '불러오기 전에 쓰인 다른 탭 기록이 늦게 와도 불러온 기록 그대로 (' + JSON.stringify(im3.stale) + ') · 그 뒤에 쓰인 기록은 받는다 («' + im3.fresh.chip + '»)');
+   /* 전체 초기화: 이름 창 위에 꼬리표가 남지 않고 · 바깥 밭이 빈다 · 새 이름 뒤에도 빈 밭 · 꼬리표는 새 조개 수 */
+   await pa.evaluate(function (rec) { APP.importJSON(JSON.stringify(rec)); }, REC(USER({ shells: 40, garden: [{ color: 'red', water: 1, wateredDay: '' }, { color: 'blue', water: 2, wateredDay: '' }, null] })));
+   var r0 = await pa.evaluate(function () { document.getElementById('btn-bag').click(); document.querySelectorAll('#bag-body .bag-plot')[2].click(); document.getElementById('bag-close').click(); return APP.scene.garden().map(function (g) { return g ? g.water : null; }); });   /* 셋째 칸에 심어 (gardenAct 가 직접 그린다) 바깥에 세 칸 다 있는 데서 초기화 */
+@@ -5644,6 +5686,33 @@ async function scenarioGarden(browser) {
+   ok(JSON.stringify(r0) === '[1,2,0]' && r1.hidden && JSON.stringify(r1.garden) === '[null,null,null]', '전체 초기화: 이름 창 위에 꼬리표가 안 보이고 바깥 밭(전 ' + JSON.stringify(r0) + ')이 빈다 (' + JSON.stringify(r1) + ')');
+   ok(!!r2 && JSON.stringify(r2.garden) === '[null,null,null]' && JSON.stringify(r2.saved) === '[null,null,null]', '새 이름 뒤: 꼬리표 «' + (r2 && r2.chip) + '» · 바깥 밭도 기록도 빈 밭');
+   await c5.close();
++
++  /* 10. 11-13: 바깥 밭 단추 이름은 포커스 없이도 맞다 (화면 낭독기로 훑으면 포커스가 없다) — 날이 바뀌어 1분 틱이 오늘 선물을 줄 때 · 탭이 다시 보일 때 · 주간 선물을 받을 때.
++     가짜 시계 (1분 틱을 기다리지 않게) · 날짜 훅 · document.hidden 은 init 스크립트가 쥔다 */
++  var NEXT2 = '2026-11-13', c7 = await ctxOf({ rec: REC(USER({ seeds: 0, garden: [{ color: 'red', water: 1, wateredDay: DAY }, null, null], week: WEEK5 })) });
++  await c7.addInitScript({ content: "window.__hide = false; Object.defineProperty(document, 'hidden', { get: function () { return !!window.__hide; }, configurable: true });" });
++  await c7.clock.install();
++  var p7 = await tab(c7); await outside(p7);
++  function noFocus(pg) { return pg.evaluate(function () { var a = document.activeElement; return !a || !/^btn-plot/.test(a.id || ''); }); }
++  var N0 = await labels(p7);
++  await p7.evaluate(function (d) { sessionStorage.setItem('__x_day', d); window.__ppolTest.today = d; }, NEXT);
++  await p7.clock.fastForward('01:05');   /* 1분 틱: 새 날의 오늘 선물 (씨앗 1) */
++  var g1 = await p7.waitForFunction(function (d) { return APP.state.user.giftDay === d; }, NEXT, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
++  var N1 = await labels(p7), nf1 = await noFocus(p7);
++  ok(N0[0] === '텃밭 첫째 칸, 새싹, 오늘은 물을 줬어' && N0[1] === '텃밭 둘째 칸, 빈 칸, 씨앗이 없어' && g1 && nf1 && N1[0] === '텃밭 첫째 칸, 새싹, 물 주기' && N1[1] === '텃밭 둘째 칸, 빈 칸, 씨앗 심기',
++    '날이 바뀌고 1분 틱이 오늘 선물을 주면 포커스 없이도 이름이 새로: «' + N1[0] + '» · «' + N1[1] + '» (전 «' + N0[1] + '»)');
++  await p7.evaluate(function (d) { var u = APP.state.user; u.seeds = 0; u.garden[0].wateredDay = d; APP.save(); APP.renderAll(); window.__hide = true; }, NEXT);   /* 물 준 날 · 씨앗 없음 → 가려진다 */
++  var N2 = await labels(p7);
++  await p7.evaluate(function (d) { sessionStorage.setItem('__x_day', d); window.__ppolTest.today = d; window.__hide = false; document.dispatchEvent(new Event('visibilitychange')); }, NEXT2);   /* 다음 날 다시 보인다 */
++  var g2 = await p7.waitForFunction(function (d) { return APP.state.user.giftDay === d; }, NEXT2, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
++  var N3 = await labels(p7), nf3 = await noFocus(p7);
++  ok(N2[0] === '텃밭 첫째 칸, 새싹, 오늘은 물을 줬어' && N2[1] === '텃밭 둘째 칸, 빈 칸, 씨앗이 없어' && g2 && nf3 && N3[0] === '텃밭 첫째 칸, 새싹, 물 주기' && N3[1] === '텃밭 둘째 칸, 빈 칸, 씨앗 심기',
++    '탭이 다음 날 다시 보여 오늘 선물을 받으면 포커스 없이도: «' + N3[0] + '» · «' + N3[1] + '»');
++  var N4 = await p7.evaluate(function () { var u = APP.state.user; u.seeds = 0; APP.save(); APP.renderAll(); return document.getElementById('btn-plot1').getAttribute('aria-label'); });
++  var w7 = await p7.evaluate(function () { document.getElementById('btn-bag').click(); var c = document.getElementById('week-claim'), had = !!c; if (c) c.click(); document.getElementById('bag-close').click(); return { had: had, seeds: APP.state.user.seeds }; });
++  var N5 = await labels(p7), nf5 = await noFocus(p7);
++  ok(N4 === '텃밭 둘째 칸, 빈 칸, 씨앗이 없어' && w7.had && w7.seeds === 2 && nf5 && N5[1] === '텃밭 둘째 칸, 빈 칸, 씨앗 심기', '주간 선물(씨앗 ' + w7.seeds + ')을 받으면 바깥 단추도 «' + N5[1] + '» (전 «' + N4 + '»)');
++  await c7.close();
+   reportErrors(bag, 'X');
+ }
+ 

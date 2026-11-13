@@ -1,0 +1,96 @@
+{
+ "summary": "The entry intro's cloud bank is now thin, and the phone never fills with the bank colour. I measured all 96 combinations (6 sizes × 4 weathers × 4 hours). The bank colour now covers at most 27–42 % of the screen and never reaches 50 %, so the time above 50, 75 and 90 % is 0 everywhere. Before, it peaked at 95.5–99.3 % and stayed above 90 % for 0.10–0.13 s.\n\nThe sky-colour switch is now fully hidden. It used to happen at 1.40 s and now happens at 1.88 s (1.90 s at 320×568, 1.92 s at 740×360). In the frame before the switch and the switch frame, 0 pixels of the sky band are visible in every look that has a switch. Before, 714–3725 px were visible just before the switch and 2765–5215 px in the switch frame (about 1.8 → 4.5 % on a phone, seen through gaps in the bank's top puffs). There is also no seam between the two sky colours, no mismatch at the canvas edge, and the panel colour equals the empty-sky colour after landing (#090a14) in all 96 cases.\n\nI changed one thing from the prototype on purpose: the thin bank keeps the old bank's bottom edge instead of its centre. That keeps rain and snow starting exactly where they did, which the brief requires; the prototype moved their start up by 0.31 screen. It also keeps the gap between the cloud and the roof as before (largest share of below-cloud dark colour, night excluded: 71–83 %, same as before).\n\nThe cost, which the owner should see in the pictures: around 1.0–1.1 s, after the sparse clouds and before the bank rises in, the plain above-cloud sky (day navy, dawn/dusk #241527, night #090a14) fills 85–96 % of the screen. It stays above 90 % for up to 0.18 s on 360×740 and up to 0.27 s on wide screens. With the prototype's centred bank this sky peaks at 85 % instead, but afterwards a near-black screen reaches 98 %. Measured as the brief worded it (\"bank or panel colour\" counted together), the two colours still add up to ~98 %, but that is a grey band over a dark panel, not one colour.\n\nThe 2D fallback did not have the full-screen moment, so I left it unchanged. Its stage is only the top strip of a 360×740 screen, the bank colour never passed 30 % of the screen, and the rest is the unchanged dark cover.\n\nI rewrote the guard (step 0 of the intro test). It now catches all 8 deliberate breakages, including the original 11-11 bug, two skies at once, a timeline that restarts on a size change and a missing panel. Suites: `npm test` 0 failed, font check `stale: none`, step 0 passed three times in a row, smoke I 31/0, scene perf 111/0. The full intro test gives no verdict because of load: it dies at the same 12 s title wait on an untouched copy of b287a11. Nothing committed.",
+ "changes": [
+  {
+   "file": "js/scene3d.js",
+   "lines": "4318",
+   "what": "CLOUD gets bank: 0.5 (bank height cap as a share of the render height).",
+   "why": "This is the owner's 'thinner' decision. With the cap the bank can never cover half the screen, at any size."
+  },
+  {
+   "file": "js/scene3d.js",
+   "lines": "4372-4377, 4383",
+   "what": "buildSky: bh0 = old formula, bh = min(bh0, floor(S.rh*0.5)); dn = (bh0-bh)/2*pxUp(); the bank mesh y is lowered by dn.",
+   "why": "This keeps the bank's flat bottom where it was. rainTop is the bank bottom, so rain and snow start exactly where they did, and the bank still meets the roof, so the empty dark gap below it is no longer than before."
+  },
+  {
+   "file": "js/scene3d.js",
+   "lines": "4385-4392",
+   "what": "New under-cloud panel: a flat quad from the bank body's middle downward, 1.5 screens + 0.05 s of travel tall, as wide as the bank. Its colour is skyEstimate(bg0) (#090a14 in all looks), depth +20 (behind the room), renderOrder 1. It is pushed into sky.list and sky.clouds, and kept as sky.under.",
+   "why": "Without a full-screen bank nothing hides the band switch. Because the panel is part of the sky it is built, laid out, rebuilt (introFit) and disposed with it, so it cannot leak or be doubled."
+  },
+  {
+   "file": "js/scene3d.js",
+   "lines": "4394",
+   "what": "INTRO.pass lowered by (S.rh/2 + 2)*pxUp() + dn when the panel exists.",
+   "why": "The band now switches once the panel's top has left the screen top, so panel and room cover every background pixel (1.40 s → 1.88 s)."
+  },
+  {
+   "file": "js/scene3d.js",
+   "lines": "4480-4487, 5428",
+   "what": "New API skyCut(): while band 0 is showing and the panel is on screen, returns {y, hex}, where y is the panel top's window y, or -1e4 once the top has left the canvas. Otherwise returns null. Exported next to skyHex.",
+   "why": "Lets the intro layer split its outside cover at the same height, so wide-screen sides and the 2 px border around the scene do not show a dark rectangle inside navy. With the -1e4 case no 2 px navy strip flips colour at the switch."
+  },
+  {
+   "file": "js/intro.js",
+   "lines": "103-112, 265",
+   "what": "setSky also reads skyCut() and sets --intro-sky-lo, --intro-cut and --intro-up, or removes them. Cleanup removes all four properties.",
+   "why": "Paints the cover navy above the cut and panel colour below it."
+  },
+  {
+   "file": "css/intro.css",
+   "lines": "27, 34",
+   "what": "#scene3d background becomes a gradient that cuts at --intro-cut. .intro-hole gets two box-shadows: the upper one, raised by --intro-up, in --intro-sky; the lower one in --intro-sky-lo.",
+   "why": "Lets the cover show two colours. With the variables unset it renders exactly as before."
+  },
+  {
+   "file": "tools/intro-shots.js",
+   "lines": "4-14 (header), 19, 50-77 (bgProbe), 78 + 84 (bootPage probe arg), 160-224 (bootPass), 227-229",
+   "what": "Removed the old check (the mid row at 1.36 s is all bank colour) and its midRow helper. Added bgProbe, an init script that wraps THREE.WebGLRenderer: each beauty pass is rendered twice more into private targets with the background set to magenta and to green, and the pixels that differ are where the sky band is visible. Added bootPass for 360×740 day clear (resized to 412×915 during the top hold) and 1280×800 dusk rain. All other step 0 checks are unchanged.",
+   "why": "The guard now checks the new design's invariants without depending on colours. Dawn and dusk rooms contain #241527, the above-cloud colour, so a colour-based check would give false results. Time moves only through debugStep, so wall-clock speed does not matter."
+  },
+  {
+   "file": "docs/INTRO_SLOW_PROTO.md",
+   "lines": "178-248 (new §9)",
+   "what": "Dated Korean section: the owner's choice, what changed, every number before and after, the trade-off for the owner to look at, the 2D finding, the guard and its mutation table.",
+   "why": "Required by the brief."
+  }
+ ],
+ "decisions": "Where the brief left a choice, I decided as follows.\n\n1. **Cap the bank relative to the screen, not at the prototype's fixed 196 px.** I set CLOUD.bank = 0.5, so the bank is at most floor(render height × 0.5) art px. A fixed 196 px measured 56 % at 320×568 and 87 % at 740×360 (no panel there, because 196 px is taller than that screen's 178 px render height). The relative cap stays under half the screen at every size.\n\n2. **Keep the bank's bottom edge where it was (dn), instead of centring it as the prototype did.** Reasons:\n   - Rain and snow start at the bank bottom, and the brief says they must start where they did. Centring moved their start up by 113 art px (0.31 screen) at 360×740.\n   - Centring left a 98 % near-black screen after the bank passed (above 90 % for 0.13 s, above 75 % for 0.32 s).\n   - The cost of bottom anchoring: the above-cloud sky reaches 85–96 % around 1.0–1.1 s. With centring it peaks at 85 %. The rule I followed was not to move the bank's bottom edge.\n\n3. **Panel and switch.** The panel colour is skyEstimate, which matches the post-processed void colour; the raw bg hex gives #020104, which is wrong. The switch happens 2 px after the panel top leaves the screen top.\n\n4. **Covers outside the scene.** These are split at the panel top through skyCut, which is new and beyond the prototype. Without it, wide screens show a black rectangle inside navy, and phones a 2 px navy frame. On wide screens the side covers now show a straight navy/dark line that climbs with the bank until the switch. The old design flipped the whole side area in one frame at 1.40 s. Whatever is drawn outside the scene column shows some edge, so I picked the less abrupt one.\n\n5. **2D fallback left unchanged.** At 360×740 the bank only fills the small stage at the top, never more than 30.1 % of the screen. I had capped it in an earlier pass, but it does not have the same full-screen moment, so I reverted that change, as the brief asks.\n\n6. **Guard looks.** Step 0 checks two looks: 360×740 day clear with a resize during the top hold, and 1280×800 dusk rain. The second is the hard case: wide side covers, and a room containing pixels of the above-cloud colour.\n\nNumbers set: CLOUD.bank = 0.5; bh = min(bh0, floor(S.rh*0.5)); dn = (bh0−bh)/2 art px; panel height = ceil(S.rh*1.5 + spd*0.05) art px, z = +20, renderOrder 1, colour skyEstimate(bg0); INTRO.pass −= (S.rh/2 + 2) art px + dn.",
+ "new_text": [
+  "No player-facing text was added or changed (the font check says stale: none)."
+ ],
+ "guard": "**What step 0 now checks** (the \"구름 지나기\" bootPass in `tools/intro-shots.js`, in two runs: 360×740 → 412×915 at 13h clear, and 1280×800 at 18h rain). From 0.9 to 2.1 s, stepping 1/60 s with debugStep and reading canvas pixels at render size:\n- The bank-body colour stays under 50 % of the screen, and reaches at least 20 % at some point (so the bank does pass).\n- The band switch happens.\n- In the switch frame and the frame before it, 0 sky-band pixels are visible (measured with bgProbe).\n- Before the switch, no visible sky-band pixel touches a panel-coloured pixel (no seam).\n- Wherever the sky band is visible at the canvas edge, its colour equals the cover colour at that height (skyCut, skyHex).\n- At 1.5 s, the cover the intro layer actually painted (--intro-sky-lo, --intro-cut) equals what the scene reported.\n- The panel colour equals the empty-sky colour after landing.\n- bgProbe produced a mask on every frame.\n\nEverything else in step 0 is unchanged: render size, start height, progress kept across a resize, one sky layer (draw calls), draw calls after landing, zoom.\n\n**Mutation table.** Each line is a scratch copy of the final tree with one change, run with `BOOT_ONLY=1`; all exited 1. Logs are in `/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-thin/out/mut-m*.log`.\n- **m1 – 11-11 fix reverted** (sky built at the 320×240 stand-in): 15 failures — render size 160×120 three times, start height 0.848 / 0.685 / 0.673, zoom height, bank max 13.7 % and 12.1 % (bank never passes), sky band visible at the switch 37102 and 61635 px, seam 240 and 456, edge 397 and 572.\n- **m2 – old sky kept** (two skies): 1.36 s draw calls 45 ≠ 17, after-landing draw calls 122 ≠ 106, bank 61.6 %.\n- **m3 – timeline restarts on refit** (INTRO.t = 0): progress 0.3337 → 0.0003, height 2.140 → 2.602, zoom 1.550 → 2.599.\n- **m4 – panel missing**: switch at 1.40 s with 49419 and 64468 px of sky band visible, no skyCut, paint check fails.\n- **m5 – old bank height**: bank 99.4 % and 98.5 %.\n- **m6 – cover not split** (setSky returns early): paint check fails at both sizes.\n- **m7 – panel colour = raw bg hex**: panel #020104 ≠ void #090a14.\n- **m8 – switch not moved** (old INTRO.pass): switch at 1.40 s with 48501 and 62237 px visible, paint check fails.\n\n**Not guarded:** the bank's bottom anchor (dn) and the rain start height. Neither is exposed to the page. Removing dn would pass the guard.",
+ "suites": [
+  "npm test (on the final code): exit 0 — 517, 26, 568, 225, 192 and 234 passed, export 46 passed, 0 failed.",
+  "Font check: stale: none.",
+  "BOOT_ONLY=1 NO_VIDEO=1 node tools/intro-shots.js: passed three times in a row (exit 0 each), with bank max 42.0 % / 40.0 %, switch at 1.88 s, 0 → 0 sky-band px, seam 0, edge 0, panel #090a14 = void.",
+  "NO_VIDEO=1 node tools/intro-shots.js (full, once): step 0 passed, then step 1 failed (exit 1) on its wall-clock wait (`waitForSelector #intro[data-phase=title]`, 12000 ms). The control run on an untouched b287a11 copy failed the same way at the same place, so: no verdict because of load (load average about 10–11 from other agents).",
+  "SMOKE_ONLY=I node tools/smoke.js: 31 passed, 0 failed.",
+  "node tools/test-scene-perf.js: 111 passed, 0 failed.",
+  "Tracked evidence files rewritten by the suites (tests/evidence/intro/1-sky.png, tests/evidence/peek-bubble.png) were put back with git checkout. The tree now differs from b287a11 only in css/intro.css, js/intro.js, js/scene3d.js, tools/intro-shots.js and docs/INTRO_SLOW_PROTO.md."
+ ],
+ "left": [
+  "For the owner to judge from the pictures: around 1.0–1.1 s, after the sparse clouds and before the thin bank rises, the plain above-cloud sky fills most of the screen — 90.4–94.2 % on 360×740 (above 90 % for 0.02–0.18 s), 93–96 % on 412/430/1280 (up to 0.27 s), and 85–91 % on 320×568 and 740×360. It is the same sky that fills 77 % at the start of the descent, but it is still a moment where the screen is mostly one colour. The prototype's centred bank lowers this peak to 85 %, at the price of a 98 % near-black screen afterwards and rain starting higher.",
+  "On wide screens (1280×800, 740×360), the cover areas beside the scene show a straight navy-over-dark line that climbs with the bank until the switch. In the scene column the line is hidden behind the bank. Before, the whole side area flipped colour in one frame at 1.40 s.",
+  "Counted the way the brief worded it (bank or panel colour together), the two colours still reach 96–98.5 % of the screen at the bank's widest moment on phones and 1280×800 (87.5 % at 740×360): a grey or pink band above a dark panel. I report it but did not treat it as 'one flat colour'.",
+  "Neither the bank's bottom anchor nor the rain start height is checked by the guard, because neither is exposed to the page.",
+  "The mutation copies were built with a tar copy of the tree, which also carried my earlier 2D change into m1–m4. The 2D code is not used by step 0."
+ ],
+ "not_verified": [
+  "Real phones or GPUs: everything was measured with SwiftShader in headless Chromium at deviceScaleFactor 1.",
+  "The 'before' matrix for sizes other than 360×740 covers only 3 looks each (day clear, dusk clear, night rain). The after matrix covers all 16 looks at all 6 sizes.",
+  "Steps 1–6 of the full intro test give no verdict because of load (the control run failed the same way).",
+  "Rain and snow start height: I did not measure it in pixels. It follows from the code (rainTop is the bank bottom, which is unchanged), and the 360×740 night-rain sheet shows rain under the bank at the same positions before and after.",
+  "How long it takes to build the sky. The panel adds one small quad and a 2×2 texture; I did not time it.",
+  "Reduced motion: I did not run it separately. startIntro still returns before building any sky when st.reduced is set, so the panel cannot appear; smoke I passed.",
+  "A size change in the middle of the descent, checked at a dawn or dusk look or at other sizes: step 0 covers 360→412→430 at day, rebuilds the panel in its 412×915 run, and m2 and m3 show the draw-call and progress checks catch a wrong rebuild."
+ ],
+ "pictures": [
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-thin/pics/sheet-360x740-day-clear.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-thin/pics/sheet-360x740-dusk-clear.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-thin/pics/sheet-360x740-night-rain.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-thin/pics/sheet-1280x800-day-clear.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-thin/pics/sheet-2d-360x740.png"
+ ]
+}
