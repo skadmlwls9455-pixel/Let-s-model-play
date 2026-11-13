@@ -539,7 +539,7 @@ var APP = (function () {
           walkTo('window').then(function () { if (!oct.busy) { octState('idle'); var w = weatherFor(S.room.lantern), hr = new Date().getHours(); say(w === 'clear' ? (hr >= 19 || hr < 6 ? '별이 보여' : '맑네') : w === 'snow' ? '눈이 와' : '비가 와', 'calm', 2000); } });
         },
         anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ },
-        octUp: function (up, an) { if (!up && an) oct.anchor = an; updateSceneDesc(); },   /* 11-12: 위층 ↔ 다락으로 옮겨진 문어 — 다락에 놓인 자리를 앱 자리로 · 장면 설명 다시 */
+        octUp: function (up, an) { if (!up && an) { oct.anchor = an; if (an !== 'blanket' && restPhase() !== 'up') octPlace('blanket'); } updateSceneDesc(); },   /* 11-12: 위층 ↔ 다락으로 옮겨진 문어 — 다락에 놓인 자리를 앱 자리로 · 장면 설명 다시. 11-13 주인 (OW-3 b): 쉬는 차례면 담요로 (위층에 남아 있던 틈 — 내려가는 전환에 가려 보이지 않는다) */
         octResting: function () { return restPhase() === 'awake'; },   /* 11-12 주인 (검증 W3 (b)): 차례 뒤 깨어 있는 틈 (눕으러 가는 중 포함) 엔 위층에 따라 오르지 않는다 — 잠과 같이. 장면이 오르는 순간에 묻는다 (새로고침 · 다른 탭의 차례도 restPhase 가 안다) */
         place: function () { updateSceneDesc(); },   /* 3D: 의식이 다락 ↔ 집 바깥을 바꾼 순간 (2D 는 runCeremony 의 250 ms 틱이 따라간다). 놀이방에 있는 동안에도 온다 (이야기 장소만 바뀜) */
         door: function (ev) { if (window.AUDIO && ev) AUDIO.on('door', { act: ev.act, room: ev.room }); },   /* 8물결: 방 문이 열리고 닫힐 때 끼익 (장면은 AUDIO 를 부르지 않는다) */
@@ -1398,7 +1398,7 @@ var APP = (function () {
   }
   function sleepNow(t, place) {
     clearRest(); restSeen = t ? t.id : restSeen;
-    if (place) { if (scene && typeof scene.finishWalk === 'function') scene.finishWalk(); octPlace('blanket'); }
+    if (place || octWithMe()) { if (scene && typeof scene.finishWalk === 'function') scene.finishWalk(); restDown(); octPlace('blanket'); }   /* 11-13: 자는 문어는 늘 다락 담요 (위층에서 잠들지 않는다). octWithMe: 틈이 끝나 담요로 걷는 몇 초 사이 날이 바뀌면 (낮잠도 끝 — 쉬는 차례가 아니다) 내가 오를 때 따라 오고, 그 걸음이 위층에서 끝나 place 없이 여기 온다 (재검 RC3-1) */
     if (oct.state === 'sleep') return;
     var rx = t && t.events ? reactionOf(t) : null;
     sleepReaction = rx ? (rx.r || rx.raw || null) : null;   /* 소리(D-1): 이 차례의 반응을 잠드는 훅에 (네 가지면 그 말, 아니면 받은 말 그대로, 없으면 null) */
@@ -1406,7 +1406,9 @@ var APP = (function () {
     if (S.octopus.state !== 'sleep') { S.octopus.state = 'sleep'; save(); }
     updateSceneDesc();
   }
-  /* 11-12 주인 (검증 W3 (b)): 쉬는 문어 (차례 뒤 깨어 있는 틈 · 낮잠) 는 위층에 따라 와 있지 않다 — 잠과 같이. 위층에 있던 채 쉬기 시작하면 (차례 동안 올라옴 · 다른 탭의 차례) 다락 담요로 (보이지 않는 곳에서 — 걸음 · 소리 · 행 없이) */
+  /* 11-12 주인 (검증 W3 (b)): 쉬는 문어 (차례 뒤 깨어 있는 틈 · 낮잠) 는 위층에 따라 오르지 않는다 — 잠과 같이.
+     11-13 주인 (OW-3 b): 위층에 따라 와 있던 채 차례가 끝나면 (차례 동안 올라옴 · 다른 탭의 차례) 깨어 있는 틈 동안은 그 자리에 둔다 (눈앞에서 사라지지 않게) — 내가 내려가면 담요 (on.octUp).
+     잠들 때만 여기서 다락으로 (걸음 · 소리 · 행 없이) */
   function restDown() { if (octWithMe() && typeof scene.octDown === 'function') { scene.octDown(); octPlace('blanket'); } }
   /* 다른 탭이 차례를 끝냈거나 · 이 탭이 다시 보일 때: 쉬는 차례가 바뀌었으면 맞춘다 (틈 안이면 깨어 있게, 지났으면 담요에서 잔다, 날이 바뀌었으면 그대로) */
   function syncRest() {
@@ -1416,8 +1418,7 @@ var APP = (function () {
     if (rest) { restTick(); return; }
     if (S.octopus.state !== 'sleep' && oct.state === 'sleep') { octState('idle'); return; }   /* 다른 탭에서 깼다 (초대 뒤 빈 차례 · 스스로 깸 · 낮잠 끝): 이 탭 문어도 담요에서 조용히 깬다 */
     if (!t || S.octopus.state !== 'sleep' || napOver() || t.id === restSeen) return;
-    restSeen = t.id;
-    restDown();   /* 다른 탭에서 다녀와 쉬는 문어 */
+    restSeen = t.id;   /* 11-13: 위층에 따라 와 있으면 틈 안엔 그대로 · 틈이 지났으면 아래 armRest(t, 0) 이 눕히며 담요로 (sleepNow) */
     var byClock = awakeByClock(t);
     if (oct.state === 'sleep') { if (!byClock) return; octPlace('blanket'); octState('idle'); }   /* 이 탭 문어는 앞 낮잠에 자고 있었는데 다른 탭이 새 차례를 막 끝냈다 → 담요에서 깨어 그 틈을 같이 */
     armRest(t, byClock ? Math.max(awakeFor(t) - (Date.now() - (t.endedAt || 0)), seenMin(t)) : 0);
@@ -1981,12 +1982,12 @@ var APP = (function () {
     if (trip.kind === 'empty') { octState(S.octopus.state === 'sleep' ? 'sleep' : 'idle'); return; }
     var t = trip.events ? trip : (lastRestTrip() || trip);
     S.octopus.state = 'sleep'; save();   /* 쉬는 중 (깨어 있는 틈이든 낮잠이든) — 지금 새로고침해도 담요에서 */
-    stopWander(); restDown();   /* 집에 있던 차례 동안 위층에 따라 올라왔으면 */
+    stopWander();
     if (!t.id) { sleepNow(t, true); return; }
-    if (!wantsAwake(t)) { armRest(t, 0); return; }   /* 틈이 없다 (테스트 훅 0): 담요에 닿는 대로 잔다 */
+    if (!wantsAwake(t)) { armRest(t, 0); return; }   /* 틈이 없다 (테스트 훅 0): 담요에 닿는 대로 잔다 (위층이면 sleepNow 가 다락으로) */
     armRest(t, awakeFor(t));   /* 졸림이면 짧게 */
     var my = t.id;
-    walkTo('blanket').then(function () { if (rest && rest.id === my && oct.state === 'walk') octState('idle'); });   /* 이미 담요면 바로 (걸어온 귀가) · 데려왔으면 문에서 걸어간다 */
+    walkTo('blanket').then(function () { if (rest && rest.id === my && oct.state === 'walk') octState('idle'); });   /* 이미 담요면 바로 (걸어온 귀가) · 데려왔으면 문에서 걸어간다. 11-13 주인 (OW-3 b): 위층에 따라 와 있으면 장면은 걷지 않는다 (moveTo) — 그 자리에서 틈 · 내려가면 담요 (on.octUp) */
   }
   /* 상태 반영: 등불 · 방문 · 취향 · 기념품 · 함께한 날 (한 번만) */
   function commitTrip(trip) {
