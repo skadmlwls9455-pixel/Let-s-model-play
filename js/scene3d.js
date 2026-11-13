@@ -4150,7 +4150,7 @@ var SCENE3D = (function () {
            화면 상자(꽃 높이까지 든)는 옆 칸과 겹치고, 땅(y 0)에 내린 점은 흙 높이만큼 뒤로 밀려 옆 칸에 들었다. 다 빗나가면 문어 히트 구 → 단추 칸 (44 px 여유) */
         var bm = octG.visible && octG.parent === extG ? bodyMeshes() : [], hx = ray.intersectObjects(bm.concat(plotPlants ? [plotBase, plotPlants] : [plotBase]), false);
         if (hx.length && bm.indexOf(hx[0].object) >= 0) return okOct ? hit : null;
-        if (hx.length) { var lx = extG.worldToLocal(hx[0].point.clone()).x, pi = 0; for (var q = 1; q < 3; q++) if (Math.abs(lx - PLOT.xs[q]) < Math.abs(lx - PLOT.xs[pi])) pi = q; if (SPOTS['plot' + pi] && spotInfo('plot' + pi)) return spotHit('plot' + pi); }
+        if (hx.length) { var lx = extG.worldToLocal(hx[0].point.clone()).x, pi = 0; for (var q = 1; q < 3; q++) if (Math.abs(lx - PLOT.xs[q]) < Math.abs(lx - PLOT.xs[pi])) pi = q; return SPOTS['plot' + pi] && spotInfo('plot' + pi) ? spotHit('plot' + pi) : null; }   /* 11-13: 맞은 칸 단추가 없으면 (밀고 돌려 그 칸이 화면 끝에 조금만 보인다) 아무것도 — 예전엔 아래 단추 칸으로 내려가 옆 칸을 심었다 */
         if (okOct && ray.intersectObject(hit, false).length) return hit;
         sp = spotAt(cx, cy, ['plot0', 'plot1', 'plot2']); if (sp) return spotHit(sp);
       }   /* 놀이방: 문어도 소품도 없다 — 문·오락기 단추 칸만 (진짜 <button> 은 hotspots) */

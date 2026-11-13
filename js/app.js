@@ -2082,7 +2082,7 @@ var APP = (function () {
   function takeRemote(raw) {
     if (!adoptRemote(raw)) return false;
     weekTell();   /* 11-11 (검증 W1): 다른 탭이 주를 넘기며 지난주 선물을 넣었고 아직 알리지 못했으면 (그 탭이 가려져 있다) 보이는 이 탭이 알린다 */
-    if (busy) { remoteDirty = true; return true; }   /* 공개 중엔 로그·등불을 다시 그리지 않는다 → 끝날 때 한 번 (setBusy) */
+    if (busy) { remoteDirty = true; applyGarden(); return true; }   /* 공개 중엔 로그·등불을 다시 그리지 않는다 → 끝날 때 한 번 (setBusy). 11-13: 바깥 밭 (단추 이름 · 심은 것) 만은 지금 — 산책 중에만 떠 있고, 이름만 바꾸면 거둔 꽃이 그대로 그려져 이름과 그림이 엇갈렸다 */
     /* 이 탭이 연출 중인 물음이 방금 밀렸다 (두 탭이 서로 보기 전에 물었고 그쪽이 일렀다 — dropped): 남은 연출을 여기서 접는다 (검증 11-10 E10).
        예전엔 밀린 색으로 걷기 · 대야를 끝까지 한 뒤 몸이 그쪽 색으로 툭 바뀌었다. 감기는 행을 붙이지 않고 (stageRows) 장면 몸색은 기록 (그쪽 답) 으로 맞춘다 */
     if (salonRun) { var mineNow = askById(salonRun.ask.id); if (mineNow && mineNow.status === 'dropped') salonFinish(); }
@@ -3701,6 +3701,8 @@ var APP = (function () {
     return JSON.stringify(S);
   }
   /* 불러오기: 먼저 그려 보고(검사), 되면 그때 저장. 안 되면 원래 기록·화면으로 되돌린다 — 저장된 기록은 건드리지 않는다 */
+  var importSeen = 0;   /* 11-13: 불러온 순간 (그 기록의 lastSeen, 지금보다 크면 지금) — 불러오기 전에 쓰인 다른 탭 기록의 storage 이벤트가 늦게 와도 불러온 것을 되돌리지 않게 (닫힌 탭의 마지막 저장이 몇 ms 뒤에 와서 옛 밭 · 조개가 돌아왔다).
+                           지금으로 자르는 까닭: 시계가 앞선 기기의 파일이면 lastSeen 이 미래라, 그 뒤 다른 탭의 초기화 · 저장을 버리고 이 탭이 옛 기록을 되썼다 */
   function importJSON(text) {
     if (busy) { toast('다녀오는 중이라 지금은 못 불러와. 끝나고 다시 해 줘'); return false; }
     salonFinish();   /* 미용실 연출 중이면 끝 상태로 먼저 (그 물음은 이미 저장돼 있다) */
@@ -3722,7 +3724,8 @@ var APP = (function () {
       toast('이 파일은 뽈뽈 기록이 아닌 것 같아'); return false;
     }
     mine = []; mineAsks = [];   /* 바꾼 기록에 예전 여행 · 미용실 물음을 다시 얹지 않게 */
-    save(); applyMotion(); applyFont(); syncSceneLook(); octInitial();
+    S.settings.lastSeen = Math.min(seenOf(S), Date.now());   /* 11-13 (재검): 불러온 기록의 lastSeen 도 지금으로 — 미래면 이 탭 미러(window.name)가 그 뒤 다른 탭의 초기화보다 '새것' 으로 남아, 새로고침 때 옛 기록이 돌아와 저장소에 되써졌다 */
+    save(); importSeen = Math.min(seenOf(S), Date.now()); applyMotion(); applyFont(); syncSceneLook(); octInitial();
     applyLook({ still: true });   /* 불러온 몸 색 (renderAll 의 renderScene 이 이미 맞췄으면 할 일 없음) */
     var d = $('settings-sheet'); if (d && d.open) d.close();
     toast('기록을 불러왔어'); return true;
@@ -4232,7 +4235,7 @@ var APP = (function () {
     window.addEventListener('pageshow', function (e) { if (e.persisted) { try { sessionStorage.removeItem(REST_KEY); } catch (err) { /* noop */ } } });   /* 뒤로 가기 캐시에서 돌아왔으면 넘길 것 없음 (틈은 그대로 이어진다) */
     window.addEventListener('scroll', function () { if (rest && !rest.lying) { clearTimeout(scrollRest); scrollRest = setTimeout(restTick, 120); } }, { passive: true });   /* 장면을 다시 올려 보면 곧바로 이어 센다 */
     window.addEventListener('storage', function (e) {
-      if (e.key !== KEY || !e.newValue || e.newValue === lastSaved) return;
+      if (e.key !== KEY || !e.newValue || e.newValue === lastSaved || seenOf(parseState(e.newValue)) < importSeen) return;   /* 11-13: 불러오기 전에 쓰인 기록 (importSeen) */
       takeRemote(e.newValue);
     });
     $('name-form').addEventListener('submit', function (e) {
@@ -4316,7 +4319,7 @@ var APP = (function () {
     u.shells = Math.max(0, u.shells | 0); u.seeds = Math.max(0, u.seeds | 0);
     if (!isObj(u.dyes)) u.dyes = {}; if (!Array.isArray(u.days)) u.days = []; if (!Array.isArray(u.earned)) u.earned = [];
     if (!Array.isArray(u.garden)) u.garden = [null, null, null]; while (u.garden.length < 3) u.garden.push(null);
-    for (var gi = 0; gi < u.garden.length; gi++) if (u.garden[gi] != null && !isObj(u.garden[gi])) u.garden[gi] = null;   /* 11-11: 객체가 아닌 칸만 빈 칸으로 (모르는 색은 그대로 둔다 — 나중 빌드가 알 수도 있다) */
+    for (var gi = 0; gi < u.garden.length; gi++) if (u.garden[gi] != null && !(isObj(u.garden[gi]) && typeof u.garden[gi].color === 'string' && u.garden[gi].color)) u.garden[gi] = null;   /* 11-11: 객체가 아닌 칸만 빈 칸으로 (모르는 색은 그대로 둔다 — 나중 빌드가 알 수도 있다). 11-13: 색 글자가 없는 칸도 (심을 때 늘 색을 넣는다 — 거두면 염료 'undefined' 가 생겼다) */
     return u;
   }
   function earnFromPlay(r) {   /* 놀이 한 판 → 조개 (같은 판 id 는 한 번만) */
@@ -4431,9 +4434,11 @@ var APP = (function () {
   function renderBagChip() {   /* 주 먼저 (11-11): 주가 바뀌며 넣은 지난주 선물이 조개 수에 바로 보이게. 11-12 (검증 W8 · F5): 받을 선물이 있으면 이름에도 (점은 눈에만 보인다) */
     var b = $('btn-bag'); if (!b) return; var u = userState(), w = S.octopus.name ? weekState() : null, gift = !!w && !w.claimed && weekDoneN(w) >= WEEK_NEED; b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = '조개 ' + u.shells;
     if (w) b.classList.toggle('has-gift', gift); b.setAttribute('aria-label', '살림, 조개 ' + u.shells + (gift ? ', 주간 선물이 있어' : ''));
+    plotLabels();   /* 11-13: 바깥 밭 단추 이름도 — 씨앗 · 밭 · 날이 바뀌는 길(오늘 선물 · 주간 선물 · 다른 탭 · 불러오기 · 초기화)이 다 여기를 지난다 (포커스 없이 훑는 화면 낭독기) */
   }
-  /* 11-11: 텃밭 칸 하나를 읽는다 — 모르는 색(손댄 기록 · 나중 빌드의 새 색)이어도 던지지 않는다: 이름 없이 '꽃', 그림은 장면 기본색 */
-  function plotView(g, dk) { if (!g) return null; var d = dyeOf(g.color), w = Math.max(0, Math.min(2, g.water | 0)); return { w: w, name: d ? d[1] : '', hex: d ? d[2] : null, today: g.wateredDay === dk, st: w >= 2 ? (d ? d[1] + ' 꽃' : '꽃') : w === 1 ? '새싹' : '씨앗' }; }
+  /* 11-11: 텃밭 칸 하나를 읽는다 — 모르는 색(손댄 기록 · 나중 빌드의 새 색)이어도 던지지 않는다: 이름 없이 '꽃', 그림은 FL_UNKNOWN (11-13) */
+  var FL_UNKNOWN = '#787279';   /* 11-13: 모르는 꽃 색 — 장면 PAL.slate[3] 과 같은 회색 · 염료 어느 색도 아니다 (예전엔 바깥은 노랑, 시트는 분홍과 똑같이 칠해 아는 꽃처럼 보였다) */
+  function plotView(g, dk) { if (!g) return null; var d = dyeOf(g.color), w = Math.max(0, Math.min(2, g.water | 0)); return { w: w, name: d ? d[1] : '', hex: d ? d[2] : FL_UNKNOWN, today: g.wateredDay === dk, st: w >= 2 ? (d ? d[1] + ' 꽃' : '꽃') : w === 1 ? '새싹' : '씨앗' }; }
   var PLOT_NTH = ['첫째', '둘째', '셋째'];
   function plotLabel(i, u, dk) {   /* 칸 · 든 것 · 누르면 할 일 (11-11 — 바깥 단추 · 살림 시트 단추가 같은 말) */
     var v = plotView(u.garden[i], dk);
