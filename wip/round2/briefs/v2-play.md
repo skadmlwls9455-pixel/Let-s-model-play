@@ -17,8 +17,8 @@ player would notice.
    the scenarios drive a turn and stub the brain), the return, the awake window on the blanket (tap the octopus:
    its line), the nap. Then a turn that stays home.
 3. **Upstairs**: climb with the octopus awake and idle (it follows); climb during the awake window after a turn (it
-   stays downstairs; the mirror says one line); climb while the model is still thinking, then let the turn end as
-   stay-home (it stays upstairs until you go down, then it is on the blanket); the mirror and the salon sheet when
+   stays downstairs; the mirror says one line); (climbing while the model is still thinking and a stay-home turn
+   ending upstairs is being changed in another lane: skip it); the mirror and the salon sheet when
    it is with you; going down and up again.
 4. **The weekly list** (살림 › 이번 주 할 일): do the tasks for real (ask a walk, plant, the loft, the play room,
    the look sheet, the poster diary), swap one, finish five, claim the gift, then move the date to the next Monday.

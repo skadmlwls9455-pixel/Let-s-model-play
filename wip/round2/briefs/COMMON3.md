@@ -12,7 +12,7 @@ Docs worth knowing: `docs/VISION.md`, `docs/OWNER_DECISIONS.md`, `docs/MODEL_VOI
 
 ## What you verify
 
-- **The tree: `/home/user/ppolppol-verify2`**, a checkout of commit **VERIFY_SHA** (detached). It is what ships as
+- **The tree: `/home/user/ppolppol-verify2`**, a checkout of commit **6d03faf** (detached). It is what ships as
   the second deploy unless you find something. **Read-only for you**: to mutate code or to run a suite that rewrites
   evidence files, copy it to your scratch folder first (`git -C /home/user/ppolppol-verify2 archive HEAD | tar -x
   -C <dir>`; link `node_modules` to `/home/user/Let-s-model-play/node_modules`; link `audio/` instead of copying it).
@@ -36,8 +36,11 @@ Docs worth knowing: `docs/VISION.md`, `docs/OWNER_DECISIONS.md`, `docs/MODEL_VOI
   8. Owner decisions of 11-12 `a0483dd`: (3b) the octopus does not follow upstairs while it rests after a turn;
      (4b) the weekly task "이번 주에 사흘 들어오기" is removed (an old week that already counted it keeps the point:
      `week.kept`, with one new line); (5b) a press that wakes a sleeping octopus does not count for "산책 갈지 묻기".
-  9. Owner default OW-3 (lane owner3): when a turn ends while the octopus is upstairs, it stays upstairs until the
-     player goes down; OW-4 kept (the awake window counts only while the attic is seen).
+  9. **Not in this tree yet:** the owner default OW-3 (lane owner3: when a turn ends while the octopus is upstairs,
+     it stays upstairs until the player goes down) is being finished in another tree with its own independent check
+     and will be merged after you. In this tree a turn that ends while the octopus is upstairs still moves it to the
+     attic blanket at once: that is known, do not report it. OW-4 is kept as it is (the awake window counts only
+     while the attic is seen).
 
 Scratch: `/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/<your label>/`.
 Keep `notes.md` there as you go (what you tried, what you saw, file names of evidence). If it already exists

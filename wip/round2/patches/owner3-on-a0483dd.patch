@@ -38,7 +38,7 @@ index 6e883e0..848ed6b 100644
  ### 3.2 시트 (`#salon-sheet`)
  
 diff --git a/js/app.js b/js/app.js
-index 23b1a16..e3b8550 100644
+index 23b1a16..72dacae 100644
 --- a/js/app.js
 +++ b/js/app.js
 @@ -539,7 +539,7 @@ var APP = (function () {
@@ -55,7 +55,7 @@ index 23b1a16..e3b8550 100644
    function sleepNow(t, place) {
      clearRest(); restSeen = t ? t.id : restSeen;
 -    if (place) { if (scene && typeof scene.finishWalk === 'function') scene.finishWalk(); octPlace('blanket'); }
-+    if (place || octWithMe()) { if (scene && typeof scene.finishWalk === 'function') scene.finishWalk(); restDown(); octPlace('blanket'); }   /* 11-13: 자는 문어는 늘 다락 담요 (위층에서 잠들지 않는다) */
++    if (place) { if (scene && typeof scene.finishWalk === 'function') scene.finishWalk(); restDown(); octPlace('blanket'); }   /* 11-13: 자는 문어는 늘 다락 담요 (위층에서 잠들지 않는다 — 위층에선 watching() 이 거짓이라 늘 place) */
      if (oct.state === 'sleep') return;
      var rx = t && t.events ? reactionOf(t) : null;
      sleepReaction = rx ? (rx.r || rx.raw || null) : null;   /* 소리(D-1): 이 차례의 반응을 잠드는 훅에 (네 가지면 그 말, 아니면 받은 말 그대로, 없으면 null) */
@@ -97,7 +97,7 @@ index 23b1a16..e3b8550 100644
    /* 상태 반영: 등불 · 방문 · 취향 · 기념품 · 함께한 날 (한 번만) */
    function commitTrip(trip) {
 diff --git a/tools/smoke.js b/tools/smoke.js
-index 1cafb62..7ce8dd6 100644
+index 1cafb62..e22e05a 100644
 --- a/tools/smoke.js
 +++ b/tools/smoke.js
 @@ -5244,6 +5244,18 @@ async function scenarioWeek(browser) {
@@ -144,9 +144,19 @@ index 1cafb62..7ce8dd6 100644
    if (ZP.indexOf('5') >= 0) {
    var AW = 60000, DOWN = '지금은 아래층에 있어.', DOWN_Z = '지금은 아래층에서 자고 있어.';   /* 깨어 있는 틈 60 s (테스트 훅) · 등불 4칸 (담요 자리가 있다) */
    function R5(pg) { return pg.evaluate(function () { var t = document.getElementById('toast'); return { room: APP.room, up: APP.scene.octUp(), st: APP.oct.state, an: APP.oct.anchor, phase: APP.restPhase(), rest: APP.rest, saved: APP.state.octopus.state,
-@@ -5547,32 +5568,85 @@ async function scenarioLoft(browser) {
-   await stair(pg, false); await stair(pg, true); var z6 = await R5(pg);
+@@ -5544,35 +5565,94 @@ async function scenarioLoft(browser) {
+   await stair(pg, true); var z4 = await R5(pg);
+   await pg.evaluate(function () { APP.state.user.giftDay = '2026-11-10'; window.__ppolTest.today = '2026-11-10'; }); await tick(pg, 2);   /* 그날 선물은 받은 날로 (알림이 거울 한 줄과 겹치지 않게) */
+   var z5 = await R5(pg), m53 = await mirror5(pg);
+-  await stair(pg, false); await stair(pg, true); var z6 = await R5(pg);
++  await stair(pg, false);
++  await pg.evaluate(function () { clearTimeout(APP.oct.wanderTimer); APP.scene.jumpTo('window'); APP.oct.anchor = 'window'; });   /* 11-13: 담요 아닌 제 자리 (창가) 에서 따라 오르게 · 돌아다니기는 끈다 */
++  await stair(pg, true); var z6 = await R5(pg);
    ok(h52 && !z4.up && z4.phase === 'awake' && z5.phase === 'up' && !z5.up && z5.st === 'idle' && m53.toast === DOWN && m53.quiet && z6.up && z6.st === 'idle', '위층에 있는 동안 날이 바뀌어 틈이 끝나면: 깨어서 아래층 (거울 «' + m53.toast + '») · 내려갔다 다시 오르면 따라 온다 (' + J5(z6) + ')');
++  /* 11-13: 쉬지 않는 (틈이 끝난) 문어는 내려오면 제 자리 — 담요로 옮기는 건 쉬는 차례만 (on.octUp 의 restPhase). 다락으로 옮겨진 바로 그 프레임 */
++  await pg.evaluate(function () { window.__zUn = null; window.__zEach = function () { if (!window.__zUn && !APP.scene.octUp()) { var m = APP.scene.motion(), w = APP.scene.anchors.window; window.__zUn = { an: APP.oct.anchor, st: APP.oct.state, phase: APP.restPhase(), d: +Math.hypot(m.gait.at[0] - w[0], m.gait.at[2] - w[2]).toFixed(4) }; } }; });
++  var d52 = await stair(pg, false), un52 = await pg.evaluate(function () { window.__zEach = null; return window.__zUn; });
++  ok(d52 && z6.an === 'window' && un52 && un52.phase === 'up' && un52.an === 'window' && un52.d < 0.01 && un52.st === 'idle', '틈이 끝나 따라 온 문어는 내려오면 제 자리 (창가 — 담요로 옮기지 않는다) ' + JSON.stringify(un52));
    reportErrors(bag, 'Z-5a'); await A.ctx.close();
 -  /* 5-3. 집에 있는 차례 동안 따라 올라와 있다가 차례가 끝난다 → 문어는 다락 담요로 (보이지 않는 곳에서 — 깨어 있는 틈) · 다시 올라도 오지 않는다. 5-4. 그 틈에 새로고침 → 틈이 이어지고 오르면 오지 않는다 */
 +  /* 11-13 주인 (OW-3 b): 위층에 따라 와 있던 채 차례가 끝나면 문어는 내가 내려갈 때까지 위층 그 자리. 프레임마다 적는다 (__zEach): 아래층으로 간 프레임 · 걸음 · 처음 자리에서 옮겨 간 거리 · 위층에서 자는 프레임 */

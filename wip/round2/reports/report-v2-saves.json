@@ -1,0 +1,87 @@
+{
+ "summary": "One must-fix defect stops this deploy: some players' weekly progress drops when they update. Production f2c93f1 could give the weekly task \"선물 상자에서 하나 내밀기\" (task id `gift`, offer something from the gift box). The new build removes that task (commit 66c8110), but only the other removed task, \"이번 주에 사흘 들어오기\", has its finished point kept (`week.kept`). A finished `gift` task is swapped for another task with its count set to 0. The point is gone.\n\nWhat a player sees: a week that production showed as 5/5 with the claim button turns into 4/5 with no button. If the update lands on a Sunday with five tasks done and the gift not claimed, the new build's fix that pays the weekly gift at the week change (lane 2) does not pay it either, because it uses the same count. A save from Sunday 11-15 opened Monday got only the day gift: 12 shells and 2 seeds missing. A one-line change that also counts a finished `gift` task was tried in a copy of the new build, and with it both cases come out right.\n\nOne smaller defect: a tab still open on the old build can make the new tab count the same three entry days twice, so a week shows 5/5 with three tasks really done.\n\nEverything else held. I made 15 saves by playing production itself and opened each with the new build, both from a fresh browser and by reloading the same tab. For each I compared what was saved before and after, field by field, and the screens. The only differences were the intended week fixes from the 11-12 owner decisions. Shells, seeds, dyes, entry days, garden, poster album, moved furniture, colour history, salon questions, octopus state and outfit, and every other field came through unchanged. Each save stayed the same after a minute of play and another reload.\n\nImport and export, a file whose `lastSeen` is in the future followed by a reset in another tab (new or old build), damaged files, and reset in the new build all behaved correctly. Probes, saves, screenshots and notes are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-saves/ (saves/ has the save files, cmp/ has the comparisons, shots/ has the screenshots, notes.md has my running notes).",
+ "findings": [
+  {
+   "id": "S1",
+   "severity": "must",
+   "title": "A finished '선물 상자에서 하나 내밀기' weekly task from production loses its point after the update; a 5/5 week becomes 4/5 and its weekly gift is lost",
+   "where": "js/app.js:4368-4371 (oldDone only handles 'days') used by weekState 4372-4395 (same-week fix at 4376-4378, week-change payout at 4383); QUESTS at 4352 no longer lists 'gift' (removed in 66c8110)",
+   "what": "Production f2c93f1 could give the weekly task 'gift' (선물 상자에서 하나 내밀기, target 1); in my picks about half of all names get it, e.g. the name 조약돌 in week 2026-11-09. The new build treats it as an unknown task: weekState swaps the slot for another task with n 0. Its finished point is kept only for 'days', through oldDone and week.kept. Result: (a) same week: save S06 (ask, look, gift, loft and days done, gift not claimed). Production shows '(5/5)' with the claim button and a gift dot on the bag chip. The new build shows '(4/5)', no button, no dot. Stored: q.3 gift n 1 becomes furn n 0; days becomes kitchen; kept 1. (b) Across the week change: save S08 is the same week saved on Sunday 11-15 and opened Monday 11-16. No week.prev is written, and shells go 12 to 25, which is only the day gift (3+10); the weekly 12 shells and 2 seeds are not paid. The control save S05 (five done without 'gift') opened the same way is paid correctly: week.prev {12,2}, shells 25 to 40. Should: the update keeps every point the save had, as it does for 'days'.",
+   "evidence": "cmp/S06-wed-five-with-gift@2026-11-11-prod.json: weekRows include '선물 상자에서 하나 내밀기했어', bagGift true. cmp/S06-wed-five-with-gift@2026-11-11-new.json: diff '.user.week.q.3.id: \"gift\" -> \"furn\"', '.user.week.q.3.n: 1 -> 0', '.user.week.kept: (none) -> 1', bagGift false. Screens: shots/bag-S06-wed-five-with-gift@2026-11-11-prod.png ('(5/5)') and ...-new.png ('(4/5)'). cmp/S08-sun-five-with-gift@2026-11-16-new.json: no week.prev, shells 12 -> 25. cmp/S05-sun-five-unclaimed@2026-11-16-new.json: week.prev {shells 12, seeds 2, told 1}, shells 25 -> 40. With the fix probe (oldDone also returns true for id 'gift' with n >= 1), S06 gives kept 2 and 5/5 with the button, and S08 on Monday gets week.prev with shells 12 -> 37.",
+   "repro": "All probes are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-saves/. Serve an untouched f2c93f1 under /prod/ and 6d03faf under /new/ on one origin (http.server, port 8847). `node life.js` plays production through Mon to Thu as 조약돌 (week 11-09). `node branch.js S06,S08` offers a gift in production's settings gift box on Wed (S06) and moves to Sunday (S08). `PLAY=0 node opennew.js S06-wed-five-with-gift 2026-11-11 new` compares with the new build (`... prod` is the control). `node opennew.js S08-sun-five-with-gift 2026-11-16 new` checks the week change. Saves: saves/S06-wed-five-with-gift.json and saves/S08-sun-five-with-gift.json.",
+   "suggested_fix": "Count every removed task that was already finished, not only 'days'. In oldDone add `if (isObj(x) && x.id === 'gift') return (x.n | 0) >= 1;`; better, keep a table of removed ids with their old targets ({ days: worked out from user.days as now, gift: 1 }). Change the week-kept note (#week-kept, now '사흘 들어오기는 목록에서 빠졌지만…') to a wording that covers either removed task, and add a smoke case with a production week that has 'gift' done.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "S2",
+   "severity": "should",
+   "title": "A tab left open on the old build can make the new build count the same three entry days twice (kept 2): 5/5 with three tasks really done",
+   "where": "js/app.js:4376-4378 (weekState adds oldDone hits onto w.kept each time it fixes the week)",
+   "what": "New tab B fixes the week (days slot replaced, kept 1) and saves. Old tab A (production) takes in that state, kept included. Then the player taps 바꾸기 in A, and production's weekPick can give '이번 주에 사흘 들어오기' again; with three entry days it is already done in production. B receives A's write and fixes again: kept = 1 + 1 = 2. B shows '(5/5)' and the claim button, while only three rows say 했어 (ask, look, loft) and the one note explains one point. Each further reroll into 'days' in the old tab adds another point. In the other direction, the old tab cannot undo the new build's fixes for good: it takes in the new state on the storage event and writes kept back, and any reintroduced old slot is fixed again on the next weekState.",
+   "evidence": "crosstab.js reroll output: 'B new after boot ... kept 1'; 'A reroll -> ask,harvest,look,days,diary,loft,kitchen'; 'B new adopted {q: ask:2 harvest:0/r3 look:1 furn:0 diary:0 loft:1 kitchen:0, kept:2, gift:true}'; B's sheet '(5/5)'; still kept 2 after reloading B.",
+   "repro": "`node crosstab.js reroll`: one context, page A /prod/ seeded with saves/S03-wed-days-done.json (day 2026-11-11), page B /new/. A clicks 바꾸기 on the first slot that can be rerolled until a slot becomes 'days'.",
+   "suggested_fix": "Make kept set-once per removed task id: store it as an object (e.g. w.keptIds = { days: 1 }) or only add when that id is not already counted. Then a second fix of the same week does not add the same entry days again.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "S3",
+   "severity": "nit",
+   "title": "An old-build tab that touches the week first after the week changes still drops an unclaimed weekly gift; the new build cannot get it back (not a regression)",
+   "where": "production js/app.js weekState (f2c93f1); new build js/app.js:4380-4394 only sees the week already replaced",
+   "what": "Old tab A (production) is open on Sunday with five done and the gift not claimed. After midnight, A does one weekly action (opens the look sheet), so production's weekState builds a new week and drops the old one. When the new build then loads on Monday, there is no old week left to pay from: no week.prev, and the 12 shells and 2 seeds are lost (exactly production's old bug). If the new tab loads first, it pays week.prev and A takes that in; no loss. This only happens with an old tab open across both the deploy and the Sunday-to-Monday change. Nothing in the new code can fix it; noting it for release notes.",
+   "evidence": "crosstab.js weekchange: 'A old monday after look {key 2026-11-16, ... prev null}', 'B new monday {... prev null, shells 28}'. crosstab.js weekchange-newfirst: 'B new monday {prev {12,2,told:1}, shells 40}', 'A old adopted {... prev ..., shells 40}'.",
+   "repro": "`node crosstab.js weekchange` and `node crosstab.js weekchange-newfirst` (seed saves/S05-sun-five-unclaimed.json on 2026-11-15; the date hook in A moves to 2026-11-16).",
+   "suggested_fix": "None in code. Optionally, deploy outside the Sunday-to-Monday window.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "S4",
+   "severity": "nit",
+   "title": "'전체 초기화' leaves the previous octopus's rest countdown in memory (no visible effect found)",
+   "where": "js/app.js:3738-3746 resetAll (does not call clearRest); same code in production",
+   "what": "After a walk (rest window running), reset in the new build. APP.rest is still {id: old trip, left about 88 s}, and after naming the new octopus it keeps counting down. restPhase() returns 'up' because there are no trips, and lieDown clears it, because the trip id is no longer in the save. Nothing showed on screen, and nothing about rest is in localStorage or sessionStorage. The brief asked for rest state to be cleared; it is cleared everywhere it matters, but not in memory.",
+   "evidence": "io.js reset: 'after reset {\"rest\":{\"id\":\"trip_n42z\",\"left\":88210,\"away\":true},\"phase\":\"up\" ...}'; 'after rename {... \"phase\":\"up\",\"rest\":{\"id\":\"trip_n42z\",\"left\":84764,...}}'; after reload rest null.",
+   "repro": "`node io.js reset`",
+   "suggested_fix": "Call clearRest() in resetAll (and in importJSON) for tidiness.",
+   "confirmed_by_running": true
+  }
+ ],
+ "checked_ok": [
+  "S01-fresh-after-gift (Mon, colour chip picked, first day gift): new build boot changes only the week slots gift->furn, days->kitchen (intended, n 0, owner 4b / 66c8110); shells 3, seeds 1, days, colour and name unchanged; play + reload stable",
+  "S02-tue-days-notdone (2 entry days, 'days' not done, sprout watered today, seed, empty plot): only the slot swap (owner 4b, progress on an unfinished removed task dropped as decided); garden and watered-today held; opened on Wed instead, oldDone counts today so kept 1 is right; stable after play + reload",
+  "S03-wed-days-done (days done, flower, sprout, seed, salon asked today, colour changed by salon): kept 1 added, 3/5 as before; garden, colours, salon asks unchanged; harvest gives the right dye; stable",
+  "S04-thu-five-unclaimed (five done incl. 'days', harvest dye purple 1, furniture layout moved, salon asked today, poster album 2): new build still 5/5 with claim button and dot; layout, octWear, player, albumSeen, posterOrder, album contents, colour history unchanged; salon refuses a second ask today in both builds ('내일 또 물어볼 수 있어.'); outside garden same plots (new adds plot labels)",
+  "S05-sun-five-unclaimed (Sunday, five without gift, unclaimed) opened Monday: week.prev {12,2} paid once, shells 25->40, seeds 1->4 (lane 2 works for weeks without a 'gift' slot)",
+  "S07-thu-claimed: claimed stays claimed, shells 24 seeds 2, kept note shown, no double payout",
+  "S09-walk-running (turn running when page closed): new build brings it home exactly as production does (same trip fields, notes, curiosity note, lantern +1); same in a fresh context and on same-tab reload",
+  "S10-rest-after-turn: same-tab reload prod->new carries the rest window (sessionStorage) like prod->prod; fresh context gives nap in both builds",
+  "S11-asleep and S12-upstairs: same octopus state, anchor and restPhase in both builds; reload opens in the attic in both (room is not saved)",
+  "S13-prod-export.txt imported into a fresh new build: only the intended week fix; stable after reload. S16-new-export.txt (new-build export) into a fresh new build: identical (empty diff)",
+  "Future lastSeen (+3 days) file imported in new tab A, then reset in new tab B or in an old prod tab B: the reset holds; reloading A does not bring the old save back (stored lastSeen set to now, window.name mirror too)",
+  "S15-prod-reset (save made by production's 전체 초기화): new build boot gives an empty diff and the name dialog",
+  "Reset in the new build: user (week, kept, prev, giftTell, garden, dyes) removed from storage, salon asks and colours emptied, plot aria-labels back to 빈 칸, bag chip hidden, name dialog open; after renaming, a fresh week with no kept/prev and one day gift",
+  "Damaged files: garden entries without a colour -> empty plot (intended, gnits); 5 garden entries kept in the save, only 3 shown and acted on; unknown dye 'teal' flower harvests into dyes.teal and labels show '꽃' without a name; week with unknown ids / non-object / 8 entries fixed per slot, no crash, no console errors",
+  "Cross-tab daygift: old and new tab booting 0.7 s apart on a new day give exactly one day gift (shells +13); old tab walk while new tab open: both end with the same state, kept kept",
+  "Old tab takes in the new tab's fixed week (kept, new slots) on the storage event and writes them back; it does not undo fixes on its own",
+  "Salon normalize change (colour now taken from the last colors line, step 7 by->'unknown'): every production save had octopus.color equal to the last colors line and salon lines backed by their asks, so nothing changed on load",
+  "No page errors or console errors in any probe"
+ ],
+ "not_checked": [
+  "Saves from builds older than f2c93f1 (e.g. the 11-11 deploy 1e1c18f) and v1 migration",
+  "Saves with real model (MCP / Claude room) salon answers, late model answers, or human answers from the dev panel; only demo-rules asks were made",
+  "A production save that had furniture moved through the real drag UI (layout was written in production's furnMove shape through APP.state + APP.save)",
+  "Runner (다락방 달리기) shells and earned ids, the kitchen, and the runner award keys (ppolppol_runner)",
+  "2D fallback (?scene=2d) loading of production saves",
+  "Quota-full storage (slim save path) with production saves",
+  "Phone sizes other than 360x740 for the screens compared (layout is other lenses' job)",
+  "OW-3 (octopus stays upstairs after a turn): known and not in this tree, not reported"
+ ],
+ "suites": [
+  "No repo suites run (the lead runs them); all evidence comes from my own Playwright probes against an untouched f2c93f1 and 6d03faf served on one origin"
+ ],
+ "untested_behaviours": [
+  "A production week whose finished tasks include the removed 'gift' task (선물 상자에서 하나 내밀기): no repo test covers it, and the new build drops that point (S1)",
+  "Old-build tab rerolling a slot into 'days' after the new build fixed the week (double kept, S2)",
+  "Old-build tab crossing the week change before the new build loads (S3)"
+ ]
+}

@@ -1,0 +1,109 @@
+{
+ "summary": "I found one break of a hard line that should be fixed before shipping. Everything else I checked against the hard lines holds.\n\nThe break (must, hard line 10, and the weekly sheet's own promise \"못 해도 잃는 건 없어\"): production still has the weekly task \"선물 상자에서 하나 내밀기\" (id `gift`). This deploy removes it, and only the other removed task, \"사흘 들어오기\", gets the `kept` credit. A production save whose current week counts the gift task as done loses that point on the update. I seeded a week at 5/5 that included the gift task and had not been claimed. Production showed 5/5 with the gift dot. This build shows 4/5: the \"주간 선물 받기\" button and the dot are gone, and the gift task is replaced by a new task at 0. An old week that ended at five done with the gift task among them is also not paid out when the week changes. The same week with \"사흘 들어오기\" instead is paid (12 shells, 2 seeds).\n\nWhat holds, confirmed in a browser:\n- **New lines:** I collected every new or changed player-facing line. None says or implies what the octopus feels, likes or wants. None passes as the model's words, pushes the player or uses a symbol. Mechanically, every new Korean literal contains only Korean, ASCII, the middle dot or the ellipsis. On screen at 360x740 and 320x568, in both the pixel and plain font, the new toasts and sheet lines stay inside the screen with no sideways overflow.\n- **Weekly list:** a stay-home answer, an empty turn and a walk each count once for \"산책 갈지 묻기\". A press that wakes a napping octopus does not count, whether the turn ends home or out. A press during the awake rest window does count. Walks change no shells or seeds. Last week's unclaimed gift is now put in the bag automatically, with one plain toast and one sheet line. There is no countdown or streak.\n- **Upstairs:** after a turn, while the octopus rests awake, it does not follow the player up. Tapping the mirror then says \"지금은 아래층에 있어.\", which is true, and the screen-reader description says \"문어는 아래층 담요 위에서 쉬고 있어\". When it does follow while awake, it no longer wanders upstairs.\n- **Salon:** a \"그대로\" answer is staged with the neutral face, nothing is paid, the octopus does not walk off within 12 s, and asking again the same day gives only \"내일 또 물어볼 수 있어.\"\n- **Intro:** stepping it frame by frame (187 frames at 1/60 s, at 360x740 by day and 320x568 at night), no frame pair has 25% or more of the screen changing brightness sharply. The largest was 19.5%, and there were no flashes. With reduced motion it lands at once.\n- **Sound:** with sound off there was no AudioContext and no request under `audio/` or `foley/` through the intro, a walk out with an outside plot tap, the garden, the weekly claim, upstairs, the mirror and back down. With sound on, nothing new played at those moments; only the existing sheet and button clicks.\n- **Credits and fonts:** the credits link \"만든 것들\" is in settings and credits.html shows the CC BY credit. No commercial game is named in the diff. The font check on a copy says \"stale: none\".\n\nSmaller points:\n- (nit) Harvesting a flower of unknown colour says \"염료 1개를 얻었어\", but the bag then shows \"염료 아직 없어\". This only happens with a hand-edited or foreign save.\n- (nit) At 320x568 in the pixel font, the claim button starts at y=515 when the bag opens, so its quantity line and the `kept` line sit below the fold. The sheet scrolls.\n- (owner) Two code-written feeling lines that are already in production: the pet bubble \"…좋아\" and the screen-reader phrase \"신나 있어\".\n- (owner) The daily gift still pays an extra 10 shells every fifth visited day, which is an attendance reward. With this deploy it is also toasted when an open tab passes midnight.\n\nEvidence (scripts, logs, screenshots, notes.md) is in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-welfare/. I ran no repo suites, and I deleted the /dev/shm copies afterwards.",
+ "findings": [
+  {
+   "id": "V1",
+   "severity": "must",
+   "title": "Updating drops a done 'gift' weekly task from production saves; an earned unclaimed weekly gift disappears",
+   "where": "js/app.js:4351-4353 (QUESTS without 'gift'), 4362-4365 oldDone (only 'days'), 4370 weekState repair, 4380 due; screen: 살림 sheet '이번 주 할 일'",
+   "what": "Production f2c93f1 has the weekly task ['gift','선물 상자에서 하나 내밀기',1] and counts it (questMark('gift')). This deploy removes the task. weekState replaces an unknown task with a new one at n=0. The 'kept' credit (OW-1) is given only for 'days' and never for a done 'gift'. A production week with five done tasks, one of them 'gift', drops to 4/5 after the update: the claim button and the chip dot vanish, and the player must do another task to get back what they had already earned. An old week that ended five-done with 'gift' among them is not paid out at the week change (the same week with 'days' is). This breaks hard line 10 (a production save loses something it had) and the sheet's promise '못 해도 잃는 건 없어'.",
+   "evidence": "w1.log, case A (new build): q 'ask:2 loft:0 run:1 plant:1 harvest:1 look:0 diary:0', chip aria '살림, 조개 23' with no gift, sheet '(4/5)' and no claim button. w1-prod.log, same save on f2c93f1: q 'ask:2 gift:1 run:1 …', chip class 'has-gift', sheet '(5/5)'. A2 ('days' instead of 'gift'): kept 1, 5/5, claim shown. A3 (old week, 'gift' done): no prev and shells unchanged. A4 (old week, 'days' done): prev {shells 12, seeds 2}, shells 23 to 35. Screenshots w1-A-gift-week.png vs w1-PROD-A-gift-week.png.",
+   "repro": "NODE_PATH=$(npm root -g) node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-welfare/w1-week.js (ONLY=A). For production: TREE=<copy of f2c93f1> ONLY=A node w1-prod.js",
+   "suggested_fix": "Treat a done 'gift' task like 'days' in oldDone (x.id === 'gift' && (x.n|0) >= 1 counts as kept), both in the same-week repair and in the week-change 'due' count. Make the kept line general, e.g. '목록에서 빠진 일도 이번 주엔 한 걸로 셌어.' (or one line per removed task). Add a smoke case seeded with a production week containing gift:1.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "V2",
+   "severity": "nit",
+   "title": "Harvesting an unknown-colour flower says a dye was gained, but the bag then shows no dye",
+   "where": "js/app.js:4468 (toast) and the bag '염료' section; screen: 살림 sheet",
+   "what": "For a plot whose colour this build does not know (hand-edited or foreign save), harvest gives the toast '염료 1개를 얻었어' and stores dyes {teal: 1}, but the dye list says '아직 없어. 꽃을 길러 거두면 생겨.' The toast promises something the player cannot see or use.",
+   "evidence": "w2.log: dyes '{\"teal\":1}' after harvest toast '염료 1개를 얻었어'. w3.log: bag dyes section '염료 / 아직 없어. …' with dyes {teal:1}. Screenshot w2-360x740-pixel-toast-harvest.png.",
+   "repro": "node w2-lines.js and w3-toasts.js in the v2-welfare folder (seed garden [{color:'teal',water:2}] or dyes {teal:1})",
+   "suggested_fix": "For an unknown colour either say plainly '모르는 색이라 염료로 쓸 수 없어' (keeping the key), or list it in the bag as '모르는 색 1' so the toast and the sheet agree.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "V3",
+   "severity": "nit",
+   "title": "At 320x568 in the pixel font the moved claim button is half below the fold when the bag opens",
+   "where": "css/style.css week claim / js/app.js:4435 renderWeek; screen: 살림 sheet at 320x568, pixel font",
+   "what": "The claim button was moved above the list so it is visible on open (F5). At 320x568 with the pixel font it starts at y=515 (height 76, viewport 568), so the quantity line '(조개 12 · 씨앗 2)' is cut at the screen edge, and the 'kept' line (y=591) is fully below. The sheet scrolls (overflow auto), so nothing is lost. Plain font and 360x740 are fine.",
+   "evidence": "w2.log 320x568-pixel: claim {y:515,h:76,inView:false}, kept {y:591,inView:false}. Screenshot w2-320x568-pixel-bag-kept.png.",
+   "repro": "node w2-lines.js (v2-welfare folder)",
+   "suggested_fix": "Optional: tighten the bag-line and set-note spacing in the pixel theme at small heights, or accept it as scrollable.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "V4",
+   "severity": "owner",
+   "title": "Two code-written feeling lines already in production: pet bubble '…좋아' and scene description '신나 있어'",
+   "where": "js/app.js:1619 (say('…좋아','pet',1800) after petting, 70%); js/app.js:1144 DOING_DESC.happy '신나 있어' (screen-reader #scene-desc, state set from reaction 폴짝/우쭐)",
+   "what": "Neither line is new in this deploy; both are identical in f2c93f1. Read literally, both state what the octopus feels and are written by code, not the model (hard line 1 names '좋아해' and '기뻐해' as banned). '…좋아' is documented as a deliberate replacement for '…♡' in docs/UI_ART.md:128. This deploy only touches it to clear a pending '…좋아' when the salon is asked (good). Options: (a) keep as a documented exception (costs: the line reads as the octopus saying it likes being petted, with no demo-rule tag); (b) replace the pet bubble with a neutral '…' or no text and keep the heart particle, and change '신나 있어' to a fact such as '폴짝 뛰고 있어' (costs: a little warmth, two strings).",
+   "evidence": "grep: js/app.js:1619 and git show f2c93f1:js/app.js:1589 identical; DOING_DESC identical at f2c93f1:1118. docs/UI_ART.md:128 \"쓰다듬기 '…♡' | '…좋아'\".",
+   "repro": "grep -n \"…좋아'\\|신나 있어\" /home/user/ppolppol-verify2/js/app.js",
+   "suggested_fix": "Owner choice; option (b) is the strict reading of hard line 1.",
+   "confirmed_by_running": false
+  },
+  {
+   "id": "V5",
+   "severity": "owner",
+   "title": "The daily gift still pays +10 shells on every fifth visited day (an attendance reward), now also toasted at midnight in an open tab",
+   "where": "js/app.js:4340 dailyGift (extra = n % 5 === 0 ? 10 : 0); js/app.js:4650-4651 (new 60 s interval and visibilitychange)",
+   "what": "Decision 4b removed '이번 주에 사흘 들어오기' as a login chore, but the daily gift's fifth-day bonus is the same kind of reward for coming in. It counts total visited days, not consecutive ones, so it is not a streak. New in this deploy: a tab left open past midnight now grants the gift within a minute and shows '오늘 선물: 조개 N · 씨앗 1 (들어온 날 N일째)'. The toast only shows while the tab is visible and is not a push notification. Options: keep as is; drop the fifth-day bonus (flat 3 shells) to match 4b; or drop the '들어온 날 N일째' count from the toast.",
+   "evidence": "Code at the lines above; toast seen in w3.log at 3.3 s after boot ('오늘 선물: 조개 3 · 씨앗 1 (들어온 날 4일째)').",
+   "repro": "Read the lines above; node w3-toasts.js",
+   "suggested_fix": "Owner decision.",
+   "confirmed_by_running": false
+  }
+ ],
+ "checked_ok": [
+  "LINE '지금은 아래층에 있어.' (toast; mirror tapped upstairs while the octopus is awake downstairs, e.g. its rest window) -> honest (it was downstairs: octUp false, anchor blanket), plain, no feeling; fits 360x740/320x568 both fonts (w4.log, w4-B-*-mirror-down.png)",
+  "LINE '지금은 산책 나가 있어.' (toast; mirror upstairs while octopus away) -> plain and true when shown; not reachable in my runs (see not_checked)",
+  "LINE scene description '위층 다락 옷방, … 문어는 위층에서 쉬고 있어.' / '문어는 아래층 담요 위에서 쉬고 있어.' / '문어는 아래층에서 걸어가는 중이야.' / '위층 거울 옆' (screen reader #scene-desc) -> matched the real state in every probe (w4.log A1, B1, B5), facts only",
+  "LINE weekly task renamed '놀이방 들르기' (was '부엌 방 들르기') -> matches the door name, plain",
+  "LINE '사흘 들어오기는 목록에서 빠졌지만, 이번 주엔 한 걸로 셌어.' (bag sheet, only in a week repaired from a production save with 3 visits) -> factual and reassuring, no push, no symbol; 2 lines at 360 and 3 at 320 pixel; shown only when kept>0 (w2.log, w2-*-bag-kept.png)",
+  "LINE toast '지난주 선물은 살림에 넣어 뒀어. 조개 12 · 씨앗 2' (once, after the week changes with an earned unclaimed gift) -> removes fear of missing out, plain; in view at all 4 configs; shown after today's gift toast (w3.log 8.5 s)",
+  "LINE bag line '지난주 선물은 살림에 넣어 뒀어 (조개 12 · 씨앗 2).' (during the new week) -> plain, fits",
+  "LINE toast '오늘 선물: 조개 N · 씨앗 1 (들어온 날 N일째)' (text unchanged, now via weekTell, also after midnight in an open tab) -> unchanged wording; fits; see V5",
+  "LINE button '주간 선물 받기 (조개 12 · 씨앗 2)' (moved above the list, quantity kept together) -> plain, no countdown; 2 lines without overlap in pixel font; see V3 for 320x568 pixel",
+  "LINE '이번 주 선물은 받았어.' (moved; gets focus after claiming) -> fine, focus lands on #week-got in all 4 configs",
+  "LINE bag chip aria '살림, 조개 N, 주간 선물이 있어' -> factual, static (no blink, no number)",
+  "LINE plot aria '텃밭 첫째 칸, 빈 칸, 씨앗 심기' / '…, 씨앗이 없어' / '…, 새싹, 오늘은 물을 줬어' / '…, 꽃, 거두기' -> factual, same words on outside buttons and sheet buttons",
+  "LINE toast '씨앗이 없어. 들어온 날 선물이나 주간 선물로 생겨' -> factual, no purchase prompt; 2-3 lines, in view at all 4 configs",
+  "LINE toast '염료 1개를 얻었어' (unknown colour) and plot state '꽃' -> wording fine; see V2 for the mismatch with the bag",
+  "LINE '다락방 차림으로 입었어' / aria '<set> 다시 입기' (setWord avoids '차림 차림') -> plain (code read, not seen on screen)",
+  "LINE '밭은 집 앞마당에 있어.' (2D mode drops the outside-tap sentence) -> fine (code read)",
+  "LINE gift box lines (text unchanged, answer now fixed at the press); refusal face changed from calm to idle -> plain refusal, no sulky face (code at js/app.js:3315)",
+  "All new Korean literals in the js/css/index.html diff contain only Korean, ASCII, the middle dot and the ellipsis (strs.py); index.html unchanged; no new aria-label/title in markup",
+  "Weekly ask counting: home 1, empty turn +1 (2), out 1; wake press on a napping octopus not counted (home and out); press in the awake rest window counted; walks paid 0 shells and 0 seeds (w1.log B/C/D)",
+  "Week change: an earned unclaimed gift is delivered (12 shells, 2 seeds) with one toast and a sheet line; no countdown, streak or 'missed' text (w1.log A4, w2/w3)",
+  "Gift box task no longer feeds the weekly list (questMark('gift') removed): giving gifts no longer earns shells",
+  "Upstairs: awake idle octopus follows and then stays put (no wandering upstairs, 6 s watched); in the post-turn awake window it does not follow and is not woken or moved; going back down leaves it on the blanket, awake (w4.log)",
+  "Salon: first answer dye, then 'keep' staged with idle face, bubble '지금 색 그대로 있을래.', rows say 데모 규칙, shells/seeds/week unchanged, no walk-off within 12 s, ask again -> '내일 또 물어볼 수 있어.' (w5.log, w5-keep-*.png)",
+  "Intro: no frame pair with >=25% of the screen changing sharply (max 19.5% at 360x740 day clear, 7.4% at 320x568 night rain); 0 opposing flashes; reduced motion lands at once (phase title, progress 1.00) (flash-sky.log, flash-sky-320-night.log, w6-sky-strip.png); no new intro text",
+  "Sound off by default: 0 AudioContext and 0 requests under audio/ or foley/ through intro, tap-in, walk out + outside plot tap, return, garden plant, weekly claim, upstairs, mirror and back down (w7.log over file://, w7-http.log over http); sound on: nothing played at upstairs, mirror or going down; only existing sheet and button clicks (0.03-0.25 s)",
+  "No new sound triggers in the diff; js/audio.js, audio/, foley/, credits.html unchanged",
+  "Credits: settings shows link '만든 것들' -> credits.html with the CC BY 4.0 credit and CC0 notes; no commercial game named in the diff",
+  "Font check on a copy of HEAD: 'stale: none'"
+ ],
+ "not_checked": [
+  "'지금은 산책 나가 있어.' on screen: I could not reach it (the player cannot go upstairs while the octopus is out, because the turn is busy); it may only appear when another tab starts a walk while this tab is upstairs, which I did not set up",
+  "OW-3 (a turn ending while the octopus is upstairs moves it to the attic blanket) and restDown when another tab ends a turn: excluded by the brief",
+  "Two-tab races around week.kept (an old production tab rewriting a week with 'days' could add kept twice): saves lens, not tested",
+  "Set-wear toast and the 2D bag note on screen (code read only)",
+  "The intro title phase in real time: my capture paused the scene loop (debugStep), so the title shots were static; the title phase is unchanged from production",
+  "Wide screens (390x844 and up) and real phones",
+  "Repo suites (npm test, smoke, perf, intro-shots): not run, by the brief; my own probes only",
+  "The machine was loaded (load 7-9); I avoided wall-clock assertions, but toast timings in w2.log were partly missed and re-measured in w3.log"
+ ],
+ "suites": [
+  "font check on a copy of HEAD (tools/subset-fonts.py --check): stale: none",
+  "no repo suites run; own probes w1-w7 in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-welfare/"
+ ],
+ "untested_behaviours": [
+  "Migration of a production week that contains the removed task 'gift' (done or not): no repo test seeds it, and the deploy loses its point (V1)",
+  "Harvest of an unknown-colour flower and what the bag shows afterwards (V2)",
+  "Mirror tap upstairs while the octopus is away (AWAY_SAY)"
+ ]
+}
