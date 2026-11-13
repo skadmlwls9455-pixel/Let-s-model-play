@@ -2980,7 +2980,7 @@ var APP = (function () {
       return { id: sv.id, tripId: sv.tripId, name: def ? def.name : sv.id, img: assetPath('souvenir.' + sv.id), icon: window.UIART && UIART.iconSrc && def ? UIART.iconSrc('souvenir/' + sv.id) : null };   /* 그림이 안 오면 16×16 기념품 아이콘 (2D 선반 · js/scene2d.js) — 이모지는 쓰지 않는다 */
     }));
   }
-  function renderAll() { renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderLog(); renderShelf(); renderBagChip(); applyGarden(); applyDye(); var bs = $('bag-sheet'); if (bs && bs.open) renderBag(); }   /* 살림(조개 꼬리표 · 바깥 텃밭 · 옷 색)도 — 초기화 · 불러오기 · 다른 탭 뒤 (11-12 검증) */
+  function renderAll() { renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderLog(); renderShelf(); renderBagChip(); applyGarden(); applyDye(); var bs = $('bag-sheet'); if (bs && bs.open) renderBag(); var sw = $('sew-sheet'); if (sw && sw.open) renderSew(); }   /* 살림(조개 꼬리표 · 바깥 텃밭 · 옷 색)도 — 초기화 · 불러오기 · 다른 탭 뒤 (11-12 검증) · 열린 재봉틀 시트도 (11-11) */
   /* 큰 도서관 '오늘의 서가' — 날짜로 정해지는 8편 (js/shelf.js, MCP 서버와 같은 뽑기). 고른 이가 없는 무작위라 문어 마음을 대신 말하지 않는다 */
   function renderShelf() {
     var box = $('shelf-today'), ul = $('shelf-list'); if (!box || !ul) return;
@@ -3903,7 +3903,7 @@ var APP = (function () {
     on('btn-stair', function (b, k) { goRoom('loft', b, k); });
     on('btn-loft-stair', function (b, k) { goRoom('attic', b, k); });
     on('btn-sew', function () { openSew(); });
-    [0, 1, 2].forEach(function (i) { on('btn-plot' + i, function () { gardenAct(i); }); });   /* 바깥 텃밭 칸 (바깥이 보일 때만 장면이 단추를 올린다) */
+    [0, 1, 2].forEach(function (i) { on('btn-plot' + i, function () { gardenAct(i); }); var b = $('btn-plot' + i); if (b) b.addEventListener('focus', plotLabels); });   /* 바깥 텃밭 칸 (바깥이 보일 때만 장면이 단추를 올린다) · 포커스 때 이름을 다시 (11-11: 씨앗 수 · 날짜가 바뀌었을 수 있다) */
     on('btn-salon', function () { openSalon(); });   /* 미용실 거울 (그림 위 투명 단추 — 톡은 장면이 그린 순서대로 넘긴다: 문어가 거울 옆이면 문어가 먼저) */
     on('btn-back-see', function (b, k) { goRoom('attic', b, k); });
     document.addEventListener('keydown', function () { var r = document.querySelectorAll('.ring-off'); for (var i = 0; i < r.length; i++) r[i].classList.remove('ring-off'); }, true);   /* 키를 누르면 링은 다시 (키보드로 이어 가는 사람) */
@@ -4316,6 +4316,7 @@ var APP = (function () {
     u.shells = Math.max(0, u.shells | 0); u.seeds = Math.max(0, u.seeds | 0);
     if (!isObj(u.dyes)) u.dyes = {}; if (!Array.isArray(u.days)) u.days = []; if (!Array.isArray(u.earned)) u.earned = [];
     if (!Array.isArray(u.garden)) u.garden = [null, null, null]; while (u.garden.length < 3) u.garden.push(null);
+    for (var gi = 0; gi < u.garden.length; gi++) if (u.garden[gi] != null && !isObj(u.garden[gi])) u.garden[gi] = null;   /* 11-11: 객체가 아닌 칸만 빈 칸으로 (모르는 색은 그대로 둔다 — 나중 빌드가 알 수도 있다) */
     return u;
   }
   function earnFromPlay(r) {   /* 놀이 한 판 → 조개 (같은 판 id 는 한 번만) */
@@ -4431,13 +4432,24 @@ var APP = (function () {
     var b = $('btn-bag'); if (!b) return; var u = userState(), w = S.octopus.name ? weekState() : null, gift = !!w && !w.claimed && weekDoneN(w) >= WEEK_NEED; b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = '조개 ' + u.shells;
     if (w) b.classList.toggle('has-gift', gift); b.setAttribute('aria-label', '살림, 조개 ' + u.shells + (gift ? ', 주간 선물이 있어' : ''));
   }
-  function applyGarden() { if (scene && typeof scene.setGarden === 'function') { try { scene.setGarden(userState().garden.map(function (g) { return g ? { color: dyeOf(g.color)[2], water: g.water } : null; })); } catch (e) { console.warn('[app] setGarden', e); } } }
+  /* 11-11: 텃밭 칸 하나를 읽는다 — 모르는 색(손댄 기록 · 나중 빌드의 새 색)이어도 던지지 않는다: 이름 없이 '꽃', 그림은 장면 기본색 */
+  function plotView(g, dk) { if (!g) return null; var d = dyeOf(g.color), w = Math.max(0, Math.min(2, g.water | 0)); return { w: w, name: d ? d[1] : '', hex: d ? d[2] : null, today: g.wateredDay === dk, st: w >= 2 ? (d ? d[1] + ' 꽃' : '꽃') : w === 1 ? '새싹' : '씨앗' }; }
+  var PLOT_NTH = ['첫째', '둘째', '셋째'];
+  function plotLabel(i, u, dk) {   /* 칸 · 든 것 · 누르면 할 일 (11-11 — 바깥 단추 · 살림 시트 단추가 같은 말) */
+    var v = plotView(u.garden[i], dk);
+    return '텃밭 ' + PLOT_NTH[i] + ' 칸, ' + (!v ? '빈 칸, ' + (u.seeds > 0 ? '씨앗 심기' : '씨앗이 없어') : v.st + ', ' + (v.w >= 2 ? '거두기' : v.today ? '오늘은 물을 줬어' : '물 주기'));
+  }
+  function plotLabels() { var u = userState(), dk = todayKey(); [0, 1, 2].forEach(function (i) { var b = $('btn-plot' + i); if (b) b.setAttribute('aria-label', plotLabel(i, u, dk)); }); }
+  function applyGarden() {
+    plotLabels();
+    if (scene && typeof scene.setGarden === 'function') { try { var dk = todayKey(); scene.setGarden(userState().garden.slice(0, 3).map(function (g) { var v = plotView(g, dk); return v ? { color: v.hex, water: v.w } : null; })); } catch (e) { console.warn('[app] setGarden', e); } }
+  }
   function gardenAct(i) {
-    var u = userState(), g = u.garden[i], dk = todayKey();
+    var u = userState(), g = u.garden[i], dk = todayKey(), v = plotView(g, dk);
     if (!g) { if (u.seeds < 1) { toast('씨앗이 없어. 들어온 날 선물이나 주간 선물로 생겨'); return; } u.seeds--; var rng = mkRng(B ? B.hashSeed('seed', dk, i, u.days.length, u.seeds) : Date.now()); u.garden[i] = { color: DYES[Math.floor(rng() * DYES.length)][0], water: 0, wateredDay: '' }; toast('씨앗을 심었어'); questMark('plant'); }
-    else if (g.water >= 2) { u.dyes[g.color] = (u.dyes[g.color] | 0) + 1; u.garden[i] = null; toast(dyeOf(g.color)[1] + ' 염료 1개를 얻었어'); questMark('harvest'); }
+    else if (v.w >= 2) { u.dyes[g.color] = (u.dyes[g.color] | 0) + 1; u.garden[i] = null; toast((v.name ? v.name + ' ' : '') + '염료 1개를 얻었어'); questMark('harvest'); }
     else if (g.wateredDay === dk) { toast('오늘은 물을 줬어. 내일 또 줄 수 있어'); return; }
-    else { g.water++; g.wateredDay = dk; toast(g.water >= 2 ? '꽃이 피었어' : '물을 줬어'); questMark('water'); }
+    else { g.water = v.w + 1; g.wateredDay = dk; toast(g.water >= 2 ? '꽃이 피었어' : '물을 줬어'); questMark('water'); }
     save(); renderBag(); applyGarden();
   }
   function applyDye() { if (scene && typeof scene.setPlayerDye === 'function') { try { scene.setPlayerDye(userState().dye || null); } catch (e) { console.warn('[app] setPlayerDye', e); } } }
@@ -4523,12 +4535,12 @@ var APP = (function () {
     frag.appendChild(h('p', { class: 'set-note', text: '조개와 씨앗은 다락방 달리기, 들어온 날 선물, 주간 선물에서 생겨. 쉬어도 잃는 건 없어.' }));
     renderWeek(frag);
     frag.appendChild(h('h3', { text: '텃밭' }));
-    frag.appendChild(h('p', { class: 'set-note', text: '밭은 집 앞마당에 있어. 문어가 산책 나가 바깥이 보일 때는 밭을 바로 톡 해도 돼.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '밭은 집 앞마당에 있어.' + (sceneMode === '3d' ? ' 문어가 산책 나가 바깥이 보일 때는 밭을 바로 톡 해도 돼.' : '') }));   /* 11-11: 2D 엔 바깥 밭 단추가 없다 */
     var plots = h('div', { class: 'bag-plots', role: 'group', 'aria-label': '텃밭' });
-    u.garden.forEach(function (g, i) {
-      var st = !g ? '빈 칸' : g.water >= 2 ? dyeOf(g.color)[1] + ' 꽃' : g.water === 1 ? '새싹' : '씨앗', act = !g ? '심기' : g.water >= 2 ? '거두기' : g.wateredDay === dk ? '내일' : '물 주기';
-      var b = h('button', { type: 'button', class: 'bag-plot pressable' }, [h('span', { class: 'bag-pot' + (g ? ' st' + Math.min(2, g.water) : ''), 'aria-hidden': 'true' }), h('span', { class: 'bag-st', text: st }), h('span', { class: 'bag-act', text: act })]);
-      if (g && g.water >= 2) b.querySelector('.bag-pot').style.setProperty('--fl', dyeOf(g.color)[2]);
+    u.garden.slice(0, 3).forEach(function (g, i) {
+      var v = plotView(g, dk), st = !v ? '빈 칸' : v.st, act = !v ? '심기' : v.w >= 2 ? '거두기' : v.today ? '내일' : '물 주기';
+      var b = h('button', { type: 'button', class: 'bag-plot pressable', 'aria-label': plotLabel(i, u, dk) }, [h('span', { class: 'bag-pot' + (v ? ' st' + v.w : ''), 'aria-hidden': 'true' }), h('span', { class: 'bag-st', text: st }), h('span', { class: 'bag-act', text: act })]);
+      if (v && v.w >= 2 && v.hex) b.querySelector('.bag-pot').style.setProperty('--fl', v.hex);
       b.addEventListener('click', function () { gardenAct(i); });
       plots.appendChild(b);
     });

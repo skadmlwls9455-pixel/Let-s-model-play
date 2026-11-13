@@ -2301,7 +2301,7 @@ var SCENE3D = (function () {
       L.forEach(function (p) { var i = mains.indexOf(String(p.c).toLowerCase()); if (i === 0) p.c = PL_DYE; else if (i > 0) p.c = dk; });
       return L;
     }
-    function setPlayerDye(hex) { PL_DYE = /^#[0-9a-f]{6}$/i.test(hex || '') ? hex.toLowerCase() : null; setPlayer(PL.look); return PL_DYE; }
+    function setPlayerDye(hex) { var d = /^#[0-9a-f]{6}$/i.test(hex || '') ? hex.toLowerCase() : null; if (d === PL_DYE) return PL_DYE; PL_DYE = d; setPlayer(PL.look); return PL_DYE; }   /* 11-11: 같은 색이면 다시 짓지 않는다 (앱이 renderAll 마다 부른다) */
     function plTorsoParts(cfg) { var L = []; PL_PARTS.outfit[cfg.outfit].torso(L); return plDye(L, cfg); }
     function plArmParts(cfg) { var L = []; PL_PARTS.outfit[cfg.outfit].arm(L); plDye(L, cfg); L.push({ g: Sph(0.064, 9, 7), m: M(0, -0.225, 0), c: PLC.skin }); return L; }   /* 소매 + 팔 + 동그란 손 (팔 지름 2 px 보다 큰 3.5 px 공) */
     function plLegParts(cfg) {   /* 다리 색 원기둥(신발 위만) + 신발 */
@@ -3003,7 +3003,7 @@ var SCENE3D = (function () {
     EXT.EAVE = EXT.PL + EXT.WALL; EXT.TOP = EXT.EAVE + EXT.RISE; EXT.RY = EXT.TOP + 0.12;   /* 처마 1.88 · 박공 꼭대기 2.80 · 지붕 밑면 용마루 2.92 */
     var EXT_PATH = [[1.38, -1.06], [1.9, -0.85], [2.5, -0.15], [3.12, 0.5]];   /* 계단 발치 → 오른쪽 아래 가장자리 (x = L) */
     var EXT_TREES = { round: [[-1.7, 1.55, 1.0, 0.3], [1.75, -2.35, 0.9, 1.2]], cone: [[-2.85, -0.3, 1.0, 0.0]] };   /* [x, z, 배율, 요] */
-    var EXT_FENCE = [[-1.1, 2.55], [-0.48, 2.58], [0.14, 2.61]], EXT_FENCE_END = [0.76, 2.64];
+    var EXT_FENCE = [[-1.1, 2.55], [-0.48, 2.58]], EXT_FENCE_END = [0.14, 2.61];   /* 11-11: 한 칸 줄였다 — 끝 기둥 · 가로대가 텃밭 첫째 칸 흙 안에 서 있었다 */
     var EXT_PUDDLE = [-0.15, 1.05, 0.3, 0.22], EXT_MAILBOX = [0.85, 0.4];   /* 물웅덩이 [x, z, 반지름 x, 반지름 z] (바깥 기웃: 바다) · 우체통 (손·편지의 방) */
     function nearPuddle(x, z, m) { var dx = (x - EXT_PUDDLE[0]) / (EXT_PUDDLE[2] + m), dz = (z - EXT_PUDDLE[1]) / (EXT_PUDDLE[3] + m); return dx * dx + dz * dz < 1; }
     var SEASONS = ['spring', 'summer', 'autumn', 'winter'];
@@ -3920,7 +3920,7 @@ var SCENE3D = (function () {
     var PK_FENCE = EXT_FENCE.concat([EXT_FENCE_END]);
     var PK_OBS = [[EXT_MAILBOX[0], EXT_MAILBOX[1], 0.15], [0.5, -0.05, 0.32], [-2.55, 0.05, 0.28], [2.58, -1.45, 0.35], [-0.5, 2.0, 0.22], [EXT_PUDDLE[0], EXT_PUDDLE[1], 0.28]]
       .concat(EXT_TREES.round.concat(EXT_TREES.cone).map(function (t) { return [t[0], t[1], 0.14]; }))
-      .concat((function () { var o = []; for (var i = 0; i <= 8; i++) { var k = i / 8; o.push([-1.1 + (0.8 + 1.1) * k, 2.55 + 0.11 * k, 0.06]); } return o; })());   /* 울타리 = 원 9 */
+      .concat((function () { var o = []; for (var i = 0; i <= 6; i++) { var k = i / 6; o.push([-1.1 + (0.18 + 1.1) * k, 2.55 + 0.06 * k, 0.06]); } return o; })());   /* 울타리 = 원 7 (11-11 한 칸 줄임) */
     var PK_RECT = [[EXT.HX0, EXT.HX1, EXT.HZ0, EXT.HZ1], [EXT.HX1, 1.2, EXT.HZC - 0.58, EXT.HZC + 0.58]];   /* 집 · 현관+계단+난간 */
     var PK_M = 0.3;   /* 문어 몸 여유 (다리 끝은 소품에 살짝 걸쳐도 된다) */
     var PK_HUBS = [[2.05, 1.0], [0.4, 1.45], [-1.0, 0.65], [-2.3, 1.0], [2.25, -0.5], [-1.9, 2.3], [1.85, -1.25]];
@@ -4069,7 +4069,7 @@ var SCENE3D = (function () {
     }
     /* ── 바깥 텃밭 (11-10 주인: "바깥 맵에 텃밭 · 문어가 나가 있는 동안 가꾸기 · 염료는 기른다"): 마당 앞쪽에 밭 세 칸. 흙 · 나무 테는 늘 있고, 심은 것(씨앗 둔덕 · 새싹 · 꽃)은 setGarden 이 다시 만든다 (앱의 S.user.garden 그대로).
        바깥이 보일 때 칸을 톡 하면 앱이 심기 · 물 주기 · 거두기를 한다 (단추 plot0…2). 물을 안 줘도 시들지 않는다 ── */
-    var PLOT = { xs: [0.55, 1.42, 2.29], z: 2.3, w: 0.7 }, plotG = new T.Group(), plotPlants = null, plotBoxes = [], plotState = [null, null, null];
+    var PLOT = { xs: [0.65, 1.52, 2.39], z: 2.3, w: 0.7 }, plotG = new T.Group(), plotPlants = null, plotBase = null, plotKey = '', plotBoxes = [], plotState = [null, null, null];   /* 11-11: 0.1 m 오른쪽으로 (울타리 끝과 떨어지게) */
     (function () {
       var pp = [];
       PLOT.xs.forEach(function (x) {
@@ -4078,21 +4078,25 @@ var SCENE3D = (function () {
         [-1, 1].forEach(function (d) { pp.push({ g: box(0.05, 0.1, PLOT.w + 0.08), m: M(x + d * (PLOT.w / 2 + 0.01), 0.05, PLOT.z), c: W[3] }); });
         plotBoxes.push(new T.Box3(new T.Vector3(x - PLOT.w / 2 - 0.05, 0, PLOT.z - PLOT.w / 2 - 0.05), new T.Vector3(x + PLOT.w / 2 + 0.05, 0.75, PLOT.z + PLOT.w / 2 + 0.05)));
       });
-      var m = new T.Mesh(keep(mergeParts(pp)), lambert); m.castShadow = true; m.receiveShadow = true; plotG.add(m); extG.add(plotG);
+      plotBase = new T.Mesh(keep(mergeParts(pp)), lambert); plotBase.castShadow = true; plotBase.receiveShadow = true; plotG.add(plotBase); extG.add(plotG);
     })();
     function setGarden(list) {   /* [{ color: '#hex', water: 0|1|2 } | null] × 3 */
       plotState = [0, 1, 2].map(function (i) { var g = list && list[i]; return g ? { color: String(g.color || '#e8a93a'), water: Math.max(0, Math.min(2, g.water | 0)) } : null; });
-      if (plotPlants) { plotG.remove(plotPlants); plotPlants.geometry.dispose(); plotPlants = null; }
+      var key = JSON.stringify(plotState); if (key === plotKey) return; plotKey = key;   /* 11-11: 같은 밭이면 다시 짓지 않는다 (앱이 renderAll 마다 부른다) */
+      if (plotPlants) { plotG.remove(plotPlants); var k = disposables.indexOf(plotPlants.geometry); if (k >= 0) disposables.splice(k, 1); plotPlants.geometry.dispose(); plotPlants = null; }   /* 11-11: keep 목록에서도 뺀다 (장면을 버릴 때 같이 놓도록 keep 으로 건다) */
       var pp = [];
       plotState.forEach(function (g, i) {
         if (!g) return; var x = PLOT.xs[i], z = PLOT.z;
-        if (g.water === 0) { pp.push({ g: new T.SphereGeometry(0.11, 6, 4), m: M(x, 0.08, z, 0, 0, 0, 1, 0.5, 1), c: W[1] }); pp.push({ g: box(0.05, 0.05, 0.05), m: M(x, 0.14, z), c: PAL.moss[3] || PAL.moss[2] }); return; }
+        if (g.water === 0) {   /* 씨앗: 밝은 흙 둔덕 + 팻말 막대 (11-11 — 어두운 흙 위 4×3 px 점이라 심은 게 안 보였다) */
+          pp.push({ g: new T.SphereGeometry(0.17, 7, 4), m: M(x, 0.07, z, 0, 0, 0, 1, 0.45, 1), c: W[3] }); pp.push({ g: box(0.05, 0.05, 0.05), m: M(x, 0.15, z), c: PAL.moss[3] || PAL.moss[2] });
+          pp.push({ g: box(0.035, 0.32, 0.035), m: M(x + 0.16, 0.2, z - 0.16), c: W[2] }); pp.push({ g: box(0.17, 0.11, 0.025), m: M(x + 0.17, 0.34, z - 0.15, 0, Math.PI / 4, 0), c: PAL.paper[3] }); return;
+        }
         var hgt = g.water === 1 ? 0.22 : 0.46;
         pp.push({ g: box(0.05, hgt, 0.05), m: M(x, 0.07 + hgt / 2, z), c: PAL.moss[2] });
         [-1, 1].forEach(function (d) { pp.push({ g: box(0.16, 0.04, 0.09), m: M(x + d * 0.09, 0.07 + hgt * 0.55, z, 0, 0, d * 0.5), c: PAL.moss[2] }); });
         if (g.water >= 2) { pp.push({ g: new T.SphereGeometry(0.15, 7, 5), m: M(x, 0.07 + hgt + 0.1, z), c: g.color }); pp.push({ g: new T.SphereGeometry(0.06, 5, 4), m: M(x + 0.05, 0.07 + hgt + 0.14, z + 0.1), c: PAL.amber[4] }); }
       });
-      if (pp.length) { plotPlants = new T.Mesh(mergeParts(pp), lambert); plotPlants.castShadow = true; plotPlants.receiveShadow = true; plotG.add(plotPlants); }
+      if (pp.length) { plotPlants = new T.Mesh(keep(mergeParts(pp)), lambert); plotPlants.castShadow = true; plotPlants.receiveShadow = true; plotG.add(plotPlants); }
       dither.still = 0;
     }
     if (!LROOM) buildLoft();   /* 미용실 코너가 위층에 살아서, 위층은 처음부터 지어 둔다 (보이지 않는 그룹 — 그리는 비용 0) */
@@ -4141,11 +4145,15 @@ var SCENE3D = (function () {
         if (upOct && ray.intersectObject(hit, false).length) return hit;
         sp = spotAt(cx, cy, ['loftStair', 'sew', 'salon']); return sp ? spotHit(sp) : null;
       }
-      if (PLACE.vis === 'exterior' && !PLACE.room && extReady) {   /* 바깥 텃밭: 톡한 자리를 땅(y 0)에 내려 그 칸을 고른다 — 화면 상자(꽃 높이까지 든)가 서로 겹쳐 옆 칸이 눌리던 것 (11-12 검증). 땅에서 안 맞으면 예전처럼 단추 칸 */
-        var gp = new T.Plane(new T.Vector3(0, 1, 0), 0), gq = new T.Vector3();
-        if (ray.ray.intersectPlane(gp, gq)) { gq.sub(extG.position); for (var pi = 0; pi < 3; pi++) if (Math.abs(gq.x - PLOT.xs[pi]) < PLOT.w / 2 + 0.12 && Math.abs(gq.z - PLOT.z) < PLOT.w / 2 + 0.25 && SPOTS['plot' + pi] && spotInfo('plot' + pi)) return spotHit('plot' + pi); }
+      if (PLACE.vis === 'exterior' && !PLACE.room && extReady && ['plot0', 'plot1', 'plot2'].some(function (id) { return SPOTS[id] && spotInfo(id); })) {
+        /* 바깥 텃밭 (11-11): 문어 몸 · 흙 · 심은 것을 거리순으로 레이캐스트 — 맨 앞이 문어면 문어(산책 중엔 아무것도 안 함), 흙 · 풀이면 맞은 자리의 칸.
+           화면 상자(꽃 높이까지 든)는 옆 칸과 겹치고, 땅(y 0)에 내린 점은 흙 높이만큼 뒤로 밀려 옆 칸에 들었다. 다 빗나가면 문어 히트 구 → 단추 칸 (44 px 여유) */
+        var bm = octG.visible && octG.parent === extG ? bodyMeshes() : [], hx = ray.intersectObjects(bm.concat(plotPlants ? [plotBase, plotPlants] : [plotBase]), false);
+        if (hx.length && bm.indexOf(hx[0].object) >= 0) return okOct ? hit : null;
+        if (hx.length) { var lx = extG.worldToLocal(hx[0].point.clone()).x, pi = 0; for (var q = 1; q < 3; q++) if (Math.abs(lx - PLOT.xs[q]) < Math.abs(lx - PLOT.xs[pi])) pi = q; if (SPOTS['plot' + pi] && spotInfo('plot' + pi)) return spotHit('plot' + pi); }
+        if (okOct && ray.intersectObject(hit, false).length) return hit;
         sp = spotAt(cx, cy, ['plot0', 'plot1', 'plot2']); if (sp) return spotHit(sp);
-      }   /* 바깥 텃밭 칸 */   /* 놀이방: 문어도 소품도 없다 — 문·오락기 단추 칸만 (진짜 <button> 은 hotspots) */
+      }   /* 놀이방: 문어도 소품도 없다 — 문·오락기 단추 칸만 (진짜 <button> 은 hotspots) */
       if (PLACE.vis === 'exterior') return okOct && ray.intersectObject(hit, false).length ? hit : null;
       var doorOn = !!SPOTS.atticPlay && !!spotInfo('atticPlay'), dm = doorOn ? doorMeshes(ATTIC_DOOR) : [];
       var salOn = !!SPOTS.salon && !!spotInfo('salon'), sm = salOn ? [salA, salB, salC].filter(function (m) { return m.visible; }) : [];   /* 미용실 거울·선반·거울 속 문어 (단추가 있고 열려 있을 때만) */
@@ -5511,6 +5519,12 @@ var SCENE3D = (function () {
         return out;
       },
       pickAt: function (x, y) { scene.updateMatrixWorld(); camera.updateMatrixWorld(); var o = pick(+x, +y); return o ? { kind: o.userData.kind, id: tapId(o) } : null; },
+      /* 디버그 (11-11 텃밭 시험, tools/smoke.js X): 바깥 원점 · 칸 흙 윗면 가운데 · 울타리 끝 기둥 (월드) · 흙 반폭 · 테 반폭 · 심은 것 지오메트리가 버릴 목록(keep)에 있나 · 목록 길이 · 내 캐릭터 머리 지오메트리 id (다시 지었나) */
+      plotsDebug: function () {
+        extG.updateWorldMatrix(true, false); function w(x, y, z) { var v = extG.localToWorld(new T.Vector3(x, y, z)); return [v.x, v.y, v.z]; }
+        return { origin: w(0, 0, 0), c: PLOT.xs.map(function (x) { return w(x, 0.07, PLOT.z); }), half: PLOT.w / 2, frame: PLOT.w / 2 + 0.065, fence: w(EXT_FENCE_END[0], 0, EXT_FENCE_END[1]),
+          plants: plotPlants ? { kept: disposables.indexOf(plotPlants.geometry) >= 0, id: plotPlants.geometry.uuid } : null, disposables: disposables.length, playerGeo: plMeshes[0] ? plMeshes[0].geometry.uuid : '' };
+      },
       screenOf: function (x, y, z) { var p = _hp.set(x, y, z).project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 월드 → 컨테이너 CSS px (스트립 크롭 중심) */
       msFrame: function () { var s = 0; for (var i = 0; i < perf.n; i++) s += perf.ring[i]; return { ms: perf.n ? +(s / perf.n).toFixed(2) : 0, n: perf.n }; },
       loftProps: function () { return LROOM ? { cushions: LROOM.cushions.map(function (c) { return c.slice(); }) } : null; },   /* 위층 방석 [x, z, 아래 반지름] (검사용 — 11-12) */

@@ -28,6 +28,7 @@
  *     날짜는 window.__ppolTest.today, 기록은 심어서 — 걸린 시간에 기대는 검사는 없다.
  *   Z 위층 문어 (11-12 검증 고침): 걷던 문어가 계단을 따라 오르면 idle · 위층에선 안 돌아다님 · 내려오면 다시 · 거울 길 · 대야 · '그대로' 에 비켜서기 · 거울 구석 나오기 ·
  *     문어 상태마다 거울 한 줄 · 방석 · 가구 배치는 다락을 떠나면 끝 · 장면 설명 · 밀어 둔 화면의 시트 올림 (페이지 시계 + debugStep 으로 민다).
+ *   X 바깥 텃밭 (검증 11-11): 흙 · 심은 것을 톡 하면 그 칸 (세 크기) · 울타리 자리 문어 · 키보드 · 단추 이름 · 2D 글 · 모르는 꽃 색 · 다른 탭 · 불러오기 · 초기화 뒤 살림 · 씨앗 그림 · 울타리.
  *   (모든 문맥은 window.__ppolAwakeMs = 0 으로 시작 — 예전 시나리오는 '산책 직후 잠'. T · K 가 덮는다)
  *   SMOKE_ONLY=H,I node tools/smoke.js   # 그 시나리오만
  *   SMOKE_THROTTLE=4 node tools/smoke.js # 페이지 CPU 를 4배 늦춘다 (느린 CI 러너 흉내 — 시간에 기대는 검사의 경합을 여기서 다시 낸다)
@@ -5411,6 +5412,241 @@ async function scenarioLoft(browser) {
   }
 }
 
+/* X. 바깥 텃밭 (검증 11-11): 흙 · 심은 것을 톡 하면 그 칸 (세 크기 · 칸마다 흙 격자 · 진짜 손가락) · 울타리 자리에 선 문어를 톡 하면 밭이 아니라 문어 ·
+   키보드(단추 · Enter · 링이 제 칸 위) · 단추 이름(칸 · 든 것 · 누르면 할 일, 바뀔 때마다) · 2D 에선 '밭을 바로 톡' 글이 없다 · 모르는 꽃 색이어도 살림이 열리고 물 · 거두기 ·
+   다른 탭 · 불러오기 · 전체 초기화 뒤 꼬리표 · 점 · 열린 살림 · 재봉틀 시트 · 바깥 밭 · 씨앗이 보인다(칸 상자 안 픽셀 차) · 울타리가 밭 밖 · 심은 것 지오메트리가 버릴 목록에 (늘지 않게) */
+async function scenarioGarden(browser) {
+  console.log('\n== X. 바깥 텃밭: 톡한 칸 · 울타리의 문어 · 키보드 · 단추 이름 · 2D 글 · 모르는 색 · 다른 탭 · 불러오기 · 초기화 · 씨앗 그림 · 울타리');
+  var O = 'http://ppolppol.example', bag = []; bag.ignored = [];
+  var RED = '#e8463c', BORN = 1762600000000, DAY = '2026-11-11', NEXT = '2026-11-12', WK = '2026-11-09';
+  var WAIT = +process.env.SMOKE_WAIT || 180000;   /* '그 상태가 될 때까지' 의 넉넉한 끝 (검사가 아니다) */
+  var WEEK5 = { key: WK, q: [{ id: 'ask', n: 2, rr: 0 }, { id: 'run', n: 1, rr: 0 }, { id: 'water', n: 2, rr: 0 }, { id: 'plant', n: 1, rr: 0 }, { id: 'harvest', n: 1, rr: 0 }, { id: 'furn', n: 0, rr: 0 }, { id: 'loft', n: 0, rr: 0 }], claimed: false };
+  function USER(o) { return Object.assign({ shells: 10, seeds: 60, dyes: {}, days: [DAY], earned: [], garden: [null, null, null], giftDay: DAY }, o || {}); }
+  function REC(user) {
+    var r = { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 3, days: ['2026-11-06', '2026-11-07', '2026-11-08'], affinity: {}, visits: {}, state: 'idle', color: RED,
+      colors: [{ at: BORN, date: '2026-11-06', color: RED, how: 'first', by: 'player' }] }, room: { lantern: 3, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
+      settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
+    if (user) r.user = user;
+    return r;
+  }
+  /* 기록은 문맥에 한 번만 심는다 (둘째 탭엔 그대로) · 날짜 훅 · 낮 맑음 (그림 비교가 시각 · 날씨에 흔들리지 않게) · 장면 위치는 장면의 투영으로 (__xp: 월드 → 클라이언트 px) */
+  async function ctxOf(o) {
+    var ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    await ctx.addInitScript({ content: "if (!localStorage.getItem('__x_seed')) { localStorage.setItem('__x_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(o.rec)) + '); } ' +
+      "window.__ppolTest = { today: sessionStorage.getItem('__x_day') || '" + DAY + "' }; window.__ppolLook = { hour: 13, weather: 'clear' };" +
+      "window.__xp = function (w) { var s = APP.scene.spotRect('plot0') || APP.scene.spotRect('plot1') || APP.scene.spotRect('plot2'), q = APP.scene.screenOf(w[0], w[1], w[2]); return [s.client.x - s.x + q.x, s.client.y - s.y + q.y]; };" });
+    return ctx;
+  }
+  async function tab(ctx, q) {
+    var page = await ctx.newPage(); watchErrors(page, bag);
+    page.setDefaultNavigationTimeout(WAIT);
+    if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+    await routeWiki(page, 'ok'); await routeRepo(page, O);
+    await page.goto(O + '/index.html?dev=0' + (q || ''));
+    await page.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
+    return page;
+  }
+  /* 산책 중과 같게: 앱 · 장면 문어는 'away' (돌아다니지 않고 안 보인다) · 바깥을 바로 → 밭 단추 셋이 올라올 때까지 */
+  async function outside(pg) {
+    await pg.evaluate(function () { APP.oct.state = 'away'; APP.scene.setOctState('away'); APP.scene.setPlace('exterior', { instant: true }); });
+    await pg.waitForFunction(function () { return APP.scene.view() === 'exterior' && [0, 1, 2].every(function (i) { return !document.getElementById('btn-plot' + i).hidden; }); }, null, { timeout: WAIT });
+  }
+  function frames(pg) { return pg.evaluate(function () { return new Promise(function (res) { var n = 0; (function f() { if (++n > 6) res(); else requestAnimationFrame(f); })(); }); }); }
+  function planted(pg) { return pg.waitForFunction(function () { var g = APP.state.user.garden, i = [0, 1, 2].filter(function (k) { return !!g[k]; }); return i.length ? i.join('+') : false; }, null, { timeout: 20000, polling: 50 }).then(function (h) { return h.jsonValue(); }, function () { return 'none'; }); }
+  function sceneG(pg) { return pg.evaluate(function () { return APP.scene.garden().map(function (g) { return g ? g.water : null; }); }); }
+  function labels(pg) { return pg.evaluate(function () { return [0, 1, 2].map(function (i) { return document.getElementById('btn-plot' + i).getAttribute('aria-label'); }); }); }
+  function sheetLabels(pg) { return pg.evaluate(function () { var sh = document.getElementById('bag-sheet'); if (!sh.open) document.getElementById('btn-bag').click(); var o = [].map.call(document.querySelectorAll('#bag-body .bag-plot'), function (b) { return b.getAttribute('aria-label'); }); document.getElementById('bag-close').click(); return o; }); }
+
+  /* 1. 세 크기: 흙 격자 (칸마다 7×7) · 씨앗 · 새싹 · 꽃을 톡 → 그 칸 · 진짜 손가락 톡 (가운데 · 네 모서리) */
+  for (var vp of [[320, 568], [360, 740], [412, 915]]) {
+    var tag = vp.join('x'), c1 = await ctxOf({ w: vp[0], h: vp[1], rec: REC(USER()) }), p1 = await tab(c1);
+    await outside(p1);
+    var gr = await p1.evaluate(function () {
+      APP.scene.setGarden([null, null, null]);
+      var d = APP.scene.plotsDebug(), F = [-0.9, -0.6, -0.3, 0, 0.3, 0.6, 0.9], out = { n: 0, wrong: [] };
+      d.c.forEach(function (c, i) { F.forEach(function (a) { F.forEach(function (b) {
+        var p = __xp([c[0] + a * d.half, c[1], c[2] + b * d.half]), k = APP.scene.pickAt(p[0], p[1]), got = k ? (k.kind === 'spot' ? k.id : k.kind) : null;
+        out.n++; if (got !== 'plot' + i) out.wrong.push(i + '@' + a + ',' + b + '>' + got + '(' + Math.round(p[0]) + ',' + Math.round(p[1]) + ')');
+      }); }); });
+      return out;
+    });
+    ok(gr.n === 147 && !gr.wrong.length, tag + ': 흙 위 ' + gr.n + '곳을 톡 하면 그 칸 (틀린 곳 ' + gr.wrong.length + (gr.wrong.length ? ': ' + gr.wrong.slice(0, 8).join(' ') : '') + ')');
+    var pl = await p1.evaluate(function () {   /* 심은 것: 씨앗 둔덕 · 팻말 / 새싹 줄기 · 잎 / 꽃송이 · 줄기 (흙 윗면에서 잰 높이) */
+      var d = APP.scene.plotsDebug(), o = d.origin, PTS = { 0: [[0, 0.05, 0], [0.17, 0.27, -0.15], [0.16, 0.12, -0.16]], 1: [[0, 0.12, 0], [0.09, 0.12, 0]], 2: [[0, 0.56, 0], [0, 0.3, 0], [0.09, 0.25, 0]] }, out = { n: 0, wrong: [] };
+      [0, 1, 2].forEach(function (w) {
+        APP.scene.setGarden([0, 1, 2].map(function () { return { color: '#4a86d8', water: w }; }));
+        d.c.forEach(function (c, i) { PTS[w].forEach(function (q) { var p = __xp([c[0] + q[0], c[1] + q[1], c[2] + q[2]]), k = APP.scene.pickAt(p[0], p[1]), got = k ? (k.kind === 'spot' ? k.id : k.kind) : null; out.n++; if (got !== 'plot' + i) out.wrong.push('w' + w + ':' + i + '@' + q.join(',') + '>' + got); }); });
+      });
+      APP.scene.setGarden([null, null, null]); return out;
+    });
+    ok(!pl.wrong.length, tag + ': 씨앗 · 새싹 · 꽃 (' + pl.n + '곳)을 톡 하면 그 칸 (틀린 곳 ' + pl.wrong.length + (pl.wrong.length ? ': ' + pl.wrong.join(' ') : '') + ')');
+    var taps = await p1.evaluate(function () { var d = APP.scene.plotsDebug(), out = []; d.c.forEach(function (c, i) { [[0, 0], [-0.75, -0.75], [0.75, -0.75], [-0.75, 0.75], [0.75, 0.75]].forEach(function (f) { var p = __xp([c[0] + f[0] * d.half, c[1], c[2] + f[1] * d.half]); out.push({ i: i, f: f.join(','), x: p[0], y: p[1] }); }); }); return out; });
+    var bad = [];
+    for (var t of taps) {
+      await p1.evaluate(function () { APP.state.user.garden = [null, null, null]; APP.state.user.seeds = 60; APP.scene.setGarden([null, null, null]); });
+      await p1.touchscreen.tap(t.x, t.y);
+      var got = await planted(p1); if (got !== String(t.i)) bad.push(t.i + '@' + t.f + '>' + got);
+    }
+    ok(!bad.length, tag + ': 진짜 손가락으로 흙 ' + taps.length + '곳 (칸마다 가운데 · 네 모서리) → 그 칸에 심었다' + (bad.length ? ' — 틀림: ' + bad.join(' ') : ''));
+
+    if (vp[0] === 412) {   /* 2. 문어가 정말 울타리 자리(numbers, 첫째 칸 옆)에 서 있을 때: 몸을 톡 → 밭이 아니라 문어 (산책 중이라 아무 일 없음) */
+      var oc = await p1.evaluate(async function () {
+        APP.scene.setGarden([null, null, null]);
+        await APP.scene.peekOutside({ corner: 'numbers', status: 'builtin' });
+        var pk = APP.scene.peek(), d = APP.scene.plotsDebug(), sp = APP.scene.extSpot('numbers'), g = __xp([d.origin[0] + sp.x, d.origin[1] + 0.02, d.origin[2] + sp.z]), h = APP.scene.octScreenPos();
+        var pts = [0.3, 0.5, 0.7].map(function (f) { return [g[0] + (h.x - g[0]) * f, g[1] + (h.y - g[1]) * f]; });
+        var withOct = pts.map(function (p) { var k = APP.scene.pickAt(p[0], p[1]); return k ? (k.kind === 'spot' ? k.id : k.kind) : null; });
+        return { pk: pk, pts: pts, withOct: withOct, sentinel: __xp(d.c[2]) };
+      });
+      for (var q of oc.pts) await p1.touchscreen.tap(q[0], q[1]);
+      await p1.touchscreen.tap(oc.sentinel[0], oc.sentinel[1]);   /* 셋째 칸 톡이 들어온 뒤면 앞의 톡도 다 처리됐다 */
+      var after = await p1.waitForFunction(function () { var g = APP.state.user.garden; return g[2] ? g.map(function (x) { return x ? 1 : 0; }).join('') : false; }, null, { timeout: 20000, polling: 50 }).then(function (h) { return h.jsonValue(); }, function () { return 'none'; });
+      var without = await p1.evaluate(function (pts) { APP.scene.setOctState('away'); return pts.map(function (p) { var k = APP.scene.pickAt(p[0], p[1]); return k ? (k.kind === 'spot' ? k.id : k.kind) : null; }); }, oc.pts);
+      console.log('   울타리 자리 문어:', JSON.stringify({ peek: [oc.pk.on, oc.pk.key, oc.pk.onSpot], pts: oc.pts.map(function (p) { return p.map(Math.round); }), withOct: oc.withOct, withoutOct: without, garden: after }));
+      ok(oc.pk.on && oc.pk.key === 'numbers' && oc.pk.onSpot, '문어가 울타리 자리(numbers)에 서 있다');
+      ok(oc.withOct.every(function (k) { return !/^plot/.test(k || ''); }) && after === '001', '울타리 자리에 선 문어 몸을 세 번 톡 → 밭은 그대로 (톡 표적 ' + JSON.stringify(oc.withOct) + ' · 밭 ' + after + ' = 셋째 칸 확인 톡만)');
+    }
+
+    if (vp[0] === 360) {
+      /* 3. 키보드: 단추 셋 · 링(단추 상자)의 가운데가 제 칸 흙에 가장 가깝고 제 칸 가운데를 품는다 · Enter 는 그 칸 */
+      var kb = await p1.evaluate(function () {
+        var d = APP.scene.plotsDebug(), cs = d.c.map(function (c) { return __xp(c); });
+        return [0, 1, 2].map(function (i) { var r = document.getElementById('btn-plot' + i).getBoundingClientRect(), mx = r.left + r.width / 2, my = r.top + r.height / 2, near = 0;
+          cs.forEach(function (c, j) { if (Math.hypot(c[0] - mx, c[1] - my) < Math.hypot(cs[near][0] - mx, cs[near][1] - my)) near = j; });
+          return { near: near, inside: cs[i][0] >= r.left && cs[i][0] <= r.right && cs[i][1] >= r.top && cs[i][1] <= r.bottom }; });
+      });
+      ok(kb.every(function (k, i) { return k.near === i && k.inside; }), '단추 셋의 링이 저마다 제 칸 위: ' + JSON.stringify(kb));
+      var kbad = [];
+      for (var ki = 0; ki < 3; ki++) {
+        await p1.evaluate(function (i) { APP.state.user.garden = [null, null, null]; APP.state.user.seeds = 60; APP.scene.setGarden([null, null, null]); document.getElementById('btn-plot' + i).focus(); }, ki);
+        await p1.keyboard.press('Enter');
+        var kg = await planted(p1); if (kg !== String(ki)) kbad.push(ki + '>' + kg);
+      }
+      ok(!kbad.length, '키보드: 단추에 포커스 + Enter → 그 칸에 심었다' + (kbad.length ? ' — 틀림: ' + kbad.join(' ') : ''));
+
+      /* 4. 단추 이름: 칸 · 든 것 · 누르면 할 일. 바깥 단추와 살림 시트 단추가 같은 말, 바뀔 때마다 */
+      await p1.evaluate(function (d) { var u = APP.state.user; u.garden = [null, null, null]; u.seeds = 1; u.giftDay = d; APP.save(); APP.renderAll(); document.getElementById('btn-plot0').focus(); }, DAY);   /* 오늘 선물은 받은 날로 (매분 선물이 씨앗을 늘리지 않게) */
+      var L0 = await labels(p1), S0 = await sheetLabels(p1);
+      await p1.keyboard.press('Enter'); await planted(p1);
+      var L1 = await labels(p1), S1 = await sheetLabels(p1);
+      await p1.evaluate(function () { document.getElementById('btn-plot0').focus(); });
+      await p1.keyboard.press('Enter'); await p1.waitForFunction(function () { return APP.state.user.garden[0].water === 1; }, null, { timeout: WAIT });
+      var L2 = await labels(p1);
+      await p1.evaluate(function (d) { sessionStorage.setItem('__x_day', d); window.__ppolTest.today = d; APP.state.user.giftDay = d; APP.save(); document.getElementById('btn-plot1').focus(); document.getElementById('btn-plot0').focus(); }, NEXT);   /* 다음 날: 포커스만으로도 이름이 새로 */
+      var L3 = await labels(p1);
+      await p1.keyboard.press('Enter'); await p1.waitForFunction(function () { return APP.state.user.garden[0].water === 2; }, null, { timeout: WAIT });
+      var L4 = await labels(p1), S4 = await sheetLabels(p1), fl = await p1.evaluate(function () { var c = APP.state.user.garden[0].color; return { red: '빨강', yellow: '노랑', green: '초록', blue: '파랑', purple: '보라', pink: '분홍' }[c]; });
+      await p1.evaluate(function () { document.getElementById('btn-plot0').focus(); });
+      await p1.keyboard.press('Enter'); await p1.waitForFunction(function () { return !APP.state.user.garden[0]; }, null, { timeout: WAIT });
+      var L5 = await labels(p1);
+      console.log('   단추 이름:', JSON.stringify({ L0: L0, L1: L1, L2: L2[0], L3: L3[0], L4: L4[0], L5: L5[0], S4: S4 }));
+      ok(L0[0] === '텃밭 첫째 칸, 빈 칸, 씨앗 심기' && L0[2] === '텃밭 셋째 칸, 빈 칸, 씨앗 심기' && JSON.stringify(S0) === JSON.stringify(L0), '빈 밭 (씨앗 1): «' + L0[0] + '» · 살림 시트 단추도 같은 이름');
+      ok(L1[0] === '텃밭 첫째 칸, 씨앗, 물 주기' && L1[1] === '텃밭 둘째 칸, 빈 칸, 씨앗이 없어' && JSON.stringify(S1) === JSON.stringify(L1), '심은 뒤: «' + L1[0] + '» · 씨앗이 떨어진 빈 칸 «' + L1[1] + '» · 시트도 같음');
+      ok(L2[0] === '텃밭 첫째 칸, 새싹, 오늘은 물을 줬어', '물 준 날: «' + L2[0] + '»');
+      ok(L3[0] === '텃밭 첫째 칸, 새싹, 물 주기', '다음 날 (포커스 때 다시): «' + L3[0] + '»');
+      ok(!!fl && L4[0] === '텃밭 첫째 칸, ' + fl + ' 꽃, 거두기' && S4[0] === L4[0], '꽃: «' + L4[0] + '» · 시트도 같음');
+      ok(L5[0] === '텃밭 첫째 칸, 빈 칸, 씨앗이 없어', '거둔 뒤: «' + L5[0] + '»');
+
+      /* 5. 그림: 씨앗 칸은 빈 칸과 칸 상자 안에서 눈에 띄게 다르다 (빈 칸끼리 차 = 잡음 바닥) · 울타리 끝 기둥은 첫째 칸 테 밖 */
+      async function boxPng(i) { var r = await p1.evaluate(function (i) { var s = APP.scene.spotRect('plot' + i), a = s.art, ox = s.client.x - s.x, oy = s.client.y - s.y; return { x: Math.floor(a.l + ox), y: Math.floor(a.t + oy), width: Math.ceil(a.r - a.l), height: Math.ceil(a.b - a.t) }; }, i); await frames(p1); return (await p1.screenshot({ clip: r })).toString('base64'); }
+      function pxDiff(a, b) { return p1.evaluate(async function (ab) {
+        function load(s) { return new Promise(function (res) { var im = new Image(); im.onload = function () { res(im); }; im.src = 'data:image/png;base64,' + s; }); }
+        var A = await load(ab[0]), B = await load(ab[1]), cv = document.createElement('canvas'); cv.width = A.width; cv.height = A.height; var x = cv.getContext('2d');
+        x.drawImage(A, 0, 0); var da = x.getImageData(0, 0, cv.width, cv.height).data; x.clearRect(0, 0, cv.width, cv.height); x.drawImage(B, 0, 0); var db = x.getImageData(0, 0, cv.width, cv.height).data, n = 0;
+        for (var i = 0; i < da.length; i += 4) if (Math.abs(da[i] - db[i]) + Math.abs(da[i + 1] - db[i + 1]) + Math.abs(da[i + 2] - db[i + 2]) > 30) n++;
+        return n; }, [a, b]); }
+      await p1.evaluate(function () { APP.scene.setGarden([null, null, null]); });
+      var e1 = await boxPng(1), e2 = await boxPng(1);
+      await p1.evaluate(function () { APP.scene.setGarden([null, { color: '#c8323a', water: 0 }, null]); });
+      var s1 = await boxPng(1), noise = await pxDiff(e1, e2), seedPx = await pxDiff(e1, s1);
+      await p1.evaluate(function () { APP.scene.setGarden([null, null, null]); });
+      ok(seedPx >= 100 + noise, '씨앗을 심은 칸은 빈 칸과 칸 상자 안 ' + seedPx + ' px 다르다 (100 px 이상 — 예전 4×3 px 점 둔덕은 42 px · 빈 칸끼리 잡음 ' + noise + ' px)');
+      var dbg = await p1.evaluate(function () { return APP.scene.plotsDebug(); });
+      ok(dbg.fence[0] + 0.04 < dbg.c[0][0] - dbg.frame, '울타리 끝 기둥(x ' + (dbg.fence[0] + 0.04).toFixed(2) + ' 까지)은 첫째 칸 테(x ' + (dbg.c[0][0] - dbg.frame).toFixed(2) + ' 부터) 밖');
+
+      /* 6. 심은 것 지오메트리: 장면을 버릴 때 같이 놓는 목록(keep)에 있고, 다시 지어도 목록이 늘지 않는다 · 같은 밭 · 같은 옷 색이면 renderAll 이 다시 짓지 않는다 */
+      var kp = await p1.evaluate(function () {
+        var S = [[{ color: '#c8323a', water: 2 }, null, null], [null, { color: '#4a86d8', water: 1 }, { color: '#4a86d8', water: 0 }]];
+        APP.scene.setGarden(S[0]); var a = APP.scene.plotsDebug();
+        for (var i = 0; i < 10; i++) APP.scene.setGarden(S[i & 1]);
+        var b = APP.scene.plotsDebug(); APP.state.user.garden = [{ color: 'green', water: 1, wateredDay: '' }, null, null]; APP.renderAll(); var c = APP.scene.plotsDebug();
+        for (var j = 0; j < 3; j++) APP.renderAll();
+        var e = APP.scene.plotsDebug(); return { a: a, b: b, c: c, e: e };
+      });
+      ok(kp.a.plants && kp.a.plants.kept && kp.b.plants.kept && kp.b.disposables === kp.a.disposables, '심은 것 지오메트리는 버릴 목록에 있고 (' + (kp.a.plants && kp.a.plants.kept) + ') 열 번 다시 지어도 목록 길이 그대로 (' + kp.a.disposables + ' → ' + kp.b.disposables + ')');
+      ok(kp.e.plants && kp.c.plants && kp.e.plants.id === kp.c.plants.id && kp.e.playerGeo === kp.c.playerGeo && kp.e.disposables === kp.c.disposables, 'renderAll 세 번: 같은 밭 · 같은 옷 색이면 심은 것 · 내 캐릭터를 다시 짓지 않는다');
+    }
+    await c1.close();
+  }
+
+  /* 7. 2D: 살림 시트에 '밭을 바로 톡' 글이 없다 (3D 엔 있다) */
+  var c2 = await ctxOf({ rec: REC(USER()) }), p2 = await tab(c2, '&scene=2d'), p3 = await tab(c2);
+  function noteOf(pg) { return pg.evaluate(function () { document.getElementById('btn-bag').click(); var t = [].map.call(document.querySelectorAll('#bag-body .set-note'), function (x) { return x.textContent; }).filter(function (x) { return /밭은/.test(x); })[0] || ''; document.getElementById('bag-close').click(); return { mode: APP.sceneMode, t: t }; }); }
+  var n2 = await noteOf(p2), n3 = await noteOf(p3);
+  ok(n2.mode === '2d' && n2.t === '밭은 집 앞마당에 있어.' && n3.mode === '3d' && /밭을 바로 톡 해도 돼/.test(n3.t), '2D 시트: «' + n2.t + '» · 3D 시트에는 바로 톡 한 줄');
+  await c2.close();
+
+  /* 8. 모르는 꽃 색 (손댄 기록 · 나중 빌드): 살림이 열리고 · 꽃으로 보이고 · 물 · 거두기가 되고 · 저장된 색은 그대로 · 객체가 아닌 칸만 빈 칸 */
+  var c4 = await ctxOf({ rec: REC(USER({ garden: [{ color: 'teal', water: 2, wateredDay: '' }, 'junk', { color: 'teal', water: 1, wateredDay: '' }] })) }), p4 = await tab(c4);
+  var u1 = await p4.evaluate(function () {
+    document.getElementById('btn-bag').click();
+    var sh = document.getElementById('bag-sheet'), o = { open: sh.open, labels: [].map.call(document.querySelectorAll('#bag-body .bag-plot'), function (b) { return b.getAttribute('aria-label'); }), scene: APP.scene.garden().map(function (g) { return g ? g.water : null; }), saved: JSON.parse(localStorage.getItem('ppolppol_v2')).user.garden };
+    var bp = document.querySelectorAll('#bag-body .bag-plot'); if (bp.length < 3) return o;   /* 시트가 못 그려졌으면 여기서 (아래 ok 가 실패로 적는다) */
+    bp[2].click(); o.watered = JSON.parse(JSON.stringify(APP.state.user.garden[2]));
+    document.querySelectorAll('#bag-body .bag-plot')[0].click();
+    o.harvested = APP.state.user.garden[0]; o.dyes = JSON.parse(JSON.stringify(APP.state.user.dyes)); o.toast = document.getElementById('toast').textContent; o.mem1 = APP.state.user.garden[1];
+    document.getElementById('bag-close').click(); return o;
+  });
+  console.log('   모르는 색:', JSON.stringify(u1));
+  ok(u1.open && u1.labels[0] === '텃밭 첫째 칸, 꽃, 거두기' && u1.labels[1] === '텃밭 둘째 칸, 빈 칸, 씨앗 심기' && u1.labels[2] === '텃밭 셋째 칸, 새싹, 물 주기' && JSON.stringify(u1.scene) === '[2,null,1]',
+    '모르는 색 «teal»: 살림이 열린다 · 꽃 · 새싹으로 보이고 이름도 («' + u1.labels[0] + '») · 바깥 밭에도 [' + u1.scene + '] · 객체가 아닌 칸은 빈 칸');
+  ok(u1.watered && u1.watered.color === 'teal' && u1.watered.water === 2 && u1.harvested === null && u1.dyes.teal === 1 && u1.toast === '염료 1개를 얻었어', '물 주기 → 꽃 (색 «' + (u1.watered && u1.watered.color) + '» 그대로) · 거두기 → 염료 teal 1 · 알림 «' + u1.toast + '»');
+  await c4.close();
+
+  /* 9. 다른 탭 · 불러오기 · 전체 초기화 뒤 화면이 기록을 따른다 (꼬리표 조개 수 · 점 · 열린 살림 · 열린 재봉틀 시트 · 바깥 밭) */
+  var c5 = await ctxOf({ rec: REC(USER({ shells: 10, week: WEEK5 })) }), pa = await tab(c5), pb = await tab(c5);
+  await pa.evaluate(function () { document.getElementById('btn-bag').click(); });
+  var a0 = await pa.evaluate(function () { var b = document.getElementById('btn-bag'); return { dot: b.classList.contains('has-gift'), chip: document.getElementById('bag-n').textContent, open: document.getElementById('bag-sheet').open }; });
+  var b0 = await pb.evaluate(function () {
+    document.getElementById('btn-bag').click(); document.querySelectorAll('#bag-body .bag-plot')[0].click(); APP.earnFromPlay({ id: 'x-run-1', score: 0 });
+    var c = document.getElementById('week-claim'), had = !!c; if (c) c.click(); document.getElementById('bag-close').click();
+    return { had: had, shells: APP.state.user.shells };
+  });
+  var a1 = await pa.waitForFunction(function (n) {
+    var b = document.getElementById('btn-bag'), line = (document.querySelector('#bag-body .bag-line') || {}).textContent || '', g = APP.scene.garden();
+    return b.textContent.trim() === '조개 ' + n && !b.classList.contains('has-gift') && /^조개 /.test(line) && line.indexOf('조개 ' + n + ' ') === 0 && !!g[0] && document.getElementById('bag-sheet').open && { chip: b.textContent.trim(), line: line, garden: g.map(function (x) { return x ? x.water : null; }), plot0: document.querySelector('#bag-body .bag-plot').getAttribute('aria-label') };
+  }, b0.shells, { timeout: WAIT, polling: 100 }).then(function (h) { return h.jsonValue(); }, function () { return null; });
+  if (!a1) console.log('   다른 탭 뒤 A:', JSON.stringify(await pa.evaluate(function () { var b = document.getElementById('btn-bag'); return { chip: b.textContent.trim(), dot: b.classList.contains('has-gift'), line: (document.querySelector('#bag-body .bag-line') || {}).textContent, garden: APP.scene.garden(), saved: APP.state.user.shells }; })));
+  ok(a0.dot && a0.chip === '조개 10' && a0.open && b0.had && !!a1 && a1.plot0 === '텃밭 첫째 칸, 씨앗, 물 주기', '다른 탭이 심고 · 조개를 벌고 · 주간 선물을 받으면 이 탭의 꼬리표(«' + (a1 && a1.chip) + '» · 점 꺼짐) · 열린 살림(«' + (a1 && a1.line) + '») · 바깥 밭(' + (a1 && JSON.stringify(a1.garden)) + ')이 따라온다');
+  await pa.evaluate(function () { document.getElementById('bag-close').click(); document.getElementById('btn-sew').click(); });
+  var b1 = await pb.evaluate(function () { APP.earnFromPlay({ id: 'x-run-2', score: 0 }); return APP.state.user.shells; });
+  var a2 = await pa.waitForFunction(function (n) { var sh = document.getElementById('sew-sheet'), l = (document.querySelector('#sew-body .bag-line') || {}).textContent || ''; return sh.open && l === '조개 ' + n && l; }, b1, { timeout: WAIT, polling: 100 }).then(function (h) { return h.jsonValue(); }, function () { return null; });
+  if (!a2) console.log('   재봉틀 시트:', JSON.stringify(await pa.evaluate(function () { return { open: document.getElementById('sew-sheet').open, line: (document.querySelector('#sew-body .bag-line') || {}).textContent, shells: APP.state.user.shells }; })));
+  ok(!!a2, '열어 둔 재봉틀 시트도 다른 탭의 조개 수를 따라온다 («' + a2 + '» = 조개 ' + b1 + ')');
+  await pa.evaluate(function () { document.getElementById('sew-close').click(); });
+  await pb.close();
+  /* 불러오기: 조개 40 · 다섯 가지 한 주 · 셋째 칸에 꽃 → 꼬리표 · 점 · 바깥 밭 / 살림이 없는 기록 → 조개 0 · 빈 밭 */
+  var im1 = await pa.evaluate(function (rec) { var r = APP.importJSON(JSON.stringify(rec)), b = document.getElementById('btn-bag'); return { r: r, chip: b.textContent.trim(), dot: b.classList.contains('has-gift'), hidden: b.hidden, garden: APP.scene.garden().map(function (g) { return g ? g.water : null; }) }; },
+    REC(USER({ shells: 40, week: WEEK5, garden: [null, null, { color: 'green', water: 2, wateredDay: '' }] })));
+  ok(im1.r && im1.chip === '조개 40' && im1.dot && !im1.hidden && JSON.stringify(im1.garden) === '[null,null,2]', '불러오기 뒤: 꼬리표 «' + im1.chip + '» · 점 ' + im1.dot + ' · 바깥 밭 ' + JSON.stringify(im1.garden));
+  var im2 = await pa.evaluate(function (rec) { var r = APP.importJSON(JSON.stringify(rec)), b = document.getElementById('btn-bag'); return { r: r, chip: b.textContent.trim(), dot: b.classList.contains('has-gift'), garden: APP.scene.garden().map(function (g) { return g ? g.water : null; }) }; }, REC(null));
+  ok(im2.r && im2.chip === '조개 0' && !im2.dot && JSON.stringify(im2.garden) === '[null,null,null]', '살림이 없는 기록을 불러오면: «' + im2.chip + '» · 점 없음 · 빈 밭');
+  /* 전체 초기화: 이름 창 위에 꼬리표가 남지 않고 · 바깥 밭이 빈다 · 새 이름 뒤에도 빈 밭 · 꼬리표는 새 조개 수 */
+  await pa.evaluate(function (rec) { APP.importJSON(JSON.stringify(rec)); }, REC(USER({ shells: 40, garden: [{ color: 'red', water: 1, wateredDay: '' }, { color: 'blue', water: 2, wateredDay: '' }, null] })));
+  var r0 = await pa.evaluate(function () { document.getElementById('btn-bag').click(); document.querySelectorAll('#bag-body .bag-plot')[2].click(); document.getElementById('bag-close').click(); return APP.scene.garden().map(function (g) { return g ? g.water : null; }); });   /* 셋째 칸에 심어 (gardenAct 가 직접 그린다) 바깥에 세 칸 다 있는 데서 초기화 */
+  await pa.evaluate(function () { APP.openSettings(); });
+  await resetTwice(pa);
+  await pa.waitForSelector('#name-dialog[open]', { timeout: WAIT });
+  var r1 = await pa.evaluate(function () { var b = document.getElementById('btn-bag'); return { hidden: b.hidden, garden: APP.scene.garden().map(function (g) { return g ? g.water : null; }) }; });
+  await pa.fill('#name-in', '구름'); await pa.click('#name-form button[type=submit]');
+  var r2 = await pa.waitForFunction(function () { var b = document.getElementById('btn-bag'); return !b.hidden && APP.state.user && b.textContent.trim() === '조개 ' + APP.state.user.shells && { chip: b.textContent.trim(), garden: APP.scene.garden().map(function (g) { return g ? g.water : null; }), saved: APP.state.user.garden }; }, null, { timeout: WAIT, polling: 100 }).then(function (h) { return h.jsonValue(); }, function () { return null; });
+  ok(JSON.stringify(r0) === '[1,2,0]' && r1.hidden && JSON.stringify(r1.garden) === '[null,null,null]', '전체 초기화: 이름 창 위에 꼬리표가 안 보이고 바깥 밭(전 ' + JSON.stringify(r0) + ')이 빈다 (' + JSON.stringify(r1) + ')');
+  ok(!!r2 && JSON.stringify(r2.garden) === '[null,null,null]' && JSON.stringify(r2.saved) === '[null,null,null]', '새 이름 뒤: 꼬리표 «' + (r2 && r2.chip) + '» · 바깥 밭도 기록도 빈 밭');
+  await c5.close();
+  reportErrors(bag, 'X');
+}
+
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
@@ -5426,7 +5662,8 @@ async function scenarioLoft(browser) {
       ['R', function () { return scenarioRunner(); }], ['S', function () { return scenarioWave7(browser); }], ['J', function () { return scenarioWave8(browser); }], ['U', function () { return scenarioGlyphs(browser); }],
       ['T', function () { return scenarioTapLine(browser); }], ['K', function () { return scenarioBringBack(browser); }], ['O', function () { return scenarioLayoutOne(browser); }],
       ['Q', function () { return scenarioWeek(browser); }],   /* Q = 이번 주 할 일 · 선물 상자 (검증 11-11) */
-      ['Z', function () { return scenarioLoft(browser); }]];   /* 11-12 위층 문어 (계단 · 돌아다니기 · 거울 길 · 비켜서기 · 거울 한 줄 · 방석 · 가구 배치 · 시트 올림) */
+      ['Z', function () { return scenarioLoft(browser); }],   /* 11-12 위층 문어 (계단 · 돌아다니기 · 거울 길 · 비켜서기 · 거울 한 줄 · 방석 · 가구 배치 · 시트 올림) */
+      ['X', function () { return scenarioGarden(browser); }]];   /* X = 바깥 텃밭 · 살림 다시 그리기 (검증 11-11) */
     for (var sc of all) {   /* 한 시나리오가 터져도 (부하 큰 기계의 시간 초과 등) 뒤 시나리오는 돈다 — 터진 것은 실패 하나로 센다 */
       if (only.length && only.indexOf(sc[0]) < 0) continue;
       try { await sc[1](); } catch (e) { fails++; console.error('\nCRASH in ' + sc[0] + ': ' + (e && e.stack || e)); }
