@@ -5880,6 +5880,17 @@ async function scenarioLoft(browser) {
   ok(pw59.done && h59 && w59.done && c59.done && go59 && go59.ok && f59.up >= 1 && f59.first && f59.first.phase === 'up' && f59.sleepUp === 0 && z22.room === 'loft' && !z22.up && z22.an === 'blanket' && bl22 && z22.st === 'sleep',
     '담요로 걷던 사이 날이 바뀌어 따라 올라온 문어가 그 걸음 끝에 잠들어도 위층에서 자지 않는다: 다락 담요에서 잔다 (' + J5(z22) + ' · ' + JSON.stringify(f59) + ')');
   reportErrors(bag, 'Z-5f'); await A.ctx.close();
+  /* 5-8. 11-13 (마지막 검증 C-1 · C-2): 위층에 남은 깨어 있는 틈에 낮잠 중인 기록을 불러오면 문어는 다락 담요에서 잔다 (위층에서 자지 않는다) · 이 탭의 옛 틈은 남지 않는다 */
+  A = await open({ awake: AW, rec: REC(4), test: { forceKind: 'home' } }); pg = A.page;
+  await pg.evaluate(function () { var f = BRAIN.plan; BRAIN.plan = function () { var a = arguments; BRAIN.plan = f; return new Promise(function (r) { setTimeout(r, 20000); }).then(function () { return f.apply(BRAIN, a); }); }; });
+  await tap(pg, 'btn-go'); await tick(pg, 0.3);
+  var u60 = await stair(pg, true), e60 = await tick(pg, 90, IDLE5, null, 1, 0.2), z23 = await R5(pg);
+  var r60 = await pg.evaluate(function () { var o = JSON.parse(JSON.stringify(APP.state)), t = o.trips[o.trips.length - 1]; t.endedAt = Date.now() - 5 * 60 * 1000; o.octopus.state = 'sleep'; return APP.importJSON(JSON.stringify(o)); });   /* 5 분 전에 끝난 차례 = 틈은 지났고 20 분 낮잠 안 */
+  await tick(pg, 1); var z24 = await R5(pg), bl24 = await blanket5(pg);
+  console.log('   위층에서 낮잠 기록 불러오기:', J5(z23), '→', J5(z24), '담요', bl24);
+  ok(u60 && e60.done && z23.up && z23.phase === 'awake' && r60 && !z24.up && z24.st === 'sleep' && z24.an === 'blanket' && bl24 && z24.phase === 'nap' && !z24.rest,
+    '위층에 남은 틈에 낮잠 중인 기록을 불러오면 위층에서 자지 않는다: 다락 담요에서 낮잠 · 옛 틈은 없다 (' + J5(z24) + ')');
+  reportErrors(bag, 'Z-5g'); await A.ctx.close();
   }
 }
 

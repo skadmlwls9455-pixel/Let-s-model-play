@@ -3734,7 +3734,9 @@ var APP = (function () {
     }
     mine = []; mineAsks = [];   /* 바꾼 기록에 예전 여행 · 미용실 물음을 다시 얹지 않게 */
     S.settings.lastSeen = Math.min(seenOf(S), Date.now());   /* 11-13 (재검): 불러온 기록의 lastSeen 도 지금으로 — 미래면 이 탭 미러(window.name)가 그 뒤 다른 탭의 초기화보다 '새것' 으로 남아, 새로고침 때 옛 기록이 돌아와 저장소에 되써졌다 */
-    save(); importSeen = Math.min(seenOf(S), Date.now()); importAt = performance.now(); applyMotion(); applyFont(); syncSceneLook(); octInitial();
+    save(); importSeen = Math.min(seenOf(S), Date.now()); importAt = performance.now(); applyMotion(); applyFont(); syncSceneLook();
+    clearRest(); if (octWithMe() && typeof scene.octDown === 'function') scene.octDown();   /* 11-13 (마지막 검증): 이 탭의 깨어 있는 틈은 불러온 기록의 것이 아니다 (octInitial 이 시계로 다시 잡는다) · 위층에 따라 와 있던 문어는 다락으로 먼저 — 아니면 다락 자리 좌표로 위층 방 안에 서고, 불러온 기록이 낮잠이면 위층에서 잤다 */
+    octInitial();
     applyLook({ still: true });   /* 불러온 몸 색 (renderAll 의 renderScene 이 이미 맞췄으면 할 일 없음) */
     var d = $('settings-sheet'); if (d && d.open) d.close();
     toast('기록을 불러왔어'); return true;
