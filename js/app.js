@@ -278,7 +278,9 @@ var APP = (function () {
     });
     return n ? Object.assign({}, S.salon, { asks: out }) : null;
   }
+  var trial = false;   /* 11-13 (재검증 C4): 불러오기의 '먼저 그려 보기' 동안은 쓰지 않는다 (renderAll → weekState 가 저장했다 — 검사 · lastSeen 자르기 전에 파일이 저장소 · 다른 탭으로) */
   function save() {
+    if (trial) return false;
     S.settings.lastSeen = Math.max(Date.now(), seenOf(S) + 1);   /* 단조 증가: 같은 ms 안의 연속 저장도 순서가 남는다 */
     var json = JSON.stringify(S);
     mirrorSet(json);
@@ -2063,8 +2065,8 @@ var APP = (function () {
   /* 다른 탭이 저장한 기록을 받아들인다 (R5). 이 탭에서 다녀오는 중인 여행(flying)이 있으면 그 객체를 그대로 끼워 넣어 이 탭의 공개·반영이 이어지게 하고,
      그쪽 기록에 이 탭이 반영한 여행(flying · mine)이 빠져 있으면(그 탭이 이걸 받기 전 사본으로 저장) 여기서 다시 얹어 저장한다 → 어느 탭이 늦게 저장해도 다른 탭의 여행·등불이 지워지지 않는다.
      다른 문어의 기록(born 이 다름 = 다른 탭에서 초기화·불러오기)이면 mine 은 버린다 (지운 기록을 되살리지 않게) */
-  function adoptRemote(raw) {
-    var R; try { R = normalize(JSON.parse(raw)); } catch (err) { return false; }
+  function adoptRemote(raw, obj) {
+    var R; try { R = normalize(obj || JSON.parse(raw)); } catch (err) { return false; }   /* obj = storage 이벤트가 이미 읽은 것 (11-13 C6) */
     var T = busy ? flying : null, same = (S.octopus.born || 0) === (R.octopus.born || 0), now = Date.now();
     /* 미용실 물음 (docs/SALON.md §7.5): 이 탭이 쓴 물음(mineAsks, 60 s)이 받은 기록에 빠졌으면 colors 줄과 함께 다시 얹고, 같은 날 물음이 둘이면 이른 것이 정한다 (늦은 것은 dropped).
        다른 문어(born 이 다름)면 SALON.merge 가 mine 을 버린다 */
@@ -2084,8 +2086,8 @@ var APP = (function () {
     return true;
   }
   /* 다른 탭의 기록을 받아 다시 그린다 (storage 이벤트) → 받았으면 true */
-  function takeRemote(raw) {
-    if (!adoptRemote(raw)) return false;
+  function takeRemote(raw, obj) {
+    if (!adoptRemote(raw, obj)) return false;
     weekTell();   /* 11-11 (검증 W1): 다른 탭이 주를 넘기며 지난주 선물을 넣었고 아직 알리지 못했으면 (그 탭이 가려져 있다) 보이는 이 탭이 알린다 */
     if (busy) { remoteDirty = true; applyGarden(); return true; }   /* 공개 중엔 로그·등불을 다시 그리지 않는다 → 끝날 때 한 번 (setBusy). 11-13: 바깥 밭 (단추 이름 · 심은 것) 만은 지금 — 산책 중에만 떠 있고, 이름만 바꾸면 거둔 꽃이 그대로 그려져 이름과 그림이 엇갈렸다 */
     /* 이 탭이 연출 중인 물음이 방금 밀렸다 (두 탭이 서로 보기 전에 물었고 그쪽이 일렀다 — dropped): 남은 연출을 여기서 접는다 (검증 11-10 E10).
@@ -3706,7 +3708,8 @@ var APP = (function () {
     return JSON.stringify(S);
   }
   /* 불러오기: 먼저 그려 보고(검사), 되면 그때 저장. 안 되면 원래 기록·화면으로 되돌린다 — 저장된 기록은 건드리지 않는다 */
-  var importSeen = 0;   /* 11-13: 불러온 순간 (그 기록의 lastSeen, 지금보다 크면 지금) — 불러오기 전에 쓰인 다른 탭 기록의 storage 이벤트가 늦게 와도 불러온 것을 되돌리지 않게 (닫힌 탭의 마지막 저장이 몇 ms 뒤에 와서 옛 밭 · 조개가 돌아왔다).
+  var importSeen = 0, importAt = -1e9, IMPORT_HOLD = 1000;   /* 11-13 (재검증 C2): 지키는 건 불러온 뒤 1 s 만 (performance.now — 기기 시계가 뒤로 가도 그대로). 늘 지키면 시계가 뒤로 간 뒤 다른 탭의 초기화를 버리고 옛 기록을 되썼다.
+                           11-13: 불러온 순간 (그 기록의 lastSeen, 지금보다 크면 지금) — 불러오기 전에 쓰인 다른 탭 기록의 storage 이벤트가 늦게 와도 불러온 것을 되돌리지 않게 (닫힌 탭의 마지막 저장이 몇 ms 뒤에 와서 옛 밭 · 조개가 돌아왔다).
                            지금으로 자르는 까닭: 시계가 앞선 기기의 파일이면 lastSeen 이 미래라, 그 뒤 다른 탭의 초기화 · 저장을 버리고 이 탭이 옛 기록을 되썼다 */
   function importJSON(text) {
     if (busy) { toast('다녀오는 중이라 지금은 못 불러와. 끝나고 다시 해 줘'); return false; }
@@ -3722,7 +3725,7 @@ var APP = (function () {
          두 탭 합치기와 같은 규칙 (SALON.merge — 시간 제한 없이): 파일에 없는 물음은 colors 줄과 함께 다시 얹고, 같은 날 둘이면 이른 것이 정한다. 다른 문어의 파일은 그대로 들어온다 (merge 가 물음을 버린다) */
       if (SAL) S = SAL.merge(prev.S, S, ((prev.S.salon || {}).asks || []).slice()).state;
       if (S.octopus.state === 'sleep' && napOver()) S.octopus.state = 'idle';   /* 부팅과 같은 낮잠 규칙 */
-      setDayGreeting(); renderAll();
+      trial = true; try { setDayGreeting(); renderAll(); } finally { trial = false; }   /* 11-13 (C4): 그려 보는 동안 저장 없음 — 저장은 아래 검사 뒤 한 번 */
     } catch (e) {
       S = prev.S; greetingRow = prev.g; memoRow = prev.m;
       try { renderAll(); } catch (e2) { /* 원래 기록은 저장된 그대로 */ }
@@ -3730,7 +3733,7 @@ var APP = (function () {
     }
     mine = []; mineAsks = [];   /* 바꾼 기록에 예전 여행 · 미용실 물음을 다시 얹지 않게 */
     S.settings.lastSeen = Math.min(seenOf(S), Date.now());   /* 11-13 (재검): 불러온 기록의 lastSeen 도 지금으로 — 미래면 이 탭 미러(window.name)가 그 뒤 다른 탭의 초기화보다 '새것' 으로 남아, 새로고침 때 옛 기록이 돌아와 저장소에 되써졌다 */
-    save(); importSeen = Math.min(seenOf(S), Date.now()); applyMotion(); applyFont(); syncSceneLook(); octInitial();
+    save(); importSeen = Math.min(seenOf(S), Date.now()); importAt = performance.now(); applyMotion(); applyFont(); syncSceneLook(); octInitial();
     applyLook({ still: true });   /* 불러온 몸 색 (renderAll 의 renderScene 이 이미 맞췄으면 할 일 없음) */
     var d = $('settings-sheet'); if (d && d.open) d.close();
     toast('기록을 불러왔어'); return true;
@@ -3739,7 +3742,7 @@ var APP = (function () {
     if (busy) { toast('다녀오는 중이라 지금은 못 지워. 끝나고 다시 해 줘'); return false; }
     salonFinish();   /* 미용실 연출 중이면 끝 상태로 먼저 */
     var ssh = $('salon-sheet'); if (ssh && ssh.open) ssh.close();
-    store.remove(KEY);
+    store.remove(KEY); clearRest();   /* 11-13 (재검증 S4): 앞 문어의 깨어 있는 틈도 */
     S = defaults(); mine = []; mineAsks = []; save(); setDayGreeting(); renderAll(); syncSceneLook(); octInitial();   /* renderAll → renderScene → applyLook: 장면 문어도 기본 빨강. 몸 색은 이름 창에서 다시 고른다 */
     var d = $('settings-sheet'); if (d && d.open) d.close();
     openNameDialog();
@@ -4240,8 +4243,10 @@ var APP = (function () {
     window.addEventListener('pageshow', function (e) { if (e.persisted) { try { sessionStorage.removeItem(REST_KEY); } catch (err) { /* noop */ } } });   /* 뒤로 가기 캐시에서 돌아왔으면 넘길 것 없음 (틈은 그대로 이어진다) */
     window.addEventListener('scroll', function () { if (rest && !rest.lying) { clearTimeout(scrollRest); scrollRest = setTimeout(restTick, 120); } }, { passive: true });   /* 장면을 다시 올려 보면 곧바로 이어 센다 */
     window.addEventListener('storage', function (e) {
-      if (e.key !== KEY || !e.newValue || e.newValue === lastSaved || seenOf(parseState(e.newValue)) < importSeen) return;   /* 11-13: 불러오기 전에 쓰인 기록 (importSeen) */
-      takeRemote(e.newValue);
+      if (e.key !== KEY || !e.newValue || e.newValue === lastSaved) return;
+      var o = parseState(e.newValue);   /* 11-13 (C6): 한 번만 읽어 그대로 넘긴다 */
+      if (performance.now() - importAt < IMPORT_HOLD && seenOf(o) < importSeen) return;   /* 11-13: 불러오기 전에 쓰인 기록 (importSeen) — 불러온 직후만 (C2) */
+      takeRemote(e.newValue, o);
     });
     $('name-form').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -4339,6 +4344,7 @@ var APP = (function () {
     u.giftDay = dk; if (u.days.indexOf(dk) < 0) u.days.push(dk);
     var n = u.days.length, extra = n % 5 === 0 ? 10 : 0;
     u.shells += 3 + extra; u.seeds += 1; u.giftTell = { day: dk, shells: 3 + extra, n: n };
+    checkDay(true);   /* 11-13 (재검증 P4): 열어 둔 채 자정을 넘겼으면 '오늘의 산책' 도 같은 때 새 날로 (방금 끝난 산책 2분 기다림보다 선물이 먼저 왔다) */
     weekTell(); save(); renderBagChip();   /* 바로 띄울 수 있으면 알린 뒤의 기록 한 번만 쓴다 (보이는 다른 탭이 같은 줄을 또 띄우지 않게) */
   }
   /* ───────────────────────── 이번 주 할 일 (11-10 주인: "일주일 단위 퀘스트 · 하루 시간 제한은 촉박 · 문어한테 산책 갈지 묻기 · 하나하나 새로고침 3번") ─────────────────────────
@@ -4347,7 +4353,7 @@ var APP = (function () {
      · 못 해도 잃는 것 없음 · 이어 하기(연속) 없음 · 알림 · 재촉 없음. 주가 바뀌면 새 일곱 가지로 조용히 바뀐다.
      · '문어한테 산책 갈지 묻기' 는 묻는 것만 센다 — 나갈지 집에 있을지는 문어가 정한다. 낮잠 자는 문어를 깨운 누름은 세지 않는다 (주인 11-12, 검증 W5 (b) — 깨어 있는 틈의 문어는 깨어 있다: 센다).
      · 들어온 날만 세는 일 ('이번 주에 사흘 들어오기') 은 뺐다 (주인 11-12, 검증 W4 (b) — 출석 숙제. 들어온 날 기록 user.days · 오늘 선물의 '들어온 날 N일째' 는 그대로). 그 일이 든 옛 주는 모르는 칸처럼 그 칸만 다른 일로 (weekState) — 그 주에 이미 사흘 들어왔으면 한 일 하나로 남긴다 (kept, 검증 OW-1: 받을 선물이 사라지지 않게).
-     저장: S.user.week = { key: 그 주 월요일, q: [{ id, n, rr }] × 7, claimed, kept? } */
+     저장: S.user.week = { key: 그 주 월요일, q: [{ id, n, rr }] × 7, claimed, kept?, keptIds? (11-13: 센 뺀 일 — kept 는 그 수) } */
   var QUESTS = [['ask', '문어한테 산책 갈지 묻기', 2], ['run', '다락방 달리기 한 판', 1], ['water', '텃밭에 물 주기', 2], ['plant', '씨앗 심기', 1], ['harvest', '꽃 거두기', 1], ['furn', '가구 하나 옮겨 놓기', 1],
     ['loft', '위층 옷방 올라가 보기', 1], ['kitchen', '놀이방 들르기', 1], ['look', '내 모습 열어 보기', 1], ['diary', '포스터 일기 펼쳐 보기', 1]];   /* 11-12 (검증 F11): '부엌 방' → 문에 적힌 이름 '놀이방'. 11-12: '선물 상자에서 하나 내밀기' 는 뺐다 — 선물을 내미는 게 조개 벌이가 되면 문어에게 부담 (주인 11-11 '문어가 부담 가질 수도 있으니까') */
   var WEEK_NEED = 5, WEEK_REROLL = 3, WEEK_GIFT = { shells: 12, seeds: 2 };
@@ -4362,27 +4368,40 @@ var APP = (function () {
   }
   /* 11-11 (검증 W1 · C4): 주가 바뀔 때 다섯 가지를 하고도 안 받은 선물은 버리지 않고 넣어 준다 (새 주와 같은 저장 한 번 — 새로고침 · 두 번 부름 · 다른 탭에도 한 번만: 옛 주가 기록에서 사라지는 것이 곧 넣었다는 표시).
      같은 주면 통째로 새로 만들지 않는다: 받은 표시 · 멀쩡한 칸(진행 · 바꾼 횟수)은 그대로, 모르는 일 · 깨진 칸만 다른 일로 (나중에 일 하나를 빼거나 이름을 바꿔도 그 주가 날아가지 않게).
-     저장: week.prev = { shells, seeds, told } — 지난주 선물을 넣었다는 표시 (그 주 동안 살림에 한 줄 · 알림은 한 번) */
+     저장: week.prev = { shells, seeds, told, from (11-13: 넣어 준 주) } — 지난주 선물을 넣었다는 표시 (그 주 동안 살림에 한 줄 · 알림은 한 번) */
   function weekOk(x) { return isObj(x) && !!questOf(x.id); }
-  /* 11-12 (검증 OW-1): 뺀 '사흘 들어오기' 를 그 주에 이미 했으면 (그 주에 들어온 날 셋) 그 하나는 잃지 않는다 — 칸은 다른 일로 바뀌어도 한 일 하나로 센다 (w.kept · 그 줄은 없다) */
-  function oldDone(w, x) {   /* 오늘도 들어온 날 (부팅 때 고치면 오늘 선물이 아직 user.days 에 오늘을 안 적었다 — 예전 칸은 그 뒤에 셋을 채웠다) */
-    if (!isObj(x) || x.id !== 'days') return false; var end = new Date(String(w.key).replace(/-/g, '/')), ds = userState().days, dk = todayKey(); end.setDate(end.getDate() + 6); var ek = dateKey(end);
-    return (ds.indexOf(dk) < 0 ? ds.concat(dk) : ds).filter(function (d) { return d >= w.key && d <= ek; }).length >= 3;
+  /* 11-12 (검증 OW-1): 뺀 '사흘 들어오기' 를 그 주에 이미 했으면 (그 주에 들어온 날 셋) 그 하나는 잃지 않는다 — 칸은 다른 일로 바뀌어도 한 일 하나로 센다 (w.kept · 그 줄은 없다).
+     11-13 (재검증 C1 · S1 · V1): 뺀 '선물 상자에서 하나 내밀기' (예전 목표 1) 도 같다 — production 기록의 다 한 칸이 점수를 잃었다 */
+  var GONE = {
+    days: function (w) {   /* 오늘도 들어온 날 (부팅 때 고치면 오늘 선물이 아직 user.days 에 오늘을 안 적었다 — 예전 칸은 그 뒤에 셋을 채웠다) */
+      var end = new Date(String(w.key).replace(/-/g, '/')), ds = userState().days, dk = todayKey(); end.setDate(end.getDate() + 6); var ek = dateKey(end);
+      return (ds.indexOf(dk) < 0 ? ds.concat(dk) : ds).filter(function (d) { return d >= w.key && d <= ek; }).length >= 3;
+    },
+    gift: function (w, x) { return (x.n | 0) >= 1; }
+  };
+  function oldDone(w, x) { return isObj(x) && !weekOk(x) && Object.prototype.hasOwnProperty.call(GONE, x.id) && GONE[x.id](w, x); }
+  /* 11-13 (재검증 S2): 뺀 일은 한 주에 한 번만 센다 — 센 일의 이름을 남긴다 (w.keptIds). 옛 탭이 같은 칸을 다시 나눠 줘도 또 세지 않는다.
+     keptIds 가 없는 숫자 kept 는 시험 빌드의 기록 — 그 빌드는 '사흘 들어오기' 만 셌다 → ['days'] (S2 로 2 가 됐어도 하나). kept 숫자는 늘 이름 수 (그 빌드 · 옛 검사가 읽는다) */
+  function keptOf(w) {
+    if (Array.isArray(w.keptIds)) return w.keptIds.filter(function (id, i, a) { return Object.prototype.hasOwnProperty.call(GONE, id) && a.indexOf(id) === i; });
+    return (w.kept | 0) > 0 ? ['days'] : [];
   }
+  function keptWith(w) { var k = keptOf(w); w.q.forEach(function (x) { if (oldDone(w, x) && k.indexOf(x.id) < 0) k.push(x.id); }); return k; }   /* + 지금 칸에 든 뺀 일로 다 한 것 */
   function weekState() {
-    var u = userState(), key = weekKeyOf(todayKey()), w = u.week, taken, i, id;
+    var u = userState(), key = weekKeyOf(todayKey()), w = u.week, taken, i, id, k;
     if (isObj(w) && w.key === key && Array.isArray(w.q)) {
       if (w.q.length !== 7 || !w.q.every(weekOk)) {
-        w.q = w.q.slice(0, 7); taken = w.q.filter(weekOk).map(function (x) { return x.id; }); i = w.q.filter(function (x) { return oldDone(w, x); }).length; if (i) w.kept = (w.kept | 0) + i;
+        w.q = w.q.slice(0, 7); taken = w.q.filter(weekOk).map(function (x) { return x.id; }); k = keptWith(w); if (k.length) { w.keptIds = k; w.kept = k.length; }
         for (i = 0; i < 7; i++) if (!weekOk(w.q[i])) { id = weekPick(key, i, 0, taken) || QUESTS.filter(function (q) { return taken.indexOf(q[0]) < 0; })[0][0]; taken.push(id); w.q[i] = { id: id, n: 0, rr: 0 }; }
         save();   /* 11-12: 바꾼 칸도 바로 저장 (새 주처럼 — 다음에 열 때 장면이나 포스터가 달라져도 같은 칸) */
       }
       return w;
     }
-    var due = isObj(w) && Array.isArray(w.q) && !w.claimed && /^\d{4}-\d{2}-\d{2}$/.test(w.key) && w.q.filter(function (x) { return weekOk(x) ? questDone(x) : oldDone(w, x); }).length + (w.kept | 0) >= WEEK_NEED;   /* 11-12 (OW-1): 바꾸기 전에 주가 지나간 옛 주의 '사흘 들어오기' 도 */
+    var due = isObj(w) && Array.isArray(w.q) && !w.claimed && /^\d{4}-\d{2}-\d{2}$/.test(w.key) && w.q.filter(function (x) { return weekOk(x) && questDone(x); }).length + keptWith(w).length >= WEEK_NEED;   /* 11-12 (OW-1): 바꾸기 전에 주가 지나간 옛 주의 뺀 일도 (11-13: 한 번씩만) */
+    var from = due ? w.key : '';
     taken = []; w = u.week = { key: key, q: [], claimed: false };
     for (i = 0; i < 7; i++) { id = i === 0 ? 'ask' : weekPick(key, i, 0, taken) || QUESTS.filter(function (q) { return taken.indexOf(q[0]) < 0; })[0][0]; taken.push(id); w.q.push({ id: id, n: 0, rr: 0 }); }   /* 첫 칸은 늘 '문어한테 산책 갈지 묻기' (바꿀 수는 있다). 11-12: 지킴 — 지금은 닿지 않는다 (2D · 포스터 없음 = 딱 일곱, 검사 없음). 일을 더 빼서 할 수 있는 일이 일곱이 안 되면 빈 칸 대신 남은 일로 */
-    if (due) { u.shells += WEEK_GIFT.shells; u.seeds += WEEK_GIFT.seeds; w.prev = { shells: WEEK_GIFT.shells, seeds: WEEK_GIFT.seeds }; setTimeout(weekTell, 600); }   /* 알림은 조금 뒤에 (살림을 여는 톡이 넘긴 주면 시트가 뜬 다음) */
+    if (due) { u.shells += WEEK_GIFT.shells; u.seeds += WEEK_GIFT.seeds; w.prev = { shells: WEEK_GIFT.shells, seeds: WEEK_GIFT.seeds, from: from }; setTimeout(weekTell, 600); }   /* 알림은 조금 뒤에 (살림을 여는 톡이 넘긴 주면 시트가 뜬 다음). 11-13 (C5): from = 넣어 준 그 주 */
     save();   /* 11-12: 나눠 준 목록은 바로 저장 — 다음에 열 때 장면(2D)이나 포스터가 달라져도 같은 목록 */
     return w;
   }
@@ -4396,11 +4415,12 @@ var APP = (function () {
     if ((!p && !g) || !S.octopus.name) return;
     if (giftWait || document.hidden || (window.INTRO && ['sky', 'title', 'out'].indexOf(INTRO.phase) >= 0) || (t && t.classList.contains('show'))) { weekTellT = setTimeout(weekTell, 1000); return; }
     if (g) { delete u.giftTell; save(); toast('오늘 선물: 조개 ' + (g.shells | 0) + ' · 씨앗 1 (들어온 날 ' + (g.n | 0) + '일째)'); if (p) weekTellT = setTimeout(weekTell, 1000); return; }
-    p.told = 1; save(); toast('지난주 선물은 살림에 넣어 뒀어. 조개 ' + (p.shells | 0) + ' · 씨앗 ' + (p.seeds | 0));
+    p.told = 1; save(); toast(prevWord(w) + ' 살림에 넣어 뒀어. 조개 ' + (p.shells | 0) + ' · 씨앗 ' + (p.seeds | 0));
   }
+  function prevWord(w) { var f = w.prev.from; return typeof f === 'string' && f && f !== keyAdd(w.key, -7) ? '전에 안 받은 주간 선물은' : '지난주 선물은'; }   /* 11-13 (C5): 몇 주 만에 왔으면 '지난주' 가 아니다 (from 없는 기록 = 시험 빌드: 예전 말 그대로) */
   function questN(x) { return x.n | 0; }
   function questDone(x) { return questN(x) >= questOf(x.id)[2]; }
-  function weekDoneN(w) { return w.q.filter(function (x) { return questDone(x); }).length + (w.kept | 0); }   /* + 뺀 일로 이미 한 것 (OW-1) */
+  function weekDoneN(w) { return w.q.filter(function (x) { return questDone(x); }).length + keptOf(w).length; }   /* + 뺀 일로 이미 한 것 (OW-1) */
   function questMark(id) {   /* 한 일 하나를 적는다 (이번 주 일곱 가지에 있을 때만). 조용히 — 토스트 · 알림 없음, 살림 꼬리표에 작은 점만 */
     if (!S.octopus.name) return;
     var w = weekState(), hit = false;
@@ -4433,8 +4453,8 @@ var APP = (function () {
     /* 11-12 (검증 F5 · F20): 받기 단추는 쪽지 바로 아래 (목록 뒤면 360x740 에서 화면 밖이었다) — 받은 뒤엔 '받았어' 줄이 그 자리. 수량은 한 덩어리로 (320 px 에서 '(조개 / 12' 로 끊기지 않게) */
     if (w.claimed) frag.appendChild(h('p', { class: 'set-note', id: 'week-got', tabindex: '-1', text: '이번 주 선물은 받았어.' }));
     else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim' }, ['주간 선물 받기 ', h('span', { class: 'nobr', text: '(조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds + ')' })]); c.addEventListener('click', weekClaim); frag.appendChild(c); }
-    if (w.kept | 0) frag.appendChild(h('p', { class: 'set-note', id: 'week-kept', text: '사흘 들어오기는 목록에서 빠졌지만, 이번 주엔 한 걸로 셌어.' }));   /* 11-12 (OW-1): 다 한 줄이 넷인데 (5/5) 인 까닭 */
-    if (isObj(w.prev)) frag.appendChild(h('p', { class: 'set-note', id: 'week-prev', text: '지난주 선물은 살림에 넣어 뒀어 (조개 ' + (w.prev.shells | 0) + ' · 씨앗 ' + (w.prev.seeds | 0) + ').' }));   /* 11-11 (검증 W1): 주가 바뀔 때 넣어 준 선물 — 그 주 동안 */
+    if (keptOf(w).length) frag.appendChild(h('p', { class: 'set-note', id: 'week-kept', text: '목록에서 빠진 일도 이번 주엔 한 걸로 셌어.' }));   /* 11-12 (OW-1): 다 한 줄이 넷인데 (5/5) 인 까닭. 11-13: 뺀 일이 둘 (사흘 · 선물 상자) — 어느 쪽이든 맞는 말 */
+    if (isObj(w.prev)) frag.appendChild(h('p', { class: 'set-note', id: 'week-prev', text: prevWord(w) + ' 살림에 넣어 뒀어 (조개 ' + (w.prev.shells | 0) + ' · 씨앗 ' + (w.prev.seeds | 0) + ').' }));   /* 11-11 (검증 W1): 주가 바뀔 때 넣어 준 선물 — 그 주 동안 */
     var list = h('ul', { class: 'week-list' });
     w.q.forEach(function (x, i) {
       var q = questOf(x.id), n = Math.min(questN(x), q[2]), ok = n >= q[2], left = WEEK_REROLL - (x.rr | 0);
@@ -4465,7 +4485,7 @@ var APP = (function () {
   function gardenAct(i) {
     var u = userState(), g = u.garden[i], dk = todayKey(), v = plotView(g, dk);
     if (!g) { if (u.seeds < 1) { toast('씨앗이 없어. 들어온 날 선물이나 주간 선물로 생겨'); return; } u.seeds--; var rng = mkRng(B ? B.hashSeed('seed', dk, i, u.days.length, u.seeds) : Date.now()); u.garden[i] = { color: DYES[Math.floor(rng() * DYES.length)][0], water: 0, wateredDay: '' }; toast('씨앗을 심었어'); questMark('plant'); }
-    else if (v.w >= 2) { u.dyes[g.color] = (u.dyes[g.color] | 0) + 1; u.garden[i] = null; toast((v.name ? v.name + ' ' : '') + '염료 1개를 얻었어'); questMark('harvest'); }
+    else if (v.w >= 2) { u.dyes[g.color] = (u.dyes[g.color] | 0) + 1; u.garden[i] = null; toast(v.name ? v.name + ' 염료 1개를 얻었어' : '꽃을 거뒀어'); questMark('harvest'); }
     else if (g.wateredDay === dk) { toast('오늘은 물을 줬어. 내일 또 줄 수 있어'); return; }
     else { g.water = v.w + 1; g.wateredDay = dk; toast(g.water >= 2 ? '꽃이 피었어' : '물을 줬어'); questMark('water'); }
     save(); renderBag(); applyGarden();
@@ -4571,7 +4591,11 @@ var APP = (function () {
   function bagInit() {
     userState(); renderBagChip(); applyDye(); applyGarden();
     var b = $('btn-bag'), sh = $('bag-sheet'); if (!b || !sh) return;
-    b.addEventListener('click', function () { renderBag(); showDialog(sh); });
+    b.addEventListener('click', function () {
+      renderBag(); showDialog(sh);
+      /* 11-13 (재검증 V3 · P6): 받을 선물이 있으면 받기 단추가 다 보이게 시트만 조금 굴린다 (320x568 픽셀 글꼴에서 반쯤 밖이었다 — 다 보이면 그대로). 여는 움직임 중이라 시트와 단추의 차이로 잰다 */
+      var c = $('week-claim'); if (!c) return; var over = c.getBoundingClientRect().bottom + 8 - (sh.getBoundingClientRect().top + sh.clientTop + sh.clientHeight); if (over > 0) sh.scrollTop += over;
+    });
     $('bag-close').addEventListener('click', function () { sh.close(); });
     sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     var sw = $('sew-sheet'); if (sw) { $('sew-close').addEventListener('click', function () { sw.close(); }); sw.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); }); }

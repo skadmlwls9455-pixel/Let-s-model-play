@@ -652,8 +652,10 @@
     /* 1. colors: '#rrggbb' 이고 how 가 first, salon, dev 인 줄만. at 순 */
     o.colors = byAt((Array.isArray(o.colors) ? o.colors : []).filter(function (c) { return isObj(c) && isHex(c.color) && HOWS.indexOf(c.how) >= 0; }).map(fixColor), -Infinity);
     /* 2. 지금 색: colors 가 있으면 그 마지막 줄이 정한다 (놀이 중엔 늘 같다 — 내보낸 파일에서 color 한 칸만 고쳐 기록 없는 색이 되지 않게, 검증 11-10 W3).
+          11-13 (재검증 C3): 다만 octopus.color 가 어느 colors 줄의 색이면 그대로 — 시계가 뒤로 간 뒤의 물음은 at 이 앞 줄보다 작아, 마지막 줄로 정하면 새로고침에 그 대답이 되감겼다.
           colors 가 비었으면 octopus.color, 사본, 빨강 순. 사본을 맞춘다 */
-    o.color = (o.colors.length ? o.colors[o.colors.length - 1].color : null) || normHex(o.color) || normHex(s.settings.octColor) || DEFAULT_COLOR;
+    var cur = normHex(o.color), lined = !!cur && o.colors.some(function (c) { return c.color === cur; });
+    o.color = (o.colors.length ? (lined ? cur : o.colors[o.colors.length - 1].color) : null) || cur || normHex(s.settings.octColor) || DEFAULT_COLOR;
     s.settings.octColor = o.color;
     /* 3. 이미 놀던 기록(이름이나 산책)은 지금 색 그대로 처음 색으로 (새 기록은 비워 두고 첫 실행 창이 넣는다) */
     if (!o.colors.length && played(s)) o.colors.push({ at: finite(o.born) && o.born ? o.born : null, date: null, color: o.color, how: 'first', by: 'migrated' });

@@ -611,6 +611,10 @@ guard(function () {
     'a hand-edited octopus.color (#101010) that disagrees with the colour record does not recolour: the last colors line decides (' + edited.octopus.color + '), the copy follows');
   var noRec = S.normalize({ v: 2, octopus: { name: null, born: null, trips: 0, color: '#123456' }, trips: [], settings: { octColor: RED } }, { todayKey: D0 });
   check(noRec.octopus.color === '#123456' && noRec.settings.octColor === '#123456' && same(noRec.octopus.colors, []), 'with no colour record yet (a new record) octopus.color is still what is read');
+  /* 11-13 (재검증 C3): 시계가 뒤로 간 뒤의 물음 (그 줄의 at 이 앞 줄보다 작다) — 놀이 중 색은 그 대답. 다시 읽어도 그 색 (지금 색이 어느 줄의 색이면 그대로, 어느 줄과도 다를 때만 마지막 줄) */
+  var back = S.normalize({ v: 2, octopus: { name: 'x', born: 1, color: GREEN, colors: [{ at: 10, date: '2026-11-01', color: RED, how: 'first', by: 'player' }, { at: 2000, date: '2026-11-12', color: BLUE, how: 'salon', by: 'demo-rules', ask: 'a' }, { at: 1000, date: '2026-11-13', color: GREEN, how: 'salon', by: 'demo-rules', ask: 'b' }] },
+    trips: [], settings: { octColor: GREEN }, salon: { asks: [{ id: 'a', date: '2026-11-12', at: 2000, from: RED, offer: BLUE, status: 'done', action: 'dye', by: 'demo-rules' }, { id: 'b', date: '2026-11-13', at: 1000, from: BLUE, offer: GREEN, status: 'done', action: 'dye', by: 'demo-rules' }] } }, { todayKey: '2026-11-13' });
+  check(back.octopus.color === GREEN && back.settings.octColor === GREEN && back.octopus.colors.length === 3, 'a dye asked after the clock went back (its line sorts before the previous one) keeps its colour on load (' + back.octopus.color + '), the lines stay');
   /* 검증 11-10 W4: 미용실 색 줄의 고른 이는 그 물음이 뒷받침할 때만 남는다 (같은 id 의 끝난 '바꾸기' 물음 · 같은 고른 이 · 같은 색). 아니면 'unknown' — 줄과 색은 그대로 */
   function forge(line, asks) {
     var f = base(); f.octopus.colors.push(Object.assign({ at: at(D0), date: D0, color: PINK, how: 'salon', by: 'model' }, line)); f.octopus.color = f.settings.octColor = (line && line.color) || PINK;
