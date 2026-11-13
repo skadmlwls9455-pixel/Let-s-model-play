@@ -1,0 +1,131 @@
+{
+ "summary": "All six \"should\" findings (T1–T6) are fixed in /home/user/ppolppol-fix-thin. Nothing is committed. A check now covers each fix and fails if that fix is reverted. The nit T7 is now covered indirectly. T8 (a nit) is left as it was and is written up in the docs.\n\n**T1: the near-full-screen navy moment is gone.** The thin bank's top sits about 0.6 screen lower than the old bank's top. In the space it gave up I added three near-layer cloud puffs, using the same drawing code and depth rules as the existing near clouds. I measured 36 looks (6 sizes × 6 hour/weather looks).\n- **Canvas:** one colour never covers 90 % of the canvas at any size. Before this repair it reached 90.4–96.4 %.\n- **360×740:** the largest single colour is now 71.1–77.7 %. The opening frame is 73–78 % navy.\n- **412, 430 and 1280:** above 80 %, the largest colour is the dark under-cloud sky at about 1.97 s. Base b287a11 has the same moment at the same share. Only night looks pass 85 % (up to 86.8 %), because at night the sky above and below the clouds is the same #090a14.\n- **Whole window at 1280×800:** 91.6–93.9 %. The side covers are navy for the whole above-cloud phase, so the opening frame is already 92.1–93.6 % (base: 93.2 %), and the descent never goes above its own opening frame. It stays above 90 % for 0.22–0.52 s after 0.9 s (base day clear: 0.13 s).\n\n**T2: no straight navy/dark line on wide screens.** The covers outside the scene are now navy above the bank body's top edge and panel colour below the panel's top edge. Between the two, the colour steps from navy to panel colour in 6 bands, and the scene shows the bank at those heights. At 1280×800 each band is about 23 px tall, and neighbouring bands differ by 2–6 per colour channel. At the switch frame only a 7 px strip at the top changes, from #0a0c17 to #090a14. Before this repair it went navy to black; in b287a11 549584 px flipped in one frame.\n\n**T3–T5: the guard (step 0).**\n- T3: it checks that the panel hides no scene object. It re-renders each frame with the panel hidden.\n- T4: it reads the painted cover from a real window screenshot instead of CSS variables.\n- T5: probe pages stretch timers of 5 s or more, and the check fails if the intro layer has left the sky phase. An 8 s wall-clock wait before the scan now passes.\n\n**T6:** the 2D sheet is re-shot from the final tree, with rows \"before (b287a11)\" and \"now\". The 2D code is unchanged.\n\n**Suites:**\n- `npm test`: 0 failed.\n- Font check: `stale: none`.\n- Step 0 alone: passed 3 times in a row.\n- Smoke I: 31 passed, 0 failed.\n- Scene perf: 111 passed, 0 failed.\n- Full intro test: no verdict because of load. It dies at the step 1 title wait (12 s), and so does a fresh copy of b287a11.",
+ "changes": [
+  {
+   "id": "T1",
+   "file": "js/scene3d.js",
+   "lines": "4318 (CLOUD.gap), 4392-4394 (buildSky)",
+   "what": "New `CLOUD.gap: [[0.3, 1, 0.25], [0.6, -1, 0.35], [0.9, 1, 0.3]]`. After the bank and the panel are built, three near-layer clouds are added with the existing addCloud. Each sits at the thin bank's top + q[0]·(bh0 − bh) art px, on side q[1], offset q[2]·VW sideways. Their indices follow the existing ones (cnt[0]+cnt[1]+i).",
+   "why": "The cap lowered the bank's top by bh0 − bh (about 0.6 screen), which left a band of plain above-cloud sky after the sparse clouds. The new clouds fill that space, so no single colour exceeds the opening frame's sky share. They are built, rebuilt and disposed with the sky (sky.list and sky.clouds through addCloud)."
+  },
+  {
+   "id": "T1",
+   "file": "js/scene3d.js",
+   "lines": "4348",
+   "what": "Comment updated: during the intro the sky now draws 1 panel and 3 gap clouds on top of the earlier count.",
+   "why": "The old comment said the draw count was the same or lower than before."
+  },
+  {
+   "id": "T2",
+   "file": "js/scene3d.js",
+   "lines": "4482-4491 (skyCut)",
+   "what": "skyCut() now also returns `top`, the window y of the bank body's top edge. It returns null only while that edge is below the canvas, and returns y/top = -1e4 once the panel's top has left the canvas top.",
+   "why": "The intro layer needs to know where the bank body starts so it can grade the outside cover behind the bank instead of cutting it in one line."
+  },
+  {
+   "id": "T2",
+   "file": "js/intro.js",
+   "lines": "47 (SKY.steps), 103-119 (setSky, mixHex), 272 (cleanup)",
+   "what": "setSky builds `--intro-shade` (a stack of box-shadows on the hole) and `--intro-grad` (hard-stop gradient bands on the scene background). Both are navy above `top`, then SKY.steps = 6 mixed bands, then panel colour below `y`. The old `--intro-sky-lo`, `--intro-cut` and `--intro-up` are gone. Cleanup removes the new properties and resets st.cut.",
+   "why": "This removes the straight horizon line on wide screens without bringing back the one-frame flip of the whole side area. The st.cut reset keeps a second intro run in the same page from skipping its first cover update."
+  },
+  {
+   "id": "T2",
+   "file": "css/intro.css",
+   "lines": "27, 34",
+   "what": "`#scene3d` / `#scene.mode-3d` background is `var(--intro-grad, var(--intro-sky, #090a14)) border-box`. `.intro-hole` box-shadow is `var(--intro-shade, 0 0 0 200vmax var(--intro-sky, #090a14))`.",
+   "why": "With the variables unset the page renders exactly as before. When set, the cover follows the bands JS computes."
+  },
+  {
+   "id": "T3",
+   "file": "tools/intro-shots.js",
+   "lines": "55-75 (bgProbe), 207, 245-253 (bootPass checks)",
+   "what": "bgProbe renders a third pass with the under-cloud panel hidden (found by its userData.hex/h). It counts pixels where hiding the panel reveals something other than background. bootPass fails if this is above 0 on any frame, or if no frame was compared.",
+   "why": "Before this, step 0 never noticed the panel covering the room (the checker's mutant mB)."
+  },
+  {
+   "id": "T4",
+   "file": "tools/intro-shots.js",
+   "lines": "222-247",
+   "what": "The 1.5 s paint check takes a viewport screenshot and reads two columns: the 2 px gap just left of the canvas, and (on wide screens) the side cover just left of the hole. It requires navy above the bank body top, panel colour below the panel top, and a mix of the two in between that moves toward panel colour going down and never jumps more than half the navy-to-panel difference in one row (checked on every row). It also asserts the panel top is inside the window.",
+   "why": "The old check compared CSS variables, so reverting the CSS passed (the checker's mC and mD). I first applied the jump check only between the two edges, which let a hard line at the cut row pass at 1280. I fixed that and re-ran the mutant."
+  },
+  {
+   "id": "T5",
+   "file": "tools/intro-shots.js",
+   "lines": "84-88 (bootPage probe), 248",
+   "what": "Probe pages get an init script that multiplies setTimeout delays of 5 s or more by 1000. The paint check fails with a clear message if the intro layer's phase is not 'sky' at 1.5 s.",
+   "why": "The intro's 7.5 s wall-clock safety timer could fire mid-scan on a loaded machine and stop setSky (the checker's mW)."
+  },
+  {
+   "id": "T1-guard",
+   "file": "tools/intro-shots.js",
+   "lines": "216-224 (hold), 195-196 (scan), 255",
+   "what": "New check: at every frame from 0.9 s to the switch + 0.1 s, the largest single colour on the canvas must stay within 2 percentage points of the sky's share in the opening frame (top hold). The bank-colour <50 % and ≥20 % checks are kept.",
+   "why": "This turns the owner's goal (no moment where the screen is mostly one colour) into a check. It fails on the state the first fix left (94.1 % / 93.8 %) and on removing dn (99.7 %), which also covers the nit T7."
+  },
+  {
+   "file": "tools/intro-shots.js",
+   "lines": "4-17",
+   "what": "Header comment updated to list the new checks.",
+   "why": "Keeps the tool's description accurate."
+  },
+  {
+   "id": "docs",
+   "file": "docs/INTRO_SLOW_PROTO.md",
+   "lines": "185-254 (§9 from '무엇을 바꿨나' to end)",
+   "what": "Rewritten in Korean in the file's style:\n- table of changes, now including CLOUD.gap and the cover bands;\n- measured values before and after per size (largest single colour, cloud colour, whole-window, switch);\n- the wide-screen cover and the one-frame cover lag;\n- the 2D fallback (unchanged code, same pictures);\n- the guard list and a 14-row mutation table.",
+   "why": "The earlier text described the plain-sky moment and the straight line as trade-offs for the owner. Both are now fixed, and the earlier 2D after-row did not match shipped code."
+  },
+  {
+   "id": "T6",
+   "file": "(scratch) /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-thin/pics/sheet-2d-360x740.png",
+   "what": "New 2D sheet made from the final tree: rows 'before (b287a11)' and 'now', titled 'unchanged'.",
+   "why": "The first fix's sheet showed a 2D change that had been reverted."
+  }
+ ],
+ "decisions": "**T1: why extra clouds rather than option (b) or a raised bank.** Raising or centring the bank only moves the flat moment below the bank:\n- Prototype centring: 85.5 % navy, then 98.4 % dark.\n- dn = 0 in the guard: 99.7 % dark.\nBoth also move the rain start, which the brief forbids. The only way to break up the band the cap opened is to put cloud in it.\n\n**T1: placement and counts.** I tried six placements at 360×740, 1280×800 and 740×360 in a scratch copy. I picked [[0.3, 1, 0.25], [0.6, -1, 0.35], [0.9, 1, 0.3]]:\n- Heights are in units of the gap (bh0 − bh) above the thin bank's top, so they scale with the screen.\n- One or two clouds only got the peak down to 84–88 %. Three got 73 %.\n- Three new quads exist only during the intro (+3 draw calls). The guard's draw-call checks compare against a same-tree boot, so they stay valid.\n- This adds clouds to the \"sparse clouds\" design. The opening frame now shows one cloud top at the bottom right where b287a11 showed the old bank's puffy top (pics/sheet-hold-360x740-day-clear.png).\n\n**T2: option (c), done in space rather than over time.** A time fade would make the side covers mismatch the canvas edge above and below the bank. Instead the cover changes colour across 6 hard-edged bands, and only at heights where the scene column shows the bank body. SKY.steps = 6 keeps each band small at 1280 (about 23 px, 2–6 per channel).\n\n**T3:** instead of a fixed colour-share bound, the panel-hidden re-render counts exactly what the panel hides. It is 0 in the correct build and 17240 / 21291 px in mutant r3.\n\n**T4:** I check pixel columns of a real screenshot, as the checker suggested, with rules that hold for any number of bands.\n\n**T5:** I copied the checker's timer-stretch approach and added the phase assert.\n\n**T6:** I re-shot the sheet rather than only dropping the row. The 2D shot tool turned out not to be pixel-repeatable: base against base differs by about 50k px per frame. So \"unchanged\" rests on the code diff (no 2D lines changed, and skyCut exists only in 3D) and on looking at the frames.\n\n**Numbers set:**\n- CLOUD.gap = [[0.3, 1, 0.25], [0.6, -1, 0.35], [0.9, 1, 0.3]].\n- INTRO.SKY.steps = 6.\n- Guard bound: largest single colour ≤ opening-frame sky share + 0.02.\n- All other first-fix numbers are unchanged: CLOUD.bank 0.5, dn, the panel 1.5 screens + 0.05 s tall at depth +20, INTRO.pass.",
+ "new_text": [
+  "No player-facing text was added or changed (font check: stale: none)."
+ ],
+ "guard": "**Where the checks are.** All are in `tools/intro-shots.js` step 0, in the \"구름 지나기\" passes (bootPass): 360×740 → 412×915 at 13h clear, and 1280×800 at 18h rain. Each scans 0.9–2.1 s in 1/60 s steps, moved only by debugStep, and probe pages stretch timers of 5 s or more.\n\n**New checks:**\n- (a) **Largest single colour:** on every frame it must stay within 2 percentage points of the opening frame's sky share. Now: 81.0 % against 82.0 %, and 82.6 % against 82.9 %.\n- (b) **Panel hides nothing:** a third render with the panel hidden must reveal 0 px of scene objects, and at least one frame must have been compared.\n- (c) **Painted cover at 1.5 s:** screenshot columns (the gap left of the canvas, and the side cover at 1280) must show navy above the bank body top, panel colour below the panel top, and a mix between them that moves only toward panel colour and never jumps more than half the difference in one row. The intro layer must still be in the 'sky' phase.\n- (d) **Sky at the canvas edge:** where the sky band shows at the canvas edge, it must be the cover colour and lie above the bank body top.\n\nThe earlier checks are kept: bank colour <50 % and ≥20 %, 0 sky-band pixels at and before the switch, no seam, panel colour = colour after landing, render size, start height, progress kept across a resize, one sky, draw calls, zoom.\n\n**Mutation table.** Each line is a scratch copy of the final tree with one change, run with BOOT_ONLY=1. Logs are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-thin/out/mut-*.log.\n\nReverting this repair's fixes:\n- **r1 – no gap clouds (state after the first fix):** exit 1. Largest colour 94.1 % and 93.8 % navy, against 83.3 / 82.9 + 2.\n- **r2 – cover cut in one line (state after the first fix):** exit 1 at both sizes, a navy → black jump in one row in the gap column and the 1280 side column. The first version of my check missed this at 1280; the jump is now checked on every row.\n- **r3 – panel in front of the room (z −1.5, the checker's mB):** exit 1. Panel hides 17240 and 21291 px; largest colour 96.5 % and 97.0 %.\n- **r4 – scene gap gradient reverted (the checker's mC):** exit 1. 359 and 309 gap rows wrong.\n- **r5 – cover box-shadow reverted (the checker's mD):** exit 1. 309 side-cover rows wrong at 1280.\n- **r6 – test only, 8 s wall-clock wait before the scan (the checker's mW):** exit 0, as intended. Before this repair it failed with \"덮개 @ NaN\".\n- **r7 – dn = 0 (the checker's mA, nit T7):** exit 1. 99.7 % dark at 1.80 s at both sizes; the switch moves to 1.70 s.\n\nThe first fix agent's mutations, re-run against the new guard, all exit 1:\n- **m1 – 11-11 fix reverted:** 16 failures.\n- **m2 – two skies:** draw calls 60 ≠ 20, 122 ≠ 106; bank 65.3 %.\n- **m3 – timeline restarts on resize:** progress 0.3337 → 0.0003.\n- **m4 – no panel:** sky band visible at the switch, no skyCut, panel not found.\n- **m5 – old bank height:** 98.0 % and 97.5 %.\n- **m6 – setSky returns early:** 359 and 309 rows.\n- **m7 – raw background hex:** #020104 ≠ #090a14.\n- **m8 – switch height not moved:** switch at 1.40 s with the sky band visible.",
+ "suites": [
+  "npm test on the final code: exit 0. 517, 26, 568, 225, 192 and 234 passed, export 46 passed, 0 failed (out/npmtest.log).",
+  "Font check: `stale: none`.",
+  "BOOT_ONLY=1 NO_VIDEO=1 node tools/intro-shots.js on the final code: passed three times in a row (out/boot-final-1..3.log). Largest colour 81.0 % (412×915) and 82.6 % (1280×800), switch at 1.88 s, 0 → 0 sky-band px, panel hides 0 px.",
+  "NO_VIDEO=1 node tools/intro-shots.js once: step 0 passed, then step 1 hit the 12 s wait for `#intro[data-phase=title]` (exit 1). The control run on a fresh `git archive b287a11` copy died the same way. No verdict because of load (load average about 11). Logs: out/intro-full.log, out/intro-full-control.log.",
+  "SMOKE_ONLY=I node tools/smoke.js: 31 passed, 0 failed.",
+  "node tools/test-scene-perf.js: 111 passed, 0 failed.",
+  "Evidence files the suites rewrote (tests/evidence/intro/1-sky.png, tests/evidence/peek-bubble.png) were put back with git checkout. The tree differs from b287a11 only in css/intro.css, docs/INTRO_SLOW_PROTO.md, js/intro.js, js/scene3d.js and tools/intro-shots.js.",
+  "Measurement matrix: 6 sizes × 6 looks, real boot, debugStep only (out/matrix-now.txt, summarised by tools/agg.py). Switch-frame screenshots for 1280×800 day clear and 360×740 dusk clear (out/sw-*, analysed with the checker's ana.py)."
+ ],
+ "left": [
+  "T8 (nit), left as it was: the cover follows the scene one frame late. The intro layer's rAF reads the scene state of the previous frame (about 25 px per frame at 412×915). The late bands sit beside the bank body. On phones the top 2 px strip turns from the last band colour to panel colour one frame late (744 px, a change of 1–3 per channel). Fixing it needs the scene to call the cover update after its own render; not done because it is a nit and not trivial.",
+  "T7 (nit), partly covered: removing dn is now caught (mutant r7, largest colour 99.7 %). The rain and snow start height is still not measured in pixels. It follows from the code (rainTop is the bank bottom, which was not touched).",
+  "Bank-colour share now counts the gap clouds, which use the same colour. It reaches 49–54 % in some looks (drizzle, rain and snow at 320, 360, 412 and 430), when a gap cloud overlaps the bank's top. The bank alone stays about 40 %. The guard's <50 % check passes in its two looks (48.5 % and 48.3 %) but would fail in, for example, 360×740 rain (52.9 %). I did not loosen the check.",
+  "Wide screen, whole window: at 1280×800 one colour covers 91.6–93.9 % of the window, at or below each look's own opening frame (92.1–93.6 %; b287a11 day clear 93.2 %). It stays above 90 % for 0.22–0.52 s after 0.9 s (b287a11 day clear 0.13 s), because the navy side covers are over half the window. Changing that means painting the side covers differently during the whole above-cloud phase, which is outside this lane.",
+  "Design change the owner should know about: the opening frame (top hold) now shows the top of one gap cloud at the bottom right, where b287a11 showed the old bank's puffy top (pics/sheet-hold-360x740-day-clear.png). The descent shows three more scattered clouds between about 1.0 and 1.4 s.",
+  "Night looks still reach 85.7–86.8 % one colour on 412, 430 and 1280 (#090a14 at about 1.98 s): at night the sky above and below the clouds and the dark room are the same near-black. Never 90 %."
+ ],
+ "not_verified": [
+  "Real phones or GPUs: everything was measured with SwiftShader in headless Chromium at deviceScaleFactor 1. The cover bands were not checked at DPR 2 or 3.",
+  "The matrix covers 6 of the 16 looks per size: 13h clear, 7h drizzle, 18h rain, 22h snow, 18h clear and 7h snow. Dawn clear, day rain, day snow and night clear/drizzle/rain were not re-measured after this repair.",
+  "The 'before' numbers in the docs table are the first fix agent's b287a11 measurements; I did not re-run them except for 360×740 and 1280×800 day clear (my own runs agree: 98.3 % / 98.8 % bank).",
+  "The whole-window numbers in the matrix count the area outside the canvas from skyCut geometry: navy above the body top, panel colour below the panel top, nothing in between. They were confirmed with real screenshots only for 1280×800 day clear and 360×740 dusk clear, around the switch.",
+  "Rain and snow start height in pixels (it follows from the code).",
+  "Steps 1–6 of the full intro test: no verdict because of load.",
+  "A resize in the middle of the descent was checked only through the existing step 0 runs (360 → 412 during the top hold, then → 430 at 1.0 s). I did not re-run the checker's mid-descent 360 → 412 resize at dusk rain with the new bands.",
+  "2D frames: the shot tool is not pixel-repeatable (b287a11 against b287a11 differs by about 50k px per frame). 'Unchanged' rests on the code diff and on looking at the frames."
+ ],
+ "pictures": [
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-thin/pics/sheet-360x740-day-clear.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-thin/pics/sheet-360x740-dusk-clear.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-thin/pics/sheet-360x740-night-rain.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-thin/pics/sheet-1280x800-day-clear.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-thin/pics/sheet-1280x800-dusk-rain.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-thin/pics/sheet-740x360-day-clear.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-thin/pics/sheet-2d-360x740.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-thin/pics/peek-1280-dusk-now.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-thin/pics/sheet-hold-360x740-day-clear.png"
+ ]
+}
