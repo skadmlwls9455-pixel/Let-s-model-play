@@ -540,6 +540,7 @@ var APP = (function () {
         },
         anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ },
         octUp: function (up, an) { if (!up && an) oct.anchor = an; updateSceneDesc(); },   /* 11-12: 위층 ↔ 다락으로 옮겨진 문어 — 다락에 놓인 자리를 앱 자리로 · 장면 설명 다시 */
+        octResting: function () { return restPhase() === 'awake'; },   /* 11-12 주인 (검증 W3 (b)): 차례 뒤 깨어 있는 틈 (눕으러 가는 중 포함) 엔 위층에 따라 오르지 않는다 — 잠과 같이. 장면이 오르는 순간에 묻는다 (새로고침 · 다른 탭의 차례도 restPhase 가 안다) */
         place: function () { updateSceneDesc(); },   /* 3D: 의식이 다락 ↔ 집 바깥을 바꾼 순간 (2D 는 runCeremony 의 250 ms 틱이 따라간다). 놀이방에 있는 동안에도 온다 (이야기 장소만 바뀜) */
         door: function (ev) { if (window.AUDIO && ev) AUDIO.on('door', { act: ev.act, room: ev.room }); },   /* 8물결: 방 문이 열리고 닫힐 때 끼익 (장면은 AUDIO 를 부르지 않는다) */
         view: function (v) { syncRoomUI(v); if (v === 'loft') questMark('loft'); else if (v === 'play') questMark('kitchen'); },   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
@@ -1405,6 +1406,8 @@ var APP = (function () {
     if (S.octopus.state !== 'sleep') { S.octopus.state = 'sleep'; save(); }
     updateSceneDesc();
   }
+  /* 11-12 주인 (검증 W3 (b)): 쉬는 문어 (차례 뒤 깨어 있는 틈 · 낮잠) 는 위층에 따라 와 있지 않다 — 잠과 같이. 위층에 있던 채 쉬기 시작하면 (차례 동안 올라옴 · 다른 탭의 차례) 다락 담요로 (보이지 않는 곳에서 — 걸음 · 소리 · 행 없이) */
+  function restDown() { if (octWithMe() && typeof scene.octDown === 'function') { scene.octDown(); octPlace('blanket'); } }
   /* 다른 탭이 차례를 끝냈거나 · 이 탭이 다시 보일 때: 쉬는 차례가 바뀌었으면 맞춘다 (틈 안이면 깨어 있게, 지났으면 담요에서 잔다, 날이 바뀌었으면 그대로) */
   function syncRest() {
     if (busy || oct.busy || salonActive || lookHook() || S.trips.some(function (t) { return t.status === 'running'; })) return;
@@ -1414,6 +1417,7 @@ var APP = (function () {
     if (S.octopus.state !== 'sleep' && oct.state === 'sleep') { octState('idle'); return; }   /* 다른 탭에서 깼다 (초대 뒤 빈 차례 · 스스로 깸 · 낮잠 끝): 이 탭 문어도 담요에서 조용히 깬다 */
     if (!t || S.octopus.state !== 'sleep' || napOver() || t.id === restSeen) return;
     restSeen = t.id;
+    restDown();   /* 다른 탭에서 다녀와 쉬는 문어 */
     var byClock = awakeByClock(t);
     if (oct.state === 'sleep') { if (!byClock) return; octPlace('blanket'); octState('idle'); }   /* 이 탭 문어는 앞 낮잠에 자고 있었는데 다른 탭이 새 차례를 막 끝냈다 → 담요에서 깨어 그 틈을 같이 */
     armRest(t, byClock ? Math.max(awakeFor(t) - (Date.now() - (t.endedAt || 0)), seenMin(t)) : 0);
@@ -1759,6 +1763,7 @@ var APP = (function () {
       status: 'running', startedAt: Date.now(), endedAt: null, events: [], receipt: null, poster: null, weather: weatherFor(S.room.lantern) };
     S.trips.push(trip); save();
     setBusy(true); skipFlag = false; flying = trip; broughtBack = false;
+    var woke = oct.state === 'sleep';   /* 낮잠 자는 문어를 깨운 누름 (11-12 주인: 할 일로 세지 않는다 — 아래 questMark) */
     wakeUp();
     bubble('', 0);
     /* 누른 지 400ms 안에 로그에 첫 반응 (UI R19): 움츠리는 동안 '…' 자리표시 */
@@ -1775,7 +1780,7 @@ var APP = (function () {
         pre.remove(); setBusy(false); settleOct(); toast('두뇌가 잠깐 멈췄어. 다시 한 번 불러 줘');
         return null;
       }
-      questMark('ask');   /* 이번 주 할 일: 묻는 것만 센다 (나갈지는 문어가 정한다). 11-12 (검증 F10): 차례가 정해진 뒤에 — 두뇌가 멈춰 없던 일이 된 물음은 세지 않는다 */
+      if (!woke) questMark('ask');   /* 이번 주 할 일: 묻는 것만 센다 (나갈지는 문어가 정한다). 11-12 (검증 F10): 차례가 정해진 뒤에 — 두뇌가 멈춰 없던 일이 된 물음은 세지 않는다. 11-12 주인 (검증 W5 (b)): 자는 문어를 깨운 누름은 세지 않는다 (그 차례 동안 다시 눌러도 초대가 아니다 — busy) */
       if (trip.status !== 'done') mergePlan(trip, planned);   /* done = 그사이 다른 탭이 데려왔다 (adoptRemote) → 그 기록 그대로 보여 준다 */
       save();
       /* 외출: 움츠림 뒤 출발 의식(다락 문 → 바깥 → 화면 밖) → 끝나면 로그 공개. 바깥은 나가 있는 동안 그대로 (계절 입자). 집·빈 차례는 의식 없음 */
@@ -1976,7 +1981,7 @@ var APP = (function () {
     if (trip.kind === 'empty') { octState(S.octopus.state === 'sleep' ? 'sleep' : 'idle'); return; }
     var t = trip.events ? trip : (lastRestTrip() || trip);
     S.octopus.state = 'sleep'; save();   /* 쉬는 중 (깨어 있는 틈이든 낮잠이든) — 지금 새로고침해도 담요에서 */
-    stopWander();
+    stopWander(); restDown();   /* 집에 있던 차례 동안 위층에 따라 올라왔으면 */
     if (!t.id) { sleepNow(t, true); return; }
     if (!wantsAwake(t)) { armRest(t, 0); return; }   /* 틈이 없다 (테스트 훅 0): 담요에 닿는 대로 잔다 */
     armRest(t, awakeFor(t));   /* 졸림이면 짧게 */
@@ -3303,7 +3308,7 @@ var APP = (function () {
       if (yes) { wear = {}; line = name + '가 옷장에 넣어 두기로 했어.'; } else line = name + '는 그대로 쓰고 있기로 했어.';
     }
     if (yes) S.settings.octWear = wear;
-    giftBusy = true; S.settings.giftN = (S.settings.giftN | 0) + 1; save(); questMark('gift');   /* 11-11 (검증 W12): 물어본 것은 바로 저장 — 1.3 s 틈의 새로고침 · 다른 탭이 같은 물음을 또 연출하지 않게 */
+    giftBusy = true; S.settings.giftN = (S.settings.giftN | 0) + 1; save();   /* 11-12 (검증 OW-6): questMark('gift') 는 뺐다 — '선물' 은 이번 주 할 일이 아니다 (66c8110). 11-11 (검증 W12): 물어본 것은 바로 저장 — 1.3 s 틈의 새로고침 · 다른 탭이 같은 물음을 또 연출하지 않게 */
     expressRow('curious'); bubble('…', 1200, 'think');   /* 들여다보는 틈 1.3 s — 고르는 과정을 보여 준다 */
     setTimeout(function () {
       giftBusy = false;
@@ -4336,10 +4341,11 @@ var APP = (function () {
      · 주마다(월요일부터) 일곱 가지가 시드로 정해진다. 그중 **다섯 가지**를 하면 주간 선물 (조개 12 + 씨앗 2). 일곱을 다 할 필요 없음.
      · 칸마다 '바꾸기' 3번 (마음에 안 들거나 지금 못 하는 일은 다른 일로 — 진행은 0 부터).
      · 못 해도 잃는 것 없음 · 이어 하기(연속) 없음 · 알림 · 재촉 없음. 주가 바뀌면 새 일곱 가지로 조용히 바뀐다.
-     · '문어한테 산책 갈지 묻기' 는 묻는 것만 센다 — 나갈지 집에 있을지는 문어가 정한다.
-     저장: S.user.week = { key: 그 주 월요일, q: [{ id, n, rr }] × 7, claimed } */
+     · '문어한테 산책 갈지 묻기' 는 묻는 것만 센다 — 나갈지 집에 있을지는 문어가 정한다. 낮잠 자는 문어를 깨운 누름은 세지 않는다 (주인 11-12, 검증 W5 (b) — 깨어 있는 틈의 문어는 깨어 있다: 센다).
+     · 들어온 날만 세는 일 ('이번 주에 사흘 들어오기') 은 뺐다 (주인 11-12, 검증 W4 (b) — 출석 숙제. 들어온 날 기록 user.days · 오늘 선물의 '들어온 날 N일째' 는 그대로). 그 일이 든 옛 주는 모르는 칸처럼 그 칸만 다른 일로 (weekState) — 그 주에 이미 사흘 들어왔으면 한 일 하나로 남긴다 (kept, 검증 OW-1: 받을 선물이 사라지지 않게).
+     저장: S.user.week = { key: 그 주 월요일, q: [{ id, n, rr }] × 7, claimed, kept? } */
   var QUESTS = [['ask', '문어한테 산책 갈지 묻기', 2], ['run', '다락방 달리기 한 판', 1], ['water', '텃밭에 물 주기', 2], ['plant', '씨앗 심기', 1], ['harvest', '꽃 거두기', 1], ['furn', '가구 하나 옮겨 놓기', 1],
-    ['loft', '위층 옷방 올라가 보기', 1], ['kitchen', '놀이방 들르기', 1], ['look', '내 모습 열어 보기', 1], ['diary', '포스터 일기 펼쳐 보기', 1], ['days', '이번 주에 사흘 들어오기', 3]];   /* 11-12 (검증 F11): '부엌 방' → 문에 적힌 이름 '놀이방'. 11-12: '선물 상자에서 하나 내밀기' 는 뺐다 — 선물을 내미는 게 조개 벌이가 되면 문어에게 부담 (주인 11-11 '문어가 부담 가질 수도 있으니까') */
+    ['loft', '위층 옷방 올라가 보기', 1], ['kitchen', '놀이방 들르기', 1], ['look', '내 모습 열어 보기', 1], ['diary', '포스터 일기 펼쳐 보기', 1]];   /* 11-12 (검증 F11): '부엌 방' → 문에 적힌 이름 '놀이방'. 11-12: '선물 상자에서 하나 내밀기' 는 뺐다 — 선물을 내미는 게 조개 벌이가 되면 문어에게 부담 (주인 11-11 '문어가 부담 가질 수도 있으니까') */
   var WEEK_NEED = 5, WEEK_REROLL = 3, WEEK_GIFT = { shells: 12, seeds: 2 };
   function questOf(id) { for (var i = 0; i < QUESTS.length; i++) if (QUESTS[i][0] === id) return QUESTS[i]; return null; }
   function weekKeyOf(dk) { var p = String(dk).split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return dateKey(d); }   /* 그 주 월요일 */
@@ -4354,18 +4360,24 @@ var APP = (function () {
      같은 주면 통째로 새로 만들지 않는다: 받은 표시 · 멀쩡한 칸(진행 · 바꾼 횟수)은 그대로, 모르는 일 · 깨진 칸만 다른 일로 (나중에 일 하나를 빼거나 이름을 바꿔도 그 주가 날아가지 않게).
      저장: week.prev = { shells, seeds, told } — 지난주 선물을 넣었다는 표시 (그 주 동안 살림에 한 줄 · 알림은 한 번) */
   function weekOk(x) { return isObj(x) && !!questOf(x.id); }
+  /* 11-12 (검증 OW-1): 뺀 '사흘 들어오기' 를 그 주에 이미 했으면 (그 주에 들어온 날 셋) 그 하나는 잃지 않는다 — 칸은 다른 일로 바뀌어도 한 일 하나로 센다 (w.kept · 그 줄은 없다) */
+  function oldDone(w, x) {   /* 오늘도 들어온 날 (부팅 때 고치면 오늘 선물이 아직 user.days 에 오늘을 안 적었다 — 예전 칸은 그 뒤에 셋을 채웠다) */
+    if (!isObj(x) || x.id !== 'days') return false; var end = new Date(String(w.key).replace(/-/g, '/')), ds = userState().days, dk = todayKey(); end.setDate(end.getDate() + 6); var ek = dateKey(end);
+    return (ds.indexOf(dk) < 0 ? ds.concat(dk) : ds).filter(function (d) { return d >= w.key && d <= ek; }).length >= 3;
+  }
   function weekState() {
     var u = userState(), key = weekKeyOf(todayKey()), w = u.week, taken, i, id;
     if (isObj(w) && w.key === key && Array.isArray(w.q)) {
       if (w.q.length !== 7 || !w.q.every(weekOk)) {
-        w.q = w.q.slice(0, 7); taken = w.q.filter(weekOk).map(function (x) { return x.id; });
+        w.q = w.q.slice(0, 7); taken = w.q.filter(weekOk).map(function (x) { return x.id; }); i = w.q.filter(function (x) { return oldDone(w, x); }).length; if (i) w.kept = (w.kept | 0) + i;
         for (i = 0; i < 7; i++) if (!weekOk(w.q[i])) { id = weekPick(key, i, 0, taken) || QUESTS.filter(function (q) { return taken.indexOf(q[0]) < 0; })[0][0]; taken.push(id); w.q[i] = { id: id, n: 0, rr: 0 }; }
+        save();   /* 11-12: 바꾼 칸도 바로 저장 (새 주처럼 — 다음에 열 때 장면이나 포스터가 달라져도 같은 칸) */
       }
       return w;
     }
-    var due = isObj(w) && Array.isArray(w.q) && !w.claimed && /^\d{4}-\d{2}-\d{2}$/.test(w.key) && w.q.filter(function (x) { return weekOk(x) && questDone(x, w); }).length >= WEEK_NEED;
+    var due = isObj(w) && Array.isArray(w.q) && !w.claimed && /^\d{4}-\d{2}-\d{2}$/.test(w.key) && w.q.filter(function (x) { return weekOk(x) ? questDone(x) : oldDone(w, x); }).length + (w.kept | 0) >= WEEK_NEED;   /* 11-12 (OW-1): 바꾸기 전에 주가 지나간 옛 주의 '사흘 들어오기' 도 */
     taken = []; w = u.week = { key: key, q: [], claimed: false };
-    for (i = 0; i < 7; i++) { id = i === 0 ? 'ask' : weekPick(key, i, 0, taken); taken.push(id); w.q.push({ id: id, n: 0, rr: 0 }); }   /* 첫 칸은 늘 '문어한테 산책 갈지 묻기' (바꿀 수는 있다) */
+    for (i = 0; i < 7; i++) { id = i === 0 ? 'ask' : weekPick(key, i, 0, taken) || QUESTS.filter(function (q) { return taken.indexOf(q[0]) < 0; })[0][0]; taken.push(id); w.q.push({ id: id, n: 0, rr: 0 }); }   /* 첫 칸은 늘 '문어한테 산책 갈지 묻기' (바꿀 수는 있다). 11-12: 지킴 — 지금은 닿지 않는다 (2D · 포스터 없음 = 딱 일곱, 검사 없음). 일을 더 빼서 할 수 있는 일이 일곱이 안 되면 빈 칸 대신 남은 일로 */
     if (due) { u.shells += WEEK_GIFT.shells; u.seeds += WEEK_GIFT.seeds; w.prev = { shells: WEEK_GIFT.shells, seeds: WEEK_GIFT.seeds }; setTimeout(weekTell, 600); }   /* 알림은 조금 뒤에 (살림을 여는 톡이 넘긴 주면 시트가 뜬 다음) */
     save();   /* 11-12: 나눠 준 목록은 바로 저장 — 다음에 열 때 장면(2D)이나 포스터가 달라져도 같은 목록 */
     return w;
@@ -4382,22 +4394,22 @@ var APP = (function () {
     if (g) { delete u.giftTell; save(); toast('오늘 선물: 조개 ' + (g.shells | 0) + ' · 씨앗 1 (들어온 날 ' + (g.n | 0) + '일째)'); if (p) weekTellT = setTimeout(weekTell, 1000); return; }
     p.told = 1; save(); toast('지난주 선물은 살림에 넣어 뒀어. 조개 ' + (p.shells | 0) + ' · 씨앗 ' + (p.seeds | 0));
   }
-  function questN(x, w) { if (x.id !== 'days') return x.n | 0; var u = userState(), end = new Date(w.key.replace(/-/g, '/')); end.setDate(end.getDate() + 6); var ek = dateKey(end); return u.days.filter(function (d) { return d >= w.key && d <= ek; }).length; }
-  function questDone(x, w) { return questN(x, w) >= questOf(x.id)[2]; }
-  function weekDoneN(w) { return w.q.filter(function (x) { return questDone(x, w); }).length; }
+  function questN(x) { return x.n | 0; }
+  function questDone(x) { return questN(x) >= questOf(x.id)[2]; }
+  function weekDoneN(w) { return w.q.filter(function (x) { return questDone(x); }).length + (w.kept | 0); }   /* + 뺀 일로 이미 한 것 (OW-1) */
   function questMark(id) {   /* 한 일 하나를 적는다 (이번 주 일곱 가지에 있을 때만). 조용히 — 토스트 · 알림 없음, 살림 꼬리표에 작은 점만 */
     if (!S.octopus.name) return;
     var w = weekState(), hit = false;
-    w.q.forEach(function (x) { if (x.id === id && !questDone(x, w)) { x.n = (x.n | 0) + 1; hit = true; } });
+    w.q.forEach(function (x) { if (x.id === id && !questDone(x)) { x.n = (x.n | 0) + 1; hit = true; } });
     if (hit) { save(); renderBagChip(); if ($('bag-sheet') && $('bag-sheet').open) renderBag(); }
   }
-  /* 바꾸기로 나올 일 | '' — 목록에 있는 일 · 그 칸이 이번 주에 보여 준 일(x.seen — 옛 기록엔 없다) · 이미 다 한 일(사흘 들어오기는 들어온 날로 센다)은 빼고 (11-12 검증 C11 · F8) */
+  /* 바꾸기로 나올 일 | '' — 목록에 있는 일 · 그 칸이 이번 주에 보여 준 일(x.seen — 옛 기록엔 없다)은 빼고 (11-12 검증 C11 · F8) */
   function weekSwapTo(w, i) {
-    var x = w.q[i], no = w.q.map(function (y) { return y.id; }).concat(Array.isArray(x.seen) ? x.seen : []); if (questN({ id: 'days' }, w) >= questOf('days')[2]) no.push('days');
+    var x = w.q[i], no = w.q.map(function (y) { return y.id; }).concat(Array.isArray(x.seen) ? x.seen : []);
     return weekPick(w.key, i, (x.rr | 0) + 1, no);
   }
   function weekReroll(i) {
-    var w = weekState(), x = w.q[i]; if (!x || w.claimed || questDone(x, w) || (x.rr | 0) >= WEEK_REROLL) return;
+    var w = weekState(), x = w.q[i]; if (!x || w.claimed || questDone(x) || (x.rr | 0) >= WEEK_REROLL) return;
     var id = weekSwapTo(w, i); if (!id) return;
     w.q[i] = { id: id, n: 0, rr: (x.rr | 0) + 1, seen: (Array.isArray(x.seen) ? x.seen : []).concat(x.id) }; save(); renderBag();
     focusIn('#bag-body .week-list', i);
@@ -4417,10 +4429,11 @@ var APP = (function () {
     /* 11-12 (검증 F5 · F20): 받기 단추는 쪽지 바로 아래 (목록 뒤면 360x740 에서 화면 밖이었다) — 받은 뒤엔 '받았어' 줄이 그 자리. 수량은 한 덩어리로 (320 px 에서 '(조개 / 12' 로 끊기지 않게) */
     if (w.claimed) frag.appendChild(h('p', { class: 'set-note', id: 'week-got', tabindex: '-1', text: '이번 주 선물은 받았어.' }));
     else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim' }, ['주간 선물 받기 ', h('span', { class: 'nobr', text: '(조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds + ')' })]); c.addEventListener('click', weekClaim); frag.appendChild(c); }
+    if (w.kept | 0) frag.appendChild(h('p', { class: 'set-note', id: 'week-kept', text: '사흘 들어오기는 목록에서 빠졌지만, 이번 주엔 한 걸로 셌어.' }));   /* 11-12 (OW-1): 다 한 줄이 넷인데 (5/5) 인 까닭 */
     if (isObj(w.prev)) frag.appendChild(h('p', { class: 'set-note', id: 'week-prev', text: '지난주 선물은 살림에 넣어 뒀어 (조개 ' + (w.prev.shells | 0) + ' · 씨앗 ' + (w.prev.seeds | 0) + ').' }));   /* 11-11 (검증 W1): 주가 바뀔 때 넣어 준 선물 — 그 주 동안 */
     var list = h('ul', { class: 'week-list' });
     w.q.forEach(function (x, i) {
-      var q = questOf(x.id), n = Math.min(questN(x, w), q[2]), ok = n >= q[2], left = WEEK_REROLL - (x.rr | 0);
+      var q = questOf(x.id), n = Math.min(questN(x), q[2]), ok = n >= q[2], left = WEEK_REROLL - (x.rr | 0);
       var li = h('li', { class: 'week-row' + (ok ? ' done' : '') }, [h('span', { class: 'week-txt', tabindex: '-1', text: q[1] }), h('span', { class: 'week-n', text: ok ? '했어' : n + '/' + q[2] })]);
       if (!ok && !w.claimed && left > 0 && weekSwapTo(w, i)) { var b = h('button', { type: 'button', class: 'fchip week-rr', text: '바꾸기 ' + left, 'aria-label': q[1] + ' 다른 일로 바꾸기 (' + left + '번 남음)' }); b.addEventListener('click', function () { weekReroll(i); }); li.appendChild(b); }
       list.appendChild(li);

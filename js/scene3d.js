@@ -389,7 +389,7 @@ var SCENE3D = (function () {
     var LROOM = null;  /* 위층 다락 (11-10, buildLoft): 처음 올라갈 때 만든다 */
     function isRoomP(p) { return p === 'play' || p === 'loft'; }
     /* 11-11 미용실 이사 (주인: "윗층 다락방에 미용실"): 거울 코너(salG)는 위층 뒷벽에 산다. 코너 · 연출의 좌표는 예전 다락 좌표 그대로 두고, 위층 안의 감싸는 그룹 LSALW 를 (dx, 0, dz) 만큼 옮겨 뒷벽에 맞춘다.
-       문어는 깨어서 집에 있을 때 내가 위층에 오르면 따라 올라온다 (octMountLoft: octG 를 LSALW 로 — 그래서 문어 좌표도 연출 좌표 그대로) · 내려오거나 의식이 시작되면 다락으로 돌아간다 */
+       문어는 깨어서 집에 있을 때 내가 위층에 오르면 따라 올라온다 (octMountLoft: octG 를 LSALW 로 — 그래서 문어 좌표도 연출 좌표 그대로. 차례 뒤 깨어 있는 틈엔 안 온다 — 주인 11-12) · 내려오거나 의식이 시작되면 다락으로 돌아간다 */
     var LSALW = null, LSAL = { dx: 0, dz: 0 };
     function octUp() { return !!LSALW && octG.parent === LSALW; }   /* 문어가 없는 '내 방' 들 */
     var EXT_TARGET = new T.Vector3(0.4, 1.55, 0.0);   /* 바깥 디오라마 카메라 타깃 (같은 요·틸트·픽셀 밀도; 집 용마루·굴뚝과 오른쪽 아래 가장자리 출구가 한 화면에) */
@@ -3339,8 +3339,10 @@ var SCENE3D = (function () {
     function storyTrans() { return PLACE.trans && !PLACE.trans.door ? PLACE.trans : null; }   /* 다락 ↔ 바깥 전환만 (방 문 가로 전환은 의식이 끊지 않는다) */   /* 문어 쪽 '보이는' 장소: 놀이방에 있는 동안은 이야기 장소 (의식은 이것만 본다 — 안 보이는 곳에서 그대로 진행) */
     function emit(name, a, b) { var fn = on[name]; if (typeof fn !== 'function') return; try { fn(a, b); } catch (e) { console.error('[scene3d] on.' + name, e); } }   /* 앱 콜백이 던져도 프레임 루프는 산다 */
     function octEndWalk() { var w = oct.walking; if (!w) return; if (w.finish) w.finish(); else w.cancel(); oct.walking = null; oct.hop = 0; }   /* 걷던 길을 '도착' 으로 끝낸다 (Promise 가 풀려 앱이 'walk' 에 굳지 않게 — 11-12 검증) */
+    /* 11-12 주인 (검증 W3 (b)): 차례 뒤 깨어 있는 틈 (낮잠 전) 엔 따라 오르지 않는다 — 잠과 같이. 틈은 앱만 안다 (on.octResting — 오르는 그 순간에 묻는다) */
+    function octResting() { var fn = on.octResting; if (typeof fn !== 'function') return false; try { return !!fn(); } catch (e) { console.error('[scene3d] on.octResting', e); return false; } }
     function octMountLoft() {   /* 위층에 막 올라왔다: 문어가 깨어서 집에 있으면 계단 옆으로 따라 올라온다 */
-      if (!LSALW || octUp() || octG.parent !== atticG || PLACE.cur !== 'attic' || st.octState === 'away' || st.octState === 'sleep' || (CER && CER.active) || SAL.active) return false;
+      if (!LSALW || octUp() || octG.parent !== atticG || PLACE.cur !== 'attic' || st.octState === 'away' || st.octState === 'sleep' || (CER && CER.active) || SAL.active || octResting()) return false;
       octEndWalk();
       LSALW.add(octG); oct.pos.set(snapPos(-0.3 - LSAL.dx), 0, snapPos(0.2 - LSAL.dz));   /* 깔개 쪽 (계단 앞 길목을 막지 않게 — 내 캐릭터가 선반과 문어 사이에 끼었다) */ snapScreen(octG.position.copy(oct.pos)); oct.wantYaw = oct.faceYaw = camYaw(); dither.still = 0;
       emit('octUp', true); return true;
@@ -5463,7 +5465,7 @@ var SCENE3D = (function () {
       peek: function () { return { on: PK.on, key: PK.key, hold: PK.hold, onSpot: PK.onSpot, status: PK.status, t: +PK.t.toFixed(2), lean: +(PK.leanQ / DEG).toFixed(1), sit: PK.sit, arm: PK.arm, mail: PK.mail, rustle: PK.rustle && rustleM.visible, ripple: rippleM.visible }; },
       setPosters: setPosters, setSouvenirs: setSouvenirs,
       bubble: bubble, nudge: function () { if (!st.reduced) { oct.nudgeT = 0.18; dither.still = 0; } },   /* 톡 받음 (APP 이 깨어 있는 톡마다 · 모션 감소면 APP 이 눈 깜빡으로) */
-      lookAt: function (x, y) { oct.lookTarget = { x: x, y: y }; }, octUp: function () { return octUp(); }, setSheetInset: setSheetInset, lift: function () { return { y: +LIFT.y.toFixed(4), to: +LIFT.to.toFixed(4) }; }, octScreenPos: function () { if (isRoomP(PLACE.vis) && !octUp()) return null; var p = octScreen(), r = canvas.getBoundingClientRect(); return { x: r.left + p.x - S.offX, y: r.top + p.y - S.offY }; },   /* 놀이방: null (문어가 화면에 없다 — 말풍선·파티클·앨범 날기는 문어 자리에 안 붙는다) */
+      lookAt: function (x, y) { oct.lookTarget = { x: x, y: y }; }, octUp: function () { return octUp(); }, octDown: octUnmountLoft, setSheetInset: setSheetInset, lift: function () { return { y: +LIFT.y.toFixed(4), to: +LIFT.to.toFixed(4) }; }, octScreenPos: function () { if (isRoomP(PLACE.vis) && !octUp()) return null; var p = octScreen(), r = canvas.getBoundingClientRect(); return { x: r.left + p.x - S.offX, y: r.top + p.y - S.offY }; },   /* 놀이방: null (문어가 화면에 없다 — 말풍선·파티클·앨범 날기는 문어 자리에 안 붙는다) */
       setReducedMotion: function (r) { st.reduced = !!r; lampDirty = true; },
       setLook: function (o) {
         var re = false;
