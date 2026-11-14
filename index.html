@@ -35,7 +35,7 @@
 <style>
 #boot { position: fixed; inset: 0; z-index: 79; background: #090a14; overflow: hidden; pointer-events: none; }
 #boot .boot-oct { position: absolute; top: 50%; left: 0; width: 112px; height: 78px; margin-top: -39px; background: url("assets/ui/loading_oct.png") 0 0 / 896px 78px no-repeat; image-rendering: pixelated;
-  animation: boot-walk .8s steps(8) infinite, boot-cross 5.6s linear infinite; }
+  animation: boot-walk .8s steps(8) infinite, boot-cross 5.6s linear -1.6s infinite; }   /* 11-15 (검증 V2-4): 첫 바퀴를 화면 왼쪽 3분의 1 쯤에서 — 짧은 로딩에도 몸이 다 보인 채로 기어간다 (예전엔 화면 밖에서 출발해 반쪽만 보이고 걷혔다) */
 @keyframes boot-walk { to { background-position: -896px 0; } }
 @keyframes boot-cross { from { transform: translateX(-112px); } to { transform: translateX(100vw); } }
 @media (prefers-reduced-motion: reduce) { #boot .boot-oct { left: 50%; margin-left: -56px; animation: none; } }

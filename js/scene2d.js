@@ -167,7 +167,7 @@ var SCENE2D = (function () {
   ];
   /* 8물결 · 문 · 오락기 누르는 곳 (320×240 무대 칸, [x, y, w, h, 보이는 장소]) — 3D 의 hotspots 와 같은 계약 (앱이 넘긴 진짜 <button> 을 맞추고 hidden 을 쥔다) ·
      salon = 미용실 거울 + 병 선반 (코너가 보이고 앱이 setSalonOpen(true) 로 허락했을 때만 — 등불 2칸 전엔 숨긴다) */
-  var SPOT_BOX = { atticPlay: [166, 93, 36, 104, 'attic'], playAttic: [100, 84, 36, 104, 'play'], machine: [174, 71, 44, 122, 'play'], salon: [115, 105, 24, 70, 'attic'] };
+  var SPOT_BOX = { atticPlay: [166, 93, 36, 104, 'attic'], playAttic: [100, 84, 36, 104, 'play'], machine: [174, 71, 44, 122, 'play'], counter: [240, 79, 74, 81, 'play'], salon: [115, 105, 24, 70, 'attic'] };
   var DOOR_ANCHORS = { atticPlayDoor: [190, 200], playAtticDoor: [126, 192] };   /* 문 앞 자리 (나중의 내 캐릭터) — 2D 무대 발끝 좌표 */
   /* §7.1 표 (발끝 좌표). window 는 창턱 '앞'으로 내렸다 · salon = 거울 왼쪽 아래 (거울·병을 가리지 않는다) */
   var ANCHORS = { door: [296, 196], window: [90, 138], crate: [214, 150], board: [244, 112], blanket: [120, 186], center: [160, 180], salon: [92, 202] };
