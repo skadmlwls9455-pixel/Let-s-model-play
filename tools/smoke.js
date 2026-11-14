@@ -1631,6 +1631,66 @@ async function scenarioReactions(browser) {
   await s.ctx.close();
 }
 
+/* R2 (R 안에서). 11-15 runner-2 세로 전체 화면 — 360×740 진짜 터치: 무대가 창을 채움 · 동그라미 둘 ≥ 64 px 이고 바닥선(장애물 줄) 아래 ·
+ *   무대 다른 곳 탭은 아무 일 없음 · 왼쪽 = 점프 · 오른쪽 = 숙이기 · 닫기 → 놀이방 그대로. 옛 최고(runner-1 best)는 '예전 게임 최고' 로 남고 새 최고는 따로 */
+async function runnerTouch(br) {
+  var ctx = await br.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, locale: 'ko-KR', hasTouch: true, isMobile: true });
+  try {
+    var page = await ctx.newPage(), bag = []; bag.ignored = [];
+    watchErrors(page, bag);
+    if (useStubs) await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') });
+    await page.addInitScript({ content: "if (!localStorage.getItem('ppolppol_runner')) localStorage.setItem('ppolppol_runner', JSON.stringify({ v: 1, best: 345, runs: 9, day: '2026-11-10', dayN: 2, last: null }));" });
+    await routeWiki(page, 'ok');
+    await page.goto(INDEX);
+    await page.waitForSelector('#name-dialog[open]');
+    await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
+    await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+    await waitIdle(page);
+    await clickSpot(page, '#btn-door');
+    await page.waitForFunction(function () { var m = document.getElementById('btn-machine'); return APP.scene.view() === 'play' && m && !m.hidden; }, null, { timeout: 20000 });
+    await clickSpot(page, '#btn-machine');
+    await page.waitForSelector('#runner-dlg[open]');
+    await page.waitForFunction(function () { return RUNNER.live() && RUNNER.live().state === 'ready'; });
+    var g = await page.evaluate(function () {
+      function box(id) { var r = document.getElementById(id).getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, b: r.bottom, r: r.right }; }
+      var d = document.getElementById('runner-dlg').getBoundingClientRect(), cv = document.getElementById('rn-cv');
+      return { dlg: { w: d.width, h: d.height }, cv: box('rn-cv'), j: box('rn-jump'), du: box('rn-duck'), close: box('rn-close'), view: RUNNER.live().view,
+        hidden: ['rn-title', 'rn-note', 'rn-moss'].filter(function (id) { return document.getElementById(id); }), scrollW: document.documentElement.scrollWidth, cw: cv.width };
+    });
+    console.log('   R2 touch:', JSON.stringify(g));
+    ok(g.dlg.w === 360 && g.dlg.h === 740 && g.cv.x <= 0 && g.cv.y <= 0 && g.cv.r >= 360 && g.cv.b >= 740, '무대가 360×740 창을 꽉 채움');
+    ok(!g.hidden.length, '제목 줄 · 메모 · 이끼 HUD 없음 (' + g.hidden.join(',') + ')');
+    ok(g.j.w >= 64 && g.j.h >= 64 && g.du.w >= 64 && g.du.h >= 64, '동그라미 둘 ≥ 64 px (' + g.j.w + ' · ' + g.du.w + ')');
+    ok(g.j.x < 60 && g.du.r > 300 && g.j.b > 640 && g.du.b > 640, '왼쪽 아래 점프 · 오른쪽 아래 숙이기');
+    var groundY = g.view.G * g.view.css;
+    ok(g.j.y > groundY && g.du.y > groundY, '동그라미가 바닥선(장애물 줄, y ' + Math.round(groundY) + ') 아래 — 장애물을 가리지 않음 (' + Math.round(g.j.y) + ')');
+    ok(g.close.w >= 44 && g.close.h >= 44 && g.close.r > 320 && g.close.y < 60, '닫기 오른쪽 위 ≥ 44 px');
+    ok(g.scrollW <= 360, '가로 스크롤 없음');
+    /* 무대 가운데 · 바닥선 근처를 톡 → 아무 일 없음 (엄지를 얹어 둬도 저절로 안 뜀) */
+    await page.touchscreen.tap(180, 300); await page.touchscreen.tap(180, Math.round(groundY) - 20);
+    ok(await page.evaluate(function () { var L = RUNNER.live(); return L.state === 'ready' && L.inputs.length === 0; }), '무대 다른 곳 탭은 아무 일 없음 (준비 그대로)');
+    /* 왼쪽 동그라미 = 점프 (출발), 오른쪽 = 숙이기 — 진짜 손가락 (CDP) 으로 누르고 있다가 뗀다 */
+    var cdp = await ctx.newCDPSession(page);
+    async function hold(b, until) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: b.x + b.w / 2, y: b.y + b.h / 2, id: 1 }] });
+      var got = await page.waitForFunction(until, null, { timeout: 4000 }).then(function () { return true; }, function () { return false; });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      return got;
+    }
+    ok(await hold(g.j, function () { var L = RUNNER.live(); return L.state === 'run' && !L.ground; }), '왼쪽 동그라미 → 출발하고 점프');
+    await page.waitForFunction(function () { var L = RUNNER.live(); return L.state !== 'run' || L.ground; });
+    ok(await hold(g.du, function () { var L = RUNNER.live(); return L.state === 'run' && L.duck; }), '오른쪽 동그라미 → 숙이기 (누르는 동안)');
+    var ins = await page.evaluate(function () { return RUNNER.live().inputs.map(function (e) { return e.a; }).join(','); });
+    ok(/^jd,ju,dd,du/.test(ins), '입력 기록 jd,ju,dd,du (' + ins + ')');
+    await page.touchscreen.tap(g.close.x + g.close.w / 2, g.close.y + g.close.h / 2);
+    await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
+    var after = await page.evaluate(function () { var st = JSON.parse(localStorage.getItem('ppolppol_runner')); return { view: APP.scene.view(), best: st.best, best2: st.best2, last: st.last && st.last.version, focus: document.activeElement && document.activeElement.id }; });
+    ok(after.view === 'play' && after.focus === 'btn-machine', '닫기 → 놀이방 그대로 · 오락기로 포커스');
+    ok(after.best === 345 && after.last === 'runner-2' && after.best2 >= 0, '옛 최고(best 345)는 그대로 · 새 판은 runner-2 로 따로 (best2 ' + after.best2 + ')');
+    reportErrors(bag, 'R2');
+  } finally { await ctx.close(); }
+}
+
 /* R. 다락방 달리기 (js/runner.js): 놀이방 문(#btn-door) → 놀이방 → 오락기(#btn-machine, 8물결) → 6초 스크립트 탭 → 부딪힘 또는 닫기 → 저장된 판의 simulate() 점수 = 화면 점수.
  *   SwiftShader(WebGL 강제, look-shots 와 같은 인자) · 360×740 @2x · 스크린샷 tests/evidence/runner-{start,mid,over}.png
  *   실제 판 기록은 tests/evidence/runner-live-run.json 에 남겨 node tools/test-runner.js 가 다시 시뮬한다. */
@@ -1659,11 +1719,11 @@ async function scenarioRunner() {
     var info = await page.evaluate(function () {
       var cv = document.getElementById('rn-cv'), r = cv.getBoundingClientRect(), L = RUNNER.live();
       var b = [].map.call(document.querySelectorAll('#runner-dlg button:not([hidden])'), function (x) { var q = x.getBoundingClientRect(); return q.width && q.height ? Math.min(q.width, q.height) : 99; });
-      return { w: r.width, h: r.height, dpr: devicePixelRatio, focus: document.activeElement && document.activeElement.id, state: L.state, sprites: L.sprites, phase: L.phase, season: L.season, minBtn: Math.min.apply(null, b), docW: document.documentElement.scrollWidth };
+      return { w: r.width, h: r.height, cw: cv.width, ch: cv.height, dpr: devicePixelRatio, focus: document.activeElement && document.activeElement.id, state: L.state, sprites: L.sprites, phase: L.phase, season: L.season, minBtn: Math.min.apply(null, b), docW: document.documentElement.scrollWidth };
     });
     console.log('   start:', JSON.stringify(info));
     ok(info.state === 'ready' && info.focus === 'rn-cv', '준비 상태 · 캔버스에 포커스');
-    ok(Number.isInteger(info.w * info.dpr / 192) && info.w * info.dpr / 192 >= 2 && Math.abs(info.h * 192 - info.w * 108) < 1, '캔버스 192×108 정수 배 (' + (info.w * info.dpr / 192) + '×, 장치 px)');
+    ok(info.w >= 360 && info.h >= 740 && info.cw <= 192 && Number.isInteger(Math.round(info.w * info.dpr) / info.cw) && Math.round(info.w * info.dpr) % info.cw === 0, '11-15 캔버스가 창을 꽉 채움 · 아트 px 정수 배 (' + info.cw + '×' + info.ch + ' 아트 px, ' + (info.w * info.dpr / info.cw) + '×)');
     ok(info.sprites === 'portrait', '문어 스프라이트 = 장면 초상 캡처');
     ok(info.minBtn >= 44, '보이는 버튼 ≥ 44px (' + info.minBtn + ')');
     ok(info.docW <= 360, '가로 스크롤 없음');
@@ -1703,10 +1763,10 @@ async function scenarioRunner() {
       var st = JSON.parse(localStorage.getItem('ppolppol_runner') || 'null'), run = st && st.last;
       var shown = document.getElementById('rn-score').textContent;
       var sim = run && RUNNER.simulate(run.seed, run.inputs, { night: run.night, until: run.end === 'hit' ? null : run.ticks });
-      return { run: run, best: st && st.best, shown: shown, sim: sim, verify: run ? RUNNER.verify(run) : false, focus: document.activeElement && document.activeElement.id };
+      return { run: run, best: st && st.best2, shown: shown, sim: sim, verify: run ? RUNNER.verify(run) : false, focus: document.activeElement && document.activeElement.id };
     });
     console.log('   run: end=' + (res.run && res.run.end) + ' ticks=' + (res.run && res.run.ticks) + ' inputs=' + (res.run && res.run.inputs.length) + ' saved=' + (res.run && res.run.score) + ' shown=' + res.shown + ' sim=' + JSON.stringify(res.sim) + ' (6초 동안 ' + midObs + ' 틱)');
-    must(res.run && res.run.version === 'runner-1' && res.run.inputs.length >= 2, 'localStorage ppolppol_runner 에 판 기록 (seed·inputs·score·version)');
+    must(res.run && res.run.version === 'runner-2' && res.run.inputs.length >= 2, 'localStorage ppolppol_runner 에 판 기록 (seed·inputs·score·version)');
     ok(res.sim.score === res.run.score && String(res.sim.score) === res.shown, 'simulate() 점수 = 저장 점수 = 화면 점수 (' + res.shown + ')');
     ok(res.verify, 'RUNNER.verify(기록) 통과');
     ok(res.best >= res.run.score, '최고 기록 저장');
@@ -1724,14 +1784,15 @@ async function scenarioRunner() {
       return { final: document.getElementById('rn-final').textContent, best: document.getElementById('rn-final-best').textContent, again: document.activeElement && document.activeElement.id, shown: document.getElementById('rn-score').textContent, sim: RUNNER.simulate(run.seed, run.inputs, { night: run.night }).score, saved: run.score, end: run.end };
     });
     console.log('   over:', JSON.stringify(ov));
-    ok(/또 할래\?/.test(await page.textContent('#rn-again')) && /그만/.test(await page.textContent('#rn-stop')), '게임 오버: "또 할래?" / "그만"');
-    ok(ov.again === 'rn-again' && /최고/.test(ov.best), '게임 오버: 최고 기록 표시 · "또 할래?" 에 포커스');
+    ok((await page.textContent('#rn-again')) === '다시' && (await page.textContent('#rn-stop')) === '닫기', '게임 오버: "다시" / "닫기" (11-15)');
+    ok(ov.again === 'rn-again' && /최고/.test(ov.best), '게임 오버: 최고 기록 표시 · "다시" 에 포커스');
     ok(ov.end === 'hit' && ov.sim === ov.saved && String(ov.sim) === ov.shown, '부딪힌 판도 재시뮬 점수 = 화면 점수 (' + ov.shown + ')');
     await page.screenshot({ path: path.join(EVD, 'runner-over.png') });
     await page.click('#rn-stop');
     await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
     reportErrors(bag, 'R');
     await ctx.close();
+    await runnerTouch(br);
   } finally { await br.close(); }
 }
 
