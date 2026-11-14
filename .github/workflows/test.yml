@@ -1,15 +1,16 @@
-# 테스트 — push (모든 브랜치) 마다 빠른 묶음과 글꼴 점검이 돈다. 여러 작업이 동시에 고치니 서로 깨뜨린 걸 바로 알게.
-#   11-10 에 줄였다: 계정의 Actions 사용 한도가 바닥나 검사가 아예 시작을 못 했다. 그 전에는 같은 커밋을 push 와
-#   pull_request 로 두 번 돌렸고 그때마다 느린 묶음이 20~35 분씩 들었다. 이제 커밋마다 한 번만 돌고 (PR 에도 그 결과가 보인다),
-#   느린 묶음은 사람이 누를 때만 돈다 (Actions 탭 → test → Run workflow). 느린 묶음은 푸시 전에 각자 로컬에서 돌린다 (npm run test:slow).
-#   fast  : 빠른 묶음 (필수) — world 불변식 · brain · runner · api · 요리 시뮬레이션 (test-cook, 9물결) · 미용실 규칙 (test-salon)
-#           · 반응 스티커 그림 · 규칙 (test-cook-stickers · test-play-stickers) · 포스터 · 배지 · 기념품 그림 (test-poster-art · test-art-extra)
-#           · 배포 묶음 (test-export: 게임 파일만 나가는지 · 가리키는 파일이 다 실렸는지)
-#   fonts : 글꼴 부분 집합 점검 (필수) — 화면 문구의 글자가 Galmuri 서브셋에 다 있는지
-#   slow  : 느린 묶음 (선택 · 수동 실행 때만) — Playwright 스모크 A,B,I · 장면 성능 · 요리 창 (test-cook-live, cook.html) · 부엌 소리 (test-cook-audio,
-#           cook.html?sound=1 · foley/ · credits.html) · 부엌에 붙인 반응 스티커 (test-cook-stickers-live, cook.html +
-#           js/cook-stickers.js) · 배포 묶음만 띄워 놀아 보기 (test-export --crawl). 실패해도 run 은 빨갛게 되지 않는다
-#           (continue-on-error: 로컬에서 스모크 I 의 '새로고침 뒤 지정 계절 유지' 가 3번 중 1번 흔들렸다)
+# 테스트 — push (모든 브랜치) 마다 돈다. 여러 작업이 동시에 고치니 서로 깨뜨린 걸 바로 알게.
+#   11-10 에 줄였다: 계정의 Actions 사용 한도가 바닥나 검사가 아예 시작을 못 했다 (느린 묶음은 수동 실행만 · 같은 커밋 두 번 안 돌기).
+#   11-14 주인이 저장소를 공개로 돌렸다 → 공개 저장소의 기본 러너는 사용 한도가 없다. 그래서 느린 묶음 전부를 다시 push 마다 돌린다.
+#   한 러너에 몰면 1시간이 넘어서 (로컬 배포 전 게이트 기준) 스모크는 글자마다, 나머지는 묶음마다 따로 러너에서 같이 돈다.
+#   fast   : 빠른 묶음 — world 불변식 · brain · runner · api · 요리 시뮬레이션 (test-cook, 9물결) · 미용실 규칙 (test-salon)
+#            · 반응 스티커 그림 · 규칙 (test-cook-stickers · test-play-stickers) · 포스터 · 배지 · 기념품 그림 (test-poster-art · test-art-extra)
+#            · 배포 묶음 (test-export: 게임 파일만 나가는지 · 가리키는 파일이 다 실렸는지)
+#   fonts  : 글꼴 부분 집합 점검 — 화면 문구의 글자가 Galmuri 서브셋에 다 있는지
+#   plan   : tools/smoke.js 에 등록된 시나리오 글자를 읽는다 (새 글자가 생겨도 손볼 것 없게 · 로컬 게이트와 같은 grep)
+#   smoke  : Playwright 스모크, 글자 하나에 러너 하나 (SMOKE_ONLY=<글자>)
+#   suites : 장면 성능 · 놀이방 · 소리 · 이어 하기 · 요리 창 · 부엌 소리 · 부엌 스티커 · 배포 묶음 놀아 보기 · 입장 화면, 묶음 하나에 러너 하나
+#   실패한 작업은 tests/evidence/ 와 캡처를 artifact 로 올린다. 느린 묶음도 이제 실패하면 run 이 빨갛게 된다 (예전 continue-on-error 는
+#   한 러너에 몰린 부하 탓에 흔들리던 때의 것 — 지금은 작업마다 러너가 따로다).
 # package.json 의 scripts 는 쓰지 않고 node 명령을 그대로 부른다. 이 워크플로는 아무것도 커밋하지 않는다.
 name: test
 
@@ -67,16 +68,32 @@ jobs:
       - run: pip install fonttools brotli
       - run: python3 tools/subset-fonts.py --check
 
-  slow:
-    name: 느린 테스트 (선택)
-    # 수동 실행 (workflow_dispatch) 때만 돈다 — 한 번에 20~35 분이라 푸시마다 돌리면 한 달 한도가 며칠 만에 바닥난다
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+  plan:
+    name: 느린 묶음 나누기
     runs-on: ubuntu-latest
-    # 장면 성능 묶음이 109 항목으로 늘어 CI 러너에서 10~17 분 걸린다 (스모크 4~6 분 · 요리 창 2 분 · 설치 2 분 더하면 느린 러너에서 25 분을 넘겨 중간에 끊겼다)
+    timeout-minutes: 5
+    outputs:
+      letters: ${{ steps.letters.outputs.letters }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: letters
+        run: |
+          L=$(grep -oE "\['[A-Z]', function" tools/smoke.js | grep -oE "[A-Z]" | awk '!s[$0]++' | jq -R . | jq -sc .)
+          echo "smoke letters: $L"
+          test "$L" != "[]"
+          echo "letters=$L" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    name: 스모크 ${{ matrix.letter }}
+    needs: plan
+    runs-on: ubuntu-latest
     timeout-minutes: 40
-    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        letter: ${{ fromJSON(needs.plan.outputs.letters) }}
     env:
-      SHOTS: ${{ github.workspace }}/ci-shots
+      SHOTS: ${{ github.workspace }}/ci-shots/
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -85,38 +102,57 @@ jobs:
       # 잠금 파일·package.json 은 그대로 두고 Playwright 만 얹는다
       - run: npm install --no-save --no-audit --no-fund playwright@1.63.0
       - run: npx playwright install --with-deps chromium
-      # 둘 다 file:// 로 열어서 서버·포트가 필요 없다. tests/evidence/ 를 다시 쓰지만 커밋하지 않고 아래에서 artifact 로만 올린다
+      # file:// 로 열어서 서버·포트가 필요 없다. tests/evidence/ 를 다시 쓰지만 커밋하지 않는다
       - run: node tools/smoke.js
         env:
-          SMOKE_ONLY: A,B,I
-      - run: node tools/test-scene-perf.js
-        if: ${{ !cancelled() }}
-      # 요리 창 (cook.html, file://) — 손가락 · 키보드 · 반응 프레임 · 저장. 캡처는 ci-shots/cook 로
-      - run: node tools/test-cook-live.js
-        if: ${{ !cancelled() }}
-        env:
-          COOK_SHOTS: ${{ github.workspace }}/ci-shots/cook
-      # 부엌 소리 (cook.html?sound=1 · js/audio.js 의 'cook' 갈래 · foley/ · credits.html) — 진짜 Web Audio 로 한 판 굽는다. 소리 파일은
-      # http 에서만 받을 수 있어서 저장소 뿌리를 스스로 띄운다 (127.0.0.1 빈 포트). 받는 것은 .ogg (Opus). 캡처는 ci-shots/cook-audio 로
-      - run: node tools/test-cook-audio.js
-        if: ${{ !cancelled() }}
-        env:
-          SHOTS: ${{ github.workspace }}/ci-shots/cook-audio
-      # 부엌에 붙인 반응 스티커 (cook.html + js/cook-stickers.js) — 요리 순간마다 스티커가 뜨는지 (시드 · 자리 · 머무는 시간), 손길을 가로채지
-      # 않는지, 닫으면 남는 것이 없는지, 동작 줄이기, 소리 꺼짐, 스티커 파일이 없어도 부엌이 그대로인지. 대부분 file:// 이고, 소리 꺼짐과
-      # 파일 막기는 http 라 저장소 뿌리를 스스로 띄운다 (127.0.0.1 빈 포트). 캡처는 남기지 않는다
-      - run: node tools/test-cook-stickers-live.js
-        if: ${{ !cancelled() }}
-      # 배포 묶음만 띄워 놀아 보기 (tools/export-site.js 로 임시 폴더에 내보낸 것만 127.0.0.1 빈 포트에): 본 게임 첫 실행 · 산책 한 번 · 부엌 한 접시 (소리) ·
-      # 만든 것들. 우리 주소로 간 요청이 하나도 실패하지 않고 콘솔 · 페이지 오류가 없는지. 다른 곳 (글꼴 · 위키) 은 막는다. 캡처는 남기지 않는다
-      - run: node tools/test-export.js --crawl
-        if: ${{ !cancelled() }}
+          SMOKE_ONLY: ${{ matrix.letter }}
       - uses: actions/upload-artifact@v7
-        if: ${{ always() }}
+        if: ${{ failure() }}
         with:
-          name: evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          name: smoke-${{ matrix.letter }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             tests/evidence/
             ci-shots/
-          if-no-files-found: ignore
-          retention-days: 14
+
+  suites:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { key: scene-perf, name: 장면 성능, cmd: node tools/test-scene-perf.js }
+          # 놀이방 (play.html) — 안에서 스모크 A,B,I 와 글꼴 점검도 부른다 (fontTools 가 없으면 글꼴 줄은 건너뛴다: fonts 작업이 따로 본다)
+          - { key: play, name: 놀이방, cmd: node tools/test-play.js }
+          - { key: audio, name: 소리, cmd: node tools/test-audio.js }
+          - { key: resume, name: 이어 하기, cmd: node tools/test-resume.js }
+          # 요리 창 (cook.html, file://) — 손가락 · 키보드 · 반응 프레임 · 저장
+          - { key: cook-live, name: 요리 창, cmd: node tools/test-cook-live.js }
+          # 부엌 소리 (cook.html?sound=1 · js/audio.js 의 'cook' 갈래 · foley/ · credits.html) — 진짜 Web Audio 로 한 판 굽는다.
+          # 소리 파일은 http 에서만 받을 수 있어서 저장소 뿌리를 스스로 띄운다 (127.0.0.1 빈 포트)
+          - { key: cook-audio, name: 부엌 소리, cmd: node tools/test-cook-audio.js }
+          # 부엌에 붙인 반응 스티커 (cook.html + js/cook-stickers.js) — 요리 순간마다 스티커 · 손길을 가로채지 않는지 · 동작 줄이기 · 소리 꺼짐
+          - { key: cook-stickers-live, name: 부엌 스티커, cmd: node tools/test-cook-stickers-live.js }
+          # 배포 묶음만 띄워 놀아 보기 (export-site.js 로 임시 폴더에 내보낸 것만 127.0.0.1 빈 포트에) — 우리 주소로 간 요청이 하나도 실패하지 않는지
+          - { key: export-crawl, name: 배포 묶음 놀아 보기, cmd: node tools/test-export.js --crawl }
+          - { key: intro, name: 입장 화면, cmd: node tools/intro-shots.js }
+    env:
+      SHOTS: ${{ github.workspace }}/ci-shots/${{ matrix.key }}/
+      COOK_SHOTS: ${{ github.workspace }}/ci-shots/${{ matrix.key }}/
+      NO_VIDEO: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-audit --no-fund playwright@1.63.0
+      - run: npx playwright install --with-deps chromium
+      - run: ${{ matrix.cmd }}
+      - uses: actions/upload-artifact@v7
+        if: ${{ failure() }}
+        with:
+          name: ${{ matrix.key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            tests/evidence/
+            ci-shots/
