@@ -56,7 +56,7 @@
     { id: 'count_rain', line: '창가에서 빗방울을 세다가 잠들었어', detail: '마흔까지 세고 잊었어. 다시 하나부터.', anchor: 'window', weight: 3, emoji: '🌧', maxLantern: 6, reactions: ['졸림'] },
     { id: 'reread_poster', line: '벽 포스터 뒷면을 다시 읽었어', detail: '일기 글씨가 조금 번져 있었어.', anchor: 'crate', weight: 2, emoji: '📖', minLantern: 1, requiresPoster: true, reactions: ['덤덤'] },
     { id: 'nap', line: '담요 속에서 낮잠', detail: '담요 안은 조용했어.', anchor: 'blanket', weight: 3, emoji: '😴', reactions: ['졸림'] },
-    { id: 'swap_posters', line: '포스터 위치를 바꿔 봤어', detail: '왼쪽 걸 오른쪽으로. 그게 다야.', anchor: 'board', weight: 1, emoji: '🖼', minLantern: 2, requiresPoster: true, effect: 'rotatePosters', reactions: ['덤덤'] },
+    { id: 'swap_posters', line: '포스터 위치를 바꿔 봤어', detail: '맨 끝 두 장의 자리를 맞바꿨어.',   /* 11-15 온기 · 사실: 예전 '왼쪽 걸 오른쪽으로. 그게 다야.' (world.js 와 같은 일) */ anchor: 'board', weight: 1, emoji: '🖼', minLantern: 2, requiresPoster: true, effect: 'rotatePosters', reactions: ['덤덤'] },
     { id: 'watch_moss', line: '이끼 화분을 오래 들여다봤어', detail: '어제보다 조금 더 초록인 것 같아.', anchor: 'window', weight: 2, emoji: '🪴', minLantern: 1, reactions: ['덤덤'] },
     { id: 'nothing', line: '…', detail: '', anchor: 'blanket', weight: 0, emoji: '' }
   ];
@@ -82,7 +82,7 @@
       '덤덤': ['내일은 {next} 쪽으로 가 볼까 말까'],
       '졸림': ['내일은 {next} 쪽으로 천천히 가 볼까']
     },
-    nextNone: ['내일 갈 곳은 아직 안 정했어'],
+    nextNone: ['내일은 어디로 갈지 자고 나서 정할래'],   /* 11-15 (주인 C4 a): world.js 와 같은 글 */
     home: ['내일은 나가 볼까 말까', '내일은 밖에 나가 볼까'],
     revisit: '{hint}? 그거 {n}일 전에 봤잖아. 이번엔 안쪽까지 가 볼게',
     revisitToday: '{hint}? 그거 아까 봤잖아. 이번엔 안쪽까지 가 볼게',
