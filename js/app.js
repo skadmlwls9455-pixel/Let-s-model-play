@@ -4525,9 +4525,13 @@ var APP = (function () {
   function partName(cat, id) { var P = playerParts(), n = ''; (P[cat] || []).forEach(function (x) { if (x.id === id) n = x.name; }); return n || id; }
   function setWord(q) { return /차림$/.test(q[1]) ? q[1] : q[1] + ' 차림'; }   /* 11-12 (검증 F12): '다락방 차림 차림' 이 되지 않게 */
   function setWear(q) { setPlayerPart('outfit', q[2]); setPlayerPart('shoes', q[3]); setPlayerPart('acc', q[4]); renderSew(); focusIn('#sew-body .week-list', LOOK_SETS.indexOf(q)); toast(setWord(q) + '으로 입었어'); }
+  var sewSetsOpen = false;   /* 11-15: 세트 도감은 시트 안에 접혀 있다 (연 채로 다시 입기 → 다시 그려도 펼친 채) · 시트를 새로 열면 접힌다 */
   function renderSets(frag) {
     var f = setsFound(), n = LOOK_SETS.filter(function (q) { return f[q[0]]; }).length;   /* 11-12 (검증 C14): 여기서는 적지 않는다 — 옷 · 신발 · 장식을 바꿨을 때만 (lookPick) */
-    frag.appendChild(h('h3', { text: '세트 도감 ' + n + '/' + LOOK_SETS.length }));
+    var box = h('details', { class: 'sew-sets' }); if (sewSetsOpen) box.open = true;
+    box.addEventListener('toggle', function () { sewSetsOpen = box.open; });
+    box.appendChild(h('summary', { text: '세트 도감 ' + n + '/' + LOOK_SETS.length }));
+    frag.appendChild(box); frag = box;
     frag.appendChild(h('p', { class: 'set-note', text: '옷 · 신발 · 장식을 맞춰 입으면 여기에 적혀. 내 모습에서 이것저것 입어 보며 찾아봐.' }));
     var list = h('ul', { class: 'week-list' });
     LOOK_SETS.forEach(function (q) {
@@ -4549,8 +4553,9 @@ var APP = (function () {
   }
   function renderSew() {
     var body = $('sew-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment();
+    var d0 = body.querySelector('details.sew-sets'); if (d0) sewSetsOpen = d0.open;   /* 11-15: 펼친 채 다시 그리기 (toggle 은 늦게 온다) */
     frag.appendChild(h('p', { class: 'bag-line', text: '조개 ' + u.shells }));
-    frag.appendChild(h('p', { class: 'set-note', text: '기른 염료가 있으면 그걸 하나 쓰고, 없으면 조개 ' + DYE_COST + '개로 물들여. 지금 입은 옷의 큰 색이 바뀌어.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '염료나 조개 ' + DYE_COST + '개로 옷을 물들여' }));   /* 11-15: 세 줄 설명 → 한 줄 (주인: 재봉틀 창 글자 확 줄이기) */
     var row = h('div', { class: 'sew-grid', role: 'group', 'aria-label': '옷 색' });
     DYES.forEach(function (d) {
       var own = u.dyes[d[0]] | 0, cur = u.dye === d[2];
@@ -4560,7 +4565,7 @@ var APP = (function () {
       row.appendChild(b);
     });
     frag.appendChild(row);
-    if (u.dye) { var off = h('button', { type: 'button', class: 'btn wide pressable', text: '원래 색으로 (공짜)' }); off.addEventListener('click', function () { sewDye(null); }); frag.appendChild(off); }
+    if (u.dye) { var off = h('button', { type: 'button', class: 'btn sm pressable sew-off', text: '원래 색으로' }); off.addEventListener('click', function () { sewDye(null); }); frag.appendChild(off); }
     renderSets(frag);
     body.textContent = ''; body.appendChild(frag);
   }
@@ -4576,7 +4581,7 @@ var APP = (function () {
     if (window.MutationObserver) new MutationObserver(sync).observe(d, { attributes: true, attributeFilter: ['open'] });
     d.addEventListener('close', sync); window.addEventListener('resize', sync);
   }
-  function openSew() { var sh = $('sew-sheet'); if (!sh) return; renderSew(); showDialog(sh); }
+  function openSew() { var sh = $('sew-sheet'); if (!sh) return; var d0 = sh.querySelector('details.sew-sets'); if (d0) d0.open = false; sewSetsOpen = false; renderSew(); showDialog(sh); }
   function renderBag() {
     var body = $('bag-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment(), dk = todayKey();
     weekState();   /* 11-11 (검증 W1): 주 먼저 — 이 톡이 주를 넘기며 지난주 선물을 넣으면 바로 아랫줄 조개 · 씨앗 수에 들어가 있게 */
