@@ -106,7 +106,7 @@ var WORLD = (function () {
       memories: [
         '원래는 해를 가리는 거였어. 비는 나중이야',
         '영어 umbrella는 라틴어 그늘, umbra에서 왔대',
-        '비 오는 날엔 우산 위 소리가 제일 좋아'
+        '비 오는 날엔 우산 위로 빗소리가 나'
       ],
       related: ['hat'],
       tangents: [
@@ -982,7 +982,7 @@ var WORLD = (function () {
       memories: [
         '녹차도 홍차도 같은 잎이야. 만드는 법이 달라',
         '물 다음으로 사람들이 많이 마시는 게 차래',
-        '찻잎이 펴지는 걸 보는 게 좋아'
+        '찻잎은 뜨거운 물에서 천천히 펴져'
       ],
       related: ['candle'],
       tangents: [
@@ -1138,7 +1138,7 @@ var WORLD = (function () {
       clue: '아침엔 다리 넷, 낮엔 둘, 저녁엔 셋. 스핑크스의 수수께끼다. 답은 사람.',
       memories: [
         '스핑크스 수수께끼 답은 사람이야. 아침엔 넷, 저녁엔 셋',
-        '수수께끼는 답보다 질문이 재밌어',
+        '수수께끼는 질문 안에 실마리가 있어',
         '옛 노래엔 수수께끼가 많아'
       ],
       related: ['name'],
@@ -1157,8 +1157,8 @@ var WORLD = (function () {
       peekStatus: 'none',
       clue: '여기엔 풀 문제가 없다. 다음 문장을 이어 쓰지 않아도 된다.',
       memories: [
-        '아무것도 안 읽어도 됐어',
-        '앉아만 있었는데 그걸로 됐어',
+        '읽은 건 없어. 앉아만 있었어',
+        '글은 펼치지 않고 앉아만 있었어',
         '글이 느리게 있어서 나도 느려졌어'
       ],
       related: ['sleep'],
@@ -1248,11 +1248,11 @@ var WORLD = (function () {
      앞면 · 뒷면과 같은 말(이나 그 속에 든 말)은 아니고, 새 기분 · 길이(쭉 · 한참) · 날씨 · '오늘은' · 처음 · 걸은 얘기 없음. 숫자는 앞면 · 뒷면에 있는 것만 (check-world) */
   var homeActivities = [
     { id: 'count_rain', memo: '창가에서 비 셌어', line: '창가에서 빗방울을 세다가 잠들었어',
-      detail: '열일곱까지 셌어. 그다음은 기억이 안 나.\n빗소리가 좋아서 집에 있었어.',
+      detail: '열일곱까지 셌어. 그다음은 기억이 안 나.\n빗소리를 들으며 집에 있었어.',
       tap: ['창가 자리에서 잠들었어', '열일곱에서 잠이 들었어'],
       anchor: 'window', weight: 3, maxLantern: 6, reactions: ['졸림'] },
     { id: 'nap', memo: '담요 속에서 낮잠 잤어', line: '담요 속에서 낮잠 잤어',
-      detail: '담요 안은 바깥보다 조용했어. 그게 좋았어.\n오늘은 그걸로 충분했어.',
+      detail: '담요 안은 바깥보다 조용했어.\n눈을 감고 오래 누워 있었어.',
       tap: ['조용한 담요 속에 있었어', '담요를 덮고 한숨 잤어'],
       anchor: 'blanket', weight: 3, reactions: ['졸림'] },
     { id: 'window_watch', memo: '창밖을 그냥 봤어', line: '창밖을 그냥 봤어',
@@ -1268,12 +1268,12 @@ var WORLD = (function () {
       tap: ['벽 포스터 앞에 있었어', '뒷면 일기가 다 기억났어'],
       anchor: 'board', weight: 2, requiresPoster: true, reactions: ['덤덤'] },
     { id: 'rearrange', memo: '벽 포스터 자리를 한 칸 바꿨어', line: '벽 포스터 자리를 한 칸 바꿨어',
-      detail: '왼쪽 게 더 잘 보여서.\n벽도 가끔은 바뀌어야 해.',
+      detail: '맨 끝 두 장의 자리를 맞바꿨어.\n벽 순서가 한 칸 바뀌었어.',   /* 11-14 (주인 O1 b): 옛 '왼쪽 게 더 잘 보여서. 벽도 가끔은 바뀌어야 해' 는 지어낸 까닭과 생각 — app.js 가 하는 일(끝 두 장 맞바꾸기) 그대로 */
       tap: ['포스터 순서가 바뀌었어', '벽 앞에서 포스터를 옮겼어'],
       anchor: 'board', weight: 1, requiresPoster: true, effect: 'rotatePosters', reactions: ['덤덤'] },
     { id: 'hum', memo: '아무 노래나 흥얼거렸어', line: '아무 노래나 흥얼거렸어',
-      detail: '가사는 없고 박자만 있는 노래.\n박자는 내 맘대로였어.',
-      tap: ['가사 없이 흥얼거렸어', '박자는 마음대로 맞췄어'],
+      detail: '가사는 없고 박자만 있는 노래.\n박자는 그때그때 달랐어.',
+      tap: ['가사 없이 흥얼거렸어', '박자가 자꾸 바뀌었어'],
       anchor: 'crate', weight: 2, reactions: ['덤덤'] },
     { id: 'nothing', line: '…',
       detail: '',
@@ -1287,21 +1287,21 @@ var WORLD = (function () {
        first = 처음 온 방이 있었다 · missed = 못 읽음·모의 방문이 있었다 · long = 4곳 이상 걸었다 */
   var reactions = {
     '폴짝': { emoji: '🎉', lines: [
-      '모르는 데로 한 발 디뎠어. 그게 재밌었어'
+      '모르는 데로 한 발 디뎠어'
     ], when: { first: [
-      '처음 가 본 데가 있었어. 다리가 아직 들썩거려',
-      '오늘 길은 처음이었어. 또 가도 처음일 것 같아'
+      '처음 가 본 데가 있었어. 새 방이 늘었어',
+      '오늘 길은 처음 가 본 길이었어'
     ] } },
     '우쭐': { emoji: '😌', lines: [
-      '끝까지 다 읽었어. 흠, 꽤 잘한 것 같아',
+      '들른 데를 끝까지 다 읽었어',
       '한눈 안 팔고 다 봤어. 오늘은 그런 날',
       '네가 흘린 힌트, 끝까지 따라갔어'
     ] },
     '덤덤': { emoji: '😶', lines: [
-      '그냥 그런 산책이었어. 그래도 다녀왔어',
-      '조용히 다녀왔어. 그거면 됐어'   /* 날씨·거리는 말하지 않는다: 두뇌는 날씨를 모르고(등불 7 은 맑음), 재생된 덤덤은 길 수도 있다 */
+      '별일 없는 산책이었어. 그래도 다녀왔어',
+      '조용히 다녀왔어. 그게 다야'   /* 날씨·거리는 말하지 않는다: 두뇌는 날씨를 모르고(등불 7 은 맑음), 재생된 덤덤은 길 수도 있다 */
     ], home: [
-      '이번엔 집에 있었어. 그거면 됐어',
+      '이번엔 집에 있었어. 그게 다야',
       '나가지 않고 집에 있었어'   /* '오늘은' 아님: 같은 날 나갔다 온 뒤일 수도 있다 */
     ], when: { missed: [
       '못 읽은 데도 있었어. 그런 날도 있어'
@@ -1310,7 +1310,7 @@ var WORLD = (function () {
       '눈이 감겨. 잠깐 자고 일어날게',
       '하품이 나와. 조금만 쉴게'   /* 문어 자신의 상태만. '오늘은 여기까지'·'내일 또' 처럼 오늘 놀이가 끝났다는 말로 읽히지 않게 (초대는 몇 번이든 되고, 낮잠은 20분쯤이면 깬다) */
     ], when: { long: [
-      '많이 걸었어. 담요 속으로 들어갈래'
+      '많이 걸었어. 이제 담요 쪽으로 갈게'
     ] } }
   };
 
@@ -1337,12 +1337,12 @@ var WORLD = (function () {
       '{mem}에 갔어. {memory}'
     ],
     ignored: [
-      '{hint} 보는 건 다음에. 오늘은 {mem} 쪽이 궁금했어',
+      '{hint} 보는 건 다음에. 오늘은 {mem} 쪽으로 갔어',
       '{hint} 말고 {mem}. {memory}'
     ],
     linger: [
-      '느린 글의 방에 앉아만 있었어. 아무것도 안 읽어도 됐어',
-      '느린 글의 방. 읽은 건 없고, 그걸로 됐어'
+      '느린 글의 방에 앉아만 있었어. 읽은 건 없어',
+      '느린 글의 방. 읽은 건 없고, 앉아만 있었어'
     ],
     wild: [
       '우연히 들른 데가 있어. {mem}. 처음 듣는 이름이야',
@@ -1367,7 +1367,7 @@ var WORLD = (function () {
     firstOther: ['{b}은 처음이었어', '{b}은 처음 가 봤어'],
     longest: ['{b}에 제일 오래 있었어'],
     tired: ['{l}쯤에서 다리가 무거워졌어'],
-    enough: ['{l}에서 이만 돌아왔어', '{l}까지 가니 이만하면 됐다 싶었어'],
+    enough: ['{l}에서 이만 돌아왔어', '{l}까지 갔다가 돌아왔어'],
     failed: ['{x} 문은 안 열렸어', '{x}은 이름만 보고 왔어'],
     simulated: ['{x}은 문 앞까지만 가 봤어'],
     doorOut: ['바깥 주소는 문 앞까지만 가 봤어'],
@@ -1384,7 +1384,7 @@ var WORLD = (function () {
      조사 없는 꼴만 쓴다({mem}에 · {next} 쪽으로). 명령문·자격 기준 언급 금지. 집에 있는 날은 활동의 memo + home. */
   var memoTemplates = {
     lead: {
-      followedThenLeft: ['{hint} 보다가 {mem}에 꽂혔어', '{hint}에서 시작했는데 {mem}에 오래 있었어'],
+      followedThenLeft: ['{hint} 보다가 {mem} 쪽으로 갔어', '{hint}에서 시작했는데 {mem}에 오래 있었어'],
       followedKept: ['{hint} 앞에 오래 있었어', '오늘은 {hint} 하나만 봤어'],
       leftKept: ['한눈은 팔았는데 머리에 남은 건 {hint}'],
       noHint: ['{mem}에 오래 있었어', '발길 닿는 대로 가다 {mem}까지 갔어'],
@@ -1401,7 +1401,7 @@ var WORLD = (function () {
       '덤덤': ['내일은 {next} 쪽으로 가 볼까 말까'],
       '졸림': ['내일은 {next} 쪽으로 천천히 가 볼까']
     },
-    nextNone: ['내일은 어디로 갈지 자고 나서 정할래'],
+    nextNone: ['내일 갈 곳은 아직 안 정했어'],
     home: ['내일은 나가 볼까 말까', '내일은 밖에 나가 볼까'],
     /* 같은 힌트 방 재방문: 첫 기웃 행에 붙는 한마디 (조사 없는 꼴) */
     revisit: '{hint}? 그거 {n}일 전에 봤잖아. 이번엔 안쪽까지 가 볼게',
@@ -1485,13 +1485,13 @@ var WORLD = (function () {
     nameLater: '이름은 천천히 불러 줘도 괜찮아.',
     defaultName: '이름 없는 문어',
     awayLine: '네가 없는 동안 다녀왔어',
-    ignoredHintLine: '오늘은 그쪽 말고 다른 데가 궁금했어',
+    ignoredHintLine: '오늘은 그쪽 말고 다른 데로 갔어',
     simulatedNote: '정적 페이지라 바깥은 못 읽어. 문 앞까지만 갔다 왔어',
     firstVisit: '처음 온 곳이야',
     letterRoomEmpty: '아직 비어 있었어',
     slowRoomNote: '읽은 것 없음',
     homeBack: function (lanternLit) { return lanternLit ? '오늘은 집. 등불 +1' : '오늘은 집'; },   /* '+1' 은 그 차례로 칸이 실제로 켜질 때만 (두뇌 homeTripFrom 의 lanternLeft 와 같은 규칙) */
-    homeStay: '오늘은 집에 있을래. 그냥 그러고 싶어서.',   /* 날씨는 말하지 않는다 (두뇌는 날씨를 모른다) */
+    homeStay: '오늘은 집에 있어.',   /* 날씨는 말하지 않는다 (두뇌는 날씨를 모른다) */
     emptyTurn: '…',
     albumEmpty: '아직 포스터가 없어. 첫 뽈뽈을 보내 봐',
     albumFilters: { all: '전체', poster: '포스터', note: '쪽지' },
@@ -1507,11 +1507,11 @@ var WORLD = (function () {
     photoCredit: '사진: 위키미디어 공용',
     followedLabels: { followed: '따라감', ignored: '무시함', left: '도중에 벗어남', none: '없음' },
     byLabels: { demo: '데모 두뇌(규칙)', human: '사람이 조작', mcp: '모델(MCP)', legacy: '복원된 기록' },
-    returnReasons: { enough: '이만하면 됐어', tired: '다리가 좀 무거워', linger: '여기서 오래 있었어' },
+    returnReasons: { enough: '이만 걷기로 했어', tired: '다리가 좀 무거워', linger: '여기서 오래 있었어' },
     legacyPosterLine: '(복원된 포스터 · 기록 없음)',
     affinityCorner: function (cornerName) { return '요즘 ' + cornerName + ' 방을 자꾸 가네'; },
     affinityNode: function (nodeName, n) { var w = roomWord(nodeName); return w + (/방$/.test(w) ? '은 ' : ' 방은 ') + n + '번 왔어'; },   /* '느린 글의 방' → '방 방은' 안 되게, '0' → '0이라는 방은' */
-    affinityNone: '아직 어디가 좋은지 모르겠어. 더 다녀 봐야 알겠어',
+    affinityNone: '아직 여러 번 가 본 곳이 없어',
     logLabels: { depart: '출발', peek: '기웃', 'return': '귀가', remember: '기억', hang_poster: '포스터', wrap_up: '마무리', stay_home: '집', empty_turn: '…' },
     lanternLabel: function (n) { return '등불 ' + n + '/8'; },
     tripsLabel: function (n) { return '여행 ' + n; },

@@ -25,7 +25,7 @@
 - 장애물: 상자(낮음) · 상자 둘 · 촛대(가늚) · 책 더미(높음) · 거미줄(숙이기) · 물웅덩이(밤만, 넓어서 꾹 점프). 가끔 이끼(+20).
 
 ## 문어 스프라이트
-열 때 `APP.scene.portrait(expr, {bg:'transparent'})` 64×64 초상 4장(달리기 curious · 점프 happy · 부딪힘 calm · 대기/숙이기 pet)을 찍어
+열 때 `APP.scene.portrait(expr, {bg:'transparent'})` 64×64 초상 4장(달리기 curious · 점프 happy · 부딪힘 calm · 대기/숙이기 idle — 11-14 전엔 pet, 이제 pet 은 쓰다듬는 동안의 눌린 idle 얼굴이라 빌려 쓰지 않는다)을 찍어
 공통 알파 경계로 잘라 **최근접 축소 24×24** + 1px 외곽선. 손그림 없음. 초상이 없으면 코드로 그린 24×24 문어(둥근 몸·점 눈·뭉툭한 팔 6개,
 색은 `localStorage.ppolppol_v2` 의 `octopus.color` — 몸 색을 읽는 곳은 이것 하나다 (11-08 밤 미용실, `docs/SALON.md` §1.3). 없으면 사본 `settings.octColor`, 그것도 없으면 기본 `#e8463c`).
 움직임은 2D 절차: 뒤뚱 기울기 −7°/0/+7° (5틱 ≈ 0.08 s 마다, 최근접 회전 미리 구움), 1px 들썩, 착지 찌그러짐 6틱, 점프 늘어남, 부딪히면 calm + 작은 흔들림.

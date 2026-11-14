@@ -1783,7 +1783,7 @@ var SCENE3D = (function () {
     var hit = new T.Mesh(keep(new T.SphereGeometry(1.6, 8, 6)), keep(new T.MeshBasicMaterial({ visible: false }))); hit.position.y = 0.7; hit.userData.kind = 'oct'; bodyG.add(hit);   /* 반지름 0.67 m ≈ 72 CSS px (p=3) ≥ 44 */
     var carry = new T.Mesh(posterGeo, posterMat); carry.receiveShadow = true; carry.position.set(1.0, 0.95, 0.6); carry.rotation.set(0, 0.5, 0.15); carry.scale.setScalar(1.6); carry.visible = false; bodyG.add(carry);
     var octDecal = new T.Mesh(keep(new T.PlaneGeometry(3.2, 3.2)), decalMat); octDecal.rotation.x = -Math.PI / 2; octDecal.position.y = 0.01; octDecal.renderOrder = 1; octG.add(octDecal);   /* 접지 그림자 1.34 m (다리 끝까지) */
-    var oct = { anchor: 'window', pos: new T.Vector3(), walking: null, faceYaw: 0, wantYaw: 0, blinkT: 3 + (hash('blink0') % 1000) / 1000 * 4, blinkLeft: 0, blinkN: 0, animT: 0, hop: 0, flushK: 0, pointer: null, lookTarget: null };
+    var oct = { anchor: 'window', pos: new T.Vector3(), walking: null, faceYaw: 0, wantYaw: 0, blinkT: 3 + (hash('blink0') % 1000) / 1000 * 4, blinkLeft: 0, blinkN: 0, animT: 0, hop: 0, pointer: null, lookTarget: null };
     var ARMW = arms.map(function (_, i) { var r = hash('armw' + i); return { ph: r % 32, per: 16 + ((r >> 8) % 17) }; });
     /* 체크 사라짐·나타남 (INTERIOR_MODE 0단계 · 바깥 가장자리 · 다락 문): FADE.d = 논리 밀도(0 ~ 1, 8단계), FADE.on = 지금 그려지는 값.
        0 < d < 1 동안 ① 섞기 = CustomBlending (구멍은 뒤 색 + 알파 0 표시, 깊이는 온전히 → 잉크 점 없음, 몸끼리 가림 그대로) ② transparent = 불투명 다음에 그린다
@@ -1855,13 +1855,13 @@ var SCENE3D = (function () {
       idle: { lid: null, pupil: 1, pz: 0.14 },
       blink: { lid: 0, pupil: 0, linesB: true },
       happy: { lid: 0, pupil: 0, arcs: true, smile: true },
-      pet: { lid: 0, pupil: 0, arcs: true, smile: true, blush: true, pose: [1.06, 0.88, 0] },
+      pet: { lid: null, pupil: 1, pz: 0.14, pose: [1.06, 0.88, 0] },   /* 11-14 (주인 O2 c · 금지선 1): 쓰다듬는 동안 얼굴은 idle 그대로 — 웃는 눈 · 입 · 홍조 없이 손에 눌린 몸(눌림 · 흔들)만. 예전 arcs · smile · blush */
       sleep: { lid: 0, pupil: 0, linesS: true, pose: [1.03, 0.94, 0] },
       curious: { lid: null, pupil: 1.3, pz: 0.14, big: true, pose: [1, 1, -8 * DEG] },
       calm: { lid: 0.28, pupil: 1, pz: 0.10 },
       sleepy: { lid: 0.21, pupil: 1, pz: 0.10, dy: -0.05, pose: [1.02, 0.96, 0] }
     };
-    var OPEN_EYES = { idle: 1, curious: 1, calm: 1, sleepy: 1 };                              /* 깜빡임이 끼어드는 표정 */
+    var OPEN_EYES = { idle: 1, pet: 1, curious: 1, calm: 1, sleepy: 1 };                              /* 깜빡임이 끼어드는 표정 */
     var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' };   /* 상태 → 기본 표정 (나머지는 idle). app.js 가 나중에 setExpression 으로 덮어쓴다 (DESIGN §15.2) */
     var face = { expr: 'idle', applied: '', t: 0, hopsLeft: 0, dy: 0 };
     function applyFace(name) {
@@ -1911,8 +1911,9 @@ var SCENE3D = (function () {
       var pose = FACES[expr].pose || [1, 1, 0], svEm = toon.emissive.clone();
       var svFade = FADE.on; if (svFade < 1) fadeLook(1);   /* 사라지는 중에도 초상은 온전히 */
       applyFace(expr); toon.emissive.setRGB(0, 0, 0);   /* 초상은 시각대와 무관 (전용 3점 조명) → 밤 문어 자체광(첫 불)은 빼고 찍는다 */
-      var hex = expr === 'pet' ? mixHex(base, OCp.hi, 0.35) : expr === 'sleep' ? hueHex(base, 12) : base;   /* pet = 장면의 홍조 끝값, sleep = 색 순환 한 자락 */
+      var hex = expr === 'sleep' ? hueHex(base, 12) : base;   /* sleep = 색 순환 한 자락. pet 은 몸색 그대로 (11-14 주인 O2 c — 예전 홍조 끝값) */
       if (hex !== sv.hex) octColor(hex);
+      PORT.last = { expr: expr, hex: hex, base: base, arcs: arcs.visible, smile: smile.visible, blush: blush.visible, eyes: pupils[0].visible };   /* 시험용 (11-14 O2 c): 이 초상에 칠한 몸색 · 보인 얼굴 부품 — 밝기 어림 대신 색 그대로 견준다 */
       octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]);   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = 0; bodyG.rotation.set(0, 0, pose[2]);
       var salClean = !!(SAL.active || SAL.lookAt || SAL.offer >= 0);   /* 미용실이 눈·몸을 쥐고 있을 때만 (병을 내밀었거나 연출 중) 초상을 정지 자세로 씻는다 — 그 밖엔 예전 그대로 찍는다 */
       arms.forEach(function (m) { m.rotation.y = -m.userData.a; m.rotation.z = 0.05; if (salClean) m.scale.x = 1; });   /* 걸음 중이어도 초상은 정지 자세 (다리 기본 0.05 · 미용실 기쁨 폴짝 꼭대기의 다리 ×1.3 도 풀고) */
@@ -2982,11 +2983,9 @@ var SCENE3D = (function () {
       } else oct.blinkLeft = 0;
       syncFace();
       pupils.forEach(function (p, k) { p.position.x += ((EYE[k][0] + px * 0.07) - p.position.x) * Math.min(1, dt * 10); p.position.y += ((EYE[k][1] + face.dy - py * 0.06) - p.position.y) * Math.min(1, dt * 10); });
-      /* 색: 잠(색 순환 ±18°) · 쓰다듬기(따뜻한 홍조) — 표정 기준 */
-      var want = ex === 'pet' ? 1 : 0; oct.flushK += (want - oct.flushK) * Math.min(1, dt * 3);
+      /* 색: 잠(색 순환 ±18°) — 표정 기준. 쓰다듬기의 온몸 홍조는 11-14 에 뺐다 (주인 O2 c · 금지선 1: 좋아한다는 얼굴빛) */
       var hex = st.color;
       if (ex === 'sleep') hex = hueHex(hex, Math.sin(t * Math.PI / 6) * 18);
-      if (oct.flushK > 0.02) hex = mixHex(hex, OC.hi, oct.flushK * 0.35);
       if (SAL.tint) hex = SAL.tint;   /* 미용실 모션 줄이기: 색 2칸 교차의 첫 칸 (섞은 색) — st.color 는 안 바꾼다 (초상은 그대로) */
       if (PLAY && PLAY.tint) hex = PLAY.tint;   /* 놀이: 위장 색 */
       if (hex !== oct.curHex) { oct.curHex = hex; octColor(hex); }
@@ -5459,7 +5458,9 @@ var SCENE3D = (function () {
          끝으로 감기면 (숨은 탭 · 화면 밖 · 컨텍스트 잃음 · 문 · 의식 · 코너 사라짐 · salonFinish) 남은 박자 알림은 오지 않는다: 아직 색이 안 바뀐 '바꾸기'면 'done' { skipped: true } 하나뿐
          ('tub' { on: false } · 'drain' 없음). 소리·상태 정리는 'done' 이나 Promise (늘 풀린다 · { ok, skipped, color }) 에 건다 */
       setSalonOpen: setSalonOpen, salonOffer: salonOffer, salonDye: salonDye, salonKeep: salonKeep, salonClearView: function () { salClearView(false); }, salonFinish: function () { salFinishNow(); },
-      setExpression: setExpression, expression: function () { return face.expr; }, EXPRESSIONS: EXPRESSIONS.slice(),   /* 룩 패스 8: 표정은 상태와 별개 (상태가 기본 표정을 고르고, app.js 가 덮어쓴다) */
+      setExpression: setExpression, expression: function () { return face.expr; }, EXPRESSIONS: EXPRESSIONS.slice(),
+      faceShown: function () { return { expr: face.expr, applied: face.applied, arcs: arcs.visible, smile: smile.visible, blush: blush.visible, eyes: pupils[0].visible, hex: oct.curHex || st.color, color: st.color }; },   /* 시험용 (11-14 주인 O2 c): 지금 장면 얼굴에 보이는 부품 · 몸에 칠한 색 (hex 가 color 와 다르면 몸빛이 바뀐 것 — 잠 · 미용실 · 놀이 위장) */   /* 룩 패스 8: 표정은 상태와 별개 (상태가 기본 표정을 고르고, app.js 가 덮어쓴다) */
+      portraitShown: function () { return PORT.last ? Object.assign({}, PORT.last) : null; },   /* 시험용: 마지막으로 찍은 초상의 몸색 · 얼굴 부품 (11-14 O2 c) */
       portrait: portrait, portraitURL: portraitURL,   /* 64×64 초상 캔버스 / data URL (표정·몸색·팔레트·배경 키 캐시, opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb') */
       moveTo: moveTo, jumpTo: jumpTo, finishWalk: function () { if (oct.walking && oct.walking.finish) oct.walking.finish(); },   /* 건너뛰기: 걷던 길을 지금 도착시키고 moveTo 의 Promise 를 푼다 (2D 와 같은 API) */
       intro: startIntro, introSkip: finishIntro, introRelease: introRelease, introActive: function () { return INTRO.on; }, introProgress: function () { return INTRO.on ? clamp(INTRO.t / INTRO.dur, 0, 1) : 1; },   /* 입장 연출: intro({ dur, height, instant, hold }) → Promise(착지) · introSkip() 바로 착지 · introRelease() 비네트 복귀 */

@@ -82,8 +82,8 @@ function fakeWorld() {
       followedThenLeft: ['{hint} 보러 갔다가 {mem}에 한눈팔았어'],
       followedKept: ['{hint}, 끝까지 봤어. {memory}'],
       noHint: ['오늘은 {mem}. {memory}', '발길 닿는 대로 가다 {mem}에 오래 있었어'],
-      ignored: ['{hint}는 다음에. 오늘은 {mem}가 궁금했어'],
-      linger: ['느린 글의 방에 앉아만 있었어. 아무것도 안 읽어도 됐어']
+      ignored: ['{hint}는 다음에. 오늘은 {mem}가 먼저였어'],   /* 11-14: 조사 시험용 꼴 (예전 '…{mem}가 궁금했어' — 데모 줄은 사실만, 주인 O1 b) */
+      linger: ['느린 글의 방에 앉아만 있었어. 읽은 건 없어']
     },
     roomLevels: [], stickers: {}, scenes: ['hands', 'sea', 'sky', 'home', 'wild'], strings: {}
   };
@@ -285,9 +285,9 @@ async function unitTests() {
   check(l === '모자 보러 갔다가 깃털에 한눈팔았어', 'template substitution (' + l + ')');
   check(!hasBrace(BRAIN.composeLine('noHint', { mem: '깃털' }, 0.1)), 'missing {memory} removed');
   check(!hasBrace(BRAIN.composeLine('nonexistent_kind', {}, 0.5)), 'unknown kind falls back');
-  check(BRAIN.composeLine('ignored', { hint: '모자', mem: '왕관' }, 0.1) === '모자는 다음에. 오늘은 왕관이 궁금했어', 'josa: 왕관이 / 모자는 (' + BRAIN.composeLine('ignored', { hint: '모자', mem: '왕관' }, 0.1) + ')');
-  check(BRAIN.composeLine('ignored', { hint: '구름', mem: '조개' }, 0.1) === '구름은 다음에. 오늘은 조개가 궁금했어', 'josa: 구름은 / 조개가');
-  check(BRAIN.composeLine('failed', { mem: 'Hat' }, 0.9) === 'Hat는 못 읽었어. 다음에 다시 가 볼래', 'josa: non-hangul keeps template particle');
+  check(BRAIN.composeLine('ignored', { hint: '모자', mem: '왕관' }, 0.1) === '모자는 다음에. 오늘은 왕관이 먼저였어', 'josa: 왕관이 / 모자는 (' + BRAIN.composeLine('ignored', { hint: '모자', mem: '왕관' }, 0.1) + ')');
+  check(BRAIN.composeLine('ignored', { hint: '구름', mem: '조개' }, 0.1) === '구름은 다음에. 오늘은 조개가 먼저였어', 'josa: 구름은 / 조개가');
+  check(BRAIN.composeLine('failed', { mem: 'Hat' }, 0.9) === 'Hat는 못 읽었어. 문이 안 열렸어', 'josa: non-hangul keeps template particle');
 
   section('filterLinkTitle / parseWikiResponse');
   check(BRAIN.filterLinkTitle('베레모') && !BRAIN.filterLinkTitle('2010년') && !BRAIN.filterLinkTitle('모자 목록') && !BRAIN.filterLinkTitle('Hat')
@@ -811,7 +811,7 @@ async function waveFSuite(label, W) {
   if (hintNode) {
     var ig = BRAIN.replay([{ type: 'depart', t: 0, hint: W.nodes[hintNode].name, followHint: false }].concat(walk.slice(1)).concat([{ type: 'wrap_up', t: 6, reaction: '덤덤' }]), { by: 'mcp', now: NOW_DAY });
     var igD = BRAIN.replay([{ type: 'depart', t: 0, hint: W.nodes[hintNode].name, followHint: false }].concat(walk.slice(1)).concat([{ type: 'wrap_up', t: 6, reaction: '덤덤' }]), { by: 'demo', now: NOW_DAY });
-    check(ig.hint.followed === 'ignored' && ig.hint.note === null && igD.hint.note, 'ignored hint: no "다른 데가 궁금했어" note on a model trip (demo-rules keeps its note)');
+    check(ig.hint.followed === 'ignored' && ig.hint.note === null && igD.hint.note, 'ignored hint: no "다른 데로 갔어" note on a model trip (demo-rules keeps its note)');
   }
   var hd = BRAIN.replay([{ type: 'stay_home', t: 0, activity: 'nap' }, { type: 'wrap_up', t: 1, reaction: '졸림' }], { by: 'mcp' });
   var napAct = (W.homeActivities || []).filter(function (a) { return a.id === 'nap'; })[0];
@@ -1738,7 +1738,7 @@ async function tapSuite(label, W) {
   var legs = 0;
   for (sd = 1; sd <= 80; sd++) {
     [mk({ seed: sd, reaction: '졸림', receipt: { rememberedIdx: 0, returnReason: 'tired', stops: [stop(a0), stop(a1), stop(a2), stop(W.nodes[ids[3]])] } }),
-     mk({ seed: sd, reactionLine: '처음 가 본 데가 있었어. 다리가 아직 들썩거려', reaction: '폴짝', receipt: { rememberedIdx: 0, returnReason: 'tired', stops: [stop(a0), stop(a1), stop(a2), stop(W.nodes[ids[3]])] } })]
+     mk({ seed: sd, reactionLine: '처음 가 본 데가 있었어. 다리를 쭉 뻗었어', reaction: '폴짝',   /* 11-14: 다리 말 하는 반응 줄 (모델이 쓸 수도 있다 — 데모 줄은 이제 다리를 말하지 않는다) */ receipt: { rememberedIdx: 0, returnReason: 'tired', stops: [stop(a0), stop(a1), stop(a2), stop(W.nodes[ids[3]])] } })]
       .forEach(function (x) { var rr = BRAIN.tapLine(x); if (rr && /다리가/.test(rr.text)) legs++; });
   }
   check(legs === 0, "no '다리가 무거워졌어' after a 졸림 reaction or a reaction line about legs (" + legs + ')');
@@ -1768,12 +1768,12 @@ async function tapSuite(label, W) {
   /* 반응 줄이 '처음' · '모르는 데' 를 말했으면 '다시 가 봤어' 는 없다 */
   var revBad = 0, revSeen = 0;
   for (sd = 1; sd <= 80; sd++) {
-    ['오늘 길은 처음이었어. 또 가도 처음일 것 같아', '모르는 데로 한 발 디뎠어. 그게 재밌었어', '그냥 그런 산책이었어. 그래도 다녀왔어'].forEach(function (line, li) {
+    ['오늘 길은 처음 가 본 길이었어', '모르는 데로 한 발 디뎠어', '별일 없는 산책이었어. 그래도 다녀왔어'].forEach(function (line, li) {   /* 11-14: 지금 world.js 반응 줄 (예전 '…또 가도 처음일 것 같아' · '…그게 재밌었어' · '그냥 그런 산책…') */
       var rv = BRAIN.tapLine(mk({ seed: sd, reaction: li < 2 ? '폴짝' : '덤덤', reactionLine: line, receipt: { rememberedIdx: 0, returnReason: null, stops: [stop(a0), stop(a1, { first: false }), stop(a2, { first: false })] } }));
       if (rv && rv.src === 'demo:revisit') { if (li < 2) revBad++; else revSeen++; }
     });
   }
-  check(revBad === 0 && revSeen > 0, "no '다시 가 봤어' after a reaction line about a first / unknown place (" + revBad + ' bad · ' + revSeen + " revisit lines after '그냥 그런 산책')");
+  check(revBad === 0 && revSeen > 0, "no '다시 가 봤어' after a reaction line about a first / unknown place (" + revBad + ' bad · ' + revSeen + " revisit lines after '별일 없는 산책')");
   /* fresh(): 포스터 한 줄 · 반응 줄과 같은 말은 고르지 않는다 — 고를 줄을 일부러 포스터 · 반응 줄에 넣어도 다른 줄 */
   var freshTried = 0, freshSame = 0;
   for (var fs2 = 1; fs2 <= 200; fs2++) {
@@ -1801,6 +1801,104 @@ async function tapSuite(label, W) {
 }
 
 /* ───────── main ───────── */
+/* ───────── 11-14 (주인 O1 b · 금지선 1): 데모 두뇌의 줄은 사실만 ─────────
+   데모 두뇌가 지을 수 있는 글 전부 — js/world.js 의 모든 글 · js/brain.js · js/app.js · js/salon.js · js/play.js 의 글 상수(주석 밖) · 실제 계획 600개가 낸 줄(포스터 · 행 · 메모 · 힌트 메모 · 반응 줄 · 정류장 메모 · 톡 한 줄,
+   치환자를 채운 뒤) — 에 마음 말(좋아함 · 재미 · 바람 · 궁금함 · 끌림 · 만족 …)이 없다. 사실이라 괜찮은 말은 아래 HONEST_OK 에 하나씩 (글 그대로 + 까닭) */
+var CLAIM_RX = /좋아|좋았|좋은|제일 좋|그냥 그런|재밌|재미|싶|궁금|끌렸|끌려|꽂혔|(그걸로|그거면|이만하면|이걸로) 됐|됐다 싶|어도 됐|충분|설레|신나|신났|기뻐|기쁘|기뻤|행복|편안|편해|포근|반가|반갑|심심|외로|그리워|그립|신기|놀랐|맛있|즐거|즐겁|맘대로|마음대로|잘한 것|들썩|일 것 같|설렜|아쉬|아쉽|뿌듯|두근|편했|마음에 들|맘에 들|반했|반하|사랑|그리웠|무서|무섭|싫|슬프|슬펐|슬퍼|부끄|지루|귀찮|고마|고맙|기대돼|기대된|흥미|미안|속상|서운|섭섭|실망|짜증|화났|화가 나|감동|좋겠|원해|바랐|바래|즐겼|신이 나|든든|후련|개운|상쾌|기분|(어|아|여)야 해|(어|아|여)야지|(있을|볼|둘|할|정할|들어갈|(?<!(한|두|세|네|다섯|여섯|일곱|여덟|아홉|열) )갈)래(?=$|[ .,?!'])/;   /* '갈래' 는 '여섯 갈래' (가지) 와 갈린다 · '됐어' 는 만족 말 꼴만 ('완성됐어' 는 사실) */
+/* 11-14 고침 둘째: 지난 꼴(설렜 · 아쉬웠 · 편했 · 그리웠 …)과 흔한 마음 말(마음에 들 · 뿌듯 · 두근 · 사랑 · 싫 · 무서 · 고마 …), 생각 말('~야 해' — 옛 '벽도 가끔은 바뀌어야 해')도 잡는다 */
+var HONEST_OK = {
+  '보울라인은 당겨도 안 조여서 뱃사람들이 좋아했대': '뱃사람 이야기 (문어 마음 아님)',
+  '산책 갈래?': '사람이 문어를 부르는 말 (큰 단추)',
+  '큰 날개깃이어야 해': '깃펜 만드는 법 (깃털 이야기 — 문어 생각 아님)',
+  '좋은 아침': 'js/app.js 집 목소리 인사 (사람에게)', '좋은 오후': 'js/app.js 집 목소리 인사 (사람에게)',
+  '양갈래': 'js/app.js 내 모습 머리 모양 이름', '고를 갈래': 'js/app.js 옷장 탭 묶음 이름 (갈래 = 가지)'
+};
+var DECISION_OK = {   /* 글 전체가 이것과 같을 때만 (조각 허락 아님) — 결정을 말하는 줄. 이유 · 느낌 없음 */
+  'js/salon.js': ['응, 해 볼래.', '그래, 바꿔 볼래.', '이 색 해 볼래.', '이대로 있을래.', '지금 색 그대로 있을래.'],
+  'js/play.js': ['지금은 구경할래', '지금은 안 할래', '이따 할래']
+};
+function brainSourceStrings(file) {   /* 주석 밖 따옴표 글 (한글이 든 것) — 정규식 · 주석 속 옛 줄 인용은 빼고 */
+  var src = fs.readFileSync(file, 'utf8'), out = [], i = 0, n = src.length, prev = '';
+  while (i < n) {
+    var c = src[i], d = src[i + 1];
+    if (c === '/' && d === '*') { var e = src.indexOf('*/', i + 2); i = e < 0 ? n : e + 2; continue; }
+    if (c === '/' && d === '/') { var e2 = src.indexOf('\n', i); i = e2 < 0 ? n : e2; continue; }
+    if (c === '/' && !/[\w)\]$]/.test(prev)) {   /* 정규식 글자 — 건너뛴다 */
+      var j = i + 1, cls = false;
+      while (j < n && src[j] !== '\n') { if (src[j] === '\\') { j += 2; continue; } if (src[j] === '[') cls = true; else if (src[j] === ']') cls = false; else if (src[j] === '/' && !cls) break; j++; }
+      i = j + 1; prev = 'x'; continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      var q = c, k = i + 1, buf = '';
+      while (k < n && src[k] !== q) { if (src[k] === '\\') { buf += src[k + 1] === 'n' ? '\n' : src[k + 1]; k += 2; continue; } buf += src[k]; k++; }
+      if (/[가-힣]/.test(buf)) out.push(buf);
+      i = k + 1; prev = 'x'; continue;
+    }
+    if (!/\s/.test(c)) prev = c;
+    i++;
+  }
+  return out;
+}
+function worldStrings(W) {
+  var out = [];
+  (function walk(o, key) {
+    if (typeof o === 'string') { if (/[가-힣]/.test(o) && key !== 'wiki' && key !== 'emoji') out.push(o); return; }
+    if (o && typeof o === 'object') Object.keys(o).forEach(function (k) { if (k !== 'keywords') walk(o[k], k); });   /* keywords: 힌트 맞추기 낱말 (brain.js matchHint 만 읽는다 · 화면에 안 나온다 — '궁금함' · '두근') */
+  })(W, '');
+  return out;
+}
+async function honestDemoSuite(W) {
+  section('demo lines say facts (11-14, owner O1 b)');
+  var seen = {}, bad = {};
+  function look(t, where) {
+    if (typeof t !== 'string' || !t) return;
+    seen[t] = 1;
+    var rest = t; Object.keys(HONEST_OK).forEach(function (ok) { rest = rest.split(ok).join(' '); });   /* 채운 줄 속의 허락된 사실 조각은 빼고 본다 */
+    if (CLAIM_RX.test(rest)) bad[where + ': ' + t] = 1;
+  }
+  worldStrings(W).forEach(function (t) { look(t, 'world.js'); });
+  ['ignoredHintLine', 'homeStay', 'affinityNone'].forEach(function (k) { check(typeof W.strings[k] === 'string' && W.strings[k], 'world.strings.' + k + ' is still there'); });
+  var bs = brainSourceStrings(path.join(ROOT, 'js/brain.js'));
+  check(bs.length > 100 && bs.indexOf('{hint} 보는 건 다음에. 오늘은 {mem} 쪽으로 갔어') >= 0, 'brain.js string constants were read (' + bs.length + ')');
+  bs.forEach(function (t) { look(t, 'brain.js'); });
+  /* js/app.js 가 데모 차례에 대신 쓰는 줄 (집 · 문어의 요즘 빈 줄 — 11-14 전엔 '오늘은 집에 있을래' · '아직 어디가 좋은지 몰라') 과 그 밖의 글 상수 */
+  var as = brainSourceStrings(path.join(ROOT, 'js/app.js'));
+  check(as.length > 300, 'app.js string constants were read (' + as.length + ')');
+  as.forEach(function (t) { look(t, 'app.js'); });
+  /* 11-14 고침 둘째: js/salon.js · js/play.js 도 규칙이 짓는 문어 목소리 줄이 있다 — 같은 말로 본다. 그 '-ㄹ래' 결정 줄(규칙이 정한 대답 그 자체)만 글 그대로 허락 (DECISION_OK, 주인 몫 C4 가 정할 때까지) */
+  ['js/salon.js', 'js/play.js'].forEach(function (f) {
+    var fs2 = brainSourceStrings(path.join(ROOT, f)), used = {};
+    check(fs2.length > 10, f + ' string constants were read (' + fs2.length + ')');
+    fs2.forEach(function (t) { if (DECISION_OK[f] && DECISION_OK[f].indexOf(t) >= 0) { used[t] = 1; seen[t] = 1; return; } look(t, f); });
+    (DECISION_OK[f] || []).forEach(function (t) { check(used[t], f + ' decision line on the allow-list is still in the file: ' + t); });
+  });
+  /* 같은 줄의 짝: world.js 가 데이터, brain.js 는 없을 때의 사본 — 글이 같다 */
+  check(bs.indexOf(W.strings.ignoredHintLine) >= 0, 'brain.js IGNORED_NOTE = world.strings.ignoredHintLine (' + W.strings.ignoredHintLine + ')');
+  W.lineTemplates.ignored.forEach(function (t) { check(bs.indexOf(t) >= 0, 'brain.js DEFAULT_TEMPLATES.ignored has the world line: ' + t); });
+  check(bs.indexOf(W.lineTemplates.linger[0]) >= 0 && bs.indexOf(W.memoTemplates.nextNone[0]) >= 0 && bs.indexOf(W.memoTemplates.lead.followedThenLeft[0]) >= 0, 'brain.js linger · nextNone · memo lead copies = world.js');
+  W.tapTemplates.enough.forEach(function (t) { check(BRAIN.DEFAULT_TAP.enough.indexOf(t) >= 0, 'brain.js DEFAULT_TAP.enough has the world line: ' + t); });
+  /* 실제 계획: 치환자를 채운 줄 */
+  var kinds = {}, n = 0;
+  var hints = ['', '', '모자의 역사', '우산', '차 한 잔', 'https://example.org/x', '고래의 노래', '아무거나 이상한 말'];
+  for (var seed = 1; seed <= 600; seed++) {
+    var visits = {}; if (seed % 3 === 0) Object.keys(W.nodes).forEach(function (k, i) { if (i % 2) visits[k] = 1 + (seed % 3); });
+    var t = await BRAIN.plan(baseInput(seed * 6151, { online: seed % 5 !== 0, hint: hints[seed % hints.length], now: seed % 7 === 0 ? NOW_NIGHT : NOW_DAY,
+      state: { visits: visits, affinity: seed % 4 ? {} : { sea: 2 }, lantern: seed % 9, recent: [], todayOut: seed % 6 === 0 ? 2 : 0, posters: seed % 4, owned: [] } }));
+    kinds[t.kind] = (kinds[t.kind] || 0) + 1; n++;
+    allLines(t).forEach(function (x) { look(x, 'plan ' + seed); });
+    if (t.hint) look(t.hint.note, 'plan ' + seed + ' hint');
+    if (t.memo) { look(t.memo.tomorrow, 'plan ' + seed + ' memo'); Object.keys(t.memo.notes || {}).forEach(function (k) { look(t.memo.notes[k], 'plan ' + seed + ' memo note'); }); }
+    if (t.revisit) look(typeof t.revisit === 'string' ? t.revisit : t.revisit.line, 'plan ' + seed + ' revisit');
+    if (t.receipt && t.receipt.activity) { look(t.receipt.activity.line, 'plan ' + seed + ' activity'); look(t.receipt.activity.detail, 'plan ' + seed + ' activity'); }
+    t.status = 'done';
+    var tl = BRAIN.tapLine(t); if (tl) look(tl.text, 'plan ' + seed + ' tap');
+  }
+  var badList = Object.keys(bad);
+  check(n === 600 && kinds.out > 100 && kinds.home > 10, 'plans ran (' + JSON.stringify(kinds) + ', ' + Object.keys(seen).length + ' distinct lines)');
+  check(badList.length === 0, 'no demo line claims a feeling, a liking, a want, curiosity or contentment (' + badList.length + (badList.length ? ': ' + badList.slice(0, 8).join(' | ') : '') + ')');
+  Object.keys(HONEST_OK).forEach(function (k) { check(CLAIM_RX.test(k), 'allow-list entry still needs to be there (it matches the claim words): ' + k); });
+}
+
 (async function main() {
   try {
     var W = fakeWorld();
@@ -1822,6 +1920,7 @@ async function tapSuite(label, W) {
           var hasHat = !!(RW.nodes.hat && BRAIN.matchHint('모자의 역사').nodeId === 'hat');
           await planSuite('real js/world.js (' + Object.keys(RW.nodes).length + ' nodes)', RW, hasHat);
           await tapSuite('real js/world.js', RW);
+          await honestDemoSuite(RW);
         } else console.log('\n(js/world.js loaded but WORLD.nodes empty — skipped)');
       } catch (e) { console.log('\n(js/world.js could not be loaded: ' + e.message + ' — skipped)'); failures++; }
     } else console.log('\n(js/world.js not present yet — only fake WORLD run)');

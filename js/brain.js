@@ -37,18 +37,18 @@
   var NOTE_BOOST = 3;        /* 활성 호기심 메모가 가리키는 방: 길 고르기 가중치 × 3 (곱하기만, 새 난수 없음) */
   var NOTES_IN = 3;          /* 두뇌가 읽는 활성 메모 수 (최근 것부터, CURIOSITY_NOTES) */
   var SIMULATED_NOTE = '정적 페이지라 바깥은 못 읽어. 문 앞까지만 갔다 왔어';
-  var IGNORED_NOTE = '오늘은 그쪽 말고 다른 데가 궁금했어';
+  var IGNORED_NOTE = '오늘은 그쪽 말고 다른 데로 갔어';   /* 11-14 (주인 O1 b · 금지선 1): 데모 줄은 마음 말 없이 사실만 — 예전 '…다른 데가 궁금했어'. world.js strings.ignoredHintLine 과 같은 글 */
 
   var DEFAULT_TEMPLATES = {
     followedThenLeft: ['{hint} 보러 갔다가 {mem}에 한눈팔았어', '{hint}에서 시작했는데 발이 {mem} 쪽으로 갔어'],
     followedKept: ['{hint}, 끝까지 봤어. {memory}', '{hint} 앞에 오래 있었어. {memory}'],
     leftKept: ['{hint} 보러 갔다가 딴 데도 들렀는데, 결국 머리에 남은 건 {hint}', '{hint}에서 시작해 한눈도 팔았지만, 기억에 남은 건 {hint}. {memory}'],
     noHint: ['오늘은 {mem}. {memory}', '발길 닿는 대로 가다 {mem}에 오래 있었어'],
-    ignored: ['{hint} 보는 건 다음에. 오늘은 {mem} 쪽이 궁금했어', '{hint} 말고 {mem} 쪽이 끌렸어. {memory}'],
-    linger: ['느린 글의 방에 앉아만 있었어. 아무것도 안 읽어도 됐어'],
+    ignored: ['{hint} 보는 건 다음에. 오늘은 {mem} 쪽으로 갔어', '{hint} 말고 {mem}. {memory}'],   /* 11-14: world.js lineTemplates.ignored 와 같은 두 줄 (예전 '궁금했어' · '끌렸어') */
+    linger: ['느린 글의 방에 앉아만 있었어. 읽은 건 없어'],
     door: ['{hint} 문 앞까지 갔다 왔어. 바깥은 못 읽었지만'],
     letter: ['편지의 방 문을 열어 봤어. 아직 비어 있었어'],
-    failed: ['{mem} 문은 오늘 안 열렸어. 이름만 기억해 둘래', '{mem}는 못 읽었어. 다음에 다시 가 볼래'],
+    failed: ['{mem} 문은 오늘 안 열렸어. 이름만 보고 왔어', '{mem}는 못 읽었어. 문이 안 열렸어'],   /* 11-14: 바람 말('…둘래' · '다시 가 볼래') 없이 일어난 일만 */
     wild: ['서가에서 만난 건 {mem}. {memory}', '링크를 따라가다 {mem}에 닿았어']
   };
 
@@ -65,7 +65,7 @@
   var MEMO_MAX = 60;
   var DEFAULT_MEMO = {
     lead: {
-      followedThenLeft: ['{hint} 보다가 {mem}에 꽂혔어', '{hint}에서 시작했는데 {mem}에 오래 있었어'],
+      followedThenLeft: ['{hint} 보다가 {mem} 쪽으로 갔어', '{hint}에서 시작했는데 {mem}에 오래 있었어'],
       followedKept: ['{hint} 앞에 오래 있었어', '오늘은 {hint} 하나만 봤어'],
       leftKept: ['한눈은 팔았는데 머리에 남은 건 {hint}'],
       noHint: ['{mem}에 오래 있었어', '발길 닿는 대로 가다 {mem}까지 갔어'],
@@ -82,7 +82,7 @@
       '덤덤': ['내일은 {next} 쪽으로 가 볼까 말까'],
       '졸림': ['내일은 {next} 쪽으로 천천히 가 볼까']
     },
-    nextNone: ['내일은 어디로 갈지 자고 나서 정할래'],
+    nextNone: ['내일 갈 곳은 아직 안 정했어'],
     home: ['내일은 나가 볼까 말까', '내일은 밖에 나가 볼까'],
     revisit: '{hint}? 그거 {n}일 전에 봤잖아. 이번엔 안쪽까지 가 볼게',
     revisitToday: '{hint}? 그거 아까 봤잖아. 이번엔 안쪽까지 가 볼게',
@@ -674,7 +674,7 @@
     if (stop.kind === 'url') return;
     if (stop.kind === 'room' && isNoneNode(stop.node)) {
       stop.status = 'none';
-      stop.note = stop.node.noneNote || (stop.node.linger ? '아무것도 안 읽어도 됐어' : '아직 비어 있었어');
+      stop.note = stop.node.noneNote || (stop.node.linger ? '읽은 건 없어' : '아직 비어 있었어');   /* 11-14: 예전 '아무것도 안 읽어도 됐어' (만족 말) */
       return;
     }
     if (res && res.ok) {
@@ -838,7 +838,7 @@
     firstOther: ['{b}은 처음이었어', '{b}은 처음 가 봤어'],
     longest: ['{b}에 제일 오래 있었어'],
     tired: ['{l}쯤에서 다리가 무거워졌어'],
-    enough: ['{l}에서 이만 돌아왔어', '{l}까지 가니 이만하면 됐다 싶었어'],
+    enough: ['{l}에서 이만 돌아왔어', '{l}까지 갔다가 돌아왔어'],
     failed: ['{x} 문은 안 열렸어', '{x}은 이름만 보고 왔어'],
     simulated: ['{x}은 문 앞까지만 가 봤어'],
     doorOut: ['바깥 주소는 문 앞까지만 가 봤어'],
@@ -1098,7 +1098,7 @@
      ctx.voice: 'model' | 'human' — 고른 이가 모델·사람인 재생. 그때는 (MODEL_VOICE)
        - 반응은 준 그대로 (ctx.reaction = 아는 넷 중 하나 | null, ctx.reactionRaw = 그 밖의 글). 안 줬으면 null. 거르지도 계산하지도 않는다
        - 반응 줄·포스터 한 줄은 그들이 쓴 줄만 (ctx.reactionLine, ctx.line). 없으면 null — 템플릿으로 채우지 않는다
-       - 힌트를 안 따랐을 때 '오늘은 그쪽 말고 다른 데가 궁금했어' 같은 마음 말을 붙이지 않는다
+       - 힌트를 안 따랐을 때 데모 규칙의 말 ('오늘은 그쪽 말고 다른 데로 갔어', 11-14 전엔 '…궁금했어') 을 붙이지 않는다
        - 기억할 곳을 안 줬거나 범위 밖이면 마지막 정류장 (PROTOCOL §2), rememberedBy 'fallback'. 그 곳은 취향 가중치(+2)에 넣지 않는다
      난수는 voice 여부와 무관하게 똑같이 뽑아 둔 rr 만 쓴다 (안 쓰는 것도 있다) */
   function assemble(ctx) {
@@ -1225,7 +1225,7 @@
     var hintNote = null;   /* 데모 규칙의 말. 모델·사람의 재생에는 붙이지 않는다 (마음을 대신 말하지 않게) */
     if (voice) hintNote = null;
     else if (followed === 'ignored') hintNote = IGNORED_NOTE;
-    else if (match.kind === 'wiki' && !ctx.intent) hintNote = '지금은 바깥 글을 못 읽어서 힌트는 다음에 찾아볼래';
+    else if (match.kind === 'wiki' && !ctx.intent) hintNote = '지금은 바깥 글을 못 읽어서 힌트 쪽엔 못 갔어';   /* 11-14: 예전 '…다음에 찾아볼래' (바람 말) */
 
     return {
       hint: { raw: ctx.hintRaw, match: match, followed: followed, note: hintNote, label: hintLabel || null },
