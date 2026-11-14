@@ -5638,7 +5638,10 @@ async function scenarioLoft(browser) {
     }
     return { done: false, t: secs };
   }
-  async function tap(pg, id) { var r = await pg.evaluate(function (id) { var e = document.getElementById(id); if (!e || e.hidden) return null; var q = e.getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; }, id); if (r) await pg.touchscreen.tap(r.x, r.y); return !!r; }
+  async function tap(pg, id) { var r = await pg.evaluate(function (id) { var e = document.getElementById(id); if (!e || e.hidden) return null; var q = e.getBoundingClientRect(), c = { x: q.left + q.width / 2, y: q.top + q.height / 2 };
+    if (id !== 'btn-stair') return c;   /* 11-15: 계단 단추 칸은 바로 왼쪽 뒷벽 문간 (마당 문) 위까지 덮는다 — 보이는 계단을 톡 한다 (칸 안에서 장면이 '계단' 이라고 하는 점, 가운데에서 가까운 것) */
+    var best = null, bd = 1e9; for (var y = q.top + 2; y < q.bottom; y += 4) for (var x = q.left + 2; x < q.right; x += 4) { var k = APP.scene.pickAt(x, y), d = Math.hypot(x - c.x, y - c.y); if (k && k.id === 'atticStair' && d < bd) { bd = d; best = { x: x, y: y }; } }
+    return best || c; }, id); if (r) await pg.touchscreen.tap(r.x, r.y); return !!r; }
   async function stair(pg, up) { await tap(pg, up ? 'btn-stair' : 'btn-loft-stair'); var r = await tick(pg, 16, up ? function () { var m = APP.scene.motion(); return APP.room === 'loft' && m.dq === '' && !m.trans; } : function () { var m = APP.scene.motion(); return !APP.room && m.dq === '' && !m.trans; }); await tick(pg, 0.5); return r.done; }
   async function tapMirror(pg) { var sp = await pg.evaluate(function () { var b = document.getElementById('btn-salon'); if (b.hidden) return null; var r = APP.scene.spotRect('salon'); return r && r.client ? { x: r.client.x + r.client.w / 2, y: r.client.y + r.client.h / 2 } : null; }); if (sp) { await pg.touchscreen.tap(sp.x, sp.y); await tick(pg, 0.6); } return !!sp; }
   function S(pg) { return pg.evaluate(function () { var m = APP.scene.motion(), t = document.getElementById('toast'), bb = document.getElementById('oct-bubble'), b = document.getElementById('btn-salon');
