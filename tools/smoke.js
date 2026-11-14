@@ -272,7 +272,7 @@ async function scenarioMain(browser) {
   });
   console.log('   dialog:', JSON.stringify(dlg));
   ok(dlg.cv && dlg.rows >= 3 && dlg.drawn > 64 * 64 * 0.5 && dlg.colors >= 3 && dlg.hidden === 'true' && dlg.css === '96px', '여행 뒤 대화창 행 + 초상 캔버스 (그려짐, aria-hidden, 96px)');
-  ok(dlg.exprs && dlg.exprs.indexOf('calm') >= 0 && dlg.exprs.indexOf('curious') >= 0, '귀가 calm · 기억 curious 표정 행');
+  ok(dlg.exprs && dlg.exprs.length >= 3 && dlg.exprs.every(function (e) { return e === 'idle'; }), '데모 차례의 대화창 행 (인사 · 귀가 · 기억 · 마무리) 은 모두 평소 얼굴 idle — 11-15 주인 C6 b (예전 귀가 calm · 기억 curious · 인사 happy): ' + JSON.stringify(dlg.exprs));
   ok(await hasItem(page, 'moss'), '등불 1 → 이끼 화분');
   var sc3 = await page.evaluate(function () { return { mode: APP.sceneMode, stats: APP.scene.stats(), webgl: !!(document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl')) }; });
   console.log('   scene:', JSON.stringify(sc3));
@@ -854,7 +854,7 @@ async function scenarioDay2(browser) {
   console.log('   day2 greeting:', JSON.stringify(g));
   ok(g.length === 2 && g[0].label === '오늘', '2일째: 시각 인사 행 (집 목소리 \'오늘\')');
   ok(g[1] && g[1].label === '어제 메모' && g[1].text === d1.memo.tomorrow, '2일째 첫 인사 = 어제 memo.tomorrow 그대로');
-  ok(g[1] && g[1].dialog && g[1].expr === 'calm', "메모 인사는 문어 대화창 행 (초상 'calm')");
+  ok(g[1] && g[1].dialog && g[1].expr === 'idle', "메모 인사는 문어 대화창 행 (초상 평소 얼굴 'idle' — 11-15 주인 C6 b, 예전 calm)");
   await page.evaluate(function () { var r = document.querySelector('#log .lrow.memo'); if (r) r.scrollIntoView({ block: 'center' }); });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(SHOTS, 'phone-day2-greeting.png') });
@@ -1160,7 +1160,7 @@ async function scenarioWake(browser) {
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   function greet() { return page.evaluate(function () { var r = document.querySelector('#log .lday:last-child .lrow'); return { label: r && r.querySelector('.ltool').textContent, text: r && r.querySelector('.ltext').textContent, expr: r && r.dataset.expr, oct: document.getElementById('oct').className, st: APP.state.octopus.state }; }); }
   var g0 = await greet();
-  ok(g0.label === '인사' && g0.expr === 'happy' && /^안녕, 나는 /.test(g0.text), '처음 인사는 문어의 자기소개 · 웃는 얼굴 (' + g0.expr + ' · ' + g0.text + ')');
+  ok(g0.label === '인사' && g0.expr === 'idle' && /^안녕, 나는 /.test(g0.text), '처음 인사는 문어의 자기소개 · 평소 얼굴 (11-15 주인 C6 b, 예전 웃는 얼굴) (' + g0.expr + ' · ' + g0.text + ')');
   async function walk() {
     await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1 — 두 번 톡의 둘째) → 받는 때까지 기다렸다가 누른다 */
     await page.click('#btn-go');
@@ -1188,7 +1188,7 @@ async function scenarioWake(browser) {
   var lw = await page.evaluate(function () { return { ex: APP.scene.expression(), b: window.__bubs.slice(), n: document.querySelectorAll('#log .lrow').length, log: document.getElementById('log').textContent, saved: JSON.parse(localStorage.getItem('ppolppol_v2')).octopus.state }; });
   ok(woke && lw.saved === 'idle', '같은 페이지: 낮잠이 끝나면 스스로 깸 (저장도 idle)');
   ok(lw.b.indexOf('…응?') >= 0 && lw.n === n0 && lw.log.indexOf('…응?') < 0, "깰 때 혼잣말 '…응?' 은 말풍선만 (로그 행 그대로 " + lw.n + ')');
-  ok(lw.ex === 'curious', "깰 때 얼굴은 눈을 뜬 curious (반쯤 감은 calm·sleepy 아님): " + lw.ex);
+  ok(lw.ex === 'idle', "깰 때 얼굴은 눈을 뜬 평소 얼굴 idle (11-15 주인 C6 b, 예전 curious · 반쯤 감은 calm·sleepy 아님): " + lw.ex);
   await walk();
   await page.addInitScript({ content: "window.__ppolTest = { forceKind: 'out', today: '" + dayAfter(1) + "' };" });
   await page.waitForTimeout(1000);
@@ -1302,6 +1302,41 @@ async function scenarioPlayer(browser) {
   await closePoster(page);
   await page.screenshot({ path: path.join(SHOTS, 'player-invite.png') });
   await page.waitForTimeout(1000);
+  /* P-2 (11-15 · 주인 정직 기본값): 11-10 전 산책 (힌트를 적던 때) 의 '힌트: …' 줄 · 따름 표기 · 힌트 한마디는 화면 어디에도 없다 — 저장은 그대로.
+     그 날 데모 규칙이 고른 '우쭐' 과 힌트 얘기 줄 ('네가 흘린 힌트, …') 도 안 보인다 (Q4 b). 앨범 쪽지 빈 칸은 집 목소리 사실 한 줄 */
+  var OLDH = '모자의 역사', OLDL = '네가 흘린 힌트, 끝까지 따라갔어';
+  var oldId = await page.evaluate(function (a) {
+    var S = JSON.parse(localStorage.getItem('ppolppol_v2')), t = JSON.parse(JSON.stringify(S.trips[0]));
+    t.id = t.id + 'x'; t.date = '2026-11-08'; t.startedAt -= 6 * 864e5; t.endedAt -= 6 * 864e5;
+    t.hint = { raw: a.h, match: { kind: 'node', id: 'hat' }, followed: 'followed', note: '지금은 바깥 글을 못 읽어서 힌트 쪽엔 못 갔어' };
+    if (!t.events.some(function (e) { return e.type === 'depart'; })) t.events.unshift({ type: 'depart', t: 0, hint: a.h });
+    t.events.forEach(function (e) { if (e.type === 'depart') e.hint = a.h; if (e.type === 'wrap_up') e.reaction = '우쭐'; });
+    if (!t.events.some(function (e) { return e.type === 'wrap_up'; })) t.events.push({ type: 'wrap_up', t: 9000, reaction: '우쭐' });
+    t.reaction = '우쭐'; t.reactionBy = 'demo-rules'; t.reactionLine = a.l; if (t.receipt) { t.receipt.reaction = '우쭐'; t.receipt.reactionLine = a.l; }
+    S.trips.unshift(t); localStorage.setItem('ppolppol_v2', JSON.stringify(S));
+    return t.id;
+  }, { h: OLDH, l: OLDL });
+  await page.goto(O + '/index.html?dev=0');
+  await page.waitForSelector('#btn-go:not(.away)');
+  await openAlbum(page);
+  await page.click('.fchip[data-f="diary"]');
+  await page.evaluate(function () { document.querySelectorAll('#album-diary details').forEach(function (d) { d.open = true; }); });
+  await page.waitForTimeout(200);
+  var oh = await page.evaluate(function (id) {
+    var t = APP.state.trips.filter(function (x) { return x.id === id; })[0], b = document.createElement('div'), c = document.createElement('div');
+    b.innerHTML = APP.receiptHTML(t); c.innerHTML = APP.inspectHTML(t);
+    var saved = JSON.parse(localStorage.getItem('ppolppol_v2')).trips.filter(function (x) { return x.id === id; })[0];
+    return { log: document.getElementById('log').textContent, diary: document.getElementById('album-diary').textContent, back: b.textContent, ins: c.textContent,
+      saved: { raw: saved.hint.raw, f: saved.hint.followed, note: saved.hint.note, r: saved.reaction, line: saved.reactionLine, dep: saved.events.filter(function (e) { return e.type === 'depart'; })[0].hint } };
+  }, oldId);
+  var allH = oh.log + oh.diary + oh.back + oh.ins;
+  ok(oh.diary.length > 10 && !/힌트/.test(allH) && allH.indexOf(OLDH) < 0 && !/따라감|무시함|도중에 벗어남/.test(oh.back) && allH.indexOf('우쭐') < 0,
+    "11-10 전 힌트 산책: 로그 · 앨범 일기 · 일기 뒷면 · 열람 기록 어디에도 '힌트' · 힌트 글 · 따름 표기 · 데모 '우쭐' 없음");
+  ok(oh.saved.raw === OLDH && oh.saved.f === 'followed' && !!oh.saved.note && oh.saved.r === '우쭐' && oh.saved.line === OLDL && oh.saved.dep === OLDH, '저장된 힌트 · 반응 · 줄은 그대로 (' + JSON.stringify(oh.saved) + ')');
+  await page.click('.fchip[data-f="note"]');
+  var emp = await page.evaluate(function () { var n = APP.state.trips.filter(function (t) { return t.poster && t.poster.type === 'note'; }).length; if (n) { APP.state.trips.forEach(function (t) { if (t.poster && t.poster.type === 'note') t.poster.type = 'x-note'; }); APP.renderAlbum(); } var e = document.querySelector('#album .lempty'); var tx = e ? e.textContent : null; if (n) APP.state.trips.forEach(function (t) { if (t.poster && t.poster.type === 'x-note') t.poster.type = 'note'; }); return tx; });
+  ok(emp === '아직 쪽지는 없어. 집에 있던 날마다 한 장씩 생겨.', "쪽지 빈 칸: 집 목소리 사실 (예전 '…하나 써 둘게' 는 코드가 문어 대신 한 약속) — " + emp);
+  await closeAlbum(page).catch(function () {});
   await page.goto(O + '/index.html');   /* ?dev 없이 다시: 배포 주소는 기본 플레이어 화면 */
   await page.waitForSelector('#btn-go:not(.away)');
   ok(!(await inviteBox()).input, '배포 주소 다시 열기: 힌트 칸 여전히 숨김');
@@ -1616,7 +1651,7 @@ async function scenarioReactions(browser) {
   var v3 = await view(), clip40 = Array.from(RAW).slice(0, 40).join('') + '…';
   console.log('   mcp raw:', JSON.stringify({ trip: v3.trip, row: v3.lastRow, kv: v3.kv }));
   ok(v3.trip.reaction === null && v3.trip.raw === RAW && v3.trip.line === LINE, '네 가지 밖의 반응은 reactionRaw 에 원문 그대로 · 모델이 쓴 줄은 reactionLine 그대로');
-  ok(v3.lastRow === clip40 + ' · ' + LINE && v3.lastExpr === 'calm' && v3.kv === clip40 && v3.kvTitle === RAW && v3.dims.indexOf(LINE) >= 0 && v3.say === LINE, "로그·일기: 40자 + '…' (원문은 title) · 모델이 쓴 줄 그대로");
+  ok(v3.lastRow === clip40 + ' · ' + LINE && v3.lastExpr === 'idle' && v3.kv === clip40 && v3.kvTitle === RAW && v3.dims.indexOf(LINE) >= 0 && v3.say === LINE, "로그·일기: 40자 + '…' (원문은 title) · 모델이 쓴 줄 그대로");
   /* 4. 데모 조작(사람) · 집 · 졸림 */
   await page.click('#d-stay'); await waitIdle(page); await page.waitForTimeout(200);
   var v4 = await view();
@@ -1626,7 +1661,37 @@ async function scenarioReactions(browser) {
   await page.click('#btn-go'); await skipAway(page); await waitIdle(page);
   await page.evaluate(function () { delete window.__ppolTest; });
   var v5 = await view();
-  ok(v5.trip.by === 'demo' && v5.trip.by2 === 'demo-rules' && !!v5.trip.reaction && v5.lastRow && v5.lastRow.indexOf(v5.trip.reaction) >= 0, "데모 두뇌 차례: 반응은 예전처럼 (reactionBy 'demo-rules') — " + v5.lastRow);
+  var hid5 = v5.trip.reaction === '우쭐' || v5.trip.reaction === '덤덤';   /* 11-15 (주인 Q4 b): 데모 규칙의 우쭐 · 덤덤은 화면에 쓰지 않는다 */
+  ok(v5.trip.by === 'demo' && v5.trip.by2 === 'demo-rules' && !!v5.trip.reaction && (hid5 ? (v5.lastRow || '').indexOf(v5.trip.reaction) < 0 && v5.back.indexOf(v5.trip.reaction) < 0 : !!v5.lastRow && v5.lastRow.indexOf(v5.trip.reaction) >= 0) && (!v5.lastExpr || v5.lastExpr === 'idle'),
+    "데모 두뇌 차례: 반응 값은 기록에 그대로 (reactionBy 'demo-rules') · 우쭐 · 덤덤이면 낱말은 안 보이고 · 얼굴은 idle — " + v5.trip.reaction + ' · ' + v5.lastRow + ' · ' + v5.lastExpr);
+  /* 6. 11-15 (주인 Q4 b · C6 b): 데모 규칙이 고른 반응 넷을 하나씩 (두뇌 계획의 반응만 바꿔 — 규칙의 결과와 같은 꼴, 줄 없이 낱말만).
+        우쭐 · 덤덤 = 말풍선 · 마무리 행 · 일기 · 열람 기록에 낱말 없음 · 폴짝 · 졸림 = 낱말 그대로. 어느 쪽이든 행 초상 · 장면 얼굴은 idle (happy · calm · sleepy 없음) */
+  await page.evaluate(function () {
+    var plan0 = BRAIN.plan;
+    BRAIN.plan = function () { return plan0.apply(BRAIN, arguments).then(function (p) { var r = window.__forceRx; if (r && p && p.kind !== 'empty') { p.reaction = r; p.reactionLine = null; if (p.receipt) { p.receipt.reaction = r; p.receipt.reactionLine = null; } (p.events || []).forEach(function (e) { if (e.type === 'wrap_up') e.reaction = r; }); } return p; }); };
+    var se = APP.scene.setExpression; window.__ex = []; APP.scene.setExpression = function (n) { window.__ex.push(n); return se.apply(this, arguments); };
+    var so = APP.scene.setOctState; APP.scene.setOctState = function (n) { window.__ex.push('S:' + n); return so.apply(this, arguments); };   /* 상태 happy = 장면 웃는 얼굴 (장면 안 STATE_EXPR) */
+    var sb = APP.scene.bubble; window.__bub = []; APP.scene.bubble = function (t) { if (t) window.__bub.push(String(t)); return sb.apply(this, arguments); };
+  });
+  for (var rx6 of ['우쭐', '덤덤', '폴짝', '졸림']) {
+    await page.evaluate(function (r) { window.__forceRx = r; window.__ex = []; window.__bub = []; window.__ppolTest = { forceKind: r === '우쭐' || r === '폴짝' ? 'out' : 'home' }; }, rx6);
+    await waitIdle(page); await page.click('#btn-go'); await skipAway(page).catch(function () {}); await waitIdle(page); await page.waitForTimeout(300);
+    var v6 = await view(), f6 = await page.evaluate(function () { delete window.__ppolTest; return { ex: window.__ex.slice(), bub: window.__bub.slice(), log: document.getElementById('log').textContent }; });
+    var hide6 = rx6 === '우쭐' || rx6 === '덤덤', moodFace = f6.ex.filter(function (e) { return e === 'happy' || e === 'calm' || e === 'sleepy' || e === 'curious' || e === 'S:happy'; });
+    ok(v6.trip.by === 'demo' && v6.trip.reaction === rx6 && v6.trip.by2 === 'demo-rules' &&
+      (hide6 ? v6.wrapRows === v5.wrapRows && f6.log.indexOf(rx6) < 0 && v6.back.indexOf(rx6) < 0 && !v6.say && !v6.kv && !f6.bub.some(function (b) { return b.indexOf(rx6) >= 0; })
+        : v6.lastRow === rx6 && v6.kv === rx6 && f6.bub.indexOf(rx6) >= 0) &&
+      (!hide6 ? v6.lastExpr === 'idle' : true) && !moodFace.length,
+      '데모 규칙 ' + rx6 + ': ' + (hide6 ? '낱말이 말풍선 · 로그 · 일기 · 열람 기록 어디에도 없다' : '낱말은 그대로 (말풍선 · 행 · 일기)') + ' · 기록 값 그대로 · 얼굴 idle (장면 얼굴 ' + JSON.stringify(f6.ex) + ' · 행 ' + v6.lastExpr + ')');
+    if (!hide6) v5 = v6;
+  }
+  /* 7. 모델이 고른 우쭐 (재생 길) → 낱말 · 웃는 얼굴 그대로 (고른 이의 것) */
+  await page.evaluate(function () { window.__forceRx = null; window.__ex = []; });
+  await importEvs([{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 500, target: { kind: 'room', id: 'hat' }, status: 'builtin', ms: 1000 }, { type: 'return', t: 1500, reason: 'enough' },
+    { type: 'remember', t: 2000, stopIdx: 0, sticker: 'hat', line: '모자를 봤어' }, { type: 'hang_poster', t: 2500 }, { type: 'wrap_up', t: 3000, reaction: '우쭐' }]);
+  var v7 = await view(), f7 = await page.evaluate(function () { return window.__ex.slice(); });
+  ok(v7.trip.by === 'mcp' && v7.trip.reaction === '우쭐' && v7.lastRow === '우쭐' && v7.lastExpr === 'happy' && v7.kv === '우쭐' && f7.indexOf('happy') >= 0 && f7.indexOf('S:happy') >= 0,
+    "모델이 고른 '우쭐' 은 그대로: 행 · 일기 낱말 · 행 초상 happy · 장면 얼굴 happy (" + JSON.stringify(f7) + ')');
   reportErrors(s.bag, 'M');
   await s.ctx.close();
 }
@@ -5043,13 +5108,13 @@ async function scenarioWeek(browser) {
     return { chip: chips[p.i].textContent, day: ga.day, asked: !!(ga.ids && ga.ids[p.id]), n: st.giftN, exprs: window.__exprs.slice(), oct: APP.oct.state };
   }, pick);
   console.log('   내민 직후:', JSON.stringify(off));
-  ok(off.day === pick.day && off.asked && off.n >= 1 && off.exprs[0] === 'curious', '선물 상자: ' + pick.name + ' 내밀자마자 그날 물어봤다는 기록이 저장돼 있다 (giftAsked ' + off.day + ' · ' + pick.id + ') — 답이 나오기 전');
+  ok(off.day === pick.day && off.asked && off.n >= 1 && off.exprs[0] === 'idle', '선물 상자: ' + pick.name + ' 내밀자마자 그날 물어봤다는 기록이 저장돼 있다 (giftAsked ' + off.day + ' · ' + pick.id + ') — 답이 나오기 전');
   var NO = new RegExp('^뚜루는 ' + pick.name + ' 안 (쓰기|두르기)로 했어\\.$');
   var ans = await pb.waitForFunction(function () { return window.__toasts.some(function (x) { return /기로 했어\.$/.test(x.t); }); }, null, { timeout: WAIT, polling: 50 }).then(function () { return true; }, function () { return false; });
   var fin = await pb.evaluate(function () { var a = window.__toasts.filter(function (x) { return /기로 했어\.$/.test(x.t); })[0]; return { toast: a ? a.t : '', exprs: a ? a.ex : [], wear: APP.state.settings.octWear || null, row: [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).filter(function (t) { return /선물/.test(t); }).pop() || '' }; });
   console.log('   답:', JSON.stringify(fin));
   ok(ans && NO.test(fin.toast) && /\(데모 규칙이 고름\)/.test(fin.row), '선물 상자: 답은 «' + fin.toast + '» · 기록 줄에 (데모 규칙이 고름)');
-  ok(ans && fin.exprs[0] === 'curious' && fin.exprs[fin.exprs.length - 1] === 'idle' && fin.exprs.indexOf('calm') < 0, '안 쓴다는 답이 뜬 순간까지의 장면 얼굴: 들여다보는 얼굴 → 보통 얼굴 (' + fin.exprs.join(' → ') + ') — 반눈 calm 없음');
+  ok(ans && fin.exprs.length >= 1 && fin.exprs.every(function (e) { return e === 'idle'; }), '안 쓴다는 답이 뜬 순간까지의 장면 얼굴: 들여다보는 틈도 답도 평소 얼굴 (11-15 주인 C6 b — 예전 curious → idle) (' + fin.exprs.join(' → ') + ') — 반눈 calm 없음');
   /* 8. 두 탭을 열어 둔 채 주가 바뀐다 (맨 끝에: 닫히는 탭은 한 번 더 저장하므로 그 뒤에 다른 검사를 두지 않는다). 가려진 탭이 먼저 새 주를 알아채 넣으면: 보이는 탭은 그 기록을 받아 따라가고 (제 차례에 또 넣지 않는다 — 둘 합쳐 한 번), 알림은 보이는 탭에서 뜬다 (가려진 탭은 띄우지 않는다) */
   await setUser(pb, SUN, { shells: 20, seeds: 1, days: [WK1, '2026-11-11', SUN], giftDay: SUN, week: WEEK() });   /* giftDay 일요일: 일요일 선물은 이미 받음 (11-12 — 34f77ad 부터 탭으로 돌아오면 그날 선물이 들어온다) */
   await pb.evaluate(function () { document.dispatchEvent(new Event('visibilitychange')); });   /* 이 탭의 '오늘' 을 일요일로 (앞 검사가 넘겨 둔 날짜에서) */
