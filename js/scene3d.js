@@ -4276,7 +4276,8 @@ var SCENE3D = (function () {
       if (okOct && ray.intersectObject(hit, false).length) return hit;
       if (ray.intersectObject(glass, false).length) return glass;
       if (doorOn && spotAt(cx, cy, ['atticPlay'])) return spotHit('atticPlay');
-      sp = spotAt(cx, cy, ['atticYard', 'atticStair']); if (sp) return spotHit(sp);   /* 위층 계단 · 11-15 마당 문 (뒷벽 문간, 계단 바로 왼쪽 — 둘 다 덮으면 그림 상자 안 → 가운데가 가까운 쪽). 문어가 문간 앞이면 문어가 먼저 (위 레이캐스트) */   /* 위층 계단 */   /* 문 그림 둘레의 넓힌 칸 (44×44 이상) */
+      if (SPOTS.atticYard && spotInfo('atticYard')) { var dh = ray.intersectObjects([room, doorDark], false); if (dh.length && dh[0].object === doorDark) return spotHit('atticYard'); }   /* 11-15 마당 문: 톡한 자리에 보이는 게 뒷벽 문간의 어둠이면 (계단 · 난간이 앞에 있으면 계단) — 계단의 화면 상자는 크게 잡혀 문간까지 덮는다. 문어가 문간 앞이면 문어가 먼저 (위 레이캐스트) */
+      sp = spotAt(cx, cy, ['atticYard', 'atticStair']); if (sp) return spotHit(sp);   /* 위층 계단 · 문간 둘레의 넓힌 칸 */   /* 위층 계단 */   /* 문 그림 둘레의 넓힌 칸 (44×44 이상) */
       var ni = nearItem(cx - r.left, cy - r.top, r);
       if (ni) return ni;   /* 등불 8칸 선반 기념품이 거울 위에 겹쳐도 기념품이 먼저 */
       return salOn && spotAt(cx, cy, ['salon']) ? spotHit('salon') : null;   /* 거울 그림 둘레의 넓힌 칸 (44×44 이상) — 맨 끝 */
