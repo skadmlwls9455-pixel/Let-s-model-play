@@ -6597,8 +6597,8 @@ async function scenarioTurn(browser) {
       ok(v2.n > 400 && v2.bad === 0, room + ' ' + a2 + '°: 방 실루엣 안에 허공 ' + v2.bad + '/' + v2.n + ' 칸' + (v2.at ? ' (처음 ' + v2.at + ')' : ''));
     }
     if (room === 'play') {   /* 문으로 들어와 방 안쪽을 보고 선 나도, 돌리면 카메라 쪽을 본다 (검증 11-15: 뒤통수만 보였다) */
-      var pf = await page.waitForFunction(function () { var y = APP.scene.player().yaw, c = 225, d = Math.atan2(Math.sin((y - c) * Math.PI / 180), Math.cos((y - c) * Math.PI / 180)) * 180 / Math.PI; return Math.abs(d) < 10 ? y : false; }, null, { timeout: 20000, polling: 100 }).then(function (h) { return h.jsonValue(); }, function () { return null; });
-      ok(pf !== null, '놀이방 180°: 문 앞에 선 내 캐릭터가 카메라 쪽을 본다 (yaw ' + pf + ')');
+      var pf = await page.waitForFunction(function () { var y = APP.scene.player().yaw, c = 45 + APP.scene.yawInfo().shown, d = Math.atan2(Math.sin((y - c) * Math.PI / 180), Math.cos((y - c) * Math.PI / 180)) * 180 / Math.PI; return Math.abs(d) < 10 ? y : false; }, null, { timeout: 20000, polling: 100 }).then(function (h) { return h.jsonValue(); }, function () { return null; });
+      ok(pf !== null, '놀이방 (돌린 뒤): 문 앞에 선 내 캐릭터가 카메라 쪽을 본다 (yaw ' + pf + ')');
     }
     if (room === 'attic') {   /* 90°: 계단이 잘려 아래 두 칸만 — 위층 단추도 그 두 칸 위만 (방 가운데 톡이 위층으로 가지 않게) */
       var sr = await page.evaluate(function () { var a = APP.scene.spotRect('atticStair'); APP.scene.setYaw(90, true); var b = APP.scene.spotRect('atticStair'); var cut = APP.scene.yawInfo().cut.stair; var mid = APP.scene.screenOf(0.5, 0.3, 0.5), r = document.getElementById('scene').getBoundingClientRect(), k = APP.scene.pickAt(r.left + mid.x, r.top + mid.y); return { a: a && a.h, b: b && b.h, cut: cut, mid: k && k.id }; });
