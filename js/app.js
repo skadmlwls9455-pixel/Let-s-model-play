@@ -29,9 +29,10 @@ var APP = (function () {
   var BY_LABEL = { demo: '데모 두뇌(규칙)', human: '사람이 조작', mcp: '모델(MCP)', legacy: '복원된 기록' };
   var LOG_LABEL = { depart: '출발', peek: '기웃', 'return': '귀가', remember: '기억', hang_poster: '포스터', wrap_up: '마무리', stay_home: '집', empty_turn: '…' };
   var VOICE_LABELS = ['귀가', '기억', '마무리', '집', '인사', '혼잣말', '어제 메모', '지난 메모', '대답'];   /* '방'(등불 소품 줄)은 11-08 부터 집 목소리 사실 문장 (DIALOGUE_UI §4.3) */   /* 문어 목소리 행 → 픽셀 테마에서 호박색 탭 + 초상 대화창 (§15.2) · '대답' = 미용실 행 2 (고른 이의 말, docs/SALON.md §3.7 — '미용실' · '몸 색' 행은 집 목소리) */
-  /* 문어 목소리 행의 표정 (DESIGN §15.2): 귀가 calm · 기억 curious · 마무리 폴짝/우쭐 happy, 졸림 sleepy, 덤덤 calm · 집 활동 calm (낮잠 sleep) · 빈 차례 sleep · 인사 깨어 있으면 happy / 자는 중 sleep · 방(소품) happy · 말풍선 … idle (11-14 전엔 pet — 쓰다듬는 동안의 'pet' 표정도 이제 idle 얼굴 + 눌림뿐, 주인 O2 c), ? curious */
+  /* 문어 목소리 행의 표정 (DESIGN §15.2) — 11-15 (주인 C6 b): 코드가 쓴 줄은 모두 평소 얼굴 idle (귀가 · 기억 · 집 활동 · 빈 차례 · 인사 · 어제 메모 · 혼잣말 · 말풍선 …). 잠은 상태라 그대로 (집 낮잠 sleep · 자는 중 인사 sleep).
+     마무리는 모델 · 사람이 고른 반응일 때만 REACT_EXPR (폴짝/우쭐 happy, 졸림 sleepy, 덤덤 calm) · 데모 규칙이 고른 반응은 idle (reactFace). 쓰다듬기 '…' 는 11-14 부터 idle (주인 O2 c) */
   var REACT_EXPR = { '폴짝': 'happy', '우쭐': 'happy', '덤덤': 'calm', '졸림': 'sleepy' };
-  var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' };   /* 상태의 기본 표정 (SCENE.md 초상·표정) — 대화창 표정은 4 s 뒤 여기로 돌아온다 */
+  var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep' };   /* 11-15 (주인 C6 b · 검증): 출발 움츠림 anticipate 도 평소 얼굴 (예전 반눈 calm — 집에 남는 차례에도 보여 시무룩하게 읽혔다) */   /* 상태의 기본 표정 (SCENE.md 초상·표정) — 대화창 표정은 4 s 뒤 여기로 돌아온다 */
   /* 자는 문어를 누르면 · 깨어 있는 문어를 톡 누르면 (말풍선만 — 로그 · 저장에 안 남는다, 11-08). 소리(js/audio.js)는 글자가 아니라 kind('sleep' · 'curious' · 'say')로 고른다.
      깨어 있으면 '응?' 대신 그날 마지막으로 끝낸 차례에 대한 한 줄 (BRAIN.tapLine · 주인 11-08) — 없으면 '응?' */
   var SLEEP_SAY = '쿨쿨…', TAP_SAY = '응?', SLEEP_DOWN_SAY = '지금은 아래층에서 자고 있어.', DOWN_SAY = '지금은 아래층에 있어.', AWAY_SAY = '지금은 산책 나가 있어.';
@@ -59,8 +60,15 @@ var APP = (function () {
     if (!REACT_WORDS[r]) { if (!raw && typeof r === 'string' && r.trim()) raw = r; r = null; }
     var line = given ? (typeof trip.reactionLine === 'string' && trip.reactionLine.trim() ? trip.reactionLine : null)
       : (trip.reactionLine || rec.reactionLine || null);
-    return { r: r, raw: raw, word: r || (raw ? clip(raw, REACT_RAW_SHOW) : ''), line: line, by: by, given: given };
+    if (!given && line && /힌트/.test(line) && !hintShown(trip)) line = null;   /* 11-15: 옛 힌트를 따라간 날 데모 규칙이 고른 줄 ('네가 흘린 힌트, …') 도 힌트 줄과 같이 숨긴다 (hintShown) */
+    /* 11-15 (주인 Q4 b): 데모 규칙이 고른 '우쭐' · '덤덤' 은 화면 어디에도 쓰지 않는다 (마음을 말하는 낱말이라) — 저장 · 계약의 값은 그대로 (r).
+       '폴짝'(몸짓) · '졸림'(실제로 더 일찍 잔다) 은 그대로. 모델 · 사람이 고른 반응은 준 그대로 */
+    var word = r || (raw ? clip(raw, REACT_RAW_SHOW) : '');
+    if (by === 'demo-rules' && (r === '우쭐' || r === '덤덤')) word = '';
+    return { r: r, raw: raw, word: word, line: line, by: by, given: given };
   }
+  /* 11-15 (주인 C6 b): 반응의 얼굴은 모델 · 사람이 고른 넷 가운데 하나일 때만 (REACT_EXPR). 데모 규칙이 고른 반응 · 네 가지 밖의 말은 평소 얼굴 (idle) */
+  function reactFace(rx) { return rx && rx.given && REACT_EXPR[rx.r] ? REACT_EXPR[rx.r] : 'idle'; }
   function givenTrip(trip) { return !!trip && (trip.by === 'mcp' || trip.by === 'human'); }   /* 모델·사람이 고른 차례: 코드가 지은 말을 문어의 반응처럼 보이지 않는다 */
   var KEY = 'ppolppol_v2', KEY_V1 = 'ppolppol_v1', KEY_V1_BAK = 'ppolppol_v1_backup';
 
@@ -531,14 +539,14 @@ var APP = (function () {
       posters: [], souvenirs: [], reducedMotion: reduced(), speed: speed(), assetPath: assetPath, octEl: $('oct'), look: lookNow(), palette: paletteNow(), season: seasonPref(), player: S.settings.player,
       on: {
         posterTap: function (id) { openPoster(id); },
-        souvenirTap: function (sv) { if (sv.tripId && tripById(sv.tripId)) { if (!salonActive) say((sv.name || sv.id) + ' — 이거 가져온 날', 'happy', 1800, { icon: souvenirIcon(sv.id) }); openPoster(sv.tripId, true); } },   /* 이름 + 말풍선에 기념품 픽셀 그림 (미용실 연출 중엔 말풍선 없이 — 문어가 고른 대답을 덮지 않는다) */
+        souvenirTap: function (sv) { if (sv.tripId && tripById(sv.tripId)) { if (!salonActive) say((sv.name || sv.id) + ' — 이거 가져온 날', 'idle', 1800, { icon: souvenirIcon(sv.id) }); openPoster(sv.tripId, true); } },   /* 이름 + 말풍선에 기념품 픽셀 그림 (미용실 연출 중엔 말풍선 없이 — 문어가 고른 대답을 덮지 않는다) */
         albumTap: function () { openAlbum(); },   /* 2D 벽의 '+N' (앨범으로) */
         pet: pet,
         tap: tapOct,   /* 글자만 (예전 '…zZ' · '?' 는 기호로 읽혀 뺐다 — 주인 11-07). 깨어 있으면 그날 마지막 차례 한 줄 (11-08) */
         windowTap: function () {
           if (oct.busy || salonActive) return;   /* 미용실 연출 중엔 창문으로 걷지 않는다 */
           if (oct.state === 'sleep') { bubble(SLEEP_SAY, 1500, 'sleep'); return; }   /* 자는 중엔 깨우지 않는다 (쓰다듬기·탭과 같은 말 · 말풍선만) */
-          walkTo('window').then(function () { if (!oct.busy) { octState('idle'); var w = weatherFor(S.room.lantern), hr = new Date().getHours(); say(w === 'clear' ? (hr >= 19 || hr < 6 ? '별이 보여' : '맑네') : w === 'snow' ? '눈이 와' : '비가 와', 'calm', 2000); } });
+          walkTo('window').then(function () { if (!oct.busy) { octState('idle'); var w = weatherFor(S.room.lantern), hr = new Date().getHours(); say(w === 'clear' ? (hr >= 19 || hr < 6 ? '별이 보여' : '맑네') : w === 'snow' ? '눈이 와' : '비가 와', 'idle', 2000);   /* 11-15 (주인 C6 b): 평소 얼굴 (예전 calm) */ } });
         },
         anchorReached: function () { /* moveTo 의 Promise 로 받는다 */ },
         octUp: function (up, an) { if (!up && an) { oct.anchor = an; if (an !== 'blanket' && restPhase() !== 'up') octPlace('blanket'); } updateSceneDesc(); },   /* 11-12: 위층 ↔ 다락으로 옮겨진 문어 — 다락에 놓인 자리를 앱 자리로 · 장면 설명 다시. 11-13 주인 (OW-3 b): 쉬는 차례면 담요로 (위층에 남아 있던 틈 — 내려가는 전환에 가려 보이지 않는다) */
@@ -1431,7 +1439,7 @@ var APP = (function () {
      반쯤 감은 calm·sleepy 는 주인이 '-_-^'(화남)로 읽었다 (DIALOGUE_UI: '…응?' + 눈 뜨기) */
   function selfWake() {
     octState('idle'); S.octopus.state = 'idle'; save();
-    bubble('…응?', 1600, 'sleepy'); expressRow('curious');
+    bubble('…응?', 1600, 'sleepy'); expressRow('idle');   /* 11-15 (주인 C6 b): 눈 뜬 평소 얼굴 (예전 curious) */
   }
   var dreamTimer = null;
   /* 자는 동안 9–15 s 마다 스스로 깨어날 때인지 본다. 11-13: 이름표는 '자는 중' 그대로 (번갈아 쓰던 '꿈꾸는 중' 은 뺐다 — 이름만 옛날 것) */
@@ -1475,7 +1483,7 @@ var APP = (function () {
     thinkTimer = setTimeout(function () {
       var dlgOpen = !!document.querySelector('dialog[open]');
       if (!oct.busy && !salonActive && oct.state === 'idle' && !document.hidden && !dlgOpen && !lookHook() && !rest) {   /* 깨어 있는 틈 · 미용실 연출 중엔 생각 말풍선 없음 (톡 한 줄 · 대답 말풍선을 덮지 않게) */
-        var t = thinkLine(); if (t) { bubble(t.text, 3600, 'think', { raw: t.by, rawText: t.note }); expressRow('curious'); }
+        var t = thinkLine(); if (t) { bubble(t.text, 3600, 'think', { raw: t.by, rawText: t.note }); expressRow('idle'); }   /* 11-15 (주인 C6 b): 예전 curious */
       }
       scheduleThink();
     }, (20 + uiRng() * 20) * 1000);
@@ -1547,7 +1555,7 @@ var APP = (function () {
     if (oct.state === 'sleep') { bubble(SLEEP_SAY, 1500, 'sleep'); tapSR(SLEEP_SAY); return; }   /* 자는 중엔 깨우지 않는다 */
     if (oct.busy || oct.state === 'pet' || oct.state === 'away') return;
     var L = tapLineNow();
-    if (!L) { bubble(TAP_SAY, 1600, 'curious'); tapSR(TAP_SAY); expressRow('curious'); tapNudge(); return; }
+    if (!L) { bubble(TAP_SAY, 1600, 'curious'); tapSR(TAP_SAY); expressRow('idle'); tapNudge(); return; }   /* 11-15 (주인 C6 b): 얼굴은 평소 (말풍선 모양 · 소리 kind 는 그대로) */
     var b = $('oct-bubble'), up = !!(b && !b.hidden && b.getAttribute('data-tap') === '1' && tapShown && tapShown.text === L.text);
     var ms = clamp(2000 + 90 * Array.from(L.text).length, 2600, 4600);   /* 읽는 시간 (--speed 와 상관없이) */
     var again = !!(tapShown && tapShown.text === L.text && Date.now() - tapShown.at < TAP_VOICE_MS);
@@ -1958,8 +1966,8 @@ var APP = (function () {
       case 'wrap_up':
         /* 반응이 있을 때만 말풍선 (없으면 말 없이 담담하게 — 반응을 지어내지 않는다). 모델·사람이 쓴 줄은 40자 + '…' 까지 (전체는 로그·일기에) */
         var rx = reactionOf(trip, ev), say1 = rx.line ? (rx.given ? clip(rx.line, REACT_RAW_SHOW) : rx.line) : rx.word;
-        if (say1) bubble(say1, 3000, REACT_EXPR[rx.r] || 'say', { raw: rx.line ? (rx.given ? rawBy(trip) : null) : (rx.raw ? (rawBy(trip) || 'model') : null) });   /* 반응은 단어만 (예전 이모지 머리는 뺐다) · 그들이 쓴 줄 · 네 가지 밖의 반응은 그대로 (reactionSayHTML 과 같은 규칙) */
-        octState(rx.r === '폴짝' || rx.r === '우쭐' ? 'happy' : 'idle');
+        if (say1) bubble(say1, 3000, rx.given && REACT_EXPR[rx.r] ? REACT_EXPR[rx.r] : 'say', { raw: rx.line ? (rx.given ? rawBy(trip) : null) : (rx.raw ? (rawBy(trip) || 'model') : null) });   /* 반응은 단어만 (예전 이모지 머리는 뺐다) · 그들이 쓴 줄 · 네 가지 밖의 반응은 그대로 (reactionSayHTML 과 같은 규칙) */
+        octState(reactFace(rx) === 'happy' ? 'happy' : 'idle');   /* 11-15 (주인 C6 b): 웃는 장면 얼굴은 모델 · 사람이 폴짝 · 우쭐을 골랐을 때만 */
         if (trip.status !== 'done') commitTrip(trip);
         var cer = startCeremony();                      /* 로그가 끝났으니 연출 시작 — 문어가 담요로 가는 동안 같이 */
         if (fast) return cer;
@@ -2141,8 +2149,8 @@ var APP = (function () {
     return chain.then(function () {
       renderLog();
       var kind = run.some(function (t) { return t.kind === 'out'; }) ? 'out' : run.some(function (t) { return t.kind === 'home'; }) ? 'home' : 'empty';
-      if (kind === 'out') appendLogRow(ensureTodaySection(), logRow('귀가', '네가 없는 동안 다녀왔어', 'c-teal', true, 'calm'));
-      else if (kind === 'home') appendLogRow(ensureTodaySection(), logRow('집', '네가 없는 동안 집에 있었어', 'c-amber', true, 'calm'));
+      if (kind === 'out') appendLogRow(ensureTodaySection(), logRow('귀가', '네가 없는 동안 다녀왔어', 'c-teal', true, 'idle'));   /* 11-15 (주인 C6 b): 예전 calm */
+      else if (kind === 'home') appendLogRow(ensureTodaySection(), logRow('집', '네가 없는 동안 집에 있었어', 'c-amber', true, 'idle'));
       return kind;
     });
   }
@@ -2245,14 +2253,18 @@ var APP = (function () {
     S.trips.forEach(function (t) { if (t.memo && t.memo.notes && t.memo.notes[nodeId] === text) by = rawBy(t); });
     return by;
   }
+  /* 11-15 (주인 정직 기본값 · 결정 18): 힌트 칸이 없어진 뒤 (11-10) 옛 산책의 '힌트: …' 줄은 보이지 않는다 — 출발 행 · 일기 · 앨범. 저장된 힌트는 그대로 (trip.hint · 이벤트).
+     따라감 · 무시함 표기도 같이 뺀다 (무엇을 따랐는지 없이 남으면 뜻이 없다). 힌트 아래 붙던 데모 규칙의 한마디 (hint.note) 도.
+     모델 · 사람이 준 힌트 (그들의 글) 와 드러내 놓은 개발 모드 (?dev=1, 옛 규칙을 시험하는 곳) 는 그대로 */
+  function hintShown(trip) { return givenTrip(trip) || DEV_EXPLICIT; }
   function eventRow(trip, ev) {
     var frag = document.createDocumentFragment(), cls = '', expr = null, given = rawBy(trip);
     switch (ev.type) {
       case 'depart':
         cls = 'c-amber';
-        if (ev.hint) { frag.appendChild(document.createTextNode('힌트: ')); frag.appendChild(rawSpan(ev.hint, given || 'player')); }   /* 힌트는 건넨 사람의 글 그대로 */
+        if (ev.hint && hintShown(trip)) { frag.appendChild(document.createTextNode('힌트: ')); frag.appendChild(rawSpan(ev.hint, given || 'player')); }   /* 힌트는 건넨 사람의 글 그대로 */
         else frag.appendChild(document.createTextNode(departLine()));   /* 빈 힌트: 집 목소리 사실 한 줄 — 플레이어가 한 말도, 누가 골랐다는 말도 아니다 (고른 이는 '데모' 꼬리표·일기가 말한다) */
-        if (trip.hint && trip.hint.note) frag.appendChild(h('span', { class: 'sub', text: trip.hint.note }));
+        if (trip.hint && trip.hint.note && hintShown(trip)) frag.appendChild(h('span', { class: 'sub', text: trip.hint.note }));
         break;
       case 'peek': {
         var st = ev.status || 'failed', tg = ev.target || {};
@@ -2270,14 +2282,14 @@ var APP = (function () {
         break;
       }
       case 'return': {
-        cls = 'c-teal'; expr = 'calm';
+        cls = 'c-teal'; expr = 'idle';   /* 11-15 (주인 C6 b): 코드가 쓴 줄은 평소 얼굴 (예전 calm) */
         var rr = (STR.returnReasons && STR.returnReasons[ev.reason]) || '';
         frag.appendChild(document.createTextNode('돌아왔어' + (rr ? '. ' + rr : '')));
         if (trip.receipt && trip.receipt.souvenir) frag.appendChild(souvenirSub(trip.receipt.souvenir));
         break;
       }
       case 'remember': {
-        cls = 'c-amber'; expr = 'curious';
+        cls = 'c-amber'; expr = 'idle';   /* 11-15 (주인 C6 b): 예전 curious */
         var rl = ev.line || (trip.poster && trip.poster.line) || '', rp = remPart(trip, ev.stopIdx);
         if (given && ev.line) frag.appendChild(rawSpan(rl, given));   /* 그들이 쓴 줄은 통째로 */
         else appendAll(frag, partRaw(rl, rp.part, rp.by));            /* 두뇌가 지은 줄: 그 속 정류장 이름(위키 제목 · 모델이 준 제목)만 */
@@ -2288,18 +2300,18 @@ var APP = (function () {
         /* 반응도 줄도 없으면 마무리 행을 만들지 않는다 (코드가 반응을 지어내지 않는다). 모델·사람이 쓴 줄은 그대로. 반응은 단어만 (예전 이모지 머리는 뺐다) */
         var rx = reactionOf(trip, ev);
         if (!rx.word && !rx.line) return null;
-        expr = REACT_EXPR[rx.r] || 'calm';
+        expr = reactFace(rx);   /* 11-15 (주인 C6 b): 예전 REACT_EXPR[r] || 'calm' — 데모 규칙 반응은 평소 얼굴 */
         if (rx.word) frag.appendChild(rawSpan(rx.word, rx.raw ? (given || 'model') : null));
         if (rx.line) { if (rx.word) frag.appendChild(document.createTextNode(' · ')); frag.appendChild(rawSpan(rx.line, rx.given ? given : null)); }
         break;
       }
       case 'stay_home':
-        cls = 'c-amber'; expr = ((ev.activity === 'nap') || (trip.receipt && trip.receipt.activity && trip.receipt.activity.id === 'nap')) ? 'sleep' : 'calm';
-        frag.appendChild(ev.line ? rawSpan(ev.line, given) : document.createTextNode(givenTrip(trip) ? '…' : (STR.homeStay || '오늘은 집에 있어.')));   /* 모델·사람이 줄 없이 집을 골랐으면 말 없이 (코드가 대신 말하지 않는다). 데모 줄은 world 의 homeStay — 11-14 (주인 O1 b): 예전 '오늘은 집에 있을래' (바람 말) */
+        cls = 'c-amber'; expr = ((ev.activity === 'nap') || (trip.receipt && trip.receipt.activity && trip.receipt.activity.id === 'nap')) ? 'sleep' : 'idle';   /* 11-15 (주인 C6 b): 낮잠은 잠 (상태), 그 밖엔 평소 얼굴 (예전 calm) */
+        frag.appendChild(ev.line ? rawSpan(ev.line, given) : document.createTextNode(givenTrip(trip) ? '…' : (STR.homeStay || '오늘은 집에 있을래.')));   /* 모델·사람이 줄 없이 집을 골랐으면 말 없이 (코드가 대신 말하지 않는다). 데모 줄은 world 의 homeStay — 11-14 (주인 O1 b): 예전 '오늘은 집에 있을래' (바람 말) */
         if (trip.receipt && trip.receipt.activity && trip.receipt.activity.detail) frag.appendChild(rawSpan(trip.receipt.activity.detail.split('\n')[0], given, 'sub'));   /* 모델·사람 차례의 뒷면 글은 그들이 쓴 것 (두뇌가 그것만 둔다) */
         frag.appendChild(h('span', { class: 'sub', text: '오늘은 집' + (homeLit(trip) ? '. 등불 +1' : '') }));
         break;
-      case 'empty_turn': expr = 'sleep'; frag.appendChild(document.createTextNode('…')); break;
+      case 'empty_turn': expr = 'idle'; frag.appendChild(document.createTextNode('…')); break;
       default: return null;
     }
     var row = logRow(LOG_LABEL[ev.type] || ev.type, frag, cls, false, expr);
@@ -2463,8 +2475,8 @@ var APP = (function () {
     renderBagChip();   /* 11-11 (검증 W1): 주가 바뀐 날이면 여기서 새 주로 (열어 둔 탭 — 안 받은 지난주 선물 넣기 · 꼬리표 점 다시) */
     return true;
   }
-  /* 인사 초상: 자는 중이면 자는 얼굴, 깨어 있으면 웃는 얼굴 (반쯤 감은 차분한 얼굴은 화난 '-_-^' 로 읽힌다는 주인 피드백) */
-  function setGreeting(text, expr) { greetingRow = logRow('인사', text, 'c-amber', true, expr || 'happy'); }
+  /* 인사 초상 (이름을 지은 직후의 자기소개 — 깨어 있다): 평소 얼굴 (11-15 주인 C6 b: 예전 웃는 얼굴 — 코드가 쓴 인사에 기쁨 얼굴을 붙이지 않는다. 반쯤 감은 calm 은 화난 '-_-^' 로 읽힌다) */
+  function setGreeting(text, expr) { greetingRow = logRow('인사', text, 'c-amber', true, expr || 'idle'); }
   var memoRow = null;
   function greetRows() { return [greetingRow, memoRow].filter(Boolean); }
   /* 오늘 칸 머리의 인사 + 어제 메모를 지금 S 의 문어로 다시 (부팅 · 기록 불러오기 · 초기화). 이름이 없으면 둘 다 없음 */
@@ -2488,7 +2500,7 @@ var APP = (function () {
     /* memo.tomorrow 가 없으면 그 차례가 남긴 호기심 메모(내려놓지 않은 것)를 그대로 (모델이 wrap_up.note 만 쓴 경우) — 없으면 말하지 않는다 */
     if (!text) { var cn = S.curiosityNotes.filter(function (x) { return x.session === last.id && x.status === 'active'; })[0]; if (cn) { text = clip(cn.text, NOTE_SHOW); by = NOTE_RAW[cn.by] || by; } }
     if (!text) return;
-    memoRow = logRow(last.date === keyAdd(today, -1) ? '어제 메모' : '지난 메모', rawSpan(text, by), 'c-amber memo', true, 'calm');   /* 모델·사람이 쓴 메모는 그대로 (data-raw) */
+    memoRow = logRow(last.date === keyAdd(today, -1) ? '어제 메모' : '지난 메모', rawSpan(text, by), 'c-amber memo', true, 'idle');   /* 모델·사람이 쓴 메모는 그대로 (data-raw) */
   }
 
   /* ───────────────────────── posters (§6) ───────────────────────── */
@@ -2730,7 +2742,7 @@ var APP = (function () {
       return out;
     }
     var hint = trip.hint || {};
-    if (hint.raw) out += '<div class="kv"><span>힌트</span><b>' + rawH(hint.raw, rawBy(trip) || 'player') + ' · ' + esc(FOLLOW_LABEL[hint.followed] || hint.followed || '') + '</b></div><div class="hr"></div>';   /* 힌트가 없으면 줄째 뺀다 (플레이어 산책은 늘 빈 힌트, 결정 18) */
+    if (hint.raw && hintShown(trip)) out += '<div class="kv"><span>힌트</span><b>' + rawH(hint.raw, rawBy(trip) || 'player') + ' · ' + esc(FOLLOW_LABEL[hint.followed] || hint.followed || '') + '</b></div><div class="hr"></div>';   /* 힌트가 없으면 줄째 뺀다 (플레이어 산책은 늘 빈 힌트, 결정 18) */
     if (r && r.stops) r.stops.forEach(function (s, i) {
       var st = s.status || 'failed';
       var sti = icoH('log/' + (STATUS_LABEL[st] ? st : 'failed'), 'ua-status');   /* 코너 그림 + 이름 + [상태 그림] 상태 단어 (예전 이모지는 뺐다) */
@@ -2798,7 +2810,8 @@ var APP = (function () {
     al.hidden = albumFilter === 'diary';   /* 일기 탭: 카드 줄 대신 지난 날 로그 */
     if (albumFilter === 'diary') return;
     var trips = all.filter(function (t) { return albumFilter === 'all' || t.poster.type === albumFilter; });
-    if (!trips.length) { al.appendChild(h('div', { class: 'lempty', text: albumFilter === 'note' ? '아직 쪽지는 없어. 집에 있는 날 하나 써 둘게.' : "아직 붙인 포스터가 없어. '산책 갈래?'를 눌러 봐." })); return; }
+    /* 11-15: 쪽지 빈 칸은 집 목소리 사실 (예전 '…집에 있는 날 하나 써 둘게' 는 코드가 문어 대신 한 약속 — 이어진 모델은 안 쓸 수도 있다). 집에 있던 차례마다 쪽지가 한 장 (BRAIN homeTrip) */
+    if (!trips.length) { al.appendChild(h('div', { class: 'lempty', text: albumFilter === 'note' ? '아직 쪽지는 없어. 집에 있던 날마다 한 장씩 생겨.' : "아직 붙인 포스터가 없어. '산책 갈래?'를 눌러 봐." })); return; }
     var newest = null; all.forEach(function (t) { if (t.date === todayKey() && (!newest || (t.endedAt || 0) >= (newest.endedAt || 0))) newest = t; });
     var byDay = {}, days = [];
     trips.forEach(function (t) { if (!byDay[t.date]) { byDay[t.date] = []; days.push(t.date); } byDay[t.date].push(t); });
@@ -3316,10 +3329,10 @@ var APP = (function () {
     }
     if (yes) S.settings.octWear = wear;
     giftBusy = true; S.settings.giftN = (S.settings.giftN | 0) + 1; save();   /* 11-12 (검증 OW-6): questMark('gift') 는 뺐다 — '선물' 은 이번 주 할 일이 아니다 (66c8110). 11-11 (검증 W12): 물어본 것은 바로 저장 — 1.3 s 틈의 새로고침 · 다른 탭이 같은 물음을 또 연출하지 않게 */
-    expressRow('curious'); bubble('…', 1200, 'think');   /* 들여다보는 틈 1.3 s — 고르는 과정을 보여 준다 */
+    expressRow('idle'); bubble('…', 1200, 'think');   /* 11-15 (주인 C6 b): 평소 얼굴 (예전 curious). 들여다보는 틈 1.3 s — 고르는 과정을 보여 준다 */
     setTimeout(function () {
       giftBusy = false;
-      if (yes) { scene.setOctWear(wear); refreshPortraits(); expressRow('happy'); } else expressRow('idle');   /* 11-11 (검증 W2): 안 쓴다는 답은 보통 얼굴로 (반눈 calm 은 시무룩해 보인다 — 미용실 '그대로' 와 같게, docs/SALON.md §3.4) */
+      if (yes) { scene.setOctWear(wear); refreshPortraits(); } expressRow('idle');   /* 11-15 (주인 C6 b): 데모 규칙이 고른 답이라 쓰기로 해도 평소 얼굴 (예전 happy) */   /* 11-11 (검증 W2): 안 쓴다는 답은 보통 얼굴로 (반눈 calm 은 시무룩해 보인다 — 미용실 '그대로' 와 같게, docs/SALON.md §3.4) */
       appendLogRow(ensureTodaySection(), logRow('선물', line + ' (데모 규칙이 고름)', 'c-amber', true));
       toast(line);
     }, 1300);
@@ -3668,13 +3681,13 @@ var APP = (function () {
     });
   }
   function markNameColor(hex) { var row = nameColorsEl(); if (row) row.querySelectorAll('.preset').forEach(function (b) { chipOn(b, b.dataset.hex === hex); }); }
-  /* 창 안 초상 (64×64, 웃는 얼굴 · 투명 바탕 · 그 색으로). 장면 몸색은 그대로. 못 그리면(컨텍스트 잃음 · 빈 그림) 예전 작은 픽셀 문어 그림이 대신 남는다 */
+  /* 창 안 초상 (64×64, 평소 얼굴 (11-15 주인 C6 b — 예전 웃는 얼굴) · 투명 바탕 · 그 색으로). 장면 몸색은 그대로. 못 그리면(컨텍스트 잃음 · 빈 그림) 예전 작은 픽셀 문어 그림이 대신 남는다 */
   function drawNamePortrait(hex) {
     var cv = $('name-port'), img = document.querySelector('#name-dialog img.oct-pic'), ok = false;
     if (cv) {
       try {
         if (scene && typeof scene.portrait === 'function') {
-          var src = scene.portrait('happy', { bg: 'transparent', color: hex }), cx = cv.getContext('2d');
+          var src = scene.portrait('idle', { bg: 'transparent', color: hex }), cx = cv.getContext('2d');
           cx.clearRect(0, 0, cv.width, cv.height); cx.drawImage(src, 0, 0, cv.width, cv.height);
           var px = cx.getImageData(0, 0, cv.width, cv.height).data;
           for (var i = 3; i < px.length && !ok; i += 4) if (px[i]) ok = true;   /* 빈 초상 (3D 컨텍스트를 잃었을 때 장면이 주는 빈 캔버스) 이면 대체 그림 */
@@ -4278,7 +4291,7 @@ var APP = (function () {
       if (first) {
         checkDay(true);   /* 앱을 연 채로 자정을 넘겨 이름을 지었으면 먼저 새 날로 넘긴다 (아래 renderLog 가 넘기며 자기소개를 날 인사로 덮지 않게) */
         setTimeout(function () { renderBagChip(); dailyGift(); }, 1500);   /* 첫날도 선물 */
-        setGreeting(typeof STR.firstGreeting === 'function' ? STR.firstGreeting(v) : '안녕, 나는 ' + v + '야. 비 오는 다락방에 온 걸 환영해.', 'happy');   /* 문어의 자기소개 (웃는 얼굴) */
+        setGreeting(typeof STR.firstGreeting === 'function' ? STR.firstGreeting(v) : '안녕, 나는 ' + v + '야. 비 오는 다락방에 온 걸 환영해.');   /* 문어의 자기소개 (11-15 주인 C6 b: 평소 얼굴 — 예전 웃는 얼굴) */
         renderLog();
       }
     });
