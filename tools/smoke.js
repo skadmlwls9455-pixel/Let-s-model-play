@@ -5915,6 +5915,64 @@ async function scenarioLoft(browser) {
   ok(u61 && e61.done && z25.up && z25.phase === 'awake' && r61 && z26.up && z26.st === 'idle' && z26.phase === 'up' && !z26.rest && f61.down === 0 && f61.moved < 0.01 && so61 && q61.sheet && z27.toast !== DOWN,
     '위층에 따라 와 있는 동안 깨어 있는 기록을 불러오면 문어는 내 곁 그 자리에 그대로 (아래층 프레임 ' + f61.down + ' · 옮겨 간 거리 ' + f61.moved + ' · 옛 틈 없음) · 거울은 미용실 시트 (' + J5(z26) + ')');
   reportErrors(bag, 'Z-5h'); await A.ctx.close();
+  /* 5-10. 11-14 (P-2): 틈에 위층에 다녀온 뒤 (틈은 위층에서 멈춘다) 방금 내보낸 내 파일을 불러오면 그 틈 그대로 — 시계로 다시 세어 위층에서 멈춘 시간까지 빼지 않는다 (예전: 남은 틈이 15 s 로 · 시계로 끝났으면 바로 낮잠) */
+  A = await open({ awake: AW, rec: REC(4), test: { forceKind: 'home' } }); pg = A.page;
+  var h62 = await homeTurn(pg); await tick(pg, 5, null, null, 1, 0.5);
+  var u62 = await stair(pg, true); await tick(pg, 30, null, null, 1, 0.5); var d62 = await stair(pg, false), z28 = await R5(pg);
+  var r62 = await pg.evaluate(function () { return APP.importJSON(APP.exportJSON()); }); await tick(pg, 0.5); var z29 = await R5(pg);
+  console.log('   틈에 내 파일 다시 불러오기:', J5(z28), '→', J5(z29));
+  ok(h62 && u62 && d62 && z28.phase === 'awake' && z28.rest && r62 && z29.st === 'idle' && z29.an === 'blanket' && z29.phase === 'awake' && z29.rest && z29.rest.id === z28.rest.id && Math.abs(z29.rest.left - z28.rest.left) <= 1500,
+    '깨어 있는 틈에 방금 내보낸 내 파일을 불러오면 그 틈이 그대로 이어진다 (' + (z28.rest && z28.rest.left) + ' → ' + (z29.rest && z29.rest.left) + ' ms)');
+  reportErrors(bag, 'Z-5i'); await A.ctx.close();
+  /* 5-11. 11-14 (C-a): 다른 탭. 이 탭은 차례 X 뒤 낮잠을 본 뒤 (빈 차례로 깸) 위층에 올라 문어가 따라 와 있다. 다른 탭이 X 뒤 낮잠 때 내보낸 파일을 불러온다 →
+        이 탭 문어도 위층에서 자지 않고 다락 담요에서 잔다 (예전: 이 탭이 이미 본 차례라 syncRest 가 넘어가 기록은 잠인데 위층에서 깬 채) */
+  A = await open({ awake: AW, rec: REC(4), test: { forceKind: 'home' } }); pg = A.page;
+  var h63 = await homeTurn(pg), l63 = await tick(pg, 150, function () { return APP.oct.state === 'sleep' && !APP.rest; }, null, 1, 0.5);
+  var F63 = await pg.evaluate(function () { return JSON.stringify(APP.state); });   /* X 뒤 낮잠 중에 내보낸 파일 */
+  await pg.evaluate(function () { window.__ppolTest.forceKind = 'empty'; }); await tap(pg, 'btn-go');
+  var e63 = await tick(pg, 60, function () { return !APP.state.trips.some(function (x) { return x.status === 'running'; }) && APP.oct.state === 'idle' && !document.getElementById('btn-go').classList.contains('away'); }, null, 1, 0.2);
+  var u63 = await stair(pg, true), z30 = await R5(pg); await track5(pg);
+  var B63 = await open({ ctx: A.ctx }), i63 = await B63.page.evaluate(function (t) { return APP.importJSON(t); }, F63);
+  var n63 = await tick(pg, 10, function () { return !APP.scene.octUp() && APP.oct.state === 'sleep'; }), z31 = await R5(pg), f63 = await untrack5(pg), bl31 = await blanket5(pg), zb = await R5(B63.page);
+  console.log('   다른 탭이 본 차례의 낮잠 기록을 불러옴:', J5(z30), '→', J5(z31), '담요', bl31, JSON.stringify(f63), '· 불러온 탭', J5(zb));
+  ok(h63 && l63.done && e63.done && u63 && z30.up && z30.saved === 'idle' && i63 && zb.st === 'sleep' && n63.done && !z31.up && z31.room === 'loft' && z31.st === 'sleep' && z31.an === 'blanket' && bl31 && z31.phase === 'nap' && z31.saved === 'sleep' && f63.sleepUp === 0,
+    '다른 탭이 이 탭이 본 차례 뒤 낮잠 기록을 불러오면 이 탭 문어도 다락 담요에서 잔다 (위층에서 자는 프레임 ' + f63.sleepUp + ' · ' + J5(z31) + ')');
+  reportErrors(bag, 'Z-5j'); await A.ctx.close();
+  /* 5-12. 11-14 (C-b): 차례 동안 내보낸 파일 (그 차례가 running) 을 나중에 불러오면 부팅처럼 지금 데려온다 — 같은 한 줄 · 반영은 한 번 (부팅과 같은 기록 · 다른 탭도 같은 수) ·
+        다음 차례 뒤 담요에서 눕는다 (예전: running 이 남아 lieDown 이 틈을 버려 기록은 잠인데 깬 채 — 새로고침까지) */
+  var CB = { awake: AW, rec: REC(4), test: { forceKind: 'home' } };
+  A = await open(CB); pg = A.page;
+  await pg.evaluate(function () { var f = BRAIN.plan; BRAIN.plan = function () { var a = arguments; BRAIN.plan = f; return new Promise(function (r) { setTimeout(r, 20000); }).then(function () { return f.apply(BRAIN, a); }); }; });
+  await tap(pg, 'btn-go'); await tick(pg, 1);
+  var F64 = await pg.evaluate(function () { return APP.exportJSON(); }), x64 = JSON.parse(F64).trips.filter(function (t) { return t.status === 'running'; }).map(function (t) { return t.id; });   /* 내보내기는 차례 동안에도 된다 */
+  var e64 = await tick(pg, 90, IDLE5, null, 1, 0.2);
+  var B64 = await open({ ctx: A.ctx });   /* 열려 있는 다른 탭 */
+  var KEY64 = function (id) { function k(S) { var t = S.trips.filter(function (x) { return x.id === id; })[0] || {}; return JSON.stringify({ inv: S.octopus.invites, trips: S.octopus.trips, days: S.octopus.days, lantern: S.room.lantern, sv: S.room.souvenirs.map(function (x) { return x.id; }), po: S.room.posterOrder, aff: S.octopus.affinity, vis: S.octopus.visits, notes: Object.keys(S.notes).sort(), cn: S.curiosityNotes.length, n: S.trips.length, kind: t.kind, st: t.status, rc: t.receipt, poster: t.poster, sum: t.summary }); }
+    var rows = Array.prototype.map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).filter(function (x) { return /네가 없는 동안/.test(x); });
+    return { app: k(APP.state), store: k(JSON.parse(localStorage.getItem('ppolppol_v2'))), rows: rows, running: APP.state.trips.some(function (x) { return x.status === 'running'; }) }; };
+  var i64 = await pg.evaluate(function (t) { return APP.importJSON(t); }, F64); await tick(pg, 1); await tick(B64.page, 1);
+  var z32 = await R5(pg), k64 = await pg.evaluate(KEY64, x64[0]), kb64 = await B64.page.evaluate(KEY64, x64[0]);
+  var C64 = await open(Object.assign({}, CB, { rec: JSON.parse(F64) }));   /* 같은 파일로 부팅 (새로고침이 하는 그대로) */
+  await tick(C64.page, 5, function () { return !APP.state.trips.some(function (x) { return x.status === 'running'; }); }); var kc64 = await C64.page.evaluate(KEY64, x64[0]); await C64.ctx.close();
+  console.log('   차례 동안 내보낸 파일 불러오기:', J5(z32), '줄', JSON.stringify(k64.rows), '· 부팅과 같음', k64.app === kc64.app, '· 다른 탭', kb64.app === k64.app);
+  ok(x64.length === 1 && e64.done && i64 && !k64.running && JSON.parse(k64.app).st === 'done' && k64.rows.length === 1 && k64.rows[0] === kc64.rows[0] && k64.app === kc64.app && k64.store === k64.app && kb64.app === k64.app && kb64.store === k64.app && !kb64.running && z32.phase === 'awake' && z32.rest && z32.an === 'blanket',
+    '차례 동안 내보낸 파일을 불러오면 그 차례를 부팅처럼 지금 데려온다 (같은 한 줄 «' + k64.rows[0] + '» · 반영 한 번 — 부팅 · 저장소 · 다른 탭이 같은 수) ' + JSON.stringify(JSON.parse(k64.app), ['inv', 'days', 'lantern', 'kind', 'st']));
+  var h64 = await homeTurn(pg), l64 = await tick(pg, 150, function () { return APP.oct.state === 'sleep' && !APP.rest; }, null, 1, 0.5), z33 = await R5(pg);
+  ok(h64 && l64.done && z33.st === 'sleep' && z33.an === 'blanket' && z33.phase === 'nap' && !z33.running, '그 뒤 다음 차례가 끝나면 틈 뒤 담요에서 눕는다 (' + J5(z33) + ')');
+  reportErrors(bag, 'Z-5k'); await A.ctx.close();
+  /* 5-13. 11-14: 위층에 따라 와 있는 동안 전체 초기화 → 새 문어는 다락 창가 (다락 자리 좌표로 위층 방 안에 서지 않는다) · 이름 창 그대로 · 이름을 지은 뒤 다시 오르면 따라 온다 */
+  A = await open({ awake: AW, rec: REC(4) }); pg = A.page;
+  var u65 = await stair(pg, true), z34 = await R5(pg);
+  await pg.evaluate(function () { APP.openSettings(); var r = document.getElementById('set-reset'); r.click(); r.click(); }); await tick(pg, 1);   /* 두 번 눌러 지운다 */
+  var z35 = await R5(pg), w35 = await pg.evaluate(function () { var at = APP.scene.motion().gait.at, w = APP.scene.anchors.window; return { d: +Math.hypot(at[0] - w[0], at[2] - w[2]).toFixed(4), dlg: document.getElementById('name-dialog').open, name: APP.state.octopus.name, desc: document.getElementById('scene-desc').textContent }; });
+  await pg.evaluate(function () { document.getElementById('name-in').value = '새문어'; document.querySelector('#name-form button[type=submit]').click(); });
+  await tick(pg, 2, function () { return !APP.goResting; });
+  var nm65 = await pg.evaluate(function () { return { name: APP.state.octopus.name, dlg: document.getElementById('name-dialog').open }; });
+  var d65 = await stair(pg, false), u66 = await stair(pg, true), z36 = await R5(pg);
+  console.log('   위층에서 전체 초기화:', J5(z34), '→', J5(z35), JSON.stringify(w35), '→ 이름', JSON.stringify(nm65), '→ 다시 오름', J5(z36));
+  ok(u65 && z34.up && !z35.up && z35.room === 'loft' && z35.st === 'idle' && z35.an === 'window' && w35.d < 0.01 && w35.dlg && !w35.name && /아래층/.test(w35.desc) && nm65.name === '새문어' && !nm65.dlg && d65 && u66 && z36.up,
+    '위층에 따라 와 있는 동안 전체 초기화: 새 문어는 다락 창가 (거리 ' + w35.d + ') · 이름 창 · 이름 뒤 다시 오르면 따라 온다');
+  reportErrors(bag, 'Z-5l'); await A.ctx.close();
   }
 }
 

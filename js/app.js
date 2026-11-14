@@ -1419,7 +1419,7 @@ var APP = (function () {
     if (rest && (!t || rest.id !== t.id || S.octopus.state !== 'sleep')) clearRest();
     if (rest) { restTick(); return; }
     if (S.octopus.state !== 'sleep' && oct.state === 'sleep') { octState('idle'); return; }   /* 다른 탭에서 깼다 (초대 뒤 빈 차례 · 스스로 깸 · 낮잠 끝): 이 탭 문어도 담요에서 조용히 깬다 */
-    if (!t || S.octopus.state !== 'sleep' || napOver() || t.id === restSeen) return;
+    if (!t || S.octopus.state !== 'sleep' || napOver() || (t.id === restSeen && oct.state === 'sleep')) return;   /* 11-14 (C-a): 본 차례여도 이 탭 문어가 깨어 있으면 맞춘다 — 다른 탭이 그 차례 뒤 낮잠 기록을 불러왔다 (예전엔 기록은 잠인데 깬 채 · 위층에서도) */
     restSeen = t.id;   /* 11-13: 위층에 따라 와 있으면 틈 안엔 그대로 · 틈이 지났으면 아래 armRest(t, 0) 이 눕히며 담요로 (sleepNow) */
     var byClock = awakeByClock(t);
     if (oct.state === 'sleep') { if (!byClock) return; octPlace('blanket'); octState('idle'); }   /* 이 탭 문어는 앞 낮잠에 자고 있었는데 다른 탭이 새 차례를 막 끝냈다 → 담요에서 깨어 그 틈을 같이 */
@@ -3735,9 +3735,14 @@ var APP = (function () {
     mine = []; mineAsks = [];   /* 바꾼 기록에 예전 여행 · 미용실 물음을 다시 얹지 않게 */
     S.settings.lastSeen = Math.min(seenOf(S), Date.now());   /* 11-13 (재검): 불러온 기록의 lastSeen 도 지금으로 — 미래면 이 탭 미러(window.name)가 그 뒤 다른 탭의 초기화보다 '새것' 으로 남아, 새로고침 때 옛 기록이 돌아와 저장소에 되써졌다 */
     save(); importSeen = Math.min(seenOf(S), Date.now()); importAt = performance.now(); applyMotion(); applyFont(); syncSceneLook();
+    var ot = null, kr = null;   /* 11-14 (P-2): 같은 문어의 같은 차례 (끝난 시각까지 같다 — 방금 내보낸 내 파일) 면 이 탭의 틈을 넘긴다. 새로고침처럼 남은 만큼 (octInitial 의 restKept) — 위층에서 멈춘 시간을 시계로 다시 세지 않게. 다른 기록 · 다른 차례의 틈은 예전처럼 버린다 (C-2) */
+    if (rest && !rest.lying && S.octopus.state === 'sleep' && (prev.S.octopus.born || 0) === (S.octopus.born || 0)) prev.S.trips.forEach(function (x) { if (x.id === rest.id) ot = x; });
+    var nt = ot && lastRestTrip(); if (nt && nt.id === ot.id && nt.endedAt === ot.endedAt) kr = { id: ot.id, left: Math.round(rest.left - (rest.away ? 0 : Date.now() - rest.last)) };
     clearRest();   /* 11-13 (마지막 검증 C-2): 이 탭의 깨어 있는 틈은 불러온 기록의 것이 아니다 (octInitial 이 시계로 다시 잡는다) */
+    if (kr && kr.left > 0) { try { sessionStorage.setItem(REST_KEY, JSON.stringify(kr)); } catch (e) { /* noop */ } }
     if (octWithMe() && S.octopus.state !== 'sleep') { octState('idle'); scheduleWander(); }   /* 11-14 (게이트 Y): 위층에 따라 와 있고 불러온 문어가 깨어 있으면 내 곁 그 자리에 그대로 — 다락 창가 좌표로 위층 방 안에 서지도 (예전) 다락으로 내려가지도 (e8bad0f: 거울이 '지금은 아래층에 있어.' 만 했다) 않는다 */
     else { if (octWithMe() && typeof scene.octDown === 'function') scene.octDown(); octInitial(); }   /* 11-13 (C-1): 낮잠 기록이면 위층에 따라 와 있던 문어는 다락으로 먼저 내려 담요에서 — 자는 문어는 늘 다락 담요 (아니면 다락 자리 좌표로 위층 방 안에서 잤다) */
+    resumeRunning().then(function (k) { if (k) finalPose({ kind: k }); });   /* 11-14 (C-b): 다녀오는 중에 내보낸 파일이면 부팅처럼 지금 데려온다 (같은 규칙 · 같은 한 줄 '네가 없는 동안 …'). 예전엔 running 으로 남아 다음 차례 뒤 눕지 못했다 (lieDown · syncRest) */
     applyLook({ still: true });   /* 불러온 몸 색 (renderAll 의 renderScene 이 이미 맞췄으면 할 일 없음) */
     var d = $('settings-sheet'); if (d && d.open) d.close();
     toast('기록을 불러왔어'); return true;
@@ -3747,7 +3752,8 @@ var APP = (function () {
     salonFinish();   /* 미용실 연출 중이면 끝 상태로 먼저 */
     var ssh = $('salon-sheet'); if (ssh && ssh.open) ssh.close();
     store.remove(KEY); clearRest();   /* 11-13 (재검증 S4): 앞 문어의 깨어 있는 틈도 */
-    S = defaults(); mine = []; mineAsks = []; save(); setDayGreeting(); renderAll(); syncSceneLook(); octInitial();   /* renderAll → renderScene → applyLook: 장면 문어도 기본 빨강. 몸 색은 이름 창에서 다시 고른다 */
+    S = defaults(); mine = []; mineAsks = []; save(); setDayGreeting(); renderAll(); syncSceneLook();   /* renderAll → renderScene → applyLook: 장면 문어도 기본 빨강. 몸 색은 이름 창에서 다시 고른다 */
+    if (octWithMe() && typeof scene.octDown === 'function') scene.octDown(); octInitial();   /* 11-14: 위층에 따라 와 있던 문어였으면 다락으로 먼저 (불러오기 C-1 과 같은 까닭 — 다락 창가 좌표로 위층 방 안에 서지 않게). 새 문어는 나를 따라 온 적이 없다: 부팅처럼 다락 창가에서 처음 만난다 */
     var d = $('settings-sheet'); if (d && d.open) d.close();
     openNameDialog();
   }
