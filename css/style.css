@@ -1095,6 +1095,9 @@ button.pips::before { content: ''; position: absolute; inset: -12px -4px; }   /*
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   transition: opacity var(--t-ui) var(--ease-enter);
 }
+#btn-yard { left: 52px; }   /* 11-15 마당 가장자리 단추 (산책 중): 집 단추 오른쪽 옆 */
+#btn-yard .door-txt { font-size: 13px; }
+:root[data-font="pixel"] #btn-yard .door-txt { font-size: 16px; }
 .scene-door .door-box { display: grid; place-items: center; box-sizing: border-box; width: 36px; height: 36px; border: 1px solid var(--rim); border-radius: 8px; background: var(--panel2); transition: transform var(--t-press) var(--ease-out); }
 .scene-door .door-ico { display: block; width: 32px; height: 32px; image-rendering: pixelated; image-rendering: crisp-edges; }
 .scene-door .door-txt { display: none; font-size: 15px; line-height: 1; font-weight: 600; color: var(--fg); }
