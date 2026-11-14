@@ -12,13 +12,14 @@ var RUNNER = (function () {
     W: 192, H: 108, GY: 92,            /* W = 보이는 폭의 최대(아트 px, SPAWN_X 보다 좁게 — 장애물이 화면 밖에서 생긴다). H·GY 는 옛 가로 띠 크기 (그림은 화면 크기를 따른다, fit) */
     OCT_X: 10, OCT_W: 14, H_STAND: 18, H_DUCK: 10,   /* 11-15: 문어를 왼쪽 끝으로 (30 → 10) — 크게 보여도 앞이 넓게 */
     JV: 760, G: 44, GH: 20, HOLD_MAX: 12, CUT: 680, GF: 140, BUF: 6,   /* 서브 px / 틱, 서브 px / 틱² */
-    V0: 256, VMAX: 448, RAMP: 20,      /* 11-15: 속도 1.0 → 1.75 px/틱, 20 틱마다 +1 서브 px (≈ 64 초에 최고). 예전 1.25 → 2.75 — 크게 보이는 만큼 느리게 */
+    V0: 224, VMAX: 358, RAMP: 24,      /* 11-15: 속도 0.875 → 1.4 px/틱, 24 틱마다 +1 서브 px (≈ 54 초에 최고). 예전 1.25 → 2.75 — 크게 보이는 만큼 느리게:
+                                          360 폭 폰(앞 ≈ 80 px)에서 장애물이 보이고 닿기까지 최고 속도에서도 ≈ 0.95 초 (예전 ≈ 0.9 초), 화면 위 빠르기도 예전과 비슷 */
     SPAWN_X: 200, PT: 8, MOSS: 20, FIRST_GAP: 40, MAX_TICKS: 60 * 60 * 30
   };
   /* 장애물: lo/hi = 바닥에서 잰 높이(px). web 은 천장까지 → 숙여야 지나간다 */
   var KINDS = {
     crate: { w: 12, lo: 0, hi: 9 }, crate2: { w: 22, lo: 0, hi: 9 }, candle: { w: 4, lo: 0, hi: 16 },
-    books: { w: 10, lo: 0, hi: 20 }, web: { w: 16, lo: 13, hi: 120 }, rain: { w: 24, lo: 0, hi: 7 }
+    books: { w: 10, lo: 0, hi: 20 }, web: { w: 16, lo: 13, hi: 120 }, rain: { w: 20, lo: 0, hi: 7 }   /* 11-15 runner-2: 물웅덩이 24 → 20 (느려진 만큼 넘을 틈을 예전만큼) */
   };
   var ACTS = { jd: 1, ju: 1, dd: 1, du: 1 };
 
@@ -293,7 +294,7 @@ var RUNNER = (function () {
       el('ol', { class: 'rn-top10', id: 'rn-top10', 'aria-label': '이번 주 순위 10', hidden: '' }),
       el('p', { class: 'rn-net-privacy', text: '닉네임과 점수만 저장해. 이번 주 순위는 월요일에 새로 시작해.' })
     ]);
-    overP = el('div', { class: 'rn-over', id: 'rn-over', role: 'status', hidden: '' }, [finalEl, scoreEl, bestEl, oldEl, netP, el('div', { class: 'btn-row center' }, [btnAgain, btnStop])]);
+    overP = el('div', { class: 'rn-over', id: 'rn-over', role: 'status', hidden: '' }, [finalEl, scoreEl, bestEl, oldEl, el('div', { class: 'btn-row center' }, [btnAgain, btnStop]), netP]);
     awardEl = el('p', { class: 'rn-award', id: 'rn-award', 'aria-live': 'polite', hidden: '' });
     var close = el('button', { type: 'button', class: 'btn sm pressable rn-close', id: 'rn-close', 'aria-label': '닫기', text: '닫기' });
     dlg = el('dialog', { id: 'runner-dlg', class: 'rn-dlg', 'aria-label': '다락방 달리기' }, [
@@ -349,10 +350,12 @@ var RUNNER = (function () {
   function fit() {
     var dpr = window.devicePixelRatio || 1;
     var w = dlg.clientWidth || window.innerWidth || 360, h = dlg.clientHeight || window.innerHeight || 740;
-    var k = Math.max(1, Math.round(ZOOM * dpr), Math.ceil(w * dpr / C.W));
-    var css = k / dpr, W = Math.ceil(w / css), H = Math.ceil(h / css);
     var padTop = h - 108;   /* 동그라미 윗변 (runner.css: 아래 16 px + 지름 76 px + 여유) — 잴 수 있으면 잰다 */
     try { var dr = dlg.getBoundingClientRect(), br = btnJ.getBoundingClientRect(); if (br && br.height) padTop = br.top - dr.top; } catch (e) { /* 그대로 */ }
+    var k = Math.max(1, Math.floor(ZOOM * dpr + 0.01));   /* 11-15 점검: 내림 — dpr 1 에서 4 배(보이는 폭 90)가 아니라 3 배 */
+    k = Math.min(k, Math.max(1, Math.floor((padTop - 10) / 86 * dpr)));   /* 낮은 화면(가로 폰): 달리는 띠(≈ 84 px)가 동그라미 위에 들어가게 작게 */
+    k = Math.max(k, Math.ceil(w * dpr / C.W));   /* 보이는 폭 ≤ C.W (장애물은 그 밖에서 생긴다) */
+    var css = k / dpr, W = Math.ceil(w / css), H = Math.ceil(h / css);
     var G = Math.floor((padTop - 10) / css);
     G = Math.max(Math.min(84, H - 4), Math.min(G, H - 8));   /* 점프 꼭대기(≈ 42 px) + 문어 키가 들어갈 자리는 남긴다 */
     if (cv.width !== W) cv.width = W;
@@ -505,7 +508,7 @@ var RUNNER = (function () {
     }
     hudUpdate(true);
     btnAgain.disabled = true; btnStop.disabled = true;
-    setTimeout(function () { if (!L || L.state !== 'over') return; btnAgain.disabled = false; btnStop.disabled = false; btnAgain.focus(); }, 450);
+    setTimeout(function () { if (!L || L.state !== 'over') return; btnAgain.disabled = false; btnStop.disabled = false; try { btnAgain.focus({ preventScroll: true }); } catch (e) { btnAgain.focus(); } overP.scrollTop = 0; }, 450);   /* 11-15: 버튼은 순위 칸 위 — 작은 화면에서도 점수 줄부터 보이게 */
   }
   var HITCOPY = { crate: '상자에 콩!', crate2: '상자 더미에 콩!', candle: '촛대에 톡!', books: '책 더미에 콩!', web: '거미줄에 폭!', rain: '물웅덩이에 첨벙!' };
   var lastHud = '';
@@ -654,7 +657,7 @@ var RUNNER = (function () {
       R(x + 9, wt + 4, 2, 2, T.ink);
     } else if (k === 'rain') {
       R(x, gy - 1, o.w, 2, O.puddle); R(x + 2, gy - 2, o.w - 4, 1, O.puddle);
-      for (var dI = 0; dI < 4; dI++) { var ph = L.reduced ? 2 : Math.floor(ts / 90 + dI * 2) % 6; R(x + 3 + dI * 6, gy - 7 + ph, 1, 2, O.drop); if (ph >= 5) { R(x + 2 + dI * 6, gy - 3, 1, 1, O.drop); R(x + 4 + dI * 6, gy - 3, 1, 1, O.drop); } }
+      for (var dI = 0; dI < 3; dI++) { var ph = L.reduced ? 2 : Math.floor(ts / 90 + dI * 2) % 6; R(x + 3 + dI * 6, gy - 7 + ph, 1, 2, O.drop); if (ph >= 5) { R(x + 2 + dI * 6, gy - 3, 1, 1, O.drop); R(x + 4 + dI * 6, gy - 3, 1, 1, O.drop); } }
       R(x + 1, gy - 7, 1, 1, O.drop); R(x + o.w - 2, gy - 6, 1, 1, O.drop);
     } else if (k === 'moss') {
       if (o.got) return;
