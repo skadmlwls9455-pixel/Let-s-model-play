@@ -1,4 +1,4 @@
-/* css/runner.css — 다락방 달리기 전체 화면 (js/runner.js, 11-15 runner-2). 글자는 Galmuri 24/20/16px 만, 캔버스는 정수 배 + pixelated.
+/* css/runner.css — 다락방 달리기 전체 화면 (js/runner.js, 11-15 runner-2). 글자는 Galmuri 20/16px 만 (11-15 한 단계 작게: 예전 24/20/16), 캔버스는 정수 배 + pixelated.
    색은 style.css 토큰(Apollo)을 그대로 쓴다. 틀은 ui.frame.dialog 9-slice (css/ui-art.css 와 같은 그림). */
 .rn-dlg {
   width: 100vw; height: 100vh; height: 100dvh; max-width: 430px; max-height: none; margin: 0 auto; inset: 0;   /* 11-15 점검: 넓은 화면(데스크톱·가로)은 가운데 430 px 기둥 — 앞이 보이는 거리가 기기마다 크게 다르지 않게 */
@@ -28,7 +28,7 @@
 /* 가운데 글 (준비 · 쉬는 중 · 망토): 달리는 띠 안, 바닥선 위 (--rn-ground 는 js fit) — 창 그림을 가리지 않게 */
 .rn-mid { position: absolute; left: 16px; right: 16px; top: max(64px, calc(var(--rn-ground, 70%) - 200px)); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
 .rn-msg { margin: 0; max-width: 320px; padding: 4px 12px; text-align: center; background: rgba(9, 10, 20, .6); color: #ebede9;
-  font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; }
+  font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; }
 .rn-msg:empty { display: none; }
 
 /* 동그라미 둘: 왼쪽 점프 · 오른쪽 숙이기. 반투명이라 달리기가 비쳐 보인다. 76 px (손가락 자리 ≥ 64) */
@@ -47,12 +47,12 @@
 /* 종이 판 위는 라이트 잉크 고정 */
 :root[data-font="pixel"] .rn-over .rn-final-best { color: #602c2c; }
 :root[data-font="pixel"] .rn-over { border: 16px solid transparent; border-image: url(../assets/ui/frame_paper.png) 8 fill / 16px round; image-rendering: pixelated; color: #2a2620; }
-.rn-final { margin: 0; font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 36px; }
-.rn-final-score { margin: 0; font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; }
+.rn-final { margin: 0; font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; }
+.rn-final-score { margin: 0; font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; }
 .rn-final-old { margin: -4px 0 8px; color: var(--muted); font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; }
 .rn-final-old[hidden] { display: none; }
 :root[data-font="pixel"] .rn-over .rn-final-old { color: #602c2c; }
-.rn-final-best { margin: 0 0 8px; color: var(--muted); font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; }
+.rn-final-best { margin: 0 0 8px; color: var(--muted); font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; }
 .rn-over .btn { min-height: 52px; min-width: 112px; }
 .rn-over .btn-row { flex-wrap: nowrap; margin-bottom: 8px; }
 
@@ -60,14 +60,14 @@
 :root[data-motion="reduce"] .rn-dlg[open] { animation: none; }
 
 /* 주간 랭킹 (http(s) 에서만 보인다 — js/runner.js NET) */
-.rn-award { margin: 0; max-width: 320px; padding: 4px 12px; background: rgba(9, 10, 20, .6); text-align: center; font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; color: var(--amber-fill, #de9e41); }
+.rn-award { margin: 0; max-width: 320px; padding: 4px 12px; background: rgba(9, 10, 20, .6); text-align: center; font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; color: var(--amber-fill, #de9e41); }
 .rn-award[hidden], .rn-net[hidden], .rn-net-form[hidden], .rn-top10[hidden] { display: none; }
 .rn-net { margin: 0 0 8px; text-align: left; }
 .rn-net-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
 .rn-net-label { grid-column: 1 / -1; font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; }
-#rn-nick { min-height: 44px; min-width: 0; box-sizing: border-box; padding: 4px 8px; font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; color: inherit; background: var(--bg); border: 2px solid var(--line, currentColor); border-radius: 0; }
+#rn-nick { min-height: 44px; min-width: 0; box-sizing: border-box; padding: 4px 8px; font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; color: inherit; background: var(--bg); border: 2px solid var(--line, currentColor); border-radius: 0; }
 .rn-over .rn-net-form .btn { min-width: 0; white-space: nowrap; }
-.rn-net-msg { margin: 6px 0 0; min-height: 0; font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; text-align: center; }
+.rn-net-msg { margin: 6px 0 0; min-height: 0; font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; text-align: center; }
 .rn-net-msg:empty { display: none; }
 .rn-top10 { margin: 6px 0 0; padding: 0; list-style: none; font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; font-variant-numeric: tabular-nums; }
 .rn-top10 li { display: grid; grid-template-columns: 3ch 1fr auto; gap: 8px; }
