@@ -183,7 +183,12 @@ var UIART = (function () {
     var cs = avoidCtl(r, P);   /* 아이콘을 피하되 장면 가장자리 밖으로는 안 민다 */
     if (cs < 0) shift = Math.min(shift, Math.max(cs, s.left + P - r.left));
     else if (cs > 0) shift = Math.max(shift, Math.min(cs, s.right - P - r.right));
-    shift = px ? even(shift) : Math.round(shift);
+    if (px) {   /* 11-14 (CI 스모크 T-2, 412 · 픽셀): 짝수 격자로 맞추다 오른쪽 끝에서 필요한 -5 가 -4 로 줄어 가장자리 3px 에 붙었다 → 짝수로 맞추되 4px 안쪽 범위를 벗어나면 한 칸 더 */
+      var lo = s.left + P - r.left, hi = s.right - P - r.right, e = even(shift);
+      if (e < lo) e = Math.min(hi, e + 2);
+      if (e > hi) e = Math.max(lo, e - 2);
+      shift = Math.round(e);
+    } else shift = Math.round(shift);
     var need = Math.max(s.top + P + 2, topBand({ left: r.left + shift, right: r.right + shift }, P)) - r.top, dy = need > 0 ? (px ? Math.ceil(need / 2) * 2 : Math.ceil(need)) : 0;   /* +2 = 숨쉬기로 머리 자리가 1px 오르내려도 4px 안 */
     if (shift) b.style.marginLeft = shift + 'px';
     if (px && shift) { var lim = Math.max(0, r.width / 2 - 20), tail = even(Math.max(-lim, Math.min(lim, -shift))); if (tail) b.style.setProperty('--ua-tail', tail + 'px'); }

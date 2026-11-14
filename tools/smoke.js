@@ -4549,10 +4549,10 @@ async function scenarioBringBack(browser) {
     await page.evaluate(function () {
       window.__tl = []; window.__fly = 0; var t0 = performance.now();
       new MutationObserver(function (ms) { ms.forEach(function (m) { m.addedNodes.forEach(function (x) { if (x.classList && x.classList.contains('album-fly')) window.__fly++; }); }); }).observe(document.getElementById('scene'), { childList: true, subtree: true });
-      document.getElementById('btn-go').addEventListener('click', function () { window.__tl.push({ k: 'click', t: performance.now() - t0, away: document.getElementById('btn-go').classList.contains('away') }); }, true);
+      document.getElementById('btn-go').addEventListener('click', function () { window.__tl.push({ k: 'click', t: performance.now() - t0, fr: window.__fr | 0, away: document.getElementById('btn-go').classList.contains('away') }); }, true);
       new MutationObserver(function () { window.__tl.push({ k: 'flip', t: performance.now() - t0, away: document.getElementById('btn-go').classList.contains('away') }); }).observe(document.getElementById('btn-go'), { attributes: true, attributeFilter: ['class'] });
-      window.__retFrames = 0; (function fr() { if (APP.ceremony === 'return') window.__retFrames++; requestAnimationFrame(fr); })();
-      (function tick() { var tst = document.getElementById('toast'), pip = document.querySelector('#pips .pip.on'); window.__tl.push({ k: 'tick', t: performance.now() - t0, cer: APP.ceremony, toast: tst && tst.classList.contains('show') ? tst.textContent : '', pip: !!pip, away: document.getElementById('btn-go').classList.contains('away'), oct: APP.oct.state }); if (window.__tl.length < 3000) setTimeout(tick, 25); })();
+      window.__retFrames = 0; window.__fr = 0; (function fr() { window.__fr++; if (APP.ceremony === 'return') window.__retFrames++; requestAnimationFrame(fr); })();   /* __fr = 그린 프레임 수 (11-14: 귀가 시작을 벽시계 대신 프레임으로 잰다) */
+      (function tick() { var tst = document.getElementById('toast'), pip = document.querySelector('#pips .pip.on'); window.__tl.push({ k: 'tick', t: performance.now() - t0, fr: window.__fr | 0, cer: APP.ceremony, toast: tst && tst.classList.contains('show') ? tst.textContent : '', pip: !!pip, away: document.getElementById('btn-go').classList.contains('away'), oct: APP.oct.state }); if (window.__tl.length < 3000) setTimeout(tick, 25); })();
     });
     await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1 — 두 번 톡의 둘째) → APP.goResting 이 풀릴 때까지 */
     await page.click('#btn-go');
@@ -4596,12 +4596,17 @@ async function scenarioBringBack(browser) {
   /* 데려온 쪽의 시간표 (누른 순간부터) */
   var tl = Bq.tl, clicks = tl.filter(function (x) { return x.k === 'click' && x.away; }), c0 = clicks.length ? clicks[0].t : 0;
   function first(f) { for (var i = 0; i < tl.length; i++) if (tl[i].k === 'tick' && tl[i].t >= c0 && f(tl[i])) return Math.round(tl[i].t - c0); return -1; }
+  var c0f = clicks.length ? clicks[0].fr : 0;
+  function firstF(f) { for (var i = 0; i < tl.length; i++) if (tl[i].k === 'tick' && tl[i].t >= c0 && f(tl[i])) return tl[i].fr - c0f; return -1; }   /* 누른 뒤 그 일이 보일 때까지 그린 프레임 수 */
+  var fRet = firstF(function (x) { return x.cer === 'return'; });
   var tRet = first(function (x) { return x.cer === 'return'; }), tToast = first(function (x) { return /^새 포스터 · /.test(x.toast); }), tPip = first(function (x) { return x.pip; }), tDone = (function () { for (var i = 0; i < tl.length; i++) if (tl[i].k === 'flip' && tl[i].t >= c0 && !tl[i].away) return Math.round(tl[i].t - c0); return -1; })();
   console.log('   데려오기 시간표 (ms, 누른 뒤): 귀가 ' + tRet + ' · 토스트 ' + tToast + ' · 등불 ' + tPip + ' · 버튼 ' + tDone + ' · 누름 ' + clicks.length);
   ok(clicks.length >= 2, '나가 있는 동안 두 번 눌렀다 (데려오기 + 귀가 중 한 번 더)');
   /* 폰(60 fps)에선 귀가 ≈ 0.7 s · 토스트 ≈ 1 s · 버튼 ≈ 2 s. 헤드리스 소프트웨어 GL · 다른 일로 바쁜 기계에선 프레임과 타이머가 늦어(장면 dt 상한 0.1 s) 벽시계로는 몇 배까지 늘어난다 →
      짧은 귀가인지는 프레임 수로 (긴 귀가 = 길 · 계단 · 현관 ≈ 8 s 장면 시간 = 80 프레임 넘게, 짧은 귀가 ≈ 0.7 s = 7~45 프레임), 벽시계는 순서와 넉넉한 상한만 */
-  ok(tRet >= 0 && tRet <= 3000, '누르면 곧 다락 문으로 귀가가 시작된다 (' + tRet + ' ms)');
+  /* 11-14 (CI 스모크 K, 4313 ms 로 한 번 빨강): '곧' 은 프레임으로 잰다 — 폰(60 fps)에선 귀가 시작 ≈ 0.7 s ≈ 42 프레임, 느린 러너는 프레임이 띄엄띄엄이라
+     벽시계로 몇 배가 된다. 데려오기가 안 되면 귀가는 산책이 다 끝난 뒤(장면 시간 수십 초 = 수백 프레임)라 90 프레임으로 가른다. 벽시계는 넉넉한 상한만 */
+  ok(tRet >= 0 && fRet >= 0 && fRet <= 90 && tRet <= 12000, '누르면 곧 다락 문으로 귀가가 시작된다 (' + fRet + ' 프레임 · ' + tRet + ' ms)');
   /* 아래 한도: 짧은 귀가는 장면 시간 ≈ 0.55 s 이고 장면 dt 상한이 0.1 s 라 기계가 바빠도 5 프레임 넘게 걸린다 — 귀가 중 한 번 더 누른 게 의식을 감아 버리면 1~2 프레임 */
   ok(Bq.retFrames >= 5 && Bq.retFrames <= 45, '귀가 의식은 짧은 판 (다락 문 0.3 s 전환 + 문간에서 2배 걸음 — 길 · 계단 없음) · 귀가 중 한 번 더 눌러도 감기지 않는다: ' + Bq.retFrames + ' 프레임');
   ok(tToast > tRet && tToast <= 12000 && tPip >= tToast, "짧은 귀가에 '새 포스터 · …' 토스트 → 등불 칸 (토스트 " + tToast + ' · 등불 ' + tPip + ' ms)');
