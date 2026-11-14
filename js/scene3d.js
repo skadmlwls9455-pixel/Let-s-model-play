@@ -1309,6 +1309,13 @@ var SCENE3D = (function () {
     var selMat = keep(new T.MeshBasicMaterial({ color: C(PAL.amber[3]).getHex(), depthTest: false, depthWrite: false })), selG = new T.Group(), SEL_T = 0.12;
     for (var si = 0; si < 4; si++) { var sm = new T.Mesh(keep(new T.PlaneGeometry(1, 1)), selMat); sm.rotation.x = -Math.PI / 2; sm.renderOrder = 6; selG.add(sm); }
     selG.visible = false; atticG.add(selG);
+    /* 11-15 (검증): 숨은 문어가 쓰는 자리 (지금 선 자리 · 담요 잠자리) 를 바닥에 옅은 동그라미로 — 거기가 왜 빨간지 보이게 */
+    var spotMat = keep(new T.MeshBasicMaterial({ color: C(PAL.dusk[1]).getHex(), depthWrite: false })), spotMarks = [0, 1].map(function () { var m = new T.Mesh(keep(new T.RingGeometry(OCT_PAD - 0.1, OCT_PAD, 20)), spotMat); m.rotation.x = -Math.PI / 2; m.renderOrder = 2; m.visible = false; atticG.add(m); return m; });
+    function stepSpotMarks() {
+      var on = FM.on, b = on && props.blanket.visible ? bedSpot() : null, oc = on && octHere() && oct.anchor !== 'crate' ? oct.pos : null;
+      spotMarks[0].visible = !!b; if (b) spotMarks[0].position.set(b[0], 0.16, b[1]);
+      spotMarks[1].visible = !!oc && !(b && Math.hypot(oc.x - b[0], oc.z - b[1]) < 0.2); if (spotMarks[1].visible) spotMarks[1].position.set(oc.x, 0.02, oc.z);
+    }
     function stepSel() {
       var id = FM.on && (FM.drag ? FM.drag.id : FM.sel), f = id && FURN[id];
       if (!f || !f.m.visible) { selG.visible = false; return; }
@@ -1354,6 +1361,7 @@ var SCENE3D = (function () {
       if (on && !FM.on) {
         if (!furnModeCan()) return false;
         if (PL.sit && !PL.hop) plStand();
+        if (oct.walking && oct.walking.finish && !(CER && CER.active)) oct.walking.finish();   /* 11-15 (검증): 걷던 문어는 도착시켜 둔다 — 옛 길 · 옛 목적지로 옮긴 가구 속에 서지 않게 (문어 몸 자리는 이 자리로 지킨다) */
         FM.on = true; FM.sel = null; FM.drag = null; FM.open = furnSnap();
         yawDrag = 0; if (typeof setYaw === 'function') setYaw(0);   /* 기본 각도 (갈래 A 의 자유 돌리기가 있으면 그것도 0 으로) */
         furnFit(ins); touchMode();
@@ -1365,7 +1373,8 @@ var SCENE3D = (function () {
       FM.on = false; FM.sel = null; FM.drag = null; FM.open = null; selG.visible = false;
       ZT = null; if (st.zoomF < 1) setZoom(1); panReset(); placeCamera(); touchMode();   /* 모드의 맞춤 구도 (1× 아래) → 평소 1× 가운데 */
       var away = st.octState === 'away'; octG.visible = !away && FADE.d > 0; octDecal.visible = !away && FADE.d >= 0.5; plG.visible = true;
-      if (octHere() && !oct.walking && !(CER && CER.active)) {   /* 상자 옆 · 담요에 있던 문어는 그 가구를 따라 (자던 문어는 담요의 새 자리에) · 다른 자리면 가구에 덮이지 않게 */
+      if (octHere() && !(CER && CER.active)) {   /* (걷던 걸음은 모드를 열 때 끝냈다) */
+        if (oct.walking && oct.walking.finish) oct.walking.finish();   /* 상자 옆 · 담요에 있던 문어는 그 가구를 따라 (자던 문어는 담요의 새 자리에) · 다른 자리면 가구에 덮이지 않게 */
         if (oct.anchor === 'blanket' || oct.anchor === 'crate') jumpTo(oct.anchor);
         else { var bl = furnBoxes(null, OCT_PAD), p = nearFree(oct.pos.x, oct.pos.z, bl); if (p[0] !== oct.pos.x || p[1] !== oct.pos.z) { oct.pos.set(p[0], oct.pos.y, p[1]); snapScreen(octG.position.copy(oct.pos)); } }
       }
@@ -1382,13 +1391,19 @@ var SCENE3D = (function () {
     }
     function furnCancel() { if (!FM.on) return; FM.drag = null; if (FM.open) furnRestore(FM.open); furnClose(); }   /* 취소: 모드를 연 때 그대로 */
     function furnSelect(id) { if (!FM.on || (id && (!FURN[id] || !FURN[id].m.visible))) return false; FM.sel = id || null; furnEmit(); return true; }
-    function furnTry(id, rot, sc) {   /* 각도 · 크기를 바꿔 본다: 벽에 걸리면 안쪽으로 밀고, 그래도 겹치면 되돌리고 false */
+    function furnTry(id, rot, sc, slide) {   /* 각도 · 크기를 바꿔 본다: 벽에 걸리면 안쪽으로 밀고, 그래도 겹치면 (slide = 돌리기는 가까운 빈 칸을 찾아 보고) 되돌리고 false */
       var f = FURN[id], r0 = f.rot, s0 = f.sc, x0 = f.m.position.x, z0 = f.m.position.z;
       f.rot = rot; f.sc = sc; var l = furnLim(f), x = clamp(x0, l[0], l[1]), z = clamp(z0, l[2], l[3]);
-      if (!furnOk(id, x, z)) { f.rot = r0; f.sc = s0; return false; }
+      if (!furnOk(id, x, z) && !slide) { f.rot = r0; f.sc = s0; return false; }   /* 작게 · 크게: 겹치면 안 바뀐다 (지시문) */
+      if (!furnOk(id, x, z)) {   /* 11-15 (검증): 그 자리에서 안 되면 0.75 m 안의 가장 가까운 놓을 수 있는 칸으로 (소파를 담요 옆에서 돌리면 늘 막혔다) — 없으면 안 바뀐다 */
+        var best = null, bd = 1e9;
+        for (var dx = -3; dx <= 3; dx++) for (var dz = -3; dz <= 3; dz++) { var px = clamp(snapG(x + dx * GRID), l[0], l[1]), pz = clamp(snapG(z + dz * GRID), l[2], l[3]), d = Math.hypot(px - x0, pz - z0); if (d <= 0.75 + 1e-6 && d < bd && furnOk(id, px, pz)) { bd = d; best = [px, pz]; } }
+        if (!best) { f.rot = r0; f.sc = s0; return false; }
+        x = best[0]; z = best[1];
+      }
       f.m.position.x = x; f.m.position.z = z; furnPose(id); furnApply(id); if (id === 'crate') rebuildDecals(); furnEmit(); return true;
     }
-    function furnRotate() { var id = FM.on && FM.sel; if (!id || FM.drag) return false; return furnTry(id, (FURN[id].rot + 90) % 360, FURN[id].sc); }   /* 90° 씩 (옛 15° 각도는 그 위에서 돈다) */
+    function furnRotate() { var id = FM.on && FM.sel; if (!id || FM.drag) return false; return furnTry(id, (FURN[id].rot + 90) % 360, FURN[id].sc, true); }   /* 90° 씩 (옛 15° 각도는 그 위에서 돈다) */
     function furnScale(dir) {
       var id = FM.on && FM.sel; if (!id || FM.drag) return false;
       var f = FURN[id], s = clamp(Math.round((f.sc + (dir > 0 ? 0.1 : -0.1)) * 100) / 100, 0.7, 1.5);
@@ -4781,7 +4796,7 @@ var SCENE3D = (function () {
       if (atticG.visible) stepWeather(dt); if (extG.visible) stepExt(dt); if (PROOM && PROOM.g.visible) stepPlayRoom(dt);
       post.uniforms.uFade.value = PLACE.fade; if (PLACE.fade > 0) { var fk = hexToOklab(LIGHTS[phaseOf(st.hour)].bg); post.uniforms.uFadeOk.value.set(fk[0], fk[1], fk[2]); }
       stepSalon(dt);   /* 미용실 연출 (몸 층 SAL.body 를 stepOct 가 읽는다) · 거울 속 문어 */
-      stepOct(dt); stepPlayer(dt); stepSel(); stepFurnSel(); furnHide(); stepSofaSpot(); if (PLAY) PLAY.step(dt);   /* 놀이 kit: stepOct 가 매 프레임 새로 쓴 몸·팔 값 위에 덮어쓴다 */
+      stepOct(dt); stepPlayer(dt); stepSel(); stepSpotMarks(); stepFurnSel(); furnHide(); stepSofaSpot(); if (PLAY) PLAY.step(dt);   /* 놀이 kit: stepOct 가 매 프레임 새로 쓴 몸·팔 값 위에 덮어쓴다 */
       stepHang(dt); stepIntro(dt);
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(candleG.quaternion).invert().multiply(camera.quaternion);   /* 11-15: 양초 그룹이 상자와 같이 돌아도 글로우는 화면을 본다 */
       stepZoom(dt); stepPan(dt); placeCamera(); updateOverlay();
