@@ -3768,7 +3768,7 @@ var APP = (function () {
      장면은 놀이방에 있는 동안 의식이 장소를 바꿔도 화면을 끌고 가지 않는다 (scene3d setPlaceNow). 문어가 돌아오면 구석 쪽지 "뚜루가 돌아왔어." + 보러 가기.
      큰 버튼(뽈뽈 다녀와 · 다녀오는 중…)은 문어 방의 일 → 놀이방이면 먼저 문으로 돌아와서 한다. 새로고침은 늘 문어 방 (지금 방은 저장하지 않는다).
      내 캐릭터 (SCENE.md '내 캐릭터'): walkFirst — 장면의 playerWalkTo(문 앞 앵커 atticPlayDoor · playAtticDoor)가 문 앞까지 걸어가서 풀리면 그때 문이 열린다 (2D 폴백엔 캐릭터가 없어 바로 풀린다) */
-  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew', plot0: 'btn-plot0', plot1: 'btn-plot1', plot2: 'btn-plot2' };   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
+  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew', plot0: 'btn-plot0', plot1: 'btn-plot1', plot2: 'btn-plot2', counter: 'btn-cook' };   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
   var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door', loft: 'btn-loft-stair' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
   var furnHinted = false, furnFrom = null;   /* furnFrom = { id, at: [x, z, rot, scale] } 들어 올린 순간 (장면 layout()) */
   /* 가구 배치 모드 화면 (주인 11-10 참고 화면): 위에 '가구 배치 · 이름' + 바꿔 들 가구 칩, 오른쪽 아래에 돌리기 · 크게 · 작게 · 취소 · 놓기. 큰 버튼(뽈뽈 다녀와)은 그동안 숨긴다. 캐릭터는 스틱 · 방향키로 그대로 움직인다 */
@@ -3835,7 +3835,7 @@ var APP = (function () {
   }
   function resetRoomUI() {   /* 장면을 바꿀 때 (sceneLost): 단추는 새 장면이 다시 맡는다 · 그 전까지 놀이방 단추는 숨김 */
     roomJob = null; hideBackNote();
-    ['btn-play-door', 'btn-machine', 'btn-salon', 'btn-stair', 'btn-loft-stair', 'btn-sew', 'btn-plot0', 'btn-plot1', 'btn-plot2'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
+    ['btn-play-door', 'btn-machine', 'btn-salon', 'btn-stair', 'btn-loft-stair', 'btn-sew', 'btn-plot0', 'btn-plot1', 'btn-plot2', 'btn-cook'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
     var d = $('btn-door'); if (d) { d.hidden = false; d.removeAttribute('data-spot'); ['left', 'top', 'width', 'height', 'right', 'bottom'].forEach(function (k) { d.style[k] = ''; }); }
     var sc = $('scene'); if (sc) { sc.setAttribute('data-view', 'attic'); sc.setAttribute('aria-label', '문어의 다락방'); }
   }
@@ -3888,6 +3888,35 @@ var APP = (function () {
     RUNNER.open({ opener: opener });
     return true;
   }
+  /* 11-15 (주인: "놀이방 주방 조리대: 톡하면 요리(COOK)가 바로 열리게"): 부엌은 따로 쪽(cook.html)이라 그대로 두고, 화면 가득한 대화상자 안 iframe 으로 연다 (처음 열 때 만든다).
+     cook.html?embed=1 은 자기 머리 · 링크를 숨기고 부엌을 바로 열며, 부엌이 닫히면 (닫기 · Esc · 뒤로) postMessage 'cook-close' 로 알린다 → 이 대화상자를 닫는다 · 놀이방은 그대로.
+     다시 열면 같은 iframe 에 'cook-open'. 부엌의 저장(냄비 · 수첩 · 스티커)은 cook.html 과 같은 열쇠 (ppolppol_cook_v0) · 소리는 같은 설정 (기본 꺼짐) */
+  var cookFrame = null, cookReady = false;
+  function cookMsg(e) {
+    if (!cookFrame || e.source !== cookFrame.contentWindow) return;
+    if (e.origin !== 'null' && e.origin !== location.origin) return;
+    var d = e.data; if (!d || typeof d !== 'object') return;
+    var ov = $('cook-overlay');
+    if (d.ppolCook === 'ready') cookReady = true;
+    else if (d.ppolCook === 'close' && ov && ov.open) ov.close();
+  }
+  function openCook(opener, kbd) {
+    var ov = $('cook-overlay'); if (!ov || ov.open || !inPlay() || roomJob) return false;
+    hideTip();
+    opener = opener || $('btn-cook');
+    if (opener && document.activeElement !== opener && !opener.hidden) focusRoomBtn(opener, !!kbd);   /* 닫으면 브라우저가 포커스를 조리대 단추로 돌려준다 */
+    if (!cookFrame) {
+      window.addEventListener('message', cookMsg);
+      cookFrame = document.createElement('iframe');
+      cookFrame.className = 'cook-frame'; cookFrame.title = '부엌';
+      cookFrame.src = 'cook.html?embed=1';
+      ov.appendChild(cookFrame);
+      ov.addEventListener('close', function () { try { cookFrame.contentWindow.postMessage({ ppolCook: 'close' }, '*'); } catch (e) { /* 닫힌 부엌 */ } });   /* 이쪽 Esc 로 닫혀도 부엌은 냄비를 저장하고 조용히 */
+    } else if (cookReady) { try { cookFrame.contentWindow.postMessage({ ppolCook: 'open' }, '*'); } catch (e) { /* 다시 불러온다 */ cookFrame.src = 'cook.html?embed=1'; } }
+    showDialog(ov);
+    try { cookFrame.focus(); } catch (e) { /* 포커스는 부엌이 연 뒤 스스로 */ }
+    return true;
+  }
   /* 구석 쪽지: 놀이방에 있는 동안 문어가 산책에서 돌아오면 (sceneFor 'return'). 이름 + 조사 (WORLD.strings.backNote) · 보러 가기 = 문으로 다락에.
      놀이방을 벗어나면(어느 길로든) 걷는다. 글은 보인 뒤에 넣는다 (role=status 가 읽어 준다) */
   var noteTimer = 0;
@@ -3925,6 +3954,7 @@ var APP = (function () {
     on('btn-stair', function (b, k) { goRoom('loft', b, k); });
     on('btn-loft-stair', function (b, k) { goRoom('attic', b, k); });
     on('btn-sew', function () { openSew(); });
+    on('btn-cook', function (b, k) { openCook(b, k); });   /* 11-15: 놀이방 조리대 → 부엌 */
     [0, 1, 2].forEach(function (i) { on('btn-plot' + i, function () { gardenAct(i); }); var b = $('btn-plot' + i); if (b) b.addEventListener('focus', plotLabels); });   /* 바깥 텃밭 칸 (바깥이 보일 때만 장면이 단추를 올린다) · 포커스 때 이름을 다시 (11-11: 씨앗 수 · 날짜가 바뀌었을 수 있다) */
     on('btn-salon', function () { openSalon(); });   /* 미용실 거울 (그림 위 투명 단추 — 톡은 장면이 그린 순서대로 넘긴다: 문어가 거울 옆이면 문어가 먼저) */
     on('btn-back-see', function (b, k) { goRoom('attic', b, k); });

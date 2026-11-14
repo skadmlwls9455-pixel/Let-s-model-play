@@ -2781,7 +2781,7 @@ var SCENE3D = (function () {
        그 장소가 보이고 문 작업·전환·입장 연출이 없을 때만 보인다. atticPlay 는 바깥이 보이는 동안(산책 중) data-spot="edge" (위치를 비워 앱 CSS 의 가장자리 단추로) ·
        다락 위 = data-spot="over". 확대·밀기로 상자가 화면 밖이면 숨긴다 */
     var STAIR_BOX = new T.Box3(new T.Vector3(STAIR.x0, 0, STAIR.z0), new T.Vector3(STAIR.x1, STAIR.top, STAIR.z1));
-    var SPOTS = {}, SPOT_KEYS = ['atticPlay', 'playAttic', 'machine', 'salon', 'atticStair', 'loftStair', 'sew', 'plot0', 'plot1', 'plot2'], spotEdge = true, spotLast = {}, _sv8 = new T.Vector3(), SPOT_MIN_VIS = 8;   /* 보이는 문 조각이 8 CSS px 보다 좁으면 단추를 숨긴다 · salon = 미용실 거울 (#btn-salon) */
+    var SPOTS = {}, SPOT_KEYS = ['atticPlay', 'playAttic', 'machine', 'salon', 'atticStair', 'loftStair', 'sew', 'plot0', 'plot1', 'plot2', 'counter'], spotEdge = true, spotLast = {}, _sv8 = new T.Vector3(), SPOT_MIN_VIS = 8;   /* 보이는 문 조각이 8 CSS px 보다 좁으면 단추를 숨긴다 · salon = 미용실 거울 (#btn-salon) */
     function boxScreen(b, obj) {   /* 그룹 좌표 상자 → 컨테이너 CSS px {l,t,r,b} */
       obj.updateWorldMatrix(true, false);
       var l = Infinity, t = Infinity, r = -Infinity, bt = -Infinity, mw = obj.matrixWorld;
@@ -2799,9 +2799,9 @@ var SCENE3D = (function () {
         if (v === 'exterior') return spotEdge ? { id: id, mode: 'edge' } : null;
         if (v !== 'attic') return null;
         q = boxScreen(ATTIC_DOOR.box, ATTIC_DOOR.g);
-      } else if (id === 'playAttic' || id === 'machine') {
+      } else if (id === 'playAttic' || id === 'machine' || id === 'counter') {   /* 11-15: counter = 놀이방 조리대 → 부엌 (#btn-cook) */
         if (v !== 'play' || !PROOM || busy) return null;
-        q = id === 'machine' ? boxScreen(PROOM.machineBox, PROOM.g) : boxScreen(PLAY_DOOR.box, PLAY_DOOR.g);
+        q = id === 'machine' ? boxScreen(PROOM.machineBox, PROOM.g) : id === 'counter' ? boxScreen(PROOM.counterBox, PROOM.g) : boxScreen(PLAY_DOOR.box, PLAY_DOOR.g);
       } else if (id === 'plot0' || id === 'plot1' || id === 'plot2') {
         if (v !== 'exterior' || PLACE.room || busy || !extReady) return null;
         q = boxScreen(plotBoxes[+id.charAt(4)], extG);
@@ -4150,7 +4150,7 @@ var SCENE3D = (function () {
       ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
       var okOct = octTappable(), sp;
-      if (PLACE.vis === 'play') { sp = spotAt(cx, cy, ['playAttic', 'machine']); return sp ? spotHit(sp) : null; }
+      if (PLACE.vis === 'play') { sp = spotAt(cx, cy, ['playAttic', 'machine', 'counter']); return sp ? spotHit(sp) : null; }
       if (PLACE.vis === 'loft') {   /* 위층: 따라 올라온 문어 · 미용실 거울(문어가 거울 앞이면 문어가 먼저) · 계단 · 재봉틀 */
         var upOct = okOct && octUp(), salOnL = !!SPOTS.salon && !!spotInfo('salon'), smL = salOnL ? [salA, salB, salC].filter(function (m) { return m.visible; }) : [];
         var hsL = ray.intersectObjects((upOct ? bodyMeshes() : []).concat(smL), false);
