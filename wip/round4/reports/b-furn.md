@@ -130,7 +130,7 @@ Y · Z 전체 재실행 결과는 맨 아래에 적었다.
 - `node tools/test-scene-perf.js`: 111 passed, 0 failed. 점검 고침 앞 코드에서 한 번 돌렸고, 고침은 가구 블록 안 몇 줄이다.
 - smoke Q: 75 ok, 0 FAIL. 첫 Y · Q · Z 실행의 Q 부분이고, Q-12 고친 뒤 코드다.
 - smoke Z-6: 18 passed, 0 failed (마지막 코드).
-- smoke Y · Z 전체 (마지막 코드): 맨 아래 '마지막 실행'.
+- smoke Y · Z 전체 (마지막 코드): 187 passed, 0 failed.
 - `python3 tools/subset-fonts.py --check`: stale 없음.
 
 ## 독립 점검
@@ -167,4 +167,4 @@ Y · Z 전체 재실행 결과는 맨 아래에 적었다.
 - 확인 못 한 것: 실제 폰 기기, iOS 사파리, 120 Hz.
 
 ## 마지막 실행
-(아래에 채움)
+- `SMOKE_ONLY=Y,Z node tools/smoke.js` (마지막 코드): **187 passed, 0 failed** (Y 전체 · Z 1~6).
