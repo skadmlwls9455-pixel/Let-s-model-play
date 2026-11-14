@@ -6155,6 +6155,12 @@ async function scenarioLoft(browser) {
   await pg.evaluate(function () { document.getElementById('furn-ok').click(); }); await tick(pg, 0.3);
   var bw6 = await pg.evaluate(function () { var f = APP.scene.furnFoot('blanket'), m = APP.scene.motion(); return { at: m.gait.at, bed: APP.scene.octSpot('blanket'), f: f, oct: APP.scene.furnLook().oct }; });
   ok(bm6.id === 'blanket' && Math.hypot(bw6.at[0] - bw6.bed[0], bw6.at[2] - bw6.bed[1]) < 0.02 && Math.abs(bw6.bed[0] - bw6.f.x) < 1e-6 && bw6.oct, '담요에 있던 문어는 저장 뒤 담요의 새 자리에 ' + JSON.stringify(bw6));
+  /* (검증 11-15) 걷던 문어: 모드를 열면 도착해 있고, 그 자리엔 가구를 못 놓는다 · 소파를 담요 옆에서 돌리면 가까운 빈 칸으로 비켜 돈다 · 문어 자리 동그라미 */
+  await pg.evaluate(function () { APP.scene.setLayout(APP.state.room.layout); APP.scene.jumpTo('window'); APP.oct.anchor = 'board'; APP.scene.moveTo('board'); });
+  await tick(pg, 0.2); await tap(pg, 'btn-furn'); await tick(pg, 0.2);
+  var wv6 = await pg.evaluate(function () { var m = APP.scene.motion(), b = APP.scene.octSpot('board'); APP.scene.furnSelect('sofa'); var r = APP.scene.furnRotate(), e = APP.scene.furnEditing(); return { moving: m.gait.moving, d: Math.hypot(m.gait.at[0] - b[0], m.gait.at[2] - b[1]), here: APP.scene.furnDragTest('crate', b[0], b[1]), turn: r, rot: e.rot }; });
+  await pg.evaluate(function () { document.getElementById('furn-x').click(); }); await tick(pg, 0.2);
+  ok(!wv6.moving && wv6.d < 0.05 && !wv6.here && wv6.turn && wv6.rot === 105, '걷던 문어는 모드를 열 때 도착 (그 자리엔 가구 못 놓음) · 담요 옆 소파도 돌아간다 (15 → ' + wv6.rot + ') ' + JSON.stringify(wv6));
   /* 문어가 나가면 (출발 의식) 모드는 저장하고 닫힌다 */
   await tap(pg, 'btn-furn'); await tick(pg, 0.3);
   var c6d = await rect6('crate');
