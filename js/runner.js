@@ -311,13 +311,30 @@ var RUNNER = (function () {
     document.getElementById('rn-nick').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submitRun(); } });
     dlg.addEventListener('close', onClose);
     dlg.addEventListener('keydown', onKey); dlg.addEventListener('keyup', onKey);
-    function pad(btn, down, up) {
-      btn.addEventListener('pointerdown', function (e) { e.preventDefault(); try { btn.setPointerCapture(e.pointerId); } catch (x) { /* 없음 */ } press(down); });
-      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { btn.addEventListener(t, function () { press(up); }); });
-      btn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    /* 11-15 5차 (주인 답 '화면 반쪽씩'): 화면 왼쪽 반 어디든 = 점프, 오른쪽 반 어디든 = 숙이기 (꾹 누르면 더 높이 그대로).
+       동그라미 둘은 자리 표시 — 누른 쪽 동그라미가 눌린 모양이 된다. 손가락마다 어느 쪽인지 기억해 두 엄지를 같이 써도 된다.
+       닫기 · 결과 단추 · 닉네임 칸은 제 할 일 그대로 (판이 끝난 뒤엔 반쪽 누르기가 없다). 예전 (같은 날 앞서) 은 동그라미 안만 받았다 */
+    var zones = {};
+    function zoneOf(e) { var r = dlg.getBoundingClientRect(); return (e.clientX - r.left) < r.width / 2 ? 'j' : 'd'; }
+    function padOf(z) { return z === 'j' ? btnJ : btnD; }
+    function lit(b, on) { if (b && b.classList) b.classList.toggle('on', !!on); }   /* 누르는 쪽 동그라미 (classList 없는 곳 — 노드 시험의 가짜 DOM — 이면 그림만 빠진다) */
+    function held(z) { for (var k in zones) if (zones[k] === z) return true; return false; }
+    dlg.addEventListener('pointerdown', function (e) {
+      if (!L || L.state === 'over' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      var t = e.target; if (t && t.closest && t.closest('button:not(.rn-pad), input, a, label, select, textarea, .rn-over')) return;
+      e.preventDefault();
+      var z = zoneOf(e); zones[e.pointerId] = z;
+      try { dlg.setPointerCapture(e.pointerId); } catch (x) { /* 없음 */ }
+      lit(padOf(z), true); press(z + 'd');
+    });
+    function zoneUp(e) {
+      var z = zones[e.pointerId]; if (!z) return;
+      delete zones[e.pointerId];
+      if (!held(z)) { lit(padOf(z), false); press(z + 'u'); }
     }
-    pad(btnJ, 'jd', 'ju'); pad(btnD, 'dd', 'du');
-    /* 11-15: 캔버스 탭 점프 · 쓸기 숙이기는 뺐다 — 엄지를 화면에 얹어 둬도 저절로 뛰지 않게. 누르는 곳은 동그라미 둘뿐 */
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { dlg.addEventListener(t, zoneUp); });
+    dlg.addEventListener('contextmenu', function (e) { if (!e.target.closest || !e.target.closest('input, .rn-over')) e.preventDefault(); });
+    dlg.addEventListener('close', function () { zones = {}; lit(btnJ, false); lit(btnD, false); });
     window.addEventListener('resize', function () { if (dlg.open) fit(); });
     document.addEventListener('visibilitychange', function () { if (document.hidden && L && L.state === 'run') pause(); });
   }
@@ -472,9 +489,15 @@ var RUNNER = (function () {
   }
   function resume() { L.state = 'run'; L.last = 0; L.acc = 0; setMsg(''); }
   function tickOnce() {
-    var s = L.sim;
+    var s = L.sim, j0 = s.jumpT, l0 = s.landT, m0 = s.moss;
     while (L.queue.length) { var a = L.queue.shift(); if (applyInput(s, a)) L.inputs.push({ t: s.tick, a: a }); }
     step(s);
+    if (typeof HAPTICS !== 'undefined') {   /* 11-15 5차 진동 (기본 켬 · 설정에서 끄기): 점프 · 착지 · 이끼 · 부딪힘. 시뮬엔 안 닿는다 (서버 재생과 같은 판) */
+      if (s.dead) HAPTICS.buzz('hit');
+      else if (s.jumpT !== j0) HAPTICS.buzz('jump');
+      else if (s.landT !== l0) HAPTICS.buzz('land');
+      else if (s.moss !== m0) HAPTICS.buzz('tick');
+    }
     if (s.dead) over('hit');
   }
   function record(end) {

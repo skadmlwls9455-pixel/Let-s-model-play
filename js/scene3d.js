@@ -1674,7 +1674,7 @@ var SCENE3D = (function () {
     function furnDragStart(id, cx, cy) {
       var f = FURN[id], p = furnFloor(cx, cy); if (!p) return false;
       FM.drag = { id: id, x0: f.m.position.x, z0: f.m.position.z, ox: f.m.position.x - p.x, oz: f.m.position.z - p.z, ok: true };
-      FM.sel = id; furnEmit(); return true;
+      FM.sel = id; furnEmit(); buzz('pick'); return true;
     }
     function furnDragMove(cx, cy) {
       var c = FM.drag; if (!c) return; var f = FURN[c.id], p = furnFloor(cx, cy); if (!p) return;
@@ -1682,14 +1682,16 @@ var SCENE3D = (function () {
       if (x === f.m.position.x && z === f.m.position.z) return;
       f.m.position.x = x; f.m.position.z = z; var ok = furnOk(c.id, x, z);
       if (c.id === 'crate') furnApply('crate');   /* 양초는 끄는 동안에도 상자 위 (문어 자리는 놓을 때) */
-      if (ok !== c.ok) { c.ok = ok; emit('furnEdit', furnState()); }
+      if (ok !== c.ok) { c.ok = ok; emit('furnEdit', furnState()); if (!ok) buzz('nope'); }
       dither.still = 0;
     }
     function furnDragEnd(keepIt) {   /* keepIt = 손을 정상으로 뗐다. 못 놓는 곳이었거나 취소(두 번째 손가락 · 창 닫힘)면 끌기 전 자리로 */
       var c = FM.drag; if (!c) return; var f = FURN[c.id];
       if (!keepIt || !c.ok) { f.m.position.x = c.x0; f.m.position.z = c.z0; }
+      else buzz('drop');
       FM.drag = null; furnApply(c.id); if (c.id === 'crate') rebuildDecals(); furnEmit();
     }
+    function buzz(n) { try { if (typeof HAPTICS !== 'undefined') HAPTICS.buzz(n); } catch (e) { /* 진동 없음 */ } }   /* 11-15 5차 진동 (기본 켬 · 설정에서 끄기): 가구 집기 · 놓기 · 못 놓는 곳 */
     function setLayout(o) {   /* { sofa: [x, z, rot?, scale?], … } — 범위 밖 · 모르는 것은 무시 */
       if (!o || typeof o !== 'object') return;
       Object.keys(FURN).forEach(function (id) {
@@ -4597,19 +4599,17 @@ var SCENE3D = (function () {
       yp.push({ g: box(SW, 4 * PX, SW), m: M(0, -4 * PX, 0), c: MAT.slabTop });
       yp.push({ g: box(SW + 0.02, PX, SW + 0.02), m: M(0, -6.5 * PX, 0), c: MAT.slabLine });
       yp.push({ g: box(SW, 6 * PX, SW), m: M(0, -10 * PX, 0), c: MAT.slabBase });
-      /* 바깥 그림의 풀 · 길 · 디딤돌 (ep[4 .. h0]) · 덤불 · 돌 · 우체통 · 울타리 끝 (h1 .. p1) · 물웅덩이 (p1 ..) 를 그대로 */
-      ep.slice(4, EXT_MARK.h0).concat(ep.slice(EXT_MARK.h1)).forEach(function (q) { yp.push(q); });
+      /* 바깥 그림의 풀 · 디딤돌 (ep[4 .. h0]) · 덤불 · 돌 · 우체통 · 울타리 끝 (h1 .. p1) · 물웅덩이 (p1 ..) 를 그대로.
+         11-15 5차 (주인: "마당 맵에서 캐릭터 아래에 밝은 갈색 땅덩어리 전부 지워줘 … 카펫처럼 놓인 사각형 이어붙인 거"): 흙길 (태그 12, 납작 상자) 은 빼고
+         디딤돌만 풀 위에 남긴다. 물웅덩이의 진흙 테 (같은 태그지만 둥근 원기둥, h1 뒤) 는 웅덩이 그림이라 그대로. 산책 바깥 그림의 길은 그대로 */
+      ep.slice(4, EXT_MARK.h0).filter(function (q) { return q.tag !== 12; }).concat(ep.slice(EXT_MARK.h1)).forEach(function (q) { yp.push(q); });
       /* 넓힌 땅의 풀 포기 (바깥 네모 3.2 밖 · 밭 · 나무 자리는 피한다) */
       for (var i = 0, n = 0; i < 160 && n < 70; i++) {
         var r = hash('ytuft' + i), x = -L + 0.2 + (r % 1000) / 1000 * (2 * L - 0.4), z = -L + 0.2 + ((r >> 10) % 1000) / 1000 * (2 * L - 0.4);
         if (Math.max(Math.abs(x), Math.abs(z)) < EXT.L + 0.1 || yardTreeNear(x, z, 0.5) || yardPlotNear(x, z, 0.15)) continue;
         yp.push({ g: box(0.07, 0.05 + (r >> 20) % 3 * 0.015, 0.07), m: M(snapPos(x), 0.025, snapPos(z)), c: sc.tuft, tag: 11 }); n++;
       }
-      /* 길 가지: 계단 발치에서 밭 두 줄 사이로 (흙길 태그 12) */
-      [[[1.55, -0.6], [1.0, 2.25]], [[0.6, 2.25], [3.5, 2.25]]].forEach(function (sg) {
-        var a = sg[0], b = sg[1], dx = b[0] - a[0], dz = b[1] - a[1];
-        yp.push({ g: box(Math.hypot(dx, dz) + 0.3, 0.012, 0.5), m: M((a[0] + b[0]) / 2, 0.003, (a[1] + b[1]) / 2, 0, -Math.atan2(dz, dx), 0), c: sc.path, tag: 12 });
-      });
+      /* 11-15 5차: 계단 발치에서 밭 사이로 가던 흙길 가지 둘은 지웠다 (주인 — 위 흙길과 같이) */
       /* 밭 옆 작은 등: 나무 기둥 + 등 (유리는 따뜻한 색 — 밤 불빛은 빌려 온 점광) */
       yp.push({ g: box(0.07, 0.86, 0.07), m: M(YARD_LAMP[0], 0.43, YARD_LAMP[1]), c: W[1] });
       yp.push({ g: box(0.18, 0.04, 0.07), m: M(YARD_LAMP[0] + 0.06, 0.86, YARD_LAMP[1]), c: W[1] });
