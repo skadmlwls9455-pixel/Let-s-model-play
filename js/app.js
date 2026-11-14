@@ -32,7 +32,7 @@ var APP = (function () {
   /* 문어 목소리 행의 표정 (DESIGN §15.2) — 11-15 (주인 C6 b): 코드가 쓴 줄은 모두 평소 얼굴 idle (귀가 · 기억 · 집 활동 · 빈 차례 · 인사 · 어제 메모 · 혼잣말 · 말풍선 …). 잠은 상태라 그대로 (집 낮잠 sleep · 자는 중 인사 sleep).
      마무리는 모델 · 사람이 고른 반응일 때만 REACT_EXPR (폴짝/우쭐 happy, 졸림 sleepy, 덤덤 calm) · 데모 규칙이 고른 반응은 idle (reactFace). 쓰다듬기 '…' 는 11-14 부터 idle (주인 O2 c) */
   var REACT_EXPR = { '폴짝': 'happy', '우쭐': 'happy', '덤덤': 'calm', '졸림': 'sleepy' };
-  var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' };   /* 상태의 기본 표정 (SCENE.md 초상·표정) — 대화창 표정은 4 s 뒤 여기로 돌아온다 */
+  var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep' };   /* 11-15 (주인 C6 b · 검증): 출발 움츠림 anticipate 도 평소 얼굴 (예전 반눈 calm — 집에 남는 차례에도 보여 시무룩하게 읽혔다) */   /* 상태의 기본 표정 (SCENE.md 초상·표정) — 대화창 표정은 4 s 뒤 여기로 돌아온다 */
   /* 자는 문어를 누르면 · 깨어 있는 문어를 톡 누르면 (말풍선만 — 로그 · 저장에 안 남는다, 11-08). 소리(js/audio.js)는 글자가 아니라 kind('sleep' · 'curious' · 'say')로 고른다.
      깨어 있으면 '응?' 대신 그날 마지막으로 끝낸 차례에 대한 한 줄 (BRAIN.tapLine · 주인 11-08) — 없으면 '응?' */
   var SLEEP_SAY = '쿨쿨…', TAP_SAY = '응?', SLEEP_DOWN_SAY = '지금은 아래층에서 자고 있어.', DOWN_SAY = '지금은 아래층에 있어.', AWAY_SAY = '지금은 산책 나가 있어.';

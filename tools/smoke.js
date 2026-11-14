@@ -1688,6 +1688,9 @@ async function scenarioReactions(browser) {
       '데모 규칙 ' + rx6 + ': ' + (hide6 ? '낱말이 말풍선 · 로그 · 일기 · 열람 기록 어디에도 없다' : '낱말은 그대로 (말풍선 · 행 · 일기)') + ' · 기록 값 그대로 · 얼굴 idle (장면 얼굴 ' + JSON.stringify(f6.ex) + ' · 행 ' + v6.lastExpr + ')');
     if (!hide6) v5 = v6;
   }
+  /* 6b. 출발 움츠림 (anticipate) 의 장면 얼굴도 평소 얼굴 (11-15 검증: 예전 반눈 calm — 집에 남는 차례에도 보였다) */
+  var ant = await page.evaluate(function () { APP.scene.setOctState('anticipate'); var e = APP.scene.expression(); APP.scene.setOctState('idle'); return e; });
+  ok(ant === 'idle', "출발 움츠림 (anticipate) 장면 얼굴 = idle (" + ant + ')');
   /* 7. 모델이 고른 우쭐 (재생 길) → 낱말 · 웃는 얼굴 그대로 (고른 이의 것) */
   await page.evaluate(function () { window.__forceRx = null; window.__ex = []; });
   await importEvs([{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 500, target: { kind: 'room', id: 'hat' }, status: 'builtin', ms: 1000 }, { type: 'return', t: 1500, reason: 'enough' },
