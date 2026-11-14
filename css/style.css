@@ -1492,15 +1492,25 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .sofa-dot > span { animation: none; } }
 :root[data-motion="reduce"] .sofa-dot > span { animation: none; }
 
-/* 11-10 가구 배치 모드: 위 바 바로 아래 이름 줄 + 오른쪽 아래 단추 기둥 (큰 버튼 자리). 왼쪽 아래 스틱 구역은 비워 둔다 */
+/* 11-15 가구 모드: 위 바 바로 아래 한 줄 (취소 · 제목 · 저장하기 + 처음 한 번 안내) · 고른 가구 밑 단추 줄 · 아래 가구 줄. 문어 · 캐릭터 말풍선 · 방 단추 · 큰 버튼은 숨는다 */
 .furn-ui { position: absolute; inset: 0; z-index: 9; pointer-events: none; }
 .furn-ui[hidden] { display: none; }
-.furn-top { position: absolute; top: calc(var(--bar-h, 44px) + var(--safe-t, 0px) + 8px); left: 8px; right: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 10px; background-color: var(--panel); border: 1px solid var(--rim); border-radius: 10px; pointer-events: auto; }
+.furn-top { position: absolute; top: calc(var(--bar-h, 44px) + var(--safe-t, 0px) + 8px); left: 8px; right: 8px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; padding: 6px 8px; background-color: var(--panel); border: 1px solid var(--rim); border-radius: 10px; pointer-events: auto; }
 :root[data-font="pixel"] .furn-top { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
-.furn-items { display: inline-flex; gap: 6px; flex-wrap: wrap; }
-.furn-col { position: absolute; right: 8px; bottom: calc(12px + var(--safe-b, 0px)); display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
-.furn-col .btn { min-width: 84px; min-height: 44px; margin: 0; }
-:root.furn-on #invite { visibility: hidden; }
+.furn-top strong { min-width: 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.furn-hint { grid-column: 1 / -1; margin: 0; text-align: center; font-size: 13px; color: var(--muted, var(--fg)); }
+.furn-hint[hidden] { display: none; }
+:root[data-font="pixel"] .furn-hint { font-family: var(--f-meta); font-size: 16px; line-height: 20px; }
+.furn-row { position: absolute; left: 0; top: 0; display: flex; gap: 6px; padding: 4px; background-color: var(--panel); border: 1px solid var(--rim); border-radius: 10px; pointer-events: auto; }
+:root[data-font="pixel"] .furn-row { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
+.furn-row[hidden] { display: none; }
+.furn-row .btn { margin: 0; min-width: 52px; min-height: 44px; padding-left: 8px; padding-right: 8px; }
+.furn-row .btn:disabled { opacity: .45; cursor: default; }
+.furn-no { animation: furn-no .3s steps(6) 1; }   /* 안 되는 누름: 글 없이 짧게 좌우로 */
+@keyframes furn-no { 0%, 100% { transform: none; } 20%, 60% { transform: translateX(-2px); } 40%, 80% { transform: translateX(2px); } }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .furn-no { animation: none; } }
+:root[data-motion="reduce"] .furn-no { animation: none; }
+:root.furn-on #invite, :root.furn-on #oct, :root.furn-on .scene-spot, :root.furn-on .scene-door, :root.furn-on #back-note { visibility: hidden; }
 
 /* ── 11-10 위쪽 바 2: 등불은 이름 바로 오른쪽 · 가구 아이콘 추가 ── */
 :root[data-layout="one"] #status .who { display: contents; }
@@ -1512,12 +1522,13 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 @media (max-width: 439px) { :root[data-layout="one"] #status .room-title { display: none; } }
 @media (max-width: 469px) { :root[data-layout="one"] #status .pips-lbl { display: none; } }
 @media (max-width: 499px) { :root[data-layout="one"] #status .pips-n { display: none; } }
-.icon-btn.furn-btn[aria-pressed="true"] .snd-box { color: var(--amber); }
+.furn-btn .ham-ico { display: block; }   /* 11-15 망치: 색이 들어간 그림 (currentColor 아님) — 눌린 동안은 밑줄 대신 단추 테가 호박색 */
+.icon-btn.furn-btn[aria-pressed="true"] .snd-box { outline: 2px solid var(--amber); outline-offset: 1px; }
 :root:not([data-layout="one"]) .furn-btn { display: none; }   /* 2D 폴백 · 쌓는 배치엔 가구 배치가 없다 */
 
-/* ── 11-10 가구 배치 모드 2 (주인: 참고 게임 화면 그대로 — 아래 가구 줄 · 회전/크기 슬라이더 · 취소/놓기) ── */
-.furn-top { gap: 10px; }
-.furn-top .btn { margin: 0; min-height: 36px; }
+/* ── 가구 모드: 위 줄 단추 · 아래 가구 줄 (11-10 가구 줄을 그대로 — 톡 = 고르기) ── */
+.furn-top .btn { margin: 0; min-height: 44px; padding-left: 10px; padding-right: 10px; white-space: nowrap; }
+@media (max-width: 339px) { .furn-top { gap: 4px; padding-left: 6px; padding-right: 6px; } .furn-top .btn { padding-left: 7px; padding-right: 7px; } }   /* 320 폭: 제목 '가구 옮기기' 가 안 잘리게 */
 .furn-strip { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 8px; padding: 8px 10px calc(8px + var(--safe-b, 0px)); overflow-x: auto; background-color: var(--panel); border-top: 1px solid var(--rim); pointer-events: auto; scrollbar-width: none; }
 :root[data-font="pixel"] .furn-strip { border-top: 2px solid var(--line); }
 .furn-tile { flex: 0 0 auto; width: 72px; min-height: 72px; margin: 0; padding: 6px 4px 4px; display: grid; justify-items: center; gap: 4px; background: var(--panel2); color: var(--fg); border: 1px solid var(--rim); border-radius: 10px; cursor: pointer; font: inherit; }
@@ -1527,16 +1538,6 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 .furn-sw-sofa { background: linear-gradient(#e8702a 0 0) 6px 12px / 24px 10px no-repeat, linear-gradient(#c2551e 0 0) 2px 8px / 6px 16px no-repeat, linear-gradient(#c2551e 0 0) 28px 8px / 6px 16px no-repeat, linear-gradient(#f08a45 0 0) 6px 4px / 24px 10px no-repeat; }
 .furn-sw-crate { background: linear-gradient(#a8744a 0 0) 6px 4px / 24px 22px no-repeat; box-shadow: inset 0 0 0 2px transparent; outline: 2px solid #7a4a30; outline-offset: -6px; }
 .furn-sw-blanket { background: linear-gradient(#4a6fa8 0 0) 2px 10px / 32px 12px no-repeat, linear-gradient(#7a9ad0 0 0) 6px 14px / 24px 4px no-repeat; }
-.furn-tools { position: absolute; right: 8px; bottom: calc(100px + var(--safe-b, 0px)); width: min(190px, 52vw); display: grid; gap: 6px; padding: 8px 10px; background-color: var(--panel); border: 1px solid var(--rim); border-radius: 10px; pointer-events: auto; }
-:root[data-font="pixel"] .furn-tools { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
-.furn-tools[hidden] { display: none; }
-.furn-sl { display: grid; grid-template-columns: 36px 1fr; align-items: center; gap: 6px; font-size: 13px; color: var(--fg); }
-:root[data-font="pixel"] .furn-sl { font-family: var(--f-meta); font-size: 16px; }
-.furn-sl input[type="range"] { width: 100%; min-height: 32px; margin: 0; accent-color: var(--amber); touch-action: pan-y; }
-.furn-yn { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.furn-yn .btn { margin: 0; min-height: 44px; }
-:root.furn-on #scene .stick { bottom: calc(104px + var(--safe-b, 0px)); }   /* 가구 줄 위로 */
-:root.furn-on .stick-zone { height: min(42%, 340px); }
 
 /* 11-10: 폰(≤419)에서도 바는 늘 한 줄 44px — 이름 + 등불만 바 안에 두고, '데모' 꼬리표는 바 아래 왼쪽에 매단다 (늘 보인다 · 정직 표기). ≤379 는 아이콘 40px, ≤339 는 36px + 등불 칸을 작게 */
 @media (max-width: 419px) {
