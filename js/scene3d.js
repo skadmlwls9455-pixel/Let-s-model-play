@@ -614,6 +614,7 @@ var SCENE3D = (function () {
     function yawMoved() {   /* 그려지는 각이 바뀌었다: 디더 쉼 · 쉬는 문어는 카메라 쪽을 본다 (내 캐릭터는 stepPlayer 가 매 프레임) */
       dither.still = 0;
       if (oct && !oct.walking && !(CER && CER.active) && !(SAL && SAL.active) && st.octState !== 'walk' && st.octState !== 'carry' && st.octState !== 'away') oct.wantYaw = camYaw();
+      if (typeof PL !== 'undefined' && PL && !PL.walking && !PL.stick && !PL.sit && !PL.hop && !(SAL && SAL.active)) plFaceAfter(null);   /* 쉬는 나도 카메라 쪽으로 (문을 지나 방 안쪽을 보고 선 채 돌리면 뒤통수만 보였다 — 검증 11-15) */
     }
     function yawLive() {   /* 손가락 · 마우스가 yawDrag 를 바꿨다 → 바로 그 각으로 (1:1) */
       if (!YAWX.held) { YAWX.show = yawDrag; YAWX.ease = false; }
@@ -2964,6 +2965,7 @@ var SCENE3D = (function () {
        그 장소가 보이고 문 작업·전환·입장 연출이 없을 때만 보인다. atticPlay 는 바깥이 보이는 동안(산책 중) data-spot="edge" (위치를 비워 앱 CSS 의 가장자리 단추로) ·
        다락 위 = data-spot="over". 확대·밀기로 상자가 화면 밖이면 숨긴다 */
     var STAIR_BOX = new T.Box3(new T.Vector3(STAIR.x0, 0, STAIR.z0), new T.Vector3(STAIR.x1, STAIR.top, STAIR.z1));
+    var STAIR_LOW = new T.Box3(new T.Vector3(STAIR.x0 - 0.06, 0, STAIR.z0), new T.Vector3(STAIR.x0 + 2 * (STAIR.x1 - STAIR.x0) / 7 + 0.05, KNEE + 0.12, STAIR.z1));   /* 11-15: 계단이 잘려 아래 두 칸만 보일 때 (돌려 보기 90° 근처) 단추는 그 두 칸 위에만 — 온 계단 상자면 방 가운데의 나 · 상자를 톡 해도 위층으로 갔다 */
     var SPOTS = {}, SPOT_KEYS = ['atticPlay', 'playAttic', 'machine', 'salon', 'atticStair', 'loftStair', 'sew', 'plot0', 'plot1', 'plot2'], spotEdge = true, spotLast = {}, _sv8 = new T.Vector3(), SPOT_MIN_VIS = 8;   /* 보이는 문 조각이 8 CSS px 보다 좁으면 단추를 숨긴다 · salon = 미용실 거울 (#btn-salon) */
     function boxScreen(b, obj) {   /* 그룹 좌표 상자 → 컨테이너 CSS px {l,t,r,b} */
       obj.updateWorldMatrix(true, false);
@@ -2990,7 +2992,7 @@ var SCENE3D = (function () {
         q = boxScreen(plotBoxes[+id.charAt(4)], extG);
       } else if (id === 'atticStair') {
         if (v !== 'attic' || PLACE.room || busy) return null;
-        q = boxScreen(STAIR_BOX, atticG);
+        var sc = cutOf('attic', 'stair'); q = boxScreen(sc && sc.cut ? STAIR_LOW : STAIR_BOX, atticG);
       } else if (id === 'loftStair' || id === 'sew') {
         if (v !== 'loft' || !LROOM || busy) return null;
         q = boxScreen(id === 'sew' ? LROOM.sewBox : LROOM.hatchBox, LROOM.g);
