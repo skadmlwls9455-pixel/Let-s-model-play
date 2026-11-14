@@ -3784,7 +3784,7 @@ var APP = (function () {
      장면은 놀이방에 있는 동안 의식이 장소를 바꿔도 화면을 끌고 가지 않는다 (scene3d setPlaceNow). 문어가 돌아오면 구석 쪽지 "뚜루가 돌아왔어." + 보러 가기.
      큰 버튼(뽈뽈 다녀와 · 다녀오는 중…)은 문어 방의 일 → 놀이방이면 먼저 문으로 돌아와서 한다. 새로고침은 늘 문어 방 (지금 방은 저장하지 않는다).
      내 캐릭터 (SCENE.md '내 캐릭터'): walkFirst — 장면의 playerWalkTo(문 앞 앵커 atticPlayDoor · playAtticDoor)가 문 앞까지 걸어가서 풀리면 그때 문이 열린다 (2D 폴백엔 캐릭터가 없어 바로 풀린다) */
-  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew', plot0: 'btn-plot0', plot1: 'btn-plot1', plot2: 'btn-plot2', plot3: 'btn-plot3', plot4: 'btn-plot4', plot5: 'btn-plot5', atticYard: 'btn-yard', yardAttic: 'btn-yard-door' };   /* 11-15: 밭 여섯 칸은 마당에 · 마당 문 (다락 뒷벽 문간 ↔ 마당 현관) */   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
+  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew', plot0: 'btn-plot0', plot1: 'btn-plot1', plot2: 'btn-plot2', plot3: 'btn-plot3', plot4: 'btn-plot4', plot5: 'btn-plot5', atticYard: 'btn-yard', yardAttic: 'btn-yard-door', counter: 'btn-cook' };   /* 11-15: 밭 여섯 칸은 마당에 · 마당 문 (다락 뒷벽 문간 ↔ 마당 현관) */   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
   var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door', loft: 'btn-loft-stair', yard: 'btn-yard-door' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
   var furnHinted = false, furnFrom = null;   /* furnFrom = { id, at: [x, z, rot, scale] } 들어 올린 순간 (장면 layout()) */
   /* 가구 배치 모드 화면 (주인 11-10 참고 화면): 위에 '가구 배치 · 이름' + 바꿔 들 가구 칩, 오른쪽 아래에 돌리기 · 크게 · 작게 · 취소 · 놓기. 큰 버튼(뽈뽈 다녀와)은 그동안 숨긴다. 캐릭터는 스틱 · 방향키로 그대로 움직인다 */
@@ -3851,7 +3851,7 @@ var APP = (function () {
   }
   function resetRoomUI() {   /* 장면을 바꿀 때 (sceneLost): 단추는 새 장면이 다시 맡는다 · 그 전까지 놀이방 단추는 숨김 */
     roomJob = null; hideBackNote();
-    ['btn-play-door', 'btn-machine', 'btn-salon', 'btn-stair', 'btn-loft-stair', 'btn-sew', 'btn-plot0', 'btn-plot1', 'btn-plot2', 'btn-plot3', 'btn-plot4', 'btn-plot5', 'btn-yard', 'btn-yard-door'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
+    ['btn-play-door', 'btn-machine', 'btn-salon', 'btn-stair', 'btn-loft-stair', 'btn-sew', 'btn-plot0', 'btn-plot1', 'btn-plot2', 'btn-plot3', 'btn-plot4', 'btn-plot5', 'btn-yard', 'btn-yard-door', 'btn-cook'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
     var d = $('btn-door'); if (d) { d.hidden = false; d.removeAttribute('data-spot'); ['left', 'top', 'width', 'height', 'right', 'bottom'].forEach(function (k) { d.style[k] = ''; }); }
     var sc = $('scene'); if (sc) { sc.setAttribute('data-view', 'attic'); sc.setAttribute('aria-label', '문어의 다락방'); }
   }
@@ -3906,6 +3906,35 @@ var APP = (function () {
     RUNNER.open({ opener: opener });
     return true;
   }
+  /* 11-15 (주인: "놀이방 주방 조리대: 톡하면 요리(COOK)가 바로 열리게"): 부엌은 따로 쪽(cook.html)이라 그대로 두고, 화면 가득한 대화상자 안 iframe 으로 연다 (처음 열 때 만든다).
+     cook.html?embed=1 은 자기 머리 · 링크를 숨기고 부엌을 바로 열며, 부엌이 닫히면 (닫기 · Esc · 뒤로) postMessage 'cook-close' 로 알린다 → 이 대화상자를 닫는다 · 놀이방은 그대로.
+     다시 열면 같은 iframe 에 'cook-open'. 부엌의 저장(냄비 · 수첩 · 스티커)은 cook.html 과 같은 열쇠 (ppolppol_cook_v0) · 소리는 같은 설정 (기본 꺼짐) */
+  var cookFrame = null, cookReady = false;
+  function cookMsg(e) {
+    if (!cookFrame || e.source !== cookFrame.contentWindow) return;
+    if (e.origin !== 'null' && e.origin !== location.origin) return;
+    var d = e.data; if (!d || typeof d !== 'object') return;
+    var ov = $('cook-overlay');
+    if (d.ppolCook === 'ready') cookReady = true;
+    else if (d.ppolCook === 'close' && ov && ov.open) ov.close();
+  }
+  function openCook(opener, kbd) {
+    var ov = $('cook-overlay'); if (!ov || ov.open || !inPlay() || roomJob) return false;
+    hideTip();
+    opener = opener || $('btn-cook');
+    if (opener && document.activeElement !== opener && !opener.hidden) focusRoomBtn(opener, !!kbd);   /* 닫으면 브라우저가 포커스를 조리대 단추로 돌려준다 */
+    if (!cookFrame) {
+      window.addEventListener('message', cookMsg);
+      cookFrame = document.createElement('iframe');
+      cookFrame.className = 'cook-frame'; cookFrame.title = '부엌';
+      cookFrame.src = 'cook.html?embed=1';
+      ov.appendChild(cookFrame);
+      ov.addEventListener('close', function () { try { cookFrame.contentWindow.postMessage({ ppolCook: 'close' }, '*'); } catch (e) { /* 닫힌 부엌 */ } });   /* 이쪽 Esc 로 닫혀도 부엌은 냄비를 저장하고 조용히 */
+    } else if (cookReady) { try { cookFrame.contentWindow.postMessage({ ppolCook: 'open' }, '*'); } catch (e) { /* 다시 불러온다 */ cookFrame.src = 'cook.html?embed=1'; } }
+    showDialog(ov);
+    try { cookFrame.focus(); } catch (e) { /* 포커스는 부엌이 연 뒤 스스로 */ }
+    return true;
+  }
   /* 구석 쪽지: 놀이방에 있는 동안 문어가 산책에서 돌아오면 (sceneFor 'return'). 이름 + 조사 (WORLD.strings.backNote) · 보러 가기 = 문으로 다락에.
      놀이방을 벗어나면(어느 길로든) 걷는다. 글은 보인 뒤에 넣는다 (role=status 가 읽어 준다) */
   var noteTimer = 0;
@@ -3945,6 +3974,7 @@ var APP = (function () {
     on('btn-stair', function (b, k) { goRoom('loft', b, k); });
     on('btn-loft-stair', function (b, k) { goRoom('attic', b, k); });
     on('btn-sew', function () { openSew(); });
+    on('btn-cook', function (b, k) { openCook(b, k); });   /* 11-15: 놀이방 조리대 → 부엌 */
     [0, 1, 2, 3, 4, 5].forEach(function (i) { on('btn-plot' + i, function () { gardenAct(i); }); var b = $('btn-plot' + i); if (b) b.addEventListener('focus', plotLabels); });   /* 마당 텃밭 칸 (11-15: 마당이 보일 때 연 칸만 장면이 단추를 올린다) · 포커스 때 이름을 다시 (11-11: 씨앗 수 · 날짜가 바뀌었을 수 있다) */
     on('btn-salon', function () { openSalon(); });   /* 미용실 거울 (그림 위 투명 단추 — 톡은 장면이 그린 순서대로 넘긴다: 문어가 거울 옆이면 문어가 먼저) */
     on('btn-back-see', function (b, k) { goRoom('attic', b, k); });
@@ -4555,9 +4585,13 @@ var APP = (function () {
   function partName(cat, id) { var P = playerParts(), n = ''; (P[cat] || []).forEach(function (x) { if (x.id === id) n = x.name; }); return n || id; }
   function setWord(q) { return /차림$/.test(q[1]) ? q[1] : q[1] + ' 차림'; }   /* 11-12 (검증 F12): '다락방 차림 차림' 이 되지 않게 */
   function setWear(q) { setPlayerPart('outfit', q[2]); setPlayerPart('shoes', q[3]); setPlayerPart('acc', q[4]); renderSew(); focusIn('#sew-body .week-list', LOOK_SETS.indexOf(q)); toast(setWord(q) + '으로 입었어'); }
+  var sewSetsOpen = false;   /* 11-15: 세트 도감은 시트 안에 접혀 있다 (연 채로 다시 입기 → 다시 그려도 펼친 채) · 시트를 새로 열면 접힌다 */
   function renderSets(frag) {
     var f = setsFound(), n = LOOK_SETS.filter(function (q) { return f[q[0]]; }).length;   /* 11-12 (검증 C14): 여기서는 적지 않는다 — 옷 · 신발 · 장식을 바꿨을 때만 (lookPick) */
-    frag.appendChild(h('h3', { text: '세트 도감 ' + n + '/' + LOOK_SETS.length }));
+    var box = h('details', { class: 'sew-sets' }); if (sewSetsOpen) box.open = true;
+    box.addEventListener('toggle', function () { sewSetsOpen = box.open; });
+    box.appendChild(h('summary', { text: '세트 도감 ' + n + '/' + LOOK_SETS.length }));
+    frag.appendChild(box); frag = box;
     frag.appendChild(h('p', { class: 'set-note', text: '옷 · 신발 · 장식을 맞춰 입으면 여기에 적혀. 내 모습에서 이것저것 입어 보며 찾아봐.' }));
     var list = h('ul', { class: 'week-list' });
     LOOK_SETS.forEach(function (q) {
@@ -4579,8 +4613,9 @@ var APP = (function () {
   }
   function renderSew() {
     var body = $('sew-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment();
+    var d0 = body.querySelector('details.sew-sets'); if (d0) sewSetsOpen = d0.open;   /* 11-15: 펼친 채 다시 그리기 (toggle 은 늦게 온다) */
     frag.appendChild(h('p', { class: 'bag-line', text: '조개 ' + u.shells }));
-    frag.appendChild(h('p', { class: 'set-note', text: '기른 염료가 있으면 그걸 하나 쓰고, 없으면 조개 ' + DYE_COST + '개로 물들여. 지금 입은 옷의 큰 색이 바뀌어.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '염료나 조개 ' + DYE_COST + '개로 옷을 물들여' }));   /* 11-15: 세 줄 설명 → 한 줄 (주인: 재봉틀 창 글자 확 줄이기) */
     var row = h('div', { class: 'sew-grid', role: 'group', 'aria-label': '옷 색' });
     DYES.forEach(function (d) {
       var own = u.dyes[d[0]] | 0, cur = u.dye === d[2];
@@ -4590,7 +4625,7 @@ var APP = (function () {
       row.appendChild(b);
     });
     frag.appendChild(row);
-    if (u.dye) { var off = h('button', { type: 'button', class: 'btn wide pressable', text: '원래 색으로 (공짜)' }); off.addEventListener('click', function () { sewDye(null); }); frag.appendChild(off); }
+    if (u.dye) { var off = h('button', { type: 'button', class: 'btn sm pressable sew-off', text: '원래 색으로' }); off.addEventListener('click', function () { sewDye(null); }); frag.appendChild(off); }
     renderSets(frag);
     body.textContent = ''; body.appendChild(frag);
   }
@@ -4606,7 +4641,7 @@ var APP = (function () {
     if (window.MutationObserver) new MutationObserver(sync).observe(d, { attributes: true, attributeFilter: ['open'] });
     d.addEventListener('close', sync); window.addEventListener('resize', sync);
   }
-  function openSew() { var sh = $('sew-sheet'); if (!sh) return; renderSew(); showDialog(sh); }
+  function openSew() { var sh = $('sew-sheet'); if (!sh) return; var d0 = sh.querySelector('details.sew-sets'); if (d0) d0.open = false; sewSetsOpen = false; renderSew(); showDialog(sh); }
   function renderBag() {
     var body = $('bag-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment(), dk = todayKey();
     weekState();   /* 11-11 (검증 W1): 주 먼저 — 이 톡이 주를 넘기며 지난주 선물을 넣으면 바로 아랫줄 조개 · 씨앗 수에 들어가 있게 */
@@ -4663,7 +4698,7 @@ var APP = (function () {
     octInitial();
     scheduleThink();
     /* 초상은 장면이 두 프레임 그린 뒤부터 (3D 는 2번째 프레임에 idle 을 미리 찍어 셰이더를 데운다) */
-    requestAnimationFrame(function () { requestAnimationFrame(function () { PORT.ready = true; flushPortraits(); }); });
+    requestAnimationFrame(function () { requestAnimationFrame(function () { PORT.ready = true; flushPortraits(); document.documentElement.classList.add('booted'); }); });   /* 11-15: 장면이 두 프레임 그렸다 → 로딩 문어 (index.html #boot) 를 걷는다 */
     /* 입장 레이어 (js/intro.js): 하늘에서 내려오는 카메라 + 장면 위 타이틀. 타이틀을 누르면 걷히고 바로 게임 — 첫 실행의 이름 짓기는 그다음 */
     var afterIntro = function () { if (!S.octopus.name && !$('name-dialog').open) openNameDialog(); };
     if (window.INTRO && INTRO.start(scene, { mode: sceneMode, reduced: reduced(), host: $('scene') })) INTRO.onDone(afterIntro); else afterIntro();

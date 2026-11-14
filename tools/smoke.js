@@ -5397,7 +5397,7 @@ async function scenarioWeek(browser) {
     var b = li(6).querySelector('.week-rr'); b.focus(); b.click(); r.rr = li(6).contains(document.activeElement) && document.activeElement !== document.body; r.rrOn = document.activeElement.className;
     var b5 = li(5).querySelector('.week-rr'); b5.focus(); b5.click(); b5 = li(5).querySelector('.week-rr'); b5.focus(); b5.click(); r.rr2 = li(5).contains(document.activeElement); r.rr2On = document.activeElement.className;   /* 마지막 바꾸기: 단추가 없어지면 그 줄의 글 */
     document.getElementById('bag-close').click();
-    window.__toasts = []; document.getElementById('btn-sew').click(); var sl = document.querySelectorAll('#sew-body .week-list > li'), at = -1;
+    window.__toasts = []; document.getElementById('btn-sew').click(); document.querySelector('#sew-body details.sew-sets').open = true; var sl = document.querySelectorAll('#sew-body .week-list > li'), at = -1;   /* 11-15: 접힌 세트 도감을 펼친다 (다시 입기 뒤 다시 그려도 펼친 채) */
     [].forEach.call(sl, function (x, k) { if (/다락방 차림/.test(x.textContent)) at = k; });
     var w = sl[at].querySelector('.week-rr'); r.label = w.getAttribute('aria-label'); w.focus(); w.click();
     r.wear = document.querySelectorAll('#sew-body .week-list > li')[at].querySelector('.week-rr') === document.activeElement; r.toast = document.getElementById('toast').textContent;
@@ -5419,7 +5419,7 @@ async function scenarioWeek(browser) {
     var nb = document.querySelector('#week-claim .nobr'), ys = {}; [].forEach.call(nb.getClientRects(), function (q) { ys[Math.round(q.top)] = 1; }); r.amountLines = Object.keys(ys).length; r.amount = nb.textContent;
     r.rr = [].map.call(body.querySelectorAll('.week-rr'), hit); r.bagX = body.scrollWidth - body.clientWidth;
     r.rows = [].map.call(body.querySelectorAll('.week-row'), function (x) { var inner = Math.max.apply(null, [].map.call(x.children, function (c) { return c.getBoundingClientRect().height; })); return Math.round(x.getBoundingClientRect().height - Math.max(44, inner + 4)); });   /* 줄 높이 − max(44, 안의 것 + 위아래 2px) : 단추 때문에 더 커진 만큼 (테두리 2px 까지) */
-    document.getElementById('bag-close').click(); document.getElementById('btn-sew').click(); var sb = document.getElementById('sew-body');
+    document.getElementById('bag-close').click(); document.getElementById('btn-sew').click(); var sb = document.getElementById('sew-body'); sb.querySelector('details.sew-sets').open = true;   /* 11-15: 접힌 세트 도감을 펼쳐서 잰다 */
     r.wear = [].map.call(sb.querySelectorAll('.week-rr'), hit); r.sewX = sb.scrollWidth - sb.clientWidth; document.getElementById('sew-close').click();
     return r;
   });
@@ -5434,7 +5434,7 @@ async function scenarioWeek(browser) {
   await ready(pl);
   function lookPickQ(pg, tabId, cat, id) { return pg.evaluate(async function (a) { window.__toasts = []; if (!document.getElementById('look-sheet').open) APP.openLook(); document.getElementById('look-tab-' + a.tab).click(); document.querySelector('#look-items [data-part="' + a.cat + '"][data-id="' + a.id + '"]').click(); await Promise.resolve(); var st = APP.state.user.sets || {}; return { toasts: window.__toasts.map(function (x) { return x.t; }), attic: st.attic || null, outfit: APP.state.settings.player && APP.state.settings.player.outfit }; }, { tab: tabId, cat: cat, id: id }); }
   var h1 = await lookPickQ(pl, 'hair', 'hair', 'short');
-  var sew17 = await pl.evaluate(function () { document.getElementById('look-sheet').close(); document.getElementById('btn-sew').click(); var t = [].map.call(document.querySelectorAll('#sew-body h3'), function (x) { return x.textContent; }).filter(function (x) { return /세트 도감/.test(x); })[0] || ''; document.getElementById('sew-close').click(); return { h: t, attic: (APP.state.user.sets || {}).attic || null }; });
+  var sew17 = await pl.evaluate(function () { document.getElementById('look-sheet').close(); document.getElementById('btn-sew').click(); var t = [].map.call(document.querySelectorAll('#sew-body details.sew-sets > summary'), function (x) { return x.textContent; }).filter(function (x) { return /세트 도감/.test(x); })[0] || '';   /* 11-15: 세트 도감은 접힌 한 줄 (summary) */ document.getElementById('sew-close').click(); return { h: t, attic: (APP.state.user.sets || {}).attic || null }; });
   var o1 = await lookPickQ(pl, 'outfit', 'outfit', 'knit'), o2 = await lookPickQ(pl, 'outfit', 'outfit', 'dress');
   console.log('   세트 도감:', JSON.stringify({ hair: h1, sew: sew17, knit: o1, dress: o2 }));
   ok(h1.outfit === 'dress' && !h1.attic && !h1.toasts.length && !sew17.attic && /0\/9/.test(sew17.h), '기본 옷 그대로 머리만 바꾸면 세트 도감에 적지 않는다 (알림 ' + h1.toasts.length + ') · 재봉틀 시트를 열어도 («' + sew17.h + '»)');
@@ -6694,6 +6694,99 @@ async function scenarioGarden(browser) {
   reportErrors(bag, 'X');
 }
 
+/* E2. 장면 톡 뒤 따라오는 진짜 click (11-15 4차 갈래 E): 장면이 pointerup 에서 단추를 누르고 시트가 열리면, 브라우저가 같은 손가락의 click 을 그 자리에 또 보낸다 —
+   시트 바깥이면 닫히고(재봉틀이 첫 톡에 안 열리던 결함) 안이면 염료 칩이 눌렸다. 진짜 손가락(touchscreen.tap)으로 재봉틀을 톡 → 시트가 열린 채 · 칩은 안 눌림 (토스트 · 조개 그대로).
+   관성으로 흐르는 중에 단추를 톡 해도 연다 (예전엔 멈추기만). 세트 도감은 접힌 한 줄 · 시트는 화면 반쯤 */
+async function scenarioSceneTap(browser) {
+  console.log('\n== Z2. 장면 톡: 재봉틀 첫 톡 · 관성 중 톡 · 재봉틀 시트 크기');
+  var bag = []; bag.ignored = [];
+  var RED = '#e8463c', BORN = '2026-11-06T10:00:00.000Z';
+  var rec = { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 5, days: ['2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10'], affinity: {}, visits: {}, state: 'idle', color: RED,
+    colors: [{ at: BORN, date: '2026-11-06', color: RED, how: 'first', by: 'player' }] }, room: { lantern: 5, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
+    settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
+  var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+  await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+  var page = await ctx.newPage(); watchErrors(page, bag);
+  if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+  await page.addInitScript({ content: "if (!localStorage.getItem('__e2_seed')) { localStorage.setItem('__e2_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(rec)) + "); } window.__ppolTest = { today: '2026-11-10' };" });
+  await page.goto(INDEX + '?dev=0&intro=0');
+  await page.waitForFunction(function () { return window.APP && APP.sceneMode && !APP.goResting && !document.getElementById('btn-go').classList.contains('away'); }, null, { timeout: 30000 });
+  /* 0. 로딩 문어 (11-15): 정적 HTML 에 #boot (스크립트 전부터) · 그 전엔 2D 벡터 문어를 숨기는 규칙 · 게임이 서면 걷힌다 */
+  var html0 = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  var bootStatic = /<body>\s*<div id="boot" aria-hidden="true"><i class="boot-oct"><\/i><\/div>/.test(html0) && html0.indexOf('html:not(.booted) #oct-svg { visibility: hidden; }') > 0 && /loading_oct\.png/.test(html0);
+  var bootDone = await page.waitForFunction(function () { var b = document.getElementById('boot'); return document.documentElement.classList.contains('booted') && b && getComputedStyle(b).display === 'none'; }, null, { timeout: 10000 }).then(function () { return true; }, function () { return false; });
+  ok(bootStatic && bootDone, '로딩 문어: 정적 HTML 의 첫 줄 #boot (스크립트 전부터 · 벡터 문어는 숨김) · 게임이 서면 걷힌다');
+  if (await page.evaluate(function () { return APP.sceneMode !== '3d'; })) { console.log('   (3D 장면이 없어 건너뜀)'); await ctx.close(); return; }
+  await page.evaluate(function () { return APP.goRoom('loft'); });
+  await page.waitForFunction(function () { var e = document.getElementById('btn-sew'); return APP.room === 'loft' && e && !e.hidden && e.getBoundingClientRect().width > 0 && !APP.goResting; }, null, { timeout: 20000 });
+  await page.waitForTimeout(600);
+  /* 1. 진짜 손가락 톡 (단추 칸 가운데 · 위쪽) */
+  var taps = [];
+  for (var f of [[0.5, 0.5], [0.3, 0.25]]) {
+    var r = await page.evaluate(function () { window.__toasts = []; var q = document.getElementById('btn-sew').getBoundingClientRect(); return { x: q.x, y: q.y, w: q.width, h: q.height, shells: APP.state.user.shells, dye: APP.state.user.dye || null }; });
+    await page.touchscreen.tap(r.x + r.w * f[0], r.y + r.h * f[1]);
+    var opened = await page.waitForSelector('#sew-sheet[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+    await page.waitForTimeout(900);   /* 따라오는 click 이 올 틈 (800 ms 막이 지난 뒤에도 열려 있는지) */
+    taps.push(await page.evaluate(function (r0) { var d = document.getElementById('sew-sheet'), q = d.getBoundingClientRect(); return { opened: true, open: d.open, toasts: (window.__toasts || []).map(function (x) { return x.t; }).filter(function (t) { return /조개가|물들였어/.test(t); }), shells: APP.state.user.shells === r0.shells, dye: (APP.state.user.dye || null) === r0.dye, frac: +(q.height / innerHeight).toFixed(2), sets: !!document.querySelector('#sew-body details.sew-sets:not([open]) > summary'), title: document.getElementById('sew-h').textContent }; }, r));
+    taps[taps.length - 1].opened = opened;
+    await page.evaluate(function () { document.getElementById('sew-close').click(); });
+    await page.waitForFunction(function () { return !document.getElementById('sew-sheet').open && !APP.goResting; }, null, { timeout: 5000 });
+    await page.waitForTimeout(700);
+  }
+  console.log('   재봉틀 톡:', JSON.stringify(taps));
+  ok(taps.every(function (t) { return t.opened && t.open && !t.toasts.length && t.shells && t.dye; }), '진짜 손가락으로 재봉틀을 톡 하면 시트가 열린 채 남고, 그 톡이 염료 칩을 누르지 않는다 (알림 · 조개 · 옷 색 그대로)');
+  ok(taps[0].frac <= 0.5 && taps[0].sets && taps[0].title === '재봉틀', '재봉틀 시트는 화면 반 이하 (' + taps[0].frac + ') · 제목 «' + taps[0].title + '» · 세트 도감은 접힌 한 줄');
+  /* 2. 관성 중 톡: 느린 기계에선 CDP 손가락 사이가 길어 관성이 안 생긴다 → 페이지 안에서 8 ms 간격 합성 PointerEvent 로 밀어 놓고 그 사이 재봉틀 칸을 톡 */
+  await page.evaluate(function () { APP.scene.zoomTo(9999); }); await page.waitForTimeout(600);
+  var co = await page.evaluate(function () {
+    var cv = document.querySelector('#scene3d canvas'), keep = cv.setPointerCapture; cv.setPointerCapture = function () {};
+    function wait(ms) { var t = performance.now(); while (performance.now() - t < ms); }
+    function ev(type, x, y, id) { cv.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: id, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y, button: 0, buttons: type === 'pointerup' ? 0 : 1 })); }
+    var q0 = document.getElementById('btn-sew').getBoundingClientRect(), x0 = q0.x + q0.width / 2, y0 = Math.max(120, q0.y - 40), dir = x0 > innerWidth / 2 ? 1 : -1;
+    ev('pointerdown', x0, y0, 7); for (var i = 1; i <= 5; i++) { wait(8); ev('pointermove', x0 + dir * i * 4, y0, 7); } wait(4); ev('pointerup', x0 + dir * 20, y0, 7);
+    var mode = APP.scene.pan().mode, q = document.getElementById('btn-sew').getBoundingClientRect(), x = q.x + q.width / 2, y = q.y + q.height / 2, k = APP.scene.pickAt(x, y);
+    ev('pointerdown', x, y, 8); ev('pointerup', x, y, 8);
+    cv.setPointerCapture = keep;
+    var r = { mode: mode, pick: k && k.kind + ':' + k.id, open: document.getElementById('sew-sheet').open };
+    document.getElementById('sew-sheet').close();
+    return r;
+  });
+  console.log('   관성 중 톡:', JSON.stringify(co));
+  ok(co.mode === 'coast' && co.pick === 'spot:sew' && co.open, '관성으로 흐르는 중에 재봉틀을 톡 하면 멈추고 시트도 연다 (' + co.mode + ' · ' + co.pick + ')');
+  /* 3. 놀이방 조리대 톡 → 부엌 (cook.html?embed=1 iframe) · 부엌의 닫기 → 놀이방 그대로 (장면 · 밀기 · 포커스는 조리대 단추) · 다시 열고 Esc 도 닫는다 */
+  await page.evaluate(function () { APP.scene.zoomTo(1); return APP.goRoom('attic'); });
+  await page.waitForFunction(function () { return APP.scene.view() === 'attic' && !APP.goResting; }, null, { timeout: 20000 }); await page.waitForTimeout(600);
+  await page.evaluate(function () { return APP.goRoom('play'); });
+  await page.waitForFunction(function () { var e = document.getElementById('btn-cook'); return APP.scene.view() === 'play' && e && !e.hidden && !APP.goResting; }, null, { timeout: 20000 }); await page.waitForTimeout(600);
+  var cpt = await page.evaluate(function () { var q = document.getElementById('btn-cook').getBoundingClientRect(), F = [0.5, 0.35, 0.65, 0.2, 0.8]; for (var i = 0; i < F.length; i++) for (var j = 0; j < F.length; j++) { var x = q.x + q.width * F[j], y = q.y + q.height * F[i], k = APP.scene.pickAt(x, y); if (k && k.kind === 'spot' && k.id === 'counter') return { x: x, y: y, w: q.width, h: q.height, label: document.getElementById('btn-cook').getAttribute('aria-label'), pan: JSON.stringify(APP.scene.pan()) }; } return null; });
+  var ck = { spot: !!cpt };
+  if (cpt) {
+    await page.touchscreen.tap(cpt.x, cpt.y);
+    ck.open = await page.waitForSelector('#cook-overlay[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+    var fh = await page.$('#cook-overlay iframe'), fr = fh && await fh.contentFrame();
+    ck.kitchen = !!fr && await fr.waitForFunction(function () { return window.COOK && COOK.isOpen() && document.documentElement.classList.contains('ck-embed'); }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
+    if (ck.kitchen) {
+      ck.home = await fr.evaluate(function () { var h = document.querySelector('.ck-home'); return h ? getComputedStyle(h).display : 'none'; });
+      await (await fr.$('.ck-close')).tap();
+      ck.closed = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+      ck.after = await page.evaluate(function () { return { view: APP.scene.view(), room: APP.room, focus: document.activeElement && document.activeElement.id, pan: JSON.stringify(APP.scene.pan()) }; });
+      await page.waitForTimeout(700);
+      await page.evaluate(function () { document.getElementById('btn-cook').click(); });
+      ck.again = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+      await page.keyboard.press('Escape');
+      ck.esc = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+      ck.escShut = !(await fr.evaluate(function () { return COOK.isOpen(); }));
+    }
+  }
+  console.log('   조리대:', JSON.stringify({ pt: cpt, ck: ck }));
+  ok(ck.spot && cpt.w >= 44 && cpt.h >= 44 && cpt.label === '부엌', '놀이방 조리대 위에 부엌 단추 (44px 이상 · «' + (cpt && cpt.label) + '»)');
+  ok(ck.open && ck.kitchen && ck.home === 'none', '조리대를 손가락으로 톡 → 게임 안 화면 가득 부엌 (cook.html?embed=1 · 자기 문 · 링크는 숨김)');
+  ok(ck.closed && ck.after && ck.after.view === 'play' && ck.after.focus === 'btn-cook' && ck.after.pan === cpt.pan, '부엌의 닫기 → 놀이방 그대로 (장면 ' + (ck.after && ck.after.view) + ' · 포커스 ' + (ck.after && ck.after.focus) + ')');
+  ok(ck.again && ck.esc && ck.escShut, '다시 열고 Esc 로도 닫힌다 (부엌도 닫힌다)');
+  ok(!bag.length, '장면 톡 시나리오 오류 없음' + (bag.length ? ': ' + bag.join(' | ') : ''));
+  await ctx.close();
+}
+
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
@@ -6709,6 +6802,7 @@ async function scenarioGarden(browser) {
       ['R', function () { return scenarioRunner(); }], ['S', function () { return scenarioWave7(browser); }], ['J', function () { return scenarioWave8(browser); }], ['U', function () { return scenarioGlyphs(browser); }],
       ['T', function () { return scenarioTapLine(browser); }], ['K', function () { return scenarioBringBack(browser); }], ['O', function () { return scenarioLayoutOne(browser); }],
       ['Q', function () { return scenarioWeek(browser); }],   /* Q = 이번 주 할 일 · 선물 상자 (검증 11-11) */
+      ['Z', function () { return scenarioSceneTap(browser); }],   /* 11-15 장면 톡 (재봉틀 첫 톡 · 관성 중 톡 · 조리대 → 부엌) */
       ['Z', function () { return scenarioLoft(browser); }],   /* 11-12 위층 문어 (계단 · 돌아다니기 · 거울 길 · 비켜서기 · 거울 한 줄 · 방석 · 가구 배치 · 시트 올림) */
       ['X', function () { return scenarioGarden(browser); }]];   /* X = 바깥 텃밭 · 살림 다시 그리기 (검증 11-11) */
     for (var sc of all) {   /* 한 시나리오가 터져도 (부하 큰 기계의 시간 초과 등) 뒤 시나리오는 돈다 — 터진 것은 실패 하나로 센다 */

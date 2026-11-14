@@ -127,19 +127,20 @@ function makeSprites() {
     'ui.frame.paper': '종이 카드 9-slice (포스터 열람·영수증). 위·왼쪽 밝은 줄 = 빛은 위에서',
     'ui.frame.portrait': '초상 틀 9-slice (대화창 왼쪽 64×64 초상 둘레, 안으로 파인 인셋)',
     'ui.bubble.say': '말풍선 보통 9-slice (종이흰 + 남색 1px, 둥근 모서리)',
-    'ui.bubble.think': '생각 풍선 9-slice (구름 가장자리 — 혼잣말·기억)',
+    'ui.bubble.think': '생각 풍선 9-slice 16×16 · 슬라이스 6 (11-15: 둥근 네모, 계단 모서리 · 옅은 남색 1px 선 — 혼잣말·기억). CSS: 6 fill / 12px. 꼬리는 둥근 점 둘',
     'ui.bubble.whisper': '속삭임 풍선 9-slice (점선, 옅은 청록 — 졸림·잠꼬대)'
   };
   Object.keys(SP.FRAMES).forEach(function (key) {
-    var g = grid(SP.FRAMES[key], 24, 24, key), rel = 'assets/ui/' + key.slice(3).replace('.', '_') + '.png';
-    writePNG(rel, 24, 24, toRGBA(g)); n++;
-    OUT[key] = { src: rel, w: 24, h: 24, slice: 8, note: FNOTE[key] };
+    var fw = SP.FRAMES[key][0].length, sl = fw === 16 ? 6 : 8;   /* 11-15: 생각 풍선은 16×16 · 슬라이스 6 (작게) — 나머지는 24×24 · 8 */
+    var g = grid(SP.FRAMES[key], fw, fw, key), rel = 'assets/ui/' + key.slice(3).replace('.', '_') + '.png';
+    writePNG(rel, fw, fw, toRGBA(g)); n++;
+    OUT[key] = { src: rel, w: fw, h: fw, slice: sl, note: FNOTE[key] };
   });
   Object.keys(SP.TAILS).forEach(function (key) {
     var tw = Math.max(8, Math.max.apply(null, SP.TAILS[key].map(function (r) { return r.length; })));   /* 꼬리는 8 칸 이상 (외침 = 10) */
     var g = grid(SP.TAILS[key], tw, 8, key), rel = 'assets/ui/' + key.slice(3).replace('.', '_') + '.png';
     writePNG(rel, tw, 8, toRGBA(g)); n++;
-    OUT[key] = { src: rel, w: tw, h: 8, note: /next/.test(key) ? '대화창 "다음" ▼ (next/next2 를 0.5 s 마다 번갈아)' : '말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다' };
+    OUT[key] = { src: rel, w: tw, h: 8, note: /next/.test(key) ? '대화창 "다음" ▼ (next/next2 를 0.5 s 마다 번갈아)' : key === 'ui.tail.think' ? '생각 풍선 꼬리 — 둥근 점 둘 (위가 크고 아래가 작다), 풍선 아랫변 가운데 1칸 아래 (11-15)' : '말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다' };
   });
   console.log('sprites: ' + n + ' PNG');
 }

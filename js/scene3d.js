@@ -1959,7 +1959,7 @@ var SCENE3D = (function () {
       uDither: { value: 0 }, uOutline: { value: hasDepthTex ? 1 : 0 }, uHasNormal: { value: 1 }, uVig: { value: 0 }, uSky: { value: 0 }, uStars: { value: 0 }, uSkyOk: { value: new T.Vector3(0, 0, 0) }, uBayer: post.uniforms.uBayer, uKeepAlpha: { value: 1 }, uFade: { value: 0 }, uFadeOk: { value: new T.Vector3(0, 0, 0) } } }));
     var pBuf = new Uint8Array(PORT.N * PORT.N * 4);
     function portraitBg(o) { var b = o && o.bg; if (!b || b === 'transparent') return null; if (b === 'navy') return '#172038'; return /^#[0-9a-f]{6}$/i.test(b) ? b : null; }   /* 기본 투명 · 'navy' = Apollo 남색 · '#rrggbb' */
-    function renderPortrait(expr, bgHex, colorHex) {   /* colorHex = 그 몸색으로 찍기 (장면 몸색·팔레트는 찍은 뒤 그대로 되돌린다 — 첫 실행 창 미리 보기 · 지난 날 초상) */
+    function renderPortrait(expr, bgHex, colorHex, pw) {   /* colorHex = 그 몸색으로 찍기 (장면 몸색·팔레트는 찍은 뒤 그대로 되돌린다 — 첫 실행 창 미리 보기 · 지난 날 초상) · pw = 11-15 걷는 옆모습 (walkPortrait) */
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       var base = colorHex || st.color, other = base.toLowerCase() !== String(st.color).toLowerCase(), OCp = other ? octDerived(base) : OC;
       if (other) { octLook(OCp); uploadPalette(buildPalette(base, st.palette, salExtra())); }
@@ -1971,15 +1971,15 @@ var SCENE3D = (function () {
       var hex = expr === 'sleep' ? hueHex(base, 12) : base;   /* sleep = 색 순환 한 자락. pet 은 몸색 그대로 (11-14 주인 O2 c — 예전 홍조 끝값) */
       if (hex !== sv.hex) octColor(hex);
       PORT.last = { expr: expr, hex: hex, base: base, arcs: arcs.visible, smile: smile.visible, blush: blush.visible, eyes: pupils[0].visible };   /* 시험용 (11-14 O2 c): 이 초상에 칠한 몸색 · 보인 얼굴 부품 — 밝기 어림 대신 색 그대로 견준다 */
-      octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]);   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = 0; bodyG.rotation.set(0, 0, pose[2]);
+      octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]);   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = pw ? pw.by : 0; if (pw) bodyG.rotation.set(0, pw.yaw, pw.roll); else bodyG.rotation.set(0, 0, pose[2]);
       var salClean = !!(SAL.active || SAL.lookAt || SAL.offer >= 0);   /* 미용실이 눈·몸을 쥐고 있을 때만 (병을 내밀었거나 연출 중) 초상을 정지 자세로 씻는다 — 그 밖엔 예전 그대로 찍는다 */
-      arms.forEach(function (m) { m.rotation.y = -m.userData.a; m.rotation.z = 0.05; if (salClean) m.scale.x = 1; });   /* 걸음 중이어도 초상은 정지 자세 (다리 기본 0.05 · 미용실 기쁨 폴짝 꼭대기의 다리 ×1.3 도 풀고) */
+      if (!pw) arms.forEach(function (m) { m.rotation.y = -m.userData.a; m.rotation.z = 0.05; if (salClean) m.scale.x = 1; });   /* 걸음 중이어도 초상은 정지 자세 (다리 기본 0.05 · 미용실 기쁨 폴짝 꼭대기의 다리 ×1.3 도 풀고) */
       if (salClean) pupils.forEach(function (p, k) { p.position.x = EYE[k][0]; p.position.y = EYE[k][1] + (FACES[expr].dy || 0); });   /* 눈은 앞을 본다 (미용실 병을 따라가던 동공이 초상에 새지 않게) */
       octG.updateMatrixWorld(true);
-      var ty = (HEAD_Y - PORT.down) * pose[1];
+      var ty = pw ? pw.ty : (HEAD_Y - PORT.down) * pose[1], tilt = pw ? pw.tilt : PORT.tilt;
       _pt.set(0, ty, 0); octG.localToWorld(_pt);
-      _pp.set(0, ty + PORT.dist * Math.sin(PORT.tilt), PORT.dist * Math.cos(PORT.tilt)); octG.localToWorld(_pp);
-      var hw = PORT.hw * OCT_R; pCam.left = -hw; pCam.right = hw; pCam.top = hw; pCam.bottom = -hw; pCam.updateProjectionMatrix();
+      _pp.set(0, ty + PORT.dist * Math.sin(tilt), PORT.dist * Math.cos(tilt)); octG.localToWorld(_pp);
+      var hw = (pw ? pw.hw : PORT.hw) * OCT_R; pCam.left = -hw; pCam.right = hw; pCam.top = hw; pCam.bottom = -hw; pCam.updateProjectionMatrix();
       pCam.position.copy(_pp); pCam.up.set(0, 1, 0); pCam.lookAt(_pt); pCam.updateMatrixWorld();
       scene.background = bgHex ? C(bgHex) : null;
       renderer.setClearColor(bgHex ? C(bgHex) : 0x000000, bgHex ? 1 : 0);
@@ -2002,6 +2002,24 @@ var SCENE3D = (function () {
       for (var y = 0; y < N; y++) img.data.set(pBuf.subarray((N - 1 - y) * N * 4, (N - y) * N * 4), y * N * 4);   /* GL 은 아래→위 */
       cx.putImageData(img, 0, 0);
       if (t0) PORT.ms = +(performance.now() - t0).toFixed(2); PORT.n++;
+      return cv;
+    }
+    /* 11-15 개발용 (tools/make-loading-oct.js → assets/ui/loading_oct.png): 걷는 옆모습 한 칸. 걸음 위상 ph 의 다리(내딛는 쪽 들림 · 앞뒤 쓸기) · 굴림 · 걸음 중간 +1px 를
+       stepOct 의 걷기 공식 그대로 놓고 초상 길(전용 조명 · 레이어 2 · 같은 후처리)로 몸 전체를 찍는다. 다리 자세는 찍은 뒤 되돌린다 (장면은 다음 프레임에 제 자세로) */
+    function walkPortrait(ph, o) {
+      o = o || {}; ph = +ph || 0;
+      var n = Math.floor(ph), u = ph - n, swingPos = (n & 1) === 0, sr = Math.sin(Math.PI * u), hw = o.hw || 1.3;
+      var sv = arms.map(function (m) { return [m.rotation.y, m.rotation.z, m.scale.x]; });
+      arms.forEach(function (arm) {
+        var ca = Math.cos(arm.userData.a), sw = (ca > 0) === swingPos, lift = sw ? GAIT.armLift * sr : 0, fwd = o.still ? 0 : sw ? 2 * u - 1 : 1 - 2 * u;   /* still = 서 있는 자세 (앱 아이콘) */
+        if (o.still) lift = 0;
+        arm.scale.x = 1; arm.rotation.z = 0.05 + lift; arm.rotation.y = -arm.userData.a + fwd * GAIT.armFwd * (ca > 0 ? 1 : -1);
+      });
+      if (o.still) sr = 0;
+      var roll = o.roll ? ((n & 1) ? -1 : 1) * GAIT.roll * (sr > 0.6 ? 1 : 0) : 0, by = sr > 0.5 ? 2 * hw / PORT.N : 0;   /* 굴림은 앞에서 볼 때 몸짓 — 옆모습에선 고개 끄덕임처럼 보여 기본은 뺀다 */
+      var cv;
+      try { cv = renderPortrait('idle', portraitBg(o), portraitColor(o), { yaw: (o.yaw == null ? 90 : +o.yaw) * DEG, roll: roll, by: by, hw: hw, ty: o.ty == null ? 0.62 : +o.ty, tilt: (o.tilt == null ? 10 : +o.tilt) * DEG }); }
+      finally { arms.forEach(function (m, i) { m.rotation.y = sv[i][0]; m.rotation.z = sv[i][1]; m.scale.x = sv[i][2]; }); }
       return cv;
     }
     function portraitColor(o) { var c = o && o.color; return /^#[0-9a-f]{6}$/i.test(c || '') ? String(c).toLowerCase() : null; }   /* o.color = 그 몸색으로 찍기 (장면 색은 그대로) */
@@ -2847,7 +2865,7 @@ var SCENE3D = (function () {
        다락 위 = data-spot="over". 확대·밀기로 상자가 화면 밖이면 숨긴다 */
     var YARD_DOOR_BOX = new T.Box3(new T.Vector3(DOOR.x0, 0, -R), new T.Vector3(DOOR.x1, DOOR.h, -R + 0.12));   /* 11-15: 다락 뒷벽 문간 (문어 산책 문 — 마당으로) */
     var STAIR_BOX = new T.Box3(new T.Vector3(STAIR.x0, 0, STAIR.z0), new T.Vector3(STAIR.x1, STAIR.top, STAIR.z1));
-    var SPOTS = {}, SPOT_KEYS = ['atticPlay', 'playAttic', 'machine', 'salon', 'atticStair', 'loftStair', 'sew', 'plot0', 'plot1', 'plot2', 'plot3', 'plot4', 'plot5', 'atticYard', 'yardAttic'], spotEdge = true, spotLast = {}, _sv8 = new T.Vector3(), SPOT_MIN_VIS = 8;   /* 보이는 문 조각이 8 CSS px 보다 좁으면 단추를 숨긴다 · salon = 미용실 거울 (#btn-salon) */
+    var SPOTS = {}, SPOT_KEYS = ['atticPlay', 'playAttic', 'machine', 'salon', 'atticStair', 'loftStair', 'sew', 'plot0', 'plot1', 'plot2', 'plot3', 'plot4', 'plot5', 'atticYard', 'yardAttic', 'counter'], spotEdge = true, spotLast = {}, _sv8 = new T.Vector3(), SPOT_MIN_VIS = 8;   /* 보이는 문 조각이 8 CSS px 보다 좁으면 단추를 숨긴다 · salon = 미용실 거울 (#btn-salon) */
     function boxScreen(b, obj) {   /* 그룹 좌표 상자 → 컨테이너 CSS px {l,t,r,b} */
       obj.updateWorldMatrix(true, false);
       var l = Infinity, t = Infinity, r = -Infinity, bt = -Infinity, mw = obj.matrixWorld;
@@ -2865,9 +2883,9 @@ var SCENE3D = (function () {
         if (v === 'exterior') return spotEdge ? { id: id, mode: 'edge' } : null;
         if (v !== 'attic') return null;
         q = boxScreen(ATTIC_DOOR.box, ATTIC_DOOR.g);
-      } else if (id === 'playAttic' || id === 'machine') {
+      } else if (id === 'playAttic' || id === 'machine' || id === 'counter') {   /* 11-15: counter = 놀이방 조리대 → 부엌 (#btn-cook) */
         if (v !== 'play' || !PROOM || busy) return null;
-        q = id === 'machine' ? boxScreen(PROOM.machineBox, PROOM.g) : boxScreen(PLAY_DOOR.box, PLAY_DOOR.g);
+        q = id === 'machine' ? boxScreen(PROOM.machineBox, PROOM.g) : id === 'counter' ? boxScreen(PROOM.counterBox, PROOM.g) : boxScreen(PLAY_DOOR.box, PLAY_DOOR.g);
       } else if (/^plot[0-5]$/.test(id)) {   /* 11-15: 밭은 마당에만 (연 칸만 — 잠긴 칸은 단추도 없다) */
         if (v !== 'yard' || !YROOM || busy || !plotBoxes[+id.charAt(4)]) return null;
         q = boxScreen(plotBoxes[+id.charAt(4)], YROOM.g);
@@ -2938,6 +2956,18 @@ var SCENE3D = (function () {
     function spotHit(id) { return SPOT_HIT[id] || (SPOT_HIT[id] = { userData: { kind: 'spot', spot: id } }); }   /* pick() 이 돌려주는 표적 (메시 대신) */
     function doorMeshes(D) { var out = []; if (D && D.g.visible) D.g.traverseVisible(function (o) { if (o.isMesh && o.layers.mask & 1) out.push(o); }); return out; }
     function spotTap(id) { var el = SPOTS[id]; if (el && !el.hidden && spotInfo(id)) el.click(); }
+    /* 11-15: 장면이 pointerup 에서 톡을 처리하면 (단추 누르기 · 문어 · 포스터 …) 브라우저가 같은 손가락의 진짜 click 을 뒤이어 보낸다 — 그 자리에 방금 열린 시트가 있으면
+       시트 바깥(백드롭)이면 닫히고, 안이면 그 자리 단추(염료 칩)가 눌렸다 (재봉틀이 첫 톡에 안 열리던 결함). 톡 뒤 800 ms 안 · 30 px 안의 진짜 click 하나를 삼킨다.
+       el.click() 같은 합성 click (isTrusted false) 은 그대로 · 다음 pointerdown 이 오면 풀린다 */
+    var tapGuard = null;
+    function guardTapClick(x, y) { tapGuard = { x: x, y: y, t: Date.now() }; }
+    listen(window, 'pointerdown', function () { tapGuard = null; }, true);
+    listen(window, 'click', function (e) {
+      var g = tapGuard; if (!g || !e.isTrusted) return;
+      tapGuard = null;
+      if (Date.now() - g.t > 800 || Math.hypot(e.clientX - g.x, e.clientY - g.y) > 30) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+    }, true);
     function clearSpots() { SPOT_KEYS.forEach(function (k) { var el = SPOTS[k]; if (!el) return; var es = el.style; es.left = es.top = es.width = es.height = es.right = es.bottom = ''; delete el.dataset.spot; }); SPOTS = {}; spotLast = {}; spotFocus = null; }
     function setHotspots(map, o) {
       clearSpots(); map = map || {}; o = o || {}; spotEdge = o.edge !== false;
@@ -4310,7 +4340,7 @@ var SCENE3D = (function () {
       ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(ndc, camera);
       var okOct = octTappable(), sp;
-      if (PLACE.vis === 'play') { sp = spotAt(cx, cy, ['playAttic', 'machine']); return sp ? spotHit(sp) : null; }
+      if (PLACE.vis === 'play') { sp = spotAt(cx, cy, ['playAttic', 'machine', 'counter']); return sp ? spotHit(sp) : null; }
       if (PLACE.vis === 'loft') {   /* 위층: 따라 올라온 문어 · 미용실 거울(문어가 거울 앞이면 문어가 먼저) · 계단 · 재봉틀 */
         var upOct = okOct && octUp(), salOnL = !!SPOTS.salon && !!spotInfo('salon'), smL = salOnL ? [salA, salB, salC].filter(function (m) { return m.visible; }) : [];
         var hsL = ray.intersectObjects((upOct ? bodyMeshes() : []).concat(smL), false);
@@ -4412,6 +4442,7 @@ var SCENE3D = (function () {
       var caught = PAN.mode === 'coast' && (pxms(PAN.vx) > 0.05 || pxms(PAN.vy) > 0.05);
       if (PAN.mode === 'coast' || PAN.mode === 'spring') { PAN.mode = ''; PAN.vx = PAN.vy = 0; }   /* 관성·고무줄 중에 누르면 그 자리에 멈춘다 (다시 잡아 끌 수 있게) — 떼면 pointerEnd 가 경계 안으로 */
       var yaw = e.pointerType === 'mouse' && (e.button === 2 || e.shiftKey), o = yaw ? null : pick(e.clientX, e.clientY);
+      if (caught && o && o.userData.kind === 'spot') caught = false;   /* 11-15: 관성 중 문 · 오락기 · 재봉틀 톡은 멈추고 톡으로도 친다 (눌러도 안 열리던 결함) */
       press = { id: e.pointerId, x: e.clientX, y: e.clientY, obj: o, moved: false, pet: false, t: null, caught: caught, yaw: yaw, touch: e.pointerType === 'touch', lx: e.clientX };
       GEST.mode = yaw ? 'yaw' : 'press';
       if (!yaw && !caught) press.ft = setTimeout(furnHoldStart, 480);   /* 가구 꾹 누르기 → 들고 옮기기 */
@@ -4447,6 +4478,7 @@ var SCENE3D = (function () {
       var o = press.obj, k = o && o.userData.kind;
       if (GEST.mode === 'pan') panRelease(e);
       else if (GEST.mode === 'press' && !press.moved && !press.pet && !press.caught && !press.multi && e.type === 'pointerup') {
+        if (k === 'oct' || k === 'window' || k === 'poster' || k === 'souvenir' || k === 'spot' || (!k && PLACE.vis === 'attic' && !PLACE.room && furnAt(press.x, press.y) === 'sofa')) guardTapClick(e.clientX, e.clientY);   /* 11-15: 뒤따르는 진짜 click 은 삼킨다 (위 tapGuard) */
         if (k === 'oct') { oct.wantYaw = camYaw(); if (on.tap) on.tap(); }
         else if (k === 'window') { if (on.windowTap) on.windowTap(); }
         else if (k === 'poster') { if (on.posterTap) on.posterTap(o.userData.id); }
@@ -5631,7 +5663,7 @@ var SCENE3D = (function () {
       setExpression: setExpression, expression: function () { return face.expr; }, EXPRESSIONS: EXPRESSIONS.slice(),
       faceShown: function () { return { expr: face.expr, applied: face.applied, arcs: arcs.visible, smile: smile.visible, blush: blush.visible, eyes: pupils[0].visible, hex: oct.curHex || st.color, color: st.color }; },   /* 시험용 (11-14 주인 O2 c): 지금 장면 얼굴에 보이는 부품 · 몸에 칠한 색 (hex 가 color 와 다르면 몸빛이 바뀐 것 — 잠 · 미용실 · 놀이 위장) */   /* 룩 패스 8: 표정은 상태와 별개 (상태가 기본 표정을 고르고, app.js 가 덮어쓴다) */
       portraitShown: function () { return PORT.last ? Object.assign({}, PORT.last) : null; },   /* 시험용: 마지막으로 찍은 초상의 몸색 · 얼굴 부품 (11-14 O2 c) */
-      portrait: portrait, portraitURL: portraitURL,   /* 64×64 초상 캔버스 / data URL (표정·몸색·팔레트·배경 키 캐시, opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb') */
+      portrait: portrait, portraitURL: portraitURL, walkPortrait: walkPortrait,   /* walkPortrait(위상, { yaw°, hw, ty, tilt°, still, bg, color }) → 64×64 걷는 옆모습 · still = 서 있는 몸 전체 (11-15 로딩 문어 · 앱 아이콘 만들기 도구 전용) */   /* 64×64 초상 캔버스 / data URL (표정·몸색·팔레트·배경 키 캐시, opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb') */
       moveTo: moveTo, jumpTo: jumpTo, finishWalk: function () { if (oct.walking && oct.walking.finish) oct.walking.finish(); },   /* 건너뛰기: 걷던 길을 지금 도착시키고 moveTo 의 Promise 를 푼다 (2D 와 같은 API) */
       intro: startIntro, introSkip: finishIntro, introRelease: introRelease, introActive: function () { return INTRO.on; }, introProgress: function () { return INTRO.on ? clamp(INTRO.t / INTRO.dur, 0, 1) : 1; },   /* 입장 연출: intro({ dur, height, instant, hold }) → Promise(착지) · introSkip() 바로 착지 · introRelease() 비네트 복귀 */
       skyHex: skyHex, skyCut: skyCut,   /* 지금 허공(배경)이 화면에 찍히는 색 — 입장 레이어가 장면 밖을 같은 색으로 덮는다 · skyCut = 그 덮개를 두 색으로 나눌 높이 (11-12) */
