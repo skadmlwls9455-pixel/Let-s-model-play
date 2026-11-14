@@ -223,6 +223,7 @@ async function scenarioMain(browser) {
   await page.screenshot({ path: path.join(SHOTS, 'phone-light-start.png') });
 
   await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
+  await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1 — 두 번 톡의 둘째) → APP.goResting 이 풀릴 때까지 */
   await page.click('#btn-go');
   await page.waitForSelector('#btn-go.away', { timeout: 10000 });
   ok((await page.textContent('#btn-go')).indexOf('다녀오는 중') >= 0, '나가 있는 동안 버튼 라벨');
@@ -556,6 +557,8 @@ async function scenarioFail(browser, mode, label) {
   await page.fill('#name-in', name);
   await page.click('#name-form button[type=submit]');
   await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
+  await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+  await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1 — 두 번 톡의 둘째) → APP.goResting 이 풀릴 때까지 */
   await page.click('#btn-go');
   await skipAway(page);
   await waitIdle(page);
@@ -648,6 +651,7 @@ async function scenarioForcedHome(browser) {
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   var before = await page.evaluate(function () { return { l: APP.state.room.lantern, tr: APP.state.octopus.trips, inv: APP.state.octopus.invites }; });
   await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
+  await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1 — 두 번 톡의 둘째) → APP.goResting 이 풀릴 때까지 */
   await page.click('#btn-go');
   await skipAway(page);
   await waitIdle(page);
@@ -749,6 +753,7 @@ async function scenarioDay2(browser) {
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   async function goTrip() {
     await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
+    await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1 — 두 번 톡의 둘째) → APP.goResting 이 풀릴 때까지 */
     await page.click('#btn-go');
     await skipAway(page);
     await waitIdle(page);
@@ -985,6 +990,7 @@ async function scenarioCeremonyIntro(browser) {
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   var mode = await page.evaluate(function () { window.__bub = []; if (window.UIART) { var ob = UIART.onBubble; UIART.onBubble = function (t, k) { if (t) window.__bub.push({ t: t, k: k, place: APP.scene.place(), state: APP.oct.state }); return ob.apply(this, arguments); }; } return APP.sceneMode; });
   await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
+  await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1 — 두 번 톡의 둘째) → APP.goResting 이 풀릴 때까지 */
   await page.click('#btn-go');
   await page.waitForFunction(function () { return APP.oct.state === 'away' && APP.scene.place() === 'exterior'; }, null, { timeout: 20000 });
   if (mode === '3d') await page.waitForFunction(function () { return window.__bub.some(function (b) { return b.state === 'away' && b.place === 'exterior'; }); }, null, { timeout: 30000 });
@@ -1204,6 +1210,7 @@ async function scenarioPlayer(browser) {
   ok(!/힌트|네가 골라/.test(toastT), '플레이어 화면: 첫 실행 토스트에 힌트 얘기 없음 (' + JSON.stringify(toastT) + ')');
   var t0 = await page.evaluate(function () { return { title: document.getElementById('room-title').textContent, desc: document.getElementById('scene-desc').textContent, doc: document.title }; });
   ok(t0.title === '불씨 하나 켜진 다락' && !/어두운|꺼진/.test(t0.desc + t0.doc), "등불 0칸: 방 제목 '불씨 하나 켜진 다락' · 장면 설명·문서 제목에 '어두운/꺼진' 없음 (" + t0.desc + ')');
+  await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1 — 두 번 톡의 둘째) → APP.goResting 이 풀릴 때까지 */
   await page.click('#btn-go');
   await page.waitForSelector('#btn-go.away', { timeout: 10000 });
   await page.waitForTimeout(1200);
@@ -4483,6 +4490,7 @@ async function scenarioBringBack(browser) {
       window.__retFrames = 0; (function fr() { if (APP.ceremony === 'return') window.__retFrames++; requestAnimationFrame(fr); })();
       (function tick() { var tst = document.getElementById('toast'), pip = document.querySelector('#pips .pip.on'); window.__tl.push({ k: 'tick', t: performance.now() - t0, cer: APP.ceremony, toast: tst && tst.classList.contains('show') ? tst.textContent : '', pip: !!pip, away: document.getElementById('btn-go').classList.contains('away'), oct: APP.oct.state }); if (window.__tl.length < 3000) setTimeout(tick, 25); })();
     });
+    await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1 — 두 번 톡의 둘째) → APP.goResting 이 풀릴 때까지 */
     await page.click('#btn-go');
     var dbl = null;
     if (mode !== 'watch') {
