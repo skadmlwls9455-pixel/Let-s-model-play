@@ -61,7 +61,20 @@ const logOf = (page) => page.evaluate(() => window.__play.log);
 const metrics = (page) => page.evaluate(() => JSON.parse(JSON.stringify(window.__playMetrics, (k, v) => (k === 'sit' ? undefined : v))));
 const MENU_IDS = ['lift_one', 'lift_all', 'lift_next', 'two_arms', 'squeeze_in', 'camouflage', 'offer_ball', 'roll_back', 'bat_alone', 'wear_cup_as_hat', 'invite_roll', 'hide_peek', 'cover_ball', 'watch', 'stop'];
 function noErr(errs, label) { const real = errs.filter((e) => !/GL Driver Message|GPU stall/.test(e)); ok(real.length === 0, label + ': no page/console errors' + (real.length ? ' → ' + real.slice(0, 3).join(' | ') : '')); }
-function uniqueColors(file) { try { return +cp.execFileSync('identify', ['-format', '%k', file]).toString().trim(); } catch (e) { return -1; } }
+/* 11-14 (CI): 예전엔 ImageMagick 'identify' 로 셌다 — GitHub 러너엔 그 프로그램이 없어 -1 로 실패했다. 브라우저에서 PNG 를 그려 직접 센다 (밖의 프로그램 없이 어디서나) */
+async function uniqueColors(buf) {
+  const pg = await browser.newPage();
+  try {
+    return await pg.evaluate(async (b64) => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height).data, seen = new Set();
+      for (let i = 0; i < d.length; i += 4) seen.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
+      return seen.size;
+    }, buf.toString('base64'));
+  } catch (e) { return -1; } finally { await pg.close(); }
+}
 
 async function main() {
   const srv = await serve(); BASE = 'http://127.0.0.1:' + srv.address().port;
@@ -71,8 +84,8 @@ async function main() {
     if (want('boot') || want('layout')) {
       console.log('[boot] http, 360×740');
       const P = await open('idle=0');
-      const shot = path.join(SHOTS, 'play-boot.png'); await P.page.screenshot({ path: shot });
-      const n = uniqueColors(shot); ok(n > 30, 'canvas renders the attic (unique colours ' + n + ')');
+      const shot = path.join(SHOTS, 'play-boot.png'), shotBuf = await P.page.screenshot({ path: shot });
+      const n = await uniqueColors(shotBuf); ok(n > 30, 'canvas renders the attic (unique colours ' + n + ')');
       const info = await P.page.evaluate(() => ({
         text: document.body.innerText.split('\n').map((s) => s.trim()).filter(Boolean), sw: document.documentElement.scrollWidth, canvas: !!document.querySelector('#scene3d canvas'),
         honestH: document.getElementById('honest').getBoundingClientRect().height, resetHidden: document.getElementById('reset').hidden, title: document.title
