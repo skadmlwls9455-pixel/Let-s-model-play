@@ -137,7 +137,7 @@ Apply: Under reduced motion the poster flip becomes an instant swap with a cross
 
 **R21. Status changes are announced; toasts are an `output` live region, bottom-centred, short-lived.**
 Why: argyleink toast recipe (`<output>` / `role=status`, auto-dismiss); Heydon "announce state changes".
-Apply: One `<output aria-live="polite" class="toast">` fixed above the safe-area inset. Messages: "등불 한 칸 더 켜졌어" , "포스터를 벽에 붙였어", "오늘은 집에 있을래". 2.5 s, max one at a time, never blocks the depart button.
+Apply: One `<output aria-live="polite" class="toast">` fixed above the safe-area inset. Messages: "등불 한 칸 더 켜졌어" , "포스터를 벽에 붙였어", "오늘은 집에 있어". 2.5 s, max one at a time, never blocks the depart button.
 
 **R22. Light comes from the sky.**
 Why: Erik Kennedy rule 1 (outset = cards/buttons, inset = inputs/pressed).

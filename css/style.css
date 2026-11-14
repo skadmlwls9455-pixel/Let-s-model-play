@@ -210,8 +210,7 @@ a { color: var(--teal); touch-action: manipulation; }
 .st-sleep .eyelid { opacity: 1; }
 .st-peek #oct-inner { animation: peek-sway 1.4s ease-in-out infinite; }
 @keyframes peek-sway { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(8deg); } 70% { transform: rotate(-7deg); } }
-.st-pet .blush { opacity: .9; }
-.st-pet #oct-inner { animation: squish .6s ease-in-out infinite alternate; }
+.st-pet #oct-inner { animation: squish .6s ease-in-out infinite alternate; }   /* 11-14 (주인 O2 c): 쓰다듬기는 손에 눌린 몸만 — 예전 .st-pet .blush (홍조) 는 뺐다 */
 @keyframes squish { to { transform: scale(1.06, .94); } }
 .legs .leg { transform-origin: 24px 30px; animation: sway 2.3s ease-in-out infinite; }
 .legs .l2, .legs .l5 { animation-delay: -.6s; } .legs .l3, .legs .l6 { animation-delay: -1.2s; } .legs .l4, .legs .l7 { animation-delay: -1.8s; }

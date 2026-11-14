@@ -29,7 +29,7 @@ var APP = (function () {
   var BY_LABEL = { demo: '데모 두뇌(규칙)', human: '사람이 조작', mcp: '모델(MCP)', legacy: '복원된 기록' };
   var LOG_LABEL = { depart: '출발', peek: '기웃', 'return': '귀가', remember: '기억', hang_poster: '포스터', wrap_up: '마무리', stay_home: '집', empty_turn: '…' };
   var VOICE_LABELS = ['귀가', '기억', '마무리', '집', '인사', '혼잣말', '어제 메모', '지난 메모', '대답'];   /* '방'(등불 소품 줄)은 11-08 부터 집 목소리 사실 문장 (DIALOGUE_UI §4.3) */   /* 문어 목소리 행 → 픽셀 테마에서 호박색 탭 + 초상 대화창 (§15.2) · '대답' = 미용실 행 2 (고른 이의 말, docs/SALON.md §3.7 — '미용실' · '몸 색' 행은 집 목소리) */
-  /* 문어 목소리 행의 표정 (DESIGN §15.2): 귀가 calm · 기억 curious · 마무리 폴짝/우쭐 happy, 졸림 sleepy, 덤덤 calm · 집 활동 calm (낮잠 sleep) · 빈 차례 sleep · 인사 깨어 있으면 happy / 자는 중 sleep · 방(소품) happy · 말풍선 … pet (예전 ♡), ? curious */
+  /* 문어 목소리 행의 표정 (DESIGN §15.2): 귀가 calm · 기억 curious · 마무리 폴짝/우쭐 happy, 졸림 sleepy, 덤덤 calm · 집 활동 calm (낮잠 sleep) · 빈 차례 sleep · 인사 깨어 있으면 happy / 자는 중 sleep · 방(소품) happy · 말풍선 … idle (11-14 전엔 pet — 쓰다듬는 동안의 'pet' 표정도 이제 idle 얼굴 + 눌림뿐, 주인 O2 c), ? curious */
   var REACT_EXPR = { '폴짝': 'happy', '우쭐': 'happy', '덤덤': 'calm', '졸림': 'sleepy' };
   var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' };   /* 상태의 기본 표정 (SCENE.md 초상·표정) — 대화창 표정은 4 s 뒤 여기로 돌아온다 */
   /* 자는 문어를 누르면 · 깨어 있는 문어를 톡 누르면 (말풍선만 — 로그 · 저장에 안 남는다, 11-08). 소리(js/audio.js)는 글자가 아니라 kind('sleep' · 'curious' · 'say')로 고른다.
@@ -1619,7 +1619,8 @@ var APP = (function () {
     clearTimeout(petTimer);
     petTimer = setTimeout(function () {
       if (oct.state !== 'pet') return;
-      if (uiRng() < 0.7) { octState('idle'); say('…', 'pet', 1800); }   /* 말 없이 '…' 만 (예전 하트 기호는 뺐다 — 하트는 픽셀 테마 파티클이 띄운다). 11-13 (금지선 1): '…좋아' 는 코드가 문어 목소리로 좋다고 말한 것이라 뺐다 */
+      if (uiRng() < 0.7) { octState('idle'); say('…', 'idle', 1800); }   /* 말 없이 '…' 만 (예전 하트 기호는 뺐다 — 하트는 픽셀 테마 파티클이 띄운다). 11-13 (금지선 1): '…좋아' 는 코드가 문어 목소리로 좋다고 말한 것이라 뺐다.
+         11-14 (주인 O2 c): 그 행 · 초상 · 장면 얼굴은 idle — 예전 'pet' 표정이 손을 뗀 뒤 4 s 더 웃는 눈 · 홍조 · 눌림으로 남았다 (하트 파티클은 사람이 한 일이라 그대로) */
       else if (rest) octState('idle');   /* 깨어 있는 틈: 담요에서 말없이 그대로 (뽑기는 그대로 — '…' 가 더 잦아지지 않게) */
       else { var opts = allowedIdleAnchors().filter(function (a) { return a !== oct.anchor; }); walkTo(opts[Math.floor(uiRng() * opts.length)] || 'center').then(function () { if (!oct.busy) octState('idle'); }); }
     }, 2000);
@@ -2291,7 +2292,7 @@ var APP = (function () {
       }
       case 'stay_home':
         cls = 'c-amber'; expr = ((ev.activity === 'nap') || (trip.receipt && trip.receipt.activity && trip.receipt.activity.id === 'nap')) ? 'sleep' : 'calm';
-        frag.appendChild(ev.line ? rawSpan(ev.line, given) : document.createTextNode(givenTrip(trip) ? '…' : '오늘은 집에 있을래'));   /* 모델·사람이 줄 없이 집을 골랐으면 말 없이 (코드가 대신 말하지 않는다) */
+        frag.appendChild(ev.line ? rawSpan(ev.line, given) : document.createTextNode(givenTrip(trip) ? '…' : (STR.homeStay || '오늘은 집에 있어.')));   /* 모델·사람이 줄 없이 집을 골랐으면 말 없이 (코드가 대신 말하지 않는다). 데모 줄은 world 의 homeStay — 11-14 (주인 O1 b): 예전 '오늘은 집에 있을래' (바람 말) */
         if (trip.receipt && trip.receipt.activity && trip.receipt.activity.detail) frag.appendChild(rawSpan(trip.receipt.activity.detail.split('\n')[0], given, 'sub'));   /* 모델·사람 차례의 뒷면 글은 그들이 쓴 것 (두뇌가 그것만 둔다) */
         frag.appendChild(h('span', { class: 'sub', text: '오늘은 집' + (homeLit(trip) ? '. 등불 +1' : '') }));
         break;
@@ -2910,7 +2911,7 @@ var APP = (function () {
     box.innerHTML = '';
     var lines = recentLines();
     box.appendChild(h('h3', { text: '문어의 요즘' }));
-    if (!lines.length) box.appendChild(h('p', { class: 'dim', text: '아직 어디가 좋은지 몰라' }));
+    if (!lines.length) box.appendChild(h('p', { class: 'dim', text: STR.affinityNone || '아직 여러 번 가 본 곳이 없어' }));   /* 11-14 (주인 O1 b): 사실만 — 예전 '아직 어디가 좋은지 몰라' (취향 말) */
     lines.forEach(function (l) { box.appendChild(h('p', { 'data-corner': l.corner || null, text: l.text })); });
   }
   /* 앨범 › 일기: 지난 날 로그 (오늘 칸은 아래 '오늘의 산책'). 날마다 접힘, 새 날이 위 · 가장 새 날만 펼쳐 둔다 (나머지 행은 펼칠 때 만든다). 읽기만 */

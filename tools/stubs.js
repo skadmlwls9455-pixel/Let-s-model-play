@@ -30,8 +30,8 @@
       { id: 'nap', line: '담요 속에서 낮잠 잤어', detail: '빗소리가 좋았어.', anchor: 'blanket', weight: 3 },
       { id: 'nothing', line: '…', detail: '', anchor: 'blanket', weight: 0 }
     ],
-    reactions: { '폴짝': { emoji: '🎉', lines: ['처음 가 본 데가 있었어'] }, '우쭐': { emoji: '😌', lines: ['끝까지 다 읽었어'] }, '덤덤': { emoji: '😶', lines: ['그냥 그런 산책이었어'] }, '졸림': { emoji: '😴', lines: ['많이 걸었어'] } },
-    lineTemplates: { followedThenLeft: ['{hint} 보러 갔다가 {mem}에 한눈팔았어'], followedKept: ['{hint}, 끝까지 봤어. {memory}'], noHint: ['오늘은 {mem}. {memory}'], ignored: ['{hint}는 다음에. 오늘은 {mem}가 궁금했어'], linger: ['느린 글의 방에 앉아만 있었어. 아무것도 안 읽어도 됐어'] },
+    reactions: { '폴짝': { emoji: '🎉', lines: ['처음 가 본 데가 있었어'] }, '우쭐': { emoji: '😌', lines: ['끝까지 다 읽었어'] }, '덤덤': { emoji: '😶', lines: ['별일 없는 산책이었어'] }, '졸림': { emoji: '😴', lines: ['많이 걸었어'] } },
+    lineTemplates: { followedThenLeft: ['{hint} 보러 갔다가 {mem}에 한눈팔았어'], followedKept: ['{hint}, 끝까지 봤어. {memory}'], noHint: ['오늘은 {mem}. {memory}'], ignored: ['{hint}는 다음에. 오늘은 {mem}가 먼저였어'], linger: ['느린 글의 방에 앉아만 있었어. 읽은 건 없어'] },   /* 11-14: world.js 처럼 데모 줄은 사실만 (주인 O1 b) */
     roomLevels: [
       { lantern: 0, text: '아무것도 없는 다락방. 창문 너머로 빗소리.', item: null }, { lantern: 1, text: '창가에 이끼 화분이 하나 생겼다.', item: 'moss' },
       { lantern: 2, text: '낡은 나무 상자가 책상 대신 놓였다.', item: 'crate' }, { lantern: 3, text: '구석에 양초가 켜졌다. 그림자가 흔들린다.', item: 'candle' },
@@ -41,7 +41,7 @@
     ],
     stickers: { hat: { emoji: '🎩' }, feather: { emoji: '🪶' }, wild: { emoji: '❔' } },
     scenes: ['hands', 'sea', 'sky', 'signs', 'mind', 'home', 'wild'],
-    strings: { returnReasons: { enough: '이만하면 됐어', tired: '다리가 좀 무거워', linger: '여기서 오래 있었어' } }
+    strings: { returnReasons: { enough: '이만 걷기로 했어', tired: '다리가 좀 무거워', linger: '여기서 오래 있었어' } }
   };
 
   /* ───────── BRAIN ───────── */
@@ -77,7 +77,7 @@
   }
   function stopFrom(node, first, via, bridge) { return { kind: 'room', id: node.id, name: node.name, emoji: node.emoji, corner: node.corner, first: first, viaTangent: via, bridge: bridge, status: null, note: '', source: null, ms: 0, node: node }; }
   function finishStop(s, res, online) {
-    if (s.node.linger || s.id === 'letter_room') { s.status = 'none'; s.note = s.node.linger ? '아무것도 안 읽어도 됐어' : '아직 비어 있었어'; return; }
+    if (s.node.linger || s.id === 'letter_room') { s.status = 'none'; s.note = s.node.linger ? '읽은 건 없어' : '아직 비어 있었어'; return; }
     if (res && res.ok) { s.status = 'read'; s.note = res.extract.slice(0, 90); s.source = { url: res.url, extract: res.extract, thumb: res.thumb, license: 'CC BY-SA 4.0', attribution: 'Wikipedia (ko)' }; return; }
     if (s.node.clue) { s.status = 'builtin'; s.note = s.node.clue; } else { s.status = 'failed'; s.note = '연결이 안 됐어'; }
     if (!online) s.note = '지금은 바깥 글을 못 읽어';
@@ -109,7 +109,7 @@
     if (rem) { t += 800; events.push({ type: 'remember', t: t, stopIdx: remIdx, sticker: poster.sticker, line: line }); }
     t += 600; events.push({ type: 'hang_poster', t: t, posterId: ctx.id || null });
     t += 700; events.push({ type: 'wrap_up', t: t, reaction: reaction });
-    return { kind: 'out', by: ctx.by, seed: ctx.seed, hint: { raw: ctx.hintRaw, match: ctx.match, followed: followed, note: followed === 'ignored' ? '오늘은 그쪽 말고 다른 데가 궁금했어' : null }, events: events, receipt: receipt, poster: poster, visitsDelta: visitsDelta, affinityDelta: affinityDelta, affinityDecay: 0.9, reaction: reaction };
+    return { kind: 'out', by: ctx.by, seed: ctx.seed, hint: { raw: ctx.hintRaw, match: ctx.match, followed: followed, note: followed === 'ignored' ? '오늘은 그쪽 말고 다른 데로 갔어' : null }, events: events, receipt: receipt, poster: poster, visitsDelta: visitsDelta, affinityDelta: affinityDelta, affinityDecay: 0.9, reaction: reaction };
   }
   function homeTrip(ctx) {
     var R = ctx.R, acts = WORLD.homeActivities.filter(function (a) { return a.id !== 'nothing'; }), act = acts[Math.floor(R() * acts.length)];

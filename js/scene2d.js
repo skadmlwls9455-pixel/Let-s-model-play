@@ -360,8 +360,9 @@ var SCENE2D = (function () {
     /* 표정별 도형 목록 [{ d, fill | stroke, w }] — 정지 자세: pet 눌림·sleep 납작·sleepy 살짝 납작·curious 8° 기울임 (SCENE.md 표) */
     function faceShapes(expr, col) {   /* col = 그 몸색으로 (첫 실행 창 미리 보기 · 지난 날 초상) — 없으면 지금 몸색 */
       col = /^#[0-9a-f]{6}$/i.test(col || '') ? col : st.color;
-      var body = expr === 'pet' ? shade(col, 0.12) : expr === 'sleep' ? shade(col, 0.04) : col, dark = shade(col, -0.35);
-      var big = expr === 'curious' ? 1.3 : 1, closed = expr === 'blink' || expr === 'sleep', arcs = expr === 'happy' || expr === 'pet';
+      /* 11-14 (주인 O2 c · 금지선 1): pet 얼굴은 idle 과 같다 — 웃는 눈 · 입 · 홍조 · 밝아진 몸 없이 눌림(faceXform)만. 예전 arcs · 홍조 원판 · 몸 +12 % */
+      var body = expr === 'sleep' ? shade(col, 0.04) : col, dark = shade(col, -0.35);
+      var big = expr === 'curious' ? 1.3 : 1, closed = expr === 'blink' || expr === 'sleep', arcs = expr === 'happy';
       var out = [{ d: circ(32, 36, 28), fill: INK }, { d: circ(32, 36, 26), fill: body }, { d: ell(22, 20, 6, 3), fill: shade(body, 0.14) }];
       [22, 42].forEach(function (ex) {
         if (expr === 'sleep') { out.push({ d: 'M' + (ex - 6) + ' 40l12 ' + (ex < 32 ? '-1' : '1'), stroke: INK, w: 2 }); return; }   /* `— —` 바깥 끝 처짐 */
@@ -373,7 +374,6 @@ var SCENE2D = (function () {
         if (expr === 'calm') out.push({ d: rect(ex - 10, 30, 20, 10), fill: body });                                               /* 반눈: 위 50 % */
         if (expr === 'sleepy') out.push({ d: rect(ex - 10, 30, 20, 13), fill: body });                                             /* 65 % */
       });
-      if (expr === 'pet') [12, 52].forEach(function (bx) { out.push({ d: ell(bx, 46, 4, 3), fill: shade(col, 0.3) }); });  /* 홍조 원판 2 */
       out.push({ d: rect(28, 51, 8, 2), fill: dark });                                                                              /* `_` 입 */
       if (arcs) out.push({ d: arc(32, 48, 4, false), stroke: dark, w: 2 });                                                        /* `u` 웃는 입 */
       return out;
