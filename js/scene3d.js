@@ -1954,9 +1954,11 @@ var SCENE3D = (function () {
       var n = Math.floor(ph), u = ph - n, swingPos = (n & 1) === 0, sr = Math.sin(Math.PI * u), hw = o.hw || 1.3;
       var sv = arms.map(function (m) { return [m.rotation.y, m.rotation.z, m.scale.x]; });
       arms.forEach(function (arm) {
-        var ca = Math.cos(arm.userData.a), sw = (ca > 0) === swingPos, lift = sw ? GAIT.armLift * sr : 0, fwd = sw ? 2 * u - 1 : 1 - 2 * u;
+        var ca = Math.cos(arm.userData.a), sw = (ca > 0) === swingPos, lift = sw ? GAIT.armLift * sr : 0, fwd = o.still ? 0 : sw ? 2 * u - 1 : 1 - 2 * u;   /* still = 서 있는 자세 (앱 아이콘) */
+        if (o.still) lift = 0;
         arm.scale.x = 1; arm.rotation.z = 0.05 + lift; arm.rotation.y = -arm.userData.a + fwd * GAIT.armFwd * (ca > 0 ? 1 : -1);
       });
+      if (o.still) sr = 0;
       var roll = o.roll ? ((n & 1) ? -1 : 1) * GAIT.roll * (sr > 0.6 ? 1 : 0) : 0, by = sr > 0.5 ? 2 * hw / PORT.N : 0;   /* 굴림은 앞에서 볼 때 몸짓 — 옆모습에선 고개 끄덕임처럼 보여 기본은 뺀다 */
       var cv;
       try { cv = renderPortrait('idle', portraitBg(o), portraitColor(o), { yaw: (o.yaw == null ? 90 : +o.yaw) * DEG, roll: roll, by: by, hw: hw, ty: o.ty == null ? 0.62 : +o.ty, tilt: (o.tilt == null ? 10 : +o.tilt) * DEG }); }
@@ -5491,7 +5493,7 @@ var SCENE3D = (function () {
       setExpression: setExpression, expression: function () { return face.expr; }, EXPRESSIONS: EXPRESSIONS.slice(),
       faceShown: function () { return { expr: face.expr, applied: face.applied, arcs: arcs.visible, smile: smile.visible, blush: blush.visible, eyes: pupils[0].visible, hex: oct.curHex || st.color, color: st.color }; },   /* 시험용 (11-14 주인 O2 c): 지금 장면 얼굴에 보이는 부품 · 몸에 칠한 색 (hex 가 color 와 다르면 몸빛이 바뀐 것 — 잠 · 미용실 · 놀이 위장) */   /* 룩 패스 8: 표정은 상태와 별개 (상태가 기본 표정을 고르고, app.js 가 덮어쓴다) */
       portraitShown: function () { return PORT.last ? Object.assign({}, PORT.last) : null; },   /* 시험용: 마지막으로 찍은 초상의 몸색 · 얼굴 부품 (11-14 O2 c) */
-      portrait: portrait, portraitURL: portraitURL, walkPortrait: walkPortrait,   /* walkPortrait(위상, { yaw°, hw, ty, tilt°, bg, color }) → 64×64 걷는 옆모습 (11-15 로딩 문어 만들기 도구 전용) */   /* 64×64 초상 캔버스 / data URL (표정·몸색·팔레트·배경 키 캐시, opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb') */
+      portrait: portrait, portraitURL: portraitURL, walkPortrait: walkPortrait,   /* walkPortrait(위상, { yaw°, hw, ty, tilt°, still, bg, color }) → 64×64 걷는 옆모습 · still = 서 있는 몸 전체 (11-15 로딩 문어 · 앱 아이콘 만들기 도구 전용) */   /* 64×64 초상 캔버스 / data URL (표정·몸색·팔레트·배경 키 캐시, opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb') */
       moveTo: moveTo, jumpTo: jumpTo, finishWalk: function () { if (oct.walking && oct.walking.finish) oct.walking.finish(); },   /* 건너뛰기: 걷던 길을 지금 도착시키고 moveTo 의 Promise 를 푼다 (2D 와 같은 API) */
       intro: startIntro, introSkip: finishIntro, introRelease: introRelease, introActive: function () { return INTRO.on; }, introProgress: function () { return INTRO.on ? clamp(INTRO.t / INTRO.dur, 0, 1) : 1; },   /* 입장 연출: intro({ dur, height, instant, hold }) → Promise(착지) · introSkip() 바로 착지 · introRelease() 비네트 복귀 */
       skyHex: skyHex, skyCut: skyCut,   /* 지금 허공(배경)이 화면에 찍히는 색 — 입장 레이어가 장면 밖을 같은 색으로 덮는다 · skyCut = 그 덮개를 두 색으로 나눌 높이 (11-12) */

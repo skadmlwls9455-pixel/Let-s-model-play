@@ -47,6 +47,15 @@
   },
   "headers": [
     {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        }
+      ]
+    },
+    {
       "source": "/api/((?!runner/top).*)",
       "headers": [
         {
