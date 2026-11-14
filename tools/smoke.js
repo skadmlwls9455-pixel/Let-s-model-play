@@ -2888,13 +2888,12 @@ async function scenarioSalon(browser) {
     ok(pn2.pan[0] !== 0 && pn3.pan.join() === pn2.pan.join() && pn3.spotB < pn3.top, '조금 민 화면 (거울이 시트 위에 그대로 보임)은 되돌리지 않는다 ' + JSON.stringify({ before: pn2.pan, after: pn3.pan }));
     await pa.evaluate(function () { APP.scene.recenter(); }); await pa.waitForTimeout(600);
   }
-  /* 3f. 가구 배치 중 (11-10 배치 모드 — 장면 톡 · 캐릭터 앞은 가구 몫): 거울 단추가 숨고 시트가 열리지 않는다. 끝내면 다시 보인다 */
+  /* 3f. 11-15 가구 모드는 다락에서만: 거울이 있는 위층에서 망치를 누르면 모드가 열리지 않고 (흔들림만) 거울 단추 · 시트는 그대로 */
   if (await pa.$('#btn-furn:not([hidden])')) {
     await pa.click('#btn-furn'); await pa.waitForTimeout(400);
-    var fm = await pa.evaluate(function () { var b = document.getElementById('btn-salon'), r = APP.openSalon(), o = { on: document.documentElement.classList.contains('furn-on'), hidden: b.hidden, opened: r, sheet: document.getElementById('salon-sheet').open }; if (o.sheet) document.getElementById('salon-sheet').close(); return o; });
-    await pa.click('#btn-furn'); await pa.waitForTimeout(400);
-    var fm2 = await pa.evaluate(function () { return { on: document.documentElement.classList.contains('furn-on'), hidden: document.getElementById('btn-salon').hidden }; });
-    ok(fm.on && fm.hidden && !fm.opened && !fm.sheet && !fm2.on && !fm2.hidden, '가구 배치 중엔 거울 단추가 숨고 미용실 시트가 열리지 않는다 · 끝내면 다시 보인다 ' + JSON.stringify([fm, fm2]));
+    var fm = await pa.evaluate(function () { var b = document.getElementById('btn-salon'), r = APP.openSalon(), o = { room: APP.room, on: document.documentElement.classList.contains('furn-on'), hidden: b.hidden, opened: r, sheet: document.getElementById('salon-sheet').open }; if (o.sheet) document.getElementById('salon-sheet').close(); return o; });
+    ok(fm.room === 'loft' && !fm.on && !fm.hidden && fm.opened && fm.sheet, '위층에서 망치를 눌러도 가구 모드는 열리지 않는다 (다락 일) · 거울 단추 · 시트는 그대로 ' + JSON.stringify(fm));
+    await pa.waitForTimeout(300);
   }
 
   /* 4. 첫 물음 (11-09, 보통 속도): 답은 바로 저장 · 시트 닫힘 · 장면은 첨벙까지 옛 색 · 행은 박자에 맞춰 · 연출 중 단추 숨김 */
@@ -5168,13 +5167,13 @@ async function scenarioWeek(browser) {
   await ready(pf);
   function qn(pg, id) { return pg.evaluate(function (id) { return APP.state.user.week.q.filter(function (x) { return x.id === id; })[0].n | 0; }, id); }
   var fm = await pf.evaluate(function () {
-    var sc = APP.scene, id = sc.furnItems()[0].id, r = { id: id };
+    var sc = APP.scene, id = 'crate', r = { id: id };
     function n() { return APP.state.user.week.q[1].n | 0; }
-    r.carry1 = sc.furnCarry(id); sc.furnConfirm(); r.same = n();   /* 들었다가 그 자리에 그대로 놓기 */
-    var a = sc.layout()[id]; r.carry2 = sc.furnCarry(id); sc.furnSetRot((a[2] + 90) % 360); sc.furnConfirm(); r.turned = n();   /* 돌려서 놓기 */
+    r.carry1 = sc.furnMode(true); sc.furnSelect(id); sc.furnSave(); r.same = n();   /* 11-15 가구 모드: 열고 아무것도 안 바꾸고 저장하기 */
+    r.carry2 = sc.furnMode(true); sc.furnSelect(id); r.rot = sc.furnRotate(); sc.furnSave(); r.turned = n();   /* 돌려서 저장하기 */
     return r;
   });
-  ok(fm.carry1 && fm.carry2 && fm.same === 0 && fm.turned === 1, '가구: 들어 올렸다 그 자리에 그대로 놓으면 안 센다 (' + fm.same + ') · 돌려 놓으면 센다 (' + fm.turned + ')');
+  ok(fm.carry1 && fm.carry2 && fm.rot && fm.same === 0 && fm.turned === 1, '가구: 모드를 열고 그대로 저장하면 안 센다 (' + fm.same + ') · 돌려 저장하면 센다 (' + fm.turned + ')');
   await pf.evaluate(function () { window.__plan = BRAIN.plan; BRAIN.plan = function () { BRAIN.plan = window.__plan; return Promise.reject(new Error('test: brain stop')); }; window.__toasts = []; document.getElementById('btn-go').click(); });
   var stop12 = await pf.waitForFunction(function () { return window.__toasts.some(function (x) { return /^두뇌가 잠깐 멈췄어/.test(x.t); }); }, null, { timeout: WAIT, polling: 100 }).then(function () { return true; }, function () { return false; });
   var ask1 = await qn(pf, 'ask'), trips1 = await pf.evaluate(function () { return APP.state.trips.length; });
@@ -5647,7 +5646,7 @@ async function scenarioLoft(browser) {
       desc: document.getElementById('scene-desc').textContent, snd: window.__snd.filter(function (k) { return k === 'salon'; }).length, stairVis: getComputedStyle(document.getElementById('btn-stair')).visibility }; }); }
   function dist(a, b) { return Math.hypot(a[0] - b[0], a[2] - b[2]); }
   function outOfCorner(at) { return !(at[0] < -0.6 && at[2] < -0.75); }   /* 거울 구석 = 재봉 의자(x −0.61 까지) 왼쪽 · 거울 쪽 바닥 (마네킹 · 거울 · 대야 자리 사이) */
-  var A, pg, s, ZP = String(process.env.SMOKE_Z || '1,2,3,4,5').split(',');   /* SMOKE_Z=2 → 그 묶음만 (고침을 하나씩 되돌려 볼 때) */
+  var A, pg, s, ZP = String(process.env.SMOKE_Z || '1,2,3,4,5,6').split(',');   /* SMOKE_Z=2 → 그 묶음만 (고침을 하나씩 되돌려 볼 때) */
 
   /* 1. 걷던 문어가 계단을 따라 오른다 (걸음 중간 · 도착 폴짝 중) → 위층에서 idle · 폴짝 0. 위층 65 s (돌아다니기 타이머 20–40 s 가 두 번쯤): 그 자리 그대로.
         시트를 연 채 45 s 도 그대로 (예전엔 시트 밑으로 걸어 들어갔다). 내려오면 다시 돌아다닌다 */
@@ -5806,10 +5805,13 @@ async function scenarioLoft(browser) {
   ok(s.up && gap >= 0, '따라 올라온 문어는 빈 바닥에 선다: 방석과 몸(0.42) 사이 ' + gap.toFixed(2) + ' m ' + JSON.stringify({ at: s.at, cushions: cu }));
   await stair(pg, false);
   await tap(pg, 'btn-furn'); await tick(pg, 0.5);
-  var f0 = await pg.evaluate(function () { return document.documentElement.classList.contains('furn-on'); });
+  var f0 = await pg.evaluate(function () { return { on: document.documentElement.classList.contains('furn-on'), stair: getComputedStyle(document.getElementById('btn-stair')).visibility }; });
+  var fGo = await pg.evaluate(function () { return APP.goRoom('loft'); }); await tick(pg, 1);
+  var fIn = await pg.evaluate(function () { return { room: APP.room, on: document.documentElement.classList.contains('furn-on') }; });
+  await pg.evaluate(function () { document.getElementById('furn-ok').click(); }); await tick(pg, 0.5);
   var fUp = await stair(pg, true);
   var f1 = await pg.evaluate(function () { var g = document.getElementById('btn-go'); return { on: document.documentElement.classList.contains('furn-on'), ui: !document.getElementById('furn-ui').hidden, salon: !document.getElementById('btn-salon').hidden, go: getComputedStyle(g).visibility !== 'hidden' && getComputedStyle(g).display !== 'none' }; });
-  ok(f0 && fUp && !f1.on && !f1.ui && f1.salon && f1.go, '가구 배치 중 계단으로 오르면 배치는 끝난다 (위층에 죽은 판 없음 · 거울 · 큰 버튼 보임) ' + JSON.stringify(f1));
+  ok(f0.on && f0.stair === 'hidden' && !fGo.ok && fGo.reason === 'furn' && fIn.on && fIn.room !== 'loft' && fUp && !f1.on && !f1.ui && f1.salon && f1.go, '11-15 가구 모드 중엔 계단이 숨고 방을 안 옮긴다 · 저장하기 뒤 오르면 위층 그대로 (거울 · 큰 버튼 보임) ' + JSON.stringify([f0, fGo, fIn, f1]));
   /* 밀어 둔 화면(아래로 끌어 둠)에서 거울: 시트가 열리면 기본 구도로 돌아가고, 올림은 기본 구도에서 연 것과 같다 */
   await tapMirror(pg); await tick(pg, 1); var l0 = await pg.evaluate(function () { return APP.scene.lift().to; });
   await pg.evaluate(function () { document.getElementById('salon-close').click(); }); await tick(pg, 1);
@@ -6043,6 +6045,126 @@ async function scenarioLoft(browser) {
   ok(u65 && z34.up && !z35.up && z35.room === 'loft' && z35.st === 'idle' && z35.an === 'window' && w35.d < 0.01 && w35.dlg && !w35.name && /아래층/.test(w35.desc) && nm65.name === '새문어' && !nm65.dlg && d65 && u66 && z36.up,
     '위층에 따라 와 있는 동안 전체 초기화: 새 문어는 다락 창가 (거리 ' + w35.d + ') · 이름 창 · 이름 뒤 다시 오르면 따라 온다');
   reportErrors(bag, 'Z-5l'); await A.ctx.close();
+  }
+  /* 6. 11-15 가구 모드 (망치 단추): 문어 · 캐릭터 숨김 · 기본 각도 · 끌면 칸에 딱딱 (뗀 자리 그대로) · 못 놓는 곳은 빨강 → 끌기 전 자리 · 돌리기 90° · 작게/크게 0.1 (0.7~1.5 끝에서 멈춤) ·
+        겹치면 안 바뀜 · 취소 = 연 때 그대로 · 저장하기 = 같은 모양 · 옛 15° / 0.85 배치는 그대로 · 양초는 상자 뚜껑 위 · 문어 자리는 가구 밖 · 문어 길은 가구를 돈다 · 문어가 나가면 저장하고 닫힘 */
+  if (ZP.indexOf('6') >= 0) {
+  var LAY6 = { sofa: [-1.9, 1.75, 15, 0.85], crate: [2, -0.75, 45, 0.85] };   /* 옛 슬라이더 배치 (15° · 45° · 0.05 칸 크기) */
+  var R6 = REC(5); R6.room.layout = JSON.parse(JSON.stringify(LAY6));
+  A = await open({ rec: R6 }); pg = A.page;
+  var L6 = function () { return pg.evaluate(function () { return APP.scene.layout(); }); };
+  var lay0 = await L6();
+  ok(lay0.sofa[2] === 15 && lay0.sofa[3] === 0.85 && Math.abs(lay0.sofa[1] - 1.75) < 1e-6 && lay0.crate[2] === 45 && lay0.crate[3] === 0.85, '옛 배치 (15° · 45° · 0.85) 를 그대로 읽는다 (칸에 다시 맞추지 않는다) ' + JSON.stringify(lay0));
+  /* 두 손가락 비틀기로 각도를 바꿔 둔 뒤 (지금 손짓이 각도를 바꾸면) 모드를 열면 기본 각도 */
+  var cdp6 = await A.ctx.newCDPSession(pg), T6 = function (type, pts) { return cdp6.send('Input.dispatchTouchEvent', { type: type, touchPoints: pts }); };
+  async function fingers(from, to, n) { var at = function (k) { return from.map(function (p, i) { return { x: p[0] + (to[i][0] - p[0]) * k, y: p[1] + (to[i][1] - p[1]) * k, id: i }; }); }; await T6('touchStart', at(0)); for (var i = 1; i <= n; i++) await T6('touchMove', at(i / n)); }
+  var tw = function (a) { var t = a * Math.PI / 180; return [[180 + 70 * Math.cos(t), 420 + 70 * Math.sin(t)], [180 - 70 * Math.cos(t), 420 - 70 * Math.sin(t)]]; };
+  await fingers(tw(0), tw(40), 16); await T6('touchEnd', []); await tick(pg, 0.3);
+  var y6 = await pg.evaluate(function () { return APP.scene.furnLook().yaw; });
+  await pg.evaluate(function () { APP.scene.jumpTo('window'); APP.oct.anchor = 'window'; APP.scene.setLayout({ crate: [0.5, -0.75, 45, 0.85] }); });   /* 끌어 볼 빈 바닥 (저장은 안 한다 — 저장값은 LAY6 그대로) */
+  var lay1 = await L6();
+  await tap(pg, 'btn-furn'); await tick(pg, 0.3);
+  var o6 = await pg.evaluate(function () { var l = APP.scene.furnLook(), st = document.getElementById('stick'); return { on: document.documentElement.classList.contains('furn-on'), oct: l.oct, pl: l.pl, yaw: l.yaw, zoom: l.zoom, stick: !st || st.hidden || getComputedStyle(st).display === 'none' || getComputedStyle(st).visibility === 'hidden', go: getComputedStyle(document.getElementById('invite')).visibility, hint: !document.getElementById('furn-hint').hidden, ed: APP.scene.furnEditing() }; });
+  ok(o6.on && !o6.oct && !o6.pl && o6.yaw === 0 && o6.zoom <= 1 && o6.stick && o6.go === 'hidden' && o6.hint && o6.ed && !o6.ed.id, '망치 → 가구 모드: 문어 · 캐릭터 · 스틱 · 큰 버튼 숨김 · 기본 각도 (비튼 각도 ' + (y6 * 180 / Math.PI).toFixed(0) + '° → 0) · 바닥 다 보이게 ' + o6.zoom.toFixed(3) + '× · 안내 한 줄 ' + JSON.stringify(o6));
+  var gr6 = await pg.evaluate(function () { return APP.goRoom('loft'); });
+  ok(!gr6.ok && gr6.reason === 'furn', '모드 중엔 방을 옮기지 않는다 ' + JSON.stringify(gr6));
+  /* 끌기 (진짜 손가락): 상자를 왼쪽 아래로 → 손가락 밑 칸에 딱딱 · 떼면 보이던 자리 그대로 */
+  async function rect6(id) { return pg.evaluate(function (id) { var ui = document.getElementById('furn-ui').getBoundingClientRect(), s = APP.scene.furnEditing().id; APP.scene.furnSelect(id); var r = APP.scene.furnSelRect(); APP.scene.furnSelect(s); return { x: ui.left + (r.l + r.r) / 2, y: ui.top + r.b - 10, cx: ui.left + (r.l + r.r) / 2, cy: ui.top + (r.t + r.b) / 2, r: r }; }, id); }
+  var c6 = await rect6('crate');
+  await fingers([[c6.x, c6.y]], [[c6.x - 30, c6.y + 12]], 14); await tick(pg, 0.1);
+  var m6 = await pg.evaluate(function () { return { ed: APP.scene.furnEditing(), at: APP.scene.layout().crate, r: APP.scene.furnSelRect(), look: APP.scene.furnLook(), pan: APP.scene.pan() }; });
+  await T6('touchEnd', []); await tick(pg, 0.2);
+  var a6 = await pg.evaluate(function () { return { pan: APP.scene.pan(), ed: APP.scene.furnEditing(), at: APP.scene.layout().crate, r: APP.scene.furnSelRect(), row: !document.getElementById('furn-row').hidden, hint: !document.getElementById('furn-hint').hidden }; });
+  var onGrid = function (v, lim) { return Math.abs(v / 0.25 - Math.round(v / 0.25)) < 1e-6 || lim; };
+  ok(m6.ed.dragging && !m6.ed.bad && m6.look.sel && !m6.look.red && (m6.at[0] !== lay1.crate[0] || m6.at[1] !== lay1.crate[1]) && onGrid(m6.at[0]) && onGrid(m6.at[1]) && a6.at[0] === m6.at[0] && a6.at[1] === m6.at[1] && Math.abs(a6.r.l - m6.r.l) <= 1 && Math.abs(a6.r.t - m6.r.t) <= 1 && a6.ed.id === 'crate' && !a6.ed.dragging && a6.row && !a6.hint,
+    '끌면 0.25 m 칸에 딱딱 (' + m6.at.slice(0, 2) + ') ' + JSON.stringify([m6.at, a6.at]) + ' · 떼도 그 자리 (튐 없음, 화면 ' + (a6.r.l - m6.r.l) + ',' + (a6.r.t - m6.r.t) + ' px) · 고른 채 단추 줄 · 안내는 걷힘');
+  /* 못 놓는 곳: 상자를 소파 위로 → 빨간 테 · 떼면 끌기 전 자리 */
+  var c6b = await rect6('crate'), s6 = await rect6('sofa'), before6 = await L6();
+  await fingers([[c6b.x, c6b.y]], [[s6.cx, s6.cy]], 20); await tick(pg, 0.1);
+  var r6 = await pg.evaluate(function () { return { ed: APP.scene.furnEditing(), look: APP.scene.furnLook(), at: APP.scene.layout().crate }; });
+  await T6('touchEnd', []); await tick(pg, 0.2);
+  var r6b = (await L6()).crate;
+  ok(r6.ed.bad && r6.look.red && r6b[0] === before6.crate[0] && r6b[1] === before6.crate[1], '소파 위로 끌면 빨간 테 (' + r6.at.slice(0, 2) + ') · 떼면 끌기 전 자리로 ' + JSON.stringify([before6.crate, r6b]));
+  /* 빈 바닥 한 손가락 = 밀기 (가구는 그대로) */
+  var p6 = await pg.evaluate(function () { return APP.scene.pan(); }), lp6 = await L6();
+  await fingers([[60, 640]], [[110, 600]], 8); await tick(pg, 0.1);
+  var p6b = await pg.evaluate(function () { return { pan: APP.scene.pan(), ed: APP.scene.furnEditing() }; }); await T6('touchEnd', []); await tick(pg, 0.5);
+  ok(JSON.stringify(await L6()) === JSON.stringify(lp6) && !p6b.ed.dragging && JSON.stringify(p6b.pan) !== JSON.stringify(p6), '빈 바닥에서 끌면 화면이 밀리고 가구는 안 움직인다 ' + JSON.stringify([p6, p6b.pan]));
+  /* 단추 줄: 돌리기 90° · 작게/크게 0.1 · 끝에서 멈춤 (단추 꺼짐) */
+  async function btn6(id) { await pg.evaluate(function (id) { document.getElementById(id).click(); }, id); await tick(pg, 0.1); return pg.evaluate(function () { var e = APP.scene.furnEditing(); return { rot: e.rot, sc: e.scale, small: document.getElementById('furn-small').disabled, big: document.getElementById('furn-big').disabled }; }); }
+  var t6 = await btn6('furn-turn'), sc6 = [];
+  await pg.evaluate(function () { APP.scene.setLayout({ crate: [0.75, -0.5, 135, 0.85] }); APP.scene.furnSelect('crate'); });   /* 1.5 까지 키울 빈 자리 */
+  for (var k6 = 0; k6 < 3; k6++) sc6.push(await btn6('furn-small'));
+  ok(t6.rot === 135 && sc6[0].sc === 0.75 && sc6[1].sc === 0.7 && sc6[1].small && sc6[2].sc === 0.7, '돌리기 = 90° (45 → ' + t6.rot + ') · 작게 = 0.1 씩, 0.7 에서 멈추고 단추가 꺼진다 ' + JSON.stringify(sc6.map(function (x) { return x.sc; })));
+  var bg6 = []; for (k6 = 0; k6 < 9; k6++) bg6.push((await btn6('furn-big')).sc);
+  var bl6 = await pg.evaluate(function () { return document.getElementById('furn-big').disabled; });
+  ok(bg6[0] === 0.8 && bg6.indexOf(1.5) >= 0 && bg6[bg6.length - 1] === 1.5 && bl6, '크게 = 0.1 씩, 1.5 에서 멈추고 단추가 꺼진다 ' + JSON.stringify(bg6));
+  /* 겹치면 안 바뀐다: 소파를 상자 바로 옆에 두고 상자를 키운다 */
+  var ov6 = await pg.evaluate(function () {
+    var sc = APP.scene; sc.setLayout({ crate: [2, -0.75, 0, 1], sofa: [1, -0.75, 0, 1] }); sc.furnSelect('crate');
+    var a = sc.furnScale(1), s1 = sc.furnEditing().scale, b = sc.furnScale(1), s2 = sc.furnEditing().scale; return { a: a, b: b, s1: s1, s2: s2 };
+  });
+  ok(ov6.a && ov6.s1 === 1.1 && !ov6.b && ov6.s2 === 1.1, '키우면 소파와 겹칠 때는 안 바뀐다 ' + JSON.stringify(ov6));
+  /* 취소 = 연 때 그대로 */
+  await pg.evaluate(function () { document.getElementById('furn-x').click(); }); await tick(pg, 0.3);
+  var x6 = await pg.evaluate(function () { var l = APP.scene.furnLook(); return { lay: APP.scene.layout(), on: document.documentElement.classList.contains('furn-on'), oct: l.oct, pl: l.pl, zoom: l.zoom, saved: APP.state.room.layout }; });
+  ok(JSON.stringify(x6.lay) === JSON.stringify(lay1) && !x6.on && x6.oct && x6.pl && x6.zoom === 1 && JSON.stringify(x6.saved) === JSON.stringify(LAY6), '취소 = 연 때 그대로 (저장도 그대로) · 문어 · 캐릭터 다시 보임 · 1× ' + JSON.stringify(x6.lay));
+  /* 저장하기: 옮긴 가구만 같은 모양으로 · 안 건드린 소파는 옛 값 그대로 */
+  await tap(pg, 'btn-furn'); await tick(pg, 0.3);
+  var c6c = await rect6('crate');
+  await fingers([[c6c.x, c6c.y]], [[c6c.x - 30, c6c.y + 12]], 12); await T6('touchEnd', []); await tick(pg, 0.2);
+  var mv6 = (await L6()).crate;
+  await pg.evaluate(function () { document.getElementById('furn-ok').click(); }); await tick(pg, 0.3);
+  var sv6 = await pg.evaluate(function () { return { saved: APP.state.room.layout, disk: JSON.parse(localStorage.getItem('ppolppol_v2')).room.layout, on: document.documentElement.classList.contains('furn-on') }; });
+  ok(!sv6.on && JSON.stringify(sv6.saved.sofa) === JSON.stringify(LAY6.sofa) && Array.isArray(sv6.saved.crate) && sv6.saved.crate.length === 4 && sv6.saved.crate.every(function (v) { return typeof v === 'number'; }) && sv6.saved.crate[0] === mv6[0] && sv6.saved.crate[1] === mv6[1] && sv6.saved.crate[2] === 45 && sv6.saved.crate[3] === 0.85 && JSON.stringify(sv6.disk) === JSON.stringify(sv6.saved),
+    '저장하기: 옮긴 상자만 [x, z, rot, scale] 로 (' + JSON.stringify(sv6.saved.crate) + ') · 소파는 옛 값 그대로 · 디스크와 같다');
+  /* 양초: 상자 뚜껑 위 (0.7 · 1.0 · 1.5 × 0 · 90 · 180 · 270°) — 자리 · 높이 · 돌림 · 크기 · 빛 */
+  var cd6 = await pg.evaluate(function () {
+    var sc = APP.scene, bad = [], n = 0;
+    [0.7, 1, 1.5].forEach(function (s) { [0, 90, 180, 270].forEach(function (r) {
+      sc.setLayout({ crate: [1.5, 0.5, r, s] }); var f = sc.furnFoot('crate'), c = sc.furnCandle(), t = r * Math.PI / 180, dx = c.x - f.x, dz = c.z - f.z;
+      var lx = (dx * Math.cos(t) - dz * Math.sin(t)) / s, lz = (dx * Math.sin(t) + dz * Math.cos(t)) / s; n++;
+      if (Math.abs(lx - 0.05) > 1e-3 || Math.abs(lz + 0.05) > 1e-3 || Math.abs(c.y - 0.72 * s) > 1e-3 || Math.abs(c.sc - s) > 1e-6 || Math.abs(c.ry - t) > 1e-6 || Math.abs(c.lx - c.x) > 1e-6 || Math.abs(c.ly - c.y - 0.43 * s) > 1e-3) bad.push([s, r, lx, lz, c.y]);
+    }); });
+    sc.setLayout(APP.state.room.layout); return { n: n, bad: bad };
+  });
+  ok(cd6.n === 12 && !cd6.bad.length, '양초는 상자 뚜껑 위 · 상자와 같이 돌고 커진다 (12 가지) ' + JSON.stringify(cd6.bad));
+  /* 문어 자리: 어느 배치에서도 소파 · 상자 발자국(+ 문어 몸 0.42) 밖 · 가구 값은 안 바뀐다 */
+  var sp6 = await pg.evaluate(function () {
+    var sc = APP.scene, bad = [], cases = [{ sofa: [0, 0.2, 0, 1.5] }, { sofa: [-0.65, 1.0, 90, 1.5], crate: [-1.9, -1.0, 0, 1.5] }, { crate: [-0.65, 1.5, 0, 0.7] }, { sofa: [1.25, -1.0, 45, 1.3], crate: [-1.8, 0.4, 90, 1.2] }];
+    cases.forEach(function (c, i) {
+      sc.setLayout(c); var lay = sc.layout();
+      Object.keys(c).forEach(function (id) { if (Math.abs(lay[id][2] - c[id][2]) > 1e-6 || Math.abs(lay[id][3] - c[id][3]) > 1e-6) bad.push(['moved', i, id]); });
+      ['crate', 'blanket', 'center', 'window', 'door', 'board'].forEach(function (k) { var p = sc.octSpot(k); ['sofa', 'crate'].forEach(function (id) { var f = sc.furnFoot(id), dx = Math.max(Math.abs(p[0] - f.x) - f.hw, 0), dz = Math.max(Math.abs(p[1] - f.z) - f.hd, 0); if (dx < 0.42 - 1e-6 && dz < 0.42 - 1e-6) bad.push([i, k, id, p]); }); });
+    });
+    return bad;
+  });
+  ok(!sp6.length, '문어 자리 (상자 옆 · 담요 · 가운데 · 창가 · 문 · 보드) 는 어느 배치에서도 소파 · 상자 + 문어 몸 밖 (가구 값은 그대로) ' + JSON.stringify(sp6));
+  /* 문어 길: 소파를 가운데에 두고 창가 → 문 앞으로 걸으면 소파를 돌아간다 */
+  await pg.evaluate(function () { APP.scene.setLayout({ sofa: [0.25, -0.5, 0, 1.5] }); APP.scene.jumpTo('window'); window.__w6 = []; window.__zEach = function () { var m = APP.scene.motion(); window.__w6.push(m.gait.at); }; APP.scene.moveTo('door'); });
+  var wk6 = await tick(pg, 12, function () { return !APP.scene.motion().gait.moving && window.__w6.length > 5; });
+  var wb6 = await pg.evaluate(function () { window.__zEach = null; var f = APP.scene.furnFoot('sofa'), n = 0; window.__w6.forEach(function (p) { if (Math.abs(p[0] - f.x) < f.hw + 0.2 && Math.abs(p[2] - f.z) < f.hd + 0.2) n++; }); var e = window.__w6[window.__w6.length - 1], d = APP.scene.octSpot('door'); return { n: n, frames: window.__w6.length, end: e, door: d }; });
+  ok(wk6.done && wb6.n === 0 && Math.hypot(wb6.end[0] - wb6.door[0], wb6.end[2] - wb6.door[1]) < 0.05, '문어 길은 가운데 소파를 돌아간다 (소파 속 프레임 ' + wb6.n + ' / ' + wb6.frames + ') · 문 앞 도착');
+  await pg.evaluate(function () { APP.scene.setLayout(APP.state.room.layout); });
+  /* 담요에서 자던 문어: 담요를 옮기고 저장하면 새 담요 자리에 */
+  await pg.evaluate(function () { APP.scene.jumpTo('blanket'); APP.oct.anchor = 'blanket'; });
+  await tap(pg, 'btn-furn'); await tick(pg, 0.3);
+  var bk6 = await rect6('blanket');
+  await fingers([[bk6.cx, bk6.cy]], [[bk6.cx + 40, bk6.cy - 50]], 12); await T6('touchEnd', []); await tick(pg, 0.2);
+  var bm6 = await pg.evaluate(function () { return APP.scene.furnEditing(); });
+  await pg.evaluate(function () { document.getElementById('furn-ok').click(); }); await tick(pg, 0.3);
+  var bw6 = await pg.evaluate(function () { var f = APP.scene.furnFoot('blanket'), m = APP.scene.motion(); return { at: m.gait.at, bed: APP.scene.octSpot('blanket'), f: f, oct: APP.scene.furnLook().oct }; });
+  ok(bm6.id === 'blanket' && Math.hypot(bw6.at[0] - bw6.bed[0], bw6.at[2] - bw6.bed[1]) < 0.02 && Math.abs(bw6.bed[0] - bw6.f.x) < 1e-6 && bw6.oct, '담요에 있던 문어는 저장 뒤 담요의 새 자리에 ' + JSON.stringify(bw6));
+  /* 문어가 나가면 (출발 의식) 모드는 저장하고 닫힌다 */
+  await tap(pg, 'btn-furn'); await tick(pg, 0.3);
+  var c6d = await rect6('crate');
+  await fingers([[c6d.x, c6d.y]], [[c6d.x + 40, c6d.y + 40]], 12); await T6('touchEnd', []); await tick(pg, 0.2);
+  var mv6d = (await L6()).crate;
+  await pg.evaluate(function () { APP.scene.departCeremony(); }); await tick(pg, 0.3);
+  var dp6 = await pg.evaluate(function () { return { on: document.documentElement.classList.contains('furn-on'), ui: !document.getElementById('furn-ui').hidden, saved: APP.state.room.layout.crate, cer: APP.scene.ceremony() }; });
+  ok(!dp6.on && !dp6.ui && dp6.cer === 'depart' && dp6.saved[0] === mv6d[0] && dp6.saved[1] === mv6d[1], '모드 중 문어가 나가면 저장하고 닫힌다 ' + JSON.stringify(dp6));
+  await cdp6.detach();
+  reportErrors(bag, 'Z-6'); await A.ctx.close();
   }
 }
 
