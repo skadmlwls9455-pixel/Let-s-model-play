@@ -1,5 +1,5 @@
 {
- "displayed": "48",
+ "displayed": "27",
  "seed": 3407556270,
  "inputs": [
   {
@@ -11,28 +11,20 @@
    "a": "ju"
   },
   {
-   "t": 104,
+   "t": 97,
    "a": "jd"
   },
   {
-   "t": 119,
-   "a": "ju"
-  },
-  {
-   "t": 239,
-   "a": "jd"
-  },
-  {
-   "t": 269,
+   "t": 108,
    "a": "ju"
   }
  ],
- "score": 48,
- "ticks": 429,
+ "score": 27,
+ "ticks": 247,
  "end": "hit",
- "night": false,
+ "night": true,
  "moss": 0,
  "version": "runner-2",
  "day": "2026-11-14",
- "at": 1794678500906
+ "at": 1794691973519
 }

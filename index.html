@@ -50,6 +50,18 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <link rel="stylesheet" href="css/ui-art.css">
 <link rel="stylesheet" href="css/runner.css">
 <link rel="stylesheet" href="css/intro.css"><!-- 입장 레이어 (js/intro.js) -->
+<script>(function () {   /* 11-15 5차 (주인: "글자가 깨지는 느낌 … 가독성 좀 살려줘"): 픽셀 글꼴 크기를 기기 픽셀에 맞춘다.
+     Galmuri 는 점 하나가 기기 px 정수 개일 때만 고르게 보인다 (안드로이드 흔한 배율 2.625 · 2.75 에서 20px = 52.5 기기 px → 점 너비가 5 · 6 섞여 깨져 보였다).
+     역할마다 [글꼴 눈금 (Galmuri7 8 · Galmuri9 10 · Galmuri11 12), 바라는 CSS px] → 눈금 × 정수 n / 배율 중 가장 가까운 것. css/style.css 의 var(--fs-*, 기본값) 이 받는다 */
+  var R = document.documentElement, S = { m16: [12, 16], b20: [10, 20], u20: [12, 20], u24: [12, 24], n16: [8, 16], u12: [12, 12] }, BUB = [12, 17];
+  function snap(g, want, d) { var n = Math.max(1, Math.round(want * d / g)); return +(g * n / d).toFixed(4) + 'px'; }
+  function apply() {
+    var d = window.devicePixelRatio || 1;
+    try { for (var k in S) R.style.setProperty('--fs-' + k, snap(S[k][0], S[k][1], d)); R.style.setProperty('--bub-fs', snap(BUB[0], BUB[1], d)); } catch (e) { /* 옛 브라우저: 기본값 */ }
+    try { var mq = window.matchMedia('(resolution: ' + d + 'dppx)'); if (mq.addEventListener) mq.addEventListener('change', apply, { once: true }); else if (mq.addListener) mq.addListener(apply); } catch (e) { /* 배율이 안 바뀌는 곳 */ }
+  }
+  apply();
+})();</script>
 <script src="js/intro.js"></script><!-- head 에서 읽어 html.intro-on 을 먼저 붙인다 (UI 깜빡임 방지) -->
 <!-- 저장소 워밍업: 문서가 열리자마자 한 번 읽어 둔다. file:// 원점에서 새로고침 직후 첫 읽기가 직전 커밋을 놓치는 경우가 있어서 (R2) -->
 <script>try { localStorage.getItem('ppolppol_v2'); } catch (e) { /* 저장소 없음: app.js 가 메모리로 대신한다 */ }</script>
@@ -152,7 +164,9 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <!-- 가구 모드 (11-15): 문어 · 캐릭터가 숨고 가구만 손가락으로 끌어 옮긴다. 위 = 취소 · 제목 · 저장하기 (+ 처음 한 번 안내 한 줄), 고른 가구 밑 = 돌리기 · 작게 · 크게 (자리는 장면이 준다), 아래 = 가구 줄 (톡 = 고르기) — app.js furnUI · 장면 furnMode -->
   <div id="furn-ui" class="furn-ui" hidden>
     <div id="furn-top" class="furn-top"><button type="button" class="btn sm pressable" id="furn-x" aria-label="취소 (들어오기 전대로)">취소</button><strong id="furn-title">가구 옮기기</strong><button type="button" class="btn sm primary pressable" id="furn-ok" aria-label="저장하고 나가기">저장하기</button><p id="furn-hint" class="furn-hint">가구를 끌어서 옮겨</p></div>
-    <div id="furn-row" class="furn-row" role="group" hidden><button type="button" class="btn sm pressable" id="furn-turn" aria-label="돌리기 (90도)">돌리기</button><button type="button" class="btn sm pressable" id="furn-small" aria-label="작게">작게</button><button type="button" class="btn sm pressable" id="furn-big" aria-label="크게">크게</button></div>
+    <!-- 11-15 5차 (주인: "돌리기 작게 크게 ui 너무 구려 … 화면 중앙에 박힌 거 이상해"): 글자 없는 그림 단추 셋을 아래 가구 줄 바로 위 가운데에 고정 (js/app.js furnRow).
+         그림은 Pixelarticons (MIT, credits.html) 의 redo · minus · plus. 이름은 aria-label 로만 -->
+    <div id="furn-row" class="furn-row" role="group" hidden><button type="button" class="btn sm pressable furn-act" id="furn-turn" aria-label="돌리기 (90도)" title="돌리기"><svg class="furn-act-ico" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M20 8H6v2h14zM4 10h2v8H4zm2 8h6v2H6z"/><path d="M18 6h-2v6h2zm-2-2h-2v8h2zm0 8h-2v2h2z"/></svg></button><button type="button" class="btn sm pressable furn-act" id="furn-small" aria-label="작게" title="작게"><svg class="furn-act-ico" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M4 11h16v2H4z"/></svg></button><button type="button" class="btn sm pressable furn-act" id="furn-big" aria-label="크게" title="크게"><svg class="furn-act-ico" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M13 11h7v2h-7v7h-2v-7H4v-2h7V4h2v7Z"/></svg></button></div>
     <div id="furn-items" class="furn-strip" role="group" aria-label="가구 고르기"></div>
   </div>
   <!-- 가방 꼬리표 (11-10): 위쪽 바 아래 오른쪽에 매달린 '조개 N' — 누르면 살림 시트 (조개 · 씨앗 · 들어온 날 · 텃밭 · 옷 물들이기). 이름을 지은 뒤부터 보인다 -->
