@@ -78,7 +78,7 @@ jobs:
       - uses: actions/checkout@v7
       - id: letters
         run: |
-          L=$(grep -oE "\['[A-Z]', function" tools/smoke.js | grep -oE "[A-Z]" | awk '!s[$0]++' | jq -R . | jq -sc .)
+          L=$(grep -oE "\['[A-Z]+', function" tools/smoke.js | grep -oE "[A-Z]+" | awk '!s[$0]++' | jq -R . | jq -sc .)   # 11-15: 글자 26개를 다 써서 'CAM' 같은 여러 글자 이름도
           echo "smoke letters: $L"
           test "$L" != "[]"
           echo "letters=$L" >> "$GITHUB_OUTPUT"
