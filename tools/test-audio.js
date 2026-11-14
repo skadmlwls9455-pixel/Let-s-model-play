@@ -805,11 +805,12 @@ async function scenarioHonest(browser, base) {
   await clickSound(page);
   await waitState(page, function () { return AUDIO.state().bgm === 'theme_day_rain'; }, null, 15000);
   /* 쓰다듬기 6번 빠르게 (앱의 소리 훅 그대로) */
-  await page.evaluate(function () { for (var i = 0; i < 6; i++) AUDIO.on('pet'); });
-  await page.waitForTimeout(800);
+  for (var pi = 0; pi < 6; pi++) { await page.evaluate(function () { AUDIO.on('pet'); }); await page.waitForTimeout(250); }   /* 손으로 빠르게 (1.5 s 안) — 같은 순간 여섯 번은 묶음 간격에 하나로 준다 */
+  await waitState(page, function () { var p = AUDIO.state().played.map(function (x) { return x.id; }); return p.indexOf('pet_squish') >= 0 && p.some(function (id) { return /^pet_stroke_4/.test(id); }); }, null, 20000);
+  await page.waitForTimeout(800);   /* 넷째 뒤 0.3 s 에 오던 자리 — 그 뒤까지 본다 */
   var pids = playedIds(await st(page));
   ok(pids.indexOf('pet_squish') >= 0 && pids.some(function (id) { return /^pet_stroke_4/.test(id); }) && !pids.some(function (id) { return /^pet_happy/.test(id); }) && !reqs.some(function (u) { return /^pet_happy/.test(u); }),
-    "쓰다듬기 6번: pet_squish · pet_stroke_1..5 는 나고 pet_happy 는 안 난다 · 요청도 없다 (" + pids.filter(function (id) { return /^pet_/.test(id); }).join(',') + ')');
+    "쓰다듬기 6번: pet_squish · pet_stroke_1..5 는 나고 pet_happy 는 안 난다 · 요청도 없다 (" + pids.slice(-8).join('/') + ' · ' + pids.filter(function (id) { return /^pet_/.test(id); }).join(',') + ')');
   /* 데모 규칙 반응 (훅) — 넷 다 기분 소리 없음 */
   await page.evaluate(function () {
     ['폴짝', '우쭐', '덤덤', '졸림'].forEach(function (r) { AUDIO.on('row', { ev: { type: 'wrap_up', reaction: r }, trip: { by: 'demo', reactionBy: 'demo-rules', reaction: r } }); });
@@ -826,10 +827,11 @@ async function scenarioHonest(browser, base) {
   });
   await page.click('#btn-go');
   var done = await waitState(page, function () { var t = APP.state.trips[APP.state.trips.length - 1]; return t && t.status === 'done' && !document.getElementById('btn-go').classList.contains('away') && !APP.busy; }, null, 150000);
-  await page.waitForTimeout(600);
+  await waitState(page, function () { return AUDIO.state().played.some(function (x) { return x.id === 'lantern_1'; }); }, null, 30000);
+  await page.waitForTimeout(1500);
   var p2 = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { by: t.by, rb: t.reactionBy, r: t.reaction, ids: AUDIO.state().played.map(function (p) { return p.id; }) }; });
-  ok(done && p2.by === 'demo' && p2.rb === 'demo-rules' && p2.r === '폴짝' && p2.ids.indexOf('return_home') >= 0 && !p2.ids.some(function (id) { return /^mood_/.test(id); }) && !reqs.some(function (u) { return /^mood_/.test(u); }),
-    '데모 산책 (규칙이 폴짝) → 귀가 소리는 나고 기분 소리 · mood_ 요청은 없다 (' + JSON.stringify({ by: p2.by, rb: p2.rb, r: p2.r }) + ')');
+  ok(done && p2.by === 'demo' && p2.rb === 'demo-rules' && p2.r === '폴짝' && p2.ids.indexOf('lantern_1') >= 0 && !p2.ids.some(function (id) { return /^mood_/.test(id); }) && !reqs.some(function (u) { return /^mood_/.test(u); }),
+    '데모 산책 (규칙이 폴짝) → 그 차례 소리 (등불 lantern_1) 는 나고 기분 소리 · mood_ 요청은 없다 (' + JSON.stringify({ by: p2.by, rb: p2.rb, r: p2.r, lantern: p2.ids.indexOf('lantern_1') >= 0, mood: p2.ids.filter(function (id) { return /^mood_/.test(id); }), done: done }) + ')');
   /* 모델이 고른 반응 (MCP · 개발용 재생 길) → 그 기분 소리 */
   await page.evaluate(function () { delete window.__ppolTest.forceKind; APP.importEvents(JSON.stringify([{ type: 'stay_home', t: 0, activity: 'window_watch', line: '창밖을 봤어', anchor: 'window' }, { type: 'wrap_up', t: 1200, reaction: '덤덤' }])); });
   var mood = await waitState(page, function () { return AUDIO.state().played.some(function (x) { return /^mood_/.test(x.id); }); }, null, 60000);
@@ -844,6 +846,7 @@ async function scenarioHonest(browser, base) {
   console.log('test-audio: ' + base + ' · shots → ' + SHOTS);
   var browser = await chromium.launch();
   try {
+    if (process.env.AUDIO_ONLY === '11') { await scenarioHonest(browser, base); throw 'only'; }   /* 이 묶음만 (갈래 검사용) */
     await scenarioHttp(browser, base);
     await scenarioStay(browser, base);
     await scenarioNight(browser, base);
@@ -853,7 +856,7 @@ async function scenarioHonest(browser, base) {
     await scenarioHonest(browser, base);
     await scenarioFile(browser);
   } catch (e) {
-    fails++; console.error('\nCRASH: ' + (e && e.stack || e));
+    if (e !== 'only') { fails++; console.error('\nCRASH: ' + (e && e.stack || e)); }
   } finally {
     await browser.close();
     srv.close();

@@ -1313,9 +1313,12 @@ async function scenarioPlayer(browser) {
     t.events.forEach(function (e) { if (e.type === 'depart') e.hint = a.h; if (e.type === 'wrap_up') e.reaction = '우쭐'; });
     if (!t.events.some(function (e) { return e.type === 'wrap_up'; })) t.events.push({ type: 'wrap_up', t: 9000, reaction: '우쭐' });
     t.reaction = '우쭐'; t.reactionBy = 'demo-rules'; t.reactionLine = a.l; if (t.receipt) { t.receipt.reaction = '우쭐'; t.receipt.reactionLine = a.l; }
-    S.trips.unshift(t); localStorage.setItem('ppolppol_v2', JSON.stringify(S));
-    return t.id;
+    S.trips.unshift(t);
+    return { id: t.id, json: JSON.stringify(S) };
   }, { h: OLDH, l: OLDL });
+  /* 페이지를 떠날 때 앱이 자기 기록을 다시 쓰므로, 심은 기록은 다음 열기 직전에 (한 번만) 넣는다 */
+  await page.addInitScript({ content: "if (!sessionStorage.getItem('__oldHint')) { sessionStorage.setItem('__oldHint', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(oldId.json) + "); }" });
+  oldId = oldId.id;
   await page.goto(O + '/index.html?dev=0');
   await page.waitForSelector('#btn-go:not(.away)');
   await openAlbum(page);
