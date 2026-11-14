@@ -2280,7 +2280,7 @@ var APP = (function () {
       }
       case 'return': {
         cls = 'c-teal'; expr = 'idle';   /* 11-15 (주인 C6 b): 코드가 쓴 줄은 평소 얼굴 (예전 calm) */
-        var rr = (STR.returnReasons && STR.returnReasons[ev.reason]) || '';
+        var rr = !givenTrip(trip) && STR.returnReasons ? STR.returnReasons[ev.reason] || '' : '';   /* 11-15 (검증 V3 M1): 모델 · 사람 차례엔 코드가 지은 이유 꼬리를 안 붙인다 (모델은 열거값만 줬다 — 그걸 말로 바꾸면 모델이 한 말처럼 보인다) */
         frag.appendChild(document.createTextNode('돌아왔어' + (rr ? '. ' + rr : '')));
         if (trip.receipt && trip.receipt.souvenir) frag.appendChild(souvenirSub(trip.receipt.souvenir));
         break;

@@ -41,7 +41,7 @@
     ],
     stickers: { hat: { emoji: '🎩' }, feather: { emoji: '🪶' }, wild: { emoji: '❔' } },
     scenes: ['hands', 'sea', 'sky', 'signs', 'mind', 'home', 'wild'],
-    strings: { returnReasons: { enough: '이만 걷기로 했어', tired: '다리가 좀 무거워', linger: '여기서 오래 있었어' } }
+    strings: { returnReasons: { enough: '이만 걷기로 했어', tired: '여러 곳을 걸었어', linger: '여기서 오래 있었어' } }
   };
 
   /* ───────── BRAIN ───────── */
