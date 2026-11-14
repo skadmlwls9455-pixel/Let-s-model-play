@@ -1862,7 +1862,7 @@ var SCENE3D = (function () {
       sleepy: { lid: 0.21, pupil: 1, pz: 0.10, dy: -0.05, pose: [1.02, 0.96, 0] }
     };
     var OPEN_EYES = { idle: 1, pet: 1, curious: 1, calm: 1, sleepy: 1 };                              /* 깜빡임이 끼어드는 표정 */
-    var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' };   /* 상태 → 기본 표정 (나머지는 idle). app.js 가 나중에 setExpression 으로 덮어쓴다 (DESIGN §15.2) */
+    var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep' };   /* 11-15 (주인 C6 b): anticipate 는 idle (예전 calm) */   /* 상태 → 기본 표정 (나머지는 idle). app.js 가 나중에 setExpression 으로 덮어쓴다 (DESIGN §15.2) */
     var face = { expr: 'idle', applied: '', t: 0, hopsLeft: 0, dy: 0 };
     function applyFace(name) {
       var f = FACES[name] || FACES.idle;
