@@ -3830,6 +3830,14 @@ var APP = (function () {
     var x = Math.round(clamp((r.l + r.r) / 2 - w / 2, 8, Math.max(8, W - w - 8))), y = r.b + 8;
     if (y > hi) y = r.t - h - 8;   /* 밑에 자리가 없으면 위로 */
     y = Math.round(clamp(y, lo, Math.max(lo, hi)));
+    /* 11-15 합침 (검증 V4 S4): 단추 줄이 다른 가구 위에 얹히면 그 가구를 톡 하려던 손가락이 단추를 눌렀다 → 밑 · 위 · 옆으로 민 자리 가운데 다른 가구와 안 겹치는 첫 자리 (없으면 위 자리 그대로) */
+    var others = scene && typeof scene.furnRects === 'function' ? scene.furnRects() : [];
+    if (others.length) {
+      var hit = function (cx, cy) { return others.some(function (o) { return cx < o.r + 4 && cx + w > o.l - 4 && cy < o.b + 4 && cy + h > o.t - 4; }); };
+      var fit = function (cx, cy) { return cx >= 8 && cx + w <= W - 8 && cy >= lo && cy <= hi; };
+      var cx0 = Math.round((r.l + r.r) / 2 - w / 2), cands = [[cx0, r.b + 8], [cx0, r.t - h - 8], [r.r + 8, r.b + 8], [r.l - w - 8, r.b + 8], [r.r + 8, r.t - h - 8], [r.l - w - 8, r.t - h - 8]];
+      for (var i = 0; i < cands.length; i++) { var c = [Math.round(clamp(cands[i][0], 8, Math.max(8, W - w - 8))), Math.round(cands[i][1])]; if (fit(c[0], c[1]) && !hit(c[0], c[1])) { x = c[0]; y = c[1]; break; } }
+    }
     row.style.left = x + 'px'; row.style.top = y + 'px';
   }
   function furnSaved(d) {   /* 장면이 저장하기로 닫힘 (단추 · 망치 · 문어 출발/귀가) → 바뀐 가구만 적는다 */
@@ -4521,7 +4529,7 @@ var APP = (function () {
     if (g && g.day !== todayKey()) { delete u.giftTell; g = null; }
     var pn = typeof u.plotTold === 'number' ? gardenOpen() - u.plotTold : 0;   /* 11-15: 새로 생긴 밭 칸 수 (알린 뒤로) */
     if ((!p && !g && !(pn > 0)) || !S.octopus.name) return;
-    if (giftWait || document.hidden || (window.INTRO && ['sky', 'title', 'out'].indexOf(INTRO.phase) >= 0) || (t && t.classList.contains('show'))) { weekTellT = setTimeout(weekTell, 1000); return; }
+    if (giftWait || document.hidden || (window.INTRO && ['sky', 'title', 'out'].indexOf(INTRO.phase) >= 0) || (t && t.classList.contains('show')) || document.querySelector('#runner-dlg[open], #cook-overlay[open]')) { weekTellT = setTimeout(weekTell, 1000); return; }   /* 11-15 합침 (검증 V4 S5): 달리기 · 부엌 화면 가득 창이 열려 있으면 닫힌 뒤에 (아래 동그라미 · 부엌 위에 2.5 초 겹쳤다) */
     if (g) { delete u.giftTell; save(); toast('오늘 선물: 조개 ' + (g.shells | 0) + ' · 씨앗 1 (들어온 날 ' + (g.n | 0) + '일째)'); if (p || pn > 0) weekTellT = setTimeout(weekTell, 1000); return; }
     if (pn > 0) { if (revealing) { weekTellT = setTimeout(weekTell, 1000); return; }   /* 귀가 공개가 끝난 뒤에 */
       u.plotTold = gardenOpen(); save(); applyGarden(); toast(pn > 1 ? '마당에 밭 ' + pn + '칸이 새로 생겼어' : '마당에 밭 한 칸이 새로 생겼어'); if (p) weekTellT = setTimeout(weekTell, 1000); return; }

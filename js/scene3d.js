@@ -1566,8 +1566,12 @@ var SCENE3D = (function () {
       ch[2].position.set(x - hw, y, z); ch[2].scale.set(t, hd * 2 + t, 1); ch[3].position.set(x + hw, y, z); ch[3].scale.set(t, hd * 2 + t, 1);
       selMat.color.set(C(FM.drag && !FM.drag.ok ? PAL.rose[1] : PAL.amber[3])); selG.visible = true;
     }
-    function furnSelRect() {   /* 고른 가구의 화면 상자 (CSS px, 장면 기준 — 발자국 네 모서리 × 바닥 · 위 끝) */
-      var f = FM.sel && FURN[FM.sel]; if (!f) return null;
+    function furnSelRect() { return FM.sel ? furnRectOf(FM.sel) : null; }   /* 고른 가구의 화면 상자 (CSS px, 장면 기준 — 발자국 네 모서리 × 바닥 · 위 끝) */
+    function furnRects() {   /* 11-15 합침 (검증 V4 S4): 고르지 않은 보이는 가구들의 화면 상자 — 앱이 단추 줄을 그 위에 얹지 않게 (옆 가구를 톡 하면 단추가 눌렸다) */
+      var out = []; Object.keys(FURN).forEach(function (id) { var f = FURN[id]; if (id !== FM.sel && f.m && f.m.visible) { var q = furnRectOf(id); if (q) out.push(q); } }); return out;
+    }
+    function furnRectOf(id) {
+      var f = FURN[id]; if (!f || !f.m) return null;
       scene.updateMatrixWorld(); camera.updateMatrixWorld();
       var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, x = f.m.position.x, z = f.m.position.z;
       for (var i = 0; i < 8; i++) {
@@ -3632,7 +3636,7 @@ var SCENE3D = (function () {
     deco.spring = keep(mergeParts(scatter('pet', 46, function (r, i) { var p = groundPt(r, i % 4 === 0); return p && { g: box(0.045, 0.012, 0.045), m: M(p[0], 0.006, p[1]), c: i % 3 ? '#f2a6c0' : '#df84a5' }; })));
     deco.summer = keep(mergeParts(scatter('flw', 22, function (r, i) { var p = groundPt(r, false); return p && !nearPath(p[0], p[1], 0.4) && { g: box(0.06, 0.06, 0.06), m: M(p[0], 0.05, p[1]), c: i % 2 ? '#f0d060' : '#f4f0e8' }; })));
     deco.autumn = keep(mergeParts(scatter('lit', 54, function (r, i) { var p = groundPt(r, i % 2 === 0); return p && { g: box(0.075, 0.012, 0.05), m: M(p[0], 0.008, p[1], 0, (r >> 18) % 6 * 0.5, 0), c: ['#d4782c', '#a4482a', '#e8a63e', '#7a4a2c'][(r >> 22) & 3] }; })));
-    deco.winter = keep(mergeParts((function () {
+    var winterParts = function () {   /* 11-15 합침: 이름을 붙였다 — 마당이 집에 붙은 눈 (지붕 · 굴뚝 · 창 서리) 만 따로 떼어 돌려 볼 때 집과 같이 자른다 */
       var H = EXT, ps = [], S = EXT_C.snow, hz = (H.HZ1 - H.HZ0) / 2 + 0.22, sl = hz * Math.SQRT2, RL = H.HX1 - H.HX0 + 0.36, xc = (H.HX0 + H.HX1) / 2;
       [1, -1].forEach(function (sg) { var ang = sg * Math.PI / 4, ny = Math.SQRT1_2, nz = sg * Math.SQRT1_2;
         ps.push({ g: box(RL, 0.09, sl - 0.08), m: M(xc, H.RY - hz / 2 + ny * 0.16, H.HZC + sg * hz / 2 + nz * 0.16, ang, 0, 0), c: S });
@@ -3654,7 +3658,8 @@ var SCENE3D = (function () {
       });
       ps.push({ g: box(0.46, 0.05, 0.012), m: M(snapPos(-1.25), H.PL + 0.74 - 0.2, H.HZ1 + 0.02), c: S });
       return ps;
-    })()));
+    };
+    deco.winter = keep(mergeParts(winterParts()));
     var decoM = {};
     SEASONS.forEach(function (s) { var m = new T.Mesh(deco[s], lambert); m.receiveShadow = true; m.castShadow = s === 'winter'; m.visible = false; extG.add(m); decoM[s] = m; });
     /* 창 2: 다락 창(박공, 등불 칸 수만큼 밤에 따뜻하게) · 1층 창(+z 벽, 밤이면 늘 켜짐) — 유리 MeshBasic + 발광 쌍둥이(레이어 1, 블룸) */
@@ -4488,11 +4493,11 @@ var SCENE3D = (function () {
         if (act === 'mailOpen') pose.mail = 1;
         pkPose(pose);
         if (act === 'ripple') PK.plop = 1;
-        setExpression(status === 'none' ? 'sleepy' : status === 'failed' ? 'calm' : happy && st.reduced ? 'happy' : 'curious');   /* read/first = curious → happy · builtin·simulated = curious · failed = calm · none = sleepy */
+        setExpression('idle');   /* 11-15 합침 (주인 C6 b · 검증 V4 S3): 기웃의 얼굴은 코드가 고르니 평소 얼굴 — 예전엔 read 면 curious → happy ('찾았다' ^ ^) · failed = calm · none = sleepy 로 마음을 덧입혔다. 자세 (기댐 · 으쓱 · 앉기) 는 몸짓이라 그대로 */
       };
       it.update = function (k) {
         var t = k * it.dur / st.speed; PK.t = t;
-        if (happy && !swapped && (t >= 0.35 || st.reduced)) { swapped = true; setExpression('happy'); if (!PK.sit) PK.lean = 0; }   /* 찾았다 → 몸을 펴고 폴짝 2 (^ ^ 눈이 보이게) */
+        if (happy && !swapped && (t >= 0.35 || st.reduced)) { swapped = true; if (!PK.sit) PK.lean = 0; }   /* 읽었다 → 몸을 편다 (11-15: 웃는 얼굴 · 폴짝은 뺐다 — 위 C6 b) */
         if (PK.count > -2 && !st.reduced) {   /* 수: 기둥마다 고개 까딱 (0.25 s 간격, 기둥 쪽으로 돌아보며) */
           var c = Math.min(PK_FENCE.length - 1, Math.floor(t / 0.25));
           if (c !== PK.count) { PK.count = c; PK.nod = 0; var f = PK_FENCE[c]; oct.wantYaw = Math.atan2(f[0] - oct.pos.x, f[1] - oct.pos.z); }
@@ -4617,19 +4622,25 @@ var SCENE3D = (function () {
       for (i = 0; i < NF; i++) { var t0 = -FE + i * FS; fl.push([t0, -FE, 0], [t0, FE, 0], [-FE, t0 + FS, Math.PI / 2], [FE, t0 + FS, Math.PI / 2]); }   /* 둘레 울타리 (네 변, 가로대가 다음 기둥까지) */
       inst(fenceIM.geometry, fl, function (f) { return M(snapPos(f[0]), 0, snapPos(f[1]), 0, f[2], 0); });
       /* 계절 장식 (바깥 것 그대로 — 지금 계절 것만) · 창 2 (재질을 같이 써서 시각대 · 등불 빛이 같다) · 현관문 (닫힌 채) */
-      var dm = {}; SEASONS.forEach(function (s2) { var m = new T.Mesh(deco[s2], lambert); m.receiveShadow = true; m.castShadow = s2 === 'winter'; m.visible = s2 === SEASON.cur; g.add(m); dm[s2] = m; });
-      [[winA, winAEm], [winG, winGEm]].forEach(function (w) { var m = new T.Mesh(w[0].geometry, w[0].material); m.position.copy(w[0].position); m.rotation.copy(w[0].rotation); g.add(m); var e = new T.Mesh(w[1].geometry, w[1].material); e.layers.set(1); e.castShadow = false; m.add(e); });
+      /* 11-15 합침 (검증 V4 S1 · S2): 겨울 장식은 집에 붙은 것 (지붕 · 굴뚝 · 창 서리 — 집 터 위 · 바닥보다 높은 부품) 과 땅의 것을 나눈다. 집에 붙은 것 · 창 둘 · 현관문은
+         돌려 볼 때 집이 무릎 높이로 잘리면 같이 숨는다 (CUT_DYN.yard) — 예전엔 잘린 집 위에 지붕 눈 · 문짝 · 빛나는 창이 떠 있었다 */
+      var wpAll = winterParts(), onHouse = function (q) { var e = q.m.elements, x = e[12], y = e[13], z = e[14]; return y > EXT.PL + 0.3 && x > EXT.HX0 - 0.4 && x < EXT.HX1 + 0.4 && z > EXT.HZ0 - 0.4 && z < EXT.HZ1 + 0.4; };
+      var dm = {}; SEASONS.forEach(function (s2) { var m = new T.Mesh(s2 === 'winter' ? keep(mergeParts(wpAll.filter(function (q) { return !onHouse(q); }))) : deco[s2], lambert); m.receiveShadow = true; m.castShadow = s2 === 'winter'; m.visible = s2 === SEASON.cur; g.add(m); dm[s2] = m; });
+      var dh = new T.Mesh(keep(mergeParts(wpAll.filter(onHouse))), lambert); dh.receiveShadow = true; dh.castShadow = true; dh.visible = SEASON.cur === 'winter'; g.add(dh);
+      var wins = [];
+      [[winA, winAEm], [winG, winGEm]].forEach(function (w) { var m = new T.Mesh(w[0].geometry, w[0].material); m.position.copy(w[0].position); m.rotation.copy(w[0].rotation); g.add(m); wins.push(m); var e = new T.Mesh(w[1].geometry, w[1].material); e.layers.set(1); e.castShadow = false; m.add(e); });
       var dp = new T.Group(); dp.position.copy(doorPivot.position); g.add(dp); var dr = new T.Mesh(extDoor.geometry, lambert); dr.castShadow = true; dr.receiveShadow = true; dp.add(dr);
       /* 밭 */
       g.add(plotG);
-      YROOM = { g: g, stat: stat, house: house, deco: dm, door: dp,
+      YROOM = { g: g, stat: stat, house: house, deco: dm, decoHouse: dh, wins: wins, door: dp,
         doorBox: new T.Box3(new T.Vector3(EXT.HX1, 0, EXT.HZC - 0.55), new T.Vector3(EXT.HX1 + 1.12, EXT.PL + 1.1, EXT.HZC + 0.55)),   /* 현관문 + 계단 (단추 칸) */
         boxes: [[EXT.HX0 - 0.1, EXT.HX1 + 1.12, EXT.HZ0 - 0.1, EXT.HZ1 + 0.1], [EXT_MAILBOX[0] - 0.17, EXT_MAILBOX[0] + 0.17, EXT_MAILBOX[1] - 0.11, EXT_MAILBOX[1] + 0.11], [YARD_LAMP[0] - 0.05, YARD_LAMP[0] + 0.2, YARD_LAMP[1] - 0.05, YARD_LAMP[1] + 0.05],
           [EXT_FENCE[0][0] - 0.04, EXT_FENCE_END[0] + 0.04, 2.5, 2.66]],   /* 집 · 현관 · 계단 · 우체통 · 등 · 바깥에서 가져온 울타리 토막 */
         circles: YARD_TREES.round.concat(YARD_TREES.cone, EXT_TREES.round, EXT_TREES.cone).map(function (t) { return [t[0], t[1], 0.22 * t[2] + 0.05]; })
           .concat([[0.5, -0.05, 0.4], [-2.55, 0.05, 0.35], [2.5, -1.5, 0.25], [-0.55, 1.95, 0.2]]) };   /* 나무 줄기 · 덤불 · 돌 (반지름은 내 캐릭터 몸을 더하기 전) */
       applySeasonYard(); yardPlots(true);
-      if (typeof cutAdd === 'function') YARD_CUTS.forEach(function (c) { cutAdd('yard', c.full, c.low, c.nx, c.nz, c.cx, c.cz); });   /* 11-15: 갈래 A 가 오면 그쪽 것을 쓴다 (없으면 목록만 들고 있는다) */
+      if (typeof cutAdd === 'function') YARD_CUTS.forEach(function (c, i) { cutAdd('yard', c.full, c.low, c.nx, c.nz, c.cx, c.cz).key = i ? 'yard' + i : 'house'; });   /* 11-15: 갈래 A 의 자르기 (첫째 = 집) */
+      CUT_DYN.yard = function () { var H = cutOf('yard', 'house'), out = [[YROOM.door, H], [YROOM.decoHouse, H]]; YROOM.wins.forEach(function (m) { out.push([m, H]); }); return out; };   /* 집에 붙은 것들 (보임은 계절 · 빛 코드 몫이라 layers 로 숨긴다) */
       dither.still = 0;
     }
     function yardTreeNear(x, z, r) { return YARD_TREES.round.concat(YARD_TREES.cone).some(function (t) { return Math.hypot(x - t[0], z - t[1]) < r; }); }
@@ -4638,7 +4649,7 @@ var SCENE3D = (function () {
       if (!YROOM) return; var c = SEASON_C[SEASON.cur], g2 = YROOM.stat.geometry;
       recolor(g2, 10, c.ground); recolor(g2, 11, c.tuft); recolor(g2, 12, c.path); recolor(g2, 17, EXT_WATER[SEASON.cur]);
       recolor(g2, 13, c.leaf[0]); recolor(g2, 14, c.leaf[1]); recolor(g2, 15, c.leaf[2]); recolor(g2, 16, SEASON.cur === 'spring' ? c.bloom : c.leaf[1]);
-      SEASONS.forEach(function (s2) { YROOM.deco[s2].visible = s2 === SEASON.cur; });
+      SEASONS.forEach(function (s2) { YROOM.deco[s2].visible = s2 === SEASON.cur; }); YROOM.decoHouse.visible = SEASON.cur === 'winter';
     }
     /* 마당이 보이는 동안: 바깥의 비 · 눈 · 꽃잎 · 낙엽 · 반딧불 입자와 1층 창 불빛(점광)을 마당 그룹으로 옮긴다 · 바깥이 보이면 돌려준다 (둘이 같이 보이는 프레임은 없다) */
     var EXT_LAMP_AT = extLamp.position.clone();
@@ -6083,7 +6094,7 @@ var SCENE3D = (function () {
          debugPlayerYaw(deg | null) 8방향 샷용 (null = 다시 카메라 쪽) · debugPlayerBlink(s) 깜빡임 강제 (tools/player-shots.js) */
       setPlayer: setPlayer, setPlayerDye: setPlayerDye, playerDye: function () { return PL_DYE; }, playerPortrait: playerPortrait, playerShot: playerShot,
       setLayout: setLayout, layout: layoutNow, playerSit: playerSit, playerSitting: function () { return !!PL.sit; },
-      furnMode: furnMode, furnSelect: furnSelect, furnRotate: furnRotate, furnScale: furnScale, furnNudge: furnNudge, furnSave: furnSave, furnCancel: furnCancel, furnEditing: furnState, furnSelRect: furnSelRect, octSpot: function (k) { var a = ANCHORS[k]; return a ? [a[0], a[2]] : null; }, furnFoot: function (id) { var f = FURN[id]; return f ? { x: f.m.position.x, z: f.m.position.z, hw: f.hw, hd: f.hd, rot: f.rot, sc: f.sc, flat: !!f.flat } : null; }, furnCandle: function () { return { x: candleG.position.x, y: candleG.position.y, z: candleG.position.z, ry: candleG.rotation.y, sc: candleG.scale.x, lx: candleLight.position.x, ly: candleLight.position.y, lz: candleLight.position.z }; }, furnDragTest: function (id, x, z) { return FURN[id] ? furnOk(id, x, z) : false; }, furnLook: function () { return { oct: octG.visible, pl: plG.visible, yaw: yawDelta(), yawDrag: yawDrag, zoom: st.zoomF, sel: selG.visible, red: selG.visible && selMat.color.getHexString() === C(PAL.rose[1]).getHexString() }; },   /* 11-15 가구 모드 시험용 */ furnItems: furnItems,   /* 11-10 인테리어 v0: 가구 자리 되살리기 · 지금 자리 · 소파에 앉기 */
+      furnMode: furnMode, furnSelect: furnSelect, furnRotate: furnRotate, furnScale: furnScale, furnNudge: furnNudge, furnSave: furnSave, furnCancel: furnCancel, furnEditing: furnState, furnSelRect: furnSelRect, furnRects: furnRects, octSpot: function (k) { var a = ANCHORS[k]; return a ? [a[0], a[2]] : null; }, furnFoot: function (id) { var f = FURN[id]; return f ? { x: f.m.position.x, z: f.m.position.z, hw: f.hw, hd: f.hd, rot: f.rot, sc: f.sc, flat: !!f.flat } : null; }, furnCandle: function () { return { x: candleG.position.x, y: candleG.position.y, z: candleG.position.z, ry: candleG.rotation.y, sc: candleG.scale.x, lx: candleLight.position.x, ly: candleLight.position.y, lz: candleLight.position.z }; }, furnDragTest: function (id, x, z) { return FURN[id] ? furnOk(id, x, z) : false; }, furnLook: function () { return { oct: octG.visible, pl: plG.visible, yaw: yawDelta(), yawDrag: yawDrag, zoom: st.zoomF, sel: selG.visible, red: selG.visible && selMat.color.getHexString() === C(PAL.rose[1]).getHexString() }; },   /* 11-15 가구 모드 시험용 */ furnItems: furnItems,   /* 11-10 인테리어 v0: 가구 자리 되살리기 · 지금 자리 · 소파에 앉기 */
       /* 움직이기 (brief MOVE.md · docs/SCENE.md '내 캐릭터 · 움직이기'): setPlayerInput({ x, y } | null) 화면 축 벡터(오른쪽 +x · 위 +y · 길이 0..1) → 매 프레임 1.2 m/s · playerInputAllowed() 보이는 때 규칙 ·
          on.playerInput(allowed) 바뀔 때만 · on.playerStep() 걸음마다 · player().input / footprints · debugPlayerAt(x, z) 자리 옮김 (검사용) */
       setPlayerInput: setPlayerInput, playerInputAllowed: playerInputAllowed,
