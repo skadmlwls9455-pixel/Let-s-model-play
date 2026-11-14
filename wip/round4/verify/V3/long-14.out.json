@@ -118,16 +118,22 @@
    "d": null
   },
   {
-   "m": "machine fail",
-   "d": "spot hidden btn-machine"
-  },
-  {
    "m": "runner buttons",
-   "d": []
+   "d": [
+    "rn-close:닫기",
+    "rn-jump:점프",
+    "rn-duck:숙이기",
+    "rn-again:다시",
+    "rn-stop:닫기",
+    "rn-submit:기록 올리기"
+   ]
   },
   {
    "m": "runner state",
-   "d": null
+   "d": {
+    "state": "over",
+    "score": 27
+   }
   },
   {
    "m": "sound@runner",
@@ -148,14 +154,6 @@
    }
   },
   {
-   "m": "stair failed",
-   "d": "spot hidden btn-stair"
-  },
-  {
-   "m": "sew fail",
-   "d": "spot hidden btn-sew"
-  },
-  {
    "m": "sound@loft",
    "d": {
     "audioReq": 0,
@@ -170,7 +168,7 @@
     "audioReq": 0,
     "ac": 0,
     "acFrames": 0,
-    "errors": 6
+    "errors": 4
    }
   },
   {
@@ -183,8 +181,6 @@
     "console: Access to fetch at 'https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts|pageimages|links&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0&titles=%ED%98%B9%EB%93%B1%EA%B3%A0%EB%9E%98' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
     "console: Failed to load resource: net::ERR_FAILED",
     "console: Access to fetch at 'https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts|pageimages|links&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0&titles=%EB%A9%94%EC%95%84%EB%A6%AC' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
-    "console: Failed to load resource: net::ERR_FAILED",
-    "console: Access to fetch at 'https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts|pageimages|links&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0&titles=%EA%B0%80%EB%94%94%EC%96%B8%EC%A6%88%20%EC%98%A4%EB%B8%8C%20%EA%B0%A4%EB%9F%AD%EC%8B%9C%20(%EC%98%81%ED%99%94)' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
     "console: Failed to load resource: net::ERR_FAILED"
    ]
   },
@@ -207,19 +203,23 @@
   "runner-over <span> “” | “고래의 노래에 오래 있었어. 내일은 문어 쪽으로 가 볼까”",
   "cook <span> “” | “고래의 노래에 오래 있었어. 내일은 문어 쪽으로 가 볼까”",
   "sew <span> “” | “고래의 노래에 오래 있었어. 내일은 문어 쪽으로 가 볼까”",
+  "walk2 <span> “” | “”",
+  "walk2 <span> 《》 | 《가디언즈 오브 갤럭시》(영어: Guardians of the Galaxy 가디언스 오브 더 갤럭시[*])는 2014년 공개된 마블 코믹스의 동",
+  "walk2 <span> “” | “”",
+  "walk2 <span> 《》 | 《USA 투데이》(USA Today)는 미국의 일간신문이다. 현재 미국의 종합일간지 중에서 유일하게 전국지로 발간되는 신문이다.",
+  "walk2 <span> “” | “”",
+  "walk2 <span> 中道左派左派 | 중도좌파(中道左派)는 정치 이념 내에서 좌파(左派)보다 덜 좌파적인 면모를 보이는 것을 말한다. 민주사회주의, 사회민주주의 등이 중도좌익 사상으",
   "walk2 <span> “” | “고래의 노래에 오래 있었어. 내일은 문어 쪽으로 가 볼까”"
  ],
  "errors": [
   "console: Access to fetch at 'https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts|pageimages|links&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0&titles=%ED%98%B9%EB%93%B1%EA%B3%A0%EB%9E%98' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
   "console: Failed to load resource: net::ERR_FAILED",
   "console: Access to fetch at 'https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts|pageimages|links&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0&titles=%EB%A9%94%EC%95%84%EB%A6%AC' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
-  "console: Failed to load resource: net::ERR_FAILED",
-  "console: Access to fetch at 'https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts|pageimages|links&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0&titles=%EA%B0%80%EB%94%94%EC%96%B8%EC%A6%88%20%EC%98%A4%EB%B8%8C%20%EA%B0%A4%EB%9F%AD%EC%8B%9C%20(%EC%98%81%ED%99%94)' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
   "console: Failed to load resource: net::ERR_FAILED"
  ],
  "warns": [
-  "[.WebGL-0x126400187e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
-  "[.WebGL-0x126400187e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+  "[.WebGL-0x26fc0019be00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+  "[.WebGL-0x26fc0019be00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
  ],
  "audio": [],
  "ac": []
