@@ -626,7 +626,7 @@ var SCENE3D = (function () {
     function panReset() { PAN.x = PAN.y = PAN.vx = PAN.vy = 0; PAN.mode = ''; }
     /* ── 11-15 돌려 보기: 각도 한 프레임 (위 YAWX) ── */
     var TAU = Math.PI * 2, YAW_TAU = 0.12, YAW_EASE = 0.09, YAW_VMAX = 3.5, _tr = new T.Vector3();
-    function yawHeld() { return INTRO.on || PLACE.vis === 'exterior' || !!PLAY || st.look.focus === 'oct' || !!(SAL && SAL.active) || !!(CER && CER.active && !isRoomP(PLACE.vis)); }   /* 기본 구도가 필요한 연출 (산책 의식 · 입장 · 바깥 · 미용실 무대) — 끝나면 돌려 둔 각으로 */
+    function yawHeld() { return INTRO.on || PLACE.vis === 'exterior' || !!PLAY || st.look.focus === 'oct' || !!(SAL && SAL.active) || !!(CER && CER.active && !isRoomP(PLACE.vis)) || !!(typeof FM !== 'undefined' && FM && FM.on); }   /* 11-15 합침 (검증 V1 S4): 가구 모드 중엔 기본 구도 그대로 — 모드 안에서 돌리면 방향키 한 칸이 화면과 어긋났다 */   /* 기본 구도가 필요한 연출 (산책 의식 · 입장 · 바깥 · 미용실 무대) — 끝나면 돌려 둔 각으로 */
     function yawGest() { return GEST.mode === 'twist' || GEST.mode === 'yaw' || (GEST.mode === 'pinch' && !!GEST.multi && GEST.multi.yOn); }
     function yawPivot(b) {   /* 방 가운데(PLACE_BOX 의 xz 가운데)를 축으로 타깃도 같이 돈다 — 탁자 위 사진을 돌리듯 구도가 따라 돈다 (0° 면 그대로 · 바깥은 돌리지 않는다) */
       var a = yawDelta(), pb = PLACE_BOX[PLACE.vis]; if (!a || !pb || PLACE.vis === 'exterior') return b;
@@ -869,10 +869,10 @@ var SCENE3D = (function () {
     /* 11-15 계단 눈에 띄게 (주인 11-14 "계단이 어두울 때는 잘 안 보이는데 눈에 띄게 만들 방법 강구해줘"): 저녁·밤에만 ① 디딤판 앞 모서리의 옅은 띠 (빛을 받는 종이색 + 아주 흐린 발광 쌍둥이)
        ② 계단 자기 기둥 위 작은 초롱 (발광 유리 + 글로우 원판 — 진짜 점광은 늘리지 않는다: 방마다 점광 수가 같아야 방을 옮길 때 새 셰이더가 안 생긴다). 재질은 전부 있는 것과 같은 종류라 새 프로그램 0.
        낮·새벽엔 둘 다 숨긴다 (낮 모습 그대로). 벽이 아니라 계단 기둥에 달려 있어 어느 쪽으로 돌려 봐도 계단과 같이 보인다. edges = [x, y, z, w, h, d] 띠 상자들 · lanAt = 초롱 바닥 자리 */
-    function stairCue(parent, edges, lanAt) {
-      var eGeo = keep(mergeParts(edges.map(function (e) { return { g: box(e[3], e[4], e[5]), m: M(e[0], e[1], e[2]), c: PAL.paper[1] }; })));
-      var edge = new T.Mesh(eGeo, lambert); edge.castShadow = false; edge.receiveShadow = true; parent.add(edge);
-      var edgeEm = emTwin(edge, eGeo);
+    function stairCue(parent, edges, lanAt, lowMax) {   /* 11-15 합침 (검증 V1 S2): lowMax 가 있으면 그 높이 아래 띠는 따로 (edgeLow) — 돌려 볼 때 계단이 아래 두 칸만 남게 잘려도 그 두 칸의 띠는 보인다 */
+      var lowE = lowMax == null ? [] : edges.filter(function (e) { return e[1] <= lowMax; }), highE = lowMax == null ? edges : edges.filter(function (e) { return e[1] > lowMax; });
+      function edgeMesh(list) { if (!list.length) return null; var g = keep(mergeParts(list.map(function (e) { return { g: box(e[3], e[4], e[5]), m: M(e[0], e[1], e[2]), c: PAL.paper[1] }; }))); var m = new T.Mesh(g, lambert); m.castShadow = false; m.receiveShadow = true; parent.add(m); m.userData.em = emTwin(m, g); return m; }
+      var edge = edgeMesh(highE), edgeLow = edgeMesh(lowE), edgeEm = edge.userData.em;
       var lan = new T.Group(); lan.position.set(lanAt[0], lanAt[1], lanAt[2]); parent.add(lan);
       var fp = [{ g: box(0.15, 0.025, 0.15), m: M(0, 0.012, 0), c: PAL.wood[1] }, { g: box(0.17, 0.03, 0.17), m: M(0, 0.235, 0), c: PAL.wood[1] }, { g: box(0.05, 0.06, 0.05), m: M(0, 0.28, 0), c: PAL.wood[1] }];
       [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(function (q) { fp.push({ g: box(0.018, 0.21, 0.018), m: M(q[0] * 0.065, 0.125, q[1] * 0.065), c: PAL.wood[1] }); });
@@ -882,7 +882,7 @@ var SCENE3D = (function () {
       var glassEm = emTwin(glass, gGeo);
       var glow = new T.Mesh(keep(new T.PlaneGeometry(1.0, 1.0)), keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[3]), transparent: true, opacity: 0, depthWrite: false })));
       glow.position.y = 0.125; glow.renderOrder = 5; lan.add(glow);
-      var q = { edge: edge, edgeEm: edgeEm, lan: lan, glassEm: glassEm, glow: glow, k: -1 };
+      var q = { edge: edge, edgeEm: edgeEm, edgeLow: edgeLow, lan: lan, glassEm: glassEm, glow: glow, k: -1 };
       cueApply(q); return q;
     }
     var CUE = { edge: 0.5, glass: 1.0, glow: 0.42 };   /* 밤(k 1)에 띠 발광 · 초롱 유리 발광 · 글로우 불투명도 */
@@ -892,6 +892,7 @@ var SCENE3D = (function () {
       var k = stairCueK(), on = k > 0; q.k = k;
       q.edge.visible = on; q.lan.visible = on;
       q.edgeEm.material.color.copy(C(EM.flame)).multiplyScalar(CUE.edge * k);
+      if (q.edgeLow) { q.edgeLow.visible = on; q.edgeLow.userData.em.material.color.copy(C(EM.flame)).multiplyScalar(CUE.edge * k); }
       q.glassEm.material.color.copy(C(EM.lamp)).multiplyScalar(CUE.glass * k);
       q.glow.material.opacity = CUE.glow * k;
     }
@@ -1089,7 +1090,7 @@ var SCENE3D = (function () {
       /* 11-15 계단 표시: 디딤판마다 앞(−x, 오르기 시작하는 쪽) 모서리 위에 옅은 띠 (디딤판보다 4 mm 크게 — 면이 겹쳐 깜빡이지 않게) · 발치 기둥(x0, z1) 꼭대기에 초롱 */
       var ed = [];
       for (k = 0; k < n; k++) ed.push([STAIR.x0 + run * k - 0.027 + 0.025, rise * (k + 1) - 0.03, zc, 0.054, 0.056, zw - 0.092]);
-      ATTIC_CUE = stairCue(atticG, ed, [STAIR.x0, 0.86, STAIR.z1 - 0.04]);
+      ATTIC_CUE = stairCue(atticG, ed, [STAIR.x0, 0.86, STAIR.z1 - 0.04], KNEE + 0.12);   /* 아래 두 칸 띠는 계단 자르기 (lowMax KNEE + 0.12) 와 같이 남는다 */
     })();
     /* 창: 턱·틀·살 */
     parts.push({ g: box(0.5, 0.08, WIN.z1 - WIN.z0 + 0.5), m: M(-R + 0.22, WIN.y0, (WIN.z0 + WIN.z1) / 2), c: W[2] });                                 /* 창턱 */
@@ -2962,7 +2963,8 @@ var SCENE3D = (function () {
       if (to === 'attic' || isRoomP(to)) {
         var g = groupOf(to); if (plG.parent !== g) g.add(plG); fpClear(g);
         var an = to === 'play' ? 'playAtticDoor' : to === 'loft' ? 'loftStair' : to === 'yard' ? 'yardAttic' : from === 'loft' ? 'atticStair' : from === 'yard' ? 'atticYard' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
-        plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false; PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
+        plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false;
+        if (Math.abs(yawDelta()) > 0.01 && Math.cos(angDiff(PL.yaw, camYaw())) < -0.2) { PL.yaw = PL.wantYaw = camYaw(); PL.faceCam = true; }   /* 11-15 합침 (검증 V1 S3): 돌린 각에서 들어오면 방 안쪽이 화면 안쪽일 수 있다 — 등을 보이고 서지 않게 카메라 쪽으로 (0° 는 예전 그대로) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
       } else { if (plG.parent !== atticG) atticG.add(plG); fpClear(atticG); PL.place = 'attic'; plRest(true); }
     }
     function playerWalkTo(anchor) {   /* goRoom 의 walkFirst: 문 앞 앵커까지 걷고 문 쪽을 보며 서면 푼다 → { ok, walked, anchor, at }. 그 방에 없으면(바깥에서 들어갈 때) 걷기 없이 바로 */
