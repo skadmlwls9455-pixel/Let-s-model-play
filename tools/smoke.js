@@ -6514,6 +6514,11 @@ async function scenarioSceneTap(browser) {
   await page.addInitScript({ content: "if (!localStorage.getItem('__e2_seed')) { localStorage.setItem('__e2_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(rec)) + "); } window.__ppolTest = { today: '2026-11-10' };" });
   await page.goto(INDEX + '?dev=0&intro=0');
   await page.waitForFunction(function () { return window.APP && APP.sceneMode && !APP.goResting && !document.getElementById('btn-go').classList.contains('away'); }, null, { timeout: 30000 });
+  /* 0. 로딩 문어 (11-15): 정적 HTML 에 #boot (스크립트 전부터) · 그 전엔 2D 벡터 문어를 숨기는 규칙 · 게임이 서면 걷힌다 */
+  var html0 = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  var bootStatic = /<body>\s*<div id="boot" aria-hidden="true"><i class="boot-oct"><\/i><\/div>/.test(html0) && html0.indexOf('html:not(.booted) #oct-svg { visibility: hidden; }') > 0 && /loading_oct\.png/.test(html0);
+  var bootDone = await page.waitForFunction(function () { var b = document.getElementById('boot'); return document.documentElement.classList.contains('booted') && b && getComputedStyle(b).display === 'none'; }, null, { timeout: 10000 }).then(function () { return true; }, function () { return false; });
+  ok(bootStatic && bootDone, '로딩 문어: 정적 HTML 의 첫 줄 #boot (스크립트 전부터 · 벡터 문어는 숨김) · 게임이 서면 걷힌다');
   if (await page.evaluate(function () { return APP.sceneMode !== '3d'; })) { console.log('   (3D 장면이 없어 건너뜀)'); await ctx.close(); return; }
   await page.evaluate(function () { return APP.goRoom('loft'); });
   await page.waitForFunction(function () { var e = document.getElementById('btn-sew'); return APP.room === 'loft' && e && !e.hidden && e.getBoundingClientRect().width > 0 && !APP.goResting; }, null, { timeout: 20000 });
