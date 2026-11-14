@@ -3958,18 +3958,19 @@ var APP = (function () {
      cook.html?embed=1 은 자기 머리 · 링크를 숨기고 부엌을 바로 열며, 부엌이 닫히면 (닫기 · Esc · 뒤로) postMessage 'cook-close' 로 알린다 → 이 대화상자를 닫는다 · 놀이방은 그대로.
      다시 열면 같은 iframe 에 'cook-open'. 부엌의 저장(냄비 · 수첩 · 스티커)은 cook.html 과 같은 열쇠 (ppolppol_cook_v0) · 소리는 같은 설정 (기본 꺼짐) */
   var cookFrame = null, cookReady = false;
+  var cookOpener = null, cookKbd = false;   /* 11-15 (검증 V2-1): 부엌을 연 단추 · 키보드로 닫았나 */
   function cookMsg(e) {
     if (!cookFrame || e.source !== cookFrame.contentWindow) return;
     if (e.origin !== 'null' && e.origin !== location.origin) return;
     var d = e.data; if (!d || typeof d !== 'object') return;
     var ov = $('cook-overlay');
     if (d.ppolCook === 'ready') cookReady = true;
-    else if (d.ppolCook === 'close' && ov && ov.open) ov.close();
+    else if (d.ppolCook === 'close' && ov && ov.open) { cookKbd = !!d.kbd; ov.close(); }
   }
   function openCook(opener, kbd) {
     var ov = $('cook-overlay'); if (!ov || ov.open || !inPlay() || roomJob) return false;
     hideTip();
-    opener = opener || $('btn-cook');
+    opener = opener || $('btn-cook'); cookOpener = opener; cookKbd = false;
     if (opener && document.activeElement !== opener && !opener.hidden) focusRoomBtn(opener, !!kbd);   /* 닫으면 브라우저가 포커스를 조리대 단추로 돌려준다 */
     if (!cookFrame) {
       window.addEventListener('message', cookMsg);
@@ -3977,7 +3978,12 @@ var APP = (function () {
       cookFrame.className = 'cook-frame'; cookFrame.title = '부엌';
       cookFrame.src = 'cook.html?embed=1';
       ov.appendChild(cookFrame);
-      ov.addEventListener('close', function () { try { cookFrame.contentWindow.postMessage({ ppolCook: 'close' }, '*'); } catch (e) { /* 닫힌 부엌 */ } });   /* 이쪽 Esc 로 닫혀도 부엌은 냄비를 저장하고 조용히 */
+      ov.addEventListener('close', function () {
+        try { cookFrame.contentWindow.postMessage({ ppolCook: 'close' }, '*'); } catch (e) { /* 닫힌 부엌 */ }   /* 이쪽 Esc 로 닫혀도 부엌은 냄비를 저장하고 조용히 */
+        var b = cookOpener; if (b && !cookKbd && !b.hidden && document.activeElement === b) focusRoomBtn(b, false);   /* 11-15 (검증 V2-1): 손가락으로 닫았으면 조리대 단추에 링 없이 (iframe 으로 포커스가 갈 때 ring-off 가 지워져 노란 테가 남았다) */
+        cookKbd = false;
+      });
+      ov.addEventListener('cancel', function () { cookKbd = true; });   /* Esc = 키보드 → 링 그대로 */
     } else if (cookReady) { try { cookFrame.contentWindow.postMessage({ ppolCook: 'open' }, '*'); } catch (e) { /* 다시 불러온다 */ cookFrame.src = 'cook.html?embed=1'; } }
     showDialog(ov);
     try { cookFrame.focus(); } catch (e) { /* 포커스는 부엌이 연 뒤 스스로 */ }
