@@ -28,6 +28,7 @@ var TAKE = [
   ['index.html',   '본 게임. 주소 /'],
   ['cook.html',    '부엌. /cook.html · /cook.html?sound=1'],
   ['credits.html', "'만든 것들': 남의 소리 · 글꼴 · three.js 크레딧과 저작권 줄. 설정 맨 아래와 부엌 조리대에서 간다"],
+  ['manifest.webmanifest', '홈 화면에 두기 (PWA) 목록: 이름 · 아이콘 (assets/icons/app/) · 세로 · 바탕색. index.html 이 가리킨다'],
   ['css/',         '화면 모양'],
   ['js/',          '게임 스크립트'],
   ['assets/',      '그림. 목록은 assets/manifest.json'],

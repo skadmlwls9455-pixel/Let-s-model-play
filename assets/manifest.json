@@ -673,10 +673,10 @@
   },
   "ui.bubble.think": {
     "src": "assets/ui/bubble_think.png",
-    "w": 24,
-    "h": 24,
-    "slice": 8,
-    "note": "생각 풍선 9-slice (구름 가장자리 — 혼잣말·기억)"
+    "w": 16,
+    "h": 16,
+    "slice": 6,
+    "note": "생각 풍선 9-slice 16×16 · 슬라이스 6 (11-15: 둥근 네모, 계단 모서리 · 옅은 남색 1px 선 — 혼잣말·기억). CSS: 6 fill / 12px. 꼬리는 둥근 점 둘"
   },
   "ui.bubble.whisper": {
     "src": "assets/ui/bubble_whisper.png",
@@ -695,7 +695,7 @@
     "src": "assets/ui/tail_think.png",
     "w": 8,
     "h": 8,
-    "note": "말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다"
+    "note": "생각 풍선 꼬리 — 둥근 점 둘 (위가 크고 아래가 작다), 풍선 아랫변 가운데 1칸 아래 (11-15)"
   },
   "ui.tail.whisper": {
     "src": "assets/ui/tail_whisper.png",
@@ -1342,5 +1342,13 @@
     "w": 32,
     "h": 32,
     "note": "기념품 「색유리」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.stained_glass."
+  },
+  "ui.loading.oct": {
+    "src": "assets/ui/loading_oct.png",
+    "w": 448,
+    "h": 39,
+    "frames": 8,
+    "cell": 56,
+    "note": "로딩 문어 (11-15): 게임 3D 문어의 걷는 옆모습 8칸 가로 띠 (tools/make-loading-oct.js 가 walkPortrait 로 굽는다). index.html #boot 가 steps(8) 로 돌린다"
   }
 }
