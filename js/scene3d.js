@@ -513,7 +513,7 @@ var SCENE3D = (function () {
        의식·입장 연출 중엔 밀기를 안 받고 0.3 s 만에 0 으로 — 단 의식 중 확대해 있으면 0 대신 문어를 따라간다(cerFollow: 화면 가운데 절반 안, 경계 안 · 문어가 보일 때만 ·
        가속 한도가 있는 부드러운 따라가기라 멀리서 나타나도 휙 날아가지 않는다), 장소가 바뀌면 0.
        1× 에선 경계가 0 (가로·세로 고무줄만, 떼면 가운데로 · §3.4 '1×') — 첫 멈춤까지 경계가 줌에 비례해 열린다. 놀이(PLAY)·문어 초점(look-shots close) 중엔 꺼짐 */
-    var PAN = { x: 0, y: 0, vx: 0, vy: 0, mode: '', t: 0, dur: 0, fx: 0, fy: 0, tx: 0, ty: 0, cut: false };   /* cut = 장소가 막 바뀜 (다음 따라가기는 미끄러지지 않고 바로) */
+    var PAN = { x: 0, y: 0, vx: 0, vy: 0, mode: '', t: 0, dur: 0, fx: 0, fy: 0, tx: 0, ty: 0, cut: false, arrive: false };   /* cut = 장소가 막 바뀜 (다음 따라가기는 미끄러지지 않고 바로) · arrive = 방을 옮김 (연출이 끝나면 캐릭터가 화면 안에 들게 한 번) */
     var GEST = { mode: '', pts: {}, n: 0, hold: false, wheelT: 0 };   /* 손가락 상태기계 하나 (아래 '입력'): '' | press | pan | multi | pinch | twist | yaw | done */
     var PLACE_BOX = { attic: [[-2.72, RF + 0.22], [-0.48, 3.0], [-2.72, RF + 0.22]], exterior: [[-3.42, 3.42], [-0.48, 3.3], [-3.42, 3.42]], yard: [[-YARD_L, YARD_L], [-0.48, 3.3], [-YARD_L, YARD_L]],
       play: [[-PLAY_R - 6 / 27, PLAY_R + 6 / 27], [-0.48, PLAY_H], [-PLAY_R - 6 / 27, PLAY_R + 6 / 27]],
@@ -570,11 +570,11 @@ var SCENE3D = (function () {
       }   /* 안 보이면 목표 = 지금 자리 (경계 안) → 움직이던 화면은 같은 감속으로 선다 */
       return [clamp(Math.round(tx * S.N) / S.N, b[0], b[1]), clamp(Math.round(ty * S.N) / S.N, b[2], b[3])];
     }
-    function plFollow() {   /* 스틱 · 방향키로 걷는 동안만: 캐릭터가 화면 안쪽(가장자리에서 1.1 m)에 들도록 밀 목표. 이미 들어 있으면 null (화면을 빼앗지 않는다) */
-      if (typeof PL === 'undefined' || !PL || !PL.stick || !(PLACE.vis === 'attic' || isRoomP(PLACE.vis)) || PL.place !== PLACE.vis) return null;
+    function plFollow(arrive) {   /* 스틱 · 방향키로 걷는 동안만 (arrive = 방을 옮긴 뒤 한 번, 아래 PAN.arrive): 캐릭터가 화면 안쪽(가장자리에서 1.1 m)에 들도록 밀 목표. 이미 들어 있으면 null (화면을 빼앗지 않는다) */
+      if (typeof PL === 'undefined' || !PL || !(PL.stick || arrive) || !(PLACE.vis === 'attic' || isRoomP(PLACE.vis)) || PL.place !== PLACE.vis) return null;
       var b = panBox();
       _fw.copy(PL.pos).setY(0.6).sub(camTargetNow());
-      var ox = _fw.dot(_r), oy = _fw.dot(_u), hx = Math.max(0, S.rw / 2 / S.N - 1.1), hy = Math.max(0, S.rh / 2 / S.N - 1.4);
+      var ox = _fw.dot(_r), oy = _fw.dot(_u), hx = Math.max(0, S.rw / 2 / S.N - (arrive ? 0.5 : 1.1)), hy = Math.max(0, S.rh / 2 / S.N - 1.4);   /* 도착은 몸이 화면 안이면 됨 (0.5 m — 0° 기본 구도는 안 민다) */
       var tx = clamp(PAN.x, ox - hx, ox + hx), ty = clamp(PAN.y, oy - hy, oy + hy);
       tx = clamp(Math.round(tx * S.N) / S.N, b[0], b[1]); ty = clamp(Math.round(ty * S.N) / S.N, b[2], b[3]);
       return (Math.abs(tx - PAN.x) < 0.5 / S.N && Math.abs(ty - PAN.y) < 0.5 / S.N && PAN.mode !== 'follow') ? null : [tx, ty];
@@ -590,7 +590,12 @@ var SCENE3D = (function () {
         if ((PAN.x || PAN.y) && PAN.mode !== 'home') panTo(0, 0, 0.3, 'home');
       } else {
         PAN.cut = false;
-        var pf = plFollow();   /* 내 캐릭터가 화면 가장자리로 걸어가면 화면이 따라간다 (넓어진 다락) */
+        var pf = plFollow(false);   /* 내 캐릭터가 화면 가장자리로 걸어가면 화면이 따라간다 (넓어진 다락) */
+        if (pf === null && PAN.arrive) {   /* 11-15 (검증 V1 S3 남은 것): 돌린 각에서 방을 옮기면 들어온 문이 1× 화면 밖일 수 있다 (180° 위층 → 다락) →
+                                              도착한 뒤 한 번, 캐릭터가 화면 안에 들게 따라간다. 이미 들어 있으면 그대로 (0° 는 예전 그대로). 손가락이 닿거나 캐릭터가 서서 화면 안이면 끝 */
+          pf = GEST.mode ? null : plFollow(true);
+          if (pf === null && (GEST.mode || !(PL && (PL.moving || PL.walking || PL.pending)))) PAN.arrive = false;
+        }
         if (pf !== null) { followStep(pf, dt); return; }
         if (PAN.mode === 'follow') panSettle();   /* 의식이 끝나면 따라가던 자리에서 정수 px 로 */
       }
@@ -3824,7 +3829,7 @@ var SCENE3D = (function () {
       if (p !== 'loft' && octUp()) octUnmountLoft();
       atticG.visible = p === 'attic'; extG.visible = p === 'exterior'; if (PROOM) PROOM.g.visible = p === 'play'; if (LROOM) LROOM.g.visible = p === 'loft'; if (YROOM) YROOM.g.visible = p === 'yard'; PLACE.vis = p;
       if (outdoorP(p)) yardBorrow(p === 'yard');   /* 11-15: 비 · 눈 입자 · 창 불빛을 보이는 바깥 장소로 */
-      atticG.position.set(0, 0, 0); extG.position.set(0, 0, 0); if (PROOM) PROOM.g.position.set(0, 0, 0); if (LROOM) LROOM.g.position.set(0, 0, 0); if (YROOM) YROOM.g.position.set(0, 0, 0); panReset(); PAN.cut = true;   /* 장소가 바뀌면 밀린 것은 0 (장소마다 경계가 다르다) · 의식 중 확대면 다음 따라가기가 그 자리로 바로 (디더에 덮인 프레임) */
+      atticG.position.set(0, 0, 0); extG.position.set(0, 0, 0); if (PROOM) PROOM.g.position.set(0, 0, 0); if (LROOM) LROOM.g.position.set(0, 0, 0); if (YROOM) YROOM.g.position.set(0, 0, 0); panReset(); PAN.cut = true; PAN.arrive = p !== prev;   /* 장소가 바뀌면 밀린 것은 0 (장소마다 경계가 다르다) · 의식 중 확대면 다음 따라가기가 그 자리로 바로 (디더에 덮인 프레임) */
       if (!isRoomP(p)) { var g = groupOf(p); if (octG.parent !== g) g.add(octG); }   /* 놀이방: 문어는 자기 장소(cur) 그룹에 남아 그 그룹과 같이 숨는다 (놀이방엔 문어가 없다) */
       applyLight(); dither.still = 0;
       container.dataset.view = p;
