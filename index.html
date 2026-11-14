@@ -7,6 +7,15 @@
 <meta name="theme-color" content="#d7b594" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#10141f" media="(prefers-color-scheme: dark)">
 <title>뽈뽈 문어</title>
+<!-- 11-15 홈 화면에 두기 (주인: PWA): 앱 목록 · 아이콘은 게임 3D 문어 (tools/make-app-icons.js). 서비스 워커는 없다 — 자주 배포하는 게임이라 옛 판에 갇히지 않게 (늘 네트워크) -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/app/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/app/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icons/app/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="뽈뽈 문어">
 <!-- 첫 화면 픽셀 글꼴 미리 받기: 첫 화면이 쓰는 Galmuri 부분집합 넷(본문 9 · 버튼 11 · 굵은 11 · 메타 7)을 스타일시트를 다 읽기 전에 받기 시작한다.
      스크립트로 넣는 까닭: file:// 에서는 crossorigin preload 가 CORS 로 막혀 오류·경고가 나고, 시스템 글꼴을 골랐으면 건너뛴다 (쓰지 않게 되면 "preload 했는데 안 씀" 경고가 난다).
      crossorigin 이 없으면 @font-face 요청이 preload 를 다시 쓰지 않고 또 받는다. 스타일시트보다 앞에 있어야 기다리지 않고 바로 돈다 -->
