@@ -10,4 +10,4 @@ Plan / status:
 - [x] test-brain CLAIM_RX update + unit checks
 - [x] docs: OWNER_DECISIONS, DESIGN, DIALOGUE_UI, MODEL_VOICE
 - [x] smoke checks updated A,H,W,M(6,7 new),P-2 new,Q ; test-audio 11 new
-- [ ] run suites, screenshots, independent check, report, commit, push
+- [x] suites, screenshots, independent check (1 should fixed), report, push
