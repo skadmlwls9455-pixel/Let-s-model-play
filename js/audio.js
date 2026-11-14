@@ -796,6 +796,11 @@ var AUDIO = (function () {
     else if (a === 'swap_posters' || a === 'rearrange') play(sa.tidy);
     else if (a && a !== 'nap' && a !== 'nothing') play(sa.hum);
   }
+  /* 반응을 고른 이가 모델 · 사람인가 (app.js reactionOf 와 같은 규칙: reactionBy 가 먼저, 없으면 차례의 by) */
+  function reactionGiven(trip, e) {
+    var b = (trip && trip.reactionBy) || (e && e.reactionBy) || ({ mcp: 'model', human: 'human' })[trip && trip.by] || null;
+    return b === 'model' || b === 'human';
+  }
   function onRow(d) {
     var e = d.ev || {}, trip = d.trip || {};
     if (d.skip) gs.skipping = true;
@@ -810,7 +815,8 @@ var AUDIO = (function () {
       case 'wrap_up': {
         var r = e.reaction || trip.reaction, m = r && ev(['moods', r]);
         gs.wrapReaction = r || null;   /* 곧 올 잠(state sleep)이 반응을 안 실어 오면 이걸로 자장가를 정한다 (D-1) */
-        if (m) { moodAt = now(); play(m); }   /* 기분 징글이 곧 문어 목소리 — 그 말풍선엔 블립을 얹지 않는다 */
+        /* 11-15 (주인 정직 기본값): 기분 효과음은 모델 · 사람이 직접 고른 반응에만. 데모 규칙이 고른 반응엔 내지 않는다 (말풍선 블립은 보통 목소리로) */
+        if (m && reactionGiven(trip, e)) { moodAt = now(); play(m); }   /* 기분 징글이 곧 문어 목소리 — 그 말풍선엔 블립을 얹지 않는다 */
         return;
       }
       case 'stay_home': {
@@ -893,7 +899,7 @@ var AUDIO = (function () {
     if (t - petT > 1.5) { petN = 0; play('pet_squish'); }
     petT = t; petN = Math.min(petN + 1, 5);
     play('pet_stroke_' + petN, { at: t + 0.06 });
-    if (petN === 4) play('pet_happy', { at: t + 0.3 });
+    /* 11-15: 넷째 쓰다듬기의 '뀨' (pet_happy) 는 뺐다 — 기쁨을 말하는 소리라 (주인 C3 b). 눌림 · 쓸기 소리는 몸이 눌리는 소리라 남는다 */
   }
   function onLantern(d) {
     var n = Math.max(0, Math.min(8, d.n | 0));

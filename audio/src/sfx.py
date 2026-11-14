@@ -558,7 +558,7 @@ def pet_happy(wave):
 
 
 for i, w in enumerate(['pulse', 'tri'], 1):
-    reg(f'pet_happy_{i}', lambda w=w: pet_happy(w), -6, 150, '3번 넘게 쓰다듬은 뒤 기뻐함(10초에 한 번)',
+    reg(f'pet_happy_{i}', lambda w=w: pet_happy(w), -6, 150, '안 씀 (11-15, 주인 C3 b: 기쁨 소리 없음) · 예전: 3번 넘게 쓰다듬은 뒤 기뻐함(10초에 한 번)',
         f'{"P25" if w == "pulse" else "TRI"} "뀨" D5↗F5 80ms + A5 60ms', group='pet_happy', min_gap_ms=10000)
 
 

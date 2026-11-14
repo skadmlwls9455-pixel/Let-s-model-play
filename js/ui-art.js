@@ -130,8 +130,8 @@ var UIART = (function () {
   }
   function layoutOne() { return document.documentElement.getAttribute('data-layout') === 'one'; }
   function ctlGroups() {
-    var door = $('btn-door'), stick = $('stick');   /* 왼쪽 아래 발자국 손잡이(11-08)도 왼쪽 무리 — 보일 때만 (바깥의 집 단추와는 같은 자리 · 배타적) */
-    return [layoutOne() ? null : boxesOf($('scene-ctl'), '.icon-btn:not([hidden]) .snd-box'), door && !door.hidden ? boxesOf(door, '.door-box') : null, stick && !stick.hidden ? boxesOf(stick) : null].filter(Boolean);
+    var door = $('btn-door'), yard = $('btn-yard'), stick = $('stick');   /* 왼쪽 아래 발자국 손잡이(11-08)도 왼쪽 무리 — 보일 때만 (바깥의 집 단추와는 같은 자리 · 배타적) · 11-15 마당 가장자리 단추 */
+    return [layoutOne() ? null : boxesOf($('scene-ctl'), '.icon-btn:not([hidden]) .snd-box'), door && !door.hidden ? boxesOf(door, '.door-box') : null, yard && !yard.hidden ? boxesOf(yard, '.door-box') : null, stick && !stick.hidden ? boxesOf(stick) : null].filter(Boolean);
   }
   /* 한 화면 배치 (주인 11-08): 장면 위에 왼쪽 상태 줄 · 오른쪽 아이콘이 한 띠로 얹혀 옆으로 비킬 틈이 없다 (360 폭에서 둘 사이 89px < 풍선 최소 96px).
      그래서 옆이 아니라 아래로 — 풍선이 띠의 어느 상자와 옆으로 겹치면 그 상자 밑(+pad)이 풍선의 위 한계. 안 겹치면 0 (장면 위 가장자리 규칙 그대로) */
@@ -156,7 +156,7 @@ var UIART = (function () {
      예전처럼 옅게(0.3) 두면 아이콘(앨범 · 설정 — 11-08 까지는 소리도)이 말풍선 글자 위에 그려졌다. 겹치지 않는 버튼은 그대로. 말풍선이 사라지면 돌아온다.
      r = 비킨 뒤의 풍선 상자 { left, right, top, bottom } (true = 모두 · false = 모두 되돌림) */
   function ctlYield(r) {
-    [].forEach.call(document.querySelectorAll('#scene-ctl .icon-btn, #btn-door'), function (btn) {
+    [].forEach.call(document.querySelectorAll('#scene-ctl .icon-btn, #btn-door, #btn-yard'), function (btn) {
       var on = false;
       if (r && !btn.hidden) {
         if (r === true) on = true;
@@ -175,7 +175,7 @@ var UIART = (function () {
     var sc = $('scene'); if (!sc || !b.closest('#scene3d')) { b.style.marginLeft = ''; b.style.maxWidth = ''; b.style.removeProperty('--ua-tail'); b.removeAttribute('data-tail'); return; }   /* 2D 무대는 app.js keepBubble2D (--bub-dy 도 거기서) */
     b.style.marginLeft = ''; b.style.removeProperty('--ua-tail'); b.style.removeProperty('--bub-dy'); b.removeAttribute('data-tail');
     var s = sc.getBoundingClientRect(), P = 4, px = pixel(), shift = 0;
-    var mw = Math.max(96, Math.min(220, Math.floor(s.width - 2 * P))) + 'px';
+    var mw = Math.max(128, Math.min(200, Math.floor(s.width / 2), Math.floor(s.width - 2 * P))) + 'px';   /* 11-15 (주인: 말풍선이 화면을 가린다): 폭은 장면 폭의 반 (128~200px) — 360 폭에서 180px, 글 12px 라 톡 한 줄이 두세 줄 */
     if (b.style.maxWidth !== mw) b.style.maxWidth = mw;
     /* 등장 애니메이션(아래 4px → 0) 도중에 재도 끝난 자리로 — 위 잘림만이 아니라 아이콘 피하기 · 숨기기도 (검증 11-08: 도중에 재면 아이콘과 위아래로 비껴 보여 그대로 두었다가 0.1 s 뒤 80px 옆으로 튀었다) */
     var r0 = b.getBoundingClientRect(), ly = liftY(b), r = { left: r0.left, right: r0.right, top: r0.top - ly, bottom: r0.bottom - ly, width: r0.width, height: r0.height };

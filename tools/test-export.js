@@ -126,6 +126,7 @@ var FORBIDDEN = [
   [/(^|\/)(listen|soundboard|preview|bench|demo)[^\/]*\.html$/i, '개발용 쪽']
 ];
 var PAGES = ['cook.html', 'credits.html', 'index.html'];
+var APP_MANIFEST = 'manifest.webmanifest';   /* 11-15: 홈 화면에 두기 (PWA) 목록 — 쪽은 아니지만 맨 위에 하나. 가리키는 아이콘은 c 가 본다 */
 var NOTICE = /Copyright \d{4} Katherine Nahm\. All rights reserved\./;
 
 /* vercel.json — 묶음만 봐서는 안 보이는 것. 설정 한 줄이 묶음 밖의 것을 내게 만들 수 있다 */
@@ -168,8 +169,8 @@ function partB(files) {
     var hit = files.filter(function (f) { return fb[0].test(f); });
     ok(!hit.length, '없다: ' + fb[1] + (hit.length ? ' — ' + some(hit) : ''));
   });
-  var odd = files.filter(function (f) { var b = path.basename(f), e = path.extname(b).toLowerCase(); return PAGES.indexOf(f) < 0 && !EX.LICENCE_TEXT.test(b) && EX.TYPES.indexOf(e) < 0; });
-  ok(!odd.length, '실린 것은 쪽 셋 · ' + EX.TYPES.join(' ') + ' · 라이선스 글뿐 ' + some(odd));
+  var odd = files.filter(function (f) { var b = path.basename(f), e = path.extname(b).toLowerCase(); return PAGES.indexOf(f) < 0 && f !== APP_MANIFEST && !EX.LICENCE_TEXT.test(b) && EX.TYPES.indexOf(e) < 0; });
+  ok(!odd.length, '실린 것은 쪽 셋 · ' + APP_MANIFEST + ' · ' + EX.TYPES.join(' ') + ' · 라이선스 글뿐 ' + some(odd));
 
   var take = names(EX.TAKE), priv = names(EX.PRIVATE), tops = topLevel();
   var undecided = tops.filter(function (n) { return take.indexOf(n) < 0 && priv.indexOf(n) < 0; });
@@ -435,6 +436,10 @@ function partC(files) {
       ['ogg', 'm4a'].forEach(function (fmt) { var p = s.files && s.files[fmt]; counts.manifest++; if (!p || !hit(dir + '/' + p)) mBad.push(dir + '/manifest.json ' + s.id + '.' + fmt + ' → ' + p); });
     });
   });
+  /* 11-15: 홈 화면 목록 (manifest.webmanifest) 의 아이콘 · 시작 주소 */
+  var appMan = null; try { appMan = JSON.parse(fs.readFileSync(path.join(SITE, APP_MANIFEST), 'utf8')); } catch (e) { appMan = null; }
+  ok(!!appMan && appMan.name === '뽈뽈 문어' && appMan.display === 'standalone' && (appMan.icons || []).length >= 3, APP_MANIFEST + ' 이 실려 있고 읽힌다 (이름 · standalone · 아이콘 ' + (appMan && (appMan.icons || []).length) + '개)');
+  if (appMan) (appMan.icons || []).forEach(function (ic) { counts.manifest++; var ref = localRef(ic.src); if (!ref || !hit(ref)) mBad.push(APP_MANIFEST + ' → ' + ic.src); });
   ok(counts.manifest > 500 && !mBad.length, '목록 셋 (assets · audio · foley) 이 가리키는 파일 ' + counts.manifest + '개가 다 있다 (소리는 .ogg · .m4a 둘 다) ' + some(mBad, 4));
 
   /* 서버가 손님 (MCP 호스트) 에게 알려 주는 우리 주소 */

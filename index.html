@@ -7,6 +7,15 @@
 <meta name="theme-color" content="#d7b594" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#10141f" media="(prefers-color-scheme: dark)">
 <title>뽈뽈 문어</title>
+<!-- 11-15 홈 화면에 두기 (주인: PWA): 앱 목록 · 아이콘은 게임 3D 문어 (tools/make-app-icons.js). 서비스 워커는 없다 — 자주 배포하는 게임이라 옛 판에 갇히지 않게 (늘 네트워크) -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/app/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/app/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icons/app/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="뽈뽈 문어">
 <!-- 첫 화면 픽셀 글꼴 미리 받기: 첫 화면이 쓰는 Galmuri 부분집합 넷(본문 9 · 버튼 11 · 굵은 11 · 메타 7)을 스타일시트를 다 읽기 전에 받기 시작한다.
      스크립트로 넣는 까닭: file:// 에서는 crossorigin preload 가 CORS 로 막혀 오류·경고가 나고, 시스템 글꼴을 골랐으면 건너뛴다 (쓰지 않게 되면 "preload 했는데 안 씀" 경고가 난다).
      crossorigin 이 없으면 @font-face 요청이 preload 를 다시 쓰지 않고 또 받는다. 스타일시트보다 앞에 있어야 기다리지 않고 바로 돈다 -->
@@ -19,6 +28,21 @@
     document.head.appendChild(l);
   });
 })();</script>
+<!-- 11-15 로딩 문어 (주인: "게임 속 문어가 오른쪽으로 뽈뽈 기어가는 반복 그림" · "빨간 문어 아이콘이 찰나에 뜨는 거"): 스크립트가 오기 전부터 장면 허공색 위로
+     게임 3D 문어의 걷는 옆모습 (assets/ui/loading_oct.png, 8칸 · tools/make-loading-oct.js) 이 가운데 줄을 왼쪽에서 오른쪽으로 기어간다. 앱이 첫 그림을 그리면 (html.booted) 걷힌다.
+     입장 레이어 (z 80) 아래 · 동작 줄이기면 가운데 멈춘 한 칸. 앱이 끝내 안 서면 load 뒤 12 s 에 스스로 걷는다 (예전 화면이라도 보이게) -->
+<link rel="preload" as="image" href="assets/ui/loading_oct.png">
+<style>
+#boot { position: fixed; inset: 0; z-index: 79; background: #090a14; overflow: hidden; pointer-events: none; }
+#boot .boot-oct { position: absolute; top: 50%; left: 0; width: 112px; height: 78px; margin-top: -39px; background: url("assets/ui/loading_oct.png") 0 0 / 896px 78px no-repeat; image-rendering: pixelated;
+  animation: boot-walk .8s steps(8) infinite, boot-cross 5.6s linear -1.6s infinite; }   /* 11-15 (검증 V2-4): 첫 바퀴를 화면 왼쪽 3분의 1 쯤에서 — 짧은 로딩에도 몸이 다 보인 채로 기어간다 (예전엔 화면 밖에서 출발해 반쪽만 보이고 걷혔다) */
+@keyframes boot-walk { to { background-position: -896px 0; } }
+@keyframes boot-cross { from { transform: translateX(-112px); } to { transform: translateX(100vw); } }
+@media (prefers-reduced-motion: reduce) { #boot .boot-oct { left: 50%; margin-left: -56px; animation: none; } }
+html.booted #boot { display: none; }
+html:not(.booted) #oct-svg { visibility: hidden; }
+</style>
+<script>try { window.addEventListener('load', function () { setTimeout(function () { document.documentElement.classList.add('booted'); }, 12000); }); } catch (e) {}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap">
 <link rel="stylesheet" href="vendor/fonts/galmuri.css"><!-- 픽셀 글꼴 (Galmuri, OFL) · file:// 상대 경로 -->
@@ -34,6 +58,7 @@
 <script>try { if (!/[?&]scene=2d(&|$)/.test(location.search)) document.documentElement.setAttribute('data-layout', 'one'); } catch (e) {}</script>
 </head>
 <body>
+<div id="boot" aria-hidden="true"><i class="boot-oct"></i></div>
 
 <!-- 저장 실패 경고 (조용히, 1회) -->
 <div id="save-warn" class="warn" hidden role="status"></div>
@@ -94,9 +119,9 @@
       <span class="ib-dot" aria-hidden="true" hidden></span>
       <span id="today-new" class="sr-only"></span>
     </button>
-    <!-- 가구 배치 (11-10 주인: "소파 모양을 포스터 아이콘 왼쪽에") — 누르면 배치 모드: 아래에 가구 줄, 고르면 캐릭터 앞에 붙는다. 다락이 보일 때만 (app.js furnBtnSync) -->
-    <button type="button" id="btn-furn" class="icon-btn furn-btn" aria-label="가구 배치" title="가구 배치" aria-pressed="false">
-      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M3 2h6v1H3zM2 3h1v3H2zM9 3h1v3H9zM3 3h6v2H3zM1 5h1v4H1zM10 5h1v4h-1zM2 6h8v3H2zM2 9h1v2H2zM9 9h1v2H9z"/></svg></span>
+    <!-- 가구 옮기기 (11-15 주인: 망치 그림 — 주황 자루 대각선 · 회색 머리 왼쪽 위, 색 있는 12×12 픽셀 · 다른 아이콘과 달리 일부러 색): 누르면 가구 모드 (app.js furnOpen). 한 화면 배치에서만 -->
+    <button type="button" id="btn-furn" class="icon-btn furn-btn" aria-label="가구 옮기기" title="가구 옮기기" aria-pressed="false">
+      <span class="snd-box" aria-hidden="true"><svg class="ham-ico" viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" focusable="false"><path fill="#2b1d22" d="M3 0h2v1H3zM2 1h1v1H2zM5 1h1v1H5zM1 2h1v1H1zM6 2h1v1H6zM0 3h1v1H0zM5 3h1v1H5zM0 4h1v1H0zM6 4h1v1H6zM1 5h1v1H1zM3 5h2v1H3zM7 5h1v1H7zM2 6h1v1H2zM5 6h1v1H5zM8 6h1v1H8zM6 7h1v1H6zM9 7h1v1H9zM7 8h1v1H7zM10 8h1v1H10zM8 9h1v1H8zM11 9h1v1H11zM9 10h2v1H9z"/><path fill="#e4e6ea" d="M3 1h1v1H3zM2 2h1v1H2zM1 3h1v1H1z"/><path fill="#a3a9b4" d="M4 1h1v1H4zM3 2h2v1H3zM2 3h2v1H2zM1 4h2v1H1z"/><path fill="#6e7480" d="M5 2h1v1H5zM4 3h1v1H4zM3 4h1v1H3zM2 5h1v1H2z"/><path fill="#f2913a" d="M5 4h1v1H5zM6 5h1v1H6zM7 6h1v1H7zM8 7h1v1H8zM9 8h1v1H9zM10 9h1v1H10z"/><path fill="#c2551e" d="M4 4h1v1H4zM5 5h1v1H5zM6 6h1v1H6zM7 7h1v1H7zM8 8h1v1H8zM9 9h1v1H9z"/></svg></span>
     </button>
     <button type="button" id="btn-album" class="icon-btn album-btn" aria-label="추억 앨범" title="추억 앨범" aria-haspopup="dialog" aria-controls="album-sheet" aria-describedby="album-new" hidden>
       <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M1 2h10v1H1zM1 10h10v1H1zM1 3h1v7H1zM10 3h1v7h-1z"/><path class="al-pic" d="M3 6h1v1H3zM2 7h3v1H2zM6 5h1v1H6zM5 6h3v1H5zM4 7h5v1H4zM2 8h8v2H2zM8 4h1v1H8z"/></svg></span>
@@ -116,18 +141,19 @@
     <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/home" alt="" width="32" height="32" draggable="false"><span class="door-txt">집</span></span>
   </button>
   <button type="button" id="btn-play-door" class="scene-spot" aria-label="문어 방" title="문어 방" aria-describedby="scene-desc" hidden></button>
+  <!-- 11-15 마당 문: #btn-yard = 다락 뒷벽 문간 (문어가 산책 나가는 문을 같이 쓴다) 위 투명 단추 · 산책 중 바깥이 보이는 동안은 data-spot="edge" 로 집 단추 옆 가장자리 단추 (그림 ctl/door, 안 오면 글자 '마당').
+       문어가 그 문으로 나가거나 들어오는 동안은 숨는다. #btn-yard-door = 마당 집 현관 → 집 (이야기 장소로) -->
+  <button type="button" id="btn-yard" class="scene-door scene-yard" aria-label="마당으로" title="마당으로" aria-describedby="scene-desc" hidden>
+    <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/door" alt="" width="32" height="32" draggable="false"><span class="door-txt">마당</span></span>
+  </button>
+  <button type="button" id="btn-yard-door" class="scene-spot" aria-label="집으로" title="집으로" aria-describedby="scene-desc" hidden></button>
   <!-- 소파 위 연한 노란 점 (11-10): 누르면 내 캐릭터가 소파 앞으로 걸어가 폴짝 뛰어 앉는다. 자리는 장면이 on.sofaSpot 으로 알려 준다 (app.js). 누르는 곳 44×44 · 보이는 점 10px -->
   <button type="button" id="btn-sofa" class="sofa-dot" aria-label="소파에 앉기" title="소파에 앉기" hidden><span aria-hidden="true"></span></button>
-  <!-- 가구 배치 모드 (11-10): 가구를 꾹 누르면 뜬다. 가구가 내 캐릭터 앞에 붙어 따라오고, 여기서 돌리기 · 크기 · 취소 · 놓기 (app.js furnUI · 장면 furnCarry) -->
+  <!-- 가구 모드 (11-15): 문어 · 캐릭터가 숨고 가구만 손가락으로 끌어 옮긴다. 위 = 취소 · 제목 · 저장하기 (+ 처음 한 번 안내 한 줄), 고른 가구 밑 = 돌리기 · 작게 · 크게 (자리는 장면이 준다), 아래 = 가구 줄 (톡 = 고르기) — app.js furnUI · 장면 furnMode -->
   <div id="furn-ui" class="furn-ui" hidden>
-    <div class="furn-top"><button type="button" class="btn sm pressable" id="furn-done">끝내기</button><strong id="furn-title">가구 배치</strong></div>
-    <!-- 고른 가구가 있을 때만: 회전 · 크기 슬라이더 + 취소 · 놓기 (참고 화면의 오른쪽 세로 슬라이더 · ✕ ✓ 자리) -->
-    <div id="furn-tools" class="furn-tools" hidden>
-      <label class="furn-sl"><span>회전</span><input type="range" id="furn-rot" min="0" max="345" step="15" value="0" aria-label="회전"></label>
-      <label class="furn-sl"><span>크기</span><input type="range" id="furn-size" min="70" max="150" step="5" value="100" aria-label="크기"></label>
-      <div class="furn-yn"><button type="button" class="btn sm pressable" id="furn-x">취소</button><button type="button" class="btn sm primary pressable" id="furn-ok">놓기</button></div>
-    </div>
-    <div id="furn-items" class="furn-strip" role="group" aria-label="가구"></div>
+    <div id="furn-top" class="furn-top"><button type="button" class="btn sm pressable" id="furn-x" aria-label="취소 (들어오기 전대로)">취소</button><strong id="furn-title">가구 옮기기</strong><button type="button" class="btn sm primary pressable" id="furn-ok" aria-label="저장하고 나가기">저장하기</button><p id="furn-hint" class="furn-hint">가구를 끌어서 옮겨</p></div>
+    <div id="furn-row" class="furn-row" role="group" hidden><button type="button" class="btn sm pressable" id="furn-turn" aria-label="돌리기 (90도)">돌리기</button><button type="button" class="btn sm pressable" id="furn-small" aria-label="작게">작게</button><button type="button" class="btn sm pressable" id="furn-big" aria-label="크게">크게</button></div>
+    <div id="furn-items" class="furn-strip" role="group" aria-label="가구 고르기"></div>
   </div>
   <!-- 가방 꼬리표 (11-10): 위쪽 바 아래 오른쪽에 매달린 '조개 N' — 누르면 살림 시트 (조개 · 씨앗 · 들어온 날 · 텃밭 · 옷 물들이기). 이름을 지은 뒤부터 보인다 -->
   <button type="button" id="btn-bag" class="bag-tag pressable" aria-haspopup="dialog" aria-controls="bag-sheet" hidden><span id="bag-n">조개 0</span></button>
@@ -137,7 +163,12 @@
   <button type="button" id="btn-plot0" class="scene-spot" aria-label="텃밭 첫째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-plot1" class="scene-spot" aria-label="텃밭 둘째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-plot2" class="scene-spot" aria-label="텃밭 셋째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot3" class="scene-spot" aria-label="텃밭 넷째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot4" class="scene-spot" aria-label="텃밭 다섯째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot5" class="scene-spot" aria-label="텃밭 여섯째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-sew" class="scene-spot" aria-label="재봉틀 · 옷 물들이기" title="재봉틀" aria-haspopup="dialog" hidden></button>
+  <!-- 11-15: 놀이방 조리대 → 부엌 (cook.html?embed=1 을 #cook-overlay 안 iframe 으로 — 처음 열 때 만든다) -->
+  <button type="button" id="btn-cook" class="scene-spot" aria-label="부엌" title="부엌" aria-haspopup="dialog" hidden></button>
   <!-- 발자국 손잡이 (가상 스틱, 주인 11-08 "바닥 톡보다 훨씬 자연스럽다"): 장면 왼쪽 아래 72px 고리 + 28px 손잡이. 끌면 그 화면 방향으로 내 캐릭터가 걷는다 (js/app.js stick 절 · scene.setPlayerInput).
        다락 · 놀이방이 보일 때만 — hidden 은 장면의 on.playerInput(allowed) 로 앱이 쥔다 (바깥 · 입장 연출 · 문 작업 · 전환 · 2D 폴백에선 숨김). 바깥의 집 단추(#btn-door edge)와 자리는 같은 왼쪽 아래지만 보이는 때가 서로 배타적이다.
        키보드 포커스는 받지 않는다 (aria-hidden — 키보드는 방향키 · WASD). 그림은 16×16 ×2 'ctl.walk' (발자국 둘), 안 오면 글자 '걷기'. 발자국 그림이 곧 손잡이다 (--kx · --ky) — 그 밑의 회색 네모 손잡이는 뺐다 (주인 11-10) -->
@@ -189,7 +220,7 @@
   <!-- 큰 도서관 '오늘의 서가' (js/shelf.js): 날짜로 정해지는 위키백과 알찬·좋은 글 8편. MCP 서버도 같은 날 같은 8편을 문어에게 보여 준다 -->
   <details id="shelf-today" class="shelf-today" hidden>
     <summary>오늘의 서가</summary>
-    <p class="shelf-note">날마다 바뀌는 위키백과 알찬 글·좋은 글 8편. 모델이 고르는 날엔 문어도 같은 서가를 본다.</p>
+    <p class="shelf-note">날마다 바뀌는 위키백과 알찬 글·좋은 글 8편. 모델이 고르는 날엔 문어도 이 서가를 봐.</p>
     <ul id="shelf-list"></ul>
   </details>
 </section>
@@ -228,9 +259,9 @@
 <!-- 먼 바다 문 (11-10): 등불 4칸 뒤 문어가 제안하면 사람이 한 번 고른다. 두 단추는 크기·모양이 같고 미리 골라진 쪽이 없다. 타이머 없음 (ROOM_EXPANSION 제안과 같은 틀). 11-13 (금지선 1): 첫 줄은 한 일(제안)만 — 예전 '가 보고 싶대' 는 코드가 문어 마음을 지어낸 말이라 뺐다 -->
 <dialog id="far-dialog" class="modal" aria-labelledby="far-h">
   <h2 id="far-h">먼 바다 문</h2>
-  <p class="name-lead">문어가 먼 바다 문 너머까지 가 보자고 했어. 열면 영어 위키백과도 읽을 수 있어.</p>
+  <p class="name-lead">문어가 먼 바다 문 너머로 가 보자고 했어. 열면 영어 위키백과도 읽을 수 있어.</p>
   <p id="far-line" class="far-line" hidden></p>
-  <p class="honest">한 번만 정하면 돼. 그대로 두어도 문어는 조르지 않아.</p>
+  <p class="honest">한 번만 정하면 돼. 그대로 둬도 조르지 않아.</p>
   <div class="btn-row far-btns"><button type="button" class="btn wide pressable" id="far-open">열어 줘</button><button type="button" class="btn wide pressable" id="far-keep">지금은 그대로</button></div>
 </dialog>
 <!-- ══ 이름 모달 = 첫 실행 (§7.8 · docs/SALON.md §1.1): 제목 → 한 줄 → 초상 → 몸 색 6칸 → 이름 칸 → 저장 → 정직 줄.
@@ -288,7 +319,7 @@
 <!-- ══ 내 모습 옷장 (11-09 주인: "외관도 이런 느낌 ui로 각 항목별로 고를 수 있게 카테고리 나눠도 좋을 듯") — 설정 › 내 모습 › '모습 바꾸기' 로 연다 (설정 시트 위에 겹친다).
      왼쪽 세로 탭(갈래 여섯: 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식) · 가운데 썸네일 타일 · 오른쪽 전신 미리보기(앞 · 뒤). 고르면 바로 입는다 (app.js openLook · docs/PLAYER_PARTS.md §3).
      본문(#look-body)은 app.js 가 채운다. 폰은 바텀시트, ≥600px 은 가운데 ══ -->
-<!-- ══ 살림 시트 (11-10): 조개 · 씨앗 · 들어온 날 · 텃밭 세 칸 · 옷 물들이기 — 본문은 app.js renderBag ══ -->
+<!-- ══ 살림 시트 (11-10): 조개 · 씨앗 · 들어온 날 · 텃밭 (11-15: 밭은 마당에 — 2D 폴백에서만 칸 단추) · 옷 물들이기 — 본문은 app.js renderBag ══ -->
 <dialog id="bag-sheet" class="sheet bag-sheet" aria-labelledby="bag-h">
   <div class="handle" aria-hidden="true"></div>
   <h2 id="bag-h" class="set-h dlg-top" tabindex="-1">살림</h2>
@@ -296,9 +327,12 @@
   <button type="button" class="btn wide pressable" id="bag-close">닫기</button>
 </dialog>
 
-<dialog id="sew-sheet" class="sheet bag-sheet" aria-labelledby="sew-h">
+<!-- 11-15: 부엌 (조리대 톡). 화면 가득 · 안은 cook.html?embed=1 (닫기 · Esc 는 부엌 쪽이 받아 postMessage 로 알린다) -->
+<dialog id="cook-overlay" class="cook-overlay" aria-label="부엌"></dialog>
+
+<dialog id="sew-sheet" class="sheet bag-sheet sew-sheet" aria-labelledby="sew-h">
   <div class="handle" aria-hidden="true"></div>
-  <h2 id="sew-h" class="set-h dlg-top" tabindex="-1">옷방 재봉틀</h2>
+  <h2 id="sew-h" class="set-h dlg-top" tabindex="-1">재봉틀</h2>
   <div id="sew-body"></div>
   <button type="button" class="btn wide pressable" id="sew-close">닫기</button>
 </dialog>
@@ -358,6 +392,7 @@
 <script src="js/clouds.js"></script><!-- 입장 하늘의 몽글한 픽셀 구름 (2D 캔버스, 날씨 × 시각대) -->
 <script src="js/scene3d.js"></script>
 <script src="js/scene2d.js"></script>
+<script src="js/haptics.js"></script><!-- 진동 (전역 HAPTICS, 11-15 5차): 기본 켬 · 설정 › 화면 › 진동 으로 끄기. 안 되는 기기면 조용히 아무 일 없음 -->
 <script src="js/audio.js"></script><!-- 소리 (전역 AUDIO): app.js 의 boot 가 AUDIO.init 을 부른다. 없거나 실패해도 게임은 그대로 -->
 <script src="js/dialogue-stub.js"></script><!-- 대사창 가짜 (전역 DLG — 카드 13 의 얼린 표). 진짜 js/dialogue.js 가 오면 이 줄만 바꾼다. 한 화면 배치의 대사 자리(#dlg-host)가 쓴다 -->
 <script src="js/poster-art-data.js"></script><!-- 포스터 픽셀 그림 (만든 파일, data URI) -->
