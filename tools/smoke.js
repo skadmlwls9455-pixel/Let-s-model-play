@@ -4529,8 +4529,9 @@ async function scenarioTapLine(browser) {
   ok(r7.text === want7 && r7.raw === want7 && r7.line === LONG && r7.by === 'mcp', "모델 차례 톡: 그들이 쓴 마무리 줄 그대로 24글자 + '…' (data-raw=model · 기록은 원문 그대로): " + r7.text);
   ok(r7.tagHidden, "모델이 쓴 줄이 떠 있는 동안 '데모' 꼬리표를 숨긴다 (규칙이 고른 말처럼 보이지 않게)");
   await page.waitForFunction(function () { return document.getElementById('oct-bubble').hidden; }, null, { timeout: 8000 }).catch(function () {});
-  await page.waitForTimeout(200);
-  ok(!(await page.evaluate(function () { return document.getElementById('brain-tag').hidden; })), "말풍선이 내려가면 '데모' 꼬리표가 돌아온다");
+  /* 꼬리표는 말풍선 타이머 60 ms 뒤 타이머로 돌아온다 — 느린 러너 (SwiftShader 프레임이 수백 ms) 에선 고정 200 ms 를 넘길 때가 있어 조건으로 기다린다 (CI 509b943) */
+  await page.waitForFunction(function () { return !document.getElementById('brain-tag').hidden; }, null, { timeout: 3000 }).catch(function () {});
+  ok(!(await page.evaluate(function () { return document.getElementById('brain-tag').hidden; })) && (await page.evaluate(function () { return document.getElementById('oct-bubble').hidden; })), "말풍선이 내려가면 '데모' 꼬리표가 돌아온다");
   /* 8. 말을 안 쓴 모델 차례 · 빈 차례 → '응?' */
   ok(await page.evaluate(function () { return APP.importEvents([{ type: 'depart', t: 0, hint: '' }, { type: 'peek', t: 1, target: { kind: 'room', id: 'hat' }, status: 'builtin', aside: '모자?' }, { type: 'return', t: 2, reason: 'enough' }, { type: 'wrap_up', t: 3, reaction: '덤덤' }]); }), '말 없는 모델 이벤트 재생 시작');
   await skipAway(page); await waitIdle(page); await page.waitForTimeout(3300);
