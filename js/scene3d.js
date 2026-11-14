@@ -1087,7 +1087,7 @@ var SCENE3D = (function () {
     function lampK(n) { return n > 0 ? 0.4 + 0.6 * n / 8 : FIRST_LIGHT.ember * nightK(); }   /* 등불 계수: 0칸 = 밤에만 작은 불씨(첫 불, 노을→밤 전환 동안 0→ember) · 1칸 0.475 → 8칸 1 (칸당 0.075, 예전 곡선 그대로) */
     function glowOpacity() { var n = st.lantern; return (light.glow || 0.7) * (n > 0 ? 0.43 + 0.57 * n / 8 : 0.43 * lampK(0) / 0.475); }   /* 8칸에서 시각대의 glow (낮 0.4 · 밤 0.7) · 0칸 불씨는 1칸 글로우의 계수 비례 */
     function applyLamp() {
-      var n = st.lantern, lit = n > 0, ember = !lit && nightK() >= 0.5, on = lit || ember, k = on ? lampK(n) : 0;   /* 0칸: 낮·새벽·노을 = 예전처럼 꺼짐(회색 유리) · 밤 = 불씨 (노을→밤 전환 중간부터, 세기는 nightK 를 따라 오른다). lit = 칸이 찬 등불(먼지·유리 밝은 칸) */
+      var n = st.lantern, lit = n > 0, ember = !lit && nightK() > 1e-3, on = lit || ember, k = on ? lampK(n) : 0;   /* 0칸: 낮·새벽·노을 = 예전처럼 꺼짐(회색 유리) · 밤 = 불씨 (11-15: 19-21시 8칸 섞기 첫 칸부터 — 예전 nightK ≥ 0.5 문턱이면 20:15 까지 꺼져 있었다. 세기는 lampK 가 nightK 를 따라 올린다). lit = 칸이 찬 등불(먼지·유리 밝은 칸) */
       lamp.intensity = (light.lamp || 1.2) * k; lamp.distance = light.lampD || 6;
       recolor(lampGlassGeo, 1, lit ? PAL.amber[2] : ember ? PAL.amber[1] : PAL.slate[1]); recolor(lampGlassGeo, 2, lit ? PAL.amber[5] : ember ? PAL.amber[4] : PAL.slate[2]);   /* 불씨: 유리·심지 띠가 한 칸씩 어둡다 */
       lampEm.visible = on; lampEm.material.color.copy(C(EM.lamp)).multiplyScalar((light.em || 1) * k);

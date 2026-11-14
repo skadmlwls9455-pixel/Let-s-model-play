@@ -67,6 +67,9 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     ok(distinct.length === 10, 'L1 조명 열쇠: 노을 → 8칸 (dn0 … dn7) → 밤 = 10 묶음 (' + distinct.join(' ') + ')');
     var dn0 = await page.evaluate(function () { APP.scene.setTime(18.9, true); var a = APP.scene.stats(); APP.scene.setTime(19.0, true); var b = APP.scene.stats(); return { a: a.em, b: b.em, ka: a.lightKey, kb: b.lightKey }; });
     ok(dn0.a === dn0.b && dn0.ka === 'dusk' && dn0.kb === 'dn0', 'L1 18:54 → 19:00 장면 em 그대로 (' + dn0.a + ' → ' + dn0.b + ') — 19시에 밤으로 툭 넘어가지 않는다');
+    var emb = [];
+    for (var eh of [19.25, 19.5, 20, 20.5]) { await at(page, eh); emb.push(await page.evaluate(function () { return APP.scene.stats().lampI; })); }   /* applyLamp 은 다음 프레임에 (lampDirty) */
+    ok(emb.every(function (v, i) { return v > 0 && (!i || v >= emb[i - 1]); }), 'L2 등불 0칸 불씨: 19:15 부터 켜지고 섞기 따라 커진다 (' + emb.join(', ') + ')');
     await at(page, 22);
     var s22 = await page.evaluate(function () { return APP.scene.stats(); });
     ok(s22.lampBase === 1.5 && s22.lampD === 7.5, 'L2 22시 밤 등불 세기 1.5 · 거리 7.5 (장면 ' + s22.lampBase + ' · ' + s22.lampD + ')');
