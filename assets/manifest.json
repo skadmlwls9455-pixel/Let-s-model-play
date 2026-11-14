@@ -673,10 +673,10 @@
   },
   "ui.bubble.think": {
     "src": "assets/ui/bubble_think.png",
-    "w": 24,
-    "h": 24,
-    "slice": 8,
-    "note": "생각 풍선 9-slice (구름 가장자리 — 혼잣말·기억)"
+    "w": 16,
+    "h": 16,
+    "slice": 6,
+    "note": "생각 풍선 9-slice 16×16 · 슬라이스 6 (11-15: 둥근 네모, 계단 모서리 · 옅은 남색 1px 선 — 혼잣말·기억). CSS: 6 fill / 12px. 꼬리는 둥근 점 둘"
   },
   "ui.bubble.whisper": {
     "src": "assets/ui/bubble_whisper.png",
@@ -695,7 +695,7 @@
     "src": "assets/ui/tail_think.png",
     "w": 8,
     "h": 8,
-    "note": "말풍선 꼬리 — 풍선 아랫변 가운데, 위 1줄이 풍선 선과 겹친다"
+    "note": "생각 풍선 꼬리 — 둥근 점 둘 (위가 크고 아래가 작다), 풍선 아랫변 가운데 1칸 아래 (11-15)"
   },
   "ui.tail.whisper": {
     "src": "assets/ui/tail_whisper.png",

@@ -82,13 +82,14 @@
   border-radius: 0; background: none; box-shadow: none; padding: 0 4px; color: #172038;
   bottom: calc(100% - 16px - var(--bub-dy, 0px)); image-rendering: pixelated;   /* 꼬리(16px) 끝이 머리 위 ≈20px 에 오게 · --bub-dy = 장면 위쪽에 잘리면 내림 (js/ui-art.js keepInside) */
 }
-:root[data-font="pixel"] #scene3d #oct-bubble[data-ua="think"] { border-image-source: url(../assets/ui/bubble_think.png); }
+/* 11-15 생각 풍선: 16×16 · 슬라이스 6 → 테 12px (말풍선 16px 보다 작다) · 안쪽 여백도 2px. 꼬리 끝 높이는 말풍선과 같게 (풍선이 4px 낮아진 만큼 위로) */
+:root[data-font="pixel"] #scene3d #oct-bubble[data-ua="think"] { border-width: 12px; border-image: url(../assets/ui/bubble_think.png) 6 fill / 12px round; padding: 0 2px; bottom: calc(100% - 12px - var(--bub-dy, 0px)); }
 :root[data-font="pixel"] #scene3d #oct-bubble[data-ua="whisper"] { border-image-source: url(../assets/ui/bubble_whisper.png); }
 :root[data-font="pixel"] #scene3d #oct-bubble[data-ua]::after {
   content: ''; position: absolute; left: 50%; margin-left: calc(-8px + var(--ua-tail, 0px)); top: calc(100% + 14px); width: 16px; height: 16px;
   background: url(../assets/ui/tail_say.png) 0 0 / 16px 16px no-repeat; image-rendering: pixelated;
 }
-:root[data-font="pixel"] #scene3d #oct-bubble[data-ua="think"]::after { background-image: url(../assets/ui/tail_think.png); top: calc(100% + 12px); }
+:root[data-font="pixel"] #scene3d #oct-bubble[data-ua="think"]::after { background-image: url(../assets/ui/tail_think.png); top: calc(100% + 14px); }   /* 점 둘은 풍선 선 1칸 아래부터 (겹치지 않는다) */
 :root[data-font="pixel"] #scene3d #oct-bubble[data-ua="whisper"]::after { background-image: url(../assets/ui/tail_whisper.png); top: calc(100% + 12px); }
 :root[data-font="pixel"] #scene3d #oct-bubble[data-tail="off"]::after { display: none; }   /* 많이 내려와 머리에 닿으면 꼬리는 뺀다 (keepInside) */
 
