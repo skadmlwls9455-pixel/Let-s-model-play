@@ -4306,6 +4306,7 @@ async function nameOct(page, nm) {
   await page.fill('#name-in', nm); await page.click('#name-form button[type=submit]');
   await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   await page.waitForTimeout(300);
+  await waitIdle(page);   /* 11-14 (CI T): 이름 창이 닫힌 뒤 600 ms (SHEET_SETTLE) 안의 큰 버튼 톡은 받지 않는다 — 느린 러너에서 첫 산책이 시작되지 않았다 */
 }
 async function scenarioTapLine(browser) {
   console.log('\n== T. 톡 한 줄 (말풍선만) · 데려와도 짧은 귀가 뒤 깨어 있는 틈 → 낮잠 (주인 11-08)');

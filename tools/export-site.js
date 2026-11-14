@@ -80,6 +80,7 @@ var PRIVATE = [
   ['library/',          '문어가 읽는 책 · 카드. api/mcp 함수가 읽는다 (vercel.json includeFiles) — 브라우저는 읽지 않는다'],
   ['play.html',         '컵 놀이 시제품. 본 게임 어디에서도 가지 않는다 (docs/PLAY_PROTO.md). 시험은 저장소에서 그대로 돈다'],
   ['README.md',         '저장소 설명'],
+  ['HANDOFF.md',        '다음 세션 인계 메모'],
   ['package.json',      'npm 설정 (함수 의존성 · 시험 명령)'],
   ['package-lock.json', 'npm 잠금 파일'],
   ['vercel.json',       '배포 설정'],
