@@ -1,6 +1,6 @@
 {
- "displayed": "25",
- "seed": 2297647356,
+ "displayed": "27",
+ "seed": 3407556270,
  "inputs": [
   {
    "t": 0,
@@ -11,20 +11,24 @@
    "a": "ju"
   },
   {
-   "t": 74,
+   "t": 73,
    "a": "jd"
   },
   {
-   "t": 88,
+   "t": 87,
    "a": "ju"
+  },
+  {
+   "t": 245,
+   "a": "jd"
   }
  ],
- "score": 25,
- "ticks": 157,
+ "score": 27,
+ "ticks": 247,
  "end": "hit",
  "night": false,
  "moss": 0,
- "version": "runner-1",
- "day": "2026-11-05",
- "at": 1793902421201
+ "version": "runner-2",
+ "day": "2026-11-14",
+ "at": 1794672571471
 }
