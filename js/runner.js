@@ -177,7 +177,7 @@ var RUNNER = (function () {
   var SEASON = { spring: ['#df84a5', '#c65197'], summer: ['#a8ca58', '#75a743'], autumn: ['#da863e', '#cf573c'], winter: ['#ebede9', '#c7cfcc'] };
 
   /* ── 문어 스프라이트: 초상 캡처 → 최근접 축소 24×24, 없으면 코드로 그린 문어 ── */
-  var EXPR = { run: 'curious', jump: 'happy', hit: 'calm', idle: 'pet' };
+  var EXPR = { run: 'curious', jump: 'happy', hit: 'calm', idle: 'idle' };   /* 11-14: 준비 그림은 idle 초상 — 예전 'pet' (웃는 눈 · 홍조). 'pet' 은 이제 쓰다듬는 동안의 눌린 idle 얼굴이라 (주인 O2 c) 빌려 쓰지 않는다 */
   var OUTLINE = [36, 21, 39];   /* #241527 */
   function hexRGB(h) { var n = parseInt(String(h || '').replace('#', ''), 16); if (!/^#?[0-9a-f]{6}$/i.test(String(h))) n = 0xe8463c; return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
   function mix(c, k) { return c.map(function (v) { return Math.max(0, Math.min(255, Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k))); }); }

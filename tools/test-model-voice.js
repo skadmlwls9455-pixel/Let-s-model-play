@@ -209,7 +209,7 @@ function byValues(o, out, k) {
     var chm = B.replay(base.concat([{ type: 'remember', t: 4, stopIdx: 0 }, { type: 'wrap_up', t: 5 }]), { by: 'mcp', now: NOW });
     if ((chm.affinityDelta[chm.receipt.stops[0].corner] || 0) !== (perCorner[chm.receipt.stops[0].corner] || 0) + 2) errs.push('the model\'s own memory lost its +2');
     check(errs.length === 0, 'what the brain filled in is labelled fallback; only what the model gave is labelled model (' + errs.length + ' errors)' + (errs.length ? ' e.g. ' + errs.join(' | ') : ''));
-    /* 데모 규칙의 마음 말(활동 뒷면 '빗소리가 좋아서 …', 힌트 '다른 데가 궁금했어', 반응 줄)이 모델 기록에 붙지 않는다 */
+    /* 데모 규칙의 줄(활동 뒷면 '빗소리를 들으며 …', 힌트 '다른 데로 갔어', 반응 줄 — 11-14 전엔 '빗소리가 좋아서 …' · '다른 데가 궁금했어')이 모델 기록에 붙지 않는다 */
     errs = [];
     (W.homeActivities || []).forEach(function (act) {
       var h = B.replay([{ type: 'stay_home', t: 0, activity: act.id }, { type: 'wrap_up', t: 1, reaction: '졸림' }], { by: 'mcp', state: { lantern: 3, posters: 3 } });

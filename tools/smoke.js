@@ -510,6 +510,10 @@ async function scenarioHonestLines(browser) {
   var pr = await q.page.evaluate(function () {
     function until(fn) { return new Promise(function (res) { (function w() { if (fn()) res(); else setTimeout(w, 20); })(); }); }
     var b = document.getElementById('oct-bubble'), o = document.getElementById('oct'), seen = [], tries = 0, said = [], sawBubble = false, sawWalk = false, multi = 0;
+    /* 11-14 (주인 O2 c): 쓰다듬는 동안 · '…' 뒤 4 s 동안 2D 얼굴 — 홍조(.blush) · 표정 · '…' 행 초상 표정 · 하트 파티클을 프레임마다 모은다 */
+    var face = { frames: 0, blush: 0, exprs: {}, after: {}, fx: 0 }, bl = o.querySelector('.blush');
+    if (window.UIART) { var fx0 = UIART.fx; UIART.fx = function (k) { if (k === 'heart') face.fx++; return fx0.apply(this, arguments); }; }
+    (function spy() { var st = APP.oct.state, ex = APP.scene.expression(); if (st === 'pet' || (!b.hidden && b.textContent === '…')) { face.frames++; if (bl && +getComputedStyle(bl).opacity > 0.05) face.blush++; (st === 'pet' ? face.exprs : face.after)[ex] = 1; } if (!window.__petSpyOff) requestAnimationFrame(spy); })();
     new MutationObserver(function () { var t = b.hidden ? '' : b.textContent; if (t && seen[seen.length - 1] !== t) seen.push(t); }).observe(b, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
     function once() {
       tries++; seen.length = 0; var from;
@@ -531,14 +535,74 @@ async function scenarioHonestLines(browser) {
         return (sawBubble && sawWalk) || tries >= 25 ? null : once();
       });
     }
-    return once().then(function () { return { tries: tries, said: said, sawBubble: sawBubble, sawWalk: sawWalk, multi: multi }; });
+    return once().then(function () {
+      window.__petSpyOff = true;
+      var rows = Array.prototype.slice.call(document.querySelectorAll('#log .lrow')).filter(function (r) { return r.dataset.say === '…'; }).map(function (r) { return r.dataset.expr; });
+      function bare(svg) { return String(svg).replace(/<g transform="[^"]*">/, '<g>'); }   /* 눌림 자세(transform) 만 빼고 같은 도형인가 */
+      return { tries: tries, said: said, sawBubble: sawBubble, sawWalk: sawWalk, multi: multi, face: face, rows: rows, portSame: bare(APP.scene.portraitSVG('pet')) === bare(APP.scene.portraitSVG('idle')) };
+    });
   });
   console.log('   쓰다듬기:', JSON.stringify(pr));
   var petAll = [].concat.apply([], pr.said);
   ok(pr.sawBubble && pr.sawWalk && pr.multi === 0 && petAll.length >= 1 && petAll.every(function (t) { return t === '…' && !FEEL_RX_IN(t); }),
     "쓰다듬기 뒤 말풍선은 '…' 하나 — 말 없음 (두 갈래 다: 말풍선 " + pr.sawBubble + ' · 걸어감 ' + pr.sawWalk + ', ' + pr.tries + '번: ' + JSON.stringify(pr.said) + ')');
+  /* 11-14 (주인 O2 c): 쓰다듬기는 사람이 한 일 — 하트 파티클은 그대로, 문어 얼굴은 idle (웃는 눈 · 입 · 홍조 · 밝아진 몸 없음) */
+  ok(pr.face.frames > 0 && pr.face.blush === 0 && pr.portSame && pr.rows.length >= 1 && pr.rows.every(function (e) { return e === 'idle'; }) && !pr.face.after.pet && pr.face.fx >= pr.tries,
+    "2D 쓰다듬기: 하트는 뜨고 (" + pr.face.fx + '/' + pr.tries + ") 얼굴은 idle — 장면 홍조 0/" + pr.face.frames + '프레임 · pet 초상 = idle 초상 (눌림만 다름) ' + pr.portSame + " · '…' 행 초상 " + JSON.stringify(pr.rows) + ' · 표정 ' + JSON.stringify(pr.face));
   reportErrors(q.bag, 'A-2 pet');
   await q.ctx.close();
+  /* 4. 3D 쓰다듬기 (11-14 주인 O2 c): 문어 위에서 손을 움직인다 (진짜 쓰다듬기 — 블록 E2 와 같은 길). 쓰다듬는 동안 · '…' 뒤에 장면 얼굴을 프레임마다 모은다:
+     웃는 눈(arcs) · 입(smile) · 홍조(blush) 없음 · 눈은 뜬 채 · 몸빛은 몸색 그대로. '…' 행 초상은 idle, 'pet' 초상에 idle 에 없는 색(홍조 · 몸빛)이 없다. 하트 파티클은 뜬다 */
+  var t3 = await newPage(browser, 'ok', [{ content: "window.__ppolLook = { octState: 'idle', anchor: 'center' };" }]);
+  await t3.page.goto(INDEX + '?dev=0');
+  await nameOct(t3.page, '쓰담셋');
+  if (await t3.page.evaluate(function () { return APP.sceneMode; }) !== '3d') { console.log('   (3D 없음 — 4 건너뜀)'); await t3.ctx.close(); return; }
+  await t3.page.evaluate(function () {
+    var F = window.__pf = { pet: 0, enter: 0, bub: 0, bad: [], after: {}, fx: 0, n: 0 }, b = document.getElementById('oct-bubble'), was = '', wasB = false;
+    if (window.UIART) { var fx0 = UIART.fx; UIART.fx = function (k) { if (k === 'heart') F.fx++; return fx0.apply(this, arguments); }; }
+    (function spy() {   /* 프레임마다 (시간이 아니라 상태로 센다 — 바쁜 기계에서도 같은 결과) */
+      var st = APP.oct.state, bub = !b.hidden && b.textContent === '…';
+      if (st === 'pet' && was !== 'pet') F.enter++;
+      if (bub && !wasB) F.bub++;
+      was = st; wasB = bub;
+      if (st === 'pet' || bub) {
+        var f = APP.scene.faceShown(); F.n++; if (st === 'pet') F.pet++; else F.after[f.expr] = 1;
+        if (f.arcs || f.smile || f.blush || (!f.eyes && f.applied !== 'blink') || String(f.hex).toLowerCase() !== String(f.color).toLowerCase()) { if (F.bad.length < 4) F.bad.push(st + ' ' + JSON.stringify(f)); }   /* 깜빡임(blink)은 idle 처럼 끼어든다 */
+      }
+      requestAnimationFrame(spy);
+    })();
+  });
+  /* 쓰다듬기 뒤 열에 일곱은 '…' (꾸밈 뽑기 uiRng — 시험이 못 정한다): '…' 를 한 번 볼 때까지 (최대 8번) 쓰다듬는다. 센 것은 페이지 안 프레임 감시(__pf)의 수 */
+  function pf() { return t3.page.evaluate(function () { return { enter: window.__pf.enter, bub: window.__pf.bub }; }); }
+  for (var pi3 = 0; pi3 < 8 && !((await pf()).bub >= 1); pi3++) {
+    await t3.page.waitForFunction(function () { return APP.oct.state === 'idle' && !APP.oct.busy && document.getElementById('oct-bubble').hidden; }, null, { timeout: 40000 }).catch(function () {});
+    var e0 = (await pf()).enter;
+    var oq3 = await t3.page.evaluate(function () { var p = APP.scene.octScreenPos && APP.scene.octScreenPos(); if (!p) return null; for (var dy = 0; dy <= 60; dy += 6) for (var dx = -12; dx <= 12; dx += 6) { var k = APP.scene.pickAt(p.x + dx, p.y + 20 + dy); if (k && k.kind === 'oct') return [p.x + dx, p.y + 20 + dy]; } return null; });
+    if (!oq3) continue;
+    await t3.page.mouse.move(oq3[0] - 6, oq3[1]); await t3.page.mouse.down(); for (var mi3 = 1; mi3 <= 6; mi3++) await t3.page.mouse.move(oq3[0] - 6 + mi3 * 3, oq3[1] + (mi3 % 2)); await t3.page.mouse.up();
+    await t3.page.waitForFunction(function (e0) { return window.__pf.enter > e0; }, e0, { timeout: 5000 }).catch(function () {});
+    await t3.page.waitForFunction(function () { return APP.oct.state !== 'pet'; }, null, { timeout: 15000 }).catch(function () {});
+    await t3.page.waitForFunction(function () { var b = document.getElementById('oct-bubble'); return (!b.hidden && b.textContent === '…') || APP.oct.state === 'walk'; }, null, { timeout: 6000 }).catch(function () {});
+  }
+  await t3.page.waitForFunction(function () { return document.getElementById('oct-bubble').hidden; }, null, { timeout: 15000 }).catch(function () {});   /* '…' 뒤 4 s 의 얼굴까지 본다 */
+  var cnt3 = await pf(), pets = cnt3.enter, bubbled = cnt3.bub >= 1;
+  var r3 = await t3.page.evaluate(function () {
+    function cols(e) { var c = APP.scene.portrait(e, { bg: 'navy' }), d = c.getContext('2d').getImageData(0, 0, 64, 64).data, m = {}; for (var i = 0; i < d.length; i += 4) { var k = d[i] + ',' + d[i + 1] + ',' + d[i + 2]; m[k] = (m[k] || 0) + 1; } return m; }
+    var idle = cols('idle'), pet = cols('pet'), novel = 0; Object.keys(pet).forEach(function (k) { if (!idle[k]) novel += pet[k]; });
+    function lum(m) { var t = 0, n = 0; Object.keys(m).forEach(function (k) { var c = k.split(',').map(Number); if (c[0] > 150 && c[1] < 200) { t += (c[0] + c[1] + c[2]) * m[k]; n += m[k]; } }); return n ? t / n : 0; }   /* 몸빛: 붉은 몸 칸의 평균 밝기 (팔레트에 맞춰 찍혀 새 색이 거의 안 생겨도 홍조는 몸을 밝게 한다 — 예전 +4.6 ~ +7.6, 지금 −0.8) */
+    var flush = +(lum(pet) - lum(idle)).toFixed(1);
+    var rows = Array.prototype.slice.call(document.querySelectorAll('#log .lrow')).filter(function (r) { return r.dataset.say === '…'; }).map(function (r) { return r.dataset.expr; });
+    APP.scene.portrait('pet', { bg: 'navy', fresh: true });   /* 11-14 고침 둘째: 몸빛은 어림(밝기 ≤ 2 — 10 % 홍조는 지나간다) 말고 칠한 색 그대로도 본다 */
+    var pl = APP.scene.portraitShown ? APP.scene.portraitShown() : null;
+    var portExact = !!pl && pl.expr === 'pet' && String(pl.hex).toLowerCase() === String(pl.base).toLowerCase() && !pl.arcs && !pl.smile && !pl.blush && pl.eyes;
+    return { F: window.__pf, novel: novel, flush: flush, rows: rows, portExact: portExact, pl: pl };
+  });
+  console.log('   3D 쓰다듬기:', JSON.stringify({ pets: pets, bubbled: bubbled, r: r3 }));
+  must(pets >= 1 && r3.F.pet > 0, '3D 문어 위에서 손을 움직이면 쓰다듬기가 시작된다 (아래 검사의 전제 — ' + pets + '번)');
+  ok(r3.F.bad.length === 0 && r3.F.fx >= pets && r3.novel <= 8 && r3.flush <= 2 && r3.portExact && (!bubbled || (r3.rows.length >= 1 && r3.rows.every(function (e) { return e === 'idle'; }) && !r3.F.after.pet)),
+    "3D 쓰다듬기: 하트는 뜨고 (" + r3.F.fx + '/' + pets + ") 얼굴은 idle — 웃는 눈 · 입 · 홍조 · 몸빛 없음 (" + r3.F.n + '프레임: ' + JSON.stringify(r3.F.bad) + ") · 'pet' 초상에 idle 에 없는 색 " + r3.novel + "px (≤ 8, 눌림 가장자리) · 'pet' 초상 몸빛 " + r3.flush + " (≤ 2) · 'pet' 초상에 칠한 색 = 몸색 · 웃는 눈 · 입 · 홍조 없음 " + r3.portExact + ' ' + JSON.stringify(r3.pl) + " · '…' 행 초상 " + JSON.stringify(r3.rows) + ' · 뒤 표정 ' + JSON.stringify(r3.F.after));
+  reportErrors(t3.bag, 'A-2 pet 3D');
+  await t3.ctx.close();
 }
 function FEEL_RX_IN(t) { return FEEL_RX.test(String(t || '')); }
 function reducedWait(ms) { return ms; }
@@ -3062,7 +3126,7 @@ async function scenarioSalon(browser) {
   function pickable(pg, n) { return pg.evaluate(function (n) { return SALON.bottles(APP.state, window.__ppolTest.today).filter(function (b) { return b.selectable; }).map(function (b) { return b.hex; })[n || 0]; }, n); }
   /* 12a. 11-09 (첫 물음 = '바꾸기'): 쓰다듬기 혼잣말 '…' 가 떠 있는 채로 묻는다 (쓰다듬기 뒤 2–4 s 에 묻는 때와 같은 화면) */
   await park(pz, 'center');
-  await pz.evaluate(function () { APP.say('…', 'pet', 1800); });
+  await pz.evaluate(function () { APP.say('…', 'idle', 1800); });   /* 쓰다듬기 뒤 혼잣말과 같은 부름 (11-14: 표정 idle — 예전 'pet') */
   var e2a = await askNow(pz, BLUE);
   await pz.waitForFunction(function () { return APP.salonStage && APP.salonStage.n >= 2; }, null, { timeout: 15000 }).catch(function () {});
   var e2b = await finishCount(pz), z1 = await st(pz);
