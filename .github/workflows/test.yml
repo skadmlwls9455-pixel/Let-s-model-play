@@ -123,6 +123,8 @@ jobs:
       matrix:
         include:
           - { key: scene-perf, name: 장면 성능, cmd: node tools/test-scene-perf.js }
+          # 저녁·밤 밝기 (19-21시 8칸) · 계단 표시 (11-15)
+          - { key: light, name: 저녁 빛 · 계단, cmd: node tools/test-light.js }
           # 놀이방 (play.html) — 안에서 스모크 A,B,I 와 글꼴 점검도 부른다 (fontTools 가 없으면 글꼴 줄은 건너뛴다: fonts 작업이 따로 본다)
           - { key: play, name: 놀이방, cmd: node tools/test-play.js }
           - { key: audio, name: 소리, cmd: node tools/test-audio.js }
