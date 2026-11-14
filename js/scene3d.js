@@ -280,8 +280,9 @@ var SCENE3D = (function () {
     day: { sun: '#dfe9ff', sunI: 3.0, elev: 30, az: 30, sky: '#d6ecf6', gnd: '#4a4030', hemiI: 0.36, fill: '#a9cbe2', fillI: 1.3, out: '#9fc7e8', lamp: 0.25, lampD: 5, glow: 0.4, pool: 0.3, candle: 0.4, em: 0.25, winEm: '#78a0c0', bg: '#1b1522' },
     dawn: { sun: '#f6b4a6', sunI: 2.0, elev: 20, az: 30, sky: '#e0c0c8', gnd: '#4a3a38', hemiI: 0.28, fill: '#c9b0bc', fillI: 0.8, out: '#e8b0b8', lamp: 0.5, lampD: 5.5, glow: 0.55, pool: 0.6, candle: 0.7, em: 0.6, winEm: '#a88090', bg: '#1b1522' },
     dusk: { sun: '#ffb070', sunI: 1.8, elev: 16, az: 30, sky: '#d08860', gnd: '#3a2e30', hemiI: 0.26, fill: '#b89a90', fillI: 0.7, out: '#e39a8c', lamp: 0.8, lampD: 6, glow: 0.6, pool: 0.75, candle: 0.85, em: 0.8, winEm: '#a87060', bg: '#1b1522' },
-    night: { sun: '#93a7c4', sunI: 0.5, elev: 30, az: 30, sky: '#1b2740', gnd: '#090b12', hemiI: 0.16, fill: '#4a5a80', fillI: 0.06, out: '#141c33', lamp: 1.2, lampD: 6, glow: 0.7, pool: 1.0, candle: 1.0, em: 1.0, winEm: '#3c507a', bg: '#0b1020' }
+    night: { sun: '#93a7c4', sunI: 0.5, elev: 30, az: 30, sky: '#1b2740', gnd: '#090b12', hemiI: 0.16, fill: '#4a5a80', fillI: 0.06, out: '#141c33', lamp: 1.5, lampD: 7.5, glow: 0.7, pool: 1.0, candle: 1.0, em: 1.0, winEm: '#3c507a', bg: '#0b1020' }
   };
+  /* 11-15 밤 등불 1.2 → 1.5 · 닿는 거리 6 → 7.5 (주인 11-14 "저녁이라 해도 너무 어두워서 조금 더 밝게") — 웅덩이 데칼도 lampD/6 만큼 넓어진다 */
   /* 발광 색 (룩 패스 6): 등불 유리 속 심지·양초 불꽃의 발광 타깃 색. 시각대 `em` 과 등불 칸 수로 배율, `winEm` 은 창 유리 발광 색(낮 = 하늘 밝게, 밤 = 희미한 차가운 색) */
   var EM = { lamp: '#ffc46a', flame: '#ffd990' };
   /* 첫 불 (소유자 폰 22:51 · 등불 0 · 비 = 창과 달빛 조각만 보이고 문어를 못 찾던 칠흑): 처음부터 방이 '어둑하지만 아늑한 다락' 으로 읽히고 문어가 늘 찾아지게. 전부 밤에만 (em 0.8→1 = nightK) — 낮·새벽·노을·바깥은 예전 그대로.
@@ -289,8 +290,21 @@ var SCENE3D = (function () {
      밤 바닥 = 다락 헤미를 sky/gnd · hemiI 쪽으로 (keep = 등불 칸과 무관하게 남는 몫: 1 = 모든 칸에서 같은 달빛 바닥 → 등불 빛이 안 닿는 앞쪽 바닥·깔개도 허공색에 묻히지 않고, 칸을 채워도 앞쪽이 어두워지지 않는다) ·
      필은 등불 칸이 낮을 때(0칸 전부 → upTo 칸 0) fillI 까지 ·
      문어 자체광 = 몸색(알베도)에 비례하는 흐린 빛 glow × (glow0 → glow8, 등불 칸에 따라 선형) — 동공·입은 어두운 채, 몸·흰자만 한 칸 뜬다 (블러·새 패스 없음, 툰 재질 유니폼 하나). 옅은 살구색이라 파랑·보라·초록 몸도 빨강만큼 뜬다 */
-  var FIRST_LIGHT = { ember: 0.25, sky: '#4d4a70', gnd: '#2a2024', hemiI: 0.4, keep: 1, fillI: 0.12, upTo: 4, glow: '#ffd8b0', glow0: 0.14, glow8: 0.06 };
+  var FIRST_LIGHT = { ember: 0.25, sky: '#4d4a70', gnd: '#2a2024', hemiI: 0.48, keep: 1, fillI: 0.12, upTo: 4, glow: '#ffd8b0', glow0: 0.14, glow8: 0.06 };
+  /* 11-15: 달빛 바닥 hemiI 0.4 → 0.48 (등불과 무관하게 남는 몫 — 0칸에서도 방이 한 칸 밝다) */
   function phaseOf(h) { return h < 6 ? 'night' : h < 9 ? 'dawn' : h < 17 ? 'day' : h < 19 ? 'dusk' : 'night'; }
+  /* 11-15 노을 → 밤 천천히 (주인 11-14 "저녁이라 해도 너무 어두워서"): 19시에 밤으로 툭 바뀌던 것을 19-21시 두 시간에 걸쳐 15분마다 한 칸, 8칸으로.
+     매 분 섞지 않고 칸으로 끊는다 — 픽셀 팔레트 스냅·디더가 일렁이지 않게. 값 = 밤 몫 (0 = 노을 그대로 · 1 = 밤). 6시 전 밤도 1, 낮·새벽·노을은 0 */
+  var DUSK_STEPS = 8, DUSK_H0 = 19, DUSK_H1 = 21;
+  function duskBlend(h) { h = ((+h % 24) + 24) % 24; if (h < 6) return 1; if (h < DUSK_H0) return 0; if (h >= DUSK_H1) return 1; return Math.floor((h - DUSK_H0) / (DUSK_H1 - DUSK_H0) * DUSK_STEPS + 1e-6) / DUSK_STEPS; }
+  function lightKey(h) { var ph = phaseOf(h), k = duskBlend(h); return ph === 'night' && k < 1 ? 'dn' + Math.round(k * DUSK_STEPS) : ph; }   /* 같은 열쇠 = 같은 조명 (setTime 이 다시 섞지 않는다) */
+  function lightAt(h) {   /* 그 시각의 조명 표: 19-21시 칸이면 노을·밤을 섞은 새 표 (LIGHTS 를 런타임에 바꿔도 다음 setTime 에 반영되게 캐시하지 않는다) */
+    var ph = phaseOf(h), k = duskBlend(h);
+    if (ph !== 'night' || k >= 1) return LIGHTS[ph];
+    var a = LIGHTS.dusk, b = LIGHTS.night, o = {};
+    Object.keys(b).forEach(function (key) { o[key] = typeof b[key] === 'number' ? a[key] + (b[key] - a[key]) * k : mixHex(a[key], b[key], k); });
+    return o;
+  }
 
   /* ═══════════════════════════ init ═══════════════════════════ */
   /* ── 내 캐릭터 파츠 카탈로그 (docs/PLAYER_PARTS.md §2·§3) — 정적 export (SCENE3D.PLAYER_PARTS · PLAYER_DEFAULT, 2D 폴백도 SCENE3D 가 있으면 읽는다).
@@ -387,6 +401,7 @@ var SCENE3D = (function () {
     var PLAY = null;   /* 놀이 kit (play.html 전용, makePlay): inst.play() 를 부르기 전엔 늘 null → 아래 `if (PLAY)` 훅 4개는 본 게임에서 아무것도 안 한다 */
     var PROOM = null;  /* 놀이방 장소 (8물결, buildPlayRoom): 처음 들어갈 때까지 null → `if (PROOM)` 훅들은 아무것도 안 한다 (시작 비용 0). 컵 놀이 kit 의 PLAY 와 다른 것 */
     var LROOM = null;  /* 위층 다락 (11-10, buildLoft): 처음 올라갈 때 만든다 */
+    var ATTIC_CUE = null;  /* 11-15 계단 표시 (stairCue): 다락 계단의 옅은 디딤판 띠 + 발치 초롱 */
     function isRoomP(p) { return p === 'play' || p === 'loft'; }
     /* 11-11 미용실 이사 (주인: "윗층 다락방에 미용실"): 거울 코너(salG)는 위층 뒷벽에 산다. 코너 · 연출의 좌표는 예전 다락 좌표 그대로 두고, 위층 안의 감싸는 그룹 LSALW 를 (dx, 0, dz) 만큼 옮겨 뒷벽에 맞춘다.
        문어는 깨어서 집에 있을 때 내가 위층에 오르면 따라 올라온다 (octMountLoft: octG 를 LSALW 로 — 그래서 문어 좌표도 연출 좌표 그대로. 차례 뒤 깨어 있는 틈엔 안 온다 — 주인 11-12) · 내려오거나 의식이 시작되면 다락으로 돌아간다 */
@@ -702,7 +717,7 @@ var SCENE3D = (function () {
       }
       var c = sun.shadow.camera; c.left = mn[0] - 0.1; c.right = mx[0] + 0.1; c.bottom = mn[1] - 0.1; c.top = mx[1] + 0.1; c.near = -mx[2] - 0.1; c.far = -mn[2] + 0.1; c.updateProjectionMatrix();
     }
-    var light = { from: null, to: LIGHTS[phaseOf(st.hour)], t: 1, dur: 60, sunI: 0 };
+    var light = { from: null, to: lightAt(st.hour), key: lightKey(st.hour), t: 1, dur: 60, sunI: 0 };
     /* 창 빛 조각 일렁임 (룩 패스 7): 비·가는 비일 때 키 광 세기 ×0.8 / ×1.0 을 ≈0.6 s(시드 지터 0.42~0.78 s)마다 교대 — 유리를 타고 흐르는 물의 그림자. 맑음·눈·모션 감소 = 1.0 고정 */
     var shim = { k: 1, t: 0, dur: 0.6, cyc: 0 };
     function stepShimmer(dt) {
@@ -731,7 +746,8 @@ var SCENE3D = (function () {
       scene.background.copy(lerpC(a.bg, b.bg, e));
       light.lamp = num('lamp'); light.lampD = num('lampD'); light.glow = num('glow'); light.pool = num('pool'); light.candle = num('candle'); light.em = num('em');
       light.out = lerpC(a.out, b.out, e).clone(); light.winEm = lerpC(a.winEm, b.winEm, e).clone();
-      lampDirty = true; if (extReady) extApplyLight(); if (PROOM) playApplyLight(); if (LROOM) loftApplyLight(); if (ATTIC_DOOR) doorsApplyLight();   /* 헤미·필 최종값(applyFloor)은 applyLamp 가 — 다음 렌더 전에 frame 이 lampDirty 를 처리한다 (전환 중 프레임당 한 번) */
+      lampDirty = true; if (extReady) extApplyLight(); if (PROOM) playApplyLight(); if (LROOM) loftApplyLight(); if (ATTIC_DOOR) doorsApplyLight();
+      cueApply(ATTIC_CUE); if (LROOM) cueApply(LROOM.cue);   /* 11-15 계단 표시: 노을·밤에만 */   /* 헤미·필 최종값(applyFloor)은 applyLamp 가 — 다음 렌더 전에 frame 이 lampDirty 를 처리한다 (전환 중 프레임당 한 번) */
       if (SAL) salNight();   /* 미용실 유리·병·물: 밤이면 한 칸 어둡게 (빛을 안 타는 basicV 라 밤에 전구처럼 뜨지 않게) */
     }
     /* 첫 불 — 밤 바닥·문어 자체광 (FIRST_LIGHT): applyLight 가 구한 시각대 헤미·필(base) 위에 얹는다. applyLamp 가 부른다 */
@@ -748,8 +764,9 @@ var SCENE3D = (function () {
       toonP.emissive.copy(toon.emissive); toonEye.emissive.copy(toon.emissive);   /* 내 캐릭터(눈 평면 포함)도 밤엔 같은 첫 불 자체광 — 훅이 emissive × diffuseColor 라 흰자·글린트만 한 칸 뜨고 동공은 어둡다 */
     }
     function setTime(h, instant) {
-      st.hour = h; var ph = LIGHTS[phaseOf(h)];
-      if (ph === light.to && !instant) return;
+      st.hour = h; var lk = lightKey(h);   /* 11-15: 시각대 대신 열쇠로 (19-21시는 15분 칸마다 새 열쇠 → 칸마다 예전처럼 60 s 에 걸쳐 넘어간다) */
+      if (lk === light.key && !instant) return;
+      var ph = lk === light.key ? light.to : lightAt(h); light.key = lk;
       if (instant || !ready) { light.from = null; light.to = ph; light.t = 1; }
       else if (ph !== light.to) { light.from = snapshotLight(); light.to = ph; light.t = 0; }
       applyLight(); updateStars();
@@ -796,6 +813,36 @@ var SCENE3D = (function () {
     /* 발광 쌍둥이 (룩 패스 6): 같은 지오메트리를 레이어 1 에만 두는 자식 메시 — 뷰티 카메라(레이어 0)엔 안 보이고 발광 패스에만 그려진다. depthWrite 끔 (뷰티 깊이를 공유, 같은 깊이라 LEQUAL 통과) */
     function emTwin(parent, geo) { var m = new T.Mesh(geo, keep(new T.MeshBasicMaterial({ color: 0xffffff, depthWrite: false }))); m.layers.set(1); m.castShadow = false; parent.add(m); return m; }
     function snapXZ(o) { o.position.x = snapPos(o.position.x); o.position.z = snapPos(o.position.z); return o; }   /* 소품: 바닥 격자(x·z)만 스냅, y 는 올려놓은 면에 맞춘다 */
+
+    /* 11-15 계단 눈에 띄게 (주인 11-14 "계단이 어두울 때는 잘 안 보이는데 눈에 띄게 만들 방법 강구해줘"): 저녁·밤에만 ① 디딤판 앞 모서리의 옅은 띠 (빛을 받는 종이색 + 아주 흐린 발광 쌍둥이)
+       ② 계단 자기 기둥 위 작은 초롱 (발광 유리 + 글로우 원판 — 진짜 점광은 늘리지 않는다: 방마다 점광 수가 같아야 방을 옮길 때 새 셰이더가 안 생긴다). 재질은 전부 있는 것과 같은 종류라 새 프로그램 0.
+       낮·새벽엔 둘 다 숨긴다 (낮 모습 그대로). 벽이 아니라 계단 기둥에 달려 있어 어느 쪽으로 돌려 봐도 계단과 같이 보인다. edges = [x, y, z, w, h, d] 띠 상자들 · lanAt = 초롱 바닥 자리 */
+    function stairCue(parent, edges, lanAt) {
+      var eGeo = keep(mergeParts(edges.map(function (e) { return { g: box(e[3], e[4], e[5]), m: M(e[0], e[1], e[2]), c: PAL.paper[1] }; })));
+      var edge = new T.Mesh(eGeo, lambert); edge.castShadow = false; edge.receiveShadow = true; parent.add(edge);
+      var edgeEm = emTwin(edge, eGeo);
+      var lan = new T.Group(); lan.position.set(lanAt[0], lanAt[1], lanAt[2]); parent.add(lan);
+      var fp = [{ g: box(0.15, 0.025, 0.15), m: M(0, 0.012, 0), c: PAL.wood[1] }, { g: box(0.17, 0.03, 0.17), m: M(0, 0.235, 0), c: PAL.wood[1] }, { g: box(0.05, 0.06, 0.05), m: M(0, 0.28, 0), c: PAL.wood[1] }];
+      [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(function (q) { fp.push({ g: box(0.018, 0.21, 0.018), m: M(q[0] * 0.065, 0.125, q[1] * 0.065), c: PAL.wood[1] }); });
+      var frame = new T.Mesh(keep(mergeParts(fp)), lambert); frame.castShadow = false; lan.add(frame);
+      var gGeo = keep(mergeParts([{ g: box(0.115, 0.2, 0.115), m: M(0, 0.125, 0), c: PAL.amber[4] }, { g: box(0.04, 0.08, 0.04), m: M(0, 0.12, 0), c: PAL.amber[5] }]));
+      var glass = new T.Mesh(gGeo, basicV); glass.castShadow = false; lan.add(glass);
+      var glassEm = emTwin(glass, gGeo);
+      var glow = new T.Mesh(keep(new T.PlaneGeometry(1.0, 1.0)), keep(new T.MeshBasicMaterial({ map: rtex, color: C(PAL.amber[3]), transparent: true, opacity: 0, depthWrite: false })));
+      glow.position.y = 0.125; glow.renderOrder = 5; lan.add(glow);
+      var q = { edge: edge, edgeEm: edgeEm, lan: lan, glassEm: glassEm, glow: glow, k: -1 };
+      cueApply(q); return q;
+    }
+    var CUE = { edge: 0.5, glass: 1.0, glow: 0.42 };   /* 밤(k 1)에 띠 발광 · 초롱 유리 발광 · 글로우 불투명도 */
+    function stairCueK() { var em = light.em == null ? 1 : light.em; return clamp((em - 0.6) / 0.4, 0, 1); }   /* 시각대 em: 낮 0.25 · 새벽 0.6 → 0 (숨김) · 노을 0.8 → 0.5 · 밤 1 → 1 */
+    function cueApply(q) {
+      if (!q) return;
+      var k = stairCueK(), on = k > 0; q.k = k;
+      q.edge.visible = on; q.lan.visible = on;
+      q.edgeEm.material.color.copy(C(EM.flame)).multiplyScalar(CUE.edge * k);
+      q.glassEm.material.color.copy(C(EM.lamp)).multiplyScalar(CUE.glass * k);
+      q.glow.material.opacity = CUE.glow * k;
+    }
 
     /* ── 다락방 정적 기하 (룩 패스 2: 밀도·구성) ──
        room   = 그림자 던짐·받음 (바닥·벽·받침·배경 잡동사니) → 드로우콜 1
@@ -868,6 +915,10 @@ var SCENE3D = (function () {
       seg(parts, [STAIR.x0 - 0.02, 0.85, STAIR.z1 - 0.04], [STAIR.x1 + 0.02, STAIR.top + 0.85, STAIR.z1 - 0.04], 0.035, W[2]);   /* 난간 */
       [0, 0.5, 1].forEach(function (t) { var x = STAIR.x0 + (STAIR.x1 - STAIR.x0) * t, y = STAIR.top * t; parts.push({ g: box(0.05, 0.85, 0.05), m: M(x, y + 0.43, STAIR.z1 - 0.04), c: W[1] }); });
       propCount += 2;
+      /* 11-15 계단 표시: 디딤판마다 앞(−x, 오르기 시작하는 쪽) 모서리 위에 옅은 띠 (디딤판보다 4 mm 크게 — 면이 겹쳐 깜빡이지 않게) · 발치 기둥(x0, z1) 꼭대기에 초롱 */
+      var ed = [];
+      for (k = 0; k < n; k++) ed.push([STAIR.x0 + run * k - 0.027 + 0.025, rise * (k + 1) - 0.03, zc, 0.054, 0.056, zw - 0.092]);
+      ATTIC_CUE = stairCue(atticG, ed, [STAIR.x0, 0.86, STAIR.z1 - 0.04]);
     })();
     /* 창: 턱·틀·살 */
     parts.push({ g: box(0.5, 0.08, WIN.z1 - WIN.z0 + 0.5), m: M(-R + 0.22, WIN.y0, (WIN.z0 + WIN.z1) / 2), c: W[2] });                                 /* 창턱 */
@@ -3715,6 +3766,9 @@ var SCENE3D = (function () {
       pp.push({ g: box(0.16, 0.03, hd - 0.12), m: M(HATCH.x0 + 0.12, 0.018, hz), c: W[4] }); pp.push({ g: box(0.16, 0.03, hd - 0.12), m: M(HATCH.x0 + 0.34, 0.016, hz), c: W[2] });
       [[HATCH.x0, HATCH.z0], [HATCH.x1, HATCH.z0], [HATCH.x1, HATCH.z1], [HATCH.x0, HATCH.z1]].forEach(function (q) { pp.push({ g: box(0.07, 0.8, 0.07), m: M(q[0], 0.4, q[1]), c: W[1] }); });
       pp.push({ g: box(hw, 0.06, 0.06), m: M(hx, 0.78, HATCH.z0), c: W[2] }); pp.push({ g: box(hw, 0.06, 0.06), m: M(hx, 0.78, HATCH.z1), c: W[2] }); pp.push({ g: box(0.06, 0.06, hd), m: M(HATCH.x1, 0.78, hz), c: W[2] }); n += 2;
+      /* 11-15 내려가는 길 표시 (다락 계단과 같은 stairCue): 구멍 테두리 셋 (들어가는 −x 쪽 · 앞뒤) + 안쪽 디딤판 둘의 앞 모서리 띠 · 카메라 쪽 앞(+x +z) 기둥 위 초롱 (들머리 −x 쪽 기둥은 올라온 내 캐릭터가 서는 자리라 가린다) */
+      var hatchEdges = [[HATCH.x0 + 0.025, 0.012, hz, 0.05, 0.02, hd], [hx, 0.012, HATCH.z0 + 0.025, hw, 0.02, 0.05], [hx, 0.012, HATCH.z1 - 0.025, hw, 0.02, 0.05],
+        [HATCH.x0 + 0.06, 0.02, hz, 0.04, 0.036, hd - 0.116], [HATCH.x0 + 0.28, 0.018, hz, 0.04, 0.036, hd - 0.116]];
       /* 옷방 (뒷벽): 재봉 책상 + 재봉틀 + 걸상 */
       var zb = -Rl + 0.06, sx = -0.2, sz = zb + 0.3;   /* 11-11: 뒷벽 왼쪽은 미용실 거울 자리 → 재봉 책상 · 옷감 선반을 오른쪽으로 */
       pp.push({ g: box(0.8, 0.05, 0.52), m: M(sx, 0.7, sz), c: W[3] }); [[-0.34, -0.2], [0.34, -0.2], [-0.34, 0.2], [0.34, 0.2]].forEach(function (q) { pp.push({ g: box(0.06, 0.68, 0.06), m: M(sx + q[0], 0.34, sz + q[1]), c: W[1] }); });
@@ -3765,7 +3819,7 @@ var SCENE3D = (function () {
       var shp = new T.Mesh(keep(mergeParts([{ g: box(2 * Rl + 1.2, 0.05, 2 * Rl + 1.2), m: M(0, PK + 0.3, 0), c: '#000000' }, { g: box(2 * Rl + 1.2, PK + 1.2, 0.05), m: M(0, PK / 2, Rl + 0.55), c: '#000000' },
         { g: box(0.05, PK + 1.2, 2 * Rl + 1.2), m: M(Rl + 0.55, PK / 2, 0), c: '#000000' }, { g: box(2 * Rl + 1.2, PK - H + 0.4, 0.05), m: M(0, (PK + H) / 2 + 0.2, -Rl - 0.1), c: '#000000' }])), shade.material);
       shp.castShadow = true; shp.receiveShadow = false; shp.frustumCulled = false; shp.renderOrder = -10; g.add(shp);
-      LROOM = { g: g, room: room, glass: gl, bulbEm: bulbEm, lA: lA, lB: lB, shade: shp, props: n, cushions: cush,
+      LROOM = { g: g, room: room, glass: gl, bulbEm: bulbEm, lA: lA, lB: lB, shade: shp, props: n, cushions: cush, cue: stairCue(g, hatchEdges, [HATCH.x1, 0.81, HATCH.z1]),
         sewBox: new T.Box3(new T.Vector3(sx - 0.4, 0, zb), new T.Vector3(sx + 0.4, 1.1, sz + 0.3)), hatchBox: new T.Box3(new T.Vector3(HATCH.x0, 0, HATCH.z0), new T.Vector3(HATCH.x1, 0.8, HATCH.z1)),
         boxes: [[sx, sz, 0.4, 0.28], [sx, sz + 0.55, 0.16, 0.16], [fcx, zb + 0.2, fw / 2 + 0.03, 0.22], [dx + 0.5, zb + dzb, 0.28, 0.28], [mx, mz, 0.2, 0.2], [1.55, 1.4, 0.37, 0.24], [hx + 0.1, hz, hw / 2 - 0.1, hd / 2]] };
       LSAL.dx = snapPos(-1.5) - SALC.x; LSAL.dz = snapPos(R - LOFT_R);   /* 다락 뒷벽(z = −R) 의 코너를 위층 뒷벽(z = −LOFT_R) 의 x = −1.5 로 */
@@ -3773,16 +3827,17 @@ var SCENE3D = (function () {
       loftApplyLight();
       return LROOM;
     }
+    function roomNightUp() { return 1 + 0.25 * nightK(); }   /* 11-15 위층·놀이방 벽 등: 밤(nightK 1)에 세기·거리 ×1.25 — 노을까지는 그대로 (주인 11-14 "저녁이라 해도 너무 어두워서") */
     function loftApplyLight() {
       var P = LROOM; if (!P) return;
-      var em = light.em == null ? 1 : light.em, nk = clamp((em - 0.25) / 0.75, 0, 1);
-      P.lA.intensity = 0.5 + 0.8 * nk; P.lB.intensity = 0.4 + 0.65 * nk;
+      var em = light.em == null ? 1 : light.em, nk = clamp((em - 0.25) / 0.75, 0, 1), up = roomNightUp();
+      P.lA.intensity = (0.5 + 0.8 * nk) * up; P.lB.intensity = (0.4 + 0.65 * nk) * up; P.lA.distance = 4.6 * up; P.lB.distance = 4.2 * up;   /* 11-15 밤 ×1.25 (다락 등불 1.2 → 1.5 · 6 → 7.5 와 같은 비율) */
       P.bulbEm.material.color.copy(C(EM.lamp)).multiplyScalar(0.6 + 0.4 * nk);
     }
     function playApplyLight() {   /* 벽 등 2: 낮에도 켜짐(약하게), 노을·밤에 세게 — 시각대 em (낮 0.25 → 밤 1) 따라. 화면·전구 발광도 */
       var P = PROOM; if (!P) return;
-      var em = light.em == null ? 1 : light.em, nk = clamp((em - 0.25) / 0.75, 0, 1);
-      P.lA.intensity = 0.5 + 0.8 * nk; P.lB.intensity = 0.4 + 0.65 * nk;
+      var em = light.em == null ? 1 : light.em, nk = clamp((em - 0.25) / 0.75, 0, 1), up = roomNightUp();
+      P.lA.intensity = (0.5 + 0.8 * nk) * up; P.lB.intensity = (0.4 + 0.65 * nk) * up; P.lA.distance = 4.6 * up; P.lB.distance = 4.2 * up;   /* 11-15 밤 ×1.25 (위층과 같이) */
       P.bulbEm.material.color.copy(C(EM.lamp)).multiplyScalar(0.6 + 0.4 * nk);
       P.screenEm.material.color.copy(C(PAL.sky[1])).multiplyScalar(0.3 + 0.4 * nk);
     }
@@ -4623,11 +4678,12 @@ var SCENE3D = (function () {
       post.uniforms.uDither.value = ditherNow();
       stepTrans(dt); stepCer(dt); stepDQ(dt);   /* 장소 전환 · 출발/귀가 의식 (바깥·계절·전환) · 방 문 */
       if (atticG.visible) stepWeather(dt); if (extG.visible) stepExt(dt); if (PROOM && PROOM.g.visible) stepPlayRoom(dt);
-      post.uniforms.uFade.value = PLACE.fade; if (PLACE.fade > 0) { var fk = hexToOklab(LIGHTS[phaseOf(st.hour)].bg); post.uniforms.uFadeOk.value.set(fk[0], fk[1], fk[2]); }
+      post.uniforms.uFade.value = PLACE.fade; if (PLACE.fade > 0) { var fk = hexToOklab(light.to.bg); post.uniforms.uFadeOk.value.set(fk[0], fk[1], fk[2]); }
       stepSalon(dt);   /* 미용실 연출 (몸 층 SAL.body 를 stepOct 가 읽는다) · 거울 속 문어 */
       stepOct(dt); stepPlayer(dt); stepCarry(dt); stepSofaSpot(); if (PLAY) PLAY.step(dt);   /* 놀이 kit: stepOct 가 매 프레임 새로 쓴 몸·팔 값 위에 덮어쓴다 */
       stepHang(dt); stepIntro(dt);
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(camera.quaternion);
+      if (ATTIC_CUE) ATTIC_CUE.glow.quaternion.copy(camera.quaternion); if (LROOM) LROOM.cue.glow.quaternion.copy(camera.quaternion);   /* 11-15 계단 초롱 글로우도 늘 카메라 쪽으로 */
       stepZoom(dt); stepPan(dt); placeCamera(); updateOverlay();
       if (!st.offscreen || st.force) draw(t0);   /* 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 */
       if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
@@ -5556,7 +5612,7 @@ var SCENE3D = (function () {
       loftProps: function () { return LROOM ? { cushions: LROOM.cushions.map(function (c) { return c.slice(); }) } : null; },   /* 위층 방석 [x, z, 아래 반지름] (검사용 — 11-12) */
       motion: function () { var vg = groupOf(PLACE.vis); return { salon: salMotion(), player: plInfo(), place: PLACE.vis, view: PLACE.vis, room: PLACE.room, dq: DQ.name, slidePx: Math.round(vg.position.dot(_r) / S.pw), slideUpPx: Math.round(vg.position.dot(_u) / S.pw), slideY: +vg.position.y.toFixed(4), transAxis: PLACE.trans ? PLACE.trans.axis : '', doorAttic: ATTIC_DOOR.f, doorPlay: PLAY_DOOR ? PLAY_DOOR.f : 0, trans: PLACE.trans ? +PLACE.trans.t.toFixed(3) : 0, fade: +PLACE.fade.toFixed(3), ceremony: CER.name, door: +DOOR_EXT.a.toFixed(2), octVisible: octG.visible, octFade: FADE.d, wave: WAVE.on, peek: PK.on ? PK.key + (PK.hold ? ':hold' : ':walk') : '', extStep: xanim.step, swayPx: swayPx, shimmer: shim.k, curtainFrame: CURT.frame, rainStep: anim.step, armStep: anim.armStep, blink: oct.blinkLeft > 0, reduced: st.reduced, expr: face.applied, hop: +bodyG.position.y.toFixed(3), armX: +arms[0].scale.x.toFixed(2), tilt: +(bodyG.rotation.z / DEG).toFixed(1), squashY: +bodyG.scale.y.toFixed(3), gait: { moving: G.moving, antic: G.antic > 0, phase: +G.phase.toFixed(3), step: Math.floor(G.phase), roll: +(G.roll / DEG).toFixed(1), yaw: +(G.yaw / DEG).toFixed(1), lean: +(G.lean / DEG).toFixed(1), armK: +G.armK.toFixed(2), bobPx: Math.round(bodyG.position.y * OCT_R / pxUp()), style: GAIT.stepped ? 'stepped' : 'smooth', at: (function () { var w = octG.getWorldPosition(new T.Vector3()); return [+w.x.toFixed(3), +w.y.toFixed(3), +w.z.toFixed(3)]; })() } }; },
       gaitStyle: function (s) { if (s === 'stepped' || s === 'smooth') GAIT.stepped = s === 'stepped'; return GAIT.stepped ? 'stepped' : 'smooth'; },   /* 디버그: 걸음 굴림 3단 스텝(기본) / 매끈 — tools/walk-strip.js 비교용 */   /* 룩 패스 7·8 디버그 */
-      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: +(S.N / baseN()).toFixed(4), props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, view: PLACE.vis, room: PLACE.room, frameY: frameY(), season: SEASON.cur, offscreen: !!st.offscreen, draws: drawN, callsAttic: callsBy.attic, callsExt: callsBy.exterior, callsPlay: callsBy.play, extProps: extPropN, playBuilt: !!PROOM, playProps: PROOM ? PROOM.props : 0, programs: renderer.info.programs ? renderer.info.programs.length : 0 }; },
+      stats: function () { return { calls: calls, target: [S.rw, S.rh], pixel: S.p, palette: PAL.list.length, paletteName: PAL.source, step: +PAL.step.toFixed(4), dither: +dither.base.toFixed(4), ditherFlat: +(dither.base * 0.125).toFixed(4), pw: +S.pw.toFixed(4), hasDepthTex: hasDepthTex, zoom: +(S.N / baseN()).toFixed(4), props: propCount, key: +st.look.key.toFixed(2), fill: +st.look.fill.toFixed(2), sun: +sun.intensity.toFixed(2), hemi: +hemi.intensity.toFixed(2), phase: phaseOf(st.hour), bloom: BLOOM, blur: blurOn ? 'h5v5' : 'off', em: +(light.em || 0).toFixed(2), expr: face.expr, portraitMs: PORT.ms, portraitN: PORT.n, portraitCache: Object.keys(PORT.cache).length, autoMs: perf.auto, autoPixel: st.look.autoPixel || 0, place: PLACE.cur, view: PLACE.vis, room: PLACE.room, frameY: frameY(), season: SEASON.cur, offscreen: !!st.offscreen, draws: drawN, callsAttic: callsBy.attic, callsExt: callsBy.exterior, callsPlay: callsBy.play, extProps: extPropN, playBuilt: !!PROOM, playProps: PROOM ? PROOM.props : 0, programs: renderer.info.programs ? renderer.info.programs.length : 0, duskK: duskBlend(st.hour), lightKey: light.key, lampI: +lamp.intensity.toFixed(3), lampD: +lamp.distance.toFixed(2), lampBase: +(light.lamp || 0).toFixed(3), moonHemi: FIRST_LIGHT.hemiI, hemiNow: +hemi.intensity.toFixed(3), cueK: +stairCueK().toFixed(3), cueAttic: !!(ATTIC_CUE && ATTIC_CUE.lan.visible), cueLoft: !!(LROOM && LROOM.cue.lan.visible) }; },
       refresh: function () { applyItems(); },
       pause: function () { st.paused = true; cancelAnimationFrame(raf); }, resume: function () { st.paused = false; lastDraw = 0; loop(); },
       destroy: function () {
@@ -5577,6 +5633,6 @@ var SCENE3D = (function () {
     };
   }
 
-  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, DOOR_ANCHORS: DOOR_ANCHORS, ITEM_LEVEL: { salon: 2 },   /* ITEM_LEVEL = 장면이 그리는 새 소품의 등불 칸 (앱 ITEM_LEVEL 이 같은 값을 쓴다) */ PLAY_SIZE: { floor: 2 * PLAY_R, wall: PLAY_H }, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS, FIRST_LIGHT: FIRST_LIGHT, EXPRESSIONS: EXPRESSIONS.slice(),
+  return { supported: supported, init: init, buildPalette: buildPalette, ramp: ramp, hexToOklab: hexToOklab, ANCHORS: ANCHORS, DOOR_ANCHORS: DOOR_ANCHORS, ITEM_LEVEL: { salon: 2 },   /* ITEM_LEVEL = 장면이 그리는 새 소품의 등불 칸 (앱 ITEM_LEVEL 이 같은 값을 쓴다) */ PLAY_SIZE: { floor: 2 * PLAY_R, wall: PLAY_H }, PAL_SOURCES: PAL_SOURCES, PAL_DEFAULT: PAL_DEFAULT, MAT: MAT, LIGHTS: LIGHTS, FIRST_LIGHT: FIRST_LIGHT, duskBlend: duskBlend, lightKey: lightKey, EXPRESSIONS: EXPRESSIONS.slice(),
     PLAYER_PARTS: PLAYER_PARTS, PLAYER_DEFAULT: PLAYER_DEFAULT, normalizePlayer: normalizePlayer, COSTUMES: COSTUMES };   /* 내 캐릭터 파츠 카탈로그 · 기본값 · 정규화 (docs/PLAYER_PARTS.md §3) */
 })();
