@@ -4632,7 +4632,7 @@ async function scenarioAwakeMore(browser) {
 async function scenarioTapFit(browser) {
   console.log('\n== T-2. 장면 말풍선 맞추기 (3D · 320 / 360 / 412 · 픽셀 · 시스템 · 라이트 / 다크)');
   var LINES = ['테셀레이션 보다가 뫼비우스 띠로 넘어갔어', Array.from('ㅋㅋ 이건 좀 웃겼어 그런데 다음엔 바다 쪽으로 가 볼래').slice(0, 24).join('') + '…', '처음 가 본 데가 있었어. 다리가 아직 들썩거려 그리고 또 갈래'];
-  var ANCH = ['window', 'center', 'crate', 'blanket', 'board', 'door'], VPS = [[320, 568], [360, 740], [412, 915]], bad = [], n = 0, tailBad = 0, slid = 0;
+  var ANCH = ['window', 'center', 'crate', 'blanket', 'board', 'door'], VPS = [[320, 568], [360, 740], [412, 915]], bad = [], n = 0, tailBad = 0, slid = 0, sizeBad = [];
   for (var vi = 0; vi < VPS.length; vi++) {
     var vp = VPS[vi];
     for (var scheme of (vi === 0 ? ['light', 'dark'] : ['light'])) {
@@ -4650,13 +4650,18 @@ async function scenarioTapFit(browser) {
               APP.scene.jumpTo(o.a); APP.say(o.t, 'say', 8000);
               setTimeout(function () { requestAnimationFrame(function () { requestAnimationFrame(function () {
                 var b = document.getElementById('oct-bubble'), s = document.getElementById('scene').getBoundingClientRect(), r = b.getBoundingClientRect(), dy = parseFloat(b.style.getPropertyValue('--bub-dy')) || 0;
-                res({ l: r.left - s.left, r: s.right - r.right, t: r.top - s.top, b: s.bottom - r.bottom, w: Math.round(r.width), h: Math.round(r.height), dy: dy, tail: b.getAttribute('data-tail'), hidden: b.hidden });
+                var cs = getComputedStyle(b); res({ l: r.left - s.left, r: s.right - r.right, t: r.top - s.top, b: s.bottom - r.bottom, w: Math.round(r.width), h: Math.round(r.height), dy: dy, tail: b.getAttribute('data-tail'), hidden: b.hidden, sw: s.width, fs: cs.fontSize, ff: cs.fontFamily.split(',')[0].replace(/["']/g, '').trim(), lh: parseFloat(cs.lineHeight) || 0, bt: parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth) + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) });
               }); }); }, 520);   /* 순간이동 뒤 5 Hz 다시 맞추기가 두 번 돈 다음 (바쁜 기계에선 첫 프레임이 옛 자리를 잴 수 있다) */
             });
           }, { a: a, t: LINES[li] });
           n++;
           if (r.hidden || r.l < 3.5 || r.r < 3.5 || r.t < 3.5 || r.b < 0) bad.push(vp[0] + 'x' + vp[1] + ' ' + scheme + ' ' + theme + ' ' + a + ' L' + li + ' ' + JSON.stringify(r));
           if (r.dy) slid++;
+          /* 11-15 갈래 H (주인: 말풍선이 화면을 가린다): 폭은 장면의 반 (128~200px) · 픽셀은 Galmuri11 12px (1배, 또렷) · 24+… 줄은 세 줄 안 */
+          var capW = Math.max(128, Math.min(200, Math.floor(r.sw / 2)));
+          if (r.w > capW + 0.5) sizeBad.push(vp[0] + ' ' + theme + ' ' + a + ' L' + li + ' w ' + r.w + ' > ' + capW);
+          if (theme === 'pixel' && (r.fs !== '12px' || r.ff !== 'Galmuri11' || r.lh !== 18)) sizeBad.push(vp[0] + ' pixel font ' + r.fs + ' ' + r.ff + ' ' + r.lh);
+          if (li === 1 && r.lh && Math.round((r.h - r.bt) / r.lh) > 3) sizeBad.push(vp[0] + ' ' + theme + ' ' + a + ' lines ' + Math.round((r.h - r.bt) / r.lh));
           if (theme === 'pixel' && ((r.dy > 12) !== (r.tail === 'off'))) tailBad++;
           var shot = (vp[0] === 320 && theme === 'pixel' && a === 'board' && li === 0 && scheme === 'light') ? 'fit-board-320x568-pixel.png'
             : (vp[0] === 320 && theme === 'system' && a === 'door' && li === 1 && scheme === 'light') ? 'fit-door-320-system.png'
@@ -4672,6 +4677,7 @@ async function scenarioTapFit(browser) {
   console.log('   배치 ' + n + '곳 · 아래로 민 것 ' + slid + (bad.length ? ' · 밖: ' + bad.slice(0, 4).join(' | ') : ''));
   ok(n >= 140 && bad.length === 0, '말풍선이 장면 칸 안 (가장자리 4px 안쪽 — 위 · 옆 · 아래) · 폰 세 폭 · 두 테마 · 앵커 여섯 · 22자 · 24+… · 40자 (' + n + '곳, 밖 ' + bad.length + ')');
   ok(tailBad === 0, '픽셀 꼬리는 12px 넘게 내려왔을 때만 뺀다 (' + tailBad + ')');
+  ok(sizeBad.length === 0, '11-15 작은 말풍선: 폭 ≤ 장면의 반 (128~200px) · 픽셀 Galmuri11 12px/18px · 24+… 줄은 세 줄 안 (' + n + '곳' + (sizeBad.length ? ', 어긋남 ' + sizeBad.length + ': ' + sizeBad.slice(0, 4).join(' | ') : '') + ')');
 }
 /* K. 데려오기: 기록은 안 데려온 것과 바이트 하나까지 같다 · 짧은 귀가(문 · 토스트 · 등불)가 보인다 · 두 번 눌러도 그대로 · 모션 줄이기 */
 async function scenarioBringBack(browser) {
