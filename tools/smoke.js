@@ -1032,6 +1032,7 @@ async function scenario2D(browser) {
   ok(ember0 && ember0.title === '불씨 하나 켜진 다락', "등불 0칸 방 제목 '불씨 하나 켜진 다락' (" + (ember0 && ember0.title) + ')');
   ok(await page.evaluate(function () { function vis(id) { var e = document.getElementById(id), r = e && e.getBoundingClientRect(); return !!r && r.width >= 44 && r.height >= 44; } return vis('btn-settings') && vis('btn-door') && !document.getElementById('btn-sound'); }), '2D 폴백에도 ⚙ 설정 · 놀이방 문 (누르는 곳 44px) · 장면 위 소리 단추 없음 (설정 안으로, 11-08)');
   await page.evaluate(function (h) { window.__ppolTest = Object.assign(window.__ppolTest || {}, { hint: h }); }, '모자의 역사');   /* 힌트 칸은 없앴다 (11-10) — 두뇌의 옛 길은 테스트 훅으로만 */
+  await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1) → APP.goResting 이 풀릴 때까지 */
   await page.click('#btn-go');
   await skipAway(page);
   await page.waitForSelector('#btn-go:not(.away)', { timeout: 30000 });
@@ -1091,6 +1092,7 @@ async function scenarioWake(browser) {
   var g0 = await greet();
   ok(g0.label === '인사' && g0.expr === 'happy' && /^안녕, 나는 /.test(g0.text), '처음 인사는 문어의 자기소개 · 웃는 얼굴 (' + g0.expr + ' · ' + g0.text + ')');
   async function walk() {
+    await waitIdle(page);   /* 11-14 (게이트): 이름 창이 막 닫힌 뒤 SHEET_SETTLE 안의 누름은 큰 버튼이 받지 않는다 (미용실 갈래 E1 = P1 — 두 번 톡의 둘째) → 받는 때까지 기다렸다가 누른다 */
     await page.click('#btn-go');
     await page.waitForFunction(function () { var g = document.getElementById('btn-go'); if (g && g.classList.contains('can-skip')) { g.click(); return true; } return g && !g.classList.contains('away'); }, null, { timeout: 30000, polling: 100 });
     await waitIdle(page);
@@ -5891,6 +5893,20 @@ async function scenarioLoft(browser) {
   ok(u60 && e60.done && z23.up && z23.phase === 'awake' && r60 && !z24.up && z24.st === 'sleep' && z24.an === 'blanket' && bl24 && z24.phase === 'nap' && !z24.rest,
     '위층에 남은 틈에 낮잠 중인 기록을 불러오면 위층에서 자지 않는다: 다락 담요에서 낮잠 · 옛 틈은 없다 (' + J5(z24) + ')');
   reportErrors(bag, 'Z-5g'); await A.ctx.close();
+  /* 5-9. 11-14 (게이트 Y): 위층에 따라 와 있는 동안 깨어 있는 기록을 불러오면 문어는 내 곁 그 자리에 그대로 — 아래층으로 가지 않고 (거울은 미용실 시트 그대로) ·
+        다락 자리 좌표로 옮겨 서지도 않는다 (예전) · 이 탭의 옛 틈은 남지 않는다. 프레임마다 적는다 (track5: 아래층 프레임 · 처음 자리에서 옮겨 간 거리) */
+  A = await open({ awake: AW, rec: REC(4), test: { forceKind: 'home' } }); pg = A.page;
+  await pg.evaluate(function () { var f = BRAIN.plan; BRAIN.plan = function () { var a = arguments; BRAIN.plan = f; return new Promise(function (r) { setTimeout(r, 20000); }).then(function () { return f.apply(BRAIN, a); }); }; });
+  await tap(pg, 'btn-go'); await tick(pg, 0.3);
+  var u61 = await stair(pg, true), e61 = await tick(pg, 90, IDLE5, null, 1, 0.2), z25 = await R5(pg);
+  await track5(pg);
+  var r61 = await pg.evaluate(function () { var o = JSON.parse(JSON.stringify(APP.state)), t = o.trips[o.trips.length - 1]; t.endedAt = Date.now() - 30 * 60 * 1000; o.octopus.state = 'idle'; return APP.importJSON(JSON.stringify(o)); });   /* 30 분 전에 끝난 차례 · 깨어 있는 문어 = 틈도 낮잠도 지났다 */
+  await tick(pg, 2); var z26 = await R5(pg), f61 = await untrack5(pg);
+  var so61 = await tapMirror(pg), q61 = await pg.evaluate(function () { return { sheet: document.getElementById('salon-sheet').open }; }), z27 = await R5(pg);
+  console.log('   위층에서 깨어 있는 기록 불러오기:', J5(z25), '→', J5(z26), JSON.stringify(f61), '거울 시트', q61.sheet, z27.toast);
+  ok(u61 && e61.done && z25.up && z25.phase === 'awake' && r61 && z26.up && z26.st === 'idle' && z26.phase === 'up' && !z26.rest && f61.down === 0 && f61.moved < 0.01 && so61 && q61.sheet && z27.toast !== DOWN,
+    '위층에 따라 와 있는 동안 깨어 있는 기록을 불러오면 문어는 내 곁 그 자리에 그대로 (아래층 프레임 ' + f61.down + ' · 옮겨 간 거리 ' + f61.moved + ' · 옛 틈 없음) · 거울은 미용실 시트 (' + J5(z26) + ')');
+  reportErrors(bag, 'Z-5h'); await A.ctx.close();
   }
 }
 
