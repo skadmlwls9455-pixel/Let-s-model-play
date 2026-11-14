@@ -1,0 +1,187 @@
+{
+ "steps": [],
+ "made": {
+  "layout": {
+   "sofa": [
+    -1.7,
+    2,
+    15,
+    0.85
+   ],
+   "crate": [
+    2,
+    -0.841,
+    345,
+    1.15
+   ]
+  },
+  "ids": [
+   "sofa",
+   "crate",
+   "blanket"
+  ],
+  "user": {
+   "shells": 47,
+   "seeds": 2,
+   "dyes": {
+    "red": 2,
+    "blue": 1,
+    "pink": 3
+   },
+   "days": [
+    "2026-11-14"
+   ],
+   "earned": [],
+   "garden": [
+    {
+     "color": "red",
+     "water": 2,
+     "wateredDay": "2026-11-13"
+    },
+    {
+     "color": "yellow",
+     "water": 1,
+     "wateredDay": "2026-11-14"
+    },
+    {
+     "color": "purple",
+     "water": 0,
+     "wateredDay": null
+    }
+   ],
+   "week": {
+    "key": "2026-11-09",
+    "q": [
+     {
+      "id": "ask",
+      "n": 2,
+      "rr": 0
+     },
+     {
+      "id": "loft",
+      "n": 0,
+      "rr": 0
+     },
+     {
+      "id": "plant",
+      "n": 0,
+      "rr": 0
+     },
+     {
+      "id": "kitchen",
+      "n": 0,
+      "rr": 0
+     },
+     {
+      "id": "run",
+      "n": 0,
+      "rr": 0
+     },
+     {
+      "id": "harvest",
+      "n": 0,
+      "rr": 0
+     },
+     {
+      "id": "look",
+      "n": 0,
+      "rr": 0
+     }
+    ],
+    "claimed": false
+   },
+   "giftDay": "2026-11-14",
+   "dye": "#4a86d8"
+  },
+  "trips": 3
+ },
+ "prodKeys": [
+  "ppolppol_v2",
+  "ppolppol_runner"
+ ],
+ "oldErrors": [
+  "console: Access to fetch at 'https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts|pageimages|links&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0&titles=%ED%98%B9%EB%93%B1%EA%B3%A0%EB%9E%98' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+  "console: Failed to load resource: net::ERR_FAILED",
+  "console: Access to fetch at 'https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts|pageimages|links&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0&titles=%EB%A9%94%EC%95%84%EB%A6%AC' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+  "console: Failed to load resource: net::ERR_FAILED",
+  "console: Access to fetch at 'https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts|pageimages|links&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0&titles=%EA%B0%80%EB%94%94%EC%96%B8%EC%A6%88%20%EC%98%A4%EB%B8%8C%20%EA%B0%A4%EB%9F%AD%EC%8B%9C%20(%EC%98%81%ED%99%94)' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+  "console: Failed to load resource: net::ERR_FAILED"
+ ],
+ "v2diffs": [
+  "$.settings.lastSeen: 1794679899286 -> 1794679906761",
+  "$.user.garden: +3 ([null,null,null])"
+ ],
+ "v2added": [
+  "$.user.plotTold=4"
+ ],
+ "seen": {
+  "layout": {
+   "sofa": [
+    -1.7,
+    2,
+    15,
+    0.85
+   ],
+   "crate": [
+    2,
+    -0.841,
+    345,
+    1.15
+   ],
+   "blanket": [
+    -0.667,
+    1.704,
+    0,
+    1
+   ]
+  },
+  "saved": {
+   "sofa": [
+    -1.7,
+    2,
+    15,
+    0.85
+   ],
+   "crate": [
+    2,
+    -0.841,
+    345,
+    1.15
+   ]
+  },
+  "garden": [
+   {
+    "color": "red",
+    "water": 2,
+    "wateredDay": "2026-11-13"
+   },
+   {
+    "color": "yellow",
+    "water": 1,
+    "wateredDay": "2026-11-14"
+   },
+   {
+    "color": "purple",
+    "water": 0,
+    "wateredDay": null
+   },
+   null,
+   null,
+   null
+  ],
+  "dyes": {
+   "red": 2,
+   "blue": 1,
+   "pink": 3
+  },
+  "shells": 47,
+  "dye": "#4a86d8"
+ },
+ "layoutCompare": [
+  "sofa: saved [-1.7,2,15,0.85] scene [-1.7,2,15,0.85]",
+  "crate: saved [2,-0.841,345,1.15] scene [2,-0.841,345,1.15]"
+ ],
+ "furnBtn": "btn-furn",
+ "newErrors": [],
+ "audioReq": []
+}

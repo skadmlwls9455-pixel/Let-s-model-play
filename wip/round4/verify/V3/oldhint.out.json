@@ -1,0 +1,28 @@
+{
+ "player": {
+  "hits": [],
+  "errors": []
+ },
+ "player:saved": {
+  "raw": "모자의 역사",
+  "match": {
+   "kind": "node",
+   "id": "hat"
+  },
+  "followed": "followed",
+  "note": "지금은 바깥 글을 못 읽어서 힌트 쪽엔 못 갔어"
+ },
+ "&dev=1": {
+  "hits": [],
+  "errors": []
+ },
+ "&dev=1:saved": {
+  "raw": "모자의 역사",
+  "match": {
+   "kind": "node",
+   "id": "hat"
+  },
+  "followed": "followed",
+  "note": "지금은 바깥 글을 못 읽어서 힌트 쪽엔 못 갔어"
+ }
+}

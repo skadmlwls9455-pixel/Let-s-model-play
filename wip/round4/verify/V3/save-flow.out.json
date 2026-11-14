@@ -1,0 +1,52 @@
+{
+ "layout0": "{\"sofa\":[-1.7,2,15,0.85],\"crate\":[2,-0.841,345,1.15]}",
+ "furnOn": true,
+ "layoutAfterSaveUntouched": "{\"sofa\":[-1.7,2,15,0.85],\"crate\":[2,-0.841,345,1.15]}",
+ "strip": [
+  "소파|",
+  "상자|",
+  "담요|"
+ ],
+ "selRowVisible": true,
+ "sceneAfterTurn": "{\"sofa\":[-1.689,2.5,105,0.85],\"crate\":[2,-0.841,345,1.15],\"blanket\":[-0.667,1.704,0,1]}",
+ "layoutAfterCancel": "{\"sofa\":[-1.7,2,15,0.85],\"crate\":[2,-0.841,345,1.15]}",
+ "sceneAfterCancel": "{\"sofa\":[-1.7,2,15,0.85],\"crate\":[2,-0.841,345,1.15],\"blanket\":[-0.667,1.704,0,1]}",
+ "layoutAfterSofaTurn": "{\"sofa\":[-1.689,2.5,105,0.85],\"crate\":[2,-0.841,345,1.15]}",
+ "export": {
+  "name": "ppolppol_2026-11-14.json",
+  "bytes": 13668,
+  "gardenLen": 6,
+  "trips": 3,
+  "layout": {
+   "sofa": [
+    -1.689,
+    2.5,
+    105,
+    0.85
+   ],
+   "crate": [
+    2,
+    -0.841,
+    345,
+    1.15
+   ]
+  },
+  "hintKept": true
+ },
+ "afterReset": {
+  "name": null,
+  "trips": 0,
+  "nameDlg": true,
+  "keys": [
+   "ppolppol_runner",
+   "ppolppol_v2"
+  ],
+  "runner": "{\"v\":1,\"best\":340,\"runs\":12,\"day\":\"\",\"dayN\":0,\"last\":null}"
+ },
+ "importSame": true,
+ "toast": "기록을 불러왔어",
+ "runnerStore": "{\"v\":1,\"best\":340,\"runs\":12,\"day\":\"\",\"dayN\":0,\"last\":null}",
+ "errors": [],
+ "audio": [],
+ "ac": []
+}
