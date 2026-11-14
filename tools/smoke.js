@@ -6497,6 +6497,126 @@ async function scenarioGarden(browser) {
   reportErrors(bag, 'X');
 }
 
+/* ── CAM. 11-15 돌려 보기 (갈래 A): 두 손가락 비틀기 1:1 · 끝 없음 · 핀치와 데드존 · 관성 (모션 줄이기면 없음) · 스틱은 돌려도 '위 = 화면 안쪽' · 단추가 그 물건 위 ·
+   180° 에서 카메라 쪽 벽은 잘리고 먼 벽은 온전 · 바닥 안에 허공 색이 없다 · 새로고침하면 0° · setYaw(0) · 바깥(산책)에선 기본 구도로 갔다가 돌아온다 · 셰이더 수 그대로.
+   진짜 손가락 = CDP Input.dispatchTouchEvent. 각은 장면 값(APP.scene.yawInfo)으로, 끝 상태를 기다린다 (시간이 아니라) ── */
+async function scenarioTurn(browser) {
+  console.log('\n== CAM. 돌려 보기: 두 손가락 비틀기 · 핀치 · 관성 · 스틱 · 단추 · 벽 자르기 · 새로고침 · 바깥');
+  var O = 'http://ppolppol.example', bag = []; bag.ignored = [];
+  var RED = '#e8463c', BORN = 1762600000000, WAIT = +process.env.SMOKE_WAIT || 180000;
+  var REC = { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 5, days: ['2026-11-06', '2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10'], affinity: {}, visits: {}, state: 'idle', color: RED,
+    colors: [{ at: BORN, date: '2026-11-06', color: RED, how: 'first', by: 'player' }] }, room: { lantern: 5, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
+    settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
+  var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+  await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+  await ctx.addInitScript({ content: "if (!localStorage.getItem('__cam_seed')) { localStorage.setItem('__cam_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(REC)) + '); } ' +
+    "window.__ppolTest = { today: '2026-11-11' }; window.__ppolLook = { hour: 13, weather: 'clear' };" });
+  var page = await ctx.newPage(); watchErrors(page, bag); page.setDefaultNavigationTimeout(WAIT);
+  if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+  await routeWiki(page, 'ok'); await routeRepo(page, O);
+  async function boot() { await page.waitForSelector('#btn-go:not(.away)', { timeout: WAIT }); await page.waitForFunction(function () { return window.APP && APP.scene && APP.scene.yawInfo; }, null, { timeout: WAIT }); }
+  await page.goto(O + '/index.html?dev=0&intro=0'); await boot();
+  var cdp = await ctx.newCDPSession(page);
+  function info() { return page.evaluate(function () { var y = APP.scene.yawInfo(); y.zoom = APP.scene.pan().zoom; return y; }); }
+  function rest() { return page.waitForFunction(function () { var y = APP.scene.yawInfo(); return !y.easing && !y.mode && !APP.scene.pan().mode; }, null, { timeout: WAIT, polling: 50 }); }
+  /* 두 손가락: 가운데 (cx, cy) 둘레 반지름 r0 → r1 로, 각 a0 → a1 (도). hold = 끝에서 멈춘 채 120 ms (관성 0) */
+  async function fingers(a0, a1, r0, r1, n, hold, stamp) {   /* stamp = 손가락이 움직인 시각을 16 ms 간격으로 달아 보낸다 (느린 기계에서도 관성 속도가 같게 — 밀기 관성 검사와 같은 방법) */
+    var cx = 180, cy = 330, T0 = Date.now() + 50;
+    function at(k) { var a = (a0 + (a1 - a0) * k) * Math.PI / 180, r = r0 + (r1 - r0) * k; return [{ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), id: 1 }, { x: cx - r * Math.cos(a), y: cy - r * Math.sin(a), id: 2 }]; }
+    function ev(type, pts, i) { var o = { type: type, touchPoints: pts }; if (stamp) o.timestamp = (T0 + 16 * i) / 1000; return cdp.send('Input.dispatchTouchEvent', o); }
+    await ev('touchStart', at(0), 0);
+    for (var i = 1; i <= n; i++) { await ev('touchMove', at(i / n), i); await page.waitForTimeout(16); }
+    if (stamp && !hold) { await ev('touchEnd', [], n + 1); return; }
+    if (hold) { await page.waitForTimeout(130); await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(1) }); await page.waitForTimeout(130); }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  }
+  var progs0 = await page.evaluate(function () { return APP.scene.stats().programs; });
+
+  /* 1. +90° 비틀기 → 90° (±2) · 줌 그대로 · 2. 180° · 360° 를 넘어도 계속 (끝 없음) */
+  var y0 = await info();
+  await fingers(0, 90, 90, 90, 18, true); await rest(); var y1 = await info();
+  ok(Math.abs(y1.yaw - y0.yaw - 90) <= 2 && y1.shown === y1.yaw && y1.zoom === y0.zoom, '두 손가락 +90° 비틀기 → 방도 ' + (y1.yaw - y0.yaw) + '° (±2) · 줌 그대로 ' + y1.zoom);
+  await fingers(0, 120, 90, 90, 24, true); await rest(); var y2 = await info();
+  await fingers(0, 170, 90, 90, 34, true); await rest(); var y3 = await info();
+  ok(y2.yaw > 180 && y3.yaw > 360 && Math.abs(y3.yaw - y0.yaw - 380) <= 4, '180° · 360° 를 넘어도 끝없이: ' + y1.yaw + ' → ' + y2.yaw + ' → ' + y3.yaw + '° (9° 계단 · ±25° 끝 없음)');
+  await fingers(0, -60, 90, 90, 12, true); await rest(); var y3b = await info();
+  ok(Math.abs(y3b.yaw - y3.yaw + 60) <= 2, '거꾸로 −60° 비틀면 ' + (y3b.yaw - y3.yaw) + '° (방이 손가락과 같은 쪽으로)');
+  /* 3. 핀치만 (각 그대로, 거리 ×1.6) → 안 돈다 · 줌은 는다 · 데드존 안의 작은 비틀기 (5°) 는 안 돈다 */
+  var p0 = await info(); await fingers(30, 30, 60, 96, 12, true); await rest(); var p1 = await info();
+  ok(p1.yaw === p0.yaw && p1.zoom > p0.zoom, '핀치만: 각 그대로 (' + p0.yaw + ' → ' + p1.yaw + ') · 줌 ' + p0.zoom + ' → ' + p1.zoom);
+  await fingers(30, 35, 96, 96, 5, true); await rest(); var p2 = await info();
+  ok(p2.yaw === p1.yaw && p2.zoom === p1.zoom, '데드존 안의 5° 비틀기는 안 돈다 (' + p2.yaw + ') · 줌도 그대로');
+  /* 4. setYaw(0) · 관성 (멈추지 않고 떼면 조금 더 돌고 0.5 s 안에 선다) · 모션 줄이기면 관성 없음 */
+  var z0 = await page.evaluate(function () { APP.scene.setYaw(0, true); APP.scene.zoomStep(0); return APP.scene.yawInfo(); });
+  ok(z0.yaw === 0 && z0.shown === 0, 'setYaw(0, true) → 0° (보이는 각도 0)');
+  await rest();
+  await fingers(0, 60, 90, 90, 6, false, true); var c0 = await info(); await rest(); var c1 = await info();
+  ok(c0.v > 0 && c1.yaw > c0.yaw && c1.yaw - c0.yaw <= 30 && c1.v === 0, '떼는 순간 돌던 손이면 살짝 관성: 뗄 때 ' + c0.yaw + '° (v ' + c0.v + ') → 멈춤 ' + c1.yaw + '° (더 돈 것 ≤ 30°)');
+  await page.evaluate(function () { APP.scene.setReducedMotion(true); APP.scene.setYaw(0, true); });
+  await fingers(0, 60, 90, 90, 6, false, true); var r0 = await info(); await page.waitForTimeout(200); var r1 = await info();
+  ok(r0.v === 0 && r1.yaw === r0.yaw && Math.abs(r0.yaw - 60) <= 2, '모션 줄이기: 관성 없음 (뗄 때 ' + r0.yaw + '° → ' + r1.yaw + '°)');
+  await page.evaluate(function () { APP.scene.setReducedMotion(false); });
+  /* 5. 180° 에서: 스틱 위 = 화면 안쪽 (카메라에서 멀어짐) · 다락 벽 (왼 · 뒤 잘림, 오른 · 앞 온전) */
+  await page.evaluate(function () { APP.scene.setYaw(180, true); }); await rest();
+  var st5 = await page.evaluate(function () { var p = APP.scene.player(); APP.scene.debugPlayerAt(0.4, 0.6); return { at: APP.scene.player().at, was: p.at }; });
+  await page.evaluate(function () { APP.scene.setPlayerInput({ x: 0, y: 1 }); });
+  await page.waitForFunction(function (a) { var p = APP.scene.player().at; return Math.hypot(p[0] - a[0], p[2] - a[2]) > 0.5; }, st5.at, { timeout: WAIT, polling: 30 });
+  var st6 = await page.evaluate(function () { APP.scene.setPlayerInput(null); return { at: APP.scene.player().at, shown: APP.scene.yawInfo().shown, cut: APP.scene.yawInfo().cut }; });
+  var a6 = (45 + st6.shown) * Math.PI / 180, dx = st6.at[0] - st5.at[0], dz = st6.at[2] - st5.at[2], away = -(dx * Math.sin(a6) + dz * Math.cos(a6)) / Math.hypot(dx, dz);
+  ok(away > 0.9, '180° 에서 스틱 위 → 캐릭터가 카메라에서 멀어진다 (방향 내적 ' + away.toFixed(3) + ')');
+  ok(st6.cut.left && st6.cut.back && st6.cut.corner && !st6.cut.right && !st6.cut.front, '다락 180°: 카메라 쪽 왼벽 · 뒷벽 · 모서리 잘림 · 오른벽 · 앞벽 온전 ' + JSON.stringify(st6.cut));
+  var c90 = await page.evaluate(function () { APP.scene.setYaw(0, true); return APP.scene.yawInfo().cut; });
+  ok(c90.right && c90.front && !c90.left && !c90.back && !c90.corner && !c90.stair && !c90.either, '다락 0°: 예전처럼 앞 · 오른쪽이 열려 있다 (새 벽 숨김) · 예전 벽은 온전 ' + JSON.stringify(c90));
+  /* 6. 방마다 180°: 잘린 벽 · 먼 벽 · 바닥 안에 허공 색 없음 (바닥 네 모서리 투영을 안쪽으로 20 % 줄인 다각형 안의 픽셀) · 90° · 180° 에 단추가 그 물건 위 */
+  function voidIn(corners, H) {   /* 방 그림자 실루엣 (바닥 네 모서리 + 안 잘린 벽이 닿는 모서리는 벽 높이 H 까지) 의 볼록 껍질을 가운데로 6 % 줄인 안쪽 3 px 마다: 그 픽셀이 허공인가
+                                     (장면 레이캐스트 — 보이고 그려지는 메시에 하나도 안 맞음). 먼 벽이 없으면 (예전 다락을 뒤에서 보면) 바닥 너머 위쪽이 허공으로 걸린다 */
+    return page.evaluate(function (a) {
+      var cut = APP.scene.yawInfo().cut, adj = [['left', 'back'], ['right', 'back'], ['right', 'front'], ['left', 'front']], r = document.getElementById('scene').getBoundingClientRect(), pts = [];
+      a.cs.forEach(function (c, i) { [0, a.H].forEach(function (h) { if (h && cut[adj[i][0]] && cut[adj[i][1]]) return; if (h && !(!cut[adj[i][0]] || !cut[adj[i][1]])) return; var p = APP.scene.screenOf(c[0], h, c[1]); pts.push([r.left + p.x, r.top + p.y]); }); });
+      pts.sort(function (p, q) { return p[0] - q[0] || p[1] - q[1]; });
+      function cr(o, p, q) { return (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0]); }
+      var lo = [], up = []; pts.forEach(function (p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); });
+      pts.slice().reverse().forEach(function (p) { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); });
+      var P = lo.slice(0, -1).concat(up.slice(0, -1)), mx = 0, my = 0; P.forEach(function (p) { mx += p[0] / P.length; my += p[1] / P.length; }); P = P.map(function (p) { return [mx + (p[0] - mx) * 0.94, my + (p[1] - my) * 0.94]; });
+      function inside(x, y) { var c = false; for (var i = 0, j = P.length - 1; i < P.length; j = i++) { var xi = P[i][0], yi = P[i][1], xj = P[j][0], yj = P[j][1]; if (((yi > y) !== (yj > y)) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c; } return c; }
+      var n = 0, bad = 0, at = null;
+      for (var y = Math.max(r.top, 0); y < Math.min(r.bottom, innerHeight); y += 3) for (var x = 0; x < innerWidth; x += 3) if (inside(x, y)) { n++; if (APP.scene.voidAt(x, y) && APP.scene.voidAt(x + 1.5, y) && APP.scene.voidAt(x, y + 1.5)) { bad++; if (!at) at = [x, y]; } }   /* 이웃도 허공일 때만 (판자 두 개가 맞닿은 금을 지나는 한 줄기 빗나감은 허공이 아니다) */
+      return { n: n, bad: bad, at: at };
+    }, { cs: corners, H: H });
+  }
+  var CORN = { attic: [[-2.5, -2.5], [3.5, -2.5], [3.5, 3.5], [-2.5, 3.5]], loft: [[-2.2, -2.2], [2.2, -2.2], [2.2, 2.2], [-2.2, 2.2]], play: [[-2.8, -2.8], [2.8, -2.8], [2.8, 2.8], [-2.8, 2.8]] };
+  var WALL_H = { attic: 3.0, loft: 1.5, play: 2.2 };   /* 위층은 무릎벽 높이 (박공은 그보다 높다) */
+  for (var room of ['attic', 'loft', 'play']) {
+    if (room !== 'attic') { await page.evaluate(function (r) { return APP.goRoom(r); }, room); await page.waitForFunction(function (r) { return APP.scene.view() === r && !APP.scene.motion().dq && !APP.scene.motion().trans; }, room, { timeout: WAIT }); }
+    var cc = await page.evaluate(function () { APP.scene.setYaw(180, true); APP.scene.zoomStep(0); return APP.scene.yawInfo().cut; }); await rest();
+    var vd = await voidIn(CORN[room], WALL_H[room]);
+    ok(cc.left && cc.back && !cc.right && !cc.front && vd.n > 400 && vd.bad === 0, room + ' 180°: 왼 · 뒤 잘림 · 오른 · 앞 온전 · 방 실루엣 안에 허공 ' + vd.bad + '/' + vd.n + ' 칸' + (vd.at ? ' (처음 ' + vd.at + ')' : ''));
+    for (var a2 of [90, 270]) {
+      await page.evaluate(function (a) { APP.scene.setYaw(a, true); }, a2); await rest();
+      var v2 = await voidIn(CORN[room], WALL_H[room]);
+      ok(v2.n > 400 && v2.bad === 0, room + ' ' + a2 + '°: 방 실루엣 안에 허공 ' + v2.bad + '/' + v2.n + ' 칸' + (v2.at ? ' (처음 ' + v2.at + ')' : ''));
+    }
+    if (room === 'play') for (var ang of [90, 180]) {
+      await page.evaluate(function (a) { APP.scene.setYaw(a, true); }, ang); await rest();
+      var hs = await page.evaluate(function () { var s = APP.scene.spotRect('machine'), q = APP.scene.screenOf(-1.8, 0.83, -2.47); return { s: s && { x: s.x, y: s.y, w: s.w, h: s.h }, q: q }; });
+      ok(!!hs.s && hs.q.x >= hs.s.x && hs.q.x <= hs.s.x + hs.s.w && hs.q.y >= hs.s.y && hs.q.y <= hs.s.y + hs.s.h, '놀이방 ' + ang + '°: 오락기 단추가 오락기 위 ' + JSON.stringify(hs));
+    }
+    await page.evaluate(function () { APP.scene.setYaw(0, true); });
+    if (room !== 'attic') { await page.evaluate(function () { return APP.goRoom('attic'); }); await page.waitForFunction(function () { return APP.scene.view() === 'attic' && !APP.scene.motion().dq && !APP.scene.motion().trans; }, null, { timeout: WAIT }); }
+  }
+  var progs1 = await page.evaluate(function () { return APP.scene.stats().programs; });
+  /* 7. 바깥(산책 화면)은 기본 구도 · 돌아오면 돌려 둔 각 그대로 · 새로고침 = 0° (저장 안 함) */
+  await page.evaluate(function () { APP.scene.setYaw(120, true); APP.scene.setPlace('exterior', { instant: true }); }); await rest();
+  var ex = await info();
+  await page.evaluate(function () { APP.scene.setPlace('attic', { instant: true }); }); await rest(); var bk = await info();
+  ok(ex.held && Math.abs(ex.shown % 360) < 0.01 && ex.yaw === 120 && !bk.held && bk.shown === 120, '바깥에선 기본 구도 (' + ex.shown + '°, 돌린 각 ' + ex.yaw + ' 은 그대로) → 다락으로 오면 ' + bk.shown + '°');
+  var saved = await page.evaluate(function () { return localStorage.getItem('ppolppol_v2'); });
+  await page.reload(); await boot(); var rl = await info();
+  ok(rl.yaw === 0 && rl.shown === 0 && !/yaw/i.test(saved), '새로고침하면 0° (기록에 각도가 없다)');
+  ok(progs1 === progs0 || progs1 <= progs0 + 2, '돌리고 세 방을 오가도 셰이더 프로그램 ' + progs0 + ' → ' + progs1 + ' (방이 처음 지어질 때 것만)');
+  ok(bag.length === 0, 'CAM 페이지 에러 없음' + (bag.length ? ' — ' + bag.slice(0, 3).join(' | ') : ''));
+  await ctx.close();
+}
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
@@ -6513,7 +6633,8 @@ async function scenarioGarden(browser) {
       ['T', function () { return scenarioTapLine(browser); }], ['K', function () { return scenarioBringBack(browser); }], ['O', function () { return scenarioLayoutOne(browser); }],
       ['Q', function () { return scenarioWeek(browser); }],   /* Q = 이번 주 할 일 · 선물 상자 (검증 11-11) */
       ['Z', function () { return scenarioLoft(browser); }],   /* 11-12 위층 문어 (계단 · 돌아다니기 · 거울 길 · 비켜서기 · 거울 한 줄 · 방석 · 가구 배치 · 시트 올림) */
-      ['X', function () { return scenarioGarden(browser); }]];   /* X = 바깥 텃밭 · 살림 다시 그리기 (검증 11-11) */
+      ['X', function () { return scenarioGarden(browser); }],   /* X = 바깥 텃밭 · 살림 다시 그리기 (검증 11-11) */
+      ['CAM', function () { return scenarioTurn(browser); }]];   /* CAM = 11-15 돌려 보기 (두 손가락 360° · 벽 자르기) — SMOKE_ONLY=CAM */
     for (var sc of all) {   /* 한 시나리오가 터져도 (부하 큰 기계의 시간 초과 등) 뒤 시나리오는 돈다 — 터진 것은 실패 하나로 센다 */
       if (only.length && only.indexOf(sc[0]) < 0) continue;
       try { await sc[1](); } catch (e) { fails++; console.error('\nCRASH in ' + sc[0] + ': ' + (e && e.stack || e)); }
