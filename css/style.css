@@ -1622,7 +1622,8 @@ html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 :root[data-font="pixel"] .sew-sheet .sew-cost { font-family: var(--f-meta); font-size: 16px; line-height: 16px; color: var(--muted); }
 :root[data-font="pixel"] .sew-sets { border-top: 2px solid var(--rim); }
 :root[data-font="pixel"] .sew-sets > summary { font-family: var(--f-body); font-size: 20px; line-height: 30px; font-weight: 400; }
-:root[data-font="pixel"] .sew-sheet #sew-close { font-size: 16px; line-height: 16px; padding: 8px 14px; }
+:root[data-font="pixel"] .sew-sheet #sew-close { font-family: var(--f-meta); font-size: 16px; line-height: 16px; padding: 8px 14px; }
+:root[data-font="pixel"] .shelf-today summary, :root[data-font="pixel"] .shelf-today li a, :root[data-font="pixel"] .week-row .week-n { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }   /* 11-15 (갈래 H 독립 점검): 시스템 크기(12px)를 그대로 받아 Galmuri7 12px 로 흐렸다 → 바닥 16px */
 
 /* 이번 주 할 일 (살림 시트): 줄마다 할 일 · 진행 · '바꾸기 n'. 끝난 줄은 흐리게 */
 .week-list { list-style: none; margin: 6px 0 10px; padding: 0; display: grid; gap: 4px; }

@@ -2675,7 +2675,7 @@ var APP = (function () {
   function inspectHTML(trip) {
     var r = trip.receipt, p = trip.poster || {}, lines = [], given = rawBy(trip), lb = lineBy(trip), rp = lb ? null : remPart(trip);
     var lead = '<p class="lead"' + (lb ? ' data-raw="' + lb + '"' : '') + '>' + (lb ? esc(p.line || '') : partRawH(p.line || '', rp.part, rp.by)) + '</p>';   /* 모델·사람이 쓴 한 줄은 그대로 · 두뇌가 지은 줄은 그 속 정류장 이름만 */
-    if (trip.by === 'legacy') return lead + '<p class="meta">옛 기록에서 복원된 포스터야. 들른 곳 기록은 없어.</p>';
+    if (trip.by === 'legacy') return lead + '<p class="meta">옛 기록에서 복원된 포스터야. 들른 곳 기록은 남아 있지 않아.</p>';
     if (trip.kind === 'home') {
       var act = (r && r.activity) || {};
       var hi = icoH('log/home', 'ua-log');
@@ -2723,7 +2723,7 @@ var APP = (function () {
     var r = trip.receipt, p = trip.poster || {}, out = '<div class="receipt">';
     out += '<h3>일기' + (trip.date ? ' · ' + esc(fmtDate(trip.date, true)) : '') + '</h3>';   /* 화면 말은 '일기' (코드 이름 receipt* 는 그대로). 여행 id 는 보이지 않는다 */
     if (trip.by === 'legacy') {
-      out += '<p>옛 기록에서 복원된 포스터야. 들른 곳 기록은 없어.</p><div class="hr"></div><p class="by">고른 이: ' + BY_LABEL.legacy + '</p></div>';
+      out += '<p>옛 기록에서 복원된 포스터야. 들른 곳 기록은 남아 있지 않아.</p><div class="hr"></div><p class="by">고른 이: ' + BY_LABEL.legacy + '</p></div>';
       return out;
     }
     if (trip.kind === 'home') {
