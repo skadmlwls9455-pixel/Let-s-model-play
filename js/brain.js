@@ -837,7 +837,7 @@
     revisit: ['{b}에 다시 가 봤어'],
     firstOther: ['{b}은 처음이었어', '{b}은 처음 가 봤어'],
     longest: ['{b}에 제일 오래 있었어'],
-    tired: ['{l}쯤에서 다리가 무거워졌어'],
+    tired: ['{l}까지 여러 곳을 걷고 돌아왔어'],   /* 11-15 (검증 V3 M1): 몸 느낌 말 대신 사실 (world.js 와 같게) */
     enough: ['{l}에서 이만 돌아왔어', '{l}까지 갔다가 돌아왔어'],
     failed: ['{x} 문은 안 열렸어', '{x}은 이름만 보고 왔어'],
     simulated: ['{x}은 문 앞까지만 가 봤어'],
@@ -942,7 +942,7 @@
     st.forEach(function (s, i) { var m = typeof s.ms === 'number' && isFinite(s.ms) ? s.ms : 0; if (m > maxMs) { maxMs = m; maxN = 1; maxI = i; } else if (m === maxMs) maxN++; });
     if (maxN === 1 && maxMs > 0 && maxI !== remI && isRoom(st[maxI]) && !/오래/.test(pl)) add(1, 'longest', ['longest'], { b: nm(st[maxI]) }, [maxI]);
     var lastI = n - 1, last = st[lastI];
-    if (rc.returnReason === 'tired' && isRoom(last) && reaction !== '졸림' && !/다리/.test(rl)) add(1, 'tired', ['tired'], { l: nm(last) }, [lastI]);
+    if (rc.returnReason === 'tired' && isRoom(last) && reaction !== '졸림' && !/걸었|걷고/.test(rl)) add(1, 'tired', ['tired'], { l: nm(last) }, [lastI]);
     if (rc.returnReason === 'enough' && isRoom(last) && lastI !== remI && !/됐어/.test(rl)) add(1, 'enough', ['enough'], { l: nm(last) }, [lastI]);
     var miss = others.filter(function (i) { return st[i].status === 'failed' && nm(st[i]) && sayable(st[i]); });
     if (miss.length) { var mi = pick(miss); add(1, 'failed', ['failed'], { x: nm(st[mi]) }, [mi], rawOf(st[mi])); }

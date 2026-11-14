@@ -1264,8 +1264,8 @@ var WORLD = (function () {
       tap: ['이끼가 흠뻑 젖어 있었어', '창턱 이끼 화분 앞에 있었어'],
       anchor: 'window', weight: 2, requiresLantern: 1, reactions: ['덤덤'] },
     { id: 'reread_poster', memo: '포스터 뒷면을 다시 읽었어', line: '벽 포스터 뒷면을 다시 읽었어',   /* '어제' 아님: 같은 날 앞 산책의 포스터일 수도 있다 */
-      detail: '일기 글씨가 작아서 가까이 가서 봤어.\n다 기억나더라.',
-      tap: ['벽 포스터 앞에 있었어', '뒷면 일기가 다 기억났어'],
+      detail: '일기 글씨가 작아서 가까이 가서 봤어.\n뒷면 앞에 한참 서 있었어.',   /* 11-15 (검증 V3 S1): '다 기억나더라' 는 머릿속 일을 지어낸 말 → 한 일 */
+      tap: ['벽 포스터 앞에 있었어', '포스터 뒷면을 가까이서 봤어'],
       anchor: 'board', weight: 2, requiresPoster: true, reactions: ['덤덤'] },
     { id: 'rearrange', memo: '벽 포스터 자리를 한 칸 바꿨어', line: '벽 포스터 자리를 한 칸 바꿨어',
       detail: '맨 끝 두 장의 자리를 맞바꿨어.\n벽 순서가 한 칸 바뀌었어.',   /* 11-14 (주인 O1 b): 옛 '왼쪽 게 더 잘 보여서. 벽도 가끔은 바뀌어야 해' 는 지어낸 까닭과 생각 — app.js 가 하는 일(끝 두 장 맞바꾸기) 그대로 */
@@ -1366,7 +1366,7 @@ var WORLD = (function () {
     revisit: ['{b}에 다시 가 봤어'],
     firstOther: ['{b}은 처음이었어', '{b}은 처음 가 봤어'],
     longest: ['{b}에 제일 오래 있었어'],
-    tired: ['{l}쯤에서 다리가 무거워졌어'],
+    tired: ['{l}까지 여러 곳을 걷고 돌아왔어'],   /* 11-15 (검증 V3 M1): 몸 느낌 말 대신 사실 */
     enough: ['{l}에서 이만 돌아왔어', '{l}까지 갔다가 돌아왔어'],
     failed: ['{x} 문은 안 열렸어', '{x}은 이름만 보고 왔어'],
     simulated: ['{x}은 문 앞까지만 가 봤어'],
@@ -1507,7 +1507,7 @@ var WORLD = (function () {
     photoCredit: '사진: 위키미디어 공용',
     followedLabels: { followed: '따라감', ignored: '무시함', left: '도중에 벗어남', none: '없음' },
     byLabels: { demo: '데모 두뇌(규칙)', human: '사람이 조작', mcp: '모델(MCP)', legacy: '복원된 기록' },
-    returnReasons: { enough: '이만 걷기로 했어', tired: '다리가 좀 무거워', linger: '여기서 오래 있었어' },
+    returnReasons: { enough: '이만 걷기로 했어', tired: '여러 곳을 걸었어', linger: '여기서 오래 있었어' },   /* 11-15 (검증 V3 M1): tired 는 데모가 네 곳 넘게 걸었을 때 — 몸 느낌 ('다리가 좀 무거워') 대신 사실. 모델 · 사람 차례엔 이 꼬리를 안 붙인다 (app.js 'return' 행) */
     legacyPosterLine: '(복원된 포스터 · 기록 없음)',
     affinityCorner: function (cornerName) { return '요즘 ' + cornerName + ' 방을 자꾸 가네'; },
     affinityNode: function (nodeName, n) { var w = roomWord(nodeName); return w + (/방$/.test(w) ? '은 ' : ' 방은 ') + n + '번 왔어'; },   /* '느린 글의 방' → '방 방은' 안 되게, '0' → '0이라는 방은' */
