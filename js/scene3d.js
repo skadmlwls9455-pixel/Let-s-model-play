@@ -935,7 +935,7 @@ var SCENE3D = (function () {
     /* parts 나누기: cfg = { walls: [[key, 'x'|'z', 판 가운데 좌표, 지붕 띠]], knee, keep: [상자], to: [[상자…, key]] } (상자 = [x0, x1, y0, y1, z0, z1], 부품 AABB 가운데로 판단).
        hi = 지붕 목재 (무릎 조건 없이 지붕 띠 안이면 · 두 벽 띠에 다 들면 모서리). parts 는 남는 것만 남게 고쳐 쓴다 → 아래 원래 줄이 그대로 합친다 */
     var _cuB = new T.Box3(), _cuC = new T.Vector3(), _cuS = new T.Vector3();
-    function inBox(c, b) { return c.x >= b[0] && c.x <= b[1] && c.y >= b[2] && c.y <= b[3] && c.z >= b[4] && c.z <= b[5]; }
+    function cutInBox(c, b) { return c.x >= b[0] && c.x <= b[1] && c.y >= b[2] && c.y <= b[3] && c.z >= b[4] && c.z <= b[5]; }   /* 11-15 합침: 이름이 갈래 B 의 inBox(x, z, b) 와 겹쳐 (함수 선언은 뒤의 것이 이긴다) 벽 자르기 준비가 터지고 3D 가 2D 로 떨어졌다 */
     function cutSplit(parts, cfg, hi) {
       var out = { corner: [] }, rest = [], kn = cfg.knee || KNEE;
       cfg.walls.forEach(function (w) { out[w[0]] = []; });
@@ -943,8 +943,8 @@ var SCENE3D = (function () {
         if (!p.g.boundingBox) p.g.computeBoundingBox();
         _cuB.copy(p.g.boundingBox); if (p.m) _cuB.applyMatrix4(p.m); _cuB.getCenter(_cuC); _cuB.getSize(_cuS);
         var k = null, i;
-        for (i = 0; cfg.to && i < cfg.to.length; i++) if (inBox(_cuC, cfg.to[i])) { k = cfg.to[i][6]; break; }
-        if (!k && !(cfg.keep && cfg.keep.some(function (b) { return inBox(_cuC, b); })) && (hi || _cuB.min.y >= kn - 1e-3 || (_cuS.y >= 1.4 && Math.min(_cuS.x, _cuS.z) <= 0.25))) {
+        for (i = 0; cfg.to && i < cfg.to.length; i++) if (cutInBox(_cuC, cfg.to[i])) { k = cfg.to[i][6]; break; }
+        if (!k && !(cfg.keep && cfg.keep.some(function (b) { return cutInBox(_cuC, b); })) && (hi || _cuB.min.y >= kn - 1e-3 || (_cuS.y >= 1.4 && Math.min(_cuS.x, _cuS.z) <= 0.25))) {
           var near = [];
           cfg.walls.forEach(function (w) { var d = Math.abs(_cuC[w[1]] - w[2]); if (d < (hi ? w[3] : 0.32)) near.push([w[0], d]); });
           if (near.length === 2) k = hi || (near[0][1] < 0.15 && near[1][1] < 0.15) ? 'corner' : near[0][1] <= near[1][1] ? near[0][0] : near[1][0];
