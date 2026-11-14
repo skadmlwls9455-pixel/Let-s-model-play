@@ -1,6 +1,6 @@
 # Lane H "text": shorter text everywhere, one size smaller, a smaller speech bubble (branch `lane/h-text`)
 
-Read `wip/round4/briefs/COMMON.md` first. **This lane starts after lanes A-G are merged** into
+Read `wip/round4/briefs/COMMON.md` first. (11-15 lead note: you start from `fb8f228`, where lanes B-G are merged; lane A — the camera turn, no player text — is merged separately later, so ignore it.) **This lane starts after lanes A-G are merged** into
 `claude/game-launch-completion-hwvre5`: read `git log --oneline -30` and `wip/round4/reports/*.md` so you keep what
 they did (honesty lines, furniture words, the yard, the runner, the sewing sheet).
 
