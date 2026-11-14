@@ -2355,8 +2355,12 @@ async function scenarioWave7(browser) {
     return { w: r.width, h: r.height, corner: r.right < s.left + s.width / 2 && r.top > s.top + s.height / 2, gap: gap.map(Math.round), gear: gear.map(Math.round), box: q.width, img: d.querySelector('img.door-ico').naturalWidth === 16, icon: d.querySelector('img.door-ico').getAttribute('data-icon') };
   });
   ok(ed.w >= 44 && ed.h >= 44 && ed.corner && ed.gap[0] === 8 && ed.gap[1] === 8 && ed.box >= 30 && ed.img && ed.icon === 'ctl/home', '산책 중 바깥이 보이는 동안: 놀이방 가는 단추는 장면 왼쪽 아래 빨간 지붕 집 (44px · 16×16 그림 · 보이는 상자는 틀에서 8px 안쪽 — 설정 아이콘은 11-10 부터 위쪽 바 안의 납작한 그림이라 간격을 견주지 않는다) ' + JSON.stringify(ed));
-  var av = await page.evaluate(function () { var q = document.querySelector('#btn-door .door-box').getBoundingClientRect(); return { door: UIART.avoidCtl({ left: q.right - 10, right: q.right + 100, top: q.top + 2, bottom: q.bottom - 2 }, 4), clear: UIART.avoidCtl({ left: q.right + 5, right: q.right + 120, top: q.top, bottom: q.bottom }, 4) }; });
-  ok(Math.round(av.door) === 14 && av.clear === 0, '말풍선 ↔ 바깥의 집 단추 (왼쪽 아래): 겹치면 상자 오른쪽 4px 까지 비킴 ' + JSON.stringify(av));
+  /* 11-15: 산책 중엔 집 단추 오른쪽에 마당 가장자리 단추 (#btn-yard, 갈래 D) 도 있다 — 말풍선은 둘 다 비킨다. 왼쪽 아래 무리의 오른쪽 끝(보이는 마지막 상자)을 기준으로 잰다 */
+  var av = await page.evaluate(function () {
+    var q = document.querySelector('#btn-door .door-box').getBoundingClientRect(), y = document.getElementById('btn-yard'), yb = y && !y.hidden && y.dataset.spot === 'edge' ? (y.querySelector('.door-box') || y).getBoundingClientRect() : null, R = yb && yb.width ? Math.max(q.right, yb.right) : q.right;
+    return { yard: !!yb, door: UIART.avoidCtl({ left: q.right - 10, right: q.right + 100, top: q.top + 2, bottom: q.bottom - 2 }, 4) - (R - q.right), clear: UIART.avoidCtl({ left: R + 5, right: R + 120, top: q.top, bottom: q.bottom }, 4) };
+  });
+  ok(Math.round(av.door) === 14 && av.clear === 0, '말풍선 ↔ 바깥의 집 단추 (왼쪽 아래, 마당 단추가 있으면 그것까지): 겹치면 무리 오른쪽 4px 까지 비킴 ' + JSON.stringify(av));
   await page.click('#btn-door');
   await page.waitForFunction(function () { var m = document.getElementById('btn-machine'); return APP.scene.view() === 'play' && m && !m.hidden; }, null, { timeout: 20000 });
   var d0 = await page.evaluate(function () { return { running: APP.state.trips.some(function (t) { return t.status === 'running'; }), door: window.__aud.filter(function (a) { return a.n === 'door'; }).map(function (a) { return a.d.act + ':' + a.d.room; }), focus: document.activeElement && document.activeElement.id, place: APP.scene.place() }; });
