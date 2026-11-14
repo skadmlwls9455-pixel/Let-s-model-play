@@ -71,6 +71,7 @@
 
 ### 라이선스 메모 (11-08 메모 · 11-10 결정)
 - **결정 (11-10)**: 후보 (나) **All rights reserved** 로 간다. 저장소는 비공개 그대로 두고 라이선스를 주지 않는다 (그래서 LICENSE 파일은 넣지 않는다 · `package.json` 은 `"license": "UNLICENSED"`). 이름은 주인이 정했다: "Katherine Nahm 이야."
+  - **11-14: 주인이 저장소를 공개로 돌렸다** (Actions 사용 한도가 없어지게: "레포 퍼블릭으로 전환했으니까 제한 없이 마음껏 돌려보고"). 라이선스는 그대로 All rights reserved (LICENSE 없음) — 공개라 누구나 보고 GitHub 안에서 포크할 수는 있지만 (아래 메모의 GitHub 약관), 가져다 쓸 권리는 주지 않는다. 공개된 뒤 같은 날 추적 파일과 이력에서 비밀 값 · 메일 주소를 찾아봤다: 파일에는 없음 (시험용 가짜 토큰 `vercel_blob_rw_fake` 만). 주인이 직접 만든 커밋에는 작성자 메일이 남아 있다 (GitHub 이 공개 저장소의 커밋 작성자를 보여 준다).
   - README '라이선스 · 출처' 에 `© 2026 Katherine Nahm. 모든 권리 보유 (All rights reserved)` — 코드 · 그림 · 글 · 소리 (직접 만든 음악과 효과음). 남의 것은 각자의 라이선스 그대로.
   - 플레이어가 보는 [credits.html](../credits.html) 맨 아래 '이 게임' 에 `Copyright 2026 Katherine Nahm. All rights reserved.` (화면에서는 © 기호가 픽셀 글꼴에 없어 글자로 쓴다). 같은 화면에 색 팔레트 만든 이 넷도 적었다.
   - 같은 날 배포를 게임 파일만 나가게 바꿨다 (문서 · 스킬 · 도구 · 시험 · 서가 원문은 주소로 열리지 않는다 — README '배포', `tools/export-site.js`).
