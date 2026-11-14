@@ -175,7 +175,7 @@ var UIART = (function () {
     var sc = $('scene'); if (!sc || !b.closest('#scene3d')) { b.style.marginLeft = ''; b.style.maxWidth = ''; b.style.removeProperty('--ua-tail'); b.removeAttribute('data-tail'); return; }   /* 2D 무대는 app.js keepBubble2D (--bub-dy 도 거기서) */
     b.style.marginLeft = ''; b.style.removeProperty('--ua-tail'); b.style.removeProperty('--bub-dy'); b.removeAttribute('data-tail');
     var s = sc.getBoundingClientRect(), P = 4, px = pixel(), shift = 0;
-    var mw = Math.max(96, Math.min(220, Math.floor(s.width - 2 * P))) + 'px';
+    var mw = Math.max(128, Math.min(200, Math.floor(s.width / 2), Math.floor(s.width - 2 * P))) + 'px';   /* 11-15 (주인: 말풍선이 화면을 가린다): 폭은 장면 폭의 반 (128~200px) — 360 폭에서 180px, 글 12px 라 톡 한 줄이 두세 줄 */
     if (b.style.maxWidth !== mw) b.style.maxWidth = mw;
     /* 등장 애니메이션(아래 4px → 0) 도중에 재도 끝난 자리로 — 위 잘림만이 아니라 아이콘 피하기 · 숨기기도 (검증 11-08: 도중에 재면 아이콘과 위아래로 비껴 보여 그대로 두었다가 0.1 s 뒤 80px 옆으로 튀었다) */
     var r0 = b.getBoundingClientRect(), ly = liftY(b), r = { left: r0.left, right: r0.right, top: r0.top - ly, bottom: r0.bottom - ly, width: r0.width, height: r0.height };

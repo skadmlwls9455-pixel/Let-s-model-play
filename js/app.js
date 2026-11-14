@@ -302,7 +302,7 @@ var APP = (function () {
         }
       }
       mem[KEY] = json;
-      if (!warned) { warned = true; quietWarn('기록을 이 브라우저에 저장하지 못했어. 새로고침하면 사라질 수 있어.'); }
+      if (!warned) { warned = true; quietWarn('기록을 저장하지 못했어. 새로고침하면 사라질 수 있어.'); }
       return false;
     }
   }
@@ -320,7 +320,7 @@ var APP = (function () {
     /* 같은 탭 미러가 더 새롭다(= 새로고침 직후 스냅숏이 비었거나 뒤처졌다) → 미러로 복구하고 localStorage 에 다시 적는다 */
     if (mirrored && (!stored || seenOf(mirrored) > seenOf(stored))) { S = normalize(mirrored); save(); return S; }
     if (stored) { S = normalize(stored); lastSaved = raw; return S; }
-    if (broken) quietWarn(kept ? '저장된 기록을 읽지 못했어. 원본은 따로 남겨 뒀어.' : '저장된 기록을 읽지 못했어. 새로 시작할게.');
+    if (broken) quietWarn(kept ? '기록을 읽지 못했어. 원본은 따로 남겨 뒀어.' : '기록을 읽지 못했어. 새로 시작할게.');
     var v1 = store.get(KEY_V1);
     if (v1) { S = normalize(migrateV1(v1)); save(); return S; }   /* 옮긴 결과도 normalize 를 지난다 (몸 색 '처음' 줄 · 미용실 칸 — docs/SALON.md §1.4) */
     S = defaults();
@@ -1664,7 +1664,7 @@ var APP = (function () {
       go.disabled = false; go.classList.toggle('away', on); go.classList.remove('can-skip');
       if (go.parentNode) go.parentNode.classList.toggle('away', on);
       go.innerHTML = '<span class="go-txt">' + (on ? '다녀오는 중…' : esc(STR.goButton || '산책 갈래?')) + '</span>';
-      if (on) { go.setAttribute('aria-label', '다녀오는 중. 누르면 바로 돌아오게 하기'); skipTimer = setTimeout(function () { if (busy) go.classList.add('can-skip'); }, SKIP_GUARD); }
+      if (on) { go.setAttribute('aria-label', '다녀오는 중. 누르면 바로 돌아오게'); skipTimer = setTimeout(function () { if (busy) go.classList.add('can-skip'); }, SKIP_GUARD); }
       else go.removeAttribute('aria-label');
     }
     if (on) stopWander(); else { ensureAttic(); scheduleWander(); }
@@ -1788,7 +1788,7 @@ var APP = (function () {
       var planned = res[0];
       if (!planned) {
         S.trips = S.trips.filter(function (t) { return t !== trip; }); save();
-        pre.remove(); setBusy(false); settleOct(); toast('두뇌가 잠깐 멈췄어. 다시 한 번 불러 줘');
+        pre.remove(); setBusy(false); settleOct(); toast('두뇌가 잠깐 멈췄어. 다시 불러 줘');
         return null;
       }
       if (!woke) questMark('ask');   /* 이번 주 할 일: 묻는 것만 센다 (나갈지는 문어가 정한다). 11-12 (검증 F10): 차례가 정해진 뒤에 — 두뇌가 멈춰 없던 일이 된 물음은 세지 않는다. 11-12 주인 (검증 W5 (b)): 자는 문어를 깨운 누름은 세지 않는다 (그 차례 동안 다시 눌러도 초대가 아니다 — busy) */
@@ -2731,7 +2731,7 @@ var APP = (function () {
       out += '<p class="big-line"' + (lineBy(trip) ? ' data-raw="' + lineBy(trip) + '"' : '') + '>' + esc(p.line || act.line || '') + '</p>';   /* 그들이 쓴 줄일 때만 (고른 활동의 말은 활동 목록 글) */
       out += '<p>오늘은 집' + (homeLit(trip) ? '. 등불 +1' : '') + '</p>';
       if (act.detail) out += '<p' + (rawBy(trip) ? ' data-raw="' + rawBy(trip) + '"' : '') + '>' + esc(act.detail).replace(/\n/g, '<br>') + '</p>';   /* 모델·사람 차례의 뒷면 글은 그들이 쓴 것 */
-      if (act.by === 'fallback') out += '<p class="dim">고른 활동은 지금 방에서 못 하는 거라 활동 없이 적었어</p>';   /* 두뇌가 바꾼 것 (MODEL_VOICE §2) */
+      if (act.by === 'fallback') out += '<p class="dim">고른 활동은 이 방에서 못 해서 빼고 적었어</p>';   /* 두뇌가 바꾼 것 (MODEL_VOICE §2) */
       out += '<div class="hr"></div>';
       out += reactionKV(trip, givenTrip(trip));   /* 집: 데모 규칙의 줄은 위 열람 기록에만 (예전 그대로), 모델·사람이 쓴 줄은 여기에도 */
       out += shareHTML(trip);
@@ -2763,7 +2763,7 @@ var APP = (function () {
     if (r && r.rememberedIdx >= 0 && r.stops[r.rememberedIdx]) {
       /* 고른 이(모델·사람)가 기억할 곳을 안 골랐으면 두뇌가 마지막 곳을 대신 뒀다 (rememberedBy 'fallback') → 고른 것처럼 적지 않는다 (MODEL_VOICE §2) */
       var rs = r.stops[r.rememberedIdx], rsH = rawH(rs.name || '', stopRawBy(trip, rs.nodeId, null));   /* 위키 제목 · 모델이 준 이름은 그대로 */
-      if (r.rememberedBy === 'fallback') out += '<div class="kv"><span>포스터에 쓴 곳</span><b>' + rsH + '</b></div><p class="dim">기억할 곳은 고르지 않아서 마지막 곳으로 대신 뒀어</p>';
+      if (r.rememberedBy === 'fallback') out += '<div class="kv"><span>포스터에 쓴 곳</span><b>' + rsH + '</b></div><p class="dim">기억할 곳을 안 골라서 마지막 곳으로 뒀어</p>';
       else out += '<div class="kv"><span>기억으로 고른 곳</span><b>' + rsH + '</b></div>';
     }
     out += reactionKV(trip, true);
@@ -3203,14 +3203,14 @@ var APP = (function () {
     frag.appendChild(h('h3', { text: '내 Claude 와 연결' }));
     var r = claudeRoom();
     if (!r) {
-      frag.appendChild(h('p', { class: 'set-note', text: 'claude.ai (웹 · 모바일) 의 내 Claude 가 이 문어가 되어 산책해. 다녀온 산책은 여기서 재생돼.' }));
+      frag.appendChild(h('p', { class: 'set-note', text: 'claude.ai 의 내 Claude 가 이 문어가 되어 산책해. 다녀온 산책은 여기서 재생돼.' }));
       var mk = h('button', { type: 'button', class: 'btn sm pressable', id: 'set-claude-make', text: '연결할 방 만들기' });
       mk.addEventListener('click', function () {
         mk.disabled = true;
         fetch('/api/room', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: S.octopus.name || '', lang: String(navigator.language || '') }) })   /* lang: 기기 언어 → 방의 언어 (문어가 그 언어로 쓴다) */
           .then(function (res) { return res.ok ? res.json() : null; })
           .then(function (j) {
-            if (!j || !j.ok || !CLAUDE_KEY_RE.test(j.key || '')) { toast('지금은 방을 만들 수 없어. 조금 뒤에 다시 해 봐'); mk.disabled = false; return; }
+            if (!j || !j.ok || !CLAUDE_KEY_RE.test(j.key || '')) { toast('지금은 방을 못 만들어. 조금 뒤에 다시 해 봐'); mk.disabled = false; return; }
             S.settings.claudeRoom = { key: j.key, mcp: String(j.mcp || ''), last: null }; save(); renderSettings();
           }).catch(function () { toast('지금은 방을 만들 수 없어 (연결 안 됨)'); mk.disabled = false; });
       });
@@ -3222,8 +3222,8 @@ var APP = (function () {
     cp.addEventListener('click', function () { copyText(r.mcp); });
     frag.appendChild(h('p', { class: 'set-note', text: '커넥터 주소' }));
     frag.appendChild(url);
-    frag.appendChild(h('p', { class: 'set-note', text: 'claude.ai › 설정 › 커넥터 › 커스텀 커넥터 추가에 이 주소를 붙여 넣어. 웹에서 한 번 넣으면 모바일 앱에서도 같이 써.' }));
-    frag.appendChild(h('p', { class: 'set-note', text: '이 주소를 아는 사람은 이 방에 들어올 수 있어. 남에게 보여 주지 마. 방에는 산책 기록과 메모만 있어.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: 'claude.ai › 설정 › 커넥터 › 커스텀 커넥터 추가에 이 주소를 넣어. 웹에서 한 번 넣으면 앱에서도 써.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '주소를 아는 사람은 이 방에 들어올 수 있어. 남에게 보여 주지 마. 방엔 산책 기록과 메모만 있어.' }));
     /* 방의 언어 — 문어가 남기는 글의 언어. 자동이면 Claude 와 나누는 대화의 언어를 따라간다 (모델이 look_room 의 lang 으로 알려 준다). 고르면 고정 (/api/lang, 모델은 못 바꾼다) */
     var LANG_NAMES = { ko: '한국어', en: 'English', ja: '日本語', de: 'Deutsch', fr: 'Français', es: 'Español', it: 'Italiano', pt: 'Português', id: 'Bahasa Indonesia', hi: 'हिन्दी' }, cur = LANG_NAMES[r.lang] ? r.lang : null;
     /* 첫 칸은 짧게: select 는 가장 긴 option 만큼 넓어져서, '자동 · Claude 대화를 따라감 (지금 한국어)' 는 360 px 폰에서 시트보다 114 px 넓었다. 자동이 무엇인지는 화면에서 이 select 바로 위의 한 줄이 말한다 ('자동이면 Claude 와 나누는 대화의 언어를 따라가') */
@@ -3237,7 +3237,7 @@ var APP = (function () {
         .catch(function () { toast('지금은 언어를 바꿀 수 없어 (연결 안 됨)'); })
         .then(function () { sel.disabled = false; renderSettings(); });
     });
-    frag.appendChild(h('p', { class: 'set-note', text: '방의 언어 — 문어가 남기는 글의 언어야. 자동이면 Claude 와 나누는 대화의 언어를 따라가.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '방의 언어 — 문어가 남기는 글의 언어야. 자동이면 Claude 대화의 언어를 따라가.' }));
     frag.appendChild(sel);
     var sy = h('button', { type: 'button', class: 'btn sm pressable', text: '다녀온 산책 가져오기' });
     sy.addEventListener('click', function () { claudeSync(true); });
@@ -3314,7 +3314,7 @@ var APP = (function () {
     /* 11-11: 문어의 대답은 그날 하루 그대로 선다 — 같은 것을 같은 날 다시 내밀어도 주사위를 새로 굴리지 않는다 (예전엔 내밀 때마다 새 주사위라, 거절해도 몇 번 누르면 '쓰기로 했어' 가 나왔다 = 문어의 선택이 아니었다).
        다른 것은 그날에도 내밀 수 있다. 시드에서 '몇 번째 누름' 을 빼서 같은 날 · 같은 물건이면 답이 같다 */
     var gk = c ? c.id : 'off', ga = isObj(S.settings.giftAsked) && S.settings.giftAsked.day === todayKey() && isObj(S.settings.giftAsked.ids) ? S.settings.giftAsked : (S.settings.giftAsked = { day: todayKey(), ids: {} });   /* ids 없는 기록(손으로 고친 · 남의 빌드) = 오늘 아무것도 안 물어봄 (11-12 검증 C16) */
-    if (ga.ids[gk]) { toast('오늘은 이미 물어봤어. 내일 다시 물어볼 수 있어'); return; }
+    if (ga.ids[gk]) { toast('오늘은 이미 물어봤어. 내일 또 물어볼 수 있어'); return; }
     ga.ids[gk] = 1;
     /* 11-12 (검증 F16): 답은 누른 순간에 정해 물어봤다는 표시와 같은 저장에 (쓰기로 했으면 쓰는 것까지) — 1.3 s 틈에 새로고침해도 물음만 쓰이고 답이 없는 일이 없게. 틈 뒤엔 보여 주기만 */
     var rng = mkRng(B ? B.hashSeed('gift', todayKey(), gk, name) : hash('gift|' + todayKey() + '|' + gk + '|' + name)), yes = rng() < (c ? 0.65 : 0.8), line;
@@ -3402,7 +3402,7 @@ var APP = (function () {
     var port = null;
     if (sceneMode === '3d' && scene && typeof scene.playerPortrait === 'function') { port = h('canvas', { class: 'pl-port', id: 'set-pl-port', width: '64', height: '64', role: 'img', 'aria-label': '내 모습 미리보기' }); head.appendChild(port); }
     frag.appendChild(head);
-    if (sceneMode !== '3d') frag.appendChild(h('p', { class: 'help set-parts-note', id: 'set-parts-note', text: '2D 장면에서는 미리보기가 없어. 고른 건 저장돼.' }));
+    if (sceneMode !== '3d') frag.appendChild(h('p', { class: 'help set-parts-note', id: 'set-parts-note', text: '2D 장면엔 미리보기가 없어. 고른 건 저장돼.' }));
     var sum = h('span', { id: 'set-look-sum' }), open = h('button', { type: 'button', class: 'btn sm pressable', id: 'set-look-open', 'aria-haspopup': 'dialog', text: '모습 바꾸기' });
     open.addEventListener('click', openLook);
     frag.appendChild(h('div', { class: 'set set-look' }, [sum, open]));
@@ -3491,7 +3491,7 @@ var APP = (function () {
     var box = $('look-items'); if (!box) return;
     var t = lookTab(LOOK.tab), P = playerParts(), c = S.settings.player, shot = lookCanShot(), multi = t.secs.length > 1, frag = document.createDocumentFragment();
     box.setAttribute('aria-labelledby', 'look-tab-' + t.id);
-    if (!shot) frag.appendChild(h('p', { class: 'help look-note', id: 'look-note', text: '2D 장면에서는 미리보기가 없어. 고른 건 저장돼.' }));
+    if (!shot) frag.appendChild(h('p', { class: 'help look-note', id: 'look-note', text: '2D 장면엔 미리보기가 없어. 고른 건 저장돼.' }));
     t.secs.forEach(function (sec) {
       var cat = sec[0], isColor = cat === 'hairColor' || cat === 'eyeColor';
       if (multi) frag.appendChild(h('h3', { class: 'look-sec', text: sec[1] }));
@@ -3727,7 +3727,7 @@ var APP = (function () {
                            11-13: 불러온 순간 (그 기록의 lastSeen, 지금보다 크면 지금) — 불러오기 전에 쓰인 다른 탭 기록의 storage 이벤트가 늦게 와도 불러온 것을 되돌리지 않게 (닫힌 탭의 마지막 저장이 몇 ms 뒤에 와서 옛 밭 · 조개가 돌아왔다).
                            지금으로 자르는 까닭: 시계가 앞선 기기의 파일이면 lastSeen 이 미래라, 그 뒤 다른 탭의 초기화 · 저장을 버리고 이 탭이 옛 기록을 되썼다 */
   function importJSON(text) {
-    if (busy) { toast('다녀오는 중이라 지금은 못 불러와. 끝나고 다시 해 줘'); return false; }
+    if (busy) { toast('다녀오는 중이라 못 불러와. 끝나고 해 줘'); return false; }
     salonFinish();   /* 미용실 연출 중이면 끝 상태로 먼저 (그 물음은 이미 저장돼 있다) */
     var ssh = $('salon-sheet'); if (ssh && ssh.open) ssh.close();
     var prev = { S: S, g: greetingRow, m: memoRow };
@@ -3762,7 +3762,7 @@ var APP = (function () {
     toast('기록을 불러왔어'); return true;
   }
   function resetAll() {
-    if (busy) { toast('다녀오는 중이라 지금은 못 지워. 끝나고 다시 해 줘'); return false; }
+    if (busy) { toast('다녀오는 중이라 못 지워. 끝나고 해 줘'); return false; }
     salonFinish();   /* 미용실 연출 중이면 끝 상태로 먼저 */
     var ssh = $('salon-sheet'); if (ssh && ssh.open) ssh.close();
     store.remove(KEY); clearRest();   /* 11-13 (재검증 S4): 앞 문어의 깨어 있는 틈도 */
@@ -4461,8 +4461,8 @@ var APP = (function () {
      · '문어한테 산책 갈지 묻기' 는 묻는 것만 센다 — 나갈지 집에 있을지는 문어가 정한다. 낮잠 자는 문어를 깨운 누름은 세지 않는다 (주인 11-12, 검증 W5 (b) — 깨어 있는 틈의 문어는 깨어 있다: 센다).
      · 들어온 날만 세는 일 ('이번 주에 사흘 들어오기') 은 뺐다 (주인 11-12, 검증 W4 (b) — 출석 숙제. 들어온 날 기록 user.days · 오늘 선물의 '들어온 날 N일째' 는 그대로). 그 일이 든 옛 주는 모르는 칸처럼 그 칸만 다른 일로 (weekState) — 그 주에 이미 사흘 들어왔으면 한 일 하나로 남긴다 (kept, 검증 OW-1: 받을 선물이 사라지지 않게).
      저장: S.user.week = { key: 그 주 월요일, q: [{ id, n, rr }] × 7, claimed, kept?, keptIds? (11-13: 센 뺀 일 — kept 는 그 수) } */
-  var QUESTS = [['ask', '문어한테 산책 갈지 묻기', 2], ['run', '다락방 달리기 한 판', 1], ['water', '텃밭에 물 주기', 2], ['plant', '씨앗 심기', 1], ['harvest', '꽃 거두기', 1], ['furn', '가구 하나 옮겨 놓기', 1],
-    ['loft', '위층 옷방 올라가 보기', 1], ['kitchen', '놀이방 들르기', 1], ['look', '내 모습 열어 보기', 1], ['diary', '포스터 일기 펼쳐 보기', 1]];   /* 11-12 (검증 F11): '부엌 방' → 문에 적힌 이름 '놀이방'. 11-12: '선물 상자에서 하나 내밀기' 는 뺐다 — 선물을 내미는 게 조개 벌이가 되면 문어에게 부담 (주인 11-11 '문어가 부담 가질 수도 있으니까') */
+  var QUESTS = [['ask', '문어한테 산책 묻기', 2], ['run', '다락방 달리기 한 판', 1], ['water', '텃밭에 물 주기', 2], ['plant', '씨앗 심기', 1], ['harvest', '꽃 거두기', 1], ['furn', '가구 하나 옮기기', 1],
+    ['loft', '위층 옷방 가 보기', 1], ['kitchen', '놀이방 들르기', 1], ['look', '내 모습 열어 보기', 1], ['diary', '포스터 일기 보기', 1]];   /* 11-12 (검증 F11): '부엌 방' → 문에 적힌 이름 '놀이방'. 11-12: '선물 상자에서 하나 내밀기' 는 뺐다 — 선물을 내미는 게 조개 벌이가 되면 문어에게 부담 (주인 11-11 '문어가 부담 가질 수도 있으니까') */
   var WEEK_NEED = 5, WEEK_REROLL = 3, WEEK_GIFT = { shells: 12, seeds: 2 };
   function questOf(id) { for (var i = 0; i < QUESTS.length; i++) if (QUESTS[i][0] === id) return QUESTS[i]; return null; }
   function weekKeyOf(dk) { var p = String(dk).split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return dateKey(d); }   /* 그 주 월요일 */
@@ -4559,7 +4559,7 @@ var APP = (function () {
   function renderWeek(frag) {
     var w = weekState(), done = weekDoneN(w);
     frag.appendChild(h('h3', { text: '이번 주 할 일' }));
-    frag.appendChild(h('p', { class: 'set-note', text: '일곱 가지 중 다섯 가지를 하면 선물이 있어 (' + Math.min(done, WEEK_NEED) + '/' + WEEK_NEED + '). 주가 바뀌면 새로 바뀌고, 못 해도 잃는 건 없어.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '일곱 가지 중 다섯을 하면 선물이 있어 (' + Math.min(done, WEEK_NEED) + '/' + WEEK_NEED + '). 주마다 바뀌고, 못 해도 잃는 건 없어.' }));
     /* 11-12 (검증 F5 · F20): 받기 단추는 쪽지 바로 아래 (목록 뒤면 360x740 에서 화면 밖이었다) — 받은 뒤엔 '받았어' 줄이 그 자리. 수량은 한 덩어리로 (320 px 에서 '(조개 / 12' 로 끊기지 않게) */
     if (w.claimed) frag.appendChild(h('p', { class: 'set-note', id: 'week-got', tabindex: '-1', text: '이번 주 선물은 받았어.' }));
     else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim' }, ['주간 선물 받기 ', h('span', { class: 'nobr', text: '(조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds + ')' })]); c.addEventListener('click', weekClaim); frag.appendChild(c); }
@@ -4632,7 +4632,7 @@ var APP = (function () {
     box.addEventListener('toggle', function () { sewSetsOpen = box.open; });
     box.appendChild(h('summary', { text: '세트 도감 ' + n + '/' + LOOK_SETS.length }));
     frag.appendChild(box); frag = box;
-    frag.appendChild(h('p', { class: 'set-note', text: '옷 · 신발 · 장식을 맞춰 입으면 여기에 적혀. 내 모습에서 이것저것 입어 보며 찾아봐.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '옷 · 신발 · 장식을 맞춰 입으면 여기 적혀. 내 모습에서 입어 보며 찾아봐.' }));
     var list = h('ul', { class: 'week-list' });
     LOOK_SETS.forEach(function (q) {
       var ok = !!f[q[0]], li = h('li', { class: 'week-row' + (ok ? '' : ' done') }, [h('span', { class: 'week-txt' }, [h('b', { text: ok ? q[1] : '아직 못 찾은 차림' }), h('br'), h('span', { class: 'week-n', text: partName('outfit', q[2]) + ' · ' + (ok ? partName('shoes', q[3]) + ' · ' + (q[4] === 'none' ? '장식 없음' : partName('acc', q[4])) : '? · ?') })])]);
@@ -4686,7 +4686,7 @@ var APP = (function () {
     var body = $('bag-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment(), dk = todayKey();
     weekState();   /* 11-11 (검증 W1): 주 먼저 — 이 톡이 주를 넘기며 지난주 선물을 넣으면 바로 아랫줄 조개 · 씨앗 수에 들어가 있게 */
     frag.appendChild(h('p', { class: 'bag-line', text: '조개 ' + u.shells + ' · 씨앗 ' + u.seeds + ' · 들어온 날 ' + u.days.length + '일' }));
-    frag.appendChild(h('p', { class: 'set-note', text: '조개와 씨앗은 다락방 달리기, 들어온 날 선물, 주간 선물에서 생겨. 쉬어도 잃는 건 없어.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: '조개 · 씨앗은 달리기, 들어온 날 선물, 주간 선물로 생겨. 쉬어도 잃는 건 없어.' }));
     renderWeek(frag);
     frag.appendChild(h('h3', { text: '텃밭' }));
     if (!gardenHere()) frag.appendChild(h('p', { class: 'set-note', text: '텃밭은 마당에 있어.' }));   /* 11-15 주인: 밭은 마당에서만 — 여기엔 한 줄 */
@@ -4701,7 +4701,7 @@ var APP = (function () {
     if (gardenHere()) frag.appendChild(plots);
     frag.appendChild(h('h3', { text: '염료' }));
     var have = DYES.filter(function (d) { return (u.dyes[d[0]] | 0) > 0; });
-    frag.appendChild(h('p', { class: 'set-note', text: (have.length ? have.map(function (d) { return d[1] + ' ' + (u.dyes[d[0]] | 0); }).join(' · ') + '. ' : '아직 없어. 꽃을 길러 거두면 생겨. ') + '옷 물들이기는 위층 옷방 재봉틀에서 해.' }));
+    frag.appendChild(h('p', { class: 'set-note', text: (have.length ? have.map(function (d) { return d[1] + ' ' + (u.dyes[d[0]] | 0); }).join(' · ') + '. ' : '아직 없어. 꽃을 길러 거두면 생겨. ') + '물들이기는 위층 재봉틀에서 해.' }));
     body.textContent = ''; body.appendChild(frag); renderBagChip();
   }
   function bagInit() {

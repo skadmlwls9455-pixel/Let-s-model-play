@@ -220,7 +220,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <!-- 큰 도서관 '오늘의 서가' (js/shelf.js): 날짜로 정해지는 위키백과 알찬·좋은 글 8편. MCP 서버도 같은 날 같은 8편을 문어에게 보여 준다 -->
   <details id="shelf-today" class="shelf-today" hidden>
     <summary>오늘의 서가</summary>
-    <p class="shelf-note">날마다 바뀌는 위키백과 알찬 글·좋은 글 8편. 모델이 고르는 날엔 문어도 같은 서가를 본다.</p>
+    <p class="shelf-note">날마다 바뀌는 위키백과 알찬 글·좋은 글 8편. 모델이 고르는 날엔 문어도 이 서가를 봐.</p>
     <ul id="shelf-list"></ul>
   </details>
 </section>
@@ -259,9 +259,9 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- 먼 바다 문 (11-10): 등불 4칸 뒤 문어가 제안하면 사람이 한 번 고른다. 두 단추는 크기·모양이 같고 미리 골라진 쪽이 없다. 타이머 없음 (ROOM_EXPANSION 제안과 같은 틀). 11-13 (금지선 1): 첫 줄은 한 일(제안)만 — 예전 '가 보고 싶대' 는 코드가 문어 마음을 지어낸 말이라 뺐다 -->
 <dialog id="far-dialog" class="modal" aria-labelledby="far-h">
   <h2 id="far-h">먼 바다 문</h2>
-  <p class="name-lead">문어가 먼 바다 문 너머까지 가 보자고 했어. 열면 영어 위키백과도 읽을 수 있어.</p>
+  <p class="name-lead">문어가 먼 바다 문 너머로 가 보자고 했어. 열면 영어 위키백과도 읽을 수 있어.</p>
   <p id="far-line" class="far-line" hidden></p>
-  <p class="honest">한 번만 정하면 돼. 그대로 두어도 문어는 조르지 않아.</p>
+  <p class="honest">한 번만 정하면 돼. 그대로 둬도 조르지 않아.</p>
   <div class="btn-row far-btns"><button type="button" class="btn wide pressable" id="far-open">열어 줘</button><button type="button" class="btn wide pressable" id="far-keep">지금은 그대로</button></div>
 </dialog>
 <!-- ══ 이름 모달 = 첫 실행 (§7.8 · docs/SALON.md §1.1): 제목 → 한 줄 → 초상 → 몸 색 6칸 → 이름 칸 → 저장 → 정직 줄.
