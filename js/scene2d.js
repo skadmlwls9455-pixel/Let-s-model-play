@@ -340,7 +340,7 @@ var SCENE2D = (function () {
       else setCarry(false);
       if (inner) inner.style.transform = s === 'ponder' && !st.reduced ? 'scale(1.05, .92)' : '';   /* 미용실 움츠림 (scaleY .92 · scaleX 1.05, 발끝 기준 — CSS 에 st-ponder 칸이 없어 인라인으로) · 모션 줄이기면 멈춤만 */
       salReflect();   /* 나가 있으면 (away) 거울 속 문어도 없다 */
-      setExpression({ happy: 'happy', pet: 'pet', sleep: 'sleep', anticipate: 'calm' }[s] || 'idle');
+      setExpression({ happy: 'happy', pet: 'pet', sleep: 'sleep' }[s] || 'idle');   /* 11-15 (주인 C6 b): anticipate 는 idle (예전 calm) */
     }
     /* ── 표정·초상 폴백 (DESIGN §15.2, 3D 와 같은 API): 표정은 `ex-<name>` 클래스로만 남기고, 초상은 **인라인 SVG 얼굴 8종**(64×64, 머리 원 + 눈·눈꺼풀·입·홍조)을 같은 도형 목록에서
        portraitSVG(expr) → <svg> 문자열, portrait(expr, { bg }) → Path2D 로 2D 캔버스에 바로 그린 64×64 캔버스(동기 — <img> 디코딩을 기다리지 않는다). 색은 문어 몸색 + 잉크 #1b1f2e + 종이흰 #fff6ee (2D 문어 SVG 와 같은 팔레트) */
