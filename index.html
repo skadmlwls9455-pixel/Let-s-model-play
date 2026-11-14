@@ -116,6 +116,12 @@
     <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/home" alt="" width="32" height="32" draggable="false"><span class="door-txt">집</span></span>
   </button>
   <button type="button" id="btn-play-door" class="scene-spot" aria-label="문어 방" title="문어 방" aria-describedby="scene-desc" hidden></button>
+  <!-- 11-15 마당 문: #btn-yard = 다락 뒷벽 문간 (문어가 산책 나가는 문을 같이 쓴다) 위 투명 단추 · 산책 중 바깥이 보이는 동안은 data-spot="edge" 로 집 단추 옆 가장자리 단추 (그림 ctl/door, 안 오면 글자 '마당').
+       문어가 그 문으로 나가거나 들어오는 동안은 숨는다. #btn-yard-door = 마당 집 현관 → 집 (이야기 장소로) -->
+  <button type="button" id="btn-yard" class="scene-door scene-yard" aria-label="마당으로" title="마당으로" aria-describedby="scene-desc" hidden>
+    <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/door" alt="" width="32" height="32" draggable="false"><span class="door-txt">마당</span></span>
+  </button>
+  <button type="button" id="btn-yard-door" class="scene-spot" aria-label="집으로" title="집으로" aria-describedby="scene-desc" hidden></button>
   <!-- 소파 위 연한 노란 점 (11-10): 누르면 내 캐릭터가 소파 앞으로 걸어가 폴짝 뛰어 앉는다. 자리는 장면이 on.sofaSpot 으로 알려 준다 (app.js). 누르는 곳 44×44 · 보이는 점 10px -->
   <button type="button" id="btn-sofa" class="sofa-dot" aria-label="소파에 앉기" title="소파에 앉기" hidden><span aria-hidden="true"></span></button>
   <!-- 가구 배치 모드 (11-10): 가구를 꾹 누르면 뜬다. 가구가 내 캐릭터 앞에 붙어 따라오고, 여기서 돌리기 · 크기 · 취소 · 놓기 (app.js furnUI · 장면 furnCarry) -->
@@ -137,6 +143,9 @@
   <button type="button" id="btn-plot0" class="scene-spot" aria-label="텃밭 첫째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-plot1" class="scene-spot" aria-label="텃밭 둘째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-plot2" class="scene-spot" aria-label="텃밭 셋째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot3" class="scene-spot" aria-label="텃밭 넷째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot4" class="scene-spot" aria-label="텃밭 다섯째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot5" class="scene-spot" aria-label="텃밭 여섯째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-sew" class="scene-spot" aria-label="재봉틀 · 옷 물들이기" title="재봉틀" aria-haspopup="dialog" hidden></button>
   <!-- 발자국 손잡이 (가상 스틱, 주인 11-08 "바닥 톡보다 훨씬 자연스럽다"): 장면 왼쪽 아래 72px 고리 + 28px 손잡이. 끌면 그 화면 방향으로 내 캐릭터가 걷는다 (js/app.js stick 절 · scene.setPlayerInput).
        다락 · 놀이방이 보일 때만 — hidden 은 장면의 on.playerInput(allowed) 로 앱이 쥔다 (바깥 · 입장 연출 · 문 작업 · 전환 · 2D 폴백에선 숨김). 바깥의 집 단추(#btn-door edge)와 자리는 같은 왼쪽 아래지만 보이는 때가 서로 배타적이다.
@@ -288,7 +297,7 @@
 <!-- ══ 내 모습 옷장 (11-09 주인: "외관도 이런 느낌 ui로 각 항목별로 고를 수 있게 카테고리 나눠도 좋을 듯") — 설정 › 내 모습 › '모습 바꾸기' 로 연다 (설정 시트 위에 겹친다).
      왼쪽 세로 탭(갈래 여섯: 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식) · 가운데 썸네일 타일 · 오른쪽 전신 미리보기(앞 · 뒤). 고르면 바로 입는다 (app.js openLook · docs/PLAYER_PARTS.md §3).
      본문(#look-body)은 app.js 가 채운다. 폰은 바텀시트, ≥600px 은 가운데 ══ -->
-<!-- ══ 살림 시트 (11-10): 조개 · 씨앗 · 들어온 날 · 텃밭 세 칸 · 옷 물들이기 — 본문은 app.js renderBag ══ -->
+<!-- ══ 살림 시트 (11-10): 조개 · 씨앗 · 들어온 날 · 텃밭 (11-15: 밭은 마당에 — 2D 폴백에서만 칸 단추) · 옷 물들이기 — 본문은 app.js renderBag ══ -->
 <dialog id="bag-sheet" class="sheet bag-sheet" aria-labelledby="bag-h">
   <div class="handle" aria-hidden="true"></div>
   <h2 id="bag-h" class="set-h dlg-top" tabindex="-1">살림</h2>
