@@ -1,0 +1,46 @@
+/* css/cook-stickers.css — 요리 반응 스티커 (js/cook-stickers.js). 판(host) 위에 겹쳐 뜨고 누를 수 없다.
+   모션: 등장 250ms decelerate (6px 아래에서 → 2px 넘침 → 제자리) · 퇴장 180ms accelerate 위로 4px.
+   픽셀 그림이라 배율 애니메이션 대신 이동만 (cozy-web-game "픽셀 테마에선 배율 대신 2px 이동"). */
+.cook-sticker {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  user-select: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(0 2px 0 rgba(23, 32, 56, .28));
+  animation: cook-sticker-in 250ms cubic-bezier(0, 0, .2, 1) both;
+}
+.cook-sticker.is-out {
+  animation: cook-sticker-out 180ms cubic-bezier(.4, 0, 1, 1) both;
+}
+@keyframes cook-sticker-in {
+  0%   { opacity: 0; transform: translateY(6px); }
+  70%  { opacity: 1; transform: translateY(-2px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes cook-sticker-out {
+  to { opacity: 0; transform: translateY(-4px); }
+}
+/* 모션 줄이기: 이동 없이 투명도만 (없애지는 않는다) */
+.cook-sticker.is-reduced { animation-name: cook-sticker-fade-in; }
+.cook-sticker.is-reduced.is-out { animation-name: cook-sticker-fade-out; }
+@keyframes cook-sticker-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cook-sticker-fade-out { to { opacity: 0; } }
+
+/* 움직이는 스티커 (짝짝·휘휘·꾸벅·퓻): 스트립을 칸 단위로 끊어 넘긴다 — 기본 4 fps, 부드러운 보간 없음 (장면 입자와 같은 톡톡 박자).
+   --frames · --w · --ms(칸 하나 머무는 시간) 는 js 가 넣는다. 모션 줄이기면 js 가 정지 그림 <img> 를 쓰므로 여기 오지 않는다. */
+.cook-sticker-frames {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  animation: cook-sticker-frames calc(var(--frames, 2) * var(--ms, 250ms)) steps(var(--frames, 2)) infinite;
+}
+.cook-sticker-frames.is-still { animation: none; }
+@keyframes cook-sticker-frames {
+  to { background-position: calc(-1 * var(--frames, 2) * var(--w, 96px)) 0; }
+}

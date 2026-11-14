@@ -1,0 +1,64 @@
+{
+ "summary": "I fixed the checker's one \"should\" and both \"nits\" in /home/user/ppolppol-fix-gnits. Each now has a check in scenario X that fails without its fix. Nothing is committed.\n\n- **P2-future (should).** This is fixed in js/app.js importJSON. The marker for \"records written before the import\" is now clamped to the import moment: `importSeen = Math.min(seenOf(S), Date.now())`. Before the fix, a file whose lastSeen was ahead of this device's clock set the marker in the future. Another tab's reset or ordinary save was then dropped, and this tab later wrote the old record back over it.\n- **G1-busy (nit).** This is fixed in js/app.js takeRemote. Its busy branch now calls plotLabels() before returning. During a walk, another tab's seed change now updates the outside plot buttons' names right away, while every other redraw still waits for the walk to end.\n- **E1-unguarded (nit).** No code change was needed: the existing E1 code is right. Before, it had no failing check for two of its three conditions. Scenario X now has a check that catches both.\n\nBefore repairing, I added the two new checks and ran them on the unrepaired tree. Both failed:\n- **Future file:** the chip stayed at «조개 33» and this tab's own save wrote 33 again.\n- **Walk labels:** they still said «씨앗이 없어» after the other tab claimed 2 seeds.\n\nAfter the repair:\n- **Scenario X:** 46 passed, 0 failed, three runs in a row (43 old checks plus 3 new).\n- **SMOKE_ONLY=A:** 74/0.\n- **SMOKE_ONLY=Q:** 55/0.\n- **npm test:** 0 failed.\n- **Font check:** stale: none.\n\nI also ran the checker's own two-tab probe (state.js, steps p2future, g1busy and p2) on the repaired code:\n- **Real reset (p2future):** when tab B resets for real, tab A now follows it (name null in both tab A and storage).\n- **Walk labels (g1busy):** A's labels say «씨앗 심기», and a press plants («씨앗을 심었어»).\n- **Earlier race (p2):** the late write from the closing tab is still ignored, so the import stays (shells 0, empty garden).\n\nI made four mutant copies, each with one repair (or one E1 condition) undone. Each fails exactly the matching new check.",
+ "changes": [
+  {
+   "id": "P2-future",
+   "file": "js/app.js",
+   "lines": "3704-3705 (comment), 3727 (importJSON)",
+   "what": "importSeen = Math.min(seenOf(S), Date.now()) instead of seenOf(S). The comment now explains the clamp.",
+   "why": "save() keeps lastSeen monotone, so after importing a file from a clock-ahead device seenOf(S) is in the future. The storage listener then dropped every later write from other tabs (a reset, an ordinary save) until real time caught up, and this tab's next save overwrote them. With the clamp, records written before the import are still dropped and anything written after it is adopted. This is the checker's suggested fix."
+  },
+  {
+   "id": "G1-busy",
+   "file": "js/app.js",
+   "lines": "2085 (takeRemote)",
+   "what": "The busy branch is now `if (busy) { remoteDirty = true; plotLabels(); return true; }`, with a comment added.",
+   "why": "During a walk, takeRemote defers renderAll, and with it renderBagChip, which is where G1 put the plotLabels call. A walk is the only time the plot buttons are up, so another tab's seed or garden change left stale names there. plotLabels only reads S and sets aria-labels; it draws nothing in the scene."
+  },
+  {
+   "id": "X-12",
+   "file": "tools/smoke.js",
+   "lines": "step 12 at the end of scenarioGarden",
+   "what": "New check. Context with a fake clock; tab A starts a real walk via APP.importEvents. Once the outside view and all three plot buttons are up, the clock is paused (pauseAt, the same pattern as scenario Z) so the walk cannot end. Tab B claims the weekly gift (seeds 0 to 2). A is polled with evaluate until seeds is 2. The check then requires: still busy, still exterior, buttons up, and all three labels '…빈 칸, 씨앗 심기' (they were '…씨앗이 없어' before).",
+   "why": "Guards G1-busy."
+  },
+  {
+   "id": "X-9-im4",
+   "file": "tools/smoke.js",
+   "lines": "step 9, right after the existing late-storage-event check (im3)",
+   "what": "New check. Tab A imports a REC (shells 33, red sprout) whose lastSeen is Date.now() + 3600e3. A storage event then arrives carrying a fresh record with lastSeen Date.now() (shells 7, empty garden). It must be adopted: chip '조개 7', outside garden empty, plot label '…씨앗 심기'. After APP.save(), storage must still hold shells 7.",
+   "why": "Guards P2-future. This is the checker's suggested case, plus the write-back that caused the data loss."
+  },
+  {
+   "id": "X-8b-d3",
+   "file": "tools/smoke.js",
+   "lines": "step 8b, after the water-9 check (d2)",
+   "what": "New check. In the damaged-save tab, plot 0 is set to {color:''} and plot 1 to {color:7}, both water 2, then save and renderAll. Both outside labels must be '…빈 칸, 씨앗이 없어' and both scene plots empty. Pressing each in the 살림 sheet must give a toast starting '씨앗이 없어', and the saved dyes must be exactly {\"pink\":1}, with no '' or '7' key.",
+   "why": "Guards E1's two unguarded conditions: the non-empty test and the string test."
+  }
+ ],
+ "decisions": "For P2-future I used the checker's first suggestion: clamp the marker with Math.min, not S.settings.lastSeen inside importJSON. It is one expression and changes only the guard. The imported record keeps its own lastSeen, as before, so load() and the other code that compares lastSeen behave as they did.\n\nFor G1-busy I call plotLabels() in takeRemote's busy branch, as the checker suggested. renderBagChip and the other deferred redraws still wait for the walk to end, so nothing in the scene changes during a walk.\n\nFor the step-12 check I paused the fake clock once the plot buttons were up, so that a fast or slow machine cannot end the walk between the claim and the read. While the clock is paused I wait with evaluate calls in a bounded loop, because waitForFunction polling may rely on page timers. I did not test whether it does.\n\nFor E1 I added the '' and 7 cases as a separate in-page step after d2, not into d1's seeded save. d1's first three entries already serve the water-clamp and colourless checks, and changing them would weaken those.",
+ "new_text": [],
+ "guard": "I added three checks to scenario X in tools/smoke.js, which now has 46 checks (43 before; the old ones are unchanged):\n- Step 8b, d3: entries with colour '' and colour 7 show as an empty plot and never produce a dye.\n- Step 9, im4: after importing a file whose lastSeen is one hour ahead, a fresh write from another tab is adopted and survives this tab's next save.\n- Step 12: during a real walk, another tab's weekly claim updates the outside plot labels.\n\nReproduction before the repair. This used a scratch copy running only steps 8b, 9 and 12 (XN=1). Log: /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-gnits/fast-before.log, 13 passed, 2 failed.\n- im4 failed: «조개 33», garden [1,null,null], saved 33.\n- Step 12 failed: labels still '…씨앗이 없어' with seeds 2 and busy true.\n\nAfter the repair: fast-after.log, 15/0.\n\nMutation table. Each mutant is the final app.js with one fix undone, run in the same fast copy (mutate.py, runmut.sh). Summary in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-gnits/mutsummary.txt; logs are mut-<name>.log there.\n\n| Mutant | What is undone | Result | Failing check |\n|---|---|---|---|\n| p2future | `importSeen = seenOf(S)` | 14/1 | im4 «lastSeen 이 한 시간 앞선 파일…» (chip 조개 33, saved 33) |\n| g1busy | no plotLabels() in the busy branch | 14/1 | step 12 (label «…씨앗이 없어», busy true) |\n| e1empty | drop `&& color` (the non-empty test) | 14/1 | d3: plot 0 «꽃, 거두기», dyes {\"pink\":1,\"\":1} |\n| e1type | drop the string test | 14/1 | d3: plot 1 «꽃, 거두기», toast «염료 1개를 얻었어», dyes {\"7\":1,\"pink\":1} |\n\nThe first round's mutation table (g1, e1, clamp, slice, e2, p2, p1) still stands. I did not rerun it.",
+ "suites": [
+  "SMOKE_ONLY=X on the final tree, three runs in a row: 46 passed, 0 failed each (338 s, 279 s, 336 s; load 4.9 to 7.8). Logs: /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-gnits/x-final-1.log, x-final-2.log and x-final-3.log in that folder.",
+  "SMOKE_ONLY=A: 74 passed, 0 failed (286 s, load 7.8 to 7.3). Log: smoke-A.log in the same folder.",
+  "SMOKE_ONLY=Q: 55 passed, 0 failed (310 s, load 7.3 to 6.4). Log: smoke-Q.log in the same folder.",
+  "npm test: 517, 26, 568, 225, 192 and 234 passed, plus test-export 46; 0 failed. Log: npm-test.log in the same folder.",
+  "Font check (tools/subset-fonts.py --check): stale: none. No new player-facing text.",
+  "test-scene-perf was not run: js/scene3d.js is unchanged in this repair round. The first round's runs cover its one-line pick change.",
+  "Checker probe check-gnits/probe/state.js, steps p2future, g1busy and p2, at 360x740 on a copy of the repaired tree: all as expected. Log: probe-out/st-repaired.log in the same folder.",
+  "Load note: other agents ran browsers at the same time (load average about 5 to 8). I ran one browser at a time. Smoke screenshots went to repair-gnits/shots (SHOTS set), with one exception: the reproduction run (fast-before.log) had no SHOTS and printed the shared default …/scratchpad/build/shots/ as its folder. Its steps take no screenshots, as far as I know; I did not check that folder. git status shows only js/app.js, js/scene3d.js and tools/smoke.js modified."
+ ],
+ "left": [
+  "A narrower case of P2-future remains. Suppose a tab had already taken in a clock-ahead file, so its lastSeen is in the future, and that tab then closes. Its last save would carry that future lastSeen. If that save reached another tab just after that tab's own import, it would still be adopted. This needs both the clock-ahead file and the close-time race at once, so I left it.",
+  "Owner items: none were given in this round."
+ ],
+ "not_verified": [
+  "Mutants were run only in the fast copy (steps 8b, 9 and 12). The final full X runs cover the rest of the scenario on the real tree.",
+  "Step 12 and the checker probe ran only at 360x740 with the light colour scheme. The busy-path label fix was not checked at 320x568 or other sizes. The labels do not depend on size.",
+  "Real screen readers (TalkBack, VoiceOver) and real phones.",
+  "The merged tree with the owner and thin lanes. The new takeRemote line sits near the owner lane's syncRest call in the same function, so a merge may meet it."
+ ],
+ "pictures": []
+}

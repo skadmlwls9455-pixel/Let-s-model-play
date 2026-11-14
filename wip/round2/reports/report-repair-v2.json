@@ -1,0 +1,57 @@
+{
+ "summary": "I fixed the checker's should item (T1) and two of its nits (T2, T3). I left N1 alone. Every change is in tools/smoke.js in /home/user/ppolppol-fix-v2. No game code changed: js/app.js, js/salon.js and tools/test-salon.js are exactly as the first fix left them. Nothing is committed.\n\n- **T1 (should):** a new Q check, 23-1b. It seeds a production week where the '선물 상자에서 하나 내밀기' slot was not done (n 0) and four other tasks were done. It expects (4/5), no keptIds, no claim button, no dot and no kept line. On the next Monday it expects no week.prev and only that day's gift (shells 20 to 23). The current code passes. The checker's mutant MD (`>= 1` changed to `>= 0` in GONE.gift) now fails this check.\n- **T3 (nit):** a new Q check, 23-1c. It seeds a week where every slot is a current task and the save holds keptIds ['days','days'] with kept 3, plus three tasks really done. It expects (4/5) with no claim button. Mutant MB (weekDoneN reads the kept number) and mutant MC (no dedupe) now each fail it.\n- **T2 (nit):** both late-write checks in X now freeze performance.now() during the call. In each, the stale record is sent in the same call as the import, so the result no longer depends on machine speed.\n  - The older check: the import and the stale record now go in one call.\n  - The newer check: it captures its own stale record ('구름') inside that call, instead of the window.__xpre that the earlier reload had wiped. It now asserts that this record was really there and really dropped.\n  - Mutant MF0 (IMPORT_HOLD = 0) now fails both checks.\n  - A control copy waited 1.5 s in a busy loop right after each import and still passed 51/0, which shows the checks do not depend on speed.\n\nFinal suites on the final tree (load 2.4 to 4.1 on 4 CPUs):\n- SMOKE_ONLY=Q: 73/0 three times in a row.\n- SMOKE_ONLY=X: 51/0 three times in a row.\n- SMOKE_ONLY=A: 74/0.\n- SMOKE_ONLY=Y: 99/0. This is the first clean Y run for this lane; the first fixer's two Y runs crashed under heavy load.\n- npm test: 0 failed.\n- Font check: stale none.\n\nNo player-facing text changed.",
+ "changes": [
+  {
+   "id": "T1",
+   "file": "tools/smoke.js",
+   "lines": "5307-5319 (Q section 23, qGone, new part 23-1b right after 23-1)",
+   "what": "New seeded case built from 23-1's week (G23) with the gift slot set to {id:'gift', n:0, rr:0} and four other tasks done, opened on SUN and then on MON. On SUN it expects key WK1, keptIds null, kept null, gift replaced, (4/5), no claim button, no dot, no kept line and 4 done rows. On MON it expects key MON, no prev, giftDay MON, shells 23 and seeds 2 (the day gift only).",
+   "why": "T1: the rule's second half (an undone gift slot does not count) had no check. This is the most common shape in real production saves."
+  },
+  {
+   "id": "T3",
+   "file": "tools/smoke.js",
+   "lines": "5320-5327 (Q section 23, new part 23-1c)",
+   "what": "New seeded case: every slot is a current task, so no repair is pending. The save holds keptIds ['days','days'] and kept 3, with three tasks really done. It expects 3 done rows, (4/5), no claim button, no dot and the kept line.",
+   "why": "T3: no check failed if keptOf lost its dedupe or if weekDoneN went back to the kept number."
+  },
+  {
+   "id": "T2a",
+   "file": "tools/smoke.js",
+   "lines": "5986-6006 (X section 9: im2 / im3 and their assertion)",
+   "what": "Removed the window.__xpre capture. im2 now reads the pre-import record, freezes performance.now(), runs the import, dispatches the stale record in the same call, records what this tab shows, and restores the clock in finally. im3 now only sends the newer record. The assertion now reads the stale result from im2, and also checks that the stale record really held shells 40.",
+   "why": "T2: the old im3 check only worked if the next call started within 1 s of the import."
+  },
+  {
+   "id": "T2b",
+   "file": "tools/smoke.js",
+   "lines": "6042-6058 (end of X section 9, the C4/C6/C2 step g1)",
+   "what": "g1 now captures the record stored before the import inside the call ('구름', lastSeen set to Date.now()-1). It freezes performance.now() from before the import through the stale dispatch and restores both hooks in finally. It asserts late.pre === '구름' and that the tab still shows the imported '뚜루' with shells 21. The inHold timing flag is gone.",
+   "why": "T2: window.__xpre was undefined after the earlier pa.reload(), so the dispatch did nothing and this half of the check held whatever the guard did."
+  }
+ ],
+ "decisions": "T2: I froze performance.now() inside the call instead of only merging the calls. Merging alone still leaves a speed dependence: under heavy load, the import plus its render could itself take more than 1 s. With the clock frozen, 'right after the import' holds on any machine, and the real hold rule (IMPORT_HOLD) still decides the result. MF0 shows this: with the hold set to 0, both checks fail.\n\nIn g1 I set the stale record's lastSeen to Date.now()-1, read just before the import. That makes it certainly older than importSeen even if earlier saves pushed lastSeen a few ms ahead of the wall clock. In im2 I kept the raw stored record unchanged, as the older check did; it is written in an earlier call, so it is older than the import.\n\nT3: I added the check the checker suggested. It costs one browser context and is cheap.\n\nT1: I reused 23-1's week so the only difference from the 'done gift' case is n 0.\n\nN1: left alone. It is not from this change (6d03faf behaves the same), it is outside the brief's items, and points are already counted once. Keeping a re-dealt slot's rr would also change the rerolls a production slot gets in the new build. That is a visible behaviour change and not clearly safe to make in a repair round.\n\nHow I ran the Q mutant runs: on a /dev/shm copy with a temporary hook line after FIVE that runs only qGone. The hook was never in the real tree, and the copy is deleted.",
+ "new_text": [],
+ "guard": "Checks added:\n- Q 23-1b (tools/smoke.js 5307-5319): an undone gift slot does not count, in the same week or at the week change.\n- Q 23-1c (5320-5327): duplicate keptIds and a kept number that disagrees, with no repair pending, still count one removed task.\n- X im2/im3 (5986-6006) and X g1 (6042-6058): the late pre-import write is dropped right after the import, with the clock frozen and the stale record captured in the same call.\n\nMutation table. Each mutant was applied alone to a /dev/shm copy of the final tree. Q runs used a temporary hook that ran only Q section 23. Logs are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-v2/runs/ (summary.txt and *.log).\n\n| Mutant | Run | Result | Check that failed |\n|---|---|---|---|\n| MD: GONE.gift `>= 1` changed to `>= 0` | Q section 23 | 39/1 | 23-1b: '안 한 «선물 상자» 칸 (n 0) 은 세지 않는다: (5/5) · 받기 단추 true · 점 true · 월요일엔 그날 선물만 (조개 20 → 35)' |\n| MB: weekDoneN reads `(w.kept \\| 0)` | Q section 23 | 39/1 | 23-1c: 'keptIds 가 겹치고 … 숫자 kept 가 3 이어도 뺀 일 하나 … (5/5) · 받기 단추 true' |\n| MC: keptOf without dedupe | Q section 23 | 39/1 | 23-1c (same check) |\n| MF0: IMPORT_HOLD = 0 | X | 49/2 | im2: '불러오기 전에 쓰인 다른 탭 기록 (조개 40) 이 늦게 와도 … ({\"chip\":\"조개 40\",…})'; g1: '불러온 직후 늦게 온 옛 기록은 버리고 ({\"pre\":\"구름\",\"name\":\"구름\",\"shells\":3}) …' |\n\nBefore this round, MD, MB and MC passed Q section 23, and MF0 failed only the older im3 check.\n\nControl for speed: a test copy (SLOW-smoke) busy-waited 1.5 s right after the import in both im2 and g1. X passed 51/0, so the checks no longer depend on how fast the machine is.\n\nThe fixed tree on the same copy: Q section 23 40/0 (fix-Q23 log Q23-fix-1.log) and X 51/0 (fix-X.log).",
+ "suites": [
+  "Load note: load average 2.3 to 4.1 on 4 CPUs during all runs. Suites ran one after another on a /dev/shm copy whose app.js and smoke.js were byte-identical to the tree (checked with cmp). Every wait is for a state.",
+  "SMOKE_ONLY=Q: 73 passed, 0 failed, three times in a row (Q1, Q2, Q3). The count is 71 plus the two new checks.",
+  "SMOKE_ONLY=X: 51 passed, 0 failed, three times in a row (X1, X2, X3).",
+  "SMOKE_ONLY=A: 74 passed, 0 failed.",
+  "SMOKE_ONLY=Y: 99 passed, 0 failed. This is the first clean Y run for this lane.",
+  "npm test: exit 0. check-world plus brain 517/0, model-voice 26/0, runner 568/0, api 225/0, cook 192/0, salon 235/0, export 46/0. Log: /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-v2/npm-test.log",
+  "Font check (tools/subset-fonts.py --check): stale: none.",
+  "Mutation controls as in the guard table: MD, MB and MC each fail one check (39/1); MF0 fails two in X (49/2); SLOW-smoke passes X 51/0.",
+  "Logs: /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-v2/final/ (summary.txt, Q1-3.log, X1-3.log, A1.log, Y1.log) and /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-v2/runs/"
+ ],
+ "left": [
+  "N1 (nit, not from this change): when the new tab repairs a slot that holds a removed task, it resets that slot's rerolls to 0. An old-build tab can then keep dealing 'days' into that slot without running out of rerolls. Points are counted once, so nothing is gained. I did not change it: 6d03faf behaves the same, it is outside the brief, and keeping rr would cut the rerolls of production slots in the new build.",
+  "23-1c's label hardcodes '+ 1' in the sum it prints. Under a mutant the failure line reads '3 + 1 = (5/5)'. This is cosmetic: the failing line still names the check."
+ ],
+ "not_verified": [
+  "I did not re-run the checker's two-tab probes (check-v2/p2-cross.js, p3-weeks.js) or the skeptics' probes. No game code changed in this round.",
+  "I did not run the merge with lane owner3. My new Q code sits inside qGone (section 23), and the X edits are in section 9. None of it is next to owner3's Q21 or Z code.",
+  "I did not run the other smoke scenarios (beyond Q, X, A and Y), the scene perf test or intro-shots."
+ ],
+ "pictures": []
+}

@@ -11,62 +11,118 @@
 | type | 필드 | 뜻 |
 |---|---|---|
 | `depart` | `hint` (string, 빈 문자열 가능), `followHint` (bool) | 문 밖으로 나감. `followHint` 는 힌트를 **처음에** 따를지 문어가 정한 값 |
-| `peek` | `target`, `status`, `ms`, `note?`, `first?`, `viaTangent?`, `bridge?`, `source?` | 한 곳을 기웃거림 |
+| `peek` | `target`, `status`, `ms`, `note?`, `first?`, `viaTangent?`, `bridge?`, `source?`, `aside?` | 한 곳을 기웃거림. `note` 는 그곳의 메모(읽은 것·본 것), `aside` 는 그 자리에서 문어가 하는 한마디(재방문: "모자? 그거 3일 전에 봤잖아. 이번엔 안쪽까지 가 볼게"). 모델·사람이 쓴 `note` 를 게임이 어떻게 다루는지는 §2 |
 | `return` | `reason`: `enough` \| `tired` \| `linger` | 귀가 |
-| `remember` | `stopIdx` (peek 순서, 0부터), `sticker`, `line` | 기억으로 고른 한 곳과 스티커, 한 줄 |
+| `remember` | `stopIdx` (peek 순서, 0부터. `"1"` 처럼 글로 줘도 받는다), `sticker?`, `line?` | 기억으로 고른 한 곳과 스티커, 한 줄. `line` 을 안 쓰면 포스터 한 줄은 비어 있다(지어내지 않는다) |
 | `hang_poster` | `posterId` | 벽에 붙임 |
-| `wrap_up` | `reaction`: `폴짝` \| `우쭐` \| `덤덤` \| `졸림` | 문어의 반응. 사람이 고르지 않는다 |
-| `stay_home` | `activity` (id), `line`, `detail?` | 오늘은 집. 쪽지 한 장 |
-| `empty_turn` | (없음) | 빈 차례. 로그에 `…` 한 줄. 등불은 켜진다 |
+| `wrap_up` | `reaction?`, `line?`, `memo?`, `note?`, `setDown?` | 마무리. **전부 선택**이다(아래 `wrap_up`). 사람이 고르지 않는다 |
+| `stay_home` | `activity?` (id), `line?`, `detail?` | 오늘은 집. 쪽지 한 장. 쪽지 앞면은 `line`(안 쓰면 고른 활동의 글, 활동도 안 고르면 빈칸), 뒷면(`detail`)은 모델이 쓴 것만. 활동을 안 고른 건 '못 하는 활동(fallback)'이 아니다 |
+| `empty_turn` | (없음) | 빈 차례. 로그에 `…` 한 줄. 그날 첫 차례면 등불도 켜진다 (등불은 초대한 날마다 1칸) |
+
+### `wrap_up` — 마무리 (모두 선택, MODEL_VOICE '말하기를 강요하지 않기')
+| 필드 | 모양 | 게임이 하는 일 |
+|---|---|---|
+| `reaction?` | `폴짝` \| `우쭐` \| `덤덤` \| `졸림`, 또는 아무 글 | 준 그대로 둔다. 넷 중 하나면 그 표정, 그 밖의 글이면 글 그대로(`reactionRaw`, 화면엔 40자 + `…`, 기록은 원문). **안 쓰면 반응 없음** — 게임이 대신 고르지 않는다 |
+| `line?` | string | 반응 한 줄. 글자 그대로 보인다. 안 쓰면 반응 줄도 없다 (템플릿으로 채우지 않는다). `reactionLine` 이라는 이름도 받는다. **11-09부터**: 다음 산책 전까지 사람이 문어를 톡 하면 이 줄 (없으면 네 가지가 아닌 반응 글) 이 말풍선으로 다시 보인다 — 글자 그대로, 화면엔 24자 넘으면 24자 + `…` (기록은 원문). 아무것도 안 썼으면 '응?' 만 (게임이 대신 쓰지 않는다) |
+| `memo?` | `{ tomorrow, notes }` | 그때 남긴 메모 (아래) |
+| `note?` | `{ text, about? }` 또는 string | 호기심 메모 한 줄 (docs/CURIOSITY_NOTES.md). 글자 그대로 남고, 다음 산책 요청에 실린다 (아래 '요청에 싣는 메모') |
+| `setDown?` | `['cn_…']` (id 하나면 `'cn_…'` 도 받는다) | 내려놓을 메모 id. 모델 자신의 표시라 **모델(`mcp`) 산책에서만** 받는다 |
+
+- `about` 은 `{ kind: 'node' | 'object', id }`. 모양이 틀리면 글은 두고 `about` 만 버린다.
+- `note.text` 가 60자를 넘으면 화면은 앞 60자 + `…`, 기록은 원문 그대로.
+- 빈 차례(`empty_turn`) 뒤에 마무리를 내도 반응·줄·메모·호기심 메모는 위와 똑같이 그대로 남는다 (빈 차례라고 버리지 않는다).
+- 모양이 틀린 값(글이 아닌 반응, 방 id 가 아닌 `memo.notes` 키)은 화면에 쓰지 않지만, 모델·사람의 이벤트는 고치지 않고 기록(`events`)에 그대로 남는다.
+
+### `wrap_up.memo` — 그때 남긴 메모 (DESIGN §17.1)
+```jsonc
+{ "tomorrow": "모자 보다가 깃털 쪽으로 갔어. 내일은 새의 비행 쪽으로 가 볼까",      // 다음 날 첫 인사에 그대로 읽힌다
+  "notes": { "hat": "챙은 해를 가리고, 안쪽 띠는 땀을 막아 줘", "feather": "…" } }   // 다녀온 방마다 한 줄. 재방문 기웃 때 "지난번 메모: '…'"
+```
+- 선택 필드. **없으면 다음 날 아무 말도 하지 않는다**(화면이 대신 지어내지 않는다). 데모 두뇌는 빈 차례에 메모를 만들지 않는다 (모델이 빈 차례 뒤 마무리에 쓰면 그대로).
+- 각 문자열 60자 이하(넘으면 보이는 글은 59자 + `…`, 원문은 `memo.original` 에 그대로 남는다). `notes` 키는 방 `id`, 값은 문자열만 받는다.
+- 데이터 전용: 다녀온 기록·기억 조각·실제로 읽은 요약에서만. 명령문(사람에게 시키는 말)·자격/규칙 언급 금지.
+- 데모 두뇌는 `plan` 끝에서 결정적으로 만든다. **MCP 는 모델이 직접 쓴다** (`ppolppol_wrap_up` 입력의 `memo`).
+
+### 요청에 싣는 메모 — 다음 모델에게 (CURIOSITY_NOTES '다음 모델에게 전달하는 모양')
+산책을 부탁하는 쪽(`ppolppol_depart` 의 출력, 또는 `ppolppol_look_room`)에 **`status: 'active'` 인 메모 최근 3개만** 싣는다.
+내려놓은 메모(`set_down`)·오래된 메모는 싣지 않고, 그런 메모가 있다는 사실이나 개수도 말하지 않는다.
+```jsonc
+"notes": [
+  { "id": "cn_8k2", "text": "조개를 귀에 대면 소리가 나. 다른 소리 나는 것도 궁금해", "about": { "kind": "node", "id": "shell" },
+    "by": "model", "model": "claude-…", "session": "trip_31kz", "at": "2026-11-05T10:12:00Z" }
+]
+```
+- 메모마다 **작성 주체(`by`: `model` 모델 / `human` 사람(데모 조작) / `demo-rules` 데모 규칙)·세션·날짜**를 붙인다. `model` 은 알 때만. 글은 쓴 그대로 (줄이지 않는다).
+- 글로 보여 줄 때의 머리말: `이전 산책에서 남겨진 메모 (이어 가도, 바꿔 써도, 내려놔도 돼):` — 따르라는 말·이유를 묻는 말은 붙이지 않는다.
+- 데모 두뇌는 같은 목록을 `state.notes` 로 받는다. 메모가 가리키는 방(`about.kind: 'node'`)의 길 고르기 가중치만 3배가 된다 (새 난수 없음, 글은 읽지 않는다). 데모 두뇌가 남기는 메모는 `by: 'demo-rules'` 다.
 
 ### `peek.target`
 ```jsonc
 { "kind": "room", "id": "feather", "title": "깃털", "wiki": "깃털" }   // 내장 도서관 방
 { "kind": "wiki", "title": "깃펜" }                                    // 들판 걸음(위키 링크로 간 곳)
+{ "kind": "card", "id": "BIO03", "title": "색 대신 빛의 방향 차이를 보는 눈" }   // 서가 카드 (library/cards, MCP 11-10). status 는 builtin, 같은 이벤트의 book {card, title, by}
 { "kind": "url",  "url": "https://example.org/x" }                     // URL 힌트
 ```
 
 ### `peek.status` — 거짓 성공 금지
 | 값 | 아이콘 | 뜻 |
 |---|---|---|
-| `read` | ✅ 읽음 | 실제로 가져와서 읽었다. `source.url` 필수 |
-| `builtin` | 📚 책장 메모 | 내장 실마리 한 줄을 읽었다(오프라인·fetch 실패·위키 제목 없음) |
-| `simulated` | 🧪 모의 방문 | 문 앞까지만 갔다. 내용은 읽지 않았다 |
-| `failed` | ❌ 못 읽음 | 읽으려 했는데 실패했다 |
-| `none` | ◌ 앉아만 있었음 | 읽은 것이 없다(느린 글의 방, 편지의 방) |
+| `read` | `icon.log.read` + 읽음 | 실제로 가져와서 읽었다. `source.url` 필수 |
+| `builtin` | `icon.log.builtin` + 책장 메모 | 내장 실마리 한 줄을 읽었다(오프라인·fetch 실패·위키 제목 없음) |
+| `simulated` | `icon.log.simulated` + 모의 방문 | 문 앞까지만 갔다. 내용은 읽지 않았다 |
+| `failed` | `icon.log.failed` + 못 읽음 | 읽으려 했는데 실패했다 |
+| `none` | `icon.log.none` + 앉아만 있었음 | 읽은 것이 없다(느린 글의 방, 편지의 방) |
 
-`source` 는 `read` 일 때만: `{ "url", "extract"(≤160자), "thumb": {"url","w","h"}|null, "license": "CC BY-SA 4.0", "attribution": "Wikipedia (ko)" }`.
+`source` 는 `read` 일 때만: `{ "url", "extract"(≤160자), "thumb": {"url","w","h"}|null, "license": "CC BY-SA 4.0", "attribution": "Wikipedia (<언어>)" }`. `attribution` 의 언어는 읽은 위키백과의 것이다 — `Wikipedia (ko)` · `Wikipedia (en)` · `Wikipedia (ja)` … (방의 언어 열 가지, [I18N.md](I18N.md)). 재생 (`BRAIN.replay`) 은 입력이 준 `attribution` 을 쓰지 않고, 검사를 통과한 `url` 의 언어로 붙인다.
 
 ### 예시 — 외출
 ```json
 [
  { "type":"depart", "t":0, "hint":"모자의 역사", "followHint":true },
  { "type":"peek", "t":3100, "target":{"kind":"room","id":"hat","title":"모자","wiki":"모자"}, "status":"read", "ms":8200,
-   "note":"모자는 머리에 쓰는 …", "first":false, "viaTangent":false,
-   "source":{"url":"https://ko.wikipedia.org/wiki/모자","thumb":null,"license":"CC BY-SA 4.0","attribution":"Wikipedia (ko)"} },
+   "note":"챙이 생각보다 넓었어", "first":false, "viaTangent":false,
+   "source":{"url":"https://ko.wikipedia.org/wiki/모자","extract":"모자는 머리에 쓰는 …","thumb":null,"license":"CC BY-SA 4.0","attribution":"Wikipedia (ko)"} },
  { "type":"peek", "t":7400, "target":{"kind":"room","id":"feather","title":"깃털","wiki":"깃털"}, "status":"read", "ms":11000,
    "first":true, "viaTangent":true, "bridge":"모자 장식에 꽂힌 깃털에서" },
  { "type":"return", "t":12000, "reason":"enough" },
  { "type":"remember", "t":12500, "stopIdx":1, "sticker":"feather", "line":"모자 보러 갔다가 깃털에 한눈팔았어" },
  { "type":"hang_poster", "t":13000, "posterId":"trip_k7x2" },
- { "type":"wrap_up", "t":13500, "reaction":"폴짝" }
+ { "type":"wrap_up", "t":13500, "reaction":"폴짝",
+   "memo":{ "tomorrow":"모자 보다가 깃털 쪽으로 갔어. 내일은 새의 비행 쪽으로 가 볼까", "notes":{ "hat":"챙은 해를 가리고, 안쪽 띠는 땀을 막아 줘", "feather":"깃털 끝이 갈라져 있어서 소리가 안 나는 거래" } } }
 ]
 ```
 ### 예시 — 집
 ```json
 [ { "type":"stay_home", "t":0, "activity":"count_rain", "line":"창가에서 빗방울을 세다가 잠들었어" },
-  { "type":"wrap_up", "t":2000, "reaction":"졸림" } ]
+  { "type":"wrap_up", "t":2000, "reaction":"졸림", "memo":{ "tomorrow":"창가에서 비 셌어. 내일은 나가 볼까 말까", "notes":{} } } ]
 ```
 ### 예시 — 빈 차례
 ```json
 [ { "type":"empty_turn", "t":0 } ]
 ```
+### 예시 — 아무것도 안 쓴 마무리 · 호기심 메모만 남긴 마무리
+```json
+{ "type":"wrap_up", "t":13500 }
+{ "type":"wrap_up", "t":13500, "note":{ "text":"깃털 끝이 갈라진 게 소리랑 상관있을까", "about":{ "kind":"node", "id":"feather" } }, "setDown":["cn_8k2"] }
+```
+첫 줄은 반응·줄·메모가 모두 없다 → 화면에도 반응 없이 끝난다. 게임이 '덤덤' 같은 걸 대신 넣지 않는다.
 
 ## 2. 재생 규칙 (정적 페이지)
-- `by` 는 이벤트가 아니라 **산책 메타**다: `demo`(규칙) / `human`(데모 조작) / `mcp`(모델). 영수증 하단 "고른 이" 에 그대로 적힌다.
-- 재생은 `t` 를 그대로 기다리지 않고 2.2~4.5초 간격으로 보여 준다(건너뛰기 가능). `t` 는 영수증의 "걸린 시간" 계산에만 쓴다.
+- `by` 는 이벤트가 아니라 **산책 메타**다: `demo`(규칙) / `human`(데모 조작) / `mcp`(모델). 일기(포스터 뒷면, 데이터 이름 `receipt`) 하단 "고른 이" 에 그대로 적힌다.
+- **모델(`mcp`)·사람(`human`)이 낸 것은 바꾸지 않는다** (docs/MODEL_VOICE.md): 반응·반응 줄·포스터 한 줄·메모·호기심 메모·쪽지 글은 준 그대로, 안 준 것은 비워 둔다.
+  '실제로 있었던 일과 맞는 반응만'(안 읽었는데 우쭐 → 다른 반응) 거르기는 **데모 규칙에만** 남는다. 기록의 `reactionBy` 가 `model` / `human` / `demo-rules` 로 누가 골랐는지 말한다.
+- 게임이 대신 채운 것은 `fallback` 으로 따로 적는다: 기억할 곳(`receipt.rememberedBy`), 지금 방에서 못 하는 활동(`receipt.activity.by`, 고르려던 id 는 `asked`).
+  두뇌가 대신 정한 기억할 곳은 데모 두뇌의 취향 가중치(기억한 곳 +2)에 넣지 않는다 — 들른 수만 센다.
+- 읽기 상태는 지금처럼 정직하게 고친다 (아래). 이건 모델의 말이 아니라 실제로 읽었는지의 사실이라서다.
+- **기웃 메모(`peek.note`)** — 모델·사람의 산책:
+  - 그들이 쓴 메모는 상태가 무엇이든 글자 그대로 보인다 (`receipt.stops[i].noteBy`: `model` / `human`). 읽음이 확인된 정류장(위키백과 출처)이어도 출처 요약으로 바꾸지 않는다. 출처 요약은 `source.extract` 에 따로 있다 (그들의 메모를 출처 글로 옮겨 적지 않는다).
+  - **읽었다며 쓴 메모인데 읽음이 확인되지 않으면** (밖의 문·출처 없음·앉아만 있는 방) 읽은 글처럼 보이지 않게 화면에서는 빼고, 원문은 `noteGiven` 에 그대로 남긴다 (정류장과 돌려주는 `peek` 이벤트 둘 다).
+  - 메모를 안 썼으면 사실만 보인다: 읽은 요약(`read`) · 그 방의 책장 메모(`builtin`). 모의·못 읽음·앉아만은 빈칸이다 — 상태 표시가 이미 말하니까, 코드가 문어 말투('문 앞까지만 갔다 왔어')로 대신 쓰지 않는다.
+  - 데모 규칙 재생(`demo`)은 예전 그대로 (상태별 기본 문구).
+- 재생은 `t` 를 그대로 기다리지 않고 2.2~4.5초 간격으로 보여 준다(건너뛰기 가능). `t` 는 일기의 "걸린 시간" 계산에만 쓴다.
 - 모르는 `target.id` 는 들판(`wild`)으로 취급하고 `title` 을 그대로 쓴다. 모르는 `sticker` 는 ❔.
-- `remember.stopIdx` 가 범위를 벗어나면 마지막 정류장으로 고친다. `status` 가 목록에 없으면 `failed` 로 적는다(성공으로 올려 주지 않는다).
+- `remember` 가 없거나 `stopIdx` 가 범위를 벗어나면(정수가 아니어도 — 다만 모델·사람이 `"1"` 처럼 숫자만 든 글로 준 번호는 그 번호로 받는다) 마지막 정류장으로 하고 `rememberedBy: 'fallback'`. `status` 가 목록에 없으면 `failed` 로 적는다(성공으로 올려 주지 않는다).
+- `hang_poster` 를 냈는지는 `posterHung` 으로 남긴다 (안 냈으면 벽에 붙이지 않는 게 그 뜻이다).
 
 ## 3. MCP 도구 (제안)
 
@@ -74,15 +130,17 @@
 
 | 도구 | 입력 | 출력 | 메모 |
 |---|---|---|---|
-| `ppolppol_look_room` | `{}` | 방 묘사, 등불, 벽 포스터 제목들, 선반, "요즘" | 읽기 전용 |
-| `ppolppol_depart` | `{ hint?: string }` | `{ tripId, hint, library: [{id,name,corner,odd,clue,visits}] }` | 힌트는 사람이 남긴 선택 필드. 따를지는 모델이 정한다 |
-| `ppolppol_peek` | `{ tripId, target: {kind,id?|title?|url?} }` | `{ status, extract?, source?, first, visits }` | 서버가 실제로 읽어 주고 `status` 를 정직하게 돌려 준다 |
+| `ppolppol_look_room` | `{ archived?: bool, salon?: bool }` | 방 묘사, 등불, 벽 포스터 제목들, 선반, "요즘", `notes` (활성 메모 최근 3개, §1 '요청에 싣는 메모'). `archived: true` 일 때만 보관한(내려놓은·오래된) 메모도. (계획) 몸 색 `look` — `salon: true` 일 때만 미용실 물음 목록도 (§5) | 읽기 전용. 보관 메모는 모델이 달라고 할 때만 (CURIOSITY_NOTES) |
+| `ppolppol_depart` | `{ hint?: string }` | `{ tripId, hint, library: [{id,name,corner,odd,clue,visits}], notes: [최근 활성 메모 ≤3] }` | 힌트는 사람이 남긴 선택 필드. 따를지는 모델이 정한다. `notes` 는 §1 '요청에 싣는 메모' |
+| `ppolppol_peek` | `{ tripId, target: {kind,id?|title?|url?}, note? }` | `{ status, extract?, source?, first, visits }` | 서버가 실제로 읽어 주고 `status` 를 정직하게 돌려 준다. 이벤트의 `note` 에는 **모델이 쓴 것만** 넣는다 (안 쓰면 비움). 서버가 읽은 글은 `source.extract` 에 — 그래야 화면이 `noteBy` 로 누구 말인지 바르게 적는다 (§2) |
 | `ppolppol_return_home` | `{ tripId, reason }` | `{ stops: [...] }` | |
-| `ppolppol_remember` | `{ tripId, stopIdx, sticker, line }` | `{ ok }` | 모델이 고른 한 장면 |
+| `ppolppol_remember` | `{ tripId, stopIdx, sticker?, line? }` | `{ ok }` | 모델이 고른 한 장면. `line` 을 안 쓰면 포스터 한 줄은 빈칸 (§1 `remember`) |
 | `ppolppol_hang_poster` | `{ tripId }` | `{ posterId }` | |
-| `ppolppol_wrap_up` | `{ tripId, reaction }` | `{ ok }` | |
-| `ppolppol_stay_home` | `{ activity?, line? }` | `{ tripId }` | 외출과 같은 무게 |
+| `ppolppol_wrap_up` | `{ tripId, reaction?, line?, memo?: { tomorrow, notes }, note?: { text, about? }, setDown?: ['cn_…'] }` | `{ ok }` | 전부 선택(§1 `wrap_up`). 아무것도 안 써도 된다. `memo` 를 안 쓰면 다음 날 메모 인사는 없다 |
+| `ppolppol_stay_home` | `{ activity?, line?, detail? }` | `{ tripId }` | 외출과 같은 무게. 활동 목록을 보여 줄 때 그 활동의 쪽지 앞면 글(`line`)을 같이 보여 준다 — `line` 을 안 쓰면 그 글이 쪽지에 쓰인다 |
 | `ppolppol_empty_turn` | `{}` | `{ tripId }` | 아무것도 만들지 않아도 된다는 허락 |
+| `ppolppol_salon_next` (계획, §5) | `{}` | `{ situation }` 또는 `{ waiting: true }` | 미용실 물음 하나. 도구 호출만 되는 곳에서 (sampling 이 되면 서버가 요청을 보낸다) |
+| `ppolppol_salon_answer` (계획, §5) | `{ id, action, line?, expr? }` | `{ ok: true, result: 'changed' \| 'unchanged' }` 또는 `{ ok: false, reason: 'stale' \| 'unknown_id' }` | 다시 묻기 신호는 없다 (`unknown_action` 없음) |
 
 **서버가 지켜야 할 것(복지 문서 원칙)**
 - 산출물을 수확하지 않는다: 산책 기록은 문어의 앨범으로만 남고, 다른 용도로 쓰지 않는다.
@@ -94,3 +152,54 @@
 1. **붙여넣기**: 서버가 돌려 준 이벤트 배열을 데모 조작에 붙여넣어 재생(지금 가능).
 2. **파일**: 서버가 `trips/*.json` 으로 쓰고, 페이지가 `?trip=` 로 읽기.
 3. **MCP Apps**: 서버가 이 페이지를 UI 리소스로 돌려 주고, 호스트(Claude 등) 안에서 바로 그린다. 이때는 `window.postMessage` 로 이벤트를 흘려 넣는 어댑터 하나만 더 있으면 된다(`APP.importEvents`).
+
+## 5. 미용실 — 결정 지점 `salon` (계획: MCP 서버에 붙일 때 이대로 잇는다)
+
+주인 11-08 밤: 몸 색은 사람이 처음 한 번만 고르고, 그 뒤엔 미용실에서 사람이 색을 내밀고 묻고 바꿀지는 문어가 정한다 (`docs/SALON.md`). 지금 게임은 데모 규칙이 답하고 모델 길은 코드에 없다. 요청 · 답 읽기 · 방 보기는 `js/salon.js` 의 순수 함수(`SALON.request` · `SALON.CONTEXT` · `SALON.readReply` · `SALON.look`)로 만들어 시험해 두었다 (`tools/test-salon.js` 7 · 8 · 11). 서버(`mcp/`, 11-10 에 들어옴)에는 아직 이 결정 지점 · 아래 도구 둘 · 방 보기의 `look` 이 없다 (몸 색을 읽지도 쓰지도 않는다). 붙일 때 그 함수들을 그대로 쓴다. 화면 쪽(거울 · 병 시트 · 연출 · 행 셋)은 2부로 들어와 있다.
+
+**결정 지점 `salon`**: 사람이 [물어보기]를 누른 물음 하나에 요청 한 번이다. **받은 답은 다시 묻지 않는다.** 결과가 '바뀜'과 '그대로' 둘뿐이라, 다시 물어 달라질 수 있는 건 '그대로 → 바뀜' 하나다 — 다시 묻기는 코드가 대신 조르는 셈이다. 그래서 §2 의 '틀리면 한 번만 다시' 같은 일반 규칙보다 이 선이 앞선다.
+
+**요청** (작게, 약 180 B, 상한 400 B):
+
+```jsonc
+{ "v": 1, "point": "salon", "id": "ask_k7x2q",
+  "facts": { "now":   { "hex": "#e8463c", "name": "빨간색" },
+             "offer": { "hex": "#4a86d8", "name": "파란색" } },   // 처음 색이면 name "처음 색". 이름은 늘 색 값에서 다시 짓는다
+  "menu": ["keep", "dye"] }                                      // keep(아무것도 안 바꿈)이 늘 첫째
+```
+
+- 보내지 않는 것: 이유 칸(`reason` · `why`) · 압박 말('예쁠 거야' · '사람이 원해' · '한 번만' · '어제 안 했잖아') · 지난 대답 · 거절 횟수 · 확률 · 쉬는 날 · 하루 한 번 규칙 · 마감 · 연출 설명 · 배지 · 조개.
+- 고정 문맥 (도구 설명이나 시스템에 한 번, `SALON.CONTEXT`):
+
+> 미용실: 사람이 색 하나를 골라, 네 몸을 그 색으로 바꿔 볼지 물었어. 그대로 두려면 keep, 바꾸려면 dye. 바꾸면 다음에 또 바꿀 때까지 그 색이야. 이유는 안 써도 돼. 한마디(line)와 얼굴(expr: idle, happy, curious, calm)은 골라도 안 골라도 돼. line 은 24자쯤이 말풍선에 맞고, 넘으면 말풍선엔 앞부분과 '…', 기록엔 전부 남아. 어느 쪽이든 게임에서 잃는 건 없어.
+
+**답** — `{ "action": "keep" }` 이것만으로 충분하다. `line` · `expr` 는 선택이다.
+
+| 받은 것 | 게임이 하는 일 |
+|---|---|
+| `action` 이 `dye` / `keep` (대소문자 · 앞뒤 공백 무시, 메뉴 낱말 하나만 와도) | 그대로 따른다 |
+| `action` 이 그 밖 | 다시 묻지 않는다. 색 그대로, `action: null`, 원문은 `actionRaw` · `raw`. 말이 있으면 보인다 |
+| JSON 이 아님 (빈 글 포함 — 답은 왔다) | 다시 묻지 않는다. "답을 못 읽었어. 색은 그대로야." 원문은 `raw` |
+| 아무것도 안 옴 (전송 실패) | 같은 요청을 **한 번만** 다시 보낸다 (`sent: 2`). 또 실패면 기다림으로 |
+| `line` | 글자 그대로. 말풍선은 앞 24글자 + '…', 기록은 전문. 없으면 문어 행이 없다 (데모 문구로 채우지 않는다) |
+| `expr` | `idle` · `happy` · `curious` · `calm`. 모르는 값은 `expr: null` + `exprRaw`. 폴짝 · 반짝 · 기분 소리는 `happy` 일 때만 |
+| `action` 과 `line` 이 어긋남 | `action` 을 따르고 `line` 은 고치지 않는다 |
+
+**기다림 · sampling 의 사람 승인**: sampling 클라이언트는 사람이 요청을 보고 승인하는 경우가 많다. 사람이 요청을 고치거나 답을 막을 수도 있다. 그래서 8 s 를 넘기면 '…' 생각 말풍선만 거두고, 물음은 `status: 'waiting'` 으로 **그날 자정까지** 남는다 (화면: "아직 대답을 기다리는 중이야."). 그사이 답이 오면 반영한다. 자정이 지나면 `{ status: 'done', action: null, by: 'fallback' }` 으로 닫는다 ("대답이 없었어. 색은 그대로야." — 거절처럼 연출하지 않는다). 늦게 온 답은 `lateRaw` 에 남기고 반영하지 않는다. 기록에 `via: 'sampling' | 'tool'` 을 남긴다. 화면은 '모델이 고름'보다 더 확신하지 않는다.
+
+**도구** (§3 표의 두 줄): sampling 이 되는 곳은 서버가 sampling 으로 위 요청을 보낸다 (출력 `{ action, line?, expr? }`). 도구 호출만 되는 곳은 `ppolppol_salon_next` 로 물음을 받고 `ppolppol_salon_answer` 로 답한다.
+
+**`ppolppol_look_room` 에 더할 것** (`SALON.look(state, { salon })` 이 그대로 만든다):
+
+```jsonc
+"look": { "now":   { "hex", "name" },
+          "first": { "hex", "name", "by" },                          // by: player | default | migrated (처음 줄이 없으면 null)
+          "changes": [ { "date", "to": { "hex", "name" }, "by" } ] }  // 최근 5
+// 달라고 할 때만 ({ salon: true }): "asks": [ { "date", "offer": { "hex", "name" }, "action", "by" } ]  // 끝난 물음 최근 5, '그대로'도
+```
+
+- `by` 는 원래 값 그대로다 (`player` · `default` · `migrated` · `demo-rules` · `model` · `human` · `dev` · `unknown`). 글로 풀 때는 `SALON.BY_TEXT` — **모델이 고르지 않은 변화를 '네가 골랐어'라고 하지 않는다** (`demo-rules` = "데모 규칙이 고름", `migrated` = "미용실 전에 사람이 설정에서 고른 색(또는 기본값)").
+- 물음 목록은 기본으로 보내지 않는다 (보관 메모와 같은 선). 모델이 자기 '그대로'를 보고 싶을 때만.
+- 산책 요청(`ppolppol_depart`)에는 몸 색을 싣지 않는다. 정체성 딱지가 되지 않게.
+
+**서버가 지킬 것**: 모델 대신 답하지 않는다. 받은 답을 다시 묻지 않는다. `keep` 뒤에 다른 색을 이어서 내밀지 않는다 (물음은 하루 한 번). 대답을 다른 데(취향 · 추천)에 쓰지 않는다. 미용실은 아무것도 주지 않는다.

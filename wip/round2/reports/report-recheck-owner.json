@@ -1,0 +1,79 @@
+{
+ "summary": "The repair worked. Both \"should\" problems from the first check are gone, and both nits are dealt with. I found no regression. Two new gaps are left in the tests: two lines of the OW-1 fix fail no check when undone. I rate one \"should\" and one \"nit\". The repair agent did not touch OW-3 or OW-4, so those two owner decisions are still open.\n\nOW-1, the old week that already counted the removed task \"이번 주에 사흘 들어오기\": I used the first checker's save (that slot held, three visit days, four other tasks done, gift not claimed) and opened it on three trees. On the untouched base ae505a3 the sheet shows (5/5), the 받기 button and the gift dot on the bag chip. On the first-round fixed tree it shows (4/5), with no button and no dot, and the next Monday gives no gift. On the repaired tree it shows (5/5), the button, the dot and the label \"주간 선물이 있어\", plus one new line explaining the count. It stays the same after a reload. Pressing 받기 gives shells 20 to 32 and seeds 1 to 3. The next Monday gives the gift both when the slot was already replaced (prev 12/2, shells 35) and when it never was (prev 12/2, shells 35). This matches base. A last week with only two visit days gives no gift, the same as base. The 2D scene behaves the same. The new line fits inside the sheet at 360 and 320 px, in the pixel font, the plain font and dark mode, with no sideways scroll. The font check says `stale: none`. The line breaks no hard line: no pressure, no praise, nothing about the octopus, no symbols.\n\nOW-2, the missing check for a press during the awake period after a turn: the new check Q22 catches the first checker's mutant MY1. With it, SMOKE_ONLY=Q gives 61 passed, 1 failed (Q22: 1/2 stays 1/2). OW-5 (comment) and OW-6 (dead `questMark('gift')` call removed) are as described in the report.\n\nSince the first check, the repair changed only weekly-list code in js/app.js, line 3311, and scenario Q in tools/smoke.js. js/scene3d.js, the docs, the CSS and index.html are byte-identical to the tree the first checker saw.\n\nSuites, run on a copy:\n- npm test: exit 0 (517/0, 26/0, 568/0, 225/0, 192/0, 234/0, test-export 46/0).\n- Font check: `stale: none`.\n- SMOKE_ONLY=Q: 62/0 five times (load average 6.4 to 11). One more run crashed partway, but not because of the code: another process deleted my scratch copies at 06:27 during that run (the machine's used disk fell from 39G to 20G). The run lost its page files and timed out waiting for the page. I rebuilt the copy (it matched the tree by md5) and ran the two remaining runs.\n- SMOKE_ONLY=A: 74/0.",
+ "problems": [
+  {
+   "id": "RO-1",
+   "severity": "should",
+   "title": "No check guards the Monday gift for a week whose 'days' slot was already replaced (the `+ (w.kept | 0)` in `due`)",
+   "where": "js/app.js:4378 (weekState, the `due` computation); screen: 살림 › 이번 주 할 일 on the Monday after",
+   "what": "The first checker's OW-1 named two halves: the claim button within the week, and the unclaimed gift at the week change. Q21 covers the week change only for a slot that was never replaced (`oldDone`). The common real case has no check. The player opens the game during the update week, the slot is replaced, `kept` becomes 1, they do not press 받기, and Monday comes. If `+ (w.kept | 0)` is removed from `due`, every Q check still passes, and that player loses the earned gift on Monday. That is exactly the loss OW-1 reported. The code is right today; only the guard is missing.",
+   "evidence": "Mutant MK (/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-owner/muts/MK-dueNoKept.app.js) removes `+ (w.kept | 0)` from `due`. SMOKE_ONLY=Q gives 62 passed, 0 failed (logs/MK-dueNoKept.log). Behaviour probe p3.js ONLY=B (open on Wednesday so the repair runs, do not claim, reload on 2026-11-16). MK: prev null, shells 23 (logs/p3-MK-dueNoKept.log). Repaired tree, two runs: prev {12,2}, shells 35 (fix-p3.log, logs/p3-fix2.log). Base ae505a3: prev {12,2}, shells 35 (base-p3.log).",
+   "suggested_fix": "Extend Q21's same-week part. After the reload, do not claim: set the date hook to the next Monday, reload, and expect week.prev = {shells 12, seeds 2} and shells +12 on top of the day gift. A few lines in the existing Q21 context."
+  },
+  {
+   "id": "RO-2",
+   "severity": "nit",
+   "title": "No check guards the week-end bound in oldDone, so visits from a later week could fill the removed task",
+   "where": "js/app.js:4366 (oldDone, the filter `d >= w.key && d <= ek`)",
+   "what": "When `due` checks last week's unreplaced 'days' slot on a Monday, oldDone adds today to the visit days. Today belongs to the new week, so the `d <= ek` bound is what keeps it out. Remove the bound and a last week with only two visit days plus four other tasks done gets the weekly gift on Monday. Base did not give it. No check fails, because Q21's week-change case already has three visit days in last week.",
+   "evidence": "Mutant MW (recheck-owner/muts/MW-noWeekEnd.app.js) drops `&& d <= ek`. SMOKE_ONLY=Q gives 62 passed, 0 failed (logs/MW-noWeekEnd.log). Probe p3.js ONLY=C (last week with the 'days' slot, visits 11-09 and 11-11, four others done, opened 2026-11-16). MW: prev {12,2}, shells 35 (logs/p3-MW-noWeekEnd.log). Repaired tree and base: prev null, shells 23 (fix-p3.log, logs/p3-fix2.log, base-p3.log).",
+   "suggested_fix": "Add a negative case to Q21's week-change part: the same last week with only two visit days, opened on Monday, expects no week.prev and only the day gift."
+  },
+  {
+   "id": "OW-3",
+   "severity": "owner",
+   "title": "Still open: the octopus vanishes from the upstairs room when a stay-home turn ends there",
+   "where": "js/app.js restDown (called from finalPose and syncRest); loft screen",
+   "what": "The repair did not touch this, as its brief allowed. js/scene3d.js and restDown are byte-identical to the tree the first checker saw, so its evidence and options (a) keep, (b) leave it upstairs until the player goes down, (c) walk it down, still stand.",
+   "evidence": "cmp of js/scene3d.js and docs between check-owner/fixed and the repaired tree: same. diff of js/app.js: only lines 3311, 4345-4346, 4363-4380, 4399 and 4432 changed.",
+   "suggested_fix": "Owner decision, as in the first check."
+  },
+  {
+   "id": "OW-4",
+   "severity": "owner",
+   "title": "Still open: the rest period does not count down upstairs (the 11-08 rule)",
+   "where": "js/app.js watching() and octResting",
+   "what": "Unchanged by the repair, as its brief allowed. A player who goes upstairs right after a turn still finds the octopus downstairs for as long as they stay.",
+   "evidence": "Same code as at the first check (see OW-3).",
+   "suggested_fix": "Owner decision: count the upstairs room in watching(), or keep the 11-08 rule."
+  }
+ ],
+ "per_fix": "OW-1 (old week that counted the removed task): before = base ae505a3 shows (5/5), the 받기 button and the gift dot. The first-round fixed tree (check-owner/fixed) shows (4/5), no button, no dot, and no gift on Monday (old-p3.log, old-A-360.png). After = the repaired tree shows (5/5), the button, the dot, the explaining line, the same after reload, and the gift both when claimed and on Monday. Seen twice: fix-p3.log plus fix-p2C.log (the first checker's own probe C), and logs/p3-fix2.log. Guarding checks: Q21 fails when the `w.kept` increment, `oldDone` in `due`, `kept` in weekDoneN or today in oldDone is undone (the repair agent's R1 to R4; I did not re-run these). The `kept` term in `due` has no guard (RO-1), and neither does the week-end bound in oldDone (RO-2).\nOW-2 (no check for a press during the awake period): before = the first checker's MY1 mutant passed all of Q (58/0 on the first tree). After = on the repaired tree MY1 gives 61/1, with Q22 failing (logs/MY1-wokeSaved.log). The behaviour is right: Q22 passed in all five complete Q runs.\nOW-5 (unreachable new-week fallback): the comment now says it is a guard that cannot be reached today and has no check. By reading.\nOW-6 (dead questMark('gift') call): removed. 'gift' is not in QUESTS. By reading.\nOW-3 and OW-4: not repaired by design (owner items). The code is unchanged.",
+ "mutations": "Mutants I built against the repaired tree, each alone, with full SMOKE_ONLY=Q runs:\n- MY1, `var woke = oct.state === 'sleep' || S.octopus.state === 'sleep'`: 61 passed, 1 failed (Q22: 1/2 stays 1/2, saved 1). Guarded.\n- MK, `+ (w.kept | 0)` removed from `due`: 62 passed, 0 failed. NOT guarded (RO-1). Behaviour: a repaired, unclaimed week loses its Monday gift (shells 23, prev null).\n- MW, `&& d <= ek` removed from oldDone: 62 passed, 0 failed. NOT guarded (RO-2). Behaviour: a last week with two visit days gets the gift on Monday (shells 35).\nI did not re-run the repair agent's R1 to R4. Their logs are in repair-owner/mut/. Mutant files are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-owner/muts/, logs in recheck-owner/logs/.",
+ "suites": [
+  "npm test on a copy of the repaired tree: exit 0. Totals 517/0, 26/0, 568/0, 225/0, 192/0, 234/0, test-export 46/0. Load 8.9. Log: recheck-owner/logs/npm-test.log",
+  "Font check (tools/subset-fonts.py --check): stale: none. Log: logs/font.log",
+  "SMOKE_ONLY=Q: q1, q2, q3, q4b and q5b were each 62 passed, 0 failed (load 6.4 to 11). One more run (q4) crashed at Q13 with a 180 s wait for #btn-go. The cause was outside the code: at 06:27 another process deleted my scratch copies (base, fix and mut, and the first checker's copies too; used disk on / fell from 39G to 20G), so the page files were gone. I rebuilt the copy (md5 identical to the tree) and ran q4b and q5b. Logs: logs/q1.log to q3.log, q4.log (interrupted), q4b.log, q5b.log",
+  "SMOKE_ONLY=A: 74 passed, 0 failed (load 7.2 to 7.9). Log: logs/sA.log",
+  "Mutant runs of Q: MY1 61/1, MK 62/0, MW 62/0 (logs/*.log)",
+  "Probes (my own p3.js plus the first checker's p2.js ONLY=C) on base ae505a3, the first-round fixed tree and the repaired tree, at 360x740 and 320x568 with touch, and in the plain font with dark mode: recheck-owner/fix-p3.log, base-p3.log, old-p3.log, fix-p2C.log, logs/p3-*.log"
+ ],
+ "held": [
+  "Base parity: on every OW-1 save I tried, the repaired tree gives the same gift outcome as base ae505a3. Same week with three visit days: claimable. Same week with two recorded visits plus today: claimable (on base after the day gift). Repaired and unclaimed, then Monday: gift. Never repaired, then Monday: gift. Last week with two visit days: no gift.",
+  "`kept` is written once per replaced slot. After the repair no 'days' slot is left, so a reload does not add it again (kept stays 1 after reload).",
+  "The new line '사흘 들어오기는 목록에서 빠졌지만, 이번 주엔 한 걸로 셌어.' shows only while kept is set. It sits between the claim button and the list, stays inside the sheet at 320 px (box 18 to 302 inside 320, scrollWidth 320), and wraps cleanly in the pixel font and in the plain dark theme. It breaks no hard line, and the font check says stale: none.",
+  "The (N/5) note is capped by Math.min, so kept can never show 6/5 or more.",
+  "No sound is created on the sheet: AudioContext count 0, Audio count 0, no requests under audio/ or foley/ in the probes.",
+  "The 2D scene with the same save gives the same result (kept 1, 5/5, claim button).",
+  "The repair agent's changes to tools/smoke.js only add strength: Q19 now also checks that no `kept` is saved for two visit days, and ctxOf passes an awake period that still defaults to 0 as before. No existing check lost strength.",
+  "scene3d.js, the docs, the CSS and index.html are unchanged since the first check, so the upstairs work and its Z checks are as the first checker left them."
+ ],
+ "not_checked": [
+  "I did not re-run SMOKE_ONLY=Z or Y. The repair touched no upstairs or salon code; the first checker and fix agent ran Z.",
+  "I did not re-run the repair agent's mutants R1 to R4. I relied on their logs plus my own MY1, MK and MW.",
+  "A tab still running the old code, open during the update next to a new tab, which could write a 'days' slot back after the new tab set kept=1 and so count it twice. I judged it very unlikely and did not try it.",
+  "I did not use a real phone or a real model brain.",
+  "Q22 always presses while the octopus is still walking to its blanket in the awake period. A press while it is idle on the blanket counted in the first checker's probe (A4 n=1), but I did not re-run that probe on the repaired tree because the code there did not change.",
+  "I did not reproduce OW-3 and OW-4 again. Their code is byte-identical to the first check."
+ ],
+ "pictures": [
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-owner/fix-A-360.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-owner/fix-A-320.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-owner/fix-A-320-plain-dark.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-owner/fix-E-2d.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-owner/fixp2-C-bag.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-owner/base-A-360.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-owner/old-A-360.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/recheck-owner/old-A-320.png"
+ ]
+}

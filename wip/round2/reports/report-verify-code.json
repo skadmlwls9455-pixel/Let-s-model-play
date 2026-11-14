@@ -1,0 +1,261 @@
+{
+ "summary": "I found no \"must\" in the ten commits 1e1c18f..78b8d4a: no hard-line break, crash or loss of real saved data in normal play. I confirmed seven \"should\" defects by running them, plus a set of small ones and one owner decision.\n\nThe seven \"should\" items:\n1. Upstairs the octopus keeps wandering to attic coordinates and ends up inside the dye tub and the sewing desk.\n2. The mirror button upstairs is visible but does nothing, silently, once the octopus wakes while the player is already upstairs. By reading, the same holds when it returns from a walk.\n3. \"이번 주에 사흘 들어오기\" only counts page loads. A tab kept open over midnight never counts the new day, even after asking for a walk.\n4. A saved week with one task id the build does not know is rebuilt whole: progress is wiped and \"claimed\" is reset. Nothing triggers this today; it will the first time the task list changes.\n5. After \"전체 초기화\", an import, or another tab's write, the yard keeps showing the old plants. The bag chip keeps the old shell count and gift dot.\n6. Going upstairs while the octopus is mid-walk leaves the app's octopus state stuck on \"walk\", so it stops wandering.\n7. A tap on the right-hand part of garden bed 1 or 2 acts on the next bed.\n\nWhat held: week date arithmetic in 11 time zones, task picking and rerolls (never empty, never a duplicate), no double weekly gift across two tabs, the gift-box answer standing for the day, counting at each call site, export/import/reset of the new fields, and nothing new showing during the intro.\n\nSuites on a copy of the tree: `npm test` exit 0 and the font check says `stale: none`. The two slow suites could not finish because the machine was heavily loaded (load average 15 to 33): the scene perf suite passed 90 checks before my 25-minute limit cut it, and the salon smoke scenario passed 16 before a 30 s page-load timeout. Neither showed a product failure.\n\nTest changes by the author (`tools/smoke.js`, `tools/test-scene-perf.js`): every changed expectation matches the new behaviour and none hides a regression that I could find.\n- Two smoke checks were removed and replaced by the new upstairs sequence: \"mirror hidden in the play room, back in the attic it shows\" and \"mirror hidden upstairs, sheet will not open\". The play-room case is now untested.\n- The sleeping-octopus check changed from bubble '쿨쿨…' with no toast to the toast '지금은 아래층에서 자고 있어.'; it no longer asserts that no bubble shows.\n- Perf T6 \"nothing covers the mirror arch\" now counts all loft meshes, and its minimum went from 9 occluders to 3 (the run found 7, with 0 of 98 points covered).\n- The T6 night-window sample points moved to the loft's round window; the other perf edits are setup and diagnostics.\n\nEverything is in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/ — scripts in `checks/`, outputs as `*.out`, screenshots in `shots/`, and `notes.md`. The tree /home/user/ppolppol-merge is untouched.",
+ "findings": [
+  {
+   "id": "C1",
+   "severity": "should",
+   "title": "Upstairs the octopus keeps wandering to attic anchor coordinates and ends up inside the dye tub and the sewing desk",
+   "where": "js/app.js:1413-1422 (scheduleWander), js/app.js:1097-1104 (allowedIdleAnchors); js/scene3d.js:1942 (anchorPos), 3304-3309 (octMountLoft), 3731 (loft furniture boxes)",
+   "what": "When the octopus has followed the player upstairs, the app's 20-40 s wander timer still sends it to the attic anchors (window, center, crate, blanket, board). Those coordinates are applied unchanged inside the loft, where other furniture stands. It should stay on free loft floor.",
+   "evidence": "e1-loft.out: the wander timer moved the octopus by itself 13 s after arriving upstairs. 'window' lands at (-1.8, 0.7), centre inside the dye tub and 0.30 m from the mannequin. 'board' lands at (0.1, -1.7), centre inside the sewing desk and overlapping the stool and fabric shelf. 'blanket' lands at (-0.65, 1.9) floating at y 0.12 with no blanket there. Screenshots: shots/e1-loft-window.png (octopus on top of the tub), shots/e1-loft-board.png (octopus in the desk).",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/e1-loft.js",
+   "suggested_fix": "While scene.octUp() is true, either pause the wander or use a loft-only anchor list (rug spot, beside the mirror, centre). Alternatively map anchor names to loft-safe points inside the scene when the octopus is mounted, and skip the 0.12 m blanket lift there.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C2",
+   "severity": "should",
+   "title": "Mirror button upstairs is visible but dead once the octopus wakes (or returns) while the player is already upstairs",
+   "where": "js/app.js:813 (openSalon guard), js/app.js:798-803 (syncSalonSpot); js/scene3d.js:3434 (the only call of octMountLoft is on arriving upstairs)",
+   "what": "The octopus only comes upstairs at the moment the player arrives. If it was asleep or out then and becomes awake at home later, the mirror button stays visible but openSalon returns false with no sheet, toast or bubble. It should either open (bring the octopus up) or say why.",
+   "evidence": "e1-loft.out, three taps on the same page. Asleep: toast '지금은 아래층에서 자고 있어.' (correct). After the octopus wakes (octState idle, as selfWake does): btnHidden false, sheetOpen false, toast '', bubble '', octUp false. After going down and up again: sheet opens. The return-from-walk variant follows from the same guard; I read it but did not run it.",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/e1-loft.js (second block)",
+   "suggested_fix": "Expose the mount as a scene call and use it when the octopus becomes awake at home while roomNow() === 'loft', or in openSalon when upstairs, awake and not yet up. At the least, hide the button or show one plain line in that state.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C3",
+   "severity": "should",
+   "title": "'이번 주에 사흘 들어오기' only counts page loads: a tab kept open over midnight never counts the new day",
+   "where": "js/app.js:4266-4272 (dailyGift), 4444 and 4187 (its only two calls: boot and first naming), 4296 (questN for 'days'), 4167 (visibilitychange calls checkDay only)",
+   "what": "The day list u.days is written only by dailyGift(), which runs 2.5 s after page load. On a phone that keeps the tab alive, coming back the next day (even asking for a walk that day) records nothing, so the weekly task stalls and that day's gift is skipped. The day-gift part is already in production; the weekly task that depends on it is new.",
+   "evidence": "d2-count.out. Monday after boot: days ['2026-11-09'], row '1/3'. Tuesday, same tab, visibilitychange/focus/pageshow fired, 4 s wait: still 1/3. After an invite that day: still 1/3. Wednesday, same tab: still 1/3. After a reload on Wednesday: 2/3, where a player who came in on three days expects 3/3.",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/d2-count.js",
+   "suggested_fix": "Record the day (and give the day gift) from the day-change path as well: when checkDay() sees a new day, on visibilitychange, and in invite().",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C4",
+   "severity": "should",
+   "title": "A saved week with one unknown task id (or a length other than 7) is rebuilt whole: progress wiped and 'claimed' reset",
+   "where": "js/app.js:4290-4293 (weekState)",
+   "what": "weekState() treats any unknown id or wrong length as a broken shape and rebuilds all seven slots with n 0 and claimed false, even when the week key matches. Nothing triggers it today. The first later build that renames or removes a task, or a save from a newer build, will wipe every player's current week and re-open a gift already taken.",
+   "evidence": "a-state.out a2: seeded this week's list with 5 tasks done, claimed true, one slot id 'cook'. After boot: claimed false, all seven slots replaced with n 0. Control a3 (all ids known): claimed stays true, progress kept. a4: a week with wrong types (n 'NaN', rr -5, claimed 'yes') is kept as is and renders without error.",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/a-state.js",
+   "suggested_fix": "When the key matches, keep 'claimed' and every valid slot, and replace only the unknown or broken slots with weekPick. Rebuild everything only when the key differs.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C5",
+   "severity": "should",
+   "title": "After '전체 초기화', an import, or another tab's write, the yard keeps the old plants and the bag chip keeps the old shells and gift dot",
+   "where": "js/app.js:2941 (renderAll has no bag or garden step), 2045-2050 (takeRemote), 3651-3671 (importJSON), 3672-3680 (resetAll), 4331 (applyGarden, called only from bagInit and gardenAct)",
+   "what": "The saved state is replaced correctly in all three paths, but nothing refreshes the scene garden (new), the weekly gift dot (new) or the shell count on the chip (already so in production). After a reset the new game shows the deleted save's flowers until a reload or the next garden action. Tapping such a 'flower' plants a seed instead.",
+   "evidence": "f-sync.out. After tab B harvested plot 1: tab A saved garden [null,'blue1',null] but scene.garden() still ['#c8323a:2','#4a86d8:1',null], chip '조개 10', dot true. After importing a save with shells 77 and a flower only in plot 3: scene still shows plots 1 and 2, chip '조개 22'. After 전체 초기화: user null in memory and storage, scene still shows both plants, chip visible with '조개 22' behind the name dialog.",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/f-sync.js",
+   "suggested_fix": "Call renderBagChip(), applyGarden() and applyDye() (and renderBag() if the sheet is open) from renderAll(), or right after S is replaced in takeRemote, importJSON and resetAll.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C6",
+   "severity": "should",
+   "title": "Going upstairs while the octopus is mid-walk leaves the app's octopus state stuck on 'walk'",
+   "where": "js/scene3d.js:3306 (octMountLoft cancels oct.walking); js/app.js:1407-1411 (walkTo), 1420 (wander's .then sets idle)",
+   "what": "octMountLoft() cancels the walk in progress, and a cancelled walk never resolves its promise. The wander's 'then set idle' never runs, so APP.oct.state stays 'walk': the octopus no longer wanders or shows thinking bubbles, and the scene description keeps saying it is walking, until an invite, a salon answer or a nap resets the state.",
+   "evidence": "e2-loft.out. Walk started with the same call the wander timer makes, then upstairs, then 10 s of scene time: state 'walk', walkPromiseResolved false, description '… 문어는 걸어가는 중이야.'. Control (same walk, staying downstairs): state 'idle', promise resolved.",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/e2-loft.js (first two steps)",
+   "suggested_fix": "In octMountLoft call oct.walking.finish() (which resolves the promise) instead of cancel() before re-parenting, or have the app handle the scene's 'octUp' event and set octState('idle').",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C7",
+   "severity": "should",
+   "title": "A tap on the right-hand part of garden bed 1 or 2 acts on the next bed",
+   "where": "js/scene3d.js:4041 (plotBoxes: 0.8 m square, 0.75 m tall), 2767-2769 (spotInfo for plots), 2779-2786 (44 px minimum); index.html:137-139",
+   "what": "The three plot buttons are the screen bounding boxes of tall 3D boxes. Each comes out 61x67 px and overlaps its neighbour by 28x49 px at every phone size, and the later button wins in the overlap. A tap on the soil of one bed can therefore plant, water or harvest the next one.",
+   "evidence": "f-sync.out: at 320x568, 360x740 and 430x932 the rects overlap by 28x49 and 28x50 px. g-plots.out: 21 taps on points of the soil per run. With mouse at 360x740 and with touch at 390x844 the 'right corner' of bed 1 (x+0.25, z-0.25) planted bed 2 and the same corner of bed 2 planted bed 3: 2 wrong of 21 in both runs.",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/g-plots.js",
+   "suggested_fix": "Decide plot taps in the scene by where the ray meets the ground and the nearest bed centre, or build the button from the soil quad rather than the tall box so the rects stop overlapping.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C8",
+   "severity": "nit",
+   "title": "Salon sheet opened after the view was pushed down: the lift is measured before the recentre, so the scene sits 92 px too high",
+   "where": "js/app.js:826-827 (showDialog then salonFrame → scene.recenter), 4403-4413 (salonLiftInit sync); js/scene3d.js:455-467 (setSheetInset)",
+   "what": "The inset is measured once when the sheet opens, with the current pan still applied. openSalon then recentres the view, and nothing measures again. The mirror and octopus stay visible, but the room is lifted far more than needed and its top goes under the top bar.",
+   "evidence": "e6-lift.out at 320x568. Default: lift 0.5556 m, mirror 161-231, sheet top 322. After a downward drag (pan y 46): lift 2.2593 m, pan back to 0, mirror 69-139, octopus head 171. Pushing the view up is bounded and gave no problem (e5-lift.out). A viewport change 430x932 → 320x568 with the sheet open gave the same lift as a fresh open (e4-lift.out).",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/e6-lift.js",
+   "suggested_fix": "Measure after the recentre: call the sync again when the pan tween ends, or compute the lift from the un-panned camera when a recentre is about to run.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C9",
+   "severity": "nit",
+   "title": "The octopus keeps wandering while the salon sheet is open; on a 320x568 screen it walks partly under the sheet",
+   "where": "js/app.js:1416 (wander is held by salonActive, not by the open sheet), 4403-4413 (lift re-measured only when the sheet's size or open state changes)",
+   "what": "The lift accounts for where the octopus stands when the sheet opens. The wander timer is not paused by the open sheet, so the octopus can move toward the camera afterwards and the lift does not follow.",
+   "evidence": "e8-lift.out, 320x568, 7 bottles. At the arrival spot the octopus's bottom is 8 px above the sheet top. After a walk to 'blanket' with the sheet open, its bottom is 22 px below the sheet top with the lift unchanged at 1.8148 m. The app's own wander moved it within 50 s (wanderedWithSheetOpen true, bottom 12 px below). At 360x740 there was no overlap in any position.",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/e8-lift.js",
+   "suggested_fix": "Hold the wander while #salon-sheet is open upstairs, or re-run the inset sync when a walk ends.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C10",
+   "severity": "nit",
+   "title": "Weekly note shows '(7/5)' when more than five tasks are done",
+   "where": "js/app.js:4318 (renderWeek)",
+   "what": "The count in the note is the number of done tasks over the need of five, not capped.",
+   "evidence": "h-ui.out: '일곱 가지 중 다섯 가지를 하면 선물이 있어 (7/5). …'",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/h-ui.js",
+   "suggested_fix": "Show Math.min(done, WEEK_NEED), or word it as '한 일 7가지'.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C11",
+   "severity": "nit",
+   "title": "'바꾸기' can hand back a task the player already swapped away in that slot",
+   "where": "js/app.js:4284-4287 (weekPick), 4305-4309 (weekReroll)",
+   "what": "The reroll pool excludes only the seven tasks currently listed, so a task rejected two presses ago can return and use up one of the three rerolls.",
+   "evidence": "c-week.out: 840 rerolls over 40 weeks; 164 returned a task already seen in that slot (for example diary → days → diary). No reroll ever gave an empty or duplicate task.",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/c-week.js",
+   "suggested_fix": "Keep the ids already shown in the slot (a small 'seen' list) and exclude them from the pool.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C12",
+   "severity": "nit",
+   "title": "'가구 하나 옮겨 놓기' counts when '놓기' is pressed without moving anything",
+   "where": "js/app.js:548 (furnMove → questMark('furn')); js/scene3d.js:1242 (furnConfirm always emits furnMove)",
+   "what": "Picking a piece up and confirming it in place emits furnMove and counts the task. Cancel correctly counts nothing.",
+   "evidence": "d1-count.out: carry + cancel → furn 0, layout null; carry + confirm without moving → furn 1.",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/d1-count.js",
+   "suggested_fix": "Count only when position, rotation or scale differ from the values at pick-up.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C13",
+   "severity": "nit",
+   "title": "New row buttons are 32 px high, the sheet body overflows 4 px sideways at 320 px, and one aria-label doubles a word",
+   "where": "css/style.css:1600 (.week-rr min-height 36px); js/app.js:4322 (reroll button), 4369 ('다시 입기' label)",
+   "what": "In the pixel theme '바꾸기 n' is 88x32 px and '다시 입기' is 94x32 px, below the 44 px used elsewhere. With those buttons present the bag and sew sheet bodies have 4 px of horizontal overflow at 320 px. The label reads '다락방 차림 차림 다시 입기'.",
+   "evidence": "h-ui.out: btn w 88 h 32 on all seven rows; overflowX 4 in the bag body and the sew body (0 when no row has a button); label '다락방 차림 차림 다시 입기'.",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/h-ui.js",
+   "suggested_fix": "Give .week-rr min-height 44px (or a taller hit area), let the row wrap or shrink the button at 320 px, and drop the extra '차림' when the set name already ends with it.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C14",
+   "severity": "nit",
+   "title": "The default outfit is itself a set, so the first unrelated change (hair) toasts '세트 도감에 적었어: 다락방 차림'",
+   "where": "js/app.js:4351-4353 (LOOK_SETS 'attic' = dress/flat/ribbon = the default look), 3413 (lookPick calls setsCheck after any part change)",
+   "what": "The player has not put a set together, but changing hair triggers the 'found a set' toast because the default clothes match one.",
+   "evidence": "h-ui.out: sets null before; picked hair=short; after {\"attic\":\"2026-11-11\"} with toast '세트 도감에 적었어: 다락방 차림'. All nine sets use part ids that exist.",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/h-ui.js",
+   "suggested_fix": "Run setsCheck only when outfit, shoes or acc changed, and decide whether the default look should count as a starter entry (record it silently) or not at all.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C15",
+   "severity": "nit",
+   "title": "Screen-reader scene description upstairs still describes the attic and the octopus's attic spot",
+   "where": "js/app.js:1116-1129 (sceneDescText has no 'loft' branch)",
+   "what": "With the octopus standing on the loft rug next to the player, the description under the label '위층 다락 옷방' says the attic and an attic anchor.",
+   "evidence": "d1-count.out: label '위층 다락 옷방', desc '등불 4칸 켜진 다락, 비 오는 아침. 문어는 담요 위에서 쉬고 있어. 몸은 빨간색이야.', octUp true. The repo's own smoke log shows the same ('문어는 창가에서 쉬고 있어' upstairs).",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/d1-count.js",
+   "suggested_fix": "Add a loft branch: name the room, and say the octopus is upstairs with the player or downstairs.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C16",
+   "severity": "nit",
+   "title": "Hand-edited or foreign saves: giftAsked without 'ids' breaks the gift box for the day; an unknown garden colour stops the bag sheet from opening",
+   "where": "js/app.js:3242-3244 (giftAsked.ids not checked), 4424 (dyeOf(g.color)[1]; this line is already in production)",
+   "what": "settings.giftAsked = { day: today } with no ids throws in giftOffer; it heals the next day. A garden entry whose colour is not in DYES throws in renderBag, so the bag never opens; the new applyGarden is guarded by try/catch. Both need a corrupt save or one from a build with other colours.",
+   "evidence": "a-state.out a4: pageerror 'Cannot read properties of undefined (reading 'ribbon')' on 내밀기; pageerror 'Cannot read properties of null (reading '1')' and bag-sheet open false with an empty body.",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/a-state.js",
+   "suggested_fix": "Treat giftAsked as valid only when isObj(ids). In userState() drop garden entries whose colour dyeOf() does not know.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "C17",
+   "severity": "nit",
+   "title": "docs/ROOM_EXPANSION.md memo of 11-11 contradicts the code in three places",
+   "where": "docs/ROOM_EXPANSION.md:622-627",
+   "what": "The memo says there is no mirror button while the octopus sleeps or is out; the code shows it while asleep and answers with a toast. It says the octopus comes up 'beside the stairs'; commit 1f4ab08 moved it to the rug. It says scenarioSalon is not registered in tools/smoke.js; it is registered (smoke.js:4221) and rewritten for upstairs.",
+   "evidence": "Read only: memo text against js/app.js:813, js/scene3d.js:3307 and tools/smoke.js:4221.",
+   "repro": "git -C /home/user/ppolppol-merge show 78b8d4a:docs/ROOM_EXPANSION.md | tail -8",
+   "suggested_fix": "Update the memo, and docs/SALON.md §2 which still places the mirror in the attic.",
+   "confirmed_by_running": false
+  },
+  {
+   "id": "C18",
+   "severity": "nit",
+   "title": "Read-only notes: plant mesh not registered for disposal; 'ask' counted before the plan succeeds; moving the clock back a week re-opens the weekly gift",
+   "where": "js/scene3d.js:4057 (mergeParts without keep); js/app.js:1718 (questMark before B.plan), 4290 (w.key !== key rebuilds in both directions)",
+   "what": "The merged plant geometry is disposed on each setGarden call but is not in the disposables list, so it leaks once if the 3D scene is thrown away. An invite whose plan fails still counts as an ask. Setting the clock to another week and back rebuilds the week with claimed false; the day gift already works the same way.",
+   "evidence": "Read only. The key-change rebuild is the mechanism c-week.out exercised over 80 week changes.",
+   "repro": "Reading the lines named above.",
+   "suggested_fix": "Register the plant geometry with keep() and remove it from the list on rebuild; move questMark('ask') to after the plan resolves; leave the clock case unless the owner cares.",
+   "confirmed_by_running": false
+  },
+  {
+   "id": "C19",
+   "severity": "owner",
+   "title": "In the 2D fallback three weekly tasks cannot be done and the set collection cannot be opened",
+   "where": "js/app.js:4279-4280 (QUESTS: loft, furn, gift), 3234 (gift box is 3D only), 3846 (#btn-sew lives upstairs); js/scene2d.js:649 (rooms: attic and play only)",
+   "what": "On a device without WebGL (or with ?scene=2d) there is no upstairs, no furniture mode and no gift offer. 'loft', 'furn' and 'gift' can only be swapped away, and sets are recorded with a toast naming a 도감 the player cannot open.",
+   "evidence": "d2-count.out: mode 2d; goRoom('loft') refused; btn-stair, btn-sew, btn-salon hidden; no furnCarry on the scene; gift toast '지금 화면에서는 내밀 수 없어'. The play room works (kitchen 1).",
+   "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/checks/d2-count.js",
+   "suggested_fix": "Options: (a) leave it, since five of the remaining nine tasks are enough and rerolls exist, at no cost; (b) leave those three ids out of the pool when sceneMode is '2d', a few lines; (c) also put the set collection in the bag sheet so 2D players can see it.",
+   "confirmed_by_running": true
+  }
+ ],
+ "checked_ok": [
+  "Week key and the end-of-week key used for 'days': correct for 2196 consecutive days in each of 11 time zones (Seoul, New York, Sao Paulo, Cairo, Beirut, Apia, London, Lord Howe, Santiago, Tehran, UTC), including year ends and 29 February (b-dates.out)",
+  "Old save with no user data: week created with 7 distinct known tasks, slot 1 = 'ask', nothing claimed; boot and a window resize count nothing (a-state.out a1, d1-count.out)",
+  "Task picking: 80 consecutive weeks and 840 rerolls through the real buttons never produced an empty pick or a task already in the list; after three rerolls the button is gone (c-week.out)",
+  "Counting: going upstairs, visiting the play room, opening the look sheet (twice = once), and asking for a walk each count once; a walk the octopus declined ('home') still counts as asked; a cancelled furniture move counts nothing (d1-count.out, d2-count.out)",
+  "Weekly gift with two tabs: after tab B claimed, tab A adopted the state and was not offered the claim (f-sync.out); weekClaim is synchronous and guarded by 'claimed'",
+  "Gift box: the same item the same day is refused with '오늘은 이미 물어봤어. 내일 다시 물어볼 수 있어', also after a reload; with the record of the ask deleted, the same answer came back for all 4 items tried; the next day rolls anew (f-sync.out, g-plots.out)",
+  "'전체 초기화' clears user (week, sets, garden) and settings.giftAsked in memory and in storage; export and import carry the fields unchanged (f-sync.out; reading of normalize, exportJSON, importJSON)",
+  "Storage writes: none per render or per frame. questMark saves only on a counted hit, setsCheck only on a newly found set, renderBagChip and weekState do not save, and the 'view' event fires only on change (reading)",
+  "openSalon guard: in the attic it returns false silently with the button hidden; upstairs with the octopus asleep downstairs it gives one toast and no record; with the octopus upstairs it opens (e1-loft.out and the repo's smoke Y checks that ran)",
+  "Octopus bubbles over a room without the octopus: none found. bubble() and the overlay both require scene.octUp(), and a ceremony or leaving the loft moves the octopus back first (reading)",
+  "Lift: 0.5556 m at 320x568 with 6 bottles (octopus 8 px above the sheet), 1.8148 m with 7 bottles, 0 at 360x740 and 430x932; same value after a viewport change with the sheet open; back to 0 after close; pushing the view up is bounded and harmless (e4, e5, e7, e8 outputs)",
+  "Stairs: from the arrival spot the walk down succeeded with the octopus at the arrival spot, crate, center, board and door positions (e7-stair.out)",
+  "Markup: no duplicate ids with the bag and sew sheets rendered; the new controls are button[type=button] with labels; plot buttons carry '텃밭 첫째/둘째/셋째 칸'; during the forced intro the bag tag, its gift dot, the plot, salon and sew buttons are all hidden (h-ui.out)",
+  "All nine sets use outfit, shoes and accessory ids that exist in the player parts list (h-ui.out)",
+  "Slow room changes seen in my first runs (20 to 40 s) were machine load (24 animation frames in 38 s at load average 33), not a stuck walk (d3-rooms.out)"
+ ],
+ "not_checked": [
+  "tools/test-scene-perf.js and SMOKE_ONLY=Y to completion: both were cut by time limits under machine load; the rest of tools/smoke.js and the other slow suites were not run",
+  "The return-from-walk variant of the dead mirror button (C2): read only; only the wake variant was run",
+  "A 'home' day replayed while the player goes upstairs mid-reveal (the octopus may follow and the reveal then walks it to attic anchors): read only",
+  "The stale app anchor 'salon' after a colour change followed by down-and-up, which could skip the walk to the mirror on a second ask just after midnight: read only, very narrow",
+  "Walking to the stairs from positions other than the arrival spot with the octopus wandered next to the stair head",
+  "Real phone behaviour of the inset formula: browser bar collapsing, on-screen keyboard, pinch zoom of the page, a dragged sheet",
+  "WebGL context loss while upstairs with the sheet open, and the switch to the 2D scene in that state",
+  "How the garden beds, the lifted scene and the octopus upstairs look (lighting, shadows, paths of the departure ritual across the beds): left to the visual reviewers; my screenshots at 320 px width show a white 256 px tile that is a capture artefact under load",
+  "Hard lines as such (wording, steering, pressure): another lens. I only noted that the weekly 'ask' task counts the asking, not the answer",
+  "Sound (js/audio.js) and the kitchen commits f536251 / c451d09"
+ ],
+ "suites": [
+  "npm test on a copy of the tree: exit 0 — check-world OK; 517, 26, 568, 225, 192 and 225 passed, 0 failed in the sub-suites that print totals; test-export 46 passed, 0 failed (log: /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v-code/npm-test.log)",
+  "Font check (tools/subset-fonts.py --check) on the copy: 'stale: none'",
+  "node tools/test-scene-perf.js on the copy: 90 checks passed, including every T3-T6 check with the mirror upstairs (T6 loft props: 7 meshes, 0/98 arch points covered; shader programs 32 = boot 32). The run was then cut by my 25-minute limit during T7 (exit 124) with the machine at load average 15-18; the single 'failed' line is the exception from that cut-off (perf.log)",
+  "SMOKE_ONLY=Y node tools/smoke.js on the copy: 16 checks passed, then the scenario stopped at smoke.js:2473 on a 30 s page-load timeout under load; the remaining checks did not run (smokeY.log)"
+ ],
+ "untested_behaviours": [
+  "Weekly to-do list: creation and seed, the seven-of-twelve pick, counting at each call site (ask, run, water, plant, harvest, furn, loft, kitchen, look, diary, gift, days), three rerolls per slot, claim paying 12 shells and 2 seeds once, the gift dot on the bag tag, the change of week, and the rebuild of a broken week — no test in tools/",
+  "Set collection: recording when outfit, shoes and accessory match, the toast, the rows in the sew sheet with hints, and '다시 입기' — no test",
+  "Garden in the scene: scene.setGarden / garden() against the saved garden, the three plot buttons showing only outside, a tap planting, watering or harvesting the right bed, and the refresh after reset, import or another tab — no test",
+  "Gift box answer standing for the day: settings.giftAsked, the 'already asked' toast, the same answer for the same day and item, and a new roll the next day — no test",
+  "Lift of the scene under the salon sheet: no direct test of scene.lift() or setSheetInset. Smoke Y step 3 covers it only indirectly (octopus parked beside the mirror stays above the sheet at 320x568, 360x640, 412x780) and did not run to that point here. Not covered: the octopus on the rug, 7 bottles, return to 0 on close or on leaving the loft, a panned view, a resize",
+  "Octopus upstairs beyond 'comes up, goes down': wander upstairs, arriving while it is mid-walk, waking or returning while the player is upstairs, a walk started from Claude while the player is upstairs, taps and bubbles upstairs in the app",
+  "The sleeping-downstairs line has a test (smoke Y step 9: toast text, no sheet, no record), but it no longer asserts that no bubble is shown",
+  "The player stepping aside when the colour change starts (salClearView), and the moved stair-head anchor from commit 1f4ab08 — no test",
+  "Mirror button hidden and sheet refused in the play room — the check was removed and nothing replaced it",
+  "Stair-down and sewing buttons hidden during the colour change (new CSS rule for #btn-loft-stair and #btn-sew) — not asserted in the changed tests"
+ ]
+}

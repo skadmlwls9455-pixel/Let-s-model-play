@@ -1,0 +1,62 @@
+{
+ "summary": "Interim verdict: the OW-3 (b) fix works when I play it, but my test audit is not finished. The harness made me report while my mutant and suite runner was still going, so only one of its results was in.\n\nWhat I saw: when a stay-home turn ends while the octopus is upstairs, it now stays where it is, awake, idle and visible, until the player goes down. That holds for a turn of this tab and for a turn finished in another tab inside the awake window. I reproduced the old behaviour on an untouched copy of a0483dd at 360x740 with touch:\n- Own-tab turn: the octopus disappeared from the upstairs room for 12 frames in front of the player.\n- Two-tab case: it disappeared for 33 frames, and the mirror showed '지금은 아래층에 있어.'\n- On the fixed tree, both cases show 0 frames gone and 0 frames asleep upstairs.\n\nOther checks on the fixed tree:\n- Tapping the octopus upstairs shows the turn's line (bubble = APP.tapLine, data-tap 1).\n- The mirror opens the sheet with no asks and no new log rows.\n- The awake window does not count down upstairs (25000 ms both before and after about 9 s).\n- On going down, the very first attic frame already has the octopus on the blanket (0.003 from the anchor), awake, with more than 15000 ms left. It then naps on the blanket.\n- Climbing again during the window: it does not follow.\n- Same results at 320x568.\n\nPaths beyond the fix agent's checks:\n- A salon ask upstairs during the window: the octopus walks to the mirror, the window stays frozen, going down puts it on the blanket, and it naps there.\n- A new invitation from upstairs: the scene returns to the attic with the octopus on the blanket, and the next turn runs normally.\n- A day change while upstairs, and a simulated 20-minute nap limit: on going down it is awake at its old attic spot, not asleep, and it follows again.\n- The play room cannot be reached directly from the loft (goRoom returns 'far'), so that route does not exist.\n\nThe code review agrees with this:\n- on.octUp is the single point every exit from the loft passes through.\n- sleepNow now always puts a sleeping octopus on the blanket.\n- The 2D fallback is unchanged by construction: octWithMe() is always false there, and the scene never emits octUp.\n- No new player-facing text. The font check says stale: none, and no sound was requested or played (0 audio requests, 0 AudioContext).\n- npm test on a copy: every sub-suite 0 failed.\n- The fix agent's claim that docs/OWNER_DECISIONS.md has no 11-12 entries is true.\n- No function of the gnits lane was touched, and scene3d.js is unchanged.\n\nNot finished: my mutant runs and the five-in-a-row determinism runs. Only the first fixed-tree Z part 5 run had completed: 16 passed, 0 failed (575 s, load about 9). The rest of the queue (/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-owner3/run.sh) had not reported when I had to stop. Its results, as far as it got, are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-owner3/logs/summary.txt.\n\nTwo findings so far, both about guards rather than behaviour:\n- **should, unconfirmed:** I expect the `restPhase() !== 'up'` condition in on.octUp has no failing check, by reading the existing Z checks. Its mutant ran last in the queue and was not finished.\n- **nit:** `|| octWithMe()` in sleepNow looks unreachable, so it has no failing check.\n\nI found no defect in the behaviour itself.",
+ "problems": [
+  {
+   "id": "CO3-1",
+   "severity": "should",
+   "title": "The 'only while resting' condition on the blanket placement has no failing check (expected; mutant run not finished)",
+   "where": "js/app.js:542, on.octUp: `if (an !== 'blanket' && restPhase() !== 'up') octPlace('blanket')`",
+   "what": "Without `restPhase() !== 'up'`, an ordinary awake octopus that followed the player upstairs would land on the blanket every time the player comes down, instead of its own spot. The only Z check about coming down (Z-1: `un.an !== 'salon'`, idle, hop 0) does not say which attic spot, and part 5 never reads the anchor after an awake octopus comes down. So this line looks unguarded.",
+   "evidence": "Read of tools/smoke.js around line 5393-5396 (Z-1 coming down) and all of Z part 5. Mutant /dev/shm/co3/muts/K1-octUpAlwaysBlanket.js was queued for a full Z run; its log will be /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-owner3/logs/mut-K1-octUpAlwaysBlanket.log, which had not finished when I reported. Unconfirmed until that run ends.",
+   "suggested_fix": "In Z-1 (or 5-a and 5-1, where an awake octopus that is not resting comes down), record the attic spot it is put on and assert it is its own spot (oct.anchor before climbing, or 'center' if that was 'salon'), not 'blanket'."
+  },
+  {
+   "id": "CO3-2",
+   "severity": "nit",
+   "title": "`|| octWithMe()` in sleepNow seems unreachable and has no failing check",
+   "where": "js/app.js:1401 sleepNow",
+   "what": "Upstairs, roomNow() is 'loft', so watching() is false. lieDown then always calls sleepNow(t, true), so `place` is already true. The only call without place (after walkTo in lieDown) needs watching() to be true, and a resting octopus cannot climb (octResting). So the extra condition is defensive. Removing it should leave every check green.",
+   "evidence": "Code read of lieDown, watching and inPlay (app.js 1384-1397, 1350, 3799). Mutant /dev/shm/co3/muts/K2-sleepNoWithMe.js was queued for Z part 5; its result was not in when I reported.",
+   "suggested_fix": "Either keep it as a documented guard and say in the comment that it is defensive, or drop it. No player impact."
+  }
+ ],
+ "per_fix": "Item 1 (a turn of this tab ends upstairs): on the base it vanished (12 frames in view gone, up:false); on the fix it stays (70/70 frames upstairs, 0 gone, 0 walking, 0 asleep), checked at 360 and 320 with my probe p.js case S. Guarding check: Z 5-3a/5-3b fail when the fix is reverted (fix agent's MA and ME); my reruns of those mutants were not finished.\nItem 1 (going down puts it on the blanket with at least AWAKE_SEEN): on the base it was already on the blanket because it was moved at the turn's end; on the fix, the first attic frame has it on the blanket, left about 23900 ms (15000 or more), and climbing again does not bring it. Guarding check: 5-3c (fix agent's MB); my MB run not finished.\nItem 2 inside the window (another tab's turn): on the base it vanished (33 frames gone) and the mirror said 아래층; on the fix it stays, 0 gone, and the sheet opens (p1.js T). Guarding check: 5-5 (fix agent's MD); my MD run not finished.\nItem 2 outside the window and item 3 (never asleep upstairs): not reproduced as a separate bug on the base (the old code also moved it down). Guarding checks: 5-5d and 5-6 (fix agent's MF); my MF run not finished. In my probes I saw 0 frames asleep upstairs in every case (S, T, A, C, D, B).\nItem 4 (mirror upstairs during the window): on the fix the sheet opens with 0 asks and 0 new rows; guarded by 5-3b.\nItem 5 (tap line upstairs): on the fix the bubble equals APP.tapLine with data-tap 1; guarded by 5-3b.\nRO-1 and RO-2 (checks only): my MK and MW Q runs were queued and not finished; the fix agent reports Q 63/1 for each.",
+ "mutations": "Mutant files in /dev/shm/co3/muts/: K3-baseApp (the whole app.js fix reverted), MB, MD, ME, MF (each fix line reverted alone), K2 (no `|| octWithMe()` in sleepNow), K1 (the blanket placement on coming down without the rest-phase condition), MK (no `+ kept` in due), MW (no `d <= ek` bound). All were queued in run.sh after the first fixed-tree Z part 5 run. None had reported when the harness made me report, so I cannot yet say which checks they fail. I am relying on the fix agent's table (MA 13/3, MB 15/1, MD 15/1, ME 14/2, MF 14/2, MK 63/1, MW 63/1), and I have not seen these results myself. Logs land in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-owner3/logs/.",
+ "suites": [
+  "npm test on a copy of the fixed tree: every sub-suite 0 failed (517, 26, 568, 225, 192, 234, test-export 46), exit 0. Log /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-owner3/npm-test.log",
+  "Font check: stale: none. Log /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-owner3/font.log",
+  "SMOKE_ONLY=Z SMOKE_Z=5 on the fixed copy, run 1: 16 passed, 0 failed (575 s, load 8.1 to 9.3)",
+  "Not finished when I reported: the other four Z part 5 runs, full Z, Q five times, A once, Y once, and the mutants (queue in run.sh; results in logs/summary.txt)"
+ ],
+ "held": [
+  "A stay-home turn that ends while the octopus is upstairs leaves it upstairs, awake, idle and visible: 0 frames gone, walking or asleep upstairs, at 360x740 and 320x568",
+  "Another tab's turn inside the window leaves it upstairs; the mirror opens the sheet",
+  "Going down: the first attic frame (during the transition) already has it on the blanket, awake, with 15000 ms or more left; it naps on the blanket afterwards",
+  "Climbing again during the window: it does not follow",
+  "The tap line works upstairs; the mirror sheet opens with no asks and no rows; the window is frozen upstairs (OW-4 kept, watching() unchanged)",
+  "A salon ask upstairs during the window, then going down: on the blanket, then it naps",
+  "A new invitation from upstairs during the window: back to the attic on the blanket, and the next turn completes",
+  "A day change, or a passed nap limit, while upstairs: on going down it is awake at its attic spot (honest), never asleep upstairs, and it follows again",
+  "No player-facing text changed; no sound requests and no AudioContext in the probes; font check stale: none; npm test green",
+  "2D fallback unchanged by construction (octWithMe() false, octUp never emitted)",
+  "Not touched: scene3d.js, watching(), the weekly code, and the gnits lane's functions",
+  "OWNER_DECISIONS.md has no 11-12 entries (the fix agent's statement is true)"
+ ],
+ "not_checked": [
+  "My own mutant results: all queued, none finished when I reported",
+  "Whether the new checks pass five times in a row (Z part 5 passed once; Q not run yet)",
+  "Full Z, Q, A and Y suites on the fixed copy",
+  "A real model turn: the brain's slow-plan wrapper stood in for it",
+  "A truly frozen background tab receiving a stale storage event (5-5d simulates this by holding back the event)",
+  "Light/dark and the plain font theme: looks did not change, so not checked",
+  "The white band above the lifted scene when the mirror sheet is open: also seen with an ordinary awake octopus upstairs, so it comes from the existing scene lift and is not this lane's; not investigated further"
+ ],
+ "pictures": [
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-owner3/fix-S-up-tap-360.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-owner3/fix-S-up-tap-320.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-owner3/fix-S-down-360.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-owner3/fix-S-up-mirror-360.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-owner3/base-S-up-after-360.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-owner3/fix-M-mirror-late-360.png"
+ ]
+}

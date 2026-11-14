@@ -1,0 +1,72 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "node tools/export-site.js",
+  "outputDirectory": "public",
+  "regions": [
+    "icn1"
+  ],
+  "functions": {
+    "api/runner/*.js": {
+      "regions": [
+        "icn1"
+      ],
+      "maxDuration": 10,
+      "includeFiles": "js/runner.js"
+    },
+    "api/mcp/[key].js": {
+      "regions": [
+        "icn1"
+      ],
+      "maxDuration": 60,
+      "includeFiles": "{library/books/**,library/cards/**,js/world.js,js/brain.js,js/shelf.js,mcp/data/**}"
+    },
+    "api/room.js": {
+      "regions": [
+        "icn1"
+      ],
+      "maxDuration": 10
+    },
+    "api/walks/[key].js": {
+      "regions": [
+        "icn1"
+      ],
+      "maxDuration": 10
+    },
+    "api/far/[key].js": {
+      "regions": [
+        "icn1"
+      ],
+      "maxDuration": 10
+    },
+    "api/lang/[key].js": {
+      "regions": [
+        "icn1"
+      ],
+      "maxDuration": 10
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/((?!runner/top).*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/vendor/mcp-apps/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}

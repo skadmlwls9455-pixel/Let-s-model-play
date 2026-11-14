@@ -76,7 +76,7 @@ Priority: **must** = clearly better and cheap; **should** = valuable; **nice** =
 
 **R2 (must) — Go-or-stay is the octopus's roll, and "stay" is a first-class branch.** Travel Frog's frog sometimes just stays in and reads (S4), and players only panic when the homebody frog shows *nothing* (S5). *Apply:* on 뽈뽈 다녀와, the seeded RNG picks 외출 (~78%) or 집 (~22%). The 집 branch must have its own 6–10 micro-scenes (창가에서 빗소리 듣기, 그물 손질, 어제 포스터 다시 보기, 낮잠), its own log entries, and its own poster. Never render an empty room with no line.
 
-**R3 (should) — The hint is a pack, not a destination.** In Travel Frog items shift probabilities on a node/edge graph (S7). *Apply:* model topics as a small graph (`모자 → 깃털 → 새 → 철새 경로…`). The hint sets the first node with ~60% probability; each subsequent hop follows an edge weighted by the octopus's own preferences and the "odd rooms" list, so the log reads "모자 보러 갔다가 깃털에 한눈팔았어". An empty hint starts from a random favourite node.
+**R3 (should) — The hint is a pack, not a destination.** In Travel Frog items shift probabilities on a node/edge graph (S7). *Apply:* model topics as a small graph (`모자 → 깃털 → 새 → 철새 경로…`). The hint sets the first node with ~60% probability; each subsequent hop follows an edge weighted by **demo-rules weights** (seeded, kept inside the demo chooser, never written as the octopus's taste and never sent to a model; `model-voice-and-play.md` §5) and the "odd rooms" list, so the log reads "모자 보러 갔다가 깃털에 한눈팔았어" with `by: 'demo-rules'`. An empty hint starts from a seeded pick among the start nodes. With a model, the model picks each hop from the menu and these weights are not used.
 
 **R4 (should) — Nudge toward untrodden paths with a visible badge.** Pikmin Bloom rewards "walking in new areas" (S17). *Apply:* keep `visits[nodeId]` in localStorage; multiply edge weight by `1/(1+visits)`; on the receipt, mark a never-visited node with a "처음 가본 곳" chip. Odd rooms start at zero so they surface naturally.
 
@@ -104,7 +104,7 @@ Priority: **must** = clearly better and cheap; **should** = valuable; **nice** =
 
 **R13 (should) — One invitation per day, framed as rest, not as a lock.** Wordle's scarcity (S15); Animal Crossing's 5 AM daily reset and one-per-day resources (S18). *Apply:* after today's trip, the button text becomes "오늘은 다녀왔어 · 내일 또 올게" (disabled, no countdown timer visible — a timer reads as a cooldown). The 데모 조작 panel keeps a "날짜 넘기기" override for testing. The day boundary can be 05:00 local like Animal Crossing so a late-night session counts as today.
 
-**R14 (nice) — A shareable emoji card with no spoilers.** Wordle's grid tells the story of the attempt without giving the answer (S15). *Apply:* a 복사 button on the receipt producing e.g. `뽈뽈 #37 ☔🐙 → 🎩 → 🪶 → 🏠  집에 걸었어`. Path emojis come from stop categories; no URLs, no hint text, so it is safe to post.
+**R14 (nice) — A shareable emoji card with no spoilers.** Wordle's grid tells the story of the attempt without giving the answer (S15). *Apply:* a 복사 button on the receipt producing e.g. `뽈뽈 #37 ☔🐙 → 🎩 → 🪶 → 🏠  집에 걸었어`. Path emojis come from stop categories; no URLs, no hint text, so it is safe to post. **Project override (뽈뽈 문어, owner 11-07):** no emoji in player UI, so the card uses category words instead: `뽈뽈 #3 · 비 오는 날 · 손 · 바다 · 들판` (see SKILL.md §3).
 
 ### E. Wall, lantern and room state
 

@@ -1,0 +1,333 @@
+/* ═══════════════════════════════════════════════════════════════════
+   뽈뽈 문어 — js/ui-art.js (전역 UIART) · UI 아트 배선 (docs/UI_ART.md)
+   app.js 는 작은 훅만 부른다: onRow · onBubble · onState · onInspect · fx. 그림 주소는 icon · iconHTML · iconSrc 로 빌려 준다.
+   오늘의 산책(가장 새 목소리 행의 '다음' 그림 next.png) · 앨범(반짝 · '문어의 요즘' 줄 아이콘)은 MutationObserver 로 따라간다. 장면 위 버튼 그림(img[data-icon], 놀이방 문)의 주소도 여기서 채운다.
+   플레이어 화면엔 이모지 · 장식 기호가 없다 (주인 11-07): 예전 이모지 자리(방 · 읽기 상태 · 기념품 · 스티커)는 app.js 가 픽셀 아이콘(class ua-both)을 직접 넣는다 — 두 테마 다 보인다 (시스템 16px · 픽셀 32px).
+   그 밖의 꾸밈(도구 라벨 아이콘 · 틀 · '다음' · 파티클)은 css/ui-art.css 가 :root[data-font="pixel"] 일 때만 켠다.
+   일러스트(illust.*)는 여기서 쓰지 않는다 (타이틀·로딩 흐름은 다른 작업).
+   일반 스크립트 · 모듈 없음 · file:// 에서 그대로 동작 (경로는 manifest 규칙대로 고정).
+   ═══════════════════════════════════════════════════════════════════ */
+var UIART = (function () {
+  'use strict';
+
+  var LOG_KIND = { depart: 'depart', peek: 'peek', 'return': 'return', remember: 'remember', hang_poster: 'poster', wrap_up: 'wrapup', stay_home: 'home' };
+  var CORNERS = ['hands', 'sea', 'sky', 'signs', 'numbers', 'sounds', 'home', 'mind', 'wild'];
+  /* fx 스트립: 8×8 칸 수 (manifest fx.*.frames) */
+  var FX = { heart: 2, question: 1, zzz: 3, sparkle: 4, ink: 4 };
+  var TICK = 1000 / 12;   /* 12 fps — 장면 입자와 같은 박자 */
+
+  function $(id) { return document.getElementById(id); }
+  function app() { return (typeof APP !== 'undefined' && APP) || null; }
+  function pixel() { return document.documentElement.getAttribute('data-font') === 'pixel'; }
+  function reduced() {
+    var a = app(), m = (a && a.state && a.state.settings && a.state.settings.motion) || 'auto';
+    if (m === 'reduce') return true;
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  /* 그림 주소: tools/bundle.js 단일 파일이면 window.ASSETS_INLINE['icon.log.peek'] = { src:'data:…' } 를 (dist/ 기준 상대 경로는 404),
+     아니면 지금까지처럼 상대 경로 (http · file:// 그대로). 키 = 'icon.' + 경로의 '/' 를 '.' 로 — bundle.js iconKey() 와 같은 규칙 */
+  function iconSrc(path) {
+    var m = window.ASSETS_INLINE, a = (m && typeof m === 'object') ? m['icon.' + path.split('/').join('.')] : null;
+    return (a && (typeof a === 'string' ? a : a.src)) || ('assets/icons/' + path + '.png');
+  }
+  /* ── 아이콘 <img>: 16×16 원본을 32px(×2)로. 장식이라 alt="" + aria-hidden — 옆의 글자(라벨·상태 단어)는 그대로 남긴다.
+     그림이 안 오면 지운다 (아래 문서 전체 error 캡처 — HTML 문자열로 넣은 것도). 이모지로 되돌리지 않는다 ── */
+  function icon(path, cls) {
+    var i = document.createElement('img');
+    i.className = 'ua-ico' + (cls ? ' ' + cls : '');
+    i.src = iconSrc(path);
+    i.alt = ''; i.setAttribute('aria-hidden', 'true');
+    i.width = 32; i.height = 32; i.draggable = false; i.decoding = 'async';
+    return i;
+  }
+  function iconHTML(path, cls) {
+    return '<img class="ua-ico' + (cls ? ' ' + cls : '') + '" src="' + String(iconSrc(path)).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '" alt="" aria-hidden="true" width="32" height="32" draggable="false" decoding="async">';
+  }
+  /* 포스터 스티커(SVG <g class="stk"><image>)도 같다: 안 오면 스티커 무리째 지운다 (깨진 그림 표시가 카드 · 앞면 · 2D 벽에 남지 않게).
+     한 번 안 온 주소는 기억해 둔다 → app.js posterSVG 가 다음부터 스티커를 아예 넣지 않는다 (iconBad) */
+  var BAD = {};
+  function hrefOf(t) { return t.getAttribute('src') || t.getAttribute('href') || t.getAttribute('xlink:href') || ''; }
+  document.addEventListener('error', function (e) {
+    var t = e.target, g;
+    if (!t || !t.tagName) return;
+    if (t.tagName === 'IMG' && t.classList && t.classList.contains('ua-ico')) { BAD[hrefOf(t)] = 1; if (t.parentNode) t.parentNode.removeChild(t); }
+    else if (t.tagName === 'image' && t.closest && (g = t.closest('g.stk'))) { BAD[hrefOf(t)] = 1; if (g.parentNode) g.parentNode.removeChild(g); }
+  }, true);
+  function iconBad(src) { return !!(src && BAD[src]); }
+  function prepend(el, path, cls) {
+    if (!el || el.querySelector(':scope > .ua-ico')) return null;
+    var img = icon(path, cls);
+    el.insertBefore(img, el.firstChild);
+    return img;
+  }
+
+  /* ── 1 · 2 산책 로그 행 ── */
+  function frameRow(row) {
+    if (!row.classList.contains('voice') && !row.classList.contains('dialog')) return;
+    row.classList.add('ua-frame-dialog');
+    var port = row.querySelector('.lport'); if (port) port.classList.add('ua-frame-portrait');
+  }
+  /* app.js eventRow 끝에서: 도구 라벨 앞에 icon.log.<kind> (픽셀 테마 꾸밈). 읽기 상태 · 방 · 기념품 그림은 app.js 가 이미 넣었다 */
+  function onRow(row, ev) {
+    if (!row || !ev) return;
+    frameRow(row);
+    var kind = LOG_KIND[ev.type];
+    if (kind) {
+      var tool = row.querySelector('.ltool');
+      if (tool && prepend(tool, 'log/' + kind, 'ua-log')) { tool.classList.add('ua-tool'); row.classList.add('ua-row'); }
+    }
+  }
+  /* 가장 새 문어 목소리 행에만 '다음' 그림 (next.png ↔ next2.png 0.5 s 깜빡, 축소 모션이면 가만히) */
+  var logRaf = 0;
+  function syncLog() {
+    logRaf = 0;
+    var log = $('log'); if (!log) return;
+    var rows = log.querySelectorAll('.lrow.voice, .lrow.dialog');
+    Array.prototype.forEach.call(rows, frameRow);
+    var newest = rows.length ? rows[rows.length - 1] : null;
+    Array.prototype.forEach.call(log.querySelectorAll('.lrow.ua-newest'), function (r) { if (r !== newest) r.classList.remove('ua-newest'); });
+    if (!newest) return;
+    if (!newest.classList.contains('ua-newest')) newest.classList.add('ua-newest');
+    if (!newest.querySelector(':scope > .ua-next')) { var n = document.createElement('span'); n.className = 'ua-next'; n.setAttribute('aria-hidden', 'true'); newest.appendChild(n); }
+  }
+
+  /* ── 3 · 포스터 열람 기록 · 일기(뒷면): 종이 틀 (app.js openPoster 끝에서). 코너 · 상태 · 기념품 그림은 app.js 가 이미 넣었다 ── */
+  function onInspect(trip) {
+    var tx = $('pd-text'), back = $('pd-back');
+    if (!trip) return;
+    if (tx) tx.classList.add('ua-frame-paper');
+    var rc = back && back.querySelector('.receipt');
+    if (rc) rc.classList.add('ua-frame-paper');
+  }
+
+  /* ── 6 · 앨범 맨 위 '문어의 요즘' 줄 → icon.memory.<코너> (app.js 가 줄마다 data-corner 를 단다 — 예전 방 보기처럼 글자를 읽어 맞히지 않는다) ── */
+  function syncRecent() {
+    var box = $('al-recent'); if (!box) return;
+    Array.prototype.forEach.call(box.querySelectorAll('p[data-corner]'), function (el) {
+      var c = el.getAttribute('data-corner');
+      if (CORNERS.indexOf(c) >= 0 && prepend(el, 'memory/' + c, 'ua-mem')) el.classList.add('ua-ico-line');
+    });
+  }
+
+  /* ── 4 · 장면 말풍선: say(기본) · think(혼잣생각·메모) · whisper(졸림·잠).
+     외침(happy·찾았다·'!')은 따로 그리지 않는다 — 주인 11-07: 가시 테두리 없이 효과음과 작은 통통(data-pop)으로만. kind 'shout' 는 소리 쪽(js/audio.js)이 그대로 쓴다 ── */
+  function bubbleSkin(text, kind) {
+    if (kind === 'think' || kind === 'memo') return 'think';
+    if (kind === 'sleep' || kind === 'sleepy' || kind === 'whisper') return 'whisper';
+    return 'say';
+  }
+  function isShout(text, kind) { return kind === 'happy' || kind === 'excited' || kind === 'shout' || /찾았|!$/.test(String(text || '')); }
+  /* 장면 위 버튼들의 보이는 상자와 겹치는 말풍선 → 밀 양(px: 음수 = 왼쪽, 양수 = 오른쪽) · 안 겹치면 0. 버튼 무리마다 따로 잰다:
+     오른쪽 위 아이콘 묶음(#scene-ctl: 추억 앨범 · ⚙ 설정) 은 왼쪽으로, 산책 중 바깥의 왼쪽 아래 집 단추(#btn-door edge, 주인 11-08 밤) 는 오른쪽으로 비킨다
+     (무리의 가운데가 장면 가운데보다 왼쪽이면 왼쪽 무리).
+     r = 밀기 전 풍선 상자. 입장 연출로 숨은 것 · 숨은 버튼은 셈하지 않는다. 2D 무대(app.js keepBubble2D)도 같이 쓴다 */
+  function boxesOf(host, sel) {
+    if (!host || host.hidden || getComputedStyle(host).visibility === 'hidden') return null;
+    var L = Infinity, T = Infinity, B = -Infinity, R = -Infinity;
+    [].forEach.call(sel ? host.querySelectorAll(sel) : [host], function (x) { var q = x.getBoundingClientRect(); if (!q.width) return; L = Math.min(L, q.left); R = Math.max(R, q.right); T = Math.min(T, q.top); B = Math.max(B, q.bottom); });
+    return L === Infinity ? null : { L: L, R: R, T: T, B: B };
+  }
+  function layoutOne() { return document.documentElement.getAttribute('data-layout') === 'one'; }
+  function ctlGroups() {
+    var door = $('btn-door'), stick = $('stick');   /* 왼쪽 아래 발자국 손잡이(11-08)도 왼쪽 무리 — 보일 때만 (바깥의 집 단추와는 같은 자리 · 배타적) */
+    return [layoutOne() ? null : boxesOf($('scene-ctl'), '.icon-btn:not([hidden]) .snd-box'), door && !door.hidden ? boxesOf(door, '.door-box') : null, stick && !stick.hidden ? boxesOf(stick) : null].filter(Boolean);
+  }
+  /* 한 화면 배치 (주인 11-08): 장면 위에 왼쪽 상태 줄 · 오른쪽 아이콘이 한 띠로 얹혀 옆으로 비킬 틈이 없다 (360 폭에서 둘 사이 89px < 풍선 최소 96px).
+     그래서 옆이 아니라 아래로 — 풍선이 띠의 어느 상자와 옆으로 겹치면 그 상자 밑(+pad)이 풍선의 위 한계. 안 겹치면 0 (장면 위 가장자리 규칙 그대로) */
+  function topBand(r, pad) {
+    if (!layoutOne()) return 0;
+    var y = 0;
+    [boxesOf($('status')), boxesOf($('scene-ctl'), '.icon-btn:not([hidden]) .snd-box')].forEach(function (g) { if (g && r.left < g.R + pad && r.right > g.L - pad) y = Math.max(y, g.B + pad); });
+    return y;
+  }
+  function avoidCtl(r, pad) {
+    if (!r) return 0;
+    var shift = 0, sc = $('scene'), s = sc ? sc.getBoundingClientRect() : null, mid = s ? (s.left + s.right) / 2 : Infinity;
+    ctlGroups().forEach(function (g) {
+      if (r.bottom <= g.T || r.top >= g.B) return;
+      if ((g.L + g.R) / 2 < mid) { if (r.left >= g.R + pad) return; shift = Math.max(shift, g.R + pad - r.left); }   /* 왼쪽 무리 → 오른쪽으로 */
+      else { if (r.right <= g.L - pad) return; shift = Math.min(shift, g.L - pad - r.right); }
+    });
+    return shift;
+  }
+  /* 비켜 서도 겹치면(좁은 폭에서 문어가 보드·문 앞 = 아이콘 바로 아래일 때 — 꼬리를 문어 위에 두면 더는 못 민다) 말풍선이 보이는 동안 그 말풍선과 겹치는 버튼만 숨긴다
+     (css .icon-btn.yield · .scene-door.yield: 투명 · 탭은 아래로 통과 · 키보드 포커스가 가면 다시 보임). 문어의 말이 먼저 읽히게 —
+     예전처럼 옅게(0.3) 두면 아이콘(앨범 · 설정 — 11-08 까지는 소리도)이 말풍선 글자 위에 그려졌다. 겹치지 않는 버튼은 그대로. 말풍선이 사라지면 돌아온다.
+     r = 비킨 뒤의 풍선 상자 { left, right, top, bottom } (true = 모두 · false = 모두 되돌림) */
+  function ctlYield(r) {
+    [].forEach.call(document.querySelectorAll('#scene-ctl .icon-btn, #btn-door'), function (btn) {
+      var on = false;
+      if (r && !btn.hidden) {
+        if (r === true) on = true;
+        else { var q = (btn.querySelector('.snd-box, .door-box') || btn).getBoundingClientRect(); on = q.width > 0 && r.left < q.right && r.right > q.left && r.top < q.bottom && r.bottom > q.top; }
+      }
+      if (btn.classList.contains('yield') !== on) btn.classList.toggle('yield', on);
+    });
+  }
+  /* 풍선이 장면(#scene) 밖으로 잘리지 않게 (11-08 — 장면 칸은 overflow:hidden 이라 삐져나간 글자는 그냥 사라진다). 두 테마 같은 규칙, P = 4px (픽셀 틀 테두리 + 베벨):
+     1 폭: 220px (좁은 장면이면 장면 폭 − 2P) · 2 옆: 가장자리 안으로 민다, 오른쪽 위 아이콘 묶음 · 바깥 집 단추와 겹치면 그 옆까지 (장면 가장자리 밖으론 안 민다).
+       민 만큼 픽셀 꼬리는 거꾸로 옮겨 문어를 가리키되 풍선 아랫변 안 (가운데에서 ± 폭/2 − 20) · 3 위: 장면 위쪽을 넘으면 그만큼 아래로 (--bub-dy),
+       12px 넘게 내려오면 머리에 닿으니 픽셀 꼬리는 뺀다 (data-tail="off"). 픽셀 테마는 2px 격자.
+       한 화면 배치에선 위 한계가 장면 가장자리가 아니라 위 띠(상태 줄 · 아이콘) 밑 — topBand */
+  function liftY(b) { try { var tf = getComputedStyle(b).transform; return tf && tf !== 'none' && typeof DOMMatrixReadOnly === 'function' ? new DOMMatrixReadOnly(tf).m42 : 0; } catch (e) { return 0; } }   /* transform 의 세로 몫 (bubble-in 이 4px 아래에서 올라온다) */
+  function keepInside(b) {
+    var sc = $('scene'); if (!sc || !b.closest('#scene3d')) { b.style.marginLeft = ''; b.style.maxWidth = ''; b.style.removeProperty('--ua-tail'); b.removeAttribute('data-tail'); return; }   /* 2D 무대는 app.js keepBubble2D (--bub-dy 도 거기서) */
+    b.style.marginLeft = ''; b.style.removeProperty('--ua-tail'); b.style.removeProperty('--bub-dy'); b.removeAttribute('data-tail');
+    var s = sc.getBoundingClientRect(), P = 4, px = pixel(), shift = 0;
+    var mw = Math.max(96, Math.min(220, Math.floor(s.width - 2 * P))) + 'px';
+    if (b.style.maxWidth !== mw) b.style.maxWidth = mw;
+    /* 등장 애니메이션(아래 4px → 0) 도중에 재도 끝난 자리로 — 위 잘림만이 아니라 아이콘 피하기 · 숨기기도 (검증 11-08: 도중에 재면 아이콘과 위아래로 비껴 보여 그대로 두었다가 0.1 s 뒤 80px 옆으로 튀었다) */
+    var r0 = b.getBoundingClientRect(), ly = liftY(b), r = { left: r0.left, right: r0.right, top: r0.top - ly, bottom: r0.bottom - ly, width: r0.width, height: r0.height };
+    if (r.left < s.left + P) shift = s.left + P - r.left; else if (r.right > s.right - P) shift = s.right - P - r.right;
+    var cs = avoidCtl(r, P);   /* 아이콘을 피하되 장면 가장자리 밖으로는 안 민다 */
+    if (cs < 0) shift = Math.min(shift, Math.max(cs, s.left + P - r.left));
+    else if (cs > 0) shift = Math.max(shift, Math.min(cs, s.right - P - r.right));
+    if (px) {   /* 11-14 (CI 스모크 T-2, 412 · 픽셀): 짝수 격자로 맞추다 오른쪽 끝에서 필요한 -5 가 -4 로 줄어 가장자리 3px 에 붙었다 → 짝수로 맞추되 4px 안쪽 범위를 벗어나면 한 칸 더 */
+      var lo = s.left + P - r.left, hi = s.right - P - r.right, e = even(shift);
+      if (e < lo) e = Math.min(hi, e + 2);
+      if (e > hi) e = Math.max(lo, e - 2);
+      shift = Math.round(e);
+    } else shift = Math.round(shift);
+    var need = Math.max(s.top + P + 2, topBand({ left: r.left + shift, right: r.right + shift }, P)) - r.top, dy = need > 0 ? (px ? Math.ceil(need / 2) * 2 : Math.ceil(need)) : 0;   /* +2 = 숨쉬기로 머리 자리가 1px 오르내려도 4px 안 */
+    if (shift) b.style.marginLeft = shift + 'px';
+    if (px && shift) { var lim = Math.max(0, r.width / 2 - 20), tail = even(Math.max(-lim, Math.min(lim, -shift))); if (tail) b.style.setProperty('--ua-tail', tail + 'px'); }
+    if (dy) { b.style.setProperty('--bub-dy', dy + 'px'); if (px && dy > 12) b.setAttribute('data-tail', 'off'); }
+    ctlYield({ left: r.left + shift, right: r.right + shift, top: r.top + dy, bottom: r.bottom + dy });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 */
+  }
+  var bubRaf = 0;
+  function onBubble(text, kind) {
+    var b = $('oct-bubble'); if (!b || !text) return;
+    b.setAttribute('data-ua', bubbleSkin(text, kind));
+    b.removeAttribute('data-pop');
+    if (isShout(text, kind) && !reduced()) { void b.offsetWidth; b.setAttribute('data-pop', ''); }   /* 다시 붙여야 애니메이션이 처음부터 */
+    keepInside(b);
+    /* 문어가 걸어가도 풍선이 따라가며 가장자리 안에 머물게 (보이는 동안만): 문어가 화면에서 움직이는 동안은 프레임마다, 가만히 있으면 5 Hz.
+       예전 5 Hz 만으로는 320px 폰에서 문 → 담요로 걷는 동안 몇 프레임 가장자리를 3~7px 넘었다 (검증 11-08). 첫 프레임은 장면이 풍선을 문어 위로 옮긴 뒤 한 번 더 */
+    cancelAnimationFrame(bubRaf);
+    var last = 0, lastPos = null;
+    bubRaf = requestAnimationFrame(function follow(ts) {
+      if (b.hidden) { bubRaf = 0; ctlYield(false); return; }
+      var p = octPos(), moved = !!p && (!lastPos || Math.abs(p.x - lastPos.x) + Math.abs(p.y - lastPos.y) >= 1);
+      if (moved || !last || ts - last >= 200) { keepInside(b); last = ts; lastPos = p; }
+      bubRaf = requestAnimationFrame(follow);
+    });
+    if (kind === 'curious') fx('question');   /* 톡 누름 ('응?') — 픽셀 테마 물음표 파티클 */
+  }
+
+  /* ── 5 · 파티클 (DOM 스프라이트, fx.* 8×8 칸 ×2, 12 fps 스텝) — 축소 모션이면 아무것도 안 띄운다 ── */
+  var layer = null;
+  function fxLayer() {
+    var sc = $('scene'); if (!sc) return null;
+    if (!layer || layer.parentNode !== sc) { layer = document.createElement('div'); layer.className = 'ua-fx'; layer.setAttribute('aria-hidden', 'true'); sc.appendChild(layer); }
+    return layer;
+  }
+  /* 문어 머리 꼭대기 (#scene 기준 CSS px) — 장면의 투영 도우미 octScreenPos() 를 읽기만 한다 */
+  function octPos() {
+    var a = app(), sc = a && a.scene, el = $('scene');
+    if (!sc || typeof sc.octScreenPos !== 'function' || !el) return null;
+    var p; try { p = sc.octScreenPos(); } catch (e) { return null; }
+    if (!p || !isFinite(p.x) || !isFinite(p.y)) return null;
+    var r = el.getBoundingClientRect();
+    return { x: Math.round(p.x - r.left), y: Math.round(p.y - r.top) };
+  }
+  function even(n) { return Math.round(n / 2) * 2; }   /* 아트 픽셀(×2) 격자에 맞춘다 */
+  /* 스프라이트 하나: 바깥 span = 위치·떠오름(12fps 스텝), 안쪽 i = 프레임 스트립 */
+  function sprite(host, name, x, y, o) {
+    var frames = FX[name] || 1, life = o.life || 1000, delay = o.delay || 0, rise = o.rise || 0;
+    var s = document.createElement('span');
+    s.className = 'ua-p ua-p-' + name;
+    s.style.left = even(x) + 'px'; s.style.top = even(y) + 'px';
+    s.style.setProperty('--life', life + 'ms');
+    s.style.setProperty('--steps', String(Math.max(1, Math.round(life / TICK))));
+    s.style.setProperty('--rise', (-even(rise)) + 'px');
+    var i = document.createElement('i');
+    i.style.setProperty('--fw', (-frames * 16) + 'px');
+    i.style.animationDuration = (o.loop ? (o.frameMs || TICK) * frames : life) + 'ms';
+    i.style.animationTimingFunction = 'steps(' + frames + ')';
+    i.style.animationIterationCount = o.loop ? 'infinite' : '1';
+    s.appendChild(i);
+    /* 늦게 나오는 건 늦게 붙인다 (지연 동안 첫 프레임이 미리 보이지 않게) */
+    function add() { host.appendChild(s); setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, life + 60); }
+    if (delay > 0) setTimeout(add, delay); else add();
+    return s;
+  }
+  function fx(name, opts) {
+    opts = opts || {};
+    if (!pixel() || reduced() || !FX[name]) return 0;
+    if (name === 'sparkle' && opts.el) return sparkleOn(opts.el);
+    var host = fxLayer(), p = octPos(); if (!host || !p) return 0;
+    if (name === 'heart') {   /* 쓰다듬기: 하트 2–3개가 머리 위로 */
+      var n = opts.n || 3, xs = [-12, 2, 14];
+      for (var k = 0; k < n; k++) sprite(host, 'heart', p.x + xs[k % 3], p.y - 6 - (k % 2) * 4, { life: 1000, rise: 40, delay: Math.round(k * 2 * TICK), loop: true, frameMs: 3 * TICK });
+      return n;
+    }
+    if (name === 'question') { sprite(host, 'question', p.x + 14, p.y - 10, { life: 1250, rise: 8 }); return 1; }
+    if (name === 'zzz') { sprite(host, 'zzz', p.x + 14, p.y - 4, { life: 1500, rise: 24 }); return 1; }
+    if (name === 'ink') {   /* 출발: 발밑 먹물 퍼프 */
+      var fy = p.y + (opts.dy != null ? opts.dy : 30);
+      [-14, 0, 14].forEach(function (dx, j) { sprite(host, 'ink', p.x + dx, fy - (j === 1 ? 4 : 0), { life: Math.round(4 * TICK * 1.5), rise: 4, delay: Math.round(j * TICK) }); });
+      return 3;
+    }
+    if (name === 'sparkle') { sprite(host, 'sparkle', p.x, p.y - 8, { life: 1000, loop: true, frameMs: TICK }); return 1; }
+    return 0;
+  }
+  /* 앨범에 새로 걸린 카드: 모서리 세 곳에서 반짝 (카드 안에 붙여 가로 스크롤을 따라간다) */
+  function sparkleOn(card) {
+    if (!card || card.dataset.uaSparkled) return 0;
+    card.dataset.uaSparkled = '1';
+    [[6, 6], [null, 18], [14, null]].forEach(function (xy, j) {
+      var s = sprite(card, 'sparkle', 0, 0, { life: 1000, loop: true, frameMs: TICK, delay: Math.round(j * 3 * TICK) });
+      s.style.left = ''; s.style.top = '';
+      if (j === 0) { s.style.left = '6px'; s.style.top = '6px'; }
+      else if (j === 1) { s.style.right = '6px'; s.style.top = '18px'; }
+      else { s.style.left = '14px'; s.style.bottom = '10px'; }
+      s.classList.add('ua-p-in');
+    });
+    return 3;
+  }
+  function syncAlbum() {
+    var al = $('album'); if (!al) return;
+    Array.prototype.forEach.call(al.querySelectorAll('.pcard.in'), function (c) { fx('sparkle', { el: c }); });
+  }
+
+  /* 졸 때 z 하나씩 (한 개의 이미터) · 떠날 때 먹물 */
+  var zzzTimer = null;
+  function stopZzz() { clearInterval(zzzTimer); zzzTimer = null; }
+  function onState(st) {
+    if (st === 'sleep') {
+      if (!zzzTimer) zzzTimer = setInterval(function () {
+        var a = app();
+        if (!a || !a.oct || a.oct.state !== 'sleep') { stopZzz(); return; }
+        if (!document.hidden) fx('zzz');
+      }, 2000);
+    } else stopZzz();
+    if (st === 'away') fx('ink');
+  }
+
+  /* ── 장면 위 버튼 그림 (img[data-icon]: 집 단추 ctl/home · 발자국 손잡이 ctl/walk): 주소는 iconSrc 규칙 (단일 파일 번들 = data URI). 안 오면 그 단추(또는 #stick)에 .no-img → 글자 '집' · '걷기' (두 테마 다 보인다 · 이모지는 쓰지 않는다) ── */
+  function fillIcons() {
+    Array.prototype.forEach.call(document.querySelectorAll('img[data-icon]'), function (img) {
+      if (img.getAttribute('src')) return;
+      var btn = img.closest('button, .stick');
+      img.onerror = function () { if (btn) btn.classList.add('no-img'); };
+      img.src = iconSrc(img.getAttribute('data-icon'));
+    });
+  }
+
+  /* ── 관찰자: 로그(▼ · 틀) · 앨범(반짝 · 요즘 줄) ── */
+  function observe(id, fn, subtree) {
+    var el = $(id); if (!el || typeof MutationObserver === 'undefined') return;
+    new MutationObserver(fn).observe(el, { childList: true, subtree: !!subtree });
+  }
+  function init() {
+    observe('log', function () { if (!logRaf) logRaf = requestAnimationFrame(syncLog); }, true);
+    observe('al-recent', syncRecent, false);
+    observe('album', syncAlbum, false);
+    fillIcons(); syncLog(); syncRecent();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+
+  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, topBand: topBand, ctlYield: ctlYield, liftY: liftY,
+    iconSrc: iconSrc, icon: icon, iconHTML: iconHTML, iconBad: iconBad };
+})();

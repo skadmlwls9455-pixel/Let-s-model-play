@@ -1,0 +1,471 @@
+{
+ "verify:code": {
+  "summary": "I found one blocking defect where the lanes meet. A production save loses a weekly-list point. Production (f2c93f1) still deals the task \"선물 상자에서 하나 내밀기\" (id 'gift'), and 66c8110 removed it. When deploy-2's weekState repairs that week, it replaces the 'gift' slot with a new task at n=0. The point the player already earned is dropped: OW-1 keeps that point for the removed 'days' task (w.kept), but nothing keeps it for 'gift'. I ran it with a production record that has 'gift' done plus four other tasks done. Production shows 5/5 and the claim button. Deploy-2 shows 4/5 and no button, and on the next Monday it pays no weekly gift. This breaks hard line 10, so it is a 'must'.\n\nI also confirmed two smaller defects by running them:\n- **should:** The new importSeen guard on the storage listener makes a tab ignore another tab's full reset when the clock went back after an import. The tab's next save then writes the old record over the reset, so the reset is undone.\n- **nit:** The salon normalize change (the colour now comes from the last colors line sorted by `at`) can undo the octopus's latest dye on reload, but only if that dye was asked after the clock went back.\n\nRead only or minor (nits):\n- importJSON writes the record to storage once before its own checks end and before lastSeen is clipped. A second tab gets that write with lastSeen 3 days ahead; the clipped write follows at once, and I saw no lasting harm.\n- The text \"지난주 선물\" is used even when the week paid at the change was several weeks ago.\n- The storage listener now parses every save's JSON twice.\n\nThe rest held under my probes and reading:\n- The intro's new CSS variables are fully removed after the intro.\n- `kept` cannot be counted twice.\n- A tab still on the old build, open across the week change, does not lose the weekly gift in either order.\n- The loft and rest code never leaves the octopus asleep upstairs.\n\nnpm test passes: all 12 files, exit 0. The font check says `stale: none`.\n\nKnown and excluded: the octopus being moved to the attic blanket when a turn ends while it is upstairs (OW-3). The same thing happens when another tab ends the turn (syncRest -> restDown). The owner3 lane should cover both paths.\n\nProbe scripts are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-code/probes/ and notes are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-code/notes.md.",
+  "findings": [
+   {
+    "id": "C1",
+    "severity": "must",
+    "title": "A production save loses a done weekly 'gift' task: 5/5 becomes 4/5 and the weekly gift is never paid",
+    "where": "js/app.js:4368 oldDone, 4372-4386 weekState (same-week repair and the `due` at the week change); QUESTS at js/app.js:4359 no longer has 'gift'",
+    "what": "Production f2c93f1 deals and counts '선물 상자에서 하나 내밀기' (QUESTS 'gift', questMark('gift') at prod app.js:3249). Deploy-2 removed the task (66c8110). weekState then treats the slot as unknown and replaces it with a new task at n=0. Only 'days' slots are kept through oldDone/w.kept (OW-1), so a done 'gift' slot's point is lost. Players who were at 5/5 lose the claim button, and at the week change `due` misses the gift (12 shells + 2 seeds). Expected: like 'days', a removed task that was already done still counts once.",
+    "evidence": "probes/p1-gift-slot.js, a seeded production record with week 2026-11-09 q = ask 2, look 1, run 1, furn 1, gift 1, harvest 0, diary 0:\nprod 11-12: note (5/5), claim true\nnew  11-12: note (4/5), claim false, q ask:2 look:1 run:1 furn:1 water:0 harvest:0 diary:0\nnew  11-16 (next Monday): prev null, shells 23 (20 + day gift 3 only), no weekly gift\nsmoke Q section 13 (tools/smoke.js:5061-5066) seeds exactly this week but only asserts that the gift slot is replaced, not that its point is kept.",
+    "repro": "cd /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-code/probes && NODE_PATH=$(npm root -g) node p1-gift-slot.js (expects copies of 6d03faf and f2c93f1 in /dev/shm/v2code/{new,prod}; see lib.js)",
+    "suggested_fix": "Generalise oldDone into a table of removed tasks: 'days' as now (three days in that week), and 'gift' done when (x.n|0) >= 1. Count both into w.kept on repair and into `due` at the week change. Make the #week-kept line generic (for example '목록에서 빠진 일도 이번 주엔 한 걸로 셌어.'). Extend smoke Q section 13 so 'gift:1' plus four done gives 5/5 and the claim button, and so the next Monday pays it.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "C2",
+    "severity": "should",
+    "title": "importSeen guard drops a later reset (or import) from another tab after the clock goes back; this tab then writes the old record over it",
+    "where": "js/app.js:4243 (storage listener `seenOf(parseState(e.newValue)) < importSeen`), js/app.js:3733 (importSeen set)",
+    "what": "After an import, the tab ignores every storage write whose lastSeen is below the import time. A full reset in another tab writes lastSeen = Date.now() (S = defaults()). If the device clock went back after the import, that value is smaller, so this tab silently ignores the reset. Its next ordinary save then writes the imported record back to storage, and the resetting tab adopts it, so the reset is undone. Production (no guard) follows the reset. The same applies to an import done in the other tab after the clock change.",
+    "evidence": "probes/p2-import-guard.js (tab B's Date.now() is 1 h behind):\nprod: storedRightAfterReset null, tabA_nameAfterReset null, storedAfterAsave null, tabB_nameNow null\nnew:  storedRightAfterReset null, tabA_nameAfterReset '불러온문어', storedAfterAsave '불러온문어', tabB_nameNow '불러온문어'",
+    "repro": "NODE_PATH=$(npm root -g) node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-code/probes/p2-import-guard.js",
+    "suggested_fix": "Narrow the guard to the case it was written for, a late last write from a tab closed just before the import. Let it expire a few seconds after the import (clear importSeen). Never drop a record with a different octopus.born or no octopus.name (a reset), nor one written by an import. Add a smoke X step with a clock offset in the second tab.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "C3",
+    "severity": "nit",
+    "title": "Salon normalize can undo the octopus's latest dye on reload when that ask was made after the clock went back",
+    "where": "js/salon.js:656 (normalize step 2: colour = last colors line by `at`)",
+    "what": "The W3 change makes the last colors line (sorted by `at`) decide the colour even when octopus.color is valid. A dye asked after the device clock went back gets an `at` earlier than the previous line. In play the colour is that answer, but after a reload deploy-2 shows the previous colour. Production keeps the answered colour. This silently changes the octopus's chosen colour in the saved record.",
+    "evidence": "probes/p3-salon-color-order.js (node, both builds' js/salon.js):\nprod colour after load: #4fa868 (in play it was #4fa868)\nnew colour after load: #4a86d8 (in play it was #4fa868)",
+    "repro": "node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-code/probes/p3-salon-color-order.js",
+    "suggested_fix": "Keep octopus.color when it is valid and equals the colour of some colors line (or of the line whose ask is the latest done ask). Fall back to the last line only when octopus.color matches no line, which is the hand-edited case W3 was about.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "C4",
+    "severity": "nit",
+    "title": "importJSON writes the record to storage before its checks finish and before lastSeen is clipped",
+    "where": "js/app.js:3725 (renderAll inside the try) -> renderAll js/app.js:2988 -> renderBagChip -> weekState save()",
+    "what": "renderAll now calls renderBagChip, and weekState saves when the imported week is another week. So the file reaches localStorage (and other tabs, as a storage event) inside the 'draw first, save only if it works' block, still carrying the file's lastSeen. If anything later in renderAll threw, the catch would restore memory but not storage. The clipped save follows at once, and in my run the second tab ended clipped and a later reset survived its reload.",
+    "evidence": "probes/p4-import-early-save.js: during one import tab A writes twice: {seenAheadMs: 259199339, week 2026-11-09} then {seenAheadMs: 1}; tab B's listener saw the first (+3 days) event. probes/p5-import-future-chain.js: B's lastSeen ends at now, and after a reset in A, B's reload stays reset (no lasting harm seen).",
+    "repro": "NODE_PATH=$(npm root -g) node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-code/probes/p4-import-early-save.js",
+    "suggested_fix": "Clip S.settings.lastSeen right after normalize inside importJSON, and suppress saves during the trial render (for example a flag that makes save() a no-op until the import is accepted).",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "C5",
+    "severity": "nit",
+    "title": "'지난주 선물' line is used even when the week that was paid was several weeks ago",
+    "where": "js/app.js:4399 (weekTell toast), js/app.js:4437 (#week-prev line)",
+    "what": "At the week change, weekState pays any unclaimed 5/5 from the stored week, however old it is. A player back after three weeks is told '지난주 선물은 살림에 넣어 뒀어', which is not true for last week.",
+    "evidence": "Read only: `due` (js/app.js:4382) does not look at how far w.key is from the current week; both texts are fixed strings.",
+    "repro": "Seed week.key three Mondays back with 5/5 unclaimed, open on a later Monday.",
+    "suggested_fix": "Say '그 주 선물' or '지난번 주 선물' when w.prev comes from a week other than the one just before.",
+    "confirmed_by_running": false
+   },
+   {
+    "id": "C6",
+    "severity": "nit",
+    "title": "The storage listener parses each saved record's JSON twice",
+    "where": "js/app.js:4243 (parseState in the guard), then adoptRemote js/app.js:2067 parses again",
+    "what": "Every storage event now runs a full JSON.parse just to read lastSeen, even when no import happened (importSeen 0), and adoptRemote then parses the same string again. Saves with many trips are large.",
+    "evidence": "Read only.",
+    "repro": "-",
+    "suggested_fix": "Skip the parse when importSeen is 0, or pass the parsed object on to takeRemote/adoptRemote.",
+    "confirmed_by_running": false
+   }
+  ],
+  "checked_ok": [
+   "npm test on a copy of 6d03faf: all 12 files pass, exit 0 (world OK; brain 517, model-voice 26, runner 568, api 225, cook 192, salon 234, cook-stickers 177, play-stickers 180, poster-art 287, art-extra 93, export 46). Font check: stale: none.",
+   "Tests diff: the only removed check is intro-shots' 'the passing cloud covers the full width' (midRow share === 1). That removal is right: owner decision 6b makes the bank thin, and sky-band visibility checks replace it. test-salon's changed expectation (salon line by 'demo-rules' -> 'unknown' when ask 'a1' is not in the record) matches the new W4 rule. smoke.js lost no checks (tabOf refactor, new scenarios Q, Z, X added).",
+   "w.kept cannot be set twice: a repair only counts 'days' slots, and every state that still has a 'days' slot predates the repair, so it has no kept (reasoned through: reload, two new tabs, a production tab writing back).",
+   "Old-build tab open across the week change next to a deploy-2 tab, 5/5 unclaimed: the weekly gift is put in once, whichever tab acts first (probes/p7-old-tab-weekchange.js: shells 35, prev {12, 2} in both orders).",
+   "Day gift: the minute timer and visibility path pay once per day (giftDay check). The giftTell line is dropped on a later day; weekTell defers under the intro, a hidden tab or a showing toast (read).",
+   "'ask' count: questMark('ask') now runs only after plan succeeds and not when this tab's octopus was asleep (woke). The awake window still counts (read; Q22 covers it).",
+   "Loft/rest truth table (read): rest only starts after restDown (finalPose, syncRest). octMountLoft refuses while restPhase is 'awake' or the scene state is sleep. lieDown's place/jumpTo can therefore not run while the octopus is upstairs. moveTo upstairs resolves without moving, and octUnmountLoft hands the scene's anchor back to the app.",
+   "Intro (probes/p6-intro-setsky.js, SwiftShader, clear and rain): html style rewritten 9 times during the sky phase, 7 with --intro-grad and 8 box-shadow layers. After finish there is no style attribute and none of the intro classes; --intro-sky, --intro-grad and --intro-shade are removed. 2D fallback: skyCut is missing, so the variables are removed once and setSky then returns early.",
+   "setGarden plotKey and setPlayerDye early returns: the key is the colour hex plus water after clamping, and vertex colours are not palette-dependent, so no real change compares equal (read).",
+   "Garden: plotView clamps water to 0..2, unknown colours draw grey and harvest without a name, colour-less entries become empty (read; smoke X covers it).",
+   "Per-frame and per-minute cost list: app dailyGift every 60 s while visible (cheap unless it pays). weekTell 1 s polling only while a line is pending. MutationObserver on body for 'open' attributes only. storage listener: an extra JSON.parse per event (C6). renderAll on each remote write now also runs weekState, plotLabels, setGarden (key early return) and setPlayerDye (early return). Scene: plClearPath per octopus walk upstairs only; pick's exterior raycast per tap only; nothing new per frame after the intro. Intro: per frame during the sky phase, skyCut plus two getBoundingClientRect reads, and a gradient and 8-layer 200vmax box-shadow rewrite whenever the cut moves (only during the bank pass)."
+  ],
+  "not_checked": [
+   "The full truth table for the loft, by running it: I reasoned it through in code rather than driving every state in a browser (smoke Z covers many of the paths).",
+   "Known OW-3 behaviour, excluded: a turn ending while the octopus is upstairs moves it down. The same happens when another tab ends the turn (syncRest -> restDown, smoke Z 5-5 asserts it). Lane owner3 should change both paths together.",
+   "Intro cost on a real phone at 60 fps: under SwiftShader I measured only about 29 frames for the whole sky phase.",
+   "The intro on resize, skip and reduced motion beyond reading finish() and skyCut; the cloud-lane check covered those.",
+   "The repo's slow suites (smoke, test-scene-perf, intro-shots): left to the lead, as the brief asks.",
+   "Salon, cook and audio behaviour outside the cross-lane points named in the brief."
+  ],
+  "suites": [
+   "npm test (copy of 6d03faf in /dev/shm): 12 files, all pass, exit 0 — check-world OK, test-brain 517/0, test-model-voice 26/0, test-runner 568/0, test-api 225/0, test-cook 192/0, test-salon 234/0, test-cook-stickers 177 ok, test-play-stickers 180 ok, test-poster-art 287 ok, test-art-extra 93 ok, test-export 46/0",
+   "PYTHONPATH=.../pylib python3 tools/subset-fonts.py --check: stale: none"
+  ],
+  "untested_behaviours": [
+   "A production week with the removed 'gift' task done: no test checks that its point is kept (smoke Q section 13 only checks that the slot is replaced).",
+   "The importSeen guard when another tab writes with an earlier clock (reset or import after the clock went back); nothing tests the guard expiring or the born/name exceptions.",
+   "importJSON saving through renderAll -> weekState before the lastSeen clip (the early write and its storage event).",
+   "Salon normalize choosing the colour when the last-dyed line has an earlier `at` than the line before it (clock went back).",
+   "The salon sheet's closedby switched to 'closerequest' (no test reads the attribute; the double-tap behaviour is tested).",
+   "Removal of --intro-grad and --intro-shade after the intro finishes (intro-shots checks skyCut values, not the cleanup).",
+   "octEndWalk: a walk ended rather than cancelled when the octopus is moved between floors (the moveTo Promise resolves and the app is not stuck in 'walk').",
+   "The '지난주 선물' line when the paid week is more than one week old."
+  ]
+ },
+ "verify:saves": {
+  "summary": "One must-fix defect stops this deploy: some players' weekly progress drops when they update. Production f2c93f1 could give the weekly task \"선물 상자에서 하나 내밀기\" (task id `gift`, offer something from the gift box). The new build removes that task (commit 66c8110), but only the other removed task, \"이번 주에 사흘 들어오기\", has its finished point kept (`week.kept`). A finished `gift` task is swapped for another task with its count set to 0. The point is gone.\n\nWhat a player sees: a week that production showed as 5/5 with the claim button turns into 4/5 with no button. If the update lands on a Sunday with five tasks done and the gift not claimed, the new build's fix that pays the weekly gift at the week change (lane 2) does not pay it either, because it uses the same count. A save from Sunday 11-15 opened Monday got only the day gift: 12 shells and 2 seeds missing. A one-line change that also counts a finished `gift` task was tried in a copy of the new build, and with it both cases come out right.\n\nOne smaller defect: a tab still open on the old build can make the new tab count the same three entry days twice, so a week shows 5/5 with three tasks really done.\n\nEverything else held. I made 15 saves by playing production itself and opened each with the new build, both from a fresh browser and by reloading the same tab. For each I compared what was saved before and after, field by field, and the screens. The only differences were the intended week fixes from the 11-12 owner decisions. Shells, seeds, dyes, entry days, garden, poster album, moved furniture, colour history, salon questions, octopus state and outfit, and every other field came through unchanged. Each save stayed the same after a minute of play and another reload.\n\nImport and export, a file whose `lastSeen` is in the future followed by a reset in another tab (new or old build), damaged files, and reset in the new build all behaved correctly. Probes, saves, screenshots and notes are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-saves/ (saves/ has the save files, cmp/ has the comparisons, shots/ has the screenshots, notes.md has my running notes).",
+  "findings": [
+   {
+    "id": "S1",
+    "severity": "must",
+    "title": "A finished '선물 상자에서 하나 내밀기' weekly task from production loses its point after the update; a 5/5 week becomes 4/5 and its weekly gift is lost",
+    "where": "js/app.js:4368-4371 (oldDone only handles 'days') used by weekState 4372-4395 (same-week fix at 4376-4378, week-change payout at 4383); QUESTS at 4352 no longer lists 'gift' (removed in 66c8110)",
+    "what": "Production f2c93f1 could give the weekly task 'gift' (선물 상자에서 하나 내밀기, target 1); in my picks about half of all names get it, e.g. the name 조약돌 in week 2026-11-09. The new build treats it as an unknown task: weekState swaps the slot for another task with n 0. Its finished point is kept only for 'days', through oldDone and week.kept. Result: (a) same week: save S06 (ask, look, gift, loft and days done, gift not claimed). Production shows '(5/5)' with the claim button and a gift dot on the bag chip. The new build shows '(4/5)', no button, no dot. Stored: q.3 gift n 1 becomes furn n 0; days becomes kitchen; kept 1. (b) Across the week change: save S08 is the same week saved on Sunday 11-15 and opened Monday 11-16. No week.prev is written, and shells go 12 to 25, which is only the day gift (3+10); the weekly 12 shells and 2 seeds are not paid. The control save S05 (five done without 'gift') opened the same way is paid correctly: week.prev {12,2}, shells 25 to 40. Should: the update keeps every point the save had, as it does for 'days'.",
+    "evidence": "cmp/S06-wed-five-with-gift@2026-11-11-prod.json: weekRows include '선물 상자에서 하나 내밀기했어', bagGift true. cmp/S06-wed-five-with-gift@2026-11-11-new.json: diff '.user.week.q.3.id: \"gift\" -> \"furn\"', '.user.week.q.3.n: 1 -> 0', '.user.week.kept: (none) -> 1', bagGift false. Screens: shots/bag-S06-wed-five-with-gift@2026-11-11-prod.png ('(5/5)') and ...-new.png ('(4/5)'). cmp/S08-sun-five-with-gift@2026-11-16-new.json: no week.prev, shells 12 -> 25. cmp/S05-sun-five-unclaimed@2026-11-16-new.json: week.prev {shells 12, seeds 2, told 1}, shells 25 -> 40. With the fix probe (oldDone also returns true for id 'gift' with n >= 1), S06 gives kept 2 and 5/5 with the button, and S08 on Monday gets week.prev with shells 12 -> 37.",
+    "repro": "All probes are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-saves/. Serve an untouched f2c93f1 under /prod/ and 6d03faf under /new/ on one origin (http.server, port 8847). `node life.js` plays production through Mon to Thu as 조약돌 (week 11-09). `node branch.js S06,S08` offers a gift in production's settings gift box on Wed (S06) and moves to Sunday (S08). `PLAY=0 node opennew.js S06-wed-five-with-gift 2026-11-11 new` compares with the new build (`... prod` is the control). `node opennew.js S08-sun-five-with-gift 2026-11-16 new` checks the week change. Saves: saves/S06-wed-five-with-gift.json and saves/S08-sun-five-with-gift.json.",
+    "suggested_fix": "Count every removed task that was already finished, not only 'days'. In oldDone add `if (isObj(x) && x.id === 'gift') return (x.n | 0) >= 1;`; better, keep a table of removed ids with their old targets ({ days: worked out from user.days as now, gift: 1 }). Change the week-kept note (#week-kept, now '사흘 들어오기는 목록에서 빠졌지만…') to a wording that covers either removed task, and add a smoke case with a production week that has 'gift' done.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "S2",
+    "severity": "should",
+    "title": "A tab left open on the old build can make the new build count the same three entry days twice (kept 2): 5/5 with three tasks really done",
+    "where": "js/app.js:4376-4378 (weekState adds oldDone hits onto w.kept each time it fixes the week)",
+    "what": "New tab B fixes the week (days slot replaced, kept 1) and saves. Old tab A (production) takes in that state, kept included. Then the player taps 바꾸기 in A, and production's weekPick can give '이번 주에 사흘 들어오기' again; with three entry days it is already done in production. B receives A's write and fixes again: kept = 1 + 1 = 2. B shows '(5/5)' and the claim button, while only three rows say 했어 (ask, look, loft) and the one note explains one point. Each further reroll into 'days' in the old tab adds another point. In the other direction, the old tab cannot undo the new build's fixes for good: it takes in the new state on the storage event and writes kept back, and any reintroduced old slot is fixed again on the next weekState.",
+    "evidence": "crosstab.js reroll output: 'B new after boot ... kept 1'; 'A reroll -> ask,harvest,look,days,diary,loft,kitchen'; 'B new adopted {q: ask:2 harvest:0/r3 look:1 furn:0 diary:0 loft:1 kitchen:0, kept:2, gift:true}'; B's sheet '(5/5)'; still kept 2 after reloading B.",
+    "repro": "`node crosstab.js reroll`: one context, page A /prod/ seeded with saves/S03-wed-days-done.json (day 2026-11-11), page B /new/. A clicks 바꾸기 on the first slot that can be rerolled until a slot becomes 'days'.",
+    "suggested_fix": "Make kept set-once per removed task id: store it as an object (e.g. w.keptIds = { days: 1 }) or only add when that id is not already counted. Then a second fix of the same week does not add the same entry days again.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "S3",
+    "severity": "nit",
+    "title": "An old-build tab that touches the week first after the week changes still drops an unclaimed weekly gift; the new build cannot get it back (not a regression)",
+    "where": "production js/app.js weekState (f2c93f1); new build js/app.js:4380-4394 only sees the week already replaced",
+    "what": "Old tab A (production) is open on Sunday with five done and the gift not claimed. After midnight, A does one weekly action (opens the look sheet), so production's weekState builds a new week and drops the old one. When the new build then loads on Monday, there is no old week left to pay from: no week.prev, and the 12 shells and 2 seeds are lost (exactly production's old bug). If the new tab loads first, it pays week.prev and A takes that in; no loss. This only happens with an old tab open across both the deploy and the Sunday-to-Monday change. Nothing in the new code can fix it; noting it for release notes.",
+    "evidence": "crosstab.js weekchange: 'A old monday after look {key 2026-11-16, ... prev null}', 'B new monday {... prev null, shells 28}'. crosstab.js weekchange-newfirst: 'B new monday {prev {12,2,told:1}, shells 40}', 'A old adopted {... prev ..., shells 40}'.",
+    "repro": "`node crosstab.js weekchange` and `node crosstab.js weekchange-newfirst` (seed saves/S05-sun-five-unclaimed.json on 2026-11-15; the date hook in A moves to 2026-11-16).",
+    "suggested_fix": "None in code. Optionally, deploy outside the Sunday-to-Monday window.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "S4",
+    "severity": "nit",
+    "title": "'전체 초기화' leaves the previous octopus's rest countdown in memory (no visible effect found)",
+    "where": "js/app.js:3738-3746 resetAll (does not call clearRest); same code in production",
+    "what": "After a walk (rest window running), reset in the new build. APP.rest is still {id: old trip, left about 88 s}, and after naming the new octopus it keeps counting down. restPhase() returns 'up' because there are no trips, and lieDown clears it, because the trip id is no longer in the save. Nothing showed on screen, and nothing about rest is in localStorage or sessionStorage. The brief asked for rest state to be cleared; it is cleared everywhere it matters, but not in memory.",
+    "evidence": "io.js reset: 'after reset {\"rest\":{\"id\":\"trip_n42z\",\"left\":88210,\"away\":true},\"phase\":\"up\" ...}'; 'after rename {... \"phase\":\"up\",\"rest\":{\"id\":\"trip_n42z\",\"left\":84764,...}}'; after reload rest null.",
+    "repro": "`node io.js reset`",
+    "suggested_fix": "Call clearRest() in resetAll (and in importJSON) for tidiness.",
+    "confirmed_by_running": true
+   }
+  ],
+  "checked_ok": [
+   "S01-fresh-after-gift (Mon, colour chip picked, first day gift): new build boot changes only the week slots gift->furn, days->kitchen (intended, n 0, owner 4b / 66c8110); shells 3, seeds 1, days, colour and name unchanged; play + reload stable",
+   "S02-tue-days-notdone (2 entry days, 'days' not done, sprout watered today, seed, empty plot): only the slot swap (owner 4b, progress on an unfinished removed task dropped as decided); garden and watered-today held; opened on Wed instead, oldDone counts today so kept 1 is right; stable after play + reload",
+   "S03-wed-days-done (days done, flower, sprout, seed, salon asked today, colour changed by salon): kept 1 added, 3/5 as before; garden, colours, salon asks unchanged; harvest gives the right dye; stable",
+   "S04-thu-five-unclaimed (five done incl. 'days', harvest dye purple 1, furniture layout moved, salon asked today, poster album 2): new build still 5/5 with claim button and dot; layout, octWear, player, albumSeen, posterOrder, album contents, colour history unchanged; salon refuses a second ask today in both builds ('내일 또 물어볼 수 있어.'); outside garden same plots (new adds plot labels)",
+   "S05-sun-five-unclaimed (Sunday, five without gift, unclaimed) opened Monday: week.prev {12,2} paid once, shells 25->40, seeds 1->4 (lane 2 works for weeks without a 'gift' slot)",
+   "S07-thu-claimed: claimed stays claimed, shells 24 seeds 2, kept note shown, no double payout",
+   "S09-walk-running (turn running when page closed): new build brings it home exactly as production does (same trip fields, notes, curiosity note, lantern +1); same in a fresh context and on same-tab reload",
+   "S10-rest-after-turn: same-tab reload prod->new carries the rest window (sessionStorage) like prod->prod; fresh context gives nap in both builds",
+   "S11-asleep and S12-upstairs: same octopus state, anchor and restPhase in both builds; reload opens in the attic in both (room is not saved)",
+   "S13-prod-export.txt imported into a fresh new build: only the intended week fix; stable after reload. S16-new-export.txt (new-build export) into a fresh new build: identical (empty diff)",
+   "Future lastSeen (+3 days) file imported in new tab A, then reset in new tab B or in an old prod tab B: the reset holds; reloading A does not bring the old save back (stored lastSeen set to now, window.name mirror too)",
+   "S15-prod-reset (save made by production's 전체 초기화): new build boot gives an empty diff and the name dialog",
+   "Reset in the new build: user (week, kept, prev, giftTell, garden, dyes) removed from storage, salon asks and colours emptied, plot aria-labels back to 빈 칸, bag chip hidden, name dialog open; after renaming, a fresh week with no kept/prev and one day gift",
+   "Damaged files: garden entries without a colour -> empty plot (intended, gnits); 5 garden entries kept in the save, only 3 shown and acted on; unknown dye 'teal' flower harvests into dyes.teal and labels show '꽃' without a name; week with unknown ids / non-object / 8 entries fixed per slot, no crash, no console errors",
+   "Cross-tab daygift: old and new tab booting 0.7 s apart on a new day give exactly one day gift (shells +13); old tab walk while new tab open: both end with the same state, kept kept",
+   "Old tab takes in the new tab's fixed week (kept, new slots) on the storage event and writes them back; it does not undo fixes on its own",
+   "Salon normalize change (colour now taken from the last colors line, step 7 by->'unknown'): every production save had octopus.color equal to the last colors line and salon lines backed by their asks, so nothing changed on load",
+   "No page errors or console errors in any probe"
+  ],
+  "not_checked": [
+   "Saves from builds older than f2c93f1 (e.g. the 11-11 deploy 1e1c18f) and v1 migration",
+   "Saves with real model (MCP / Claude room) salon answers, late model answers, or human answers from the dev panel; only demo-rules asks were made",
+   "A production save that had furniture moved through the real drag UI (layout was written in production's furnMove shape through APP.state + APP.save)",
+   "Runner (다락방 달리기) shells and earned ids, the kitchen, and the runner award keys (ppolppol_runner)",
+   "2D fallback (?scene=2d) loading of production saves",
+   "Quota-full storage (slim save path) with production saves",
+   "Phone sizes other than 360x740 for the screens compared (layout is other lenses' job)",
+   "OW-3 (octopus stays upstairs after a turn): known and not in this tree, not reported"
+  ],
+  "suites": [
+   "No repo suites run (the lead runs them); all evidence comes from my own Playwright probes against an untouched f2c93f1 and 6d03faf served on one origin"
+  ],
+  "untested_behaviours": [
+   "A production week whose finished tasks include the removed 'gift' task (선물 상자에서 하나 내밀기): no repo test covers it, and the new build drops that point (S1)",
+   "Old-build tab rerolling a slot into 'days' after the new build fixed the week (double kept, S2)",
+   "Old-build tab crossing the week change before the new build loads (S3)"
+  ]
+ },
+ "verify:play": {
+  "summary": "I played the second deploy (6d03faf) on emulated phones and found nothing that should block shipping. There are no must findings. I found no console errors or page errors in any run. I confirmed six small findings (five nit, one owner). Five of them exist the same way in production f2c93f1 and are not regressions; the sixth (the weekly-gift button at 320 px) only matters on this deploy's new list and was not compared with production.\n\nHow I tested: Playwright with touch phone contexts at 360x740, 320x568 and 430x932, using real taps, CDP touch swipes and pinches, and the date hook to move days and weeks. Both builds were served from one static server.\n\nWhat held, by step of the brief:\n1. **Intro:** the thin cloud bank works. In every frame I sampled of the new build, no single colour covers half the screen; production's bank fills 78–86% of the screen for three frames. The title appears at landing, there is no flash or seam, and the night, rain, 2D, 320 and 430 layouts all look right.\n2. **First visit and a walk:** naming the octopus, choosing its first colour and the first day gift all work. A walk, its return, the awake window, the tap line and the nap all work, and so does a turn that stays home.\n3. **Upstairs:** when the octopus is awake and idle it follows you up. During the awake window after a turn it stays downstairs (owner decision 3b), and the mirror shows the toast \"지금은 아래층에 있어.\". Time upstairs does not count toward the awake window (OW-4). The salon sheet opens, a colour can be asked and applied, nothing pays, and the sheet closes by its close button, a tap outside or a drag down.\n4. **Weekly list:** the tasks counted when done for real, swapping one works, and five of seven brings the claim button. The claim adds exactly 12 shells and 2 seeds. Moving the clock to next Monday in an open tab gives a fresh week within about a minute. A production save from the middle of a week, with the removed three-visits task already done, opens with the kept line and 2/5.\n5. **Garden:** planting and watering by tapping the outside plots work, also after zooming and panning. The plot labels refresh after a day change without focus.\n6. **Two tabs:** a walk, the day gift and the weekly claim each happen once across two tabs.\n7. **Long session:** in a tab left open past midnight, the gift arrives within a minute and the octopus wakes from its nap.\n- **Sound:** sound stays off by default. There were no `audio/` or `foley/` requests and no AudioContext through the whole intro, a walk and the loft.\n\nNot defects (test conditions, not the game):\n- Screenshots taken while any modal sheet is open show a transparent band at the top of the screen. Production does the same with any sheet, so it comes from how the headless browser captures the page.\n- A reset that seemed to fail with two tabs was my automation taking 8.9 s between the two presses under load 7.8. The confirm window is 4 s.\n- An octopus that stayed asleep past midnight was caused by my `__ppolLook` hook, which turns off self-waking.\n\nScripts and screenshots are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-play/ (screenshots in `shots/`, running notes in `notes.md`).",
+  "findings": [
+   {
+    "id": "P1",
+    "severity": "nit",
+    "title": "Reduced motion: the title appears over a black screen before the room is drawn",
+    "where": "Entry intro with reduced motion, 360x740 (js/intro.js riseLogo runs at 0 ms in reduced mode, while the scene hole is shown on the 3rd frame)",
+    "what": "With reduced motion, the logo fades in about 0.5–0.75 s before the attic appears, so for that time the player sees the title on a flat black screen. The room should be visible when the title appears. Production f2c93f1 does exactly the same (cmp-red.png, top row = prod, bottom = new). This was seen under SwiftShader, where the first frames are slow, so a real phone may show it for less time.",
+    "evidence": "shots/cmp-red.png; vid/new-red/run.webm, vid/new-red2/run.webm, vid/prod-red/run.webm; marks: new title+risen at 1.78 s / 2.0 s, room visible ~2.5–3.0 s",
+    "repro": "node p1-intro.js new red 13 clear reduced; ./frames.sh vid/new-red 0 6 4 (same with prod). Reproduced twice on new, once on prod.",
+    "suggested_fix": "In reduced mode, wait until intro-live (the scene hole is shown) before riseLogo, not later(…, 0).",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "P2",
+    "severity": "nit",
+    "title": "At low frame rates the title pops while the room is still rising",
+    "where": "Entry intro, 3D, 360x740 (js/intro.js start(): wall-clock safety SKY.dur*2.5 = 7.5 s; scene dt clamped to 0.1 s)",
+    "what": "When the scene runs below about 10 fps, scene time falls behind the wall clock, so the 7.5 s safety timer raises the logo at scene progress 0.51. The room is then at roughly 59% of its climb and keeps rising under the title for several seconds. On a 60 fps phone the title appears at landing, which is correct: the deterministic strip shows it at progress 0.945. Production does exactly the same (title at progress 0.511 in both builds).",
+    "evidence": "p1b-title.js output: new and prod both switch to 'title' at introProgress 0.511, frameY 1.946 (landed is 0.68); shots/new-day-sheet.png row 3–4",
+    "repro": "node p1b-title.js new; node p1b-title.js prod (the per-frame stats() logger slows the scene on purpose)",
+    "suggested_fix": "Optional: make the safety fire when the camera lands (introSkip and then the title) instead of raising the title over a moving room.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "P3",
+    "severity": "nit",
+    "title": "Zoom from outside carries into the attic, and the octopus is hidden behind the player figure",
+    "where": "Return from a walk after a pinch-zoom outside, 360x740",
+    "what": "If the player pinch-zooms (zoom 2) and pans outside during a walk, the attic after the return is still at zoom 2. The octopus, back at the door and blanket, is drawn behind the player character, so the player cannot see it. Production does the same (zoom 2 kept, octopus behind the player).",
+    "evidence": "shots/m-p5z.png (zn = new, zp = prod); p5z output: attic after {zoom:2, oct:[153,258]} new, {zoom:2, oct:[167,262]} prod; also shots/p5-g18-08-nextmon.png",
+    "repro": "node p5z.js new state-g18.json 2026-11-24 zn; node p5z.js prod state-g18.json 2026-11-24 zp. Reproduced twice on new (p5-garden and p5z).",
+    "suggested_fix": "Owner choice: either reset zoom when the place changes back to the attic, or re-centre on the octopus.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "P4",
+    "severity": "nit",
+    "title": "'오늘의 산책' keeps yesterday's rows in a tab left open past midnight",
+    "where": "Log sheet (#btn-today) in a tab open across midnight, 360x740",
+    "what": "After the date changes in an open tab, the new day gift arrives within a minute and the octopus wakes, which is correct. But the log titled 오늘의 산책 still lists yesterday's departure, return and memory rows until the page is reloaded (or something else re-renders it). After a reload it correctly shows only today's greeting and '어제 메모'. I did not compare with production, which has no 1-minute timer.",
+    "evidence": "p8-midnight.js output 'after midnight' log rows = yesterday's 출발/기웃/귀가/기억; 'reloaded' rows = ['오늘…', '어제 메모…']",
+    "repro": "NOLOOK=1 node p8-midnight.js new state-g18.json 2026-11-26 2026-11-27 mid2. Reproduced twice (mid, mid2).",
+    "suggested_fix": "Call renderLog() and setDayGreeting() in the same 1-minute tick that hands out the new day's gift.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "P5",
+    "severity": "nit",
+    "title": "Two tabs and a reset: the name dialog is missing in one tab and stale in the other",
+    "where": "Settings › 전체 초기화 with a second tab open on the same save, 360x740",
+    "what": "After a reset in tab B, tab A takes the empty save (name null, shells 0) but shows no name dialog. It shows an unnamed red octopus until the big button is tapped, which then opens the dialog. If A names the octopus, B's name dialog stays open with its colour row. Saving it silently renames the octopus ('구름' becomes '별'), and the colour picked in B is ignored: it stays A's default first colour. Shells and days are not lost. Production does exactly the same.",
+    "evidence": "p7s.js output: 'A front {name:null,nameDlg:false}', 'A tapped go {nameDlg:true}', 'B before {colourRowHidden:false,nameDlg:true,name:\"구름\"}', 'B named again {name:\"별\",color:\"#e8463c\",colors:[\"first:#e8463c:default\"]}'; shots/p7s-A-after-reset.png",
+    "repro": "node p7s.js new state-w17.json 2026-11-18 two (and prod). Reproduced on new 3 times and on prod twice.",
+    "suggested_fix": "In the storage adopt path: open the name dialog when the adopted save has no name, and close an open name dialog (or switch it to read-only) when the adopted save already has one.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "P6",
+    "severity": "nit",
+    "title": "At 320x568 the weekly gift button is cut by the bottom edge of the 살림 sheet",
+    "where": "살림 sheet with 5/5 done, 320x568",
+    "what": "The 주간 선물 받기 (조개 12 · 씨앗 2) button sits just under the note, but on a 320x568 screen only its top half is visible when the sheet opens. The player has to scroll to see it. At 360x740 it is fully visible. It still works after scrolling.",
+    "evidence": "shots/p6-s320-04-bag.png (montage shots/m-p6.png, 4th frame)",
+    "repro": "node p6-small.js new state-w17.json 2026-11-18 s320 320x568",
+    "suggested_fix": "Scroll the claim button into view when the sheet opens with a gift waiting, or move the explanatory note under the list on short screens.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "P7",
+    "severity": "owner",
+    "title": "The sleep label alternates with '꿈꾸는 중' (dreaming)",
+    "where": "Scene label over the napping octopus (js/app.js:1176 DREAM_LABEL); also in production",
+    "what": "While the octopus naps, its label switches between '자는 중' and '꿈꾸는 중'. Saying it is dreaming implies an inner state the model does not have (hard line 1 talks about implying what the octopus feels or does). This is not new in this deploy: the same constant is in f2c93f1. Options: keep it as a playful convention (costs a small honesty stretch), or use only '자는 중' / '쉬는 중' (costs a little charm).",
+    "evidence": "shots/m-p3.png last frame ('꿈꾸는 중' over the octopus); grep: new/js/app.js:1176 and prod app.js have DREAM_LABEL",
+    "repro": "Let the octopus nap after a walk and watch the label for about 15 s",
+    "suggested_fix": "Owner decision",
+    "confirmed_by_running": true
+   }
+  ],
+  "checked_ok": [
+   "Intro 3D at 360x740 day/clear, night/clear, night/rain, day/rain, 320x568 dusk, 430x932 dawn snow (deterministic debugStep strips): thin bank never covers 50% of the screen (max dominant colour 45–49% at the bank frame vs production 78–86%), no single-colour full frame, title at landing (progress 0.945), no console errors (shots/cmp-*.png)",
+   "Intro side by side with production f2c93f1 (cmp-day.png, cmp-night.png, cmp-nrain.png, cmp-drain.png): only difference is the thinner bank",
+   "Intro ?scene=2d and real-time video: clouds, title, tap to enter, then name dialog (new-d2-sheet.png)",
+   "First visit: 6 colour chips, picked colour shown in the portrait and applied, name saved, first day gift toast shown ~5 s after naming (same as prod)",
+   "Walk with demo brain (forceKind out): departure, outside scene, return after 53 s, awake window, tap line '이름에 제일 오래 있었어' in a bubble, nap and '쿨쿨…' on tap",
+   "Stay-home turn: returns, summary toast, awake window then nap",
+   "Loft: idle awake octopus follows upstairs (octUp true), stays put, follows down and up again",
+   "Loft during the awake window after a turn: octopus stays downstairs (3b); mirror tap gives toast '지금은 아래층에 있어.'; awake window not counted upstairs (OW-4), nap 33 s after coming down",
+   "Mirror hidden below lantern 2 (MIRROR_LEVEL) as designed",
+   "Salon with the octopus upstairs: sheet opens, bottle pick, 물어보기 stages rows (질문, 대답, 몸 색), colour applied, shells and seeds unchanged",
+   "Salon and bag sheets close by close button, tap outside, Esc and drag-down on the handle at 320x568",
+   "Weekly list: swap (바꾸기 3→2) gives a new task; loft, play room, plant, look counted from real actions; 5/5 shows the claim button, claim gives exactly +12 shells and +2 seeds, chip and toast update",
+   "Ask counted 1/2 on a day when the second press woke the napping octopus (owner decision 5b) and 2/2 the next day",
+   "Next Monday in an open tab: new week list, day gift +3 (6th day), plot labels refreshed to '물 주기' without focus, after 44 s (1-minute timer)",
+   "Production mid-week save (three-visits task done) opened in new on Wed/Thu: kept line '사흘 들어오기는 목록에서 빠졌지만…', (2/5), removed task replaced by 놀이방 들르기; next Monday resets cleanly",
+   "Garden during a walk: plot buttons hit their own plots, plant and water toasts, state updated; after pinch-zoom and swipe-pan, taps still act on the plot the scene picks",
+   "Day gift +10 bonus on the 5th visit day adds up (12+13=25)",
+   "Two tabs: a walk in A is seen in B (trips, lantern); B's turn after A's; weekly claim only once (B shows no claim button); next day gift once (+3) with both tabs open",
+   "Reset in one tab works (single-tab double press), other tab adopts the empty save",
+   "Midnight in an open tab without the look hook: gift arrives and the octopus self-wakes",
+   "Sound off by default: 0 requests under audio/ or foley/, 0 AudioContext, 0 media play through intro tap, walk and loft",
+   "No horizontal page scroll and no clipped visible text in sheets at 320x568 and 430x932 (only sr-only and the album date scroller flagged, both intentional)",
+   "No pageerror or console.error in any run"
+  ],
+  "not_checked": [
+   "Real phone GPU timing: all runs used SwiftShader at 2–10 fps, so animation smoothness and the real-time title timing are not representative",
+   "The transparent band at the top of screenshots under any modal sheet: it reproduces identically in production and is most likely a headless capture artifact (an opaque backdrop pixel is painted over nothing). I could not confirm on a real device",
+   "Climbing while the model is still thinking, and a stay-home turn ending upstairs (OW-3, other lane), as instructed",
+   "Harvesting a flower (needs two waterings on different days in one session); the 'run' (다락방 달리기) and 'furn' tasks: I swapped 'run' away and my furniture drag did not move the item, so 'furn' was not counted",
+   "Weekly gift carried over at a week change when five tasks were done but not claimed (the 'week.prev' path): not played, only the claimed path",
+   "Production week-change behaviour in an open tab (production has no 1-minute timer), so P4 was not compared",
+   "390x844 and 412x915 sizes (used 360x740, 320x568 and 430x932 instead)",
+   "Screen reader reading order; only aria-label strings were read",
+   "Import from a file and import racing with another tab (lens 3)"
+  ],
+  "suites": [
+   "No repo suites run (the brief says the lead runs them); only my own probes in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-play/ (p1-intro.js, p1b-title.js, p1c-strip.js, p2-first.js, p2g.js, p3-loft.js, p3a-ask.js, p3s-salon.js, p3t/u/v.js, p4-week.js, p4p-prodsave.js, p5-garden.js, p5z.js, p6-small.js, p7-tabs.js, p7r.js, p7s.js, p8-midnight.js, p9-sound.js, p10-close.js)"
+  ],
+  "untested_behaviours": []
+ },
+ "confirm:C1": {
+  "id": "C1",
+  "reproduced": true,
+  "severity": "must",
+  "on_production_too": "no for the same-week half: production f2c93f1 shows (5/5) and the 받기 button for this save, and deploy-2 shows (4/5) with no button. The week-change half is different. Production also pays nothing on Monday (the save shows prev null and 23 shells), because that is the old W1 bug where an unclaimed gift is dropped. Deploy-2 fixes W1 for every slot except a done 'gift' slot, so the fix is incomplete there. It is not a new loss compared with production.",
+  "evidence": "Reproduced, and the scope is a bit narrower than claimed. The cause is that oldDone only handles 'days'. Copies were made at /dev/shm/c1/{new=6d03faf, prod=f2c93f1, fix=new plus a one-line patch} and deleted afterwards. Scripts and logs are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/confirm-C1/ (notes.md, lib.js, p1-their.js, p1-their.log, p-own.js, p-own.log).\n\n(1) The reporter's p1-gift-slot.js was pointed at my copies, and its result is the same as reported. prod 11-12: (5/5), claim true. new 11-12: (4/5), claim false, and the saved q has 'gift:1' replaced by 'water:0'. On 11-16, prod and new both have prev null and 23 shells.\n\n(2) My own probe, p-own.js, follows the real upgrade path in one localStorage. It seeds a production-shaped save for week 2026-11-09 (ask 2, look 1, run 1, furn 1, slot5, harvest 0, diary 0). It opens prod on 11-13, which writes the save. It then opens the build under test on 11-13, and then on 11-16. It also tests opening on 11-16 directly after prod.\n- slot5 = gift n1. prod 11-13: count 5, claim true. new 11-13: count 4, claim false, kept 0, and the slot becomes water:0 in the saved data, so the point is gone for good. new 11-16 by both paths: prev null, shells 23, seeds 2, so the weekly gift of 12 shells and 2 seeds is not given.\n- Control, slot5 = days n3 with three visit days that week. new 11-13: count 5, claim true, kept 1, and the #week-kept line is shown. new 11-16: prev 12/2, shells 35. So OW-1 works for 'days', and only 'gift' falls through.\n- Fix copy, with oldDone treating a 'gift' slot as done when n >= 1. 11-13: count 5, claim true, kept 1. 11-16 by both paths: prev 12/2, shells 35, seeds 4. But #week-kept then reads '사흘 들어오기는 목록에서 빠졌지만, 이번 주엔 한 걸로 셌어.', which is wrong text for a gift slot.\n\nAlso confirmed:\n- Production QUESTS (f2c93f1 js/app.js:4283-4284) includes ['gift', ..., 1] and ['days', ..., 3]. In production, questMark('gift') at app.js:3249 counts it.\n- The removal is in 66c8110. Taking the task out is the owner's choice (the comment cites the owner on 11-11), but it is not one of the decisions listed in COMMON3 lane 8. Losing a done point that is already in a production save breaks hard line 10, so this is a defect and not an owner decision.\n- tools/smoke.js:5063-5066 (Q section 13) seeds {id:'gift', n:1} but only asserts that the slot is replaced. It does not check that the point is kept.\n\nWhy 'must': a production save loses a recorded done task, and a visible earned gift (5/5 with a claim button) disappears on update (hard line 10). The window is narrow: only saves whose current week (from 2026-11-09) has a 'gift' slot with n >= 1. One unfinished gift slot also loses its point even below 5/5.",
+  "cause": "/home/user/ppolppol-verify2/js/app.js:4368-4371. oldDone() returns false for every id except 'days' (`if (!isObj(x) || x.id !== 'days') return false;`). So in weekState, the same-week repair at 4373-4374 does not count a done 'gift' slot into w.kept before replacing it with {n:0}. The week-change `due` at 4382 also misses it. The slot is unknown because 'gift' was removed from QUESTS at 4359 in 66c8110.",
+  "fix": "In oldDone (app.js:4369), before the 'days' test, add: `if (isObj(x) && x.id === 'gift') return (x.n | 0) >= 1;`. This one line fixes both the same-week count (5/5, claim) and the Monday payout. I checked this on a patched copy.\n\nAlso make the #week-kept line at app.js:4436 generic, because it currently names only 사흘 들어오기. For example: '목록에서 빠진 일도 이번 주엔 한 걸로 셌어.'. Any new or changed string needs the font check re-run.\n\nThen extend smoke Q section 13 (tools/smoke.js:5063-5066): with 'gift:1' plus four done tasks, expect (5/5) and the claim button, and expect the next Monday to give prev 12/2."
+ },
+ "verify:welfare": {
+  "summary": "I found one break of a hard line that should be fixed before shipping. Everything else I checked against the hard lines holds.\n\nThe break (must, hard line 10, and the weekly sheet's own promise \"못 해도 잃는 건 없어\"): production still has the weekly task \"선물 상자에서 하나 내밀기\" (id `gift`). This deploy removes it, and only the other removed task, \"사흘 들어오기\", gets the `kept` credit. A production save whose current week counts the gift task as done loses that point on the update. I seeded a week at 5/5 that included the gift task and had not been claimed. Production showed 5/5 with the gift dot. This build shows 4/5: the \"주간 선물 받기\" button and the dot are gone, and the gift task is replaced by a new task at 0. An old week that ended at five done with the gift task among them is also not paid out when the week changes. The same week with \"사흘 들어오기\" instead is paid (12 shells, 2 seeds).\n\nWhat holds, confirmed in a browser:\n- **New lines:** I collected every new or changed player-facing line. None says or implies what the octopus feels, likes or wants. None passes as the model's words, pushes the player or uses a symbol. Mechanically, every new Korean literal contains only Korean, ASCII, the middle dot or the ellipsis. On screen at 360x740 and 320x568, in both the pixel and plain font, the new toasts and sheet lines stay inside the screen with no sideways overflow.\n- **Weekly list:** a stay-home answer, an empty turn and a walk each count once for \"산책 갈지 묻기\". A press that wakes a napping octopus does not count, whether the turn ends home or out. A press during the awake rest window does count. Walks change no shells or seeds. Last week's unclaimed gift is now put in the bag automatically, with one plain toast and one sheet line. There is no countdown or streak.\n- **Upstairs:** after a turn, while the octopus rests awake, it does not follow the player up. Tapping the mirror then says \"지금은 아래층에 있어.\", which is true, and the screen-reader description says \"문어는 아래층 담요 위에서 쉬고 있어\". When it does follow while awake, it no longer wanders upstairs.\n- **Salon:** a \"그대로\" answer is staged with the neutral face, nothing is paid, the octopus does not walk off within 12 s, and asking again the same day gives only \"내일 또 물어볼 수 있어.\"\n- **Intro:** stepping it frame by frame (187 frames at 1/60 s, at 360x740 by day and 320x568 at night), no frame pair has 25% or more of the screen changing brightness sharply. The largest was 19.5%, and there were no flashes. With reduced motion it lands at once.\n- **Sound:** with sound off there was no AudioContext and no request under `audio/` or `foley/` through the intro, a walk out with an outside plot tap, the garden, the weekly claim, upstairs, the mirror and back down. With sound on, nothing new played at those moments; only the existing sheet and button clicks.\n- **Credits and fonts:** the credits link \"만든 것들\" is in settings and credits.html shows the CC BY credit. No commercial game is named in the diff. The font check on a copy says \"stale: none\".\n\nSmaller points:\n- (nit) Harvesting a flower of unknown colour says \"염료 1개를 얻었어\", but the bag then shows \"염료 아직 없어\". This only happens with a hand-edited or foreign save.\n- (nit) At 320x568 in the pixel font, the claim button starts at y=515 when the bag opens, so its quantity line and the `kept` line sit below the fold. The sheet scrolls.\n- (owner) Two code-written feeling lines that are already in production: the pet bubble \"…좋아\" and the screen-reader phrase \"신나 있어\".\n- (owner) The daily gift still pays an extra 10 shells every fifth visited day, which is an attendance reward. With this deploy it is also toasted when an open tab passes midnight.\n\nEvidence (scripts, logs, screenshots, notes.md) is in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-welfare/. I ran no repo suites, and I deleted the /dev/shm copies afterwards.",
+  "findings": [
+   {
+    "id": "V1",
+    "severity": "must",
+    "title": "Updating drops a done 'gift' weekly task from production saves; an earned unclaimed weekly gift disappears",
+    "where": "js/app.js:4351-4353 (QUESTS without 'gift'), 4362-4365 oldDone (only 'days'), 4370 weekState repair, 4380 due; screen: 살림 sheet '이번 주 할 일'",
+    "what": "Production f2c93f1 has the weekly task ['gift','선물 상자에서 하나 내밀기',1] and counts it (questMark('gift')). This deploy removes the task. weekState replaces an unknown task with a new one at n=0. The 'kept' credit (OW-1) is given only for 'days' and never for a done 'gift'. A production week with five done tasks, one of them 'gift', drops to 4/5 after the update: the claim button and the chip dot vanish, and the player must do another task to get back what they had already earned. An old week that ended five-done with 'gift' among them is not paid out at the week change (the same week with 'days' is). This breaks hard line 10 (a production save loses something it had) and the sheet's promise '못 해도 잃는 건 없어'.",
+    "evidence": "w1.log, case A (new build): q 'ask:2 loft:0 run:1 plant:1 harvest:1 look:0 diary:0', chip aria '살림, 조개 23' with no gift, sheet '(4/5)' and no claim button. w1-prod.log, same save on f2c93f1: q 'ask:2 gift:1 run:1 …', chip class 'has-gift', sheet '(5/5)'. A2 ('days' instead of 'gift'): kept 1, 5/5, claim shown. A3 (old week, 'gift' done): no prev and shells unchanged. A4 (old week, 'days' done): prev {shells 12, seeds 2}, shells 23 to 35. Screenshots w1-A-gift-week.png vs w1-PROD-A-gift-week.png.",
+    "repro": "NODE_PATH=$(npm root -g) node /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-welfare/w1-week.js (ONLY=A). For production: TREE=<copy of f2c93f1> ONLY=A node w1-prod.js",
+    "suggested_fix": "Treat a done 'gift' task like 'days' in oldDone (x.id === 'gift' && (x.n|0) >= 1 counts as kept), both in the same-week repair and in the week-change 'due' count. Make the kept line general, e.g. '목록에서 빠진 일도 이번 주엔 한 걸로 셌어.' (or one line per removed task). Add a smoke case seeded with a production week containing gift:1.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "V2",
+    "severity": "nit",
+    "title": "Harvesting an unknown-colour flower says a dye was gained, but the bag then shows no dye",
+    "where": "js/app.js:4468 (toast) and the bag '염료' section; screen: 살림 sheet",
+    "what": "For a plot whose colour this build does not know (hand-edited or foreign save), harvest gives the toast '염료 1개를 얻었어' and stores dyes {teal: 1}, but the dye list says '아직 없어. 꽃을 길러 거두면 생겨.' The toast promises something the player cannot see or use.",
+    "evidence": "w2.log: dyes '{\"teal\":1}' after harvest toast '염료 1개를 얻었어'. w3.log: bag dyes section '염료 / 아직 없어. …' with dyes {teal:1}. Screenshot w2-360x740-pixel-toast-harvest.png.",
+    "repro": "node w2-lines.js and w3-toasts.js in the v2-welfare folder (seed garden [{color:'teal',water:2}] or dyes {teal:1})",
+    "suggested_fix": "For an unknown colour either say plainly '모르는 색이라 염료로 쓸 수 없어' (keeping the key), or list it in the bag as '모르는 색 1' so the toast and the sheet agree.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "V3",
+    "severity": "nit",
+    "title": "At 320x568 in the pixel font the moved claim button is half below the fold when the bag opens",
+    "where": "css/style.css week claim / js/app.js:4435 renderWeek; screen: 살림 sheet at 320x568, pixel font",
+    "what": "The claim button was moved above the list so it is visible on open (F5). At 320x568 with the pixel font it starts at y=515 (height 76, viewport 568), so the quantity line '(조개 12 · 씨앗 2)' is cut at the screen edge, and the 'kept' line (y=591) is fully below. The sheet scrolls (overflow auto), so nothing is lost. Plain font and 360x740 are fine.",
+    "evidence": "w2.log 320x568-pixel: claim {y:515,h:76,inView:false}, kept {y:591,inView:false}. Screenshot w2-320x568-pixel-bag-kept.png.",
+    "repro": "node w2-lines.js (v2-welfare folder)",
+    "suggested_fix": "Optional: tighten the bag-line and set-note spacing in the pixel theme at small heights, or accept it as scrollable.",
+    "confirmed_by_running": true
+   },
+   {
+    "id": "V4",
+    "severity": "owner",
+    "title": "Two code-written feeling lines already in production: pet bubble '…좋아' and scene description '신나 있어'",
+    "where": "js/app.js:1619 (say('…좋아','pet',1800) after petting, 70%); js/app.js:1144 DOING_DESC.happy '신나 있어' (screen-reader #scene-desc, state set from reaction 폴짝/우쭐)",
+    "what": "Neither line is new in this deploy; both are identical in f2c93f1. Read literally, both state what the octopus feels and are written by code, not the model (hard line 1 names '좋아해' and '기뻐해' as banned). '…좋아' is documented as a deliberate replacement for '…♡' in docs/UI_ART.md:128. This deploy only touches it to clear a pending '…좋아' when the salon is asked (good). Options: (a) keep as a documented exception (costs: the line reads as the octopus saying it likes being petted, with no demo-rule tag); (b) replace the pet bubble with a neutral '…' or no text and keep the heart particle, and change '신나 있어' to a fact such as '폴짝 뛰고 있어' (costs: a little warmth, two strings).",
+    "evidence": "grep: js/app.js:1619 and git show f2c93f1:js/app.js:1589 identical; DOING_DESC identical at f2c93f1:1118. docs/UI_ART.md:128 \"쓰다듬기 '…♡' | '…좋아'\".",
+    "repro": "grep -n \"…좋아'\\|신나 있어\" /home/user/ppolppol-verify2/js/app.js",
+    "suggested_fix": "Owner choice; option (b) is the strict reading of hard line 1.",
+    "confirmed_by_running": false
+   },
+   {
+    "id": "V5",
+    "severity": "owner",
+    "title": "The daily gift still pays +10 shells on every fifth visited day (an attendance reward), now also toasted at midnight in an open tab",
+    "where": "js/app.js:4340 dailyGift (extra = n % 5 === 0 ? 10 : 0); js/app.js:4650-4651 (new 60 s interval and visibilitychange)",
+    "what": "Decision 4b removed '이번 주에 사흘 들어오기' as a login chore, but the daily gift's fifth-day bonus is the same kind of reward for coming in. It counts total visited days, not consecutive ones, so it is not a streak. New in this deploy: a tab left open past midnight now grants the gift within a minute and shows '오늘 선물: 조개 N · 씨앗 1 (들어온 날 N일째)'. The toast only shows while the tab is visible and is not a push notification. Options: keep as is; drop the fifth-day bonus (flat 3 shells) to match 4b; or drop the '들어온 날 N일째' count from the toast.",
+    "evidence": "Code at the lines above; toast seen in w3.log at 3.3 s after boot ('오늘 선물: 조개 3 · 씨앗 1 (들어온 날 4일째)').",
+    "repro": "Read the lines above; node w3-toasts.js",
+    "suggested_fix": "Owner decision.",
+    "confirmed_by_running": false
+   }
+  ],
+  "checked_ok": [
+   "LINE '지금은 아래층에 있어.' (toast; mirror tapped upstairs while the octopus is awake downstairs, e.g. its rest window) -> honest (it was downstairs: octUp false, anchor blanket), plain, no feeling; fits 360x740/320x568 both fonts (w4.log, w4-B-*-mirror-down.png)",
+   "LINE '지금은 산책 나가 있어.' (toast; mirror upstairs while octopus away) -> plain and true when shown; not reachable in my runs (see not_checked)",
+   "LINE scene description '위층 다락 옷방, … 문어는 위층에서 쉬고 있어.' / '문어는 아래층 담요 위에서 쉬고 있어.' / '문어는 아래층에서 걸어가는 중이야.' / '위층 거울 옆' (screen reader #scene-desc) -> matched the real state in every probe (w4.log A1, B1, B5), facts only",
+   "LINE weekly task renamed '놀이방 들르기' (was '부엌 방 들르기') -> matches the door name, plain",
+   "LINE '사흘 들어오기는 목록에서 빠졌지만, 이번 주엔 한 걸로 셌어.' (bag sheet, only in a week repaired from a production save with 3 visits) -> factual and reassuring, no push, no symbol; 2 lines at 360 and 3 at 320 pixel; shown only when kept>0 (w2.log, w2-*-bag-kept.png)",
+   "LINE toast '지난주 선물은 살림에 넣어 뒀어. 조개 12 · 씨앗 2' (once, after the week changes with an earned unclaimed gift) -> removes fear of missing out, plain; in view at all 4 configs; shown after today's gift toast (w3.log 8.5 s)",
+   "LINE bag line '지난주 선물은 살림에 넣어 뒀어 (조개 12 · 씨앗 2).' (during the new week) -> plain, fits",
+   "LINE toast '오늘 선물: 조개 N · 씨앗 1 (들어온 날 N일째)' (text unchanged, now via weekTell, also after midnight in an open tab) -> unchanged wording; fits; see V5",
+   "LINE button '주간 선물 받기 (조개 12 · 씨앗 2)' (moved above the list, quantity kept together) -> plain, no countdown; 2 lines without overlap in pixel font; see V3 for 320x568 pixel",
+   "LINE '이번 주 선물은 받았어.' (moved; gets focus after claiming) -> fine, focus lands on #week-got in all 4 configs",
+   "LINE bag chip aria '살림, 조개 N, 주간 선물이 있어' -> factual, static (no blink, no number)",
+   "LINE plot aria '텃밭 첫째 칸, 빈 칸, 씨앗 심기' / '…, 씨앗이 없어' / '…, 새싹, 오늘은 물을 줬어' / '…, 꽃, 거두기' -> factual, same words on outside buttons and sheet buttons",
+   "LINE toast '씨앗이 없어. 들어온 날 선물이나 주간 선물로 생겨' -> factual, no purchase prompt; 2-3 lines, in view at all 4 configs",
+   "LINE toast '염료 1개를 얻었어' (unknown colour) and plot state '꽃' -> wording fine; see V2 for the mismatch with the bag",
+   "LINE '다락방 차림으로 입었어' / aria '<set> 다시 입기' (setWord avoids '차림 차림') -> plain (code read, not seen on screen)",
+   "LINE '밭은 집 앞마당에 있어.' (2D mode drops the outside-tap sentence) -> fine (code read)",
+   "LINE gift box lines (text unchanged, answer now fixed at the press); refusal face changed from calm to idle -> plain refusal, no sulky face (code at js/app.js:3315)",
+   "All new Korean literals in the js/css/index.html diff contain only Korean, ASCII, the middle dot and the ellipsis (strs.py); index.html unchanged; no new aria-label/title in markup",
+   "Weekly ask counting: home 1, empty turn +1 (2), out 1; wake press on a napping octopus not counted (home and out); press in the awake rest window counted; walks paid 0 shells and 0 seeds (w1.log B/C/D)",
+   "Week change: an earned unclaimed gift is delivered (12 shells, 2 seeds) with one toast and a sheet line; no countdown, streak or 'missed' text (w1.log A4, w2/w3)",
+   "Gift box task no longer feeds the weekly list (questMark('gift') removed): giving gifts no longer earns shells",
+   "Upstairs: awake idle octopus follows and then stays put (no wandering upstairs, 6 s watched); in the post-turn awake window it does not follow and is not woken or moved; going back down leaves it on the blanket, awake (w4.log)",
+   "Salon: first answer dye, then 'keep' staged with idle face, bubble '지금 색 그대로 있을래.', rows say 데모 규칙, shells/seeds/week unchanged, no walk-off within 12 s, ask again -> '내일 또 물어볼 수 있어.' (w5.log, w5-keep-*.png)",
+   "Intro: no frame pair with >=25% of the screen changing sharply (max 19.5% at 360x740 day clear, 7.4% at 320x568 night rain); 0 opposing flashes; reduced motion lands at once (phase title, progress 1.00) (flash-sky.log, flash-sky-320-night.log, w6-sky-strip.png); no new intro text",
+   "Sound off by default: 0 AudioContext and 0 requests under audio/ or foley/ through intro, tap-in, walk out + outside plot tap, return, garden plant, weekly claim, upstairs, mirror and back down (w7.log over file://, w7-http.log over http); sound on: nothing played at upstairs, mirror or going down; only existing sheet and button clicks (0.03-0.25 s)",
+   "No new sound triggers in the diff; js/audio.js, audio/, foley/, credits.html unchanged",
+   "Credits: settings shows link '만든 것들' -> credits.html with the CC BY 4.0 credit and CC0 notes; no commercial game named in the diff",
+   "Font check on a copy of HEAD: 'stale: none'"
+  ],
+  "not_checked": [
+   "'지금은 산책 나가 있어.' on screen: I could not reach it (the player cannot go upstairs while the octopus is out, because the turn is busy); it may only appear when another tab starts a walk while this tab is upstairs, which I did not set up",
+   "OW-3 (a turn ending while the octopus is upstairs moves it to the attic blanket) and restDown when another tab ends a turn: excluded by the brief",
+   "Two-tab races around week.kept (an old production tab rewriting a week with 'days' could add kept twice): saves lens, not tested",
+   "Set-wear toast and the 2D bag note on screen (code read only)",
+   "The intro title phase in real time: my capture paused the scene loop (debugStep), so the title shots were static; the title phase is unchanged from production",
+   "Wide screens (390x844 and up) and real phones",
+   "Repo suites (npm test, smoke, perf, intro-shots): not run, by the brief; my own probes only",
+   "The machine was loaded (load 7-9); I avoided wall-clock assertions, but toast timings in w2.log were partly missed and re-measured in w3.log"
+  ],
+  "suites": [
+   "font check on a copy of HEAD (tools/subset-fonts.py --check): stale: none",
+   "no repo suites run; own probes w1-w7 in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-welfare/"
+  ],
+  "untested_behaviours": [
+   "Migration of a production week that contains the removed task 'gift' (done or not): no repo test seeds it, and the deploy loses its point (V1)",
+   "Harvest of an unknown-colour flower and what the bag shows afterwards (V2)",
+   "Mirror tap upstairs while the octopus is away (AWAY_SAY)"
+  ]
+ },
+ "confirm:S1": {
+  "id": "S1",
+  "reproduced": true,
+  "severity": "must",
+  "on_production_too": "no, for the same-week case. Production f2c93f1 lists 'gift' in QUESTS (app.js:4284 there), so the same save shows (5/5) with the button '주간 선물 받기 (조개 12 · 씨앗 2)'. For the week-change case, production also pays nothing: it still has the old bug that 5d374f6 fixes, so an unclaimed full week opened on Monday is lost there as well. Part (b) is therefore not a regression from production. It is a hole in the lane-2 promise (\"the weekly gift is no longer lost at the week change\"), and it leaves this case exactly as broken as before.",
+  "evidence": "The finding is real. I reproduced it with my own minimal save and also with the other verifier's saves. Probe: /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/confirm-S1/probe.js (seeded localStorage key ppolppol_v2 plus window.__ppolTest.today, viewport 390x844 with touch). It loads /prod/ and /new/ from untouched copies of f2c93f1 and 6d03faf served by one http.server on port 8851, opens the bag sheet, and reads its notes, its buttons and the stored user.week. Notes and output JSON are in the same folder. The /dev/shm copies were deleted and the server was stopped.\n\n(1) My own save is a production-format week with ask n2, run 1, look 1, gift 1, loft 1, diary 0 and water 0, unclaimed, and no 'days' slot, so the existing 'days' handling cannot affect it. Opened on Wed 2026-11-11:\n- prod (mine-wed-prod.json): '(5/5)' and the button '주간 선물 받기 (조개 12 · 씨앗 2)'.\n- new (mine-wed-new.json): '(4/5)' and no claim button. The stored q[3] is rewritten from {id:'gift', n:1} to {id:'kitchen', n:0}, so the point is erased from the save, not just hidden.\n\n(2) Same save opened on Mon 2026-11-16:\n- new (mine-mon-new.json): shells 9 to 12 and seeds 0 to 1 (only the day gift), no week.prev.\n- Control (mine-mon-new-control.json): the same save with 'harvest' n1 in place of 'gift' pays shells 9 to 24 and seeds 0 to 3, with week.prev {12, 2, told 1}.\n- prod (mine-mon-prod.json): 9 to 12 and no prev, i.e. production also loses the full week at the week change.\n\n(3) The verifier's saves gave the same results. their-S06-prod: (5/5) with the button. their-S06-new: (4/5), no button, kept 1. their-S08-new on 11-16: shells 12 to 25, no prev.\n\n(4) I patched my copy with the suggested oldDone line:\n- fix-wed: (5/5) with the button.\n- fix-mon: week.prev {12, 2}, shells 9 to 24.\n- fix-their-S06: kept 2, (5/5) with the button.\nIn fix-wed, though, the #week-kept note says '사흘 들어오기는 목록에서 빠졌지만, 이번 주엔 한 걸로 셌어.' for a week that never had that task. That text is wrong and must change together with the fix.\n\nSeverity: this breaks hard line 10 (an update loses a saved point and a claimable reward), the same class of problem the owner already ruled must be kept for 'days' (OW-1). It also costs a point in weeks with fewer than five done. Only weeks that are still current, or left unclaimed when the update lands, are affected, because production has offered 'gift' only since 11-12 20:38 UTC. That is a small group, but the loss is real and silent.",
+  "cause": "In /home/user/ppolppol-verify2/js/app.js, 66c8110 removed 'gift' from QUESTS (app.js:4352-4353), so weekOk() (4365) treats a saved 'gift' slot as an unknown task. oldDone() (4368-4371) returns true only for id 'days'. So:\n- in the same week, weekState (4376-4378) adds nothing to w.kept for a finished 'gift' and replaces the slot with a new task at n 0;\n- at the week change, the `due` count (4383) counts a non-weekOk slot only through oldDone, so a finished 'gift' counts 0 and five done becomes four, and the weekly gift is not paid.\nThe #week-kept note (4436) names '사흘 들어오기' only.",
+  "fix": "In oldDone (app.js:4368), before the 'days' check, add:\n`if (isObj(x) && x.id === 'gift') return (x.n | 0) >= 1;`\n(or a small table of removed ids with their old targets: gift 1; days worked out from user.days as now).\n\nChange the #week-kept text at 4436 to wording that fits either removed task, for example '목록에서 빠진 일로 이번 주에 이미 한 것도 셌어.'\n\nAdd a smoke case: a production week with 'gift' n1 and four others done shows (5/5) with the claim button in the same week, and on the following Monday it pays week.prev {12, 2}."
+ },
+ "confirm:C2": {
+  "id": "C2",
+  "reproduced": true,
+  "severity": "nit",
+  "on_production_too": "no. Production f2c93f1 has no guard, so it follows the reset and keeps the new octopus. It does have the older bug the guard was written to fix: a late storage event carrying a record written before the import rolls the import back.",
+  "evidence": "The defect is real. I reproduced it twice, once with the verifier's probe and once with my own. It only happens when the device clock jumps backwards by more than the time between the import in tab A and a later write from another tab, and tab A stays open the whole time. When it happens, the importing tab ignores a reset, or a fresh octopus named after the reset, or a later import done in the other tab. Its next ordinary save then writes the old imported record back, and the other tab adopts it.\n\nCopies I tested: 6d03faf and f2c93f1 extracted to /dev/shm/c2/{new,prod}, plus a third copy, fix, with the change described below. I have since deleted all three. Probes and notes are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/confirm-C2/: lib.js (BASE repointed), p2-import-guard.js, c2-shared-clock.js, c2-late-write.js, notes.md.\n\n1) The verifier's probe, p2-import-guard.js (tab B's clock is 1 h behind), gave the same result they reported:\n- prod: tabA_nameAfterReset null, storedAfterAsave null\n- new: tabA_nameAfterReset '불러온문어', storedAfterAsave '불러온문어', tabB_nameNow '불러온문어'\n\n2) My own probe, c2-shared-clock.js, is closer to a real device. Both tabs are open and read one shared clock, which steps back after the import. The steps are:\n- A imports 불러온문어; B follows it.\n- 1.5 s later the clock goes back 1 h.\n- B does a full reset, then names a new octopus 새문어.\n- A does one ordinary save.\nResults:\n- prod: A follows the reset and the new name; stored stays '새문어'.\n- new: A_followedReset false, A_sawNewName false. A's save stores '불러온문어', and B then switches to '불러온문어'. So the reset is undone and the octopus the player had just named is lost.\n- With the clock going back 30 s instead of 1 h, new still fails. With no clock change, new behaves like prod. This confirms the trigger is the clock going back.\n\n3) Without a clock change I found no other way to trigger it. Every write from another tab gets lastSeen = max(Date.now(), seenOf(S) + 1), which is at least importSeen unless the clock went back.\n\n4) Rating: nit, not should. It needs two tabs open at once, an import, and then the clock going backwards by more than the time until the other tab writes. NTP corrections are normally sub-second; it takes a manual clock change or a large correction. When it does happen, the loss is real but small: a reset is undone, an octopus named minutes ago is lost, or an import is undone (the file can be imported again). Hard line 10 is not touched, since no production save is lost by the update.",
+  "cause": "js/app.js:4243. The storage listener drops any write with `seenOf(parseState(e.newValue)) < importSeen` for the whole life of the tab. importSeen is set at js/app.js:3733 from wall-clock time, and nothing ever clears it. When the wall clock goes back, every later write from other tabs, a reset included, is below importSeen and is dropped. The importing tab's next save() (lastSeen = max(now, seenOf(S) + 1), which is above importSeen) writes its stale record over the other tab's. That other tab has no guard of its own, so it adopts the stale record.",
+  "fix": "Limit the guard to the moments right after the import and measure that window with the monotonic clock. The guard exists for a late write from a closed tab, which arrives within milliseconds. Three changes:\n- js/app.js:3709: declare `var importSeen = 0, importAt = 0;`\n- js/app.js:3733: after setting importSeen, add `importAt = performance.now();`\n- js/app.js:4243: change the condition to `... || performance.now() - importAt < 1000 && seenOf(parseState(e.newValue)) < importSeen) return;`\n\nI tested this fix:\n- c2-shared-clock.js: it follows the reset and keeps '새문어', same as prod.\n- c2-late-write.js (a synthetic storage event carrying a record 50 ms older than the import, dispatched right after it): the fix still keeps the import (shells 777), as does 6d03faf, while prod reverts to the old record. So the guard's purpose is preserved.\n\nOptional: also never drop a record that has no octopus.name (a reset). A smoke X step that moves the second tab's clock back would be good to add."
+ },
+ "confirm:S2": {
+  "id": "S2",
+  "reproduced": true,
+  "severity": "should",
+  "on_production_too": "no. Production f2c93f1 has no week.kept, and its weekPick leaves out ids already in the list, so a week can never hold two 'days' points. In the two-tab run, the production tab itself showed (4/5) at the same moment the new tab showed (5/5).",
+  "cause": "js/app.js:4376. Each time weekState repairs a week, it adds the matching 'days' slots onto the existing count: `if (i) w.kept = (w.kept | 0) + i;`. An old-build tab takes in the repaired week, kept included, and its reroll can put 'days' back in a slot. The next repair then counts the same three entry days a second time. The week-change path has the same flaw at js/app.js:4382: `w.q.filter(... weekOk(x) ? questDone(x) : oldDone(w, x)).length + (w.kept | 0)` counts both an old 'days' slot and kept, so last week's gift can be paid with only four tasks really done. kept can also be pumped further (stored kept 2 plus a days slot gives kept 3). Each repair also resets that slot's rr to 0, so the slot gets its three rerolls back.",
+  "fix": "Count the removed 'days' task as one point at most. At js/app.js:4376, change `if (i) w.kept = (w.kept | 0) + i;` to `if (i) w.kept = 1;`. At js/app.js:4382, ignore an old 'days' slot when kept is already set: `w.q.filter(function (x) { return weekOk(x) ? questDone(x) : !(w.kept | 0) && oldDone(w, x); }).length + (w.kept | 0) >= WEEK_NEED`. I tested both lines on a copy. The new-tab-alone case went back to (4/5) with kept 1 and no claim button. The week change paid no undeserved gift (shells 9 -> 12, daily gift only). The real two-tab run kept kept at 1 and (4/5) through a reload. npm test passed with no failures (517/26/568/225/192/234/46).",
+  "evidence": "The defect is real. It happens in a real two-tab session and in a new tab on its own. I did not reuse the reporter's helpers. I wrote my own probe, /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/confirm-S2/probe.js, with fresh copies of f2c93f1 and 6d03faf in /dev/shm served on 127.0.0.1:8861 (same origin), the date hook set to 2026-11-11, and the reporter's save S03-wed-days-done as the seed (week 2026-11-09; entry days 9, 10, 11; ask, look and loft done; slot 6 'days', slot 3 'gift'). Every wait was for a state, never for a time.\n\n(1) Two tabs (`node probe.js cross`):\n- The production tab booted with 4/5 (ask, look, loft, days).\n- The new tab booted with q 'ask:2 run:0 look:1 furn:0 diary:0 loft:1 kitchen:0', kept 1, (4/5) and the kept note.\n- The production tab took that state in (kept 1).\n- In the production tab I clicked 바꾸기: three times on slot 1 (plant, run, harvest), then once on slot 3, which went furn/r0 -> days.\n- The production tab then showed (4/5), with the days row marked 했어.\n- The new tab took the write in: kept 2, (5/5), claim button on. Only three rows say 했어 (ask, look, loft), and the one note explains one point.\n- After reloading the new tab: still kept 2, (5/5), and stored kept 2. No page errors.\n\n(2) Simplest repro, the new build alone (`node probe.js single`): stored week with kept 1 plus a 'days' slot, which is exactly what the old tab writes. Boot gives kept 2, (5/5) and the claim button, unchanged after a reload. With KEPT=2 it gives kept 3.\n\n(3) Wider than the report says: with TODAY=2026-11-16 and the same stored week (kept 1 plus a 'days' slot, four tasks really done), the new build pays last week's gift at the week change: shells 9 -> 24, seeds 0 -> 3, week.prev {12, 2}.\n\nRating: should. No hard line is broken and no save data is lost; the effect is an early or unearned weekly gift of 12 shells and 2 seeds, and a (5/5) the rows do not explain. It needs a tab of the old build left open during the deploy week and a reroll that lands on 'days', so few players will hit it. But once it happens it persists in the save, and a player who looks at the list would notice the count is wrong.\n\nCleanup: copies and server removed. Notes are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/confirm-S2/notes.md."
+ },
+ "confirm:V1": {
+  "id": "V1",
+  "reproduced": true,
+  "severity": "must",
+  "on_production_too": "no for the same-week loss. On f2c93f1 the same save shows (5/5), the 받기 button and the has-gift dot. The week-change half is not a regression against production: f2c93f1 drops every unclaimed old week at the week change, both with 'gift' and with 'days' (A3 and A4 on prod both stay at shells 23). In the new build only the 'gift' week is still dropped, while a 'days' week is paid. So that half is a gap in this deploy's own new rule, not a loss compared with production.",
+  "evidence": "I reproduced it twice. All files are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/confirm-V1/.\n\n(1) The verifier's own repro (copied there and run with ONLY=A), on the tree and on a clean f2c93f1 copy: the results match the report.\n- New build, case A: q goes to 'ask:2 loft:0 run:1 plant:1 harvest:1 look:0 diary:0'. The sheet shows (4/5), with no claim button and no has-gift dot.\n- New build, A2 ('days' instead of 'gift'): kept 1, (5/5), button shown.\n- New build, A3 (old week with 'gift' done): no prev, shells stay 23.\n- New build, A4 (old week with 'days' done): prev 12/2, shells 35.\n- Production: A shows (5/5) with the button and the dot. A3 and A4 both stay at shells 23 with no prev.\n- Logs: r-new.log, r-prod.log.\n\n(2) My own repro, c1.js, as real play across the update. Both builds were served from one http server on one origin, so they share localStorage. It was 360x740, date hook 2026-11-11.\n- I seeded a production week 11-09 with ask:2, run:1, plant:1 and harvest:1 done and gift:0. Production showed (4/5).\n- On production I opened settings, went to the gift box, picked the first chip and pressed 내밀기. The octopus declined ('뚜루는 리본 안 쓰기로 했어.'). The offer still counted: gift:1, (5/5), the 주간 선물 받기 button and the has-gift dot.\n- I then navigated the same tab to the new build. The gift slot became 'loft:0'. The sheet showed (4/5), with no button and no dot, and it stayed that way after a reload (c1.log, c1-new-2026-11-11.png).\n- With the date moved to 2026-11-16 instead, the new build paid no weekly gift. Shells went 23 to 26, which is only the daily 3 (c1-nextweek.log, c1-new-2026-11-16.png).\n- No page errors.\n\nHow big it is: the player loses an earned, unclaimed reward of 조개 12 and 씨앗 2. They can win it back within the same week by doing one more task, but that costs them work they had already done. That breaks hard line 10, contradicts the sheet's '못 해도 잃는 건 없어', and is the same case the deploy already fixed for 'days' (OW-1). Who is hit: only saves from the production week that did the gift task and have not claimed yet.\n\nI found no owner decision that covers this. The owner removed the gift task, but nothing says what happens to credit already earned for it. Smoke check Q (tools/smoke.js:5061) seeds a week with gift:1 but only checks that the slot is replaced. That week was not at 5/5, so the check never tested the count.",
+  "cause": "js/app.js:4367-4370, oldDone(w, x). It returns false for every task except 'days' (`if (!isObj(x) || x.id !== 'days') return false;`). weekState (js/app.js:4373-4377) gives the 'kept' credit for a slot that is no longer a weekly task only through oldDone, so a done 'gift' slot is replaced at n:0 with no credit. The week-change 'due' count at js/app.js:4382 uses oldDone too, so an old week that reached five with 'gift' among them is not paid. 'gift' left QUESTS in 66c8110 (js/app.js:4351-4352), which is in this deploy and not in f2c93f1. The kept line at js/app.js:4436 names only '사흘 들어오기'.",
+  "fix": "I tested this fix on a copy of the tree. It has two parts.\n\nFirst, in oldDone, before the 'days' test, add:\n`if (isObj(x) && x.id === 'gift') return (x.n | 0) >= 1;`\n\nSecond, make the kept line at js/app.js:4436 general, for example '목록에서 빠진 일도 이번 주엔 한 걸로 셌어.'\n\nWith both, the same run of c1.js shows (5/5), the 받기 button, the has-gift dot and the new line, still after a reload, with kept:1. On 11-16 the old week is paid: prev {12, 2}, shells 38 (c1-fix.log, c1-fix-nextweek.log). The font check on that copy says 'stale: none'. Also extend the smoke Q case at tools/smoke.js:5061 (or add one) so the seeded week reaches five done with gift:1, and assert (5/5) and the button, plus the payout at the week change."
+ }
+}

@@ -1,0 +1,103 @@
+{
+ "summary": "The three fixes in /home/user/ppolppol-fix-honest (base 6d03faf, uncommitted) hold, and I would ship them. I found nothing at \"must\" level.\n\nI reproduced all three lines on an untouched copy of 6d03faf by playing at 360x740 with touch:\n- A real long-press on the octopus, in both 3D and 2D, showed the bubble '…좋아' and wrote a log row '혼잣말 …좋아'.\n- Ten nap-timer steps under a fake clock gave labels that alternate between '꿈꾸는 중' and '자는 중', in both 3D and 2D.\n- A model replay ending with the reaction 폴짝 set #scene-desc to '…포스터 판 앞에서 신나 있어.'\n\nOn the fixed tree, the same probes give:\n- The pet bubble is only '…', in 3D and 2D, in the pixel and system fonts, at 360x740 and 320x568. The log row is now '혼잣말 …'.\n- The nap label reads '자는 중' on all 10 timer steps, in 3D and 2D, at both sizes.\n- The real replay path gives '…포스터 판 앞에서 통통 뛰고 있어.'\n\nWith reduced motion, the happy state lasts 7 ms before the walk or sleep takes over, so the \"bouncing\" wording never describes a still octopus.\n\nOther checks:\n- The bubble sits inside the scene at 320 px.\n- npm test passes (exit 0) and the font check says 'stale: none'.\n- The new A-2 checks passed 5 runs out of 5 in a row on this loaded machine (load 6.8 to 9.1).\n- Reverting each fix alone fails exactly its own A-2 check. Three of my own four mutants also fail.\n- The edits to Y block 12 keep it as strict as before.\n- SMOKE_ONLY=A passed 80/0.\n\nSmoke Y crashed on a 5 s wait in the sheet-close block (smoke.js:2644) before it reached the petting checks. An untouched 6d03faf copy crashed the same way at the same block (base line 2591) under the same load, so I give no verdict on Y. Its E2 petting checks did not run in my session.\n\nWhere I disagree with the fix agent's report is its list of other lines that state the octopus's feelings. It is incomplete:\n- **The far-sea door dialog (index.html:231)** says the octopus wants something: '문어가 먼 바다 문 너머까지 가 보고 싶대.' A player sees it whenever a connected model proposes opening the door.\n- **Some demo-brain lines were missed.** These claim curiosity or being drawn somewhere: '…궁금했어', '…끌렸어' and '이만하면 됐다 싶었어'.\n- **The repo's own skill file** (.claude/skills/cozy-web-game/references/octopus-lore.md) still tells future work, as a 'must', to use a '꿈꾸는 중?' sleep label.\n\nThere are also an owner question about the heart particle and blush that remain after petting, a test gap (a feeling word on the 30 % walk branch after petting would not be caught), and two nits.",
+ "problems": [
+  {
+   "id": "S1",
+   "severity": "should",
+   "title": "The far-sea door dialog says the octopus wants to go; the fix agent's list missed it",
+   "where": "index.html:231 (#far-dialog .name-lead); shown by js/app.js farAsk() near 3236 when /api/walks returns far.state 'proposed'",
+   "what": "Code-written text tells the player '문어가 먼 바다 문 너머까지 가 보고 싶대.' ('the octopus says it wants to go beyond the far-sea door'). The model only took the action 'propose' (mcp/core.js:738), with an optional line of its own that is shown separately as '· 문어가 쓴 말'. Paraphrasing that action as a want goes against the wording of hard line 1 ('nothing may say or imply what the octopus … wants'). The item-5 sweep in the report says no other code line outside the demo data was found, which is not true. The brief's word list had no 싶 or 궁금, but the brief said 'words like'.",
+   "evidence": "grep -n '보고 싶대' index.html → line 231. The text is in a static dialog that any connected player sees after a proposal. No doc mentions this wording (grep in docs/, mcp/, api/ found nothing). I confirmed it twice by grep; I did not open the dialog in a browser, because it needs a live /api/far room.",
+   "suggested_fix": "State the action instead: '문어가 먼 바다 문 너머까지 가 보자고 했어.' Then add it to the A-2 FEEL_RX family, or add a static test that greps index.html and js/ for code lines containing 싶대 or 싶어."
+  },
+  {
+   "id": "S2",
+   "severity": "should",
+   "title": "The repo skill still prescribes the removed '꿈꾸는 중?' label as a 'must'",
+   "where": ".claude/skills/cozy-web-game/references/octopus-lore.md:59 and :156",
+   "what": "Line 156 reads '**must** 잠 상태를 … 활동 잠(색 순환, 라벨 \"꿈꾸는 중?\")'. Agents working on this repo load this skill. A future change that follows it would bring back the label this fix removed. The A-2 nap check would catch that, but the skill would keep pushing the wrong way. The fix agent listed this under 'left' and did not change it.",
+   "evidence": "grep -rn '꿈꾸는 중' over the repo (excluding wip/ and node_modules) → octopus-lore.md:59 and :156 are the only places outside history docs and comments that still recommend it.",
+   "suggested_fix": "Change both lines to '자는 중' with a dated 11-13 note (hard line 1: no claimed inner experience). The colour cycle stays shown by colour only."
+  },
+  {
+   "id": "O1",
+   "severity": "owner",
+   "title": "More demo-brain lines claim feelings, beyond the ones the agent listed",
+   "where": "js/brain.js:40 (IGNORED_NOTE '오늘은 그쪽 말고 다른 데가 궁금했어'), js/brain.js:47 ('…쪽이 궁금했어', '{hint} 말고 {mem} 쪽이 끌렸어'), js/brain.js:841 ('…이만하면 됐다 싶었어'), and the same lines in js/world.js:1340, 1370, 1488",
+   "what": "The agent's list of world.js demo lines (109, 985, 1141, 1251, 1255, 1290, 1494, 1514, plus app.js:2910) misses these. They claim curiosity ('was curious'), attraction ('was drawn to') and contentment ('felt it was enough'). Like the agent's list, they appear only under the '데모' tag, and the model voice skips them (brain.js:1101).",
+   "evidence": "grep -noE '궁금|끌렸|싶었' js/brain.js js/world.js",
+   "suggested_fix": "The owner decides whether hard line 1 covers rule-written demo lines. Options: (a) keep them, since the '데모' tag says the code wrote them (cost: the demo still voices feelings in the octopus's first person); (b) rewrite them as plain facts ('오늘은 {mem} 쪽으로 갔어'), which costs some charm in the demo."
+  },
+  {
+   "id": "O2",
+   "severity": "owner",
+   "title": "After petting, the octopus still shows liking without words: heart particle, blush and smiling face",
+   "where": "js/app.js:1613 UIART.fx('heart'); js/scene3d.js:1914 and 2986 (pet blush); pet portrait with closed smiling eyes (screenshot fix-360x740-2d-pet.png, log row '혼잣말 …')",
+   "what": "The brief kept the heart on purpose. Still, the heart, blush and smiling eyes together still imply 'it likes being petted', which is what hard line 1 asks not to imply. Removing the words fixed the line that said it, not the picture that shows it.",
+   "evidence": "In the 2D screenshot, the log box after petting shows a blushing face with closed smiling eyes beside '…'. The heart particle fires on every pet (app.js:1613).",
+   "suggested_fix": "For the owner. (a) Keep it: petting is the player's own act, the heart can be read as the player's affection, and the cost is a soft implication. (b) Swap the heart for a neutral particle, such as dust or a ripple, and drop the blush; this costs some warmth. (c) Keep the heart but keep the octopus's face idle while being petted."
+  },
+  {
+   "id": "N1",
+   "severity": "nit",
+   "title": "The pet check sees only the first bubble, so a feeling word on the 30 % branch goes uncaught",
+   "where": "tools/smoke.js:493-517 (scenarioHonestLines, part 3)",
+   "what": "The check stops at the first long-press that shows a bubble, which in practice is the 70 % '…' branch. My mutant M7 adds say('…좋아') to the other branch, where the octopus walks away (app.js:1621). It passed 6/0.",
+   "evidence": "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/mut/mut-M7-pet-bubble-on-walk-branch.log ('6 passed, 0 failed', said [['…']] on try 1)",
+   "suggested_fix": "Keep pressing after the first bubble until both branches have been seen at least once (for example, up to 15 presses), and require every bubble ever shown to be exactly '…'. Or stub uiRng to force each branch once."
+  },
+  {
+   "id": "N2",
+   "severity": "nit",
+   "title": "A stale comment still names the pet bubble as '♡'",
+   "where": "js/app.js:32 (comment '… 말풍선 ♡ pet, ? curious')",
+   "what": "The comment on expressions still says the pet bubble is '♡'. The pet bubble is now '…'.",
+   "evidence": "sed -n 32p js/app.js",
+   "suggested_fix": "'말풍선 … pet'."
+  }
+ ],
+ "per_fix": "| item | reproduced on base 6d03faf | gone on fixed tree | guarding check that fails on revert |\n|---|---|---|---|\n| 1 Pet bubble '…좋아' → '…' | Yes. A real CDP touch long-press, at 360x740, showed bubble '…좋아' and log row '혼잣말 …좋아' (2D: base-360x740-2d-pet.png; 3D: base-360x740-3d-pet.png). | Yes. Only '…' appeared, in 3D and 2D, at 360x740 and 320x568, in the pixel and system fonts; the log row is '혼잣말 …'. The bubble stays inside the scene (320 3D bubble rect 107,182-163,238; 320 2D bubble rect 151,108-169,124). | A-2 pet check \"쓰다듬기 뒤 말풍선은 '…' 하나 — 말 없음\" fails on revert: saw [\"…좋아\"], 5 passed / 1 failed. |\n| 2 Scene description '신나 있어' → '통통 뛰고 있어' | Yes, on the real path. APP.importEvents ending in wrap_up 폴짝 gave '…포스터 판 앞에서 신나 있어.' with state happy. | Yes, on the same path: '…포스터 판 앞에서 통통 뛰고 있어.' With reduced motion, the happy state lasts 7 ms (from performance.now 24502 to 24509), so the wording never describes a still octopus. | A-2 happy check \"상태 happy 의 장면 설명은 몸짓만\" fails on revert: desc '…신나 있어…', 5 passed / 1 failed. |\n| 3 Nap label alternation with '꿈꾸는 중' removed | Yes. With a fake clock, fastForward of 16 s ten times: 3D read '꿈꾸는 중' and '자는 중' alternating; 2D showed '꿈꾸는 중' 4 times out of 10. | Yes. 10 of 10 steps read '자는 중', in 3D and 2D, at 360x740 and 320x568; the octopus stayed asleep. | A-2 nap check \"낮잠 이름표는 … 늘 '자는 중'\" fails on revert: saw [\"꿈꾸는 중\",\"자는 중\"], 5 passed / 1 failed. |\n| 4 Docs | Not applicable. | UI_ART, DESIGN, SALON and DIALOGUE_UI are updated with dated notes. The repo skill octopus-lore.md still prescribes the old label (finding S2). | Not applicable. |\n| 5 Sweep of other feeling lines | Not applicable. | The agent's list is incomplete: index.html:231 is missing (S1), and so are the demo lines 궁금했어, 끌렸어 and 싶었어 (O1). | Nothing guards these lines. |",
+ "mutations": "I ran these through a harness that runs only A-2: a scratch copy of tools/smoke.js with the extra entry SMOKE_ONLY=H2 → scenarioHonestLines. The copy lived in /dev/shm/chk-honest/mut (now deleted), and the script is /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/mut.sh. Logs are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/mut/.\n\nClean runs: 5 of 5 passed (6/0 each; load 9.07, 8.61, 8.22, 7.10, 6.81). The pet check needed 1, 4, 2, 2 and 1 presses.\n\nReverts, each fix alone:\n- R1, the pet line back to '…좋아': the pet check FAILED (saw [\"…좋アVR\"]); 5/1.\n- R2, happy back to '신나 있어': the happy check FAILED; 5/1.\n- R3, the label alternation restored inside the nap timer: the nap check FAILED (saw [\"꿈꾸는 중\",\"자는 중\"]); 5/1.\n\nMy own mutants:\n- M4, pet → say('좋아') with no ellipsis: the pet check FAILED (saw [\"좋아\"]).\n- M5, happy → '신나서 통통 뛰고 있어', a feeling word next to the motion: the happy check FAILED through FEEL_RX.\n- M6, SLEEP_LABEL = '꿈꾸는 중', set when sleep starts rather than in the timer: the nap check FAILED (saw [\"꿈꾸는 중\"]).\n- M7, an extra say('…좋아') on the 30 % walk branch after petting: SURVIVED, 6/0 (finding N1).\n\nStrength of existing tests (git diff 6d03faf -- tools/): Y 12a now injects APP.say('…') and expects before === '…'. That has the same meaning as before: any bubble showing at the moment of asking is taken down. Y 12b keeps every(t === askK.line) and adds an indexOf('…') check. No check was weakened, and no timeout was changed in the tree.",
+ "suites": [
+  "npm test on a /dev/shm copy of the fixed tree: exit 0. check-world OK; 517/0, 26/0, 568/0, 225/0, 192/0, 234/0; cook-stickers 177 ok; play-stickers 180 ok; poster-art 287 ok; art-extra 93 ok; export 46/0. Log: /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/npmtest.log",
+  "Font check (tools/subset-fonts.py --check) on the copy: 'stale: none'.",
+  "A-2 only (H2 harness), 5 runs in a row: 6 passed / 0 failed each time, load 6.8 to 9.1.",
+  "SMOKE_ONLY=A on the copy (SHOTS sent to /dev/shm): 80 passed / 0 failed, load 6 to 11.7. Log: …/check-honest/smokeA.log",
+  "SMOKE_ONLY=Y on the copy: 23 passed / 1 failed. It crashed at smoke.js:2644 on a 5 s waitForSelector('dialog[open] #log-close') in the 2D sheet-close block, load 10 to 11, before the E2 petting block. Log: …/check-honest/smokeY.log",
+  "Control: SMOKE_ONLY=Y on an untouched 6d03faf copy under the same load gave 23 passed / 1 failed with the same crash at base line 2591. This matches the fix agent's control. Verdict on Y: none, because of load. Log: …/check-honest/base-smokeY.log",
+  "My own probe, /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/probe.js: a real CDP touch long-press in 3D (pickAt on the octopus) and in 2D; the nap label under page.clock.fastForward(16000) ten times; the happy state through APP.importEvents wrap_up 폴짝, reading #scene-desc with a MutationObserver. Run on base and fix at 360x740 and 320x568, plus FONT=system and REDUCED=1. Raw output is in check-honest/fix-360-pet.json, fix-320.json and fix-360-sys.json. HOLD=1 stretches only the 1800 ms bubble timeout, and only so screenshots can be taken; the text checks come from the MutationObserver and do not depend on it."
+ ],
+ "held": [
+  "The pet behaviour is otherwise unchanged. The diff touches only the string, and the 70 % draw, the 2 s timer, the heart particle, the salon's clearing of a pending pet bubble (app.js:924) and the rest/walk branches are as they were. A sleeping octopus still gets '쿨쿨…' only.",
+  "Only octMirror writes #oct-label (app.js:1167). The nap timer still checks for self-wake every 9 to 15 s. Its only change is the deleted toggle line, so the self-wake logic is untouched.",
+  "DOING_DESC.happy is read only by sceneDescText. In both 3D (face.hopsLeft=2) and 2D (.st-happy, two 0.45 s iterations), what plays is two hops, which matches '통통 뛰고 있어'.",
+  "No new characters reach players: '통' and '뛰' were already in the font subsets ('stale: none'). '…' is plain punctuation, and no emoji or symbols were added.",
+  "No sound or AudioContext changes: js/audio.js is untouched, and the '…' bubble goes through the same AUDIO.on('bubble') path.",
+  "No function belonging to another lane was touched: restDown, finalPose, syncRest, sleepNow, on.octUp, oldDone, weekState, the import guard, the bag sheet and salon.js are all outside the diff. The new checks live inside scenario A, not in the Q, X, Z or Y sections those lanes edit.",
+  "The wording looks right on screen in both font themes at 320 px. In the 3D system-font theme the bubble is a small rounded '…' above the head; in 2D it is a tiny '…' bubble and a '혼잣말 …' log box. Nothing overflows.",
+  "The fix tree is unchanged by my work (git status still lists the same 7 modified files). The scratch copies in /dev/shm/chk-honest were deleted."
+ ],
+ "not_checked": [
+  "Smoke Y's E2 checks (the edits to blocks 12a and 12b) did not run in my session, because Y crashed earlier under load and the base crashed the same way. The fix agent reports they passed with 5 s waits raised to 30 s. A run on a quiet machine should confirm the unmodified Y.",
+  "I did not open the far-sea door dialog in a browser; it needs a live /api/far room. Finding S1 rests on index.html and the farAsk code.",
+  "No real phone and no real screen reader (only the #scene-desc text). No dark colour scheme: nothing visual changed apart from the text.",
+  "I did not check the salon's clearing of a pending pet bubble with my own probe; that code is unchanged.",
+  "I did not run smoke U, P, J or Z, or test-scene-perf.",
+  "I did not review the docs' prose beyond the four changed rows and the grep for leftover strings."
+ ],
+ "pictures": [
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/base-360x740-3d-pet.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/base-360x740-2d-pet.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/base-360x740-3d-nap.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/fix-360x740-3d-pet.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/fix-360x740-2d-pet.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/fix-360x740-3d-pet-system.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/fix-360x740-2d-pet-system.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/fix-320x568-3d-pet.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/fix-320x568-2d-pet.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/fix-320x568-3d-nap.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/fix-320x568-2d-nap.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/fix-360x740-3d-nap.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-honest/shots/fix-360x740-3d-happy-reduced.png"
+ ]
+}

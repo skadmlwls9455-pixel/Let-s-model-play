@@ -1,0 +1,74 @@
+{
+ "summary": "Both \"should\" problems and both nits are fixed in /home/user/ppolppol-fix-honest. Nothing is committed and no font files changed. I also found and fixed one problem the checker missed: the first fix had left the font subsets stale.\n\nS1: the far-sea door dialog (index.html:231) no longer says the octopus wants to go ('가 보고 싶대'). It now states only what the model did: '문어가 먼 바다 문 너머까지 가 보자고 했어.' (\"the octopus suggested going beyond the far-sea door\"). A new static check in smoke A-2 guards this.\n\nS2: the repo skill .claude/skills/cozy-web-game/references/octopus-lore.md no longer tells future work to use the label '꿈꾸는 중?' (\"dreaming?\"). It was at lines 54, 59 and 156; the checker named only 59 and 156. All three now say the label stays '자는 중' (\"asleep\"), and the active-sleep colour cycle is shown by colour only. Each change carries a dated 11-13 hard-line-1 note.\n\nN1: the pet check now keeps pressing until it has seen both outcomes, the '…' bubble and the walk away. It allows up to 25 presses and requires every bubble shown at any point to be exactly '…'. The checker's mutant M7 now fails it.\n\nN2: the stale '♡' comment at js/app.js:32 now reads '말풍선 … pet (예전 ♡)'.\n\nFont check: `--check` reported stale subsets. The cause was '깰' in the first agent's comment at js/app.js:1432, plus '♡', which would have left the code if the comment simply dropped it. I reworded both comments ('깨어날'; '♡' kept as history), so the font check is back to 'stale: none' without regenerating any font.\n\nResults:\n- npm test exits 0.\n- Smoke A passed twice in a row, 81 passed and 0 failed each time, including all seven A-2 checks.\n- In an A-2-only harness, the clean run passes 7/0. Each of three mutants makes exactly its own check fail (6 passed, 1 failed): S1 reverted, M7, and the old pet revert.\n- Smoke Y still crashes on a 5 s wait in the salon block at load 10-12. This is the same failure the first agent reproduced on untouched 6d03faf, and my changes do not touch the code Y exercises.",
+ "changes": [
+  {
+   "id": "R1",
+   "file": "index.html",
+   "lines": "228, 231",
+   "what": "#far-dialog .name-lead: '문어가 먼 바다 문 너머까지 가 보고 싶대. …' -> '문어가 먼 바다 문 너머까지 가 보자고 했어. …'. The dialog's HTML comment gets a dated 11-13 note.",
+   "why": "S1, hard line 1: the model only took the action 'propose' (mcp/core.js 'propose'). Calling that a want made up a feeling. Any words the model wrote are already shown separately with '· 문어가 쓴 말'."
+  },
+  {
+   "id": "R2",
+   "file": ".claude/skills/cozy-web-game/references/octopus-lore.md",
+   "lines": "54, 59, 156",
+   "what": "54: the active-sleep label is now '\"자는 중\" 그대로' with a dated note, and the colour cycle is shown by colour only; the reduced-motion line now says it keeps the '\"자는 중\"' label. 59: hedged guesses like '꿈꾸는 중?' are no longer recommended; the UI writes only what is visible. 156: the 'must' rule now says '라벨은 \"자는 중\" 그대로', with the 11-13 note.",
+   "why": "S2: the skill prescribed the removed label as a 'must'. Line 54 recommended it too, which the checker did not list."
+  },
+  {
+   "id": "R3",
+   "file": "js/app.js",
+   "lines": "32",
+   "what": "Comment only: '말풍선 ♡ pet' -> '말풍선 … pet (예전 ♡)'.",
+   "why": "N2. The '♡' stays as history so the set of characters the code uses does not change and the font subsets stay current."
+  },
+  {
+   "id": "R4",
+   "file": "js/app.js",
+   "lines": "1432",
+   "what": "Comment only, from the first fix: '스스로 깰 때인지' -> '스스로 깨어날 때인지'.",
+   "why": "'깰' was a new character, which made subset-fonts.py --check report every Galmuri subset and galmuri.css stale. Rewording keeps 'stale: none' without regenerating binary fonts that other lanes may also touch."
+  },
+  {
+   "id": "R5",
+   "file": "tools/smoke.js",
+   "lines": "474-486 (A-2 part 0)",
+   "what": "New static check '보이는 정적 글 · js 줄에 문어 바람 · 느낌 말 없음'. It scans the visible text (outside comments, scripts and styles, plus alt/title/aria-label/placeholder) of index.html, cook.html, play.html and credits.html for WANT_RX (싶대|싶어|싶었|싶다|싶은|궁금했|궁금해|끌렸) and FEEL_RX. It scans every js/*.js line except brain.js and world.js for WANT_RX.",
+   "why": "S1 guard. brain.js and world.js hold the demo-brain lines, which are owner item O1, so they are left out of the scan."
+  },
+  {
+   "id": "R6",
+   "file": "tools/smoke.js",
+   "lines": "504-540 (A-2 part 3)",
+   "what": "The pet check now presses until it has seen both the bubble outcome (stayed in place, bubble shown) and the walk outcome (anchor changed), up to 25 presses. After each press it waits for idle and not busy, so a walk can finish. It requires that every bubble shown was exactly '…' and that no single press showed more than one bubble.",
+   "why": "N1: before, the check stopped at the first bubble, so a feeling word on the walk branch (mutant M7) passed."
+  }
+ ],
+ "decisions": "S1 wording: I used the checker's suggestion '가 보자고 했어' (\"suggested going\"). It states the action the model took. It is not a quote, and it does not give a reason.\n\nWhere the S1 check lives: it runs inside smoke A-2 as plain node file reads, not in npm test. That avoids touching package.json, which other lanes might edit, and keeps all the honest-lines guards in one block. The js scan leaves out brain.js and world.js because their demo lines (궁금했어, 끌렸어, 싶었어, 그러고 싶어서) are owner item O1. Without that exclusion the check would fail on lines this round must not change. The html scan uses both the want words and the feeling words; all four pages are clean, and '좋은 글' does not match.\n\nN1: I watched both branches rather than stubbing uiRng, because uiRng is private to app.js. The press limit is 25, so a clean run stays under the limit with probability about 1 - 0.7^25, roughly 1 - 1e-4. In practice it stops after 2-4 presses.\n\nN2 and the font check: removing '♡' from the comment, together with the first fix's '깰', made the font subsets stale. I chose to reword the comments instead of regenerating the font binaries. That keeps the merge free of binary font changes.\n\nS2: I also changed line 54, which recommended the same label. The checker did not list that line.",
+ "new_text": [
+  "index.html far-sea door dialog: '문어가 먼 바다 문 너머까지 가 보자고 했어. 열면 영어 위키백과도 읽을 수 있어.' (before: '…가 보고 싶대. …')"
+ ],
+ "guard": "New and extended checks in tools/smoke.js, scenarioHonestLines (A-2, runs at the end of smoke A):\n- Part 0 (new): '보이는 정적 글 · js 줄에 문어 바람 · 느낌 말 없음'. It is a static scan of the visible text of the four html pages for want and feeling words, and of js/*.js lines (except the demo brain.js and world.js) for want words.\n- Part 3 (extended): '쓰다듬기 뒤 말풍선은 '…' 하나 — 말 없음 (두 갈래 다 …)'. Both pet branches must be seen, and every bubble must be exactly '…'.\n\nMutation table. Harness: a scratch copy in /dev/shm/repair-honest with tools/smoke-h2.js, which runs only A-2 (entry 'H2'); script mut.sh in the repair-honest scratch folder; load 9-11.\n| change | check that failed | result |\n| none (clean) | none | 7 passed, 0 failed |\n| S1 fix reverted ('가 보자고 했어' -> '가 보고 싶대') | static check: 'index.html: 문어가 먼 바다 문 너머까지 가 보고 싶대…' | 6 passed, 1 failed |\n| checker's M7: say('…좋아') added on the walk branch | pet check: said [['…'],['…'],['…좋아']] after 3 presses | 6 passed, 1 failed (it passed 6/0 before this repair) |\n| original pet fix reverted (say('…좋아')) | pet check: said [['…좋아']] | 6 passed, 1 failed |\nLogs: the mut/ subfolder of the repair-honest scratch folder (clean-1.log, mut-S1-far-want-revert.log, mut-N1-M7-pet-bubble-on-walk-branch.log, mut-R1-pet-revert.log) and mut-summary.txt.",
+ "suites": [
+  "npm test in the tree: exit 0 both times (after the S1 edit, and again after the comment rewording). Logs: npmtest.log and npmtest-2.log in the repair-honest scratch folder.",
+  "Font check (subset-fonts.py --check): at first 'stale: vendor/fonts/Galmuri11.sub.woff2, Galmuri11-Bold.sub.woff2, Galmuri9.sub.woff2, Galmuri7.sub.woff2, galmuri.css', caused by '깰' (first fix's comment) and the removal of '♡'. After rewording: 'stale: none'. No font file regenerated or changed.",
+  "SMOKE_ONLY=A in the tree, run 1 (load about 4-9): 81 passed, 0 failed; pet check took 4 presses and saw both branches. Run 2 (load about 9): 81 passed, 0 failed; 3 presses, both branches. Logs: smokeA-1.log and smokeA-2.log in the repair-honest scratch folder.",
+  "A-2-only harness in a scratch copy: clean run 7 passed, 0 failed; mutants as in the guard table.",
+  "SMOKE_ONLY=Y in the tree, run once (load 10-12): it crashed at smoke.js:2665 (5 s waitForSelector in scenarioSalon), 23 passed, 1 failed (smokeY-1.log). This is the same pre-existing crash under load that the first agent reproduced on untouched 6d03faf. This repair does not change the pet code, the salon code or Y block 12, so I did not run Y again.",
+  "git status lists only the 9 intended files (the first fix's 7 plus index.html and octopus-lore.md). No tracked evidence file changed, since smoke screenshots go to scratchpad/build/shots. Scratch copies in /dev/shm are deleted."
+ ],
+ "left": [
+  "O1 (owner, not changed): demo-brain lines that claim curiosity, attraction or contentment: js/brain.js:40, 47, 841 and js/world.js:1340, 1370, 1488, 1494. The new static check leaves out brain.js and world.js on purpose so it does not block on this decision. If the owner decides to rewrite them, the exclusion can be removed.",
+  "O2 (owner, not changed): after petting, the heart particle, blush and smiling face still show liking without words.",
+  "octopus-lore.md:54 still suggests that a poster sparkling during active sleep hints at '오늘 본 걸 다시 그려보는 중' ('redrawing what it saw today'). That also implies an inner experience. It is not player-facing, and I did not check whether the game implements it, so I left it for the owner or a later pass.",
+  "docs/PLAYTEST.md:73 and docs/PLAYTEST_FIXES.md:199 still mention '꿈꾸는 중' as dated playtest observations; they are historical records, as the first fix decided.",
+  "Smoke Y's 5 s waits time out at load 10-15. This is pre-existing and also happens on untouched 6d03faf; it needs the lead's quiet-machine run."
+ ],
+ "not_verified": [
+  "I did not open the far-sea door dialog in a browser. It needs a live /api/far proposal. The new text is checked statically in the html, and the dialog's code (farAsk) does not rewrite .name-lead.",
+  "Smoke Y did not pass in this tree under the current load. Its E2 pet and salon checks were verified only by the first agent, in a scratch copy with longer waits.",
+  "I did not run smoke letters other than A and Y.",
+  "I did not read the reworded octopus-lore.md lines as a skill loads them in a new session; I checked them only by grep and by reading."
+ ],
+ "pictures": []
+}

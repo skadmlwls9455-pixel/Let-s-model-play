@@ -1,0 +1,122 @@
+{
+ "summary": "I played the second deploy (6d03faf) on emulated phones and found nothing that should block shipping. There are no must findings. I found no console errors or page errors in any run. I confirmed six small findings (five nit, one owner). Five of them exist the same way in production f2c93f1 and are not regressions; the sixth (the weekly-gift button at 320 px) only matters on this deploy's new list and was not compared with production.\n\nHow I tested: Playwright with touch phone contexts at 360x740, 320x568 and 430x932, using real taps, CDP touch swipes and pinches, and the date hook to move days and weeks. Both builds were served from one static server.\n\nWhat held, by step of the brief:\n1. **Intro:** the thin cloud bank works. In every frame I sampled of the new build, no single colour covers half the screen; production's bank fills 78–86% of the screen for three frames. The title appears at landing, there is no flash or seam, and the night, rain, 2D, 320 and 430 layouts all look right.\n2. **First visit and a walk:** naming the octopus, choosing its first colour and the first day gift all work. A walk, its return, the awake window, the tap line and the nap all work, and so does a turn that stays home.\n3. **Upstairs:** when the octopus is awake and idle it follows you up. During the awake window after a turn it stays downstairs (owner decision 3b), and the mirror shows the toast \"지금은 아래층에 있어.\". Time upstairs does not count toward the awake window (OW-4). The salon sheet opens, a colour can be asked and applied, nothing pays, and the sheet closes by its close button, a tap outside or a drag down.\n4. **Weekly list:** the tasks counted when done for real, swapping one works, and five of seven brings the claim button. The claim adds exactly 12 shells and 2 seeds. Moving the clock to next Monday in an open tab gives a fresh week within about a minute. A production save from the middle of a week, with the removed three-visits task already done, opens with the kept line and 2/5.\n5. **Garden:** planting and watering by tapping the outside plots work, also after zooming and panning. The plot labels refresh after a day change without focus.\n6. **Two tabs:** a walk, the day gift and the weekly claim each happen once across two tabs.\n7. **Long session:** in a tab left open past midnight, the gift arrives within a minute and the octopus wakes from its nap.\n- **Sound:** sound stays off by default. There were no `audio/` or `foley/` requests and no AudioContext through the whole intro, a walk and the loft.\n\nNot defects (test conditions, not the game):\n- Screenshots taken while any modal sheet is open show a transparent band at the top of the screen. Production does the same with any sheet, so it comes from how the headless browser captures the page.\n- A reset that seemed to fail with two tabs was my automation taking 8.9 s between the two presses under load 7.8. The confirm window is 4 s.\n- An octopus that stayed asleep past midnight was caused by my `__ppolLook` hook, which turns off self-waking.\n\nScripts and screenshots are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-play/ (screenshots in `shots/`, running notes in `notes.md`).",
+ "findings": [
+  {
+   "id": "P1",
+   "severity": "nit",
+   "title": "Reduced motion: the title appears over a black screen before the room is drawn",
+   "where": "Entry intro with reduced motion, 360x740 (js/intro.js riseLogo runs at 0 ms in reduced mode, while the scene hole is shown on the 3rd frame)",
+   "what": "With reduced motion, the logo fades in about 0.5–0.75 s before the attic appears, so for that time the player sees the title on a flat black screen. The room should be visible when the title appears. Production f2c93f1 does exactly the same (cmp-red.png, top row = prod, bottom = new). This was seen under SwiftShader, where the first frames are slow, so a real phone may show it for less time.",
+   "evidence": "shots/cmp-red.png; vid/new-red/run.webm, vid/new-red2/run.webm, vid/prod-red/run.webm; marks: new title+risen at 1.78 s / 2.0 s, room visible ~2.5–3.0 s",
+   "repro": "node p1-intro.js new red 13 clear reduced; ./frames.sh vid/new-red 0 6 4 (same with prod). Reproduced twice on new, once on prod.",
+   "suggested_fix": "In reduced mode, wait until intro-live (the scene hole is shown) before riseLogo, not later(…, 0).",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "P2",
+   "severity": "nit",
+   "title": "At low frame rates the title pops while the room is still rising",
+   "where": "Entry intro, 3D, 360x740 (js/intro.js start(): wall-clock safety SKY.dur*2.5 = 7.5 s; scene dt clamped to 0.1 s)",
+   "what": "When the scene runs below about 10 fps, scene time falls behind the wall clock, so the 7.5 s safety timer raises the logo at scene progress 0.51. The room is then at roughly 59% of its climb and keeps rising under the title for several seconds. On a 60 fps phone the title appears at landing, which is correct: the deterministic strip shows it at progress 0.945. Production does exactly the same (title at progress 0.511 in both builds).",
+   "evidence": "p1b-title.js output: new and prod both switch to 'title' at introProgress 0.511, frameY 1.946 (landed is 0.68); shots/new-day-sheet.png row 3–4",
+   "repro": "node p1b-title.js new; node p1b-title.js prod (the per-frame stats() logger slows the scene on purpose)",
+   "suggested_fix": "Optional: make the safety fire when the camera lands (introSkip and then the title) instead of raising the title over a moving room.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "P3",
+   "severity": "nit",
+   "title": "Zoom from outside carries into the attic, and the octopus is hidden behind the player figure",
+   "where": "Return from a walk after a pinch-zoom outside, 360x740",
+   "what": "If the player pinch-zooms (zoom 2) and pans outside during a walk, the attic after the return is still at zoom 2. The octopus, back at the door and blanket, is drawn behind the player character, so the player cannot see it. Production does the same (zoom 2 kept, octopus behind the player).",
+   "evidence": "shots/m-p5z.png (zn = new, zp = prod); p5z output: attic after {zoom:2, oct:[153,258]} new, {zoom:2, oct:[167,262]} prod; also shots/p5-g18-08-nextmon.png",
+   "repro": "node p5z.js new state-g18.json 2026-11-24 zn; node p5z.js prod state-g18.json 2026-11-24 zp. Reproduced twice on new (p5-garden and p5z).",
+   "suggested_fix": "Owner choice: either reset zoom when the place changes back to the attic, or re-centre on the octopus.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "P4",
+   "severity": "nit",
+   "title": "'오늘의 산책' keeps yesterday's rows in a tab left open past midnight",
+   "where": "Log sheet (#btn-today) in a tab open across midnight, 360x740",
+   "what": "After the date changes in an open tab, the new day gift arrives within a minute and the octopus wakes, which is correct. But the log titled 오늘의 산책 still lists yesterday's departure, return and memory rows until the page is reloaded (or something else re-renders it). After a reload it correctly shows only today's greeting and '어제 메모'. I did not compare with production, which has no 1-minute timer.",
+   "evidence": "p8-midnight.js output 'after midnight' log rows = yesterday's 출발/기웃/귀가/기억; 'reloaded' rows = ['오늘…', '어제 메모…']",
+   "repro": "NOLOOK=1 node p8-midnight.js new state-g18.json 2026-11-26 2026-11-27 mid2. Reproduced twice (mid, mid2).",
+   "suggested_fix": "Call renderLog() and setDayGreeting() in the same 1-minute tick that hands out the new day's gift.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "P5",
+   "severity": "nit",
+   "title": "Two tabs and a reset: the name dialog is missing in one tab and stale in the other",
+   "where": "Settings › 전체 초기화 with a second tab open on the same save, 360x740",
+   "what": "After a reset in tab B, tab A takes the empty save (name null, shells 0) but shows no name dialog. It shows an unnamed red octopus until the big button is tapped, which then opens the dialog. If A names the octopus, B's name dialog stays open with its colour row. Saving it silently renames the octopus ('구름' becomes '별'), and the colour picked in B is ignored: it stays A's default first colour. Shells and days are not lost. Production does exactly the same.",
+   "evidence": "p7s.js output: 'A front {name:null,nameDlg:false}', 'A tapped go {nameDlg:true}', 'B before {colourRowHidden:false,nameDlg:true,name:\"구름\"}', 'B named again {name:\"별\",color:\"#e8463c\",colors:[\"first:#e8463c:default\"]}'; shots/p7s-A-after-reset.png",
+   "repro": "node p7s.js new state-w17.json 2026-11-18 two (and prod). Reproduced on new 3 times and on prod twice.",
+   "suggested_fix": "In the storage adopt path: open the name dialog when the adopted save has no name, and close an open name dialog (or switch it to read-only) when the adopted save already has one.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "P6",
+   "severity": "nit",
+   "title": "At 320x568 the weekly gift button is cut by the bottom edge of the 살림 sheet",
+   "where": "살림 sheet with 5/5 done, 320x568",
+   "what": "The 주간 선물 받기 (조개 12 · 씨앗 2) button sits just under the note, but on a 320x568 screen only its top half is visible when the sheet opens. The player has to scroll to see it. At 360x740 it is fully visible. It still works after scrolling.",
+   "evidence": "shots/p6-s320-04-bag.png (montage shots/m-p6.png, 4th frame)",
+   "repro": "node p6-small.js new state-w17.json 2026-11-18 s320 320x568",
+   "suggested_fix": "Scroll the claim button into view when the sheet opens with a gift waiting, or move the explanatory note under the list on short screens.",
+   "confirmed_by_running": true
+  },
+  {
+   "id": "P7",
+   "severity": "owner",
+   "title": "The sleep label alternates with '꿈꾸는 중' (dreaming)",
+   "where": "Scene label over the napping octopus (js/app.js:1176 DREAM_LABEL); also in production",
+   "what": "While the octopus naps, its label switches between '자는 중' and '꿈꾸는 중'. Saying it is dreaming implies an inner state the model does not have (hard line 1 talks about implying what the octopus feels or does). This is not new in this deploy: the same constant is in f2c93f1. Options: keep it as a playful convention (costs a small honesty stretch), or use only '자는 중' / '쉬는 중' (costs a little charm).",
+   "evidence": "shots/m-p3.png last frame ('꿈꾸는 중' over the octopus); grep: new/js/app.js:1176 and prod app.js have DREAM_LABEL",
+   "repro": "Let the octopus nap after a walk and watch the label for about 15 s",
+   "suggested_fix": "Owner decision",
+   "confirmed_by_running": true
+  }
+ ],
+ "checked_ok": [
+  "Intro 3D at 360x740 day/clear, night/clear, night/rain, day/rain, 320x568 dusk, 430x932 dawn snow (deterministic debugStep strips): thin bank never covers 50% of the screen (max dominant colour 45–49% at the bank frame vs production 78–86%), no single-colour full frame, title at landing (progress 0.945), no console errors (shots/cmp-*.png)",
+  "Intro side by side with production f2c93f1 (cmp-day.png, cmp-night.png, cmp-nrain.png, cmp-drain.png): only difference is the thinner bank",
+  "Intro ?scene=2d and real-time video: clouds, title, tap to enter, then name dialog (new-d2-sheet.png)",
+  "First visit: 6 colour chips, picked colour shown in the portrait and applied, name saved, first day gift toast shown ~5 s after naming (same as prod)",
+  "Walk with demo brain (forceKind out): departure, outside scene, return after 53 s, awake window, tap line '이름에 제일 오래 있었어' in a bubble, nap and '쿨쿨…' on tap",
+  "Stay-home turn: returns, summary toast, awake window then nap",
+  "Loft: idle awake octopus follows upstairs (octUp true), stays put, follows down and up again",
+  "Loft during the awake window after a turn: octopus stays downstairs (3b); mirror tap gives toast '지금은 아래층에 있어.'; awake window not counted upstairs (OW-4), nap 33 s after coming down",
+  "Mirror hidden below lantern 2 (MIRROR_LEVEL) as designed",
+  "Salon with the octopus upstairs: sheet opens, bottle pick, 물어보기 stages rows (질문, 대답, 몸 색), colour applied, shells and seeds unchanged",
+  "Salon and bag sheets close by close button, tap outside, Esc and drag-down on the handle at 320x568",
+  "Weekly list: swap (바꾸기 3→2) gives a new task; loft, play room, plant, look counted from real actions; 5/5 shows the claim button, claim gives exactly +12 shells and +2 seeds, chip and toast update",
+  "Ask counted 1/2 on a day when the second press woke the napping octopus (owner decision 5b) and 2/2 the next day",
+  "Next Monday in an open tab: new week list, day gift +3 (6th day), plot labels refreshed to '물 주기' without focus, after 44 s (1-minute timer)",
+  "Production mid-week save (three-visits task done) opened in new on Wed/Thu: kept line '사흘 들어오기는 목록에서 빠졌지만…', (2/5), removed task replaced by 놀이방 들르기; next Monday resets cleanly",
+  "Garden during a walk: plot buttons hit their own plots, plant and water toasts, state updated; after pinch-zoom and swipe-pan, taps still act on the plot the scene picks",
+  "Day gift +10 bonus on the 5th visit day adds up (12+13=25)",
+  "Two tabs: a walk in A is seen in B (trips, lantern); B's turn after A's; weekly claim only once (B shows no claim button); next day gift once (+3) with both tabs open",
+  "Reset in one tab works (single-tab double press), other tab adopts the empty save",
+  "Midnight in an open tab without the look hook: gift arrives and the octopus self-wakes",
+  "Sound off by default: 0 requests under audio/ or foley/, 0 AudioContext, 0 media play through intro tap, walk and loft",
+  "No horizontal page scroll and no clipped visible text in sheets at 320x568 and 430x932 (only sr-only and the album date scroller flagged, both intentional)",
+  "No pageerror or console.error in any run"
+ ],
+ "not_checked": [
+  "Real phone GPU timing: all runs used SwiftShader at 2–10 fps, so animation smoothness and the real-time title timing are not representative",
+  "The transparent band at the top of screenshots under any modal sheet: it reproduces identically in production and is most likely a headless capture artifact (an opaque backdrop pixel is painted over nothing). I could not confirm on a real device",
+  "Climbing while the model is still thinking, and a stay-home turn ending upstairs (OW-3, other lane), as instructed",
+  "Harvesting a flower (needs two waterings on different days in one session); the 'run' (다락방 달리기) and 'furn' tasks: I swapped 'run' away and my furniture drag did not move the item, so 'furn' was not counted",
+  "Weekly gift carried over at a week change when five tasks were done but not claimed (the 'week.prev' path): not played, only the claimed path",
+  "Production week-change behaviour in an open tab (production has no 1-minute timer), so P4 was not compared",
+  "390x844 and 412x915 sizes (used 360x740, 320x568 and 430x932 instead)",
+  "Screen reader reading order; only aria-label strings were read",
+  "Import from a file and import racing with another tab (lens 3)"
+ ],
+ "suites": [
+  "No repo suites run (the brief says the lead runs them); only my own probes in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v2-play/ (p1-intro.js, p1b-title.js, p1c-strip.js, p2-first.js, p2g.js, p3-loft.js, p3a-ask.js, p3s-salon.js, p3t/u/v.js, p4-week.js, p4p-prodsave.js, p5-garden.js, p5z.js, p6-small.js, p7-tabs.js, p7r.js, p7s.js, p8-midnight.js, p9-sound.js, p10-close.js)"
+ ],
+ "untested_behaviours": []
+}

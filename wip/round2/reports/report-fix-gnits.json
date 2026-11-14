@@ -1,0 +1,87 @@
+{
+ "summary": "All six items are done in /home/user/ppolppol-fix-gnits (base db86dd9, nothing committed). The diff touches js/app.js (+8/-5), js/scene3d.js (1 line) and tools/smoke.js (+119, scenario X only). Two of the six were real bugs beyond the checker's four nits, and both are now fixed:\n\n- **P1 is real.** If you twist the outside view, zoom it to 2x and pan the middle plot so only a few pixels of it show at the left edge, that plot's button hides. A real finger tap on its visible soil or rim then planted the third plot. This reproduced on the base tree at both 360x740 and 320x568.\n- **P2 is a real import that kept the old garden, not a rejected import.** A tab closed just before the import saves its state as it closes. That write reaches the importing tab about 8 ms after the import, and it was adopted, which put back the old garden and 22 shells.\n\nThe four nits are fixed as well:\n\n- **G1:** `renderBagChip` now also calls `plotLabels`.\n- **E1:** `userState` turns a garden entry with no colour into an empty plot.\n- **T1:** new checks cover the water clamp and the three-entry slice.\n- **E2:** an unknown-colour flower is drawn in grey #787279 (the scene's `PAL.slate[3]`), both outside and in the 살림 sheet.\n\nScenario X grew from 33 to 43 checks; the 33 old checks are unchanged. It passed 43/0 three times in a row on the final code. I built one copy per fix with only that fix reverted, and X fails on every copy.\n\nOther suites:\n- `npm test`: 0 failed.\n- Font check: `stale: none`.\n- `SMOKE_ONLY=A`: 74/0. `SMOKE_ONLY=Q`: 55/0.\n- `test-scene-perf`, first run: 2 failures in T6 salon portraits. Those checks compare portrait pixels and never call `pick`, the only thing I changed in scene3d.js. A control run on an untouched base copy passed 111/0, and a second run on my tree passed 111/0.\n\nNo new player-facing text.",
+ "changes": [
+  {
+   "id": "G1",
+   "file": "js/app.js",
+   "lines": "4435 (in renderBagChip)",
+   "what": "renderBagChip now also calls plotLabels(), so the outside plot buttons' aria-labels are updated there as well.",
+   "why": "This is the single place every relevant path already passes through. dailyGift calls it from the 1-minute timer and from the tab becoming visible. checkDay calls it on the day change. weekClaim calls it. renderAll calls it after another tab's write (takeRemote), an import and a reset. earnFromPlay and dyeing call it too, which is harmless. Garden actions already relabel through applyGarden. I read each of these paths in the code. Before, a tab left open over midnight kept '오늘은 물을 줬어' and '씨앗이 없어' until something took focus. This is the one-line call in renderBagChip that the brief allows."
+  },
+  {
+   "id": "E1",
+   "file": "js/app.js",
+   "lines": "4320 (userState)",
+   "what": "An object entry without a non-empty string colour now becomes null, just as non-object entries already did. The comment is extended with an 11-13 note.",
+   "why": "Every entry gets a colour when it is planted, so an entry without one is damage, not data from a later build. Unknown string colours such as 'teal' are still kept. I chose this over a harvest-time guard because nothing downstream then has to handle the case: the label says '빈 칸', no dyes['undefined'] can be written, and the player is never told they got a dye."
+  },
+  {
+   "id": "E2",
+   "file": "js/app.js",
+   "lines": "4437-4439 (FL_UNKNOWN, plotView)",
+   "what": "New constant FL_UNKNOWN = '#787279', equal to the scene's PAL.slate[3]. plotView returns it as hex for an unknown colour, so the scene (through applyGarden) and the sheet (--fl) both get the same grey. The comment above plotView is updated.",
+   "why": "Before, an unknown colour was drawn in the scene default #e8a93a outside (exactly 노랑) and in the CSS default #f07aa8 in the sheet (exactly 분홍). The sheet CSS needed no change because the sheet already sets --fl whenever hex is present. I tried also changing setGarden's own fallback in scene3d.js, then put it back: the app always sends a colour now, so that line can never run and no check could fail on it."
+  },
+  {
+   "id": "P2",
+   "file": "js/app.js",
+   "lines": "3704, 3726 (importJSON), 4236 (storage listener)",
+   "what": "New variable importSeen. importJSON sets it to the saved import's lastSeen right after save(). The storage listener ignores a record whose lastSeen is lower than importSeen.",
+   "why": "I measured it. On the base tree the late event's lastSeen was 1794538626185 and the import's was 1794538626592, so the record was written 407 ms before the import, by the tab that was closing. Each save() raises lastSeen, so a tab that has adopted the import always writes a higher value, and only records written before the import are dropped. importJSON returned true with the toast '기록을 불러왔어', so the import itself was never rejected."
+  },
+  {
+   "id": "P1",
+   "file": "js/scene3d.js",
+   "lines": "4153 (pick, exterior branch)",
+   "what": "When the raycast hits a plot's soil, rim or plant but that plot's button is not up, pick now returns null. It no longer falls through to the octopus hit sphere and the 2D button boxes.",
+   "why": "After a twist the plot boxes overlap on screen. With the middle plot cut to under 8 px, the fall-through spotAt found the third plot's widened box and planted it. Returning null loses nothing real: the octopus body is still raycast first."
+  },
+  {
+   "id": "T1+checks",
+   "file": "tools/smoke.js",
+   "lines": "5605-5617, 5620-5650, 5677, 5680-5689, 5702-5765",
+   "what": "New checks in scenario X: the unknown-colour check in step 8, step 8b (damaged saves), the late storage event check in step 9, step 10 (labels without focus) and step 11 (plot partly off screen). The 33 existing checks are untouched.",
+   "why": "So that each fix, and the two lines from the checker's T1 finding (the water clamp and the three-entry slice), has a check that fails without it."
+  }
+ ],
+ "decisions": "E1: I chose 'userState makes a colourless object an empty plot' rather than a harvest-time guard. Planting always sets a colour, so such an entry cannot be data from a later build. Unknown string colours are still kept. The visible effect: a damaged flower with no colour shows as an empty plot.\n\nE2, colour: grey #787279 (PAL.slate[3]). OKLab distance from each DYES colour as authored:\n- 빨강 0.181\n- 노랑 0.262\n- 초록 0.173\n- 파랑 0.147\n- 보라 0.158\n- 분홍 0.219\n\nThe closest pair inside DYES itself (파랑 and 보라) is 0.140, so the grey is further from every dye than those two are from each other.\n\nE2, other candidates:\n- slate[4] #958b8a: 0.136 from 초록.\n- glass[2]: bluish.\n- paper and white: the pixel-theme sheet panel is #ebede9, so a white pot would almost vanish there.\n\nE2, what it looks like:\n- In the scene the palette snap renders it pale grey with a blue-grey edge by day (about #a8b5b2) and #577277 at night. I measured that by sampling pixels at the flower heads.\n- In the day picture it is plainly different from a sky-blue 파랑 flower.\n- Rendered-pixel distances: closest is 파랑 at 0.069 by day; at night every dye is 0.19 or more away.\n- It is still visible on the soil at night.\n\nG1: I put the call in renderBagChip rather than in the 1-minute tick. The tick only covers the day change, while renderBagChip also covers the gift, the weekly claim, another tab, an import and a reset.\n\nP1: I used the smallest fix the brief suggests, a null return. The new check sets the yaw and zoom through the scene's own setLook and zoomStep, then pans with real one-finger CDP swipes until the middle plot shows 6 to 7.8 px. My base reproductions used real two-finger twists and pinches instead.\n\nP2: I fixed it with a lastSeen guard on the storage listener, not inside importJSON's normalisation. The import itself was correct; the late event was what undid it.",
+ "new_text": [],
+ "guard": "New checks, all in scenario X of tools/smoke.js (43 checks now; the 33 old ones are unchanged):\n\n- **Step 8, unknown-colour flower:** the outside colour equals the sheet's --fl, it is a 6-digit hex, and its OKLab distance from each of the six DYES colours is over 0.12. The DYES colours are read from the app itself by planting each one and reading APP.scene.garden().\n- **Step 8b, damaged saves (three checks):**\n  - A colourless entry shows as an empty plot, a press says '씨앗이 없어…', and the saved dyes stay {}.\n  - Water values of -3 and 'x' become a sprout after one watering: saved [1,1], sheet 새싹/새싹, outside water 1, label '오늘은 물을 줬어'.\n  - A four-entry garden shows 3 sheet buttons and 3 outside plots, and the save keeps the fourth entry exactly, plus the shells and days.\n- **Step 8b, fourth check:** a water value of 9 shows '분홍 꽃, 거두기' and harvests 분홍 1.\n- **Step 9, late storage event:** a storage event carrying the record written before the import leaves the import in place (조개 0, empty garden, plot label right). A record written after the import is still adopted (조개 5).\n- **Step 10, labels without focus (three checks):** with a fake page clock, the date hook and a document.hidden hook, the outside labels change with no focus on a plot button. This is checked after the 1-minute tick gives the day's seed, after the tab becomes visible on the next day, and after the weekly claim (seeds 2).\n- **Step 11, plot at the screen edge:** yaw 18, zoom step 6, and real swipes until the middle plot shows 6 to 7.8 px at the left edge (its button is hidden). The plot-1 soil and rim pixels are found by raycasting the scene. pickAt must return nothing on any of them. Real touch taps are sent on every fourth of those points, then btn-plot2 is pressed after all pointerups are counted. The garden must end as [null,null,0] with 59 seeds.\n\nMutation table. Each copy is the final tree with one fix reverted (scratch/fix-gnits/mutate.py, runmut.sh); results are in mutsummary.txt and mutlog-*.log.\n\n| Mutant | Fix reverted | Result | Failing check(s) |\n|---|---|---|---|\n| g1 | no plotLabels in renderBagChip | 40/3 | all three step 10 checks; the minute-tick one shows '…오늘은 물을 줬어' and '…씨앗이 없어' after the gift |\n| e1 | old userState line | 42/1 | 8b '색 글자가 없는 칸은 빈 칸' (label '꽃, 거두기', dyes {\"undefined\":1}) |\n| clamp | g.water++ | 42/1 | 8b '물 값이 -3 · 글자인 칸…' (saved [-2,null], sheet 씨앗/씨앗) |\n| slice | renderBag without slice(0, 3) | 41/2 | 8b '밭 기록이 넷: 살림 단추 4개…' and the first 8b check |\n| e2 | hex null | 42/1 | '모르는 색 꽃: 바깥 #e8a93a · 시트 (empty) · 거리 [0.272,0,…]' |\n| p2 | no importSeen | 42/1 | step 9 late-event check (chip 조개 40, garden [null,null,2]) |\n| p1 | old fall-through | 42/1 | step 11 (12 neighbour picks; garden after the taps [null,null,1]) |",
+ "suites": [
+  "npm test on the final tree: 517, 26, 568, 225, 192, 234 and test-export 46, all passed, 0 failed (scratch/fix-gnits/npm-test.log). The tracked files are unchanged except my 3.",
+  "Font check (tools/subset-fonts.py --check): stale: none. No new player-facing text.",
+  "SMOKE_ONLY=X on the final code, three runs in a row: 43 passed, 0 failed each (304, 307, 290 s; load 6.0 to 12.3). Logs x-final-1..3.log, summary final.txt.",
+  "SMOKE_ONLY=A: 74 passed, 0 failed (327 s, load 11.0 to 11.6). smoke-A.log",
+  "SMOKE_ONLY=Q: 55 passed, 0 failed (349 s, load 11.0 to 11.9). smoke-Q.log",
+  "test-scene-perf, first run on the final tree: 109 passed, 2 failed (1148 s, load 10.6 to 11.9). Both failures are T6 salon portrait pixel comparisons, which do not use pick. Log: scene-perf.log.",
+  "test-scene-perf control on an untouched base copy (db86dd9): 111 passed, 0 failed (1206 s, load 9.6 to 11.6). Log: scene-perf-control-base.log.",
+  "test-scene-perf second run on the final tree: 111 passed, 0 failed (1024 s, load 10.4 to 9.2). Log: scene-perf-2.log. I read the first run's 2 failures as load, not my change.",
+  "Load note: up to three agents ran browsers (load average 6 to 12). I ran one browser at a time. Every scratch file named here is under /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-gnits/."
+ ],
+ "left": [
+  "Partial: the twist probe on the base tree recorded 7 points where the measured plot (plot 0) and the pick (plot 1) disagreed. They were inside the screen while plot 2 sat at the right edge, at the default yaw (the -40 degree twist did not change the camera). All three buttons were not up there, so it is not the off-screen case. It may be a weakness of my measuring method or the same fall-through, which now returns nothing. I did not rerun that exact state on the fixed tree.",
+  "The checker's taps near a plot but just off its rim, which go to the neighbour plot (about 51 pixels at 412): this is older behaviour, not in the brief, and I left it unchanged.",
+  "Base dbg run (p1x/dbg.js): with setLook yaw 18 and only 3.3 or 5.3 px showing, no wrong picks happened. Only the 7.3 px state (and 4.9 px after a real twist) reproduced the bug. That is why step 11 aims for 6 to 7.8 px.",
+  "The task folder's base copy (fix-gnits/base) and the scratch mutants stay in scratch. The real tree changes only js/app.js, js/scene3d.js and tools/smoke.js."
+ ],
+ "not_verified": [
+  "Real phones and real screen readers. Whether TalkBack or VoiceOver fire DOM focus is untested; G1 is checked through aria-label attributes with no focused element.",
+  "P1 at the right edge: with a real twist the right edges could not be reached (the pan clamped). The vertical edges could not be reached either, because vertical pan stays at 0 outside. Only left-edge states were measured, at 360x740 and 320x568, plus the zoom-mid states at 360 that were cut short by an early probe stop.",
+  "The merged tree (this lane together with the owner and thin lanes). I did not try a merge. My lines in app.js (renderBagChip, importJSON, the storage listener, userState, plotView) and smoke.js (the end of scenario X) may meet the owner lane's edits nearby.",
+  "Sizes 390x844, 412x915 and 430x932, and dark mode in the sheet. Pictures were only taken at 360x740, light colour scheme.",
+  "A full walk from the invite button. The outside view was opened with the same shortcut X uses (octopus set to away, place set to exterior).",
+  "Reduced-motion mode with the new pick and the new labels."
+ ],
+ "pictures": [
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-gnits/e2/fixed-360-day-outside.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-gnits/e2/fixed-360-night-outside.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-gnits/e2/fixed-360-day-crop-x4.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-gnits/e2/fixed-360-night-crop-x4.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-gnits/e2/fixed-360-sheet.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-gnits/e2/fixed-360-sheet-crop.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-gnits/e2/compare-360-day.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-gnits/e2/compare-360-night.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-gnits/e2/compare-360-sheet.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-gnits/e2/cand-13-zoom.png"
+ ]
+}

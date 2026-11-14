@@ -1,0 +1,158 @@
+# 테스트 — push (모든 브랜치) 마다 돈다. 여러 작업이 동시에 고치니 서로 깨뜨린 걸 바로 알게.
+#   11-10 에 줄였다: 계정의 Actions 사용 한도가 바닥나 검사가 아예 시작을 못 했다 (느린 묶음은 수동 실행만 · 같은 커밋 두 번 안 돌기).
+#   11-14 주인이 저장소를 공개로 돌렸다 → 공개 저장소의 기본 러너는 사용 한도가 없다. 그래서 느린 묶음 전부를 다시 push 마다 돌린다.
+#   한 러너에 몰면 1시간이 넘어서 (로컬 배포 전 게이트 기준) 스모크는 글자마다, 나머지는 묶음마다 따로 러너에서 같이 돈다.
+#   fast   : 빠른 묶음 — world 불변식 · brain · runner · api · 요리 시뮬레이션 (test-cook, 9물결) · 미용실 규칙 (test-salon)
+#            · 반응 스티커 그림 · 규칙 (test-cook-stickers · test-play-stickers) · 포스터 · 배지 · 기념품 그림 (test-poster-art · test-art-extra)
+#            · 배포 묶음 (test-export: 게임 파일만 나가는지 · 가리키는 파일이 다 실렸는지)
+#   fonts  : 글꼴 부분 집합 점검 — 화면 문구의 글자가 Galmuri 서브셋에 다 있는지
+#   plan   : tools/smoke.js 에 등록된 시나리오 글자를 읽는다 (새 글자가 생겨도 손볼 것 없게 · 로컬 게이트와 같은 grep)
+#   smoke  : Playwright 스모크, 글자 하나에 러너 하나 (SMOKE_ONLY=<글자>)
+#   suites : 장면 성능 · 놀이방 · 소리 · 이어 하기 · 요리 창 · 부엌 소리 · 부엌 스티커 · 배포 묶음 놀아 보기 · 입장 화면, 묶음 하나에 러너 하나
+#   실패한 작업은 tests/evidence/ 와 캡처를 artifact 로 올린다. 느린 묶음도 이제 실패하면 run 이 빨갛게 된다 (예전 continue-on-error 는
+#   한 러너에 몰린 부하 탓에 흔들리던 때의 것 — 지금은 작업마다 러너가 따로다).
+# package.json 의 scripts 는 쓰지 않고 node 명령을 그대로 부른다. 이 워크플로는 아무것도 커밋하지 않는다.
+name: test
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast:
+    name: 빠른 테스트
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      # 지금 테스트는 @vercel/blob 을 부르지 않지만(메모리 저장소), api/ 가 실제로 쓰는 의존성과 잠금 파일이 맞는지도 본다
+      - run: npm ci --no-audit --no-fund
+      - run: node tools/check-world.js
+      - run: node tools/test-brain.js
+      - run: node tools/test-runner.js
+      - run: node tools/test-api.js
+      - run: node tools/test-model-voice.js
+      - run: node tools/test-cook.js
+      # 미용실 규칙 (js/salon.js): 시드 대답 · 하루 한 번 · 같은 색 7일 쉼 · 문구 · 모델 요청. TZ=Asia/Seoul 자식 프로세스를 스스로 띄운다
+      - run: node tools/test-salon.js
+      # 반응 스티커 (js/cook-stickers.js · js/play-stickers.js): 그림 파일 · manifest · 규칙이 고르는 스티커 · 시드 · 금지 낱말. 노드만 쓴다
+      - run: node tools/test-cook-stickers.js
+      - run: node tools/test-play-stickers.js
+      - run: node tools/test-poster-art.js
+      - run: node tools/test-art-extra.js
+      # 배포 묶음 (tools/export-site.js): 임시 폴더로 내보내서 게임 파일만 나가는지 (문서 · 스킬 · 도구 · 시험 · 서버 코드 없음), 쪽 · 스타일 · 스크립트 ·
+      # 목록이 가리키는 파일이 다 실렸는지, 저장소 맨 위의 새 폴더가 '싣는다 / 안 싣는다' 로 정해졌는지. 노드만 쓴다
+      - run: node tools/test-export.js
+
+  fonts:
+    name: 글꼴 점검
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - run: pip install fonttools brotli
+      - run: python3 tools/subset-fonts.py --check
+
+  plan:
+    name: 느린 묶음 나누기
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      letters: ${{ steps.letters.outputs.letters }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: letters
+        run: |
+          L=$(grep -oE "\['[A-Z]', function" tools/smoke.js | grep -oE "[A-Z]" | awk '!s[$0]++' | jq -R . | jq -sc .)
+          echo "smoke letters: $L"
+          test "$L" != "[]"
+          echo "letters=$L" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    name: 스모크 ${{ matrix.letter }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        letter: ${{ fromJSON(needs.plan.outputs.letters) }}
+    env:
+      SHOTS: ${{ github.workspace }}/ci-shots/
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      # 잠금 파일·package.json 은 그대로 두고 Playwright 만 얹는다
+      - run: npm install --no-save --no-audit --no-fund playwright@1.63.0
+      - run: npx playwright install --with-deps chromium
+      # file:// 로 열어서 서버·포트가 필요 없다. tests/evidence/ 를 다시 쓰지만 커밋하지 않는다
+      - run: node tools/smoke.js
+        env:
+          SMOKE_ONLY: ${{ matrix.letter }}
+      - uses: actions/upload-artifact@v7
+        if: ${{ failure() }}
+        with:
+          name: smoke-${{ matrix.letter }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            tests/evidence/
+            ci-shots/
+
+  suites:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { key: scene-perf, name: 장면 성능, cmd: node tools/test-scene-perf.js }
+          # 놀이방 (play.html) — 안에서 스모크 A,B,I 와 글꼴 점검도 부른다 (fontTools 가 없으면 글꼴 줄은 건너뛴다: fonts 작업이 따로 본다)
+          - { key: play, name: 놀이방, cmd: node tools/test-play.js }
+          - { key: audio, name: 소리, cmd: node tools/test-audio.js }
+          - { key: resume, name: 이어 하기, cmd: node tools/test-resume.js }
+          # 요리 창 (cook.html, file://) — 손가락 · 키보드 · 반응 프레임 · 저장
+          - { key: cook-live, name: 요리 창, cmd: node tools/test-cook-live.js }
+          # 부엌 소리 (cook.html?sound=1 · js/audio.js 의 'cook' 갈래 · foley/ · credits.html) — 진짜 Web Audio 로 한 판 굽는다.
+          # 소리 파일은 http 에서만 받을 수 있어서 저장소 뿌리를 스스로 띄운다 (127.0.0.1 빈 포트)
+          - { key: cook-audio, name: 부엌 소리, cmd: node tools/test-cook-audio.js }
+          # 부엌에 붙인 반응 스티커 (cook.html + js/cook-stickers.js) — 요리 순간마다 스티커 · 손길을 가로채지 않는지 · 동작 줄이기 · 소리 꺼짐
+          - { key: cook-stickers-live, name: 부엌 스티커, cmd: node tools/test-cook-stickers-live.js }
+          # 배포 묶음만 띄워 놀아 보기 (export-site.js 로 임시 폴더에 내보낸 것만 127.0.0.1 빈 포트에) — 우리 주소로 간 요청이 하나도 실패하지 않는지
+          - { key: export-crawl, name: 배포 묶음 놀아 보기, cmd: node tools/test-export.js --crawl }
+          - { key: intro, name: 입장 화면, cmd: node tools/intro-shots.js }
+    env:
+      SHOTS: ${{ github.workspace }}/ci-shots/${{ matrix.key }}/
+      COOK_SHOTS: ${{ github.workspace }}/ci-shots/${{ matrix.key }}/
+      NO_VIDEO: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm install --no-save --no-audit --no-fund playwright@1.63.0
+      - run: npx playwright install --with-deps chromium
+      - run: ${{ matrix.cmd }}
+      - uses: actions/upload-artifact@v7
+        if: ${{ failure() }}
+        with:
+          name: ${{ matrix.key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            tests/evidence/
+            ci-shots/

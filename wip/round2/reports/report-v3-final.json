@@ -1,0 +1,100 @@
+{
+ "final:code": {
+  "summary": "Nothing at the points where the three lanes meet blocks the second deploy. I found no must and no should. The merged product change (6d03faf..3f1a51f in js, css and index.html) is exactly the three lane patches combined, with nothing dropped or doubled. Applying bb8d87a, 0655eed and 34b7ea6 to 6d03faf with patch gives files identical to HEAD.\n\nI checked each place the brief names with a runnable probe on a /dev/shm copy of 3f1a51f, using a paused page clock, the date hook and a touch phone at 360x740. All of them held:\n- **Production-shaped week, turn upstairs and week change together.** A week holding the removed 'gift' slot done plus a removed 'days' slot counts 5/5. A stay-home turn ends while the octopus is upstairs, and it stays there awake. At Sunday to Monday, still upstairs, the daily gift's new checkDay(true) changes the log and the week together. The weekly gift is paid exactly once (12 shells and 2 seeds, `from` = 2026-11-09, toast '지난주 선물은…' after the day-gift toast). When I go down, the octopus is not moved to the blanket because the nap is over (phase 'up'). The awake window then ends and the saved state becomes 'idle'. A reload pays nothing more.\n- **Weekly repair arriving from another tab.** I sent a storage event carrying a done 'gift' slot while the octopus was kept upstairs in its awake window. It produced one write (keptIds [gift]) and left the octopus, its window and its position untouched. Going down puts it on the blanket, still awake.\n- **Suites on the merged copy.** npm test exits 0, smoke Z gives 57/0 and smoke Q gives 75/0. No earlier checker had run Z or Q on the merged tree.\n\nI confirmed two nits, both on the import path:\n1. **A sleeping octopus can end up upstairs.** Importing a record while the octopus is upstairs moves it to an attic spot inside the upstairs room and never brings it down. If that record has the octopus napping, it sleeps upstairs with the '자는 중' label, which breaks the owner3 rule that a sleeping octopus is always on the attic blanket. This is not new: 6d03faf does the same when the octopus had followed me up awake.\n2. **Import keeps the old awake window.** importJSON does not clear the earlier in-memory awake window; the reset fix (S4) covered resetAll only. After the import, restPhase() says 'awake' while the octopus sleeps, until the old window runs out. I saw no visible effect from this.\n\nOne fix covers both: call clearRest() and bring the octopus down (scene.octDown) before octInitial() in importJSON. I tried it on my copy. The octopus then sleeps on the attic blanket, the phase is 'nap' and no window is left.\n\nNo repo test covers the cross-lane combinations listed below.",
+  "findings": [
+   {
+    "id": "C-1",
+    "severity": "nit",
+    "title": "Importing a record while the octopus is upstairs can leave it asleep upstairs (not new: 6d03faf does the same)",
+    "where": "js/app.js importJSON (~line 3737: save(); … octInitial()) → octInitial (~line 1594) → octPlace → scene3d jumpTo (scene3d.js:1965), which does not leave the upstairs room",
+    "what": "What happens: if the octopus is upstairs with me (kept there after a turn, or following me awake) and I import a record in which it is napping, octInitial jumps it to the attic blanket's coordinates while it is still in the upstairs room. It then sleeps upstairs with the '자는 중' label. What should happen: owner3 says a sleeping octopus is always on the attic blanket, with no sleeping octopus upstairs on any path. In my runs, importing a record where the octopus is awake also jumps it to attic coordinates inside the upstairs room; it lands on open floor.",
+    "evidence": "p4-rest.log after import: {room:'loft', up:true, st:'sleep', an:'blanket', label:'자는 중'}; screenshot /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v3-code/p4-rest-v3code.png. The same on 6d03faf with an octopus that followed me up awake (p4-idle-base.log: up:true, st:'sleep') and on HEAD (p4-idle-head.log), so this was not caused by the diff. With the suggested fix on my copy (p4-rest-fixed.log): up:false, st:'sleep', on the blanket, phase 'nap'.",
+    "confirmed_by_running": true,
+    "repro": "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v3-code/probe/p4-import-napping-up.js (args: rest | idle; set the env TREE to the tree to serve). Run with NODE_PATH=$(npm root -g).",
+    "suggested_fix": "In importJSON, just before octInitial(), add: clearRest(); if (octWithMe() && typeof scene.octDown === 'function') scene.octDown(); The same unmount would also help resetAll, which leaves a reset octopus standing at the window coordinates upstairs (p1-reset-v3code.png)."
+   },
+   {
+    "id": "C-2",
+    "severity": "nit",
+    "title": "importJSON keeps the earlier in-memory awake window (S4 cleared it for reset only)",
+    "where": "js/app.js importJSON (~line 3737); compare resetAll (~line 3746), which got clearRest() in 34b7ea6",
+    "what": "What happens: I import a record of the same octopus whose last turn ended outside the awake window, while this tab has an awake window running. octInitial puts the octopus to sleep but leaves the old `rest` object in place. restPhase() then reports 'awake' while the octopus sleeps, until that stale window runs down after I go back to the attic, and lieDown then clears it. What should happen: the import should replace the window state, the way reset now does. I saw no visible symptom: no wake flicker in 40 s, the label stays '자는 중', and it does not follow upstairs.",
+    "evidence": "p4-rest.log: after import {st:'sleep', phase:'awake', rest:{id:'trip_h9z1', left:25000}}; 40 s later the states seen were ['sleep'] only, rest null, phase 'nap'. With clearRest() added (p4-rest-fixed.log): phase 'nap' and rest null straight after the import.",
+    "confirmed_by_running": true,
+    "repro": "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v3-code/probe/p4-import-napping-up.js rest",
+    "suggested_fix": "Call clearRest() in importJSON before octInitial(). This is the same one-line fix as C-1; octInitial re-arms the window from the clock or sessionStorage when it should still be open."
+   }
+  ],
+  "checked_ok": [
+   "The merged product diff 6d03faf..3f1a51f (js, css, index.html) is exactly bb8d87a + 0655eed + 34b7ea6 applied to 6d03faf: diff -r is identical. The merge dropped and doubled nothing, and RC3-1 (`place || octWithMe()` in sleepNow) is present.",
+   "A production-shaped week ('gift' n1 + 'days' done by the days count + 3 real done) is repaired on open to keptIds [gift, days] with kept 2, counts 5/5, and the bag chip shows the gift dot (p2.log step 1).",
+   "A stay-home turn that ends while the octopus is upstairs leaves it there awake ('awake', saved 'sleep', rest away and not counting down) (p2.log, p3.log, p1).",
+   "Sunday to Monday while upstairs in the awake window: dailyGift, then checkDay(true), then the log changes to 2026-11-16 together with the gift. The weekly gift is paid once (shells 20 to 45 = 13 day gift + 12), prev.from is '2026-11-09', the toast order is day gift then '지난주 선물은 살림에 넣어 뒀어. 조개 12 · 씨앗 2', and the greeting is '…뚜루는 다락방에 있어.' (p2.log step 3).",
+   "After that day change, going down does not move the octopus to the blanket (phase 'up'): it lands on its own spot (window). The leftover window then runs out and the saved state becomes 'idle'. A reload on the same day keeps 45 shells and prev told (no double pay) (p2.log steps 4-7).",
+   "A storage event with a production-shaped week (a 'gift' slot done) while the octopus is kept upstairs: takeRemote, then the weekState repair (exactly 1 localStorage write, keptIds [gift], kept 1), then syncRest. The octopus position, state and rest are unchanged. Going down puts it on the blanket, awake (p3.log).",
+   "Import while upstairs in the awake window: the window is re-armed from the clock, and going down puts it on the blanket, awake (p1). Reset while upstairs clears the rest (rest null, phase 'up') (p1 reset).",
+   "Import trial: save() is suppressed while drawing, and the single save after the checks carries the weekly repair. The weekTell timer set during the trial is harmless if the import is rolled back (read from code). The storage listener's single parse behaves like the double parse for null or non-object JSON (read from code).",
+   "Honest lane text: no '…좋아', '꿈꾸는 중' or '싶대' remains in js, index.html or css. The label is always SLEEP_LABEL. The scene description for an octopus upstairs reads '위층'.",
+   "npm test on the merged copy: exit 0, every sub-suite 0 failed (npmtest.log).",
+   "SMOKE_ONLY=Z on the merged copy: 57 passed, 0 failed (smokeZ.log).",
+   "SMOKE_ONLY=Q on the merged copy: 75 passed, 0 failed (smokeQ.log).",
+   "No page or console errors in any probe."
+  ],
+  "not_checked": [
+   "Real two-tab play against an actual f2c93f1 tab on the same origin. I simulated the other tab's write with a StorageEvent (P3); check-v2 had covered real production tabs per lane.",
+   "The 320x568 viewport and the 2D fallback for the cross-lane probes; my probes ran at 360x740 in 3D only.",
+   "Smoke suites A, X and Y, test-salon on its own, the font check and scene perf on the merged tree (the lead runs these before shipping).",
+   "Salon asks made upstairs during an awake window together with a day change (covered per lane by recheck-owner3).",
+   "A walk running at midnight. Reading the code, checkDay(true) returns early while busy, so the day gift's toast can arrive before the log changes; the log changes 2 minutes after the walk by the old rule. I did not run it.",
+   "Smoke screenshots from my Z and Q runs went to the shared default folder scratchpad/build/shots/. I left that folder alone because I cannot tell which files there are mine."
+  ],
+  "suites": [
+   "npm test (merged copy): exit 0, all sub-suites 0 failed",
+   "SMOKE_ONLY=Z node tools/smoke.js (merged copy): 57 passed, 0 failed",
+   "SMOKE_ONLY=Q node tools/smoke.js (merged copy): 75 passed, 0 failed"
+  ],
+  "untested_behaviours": [
+   "The day change through the daily gift (dailyGift's new checkDay(true)) while the octopus is kept upstairs in an awake window. Z-5a sets giftDay beforehand so the gift never fires, and Q23-6 runs in the attic. My probe P2 shows it works.",
+   "A week change paying the weekly gift on an open tab while the octopus is upstairs after a turn (P2 shows it works).",
+   "The weekly repair (keptIds) arriving through the storage listener while the octopus is kept upstairs in its awake window (P3 shows it works).",
+   "Import or reset while the octopus is upstairs, in any state (see C-1 and C-2; no test covers either).",
+   "Import during an awake window: nothing checks that the old window is replaced (C-2)."
+  ]
+ },
+ "final:play": {
+  "summary": "I played the merged tree 3f1a51f (owner3 + honest + v2 lanes on top of 6d03faf) on emulated phones with production saves, and found no defects. I would ship it. There are no must, should, nit or owner findings from this lens. No run had a page error or console error.\n\nHow I tested: Playwright touch phone contexts at 360x740 and 320x568, with real taps, long-presses and CDP touches. I used the date hook to move days and weeks. Both builds were served from one static server on one origin. All three production saves were built by playing an untouched f2c93f1:\n- Save A '문문': I offered a gift from the box (the gift task done), visited the play room, took two walks and visited on three days. Production showed 4/5.\n- Save C: save A plus planting a seed, giving 5/5 unclaimed with the claim button showing in production.\n- Save B '콩이': the gift task was in the list but not done, and three visits were made (1/5).\n\nThe weekly list on the new build:\n- Save A keeps 4/5. The gift and three-visits slots are replaced, and the line '목록에서 빠진 일도 이번 주엔 한 걸로 셌어.' appears. A reload does not count anything twice.\n- Planting at 320 px makes 5/5. The claim button opens fully in view, and the claim pays exactly +12/+2 once.\n- Save B gives no point for the undone gift and keeps the three-visits point.\n- Week change with save C: opened on Monday, the gift is deposited automatically with the toast '지난주 선물은 살림에 넣어 뒀어. 조개 12 · 씨앗 2'. Opened two weeks later, it reads '전에 안 받은 주간 선물은…'. Left open in a tab across Sunday to Monday midnight, it is deposited within about 40 s, once, and a reload shows the same.\n\nTurns upstairs (OW-3 b): I delayed the brain 20 s as a stand-in for a model thinking, then climbed during a stay-home turn. When the turn ended upstairs, the octopus stayed upstairs and awake. In every frame it never walked, vanished or slept upstairs. Tapping it gave the trip line, and petting gave '…' (7 of 8 tries). The awake window did not count down upstairs (OW-4). After I went down, it was awake in the attic, then lay down. With a save at lantern 4 it lies down on the blanket. With a save at lantern 2 it lies down in the room centre, because the blanket only exists from lantern 4 (by design, anchorName). The nap label read only '자는 중' over 48 s. Tapping the sleeping octopus gives '쿨쿨…', and climbing again leaves it asleep downstairs. The same held when a second tab took the turn.\n\nOther things that held: a walk with taps on the outside garden plots (water, plant, and harvesting an unknown colour, which gives '꽃을 거뒀어'); midnight passing while the octopus is upstairs in its awake window; a reset during an awake window; an import with two tabs; a production tab left open next to the new build; and salon colour answers with the device clock two hours behind.\n\nTwo things looked wrong at first but were caused by my tests, not by the game:\n- The pet bubble seemed missing in screenshots. Under swiftshader a screenshot is slow; without screenshots the bubble is visible for about 1 s, the same as in production.\n- One reload went back a day. My date hook lives in localStorage, so the reload brought back Sunday.\n\nProbes, logs, saves and screenshots are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v3-play/ (notes.md, shots/). The server is stopped and the /dev/shm copies are deleted.",
+  "findings": [],
+  "checked_ok": [
+   "Production save A (gift task done, three-visits done, 4/5 in f2c93f1) opened in the new build: 4/5, both removed slots replaced, kept line shown, keptIds [gift, days]; reload unchanged (p2.log, shots/p2-A-wed360.png)",
+   "Same save at 320x568: planting makes 5/5, claim button fully visible after the sheet's auto-scroll (bottom 559 of 568), claim +12 shells +2 seeds exactly once, toast '주간 선물: 조개 12 · 씨앗 2' (shots/p2-A-claimbtn.png, p2-A-claimed.png)",
+   "Production save B (gift slot not done): slot replaced, no point given, three-visits point kept (1/5 same as production)",
+   "Production save C (5/5 unclaimed) opened next Monday: automatic deposit +12/+2 once, toast and line '지난주 선물은 살림에 넣어 뒀어'; opened two weeks later: '전에 안 받은 주간 선물은…' (shots/p2-C23-mon23.png)",
+   "Week change in a tab left open (Sunday to Monday, 320 px): deposit within about 40 s, once, together with the day gift; reload identical (p11b.log, shots/p11-mon-bag.png)",
+   "Production tab left open while the new build opens on the same storage: the old tab adopts the repaired week without losing keptIds; offering another gift in the old tab counts nothing; the new tab's claim happens once and the old tab sees it as claimed (p6-2.log)",
+   "Stay-home turn ending while upstairs (model-like 20 s plan): the octopus stays upstairs and awake, with 0 walk frames, 0 sleep-upstairs frames and 0 disappearances; tap gives the trip line; the awake window is frozen upstairs (25000 ms unchanged); after going down it is awake in the attic and lies down on the blanket at lantern 4 (centre at lantern 2, by design); climbing again while it naps leaves it downstairs (360 and 320: p5-s360.log, p5-s320.log, shots/sheet-p5-*.png)",
+   "Same with the turn taken in a second tab (p6-1.log)",
+   "Petting gives the bubble '…' (7 of 8 long-presses, the rest silent); a sleeping octopus gives '쿨쿨…' on tap and on petting; the nap label is only '자는 중' over 48 s; scene descriptions sampled over a whole walk contain no feeling words",
+   "Garden during a walk: outside plot taps water, plant, and harvest an unknown colour with toast '꽃을 거뒀어'; labels update immediately; the harvest task counts (p7.log, shots/sheet-p7.png)",
+   "Midnight while the octopus is upstairs in its awake window: the day gift and the new day's log ('오늘' greeting + '어제 메모') appear in the same minute; the octopus is no longer treated as resting (the mirror opens the salon sheet); going down leaves it awake at its spot (p8.log)",
+   "Reset during an awake window: the new octopus never lies down in 30 s and its saved state stays idle (p8.log)",
+   "Import of a production export while a second tab is open: the second tab adopts it at once; a write from that tab 4.5 s later reaches the importing tab; both reloads are identical; the imported week is repaired (p9.log)",
+   "Salon answers with the device clock 2 h behind earlier colour lines: after each reload the colour is the latest 'yes' answer; a 'keep' answer leaves the colour (p10b.log)",
+   "First action on production save B is a turn with a climb during it, two tabs open: the loft and ask tasks count once at the end of the turn, the other tab agrees, reload agrees (p12.log)",
+   "The play-room '문어 방' door works with one touch tap in both builds (p13)",
+   "No page errors or console errors in any run"
+  ],
+  "not_checked": [
+   "The far-sea door dialog text (needs the API to propose; the honest-lane checker covered it in a real page)",
+   "2D fallback (?scene=2d), dark mode, reduced motion and sizes other than 360x740 and 320x568",
+   "Sound (unchanged by these lanes)",
+   "The 1 s import guard against a late write from a closed tab. That needs a storage event to arrive within 1 s of the import, which I could not reproduce by play; only the normal two-tab import was played",
+   "Real model (MCP) turns: model thinking was stood in for by delaying BRAIN.plan 20 s, as the repo's own scenario Z does",
+   "Repo suites (npm test, smoke, perf, font check): not run, as the brief says the lead runs them",
+   "A real device clock going backwards across a day or week: my date-hook reload produced a second day gift and a rebuilt week, but that is the clock going back (the same code path as production) and I did not compare it with f2c93f1"
+  ],
+  "suites": [
+   "none of the repo suites (by the brief); own probes p1 to p13 in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/v3-play/"
+  ],
+  "untested_behaviours": []
+ }
+}

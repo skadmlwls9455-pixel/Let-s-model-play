@@ -1,0 +1,118 @@
+{
+ "summary": "Verdict: the change does what the owner asked for, but on wide screens it is worse than reported, and the new guard has gaps. Two of the findings below should be fixed before this ships. Nothing breaks a hard line.\n\nWhat works, checked on copies of /home/user/ppolppol-fix-thin (branch fix-thin, base b287a11):\n- The cloud bank is now thin. The bank colour peaks at 40 to 42 % of the screen and never reaches 50 % (before: 96.6 to 96.8 % of the whole phone, above 90 % for 0.10 s).\n- The sky-colour switch moved from 1.40 s to 1.88 s. The sky band is visible on 0 canvas pixels in the switch frame and the frame before it, in every look I measured.\n- The panel colour equals the empty-sky colour after landing in all 16 hour and weather combinations.\n- A size change at 1.5 s (360x740 to 412x915, dusk rain) rebuilds one sky and keeps the timeline.\n- Real-time time to the title is the same as on the base.\n\nWhat is not right:\n1. **Wide screens (should / owner).** At 1280x800 the plain above-cloud sky now covers 97.1 to 97.6 % of the whole window, above 90 % for 0.32 to 0.33 s. The base peaked at 91.5 %, above 90 % for 0.13 s, so wide screens got worse. The fix report gives 93 to 96 % because it counts only the canvas. On phones the same kind of moment remains, only darker: 90.6 to 94.2 % at 360x740 for up to 0.18 s, against 96.8 % for 0.10 s before.\n2. **A visible line on wide screens (should / owner).** A straight horizontal line where the navy meets the dark climbs across the side covers from about 1.45 s to 1.88 s. The brief asked for no seam or edge there. The base had a different flaw: the whole side area flipped colour in one frame.\n3. **Guard misses a hidden room (should).** If the panel is put in front of the room, the room is hidden from 1.9 s until the title and the title pops over a black screen, yet step 0 still passes.\n4. **Guard misses CSS paint (should).** Reverting either new CSS rule passes step 0, because the check reads CSS variables, not what is painted.\n5. **Guard depends on the clock (should).** The 1.5 s cover check depends on wall-clock time. With an 8 s delay before the scan it fails at both sizes (\"덮개 @ NaN\"), because intro.js's 7.5 s safety timer stops setSky.\n6. **Bank bottom not guarded (nit).** Removing the shift that keeps the bank's bottom edge (and so the rain start) in place passes step 0. The fix report says so itself.\n7. **Misleading 2D picture (should).** The \"after\" row of the fix agent's 2D picture shows a thinner 2D bank that was reverted before the report. The owner would see a change that is not in the code. The docs §9 also points to 2D before/after pictures.\n\nSuites:\n- `npm test`: 0 failed.\n- Font check: stale: none.\n- Step 0 (`BOOT_ONLY=1`): 5 of 5 passes, plus 3 more passes inside full runs.\n- `SMOKE_ONLY=A`: 74 passed, 0 failed.\n- Full intro test: no verdict because of load. Step 1 timed out waiting for the title on the fixed copy three times. The untouched-base control timed out at the same wait at load 9.7, and real-time timing shows no slowdown.\n- Scene perf: no verdict. My own 580 s timeout stopped it at load 11 after 69 passed, in a salon check that has nothing to do with the intro.",
+ "problems": [
+  {
+   "id": "T1",
+   "severity": "should",
+   "title": "A near-full-screen flat colour moment remains, and is worse on wide screens than reported",
+   "where": "js/scene3d.js buildSky (bank kept at its old bottom edge with dn); intro, about 1.0 to 1.3 s; all sizes",
+   "what": "With the thin bank kept at its old bottom edge, the plain above-cloud sky (day #172038, dawn and dusk #241527, night #090a14) fills the screen before the bank arrives. The owner's goal was no moment where the screen is mostly one flat colour. On phones that moment remains in a darker colour and lasts longer. On 1280x800, counting the whole window, it is larger and longer than the old bank moment. The fix report gives only canvas numbers (93 to 96 % on wide screens), which leave out the side covers.",
+   "evidence": "Whole-window screenshots stepped with debugStep (check-thin/tools/shots.js, analysed with ana.py; out/batch1.jsonl).\n- 360x740: max 90.6 to 94.2 % at 1.08 s, above 90 % for 0.03 to 0.18 s. Base bank 96.6 to 96.8 %, above 90 % for 0.10 s.\n- 412x915 dawn drizzle: 95.8 %, 0.233 s.\n- 430x932 night snow: 93.3 %, 0.15 s.\n- 1280x800 whole window: 97.1 to 97.6 %, above 90 % for 0.317 to 0.333 s, above 75 % for 0.78 s. Base: 91.5 %, 0.133 s and 0.58 s.\n- 740x360: 90.8 %, 0.067 s. Base 78.6 %.\n- 320x568: 86.6 to 88.6 %, never 90 %.\nPictures: pics/m-360-dusk.png (fixed row, 1.0 to 1.3 s plain plum sky), pics/m-1280-fixed-big.png (1.05 s).",
+   "suggested_fix": "Owner decision with the pictures. The options:\n(a) Keep as is. Costs a 0.2 to 0.33 s mostly-navy screen.\n(b) Centre the bank as the prototype did. The peak drops to about 85 %, but a near-black screen reaches 98 % afterwards and rain starts 0.31 screen higher.\n(c) Raise the bank part of the way, or add a sparse cloud layer around 1.0 to 1.2 s. This touches the design numbers.\nEither way, the report and docs §9 should give whole-window numbers for 1280x800."
+  },
+  {
+   "id": "T2",
+   "severity": "should",
+   "title": "Wide screens show a straight navy/dark horizon line that climbs with the bank before the switch",
+   "where": "js/intro.js setSky (skyCut split), css/intro.css .intro-hole and #scene3d; 1280x800 and 740x360, about 1.45 to 1.88 s",
+   "what": "The cover outside the scene is split at the panel's top edge. The scene column hides the line behind the bank, but the side covers have no cloud. A hard horizontal edge between above-cloud navy and below-cloud dark runs across the full width and climbs for about 0.4 s. The brief asked for no seam or edge where the two colours meet at 1280x800 and 740x360. The fix agent reported this as a deliberate trade-off. The base had a different flaw: the whole side area (549584 px) flipped in one frame at 1.40 s.",
+   "evidence": "- pics/m-1280-fixed-big.png (fixed, day clear and dusk rain, 1.5 / 1.7 / 1.85 s): a hard line across the full width. pics/m-1280-day.png gives base versus fixed.\n- About 15048 px of side cover change per frame while the line climbs. The last 8 px strip flips at the switch (5980 px).\n- On phones only the 2 px border strip flips at the switch (744 px; base 4384 px). The cover reads skyCut one frame late (out/rz-fixed-360to412-18-rain/meta.json: 'at' lags 'cut' by one frame).",
+   "suggested_fix": "Owner decision. The options:\n(a) Accept the line.\n(b) Keep the side covers one colour (navy) until the switch and make the panel only as wide as the scene column. That brings back the one-frame flip of the side area.\n(c) Fade the side covers from navy to dark over a few frames once the panel top passes mid-screen."
+  },
+  {
+   "id": "T3",
+   "severity": "should",
+   "title": "Step 0 does not notice the panel hiding the room",
+   "where": "tools/intro-shots.js bootPass (scan window 0.9 to 2.1 s)",
+   "what": "The panel's depth (+20, behind the room) is load-bearing: in front of the room it would hide the landing. Step 0 never checks that the room is visible after the switch. Its 'no visible sky band at the switch' check is satisfied by the panel covering everything.",
+   "evidence": "Mutant mB: panel z set to -1.5 (in front of the room), in check-thin/mut/mB. BOOT_ONLY step 0 passes (out/mut-mB.log). Frames: the room is hidden from 1.9 s through the title at 2.75 s, dark colour at 96.3 %, the title over black (pics/m-mutB-mC.png, middle row; out/mB-360x740-13-clear).",
+   "suggested_fix": "Add an invariant to bootPass: after the switch, or at the end of the scan, the panel colour covers less than a bound (for example under 60 %), or a room pixel region differs from #090a14. Alternatively, compare a frame at about 2.1 s with the same frame of an `?intro=0`-style render."
+  },
+  {
+   "id": "T4",
+   "severity": "should",
+   "title": "The paint check reads CSS variables, so reverting the new CSS passes",
+   "where": "tools/intro-shots.js bootPass paint check; css/intro.css lines 27 and 34",
+   "what": "The 1.5 s 'cover the intro layer actually painted' check compares the custom properties --intro-sky-lo and --intro-cut with skyCut(). It does not look at what is painted. Reverting the #scene3d gradient or the .intro-hole double box-shadow leaves the variables set, so the cover is no longer split and step 0 still passes.",
+   "evidence": "- Mutant mC (gradient rule reverted, 360x740): passes step 0. Measured: 1318 px of navy/dark seam in the 2 px scene border before the switch, and the whole 4384 px border flips at the switch.\n- Mutant mD (box-shadow reverted, 1280x800): passes step 0. 1592 px of seam, and 545220 px of side cover flip in one frame at the switch.\nLogs: out/mut-mC.log, out/mut-mD.log. Frames: out/mC-360x740-13-clear, out/mD-1280x800-13-clear.",
+   "suggested_fix": "At 1.5 s, sample the computed paint: take a viewport screenshot of one side-cover pixel above and one below the cut (1280x800), or one border pixel (360x740), and compare their colours with skyHex() and cut.hex."
+  },
+  {
+   "id": "T5",
+   "severity": "should",
+   "title": "The new paint check depends on wall-clock time",
+   "where": "tools/intro-shots.js bootPass paint read after raf2; js/intro.js:169 safety timer (SKY.dur*2.5 s = 7.5 s)",
+   "what": "setSky runs only from intro.js's rAF watch() while the intro phase is 'sky'. If 7.5 s of wall time pass between boot and the scan, the safety timer calls riseLogo(), watch() stops, and the CSS variables are never set. The check then fails with '덮개 @ NaN'. The brief required checks that do not depend on speed. On a heavily loaded machine (boot plus resize plus stepping over 7.5 s) this becomes a false failure. It passed 5 of 5 times for me at load 6 to 10 only because the scan usually starts sooner.",
+   "evidence": "- Mutant mW: only an 8 s waitForTimeout added before the scan, no product change. It fails at both sizes: '1.5 s 에 입장 레이어 덮개가 장면과 다름: 장면 {\"hex\":\"#090a14\",\"y\":555} · 덮개  @ NaN px' (out/mut-mW.log).\n- Mutant mT (timing probe only): it read the paint at 16.8 s and 19.8 s of wall time with the intro phase already 'title'. It passed only because the timer and rAF happened to fire in a favourable order.",
+   "suggested_fix": "In bootPage when probe is set, add an init script that stretches setTimeout delays of 5 s or more (as check-thin/tools/shots.js does). Or call the layer's setSky path directly and assert that the phase is still 'sky' before reading the paint."
+  },
+  {
+   "id": "T6",
+   "severity": "should",
+   "title": "The owner's 2D 'after' picture shows code that was reverted",
+   "where": "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-thin/pics/sheet-2d-360x740.png; docs/INTRO_SLOW_PROTO.md §9 last line",
+   "what": "The 'after' row shows a capped, thinner 2D bank. That change was reverted: the sheet was written at 22:17:28 and the revert of js/intro.js is dated 22:17:40. The shipped 2D intro looks exactly like the base. The owner would see a 2D change that does not exist, and the docs line mentions 2D before/after pictures.",
+   "evidence": "- File times from stat: sheet 22:17:28.6, js/intro.js 22:17:40.3.\n- The fix agent's own notes, line 21: '2D change REVERTED'.\n- My re-shoot of the fixed copy (out/2d-fixed) matches the base. pics/m-2d.png has three rows: agent before / fixed now / agent after.",
+   "suggested_fix": "Re-shoot the 2D sheet from the final tree, or drop its 'after' row and say in the report and docs that 2D is unchanged."
+  },
+  {
+   "id": "T7",
+   "severity": "nit",
+   "title": "Rain start height and bank bottom are not guarded",
+   "where": "js/scene3d.js buildSky dn (lines about 4372 to 4383)",
+   "what": "Removing dn (the shift that keeps the bank's bottom edge in place) passes step 0. Without it, the switch moves to 1.70 s and rain and snow start higher, which breaks a brief requirement. The fix agent reported this gap.",
+   "evidence": "Mutant mA (dn = 0) passes step 0 (out/mut-mA.log); the switch moves to 1.70 s. By construction, rainTop is the bank bottom = pass + (bodyTop-4)/2 - bh0/2 in both trees, so the rain start is unchanged in the shipped code.",
+   "suggested_fix": "Expose the bank bottom in stats() or skyCut(), or check it through a rain pixel row, and compare it with bh0's bottom (the base value) at one size."
+  },
+  {
+   "id": "T8",
+   "severity": "nit",
+   "title": "The outside cover follows the scene one frame late",
+   "where": "js/intro.js setSky via watch() rAF",
+   "what": "The intro layer's rAF reads skyCut() from the previous scene frame, so the cut in the cover lags by about 25 px per frame at 412x915. It stays hidden inside the bank body. Its only visible trace is the top 2 px border strip of the phone, which stays navy one frame longer and then flips (744 px) at the switch.",
+   "evidence": "out/rz-fixed-360to412-18-rain/meta.json: at 1.518 s cut.y is 528 but the cover is still at 554 px; at 1.868 s cut = -1e4 but the cover is still at 25 px. ana.py chgOut is 744 px at the switch frame on 360x740.",
+   "suggested_fix": "None needed beyond noting it. If wanted, have the scene call the cover update after its own render."
+  }
+ ],
+ "per_fix": "Each brief item → reproduced on the base → gone on the fixed tree → the check that fails when it is reverted.\n\n- **Bank fills the phone (thin bank).**\n  - Base: yes. Whole-window bank colour 96.6–96.8 % at 360x740, above 90 % for 0.10 s (out/base-*).\n  - Fixed: gone. Bank 40–42 %, never 50 %. But the above-cloud sky now reaches 90.6–94.2 % on phones and 97.6 % at 1280x800 (finding T1).\n  - Guard: the bodyMax < 0.5 check. The fix agent's m5 (old height) fails with 99.4 % / 98.5 %; I did not repeat that mutant.\n\n- **Sky switch visible.**\n  - Base: yes. 4384 px of phone border flip at 1.40 s; at 1280x800 the side area flips in one frame (549584 px).\n  - Fixed: switch at 1.88 s (1.90 s at 320x568, 1.92 s at 740x360), 0 visible sky-band px inside the canvas, no seam before the room enters, in all looks. A climbing line remains on wide screens (finding T2).\n  - Guard: the bgSw check. My mutant mG (INTRO.pass without +dn) fails with 2397→312 and 3233→772 px. The agent's m4 (no panel) and m8 (old pass) fail too. The CSS parts are not guarded (finding T4).\n\n- **Panel built, rebuilt and disposed with the sky.**\n  - Fixed: one sky. 1.36 s draw calls 17 = direct boot; after landing 104/106 = boot without the intro. A resize at 1.5 s (dusk rain, 360→412) gives one switch at 1.884 s and no errors.\n  - Guard: the draw-call checks (agent's m2: 45 ≠ 17). Panel depth is not guarded (mB passes, finding T3).\n\n- **Timeline kept.** Start height 2.601 and progress kept across a resize, both read from step 0's output. Real-time title timing is the same on base and fixed (titletime.js).\n  - Guard: the step 0 progress and height checks (agent's m3).\n\n- **Rain and snow start where they did.** Same by construction (rainTop = bank bottom, unchanged).\n  - Guard: none (mA passes, finding T7).\n\n- **Panel colour = empty-sky colour.** All 16 palettes (4 weathers × 4 hours) give rendered panel = skyCut hex = void after landing (out/palcheck.log).\n  - Guard: the cutHex vs voidHex check (agent's m7).\n\n- **2D fallback.** No full-screen moment on the base (stage only); left unchanged and confirmed equal to the base (out/2d-fixed). The picture sent to the owner is misleading (finding T6).\n\n- **Reduced motion.** Not run. By construction startIntro returns before buildSky (js/scene3d.js:4502).",
+ "mutations": "My own mutants, each a copy in check-thin/mut/ run with BOOT_ONLY=1 step 0. Logs in check-thin/out/mut-*.log.\n- **mA: dn = 0 (bank centred, not bottom-anchored).** Passes. The switch moves to 1.70 s and rain starts higher. Gap.\n- **mB: panel z = -1.5 (in front of the room).** Passes. The room is hidden from 1.9 s to the title. Gap, finding T3.\n- **mC: #scene3d gradient reverted.** Passes. A 1318 px seam in the phone border and a 4384 px flip at the switch. Gap, finding T4.\n- **mD: .intro-hole double box-shadow reverted.** Passes. A 545220 px flip of the side area on 1280x800. Gap, finding T4.\n- **mE: skyCut returns null for f <= 0 instead of -1e4.** Passes. No difference at 360 day. Minor; it matters only for the top strip at 412.\n- **mF: panel 1.0 screens tall instead of 1.5.** Passes. Frames are identical at 360, so the extra height made no difference there.\n- **mG: INTRO.pass without +dn.** FAILS: sky band visible at the switch, 2397→312 and 3233→772 px.\n- **mW: product unchanged, 8 s wall-clock wait before the scan.** FAILS ('덮개 @ NaN'). The paint check depends on wall-clock time, finding T5.\n- **mT: timing probe only.** Passes. The paint was read at 16.8 s and 19.8 s of wall time with the intro phase already 'title'.\n\nThe fix agent's own m1 to m8 (11-11 fix reverted, two skies, timeline reset, no panel, old height, cover not split, raw bg hex, old pass) all fail, according to its logs in fix-thin/out/mut-m*.log; I did not re-run them.\n\nDeterminism: on my unmodified fixed copy, step 0 passed 5 of 5 times (59 to 86 s each, load 6 to 10), and 3 more times inside the full runs.\n\nThe tools diff against b287a11 removes only the old midRow check ('middle row all bank colour at 1.36 s'), which the brief asked to replace; the 1.36 s draw-call check stays. No other check was weakened.",
+ "suites": [
+  "npm test (copy of the fixed tree): exit 0, with 517, 26, 568, 225, 192 and 234 passed, export 46 passed, 0 failed.",
+  "Font check (tools/subset-fonts.py --check): stale: none.",
+  "BOOT_ONLY=1 NO_VIDEO=1 node tools/intro-shots.js (copy of the fixed tree): 5 of 5 passed (out/boot-1..5.log), load 6 to 10.",
+  "SMOKE_ONLY=A node tools/smoke.js (copy of the fixed tree): 74 passed, 0 failed.",
+  "NO_VIDEO=1 node tools/intro-shots.js, full, on the fixed copy, 3 runs (load 7 to 11): step 0 passed every time; step 1 timed out each time on the 12 s wait for #intro[data-phase=title]. Control on the untouched b287a11 copy: at 01:43 (load 9.7) it timed out at the same wait; at 01:34 (load 11) it got past step 1 and failed later at '하루 한 번'. Real-time time to the title at 360x740, DPR 2, ?slow=3, 3 rounds: base 22.6 / 23.4 / 23.0 s, fixed 22.5 / 23.3 / 22.7 s, both reached through the 22.5 s safety timer at about 2 fps. No difference between the trees, so: no verdict because of load.",
+  "node tools/test-scene-perf.js (copy of the fixed tree): my own 580 s timeout killed it at load 11 after 69 passed, in T6 (salon), which is unrelated to the intro. No verdict; not repeated."
+ ],
+ "held": [
+  "The bank colour stays under 50 % of the screen at every size I measured (360x740, 320x568, 412x915, 430x932, 1280x800, 740x360): about 40 to 42 % on phones and 1280x800, about 28 % at 740x360. Before, it reached 96 to 99 %.",
+  "The sky-colour switch happens at 1.88 s (1.90 s at 320x568, 1.92 s at 740x360), with 0 visible sky-band pixels in the canvas in the switch frame and the frame before it, and no in-canvas seam before the room enters. That covers 4 weathers at 360x740 plus extra sizes. On dawn and dusk, the pixels flagged by my colour-based seam count after 1.78 s are the room's own #241527 tiles, not sky.",
+  "The rendered panel colour equals skyCut's hex and the empty-sky colour after landing for all 16 combinations of 4 weathers and 4 hours (out/palcheck.log).",
+  "One sky is kept through a size change: draw calls 17 = direct boot, and after landing they equal a boot without the intro. A resize at 1.5 s keeps the timeline and gives a single switch at 1.884 s with no errors.",
+  "Rain start is unchanged by construction, because rainTop is the bank bottom and that bottom is kept by dn.",
+  "The 2D fallback is unchanged and matches the base, and it has no full-screen moment.",
+  "No player-facing text changed (font check: stale: none). No sound code is touched. Reduced motion returns before the sky is built (by reading the code).",
+  "The landing and title look the same as before: the frames at 2.0 to 2.75 s match the base, and real-time time to the title is unchanged.",
+  "My copy of the tree is byte-identical to /home/user/ppolppol-fix-thin for every changed file. The tree has nothing committed and differs from the base only in the 5 files the fix report lists."
+ ],
+ "not_checked": [
+  "Real phones or GPUs: everything was measured with SwiftShader at deviceScaleFactor 1, except the timing run at DPR 2.",
+  "Reduced motion was not run; I only read the code.",
+  "The full 6 sizes × 16 looks matrix was not repeated. I measured 360x740 in 7 looks (several of the 16, with every weather) and the other sizes in 1 or 2 looks each.",
+  "Rain start height was not measured in pixels; it follows from the code.",
+  "SMOKE_ONLY=I was not re-run (the fix agent reported 31 passed, 0 failed). Scene perf gave no verdict.",
+  "Both font themes and light/dark mode: the change touches only the intro cover colours, and I did not compare screenshots with the other font theme.",
+  "How often the wall-clock dependence in the paint check (T5) would fail on CI. I showed only that it fails with an 8 s delay.",
+  "The fix agent's mutants m1 to m8 were not re-run by me; I read their logs."
+ ],
+ "pictures": [
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-thin/pics/m-360-dusk.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-thin/pics/m-1280-day.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-thin/pics/m-1280-fixed-big.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-thin/pics/m-mutB-mC.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-thin/pics/m-2d.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-thin/pics/m-border.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/check-thin/pics/peek-1280-after.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-thin/pics/sheet-2d-360x740.png"
+ ]
+}

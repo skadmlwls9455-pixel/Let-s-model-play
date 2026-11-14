@@ -1,0 +1,121 @@
+{
+ "summary": "I made all three owner decisions of 11-12 in /home/user/ppolppol-fix-owner. Nothing is committed. Every suite passed in the end, and each change has a check that fails when that change alone is reverted.\n\n(1) After a turn, while the octopus is still awake before its nap, it no longer follows the player upstairs. It stays on its blanket in the attic. The mirror upstairs shows the existing line \"지금은 아래층에 있어.\" (or \"지금은 아래층에서 자고 있어.\" once it naps). It is never woken, and no log row or sound is added. Once the rest period is over (nap over or a new day), it follows on the next climb as before.\n\nHow the scene learns about this period: it asks the app at the moment of climbing, through a new callback `on.octResting` that returns `restPhase() === 'awake'`. Asking at that moment covers a reload and a turn finished in another tab without any extra syncing. The octopus can only already be upstairs when the period starts in two ways: a stay-home turn ends after the player climbed while a slow brain was still thinking, or another tab finishes a turn. A new helper `restDown()` handles both: it moves the octopus back to the attic blanket out of sight (`scene.octDown()` plus placing it on the blanket).\n\n(2) The task \"이번 주에 사흘 들어오기\" is gone from the weekly list, together with its special cases. A saved week that still holds it keeps every other slot exactly as it was. That one slot is replaced the same way the code already replaces an unknown slot: the replacement is seeded, so it is the same after a reload or in another browser context, and it is saved at once. The day record `user.days` and the day gift's \"들어온 날 N일째\" are unchanged.\n\n(3) Pressing \"산책 갈래?\" on a sleeping octopus still wakes it and starts the turn, but it no longer counts for \"문어한테 산책 갈지 묻기\". A second press during that turn, by the big button or `APP.invite`, adds nothing. A press on an awake octopus counts as before, and the awake period after a turn counts as awake.\n\nSuites: `npm test` passes, the font check says `stale: none`, Z passed 3 times in a row (47/0), A passed (74/0) and Y passed (99/0). Q passed 6 times out of 7 (58/0). The one failure, in the 3rd run, was an older two-tab check, not one of mine. The untouched base passed Q once under the same load, and my next three Q runs all passed, so that one failure has no verdict.",
+ "changes": [
+  {
+   "id": "1a",
+   "file": "js/scene3d.js",
+   "lines": "3342-3345, 391-392, 5468",
+   "what": "New `octResting()` asks the app's `on.octResting` and is caught if it throws. `octMountLoft` now returns false when it is true. `octDown` (the existing `octUnmountLoft`) is exposed on the scene API. The comment above LSALW now mentions the rule.",
+   "why": "Decision 1. Only the app knows about the rest period, so the scene asks at the one moment it decides whether to follow: the climb."
+  },
+  {
+   "id": "1b",
+   "file": "js/app.js",
+   "lines": "543",
+   "what": "New scene callback `octResting: function () { return restPhase() === 'awake'; }`",
+   "why": "`restPhase` already handles the live timer, a timer restored after a reload (sessionStorage) and the clock check used by another tab, so asking it at climb time covers reload and other tabs."
+  },
+  {
+   "id": "1c",
+   "file": "js/app.js",
+   "lines": "1409-1410, 1420, 1984",
+   "what": "New `restDown()`: if the octopus is upstairs with the player, it is moved to the attic and placed on its blanket. It is called in `finalPose` (a turn ends) and in `syncRest` (another tab finished a turn).",
+   "why": "These are the only two ways the rest period can start while the octopus is already upstairs: a stay-home turn ends after the player climbed while a slow brain was thinking, or another tab finishes a turn. It also avoids `jumpTo('blanket')` placing the octopus at attic coordinates inside the upstairs group."
+  },
+  {
+   "id": "2a",
+   "file": "js/app.js",
+   "lines": "4347-4348, 4392-4405",
+   "what": "Removed the 'days' task from QUESTS. Removed the task-specific branch of `questN`, the extra `w` argument of `questN` and `questDone`, and the special case in `weekSwapTo`.",
+   "why": "Decision 2. Nothing else used them. `user.days` and the day gift's line are untouched."
+  },
+  {
+   "id": "2b",
+   "file": "js/app.js",
+   "lines": "4369",
+   "what": "`save()` after the same-week repair of unknown or broken slots.",
+   "why": "The brief asks that the replacement be saved like the rest of the list. Before this, the repaired slot existed only in memory until some other save happened."
+  },
+  {
+   "id": "2c",
+   "file": "js/app.js",
+   "lines": "4375",
+   "what": "A new week falls back to any remaining task when the seeded pick is empty, the same way the repair branch already does.",
+   "why": "After the removal, the 2D scene with no posters has exactly 7 tasks it can deal, so one more exclusion would have dealt an empty slot."
+  },
+  {
+   "id": "3",
+   "file": "js/app.js",
+   "lines": "1766, 1783",
+   "what": "`var woke = oct.state === 'sleep'` is read before `wakeUp()`. The count becomes `if (!woke) questMark('ask')`.",
+   "why": "Decision 3. A second press during that turn cannot count: while a turn runs, `invite()` returns early and the big button only skips."
+  },
+  {
+   "id": "docs",
+   "file": "js/app.js",
+   "lines": "4344-4345",
+   "what": "Comment block above QUESTS: two lines dated 주인 11-12 (waking press not counted; attendance task removed and how old saves load).",
+   "why": "The brief asks for this comment to be updated."
+  },
+  {
+   "id": "docs2",
+   "file": "docs/SALON.md",
+   "lines": "§2 (after line 131), §3.1 table row and rest-period line",
+   "what": "Describes the new rule: no follow during the rest period, the mirror line, how the scene asks the app, `restDown`, and that it follows again once the period is over (smoke Z 5).",
+   "why": "Decision 1 docs."
+  },
+  {
+   "id": "docs3",
+   "file": "docs/ROOM_EXPANSION.md",
+   "lines": "11-11 메모, line 625",
+   "what": "Same rule, in one sentence.",
+   "why": "Decision 1 docs."
+  },
+  {
+   "id": "t-z",
+   "file": "tools/smoke.js",
+   "lines": "5193-5262, 5465-5537",
+   "what": "`open()` in scenario Z can now open a second tab in the same context (`o.ctx`) and pass brain hooks (`o.test`). The steps after page load moved into `settle()` so they can run again after a reload. New Z part 5 with 5 subcases (see the guard field). SMOKE_Z defaults to 1-5.",
+   "why": "Tests for decision 1."
+  },
+  {
+   "id": "t-q",
+   "file": "tools/smoke.js",
+   "lines": "4712-4719, 4835-4836, 4870, 4879, 4955-4970, 5007, 5033-5038, 5178-5226",
+   "what": "Q test data no longer uses the removed task: in WEEK() its slot became 'loft' done, so the week still has five done; elsewhere it became 'plant'. Checks 10 and 11 now check the day record and the exact line \"오늘 선물: 조개 3 · 씨앗 1 (들어온 날 N일째)\" instead of the task's row. New Q19 (old save holding the task) and Q20 (waking press).",
+   "why": "Keep Q's old checks valid after the removal, and add tests for decisions 2 and 3."
+  }
+ ],
+ "decisions": "How the scene learns about the rest period: it asks the app at climb time rather than the app pushing a flag at every start and end, because one call to `restPhase()` already covers the live timer, a reload and other tabs, and nothing can get out of sync. The two ways the period can start while the octopus is already upstairs are handled in the app by `restDown()`. I kept the 11-08 owner rule that the period only counts down while the player watches the attic. So while the player is upstairs the timer does not move (Z 5-1 checks it stays put for 30 s), and the octopus naps after the player comes back down. The brief states that rule as a fact and asks only that the octopus not follow. If the owner wants it to nap while the player is still upstairs, watching() would need to count the upstairs room, which is a separate decision. When the period starts with the octopus upstairs and the player watching, it disappears from the room upstairs. It is not walked down, to keep \"never move it\" as close as possible, and this needs a slow brain plus climbing during the think. In the replaced weekly slot, progress and swap count start at 0, as with any unknown slot, so the player gets that slot's swaps back. Q test data replaces the removed task with 'loft' done, so the week still has five done tasks and the existing gift checks keep their meaning. Z part 5 uses lantern 4 because below 4 the blanket spot maps to 'center'.",
+ "new_text": [
+  "No new player-facing text. The only lines involved are existing ones, shown in new situations: '지금은 아래층에 있어.' and '지금은 아래층에서 자고 있어.' (mirror upstairs during the rest period or the nap). Font check: stale: none."
+ ],
+ "guard": "Checks added (tools/smoke.js).\nScenario Z part 5 (each subcase uses lantern 4, a 60 s awake period from the test hook and stepped time):\n- 5-1: a stay-home turn ends, the player climbs. The octopus is not upstairs; it is idle on the blanket with the turn still recorded; the mirror shows the downstairs line; no log row and no salon sound; the timer does not move in 30 s upstairs. After coming down it naps; climbing again it is still downstairs and asleep, with the sleeping line.\n- 5-2: during a new rest period the player is upstairs and the day changes (date hook). The period is over, the octopus is awake downstairs with the downstairs line, and after going down and up it follows again.\n- 5-3: the brain is slowed by 20 s; the player climbs mid-turn and the octopus follows (it is shown upstairs, anticipating). When the turn ends it is on the attic blanket in its rest period, with the downstairs line, and climbing again does not bring it.\n- 5-4: a reload during the period keeps the timer and the octopus does not follow.\n- 5-5: tab A has the octopus following upstairs; tab B in the same context finishes a stay-home turn. A's octopus moves to the blanket in its rest period, and climbing again does not bring it.\nScenario Q:\n- Q19: an old week holding 'days' plus seen lists and swap counts. Only that slot changes (to 'loft' here) and is saved at once. The other six slots, the claimed flag, shells, seeds, `user.days` and giftDay are unchanged; the list has no '사흘' row; the result is the same after a reload and in a fresh context.\n- Q20: a press on the awake octopus counts (1/2). It naps. The waking press, plus `APP.invite()` and another big-button press during that turn, makes exactly one new turn and the count stays 1, in memory and on disk.\n\nMutation table (each change reverted alone in a scratch copy; logs in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-owner/mut/<name>.log, built by mut/make.py and run by mut/run.sh):\n- M1, climb check `|| octResting()` removed: Z5 3 passed, 6 failed. All five behaviour checks of 5-1 to 5-5 fail; the octopus is up during the period.\n- M2, `restDown()` in finalPose removed: 1 failed, 5-3 (after the turn ends the octopus is still upstairs).\n- M3, `restDown()` in syncRest removed: 1 failed, 5-5 (A's octopus is still upstairs).\n- M4, the 'days' task and its progress count restored: Q 56 passed, 2 failed. Q19 fails (the slot stays 'days') and Q13 fails (swaps deal 'days').\n- M5, `if (!woke)` removed: 1 failed, Q20 (count 2 instead of 1).\n- M6, repair `save()` removed: 1 failed, Q19 (the saved week still holds 'days').",
+ "suites": [
+  "npm test: exit 0. Totals printed: world.js invariants OK, 517/0, 26/0, 568/0, 225/0, 192/0, 234/0, test-export 46/0 (log: fix-owner/npm-test.log)",
+  "Font check (tools/subset-fonts.py --check): stale: none",
+  "SMOKE_ONLY=Z (full, parts 1-5): 47 passed, 0 failed, 3 times in a row (z1, z2, z3; load average about 9-11)",
+  "SMOKE_ONLY=Q: run1 58/0, q2 58/0, q3 57/1, then q4, q5 and q6 each 58/0 (three in a row; load 8-10). The q3 failure was the older check Q-8, '두 탭: 한 탭이 넣으면…'. The hidden tab still held 32 shells in memory while the saved record had 35 after a day gift from the one-minute tick. My changes do not touch that path. Control: untouched base ae505a3 (git archive into fix-owner/control) ran Q once under load 6-9 and passed 55/0. That one failure is therefore no verdict, and I did not reproduce it.",
+  "SMOKE_ONLY=A: 74 passed, 0 failed (load about 11)",
+  "SMOKE_ONLY=Y: 99 passed, 0 failed (load about 11)",
+  "Load note: the machine ran at load 6-12 throughout. Every new check waits for a state and uses the seeded record, the date hook and stepped time; none waits for a set duration. The smoke screenshots went to the scratchpad build/shots folder, and git status shows no tracked evidence file changed.",
+  "Logs: /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-owner/ (z1-3.log, q-run1.log, q2-6.log, qctl.log, sA.log, sY.log)"
+ ],
+ "left": [
+  "Old weeks: if a past week counted 'days' among its five done tasks and the gift was not claimed, the gift is no longer given when the week changes (only 4 known tasks are done). That task was only ever counted from page loads, so this follows from removing it; flagging it in case the owner wants such weeks honoured.",
+  "The replaced slot starts at 0 with its swaps reset, which is the existing unknown-slot behaviour. A player whose old slot had used swaps gets them back.",
+  "With a slow brain, if the player climbs while the brain is thinking and the turn ends as stay-home, the octopus disappears from the room upstairs when the turn ends. That is the move back to the blanket; it is not shown walking. It is rare, but a player may notice it.",
+  "The rest period does not count down while the player is upstairs (the existing 11-08 rule). The owner may want to reconsider it now that the octopus stays downstairs.",
+  "`questMark('gift')` is still called in the gift box (app.js:3311) although 'gift' is no longer a weekly task. It does nothing and came from an earlier change; I left it.",
+  "In the 2D scene with no posters, exactly 7 tasks can be dealt, so swapping finds no other task (the swap buttons hide). I added only the empty-slot fallback; widening the pool is an owner matter.",
+  "docs/OWNER_DECISIONS.md does not record these three decisions; the brief did not ask for it, so I did not add them."
+ ],
+ "not_verified": [
+  "I did not run a real model-backed brain. The slow-brain case uses `BRAIN.plan` delayed by 20 s.",
+  "I did not check on a real phone or take screenshots. All checks read state and coordinates, as scenario Z does.",
+  "Other smoke scenarios besides Q, Z, A and Y, and test:slow (scene perf, test-play, test-audio, test-resume and so on), were not run.",
+  "The 2D fallback scene (no loft) was not run with these changes. Every new call is guarded by `octWithMe()` and a function check.",
+  "The intermittent Q-8 two-tab failure from run 3 was not reproduced or explained."
+ ],
+ "pictures": []
+}

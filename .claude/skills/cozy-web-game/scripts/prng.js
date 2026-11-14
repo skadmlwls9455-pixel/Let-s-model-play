@@ -1,5 +1,5 @@
-// Deterministic seeding helpers for "daily seed" games (same date + same input → same outcome).
-// fnv1a: string → uint32.  mulberry32: uint32 → () => [0,1).  Never call Math.random in game logic.
+// Deterministic seeding helpers for "daily seed" games (same date + same input -> same outcome).
+// fnv1a: string -> uint32.  mulberry32: uint32 -> () => [0,1).  Never use the built-in unseeded RNG in game logic.
 function fnv1a(str) {
   let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
@@ -29,7 +29,7 @@ function pickWeighted(items, rng, weightOf = x => x.w ?? 1) {
 }
 if (typeof module !== 'undefined') module.exports = { fnv1a, hashSeed, mulberry32, dateKey, pickWeighted };
 
-// Stronger alternative (public domain, bryc/code jshash/PRNGs.md): xmur3 string hash → sfc32 (128-bit state).
+// Stronger alternative (public domain, bryc/code jshash/PRNGs.md): xmur3 string hash -> sfc32 (128-bit state).
 // mulberry32 is fine for small games; sfc32 avoids its "skips ~1/3 of 32-bit values" quirk. Warm up 12 rounds.
 function xmur3(str) {
   let h = 1779033703 ^ str.length;

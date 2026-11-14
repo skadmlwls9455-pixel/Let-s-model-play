@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="ko" data-font="pixel">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#d7b594" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#10141f" media="(prefers-color-scheme: dark)">
+<title>뽈뽈 문어</title>
+<!-- 첫 화면 픽셀 글꼴 미리 받기: 첫 화면이 쓰는 Galmuri 부분집합 넷(본문 9 · 버튼 11 · 굵은 11 · 메타 7)을 스타일시트를 다 읽기 전에 받기 시작한다.
+     스크립트로 넣는 까닭: file:// 에서는 crossorigin preload 가 CORS 로 막혀 오류·경고가 나고, 시스템 글꼴을 골랐으면 건너뛴다 (쓰지 않게 되면 "preload 했는데 안 씀" 경고가 난다).
+     crossorigin 이 없으면 @font-face 요청이 preload 를 다시 쓰지 않고 또 받는다. 스타일시트보다 앞에 있어야 기다리지 않고 바로 돈다 -->
+<script>(function () {
+  if (!/^https?:$/.test(location.protocol)) return;
+  /* 기록 전체를 JSON.parse 하지 않고 글자만 찾는다 (오래 논 기록은 몇 MB — head 에서 파서를 붙잡지 않게). 저장은 JSON.stringify 그대로라 공백이 없고, 문자열 속 따옴표는 \" 라 키로만 걸린다 */
+  try { var raw = localStorage.getItem('ppolppol_v2') || ''; if (raw.indexOf('"pixelFont":false') !== -1 || raw.indexOf('"font":"system"') !== -1) return; } catch (e) { /* 저장소 없음 → 기본(픽셀 글꼴) */ }
+  ['Galmuri9', 'Galmuri11', 'Galmuri11-Bold', 'Galmuri7'].forEach(function (f) {
+    var l = document.createElement('link'); l.rel = 'preload'; l.as = 'font'; l.type = 'font/woff2'; l.crossOrigin = 'anonymous'; l.href = 'vendor/fonts/' + f + '.sub.woff2';
+    document.head.appendChild(l);
+  });
+})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap">
+<link rel="stylesheet" href="vendor/fonts/galmuri.css"><!-- 픽셀 글꼴 (Galmuri, OFL) · file:// 상대 경로 -->
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/ui-art.css">
+<link rel="stylesheet" href="css/runner.css">
+<link rel="stylesheet" href="css/intro.css"><!-- 입장 레이어 (js/intro.js) -->
+<script src="js/intro.js"></script><!-- head 에서 읽어 html.intro-on 을 먼저 붙인다 (UI 깜빡임 방지) -->
+<!-- 저장소 워밍업: 문서가 열리자마자 한 번 읽어 둔다. file:// 원점에서 새로고침 직후 첫 읽기가 직전 커밋을 놓치는 경우가 있어서 (R2) -->
+<script>try { localStorage.getItem('ppolppol_v2'); } catch (e) { /* 저장소 없음: app.js 가 메모리로 대신한다 */ }</script>
+<!-- 한 화면 배치 (주인 11-08: "화면이 반으로 나뉘어져있는 느낌인 게 불편해서" → 장면이 화면을 다 쓰고 상태 줄 · 대사 · 큰 버튼이 그 위에 뜬다. docs/DESIGN.md §7.2).
+     3D 장면일 때만이다: 첫 그림 전에 여기서 표시해 두고(깜빡임 없음), WebGL 이 없거나 3D 가 멈춰 2D 로 바뀌면 app.js initScene 이 뗀다 — 그땐 예전처럼 위아래로 쌓인다. 규칙은 css/style.css 의 html[data-layout="one"] -->
+<script>try { if (!/[?&]scene=2d(&|$)/.test(location.search)) document.documentElement.setAttribute('data-layout', 'one'); } catch (e) {}</script>
+</head>
+<body>
+
+<!-- 저장 실패 경고 (조용히, 1회) -->
+<div id="save-warn" class="warn" hidden role="status"></div>
+
+<!-- #shell: 장면과 그 위에 뜨는 것들(상태 줄 · 대사 자리 · 큰 버튼)의 틀. 2D 폴백에선 보통 블록(위아래로 쌓인다), 한 화면 배치에선 화면 높이 한 장이고 나머지가 장면 위에 겹친다.
+     DOM 순서 = 읽는 순서 · Tab 순서 그대로: 장면(아이콘 · 집 · 걷기) → 상태 줄 → 대사 → 큰 버튼 -->
+<div id="shell">
+
+<!-- ══ SCENE · 3D 픽셀아트 다락방 (§7.0, js/scene3d.js) — WebGL 없으면 아래 #stage 2D 폴백 ══ -->
+<section id="scene" class="px-frame" aria-label="문어의 다락방">
+  <p id="scene-desc" class="sr-only"></p><!-- 화면 낭독기용 장면 설명 (장소 · 문어 상태 · 날씨/시각). app.js 가 채운다. 라이브 영역 아님 -->
+  <div id="scene3d" aria-hidden="true" hidden></div>
+  <div id="stage">
+    <div id="layers"></div>
+    <div id="window-fx" aria-hidden="true"></div>
+    <div id="souvenir-row" aria-label="선반"></div>
+    <div id="wall-posts" aria-label="벽에 붙은 포스터"></div>
+    <div id="oct" class="st-idle" aria-label="문어">
+      <div id="oct-label" aria-live="off"></div>
+      <div id="oct-inner">
+        <!-- 인라인 문어 (48×48, 발끝 = 아래 가운데) · 팔레트 §7.1 -->
+        <svg id="oct-svg" viewBox="0 0 48 48" width="48" height="48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <g class="legs">
+            <path class="leg l1" d="M13 29 Q7 36 8 43 Q10 46 13 43 Q15 38 17 32" fill="#e8463c"/>
+            <path class="leg l2" d="M18 31 Q15 38 15 44 Q17 47 20 44 Q21 38 22 33" fill="#e8463c"/>
+            <path class="leg l3" d="M23 32 Q22 39 23 45 Q25 47 27 45 Q27 39 26 33" fill="#e8463c"/>
+            <path class="leg l4" d="M28 31 Q31 38 31 44 Q29 47 26 44 Q26 38 25 33" fill="#d93d33"/>
+            <path class="leg l5" d="M33 29 Q39 36 38 43 Q36 46 33 43 Q31 38 30 32" fill="#d93d33"/>
+            <path class="leg l6" d="M10 31 Q4 33 3 37 Q4 40 7 38 Q10 35 14 34" fill="#e8463c"/>
+            <path class="leg l7" d="M38 31 Q44 33 45 37 Q44 40 41 38 Q38 35 34 34" fill="#d93d33"/>
+            <g fill="#f6c28c">
+              <circle cx="9" cy="42" r="1"/><circle cx="16" cy="43" r="1"/><circle cx="24" cy="44" r="1"/>
+              <circle cx="31" cy="43" r="1"/><circle cx="37" cy="42" r="1"/><circle cx="5" cy="38" r=".9"/><circle cx="43" cy="38" r=".9"/>
+            </g>
+          </g>
+          <g class="body">
+            <ellipse cx="24" cy="21" rx="14" ry="13" fill="#e8463c"/>
+            <ellipse cx="18" cy="13" rx="5" ry="3.4" fill="#f2a05a" transform="rotate(-25 18 13)"/>
+            <circle cx="15.5" cy="11" r="1.4" fill="#fff6ee"/>
+            <circle cx="19" cy="22" r="3.4" fill="#fff6ee"/><circle cx="29" cy="22" r="3.4" fill="#fff6ee"/>
+            <circle class="pupil" cx="19.6" cy="22.4" r="2" fill="#1b1f2e"/><circle class="pupil" cx="29.6" cy="22.4" r="2" fill="#1b1f2e"/>
+            <circle cx="20.3" cy="21.6" r=".6" fill="#fff6ee"/><circle cx="30.3" cy="21.6" r=".6" fill="#fff6ee"/>
+            <path class="eyelid" d="M15.6 22 h7 M25.6 22 h7" stroke="#e8463c" stroke-width="7" stroke-linecap="butt" opacity="0"/>
+            <path d="M22 28 h4" stroke="#8a2a24" stroke-width="1.4" stroke-linecap="round"/>
+            <g class="blush" opacity="0"><ellipse cx="14" cy="26" rx="2.4" ry="1.4" fill="#f2a05a"/><ellipse cx="34" cy="26" rx="2.4" ry="1.4" fill="#f2a05a"/></g>
+          </g>
+        </svg>
+      </div>
+      <div id="oct-bubble" hidden></div>
+    </div>
+  </div>
+  <!-- 장면 오른쪽 위 아이콘 묶음 (DESIGN §7.2 · §6.3): 추억 앨범(첫 포스터·메모가 생긴 뒤부터) · ⚙ 설정. 소리 켜기·끄기는 설정 › 소리 칸 맨 위 (주인 11-08 — 장면 위 스피커는 없앴다).
+       누르는 곳 44×44 · 보이는 상자 28×28 · 그림은 12칸 격자 ×2 (currentColor, 두 테마). 앨범 점은 지난번에 앨범을 연 뒤 새 포스터가 붙었을 때만 (숫자 없음, 열면 사라진다) -->
+  <div id="scene-ctl" class="scene-ctl">
+    <!-- 오늘의 산책 쪽지 (한 화면 배치 전용 — 2D 폴백에선 목록이 아래에 그대로 보여서 숨긴다. app.js initScene). 누르면 #log-sheet. 점은 시트를 닫아 둔 사이 새 줄이 생겼을 때만 (숫자 없음, 열면 사라진다) -->
+    <button type="button" id="btn-today" class="icon-btn today-btn" aria-label="오늘의 산책" title="오늘의 산책" aria-haspopup="dialog" aria-controls="log-sheet" aria-describedby="today-new" hidden>
+      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M2 1h6v1H2zM2 2h1v8H2zM7 2h2v1H7zM7 3h3v1H7zM9 4h1v6H9zM2 10h8v1H2z"/><path d="M4 4h2v1H4zM4 6h4v1H4zM4 8h4v1H4z"/></svg></span>
+      <span class="ib-dot" aria-hidden="true" hidden></span>
+      <span id="today-new" class="sr-only"></span>
+    </button>
+    <!-- 가구 배치 (11-10 주인: "소파 모양을 포스터 아이콘 왼쪽에") — 누르면 배치 모드: 아래에 가구 줄, 고르면 캐릭터 앞에 붙는다. 다락이 보일 때만 (app.js furnBtnSync) -->
+    <button type="button" id="btn-furn" class="icon-btn furn-btn" aria-label="가구 배치" title="가구 배치" aria-pressed="false">
+      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M3 2h6v1H3zM2 3h1v3H2zM9 3h1v3H9zM3 3h6v2H3zM1 5h1v4H1zM10 5h1v4h-1zM2 6h8v3H2zM2 9h1v2H2zM9 9h1v2H9z"/></svg></span>
+    </button>
+    <button type="button" id="btn-album" class="icon-btn album-btn" aria-label="추억 앨범" title="추억 앨범" aria-haspopup="dialog" aria-controls="album-sheet" aria-describedby="album-new" hidden>
+      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M1 2h10v1H1zM1 10h10v1H1zM1 3h1v7H1zM10 3h1v7h-1z"/><path class="al-pic" d="M3 6h1v1H3zM2 7h3v1H2zM6 5h1v1H6zM5 6h3v1H5zM4 7h5v1H4zM2 8h8v2H2zM8 4h1v1H8z"/></svg></span>
+      <span class="ib-dot" aria-hidden="true" hidden></span>
+      <span id="album-new" class="sr-only"></span>
+    </button>
+    <!-- ⚙ 설정 (문어 색 안내 · 소리 켜기·크기 · 모션 · 글꼴 · 기록): 예전 '방 보기' 자리 (주인 11-07: 방 보기는 없앴다) -->
+    <button type="button" id="btn-settings" class="icon-btn settings-btn" aria-label="설정" title="설정" aria-haspopup="dialog" aria-controls="settings-sheet">
+      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M5 1h2v1H5zM2 2h2v1H2zM5 2h2v1H5zM8 2h2v1H8zM2 3h8v1H2zM3 4h2v1H3zM7 4h2v1H7zM1 5h3v1H1zM8 5h3v1H8zM1 6h3v1H1zM8 6h3v1H8zM3 7h2v1H3zM7 7h2v1H7zM2 8h8v1H2zM2 9h2v1H2zM5 9h2v1H5zM8 9h2v1H8zM5 10h2v1H5z"/></svg></span>
+    </button>
+  </div>
+  <!-- 방 문 · 오락기 (8물결): 3D 장면 위에 겹친 진짜 <button> — 자리 · 크기 · hidden 은 장면이 매 프레임 맞춘다 (scene.hotspots, 누르는 곳 44×44 이상). #scene3d(aria-hidden) 밖에 둔다.
+       #btn-door = 다락 안 놀이방 문 (data-spot="over" 일 땐 투명 · 문어가 나가 바깥이 보이는 동안은 data-spot="edge" 로 장면 왼쪽 아래 픽셀 집 단추 (틀에서 설정 아이콘과 같은 8px 안) — 그림은 16×16 ×2 'ctl.home' (빨간 지붕 집, 주인 11-08), 안 오면 글자 '집').
+       누르면 끼익 → 놀이방 (APP.goRoom('play')). #btn-play-door = 놀이방 왼쪽 벽 문 → 문어 방 (goRoom('attic')) · #btn-machine = 다락방 달리기 오락기 → 달리기 창.
+       그림 위('over')에선 pointer-events: none — 손가락은 장면이 받아 그린 순서대로 단추를 누른다 (밀기 · 핀치가 문 위에서도 된다). 두 문 단추는 aria-describedby 로 지금 장소 설명(#scene-desc)을 읽힌다 (방을 옮기면 도착한 곳이 들린다) -->
+  <button type="button" id="btn-door" class="scene-door" aria-label="놀이방" title="놀이방" aria-describedby="scene-desc">
+    <span class="door-box" aria-hidden="true"><img class="door-ico" data-icon="ctl/home" alt="" width="32" height="32" draggable="false"><span class="door-txt">집</span></span>
+  </button>
+  <button type="button" id="btn-play-door" class="scene-spot" aria-label="문어 방" title="문어 방" aria-describedby="scene-desc" hidden></button>
+  <!-- 소파 위 연한 노란 점 (11-10): 누르면 내 캐릭터가 소파 앞으로 걸어가 폴짝 뛰어 앉는다. 자리는 장면이 on.sofaSpot 으로 알려 준다 (app.js). 누르는 곳 44×44 · 보이는 점 10px -->
+  <button type="button" id="btn-sofa" class="sofa-dot" aria-label="소파에 앉기" title="소파에 앉기" hidden><span aria-hidden="true"></span></button>
+  <!-- 가구 배치 모드 (11-10): 가구를 꾹 누르면 뜬다. 가구가 내 캐릭터 앞에 붙어 따라오고, 여기서 돌리기 · 크기 · 취소 · 놓기 (app.js furnUI · 장면 furnCarry) -->
+  <div id="furn-ui" class="furn-ui" hidden>
+    <div class="furn-top"><button type="button" class="btn sm pressable" id="furn-done">끝내기</button><strong id="furn-title">가구 배치</strong></div>
+    <!-- 고른 가구가 있을 때만: 회전 · 크기 슬라이더 + 취소 · 놓기 (참고 화면의 오른쪽 세로 슬라이더 · ✕ ✓ 자리) -->
+    <div id="furn-tools" class="furn-tools" hidden>
+      <label class="furn-sl"><span>회전</span><input type="range" id="furn-rot" min="0" max="345" step="15" value="0" aria-label="회전"></label>
+      <label class="furn-sl"><span>크기</span><input type="range" id="furn-size" min="70" max="150" step="5" value="100" aria-label="크기"></label>
+      <div class="furn-yn"><button type="button" class="btn sm pressable" id="furn-x">취소</button><button type="button" class="btn sm primary pressable" id="furn-ok">놓기</button></div>
+    </div>
+    <div id="furn-items" class="furn-strip" role="group" aria-label="가구"></div>
+  </div>
+  <!-- 가방 꼬리표 (11-10): 위쪽 바 아래 오른쪽에 매달린 '조개 N' — 누르면 살림 시트 (조개 · 씨앗 · 들어온 날 · 텃밭 · 옷 물들이기). 이름을 지은 뒤부터 보인다 -->
+  <button type="button" id="btn-bag" class="bag-tag pressable" aria-haspopup="dialog" aria-controls="bag-sheet" hidden><span id="bag-n">조개 0</span></button>
+  <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-stair" class="scene-spot" aria-label="위층으로" title="위층으로" hidden></button>
+  <button type="button" id="btn-loft-stair" class="scene-spot" aria-label="아래층으로" title="아래층으로" hidden></button>
+  <button type="button" id="btn-plot0" class="scene-spot" aria-label="텃밭 첫째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot1" class="scene-spot" aria-label="텃밭 둘째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-plot2" class="scene-spot" aria-label="텃밭 셋째 칸" title="텃밭" hidden></button>
+  <button type="button" id="btn-sew" class="scene-spot" aria-label="재봉틀 · 옷 물들이기" title="재봉틀" aria-haspopup="dialog" hidden></button>
+  <!-- 발자국 손잡이 (가상 스틱, 주인 11-08 "바닥 톡보다 훨씬 자연스럽다"): 장면 왼쪽 아래 72px 고리 + 28px 손잡이. 끌면 그 화면 방향으로 내 캐릭터가 걷는다 (js/app.js stick 절 · scene.setPlayerInput).
+       다락 · 놀이방이 보일 때만 — hidden 은 장면의 on.playerInput(allowed) 로 앱이 쥔다 (바깥 · 입장 연출 · 문 작업 · 전환 · 2D 폴백에선 숨김). 바깥의 집 단추(#btn-door edge)와 자리는 같은 왼쪽 아래지만 보이는 때가 서로 배타적이다.
+       키보드 포커스는 받지 않는다 (aria-hidden — 키보드는 방향키 · WASD). 그림은 16×16 ×2 'ctl.walk' (발자국 둘), 안 오면 글자 '걷기'. 발자국 그림이 곧 손잡이다 (--kx · --ky) — 그 밑의 회색 네모 손잡이는 뺐다 (주인 11-10) -->
+  <!-- 떠다니는 스틱 (주인 11-10): 장면 왼쪽 아래 구역(#stick-zone) 어디든 누르면 그 자리가 스틱의 가운데가 된다. 안 누를 땐 흐린 발자국만 제자리에 -->
+  <div id="stick-zone" class="stick-zone" hidden aria-hidden="true"></div>
+  <div id="stick" class="stick" hidden aria-hidden="true">
+    <div class="stick-ring"><img class="stick-ico" data-icon="ctl/walk" alt="" width="32" height="32" draggable="false"><span class="stick-txt">걷기</span></div>
+  </div>
+  <!-- 미용실 거울 (docs/SALON.md §2 · §3.1): 다락 뒷벽 거울 코너(등불 2칸부터) 위 투명 단추 — 자리 · hidden 은 장면이 (앱이 setSalonOpen 으로 허락할 때만: 산책 · 나감 · 연출 중엔 숨김).
+       누르면 미용실 시트 (자는 중이면 '쿨쿨…' · 오늘 이미 물었으면 토스트). 장면 설명을 같이 읽힌다 -->
+  <button type="button" id="btn-salon" class="scene-spot" aria-label="미용실" title="미용실" aria-haspopup="dialog" aria-controls="salon-sheet" aria-describedby="scene-desc" hidden></button>
+  <!-- 구석 쪽지 (8물결): 놀이방에 있는 동안 문어가 돌아오면 "뚜루가 돌아왔어." + 보러 가기 (놀이방 문으로 다락에). 장면 아래 왼쪽 · 놀이방을 나가면 사라진다 -->
+  <div id="back-note" class="back-note" hidden>
+    <p id="back-note-txt" class="bn-txt" role="status" aria-live="polite"></p>
+    <button type="button" id="btn-back-see" class="btn sm pressable bn-go">보러 가기</button>
+  </div>
+</section>
+
+<!-- ══ STATUS (§7.2) — 한 줄: 이름 [데모] · 방 제목 | 등불 ■■□□□□□□ n/8.
+     [데모] 를 누르면 누가 고르는지 한 줄, 등불을 누르면 "초대한 날마다 한 칸 켜져" — 같은 작은 말풍선(#tip, 2.5 s · 다시 누르면 닫힘 · 화면 낭독기 polite).
+     추억 앨범 · 설정 버튼은 장면 오른쪽 위 묶음(#scene-ctl): 320 px 에서 아이콘을 이 줄에 두면 두 글자 이름부터 잘렸다 (DESIGN §7.2) ══ -->
+<div id="status">
+  <div class="srow">
+    <!-- #brain-tag: 데모 두뇌(규칙)가 고르는 동안 늘 보이는 아주 작은 표시 (정직 표기). 모델(MCP) 여행을 재생하는 동안만 숨긴다 (app.js renderBrainTag) -->
+    <span class="who"><span id="oct-name" class="name">이름 없는 문어</span><button type="button" id="brain-tag" class="brain-tag"><span aria-hidden="true">데모</span><span class="sr-only">데모 규칙이 움직이는 중</span></button><span id="room-title" class="room-title">불씨 하나 켜진 다락</span></span>
+    <button type="button" id="pips" class="pips" aria-label="등불 0/8"><span class="pips-lbl" aria-hidden="true">등불</span><span class="pip-row" aria-hidden="true"></span><span class="pips-n" aria-hidden="true">0/8</span></button>
+  </div>
+  <p id="tip" class="tip" role="status" aria-live="polite"></p>
+</div>
+
+<!-- ══ 대사 자리 (주인 11-08: "문어 대사가 아래에 슥 뜨고 실제로는 방 움직이고 돌아다니는 쪽으로") — 한 화면 배치에선 장면 아래쪽에 겹쳐 뜨고, 2D 폴백에선 상태 줄과 큰 버튼 사이 한 칸.
+     이번 물결은 자리만 잡는다: js/dialogue-stub.js 의 DLG 가 #dbox 를 여기에 짓고, 말이 있을 때만 .show (app.js dlgShow). 어떤 말을 여기로 보낼지는 대사창 물결의 일 — 지금은 ?dev=1 의 APP.dlgDemo 만 쓴다 ══ -->
+<div id="dlg-host" class="dlg-host"></div>
+
+<!-- ══ INVITE (§7.3) ══ -->
+<section id="invite" aria-label="초대">
+  <!-- 큰 버튼 하나 (주인 11-07): 나가 있는 동안엔 "다녀오는 중…" (글자만, 기호 없음) — 누르면 바로 데려온다 (예전 건너뛰기). 따로 된 건너뛰기·방 보기 버튼은 없다 -->
+  <div class="btn-row">
+    <button type="button" class="btn primary pressable" id="btn-go"><span class="go-txt">산책 갈래?</span></button>
+  </div>
+</section>
+
+</div><!-- /#shell -->
+
+<!-- ══ LOG (§7.4) — 2D 폴백에선 여기 그대로. 한 화면 배치(3D)에선 app.js 가 #log 노드를 아래 #log-sheet 안으로 옮기고 이 칸은 숨긴다 (같은 노드 · 같은 id) ══ -->
+<section id="log-sec" aria-label="오늘의 산책">
+  <h2 class="sec-h">오늘의 산책</h2>
+  <div id="log" role="log" aria-live="polite" tabindex="0"></div>
+  <!-- 큰 도서관 '오늘의 서가' (js/shelf.js): 날짜로 정해지는 위키백과 알찬·좋은 글 8편. MCP 서버도 같은 날 같은 8편을 문어에게 보여 준다 -->
+  <details id="shelf-today" class="shelf-today" hidden>
+    <summary>오늘의 서가</summary>
+    <p class="shelf-note">날마다 바뀌는 위키백과 알찬 글·좋은 글 8편. 모델이 고르는 날엔 문어도 같은 서가를 본다.</p>
+    <ul id="shelf-list"></ul>
+  </details>
+</section>
+
+<!-- ══ DEMO (§7.6) — 개발용: ?dev=1 · localhost · file:// 에서만 보인다 (app.js DEV) ══ -->
+<details id="demo" hidden>
+  <summary>데모 조작 (개발용)</summary>
+  <p class="warn-line">여기 버튼은 문어 대신 사람이 고르는 거야. 일기에 '사람이 조작'으로 남아.</p>
+  <div class="btn-row">
+    <button type="button" class="btn sm" id="d-depart">출발</button>
+    <button type="button" class="btn sm" id="d-stay">집에 있기</button>
+    <button type="button" class="btn sm" id="d-peek">기웃</button>
+    <button type="button" class="btn sm" id="d-return">귀가</button>
+    <button type="button" class="btn sm" id="d-poster">포스터</button>
+    <button type="button" class="btn sm" id="d-wrap">마무리</button>
+  </div>
+  <input id="d-peek-in" type="text" maxlength="200" placeholder="기웃거릴 곳 (노드 이름 또는 URL)">
+  <label class="lbl" for="d-json">이벤트 JSON 배열 붙여넣기 (by: mcp)</label>
+  <textarea id="d-json" rows="3" placeholder='[{"type":"depart","t":0,"hint":""}, …]'></textarea>
+  <div class="btn-row"><button type="button" class="btn sm" id="d-import">이벤트 JSON 불러오기</button></div>
+  <p class="help" id="d-msg"></p>
+  <div id="dev-look" class="dev-look">
+    <label class="dv"><span>픽셀 <b id="dv-px-v"></b></span><input type="range" id="dv-px" min="1" max="4" step="1"></label>
+    <label class="dv"><span>디더 <b id="dv-dither-v"></b></span><input type="range" id="dv-dither" min="0" max="1" step="0.05"></label>
+    <label class="dv"><span>외곽선</span><input type="checkbox" id="dv-outline"></label>
+    <label class="dv"><span>시점 <b id="dv-yaw-v"></b></span><input type="range" id="dv-yaw" min="-25" max="25" step="1"></label>
+    <label class="dv"><span>키 광 <b id="dv-key-v"></b></span><input type="range" id="dv-key" min="0.5" max="4" step="0.1"></label>
+    <label class="dv"><span>필 광 <b id="dv-fill-v"></b></span><input type="range" id="dv-fill" min="0" max="1" step="0.02"></label>
+    <p class="help" id="dv-msg"></p>
+    <div id="dv-swatch" class="swatch" aria-label="팔레트"></div>
+  </div>
+</details>
+
+<footer class="foot">뽈뽈 문어 · <a href="https://github.com/skadmlwls9455-pixel/model-welfare-idea" rel="noopener" target="_blank">뽈뽈 복지</a>에서 왔어</footer>
+
+<!-- 먼 바다 문 (11-10): 등불 4칸 뒤 문어가 제안하면 사람이 한 번 고른다. 두 단추는 크기·모양이 같고 미리 골라진 쪽이 없다. 타이머 없음 (ROOM_EXPANSION 제안과 같은 틀). 11-13 (금지선 1): 첫 줄은 한 일(제안)만 — 예전 '가 보고 싶대' 는 코드가 문어 마음을 지어낸 말이라 뺐다 -->
+<dialog id="far-dialog" class="modal" aria-labelledby="far-h">
+  <h2 id="far-h">먼 바다 문</h2>
+  <p class="name-lead">문어가 먼 바다 문 너머까지 가 보자고 했어. 열면 영어 위키백과도 읽을 수 있어.</p>
+  <p id="far-line" class="far-line" hidden></p>
+  <p class="honest">한 번만 정하면 돼. 그대로 두어도 문어는 조르지 않아.</p>
+  <div class="btn-row far-btns"><button type="button" class="btn wide pressable" id="far-open">열어 줘</button><button type="button" class="btn wide pressable" id="far-keep">지금은 그대로</button></div>
+</dialog>
+<!-- ══ 이름 모달 = 첫 실행 (§7.8 · docs/SALON.md §1.1): 제목 → 한 줄 → 초상 → 몸 색 6칸 → 이름 칸 → 저장 → 정직 줄.
+     몸 색은 처음 한 번만 고른다 (주인 11-08 밤). 칸을 누르면 창 안 초상만 그 색으로 (장면 문어는 저장 때 한 번). 라벨 · 색 이름 줄은 화면에 없다 (aria-label 만) ══ -->
+<dialog id="name-dialog" class="modal" aria-labelledby="name-h">
+  <form method="dialog" id="name-form">
+    <h2 id="name-h" class="dlg-top" tabindex="-1">문어 이름을 지어 줘</h2><!-- 손가락 기기에선 열 때 포커스가 여기 (자판이 색 줄을 가리지 않게) · 마우스면 이름 칸 (app.js openNameDialog) -->
+    <p class="name-lead"><span class="ln">오늘 처음 보내는 문어야.</span></p>
+    <div class="name-pic" aria-hidden="true">
+      <canvas id="name-port" width="64" height="64" hidden></canvas><!-- 웃는 초상 64×64 (scene.portrait — 누른 색으로) -->
+      <img class="big oct-pic" data-asset="oct.happy" alt="" width="48" height="48" draggable="false"><!-- 초상을 못 그릴 때(3D 컨텍스트 잃음)만 남는 대체 그림 (assets/oct/happy.svg · 주소는 app.js 가 manifest/번들 규칙으로 채운다, 안 오면 지운다). 예전 🐙 글자는 뺐다 (주인 11-07) -->
+    </div>
+    <div id="name-colors" class="presets name-colors" role="group" aria-label="몸 색"></div><!-- 색 6칸 button.preset[type=button][aria-pressed] (app.js 가 js/salon.js PRESETS 로 채운다 · 처음엔 빨강이 눌린 채) -->
+    <input class="modal-in" id="name-in" type="text" placeholder="예: 뚜루, 안개, 삐죠…" maxlength="18" autocomplete="off" required>
+    <button type="submit" class="btn primary wide pressable">이름 저장</button>
+    <p class="honest"><span class="ln">지금은 미리 만든 규칙으로</span><span class="ln">움직이는 체험판이야.</span></p>
+  </form>
+</dialog>
+
+<!-- ══ 포스터 열람 모달 (§6.3 · §15.1) — 왼쪽(폰에선 위) 포스터, 오른쪽(아래) 짧은 기록, 일기(뒷면)는 아래로 펼침 ══ -->
+<dialog id="poster-dialog" class="modal poster-modal" aria-label="포스터 열람">
+  <h2 id="pd-h" class="sr-only dlg-top" tabindex="-1">포스터</h2><!-- 열 때 포커스는 여기(맨 위) — 첫 버튼은 폰에서 상자 아래쪽이라 (app.js showDialog). 글자는 포스터 제목 -->
+  <div class="flipper" id="flipper">
+    <div class="inspect">
+      <div class="inspect-art"><div class="face front" id="pd-front"></div></div>
+      <div class="inspect-text" id="pd-text"></div>
+    </div>
+    <div class="face back" id="pd-back"></div>
+  </div>
+  <div class="btn-row center">
+    <button type="button" class="btn pressable" id="pd-flip" aria-controls="pd-back" aria-expanded="false">일기 전체 보기</button>
+    <button type="button" class="btn pressable" id="pd-save">이미지로 저장</button>
+    <button type="button" class="btn pressable" id="pd-copy">복사</button>
+    <button type="button" class="btn pressable" id="pd-close">닫기</button>
+  </div>
+</dialog>
+
+<!-- ══ 오늘의 산책 시트 (한 화면 배치 전용 — 장면 오른쪽 위 쪽지 아이콘 #btn-today). 다른 시트와 같은 손잡이 · 끌어내리기 · 닫기. 안의 목록은 #log 그대로 (app.js 가 #log-slot 으로 옮겨 온다) ══ -->
+<dialog id="log-sheet" class="sheet log-sheet" aria-labelledby="log-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="log-h" class="set-h dlg-top" tabindex="-1">오늘의 산책</h2>
+  <div id="log-slot"></div>
+  <button type="button" class="btn wide pressable" id="log-close">닫기</button>
+</dialog>
+
+<!-- ══ 설정 (⚙, 장면 오른쪽 위) — 문어 색(거울이 생긴 뒤 안내 한 줄만 — docs/SALON.md §1.2) · 소리(켜기 · 음악 · 효과음 — js/audio.js 가 채운다) · 모션 · 픽셀 글꼴 · 포스터 썸네일 · 기록 · 누가 고르나. 예전 '방 보기' 시트는 없앴다 (주인 11-07) ══ -->
+<dialog id="settings-sheet" class="sheet settings-sheet" aria-labelledby="set-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="set-h" class="set-h dlg-top" tabindex="-1">설정</h2><!-- 열 때 포커스는 여기 (app.js showDialog) -->
+  <div id="set-body"></div>
+  <button type="button" class="btn wide pressable" id="set-close">닫기</button>
+  <p class="set-foot">뽈뽈 문어 · <a href="https://github.com/skadmlwls9455-pixel/model-welfare-idea" rel="noopener" target="_blank">뽈뽈 복지</a>에서 왔어</p>
+</dialog>
+
+<!-- ══ 내 모습 옷장 (11-09 주인: "외관도 이런 느낌 ui로 각 항목별로 고를 수 있게 카테고리 나눠도 좋을 듯") — 설정 › 내 모습 › '모습 바꾸기' 로 연다 (설정 시트 위에 겹친다).
+     왼쪽 세로 탭(갈래 여섯: 머리 · 눈 · 얼굴 · 옷 · 신발 · 장식) · 가운데 썸네일 타일 · 오른쪽 전신 미리보기(앞 · 뒤). 고르면 바로 입는다 (app.js openLook · docs/PLAYER_PARTS.md §3).
+     본문(#look-body)은 app.js 가 채운다. 폰은 바텀시트, ≥600px 은 가운데 ══ -->
+<!-- ══ 살림 시트 (11-10): 조개 · 씨앗 · 들어온 날 · 텃밭 세 칸 · 옷 물들이기 — 본문은 app.js renderBag ══ -->
+<dialog id="bag-sheet" class="sheet bag-sheet" aria-labelledby="bag-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="bag-h" class="set-h dlg-top" tabindex="-1">살림</h2>
+  <div id="bag-body"></div>
+  <button type="button" class="btn wide pressable" id="bag-close">닫기</button>
+</dialog>
+
+<dialog id="sew-sheet" class="sheet bag-sheet" aria-labelledby="sew-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="sew-h" class="set-h dlg-top" tabindex="-1">옷방 재봉틀</h2>
+  <div id="sew-body"></div>
+  <button type="button" class="btn wide pressable" id="sew-close">닫기</button>
+</dialog>
+
+<dialog id="look-sheet" class="sheet look-sheet" aria-labelledby="look-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="look-h" class="set-h dlg-top" tabindex="-1">내 모습</h2>
+  <div id="look-body" class="look-body"></div>
+  <button type="button" class="btn wide pressable" id="look-close">다 골랐어</button>
+</dialog>
+
+<!-- ══ 추억 앨범 (§6.3) — 장면 오른쪽 위 앨범 버튼(#btn-album)으로 여는 시트. 폰은 바텀시트, ≥600px 은 가운데. 카드를 누르면 포스터 열람 창이 그 위에 열린다.
+     맨 위 '문어의 요즘' 한두 줄 · 카드 · '남긴 메모'(호기심 메모 전부, 다음 산책에 같이 가는 최근 3개엔 표시 — docs/CURIOSITY_NOTES.md) · '일기' 칩 = 지난 날 로그 (오늘은 아래 '오늘의 산책') ══ -->
+<dialog id="album-sheet" class="sheet album-sheet" aria-labelledby="al-h">
+  <div class="handle" aria-hidden="true"></div>
+  <div class="sec-row al-top">
+    <h2 id="al-h" class="al-h dlg-top" tabindex="-1">추억 앨범</h2><!-- 열 때 포커스는 여기 (app.js showDialog) -->
+    <div class="filters" role="group" aria-label="앨범 필터">
+      <button type="button" class="fchip on" data-f="all" aria-pressed="true">전체</button>
+      <button type="button" class="fchip" data-f="poster" aria-pressed="false">포스터</button>
+      <button type="button" class="fchip" data-f="note" aria-pressed="false">쪽지</button>
+      <button type="button" class="fchip" data-f="diary" aria-pressed="false">일기</button>
+    </div>
+  </div>
+  <div id="al-recent" class="al-recent"></div>
+  <div id="album"></div>
+  <div id="album-notes"></div>
+  <div id="album-diary" class="album-diary" hidden></div>
+  <button type="button" class="btn wide pressable" id="al-close">닫기</button>
+</dialog>
+
+<!-- ══ 미용실 (docs/SALON.md §3.2 — 주인 11-08 밤: 몸 색은 처음 한 번만 · 그 뒤엔 사람이 색을 내밀고 묻고, 바꿀지는 문어가 정한다) ══
+     거울 단추(#btn-salon)로 여는 바텀시트 (폭과 상관없이 아래에 붙는다 · 뒤 막 없음 — 병이 앞으로 나오고 문어 눈이 따라가는 게 보여야 한다).
+     병 6 (+ 처음 색 1) button.bottle[aria-pressed] — app.js 가 js/salon.js 의 bottles 로 채운다 · 이름 줄 role=status (비어도 한 줄 높이) · [물어보기] 는 병을 고르기 전엔 aria-disabled ══ -->
+<dialog id="salon-sheet" class="sheet salon-sheet" aria-labelledby="salon-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="salon-h" class="salon-h dlg-top" tabindex="-1">미용실</h2><!-- 열 때 포커스는 여기 (app.js showDialog) -->
+  <div id="salon-bottles" class="bottles" role="group" aria-label="몸 색"></div>
+  <p id="salon-name" class="salon-name" role="status"></p>
+  <div class="salon-btns">
+    <button type="button" class="btn primary pressable salon-ask" id="salon-ask" aria-disabled="true">물어보기</button>
+    <button type="button" class="btn pressable" id="salon-close">닫기</button>
+  </div>
+</dialog>
+
+<!-- 토스트는 이거 하나. 한 번에 하나, 2.5초. 모달이 열려 있으면 app.js 가 그 안으로 옮겨 popover 로 띄운다 (모달 밖은 inert 라 안 보이고 안 읽힌다) -->
+<p id="say-live" class="sr-only" aria-live="polite"></p>
+<output id="toast" popover="manual" aria-live="polite"></output>
+
+<!-- three r128 UMD (MIT, vendor/THREE-LICENSE.txt). 로컬 파일이 없으면 cdnjs. 둘 다 실패하면 SCENE2D 폴백 -->
+<script src="vendor/three.min.js" onerror="document.write('<script src=\'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js\'><\/script>')"></script>
+<script src="js/world.js"></script>
+<script src="js/brain.js"></script>
+<script src="js/shelf.js"></script>
+<script src="js/salon.js"></script><!-- 미용실 규칙 (전역 SALON, DOM 없음): 몸 색은 처음 한 번만 · 그 뒤엔 미용실에서 문어에게 묻는다 (docs/SALON.md) -->
+<script src="js/palettes.js"></script>
+<script src="js/clouds.js"></script><!-- 입장 하늘의 몽글한 픽셀 구름 (2D 캔버스, 날씨 × 시각대) -->
+<script src="js/scene3d.js"></script>
+<script src="js/scene2d.js"></script>
+<script src="js/audio.js"></script><!-- 소리 (전역 AUDIO): app.js 의 boot 가 AUDIO.init 을 부른다. 없거나 실패해도 게임은 그대로 -->
+<script src="js/dialogue-stub.js"></script><!-- 대사창 가짜 (전역 DLG — 카드 13 의 얼린 표). 진짜 js/dialogue.js 가 오면 이 줄만 바꾼다. 한 화면 배치의 대사 자리(#dlg-host)가 쓴다 -->
+<script src="js/poster-art-data.js"></script><!-- 포스터 픽셀 그림 (만든 파일, data URI) -->
+<script src="js/poster-art.js"></script><!-- 전역 POSTER_ART: 포스터 앞면에 방 그림을 붙인다 (없어도 게임은 그대로 — 예전처럼 사진) -->
+<script src="js/app.js"></script>
+<script src="js/ui-art.js"></script>
+<script src="js/runner.js"></script>
+</body>
+</html>

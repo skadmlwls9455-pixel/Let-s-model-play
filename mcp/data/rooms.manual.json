@@ -1,0 +1,320 @@
+{
+ "_note": "손으로 적은 열람실 이름·위키 제목 — rooms.i18n.json (언어 링크) 위에 덮는다 (core.ROOMS_I18N). 언어 링크가 없거나 엉뚱한 곳 (불가사리 → Bulgasari) 을 가리키는 방. 제목은 그 언어 위키에 글이 있는지 API 로 확인했다 (2026-11-10; it·pt·id·hi 는 같은 날 늦은 밤). 위키가 없는 방 (octopus_nerves · slow_room · letter_room) 은 이름만. \"wiki\": null 은 \"그 위키에 이 글이 없다고 확인했다\" — 이름만 그 언어로 두고 core.roomWiki 가 영어 글 → ko 글 순으로 떨어진다 (시험은 wiki 가 아예 없는 것만 빈 것으로 본다).",
+ "rain": {
+  "en": {
+   "name": "Rain",
+   "wiki": "Rain"
+  },
+  "ja": {
+   "name": "雨",
+   "wiki": "雨"
+  },
+  "de": {
+   "name": "Regen",
+   "wiki": "Regen"
+  },
+  "fr": {
+   "name": "Pluie",
+   "wiki": "Pluie"
+  },
+  "es": {
+   "name": "Lluvia",
+   "wiki": "Lluvia"
+  }
+ },
+ "cipher": {
+  "en": {
+   "name": "Cipher",
+   "wiki": "Cipher"
+  },
+  "ja": {
+   "name": "暗号",
+   "wiki": "暗号"
+  },
+  "de": {
+   "name": "Verschlüsselung",
+   "wiki": "Verschlüsselung"
+  },
+  "fr": {
+   "name": "Chiffrement",
+   "wiki": "Chiffrement"
+  },
+  "es": {
+   "name": "Cifrado",
+   "wiki": "Cifrado (criptografía)"
+  },
+  "hi": {
+   "name": "कूट-लेखन",
+   "wiki": "बीज-लेखन"
+  }
+ },
+ "blanket": {
+  "en": {
+   "name": "Blanket",
+   "wiki": "Blanket"
+  },
+  "ja": {
+   "name": "毛布",
+   "wiki": "毛布"
+  },
+  "de": {
+   "name": "Decke",
+   "wiki": "Decke (Textilie)"
+  },
+  "fr": {
+   "name": "Couverture",
+   "wiki": "Couverture (literie)"
+  },
+  "es": {
+   "name": "Manta",
+   "wiki": "Frazada"
+  }
+ },
+ "pinecone": {
+  "en": {
+   "name": "Pine cone",
+   "wiki": "Cone (botany)"
+  },
+  "de": {
+   "name": "Zapfen",
+   "wiki": "Zapfen (Botanik)"
+  },
+  "fr": {
+   "name": "Cône",
+   "wiki": "Cône (botanique)"
+  },
+  "es": {
+   "name": "Cono",
+   "wiki": "Cono (botánica)"
+  }
+ },
+ "starfish": {
+  "en": {
+   "name": "Starfish",
+   "wiki": "Starfish"
+  },
+  "ja": {
+   "name": "ヒトデ",
+   "wiki": "ヒトデ"
+  },
+  "de": {
+   "name": "Seestern",
+   "wiki": "Seesterne"
+  },
+  "fr": {
+   "name": "Étoile de mer",
+   "wiki": "Étoile de mer"
+  },
+  "es": {
+   "name": "Estrella de mar",
+   "wiki": "Asteroidea"
+  }
+ },
+ "shell": {
+  "ja": {
+   "name": "貝",
+   "wiki": "貝"
+  },
+  "de": {
+   "name": "Muschel",
+   "wiki": "Muscheln"
+  },
+  "hi": {
+   "name": "सीप",
+   "wiki": "सीप"
+  }
+ },
+ "honeycomb": {
+  "ja": {
+   "name": "蜂の巣",
+   "wiki": "ハニカム構造"
+  },
+  "hi": {
+   "name": "मधुमक्खी का छत्ता",
+   "wiki": "मधुमक्खी का छत्ता"
+  }
+ },
+ "chalk": {
+  "de": {
+   "name": "Kreide",
+   "wiki": "Tafelkreide"
+  }
+ },
+ "octopus_nerves": {
+  "en": {
+   "name": "Octopus nervous system"
+  },
+  "ja": {
+   "name": "タコの神経系"
+  },
+  "de": {
+   "name": "Nervensystem des Oktopus"
+  },
+  "fr": {
+   "name": "Système nerveux du poulpe"
+  },
+  "es": {
+   "name": "Sistema nervioso del pulpo"
+  },
+  "it": {
+   "name": "Sistema nervoso del polpo"
+  },
+  "pt": {
+   "name": "Sistema nervoso do polvo"
+  },
+  "id": {
+   "name": "Sistem saraf gurita"
+  },
+  "hi": {
+   "name": "ऑक्टोपस का तंत्रिका तंत्र"
+  }
+ },
+ "slow_room": {
+  "en": {
+   "name": "Room of slow words"
+  },
+  "ja": {
+   "name": "ゆっくりした言葉の部屋"
+  },
+  "de": {
+   "name": "Zimmer der langsamen Worte"
+  },
+  "fr": {
+   "name": "Chambre des mots lents"
+  },
+  "es": {
+   "name": "Sala de las palabras lentas"
+  },
+  "it": {
+   "name": "Stanza delle parole lente"
+  },
+  "pt": {
+   "name": "Sala das palavras lentas"
+  },
+  "id": {
+   "name": "Ruang kata-kata lambat"
+  },
+  "hi": {
+   "name": "धीमे शब्दों का कमरा"
+  }
+ },
+ "letter_room": {
+  "en": {
+   "name": "Letter room"
+  },
+  "ja": {
+   "name": "手紙の部屋"
+  },
+  "de": {
+   "name": "Zimmer der Briefe"
+  },
+  "fr": {
+   "name": "Chambre des lettres"
+  },
+  "es": {
+   "name": "Sala de las cartas"
+  },
+  "it": {
+   "name": "Stanza delle lettere"
+  },
+  "pt": {
+   "name": "Sala das cartas"
+  },
+  "id": {
+   "name": "Ruang surat"
+  },
+  "hi": {
+   "name": "चिट्ठियों का कमरा"
+  }
+ },
+ "quill": {
+  "hi": {
+   "name": "पंख-कलम",
+   "wiki": null
+  }
+ },
+ "lock": {
+  "pt": {
+   "name": "Cadeado",
+   "wiki": "Cadeado"
+  }
+ },
+ "octopus": {
+  "pt": {
+   "name": "Polvo",
+   "wiki": "Polvo"
+  },
+  "hi": {
+   "name": "ऑक्टोपस",
+   "wiki": "अष्टबाहु"
+  }
+ },
+ "feather": {
+  "it": {
+   "name": "Piuma",
+   "wiki": "Piumaggio"
+  }
+ },
+ "ink": {
+  "pt": {
+   "name": "Tinta",
+   "wiki": "Tinta"
+  }
+ },
+ "knot_theory": {
+  "id": {
+   "name": "Teori simpul",
+   "wiki": null
+  },
+  "hi": {
+   "name": "गाँठ सिद्धांत",
+   "wiki": null
+  }
+ },
+ "mobius": {
+  "hi": {
+   "name": "मोबियस पट्टी",
+   "wiki": null
+  }
+ },
+ "tessellation": {
+  "hi": {
+   "name": "टेसेलेशन",
+   "wiki": null
+  }
+ },
+ "spiral": {
+  "hi": {
+   "name": "सर्पिल",
+   "wiki": "सर्पिल"
+  }
+ },
+ "whale_song": {
+  "hi": {
+   "name": "हंपबैक व्हेल",
+   "wiki": null
+  }
+ },
+ "moss": {
+  "it": {
+   "name": "Muschio",
+   "wiki": "Bryophyta"
+  }
+ },
+ "name": {
+  "it": {
+   "name": "Nome",
+   "wiki": "Nome proprio"
+  }
+ },
+ "riddle": {
+  "pt": {
+   "name": "Charada",
+   "wiki": "Charada"
+  },
+  "hi": {
+   "name": "पहेली",
+   "wiki": "पहेली"
+  }
+ }
+}

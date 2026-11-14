@@ -1,0 +1,117 @@
+{
+ "summary": "I fixed both \"should\" problems and both nits in /home/user/ppolppol-fix-owner. Nothing is committed, and every new check fails when its fix is undone. I left the two \"owner\" items (OW-3, OW-4) alone.\n\nOW-1, the earned weekly gift lost after the update: a saved week whose \"이번 주에 사흘 들어오기\" slot was already done no longer loses that point. The game counts it as done when the player came in on three days of that week, today included. If the slot is replaced during that week, the week keeps one extra done point (`week.kept`, saved). The list still reads 5/5, the claim button and the bag-chip dot come back, and pressing 받기 gives shells 12 and seeds 2. If the week ends before the slot is ever replaced, Monday's check counts the old slot from the visit days, so the unclaimed gift is still put in. To explain why only four rows show 했어, one plain line appears under the note for that week: \"사흘 들어오기는 목록에서 빠졌지만, 이번 주엔 한 걸로 셌어.\" The font check says `stale: none`.\n\nOW-2, the press during the awake period after a turn: the code was already right. What was missing was a check, and new check Q22 adds it.\n\nNits: I removed the dead `questMark('gift')` call (OW-6). I rewrote the comment on the new-week fallback to say it is a guard that cannot be reached today and has no check (OW-5).\n\nSuites: Q passed 62/0 four times, the last three in a row. Z passed 47/0 and A passed 74/0. npm test passes on a re-run. The first npm test run failed because the machine's disk was full (\"no space left on device\"); I freed the space my own scratch copies had taken and ran it again. Y crashed twice at an older check that gives a sheet's close button 5 s to appear. The untouched base ae505a3 crashed at the same place under the same load, so Y gives no verdict.",
+ "changes": [
+  {
+   "id": "OW-1a",
+   "file": "js/app.js",
+   "lines": "4363-4367",
+   "what": "New `oldDone(w, x)`: true for a 'days' slot when the player came in on three days of that week. It counts `user.days` plus today, because a repair at page load happens before the day gift writes today.",
+   "why": "This is how the old task read its progress, kept only to honour points already earned."
+  },
+  {
+   "id": "OW-1b",
+   "file": "js/app.js",
+   "lines": "4372",
+   "what": "Same-week repair: before the slots are replaced, every done 'days' slot adds 1 to `w.kept`. The existing save() writes it.",
+   "why": "The replacement slot starts at 0, so without this the week fell from 5/5 to 4/5 and the button and dot went away."
+  },
+  {
+   "id": "OW-1c",
+   "file": "js/app.js",
+   "lines": "4378",
+   "what": "The `due` check at the week change uses `weekOk(x) ? questDone(x) : oldDone(w, x)`, plus `w.kept`.",
+   "why": "A last week whose 'days' slot was never repaired (no visit that week after the update) still gets its unclaimed gift on Monday."
+  },
+  {
+   "id": "OW-1d",
+   "file": "js/app.js",
+   "lines": "4399",
+   "what": "`weekDoneN(w)` adds `w.kept`.",
+   "why": "One change feeds the (N/5) note, the claim button, weekClaim and the bag-chip dot together."
+  },
+  {
+   "id": "OW-1e",
+   "file": "js/app.js",
+   "lines": "4432",
+   "what": "One set-note line (#week-kept), shown only while `w.kept` is set: '사흘 들어오기는 목록에서 빠졌지만, 이번 주엔 한 걸로 셌어.'",
+   "why": "Without it, the sheet shows (5/5) next to only four done rows, which looks like a bug."
+  },
+  {
+   "id": "OW-1f",
+   "file": "js/app.js",
+   "lines": "4345-4346",
+   "what": "The comment block above QUESTS now mentions the kept point, and the save format lists `kept?`.",
+   "why": "Docs for the weekly list live in this comment."
+  },
+  {
+   "id": "OW-5",
+   "file": "js/app.js",
+   "lines": "4380",
+   "what": "Comment only: the new-week fallback is a guard that cannot be reached today (2D with no posters leaves exactly 7 tasks) and has no check.",
+   "why": "The checker found the old comment misleading."
+  },
+  {
+   "id": "OW-6",
+   "file": "js/app.js",
+   "lines": "3311",
+   "what": "Removed the call `questMark('gift')`, with a short note.",
+   "why": "'gift' has not been a weekly task since 66c8110, so the call did nothing."
+  },
+  {
+   "id": "t-ctx",
+   "file": "tools/smoke.js",
+   "lines": "4732",
+   "what": "`ctxOf` in scenario Q takes `o.awake` (the test hook __ppolAwakeMs, default 0 as before).",
+   "why": "Q22 needs an awake period above 0."
+  },
+  {
+   "id": "t-q19",
+   "file": "tools/smoke.js",
+   "lines": "Q19 block",
+   "what": "Q19 also checks that no `kept` is saved: two visit days do not count as the old task done.",
+   "why": "Guards the other side of OW-1: a slot that was not done adds nothing."
+  },
+  {
+   "id": "t-q21",
+   "file": "tools/smoke.js",
+   "lines": "5221-5254",
+   "what": "New Q21, in two parts. Same week: a slot holding 'days', visit days on Monday and Tuesday, opened on Wednesday, and four other tasks done. It checks kept=1, the slot replaced, (5/5), the claim button, the dot, the aria-label, the explaining line, seven rows with four 했어 and none mentioning 사흘. It then reloads, checks the same, presses 받기 and expects shells +12 and the dot gone. Week change: last week holds 'days' with three visit days plus four other done tasks, and is opened on Monday. The gift must be put in (prev 12/2, shells 20 to 35 with the day gift).",
+   "why": "Reproduces OW-1 both ways."
+  },
+  {
+   "id": "t-q22",
+   "file": "tools/smoke.js",
+   "lines": "5255-5274",
+   "what": "New Q22 with a 10-minute awake period. A home turn counts 1/2. It waits until restPhase() is 'awake', the scene octopus is not asleep and the saved state is 'sleep'. Then it presses 산책 갈래? and expects 2/2 in memory and on disk, with exactly one new turn.",
+   "why": "OW-2: the awake period after a turn must count as awake."
+  }
+ ],
+ "decisions": "OW-1: the checker suggested two ways to keep the point: give the replacement slot full progress, or count the point toward WEEK_NEED. I counted it at week level (`week.kept`) and did not mark the replacement slot done. A filled slot would show 했어 for a task the player never did, which is misleading text. The point is earned only when the player really came in on three days of that week, as the old task counted. Today is included, because a repair at page load happens before the day gift writes today; on ae505a3 the old slot would have filled to 3/3 a moment later. Because (5/5) next to four done rows would look broken, I added one plain line that appears only for that week. It is the only new player-facing text, and the font check passes. OW-2 needed no code change; the code was right and only a check was missing. Of the nits, I removed the dead call (OW-6) and kept the fallback with a corrected comment (OW-5), since removing it fails no check either way.",
+ "new_text": [
+  "사흘 들어오기는 목록에서 빠졌지만, 이번 주엔 한 걸로 셌어. (살림 › 이번 주 할 일, set-note #week-kept, shown only in a week that kept the old task's point)"
+ ],
+ "guard": "Checks added or extended in tools/smoke.js scenario Q: Q19 (no `kept` for two visit days), Q21 (same week, then week change), Q22 (press during the awake period counts).\n\nMutation table. Each fix was undone alone in a scratch copy, built by repair-owner/mut/make.py, and Q was run. Logs are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/repair-owner/mut/:\n- R1, the repair no longer adds to `w.kept`: 60 passed, 2 failed. Both Q21 same-week checks fail (kept null; claiming gives 44 to 44).\n- R2, `due` no longer counts the unrepaired 'days' slot: 61 passed, 1 failed. The Q21 week-change check fails (shells 20 to 23, no weekly gift).\n- R3, `weekDoneN` no longer adds `kept`: 60 passed, 2 failed. Both Q21 same-week checks fail (kept is 1 but there is no (5/5), button or dot).\n- R4, today not counted in `oldDone`: 60 passed, 2 failed. Both Q21 same-week checks fail (only two visit days on disk at the time of the repair).\n- R5, the checker's MY1 mutant (`woke = oct.state === 'sleep' || S.octopus.state === 'sleep'`): 61 passed, 1 failed. Q22 fails (1/2 to 1/2, saved 1).\n\nI deleted the mutant copies afterwards to free disk space and kept the logs.",
+ "suites": [
+  "SMOKE_ONLY=Q: q1 62/0 (03:10, load 8; I made the two nit edits while it ran, so it does not count toward the three in a row), then q2, q3 and q4 each 62/0, three in a row (04:05 to 04:31, load about 11). Logs: repair-owner/q1.log to q4.log",
+  "SMOKE_ONLY=Z: 47/0 once (04:30, load 7.7 to 10). My changes do not touch the upstairs code; the first fix agent had Z passing 3 times. Log: repair-owner/sZ.log",
+  "SMOKE_ONLY=A: 74/0 (04:50, load 11). Log: repair-owner/sA.log",
+  "SMOKE_ONLY=Y: crashed twice at an older check, smoke.js:2590. It waits only 5 s for a sheet's close button (#set-close the first time, #look-close the second), and the call log says the button was already visible. Control: an untouched ae505a3 (git archive) crashed the same way at #look-close under the same load (sYctl.log, 05:08, load 8.6 to 10). Result: no verdict, because of load. Logs: repair-owner/sY.log, sY2.log, sYctl.log",
+  "npm test: the first run failed in test-export with ENOSPC; the disk was full machine-wide (75 MB free). I deleted my mutant copies (about 415 MB) and re-ran: exit 0, all totals green (517/0, 26/0, 568/0, 225/0, 192/0, 234/0, test-export 46/0). Log: repair-owner/npm-test2.log",
+  "Font check (tools/subset-fonts.py --check): stale: none",
+  "git status: only the five intended files are modified. No tracked evidence file changed, because the smoke screenshots went to the scratch folder. node_modules is not staged."
+ ],
+ "left": [
+  "OW-3 (owner): the octopus disappears from the upstairs room when a stay-home turn ends there. Left as is.",
+  "OW-4 (owner): the awake period does not count down upstairs (the 11-08 rule). Left as is.",
+  "The disk on this machine is almost full (about 400 to 500 MB free after my cleanup), and the space is used by others. Other agents' runs may hit ENOSPC. I did not touch anything outside my scratch folder.",
+  "The Y crash at smoke.js:2590 (a 5 s wait for a sheet's close button) also happens on the untouched base under load. It is an old check, outside my lane, and I did not change it."
+ ],
+ "not_verified": [
+  "Y was not seen passing on this tree. Both runs and the base control crashed at the same old check under load.",
+  "I did not take screenshots of the new #week-kept line. Q21 reads its text, the rows and the button state from the page instead.",
+  "The 2D scene was not run with the OW-1 change. The code does not depend on the scene, but Q runs in 3D.",
+  "A real phone and a real model brain were not used.",
+  "Z ran once after the repair, not three times. The repair touches only weekly-list code and Q tests."
+ ],
+ "pictures": []
+}

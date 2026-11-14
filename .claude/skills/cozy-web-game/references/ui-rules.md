@@ -97,6 +97,7 @@ Apply: 12 (receipt meta), 13 (tertiary), 15 (body), 17 (log verbs), 20/24 (poste
 **R12. Emoji are decoration, not text.**
 Why: Heydon checklist (ornamental art hidden from AT); css-protips #12 (SVG icons, fallback for icon-only buttons); mixed emoji fonts shift baselines.
 Apply: Wrap every emoji in `<span aria-hidden="true" class="emo">` with `font-size:1.1em; line-height:1; vertical-align:-0.1em`. Stickers on posters are SVG/PNG from `assets/` with `alt` text that names the sticker ("깃털 스티커"); the lantern and moss pot are `<img>` so they survive high-contrast mode.
+Project override (뽈뽈, 11-07): no emoji or decorative symbols in player UI at all — words or pixel icons (`alt=""` + `aria-hidden`, the word beside stays); SKILL.md §3 wins over R12.
 
 **R13. Make text pop and un-pop: only the poster title gets full up-pop.**
 Why: Erik Kennedy rule 5.
@@ -136,7 +137,7 @@ Apply: Under reduced motion the poster flip becomes an instant swap with a cross
 
 **R21. Status changes are announced; toasts are an `output` live region, bottom-centred, short-lived.**
 Why: argyleink toast recipe (`<output>` / `role=status`, auto-dismiss); Heydon "announce state changes".
-Apply: One `<output aria-live="polite" class="toast">` fixed above the safe-area inset. Messages: "등불 한 칸 더 켜졌어" , "포스터를 벽에 붙였어", "오늘은 집에 있을래". 2.5 s, max one at a time, never blocks the depart button.
+Apply: One `<output aria-live="polite" class="toast">` fixed above the safe-area inset. Messages: "등불 한 칸 더 켜졌어" , "포스터를 벽에 붙였어", "오늘은 집에 있어". 2.5 s, max one at a time, never blocks the depart button.
 
 **R22. Light comes from the sky.**
 Why: Erik Kennedy rule 1 (outset = cards/buttons, inset = inputs/pressed).

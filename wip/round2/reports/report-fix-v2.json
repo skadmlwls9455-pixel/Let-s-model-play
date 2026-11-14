@@ -1,0 +1,163 @@
+{
+ "summary": "I fixed every item in the brief. The work is in /home/user/ppolppol-fix-v2 (base 6d03faf) and is not committed. Four files changed: js/app.js, js/salon.js, tools/smoke.js and tools/test-salon.js.\n\nThe must (C1 = S1 = V1) is fixed. A production week where '선물 상자에서 하나 내밀기' is done now keeps that point, exactly like a done '사흘 들어오기'. In the same week it shows (5/5), the claim button, the dot and the kept line. On the next Monday it pays 12 shells and 2 seeds once.\n\nThe should (S2) is fixed too. Each removed task counts at most once per week, because the week now remembers which removed tasks were counted (week.keptIds). week.kept stays a number equal to that count. I kept the number because lane owner3 adds a check that reads `kept === 1`.\n\nThe nits are all fixed: C2 (the import guard now lasts 1 s, measured with performance.now), C3, C4, C5, C6, S4, P4, V2 and V3/P6.\n\nEach fix has a new or updated check, and reverting each fix alone in a scratch copy makes its check fail (mutation table in \"guard\").\n\nSuites on the final code:\n- npm test: 0 failed.\n- Font check: stale none.\n- tools/test-salon.js: 235/0.\n- SMOKE_ONLY=Q: 71/0 three times in a row.\n- SMOKE_ONLY=X: 51/0 three times in a row.\n- SMOKE_ONLY=A: 74/0.\n- SMOKE_ONLY=Y: crashed twice with 23 passed, 1 failed, on a 5 s dialog-visibility wait (smoke.js:2591). An untouched 6d03faf copy crashes in the same loop under the same load (on the album sheet instead of the settings sheet), so this is not from my change. Y did not get a clean run.\n\nI also dry-ran my diff against the owner3 tree. Some hunks do not apply there, but only because that tree sits on a0483dd, not 6d03faf. Their app.js changes (rest functions) do not overlap mine. Their only new Q code is right after section 21, and my Q edits are not adjacent to it.",
+ "changes": [
+  {
+   "id": "1",
+   "file": "js/app.js",
+   "lines": "4373-4389 (GONE, oldDone, keptOf, keptWith)",
+   "what": "Replaced the days-only oldDone with a table of removed tasks: GONE.days (three entry days in that week, as before) and GONE.gift (saved n >= 1, its old target). keptOf(w) reads the counted ids. keptWith(w) adds the ids of removed-task slots now in the list that are done, and never adds an id twice.",
+   "why": "C1/S1/V1: a done gift slot was replaced at 0 and its point lost (hard line 10). S2: the same removed task could be counted again each time an old-build tab dealt it back."
+  },
+  {
+   "id": "2",
+   "file": "js/app.js",
+   "lines": "4394 (same-week repair), 4400-4404 (week change)",
+   "what": "The same-week repair now stores w.keptIds = keptWith(w) and w.kept = its length, instead of kept += hits. At the week change, `due` counts the real done slots plus keptWith(w).length (each removed task once). The paid week's key is stored as w.prev.from.",
+   "why": "Items 1 and 2: the claim, the count and the dot in the same week; one payout at the week change only when five tasks are really done."
+  },
+  {
+   "id": "3",
+   "file": "js/app.js",
+   "lines": "4423, 4456",
+   "what": "weekDoneN and the kept line now use keptOf(w).length. The kept line text is now one sentence that fits either removed task or both.",
+   "why": "Item 1: the old line named only 사흘 들어오기, which is false for a gift slot."
+  },
+  {
+   "id": "4",
+   "file": "js/app.js",
+   "lines": "4418-4420, 4457",
+   "what": "New prevWord(w). It says '지난주 선물은' when prev.from is the Monday just before (or missing, as in test-build records), and '전에 안 받은 주간 선물은' otherwise. It is used in the toast and in the #week-prev line.",
+   "why": "C5: a gift paid for a week several weeks back (or after the clock went back) was called 지난주."
+  },
+  {
+   "id": "5",
+   "file": "js/app.js",
+   "lines": "3711, 3736, 4246-4249",
+   "what": "Added importAt = performance.now() at import and IMPORT_HOLD = 1000. The storage listener drops a write older than importSeen only within 1 s of the import. It parses the record once and passes the object on.",
+   "why": "C2: the guard dropped writes for the whole life of the tab, so a reset in another tab after the clock went back was lost and then overwritten. C6: the record was parsed twice."
+  },
+  {
+   "id": "6",
+   "file": "js/app.js",
+   "lines": "2068-2069, 2089-2090",
+   "what": "adoptRemote(raw, obj) and takeRemote(raw, obj) now use the already parsed object when one is given. Other callers are unchanged.",
+   "why": "C6."
+  },
+  {
+   "id": "7",
+   "file": "js/app.js",
+   "lines": "281-283, 3728",
+   "what": "A `trial` flag makes save() do nothing while importJSON draws the file to check it (set around setDayGreeting and renderAll, cleared in finally).",
+   "why": "C4: the trial render saved the file, with its unclipped lastSeen, to storage and to other tabs before the checks finished."
+  },
+  {
+   "id": "8",
+   "file": "js/app.js",
+   "lines": "3745",
+   "what": "resetAll calls clearRest().",
+   "why": "S4: the previous octopus's rest countdown stayed in memory after a full reset."
+  },
+  {
+   "id": "9",
+   "file": "js/app.js",
+   "lines": "4347",
+   "what": "dailyGift calls checkDay(true) when it hands out a new day's gift.",
+   "why": "P4: in a tab left open past midnight, the gift arrived while '오늘의 산책' still showed yesterday's rows, held by the 2-minute wait for a walk that had just ended."
+  },
+  {
+   "id": "10",
+   "file": "js/app.js",
+   "lines": "4488",
+   "what": "Harvest toast: '<색> 염료 1개를 얻었어' for a known colour, '꽃을 거뒀어' for an unknown one. The saved dye key is still written.",
+   "why": "V2: the toast promised a dye the bag does not show."
+  },
+  {
+   "id": "11",
+   "file": "js/app.js",
+   "lines": "4594-4598",
+   "what": "When the 살림 sheet opens with the claim button, the sheet is scrolled just enough to show the whole button, measured as the gap between the button and the sheet's inner bottom. If the button already fits, nothing moves.",
+   "why": "V3/P6: at 320x568 with the pixel font, the button was half below the fold. I did not use scrollIntoView because during the opening animation it could also scroll the page behind the sheet."
+  },
+  {
+   "id": "12",
+   "file": "js/salon.js",
+   "lines": "654-658",
+   "what": "In normalize step 2, octopus.color is kept when it is valid and equals the colour of some colors line. Only when it matches no line does the last line by `at` decide (the hand-edited case).",
+   "why": "C3: after the clock went back, a reload undid the latest dye answer."
+  },
+  {
+   "id": "13",
+   "file": "tools/test-salon.js",
+   "lines": "614-617",
+   "what": "New check: a dye asked after the clock went back keeps its colour on load, and the lines stay.",
+   "why": "C3 guard."
+  },
+  {
+   "id": "14",
+   "file": "tools/smoke.js",
+   "lines": "5271-5390 (qGone, Q section 23, its own block after section 22)",
+   "what": "Six parts. 23-1: production gift week (same week and next Monday). 23-2: old-tab re-deal through real storage events from a second page, starting from a test-build kept:2 record. 23-2b: the week change with a re-dealt days slot. 23-3: a week three weeks back. 23-4: 320x568 pixel font, claim visible. 23-5: reset during the awake window. 23-6: midnight in an open tab.",
+   "why": "Failing checks for items 1, 2, C5, V3/P6, S4 and P4."
+  },
+  {
+   "id": "15",
+   "file": "tools/smoke.js",
+   "lines": "6018-6048 (end of X section 9)",
+   "what": "New X step. It imports a future-lastSeen file while hooking setItem (C4) and counting JSON.parse calls (C6). A late pre-import record is dispatched inside the hold window and must still be ignored. Then the monotonic clock is advanced 2 s, a second tab with its Date.now set 1 h back does a real full reset, and this tab must follow it and keep it after its own save (C2).",
+   "why": "Failing checks for C2, C4 and C6. All of X's existing import checks still pass."
+  },
+  {
+   "id": "16",
+   "file": "tools/smoke.js",
+   "lines": "5224, 5236 (Q21), 4843 (Q3), 5883 (X)",
+   "what": "Updated the expected texts. Q21: the new kept line. Q3 (clock-back case): '전에 안 받은 주간 선물은 …', because the paid week is not the week before. X: the unknown-colour toast is '꽃을 거뒀어'.",
+   "why": "The text changes from items 1, C5 and V2."
+  }
+ ],
+ "decisions": "Shape of kept (item 2):\n- A week now stores `keptIds` (the removed task ids already counted, deduplicated). `kept` stays a number equal to keptIds.length.\n- I kept `kept` as a number because lane owner3's new Q21 check (RO-1) reads `kept === 1`, and test builds read `kept | 0`.\n- A plain number with no keptIds was written only by test builds since a0483dd, and every such build counted only 'days'. So I read it as ['days'], one point, even when S2 pushed it to 2 or 3. This is more precise than \"that many, ids unknown\" and also repairs saves inflated by S2.\n- keptIds wins when both fields exist, so a test-build tab that bumps the number cannot add points.\n\nGift done rule: a gift slot counts when its saved n >= 1 (its production target). Both removed tasks are counted only in slots that are not current tasks (`!weekOk`).\n\nKept line: one general sentence, '목록에서 빠진 일도 이번 주엔 한 걸로 셌어.', true for either task or both, and short at 320 px. I did not name the tasks.\n\nC5 wording: the previous week keeps '지난주 선물은 …' (no change for the common case). Any other paid week, including the clock-back case, says '전에 안 받은 주간 선물은 …'. To tell them apart, prev.from now stores the paid week's key. Records without prev.from (test builds) keep the old words.\n\nC2 window: 1000 ms on performance.now(), as the skeptic tested. The guard is checked only inside that window.\n\nC6: the listener always parses once and passes the object to adoptRemote. Other callers still parse raw text themselves.\n\nP4: I put checkDay(true) in dailyGift, the path that hands out the new day's gift. This deliberately skips the 2-minute \"walk just ended\" hold at the moment the new day's gift arrives, so the gift line and '오늘의 산책' change together. The walk is not lost; it moves to the album diary.\n\nV3: I scroll only the sheet, by the amount the button is cut off, instead of calling scrollIntoView. The button is measured against the sheet, so the opening slide animation does not skew the result, and the page behind never moves (checked: scrollY 0). Bigger screens are unchanged when the button already fits.\n\nS4: I added clearRest only to resetAll. Adding it to importJSON is not safe: an import of the same octopus during its awake window would drop the kept window (restKept reads the sessionStorage entry that clearRest removes).\n\nLanes: I did not touch restDown, finalPose, syncRest, sleepNow, on.octUp, scenario Z, or owner3's new code after section 21. My Q edits inside 21 (the KEPT constant and the line check) are not adjacent to their inserts. My new checks are in qGone (Q section 23) and at the end of X section 9.",
+ "new_text": [
+  "목록에서 빠진 일도 이번 주엔 한 걸로 셌어.",
+  "전에 안 받은 주간 선물은 살림에 넣어 뒀어. 조개 12 · 씨앗 2 (toast; the numbers come from the record)",
+  "전에 안 받은 주간 선물은 살림에 넣어 뒀어 (조개 12 · 씨앗 2). (#week-prev line in the 살림 sheet)",
+  "꽃을 거뒀어 (harvest toast for an unknown colour)",
+  "<색 이름> 염료 1개를 얻었어 (harvest toast for a known colour; wording unchanged, only the unknown-colour case changed)"
+ ],
+ "guard": "New checks:\n- Q section 23 (qGone, tools/smoke.js 5276+): 23-1 gift week, same week and next Monday; 23-2 old-tab re-deal; 23-2b week change; 23-3 three weeks back; 23-4 320x568 claim; 23-5 reset in the awake window; 23-6 midnight log.\n- X, end of section 9 (smoke.js ~6018): C4 no future-lastSeen write during the trial render; C6 parse once plus the late-write guard inside the window; C2 a reset from a clock-back tab after the window is followed and survives this tab's save.\n- tools/test-salon.js 614-617: C3.\n- Updated expectations: Q21 KEPT text, Q3 r4 line, X unknown-colour toast.\n\nMutation table. Each fix was reverted alone in a /dev/shm copy and the named check failed. Q runs used a temporary dev hook (now removed) that ran Q sections 1-8 and then section 23. Logs are in /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-v2/mut/ (summary.txt, M*.log).\n\n| Fix reverted | Run | Result | Checks that failed |\n|---|---|---|---|\n| M1: GONE.gift removed (item 1) | Q | 35/3 | 23-1 same week ('«null»' line, 4/5); 23-1 Monday (shells 20 → 23 only); 23-2 '옛 탭에서 «선물 상자» 를 하면 둘' (1 · 1 · 1 · 1) |\n| M2: no dedupe; legacy number as n × days (item 2) | Q | 35/3 | 23-2 '시험 빌드의 kept 2 … 하나로' (다 한 줄 3 + 뺀 일 4); 23-2 '… 그대로 둘' (5 · 6 · 7 · 7); 23-2b '월요일에 주간 선물 없음' (paid: 20 → 35) |\n| M3: guard forever (C2) | X | 50/1 | '시계가 한 시간 뒤로 간 다른 탭이 전체 초기화: 이 탭도 따르고 (이름 뚜루) …' |\n| M4: no trial flag (C4) | X | 50/1 | '그려 보는 동안 저장소에 쓰지 않는다 — 쓴 기록 2번 중 … 1번' |\n| M5: adoptRemote parses again (C6) | X | 50/1 | '… 그 기록 JSON 은 한 번만 읽는다 (2번, C6)' |\n| M6: old harvest toast (V2) | X | 50/1 | '… 알림은 보이지 않는 염료를 말하지 않는다 «염료 1개를 얻었어»' |\n| M7: no sheet scroll (V3/P6) | Q | 37/1 | 23-4 '(위 515 · 아래 591 / 568 …)' |\n| M8: always '지난주' (C5) | Q | 36/2 | 23-3 '세 주 전 …'; Q3 r4 '살림을 여는 톡이 주를 넘겨도 …' |\n| M9: no clearRest in reset (S4) | Q | 37/1 | 23-5 rest still {id tq-rest, left 588173} |\n| M10: no checkDay in dailyGift (P4) | Q | 37/1 | 23-6 '2026-11-16 → 2026-11-16' |\n| M11: salon last-line rule (C3) | test-salon | 234/1 | 'a dye asked after the clock went back … keeps its colour on load (#4a86d8)' |\n| M12: old kept line text | Q | 36/2 | 23-1 line; 23-2 line |",
+ "suites": [
+  "Load note: load average was 11-16 on 4 CPUs for most of the runs (another agent's browsers, plus my mutation runner in parallel for the first Q/X runs). All waits were for states.",
+  "npm test (final code): exit 0. check-world plus brain 517/0, model-voice 26/0, runner 568/0, api 225/0, cook 192/0, salon 235/0, export 46/0, and the sticker and art tests passed.",
+  "Font check (tools/subset-fonts.py --check): stale: none. No new glyphs were needed, so no font files were regenerated.",
+  "node tools/test-salon.js: 235 passed, 0 failed.",
+  "SMOKE_ONLY=Q: 71/0, 71/0, 71/0 (three in a row; final/Q1.log, Q2.log, Q3.log).",
+  "SMOKE_ONLY=X: 51/0, 51/0, 51/0 (three in a row; final/X1.log, X2.log, X3.log).",
+  "SMOKE_ONLY=A: 74/0 (final/A1.log).",
+  "SMOKE_ONLY=Y: run twice, 23 passed then CRASH both times at smoke.js:2591, waitForSelector('dialog[open] #set-close', 5000) timed out although the button was resolved visible (final/Y1.log, Y2.log). Control: an untouched 6d03faf copy under the same load crashed in the same sheet loop at #al-close (final/Y-base.log). This is a pre-existing load-sensitive wait, not from this change. The salon normalize change is covered by test-salon (235/0).",
+  "Logs are under /tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-v2/final/ (summary.txt) and fix-v2/npm-test-final.log."
+ ],
+ "left": [
+  "Y's sheet loop at tools/smoke.js:2591 uses a 5 s waitForSelector on a dialog that is still opening. Under load it times out on 6d03faf too (on a different sheet each time). I did not change it: it is outside my lane, and the brief asks for waits on a state.",
+  "importJSON does not clear the rest countdown (S4 only asked for reset). Clearing it there is not safe for an import of the same octopus during its awake window, because restKept reads the sessionStorage entry that clearRest removes.",
+  "At 320x568, the kept line sits just under the claim button, so it is below the fold when the sheet opens. The claim button is now fully visible; the kept line needs one scroll (see after-giftslot-list-320x568.png). I did not move it because that would change the layout on bigger screens.",
+  "Notes under wip/round2 still quote the old kept line and describe week.kept as a number added per repair. These are notes, not shipped, so I left them.",
+  "P1, P2, P3, P5, S3, P7, V4 and V5 are left alone as the brief says."
+ ],
+ "not_verified": [
+  "I did not run a real production f2c93f1 tab next to this build in one origin. The old-tab re-deal in Q 23-2 is simulated by a same-origin page writing the week exactly as production would (a slot set back to days or gift, unknown fields kept), delivered as a real storage event. The skeptics' two-tab probes (confirm-S2/probe.js, confirm-C1/p-own.js) were not re-run against the fixed tree.",
+  "Y never completed a full run (see suites), so Y checks after the crash point did not run on this code. test-salon covers the normalize change.",
+  "I did not run the other smoke scenarios (only Q, X, A and Y as the brief says), the scene perf test or intro-shots. My P4 change (checkDay in dailyGift) could in principle affect other scenarios that cross midnight. I searched the tests for anything that relies on the 2-minute hold and found none.",
+  "I did not test a real phone. The pictures come from headless Chromium at 320x568, DPR 2, touch, pixel font.",
+  "The final merge with lane owner3 is not tested. I only dry-ran my diff against their files (their tree is on a0483dd, so the diff partly fails there for base reasons) and read their hunks for overlap."
+ ],
+ "pictures": [
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-v2/shots/before-gift5-320x568.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-v2/shots/after-gift5-320x568.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-v2/shots/before-giftslot-320x568.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-v2/shots/after-giftslot-320x568.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-v2/shots/before-giftslot-list-320x568.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-v2/shots/after-giftslot-list-320x568.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-v2/shots/before-daysslot-320x568.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-v2/shots/after-daysslot-320x568.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-v2/shots/before-daysslot-list-320x568.png",
+  "/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/final/fix-v2/shots/after-daysslot-list-320x568.png"
+ ]
+}
