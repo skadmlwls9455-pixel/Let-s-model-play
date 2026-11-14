@@ -3364,6 +3364,11 @@ var APP = (function () {
     sel.value = S.settings.motion || 'auto';
     sel.addEventListener('change', function () { S.settings.motion = sel.value; save(); applyMotion(); });
     frag.appendChild(h('label', { class: 'set' }, [h('span', { text: '모션' }), sel]));
+    if (window.HAPTICS && HAPTICS.supported()) {   /* 11-15 5차 (주인: 진동 기본 켬 · 설정에서 끄기). 웹 진동이 안 되는 기기 (아이폰 사파리) 엔 칸을 두지 않는다 — 눌러도 아무 일 없는 칸이라 */
+      var hp = h('input', { type: 'checkbox', id: 'set-haptics' }); hp.checked = HAPTICS.on();
+      hp.addEventListener('change', function () { HAPTICS.set(hp.checked); if (hp.checked) HAPTICS.buzz('tick'); });
+      frag.appendChild(h('label', { class: 'set' }, [h('span', { text: '진동' }), hp]));
+    }
     var pf = h('input', { type: 'checkbox', id: 'set-pixel' }); pf.checked = pixelFont();
     pf.addEventListener('change', function () { S.settings.pixelFont = pf.checked; save(); applyFont(); });
     frag.appendChild(h('label', { class: 'set' }, [h('span', { text: '픽셀 글꼴' }), pf]));
@@ -3797,6 +3802,30 @@ var APP = (function () {
     return !!ok;
   }
   function furnShake(b) { if (!b) return; b.classList.remove('furn-no'); void b.offsetWidth; b.classList.add('furn-no'); setTimeout(function () { b.classList.remove('furn-no'); }, 320); }
+  /* 11-15 5차 (주인: "소파 상자 담요 구체적으로 아이콘 그려서 글자 없이도 알아볼 수 있게 해주고 글자 지워줘"): 가구 줄 그림 17×13 아트 px.
+     방에 놓인 그 가구와 같은 색 · 모양 — 주황 소파 (앞에서) · 양초를 얹은 나무 상자 · 바닥에 깔린 장밋빛 담요 (방에서 보이는 비스듬한 모양).
+     글자는 없고 이름은 aria-label 로만 (화면 낭독기). 글자 하나 = 색 하나, '.' = 빈칸 */
+  var FURN_ICON = {
+    pal: { '#': '#2b1d22', l: '#de9e41', o: '#be772b', s: '#884b2b', d: '#4d2b32', w: '#7a4841', k: '#4d2b32', h: '#ad7757', b: '#c09473', c: '#ebede9', C: '#c7cfcc', f: '#de9e41', F: '#f6e6a5', r: '#9a5058', R: '#b86a6f', S: '#6e3a42', p: '#f0d9b5' },
+    sofa: ['.................', '...###########...', '..#lllllllllll#..', '..#ooooooooooo#..', '###ooooooooooo###', '#l#sssssssssss#l#', '#o#lllllslllll#o#', '#o#ooooosooooo#o#', '#o#ooooosooooo#o#', '#s#sssssssssss#s#', '#sssssssssssssss#', '#################', '.dd...........dd.'],
+    crate: ['........f........', '.......fFf.......', '.......#c##......', '......#cCC#......', '......#cCC#......', '......#cCC#......', '#################', '#hhhhhhhbhhhhhhh#', '#wwwwwwwbwwwwwww#', '#bbbbbbbbbbbbbbb#', '#wwwwwwwbwwwwwww#', '#kkkkkkkbkkkkkkk#', '#################'],
+    blanket: ['.................', '......##.........', '....##RR##.......', '..##RRRprr##.....', '##RRRprrrrrr##...', 'SS##rrrrrrrrrr##.', '..SS##rrrrrrRRrr#', '....SS##rrRRrr##S', '......SS##rr##SS.', '........SS##SS...', '..........SS.....', '.................', '.................']
+  };
+  function furnIcon(id) {   /* → <svg> (색마다 path 하나, 줄마다 같은 색이 이어진 칸을 한 조각으로) | null (그림 없는 가구) */
+    var g = FURN_ICON[id]; if (!g || id === 'pal') return null;
+    var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), by = {};
+    svg.setAttribute('viewBox', '0 0 17 13'); svg.setAttribute('class', 'furn-ico'); svg.setAttribute('shape-rendering', 'crispEdges');
+    svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false');
+    g.forEach(function (row, y) {
+      for (var x = 0; x < row.length;) {
+        var ch = row[x], n = 1; while (x + n < row.length && row[x + n] === ch) n++;
+        if (ch !== '.' && FURN_ICON.pal[ch]) by[ch] = (by[ch] || '') + 'M' + x + ' ' + y + 'h' + n + 'v1H' + x + 'z';
+        x += n;
+      }
+    });
+    Object.keys(by).forEach(function (ch) { var p = document.createElementNS(NS, 'path'); p.setAttribute('fill', FURN_ICON.pal[ch]); p.setAttribute('d', by[ch]); svg.appendChild(p); });
+    return svg;
+  }
   function furnUI(stt) {   /* stt = 장면 furnEditing() ({ id, name, rot, scale, items, dragging, bad }) | null (모드 끝) */
     var ui = $('furn-ui'); if (!ui) return;
     furnMode = !!stt;
@@ -3811,9 +3840,10 @@ var APP = (function () {
     var box = $('furn-items'), items = stt.items || []; box.textContent = '';
     items.forEach(function (it) {
       var b = document.createElement('button'); b.type = 'button'; b.className = 'furn-tile pressable' + (it.id === stt.id ? ' on' : ''); b.setAttribute('aria-pressed', it.id === stt.id ? 'true' : 'false');
-      var sw = document.createElement('span'); sw.className = 'furn-sw furn-sw-' + it.id; sw.setAttribute('aria-hidden', 'true');
-      var nm = document.createElement('span'); nm.className = 'furn-nm'; nm.textContent = it.name;
-      b.appendChild(sw); b.appendChild(nm);
+      b.setAttribute('aria-label', it.name);   /* 11-15 5차: 글자 없이 그림만 — 이름은 읽어 주기로 */
+      var ico = furnIcon(it.id);
+      if (ico) b.appendChild(ico);
+      else { var nm = document.createElement('span'); nm.className = 'furn-nm'; nm.textContent = it.name; b.appendChild(nm); }   /* 그림이 없는 새 가구만 이름 글자 */
       b.addEventListener('click', function () { if (scene && scene.furnSelect) scene.furnSelect(it.id); });
       box.appendChild(b);
     });
