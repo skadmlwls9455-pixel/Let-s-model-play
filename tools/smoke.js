@@ -1755,7 +1755,8 @@ async function runnerTouch(br) {
     /* 가로로 돌려도 (740×360) 바닥선은 동그라미 위 · 창은 가운데 430 px 기둥 (11-15 점검) */
     await page.setViewportSize({ width: 740, height: 360 });
     await page.waitForFunction(function () { var v = RUNNER.live().view; return v && v.H * v.css >= 359 && v.H * v.css < 460; });
-    var land = await page.evaluate(function () { var v = RUNNER.live().view, j = document.getElementById('rn-jump').getBoundingClientRect(), d = document.getElementById('runner-dlg').getBoundingClientRect(); return { G: v.G * v.css + d.top, pad: j.top, w: d.width, W: v.W }; });
+    /* 11-15 (CI R): 느린 러너에선 그새 장애물에 부딪혀 판이 끝나고, 끝나면 동그라미 줄(#rn-ctrls)이 숨어 위치가 0 으로 재졌다 — 판 상태와 상관없이 배치만 잰다 (잠깐 보이게 해서 재고 되돌린다) */
+    var land = await page.evaluate(function () { var c = document.getElementById('rn-ctrls'), hid = c.hidden; c.hidden = false; var v = RUNNER.live().view, j = document.getElementById('rn-jump').getBoundingClientRect(), d = document.getElementById('runner-dlg').getBoundingClientRect(); c.hidden = hid; return { G: v.G * v.css + d.top, pad: j.top, w: d.width, W: v.W, over: hid }; });
     ok(land.G < land.pad && land.w <= 430, '가로 740×360: 바닥선(' + Math.round(land.G) + ') < 동그라미(' + Math.round(land.pad) + ') · 창 폭 ' + land.w + ' (보이는 폭 ' + land.W + ')');
     await page.setViewportSize({ width: 360, height: 740 });
     await page.waitForFunction(function () { var v = RUNNER.live().view; return v && v.H * v.css >= 739; });
