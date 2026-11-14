@@ -3851,24 +3851,16 @@ var APP = (function () {
     if (row && stt.id) { $('furn-small').disabled = stt.scale <= 0.7 + 1e-6; $('furn-big').disabled = stt.scale >= 1.5 - 1e-6; row.setAttribute('aria-label', stt.name + ' 바꾸기'); }
     if (!stt.id || stt.dragging) furnRow(null);
   }
-  function furnRow(r) {   /* 고른 가구 밑 단추 줄 — r = 장면 화면 상자 { l, r, t, b } (CSS px, 장면 기준) | null. 아래 자리가 모자라면 가구 위로, 늘 장면 안 (위 줄 · 가구 줄은 비켜) */
+  function furnRow(r) {   /* 고른 가구의 그림 단추 줄 (돌리기 · 작게 · 크게) — r = 장면 화면 상자 | null (고른 것 없음 · 끄는 중이면 숨김).
+                             11-15 5차 (주인: "띡 화면 중앙에 박힌 거 너무 이상해" → '아래 고정 그림 단추'): 가구를 따라다니지 않고 늘 아래 가구 줄 바로 위 가운데.
+                             (예전: 고른 가구 밑 · 위 · 옆에 떠서 화면 가운데에 걸렸다) */
     var row = $('furn-row'), ui = $('furn-ui'); if (!row || !ui) return;
     if (!r || !furnMode) { row.hidden = true; return; }
     row.hidden = false;
-    var W = ui.clientWidth, H = ui.clientHeight, w = row.offsetWidth, h = row.offsetHeight, top = $('furn-top'), strip = $('furn-items');
-    var lo = top ? top.offsetTop + top.offsetHeight + 8 : 8, hi = H - (strip && !strip.hidden ? strip.offsetHeight : 0) - 8 - h;
-    var x = Math.round(clamp((r.l + r.r) / 2 - w / 2, 8, Math.max(8, W - w - 8))), y = r.b + 8;
-    if (y > hi) y = r.t - h - 8;   /* 밑에 자리가 없으면 위로 */
-    y = Math.round(clamp(y, lo, Math.max(lo, hi)));
-    /* 11-15 합침 (검증 V4 S4): 단추 줄이 다른 가구 위에 얹히면 그 가구를 톡 하려던 손가락이 단추를 눌렀다 → 밑 · 위 · 옆으로 민 자리 가운데 다른 가구와 안 겹치는 첫 자리 (없으면 위 자리 그대로) */
-    var others = scene && typeof scene.furnRects === 'function' ? scene.furnRects() : [];
-    if (others.length) {
-      var hit = function (cx, cy) { return others.some(function (o) { return cx < o.r + 4 && cx + w > o.l - 4 && cy < o.b + 4 && cy + h > o.t - 4; }); };
-      var fit = function (cx, cy) { return cx >= 8 && cx + w <= W - 8 && cy >= lo && cy <= hi; };
-      var cx0 = Math.round((r.l + r.r) / 2 - w / 2), cands = [[cx0, r.b + 8], [cx0, r.t - h - 8], [r.r + 8, r.b + 8], [r.l - w - 8, r.b + 8], [r.r + 8, r.t - h - 8], [r.l - w - 8, r.t - h - 8]];
-      for (var i = 0; i < cands.length; i++) { var c = [Math.round(clamp(cands[i][0], 8, Math.max(8, W - w - 8))), Math.round(cands[i][1])]; if (fit(c[0], c[1]) && !hit(c[0], c[1])) { x = c[0]; y = c[1]; break; } }
-    }
-    row.style.left = x + 'px'; row.style.top = y + 'px';
+    var W = ui.clientWidth, H = ui.clientHeight, w = row.offsetWidth, h = row.offsetHeight, strip = $('furn-items');
+    var sh = strip && !strip.hidden ? strip.offsetHeight : 0;
+    row.style.left = Math.round(Math.max(8, (W - w) / 2)) + 'px';
+    row.style.top = Math.round(Math.max(8, H - sh - 8 - h)) + 'px';
   }
   function furnSaved(d) {   /* 장면이 저장하기로 닫힘 (단추 · 망치 · 문어 출발/귀가) → 바뀐 가구만 적는다 */
     if (!d || !d.layout) return;

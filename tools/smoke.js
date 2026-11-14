@@ -1737,10 +1737,10 @@ async function runnerTouch(br) {
     ok(g.j.y > groundY && g.du.y > groundY, '동그라미가 바닥선(장애물 줄, y ' + Math.round(groundY) + ') 아래 — 장애물을 가리지 않음 (' + Math.round(g.j.y) + ')');
     ok(g.close.w >= 44 && g.close.h >= 44 && g.close.r > 320 && g.close.y < 60, '닫기 오른쪽 위 ≥ 44 px');
     ok(g.scrollW <= 360, '가로 스크롤 없음');
-    /* 무대 가운데 · 바닥선 근처를 톡 → 아무 일 없음 (엄지를 얹어 둬도 저절로 안 뜀) */
-    await page.touchscreen.tap(180, 300); await page.touchscreen.tap(180, Math.round(groundY) - 20);
-    ok(await page.evaluate(function () { var L = RUNNER.live(); return L.state === 'ready' && L.inputs.length === 0; }), '무대 다른 곳 탭은 아무 일 없음 (준비 그대로)');
-    /* 왼쪽 동그라미 = 점프 (출발), 오른쪽 = 숙이기 — 진짜 손가락 (CDP) 으로 누르고 있다가 뗀다 */
+    /* 11-15 5차 (주인 '화면 반쪽씩'): 오른쪽 반 = 숙이기 — 준비 화면에선 출발하지 않는다 (출발은 점프 쪽 · 왼쪽 반) */
+    await page.touchscreen.tap(280, 300); await page.touchscreen.tap(300, Math.round(groundY) - 20);
+    ok(await page.evaluate(function () { var L = RUNNER.live(); return L.state === 'ready' && L.inputs.length === 0; }), '준비 화면에서 오른쪽 반 톡은 출발하지 않음 (준비 그대로)');
+    /* 왼쪽 반 = 점프 (출발), 오른쪽 반 = 숙이기 — 진짜 손가락 (CDP) 으로 누르고 있다가 뗀다. 동그라미 밖 (화면 위쪽) 과 동그라미 안 둘 다 */
     var cdp = await ctx.newCDPSession(page);
     async function hold(b, until) {
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: b.x + b.w / 2, y: b.y + b.h / 2, id: 1 }] });
@@ -1748,9 +1748,13 @@ async function runnerTouch(br) {
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       return got;
     }
-    ok(await hold(g.j, function () { var L = RUNNER.live(); return L.state === 'run' && !L.ground; }), '왼쪽 동그라미 → 출발하고 점프');
+    ok(await hold({ x: 60, y: 260, w: 40, h: 40 }, function () { var L = RUNNER.live(); return L.state === 'run' && !L.ground; }), '왼쪽 반 어디든 (동그라미 밖 위쪽) → 출발하고 점프');
     await page.waitForFunction(function () { var L = RUNNER.live(); return L.state !== 'run' || L.ground; });
-    ok(await hold(g.du, function () { var L = RUNNER.live(); return L.state === 'run' && L.duck; }), '오른쪽 동그라미 → 숙이기 (누르는 동안)');
+    ok(await hold({ x: 260, y: 260, w: 40, h: 40 }, function () { var L = RUNNER.live(); return L.state !== 'run' || L.duck; }) && await page.evaluate(function () { var L = RUNNER.live(); return L.inputs.some(function (e) { return e.a === 'dd'; }); }), '오른쪽 반 어디든 → 숙이기');
+    await page.waitForFunction(function () { var L = RUNNER.live(); return L.state !== 'run' || L.ground; });
+    ok(await hold(g.j, function () { var L = RUNNER.live(); return L.state !== 'run' || !L.ground; }), '왼쪽 동그라미 → 점프 (동그라미는 왼쪽 반 안)');
+    await page.waitForFunction(function () { var L = RUNNER.live(); return L.state !== 'run' || L.ground; });
+    ok(await hold(g.du, function () { var L = RUNNER.live(); return L.state !== 'run' || L.duck; }), '오른쪽 동그라미 → 숙이기 (누르는 동안 · 느린 러너에서 그새 판이 끝났으면 넘어감 — 반쪽 숙이기는 위에서 엄격히 봤다)');
     var ins = await page.evaluate(function () { return RUNNER.live().inputs.map(function (e) { return e.a; }).join(','); });
     /* 가로로 돌려도 (740×360) 바닥선은 동그라미 위 · 창은 가운데 430 px 기둥 (11-15 점검) */
     await page.setViewportSize({ width: 740, height: 360 });
@@ -4656,17 +4660,18 @@ async function scenarioTapFit(browser) {
               APP.scene.jumpTo(o.a); APP.say(o.t, 'say', 8000);
               setTimeout(function () { requestAnimationFrame(function () { requestAnimationFrame(function () {
                 var b = document.getElementById('oct-bubble'), s = document.getElementById('scene').getBoundingClientRect(), r = b.getBoundingClientRect(), dy = parseFloat(b.style.getPropertyValue('--bub-dy')) || 0;
-                var cs = getComputedStyle(b); res({ l: r.left - s.left, r: s.right - r.right, t: r.top - s.top, b: s.bottom - r.bottom, w: Math.round(r.width), h: Math.round(r.height), dy: dy, tail: b.getAttribute('data-tail'), hidden: b.hidden, sw: s.width, fs: cs.fontSize, ff: cs.fontFamily.split(',')[0].replace(/["']/g, '').trim(), lh: parseFloat(cs.lineHeight) || 0, bt: parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth) + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) });
+                var cs = getComputedStyle(b); res({ l: r.left - s.left, r: s.right - r.right, t: r.top - s.top, b: s.bottom - r.bottom, w: Math.round(r.width), h: Math.round(r.height), dy: dy, tail: b.getAttribute('data-tail'), hidden: b.hidden, sw: s.width, fs: cs.fontSize, ff: cs.fontFamily.split(',')[0].replace(/["']/g, '').trim(), lh: parseFloat(cs.lineHeight) || 0, bt: parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth) + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom), dpr: window.devicePixelRatio || 1 });
               }); }); }, 520);   /* 순간이동 뒤 5 Hz 다시 맞추기가 두 번 돈 다음 (바쁜 기계에선 첫 프레임이 옛 자리를 잴 수 있다) */
             });
           }, { a: a, t: LINES[li] });
           n++;
           if (r.hidden || r.l < 3.5 || r.r < 3.5 || r.t < 3.5 || r.b < 0) bad.push(vp[0] + 'x' + vp[1] + ' ' + scheme + ' ' + theme + ' ' + a + ' L' + li + ' ' + JSON.stringify(r));
           if (r.dy) slid++;
-          /* 11-15 갈래 H (주인: 말풍선이 화면을 가린다): 폭은 장면의 반 (128~200px) · 픽셀은 Galmuri11 12px (1배, 또렷) · 24+… 줄은 세 줄 안 */
-          var capW = Math.max(128, Math.min(200, Math.floor(r.sw / 2)));
+          /* 11-15 갈래 H (주인: 말풍선이 화면을 가린다) → 5차 (주인: 글자 조금 키움): 폭은 장면의 60% (150~220px) · 픽셀은 Galmuri11 을 기기 px 에 맞춘 약 17px
+             (눈금 12 × 정수 n / 배율 — index.html 머리 스크립트의 --bub-fs, 배율 1 이면 12px) · 줄 높이 1.5 · 24+… 줄은 세 줄 안 */
+          var capW = Math.max(150, Math.min(220, Math.floor(r.sw * 0.6))), bubFs = 12 * Math.max(1, Math.round(17 * r.dpr / 12)) / r.dpr;
           if (r.w > capW + 0.5) sizeBad.push(vp[0] + ' ' + theme + ' ' + a + ' L' + li + ' w ' + r.w + ' > ' + capW);
-          if (theme === 'pixel' && (r.fs !== '12px' || r.ff !== 'Galmuri11' || r.lh !== 18)) sizeBad.push(vp[0] + ' pixel font ' + r.fs + ' ' + r.ff + ' ' + r.lh);
+          if (theme === 'pixel' && (Math.abs(parseFloat(r.fs) - bubFs) > 0.01 || r.ff !== 'Galmuri11' || Math.abs(r.lh - bubFs * 1.5) > 0.6)) sizeBad.push(vp[0] + ' pixel font ' + r.fs + ' ' + r.ff + ' ' + r.lh + ' (바람 ' + bubFs + ')');
           if (li === 1 && r.lh && Math.round((r.h - r.bt) / r.lh) > 3) sizeBad.push(vp[0] + ' ' + theme + ' ' + a + ' lines ' + Math.round((r.h - r.bt) / r.lh));
           if (theme === 'pixel' && ((r.dy > 12) !== (r.tail === 'off'))) tailBad++;
           var shot = (vp[0] === 320 && theme === 'pixel' && a === 'board' && li === 0 && scheme === 'light') ? 'fit-board-320x568-pixel.png'
@@ -4683,7 +4688,7 @@ async function scenarioTapFit(browser) {
   console.log('   배치 ' + n + '곳 · 아래로 민 것 ' + slid + (bad.length ? ' · 밖: ' + bad.slice(0, 4).join(' | ') : ''));
   ok(n >= 140 && bad.length === 0, '말풍선이 장면 칸 안 (가장자리 4px 안쪽 — 위 · 옆 · 아래) · 폰 세 폭 · 두 테마 · 앵커 여섯 · 22자 · 24+… · 40자 (' + n + '곳, 밖 ' + bad.length + ')');
   ok(tailBad === 0, '픽셀 꼬리는 12px 넘게 내려왔을 때만 뺀다 (' + tailBad + ')');
-  ok(sizeBad.length === 0, '11-15 작은 말풍선: 폭 ≤ 장면의 반 (128~200px) · 픽셀 Galmuri11 12px/18px · 24+… 줄은 세 줄 안 (' + n + '곳' + (sizeBad.length ? ', 어긋남 ' + sizeBad.length + ': ' + sizeBad.slice(0, 4).join(' | ') : '') + ')');
+  ok(sizeBad.length === 0, '11-15 5차 말풍선: 폭 ≤ 장면의 60% (150~220px) · 픽셀 Galmuri11 기기 px 맞춤 (약 17px, 줄 1.5) · 24+… 줄은 세 줄 안 (' + n + '곳' + (sizeBad.length ? ', 어긋남 ' + sizeBad.length + ': ' + sizeBad.slice(0, 4).join(' | ') : '') + ')');
 }
 /* K. 데려오기: 기록은 안 데려온 것과 바이트 하나까지 같다 · 짧은 귀가(문 · 토스트 · 등불)가 보인다 · 두 번 눌러도 그대로 · 모션 줄이기 */
 async function scenarioBringBack(browser) {
