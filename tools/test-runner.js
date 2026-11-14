@@ -256,7 +256,7 @@ function deferred() { var d = {}; d.p = new Promise(function (r) { d.resolve = r
   h.byId['rn-again'].fire('click'); await h.readyNet(); await h.runToOver();
   await h.advance(31 * 60000);
   await h.submit('late');
-  check(/시간이 너무 지나서/.test(h.byId['rn-net-msg'].textContent) && h.byId['rn-submit'].disabled, '#30 401 만료 → 같은 오류로 되풀이하지 않게 버튼 꺼짐');
+  check(/너무 늦어서 못 올렸어/.test(h.byId['rn-net-msg'].textContent) && h.byId['rn-submit'].disabled, '#30 401 만료 → 같은 오류로 되풀이하지 않게 버튼 꺼짐');
 
   /* #28 (클라이언트 쪽): final:false 응답은 done 으로 적지 않는다 → 닫힌 뒤 다시 물어 망토를 받는다 */
   var MON = Date.UTC(2026, 10, 8, 15, 5);   /* 월 00:05 KST: W45 는 아직 안 닫힘 */

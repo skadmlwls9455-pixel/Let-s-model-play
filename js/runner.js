@@ -292,7 +292,7 @@ var RUNNER = (function () {
       ]),
       el('p', { class: 'rn-net-msg', id: 'rn-net-msg', 'aria-live': 'polite' }),
       el('ol', { class: 'rn-top10', id: 'rn-top10', 'aria-label': '이번 주 순위 10', hidden: '' }),
-      el('p', { class: 'rn-net-privacy', text: '닉네임과 점수만 저장해. 이번 주 순위는 월요일에 새로 시작해.' })
+      el('p', { class: 'rn-net-privacy', text: '닉네임과 점수만 저장해. 순위는 월요일마다 새로 시작해.' })
     ]);
     overP = el('div', { class: 'rn-over', id: 'rn-over', role: 'status', hidden: '' }, [finalEl, scoreEl, bestEl, oldEl, el('div', { class: 'btn-row center' }, [btnAgain, btnStop]), netP]);
     awardEl = el('p', { class: 'rn-award', id: 'rn-award', 'aria-live': 'polite', hidden: '' });
@@ -428,7 +428,7 @@ var RUNNER = (function () {
     fetchJson('top', null, 4000).then(function (r) { if (L === me && r.status === 200 && r.json && r.json.ok) renderTop(r.json.top, null, myRank); });
   }
   function netMsg(t) { var m = document.getElementById('rn-net-msg'); if (m) m.textContent = t; }
-  var NET_ERR = { duplicate: '이 판은 벌써 올렸어.', expired: '시간이 너무 지나서 못 올렸어. 다음 판은 바로 올려 줘.', too_fast: '이 판은 올릴 수 없어.', mismatch: '기록이 맞지 않아서 못 올렸어.' };
+  var NET_ERR = { duplicate: '이 판은 벌써 올렸어.', expired: '너무 늦어서 못 올렸어. 다음 판은 바로 올려 줘.', too_fast: '이 판은 올릴 수 없어.', mismatch: '기록이 맞지 않아서 못 올렸어.' };
   var NET_FRESH_MS = 20 * 60000;   /* 토큰은 30분 → 준비 화면에서 20분 넘게 쉬었으면 출발할 때 새로 받는다 (달리기·올리기 몫 10분) */
   /* 서버가 받은 판은 창을 닫았든 다음 판으로 넘어갔든 저장한다 (runId 가 있어야 나중에 망토를 물어볼 수 있다) */
   function keepSub(j, rec) {
@@ -456,7 +456,7 @@ var RUNNER = (function () {
         if (j.error === 'old_version') { netP.hidden = true; return; }   /* 11-15: 판 버전이 서버와 다르다 → 순위 칸만 조용히 접는다 (탓하는 글 없음, 점수는 이 기기에 그대로) */
         var stuck = r.status >= 400 && r.status < 500 && r.status !== 408 && r.status !== 429;   /* 같은 판을 다시 보내도 같은 답(409·401 만료 등) → 버튼은 꺼 둔다 */
         if (!stuck) { me.submitted = false; btn.disabled = false; inp.disabled = false; }
-        netMsg(NET_ERR[j.error] || (stuck ? '이 판은 올릴 수 없어.' : '지금은 못 올렸어. 점수는 이 기기에 남아 있어.'));
+        netMsg(NET_ERR[j.error] || (stuck ? '이 판은 올릴 수 없어.' : '지금은 못 올렸어. 점수는 이 기기에 남아.'));
       }
     });
   }

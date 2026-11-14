@@ -63,7 +63,7 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; min-height: 100dvh;
   font-family: 'Noto Sans KR', system-ui, -apple-system, sans-serif;
-  font-size: 15px; line-height: 1.65;
+  font-size: 14px; line-height: 1.65;
   background: var(--bg); color: var(--fg);
   word-break: keep-all; overflow-wrap: anywhere;
   padding-left: env(safe-area-inset-left, 0px);
@@ -87,12 +87,12 @@ a { color: var(--teal); touch-action: manipulation; }
 @media (hover: hover) and (pointer: fine) { .pressable:not(:disabled):hover { transform: translateY(-1px); } }
 
 /* ── 경고 / 토스트 ── */
-.warn { padding: 8px 16px; background: var(--amber-g); color: var(--amber); font-size: 13px; }
+.warn { padding: 8px 16px; background: var(--amber-g); color: var(--amber); font-size: 12px; }
 #toast {
   position: fixed; left: 50%; bottom: var(--toast-b, calc(24px + env(safe-area-inset-bottom, 0px)));   /* --toast-b: 대사 · 쪽지와 겹칠 때 app.js toastPlace() 가 올려 준다 */
   transform: translate(-50%, 12px); opacity: 0; pointer-events: none;
   background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 12px;
-  font-size: 13px; max-width: calc(100% - 32px); z-index: 60; display: block; width: max-content;
+  font-size: 12px; max-width: calc(100% - 32px); z-index: 60; display: block; width: max-content;
   transition: opacity var(--t-press) var(--ease-exit), transform var(--t-press) var(--ease-exit);   /* 나갈 땐 짧게 */
   top: auto; right: auto; margin: 0; border: 0; overflow: visible;   /* popover="manual" 의 UA 기본값(inset 0 · margin auto · border · overflow auto)을 끈다. display:block 이 닫힌 popover 의 display:none 도 이긴다 */
 }
@@ -229,7 +229,7 @@ a { color: var(--teal); touch-action: manipulation; }
 /* 이름이 먼저 줄어든다(… --name-min 까지). 방 제목은 줄어들지 않고(flex-shrink 0 — 플렉스 반올림 0.3px 에도 … 가 켜져서), 폭 상한 = 전체 − 이름 최소 폭(− 데모 표시)이라 이름이 최소에 닿은 뒤에만 …
    이름 자체엔 최소 폭을 두지 않는다(바닥은 방 제목 상한이 지킨다) → 짧은 이름(한두 글자) 뒤에 빈칸 없이 데모 표시가 바로 붙는다 */
 #status .who { --name-min: 39px; }
-#status .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 15px; color: var(--amber); }
+#status .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 14px; color: var(--amber); }
 .room-title { flex: 0 0 auto; max-width: calc(100% - var(--name-min)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
 .room-title::before { content: '·'; margin: 0 6px; color: var(--dim); }
 /* 이름 옆 '데모' 표시 (정직 표기 · 주인: 작게). 줄어들지 않고(flex 0 0) 이름이 먼저 … 로 줄어든다. 숨겨도(모델 여행 재생 중) 오른쪽 등불 칸은 그대로 — .who 가 남는 폭을 다 차지한다 */
@@ -270,11 +270,11 @@ a { color: var(--teal); touch-action: manipulation; }
 .btn-row.center { justify-content: center; }
 .btn {
   position: relative; min-height: 44px; padding: 8px 16px; border-radius: 22px;
-  border: 1px solid var(--rim); background: var(--panel); color: var(--fg); font-size: 15px;
+  border: 1px solid var(--rim); background: var(--panel); color: var(--fg); font-size: 14px;
   box-shadow: inset 0 1px 0 var(--hi);
   transition: transform var(--t-press) var(--ease-out), background var(--t-morph) var(--ease-inout), color var(--t-morph) var(--ease-inout), border-color var(--t-morph) var(--ease-inout), opacity var(--t-ui);
 }
-.btn.sm { min-height: 36px; padding: 4px 12px; font-size: 13px; }
+.btn.sm { min-height: 36px; padding: 4px 12px; font-size: 12px; }
 .btn.wide { width: 100%; }
 .btn.primary { min-height: 52px; background: var(--amber); border-color: var(--amber); color: var(--on-accent); font-weight: 500; flex: 1 1 auto; box-shadow: inset 0 1px 0 var(--hi), var(--shadow); }
 /* 나가 있는 동안 (주인 11-07: 건너뛰기를 큰 버튼에 합침): "다녀오는 중…" 글자만 (기호 없음 — 주인 11-07 마지막 말) — 누르면 바로 데려온다 (app.js skip). 누를 수 있는 버튼으로 보이게
@@ -296,7 +296,7 @@ a { color: var(--teal); touch-action: manipulation; }
 .lrow {
   display: grid; grid-template-columns: 44px 1fr; gap: 6px; align-items: start;
   padding: 7px 10px; margin-bottom: 6px; background: var(--panel); border-radius: 8px;
-  border-left: 3px solid var(--rim); font-size: 13px;
+  border-left: 3px solid var(--rim); font-size: 12px;
 }
 .lrow.c-amber { border-left-color: var(--amber); } .lrow.c-teal { border-left-color: var(--teal); }
 .lrow.c-mute { border-left-color: var(--muted); border-left-style: dashed; }   /* 못 읽음 · 모의 방문: 빨강 없이, 점선 + 자기 글리프 */
@@ -308,7 +308,7 @@ a { color: var(--teal); touch-action: manipulation; }
 .ltext .sub { display: block; color: var(--muted); font-size: 12px; }
 .ltext .first { color: var(--teal); }
 .lrow.typing .ltext { color: var(--muted); letter-spacing: 2px; animation: pill-breathe 1.4s ease-in-out infinite; }
-.lempty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+.lempty { color: var(--muted); font-size: 12px; padding: 12px 0; }
 /* 초상 대화창 행 (§15.2, ui-ref-portrait-dialog): 왼쪽 64×64 초상을 96px 로(nearest), 남색 바탕 틀, 오른쪽 라벨 + 말. 초상 <canvas> 는 aria-hidden — 읽히는 건 글자뿐 */
 .lrow.dialog { grid-template-columns: auto 1fr; align-items: start; gap: 10px; }
 .lport { display: block; width: 100px; height: 100px; padding: 1px; background: #172038; border: 1px solid var(--rim); border-radius: 6px; overflow: hidden; }
@@ -339,7 +339,7 @@ a { color: var(--teal); touch-action: manipulation; }
 @keyframes stk-in { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
 
 /* ── DEMO ── */
-#demo { margin: 8px 16px 0; border: 1px dashed var(--rim); border-radius: 10px; padding: 0 12px; font-size: 13px; }
+#demo { margin: 8px 16px 0; border: 1px dashed var(--rim); border-radius: 10px; padding: 0 12px; font-size: 12px; }
 #demo summary { min-height: 44px; display: flex; align-items: center; color: var(--muted); cursor: pointer; }
 #demo .warn-line { color: var(--rose); font-size: 12px; margin: 0 0 4px; }
 #demo .btn-row { margin: 6px 0 8px; }
@@ -354,8 +354,8 @@ dialog::backdrop { background: rgba(10,8,20,.62); backdrop-filter: blur(4px); }
 dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 @keyframes dlg-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
 .modal { border-radius: 16px; width: min(92vw, 340px); padding: 24px 20px 18px; text-align: center; }
-.modal h2 { font-family: 'Noto Serif KR', serif; font-size: 17px; margin: 0 0 6px; }
-.modal p { font-size: 13px; color: var(--muted); margin: 0 0 16px; }
+.modal h2 { font-family: 'Noto Serif KR', serif; font-size: 16px; margin: 0 0 6px; }
+.modal p { font-size: 12px; color: var(--muted); margin: 0 0 16px; }
 .modal .big { display: block; width: 48px; height: 48px; margin: 0 auto 12px; image-rendering: pixelated; }   /* 작은 픽셀 문어 (assets/oct/happy.svg, 48px = 원본 1:1) — 예전 🐙 글자 자리 */
 .modal-in { text-align: center; margin-bottom: 12px; background: var(--panel2); }
 .honest { font-size: 12px; color: var(--muted); margin: 14px 0 0; }
@@ -383,7 +383,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .inspect-text { font-family: 'Noto Sans KR', sans-serif; font-size: 14px; line-height: 1.6; min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
 .inspect-text p { margin: 0 0 8px; }
 .inspect-text .lead { font-family: 'Noto Serif KR', serif; font-size: 16px; font-weight: 600; margin-bottom: 10px; }
-.inspect-text .meta { color: var(--ip-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.inspect-text .meta { color: var(--ip-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .inspect-text .kw { color: var(--accent); }        /* 기억으로 고른 곳 */
 .inspect-text .first { color: var(--teal); }       /* 처음 온 곳 */
 .inspect-text .first-chip { color: var(--teal); font-size: 11px; margin-left: 5px; vertical-align: 1px; }
@@ -396,17 +396,17 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .flipper .face.back { display: none; margin-top: 14px; border-radius: 3px; overflow: hidden; color: var(--ink); background: var(--paper0); box-shadow: 0 0 0 1px rgba(10,8,20,.5); }
 .flipper.flip .face.back { display: block; animation: fade-only var(--t-flip) var(--ease-enter) both; }
 .poster-modal .btn-row { margin-top: 14px; }
-.poster-modal .btn { background: rgba(255,250,240,.06); border-color: var(--ip-rim); color: var(--ip-fg); box-shadow: inset 0 1px 0 rgba(255,250,240,.06); font-size: 14px; padding: 8px 14px; }
+.poster-modal .btn { background: rgba(255,250,240,.06); border-color: var(--ip-rim); color: var(--ip-fg); box-shadow: inset 0 1px 0 rgba(255,250,240,.06); font-size: 13px; padding: 8px 14px; }
 @media (min-width: 600px) {
   .inspect { grid-template-columns: 58fr 42fr; gap: 18px; }
   .flipper .face.front { height: calc(min(100dvh - 150px, (var(--ip-cw) - 18px) * .58 * 4 / 3) * var(--pf)); }
   .inspect-text { padding-top: 4px; font-size: 15px; }
-  .inspect-text .lead { font-size: 18px; }
+  .inspect-text .lead { font-size: 17px; }
 }
 
 /* 영수증 (뒷면 HTML, §6.2) — 종이 위 글자는 테마 무관 ink 토큰 */
 .receipt { padding: 16px 14px; font-size: 12px; line-height: 1.5; font-family: 'Noto Sans KR', sans-serif; color: var(--ink); background: var(--paper0); }
-.receipt h3 { font-family: 'Noto Serif KR', serif; font-size: 13px; margin: 0 0 6px; font-weight: 600; letter-spacing: 0; }   /* '일기 · 2026.11.05' (예전엔 여행 id 라 고정폭) */
+.receipt h3 { font-family: 'Noto Serif KR', serif; font-size: 12px; margin: 0 0 6px; font-weight: 600; letter-spacing: 0; }   /* '일기 · 2026.11.05' (예전엔 여행 id 라 고정폭) */
 .receipt .hr { border-top: 1px dashed rgba(42,38,32,.4); margin: 6px 0; }
 .receipt .row { display: grid; grid-template-columns: 14px 1fr; gap: 6px; padding: 3px 0; }
 .receipt .row .n { color: var(--ink-muted); }
@@ -418,7 +418,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .receipt .kv { display: flex; justify-content: space-between; gap: 8px; }
 .receipt .kv b { font-weight: 500; }
 .receipt .by { margin-top: 8px; color: var(--ink-muted); font-size: 11px; }
-.receipt .big-line { font-family: 'Noto Serif KR', serif; font-size: 14px; font-weight: 600; margin: 8px 0; }
+.receipt .big-line { font-family: 'Noto Serif KR', serif; font-size: 13px; font-weight: 600; margin: 8px 0; }
 .receipt .dim { color: var(--ink-muted); }
 .receipt .share { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 8px; background: rgba(42,38,32,.06); border-radius: 8px; }
 .receipt .share code { flex: 1 1 auto; font-family: inherit; font-size: 12px; letter-spacing: .02em; }
@@ -435,9 +435,9 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 @keyframes sheet-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 .sheet .handle { width: 32px; height: 4px; border-radius: 2px; background: var(--rim); margin: 4px auto 12px; }
 .sheet h3 { font-size: 12px; color: var(--muted); letter-spacing: .06em; font-weight: 500; margin: 14px 0 4px; }
-.sheet p { margin: 0 0 4px; font-size: 13px; }
-.sheet ul { margin: 0; padding-left: 18px; font-size: 13px; }
-.sheet .set { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; font-size: 13px; }
+.sheet p { margin: 0 0 4px; font-size: 12px; }
+.sheet ul { margin: 0; padding-left: 18px; font-size: 12px; }
+.sheet .set { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; font-size: 12px; }
 .sheet select { min-height: 44px; max-width: 100%; border-radius: 8px; background: var(--panel2); border: 1px solid var(--rim); padding: 4px 8px; font-size: 16px; }   /* max-width: select 는 가장 긴 option 만큼 넓어진다 — 시트보다 넓어지면 시트가 옆으로 밀렸다 (방의 언어 고르기) */
 .sheet input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--amber); }
 /* 기록 불러오기 (#set-import): 기본 파일 칸의 "선택된 파일 없음" 글자는 접고(font-size 0 — 고르면 바로 불러오고 토스트로 알린다),
@@ -461,12 +461,16 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 
 /* ══════════════════════════════════════════════════════════
    픽셀 테마 — html[data-font="pixel"] (기본값. ⚙ 설정 › "픽셀 글꼴" 끄면 위의 Noto + 민무늬 패널로 돌아간다)
-   글꼴: Galmuri (vendor/fonts/galmuri.css) 정수 배만 (제 격자 8/10/12px 의 2배) — 본문·로그·영수증·이름 Galmuri9 20px/30px, 버튼·대화 Galmuri11 24px, 메타·칩·날짜·상태 줄·방 제목 Galmuri7 16px/24px
+   글꼴: Galmuri (vendor/fonts/galmuri.css) 정수 배만 (제 격자 8/10/12px 의 2배) — 11-15 (주인: 글자 한 단계 작게) 사다리 한 칸 내림:
+   제목·큰 버튼·대화 Galmuri9 20px/30px (예전 Galmuri11 24px/36px), 본문·로그·영수증·시트·작은 소제목 Galmuri7 16px/24px (예전 Galmuri9 20px/30px),
+   메타·칩·날짜·상태 줄·방 제목 Galmuri7 16px (바닥 — 더 줄이지 않는다). 예외: 포스터 글 본문(.inspect-text)은 긴 글이라 Galmuri9 20px 그대로.
+   굵은 글은 Galmuri11 에만 있어 font-synthesis: none (가짜 굵게는 픽셀을 뭉갠다). 시스템 글꼴도 한 단계 (15→14 · 13→12, 12 는 바닥, 입력칸 16 은 그대로)
    색: Apollo 46 (js/palettes.js) 에서만 고른다. 라이트 = 종이·나무, 다크 = 슬레이트·남색. 본문 대비 ≥ 4.5:1 (tools 없음 — 리포트에 표)
    질감: 2px 격자 체커 디더(패널 3% · 페이지 6%) + 종이 알갱이, 전부 data-URI SVG, image-rendering: pixelated. 그라디언트·블러 없음, 그림자는 2px 딱딱한 블록
    틀: 2px 어두운 테두리 + 안쪽 2px 베벨(밝음 좌상·어둠 우하) + 모서리 2px 계단(clip-path). 대화상자는 이중 틀(바깥 2px · 2px 틈 · 안쪽 1px)
    ══════════════════════════════════════════════════════════ */
 :root[data-font="pixel"] {
+  font-synthesis: none;   /* 11-15: 굵은 제목이 Galmuri9 · 7 로 내려와 가짜 굵게가 생기지 않게 (Galmuri11 만 굵은 글꼴이 있다) */
   /* 라이트: 종이 위 나무 — Apollo #d7b594 / #e7d5b3 / #ebede9, 잉크 #341c27, 나무 #602c2c · #884b2b, 호박 #be772b */
   --bg: #d7b594; --panel: #e7d5b3; --panel2: #ebede9; --rim: #602c2c;
   --fg: #341c27; --muted: #602c2c; --dim: #c09473;
@@ -531,7 +535,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 
 /* 글꼴 눈금 — 픽셀 글꼴은 안티앨리어싱을 끈다 (지원하는 곳에서만), 자간 0 (플레이어 화면엔 이모지가 없다 — 그림은 픽셀 아이콘) */
 :root[data-font="pixel"] body {
-  font-family: var(--f-body); font-size: 20px; line-height: 30px; letter-spacing: 0;
+  font-family: var(--f-meta); font-size: 16px; line-height: 24px; letter-spacing: 0;
   -webkit-font-smoothing: none; font-smooth: never; text-rendering: optimizeSpeed;
   background-color: var(--bg); background-image: var(--dither-page); background-size: 4px 4px; image-rendering: pixelated;
 }
@@ -556,7 +560,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .warn { background: var(--amber-fill); color: var(--on-accent); font-family: var(--f-meta); font-size: 16px; line-height: 24px; border-bottom: 2px solid var(--line); }
 :root[data-font="pixel"] #toast {
   border-radius: 0; border: 2px solid var(--line); background-color: var(--panel); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated;
-  color: var(--fg); font-family: var(--f-body); font-size: 20px; line-height: 30px; padding: 6px 12px;
+  color: var(--fg); font-family: var(--f-meta); font-size: 16px; line-height: 24px; padding: 6px 12px;
   box-shadow: var(--bevel), 2px 2px 0 var(--line); clip-path: var(--notch-sh);
 }
 /* 들어올 땐 8px 아래에서 계단(8·4·2·0), 나갈 땐 제자리에서 흐려진 뒤 끝에 한 번에 내려간다(step-end) → 다 뜬 뒤 나가는 중에 다시 떠도 격자 밖 값이 없다.
@@ -568,7 +572,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] #scene { border: 2px solid var(--line); border-bottom: 0; }
 :root[data-font="pixel"] #scene::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 9; box-shadow: inset 2px 2px 0 var(--lo-px), inset -2px -2px 0 var(--hi-px); }
 :root[data-font="pixel"] #scene3d #oct-label { font-family: var(--f-meta); font-size: 16px; line-height: 16px; color: var(--paper0); }
-:root[data-font="pixel"] #scene3d #oct-bubble { font-family: var(--f-meta); font-size: 16px; line-height: 24px; border-radius: 0; border: 2px solid var(--line); background: var(--paper0); color: var(--ink); box-shadow: 2px 2px 0 var(--line); padding: 2px 8px; }
+:root[data-font="pixel"] #scene3d #oct-bubble { font-family: var(--f-ui); font-size: 12px; line-height: 18px; border-radius: 0; border: 2px solid var(--line); background: var(--paper0); color: var(--ink); box-shadow: 2px 2px 0 var(--line); padding: 2px 6px; }   /* 11-15 (주인: 말풍선이 화면을 가린다): Galmuri11 12px = 제 격자 1배라 또렷 (놀이방 말풍선과 같은 크기) · 풍선 테두리 · 꼬리도 1배 (css/ui-art.css) */
 :root[data-font="pixel"] #oct-bubble { animation-timing-function: var(--ease-px-2); }   /* bubble-in 4px → 4·2·0 (2D · 3D 공통) */
 /* 벽 포스터 미니: 누르면 2px 내려앉고(확대·축소 없음 — 2px 베벨이 다시 샘플링돼 흐려진다), 새로 붙으면 4px 위에서 두 칸 계단으로 착지.
    scene2d.js 가 미니마다 인라인 transform: rotate() 기울기를 줘서 시트의 transform 은 이기지 못한다 → 누름·착지는 translate 속성으로 (기울기와 겹쳐진다) */
@@ -583,7 +587,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 }
 :root[data-font="pixel"] #status .srow { gap: 8px; min-height: 27px; }
 :root[data-font="pixel"] #status .who { --name-min: 40px; }   /* Galmuri9 20px 한 글자 + … (각 20px — 예전 52px 도 보이는 건 같은 "한 글자…" 였다) */
-:root[data-font="pixel"] #status .name { font-family: var(--f-body); font-weight: 400; font-size: 20px; line-height: 30px; color: var(--fg); }
+:root[data-font="pixel"] #status .name { font-family: var(--f-meta); font-weight: 400; font-size: 16px; line-height: 30px; color: var(--fg); }
 :root[data-font="pixel"] .room-title { font-family: var(--f-meta); font-size: 16px; line-height: 30px; color: var(--muted); }
 :root[data-font="pixel"] .room-title::before { content: '·'; margin: 0 6px; color: var(--line); }
 /* 픽셀 테마의 '데모': Galmuri7 1배(8px, 제 격자 그대로라 또렷) + 1px 선 네모. 높이 12px 라 30px 글줄 안에 들어간다 */
@@ -621,25 +625,25 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .lbl, :root[data-font="pixel"] .help { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .help { min-height: 21px; }
 :root[data-font="pixel"] .modal-in, :root[data-font="pixel"] #d-peek-in, :root[data-font="pixel"] #d-json, :root[data-font="pixel"] .sheet select {
-  font-family: var(--f-body); font-size: 20px; line-height: 30px; letter-spacing: 0;
+  font-family: var(--f-meta); font-size: 16px; line-height: 24px; letter-spacing: 0;
   border: 2px solid var(--line); border-radius: 0; background: var(--panel2); color: var(--fg);
   box-shadow: var(--bevel-in); padding: 6px 12px; clip-path: var(--notch);
 }
 :root[data-font="pixel"] .btn {
-  font-family: var(--f-ui); font-size: 24px; line-height: 22px; letter-spacing: 0; border-radius: 0; padding: 8px 14px;
+  font-family: var(--f-body); font-size: 20px; line-height: 20px; letter-spacing: 0; border-radius: 0; padding: 8px 14px;
   border: 2px solid var(--line); background-color: var(--panel); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated; color: var(--fg);
   box-shadow: var(--bevel), 2px 2px 0 var(--line);
   transition: transform var(--t-press) var(--ease-out), opacity var(--t-ui);
 }
 :root[data-font="pixel"] .btn:not(.sm) { clip-path: var(--notch-sh); }
 :root[data-font="pixel"] .btn:active { transform: translate(2px, 2px); box-shadow: var(--bevel); }
-:root[data-font="pixel"] .btn.sm { font-family: var(--f-body); font-size: 20px; line-height: 20px; min-height: 36px; padding: 4px 10px; }
+:root[data-font="pixel"] .btn.sm { font-family: var(--f-meta); font-size: 16px; line-height: 16px; min-height: 36px; padding: 4px 10px; }
 :root[data-font="pixel"] .btn.primary {
   min-height: 52px; font-weight: 700; background-color: var(--amber-fill); color: var(--on-accent); border-color: var(--line);
   box-shadow: inset 2px 2px 0 var(--amber-hi), inset -2px -2px 0 var(--amber-lo), 2px 2px 0 var(--line);
 }
 :root[data-font="pixel"] .btn.primary:active { box-shadow: inset 2px 2px 0 var(--amber-hi), inset -2px -2px 0 var(--amber-lo); }
-:root[data-font="pixel"] .btn.primary.away { background-color: var(--panel); border-color: var(--line); color: var(--fg); font-weight: 400; box-shadow: var(--bevel), 2px 2px 0 var(--line); font-family: var(--f-ui); font-size: 24px; line-height: 22px; }   /* 누를 수 있는 베벨 블록 (예전 안으로 파인 알약은 꺼진 버튼처럼 보였다) */
+:root[data-font="pixel"] .btn.primary.away { background-color: var(--panel); border-color: var(--line); color: var(--fg); font-weight: 400; box-shadow: var(--bevel), 2px 2px 0 var(--line); font-family: var(--f-body); font-size: 20px; line-height: 20px; }   /* 누를 수 있는 베벨 블록 (예전 안으로 파인 알약은 꺼진 버튼처럼 보였다) */
 :root[data-font="pixel"] .btn.primary.away:active { box-shadow: var(--bevel); }
 :root[data-font="pixel"] .btn.primary.away .go-txt::before { width: 6px; height: 6px; border-radius: 0; margin-right: 8px; vertical-align: 2px; background: var(--amber-fill); animation-timing-function: steps(1, end); }
 :root[data-font="pixel"] .btn:disabled { transform: none; }
@@ -649,7 +653,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] #log { border-radius: 0; padding: 2px 2px 0; }
 :root[data-font="pixel"] .lday summary { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .lrow {
-  border-radius: 0; border: 2px solid var(--line); border-left: 8px solid var(--tab); font-size: 20px; line-height: 30px;
+  border-radius: 0; border: 2px solid var(--line); border-left: 8px solid var(--tab); font-size: 16px; line-height: 24px;
   padding: 6px 10px; margin-bottom: 8px; gap: 8px;
   background-color: var(--panel); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated;
   box-shadow: inset 0 2px 0 var(--hi-px), inset -2px -2px 0 var(--lo-px), 2px 2px 0 var(--line); clip-path: var(--notch-sh);
@@ -661,7 +665,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .ltool { font-family: var(--f-meta); font-size: 16px; line-height: 24px; letter-spacing: 0; padding-top: 3px; color: var(--amber); }
 :root[data-font="pixel"] .ltext .st, :root[data-font="pixel"] .ltext .sub { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .lrow.typing .ltext { letter-spacing: 2px; }
-:root[data-font="pixel"] .lempty { font-size: 20px; line-height: 30px; }
+:root[data-font="pixel"] .lempty { font-size: 16px; line-height: 24px; }
 /* 초상 대화창 행: 초상은 이중 틀(바깥 2px 어두움 · 2px 남색 틈 · 안쪽 1px 밝음) 안에 96px, 바탕 Apollo 남색 #172038 (초상의 bg 'navy' 와 같은 색) */
 :root[data-font="pixel"] .lrow.dialog { grid-template-columns: auto 1fr; gap: 10px; }
 :root[data-font="pixel"] .lport { width: 106px; height: 106px; padding: 3px; border: 2px solid var(--line); border-radius: 0; background: #172038; box-shadow: inset 0 0 0 2px #172038, inset 0 0 0 3px var(--hi-px); }
@@ -677,7 +681,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .pcard.in { animation-name: fade-only; transform: none; }
 
 /* ── 데모 · 바닥글 ── */
-:root[data-font="pixel"] #demo { border: 2px dashed var(--line); border-radius: 0; font-size: 20px; line-height: 30px; }
+:root[data-font="pixel"] #demo { border: 2px dashed var(--line); border-radius: 0; font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] #demo .warn-line { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] #d-json { font-family: var(--f-body); }
 :root[data-font="pixel"] .foot { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
@@ -695,8 +699,8 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
    :where 라 우선순위가 위 줄·축소 모션 규칙과 같은 (0,3,1) 로 남는다 → 축소 모션 규칙(뒤)이 이기고, runner.css 의 .rn-dlg[open] { animation: none } 도 예전처럼 길이 0 으로 남는다 */
 :root[data-font="pixel"] dialog[open]:where(:not(.rn-dlg)) { animation: fade-only var(--t-ui) var(--ease-enter) both, px-rise-8 var(--t-ui) var(--ease-px) backwards; }
 :root[data-font="pixel"] .modal { border-radius: 0; padding: 24px 20px 18px; }
-:root[data-font="pixel"] .modal h2 { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
-:root[data-font="pixel"] .modal:not(.poster-modal) p { font-family: var(--f-ui); font-size: 24px; line-height: 36px; }
+:root[data-font="pixel"] .modal h2 { font-family: var(--f-body); font-size: 20px; line-height: 30px; font-weight: 700; }
+:root[data-font="pixel"] .modal:not(.poster-modal) p { font-family: var(--f-body); font-size: 20px; line-height: 30px; }
 :root[data-font="pixel"] .modal .big { width: 48px; height: 48px; }
 :root[data-font="pixel"] .honest { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 /* 포스터 열람: 어두운 슬레이트 패널(두 테마 공통)을 Apollo 로 — 안쪽 1px 밝은 선은 --ip-rim */
@@ -711,19 +715,19 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .inspect-text { font-family: var(--f-body); font-size: 20px; line-height: 30px; letter-spacing: 0; }
 :root[data-font="pixel"] .inspect-text p { font-family: var(--f-body); font-size: 20px; line-height: 30px; color: var(--ip-fg); margin: 0 0 8px; }   /* .modal p 가 포스터 모달에도 닿지 않게 */
 :root[data-font="pixel"] .inspect-text .meta, :root[data-font="pixel"] .inspect-text .miss { color: var(--ip-muted); }
-:root[data-font="pixel"] .inspect-text .lead { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
+:root[data-font="pixel"] .inspect-text .lead { font-family: var(--f-body); font-size: 20px; line-height: 30px; font-weight: 700; }
 :root[data-font="pixel"] .inspect-text .meta, :root[data-font="pixel"] .inspect-text .first-chip, :root[data-font="pixel"] .inspect-text .miss { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .inspect-text .voice { border-left: 4px solid var(--ip-line); padding-left: 10px; }
 :root[data-font="pixel"] .flipper .face.back { border-radius: 0; border: 2px solid #090a14; box-shadow: 2px 2px 0 #090a14; }
-:root[data-font="pixel"] .poster-modal .btn { background-color: #202e37; background-image: none; border-color: #090a14; color: var(--ip-fg); font-family: var(--f-body); font-size: 20px; line-height: 20px; padding: 8px 12px; box-shadow: inset 2px 2px 0 #577277, inset -2px -2px 0 #090a14, 2px 2px 0 #090a14; }
+:root[data-font="pixel"] .poster-modal .btn { background-color: #202e37; background-image: none; border-color: #090a14; color: var(--ip-fg); font-family: var(--f-meta); font-size: 16px; line-height: 16px; padding: 8px 12px; box-shadow: inset 2px 2px 0 #577277, inset -2px -2px 0 #090a14, 2px 2px 0 #090a14; }
 :root[data-font="pixel"] .poster-modal .btn:active { box-shadow: inset 2px 2px 0 #577277, inset -2px -2px 0 #090a14; }
 @media (min-width: 600px) {
   :root[data-font="pixel"] .inspect-text { font-size: 20px; }
-  :root[data-font="pixel"] .inspect-text .lead { font-size: 24px; }
+  :root[data-font="pixel"] .inspect-text .lead { font-size: 20px; }
 }
 /* 영수증: 종이 위 Galmuri9 20px, 점선 2px, 복사 버튼도 틀 */
-:root[data-font="pixel"] .receipt { font-family: var(--f-body); font-size: 20px; line-height: 30px; padding: 14px 12px; background-image: var(--grain); background-size: 12px 12px; image-rendering: pixelated; }
-:root[data-font="pixel"] .receipt p { font-family: var(--f-body); font-size: 20px; line-height: 30px; color: var(--ink); margin: 6px 0; }
+:root[data-font="pixel"] .receipt { font-family: var(--f-meta); font-size: 16px; line-height: 24px; padding: 14px 12px; background-image: var(--grain); background-size: 12px 12px; image-rendering: pixelated; }
+:root[data-font="pixel"] .receipt p { font-family: var(--f-meta); font-size: 16px; line-height: 24px; color: var(--ink); margin: 6px 0; }
 :root[data-font="pixel"] .receipt .dim, :root[data-font="pixel"] .receipt .by { color: var(--ink-muted); }
 :root[data-font="pixel"] .receipt .kv > span { flex: 0 0 auto; }
 :root[data-font="pixel"] .receipt .kv b { flex: 1 1 auto; min-width: 0; text-align: right; }
@@ -732,7 +736,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .receipt .row { grid-template-columns: 18px 1fr; gap: 6px; padding: 2px 0; }
 :root[data-font="pixel"] .receipt .row .note, :root[data-font="pixel"] .receipt .row .bridge, :root[data-font="pixel"] .receipt .row a, :root[data-font="pixel"] .receipt .by { font-family: var(--f-meta); font-size: 16px; line-height: 24px; font-style: normal; }
 :root[data-font="pixel"] .receipt .row .note { color: var(--ink-muted); }
-:root[data-font="pixel"] .receipt .big-line { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
+:root[data-font="pixel"] .receipt .big-line { font-family: var(--f-body); font-size: 20px; line-height: 30px; font-weight: 700; }
 :root[data-font="pixel"] .receipt .share { border-radius: 0; border: 2px solid var(--ink-muted); background: #ebede9; padding: 6px 8px; }
 :root[data-font="pixel"] .receipt .share code { font-size: 16px; font-family: var(--f-meta); letter-spacing: 0; }
 :root[data-font="pixel"] .receipt .copy { border-radius: 0; border: 2px solid var(--ink); background: var(--paper0); font-family: var(--f-meta); font-size: 16px; line-height: 16px; box-shadow: inset 1px 1px 0 #ebede9, inset -1px -1px 0 #c09473, 2px 2px 0 var(--ink); }
@@ -742,11 +746,11 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .sheet { border-radius: 0; border-bottom: 0; box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px); padding: 8px 16px max(16px, env(safe-area-inset-bottom, 0px)); }
 :root[data-font="pixel"] .sheet .handle { border-radius: 0; background: var(--line); }
 :root[data-font="pixel"] .sheet h3 { font-family: var(--f-meta); font-size: 16px; line-height: 24px; letter-spacing: 0; color: var(--fg); margin: 16px 0 4px; }
-:root[data-font="pixel"] .sheet p, :root[data-font="pixel"] .sheet ul, :root[data-font="pixel"] .sheet .set { font-size: 20px; line-height: 30px; }
+:root[data-font="pixel"] .sheet p, :root[data-font="pixel"] .sheet ul, :root[data-font="pixel"] .sheet .set { font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .sheet select { min-height: 44px; padding: 4px 8px; }
 :root[data-font="pixel"] .sheet input[type=file] { border-radius: 0; }
 :root[data-font="pixel"] .sheet input[type=file]::file-selector-button {
-  font-family: var(--f-body); font-size: 20px; line-height: 20px; min-height: 36px; padding: 4px 10px; border: 2px solid var(--line); border-radius: 0;
+  font-family: var(--f-meta); font-size: 16px; line-height: 16px; min-height: 36px; padding: 4px 10px; border: 2px solid var(--line); border-radius: 0;
   background-color: var(--panel); background-image: var(--dither-panel); background-size: 4px 4px; image-rendering: pixelated; color: var(--fg);
   box-shadow: var(--bevel), 2px 2px 0 var(--line);
 }
@@ -763,7 +767,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
    카드 줄은 예전 #album 그대로(가로 스크롤), 아래 '남긴 메모' = 호기심 메모 전부 (다음 산책에 같이 가는 최근 3개 · 내려놓은 메모는 표시를 달고 그대로, docs/CURIOSITY_NOTES.md 원칙 4).
    '일기' 칩 = 지난 날 로그 (날짜마다 접힘, 새 날이 위 · 읽기만) ── */
 .album-sheet .al-top { align-items: center; flex-wrap: wrap; row-gap: 4px; }
-.album-sheet .al-h, .settings-sheet .set-h, .look-sheet .set-h, .log-sheet .set-h { font-size: 15px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0; color: var(--fg); }
+.album-sheet .al-h, .settings-sheet .set-h, .look-sheet .set-h, .log-sheet .set-h { font-size: 14px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0; color: var(--fg); }
 .album-sheet .al-h:focus, .settings-sheet .set-h:focus, .look-sheet .set-h:focus, .log-sheet .set-h:focus { outline: none; }
 .al-recent { margin: 8px 0 2px; }
 .al-recent h3 { margin: 0 0 2px; }
@@ -788,22 +792,22 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .cnote-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .sheet .cnote-list { padding-left: 0; }
 .cnote { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--panel2); word-break: keep-all; overflow-wrap: anywhere; }
-.cnote .cn-text { font-size: 13px; line-height: 1.65; color: var(--fg); text-align: left; }
-.cnote button.cn-text { padding: 0; margin: 0; border: 0; background: none; font: inherit; font-size: 13px; color: inherit; cursor: pointer; min-height: 0; }
+.cnote .cn-text { font-size: 12px; line-height: 1.65; color: var(--fg); text-align: left; }
+.cnote button.cn-text { padding: 0; margin: 0; border: 0; background: none; font: inherit; font-size: 12px; color: inherit; cursor: pointer; min-height: 0; }
 .cnote button.cn-text:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 .cnote .cn-meta { font-size: 12px; color: var(--muted); }
 .cnote .cn-tag { align-self: flex-start; font-size: 12px; color: var(--muted); border: 1px solid var(--rim); border-radius: 6px; padding: 0 6px; }
 .cnote .cn-tag.next { color: var(--amber); border-color: var(--amber); }   /* 다음 산책에 같이 가는 메모 (최근 active 3개) */
 .cnote.down .cn-text { color: var(--muted); }
 #album-notes h3 { margin-top: 12px; }
-:root[data-font="pixel"] .album-sheet .al-h, :root[data-font="pixel"] .settings-sheet .set-h, :root[data-font="pixel"] .look-sheet .set-h, :root[data-font="pixel"] .log-sheet .set-h { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; }
+:root[data-font="pixel"] .album-sheet .al-h, :root[data-font="pixel"] .settings-sheet .set-h, :root[data-font="pixel"] .look-sheet .set-h, :root[data-font="pixel"] .log-sheet .set-h { font-family: var(--f-body); font-size: 20px; line-height: 30px; font-weight: 700; }
 :root[data-font="pixel"] .al-recent h3 { margin: 4px 0 0; }
 :root[data-font="pixel"] .sheet .al-recent p { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }   /* 요즘 한두 줄은 작게 (카드가 먼저 보이게) */
 :root[data-font="pixel"] .sheet .al-recent p.ua-ico-line { display: flex; align-items: center; line-height: 32px; }
 :root[data-font="pixel"] .al-recent p.ua-ico-line .ua-ico { margin: 0 6px 0 0; }
 :root[data-font="pixel"] .album-diary .dday > summary { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .cnote { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); }
-:root[data-font="pixel"] .cnote .cn-text, :root[data-font="pixel"] .cnote button.cn-text { font-family: var(--f-body); font-size: 20px; line-height: 30px; }
+:root[data-font="pixel"] .cnote .cn-text, :root[data-font="pixel"] .cnote button.cn-text { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .cnote .cn-meta, :root[data-font="pixel"] .cnote .cn-tag { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .cnote .cn-tag { border-radius: 0; border: 0; box-shadow: inset 0 0 0 2px var(--line); padding: 0 6px; }
 :root[data-font="pixel"] .cnote .cn-tag.next { color: var(--amber); box-shadow: inset 0 0 0 2px var(--amber-fill); }
@@ -823,7 +827,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
   .salon-sheet[open] { animation: sheet-in var(--t-ui) var(--ease-enter) both; }
   :root[data-font="pixel"] .salon-sheet { border-bottom: 0; box-shadow: inset 0 0 0 2px var(--panel), inset 0 0 0 3px var(--hi-px); }
 }
-.salon-sheet .salon-h { font-size: 15px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0 0 10px; color: var(--fg); }
+.salon-sheet .salon-h { font-size: 14px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0 0 10px; color: var(--fg); }
 .salon-sheet .salon-h:focus { outline: none; }
 .bottles { --cols: 6; display: grid; grid-template-columns: repeat(var(--cols), 36px); column-gap: 8px; row-gap: 6px; justify-content: center; margin: 0 auto; }
 .bottles[data-n="7"] { --cols: 7; }
@@ -847,13 +851,13 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .bottle:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
 .bplank { display: block; width: 44px; height: 6px; margin: 0 -4px; background: var(--plank); box-shadow: inset 0 -2px 0 var(--plank-lo); }   /* 병 아래 나무 판 (칸 사이 틈까지 이어진다) */
 .bnote { display: block; min-height: 16px; font-size: 11px; line-height: 16px; color: var(--muted); white-space: nowrap; }
-.salon-sheet .salon-name { margin: 6px 0 0; min-height: calc(13px * 1.65); font-size: 13px; line-height: 1.65; text-align: center; color: var(--fg); }
+.salon-sheet .salon-name { margin: 6px 0 0; min-height: calc(12px * 1.65); font-size: 12px; line-height: 1.65; text-align: center; color: var(--fg); }
 .salon-btns { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; }
 .salon-btns .salon-ask { flex: 1 1 auto; min-width: 0; }
 .salon-btns #salon-close { flex: 0 0 auto; min-width: 88px; }
 .salon-ask[aria-disabled="true"] { background: var(--panel); border-color: var(--rim); color: var(--muted); box-shadow: inset 0 1px 0 var(--hi); cursor: default; }
 .salon-ask[aria-disabled="true"]:active { transform: none; }
-:root[data-font="pixel"] .salon-sheet .salon-h { font-family: var(--f-ui); font-size: 24px; line-height: 36px; font-weight: 700; margin: 0 0 8px; }
+:root[data-font="pixel"] .salon-sheet .salon-h { font-family: var(--f-body); font-size: 20px; line-height: 30px; font-weight: 700; margin: 0 0 8px; }
 :root[data-font="pixel"] .bottle { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .bottle::before { inset: -6px; }
 :root[data-font="pixel"] .bottle[aria-pressed="true"] { border-color: var(--fg); box-shadow: inset 0 0 0 2px var(--amber-fill), 2px 2px 0 var(--line); }
@@ -862,7 +866,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .bottle:focus-visible { outline-color: var(--fg); outline-offset: 2px; }
 :root[data-font="pixel"] .bplank { background: var(--strip); box-shadow: inset 0 -2px 0 var(--line); }
 :root[data-font="pixel"] .bnote { font-family: var(--f-meta); font-size: 16px; line-height: 20px; min-height: 20px; }
-:root[data-font="pixel"] .salon-sheet .salon-name { font-family: var(--f-body); font-size: 20px; line-height: 30px; min-height: 30px; margin: 4px 0 0; }
+:root[data-font="pixel"] .salon-sheet .salon-name { font-family: var(--f-meta); font-size: 16px; line-height: 24px; min-height: 30px; margin: 4px 0 0; }
 :root[data-font="pixel"] .salon-ask[aria-disabled="true"] { background-color: var(--panel); border-color: var(--line); color: var(--muted); font-weight: 400; box-shadow: var(--bevel), 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .salon-ask[aria-disabled="true"]:active { transform: none; box-shadow: var(--bevel), 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .btn.salon-ask[aria-disabled="true"]:focus-visible { outline-color: var(--fg); }   /* 꺼진 [물어보기] 는 호박 바탕이 아니라 판 바탕 — 링은 글자색으로 (두 테마에서 보이게) */
@@ -931,7 +935,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 #scene3d #oct { pointer-events: none; z-index: 6; }
 #scene3d #oct-inner { display: none; }
 #scene3d #oct-label { font-size: 12px; }
-#scene3d #oct-bubble { font-size: 12px; padding: 4px 8px; border-radius: 8px; max-width: 220px; }   /* 220: 톡 한 줄(22자 · 모델 24자 + …)이 픽셀 2~3줄 · 시스템 1~2줄 (js/ui-art.js keepInside 가 좁은 장면이면 더 줄인다) */
+#scene3d #oct-bubble { font-size: 12px; line-height: 1.25; padding: 3px 6px; border-radius: 6px; max-width: 200px; }   /* 11-15: 폭은 장면 폭에 묶인다 (js/ui-art.js keepInside: 장면의 반, 128~200px) → 톡 한 줄(모델 24자 + …)이 픽셀 · 시스템 모두 2~3줄. 시스템 12px 는 읽는 글의 바닥이라 그대로, 줄 간격 · 여백만 줄였다 */
 .rdrop.snow { width: 2px; height: 2px; background: #f7f1d8; opacity: .8; }
 /* 몸 색 칸: 첫 실행 창(#name-colors, 한 줄 · 간격은 아래 이름 창 블록) · 설정의 개발용 칸 (?dev=1 을 직접 붙인 탭만 — docs/SALON.md §1.2) */
 .presets { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; }
@@ -971,8 +975,8 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 #name-dialog .name-colors .preset { flex: 0 0 auto; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not([data-font="pixel"]) #name-dialog .name-colors .preset:not(.on) { border-color: var(--rim); } }   /* 어두운 바탕에서 칸 가장자리 (픽셀 테마는 원래 var(--line) 테두리) */
 :root[data-theme="dark"]:not([data-font="pixel"]) #name-dialog .name-colors .preset:not(.on) { border-color: var(--rim); }
-#name-dialog .honest { margin: 18px 0 0; font-size: 13px; line-height: 1.6; color: var(--muted); opacity: .85; }
-:root[data-font="pixel"] #name-dialog .name-lead { font-family: var(--f-body); font-size: 20px; line-height: 30px; }
+#name-dialog .honest { margin: 18px 0 0; font-size: 12px; line-height: 1.6; color: var(--muted); opacity: .85; }
+:root[data-font="pixel"] #name-dialog .name-lead { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] #name-dialog .honest { font-family: var(--f-meta); font-size: 16px; line-height: 24px; color: #884b2b; opacity: 1; }
 :root[data-font="pixel"][data-theme="dark"] #name-dialog .honest { color: var(--muted); }
 @media (prefers-color-scheme: dark) { :root[data-font="pixel"]:not([data-theme="light"]) #name-dialog .honest { color: var(--muted); } }
@@ -1062,7 +1066,7 @@ button.pips::before { content: ''; position: absolute; inset: -12px -4px; }   /*
 :is(button.brain-tag, button.pips):focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 .tip {
   position: absolute; top: calc(100% + 4px); left: 16px; z-index: 12; box-sizing: border-box; width: max-content; max-width: calc(100% - 32px); margin: 0;
-  padding: 6px 10px; border: 1px solid var(--rim); border-radius: 10px; background: var(--panel2); color: var(--fg); font-size: 13px; line-height: 1.5;
+  padding: 6px 10px; border: 1px solid var(--rim); border-radius: 10px; background: var(--panel2); color: var(--fg); font-size: 12px; line-height: 1.5;
   box-shadow: var(--shadow); word-break: keep-all; overflow-wrap: anywhere; pointer-events: none;
   opacity: 0; transform: translateY(-4px); transition: opacity var(--t-press) var(--ease-out), transform var(--t-press) var(--ease-out);
 }
@@ -1096,14 +1100,14 @@ button.pips::before { content: ''; position: absolute; inset: -12px -4px; }   /*
   transition: opacity var(--t-ui) var(--ease-enter);
 }
 #btn-yard { left: 52px; }   /* 11-15 마당 가장자리 단추 (산책 중): 집 단추 오른쪽 옆 */
-#btn-yard .door-txt { font-size: 13px; }
+#btn-yard .door-txt { font-size: 12px; }
 :root[data-font="pixel"] #btn-yard .door-txt { font-size: 16px; }
 .scene-door .door-box { display: grid; place-items: center; box-sizing: border-box; width: 36px; height: 36px; border: 1px solid var(--rim); border-radius: 8px; background: var(--panel2); transition: transform var(--t-press) var(--ease-out); }
 .scene-door .door-ico { display: block; width: 32px; height: 32px; image-rendering: pixelated; image-rendering: crisp-edges; }
-.scene-door .door-txt { display: none; font-size: 15px; line-height: 1; font-weight: 600; color: var(--fg); }
+.scene-door .door-txt { display: none; font-size: 14px; line-height: 1; font-weight: 600; color: var(--fg); }
 .scene-door.no-img .door-ico { display: none; }
 .scene-door.no-img .door-txt { display: inline; }
-:root[data-font="pixel"] .scene-door .door-txt { font-family: var(--f-ui); font-size: 24px; font-weight: 400; }
+:root[data-font="pixel"] .scene-door .door-txt { font-family: var(--f-body); font-size: 20px; font-weight: 400; }
 .scene-door:active .door-box { transform: scale(.97); }
 .scene-door:focus-visible { outline: none; }
 .scene-door:focus-visible .door-box { outline: 2px solid var(--amber); outline-offset: 2px; }
@@ -1144,14 +1148,14 @@ html.intro-reveal .scene-spot, html.intro-reveal .back-note { transition: opacit
   animation: note-in var(--t-ui) var(--ease-enter) both;
 }
 .back-note[hidden] { display: none; }
-.back-note .bn-txt { margin: 0; font-size: 14px; line-height: 1.4; display: flex; flex: 1 1 auto; min-width: 0; white-space: nowrap; }   /* 글은 한 줄 — 긴 이름만 줄임표 (상태 줄처럼), 단추는 모자라면 다음 줄 → 쪽지는 많아야 두 줄 */
+.back-note .bn-txt { margin: 0; font-size: 13px; line-height: 1.4; display: flex; flex: 1 1 auto; min-width: 0; white-space: nowrap; }   /* 글은 한 줄 — 긴 이름만 줄임표 (상태 줄처럼), 단추는 모자라면 다음 줄 → 쪽지는 많아야 두 줄 */
 .back-note .bn-name { flex: 0 1 auto; min-width: 2em; overflow: hidden; text-overflow: ellipsis; }
 .back-note .bn-rest { flex: 0 0 auto; }
 .back-note .bn-go { min-height: 44px; flex: 0 0 auto; }
 .back-note .bn-go::before { display: none; }   /* 보이는 상자가 이미 44px (.btn.sm 의 넓힌 탭 영역은 필요 없다) */
 @keyframes note-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 :root[data-font="pixel"] .back-note { border: 2px solid var(--line); border-radius: 0; background-color: var(--panel2); box-shadow: var(--bevel), 2px 2px 0 var(--line); padding: 4px 4px 4px 10px; animation-timing-function: steps(2, jump-end); }
-:root[data-font="pixel"] .back-note .bn-txt { font-family: var(--f-body); font-size: 20px; line-height: 30px; }
+:root[data-font="pixel"] .back-note .bn-txt { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .back-note .bn-go { min-height: 44px; }
 @media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .back-note { animation: none; } }
 :root[data-motion="reduce"] .back-note { animation: none; }
@@ -1171,7 +1175,7 @@ html.intro-reveal .scene-spot, html.intro-reveal .back-note { transition: opacit
 .stick-ring { position: absolute; inset: 0; box-sizing: border-box; border-radius: 50%; border: 2px solid transparent; background: transparent; display: grid; place-items: center; }
 .stick-ico, .stick-txt { pointer-events: none; }
 .stick-ico { display: block; position: relative; z-index: 2; width: 32px; height: 32px; image-rendering: pixelated; image-rendering: crisp-edges; transform: translate(var(--kx, 0px), var(--ky, 0px)); }
-.stick-txt { display: none; position: relative; z-index: 2; font-size: 14px; line-height: 1; font-weight: 600; color: #ebede9; text-shadow: 0 1px 0 rgba(27, 21, 34, .8); transform: translate(var(--kx, 0px), var(--ky, 0px)); }
+.stick-txt { display: none; position: relative; z-index: 2; font-size: 13px; line-height: 1; font-weight: 600; color: #ebede9; text-shadow: 0 1px 0 rgba(27, 21, 34, .8); transform: translate(var(--kx, 0px), var(--ky, 0px)); }
 .stick.no-img .stick-ico { display: none; }
 .stick.no-img .stick-txt { display: inline; }
 .stick.on .stick-ring { border-color: rgba(235, 237, 233, .7); background: rgba(27, 21, 34, .32); }
@@ -1217,21 +1221,21 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 
 /* 큰 도서관 '오늘의 서가' (오늘의 산책 아래, 접힌 한 줄) */
 .shelf-today { margin: 8px 0 4px; }
-.shelf-today summary { cursor: pointer; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; list-style: none; }
+.shelf-today summary { cursor: pointer; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; list-style: none; }
 /* 접힘 표시: 브라우저 기본 ▶ ▼ 글자 대신 앨범 일기와 같은 2px 계단 픽셀 꺾쇠 (플레이어 화면엔 장식 기호를 쓰지 않는다 — tools/smoke.js U) */
 .shelf-today summary::-webkit-details-marker { display: none; }
 .shelf-today summary::before { content: ''; flex: 0 0 auto; width: 6px; height: 10px; background: currentColor; clip-path: polygon(0 0, 2px 0, 2px 2px, 4px 2px, 4px 4px, 6px 4px, 6px 6px, 4px 6px, 4px 8px, 2px 8px, 2px 10px, 0 10px); }
 .shelf-today[open] summary::before { width: 10px; height: 6px; clip-path: polygon(0 0, 10px 0, 10px 2px, 8px 2px, 8px 4px, 6px 4px, 6px 6px, 4px 6px, 4px 4px, 2px 4px, 2px 2px, 0 2px); }
 .shelf-today .shelf-note { font-size: 12px; color: var(--muted); margin: 6px 0; }
 .shelf-today ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-.shelf-today li a { display: inline-block; padding: 4px 8px; border: 1px solid var(--rim); border-radius: 6px; font-size: 13px; color: var(--fg); text-decoration: none; }
+.shelf-today li a { display: inline-block; padding: 4px 8px; border: 1px solid var(--rim); border-radius: 6px; font-size: 12px; color: var(--fg); text-decoration: none; }
 /* 설정 › 내 Claude 와 연결 */
 .set-note { font-size: 12px; color: var(--muted); margin: 4px 0 8px; line-height: 1.5; }
 #set-claude-url { display: block; width: 100%; box-sizing: border-box; font-size: 12px; padding: 6px; margin-bottom: 6px; }
 /* 먼 바다 문: 두 단추 같은 크기 */
 .far-btns { display: flex; flex-direction: column; gap: 8px; }   /* 위아래로 같은 폭 — 한쪽 글이 길어도 크기가 같다 */
 .far-btns .btn { width: 100%; white-space: nowrap; margin: 0; }
-.far-line { font-size: 13px; margin: 6px 0; }
+.far-line { font-size: 12px; margin: 6px 0; }
 
 /* 4) 설정 › 내 모습 (내 캐릭터 파츠 — docs/PLAYER_PARTS.md §3): 제목 옆 64×64 초상을 96px 로 (픽셀 그대로) · 아래 한 줄 = 지금 모습 한마디 + '모습 바꾸기' (→ 옷장 #look-sheet, 아래 5).
    고르는 칩 열 줄은 11-09 옷장으로 옮겼다 */
@@ -1353,11 +1357,11 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 .dlg-host.show { display: block; padding: 12px 16px 0; }
 /* 대사 상자: js/dialogue-stub.js 가 인라인 스타일로 그리는 임시 상자를 테마에 맞춘다 (스텁은 다른 물결 몫이라 여기서 못 고친다 → !important).
    '다시 보기' 단추는 그림 글자라 숨긴다 (주인 11-07: 플레이어 화면에 그림 글자 없음) — 지난 대사는 오늘의 산책에 남는다 */
-#dlg-host #dbox { margin-top: 0 !important; min-height: 0 !important; padding: 18px 14px 10px !important; border: 1px solid var(--rim) !important; border-radius: 12px; background-color: var(--panel) !important; color: var(--fg) !important; font-family: inherit !important; font-size: 15px !important; line-height: 1.6 !important; }
+#dlg-host #dbox { margin-top: 0 !important; min-height: 0 !important; padding: 18px 14px 10px !important; border: 1px solid var(--rim) !important; border-radius: 12px; background-color: var(--panel) !important; color: var(--fg) !important; font-family: inherit !important; font-size: 14px !important; line-height: 1.6 !important; }
 #dlg-host .dlg-text { min-height: 4.8em; }   /* 세 줄 자리: 짧은 대사에도 상자 높이가 흔들리지 않게. 더 길면 자란다 (자르지 않는다) */
 #dlg-host .dlg-tag { left: 10px !important; top: -11px !important; padding: 0 8px !important; border-radius: 6px; background: var(--fg) !important; color: var(--bg) !important; font-size: 12px !important; line-height: 20px !important; }
 #dlg-host .dlg-log { display: none !important; }
-:root[data-font="pixel"] #dlg-host #dbox { padding: 16px 12px 8px !important; border: 2px solid var(--line) !important; border-radius: 0; background-color: var(--panel) !important; background-image: var(--dither-panel) !important; background-size: 4px 4px !important; image-rendering: pixelated; font-family: var(--f-body) !important; font-size: 20px !important; line-height: 30px !important; box-shadow: var(--bevel), 2px 2px 0 var(--line); }
+:root[data-font="pixel"] #dlg-host #dbox { padding: 16px 12px 8px !important; border: 2px solid var(--line) !important; border-radius: 0; background-color: var(--panel) !important; background-image: var(--dither-panel) !important; background-size: 4px 4px !important; image-rendering: pixelated; font-family: var(--f-meta) !important; font-size: 16px !important; line-height: 24px !important; box-shadow: var(--bevel), 2px 2px 0 var(--line); }
 :root[data-font="pixel"] #dlg-host .dlg-text { min-height: 90px; }
 :root[data-font="pixel"] #dlg-host .dlg-tag { left: 8px !important; top: -14px !important; padding: 0 6px !important; border-radius: 0; font-family: var(--f-meta); font-size: 16px !important; line-height: 24px !important; }
 /* 오늘의 산책 시트 · 새 줄 한 줄 알림 (그림 + 글, 넘치면 말줄임) */
@@ -1473,9 +1477,9 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 }
 
 /* ── 11-10 설정 시트 위계 (주인 UI 개선안 5): 갈래 제목이 본문보다 작던 것을 뒤집는다 — 제목은 굵게 + 위에 가는 줄, 값은 본문색, 안내 글은 작고 흐리게, 내 모습 초상은 제목 왼쪽에 ── */
-.settings-sheet #set-body h3 { font-size: 14px; font-weight: 700; color: var(--fg); letter-spacing: 0; margin: 20px 0 8px; padding-top: 12px; border-top: 1px solid var(--rim); }
+.settings-sheet #set-body h3 { font-size: 13px; font-weight: 700; color: var(--fg); letter-spacing: 0; margin: 20px 0 8px; padding-top: 12px; border-top: 1px solid var(--rim); }
 .settings-sheet #set-body > :first-child h3, .settings-sheet #set-body > h3:first-child { border-top: 0; padding-top: 0; margin-top: 8px; }
-:root[data-font="pixel"] .settings-sheet #set-body h3 { font-family: var(--f-ui); font-size: 20px; line-height: 30px; font-weight: 700; margin: 20px 0 8px; padding-top: 12px; border-top: 2px solid var(--rim); }
+:root[data-font="pixel"] .settings-sheet #set-body h3 { font-family: var(--f-body); font-size: 20px; line-height: 30px; font-weight: 700; margin: 20px 0 8px; padding-top: 12px; border-top: 2px solid var(--rim); }
 .settings-sheet .set-parts-h { flex-direction: row-reverse; justify-content: flex-end; align-items: center; margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--rim); }
 :root[data-font="pixel"] .settings-sheet .set-parts-h { border-top: 2px solid var(--rim); }
 .settings-sheet #set-body .set-parts-h h3, :root[data-font="pixel"] .settings-sheet #set-body .set-parts-h h3 { border-top: 0; padding-top: 0; margin: 0; }
@@ -1501,7 +1505,7 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 .furn-top { position: absolute; top: calc(var(--bar-h, 44px) + var(--safe-t, 0px) + 8px); left: 8px; right: 8px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; padding: 6px 8px; background-color: var(--panel); border: 1px solid var(--rim); border-radius: 10px; pointer-events: auto; }
 :root[data-font="pixel"] .furn-top { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
 .furn-top strong { min-width: 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.furn-hint { grid-column: 1 / -1; margin: 0; text-align: center; font-size: 13px; color: var(--muted, var(--fg)); }
+.furn-hint { grid-column: 1 / -1; margin: 0; text-align: center; font-size: 12px; color: var(--muted, var(--fg)); }
 .furn-hint[hidden] { display: none; }
 :root[data-font="pixel"] .furn-hint { font-family: var(--f-meta); font-size: 16px; line-height: 20px; }
 .furn-row { position: absolute; left: 0; top: 0; display: flex; gap: 6px; padding: 4px; background-color: var(--panel); border: 1px solid var(--rim); border-radius: 10px; pointer-events: auto; }
@@ -1565,16 +1569,16 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 :root[data-layout="one"] #scene, :root[data-layout="one"] #shell { background-color: #090a14; }
 
 /* ── 11-10 살림: 가방 꼬리표 (바 아래 오른쪽) + 시트 (텃밭 세 칸 · 염료) ── */
-.bag-tag { position: absolute; z-index: 8; top: calc(var(--bar-h, 44px) + var(--safe-t, 0px) + 3px); right: 6px; min-height: 28px; margin: 0; padding: 2px 10px; font: inherit; font-size: 13px; color: var(--fg); background-color: var(--panel); border: 1px solid var(--rim); border-radius: 8px; cursor: pointer; }
+.bag-tag { position: absolute; z-index: 8; top: calc(var(--bar-h, 44px) + var(--safe-t, 0px) + 3px); right: 6px; min-height: 28px; margin: 0; padding: 2px 10px; font: inherit; font-size: 12px; color: var(--fg); background-color: var(--panel); border: 1px solid var(--rim); border-radius: 8px; cursor: pointer; }
 .bag-tag::before { content: ''; position: absolute; inset: -8px -6px; }   /* 누르는 곳 44px */
 .bag-tag[hidden] { display: none; }
 :root[data-font="pixel"] .bag-tag { font-family: var(--f-meta); font-size: 16px; line-height: 20px; border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
 :root:not([data-layout="one"]) .bag-tag { position: relative; top: auto; right: auto; margin: 6px 16px; }   /* static 이면 누르는 곳(::before, absolute)이 #scene 전체를 덮어 2D 장면의 톡(문어 · 문)을 다 가로챘다 */
 html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 .bag-sheet .bag-line { margin: 8px 0 2px; font-weight: 700; color: var(--fg); }
-:root[data-font="pixel"] .bag-sheet .bag-line { font-family: var(--f-ui); font-size: 20px; line-height: 30px; }
-.bag-sheet h3 { font-size: 14px; font-weight: 700; color: var(--fg); letter-spacing: 0; margin: 16px 0 8px; padding-top: 10px; border-top: 1px solid var(--rim); }
-:root[data-font="pixel"] .bag-sheet h3 { font-family: var(--f-ui); font-size: 20px; line-height: 30px; border-top: 2px solid var(--rim); }
+:root[data-font="pixel"] .bag-sheet .bag-line { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
+.bag-sheet h3 { font-size: 13px; font-weight: 700; color: var(--fg); letter-spacing: 0; margin: 16px 0 8px; padding-top: 10px; border-top: 1px solid var(--rim); }
+:root[data-font="pixel"] .bag-sheet h3 { font-family: var(--f-body); font-size: 20px; line-height: 30px; border-top: 2px solid var(--rim); }
 .bag-plots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .bag-plot { display: grid; justify-items: center; gap: 4px; min-height: 104px; margin: 0; padding: 8px 4px; font: inherit; color: var(--fg); background: var(--panel2); border: 1px solid var(--rim); border-radius: 10px; cursor: pointer; }
 :root[data-font="pixel"] .bag-plot { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); font-family: var(--f-meta); font-size: 16px; line-height: 20px; }
@@ -1594,37 +1598,38 @@ html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 :root[data-font="pixel"] .sew-chip.on { box-shadow: inset 0 0 0 2px var(--fg); }
 :root[data-font="pixel"] .sew-sw { border-radius: 0; }
 /* 11-15 (주인: "재봉틀 창 글자 확 줄이기 · 창 크기 차분하게"): 작은 제목 · 한 줄 설명 · 색 칸 3×2 를 낮게 (가로로 색 점 + 이름, 아래 값) · 세트 도감은 접어 둔다 → 360x740 에서 화면 반쯤 */
-.sew-sheet .set-h { font-size: 15px; font-weight: 600; margin: 0; color: var(--fg); }
+.sew-sheet .set-h { font-size: 14px; font-weight: 600; margin: 0; color: var(--fg); }
 .sew-sheet .set-h:focus { outline: none; }
 .sew-sheet .bag-line { margin: 4px 0 0; }
 .sew-sheet .set-note { margin: 0; font-size: 12px; color: var(--muted); }
 .sew-sheet .sew-grid { gap: 6px; margin: 8px 0; }
 .sew-sheet .sew-chip { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 6px; row-gap: 0; min-height: 48px; padding: 4px 8px; text-align: left; }
 .sew-sheet .sew-sw { grid-row: 1 / 3; width: 16px; height: 16px; }
-.sew-sheet .sew-name { font-size: 13px; line-height: 18px; }
+.sew-sheet .sew-name { font-size: 12px; line-height: 18px; }
 .sew-sheet .sew-cost { font-size: 11px; line-height: 14px; }
 .sew-sheet .sew-off { display: block; min-height: 44px; margin: 0 0 4px; }
 .sew-sets { margin: 4px 0 8px; border-top: 1px solid var(--rim); }
-.sew-sets > summary { min-height: 44px; display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; font-size: 13px; font-weight: 700; color: var(--fg); }
+.sew-sets > summary { min-height: 44px; display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; font-size: 12px; font-weight: 700; color: var(--fg); }
 .sew-sets > summary::-webkit-details-marker { display: none; }
 .sew-sets > summary::before { content: ''; flex: 0 0 auto; width: 6px; height: 10px; background: currentColor; clip-path: polygon(0 0, 2px 0, 2px 2px, 4px 2px, 4px 4px, 6px 4px, 6px 6px, 4px 6px, 4px 8px, 2px 8px, 2px 10px, 0 10px); }
 .sew-sets[open] > summary::before { width: 10px; height: 6px; clip-path: polygon(0 0, 10px 0, 10px 2px, 8px 2px, 8px 4px, 6px 4px, 6px 6px, 4px 6px, 4px 4px, 2px 4px, 2px 2px, 0 2px); }
-.sew-sets .week-row { font-size: 13px; }
+.sew-sets .week-row { font-size: 12px; }
 .sew-sheet #sew-close { min-height: 44px; }
-:root[data-font="pixel"] .sew-sheet .set-h { font-family: var(--f-ui); font-size: 20px; line-height: 30px; font-weight: 400; }
+:root[data-font="pixel"] .sew-sheet .set-h { font-family: var(--f-body); font-size: 20px; line-height: 30px; font-weight: 400; }
 :root[data-font="pixel"] .sew-sheet .bag-line { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .sew-sheet .set-note, :root[data-font="pixel"] .sew-sets .week-row, :root[data-font="pixel"] .sew-sets .week-row .week-n { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }
 :root[data-font="pixel"] .sew-sheet .sew-name { font-family: var(--f-meta); font-size: 16px; line-height: 20px; }
 :root[data-font="pixel"] .sew-sheet .sew-cost { font-family: var(--f-meta); font-size: 16px; line-height: 16px; color: var(--muted); }
 :root[data-font="pixel"] .sew-sets { border-top: 2px solid var(--rim); }
-:root[data-font="pixel"] .sew-sets > summary { font-family: var(--f-ui); font-size: 20px; line-height: 30px; font-weight: 400; }
-:root[data-font="pixel"] .sew-sheet #sew-close { font-size: 20px; line-height: 20px; padding: 8px 14px; }
+:root[data-font="pixel"] .sew-sets > summary { font-family: var(--f-body); font-size: 20px; line-height: 30px; font-weight: 400; }
+:root[data-font="pixel"] .sew-sheet #sew-close { font-family: var(--f-meta); font-size: 16px; line-height: 16px; padding: 8px 14px; }
+:root[data-font="pixel"] .shelf-today summary, :root[data-font="pixel"] .shelf-today li a, :root[data-font="pixel"] .week-row .week-n { font-family: var(--f-meta); font-size: 16px; line-height: 24px; }   /* 11-15 (갈래 H 독립 점검): 시스템 크기(12px)를 그대로 받아 Galmuri7 12px 로 흐렸다 → 바닥 16px */
 
 /* 이번 주 할 일 (살림 시트): 줄마다 할 일 · 진행 · '바꾸기 n'. 끝난 줄은 흐리게 */
 .week-list { list-style: none; margin: 6px 0 10px; padding: 0; display: grid; gap: 4px; }
 .week-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 2px 0; border-bottom: 1px solid var(--rim); }
 .week-row .week-txt { flex: 1 1 auto; min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
-.week-row .week-n { flex: 0 0 auto; color: var(--muted); font-size: 13px; }
+.week-row .week-n { flex: 0 0 auto; color: var(--muted); font-size: 12px; }
 .week-row.done .week-txt { color: var(--muted); }
 .week-row .week-rr { flex: 0 0 auto; min-height: 36px; }
 .week-row .week-rr::before { inset: min(0px, calc(50% - 22px)) 0; }   /* 11-12 (검증 F7 · C13): 누르는 곳은 높이 44px (보이는 단추 32~36px) — 옆으로는 넓히지 않는다 (320 px 에서 시트 몸이 옆으로 4px 넘쳤다) */

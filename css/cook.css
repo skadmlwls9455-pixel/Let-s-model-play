@@ -1,4 +1,4 @@
-/* css/cook.css - the kitchen dialog (js/cook.js, live half; layout = design 5.2). Galmuri 24 / 20 / 16 px only.
+/* css/cook.css - the kitchen dialog (js/cook.js, live half; layout = design 5.2). Galmuri 20 / 16 px only (11-15: one step smaller, was 24 / 20 / 16).
    The stage canvas is the 144 x 160 art at an integer device-pixel scale (js/cook.js fit) with pixelated upscaling;
    the 2 px stage frame is part of the art, so the stage has no CSS border or padding. js/cook.js sets the row widths,
    the stage size, the spare height above the header and the tag positions (rounded to device pixels).
@@ -17,7 +17,7 @@ html.ck-open body { overscroll-behavior: none; }
   overflow-x: hidden; overflow-y: auto; overscroll-behavior: none;
   border: 0; border-radius: 0; color: var(--fg, #341c27); background-color: var(--bg, #d7b594); background-image: none;
   box-shadow: inset 0 0 0 2px var(--line, #602c2c), inset 0 0 0 4px var(--bg, #d7b594), inset 0 0 0 5px var(--hi-px, #ebede9);
-  font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; letter-spacing: 0;
+  font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; letter-spacing: 0;
   -webkit-font-smoothing: none; -webkit-text-size-adjust: 100%; animation: none;
   touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
@@ -41,7 +41,7 @@ html.ck-open body { overscroll-behavior: none; }
 
 .ck-close, .ck-note-go {
   min-width: 64px; min-height: 44px; margin: 0; padding: 4px 12px; box-sizing: border-box; flex: 0 0 auto;
-  font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 20px; white-space: nowrap;
+  font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 16px; white-space: nowrap;
   color: var(--fg, #341c27); background-color: var(--panel, #e7d5b3); border: 2px solid var(--line, #602c2c); border-radius: 0;
   box-shadow: inset 2px 2px 0 var(--hi-px, #ebede9), inset -2px -2px 0 var(--lo-px, #c09473), 2px 2px 0 var(--line, #602c2c);
   cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
@@ -97,7 +97,7 @@ html.ck-open body { overscroll-behavior: none; }
 
 .ck-title, .ck-name {
   position: absolute; top: 8px; left: 0; margin: 0; padding: 0 6px; white-space: nowrap; pointer-events: none;
-  font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 28px; font-weight: 400; color: #341c27;
+  font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 24px; font-weight: 400; color: #341c27;
   border: 16px solid transparent; border-image: url(../assets/ui/frame_paper.png) 8 fill / 16px round; image-rendering: pixelated;
 }
 .ck-title[hidden], .ck-name[hidden] { display: none; }
@@ -109,7 +109,7 @@ html.ck-open body { overscroll-behavior: none; }
 .ck-verbrow { position: relative; height: 56px; margin-top: 8px; touch-action: none; }
 .ck-verb {
   display: block; width: 100%; height: 56px; margin: 0; padding: 0 12px; box-sizing: border-box;
-  font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 24px; white-space: nowrap;
+  font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 20px; white-space: nowrap;
   color: var(--fg, #341c27); background: transparent; border: 2px solid var(--line, #602c2c); border-radius: 0; box-shadow: none;
   clip-path: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 0 calc(100% - 2px), 0 2px);
   opacity: 0; cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent;
@@ -128,7 +128,7 @@ html.ck-open body { overscroll-behavior: none; }
   display: flex; align-items: center; justify-content: center; }
 .ck-door {
   min-width: 160px; min-height: 56px; margin: 0; padding: 8px 24px; box-sizing: border-box;
-  font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 24px; white-space: nowrap;
+  font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 20px; white-space: nowrap;
   color: var(--fg, #341c27); background-color: var(--panel, #e7d5b3); border: 2px solid var(--line, #602c2c); border-radius: 0;
   box-shadow: inset 2px 2px 0 var(--hi-px, #ebede9), inset -2px -2px 0 var(--lo-px, #c09473), 2px 2px 0 var(--line, #602c2c);
   cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
