@@ -2361,7 +2361,7 @@ var SCENE3D = (function () {
         out.push([mb.min.x - r, mb.max.x + r, mb.min.z - r, mb.max.z + r], [cb.min.x - r, cb.max.x + r, cb.min.z - r, cb.max.z + r]); var lb = PROOM.legBox; out.push([lb.min.x - r, lb.max.x + r, lb.min.z - r, lb.max.z + r]);   /* ㄱ자 다리 */
       } else if (PL.place === 'yard' && YROOM) {   /* 11-15 마당: 집 · 계단 · 우체통 · 등 · 울타리 토막 · 연 밭 (밭 사이는 돌아서 간다) */
         YROOM.boxes.forEach(function (q) { out.push([q[0] - r, q[1] + r, q[2] - r, q[3] + r]); });
-        plotBoxes.forEach(function (q) { out.push([q.min.x - r, q.max.x + r, q.min.z - r, q.max.z + r]); });
+        plotBoxes.forEach(function (q) { out.push([q.min.x + 0.05 - 0.15, q.max.x - 0.05 + 0.15, q.min.z + 0.05 - 0.15, q.max.z - 0.05 + 0.15]); });   /* 흙 + 0.15 (몸 반지름보다 작게 — 밭 사이 길을 걸을 수 있게, 검증 11-15) */
       } else if (PL.place === 'loft' && LROOM) {
         LROOM.boxes.forEach(function (q) { bx(q[0], q[1], q[2], q[3]); });
         if (salG.visible) bx(SALC.x + LSAL.dx, SALC.sz + LSAL.dz, SALC.sw / 2, 0.06);   /* 미용실 병 선반 (위층 뒷벽) */   /* 오락기 · 부엌 조리대 */
@@ -4112,7 +4112,7 @@ var SCENE3D = (function () {
        나무 · 울타리 · 계절 장식 · 창은 바깥 지오메트리 · 재질을 같이 써서 계절 재색 · 시각대 창 빛이 저절로 따라온다 (applySeason · extApplyLight). 비 · 눈 입자와 1층 창 불빛(extLamp)은
        마당이 보이는 동안만 마당 그룹으로 빌려 온다 (yardBorrow) — 점광 수가 바깥과 같아 새 셰이더가 없다. 문어는 마당에 오지 않는다 (문어 그룹은 이야기 장소에 남아 같이 숨는다).
        밭 여섯 칸 (두 줄 세 칸): 앱이 연 칸 수만큼만 setGarden 목록이 온다 — 잠긴 칸은 아예 그리지 않는다 (울타리 · 자물쇠 · 숫자 없음). 드로우콜: 정적 1 · 집 1 · 나무 2 · 울타리 1 · 계절 1 · 창 2(+발광 2) · 문 1 · 밭 2 · 입자 */
-    var YPLOT = { xs: [0.9, 1.95, 3.0], zs: [1.6, 2.9], w: 0.7 }, plotG = new T.Group(), plotPlants = null, plotBase = null, plotKey = '', plotBoxes = [], plotState = [];
+    var YPLOT = { xs: [0.75, 1.95, 3.15], zs: [1.45, 3.05], w: 0.7 }, plotG = new T.Group(), plotPlants = null, plotBase = null, plotKey = '', plotBoxes = [], plotState = [];
     function plotXZ(i) { return [YPLOT.xs[i % 3], YPLOT.zs[(i / 3) | 0]]; }
     var YARD_TREES = { round: [[-3.75, -3.7, 1.05, 0.7], [0.4, -3.95, 0.95, 2.1], [-4.0, 2.4, 0.9, 1.4], [3.85, -2.6, 1.0, 0.2]], cone: [[-2.2, -3.95, 1.1, 0], [-4.0, -1.0, 0.95, 0], [2.3, -4.0, 0.9, 0]] };   /* 둘레 나무 (뒤쪽 · 옆 가장자리 — 밭과 길 앞은 비운다) */
     var YARD_LAMP = [0.2, 2.25];   /* 밭 옆 작은 등 (밤에 밭과 길이 읽히게 — 1층 창 불빛 점광을 여기로 빌려 온다) */
