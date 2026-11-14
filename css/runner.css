@@ -1,14 +1,14 @@
 /* css/runner.css — 다락방 달리기 전체 화면 (js/runner.js, 11-15 runner-2). 글자는 Galmuri 24/20/16px 만, 캔버스는 정수 배 + pixelated.
    색은 style.css 토큰(Apollo)을 그대로 쓴다. 틀은 ui.frame.dialog 9-slice (css/ui-art.css 와 같은 그림). */
 .rn-dlg {
-  width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; margin: 0; inset: 0;
+  width: 100vw; height: 100vh; height: 100dvh; max-width: 430px; max-height: none; margin: 0 auto; inset: 0;   /* 11-15 점검: 넓은 화면(데스크톱·가로)은 가운데 430 px 기둥 — 앞이 보이는 거리가 기기마다 크게 다르지 않게 */
   padding: 0; box-sizing: border-box; overflow: hidden; touch-action: none; overscroll-behavior: none;
   display: none; position: fixed;
   background-color: #172038; color: var(--fg); border: 0; border-radius: 0;
 }
 /* 11-15 runner-2: 세로 전체 화면. 무대(캔버스)가 창을 꽉 채우고, 위 작은 줄(점수·최고 | 닫기) · 가운데 글 · 아래 구석 동그라미 둘이 그 위에 뜬다 */
 .rn-dlg[open] { display: block; }
-.rn-dlg::backdrop { background: #172038; }
+.rn-dlg::backdrop { background: #090a14; }
 :root[data-font="pixel"] .rn-dlg { border: 0; box-shadow: none; background-image: none; }
 
 .rn-stage { position: absolute; inset: 0; overflow: hidden; line-height: 0; background: #172038; }
@@ -54,7 +54,7 @@
 :root[data-font="pixel"] .rn-over .rn-final-old { color: #602c2c; }
 .rn-final-best { margin: 0 0 8px; color: var(--muted); font-family: var(--f-body, 'Galmuri9', sans-serif); font-size: 20px; line-height: 30px; }
 .rn-over .btn { min-height: 52px; min-width: 112px; }
-.rn-over .btn-row { flex-wrap: nowrap; }
+.rn-over .btn-row { flex-wrap: nowrap; margin-bottom: 8px; }
 
 @media (prefers-reduced-motion: reduce) { .rn-dlg[open] { animation: none; } }
 :root[data-motion="reduce"] .rn-dlg[open] { animation: none; }

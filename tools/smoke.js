@@ -1681,6 +1681,13 @@ async function runnerTouch(br) {
     await page.waitForFunction(function () { var L = RUNNER.live(); return L.state !== 'run' || L.ground; });
     ok(await hold(g.du, function () { var L = RUNNER.live(); return L.state === 'run' && L.duck; }), '오른쪽 동그라미 → 숙이기 (누르는 동안)');
     var ins = await page.evaluate(function () { return RUNNER.live().inputs.map(function (e) { return e.a; }).join(','); });
+    /* 가로로 돌려도 (740×360) 바닥선은 동그라미 위 · 창은 가운데 430 px 기둥 (11-15 점검) */
+    await page.setViewportSize({ width: 740, height: 360 });
+    await page.waitForFunction(function () { var v = RUNNER.live().view; return v && v.H * v.css >= 359 && v.H * v.css < 460; });
+    var land = await page.evaluate(function () { var v = RUNNER.live().view, j = document.getElementById('rn-jump').getBoundingClientRect(), d = document.getElementById('runner-dlg').getBoundingClientRect(); return { G: v.G * v.css + d.top, pad: j.top, w: d.width, W: v.W }; });
+    ok(land.G < land.pad && land.w <= 430, '가로 740×360: 바닥선(' + Math.round(land.G) + ') < 동그라미(' + Math.round(land.pad) + ') · 창 폭 ' + land.w + ' (보이는 폭 ' + land.W + ')');
+    await page.setViewportSize({ width: 360, height: 740 });
+    await page.waitForFunction(function () { var v = RUNNER.live().view; return v && v.H * v.css >= 739; });
     ok(/^jd,ju,dd,du/.test(ins), '입력 기록 jd,ju,dd,du (' + ins + ')');
     await page.touchscreen.tap(g.close.x + g.close.w / 2, g.close.y + g.close.h / 2);
     await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
