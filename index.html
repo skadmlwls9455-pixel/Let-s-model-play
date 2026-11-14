@@ -94,9 +94,9 @@
       <span class="ib-dot" aria-hidden="true" hidden></span>
       <span id="today-new" class="sr-only"></span>
     </button>
-    <!-- 가구 배치 (11-10 주인: "소파 모양을 포스터 아이콘 왼쪽에") — 누르면 배치 모드: 아래에 가구 줄, 고르면 캐릭터 앞에 붙는다. 다락이 보일 때만 (app.js furnBtnSync) -->
-    <button type="button" id="btn-furn" class="icon-btn furn-btn" aria-label="가구 배치" title="가구 배치" aria-pressed="false">
-      <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M3 2h6v1H3zM2 3h1v3H2zM9 3h1v3H9zM3 3h6v2H3zM1 5h1v4H1zM10 5h1v4h-1zM2 6h8v3H2zM2 9h1v2H2zM9 9h1v2H9z"/></svg></span>
+    <!-- 가구 옮기기 (11-15 주인: 망치 그림 — 주황 자루 대각선 · 회색 머리 왼쪽 위, 색 있는 12×12 픽셀 · 다른 아이콘과 달리 일부러 색): 누르면 가구 모드 (app.js furnOpen). 한 화면 배치에서만 -->
+    <button type="button" id="btn-furn" class="icon-btn furn-btn" aria-label="가구 옮기기" title="가구 옮기기" aria-pressed="false">
+      <span class="snd-box" aria-hidden="true"><svg class="ham-ico" viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" focusable="false"><path fill="#2b1d22" d="M3 0h2v1H3zM2 1h1v1H2zM5 1h1v1H5zM1 2h1v1H1zM6 2h1v1H6zM0 3h1v1H0zM5 3h1v1H5zM0 4h1v1H0zM6 4h1v1H6zM1 5h1v1H1zM3 5h2v1H3zM7 5h1v1H7zM2 6h1v1H2zM5 6h1v1H5zM8 6h1v1H8zM6 7h1v1H6zM9 7h1v1H9zM7 8h1v1H7zM10 8h1v1H10zM8 9h1v1H8zM11 9h1v1H11zM9 10h2v1H9z"/><path fill="#e4e6ea" d="M3 1h1v1H3zM2 2h1v1H2zM1 3h1v1H1z"/><path fill="#a3a9b4" d="M4 1h1v1H4zM3 2h2v1H3zM2 3h2v1H2zM1 4h2v1H1z"/><path fill="#6e7480" d="M5 2h1v1H5zM4 3h1v1H4zM3 4h1v1H3zM2 5h1v1H2z"/><path fill="#f2913a" d="M5 4h1v1H5zM6 5h1v1H6zM7 6h1v1H7zM8 7h1v1H8zM9 8h1v1H9zM10 9h1v1H10z"/><path fill="#c2551e" d="M4 4h1v1H4zM5 5h1v1H5zM6 6h1v1H6zM7 7h1v1H7zM8 8h1v1H8zM9 9h1v1H9z"/></svg></span>
     </button>
     <button type="button" id="btn-album" class="icon-btn album-btn" aria-label="추억 앨범" title="추억 앨범" aria-haspopup="dialog" aria-controls="album-sheet" aria-describedby="album-new" hidden>
       <span class="snd-box" aria-hidden="true"><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" fill="currentColor" focusable="false"><path d="M1 2h10v1H1zM1 10h10v1H1zM1 3h1v7H1zM10 3h1v7h-1z"/><path class="al-pic" d="M3 6h1v1H3zM2 7h3v1H2zM6 5h1v1H6zM5 6h3v1H5zM4 7h5v1H4zM2 8h8v2H2zM8 4h1v1H8z"/></svg></span>
@@ -118,16 +118,11 @@
   <button type="button" id="btn-play-door" class="scene-spot" aria-label="문어 방" title="문어 방" aria-describedby="scene-desc" hidden></button>
   <!-- 소파 위 연한 노란 점 (11-10): 누르면 내 캐릭터가 소파 앞으로 걸어가 폴짝 뛰어 앉는다. 자리는 장면이 on.sofaSpot 으로 알려 준다 (app.js). 누르는 곳 44×44 · 보이는 점 10px -->
   <button type="button" id="btn-sofa" class="sofa-dot" aria-label="소파에 앉기" title="소파에 앉기" hidden><span aria-hidden="true"></span></button>
-  <!-- 가구 배치 모드 (11-10): 가구를 꾹 누르면 뜬다. 가구가 내 캐릭터 앞에 붙어 따라오고, 여기서 돌리기 · 크기 · 취소 · 놓기 (app.js furnUI · 장면 furnCarry) -->
+  <!-- 가구 모드 (11-15): 문어 · 캐릭터가 숨고 가구만 손가락으로 끌어 옮긴다. 위 = 취소 · 제목 · 저장하기 (+ 처음 한 번 안내 한 줄), 고른 가구 밑 = 돌리기 · 작게 · 크게 (자리는 장면이 준다), 아래 = 가구 줄 (톡 = 고르기) — app.js furnUI · 장면 furnMode -->
   <div id="furn-ui" class="furn-ui" hidden>
-    <div class="furn-top"><button type="button" class="btn sm pressable" id="furn-done">끝내기</button><strong id="furn-title">가구 배치</strong></div>
-    <!-- 고른 가구가 있을 때만: 회전 · 크기 슬라이더 + 취소 · 놓기 (참고 화면의 오른쪽 세로 슬라이더 · ✕ ✓ 자리) -->
-    <div id="furn-tools" class="furn-tools" hidden>
-      <label class="furn-sl"><span>회전</span><input type="range" id="furn-rot" min="0" max="345" step="15" value="0" aria-label="회전"></label>
-      <label class="furn-sl"><span>크기</span><input type="range" id="furn-size" min="70" max="150" step="5" value="100" aria-label="크기"></label>
-      <div class="furn-yn"><button type="button" class="btn sm pressable" id="furn-x">취소</button><button type="button" class="btn sm primary pressable" id="furn-ok">놓기</button></div>
-    </div>
-    <div id="furn-items" class="furn-strip" role="group" aria-label="가구"></div>
+    <div id="furn-top" class="furn-top"><button type="button" class="btn sm pressable" id="furn-x" aria-label="취소 (들어오기 전대로)">취소</button><strong id="furn-title">가구 옮기기</strong><button type="button" class="btn sm primary pressable" id="furn-ok" aria-label="저장하고 나가기">저장하기</button><p id="furn-hint" class="furn-hint">가구를 끌어서 옮겨</p></div>
+    <div id="furn-row" class="furn-row" role="group" hidden><button type="button" class="btn sm pressable" id="furn-turn" aria-label="돌리기 (90도)">돌리기</button><button type="button" class="btn sm pressable" id="furn-small" aria-label="작게">작게</button><button type="button" class="btn sm pressable" id="furn-big" aria-label="크게">크게</button></div>
+    <div id="furn-items" class="furn-strip" role="group" aria-label="가구 고르기"></div>
   </div>
   <!-- 가방 꼬리표 (11-10): 위쪽 바 아래 오른쪽에 매달린 '조개 N' — 누르면 살림 시트 (조개 · 씨앗 · 들어온 날 · 텃밭 · 옷 물들이기). 이름을 지은 뒤부터 보인다 -->
   <button type="button" id="btn-bag" class="bag-tag pressable" aria-haspopup="dialog" aria-controls="bag-sheet" hidden><span id="bag-n">조개 0</span></button>

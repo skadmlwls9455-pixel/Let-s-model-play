@@ -548,12 +548,9 @@ var APP = (function () {
         view: function (v) { syncRoomUI(v); if (v === 'loft') questMark('loft'); else if (v === 'play') questMark('kitchen'); },   /* 8물결: 보이는 장소(다락 · 바깥 · 놀이방)가 바뀐 프레임 */
         playerInput: function (allowed) { stickShow(allowed); },
         /* 11-10 인테리어 v0: 가구를 꾹 눌러 옮기면 자리를 저장 (S.room.layout) · 소파 위 노란 점 = 앉기 */
-        furnEdit: function (stt) { if (stt && (!furnFrom || furnFrom.id !== stt.id)) furnFrom = { id: stt.id, at: typeof scene.layout === 'function' ? scene.layout()[stt.id] : null }; furnUI(stt); },   /* 배치 모드 시작 · 바뀜 · 끝(null). 들어 올린 순간의 자리 · 각도 · 크기를 적어 둔다 */
-        furnMove: function (d) {
-          if (!d || !d.id) return; if (!isObj(S.room.layout)) S.room.layout = {}; S.room.layout[d.id] = [d.x, d.z, d.rot | 0, +d.scale || 1]; save();
-          var a = furnFrom && furnFrom.id === d.id && Array.isArray(furnFrom.at) ? furnFrom.at : null; furnFrom = null;
-          if (!a || [d.x, d.z, d.rot, d.scale].some(function (v, k) { return Math.abs((+v || 0) - (+a[k] || 0)) > 0.001; })) questMark('furn');   /* 11-12 (검증 C12): 든 자리에 그대로 놓으면 '옮겨 놓기' 가 아니다 */
-        },
+        furnEdit: function (stt) { furnUI(stt); },   /* 11-15 가구 모드: 열림 · 고름 · 끌기 · 바뀜 · 끝(null) */
+        furnSel: function (r) { furnRow(r); },   /* 고른 가구의 화면 상자 (바뀔 때만) → 단추 줄 자리 */
+        furnSave: function (d) { furnSaved(d); },   /* 저장하기로 닫힘 — 바뀐 가구만 적는다 (11-12 검증 C12: 그대로면 '옮겨 놓기' 가 아니다) */
         sofaSpot: function (p) { var b = $('btn-sofa'); if (!b) return; if (!p) { b.hidden = true; return; } b.style.left = (p.x - 22) + 'px'; b.style.top = (p.y - 22) + 'px'; b.hidden = false; },
         playerDoor: function (to) { if (!roomJob && !busyRoomWalk()) goRoom(to === 'attic' ? 'attic' : to === 'loft' ? 'loft' : 'play', $(to === 'attic' ? (roomNow() === 'loft' ? 'btn-loft-stair' : 'btn-play-door') : to === 'loft' ? 'btn-stair' : 'btn-door'), false); },   /* 문에 닿은 채 걸어 들어감 (장면이 한 번만 쏜다) */   /* 11-08 움직이기: 내 캐릭터를 움직일 수 있는 때가 바뀐 프레임 (바뀔 때만 온다) → 발자국 손잡이 hidden */
         playerStep: function () { if (window.AUDIO) AUDIO.on('step', { who: 'player' }); }   /* 내 캐릭터 한 걸음 (장면은 AUDIO 를 부르지 않는다) — js/audio.js 에 'step' 갈래가 생기면 발소리 step_* (지금은 조용히) */
@@ -1450,7 +1447,7 @@ var APP = (function () {
   function scheduleWander() {
     stopWander();
     oct.wanderTimer = setTimeout(function () {
-      if (oct.busy || salonActive || oct.state !== 'idle' || document.hidden || rest || octWithMe()) { scheduleWander(); return; }   /* 11-12: 위층에 따라 올라와 있는 동안엔 온 자리에 있는다 (돌아다닐 자리는 다락 것뿐) */   /* 깨어 있는 틈엔 담요에 있는다 · 미용실 연출 중엔 그 자리 */
+      if (oct.busy || salonActive || oct.state !== 'idle' || document.hidden || rest || octWithMe() || furnMode) { scheduleWander(); return; }   /* 11-15: 가구 모드 중엔 (안 보이는) 문어가 제자리에 있는다 — 옮기는 가구와 엇갈리지 않게 */   /* 11-12: 위층에 따라 올라와 있는 동안엔 온 자리에 있는다 (돌아다닐 자리는 다락 것뿐) */   /* 깨어 있는 틈엔 담요에 있는다 · 미용실 연출 중엔 그 자리 */
       var opts = allowedIdleAnchors().filter(function (a) { return a !== oct.anchor; });
       var next = opts[Math.floor(uiRng() * opts.length)] || 'center';
       scheduleWander();   /* 다음 산책은 지금 예약: 걷기가 다른 이동에 끊기면 그 Promise 는 풀리지 않는다 → .then 에서 걸면 산책이 영영 멈춘다 */
@@ -3770,44 +3767,87 @@ var APP = (function () {
      내 캐릭터 (SCENE.md '내 캐릭터'): walkFirst — 장면의 playerWalkTo(문 앞 앵커 atticPlayDoor · playAtticDoor)가 문 앞까지 걸어가서 풀리면 그때 문이 열린다 (2D 폴백엔 캐릭터가 없어 바로 풀린다) */
   var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew', plot0: 'btn-plot0', plot1: 'btn-plot1', plot2: 'btn-plot2' };   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
   var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door', loft: 'btn-loft-stair' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
-  var furnHinted = false, furnFrom = null;   /* furnFrom = { id, at: [x, z, rot, scale] } 들어 올린 순간 (장면 layout()) */
-  /* 가구 배치 모드 화면 (주인 11-10 참고 화면): 위에 '가구 배치 · 이름' + 바꿔 들 가구 칩, 오른쪽 아래에 돌리기 · 크게 · 작게 · 취소 · 놓기. 큰 버튼(뽈뽈 다녀와)은 그동안 숨긴다. 캐릭터는 스틱 · 방향키로 그대로 움직인다 */
+  var furnHinted = false;   /* 첫 안내 한 줄은 이 창에서 처음 연 모드에만 (고르거나 끌면 걷힌다) */
+  /* 11-15 가구 모드 (주인: "아예 가구 모드로 들어가서 문어나 캐릭터 없애고 가구만 딱딱 바꿀 수 있게"): 망치 단추 → 장면 furnMode. 문어 · 캐릭터 · 스틱 · 큰 버튼 · 방 단추가 숨고,
+     위에 '취소' · '가구 옮기기' · '저장하기', 고른 가구 밑에 '돌리기' '작게' '크게' (장면이 on.furnSel 로 화면 자리를 준다), 아래엔 가구 줄 (톡 = 고르기 — 다른 가구 밑에 깔린 담요 · 키보드용).
+     저장하기 = 바뀐 가구만 S.room.layout[id] = [x, z, rot, scale] (예전과 같은 모양 · 안 건드린 가구의 저장값은 그대로). 다락에서만 · 모드 중엔 방을 못 옮긴다 */
   var furnMode = false;
-  function furnOpen(on) {   /* 위쪽 바의 소파 아이콘: 배치 모드 켜기 · 끄기 (들고 있던 건 놓는다) */
-    if (!scene || typeof scene.furnItems !== 'function') return;
-    if (!on && scene.furnEditing && scene.furnEditing()) scene.furnConfirm();
-    furnMode = !!on; furnUI(on && scene.furnEditing ? scene.furnEditing() : null);
+  function furnOpen(on) {   /* 망치 단추: 열기 · (열려 있으면) 저장하고 닫기 → 지금 모드인가 */
+    if (!scene || typeof scene.furnMode !== 'function' || sceneMode !== '3d') return false;
+    if (!on) { if (furnMode && scene.furnSave) scene.furnSave(); return furnMode; }
+    if (furnMode) return true;
+    var ok = !inPlay() && !roomJob && !introUp() && !salonActive && !salonRun && scene.furnMode(true);
+    if (!ok) furnShake($('btn-furn'));   /* 다락이 아니거나 연출 중: 글 없이 살짝 흔들림 */
+    return !!ok;
   }
-  function furnUI(stt) {   /* stt = 들고 있는 가구 상태 | null. 모드가 켜져 있으면 가구 줄은 늘 보이고, 고른 게 있을 때만 슬라이더 · 취소 · 놓기 */
+  function furnShake(b) { if (!b) return; b.classList.remove('furn-no'); void b.offsetWidth; b.classList.add('furn-no'); setTimeout(function () { b.classList.remove('furn-no'); }, 320); }
+  function furnUI(stt) {   /* stt = 장면 furnEditing() ({ id, name, rot, scale, items, dragging, bad }) | null (모드 끝) */
     var ui = $('furn-ui'); if (!ui) return;
-    if (stt) furnMode = true;
+    furnMode = !!stt;
     var on = furnMode && sceneMode === '3d';
     document.documentElement.classList.toggle('furn-on', on);
-    syncSalonSpot();   /* 미용실 거울 단추: 가구 배치 중엔 숨김 · 끝나면 다시 */
+    syncSalonSpot();   /* 미용실 거울 단추: 가구 모드 중엔 숨김 · 끝나면 다시 */
     ui.hidden = !on; var fb = $('btn-furn'); if (fb) fb.setAttribute('aria-pressed', on ? 'true' : 'false');
-    if (!on) return;
-    $('furn-title').textContent = stt ? stt.name : '가구를 골라';
-    $('furn-tools').hidden = !stt;
-    if (stt) { $('furn-rot').value = String(Math.round(stt.rot / 15) * 15 % 360); $('furn-size').value = String(Math.round(stt.scale * 100)); }
-    var box = $('furn-items'), items = scene.furnItems ? scene.furnItems() : []; box.textContent = '';
+    if (!on) { furnRow(null); return; }
+    var hint = $('furn-hint');
+    if (stt.id || stt.dragging) furnHinted = true;
+    if (hint) hint.hidden = furnHinted;
+    var box = $('furn-items'), items = stt.items || []; box.textContent = '';
     items.forEach(function (it) {
-      var b = document.createElement('button'); b.type = 'button'; b.className = 'furn-tile pressable' + (stt && it.id === stt.id ? ' on' : ''); b.setAttribute('aria-pressed', stt && it.id === stt.id ? 'true' : 'false');
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'furn-tile pressable' + (it.id === stt.id ? ' on' : ''); b.setAttribute('aria-pressed', it.id === stt.id ? 'true' : 'false');
       var sw = document.createElement('span'); sw.className = 'furn-sw furn-sw-' + it.id; sw.setAttribute('aria-hidden', 'true');
       var nm = document.createElement('span'); nm.className = 'furn-nm'; nm.textContent = it.name;
       b.appendChild(sw); b.appendChild(nm);
-      b.addEventListener('click', function () { if (scene.furnCarry) scene.furnCarry(it.id); });
+      b.addEventListener('click', function () { if (scene && scene.furnSelect) scene.furnSelect(it.id); });
       box.appendChild(b);
     });
-    if (!furnHinted) { furnHinted = true; toast('가구를 고르고, 캐릭터를 움직여 자리를 잡아'); }
+    var row = $('furn-row');
+    if (row && stt.id) { $('furn-small').disabled = stt.scale <= 0.7 + 1e-6; $('furn-big').disabled = stt.scale >= 1.5 - 1e-6; row.setAttribute('aria-label', stt.name + ' 바꾸기'); }
+    if (!stt.id || stt.dragging) furnRow(null);
+  }
+  function furnRow(r) {   /* 고른 가구 밑 단추 줄 — r = 장면 화면 상자 { l, r, t, b } (CSS px, 장면 기준) | null. 아래 자리가 모자라면 가구 위로, 늘 장면 안 (위 줄 · 가구 줄은 비켜) */
+    var row = $('furn-row'), ui = $('furn-ui'); if (!row || !ui) return;
+    if (!r || !furnMode) { row.hidden = true; return; }
+    row.hidden = false;
+    var W = ui.clientWidth, H = ui.clientHeight, w = row.offsetWidth, h = row.offsetHeight, top = $('furn-top'), strip = $('furn-items');
+    var lo = top ? top.offsetTop + top.offsetHeight + 8 : 8, hi = H - (strip && !strip.hidden ? strip.offsetHeight : 0) - 8 - h;
+    var x = Math.round(clamp((r.l + r.r) / 2 - w / 2, 8, Math.max(8, W - w - 8))), y = r.b + 8;
+    if (y > hi) y = r.t - h - 8;   /* 밑에 자리가 없으면 위로 */
+    y = Math.round(clamp(y, lo, Math.max(lo, hi)));
+    row.style.left = x + 'px'; row.style.top = y + 'px';
+  }
+  function furnSaved(d) {   /* 장면이 저장하기로 닫힘 (단추 · 망치 · 문어 출발/귀가) → 바뀐 가구만 적는다 */
+    if (!d || !d.layout) return;
+    var from = d.from || {}, any = false;
+    Object.keys(d.layout).forEach(function (id) {
+      var v = d.layout[id], a = from[id];
+      if (Array.isArray(a) && v.every(function (x, k) { return Math.abs((+x || 0) - (+a[k] || 0)) <= 0.001; })) return;   /* 안 건드린 가구: 저장값(옛 15° · 0.85 그대로) 둔다 */
+      if (!isObj(S.room.layout)) S.room.layout = {};
+      S.room.layout[id] = [v[0], v[1], v[2] | 0, +v[3] || 1]; any = true;
+    });
+    if (any) { save(); questMark('furn'); }
+  }
+  function furnAct(what) {   /* '돌리기' · '작게' · '크게' (단추 · R · + · −): 겹치거나 끝이면 안 바뀌고 단추가 살짝 흔들린다 */
+    if (!furnMode || !scene) return;
+    var ok = what === 'turn' ? scene.furnRotate() : scene.furnScale(what === 'big' ? 1 : -1);
+    if (!ok) furnShake($(what === 'turn' ? 'furn-turn' : what === 'big' ? 'furn-big' : 'furn-small'));
   }
   function bindFurn() {
     var fb = $('btn-furn'); if (fb) fb.addEventListener('click', function () { furnOpen(!furnMode); });
-    var dn = $('furn-done'); if (dn) dn.addEventListener('click', function () { furnOpen(false); });
-    var ok = $('furn-ok'); if (ok) ok.addEventListener('click', function () { if (scene && scene.furnConfirm) scene.furnConfirm(); });
+    var ok = $('furn-ok'); if (ok) ok.addEventListener('click', function () { if (scene && scene.furnSave) scene.furnSave(); });
     var no = $('furn-x'); if (no) no.addEventListener('click', function () { if (scene && scene.furnCancel) scene.furnCancel(); });
-    var rt = $('furn-rot'); if (rt) rt.addEventListener('input', function () { if (scene && scene.furnSetRot) scene.furnSetRot(+rt.value); });
-    [rt, $('furn-size')].forEach(function (el) { if (el) el.addEventListener('change', function () { el.blur(); }); });   /* 슬라이더를 놓으면 포커스도 놓는다 (방향키가 다시 캐릭터로) */
-    var sz = $('furn-size'); if (sz) sz.addEventListener('input', function () { if (scene && scene.furnSetScale) scene.furnSetScale(+sz.value / 100); });
+    [['furn-turn', 'turn'], ['furn-small', 'small'], ['furn-big', 'big']].forEach(function (p) { var b = $(p[0]); if (b) b.addEventListener('click', function () { furnAct(p[1]); }); });
+    document.addEventListener('keydown', function (e) {   /* 방향키 = 한 칸 · R = 돌리기 · + / − = 크기 · Esc = 취소 (창 · 글자 입력 중엔 안 받는다) */
+      if (!furnMode || !scene || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('dialog[open]')) return;
+      var ae = document.activeElement; if (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) return;
+      var d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (d) { e.preventDefault(); if (scene.furnNudge) scene.furnNudge(d[0], d[1]); return; }
+      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); furnAct('turn'); }
+      else if (e.key === '+' || e.key === '=') { e.preventDefault(); furnAct('big'); }
+      else if (e.key === '-' || e.key === '_') { e.preventDefault(); furnAct('small'); }
+      else if (e.key === 'Escape') { e.preventDefault(); if (scene.furnCancel) scene.furnCancel(); }
+    });
+    window.addEventListener('resize', function () { if (furnMode && scene && scene.furnSelRect) furnRow(scene.furnSelRect()); });
   }
   var roomJob = null;   /* 지금 도는 문 작업 (Promise) — 끝날 때까지 두 번째 문은 열지 않는다 */
   function sceneView() { return scene && typeof scene.view === 'function' ? scene.view() : (scene && typeof scene.place === 'function' ? scene.place() : 'attic'); }
@@ -3834,7 +3874,7 @@ var APP = (function () {
     stickSync();   /* 보이는 장소가 바뀌면 발자국 손잡이도 다시 (장면의 on.playerInput 이 먼저지만, 같은 답을 한 번 더 묻는 건 싸다) */
   }
   function resetRoomUI() {   /* 장면을 바꿀 때 (sceneLost): 단추는 새 장면이 다시 맡는다 · 그 전까지 놀이방 단추는 숨김 */
-    roomJob = null; hideBackNote();
+    roomJob = null; hideBackNote(); if (furnMode) furnUI(null);   /* 11-15: 가구 모드는 장면과 같이 끝 (저장 안 한 것은 장면과 같이 사라진다) */
     ['btn-play-door', 'btn-machine', 'btn-salon', 'btn-stair', 'btn-loft-stair', 'btn-sew', 'btn-plot0', 'btn-plot1', 'btn-plot2'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
     var d = $('btn-door'); if (d) { d.hidden = false; d.removeAttribute('data-spot'); ['left', 'top', 'width', 'height', 'right', 'bottom'].forEach(function (k) { d.style[k] = ''; }); }
     var sc = $('scene'); if (sc) { sc.setAttribute('data-view', 'attic'); sc.setAttribute('aria-label', '문어의 다락방'); }
@@ -3850,7 +3890,7 @@ var APP = (function () {
     var ae = document.activeElement, keep = !ae || ae === document.body || ae === opener || isRoomButton(ae);
     hideTip();
     if (to === 'attic') hideBackNote();
-    if (furnMode && to !== 'attic') furnOpen(false);   /* 11-12 (검증): 가구 배치는 다락 일 — 다락을 떠나면 '끝내기' 와 같이 끝낸다 (위층까지 따라와 거울 · 큰 버튼을 가린 채 눌러도 아무 일 없는 판이 됐다) */
+    if (furnMode) return no('furn');   /* 11-15: 가구 모드 중엔 방을 옮기지 않는다 (먼저 '저장하기' · '취소') */
     var job = roomJob = Promise.resolve(scene.goRoom(to, { walkFirst: true })).then(fin, function (e) { console.warn('[app] goRoom', e); return fin({ ok: false, reason: 'error' }); });
     function fin(r) {
       if (roomJob === job) roomJob = null;
