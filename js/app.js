@@ -4668,7 +4668,7 @@ var APP = (function () {
     octInitial();
     scheduleThink();
     /* 초상은 장면이 두 프레임 그린 뒤부터 (3D 는 2번째 프레임에 idle 을 미리 찍어 셰이더를 데운다) */
-    requestAnimationFrame(function () { requestAnimationFrame(function () { PORT.ready = true; flushPortraits(); }); });
+    requestAnimationFrame(function () { requestAnimationFrame(function () { PORT.ready = true; flushPortraits(); document.documentElement.classList.add('booted'); }); });   /* 11-15: 장면이 두 프레임 그렸다 → 로딩 문어 (index.html #boot) 를 걷는다 */
     /* 입장 레이어 (js/intro.js): 하늘에서 내려오는 카메라 + 장면 위 타이틀. 타이틀을 누르면 걷히고 바로 게임 — 첫 실행의 이름 짓기는 그다음 */
     var afterIntro = function () { if (!S.octopus.name && !$('name-dialog').open) openNameDialog(); };
     if (window.INTRO && INTRO.start(scene, { mode: sceneMode, reduced: reduced(), host: $('scene') })) INTRO.onDone(afterIntro); else afterIntro();

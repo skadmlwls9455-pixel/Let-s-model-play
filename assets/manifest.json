@@ -1342,5 +1342,13 @@
     "w": 32,
     "h": 32,
     "note": "기념품 「색유리」 큰 판 32×32 (정수 배로만). 16px 판은 icon.souvenir.stained_glass."
+  },
+  "ui.loading.oct": {
+    "src": "assets/ui/loading_oct.png",
+    "w": 448,
+    "h": 39,
+    "frames": 8,
+    "cell": 56,
+    "note": "로딩 문어 (11-15): 게임 3D 문어의 걷는 옆모습 8칸 가로 띠 (tools/make-loading-oct.js 가 walkPortrait 로 굽는다). index.html #boot 가 steps(8) 로 돌린다"
   }
 }

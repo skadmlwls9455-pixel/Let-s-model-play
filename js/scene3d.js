@@ -1902,7 +1902,7 @@ var SCENE3D = (function () {
       uDither: { value: 0 }, uOutline: { value: hasDepthTex ? 1 : 0 }, uHasNormal: { value: 1 }, uVig: { value: 0 }, uSky: { value: 0 }, uStars: { value: 0 }, uSkyOk: { value: new T.Vector3(0, 0, 0) }, uBayer: post.uniforms.uBayer, uKeepAlpha: { value: 1 }, uFade: { value: 0 }, uFadeOk: { value: new T.Vector3(0, 0, 0) } } }));
     var pBuf = new Uint8Array(PORT.N * PORT.N * 4);
     function portraitBg(o) { var b = o && o.bg; if (!b || b === 'transparent') return null; if (b === 'navy') return '#172038'; return /^#[0-9a-f]{6}$/i.test(b) ? b : null; }   /* 기본 투명 · 'navy' = Apollo 남색 · '#rrggbb' */
-    function renderPortrait(expr, bgHex, colorHex) {   /* colorHex = 그 몸색으로 찍기 (장면 몸색·팔레트는 찍은 뒤 그대로 되돌린다 — 첫 실행 창 미리 보기 · 지난 날 초상) */
+    function renderPortrait(expr, bgHex, colorHex, pw) {   /* colorHex = 그 몸색으로 찍기 (장면 몸색·팔레트는 찍은 뒤 그대로 되돌린다 — 첫 실행 창 미리 보기 · 지난 날 초상) · pw = 11-15 걷는 옆모습 (walkPortrait) */
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
       var base = colorHex || st.color, other = base.toLowerCase() !== String(st.color).toLowerCase(), OCp = other ? octDerived(base) : OC;
       if (other) { octLook(OCp); uploadPalette(buildPalette(base, st.palette, salExtra())); }
@@ -1914,15 +1914,15 @@ var SCENE3D = (function () {
       var hex = expr === 'sleep' ? hueHex(base, 12) : base;   /* sleep = 색 순환 한 자락. pet 은 몸색 그대로 (11-14 주인 O2 c — 예전 홍조 끝값) */
       if (hex !== sv.hex) octColor(hex);
       PORT.last = { expr: expr, hex: hex, base: base, arcs: arcs.visible, smile: smile.visible, blush: blush.visible, eyes: pupils[0].visible };   /* 시험용 (11-14 O2 c): 이 초상에 칠한 몸색 · 보인 얼굴 부품 — 밝기 어림 대신 색 그대로 견준다 */
-      octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]);   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = 0; bodyG.rotation.set(0, 0, pose[2]);
+      octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]);   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = pw ? pw.by : 0; if (pw) bodyG.rotation.set(0, pw.yaw, pw.roll); else bodyG.rotation.set(0, 0, pose[2]);
       var salClean = !!(SAL.active || SAL.lookAt || SAL.offer >= 0);   /* 미용실이 눈·몸을 쥐고 있을 때만 (병을 내밀었거나 연출 중) 초상을 정지 자세로 씻는다 — 그 밖엔 예전 그대로 찍는다 */
-      arms.forEach(function (m) { m.rotation.y = -m.userData.a; m.rotation.z = 0.05; if (salClean) m.scale.x = 1; });   /* 걸음 중이어도 초상은 정지 자세 (다리 기본 0.05 · 미용실 기쁨 폴짝 꼭대기의 다리 ×1.3 도 풀고) */
+      if (!pw) arms.forEach(function (m) { m.rotation.y = -m.userData.a; m.rotation.z = 0.05; if (salClean) m.scale.x = 1; });   /* 걸음 중이어도 초상은 정지 자세 (다리 기본 0.05 · 미용실 기쁨 폴짝 꼭대기의 다리 ×1.3 도 풀고) */
       if (salClean) pupils.forEach(function (p, k) { p.position.x = EYE[k][0]; p.position.y = EYE[k][1] + (FACES[expr].dy || 0); });   /* 눈은 앞을 본다 (미용실 병을 따라가던 동공이 초상에 새지 않게) */
       octG.updateMatrixWorld(true);
-      var ty = (HEAD_Y - PORT.down) * pose[1];
+      var ty = pw ? pw.ty : (HEAD_Y - PORT.down) * pose[1], tilt = pw ? pw.tilt : PORT.tilt;
       _pt.set(0, ty, 0); octG.localToWorld(_pt);
-      _pp.set(0, ty + PORT.dist * Math.sin(PORT.tilt), PORT.dist * Math.cos(PORT.tilt)); octG.localToWorld(_pp);
-      var hw = PORT.hw * OCT_R; pCam.left = -hw; pCam.right = hw; pCam.top = hw; pCam.bottom = -hw; pCam.updateProjectionMatrix();
+      _pp.set(0, ty + PORT.dist * Math.sin(tilt), PORT.dist * Math.cos(tilt)); octG.localToWorld(_pp);
+      var hw = (pw ? pw.hw : PORT.hw) * OCT_R; pCam.left = -hw; pCam.right = hw; pCam.top = hw; pCam.bottom = -hw; pCam.updateProjectionMatrix();
       pCam.position.copy(_pp); pCam.up.set(0, 1, 0); pCam.lookAt(_pt); pCam.updateMatrixWorld();
       scene.background = bgHex ? C(bgHex) : null;
       renderer.setClearColor(bgHex ? C(bgHex) : 0x000000, bgHex ? 1 : 0);
@@ -1945,6 +1945,22 @@ var SCENE3D = (function () {
       for (var y = 0; y < N; y++) img.data.set(pBuf.subarray((N - 1 - y) * N * 4, (N - y) * N * 4), y * N * 4);   /* GL 은 아래→위 */
       cx.putImageData(img, 0, 0);
       if (t0) PORT.ms = +(performance.now() - t0).toFixed(2); PORT.n++;
+      return cv;
+    }
+    /* 11-15 개발용 (tools/make-loading-oct.js → assets/ui/loading_oct.png): 걷는 옆모습 한 칸. 걸음 위상 ph 의 다리(내딛는 쪽 들림 · 앞뒤 쓸기) · 굴림 · 걸음 중간 +1px 를
+       stepOct 의 걷기 공식 그대로 놓고 초상 길(전용 조명 · 레이어 2 · 같은 후처리)로 몸 전체를 찍는다. 다리 자세는 찍은 뒤 되돌린다 (장면은 다음 프레임에 제 자세로) */
+    function walkPortrait(ph, o) {
+      o = o || {}; ph = +ph || 0;
+      var n = Math.floor(ph), u = ph - n, swingPos = (n & 1) === 0, sr = Math.sin(Math.PI * u), hw = o.hw || 1.3;
+      var sv = arms.map(function (m) { return [m.rotation.y, m.rotation.z, m.scale.x]; });
+      arms.forEach(function (arm) {
+        var ca = Math.cos(arm.userData.a), sw = (ca > 0) === swingPos, lift = sw ? GAIT.armLift * sr : 0, fwd = sw ? 2 * u - 1 : 1 - 2 * u;
+        arm.scale.x = 1; arm.rotation.z = 0.05 + lift; arm.rotation.y = -arm.userData.a + fwd * GAIT.armFwd * (ca > 0 ? 1 : -1);
+      });
+      var roll = o.roll ? ((n & 1) ? -1 : 1) * GAIT.roll * (sr > 0.6 ? 1 : 0) : 0, by = sr > 0.5 ? 2 * hw / PORT.N : 0;   /* 굴림은 앞에서 볼 때 몸짓 — 옆모습에선 고개 끄덕임처럼 보여 기본은 뺀다 */
+      var cv;
+      try { cv = renderPortrait('idle', portraitBg(o), portraitColor(o), { yaw: (o.yaw == null ? 90 : +o.yaw) * DEG, roll: roll, by: by, hw: hw, ty: o.ty == null ? 0.62 : +o.ty, tilt: (o.tilt == null ? 10 : +o.tilt) * DEG }); }
+      finally { arms.forEach(function (m, i) { m.rotation.y = sv[i][0]; m.rotation.z = sv[i][1]; m.scale.x = sv[i][2]; }); }
       return cv;
     }
     function portraitColor(o) { var c = o && o.color; return /^#[0-9a-f]{6}$/i.test(c || '') ? String(c).toLowerCase() : null; }   /* o.color = 그 몸색으로 찍기 (장면 색은 그대로) */
@@ -5475,7 +5491,7 @@ var SCENE3D = (function () {
       setExpression: setExpression, expression: function () { return face.expr; }, EXPRESSIONS: EXPRESSIONS.slice(),
       faceShown: function () { return { expr: face.expr, applied: face.applied, arcs: arcs.visible, smile: smile.visible, blush: blush.visible, eyes: pupils[0].visible, hex: oct.curHex || st.color, color: st.color }; },   /* 시험용 (11-14 주인 O2 c): 지금 장면 얼굴에 보이는 부품 · 몸에 칠한 색 (hex 가 color 와 다르면 몸빛이 바뀐 것 — 잠 · 미용실 · 놀이 위장) */   /* 룩 패스 8: 표정은 상태와 별개 (상태가 기본 표정을 고르고, app.js 가 덮어쓴다) */
       portraitShown: function () { return PORT.last ? Object.assign({}, PORT.last) : null; },   /* 시험용: 마지막으로 찍은 초상의 몸색 · 얼굴 부품 (11-14 O2 c) */
-      portrait: portrait, portraitURL: portraitURL,   /* 64×64 초상 캔버스 / data URL (표정·몸색·팔레트·배경 키 캐시, opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb') */
+      portrait: portrait, portraitURL: portraitURL, walkPortrait: walkPortrait,   /* walkPortrait(위상, { yaw°, hw, ty, tilt°, bg, color }) → 64×64 걷는 옆모습 (11-15 로딩 문어 만들기 도구 전용) */   /* 64×64 초상 캔버스 / data URL (표정·몸색·팔레트·배경 키 캐시, opts.bg = 'transparent'(기본) | 'navy' | '#rrggbb') */
       moveTo: moveTo, jumpTo: jumpTo, finishWalk: function () { if (oct.walking && oct.walking.finish) oct.walking.finish(); },   /* 건너뛰기: 걷던 길을 지금 도착시키고 moveTo 의 Promise 를 푼다 (2D 와 같은 API) */
       intro: startIntro, introSkip: finishIntro, introRelease: introRelease, introActive: function () { return INTRO.on; }, introProgress: function () { return INTRO.on ? clamp(INTRO.t / INTRO.dur, 0, 1) : 1; },   /* 입장 연출: intro({ dur, height, instant, hold }) → Promise(착지) · introSkip() 바로 착지 · introRelease() 비네트 복귀 */
       skyHex: skyHex, skyCut: skyCut,   /* 지금 허공(배경)이 화면에 찍히는 색 — 입장 레이어가 장면 밖을 같은 색으로 덮는다 · skyCut = 그 덮개를 두 색으로 나눌 높이 (11-12) */
