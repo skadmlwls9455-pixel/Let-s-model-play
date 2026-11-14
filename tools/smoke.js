@@ -5367,7 +5367,7 @@ async function scenarioWeek(browser) {
     bad2d += [].concat.apply([], sw2.slots).filter(function (id) { return id === 'loft' || id === 'furn'; }).length;
   }
   console.log('   2D 주:', JSON.stringify(sw14));
-  ok(mode14 === '2d' && bad2d === 0 && keep14[1] === '위층 옷방 올라가 보기|0/1' && keep14[2] === '가구 하나 옮겨 놓기|0/1', '2D 장면: 새 주 · 바꾸기에서 «위층 옷방» · «가구» 가 나오지 않는다 (4주 — ' + bad2d + ') · 전에 나눈 칸은 그대로');
+  ok(mode14 === '2d' && bad2d === 0 && keep14[1] === '위층 옷방 가 보기|0/1' && keep14[2] === '가구 하나 옮기기|0/1', '2D 장면: 새 주 · 바꾸기에서 «위층 옷방» · «가구» 가 나오지 않는다 (4주 — ' + bad2d + ') · 전에 나눈 칸은 그대로');
   await c14.close();
 
   /* 15. 살림 시트 (360x740): 다섯 가지를 하면 받기 단추가 쪽지 바로 아래 · 화면 안 (F5). 꼬리표 점은 바탕과 떨어진 색 · 이름에도 (W8). 받으면 '받았어' 줄이 그 자리 · 키보드 자리도 그 줄 (F6) */
@@ -5464,7 +5464,7 @@ async function scenarioWeek(browser) {
   await pz.reload(); await pz.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
   var re18 = await pz.evaluate(function (p) { window.__toasts = []; APP.openSettings(); var chips = document.querySelectorAll('.gift-chips .fchip'); chips[p.i].click(); document.getElementById('gift-go').click(); var t = document.getElementById('toast').textContent; return { toast: t, wear: APP.state.settings.octWear || null }; }, yesPick);
   console.log('   선물 상자 (쓰기로):', JSON.stringify({ pick: yesPick, atPress: at18, afterReload: re18 }));
-  ok(at18.asked && at18.wear && at18.wear[yesPick.slot] === yesPick.id && re18.wear && re18.wear[yesPick.slot] === yesPick.id && re18.toast === '오늘은 이미 물어봤어. 내일 다시 물어볼 수 있어',
+  ok(at18.asked && at18.wear && at18.wear[yesPick.slot] === yesPick.id && re18.wear && re18.wear[yesPick.slot] === yesPick.id && re18.toast === '오늘은 이미 물어봤어. 내일 또 물어볼 수 있어',
     '선물 상자: ' + yesPick.name + ' 을 내민 순간 «물어봄» 과 «쓰기로 함» 이 같이 저장 → 1.3 s 안에 새로고침해도 쓰고 있다 · 다시 내밀면 같은 한 줄');
   await c18.close();
 
