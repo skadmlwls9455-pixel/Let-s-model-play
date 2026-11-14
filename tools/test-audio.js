@@ -24,6 +24,7 @@
  *     · 문 이벤트 door{act:'open'} → 끼익 (한 벌에 door_open 이 없으면 audio.js 가 만든 door_creak_open — 시트 소리 아님, 크기는 export 잣대) · close → 짧은 끼익
  *     · 모르는 act·이름은 조용히 · 놀이방 문(#btn-door)을 누르면 끼익 열림 · 닫힘 + 놀이방 (8물결) → 오락기 → 달리기 창
  *     · 미용실 훅 AUDIO.on('salon', { act … }) 은 던지지 않고 (경고 없음) '그대로' · 대답 없음 · joy: false 면 기분 징글이 없다 (docs/SALON.md §9.5)
+ * 11. (11-15) 쓰다듬기 6번에 pet_happy 없음 (눌림 · 쓸기는 그대로) · 데모 규칙 반응 (훅 · 실제 산책) 엔 mood_* 재생 · 요청 없음 · 모델이 고른 반응 (재생 길) 엔 있음
  * 모든 페이지: 콘솔 오류 0 (바깥 글꼴 같은 외부 요청 실패만 무시), audio/ 응답은 전부 200.
  */
 'use strict';
@@ -792,6 +793,52 @@ async function scenarioAwake(browser, base) {
   await s.ctx.close();
 }
 
+/* 11. 정직 소리 (11-15 · 주인 C3 b · 정직 기본값): 쓰다듬기 넷째의 '뀨' (pet_happy) 는 없다 — 눌림 · 쓸기 소리는 그대로.
+   기분 효과음 (mood_*) 은 모델 · 사람이 고른 반응에만 — 데모 규칙이 고른 반응 (실제 산책 · 훅) 엔 없다. 받은 소리 파일 요청으로도 본다 */
+async function scenarioHonest(browser, base) {
+  console.log('\n== 11. 정직 소리: 쓰다듬기 기쁨 소리 없음 · 데모 반응엔 기분 소리 없음 (11-15)');
+  var s = await newPage(browser, { hour: 14 }, base);
+  var page = s.page, reqs = [];
+  page.on('request', function (r) { var u = r.url(); if (/\/audio\//.test(u)) reqs.push(u.split('/').pop()); });
+  await page.goto(base + '/index.html');
+  await nameIt(page);
+  await clickSound(page);
+  await waitState(page, function () { return AUDIO.state().bgm === 'theme_day_rain'; }, null, 15000);
+  /* 쓰다듬기 6번 빠르게 (앱의 소리 훅 그대로) */
+  await page.evaluate(function () { for (var i = 0; i < 6; i++) AUDIO.on('pet'); });
+  await page.waitForTimeout(800);
+  var pids = playedIds(await st(page));
+  ok(pids.indexOf('pet_squish') >= 0 && pids.some(function (id) { return /^pet_stroke_4/.test(id); }) && !pids.some(function (id) { return /^pet_happy/.test(id); }) && !reqs.some(function (u) { return /^pet_happy/.test(u); }),
+    "쓰다듬기 6번: pet_squish · pet_stroke_1..5 는 나고 pet_happy 는 안 난다 · 요청도 없다 (" + pids.filter(function (id) { return /^pet_/.test(id); }).join(',') + ')');
+  /* 데모 규칙 반응 (훅) — 넷 다 기분 소리 없음 */
+  await page.evaluate(function () {
+    ['폴짝', '우쭐', '덤덤', '졸림'].forEach(function (r) { AUDIO.on('row', { ev: { type: 'wrap_up', reaction: r }, trip: { by: 'demo', reactionBy: 'demo-rules', reaction: r } }); });
+    AUDIO.on('row', { ev: { type: 'wrap_up', reaction: '우쭐' }, trip: { by: 'demo', reaction: '우쭐' } });   /* reactionBy 없는 옛 데모 기록 */
+  });
+  await page.waitForTimeout(800);
+  var p1 = playedIds(await st(page));
+  ok(!p1.some(function (id) { return /^mood_/.test(id); }) && !reqs.some(function (u) { return /^mood_/.test(u); }), '데모 규칙이 고른 폴짝 · 우쭐 · 덤덤 · 졸림 → 기분 소리 없음 · mood_ 요청 없음 (' + (p1.filter(function (id) { return /^mood_/.test(id); }).join(',') || '없음') + ')');
+  /* 실제 데모 산책 한 번 (두뇌 계획의 반응을 폴짝으로 — 규칙이 고른 것과 같은 꼴: reactionBy 'demo-rules') */
+  await page.evaluate(function () {
+    var plan0 = BRAIN.plan;
+    BRAIN.plan = function (inp) { return plan0.apply(BRAIN, arguments).then(function (p) { if (p && p.kind !== 'empty') { p.reaction = '폴짝'; if (p.receipt) p.receipt.reaction = '폴짝'; (p.events || []).forEach(function (e) { if (e.type === 'wrap_up') e.reaction = '폴짝'; }); } return p; }); };
+    window.__ppolTest = Object.assign(window.__ppolTest || {}, { forceKind: 'out' });
+  });
+  await page.click('#btn-go');
+  var done = await waitState(page, function () { var t = APP.state.trips[APP.state.trips.length - 1]; return t && t.status === 'done' && !document.getElementById('btn-go').classList.contains('away') && !APP.busy; }, null, 150000);
+  await page.waitForTimeout(600);
+  var p2 = await page.evaluate(function () { var t = APP.state.trips[APP.state.trips.length - 1]; return { by: t.by, rb: t.reactionBy, r: t.reaction, ids: AUDIO.state().played.map(function (p) { return p.id; }) }; });
+  ok(done && p2.by === 'demo' && p2.rb === 'demo-rules' && p2.r === '폴짝' && p2.ids.indexOf('return_home') >= 0 && !p2.ids.some(function (id) { return /^mood_/.test(id); }) && !reqs.some(function (u) { return /^mood_/.test(u); }),
+    '데모 산책 (규칙이 폴짝) → 귀가 소리는 나고 기분 소리 · mood_ 요청은 없다 (' + JSON.stringify({ by: p2.by, rb: p2.rb, r: p2.r }) + ')');
+  /* 모델이 고른 반응 (MCP · 개발용 재생 길) → 그 기분 소리 */
+  await page.evaluate(function () { delete window.__ppolTest.forceKind; APP.importEvents(JSON.stringify([{ type: 'stay_home', t: 0, activity: 'window_watch', line: '창밖을 봤어', anchor: 'window' }, { type: 'wrap_up', t: 1200, reaction: '덤덤' }])); });
+  var mood = await waitState(page, function () { return AUDIO.state().played.some(function (x) { return /^mood_/.test(x.id); }); }, null, 60000);
+  var p3 = playedIds(await st(page)).filter(function (id) { return /^mood_/.test(id); });
+  ok(mood && p3.length >= 1 && reqs.some(function (u) { return /^mood_/.test(u); }), '모델이 고른 덤덤 (재생 길) → 기분 소리 ' + p3.join(',') + ' · 파일 요청 있음');
+  reportErrors(s.bag, '11. 정직 소리');
+  await s.ctx.close();
+}
+
 (async function main() {
   var srv = await serve(), base = 'http://127.0.0.1:' + srv.address().port;
   console.log('test-audio: ' + base + ' · shots → ' + SHOTS);
@@ -803,6 +850,7 @@ async function scenarioAwake(browser, base) {
     await scenarioToggle(browser, base);
     await scenarioRules(browser, base);
     await scenarioAwake(browser, base);
+    await scenarioHonest(browser, base);
     await scenarioFile(browser);
   } catch (e) {
     fails++; console.error('\nCRASH: ' + (e && e.stack || e));

@@ -458,7 +458,7 @@ ui.tutLog = [ … ];                       // ?dev=1 일 때만, 200개까지
 | 문어가 너를 알아봄 (0단계) | `curious_1/2` | — |
 | 윤슬 쪽지 나타남 / 닫힘 | `card_flip_1/2` / `ui_tap_1~4` | 종이 '윤슬' 나타남·닫힘 (그전엔 `card_flip`) |
 | 이름 정함 | `mood_poljjak` | — |
-| 쓰다듬기 | `pet_squish`, `pet_stroke`, `pet_happy` | — |
+| 쓰다듬기 | `pet_squish`, `pet_stroke` (`pet_happy` 는 11-15 부터 안 씀, 주인 C3 b) | — |
 | 첫 핀 | `hang_poster_1/2` | 핀 '콕' 한 번 |
 | 공 (v1) | 없음 | 구르기·통·툭 (컵 놀이와 같이 쓴다) |
 
