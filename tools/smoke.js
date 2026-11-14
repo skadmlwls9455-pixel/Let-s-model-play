@@ -6551,6 +6551,36 @@ async function scenarioSceneTap(browser) {
   });
   console.log('   관성 중 톡:', JSON.stringify(co));
   ok(co.mode === 'coast' && co.pick === 'spot:sew' && co.open, '관성으로 흐르는 중에 재봉틀을 톡 하면 멈추고 시트도 연다 (' + co.mode + ' · ' + co.pick + ')');
+  /* 3. 놀이방 조리대 톡 → 부엌 (cook.html?embed=1 iframe) · 부엌의 닫기 → 놀이방 그대로 (장면 · 밀기 · 포커스는 조리대 단추) · 다시 열고 Esc 도 닫는다 */
+  await page.evaluate(function () { APP.scene.zoomTo(1); return APP.goRoom('attic'); });
+  await page.waitForFunction(function () { return APP.scene.view() === 'attic' && !APP.goResting; }, null, { timeout: 20000 }); await page.waitForTimeout(600);
+  await page.evaluate(function () { return APP.goRoom('play'); });
+  await page.waitForFunction(function () { var e = document.getElementById('btn-cook'); return APP.scene.view() === 'play' && e && !e.hidden && !APP.goResting; }, null, { timeout: 20000 }); await page.waitForTimeout(600);
+  var cpt = await page.evaluate(function () { var q = document.getElementById('btn-cook').getBoundingClientRect(), F = [0.5, 0.35, 0.65, 0.2, 0.8]; for (var i = 0; i < F.length; i++) for (var j = 0; j < F.length; j++) { var x = q.x + q.width * F[j], y = q.y + q.height * F[i], k = APP.scene.pickAt(x, y); if (k && k.kind === 'spot' && k.id === 'counter') return { x: x, y: y, w: q.width, h: q.height, label: document.getElementById('btn-cook').getAttribute('aria-label'), pan: JSON.stringify(APP.scene.pan()) }; } return null; });
+  var ck = { spot: !!cpt };
+  if (cpt) {
+    await page.touchscreen.tap(cpt.x, cpt.y);
+    ck.open = await page.waitForSelector('#cook-overlay[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+    var fh = await page.$('#cook-overlay iframe'), fr = fh && await fh.contentFrame();
+    ck.kitchen = !!fr && await fr.waitForFunction(function () { return window.COOK && COOK.isOpen() && document.documentElement.classList.contains('ck-embed'); }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
+    if (ck.kitchen) {
+      ck.home = await fr.evaluate(function () { var h = document.querySelector('.ck-home'); return h ? getComputedStyle(h).display : 'none'; });
+      await (await fr.$('.ck-close')).tap();
+      ck.closed = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+      ck.after = await page.evaluate(function () { return { view: APP.scene.view(), room: APP.room, focus: document.activeElement && document.activeElement.id, pan: JSON.stringify(APP.scene.pan()) }; });
+      await page.waitForTimeout(700);
+      await page.evaluate(function () { document.getElementById('btn-cook').click(); });
+      ck.again = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+      await page.keyboard.press('Escape');
+      ck.esc = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+      ck.escShut = !(await fr.evaluate(function () { return COOK.isOpen(); }));
+    }
+  }
+  console.log('   조리대:', JSON.stringify({ pt: cpt, ck: ck }));
+  ok(ck.spot && cpt.w >= 44 && cpt.h >= 44 && cpt.label === '부엌', '놀이방 조리대 위에 부엌 단추 (44px 이상 · «' + (cpt && cpt.label) + '»)');
+  ok(ck.open && ck.kitchen && ck.home === 'none', '조리대를 손가락으로 톡 → 게임 안 화면 가득 부엌 (cook.html?embed=1 · 자기 문 · 링크는 숨김)');
+  ok(ck.closed && ck.after && ck.after.view === 'play' && ck.after.focus === 'btn-cook' && ck.after.pan === cpt.pan, '부엌의 닫기 → 놀이방 그대로 (장면 ' + (ck.after && ck.after.view) + ' · 포커스 ' + (ck.after && ck.after.focus) + ')');
+  ok(ck.again && ck.esc && ck.escShut, '다시 열고 Esc 로도 닫힌다 (부엌도 닫힌다)');
   ok(!bag.length, '장면 톡 시나리오 오류 없음' + (bag.length ? ': ' + bag.join(' | ') : ''));
   await ctx.close();
 }

@@ -31,6 +31,11 @@
   color: var(--muted, #602c2c); text-decoration: underline; text-underline-offset: 4px;
   -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
+/* 11-15 ?embed=1: the game opens this page in a full-screen frame from the play-room counter. No door, no credits
+   link (the game's settings have it), nothing behind the kitchen but the kitchen wall colour */
+html.ck-embed .ck-home { display: none; }
+html.ck-embed .ckh-credits { display: none !important; }
+html.ck-embed, html.ck-embed body { background: var(--bg, #d7b594); }
 .ckh-credits:focus { outline: none; }
 .ckh-credits:focus-visible { outline: 2px solid var(--fg, #341c27); outline-offset: -2px; }
 </style>
@@ -52,8 +57,15 @@
   /* ?reduced=1 reaches the kitchen as an option (opts below). The reaction stickers only look at the page's motion
      switch, so it is set here too (the main game sets data-motion from its own setting) */
   if (get('reduced') === '1') document.documentElement.setAttribute('data-motion', 'reduce');
+  /* 11-15 ?embed=1: inside the game (index.html #cook-overlay). Closing the kitchen (its close button, Esc, back)
+     tells the game, which closes the frame; the game says 'open' to open it again and 'close' when it closed the
+     frame itself. Messages only to and from the parent window */
+  var embed = get('embed') === '1' && window.parent && window.parent !== window;
+  if (embed) document.documentElement.classList.add('ck-embed');
+  function tell(what) { try { window.parent.postMessage({ ppolCook: what }, location.protocol === 'file:' ? '*' : location.origin); } catch (e) { /* no parent */ } }
   function opts(first) {
     var o = { opener: door, storeKey: 'ppolppol_cook_v0' }, v;
+    if (embed) o.onClose = function () { tell('close'); };
     v = get('seed'); if (v !== null && /^\d{1,10}$/.test(v)) o.seed = Number(v);
     v = get('slow'); if (v !== null && +v > 0) o.slow = +v;
     if (get('reduced') === '1') o.reduced = true;
@@ -82,7 +94,16 @@
     document.head.appendChild(s);
   }
   door.addEventListener('click', function () { go(false); });
+  if (embed) {
+    window.addEventListener('message', function (e) {
+      if (e.source !== window.parent || (e.origin !== 'null' && e.origin !== location.origin)) return;
+      var d = e.data; if (!d || typeof d !== 'object') return;
+      if (d.ppolCook === 'open') go(false);
+      else if (d.ppolCook === 'close' && window.COOK && COOK.isOpen && COOK.isOpen()) COOK.close();
+    });
+  }
   go(true);
+  if (embed) tell('ready');
 })();
 </script>
 </body>
