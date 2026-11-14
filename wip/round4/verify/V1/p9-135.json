@@ -1,0 +1,184 @@
+{
+ "tl": [
+  {
+   "t": 2110,
+   "cer": "",
+   "place": "attic",
+   "view": "attic",
+   "state": "anticipate",
+   "yaw": 135,
+   "shown": 135,
+   "held": false,
+   "yardBtn": true
+  },
+  {
+   "t": 3104,
+   "cer": "depart",
+   "place": "attic",
+   "view": "attic",
+   "state": "walk",
+   "yaw": 135,
+   "shown": 0,
+   "held": true,
+   "yardBtn": false
+  },
+  {
+   "t": 11094,
+   "cer": "depart",
+   "place": "exterior",
+   "view": "exterior",
+   "state": "walk",
+   "yaw": 135,
+   "shown": 0,
+   "held": true,
+   "yardBtn": false
+  },
+  {
+   "t": 14284,
+   "cer": "",
+   "place": "exterior",
+   "view": "exterior",
+   "state": "away",
+   "yaw": 135,
+   "shown": 0,
+   "held": true,
+   "yardBtn": true
+  },
+  {
+   "t": 16314,
+   "cer": "peek",
+   "place": "exterior",
+   "view": "exterior",
+   "state": "away",
+   "yaw": 135,
+   "shown": 0,
+   "held": true,
+   "yardBtn": true
+  },
+  {
+   "t": 21075,
+   "cer": "",
+   "place": "exterior",
+   "view": "exterior",
+   "state": "away",
+   "yaw": 135,
+   "shown": 0,
+   "held": true,
+   "yardBtn": true
+  },
+  {
+   "t": 23445,
+   "cer": "peek",
+   "place": "exterior",
+   "view": "exterior",
+   "state": "away",
+   "yaw": 135,
+   "shown": 0,
+   "held": true,
+   "yardBtn": true
+  },
+  {
+   "t": 25253,
+   "cer": "",
+   "place": "exterior",
+   "view": "exterior",
+   "state": "away",
+   "yaw": 135,
+   "shown": 0,
+   "held": true,
+   "yardBtn": true
+  },
+  {
+   "t": 29067,
+   "cer": "leave",
+   "place": "exterior",
+   "view": "exterior",
+   "state": "away",
+   "yaw": 135,
+   "shown": 0,
+   "held": true,
+   "yardBtn": true
+  },
+  {
+   "t": 31964,
+   "cer": "return",
+   "place": "exterior",
+   "view": "exterior",
+   "state": "away",
+   "yaw": 135,
+   "shown": 0,
+   "held": true,
+   "yardBtn": true
+  },
+  {
+   "t": 33083,
+   "cer": "return",
+   "place": "exterior",
+   "view": "exterior",
+   "state": "away",
+   "yaw": 135,
+   "shown": 0,
+   "held": true,
+   "yardBtn": false
+  },
+  {
+   "t": 36360,
+   "cer": "return",
+   "place": "attic",
+   "view": "exterior",
+   "state": "away",
+   "yaw": 135,
+   "shown": 0,
+   "held": true,
+   "yardBtn": false
+  },
+  {
+   "t": 38159,
+   "cer": "",
+   "place": "attic",
+   "view": "attic",
+   "state": "carry",
+   "yaw": 135,
+   "shown": 135,
+   "held": false,
+   "yardBtn": true
+  }
+ ],
+ "yardTry": {
+  "ok": false,
+  "reason": "ceremony",
+  "view": "attic",
+  "room": null,
+  "place": "attic"
+ },
+ "yardTry2": {
+  "ok": false,
+  "reason": "ceremony",
+  "view": "exterior",
+  "room": null,
+  "place": "exterior"
+ },
+ "end": {
+  "yaw": 135,
+  "shown": 135,
+  "v": 0,
+  "held": false,
+  "easing": false,
+  "mode": "",
+  "cut": {
+   "left": false,
+   "back": true,
+   "corner": false,
+   "either": true,
+   "stair": false,
+   "right": true,
+   "front": false
+  }
+ },
+ "errs": [
+  "Access to fetch at 'https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts|pageimages|links&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0&titles=%ED%98%B9%EB%93%B1%EA%B3%A0%EB%9E%98' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+  "Failed to load resource: net::ERR_FAILED",
+  "Access to fetch at 'https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts|pageimages|links&exintro=1&explaintext=1&exsentences=2&piprop=thumbnail&pithumbsize=480&pllimit=50&plnamespace=0&titles=%EB%A9%94%EC%95%84%EB%A6%AC' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+  "Failed to load resource: net::ERR_FAILED"
+ ]
+}

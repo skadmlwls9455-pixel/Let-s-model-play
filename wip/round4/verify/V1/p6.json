@@ -1,0 +1,189 @@
+[
+ {
+  "h": 18.75,
+  "a0": {
+   "duskK": 0,
+   "key": "dusk",
+   "lampI": 0.5,
+   "hemi": 0.26,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-18.75-a0.png"
+  },
+  "a180": {
+   "duskK": 0,
+   "key": "dusk",
+   "lampI": 0.5,
+   "hemi": 0.26,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-18.75-a180.png"
+  }
+ },
+ {
+  "h": 19,
+  "a0": {
+   "duskK": 0,
+   "key": "dn0",
+   "lampI": 0.5,
+   "hemi": 0.26,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-19-a0.png"
+  },
+  "a180": {
+   "duskK": 0,
+   "key": "dn0",
+   "lampI": 0.5,
+   "hemi": 0.26,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-19-a180.png"
+  }
+ },
+ {
+  "h": 19.25,
+  "a0": {
+   "duskK": 0.125,
+   "key": "dn1",
+   "lampI": 0.555,
+   "hemi": 0.277,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-19.25-a0.png"
+  },
+  "a180": {
+   "duskK": 0.125,
+   "key": "dn1",
+   "lampI": 0.555,
+   "hemi": 0.277,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-19.25-a180.png"
+  }
+ },
+ {
+  "h": 19.5,
+  "a0": {
+   "duskK": 0.25,
+   "key": "dn2",
+   "lampI": 0.609,
+   "hemi": 0.296,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-19.5-a0.png"
+  },
+  "a180": {
+   "duskK": 0.25,
+   "key": "dn2",
+   "lampI": 0.609,
+   "hemi": 0.296,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-19.5-a180.png"
+  }
+ },
+ {
+  "h": 19.75,
+  "a0": {
+   "duskK": 0.375,
+   "key": "dn3",
+   "lampI": 0.664,
+   "hemi": 0.319,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-19.75-a0.png"
+  },
+  "a180": {
+   "duskK": 0.375,
+   "key": "dn3",
+   "lampI": 0.664,
+   "hemi": 0.319,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-19.75-a180.png"
+  }
+ },
+ {
+  "h": 20,
+  "a0": {
+   "duskK": 0.5,
+   "key": "dn4",
+   "lampI": 0.719,
+   "hemi": 0.345,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-20-a0.png"
+  },
+  "a180": {
+   "duskK": 0.5,
+   "key": "dn4",
+   "lampI": 0.719,
+   "hemi": 0.345,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-20-a180.png"
+  }
+ },
+ {
+  "h": 20.25,
+  "a0": {
+   "duskK": 0.625,
+   "key": "dn5",
+   "lampI": 0.773,
+   "hemi": 0.374,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-20.25-a0.png"
+  },
+  "a180": {
+   "duskK": 0.625,
+   "key": "dn5",
+   "lampI": 0.773,
+   "hemi": 0.374,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-20.25-a180.png"
+  }
+ },
+ {
+  "h": 20.5,
+  "a0": {
+   "duskK": 0.75,
+   "key": "dn6",
+   "lampI": 0.828,
+   "hemi": 0.406,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-20.5-a0.png"
+  },
+  "a180": {
+   "duskK": 0.75,
+   "key": "dn6",
+   "lampI": 0.828,
+   "hemi": 0.406,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-20.5-a180.png"
+  }
+ },
+ {
+  "h": 20.75,
+  "a0": {
+   "duskK": 0.875,
+   "key": "dn7",
+   "lampI": 0.883,
+   "hemi": 0.442,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-20.75-a0.png"
+  },
+  "a180": {
+   "duskK": 0.875,
+   "key": "dn7",
+   "lampI": 0.883,
+   "hemi": 0.442,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-20.75-a180.png"
+  }
+ },
+ {
+  "h": 21,
+  "a0": {
+   "duskK": 1,
+   "key": "night",
+   "lampI": 0.938,
+   "hemi": 0.48,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-21-a0.png"
+  },
+  "a180": {
+   "duskK": 1,
+   "key": "night",
+   "lampI": 0.938,
+   "hemi": 0.48,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-21-a180.png"
+  }
+ },
+ {
+  "h": 21.25,
+  "a0": {
+   "duskK": 1,
+   "key": "night",
+   "lampI": 0.938,
+   "hemi": 0.48,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-21.25-a0.png"
+  },
+  "a180": {
+   "duskK": 1,
+   "key": "night",
+   "lampI": 0.938,
+   "hemi": 0.48,
+   "f": "/home/user/Let-s-model-play/wip/round4/verify/V1/shots/dusk-21.25-a180.png"
+  }
+ }
+]

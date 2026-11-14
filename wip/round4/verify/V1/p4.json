@@ -1,0 +1,898 @@
+[
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "attic",
+  "a": 0,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-attic-a0.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "attic",
+  "a": 45,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-attic-a45.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "attic",
+  "a": 90,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-attic-a90.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "attic",
+  "a": 135,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-attic-a135.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "attic",
+  "a": 180,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-attic-a180.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "attic",
+  "a": 225,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-attic-a225.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "attic",
+  "a": 270,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-attic-a270.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "attic",
+  "a": 315,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-attic-a315.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "loft",
+  "a": 0,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-loft-a0.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "loft",
+  "a": 45,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-loft-a45.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "loft",
+  "a": 90,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-loft-a90.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "loft",
+  "a": 135,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-loft-a135.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "loft",
+  "a": 180,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-loft-a180.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "loft",
+  "a": 225,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-loft-a225.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "loft",
+  "a": 270,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-loft-a270.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "loft",
+  "a": 315,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-loft-a315.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "play",
+  "a": 0,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-play-a0.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "play",
+  "a": 45,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-play-a45.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "play",
+  "a": 90,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-play-a90.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "play",
+  "a": 135,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-play-a135.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "play",
+  "a": 180,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-play-a180.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "play",
+  "a": 225,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-play-a225.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "play",
+  "a": 270,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-play-a270.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "play",
+  "a": 315,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0.375
+  },
+  "f": "night-clear-play-a315.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 0,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-clear-yard-a0.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 45,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-clear-yard-a45.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 90,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-clear-yard-a90.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 135,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-clear-yard-a135.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 180,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-clear-yard-a180.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 225,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-clear-yard-a225.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 270,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-clear-yard-a270.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "clear",
+   "rooms": [
+    "attic",
+    "loft",
+    "play",
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 315,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-clear-yard-a315.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "rain",
+   "rooms": [
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 0,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-rain-yard-a0.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "rain",
+   "rooms": [
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 45,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-rain-yard-a45.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "rain",
+   "rooms": [
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 90,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-rain-yard-a90.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "rain",
+   "rooms": [
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 135,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-rain-yard-a135.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "rain",
+   "rooms": [
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 180,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-rain-yard-a180.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "rain",
+   "rooms": [
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 225,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-rain-yard-a225.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "rain",
+   "rooms": [
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 270,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-rain-yard-a270.png"
+ },
+ {
+  "R": {
+   "hour": 22,
+   "lantern": 0,
+   "weather": "rain",
+   "rooms": [
+    "yard"
+   ]
+  },
+  "room": "yard",
+  "a": 315,
+  "st": {
+   "cueK": 1,
+   "cueAttic": true,
+   "cueLoft": true,
+   "key": "night",
+   "lampI": 0
+  },
+  "f": "night-rain-yard-a315.png"
+ }
+]
