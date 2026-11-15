@@ -4636,7 +4636,7 @@ var APP = (function () {
     frag.appendChild(h('p', { class: 'set-note week-goal' }, [h('span', { text: '다섯 개 하면 선물' }), h('span', { class: 'sr-only', text: ' (일곱 가지 중 ' + dn + '/' + WEEK_NEED + ')' }), pips]));
     /* 11-12 (검증 F5 · F20): 받기 단추는 쪽지 바로 아래 (목록 뒤면 360x740 에서 화면 밖이었다) — 받은 뒤엔 '받았어' 줄이 그 자리. 수량은 한 덩어리로 (320 px 에서 '(조개 / 12' 로 끊기지 않게) */
     if (w.claimed) frag.appendChild(h('p', { class: 'set-note', id: 'week-got', tabindex: '-1', text: '이번 주 선물은 받았어.' }));
-    else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim' }, ['주간 선물 받기 ', h('span', { class: 'nobr' }, [shellAmt(WEEK_GIFT.shells), h('span', { text: ' · 씨앗 ' + WEEK_GIFT.seeds })])]); c.addEventListener('click', weekClaim); frag.appendChild(c); }
+    else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim' }, ['주간 선물 받기 ', h('span', { class: 'nobr' }, [h('span', { text: '(' }), shellAmt(WEEK_GIFT.shells), h('span', { text: ' · 씨앗 ' + WEEK_GIFT.seeds + ')' })])]); c.addEventListener('click', weekClaim); frag.appendChild(c); }
     if (keptOf(w).length) frag.appendChild(h('p', { class: 'set-note', id: 'week-kept', text: '목록에서 빠진 일도 이번 주엔 한 걸로 셌어.' }));   /* 11-12 (OW-1): 다 한 줄이 넷인데 (5/5) 인 까닭. 11-13: 뺀 일이 둘 (사흘 · 선물 상자) — 어느 쪽이든 맞는 말 */
     if (isObj(w.prev)) frag.appendChild(h('p', { class: 'set-note', id: 'week-prev', text: prevWord(w) + ' 살림에 넣어 뒀어 (조개 ' + (w.prev.shells | 0) + ' · 씨앗 ' + (w.prev.seeds | 0) + ').' }));   /* 11-11 (검증 W1): 주가 바뀔 때 넣어 준 선물 — 그 주 동안 */
     var list = h('ul', { class: 'week-list' });
