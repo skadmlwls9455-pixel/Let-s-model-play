@@ -508,7 +508,7 @@ async function scenarioMainPhone(browser) {
     await routeWiki(page, 'ok');
     await page.goto(INDEX + '?dev=0&intro=0'); await nameOct(page, '뽈뽈'); await page.waitForTimeout(400);
     var tag = ph.w + 'x' + ph.h + ' @' + ph.dpr + (ph.dark ? ' 어두움' : '');
-    var m = await page.evaluate(FAKE_BOLD), chip = await page.evaluate(function () { var b = document.getElementById('btn-bag'), i = b.querySelector('img.bag-shell'); return { txt: b.textContent.trim(), img: !!i, label: b.getAttribute('aria-label') }; });
+    var m = await page.evaluate(FAKE_BOLD), chip = await page.evaluate(function () { var b = document.getElementById('btn-bag'), i = b.querySelector('img.bag-shell'); return { txt: document.getElementById('bag-n').textContent.trim(), img: !!i, label: b.getAttribute('aria-label') }; });
     await page.screenshot({ path: path.join(SHOTS, 'phone-main-' + ph.w + (ph.dark ? 'd' : '') + '.png') });
     ok(!m.bold.length && !m.g7.length && /^\d+$/.test(chip.txt) && chip.img && /^살림, 조개 \d+/.test(chip.label), '[' + tag + '] 첫 화면: 가짜 굵게 없음 ' + JSON.stringify(m.bold) + ' · 한글 Galmuri7 없음 ' + JSON.stringify(m.g7) + ' · 조개 꼬리표 = 그림 + «' + chip.txt + '» (읽어 주기 «' + chip.label + '»)');
     await page.click('#btn-bag'); await page.waitForSelector('#bag-sheet[open]'); await page.waitForTimeout(400);
