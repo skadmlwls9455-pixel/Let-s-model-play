@@ -22,6 +22,8 @@
      - 문어가 산책 중일 때 요리하므로 스티커는 '문어가 지금 이렇게 반응했다'가 아니라 놀이 화면의 장식이다.
        그래서 기록(log)에는 by:'demo-rules' 로 남기고, 문어 기록(trips)·두뇌 입력·모델 요청에는 넣지 않는다 (CORE_LOOP_V2 약속 2).
      - 벌·실패 표시 없음: 어느 굽기로 뒤집어도 같은 축하. 우는 스티커는 '감동'(반짝 눈물)뿐.
+     - 11-15 5차 주인 답 (나): 기분 얼굴 일곱 (감동 · 뿅 · 두근 · 깜짝 · 퓻 · 갸웃 · 진땀 = FEELINGS) 은 부엌 순간이 닿는 어느 줄에도 없다.
+       그림 파일 · 엔진은 그대로 (다른 곳이 나중에 쓸 수 있게). 문어가 무엇을 느꼈다고 비치는 그림이라서.
    모션: 등장 250 ms (decelerate) → 머묾 1.4 s → 퇴장 180 ms. 모션 줄이기면 위치 이동 없이 투명도만.
    일반 스크립트 · 모듈 없음 · file:// 그대로. DOM 이 없으면(node 테스트) pick 만 하고 그리지 않는다.
    ═══════════════════════════════════════════════════════════════════ */
@@ -137,7 +139,8 @@ var PPOL_STICKERS = (function () {
     }
     function mount(el, o) {
       host = el || null; o = o || {};
-      if (o.scale) opts.scale = o.scale | 0;
+      /* 11-15 5차: 배율은 소수도 받는다 (부엌: 스티커 한 칸 = 기기 화소 n 개 → 배율 n / dpr, 2.625 배 폰에서 1.905…). 예전엔 정수로 잘려 32 px 가 됐다 */
+      if (o.scale > 0 && isFinite(o.scale)) opts.scale = +o.scale;
       if (o.src) opts.src = o.src;
       if (o.now) opts.now = o.now;
       if (host && typeof getComputedStyle !== 'undefined' && getComputedStyle(host).position === 'static') host.style.position = 'relative';
@@ -152,7 +155,8 @@ var PPOL_STICKERS = (function () {
       var used = {}; Array.prototype.forEach.call(live, function (n) { used[n.dataset.slot] = true; });
       var s = (o.slot || 0) % SLOTS.length, tries = 0;
       while (used[s] && tries++ < SLOTS.length) s = (s + 1) % SLOTS.length;
-      var p = SLOTS[s], size = 32 * scale, frames = CATALOG[id].anim | 0, img;
+      var dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+      var p = SLOTS[s], size = Math.round(32 * scale * dpr) / dpr, frames = CATALOG[id].anim | 0, img;   /* 크기는 온 기기 화소로 (정수 배율 · 정수 dpr 이면 전과 같다) */
       if (frames > 1 && !reduced()) {
         /* 움직이는 스티커: 바깥 칸은 등장·퇴장, 안쪽 칸은 스트립을 4 fps 로 넘긴다 (css steps). 칸 0 = 정지 그림 */
         img = document.createElement('div');
@@ -250,10 +254,10 @@ var COOK_STICKERS = (function () {
     { on: 'sizzle', is: { band: 0 }, pick: ['stir', 'sprinkle'] },
     { on: 'sizzle', is: { band: 1 }, pick: ['sprinkle', 'peek'], chance: 0.7 },
     { on: 'sizzle', is: { band: 2 }, pick: ['sprinkle', 'peek'], chance: 0.7 },
-    { on: 'flip', pick: ['cheer', 'shock', 'ink', 'thumbs'] },
+    { on: 'flip', pick: ['cheer', 'thumbs', 'clap'] },   /* 11-15 5차 주인 (나): 기분 얼굴(깜짝 · 퓻)은 부엌에서 안 쓴다 */
     { on: 'cut', is: { i: 0 }, pick: 'busy', chance: 0.6 },
     { on: 'step', pick: ['thumbs', 'clap'], chance: 0.4 },
-    { on: 'done', pick: ['heart_plate', 'star', 'moved', 'flush'] },
+    { on: 'done', pick: ['heart_plate', 'star'] },   /* 11-15 5차 (나): 감동 · 두근 빼고 — 문어가 느낀다고 말하는 그림이라 */
     { on: 'stir', every: 3, pick: 'stir' },
     { on: 'simmer', pick: 'taste', chance: 0.5 },
     { on: 'place', pick: 'sprinkle', chance: 0.5 },
@@ -268,7 +272,7 @@ var COOK_STICKERS = (function () {
   var RECIPES = {
     jeon: { name: '해초전', cues: [
       { on: 'tap', is: { i: 8 }, pick: 'clap', force: true },      /* 반죽 다 폄 */
-      { on: 'flip', pick: ['cheer', 'shock'] },                    /* 휙 뒤집음 */
+      { on: 'flip', pick: ['cheer', 'thumbs'] },                   /* 휙 뒤집음 (11-15 (나): 깜짝 뺌) */
       { on: 'cut', is: { i: 1 }, pick: 'thumbs' },                 /* 열십자 다 썲 */
       { on: 'done', pick: ['heart_plate', 'star'] }                /* 접시 공개 */
     ] }
@@ -280,10 +284,14 @@ var COOK_STICKERS = (function () {
     startActs: { pick: true },   /* 소품을 고르면 새 판 */
     scriptFrom: function (act, d) { return (act === 'pick' || act === 'done') && d.dish ? (typeof d.dish === 'string' ? d.dish : d.dish.id) : null; },
     big: { pick: true, flip: true, done: true, serve: true },
-    slots: [{ l: '3%', t: '2%' }, { r: '3%', t: '2%' }]   /* 부엌 무대의 위쪽 두 모서리만 (벽·조리대 뒤) — 팬·손짓 안내·가운데 단계 이름을 가리지 않는다 */
+    /* 11-15 5차 (가까이 보기 §5.4): 스티커 띠(.ck-stick, 상단 줄 아래 · 음식 위)의 왼쪽 끝 · 오른쪽 끝. max(8, 안전 여백 + 8) —
+       안전 여백은 cook.css 의 측정 상자와 같은 식 (iframe 안이면 부모가 보낸 --ck-safe-*, 따로 열면 env()) */
+    slots: [{ l: 'calc(max(env(safe-area-inset-left, 0px), var(--ck-safe-l, 0px)) + 8px)', t: '0' },
+            { r: 'calc(max(env(safe-area-inset-right, 0px), var(--ck-safe-r, 0px)) + 8px)', t: '0' }]
   });
   /* 요리 쪽 이름 (카드 7 이 읽은 이름 그대로) */
   api.RECIPES = RECIPES;
+  api.FEELINGS = ['moved', 'love', 'flush', 'shock', 'ink', 'hmm', 'sweat'];   /* 11-15 (나): 부엌에서 부르지 않는 기분 얼굴 */
   api.setRecipe = api.setScript;
   var cur = api.current;
   api.current = function () { var c = cur(); if (c) c.recipe = c.script; return c; };
