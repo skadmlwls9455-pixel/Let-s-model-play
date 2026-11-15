@@ -130,7 +130,7 @@ None changed in my files. The only text changes are in the tests: the reveal ver
 | `npm test`, up to test-cook (check-world, brain, model-voice, runner, api) | all passed |
 | after test-cook: salon, cook-stickers, play-stickers, poster-art, art-extra, export | 235 · 177 ok · 180 ok · 287 ok · 93 ok · 47 passed |
 | `node tools/test-cook-live.js` (still the round-4 live kitchen, now with the stove in the flip step) | 304 passed, 0 failed |
-| `SMOKE_ONLY=Z node tools/smoke.js` (open and close the kitchen from the play room) | every line printed so far is ok (31 ok, kitchen open / close / Esc included); the Z run was still on its later loft part when I pushed |
+| `SMOKE_ONLY=Z node tools/smoke.js` (open and close the kitchen from the play room) | 72 passed, 1 "failed": the 1 is my own 900 s `timeout` killing the browser in the later loft part (CRASH: target closed, exit 124), not a check. Every kitchen line (open, close, Esc) is ok |
 
 ## Screenshots (`wip/round5/shots/K-B/`, mock compose at 360x740 @2: 80 x 165 art px, 9 device px per art px, ox -32, oy 2)
 
