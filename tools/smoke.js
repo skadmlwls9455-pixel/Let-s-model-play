@@ -6299,8 +6299,8 @@ async function scenarioLoft(browser) {
   await pg.evaluate(function () { APP.scene.jumpTo('window'); APP.oct.anchor = 'window'; APP.scene.setLayout({ crate: [0.5, -0.75, 45, 0.85] }); });   /* 끌어 볼 빈 바닥 (저장은 안 한다 — 저장값은 LAY6 그대로) */
   var lay1 = await L6();
   await tap(pg, 'btn-furn'); await tick(pg, 0.3);
-  var o6 = await pg.evaluate(function () { var l = APP.scene.furnLook(), st = document.getElementById('stick'); return { on: document.documentElement.classList.contains('furn-on'), oct: l.oct, pl: l.pl, yaw: l.yaw, zoom: l.zoom, stick: !st || st.hidden || getComputedStyle(st).display === 'none' || getComputedStyle(st).visibility === 'hidden', go: getComputedStyle(document.getElementById('invite')).visibility, hint: !document.getElementById('furn-hint').hidden, ed: APP.scene.furnEditing() }; });
-  ok(o6.on && !o6.oct && !o6.pl && o6.yaw === 0 && o6.zoom <= 1 && o6.stick && o6.go === 'hidden' && o6.hint && o6.ed && !o6.ed.id, '망치 → 가구 모드: 문어 · 캐릭터 · 스틱 · 큰 버튼 숨김 · 기본 각도 (비튼 각도 ' + (y6 * 180 / Math.PI).toFixed(0) + '° → 0) · 바닥 다 보이게 ' + o6.zoom.toFixed(3) + '× · 안내 한 줄 ' + JSON.stringify(o6));
+  var o6 = await pg.evaluate(function () { var l = APP.scene.furnLook(), st = document.getElementById('stick'); return { on: document.documentElement.classList.contains('furn-on'), oct: l.oct, pl: l.pl, yaw: l.yaw, zoom: l.zoom, stick: !st || st.hidden || getComputedStyle(st).display === 'none' || getComputedStyle(st).visibility === 'hidden', go: getComputedStyle(document.getElementById('invite')).visibility, hint: !document.getElementById('furn-hint').hidden, hand: !document.getElementById('furn-hand').hidden, ed: APP.scene.furnEditing() }; });
+  ok(o6.on && !o6.oct && !o6.pl && o6.yaw === 0 && o6.zoom <= 1 && o6.stick && o6.go === 'hidden' && o6.hint && o6.hand && o6.ed && !o6.ed.id, '망치 → 가구 모드: 문어 · 캐릭터 · 스틱 · 큰 버튼 숨김 · 기본 각도 (비튼 각도 ' + (y6 * 180 / Math.PI).toFixed(0) + '° → 0) · 바닥 다 보이게 ' + o6.zoom.toFixed(3) + '× · 안내 한 줄 ' + JSON.stringify(o6));
   var gr6 = await pg.evaluate(function () { return APP.goRoom('loft'); });
   ok(!gr6.ok && gr6.reason === 'furn', '모드 중엔 방을 옮기지 않는다 ' + JSON.stringify(gr6));
   /* 끌기 (진짜 손가락): 상자를 왼쪽 아래로 → 손가락 밑 칸에 딱딱 · 떼면 보이던 자리 그대로 */
@@ -6322,7 +6322,7 @@ async function scenarioLoft(browser) {
   ok(r6.ed.bad && r6.look.red && r6b[0] === before6.crate[0] && r6b[1] === before6.crate[1], '소파 위로 끌면 빨간 테 (' + r6.at.slice(0, 2) + ') · 떼면 끌기 전 자리로 ' + JSON.stringify([before6.crate, r6b]));
   /* 빈 바닥 한 손가락 = 밀기 (가구는 그대로) */
   var p6 = await pg.evaluate(function () { return APP.scene.pan(); }), lp6 = await L6();
-  await fingers([[60, 640]], [[110, 600]], 8); await tick(pg, 0.1);
+  await fingers([[60, 520]], [[110, 480]], 8); await tick(pg, 0.1);   /* 11-15: 아래 한 판이 높아져 (단추 줄 + 가구 줄) 바닥은 그 위 */
   var p6b = await pg.evaluate(function () { return { pan: APP.scene.pan(), ed: APP.scene.furnEditing() }; }); await T6('touchEnd', []); await tick(pg, 0.5);
   ok(JSON.stringify(await L6()) === JSON.stringify(lp6) && !p6b.ed.dragging && JSON.stringify(p6b.pan) !== JSON.stringify(p6), '빈 바닥에서 끌면 화면이 밀리고 가구는 안 움직인다 ' + JSON.stringify([p6, p6b.pan]));
   /* 단추 줄: 돌리기 90° · 작게/크게 0.1 · 끝에서 멈춤 (단추 꺼짐) */
@@ -6399,7 +6399,7 @@ async function scenarioLoft(browser) {
   /* 11-15 (UI 점검 · 주인 답): 아래 한 판 (단추 줄이 가구 줄에 틈 없이) · 보이는 글자 0 · 가짜 굵게 없음 · 막히면 방 안 고른 가구 테가 빨강 깜빡 */
   await tap(pg, 'btn-furn'); await tick(pg, 0.3);
   var ui6 = await pg.evaluate(FURN_LOOK);
-  ok(ui6.pics && ui6.gap === 0 && !ui6.words.length && !ui6.bold.length && ui6.hand && ui6.meter === '0' && ui6.off, '가구 모드 아래 한 판: 단추 줄 밑 = 가구 줄 위 (틈 ' + ui6.gap + 'px) · 보이는 글자 없음 ' + JSON.stringify(ui6.words) + ' · 가짜 굵게 없음 ' + JSON.stringify(ui6.bold) + ' · 고른 것 없으면 단추 꺼짐 · 눈금 빈칸');
+  ok(ui6.pics && ui6.gap === 0 && !ui6.words.length && !ui6.bold.length && ui6.meter === '0' && ui6.off, '가구 모드 아래 한 판: 단추 줄 밑 = 가구 줄 위 (틈 ' + ui6.gap + 'px) · 보이는 글자 없음 ' + JSON.stringify(ui6.words) + ' · 가짜 굵게 없음 ' + JSON.stringify(ui6.bold) + ' · 고른 것 없으면 단추 꺼짐 · 눈금 빈칸');
   var np6 = await pg.evaluate(function () { var sc = APP.scene; sc.setLayout({ crate: [2, -0.75, 0, 1], sofa: [1, -0.75, 0, 1] }); sc.furnSelect('crate'); sc.furnScale(1); var ok1 = sc.furnScale(1); return { ok: ok1, step: document.getElementById('furn-meter').getAttribute('data-step') }; });
   await tick(pg, 0.05); var np6a = await pg.evaluate(function () { return APP.scene.furnLook().red; });
   await tick(pg, 0.6); var np6b = await pg.evaluate(function () { return APP.scene.furnLook().red; });
@@ -6676,7 +6676,7 @@ async function scenarioGarden(browser) {
   /* 9. 다른 탭 · 불러오기 · 전체 초기화 뒤 화면이 기록을 따른다 (꼬리표 조개 수 · 점 · 열린 살림 · 열린 재봉틀 시트 · 바깥 밭) */
   var c5 = await ctxOf({ rec: REC(USER({ shells: 10, week: WEEK5 })) }), pa = await tab(c5), pb = await tab(c5);
   await pa.evaluate(function () { document.getElementById('btn-bag').click(); });
-  var a0 = await pa.evaluate(function () { var b = document.getElementById('btn-bag'); return { dot: b.classList.contains('has-gift'), chip: document.getElementById('bag-n').textContent, open: document.getElementById('bag-sheet').open }; });
+  var a0 = await pa.evaluate(function () { var b = document.getElementById('btn-bag'); return { dot: b.classList.contains('has-gift'), chip: b.textContent.trim(), open: document.getElementById('bag-sheet').open }; });   /* 11-15: 꼬리표 = 조개 그림 + 수 (글 '조개 ' 는 sr-only) */
   var b0 = await pb.evaluate(function () {
     document.getElementById('btn-bag').click(); document.getElementById('btn-plot0').click(); APP.earnFromPlay({ id: 'x-run-1', score: 0 });
     var c = document.getElementById('week-claim'), had = !!c; if (c) c.click(); document.getElementById('bag-close').click();

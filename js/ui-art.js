@@ -173,7 +173,7 @@ var UIART = (function () {
   function liftY(b) { try { var tf = getComputedStyle(b).transform; return tf && tf !== 'none' && typeof DOMMatrixReadOnly === 'function' ? new DOMMatrixReadOnly(tf).m42 : 0; } catch (e) { return 0; } }   /* transform 의 세로 몫 (bubble-in 이 4px 아래에서 올라온다) */
   function keepInside(b) {
     var sc = $('scene'); if (!sc || !b.closest('#scene3d')) { b.style.marginLeft = ''; b.style.maxWidth = ''; b.style.removeProperty('--ua-tail'); b.removeAttribute('data-tail'); return; }   /* 2D 무대는 app.js keepBubble2D (--bub-dy 도 거기서) */
-    b.style.marginLeft = ''; b.style.removeProperty('--ua-tail'); b.style.removeProperty('--bub-dy'); b.removeAttribute('data-tail');
+    b.style.marginLeft = ''; b.style.removeProperty('translate'); b.style.removeProperty('--ua-tail'); b.style.removeProperty('--bub-dy'); b.removeAttribute('data-tail');
     var s = sc.getBoundingClientRect(), P = 4, px = pixel(), shift = 0;
     var mw = Math.max(150, Math.min(220, Math.floor(s.width * 0.6), Math.floor(s.width - 2 * P))) + 'px';   /* 11-15 (주인: 말풍선이 화면을 가린다) → 5차 (주인: 글자 조금 키움 · 4차 전보다는 작게): 폭은 장면 폭의 60% (150~220px) — 360 폭에서 216px, 글 약 16~18px 라 톡 한 줄이 두세 줄 */
     if (b.style.maxWidth !== mw) b.style.maxWidth = mw;
@@ -193,7 +193,8 @@ var UIART = (function () {
     /* 11-15 (UI 점검): 글 첫 줄 시작 (테두리 + 안쪽 여백 안) 을 기기 px 에 맞춘다 — 가운데 정렬 풍선은 배율 2 에서 .47 · 2.625 에서 .56~.73 기기 px 에서 시작해 획마다 회색 테가 생겼다. 꼬리는 맞추기 전 shift 로 */
     var dpr = window.devicePixelRatio || 1, bcs = getComputedStyle(b), cl = r.left + shift + (parseFloat(bcs.borderLeftWidth) || 0) + (parseFloat(bcs.paddingLeft) || 0), fx = Math.round(cl * dpr) / dpr - cl;
     if (Math.abs(fx) < 1e-4) fx = 0;
-    if (shift || fx) b.style.marginLeft = (shift + fx) + 'px';
+    if (shift) b.style.marginLeft = shift + 'px';
+    if (fx) b.style.translate = fx + 'px 0';   /* 소수 몫은 translate 로 (margin 은 1/64 px 단위로 잘려 2.625 배율에서 .04 기기 px 남았다) */
     if (px && shift) { var lim = Math.max(0, r.width / 2 - 20), tail = even(Math.max(-lim, Math.min(lim, -shift))); if (tail) b.style.setProperty('--ua-tail', tail + 'px'); }
     if (dy) { b.style.setProperty('--bub-dy', dy + 'px'); if (px && dy > 12) b.setAttribute('data-tail', 'off'); }
     ctlYield({ left: r.left + shift, right: r.right + shift, top: r.top + dy, bottom: r.bottom + dy });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 */
