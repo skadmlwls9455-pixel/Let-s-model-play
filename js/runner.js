@@ -267,20 +267,47 @@ var RUNNER = (function () {
     (kids || []).forEach(function (c) { e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
     return e;
   }
-  var dlg, cv, ctx, hud, msg, ctrls, overP, btnJ, btnD, btnAgain, btnStop, finalEl, bestEl, oldEl, netP, awardEl;
+  /* 11-15 5차 (주인 답 a): 달리기 안내 글 → 직접 그린 12×12 픽셀 그림 (inline SVG, 글자 기호 없음). 크기는 fit 이 기기 px 정수 배로 (--rn-px) */
+  var PIXC = { o: '#241527', w: '#ebede9', s: '#c7cfcc', y: '#de9e41', h: '#e8c170', r: '#a53030' };
+  var PIX = {
+    hand: ['............', '............', '.oooooo.....', 'owwwwwwoooo.', 'owwwwwwwwwwo', '.ooooowwwwwo', '....owwwwwwo', '....oowwwwwo', '....owwwwwwo', '....oowwwsso', '.....oooooo.', '............'],   /* 왼쪽(점프 동그라미)을 가리키는 손 */
+    crown: ['............', '.o...oo...o.', 'oyo.oyyo.oyo', 'oyyooyyooyyo', 'oyyyyyyyyyyo', 'oyhyyyyyyhyo', 'oyyyyrryyyyo', 'oyyyyrryyyyo', 'oooooooooooo', 'ohhhhhhhhhho', 'oooooooooooo', '............'],
+    pause: ['............', '............', '..oooooooo..', '..owwoowwo..', '..owwoowwo..', '..owwoowwo..', '..owwoowwo..', '..owwoowwo..', '..owwoowwo..', '..oooooooo..', '............', '............']   /* 막대 둘 (각 2×6) */
+  };
+  function pixSVG(rows) {
+    var by = {};
+    rows.forEach(function (row, y) { for (var x = 0; x < row.length; x++) { var c = row[x]; if (PIXC[c]) by[c] = (by[c] || '') + 'M' + x + ' ' + y + 'h1v1h-1z'; } });
+    return '<svg viewBox="0 0 12 12" width="12" height="12" shape-rendering="crispEdges" aria-hidden="true" focusable="false">' + Object.keys(by).map(function (c) { return '<path fill="' + PIXC[c] + '" d="' + by[c] + '"/>'; }).join('') + '</svg>';
+  }
+  function pic(name, attrs) { var e = el('span', Object.assign({ 'aria-hidden': 'true' }, attrs || {})); e.innerHTML = pixSVG(PIX[name]); return e; }
+  /* 게임 그림 (16×16 png — 조개 · 발자국). 주소는 ui-art.js iconSrc (단일 파일 번들 = data URI) */
+  function iconImg(path, cls) { var src = (window.UIART && UIART.iconSrc) ? UIART.iconSrc(path) : 'assets/icons/' + path + '.png'; return el('img', { class: cls, src: src, alt: '', 'aria-hidden': 'true', width: '16', height: '16', draggable: 'false' }); }
+  var dlg, cv, ctx, hud, msg, ctrls, overP, btnJ, btnD, btnAgain, btnStop, finalEl, bestEl, oldEl, netP, awardEl, handEl, pauseEl, scoreN, bestN, crownEl, shellRow, shellN, cardSr;
   /* 11-15 runner-2: 세로 전체 화면 — 제목 줄·HUD 줄·안내 줄·메모를 뺐다 (주인 HANDOFF 6). 무대(캔버스)가 창 전체,
      위에는 작은 점수·최고(왼쪽)와 닫기(오른쪽)만, 아래 구석에 반투명 동그라미 둘(점프 · 숙이기). 다른 곳을 눌러도 아무 일 없다 */
   function buildDialog() {
     if (dlg) return;
     cv = el('canvas', { id: 'rn-cv', width: String(C.W), height: String(C.H), tabindex: '0', role: 'img', 'aria-label': '다락방 달리기 화면. 스페이스나 위 화살표는 점프, 꾹 누르면 더 높이. 아래 화살표는 숙이기.' });
     ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
-    hud = el('p', { class: 'rn-hud', 'aria-hidden': 'true' }, [el('span', { id: 'rn-score', text: '0' }), el('span', { class: 'rn-hud-best', id: 'rn-best', text: '' })]);
-    msg = el('p', { class: 'rn-msg', id: 'rn-msg', 'aria-live': 'polite' });
+    /* 11-15 5차: 위 '최고 N' → 왕관 그림 + 수 (#rn-best 는 수만) */
+    hud = el('p', { class: 'rn-hud', 'aria-hidden': 'true' }, [el('span', { id: 'rn-score', text: '0' }), el('span', { class: 'rn-hud-best' }, [pic('crown', { class: 'rn-pic rn-crown' }), el('span', { id: 'rn-best', text: '' })])]);
+    /* 11-15 5차: 준비 · 쉬는 중 안내 글은 읽어 주기로만 (sr-only live). 보이는 건 점프 동그라미 깜빡임 + 손 그림 · 쉴 땐 가운데 일시정지 그림 */
+    msg = el('p', { class: 'rn-msg sr-only', id: 'rn-msg', 'aria-live': 'polite' });
+    handEl = pic('hand', { class: 'rn-pic rn-hand', id: 'rn-hand', hidden: '' });
+    pauseEl = pic('pause', { class: 'rn-pic rn-pause', id: 'rn-pause', hidden: '' });
     /* 동그라미 안 그림은 css/runner.css 의 픽셀 그림 (글자 기호 없음). 이름은 aria-label */
     btnJ = el('button', { type: 'button', class: 'rn-pad rn-jump', id: 'rn-jump', tabindex: '-1', 'aria-label': '점프' });
     btnD = el('button', { type: 'button', class: 'rn-pad rn-duck', id: 'rn-duck', tabindex: '-1', 'aria-label': '숙이기' });
-    ctrls = el('div', { class: 'rn-ctrls', id: 'rn-ctrls' }, [btnJ, btnD]);
-    finalEl = el('p', { class: 'rn-final', id: 'rn-final' }); var scoreEl = el('p', { class: 'rn-final-score', id: 'rn-final-score' }); bestEl = el('p', { class: 'rn-final-best', id: 'rn-final-best' });
+    ctrls = el('div', { class: 'rn-ctrls', id: 'rn-ctrls' }, [btnJ, btnD, handEl]);
+    /* 11-15 5차 결과 판 (주인 답 a): 부딪힌 한 줄 + 발자국 그림 · 큰 점수 + 왕관 · 최고 + 조개 그림 · +n. 보이는 수는 aria-hidden, 뜻은 cardSr(읽어 주기)에 예전 문장 그대로 */
+    finalEl = el('p', { class: 'rn-final', id: 'rn-final' });
+    scoreN = el('span', { class: 'rn-big', id: 'rn-final-n' });
+    var scoreEl = el('p', { class: 'rn-final-score', id: 'rn-final-score', 'aria-hidden': 'true' }, [iconImg('ctl/walk', 'rn-ico'), scoreN]);
+    crownEl = pic('crown', { class: 'rn-pic rn-crown' }); bestN = el('span', { id: 'rn-final-bn' });
+    bestEl = el('p', { class: 'rn-final-best', id: 'rn-final-best', 'aria-hidden': 'true' }, [crownEl, bestN]);
+    shellN = el('span', { id: 'rn-shell-n' });
+    shellRow = el('p', { class: 'rn-final-shell', id: 'rn-final-shell', 'aria-hidden': 'true', hidden: '' }, [iconImg('souvenir/shell', 'rn-ico'), shellN]);
+    cardSr = el('span', { class: 'sr-only', id: 'rn-final-sr' });
     oldEl = el('p', { class: 'rn-final-old', id: 'rn-final-old', hidden: '' });   /* 옛 게임(runner-1) 최고 — 있을 때만 */
     btnAgain = el('button', { type: 'button', class: 'btn primary pressable', id: 'rn-again', text: '다시' });
     btnStop = el('button', { type: 'button', class: 'btn pressable', id: 'rn-stop', text: '닫기' });
@@ -294,13 +321,13 @@ var RUNNER = (function () {
       el('ol', { class: 'rn-top10', id: 'rn-top10', 'aria-label': '이번 주 순위 10', hidden: '' }),
       el('p', { class: 'rn-net-privacy', text: '닉네임과 점수만 저장해. 순위는 월요일마다 새로 시작해.' })
     ]);
-    overP = el('div', { class: 'rn-over', id: 'rn-over', role: 'status', hidden: '' }, [finalEl, scoreEl, bestEl, oldEl, el('div', { class: 'btn-row center' }, [btnAgain, btnStop]), netP]);
+    overP = el('div', { class: 'rn-over', id: 'rn-over', role: 'status', hidden: '' }, [finalEl, cardSr, el('div', { class: 'rn-final-row' }, [scoreEl, bestEl, shellRow]), oldEl, el('div', { class: 'btn-row center' }, [btnAgain, btnStop]), netP]);
     awardEl = el('p', { class: 'rn-award', id: 'rn-award', 'aria-live': 'polite', hidden: '' });
     var close = el('button', { type: 'button', class: 'btn sm pressable rn-close', id: 'rn-close', 'aria-label': '닫기', text: '닫기' });
     dlg = el('dialog', { id: 'runner-dlg', class: 'rn-dlg', 'aria-label': '다락방 달리기' }, [
       el('div', { class: 'rn-stage' }, [cv]),
       el('div', { class: 'rn-top' }, [hud, close]),
-      el('div', { class: 'rn-mid' }, [awardEl, msg]),
+      el('div', { class: 'rn-mid' }, [awardEl, msg, pauseEl]),
       ctrls, overP
     ]);
     document.body.appendChild(dlg);
@@ -381,8 +408,16 @@ var RUNNER = (function () {
     cv.style.width = (W * css) + 'px'; cv.style.height = (H * css) + 'px';
     V = { W: W, H: H, G: G, k: k, css: css };
     if (dlg.style && dlg.style.setProperty) dlg.style.setProperty('--rn-ground', Math.round(G * css) + 'px');   /* 가운데 글(준비·쉬는 중)은 바닥선 위 */
+    /* 11-15 5차: 그림 한 점 = 기기 px 정수 개 (2 CSS px 가까이 · 일시정지는 4) — 2.625 같은 배율에서도 점이 고르게 */
+    if (dlg.style && dlg.style.setProperty) { dlg.style.setProperty('--rn-px', (Math.max(1, Math.round(2 * dpr)) / dpr) + 'px'); dlg.style.setProperty('--rn-px4', (Math.max(1, Math.round(4 * dpr)) / dpr) + 'px'); }
   }
   function setMsg(t) { msg.textContent = t; }
+  /* 11-15 5차: 안내 그림 — 'ready' | 'pause' | '' (달리는 중 · 끝). 동그라미 테두리 깜빡임(두 단계 세 번, 줄인 움직임이면 그대로 켜 둠) + 손 · 쉴 땐 일시정지 그림 */
+  function hint(kind) {
+    handEl.hidden = !kind; pauseEl.hidden = kind !== 'pause';
+    if (btnJ.classList) { btnJ.classList.remove('hint'); if (kind) { void btnJ.offsetWidth; btnJ.classList.add('hint'); } }   /* 다시 붙여 깜빡임을 처음부터 */
+    if (dlg.classList) dlg.classList.toggle('rn-still', !!(L && L.reduced));
+  }
   function ready() {
     var st = load(), ck = clock();
     if (st.day !== ck.day) { st.day = ck.day; st.dayN = 0; }
@@ -391,7 +426,7 @@ var RUNNER = (function () {
     L.inputs = []; L.queue = []; L.held = { j: false, d: false }; L.state = 'ready'; L.acc = 0; L.last = 0; L.hitAt = 0; L.saved = false; L.newBest = false;
     L.parts = []; L.partRng = null; L.reduced = reducedMotion();
     overP.hidden = true; ctrls.hidden = false;
-    setMsg(L.pending ? '판을 고르는 중이야…' : '점프를 톡 누르면 출발해');
+    setMsg(L.pending ? '판을 고르는 중이야…' : '점프를 톡 누르면 출발해'); hint('ready');
     netP.hidden = true;
     hudUpdate(true);
     try { cv.focus({ preventScroll: true }); } catch (e) { cv.focus(); }
@@ -480,14 +515,14 @@ var RUNNER = (function () {
   function start() {   /* 다시 읽고 쓴다: 준비 화면에 있는 동안 망토 확인·올리기 응답이 저장한 net 을 ready() 때 사본으로 덮지 않게 (saveRun 과 같은 방식) */
     var st = load(); st.day = L.store.day; st.dayN = (L.store.dayN | 0) + 1; st.runs = (st.runs | 0) + 1;
     store(st); L.store = st;
-    L.state = 'run'; setMsg('');
+    L.state = 'run'; setMsg(''); hint('');
   }
   function pause() {
     if (L.held.j) { L.held.j = false; L.queue.push('ju'); }
     if (L.held.d) { L.held.d = false; L.queue.push('du'); }
-    L.state = 'pause'; L.last = 0; setMsg('잠깐 쉬는 중이야. 점프를 누르면 이어서 달려');
+    L.state = 'pause'; L.last = 0; setMsg('잠깐 쉬는 중이야. 점프를 누르면 이어서 달려'); hint('pause');
   }
-  function resume() { L.state = 'run'; L.last = 0; L.acc = 0; setMsg(''); }
+  function resume() { L.state = 'run'; L.last = 0; L.acc = 0; setMsg(''); hint(''); }
   function tickOnce() {
     var s = L.sim, j0 = s.jumpT, l0 = s.landT, m0 = s.moss;
     while (L.queue.length) { var a = L.queue.shift(); if (applyInput(s, a)) L.inputs.push({ t: s.tick, a: a }); }
@@ -511,15 +546,19 @@ var RUNNER = (function () {
     var r = record(end); st.last = r;
     if (r.score > bestOf(st)) { st.best2 = r.score; L.newBest = true; }   /* 11-15: runner-2 최고 (옛 best 는 그대로 둔다) */
     store(st); L.store = st;
-    try { if (window.APP && typeof APP.earnFromPlay === 'function') APP.earnFromPlay({ game: 'runner', id: 'runner_' + (st.runs | 0) + '_' + (st.day || ''), score: r.score | 0 }); } catch (e) { /* 지갑이 없어도 달리기는 그대로 */ }   /* 조개: 내 놀이에서만 (11-10) */
+    L.earned = 0;
+    try { if (window.APP && typeof APP.earnFromPlay === 'function') L.earned = APP.earnFromPlay({ game: 'runner', id: 'runner_' + (st.runs | 0) + '_' + (st.day || ''), score: r.score | 0 }, { quiet: end === 'hit' }) | 0; } catch (e) { /* 지갑이 없어도 달리기는 그대로 */ }   /* 조개: 내 놀이에서만 (11-10). 11-15 5차: 결과 판이 뜨는 판(hit)은 따로 뜨던 조개 알림 대신 판 안에 조개 그림 + n (닫아서 끝난 판은 판이 없으니 알림 그대로) */
   }
   function over(end) {
     L.state = 'over'; L.hitAt = performance.now();
     saveRun(end);
-    ctrls.hidden = true; overP.hidden = false; setMsg('');
+    ctrls.hidden = true; overP.hidden = false; setMsg(''); hint('');
     finalEl.textContent = HITCOPY[L.sim.hitKind] || '콩!';
-    document.getElementById('rn-final-score').textContent = L.sim.score + '만큼 달렸어' + (L.sim.moss ? ' · 이끼 ' + L.sim.moss : '');
-    bestEl.textContent = L.newBest ? '새 최고야! 최고 ' + bestOf(L.store) : '최고 ' + bestOf(L.store);
+    /* 11-15 5차: 보이는 건 그림 + 수, 읽어 주기는 예전 문장 그대로 */
+    scoreN.textContent = String(L.sim.score); bestN.textContent = String(bestOf(L.store));
+    shellN.textContent = '+' + L.earned; shellRow.hidden = !L.earned;
+    if (crownEl.classList) { crownEl.classList.remove('blink'); if (L.newBest) { void crownEl.offsetWidth; crownEl.classList.add('blink'); } }   /* 새 최고면 왕관이 두 번 깜빡 (줄인 움직임이면 css 가 멈춘다) */
+    cardSr.textContent = L.sim.score + '만큼 달렸어' + (L.sim.moss ? ' · 이끼 ' + L.sim.moss : '') + '. ' + (L.newBest ? '새 최고야! 최고 ' : '최고 ') + bestOf(L.store) + (L.earned ? '. 조개 ' + L.earned + '개' : '');
     var ob = oldBestOf(L.store); oldEl.textContent = ob ? '예전 게임 최고 ' + ob : ''; oldEl.hidden = !ob;
     if (L.net && end === 'hit' && L.sim.tick) {
       L.rec = record(end); L.submitted = false;
@@ -539,7 +578,7 @@ var RUNNER = (function () {
     var s = L.sim, t = s.score + '|' + bestOf(L.store);
     if (!force && t === lastHud) return; lastHud = t;
     document.getElementById('rn-score').textContent = String(s.score);
-    document.getElementById('rn-best').textContent = '최고 ' + bestOf(L.store);   /* 이끼 수는 뺐다 (점수에 이미 들어 있다 — 위에는 점수·최고만) */
+    document.getElementById('rn-best').textContent = String(bestOf(L.store));   /* 11-15 5차: '최고' 글자 → 왕관 그림 (buildDialog) */   /* 이끼 수는 뺐다 (점수에 이미 들어 있다 — 위에는 점수·최고만) */
   }
   function onClose() {
     if (L) {

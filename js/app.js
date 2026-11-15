@@ -4475,11 +4475,11 @@ var APP = (function () {
     for (var gi = 0; gi < u.garden.length; gi++) if (u.garden[gi] != null && !(isObj(u.garden[gi]) && typeof u.garden[gi].color === 'string' && u.garden[gi].color)) u.garden[gi] = null;   /* 11-11: 객체가 아닌 칸만 빈 칸으로 (모르는 색은 그대로 둔다 — 나중 빌드가 알 수도 있다). 11-13: 색 글자가 없는 칸도 (심을 때 늘 색을 넣는다 — 거두면 염료 'undefined' 가 생겼다) */
     return u;
   }
-  function earnFromPlay(r) {   /* 놀이 한 판 → 조개 (같은 판 id 는 한 번만) */
+  function earnFromPlay(r, o) {   /* 놀이 한 판 → 조개 (같은 판 id 는 한 번만). 11-15 5차: o.quiet = 알림 없이 (달리기 결과 판이 조개 그림 + n 으로 보여 준다) — 준 수를 돌려준다 */
     if (!r || !r.id) return 0; var u = userState(); if (u.earned.indexOf(r.id) >= 0) return 0;
     var n = clamp(2 + Math.floor((r.score | 0) / 150), 2, 8);
     u.earned.push(r.id); if (u.earned.length > 50) u.earned.splice(0, u.earned.length - 50);
-    u.shells += n; save(); renderBagChip(); toast('조개 ' + n + '개 · 이제 ' + u.shells + '개'); questMark('run');
+    u.shells += n; save(); renderBagChip(); if (!(o && o.quiet)) toast('조개 ' + n + '개 · 이제 ' + u.shells + '개'); questMark('run');
     return n;
   }
   function dailyGift() {   /* 그날 처음 열었을 때 한 번. 11-12 (검증 F19): 선물은 바로, 알림 줄은 볼 수 있을 때 (weekTell — 입장 연출 밑에 깔리거나 다른 알림을 밀어내지 않게, 새로고침해도 이어서) */
