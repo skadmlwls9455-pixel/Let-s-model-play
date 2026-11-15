@@ -4633,7 +4633,7 @@ var APP = (function () {
     frag.appendChild(h('h3', { text: '이번 주 할 일' }));
     var dn = Math.min(done, WEEK_NEED), pips = h('span', { class: 'week-pips', 'aria-hidden': 'true' });   /* 11-15 (주인 답): 긴 쪽지 → '다섯 개 하면 선물' + 다섯 칸 (등불 칸 모양) · 읽어 주기는 옆 sr-only 글 (일곱 가지 중 n/5) */
     for (var pi = 0; pi < WEEK_NEED; pi++) pips.appendChild(h('i', { class: pi < dn ? 'on' : '' }));
-    frag.appendChild(h('p', { class: 'set-note week-goal' }, [h('span', { text: '다섯 개 하면 선물' }), h('span', { class: 'sr-only', text: ' (일곱 가지 중 ' + dn + '/' + WEEK_NEED + ')' }), pips]));
+    frag.appendChild(h('p', { class: 'set-note week-goal' }, [h('span', { text: '다섯 개 하면 선물' }), h('span', { class: 'sr-only', text: ', 일곱 가지 중 (' + dn + '/' + WEEK_NEED + ')' }), pips]));
     /* 11-12 (검증 F5 · F20): 받기 단추는 쪽지 바로 아래 (목록 뒤면 360x740 에서 화면 밖이었다) — 받은 뒤엔 '받았어' 줄이 그 자리. 수량은 한 덩어리로 (320 px 에서 '(조개 / 12' 로 끊기지 않게) */
     if (w.claimed) frag.appendChild(h('p', { class: 'set-note', id: 'week-got', tabindex: '-1', text: '이번 주 선물은 받았어.' }));
     else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim' }, ['주간 선물 받기 ', h('span', { class: 'nobr' }, [h('span', { text: '(' }), shellAmt(WEEK_GIFT.shells), h('span', { text: ' · 씨앗 ' + WEEK_GIFT.seeds + ')' })])]); c.addEventListener('click', weekClaim); frag.appendChild(c); }
