@@ -897,7 +897,7 @@ var COOK = (function () {
   var AGAIN_MS = 900;                                         /* the result chip ignores presses until then */
   var SND_FREE = { tap: 1, step: 1, done: 1, pick: 1, quiet: 1 };   /* acts that skip the 120 ms gap (a counted tap is >= 90 ms
                                                                          after the last one already: TUNE.tap.mergeMs) */
-  var D = null, L = null, kbd = false, curKey = KEY0;
+  var D = null, L = null, kbd = false, curKey = KEY0, lastErr = 0;   /* lastErr: the error count of the last open, for live() once closed */
 
   function art() { return typeof COOK_ART !== 'undefined' && COOK_ART && typeof COOK_ART.tapScene === 'function' ? COOK_ART : null; }
   function el(tag, attrs, kids) {
@@ -1489,7 +1489,7 @@ var COOK = (function () {
     D.stick.hidden = !showStick;
     st.zoom = Math.abs(z - 1) < 1e-9 ? '' : String(z);
     st.top = (dev(hudB + 4) / z) + 'px'; st.left = '0px'; st.width = (vw / z) + 'px'; st.height = (s / z) + 'px';
-    st.setProperty('--ck-s0', (left0 / z) + 'px'); st.setProperty('--ck-s1', (right0 / z) + 'px');
+    st.setProperty('--ck-s0', (left0 / z) + 'px'); st.setProperty('--ck-s1', (dev(vw - right0 - s) / z) + 'px');   /* slot 1 from the left: a device px */
     sizeIcons();
     L.dirty = true;
   }
@@ -1669,7 +1669,7 @@ var COOK = (function () {
   }
   function settle0(me) {   /* closing work for one open: save, quiet, stop the loop (runs once per open) */
     if (!me || me.closed) return;
-    me.closed = true;
+    me.closed = true; lastErr = me.err;
     var keep = L; L = me;
     try { savePot(); } catch (e) { /* storage */ }
     sound({ act: 'quiet' });
@@ -1779,7 +1779,7 @@ var COOK = (function () {
   /* ---------- test hooks (spec 14) ---------- */
   function live() {
     if (!L) return { screen: 'closed', recipe: null, si: null, kind: null, phase: null, progress: 0, done: false, tag: null, band: null, quiet: true, fx: 0,
-      station: null, slide: null, view: null, verb: '', stick: false };
+      station: null, slide: null, view: null, verb: '', stick: false, err: lastErr };
     var run = L.run, st = run && run.st, sp = slideAt(L.lastT), sl = L.slide;
     return { screen: L.screen, recipe: run ? run.recipe : null, si: run ? run.si : null, kind: st && run.phase !== 'reveal' ? st.kind : null,
       phase: run ? run.phase : null, progress: st ? st.progress : 0, done: run ? !!run.done : false, tag: st ? st.tag : null,

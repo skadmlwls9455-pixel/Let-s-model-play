@@ -37,7 +37,7 @@ html.ck-open body { overscroll-behavior: none; }
 .ck-stick[hidden] { display: none; }
 .ck-stick > [data-slot] { top: 0 !important; bottom: auto !important; }
 .ck-stick > [data-slot="0"], .ck-stick > [data-slot="2"], .ck-stick > [data-slot="4"] { left: var(--ck-s0, 8px) !important; right: auto !important; }
-.ck-stick > [data-slot="1"], .ck-stick > [data-slot="3"], .ck-stick > [data-slot="5"] { right: var(--ck-s1, 8px) !important; left: auto !important; }
+.ck-stick > [data-slot="1"], .ck-stick > [data-slot="3"], .ck-stick > [data-slot="5"] { left: var(--ck-s1, auto) !important; right: auto !important; }   /* fit(): vw - right inset - size */
 
 /* paper chips: strip, close and the verb chip */
 /* the 2 px border is the first inset shadow (Chrome rounds border widths to whole CSS px, which would move the icons off

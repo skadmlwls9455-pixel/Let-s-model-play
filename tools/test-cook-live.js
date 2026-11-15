@@ -83,6 +83,12 @@ async function openPage(browser, o) {
   if (o.vib) await ctx.addInitScript(function () {   /* a fake vibrator (records every call) and a spy on HAPTICS.buzz (js/haptics.js
                                                        says `var HAPTICS = ...`: that assignment lands in this setter) */
     window.__vib = []; window.__buzz = [];
+    /* user activation as on a phone: none until the first touch ends (Playwright's navigation marks every page activated) */
+    var act = false;
+    window.addEventListener('touchend', function () { act = true; }, true);
+    window.addEventListener('pointerup', function (e) { if (e.isTrusted) act = true; }, true);
+    window.addEventListener('keydown', function (e) { if (e.isTrusted) act = true; }, true);
+    try { Object.defineProperty(Navigator.prototype, 'userActivation', { configurable: true, get: function () { return { hasBeenActive: act, isActive: act }; } }); } catch (e) { /* none */ }
     try { Object.defineProperty(Navigator.prototype, 'vibrate', { configurable: true, writable: true, value: function (p) { window.__vib.push({ p: JSON.parse(JSON.stringify(p)), t: performance.now() }); return true; } }); } catch (e) { /* none */ }
     var real;
     Object.defineProperty(window, 'HAPTICS', { configurable: true, enumerable: true, get: function () { return real; },
@@ -1187,8 +1193,8 @@ async function N6(browser) {
   await T.go(700);
   var p = await T.pt(mk.x, mk.y);
   await T.touch('touchStart', p); await realWait(30); await T.go(20);
-  var vDown = await T.page.evaluate(function () { return window.__vib.slice(); });
-  check(vDown.length === 0, 'N6: no call before the first touch ends (no user activation yet: ' + js(vDown) + ')');
+  var vDown = await T.page.evaluate(function () { return [COOK.live().st.hits, window.__vib.slice()]; });
+  check(vDown[0] === 1 && vDown[1].length === 0, 'N6: the first touch counts a hit but buzzes nothing before it ends (no user activation yet: ' + js(vDown) + ')');
   await T.touch('touchEnd'); await T.go(150);
   var n0 = await T.page.evaluate(function () { return window.__vib.length; });
   for (var i = 0; i < 8; i++) { var m = (await T.live()).st.marks[Math.floor((i + 1) / 3)]; await T.tap(m.x, m.y); await T.go(150); }
