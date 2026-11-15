@@ -163,7 +163,7 @@ function liveHarness(T0) {
   }
   var R = sb.RUNNER;
   return {
-    R: R, clk: clk, net: net, byId: byId, flush: flush, advance: advance,
+    R: R, sb: sb, clk: clk, net: net, byId: byId, flush: flush, advance: advance,
     net_: function () { var o = JSON.parse(ls.get('ppolppol_runner') || '{}'); return o.net || null; },
     storeObj: function () { return JSON.parse(ls.get('ppolppol_runner') || 'null'); },
     setStore: function (o) { ls.set('ppolppol_runner', JSON.stringify(o)); },
@@ -175,6 +175,7 @@ function liveHarness(T0) {
       for (var i = 0; i < 400 && R.live().state !== 'over'; i++) { await advance(50); var f = raf; raf = null; if (f) f(clk.t - T0 + 1000); }
       await advance(500);   /* 또 할래?/그만 버튼이 켜지는 450 ms */
     },
+    frames: async function (n) { for (var i = 0; i < n; i++) { await advance(50); var f = raf; raf = null; if (f) f(clk.t - T0 + 1000); } },
     submit: async function (nick) { byId['rn-nick'].value = nick; byId['rn-submit'].fire('click'); await flush(); }
   };
 }
@@ -185,6 +186,27 @@ function deferred() { var d = {}; d.p = new Promise(function (r) { d.resolve = r
   var H = { seed: require(path.join(ROOT, 'api/runner/seed.js')), submit: require(path.join(ROOT, 'api/runner/submit.js')), top: require(path.join(ROOT, 'api/runner/top.js')), award: require(path.join(ROOT, 'api/runner/award.js')) };
   var T0 = Date.UTC(2026, 10, 4, 3, 0, 0);   /* 2026-11-04 12:00 KST, W45 */
   function fresh() { var h = liveHarness(T0); h.net.H = H; core.setSecret('live-test'); var mem = core.memoryStore(); core.setStore(mem); core.setClock(function () { return h.clk.t; }); h.mem = mem; return h; }
+
+  /* 11-15 5차 (주인 답 a): 안내 글 → 그림. 준비 · 쉬는 중 = 손 그림 (쉴 땐 일시정지 그림), 글은 #rn-msg 읽어 주기에만. 결과 판 = 수 + 그림, 조개는 판 안 (알림 없이 quiet) */
+  var hp = fresh(), earnCalls = [];
+  hp.sb.APP = { earnFromPlay: function (r, o) { earnCalls.push(o || null); return 3; } };
+  await hp.open(); await hp.readyNet();
+  check(hp.R.live().state === 'ready' && !hp.byId['rn-hand'].hidden && hp.byId['rn-pause'].hidden && /출발/.test(hp.byId['rn-msg'].textContent), '그림: 준비 = 손 그림 보임 · 일시정지 그림 숨김 · 읽어 주기 글은 그대로');
+  hp.key(' '); hp.key(' ', 'keyup'); await hp.advance(50);
+  check(hp.R.live().state === 'run' && hp.byId['rn-hand'].hidden && hp.byId['rn-pause'].hidden && hp.byId['rn-msg'].textContent === '', '그림: 달리는 중 = 그림 없음');
+  check(/^\d+$/.test(hp.byId['rn-best'].textContent), "그림: 위 최고는 수만 ('최고' 글자 → 왕관 그림) (" + hp.byId['rn-best'].textContent + ')');
+  hp.R.close(); earnCalls.length = 0;
+  await hp.open(); await hp.readyNet(); await hp.runToOver();
+  var hpScore = hp.R.live().score;
+  check(hp.byId['rn-final-n'].textContent === String(hpScore) && /^\d+$/.test(hp.byId['rn-final-bn'].textContent), '결과 판: 큰 점수 수 · 최고 수 (' + hpScore + ')');
+  check(!hp.byId['rn-final-shell'].hidden && hp.byId['rn-shell-n'].textContent === '+3', "결과 판: 조개 그림 + '+3' (" + hp.byId['rn-shell-n'].textContent + ')');
+  check(earnCalls.length === 1 && earnCalls[0] && earnCalls[0].quiet === true, '부딪혀 끝난 판은 earnFromPlay(…, { quiet: true }) — 따로 뜨는 조개 알림 없음');
+  check(new RegExp('^' + hpScore + '만큼 달렸어.*최고 \\d+\\. 조개 3개$').test(hp.byId['rn-final-sr'].textContent), '결과 판 읽어 주기 = 예전 문장 (' + hp.byId['rn-final-sr'].textContent + ')');
+  check(hp.byId['rn-hand'].hidden && hp.byId['rn-pause'].hidden, '결과 판: 손 · 일시정지 그림 없음');
+  hp.byId['rn-again'].fire('click'); await hp.readyNet();
+  hp.key(' '); hp.key(' ', 'keyup'); await hp.frames(3);
+  earnCalls.length = 0; hp.R.close();
+  check(earnCalls.length === 1 && !(earnCalls[0] && earnCalls[0].quiet), '달리다 닫은 판은 결과 판이 없으니 알림 그대로 (quiet 아님)');
 
   /* #24: 열 때 찾은 황제 망토·지난 올리기를 출발(start)이 ready() 때 사본으로 덮어쓰면 안 된다 */
   var h = fresh();
