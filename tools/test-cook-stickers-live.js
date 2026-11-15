@@ -6,16 +6,22 @@
  * Style and helpers follow tools/test-cook-live.js (CDP touch, Playwright's fake clock, paused before the page loads so
  * every time below is exact). K7, K9 and K10 need http (sound, blocked files): the script serves the repo root itself on
  * a free 127.0.0.1 port. The other scenarios open cook.html as file://.
- *  K1  wiring: one seeded dish by touch. Every cooking moment reaches COOK_STICKERS.cue under the kitchen's act names,
- *      in order, with its detail; the dish seed is the sticker run id; what shows is what their own engine picks for
- *      that run id, those moments and those times (replayed in node); the same seed twice shows the same; one node per
- *      shown sticker, inside the kitchen's layer; the dish itself is done as always. No AudioContext on file://.
- *  K2  where and how long: the two top corners of the stage, on the art grid, one sticker pixel = one art pixel (DPR 2,
- *      3 and 2.625), about 1.85 s; never two in one corner (three moments inside 1.87 s).
- *  K3  touches pass through: a flick that starts under a sticker flips, a slash that starts under one cuts, the verb
- *      button and the close button work with stickers up; nothing the player needs is covered; no layout shift, no scroll.
- *  K4  nothing left behind: closed mid-dish (no node, no frame, their timers gone within 2 s), reopened, resumed, a
- *      second dish, back on the counter.
+ * 11-15 round 5 (close-up kitchen, spec 5.4 and 15.3): the kitchen opens straight into a step (no counter, no prop); the
+ * stickers live in a strip layer under the HUD; owner answer (나): no feeling face (moved, love, flush, shock, ink, hmm,
+ * sweat) is ever cued in the kitchen.
+ *  K1  wiring: the stage children are ck-cv ck-sim ck-stick; pick reaches the stickers at open, before any touch. One
+ *      seeded dish by touch: every cooking moment reaches COOK_STICKERS.cue under the kitchen's act names, in order, with
+ *      its detail; the dish seed is the sticker run id; what shows is what their own engine picks for that run id, those
+ *      moments and those times (replayed in node); the same seed twice shows the same; one node per shown sticker,
+ *      inside the kitchen's layer; no feeling face; the save keys are exactly book, day, dayN, pot, seen, v.
+ *  K2  where and how long: s = 32 n / dpr CSS px (n = floor(2 dpr)) at hudB + 4, slot 0 at left max(8, safeL + 8) and
+ *      slot 1 at right max(8, safeR + 8), on whole device px; shown or hidden by the spec 5.4 rule at eight phone sizes;
+ *      about 1.85 s; never two in one slot (three moments inside 1.87 s).
+ *  K3  touches pass through and nothing is covered: a flick that starts under a sticker flips, a slash that starts under
+ *      one cuts, the chip and the close button work with stickers up; no sticker over the food box, marks, guides, the
+ *      hand, the HUD or the chip; no layout shift, no scroll; the layer is hidden at 320x568 and 360x560.
+ *  K4  reopen resumes the same dish with no counter; a second dish via again; nothing after close (no node, no frame,
+ *      their timers gone within 2 s).
  *  K5  a hidden tab and back with the pan on: the sound gets quiet + sizzle, the stickers get nothing (no second one).
  *  K6  reduced motion (?reduced=1 alone, the device setting alone): stills only, a fade and no travel; the control
  *      page (no reduced motion) does move, so the check can tell.
@@ -170,7 +176,7 @@ async function openPage(browser, o) {
       });
     });
   };
-  T.pt = async function (lx, ly) { var r = await T.rect('.ck-cv'); return [r.x + lx * r.w / 288, r.y + ly * r.h / 320]; };
+  T.pt = async function (lx, ly) { var r = await T.rect('.ck-sim'); return [r.x + lx * r.w / 288, r.y + ly * r.h / 320]; };   /* 11-15 round 5: the invisible logical box (288 x 320) */
   /* A touch is sent and then waited for (real time) until the page has handled it: Chrome hands touches over on its own
      real frames, and with the clock paused that would otherwise decide at which page time a tap or a knife sample lands.
      This way every sample lands at the page time it was sent at, on every machine. */
@@ -209,20 +215,21 @@ async function openPage(browser, o) {
   };
   T.closed = async function () { await T.eventually(function (x) { return x.screen === 'closed'; }, 'closed'); await T.go(50); };   /* the dialog's close event is the browser's own task */
   T.done = async function () { errAll = errAll.concat(errs); await ctx.close(); };
-  await T.go(600);
+  if (!o.wait0) await T.go(600);
   return T;
 }
 
 /* ---------- play helpers ---------- */
-async function pickPan(T) { await T.tapEl('.ck-prop'); return T.eventually(function (x) { return x.screen === 'step'; }, 'the pan was picked'); }   /* the click follows the touch in real time: the clock stands still */
+/* 11-15 round 5 (close-up kitchen): opening starts cooking at once, there is no counter and no prop to pick */
+async function atStep(T) { return T.eventually(function (x) { return x.screen === 'step'; }, 'the kitchen opened straight into a step'); }
 async function verbThrough(T, kind, presses) {
   await T.until(function (l) { return l.kind === kind && l.phase === 'step'; }, 4000, kind + ' step');
   await T.go(700);
   for (var i = 0; i < presses; i++) { await T.verbClick(); await T.go(300); }
 }
-/* one dish by touch on a fixed schedule: taps 180 ms apart, heat on, the pan left alone past crisp, a swipe up, two cuts */
+/* one dish by touch on a fixed schedule: taps 150 ms apart, heat on, the pan left alone past crisp, a swipe up, two cuts */
 async function touchDish(T) {
-  await pickPan(T);
+  await atStep(T);
   await T.until(function (l) { return l.kind === 'tap' && l.phase === 'step'; }, 4000, 'tap step');
   await T.go(700);
   var l = await T.live(), off = [[-3, 2], [2, -2], [0, 3]];
@@ -255,7 +262,31 @@ function replay(cues) {
   return out;
 }
 var ACTS = ['pick'].concat(['tap', 'tap', 'tap', 'tap', 'tap', 'tap', 'tap', 'tap', 'tap'], ['step', 'quiet', 'sizzle', 'sizzle', 'sizzle', 'flip', 'step', 'quiet', 'cut', 'cut', 'step', 'quiet', 'done']);
+/* 11-15 owner answer (나): the kitchen keeps its stickers but never cues a feeling face */
+var FEEL = ['moved', 'love', 'flush', 'shock', 'ink', 'hmm', 'sweat'];
+function feelings(list) { return list.filter(function (id) { return FEEL.indexOf(id) >= 0; }); }
 var DISH = null;   /* K1's first dish (look, tags): K9 plays the same touches without the sticker script */
+/* spec 5.4: the layer is a strip at hudB + 4, one sticker px = n device px (n = floor(2 dpr)), s = 32 n / dpr CSS px;
+   slot 0 at left max(8, safeL + 8), slot 1 at right max(8, safeR + 8); shown only when hudB + 4 + s + 8 <= (44 + oy) css */
+function stickGeo(v, dpr, vw) {
+  var n = Math.floor(2 * dpr), s = 32 * n / dpr, safe = v.safe || [0, 0, 0, 0];
+  return { n: n, s: s, top: v.hudB + 4, l0: Math.max(8, safe[3] + 8), r1: vw - Math.max(8, safe[1] + 8), shown: v.hudB + 4 + s + 8 <= (44 + v.oy) * v.css };
+}
+var STICK_SIZES = [
+  { vp: { width: 360, height: 740 }, dpr: 2, shown: true }, { vp: { width: 360, height: 740 }, dpr: 3, shown: true },
+  { vp: { width: 412, height: 915 }, dpr: 2.625, shown: true }, { vp: { width: 412, height: 915 }, dpr: 2, shown: true },
+  { vp: { width: 390, height: 844 }, dpr: 3, shown: true },
+  { vp: { width: 320, height: 568 }, dpr: 2, shown: false }, { vp: { width: 320, height: 568 }, dpr: 3, shown: false },
+  { vp: { width: 360, height: 560 }, dpr: 2, shown: false }
+];
+function visibleStickers(page) {   /* only what a player can see (the layer may be hidden on short screens) */
+  return page.evaluate(function () {
+    return Array.prototype.filter.call(document.querySelectorAll('.cook-sticker'), function (n) {
+      var r = n.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && (!n.checkVisibility || n.checkVisibility({ checkOpacity: false, checkVisibilityCSS: true }));
+    }).map(function (n) { var r = n.getBoundingClientRect(); return { id: n.dataset.sticker, x: r.left, y: r.top, w: r.width, h: r.height }; });
+  });
+}
 
 /* ===================================================================================================== */
 async function K1(browser) {
@@ -267,16 +298,23 @@ async function K1(browser) {
         var lay = document.querySelector('.ck-stick'), st = document.querySelector('.ck-stage');
         return { obj: !!(window.COOK_STICKERS && COOK_STICKERS.cue), css: Array.prototype.some.call(document.styleSheets, function (s) { return /cook-stickers\.css/.test(s.href || ''); }),
           lay: !!lay, inStage: !!lay && lay.parentNode === st, order: Array.prototype.map.call(st.children, function (c) { return c.className; }).join(' '),
-          wrapped: !!(window.AUDIO && AUDIO.on && AUDIO.on.__cookStickers), scripts: Array.prototype.map.call(document.scripts, function (s) { return (s.getAttribute('src') || '').replace(/^.*\//, ''); }).filter(Boolean).join(' ') };
+          wrapped: !!(window.AUDIO && AUDIO.on && AUDIO.on.__cookStickers), scripts: Array.prototype.map.call(document.scripts, function (s) { return (s.getAttribute('src') || '').replace(/^.*\//, ''); }).filter(Boolean).join(' '),
+          props: document.querySelectorAll('.ck-prop, .ck-props').length, screen: COOK.live().screen };
       });
       check(w.obj && w.css, 'K1: cook.html loads js/cook-stickers.js and css/cook-stickers.css');
       check(/cook\.js cook-stickers\.js/.test(w.scripts), 'K1: ... the sticker script right after js/cook.js (' + w.scripts + ')');
-      check(w.lay && w.inStage && w.order === 'ck-cv ck-stick ck-props ck-title ck-name', 'K1: the kitchen\'s sticker layer sits in the stage, over the canvas and under the props and tags (' + w.order + ')');
+      check(w.lay && w.inStage && w.order === 'ck-cv ck-sim ck-stick', 'K1: the stage children are exactly ck-cv ck-sim ck-stick (' + w.order + ')');
+      check(w.screen === 'step' && w.props === 0, 'K1: the kitchen opened straight into a step, no counter and no prop (' + w.screen + ')');
       check(!w.wrapped, 'K1: the sound hook is not wrapped (no listenAudio(): the kitchen cues the stickers itself)');
+      var S0 = await T.stk();
+      check(S0.cues.length >= 1 && S0.cues[0].act === 'pick' && S0.ev.pointerdown === 0 && S0.ev.pointerup === 0, 'K1: pick reaches the stickers at open, before any touch (' + S0.cues.map(function (c) { return c.act; }).join(',') + ' · downs ' + S0.ev.pointerdown + ')');
+      check(S0.nodes.length === 1 && S0.nodes[0].id === S0.cues[0].r, 'K1: ... and its sticker is up (' + (S0.nodes[0] && S0.nodes[0].id) + ')');
     }
     var l = await touchDish(T), S = await T.stk();
     var log = await T.page.evaluate(function () { return window.COOK_STICKERS && COOK_STICKERS.log ? COOK_STICKERS.log().map(function (e) { return { by: e.by, run: e.run, act: e.act, sticker: e.sticker }; }) : []; });
     runs.push({ S: S, l: l, log: log, errs: T.errs.slice() });
+    var bad = feelings(S.nodes.map(function (x) { return x.id; }).concat(S.cues.map(function (c) { return c.r; }).filter(Boolean)));
+    check(bad.length === 0, 'K1: no feeling face is ever cued or shown in the kitchen (run ' + (n + 1) + ': ' + bad.join(',') + ')');
     if (n === 0) {
       var acts = S.cues.map(function (c) { return c.act; });
       check(acts.join() === ACTS.join(), 'K1: every cooking moment reaches the stickers once, in the kitchen\'s order (' + acts.join(',') + ')');
@@ -290,19 +328,20 @@ async function K1(browser) {
       check(pick.d.dish === 'jeon' && done.d.dish === 'jeon', 'K1: pick and done carry the dish id (their recipe script)');
       check(pick.d.runId === SEED && S.cues.length > 0 && S.cues.every(function (c) { return c.run === String(SEED); }), 'K1: the dish seed is the sticker run id (' + pick.d.runId + ' / ' + pick.run + ')');
       check(!!pick.r && !!flip.r && !!done.r && !!last.r, 'K1: the moments their doc always shows did show: pick, the last tap of the jeon, flip, done (' + [pick.r, last.r, flip.r, done.r].join(',') + ')');
+      check((flip.r === 'cheer' || flip.r === 'thumbs') && (done.r === 'heart_plate' || done.r === 'star'), 'K1: the flip shows cheer or thumbs, the plate heart_plate or star (' + flip.r + ', ' + done.r + ')');
       var want = replay(S.cues), got = S.cues.map(function (c) { return c.r; });
       check(JSON.stringify(want) === JSON.stringify(got), 'K1: the stickers shown are the ones their engine picks for this run id, these moments and times (node replay)\n       want ' + want.join(',') + '\n       got  ' + got.join(','));
       var shown = got.filter(Boolean);
       check(shown.length >= 5, 'K1: a dish shows five stickers or more (' + shown.length + ': ' + shown.join(',') + ')');
       check(S.nodes.length === shown.length && S.nodes.every(function (nd, i) { return nd.id === shown[i]; }), 'K1: one node per shown sticker, none twice (' + S.nodes.map(function (x) { return x.id; }).join(',') + ')');
       check(S.nodes.every(function (nd) { return nd.parent === 'ck-stick'; }), 'K1: every sticker node is inside the kitchen\'s layer');
-      check(S.dup === 0 && S.max <= 2, 'K1: never two stickers in one corner, never more than two on the stage (most at once: ' + S.max + ')');
+      check(S.dup === 0 && S.max <= 2, 'K1: never two stickers in one slot, never more than two up (most at once: ' + S.max + ')');
       check(log.length === shown.length && log.every(function (e) { return e.by === 'demo-rules'; }), 'K1: their log holds every shown sticker, each marked by: demo-rules (' + log.length + ')');
       check(l.done && l.look.dents.length === 9 && l.look.cuts.length === 2 && l.look.band === 2 && l.err === 0, 'K1: the dish itself is done as always (9 dents, crisp, 2 cuts, no kitchen error)');
       check(S.ac === 0, 'K1: no AudioContext was made (sound off, file://)');
       check(T.net.filter(function (u) { return /\/(audio|foley)\//.test(u); }).length === 0, 'K1: nothing requested under audio/ or foley/');
       var st = await T.page.evaluate(function (k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, KEY);
-      check(st && st.book.length === 1 && st.pot === null && Object.keys(st).sort().join() === 'book,day,dayN,pot,seen,v', 'K1: the save holds the dish and nothing from the stickers');
+      check(st && st.book.length === 1 && st.pot === null && Object.keys(st).sort().join() === 'book,day,dayN,pot,seen,v', 'K1: the save keys are exactly book, day, dayN, pot, seen, v (nothing from the stickers) ' + JSON.stringify(st && Object.keys(st)));
       DISH = { look: JSON.stringify(l.look), tag: l.tag };
     }
     check(T.errs.length === 0, 'K1: no console or page error (run ' + (n + 1) + ') ' + T.errs.join(' | '));
@@ -310,19 +349,21 @@ async function K1(browser) {
   }
   var a = runs[0].S, b = runs[1].S;
   check(JSON.stringify(a.cues.map(function (c) { return [c.act, c.r]; })) === JSON.stringify(b.cues.map(function (c) { return [c.act, c.r]; })), 'K1: the same seed and the same touches show the same stickers at the same moments');
-  check(JSON.stringify(a.nodes.map(function (x) { return [x.id, x.slot]; })) === JSON.stringify(b.nodes.map(function (x) { return [x.id, x.slot]; })), 'K1: ... in the same corners');
+  check(JSON.stringify(a.nodes.map(function (x) { return [x.id, x.slot]; })) === JSON.stringify(b.nodes.map(function (x) { return [x.id, x.slot]; })), 'K1: ... in the same slots');
 }
 
 async function K2(browser) {
+  /* life: the pick sticker that came up at open */
   var T = await openPage(browser, { store: SEEN_ALL, q: 'seed=' + SEED });
   var stage0 = await T.rect('.ck-stage');
-  await pickPan(T);
+  await atStep(T);
   var S = await T.stk(), t0 = S.cues[0].t;
   async function age(ms) { var d = t0 + ms - await T.now(); if (d > 0) await T.go(d); }
   await T.settle();
-  var on = await T.onStage(), n = on[0];
-  check(on.length === 1 && n.parent === 'ck-stick', 'K2: the pick sticker is on the stage, in the kitchen\'s layer');
-  check(n && near(n.w, 64) && near(n.h, 64) && near(n.y, 6) && (near(n.x, 8) || near(n.x, 216)), 'K2: 64 x 64 CSS px in a top corner, 8 px from the side and 6 from the top (' + JSON.stringify(n && [n.x, n.y, n.w, n.h]) + ')');
+  var on = await T.onStage(), n = on[0], v = (await T.live()).view, g = stickGeo(v, 2, 360);
+  check(on.length === 1 && n.parent === 'ck-stick', 'K2: the pick sticker is up, in the kitchen\'s layer');
+  check(!!n && near(n.w, g.s) && near(n.h, g.s) && near(n.ay, g.top, 0.5) && (near(n.ax, g.l0, 0.5) || near(n.ax + n.w, g.r1, 0.5)),
+    'K2: ' + g.s + ' x ' + g.s + ' CSS px at hudB + 4 (' + g.top + '), in slot 0 (left ' + g.l0 + ') or slot 1 (right edge ' + g.r1 + ') (' + JSON.stringify(n && [n.ax, n.ay, n.w, n.h]) + ')');
   check(n && n.pe === 'none', 'K2: it takes no pointer events');
   var stage1 = await T.rect('.ck-stage');
   check(JSON.stringify(stage0) === JSON.stringify(stage1), 'K2: the stage did not move or grow');
@@ -341,9 +382,9 @@ async function K2(browser) {
   check(rec && near(rec.out - rec.add, LIFE.out, 2) && near(rec.rm - rec.add, LIFE.gone, 2), 'K2: on screen ' + (rec && Math.round(rec.rm - rec.add)) + ' ms (out from ' + (rec && Math.round(rec.out - rec.add)) + ' ms)');
   await T.done();
 
-  /* three moments inside 1.87 s (pick, the middle tap, the last tap of the jeon): two corners, so the third takes one over */
-  var U = await openPage(browser, { store: SEEN_ALL, q: 'seed=' + SEED });
-  await pickPan(U);
+  /* three moments inside 1.87 s (the pick at open, the middle tap, the last tap of the jeon): two slots, so the third takes one over */
+  var U = await openPage(browser, { store: SEEN_ALL, q: 'seed=' + SEED, wait0: true });
+  await atStep(U);
   var l = await U.live(), pT = (await U.stk()).cues[0].t, off = [[-3, 2], [2, -2], [0, 3]], at = [300, 420, 540, 660, 960, 1080, 1200, 1320, 1440], k = 0;
   for (var i = 0; i < l.st.marks.length; i++) for (var j = 0; j < 3; j++) {
     var d = pT + at[k++] - await U.now(); if (d > 0) await U.go(d);
@@ -354,31 +395,40 @@ async function K2(browser) {
   var SU = await U.stk(), shownU = SU.cues.filter(function (c) { return c.r; });
   on = await U.onStage();
   check(shownU.length === 3 && SU.cues[SU.cues.length - 3].t - pT < LIFE.gone, 'K2: three stickers were cued inside 1.87 s (' + shownU.map(function (c) { return c.act + (c.d.i != null ? c.d.i : '') + '>' + c.r; }).join(' ') + ')');
-  check(on.length === 2 && on[0].slot !== on[1].slot && !near(on[0].x, on[1].x), 'K2: ... and the stage shows two, one in each corner (' + on.map(function (s) { return s.id + '@' + s.x; }).join(' ') + ')');
-  check(SU.dup === 0 && SU.max === 2, 'K2: at no point two in one corner (most at once: ' + SU.max + ')');
+  check(on.length === 2 && on[0].slot !== on[1].slot && !near(on[0].x, on[1].x), 'K2: ... and two are up, one in each slot (' + on.map(function (s) { return s.id + '@' + s.x; }).join(' ') + ')');
+  check(SU.dup === 0 && SU.max === 2, 'K2: at no point two in one slot (most at once: ' + SU.max + ')');
   check(on.length > 0 && on[on.length - 1].id === shownU[2].r, 'K2: the newest one is the one that stays');
   check(U.errs.length === 0, 'K2: no errors ' + U.errs.join(' | '));
   await U.done();
 
-  /* pixel grid: one sticker pixel = one art pixel of the stage, on the stage's art grid, at whole and fractional DPR */
-  var setups = [{ vp: { width: 320, height: 568 }, dpr: 3 }, { vp: { width: 360, height: 740 }, dpr: 2 }, { vp: { width: 412, height: 915 }, dpr: 2.625 }, { vp: { width: 800, height: 1280 }, dpr: 2, touch: false }];
-  for (var s = 0; s < setups.length; s++) {
-    var su = setups[s], tag = su.vp.width + 'x' + su.vp.height + '@' + su.dpr;
-    var G = await openPage(browser, { store: SEEN_ALL, q: 'recipe=jeon&seed=' + SEED, vp: su.vp, dpr: su.dpr, touch: su.touch });
-    await G.page.evaluate(function () { COOK_STICKERS.show('thumbs', { slot: 0 }); COOK_STICKERS.show('clap', { slot: 1 }); });   /* a still and a strip, both corners */
+  /* box and pixel grid at phone sizes: s = 32 n / dpr, whole device px, at the slots of spec 5.4; hidden where the strip does not fit */
+  for (var z = 0; z < STICK_SIZES.length; z++) {
+    var su = STICK_SIZES[z], tag = su.vp.width + 'x' + su.vp.height + '@' + su.dpr;
+    var G = await openPage(browser, { store: SEEN_ALL, q: 'seed=' + SEED, vp: su.vp, dpr: su.dpr });
+    await G.page.evaluate(function () { COOK_STICKERS.show('thumbs', { slot: 0 }); COOK_STICKERS.show('clap', { slot: 1 }); });   /* a still and a strip, both slots */
     await G.settle();
     var m = await G.page.evaluate(function () {
-      var dpr = window.devicePixelRatio, st = document.querySelector('.ck-stage').getBoundingClientRect(), k = COOK.live().k, dlg = document.querySelector('.ck-dlg');
-      return { k: k, scroll: dlg.scrollWidth > dlg.clientWidth || dlg.scrollHeight > dlg.clientHeight || document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      var dpr = window.devicePixelRatio, dlg = document.querySelector('.ck-dlg'), lv = COOK.live(), lay = document.querySelector('.ck-stick'), lr = lay.getBoundingClientRect();
+      return { dpr: dpr, view: lv.view, stick: lv.stick, vw: innerWidth, vh: innerHeight, lay: { x: lr.left, y: lr.top, w: lr.width, h: lr.height, pe: getComputedStyle(lay).pointerEvents },
+        scroll: dlg.scrollWidth > dlg.clientWidth || dlg.scrollHeight > dlg.clientHeight || document.documentElement.scrollWidth > document.documentElement.clientWidth,
         st: Array.prototype.map.call(document.querySelectorAll('.cook-sticker'), function (n) {
           var r = n.getBoundingClientRect();
-          return { id: n.dataset.sticker, px: r.width * dpr / 32, py: r.height * dpr / 32, gx: (r.left - st.left) * dpr / k, gy: (r.top - st.top) * dpr / k, inside: r.left >= st.left && r.top >= st.top && r.right <= st.right + 0.01 && r.bottom <= st.bottom + 0.01 };
+          return { id: n.dataset.sticker, x: r.left, y: r.top, w: r.width, h: r.height, px: r.width * dpr / 32, py: r.height * dpr / 32, dx: r.left * dpr, dy: r.top * dpr,
+            vis: r.width > 0 && (!n.checkVisibility || n.checkVisibility({ checkVisibilityCSS: true })) };
         }) };
     });
-    var two = m.st.filter(function (x) { return x.id === 'thumbs' || x.id === 'clap'; });
-    check(two.length === 2 && two.every(function (x) { return near(x.px, m.k, 0.02) && near(x.py, m.k, 0.02); }), 'K2 ' + tag + ': one sticker pixel is ' + m.k + ' device px, the stage\'s art pixel (' + two.map(function (x) { return x.px.toFixed(3); }).join(', ') + ')');
-    check(two.length === 2 && near(two[0].gx, 4, 0.02) && near(two[0].gy, 3, 0.02) && near(two[1].gx, 108, 0.02) && near(two[1].gy, 3, 0.02), 'K2 ' + tag + ': both sit on the art grid, 4 art px in from the side and 3 down (' + two.map(function (x) { return x.gx.toFixed(3) + ',' + x.gy.toFixed(3); }).join(' / ') + ')');
-    check(two.every(function (x) { return x.inside; }) && !m.scroll, 'K2 ' + tag + ': inside the stage, nothing scrolls');
+    var gg = stickGeo(m.view, m.dpr, m.vw), two = m.st.filter(function (x) { return x.id === 'thumbs' || x.id === 'clap'; });
+    check(m.stick === gg.shown && gg.shown === su.shown, 'K2 ' + tag + ': the layer is ' + (su.shown ? 'shown' : 'hidden') + ' (live ' + m.stick + ', rule hudB ' + m.view.hudB + ' + 4 + ' + gg.s + ' + 8 <= (44 + ' + m.view.oy + ') x ' + m.view.css + ')');
+    check(m.lay.pe === 'none', 'K2 ' + tag + ': the layer takes no touch');
+    if (su.shown) {
+      check(two.length === 2 && two.every(function (x) { return x.vis && near(x.px, gg.n, 0.02) && near(x.py, gg.n, 0.02); }), 'K2 ' + tag + ': one sticker pixel is n = ' + gg.n + ' device px (' + two.map(function (x) { return x.px.toFixed(3); }).join(', ') + ')');
+      check(two.length === 2 && two.every(function (x) { return near(x.w, gg.s, 0.02) && near(x.y, gg.top, 0.02); }), 'K2 ' + tag + ': both are ' + gg.s.toFixed(2) + ' CSS px at hudB + 4 = ' + gg.top + ' (' + two.map(function (x) { return x.w.toFixed(2) + '@' + x.y.toFixed(2); }).join(' / ') + ')');
+      check(two.length === 2 && near(two[0].x, gg.l0, 0.02) && near(two[1].x + two[1].w, gg.r1, 0.02), 'K2 ' + tag + ': slot 0 at left ' + gg.l0 + ', slot 1 ends at ' + gg.r1 + ' (' + two.map(function (x) { return x.x.toFixed(2) + '..' + (x.x + x.w).toFixed(2); }).join(' / ') + ')');
+      check(two.every(function (x) { return near(x.dx, Math.round(x.dx), 0.02) && near(x.dy, Math.round(x.dy), 0.02); }), 'K2 ' + tag + ': on whole device px (' + two.map(function (x) { return x.dx.toFixed(2) + ',' + x.dy.toFixed(2); }).join(' / ') + ')');
+      check(two.every(function (x) { return x.x >= 0 && x.y >= 0 && x.x + x.w <= m.vw + 0.01 && x.y + x.h <= m.vh + 0.01; }) && !m.scroll, 'K2 ' + tag + ': inside the window, nothing scrolls');
+    } else {
+      check(two.length === 2 && two.every(function (x) { return !x.vis; }) && !m.scroll, 'K2 ' + tag + ': stickers still come and go but none is visible, nothing scrolls');
+    }
     check(G.errs.length === 0, 'K2 ' + tag + ': no errors ' + G.errs.join(' | '));
     await G.done();
   }
@@ -389,14 +439,17 @@ async function K3(browser) {
   function geo() {
     return T.page.evaluate(function () {
       function r(sel) { var e = document.querySelector(sel); if (!e || e.hidden) return null; var b = e.getBoundingClientRect(); return b.width || b.height ? { x: b.left, y: b.top, w: b.width, h: b.height } : null; }
-      var cv = document.querySelector('.ck-cv').getBoundingClientRect(), u = cv.width / 144, l = COOK.live(), st = l.st, dlg = document.querySelector('.ck-dlg'), need = {};
-      ['.ck-title', '.ck-name', '.ck-verbrow', '.ck-close', '.ck-dlg .ckh-credits', '.ck-prop', '.ck-strip'].forEach(function (s) { var x = r(s); if (x) need[s] = x; });
-      if (st && st.box) need.food = { x: cv.left + st.box[0] * u, y: cv.top + st.box[1] * u, w: st.box[2] * u, h: st.box[3] * u };
-      (st && st.marks || []).forEach(function (m, i) { need['mark' + i] = { x: cv.left + m.x / 2 * u - 8 * u, y: cv.top + m.y / 2 * u - 12 * u, w: 16 * u, h: 24 * u }; });   /* the mark and the hand over it */
-      (st && st.lines || []).forEach(function (L, i) { need['line' + i] = { x: cv.left + Math.min(L.ax, L.bx) / 2 * u - 4, y: cv.top + Math.min(L.ay, L.by) / 2 * u - 4, w: Math.abs(L.bx - L.ax) / 2 * u + 8, h: Math.abs(L.by - L.ay) / 2 * u + 8 }; });
-      return { need: need, stage: r('.ck-stage'), verbRow: r('.ck-verbrow'), close: r('.ck-close'), hint: l.hint,
+      var sim = document.querySelector('.ck-sim').getBoundingClientRect(), u = sim.width / 144, l = COOK.live(), st = l.st, dlg = document.querySelector('.ck-dlg'), need = {};
+      function art(x, y, w, h) { return { x: sim.left + x * u, y: sim.top + y * u, w: w * u, h: h * u }; }
+      ['.ck-strip', '.ck-close', '.ck-verb', '.ck-note'].forEach(function (s) { var x = r(s); if (x) need[s] = x; });   /* the HUD and the chip (its box even while quiet) */
+      if (st && st.box) need.food = art(st.box[0], st.box[1], st.box[2], st.box[3]);
+      (st && st.marks || []).forEach(function (m, i) { need['mark' + i] = art(m.x / 2 - 8, m.y / 2 - 12, 16, 24); });   /* the mark and the hand over it */
+      (st && st.lines || []).forEach(function (L, i) { var b = art(Math.min(L.ax, L.bx) / 2, Math.min(L.ay, L.by) / 2, Math.abs(L.bx - L.ax) / 2, Math.abs(L.by - L.ay) / 2); need['line' + i] = { x: b.x - 4, y: b.y - 4, w: b.w + 8, h: b.h + 8 }; });
+      if (l.kind === 'flip') need.flipHand = art(72 - 10, 110 - 32 - 6, 20, 32 + 18);   /* the up-arrow at (72,110) and the flick hand sweeping 32 art px up from it */
+      return { need: need, stage: r('.ck-stage'), verb: r('.ck-verb'), close: r('.ck-close'), hint: l.hint, stick: l.stick,
         scroll: dlg.scrollHeight > dlg.clientHeight || dlg.scrollWidth > dlg.clientWidth || document.documentElement.scrollWidth > document.documentElement.clientWidth || dlg.scrollTop !== 0,
-        st: Array.prototype.map.call(document.querySelectorAll('.cook-sticker'), function (n) { var b = n.getBoundingClientRect(); return { id: n.dataset.sticker, x: b.left, y: b.top, w: b.width, h: b.height }; }) };
+        st: Array.prototype.filter.call(document.querySelectorAll('.cook-sticker'), function (n) { return !n.checkVisibility || n.checkVisibility({ checkVisibilityCSS: true }); })
+          .map(function (n) { var b = n.getBoundingClientRect(); return { id: n.dataset.sticker, x: b.left, y: b.top, w: b.width, h: b.height }; }).filter(function (b) { return b.w > 0 && b.h > 0; }) };
     });
   }
   var seen = 0, cover = [], shift = [], base = await geo();
@@ -404,34 +457,36 @@ async function K3(browser) {
     var g = await geo();
     seen += g.st.length;
     g.st.forEach(function (s) { Object.keys(g.need).forEach(function (k) { if (inter(s, g.need[k]) > 0) cover.push(label + ': ' + s.id + ' over ' + k); }); });
-    if (g.scroll || JSON.stringify(g.stage) !== JSON.stringify(base.stage) || JSON.stringify(g.verbRow) !== JSON.stringify(base.verbRow) || JSON.stringify(g.close) !== JSON.stringify(base.close)) shift.push(label);
+    if (g.scroll || JSON.stringify(g.stage) !== JSON.stringify(base.stage) || JSON.stringify(g.verb) !== JSON.stringify(base.verb) || JSON.stringify(g.close) !== JSON.stringify(base.close)) shift.push(label);
     return g;
   }
-  await pickPan(T); await T.settle();
-  var g = await look('pick + title');
-  check(g.st.length === 1 && !!g.need['.ck-title'], 'K3: the pick sticker and the title tag are up together');
+  await atStep(T); await T.settle();
+  var g = await look('open');
+  check(g.stick === true && g.st.length === 1, 'K3: at 360x740 the layer is shown and the pick sticker is up at open');
   var hit = await T.page.evaluate(function () { var n = document.querySelector('.cook-sticker'), b = n.getBoundingClientRect(), e = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return e ? e.className : null; });
-  check(hit === 'ck-cv', 'K3: a touch on a sticker lands on the stage canvas (' + hit + ')');
+  check(/^(ck-cv|ck-sim|ck-stage)$/.test(hit || ''), 'K3: a touch on a sticker lands on the stage (' + hit + ')');
   await T.go(700);
-  l = await T.live();
-  check(l.hint === 'demo', 'K3: the first-run demo hand is showing');
+  var l = await T.live();
+  check(l.hint === 'demo', 'K3: the first-run demo hand is showing (' + l.hint + ')');
   await look('tap demo hand');
-  for (var i = 0; i < 3; i++) {   /* one verb press = three tap moments: at most one sticker a press */
+  for (var i = 0; i < 3; i++) {   /* one chip press = three tap moments: at most one sticker a press */
     var n0 = (await T.stk()).nodes.length;
     await T.verbClick(); await T.go(34);
     var added = (await T.stk()).nodes.length - n0;
-    check(added <= 1, 'K3: verb press ' + (i + 1) + ' (three tap moments) adds at most one sticker (' + added + ')');
+    check(added <= 1, 'K3: chip press ' + (i + 1) + ' (three tap moments) adds at most one sticker (' + added + ')');
     await look('tap press ' + i); await T.go(266);
   }
   await T.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 4000, 'flip step');
   await T.go(700);
+  await look('flip demo hand');
   await T.tap(144, 176); await T.settle();
   g = await look('heat on');
-  var st = g.st[g.st.length - 1], l = await T.live();
+  var st = g.st[g.st.length - 1];
+  l = await T.live();
   check(!!st && l.band === 0 && l.st.heat, 'K3: heat on shows a sticker');
-  if (st) {
-    var p0 = [st.x + st.w / 2, st.y + st.h - 6], pts = [p0];
-    for (var k = 1; k <= 6; k++) pts.push([p0[0], p0[1] - 8 * k]);
+  if (st) {   /* an upward flick of 48 logical px (the rule is 32) that starts on the sticker */
+    var sim = await T.rect('.ck-sim'), up = 48 * sim.h / 320, p0 = [st.x + st.w / 2, st.y + st.h - 6], pts = [p0];
+    for (var k = 1; k <= 8; k++) pts.push([p0[0], p0[1] - up * k / 8]);
     await T.dragCss(pts);
     l = await T.live();
     check(l.stats.flips === 1 && l.phase === 'between', 'K3: a flick that starts under a sticker flips the jeon (flips ' + l.stats.flips + ')');
@@ -439,10 +494,10 @@ async function K3(browser) {
   await T.settle(); await look('flip');
   await T.until(function (x) { return x.kind === 'slice' && x.phase === 'step'; }, 4000, 'slice step');
   await T.go(300);
-  g = await look('slice title');
+  g = await look('slice start');
   if (!g.st.length) { await T.page.evaluate(function () { COOK_STICKERS.show('thumbs', { slot: 0 }); }); await T.go(34); g = await look('slice (placed)'); }
-  var top = g.st[0], ln = (await T.live()).st.lines[0], cv = await T.rect('.ck-cv'), u = cv.w / 288;
-  var a = [top.x + top.w / 2, top.y + top.h / 2], mid = [cv.x + (ln.ax + ln.bx) / 2 * u, cv.y + ln.ay * u], b = [mid[0] + (mid[0] - a[0]) * 0.5, mid[1] + (mid[1] - a[1]) * 0.5], sl = [];
+  var top = g.st[0], ln = (await T.live()).st.lines[0], sm = await T.rect('.ck-sim'), u = sm.w / 288;
+  var a = [top.x + top.w / 2, top.y + top.h / 2], mid = [sm.x + (ln.ax + ln.bx) / 2 * u, sm.y + (ln.ay + ln.by) / 2 * u], b = [mid[0] + (mid[0] - a[0]) * 0.5, mid[1] + (mid[1] - a[1]) * 0.5], sl = [];
   for (k = 0; k <= 14; k++) sl.push([a[0] + (b[0] - a[0]) * k / 14, a[1] + (b[1] - a[1]) * k / 14]);
   await T.dragCss(sl);
   l = await T.live();
@@ -451,20 +506,21 @@ async function K3(browser) {
   await T.go(300);
   await T.verbClick(); await T.go(34);
   l = await T.live();
-  check(l.st.lines[1].cut, 'K3: the verb button works with stickers up');
+  check(l.st.lines[1].cut, 'K3: the chip works with stickers up');
   await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
   await T.go(500); await T.settle();
-  g = await look('plate reveal');
-  check(g.st.length >= 1 && !!g.need['.ck-name'], 'K3: the done sticker and the name tag are up together');
+  g = await look('plate');
+  check(g.st.length >= 1, 'K3: the done sticker is up over the plate screen');
+  await T.go(1000); await look('plate at rest');
   check(seen >= 6, 'K3: stickers were on screen at the checks (' + seen + ' sightings)');
-  check(cover.length === 0, 'K3: no sticker ever lies over the food, a mark or hand, a guide line, the title or name tag, the step strip, the verb row or the close button' + (cover.length ? ' (' + cover.slice(0, 4).join('; ') + ')' : ''));
+  check(cover.length === 0, 'K3: no sticker ever lies over the food, a mark or hand, a guide line, the strip, the close button or the chip' + (cover.length ? ' (' + cover.slice(0, 4).join('; ') + ')' : ''));
   check(shift.length === 0, 'K3: no layout shift and no scroll while stickers come and go' + (shift.length ? ' (' + shift.join(', ') + ')' : ''));
-  var z = await T.page.evaluate(function () { var c = function (s) { return getComputedStyle(document.querySelector(s)); }; return { lay: c('.ck-stick').zIndex, pe: c('.ck-stick').pointerEvents, ov: c('.ck-stick').overflow, title: c('.ck-title').zIndex, name: c('.ck-name').zIndex, props: c('.ck-props').zIndex }; });
-  check(z.lay === '0' && z.pe === 'none' && z.title === 'auto' && z.name === 'auto' && z.props === 'auto', 'K3: the layer keeps the stickers under the kitchen\'s own tags and prop buttons and takes no touch (' + JSON.stringify(z) + ')');
-  await T.tap(144, 150); await T.go(60);
-  l = await T.live();
-  g = await look('counter');
-  check(l.screen === 'counter' && g.st.length === 0, 'K3: back on the counter there is no sticker (the lamp, the pan and the credits link are clear)');
+  var z = await T.page.evaluate(function () {
+    var lay = getComputedStyle(document.querySelector('.ck-stick')), c = document.querySelector('.ck-close').getBoundingClientRect(), v = document.querySelector('.ck-verb').getBoundingClientRect();
+    var ec = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2), ev = document.elementFromPoint(v.left + v.width / 2, v.top + v.height / 2);
+    return { pe: lay.pointerEvents, close: !!ec && !!ec.closest('.ck-close'), verb: !!ev && !!ev.closest('.ck-verb') };
+  });
+  check(z.pe === 'none' && z.close && z.verb, 'K3: the layer takes no touch and the close button and the chip are on top (' + JSON.stringify(z) + ')');
   await T.page.evaluate(function () { COOK_STICKERS.show('star', { slot: 1 }); });
   await T.go(34);
   await T.tapEl('.ck-close');
@@ -472,12 +528,26 @@ async function K3(browser) {
   check(shut && (await T.live()).screen === 'closed', 'K3: the close button works with a sticker up');
   check(T.errs.length === 0, 'K3: no errors ' + T.errs.join(' | '));
   await T.done();
+
+  /* short screens: the strip does not fit above the food, so the layer is hidden (the stickers still run, nobody sees them) */
+  var short = [{ vp: { width: 320, height: 568 }, dpr: 2 }, { vp: { width: 360, height: 560 }, dpr: 2 }];
+  for (var q = 0; q < short.length; q++) {
+    var H = await openPage(browser, { store: SEEN_ALL, q: 'seed=' + SEED, vp: short[q].vp, dpr: short[q].dpr }), tg = short[q].vp.width + 'x' + short[q].vp.height;
+    await atStep(H);
+    var hs = await H.stk(), vis = await visibleStickers(H.page), lvH = await H.live();
+    check(lvH.stick === false && hs.nodes.length >= 1 && vis.length === 0, 'K3 ' + tg + ': the layer is hidden: the pick sticker ran (' + hs.nodes.length + ') and none is visible (' + vis.length + ')');
+    await verbThrough(H, 'tap', 3);
+    vis = await visibleStickers(H.page);
+    check(vis.length === 0, 'K3 ' + tg + ': still none visible after the tap step');
+    check(H.errs.length === 0, 'K3 ' + tg + ': no errors ' + H.errs.join(' | '));
+    await H.done();
+  }
 }
 
 async function K4(browser) {
   var T = await openPage(browser, { store: SEEN_ALL, q: 'seed=' + SEED });
-  function count() { return T.page.evaluate(function () { var t = window.__stk.timers, o = { nodes: document.querySelectorAll('.cook-sticker').length, lay: document.querySelector('.ck-stick').childNodes.length, s: 0, o: 0, raf: window.__stk.raf }; Object.keys(t).forEach(function (k) { o[t[k]]++; }); return o; }); }
-  await pickPan(T); await T.go(34);
+  function count() { return T.page.evaluate(function () { var t = window.__stk.timers, o = { nodes: document.querySelectorAll('.cook-sticker').length, lay: document.querySelector('.ck-stick') ? document.querySelector('.ck-stick').childNodes.length : 0, s: 0, o: 0, raf: window.__stk.raf }; Object.keys(t).forEach(function (k) { o[t[k]]++; }); return o; }); }
+  var l0 = await atStep(T); await T.go(34);
   var c = await count();
   check(c.nodes === 1 && c.s === 2, 'K4: a sticker is up mid-dish (its two timers are running: ' + c.s + ')');
   await T.page.evaluate(function () { COOK.close(); });
@@ -493,31 +563,39 @@ async function K4(browser) {
   check((await T.stk()).nodes.length === 1, 'K4: nothing was shown while closed');
   await T.page.evaluate(function () { document.getElementById('ck-door').click(); });
   await T.go(400);
-  var l = await T.live();
-  c = await count();
-  check(l.screen === 'counter' && l.pending && c.nodes === 0, 'K4: opened again: the counter, the saved dish waiting, no sticker');
-  await pickPan(T); await T.go(34);
+  var l = await T.live(), props = await T.page.evaluate(function () { return document.querySelectorAll('.ck-prop, .ck-props').length; });
+  check(l.screen === 'step' && l.kind === 'tap' && l.id === l0.id && props === 0, 'K4: opened again: straight back into the saved dish (same run ' + l.id + '), no counter');
   var S = await T.stk(), picks = S.cues.filter(function (x) { return x.act === 'pick'; });
-  check(picks.length === 2 && picks[1].d.runId === SEED && picks[1].run === String(SEED) && !!picks[1].r, 'K4: the resumed dish is a new sticker run under the same dish seed, and picking shows a sticker again');
+  check(picks.length === 2 && picks[1].d.runId === SEED && picks[1].run === String(SEED) && !!picks[1].r, 'K4: the resumed dish is a new sticker run under the same dish seed, and reopening shows a sticker again');
   check((await T.onStage()).length === 1, 'K4: ... one, not two');
-  /* a second dish in the same open: the button path to the plate and back, twice */
-  var seq = [];
-  for (var d = 0; d < 2; d++) {
-    var n0 = (await T.stk()).cues.length, k0 = (await T.stk()).nodes.length;
-    if (d === 1) { await T.go(700); await pickPan(T); }
-    await T.page.evaluate(function () { COOK.auto(true); });
-    await T.until(function (x) { return x.screen === 'reveal'; }, 15000, 'reveal ' + d);
-    await T.go(300);
-    var up = (await T.onStage()).length;
-    await T.until(function (x) { return x.screen === 'counter' && x.recipe === null; }, 5000, 'counter ' + d);
-    c = await count();
-    check(up >= 1 && c.nodes === 0 && c.lay === 0, 'K4: dish ' + (d + 1) + ': a sticker at the plate reveal (' + up + '), none once back on the counter (' + c.nodes + ')');
-    S = await T.stk();
-    seq.push({ cues: S.cues.slice(n0), nodes: S.nodes.slice(k0) });
-  }
-  var p2 = seq[1].cues.filter(function (x) { return x.act === 'pick'; });
-  check(p2.length === 1 && seq[1].cues[0].act === 'pick' && !!p2[0].r, 'K4: the second dish starts with one pick moment and its sticker');
-  check(seq[1].nodes.length === seq[1].cues.filter(function (x) { return x.r; }).length && (await T.stk()).dup === 0, 'K4: the second dish shows one node per sticker, none left from the first');
+  /* the first dish to the plate on the chip path, then 'again' (the chip, after 900 ms) to a second dish, also to the plate */
+  await T.page.evaluate(function () { COOK.auto(true); });
+  var r1 = await T.until(function (x) { return x.screen === 'reveal'; }, 15000, 'reveal 1');
+  await T.go(300);
+  var up1 = (await T.onStage()).length;
+  check(up1 >= 1, 'K4: dish 1: a sticker at the plate (' + up1 + ')');
+  await T.go(1000);
+  var n0 = (await T.stk()).cues.length, k0 = (await T.stk()).nodes.length;
+  await T.verbClick(); await T.go(34);
+  var l2 = await T.until(function (x) { return x.screen === 'step' && x.kind === 'tap' && x.id !== r1.id; }, 3000, 'again: a new dish');
+  await T.go(300);
+  var after = (await T.stk()).cues.slice(n0);
+  check(after.length >= 1 && after[0].act === 'pick' && after.filter(function (x) { return x.act === 'pick'; }).length === 1 && !!after[0].r, 'K4: again starts the second dish with one pick moment and its sticker (' + after.map(function (x) { return x.act; }).join(',') + ')');
+  await T.page.evaluate(function () { COOK.auto(true); });
+  await T.until(function (x) { return x.screen === 'reveal' && x.id === l2.id; }, 15000, 'reveal 2');
+  await T.go(300);
+  S = await T.stk();
+  var cues2 = S.cues.slice(n0), nodes2 = S.nodes.slice(k0), up2 = (await T.onStage()).length;
+  check(up2 >= 1 && nodes2.length === cues2.filter(function (x) { return x.r; }).length && S.dup === 0, 'K4: the second dish shows one node per sticker, none left from the first, one at its plate (' + up2 + ')');
+  var bad = feelings(S.nodes.map(function (x) { return x.id; }));
+  check(bad.length === 0, 'K4: no feeling face in either dish (' + bad.join(',') + ')');
+  /* nothing after the close */
+  await T.page.evaluate(function () { COOK.close(); });
+  await T.closed();
+  var cn = (await T.stk()).cues.length, nn = (await T.stk()).nodes.length;
+  await T.go(2500);
+  c = await count();
+  check((await T.stk()).cues.length === cn && (await T.stk()).nodes.length === nn && c.nodes === 0 && c.s === 0, 'K4: after the close: no moment, no node, no sticker timer (' + c.nodes + ' / ' + c.s + ')');
   check((await T.live()).err === 0 && T.errs.length === 0, 'K4: no errors ' + T.errs.join(' | '));
   await T.done();
 }
@@ -684,7 +762,7 @@ async function K10(browser) {
     await T.page.evaluate(function () { COOK.auto(true); });
     await T.until(function (x) { return x.screen === 'reveal'; }, 15000, 'reveal');
     var l = await T.live();
-    await T.until(function (x) { return x.screen === 'counter' && x.recipe === null; }, 5000, 'counter');
+    await T.go(1200);   /* the plate lands, the again chip shows; COOK.auto stops on the plate */
     var boom = await T.page.evaluate(function () { return window.__boom || 0; });
     check(l.done && l.err === 0 && (await T.live()).err === 0, 'K10 (' + name + '): the dish is done, the kitchen counts no error');
     check(name === 'no cue' ? boom === 0 : boom >= 20, 'K10 (' + name + '): the stub was ' + (name === 'no cue' ? 'left alone' : 'really called (' + boom + ' times)'));
