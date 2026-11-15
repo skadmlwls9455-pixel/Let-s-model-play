@@ -34,6 +34,7 @@ check(A && typeof A.simulate === 'function' && typeof A.createRun === 'function'
 check(typeof A.open === 'undefined', 'without a DOM the live half (open) is not attached');
 check(A.VERSION === 'cook-1', 'VERSION cook-1');
 check(A !== B && A.TUNE_HASH === B.TUNE_HASH && A.TUNE_HASH === A.hash32(JSON.stringify(A.TUNE)), 'TUNE_HASH = hash32(JSON.stringify(TUNE)), same in both instances');
+check(A.TUNE_HASH === 2827089308, 'TUNE is byte-identical to round 4: TUNE_HASH pinned at 2827089308 (' + A.TUNE_HASH + ')');
 check(A.RECIPES.length === 1 && A.RECIPES[0].id === 'jeon' && A.PROPS.length === 1 && A.PROPS[0].id === 'pan', 'slice 1: one live recipe (jeon) and one live prop (pan)');
 check(same(A.RECIPES[0].steps.map(function (s) { return s.kind; }), ['tap', 'flip', 'slice']), 'jeon = tap -> flip -> slice');
 check(['tap', 'flip', 'slice'].every(function (k) { var K = A.KIND[k]; return ['init', 'down', 'move', 'up', 'cancel', 'tick', 'alt', 'look', 'tag'].every(function (f) { return typeof K[f] === 'function'; }); }), 'KIND tap / flip / slice have the full interface');
@@ -147,7 +148,7 @@ section('1. verb button path: every step in <= 3 presses (flip 2)');
       A.tick(run, next); if (si < 2 && run.t0 !== next) ok = false;
     }
     if (!(run.done && run.phase === 'reveal')) ok = false;
-    if (seed === 1) check(same(labels, ['톡톡', '불 켜기', '뒤집기', '썰기']) && A.verb(run) === '돌아가기', 'verb labels: tap, heat on, flip, slice, then back (' + labels.join(' / ') + ')');
+    if (seed === 1) check(same(labels, ['톡톡', '불 켜기', '뒤집기', '썰기']) && A.verb(run) === '다시', 'verb labels: tap, heat on, flip, slice, then again on the reveal (' + labels.join(' / ') + ' / ' + A.verb(run) + ')');
     var res = A.resultOf(run, { madeAt: 1762576800000, day: '2026-11-08' });
     if (!res || res.out.steps[0].tag !== null || res.out.steps[1].tag !== 'soft' || res.out.steps[2].tag !== 'straight') ok = false;
   });
@@ -551,6 +552,14 @@ section('10. pot rules');
   var st = A.normStore('{"v":1,"day":"2026-11-08","dayN":3,"seen":["tap","flip","tap","<x>"],"pot":{"ver":"cook-1"},"book":[{"id":"ck_1","recipe":"jeon","seed":1,"look":{}},7,{"id":2}]}');
   check(st.dayN === 3 && same(st.seen, ['tap', 'flip']) && st.book.length === 1 && st.pot && st.pot.ver === 'cook-1', 'normStore keeps good parts of a saved key and drops junk');
   check(same(A.normStore('{{{'), { v: 1, day: '', dayN: 0, seen: [], pot: null, book: [] }), 'normStore: broken text -> an empty store');
+  /* 11-15 potOld: an unresumable pot is kept, never deleted: normStore passes a valid potOld through (array, newest first,
+     at most 4 plain objects, each JSON <= 2048 bytes) and drops junk entries */
+  var keep = [{ ver: 'cook-0', recipe: 'jeon', si: 1 }, { ver: 'cook-1', tune: 1, si: 9 }, { a: 1 }, { b: 2 }, { c: 3 }];
+  var potIn = { v: 1, day: '2026-11-08', dayN: 3, seen: [], pot: null, book: [], potOld: [keep[0], 7, 'x', null, [1], { big: 'z'.repeat(2100) }, keep[1], keep[2], keep[3], keep[4]] };
+  var po = A.normStore(JSON.stringify(potIn)).potOld;
+  var inOrder = Array.isArray(po) && po.every(function (p, i) { return i === 0 || keep.indexOf(keep.filter(function (k) { return same(k, p); })[0]) > keep.indexOf(keep.filter(function (k) { return same(k, po[i - 1]); })[0]); });
+  check(Array.isArray(po) && po.length >= 1 && po.length <= 4 && same(po[0], keep[0]) && inOrder && po.every(function (p) { return keep.some(function (k) { return same(k, p); }); }) && po.every(function (p) { return p && typeof p === 'object' && !Array.isArray(p) && JSON.stringify(p).length <= 2048; }),
+    'normStore keeps a valid potOld (plain objects, <= 2048 bytes each, at most 4, order kept) and drops junk (' + String(js(po)).slice(0, 80) + ')');
   var store = A.normStore(null);
   for (var k2 = 0; k2 < 301; k2++) A.bookAdd(store, { id: 'ck_' + k2.toString(36), recipe: 'jeon', seed: k2, swaps: {}, look: { v: 1 }, day: '2026-11-08', madeAt: k2 });
   check(store.book.length === 300 && store.book[0].id === 'ck_' + (300).toString(36) && store.book[299].id === 'ck_1', 'book: newest first, the 301st line drops the oldest');
@@ -748,7 +757,7 @@ section('14. static checks');
   var noStr = SRC.replace(MARK, '').replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g, "''");
   var nonAscii = noStr.match(/[^\x00-\x7F]/g) || [];
   check(nonAscii.length === 0, 'js/cook.js: comments and code are ASCII (Korean only inside strings)' + (nonAscii.length ? ' (' + nonAscii.slice(0, 10).join('') + ')' : ''));
-  var VOCAB = ['부엌', '닫기', '요리 수첩', '돌아가기', '이어서', '미역국', '해초전', '톳 주먹밥', '썰기', '톡톡', '젓기', '불 켜기', '뒤집기', '올리기', '보들보들', '노릇노릇', '바삭바삭', '반쯤', '한 줄', '하나 올렸어', '다 됐어',
+  var VOCAB = ['부엌', '닫기', '다시', '요리 수첩', '돌아가기', '이어서', '미역국', '해초전', '톳 주먹밥', '썰기', '톡톡', '젓기', '불 켜기', '뒤집기', '올리기', '보들보들', '노릇노릇', '바삭바삭', '반쯤', '한 줄', '하나 올렸어', '다 됐어',
     '요리 수첩에 넣었어', '아직 비어 있어', '반듯하게 썰었어', '어슷하게 썰었어', '꾹꾹 눌렀어', '보들보들하게 구웠어', '노릇노릇 구웠어', '바삭바삭하게 구웠어', '세 개 올렸어', '보러 가기', '두부', '바다포도', '김', '깨', '파래', '톳'];
   var BAD = /[^\sA-Za-z0-9.,!?:;'"()\/%+~\-ᄀ-ᇿ㄰-㆏가-힣·…‘’“”—–]/gu, EMOTE = /zZ|Zz|\^\^|<3|[:;]-?[()]|T_T|>_</g;
   var leaves = [];
@@ -940,6 +949,160 @@ section('16. js/cook-art.js look: palette, determinism, the 96-frame loop, heat 
     var t0 = process.hrtime.bigint(); for (k = 0; k < 200; k++) fn(k + 30); worst = Math.max(worst, Number(process.hrtime.bigint() - t0) / 1e6 / 200);
   });
   check(worst < 2, 'art: warm frames under 2 ms on desktop node (worst ' + worst.toFixed(2) + ' ms)');
+})();
+
+section('17. close-up art (11-15): seam, bleed periods, carry continuity, REV2, stove, icons, shake, determinism');
+(function () {
+  var ART = path.join(ROOT, 'js/cook-art.js'); if (!fs.existsSync(ART)) return;
+  function fresh() { var sb = {}; vm.createContext(sb); vm.runInContext(fs.readFileSync(ART, 'utf8'), sb, { filename: 'cook-art.js' }); return sb.COOK_ART; }
+  var K = fresh(), K2 = fresh(), W = K.W, H = K.H, F = K.F, PAL = K.PAL, GEO = K.GEO, x, y, i;
+  var M9 = [[18, 19], [16, 21], [20, 18], [47, 18], [49, 20], [45, 17], [33, 32], [31, 30], [35, 33]];
+  var LOOK = { v: 1, dents: M9, band: 2, cuts: [6, -12], offs: [2, -3], plate: 1 };
+  function shot(L, fn, o) { var b = L.blank(W, H); L[fn](b, o); return b; }
+  function px(b, X, Y) { var q = (Y * b.w + X) << 2; return b.d[q + 3] ? (b.d[q] << 16) | (b.d[q + 1] << 8) | b.d[q + 2] : -1; }
+  function eqb(a, b) { return a.w === b.w && a.h === b.h && Buffer.compare(Buffer.from(a.d.buffer, a.d.byteOffset, a.d.byteLength), Buffer.from(b.d.buffer, b.d.byteOffset, b.d.byteLength)) === 0; }
+  function hx(h) { return parseInt(h.slice(1), 16); }
+  var APO = {}; K.APOLLO.forEach(function (h) { APO[hx(h)] = 1; });
+  function apolloOnly(b) { for (var q = 0; q < b.d.length; q += 4) { if (!b.d[q + 3]) continue; if (b.d[q + 3] !== 255 || !APO[(b.d[q] << 16) | (b.d[q + 1] << 8) | b.d[q + 2]]) return false; } return true; }
+  function alphaOk(b) { for (var q = 3; q < b.d.length; q += 4) if (b.d[q] !== 0 && b.d[q] !== 255) return false; return true; }
+  check(['view', 'base', 'carry', 'bgStove'].every(function (k) { return typeof K[k] === 'function'; }), 'COOK_ART exports view, base, carry and bgStove');
+  check(same(GEO.rest.spatula, [100, 112]) && same(GEO.flipArrow, [72, 110]) && same(GEO.knob, [96, 148]) && same(GEO.knob0, [48, 148]) && same(GEO.knobDot, [106, 142]) &&
+    same(GEO.rev2, { pcx: 72, pcy: 89, prx: 39, pry: 26, rim: 5, pth: 3, jcx: 72, jcy: 86, jrx: 29, jry: 19, soy: [98, 54, 9, 5], glints: [3, 9], garnish: 8, shadow: 2, thick: 2 }),
+    'GEO: rest.spatula, flipArrow, knob, knob0, knobDot and rev2 as in the spec');
+  /* (a) seam: view() into an 84 x 190 buffer equals the stage background inside the stage interior, 0 differing pixels */
+  var STATIONS = ['counter', 'stove', 'board', 'plate'], OFFS = [[-32, 0], [-32, -11], [-31, 10]];
+  var BG = { counter: shot(K, 'base', { station: 'counter' }), stove: (function () { var b = K.blank(W, H); K.bgStove(b, false); return b; })() };
+  var seamBad = 0, seamN = 0;
+  STATIONS.forEach(function (st) {
+    var ref = BG[st === 'stove' ? 'stove' : 'counter'];
+    OFFS.forEach(function (o) {
+      var V = K.blank(84, 190); K.view(V, { station: st, ox: o[0], oy: o[1] });
+      for (var sy = 2; sy < H - 2; sy++) for (var sx = 2; sx < W - 2; sx++) {
+        var bx = sx + o[0], by = sy + o[1]; if (bx < 0 || by < 0 || bx >= V.w || by >= V.h) continue;
+        seamN++; if (px(V, bx, by) !== px(ref, sx, sy)) seamBad++;
+      }
+      for (var q = 3; q < V.d.length; q += 4) if (V.d[q] !== 255) seamBad++;   /* every pixel of the buffer is painted */
+    });
+  });
+  check(seamBad === 0 && seamN > 40000, '(a) seam: view() = the stage background inside the interior for 4 stations x 3 offset pairs (' + seamBad + ' differing of ' + seamN + ')');
+  var V0 = K.blank(84, 190), V1 = K.blank(84, 190), colsOk = true;
+  K.view(V0, { station: 'stove', ox: -32, oy: -11 }); K.view(V1, { station: 'stove', ox: -32, oy: -11, x0: 20, x1: 50 });
+  for (y = 0; y < 190; y++) for (x = 0; x < 84; x++) { var want = x >= 20 && x < 50 ? px(V0, x, y) : -1; if (px(V1, x, y) !== want) colsOk = false; }
+  check(colsOk, '(a) view() paints only columns x0..x1-1');
+  /* (b) bleed periods: the wall repeats every 7 rows above stage row 2; below row 157 the wood's glue lines are 11 apart */
+  var wallOk = true;
+  ['counter', 'stove'].forEach(function (st) {
+    var V = K.blank(40, 80); K.view(V, { station: st, ox: -20, oy: 50 });
+    for (y = 0; y + 7 < 50 + 18; y++) for (x = 0; x < 40; x++) if (px(V, x, y) !== px(V, x, y + 7)) wallOk = false;
+  });
+  check(wallOk, '(b) bleed: the plank wall repeats every 7 rows from far above the stage down to its trim (counter and stove)');
+  var VW = K.blank(48, 300), glue = [];
+  K.view(VW, { station: 'counter', ox: -40, oy: 0 });
+  function lum(c) { return ((c >> 16) & 255) * 299 + ((c >> 8) & 255) * 587 + (c & 255) * 114; }
+  function uni(Y) { var c = px(VW, 0, Y); for (var X = 1; X < VW.w; X++) if (px(VW, X, Y) !== c) return -1; return c; }
+  for (y = 158; y < 298; y++) { var u0 = uni(y), u1 = uni(y + 1); if (u0 >= 0 && u1 >= 0 && lum(u1) > lum(u0)) glue.push(y); }
+  var gaps = glue.slice(1).map(function (g, k) { return g - glue[k]; });
+  check(glue.length >= 10 && gaps.every(function (g) { return g === 11; }), '(b) bleed: below stage row 157 the wood strips stay 11 rows tall (glue lines at ' + glue.slice(0, 4).join(', ') + ' ...)');
+  /* (c) carry continuity: every pixel carry() paints at lift 0 without a shadow equals the still scene's pixel */
+  function contin(C, S) { var n = 0, bad = 0; for (var Y = 2; Y < H - 2; Y++) for (var X = 2; X < W - 2; X++) { var c = px(C, X, Y); if (c < 0) continue; n++; if (c !== px(S, X, Y)) bad++; } return [n, bad]; }
+  var CUTL = [{ x: 72, y: 86 + LOOK.offs[0], deg: 0, len: 64, cut: true, cutDeg: 0 + LOOK.cuts[0] }, { x: 72 + LOOK.offs[1], y: 86, deg: 90, len: 48, cut: true, cutDeg: 90 + LOOK.cuts[1] }];
+  var UNCUT = CUTL.map(function (l) { return { x: l.x, y: l.y, deg: l.deg, len: l.len }; });
+  var cc = [];
+  [['pan', shot(K, 'flipScene', { heat: false, band: 0, dents: M9, f: 0, spatula: null }), { what: 'pan', dents: M9, band: 0 }],
+    ['jeon', shot(K, 'sliceScene', { band: 2, dents: M9, lines: UNCUT, cur: -1, knife: null, f: 0 }), { what: 'jeon', dents: M9, band: 2 }],
+    ['cut', shot(K, 'sliceScene', { band: 2, dents: M9, lines: CUTL, cur: -1, knife: null, f: 0 }), { what: 'cut', look: LOOK }]].forEach(function (T) {
+    var C = K.blank(W, H), o = Object.assign({ x: 72, y: 86, lift: 0, shadow: false }, T[2]); K.carry(C, o);
+    var r = contin(C, T[1]); cc.push(T[0] + ' ' + r[1] + '/' + r[0]);
+    check(r[0] > 1500 && r[1] === 0, '(c) carry ' + T[0] + ': its pixels equal the still scene (' + r[1] + ' mismatching of ' + r[0] + ')');
+  });
+  var C3 = K.blank(W, H); K.carry(C3, { what: 'cut', x: 72, y: 86, lift: 2, shadow: false, look: LOOK });
+  var r3 = contin(C3, shot(K, 'revealScene', { geo: 'close', look: LOOK, t: 3 }));
+  check(r3[0] > 1500 && r3[1] === 0, '(c) carry cut at lift 2 = REV2 at t 3 (' + r3[1] + ' mismatching of ' + r3[0] + ')');
+  var CS = K.blank(W, H), CN = K.blank(W, H); K.view(CS, { station: 'counter' }); K.view(CN, { station: 'counter' });
+  K.carry(CS, { what: 'jeon', dents: M9, band: 1 }); K.carry(CN, { what: 'jeon', dents: M9, band: 1, shadow: false });
+  var shN = 0, shBad = 0; for (y = 0; y < H; y++) for (x = 0; x < W; x++) if (px(CS, x, y) !== px(CN, x, y)) { shN++; if ((x + y) & 1) shBad++; }
+  check(shN > 40 && shBad === 0, '(c) carry shadow: a 50 % checker of one-step-darker pixels (' + shN + ' px)');
+  var CL = K.blank(30, 20); K.carry(CL, { what: 'pan', x: 5, y: 5 });
+  check(alphaOk(CL), '(c) carry clips to any buffer (a 30 x 20 buffer, the pan mostly outside)');
+  /* (d) REV2: bounds, the timeline, garnish only from t 5, the 96-frame loop */
+  var rest = shot(K, 'revealScene', { geo: 'close', look: LOOK }), out = 0, inSoy = function (X, Y) { return X >= 86 && X <= 112 && Y >= 45 && Y <= 66; };
+  for (y = 2; y < H - 2; y++) for (x = 2; x < W - 2; x++) if (px(rest, x, y) !== px(BG.counter, x, y) && (x < 33 || x > 111) && !inSoy(x, y)) out++;
+  check(out === 0, '(d) REV2 at rest: every plate and jeon pixel lies in stage x 33..111 (except the soy dish): ' + out + ' outside');
+  var T = {}; [0, 3, 4, 5, 6].forEach(function (t) { T[t] = shot(K, 'revealScene', { geo: 'close', look: LOOK, t: t, seed: 3 }); });
+  check(eqb(T[0], T[3]) && !eqb(T[3], T[4]) && !eqb(T[4], T[5]) && !eqb(T[5], T[6]) && !eqb(T[3], T[6]), '(d) REV2 frames: t 0..3 the same, t 3 / 4 / 5 / 6 all differ');
+  var CHILI = {}; [F.C0, F.C1, F.C2].forEach(function (h) { CHILI[hx(h)] = 1; });
+  function garn(b) { var n = 0; for (var Y = 64; Y < 120; Y++) for (var X = 33; X <= 111; X++) if (CHILI[px(b, X, Y)]) n++; return n; }
+  var gn = [3, 4, 5, 6].map(function (t) { return garn(T[t]); }).concat([garn(rest)]);
+  check(gn[0] === 0 && gn[1] === 0 && gn[2] > 0 && gn[3] > 0 && gn[4] > 0, '(d) REV2 garnish appears only from t 5 (chili px at t 3 / 4 / 5 / 6 / rest: ' + gn.join(' / ') + ')');
+  function foodW(b) { var lo = 999, hi = -1, FS = {}; K.FOOD.forEach(function (h) { FS[hx(h)] = 1; }); for (var Y = 70; Y < 104; Y++) for (var X = 2; X < W - 2; X++) if (FS[px(b, X, Y)]) { lo = Math.min(lo, X); hi = Math.max(hi, X); } return hi - lo; }
+  check(foodW(T[5]) >= foodW(T[6]) + 3, '(d) REV2 t 5 lands squashed (jeon ' + foodW(T[5]) + ' px wide against ' + foodW(T[6]) + ' at rest)');
+  var loop2 = true; for (var f = 0; f < 96; f += 11) if (!eqb(shot(K, 'revealScene', { geo: 'close', look: LOOK, t: 400 + f }), shot(K, 'revealScene', { geo: 'close', look: LOOK, t: 496 + f }))) loop2 = false;
+  check(loop2, '(d) REV2 at rest repeats every 96 frames (t 400 + f = t 496 + f)');
+  var anim = 0; for (f = 6; f < 30; f++) if (!eqb(shot(K, 'revealScene', { geo: 'close', look: LOOK, t: f }), shot(K, 'revealScene', { geo: 'close', look: LOOK, t: f + 1 }))) anim++;
+  check(anim >= 12, '(d) REV2 at rest moves (steam, twinkles): ' + anim + ' of 24 frame pairs differ');
+  var oldRev = shot(K, 'revealScene', { look: LOOK, f: 5 }), oldRev2 = shot(K2, 'revealScene', { look: LOOK, f: 5 });
+  check(eqb(oldRev, oldRev2) && !eqb(oldRev, rest), '(d) without geo the old REV path still paints (unchanged, unused live)');
+  /* (e) stove: Apollo only, arrow at GEO.flipArrow, the spatula blade in x 92..107, the knob dot */
+  var st0 = K.blank(W, H), st1 = K.blank(W, H), sv = K.blank(90, 220); K.bgStove(st0, false); K.bgStove(st1, true); K.view(sv, { station: 'stove', ox: -30, oy: 20 });
+  check(apolloOnly(st0) && apolloOnly(st1) && apolloOnly(sv) && apolloOnly(shot(K, 'base', { station: 'stove', pan: true, heat: true, f: 2 })), '(e) stove, knobs and grates are Apollo only (stage, bleed and the heated base)');
+  var aOff = shot(K, 'flipScene', { heat: true, band: 1, dents: M9, f: 4, fh: 40, seed: 3, arrow: null }), aOn = shot(K, 'flipScene', { heat: true, band: 1, dents: M9, f: 4, fh: 40, seed: 3, arrow: 0 });
+  var bb = [999, 999, -1, -1];
+  for (y = 0; y < H; y++) for (x = 0; x < W; x++) if (px(aOff, x, y) !== px(aOn, x, y)) { bb[0] = Math.min(bb[0], x); bb[1] = Math.min(bb[1], y); bb[2] = Math.max(bb[2], x); bb[3] = Math.max(bb[3], y); }
+  check(bb[0] === GEO.flipArrow[0] - 4 && bb[2] === GEO.flipArrow[0] + 4 && bb[1] === GEO.flipArrow[1] && bb[3] <= GEO.flipArrow[1] + 10, '(e) the flip arrow sits at GEO.flipArrow, tip at its top (' + bb.join(',') + ')');
+  var spA = shot(K, 'flipScene', { heat: false, band: 0, dents: M9, f: 0 }), spB = shot(K, 'flipScene', { heat: false, band: 0, dents: M9, f: 0, spatula: null }), blade = [999, -1], bn = 0;
+  for (y = GEO.rest.spatula[1] - 4; y <= GEO.rest.spatula[1] + 1; y++) for (x = 0; x < W; x++) if (px(spA, x, y) !== px(spB, x, y)) { bn++; blade[0] = Math.min(blade[0], x); blade[1] = Math.max(blade[1], x); }
+  check(bn > 60 && blade[0] >= 92 && blade[1] <= 107, '(e) the spatula rests at GEO.rest.spatula, its blade in x ' + blade.join('..'));
+  var kd = GEO.knobDot, cold = shot(K, 'flipScene', { heat: false, band: 0, dents: M9, f: 0 }), hot = shot(K, 'flipScene', { heat: true, band: 0, dents: M9, f: 0 });
+  var dotOk = [[0, 0], [1, 0], [0, 1], [1, 1]].every(function (d) { return px(cold, kd[0] + d[0], kd[1] + d[1]) === hx(PAL.s2) && px(hot, kd[0] + d[0], kd[1] + d[1]) === hx(PAL.a2); });
+  var knobMoved = 0; for (y = GEO.knob[1] - 5; y <= GEO.knob[1] + 5; y++) for (x = GEO.knob[0] - 5; x <= GEO.knob[0] + 5; x++) if (px(cold, x, y) !== px(hot, x, y)) knobMoved++;
+  var knob0Same = true; for (y = GEO.knob0[1] - 5; y <= GEO.knob0[1] + 5; y++) for (x = GEO.knob0[0] - 5; x <= GEO.knob0[0] + 5; x++) if (px(cold, x, y) !== px(hot, x, y)) knob0Same = false;
+  check(dotOk && knobMoved >= 4 && knob0Same, '(e) the knob dot is s2 with the heat off and a2 with it on; the burner knob turns (' + knobMoved + ' px), the other stays');
+  check(px(cold, 53, 41) === hx(PAL.coal) && px(cold, 52, 41) === hx(PAL.s2) && px(cold, 93, 133) !== px(BG.counter, 93, 133), '(e) the grates peek out above and below the pan');
+  /* (f) icons: heat and again exist, 16 x 16, Apollo only; every pair differs in >= 25 % of the union of their masks */
+  var NAMES = ['tap', 'heat', 'flip', 'slice', 'again', 'close'], IC = {};
+  NAMES.forEach(function (n) { IC[n] = K.icon(n); });
+  check(K.ICONS.indexOf('heat') >= 0 && K.ICONS.indexOf('again') >= 0 && NAMES.every(function (n) { return IC[n].w === 16 && IC[n].h === 16 && apolloOnly(IC[n]); }), '(f) icons heat and again are listed, 16 x 16, Apollo only');
+  var minR = 1, minP = '';
+  NAMES.forEach(function (a, ai) { NAMES.forEach(function (b, bi) {
+    if (bi <= ai) return; var u = 0, d = 0;
+    for (var q = 3; q < 1024; q += 4) { var A1 = IC[a].d[q] > 0, B1 = IC[b].d[q] > 0; if (A1 || B1) u++; if (A1 !== B1) d++; }
+    if (d / u < minR) { minR = d / u; minP = a + '/' + b; }
+  }); });
+  check(minR >= 0.25, '(f) every icon pair differs in >= 25 % of the union of their masks (closest ' + minP + ' ' + (minR * 100).toFixed(0) + ' %)');
+  check(eqb(K.icon('nope'), K.icon('tap')), '(f) an unknown icon falls back to tap');
+  /* (g) shake: m 0 moves the whole buffer with edge repeat; no m keeps the old 2-px frame */
+  var src = shot(K, 'tapScene', { shape: 2, dents: M9, marks: [], f: 3 }), s0 = K.clone(src), s2 = K.clone(src);
+  K.shake(s0, 1, 0, 0); K.shake(s2, 1, 0);
+  var g0 = true, g2 = true;
+  for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+    if (px(s0, x, y) !== px(src, Math.max(0, x - 1), y)) g0 = false;
+    var inside = x >= 2 && y >= 2 && x <= W - 3 && y <= H - 3;
+    if (px(s2, x, y) !== (inside ? px(src, Math.max(2, x - 1), y) : px(src, x, y))) g2 = false;
+  }
+  check(g0, '(g) shake(b, 1, 0, 0) shifts the whole buffer right with the left column repeated');
+  check(g2, '(g) shake(b, 1, 0) is unchanged: inside the 2-px frame only, the frame stays');
+  var sv0 = K.blank(84, 190); K.view(sv0, { station: 'counter', ox: -32 }); var sv1 = K.clone(sv0); K.shake(sv1, 0, 1, 0);
+  var g3 = true; for (y = 0; y < 190; y++) for (x = 0; x < 84; x++) if (px(sv1, x, y) !== px(sv0, x, Math.max(0, y - 1))) g3 = false;
+  check(g3, '(g) shake(b, 0, 1, 0) works on any buffer size (an 84 x 190 view)');
+  /* (h) determinism: every new painter gives the same bytes in a fresh instance, alpha 0 or 255 only */
+  function newFrames(L) {
+    var outF = [];
+    STATIONS.forEach(function (st) { OFFS.forEach(function (o) { var V = L.blank(84, 190); L.view(V, { station: st, ox: o[0], oy: o[1] }); outF.push(V); }); });
+    outF.push(shot(L, 'base', { station: 'counter' }), shot(L, 'base', { station: 'stove', pan: false }), shot(L, 'base', { station: 'stove', pan: true, heat: true, f: 3 }),
+      shot(L, 'base', { station: 'board' }), shot(L, 'base', { station: 'plate', look: LOOK }));
+    ['pan', 'jeon', 'cut'].forEach(function (w) { var V = L.blank(84, 190); L.view(V, { station: 'counter', ox: -32 }); L.carry(V, { what: w, x: 40, y: 86, dents: M9, band: 1, look: LOOK, herb: 'tot' }); outF.push(V); });
+    [null, 0, 3, 4, 5, 6, 40, 97].forEach(function (t) { outF.push(shot(L, 'revealScene', { geo: 'close', look: LOOK, t: t, herb: t === 40 ? 'tot' : 'parae' })); });
+    var b0 = L.blank(W, H); L.bgStove(b0, true); outF.push(b0, L.icon('heat'), L.icon('again'));
+    var sk = shot(L, 'flipScene', { heat: true, band: 2, dents: M9, f: 9, arrow: 1 }); L.shake(sk, -1, 1, 0); outF.push(sk);
+    return outF;
+  }
+  var NA = newFrames(K), NB = newFrames(K2);
+  check(NA.every(function (b, k) { return eqb(b, NB[k]); }) && NA.every(alphaOk), '(h) every new painter gives the same bytes in a fresh instance, alpha 0 or 255 only (' + NA.length + ' pictures)');
+  var NC = newFrames(K);
+  check(NA.every(function (b, k) { return eqb(b, NC[k]); }), '(h) painting again in the same instance (warm caches) gives the same bytes');
+  var srcTxt = fs.readFileSync(ART, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  check(!/Math\.(sin|cos|tan|atan2?|random)|Date\.now|performance\.now|new Date/.test(srcTxt), '(h) cook-art.js uses no float trig, random source or clock');
+  if (!quiet) console.log('   carry: ' + cc.join(', '));
 })();
 
 console.log('\n' + passes + ' passed, ' + fails + ' failed');
