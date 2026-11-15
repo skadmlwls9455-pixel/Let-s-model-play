@@ -1464,6 +1464,12 @@ var COOK = (function () {
     var k = Math.max(1, Math.min(Math.floor(vw * dpr / LAY.VIEW_W + 0.01), Math.floor(usable * dpr / (LAY.ROWS[1] - LAY.ROWS[0]) + 0.01), Math.floor(LAY.ZMAX * dpr + 0.01)));
     var css = k / dpr, W = Math.max(1, Math.ceil(vw / css - 1e-9)), H = Math.max(1, Math.ceil(Math.max(vh, vhAll) / css - 1e-9));
     var ox = Math.round(vw / 2 / css) - FOOD_X, oy = Math.round((hudB + chipTop) / 2 / css) - LAY.MID;
+    /* a canvas whose CSS size is not a whole CSS px gets one device row or column doubled by the pixelated upscale
+       (360x740 @2: H 165 -> 742.5 px). Grow W and H by up to 4 art px until it is whole; the extra lies off screen */
+    for (var g = 0; g < 4 && Math.abs(W * k / dpr - Math.round(W * k / dpr)) > 1e-6; g++) W++;
+    if (Math.abs(W * k / dpr - Math.round(W * k / dpr)) > 1e-6) W -= g;
+    for (g = 0; g < 4 && Math.abs(H * k / dpr - Math.round(H * k / dpr)) > 1e-6; g++) H++;
+    if (Math.abs(H * k / dpr - Math.round(H * k / dpr)) > 1e-6) H -= g;
     function dev(v) { return Math.round(v * dpr) / dpr; }
     if (!L.view || L.W !== W || L.H !== H) {
       D.cv.width = W; D.cv.height = H;

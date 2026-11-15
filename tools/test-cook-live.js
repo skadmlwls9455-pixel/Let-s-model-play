@@ -25,15 +25,16 @@ var KEY = 'ppolppol_cook_v0';
 var SEEN_ALL = JSON.stringify({ v: 1, day: '', dayN: 0, seen: ['tap', 'flip', 'slice'], pot: null, book: [] });
 var BANDS = ['보들보들', '노릇노릇', '바삭바삭'];
 var FMS = 1000 / 12;
-/* spec 2.3: k, W, H, ox, oy, chipTop at the seven target sizes (hudB 64 without insets) */
+/* spec 2.3: k, W, H, ox, oy, chipTop at the seven target sizes (hudB 64 without insets). One change: W and H grow by up
+   to 4 art px until the canvas is a whole CSS px (360x740 @2: H 166, not 165; 412x915 @2.625: H 189), so no device row is doubled */
 var FIT = [
-  { w: 360, h: 740, dpr: 2, k: 9, W: 80, H: 165, ox: -32, oy: 0, chipTop: 660 },
+  { w: 360, h: 740, dpr: 2, k: 9, W: 80, H: 166, ox: -32, oy: 0, chipTop: 660 },
   { w: 360, h: 740, dpr: 3, k: 13, W: 84, H: 171, ox: -30, oy: 4, chipTop: 660 },
   { w: 320, h: 568, dpr: 2, k: 8, W: 80, H: 142, ox: -32, oy: -11, chipTop: 488 },
   { w: 320, h: 568, dpr: 3, k: 12, W: 80, H: 142, ox: -32, oy: -11, chipTop: 488 },
   { w: 412, h: 915, dpr: 2, k: 10, W: 83, H: 183, ox: -31, oy: 10, chipTop: 835 },
   { w: 412, h: 915, dpr: 3, k: 15, W: 83, H: 183, ox: -31, oy: 10, chipTop: 835 },
-  { w: 412, h: 915, dpr: 2.625, k: 13, W: 84, H: 185, ox: -30, oy: 11, chipTop: 835 }
+  { w: 412, h: 915, dpr: 2.625, k: 13, W: 84, H: 189, ox: -30, oy: 11, chipTop: 835 }
 ];
 var passes = 0, fails = 0, errAll = [];
 function check(c, m) { if (c) passes++; else { fails++; console.error('  FAIL ' + m); } }
@@ -1090,6 +1091,7 @@ async function N2(browser) {
     function onDev(x) { var d = x * F.dpr; return Math.abs(d - Math.round(d)) <= 0.1; }   /* layout keeps 1/64 CSS px: a few hundredths of a device px are rounding, 0.25 is not */
     check(Math.abs(cv.x) < 0.01 && Math.abs(cv.y) < 0.01 && Math.abs(cv.w - F.W * css) < 0.02 && Math.abs(cv.h - F.H * css) < 0.02 && onDev(cv.w) && onDev(cv.h),
       'N2 ' + tag + ': the canvas box is (0, 0, W css, H css) on whole device px (' + js([cv.x, cv.y, cv.w, cv.h]) + ')');
+    check((Math.abs(cv.w - Math.round(cv.w)) < 0.01 && Math.abs(cv.h - Math.round(cv.h)) < 0.01), 'N2 ' + tag + ': the canvas is a whole CSS px (no doubled device row: ' + js([cv.w, cv.h]) + ')');
     check(cv.w >= dl.w - 0.01 && cv.h >= dl.h - 0.01 && Math.abs(dl.x) < 0.01 && Math.abs(dl.y) < 0.01 && dl.w === F.w && dl.h === F.h, 'N2 ' + tag + ': the canvas covers the whole dialog (no letterbox)');
     var top28 = (28 + F.oy) * css, bot132 = (133 + F.oy) * css;
     check(top28 >= v.hudB - css - 1e-6 && bot132 <= v.chipTop + css + 1e-6, 'N2 ' + tag + ': stage rows 28..132 lie between the HUD and the chip (' + top28.toFixed(1) + '..' + bot132.toFixed(1) + ')');
@@ -1302,7 +1304,7 @@ async function N10(browser) {
   await T.go(50);
   var l = await T.live(), v = l.view;
   check(ok && v.hudB === 111 && v.chipTop === 844 - 114 && js(v.safe) === js([47, 0, 34, 0]), 'N10: hudB 111 and chipTop vh - 114 (' + js([v.hudB, v.chipTop, v.safe]) + ')');
-  check(v.k === 14 && v.W === 84 && v.H === 181 && v.ox === -30 && v.oy === 10, 'N10: 390x844@3 with insets 47/34 matches spec 2.3 (' + js([v.k, v.W, v.H, v.ox, v.oy]) + ')');
+  check(v.k === 14 && v.W === 84 && v.H === 183 && v.ox === -30 && v.oy === 10, 'N10: 390x844@3 with insets 47/34 matches spec 2.3 (' + js([v.k, v.W, v.H, v.ox, v.oy]) + ')');
   var close = await T.rect('.ck-chip'), strip = await T.rect('.ck-strip'), verb = await T.rect('.ck-verb'), cv = await T.rect('.ck-cv');
   check(close.y >= 47 + 8 - 0.01 && strip.y >= 47 + 8 - 0.01 && verb.b <= 844 - 34 - 16 + 0.01, 'N10: the HUD and the chip sit inside the insets (' + js([close.y, strip.y, verb.b]) + ')');
   check(cv.x === 0 && cv.y === 0 && cv.w >= 390 && cv.h >= 844, 'N10: the canvas still covers the dialog (under the notch and the home bar)');
