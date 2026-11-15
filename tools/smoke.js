@@ -1860,16 +1860,45 @@ async function scenarioRunner() {
     /* 게임 오버 화면: 입력 없이 한 판 (첫 상자에 부딪힘) */
     if (ended === 'over') await page.click('#rn-again'); else await clickSpot(page, '#btn-machine');
     await page.waitForFunction(function () { return RUNNER.live() && RUNNER.live().state === 'ready'; });
+    /* 11-15 5차 (주인 답 a): 준비 · 쉬는 중에 들판에 뜬 문장 없음 — 손 그림 · 동그라미 · (쉴 땐) 일시정지 그림. 위 최고 = 왕관 그림 + 수 */
+    var rnSeen = function () {
+      return page.evaluate(function () {
+        function shown(e) { var r = e.getBoundingClientRect(); return r.width > 2 && r.height > 2 && !e.closest('[hidden], .sr-only') && getComputedStyle(e).visibility !== 'hidden'; }
+        var words = [].filter.call(document.querySelectorAll('#runner-dlg *'), function (e) { return shown(e) && [].some.call(e.childNodes, function (n) { return n.nodeType === 3 && n.textContent.trim(); }); })
+          .map(function (e) { return e.textContent.trim(); }).filter(function (t) { return !/^\d+$/.test(t) && t !== '닫기'; });
+        var hb = document.querySelector('.rn-hud-best');
+        return { state: RUNNER.live().state, words: words, hand: shown(document.getElementById('rn-hand')), pause: shown(document.getElementById('rn-pause')), msg: document.getElementById('rn-msg').textContent,
+          crown: !!(hb && hb.querySelector('svg') && shown(hb.querySelector('svg'))), best: document.getElementById('rn-best').textContent };
+      });
+    };
+    var rs = await rnSeen();
+    ok(rs.state === 'ready' && rs.words.length === 0 && rs.hand && !rs.pause && /출발/.test(rs.msg), '달리기 준비: 보이는 문장 없음 · 손 그림 · 안내는 읽어 주기만 (' + JSON.stringify(rs.words) + ')');
+    ok(rs.crown && /^\d+$/.test(rs.best), '달리기 위: 최고 = 왕관 그림 + 수 (' + rs.best + ')');
     await page.focus('#rn-cv'); await page.keyboard.press(' ');
+    await page.evaluate(function () { Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } }); document.dispatchEvent(new Event('visibilitychange')); delete document.hidden; });
+    rs = await rnSeen();
+    if (rs.state === 'pause') {
+      ok(rs.words.length === 0 && rs.pause && rs.hand && /쉬는/.test(rs.msg), '달리기 쉬는 중: 보이는 문장 없음 · 일시정지 그림 · 손 그림 (' + JSON.stringify(rs.words) + ')');
+      await page.focus('#rn-cv'); await page.keyboard.press(' ');
+    } else console.log('   (쉬기 전에 부딪힘 — 쉬는 중 검사는 건너뜀: ' + rs.state + ')');
+    await page.evaluate(function () { var t = document.getElementById('toast'); if (t) t.classList.remove('show'); });   /* 앞 판의 알림은 지우고 이번 판만 본다 */
     await page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: 15000 });
     await page.waitForTimeout(700);
+    var rc = await page.evaluate(function () {
+      var row = document.getElementById('rn-final-shell'), t = document.getElementById('toast');
+      return { shell: !row.hidden && !!row.querySelector('img') && row.getBoundingClientRect().height > 0, n: document.getElementById('rn-shell-n').textContent, toast: t && t.classList.contains('show') ? t.textContent : '',
+        crown: !!document.querySelector('#rn-final-best svg'), score: document.getElementById('rn-final-n').textContent, sr: document.getElementById('rn-final-sr').textContent };
+    });
+    ok(rc.shell && /^\+\d+$/.test(rc.n) && rc.crown, "달리기 결과 판: 조개 그림 + '" + rc.n + "' · 왕관 그림 + 최고");
+    ok(!/조개/.test(rc.toast), '달리기 결과: 따로 뜨는 조개 알림 없음 (판 안으로) (' + rc.toast + ')');
+    ok(new RegExp('^' + rc.score + '만큼 달렸어').test(rc.sr), '달리기 결과 읽어 주기 = 예전 문장 (' + rc.sr + ')');
     var ov = await page.evaluate(function () {
       var st = JSON.parse(localStorage.getItem('ppolppol_runner')), run = st.last;
-      return { final: document.getElementById('rn-final').textContent, best: document.getElementById('rn-final-best').textContent, again: document.activeElement && document.activeElement.id, shown: document.getElementById('rn-score').textContent, sim: RUNNER.simulate(run.seed, run.inputs, { night: run.night }).score, saved: run.score, end: run.end };
+      return { final: document.getElementById('rn-final').textContent, best: document.getElementById('rn-final-bn').textContent, crown: !!document.querySelector('#rn-final-best svg'), again: document.activeElement && document.activeElement.id, shown: document.getElementById('rn-score').textContent, sim: RUNNER.simulate(run.seed, run.inputs, { night: run.night }).score, saved: run.score, end: run.end };
     });
     console.log('   over:', JSON.stringify(ov));
     ok((await page.textContent('#rn-again')) === '다시' && (await page.textContent('#rn-stop')) === '닫기', '게임 오버: "다시" / "닫기" (11-15)');
-    ok(ov.again === 'rn-again' && /최고/.test(ov.best), '게임 오버: 최고 기록 표시 · "다시" 에 포커스');
+    ok(ov.again === 'rn-again' && ov.crown && /^\d+$/.test(ov.best), '게임 오버: 최고 기록 표시 (11-15 5차: 왕관 그림 + 수) · "다시" 에 포커스');
     ok(ov.end === 'hit' && ov.sim === ov.saved && String(ov.sim) === ov.shown, '부딪힌 판도 재시뮬 점수 = 화면 점수 (' + ov.shown + ')');
     await page.screenshot({ path: path.join(EVD, 'runner-over.png') });
     await page.click('#rn-stop');
