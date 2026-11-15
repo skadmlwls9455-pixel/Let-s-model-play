@@ -139,7 +139,8 @@ var PPOL_STICKERS = (function () {
     }
     function mount(el, o) {
       host = el || null; o = o || {};
-      if (o.scale) opts.scale = o.scale | 0;
+      /* 11-15 5차: 배율은 소수도 받는다 (부엌: 스티커 한 칸 = 기기 화소 n 개 → 배율 n / dpr, 2.625 배 폰에서 1.905…). 예전엔 정수로 잘려 32 px 가 됐다 */
+      if (o.scale > 0 && isFinite(o.scale)) opts.scale = +o.scale;
       if (o.src) opts.src = o.src;
       if (o.now) opts.now = o.now;
       if (host && typeof getComputedStyle !== 'undefined' && getComputedStyle(host).position === 'static') host.style.position = 'relative';
@@ -154,7 +155,8 @@ var PPOL_STICKERS = (function () {
       var used = {}; Array.prototype.forEach.call(live, function (n) { used[n.dataset.slot] = true; });
       var s = (o.slot || 0) % SLOTS.length, tries = 0;
       while (used[s] && tries++ < SLOTS.length) s = (s + 1) % SLOTS.length;
-      var p = SLOTS[s], size = 32 * scale, frames = CATALOG[id].anim | 0, img;
+      var dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+      var p = SLOTS[s], size = Math.round(32 * scale * dpr) / dpr, frames = CATALOG[id].anim | 0, img;   /* 크기는 온 기기 화소로 (정수 배율 · 정수 dpr 이면 전과 같다) */
       if (frames > 1 && !reduced()) {
         /* 움직이는 스티커: 바깥 칸은 등장·퇴장, 안쪽 칸은 스트립을 4 fps 로 넘긴다 (css steps). 칸 0 = 정지 그림 */
         img = document.createElement('div');

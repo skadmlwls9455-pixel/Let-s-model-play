@@ -112,7 +112,7 @@ function spyInit() {
     ms.forEach(function (m) {
       Array.prototype.forEach.call(m.addedNodes || [], function (n) {
         if (n.nodeType !== 1 || !n.classList || !n.classList.contains('cook-sticker')) return;
-        var rec = { id: n.dataset.sticker, slot: n.dataset.slot, tag: n.tagName, parent: n.parentNode ? n.parentNode.className : null, add: performance.now(), out: null, rm: null };
+        var rec = { id: n.dataset.sticker, slot: n.dataset.slot, tag: n.tagName, parent: n.parentNode && n.parentNode.classList.contains('ck-stick') ? 'ck-stick' : (n.parentNode ? n.parentNode.className : null), add: performance.now(), out: null, rm: null };
         n.__rec = rec; S.nodes.push(rec);
         var lay = n.parentNode, slots = lay ? Array.prototype.map.call(lay.children, function (c) { return c.dataset.slot; }) : [];
         if (slots.some(function (s, i) { return slots.indexOf(s) !== i; })) S.dup++;
@@ -171,7 +171,7 @@ async function openPage(browser, o) {
       return Array.prototype.map.call(document.querySelectorAll('.cook-sticker'), function (n) {
         var r = n.getBoundingClientRect(), cs = getComputedStyle(n), f = n.querySelector('.cook-sticker-frames');
         return { id: n.dataset.sticker, slot: n.dataset.slot, tag: n.tagName, cls: n.className, x: r.left - st.left, y: r.top - st.top, w: r.width, h: r.height, ax: r.left, ay: r.top,
-          parent: n.parentNode.className, anim: cs.animationName, tr: cs.transform, pe: cs.pointerEvents, src: n.getAttribute('src'), text: n.textContent,
+          parent: n.parentNode.classList.contains('ck-stick') ? 'ck-stick' : n.parentNode.className, anim: cs.animationName, tr: cs.transform, pe: cs.pointerEvents, src: n.getAttribute('src'), text: n.textContent,
           frames: f ? getComputedStyle(f).animationName : null, moving: n.getAnimations({ subtree: true }).map(function (a) { return a.animationName; }) };
       });
     });
@@ -297,7 +297,7 @@ async function K1(browser) {
       var w = await T.page.evaluate(function () {
         var lay = document.querySelector('.ck-stick'), st = document.querySelector('.ck-stage');
         return { obj: !!(window.COOK_STICKERS && COOK_STICKERS.cue), css: Array.prototype.some.call(document.styleSheets, function (s) { return /cook-stickers\.css/.test(s.href || ''); }),
-          lay: !!lay, inStage: !!lay && lay.parentNode === st, order: Array.prototype.map.call(st.children, function (c) { return c.className; }).join(' '),
+          lay: !!lay, inStage: !!lay && lay.parentNode === st, order: Array.prototype.map.call(st.children, function (c) { return c.classList[0] || ''; }).join(' '),   /* first class of each child: a state class on the layer is fine */
           wrapped: !!(window.AUDIO && AUDIO.on && AUDIO.on.__cookStickers), scripts: Array.prototype.map.call(document.scripts, function (s) { return (s.getAttribute('src') || '').replace(/^.*\//, ''); }).filter(Boolean).join(' '),
           props: document.querySelectorAll('.ck-prop, .ck-props').length, screen: COOK.live().screen };
       });
@@ -422,8 +422,9 @@ async function K2(browser) {
     check(m.lay.pe === 'none', 'K2 ' + tag + ': the layer takes no touch');
     if (su.shown) {
       check(two.length === 2 && two.every(function (x) { return x.vis && near(x.px, gg.n, 0.02) && near(x.py, gg.n, 0.02); }), 'K2 ' + tag + ': one sticker pixel is n = ' + gg.n + ' device px (' + two.map(function (x) { return x.px.toFixed(3); }).join(', ') + ')');
-      check(two.length === 2 && two.every(function (x) { return near(x.w, gg.s, 0.02) && near(x.y, gg.top, 0.02); }), 'K2 ' + tag + ': both are ' + gg.s.toFixed(2) + ' CSS px at hudB + 4 = ' + gg.top + ' (' + two.map(function (x) { return x.w.toFixed(2) + '@' + x.y.toFixed(2); }).join(' / ') + ')');
-      check(two.length === 2 && near(two[0].x, gg.l0, 0.02) && near(two[1].x + two[1].w, gg.r1, 0.02), 'K2 ' + tag + ': slot 0 at left ' + gg.l0 + ', slot 1 ends at ' + gg.r1 + ' (' + two.map(function (x) { return x.x.toFixed(2) + '..' + (x.x + x.w).toFixed(2); }).join(' / ') + ')');
+      var snap = function (v) { return Math.round(v * m.dpr) / m.dpr; }, tol = 0.5 / m.dpr + 0.01;   /* spec 2.5: every box sits on whole device px (round(v dpr) / dpr) */
+      check(two.length === 2 && two.every(function (x) { return near(x.w, gg.s, 0.02) && near(x.y, snap(gg.top), tol); }), 'K2 ' + tag + ': both are ' + gg.s.toFixed(2) + ' CSS px at hudB + 4 = ' + gg.top + ' (' + two.map(function (x) { return x.w.toFixed(2) + '@' + x.y.toFixed(2); }).join(' / ') + ')');
+      check(two.length === 2 && near(two[0].x, snap(gg.l0), tol) && near(two[1].x + two[1].w, snap(gg.r1), tol), 'K2 ' + tag + ': slot 0 at left ' + gg.l0 + ', slot 1 ends at ' + gg.r1 + ' (' + two.map(function (x) { return x.x.toFixed(2) + '..' + (x.x + x.w).toFixed(2); }).join(' / ') + ')');
       check(two.every(function (x) { return near(x.dx, Math.round(x.dx), 0.02) && near(x.dy, Math.round(x.dy), 0.02); }), 'K2 ' + tag + ': on whole device px (' + two.map(function (x) { return x.dx.toFixed(2) + ',' + x.dy.toFixed(2); }).join(' / ') + ')');
       check(two.every(function (x) { return x.x >= 0 && x.y >= 0 && x.x + x.w <= m.vw + 0.01 && x.y + x.h <= m.vh + 0.01; }) && !m.scroll, 'K2 ' + tag + ': inside the window, nothing scrolls');
     } else {
