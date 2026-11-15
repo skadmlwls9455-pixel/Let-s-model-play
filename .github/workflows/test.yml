@@ -49,6 +49,8 @@ jobs:
       - run: node tools/test-salon.js
       # 반응 스티커 (js/cook-stickers.js · js/play-stickers.js): 그림 파일 · manifest · 규칙이 고르는 스티커 · 시드 · 금지 낱말. 노드만 쓴다
       - run: node tools/test-cook-stickers.js
+      # 진동 도우미 (js/haptics.js, 11-15 5차): 켬/끔 · 정직한 supported() · 활성화 전 · 숨은 쪽 · 파이어폭스엔 안 부름 · 부엌 무늬. 노드만 쓴다
+      - run: node tools/test-haptics.js
       - run: node tools/test-play-stickers.js
       - run: node tools/test-poster-art.js
       - run: node tools/test-art-extra.js
