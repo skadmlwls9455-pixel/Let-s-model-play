@@ -90,6 +90,7 @@ var INTRO = (function () {
     var s = Math.max(1, Math.min(3, Math.floor((Math.min(r.width, vw) - 32) / LOGO.w)));
     if (one) s = Math.max(1, Math.min(s, Math.floor(r.height * 0.26 / LOGO.h)));
     st.s = s; st.el.style.setProperty('--s', s);
+    st.el.style.setProperty('--hint-fs', s >= 3 ? (s * 10) + 'px' : 'var(--fs-b20, 20px)');   /* 11-15 (UI 점검): 320 폰 (배율 1) 에서 10px 이던 첫 안내를 기기 px 에 맞춘 약 20px (12px 아래 금지) — 배율 3 이면 로고와 같은 30px */
     var hs = st.hole.style; hs.left = Math.round(r.left) + 'px'; hs.top = Math.round(r.top) + 'px'; hs.width = Math.round(r.width) + 'px'; hs.height = Math.round(r.height) + 'px';
     var lw = LOGO.w * s, lh = LOGO.h * s, left = Math.round(r.left + (r.width - lw) / 2);
     var top = one ? Math.round(Math.min(r.top + r.height * 0.68, r.bottom - lh - 24 * s - 16)) : Math.round(r.bottom - lh * 0.62);   /* 24 × 배율 = 안내 글자까지 (틈 14 + 글자 10) */

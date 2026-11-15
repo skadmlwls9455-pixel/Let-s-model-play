@@ -90,6 +90,20 @@ var APP = (function () {
      자리에는 픽셀 아이콘 (assets/icons/<path>.png 16×16 — 픽셀 테마 32px · 시스템 테마 16px, js/ui-art.js icon/iconHTML 이 주소를 고른다: 단일 파일 번들이면 data URI).
      장식이라 alt="" · aria-hidden, 옆 글자(상태 단어 · 방 이름)는 그대로. 그림이 안 오면 지운다 (이모지로 되돌리지 않는다). UIART 가 없으면 그림 없이 글자만 */
   function ico(path, cls) { return window.UIART && UIART.icon ? UIART.icon(path, 'ua-both' + (cls ? ' ' + cls : '')) : null; }
+  /* 11-15 (주인 답: 살림 · 재봉틀 · 설정 '전부 그림으로', 크기는 그대로): 게임 12×12 격자로 직접 그린 작은 그림 (24 CSS px, 글자색). 글자 대신 보이고, 읽어 주기 글은 옆 sr-only 에 */
+  var PX_ICO = {
+    check: 'M10 2h1v1H10zM9 3h2v1H9zM8 4h2v1H8zM1 5h1v1H1zM7 5h2v1H7zM1 6h2v1H1zM6 6h2v1H6zM2 7h2v1H2zM5 7h2v1H5zM3 8h3v1H3zM4 9h1v1H4z',
+    box: 'M2 2h8v1H2zM2 3h1v6H2zM9 3h1v6H9zM2 9h8v1H2z',
+    swap: 'M8 1h1v1H8zM9 2h1v1H9zM1 3h10v1H1zM9 4h1v1H9zM8 5h1v1H8zM3 6h1v1H3zM2 7h1v1H2zM1 8h10v1H1zM2 9h1v1H2zM3 10h1v1H3z'
+  };
+  function pxIco(k, cls) {
+    var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), p = document.createElementNS(NS, 'path');
+    svg.setAttribute('viewBox', '0 0 12 12'); svg.setAttribute('width', '24'); svg.setAttribute('height', '24'); svg.setAttribute('fill', 'currentColor'); svg.setAttribute('shape-rendering', 'crispEdges');
+    svg.setAttribute('class', 'px-ico' + (cls ? ' ' + cls : '')); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false');
+    p.setAttribute('d', PX_ICO[k] || ''); svg.appendChild(p); return svg;
+  }
+  /* 조개 그림 (게임의 조개 기념품 그림) + 수 — 읽어 주기는 '조개 N' 그대로 (그림이 안 오면 수만 남는다) */
+  function shellAmt(n, cls) { return h('span', { class: 'shell-amt' + (cls ? ' ' + cls : '') }, [ico('souvenir/shell', 'shell-ico'), h('span', { class: 'sr-only', text: '조개 ' }), h('span', { class: 'shell-n', text: String(n) })].filter(Boolean)); }
   function icoH(path, cls) { return window.UIART && UIART.iconHTML ? UIART.iconHTML(path, 'ua-both' + (cls ? ' ' + cls : '')) : ''; }
   /* 기억 코너 아이콘 (icon.memory.<코너>): 방 정류장은 그 방의 코너, 바깥 주소(url)는 문 그림, 그 밖(위키 · 모르는 곳)은 들판 */
   var CORNER_ICONS = { hands: 1, sea: 1, sky: 1, signs: 1, numbers: 1, sounds: 1, home: 1, mind: 1, wild: 1 };
@@ -171,7 +185,7 @@ var APP = (function () {
     clearTimeout(rowTimer); rowWait = null; toastRow = false; t.classList.remove('row');   /* 보통 알림이 새 줄 알림을 밀어낸다 (거꾸로는 아니다 — rowToast) */
     var moved = raiseToast(t);
     if (moved && !t.classList.contains('show')) void t.offsetWidth;   /* 옮긴 직후에도 나타나는 전환이 돌게 */
-    t.textContent = ''; partRaw(msg, raw && raw.part, raw && raw.by).forEach(function (n) { t.appendChild(n); }); toastPlace(t); t.classList.add('show');
+    t.textContent = ''; partRaw(msg, raw && raw.part, raw && raw.by).forEach(function (n) { t.appendChild(n); }); toastPlace(t); t.classList.add('show'); if (window.UIART && UIART.snapLeft) UIART.snapLeft(t);   /* 11-15 (UI 점검): 글 시작을 기기 px 에 */
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2500);
   }
   /* 모달 <dialog> 가 열려 있으면 그 밖은 inert 라 토스트가 대화상자 밑에 깔리고 화면 낭독기에도 안 읽힌다 (복사·저장·불러오기 결과).
@@ -557,7 +571,6 @@ var APP = (function () {
         playerInput: function (allowed) { stickShow(allowed); },
         /* 11-10 인테리어 v0: 가구를 꾹 눌러 옮기면 자리를 저장 (S.room.layout) · 소파 위 노란 점 = 앉기 */
         furnEdit: function (stt) { furnUI(stt); },   /* 11-15 가구 모드: 열림 · 고름 · 끌기 · 바뀜 · 끝(null) */
-        furnSel: function (r) { furnRow(r); },   /* 고른 가구의 화면 상자 (바뀔 때만) → 단추 줄 자리 */
         furnSave: function (d) { furnSaved(d); },   /* 저장하기로 닫힘 — 바뀐 가구만 적는다 (11-12 검증 C12: 그대로면 '옮겨 놓기' 가 아니다) */
         sofaSpot: function (p) { var b = $('btn-sofa'); if (!b) return; if (!p) { b.hidden = true; return; } b.style.left = (p.x - 22) + 'px'; b.style.top = (p.y - 22) + 'px'; b.hidden = false; },
         playerDoor: function (to) { if (!roomJob && !busyRoomWalk()) goRoom(to === 'attic' ? 'attic' : to === 'loft' ? 'loft' : to === 'yard' ? 'yard' : 'play', $(to === 'attic' ? (roomNow() === 'loft' ? 'btn-loft-stair' : roomNow() === 'yard' ? 'btn-yard-door' : 'btn-play-door') : to === 'loft' ? 'btn-stair' : to === 'yard' ? 'btn-yard' : 'btn-door'), false); },   /* 문에 닿은 채 걸어 들어감 (장면이 한 번만 쏜다) */   /* 11-08 움직이기: 내 캐릭터를 움직일 수 있는 때가 바뀐 프레임 (바뀔 때만 온다) → 발자국 손잡이 hidden */
@@ -687,7 +700,7 @@ var APP = (function () {
     var moved = raiseToast(t); if (moved && !t.classList.contains('show')) void t.offsetWidth;
     t.textContent = ''; t.classList.add('row');
     if (src) { var ic = src.cloneNode(true); ic.setAttribute('class', 't-ico'); ic.setAttribute('width', '16'); ic.setAttribute('height', '16'); ic.setAttribute('aria-hidden', 'true'); t.appendChild(ic); }
-    t.appendChild(body); toastRow = true; toastPlace(t); t.classList.add('show');
+    t.appendChild(body); toastRow = true; toastPlace(t); t.classList.add('show'); if (window.UIART && UIART.snapLeft) UIART.snapLeft(t);   /* 11-15 (UI 점검): 글 시작을 기기 px 에 */
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); toastRow = false; }, 2500);
   }
   /* 알림 자리: 기본은 바닥 줄 바로 위(--stack-b). 떠 있는 대사 · '돌아왔어' 쪽지와 겹치면 그 위로 올린다 (--toast-b).
@@ -1173,7 +1186,8 @@ var APP = (function () {
     oct.state = st;
     updateSceneDesc();
     var lbl = $('oct-label');
-    if (lbl) lbl.textContent = st === 'sleep' ? SLEEP_LABEL : st === 'away' ? '' : st === 'anticipate' ? '출발 중…' : '';   /* 이름표는 글자만 (예전 💤 는 뺐다) */
+    if (lbl) { lbl.textContent = st === 'sleep' ? SLEEP_LABEL : st === 'away' ? '' : st === 'anticipate' ? '출발 중…' : '';   /* 이름표는 글자만 (예전 💤 는 뺐다) */
+      if (lbl.textContent && window.UIART && UIART.snapLeft) UIART.snapLeft(lbl); }
     if (st === 'sleep') scheduleDreamLabel();
     if (!quiet && window.UIART) UIART.onState(st);   /* zzz · 출발 먹물 (js/ui-art.js) */
     /* 소리: 움츠림·나감·잠 (js/audio.js). 잠들 때는 방금 끝낸 차례의 반응을 같이 (D-1: 자장가는 밤이거나 '졸림' 일 때만 — 고르는 건 audio.js).
@@ -2585,18 +2599,19 @@ var APP = (function () {
       s += '<rect x="' + sx + '" y="' + (sy + sh + hgt * 0.17) + '" width="' + (sw * 0.55) + '" height="' + (hgt * 0.05) + '" fill="#5f5849" opacity=".5"/></svg>';
       return s;
     }
+    /* 11-15 (주인 답 a): opts.noText = 한 줄 · 날짜 글을 그리지 않는다 (크게 보기 앞면 · 앨범 작은 카드 — 아래 큰 글이 원문 그대로 있어 같은 줄이 두 번 나왔고, 작은 카드 글은 못 읽을 만큼 작았다). 자리 계산은 그대로라 들른 곳 줄은 같은 자리. 저장 PNG · 벽 포스터는 글 그대로 */
     /* 한 줄 (Noto Serif KR 600, ≤2줄) — 픽셀 테마에서도 세리프: 카드 크기에 따라 w×0.058 로 비례하는 글자라 픽셀 글꼴은 정수 배가 안 된다 (손글씨 느낌 유지) */
     var lf = w * (note ? 0.062 : 0.058), lines = wrapLine(p.line || '', Math.floor(sw / (lf * 0.95)), 3);
     if (lines.length === 3) { lf *= 0.9; lines = wrapLine(p.line || '', Math.floor(sw / (lf * 0.95)), 3); }
     var ly = sy + sh + lf * 1.6;
     /* 모델·사람이 쓴 한 줄은 줄째 그대로 · 두뇌가 지은 줄은 그 속 정류장 이름(위키 제목 · 모델이 준 제목)만 <tspan data-raw> */
     var lb = lineBy(trip), rp = lb ? { part: '', by: null } : remPart(trip), lineRaw = lb ? ' data-raw="' + lb + '"' : '', lineH = svgLinesH(p.line || '', lines, rp.part, rp.by);
-    lines.forEach(function (ln, i) { s += '<text x="' + (w / 2) + '" y="' + (ly + i * lf * 1.5).toFixed(1) + '" text-anchor="middle" font-family="Noto Serif KR, serif" font-weight="600" font-size="' + lf.toFixed(1) + '" fill="#2a2620"' + lineRaw + '>' + (lb ? esc(ln) : lineH[i]) + '</text>'; });
+    if (!opts.noText) lines.forEach(function (ln, i) { s += '<text x="' + (w / 2) + '" y="' + (ly + i * lf * 1.5).toFixed(1) + '" text-anchor="middle" font-family="Noto Serif KR, serif" font-weight="600" font-size="' + lf.toFixed(1) + '" fill="#2a2620"' + lineRaw + '>' + (lb ? esc(ln) : lineH[i]) + '</text>'; });
     /* 들른 곳 줄: 한 줄 글과 날짜 사이 빈 곳에 그날 들른 정류장 그림을 순서대로 (일기의 정류장 그대로, js/poster-art.js) */
     if (window.POSTER_ART && POSTER_ART.trailSvg) { var tTop = ly + Math.max(0, lines.length - 1) * lf * 1.5 + lf * 0.4, tBot = hgt - m * 1.1 - w * 0.04; s += POSTER_ART.trailSvg(trip, sx, tTop, sw, tBot - tTop); }
     /* 날짜 · N번째 */
     var ord = tripOrdinal(trip), meta = fmtDate(trip.date, true) + (ord ? ' · ' + ord + '번째 뽈뽈' : note ? ' · 오늘은 집' : '');
-    s += '<text x="' + (w / 2) + '" y="' + (hgt - m * 1.1).toFixed(1) + '" text-anchor="middle" font-family="Noto Sans KR, sans-serif" font-size="' + (w * 0.036).toFixed(1) + '" fill="#5f5849">' + esc(meta) + '</text>';
+    if (!opts.noText) s += '<text x="' + (w / 2) + '" y="' + (hgt - m * 1.1).toFixed(1) + '" text-anchor="middle" font-family="Noto Sans KR, sans-serif" font-size="' + (w * 0.036).toFixed(1) + '" fill="#5f5849">' + esc(meta) + '</text>';
     /* 테이프 / 핀 */
     if (S.room.lantern >= 5) s += '<circle cx="' + (w / 2) + '" cy="' + (m * 0.7) + '" r="' + (w * 0.022) + '" fill="#b8402c"/><circle cx="' + (w / 2 - w * 0.006) + '" cy="' + (m * 0.7 - w * 0.006) + '" r="' + (w * 0.008) + '" fill="#fff" opacity=".7"/>';
     else s += '<rect x="' + (w / 2 - w * 0.09) + '" y="' + (-m * 0.1) + '" width="' + (w * 0.18) + '" height="' + (m * 0.75) + '" fill="#fff" opacity=".45" transform="rotate(-4 ' + (w / 2) + ' ' + (m * 0.3) + ')"/>';
@@ -2816,7 +2831,7 @@ var APP = (function () {
       var g = h('div', { class: 'aday' }, [h('span', { class: 'adate', text: fmtDate(d) })]);
       byDay[d].forEach(function (t) {
         var note = t.poster.type === 'note', isNew = !!albumFresh[t.id] || (t.id === lastNewPoster && albumOpen());   /* 올라오는 카드: 앨범을 열 때 지난번 뒤로 붙은 것 · 열려 있는 동안 막 붙은 것 */
-        var c = h('button', { type: 'button', class: 'pcard' + (note ? ' note' : '') + (isNew ? ' in' : '') + (newest && t.id === newest.id ? ' newest' : ''), 'data-trip': t.id, 'aria-label': (t.poster.title || '포스터') + ' · ' + (t.poster.line || ''), 'data-raw-attr': rawBy(t) || posterTitleRaw(t) ? 'aria-label' : null, html: note ? posterSVG(t, 84, 112) : posterSVG(t, 108, 144) });   /* 이름표에 모델·사람이 쓴 한 줄 (그대로) */
+        var c = h('button', { type: 'button', class: 'pcard' + (note ? ' note' : '') + (isNew ? ' in' : '') + (newest && t.id === newest.id ? ' newest' : ''), 'data-trip': t.id, 'aria-label': (t.poster.title || '포스터') + ' · ' + (t.poster.line || ''), 'data-raw-attr': rawBy(t) || posterTitleRaw(t) ? 'aria-label' : null, html: note ? posterSVG(t, 84, 112, { noText: true }) : posterSVG(t, 108, 144, { noText: true }) });   /* 이름표에 모델·사람이 쓴 한 줄 (그대로) */
         if (isNew) c.style.setProperty('--rot', ((mkRng(t.seed >>> 0)() * 6) - 3).toFixed(1) + 'deg');   /* 최종 각도 ±3° (GF R15) */
         c.addEventListener('click', function () { openPoster(t.id); });
         g.appendChild(c);
@@ -3019,7 +3034,7 @@ var APP = (function () {
     var t = tripById(tripId); if (!t || !t.poster) return;
     openTripId = tripId;
     var dlg = $('poster-dialog'), fl = $('flipper');
-    $('pd-front').innerHTML = posterSVG(t, 300, 400);
+    $('pd-front').innerHTML = posterSVG(t, 300, 400, { noText: true });   /* 11-15: 포스터 위 글은 빼고 아래 큰 글 (.lead, 원문 그대로) 만 */
     $('pd-text').innerHTML = inspectHTML(t);
     $('pd-back').innerHTML = receiptHTML(t);
     fl.classList.toggle('note', t.poster.type === 'note');
@@ -3408,7 +3423,7 @@ var APP = (function () {
     if (sceneMode === '3d' && scene && typeof scene.playerPortrait === 'function') { port = h('canvas', { class: 'pl-port', id: 'set-pl-port', width: '64', height: '64', role: 'img', 'aria-label': '내 모습 미리보기' }); head.appendChild(port); }
     frag.appendChild(head);
     if (sceneMode !== '3d') frag.appendChild(h('p', { class: 'help set-parts-note', id: 'set-parts-note', text: '2D 장면엔 미리보기가 없어. 고른 건 저장돼.' }));
-    var sum = h('span', { id: 'set-look-sum' }), open = h('button', { type: 'button', class: 'btn sm pressable', id: 'set-look-open', 'aria-haspopup': 'dialog', text: '모습 바꾸기' });
+    var sum = h('span', { id: 'set-look-sum', class: 'sr-only' }), open = h('button', { type: 'button', class: 'btn sm pressable', id: 'set-look-open', 'aria-haspopup': 'dialog', text: '모습 바꾸기' });
     open.addEventListener('click', openLook);
     frag.appendChild(h('div', { class: 'set set-look' }, [sum, open]));
     function drawPort() {   /* 장면 초상은 캐시라 첫 장만 느리다 (≈ 문어 portrait). 못 그리면 캔버스를 치운다 (빈 네모를 두지 않는다) */
@@ -3419,7 +3434,7 @@ var APP = (function () {
         catch (e) { console.warn('[app] playerPortrait', e); if (port.parentNode) port.remove(); port = null; }
       });
     }
-    LOOK.onChange = function () { sum.textContent = lookSummary(); drawPort(); };   /* 옷장이 닫힐 때도 부른다 (bind 의 close) */
+    LOOK.onChange = function () { var t = lookSummary(); sum.textContent = t; if (port) port.setAttribute('aria-label', '내 모습 미리보기' + (t ? ': ' + t : '')); drawPort(); };   /* 11-15 (주인 답): 보이는 한마디 '단발 · 원피스 · 리본' 은 뺐다 (초상이 보여 준다) — 읽어 주기에는 남김 */   /* 옷장이 닫힐 때도 부른다 (bind 의 close) */
     LOOK.onChange();
   }
   /* 내 모습 옷장 (#look-sheet · docs/PLAYER_PARTS.md §3): 왼쪽 갈래 탭 여섯(tablist — 화살표 · Home · End, 고르면 바로 바뀐다) · 가운데 물건 타일(tabpanel) · 오른쪽 전신 미리보기(앞 · 뒤).
@@ -3790,16 +3805,51 @@ var APP = (function () {
   var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door', loft: 'btn-loft-stair', yard: 'btn-yard-door' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
   var furnHinted = false;   /* 첫 안내 한 줄은 이 창에서 처음 연 모드에만 (고르거나 끌면 걷힌다) */
   /* 11-15 가구 모드 (주인: "아예 가구 모드로 들어가서 문어나 캐릭터 없애고 가구만 딱딱 바꿀 수 있게"): 망치 단추 → 장면 furnMode. 문어 · 캐릭터 · 스틱 · 큰 버튼 · 방 단추가 숨고,
-     위에 '취소' · '가구 옮기기' · '저장하기', 고른 가구 밑에 '돌리기' '작게' '크게' (장면이 on.furnSel 로 화면 자리를 준다), 아래엔 가구 줄 (톡 = 고르기 — 다른 가구 밑에 깔린 담요 · 키보드용).
+     위 양쪽 구석에 그림 단추 X (취소) · 체크 (저장하기), 아래 한 판에 돌리기 · 작게 · 크기 눈금 · 크게 + 가구 줄 (톡 = 고르기 — 다른 가구 밑에 깔린 담요 · 키보드용).
      저장하기 = 바뀐 가구만 S.room.layout[id] = [x, z, rot, scale] (예전과 같은 모양 · 안 건드린 가구의 저장값은 그대로). 다락에서만 · 모드 중엔 방을 못 옮긴다 */
   var furnMode = false;
   function furnOpen(on) {   /* 망치 단추: 열기 · (열려 있으면) 저장하고 닫기 → 지금 모드인가 */
     if (!scene || typeof scene.furnMode !== 'function' || sceneMode !== '3d') return false;
     if (!on) { if (furnMode && scene.furnSave) scene.furnSave(); return furnMode; }
     if (furnMode) return true;
-    var ok = !inPlay() && !roomJob && !introUp() && !salonActive && !salonRun && scene.furnMode(true);
-    if (!ok) furnShake($('btn-furn'));   /* 다락이 아니거나 연출 중: 글 없이 살짝 흔들림 */
+    var ok = !inPlay() && !roomJob && !introUp() && !salonActive && !salonRun && scene.furnMode(true, furnInsets());
+    if (!ok) furnShake($('btn-furn'));
+    else furnHand();   /* 다락이 아니거나 연출 중: 글 없이 살짝 흔들림 */
     return !!ok;
+  }
+  function furnInsets() {   /* 11-15 (UI 점검): 위 단추 · 아래 한 판이 덮는 장면 높이 (CSS px) — 장면이 다락 바닥을 그 사이 가운데에 맞춘다 (furnFit). 판을 안 보이게 펴서 잰다 */
+    var ui = $('furn-ui'), sc = $('scene'), top = $('furn-top'), bot = $('furn-bottom'); if (!ui || !sc || !top || !bot) return undefined;
+    var was = ui.hidden, root = document.documentElement, had = root.classList.contains('furn-on');
+    if (scene && scene.furnItems) furnTiles(scene.furnItems(), null);   /* 가구 줄 높이까지 재려고 칸을 미리 채운다 */
+    ui.style.visibility = 'hidden'; ui.hidden = false; root.classList.add('furn-on');
+    var sr = sc.getBoundingClientRect(), out = { top: Math.round(top.getBoundingClientRect().bottom - sr.top + 8), bottom: Math.round(sr.bottom - bot.getBoundingClientRect().top + 8) };
+    ui.hidden = was; ui.style.visibility = ''; if (!had) root.classList.remove('furn-on');
+    return out;
+  }
+  var furnHandT = 0;
+  function furnHand() {   /* 11-15 (주인 답): 처음 한 번 안내 '가구를 끌어서 옮겨' 대신 손 그림이 소파 위에서 누르고 오른쪽으로 끈다 (2 s · 읽어 주기 글은 sr-only 그대로) */
+    var h = $('furn-hand'), ui = $('furn-ui'); if (!h || !ui) return;
+    clearTimeout(furnHandT); h.hidden = true;
+    if (furnHinted || !scene || !scene.furnRectOf) return;
+    var r = scene.furnRectOf('sofa') || scene.furnRectOf('crate'); if (!r) return;
+    var cv = document.querySelector('#scene3d canvas'), cr = cv ? cv.getBoundingClientRect() : null, ur = ui.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    var ox = cr ? cr.left - ur.left : 0, oy = cr ? cr.top - ur.top : 0;
+    var x = ox + (r.l + r.r) / 2 - 16, y = oy + (r.t + r.b) / 2 - 4;
+    h.style.left = Math.round(x * d) / d + 'px'; h.style.top = Math.round(y * d) / d + 'px';   /* 기기 px 에 맞춰 (그림 점이 번지지 않게) */
+    h.hidden = false; h.style.animation = 'none'; void h.offsetWidth; h.style.animation = '';
+    furnHandT = setTimeout(function () { h.hidden = true; }, 2000);
+  }
+  function furnTiles(items, selId) {   /* 아래 가구 줄 칸 (그림만 · 이름은 aria-label) */
+    var box = $('furn-items'); if (!box) return; box.textContent = '';
+    (items || []).forEach(function (it) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'furn-tile pressable' + (it.id === selId ? ' on' : ''); b.setAttribute('aria-pressed', it.id === selId ? 'true' : 'false');
+      b.setAttribute('aria-label', it.name);   /* 11-15 5차: 글자 없이 그림만 — 이름은 읽어 주기로 */
+      var ico = furnIcon(it.id);
+      if (ico) b.appendChild(ico);
+      else { var nm = document.createElement('span'); nm.className = 'furn-nm'; nm.textContent = it.name; b.appendChild(nm); }   /* 그림이 없는 새 가구만 이름 글자 */
+      b.addEventListener('click', function () { if (scene && scene.furnSelect) scene.furnSelect(it.id); });
+      box.appendChild(b);
+    });
   }
   function furnShake(b) { if (!b) return; b.classList.remove('furn-no'); void b.offsetWidth; b.classList.add('furn-no'); setTimeout(function () { b.classList.remove('furn-no'); }, 320); }
   /* 11-15 5차 (주인: "소파 상자 담요 구체적으로 아이콘 그려서 글자 없이도 알아볼 수 있게 해주고 글자 지워줘"): 가구 줄 그림 17×13 아트 px.
@@ -3833,34 +3883,19 @@ var APP = (function () {
     document.documentElement.classList.toggle('furn-on', on);
     syncSalonSpot();   /* 미용실 거울 단추: 가구 모드 중엔 숨김 · 끝나면 다시 */
     ui.hidden = !on; var fb = $('btn-furn'); if (fb) fb.setAttribute('aria-pressed', on ? 'true' : 'false');
-    if (!on) { furnRow(null); return; }
+    if (!on) { var hh = $('furn-hand'); if (hh) hh.hidden = true; clearTimeout(furnHandT); return; }
     var hint = $('furn-hint');
-    if (stt.id || stt.dragging) furnHinted = true;
+    if (stt.id || stt.dragging) { furnHinted = true; var hd = $('furn-hand'); if (hd) hd.hidden = true; }
     if (hint) hint.hidden = furnHinted;
-    var box = $('furn-items'), items = stt.items || []; box.textContent = '';
-    items.forEach(function (it) {
-      var b = document.createElement('button'); b.type = 'button'; b.className = 'furn-tile pressable' + (it.id === stt.id ? ' on' : ''); b.setAttribute('aria-pressed', it.id === stt.id ? 'true' : 'false');
-      b.setAttribute('aria-label', it.name);   /* 11-15 5차: 글자 없이 그림만 — 이름은 읽어 주기로 */
-      var ico = furnIcon(it.id);
-      if (ico) b.appendChild(ico);
-      else { var nm = document.createElement('span'); nm.className = 'furn-nm'; nm.textContent = it.name; b.appendChild(nm); }   /* 그림이 없는 새 가구만 이름 글자 */
-      b.addEventListener('click', function () { if (scene && scene.furnSelect) scene.furnSelect(it.id); });
-      box.appendChild(b);
-    });
-    var row = $('furn-row');
-    if (row && stt.id) { $('furn-small').disabled = stt.scale <= 0.7 + 1e-6; $('furn-big').disabled = stt.scale >= 1.5 - 1e-6; row.setAttribute('aria-label', stt.name + ' 바꾸기'); }
-    if (!stt.id || stt.dragging) furnRow(null);
-  }
-  function furnRow(r) {   /* 고른 가구의 그림 단추 줄 (돌리기 · 작게 · 크게) — r = 장면 화면 상자 | null (고른 것 없음 · 끄는 중이면 숨김).
-                             11-15 5차 (주인: "띡 화면 중앙에 박힌 거 너무 이상해" → '아래 고정 그림 단추'): 가구를 따라다니지 않고 늘 아래 가구 줄 바로 위 가운데.
-                             (예전: 고른 가구 밑 · 위 · 옆에 떠서 화면 가운데에 걸렸다) */
-    var row = $('furn-row'), ui = $('furn-ui'); if (!row || !ui) return;
-    if (!r || !furnMode) { row.hidden = true; return; }
-    row.hidden = false;
-    var W = ui.clientWidth, H = ui.clientHeight, w = row.offsetWidth, h = row.offsetHeight, strip = $('furn-items');
-    var sh = strip && !strip.hidden ? strip.offsetHeight : 0;
-    row.style.left = Math.round(Math.max(8, (W - w) / 2)) + 'px';
-    row.style.top = Math.round(Math.max(8, H - sh - 8 - h)) + 'px';
+    furnTiles(stt.items, stt.id);
+    /* 11-15 (주인 답 a): 아래 한 판 — 고른 것이 없으면 단추 셋 꺼짐 · 눈금 빈 칸 (줄은 그대로라 방이 안 들썩인다). 고르면 끝 칸에서 작게 · 크게 꺼짐 · 눈금은 지금 단계까지 */
+    var sel = !!stt.id, sc = +stt.scale || 1, step = sel ? Math.max(0, Math.min(8, Math.round((sc - 0.7) * 10))) : -1;
+    var tb = $('furn-turn'), sm = $('furn-small'), bg = $('furn-big'), mt = $('furn-meter'), bar = $('furn-bar');
+    if (tb) tb.disabled = !sel;
+    if (sm) sm.disabled = !sel || sc <= 0.7 + 1e-6;
+    if (bg) bg.disabled = !sel || sc >= 1.5 - 1e-6;
+    if (mt) { Array.prototype.forEach.call(mt.children, function (i, k) { i.classList.toggle('on', k <= step); }); mt.setAttribute('aria-label', sel ? '크기 9단계 중 ' + (step + 1) : '크기'); mt.setAttribute('data-step', sel ? String(step + 1) : '0'); }
+    if (bar) bar.setAttribute('aria-label', sel ? stt.name + ' 바꾸기' : '가구 바꾸기');
   }
   function furnSaved(d) {   /* 장면이 저장하기로 닫힘 (단추 · 망치 · 문어 출발/귀가) → 바뀐 가구만 적는다 */
     if (!d || !d.layout) return;
@@ -3893,7 +3928,6 @@ var APP = (function () {
       else if (e.key === '-' || e.key === '_') { e.preventDefault(); furnAct('small'); }
       else if (e.key === 'Escape') { e.preventDefault(); if (scene.furnCancel) scene.furnCancel(); }
     });
-    window.addEventListener('resize', function () { if (furnMode && scene && scene.furnSelRect) furnRow(scene.furnSelRect()); });
   }
   var roomJob = null;   /* 지금 도는 문 작업 (Promise) — 끝날 때까지 두 번째 문은 열지 않는다 */
   function sceneView() { return scene && typeof scene.view === 'function' ? scene.view() : (scene && typeof scene.place === 'function' ? scene.place() : 'attic'); }
@@ -4185,8 +4219,10 @@ var APP = (function () {
     var sh = layoutOne() && $('shell') ? $('shell').getBoundingClientRect() : hr, lo = sh.left + 16 - hr.left, hi = sh.right - 16 - w - hr.left;   /* 한 화면 배치에선 상태 줄이 좁은 쪽지라 화면(#shell) 폭 안에서 맞춘다 */
     var left = Math.round(clamp(cx - w / 2, lo, Math.max(lo, hi)));   /* 상태 줄 바깥 상자 기준 (테두리 포함) */
     t.style.left = (left - host.clientLeft) + 'px'; t.style.setProperty('--tip-x', Math.round(clamp(cx - left, 10, Math.max(10, w - 10))) + 'px');   /* left 는 테두리 안쪽(패딩 상자) 기준이라 테두리 폭만큼 뺀다 */
-    t.style.top = ar.bottom > hr.bottom ? Math.round(ar.bottom - hr.top - host.clientTop + 8) + 'px' : '';   /* 좁은 폰에선 '데모' 꼬리표가 바 아래에 매달려 있다 — 말풍선이 제 꼬리표를 덮지 않게 그 밑으로 (보통은 css 의 바 밑 4px) */
-    t.classList.add('show'); anchor.setAttribute('aria-expanded', 'true');
+    /* 좁은 폰에선 '데모' 꼬리표가 바 아래에 매달려 있다 — 쪽지가 그 꼬리표 (정직 표시 · 늘 보여야 한다) 와 누른 단추를 덮지 않게 둘 다의 밑으로 (보통은 css 의 바 밑 4px) — 11-15 (UI 점검): 등불 쪽지가 '데모' 를 덮었다 */
+    var bt = $('brain-tag'), bb = bt && !bt.hidden ? bt.getBoundingClientRect() : null, below = Math.max(ar.bottom, bb && bb.height && bb.top >= hr.bottom - 1 ? bb.bottom : 0);
+    t.style.top = below > hr.bottom ? Math.round(below - hr.top - host.clientTop + 8) + 'px' : '';
+    t.classList.add('show'); if (window.UIART && UIART.snapLeft) UIART.snapLeft(t); anchor.setAttribute('aria-expanded', 'true');
     tipTimer = setTimeout(hideTip, TIP_MS);   /* 읽는 시간이라 --speed(개발용 느리게)와 상관없이 2.5 s */
   }
   /* 닫을 때 자리도 비운다: 가로 화면에서 정한 left 가 남으면 세로로 돌렸을 때 빈 말풍선이 화면 밖으로 나가 옆으로 밀린다 */
@@ -4595,23 +4631,27 @@ var APP = (function () {
   function renderWeek(frag) {
     var w = weekState(), done = weekDoneN(w);
     frag.appendChild(h('h3', { text: '이번 주 할 일' }));
-    frag.appendChild(h('p', { class: 'set-note', text: '일곱 가지 중 다섯을 하면 선물이 있어 (' + Math.min(done, WEEK_NEED) + '/' + WEEK_NEED + '). 주마다 바뀌고, 못 해도 잃는 건 없어.' }));
+    var dn = Math.min(done, WEEK_NEED), pips = h('span', { class: 'week-pips', role: 'img', 'aria-label': '주간 선물까지 ' + dn + '/' + WEEK_NEED });   /* 11-15 (주인 답): 긴 쪽지 → '다섯 개 하면 선물' + 다섯 칸 (등불 칸 모양) */
+    for (var pi = 0; pi < WEEK_NEED; pi++) pips.appendChild(h('i', { class: pi < dn ? 'on' : '' }));
+    frag.appendChild(h('p', { class: 'set-note week-goal' }, [h('span', { text: '다섯 개 하면 선물' }), pips]));
     /* 11-12 (검증 F5 · F20): 받기 단추는 쪽지 바로 아래 (목록 뒤면 360x740 에서 화면 밖이었다) — 받은 뒤엔 '받았어' 줄이 그 자리. 수량은 한 덩어리로 (320 px 에서 '(조개 / 12' 로 끊기지 않게) */
     if (w.claimed) frag.appendChild(h('p', { class: 'set-note', id: 'week-got', tabindex: '-1', text: '이번 주 선물은 받았어.' }));
-    else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim' }, ['주간 선물 받기 ', h('span', { class: 'nobr', text: '(조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds + ')' })]); c.addEventListener('click', weekClaim); frag.appendChild(c); }
+    else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim' }, ['주간 선물 받기 ', h('span', { class: 'nobr' }, [shellAmt(WEEK_GIFT.shells), h('span', { text: ' · 씨앗 ' + WEEK_GIFT.seeds })])]); c.addEventListener('click', weekClaim); frag.appendChild(c); }
     if (keptOf(w).length) frag.appendChild(h('p', { class: 'set-note', id: 'week-kept', text: '목록에서 빠진 일도 이번 주엔 한 걸로 셌어.' }));   /* 11-12 (OW-1): 다 한 줄이 넷인데 (5/5) 인 까닭. 11-13: 뺀 일이 둘 (사흘 · 선물 상자) — 어느 쪽이든 맞는 말 */
     if (isObj(w.prev)) frag.appendChild(h('p', { class: 'set-note', id: 'week-prev', text: prevWord(w) + ' 살림에 넣어 뒀어 (조개 ' + (w.prev.shells | 0) + ' · 씨앗 ' + (w.prev.seeds | 0) + ').' }));   /* 11-11 (검증 W1): 주가 바뀔 때 넣어 준 선물 — 그 주 동안 */
     var list = h('ul', { class: 'week-list' });
     w.q.forEach(function (x, i) {
       var q = questOf(x.id), n = Math.min(questN(x), q[2]), ok = n >= q[2], left = WEEK_REROLL - (x.rr | 0);
-      var li = h('li', { class: 'week-row' + (ok ? ' done' : '') }, [h('span', { class: 'week-txt', tabindex: '-1', text: q[1] }), h('span', { class: 'week-n', text: ok ? '했어' : n + '/' + q[2] })]);
-      if (!ok && !w.claimed && left > 0 && weekSwapTo(w, i)) { var b = h('button', { type: 'button', class: 'fchip week-rr', text: '바꾸기 ' + left, 'aria-label': q[1] + ' 다른 일로 바꾸기 (' + left + '번 남음)' }); b.addEventListener('click', function () { weekReroll(i); }); li.appendChild(b); }
+      /* 11-15 (주인 답): 다 함 = 체크 그림 (읽어 주기 '했어') · 한 번짜리 아직 = 빈 네모 (읽어 주기 '0/1') · 여러 번짜리는 숫자 그대로 · '바꾸기 n' = 바꾸기 그림 + n */
+      var wn = ok ? h('span', { class: 'week-n week-ico' }, [pxIco('check'), h('span', { class: 'sr-only', text: '했어' })]) : q[2] === 1 ? h('span', { class: 'week-n week-ico' }, [pxIco('box'), h('span', { class: 'sr-only', text: n + '/' + q[2] })]) : h('span', { class: 'week-n', text: n + '/' + q[2] });
+      var li = h('li', { class: 'week-row' + (ok ? ' done' : '') }, [h('span', { class: 'week-txt', tabindex: '-1', text: q[1] }), wn]);
+      if (!ok && !w.claimed && left > 0 && weekSwapTo(w, i)) { var b = h('button', { type: 'button', class: 'fchip week-rr', 'aria-label': q[1] + ' 다른 일로 바꾸기 (' + left + '번 남음)' }, [pxIco('swap'), h('span', { class: 'week-rr-n', text: String(left) })]); b.addEventListener('click', function () { weekReroll(i); }); li.appendChild(b); }
       list.appendChild(li);
     });
     frag.appendChild(list);
   }
   function renderBagChip() {   /* 주 먼저 (11-11): 주가 바뀌며 넣은 지난주 선물이 조개 수에 바로 보이게. 11-12 (검증 W8 · F5): 받을 선물이 있으면 이름에도 (점은 눈에만 보인다) */
-    var b = $('btn-bag'); if (!b) return; var u = userState(), w = S.octopus.name ? weekState() : null, gift = !!w && !w.claimed && weekDoneN(w) >= WEEK_NEED; b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = '조개 ' + u.shells;
+    var b = $('btn-bag'); if (!b) return; var u = userState(), w = S.octopus.name ? weekState() : null, gift = !!w && !w.claimed && weekDoneN(w) >= WEEK_NEED; b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = String(u.shells);   /* 11-15 (주인 답): 조개 그림 (index.html) + 수 */
     if (w) b.classList.toggle('has-gift', gift); b.setAttribute('aria-label', '살림, 조개 ' + u.shells + (gift ? ', 주간 선물이 있어' : ''));
     plotLabels();   /* 11-13: 바깥 밭 단추 이름도 — 씨앗 · 밭 · 날이 바뀌는 길(오늘 선물 · 주간 선물 · 다른 탭 · 불러오기 · 초기화)이 다 여기를 지난다 (포커스 없이 훑는 화면 낭독기) */
   }
@@ -4690,12 +4730,13 @@ var APP = (function () {
   function renderSew() {
     var body = $('sew-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment();
     var d0 = body.querySelector('details.sew-sets'); if (d0) sewSetsOpen = d0.open;   /* 11-15: 펼친 채 다시 그리기 (toggle 은 늦게 온다) */
-    frag.appendChild(h('p', { class: 'bag-line', text: '조개 ' + u.shells }));
-    frag.appendChild(h('p', { class: 'set-note', text: '염료나 조개 ' + DYE_COST + '개로 옷을 물들여' }));   /* 11-15: 세 줄 설명 → 한 줄 (주인: 재봉틀 창 글자 확 줄이기) */
+    frag.appendChild(h('p', { class: 'bag-line' }, [shellAmt(u.shells)]));   /* 11-15 (주인 답): 조개 그림 + 수 · 설명 쪽지 '염료나 조개 6개로 옷을 물들여' 는 뺐다 (칸마다 값이 그림으로 있다) */
     var row = h('div', { class: 'sew-grid', role: 'group', 'aria-label': '옷 색' });
     DYES.forEach(function (d) {
       var own = u.dyes[d[0]] | 0, cur = u.dye === d[2];
-      var b = h('button', { type: 'button', class: 'sew-chip pressable' + (cur ? ' on' : ''), 'aria-pressed': cur ? 'true' : 'false' }, [h('span', { class: 'sew-sw', 'aria-hidden': 'true' }), h('span', { class: 'sew-name', text: d[1] }), h('span', { class: 'sew-cost', text: cur ? '입는 중' : own ? '염료 ' + own : '조개 ' + DYE_COST })]);
+      /* 11-15 (주인 답): 칸 = 색 덩어리 (칸 폭 · 40px) + 색 이름 (색을 잘 못 가리는 사람 몫). 덩어리 위 표: 입는 중 = 체크 · 염료가 있으면 그 수 · 없으면 조개 그림 + 6. 읽어 주기는 예전 글 그대로 */
+      var badge = cur ? [pxIco('check'), h('span', { class: 'sr-only', text: '입는 중' })] : own ? [h('span', { class: 'sr-only', text: '염료 ' }), h('span', { text: String(own) })] : [shellAmt(DYE_COST)];
+      var b = h('button', { type: 'button', class: 'sew-chip pressable' + (cur ? ' on' : ''), 'aria-pressed': cur ? 'true' : 'false' }, [h('span', { class: 'sew-sw' }, [h('span', { class: 'sew-cost' + (own && !cur ? ' own' : '') }, badge)]), h('span', { class: 'sew-name', text: d[1] })]);
       b.querySelector('.sew-sw').style.background = d[2];
       if (!cur) b.addEventListener('click', function () { sewDye(d[0]); });
       row.appendChild(b);
@@ -4721,8 +4762,8 @@ var APP = (function () {
   function renderBag() {
     var body = $('bag-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment(), dk = todayKey();
     weekState();   /* 11-11 (검증 W1): 주 먼저 — 이 톡이 주를 넘기며 지난주 선물을 넣으면 바로 아랫줄 조개 · 씨앗 수에 들어가 있게 */
-    frag.appendChild(h('p', { class: 'bag-line', text: '조개 ' + u.shells + ' · 씨앗 ' + u.seeds + ' · 들어온 날 ' + u.days.length + '일' }));
-    frag.appendChild(h('p', { class: 'set-note', text: '조개 · 씨앗은 달리기, 들어온 날 선물, 주간 선물로 생겨. 쉬어도 잃는 건 없어.' }));
+    frag.appendChild(h('p', { class: 'bag-line' }, [shellAmt(u.shells), h('span', { text: ' · 씨앗 ' + u.seeds + ' · 들어온 날 ' + u.days.length + '일' })]));
+    frag.appendChild(h('p', { class: 'set-note', text: '달리기 · 선물로 생겨. 쉬어도 잃는 건 없어.' }));   /* 11-15 (주인 답): 쪽지 짧게 */
     renderWeek(frag);
     frag.appendChild(h('h3', { text: '텃밭' }));
     if (!gardenHere()) frag.appendChild(h('p', { class: 'set-note', text: '텃밭은 마당에 있어.' }));   /* 11-15 주인: 밭은 마당에서만 — 여기엔 한 줄 */

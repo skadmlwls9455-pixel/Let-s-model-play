@@ -190,10 +190,22 @@ var UIART = (function () {
       shift = Math.round(e);
     } else shift = Math.round(shift);
     var need = Math.max(s.top + P + 2, topBand({ left: r.left + shift, right: r.right + shift }, P)) - r.top, dy = need > 0 ? (px ? Math.ceil(need / 2) * 2 : Math.ceil(need)) : 0;   /* +2 = 숨쉬기로 머리 자리가 1px 오르내려도 4px 안 */
-    if (shift) b.style.marginLeft = shift + 'px';
+    /* 11-15 (UI 점검): 글 첫 줄 시작 (테두리 + 안쪽 여백 안) 을 기기 px 에 맞춘다 — 가운데 정렬 풍선은 배율 2 에서 .47 · 2.625 에서 .56~.73 기기 px 에서 시작해 획마다 회색 테가 생겼다. 꼬리는 맞추기 전 shift 로 */
+    var dpr = window.devicePixelRatio || 1, bcs = getComputedStyle(b), cl = r.left + shift + (parseFloat(bcs.borderLeftWidth) || 0) + (parseFloat(bcs.paddingLeft) || 0), fx = Math.round(cl * dpr) / dpr - cl;
+    if (Math.abs(fx) < 1e-4) fx = 0;
+    if (shift || fx) b.style.marginLeft = (shift + fx) + 'px';
     if (px && shift) { var lim = Math.max(0, r.width / 2 - 20), tail = even(Math.max(-lim, Math.min(lim, -shift))); if (tail) b.style.setProperty('--ua-tail', tail + 'px'); }
     if (dy) { b.style.setProperty('--bub-dy', dy + 'px'); if (px && dy > 12) b.setAttribute('data-tail', 'off'); }
     ctlYield({ left: r.left + shift, right: r.right + shift, top: r.top + dy, bottom: r.bottom + dy });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 */
+  }
+  /* 11-15 (UI 점검): 가운데 맞춤 (translate -50%) · 정수 CSS px left 로 놓인 글 상자 (토스트 · 등불 쪽지 · 이름표) 의 글 시작을 기기 px 에 맞춘다.
+     translate 속성으로 (요소의 transform · margin 과 따로 겹친다) — 지금 밀린 만큼을 빼고 다시 재므로 몇 번 불러도 같다 */
+  function snapLeft(el) {
+    if (!el || !el.getBoundingClientRect) return;
+    var d = window.devicePixelRatio || 1, prev = parseFloat(el.getAttribute('data-ua-snap')) || 0, r = el.getBoundingClientRect(); if (!r.width) return;
+    var cs = getComputedStyle(el), cl = r.left + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0), tot = prev + Math.round(cl * d) / d - cl;
+    if (Math.abs(tot) < 1e-4) { el.style.removeProperty('translate'); el.removeAttribute('data-ua-snap'); return; }
+    el.style.translate = tot + 'px 0'; el.setAttribute('data-ua-snap', String(tot));
   }
   var bubRaf = 0;
   function onBubble(text, kind) {
@@ -209,7 +221,7 @@ var UIART = (function () {
     bubRaf = requestAnimationFrame(function follow(ts) {
       if (b.hidden) { bubRaf = 0; ctlYield(false); return; }
       var p = octPos(), moved = !!p && (!lastPos || Math.abs(p.x - lastPos.x) + Math.abs(p.y - lastPos.y) >= 1);
-      if (moved || !last || ts - last >= 200) { keepInside(b); last = ts; lastPos = p; }
+      if (moved || !last || ts - last >= 200) { keepInside(b); var lb = $('oct-label'); if (lb && lb.textContent) snapLeft(lb); last = ts; lastPos = p; }
       bubRaf = requestAnimationFrame(follow);
     });
     if (kind === 'curious') fx('question');   /* 톡 누름 ('응?') — 픽셀 테마 물음표 파티클 */
@@ -328,6 +340,6 @@ var UIART = (function () {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 
-  return { onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, topBand: topBand, ctlYield: ctlYield, liftY: liftY,
+  return { snapLeft: snapLeft, onRow: onRow, onBubble: onBubble, onState: onState, onInspect: onInspect, fx: fx, bubbleSkin: bubbleSkin, syncLog: syncLog, syncRecent: syncRecent, avoidCtl: avoidCtl, topBand: topBand, ctlYield: ctlYield, liftY: liftY,
     iconSrc: iconSrc, icon: icon, iconHTML: iconHTML, iconBad: iconBad };
 })();

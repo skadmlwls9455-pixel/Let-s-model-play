@@ -4670,7 +4670,7 @@ async function scenarioTapFit(browser) {
           if (r.dy) slid++;
           /* 11-15 갈래 H (주인: 말풍선이 화면을 가린다) → 5차 (주인: 글자 조금 키움): 폭은 장면의 60% (150~220px) · 픽셀은 Galmuri11 을 기기 px 에 맞춘 약 17px
              (눈금 12 × 정수 n / 배율 — index.html 머리 스크립트의 --bub-fs, 배율 1 이면 12px) · 줄 높이 1.5 · 24+… 줄은 세 줄 안 */
-          var capW = Math.max(150, Math.min(220, Math.floor(r.sw * 0.6))), bubFs = 12 * Math.max(1, Math.round(17 * r.dpr / 12)) / r.dpr;
+          var capW = Math.max(150, Math.min(220, Math.floor(r.sw * 0.6))), bubFs = Math.ceil(12 * Math.max(1, Math.round(17 * r.dpr / 12)) / r.dpr * 64) / 64;   /* 11-15 js/fs-snap.js 와 같은 식 (1/64 px 올림) */
           if (r.w > capW + 0.5) sizeBad.push(vp[0] + ' ' + theme + ' ' + a + ' L' + li + ' w ' + r.w + ' > ' + capW);
           if (theme === 'pixel' && (Math.abs(parseFloat(r.fs) - bubFs) > 0.01 || r.ff !== 'Galmuri11' || Math.abs(r.lh - bubFs * 1.5) > 0.6)) sizeBad.push(vp[0] + ' pixel font ' + r.fs + ' ' + r.ff + ' ' + r.lh + ' (바람 ' + bubFs + ')');
           if (li === 1 && r.lh && Math.round((r.h - r.bt) / r.lh) > 3) sizeBad.push(vp[0] + ' ' + theme + ' ' + a + ' lines ' + Math.round((r.h - r.bt) / r.lh));

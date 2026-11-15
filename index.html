@@ -50,18 +50,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <link rel="stylesheet" href="css/ui-art.css">
 <link rel="stylesheet" href="css/runner.css">
 <link rel="stylesheet" href="css/intro.css"><!-- 입장 레이어 (js/intro.js) -->
-<script>(function () {   /* 11-15 5차 (주인: "글자가 깨지는 느낌 … 가독성 좀 살려줘"): 픽셀 글꼴 크기를 기기 픽셀에 맞춘다.
-     Galmuri 는 점 하나가 기기 px 정수 개일 때만 고르게 보인다 (안드로이드 흔한 배율 2.625 · 2.75 에서 20px = 52.5 기기 px → 점 너비가 5 · 6 섞여 깨져 보였다).
-     역할마다 [글꼴 눈금 (Galmuri7 8 · Galmuri9 10 · Galmuri11 12), 바라는 CSS px] → 눈금 × 정수 n / 배율 중 가장 가까운 것. css/style.css 의 var(--fs-*, 기본값) 이 받는다 */
-  var R = document.documentElement, S = { m16: [12, 16], b20: [10, 20], u20: [12, 20], u24: [12, 24], n16: [8, 16], u12: [12, 12] }, BUB = [12, 17];
-  function snap(g, want, d) { var n = Math.max(1, Math.round(want * d / g)); return +(g * n / d).toFixed(4) + 'px'; }
-  function apply() {
-    var d = window.devicePixelRatio || 1;
-    try { for (var k in S) R.style.setProperty('--fs-' + k, snap(S[k][0], S[k][1], d)); R.style.setProperty('--bub-fs', snap(BUB[0], BUB[1], d)); } catch (e) { /* 옛 브라우저: 기본값 */ }
-    try { var mq = window.matchMedia('(resolution: ' + d + 'dppx)'); if (mq.addEventListener) mq.addEventListener('change', apply, { once: true }); else if (mq.addListener) mq.addListener(apply); } catch (e) { /* 배율이 안 바뀌는 곳 */ }
-  }
-  apply();
-})();</script>
+<script src="js/fs-snap.js"></script><!-- 11-15 5차: 픽셀 글꼴 크기를 기기 픽셀에 맞춘다 (credits.html 과 같이 쓴다) -->
 <script src="js/intro.js"></script><!-- head 에서 읽어 html.intro-on 을 먼저 붙인다 (UI 깜빡임 방지) -->
 <!-- 저장소 워밍업: 문서가 열리자마자 한 번 읽어 둔다. file:// 원점에서 새로고침 직후 첫 읽기가 직전 커밋을 놓치는 경우가 있어서 (R2) -->
 <script>try { localStorage.getItem('ppolppol_v2'); } catch (e) { /* 저장소 없음: app.js 가 메모리로 대신한다 */ }</script>
@@ -161,16 +150,19 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <button type="button" id="btn-yard-door" class="scene-spot" aria-label="집으로" title="집으로" aria-describedby="scene-desc" hidden></button>
   <!-- 소파 위 연한 노란 점 (11-10): 누르면 내 캐릭터가 소파 앞으로 걸어가 폴짝 뛰어 앉는다. 자리는 장면이 on.sofaSpot 으로 알려 준다 (app.js). 누르는 곳 44×44 · 보이는 점 10px -->
   <button type="button" id="btn-sofa" class="sofa-dot" aria-label="소파에 앉기" title="소파에 앉기" hidden><span aria-hidden="true"></span></button>
-  <!-- 가구 모드 (11-15): 문어 · 캐릭터가 숨고 가구만 손가락으로 끌어 옮긴다. 위 = 취소 · 제목 · 저장하기 (+ 처음 한 번 안내 한 줄), 고른 가구 밑 = 돌리기 · 작게 · 크게 (자리는 장면이 준다), 아래 = 가구 줄 (톡 = 고르기) — app.js furnUI · 장면 furnMode -->
+  <!-- 가구 모드 (11-15): 문어 · 캐릭터가 숨고 가구만 손가락으로 끌어 옮긴다. app.js furnUI · 장면 furnMode.
+       11-15 (주인 답: "가구 모드 화면 글자 0"): 위 = 양쪽 구석에 그림 단추 X (취소) · 체크 (저장하기) — 제목 · 판 없음, 이름은 aria-label 로만. 처음 한 번 안내는 손 그림이 소파를 끄는 2초 (읽어 주기 글은 sr-only 로 남김).
+       아래 = 한 판: 돌리기 · 작게 · 크기 눈금 9칸 · 크게 + 가구 줄 (톡 = 고르기). 그림은 게임 12×12 격자로 직접 그렸다 (작게 · 크게는 Pixelarticons minus · plus, MIT, credits.html) -->
   <div id="furn-ui" class="furn-ui" hidden>
-    <div id="furn-top" class="furn-top"><button type="button" class="btn sm pressable" id="furn-x" aria-label="취소 (들어오기 전대로)">취소</button><strong id="furn-title">가구 옮기기</strong><button type="button" class="btn sm primary pressable" id="furn-ok" aria-label="저장하고 나가기">저장하기</button><p id="furn-hint" class="furn-hint">가구를 끌어서 옮겨</p></div>
-    <!-- 11-15 5차 (주인: "돌리기 작게 크게 ui 너무 구려 … 화면 중앙에 박힌 거 이상해"): 글자 없는 그림 단추 셋을 아래 가구 줄 바로 위 가운데에 고정 (js/app.js furnRow).
-         그림은 Pixelarticons (MIT, credits.html) 의 redo · minus · plus. 이름은 aria-label 로만 -->
-    <div id="furn-row" class="furn-row" role="group" hidden><button type="button" class="btn sm pressable furn-act" id="furn-turn" aria-label="돌리기 (90도)" title="돌리기"><svg class="furn-act-ico" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M20 8H6v2h14zM4 10h2v8H4zm2 8h6v2H6z"/><path d="M18 6h-2v6h2zm-2-2h-2v8h2zm0 8h-2v2h2z"/></svg></button><button type="button" class="btn sm pressable furn-act" id="furn-small" aria-label="작게" title="작게"><svg class="furn-act-ico" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M4 11h16v2H4z"/></svg></button><button type="button" class="btn sm pressable furn-act" id="furn-big" aria-label="크게" title="크게"><svg class="furn-act-ico" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M13 11h7v2h-7v7h-2v-7H4v-2h7V4h2v7Z"/></svg></button></div>
-    <div id="furn-items" class="furn-strip" role="group" aria-label="가구 고르기"></div>
+    <div id="furn-top" class="furn-top"><button type="button" class="btn sm pressable furn-act" id="furn-x" aria-label="취소 (들어오기 전대로)" title="취소"><svg class="furn-act-ico" viewBox="0 0 12 12" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M1 2h2v1H1zM9 2h2v1H9zM2 3h2v1H2zM8 3h2v1H8zM3 4h2v1H3zM7 4h2v1H7zM4 5h4v1H4zM4 6h4v1H4zM3 7h2v1H3zM7 7h2v1H7zM2 8h2v1H2zM8 8h2v1H8zM1 9h2v1H1zM9 9h2v1H9z"/></svg></button><strong id="furn-title" class="sr-only">가구 옮기기</strong><button type="button" class="btn sm primary pressable furn-act" id="furn-ok" aria-label="저장하고 나가기" title="저장하기"><svg class="furn-act-ico" viewBox="0 0 12 12" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M10 2h1v1H10zM9 3h2v1H9zM8 4h2v1H8zM1 5h1v1H1zM7 5h2v1H7zM1 6h2v1H1zM6 6h2v1H6zM2 7h2v1H2zM5 7h2v1H5zM3 8h3v1H3zM4 9h1v1H4z"/></svg></button><p id="furn-hint" class="furn-hint sr-only" role="status">가구를 끌어서 옮겨</p></div>
+    <span id="furn-hand" class="furn-hand" aria-hidden="true" hidden><svg viewBox="0 0 12 12" width="24" height="24" shape-rendering="crispEdges" focusable="false"><path fill="#ebede9" d="M4 1h2v1H4zM4 2h2v1H4zM4 3h2v1H4zM4 4h2v1H4zM7 4h2v1H7zM4 5h2v1H4zM7 5h2v1H7zM10 5h1v1H10zM1 6h2v1H1zM4 6h7v1H4zM1 7h10v1H1zM2 8h9v1H2zM3 9h7v1H3zM4 10h6v1H4z"/><path fill="#2b1d22" d="M4 0h2v1H4zM3 1h1v1H3zM6 1h1v1H6zM3 2h1v1H3zM6 2h1v1H6zM3 3h1v1H3zM6 3h3v1H6zM3 4h1v1H3zM6 4h1v1H6zM9 4h2v1H9zM1 5h3v1H1zM6 5h1v1H6zM9 5h1v1H9zM11 5h1v1H11zM0 6h1v1H0zM3 6h1v1H3zM11 6h1v1H11zM0 7h1v1H0zM11 7h1v1H11zM1 8h1v1H1zM11 8h1v1H11zM2 9h1v1H2zM10 9h1v1H10zM3 10h1v1H3zM10 10h1v1H10zM3 11h7v1H3z"/></svg></span>
+    <div id="furn-bottom" class="furn-bottom">
+      <div id="furn-bar" class="furn-bar" role="group" aria-label="가구 바꾸기"><button type="button" class="btn sm pressable furn-act" id="furn-turn" aria-label="돌리기 (90도)" title="돌리기"><svg class="furn-act-ico" viewBox="0 0 12 12" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M8 1h1v1H8zM3 2h6v1H3zM2 3h1v1H2zM8 3h3v1H8zM1 4h1v1H1zM8 4h2v1H8zM1 5h1v1H1zM8 5h1v1H8zM1 6h1v1H1zM1 7h1v1H1zM10 7h1v1H10zM1 8h1v1H1zM10 8h1v1H10zM2 9h1v1H2zM9 9h1v1H9zM3 10h6v1H3z"/></svg></button><span class="furn-size"><button type="button" class="btn sm pressable furn-act" id="furn-small" aria-label="작게" title="작게"><svg class="furn-act-ico" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M4 11h16v2H4z"/></svg></button><span id="furn-meter" class="furn-meter" role="img" aria-label="크기"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><button type="button" class="btn sm pressable furn-act" id="furn-big" aria-label="크게" title="크게"><svg class="furn-act-ico" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M13 11h7v2h-7v7h-2v-7H4v-2h7V4h2v7Z"/></svg></button></span></div>
+      <div id="furn-items" class="furn-strip" role="group" aria-label="가구 고르기"></div>
+    </div>
   </div>
-  <!-- 가방 꼬리표 (11-10): 위쪽 바 아래 오른쪽에 매달린 '조개 N' — 누르면 살림 시트 (조개 · 씨앗 · 들어온 날 · 텃밭 · 옷 물들이기). 이름을 지은 뒤부터 보인다 -->
-  <button type="button" id="btn-bag" class="bag-tag pressable" aria-haspopup="dialog" aria-controls="bag-sheet" hidden><span id="bag-n">조개 0</span></button>
+  <!-- 가방 꼬리표 (11-10): 위쪽 바 아래 오른쪽에 매달린 조개 그림 + N (11-15 주인 답: 글자 '조개' 대신 그림) — 누르면 살림 시트 (조개 · 씨앗 · 들어온 날 · 텃밭 · 옷 물들이기). 이름을 지은 뒤부터 보인다 -->
+  <button type="button" id="btn-bag" class="bag-tag pressable" aria-haspopup="dialog" aria-controls="bag-sheet" hidden><img class="bag-shell" data-icon="souvenir/shell" width="32" height="32" alt="" aria-hidden="true" draggable="false"><span id="bag-n">0</span></button>
   <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
   <button type="button" id="btn-stair" class="scene-spot" aria-label="위층으로" title="위층으로" hidden></button>
   <button type="button" id="btn-loft-stair" class="scene-spot" aria-label="아래층으로" title="아래층으로" hidden></button>
