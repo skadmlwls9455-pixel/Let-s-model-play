@@ -1650,14 +1650,14 @@ html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 :root[data-font="pixel"] .sew-sheet .bag-line { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
 :root[data-font="pixel"] .sew-sheet .set-note, :root[data-font="pixel"] .sew-sets .week-row, :root[data-font="pixel"] .sew-sets .week-row .week-n { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
 :root[data-font="pixel"] .sew-sheet .sew-name { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 20px; }
-:root[data-font="pixel"] .sew-sheet .sew-cost { font-family: var(--f-num); font-size: var(--fs-n16, 16px); line-height: 1.25; color: var(--fg); border-radius: 0; box-shadow: inset 0 0 0 2px var(--line); }   /* 숫자만 → Galmuri7 */
+:root[data-font="pixel"] .sew-sheet .sew-cost { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 1.25; color: var(--fg); border-radius: 0; box-shadow: inset 0 0 0 2px var(--line); }   /* 크기는 예전 그대로 (m16) */
 :root[data-font="pixel"] .sew-sheet .sew-sw { border-radius: 0; box-shadow: inset 0 0 0 2px var(--line); }
 :root[data-font="pixel"] .sew-sets { border-top: 2px solid var(--rim); }
 :root[data-font="pixel"] .sew-sets > summary { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; font-weight: 400; }
 :root[data-font="pixel"] .sew-sheet #sew-close { font-size: var(--fs-u20, 20px); line-height: 20px; padding: 8px 14px; }
 :root[data-font="pixel"] .shelf-today summary, :root[data-font="pixel"] .shelf-today li a { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; }   /* 11-15 5차 (주인: 글자 수만 줄이고 크기는 4차 전으로): 시스템 크기를 받아 흐리던 줄 — 한글은 Galmuri9 20 (Galmuri7 은 받침이 뭉개진다) */
 :root[data-font="pixel"] .week-row .week-n { font-family: var(--f-num); font-size: var(--fs-n16, 16px); line-height: 24px; }   /* 숫자만 (2/3): Galmuri7 16 */
-:root[data-font="pixel"] .week-rr .week-rr-n, :root[data-font="pixel"] #bag-n { font-family: var(--f-num); font-size: var(--fs-n16, 16px); line-height: 24px; }   /* 11-15: 그림 옆 숫자만 — Galmuri7 16 */
+:root[data-font="pixel"] .week-rr .week-rr-n, :root[data-font="pixel"] #bag-n { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }   /* 11-15: 그림 옆 숫자 — 예전 글자 크기 그대로 (Galmuri11 m16, Galmuri7 로 바꾸면 2 · 2.625 배율에서 작아졌다) */
 :root[data-font="pixel"] .week-row.done .week-n { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }   /* 11-15 (UI 점검): 한글은 Galmuri7 로 안 찍는다 (끝난 줄은 체크 그림 + 읽어 주기 '했어') */
 
 /* 이번 주 할 일 (살림 시트): 줄마다 할 일 · 진행 · '바꾸기 n'. 끝난 줄은 흐리게 */
