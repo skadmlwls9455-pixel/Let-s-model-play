@@ -14,7 +14,7 @@
 검사 결과:
 - `npm test` 와 글꼴 확인은 통과했다.
 - 스모크 L · S · Y · O 는 통과했다.
-- 스모크 A · T · Q · Z · X 는 고친 뒤 다시 돌렸다. 결과는 아래 '돌린 시험' 에 있다.
+- 스모크 A · T · Q · Z · X 는 고친 뒤 다시 돌려 모두 실패 0 이다.
 
 ## 바꾼 것 (파일 · 함수 · 무엇 · 왜)
 
@@ -30,7 +30,7 @@
 | 4 | `css/style.css` `.furn-bottom` · `.furn-bar` · `.furn-meter` | 지시문의 수치 그대로 (막대 6px · 높이 6→22 · 1.0 눈금 · 등불 칸 색) | 같음 |
 | 4 | `js/app.js` `furnUI` · `furnTiles` · `furnInsets` | `furnRow` · `furnSel` 콜백 · resize 듣기는 지움. 고른 것이 없으면 단추 셋 꺼짐 · 눈금 빈칸. 고르면 0.7 / 1.5 에서 꺼지고 `크기 9단계 중 n`. 열 때 판을 안 보이게 펴서 위 · 아래 높이를 재 `furnMode(true, {top, bottom})` 로 넘긴다 | 같음 |
 | 5 | `css/style.css` `#oct-bubble` | `text-align: left` | 가운데 맞춤은 줄 시작이 기기 px 사이에 떨어진다 |
-| 5 | `js/ui-art.js` `keepInside` | 글 시작 (테두리 + 안쪽 여백) 을 기기 px 에 맞추는 `fx` 를 `marginLeft` 에 더함. 꼬리는 맞추기 전 shift 로 | 같음 |
+| 5 | `js/ui-art.js` `keepInside` | 글 시작 (테두리 + 안쪽 여백) 을 기기 px 에 맞추는 `fx` 를 `translate` 속성으로 (margin 은 1/64 px 로 잘려 2.625 배율에서 .04 기기 px 남았다). 꼬리는 맞추기 전 shift 로 | 같음 |
 | 6 · 17 | 새 `js/fs-snap.js` (index.html · credits.html head) | 크기 = `ceil(g·n/d·64)/64`. 배율이 바뀌면 다시 맞춤 (matchMedia + resize 백업) | 1/64 px 모자라 2.625 배율에서 글자가 밀렸다 · 크레딧도 같이 |
 | 7 | `index.html` · `css/style.css` `.furn-top` | 판 · 제목 없음 (`#furn-title` sr-only). 양쪽 구석에 그림 단추 X · 플로피. `#furn-hint` 는 sr-only (role=status). 449px 이하에서 '데모' 밑으로 내림 | 주인 답 (b) + 새 답 |
 | 7 | `js/app.js` `furnHand` · `css` `.furn-hand` | 처음 한 번 손 그림 (12×12) 이 소파 위에서 누르고 8 · 16 · 24px 계단으로 끔 (2 s). 기기 px 에 맞춘 자리. 동작 줄이기면 멈춘 한 칸 | 같음 |
@@ -100,7 +100,14 @@
 - 스모크 첫 판 (A,L,S,Y,O,Q,X,Z,T 한 번에): 526 통과 · 16 실패.
   - 실패는 전부 Q 다. 옛 글 '조개 N' · '일곱 가지 … (n/5)' · 받기 단추 수량을 읽는 검사였다. 읽어 주기 글을 sr-only 로 남겨 고쳤다.
   - Z 는 Z-5 끝에서 브라우저가 닫혀 멈췄고, 50분 제한에 걸렸다.
-- 스모크 다시 (고친 뒤, 글자마다 따로): RESULTS_PLACEHOLDER
+- 스모크 다시 (고친 뒤, 한 글자씩 따로):
+  - A 91 통과 · 0 실패 (A-폰 포함)
+  - T 43 · 0 (T-2 폰 배율 포함)
+  - Q 75 · 0
+  - X 59 · 0
+  - Z 105 · 0 (Z-6 폰 세 판 포함)
+  - L · S · Y · O 는 첫 판에서 실패 0. 그 뒤 바뀐 것은 숫자 글꼴 · sr-only 글 · 말풍선 translate 뿐이라 다시 돌리지 않았다.
+  - 부엌 검사 (Z 의 K 부분) 도 이 갈래에선 통과했다.
 
 ## 스크린샷 (360x740 @2, `wip/round5/shots/U/`)
 
