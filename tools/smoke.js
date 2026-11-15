@@ -135,6 +135,33 @@ async function newPage(browser, wikiMode, initScripts) {
 }
 /* 한 화면 배치(3D): 로그는 '오늘의 산책' 쪽지(#log-sheet) 안에 있다 — 닫힌 쪽지 안의 로그는 크기가 없어서, 로그의 모양 · 자리(아이콘 폭 · 잘림 · 스크롤)를 재는 검사는 쪽지를 열고 잰다.
    여닫는 길은 플레이어와 같이 오늘 단추(#btn-today) · 닫기 단추(#log-close). 위아래 배치(2D)에선 아무것도 안 한다. 돌려주는 값: 한 화면 배치인지 */
+/* 11-15 (UI 점검): 페이지 안에서 — 가구 모드 판 모양 (단추 줄 ↔ 가구 줄 틈 · 보이는 글자 · 가짜 굵게 · 그림 대비 · 눈금) */
+function FURN_LOOK() {
+  function lum(c) { var m = c.match(/[\d.]+/g).map(Number); return m.slice(0, 3).map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce(function (a, v, i) { return a + v * [0.2126, 0.7152, 0.0722][i]; }, 0); }
+  function con(a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+  var ui = document.getElementById('furn-ui'), bar = document.getElementById('furn-bar').getBoundingClientRect(), it = document.getElementById('furn-items').getBoundingClientRect(), words = [], bold = [], minCon = 99;
+  ui.querySelectorAll('*').forEach(function (e) {
+    var cs = getComputedStyle(e), r = e.getBoundingClientRect();
+    var own = Array.prototype.some.call(e.childNodes, function (n) { return n.nodeType === 3 && n.textContent.trim(); });
+    if (own && r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.display !== 'none') words.push(e.id || e.className, e.textContent.trim());
+    if (own && /^"?Galmuri(9|7)/.test(cs.fontFamily) && +cs.fontWeight >= 600 && cs.fontSynthesis !== 'none' && cs.fontSynthesisWeight !== 'none') bold.push(e.id || e.className);
+  });
+  ['furn-x', 'furn-ok', 'furn-turn', 'furn-small', 'furn-big'].forEach(function (id) { var b = document.getElementById(id), ic = b.querySelector('.furn-act-ico'); minCon = Math.min(minCon, con(getComputedStyle(ic).color, getComputedStyle(b).backgroundColor)); });
+  return { gap: Math.round((it.top - bar.bottom) * 100) / 100, words: words, bold: bold, minCon: minCon, meter: document.getElementById('furn-meter').getAttribute('data-step'), hand: !document.getElementById('furn-hand').hidden, off: document.getElementById('furn-turn').disabled && document.getElementById('furn-big').disabled };
+}
+/* 11-15 (UI 점검): 페이지 안에서 — 보이는 글자 중 Galmuri9 · Galmuri7 인데 굵게 (브라우저가 가짜로 칠한다) 인 것 · 한글이 Galmuri7 인 것 */
+function FAKE_BOLD() {
+  var bad = [], g7 = [], w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (var n = w.nextNode(); n; n = w.nextNode()) {
+    var t = n.textContent.trim(), e = n.parentElement; if (!t || !e) continue;
+    var r = e.getBoundingClientRect(); if (r.width < 2 || r.height < 2 || e.closest('[hidden], .sr-only, dialog:not([open])')) continue;
+    var cs = getComputedStyle(e); if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+    var f = cs.fontFamily.replace(/"/g, '').split(',')[0].trim();
+    if ((f === 'Galmuri9' || f === 'Galmuri7') && +cs.fontWeight >= 600 && cs.fontSynthesisWeight !== 'none' && cs.fontSynthesis !== 'none') bad.push(f + ' ' + t.slice(0, 8));
+    if (f === 'Galmuri7' && /[가-힣]/.test(t)) g7.push(t.slice(0, 8));
+  }
+  return { bold: bad, g7: g7 };
+}
 async function logSheetOf(pg, on) {
   var st = await pg.evaluate(function () { var d = document.getElementById('log-sheet'); return { one: document.documentElement.getAttribute('data-layout') === 'one', open: !!(d && d.open) }; });
   if (!st.one || st.open === on) return st.one;
@@ -467,7 +494,29 @@ async function scenarioMain(browser) {
   ok(await page.evaluate(function () { return typeof APP.posterSVG(APP.state.trips[0], 300, 400) === 'string' && APP.posterSVG(APP.state.trips[0]).indexOf('<svg') === 0; }), 'APP.posterSVG 문자열');
   reportErrors(s.bag, 'A');
   await s.ctx.close();
+  await scenarioMainPhone(browser);
   await scenarioHonestLines(browser);
+}
+/* 11-15 (UI 점검): 폰 배율로 첫 화면 · 살림 시트 — 360x740 @3 (밝음) · 412x915 @2.625 (어두움). DPR 1 만 보던 시험이 어두운 테마 가구 그림 · 가짜 굵게를 놓쳤다.
+   보이는 글자 중 Galmuri9 · 7 의 가짜 굵게 없음 · 한글이 Galmuri7 아님 · 조개 꼬리표는 그림 + 수 · 스크린샷 (owner 리포트용) */
+async function scenarioMainPhone(browser) {
+  console.log('\n== A-폰. 첫 화면 · 살림 (폰 배율 3 · 2.625 어두움)');
+  for (var ph of [{ w: 360, h: 740, dpr: 3, dark: false }, { w: 412, h: 915, dpr: 2.625, dark: true }]) {
+    var ctx = await browser.newContext({ viewport: { width: ph.w, height: ph.h }, deviceScaleFactor: ph.dpr, locale: 'ko-KR', colorScheme: ph.dark ? 'dark' : 'light', hasTouch: true, isMobile: true });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var page = await ctx.newPage(), bag = []; bag.ignored = []; watchErrors(page, bag);
+    await routeWiki(page, 'ok');
+    await page.goto(INDEX + '?dev=0&intro=0'); await nameOct(page, '뽈뽈'); await page.waitForTimeout(400);
+    var tag = ph.w + 'x' + ph.h + ' @' + ph.dpr + (ph.dark ? ' 어두움' : '');
+    var m = await page.evaluate(FAKE_BOLD), chip = await page.evaluate(function () { var b = document.getElementById('btn-bag'), i = b.querySelector('img.bag-shell'); return { txt: b.textContent.trim(), img: !!i, label: b.getAttribute('aria-label') }; });
+    await page.screenshot({ path: path.join(SHOTS, 'phone-main-' + ph.w + (ph.dark ? 'd' : '') + '.png') });
+    ok(!m.bold.length && !m.g7.length && /^\d+$/.test(chip.txt) && chip.img && /^살림, 조개 \d+/.test(chip.label), '[' + tag + '] 첫 화면: 가짜 굵게 없음 ' + JSON.stringify(m.bold) + ' · 한글 Galmuri7 없음 ' + JSON.stringify(m.g7) + ' · 조개 꼬리표 = 그림 + «' + chip.txt + '» (읽어 주기 «' + chip.label + '»)');
+    await page.click('#btn-bag'); await page.waitForSelector('#bag-sheet[open]'); await page.waitForTimeout(400);
+    var mb = await page.evaluate(FAKE_BOLD), bh = await page.evaluate(function () { var e = document.getElementById('bag-h'), cs = getComputedStyle(e); return cs.fontFamily.replace(/"/g, '').split(',')[0] + ' ' + cs.fontWeight; });
+    await page.screenshot({ path: path.join(SHOTS, 'phone-bag-' + ph.w + (ph.dark ? 'd' : '') + '.png') });
+    ok(!mb.bold.length && !mb.g7.length && /^Galmuri11 700/.test(bh), '[' + tag + '] 살림 시트: 가짜 굵게 없음 ' + JSON.stringify(mb.bold) + ' · 한글 Galmuri7 없음 ' + JSON.stringify(mb.g7) + ' · 제목 ' + bh + ' (진짜 굵은 꼴)');
+    reportErrors(bag, 'A-폰 ' + tag); await ctx.close();
+  }
 }
 /* 11-13 (금지선 1): 코드가 쓴 세 줄이 문어 마음을 지어내지 않는다 — 쓰다듬기 말풍선 '…' (예전 '…좋아') · 폴짝/우쭐 뒤 장면 설명 (예전 '신나 있어') ·
    낮잠 이름표 '자는 중' 하나 (예전 '꿈꾸는 중' 과 번갈음). 고정 앵글 훅(__ppolLook)으로 상태를 정하고, 기다림은 시간이 아니라 상태로 한다 */
@@ -4686,6 +4735,30 @@ async function scenarioTapFit(browser) {
       await ctx.close();
     }
   }
+  /* 11-15 (UI 점검): 폰 배율 2.625 · 3 — 말풍선 줄은 왼쪽 맞춤이고 줄마다 시작이 기기 px 정수 (가운데 맞춤은 .47 ~ .73 기기 px 에서 시작해 흐렸다) */
+  for (var dp of [2.625, 3]) {
+    var ctxD = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: dp, locale: 'ko-KR', colorScheme: 'light' });
+    await ctxD.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var pd = await ctxD.newPage(), bagD = []; bagD.ignored = []; watchErrors(pd, bagD);
+    await routeWiki(pd, 'ok'); await pd.goto(INDEX + '?dev=0'); await nameOct(pd, '풍선');
+    var offD = [];
+    for (var aD of ['window', 'center', 'door']) for (var lD = 0; lD < LINES.length; lD++) {
+      var rD = await pd.evaluate(function (o) {
+        return new Promise(function (res) {
+          APP.scene.jumpTo(o.a); APP.say(o.t, 'say', 8000);
+          setTimeout(function () { requestAnimationFrame(function () {
+            var b = document.getElementById('oct-bubble'), d = window.devicePixelRatio, rg = document.createRange(); rg.selectNodeContents(b);
+            var ls = {}; Array.prototype.forEach.call(rg.getClientRects(), function (q) { var k = Math.round(q.top); if (!(k in ls) || q.left < ls[k]) ls[k] = q.left; });
+            res({ align: getComputedStyle(b).textAlign, frac: Object.keys(ls).map(function (k) { var v = ls[k] * d; return Math.abs(v - Math.round(v)); }) });
+          }); }, 520);
+        });
+      }, { a: aD, t: LINES[lD] });
+      var worst = Math.max.apply(null, rD.frac.concat([0]));
+      if (rD.align !== 'left' || worst > 0.02) offD.push(aD + ' L' + lD + ' ' + rD.align + ' ' + worst.toFixed(3));
+    }
+    ok(!offD.length && !bagD.length, '[T-2 360x740 @' + dp + '] 말풍선 줄은 왼쪽 맞춤 · 줄 시작이 기기 px 정수 (0.02 안)' + (offD.length ? ': ' + offD.slice(0, 4).join(' | ') : '') + (bagD.length ? ' · 에러 ' + bagD.join(' | ') : ''));
+    await ctxD.close();
+  }
   console.log('   배치 ' + n + '곳 · 아래로 민 것 ' + slid + (bad.length ? ' · 밖: ' + bad.slice(0, 4).join(' | ') : ''));
   ok(n >= 140 && bad.length === 0, '말풍선이 장면 칸 안 (가장자리 4px 안쪽 — 위 · 옆 · 아래) · 폰 세 폭 · 두 테마 · 앵커 여섯 · 22자 · 24+… · 40자 (' + n + '곳, 밖 ' + bad.length + ')');
   ok(tailBad === 0, '픽셀 꼬리는 12px 넘게 내려왔을 때만 뺀다 (' + tailBad + ')');
@@ -5756,7 +5829,7 @@ async function scenarioLoft(browser) {
     o = o || {};
     var ctx = o.ctx;   /* o.ctx = 같은 문맥의 둘째 탭 (기록 · 시계 · 깨어 있는 틈 훅은 문맥 것 그대로) */
     if (!ctx) {
-      ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: 1, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+      ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: o.dpr || 1, locale: 'ko-KR', colorScheme: o.dark ? 'dark' : 'light', hasTouch: true, isMobile: true });   /* 11-15 (UI 점검): o.dpr · o.dark = 폰 배율 · 어두운 테마 */
       await ctx.clock.install({ time: new Date('2026-11-09T11:00:00') });
       await ctx.addInitScript({ content: 'window.__ppolAwakeMs = ' + (o.awake | 0) + '; window.__snd = []; (function hook() { if (window.AUDIO && AUDIO.on && !AUDIO.__z) { var f = AUDIO.on; AUDIO.on = function (k) { window.__snd.push(k); return f.apply(this, arguments); }; AUDIO.__z = 1; } else setTimeout(hook, 50); })();' });   /* awake: 차례 뒤 깨어 있는 틈 (ms, 기본 0 = 바로 눕는다) */
     }
@@ -6236,7 +6309,7 @@ async function scenarioLoft(browser) {
   await fingers([[c6.x, c6.y]], [[c6.x - 30, c6.y + 12]], 14); await tick(pg, 0.1);
   var m6 = await pg.evaluate(function () { return { ed: APP.scene.furnEditing(), at: APP.scene.layout().crate, r: APP.scene.furnSelRect(), look: APP.scene.furnLook(), pan: APP.scene.pan() }; });
   await T6('touchEnd', []); await tick(pg, 0.2);
-  var a6 = await pg.evaluate(function () { return { pan: APP.scene.pan(), ed: APP.scene.furnEditing(), at: APP.scene.layout().crate, r: APP.scene.furnSelRect(), row: !document.getElementById('furn-row').hidden, hint: !document.getElementById('furn-hint').hidden }; });
+  var a6 = await pg.evaluate(function () { return { pan: APP.scene.pan(), ed: APP.scene.furnEditing(), at: APP.scene.layout().crate, r: APP.scene.furnSelRect(), row: !document.getElementById('furn-turn').disabled && document.getElementById('furn-meter').getAttribute('data-step') === String(Math.round((APP.scene.furnEditing().scale - 0.7) * 10) + 1),   /* 11-15 (UI 점검): 아래 한 판 — 고르면 단추가 켜지고 눈금이 지금 단계 */ hint: !document.getElementById('furn-hint').hidden }; });
   var onGrid = function (v, lim) { return Math.abs(v / 0.25 - Math.round(v / 0.25)) < 1e-6 || lim; };
   ok(m6.ed.dragging && !m6.ed.bad && m6.look.sel && !m6.look.red && (m6.at[0] !== lay1.crate[0] || m6.at[1] !== lay1.crate[1]) && onGrid(m6.at[0]) && onGrid(m6.at[1]) && a6.at[0] === m6.at[0] && a6.at[1] === m6.at[1] && Math.abs(a6.r.l - m6.r.l) <= 1 && Math.abs(a6.r.t - m6.r.t) <= 1 && a6.ed.id === 'crate' && !a6.ed.dragging && a6.row && !a6.hint,
     '끌면 0.25 m 칸에 딱딱 (' + m6.at.slice(0, 2) + ') ' + JSON.stringify([m6.at, a6.at]) + ' · 떼도 그 자리 (튐 없음, 화면 ' + (a6.r.l - m6.r.l) + ',' + (a6.r.t - m6.r.t) + ' px) · 고른 채 단추 줄 · 안내는 걷힘');
@@ -6323,6 +6396,15 @@ async function scenarioLoft(browser) {
   var wv6 = await pg.evaluate(function () { var m = APP.scene.motion(), b = APP.scene.octSpot('board'); APP.scene.furnSelect('sofa'); var r = APP.scene.furnRotate(), e = APP.scene.furnEditing(); return { moving: m.gait.moving, d: Math.hypot(m.gait.at[0] - b[0], m.gait.at[2] - b[1]), here: APP.scene.furnDragTest('crate', b[0], b[1]), turn: r, rot: e.rot }; });
   await pg.evaluate(function () { document.getElementById('furn-x').click(); }); await tick(pg, 0.2);
   ok(!wv6.moving && wv6.d < 0.05 && !wv6.here && wv6.turn && wv6.rot === 105, '걷던 문어는 모드를 열 때 도착 (그 자리엔 가구 못 놓음) · 담요 옆 소파도 돌아간다 (15 → ' + wv6.rot + ') ' + JSON.stringify(wv6));
+  /* 11-15 (UI 점검 · 주인 답): 아래 한 판 (단추 줄이 가구 줄에 틈 없이) · 보이는 글자 0 · 가짜 굵게 없음 · 막히면 방 안 고른 가구 테가 빨강 깜빡 */
+  await tap(pg, 'btn-furn'); await tick(pg, 0.3);
+  var ui6 = await pg.evaluate(FURN_LOOK);
+  ok(ui6.gap === 0 && !ui6.words.length && !ui6.bold.length && ui6.hand && ui6.meter === '0' && ui6.off, '가구 모드 아래 한 판: 단추 줄 밑 = 가구 줄 위 (틈 ' + ui6.gap + 'px) · 보이는 글자 없음 ' + JSON.stringify(ui6.words) + ' · 가짜 굵게 없음 ' + JSON.stringify(ui6.bold) + ' · 고른 것 없으면 단추 꺼짐 · 눈금 빈칸');
+  var np6 = await pg.evaluate(function () { var sc = APP.scene; sc.setLayout({ crate: [2, -0.75, 0, 1], sofa: [1, -0.75, 0, 1] }); sc.furnSelect('crate'); sc.furnScale(1); var ok1 = sc.furnScale(1); return { ok: ok1, step: document.getElementById('furn-meter').getAttribute('data-step') }; });
+  await tick(pg, 0.05); var np6a = await pg.evaluate(function () { return APP.scene.furnLook().red; });
+  await tick(pg, 0.6); var np6b = await pg.evaluate(function () { return APP.scene.furnLook().red; });
+  ok(!np6.ok && np6.step === '5' && np6a && !np6b, '키우기가 막히면 고른 상자 테가 잠깐 빨강 (' + np6a + ' → 0.6 s 뒤 ' + np6b + ') · 눈금은 지금 단계 (1.1 = 9칸 중 ' + np6.step + ')');
+  await pg.evaluate(function () { document.getElementById('furn-x').click(); }); await tick(pg, 0.3);
   /* 문어가 나가면 (출발 의식) 모드는 저장하고 닫힌다 */
   await tap(pg, 'btn-furn'); await tick(pg, 0.3);
   var c6d = await rect6('crate');
@@ -6333,6 +6415,15 @@ async function scenarioLoft(browser) {
   ok(!dp6.on && !dp6.ui && dp6.cer === 'depart' && dp6.saved[0] === mv6d[0] && dp6.saved[1] === mv6d[1], '모드 중 문어가 나가면 저장하고 닫힌다 ' + JSON.stringify(dp6));
   await cdp6.detach();
   reportErrors(bag, 'Z-6'); await A.ctx.close();
+  /* 11-15 (UI 점검): 폰 배율 — 360x740 @3 (밝음) · 412x915 @2.625 (어두움) · 320x568 @2: 한 판 · 글자 0 · 그림 대비 3:1 이상 (예전 어두운 테마 1.1:1) · 가짜 굵게 없음 */
+  for (var ph6 of [{ w: 360, h: 740, dpr: 3 }, { w: 412, h: 915, dpr: 2.625, dark: true }, { w: 320, h: 568, dpr: 2 }]) {
+    A = await open({ rec: REC(5), w: ph6.w, h: ph6.h, dpr: ph6.dpr, dark: ph6.dark }); pg = A.page;
+    await tap(pg, 'btn-furn'); await tick(pg, 0.3); await pg.evaluate(function () { APP.scene.furnSelect('sofa'); }); await tick(pg, 0.1);
+    var q6 = await pg.evaluate(FURN_LOOK), tag6 = ph6.w + 'x' + ph6.h + ' @' + ph6.dpr + (ph6.dark ? ' 어두움' : '');
+    ok(q6.gap === 0 && !q6.words.length && !q6.bold.length && q6.minCon >= 3 && q6.meter === '4', tag6 + ': 한 판 (틈 ' + q6.gap + ') · 글자 없음 ' + JSON.stringify(q6.words) + ' · 그림 대비 최소 ' + q6.minCon.toFixed(2) + ':1 · 굵게 ' + JSON.stringify(q6.bold) + ' · 눈금 ' + q6.meter);
+    await pg.screenshot({ path: path.join(SHOTS, 'z6-furn-' + ph6.w + (ph6.dark ? 'd' : '') + '.png') });
+    reportErrors(bag, 'Z-6 ' + tag6); await A.ctx.close();
+  }
   }
 }
 
