@@ -426,7 +426,7 @@ var RUNNER = (function () {
     L.inputs = []; L.queue = []; L.held = { j: false, d: false }; L.state = 'ready'; L.acc = 0; L.last = 0; L.hitAt = 0; L.saved = false; L.newBest = false;
     L.parts = []; L.partRng = null; L.reduced = reducedMotion();
     overP.hidden = true; ctrls.hidden = false;
-    setMsg(L.pending ? '판을 고르는 중이야…' : '점프를 톡 누르면 출발해'); hint('ready');
+    setMsg(L.pending ? '판을 고르는 중이야…' : '점프를 톡 누르면 출발해'); hint(L.pending ? '' : 'ready');   /* 서버 시드를 기다리는 동안(최대 2 초)은 탭을 안 받으니 손 그림도 없다 */
     netP.hidden = true;
     hudUpdate(true);
     try { cv.focus({ preventScroll: true }); } catch (e) { cv.focus(); }
