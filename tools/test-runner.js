@@ -190,7 +190,10 @@ function deferred() { var d = {}; d.p = new Promise(function (r) { d.resolve = r
   /* 11-15 5차 (주인 답 a): 안내 글 → 그림. 준비 · 쉬는 중 = 손 그림 (쉴 땐 일시정지 그림), 글은 #rn-msg 읽어 주기에만. 결과 판 = 수 + 그림, 조개는 판 안 (알림 없이 quiet) */
   var hp = fresh(), earnCalls = [];
   hp.sb.APP = { earnFromPlay: function (r, o) { earnCalls.push(o || null); return 3; } };
-  await hp.open(); await hp.readyNet();
+  var seedGate = deferred(); hp.net.gate.seed = function () { return seedGate.p; };   /* 시드 응답을 붙잡아 '고르는 중' 을 본다 */
+  await hp.open();
+  check(/고르는/.test(hp.byId['rn-msg'].textContent) && hp.byId['rn-hand'].hidden, '그림: 판을 고르는 중(탭 안 받음)엔 손 그림 없음');
+  seedGate.resolve(); delete hp.net.gate.seed; await hp.readyNet();
   check(hp.R.live().state === 'ready' && !hp.byId['rn-hand'].hidden && hp.byId['rn-pause'].hidden && /출발/.test(hp.byId['rn-msg'].textContent), '그림: 준비 = 손 그림 보임 · 일시정지 그림 숨김 · 읽어 주기 글은 그대로');
   hp.key(' '); hp.key(' ', 'keyup'); await hp.advance(50);
   check(hp.R.live().state === 'run' && hp.byId['rn-hand'].hidden && hp.byId['rn-pause'].hidden && hp.byId['rn-msg'].textContent === '', '그림: 달리는 중 = 그림 없음');
