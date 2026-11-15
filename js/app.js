@@ -3981,12 +3981,35 @@ var APP = (function () {
      다시 열면 같은 iframe 에 'cook-open'. 부엌의 저장(냄비 · 수첩 · 스티커)은 cook.html 과 같은 열쇠 (ppolppol_cook_v0) · 소리는 같은 설정 (기본 꺼짐) */
   var cookFrame = null, cookReady = false;
   var cookOpener = null, cookKbd = false;   /* 11-15 (검증 V2-1): 부엌을 연 단추 · 키보드로 닫았나 */
+  /* 11-15 5차 (가까이 보기 §12): iframe 안의 env(safe-area-inset-*) 는 0 일 수 있어서 (아이폰 노치 · 홈 막대) 이쪽에서 재어 보낸다.
+     보이지 않는 고정 상자 하나의 padding 이 env() — 그 계산값 (CSS px) 을 {ppolCook:'safe', t, r, b, l} 로. 준비됐을 때 · 열기 바로 전 ·
+     크기 · 방향이 바뀌면 (100 ms 모아서). 부엌은 그것을 --ck-safe-* 로 받아 상단 줄 · 칩을 맞춘다 */
+  var cookSafeProbe = null, cookSafeT = 0;
+  function cookSafePx(v) { v = parseFloat(v); return isFinite(v) ? Math.max(0, Math.min(200, v)) : 0; }
+  function cookSafe() {
+    try {
+      if (!cookSafeProbe) {
+        cookSafeProbe = document.createElement('div');
+        cookSafeProbe.className = 'cook-safe-probe'; cookSafeProbe.setAttribute('aria-hidden', 'true');
+        cookSafeProbe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;' +
+          'padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)';
+        document.body.appendChild(cookSafeProbe);
+      }
+      var cs = getComputedStyle(cookSafeProbe);
+      return { ppolCook: 'safe', t: cookSafePx(cs.paddingTop), r: cookSafePx(cs.paddingRight), b: cookSafePx(cs.paddingBottom), l: cookSafePx(cs.paddingLeft) };
+    } catch (e) { return { ppolCook: 'safe', t: 0, r: 0, b: 0, l: 0 }; }
+  }
+  function cookSafeSend() {
+    if (!cookFrame || !cookReady) return;
+    try { cookFrame.contentWindow.postMessage(cookSafe(), '*'); } catch (e) { /* 닫힌 부엌 */ }
+  }
+  function cookSafeSoon() { clearTimeout(cookSafeT); cookSafeT = setTimeout(cookSafeSend, 100); }
   function cookMsg(e) {
     if (!cookFrame || e.source !== cookFrame.contentWindow) return;
     if (e.origin !== 'null' && e.origin !== location.origin) return;
     var d = e.data; if (!d || typeof d !== 'object') return;
     var ov = $('cook-overlay');
-    if (d.ppolCook === 'ready') cookReady = true;
+    if (d.ppolCook === 'ready') { cookReady = true; cookSafeSend(); }
     else if (d.ppolCook === 'close' && ov && ov.open) { cookKbd = !!d.kbd; ov.close(); }
   }
   function openCook(opener, kbd) {
@@ -3996,6 +4019,7 @@ var APP = (function () {
     if (opener && document.activeElement !== opener && !opener.hidden) focusRoomBtn(opener, !!kbd);   /* 닫으면 브라우저가 포커스를 조리대 단추로 돌려준다 */
     if (!cookFrame) {
       window.addEventListener('message', cookMsg);
+      window.addEventListener('resize', cookSafeSoon); window.addEventListener('orientationchange', cookSafeSoon);
       cookFrame = document.createElement('iframe');
       cookFrame.className = 'cook-frame'; cookFrame.title = '부엌';
       cookFrame.src = 'cook.html?embed=1';
@@ -4006,7 +4030,7 @@ var APP = (function () {
         cookKbd = false;
       });
       ov.addEventListener('cancel', function () { cookKbd = true; });   /* Esc = 키보드 → 링 그대로 */
-    } else if (cookReady) { try { cookFrame.contentWindow.postMessage({ ppolCook: 'open' }, '*'); } catch (e) { /* 다시 불러온다 */ cookFrame.src = 'cook.html?embed=1'; } }
+    } else if (cookReady) { cookSafeSend(); try { cookFrame.contentWindow.postMessage({ ppolCook: 'open' }, '*'); } catch (e) { /* 다시 불러온다 */ cookFrame.src = 'cook.html?embed=1'; } }
     showDialog(ov);
     try { cookFrame.focus(); } catch (e) { /* 포커스는 부엌이 연 뒤 스스로 */ }
     return true;
