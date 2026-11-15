@@ -146,8 +146,8 @@ function FURN_LOOK() {
     if (own && r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.display !== 'none') words.push(e.id || e.className, e.textContent.trim());
     if (own && /^"?Galmuri(9|7)/.test(cs.fontFamily) && +cs.fontWeight >= 600 && cs.fontSynthesis !== 'none' && cs.fontSynthesisWeight !== 'none') bold.push(e.id || e.className);
   });
-  ['furn-x', 'furn-ok', 'furn-turn', 'furn-small', 'furn-big'].forEach(function (id) { var b = document.getElementById(id), ic = b.querySelector('.furn-act-ico'); minCon = Math.min(minCon, con(getComputedStyle(ic).color, getComputedStyle(b).backgroundColor)); });
-  return { gap: Math.round((it.top - bar.bottom) * 100) / 100, words: words, bold: bold, minCon: minCon, meter: document.getElementById('furn-meter').getAttribute('data-step'), hand: !document.getElementById('furn-hand').hidden, off: document.getElementById('furn-turn').disabled && document.getElementById('furn-big').disabled };
+  ['furn-turn', 'furn-small', 'furn-big'].forEach(function (id) { var b = document.getElementById(id), ic = b.querySelector('.furn-act-ico'); minCon = Math.min(minCon, con(getComputedStyle(ic).color, getComputedStyle(b).backgroundColor)); });
+  return { gap: Math.round((it.top - bar.bottom) * 100) / 100, words: words, bold: bold, minCon: minCon, meter: document.getElementById('furn-meter').getAttribute('data-step'), hand: !document.getElementById('furn-hand').hidden, pics: ['furn-x', 'furn-ok'].every(function (id) { return document.querySelectorAll('#' + id + ' svg.furn-pic path').length >= 3; }),   /* 취소 · 저장하기 = 색이 든 그림 (빨간 X · 플로피 디스크 — 어두운 틀선이 있어 두 테마에서 보인다) */ off: document.getElementById('furn-turn').disabled && document.getElementById('furn-big').disabled };
 }
 /* 11-15 (UI 점검): 페이지 안에서 — 보이는 글자 중 Galmuri9 · Galmuri7 인데 굵게 (브라우저가 가짜로 칠한다) 인 것 · 한글이 Galmuri7 인 것 */
 function FAKE_BOLD() {
@@ -6399,7 +6399,7 @@ async function scenarioLoft(browser) {
   /* 11-15 (UI 점검 · 주인 답): 아래 한 판 (단추 줄이 가구 줄에 틈 없이) · 보이는 글자 0 · 가짜 굵게 없음 · 막히면 방 안 고른 가구 테가 빨강 깜빡 */
   await tap(pg, 'btn-furn'); await tick(pg, 0.3);
   var ui6 = await pg.evaluate(FURN_LOOK);
-  ok(ui6.gap === 0 && !ui6.words.length && !ui6.bold.length && ui6.hand && ui6.meter === '0' && ui6.off, '가구 모드 아래 한 판: 단추 줄 밑 = 가구 줄 위 (틈 ' + ui6.gap + 'px) · 보이는 글자 없음 ' + JSON.stringify(ui6.words) + ' · 가짜 굵게 없음 ' + JSON.stringify(ui6.bold) + ' · 고른 것 없으면 단추 꺼짐 · 눈금 빈칸');
+  ok(ui6.pics && ui6.gap === 0 && !ui6.words.length && !ui6.bold.length && ui6.hand && ui6.meter === '0' && ui6.off, '가구 모드 아래 한 판: 단추 줄 밑 = 가구 줄 위 (틈 ' + ui6.gap + 'px) · 보이는 글자 없음 ' + JSON.stringify(ui6.words) + ' · 가짜 굵게 없음 ' + JSON.stringify(ui6.bold) + ' · 고른 것 없으면 단추 꺼짐 · 눈금 빈칸');
   var np6 = await pg.evaluate(function () { var sc = APP.scene; sc.setLayout({ crate: [2, -0.75, 0, 1], sofa: [1, -0.75, 0, 1] }); sc.furnSelect('crate'); sc.furnScale(1); var ok1 = sc.furnScale(1); return { ok: ok1, step: document.getElementById('furn-meter').getAttribute('data-step') }; });
   await tick(pg, 0.05); var np6a = await pg.evaluate(function () { return APP.scene.furnLook().red; });
   await tick(pg, 0.6); var np6b = await pg.evaluate(function () { return APP.scene.furnLook().red; });
