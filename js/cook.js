@@ -144,7 +144,7 @@ var COOK = (function () {
     kitchen: '부엌', close: '닫기', back: '돌아가기', resume: '이어서', go: '보러 가기',
     dish: { jeon: '해초전' },
     title: { tap: '톡톡', flip: '뒤집기', slice: '썰기' },
-    verb: { tap: '톡톡', heat: '불 켜기', flip: '뒤집기', slice: '썰기', back: '돌아가기' },
+    verb: { tap: '톡톡', heat: '불 켜기', flip: '뒤집기', slice: '썰기', again: '다시' },
     band: ['보들보들', '노릇노릇', '바삭바삭'],
     half: '반쯤', line: '한 줄', done: '다 됐어',
     cooked: ['보들보들하게 구웠어', '노릇노릇 구웠어', '바삭바삭하게 구웠어'],
@@ -656,7 +656,7 @@ var COOK = (function () {
   }
   function verb(run) {   /* the verb button label right now */
     if (!run || !run.st) return '';
-    if (run.phase === 'reveal') return WORDS.verb.back;
+    if (run.phase === 'reveal') return WORDS.verb.again;
     var st = run.st;
     if (st.kind === 'flip') return st.heat ? WORDS.verb.flip : WORDS.verb.heat;
     return WORDS.verb[st.kind] || '';
@@ -752,11 +752,23 @@ var COOK = (function () {
       if (isIntIn(o.dayN, 0, 1e6)) out.dayN = o.dayN;
       if (Array.isArray(o.seen)) o.seen.forEach(function (k) { if (typeof k === 'string' && /^[a-z]{2,8}$/.test(k) && out.seen.indexOf(k) < 0 && out.seen.length < 8) out.seen.push(k); });
       if (o.pot && typeof o.pot === 'object' && !Array.isArray(o.pot)) out.pot = o.pot;   /* checked by resumeRun */
+      if (Array.isArray(o.potOld)) {   /* 11-15: pots that could not be resumed, kept as they were (newest first, at most 4) */
+        var old = o.potOld.filter(function (p) {
+          if (!p || typeof p !== 'object' || Array.isArray(p)) return false;
+          try { return utf8Len(JSON.stringify(p)) <= TUNE.pot.maxBytes; } catch (e) { return false; }
+        }).slice(0, 4);
+        if (old.length) out.potOld = old;
+      }
       if (Array.isArray(o.book)) out.book = o.book.filter(function (l) {
         return l && typeof l === 'object' && typeof l.id === 'string' && typeof l.recipe === 'string' && isIntIn(l.seed, 0, 4294967295) && l.look && typeof l.look === 'object';
       }).slice(0, TUNE.book.max);
     } catch (e) { /* broken key: start empty */ }
     return out;
+  }
+  function utf8Len(str) {   /* UTF-8 bytes of a string (no TextEncoder in every sandbox) */
+    var n = 0;
+    for (var i = 0; i < str.length; i++) { var c = str.charCodeAt(i); n += c < 0x80 ? 1 : c < 0x800 ? 2 : c >= 0xd800 && c < 0xdc00 ? (i++, 4) : 3; }
+    return n;
   }
   function bookAdd(store, line) {
     store = store && Array.isArray(store.book) ? store : normStore(store);
@@ -858,27 +870,36 @@ var COOK = (function () {
   if (typeof document === 'undefined' || typeof window === 'undefined') return API;   /* node: the simulation only */
 
   /* ───────── live ───────── */
-  /* LIVE HALF (browser only; node returned above). One modal <dialog>, built on the first open.
-   * Screens: counter (each prop is a real <button> over the art) -> steps -> plate reveal -> counter.
-   * Layout (design 5.2): spare height above the header, header 44 (step icon strip + close), gap 8, stage = the
-   * 144 x 160 art at an integer device-pixel scale (fit), gap 8, verb row 56, bottom 8..12. The frame is in the art.
+  /* LIVE HALF (browser only; node returned above). One modal <dialog>, built on the first open. 11-15 close-up
+   * (wip/round5/cook-spec.md): no counter screen and no visible words. Opening goes straight into a step (or resumes the
+   * saved one); every step change slides the view sideways to the next station (tap -> counter, flip -> stove, slice ->
+   * board, reveal -> plate). One canvas fills the dialog edge to edge: the 144 x 160 stage is blitted into a W x H view
+   * whose bleed COOK_ART.view paints in stage coordinates (fit: one art px = k device px). HUD: step strip and close
+   * (top), the quiet chip (bottom centre); all three are pixel icons with aria-labels.
    * Input (6.2, 6.3): one visible clock that freezes while the tab is hidden (sim t = visible ms / slow). Every pointer
    * sample goes through input() (it ticks first), every frame runs tick() + drain(). The host drops touches that start
-   * within TUNE.edgeCss of the screen's left / right edge. Juice (5.4) is drawn from drained events on a 12 fps grid;
-   * sound (5.5) goes to AUDIO.on('cook', snd) in the same handler; aria-live gets the say words only. The same acts go
-   * to the reaction stickers when js/cook-stickers.js is loaded (sticker(): pictures only, the kitchen never needs them).
-   * Storage: one key (opts.storeKey, default 'ppolppol_cook'); the pot is saved at step boundaries, on hidden, pagehide
-   * and close; a finished dish adds one book line. open() never throws. */
+   * within TUNE.edgeCss of the screen's left / right edge. Juice is drawn from drained events on a 12 fps grid; sound
+   * goes to AUDIO.on('cook', snd) and the haptic to HAPTICS.buzz(name) in the same handler (or on the named frame);
+   * aria-live gets the say words only. The same acts go to the reaction stickers when js/cook-stickers.js is loaded.
+   * Storage: one key (opts.storeKey, default 'ppolppol_cook'); the pot is saved at step boundaries, on hidden, pagehide,
+   * close and again; a pot that cannot be resumed moves to potOld unchanged; a finished dish adds one book line.
+   * open() never throws. */
   var KEY0 = 'ppolppol_cook';
   var KEY_RE = /^ppolppol_cook(_[a-z0-9]{1,16})?$/;          /* only the kitchen's own keys (never the main save) */
-  var LAY ={ head: 44, gap: 8, verb: 56, top: 8, bot: 12, botShort: 8, side: 16, column: 288, maxCss: 3, note: 44 };
+  /* 11-15 layout (spec 2.1; not in TUNE, so saved pots stay valid): VIEW_W art px across, stage rows ROWS between the HUD
+     and the chip, MID their centre, ZMAX CSS px per art px at most, HUD 8 + 48 + 8, chip 64 at 16 from the bottom */
+  var LAY = { VIEW_W: 80, ROWS: [28, 132], MID: 80, ZMAX: 6, HUD: 64, CHIP: 64, CHIPB: 16, STICK_ROW: 44, PAD: 8, CLOSE: 48, HIT: 56, NOTE: 44 };
   var FMS = 1000 / TUNE.fps;                                  /* one 12 fps frame */
   var ART_W = TUNE.stage.w / TUNE.stage.scale, ART_H = TUNE.stage.h / TUNE.stage.scale;
+  var FOOD_X = TUNE.food.batter.cx, FOOD_Y = TUNE.food.batter.cy;   /* food centre on the stage (art px) */
+  var STATION = { tap: 'counter', flip: 'stove', slice: 'board' };
+  var SLIDE_AT = [0.40, 0.75, 0.94];                          /* slide offset per 12 fps frame, as a share of STRIDE */
+  var AGAIN_MS = 900;                                         /* the result chip ignores presses until then */
   var SND_FREE = { tap: 1, step: 1, done: 1, pick: 1, quiet: 1 };   /* acts that skip the 120 ms gap (a counted tap is >= 90 ms
                                                                          after the last one already: TUNE.tap.mergeMs) */
   var D = null, L = null, kbd = false, curKey = KEY0;
 
-  function art() { return typeof COOK_ART !== 'undefined' && COOK_ART && typeof COOK_ART.counter === 'function' ? COOK_ART : null; }
+  function art() { return typeof COOK_ART !== 'undefined' && COOK_ART && typeof COOK_ART.tapScene === 'function' ? COOK_ART : null; }
   function el(tag, attrs, kids) {
     var e = document.createElement(tag);
     if (attrs) Object.keys(attrs).forEach(function (k) { if (k === 'text') e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); });
@@ -888,7 +909,7 @@ var COOK = (function () {
   function focusEl(x) { if (!x || typeof x.focus !== 'function') return; try { x.focus({ preventScroll: true }); } catch (e) { try { x.focus(); } catch (e2) { /* gone */ } } }
   function shownEl(x) { return !!x && typeof x.focus === 'function' && document.contains(x) && !x.hidden && !x.disabled && (typeof x.checkVisibility !== 'function' || x.checkVisibility()); }
 
-  /* last input modality: a key press makes the verb button visible and focused at step start (design 2.4) */
+  /* last input modality: a key press makes the chip visible and focused at step start (design 2.4) */
   function setKbd(on) { kbd = on; if (D) D.dlg.classList.toggle('ck-kbd', on); }   /* ck-kbd: focus rings show after key input only */
   document.addEventListener('keydown', function (e) { if (e.key !== 'Shift' && e.key !== 'Control' && e.key !== 'Alt' && e.key !== 'Meta') setKbd(true); }, true);
   document.addEventListener('pointerdown', function () { setKbd(false); }, true);
@@ -924,7 +945,7 @@ var COOK = (function () {
   function freeze() { var c = L.clock; if (c.since !== null) { c.base = vis(performance.now()); c.since = null; } }
   function thaw() { var c = L.clock; if (c.since === null) c.since = performance.now(); }
 
-  /* ---------- sound, words ---------- */
+  /* ---------- sound, haptics, words ---------- */
   function sound(snd) {
     if (!L || !snd || typeof snd.act !== 'string') return;
     if (!SND_FREE[snd.act]) {
@@ -934,13 +955,19 @@ var COOK = (function () {
     }
     try { if (window.AUDIO && AUDIO.on) AUDIO.on('cook', clone(snd)); } catch (e) { /* sound is a bonus */ }
   }
+  /* 11-15 haptics (spec 7.2): tap (a counted hit, heat-on), flip (the landing frame), cut (a line), done (the plate
+     landing). Called in the same handler or on the same frame as the picture, never from a timer; js/haptics.js decides
+     whether anything buzzes (setting, support, activation). stats.buzz counts the attempts */
+  function buzz(name) {
+    if (!L) return;
+    if (L.stats.buzz[name] != null) L.stats.buzz[name]++;
+    try { if (typeof HAPTICS !== 'undefined') HAPTICS.buzz(name); } catch (e) { /* a bonus, like sound */ }
+  }
   /* reaction stickers (js/cook-stickers.js, docs/COOK_STICKERS.md): optional pictures, never needed. The kitchen hands
-     them its cooking moments under the act names of the sound table (design 5.5): handle() every sim event that carries
-     a sound act, pick() the new dish. Not from sound(): that is also called to hush a hidden tab and to bring the sizzle
-     back, and neither is a new moment. The dish seed names their run (same dish, same moments, same pictures). They
-     mount on D.stick: a layer over the canvas and under the kitchen's own tags that never takes a touch and that screen
-     readers do not see (css/cook.css .ck-stick). They belong to the steps and the plate reveal: unstick() empties the
-     layer on the way back to the counter and when the kitchen closes. Whatever goes wrong in there stays in there. */
+     them its cooking moments under the act names of the sound table: handle() every sim event that carries a sound act,
+     pick() the new dish (at open and at again). They mount on D.stick, a strip under the HUD that never takes a touch and
+     that screen readers do not see; fit() sizes it (one sticker px = n device px) and hides it where it would reach the
+     food (spec 5.4). Whatever goes wrong in there stays in there. */
   var stickOn = null;   /* the COOK_STICKERS object now mounted on D.stick */
   function sticker(snd) {
     try {
@@ -967,7 +994,7 @@ var COOK = (function () {
   }
 
   /* ---------- juice: queued reactions on a 12 fps grid (frame = floor((t - at) / FMS)), particles, ghost hand ---------- */
-  function fxAdd(o, si) { o.at = L.lastT; o.si = si; L.fxq.push(o); if (L.fxq.length > 24) L.fxq.shift(); L.dirty = true; }
+  function fxAdd(o, si, at) { o.at = at == null ? L.lastT : at; o.si = si; L.fxq.push(o); if (L.fxq.length > 24) L.fxq.shift(); L.dirty = true; }
   function burst(kind, x, y, lo, hi, spread) {   /* 1 x 1 art px, integer velocities, gravity 1 px per frame^2 */
     if (L.reduced || !L.prng) return;
     var r = L.prng, n = lo + r() % (hi - lo + 1);
@@ -994,13 +1021,16 @@ var COOK = (function () {
   }
   function handSpec(kind) {
     var run = L.run, st = run && run.st, G = art().GEO;
-    if (!st) return null;
+    if (!st || run.phase === 'reveal') return null;
     if (kind === 'tap') {
       if (st.kind !== 'tap') return { kind: 'tap', x: G.food.cx, y: G.food.cy };
       for (var i = 0; i < st.marks.length; i++) if (st.marks[i].n < st.per) return { kind: 'tap', x: st.marks[i].x >> 1, y: st.marks[i].y >> 1 };
       return null;
     }
-    if (kind === 'flick') return { kind: 'flick', x: G.food.cx, y: G.food.cy + 14 };
+    if (kind === 'flick') {   /* 11-15: the flick demo starts at the up-arrow (GEO.flipArrow), so glyph and hand agree */
+      var fa = G.flipArrow;
+      return fa ? { kind: 'flick', x: fa[0], y: fa[1] } : { kind: 'flick', x: G.food.cx, y: G.food.cy + 14 };
+    }
     if (kind === 'slice') {
       var ln = st.lines && st.lines[st.cur];
       return ln && !ln.cut ? { kind: 'line', x0: ln.ax >> 1, y0: ln.ay >> 1, x1: ln.bx >> 1, y1: ln.by >> 1 } : null;
@@ -1018,15 +1048,15 @@ var COOK = (function () {
     L.seen.push(k);
     patchStore(function (o) { if (o.seen.indexOf(k) < 0) o.seen.push(k); });
   }
-  function maybeDemo() {   /* first time this device sees a step kind: one ghost hand right after the title (no text); the
-                              kind counts as seen once that demo has played to its end, or once the step is done */
+  function maybeDemo() {   /* first time this device sees a step kind: one ghost hand titleMs after the step start (no text);
+                              the kind counts as seen once that demo has played to its end, or once the step is done */
     var run = L.run; if (!run || run.phase !== 'step' || L.demoAt === run.si || L.hint) return;
     L.demoAt = run.si;
     var k = run.st.kind;
     if (L.seen.indexOf(k) >= 0 || run.st.progress > 0) return;
     startHand(k === 'flip' ? 'tap' : k, 'demo', k === 'flip' ? null : k);   /* flip: first the heat-on tap; the up-swipe demo follows heat-on */
   }
-  function checkIdle(run) {   /* no progress for 5 s: one ghost hand, and from then on the verb button shows (design 2.3, 2.4) */
+  function checkIdle(run) {   /* no progress for 5 s: one ghost hand, and from then on the chip shows (design 2.3, 2.4) */
     if (L.hint || L.titleUntil) return;
     var due = hintAt(run); if (due === null) return;
     var key = run.si + '|' + due;
@@ -1038,7 +1068,7 @@ var COOK = (function () {
     if (!L.shown) { L.shown = true; updVerb(); }
   }
 
-  /* ---------- sim events -> juice, sound, words, saving ---------- */
+  /* ---------- sim events -> juice, sound, haptics, words, saving ---------- */
   function handle(evs) {
     if (!L || !evs || !evs.length) return;
     var words = [];
@@ -1060,18 +1090,18 @@ var COOK = (function () {
     switch (e.type) {
       case 'start': onStart(e); break;
       case 'hit':
-        L.fx++; fxAdd({ k: 'hit' }, e.si);
+        L.fx++; fxAdd({ k: 'hit' }, e.si); buzz('tap');
         d = st && st.kind === 'tap' && st.dents[e.i];
         burst('drop', d ? st.box[0] + d[0] : e.x >> 1, d ? st.box[1] + d[1] : e.y >> 1, 3, 6, 2);
         break;
       case 'pat': L.fx++; fxAdd({ k: 'flash' }, e.si); break;
       case 'dust': L.fx++; L.dust.push([e.x >> 1, e.y >> 1]); if (L.dust.length > 12) L.dust.shift(); break;
       case 'heat':
-        L.fx++; fxAdd({ k: 'flash' }, e.si); L.nudges = 0;
+        L.fx++; fxAdd({ k: 'flash' }, e.si); L.nudges = 0; buzz('tap');
         if (L.seen.indexOf('flip') < 0) startHand('flick', 'demo', 'flip');   /* seen once it has played to its end */
         break;
       case 'nudge':   /* a press after heat-on that did not flip: the jeon hops; a few of them (with no hand showing) -> the
-                         up-swipe hand once more and the verb button shows; at most twice a step, so it never nags */
+                         up-swipe hand once more and the chip shows; at most twice a step, so it never nags */
         L.fx++; fxAdd({ k: 'bump' }, e.si);
         if (!L.hint && ++L.nudges >= TUNE.flip.teach && L.taught < 2) { L.nudges = 0; L.taught++; startHand('flick', 'teach'); L.stats.teach++; L.shown = true; }
         break;
@@ -1079,12 +1109,13 @@ var COOK = (function () {
         L.fx++; L.finger = null; L.stats.flips++; L.nudges = 0;
         fxAdd({ k: 'arc', lift: e.lift }, e.si);
         L.landAt = L.lastT + 3 * FMS;   /* art: the landing frame (arc frame 3) is fl 0; the bloom carries onto the board */
+        if (L.reduced) { L.landBuzz = null; buzz('flip'); } else L.landBuzz = L.landAt;   /* the haptic lands with the jeon */
         burst('crumb', G.food.cx - 22, G.food.cy + 4, 2, 3, 2); burst('crumb', G.food.cx + 22, G.food.cy + 4, 2, 3, 2);
         fxAdd({ k: 'shake', from: 3, dx: 0, dy: 1 }, e.si);
         break;
       case 'score': L.fx++; break;
       case 'cut':
-        L.fx++; fxAdd({ k: 'cut', i: e.i }, e.si);
+        L.fx++; fxAdd({ k: 'cut', i: e.i }, e.si); buzz('cut');
         ln = st && st.kind === 'slice' && st.lines[e.i];
         if (ln) burst('crumb', (ln.ax + ln.bx) >> 2, (ln.ay + ln.by) >> 2, 3, 4, 2);
         break;
@@ -1094,34 +1125,36 @@ var COOK = (function () {
     }
   }
   function onStart(e) {
-    var run = L.run;
+    var run = L.run, r = recipe(run.recipe);
     L.prng = mulberry32(fxSeed(run.seed, run.si));
-    if (run.si === 0 || e.kind === 'flip') L.landAt = null;   /* a resumed dish can start at the flip */
+    if (run.si === 0 || e.kind === 'flip') { L.landAt = null; L.landBuzz = null; }   /* a resumed dish can start at the flip */
     L.parts = []; L.dust = []; L.finger = null; L.hint = null; L.demoAt = -1; L.nudges = 0; L.taught = 0;
-    D.title.textContent = WORDS.title[e.kind] || ''; D.title.hidden = false; L.titleUntil = L.lastT + TUNE.titleMs;
-    placeTags(); stripOn(run.si);
+    L.titleUntil = (run.t0 != null ? run.t0 : L.lastT) + TUNE.titleMs;   /* no title any more: the demo hand still waits for it */
+    stripOn(run.si);
+    if (L.noSlide) { L.noSlide = false; return; }   /* open, resume and again place the station themselves */
+    var prev = r && e.si > 0 ? r.steps[e.si - 1].kind : null;
+    if (!prev || STATION[prev] === STATION[e.kind]) return;
+    var lk = lookOf(run);
+    if (prev === 'tap') startSlide('counter', 'stove', run.t0, { station: 'counter' }, { station: 'stove', pan: false }, 'pan');
+    else startSlide('stove', 'board', run.t0, { station: 'stove', pan: true, heat: true, band: lk.band }, { station: 'board' }, 'jeon');
   }
-  function hideTitle() { if (!D.title.hidden) { D.title.hidden = true; L.dirty = true; } L.titleUntil = 0; }
+  function hideTitle() { if (L.titleUntil) { L.titleUntil = 0; L.dirty = true; } }   /* a press ends the wait for the first-time demo */
   function onStepEnd(e) {
     if (e.kind === 'slice') fxAdd({ k: 'shake', from: 0, dx: 1, dy: 0 }, e.si);
     markSeen(e.kind);
     L.finger = null; L.hint = null;
+    if (L.run.doneAt != null) L.nextAt = L.run.doneAt + betweenOf(e.kind);   /* when the next step or the plate comes, exactly */
     if (L.run.done) finish(); else savePot();
   }
   function onReveal(e) {
-    L.screen = 'reveal'; L.revealAt = L.lastT; L.revealFocus = L.lastT + TUNE.reveal.focusMs; L.revealDown = null; L.down = {};
-    L.revealIdle = L.revealFocus + TUNE.idleMs;   /* 5 s with the plate up and no press: a tap hand on the plate, the back button shows */
-    L.hint = null; L.parts = [];
-    fxAdd({ k: 'rise' }, e.si); fxAdd({ k: 'shake', from: TUNE.reveal.frames - 1, dx: 0, dy: 1 }, e.si);
-    stripOn(-1);
-    D.name.textContent = WORDS.dish[L.run.recipe] || ''; D.name.hidden = !L.reduced; placeTags();
+    var at = L.nextAt != null && L.nextAt <= L.lastT ? L.nextAt : L.lastT;
+    L.screen = 'reveal'; L.revealAt = at; L.chipAt = at + TUNE.reveal.focusMs; L.againAt = at + AGAIN_MS; L.chipOn = false; L.down = {};
+    L.hint = null; L.parts = []; L.titleUntil = 0;
+    fxAdd({ k: 'rise' }, e.si, at); fxAdd({ k: 'shake', from: TUNE.reveal.frames - 1, dx: 0, dy: 1 }, e.si, at);
+    if (L.reduced) { L.doneBuzz = null; buzz('done'); } else L.doneBuzz = at + 5 * FMS;   /* REV2 t 5: the plate lands */
+    stripOn(L.run.n);
+    startSlide('board', 'plate', at, { station: 'board' }, { station: 'plate' }, 'cut');
     if (L.finished !== L.run.id) finish();
-  }
-  function plateOf(line) {   /* a book line -> what the counter draws beside the prop (display only) */
-    if (!line || !recipe(line.recipe)) return null;
-    var herb = line.swaps && line.swaps.herb;
-    if (herb !== 'parae' && herb !== 'tot') herb = swapsFor(line.recipe, line.seed).herb;
-    return { recipe: line.recipe, look: normLook(line.recipe, line.look), herb: herb === 'tot' ? 'tot' : 'parae' };
   }
   function finish() {   /* the dish is done: book line (newest first), clear the pot, hand the result to the host */
     var run = L.run; if (!run || !run.done || L.finished === run.id) return;
@@ -1130,7 +1163,6 @@ var COOK = (function () {
     if (!res) return;
     var line = bookLine(res);
     patchStore(function (o) { o.pot = null; bookAdd(o, line); });
-    L.pot = null; L.pending = null; L.plate = plateOf(line);
     if (typeof L.onResult === 'function') { try { L.onResult(clone(res)); } catch (e) { /* the host's own problem */ } }
   }
   function savePot() {
@@ -1139,27 +1171,118 @@ var COOK = (function () {
     if (pot) patchStore(function (o) { o.pot = pot; });
   }
 
-  /* ---------- screens ---------- */
-  function setScreenClass() {
-    D.dlg.classList.toggle('ck-counter', L.screen === 'counter');
-    D.dlg.setAttribute('aria-label', L.screen === 'counter' || !L.run ? WORDS.kitchen : WORDS.dish[L.run.recipe] || WORDS.kitchen);
+  /* ---------- stations and slides (spec 4) ---------- */
+  function stationNow() {
+    var run = L && L.run;
+    if (!run) return 'counter';
+    return run.phase === 'reveal' ? 'plate' : STATION[run.st.kind] || 'counter';
+  }
+  function copyBuf(b) { return { w: b.w, h: b.h, d: new Uint8ClampedArray(b.d) }; }
+  function baseOf(o) {   /* a still station picture (COOK_ART.base), or null when the art has none */
+    var A = art(); if (typeof A.base !== 'function') return null;
+    var run = L.run, lk = run ? lookOf(run) : {}, b = A.blank(ART_W, ART_H), p = {}, k;
+    for (k in o) p[k] = o[k];
+    p.f = 0; p.still = true; p.look = lk; p.herb = run ? run.swaps.herb : 'parae'; p.seed = run ? fxSeed(run.seed, 0) & 0x7fffffff : 0;
+    try { A.base(b, p); } catch (e) { return null; }
+    return b;
+  }
+  /* outO / inO: base options for the two stations; carry: what rides on screen ('pan', 'jeon', 'cut') or null. Without
+     COOK_ART.base the outgoing scene is the last painted frame and the incoming one the live scene, with no carry */
+  function startSlide(from, to, t0, outO, inO, carry, snapshot) {
+    if (L.reduced) { L.slide = null; return; }
+    var A = art(), out = snapshot || (outO ? baseOf(outO) : null), inb = inO ? baseOf(inO) : null;
+    if (!out) out = copyBuf(L.buf);
+    L.slide = { from: from, to: to, t0: t0, out: out, inb: inb, carry: inb && carry && typeof A.carry === 'function' ? carry : null };
+    L.stats.slides++; L.dirty = true;
+  }
+  function slideAt(t) {   /* { f, s } of the slide now, or null once it is over (f >= 3) */
+    var sl = L.slide; if (!sl) return null;
+    var f = Math.max(0, Math.floor((t - sl.t0) / FMS));
+    if (f >= SLIDE_AT.length) return null;
+    return { f: f, s: Math.round(L.stride * SLIDE_AT[f]) };
+  }
+
+  /* ---------- view composition: one W x H canvas, the stage blitted in at (ox, oy) (spec 2.4) ---------- */
+  function bgFor(station, ox, oy) {   /* COOK_ART.view of one station at one place, cached (a few entries) */
+    var key = station + '|' + L.W + '|' + L.H + '|' + ox + '|' + oy, c = L.bgc, i;
+    for (i = 0; i < c.length; i++) if (c[i].key === key) return c[i].b;
+    var A = art(), b = A.blank(L.W, L.H);
+    A.view(b, { station: station, ox: ox, oy: oy, x0: 0, x1: L.W });
+    c.unshift({ key: key, b: b }); if (c.length > 8) c.length = 8;
+    return b;
+  }
+  /* paint columns x0..x1-1 of V: the station's bleed, then the stage interior (x 2..141, y 2..157) of src at (ox, oy).
+     Without COOK_ART.view the bleed repeats the interior's edge rows and columns (spec 14 fallback) */
+  function layer(V, station, src, ox, oy, x0, x1) {
+    var A = art(), W = V.w, H = V.h, d = V.d, s = src.d, x, y, sx, sy, a, b2;
+    x0 = Math.max(0, x0 | 0); x1 = Math.min(W, x1 | 0); if (x1 <= x0) return;
+    if (typeof A.view === 'function') {
+      var bg = bgFor(station, ox, oy).d;
+      for (y = 0; y < H; y++) d.set(bg.subarray((y * W + x0) * 4, (y * W + x1) * 4), (y * W + x0) * 4);
+      var lo = Math.max(x0, ox + 2), hi = Math.min(x1, ox + ART_W - 2);
+      if (hi > lo) for (sy = 2; sy < ART_H - 2; sy++) {
+        y = sy + oy; if (y < 0 || y >= H) continue;
+        d.set(s.subarray((sy * ART_W + lo - ox) * 4, (sy * ART_W + hi - ox) * 4), (y * W + lo) * 4);
+      }
+      return;
+    }
+    for (y = 0; y < H; y++) {
+      sy = Math.min(ART_H - 3, Math.max(2, y - oy));
+      for (x = x0; x < x1; x++) {
+        sx = Math.min(ART_W - 3, Math.max(2, x - ox)); a = (sy * ART_W + sx) * 4; b2 = (y * W + x) * 4;
+        d[b2] = s[a]; d[b2 + 1] = s[a + 1]; d[b2 + 2] = s[a + 2]; d[b2 + 3] = 255;
+      }
+    }
+  }
+  function shakeView(V, dx, dy) {   /* the whole view moves (edge repeat), so the stage and its bleed never tear (R7) */
+    var A = art();
+    if (typeof A.shake === 'function' && A.shake.length >= 4) { A.shake(V, dx, dy, 0); return; }
+    var src = new Uint8ClampedArray(V.d), W = V.w, H = V.h;
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      var sx = Math.min(W - 1, Math.max(0, x - dx)), sy = Math.min(H - 1, Math.max(0, y - dy)), si = (sy * W + sx) * 4, ti = (y * W + x) * 4;
+      V.d[ti] = src[si]; V.d[ti + 1] = src[si + 1]; V.d[ti + 2] = src[si + 2]; V.d[ti + 3] = src[si + 3];
+    }
+  }
+  function composeSlide(V, sl, sp) {
+    var A = art(), W = V.w, ox = L.ox, oy = L.oy, s = sp.s, seam = ox + FOOD_X + Math.floor(L.stride / 2) - s;
+    layer(V, sl.from, sl.out, ox - s, oy, 0, seam);
+    layer(V, sl.to, sl.inb || L.buf, ox - s + L.stride, oy, seam, W);
+    if (sl.carry) {
+      var run = L.run, lk = run ? lookOf(run) : {};
+      try {
+        A.carry(V, { what: sl.carry, x: ox + FOOD_X, y: oy + FOOD_Y, lift: 2, shadow: true, herb: run ? run.swaps.herb : 'parae',
+          dents: lk.dents || [], band: lk.band == null ? 1 : lk.band, look: lk, seed: run ? fxSeed(run.seed, 0) & 0x7fffffff : 0 });
+      } catch (e) { /* the scenes still slide */ }
+    }
+  }
+
+  /* ---------- HUD: strip, close, chip ---------- */
+  function verbKey(run) {
+    if (!run || !run.st) return 'tap';
+    if (run.phase === 'reveal') return 'again';
+    if (run.st.kind === 'flip') return run.st.heat ? 'flip' : 'heat';
+    return run.st.kind;
+  }
+  function iconOf(name) {   /* an unknown icon falls back to 'tap' (spec 14) */
+    var A = art(), list = A.ICONS || [];
+    try { return A.icon(list.indexOf(name) >= 0 ? name : 'tap'); } catch (e) { return A.icon('tap'); }
   }
   function updVerb() {
     if (!D || !L) return;
-    var on = L.screen !== 'counter' && !!L.run, label = on ? verb(L.run) : '';
+    var run = L.run, on = !!run && (L.screen !== 'reveal' || L.chipOn), label = on ? verb(run) : '', key = verbKey(run);
     if (D.verb.hidden !== !on) D.verb.hidden = !on;
-    if (D.verb.textContent !== label) D.verb.textContent = label;
+    if ((D.verb.getAttribute('aria-label') || '') !== label) D.verb.setAttribute('aria-label', label);
+    if (D.verbCv.ckName !== key) { D.verbCv.ckName = key; D.verbCv.ckIcon = iconOf(key); D.verbCv.ckN = 0; sizeIcons(); }
     D.verb.classList.toggle('ck-shown', on && L.shown);
   }
   function buildStrip(r) {
-    var A = art();
     D.strip.textContent = '';
     r.steps.forEach(function (s) {
       var cv = el('canvas', { width: '16', height: '16' });
-      cv.ckIcon = A.icon(s.kind); cv.ckN = 0;
+      cv.ckIcon = iconOf(s.kind); cv.ckN = 0;
       D.strip.appendChild(el('span', { class: 'ck-step' }, [cv]));
     });
-    sizeStrip();
+    sizeIcons();
   }
   function drawIcon(cv, n) {   /* the 16 x 16 icon at device resolution: every art px an exact n x n block, so the browser maps
                                   backing pixels 1:1 (a CSS upscale of a 16 x 16 canvas drops or doubles columns at DPR 2.625) */
@@ -1174,111 +1297,28 @@ var COOK = (function () {
     }
     c.putImageData(im, 0, 0); cv.ckN = n;
   }
-  function sizeStrip() {   /* 16 x 16 icons at a whole number of device px per art px, every edge on a device px (DPR 2.625 too) */
-    var dpr = (L && L.dpr) || window.devicePixelRatio || 1, n = Math.max(1, Math.floor(2 * dpr + 1e-6)), px = 16 * n / dpr;
-    function dev(v) { return Math.max(1, Math.round(v * dpr)) / dpr; }
-    D.strip.style.paddingLeft = dev(2) + 'px'; D.strip.style.gap = dev(8) + 'px';
-    D.strip.style.setProperty('--ck-raise', dev(2) + 'px');   /* the current icon: up 2 px, amber line 2 px under it */
-    var mt = Math.round((LAY.head - px) / 2 * dpr) / dpr;
-    Array.prototype.forEach.call(D.strip.children, function (s) { s.style.marginTop = mt + 'px'; });
-    Array.prototype.forEach.call(D.strip.querySelectorAll('canvas'), function (c) { drawIcon(c, n); c.style.width = px + 'px'; c.style.height = px + 'px'; });
-  }
-  function stripOn(si) { Array.prototype.forEach.call(D.strip.children, function (c, i) { c.classList.toggle('on', i === si); }); }
-  function renderProps() {
-    D.props.textContent = '';
-    D.props.hidden = L.screen !== 'counter';
-    if (L.screen !== 'counter') return;
-    PROPS.forEach(function (p) {
-      var name = WORDS.dish[p.recipe], more = !!(L.pot && L.pot.recipe === p.recipe);
-      var b = el('button', { type: 'button', class: 'ck-prop', 'data-spot': p.id, 'aria-label': more ? name + ', ' + WORDS.resume : name },
-        [el('span', { class: 'ck-tag' + (more ? ' ck-more' : ''), 'aria-hidden': 'true', text: more ? WORDS.resume : name })]);
-      b.addEventListener('click', function () { pick(p.recipe); });
-      D.props.appendChild(b);
+  /* every HUD icon at a whole number of device px per icon px (strip and close floor(2 dpr), chip floor(3 dpr)), every
+     edge on a device px: the box sizes and offsets below are all rounded to device px (DPR 2.625 too) */
+  function sizeIcons() {
+    if (!D || !L) return;
+    var dpr = L.dpr || window.devicePixelRatio || 1, n2 = Math.max(1, Math.floor(2 * dpr + 1e-6)), n3 = Math.max(1, Math.floor(3 * dpr + 1e-6));
+    var dev = function (v) { return Math.round(v * dpr) / dpr; }, p2 = 16 * n2 / dpr, p3 = 16 * n3 / dpr, pad = dev(LAY.PAD);
+    function place(cv, n, px, box) {   /* centred in a box (the border is a shadow: no layout offset) */
+      drawIcon(cv, n); cv.style.width = px + 'px'; cv.style.height = px + 'px';
+      var off = (Math.round((dev(box) - px) / 2 * dpr) / dpr) + 'px';
+      cv.style.left = off; cv.style.top = off;
+    }
+    Array.prototype.forEach.call(D.strip.children, function (sp, i) {
+      var cv = sp.firstChild; drawIcon(cv, n2); cv.style.width = p2 + 'px'; cv.style.height = p2 + 'px';
+      sp.style.marginTop = (Math.round((dev(48) - p2) / 2 * dpr) / dpr) + 'px';
+      sp.style.marginLeft = pad + 'px';
     });
-    placeProps();
+    D.strip.style.paddingRight = pad + 'px';
+    place(D.closeCv, n2, p2, LAY.CLOSE);
+    place(D.verbCv, n3, p3, LAY.CHIP);
   }
-  function snapPx(v) { var dpr = (L && L.dpr) || window.devicePixelRatio || 1; return Math.round(v * dpr) / dpr; }
-  function placeProps() {   /* buttons over the art; pixel text sits on whole device pixels */
-    var A = art(), G = A.GEO, P = A.PAN_COUNTER, s = L.css || 2;
-    Array.prototype.forEach.call(D.props.children, function (b) {
-      var sp = G.spot[b.getAttribute('data-spot')]; if (!sp) return;
-      var x = snapPx(sp[0] * s), y = snapPx(sp[1] * s);
-      b.style.left = x + 'px'; b.style.top = y + 'px'; b.style.width = snapPx(sp[2] * s) + 'px'; b.style.height = snapPx(sp[3] * s) + 'px';
-      var tag = b.firstChild;   /* the name tag hangs on the front rim of the pan (below it sits the last plate) */
-      if (tag) {
-        tag.style.left = (snapPx(P.cx * s - tag.offsetWidth / 2) - x) + 'px';
-        tag.style.top = (snapPx((P.cy + P.ry + P.depth - 7) * s) - y) + 'px';   /* 3 art px clear of the plate spot below */
-      }
-    });
-  }
-  function placeTags() {   /* title and name tags: centred on the stage, on whole device pixels */
-    var G = art().GEO, w = ART_W * L.css, h = ART_H * L.css;
-    if (!D.title.hidden) D.title.style.left = snapPx((w - D.title.offsetWidth) / 2) + 'px';
-    if (!D.name.hidden) {
-      D.name.style.left = snapPx((w - D.name.offsetWidth) / 2) + 'px';
-      D.name.style.top = snapPx(Math.max(4, Math.min((G.food.cy - G.dish.cy + G.dish.h + 2) * L.css, h - D.name.offsetHeight - 4))) + 'px';
-    }
-  }
-  function propFor(recipeId) {
-    var list = D.props.children;
-    for (var i = 0; i < PROPS.length && i < list.length; i++) if (PROPS[i].recipe === recipeId) return list[i];
-    return list[0] || null;
-  }
-  function refreshCounter() {
-    var o = readStore(), pot = o.pot && resumeRun(o.pot) ? o.pot : null, line = null;
-    if (o.pot && !pot) patchStore(function (x) { x.pot = null; });   /* old build, other tune or broken: dropped quietly */
-    L.pot = pot;
-    L.pending = pot ? { si: pot.si, band: pot.looks[1] && typeof pot.looks[1].band === 'number' ? pot.looks[1].band : 0, herb: pot.swaps && pot.swaps.herb } : null;
-    for (var i = 0; i < o.book.length && !line; i++) if (o.book[i] && o.book[i].recipe === PROPS[0].recipe) line = o.book[i];
-    L.plate = plateOf(line) || L.plate;
-    o.seen.forEach(function (k) { if (L.seen.indexOf(k) < 0) L.seen.push(k); });
-    setScreenClass(); renderProps(); updVerb(); stripOn(-1);
-    L.dirty = true;
-  }
-  function nonce(o) {   /* run id salt: a random number (crypto), never a clock; without crypto, the book length */
-    try { var a = new Uint32Array(2); window.crypto.getRandomValues(a); return a[0].toString(36) + a[1].toString(36); }
-    catch (e) { return 'b' + o.book.length; }
-  }
-  function calm() {   /* back on the counter: ignore a press that began in the first calmMs (a second tap on the plate) */
-    var now = performance.now();
-    if (!L.counterAt) return false;
-    if (now - L.counterAt < TUNE.gateMs) return true;
-    return !!L.downAt && now - L.downAt < 2000 && L.downAt < L.counterAt + TUNE.calmMs;
-  }
-  function pick(recipeId) {   /* a counter prop: resume its pot (the current step restarts) or start a new dish */
-    if (!L || L.screen !== 'counter' || calm()) return;
-    var r = recipe(recipeId); if (!r) return;
-    sound({ act: 'pick', dish: r.id });
-    var o = readStore(), day = today(), run = null, pot = null;
-    if (o.pot && o.pot.recipe === r.id) { run = resumeRun(o.pot); if (run) pot = clone(o.pot); }
-    if (!run) {
-      if (o.day !== day) { o.day = day; o.dayN = 0; }
-      o.dayN = Math.min(1e6, o.dayN + 1);
-      run = createRun(r.id, L.seed !== null ? L.seed : seedFor(day, o.dayN), { id: runIdFor(day, o.dayN, nonce(o)) });
-      if (!run) return;
-      o.pot = potOf(run, Date.now());
-      writeStore(o);
-    }
-    L.run = run; L.runDay = day; L.screen = 'step'; L.shown = false; L.finished = null; L.hintKey = null; L.hint = null;
-    L.fxq = []; L.parts = []; L.dust = []; L.down = {}; L.finger = null; L.rowPress = false; L.nudges = 0;
-    sticker({ act: 'pick', dish: r.id });   /* here, not beside the sound above: the run (its seed) has to exist first */
-    if (L.rec) {   /* a resumed dish keeps its pot: COOK.simulate(recipe, seed, steps, { pot }) replays it */
-      var steps = []; for (var i = 0; i < run.n; i++) steps.push([]);
-      window.__cookRec = { recipe: run.recipe, seed: run.seed, steps: steps, pot: pot };
-    }
-    buildStrip(r); setScreenClass(); renderProps();
-    tick(run, simT());
-    handle(drain(run));
-    if (kbd) { L.shown = true; updVerb(); focusEl(D.verb); } else focusEl(D.stage);
-  }
-  function backToCounter() {
-    if (!L || L.screen !== 'reveal') return;
-    var made = L.run ? L.run.recipe : PROPS[0].recipe;
-    L.run = null; L.screen = 'counter'; L.down = {}; L.hint = null; L.fxq = []; L.parts = []; L.revealDown = null; L.revealIdle = 0; L.counterAt = performance.now();
-    D.name.hidden = true; hideTitle(); unstick();
-    refreshCounter();
-    focusEl(propFor(made));
-  }
+  /* strip states (5.1): done steps at full opacity, the current one raised with the amber line, upcoming ones at 45 % */
+  function stripOn(si) { Array.prototype.forEach.call(D.strip.children, function (c, i) { c.classList.toggle('on', i === si); c.classList.toggle('done', i < si); }); }
 
   /* ---------- input plumbing ---------- */
   function send(ev) {
@@ -1291,9 +1331,9 @@ var COOK = (function () {
     L.dirty = true;   /* hand-followed tools (the knife) move at display rate even when a sample adds no event */
     handle(drain(run));
   }
-  function logical(e) {   /* client px -> logical 288 x 320 (thresholds live in logical px, design 6.3) */
-    var r = L.rect || (L.rect = D.cv.getBoundingClientRect());
-    return { x: (e.clientX - r.left) * TUNE.stage.w / (r.width || 1), y: (e.clientY - r.top) * TUNE.stage.h / (r.height || 1) };
+  function logical(e) {   /* client px -> logical 288 x 320 through the canvas and the stage origin (spec 2.2) */
+    var r = L.rect || (L.rect = D.cv.getBoundingClientRect()), c = L.css || 1;
+    return { x: ((e.clientX - r.left) / c - L.ox) * TUNE.stage.scale, y: ((e.clientY - r.top) / c - L.oy) * TUNE.stage.scale };
   }
   function ptype(e) { return e.pointerType === 'touch' ? 't' : e.pointerType === 'mouse' ? 'm' : 'n'; }
   function follow(id, q) {   /* the spatula follows the finger of a stroke after heat-on (display rate, art px) */
@@ -1301,12 +1341,12 @@ var COOK = (function () {
     if (!st || st.kind !== 'flip' || !st.stroke || st.stroke.id !== id || st.done) return;
     L.finger = [Math.round(q.x / TUNE.stage.scale), Math.round(q.y / TUNE.stage.scale) - 6]; L.dirty = true;
   }
-  function onDown(e, routed) {   /* routed: a stroke that began on the quiet verb row belongs to the stage */
+  function onDown(e, routed) {   /* routed: a stroke that began on the quiet chip belongs to the stage */
     if (!L) return;
-    if (!routed && e.target && e.target.closest && e.target.closest('button')) return;   /* counter props handle their own click */
+    if (!routed && e.target && e.target.closest && e.target.closest('button')) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     hideTitle();   /* a ghost hand stays until progress or its own end: a press that changes nothing does not wipe it */
-    if (L.screen === 'reveal') { e.preventDefault(); L.revealIdle = L.lastT + TUNE.idleMs; if (L.lastT >= L.revealFocus) L.revealDown = e.pointerId; return; }
+    if (L.screen === 'reveal') { e.preventDefault(); return; }   /* the plate is only to look at: pressing it does nothing */
     if (L.screen !== 'step' || !L.run) return;
     if (e.pointerType !== 'mouse' && (e.clientX < TUNE.edgeCss || e.clientX > window.innerWidth - TUNE.edgeCss)) return;   /* OS back swipe */
     e.preventDefault();
@@ -1329,131 +1369,163 @@ var COOK = (function () {
     if (q) follow(e.pointerId, q);
   }
   function onUp(e) {
-    if (!L) return;
-    if (L.screen === 'reveal') return;   /* the stage's click goes back (a pointerup switch would let the same tap's click hit the pan) */
-    if (!L.down[e.pointerId]) return;
+    if (!L || L.screen === 'reveal' || !L.down[e.pointerId]) return;
     delete L.down[e.pointerId];
     var q = logical(e);
     send({ t: simT(evAt(e)), k: 'u', x: q.x, y: q.y, p: ptype(e), id: e.pointerId });
     if (L) { L.finger = null; L.dirty = true; }
   }
   function onCancel(e) {   /* pointercancel keeps all progress (never a penalty) */
-    if (!L) return;
-    if (L.revealDown === e.pointerId) L.revealDown = null;
-    if (!L.down[e.pointerId]) return;
+    if (!L || !L.down[e.pointerId]) return;
     delete L.down[e.pointerId];
     send({ t: simT(evAt(e)), k: 'c', id: e.pointerId });
     if (L) { L.finger = null; L.dirty = true; }
   }
-  function onVerb(e) {   /* the verb button: the browser's own press only (Enter / Space / click), no dialog-wide keys */
+  function onVerb(e) {   /* the chip: the browser's own press only (Enter / Space / click), no dialog-wide keys */
     if (!L) return;
-    var shownBy = L.rowPress; L.rowPress = false;
-    if (shownBy && e && e.detail > 0) { updVerb(); return; }   /* the finger / mouse press that showed the quiet button does not act */
+    var shownBy = L.rowPress, t = simT(evAt(e)); L.rowPress = false;
+    if (shownBy && e && e.detail > 0) { updVerb(); return; }   /* the finger / mouse press that showed the quiet chip does not act */
+    if (L.screen === 'reveal') { if (L.chipOn && t >= L.againAt) again(); return; }   /* again: only after 900 ms */
     L.shown = true;
-    if (L.screen === 'reveal') { backToCounter(); return; }
-    if (L.screen === 'step' && L.run) { hideTitle(); send({ t: simT(evAt(e)), k: 'b' }); }
+    if (L.screen === 'step' && L.run) { hideTitle(); send({ t: t, k: 'b' }); }
     updVerb();
   }
   function quietVerb() { return !!D && !!L && !D.verb.hidden && !L.shown && document.activeElement !== D.verb; }
-  function onRowDown(e) {   /* a finger or mouse press on the quiet (invisible) verb row never does the verb: it shows the
-                               button (a visible reaction), and in a step the stroke goes to the stage, so a thumb flick
-                               that starts below the stage still flips and a stray tap there never flips or cuts. Keyboard
-                               and screen-reader presses (a click with no pointer press) act at once. */
-    if (!L || (L.screen !== 'step' && L.screen !== 'reveal') || !quietVerb()) return;
+  function onRowDown(e) {   /* a finger or mouse press on the quiet (invisible) chip never does the verb: it shows the chip (a
+                               visible reaction) and the stroke goes to the stage, so a thumb flick that starts on it still
+                               flips and a stray tap there never flips or cuts. Keyboard and screen-reader presses (a click
+                               with no pointer press) act at once. */
+    if (!L || L.screen !== 'step' || !quietVerb()) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     L.rowPress = true; L.shown = true; L.stats.rowPress++; updVerb(); L.dirty = true;
-    if (L.screen === 'step') onDown(e, true);
+    onDown(e, true);
   }
   function cancelAll() { if (L && L.run) { L.down = {}; L.finger = null; send({ t: simT(), k: 'c' }); } }
 
-  /* ---------- layout: integer device-pixel scale (like js/runner.js fit), spare height above the header ---------- */
+  /* ---------- a dish: open straight into it (resume or new), and again (spec 3.1, 3.6) ---------- */
+  function nonce(o) {   /* run id salt: a random number (crypto), never a clock; without crypto, the book length */
+    try { var a = new Uint32Array(2); window.crypto.getRandomValues(a); return a[0].toString(36) + a[1].toString(36); }
+    catch (e) { return 'b' + o.book.length; }
+  }
+  function begin(isAgain) {
+    var r = RECIPES[0], o = readStore(), day = today(), run = null, pot = null;
+    o.seen.forEach(function (k) { if (L.seen.indexOf(k) < 0) L.seen.push(k); });
+    if (!isAgain && o.pot) {
+      run = resumeRun(o.pot);
+      if (run && run.recipe === r.id) pot = clone(o.pot);
+      else {   /* old build, other tune or broken: kept as it was in potOld (newest first), never resumed */
+        run = null;
+        o.potOld = [o.pot].concat(o.potOld || []).slice(0, 4); o.pot = null;
+        writeStore(o); L.stats.potOld++;
+      }
+    }
+    if (!run) {
+      if (o.day !== day) { o.day = day; o.dayN = 0; }
+      o.dayN = Math.min(1e6, o.dayN + 1);
+      run = createRun(r.id, L.seed !== null ? L.seed : seedFor(day, o.dayN), { id: runIdFor(day, o.dayN, nonce(o)) });
+      if (!run) return false;
+      o.pot = potOf(run, Date.now());
+      writeStore(o);
+    }
+    sound({ act: 'pick', dish: r.id });
+    L.run = run; L.runDay = day; L.screen = 'step'; L.shown = false; L.finished = null; L.hintKey = null; L.hint = null; L.nextAt = null;
+    L.fxq = []; L.parts = []; L.dust = []; L.down = {}; L.finger = null; L.rowPress = false; L.nudges = 0; L.chipOn = false; L.doneBuzz = null;
+    sticker({ act: 'pick', dish: r.id });   /* here, not beside the sound above: the run (its seed) has to exist first */
+    if (L.rec) {   /* a resumed dish keeps its pot: COOK.simulate(recipe, seed, steps, { pot }) replays it */
+      var steps = []; for (var i = 0; i < run.n; i++) steps.push([]);
+      window.__cookRec = { recipe: run.recipe, seed: run.seed, steps: steps, pot: pot };
+    }
+    buildStrip(r);
+    L.noSlide = true;   /* the first start of a dish places its station without a slide */
+    tick(run, simT());
+    handle(drain(run));
+    L.noSlide = false;
+    if (kbd) { L.shown = true; updVerb(); focusEl(D.verb); } else focusEl(D.stage);
+    return true;
+  }
+  function again() {   /* the result chip after 900 ms: a new dish; the plate leaves, a fresh pan arrives (no carry) */
+    if (!L || L.screen !== 'reveal') return;
+    var snap = copyBuf(L.buf);
+    unstick();
+    if (!begin(true)) return;
+    startSlide('plate', 'counter', L.run.t0, null, null, null, snap);   /* the live tap scene comes in */
+  }
+
+  /* ---------- layout (spec 2.2): one art px = k device px; the stage's band of interest sits between HUD and chip ---------- */
   function fit() {
     if (!L || !D) return;
-    var dpr = window.devicePixelRatio || 1, cs = window.getComputedStyle(D.dlg);
-    var padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0;
-    var vw = D.dlg.clientWidth || window.innerWidth, vh = D.dlg.clientHeight || window.innerHeight, vv = window.visualViewport;
+    var A = art(), dpr = window.devicePixelRatio || 1, cs = null;
+    var vw = D.dlg.clientWidth || window.innerWidth, vhAll = D.dlg.clientHeight || window.innerHeight, vh = vhAll, vv = window.visualViewport;
     if (vv && vv.height > 0 && vv.height < vh) vh = vv.height;
-    var inner = vh - padT - padB, bot = inner >= 500 ? LAY.bot : LAY.botShort;
-    var availW = vw - 2 * LAY.side, availH = inner - (LAY.top + LAY.head + 2 * LAY.gap + LAY.verb + bot);
-    var k = Math.max(1, Math.floor(Math.min(availW * dpr / ART_W, availH * dpr / ART_H) + 1e-6));
-    while (k > 1 && k / dpr > LAY.maxCss + 1e-9) k--;
-    var w = ART_W * k / dpr, h = ART_H * k / dpr, cw = Math.max(w, Math.min(LAY.column, availW));
-    function snap(v) { return Math.round(v * dpr) / dpr; }
-    function snapUp(v) { return Math.ceil(v * dpr - 1e-6) / dpr; }
-    function snapDn(v) { return Math.floor(v * dpr + 1e-6) / dpr; }
-    var left = snap(Math.max(0, (vw - cw) / 2));
-    var top = Math.max(snapUp(padT + LAY.top + LAY.head + LAY.gap), snap(padT + inner - (LAY.verb + LAY.gap + bot) - h));   /* stage top on a device px */
-    var headTop = snapDn(top - LAY.gap - LAY.head);   /* the header (step icons, close) on a device px too; the gap is 8 css px give or take a device px */
-    var sky = headTop - padT;
-    D.sky.style.height = sky + 'px';
-    D.head.style.width = cw + 'px'; D.head.style.marginLeft = left + 'px';
-    D.stage.style.width = w + 'px'; D.stage.style.height = h + 'px'; D.stage.style.marginLeft = snap(left + (cw - w) / 2) + 'px';
-    D.stage.style.marginTop = (top - headTop - LAY.head) + 'px';
-    D.verbRow.style.width = cw + 'px'; D.verbRow.style.marginLeft = left + 'px';
-    D.foot.style.height = bot + 'px';
-    L.k = k; L.dpr = dpr; L.css = w / ART_W; L.cw = cw; L.rect = null;
-    D.stick.style.zoom = Math.abs(L.css - 2) < 1e-6 ? '' : String(L.css / 2);   /* a sticker pixel (2 px there) = one art pixel here */
-    L.tight = sky < LAY.note + LAY.gap + 4;   /* no room for the notice slot above the header: it lies over the strip */
-    D.dlg.classList.toggle('ck-tight', L.tight);
-    if (L.note) D.noteT.textContent = L.tight ? L.note.short : L.note.text;
-    sizeStrip(); placeProps(); placeTags(); wallBg();
+    try { cs = window.getComputedStyle(D.probe); } catch (e) { cs = null; }
+    function pad(k) { var v = cs ? parseFloat(cs[k]) : 0; return isFinite(v) && v > 0 ? Math.min(200, v) : 0; }
+    var sT = pad('paddingTop'), sR = pad('paddingRight'), sB = pad('paddingBottom'), sL = pad('paddingLeft');
+    var hudB = sT + LAY.HUD, chipTop = vh - sB - LAY.CHIPB - LAY.CHIP, usable = chipTop - hudB;
+    var k = Math.max(1, Math.min(Math.floor(vw * dpr / LAY.VIEW_W + 0.01), Math.floor(usable * dpr / (LAY.ROWS[1] - LAY.ROWS[0]) + 0.01), Math.floor(LAY.ZMAX * dpr + 0.01)));
+    var css = k / dpr, W = Math.max(1, Math.ceil(vw / css - 1e-9)), H = Math.max(1, Math.ceil(Math.max(vh, vhAll) / css - 1e-9));
+    var ox = Math.round(vw / 2 / css) - FOOD_X, oy = Math.round((hudB + chipTop) / 2 / css) - LAY.MID;
+    function dev(v) { return Math.round(v * dpr) / dpr; }
+    if (!L.view || L.W !== W || L.H !== H) {
+      D.cv.width = W; D.cv.height = H;
+      L.view = A.blank(W, H); L.img = D.ctx.createImageData(W, H); L.bgc = [];
+    }
+    L.k = k; L.dpr = dpr; L.css = css; L.W = W; L.H = H; L.ox = ox; L.oy = oy; L.stride = W + 8; L.rect = null;
+    L.hudB = hudB; L.chipTop = chipTop; L.safe = [sT, sR, sB, sL]; L.vw = vw; L.vh = vh;
+    D.cv.style.width = (W * k / dpr) + 'px'; D.cv.style.height = (H * k / dpr) + 'px';
+    var sim = D.sim.style;
+    sim.left = (ox * css) + 'px'; sim.top = (oy * css) + 'px'; sim.width = (ART_W * css) + 'px'; sim.height = (ART_H * css) + 'px';
+    var top0 = dev(Math.max(LAY.PAD, sT + LAY.PAD)), left0 = dev(Math.max(LAY.PAD, sL + LAY.PAD)), right0 = dev(Math.max(LAY.PAD, sR + LAY.PAD)), ring = dev((LAY.HIT - LAY.CLOSE) / 2);
+    D.dlg.style.setProperty('--ck-px2', dev(2) + 'px');
+    D.strip.style.left = left0 + 'px'; D.strip.style.top = top0 + 'px'; D.strip.style.height = dev(48) + 'px';
+    D.close.style.left = dev(vw - right0 + ring - LAY.HIT) + 'px'; D.close.style.top = (top0 - ring) + 'px';   /* left: on a device px */
+    D.close.style.width = dev(LAY.HIT) + 'px'; D.close.style.height = dev(LAY.HIT) + 'px'; D.close.style.padding = ring + 'px';
+    D.verb.style.left = dev(Math.round((vw - LAY.CHIP) / 2)) + 'px'; D.verb.style.top = dev(chipTop) + 'px';
+    D.verb.style.width = dev(LAY.CHIP) + 'px'; D.verb.style.height = dev(LAY.CHIP) + 'px';
+    D.note.style.left = left0 + 'px'; D.note.style.right = right0 + 'px'; D.note.style.top = dev(hudB + LAY.PAD) + 'px';
+    /* stickers (5.4): one sticker px = n device px (n = floor(2 dpr)); the engine draws at 2 CSS px a sticker px, so the
+       layer is zoomed by n / dpr / 2 and its own lengths are given before the zoom. Shown only above STICK_ROW */
+    var n2 = Math.max(1, Math.floor(2 * dpr + 1e-6)), s = 32 * n2 / dpr, z = n2 / dpr / 2, st = D.stick.style;
+    var showStick = hudB + 4 + s + 8 <= (LAY.STICK_ROW + oy) * css;
+    D.stick.hidden = !showStick;
+    st.zoom = Math.abs(z - 1) < 1e-9 ? '' : String(z);
+    st.top = (dev(hudB + 4) / z) + 'px'; st.left = '0px'; st.width = (vw / z) + 'px'; st.height = (s / z) + 'px';
+    st.setProperty('--ck-s0', (left0 / z) + 'px'); st.setProperty('--ck-s1', (right0 / z) + 'px');
+    sizeIcons();
     L.dirty = true;
   }
-  /* the whole dialog stands in the play room's kitchen corner: its backdrop is the plank wall (COOK_ART.wallTile) at the
-     stage's own integer pixel scale, so tall phones show the kitchen wall above the stage instead of an empty page. The
-     dialog's inset frame paints over it; dark colour scheme = the same wall at night. */
-  function darkScheme() {
-    try {
-      var t = document.documentElement.getAttribute('data-theme');
-      if (t === 'dark' || t === 'light') return t === 'dark';
-      return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    } catch (e) { return false; }
-  }
-  function wallBg() {
-    var A = art(); if (!A || typeof A.wallTile !== 'function' || !L) return;
-    var dark = darkScheme(), key = (dark ? 'd' : 'l') + '|' + L.k + '|' + L.dpr;
-    if (L.wallKey === key) return;
-    var t = A.wallTile(dark), cv = document.createElement('canvas'), c = null;
-    cv.width = t.w; cv.height = t.h;
-    try { c = cv.getContext('2d'); } catch (e) { c = null; }
-    if (!c) return;
-    c.putImageData(A.imageData(t), 0, 0);
-    var s = D.dlg.style, px = L.k / L.dpr;
-    s.backgroundImage = 'url(' + cv.toDataURL() + ')'; s.backgroundSize = (t.w * px) + 'px ' + (t.h * px) + 'px';
-    s.backgroundRepeat = 'repeat'; s.backgroundPosition = '0 0'; s.imageRendering = 'pixelated';
-    L.wallKey = key;
-  }
+  function refit() { try { if (isOpen()) fit(); return isOpen(); } catch (e) { return false; } }
 
   /* ---------- frame loop ---------- */
   function update() {
     var t = simT(), run = L.run;
-    if (run && L.screen !== 'counter') { tick(run, t); handle(drain(run)); if (!L) return; run = L.run; }
-    if (L.titleUntil && t >= L.titleUntil) hideTitle();
+    if (run) { tick(run, t); handle(drain(run)); if (!L) return; run = L.run; }
+    if (L.titleUntil && t >= L.titleUntil) L.titleUntil = 0;
     if (L.screen === 'step' && run && run.phase === 'step') {
       if (!L.titleUntil && L.demoAt !== run.si) maybeDemo();
       checkIdle(run);
     }
     if (L.hint && t - L.hint.at >= L.hint.dur) { if (L.hint.seen) markSeen(L.hint.seen); L.hint = null; L.dirty = true; }
+    if (L.landBuzz != null && t >= L.landBuzz) { L.landBuzz = null; buzz('flip'); }   /* the landing frame (arc frame 3) */
     if (L.screen === 'reveal') {
-      if (D.name.hidden && t - L.revealAt >= (TUNE.reveal.frames - 1) * FMS) { D.name.hidden = false; placeTags(); }
-      if (L.revealFocus && t >= L.revealFocus) { L.revealFocus = 0; focusEl(kbd ? D.verb : D.stage); }
-      if (L.revealIdle && t >= L.revealIdle && !L.hint) {   /* nothing says how to go on: one tap hand on the plate, the button shows */
-        L.revealIdle = 0; startHand('tap', 'idle'); L.stats.idle++;
-        if (!L.shown) { L.shown = true; updVerb(); }
+      if (L.doneBuzz != null && t >= L.doneBuzz) { L.doneBuzz = null; buzz('done'); }
+      if (!L.chipOn && t >= L.chipAt) {   /* 450 ms: the again chip shows (not quiet); by key it takes focus */
+        L.chipOn = true; L.shown = true; updVerb();
+        focusEl(kbd ? D.verb : D.stage);
       }
     }
     if (L.auto) autoStep(t);
     var jf = frameSig(t);
     if (jf !== L.jf) { L.jf = jf; L.dirty = true; }
   }
-  /* redraw when any 12 fps frame changes: the global grid (bubbles, flames) and every reaction's own frame count from its
-     start (a bright rim lasts exactly one 83 ms frame, not until the next global tick), and the art's own counters
-     (fh, fbc, fl, t: each runs from its event, so each is painted once per frame, never held a frame and then skipped) */
+  /* redraw when any 12 fps frame changes: the global grid (bubbles, flames), every reaction's own frame count from its
+     start, the slide frame, and the art's own counters (fh, fbc, fl, t: each runs from its event, so each is painted once
+     per frame, never held a frame and then skipped) */
   function frameSig(t) {
     var s = Math.floor(t / FMS) >>> 0, i, fx;
     for (i = 0; i < L.fxq.length; i++) s = (Math.imul(s, 31) + Math.floor((t - L.fxq[i].at) / FMS)) >>> 0;
     for (i = 0; i < L.parts.length; i++) s = (Math.imul(s, 31) + Math.floor((t - L.parts[i].at) / FMS)) >>> 0;
     if (L.hint) s = (Math.imul(s, 31) + Math.floor((t - L.hint.at) / FMS)) >>> 0;
+    if (L.slide) s = (Math.imul(s, 31) + 0x51 + Math.floor((t - L.slide.t0) / FMS)) >>> 0;
     if (!L.reduced && L.run) {
       fx = fxNow(L.run, t);
       [fx.fh, fx.fbc, fx.fl, fx.t].forEach(function (v) { s = (Math.imul(s, 31) + (v == null ? 0x5bd1 : v + 1)) >>> 0; });
@@ -1472,18 +1544,16 @@ var COOK = (function () {
     if (run && run.phase === 'reveal' && !L.reduced) o.t = Math.max(0, Math.floor((t - L.revealAt) / FMS));
     return o;
   }
-  function render() {
-    if (!L.dirty) return;
-    L.dirty = false; L.frames++;
-    var A = art(), b = L.buf, t = L.lastT, run = L.run, J = juiceAt(t), f = L.reduced ? 0 : Math.floor(t / FMS), fx = fxNow(run, t);
-    if (!run || L.screen === 'counter') A.counter(b, { plate: L.plate, pending: L.pending });
-    else if (run.phase === 'reveal') A.revealScene(b, { look: lookOf(run), herb: run.swaps.herb, f: J.rise, t: fx.t, seed: fx.seed, still: L.reduced });
+  function paintStage(b, J, t, bare) {   /* the stage scene into the 144 x 160 buffer; bare: no particles and no hand (slides) */
+    var A = art(), run = L.run, f = L.reduced ? 0 : Math.floor(t / FMS), fx = fxNow(run, t);
+    if (!run) return;
+    if (run.phase === 'reveal') A.revealScene(b, { geo: 'close', look: lookOf(run), herb: run.swaps.herb, f: J.rise, t: fx.t, seed: fx.seed, still: L.reduced });
     else {
       var st = run.st, herb = run.swaps.herb, d0 = run.looks[0] && run.looks[0].dents ? run.looks[0].dents : [];
       if (st.kind === 'tap') A.tapScene(b, { shape: st.shape, dents: st.dents, marks: st.marks, per: st.per, herb: herb, flash: J.flash, squash: J.squash, dust: L.dust, f: f });
       else if (st.kind === 'flip') {
         A.flipScene(b, { heat: st.heat, band: st.band, res: J.arc ? null : st.res, arc: J.arc, herb: herb, dents: d0,
-          spatula: L.finger && !J.arc ? L.finger : undefined, arrow: st.heat && st.res === null ? (f >> 2) & 1 : null,
+          spatula: L.finger && !J.arc ? L.finger : undefined, arrow: st.heat && st.res === null ? (L.reduced ? 0 : (f >> 2) & 1) : null,
           bump: J.bump, flash: J.flash, still: L.reduced, f: f, seed: fx.seed, fh: fx.fh, fbc: fx.fbc, fl: fx.fl });
       } else if (st.kind === 'slice') {
         A.sliceScene(b, { band: run.looks[1] ? run.looks[1].band : 1, herb: herb, dents: d0, lines: st.lines, cur: st.cur, flash: J.cut, hand: st.hand, f: f, seed: fx.seed, fl: fx.fl, still: L.reduced });
@@ -1499,16 +1569,29 @@ var COOK = (function () {
         if (x >= 2 && y >= 2 && x < ART_W - 2 && y < ART_H - 2) list.push({ x: x, y: y, k: p.k, a: a, life: p.life });
         return true;
       });
-      A.particles(b, list);
+      if (!bare) A.particles(b, list);
     }
-    if (L.hint) {
+    if (L.hint && !bare) {
       var h = L.hint, hf = Math.floor((t - h.at) / FMS) % 4, o = {};
       for (var key in h.spec) o[key] = h.spec[key];
       o.f = L.reduced ? 0 : hf; o.still = L.reduced;
       A.hand(b, o);
     }
-    if (J.shake) { A.shake(b, J.shake[0], J.shake[1]); L.stats.shake++; }
-    L.img.data.set(b.d);
+  }
+  function render() {
+    if (!L.dirty || !L.view) return;
+    L.dirty = false; L.frames++;
+    var t = L.lastT, J = juiceAt(t), sp = slideAt(t), sl = sp ? L.slide : null, V = L.view;
+    if (!sp) L.slide = null;
+    if (sl) {
+      if (!sl.inb) paintStage(L.buf, J, t, true);   /* the live scene comes in (again, or no station bases in the art) */
+      composeSlide(V, sl, sp);
+    } else {
+      paintStage(L.buf, J, t, false);
+      layer(V, stationNow(), L.buf, L.ox, L.oy, 0, V.w);
+    }
+    if (J.shake) { shakeView(V, J.shake[0], J.shake[1]); L.stats.shake++; }
+    L.img.data.set(V.d);
     D.ctx.putImageData(L.img, 0, 0);
   }
   function frame() {
@@ -1517,50 +1600,49 @@ var COOK = (function () {
     try { update(); if (L === me) render(); } catch (e) { me.err++; }
     if (L === me) me.raf = window.requestAnimationFrame(frame);
   }
-  function autoStep(t) {   /* tests: the button path with short pauses, one dish, then back to the counter */
+  function autoStep(t) {   /* tests: the chip path with short pauses through the current dish; it stops on the plate */
     var a = L.auto, run = L.run;
-    if (L.screen === 'counter') { if (a.started) L.auto = null; else { pick(PROPS[0].recipe); if (L.screen !== 'counter') a.started = true; } return; }   /* retried until the counter's calm is over */
     if (L.screen === 'step' && run && run.phase === 'step') {
       if (run.t - run.t0 >= TUNE.gateMs + 50 && t >= a.next) { a.next = t + 300; send({ t: t, k: 'b' }); }
       return;
     }
-    if (L.screen === 'reveal') { if (!a.back) a.back = t + 900; else if (t >= a.back) { L.auto = null; backToCounter(); } }
+    if (L.screen === 'reveal') L.auto = null;
   }
 
-  /* ---------- dialog ---------- */
+  /* ---------- dialog (spec 2.5) ---------- */
   function build() {
     if (D) return;
     var d = {};
-    d.sky = el('div', { class: 'ck-sky', 'aria-hidden': 'true' });
+    d.cv = el('canvas', { class: 'ck-cv', width: String(LAY.VIEW_W), height: String(ART_H), 'aria-hidden': 'true' });
+    d.sim = el('div', { class: 'ck-sim', 'aria-hidden': 'true' });       /* the invisible 288 x 320 logical box */
+    d.stick = el('div', { class: 'ck-stick', 'aria-hidden': 'true' });   /* reaction stickers mount here: sticker() */
+    d.stage = el('div', { class: 'ck-stage', tabindex: '-1' }, [d.cv, d.sim, d.stick]);
+    d.strip = el('div', { class: 'ck-strip ck-paper', 'aria-hidden': 'true' });
+    d.closeCv = el('canvas', { width: '16', height: '16', 'aria-hidden': 'true' });
+    d.close = el('button', { type: 'button', class: 'ck-close', 'aria-label': WORDS.close }, [el('span', { class: 'ck-chip ck-paper', 'aria-hidden': 'true' }, [d.closeCv])]);
+    d.closeCv.ckIcon = null; d.closeCv.ckN = 0;
+    d.hud = el('div', { class: 'ck-hud' }, [d.strip, d.close]);
+    d.verbCv = el('canvas', { width: '16', height: '16', 'aria-hidden': 'true' });
+    d.verb = el('button', { type: 'button', class: 'ck-verb ck-paper', 'aria-label': '', hidden: '' }, [d.verbCv]);
     d.noteT = el('p', { class: 'ck-note-t' });
     d.noteGo = el('button', { type: 'button', class: 'ck-note-go' });
     d.note = el('div', { class: 'ck-note', hidden: '' }, [d.noteT, d.noteGo]);
-    d.strip = el('div', { class: 'ck-strip', 'aria-hidden': 'true' });
-    d.close = el('button', { type: 'button', class: 'ck-close', text: WORDS.close });
-    d.head = el('div', { class: 'ck-head' }, [d.note, d.strip, d.close]);
-    d.cv = el('canvas', { class: 'ck-cv', width: String(ART_W), height: String(ART_H), 'aria-hidden': 'true' });
-    d.stick = el('div', { class: 'ck-stick', 'aria-hidden': 'true' });   /* reaction stickers mount here: sticker() */
-    d.props = el('div', { class: 'ck-props' });
-    d.title = el('p', { class: 'ck-title', 'aria-hidden': 'true', hidden: '' });
-    d.name = el('p', { class: 'ck-name', 'aria-hidden': 'true', hidden: '' });
-    d.stage = el('div', { class: 'ck-stage', tabindex: '-1' }, [d.cv, d.stick, d.props, d.title, d.name]);
-    d.verb = el('button', { type: 'button', class: 'ck-verb', hidden: '' });
-    d.verbRow = el('div', { class: 'ck-verbrow' }, [d.verb]);
-    d.foot = el('div', { class: 'ck-foot', 'aria-hidden': 'true' });
     d.say = el('p', { class: 'ck-say', 'aria-live': 'polite' });
-    d.dlg = el('dialog', { class: 'ck-dlg', id: 'cook-dlg', 'aria-label': WORDS.kitchen }, [d.sky, d.head, d.stage, d.verbRow, d.foot, d.say]);
+    d.probe = el('div', { class: 'ck-probe', 'aria-hidden': 'true' });
+    d.dlg = el('dialog', { class: 'ck-dlg', id: 'cook-dlg', 'aria-label': WORDS.dish.jeon }, [d.stage, d.hud, d.verb, d.note, d.say, d.probe]);
     d.ctx = d.cv.getContext('2d');
     document.body.appendChild(d.dlg);
     D = d;
-    d.close.addEventListener('click', close);
+    d.close.addEventListener('click', function (e) { if (L && e && e.detail === 0) L.closeKbd = true; close(); });   /* detail 0: a key or a screen reader */
     d.verb.addEventListener('click', onVerb);
     d.noteGo.addEventListener('click', noticeGo);
+    d.dlg.addEventListener('cancel', function () { if (L) L.closeKbd = true; });   /* Esc: closed by key */
     d.dlg.addEventListener('close', onClosed);
     d.dlg.addEventListener('keydown', function (e) {   /* a held Enter / Space presses once (design 2.3, test L11) */
       if (e.repeat && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) { e.preventDefault(); e.stopPropagation(); }
     }, true);
     d.dlg.addEventListener('pointerdown', function () { if (L) { L.downAt = performance.now(); L.rowPress = false; } }, true);   /* every press, first */
-    d.verbRow.addEventListener('pointerdown', function (e) { try { onRowDown(e); } catch (x) { if (L) L.err++; } }, true);
+    d.verb.addEventListener('pointerdown', function (e) { try { onRowDown(e); } catch (x) { if (L) L.err++; } }, true);
     d.stage.addEventListener('pointerdown', function (e) { try { onDown(e); } catch (x) { if (L) L.err++; } });
     d.stage.addEventListener('pointermove', function (e) { try { onMove(e); } catch (x) { if (L) L.err++; } });
     d.stage.addEventListener('pointerup', function (e) { try { onUp(e); } catch (x) { if (L) L.err++; } });
@@ -1568,19 +1650,10 @@ var COOK = (function () {
     d.stage.addEventListener('lostpointercapture', function (e) {   /* an up that never came: free the finger (flip and slice follow one) */
       try { if (L && L.down[e.pointerId]) onCancel(e); } catch (x) { if (L) L.err++; }
     });
-    d.stage.addEventListener('click', function (e) {   /* plate reveal: a fresh tap anywhere on the stage goes back to the counter */
-      if (!L || L.screen !== 'reveal' || L.revealDown === null) return;
-      if (e.target && e.target.closest && e.target.closest('button')) return;
-      L.revealDown = null; backToCounter();
-    });
     d.stage.addEventListener('contextmenu', function (e) { e.preventDefault(); });
     d.dlg.addEventListener('contextmenu', function (e) { if (e.target === d.cv) e.preventDefault(); });
-    window.addEventListener('resize', function () { if (L) fit(); });
-    try {   /* light / dark wall follows the colour scheme while open */
-      var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
-      if (mq && mq.addEventListener) mq.addEventListener('change', function () { if (L) wallBg(); });
-    } catch (e) { /* old browser: the wall keeps its first look */ }
-    if (window.visualViewport) window.visualViewport.addEventListener('resize', function () { if (L) fit(); });
+    window.addEventListener('resize', function () { try { if (L) fit(); } catch (e) { if (L) L.err++; } });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', function () { try { if (L) fit(); } catch (e) { if (L) L.err++; } });
     document.addEventListener('visibilitychange', function () {
       if (!L) return;
       try {
@@ -1608,15 +1681,15 @@ var COOK = (function () {
   }
   function onClosed() {
     if (!L || (D && D.dlg.open)) return;   /* a late close event after a new open is not ours */
-    var me = L;
+    var me = L, byKey = !!(me.closeKbd || kbd);
     settle0(me);
     L = null;
-    D.note.hidden = true; D.dlg.classList.remove('ck-noting');
+    D.note.hidden = true;
     if (!me.after) {   /* focus back to the opener, else the play-room door, else the main button (design 3.3) */
       var list = [me.opener, document.getElementById('btn-play-door'), document.getElementById('btn-go')];
       for (var i = 0; i < list.length; i++) if (shownEl(list[i])) { focusEl(list[i]); break; }
     }
-    if (typeof me.onClose === 'function') { try { me.onClose(); } catch (e) { /* host */ } }
+    if (typeof me.onClose === 'function') { try { me.onClose({ kbd: byKey }); } catch (e) { /* host */ } }
     if (typeof me.after === 'function') { try { me.after(); } catch (e) { /* host */ } }
   }
   function close() { try { if (D && D.dlg.open) D.dlg.close(); } catch (e) { /* already closed */ } }
@@ -1635,24 +1708,24 @@ var COOK = (function () {
         reduced: wantReduced(opts.reduced), slow: Math.max(0.25, Math.min(16, slow)), rec: !!(opts.rec || urlOpt('rec') === '1'),
         seed: seed === undefined || seed === null || seed === '' ? null : toU32(seed),
         palette: typeof opts.palette === 'string' ? opts.palette.slice(0, 16) : null,
-        onResult: opts.onResult, onClose: opts.onClose, after: null, closed: false,
+        onResult: opts.onResult, onClose: opts.onClose, after: null, closed: false, closeKbd: false,
         clock: { base: 0, since: document.hidden ? null : performance.now() }, lastT: 0, jf: -1,
-        run: null, runDay: null, screen: 'counter', pot: null, pending: null, plate: null, seen: [], shown: false, finished: null,
+        run: null, runDay: null, screen: 'step', seen: [], shown: false, finished: null,
         fx: 0, fxq: [], parts: [], dust: [], prng: null, hint: null, hintKey: null, demoAt: -1, titleUntil: 0, finger: null,
-        down: {}, rect: null, sndAt: {}, said: [], note: null, auto: null, revealAt: 0, revealFocus: 0, revealDown: null, revealIdle: 0, counterAt: 0,
-        downAt: 0, rowPress: false, nudges: 0, taught: 0,
-        stats: { parts: 0, squash: 0, shake: 0, arc: 0, hints: 0, idle: 0, flips: 0, teach: 0, rowPress: 0 }, frames: 0, err: 0, dirty: true,
-        buf: art().blank(ART_W, ART_H), img: D.ctx.createImageData(ART_W, ART_H), raf: 0, k: 1, css: 2, cw: LAY.column, tight: false };
+        down: {}, rect: null, sndAt: {}, said: [], note: null, auto: null, revealAt: 0, chipAt: 0, againAt: 0, chipOn: false,
+        downAt: 0, rowPress: false, nudges: 0, taught: 0, landAt: null, landBuzz: null, doneBuzz: null, nextAt: null, noSlide: false, slide: null,
+        stats: { parts: 0, squash: 0, shake: 0, arc: 0, hints: 0, idle: 0, flips: 0, teach: 0, rowPress: 0, slides: 0, potOld: 0, buzz: { tap: 0, flip: 0, cut: 0, done: 0 } },
+        frames: 0, err: 0, dirty: true, buf: art().blank(ART_W, ART_H), view: null, img: null, bgc: [], raf: 0,
+        k: 1, css: 1, dpr: 1, W: 0, H: 0, ox: 0, oy: 0, stride: 8, hudB: 0, chipTop: 0, safe: [0, 0, 0, 0], vw: 0, vh: 0 };
       if (L.palette && /^[a-z0-9-]+$/.test(L.palette)) D.dlg.setAttribute('data-palette', L.palette); else D.dlg.removeAttribute('data-palette');
-      D.note.hidden = true; D.dlg.classList.remove('ck-noting'); D.title.hidden = true; D.name.hidden = true; D.say.textContent = ''; D.strip.textContent = '';
+      D.note.hidden = true; D.say.textContent = ''; D.strip.textContent = ''; D.closeCv.ckIcon = iconOf('close'); D.closeCv.ckN = 0;
+      D.verbCv.ckName = null;
       document.documentElement.classList.add('ck-open');
       setKbd(kbd);
       D.dlg.showModal();
-      refreshCounter();
       fit();
+      if (!begin(false)) throw new Error('no dish');
       L.raf = window.requestAnimationFrame(frame);
-      if (opts.recipe && recipe(opts.recipe)) pick(opts.recipe);
-      else focusEl(propFor(L.pot ? L.pot.recipe : PROPS[0].recipe));
       return true;
     } catch (e) {
       try { if (L) settle0(L); L = null; if (D && D.dlg.open) D.dlg.close(); document.documentElement.classList.remove('ck-open'); } catch (e2) { /* nothing more to undo */ }
@@ -1660,7 +1733,8 @@ var COOK = (function () {
     }
   }
 
-  /* ---------- the notice slot (design 3.4): the host says the octopus is back; no focus is taken ---------- */
+  /* ---------- the notice slot (dormant: nothing calls it; it shows words, so any use needs the owner): under the HUD,
+     it never moves the canvas or takes focus ---------- */
   function notice(o) {
     try {
       if (!isOpen()) return false;
@@ -1668,9 +1742,9 @@ var COOK = (function () {
       var text = String(o.text || '').slice(0, 80), short = String(o.short || o.text || '').slice(0, 40);
       if (!text) return false;
       L.note = { text: text, short: short, fn: typeof o.fn === 'function' ? o.fn : null };
-      D.noteT.textContent = L.tight ? short : text;
+      D.noteT.textContent = text;
       D.noteGo.textContent = String(o.label || WORDS.go).slice(0, 20);
-      D.note.hidden = false; D.dlg.classList.add('ck-noting');
+      D.note.hidden = false;
       say(text);
       return true;
     } catch (e) { return false; }
@@ -1702,21 +1776,25 @@ var COOK = (function () {
     } catch (e) { return false; } finally { curKey = keep; }
   }
 
-  /* ---------- test hooks ---------- */
+  /* ---------- test hooks (spec 14) ---------- */
   function live() {
-    if (!L) return { screen: 'closed', recipe: null, si: null, kind: null, phase: null, progress: 0, done: false, tag: null, band: null, quiet: true, fx: 0 };
-    var run = L.run, st = run && run.st;
+    if (!L) return { screen: 'closed', recipe: null, si: null, kind: null, phase: null, progress: 0, done: false, tag: null, band: null, quiet: true, fx: 0,
+      station: null, slide: null, view: null, verb: '', stick: false };
+    var run = L.run, st = run && run.st, sp = slideAt(L.lastT), sl = L.slide;
     return { screen: L.screen, recipe: run ? run.recipe : null, si: run ? run.si : null, kind: st && run.phase !== 'reveal' ? st.kind : null,
       phase: run ? run.phase : null, progress: st ? st.progress : 0, done: run ? !!run.done : false, tag: st ? st.tag : null,
       band: st && st.kind === 'flip' ? st.band : null, quiet: !(L.shown || document.activeElement === D.verb), fx: L.fx,
-      verb: D.verb.hidden ? '' : D.verb.textContent, hint: L.hint ? L.hint.why : null, title: !D.title.hidden, note: !D.note.hidden,
-      k: L.k, css: L.css, tight: L.tight, reduced: L.reduced, slow: L.slow, frames: L.frames, err: L.err, said: L.said.slice(),
+      verb: D.verb.hidden ? '' : D.verb.getAttribute('aria-label') || '', hint: L.hint ? L.hint.why : null, title: false, note: !D.note.hidden,
+      station: stationNow(), slide: sp && sl ? { from: sl.from, to: sl.to, f: sp.f, s: sp.s, carry: sl.carry } : null,
+      view: { k: L.k, css: L.css, W: L.W, H: L.H, ox: L.ox, oy: L.oy, hudB: L.hudB, chipTop: L.chipTop, safe: L.safe.slice() },
+      stick: !D.stick.hidden, chip: L.chipOn, t0: run ? run.t0 : null, revealAt: L.screen === 'reveal' ? L.revealAt : null,
+      k: L.k, css: L.css, tight: false, reduced: L.reduced, slow: L.slow, frames: L.frames, err: L.err, said: L.said.slice(),
       stats: clone(L.stats), seed: run ? run.seed : null, id: run ? run.id : null, look: run ? lookOf(run) : null,
-      st: st ? clone(st) : null, pending: !!L.pot, key: curKey, seen: L.seen.slice() };
+      st: st ? clone(st) : null, pending: !!(run && !run.done), key: curKey, seen: L.seen.slice() };
   }
-  function auto(on) { if (!isOpen()) return false; L.auto = on ? { started: L.screen !== 'counter', next: 0, back: 0 } : null; return true; }
+  function auto(on) { if (!isOpen()) return false; L.auto = on ? { next: 0 } : null; return true; }
 
-  API.open = open; API.close = close; API.isOpen = isOpen; API.notice = notice;
+  API.open = open; API.close = close; API.isOpen = isOpen; API.notice = notice; API.refit = refit;
   API.exportData = exportData; API.importData = importData; API.live = live; API.auto = auto;
 
   return API;
