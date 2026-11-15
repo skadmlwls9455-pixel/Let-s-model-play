@@ -13,7 +13,7 @@
      turned it on). ?sound=1 turns it on for this page only (never saved: the game's own setting stays as it was); it
      still starts only on the first touch or key. The kitchen sounds live in foley/ (credits: credits.html).
      Reaction stickers: css/cook-stickers.css + js/cook-stickers.js, after js/cook.js (docs/COOK_STICKERS.md). Pictures
-     only. js/cook.js hands them its cooking moments itself (no COOK_STICKERS.listenAudio() here: both would show every
+     only, and (11-15 owner answer (나)) never a feeling face in the kitchen. js/cook.js hands them its cooking moments itself (no COOK_STICKERS.listenAudio() here: both would show every
      sticker twice), so they need no sound; without the two files the kitchen plays just the same. -->
 <link rel="stylesheet" href="vendor/fonts/galmuri.css">
 <link rel="stylesheet" href="css/style.css">
@@ -21,13 +21,13 @@
 <link rel="stylesheet" href="css/cook-stickers.css">
 <style>
 /* cook.html only: one quiet text link to the credits (the kitchen sounds are recordings by other people).
-   Shown on the counter screen, in the empty strip where the verb button sits during a step, and on the closed
-   page under the door button. Never during a step or the plate reveal. */
+   11-15 round 5 (close-up kitchen, zero visible words): shown only on the standalone closed page under the door
+   button, never inside the kitchen dialog and never in the game's frame (the game's settings have it). */
 .ckh-credits { display: none; }
-.ck-dlg.ck-counter > .ckh-credits, .ck-home > .ckh-credits {
+.ck-home > .ckh-credits {
   display: block; position: absolute; left: 50%; transform: translateX(-50%);
   bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); padding: 10px 12px; margin: 0;
-  font-family: var(--f-meta, 'Galmuri7', sans-serif); font-size: 16px; line-height: 24px; white-space: nowrap;
+  font-family: var(--f-meta, 'Galmuri11', sans-serif); font-size: 16px; line-height: 24px; white-space: nowrap;
   color: var(--muted, #602c2c); text-decoration: underline; text-underline-offset: 4px;
   -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
@@ -63,10 +63,16 @@ html.ck-embed, html.ck-embed body { background: var(--bg, #d7b594); }
      frame itself. Messages only to and from the parent window */
   var embed = get('embed') === '1' && window.parent && window.parent !== window;
   if (embed) document.documentElement.classList.add('ck-embed');
-  function tell(what) { try { window.parent.postMessage({ ppolCook: what }, location.protocol === 'file:' ? '*' : location.origin); } catch (e) { /* no parent */ } }
+  function tell(what, extra) {
+    var m = { ppolCook: what }, k;
+    if (extra) for (k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) m[k] = extra[k];
+    try { window.parent.postMessage(m, location.protocol === 'file:' ? '*' : location.origin); } catch (e) { /* no parent */ }
+  }
   function opts(first) {
     var o = { opener: door, storeKey: 'ppolppol_cook_v0' }, v;
-    if (embed) o.onClose = function () { tell('close'); };
+    /* 11-15 round 5: the kitchen says whether it closed by key (Esc, or Enter/Space on close); the game then keeps the
+       focus ring on the counter button, or drops it after a finger */
+    if (embed) o.onClose = function (how) { tell('close', { kbd: !!(how && how.kbd) }); };
     v = get('seed'); if (v !== null && /^\d{1,10}$/.test(v)) o.seed = Number(v);
     v = get('slow'); if (v !== null && +v > 0) o.slow = +v;
     if (get('reduced') === '1') o.reduced = true;
@@ -74,15 +80,17 @@ html.ck-embed, html.ck-embed body { background: var(--bg, #d7b594); }
     v = get('recipe'); if (first && v) o.recipe = v;   /* straight into that dish, only on the first open */
     return o;
   }
-  /* the same small link inside the kitchen dialog (cook.css never shows it; the style above shows it on the counter only) */
-  function creditLink() {
-    var d = document.getElementById('cook-dlg');
-    if (!d || d.querySelector('.ckh-credits')) return;
-    var a = document.createElement('a');
-    a.className = 'ckh-credits'; a.href = 'credits.html?from=cook'; a.textContent = '만든 것들';
-    d.appendChild(a);
+  function go(first) { try { return !!(window.COOK && COOK.open && COOK.open(opts(first))); } catch (e) { return false; } }
+  /* 11-15 round 5 (close-up kitchen §12): inside an iframe env(safe-area-inset-*) is probably 0, so the game measures
+     its own insets and sends them as {ppolCook:'safe', t, r, b, l} (CSS px). They land as --ck-safe-* on <html>, which
+     the kitchen's safe-area probe reads; an open kitchen fits itself again */
+  function safeNum(v) { v = Number(v); return isFinite(v) ? Math.max(0, Math.min(200, v)) : 0; }
+  function setSafe(d) {
+    var st = document.documentElement.style;
+    st.setProperty('--ck-safe-t', safeNum(d.t) + 'px'); st.setProperty('--ck-safe-r', safeNum(d.r) + 'px');
+    st.setProperty('--ck-safe-b', safeNum(d.b) + 'px'); st.setProperty('--ck-safe-l', safeNum(d.l) + 'px');
+    try { if (window.COOK && COOK.isOpen && COOK.isOpen() && typeof COOK.refit === 'function') COOK.refit(); } catch (e) { /* fits on the next resize */ }
   }
-  function go(first) { try { var ok = !!(window.COOK && COOK.open && COOK.open(opts(first))); if (ok) creditLink(); return ok; } catch (e) { return false; } }
   /* sound: the game's js/audio.js, unless the page already has an AUDIO (the kitchen tests put a recording one in first) */
   function sound() {
     try {
@@ -99,7 +107,8 @@ html.ck-embed, html.ck-embed body { background: var(--bg, #d7b594); }
     window.addEventListener('message', function (e) {
       if (e.source !== window.parent || (e.origin !== 'null' && e.origin !== location.origin)) return;
       var d = e.data; if (!d || typeof d !== 'object') return;
-      if (d.ppolCook === 'open') go(false);
+      if (d.ppolCook === 'safe') setSafe(d);
+      else if (d.ppolCook === 'open') go(false);
       else if (d.ppolCook === 'close' && window.COOK && COOK.isOpen && COOK.isOpen()) COOK.close();
     });
   }
