@@ -431,10 +431,28 @@ var COOK_ART = (function () {
   var STOVE_LIP = 136, STOVE_PANEL = 140, STOVE_DOOR = 158;
   function stoveAt(sx, sy) {
     if (sy === WOOD_Y) return C.s4;                                                      /* the trim's shadow on the enamel */
-    if (sy < STOVE_LIP) return pool(sx, sy, WOOD_L.x, WOOD_L.y, 1, WOOD_L.r1, WOOD_L.r1) === 2 && ((sx + sy) & 1) === 0 ? C.s6 : C.s5;
+    /* the lamp pool: solid s6 with a 3-px dithered edge (round 5 check K-7: a 50 % checker over the whole pool read as an
+       editor's transparency grid) */
+    if (sy < STOVE_LIP) return pool(sx, sy, WOOD_L.x, WOOD_L.y, 1, WOOD_L.r1 - 3, WOOD_L.r1) === 2 ? C.s6 : C.s5;
     if (sy < STOVE_PANEL) return [C.s6, C.s5, C.s4, C.s3][sy - STOVE_LIP];               /* the rounded front lip */
     if (sy < STOVE_DOOR) return sy === STOVE_DOOR - 1 ? C.s2 : C.s3;                     /* knob panel */
-    return imod(sy - STOVE_DOOR, 10) === 9 ? C.s3 : C.s4;                                /* oven door (bleed only), a seam every 10 rows */
+    return ovenAt(sx, sy - STOVE_DOOR);                                                  /* oven door (bleed only) */
+  }
+  /* the oven door below the knob panel (round 5 check K-8: a flat s4 band in the dialog's own colour read as empty page):
+     a dark gap, a lit top edge, an s3 face with a handle bar (lit top, shaded under) and a dark window under it, then a
+     plinth. d = rows below STOVE_DOOR; the handle and the window are centred under the pan (stage x 72) */
+  function ovenAt(sx, d) {
+    var hx = sx >= 44 && sx <= 100, wx = sx >= 38 && sx <= 106;
+    if (d === 0) return C.s1;                                                            /* the gap under the panel */
+    if (d === 1) return C.s5;                                                            /* the door's lit top edge */
+    if (d === 3 && hx) return sx === 44 || sx === 100 ? C.s2 : C.s6;                     /* handle bar: lit top, dark ends */
+    if (d === 4 && hx) return C.s1;                                                      /* ... its shaded underside */
+    if (d >= 7 && d <= 19 && wx) {                                                       /* the window: s2 frame, dark glass, one glint */
+      if (d === 7 || sx === 38 || sx === 106) return C.s2;
+      return (sx - 41 === d - 8 || sx - 42 === d - 8) && d <= 11 ? C.s1 : C.s0;
+    }
+    if (d === 22) return C.s2;                                                           /* the door's bottom edge */
+    return d > 22 ? C.s1 : C.s3;                                                         /* door face, then the plinth */
   }
   function bgAt(station, sx, sy) {
     if (sy < WALL_Y) return wallAt(sx, sy);
@@ -2013,23 +2031,26 @@ var COOK_ART = (function () {
       '...oDEEEEEEEDo..',
       '....ooDDDDDDo...',
       '......oooooo....'],
-    again: [          /* 11-15: a loop arrow (again, HUD only; a later stir glyph must not be a loop arrow) */
-      '........o.......',
-      '.......oYo......',
-      '.......oYYo.....',
-      '.....ooWYYYo....',
-      '....oWWWYYYYo...',
-      '...oWWWWYYYo....',
-      '..oWWWWoYYo.....',
-      '..oWWWooYo......',
-      '.oWWWo..o..ooo..',
-      '.oWWWo....oXXXo.',
-      '..oWYYo..oXXXo..',
-      '..oYYYYooXXXXo..',
-      '...oYYYXXXXXo...',
-      '....oYXXXXXo....',
-      '.....ooXXoo.....',
-      '.......oo.......']
+    again: [          /* 11-15: a loop arrow (again, HUD only; a later stir glyph must not be a loop arrow). Round 5 check
+                         K-3: the old thick hook into the middle read as G or 6. Now an open ring (about 300 deg, 2-px
+                         stroke) and a separate solid head at the upper right pointing clockwise, nothing in the middle
+                         (the furniture turn arrow's shape, at 16 x 16) */
+      '........ooo.....',
+      '........oWoo....',
+      '....oooooWWoo...',
+      '..oooWWWWYYYo...',
+      '..oWWWWWYYYXo...',
+      '.ooWWooooYXoo...',
+      '.oWWoo..oXoo....',
+      '.oWWo...ooo.....',
+      '.oWWo......oooo.',
+      '.oWYo......oXXo.',
+      '.oYYo......oXXo.',
+      '.oYYoo....ooXXo.',
+      '.ooYYooooooXXoo.',
+      '..oYYXXXXXXXXo..',
+      '..oooXXXXXXooo..',
+      '....oooooooo....']
   };
   var ICON_K = { o: C.ink, W: C.s6, Y: C.s5, X: C.s4, Z: C.s6, V: C.s1, b: C.w2, c: C.w3, d: C.w4, a: C.w1, F: C.a3, E: C.a2, D: C.a1 };
   var iconCache = {};
@@ -2262,7 +2283,7 @@ var COOK_ART = (function () {
         if (!flipped && !arc) fxBandPuff(fbc, band, seed, cx, cy, rx, ry);
         if (fl >= 0 && fl < 36) fxBloom(fl, band, seed, cx, cy, rx, ry);
       }
-      steamPass(b, food);
+      steamPass(b, food, true);   /* round 5 check K-4: on the light enamel the board's veil, never a solid white curl (read as S, C, <) */
     }
     if (o.arrow === 0 || o.arrow === 1) arrow(b, GEO.flipArrow[0], GEO.flipArrow[1], o.arrow);   /* 11-15: fixed, where the flick demo starts */
     frame(b);

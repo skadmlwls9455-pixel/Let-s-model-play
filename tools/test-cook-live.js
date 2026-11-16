@@ -604,6 +604,20 @@ async function L9(browser) {   /* bad pots move byte-identical into potOld (newe
     check(T.errs.length === 0 && l.err === 0, 'L9 ' + v[0] + ': no errors ' + T.errs.join(' | '));
     await T.done();
   }
+  /* 11-15 round 5 (check O-6): a bad pot over 2 KB moves to potOld and is still there after the close (the next write)
+     and the next open; potOld's old size limit dropped it on the next read */
+  var bigPot = Object.assign({}, pot, { tune: 12345, pad: 'z'.repeat(2150) }), bigJs = js(bigPot);
+  var O = await openPage(browser, { store: JSON.stringify(Object.assign({}, good, { pot: bigPot })) });
+  var o1 = await O.store();
+  await O.page.evaluate(function () { COOK.close(); }); await O.go(200);
+  var o2 = await O.store();
+  await O.page.evaluate(function () { document.getElementById('ck-door').click(); }); await O.go(200);
+  await O.page.evaluate(function () { COOK.close(); }); await O.go(200);
+  var o3 = await O.store();
+  check([o1, o2, o3].every(function (s) { return s && Array.isArray(s.potOld) && js(s.potOld[0]) === bigJs; }) && js(o3.book) === js([line0]),
+    'L9 oversized: the ' + bigJs.length + '-byte pot is first in potOld after the open, the close and the next open, byte-identical (' + [o1, o2, o3].map(function (s) { return s && s.potOld ? s.potOld.length : 0; }).join(',') + ')');
+  check(O.errs.length === 0, 'L9 oversized: no errors ' + O.errs.join(' | '));
+  await O.done();
   var B = await openPage(browser, { store: '{"v":1,"pot":{"ver":' });   /* a broken key: nothing to keep, a new dish */
   var lb = await B.live();
   check(lb.screen === 'step' && lb.si === 0 && B.errs.length === 0, 'L9 broken JSON: a new dish starts, no errors');
@@ -1235,14 +1249,14 @@ async function N6(browser) {
   vib = await T.page.evaluate(function () { return window.__vib.slice(); });
   var cv = vib.slice(n3), cuts = cv.filter(function (x) { return x.t < R; }), plate = cv.filter(function (x) { return x.t >= R; });
   check(cuts.length === 2 && cuts.every(function (x) { return x.p === 16; }), 'N6: each line cut gives 16 (' + js(cuts.map(function (x) { return x.p; })) + ')');
-  check(plate.length === 1 && js(plate[0].p) === js([16, 80, 26]) && plate[0].t - R >= 400 && plate[0].t - R <= 470, 'N6: the plate gives [16,80,26], 400-470 ms after the reveal (' + js(plate.map(function (x) { return [x.p, Math.round(x.t - R)]; })) + ')');
+  check(plate.length === 0, 'N6: the plate gives nothing (round 5 check O-5: the owner named only tap, flip and slice: ' + js(plate.map(function (x) { return [x.p, Math.round(x.t - R)]; })) + ')');
   var n4 = vib.length;
   await T.tapCss(await (async function () { var r = await T.rect('.ck-verb'); return [r.x + r.w / 2, r.y + r.h / 2]; })());   /* the again press itself */
   await T.go(1200);
   vib = await T.page.evaluate(function () { return window.__vib.slice(); });
   check(vib.length === n4, 'N6: again (a chip press) and its slide give nothing');
   l = await T.live();
-  check(l.stats.buzz.tap === 10 && l.stats.buzz.flip === 1 && l.stats.buzz.cut === 2 && l.stats.buzz.done === 1, 'N6: stats.buzz counts the attempts (' + js(l.stats.buzz) + ')');
+  check(js(l.stats.buzz) === js({ tap: 10, flip: 1, cut: 2 }), 'N6: stats.buzz counts the attempts, tap / flip / cut only (' + js(l.stats.buzz) + ')');
   check(T.errs.length === 0, 'N6: no errors ' + T.errs.join(' | '));
   await T.done();
 
@@ -1269,7 +1283,7 @@ async function N6(browser) {
   var lm = await M.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
   await M.go(600);
   var dn = (await M.page.evaluate(function () { return window.__vib.slice(); })).filter(function (x) { return Array.isArray(x.p); });
-  check(dn.length === 1 && dn[0].t - (M.t0 + lm.revealAt) < 20, 'N6 reduced motion: done buzzes at the reveal event (' + js(dn.map(function (x) { return Math.round(x.t - (M.t0 + lm.revealAt)); })) + ')');
+  check(dn.length === 0, 'N6 reduced motion: the plate gives nothing either (' + js(dn.map(function (x) { return Math.round(x.t - (M.t0 + lm.revealAt)); })) + ')');
   check(M.errs.length === 0, 'N6: no errors (reduced) ' + M.errs.join(' | '));
   await M.done();
 }

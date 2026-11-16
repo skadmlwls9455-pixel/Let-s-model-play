@@ -38,6 +38,9 @@ html.ck-open body { overscroll-behavior: none; }
 .ck-stick > [data-slot] { top: 0 !important; bottom: auto !important; }
 .ck-stick > [data-slot="0"], .ck-stick > [data-slot="2"], .ck-stick > [data-slot="4"] { left: var(--ck-s0, 8px) !important; right: auto !important; }
 .ck-stick > [data-slot="1"], .ck-stick > [data-slot="3"], .ck-stick > [data-slot="5"] { left: var(--ck-s1, auto) !important; right: auto !important; }   /* fit(): vw - right inset - size */
+/* the rise leaves no transform behind (check K-2): an identity transform kept by 'both' put the drop-shadowed sticker on
+   a layer of its own, resampled under the zoom above, so its edges went soft at DPR 2.625. Shadow and rise stay */
+.ck-stick .cook-sticker:not(.is-out) { animation-fill-mode: backwards; }
 
 /* paper chips: strip, close and the verb chip */
 /* the 2 px border is the first inset shadow (Chrome rounds border widths to whole CSS px, which would move the icons off
@@ -102,13 +105,16 @@ html.ck-open body { overscroll-behavior: none; }
   display: flex; align-items: center; justify-content: center; }
 .ck-door {
   min-width: 160px; min-height: 56px; margin: 0; padding: 8px 24px; box-sizing: border-box;
-  font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: 24px; line-height: 24px; white-space: nowrap;
+  font-family: inherit; font-size: 24px; line-height: 24px; white-space: nowrap;
   color: var(--fg, #341c27); background-color: var(--panel, #e7d5b3); border: 2px solid var(--line, #602c2c); border-radius: 0;
   box-shadow: inset 2px 2px 0 var(--hi-px, #ebede9), inset -2px -2px 0 var(--lo-px, #c09473), 2px 2px 0 var(--line, #602c2c);
   cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
 .ck-door:active { transform: translate(2px, 2px); box-shadow: inset 2px 2px 0 var(--hi-px, #ebede9), inset -2px -2px 0 var(--lo-px, #c09473); }
 :root:root .ck-door:focus-visible { outline: 2px solid var(--fg, #341c27); outline-offset: -6px; }
+/* round 5 check T-10: the pixel font on whole device px (--fs-u24, js/fs-snap.js); with the pixel font off the page's
+   own font (the game's setting, read in cook.html's head) */
+:root[data-font="pixel"] .ck-door { font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: var(--fs-u24, 24px); }
 
 /* reduced motion: the canvas follows COOK.open({ reduced }) / prefers-reduced-motion in js/cook.js. The dialog has no
    CSS animation of its own; this block keeps it that way. The 2 px press shift and the raised step icon stay (static,

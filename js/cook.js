@@ -753,9 +753,9 @@ var COOK = (function () {
       if (Array.isArray(o.seen)) o.seen.forEach(function (k) { if (typeof k === 'string' && /^[a-z]{2,8}$/.test(k) && out.seen.indexOf(k) < 0 && out.seen.length < 8) out.seen.push(k); });
       if (o.pot && typeof o.pot === 'object' && !Array.isArray(o.pot)) out.pot = o.pot;   /* checked by resumeRun */
       if (Array.isArray(o.potOld)) {   /* 11-15: pots that could not be resumed, kept as they were (newest first, at most 4) */
-        var old = o.potOld.filter(function (p) {
-          if (!p || typeof p !== 'object' || Array.isArray(p)) return false;
-          try { return utf8Len(JSON.stringify(p)) <= TUNE.pot.maxBytes; } catch (e) { return false; }
+        var old = o.potOld.filter(function (p) {   /* any size (round 5 check O-6): begin() moves a bad pot here whole, so a
+                                                     size limit here dropped a pot over TUNE.pot.maxBytes on the next read */
+          return !!p && typeof p === 'object' && !Array.isArray(p);
         }).slice(0, 4);
         if (old.length) out.potOld = old;
       }
@@ -764,11 +764,6 @@ var COOK = (function () {
       }).slice(0, TUNE.book.max);
     } catch (e) { /* broken key: start empty */ }
     return out;
-  }
-  function utf8Len(str) {   /* UTF-8 bytes of a string (no TextEncoder in every sandbox) */
-    var n = 0;
-    for (var i = 0; i < str.length; i++) { var c = str.charCodeAt(i); n += c < 0x80 ? 1 : c < 0x800 ? 2 : c >= 0xd800 && c < 0xdc00 ? (i++, 4) : 3; }
-    return n;
   }
   function bookAdd(store, line) {
     store = store && Array.isArray(store.book) ? store : normStore(store);
@@ -955,9 +950,10 @@ var COOK = (function () {
     }
     try { if (window.AUDIO && AUDIO.on) AUDIO.on('cook', clone(snd)); } catch (e) { /* sound is a bonus */ }
   }
-  /* 11-15 haptics (spec 7.2): tap (a counted hit, heat-on), flip (the landing frame), cut (a line), done (the plate
-     landing). Called in the same handler or on the same frame as the picture, never from a timer; js/haptics.js decides
-     whether anything buzzes (setting, support, activation). stats.buzz counts the attempts */
+  /* 11-15 haptics (spec 7.2): tap (a counted hit, heat-on), flip (the landing frame), cut (a line); round 5 check O-5:
+     none on the plate (the owner named only tap, flip and slice for the kitchen). Called in the same handler or on the
+     same frame as the picture, never from a timer; js/haptics.js decides whether anything buzzes (setting, support,
+     activation). stats.buzz counts the attempts */
   function buzz(name) {
     if (!L) return;
     if (L.stats.buzz[name] != null) L.stats.buzz[name]++;
@@ -1151,7 +1147,6 @@ var COOK = (function () {
     L.screen = 'reveal'; L.revealAt = at; L.chipAt = at + TUNE.reveal.focusMs; L.againAt = at + AGAIN_MS; L.chipOn = false; L.down = {};
     L.hint = null; L.parts = []; L.titleUntil = 0;
     fxAdd({ k: 'rise' }, e.si, at); fxAdd({ k: 'shake', from: TUNE.reveal.frames - 1, dx: 0, dy: 1 }, e.si, at);
-    if (L.reduced) { L.doneBuzz = null; buzz('done'); } else L.doneBuzz = at + 5 * FMS;   /* REV2 t 5: the plate lands */
     stripOn(L.run.n);
     startSlide('board', 'plate', at, { station: 'board' }, { station: 'plate' }, 'cut');
     if (L.finished !== L.run.id) finish();
@@ -1247,12 +1242,28 @@ var COOK = (function () {
     var A = art(), W = V.w, ox = L.ox, oy = L.oy, s = sp.s, seam = ox + FOOD_X + Math.floor(L.stride / 2) - s;
     layer(V, sl.from, sl.out, ox - s, oy, 0, seam);
     layer(V, sl.to, sl.inb || L.buf, ox - s + L.stride, oy, seam, W);
+    if (!sl.carry && sl.to === 'counter' && typeof A.view === 'function') overSeam(V, sl.inb || L.buf, ox - s + L.stride, oy, seam);
     if (sl.carry) {
       var run = L.run, lk = run ? lookOf(run) : {};
       try {
         A.carry(V, { what: sl.carry, x: ox + FOOD_X, y: oy + FOOD_Y, lift: 2, shadow: true, herb: run ? run.swaps.herb : 'parae',
           dents: lk.dents || [], band: lk.band == null ? 1 : lk.band, look: lk, seed: run ? fxSeed(run.seed, 0) & 0x7fffffff : 0 });
       } catch (e) { /* the scenes still slide */ }
+    }
+  }
+
+  /* again (round 5 check K-10): nothing rides over the seam there, so the arriving pan was cut by a straight edge. Its
+     pixels (wherever the incoming scene differs from the bare counter) in the 24 columns left of the seam are painted over
+     the leaving plate: the pan keeps its round rim and slides in in front */
+  function overSeam(V, src, sox, oy, seam) {
+    var bg = bgFor('counter', sox, oy).d, d = V.d, s = src.d, W = V.w, x, y, sx, sy, a, b;
+    for (y = 0; y < V.h; y++) {
+      sy = y - oy; if (sy < 2 || sy >= ART_H - 2) continue;
+      for (x = Math.max(0, seam - 24); x < Math.min(W, seam); x++) {
+        sx = x - sox; if (sx < 2 || sx >= ART_W - 2) continue;
+        a = (sy * ART_W + sx) * 4; b = (y * W + x) * 4;
+        if (s[a] !== bg[b] || s[a + 1] !== bg[b + 1] || s[a + 2] !== bg[b + 2]) { d[b] = s[a]; d[b + 1] = s[a + 1]; d[b + 2] = s[a + 2]; d[b + 3] = 255; }
+      }
     }
   }
 
@@ -1429,7 +1440,7 @@ var COOK = (function () {
     }
     sound({ act: 'pick', dish: r.id });
     L.run = run; L.runDay = day; L.screen = 'step'; L.shown = false; L.finished = null; L.hintKey = null; L.hint = null; L.nextAt = null;
-    L.fxq = []; L.parts = []; L.dust = []; L.down = {}; L.finger = null; L.rowPress = false; L.nudges = 0; L.chipOn = false; L.doneBuzz = null;
+    L.fxq = []; L.parts = []; L.dust = []; L.down = {}; L.finger = null; L.rowPress = false; L.nudges = 0; L.chipOn = false;
     sticker({ act: 'pick', dish: r.id });   /* here, not beside the sound above: the run (its seed) has to exist first */
     if (L.rec) {   /* a resumed dish keeps its pot: COOK.simulate(recipe, seed, steps, { pot }) replays it */
       var steps = []; for (var i = 0; i < run.n; i++) steps.push([]);
@@ -1513,7 +1524,6 @@ var COOK = (function () {
     if (L.hint && t - L.hint.at >= L.hint.dur) { if (L.hint.seen) markSeen(L.hint.seen); L.hint = null; L.dirty = true; }
     if (L.landBuzz != null && t >= L.landBuzz) { L.landBuzz = null; buzz('flip'); }   /* the landing frame (arc frame 3) */
     if (L.screen === 'reveal') {
-      if (L.doneBuzz != null && t >= L.doneBuzz) { L.doneBuzz = null; buzz('done'); }
       if (!L.chipOn && t >= L.chipAt) {   /* 450 ms: the again chip shows (not quiet); by key it takes focus */
         L.chipOn = true; L.shown = true; updVerb();
         focusEl(kbd ? D.verb : D.stage);
@@ -1719,15 +1729,15 @@ var COOK = (function () {
         run: null, runDay: null, screen: 'step', seen: [], shown: false, finished: null,
         fx: 0, fxq: [], parts: [], dust: [], prng: null, hint: null, hintKey: null, demoAt: -1, titleUntil: 0, finger: null,
         down: {}, rect: null, sndAt: {}, said: [], note: null, auto: null, revealAt: 0, chipAt: 0, againAt: 0, chipOn: false,
-        downAt: 0, rowPress: false, nudges: 0, taught: 0, landAt: null, landBuzz: null, doneBuzz: null, nextAt: null, noSlide: false, slide: null,
-        stats: { parts: 0, squash: 0, shake: 0, arc: 0, hints: 0, idle: 0, flips: 0, teach: 0, rowPress: 0, slides: 0, potOld: 0, buzz: { tap: 0, flip: 0, cut: 0, done: 0 } },
+        downAt: 0, rowPress: false, nudges: 0, taught: 0, landAt: null, landBuzz: null, nextAt: null, noSlide: false, slide: null,
+        stats: { parts: 0, squash: 0, shake: 0, arc: 0, hints: 0, idle: 0, flips: 0, teach: 0, rowPress: 0, slides: 0, potOld: 0, buzz: { tap: 0, flip: 0, cut: 0 } },
         frames: 0, err: 0, dirty: true, buf: art().blank(ART_W, ART_H), view: null, img: null, bgc: [], raf: 0,
         k: 1, css: 1, dpr: 1, W: 0, H: 0, ox: 0, oy: 0, stride: 8, hudB: 0, chipTop: 0, safe: [0, 0, 0, 0], vw: 0, vh: 0 };
       if (L.palette && /^[a-z0-9-]+$/.test(L.palette)) D.dlg.setAttribute('data-palette', L.palette); else D.dlg.removeAttribute('data-palette');
       D.note.hidden = true; D.say.textContent = ''; D.strip.textContent = ''; D.closeCv.ckIcon = iconOf('close'); D.closeCv.ckN = 0;
       D.verbCv.ckName = null;
       document.documentElement.classList.add('ck-open');
-      setKbd(kbd);
+      setKbd(typeof opts.kbd === 'boolean' ? opts.kbd : kbd);   /* the host's own last input (cook.html in the game), else ours */
       D.dlg.showModal();
       fit();
       if (!begin(false)) throw new Error('no dish');
