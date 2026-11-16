@@ -15,6 +15,9 @@
      (the notice used to sit as the last line under the Wikipedia heading). It spells "Copyright": the sign is a symbol
      character (the page's glyph rule) and is not in the font subset.
      '색': the four community palettes in js/palettes.js (Lospec). They state no licence; naming the author is the norm. -->
+<!-- 11-15 (UI 점검): 게임과 같은 글꼴 설정 (픽셀 글꼴을 껐으면 Noto) · 크기는 기기 px 에 맞춘 --fs-* (js/fs-snap.js, index.html 과 같이 쓴다) -->
+<script>try { var raw = localStorage.getItem('ppolppol_v2') || ''; if (raw.indexOf('"pixelFont":false') !== -1 || raw.indexOf('"font":"system"') !== -1) document.documentElement.removeAttribute('data-font'); } catch (e) { /* 저장소 없음 → 기본(픽셀 글꼴) */ }</script>
+<script src="js/fs-snap.js"></script>
 <link rel="stylesheet" href="vendor/fonts/galmuri.css">
 <link rel="stylesheet" href="css/style.css">
 <style>
@@ -29,9 +32,10 @@
 .cr .cr-by .cr-use { margin: 0; color: var(--muted); }
 .cr .cr-back { display: inline-block; padding: 10px 12px; margin-right: -12px; min-height: 44px; line-height: 24px; white-space: nowrap; }
 .cr .cr-own { margin: 0; color: var(--muted); }
-:root[data-font="pixel"] .cr h1, :root[data-font="pixel"] .cr h2 { font-family: var(--f-ui); }
-:root[data-font="pixel"] .cr p, :root[data-font="pixel"] .cr li { font-family: var(--f-body); }
-:root[data-font="pixel"] .cr .cr-line, :root[data-font="pixel"] .cr .cr-own { font-family: var(--f-meta); }
+:root[data-font="pixel"] .cr h1 { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 1.5; }
+:root[data-font="pixel"] .cr h2 { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 1.5; }
+:root[data-font="pixel"] .cr p, :root[data-font="pixel"] .cr li { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 1.5; }
+:root[data-font="pixel"] .cr .cr-line, :root[data-font="pixel"] .cr .cr-own { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 1.5; }   /* 11-15: 기기 px 에 맞춘 크기 (예전 Galmuri9 16px 은 눈금 1.6 배라 늘 흐렸다) */
 </style>
 </head>
 <body>
@@ -81,10 +85,10 @@
   </ul>
 
   <h2>그림</h2>
-  <p>가구 옮기기 단추의 망치는 Twemoji 망치 그림을 본떠 가로세로 12 픽셀로 다시 그렸어. 가구 모드의 돌리기 · 작게 · 크게 그림은 Pixelarticons 그대로야.</p>
+  <p>가구 옮기기 단추의 망치는 Twemoji 망치 그림을 본떠 가로세로 12 픽셀로 다시 그렸어. 가구 모드의 작게 · 크게 그림은 Pixelarticons 그대로야. 돌리기 그림은 직접 그렸어.</p>
   <ul lang="en">
     <li>"hammer" (1f528) from <a href="https://github.com/twitter/twemoji" target="_blank" rel="noopener">Twemoji</a> · Twitter, Inc. and other contributors · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Changes: redrawn as 12 by 12 pixel art in new colours.</li>
-    <li>"redo", "minus", "plus" from <a href="https://github.com/halfmage/pixelarticons" target="_blank" rel="noopener">Pixelarticons</a> · Copyright (c) 2019 Gerrit Halfmann · <a href="vendor/PIXELARTICONS-LICENSE.txt">MIT License</a>. Used unchanged as the furniture-mode buttons (rotate, smaller, bigger)</li>
+    <li>"minus", "plus" from <a href="https://github.com/halfmage/pixelarticons" target="_blank" rel="noopener">Pixelarticons</a> · Copyright (c) 2019 Gerrit Halfmann · <a href="vendor/PIXELARTICONS-LICENSE.txt">MIT License</a>. Used unchanged as the furniture-mode buttons (smaller, bigger)</li>
   </ul>
 
   <h2>색</h2>
