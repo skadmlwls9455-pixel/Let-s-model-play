@@ -12,6 +12,7 @@
 /* 11-15 runner-2: 세로 전체 화면. 무대(캔버스)가 창을 꽉 채우고, 위 작은 줄(점수·최고 | 닫기) · 가운데 글 · 아래 구석 동그라미 둘이 그 위에 뜬다 */
 .rn-dlg[open] { display: block; }
 .rn-dlg::backdrop { background: #090a14; }
+:root[data-font="pixel"] .rn-dlg::backdrop { background: #090a14; background-image: none; }   /* 11-15 (검증 R-5): 픽셀 테마의 dialog::backdrop (체커 스크림) 이 이겨서 넓은 화면 양옆으로 방이 비쳤다 */
 :root[data-font="pixel"] .rn-dlg { border: 0; box-shadow: none; background-image: none; }
 
 .rn-stage { position: absolute; inset: 0; overflow: hidden; line-height: 0; background: #172038; }
@@ -27,6 +28,8 @@
   font-family: 'Noto Sans KR', sans-serif; font-size: 16px; line-height: 1.5; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none !important; }
 .rn-hud #rn-score { min-width: 3ch; }
 .rn-hud-best { display: inline-flex; align-items: center; gap: 4px; color: #c7cfcc; }   /* 왕관 그림 + 수 */
+/* 11-15 (검증 R-1): 보이는 글 칸 — js snapText 가 시작을 기기 px 에 민다 (translate 는 inline-block 이어야 먹는다). 줄이 나뉘어도 모든 줄이 칸 왼쪽에서 시작하게 */
+.rn-snap { display: inline-block; text-align: left; }
 
 /* 가운데 글 (준비 · 쉬는 중 · 망토): 달리는 띠 안, 바닥선 위 (--rn-ground 는 js fit) — 창 그림을 가리지 않게 */
 .rn-mid { position: absolute; left: 16px; right: 16px; top: max(64px, calc(var(--rn-ground, 70%) - 200px)); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
@@ -59,6 +62,7 @@
 .rn-jump.hint { border-color: #e8c170; animation: rn-flash .9s steps(1) 3; }   /* 11-15 5차: 두 단계로 세 번 깜빡인 뒤 밝게 켜 둔다 */
 .rn-dlg.rn-still .rn-jump.hint { animation: none; }
 .rn-pad:active, .rn-pad.on { background-color: rgba(9, 10, 20, .5); border-color: #ebede9; }   /* .on = 그 반쪽 화면을 누르는 중 (11-15 5차) */
+.rn-ctrls.rn-wait .rn-pad { opacity: .5; }   /* 11-15 (검증 R-8): 서버 시드를 기다리는 동안 (탭을 아직 안 받는다) — 흐린 채 가만히, 준비되면 밝게 */
 .rn-jump { left: max(16px, env(safe-area-inset-left, 0px)); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 13' shape-rendering='crispEdges'%3E%3Cpath transform='translate(1 1)' fill='%23241527' d='M5 1h2v1h-2zM4 2h4v1h-4zM3 3h6v1h-6zM2 4h8v1h-8zM1 5h10v1h-10zM4 6h4v1h-4zM4 7h4v1h-4zM4 8h4v1h-4zM4 9h4v1h-4zM4 10h4v1h-4z'/%3E%3Cpath fill='%23ebede9' d='M5 1h2v1h-2zM4 2h4v1h-4zM3 3h6v1h-6zM2 4h8v1h-8zM1 5h10v1h-10zM4 6h4v1h-4zM4 7h4v1h-4zM4 8h4v1h-4zM4 9h4v1h-4zM4 10h4v1h-4z'/%3E%3C/svg%3E"); }
 .rn-duck { right: max(16px, env(safe-area-inset-right, 0px)); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 13 13' shape-rendering='crispEdges'%3E%3Cpath transform='translate(1 1)' fill='%23241527' d='M4 0h4v1h-4zM4 1h4v1h-4zM4 2h4v1h-4zM4 3h4v1h-4zM1 4h10v1h-10zM2 5h8v1h-8zM3 6h6v1h-6zM4 7h4v1h-4zM5 8h2v1h-2zM1 10h10v1h-10z'/%3E%3Cpath fill='%23ebede9' d='M4 0h4v1h-4zM4 1h4v1h-4zM4 2h4v1h-4zM4 3h4v1h-4zM1 4h10v1h-10zM2 5h8v1h-8zM3 6h6v1h-6zM4 7h4v1h-4zM5 8h2v1h-2zM1 10h10v1h-10z'/%3E%3C/svg%3E"); }
 
@@ -74,7 +78,7 @@
 .rn-final-row > p { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
 .rn-final-row > p[hidden] { display: none; }
 .rn-final-score { flex: 1 0 100%; justify-content: center; font-family: 'Noto Sans KR', sans-serif; font-size: 20px; line-height: 1.5; }
-.rn-big { font-family: 'Noto Sans KR', sans-serif; font-size: 24px; line-height: 1.5; }
+.rn-big { font-family: 'Noto Sans KR', sans-serif; font-size: 40px; line-height: 1.25; }   /* 11-15 (검증 R-7): 큰 점수는 최고 수(20px)의 두 배 — 예전 24px 은 1.2배라 두 수가 같은 크기로 읽혔다 */
 .rn-final-shell { font-family: 'Noto Sans KR', sans-serif; font-size: 20px; line-height: 1.5; }
 .rn-final-old { margin: -4px 0 8px; color: var(--muted); font-family: 'Noto Sans KR', sans-serif; font-size: 16px; line-height: 1.5; }
 .rn-final-old[hidden] { display: none; }
@@ -87,7 +91,7 @@
 :root[data-motion="reduce"] .rn-dlg[open] { animation: none; }
 
 /* 주간 랭킹 (http(s) 에서만 보인다 — js/runner.js NET) */
-.rn-award { margin: 0; max-width: 320px; padding: 4px 12px; background: rgba(9, 10, 20, .6); text-align: center; font-family: 'Noto Sans KR', sans-serif; font-size: 20px; line-height: 1.5; color: var(--amber-fill, #de9e41); }
+.rn-award { margin: 0; max-width: 320px; padding: 4px 12px; background: rgba(9, 10, 20, .6); text-align: center; font-family: 'Noto Sans KR', sans-serif; font-size: 20px; line-height: 1.5; color: #ebede9; }   /* 11-15 (검증 R-4): 어두운 판 위 밝은 잉크 (예전 호박색은 낮 벽 위에서 2.7:1) */
 .rn-award[hidden], .rn-net[hidden], .rn-net-form[hidden], .rn-top10[hidden] { display: none; }
 .rn-net { margin: 0 0 8px; text-align: left; }
 .rn-net-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
@@ -107,4 +111,9 @@
 :root[data-font="pixel"] #rn-score { font-family: var(--f-ui); }
 :root[data-font="pixel"] :is(.rn-msg, .rn-final-score, .rn-final-best, .rn-final-shell, .rn-award, .rn-net-msg, #rn-nick) { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 1.5; }
 :root[data-font="pixel"] .rn-final { font-family: var(--f-ui); font-weight: 400; font-size: var(--fs-u24, 24px); line-height: 1.5; }
-:root[data-font="pixel"] .rn-big { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 1.5; }
+:root[data-font="pixel"] .rn-big { font-family: var(--f-ui); font-size: calc(var(--fs-u24, 24px) * 2); line-height: 1.25; }   /* 11-15 (검증 R-7): 기기 px 에 맞춘 24 의 두 배 (그래서 또렷) · 줄 높이 15 글꼴 px */
+/* 11-15 (검증 R-7): 낮은 화면 (가로 폰 · 높이 500 px 이하) 은 큰 점수를 예전 크기로 — 두 배면 결과 판이 높이를 넘어 단추가 잘렸다 */
+@media (max-height: 500px) {
+  .rn-big { font-size: 24px; line-height: 1.5; }
+  :root[data-font="pixel"] .rn-big { font-size: var(--fs-u24, 24px); line-height: 1.5; }
+}

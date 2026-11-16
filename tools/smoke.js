@@ -1804,6 +1804,7 @@ async function runnerTouch(br) {
     watchErrors(page, bag);
     if (useStubs) await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') });
     await page.addInitScript({ content: "if (!localStorage.getItem('ppolppol_runner')) localStorage.setItem('ppolppol_runner', JSON.stringify({ v: 1, best: 345, runs: 9, day: '2026-11-10', dayN: 2, last: null }));" });
+    await page.addInitScript({ content: "window.__vib = []; try { navigator.vibrate = function (p) { window.__vib.push(JSON.stringify(p)); return true; }; } catch (e) {}" });   /* 11-15 (검증 O-5): 진동 무늬를 적어 둔다 */
     await routeWiki(page, 'ok');
     await page.goto(INDEX);
     await page.waitForSelector('#name-dialog[open]');
@@ -1855,6 +1856,8 @@ async function runnerTouch(br) {
     /* 11-15 (CI R): 느린 러너에선 그새 장애물에 부딪혀 판이 끝나고, 끝나면 동그라미 줄(#rn-ctrls)이 숨어 위치가 0 으로 재졌다 — 판 상태와 상관없이 배치만 잰다 (잠깐 보이게 해서 재고 되돌린다) */
     var land = await page.evaluate(function () { var c = document.getElementById('rn-ctrls'), hid = c.hidden; c.hidden = false; var v = RUNNER.live().view, j = document.getElementById('rn-jump').getBoundingClientRect(), d = document.getElementById('runner-dlg').getBoundingClientRect(); c.hidden = hid; return { G: v.G * v.css + d.top, pad: j.top, w: d.width, W: v.W, over: hid }; });
     ok(land.G < land.pad && land.w <= 430, '가로 740×360: 바닥선(' + Math.round(land.G) + ') < 동그라미(' + Math.round(land.pad) + ') · 창 폭 ' + land.w + ' (보이는 폭 ' + land.W + ')');
+    var bd = await page.evaluate(function () { var cs = getComputedStyle(document.getElementById('runner-dlg'), '::backdrop'); return { bg: cs.backgroundColor, img: cs.backgroundImage, font: document.documentElement.getAttribute('data-font') }; });
+    ok(bd.bg === 'rgb(9, 10, 20)' && bd.img === 'none', '가로 740×360 (' + bd.font + '): 430 px 기둥 양옆은 #090a14 한 색 — 방 화면이 비치지 않음 (11-15 검증 R-5 · ' + bd.bg + ' · ' + bd.img.slice(0, 24) + ')');
     await page.setViewportSize({ width: 360, height: 740 });
     await page.waitForFunction(function () { var v = RUNNER.live().view; return v && v.H * v.css >= 739; });
     ok(/^jd,ju,dd,du/.test(ins), '입력 기록 jd,ju,dd,du (' + ins + ')');
@@ -1863,8 +1866,129 @@ async function runnerTouch(br) {
     var after = await page.evaluate(function () { var st = JSON.parse(localStorage.getItem('ppolppol_runner')); return { view: APP.scene.view(), best: st.best, best2: st.best2, last: st.last && st.last.version, focus: document.activeElement && document.activeElement.id }; });
     ok(after.view === 'play' && after.focus === 'btn-machine', '닫기 → 놀이방 그대로 · 오락기로 포커스');
     ok(after.best === 345 && after.last === 'runner-2' && after.best2 >= 0, '옛 최고(best 345)는 그대로 · 새 판은 runner-2 로 따로 (best2 ' + after.best2 + ')');
+    var q = await page.evaluate(function () { return { vib: window.__vib || [] }; });
+    ok(q.vib.indexOf('12') >= 0 && q.vib.every(function (v) { return v === '12' || v === '[40,30,40]'; }), '진동은 점프 (12) · 부딪힘 ([40,30,40]) 만 — 착지 · 이끼 없음 (11-15 검증 O-5 · ' + q.vib.join(' ') + ')');
     reportErrors(bag, 'R2');
   } finally { await ctx.close(); }
+}
+
+/* R3 (R 안에서). 11-15 (검증 R-1 · R-2 · R-7 · R-8): 412×915 @2.625 (진짜 터치 · 픽셀 글꼴) 준비 · 달리는 중 · 결과 판에서 보이는 글 줄마다 Range 왼쪽 × 배율이
+ *   정수에서 0.05 안 (글 칸 .rn-snap 을 js 가 기기 px 에 민다). 360×740 @2 옛 기록(runner-1)의 '예전 게임 최고' 줄은 남고 시작이 정수 · 320×568 로 줄여도 그대로 ·
+ *   큰 점수 = 기기 px 에 맞춘 24 의 두 배, '1024' 도 한 줄. http (가짜 주소) 에서 서버 시드를 붙잡아 두면 동그라미 둘이 흐리고 탭을 안 받다가, 시드가 오면 밝아진다 */
+function RN_STARTS() {   /* 페이지 안: 달리기 창의 보이는 글 줄 시작 (읽어 주기 전용 · 숨은 것은 뺀다) */
+  var d = devicePixelRatio, out = [], w = document.createTreeWalker(document.getElementById('runner-dlg'), NodeFilter.SHOW_TEXT);
+  for (var n = w.nextNode(); n; n = w.nextNode()) {
+    var t = n.textContent.trim(), e = n.parentElement; if (!t || !e || e.closest('[hidden], .sr-only')) continue;
+    var cs = getComputedStyle(e); if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+    var rg = document.createRange(); rg.selectNodeContents(n);
+    [].forEach.call(rg.getClientRects(), function (r) { if (r.width < 1 || r.height < 1) return; var x = r.left * d; out.push({ t: t, id: (e.closest('[id]') || {}).id || '', off: Math.round(Math.abs(x - Math.round(x)) * 1000) / 1000 }); });
+  }
+  return { dpr: d, font: document.documentElement.getAttribute('data-font'), state: RUNNER.live() && RUNNER.live().state, runs: out };
+}
+function RN_BIG() {   /* 페이지 안: 큰 점수에 '1024' 를 넣어 보고 크기 · 한 줄 · 판 넘침을 잰다 (마지막에만 — 화면 글을 바꾼다) */
+  var n = document.getElementById('rn-final-n'), b = document.getElementById('rn-final-bn'), ov = document.getElementById('rn-over'), u = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--fs-u24')) || 24;
+  n.textContent = '1024'; b.textContent = '1024';
+  var rg = document.createRange(); rg.selectNodeContents(n);
+  return { fs: parseFloat(getComputedStyle(n).fontSize), u24: u, best: parseFloat(getComputedStyle(b).fontSize), lines: rg.getClientRects().length, overX: ov.scrollWidth - ov.clientWidth };
+}
+async function runnerCrisp(br) {
+  async function game(w, h, dpr, extra) {
+    var ctx = await br.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, locale: 'ko-KR', hasTouch: true, isMobile: true });
+    var page = await ctx.newPage(), bag = []; bag.ignored = [];
+    watchErrors(page, bag);
+    if (useStubs) await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') });
+    await page.addInitScript({ content: "if (!localStorage.getItem('ppolppol_runner')) localStorage.setItem('ppolppol_runner', JSON.stringify({ v: 1, best: 345, runs: 9, day: '2026-11-10', dayN: 2, last: null }));" });
+    if (extra) await extra(page);
+    await routeWiki(page, 'ok');
+    return { ctx: ctx, page: page, bag: bag };
+  }
+  async function toRunner(page, url) {
+    await page.goto(url || INDEX);
+    await page.waitForSelector('#name-dialog[open]');
+    await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
+    await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
+    await waitIdle(page);
+    await clickSpot(page, '#btn-door');
+    await page.waitForFunction(function () { var m = document.getElementById('btn-machine'); return APP.scene.view() === 'play' && m && !m.hidden; }, null, { timeout: 20000 });
+    await clickSpot(page, '#btn-machine');
+    await page.waitForSelector('#runner-dlg[open]');
+  }
+  function readyHand(page) { return page.waitForFunction(function () { var L = RUNNER.live(); return L && L.state === 'ready' && !document.getElementById('rn-hand').hidden; }, null, { timeout: 15000 }); }
+  function crisp(m, label) {
+    var far = m.runs.reduce(function (a, r) { return r.off > a.off ? r : a; }, { off: 0, id: '', t: '' });
+    ok(m.runs.length > 0 && far.off <= 0.05, label + ': 보이는 글 ' + m.runs.length + '줄 모두 기기 px 에서 시작 (가장 먼 ' + far.off + (far.id ? ' ' + far.id + ' "' + far.t + '"' : '') + ' · ' + m.font + ' @' + m.dpr + ')');
+  }
+  var A = await game(412, 915, 2.625);
+  try {
+    await toRunner(A.page); await readyHand(A.page);
+    crisp(await A.page.evaluate(RN_STARTS), 'R-1 412×915 @2.625 준비');
+    await A.page.touchscreen.tap(100, 360);
+    await A.page.waitForFunction(function () { return RUNNER.live().state !== 'ready'; });
+    await A.page.waitForTimeout(300);
+    var mr = await A.page.evaluate(RN_STARTS);
+    if (mr.state === 'run') crisp(mr, 'R-1 412×915 @2.625 달리는 중'); else console.log('   (달리는 중을 재기 전에 판이 끝남: ' + mr.state + ')');
+    await A.page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: 20000 });
+    await A.page.waitForTimeout(600);
+    var mo = await A.page.evaluate(RN_STARTS);
+    crisp(mo, 'R-1 412×915 @2.625 결과 판');
+    ok(mo.runs.some(function (r) { return r.id === 'rn-final-old' && /^예전 게임 최고 345$/.test(r.t); }) && mo.runs.some(function (r) { return r.id === 'rn-final-n'; }), "결과 판에 큰 점수 · '예전 게임 최고 345' 줄 (2.625)");
+    var b1 = await A.page.evaluate(RN_BIG);
+    ok(Math.abs(b1.fs - 2 * b1.u24) < 0.01 && b1.fs >= 2 * b1.best && b1.lines === 1 && b1.overX <= 0, 'R-7 큰 점수 = 기기 px 에 맞춘 24 의 두 배 (' + b1.fs + 'px · 최고 ' + b1.best + 'px) · 1024 도 한 줄 · 판 가로 넘침 없음 (2.625)');
+    reportErrors(A.bag, 'R3 412');
+  } finally { await A.ctx.close(); }
+  var B = await game(360, 740, 2);
+  try {
+    await toRunner(B.page); await readyHand(B.page);
+    /* R-3: 달리다 위 '닫기' 로 닫은 판 — 조개는 받되 따로 뜨는 알림 글 없음 (quiet), 위 조개 칸 수만 바뀐다 */
+    await B.page.evaluate(function () { window.__earn = []; var f = APP.earnFromPlay; Object.defineProperty(APP, 'earnFromPlay', { configurable: true, value: function (r, o) { var n = f.apply(this, arguments); window.__earn.push({ quiet: !!(o && o.quiet), n: n }); return n; } }); });
+    await B.page.touchscreen.tap(90, 300);
+    await B.page.waitForFunction(function () { return RUNNER.live().state === 'run'; });
+    await B.page.waitForTimeout(300);
+    var cb = await B.page.evaluate(function () { var r = document.getElementById('rn-close').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, state: RUNNER.live().state }; });
+    await B.page.touchscreen.tap(cb.x, cb.y);
+    await B.page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
+    var q3 = await B.page.evaluate(function () { var t = document.getElementById('toast'), st = JSON.parse(localStorage.getItem('ppolppol_runner')); return { earn: window.__earn, toast: t && t.classList.contains('show') ? t.textContent : '', chip: (document.getElementById('bag-n') || {}).textContent, shells: APP.state.user && APP.state.user.shells, end: st.last && st.last.end }; });
+    ok(cb.state === 'run' && q3.end === 'quit' && q3.earn.length === 1 && q3.earn[0].quiet && q3.earn[0].n >= 2 && !/^조개 \d+개 · 이제/.test(q3.toast) && q3.chip === String(q3.shells), "R-3 달리다 '닫기' 로 닫은 판: 조개 알림 글 없음 (quiet) · 위 조개 칸 수는 바뀜 (" + JSON.stringify(q3) + ')');
+    await clickSpot(B.page, '#btn-machine'); await B.page.waitForSelector('#runner-dlg[open]'); await readyHand(B.page);
+    await B.page.touchscreen.tap(90, 300);
+    await B.page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: 20000 });
+    await B.page.waitForTimeout(600);
+    var m2 = await B.page.evaluate(RN_STARTS), old = m2.runs.filter(function (r) { return r.id === 'rn-final-old'; });
+    ok(old.length === 1 && old[0].t === '예전 게임 최고 345' && old[0].off < 0.01, "R-2 360×740 @2 옛 기록: '예전 게임 최고 345' 줄은 보이고 시작이 기기 px 정수 (" + JSON.stringify(old) + ')');
+    crisp(m2, 'R-1 360×740 @2 결과 판');
+    await B.page.setViewportSize({ width: 320, height: 568 });
+    await B.page.waitForFunction(function () { return document.getElementById('runner-dlg').clientWidth === 320; });
+    await B.page.waitForTimeout(200);
+    crisp(await B.page.evaluate(RN_STARTS), 'R-1 320×568 @2 로 줄인 뒤 결과 판 (fit 이 다시 맞춤)');
+    var b2 = await B.page.evaluate(RN_BIG);
+    ok(b2.lines === 1 && b2.overX <= 0 && b2.fs >= 2 * b2.best, 'R-7 320×568 @2: 큰 점수 1024 도 한 줄 · 판 가로 넘침 없음 (' + b2.fs + 'px)');
+    reportErrors(B.bag, 'R3 360');
+  } finally { await B.ctx.close(); }
+  var O = 'http://ppolppol.example', release = null, gate = new Promise(function (r) { release = r; });
+  var C = await game(360, 740, 2, async function (page) {
+    /* 이 쪽에서만: 달리기가 서버 시드를 기다리는 2 초를 늘려 시드를 붙잡아 둔다 (느린 기계에서도 기다리는 동안을 본다) */
+    await page.addInitScript({ content: "(function () { var st = window.setTimeout; window.setTimeout = function (f, ms) { if (ms === 2000) ms = 30000; return st.apply(window, [f, ms].concat([].slice.call(arguments, 2))); }; })();" });
+    await routeRepo(page, O);
+    await page.route(O + '/api/runner/**', async function (route) {
+      var p = new URL(route.request().url()).pathname.replace(/^.*\/api\/runner\//, '');
+      if (p === 'seed') { await gate; return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, token: 'tok', seed: 4242, night: false, week: '2026-W46', v: 'runner-2' }) }); }
+      return route.fulfill(p === 'top' ? { status: 200, contentType: 'application/json', body: '{"ok":true,"top":[]}' } : { status: 404, contentType: 'application/json', body: '{}' });
+    });
+  });
+  try {
+    await toRunner(C.page, O + '/index.html');
+    var PADS = function () { var c = document.getElementById('rn-ctrls'), L = RUNNER.live(); return { msg: document.getElementById('rn-msg').textContent, state: L && L.state, inputs: L ? L.inputs.length : -1, wait: c.classList.contains('rn-wait'), op: [getComputedStyle(document.getElementById('rn-jump')).opacity, getComputedStyle(document.getElementById('rn-duck')).opacity], hand: !document.getElementById('rn-hand').hidden, anim: document.getElementById('rn-jump').getAnimations().length + document.getElementById('rn-duck').getAnimations().length }; };
+    var p0 = await C.page.evaluate(PADS);
+    ok(/고르는/.test(p0.msg) && p0.state === 'ready' && p0.wait && p0.op[0] === '0.5' && p0.op[1] === '0.5' && !p0.hand && p0.anim === 0, 'R-8 서버 시드를 기다리는 동안: 동그라미 둘이 흐리게 (0.5 · 깜빡임 없이) · 손 그림 없음 · 글 없음 (' + JSON.stringify(p0) + ')');
+    await C.page.touchscreen.tap(90, 300); await C.page.waitForTimeout(150);
+    var p1 = await C.page.evaluate(PADS);
+    ok(p1.state === 'ready' && p1.inputs === 0 && p1.wait, 'R-8 기다리는 동안 왼쪽 반 톡은 출발하지 않음 · 흐린 채 (' + JSON.stringify(p1) + ')');
+    release();
+    await readyHand(C.page);
+    var p2 = await C.page.evaluate(PADS);
+    ok(/출발/.test(p2.msg) && !p2.wait && p2.op[0] === '1' && p2.op[1] === '1' && p2.hand, 'R-8 시드가 오면 다시 밝게 · 손 그림 (' + JSON.stringify(p2) + ')');
+    reportErrors(C.bag, 'R3 http');
+  } finally { release(); await C.ctx.close(); }
 }
 
 /* R. 다락방 달리기 (js/runner.js): 놀이방 문(#btn-door) → 놀이방 → 오락기(#btn-machine, 8물결) → 6초 스크립트 탭 → 부딪힘 또는 닫기 → 저장된 판의 simulate() 점수 = 화면 점수.
@@ -1998,6 +2122,7 @@ async function scenarioRunner() {
     reportErrors(bag, 'R');
     await ctx.close();
     await runnerTouch(br);
+    await runnerCrisp(br);
   } finally { await br.close(); }
 }
 

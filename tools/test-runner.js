@@ -180,6 +180,7 @@ function liveHarness(T0) {
   };
 }
 function deferred() { var d = {}; d.p = new Promise(function (r) { d.resolve = r; }); return d; }
+function txt(e) { return e ? (e.textContent || (e.children || []).map(txt).join('')) : ''; }   /* 가짜 DOM: 글이 안쪽 칸(.rn-snap)에 있어도 (11-15 검증 R-1) */
 (async function live() {
   delete process.env.RUNNER_EVENT_WEEKS;
   var core = require(path.join(ROOT, 'api/_lib/core.js'));
@@ -199,8 +200,13 @@ function deferred() { var d = {}; d.p = new Promise(function (r) { d.resolve = r
   check(hp.R.live().state === 'run' && hp.byId['rn-hand'].hidden && hp.byId['rn-pause'].hidden && hp.byId['rn-msg'].textContent === '', '그림: 달리는 중 = 그림 없음');
   check(/^\d+$/.test(hp.byId['rn-best'].textContent), "그림: 위 최고는 수만 ('최고' 글자 → 왕관 그림) (" + hp.byId['rn-best'].textContent + ')');
   hp.R.close(); earnCalls.length = 0;
+  var buzzes = []; hp.sb.HAPTICS = { buzz: function (n) { buzzes.push(n); return true; } };   /* 11-15 (검증 O-5): 주인이 고른 때만 — 달리기는 점프 · 부딪힘 */
   await hp.open(); await hp.readyNet(); await hp.runToOver();
   var hpScore = hp.R.live().score;
+  check(buzzes.indexOf('jump') >= 0 && buzzes[buzzes.length - 1] === 'hit' && buzzes.every(function (n) { return n === 'jump' || n === 'hit'; }), '진동: 점프 · 부딪힘만 (착지 · 이끼 없음) (' + buzzes.join(',') + ')');
+  var buzzNames = (SRC.match(/HAPTICS\.buzz\('(\w+)'\)/g) || []).map(function (m) { return m.slice(14, -2); }).sort().join(',');
+  check(buzzNames === 'hit,jump', "runner.js 가 부르는 진동은 'hit' · 'jump' 둘뿐 (" + buzzNames + ')');
+  delete hp.sb.HAPTICS;
   check(hp.byId['rn-final-n'].textContent === String(hpScore) && /^\d+$/.test(hp.byId['rn-final-bn'].textContent), '결과 판: 큰 점수 수 · 최고 수 (' + hpScore + ')');
   check(!hp.byId['rn-final-shell'].hidden && hp.byId['rn-shell-n'].textContent === '+3', "결과 판: 조개 그림 + '+3' (" + hp.byId['rn-shell-n'].textContent + ')');
   check(earnCalls.length === 1 && earnCalls[0] && earnCalls[0].quiet === true, '부딪혀 끝난 판은 earnFromPlay(…, { quiet: true }) — 따로 뜨는 조개 알림 없음');
@@ -209,14 +215,14 @@ function deferred() { var d = {}; d.p = new Promise(function (r) { d.resolve = r
   hp.byId['rn-again'].fire('click'); await hp.readyNet();
   hp.key(' '); hp.key(' ', 'keyup'); await hp.frames(3);
   earnCalls.length = 0; hp.R.close();
-  check(earnCalls.length === 1 && !(earnCalls[0] && earnCalls[0].quiet), '달리다 닫은 판은 결과 판이 없으니 알림 그대로 (quiet 아님)');
+  check(earnCalls.length === 1 && earnCalls[0] && earnCalls[0].quiet === true, '달리다 닫은 판도 earnFromPlay(…, { quiet: true }) — 조개 알림 글 없음, 위 조개 칸 수만 (11-15 검증 R-3)');
 
   /* #24: 열 때 찾은 황제 망토·지난 올리기를 출발(start)이 ready() 때 사본으로 덮어쓰면 안 된다 */
   var h = fresh();
   await h.mem.put(core.encodePath({ week: '2026-W44', score: 300, ticks: 1500, runId: 'aaaaaaaaaaaa', nick: 'me' }), {});
   h.setStore({ v: 1, best: 0, runs: 0, day: '', dayN: 0, last: null, net: { subs: [{ runId: 'aaaaaaaaaaaa', week: '2026-W44', score: 300, rank: 1, at: 0 }], awards: { paper_crown: ['2026-W44'], emperor_cape: [] } } });
   await h.open(); await h.readyNet();
-  check(/황제 망토/.test(h.byId['rn-award'].textContent) && !h.byId['rn-award'].hidden, '열 때 지난주 망토 알림 (' + h.byId['rn-award'].textContent + ')');
+  check(/황제 망토/.test(txt(h.byId['rn-award'])) && !h.byId['rn-award'].hidden, '열 때 지난주 망토 알림 (' + txt(h.byId['rn-award']) + ')');
   check(h.net_().awards.emperor_cape[0] === '2026-W44' && h.net_().subs[0].done === true, '망토 저장됨 (출발 전)');
   await h.runToOver();
   check(h.net_() && h.net_().awards.emperor_cape.indexOf('2026-W44') >= 0 && h.net_().subs[0].done === true, '#24 출발해도 망토·done 이 남아 있음 ' + JSON.stringify(h.net_() && h.net_().awards));
@@ -292,7 +298,7 @@ function deferred() { var d = {}; d.p = new Promise(function (r) { d.resolve = r
   check(!h.net_().subs[0].done && h.net_().awards.emperor_cape.length === 0 && h.byId['rn-award'].hidden, '#28 월 00:05 → final:false 라 done 아님, 망토 알림 없음');
   h.R.close(); h.clk.t = MON + 30 * 60000;
   await h.open(); await h.readyNet();
-  check(h.net_().subs[0].done === true && h.net_().awards.emperor_cape[0] === '2026-W45' && /1등! 황제 망토/.test(h.byId['rn-award'].textContent), '#28 닫힌 뒤 다시 물어 망토 (' + h.byId['rn-award'].textContent + ')');
+  check(h.net_().subs[0].done === true && h.net_().awards.emperor_cape[0] === '2026-W45' && /1등! 황제 망토/.test(txt(h.byId['rn-award'])), '#28 닫힌 뒤 다시 물어 망토 (' + txt(h.byId['rn-award']) + ')');
   h.R.close();
 
   console.log('\n' + passes + ' passed, ' + fails + ' failed');
