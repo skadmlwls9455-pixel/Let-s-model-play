@@ -3725,7 +3725,7 @@ var APP = (function () {
   }
   function pixelFont() { return !(S && S.settings && S.settings.pixelFont === false); }
   function applyFont() { document.documentElement.setAttribute('data-font', pixelFont() ? 'pixel' : 'system'); }
-  function applyMotion() { document.documentElement.setAttribute('data-motion', S.settings.motion || 'auto'); if (scene) scene.setReducedMotion(reduced()); }
+  function applyMotion() { document.documentElement.setAttribute('data-motion', S.settings.motion || 'auto'); if (scene) scene.setReducedMotion(reduced()); cookMotionSend(); }
   function hexHue(hex) {
     var n = parseInt(String(hex).slice(1), 16), r = (n >> 16 & 255) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
     var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; if (!d) return 0;
@@ -4038,12 +4038,19 @@ var APP = (function () {
     try { cookFrame.contentWindow.postMessage(cookSafe(), '*'); } catch (e) { /* 닫힌 부엌 */ }
   }
   function cookSafeSoon() { clearTimeout(cookSafeT); cookSafeT = setTimeout(cookSafeSend, 100); }
+  /* 5차 검증 K-5: 게임의 모션 줄이기는 이 쪽 <html> 에만 있다 → 부엌 iframe 에도 알린다 (처음엔 주소 &reduced=1, 그 뒤엔 'open' 바로 전 · 설정이 바뀔 때 {ppolCook:'motion', reduce}).
+     K-11: 키로 열었는지도 (&kbd=1 · 'open' 의 kbd) — 부엌 안의 마지막 입력 (닫을 때의 Esc) 이 아니라 여는 손으로 칩 포커스를 정하게 */
+  function cookSrc(kbd) { return 'cook.html?embed=1' + (reduced() ? '&reduced=1' : '') + (kbd ? '&kbd=1' : ''); }
+  function cookMotionSend() {
+    if (!cookFrame || !cookReady) return;
+    try { cookFrame.contentWindow.postMessage({ ppolCook: 'motion', reduce: reduced() }, '*'); } catch (e) { /* 닫힌 부엌 */ }
+  }
   function cookMsg(e) {
     if (!cookFrame || e.source !== cookFrame.contentWindow) return;
     if (e.origin !== 'null' && e.origin !== location.origin) return;
     var d = e.data; if (!d || typeof d !== 'object') return;
     var ov = $('cook-overlay');
-    if (d.ppolCook === 'ready') { cookReady = true; cookSafeSend(); }
+    if (d.ppolCook === 'ready') { cookReady = true; cookSafeSend(); cookMotionSend(); }
     else if (d.ppolCook === 'close' && ov && ov.open) { cookKbd = !!d.kbd; ov.close(); }
   }
   function openCook(opener, kbd) {
@@ -4056,7 +4063,7 @@ var APP = (function () {
       window.addEventListener('resize', cookSafeSoon); window.addEventListener('orientationchange', cookSafeSoon);
       cookFrame = document.createElement('iframe');
       cookFrame.className = 'cook-frame'; cookFrame.title = '부엌';
-      cookFrame.src = 'cook.html?embed=1';
+      cookFrame.src = cookSrc(kbd);
       ov.appendChild(cookFrame);
       ov.addEventListener('close', function () {
         try { cookFrame.contentWindow.postMessage({ ppolCook: 'close' }, '*'); } catch (e) { /* 닫힌 부엌 */ }   /* 이쪽 Esc 로 닫혀도 부엌은 냄비를 저장하고 조용히 */
@@ -4064,7 +4071,7 @@ var APP = (function () {
         cookKbd = false;
       });
       ov.addEventListener('cancel', function () { cookKbd = true; });   /* Esc = 키보드 → 링 그대로 */
-    } else if (cookReady) { cookSafeSend(); try { cookFrame.contentWindow.postMessage({ ppolCook: 'open' }, '*'); } catch (e) { /* 다시 불러온다 */ cookFrame.src = 'cook.html?embed=1'; } }
+    } else if (cookReady) { cookSafeSend(); cookMotionSend(); try { cookFrame.contentWindow.postMessage({ ppolCook: 'open', kbd: !!kbd }, '*'); } catch (e) { /* 다시 불러온다 */ cookFrame.src = cookSrc(kbd); } }
     showDialog(ov);
     try { cookFrame.focus(); } catch (e) { /* 포커스는 부엌이 연 뒤 스스로 */ }
     return true;

@@ -9,6 +9,7 @@
  * - 사람이 한 번도 안 눌렀으면 (userActivation.hasBeenActive false) · 숨은 쪽이면 부르지 않음
  * - 한 번짜리 무늬는 30 ms 안에 겹치면 하나로
  * - 부엌 무늬 tap 14 · flip 24 · cut 16 · done [16,80,26] (3 번 이하 · 250 ms 이하 · done 의 쉼은 70 ms 이상), 다른 무늬는 그대로
+ * - 5차 검증 O-5: 부엌 (js/cook.js) 은 tap · flip · cut 만 부른다 (주인: 요리 톡 · 뒤집기 · 썰기) — 접시 done 은 부르지 않는다
  * - 무엇이 던져도 buzz 는 false 를 돌려줄 뿐 던지지 않는다
  */
 'use strict';
@@ -132,6 +133,14 @@ var ok = { active: true };
   check(JSON.stringify(P.hit) === '[40,30,40]' && JSON.stringify(P.nope) === '[10,40,10]', 'hit · nope 그대로');
   var H = load(ok).H;
   check(['buzz', 'on', 'set', 'supported'].every(function (k) { return typeof H[k] === 'function'; }) && H.KEY === 'ppolppol_haptics', 'API 그대로: buzz · on · set · supported · PATTERNS · KEY');
+})();
+
+/* 5차 검증 O-5: 부엌이 부르는 무늬는 주인이 고른 셋 (톡 · 뒤집기 · 썰기 = tap · flip · cut) 뿐 — 접시가 놓일 때 done 은 없다 */
+(function () {
+  var cook = fs.readFileSync(path.join(__dirname, '..', 'js', 'cook.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  var names = (cook.match(/\bbuzz\(\s*'([a-z]+)'\s*\)/g) || []).map(function (m) { return m.replace(/^buzz\(\s*'|'\s*\)$/g, ''); });
+  var odd = names.filter(function (n) { return ['tap', 'flip', 'cut'].indexOf(n) < 0; });
+  check(names.length >= 3 && odd.length === 0 && names.indexOf('done') < 0, "부엌이 부르는 진동은 tap · flip · cut 뿐 (" + names.join(',') + ')');
 })();
 
 /* 문서가 없는 곳 (node 바로) 에서도 던지지 않는다 */

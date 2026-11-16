@@ -553,13 +553,19 @@ section('10. pot rules');
   check(st.dayN === 3 && same(st.seen, ['tap', 'flip']) && st.book.length === 1 && st.pot && st.pot.ver === 'cook-1', 'normStore keeps good parts of a saved key and drops junk');
   check(same(A.normStore('{{{'), { v: 1, day: '', dayN: 0, seen: [], pot: null, book: [] }), 'normStore: broken text -> an empty store');
   /* 11-15 potOld: an unresumable pot is kept, never deleted: normStore passes a valid potOld through (array, newest first,
-     at most 4 plain objects, each JSON <= 2048 bytes) and drops junk entries */
-  var keep = [{ ver: 'cook-0', recipe: 'jeon', si: 1 }, { ver: 'cook-1', tune: 1, si: 9 }, { a: 1 }, { b: 2 }, { c: 3 }];
-  var potIn = { v: 1, day: '2026-11-08', dayN: 3, seen: [], pot: null, book: [], potOld: [keep[0], 7, 'x', null, [1], { big: 'z'.repeat(2100) }, keep[1], keep[2], keep[3], keep[4]] };
+     at most 4 plain objects) and drops junk entries (not a plain object). Round 5 check O-6: of any size (a pot over
+     2048 bytes was dropped on the next read) */
+  var keep = [{ ver: 'cook-0', recipe: 'jeon', si: 1 }, { big: 'z'.repeat(2100) }, { ver: 'cook-1', tune: 1, si: 9 }, { a: 1 }, { b: 2 }, { c: 3 }];
+  var potIn = { v: 1, day: '2026-11-08', dayN: 3, seen: [], pot: null, book: [], potOld: [keep[0], 7, 'x', null, [1], keep[1], keep[2], keep[3], keep[4], keep[5]] };
   var po = A.normStore(JSON.stringify(potIn)).potOld;
-  var inOrder = Array.isArray(po) && po.every(function (p, i) { return i === 0 || keep.indexOf(keep.filter(function (k) { return same(k, p); })[0]) > keep.indexOf(keep.filter(function (k) { return same(k, po[i - 1]); })[0]); });
-  check(Array.isArray(po) && po.length >= 1 && po.length <= 4 && same(po[0], keep[0]) && inOrder && po.every(function (p) { return keep.some(function (k) { return same(k, p); }); }) && po.every(function (p) { return p && typeof p === 'object' && !Array.isArray(p) && JSON.stringify(p).length <= 2048; }),
-    'normStore keeps a valid potOld (plain objects, <= 2048 bytes each, at most 4, order kept) and drops junk (' + String(js(po)).slice(0, 80) + ')');
+  check(same(po, keep.slice(0, 4)), 'normStore keeps a valid potOld (plain objects of any size, at most 4, order kept) and drops junk (' + String(js(po)).slice(0, 80) + ')');
+  /* round 5 check O-6: begin() moves an unresumable pot into potOld whole ([pot].concat(potOld).slice(0, 4)); a pot over
+     TUNE.pot.maxBytes stays there byte for byte through every later read and write */
+  var bigPot = { ver: 'cook-1', tune: 12345, runId: 'ck_abc', seed: 5, recipe: 'jeon', swaps: { herb: 'parae' }, si: 1, looks: [{ dents: [] }], tags: [null], at: 0, pad: 'z'.repeat(2150) };
+  var bigText = JSON.stringify(bigPot), moved = A.normStore({ v: 1, day: '2026-11-08', dayN: 3, seen: [], pot: null, book: [], potOld: [bigPot, keep[0]] });
+  var again1 = A.normStore(JSON.stringify(moved)), again2 = A.normStore(JSON.stringify(again1));
+  check(bigText.length > A.TUNE.pot.maxBytes && A.resumeRun(bigPot) === null && again2.potOld && JSON.stringify(again2.potOld[0]) === bigText && same(again2.potOld[1], keep[0]) && A.TUNE_HASH === 2827089308,
+    'O-6: a ' + bigText.length + '-byte pot in potOld survives two more reads byte for byte (TUNE_HASH ' + A.TUNE_HASH + ')');
   var store = A.normStore(null);
   for (var k2 = 0; k2 < 301; k2++) A.bookAdd(store, { id: 'ck_' + k2.toString(36), recipe: 'jeon', seed: k2, swaps: {}, look: { v: 1 }, day: '2026-11-08', madeAt: k2 });
   check(store.book.length === 300 && store.book[0].id === 'ck_' + (300).toString(36) && store.book[299].id === 'ck_1', 'book: newest first, the 301st line drops the oldest');
@@ -744,10 +750,14 @@ section('14. static checks');
   })();
   check(ks.syllables === 2350, 'EUC-KR table gives the 2,350 KS X 1001 syllables');
   function ksOk(ch) { var b = ks.map[ch]; return !!b && new TextDecoder('euc-kr').decode(Buffer.from(b)) === ch; }
+  /* round 5 check T-10: cook.html reads the game's font choice with credits.html's own line (a read, never a write), so
+     its closed page follows the pixel-font-off setting; that one line, exactly as in credits.html, is the only exception */
+  var FONT_PREF = (fs.readFileSync(path.join(ROOT, 'credits.html'), 'utf8').match(/<script>try \{ var raw = localStorage\.getItem\('ppolppol_v2'\)[^\n]*<\/script>/) || [''])[0];
+  check(FONT_PREF.length > 0 && !/setItem/.test(FONT_PREF), "credits.html's font-choice line is there and only reads");
   files.forEach(function (f) {
-    var text = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    var text = fs.readFileSync(path.join(ROOT, f), 'utf8'), own = f === 'cook.html' && FONT_PREF ? text.split(FONT_PREF).join('') : text;
     check(!/Math\.random/.test(text), f + ': no Math.random');
-    check(!/ppolppol_v2/.test(text) && !/\bAPP\./.test(text) && !/\bS\./.test(text) && !/BRAIN/.test(text), f + ': no main-game save key, APP., S. or BRAIN');
+    check(!/ppolppol_v2/.test(own) && !/\bAPP\./.test(text) && !/\bS\./.test(text) && !/BRAIN/.test(text), f + ': no main-game save key, APP., S. or BRAIN' + (f === 'cook.html' ? " (besides credits.html's font-choice line)" : ''));
     var hits = BANNED.filter(function (w) { return text.indexOf(w) >= 0; });
     check(hits.length === 0, f + ': no banned word' + (hits.length ? ' (' + hits.join(', ') + ')' : ''));
     check(text.indexOf('요리 수첩에 넣었어') < 0, f + ": slice 1 has no notebook, so no '요리 수첩에 넣었어'");

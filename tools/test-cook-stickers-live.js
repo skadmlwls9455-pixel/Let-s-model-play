@@ -36,6 +36,7 @@
 'use strict';
 var fs = require('fs'), path = require('path'), http = require('http');
 var { chromium } = require('playwright');
+var os = require('os'), LM = require('./look-metrics.js');   /* decodePNG for K2's pixel-block check */
 
 var ROOT = path.resolve(__dirname, '..');
 var FILE0 = 'file://' + path.join(ROOT, 'cook.html');
@@ -433,6 +434,40 @@ async function K2(browser) {
     check(G.errs.length === 0, 'K2 ' + tag + ': no errors ' + G.errs.join(' | '));
     await G.done();
   }
+
+  /* 11-15 round 5 (check K-2): at DPR 2.625 a sticker at rest is whole device-px blocks: every opaque px of its 32 x 32
+     picture is an n x n block of exactly its own colour (an identity transform kept after the rise put the shadowed
+     sticker on a layer of its own, resampled under the layer zoom: 29-49 % of the blocks were exact) */
+  var X = await openPage(browser, { store: SEEN_ALL, q: 'seed=' + SEED, vp: { width: 412, height: 915 }, dpr: 2.625 });
+  await X.page.evaluate(function () { document.querySelector('.ck-stick').textContent = ''; COOK_STICKERS.show('thumbs', { slot: 0 }); COOK_STICKERS.show('star', { slot: 1 }); });
+  await X.page.evaluate(function () { return Promise.all(Array.prototype.map.call(document.querySelectorAll('.cook-sticker'), function (i) { return i.decode ? i.decode().catch(function () { /* checked below */ }) : null; })); });
+  await X.settle();
+  var bx = await X.page.evaluate(function () {
+    return Array.prototype.map.call(document.querySelectorAll('.ck-stick .cook-sticker'), function (e) { var r = e.getBoundingClientRect(), d = devicePixelRatio; return { id: e.dataset.sticker, x: r.left * d, y: r.top * d, w: r.width * d, tr: getComputedStyle(e).transform }; });
+  });
+  var shotFile = path.join(os.tmpdir(), 'ck-stick-2625-' + process.pid + '.png');
+  await X.page.screenshot({ path: shotFile });
+  var shot = LM.decodePNG(shotFile); fs.unlinkSync(shotFile);
+  var blocks = bx.map(function (b) {   /* the grid may sit one device px off the box's rounded edge (the zoomed layer snaps on its own): the best of +-1 */
+    var s = LM.decodePNG(path.join(ROOT, 'assets/stickers/cook/' + b.id + '.png')), n = Math.round(b.w / s.w), best = 0;
+    for (var oy = -1; oy <= 1; oy++) for (var ox = -1; ox <= 1; ox++) {
+      var x0 = Math.round(b.x) + ox, y0 = Math.round(b.y) + oy, tot = 0, ex = 0;
+      for (var j = 0; j < s.h; j++) for (var i = 0; i < s.w; i++) {
+        var si = (j * s.w + i) * s.bpp, ok = true; if (s.bpp === 4 && s.px[si + 3] !== 255) continue;
+        tot++;
+        for (var v = 0; v < n && ok; v++) for (var u = 0; u < n && ok; u++) {
+          var pi = ((y0 + j * n + v) * shot.w + x0 + i * n + u) * shot.bpp;
+          ok = Math.abs(shot.px[pi] - s.px[si]) <= 2 && Math.abs(shot.px[pi + 1] - s.px[si + 1]) <= 2 && Math.abs(shot.px[pi + 2] - s.px[si + 2]) <= 2;
+        }
+        if (ok) ex++;
+      }
+      if (tot && ex / tot > best) best = ex / tot;
+    }
+    return { id: b.id, n: n, tr: b.tr, exact: best };
+  });
+  check(blocks.length === 2 && blocks.every(function (b) { return b.n === 5 && b.exact === 1; }), 'K2 412x915@2.625: resting stickers are exact 5 x 5 device-px blocks (' + blocks.map(function (b) { return b.id + ' ' + (b.exact * 100).toFixed(1) + ' % ' + b.tr; }).join(', ') + ')');
+  check(X.errs.length === 0, 'K2 412x915@2.625 blocks: no errors ' + X.errs.join(' | '));
+  await X.done();
 }
 
 async function K3(browser) {

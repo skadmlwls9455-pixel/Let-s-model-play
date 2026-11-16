@@ -6984,6 +6984,16 @@ async function scenarioSceneTap(browser) {
   var page = await ctx.newPage(); watchErrors(page, bag);
   if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
   await page.addInitScript({ content: "if (!localStorage.getItem('__e2_seed')) { localStorage.setItem('__e2_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(rec)) + "); } window.__ppolTest = { today: '2026-11-10' };" });
+  /* 11-15 5차 검증 K-1: 부엌 쪽 (cook.html) 에서만 — 그림 기록 (paint) · <html> 에 ck-embed 가 붙은 때 · 프레임마다 문 (.ck-home) 이 그려졌나 */
+  await page.addInitScript(function () {
+    if (!/cook\.html$/.test(location.pathname)) return;
+    var r = window.__ckBoot = { embedAt: null, paints: [], homeFrames: 0, frames: 0 };
+    try { new PerformanceObserver(function (l) { l.getEntries().forEach(function (e) { r.paints.push([e.name, e.startTime]); }); }).observe({ type: 'paint', buffered: true }); } catch (e) { /* 기록 없음 → 아래 검사가 실패로 본다 */ }
+    function on(de) { function see() { if (r.embedAt === null && de.classList.contains('ck-embed')) r.embedAt = performance.now(); } see(); new MutationObserver(see).observe(de, { attributes: true, attributeFilter: ['class'] }); }
+    if (document.documentElement) on(document.documentElement);
+    else new MutationObserver(function (m, ob) { if (document.documentElement) { ob.disconnect(); on(document.documentElement); } }).observe(document, { childList: true });
+    requestAnimationFrame(function tick() { var h = document.querySelector('.ck-home'), cs = h && getComputedStyle(h); r.frames++; if (cs && cs.display !== 'none' && cs.visibility !== 'hidden') r.homeFrames++; if (r.frames < 400) requestAnimationFrame(tick); });
+  });
   await page.goto(INDEX + '?dev=0&intro=0');
   await page.waitForFunction(function () { return window.APP && APP.sceneMode && !APP.goResting && !document.getElementById('btn-go').classList.contains('away'); }, null, { timeout: 30000 });
   /* 0. 로딩 문어 (11-15): 정적 HTML 에 #boot (스크립트 전부터) · 그 전엔 2D 벡터 문어를 숨기는 규칙 · 게임이 서면 걷힌다 */
@@ -7042,6 +7052,9 @@ async function scenarioSceneTap(browser) {
     ck.kitchen = !!fr && await fr.waitForFunction(function () { return window.COOK && COOK.isOpen() && document.documentElement.classList.contains('ck-embed'); }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
     if (ck.kitchen) {
       ck.home = await fr.evaluate(function () { var h = document.querySelector('.ck-home'); return h ? getComputedStyle(h).display : 'none'; });
+      ck.boot = await fr.waitForFunction(function () { var r = window.__ckBoot; return !!r && r.paints.some(function (p) { return p[0] === 'first-contentful-paint'; }); }, null, { timeout: 5000 }).catch(function () { /* 아래 검사가 본다 */ }).then(function () {
+        return fr.evaluate(function () { var r = window.__ckBoot; if (!r) return null; var f = r.paints.filter(function (p) { return p[0] === 'first-contentful-paint'; })[0]; return { fcp: f ? Math.round(f[1]) : null, embedAt: r.embedAt === null ? null : Math.round(r.embedAt), homeFrames: r.homeFrames, frames: r.frames }; });
+      });
       /* 11-15 5차 (가까이 보기 §12 · §15.3): 열자마자 단계 · 글자 0 · 닫기는 그림 단추 · 부모가 잰 안전 여백이 --ck-safe-* 로 · 닫을 때 키보드였는지 */
       await page.evaluate(function () { window.__ckMsgs = []; window.addEventListener('message', function (e) { var d = e.data; if (d && typeof d === 'object' && d.ppolCook) window.__ckMsgs.push(JSON.parse(JSON.stringify(d))); }); });
       await fr.waitForFunction(function () { return getComputedStyle(document.documentElement).getPropertyValue('--ck-safe-t').trim() !== ''; }, null, { timeout: 5000 }).catch(function () { /* 아래에서 본다 */ });
@@ -7074,11 +7087,34 @@ async function scenarioSceneTap(browser) {
       ck.esc = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
       ck.escShut = !(await fr.evaluate(function () { return COOK.isOpen(); }));
       ck.escMsg = await page.evaluate(function () { return window.__ckMsgs.filter(function (m) { return m.ppolCook === 'close'; }).pop() || null; });
+      /* 5차 검증 K-11: Esc 로 닫은 뒤 손가락으로 다시 열면 칩에 포커스 링이 없다 (부엌 안의 마지막 입력이 그 Esc 여도 — 게임이 'open' 에 kbd 를 실어 보낸다) */
+      await page.waitForTimeout(600);
+      await page.touchscreen.tap(cpt.x, cpt.y);
+      ck.finger = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(function () {
+        return fr.evaluate(function () { var v = document.querySelector('.ck-verb'); return { ring: document.getElementById('cook-dlg').classList.contains('ck-kbd'), chipFocus: document.activeElement === v, quiet: COOK.live().quiet }; });
+      }, function () { return null; });
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).catch(function () { /* 아래 검사가 본다 */ });
+      /* 5차 검증 K-5: 게임 설정 › 화면 › 모션 '모션 줄이기' 가 부엌 iframe 에도 닿는다 (COOK.live().reduced · data-motion) — 톡톡 단계가 끝나 화덕으로 가도 미끄러짐 0 */
+      await page.waitForTimeout(600);
+      await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]'); await page.selectOption('#set-motion', 'reduce'); await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+      await page.waitForTimeout(400);
+      await page.touchscreen.tap(cpt.x, cpt.y);
+      ck.red = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(async function () {
+        var r0 = await fr.evaluate(function () { var l = COOK.live(); COOK.auto(true); return { reduced: l.reduced, motion: document.documentElement.getAttribute('data-motion'), kind: l.kind }; });
+        var flip = await fr.waitForFunction(function () { var l = COOK.live(); return l.kind === 'flip' && l.phase === 'step'; }, null, { timeout: 20000 }).then(function () { return true; }, function () { return false; });
+        var r1 = await fr.evaluate(function () { COOK.auto(false); var l = COOK.live(); return { kind: l.kind, slides: l.stats.slides, shake: l.stats.shake, parts: l.stats.parts }; });
+        return { open: r0, flip: flip, after: r1 };
+      }, function () { return null; });
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).catch(function () { /* 끝 */ });
     }
   }
   console.log('   조리대:', JSON.stringify({ pt: cpt, ck: ck }));
   ok(ck.spot && cpt.w >= 44 && cpt.h >= 44 && cpt.label === '부엌', '놀이방 조리대 위에 부엌 단추 (44px 이상 · «' + (cpt && cpt.label) + '»)');
   ok(ck.open && ck.kitchen && ck.home === 'none', '조리대를 손가락으로 톡 → 게임 안 화면 가득 부엌 (cook.html?embed=1 · 자기 문 · 링크는 숨김)');
+  var kb = ck.boot || {};
+  ok(kb.fcp != null && kb.embedAt != null && kb.embedAt <= kb.fcp && kb.frames > 0 && kb.homeFrames === 0, '처음 여는 부엌: 첫 그림 (FCP ' + kb.fcp + ' ms) 전에 ck-embed (' + kb.embedAt + ' ms) · 문 · 링크가 그려진 프레임 0 (' + kb.homeFrames + ' / ' + kb.frames + ')');
   ok(ck.closed && ck.after && ck.after.view === 'play' && ck.after.focus === 'btn-cook' && ck.after.pan === cpt.pan, '부엌의 닫기 → 놀이방 그대로 (장면 ' + (ck.after && ck.after.view) + ' · 포커스 ' + (ck.after && ck.after.focus) + ')');
   ok(ck.again && ck.esc && ck.escShut, '다시 열고 Esc 로도 닫힌다 (부엌도 닫힌다)');
   var z = ck.z || {};
@@ -7088,9 +7124,12 @@ async function scenarioSceneTap(browser) {
   ok(z.safe && z.safe[0] === '0px' && z.safe.every(function (v) { return /^\d+(\.\d+)?px$/.test(v); }), 'iframe 의 --ck-safe-* 를 부모가 보냈다 (준비됐을 때: ' + JSON.stringify(z.safe) + ')');
   ok(ck.safe2 && ck.safe2.css.join() === '47px,200px,34px,0px' && (!ck.safe2.view || ck.safe2.view.join() === '47,200,34,0'), "부모의 'safe' 47 · 999 · 34 · 'x' → --ck-safe-* 47 · 200 · 34 · 0 px, 열린 부엌이 다시 맞춤 (" + JSON.stringify(ck.safe2) + ')');
   ok(ck.safe3, '부모 창 크기가 바뀌면 진짜 값을 다시 보낸다 (100 ms 모아서)');
-  ok(ck.inOrder && ck.inOrder.slice(0, 2).join() === 'safe,open', "다시 열기 바로 전에 'safe' 를 먼저 보낸다 (" + JSON.stringify(ck.inOrder) + ')');
+  ok(ck.inOrder && ck.inOrder.slice(0, 3).join() === 'safe,motion,open', "다시 열기 바로 전에 'safe' · 'motion' 을 먼저 보낸다 (" + JSON.stringify(ck.inOrder) + ')');
   ok(ck.again2 && ck.again2.screen === 'step' && ck.again2.id === z.id, '다시 열면 같은 판 이어서 (run ' + (ck.again2 && ck.again2.id) + ')');
   ok(ck.tapMsg && ck.tapMsg.kbd === false && ck.escMsg && ck.escMsg.kbd === true, "부엌이 닫힐 때 알린다: 손가락 닫기 kbd false · Esc kbd true (" + JSON.stringify([ck.tapMsg, ck.escMsg]) + ')');
+  ok(ck.finger && !ck.finger.ring && !ck.finger.chipFocus && ck.finger.quiet, 'Esc 로 닫은 뒤 손가락으로 다시 열면 칩에 포커스 링 · 포커스 없음 (' + JSON.stringify(ck.finger) + ')');
+  var kr = ck.red || {};
+  ok(kr.open && kr.open.reduced === true && kr.open.motion === 'reduce' && kr.flip && kr.after && kr.after.slides === 0 && kr.after.shake === 0 && kr.after.parts === 0, "게임 설정 '모션 줄이기' → 부엌도 줄임 (reduced · data-motion) · 톡톡 다음 화덕으로 가도 미끄러짐 · 흔들림 · 입자 0 (" + JSON.stringify(kr) + ')');
   ok(!bag.length, '장면 톡 시나리오 오류 없음' + (bag.length ? ': ' + bag.join(' | ') : ''));
   await ctx.close();
 }
