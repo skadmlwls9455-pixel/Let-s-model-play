@@ -180,12 +180,12 @@ var APP = (function () {
   function cornerName(c) { return (W && W.corners && W.corners[c] && W.corners[c].name) || c; }
   function greetingByHour(hr) { return hr < 6 ? '밤이 깊었네' : hr < 9 ? '좋은 아침' : hr < 17 ? '좋은 오후' : hr < 19 ? '노을이 지네' : '밤이네'; }
   var toastTimer = null, toastRow = false;   /* toastRow: 지금 떠 있는 게 '새 줄 알림'(rowToast)인가 */
-  function toast(msg, raw) {   /* <output aria-live=polite> 하나, 한 번에 하나, 2.5초 (UI R21). raw = { part, by }: 그 안의 남의 글(위키 제목 등)만 data-raw */
+  function toast(msg, raw) {   /* <output aria-live=polite> 하나, 한 번에 하나, 2.5초 (UI R21). raw = { part, by }: 그 안의 남의 글(위키 제목 등)만 data-raw. 11-15 (검증 U-4): msg 가 배열이면 글 · 노드 그대로 (조개 그림 + 수) */
     var t = $('toast'); if (!t) return;
     clearTimeout(rowTimer); rowWait = null; toastRow = false; t.classList.remove('row');   /* 보통 알림이 새 줄 알림을 밀어낸다 (거꾸로는 아니다 — rowToast) */
     var moved = raiseToast(t);
     if (moved && !t.classList.contains('show')) void t.offsetWidth;   /* 옮긴 직후에도 나타나는 전환이 돌게 */
-    t.textContent = ''; partRaw(msg, raw && raw.part, raw && raw.by).forEach(function (n) { t.appendChild(n); }); toastPlace(t); t.classList.add('show'); if (window.UIART && UIART.snapLeft) UIART.snapLeft(t);   /* 11-15 (UI 점검): 글 시작을 기기 px 에 */
+    t.textContent = ''; (Array.isArray(msg) ? msg : partRaw(msg, raw && raw.part, raw && raw.by)).forEach(function (n) { if (n != null) t.appendChild(typeof n === 'string' ? document.createTextNode(n) : n); }); toastPlace(t); t.classList.add('show'); if (window.UIART && UIART.snapLeft) UIART.snapLeft(t);   /* 11-15 (UI 점검): 글 시작을 기기 px 에 */
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2500);
   }
   /* 모달 <dialog> 가 열려 있으면 그 밖은 inert 라 토스트가 대화상자 밑에 깔리고 화면 낭독기에도 안 읽힌다 (복사·저장·불러오기 결과).
@@ -2558,6 +2558,7 @@ var APP = (function () {
     var p = trip.poster || {}, note = p.type === 'note', uid = 'p' + (trip.seed >>> 0).toString(36) + (opts.mini ? 'm' : '') + w;
     var pal = (note ? NOTE_PAPER : PAPER)[clamp(p.paper | 0, 0, 2)];
     var m = w * 0.06, sx = m, sy = m * 1.3, sw = w - m * 2, sh = hgt * (note ? 0.42 : 0.56);
+    if (opts.noText && !(window.POSTER_ART && POSTER_ART.trail && POSTER_ART.trail(trip).length)) sy = (hgt - sh) / 2;   /* 11-15 (검증 U-6): 글을 뺐는데 들른 곳 줄도 없으면 (집에 있던 날 쪽지 등) 그림을 종이 가운데에 — 아래 반이 빈 설명 칸으로 남았다 */
     var s = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ' + w + ' ' + hgt + '" width="' + w + '" height="' + hgt + '">';
     s += '<defs>' + sceneGradient(p.scene || 'home', trip.seed, uid) + '<clipPath id="' + uid + 'c"><rect x="' + sx + '" y="' + sy + '" width="' + sw + '" height="' + sh + '" rx="' + (w * 0.02) + '"/></clipPath>';
     s += '<clipPath id="' + uid + 't"><rect x="' + (sx + sw * 0.08) + '" y="' + (sy + sh * 0.12) + '" width="' + (sw * 0.5) + '" height="' + (sh * 0.62) + '" rx="' + (w * 0.03) + '"/></clipPath></defs>';
@@ -2608,7 +2609,9 @@ var APP = (function () {
     var lb = lineBy(trip), rp = lb ? { part: '', by: null } : remPart(trip), lineRaw = lb ? ' data-raw="' + lb + '"' : '', lineH = svgLinesH(p.line || '', lines, rp.part, rp.by);
     if (!opts.noText) lines.forEach(function (ln, i) { s += '<text x="' + (w / 2) + '" y="' + (ly + i * lf * 1.5).toFixed(1) + '" text-anchor="middle" font-family="Noto Serif KR, serif" font-weight="600" font-size="' + lf.toFixed(1) + '" fill="#2a2620"' + lineRaw + '>' + (lb ? esc(ln) : lineH[i]) + '</text>'; });
     /* 들른 곳 줄: 한 줄 글과 날짜 사이 빈 곳에 그날 들른 정류장 그림을 순서대로 (일기의 정류장 그대로, js/poster-art.js) */
-    if (window.POSTER_ART && POSTER_ART.trailSvg) { var tTop = ly + Math.max(0, lines.length - 1) * lf * 1.5 + lf * 0.4, tBot = hgt - m * 1.1 - w * 0.04; s += POSTER_ART.trailSvg(trip, sx, tTop, sw, tBot - tTop); }
+    if (window.POSTER_ART && POSTER_ART.trailSvg) { var tTop = ly + Math.max(0, lines.length - 1) * lf * 1.5 + lf * 0.4, tBot = hgt - m * 1.1 - w * 0.04;
+      if (opts.noText) { tTop = sy + sh; tBot = hgt - m; }   /* 11-15 (검증 U-6): 글을 뺀 앞면 · 앨범 카드는 그림 밑 남은 칸 가운데에 (글 자리를 비워 둔 띠가 빠진 설명처럼 보였다) */
+      s += POSTER_ART.trailSvg(trip, sx, tTop, sw, tBot - tTop); }
     /* 날짜 · N번째 */
     var ord = tripOrdinal(trip), meta = fmtDate(trip.date, true) + (ord ? ' · ' + ord + '번째 뽈뽈' : note ? ' · 오늘은 집' : '');
     if (!opts.noText) s += '<text x="' + (w / 2) + '" y="' + (hgt - m * 1.1).toFixed(1) + '" text-anchor="middle" font-family="Noto Sans KR, sans-serif" font-size="' + (w * 0.036).toFixed(1) + '" fill="#5f5849">' + esc(meta) + '</text>';
@@ -3461,14 +3464,16 @@ var APP = (function () {
     return out.join(' · ');
   }
   function lookEyeNote() { var n = $('look-eye-note'), c = S.settings.player; if (n) n.textContent = (c.eyes === 'smile' || c.eyes === 'dot') ? '이 눈 모양은 눈 색이 안 보여' : '눈 색은 크게 봐야 잘 보여'; }
-  function lookNow() {   /* 미리보기 아래: 이 갈래에서 지금 고른 것들 */
-    var n = $('look-now'); if (!n) return;
-    var c = S.settings.player;
-    n.textContent = lookTab(LOOK.tab).secs.map(function (sec) { return c[sec[0]] === 'none' ? sec[1] + ' 없음' : lookPartName(sec[0], c[sec[0]]); }).join(' · ');
+  function lookNow() {   /* 미리보기 그림 이름 = 앞 · 뒤 + 이 갈래에서 지금 고른 것들. 11-15 (검증 T-6): 그림 밑 한 줄 ('단발 · 삐죽 ·' / '금발' 로 점이 매달렸다) 은 뺐다 — 그림이 보여 준다, 읽어 주기에는 남김 */
+    var cv = $('look-stage-cv'); if (!cv) return;
+    var c = S.settings.player, t = lookTab(LOOK.tab).secs.map(function (sec) { return c[sec[0]] === 'none' ? sec[1] + ' 없음' : lookPartName(sec[0], c[sec[0]]); }).join(' · ');
+    cv.setAttribute('aria-label', (LOOK.back ? '내 모습 뒷모습' : '내 모습 앞모습') + (t ? ': ' + t : ''));
   }
+  var LOOK_WBR = { '긴생머리': 2, '포니테일': 2, '옆가르마': 1 };   /* 11-15 (검증 T-3): 넉 자 이름은 좁은 타일에서 잘리지 않고 낱말 마디에서 두 줄로 */
+  function lookNameNodes(n) { var i = LOOK_WBR[n]; return i ? [n.slice(0, i), h('wbr'), n.slice(i)] : [n]; }
   function lookDrawStage() {
     var cv = $('look-stage-cv'); if (!cv || !lookCanShot()) return;
-    cv.setAttribute('aria-label', LOOK.back ? '내 모습 뒷모습' : '내 모습 앞모습');
+    lookNow();
     try { var src = scene.playerShot({ frame: LOOK.back ? 'back' : 'full', shared: true }), cx = cv.getContext('2d'); if (!src) throw new Error('빈 전신'); cx.clearRect(0, 0, 64, 96); cx.drawImage(src, 0, 0); }
     catch (e) { console.warn('[app] playerShot', e); }
   }
@@ -3520,7 +3525,7 @@ var APP = (function () {
         var b;
         if (isColor) { b = h('button', { type: 'button', class: 'preset pl-color', 'data-part': cat, 'data-id': x.id, 'data-hex': x.hex || null, title: x.name, 'aria-label': x.name }); b.style.background = x.hex || 'var(--panel2)'; }
         else {
-          b = h('button', { type: 'button', class: 'look-tile', 'data-part': cat, 'data-id': x.id }, [shot ? h('canvas', { class: 'look-thumb', width: '32', height: '32', 'aria-hidden': 'true' }) : null, h('span', { class: 'look-name', text: x.name })]);
+          b = h('button', { type: 'button', class: 'look-tile', 'data-part': cat, 'data-id': x.id }, [shot ? h('canvas', { class: 'look-thumb', width: '32', height: '32', 'aria-hidden': 'true' }) : null, h('span', { class: 'look-name' }, lookNameNodes(x.name))]);
           b._frame = sec[2];
         }
         chipOn(b, c[cat] === x.id);
@@ -3574,7 +3579,7 @@ var APP = (function () {
     if (shot) {
       var turn = h('button', { type: 'button', class: 'btn sm pressable', id: 'look-turn', text: LOOK.back ? '앞 보기' : '뒤 보기' });
       turn.addEventListener('click', function () { LOOK.back = !LOOK.back; turn.textContent = LOOK.back ? '앞 보기' : '뒤 보기'; lookDrawStage(); });
-      frag.appendChild(h('div', { class: 'look-stage' }, [h('canvas', { class: 'look-stage-cv', id: 'look-stage-cv', width: '64', height: '96', role: 'img', 'aria-label': '내 모습 앞모습' }), turn, h('p', { class: 'look-now', id: 'look-now' })]));
+      frag.appendChild(h('div', { class: 'look-stage' }, [h('canvas', { class: 'look-stage-cv', id: 'look-stage-cv', width: '64', height: '96', role: 'img', 'aria-label': '내 모습 앞모습' }), turn]));
     }
     body.innerHTML = ''; body.appendChild(frag);
     lookSelectTab(LOOK.tab, false);
@@ -4625,10 +4630,10 @@ var APP = (function () {
     var pn = typeof u.plotTold === 'number' ? gardenOpen() - u.plotTold : 0;   /* 11-15: 새로 생긴 밭 칸 수 (알린 뒤로) */
     if ((!p && !g && !(pn > 0)) || !S.octopus.name) return;
     if (giftWait || document.hidden || (window.INTRO && ['sky', 'title', 'out'].indexOf(INTRO.phase) >= 0) || (t && t.classList.contains('show')) || document.querySelector('#runner-dlg[open], #cook-overlay[open]')) { weekTellT = setTimeout(weekTell, 1000); return; }   /* 11-15 합침 (검증 V4 S5): 달리기 · 부엌 화면 가득 창이 열려 있으면 닫힌 뒤에 (아래 동그라미 · 부엌 위에 2.5 초 겹쳤다) */
-    if (g) { delete u.giftTell; save(); toast('오늘 선물: 조개 ' + (g.shells | 0) + ' · 씨앗 1 (들어온 날 ' + (g.n | 0) + '일째)'); if (p || pn > 0) weekTellT = setTimeout(weekTell, 1000); return; }
+    if (g) { delete u.giftTell; save(); toast(['오늘 선물: ', shellAmt(g.shells | 0), ' · 씨앗 1 (들어온 날 ' + (g.n | 0) + '일째)']); if (p || pn > 0) weekTellT = setTimeout(weekTell, 1000); return; }
     if (pn > 0) { if (revealing) { weekTellT = setTimeout(weekTell, 1000); return; }   /* 귀가 공개가 끝난 뒤에 */
       u.plotTold = gardenOpen(); save(); applyGarden(); toast(pn > 1 ? '마당에 밭 ' + pn + '칸이 새로 생겼어' : '마당에 밭 한 칸이 새로 생겼어'); if (p) weekTellT = setTimeout(weekTell, 1000); return; }
-    p.told = 1; save(); toast(prevWord(w) + ' 살림에 넣어 뒀어. 조개 ' + (p.shells | 0) + ' · 씨앗 ' + (p.seeds | 0));
+    p.told = 1; save(); toast([prevWord(w) + ' 살림에 넣어 뒀어. ', shellAmt(p.shells | 0), ' · 씨앗 ' + (p.seeds | 0)]);   /* 11-15 (검증 U-4 · O-3): 선물 알림의 '조개 N' 도 조개 그림 + 수 (읽어 주기는 sr-only '조개 ' 로 예전 글 그대로) */
   }
   function prevWord(w) { var f = w.prev.from; return typeof f === 'string' && f && f !== keyAdd(w.key, -7) ? '전에 안 받은 주간 선물은' : '지난주 선물은'; }   /* 11-13 (C5): 몇 주 만에 왔으면 '지난주' 가 아니다 (from 없는 기록 = 시험 빌드: 예전 말 그대로) */
   function questN(x) { return x.n | 0; }
@@ -4655,7 +4660,7 @@ var APP = (function () {
     var w = weekState(), u = userState(); if (w.claimed || weekDoneN(w) < WEEK_NEED) return;
     w.claimed = true; u.shells += WEEK_GIFT.shells; u.seeds += WEEK_GIFT.seeds; save(); renderBag(); renderBagChip();
     var g = $('week-got'); if (g) g.focus();   /* 11-12 (검증 F6): 누른 단추가 사라진 자리 = '받았어' 줄로 */
-    toast('주간 선물: 조개 ' + WEEK_GIFT.shells + ' · 씨앗 ' + WEEK_GIFT.seeds);
+    toast(['주간 선물: ', shellAmt(WEEK_GIFT.shells), ' · 씨앗 ' + WEEK_GIFT.seeds]);
   }
   /* 시트를 다시 그린 뒤 키보드 자리 (11-12 검증 F6): 목록 i 번째 줄의 단추, 단추가 없어졌으면 그 줄의 글 (tabindex -1) — body 로 떨어지지 않게 */
   function focusIn(sel, i) { var li = document.querySelectorAll(sel + ' > li')[i], el = li && (li.querySelector('button') || li.querySelector('.week-txt')); if (el) el.focus(); }
@@ -4669,7 +4674,7 @@ var APP = (function () {
     if (w.claimed) frag.appendChild(h('p', { class: 'set-note', id: 'week-got', tabindex: '-1', text: '이번 주 선물은 받았어.' }));
     else if (done >= WEEK_NEED) { var c = h('button', { type: 'button', class: 'btn wide pressable', id: 'week-claim' }, ['주간 선물 받기 ', h('span', { class: 'nobr' }, [h('span', { text: '(' }), shellAmt(WEEK_GIFT.shells), h('span', { text: ' · 씨앗 ' + WEEK_GIFT.seeds + ')' })])]); c.addEventListener('click', weekClaim); frag.appendChild(c); }
     if (keptOf(w).length) frag.appendChild(h('p', { class: 'set-note', id: 'week-kept', text: '목록에서 빠진 일도 이번 주엔 한 걸로 셌어.' }));   /* 11-12 (OW-1): 다 한 줄이 넷인데 (5/5) 인 까닭. 11-13: 뺀 일이 둘 (사흘 · 선물 상자) — 어느 쪽이든 맞는 말 */
-    if (isObj(w.prev)) frag.appendChild(h('p', { class: 'set-note', id: 'week-prev', text: prevWord(w) + ' 살림에 넣어 뒀어 (조개 ' + (w.prev.shells | 0) + ' · 씨앗 ' + (w.prev.seeds | 0) + ').' }));   /* 11-11 (검증 W1): 주가 바뀔 때 넣어 준 선물 — 그 주 동안 */
+    if (isObj(w.prev)) frag.appendChild(h('p', { class: 'set-note', id: 'week-prev' }, [prevWord(w) + ' 살림에 넣어 뒀어 ', h('span', { class: 'nobr' }, [h('span', { text: '(' }), shellAmt(w.prev.shells | 0), h('span', { text: ' · 씨앗 ' + (w.prev.seeds | 0) + ').' })])]));   /* 11-11 (검증 W1): 주가 바뀔 때 넣어 준 선물 — 그 주 동안. 11-15 (검증 U-4): '조개 N' → 조개 그림 + 수 (받기 단추와 같게) */
     var list = h('ul', { class: 'week-list' });
     w.q.forEach(function (x, i) {
       var q = questOf(x.id), n = Math.min(questN(x), q[2]), ok = n >= q[2], left = WEEK_REROLL - (x.rr | 0);
@@ -4682,7 +4687,7 @@ var APP = (function () {
     frag.appendChild(list);
   }
   function renderBagChip() {   /* 주 먼저 (11-11): 주가 바뀌며 넣은 지난주 선물이 조개 수에 바로 보이게. 11-12 (검증 W8 · F5): 받을 선물이 있으면 이름에도 (점은 눈에만 보인다) */
-    var b = $('btn-bag'); if (!b) return; var u = userState(), w = S.octopus.name ? weekState() : null, gift = !!w && !w.claimed && weekDoneN(w) >= WEEK_NEED; b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = String(u.shells);   /* 11-15 (주인 답): 조개 그림 (index.html) + 수 */
+    var b = $('btn-bag'); if (!b) return; var u = userState(), w = S.octopus.name ? weekState() : null, gift = !!w && !w.claimed && weekDoneN(w) >= WEEK_NEED; b.hidden = !S.octopus.name; var t = $('bag-n'); if (t) t.textContent = String(u.shells); snapBagN();   /* 11-15 (주인 답): 조개 그림 (index.html) + 수 */
     if (w) b.classList.toggle('has-gift', gift); b.setAttribute('aria-label', '살림, 조개 ' + u.shells + (gift ? ', 주간 선물이 있어' : ''));
     plotLabels();   /* 11-13: 바깥 밭 단추 이름도 — 씨앗 · 밭 · 날이 바뀌는 길(오늘 선물 · 주간 선물 · 다른 탭 · 불러오기 · 초기화)이 다 여기를 지난다 (포커스 없이 훑는 화면 낭독기) */
   }
@@ -4749,13 +4754,13 @@ var APP = (function () {
     frag.appendChild(list);
   }
   var DYE_COST = 6;
-  function sewDye(id) {
+  function sewDye(id, btn) {
     var u = userState();
     if (id === null) { u.dye = null; save(); applyDye(); renderSew(); toast('원래 색으로 돌렸어'); return; }
     var d = dyeOf(id); if (!d) return;
     if ((u.dyes[id] | 0) > 0) u.dyes[id]--;
     else if (u.shells >= DYE_COST) u.shells -= DYE_COST;
-    else { toast('조개가 ' + (DYE_COST - u.shells) + '개 모자라. 다락방 달리기나 들어온 날 선물로 생겨'); return; }
+    else { var miss = DYE_COST - u.shells; furnShake(btn && btn.querySelector('.sew-cost')); toast([h('span', { 'aria-hidden': 'true' }, [shellAmt(miss), ' 모자라']), h('span', { class: 'sr-only', text: '조개가 ' + miss + '개 모자라. 다락방 달리기나 들어온 날 선물로 생겨' })]); return; }   /* 11-15 (검증 O-3): 긴 안내 글 대신 그림 — 누른 칸의 값 표가 짧게 흔들리고 (동작 줄이기면 안 흔들림) 조개 그림 + 모자란 수. 읽어 주기는 예전 글 그대로 · 진동은 없다 (주인 목록 밖) */
     u.dye = d[2]; save(); applyDye(); renderSew(); renderBagChip(); toast('옷을 ' + d[1] + '으로 물들였어');
   }
   function renderSew() {
@@ -4769,7 +4774,7 @@ var APP = (function () {
       var badge = cur ? [pxIco('check'), h('span', { class: 'sr-only', text: '입는 중' })] : own ? [h('span', { class: 'sr-only', text: '염료 ' }), h('span', { text: String(own) })] : [shellAmt(DYE_COST)];
       var b = h('button', { type: 'button', class: 'sew-chip pressable' + (cur ? ' on' : ''), 'aria-pressed': cur ? 'true' : 'false' }, [h('span', { class: 'sew-sw' }, [h('span', { class: 'sew-cost' + (own && !cur ? ' own' : '') }, badge)]), h('span', { class: 'sew-name', text: d[1] })]);
       b.querySelector('.sew-sw').style.background = d[2];
-      if (!cur) b.addEventListener('click', function () { sewDye(d[0]); });
+      if (!cur) b.addEventListener('click', function () { sewDye(d[0], b); });
       row.appendChild(b);
     });
     frag.appendChild(row);
@@ -4812,9 +4817,11 @@ var APP = (function () {
     frag.appendChild(h('p', { class: 'set-note', text: (have.length ? have.map(function (d) { return d[1] + ' ' + (u.dyes[d[0]] | 0); }).join(' · ') + '. ' : '아직 없어. 꽃을 길러 거두면 생겨. ') + '물들이기는 위층 재봉틀에서 해.' }));
     body.textContent = ''; body.appendChild(frag); renderBagChip();
   }
+  function snapBagN() { var n = $('bag-n'); if (n && window.UIART && UIART.snapLeft) UIART.snapLeft(n); }   /* 11-15 (검증 T-5): 꼬리표 수의 시작을 기기 px 에 (오른쪽에 붙은 꼬리표라 2.625 배율에서 0.2px 어긋나 번졌다) */
   function bagInit() {
     userState(); renderBagChip(); applyDye(); applyGarden();
     var b = $('btn-bag'), sh = $('bag-sheet'); if (!b || !sh) return;
+    if (window.ResizeObserver) new ResizeObserver(snapBagN).observe(b); window.addEventListener('resize', snapBagN);   /* 꼬리표 폭 (늦게 온 글꼴 · 자릿수 · 글자 크기) 이나 화면 폭이 바뀌면 다시 */
     b.addEventListener('click', function () {
       renderBag(); showDialog(sh);
       /* 11-13 (재검증 V3 · P6): 받을 선물이 있으면 받기 단추가 다 보이게 시트만 조금 굴린다 (320x568 픽셀 글꼴에서 반쯤 밖이었다 — 다 보이면 그대로). 여는 움직임 중이라 시트와 단추의 차이로 잰다 */
