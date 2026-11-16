@@ -83,6 +83,8 @@
 .rn-final-old { margin: -4px 0 8px; color: var(--muted); font-family: 'Noto Sans KR', sans-serif; font-size: 16px; line-height: 1.5; }
 .rn-final-old[hidden] { display: none; }
 :root[data-font="pixel"] .rn-over .rn-final-old { color: #602c2c; }
+:root[data-font="pixel"] .rn-over #rn-nick { background: #f3e6c8; color: #2a2620; }   /* 5차 마지막 점검: 어두운 테마에서 닉네임 칸이 어두운 바탕 + 종이 잉크 (1.22:1) 였다 — 종이 판 위는 종이 칸 */
+:root[data-font="pixel"] .rn-over .rn-net-privacy { color: #602c2c; }   /* 어두운 테마의 흐린 회색이 밝은 종이 위에서 1.47:1 이었다 */
 .rn-final-best { color: var(--muted); font-family: 'Noto Sans KR', sans-serif; font-size: 20px; line-height: 1.5; }
 .rn-over .btn { min-height: 52px; min-width: 112px; }
 .rn-over .btn-row { flex-wrap: nowrap; margin-bottom: 8px; }
@@ -98,7 +100,7 @@
 .rn-net-label { grid-column: 1 / -1; font-family: 'Noto Sans KR', sans-serif; font-size: 16px; line-height: 1.5; }
 #rn-nick { min-height: 44px; min-width: 0; box-sizing: border-box; padding: 4px 8px; font-family: 'Noto Sans KR', sans-serif; font-size: 20px; line-height: 1.5; color: inherit; background: var(--bg); border: 2px solid var(--line, currentColor); border-radius: 0; }
 .rn-over .rn-net-form .btn { min-width: 0; white-space: nowrap; }
-.rn-net-msg { margin: 6px 0 0; min-height: 0; font-family: 'Noto Sans KR', sans-serif; font-size: 20px; line-height: 1.5; text-align: center; }
+.rn-net-msg { display: table; margin: 6px auto 0; min-height: 0; font-family: 'Noto Sans KR', sans-serif; font-size: 20px; line-height: 1.5; text-align: center; }   /* 5차 검증: 글 폭만 한 상자를 가운데에 — 상자 시작을 기기 px 에 맞추면 (snapText) 한 줄 글이 또렷하다 */
 .rn-net-msg:empty { display: none; }
 .rn-top10 { margin: 6px 0 0; padding: 0; list-style: none; font-family: 'Noto Sans KR', sans-serif; font-size: 16px; line-height: 1.5; font-variant-numeric: tabular-nums; }
 .rn-top10 li { display: grid; grid-template-columns: 3ch 1fr auto; gap: 8px; }

@@ -72,6 +72,7 @@ var INTRO = (function () {
     el.appendChild(veil); el.appendChild(title); el.appendChild(hint);
     document.body.appendChild(el);
     st.el = el; st.hole = hole; st.title = title; st.lift = lift; st.logo = logo; st.hint = hint; st.spark = sp; st.host = host;
+    try { var fsnap = function () { if (st.el && st.phase === 'title') snapHint(); }; document.fonts.ready.then(fsnap); document.fonts.addEventListener('loadingdone', fsnap); } catch (e) { /* 글꼴 API 없음 */ }   /* 5차 검증: 픽셀 글꼴이 늦게 오면 안내 줄 폭이 바뀐다 → 그때 다시 맞춘다 */
     el.addEventListener('pointerdown', function (e) { if (e.button > 0) return; e.preventDefault(); go(); });
     title.addEventListener('click', function (e) { e.preventDefault(); go(); });   /* 키보드 Enter/Space 는 버튼 click 으로 들어온다 */
     document.addEventListener('keydown', onKey, true);
