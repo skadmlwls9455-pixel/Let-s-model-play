@@ -200,7 +200,7 @@ async function playSlice(K) {
   await wait(800);
   for (var i = 0; i < 2; i++) {
     var ln = (await K.live()).st.lines[i];
-    await K.drag(line([ln.ax - 10 * ln.ux, ln.ay - 10 * ln.uy], [ln.bx + 10 * ln.ux, ln.by + 10 * ln.uy], 20));
+    await K.drag(line([ln.ax - 2 * ln.ux, ln.ay - 2 * ln.uy], [ln.bx + 2 * ln.ux, ln.by + 2 * ln.uy], 20));   /* 11-15 5차: 가이드 끝 2 논리 px 바깥에서 (10 이면 가까이 보기에서 24 px 가장자리 띠 안 — 일부러 무시하는 곳이라 끌기가 안 먹었다, K-A 보고) */
     await wait(350);
   }
 }

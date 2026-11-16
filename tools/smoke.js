@@ -2484,14 +2484,21 @@ async function scenarioWave7(browser) {
   await B.waitForFunction(function () { return window.APP && APP.state.octopus.name === '뚜루' && document.querySelector('#log .lrow'); }, null, { timeout: 20000 });
   await B.evaluate(function (d) { window.__ppolTest.today = d; }, DAY2);
   var b0Col = await B.evaluate(function () { return String(APP.scene.color()).toLowerCase(); });
-  await page.evaluate(function (d) { window.__ppolTest.today = d; APP.setOctColor('#f08a3c'); }, DAY2);   /* 한 인자 = 개발용 기록 (how dev) — 몸 색을 바꾸는 저장 */
+  /* 한 인자 = 개발용 기록 (how dev) — 몸 색을 바꾸는 저장. 이 탭의 기록은 바꾼 그 자리 (같은 일) 에서 읽는다.
+     11-15 CI (9a8f835): 뒤에 (B 를 닫은 뒤) 읽었더니 A 엔 첫 줄만 · B 엔 두 줄이었다 — 두 탭이 거의 같이 저장하면 서로 상대의 저장을 받아
+     (마지막에 쓴 쪽이 이김) 이 탭의 개발용 줄이 빠질 수 있다. 이 검사가 보려는 것은 setOctColor 한 인자의 기록 · 사본 · 저장 · 장면이라
+     다른 탭의 저장 시각에 기대지 않게 했다 (다른 탭이 따라오는지는 아래 B 검사가 본다) */
+  var aDev = await page.evaluate(function (d) {
+    window.__ppolTest.today = d; APP.setOctColor('#f08a3c');
+    var c = APP.state.octopus.colors, sv = JSON.parse(localStorage.getItem('ppolppol_v2'));
+    return { first: c[0], last: c[c.length - 1], n: c.length, color: APP.state.octopus.color, copy: APP.state.settings.octColor, saved: sv.octopus.color, savedCopy: sv.settings.octColor, scene: String(APP.scene.color()).toLowerCase() };
+  }, DAY2);
   await B.waitForFunction(function (d) { var x = document.querySelector('#log .lday'); return x && x.dataset.day === d; }, DAY2, { timeout: 5000 });
   var bRows = await B.evaluate(function () { return [].map.call(document.querySelectorAll('#log .lrow .ltool'), function (x) { return x.textContent; }); });
   /* 다른 탭의 장면 몸색도 저장 이벤트로 따라온다 (adoptRemote → applyLook, 흔들기 없이) · 이 탭 기록엔 개발용 한 줄 { how: 'dev', by: 'dev' } + 사본 */
   var bCol = await B.waitForFunction(function () { return String(APP.scene.color()).toLowerCase() === '#f08a3c'; }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
   var bSt = await B.evaluate(function () { return { color: APP.state.octopus.color, copy: APP.state.settings.octColor, n: APP.state.octopus.colors.length }; });
   await B.close();
-  var aDev = await page.evaluate(function () { var c = APP.state.octopus.colors, sv = JSON.parse(localStorage.getItem('ppolppol_v2')); return { first: c[0], last: c[c.length - 1], n: c.length, color: APP.state.octopus.color, copy: APP.state.settings.octColor, saved: sv.octopus.color, savedCopy: sv.settings.octColor, scene: String(APP.scene.color()).toLowerCase() }; });
   ok(aDev.n === 2 && aDev.first.how === 'first' && aDev.first.by === 'default' && aDev.last.how === 'dev' && aDev.last.by === 'dev' && aDev.last.color === '#f08a3c' && aDev.last.date === DAY2 && aDev.color === '#f08a3c' && aDev.copy === '#f08a3c' && aDev.saved === '#f08a3c' && aDev.savedCopy === '#f08a3c' && aDev.scene === '#f08a3c',
     "APP.setOctColor(hex) 한 인자 = 개발용 기록 한 줄 { how: 'dev', by: 'dev' } (처음 색 줄은 by 'default' — 이름 창에서 색을 안 누름) · octopus.color · 사본 settings.octColor · 저장 · 장면 " + JSON.stringify({ first: aDev.first && aDev.first.by, last: aDev.last }));
   ok(b0Col === '#e8463c' && bCol && bSt.color === '#f08a3c' && bSt.copy === '#f08a3c' && bSt.n === 2, '다른 탭: 몸 색이 저장 이벤트로 따라온다 (장면 ' + b0Col + ' → #f08a3c · 기록 · 사본) ' + JSON.stringify(bSt));
