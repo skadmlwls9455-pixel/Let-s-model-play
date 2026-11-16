@@ -1307,7 +1307,6 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 .look-stage { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; min-height: 0; overflow-y: auto; scrollbar-width: none; padding: 2px 2px 2px 0; }
 .look-stage-cv { display: block; flex: 0 0 auto; box-sizing: content-box; width: 128px; height: 192px; border: 1px solid var(--rim); border-radius: 10px; background: var(--panel2); image-rendering: pixelated; image-rendering: crisp-edges; }
 .look-stage .btn.sm { flex: 0 0 auto; white-space: nowrap; }
-.look-sheet .look-now { margin: 0; width: 100%; text-align: center; font-size: 12px; color: var(--muted); word-break: keep-all; }
 .look-sheet #look-close { margin-top: 12px; }
 @media (max-width: 359px) {
   .look-body, .look-body.no-shot { grid-template-columns: minmax(0, 1fr) var(--look-stage-w); grid-template-rows: auto minmax(0, 1fr); height: min(408px, max(320px, calc(86dvh - 152px))); }
@@ -1318,12 +1317,12 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
   .look-tab { flex: 1 1 0; width: auto; min-width: 0; }
 }
 @media (min-width: 600px) { .look-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-:root[data-font="pixel"] .look-rail { gap: 6px; padding: 2px 4px 4px 2px; margin: -2px -4px -4px -2px; }
+:root[data-font="pixel"] .look-rail { gap: 2px; padding: 2px 4px 4px 2px; margin: -2px -4px -4px -2px; }
 :root[data-font="pixel"] .look-tab {
-  width: 46px; height: 52px; padding: 0 0 2px; border-radius: 0; border: 2px solid var(--line); font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 1.25;
+  width: 48px; height: 56px; padding: 0 0 2px; border-radius: 0; border: 2px solid var(--line); font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 1;
   box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line); transition: none;
 }
-:root[data-font="pixel"] .look-tab .ua-ico.ua-both { margin: -1px 0; }   /* 안쪽 48px = 그림 32 − 2(위아래 빈 줄을 1px 씩 겹친다) + 글자 16 + 아래 숨 2 (받침 글자가 안쪽 그림자 줄에 안 붙게). 탭 6 × 52 + 틈 5 × 6 = 342 ≤ 몸통 348 */
+:root[data-font="pixel"] .look-tab .ua-ico.ua-both { margin: -1px 0; }   /* 11-15 (검증 U-3 · T-3): 안쪽 52px = 그림 32 − 2 (위아래 1px 씩 겹친다) + 글자 한 줄 (줄 높이 1 = 글꼴 12칸, 16~18.3px) + 아래 숨 2 — 1.25 줄이면 2배율에서 그림이 위 테를 덮었다. 탭 6 × 56 + 틈 5 × 2 = 346 ≤ 몸통 348 */
 :root[data-font="pixel"] .look-tab:active { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
 :root[data-font="pixel"] .look-tab[aria-selected="true"] { background: var(--amber-fill); border-color: var(--line); color: var(--on-accent); box-shadow: inset 1px 1px 0 var(--amber-hi), inset -1px -1px 0 var(--amber-lo), 2px 2px 0 var(--line); }
 :root[data-font="pixel"] .look-tile {
@@ -1336,12 +1335,12 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 :root[data-font="pixel"] .look-tile.on::before { top: 0; right: 0; width: 20px; height: 18px; border-radius: 0; background: var(--amber-fill); border-left: 2px solid var(--line); border-bottom: 2px solid var(--line); }
 :root[data-font="pixel"] .look-tile.on::after { top: 2px; right: 2px; }
 :root[data-font="pixel"] .look-body.no-shot .look-tile { padding: 4px 2px; }
+:root[data-font="pixel"] .look-name { white-space: normal; overflow: visible; overflow-wrap: anywhere; line-height: 1.25; }   /* 11-15 (검증 T-3): 넉 자 이름 (18px 에 72px) 이 64px 칸에서 잘렸다 → 낱말 마디 (<wbr>, app.js lookNameNodes) 에서 두 줄. 크기는 그대로 */
 :root[data-font="pixel"] .look-more { height: 16px; background: repeating-conic-gradient(var(--panel) 0% 25%, transparent 0% 50%) 0 0 / 4px 4px; transition: none; }
 :root[data-font="pixel"] .look-more::before { content: ''; position: absolute; left: 50%; bottom: 0; width: 26px; height: 14px; margin-left: -13px; background: var(--panel); border: 2px solid var(--line); border-bottom: 0; }
 :root[data-font="pixel"] .look-more::after { bottom: 2px; background: var(--line); }
 :root[data-font="pixel"] .look-stage { padding: 2px 4px 4px 0; }
 :root[data-font="pixel"] .look-stage-cv { border-radius: 0; border: 2px solid var(--line); box-shadow: 2px 2px 0 var(--line); }
-:root[data-font="pixel"] .look-sheet .look-now { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
 @media (max-width: 359px) {
   :root[data-font="pixel"] .look-rail { padding: 0 0 2px; margin: 0; }
   :root[data-font="pixel"] .look-tab { width: auto; }
@@ -1530,7 +1529,7 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 .furn-meter i:nth-child(1) { height: 6px; } .furn-meter i:nth-child(2) { height: 8px; } .furn-meter i:nth-child(3) { height: 10px; } .furn-meter i:nth-child(4) { height: 12px; position: relative; } .furn-meter i:nth-child(5) { height: 14px; }
 .furn-meter i:nth-child(6) { height: 16px; } .furn-meter i:nth-child(7) { height: 18px; } .furn-meter i:nth-child(8) { height: 20px; } .furn-meter i:nth-child(9) { height: 22px; }
 .furn-meter i:nth-child(4)::after { content: ''; position: absolute; left: -1px; right: -1px; bottom: -5px; height: 2px; background: var(--line, var(--rim)); }
-.furn-no { animation: furn-no .3s steps(6) 1; }   /* 안 되는 누름: 글 없이 짧게 좌우로 (방 안 고른 가구 테도 빨강 깜빡 — 장면 stepSel) */
+.furn-no { animation: furn-no .3s steps(6) 1; }   /* 안 되는 누름: 글 없이 짧게 좌우로 (방 안 고른 가구 테도 흰색 굵게 깜빡 — 장면 stepSel) */
 @keyframes furn-no { 0%, 100% { transform: none; } 20%, 60% { transform: translateX(-2px); } 40%, 80% { transform: translateX(2px); } }
 @media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .furn-no { animation: none; } }
 :root[data-motion="reduce"] .furn-no { animation: none; }
@@ -1589,10 +1588,10 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 :root:not([data-layout="one"]) .bag-tag { position: relative; top: auto; right: auto; margin: 6px 16px; }   /* static 이면 누르는 곳(::before, absolute)이 #scene 전체를 덮어 2D 장면의 톡(문어 · 문)을 다 가로챘다 */
 html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 /* 11-15 (주인 답: '조개 N' → 조개 그림 + 수): 16 아트 px 조개를 32px (×2) 로 — 꼬리표 높이는 그대로 (위아래 -6px) · 그림이 안 오면 (.no-img) 수만 */
-.bag-tag { display: inline-flex; align-items: center; gap: 0; padding: 0 8px 0 0; min-height: 36px; }
+.bag-tag { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 4px; min-height: 36px; }   /* 11-15 (검증 O-8): 조개 그림이 테 · 수에 붙지 않게 안쪽 4px · 틈 4px */
 .bag-tag .bag-shell { display: block; width: 32px; height: 32px; image-rendering: pixelated; }
 .bag-tag.no-img .bag-shell { display: none; }
-.shell-amt { display: inline-flex; align-items: center; gap: 2px; vertical-align: middle; white-space: nowrap; }
+.shell-amt { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; white-space: nowrap; }   /* 11-15 (검증 U-4): 그림 앞뒤 −4 + 32 + 4 = 32px — 8의 배수라 2.625 배율에서도 뒤따르는 수 · 글이 기기 px 에서 시작 (틈 2px 이면 0.75px 어긋났다) */
 .shell-amt .shell-ico { display: block; width: 32px; height: 32px; margin: -6px 0 -6px -4px; image-rendering: pixelated; }
 .px-ico { display: block; width: 24px; height: 24px; flex: 0 0 auto; }
 .week-row .week-n.week-ico { display: flex; align-items: center; color: var(--fg); }
@@ -1634,9 +1633,9 @@ html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 .sew-sheet .sew-chip { display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-height: 48px; padding: 4px; text-align: center; }
 .sew-sheet .sew-sw { position: relative; display: flex; align-items: center; justify-content: center; width: auto; height: 40px; border-radius: 4px; }   /* 11-15 (주인 답): 칸 폭 색 덩어리 40px — 값은 덩어리 위 작은 표 */
 .sew-sheet .sew-cost { display: inline-flex; align-items: center; gap: 2px; min-height: 28px; padding: 0 4px; border-radius: 4px; background: var(--panel); color: var(--fg); }
-.sew-sheet .sew-cost { min-height: 32px; padding: 0 6px 0 0; }
+.sew-sheet .sew-cost { min-height: 36px; padding: 2px 6px 2px 2px; }   /* 11-15 (검증 U-7): 조개 그림 (32px = 2배) 이 표의 2px 테 안쪽에 — 예전엔 32px 표에 그림이 왼쪽 테를 덮고 아래 테에 붙었다 */
 .sew-sheet .sew-cost .shell-ico { margin: 0; }
-.sew-sheet .sew-cost.own, .sew-sheet .sew-chip.on .sew-cost { padding: 0 6px; }
+.sew-sheet .sew-cost.own, .sew-sheet .sew-chip.on .sew-cost { padding: 2px 6px; }
 .sew-sheet .sew-name { font-size: 13px; line-height: 18px; }
 .sew-sheet .sew-cost { font-size: 11px; line-height: 14px; }
 .sew-sheet .sew-off { display: block; min-height: 44px; margin: 0 0 4px; }
@@ -1663,13 +1662,13 @@ html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 /* 이번 주 할 일 (살림 시트): 줄마다 할 일 · 진행 · '바꾸기 n'. 끝난 줄은 흐리게 */
 .week-list { list-style: none; margin: 6px 0 10px; padding: 0; display: grid; gap: 4px; }
 .week-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 2px 0; border-bottom: 1px solid var(--rim); }
-.week-row .week-txt { flex: 1 1 auto; min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.week-row .week-txt { flex: 1 1 auto; min-width: 0; word-break: keep-all; overflow-wrap: anywhere; text-wrap: pretty; }   /* 11-15 (검증 U-5): 320 px 에서 '다락방 달리기 한 / 판' 처럼 한 글자만 내려가지 않게 → '다락방 달리기 / 한 판' (balance 는 '다락방 / 달리기 한 판' 으로 이름을 끊었다) */
 .week-row .week-n { flex: 0 0 auto; color: var(--muted); font-size: 13px; }
 .week-row.done .week-txt { color: var(--muted); }
 .week-row .week-rr { flex: 0 0 auto; min-height: 36px; }
 .week-row .week-rr::before { inset: min(0px, calc(50% - 22px)) 0; }   /* 11-12 (검증 F7 · C13): 누르는 곳은 높이 44px (보이는 단추 32~36px) — 옆으로는 넓히지 않는다 (320 px 에서 시트 몸이 옆으로 4px 넘쳤다) */
 .week-txt:focus { outline: none; } .week-txt:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }   /* 바꾼 칸에 단추가 없어지면 키보드 자리가 그 줄의 글로 (tabindex -1) */
-#week-claim .nobr { white-space: nowrap; }   /* 11-12 (검증 F20): 수량은 한 덩어리 */
+#week-claim .nobr, #week-prev .nobr { white-space: nowrap; }   /* 11-12 (검증 F20): 수량은 한 덩어리 (11-15: 지난주 선물 줄도) */
 :root[data-font="pixel"] #week-claim { line-height: 28px; }   /* 픽셀 글꼴(24px)에선 두 줄이 된다 — 단추 기본 22px 줄 간격이면 두 줄이 겹쳐 보였다 (W14) */
 /* 11-12 (검증 F5 · W8): 받을 주간 선물 점 — 틀 색(호박 · 나무)과 겹쳐 틀의 일부로 읽혔다 → 조금 크게, 밝은 호박 + 바탕색 테두리 2px 로 틀에서 떼어 낸다. 깜빡임 · 숫자 없음 */
 .bag-tag.has-gift::after { content: ''; position: absolute; top: -1px; right: -1px; width: 10px; height: 10px; border-radius: 50%; background: var(--amber-fill, var(--amber)); box-shadow: 0 0 0 2px var(--panel2); }
