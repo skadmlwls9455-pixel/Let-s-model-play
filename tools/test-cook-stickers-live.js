@@ -243,7 +243,7 @@ async function touchDish(T) {
   await T.go(700);
   for (var c = 0; c < 2; c++) {
     var ln = (await T.live()).st.lines[c];
-    await T.drag(line([ln.ax - 10 * ln.ux, ln.ay - 10 * ln.uy], [ln.bx + 10 * ln.ux, ln.by + 10 * ln.uy], 20));
+    await T.drag(line([ln.ax - 2 * ln.ux, ln.ay - 2 * ln.uy], [ln.bx + 2 * ln.ux, ln.by + 2 * ln.uy], 20));   /* 11-15 5차: 가이드 끝 2 논리 px 바깥에서 (10 이면 가까이 보기에서 24 px 가장자리 띠 안 — 일부러 무시하는 곳이라 끌기가 안 먹었다, K-A 보고) */
     await T.go(300);
   }
   l = await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
@@ -728,7 +728,9 @@ async function K9(browser) {
     return { hit: e ? e.className : null, scroll: dlg.scrollHeight > dlg.clientHeight || dlg.scrollWidth > dlg.clientWidth, at: [b.left + b.width / 2, b.top + b.height - 6] };
   });
   check(m.hit === 'ck-cv' && !m.scroll && JSON.stringify(await C.rect('.ck-stage')) === JSON.stringify(stage0), 'K9 (no css): it still takes no touch, the stage has not moved, nothing scrolls (' + m.hit + ')');
-  var pts = [m.at]; for (var k = 1; k <= 6; k++) pts.push([m.at[0], m.at[1] - 8 * k]);
+  /* 11-15 5차: 8 논리 px 씩 여섯 걸음 (48 ≥ flick 32). 예전 8 CSS px 는 가까이 보기 (논리 1 px ≈ 2 CSS px 남짓) 에선 flick 에 못 미쳤다 */
+  var sim = await C.rect('.ck-sim'), dy = 8 * sim.h / 320;
+  var pts = [m.at]; for (var k = 1; k <= 6; k++) pts.push([m.at[0], m.at[1] - dy * k]);
   await C.dragCss(pts);
   check((await C.live()).stats.flips === 1, 'K9 (no css): a flick from under it still flips');
   check(C.errs.length === 0, 'K9 (no css): no error but the browser\'s own line for the blocked file ' + C.errs.join(' | '));
