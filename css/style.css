@@ -467,6 +467,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
    틀: 2px 어두운 테두리 + 안쪽 2px 베벨(밝음 좌상·어둠 우하) + 모서리 2px 계단(clip-path). 대화상자는 이중 틀(바깥 2px · 2px 틈 · 안쪽 1px)
    ══════════════════════════════════════════════════════════ */
 :root[data-font="pixel"] {
+  font-synthesis: none;   /* 11-15 (UI 점검): Galmuri9 · Galmuri7 엔 굵은 꼴이 없다 — 브라우저가 가짜로 굵게 칠하면 '옮' 이 '숨' 처럼 뭉개진다. Galmuri11 은 진짜 Bold 가 있어 그대로 */
   /* 라이트: 종이 위 나무 — Apollo #d7b594 / #e7d5b3 / #ebede9, 잉크 #341c27, 나무 #602c2c · #884b2b, 호박 #be772b */
   --bg: #d7b594; --panel: #e7d5b3; --panel2: #ebede9; --rim: #602c2c;
   --fg: #341c27; --muted: #602c2c; --dim: #c09473;
@@ -568,8 +569,8 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 /* ── 장면: 디오라마 창 (2px 틀 + 안쪽 베벨은 캔버스 위에 겹치는 ::after) ── */
 :root[data-font="pixel"] #scene { border: 2px solid var(--line); border-bottom: 0; }
 :root[data-font="pixel"] #scene::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 9; box-shadow: inset 2px 2px 0 var(--lo-px), inset -2px -2px 0 var(--hi-px); }
-:root[data-font="pixel"] #scene3d #oct-label { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 16px; color: var(--paper0); }
-:root[data-font="pixel"] #scene3d #oct-bubble { font-family: var(--f-ui); font-size: var(--bub-fs, 18px); line-height: 1.5; border-radius: 0; border: 2px solid var(--line); background: var(--paper0); color: var(--ink); box-shadow: 2px 2px 0 var(--line); padding: 2px 6px; }   /* 11-15 5차 (주인: 말풍선 글자 조금 키움): Galmuri11 을 기기 px 에 맞춘 약 16~18px (--bub-fs, index.html 머리 스크립트 · 1배 12px 의 정수 배). Galmuri7 은 한글 받침이 뭉개져 안 쓴다. 폭은 js/ui-art.js keepInside */
+:root[data-font="pixel"] #scene3d #oct-label { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 1.25; color: var(--paper0); }
+:root[data-font="pixel"] #scene3d #oct-bubble { font-family: var(--f-ui); font-size: var(--bub-fs, 18px); line-height: 1.5; text-align: left; border-radius: 0; border: 2px solid var(--line); background: var(--paper0); color: var(--ink); box-shadow: 2px 2px 0 var(--line); padding: 2px 6px; }   /* 11-15 (UI 점검): 여러 줄은 왼쪽 맞춤 — 가운데 맞춤은 줄 시작이 기기 px 사이에 떨어져 흐렸다 (상자는 그대로 문어 위 가운데, 시작점은 ui-art.js keepInside 가 맞춘다) */   /* 11-15 5차 (주인: 말풍선 글자 조금 키움): Galmuri11 을 기기 px 에 맞춘 약 16~18px (--bub-fs, index.html 머리 스크립트 · 1배 12px 의 정수 배). Galmuri7 은 한글 받침이 뭉개져 안 쓴다. 폭은 js/ui-art.js keepInside */
 :root[data-font="pixel"] #oct-bubble { animation-timing-function: var(--ease-px-2); }   /* bubble-in 4px → 4·2·0 (2D · 3D 공통) */
 /* 벽 포스터 미니: 누르면 2px 내려앉고(확대·축소 없음 — 2px 베벨이 다시 샘플링돼 흐려진다), 새로 붙으면 4px 위에서 두 칸 계단으로 착지.
    scene2d.js 가 미니마다 인라인 transform: rotate() 기울기를 줘서 시트의 transform 은 이기지 못한다 → 누름·착지는 translate 속성으로 (기울기와 겹쳐진다) */
@@ -610,7 +611,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 }
 :root[data-font="pixel"] .fchip {
   border-radius: 0; border: 2px solid var(--line); background: var(--panel2); color: var(--muted);
-  font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 16px; padding: 4px 10px; min-height: 32px;
+  font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 1.25; padding: 4px 10px; min-height: 32px;
   box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line);
 }
 :root[data-font="pixel"] .fchip:active { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
@@ -621,6 +622,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 /* ── 초대: 라벨 Galmuri7, 입력칸은 안으로 들어간 틀, 버튼은 베벨 블록 + 2px 그림자 (누르면 2px 내려앉으며 그림자가 사라진다) ── */
 :root[data-font="pixel"] .lbl, :root[data-font="pixel"] .help { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
 :root[data-font="pixel"] .help { min-height: 21px; }
+:root[data-font="pixel"] .sheet p.help { font-family: var(--f-body); }   /* 11-15 (UI 점검): 시트 안 도움말은 .sheet p 의 b20 크기를 받는다 → 글꼴도 Galmuri9 (Galmuri11 을 Galmuri9 눈금 크기로 찍어 흐렸다) */
 :root[data-font="pixel"] .modal-in, :root[data-font="pixel"] #d-peek-in, :root[data-font="pixel"] #d-json, :root[data-font="pixel"] .sheet select {
   font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; letter-spacing: 0;
   border: 2px solid var(--line); border-radius: 0; background: var(--panel2); color: var(--fg);
@@ -661,7 +663,10 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .lrow.in { animation-timing-function: var(--ease-px); }   /* row-in 8px → 8·4·2·0 */
 :root[data-font="pixel"] .ltool { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; letter-spacing: 0; padding-top: 3px; color: var(--amber); }
 :root[data-font="pixel"] .ltext .st, :root[data-font="pixel"] .ltext .sub { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
-:root[data-font="pixel"] .lrow.typing .ltext { letter-spacing: 2px; }
+:root[data-font="pixel"] .lrow.typing .ltext { letter-spacing: 0; }   /* 11-15 (UI 점검): 2px 은 2.625 배율에서 글자마다 5.25 기기 px — 소수 자리로 밀렸다 */
+:root[data-font="pixel"] .lrow:not(.dialog) { grid-template-columns: max-content minmax(0, 1fr); padding-left: 8px; }   /* 11-15 (UI 점검): '혼잣말' 이 44px 칸에서 '혼잣 / 말' 로 끊겼다. 왼쪽 안쪽 8px → 글 시작 16 + 8 + 8 = 32 CSS px (2.25 · 2.625 · 2.75 · 3 배율에서 정수 기기 px) */
+:root[data-font="pixel"] .lrow.dialog { padding-left: 8px; }
+:root[data-font="pixel"] .ltool { white-space: nowrap; }
 :root[data-font="pixel"] .lempty { font-size: var(--fs-b20, 20px); line-height: 30px; }
 /* 초상 대화창 행: 초상은 이중 틀(바깥 2px 어두움 · 2px 남색 틈 · 안쪽 1px 밝음) 안에 96px, 바탕 Apollo 남색 #172038 (초상의 bg 'navy' 와 같은 색) */
 :root[data-font="pixel"] .lrow.dialog { grid-template-columns: auto 1fr; gap: 10px; }
@@ -736,7 +741,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .receipt .big-line { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 36px; font-weight: 700; }
 :root[data-font="pixel"] .receipt .share { border-radius: 0; border: 2px solid var(--ink-muted); background: #ebede9; padding: 6px 8px; }
 :root[data-font="pixel"] .receipt .share code { font-size: var(--fs-m16, 16px); font-family: var(--f-meta); letter-spacing: 0; }
-:root[data-font="pixel"] .receipt .copy { border-radius: 0; border: 2px solid var(--ink); background: var(--paper0); font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 16px; box-shadow: inset 1px 1px 0 #ebede9, inset -1px -1px 0 #c09473, 2px 2px 0 var(--ink); }
+:root[data-font="pixel"] .receipt .copy { border-radius: 0; border: 2px solid var(--ink); background: var(--paper0); font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 1.25; box-shadow: inset 1px 1px 0 #ebede9, inset -1px -1px 0 #c09473, 2px 2px 0 var(--ink); }
 :root[data-font="pixel"] .receipt .copy:active { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 #ebede9, inset -1px -1px 0 #c09473; }
 
 /* 바텀시트 (설정 · 추억 앨범): 위쪽 이중 틀, 손잡이는 네모 */
@@ -797,7 +802,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .cnote .cn-tag.next { color: var(--amber); border-color: var(--amber); }   /* 다음 산책에 같이 가는 메모 (최근 active 3개) */
 .cnote.down .cn-text { color: var(--muted); }
 #album-notes h3 { margin-top: 12px; }
-:root[data-font="pixel"] .album-sheet .al-h, :root[data-font="pixel"] .settings-sheet .set-h, :root[data-font="pixel"] .look-sheet .set-h, :root[data-font="pixel"] .log-sheet .set-h { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 36px; font-weight: 700; }
+:root[data-font="pixel"] .album-sheet .al-h, :root[data-font="pixel"] .settings-sheet .set-h, :root[data-font="pixel"] .bag-sheet #bag-h, :root[data-font="pixel"] .sew-sheet #sew-h, :root[data-font="pixel"] .look-sheet .set-h, :root[data-font="pixel"] .log-sheet .set-h { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 36px; font-weight: 700; }
 :root[data-font="pixel"] .al-recent h3 { margin: 4px 0 0; }
 :root[data-font="pixel"] .sheet .al-recent p { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }   /* 요즘 한두 줄은 작게 (카드가 먼저 보이게) */
 :root[data-font="pixel"] .sheet .al-recent p.ua-ico-line { display: flex; align-items: center; line-height: 32px; }
@@ -1019,7 +1024,7 @@ html.intro-reveal #scene-ctl { transition: opacity var(--t-ui) var(--ease-enter)
 :root[data-font="pixel"] .icon-btn:focus-visible .snd-box { outline: 2px solid var(--fg); outline-offset: 2px; }
 :root[data-font="pixel"] :is(.album-btn, .today-btn) .ib-dot { top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 0; background: var(--amber-fill); box-shadow: 0 0 0 2px var(--line); }
 :root[data-font="pixel"] .album-fly { box-shadow: 2px 2px 0 var(--line); }
-:root[data-font="pixel"] .snd-val { font-family: var(--f-num); ffont-size: var(--fs-n16, 16px) line-height: 24px; color: var(--fg); }
+:root[data-font="pixel"] .snd-val { font-family: var(--f-num); font-size: var(--fs-n16, 16px); line-height: 24px; color: var(--fg); }
 :root[data-font="pixel"] .sheet input.snd-range { -webkit-appearance: none; appearance: none; height: 44px; margin: 0; background: transparent; accent-color: var(--amber-fill); cursor: pointer; }
 :root[data-font="pixel"] .sheet input.snd-range:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 :root[data-font="pixel"] .sheet input.snd-range::-webkit-slider-runnable-track {
@@ -1315,7 +1320,7 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 @media (min-width: 600px) { .look-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 :root[data-font="pixel"] .look-rail { gap: 6px; padding: 2px 4px 4px 2px; margin: -2px -4px -4px -2px; }
 :root[data-font="pixel"] .look-tab {
-  width: 46px; height: 52px; padding: 0 0 2px; border-radius: 0; border: 2px solid var(--line); font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 16px;
+  width: 46px; height: 52px; padding: 0 0 2px; border-radius: 0; border: 2px solid var(--line); font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 1.25;
   box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line); transition: none;
 }
 :root[data-font="pixel"] .look-tab .ua-ico.ua-both { margin: -1px 0; }   /* 안쪽 48px = 그림 32 − 2(위아래 빈 줄을 1px 씩 겹친다) + 글자 16 + 아래 숨 2 (받침 글자가 안쪽 그림자 줄에 안 붙게). 탭 6 × 52 + 틈 5 × 6 = 342 ≤ 몸통 348 */
@@ -1499,19 +1504,33 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 /* 11-15 가구 모드: 위 바 바로 아래 한 줄 (취소 · 제목 · 저장하기 + 처음 한 번 안내) · 고른 가구 밑 단추 줄 · 아래 가구 줄. 문어 · 캐릭터 말풍선 · 방 단추 · 큰 버튼은 숨는다 */
 .furn-ui { position: absolute; inset: 0; z-index: 9; pointer-events: none; }
 .furn-ui[hidden] { display: none; }
-.furn-top { position: absolute; top: calc(var(--bar-h, 44px) + var(--safe-t, 0px) + 8px); left: 8px; right: 8px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 8px; padding: 6px 8px; background-color: var(--panel); border: 1px solid var(--rim); border-radius: 10px; pointer-events: auto; }
-:root[data-font="pixel"] .furn-top { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
-.furn-top strong { min-width: 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.furn-hint { grid-column: 1 / -1; margin: 0; text-align: center; font-size: 13px; color: var(--muted, var(--fg)); }
+.furn-top { position: absolute; top: calc(var(--bar-h, 44px) + var(--safe-t, 0px) + 8px); left: 8px; right: 8px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; }   /* 11-15 (주인 답): 판 · 제목 없이 양쪽 구석 그림 단추 X · 체크 */
+.furn-top > .btn { pointer-events: auto; flex: 0 0 auto; width: auto; }
+@media (max-width: 449px) { :root[data-layout="one"].furn-on .furn-top { top: calc(var(--bar-h, 44px) + var(--safe-t, 0px) + 24px); } }   /* 바 아래 매달린 '데모' 꼬리표를 덮지 않게 */
 .furn-hint[hidden] { display: none; }
-:root[data-font="pixel"] .furn-hint { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 20px; }
-.furn-row { position: absolute; left: 0; top: 0; display: flex; gap: 6px; padding: 4px; background-color: var(--panel); border: 1px solid var(--rim); border-radius: 10px; pointer-events: auto; }
-:root[data-font="pixel"] .furn-row { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
-.furn-row[hidden] { display: none; }
-.furn-row .btn.furn-act, :root[data-font="pixel"] .furn-row .btn.furn-act { margin: 0; min-width: 56px; min-height: 48px; padding: 0 12px; display: inline-grid; place-items: center; }   /* 11-15 5차: 그림 단추 (글자 없음) — 누르는 곳 56×48 (.btn.sm 의 36px 를 이긴다) */
-.furn-act-ico { display: block; width: 24px; height: 24px; color: var(--ink, currentColor); }   /* Pixelarticons 24 눈금 = 24 CSS px (선 2px) */
-.furn-row .btn:disabled { opacity: .45; cursor: default; }
-.furn-no { animation: furn-no .3s steps(6) 1; }   /* 안 되는 누름: 글 없이 짧게 좌우로 */
+/* 처음 한 번: 손 그림이 소파 위에서 누르고 (0.5 s) 오른쪽으로 끈다 (8 · 16 · 24px 계단) — 2 s 뒤 사라진다. 동작 줄이기면 멈춘 한 칸 (app.js furnHand) */
+.furn-hand { position: absolute; left: 0; top: 0; z-index: 1; width: 24px; height: 24px; pointer-events: none; animation: furn-hand 2s steps(1, end) 1 both; }
+.furn-hand[hidden] { display: none; }
+.furn-hand svg { display: block; }
+@keyframes furn-hand { 0% { transform: translate(0, -4px); } 25% { transform: translate(0, 0); } 45% { transform: translate(8px, 0); } 60% { transform: translate(16px, 0); } 75%, 100% { transform: translate(24px, 0); } }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .furn-hand { animation: none; } }
+:root[data-motion="reduce"] .furn-hand { animation: none; }
+/* 11-15 (주인 답 a): 아래 한 판 — 돌리기 · 작게 · 크기 눈금 9칸 · 크게 줄이 가구 줄 바로 위에 붙는다 (예전엔 따로 뜬 상자가 화면 가운데 아래에 박혀 보였다). 고른 가구가 없어도 줄은 남는다 (방이 들썩이지 않게) */
+.furn-bottom { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; background-color: var(--panel); border-top: 2px solid var(--line, var(--rim)); pointer-events: auto; }
+.furn-bar { display: flex; justify-content: center; align-items: center; gap: 16px; min-height: 56px; padding: 4px 8px; }
+.furn-size { display: flex; align-items: center; gap: 6px; }
+.furn-act.btn, :root[data-font="pixel"] .furn-act.btn { margin: 0; min-width: 56px; min-height: 48px; padding: 0 12px; display: inline-grid; place-items: center; }   /* 그림 단추 (글자 없음) — 누르는 곳 56×48 (.btn.sm 의 36px · .btn.primary 의 52px 를 이긴다) */
+.furn-act-ico { display: block; width: 24px; height: 24px; color: currentColor; }   /* 12 눈금 × 2 = 24 CSS px · 색은 단추 글자색 (어두운 테마에서도 보이게 — 예전 --ink 는 대비 1.1:1) */
+.furn-act:disabled { cursor: default; }
+.furn-act:disabled .furn-act-ico { opacity: .4; }   /* 틀 · 베벨은 또렷하게, 그림만 흐리게 */
+/* 크기 눈금: 6px 막대 9개 (2px 틈) · 높이 6 → 22px 계단 · 지금 단계까지 호박색 (등불 칸과 같은 색) · 1.0 막대 밑에 2px 눈금 */
+.furn-meter { display: flex; align-items: flex-end; gap: 2px; height: 26px; padding-bottom: 4px; box-sizing: border-box; position: relative; }
+.furn-meter i { display: block; width: 6px; box-sizing: border-box; border: 1px solid var(--line, var(--rim)); background: var(--pip-off, var(--rim)); }
+.furn-meter i.on { background: var(--amber-fill, var(--amber)); }
+.furn-meter i:nth-child(1) { height: 6px; } .furn-meter i:nth-child(2) { height: 8px; } .furn-meter i:nth-child(3) { height: 10px; } .furn-meter i:nth-child(4) { height: 12px; position: relative; } .furn-meter i:nth-child(5) { height: 14px; }
+.furn-meter i:nth-child(6) { height: 16px; } .furn-meter i:nth-child(7) { height: 18px; } .furn-meter i:nth-child(8) { height: 20px; } .furn-meter i:nth-child(9) { height: 22px; }
+.furn-meter i:nth-child(4)::after { content: ''; position: absolute; left: -1px; right: -1px; bottom: -5px; height: 2px; background: var(--line, var(--rim)); }
+.furn-no { animation: furn-no .3s steps(6) 1; }   /* 안 되는 누름: 글 없이 짧게 좌우로 (방 안 고른 가구 테도 빨강 깜빡 — 장면 stepSel) */
 @keyframes furn-no { 0%, 100% { transform: none; } 20%, 60% { transform: translateX(-2px); } 40%, 80% { transform: translateX(2px); } }
 @media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .furn-no { animation: none; } }
 :root[data-motion="reduce"] .furn-no { animation: none; }
@@ -1532,10 +1551,9 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 :root:not([data-layout="one"]) .furn-btn { display: none; }   /* 2D 폴백 · 쌓는 배치엔 가구 배치가 없다 */
 
 /* ── 가구 모드: 위 줄 단추 · 아래 가구 줄 (11-10 가구 줄을 그대로 — 톡 = 고르기) ── */
-.furn-top .btn { margin: 0; min-height: 44px; padding-left: 10px; padding-right: 10px; white-space: nowrap; }
-@media (max-width: 339px) { .furn-top { gap: 4px; padding-left: 6px; padding-right: 6px; } .furn-top .btn { padding-left: 7px; padding-right: 7px; } }   /* 320 폭: 제목 '가구 옮기기' 가 안 잘리게 */
 .furn-strip { position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 8px; padding: 8px 10px calc(8px + var(--safe-b, 0px)); overflow-x: auto; background-color: var(--panel); border-top: 1px solid var(--rim); pointer-events: auto; scrollbar-width: none; }
 :root[data-font="pixel"] .furn-strip { border-top: 2px solid var(--line); }
+.furn-bottom .furn-strip, :root[data-font="pixel"] .furn-bottom .furn-strip { position: static; border-top: 2px solid var(--lo-px, var(--rim)); }   /* 11-15: 한 판 안의 아래 칸 (안쪽 여백 · --safe-b 는 그대로) */
 .furn-tile { flex: 0 0 auto; width: 72px; min-height: 60px; margin: 0; padding: 6px 4px; display: grid; place-items: center; gap: 4px; background: var(--panel2); color: var(--fg); border: 1px solid var(--rim); border-radius: 10px; cursor: pointer; font: inherit; }
 :root[data-font="pixel"] .furn-tile { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 20px; }
 .furn-tile.on, :root[data-font="pixel"] .furn-tile.on { border-color: var(--amber); box-shadow: inset 0 0 0 2px var(--amber); }
@@ -1570,6 +1588,21 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 :root[data-font="pixel"] .bag-tag { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 20px; border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); }
 :root:not([data-layout="one"]) .bag-tag { position: relative; top: auto; right: auto; margin: 6px 16px; }   /* static 이면 누르는 곳(::before, absolute)이 #scene 전체를 덮어 2D 장면의 톡(문어 · 문)을 다 가로챘다 */
 html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
+/* 11-15 (주인 답: '조개 N' → 조개 그림 + 수): 16 아트 px 조개를 32px (×2) 로 — 꼬리표 높이는 그대로 (위아래 -6px) · 그림이 안 오면 (.no-img) 수만 */
+.bag-tag { display: inline-flex; align-items: center; gap: 0; padding: 0 8px 0 0; min-height: 36px; }
+.bag-tag .bag-shell { display: block; width: 32px; height: 32px; image-rendering: pixelated; }
+.bag-tag.no-img .bag-shell { display: none; }
+.shell-amt { display: inline-flex; align-items: center; gap: 2px; vertical-align: middle; white-space: nowrap; }
+.shell-amt .shell-ico { display: block; width: 32px; height: 32px; margin: -6px 0 -6px -4px; image-rendering: pixelated; }
+.px-ico { display: block; width: 24px; height: 24px; flex: 0 0 auto; }
+.week-row .week-n.week-ico { display: flex; align-items: center; color: var(--fg); }
+.week-row.done .week-n.week-ico { color: var(--amber); }
+.week-row .week-rr { display: inline-flex; align-items: center; gap: 2px; }
+.week-row .week-rr .px-ico { margin-left: -2px; }
+.week-goal { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.week-pips { display: inline-flex; gap: 4px; }
+.week-pips i { display: block; width: 12px; height: 12px; box-sizing: border-box; border: 2px solid var(--line, var(--rim)); background: var(--pip-off, transparent); }   /* 등불 칸과 같은 모양 · 색 */
+.week-pips i.on { background: var(--amber-fill, var(--amber)); }
 .bag-sheet .bag-line { margin: 8px 0 2px; font-weight: 700; color: var(--fg); }
 :root[data-font="pixel"] .bag-sheet .bag-line { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; }
 .bag-sheet h3 { font-size: 14px; font-weight: 700; color: var(--fg); letter-spacing: 0; margin: 16px 0 8px; padding-top: 10px; border-top: 1px solid var(--rim); }
@@ -1598,8 +1631,12 @@ html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 .sew-sheet .bag-line { margin: 4px 0 0; }
 .sew-sheet .set-note { margin: 0; font-size: 12px; color: var(--muted); }
 .sew-sheet .sew-grid { gap: 6px; margin: 8px 0; }
-.sew-sheet .sew-chip { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 6px; row-gap: 0; min-height: 48px; padding: 4px 8px; text-align: left; }
-.sew-sheet .sew-sw { grid-row: 1 / 3; width: 16px; height: 16px; }
+.sew-sheet .sew-chip { display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-height: 48px; padding: 4px; text-align: center; }
+.sew-sheet .sew-sw { position: relative; display: flex; align-items: center; justify-content: center; width: auto; height: 40px; border-radius: 4px; }   /* 11-15 (주인 답): 칸 폭 색 덩어리 40px — 값은 덩어리 위 작은 표 */
+.sew-sheet .sew-cost { display: inline-flex; align-items: center; gap: 2px; min-height: 28px; padding: 0 4px; border-radius: 4px; background: var(--panel); color: var(--fg); }
+.sew-sheet .sew-cost { min-height: 32px; padding: 0 6px 0 0; }
+.sew-sheet .sew-cost .shell-ico { margin: 0; }
+.sew-sheet .sew-cost.own, .sew-sheet .sew-chip.on .sew-cost { padding: 0 6px; }
 .sew-sheet .sew-name { font-size: 13px; line-height: 18px; }
 .sew-sheet .sew-cost { font-size: 11px; line-height: 14px; }
 .sew-sheet .sew-off { display: block; min-height: 44px; margin: 0 0 4px; }
@@ -1610,16 +1647,18 @@ html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 .sew-sets[open] > summary::before { width: 10px; height: 6px; clip-path: polygon(0 0, 10px 0, 10px 2px, 8px 2px, 8px 4px, 6px 4px, 6px 6px, 4px 6px, 4px 4px, 2px 4px, 2px 2px, 0 2px); }
 .sew-sets .week-row { font-size: 13px; }
 .sew-sheet #sew-close { min-height: 44px; }
-:root[data-font="pixel"] .sew-sheet .set-h { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; font-weight: 400; }
 :root[data-font="pixel"] .sew-sheet .bag-line { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
 :root[data-font="pixel"] .sew-sheet .set-note, :root[data-font="pixel"] .sew-sets .week-row, :root[data-font="pixel"] .sew-sets .week-row .week-n { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
 :root[data-font="pixel"] .sew-sheet .sew-name { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 20px; }
-:root[data-font="pixel"] .sew-sheet .sew-cost { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 16px; color: var(--muted); }
+:root[data-font="pixel"] .sew-sheet .sew-cost { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 1.25; color: var(--fg); border-radius: 0; box-shadow: inset 0 0 0 2px var(--line); }   /* 크기는 예전 그대로 (m16) */
+:root[data-font="pixel"] .sew-sheet .sew-sw { border-radius: 0; box-shadow: inset 0 0 0 2px var(--line); }
 :root[data-font="pixel"] .sew-sets { border-top: 2px solid var(--rim); }
 :root[data-font="pixel"] .sew-sets > summary { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; font-weight: 400; }
 :root[data-font="pixel"] .sew-sheet #sew-close { font-size: var(--fs-u20, 20px); line-height: 20px; padding: 8px 14px; }
 :root[data-font="pixel"] .shelf-today summary, :root[data-font="pixel"] .shelf-today li a { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; }   /* 11-15 5차 (주인: 글자 수만 줄이고 크기는 4차 전으로): 시스템 크기를 받아 흐리던 줄 — 한글은 Galmuri9 20 (Galmuri7 은 받침이 뭉개진다) */
-:root[data-font="pixel"] .week-row .week-n { font-family: var(--f-num); ffont-size: var(--fs-n16, 16px) line-height: 24px; }   /* 숫자만 (2/3): Galmuri7 16 */
+:root[data-font="pixel"] .week-row .week-n { font-family: var(--f-num); font-size: var(--fs-n16, 16px); line-height: 24px; }   /* 숫자만 (2/3): Galmuri7 16 */
+:root[data-font="pixel"] .week-rr .week-rr-n, :root[data-font="pixel"] #bag-n { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }   /* 11-15: 그림 옆 숫자 — 예전 글자 크기 그대로 (Galmuri11 m16, Galmuri7 로 바꾸면 2 · 2.625 배율에서 작아졌다) */
+:root[data-font="pixel"] .week-row.done .week-n { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }   /* 11-15 (UI 점검): 한글은 Galmuri7 로 안 찍는다 (끝난 줄은 체크 그림 + 읽어 주기 '했어') */
 
 /* 이번 주 할 일 (살림 시트): 줄마다 할 일 · 진행 · '바꾸기 n'. 끝난 줄은 흐리게 */
 .week-list { list-style: none; margin: 6px 0 10px; padding: 0; display: grid; gap: 4px; }
