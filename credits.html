@@ -32,8 +32,9 @@
 .cr .cr-by .cr-use { margin: 0; color: var(--muted); }
 .cr .cr-back { display: inline-block; padding: 10px 12px; margin-right: -12px; min-height: 44px; line-height: 24px; white-space: nowrap; }
 .cr .cr-own { margin: 0; color: var(--muted); }
-:root[data-font="pixel"] .cr h1 { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 1.5; }
-:root[data-font="pixel"] .cr h2 { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 1.5; }
+:root[data-font="pixel"] .cr h1 { font-family: var(--f-ui); font-size: var(--fs-u24f, 24px); line-height: 1.5; }   /* 11-15 (검증): 제목 · 소제목 · 돌아가기는 4차 (24 · 20 · 20px) 밑으로 안 내려가게 올림 역할 (js/fs-snap.js) — 가장 가까운 것은 배율 2 에서 소제목이 18px 로 본문보다 작았다 */
+:root[data-font="pixel"] .cr h2 { font-family: var(--f-ui); font-size: var(--fs-h20, 20px); line-height: 1.5; }
+:root[data-font="pixel"] .cr .cr-back { font-size: var(--fs-b20f, 20px); }
 :root[data-font="pixel"] .cr p, :root[data-font="pixel"] .cr li { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 1.5; }
 :root[data-font="pixel"] .cr .cr-line, :root[data-font="pixel"] .cr .cr-own { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 1.5; }   /* 11-15: 기기 px 에 맞춘 크기 (예전 Galmuri9 16px 은 눈금 1.6 배라 늘 흐렸다) */
 </style>
@@ -120,6 +121,14 @@
   b.addEventListener('click', function (e) {
     try { if (history.length > 1) { e.preventDefault(); history.back(); } } catch (x) { /* follow the link */ }
   });
+  /* 11-15 (검증): 오른쪽 끝에 붙은 '돌아가기' 글 시작을 기기 px 에 (2.625 배율에서 .5 기기 px 에서 시작해 흐렸다) — 남는 몫은 translate 로 */
+  function snap() {
+    var d = window.devicePixelRatio || 1; b.style.translate = '';
+    var cs = getComputedStyle(b), l = b.getBoundingClientRect().left + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0), f = Math.round(l * d) / d - l;
+    if (Math.abs(f) > 1e-4) b.style.translate = f + 'px 0';
+  }
+  snap();
+  try { document.fonts.ready.then(snap); window.addEventListener('resize', snap); } catch (x) { /* 옛 브라우저: 그대로 */ }
 })();
 </script>
 </body>

@@ -184,6 +184,7 @@ a { color: var(--teal); touch-action: manipulation; }
   font-size: 10px; line-height: 1.3; width: max-content; max-width: 150px; white-space: normal; text-align: center;
   box-shadow: var(--shadow-xs); animation: bubble-in var(--t-ui) var(--ease-enter) both;
 }
+:root[data-font="pixel"] #stage #oct-bubble { font-family: var(--f-ui); font-size: var(--fs-u12, 12px); line-height: 1.5; text-align: left; }   /* 11-15 (검증): 2D 무대 말풍선도 기기 px 에 맞춘 Galmuri11 (예전 Galmuri9 10px 은 12px 밑 · 2.625 배율에서 흐렸다). 왼쪽 맞춤 — 줄 시작은 app.js keepBubble2D 가 기기 px 에 */
 #oct-label:not(:empty) ~ #oct-bubble { bottom: calc(100% + 14px - var(--bub-dy, 0px)); }   /* 이름표(자는 중 · 출발 중…)가 있으면 그 위로 */
 @keyframes bubble-in { from { opacity: 0; transform: translate(-50%, 4px); } to { opacity: 1; transform: translate(-50%, 0); } }
 /* 상태별 모션 */
@@ -715,7 +716,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] .flipper .face.front { border-radius: 0; border: 2px solid #090a14; box-shadow: 2px 2px 0 #090a14; background: var(--paper0); position: relative; }
 :root[data-font="pixel"] .flipper .face.front::after { content: ''; position: absolute; inset: 0; pointer-events: none; background-image: var(--grain); background-size: 12px 12px; image-rendering: pixelated; }
 :root[data-font="pixel"] .inspect-text { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; letter-spacing: 0; }
-:root[data-font="pixel"] .inspect-text p { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; color: var(--ip-fg); margin: 0 0 8px; }   /* .modal p 가 포스터 모달에도 닿지 않게 */
+:root[data-font="pixel"] .inspect-text p { font-family: var(--f-body); font-size: var(--fs-b20f, 20px); line-height: 30px; color: var(--ip-fg); margin: 0 0 8px; }   /* .modal p 가 포스터 모달에도 닿지 않게 · 11-15 (검증): 4차 20px 밑으로 안 내려가게 b20f */
 :root[data-font="pixel"] .inspect-text .meta, :root[data-font="pixel"] .inspect-text .miss { color: var(--ip-muted); }
 :root[data-font="pixel"] .inspect-text .lead { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 36px; font-weight: 700; }
 :root[data-font="pixel"] .inspect-text .meta, :root[data-font="pixel"] .inspect-text .first-chip, :root[data-font="pixel"] .inspect-text .miss { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
@@ -1480,7 +1481,7 @@ html.intro-reveal .stick { transition: opacity var(--t-ui) var(--ease-enter); tr
 /* ── 11-10 설정 시트 위계 (주인 UI 개선안 5): 갈래 제목이 본문보다 작던 것을 뒤집는다 — 제목은 굵게 + 위에 가는 줄, 값은 본문색, 안내 글은 작고 흐리게, 내 모습 초상은 제목 왼쪽에 ── */
 .settings-sheet #set-body h3 { font-size: 14px; font-weight: 700; color: var(--fg); letter-spacing: 0; margin: 20px 0 8px; padding-top: 12px; border-top: 1px solid var(--rim); }
 .settings-sheet #set-body > :first-child h3, .settings-sheet #set-body > h3:first-child { border-top: 0; padding-top: 0; margin-top: 8px; }
-:root[data-font="pixel"] .settings-sheet #set-body h3 { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; font-weight: 700; margin: 20px 0 8px; padding-top: 12px; border-top: 2px solid var(--rim); }
+:root[data-font="pixel"] .settings-sheet #set-body h3 { font-family: var(--f-ui); font-size: var(--fs-h20, 20px); line-height: 30px; font-weight: 700; margin: 20px 0 8px; padding-top: 12px; border-top: 2px solid var(--rim); }
 .settings-sheet .set-parts-h { flex-direction: row-reverse; justify-content: flex-end; align-items: center; margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--rim); }
 :root[data-font="pixel"] .settings-sheet .set-parts-h { border-top: 2px solid var(--rim); }
 .settings-sheet #set-body .set-parts-h h3, :root[data-font="pixel"] .settings-sheet #set-body .set-parts-h h3 { border-top: 0; padding-top: 0; margin: 0; }
@@ -1605,7 +1606,7 @@ html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 .bag-sheet .bag-line { margin: 8px 0 2px; font-weight: 700; color: var(--fg); }
 :root[data-font="pixel"] .bag-sheet .bag-line { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; }
 .bag-sheet h3 { font-size: 14px; font-weight: 700; color: var(--fg); letter-spacing: 0; margin: 16px 0 8px; padding-top: 10px; border-top: 1px solid var(--rim); }
-:root[data-font="pixel"] .bag-sheet h3 { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; border-top: 2px solid var(--rim); }
+:root[data-font="pixel"] .bag-sheet h3 { font-family: var(--f-ui); font-size: var(--fs-h20, 20px); line-height: 30px; border-top: 2px solid var(--rim); }
 .bag-plots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .bag-plot { display: grid; justify-items: center; gap: 4px; min-height: 104px; margin: 0; padding: 8px 4px; font: inherit; color: var(--fg); background: var(--panel2); border: 1px solid var(--rim); border-radius: 10px; cursor: pointer; }
 :root[data-font="pixel"] .bag-plot { border: 2px solid var(--line); border-radius: 0; box-shadow: 2px 2px 0 var(--line); font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 20px; }
@@ -1652,7 +1653,7 @@ html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 :root[data-font="pixel"] .sew-sheet .sew-cost { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 1.25; color: var(--fg); border-radius: 0; box-shadow: inset 0 0 0 2px var(--line); }   /* 크기는 예전 그대로 (m16) */
 :root[data-font="pixel"] .sew-sheet .sew-sw { border-radius: 0; box-shadow: inset 0 0 0 2px var(--line); }
 :root[data-font="pixel"] .sew-sets { border-top: 2px solid var(--rim); }
-:root[data-font="pixel"] .sew-sets > summary { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; font-weight: 400; }
+:root[data-font="pixel"] .sew-sets > summary { font-family: var(--f-ui); font-size: var(--fs-h20, 20px); line-height: 30px; font-weight: 400; }
 :root[data-font="pixel"] .sew-sheet #sew-close { font-size: var(--fs-u20, 20px); line-height: 20px; padding: 8px 14px; }
 :root[data-font="pixel"] .shelf-today summary, :root[data-font="pixel"] .shelf-today li a { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; }   /* 11-15 5차 (주인: 글자 수만 줄이고 크기는 4차 전으로): 시스템 크기를 받아 흐리던 줄 — 한글은 Galmuri9 20 (Galmuri7 은 받침이 뭉개진다) */
 :root[data-font="pixel"] .week-row .week-n { font-family: var(--f-num); font-size: var(--fs-n16, 16px); line-height: 24px; }   /* 숫자만 (2/3): Galmuri7 16 */

@@ -28,6 +28,8 @@
     document.head.appendChild(l);
   });
 })();</script>
+<!-- 11-15 (검증): 픽셀 글꼴을 껐으면 스타일시트보다 먼저 data-font 를 뗀다 (credits.html 과 같은 셈 · 전역 변수 없이) — 예전엔 부팅 뒤 applyFont 까지 픽셀 규칙이 살아 있어 Galmuri 부분집합을 매번 받았다. 기록이 없으면 그대로 픽셀 -->
+<script>(function () { try { var raw = localStorage.getItem('ppolppol_v2') || ''; if (raw.indexOf('"pixelFont":false') !== -1 || raw.indexOf('"font":"system"') !== -1) document.documentElement.removeAttribute('data-font'); } catch (e) { /* 저장소 없음 → 기본(픽셀 글꼴) */ } })();</script>
 <!-- 11-15 로딩 문어 (주인: "게임 속 문어가 오른쪽으로 뽈뽈 기어가는 반복 그림" · "빨간 문어 아이콘이 찰나에 뜨는 거"): 스크립트가 오기 전부터 장면 허공색 위로
      게임 3D 문어의 걷는 옆모습 (assets/ui/loading_oct.png, 8칸 · tools/make-loading-oct.js) 이 가운데 줄을 왼쪽에서 오른쪽으로 기어간다. 앱이 첫 그림을 그리면 (html.booted) 걷힌다.
      입장 레이어 (z 80) 아래 · 동작 줄이기면 가운데 멈춘 한 칸. 앱이 끝내 안 서면 load 뒤 12 s 에 스스로 걷는다 (예전 화면이라도 보이게) -->
@@ -44,7 +46,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 </style>
 <script>try { window.addEventListener('load', function () { setTimeout(function () { document.documentElement.classList.add('booted'); }, 12000); }); } catch (e) {}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Noto+Sans+KR:wght@400;500;700&display=swap"><!-- 11-15 (검증): 700 = 시스템 글꼴 소제목의 진짜 굵은 꼴 (없으면 브라우저가 가짜로 굵게 칠한다) -->
 <link rel="stylesheet" href="vendor/fonts/galmuri.css"><!-- 픽셀 글꼴 (Galmuri, OFL) · file:// 상대 경로 -->
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/ui-art.css">
