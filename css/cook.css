@@ -112,9 +112,9 @@ html.ck-open body { overscroll-behavior: none; }
 }
 .ck-door:active { transform: translate(2px, 2px); box-shadow: inset 2px 2px 0 var(--hi-px, #ebede9), inset -2px -2px 0 var(--lo-px, #c09473); }
 :root:root .ck-door:focus-visible { outline: 2px solid var(--fg, #341c27); outline-offset: -6px; }
-/* round 5 check T-10: the pixel font on whole device px (--fs-u24, js/fs-snap.js); with the pixel font off the page's
+/* round 5 check T-10: the pixel font on whole device px (--fs-u24f: never below 24, js/fs-snap.js); with the pixel font off the page's
    own font (the game's setting, read in cook.html's head) */
-:root[data-font="pixel"] .ck-door { font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: var(--fs-u24, 24px); }
+:root[data-font="pixel"] .ck-door { font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: var(--fs-u24f, 24px); }
 
 /* reduced motion: the canvas follows COOK.open({ reduced }) / prefers-reduced-motion in js/cook.js. The dialog has no
    CSS animation of its own; this block keeps it that way. The 2 px press shift and the raised step icon stay (static,

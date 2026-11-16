@@ -200,11 +200,12 @@ var UIART = (function () {
     ctlYield({ left: r.left + shift, right: r.right + shift, top: r.top + dy, bottom: r.bottom + dy });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 */
   }
   /* 11-15 (UI 점검): 가운데 맞춤 (translate -50%) · 정수 CSS px left 로 놓인 글 상자 (토스트 · 등불 쪽지 · 이름표) 의 글 시작을 기기 px 에 맞춘다.
-     translate 속성으로 (요소의 transform · margin 과 따로 겹친다) — 지금 밀린 만큼을 빼고 다시 재므로 몇 번 불러도 같다 */
+     translate 속성으로 (요소의 transform · margin 과 따로 겹친다) — 지금 민 몫 (인라인 translate) 을 뺀 원래 자리를 반올림하므로 몇 번 불러도 같다.
+     5차 검증: 예전엔 민 자리를 다시 반올림해, 글이 바뀌거나 상자가 움직일 때마다 부르면 몫이 조금씩 쌓여 1px 넘게 밀렸다 (2D 말풍선 · 달리기 결과 줄) */
   function snapLeft(el) {
     if (!el || !el.getBoundingClientRect) return;
-    var d = window.devicePixelRatio || 1, prev = parseFloat(el.getAttribute('data-ua-snap')) || 0, r = el.getBoundingClientRect(); if (!r.width) return;
-    var cs = getComputedStyle(el), cl = r.left + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0), tot = prev + Math.round(cl * d) / d - cl;
+    var d = window.devicePixelRatio || 1, prev = parseFloat(el.style.translate) || 0, r = el.getBoundingClientRect(); if (!r.width) return;
+    var cs = getComputedStyle(el), base = r.left + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.paddingLeft) || 0) - prev, tot = Math.round(base * d) / d - base;
     if (Math.abs(tot) < 1e-4) { el.style.removeProperty('translate'); el.removeAttribute('data-ua-snap'); return; }
     el.style.translate = tot + 'px 0'; el.setAttribute('data-ua-snap', String(tot));
   }

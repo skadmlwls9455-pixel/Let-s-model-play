@@ -1589,24 +1589,16 @@ var APP = (function () {
       var UA = window.UIART && UIART.avoidCtl && UIART.ctlYield ? UIART : null;
       if (b.hidden || sceneMode !== '2d') { clearInterval(bubFit); bubFit = null; b.style.removeProperty('--bub-dx'); if (sceneMode === '2d') b.style.removeProperty('--bub-dy'); if (UA && sceneMode === '2d') UA.ctlYield(false); return; }
       var px = parseFloat(getComputedStyle(sc).getPropertyValue('--px')) || 1, cur = parseFloat(b.style.getPropertyValue('--bub-dx')) || 0, curY = parseFloat(b.style.getPropertyValue('--bub-dy')) || 0;
-      var s = sc.getBoundingClientRect(), r = b.getBoundingClientRect(), pad = 4, sn = (parseFloat(b.getAttribute('data-ua-snap')) || 0) * px, l = r.left - cur * px - sn, rt = r.right - cur * px - sn, dx = 0;   /* sn: 아래 snapLeft 가 민 몫 (가장자리 셈엔 빼고 잰다) */
+      var s = sc.getBoundingClientRect(), r = b.getBoundingClientRect(), pad = 4, l = r.left - cur * px, rt = r.right - cur * px, dx = 0;
       var lift = UA && UA.liftY ? UA.liftY(b) * px : 0, top0 = r.top - curY * px - lift, bot0 = r.bottom - curY * px - lift, need = s.top + pad - top0, dy = need > 0 ? Math.ceil(need / px) : 0;   /* 위쪽에 잘리면 그만큼 아래로 (무대 px — 3D 는 js/ui-art.js keepInside, 11-08). 등장 애니메이션 도중이어도 끝난 자리로 잰다 (아이콘 피하기도) */
       if (dy !== curY) { if (dy) b.style.setProperty('--bub-dy', dy + 'px'); else b.style.removeProperty('--bub-dy'); }
       if (rt > s.right - pad) dx = (s.right - pad - rt) / px; else if (l < s.left + pad) dx = (s.left + pad - l) / px;
       /* 장면 위 버튼(오른쪽 위 묶음: 앨범 · ⚙ — 2D 엔 바깥 집 단추가 없다)과 겹치면 그 왼쪽으로 (풍선이 문어 위를 벗어나지 않는 만큼까지 · 왼쪽 가장자리 안) — js/ui-art.js avoidCtl 과 3D 규칙이 같다 */
       var cs = UA ? UA.avoidCtl({ left: l, right: rt, top: top0, bottom: bot0 }, pad) : 0;
       if (cs < 0) dx = Math.min(dx, Math.max(cs, s.left + pad - l, -Math.max(0, r.width / 2 - 28)) / px);
-      /* 11-15 (검증): 왼쪽 위 조개 꼬리표 (#btn-bag, 무대보다 위에 그려진다) 와 겹치면 그 오른쪽으로 (문어 위를 벗어나지 않고 오른쪽 가장자리 안에서 다 비킬 수 있을 때), 아니면 그 밑으로 — 글자를 키운 뒤 (12px) 세 줄 풍선이 꼬리표에 가렸다 */
-      var tg = $('btn-bag'), tq = tg && !tg.hidden && getComputedStyle(tg).visibility !== 'hidden' ? tg.getBoundingClientRect() : null;
-      if (tq && tq.width && top0 + dy * px < tq.bottom + pad && l + dx * px < tq.right + pad && rt + dx * px > tq.left - pad) {
-        var cx = (tq.right + pad - l) / px, dn = Math.ceil((tq.bottom + pad - top0) / px);
-        if (cx <= Math.min((s.right - pad - rt) / px, Math.max(0, r.width / 2 - 28) / px)) dx = Math.max(dx, cx);
-        else if (dn > dy) { dy = dn; b.style.setProperty('--bub-dy', dy + 'px'); }
-      }
       dx = Math.round(dx);
       if (UA) UA.ctlYield({ left: l + dx * px, right: rt + dx * px, top: top0 + dy * px, bottom: bot0 + dy * px });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 (3D 와 같다) */
       if (dx !== cur) { if (dx) b.style.setProperty('--bub-dx', dx + 'px'); else b.style.removeProperty('--bub-dx'); }
-      if (px <= 1 && window.UIART && UIART.snapLeft) UIART.snapLeft(b);   /* 11-15 (검증): 글 시작을 기기 px 에 (2.625 배율에서 흐렸다). 무대가 2배 이상이면 translate 도 같이 커져 맞추지 못한다 → 폰 (무대 1배 이하) 만 */
     }
     fit();
     if (!b.hidden && sceneMode === '2d') bubFit = setInterval(fit, 200);
@@ -2566,7 +2558,6 @@ var APP = (function () {
     var p = trip.poster || {}, note = p.type === 'note', uid = 'p' + (trip.seed >>> 0).toString(36) + (opts.mini ? 'm' : '') + w;
     var pal = (note ? NOTE_PAPER : PAPER)[clamp(p.paper | 0, 0, 2)];
     var m = w * 0.06, sx = m, sy = m * 1.3, sw = w - m * 2, sh = hgt * (note ? 0.42 : 0.56);
-    if (opts.noText && !(window.POSTER_ART && POSTER_ART.trail && POSTER_ART.trail(trip).length)) sy = (hgt - sh) / 2;   /* 11-15 (검증 U-6): 글을 뺐는데 들른 곳 줄도 없으면 (집에 있던 날 쪽지 등) 그림을 종이 가운데에 — 아래 반이 빈 설명 칸으로 남았다 */
     var s = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ' + w + ' ' + hgt + '" width="' + w + '" height="' + hgt + '">';
     s += '<defs>' + sceneGradient(p.scene || 'home', trip.seed, uid) + '<clipPath id="' + uid + 'c"><rect x="' + sx + '" y="' + sy + '" width="' + sw + '" height="' + sh + '" rx="' + (w * 0.02) + '"/></clipPath>';
     s += '<clipPath id="' + uid + 't"><rect x="' + (sx + sw * 0.08) + '" y="' + (sy + sh * 0.12) + '" width="' + (sw * 0.5) + '" height="' + (sh * 0.62) + '" rx="' + (w * 0.03) + '"/></clipPath></defs>';
@@ -2618,7 +2609,7 @@ var APP = (function () {
     if (!opts.noText) lines.forEach(function (ln, i) { s += '<text x="' + (w / 2) + '" y="' + (ly + i * lf * 1.5).toFixed(1) + '" text-anchor="middle" font-family="Noto Serif KR, serif" font-weight="600" font-size="' + lf.toFixed(1) + '" fill="#2a2620"' + lineRaw + '>' + (lb ? esc(ln) : lineH[i]) + '</text>'; });
     /* 들른 곳 줄: 한 줄 글과 날짜 사이 빈 곳에 그날 들른 정류장 그림을 순서대로 (일기의 정류장 그대로, js/poster-art.js) */
     if (window.POSTER_ART && POSTER_ART.trailSvg) { var tTop = ly + Math.max(0, lines.length - 1) * lf * 1.5 + lf * 0.4, tBot = hgt - m * 1.1 - w * 0.04;
-      if (opts.noText) { tTop = sy + sh; tBot = hgt - m; }   /* 11-15 (검증 U-6): 글을 뺀 앞면 · 앨범 카드는 그림 밑 남은 칸 가운데에 (글 자리를 비워 둔 띠가 빠진 설명처럼 보였다) */
+      if (opts.noText) { var hb = tBot - tTop; tTop = Math.max(sy + sh, (sy + sh + hgt - m - hb) / 2); tBot = tTop + hb; }   /* 11-15 (검증 U-6): 글을 뺀 앞면 · 앨범 카드 — 들른 곳 줄을 그림 밑 남은 칸 가운데로 (글 자리를 비워 둔 띠가 빠진 설명처럼 보였다). 줄 높이는 글 있을 때 그대로라 그림 크기 · 그림 자리는 예전과 같다 */
       s += POSTER_ART.trailSvg(trip, sx, tTop, sw, tBot - tTop); }
     /* 날짜 · N번째 */
     var ord = tripOrdinal(trip), meta = fmtDate(trip.date, true) + (ord ? ' · ' + ord + '번째 뽈뽈' : note ? ' · 오늘은 집' : '');
@@ -3477,7 +3468,7 @@ var APP = (function () {
     var c = S.settings.player, t = lookTab(LOOK.tab).secs.map(function (sec) { return c[sec[0]] === 'none' ? sec[1] + ' 없음' : lookPartName(sec[0], c[sec[0]]); }).join(' · ');
     cv.setAttribute('aria-label', (LOOK.back ? '내 모습 뒷모습' : '내 모습 앞모습') + (t ? ': ' + t : ''));
   }
-  var LOOK_WBR = { '긴생머리': 2, '포니테일': 2, '옆가르마': 1 };   /* 11-15 (검증 T-3): 넉 자 이름은 좁은 타일에서 잘리지 않고 낱말 마디에서 두 줄로 */
+  var LOOK_WBR = { '긴생머리': 2, '포니테일': 2, '옆가르마': 1, '야구점퍼': 2, '체크셔츠': 2, '동글안경': 2, '고양이귀': 3, '밀짚모자': 2, '고깔모자': 2 };   /* 11-15 (검증 T-3): 넉 자 이름은 좁은 타일에서 잘리지 않고 낱말 마디에서 두 줄로 (마디 없는 이름이 생기면 여기에 — 아니면 글자 중간에서 끊긴다) */
   function lookNameNodes(n) { var i = LOOK_WBR[n]; return i ? [n.slice(0, i), h('wbr'), n.slice(i)] : [n]; }
   function lookDrawStage() {
     var cv = $('look-stage-cv'); if (!cv || !lookCanShot()) return;

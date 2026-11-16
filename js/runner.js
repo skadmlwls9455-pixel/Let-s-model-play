@@ -287,7 +287,7 @@ var RUNNER = (function () {
      가운데 맞춘 결과 판 글이 소수 기기 px 에서 시작해 획마다 회색 테가 생겼다. 단추는 안의 글 칸만 민다 (단추를 밀면 테두리가 번진다). e 가 없으면 창 안 글 칸 전부 */
   function snapText(e) {
     if (!dlg || !dlg.open || !window.UIART || !UIART.snapLeft) return;
-    (e ? [e] : dlg.querySelectorAll ? [].slice.call(dlg.querySelectorAll('.rn-snap')) : []).forEach(function (x) { UIART.snapLeft(x); });
+    (e ? [e] : dlg.querySelectorAll ? [].slice.call(dlg.querySelectorAll('.rn-snap, #rn-net-msg')) : []).forEach(function (x) { UIART.snapLeft(x); });   /* #rn-net-msg: 글 폭만 한 가운데 상자 (css display: table) — 글을 바꾸는 곳이 많아 칸 대신 상자를 민다 */
   }
   /* 11-15 runner-2: 세로 전체 화면 — 제목 줄·HUD 줄·안내 줄·메모를 뺐다 (주인 HANDOFF 6). 무대(캔버스)가 창 전체,
      위에는 작은 점수·최고(왼쪽)와 닫기(오른쪽)만, 아래 구석에 반투명 동그라미 둘(점프 · 숙이기). 다른 곳을 눌러도 아무 일 없다 */
@@ -319,13 +319,13 @@ var RUNNER = (function () {
     btnStop = el('button', { type: 'button', class: 'btn pressable', id: 'rn-stop' }, [el('span', { class: 'rn-snap', text: '닫기' })]);
     netP = el('div', { class: 'rn-net', id: 'rn-net', hidden: '' }, [
       el('div', { class: 'rn-net-form', id: 'rn-net-form' }, [
-        el('label', { for: 'rn-nick', class: 'rn-net-label', text: '닉네임' }),
+        el('label', { for: 'rn-nick', class: 'rn-net-label' }, [el('span', { class: 'rn-snap', text: '닉네임' })]),   /* 5차 검증: 순위 칸 (배포 판 http 에서만 보인다) 글도 기기 px 에서 시작 */
         el('input', { id: 'rn-nick', type: 'text', maxlength: '12', autocomplete: 'off', enterkeyhint: 'send', spellcheck: 'false' }),
-        el('button', { type: 'button', class: 'btn pressable', id: 'rn-submit', text: '기록 올리기' })
+        el('button', { type: 'button', class: 'btn pressable', id: 'rn-submit' }, [el('span', { class: 'rn-snap', text: '기록 올리기' })])
       ]),
       el('p', { class: 'rn-net-msg', id: 'rn-net-msg', 'aria-live': 'polite' }),
       el('ol', { class: 'rn-top10', id: 'rn-top10', 'aria-label': '이번 주 순위 10', hidden: '' }),
-      el('p', { class: 'rn-net-privacy', text: '닉네임과 점수만 저장해. 순위는 월요일마다 새로 시작해.' })
+      el('p', { class: 'rn-net-privacy' }, [el('span', { class: 'rn-snap', text: '닉네임과 점수만 저장해.' }), ' ', el('span', { class: 'rn-snap', text: '순위는 월요일마다 새로 시작해.' })])   /* 두 토막 (상 줄과 같다): 좁은 화면에선 토막째 다음 줄로 · 줄마다 가운데 · 기기 px */
     ]);
     overP = el('div', { class: 'rn-over', id: 'rn-over', role: 'status', hidden: '' }, [finalEl, cardSr, el('div', { class: 'rn-final-row' }, [scoreEl, bestEl, shellRow]), oldEl, el('div', { class: 'btn-row center' }, [btnAgain, btnStop]), netP]);
     awardT = el('span', { class: 'rn-snap' }); awardT2 = el('span', { class: 'rn-snap' });   /* 11-15 (검증 R-1): 두 토막 — 좁은 화면에선 토막째 다음 줄로 (줄마다 가운데 · 기기 px) */
@@ -482,7 +482,7 @@ var RUNNER = (function () {
     var ol = document.getElementById('rn-top10'); if (!ol) return;
     while (ol.firstChild) ol.removeChild(ol.firstChild);
     (rows || []).slice(0, 10).forEach(function (r) {
-      var li = el('li', { class: r.rank === myRank ? 'rn-me' : '' }, [el('span', { class: 'rn-top-rank', text: String(r.rank) }), el('span', { class: 'rn-top-nick', 'data-raw': 'player', text: String(r.nick || '') }), el('span', { class: 'rn-top-score', text: String(r.score | 0) })]);
+      var li = el('li', { class: r.rank === myRank ? 'rn-me' : '' }, [el('span', { class: 'rn-top-rank rn-snap', text: String(r.rank) }), el('span', { class: 'rn-top-nick rn-snap', 'data-raw': 'player', text: String(r.nick || '') }), el('span', { class: 'rn-top-score rn-snap', text: String(r.score | 0) })]);   /* 칸마다 시작을 기기 px 에 (5차 검증) */
       ol.appendChild(li);
     });
     ol.hidden = !ol.firstChild;

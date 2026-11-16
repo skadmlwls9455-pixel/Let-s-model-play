@@ -1654,7 +1654,7 @@ var SCENE3D = (function () {
       }
       f.m.position.x = x; f.m.position.z = z; furnPose(id); furnApply(id); if (id === 'crate') rebuildDecals(); furnEmit(); return true;
     }
-    function furnNope() { FM.nope = performance.now(); buzz('nope'); dither.still = 0; return false; }   /* 11-15 (UI 점검): 막힘 → 방 안 흰 테 깜빡 (stepSel) · 진동 · 그리고 false */
+    function furnNope() { FM.nope = performance.now(); dither.still = 0; return false; }   /* 11-15 (UI 점검): 막힘 → 방 안 흰 테 깜빡 (stepSel) · 그리고 false. 진동은 없다 (주인 05시: 가구는 집기 · 놓기에만) */
     function furnRotate() { var id = FM.on && FM.sel; if (!id || FM.drag) return false; return furnTry(id, (FURN[id].rot + 90) % 360, FURN[id].sc, true); }   /* 90° 씩 (옛 15° 각도는 그 위에서 돈다) */
     function furnScale(dir) {
       var id = FM.on && FM.sel; if (!id || FM.drag) return false;
@@ -1682,7 +1682,7 @@ var SCENE3D = (function () {
       if (x === f.m.position.x && z === f.m.position.z) return;
       f.m.position.x = x; f.m.position.z = z; var ok = furnOk(c.id, x, z);
       if (c.id === 'crate') furnApply('crate');   /* 양초는 끄는 동안에도 상자 위 (문어 자리는 놓을 때) */
-      if (ok !== c.ok) { c.ok = ok; emit('furnEdit', furnState()); if (!ok) buzz('nope'); }
+      if (ok !== c.ok) { c.ok = ok; emit('furnEdit', furnState()); }
       dither.still = 0;
     }
     function furnDragEnd(keepIt) {   /* keepIt = 손을 정상으로 뗐다. 못 놓는 곳이었거나 취소(두 번째 손가락 · 창 닫힘)면 끌기 전 자리로 */
@@ -1691,7 +1691,7 @@ var SCENE3D = (function () {
       else buzz('drop');
       FM.drag = null; furnApply(c.id); if (c.id === 'crate') rebuildDecals(); furnEmit();
     }
-    function buzz(n) { try { if (typeof HAPTICS !== 'undefined') HAPTICS.buzz(n); } catch (e) { /* 진동 없음 */ } }   /* 11-15 5차 진동 (기본 켬 · 설정에서 끄기): 가구 집기 · 놓기 · 못 놓는 곳 */
+    function buzz(n) { try { if (typeof HAPTICS !== 'undefined') HAPTICS.buzz(n); } catch (e) { /* 진동 없음 */ } }   /* 11-15 5차 진동 (기본 켬 · 설정에서 끄기): 가구 집기 · 놓기 (주인이 고른 두 때만 — 못 놓는 곳은 흰 테로만) */
     function setLayout(o) {   /* { sofa: [x, z, rot?, scale?], … } — 범위 밖 · 모르는 것은 무시 */
       if (!o || typeof o !== 'object') return;
       Object.keys(FURN).forEach(function (id) {

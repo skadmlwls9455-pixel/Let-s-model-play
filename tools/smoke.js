@@ -1989,6 +1989,29 @@ async function runnerCrisp(br) {
     ok(/출발/.test(p2.msg) && !p2.wait && p2.op[0] === '1' && p2.op[1] === '1' && p2.hand, 'R-8 시드가 오면 다시 밝게 · 손 그림 (' + JSON.stringify(p2) + ')');
     reportErrors(C.bag, 'R3 http');
   } finally { release(); await C.ctx.close(); }
+  /* 5차 검증: 배포 판 (http) 결과 판의 순위 칸 (닉네임 · 기록 올리기 · 알림 · 순위 10 · 저장 안내) 도 기기 px 에서 시작 — file:// 에선 이 칸이 안 보인다. 412×915 @2.625 */
+  var TOP = [];
+  for (var ti = 1; ti <= 10; ti++) TOP.push({ rank: ti, nick: ['뚜루', '해초', '조약돌', '물방울', '꼬마게', '바다별', '모래', '파도', '진주', '소라'][ti - 1], score: 900 - ti * 37 });
+  var D = await game(412, 915, 2.625, async function (page) {
+    await routeRepo(page, O);
+    await page.route(O + '/api/runner/**', function (route) {
+      var p = new URL(route.request().url()).pathname.replace(/^.*\/api\/runner\//, '');
+      if (p === 'seed') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, token: 'tok', seed: 4242, night: false, week: '2026-W46', v: 'runner-2' }) });
+      if (p === 'top') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, top: TOP }) });
+      return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    });
+  });
+  try {
+    await toRunner(D.page, O + '/index.html'); await readyHand(D.page);
+    await D.page.touchscreen.tap(100, 360);
+    await D.page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: 20000 });
+    await D.page.waitForFunction(function () { var o = document.getElementById('rn-top10'); return o && !o.hidden && o.children.length === 10; }, null, { timeout: 8000 });
+    await D.page.waitForTimeout(600);
+    var md = await D.page.evaluate(RN_STARTS), net = md.runs.filter(function (r) { return /^rn-(nick|submit|top10|net)/.test(r.id) || r.t === '닉네임' || /저장해|새로 시작해/.test(r.t); });
+    ok(net.length >= 33, '순위 칸 글이 보인다 (' + net.length + '줄: 닉네임 · 기록 올리기 · 순위 10 × 3 · 저장 안내)');
+    crisp(md, 'R-1 412×915 @2.625 배포 판 결과 판 (순위 칸 포함)');
+    reportErrors(D.bag, 'R3 http 순위');
+  } finally { await D.ctx.close(); }
 }
 
 /* R. 다락방 달리기 (js/runner.js): 놀이방 문(#btn-door) → 놀이방 → 오락기(#btn-machine, 8물결) → 6초 스크립트 탭 → 부딪힘 또는 닫기 → 저장된 판의 simulate() 점수 = 화면 점수.
