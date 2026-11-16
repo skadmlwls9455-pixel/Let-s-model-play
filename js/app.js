@@ -1589,16 +1589,24 @@ var APP = (function () {
       var UA = window.UIART && UIART.avoidCtl && UIART.ctlYield ? UIART : null;
       if (b.hidden || sceneMode !== '2d') { clearInterval(bubFit); bubFit = null; b.style.removeProperty('--bub-dx'); if (sceneMode === '2d') b.style.removeProperty('--bub-dy'); if (UA && sceneMode === '2d') UA.ctlYield(false); return; }
       var px = parseFloat(getComputedStyle(sc).getPropertyValue('--px')) || 1, cur = parseFloat(b.style.getPropertyValue('--bub-dx')) || 0, curY = parseFloat(b.style.getPropertyValue('--bub-dy')) || 0;
-      var s = sc.getBoundingClientRect(), r = b.getBoundingClientRect(), pad = 4, l = r.left - cur * px, rt = r.right - cur * px, dx = 0;
+      var s = sc.getBoundingClientRect(), r = b.getBoundingClientRect(), pad = 4, sn = (parseFloat(b.getAttribute('data-ua-snap')) || 0) * px, l = r.left - cur * px - sn, rt = r.right - cur * px - sn, dx = 0;   /* sn: 아래 snapLeft 가 민 몫 (가장자리 셈엔 빼고 잰다) */
       var lift = UA && UA.liftY ? UA.liftY(b) * px : 0, top0 = r.top - curY * px - lift, bot0 = r.bottom - curY * px - lift, need = s.top + pad - top0, dy = need > 0 ? Math.ceil(need / px) : 0;   /* 위쪽에 잘리면 그만큼 아래로 (무대 px — 3D 는 js/ui-art.js keepInside, 11-08). 등장 애니메이션 도중이어도 끝난 자리로 잰다 (아이콘 피하기도) */
       if (dy !== curY) { if (dy) b.style.setProperty('--bub-dy', dy + 'px'); else b.style.removeProperty('--bub-dy'); }
       if (rt > s.right - pad) dx = (s.right - pad - rt) / px; else if (l < s.left + pad) dx = (s.left + pad - l) / px;
       /* 장면 위 버튼(오른쪽 위 묶음: 앨범 · ⚙ — 2D 엔 바깥 집 단추가 없다)과 겹치면 그 왼쪽으로 (풍선이 문어 위를 벗어나지 않는 만큼까지 · 왼쪽 가장자리 안) — js/ui-art.js avoidCtl 과 3D 규칙이 같다 */
       var cs = UA ? UA.avoidCtl({ left: l, right: rt, top: top0, bottom: bot0 }, pad) : 0;
       if (cs < 0) dx = Math.min(dx, Math.max(cs, s.left + pad - l, -Math.max(0, r.width / 2 - 28)) / px);
+      /* 11-15 (검증): 왼쪽 위 조개 꼬리표 (#btn-bag, 무대보다 위에 그려진다) 와 겹치면 그 오른쪽으로 (문어 위를 벗어나지 않고 오른쪽 가장자리 안에서 다 비킬 수 있을 때), 아니면 그 밑으로 — 글자를 키운 뒤 (12px) 세 줄 풍선이 꼬리표에 가렸다 */
+      var tg = $('btn-bag'), tq = tg && !tg.hidden && getComputedStyle(tg).visibility !== 'hidden' ? tg.getBoundingClientRect() : null;
+      if (tq && tq.width && top0 + dy * px < tq.bottom + pad && l + dx * px < tq.right + pad && rt + dx * px > tq.left - pad) {
+        var cx = (tq.right + pad - l) / px, dn = Math.ceil((tq.bottom + pad - top0) / px);
+        if (cx <= Math.min((s.right - pad - rt) / px, Math.max(0, r.width / 2 - 28) / px)) dx = Math.max(dx, cx);
+        else if (dn > dy) { dy = dn; b.style.setProperty('--bub-dy', dy + 'px'); }
+      }
       dx = Math.round(dx);
       if (UA) UA.ctlYield({ left: l + dx * px, right: rt + dx * px, top: top0 + dy * px, bottom: bot0 + dy * px });   /* 그래도 겹치는 버튼만 말풍선이 보이는 동안 숨김 (3D 와 같다) */
       if (dx !== cur) { if (dx) b.style.setProperty('--bub-dx', dx + 'px'); else b.style.removeProperty('--bub-dx'); }
+      if (px <= 1 && window.UIART && UIART.snapLeft) UIART.snapLeft(b);   /* 11-15 (검증): 글 시작을 기기 px 에 (2.625 배율에서 흐렸다). 무대가 2배 이상이면 translate 도 같이 커져 맞추지 못한다 → 폰 (무대 1배 이하) 만 */
     }
     fit();
     if (!b.hidden && sceneMode === '2d') bubFit = setInterval(fit, 200);

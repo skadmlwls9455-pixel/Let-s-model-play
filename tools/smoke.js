@@ -496,6 +496,7 @@ async function scenarioMain(browser) {
   reportErrors(s.bag, 'A');
   await s.ctx.close();
   await scenarioMainPhone(browser);
+  await scenarioTypeFloor(browser);
   await scenarioHonestLines(browser);
 }
 /* 11-15 (UI 점검): 폰 배율로 첫 화면 · 살림 시트 — 360x740 @3 (밝음) · 412x915 @2.625 (어두움). DPR 1 만 보던 시험이 어두운 테마 가구 그림 · 가짜 굵게를 놓쳤다.
@@ -517,6 +518,47 @@ async function scenarioMainPhone(browser) {
     await page.screenshot({ path: path.join(SHOTS, 'phone-bag-' + ph.w + (ph.dark ? 'd' : '') + '.png') });
     ok(!mb.bold.length && !mb.g7.length && /^Galmuri11 700/.test(bh), '[' + tag + '] 살림 시트: 가짜 굵게 없음 ' + JSON.stringify(mb.bold) + ' · 한글 Galmuri7 없음 ' + JSON.stringify(mb.g7) + ' · 제목 ' + bh + ' (진짜 굵은 꼴)');
     reportErrors(bag, 'A-폰 ' + tag); await ctx.close();
+  }
+}
+/* 11-15 (검증 U-1 · O-1 · T-1 · T-2): 글자 크기 바닥 — 폰 배율 2 · 2.625 에서 4차 크기 밑이 없다. 소제목 (설정 · 살림 · 세트 도감 · 만든 것들 h2) · 돌아가기 · 첫 안내 20px 이상,
+   만든 것들 제목 24px 이상, 숫자 (n16: 소리 80 · 할 일 0/2) 16px 이상. 모두 글꼴 눈금 (Galmuri7 8 · 9 10 · 11 12) 한 점이 기기 px 정수 개 · 가운데 맞춘 첫 안내는 줄 시작도 기기 px.
+   가장 가까운 크기로만 맞추던 때 배율 2 소제목이 18px · 2.625 에서 안내 19.06px · 숫자 15.25px 였다 (js/fs-snap.js 올림 역할) */
+function TYPE_SIZES(a) {
+  var G = { Galmuri7: 8, Galmuri9: 10, Galmuri11: 12 }, d = window.devicePixelRatio || 1;
+  return [].map.call(document.querySelectorAll(a[0]), function (e) {
+    var cs = getComputedStyle(e), f = cs.fontFamily.replace(/"/g, '').split(',')[0].trim(), fs = parseFloat(cs.fontSize), g = G[f], k = g ? fs * d / g : 0;
+    return { t: e.textContent.trim().replace(/\s+/g, ' ').slice(0, 12), f: f, fs: Math.round(fs * 1000) / 1000, ok: fs >= a[1] - 1e-3 && !!g && Math.abs(k - Math.round(k)) < 0.02 };
+  });
+}
+async function scenarioTypeFloor(browser) {
+  console.log('\n== A-글자. 크기 바닥 (폰 배율 2 · 2.625: 4차 크기 밑 없음 · 눈금 한 점 = 기기 px 정수)');
+  function line(rows) { return rows.map(function (r) { return r.t + ' ' + r.f + ' ' + r.fs + (r.ok ? '' : ' (X)'); }).join(' · '); }
+  function good(rows) { return rows.length > 0 && rows.every(function (r) { return r.ok; }); }
+  for (var ph of [{ w: 360, h: 740, dpr: 2 }, { w: 412, h: 915, dpr: 2.625 }]) {
+    var ctx = await browser.newContext({ viewport: { width: ph.w, height: ph.h }, deviceScaleFactor: ph.dpr, locale: 'ko-KR', colorScheme: 'light', hasTouch: true, isMobile: true });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var page = await ctx.newPage(), bag = [], tag = '[' + ph.w + 'x' + ph.h + ' @' + ph.dpr + '] '; bag.ignored = []; watchErrors(page, bag);
+    await routeWiki(page, 'ok');
+    await page.goto(INDEX + '?dev=0&intro=0'); await nameOct(page, '뽈뽈');
+    await page.evaluate(function () { APP.openSettings(); }); await page.waitForSelector('#settings-sheet[open]'); await page.waitForTimeout(300);
+    var sh = await page.evaluate(TYPE_SIZES, ['#set-body h3', 20]), sv = await page.evaluate(TYPE_SIZES, ['#settings-sheet .snd-val', 16]);
+    await page.evaluate(function () { document.getElementById('set-close').click(); }); await page.waitForTimeout(400);
+    await page.evaluate(function () { document.getElementById('btn-bag').click(); }); await page.waitForSelector('#bag-sheet[open]'); await page.waitForTimeout(300);
+    var bh = await page.evaluate(TYPE_SIZES, ['#bag-sheet h3', 20]), wn = await page.evaluate(TYPE_SIZES, ['#bag-sheet .week-row:not(.done) .week-n', 16]);
+    await page.evaluate(function () { document.getElementById('bag-close').click(); }); await page.waitForTimeout(400);
+    await page.evaluate(function () { document.getElementById('btn-sew').click(); }); await page.waitForSelector('#sew-sheet[open]'); await page.waitForTimeout(300);
+    var ss = await page.evaluate(TYPE_SIZES, ['#sew-sheet .sew-sets > summary', 20]);
+    await page.evaluate(function () { document.getElementById('sew-sheet').close(); });
+    ok(good(sh) && good(bh) && good(ss), tag + '소제목 20px 이상 · 눈금 정수: 설정 ' + line(sh.slice(0, 2)) + ' 외 ' + (sh.length - 2) + ' · 살림 ' + line(bh) + ' · 재봉틀 ' + line(ss) + (good(sh) ? '' : ' | 설정 전부: ' + line(sh)));
+    ok(good(sv) && good(wn), tag + '숫자 16px 이상 · 눈금 정수: 소리 ' + line(sv) + ' · 할 일 ' + line(wn));
+    await page.goto('file://' + path.join(ROOT, 'credits.html')); await page.evaluate(function () { return document.fonts.ready; }); await page.waitForTimeout(200);
+    var c1 = await page.evaluate(TYPE_SIZES, ['.cr h1', 24]), c2 = await page.evaluate(TYPE_SIZES, ['.cr h2', 20]), cb = await page.evaluate(TYPE_SIZES, ['#cr-back', 20]);
+    ok(good(c1) && good(c2) && good(cb), tag + '만든 것들: 제목 ' + line(c1) + ' · 소제목 ' + line(c2.slice(0, 2)) + ' 외 ' + (c2.length - 2) + ' · 돌아가기 ' + line(cb) + (good(c2) ? '' : ' | 소제목 전부: ' + line(c2)));
+    await page.goto(INDEX + '?dev=0&intro=1'); await page.waitForSelector('.intro.hinted', { timeout: 30000 }); await page.evaluate(function () { return document.fonts.ready; }); await page.waitForTimeout(300);
+    var ih = await page.evaluate(TYPE_SIZES, ['.intro-hint', 20]);
+    var ix = await page.evaluate(function () { var e = document.querySelector('.intro-hint'), rg = document.createRange(); rg.selectNodeContents(e); var q = rg.getClientRects()[0], d = devicePixelRatio, x = q.left * d; return { frac: Math.round(Math.abs(x - Math.round(x)) * 1000) / 1000, mid: Math.round((q.left + q.width / 2 - innerWidth / 2) * 100) / 100, lines: rg.getClientRects().length }; });
+    ok(good(ih) && ix.frac < 0.02 && Math.abs(ix.mid) <= 1 && ix.lines === 1, tag + '첫 안내 ' + line(ih) + ' · 한 줄 · 시작 ' + ix.frac + ' 기기 px 어긋남 · 가운데에서 ' + ix.mid + 'px');
+    reportErrors(bag, 'A-글자 ' + ph.w + ' @' + ph.dpr); await ctx.close();
   }
 }
 /* 11-13 (금지선 1): 코드가 쓴 세 줄이 문어 마음을 지어내지 않는다 — 쓰다듬기 말풍선 '…' (예전 '…좋아') · 폴짝/우쭐 뒤 장면 설명 (예전 '신나 있어') ·
