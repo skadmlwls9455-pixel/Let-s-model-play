@@ -41,7 +41,7 @@
 - `.furn-size { display: flex; align-items: center; gap: 6px; }`
 - Keep .furn-act at 56×48.
 - Size meter: nine bars, each 6px wide with 2px gaps, bottom-aligned, heights 6, 8, … 22px. Bars up to the current step are filled var(--amber-fill), the rest var(--pip-off), each with a 1px var(--line) outline, plus a 2px var(--line) tick under the bar for 1.0. These are the same tokens as the lantern pips, so both themes work.
-3) Rotate icon (in every option): replace the 'redo' SVG in #furn-turn with a self-drawn 12×12 clockwise arrow shown at 24×24 (viewBox 0 0 12 12, shape-rendering crispEdges, fill currentColor, like the hammer). Path: M8 1h1v1H8zM3 2h6v1H3zM2 3h1v1H2zM8 3h3v1H8zM1 4h1v1H1zM8 4h2v1H8zM1 5h1v1H1zM8 5h1v1H8zM1 6h1v1H1zM1 7h1v1H1zM10 7h1v1H10zM1 8h1v1H1zM10 8h1v1H10zM2 9h1v1H2zM9 9h1v1H9zM3 10h6v1H3z (preview: /tmp/claude-0/-home-user-Let-s-model-play/af6faaa7-c967-50b1-aa24-734a7dbb29af/scratchpad/lead/icons-x8.png). Keep the Pixelarticons minus and plus.
+3) Rotate icon (in every option): replace the 'redo' SVG in #furn-turn with a self-drawn 12×12 clockwise arrow shown at 24×24 (viewBox 0 0 12 12, shape-rendering crispEdges, fill currentColor, like the hammer). Path: M8 1h1v1H8zM3 2h6v1H3zM2 3h1v1H2zM8 3h3v1H8zM1 4h1v1H1zM8 4h2v1H8zM1 5h1v1H1zM8 5h1v1H8zM1 6h1v1H1zM1 7h1v1H1zM10 7h1v1H10zM1 8h1v1H1zM10 8h1v1H10zM2 9h1v1H2zM9 9h1v1H9zM3 10h6v1H3z (preview: icons-x8.png (리드 작업 폴더, 저장소엔 없음)). Keep the Pixelarticons minus and plus.
 4) js/app.js: delete furnRow (3854-3864), the furnSel callback (:560) and the resize listener (:3896).
 - In furnUI with nothing selected: disable all three buttons and leave the meter empty. The bar never collapses, so the room never jumps.
 - With a piece selected: `small.disabled = scale <= 0.7`, `big.disabled = scale >= 1.5`, fill bars where `i <= Math.round((stt.scale - 0.7) * 10)`, set the meter aria-label to `'크기 9단계 중 ' + (step + 1)` and the group aria-label to the piece name + ' 바꾸기'.
@@ -53,7 +53,7 @@
 6) Keyboard (R, +, -, arrow keys, Esc), aria and haptics stay as they are.
 7) tools/smoke.js Z-6 (:6211-6335): change the #furn-row checks to #furn-bar. Add a check that the bar's bottom touches the tray's top with no gap, and a 412×915 dark-theme pass at DPR 2.625 asserting icon contrast of at least 3:1.
 Option b: the same single bottom block, without the meter; the three buttons are centred with 12px between them.
-- (주인 물음 — 위 '주인 답' 으로 정해짐) 가구 모드 아래 '돌리기 · 작게 · 크게' 그림 단추를 어떻게 둘까? 미리보기: /tmp/claude-0/-home-user-Let-s-model-play/af6faaa7-c967-50b1-aa24-734a7dbb29af/scratchpad/lead/furn-options.png (왼쪽 지금 · 가운데 a · 오른쪽 b). (a) 가구 줄과 한 판으로 딱 붙이고, 작게 · 크게 사이에 계단 모양 크기 눈금 9칸을 둔다. 지금 몇 단계인지 글자 없이 그림으로 보여 — 추천. (b) 한 판으로 붙이기만 하고 단추는 셋 (눈금 없음). (c) 지금처럼 가구 줄 위에 따로 뜬 상자 (어두운 테마에서 그림이 안 보이는 것만 고침). 어느 쪽이든 돌리기 그림은 둥근 화살표로 바꿀게.
+- (주인 물음 — 위 '주인 답' 으로 정해짐) 가구 모드 아래 '돌리기 · 작게 · 크게' 그림 단추를 어떻게 둘까? 미리보기: furn-options.png (리드 작업 폴더에만 있던 그림, 저장소엔 없음) (왼쪽 지금 · 가운데 a · 오른쪽 b). (a) 가구 줄과 한 판으로 딱 붙이고, 작게 · 크게 사이에 계단 모양 크기 눈금 9칸을 둔다. 지금 몇 단계인지 글자 없이 그림으로 보여 — 추천. (b) 한 판으로 붙이기만 하고 단추는 셋 (눈금 없음). (c) 지금처럼 가구 줄 위에 따로 뜬 상자 (어두운 테마에서 그림이 안 보이는 것만 고침). 어느 쪽이든 돌리기 그림은 둥근 화살표로 바꿀게.
 
 ### [must] The speech bubble (the model's words) is soft on DPR-2 iPhones and on fractional-DPR Androids because its text is centred
 
@@ -95,7 +95,7 @@ Option a:
 - Position the hand with a new scene export, furnRectOf(id) (js/scene3d.js:1579), snapped to device pixels. With reduced motion, show a single still frame.
 - #furn-hint stays as sr-only text with role=status.
 Option b: everything in option a, and the two button words become self-drawn 12×12 X and check icons; the aria-labels '취소 (들어오기 전대로)' and '저장하고 나가기' do not change. Furniture mode then shows no visible text.
-- (주인 물음 — 위 '주인 답' 으로 정해짐) 가구 모드 위 줄 글자를 어떻게 할까? (글자 수 얘기야. 크기는 그대로) 미리보기: /tmp/claude-0/-home-user-Let-s-model-play/af6faaa7-c967-50b1-aa24-734a7dbb29af/scratchpad/lead/furn-options.png 의 가운데 · 오른쪽 그림 위 줄이 (a). (a) 제목 '가구 옮기기' 와 판을 빼고 '취소' · '저장하기' 두 단추만 위 양쪽 구석에 둔다 (보이는 글자 6자). 처음 한 번 나오던 '가구를 끌어서 옮겨' 는 글 대신 손 그림이 소파를 끄는 모양으로 2초 (읽어 주기 글은 남김) — 추천. (b) (a) 에 더해 두 단추도 그림 (X · 체크) 으로. 가구 모드 화면 글자 0. (c) 지금 그대로 (뭉개진 '옮' 만 고침).
+- (주인 물음 — 위 '주인 답' 으로 정해짐) 가구 모드 위 줄 글자를 어떻게 할까? (글자 수 얘기야. 크기는 그대로) 미리보기: furn-options.png (리드 작업 폴더에만 있던 그림, 저장소엔 없음) 의 가운데 · 오른쪽 그림 위 줄이 (a). (a) 제목 '가구 옮기기' 와 판을 빼고 '취소' · '저장하기' 두 단추만 위 양쪽 구석에 둔다 (보이는 글자 6자). 처음 한 번 나오던 '가구를 끌어서 옮겨' 는 글 대신 손 그림이 소파를 끄는 모양으로 2초 (읽어 주기 글은 남김) — 추천. (b) (a) 에 더해 두 단추도 그림 (X · 체크) 으로. 가구 모드 화면 글자 0. (c) 지금 그대로 (뭉개진 '옮' 만 고침).
 
 ### [should] Bag, sewing and settings sheets: duplicated words, words where a picture would do, and bad wraps at 320
 
@@ -185,7 +185,7 @@ Option b: album cards only.
 
 - 문제: Galmuri9 (10px grid) squeezes syllables with two final consonants (옮 앉 읽 낡 많) into 3-font-pixel clusters, even when they are perfectly crisp. Galmuri11 keeps the parts of these syllables apart. Galmuri9 has no pair of identical glyphs (Galmuri7 had 26 pairs), so this is a density issue, not breakage, and the owner chose 'body Galmuri9 20' on 11-15. Galmuri11 at 20px is not crisp, so switching means 20-24px depending on the phone.
 - 고침: Option a: no change. Option b: in index.html change the b20 role to [12, 20] with a 'never below 20' rule (n = Math.ceil(want * d / 12)), and set --f-body to 'Galmuri11' (css/style.css:479). Sizes become 24 / 22.86 / 21.82 / 20px at DPR 2 / 2.625 / 2.75 / 3. Set line-height to 1.5, and rerun the smoke no-overflow checks L, S, Y and O at 320 wide.
-- (주인 물음 — 위 '주인 답' 으로 정해짐) 본문 · 로그 · 시트 글꼴 얘기야. Galmuri9 은 받침 둘인 글자 (옮 · 앉 · 읽 · 낡) 가 빽빽해 (뭉개지는 건 아님). Galmuri11 은 더 또렷하지만 기기 픽셀에 맞추면 글자 크기가 폰에 따라 20px → 최대 24px 로 커져 (글자 수는 그대로, 한 줄에 들어가는 글자는 줄어). 비교: /tmp/claude-0/-home-user-Let-s-model-play/af6faaa7-c967-50b1-aa24-734a7dbb29af/scratchpad/ui-audit/evidence/06-galmuri9-body-complex-finals.png (Galmuri9) 와 /tmp/claude-0/-home-user-Let-s-model-play/af6faaa7-c967-50b1-aa24-734a7dbb29af/scratchpad/lead/bub/compare.png (Galmuri11). (a) 그대로 Galmuri9 20 — 추천 (11-15 답 그대로). (b) Galmuri11 로 (20~24px).
+- (주인 물음 — 위 '주인 답' 으로 정해짐) 본문 · 로그 · 시트 글꼴 얘기야. Galmuri9 은 받침 둘인 글자 (옮 · 앉 · 읽 · 낡) 가 빽빽해 (뭉개지는 건 아님). Galmuri11 은 더 또렷하지만 기기 픽셀에 맞추면 글자 크기가 폰에 따라 20px → 최대 24px 로 커져 (글자 수는 그대로, 한 줄에 들어가는 글자는 줄어). 비교: 06-galmuri9-body-complex-finals.png (리드 작업 폴더, 저장소엔 없음) (Galmuri9) 와 compare.png (리드 작업 폴더, 저장소엔 없음) (Galmuri11). (a) 그대로 Galmuri9 20 — 추천 (11-15 답 그대로). (b) Galmuri11 로 (20~24px).
 
 ### [nice] Text still slightly soft on 2.625 phones: toast, tip and name-label positions, plus some container insets
 
@@ -225,7 +225,7 @@ Option b: album cards only.
   - 원칙: 엄지 자리는 아래 (Hoober · Epic 모바일 지침), 주 행동은 하나, 안 되는 건 단추보다 방 안에서 보여 주기.
 - 오픈소스: Galmuri (OFL, 쓰는 중) · 물마루 · Neo둥근모 (OFL) · Pixelarticons (MIT, 지금 − + 그림) · HackerNoon 픽셀 아이콘 (CC BY 4.0, 출처 표기 필수) · game-icons.net (CC BY 3.0) · Kenney 아이콘 · 픽셀 UI (CC0) · NES.css (MIT, 눌림 베벨 뒤집기 기법) · MDN 9-slice 지침.
 - 이번 계획에 넣은 것
-  - 가구 단추를 가구 줄과 한 판으로 붙이고 계단 모양 크기 눈금을 둠 (시안: /tmp/claude-0/-home-user-Let-s-model-play/af6faaa7-c967-50b1-aa24-734a7dbb29af/scratchpad/lead/furn-options.png).
+  - 가구 단추를 가구 줄과 한 판으로 붙이고 계단 모양 크기 눈금을 둠 (시안: furn-options.png (리드 작업 폴더에만 있던 그림, 저장소엔 없음)).
   - 돌리기 그림은 게임 12×12 격자로 직접 그린 둥근 화살표로 바꿈 (Pixelarticons redo 는 '다시 실행' 처럼 읽혀서).
   - 체크 · 바꾸기 · 왕관 · 손 · X 그림도 직접 그려서 출처 표기 의무가 없어. 조개는 게임 안에 있는 조개 그림을 써.
   - 새 글꼴이나 새 외부 그림은 안 넣어서 credits 는 'redo' 만 빼면 돼.

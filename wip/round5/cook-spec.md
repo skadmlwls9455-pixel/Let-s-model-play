@@ -1,6 +1,6 @@
 # Kitchen close-up redo (해초전): final spec
 
-Lead judge, 2026-11-14. Winner: **close-up**, with the rulings in §0.2. Base: HEAD `5ea9ee8`; the working tree was clean when this was written. Code was read, not edited. Numbers come from `js/cook.js`, `js/cook-art.js`, `css/cook.css`, `cook.html`, `js/haptics.js`, `js/app.js` and the tests at that commit. The fit tables were computed by `/tmp/claude-0/-home-user-Let-s-model-play/af6faaa7-c967-50b1-aa24-734a7dbb29af/scratchpad/judge/fit.js` and `/tmp/claude-0/-home-user-Let-s-model-play/af6faaa7-c967-50b1-aa24-734a7dbb29af/scratchpad/judge/pos.js`.
+Lead judge, 2026-11-14. Winner: **close-up**, with the rulings in §0.2. Base: HEAD `5ea9ee8`; the working tree was clean when this was written. Code was read, not edited. Numbers come from `js/cook.js`, `js/cook-art.js`, `css/cook.css`, `cook.html`, `js/haptics.js`, `js/app.js` and the tests at that commit. The fit tables were computed by `fit.js (리드 작업 폴더, 저장소엔 없음)` and `pos.js (리드 작업 폴더, 저장소엔 없음)`.
 
 ## 0. Decisions
 
@@ -30,6 +30,7 @@ Lead judge, 2026-11-14. Winner: **close-up**, with the rulings in §0.2. Base: H
 - **R13 'pick' still fires at open and at again.** The sticker engine starts a run on it. Its sound is dropped by `js/audio.js`'s 0.3 s early window while audio is locked, which is intended. Sound test I is rewritten.
 - **R14 Text sweep.** No `title` attributes in the dialog. `creditLink()` no longer injects the credits link into the dialog. 'Galmuri7' fallbacks in cook.css and cook.html become 'Galmuri11'.
 - **R15 Kitchen haptic patterns move into the felt range.** tap 14, flip 24, cut 16, done [16, 80, 26]; all still "아주 짧게". Runner and furniture patterns are untouched.
+  - 5차 검증 O-5 (11-15): 접시 진동 `done` 은 뺐다. 부엌 진동은 톡 · 불 켜기 · 뒤집기 착지 · 썰기뿐 (주인: 요리 톡 · 뒤집기 · 썰기). 아래 §7.2 plate 줄 · N6 · §16.4 의 접시 진동은 옛 설계.
 - **R16 `HAPTICS.supported()` is honest.** It is false on Firefox (returns true, never vibrates) and without a coarse pointer (desktop), so the settings row no longer promises vibration that cannot happen.
 
 ### 0.3 Owner questions still open (each has a default, so no package waits)
@@ -671,7 +672,7 @@ Never weaken a test: every removed check is replaced by one that checks the same
    - [ ] pan and stove clearly separate (silhouette);
    - [ ] at 320x568 the pan bottom stays above the chip top.
 4. Owner phone pass, sound off:
-   - [ ] Android: a light buzz on tap, heat, flip landing, each cut and the plate; Settings › 화면 › 진동 off silences them;
+   - [ ] Android: a light buzz on tap, heat, flip landing and each cut (no buzz on the plate, O-5); Settings › 화면 › 진동 off silences them;
    - [ ] iPhone: nothing feels missing;
    - [ ] the flick distance feels natural (if not, tune `flip.flick` in a later change; the hash changes and pots go to `potOld`).
 5. Report to the owner: conclusion first, 반말, short, with 360x740 screenshots.
