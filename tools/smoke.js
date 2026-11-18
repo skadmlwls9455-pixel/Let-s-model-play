@@ -1878,7 +1878,7 @@ async function runnerTouch(br) {
 function RN_STARTS() {   /* 페이지 안: 달리기 창의 보이는 글 줄 시작 (읽어 주기 전용 · 숨은 것은 뺀다) */
   var d = devicePixelRatio, out = [], w = document.createTreeWalker(document.getElementById('runner-dlg'), NodeFilter.SHOW_TEXT);
   for (var n = w.nextNode(); n; n = w.nextNode()) {
-    var t = n.textContent.trim(), e = n.parentElement; if (!t || !e || e.closest('[hidden], .sr-only')) continue;
+    var t = n.textContent.trim(), e = n.parentElement; if (!t || !e || e.closest('[hidden], .sr-only, #toast:not(.show)')) continue;   /* 11-18: 사라진 알림 (창 안으로 옮겨진 채 opacity 0) 의 글은 보이는 글이 아니다 */
     var cs = getComputedStyle(e); if (cs.visibility === 'hidden' || cs.display === 'none') continue;
     var rg = document.createRange(); rg.selectNodeContents(n);
     [].forEach.call(rg.getClientRects(), function (r) { if (r.width < 1 || r.height < 1) return; var x = r.left * d; out.push({ t: t, id: (e.closest('[id]') || {}).id || '', off: Math.round(Math.abs(x - Math.round(x)) * 1000) / 1000 }); });
@@ -1902,7 +1902,7 @@ async function runnerCrisp(br) {
     await routeWiki(page, 'ok');
     return { ctx: ctx, page: page, bag: bag };
   }
-  async function toRunner(page, url) {
+  async function toRunner(page, url, before) {   /* before(page): 오락기를 누르기 바로 전에 (11-18 R-9) */
     await page.goto(url || INDEX);
     await page.waitForSelector('#name-dialog[open]');
     await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]');
@@ -1910,6 +1910,7 @@ async function runnerCrisp(br) {
     await waitIdle(page);
     await clickSpot(page, '#btn-door');
     await page.waitForFunction(function () { var m = document.getElementById('btn-machine'); return APP.scene.view() === 'play' && m && !m.hidden; }, null, { timeout: 20000 });
+    if (before) await before(page);
     await clickSpot(page, '#btn-machine');
     await page.waitForSelector('#runner-dlg[open]');
   }
@@ -2002,7 +2003,24 @@ async function runnerCrisp(br) {
     });
   });
   try {
-    await toRunner(D.page, O + '/index.html'); await readyHand(D.page);
+    /* 11-18 (R-9): 알림이 떠 있는 채 달리기 창이 열리면 알림이 창 안 (최상층) 으로 옮겨진다 — 옮긴 자리에서도 글 시작이 기기 px (app.js raiseToast 가 다시 맞춘다).
+       첫날 선물 알림 (자기소개 말풍선 2.8 s 뒤) 이 떠 있을 때 오락기를 누른 것과 같다: CI 에선 그 때가 가끔 겹쳤고, 겹친 판에서 이 검사가 사라진 알림 글까지 재다가 한 번 멈췄다
+       (64a36e8 — '가장 먼 0.5 toast "3"'). 때에 맡기지 않게: 첫 알림이 지나간 뒤, 창이 열리는 바로 그 순간에 선물 알림을 한 번 더 띄운다 */
+    await toRunner(D.page, O + '/index.html', async function (page) {
+      await page.waitForFunction(function () { var u = APP.state.user, t = document.getElementById('toast'); return u && u.giftDay && !u.giftTell && !t.classList.contains('show'); }, null, { timeout: 20000 });
+      await page.evaluate(function () {
+        var o = HTMLDialogElement.prototype.showModal;
+        HTMLDialogElement.prototype.showModal = function () {
+          if (this.id === 'runner-dlg') { HTMLDialogElement.prototype.showModal = o; APP.state.user.giftDay = ''; APP.dailyGift(); }
+          return o.apply(this, arguments);
+        };
+      });
+    });
+    var mt = await D.page.evaluate(RN_STARTS), tt = await D.page.evaluate(function () { var t = document.getElementById('toast'); return { inside: !!t.closest('#runner-dlg'), show: t.classList.contains('show'), text: t.textContent, left: Math.round(t.getBoundingClientRect().left * 1000) / 1000, snap: t.style.translate || '' }; });
+    var tr9 = mt.runs.filter(function (r) { return r.id === 'toast'; });
+    ok(tt.inside && tt.show && /선물/.test(tt.text) && tr9.length >= 3, 'R-9 떠 있던 알림은 열린 달리기 창 안으로 옮겨져 그대로 보인다 (' + JSON.stringify(tt) + ' · 글 ' + tr9.length + '줄)');
+    crisp({ runs: tr9, font: mt.font, dpr: mt.dpr }, 'R-9 412×915 @2.625 달리기 창 안으로 옮겨진 알림');   /* 알림 글만 — 창의 글은 준비가 끝난 뒤 아래에서 잰다 */
+    await readyHand(D.page);
     await D.page.touchscreen.tap(100, 360);
     await D.page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: 20000 });
     await D.page.waitForFunction(function () { var o = document.getElementById('rn-top10'); return o && !o.hidden && o.children.length === 10; }, null, { timeout: 8000 });

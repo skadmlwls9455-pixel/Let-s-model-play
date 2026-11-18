@@ -195,6 +195,7 @@ var APP = (function () {
     var host = openDialog() || document.body, moved = t.parentNode !== host;
     if (moved) host.appendChild(t);   /* 옮기면 열려 있던 popover 는 저절로 닫힌다 */
     if (host !== document.body && typeof t.showPopover === 'function') { try { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } catch (e) { /* popover 속성 없음 등: 대화상자 안이라 그대로 보인다 */ } }
+    if (moved && t.classList.contains('show') && window.UIART && UIART.snapLeft) UIART.snapLeft(t);   /* 11-18: 떠 있는 채로 옮겼으면 글 시작을 옮긴 자리에서 다시 기기 px 에 (옮기기 전에 잰 몫이 그대로 남았다) */
     return moved;
   }
   /* ── 저장소: localStorage 감지 → 없으면 메모리 (조용히 한 줄). QuotaExceeded 는 오래된 여행의 이벤트를 뺀 저장용 사본으로 다시 시도 — 메모리의 기록은 그대로 (R2–R5) ── */
@@ -334,7 +335,7 @@ var APP = (function () {
     var raw = store.get(KEY), stored = parseState(raw), mirrored = parseState(mirrorGet());
     var broken = !!raw && !stored, kept = broken && setAsideBroken(raw);
     /* 같은 탭 미러가 더 새롭다(= 새로고침 직후 스냅숏이 비었거나 뒤처졌다) → 미러로 복구하고 localStorage 에 다시 적는다 */
-    if (mirrored && (!stored || seenOf(mirrored) > seenOf(stored))) { S = normalize(mirrored); save(); return S; }
+    if (mirrored && (!stored || seenOf(mirrored) > seenOf(stored))) { S = normalize(mirrored); dyeAdopt(); save(); return S; }   /* 11-18 (검증): 받아들이기 (dyeAdopt) 가 저장 (dyeMirror) 보다 먼저 — 거꾸로면 옛 빌드 탭이 물들인 색이 이 길에서 지워졌다 */
     if (stored) { S = normalize(stored); lastSaved = raw; return S; }
     if (broken) quietWarn(kept ? '기록을 읽지 못했어. 원본은 따로 남겨 뒀어.' : '기록을 읽지 못했어. 새로 시작할게.');
     var v1 = store.get(KEY_V1);
@@ -5234,7 +5235,8 @@ var APP = (function () {
   }
   function dyeAdopt() {
     var u = S.user; if (!isObj(u) || !isObj(u.dyed) || !isObj(u.dyed.outfit)) return false;
-    var w = wornOf('outfit'), was = typeof u.dyeFor === 'string' ? (u.dyed.outfit[u.dyeFor] || null) : null, now = typeof u.dye === 'string' && /^#[0-9a-f]{6}$/i.test(u.dye) ? u.dye : null;
+    if (typeof u.dye === 'string' && !/^#[0-9a-f]{6}$/i.test(u.dye)) return false;   /* 11-18 (검증): 이 빌드가 모르는 꼴 (나중 빌드 · 손으로 고친 기록) 은 옛 빌드의 물들임이 아니다 — 건드리지 않는다 (옛 빌드는 #rrggbb 나 null 만 적는다) */
+    var w = wornOf('outfit'), was = typeof u.dyeFor === 'string' ? (u.dyed.outfit[u.dyeFor] || null) : null, now = typeof u.dye === 'string' ? u.dye : null;
     if (!w || String(now).toLowerCase() === String(was).toLowerCase()) return false;
     if (now) u.dyed.outfit[w] = now; else delete u.dyed.outfit[w];
     return true;
