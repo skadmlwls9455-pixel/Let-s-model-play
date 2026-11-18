@@ -2060,11 +2060,13 @@ async function scenarioRunner() {
       return out;
     });
     console.log('   sprites:', JSON.stringify(spr));
-    var SPEC = { run: [32, 23], jump: [30, 25], land: [35, 20], duck: [38, 15], hit: [32, 23], idle: [32, 23] }, MEAS = { land: [38, 21], duck: [42, 18] };   /* 착지 · 엎드림은 잰 크기 (스펙의 ≈ 표보다 2~4 px 크다: 외곽선 1 px 씩 — 보고서 decisions) */
+    var SPEC = { run: [32, 23], jump: [30, 25], land: [35, 20], duck: [38, 15], hit: [32, 23], idle: [32, 23] }, MEAS = { land: [38, 21], duck: [40, 13] };   /* 착지는 잰 크기 (스펙의 ≈ 표보다 3 px 넓다: 외곽선 1 px 씩) · 숙이기는 11-18 리드: sq y 0.36 → 거미줄 아래로 (보고서) */
     Object.keys(SPEC).forEach(function (k) {
       var e = MEAS[k] || SPEC[k], g = spr.st[k];
       ok(g && Math.abs(g.w - e[0]) <= 2 && Math.abs(g.h - e[1]) <= 2 && g.same && g.semi === 0 && (k !== 'run' || g.n === 4), '11-18 문어 ' + k + ' ' + (g && g.w + '×' + g.h) + ' (기준 ' + e.join('×') + ' ±2) · 알파 0/255 · 칸 ' + (g && g.n));
     });
+    var webLo = await page.evaluate(function () { return RUNNER.KINDS.web.lo; });   /* 거미줄 그림 아래 끝 = 바닥 위 lo px (그림 맨 아래 줄은 바닥선 위 lo + 1 번째 줄) */
+    ok(spr.st.duck.h <= webLo, '11-18 숙인 문어 꼭대기가 거미줄 그림 아래 끝보다 1 px 넘게 아래 (숙이기 높이 ' + spr.st.duck.h + ' ≤ ' + webLo + ' — 겹친 줄 0, 빈 줄 ' + (webLo - spr.st.duck.h + 1) + ')');
     ok(spr.st.idle.foot > 0 && spr.st.duck.foot > 0, '11-18 발이 그림 맨 아래 줄에 닿음 (idle ' + spr.st.idle.foot + ' · duck ' + spr.st.duck.foot + ' px)');
     await page.evaluate(function () {   /* 그리기 호출 엿보기: 문어 그림은 제 크기 그대로(인자 3 개) · 정수 자리 */
       var cx = document.getElementById('rn-cv').getContext('2d'), o = cx.drawImage; window.__octDraws = [];

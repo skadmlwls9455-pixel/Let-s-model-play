@@ -16,7 +16,7 @@ loading-strip tool render is byte-identical (no `sq`). The independent check fou
 | file | where | what · why |
 |---|---|---|
 | `js/scene3d.js` | `renderPortrait` (one line after the pose scale) · `walkPortrait` (passes `sq`) · new `sqOf` next to `portraitColor` | `pw.sq = [sx, sy]` → `bodyG.scale.set(sx, sy, sx)` while rendering; restored by the existing `sv` save. Invalid / missing `sq` → `null` → exactly the old path. |
-| `js/runner.js` | sprite section (replaces `EXPR`, `blank/put/alphaAt/outline`, `fromPortraits`, `toCanvas`, old `drawnOctopus`, `buildSprites`) | `BAKE` table (yaw 30, tilt 15, hw 2.82, ty 0.4; run ×4 phases 0/0.5/1/1.5, jump `sq [0.92, 1.10]`, land `[1.10, 0.88]`, duck `[1.20, 0.62]`, hit, idle — `still`); `cropState` crops one shared alpha box per state (feet on the bottom row, alpha 0/255, ground width from the bottom 3 rows for the shadow); `bakeSprites` caches per `scene.color()` + `scene.paletteName()`; fallback `drawnOctopus(hex, { sx, sy, lp })` draws each state from parameters (idle eyes), `src = 'drawn'`. |
+| `js/runner.js` | sprite section (replaces `EXPR`, `blank/put/alphaAt/outline`, `fromPortraits`, `toCanvas`, old `drawnOctopus`, `buildSprites`) | `BAKE` table (yaw 30, tilt 15, hw 2.82, ty 0.4; run ×4 phases 0/0.5/1/1.5, jump `sq [0.92, 1.10]`, land `[1.10, 0.88]`, duck `[1.20, 0.36]` (lead follow-up, see below), hit, idle — `still`); `cropState` crops one shared alpha box per state (feet on the bottom row, alpha 0/255, ground width from the bottom 3 rows for the shadow); `bakeSprites` caches per `scene.color()` + `scene.paletteName()`; fallback `drawnOctopus(hex, { sx, sy, lp })` draws each state from parameters (idle eyes), `src = 'drawn'`. |
 | `js/runner.js` | `drawOct` | picks hit (over) · idle (ready / pause) · duck · jump · land (6 ticks) · run `floor(tick/5) % 4`; `ctx.drawImage(img, dx, dy)` with integers, no width/height; feet at `V.G − height`, centred on `OCT_X + 7` (left edge clamped to 0 so the wider land / duck frames are not cut at the canvas edge — a 2 / 4 px shift); shadow `max(6, groundWidth − (h >> 1))`. |
 | `js/runner.js` | API | `RUNNER.sprites()` (test hook: the bake for the current scene colour), `RUNNER.pix(name)` (12×12 guide pictures as SVG — the hand for F2). |
 | `index.html` | head boot block | new inline script before the boot `<style>`: reads `"motion":"reduce"` from `ppolppol_v2` → `data-motion="reduce"` early; computes `U = max(round(2·dpr), floor(min(vw, vh)·dpr/200))`, `u = U/dpr`, `x0`, `y0`, `n`, `dx = n·u`, `dur = n/52 s` → `--boot-u/x0/y0/dx/n/dur` (again on resize); adds `boot-min` after 1.0 s (at once under reduced motion). CSS: `56u × 39u`, `background-size 448u 39u`, legs `steps(8)` 1.0 s, cross `translate(x0, y0)` → `translate(x0+dx, y0)` `steps(n)` over `dur`, fallbacks for every variable; reduced motion (device or saved) = no animation (centred, cell 0); hide rule `html.booted.boot-min #boot`. Static `#boot` line, 12 s safety, `html:not(.booted) #oct-svg` rule and the preload unchanged. |
@@ -44,8 +44,16 @@ loading-strip tool render is byte-identical (no `sq`). The independent check fou
 - Run bob: the bake already lifts the body 1 px at the mid-step phases (0.5 / 1.5, the gait's own lift), so `drawOct` adds no
   extra bob for baked run frames (the result is the brief's 0 / −1 px); the drawn fallback keeps the code bob; ready / pause keep
   the 500 ms 0 / −1 bob.
-- Sizes: the spec table is "≈"; measured sizes are 2–4 px larger because the scene outline adds a px on each side. The smoke
-  pins run / jump / hit / idle to the spec table ±2 and land / duck to the measured sizes ±2 (spec 35×20 / 38×15).
+- Sizes: the spec table is "≈"; measured sizes are 2–3 px larger because the scene outline adds a px on each side. The smoke
+  pins run / jump / hit / idle to the spec table ±2 and land / duck to the measured sizes ±2 (land 38×21 vs spec 35×20; duck
+  40×13 vs spec 38×15).
+- **Duck under the web (lead follow-up 11-18): a flatter duck squash, `sq [1.20, 0.36]`** (fallback drawn duck `sy 0.45` →
+  23×11). Why not the web art: its bottom already matches its hit box (art rows end at 13 px above the ground = `KINDS.web.lo`);
+  the overlap came from the ducked sprite (18 px tall) being much taller than the duck hit height (10). The lead's suggested
+  0.45–0.5 still gives 15–16 px (measured: 0.5 → 41×16, 0.45 → 41×15, 0.42 → 40×14, 0.36 → 40×13), so 0.36 is the largest
+  value that leaves the ducked top one clear row below the web at both DPRs. It reads as a flat pancake crawl with the eyes
+  low; crisp at 360x740@2 and 412x915@2.625 (shot 9). Sim, `VERSION 'runner-2'` and the server replay unchanged
+  (`test-runner` 583/583).
 - Pause shows the idle frame (brief: idle when ready / paused), also mid-air.
 - Shadow width: from the widest of the bottom 3 rows (the bottom row alone is just two leg tips, 2 px).
 - F1 bubble uses kind `'say'` and plays the bubble voice only when sound is on (as every other bubble); the face is untouched
@@ -66,7 +74,7 @@ loading-strip tool render is byte-identical (no `sq`). The independent check fou
 
 ## Measured
 
-- Runner sprite sizes (art px, at the default colour): run ×4 34×25 · jump 32×26 · land 38×21 · duck 42×18 · hit 34×24 ·
+- Runner sprite sizes (art px, at the default colour): run ×4 34×25 · jump 32×26 · land 38×21 · duck 40×13 (was 42×18 at the spec's 0.62) · hit 34×24 ·
   idle 34×24; ground width 25. Canvas scale unchanged (k 7 at DPR 2 → run 238×175 dev px).
 - Loading pass times (n / 52): 360x740@2 2.27 s (n 118) · 412x915@2.625 2.63 s (n 137) · 320x568@2 2.08 s (n 108) ·
   1280x800@1 3.62 s (n 188) · 1920x1080@1 4.23 s (n 220). Smoke: 0.5 s → 26.0 / 26.0 / 25.0 art px at the three sizes.
@@ -91,6 +99,8 @@ loading-strip tool render is byte-identical (no `sq`). The independent check fou
 - `SMOKE_ONLY=R` — pass (65 + new checks; see the log lines `11-18`).
 - `SMOKE_ONLY=Z` — boot part all pass (14 new checks), the kitchen part passed; the loft part failed 3 checks on the stale `DOWN` pin, now fixed: rerun after the fix — 100 ok, 0 FAIL through the whole loft part incl. all mirror-line checks (the rest of Z was still running when I wrapped up; the reviewer saw a "Target page… closed" crash later in Z on both base and head, a load issue of this container).
 - `SMOKE_ONLY=FM,R` after the review fixes — 80 passed, 0 failed (FM 12 incl. the reworked "several walks" check).
+- After the duck follow-up: `SMOKE_ONLY=R` 69 passed, 0 failed (incl. the new duck-under-web check); `npm test` pass;
+  `node tools/test-runner.js` 583 passed.
 
 For the lead: add nothing to `npm test` (no new test files); CI smoke lists can add `FM`.
 
@@ -99,7 +109,8 @@ For the lead: add nothing to `npm test` (no new test files); CI smoke lists can 
 1 the baked frames (run ×4, jump, land, duck, idle) at the real scale k = 7 (DPR 2) · 2 the runner screen ready / run / hit at
 360x740@2 (smoke R captures) · 3 boot t 0 / 0.5 / 1.0 s 360x740@2 · 4 the same 1280x800@1 · 5 real boot 1280x800@1 (CDP
 screencast, a frame every ≥ 100 ms) · 6 real boot 360x740@2 · 7 greeting bubble 360x740@2 · 8 a hint frame (the yard door, hand
-mirrored) 360x740@2. Missing from the brief's list: in-game jump / duck frames and the 412x915@2.625 run frame — the in-page
+mirrored) 360x740@2 · 9 duck under a web in a real run at 360x740@2 and 412x915@2.625 (canvas at the moment, real scale;
+`wip/round6/notes/R-duck.js` — a frame-locked clock + autopilot). Missing from the brief's list: in-game jump frame and the 412x915@2.625 run frame — the in-page
 capture (`R-shots.js`, `RUNNER_SHOTS=1`) hangs in this container under load; the sizes and crispness at 2.625 are covered by
 smoke R2/R3 and the independent check (alpha 0/255, native draws, integer positions at 360@2 and 412@2.625).
 
@@ -112,11 +123,9 @@ No `must`. `should`s and what I did:
    the rest at a later quiet moment. Probe: tap during the first hand → 0 hands in the next 4 s, only `atticPlay` recorded.
 3. A first walk that finished through `resumeRunning` (reload / close mid-walk) never armed the hints → fixed in the hints
    block's boot timer (arms with exactly one finished walk and no hint seen).
-4. Land 38×21 and duck 42×18 miss the spec's ≈ 35×20 / 38×15 by more than ±2 (the scene outline adds 1 px a side; the `sq`
-   values are the spec's), and the smoke pins measured sizes for those two; the ducked sprite top (17 px) sits ≈ 4 rows into a
-   web whose bottom is 13 px while the sim (duck height 10) passes under it; land / duck started at x −2 / −4 → the left clip is
-   fixed (dx clamped to 0). **Flag for the owner / lead:** the ducked octopus visually overlaps the web by a few rows; a flatter
-   duck (`sq` y ≈ 0.5) would match the spec size, but the spec fixes `[1.20, 0.62]`, so I left it.
+4. Land / duck sizes off the spec table, and the ducked sprite top sat ≈ 4 rows into the web while the sim let it pass; land /
+   duck started at x −2 / −4 → the left clip is fixed (dx clamped to 0); the overlap is fixed by the lead follow-up (flatter
+   duck, above): smoke R now checks duck height ≤ `KINDS.web.lo` (13 ≤ 13, one clear row).
 
 ## Needs another lane merged
 
