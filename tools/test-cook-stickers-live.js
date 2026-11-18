@@ -135,7 +135,7 @@ function spyInit() {
 async function openPage(browser, o) {
   o = o || {};
   var touch = o.touch !== false;
-  var ctx = await browser.newContext({ viewport: o.vp || { width: 360, height: 740 }, deviceScaleFactor: o.dpr || 2, hasTouch: touch, isMobile: touch,
+  var ctx = await browser.newContext(o.real ? { viewport: null, hasTouch: touch, reducedMotion: o.reducedOS ? 'reduce' : 'no-preference', locale: 'ko-KR', colorScheme: 'light' } : { viewport: o.vp || { width: 360, height: 740 }, deviceScaleFactor: o.dpr || 2, hasTouch: touch, isMobile: touch,
     reducedMotion: o.reducedOS ? 'reduce' : 'no-preference', locale: 'ko-KR', colorScheme: 'light' });
   if (o.store !== undefined) {
     await ctx.addInitScript(function (a) {
@@ -271,17 +271,18 @@ var DISH = null;   /* K1's first dish (look, tags): K9 plays the same touches wi
 /* spec 5.4: the layer is a strip at hudB + 4, one sticker px = n device px, s = 32 n / dpr CSS px; slot 0 at left
    max(8, safeL + 8), slot 1 at right max(8, safeR + 8); shown only when hudB + 4 + 32 n0 / dpr + 8 <= (44 + oy) css with
    n0 = floor(2 dpr) (unchanged); round 6 (11-18, spec 2.3): when shown, n is the largest of n0 .. floor(3 dpr) that fits
-   and whose layer zoom n / dpr / 2 is a whole number of 1/64 (a zoom the browser keeps exactly; 4/3 drifts by a device px) */
+   (11-18 lead: no '1/64 zoom' condition any more: the drift seen at 2.625 was the test browser's DPR emulation; the
+   real render path gives exact blocks at every n, checked below with --force-device-scale-factor) */
 function stickGeo(v, dpr, vw) {
   var n0 = Math.floor(2 * dpr), n3 = Math.floor(3 * dpr), room = (44 + v.oy) * v.css, safe = v.safe || [0, 0, 0, 0];
   var shown = v.hudB + 4 + 32 * n0 / dpr + 8 <= room, n = n0;
-  if (shown) for (var k = n3; k > n0; k--) { var zz = k / dpr / 2 * 64; if (v.hudB + 4 + 32 * k / dpr + 8 <= room && Math.abs(zz - Math.round(zz)) < 1e-6) { n = k; break; } }
+  if (shown) for (var k = n3; k > n0; k--) { if (v.hudB + 4 + 32 * k / dpr + 8 <= room) { n = k; break; } }
   var s = 32 * n / dpr;
   return { n: n, s: s, top: v.hudB + 4, l0: Math.max(8, safe[3] + 8), r1: vw - Math.max(8, safe[1] + 8), shown: shown };
 }
 var STICK_SIZES = [   /* s: the sticker size in CSS px (round 6, spec 2.3: 1.5x where there is room, never smaller) */
   { vp: { width: 360, height: 740 }, dpr: 2, shown: true, s: 96 }, { vp: { width: 360, height: 740 }, dpr: 3, shown: true, s: 96 },
-  { vp: { width: 412, height: 915 }, dpr: 2.625, shown: true, s: 60.95 }, { vp: { width: 412, height: 915 }, dpr: 2, shown: true, s: 96 },
+  { vp: { width: 412, height: 915 }, dpr: 2.625, shown: true, s: 85.33, real: true },   /* 11-18 lead: on the real render path (see BLK) */ { vp: { width: 412, height: 915 }, dpr: 2, shown: true, s: 96 },
   { vp: { width: 390, height: 844 }, dpr: 3, shown: true, s: 96 }, { vp: { width: 360, height: 640 }, dpr: 2, shown: true, s: 64 },
   { vp: { width: 320, height: 568 }, dpr: 2, shown: false }, { vp: { width: 320, height: 568 }, dpr: 3, shown: false },
   { vp: { width: 360, height: 560 }, dpr: 2, shown: false }
@@ -411,7 +412,8 @@ async function K2(browser) {
   /* box and pixel grid at phone sizes: s = 32 n / dpr, whole device px, at the slots of spec 5.4; hidden where the strip does not fit */
   for (var z = 0; z < STICK_SIZES.length; z++) {
     var su = STICK_SIZES[z], tag = su.vp.width + 'x' + su.vp.height + '@' + su.dpr;
-    var G = await openPage(browser, { store: SEEN_ALL, q: 'seed=' + SEED, vp: su.vp, dpr: su.dpr });
+    var suBr = su.real ? await chromium.launch({ args: ['--force-device-scale-factor=' + su.dpr, '--window-size=' + su.vp.width + ',' + su.vp.height] }) : null;
+    var G = await openPage(suBr || browser, { store: SEEN_ALL, q: 'seed=' + SEED, vp: su.vp, dpr: su.dpr, real: !!su.real });
     await G.page.evaluate(function () { COOK_STICKERS.show('thumbs', { slot: 0 }); COOK_STICKERS.show('clap', { slot: 1 }); });   /* a still and a strip, both slots */
     await G.settle();
     var m = await G.page.evaluate(function () {
@@ -440,16 +442,21 @@ async function K2(browser) {
     }
     check(G.errs.length === 0, 'K2 ' + tag + ': no errors ' + G.errs.join(' | '));
     await G.done();
+    if (suBr) await suBr.close();
   }
 
   /* 11-15 round 5 (check K-2): at DPR 2.625 a sticker at rest is whole device-px blocks: every opaque px of its 32 x 32
      picture is an n x n block of exactly its own colour (an identity transform kept after the rise put the shadowed
      sticker on a layer of its own, resampled under the layer zoom: 29-49 % of the blocks were exact) */
   /* round 6: also the grown sizes (n 6 at 360x740@2, n 9 at 360x740@3) */
-  var BLK = [{ vp: { width: 412, height: 915 }, dpr: 2.625, n: 5 }, { vp: { width: 360, height: 740 }, dpr: 2, n: 6 }, { vp: { width: 360, height: 740 }, dpr: 3, n: 9 }];
+  /* 11-18 lead: 2.625 now grows to n 7 (zoom 4/3) and is checked on the REAL render path (a browser started with
+     --force-device-scale-factor=2.625, viewport null): Playwright's deviceScaleFactor emulation lays out in CSS 1/64 units
+     and resamples any zoom that is not a whole 1/64 (95 % exact at n 7), which no phone does */
+  var BLK = [{ vp: { width: 412, height: 915 }, dpr: 2.625, n: 7, real: true }, { vp: { width: 360, height: 740 }, dpr: 2, n: 6 }, { vp: { width: 360, height: 740 }, dpr: 3, n: 9 }];
   for (var bi = 0; bi < BLK.length; bi++) {
   var BK = BLK[bi], btag = BK.vp.width + 'x' + BK.vp.height + '@' + BK.dpr;
-  var X = await openPage(browser, { store: SEEN_ALL, q: 'seed=' + SEED, vp: BK.vp, dpr: BK.dpr });
+  var realBr = BK.real ? await chromium.launch({ args: ['--force-device-scale-factor=' + BK.dpr, '--window-size=' + BK.vp.width + ',' + BK.vp.height] }) : null;
+  var X = await openPage(realBr || browser, { store: SEEN_ALL, q: 'seed=' + SEED, vp: BK.vp, dpr: BK.dpr, real: !!BK.real });
   await X.page.evaluate(function () { document.querySelector('.ck-stick').textContent = ''; COOK_STICKERS.show('thumbs', { slot: 0 }); COOK_STICKERS.show('star', { slot: 1 }); });
   await X.page.evaluate(function () { return Promise.all(Array.prototype.map.call(document.querySelectorAll('.cook-sticker'), function (i) { return i.decode ? i.decode().catch(function () { /* checked below */ }) : null; })); });
   await X.settle();
@@ -476,9 +483,10 @@ async function K2(browser) {
     }
     return { id: b.id, n: n, tr: b.tr, exact: best };
   });
-  check(blocks.length === 2 && blocks.every(function (b) { return b.n === BK.n && b.exact === 1; }), 'K2 ' + btag + ': resting stickers are exact ' + BK.n + ' x ' + BK.n + ' device-px blocks (2.625: n 7 would need zoom 4/3, which drifts) (' + blocks.map(function (b) { return b.id + ' ' + (b.exact * 100).toFixed(1) + ' % ' + b.tr; }).join(', ') + ')');
+  check(blocks.length === 2 && blocks.every(function (b) { return b.n === BK.n && b.exact === 1; }), 'K2 ' + btag + ': resting stickers are exact ' + BK.n + ' x ' + BK.n + ' device-px blocks (2.625 on the real render path, n 7 = zoom 4/3) (' + blocks.map(function (b) { return b.id + ' ' + (b.exact * 100).toFixed(1) + ' % ' + b.tr; }).join(', ') + ')');
   check(X.errs.length === 0, 'K2 ' + btag + ' blocks: no errors ' + X.errs.join(' | '));
   await X.done();
+  if (realBr) await realBr.close();
   }
 }
 

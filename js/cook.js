@@ -1568,14 +1568,14 @@ var COOK = (function () {
     /* stickers (5.4): one sticker px = n device px; the engine draws at 2 CSS px a sticker px, so the layer is zoomed by
        n / dpr / 2 and its own lengths are given before the zoom. Shown only above STICK_ROW, decided at n0 = floor(2 dpr)
        as before; 11-18: when shown, n is the largest of n0 .. floor(3 dpr) that still fits (up to 1.5x, never smaller),
-       but only with a zoom the browser holds exactly (a whole number of 1/64): Chrome keeps zoom as a short float, and
-       a zoom like 4/3 (n 7 at DPR 2.625) or 8/7 drifts the picture by a device px every few sticker px. n0 is kept as
-       it always was. Measured: 360x740 @2 and @3, 412x915 @2, 390x844 @3 -> 96 CSS; 412x915 @2.625 stays 61 */
+       (11-18 lead: no '1/64 zoom' rule any more. The drift a zoom like 4/3 showed at DPR 2.625 came from the test browser's
+       DPR emulation, which lays out in CSS 1/64 units; on the real render path (a phone, or Chromium with
+       --force-device-scale-factor=2.625) zooms 6/5.25, 7/5.25 and 8/5.25 all give exact n x n blocks.) n0 is kept as it
+       always was. Measured: 360x740 @2 and @3, 412x915 @2, 390x844 @3 -> 96 CSS; 412x915 @2.625 -> 85.3 (n 7) */
     var n0 = Math.max(1, Math.floor(2 * dpr + 1e-6)), n3 = Math.max(n0, Math.floor(3 * dpr + 1e-6)), stickRoom = (LAY.STICK_ROW + oy) * css;
     var showStick = hudB + 4 + 32 * n0 / dpr + 8 <= stickRoom, n2 = n0;
     if (showStick) for (var nn = n3; nn > n0; nn--) {
-      var zz = nn / dpr / 2 * 64;
-      if (hudB + 4 + 32 * nn / dpr + 8 <= stickRoom && Math.abs(zz - Math.round(zz)) < 1e-6) { n2 = nn; break; }
+      if (hudB + 4 + 32 * nn / dpr + 8 <= stickRoom) { n2 = nn; break; }
     }
     var s = 32 * n2 / dpr, z = n2 / dpr / 2, st = D.stick.style;
     D.stick.hidden = !showStick;
