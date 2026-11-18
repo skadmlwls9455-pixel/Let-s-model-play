@@ -58,6 +58,7 @@ html.ck-boot .ck-home { visibility: hidden; }
 </main>
 <script src="js/haptics.js"></script>
 <script src="js/cook-art.js"></script>
+<script src="js/cook-dishes.js"></script>
 <script src="js/cook.js"></script>
 <script src="js/cook-stickers.js"></script>
 <script>
@@ -85,6 +86,9 @@ html.ck-boot .ck-home { visibility: hidden; }
   /* 11-15 round 5 (check K-11): the game says whether its counter was opened by key (&kbd=1, then 'open' {kbd}); the
      kitchen's own last input can be an Esc that closed it, which would put a focus ring on a finger's reopen */
   var kbdIn = get('kbd') === '1' ? true : null;
+  /* 11-18 round 6: the dish picked on the game's tray (&recipe= on the first load, then 'open' {recipe}); standalone: ?recipe=.
+     Passed on every open (the kitchen's own rules decide when a half-made dish wins: js/cook.js begin) */
+  var recipeIn = get('recipe');
   function tell(what, extra) {
     var m = { ppolCook: what }, k;
     if (extra) for (k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) m[k] = extra[k];
@@ -100,7 +104,12 @@ html.ck-boot .ck-home { visibility: hidden; }
     if (red) o.reduced = true;
     if (kbdIn !== null) o.kbd = kbdIn;
     if (get('rec') === '1') o.rec = true;
-    v = get('recipe'); if (first && v) o.recipe = v;   /* straight into that dish, only on the first open */
+    if (recipeIn) o.recipe = recipeIn;
+    /* 11-18 round 6 (spec 3.6): a finished dish goes to the game once, as plain facts (the game's table takes it) */
+    if (embed) o.onResult = function (res) {
+      var out = res && res.out; if (!out) return;
+      tell('result', { v: 1, id: res.id, recipe: out.recipe, seed: out.seed, look: out.look, day: out.day });
+    };
     return o;
   }
   function go(first) { try { return !!(window.COOK && COOK.open && COOK.open(opts(first))); } catch (e) { return false; } }
@@ -132,7 +141,7 @@ html.ck-boot .ck-home { visibility: hidden; }
       var d = e.data; if (!d || typeof d !== 'object') return;
       if (d.ppolCook === 'safe') setSafe(d);
       else if (d.ppolCook === 'motion') setMotion(d.reduce === true);
-      else if (d.ppolCook === 'open') { kbdIn = d.kbd === true; go(false); }
+      else if (d.ppolCook === 'open') { kbdIn = d.kbd === true; recipeIn = typeof d.recipe === 'string' ? d.recipe : null; go(false); }
       else if (d.ppolCook === 'close' && window.COOK && COOK.isOpen && COOK.isOpen()) COOK.close();
     });
   }

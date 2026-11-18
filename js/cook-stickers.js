@@ -267,13 +267,24 @@ var COOK_STICKERS = (function () {
   ];
 
   /* ── 요리 스크립트: 요리마다 정해 둔 순간 → 스티커 ──
-     id 는 부엌 놀이의 요리 id (COOK_PROTO §2 RECIPES). 지금 있는 요리는 해초전 하나 — 조각 2 가 미역국·톳 주먹밥을 더하면 그 id 로 한 덩이씩 더한다.
+     id 는 부엌 놀이의 요리 id (COOK_PROTO §2 RECIPES). 11-18 6차: 해초전 · 주먹밥 · 과일 꼬치 세 가지.
      cues 는 위에서부터 보고 먼저 맞는 줄 하나만 쓴다. 맞는 줄이 없으면 공통 규칙으로 내려간다. */
   var RECIPES = {
     jeon: { name: '해초전', cues: [
       { on: 'tap', is: { i: 8 }, pick: 'clap', force: true },      /* 반죽 다 폄 */
       { on: 'flip', pick: ['cheer', 'thumbs'] },                   /* 휙 뒤집음 (11-15 (나): 깜짝 뺌) */
       { on: 'cut', is: { i: 1 }, pick: 'thumbs' },                 /* 열십자 다 썲 */
+      { on: 'done', pick: ['heart_plate', 'star'] }                /* 접시 공개 */
+    ] },
+    /* 11-18 6차: 주먹밥 (톡톡 → 뒤집기) · 과일 꼬치 (썰기 → 톡톡). 기분 얼굴 없음 (FEELINGS) */
+    jumeokbap: { name: '주먹밥', cues: [
+      { on: 'tap', is: { i: 8 }, pick: 'clap', force: true },      /* 밥 다 다짐 */
+      { on: 'flip', pick: ['cheer', 'thumbs'] },                   /* 휙 뒤집음 */
+      { on: 'done', pick: ['heart_plate', 'star'] }                /* 접시 공개 */
+    ] },
+    kkochi: { name: '과일 꼬치', cues: [
+      { on: 'cut', is: { i: 1 }, pick: 'thumbs' },                 /* 두 번 다 썲 */
+      { on: 'tap', is: { i: 8 }, pick: 'clap', force: true },      /* 꼬치에 다 끼움 */
       { on: 'done', pick: ['heart_plate', 'star'] }                /* 접시 공개 */
     ] }
   };
