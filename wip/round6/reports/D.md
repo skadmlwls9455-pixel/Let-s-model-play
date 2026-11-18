@@ -127,6 +127,7 @@ None added or changed. No visible text, no aria names (the buttons are lane M's)
 | `SMOKE_ONLY=J,Z,CAM node tools/smoke.js` | 202 passed, 1 failed (Z2 sew tap during the glide) |
 | same smoke Z at the base commit `5a6311f` | 118 passed, 0 failed |
 | `SMOKE_ONLY=Z` rerun on this branch (before the J3 removal, with the stair grid) | 132 passed, 0 failed |
+| after the J3 removal (f9685cb + 037ceb5): `SMOKE_ONLY=Z` · `test-scene-perf` · `npm test` | 118/0 (same as the base) · 150/0 · exit 0 |
 
 For the lead: no new test files. T8 is inside `tools/test-scene-perf.js` (`tools/smoke.js` is unchanged from the base), so CI needs nothing new as long as it already runs those two.
 
