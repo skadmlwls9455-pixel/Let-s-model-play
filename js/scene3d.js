@@ -1475,7 +1475,9 @@ var SCENE3D = (function () {
       return hit;
     }
     function furnLim(f) { return [-R + 0.16 + f.hw, RF - 0.1 - f.hw, -R + 0.16 + f.hd, RF - 0.1 - f.hd]; }
-    var FURN_KEEP = [[RF - 1.2, RF + 1, 0.7, 2.7], [1.3, 2.6, -R - 1, -1.6], [-R - 1, STAIR.x1 + 0.6, STAIR.z0 - 0.05, RF + 1], [STAIR.x1 + 0.02, STAIR.x1 + 0.6, STAIR.z0 - 0.75, RF + 1]];   /* 넷째 (11-18 검증): 발치 칸에서 방 쪽 (−z) 으로 나가는 길 0.58 m — 소파와 상자로 발치를 둘러싸면 위층에서 내려온 캐릭터가 0.3 m 칸에 갇혔다. 소파 기본 자리 (x ≤ −1.5) 는 안 걸린다 */   /* 놀이방 문 앞 · 바깥 문 앞 · 위층 계단 (11-18: 왼벽 앞쪽 구석 — 발치 0.6 m 까지 = 내 캐릭터가 설 자리, 소파 기본 자리 z ≤ 2.68 은 안 걸린다) 은 비워 둔다 */
+    var FURN_KEEP = [[RF - 1.2, RF + 1, 0.7, 2.7], [1.3, 2.6, -R - 1, -1.6], [-R - 1, STAIR.x1 + 0.6, STAIR.z0 - 0.05, RF + 1]];   /* 놀이방 문 앞 · 바깥 문 앞 · 위층 계단 (11-18: 왼벽 앞쪽 구석 — 발치 0.6 m 까지 = 내 캐릭터가 설 자리, 소파 기본 자리 z ≤ 2.68 은 안 걸린다) 은 비워 둔다.
+       11-18 검증 뒤: 발치에서 방으로 나가는 길 (z ≥ 2.03) 까지 비우는 넷째 구역을 넣었다가 뺐다 — 옛 배치의 살짝 돌린 소파 (15° · 기본 자리 근처) 가 6 cm 걸려 방 건너편으로 옮겨졌다 (CI 스모크 Z-6).
+       저장된 배치를 건드리지 않는 쪽이 먼저다. 소파와 상자로 발치를 일부러 둘러싸면 내려온 캐릭터가 좁은 칸에 서게 되지만 문 · 계단 톡과 가구 모드로 나올 수 있다 */
     var OCT_PAD = 0.42, BED_DZ = 0.1;   /* 11-15: 문어 몸 반폭 (머리 r 0.42 — 다리는 그 안) · 담요 가운데에서 잠자리까지 (−z) */
     function furnBoxes(skip, pad) {   /* 단단한 가구 (소파 · 상자) 발자국 [x0, x1, z0, z1] + pad — 문어 자리 · 문어 길이 피한다 */
       var out = [];
@@ -1722,7 +1724,7 @@ var SCENE3D = (function () {
     function furnOffStair(id) {   /* 11-18: 이 가구가 계단 금지 구역(FURN_KEEP 셋째)에 걸려 있으면 놓을 수 있는 가장 가까운 칸으로 */
       var f = FURN[id], x0 = f.m.position.x, z0 = f.m.position.z;
       function hits(K) { return x0 + f.hw > K[0] && x0 - f.hw < K[1] && z0 + f.hd > K[2] && z0 - f.hd < K[3]; }
-      if (!hits(FURN_KEEP[2]) && !hits(FURN_KEEP[3])) return false;
+      if (!hits(FURN_KEEP[2])) return false;
       var l = furnLim(f), best = null, bd = 1e9, gx, gz, d;
       function tryAt(x, z) { if (x < l[0] - 1e-6 || x > l[1] + 1e-6 || z < l[2] - 1e-6 || z > l[3] + 1e-6 || !furnOk(id, x, z)) return; d = Math.hypot(x - x0, z - z0); if (d < bd - 1e-9) { bd = d; best = [x, z]; } }
       for (gz = Math.ceil(l[2] / GRID) * GRID; gz <= l[3] + 1e-6; gz += GRID) tryAt(x0, gz);   /* 벽에 붙여 둔 자리 (격자 밖 x · z) 는 그 줄 그대로 먼저 — 격자만 보면 벽에서 떴다 (검증 11-18) */
