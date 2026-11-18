@@ -1,4 +1,4 @@
-# Lane D report — dining in 3D, auras, loft stair tap (round 6, branch `lane/d`)
+# Lane D report — dining in 3D and auras (round 6, branch `lane/d`)
 
 ## Conclusion
 
@@ -6,9 +6,9 @@ The play-room booth, the table dish, my character sitting and eating, the octopu
 the auras, `on.tableSpot` and the whole §10.3 scene API are built in `js/scene3d.js`.
 - **Tests:** `tools/test-scene-perf.js` passes 150/0, with the new T8 (39 checks) and T1–T7 unchanged. `npm test` is all green.
 - **Layout:** candidate **B**. Every T7 corridor and number is unchanged — **no fallback was needed**. The lead approved the layout after the first push (d3720d9).
-- **Loft stair tap (audit J3):** a tap on the stair now goes to the stair 100 % of the time (before: 64–83 % at the default view, 0–65 % turned 180°). The doorway goes to the yard 100 %.
+- **Loft stair tap (audit J3): dropped at the owner's request.** The owner's other branch (`claude/serene-cannon-awp5y2`) solved J3 by moving the stair to the left wall's front corner, so it no longer overlaps the yard doorway on screen. My fix assumed the old stair position and edited the same lines, so it is removed: the attic tap pick, `spotInfo` and smoke `scenarioLoft` are back to the base `5a6311f` lines, and `tapSurface`, `STAIR_HIT`, `debugTapTruth` and `wip/round6/notes/d-stair.js` are gone. My before/after numbers are not kept here, since they measured the old stair.
 - **Play-room tap targets** (lead's extra check): the arcade, counter and table each get 100 % of taps at both phone sizes and all four turns.
-- **Independent check:** one must and three shoulds; the must and two shoulds are fixed, the third (the stair grid's ground truth) is a known limit, below.
+- **Independent check:** one must and three shoulds; the must and two shoulds are fixed. The third (the stair grid's ground truth) went away with the J3 fix.
 - **Smoke:** `SMOKE_ONLY=J,Z,CAM` gave one failure on its first run: Z2 "a tap on the sewing machine while the view still glides" (`spot:sew`). It did not reproduce: a rerun of `SMOKE_ONLY=Z` on this branch, after the last code change, passed 132/0, and the base commit also passes. I read it as a timing flake, not a code change of mine (the loft pick is untouched).
 
 ## Changes (all in files I own, except the one smoke region the brief gives me)
@@ -41,13 +41,11 @@ the auras, `on.tableSpot` and the whole §10.3 scene API are built in `js/scene3
   - Each character has one `Points` (≤ 20 vertices, the vertexColors variant) and a layer-1 twin (≤ 4 vertices), attached to the character's current group.
   - Positions are snapped to pixel centres and step at 12 fps. Bloom takes 6 frames; reduced motion shows a still pose.
   - **Programs:** the new layer-1 twin variant was the only new program (the bloom pass collects no lights). It is now compiled in `prewarm()` with a light-less scene into `rtE`, which also covers the summer firefly twin. Boot programs go from 33 to 34, and the cache keys do not change at the first aura in the attic, play room, loft, yard or exterior (T8).
-- **Attic stair tap (`tapSurface`, `STAIR_HIT`):** in the attic pick, the first visible surface decides. Stair geometry (treads, side boards, railing, posts) goes to the stair; the doorway's dark plane goes to the yard. Other taps fall back to the spot boxes, stair first. The octopus in front still wins first, as before.
 
 Other files:
 - `tools/test-scene-perf.js`: new T8 (below).
-- `tools/smoke.js` `scenarioLoft`: the stair/doorway tap grid.
 - `docs/SCENE.md`: a new section.
-- `wip/round6/notes/`: D.md and the probe scripts `d-shots.js`, `d-stair.js`, `d-playtap.js`.
+- `wip/round6/notes/`: D.md and the probe scripts `d-shots.js`, `d-playtap.js`.
 
 ## Chosen layout (play-room group, m; spec §4.1)
 
@@ -119,8 +117,6 @@ None added or changed. No visible text, no aria names (the buttons are lane M's)
   - Draw calls: during a meal 80 ≤ base 50 + octopus 25 + 12, and ≤ 150.
   - Hold rule: a held `jumpTo('crate')` lands on the crate anchor after the unmount.
   - Stand-up and abort paths: the octopus leaves to the attic and the empty plate is cleared; an instant sit works and a ceremony start unmounts the octopus; a new dish mid-meal is queued; standing mid-bite resolves the bite false; the run ends in the attic.
-- **Smoke Z (`scenarioLoft`):** a 4 px tap grid at 360x740@2 and 412x915@2.625, 0°/90°/180°, day and night; stair ≥ 95 % and doorway ≥ 95 %. It counts only points whose button is shown — 3 edge pixels at 360 night 180° have the stair button hidden because the visible piece is under 8 px.
-- **Known limit (independent check):** the grid's ground truth (`debugTapTruth`) uses the same `tapSurface()` as the pick, so the grid proves the wiring and the buttons, not that the stair reads as tappable. The reviewer checked separately with screenshot overlays and found the behaviour right (360 at 0°: 58/58 stair; 412 at 0°: 186/186; doorway 52/52 at both sizes). A pixel-diff ground truth is left for later.
 
 ## Suites run
 
@@ -130,9 +126,9 @@ None added or changed. No visible text, no aria names (the buttons are lane M's)
 | `npm test` (all node suites, after the aura follow-up) | exit 0, all 0 failed |
 | `SMOKE_ONLY=J,Z,CAM node tools/smoke.js` | 202 passed, 1 failed (Z2 sew tap during the glide) |
 | same smoke Z at the base commit `5a6311f` | 118 passed, 0 failed |
-| `SMOKE_ONLY=Z` rerun on this branch (final code, includes the stair grid) | 132 passed, 0 failed |
+| `SMOKE_ONLY=Z` rerun on this branch (before the J3 removal, with the stair grid) | 132 passed, 0 failed |
 
-For the lead: no new test files. T8 is inside `tools/test-scene-perf.js` and the stair grid inside smoke Z, so CI needs nothing new as long as it already runs those two.
+For the lead: no new test files. T8 is inside `tools/test-scene-perf.js` (`tools/smoke.js` is unchanged from the base), so CI needs nothing new as long as it already runs those two.
 
 ## Measured numbers
 
@@ -140,21 +136,6 @@ For the lead: no new test files. T8 is inside `tools/test-scene-perf.js` and the
 - **Draw calls (independent check, real app):** base 50–51, meal 67.
 - **Dish:** +2 calls.
 - **Programs:** boot 34 (was 33: +1 for the prewarmed layer-1 twin variant). Unchanged after every visit and aura; cache keys compared.
-- **Stair tap grid, before → after:**
-
-| view | before stair | before door | after stair | after door |
-|---|---|---|---|---|
-| 360@2 0° | 125/180 (69 %) | 140/140 | 180/180 | 140/140 |
-| 360@2 0° night | 125/187 (67 %) | 133/133 | 187/187 | 133/133 |
-| 360@2 90° | 40/40 | — | 40/40 | — |
-| 360@2 180° night | 0/3 (stolen by the yard) | — | button hidden (edge) | — |
-| 412@2.625 0° | 340/409 (83 %) | 139/139 | 409/409 | 139/139 |
-| 412@2.625 0° night | 340/415 (82 %) | 133/133 | 415/415 | 133/133 |
-| 412@2.625 90° | 37/37 | — | 37/37 | — |
-| 412@2.625 180° | 53/81 (65 %) | — | 81/81 | — |
-| 412@2.625 180° night | 57/89 (64 %) | — | 89/89 | — |
-
-  Before, the misses went to `atticYard` or to null (clipped stair button). At 360@2 180° day neither target is visible.
 - **Play-room taps** (`wip/round6/notes/d-playtap.js`, truth = first visible surface; stand-in buttons because `#btn-table` is lane M's) — arcade / counter / table:
 
 | view | 360x740@2 | 412x915@2.625 |
@@ -182,7 +163,6 @@ For the lead: no new test files. T8 is inside `tools/test-scene-perf.js` and the
 
 ## Left, and not verified
 
-- The stair grid's independent ground truth (see "Known limit" above).
 - 320x568@2 was looked at only by the independent check (no defects reported), not in my own shots.
 - The play-room tap-target numbers come from a probe, not from a CI check.
 - I did not check the 360x740@3 size.

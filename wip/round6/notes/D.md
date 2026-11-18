@@ -59,3 +59,8 @@ grey-green wall and the wood/paper counter by day; at night it goes slate-blue a
 would sit close to the wall's green-grey by day.
 
 Shots: `wip/round6/shots/D/1-layout-360.png`, `1-layout-412.png` (day 0°, day 180°, night 0°, night 180° each).
+
+
+## J3 (loft stair tap) — dropped
+
+Removed at the owner's request: the owner's other branch moved the stair to the left wall's front corner, which solves J3 there. The attic pick and smoke `scenarioLoft` are back to the base lines.

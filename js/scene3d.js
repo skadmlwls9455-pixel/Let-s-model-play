@@ -5208,26 +5208,6 @@ var SCENE3D = (function () {
       });
       return best && d1 <= NEAR_PX && d2 - d1 >= NEAR_GAP ? best : null;
     }
-    var STAIR_HIT = new T.Box3(new T.Vector3(STAIR.x0 - 0.12, -0.01, STAIR.z0 - 0.06), new T.Vector3(STAIR.x1 + 0.06, STAIR.top + 0.95, STAIR.z1 + 0.06));   /* 11-18 계단 실제 모양 (디딤판 · 옆판 · 난간 · 기둥) 둘레 */
-    function tapSurface() {   /* 다락: 지금 광선이 처음 맞는 보이는 면 → 'stair' | 'door' (뒷벽 문간의 어둠) | 'oct' | 'other' | null */
-      var ms = [doorDark]; atticG.traverseVisible(function (o) { if (o.isMesh && o.material === lambert) ms.push(o); });
-      var ob = octG.visible && octG.parent === atticG ? bodyMeshes() : [];
-      var hs = ray.intersectObjects(ms.concat(ob), false); if (!hs.length) return null;
-      var h = hs[0]; if (ob.indexOf(h.object) >= 0) return 'oct'; if (h.object === doorDark) return 'door';
-      return STAIR_HIT.containsPoint(atticG.worldToLocal(h.point.clone())) ? 'stair' : 'other';
-    }
-    function playSurface() {   /* 놀이방: 광선이 처음 맞는 보이는 면 → 'machine' | 'counter' | 'table' | null (식탁 위 요리 · 앉은 두 캐릭터도 식탁) */
-      if (!PROOM) return null;
-      var ms = []; PROOM.g.traverseVisible(function (o) { if (o.isMesh && (o.material === lambert || o === TB.mesh || o.material === basicV)) ms.push(o); });
-      var bod = []; if (octG.parent === PROOM.g && octG.visible) bod = bod.concat(bodyMeshes()); if (plG.parent === PROOM.g && PL.tbl) plMeshes.forEach(function (m) { bod.push(m); });
-      var hs = ray.intersectObjects(ms.concat(bod), false); if (!hs.length) return null;
-      if (bod.indexOf(hs[0].object) >= 0 || hs[0].object === TB.mesh) return 'table';
-      var lp = PROOM.g.worldToLocal(hs[0].point.clone()), e = 0.02;
-      if (PROOM.boothBox.clone().expandByScalar(e).containsPoint(lp)) return 'table';
-      if (PROOM.machineBox.clone().expandByScalar(e).containsPoint(lp)) return 'machine';
-      if (PROOM.counterBox.clone().expandByScalar(e).containsPoint(lp) || PROOM.legBox.clone().expandByScalar(e).containsPoint(lp)) return 'counter';
-      return null;
-    }
     function pick(cx, cy) {   /* 클라이언트 CSS px (PointerEvent clientX/Y) → 탭 표적 메시 | null */
       var r = canvas.getBoundingClientRect();
       ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
@@ -5257,10 +5237,8 @@ var SCENE3D = (function () {
       if (okOct && ray.intersectObject(hit, false).length) return hit;
       if (ray.intersectObject(glass, false).length) return glass;
       if (doorOn && spotAt(cx, cy, ['atticPlay'])) return spotHit('atticPlay');
-      var yardOn = !!SPOTS.atticYard && !!spotInfo('atticYard'), stairOn = !!SPOTS.atticStair && !!spotInfo('atticStair'), ts = yardOn || stairOn ? tapSurface() : null;   /* 11-18 (검사 J3): 톡한 자리에 처음 보이는 면으로 — 계단 모양(디딤판 · 옆판 · 난간)이면 계단, 뒷벽 문간의 어둠이면 마당 문 */
-      if (ts === 'stair' && stairOn) return spotHit('atticStair');
-      if (ts === 'door' && yardOn) return spotHit('atticYard');
-      sp = spotAt(cx, cy, ts === 'stair' ? ['atticStair'] : ['atticStair', 'atticYard']); if (sp) return spotHit(sp);   /* 그 밖(벽 · 바닥 · 빈 곳)은 넓힌 단추 칸 — 계단 먼저 */
+      if (SPOTS.atticYard && spotInfo('atticYard')) { var dh = ray.intersectObjects([room, doorDark], false); if (dh.length && dh[0].object === doorDark) return spotHit('atticYard'); }   /* 11-15 마당 문: 톡한 자리에 보이는 게 뒷벽 문간의 어둠이면 (계단 · 난간이 앞에 있으면 계단) — 계단의 화면 상자는 크게 잡혀 문간까지 덮는다. 문어가 문간 앞이면 문어가 먼저 (위 레이캐스트) */
+      sp = spotAt(cx, cy, ['atticYard', 'atticStair']); if (sp) return spotHit(sp);   /* 위층 계단 · 문간 둘레의 넓힌 칸 */   /* 위층 계단 */   /* 문 그림 둘레의 넓힌 칸 (44×44 이상) */
       var ni = nearItem(cx - r.left, cy - r.top, r);
       if (ni) return ni;   /* 등불 8칸 선반 기념품이 거울 위에 겹쳐도 기념품이 먼저 */
       return salOn && spotAt(cx, cy, ['salon']) ? spotHit('salon') : null;   /* 거울 그림 둘레의 넓힌 칸 (44×44 이상) — 맨 끝 */
@@ -6688,7 +6666,6 @@ var SCENE3D = (function () {
         return out;
       },
       debugPlayTruth: function (x, y) { scene.updateMatrixWorld(); camera.updateMatrixWorld(); var r = canvas.getBoundingClientRect(); ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); return playSurface(); },   /* 11-18 시험용: 놀이방 그 자리에 보이는 것 */
-      debugTapTruth: function (x, y) { scene.updateMatrixWorld(); camera.updateMatrixWorld(); var r = canvas.getBoundingClientRect(); ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); return tapSurface(); },   /* 11-18 시험용: 그 자리에 보이는 것 (계단 · 문간 · 문어 · 그 밖) */
       pickAt: function (x, y) { scene.updateMatrixWorld(); camera.updateMatrixWorld(); var o = pick(+x, +y); return o ? { kind: o.userData.kind, id: tapId(o) } : null; },
       /* 디버그 (11-11 텃밭 시험, tools/smoke.js X): 바깥 원점 · 칸 흙 윗면 가운데 · 울타리 끝 기둥 (월드) · 흙 반폭 · 테 반폭 · 심은 것 지오메트리가 버릴 목록(keep)에 있나 · 목록 길이 · 내 캐릭터 머리 지오메트리 id (다시 지었나) */
       plotsDebug: function () {
