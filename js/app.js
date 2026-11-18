@@ -3296,7 +3296,9 @@ var APP = (function () {
       .then(function (j) {
         if (!j || !j.ok) { claudeSyncing = false; if (manual) toast('지금은 가져올 수 없어'); return; }
         if (j.far && j.far.state === 'proposed') farPending = j.far;   /* 먼 바다 문 제안 — 산책 재생이 끝난 뒤 한 번 묻는다 */
-        if (typeof j.lang === 'string' || j.lang === null) { r.lang = typeof j.lang === 'string' ? j.lang : null; r.pin = !!j.pin; save(); }   /* 방의 언어 (설정 화면이 보여 준다) */
+        var r0 = claudeRoom();   /* 11-18: 받아 오는 사이 다른 탭이 저장하면 S 가 통째로 바뀐다 (adoptRemote) — 처음 잡은 r 은 버려진 객체일 수 있으니 늘 지금의 방에 적는다 */
+        if (!r0 || r0.key !== r.key) { claudeSyncing = false; return; }
+        if (typeof j.lang === 'string' || j.lang === null) { r0.lang = typeof j.lang === 'string' ? j.lang : null; r0.pin = !!j.pin; save(); }   /* 방의 언어 (설정 화면이 보여 준다) */
         var list = (j.walks || []).filter(function (w) { return w && typeof w.file === 'string' && Array.isArray(w.events) && w.events.length; });
         if (!list.length) { claudeSyncing = false; if (manual && !farPending) toast('새로 다녀온 산책이 없어'); farAsk(); return; }
         (function next() {
@@ -3304,8 +3306,13 @@ var APP = (function () {
           if (!w) { claudeSyncing = false; if (j.more) setTimeout(function () { claudeSync(false); }, 800); else farAsk(); return; }
           (function tryImport() {
             if (busy) return setTimeout(tryImport, 700);
-            var ok = importEvents(w.events);
-            r.last = w.file; save();   /* 재생에 실패한 기록도 다시 잡지 않게 넘긴다 (그대로 서버에 남아 있다) */
+            /* 11-18 (주인: "새 주제인데 이전 포스터랑 그대로 … 저장되는 경우"): 게임이 탭 둘 (탭 + 설치한 앱) 에 열려 있으면 여기까지 온 사이 S 가 바뀌어, 예전 코드는 버려진 객체에 '어디까지 받았나' 를 적었다
+               → 다음에 같은 산책을 또 받아 같은 포스터가 새 차례로 한 번 더 저장됐다. ① 지금의 방 객체에 적고 ② 이미 들어온 산책 파일은 다시 재생하지 않는다 (여행에 walk 꼬리표) */
+            var cur = claudeRoom(); if (!cur || cur.key !== r.key) { claudeSyncing = false; return; }
+            var tag = (B && B.hashSeed ? B.hashSeed('walk', cur.key).toString(36) : 'w') + ':' + w.file, n0 = S.trips.length;
+            var ok = !S.trips.some(function (t) { return t && t.walk === tag; }) && importEvents(w.events);
+            if (ok && S.trips.length > n0) S.trips[S.trips.length - 1].walk = tag;
+            cur.last = w.file; save();   /* 재생에 실패한 기록도 다시 잡지 않게 넘긴다 (그대로 서버에 남아 있다) */
             if (!ok) return next();
             (function waitDone() { if (busy) return setTimeout(waitDone, 700); next(); })();
           })();
@@ -3805,7 +3812,7 @@ var APP = (function () {
      장면은 놀이방에 있는 동안 의식이 장소를 바꿔도 화면을 끌고 가지 않는다 (scene3d setPlaceNow). 문어가 돌아오면 구석 쪽지 "뚜루가 돌아왔어." + 보러 가기.
      큰 버튼(뽈뽈 다녀와 · 다녀오는 중…)은 문어 방의 일 → 놀이방이면 먼저 문으로 돌아와서 한다. 새로고침은 늘 문어 방 (지금 방은 저장하지 않는다).
      내 캐릭터 (SCENE.md '내 캐릭터'): walkFirst — 장면의 playerWalkTo(문 앞 앵커 atticPlayDoor · playAtticDoor)가 문 앞까지 걸어가서 풀리면 그때 문이 열린다 (2D 폴백엔 캐릭터가 없어 바로 풀린다) */
-  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew', plot0: 'btn-plot0', plot1: 'btn-plot1', plot2: 'btn-plot2', plot3: 'btn-plot3', plot4: 'btn-plot4', plot5: 'btn-plot5', atticYard: 'btn-yard', yardAttic: 'btn-yard-door', counter: 'btn-cook' };   /* 11-15: 밭 여섯 칸은 마당에 · 마당 문 (다락 뒷벽 문간 ↔ 마당 현관) */   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
+  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew', sewDoll: 'btn-sew-doll', plot0: 'btn-plot0', plot1: 'btn-plot1', plot2: 'btn-plot2', plot3: 'btn-plot3', plot4: 'btn-plot4', plot5: 'btn-plot5', atticYard: 'btn-yard', yardAttic: 'btn-yard-door', counter: 'btn-cook' };   /* 11-15: 밭 여섯 칸은 마당에 · 마당 문 (다락 뒷벽 문간 ↔ 마당 현관) */   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
   var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door', loft: 'btn-loft-stair', yard: 'btn-yard-door' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
   var furnHinted = false;   /* 첫 안내 한 줄은 이 창에서 처음 연 모드에만 (고르거나 끌면 걷힌다) */
   /* 11-15 가구 모드 (주인: "아예 가구 모드로 들어가서 문어나 캐릭터 없애고 가구만 딱딱 바꿀 수 있게"): 망치 단추 → 장면 furnMode. 문어 · 캐릭터 · 스틱 · 큰 버튼 · 방 단추가 숨고,
@@ -3959,7 +3966,7 @@ var APP = (function () {
   }
   function resetRoomUI() {   /* 장면을 바꿀 때 (sceneLost): 단추는 새 장면이 다시 맡는다 · 그 전까지 놀이방 단추는 숨김 */
     roomJob = null; hideBackNote(); if (furnMode) furnUI(null);   /* 11-15: 가구 모드는 장면과 같이 끝 (저장 안 한 것은 장면과 같이 사라진다) */
-    ['btn-play-door', 'btn-machine', 'btn-salon', 'btn-stair', 'btn-loft-stair', 'btn-sew', 'btn-plot0', 'btn-plot1', 'btn-plot2', 'btn-plot3', 'btn-plot4', 'btn-plot5', 'btn-yard', 'btn-yard-door', 'btn-cook'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
+    ['btn-play-door', 'btn-machine', 'btn-salon', 'btn-stair', 'btn-loft-stair', 'btn-sew', 'btn-sew-doll', 'btn-plot0', 'btn-plot1', 'btn-plot2', 'btn-plot3', 'btn-plot4', 'btn-plot5', 'btn-yard', 'btn-yard-door', 'btn-cook'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
     var d = $('btn-door'); if (d) { d.hidden = false; d.removeAttribute('data-spot'); ['left', 'top', 'width', 'height', 'right', 'bottom'].forEach(function (k) { d.style[k] = ''; }); }
     var sc = $('scene'); if (sc) { sc.setAttribute('data-view', 'attic'); sc.setAttribute('aria-label', '문어의 다락방'); }
   }
@@ -4119,6 +4126,7 @@ var APP = (function () {
     on('btn-stair', function (b, k) { goRoom('loft', b, k); });
     on('btn-loft-stair', function (b, k) { goRoom('attic', b, k); });
     on('btn-sew', function () { openSew(); });
+    on('btn-sew-doll', function () { openSew(); });   /* 11-18: 원피스 입은 마네킹 */
     on('btn-cook', function (b, k) { openCook(b, k); });   /* 11-15: 놀이방 조리대 → 부엌 */
     [0, 1, 2, 3, 4, 5].forEach(function (i) { on('btn-plot' + i, function () { gardenAct(i); }); var b = $('btn-plot' + i); if (b) b.addEventListener('focus', plotLabels); });   /* 마당 텃밭 칸 (11-15: 마당이 보일 때 연 칸만 장면이 단추를 올린다) · 포커스 때 이름을 다시 (11-11: 씨앗 수 · 날짜가 바뀌었을 수 있다) */
     on('btn-salon', function () { openSalon(); });   /* 미용실 거울 (그림 위 투명 단추 — 톡은 장면이 그린 순서대로 넘긴다: 문어가 거울 옆이면 문어가 먼저) */
@@ -4199,13 +4207,17 @@ var APP = (function () {
     stickSend(stickKeyVec());
   }
   function stickShow(allowed) {   /* 장면의 on.playerInput(allowed) · stickSync: hidden 과 #scene.stick-on. 숨길 땐 다 놓는다 */
-    var el = $('stick'), sc = $('scene');
+    var el = $('stick'), sc = $('scene'), zn = $('stick-zone');
     allowed = !!allowed && stickApi();
-    if (!allowed) { stk.keys = {}; stickRelease(el); }
-    stk.allowed = allowed;
+    /* 11-18 (주인: "따로 뚝 끊기는 게 핵심"): 내가 방을 옮기는 동안 (문까지 걷기 · 문 작업 · 전환 — scene.playerInputPause) 은 쥐고 있던 손가락 · 키를 놓지 않는다.
+       스틱 그림만 숨기고 누르는 구역은 남겨 손가락을 계속 잡고 있다가, 도착하면 쥐고 있던 쪽으로 이어 걷는다. 그 밖의 막힘 (창 · 가구 모드 · 바깥 · 연출) 은 예전처럼 다 놓는다 */
+    var pass = !allowed && stickApi() && typeof scene.playerInputPause === 'function' && !!scene.playerInputPause() && (stk.pid != null || !!stickKeyVec());
+    if (!allowed && !pass) { stk.keys = {}; stickRelease(el); }
+    var was = stk.allowed; stk.allowed = allowed;
     if (el && el.hidden !== !allowed) el.hidden = !allowed;
-    var zn = $('stick-zone'); if (zn && zn.hidden !== !allowed) zn.hidden = !allowed;
+    var zh = !allowed && !(pass && stk.pid != null); if (zn && zn.hidden !== zh) zn.hidden = zh;
     if (sc && sc.classList.contains('stick-on') !== allowed) sc.classList.toggle('stick-on', allowed);
+    if (allowed && !was) { var keep = stk.pid != null ? stk.vec : stickKeyVec(); stk.vec = null; stickSend(keep); }   /* 다시 받는다: 쥐고 있던 값을 새로 보낸다 (장면은 막힌 동안 입력을 지웠다) */
   }
   function stickSync() { stickShow(stickApi() && typeof scene.playerInputAllowed === 'function' ? !!scene.playerInputAllowed() : false); }
   function bindStick() {
@@ -4227,7 +4239,7 @@ var APP = (function () {
       stickFromPointer(el, e);
     });
     zone.addEventListener('pointermove', function (e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.preventDefault(); e.stopPropagation(); stickFromPointer(el, e); });
-    function up(e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.stopPropagation(); stickRelease(el); }
+    function up(e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.stopPropagation(); stickRelease(el); if (!stk.allowed && zone !== el && !zone.hidden) zone.hidden = true; }   /* 방을 옮기는 사이 손을 떼면 그때 놓는다 (구역도 숨는다) */
     zone.addEventListener('pointerup', up); zone.addEventListener('pointercancel', up); zone.addEventListener('lostpointercapture', up);
     zone.addEventListener('contextmenu', function (e) { e.preventDefault(); });
     el.addEventListener('contextmenu', function (e) { e.preventDefault(); });   /* 길게 누르고 있어도 메뉴가 뜨지 않게 */
@@ -4528,7 +4540,7 @@ var APP = (function () {
      · 들어온 날 선물: 그날 처음 열면 조개 3 + 씨앗 1. **연속 출석이 아니라 들어온 날 수만 센다** — 며칠을 쉬어도 끊기는 것 · 잃는 것 없음. 다섯 번째 날마다 조개 10 을 더.
        ("게임 할 시간 없거나 잘 못하는 사람도 재화 일부는 챙기게")
      · 텃밭 (11-15: 마당에 여섯 칸, 아래 GARDEN_AT): 씨앗 심기 → 물 두 번(칸마다 하루 한 번) → 꽃 → 거두면 그 색 염료 1. 물을 안 줘도 시들지 않는다 (멈춰 있을 뿐). 꽃 색은 시드 (심은 날 · 칸 · 몇 번째).
-     · 염료는 사지 않는다. 옷 물들이기에 1 개 쓴다 (원래 색으로 돌리기는 공짜).
+     · 염료는 꽃을 거둬 얻거나 재봉틀에서 조개 6 개로 산다 (11-18 주인: 확인하고 사고, 물들일 것은 나중에 고른다). 물들이기에 1 개 쓴다 (옷 · 신발 · 악세사리 — 물건마다 색이 남는다 · 원래 색으로 돌리기는 공짜).
      저장: S.user = { shells, seeds, dyes: { 색: n }, days: [날짜…], giftDay, giftTell: { day, shells, n } (아직 못 알린 오늘 선물 줄 — 11-12), garden: [{ color, water, wateredDay } | null × 6 (11-15: 3 → 6)], plotTold: 알린 밭 칸 수 (11-15), dye: hex | null, earned: [놀이 판 id…(최근 50)] } */
   /* 11-15 마당 텃밭 (주인: "여섯칸 · 같이 지낸 날짜에 따라서 해금 · 느린 컨텐츠"): 처음 세 칸, 함께한 날(S.octopus.days) 7 · 15 · 30 일에 한 칸씩. 잠긴 칸은 어디에도 보이지 않는다 (남은 날 · 자물쇠 없음).
      열리는 날 한 줄만 (weekTell — 다른 알림처럼 볼 수 있을 때 한 번, user.plotTold 에 적는다). 밭은 마당에서만 (3D) · 2D 폴백엔 마당이 없어 살림 시트에 단추가 남는다 */
@@ -4537,6 +4549,7 @@ var APP = (function () {
   function gardenHere() { return sceneMode !== '3d'; }   /* 살림 시트에 밭 단추를 두나 (마당 장면이 없는 2D 폴백만) */
   var DYES = [['red', '빨강', '#c8323a'], ['yellow', '노랑', '#e8a93a'], ['green', '초록', '#4fa868'], ['blue', '파랑', '#4a86d8'], ['purple', '보라', '#9a5cc8'], ['pink', '분홍', '#f07aa8']];
   function dyeOf(id) { for (var i = 0; i < DYES.length; i++) if (DYES[i][0] === id) return DYES[i]; return null; }
+  var DYE_CATS = ['outfit', 'shoes', 'acc'];   /* 11-18: 물들일 수 있는 갈래 (옷 · 신발 · 악세사리) */
   function userState() {
     var u = isObj(S.user) ? S.user : (S.user = {});
     u.shells = Math.max(0, u.shells | 0); u.seeds = Math.max(0, u.seeds | 0);
@@ -4544,6 +4557,9 @@ var APP = (function () {
     if (!Array.isArray(u.garden)) u.garden = [null, null, null]; while (u.garden.length < GARDEN_N) u.garden.push(null);   /* 11-15: 세 칸 → 여섯 칸 (뒤에 빈 칸만 덧붙인다 — 있던 세 칸은 자리 · 내용 그대로) */
     if (typeof u.plotTold !== 'number' || !(u.plotTold >= 3)) u.plotTold = 3;   /* 11-15: 새로 생긴 밭을 알린 칸 수 (처음 세 칸은 늘 있다) */
     for (var gi = 0; gi < u.garden.length; gi++) if (u.garden[gi] != null && !(isObj(u.garden[gi]) && typeof u.garden[gi].color === 'string' && u.garden[gi].color)) u.garden[gi] = null;   /* 11-11: 객체가 아닌 칸만 빈 칸으로 (모르는 색은 그대로 둔다 — 나중 빌드가 알 수도 있다). 11-13: 색 글자가 없는 칸도 (심을 때 늘 색을 넣는다 — 거두면 염료 'undefined' 가 생겼다) */
+    /* 11-18: 물건마다 물들인 색 — dyed = { outfit: { 옷 id: '#hex' }, shoes: {…}, acc: {…} }. 예전 칸 dye (색 하나 = 그때 입은 옷) 는 처음 한 번 그 옷의 색으로 옮긴다 (dye 는 지우지 않고 '지금 입은 옷의 색' 으로 맞춰 둔다 — applyDye) */
+    if (!isObj(u.dyed)) { u.dyed = {}; var o0 = wornOf('outfit'); if (typeof u.dye === 'string' && /^#[0-9a-f]{6}$/i.test(u.dye) && o0) u.dyed.outfit = {}, u.dyed.outfit[o0] = u.dye; }
+    DYE_CATS.forEach(function (c) { if (!isObj(u.dyed[c])) u.dyed[c] = {}; });
     return u;
   }
   function earnFromPlay(r, o) {   /* 놀이 한 판 → 조개 (같은 판 id 는 한 번만). 11-15 5차: o.quiet = 알림 없이 (달리기 결과 판이 조개 그림 + n 으로 보여 준다) — 준 수를 돌려준다 */
@@ -4712,12 +4728,12 @@ var APP = (function () {
     else { g.water = v.w + 1; g.wateredDay = dk; toast(g.water >= 2 ? '꽃이 피었어' : '물을 줬어'); questMark('water'); }
     save(); renderBag(); applyGarden();
   }
-  function applyDye() { if (scene && typeof scene.setPlayerDye === 'function') { try { scene.setPlayerDye(userState().dye || null); } catch (e) { console.warn('[app] setPlayerDye', e); } } }
-  function dyeUse(id) {
-    var u = userState();
-    if (id === null) { u.dye = null; save(); applyDye(); renderBag(); toast('원래 색으로 돌렸어'); return; }
-    var d = dyeOf(id); if (!d || (u.dyes[id] | 0) < 1) return;
-    u.dyes[id]--; u.dye = d[2]; save(); applyDye(); renderBag(); toast('옷을 ' + d[1] + '으로 물들였어');
+  function wornOf(cat) { var c = S.settings && S.settings.player; return (isObj(c) && typeof c[cat] === 'string' && c[cat]) || (cat === 'outfit' ? 'dress' : null); }   /* 지금 입은 것 (옷은 기본 원피스) */
+  function applyDye() {   /* 장면에 물건별 색을 넘긴다 · 예전 칸 dye 는 '지금 입은 옷의 색' 으로 맞춘다 (옛 빌드 · 시험이 읽는다) */
+    var u = userState(), cur = u.dyed.outfit[wornOf('outfit')] || null;
+    if ((u.dye || null) !== cur) u.dye = cur;
+    if (!scene) return;
+    try { if (typeof scene.setPlayerDyes === 'function') scene.setPlayerDyes(u.dyed); else if (typeof scene.setPlayerDye === 'function') scene.setPlayerDye(cur); } catch (e) { console.warn('[app] setPlayerDyes', e); }
   }
   /* 위층 옷방 재봉틀 (11-10 주인: "여기서 사용자가 재화 써서 옷 색도 바꿀 수 있게"): 기른 염료가 있으면 그걸 1 개 쓰고, 없으면 조개 DYE_COST 개로 그 색 옷감을 산다. 원래 색으로 돌리기는 공짜 */
   /* 세트 도감 (11-10 주인 "세트 도감은 완전 찬성"): 옷 · 신발 · 장식 셋을 맞춰 입으면 그 세트가 도감에 적힌다 (뽑기 없음 · 값 없음 — 가진 옷으로 스스로 찾아내는 수집).
@@ -4752,32 +4768,98 @@ var APP = (function () {
     });
     frag.appendChild(list);
   }
-  var DYE_COST = 6;
-  function sewDye(id, btn) {
-    var u = userState();
-    if (id === null) { u.dye = null; save(); applyDye(); renderSew(); toast('원래 색으로 돌렸어'); return; }
-    var d = dyeOf(id); if (!d) return;
-    if ((u.dyes[id] | 0) > 0) u.dyes[id]--;
-    else if (u.shells >= DYE_COST) u.shells -= DYE_COST;
-    else { var miss = DYE_COST - u.shells; furnShake(btn && btn.querySelector('.sew-cost')); toast([h('span', { 'aria-hidden': 'true' }, [shellAmt(miss), ' 모자라']), h('span', { class: 'sr-only', text: '조개가 ' + miss + '개 모자라. 다락방 달리기나 들어온 날 선물로 생겨' })]); return; }   /* 11-15 (검증 O-3): 긴 안내 글 대신 그림 — 누른 칸의 값 표가 짧게 흔들리고 (동작 줄이기면 안 흔들림) 조개 그림 + 모자란 수. 읽어 주기는 예전 글 그대로 · 진동은 없다 (주인 목록 밖) */
-    u.dye = d[2]; save(); applyDye(); renderSew(); renderBagChip(); toast('옷을 ' + d[1] + '으로 물들였어');
+  /* 11-18 (주인: "조개 살 때 염색할 옷을 나중에 고르는 걸로 … 구매 하시겠습니까? 같은 버튼 없어서 조개 다 날린 데다가 염료 적용할 옷도 현재 옷으로 자동 설정되어버려서" · "헤어 악세사리나 신발 등도 염색 가능하면"):
+     ① 조개로는 염료를 **산다** — 확인 한 번 ('살래' / '그만'), 사자마자 물들이지 않는다 (염료 +1)
+     ② 물들이기는 **물들일 것을 먼저 고르고** (옷 · 신발 · 악세사리 — 입고 있지 않은 것도) 색을 누른 뒤 확인 한 번
+     ③ 색은 물건마다 따로 남는다 (S.user.dyed) · 원래 색으로 돌리기도 확인 한 번 (쓴 염료는 돌아오지 않는다)
+     확인 줄은 색 칸 위에 뜬다 (누른 자리 밑이 아니라 — 두 번 톡이 '살래' 로 들어가지 않게) · 묻는 동안 색 칸은 쉰다 */
+  var DYE_COST = 6, sewPick = null, sewAsk = null, sewPicking = false;   /* sewPick = 고른 물들일 것 { cat, id } · sewAsk = 묻는 중 { kind: 'buy' | 'dye' | 'undo', color } · sewPicking = 물들일 것을 고르는 화면 */
+  function sewFocus(sel, i) { var el = document.querySelectorAll(sel + ' button')[i]; if (el && !el.disabled) el.focus(); }
+  function eulReul(w) { var c = String(w).charCodeAt(String(w).length - 1); return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 ? '을' : '를'; }
+  function euro(w) { var c = String(w).charCodeAt(String(w).length - 1), j = c >= 0xAC00 && c <= 0xD7A3 ? (c - 0xAC00) % 28 : 0; return j && j !== 8 ? '으로' : '로'; }   /* 받침이 있고 ㄹ 이 아니면 '으로' (빨강으로 · 보라로) */
+  function dyeItems(cat) {   /* 그 갈래에서 물들일 수 있는 것 (장면이 아는 것만 — 2D 면 '없음' 만 뺀다) */
+    var P = playerParts(), ok = scene && typeof scene.dyeable === 'function' ? function (id) { return scene.dyeable(cat, id); } : function (id) { return id !== 'none'; };
+    return (P[cat] || []).filter(function (x) { return ok(x.id); });
+  }
+  function sewTarget() {   /* 고른 것이 없거나 없어졌으면 지금 입은 옷 */
+    if (sewPick && dyeItems(sewPick.cat).some(function (x) { return x.id === sewPick.id; })) return sewPick;
+    var o = wornOf('outfit'), list = dyeItems('outfit');
+    return (sewPick = { cat: 'outfit', id: list.some(function (x) { return x.id === o; }) ? o : (list[0] ? list[0].id : 'dress') });
+  }
+  function sewDo(ask) {   /* 확인 ('살래' · '물들일래' · '돌릴래') 을 누른 뒤에만 */
+    var u = userState(), t = sewTarget(), d = ask.color ? dyeOf(ask.color) : null, nm = partName(t.cat, t.id);
+    if (ask.kind === 'buy') {
+      if (!d || u.shells < DYE_COST) { renderSew(); return; }
+      u.shells -= DYE_COST; u.dyes[d[0]] = (u.dyes[d[0]] | 0) + 1; save(); renderSew(); renderBagChip(); toast(d[1] + ' 염료 1개를 샀어');
+    } else if (ask.kind === 'dye') {
+      if (!d || (u.dyes[d[0]] | 0) < 1) { renderSew(); return; }
+      u.dyes[d[0]]--; u.dyed[t.cat][t.id] = d[2]; save(); applyDye(); renderSew(); toast(nm + eulReul(nm) + ' ' + d[1] + euro(d[1]) + ' 물들였어' + (wornOf(t.cat) === t.id ? '' : '. 입으면 보여'));
+    } else if (ask.kind === 'undo') {
+      if (!u.dyed[t.cat][t.id]) { renderSew(); return; }
+      delete u.dyed[t.cat][t.id]; save(); applyDye(); renderSew(); toast(nm + eulReul(nm) + ' 원래 색으로 돌렸어');
+    }
+    sewFocus('#sew-body .sew-grid', 0);
+  }
+  function sewDye(id, btn) {   /* 색 칸을 눌렀다: 염료가 있으면 '물들일까?' · 없으면 '살까?' (조개가 모자라면 값 그림이 흔들린다) — 여기서는 아무것도 쓰지 않는다 */
+    var u = userState(), d = dyeOf(id); if (!d || sewAsk) return;
+    if ((u.dyes[id] | 0) > 0) sewAsk = { kind: 'dye', color: id };
+    else if (u.shells >= DYE_COST) sewAsk = { kind: 'buy', color: id };
+    else { var miss = DYE_COST - u.shells; furnShake(btn && btn.querySelector('.sew-cost')); toast([h('span', { 'aria-hidden': 'true' }, [shellAmt(miss), ' 모자라']), h('span', { class: 'sr-only', text: '조개가 ' + miss + '개 모자라. 다락방 달리기나 들어온 날 선물로 생겨' })]); return; }   /* 11-15 (검증 O-3): 긴 안내 글 대신 그림 */
+    renderSew(); sewFocus('#sew-body .sew-ask', 0);
   }
   function renderSew() {
-    var body = $('sew-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment();
+    var body = $('sew-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment(), tg = sewTarget(), nm = partName(tg.cat, tg.id), has = u.dyed[tg.cat][tg.id] || null;
     var d0 = body.querySelector('details.sew-sets'); if (d0) sewSetsOpen = d0.open;   /* 11-15: 펼친 채 다시 그리기 (toggle 은 늦게 온다) */
-    frag.appendChild(h('p', { class: 'bag-line' }, [shellAmt(u.shells)]));   /* 11-15 (주인 답): 조개 그림 + 수 · 설명 쪽지 '염료나 조개 6개로 옷을 물들여' 는 뺐다 (칸마다 값이 그림으로 있다) */
-    var row = h('div', { class: 'sew-grid', role: 'group', 'aria-label': '옷 색' });
-    DYES.forEach(function (d) {
-      var own = u.dyes[d[0]] | 0, cur = u.dye === d[2];
-      /* 11-15 (주인 답): 칸 = 색 덩어리 (칸 폭 · 40px) + 색 이름 (색을 잘 못 가리는 사람 몫). 덩어리 위 표: 입는 중 = 체크 · 염료가 있으면 그 수 · 없으면 조개 그림 + 6. 읽어 주기는 예전 글 그대로 */
-      var badge = cur ? [pxIco('check'), h('span', { class: 'sr-only', text: '입는 중' })] : own ? [h('span', { class: 'sr-only', text: '염료 ' }), h('span', { text: String(own) })] : [shellAmt(DYE_COST)];
-      var b = h('button', { type: 'button', class: 'sew-chip pressable' + (cur ? ' on' : ''), 'aria-pressed': cur ? 'true' : 'false' }, [h('span', { class: 'sew-sw' }, [h('span', { class: 'sew-cost' + (own && !cur ? ' own' : '') }, badge)]), h('span', { class: 'sew-name', text: d[1] })]);
-      b.querySelector('.sew-sw').style.background = d[2];
-      if (!cur) b.addEventListener('click', function () { sewDye(d[0], b); });
-      row.appendChild(b);
-    });
-    frag.appendChild(row);
-    if (u.dye) { var off = h('button', { type: 'button', class: 'btn sm pressable sew-off', text: '원래 색으로' }); off.addEventListener('click', function () { sewDye(null); }); frag.appendChild(off); }
+    /* 맨 윗줄: 물들일 것 단추 (누르면 고르는 화면) + 조개. 시트는 화면 반을 넘지 않는다 (물들인 내 모습이 뒤에 보여야 한다) → 줄을 늘리지 않고 한 줄에 */
+    var tb = h('button', { type: 'button', class: 'fchip sew-target' + (sewPicking ? ' on' : ''), 'aria-pressed': String(!!sewPicking), 'aria-label': '물들일 것: ' + nm + '. 바꾸기' }, [h('span', { text: nm }), h('span', { class: 'sew-change', text: ' · 바꾸기' })]);
+    tb.addEventListener('click', function () { sewPicking = !sewPicking; sewAsk = null; renderSew(); sewFocus('#sew-body ' + (sewPicking ? '.sew-cats' : '.sew-top'), 0); });
+    frag.appendChild(h('div', { class: 'sew-top' }, [tb, h('p', { class: 'bag-line' }, [shellAmt(u.shells)])]));   /* 11-15 (주인 답): 조개 그림 + 수 */
+    if (sewPicking) {
+      /* 물들일 것 고르기: 갈래 (옷 · 신발 · 악세사리) → 그 갈래의 물건 (입는 중 · 물들인 색 점). 고르면 색 칸으로 돌아간다 */
+      var cats = h('div', { class: 'filters sew-cats', role: 'group', 'aria-label': '갈래' });
+      DYE_CATS.forEach(function (cat) {
+        var list = dyeItems(cat); if (!list.length) return;
+        var on = tg.cat === cat, b = h('button', { type: 'button', class: 'fchip' + (on ? ' on' : ''), 'aria-pressed': String(on), text: lookCatName(cat) });
+        b.addEventListener('click', function () { var w = wornOf(cat); sewPick = { cat: cat, id: list.some(function (x) { return x.id === w; }) ? w : list[0].id }; renderSew(); sewFocus('#sew-body .sew-cats', DYE_CATS.indexOf(cat)); });
+        cats.appendChild(b);
+      });
+      frag.appendChild(cats);
+      var items = h('div', { class: 'filters sew-items', role: 'group', 'aria-label': lookCatName(tg.cat) });
+      dyeItems(tg.cat).forEach(function (x) {
+        var on = tg.id === x.id, worn = wornOf(tg.cat) === x.id, col = u.dyed[tg.cat][x.id] || null, kids = [];
+        if (col) { var dot = h('span', { class: 'sew-dot', 'aria-hidden': 'true' }); dot.style.background = col; kids.push(dot); }
+        kids.push(h('span', { text: x.name })); if (worn) kids.push(h('span', { class: 'sew-worn', text: '입는 중' }));
+        var b = h('button', { type: 'button', class: 'fchip sew-item' + (on ? ' on' : ''), 'aria-pressed': String(on) }, kids);
+        b.addEventListener('click', function () { sewPick = { cat: tg.cat, id: x.id }; sewPicking = false; renderSew(); sewFocus('#sew-body .sew-top', 0); });
+        items.appendChild(b);
+      });
+      frag.appendChild(items);
+      body.textContent = ''; body.appendChild(frag); return;
+    }
+    if (sewAsk) {   /* 확인 줄 — 색 칸 자리에 (누른 칸 밑이 아니라 · 묻는 동안 색 칸은 없다 — 두 번 톡이 '살래' 로 들어가지 않게) */
+      var ad = sewAsk.color ? dyeOf(sewAsk.color) : null, line, yes, sw = null;
+      if (sewAsk.kind === 'buy') { line = [h('span', { text: ad[1] + ' 염료 1개 · ' }), shellAmt(DYE_COST), h('span', { text: ' 살까?' })]; yes = '살래'; }
+      else if (sewAsk.kind === 'dye') { line = [h('span', { text: nm + eulReul(nm) + ' ' + ad[1] + euro(ad[1]) + ' 물들일까? ' + ad[1] + ' 염료 1개를 써' })]; yes = '물들일래'; }
+      else { line = [h('span', { text: nm + eulReul(nm) + ' 원래 색으로 돌릴까? 쓴 염료는 돌아오지 않아' })]; yes = '돌릴래'; }
+      if (ad) { sw = h('span', { class: 'sew-sw sew-ask-sw', 'aria-hidden': 'true' }); sw.style.background = ad[2]; }
+      var by = h('button', { type: 'button', class: 'btn sm pressable sew-yes', text: yes }), bn = h('button', { type: 'button', class: 'btn sm pressable sew-no', text: '그만' });
+      by.addEventListener('click', function () { var a = sewAsk; sewAsk = null; if (a) sewDo(a); });
+      bn.addEventListener('click', function () { sewAsk = null; renderSew(); sewFocus('#sew-body .sew-grid', 0); });
+      frag.appendChild(h('div', { class: 'sew-ask', role: 'group', 'aria-label': '확인' }, [h('p', { class: 'sew-ask-line' }, (sw ? [sw] : []).concat(line)), h('div', { class: 'btn-row sew-ask-btns' }, [bn, by])]));
+    } else {
+      var row = h('div', { class: 'sew-grid', role: 'group', 'aria-label': nm + ' 색' });
+      DYES.forEach(function (d) {
+        var own = u.dyes[d[0]] | 0, cur = has === d[2];
+        /* 11-15 (주인 답): 칸 = 색 덩어리 (칸 폭 · 40px) + 색 이름. 덩어리 위 표: 고른 것의 지금 색 = 체크 · 염료가 있으면 그 수 · 없으면 조개 그림 + 6 */
+        var badge = cur ? [pxIco('check'), h('span', { class: 'sr-only', text: '지금 색' })] : own ? [h('span', { class: 'sr-only', text: '염료 ' }), h('span', { text: String(own) })] : [shellAmt(DYE_COST)];
+        var b = h('button', { type: 'button', class: 'sew-chip pressable' + (cur ? ' on' : ''), 'aria-pressed': cur ? 'true' : 'false' }, [h('span', { class: 'sew-sw' }, [h('span', { class: 'sew-cost' + (own && !cur ? ' own' : '') }, badge)]), h('span', { class: 'sew-name', text: d[1] })]);
+        b.querySelector('.sew-sw').style.background = d[2];
+        if (!cur) b.addEventListener('click', function () { sewDye(d[0], b); });
+        row.appendChild(b);
+      });
+      frag.appendChild(row);
+      if (has) { var off = h('button', { type: 'button', class: 'btn sm pressable sew-off', text: '원래 색으로' }); off.addEventListener('click', function () { sewAsk = { kind: 'undo' }; renderSew(); sewFocus('#sew-body .sew-ask', 0); }); frag.appendChild(off); }
+    }
     renderSets(frag);
     body.textContent = ''; body.appendChild(frag);
   }
@@ -4793,7 +4875,7 @@ var APP = (function () {
     if (window.MutationObserver) new MutationObserver(sync).observe(d, { attributes: true, attributeFilter: ['open'] });
     d.addEventListener('close', sync); window.addEventListener('resize', sync);
   }
-  function openSew() { var sh = $('sew-sheet'); if (!sh) return; var d0 = sh.querySelector('details.sew-sets'); if (d0) d0.open = false; sewSetsOpen = false; renderSew(); showDialog(sh); }
+  function openSew() { var sh = $('sew-sheet'); if (!sh) return; var d0 = sh.querySelector('details.sew-sets'); if (d0) d0.open = false; sewSetsOpen = false; sewAsk = null; sewPick = null; sewPicking = false; renderSew(); showDialog(sh); }   /* 11-18: 새로 열면 묻던 것 없이 · 물들일 것은 지금 입은 옷부터 */
   function renderBag() {
     var body = $('bag-body'); if (!body) return; var u = userState(), frag = document.createDocumentFragment(), dk = todayKey();
     weekState();   /* 11-11 (검증 W1): 주 먼저 — 이 톡이 주를 넘기며 지난주 선물을 넣으면 바로 아랫줄 조개 · 씨앗 수에 들어가 있게 */

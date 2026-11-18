@@ -166,7 +166,9 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <!-- 가방 꼬리표 (11-10): 위쪽 바 아래 오른쪽에 매달린 조개 그림 + N (11-15 주인 답: 글자 '조개' 대신 그림) — 누르면 살림 시트 (조개 · 씨앗 · 들어온 날 · 텃밭 · 옷 물들이기). 이름을 지은 뒤부터 보인다 -->
   <button type="button" id="btn-bag" class="bag-tag pressable" aria-haspopup="dialog" aria-controls="bag-sheet" hidden><img class="bag-shell" data-icon="souvenir/shell" width="32" height="32" alt="" aria-hidden="true" draggable="false"><span class="sr-only">조개 </span><span id="bag-n">0</span></button>
   <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
-  <button type="button" id="btn-stair" class="scene-spot" aria-label="위층으로" title="위층으로" hidden></button>
+  <!-- 11-18 위층 계단: 계단 그림 위 투명 단추 (data-spot="over"). 계단이 화면 가장자리 밖이면 (계단은 왼벽 앞쪽 구석 — 360px 폰의 기본 구도에선 안 보인다)
+       data-spot="edge" 로 그쪽 가장자리의 작은 계단 그림 단추 (16×16 ×2, 직접 그린 픽셀 그림) — 누르면 걸어가 오른다 -->
+  <button type="button" id="btn-stair" class="scene-spot" aria-label="위층으로" title="위층으로" hidden><span class="stair-box" aria-hidden="true"><svg class="stair-ico" viewBox="0 0 16 16" width="32" height="32" shape-rendering="crispEdges" focusable="false"><path fill="#2b1d22" d="M2 2h3v1H2zM1 3h1v1H1zM5 3h1v1H5zM1 4h1v1H1zM5 4h1v1H5zM1 5h1v1H1zM5 5h3v1H5zM1 6h1v1H1zM8 6h1v1H8zM1 7h1v1H1zM8 7h1v1H8zM1 8h1v1H1zM8 8h3v1H8zM1 9h1v1H1zM11 9h1v1H11zM1 10h1v1H1zM11 10h1v1H11zM1 11h1v1H1zM11 11h3v1H11zM1 12h1v1H1zM14 12h1v1H14zM1 13h1v1H1zM14 13h1v1H14zM1 14h1v1H1zM14 14h1v1H14zM2 15h12v1H2z"/><path fill="#e7d5b3" d="M2 3h3v1H2zM5 6h3v1H5zM8 9h3v1H8zM11 12h3v1H11z"/><path fill="#ad7757" d="M2 4h2v1H2zM2 5h2v1H2zM2 6h3v1H2zM2 7h5v1H2zM2 8h5v1H2zM2 9h6v1H2zM2 10h8v1H2zM2 11h8v1H2zM2 12h9v1H2zM2 13h11v1H2zM2 14h11v1H2z"/><path fill="#7a4841" d="M4 4h1v1H4zM4 5h1v1H4zM7 7h1v1H7zM7 8h1v1H7zM10 10h1v1H10zM10 11h1v1H10zM13 13h1v1H13zM13 14h1v1H13z"/></svg></span></button>
   <button type="button" id="btn-loft-stair" class="scene-spot" aria-label="아래층으로" title="아래층으로" hidden></button>
   <button type="button" id="btn-plot0" class="scene-spot" aria-label="텃밭 첫째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-plot1" class="scene-spot" aria-label="텃밭 둘째 칸" title="텃밭" hidden></button>
@@ -175,6 +177,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <button type="button" id="btn-plot4" class="scene-spot" aria-label="텃밭 다섯째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-plot5" class="scene-spot" aria-label="텃밭 여섯째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-sew" class="scene-spot" aria-label="재봉틀 · 옷 물들이기" title="재봉틀" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-sew-doll" class="scene-spot" aria-label="마네킹 · 옷 물들이기" title="마네킹" aria-haspopup="dialog" hidden></button>
   <!-- 11-15: 놀이방 조리대 → 부엌 (cook.html?embed=1 을 #cook-overlay 안 iframe 으로 — 처음 열 때 만든다) -->
   <button type="button" id="btn-cook" class="scene-spot" aria-label="부엌" title="부엌" aria-haspopup="dialog" hidden></button>
   <!-- 발자국 손잡이 (가상 스틱, 주인 11-08 "바닥 톡보다 훨씬 자연스럽다"): 장면 왼쪽 아래 72px 고리 + 28px 손잡이. 끌면 그 화면 방향으로 내 캐릭터가 걷는다 (js/app.js stick 절 · scene.setPlayerInput).
