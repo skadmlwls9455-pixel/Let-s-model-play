@@ -4150,11 +4150,13 @@ var APP = (function () {
       d.addEventListener('cancel', function () { dishPickKbd = true; });   /* Esc · 뒤로 */
       d.addEventListener('close', function () {
         var op = dishPickOpener; window.removeEventListener('resize', dishPickFit);
+        document.documentElement.classList.remove('dish-picking');   /* 큰 단추 · 발자국 손잡이를 그대로 되돌린다 */
         if (!dishPicked && op && !op.hidden) focusRoomBtn(op, dishPickKbd);   /* 고르지 않고 닫으면 조리대 단추로 */
       });
     }
     dishPickOpener = opener; dishPickKbd = !!kbd; dishPicked = false;
     if (opener && document.activeElement !== opener && !opener.hidden) focusRoomBtn(opener, !!kbd);
+    document.documentElement.classList.add('dish-picking');   /* 쟁반이 열린 동안 '산책 갈래?' 단추와 발자국 손잡이는 숨긴다 (칩 사이로 글자 조각이 비쳤다 · 모달이라 어차피 못 누른다) */
     d.showModal();
     dishPickFit(); window.addEventListener('resize', dishPickFit);
     var first = d.querySelector('button[data-recipe]');

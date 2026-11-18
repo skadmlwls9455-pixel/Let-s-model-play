@@ -1709,5 +1709,6 @@ dialog.dish-pick .dp-chip:nth-child(1) { left: 0; }
 dialog.dish-pick .dp-chip:nth-child(2) { left: calc(var(--dp-chip, 64px) + var(--dp-gap, 16px)); }
 dialog.dish-pick .dp-chip:nth-child(3) { left: calc(2 * var(--dp-chip, 64px) + 2 * var(--dp-gap, 16px)); }
 dialog.dish-pick .dp-chip img { position: absolute; left: var(--dp-icp, 8px); top: var(--dp-icp, 8px); width: var(--dp-ic, 48px); height: var(--dp-ic, 48px); image-rendering: pixelated; }
+html.dish-picking #btn-go, html.dish-picking #stick { visibility: hidden !important; }   /* 리드 11-18: 쟁반이 열린 동안 아래 막대의 큰 단추 · 손잡이가 칩 사이로 비치지 않게 (닫으면 클래스만 빠진다 → 그대로) */
 dialog.dish-pick .dp-chip:focus { outline: none; }
 dialog.dish-pick .dp-chip:focus-visible, .cook-wait .cw-close:focus-visible { outline: var(--dp-b, 2px) solid #341c27; outline-offset: var(--dp-b, 2px); }
