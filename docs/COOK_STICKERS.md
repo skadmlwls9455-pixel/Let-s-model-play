@@ -105,10 +105,20 @@ jeon: { name: '해초전', cues: [
   { on: 'flip', pick: ['cheer', 'thumbs'] },                // 휙 뒤집음
   { on: 'cut', is: { i: 1 }, pick: 'thumbs' },              // 열십자 다 썲
   { on: 'done', pick: ['heart_plate', 'star'] }             // 접시 공개
+] },
+jumeokbap: { name: '주먹밥', cues: [                        // 11-18 6차
+  { on: 'tap', is: { i: 8 }, pick: 'clap', force: true },   // 밥 다 다짐
+  { on: 'flip', pick: ['cheer', 'thumbs'] },                // 휙 뒤집음
+  { on: 'done', pick: ['heart_plate', 'star'] }             // 접시 공개
+] },
+kkochi: { name: '과일 꼬치', cues: [                        // 11-18 6차
+  { on: 'cut', is: { i: 1 }, pick: 'thumbs' },              // 두 번 다 썲
+  { on: 'tap', is: { i: 8 }, pick: 'clap', force: true },   // 꼬치에 다 끼움
+  { on: 'done', pick: ['heart_plate', 'star'] }             // 접시 공개
 ] }
 ```
 
-지금 있는 요리는 해초전 하나다. 조각 2 가 미역국 · 톳 주먹밥을 더하면 그 요리 id 로 `RECIPES` 에 한 덩이씩 더한다 (검사가 act 이름·스티커 id 를 확인한다).
+요리는 셋이다 (11-18 6차: 해초전 · 주먹밥 · 과일 꼬치). 새 요리를 더하면 그 요리 id 로 `RECIPES` 에 한 덩이씩 더한다 (검사가 act 이름·스티커 id 를 확인한다). 과일 꼬치의 센 톡은 소리로는 `place` 지만 스티커에는 부엌의 act `tap` 그대로 온다. `test-cook-stickers.js` 는 두 새 요리도 한 판씩 수백 번 돌려 기분 얼굴 0 장 · 닿는 스티커 5종 이상 · 한 판 3장 이상을 본다.
 
 ## 자리 (11-15, 가까이 보기 부엌)
 

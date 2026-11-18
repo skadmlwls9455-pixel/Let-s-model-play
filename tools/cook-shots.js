@@ -399,6 +399,12 @@ async function setEmbed(browser) {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cpt[0], y: cpt[1], id: 1 }] });
     await realWait(60);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    /* 11-18 round 6: a fresh kitchen key -> the counter shows the dish tray (#dish-pick) first; a finger picks the jeon */
+    if (!await poll(function () { return page.evaluate(function () { var d = document.getElementById('dish-pick'); return !!(d && d.open); }); }, 10000)) throw new Error('the counter did not show the dish tray');
+    var chip = await page.evaluate(function () { var r = document.querySelector('#dish-pick .dp-chip[data-recipe="jeon"]').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: chip[0], y: chip[1], id: 2 }] });
+    await realWait(60);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     /* from here the page's own timers and frames stand still: wait in real time, polling */
     if (!await poll(function () { return page.evaluate(function () { var o = document.getElementById('cook-overlay'); return !!(o && o.open && o.querySelector('iframe')); }); }, 10000)) throw new Error('the counter did not open #cook-overlay');
     var fh = await page.$('#cook-overlay iframe'), fr = null;

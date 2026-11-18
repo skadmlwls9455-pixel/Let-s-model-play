@@ -4136,7 +4136,13 @@ var APP = (function () {
       dishPickBound = true;
       d.addEventListener('click', function (e) {
         var b = e.target && e.target.closest ? e.target.closest('button[data-recipe]') : null;
-        if (!b) { if (e.target === d || (e.target && e.target.classList && e.target.classList.contains('dp-row'))) { dishPickKbd = false; d.close(); } return; }   /* 칩 밖 (투명 배경) 톡 = 닫기 */
+        if (!b) {   /* 칩 밖 (투명 배경) 톡 = 닫기. 조리대 단추 자리의 톡은 닫지 않는다 (조리대를 두 번 누른 둘째 톡에 쟁반이 깜박 닫히지 않게 — 그 자리는 '요리' 다) */
+          if (!(e.target === d || (e.target && e.target.classList && e.target.classList.contains('dp-row')))) return;
+          var op = dishPickOpener, r = op && !op.hidden ? op.getBoundingClientRect() : null;
+          if (r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return;
+          dishPickKbd = false; d.close();
+          return;
+        }
         var r = b.getAttribute('data-recipe'), k = kbdClick(e), op = dishPickOpener;
         dishPickKbd = k; dishPicked = true; d.close();   /* close 사건은 나중에 온다 → 고른 것은 깃발로 */
         openCook(op, k, r);
