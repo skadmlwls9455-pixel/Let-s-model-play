@@ -730,12 +730,15 @@ function harness() {
       function auraOk(a, label, fx) {
         if (!a || !a.visible || a.fx !== fx || !a.pts.length || !a.box) return label + ' 안 보임 ' + JSON.stringify(a && { v: a.visible, fx: a.fx, n: a.n, p: a.parent });
         var m = 4, bx = a.box, outB = a.pts.filter(function (p) { return p[0] < bx[0] - m || p[0] > bx[2] + m || p[1] < bx[1] - m || p[1] > bx[3] + m; });
-        var off = a.pts.concat(a.twin).filter(function (p) { var rx = p[0] * a.rw / a.cw, ry = p[1] * a.rh / a.ch; return Math.abs(rx - Math.floor(rx) - 0.5) > 0.02 || Math.abs(ry - Math.floor(ry) - 0.5) > 0.02; });
+        var off = a.pts.filter(function (p) { var rx = p[0] * a.rw / a.cw, ry = p[1] * a.rh / a.ch; return Math.abs(rx - Math.round(rx)) > 0.02 || Math.abs(ry - Math.round(ry)) > 0.02; });   /* 2 px 점 = 픽셀 모서리 (정확히 2×2 칸) */
+        if (a.size !== 2) return label + ' 점 크기 ' + a.size + ' ≠ 2 렌더 px';
+        if (a.parts < 6 || a.parts > 10) return label + ' 알갱이 ' + a.parts + ' (6~10 이어야)';
+        if (a.twinVis) return label + ' 블룸 쌍둥이가 보임';
         return outB.length || off.length ? label + ' 상자 밖 ' + outB.length + ' · 픽셀 중심 밖 ' + off.length + ' ' + JSON.stringify((outB.concat(off)).slice(0, 2)) : '';
       }
       var errs = [auraOk(A.oct, '식탁 문어 별', 'star'), auraOk(A.me, '놀이방 나 반짝이', 'sparkle'), auraOk(t8.extAura.oct, '출발 의식 바깥 문어 별', 'star'), auraOk(t8.retAura.oct, '귀가 의식 문어 별', 'star'),
         auraOk(t8.atticAura.oct, '다락 문어 별', 'star'), auraOk(t8.atticAura.me, '다락 나 반짝이', 'sparkle'), auraOk(t8.loftAura.me, '위층 나 꽃잎', 'petal'), auraOk(t8.loftAura.oct, '위층 문어 반짝이', 'sparkle'), auraOk(t8.yardAura.me, '마당 나 별', 'star')].filter(Boolean);
-      ok(errs.length === 0, 'T8 오라: 식탁 · 놀이방 · 바깥(의식) · 다락 · 위층 · 마당 — 점이 캐릭터 화면 상자 + 4 px 안 · 픽셀 중심 ' + JSON.stringify(errs));
+      ok(errs.length === 0, 'T8 오라: 식탁 · 놀이방 · 바깥(의식) · 다락 · 위층 · 마당 — 2 렌더 px 점 · 알갱이 6~10 · 블룸 없음 · 점이 캐릭터 화면 상자 + 4 px 안 · 픽셀 모서리 ' + JSON.stringify(errs));
       ok(A.oct.parent === 'play' && t8.extAura.oct.parent === 'exterior' && t8.loftAura.oct.parent === 'loftSalon' && t8.yardAura.me.parent === 'yard', 'T8 오라는 캐릭터의 지금 방 그룹 자식 (' + [A.oct.parent, t8.extAura.oct.parent, t8.loftAura.oct.parent, t8.yardAura.me.parent].join(' · ') + ')');
       ok(A.bloom0.bloom >= 0 && A.oct.bloom === -1, 'T8 꽃 핌 6칸 뒤 끝 (' + A.bloom0.bloom + ' → ' + A.oct.bloom + ')');
       ok(t8.auraSteps >= 11 && t8.auraSteps <= 13, 'T8 오라 칸 12 fps (60 프레임에 ' + t8.auraSteps + ')');

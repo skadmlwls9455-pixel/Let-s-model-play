@@ -73,6 +73,17 @@ Other files:
 - The octopus's whole walk-in path (58 sampled frames) clears every box.
 - My hair clears my backrest, and my torso clears the table edge by 0.011 m.
 
+## Follow-up from the lead: auras readable at a glance
+
+The first build drew 1-render-px dots; the sparkle on me at night and the petals in the yard were hard to find. Now:
+- **Grains:** each one is a 2×2 render px bright core in the effect's own colour, with a 1 px darker edge (four 2 px blocks offset 1 px, drawn first). `PointsMaterial` size is 2, a uniform, so the program and its cache key are unchanged. Points snap to pixel corners, so a 2 px point covers exactly 2×2 pixels. There is no bloom twin any more (it is hidden; its prewarmed variant stays and still covers the firefly twin).
+- **Alive at once:** sparkle 7 (8 slots on an 8-step cycle — small, normal, '+', normal, small, normal, small, off — drifting up 1 px every 2 steps); star 6 (a halo above the head turning 8° per step, each one flashing to '+' in turn); petal up to 8 (falling 1 row per step, swaying 1 column every 3 steps).
+- **Placement:** grains stay around the head and shoulders. Columns within the face's width are avoided at face height; the spread is set in metres (0.22 m beyond the face), so it holds at any pixel size.
+- **Reduced motion:** still pose — 8 sparkles, 6 stars, 6 petals; no drift, no twinkle.
+- **Budget:** one `Points` per aura (beauty + normal pass), at most 64 vertices (the spec's 20 / 40-vertex numbers are superseded by the lead's 6–10 grains).
+- **Bug found while doing this:** the per-slot seed used a signed shift (`>>`), so about half the petal slots spawned far to the left of the character at the test's pixel size. It is now `>>>`.
+- **T8 pins:** point size 2, 6–10 grains in every place sampled, twin hidden, points on pixel corners, inside the character's screen box. Cache keys are unchanged at the first aura in each place.
+
 ## Decisions (small choices I made)
 
 - **Seat yaw and dish spot (lead may overturn):**
@@ -102,7 +113,7 @@ None added or changed. No visible text, no aria names (the buttons are lane M's)
   - Beats and bites: a second dish resolves at once; think lasts 1.0 s; lean is 8°; bites go 4 → 0 alternating, and a fifth returns false.
   - Portraits: the portrait and walk portrait while leaning equal the ones taken at home.
   - Auras:
-    - Placement: dots stay inside the character's screen box + 4 px and sit on pixel centres — at the table, in the play room, in the exterior during the departure and return ceremonies, in the attic, in the loft and in the yard.
+    - Placement: 2-px grains (6–10 alive, no bloom twin) stay inside the character's screen box + 4 px and sit on pixel corners — at the table, in the play room, in the exterior during the departure and return ceremonies, in the attic, in the loft and in the yard.
     - Behaviour: the parent group is correct; bloom runs 6 frames; steps run at 12 fps; reduced motion is still.
     - Programs: cache keys unchanged and the program count unchanged.
   - Draw calls: during a meal 80 ≤ base 50 + octopus 25 + 12, and ≤ 150.
@@ -115,8 +126,8 @@ None added or changed. No visible text, no aria names (the buttons are lane M's)
 
 | suite | result |
 |---|---|
-| `node tools/test-scene-perf.js` | 150 passed, 0 failed |
-| `npm test` (all node suites) | all 0 failed |
+| `node tools/test-scene-perf.js` (final, after the aura follow-up) | 150 passed, 0 failed |
+| `npm test` (all node suites, after the aura follow-up) | exit 0, all 0 failed |
 | `SMOKE_ONLY=J,Z,CAM node tools/smoke.js` | 202 passed, 1 failed (Z2 sew tap during the glide) |
 | same smoke Z at the base commit `5a6311f` | 118 passed, 0 failed |
 | `SMOKE_ONLY=Z` rerun on this branch (final code, includes the stair grid) | 132 passed, 0 failed |
@@ -161,8 +172,7 @@ For the lead: no new test files. T8 is inside `tools/test-scene-perf.js` and the
 2. `2-dishes-2x.png`: 해초전 · 주먹밥 · 과일 꼬치 on the table at 2× zoom, the octopus seated.
 3. `3-seated-412.png`: me and the octopus seated, 412x915@2.625.
 4. `4-bite-oct-2x.png`: the octopus's bite reach over the tabletop.
-5. `5-auras.png`: me (sparkle) and the octopus (star) in the attic at night, and me (petal) in the yard.
-   - **Flag for the owner:** at 1 render px the auras are subtle. The star reads; the sparkle on me at night and the petals in the yard are hard to see at 1×. That is the spec's dot size; I did not enlarge it.
+5. `5-auras-360.png`, `5-auras-412.png` (after the lead's follow-up): day (top) and night (bottom) — attic (me sparkle, octopus star), play room (me star, octopus sparkle at the table), loft (both petal), yard (me sparkle).
 
 ## Needs another lane merged to be fully tested
 

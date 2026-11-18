@@ -73,3 +73,33 @@ async function rest() {
 }
 module.exports.rest = rest;
 if (require.main === module && process.argv[2] === 'rest') rest().catch(e => { console.error(e); process.exit(1); });
+/* auras: attic · play (octopus at the table) · loft · yard, day + night, crops around the characters */
+async function auras(sizes) {
+  const b = await P.launch(), tiles = [];
+  for (const o of sizes || [{ w: 360, h: 740, dpr: 2, k: '360' }, { w: 412, h: 915, dpr: 2.625, k: '412' }]) for (const hour of [14, 21]) {
+    const { ctx, page } = await P.open(b, { w: o.w, h: o.h, dpr: o.dpr, look: { hour, lantern: 4 }, lantern: 4 });
+    const crop = async (tag) => {
+      await page.waitForTimeout(900);
+      const r = await page.evaluate(() => { const S = APP.scene, sc = document.getElementById('scene').getBoundingClientRect(), bs = ['me', 'oct'].map(w => S.auraInfo(w)).filter(a => a.visible && a.box);
+        if (!bs.length) return null; const l = Math.min(...bs.map(a => a.box[0])), t = Math.min(...bs.map(a => a.box[1])), r2 = Math.max(...bs.map(a => a.box[2])), b2 = Math.max(...bs.map(a => a.box[3]));
+        return { x: sc.left + l - 10, y: sc.top + t - 10, width: r2 - l + 20, height: b2 - t + 20 }; });
+      if (!r) { console.log('no aura', tag); return; }
+      tiles.push({ tag: o.k + '-' + (hour === 14 ? 'day' : 'night') + '-' + tag, buf: await page.screenshot({ clip: r }) });
+    };
+    await page.evaluate(() => { APP.scene.setAura('me', 'sparkle'); APP.scene.setAura('oct', 'star'); }); await crop('attic');
+    await page.evaluate(() => APP.goRoom('play')); await page.waitForFunction(() => APP.scene.view() === 'play'); await page.waitForTimeout(1200);
+    await page.evaluate(async () => { const S = APP.scene; S.setTableDish({ id: 'a', recipe: 'jeon', look: {} }); await S.playerSitTable(); await S.octToTable({ instant: true }); S.setAura('me', 'star'); S.setAura('oct', 'sparkle'); }); await crop('play');
+    await page.evaluate(() => APP.scene.playerStandTable()); await page.waitForTimeout(800);
+    await page.evaluate(() => APP.goRoom('attic')); await page.waitForFunction(() => APP.scene.view() === 'attic'); await page.waitForTimeout(1500);
+    await page.evaluate(() => APP.goRoom('loft')); await page.waitForFunction(() => APP.scene.view() === 'loft'); await page.waitForTimeout(1500);
+    await page.evaluate(() => { APP.scene.setAura('me', 'petal'); APP.scene.setAura('oct', 'petal'); }); await crop('loft');
+    await page.evaluate(() => APP.goRoom('attic')); await page.waitForFunction(() => APP.scene.view() === 'attic'); await page.waitForTimeout(800);
+    await page.evaluate(() => APP.goRoom('yard')); await page.waitForFunction(() => APP.scene.view() === 'yard'); await page.waitForTimeout(1500);
+    await page.evaluate(() => APP.scene.setAura('me', 'sparkle')); await crop('yard');
+    await ctx.close();
+  }
+  await b.close();
+  tiles.forEach(t => { const f = path.join(OUT, '_aura-' + t.tag + '.png'); fs.writeFileSync(f, t.buf); console.log(f); });
+}
+module.exports.auras = auras;
+if (require.main === module && process.argv[2] === 'auras') auras(process.argv[3] === '360' ? [{ w: 360, h: 740, dpr: 2, k: '360' }] : null).catch(e => { console.error(e); process.exit(1); });

@@ -4174,16 +4174,18 @@ var SCENE3D = (function () {
         for (i = 0; i < (A.tn || 0); i++) { _tbw.set(ta[i * 3], ta[i * 3 + 1], ta[i * 3 + 2]).applyMatrix4(o.matrixWorld).project(camera); tw.push([(_tbw.x * 0.5 + 0.5) * S.cw, (1 - (_tbw.y * 0.5 + 0.5)) * S.ch]); }
       }
       var H = auraHost(who === 'oct' ? 'oct' : 'me'), box = null;
-      if (H.parent) { var l = 1e9, t2 = 1e9, rr = -1e9, bb = -1e9, top = H.oct ? 1.15 : 1.65; H.parent.updateMatrixWorld(true);
-        for (var c = 0; c < 8; c++) { _tbw.set(H.pos.x + (c & 1 ? 0.6 : -0.6), H.pos.y + (c & 2 ? top : 0), H.pos.z + (c & 4 ? 0.6 : -0.6)); H.parent.localToWorld(_tbw).project(camera); var x = (_tbw.x * 0.5 + 0.5) * S.cw, y = (1 - (_tbw.y * 0.5 + 0.5)) * S.ch; l = Math.min(l, x); rr = Math.max(rr, x); t2 = Math.min(t2, y); bb = Math.max(bb, y); }
+      if (H.parent) { var l = 1e9, t2 = 1e9, rr = -1e9, bb = -1e9, top = H.oct ? 1.2 : 1.7; H.parent.updateMatrixWorld(true);
+        for (var c = 0; c < 8; c++) { _tbw.set(H.pos.x + (c & 1 ? 0.75 : -0.75), H.pos.y + (c & 2 ? top : 0), H.pos.z + (c & 4 ? 0.75 : -0.75)); H.parent.localToWorld(_tbw).project(camera); var x = (_tbw.x * 0.5 + 0.5) * S.cw, y = (1 - (_tbw.y * 0.5 + 0.5)) * S.ch; l = Math.min(l, x); rr = Math.max(rr, x); t2 = Math.min(t2, y); bb = Math.max(bb, y); }
         box = [l, t2, rr, bb]; }
-      return { box: box, fx: A.fx, visible: o.visible, parent: o.parent ? o.parent.name : '', step: A.step, bloom: A.bloom, n: A.n || 0, pts: pts, twin: tw, twinVis: A.twin.visible, cw: S.cw, ch: S.ch, rw: S.rw, rh: S.rh };
+      return { box: box, fx: A.fx, visible: o.visible, parent: o.parent ? o.parent.name : '', step: A.step, bloom: A.bloom, n: A.n || 0, parts: A.parts || 0, size: o.material.size, pts: pts, twin: tw, twinVis: A.twin.visible, cw: S.cw, ch: S.ch, rw: S.rw, rh: S.rh };
     }
     /* ── 11-18 효과 (오라, §5): 캐릭터마다 Points 하나 (≤ 20 점, 정점색 — 바깥 꽃잎과 같은 재질 변형) + 발광 쌍둥이 (≤ 4 점, 레이어 1 — 반딧불 쌍둥이 변형).
        캐릭터의 지금 방 그룹의 자식 · 바탕 = 캐릭터 자리를 픽셀 중심에 스냅 · 오프셋은 화면 정수 열/행 · 12 fps 칸 · 숨은 · 사라지는 중 · 가구 모드면 숨김 · 모션 감소 = 정지 자세.
        새 셰이더 프로그램 없음: 두 재질 변형을 부팅 예열에서 다락 · 바깥 조명 묶음으로 컴파일 (놀이방 · 위층 = 다락과 같은 점광 2 · 마당 = 바깥과 같은 묶음 — T8 이 캐시 키로 잰다) */
-    var AURA_C = { sparkle: { core: '#ebede9', arm: ['#a4dddb', '#73bed3'] }, star: { core: '#ebede9', arm: ['#e8c170'] }, petal: { pet: ['#f2a6c0', '#df84a5', '#fbe0ea'] } };
-    var AURA_N = 20, AURA_TW = 4;
+    /* 11-18 (리드 후속: '효과가 한눈에 보이게'): 알갱이 = 2×2 렌더 px 밝은 심 (효과 제 색) + 1 px 어두운 테 (네 쪽 2 px 블록을 1 px 밀어 먼저 그린다) — 한 Points (크기 2, 정점색) 한 드로우콜.
+       점은 픽셀 모서리에 (2 px 점이 정확히 2×2 칸에 앉게) · 블룸 없음 · 6~10 알갱이가 머리 · 어깨 둘레에 (얼굴 열은 피한다) · 반짝이 = 커졌다 작아지며 위로 1 px 씩 · 별 = 머리 위 고리를 돈다 · 꽃잎 = 흔들리며 떨어진다 */
+    var AURA_C = { sparkle: { core: '#ebede9', mid: '#a4dddb', edge: '#3c5e8b' }, star: { core: '#f4d47a', mid: '#e8a63e', edge: '#7a4a2c' }, petal: { core: '#f2a6c0', mid: '#fbe0ea', edge: '#9a3c62' } };
+    var AURA_N = 64, AURA_TW = 4, AURA_PX = 2;
     function auraMake(name) {
       var g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array(AURA_N * 3), 3)); g.setAttribute('color', new T.BufferAttribute(new Float32Array(AURA_N * 3), 3));
       var p = new T.Points(keep(g), auraMat); p.frustumCulled = false; p.visible = false; p.name = 'aura-' + name; p.renderOrder = 4;
@@ -4191,7 +4193,7 @@ var SCENE3D = (function () {
       var tw = new T.Points(keep(tg), keep(new T.PointsMaterial({ color: C('#ebede9'), size: 3, sizeAttenuation: false, depthWrite: false }))); tw.layers.set(1); tw.frustumCulled = false; p.add(tw);
       return { fx: null, obj: p, twin: tw, step: -1, acc: 0, bloom: -1, key: '', slots: [] };
     }
-    var auraMat = keep(new T.PointsMaterial({ color: 0xffffff, vertexColors: true, size: 1, sizeAttenuation: false, depthWrite: false }));
+    var auraMat = keep(new T.PointsMaterial({ color: 0xffffff, vertexColors: true, size: AURA_PX, sizeAttenuation: false, depthWrite: false }));   /* 크기는 유니폼 — 프로그램 키 그대로 */
     var steamMat = keep(new T.PointsMaterial({ color: C(PAL.paper[0]), size: 1, sizeAttenuation: false, depthWrite: false }));
     var AU = { me: auraMake('me'), oct: auraMake('oct'), step: 0, acc: 0 };
     atticG.add(AU.me.obj); extG.add(AU.oct.obj);   /* 예열: 다락 패스엔 내 것 · 바깥 패스엔 문어 것이 각 조명 묶음으로 두 변형을 컴파일한다 (숨겨도 compile 은 재질을 훑는다) */
@@ -4206,56 +4208,67 @@ var SCENE3D = (function () {
       if (who === 'me') return { parent: plG.parent, pos: plG.position, oct: false, shown: !!plG.parent && plG.visible && !(FM && FM.on) && PL.place !== 'exterior' };
       return { parent: octG.parent, pos: octG.position, oct: true, shown: !!octG.parent && octG.visible && FADE.d >= 0.5 && st.octState !== 'away' };
     }
-    function auraSlot(A, i, cyc) { var r = hash('au' + A.obj.name + A.fx + i + '_' + cyc); return { a: ((r % 360) | 0) * DEG, rad: 0.28 + ((r >> 9) % 100) / 1000, h: ((r >> 16) % 1000) / 1000 }; }
+    function auraSlot(A, i, cyc) { var r = hash('au' + A.obj.name + A.fx + i + '_' + cyc) >>> 0; return { side: (r & 1) ? 1 : -1, u: ((r >>> 1) % 1000) / 1000, v: ((r >>> 11) % 1000) / 1000 }; }   /* >>> (부호 없는 밀기 — >> 는 위 비트가 서면 음수가 되어 꽃잎이 화면 왼쪽으로 멀리 갔다) */
+    function snapCorner(v) { var pw = S.pw, dx = v.dot(_r), dy = v.dot(_u), hx = (S.rw & 1) ? 0.5 : 0, hy = (S.rh & 1) ? 0.5 : 0; return v.addScaledVector(_r, (Math.round(dx / pw - hx) + hx) * pw - dx).addScaledVector(_u, (Math.round(dy / pw - hy) + hy) * pw - dy); }   /* 픽셀 모서리 (2 px 점용) */
     function auraLayout(who, A) {
       var H = auraHost(who), obj = A.obj, fx = A.fx;
+      A.twin.visible = false;
       if (!fx || !H.shown || !H.parent) { obj.visible = false; return; }
       if (obj.parent !== H.parent) H.parent.add(obj);
       obj.visible = true;
-      _tbv.copy(H.pos); H.parent.localToWorld(_tbv); snapC(_tbv);
+      _tbv.copy(H.pos); H.parent.localToWorld(_tbv); snapCorner(_tbv);
       var key = A.step + '|' + _tbv.x.toFixed(4) + ',' + _tbv.y.toFixed(4) + ',' + _tbv.z.toFixed(4) + '|' + A.bloom + '|' + (st.reduced ? 1 : 0) + '|' + S.pw;
       if (key === A.key) return; A.key = key;
-      var base = _tbv.clone(), up = pxUp(), pw = S.pw, pa = obj.geometry.attributes.position.array, ca = obj.geometry.attributes.color.array, ta = A.twin.geometry.attributes.position.array, n = 0, tn = 0, s = A.step, red = st.reduced;
-      var bk = A.bloom >= 0 ? Math.min(1, (A.bloom + 1) / 6) : 1, oc = H.oct, cy = Math.round((oc ? 0.35 : 0.55) / up);   /* 몸 가운데 (꽃 핌의 시작) */
-      camera.getWorldDirection(_tbw); var fh = new T.Vector3(-_r.z, 0, _r.x).normalize(), vdot = _tbw.dot(fh) || 1;
-      function put(col, row, depth, hex) {   /* 화면 열 · 행 (정수) + 깊이 → 점 하나 */
-        if (n >= AURA_N) return -1;
-        var c2 = Math.round(col * bk), r2 = Math.round(cy + (row - cy) * bk);
-        _tbw.copy(base).addScaledVector(_r, c2 * pw); _tbw.y += r2 * up;
-        if (depth) { var dv = camera.getWorldDirection(new T.Vector3()); _tbw.addScaledVector(dv, depth / vdot); }
-        H.parent.worldToLocal(_tbw);
-        pa[n * 3] = _tbw.x; pa[n * 3 + 1] = _tbw.y; pa[n * 3 + 2] = _tbw.z; var c = C(hex); ca[n * 3] = c.r; ca[n * 3 + 1] = c.g; ca[n * 3 + 2] = c.b; return n++;
-      }
-      function core(i) { if (tn < AURA_TW && i >= 0) { ta[tn * 3] = pa[i * 3]; ta[tn * 3 + 1] = pa[i * 3 + 1]; ta[tn * 3 + 2] = pa[i * 3 + 2]; tn++; } }
-      function plus(col, row, d, cc, ac, full) { var k = put(col, row, d, cc); core(k); if (full) { put(col - 1, row, d, ac); put(col + 1, row, d, ac); put(col, row - 1, d, ac); put(col, row + 1, d, ac); } }
-      function ringCR(a, rad) { var ox = Math.cos(a) * rad, oz = Math.sin(a) * rad, col = Math.round((ox * _r.x + oz * _r.z) / pw), dep = ox * fh.x + oz * fh.z; return [col, dep]; }
+      var base = _tbv.clone(), up = pxUp(), pw = S.pw, pa = obj.geometry.attributes.position.array, ca = obj.geometry.attributes.color.array, n = 0, s = A.step, red = st.reduced, oc = H.oct, parts = 0;
+      var bk = A.bloom >= 0 ? Math.min(1, (A.bloom + 1) / 6) : 1, cy = Math.round((oc ? 0.35 : 0.6) / up);
+      camera.getWorldDirection(_tbw); var V = _tbw.clone();
+      /* 몸 치수 (렌더 px): 얼굴 열 반폭 · 머리 위 · 어깨 높이 */
+      var faceLo = Math.round((oc ? 0.0 : 0.5) / up), faceHi = Math.round((oc ? 0.8 : 1.25) / up), faceC = Math.ceil((oc ? 0.44 : 0.4) / pw), topR = Math.round((oc ? 0.80 : 1.30) / up), shR = Math.round((oc ? 0.22 : 0.45) / up), headR = Math.round((oc ? 0.40 : 0.87) / up);
       var Cc = AURA_C[fx];
-      if (fx === 'sparkle') {
-        if (red) { [[-1, 1], [1, 2]].forEach(function (q) { var cr = ringCR(q[0] > 0 ? 0 : Math.PI, 0.33); plus(cr[0] + q[0] * 3, Math.round((oc ? 0.45 : 0.6) / up) + q[1], 0, Cc.core, Cc.arm[0], true); }); }
-        else for (var i = 0; i < 3; i++) {
-          var ph = s + i * 3, cyc = Math.floor(ph / 8), u = ((ph % 8) + 8) % 8, sl = auraSlot(A, i, cyc), cr = ringCR(sl.a, sl.rad), row = Math.round(((oc ? 0.2 : 0.3) + sl.h * (oc ? 0.6 : 0.8)) / up);
-          if (u === 0 || u === 3) plus(cr[0], row, cr[1], Cc.core, Cc.arm[i & 1], false); else if (u === 1 || u === 2) plus(cr[0], row, cr[1], Cc.core, Cc.arm[i & 1], true);
+      function put(col, row, hex) {
+        if (n >= AURA_N) return;
+        var c2 = Math.round(col * bk), r2 = Math.round(cy + (row - cy) * bk);
+        _tbw.copy(base).addScaledVector(_r, c2 * pw); _tbw.y += r2 * up; _tbw.addScaledVector(V, -0.35);   /* 카메라 쪽 0.35 m (몸 옆 · 위에 그려지게 — 화면 자리는 그대로) */
+        H.parent.worldToLocal(_tbw);
+        pa[n * 3] = _tbw.x; pa[n * 3 + 1] = _tbw.y; pa[n * 3 + 2] = _tbw.z; var c = C(hex); ca[n * 3] = c.r; ca[n * 3 + 1] = c.g; ca[n * 3 + 2] = c.b; n++;
+      }
+      function grain(col, row, size, mirror) {   /* size 0 = 심만 · 1 = 심 + 테 · 2 = 심 + 테 + 팔 '+' (반짝이 꼭대기) · 'petal' = 테 + 심 + 꼬리 */
+        parts++;
+        if (size === 'petal') { var m = mirror ? -1 : 1; put(col - m, row, Cc.edge); put(col, row - 1, Cc.edge); put(col + 2 * m, row + 1, Cc.edge); put(col + m, row + 2, Cc.edge); put(col, row, Cc.core); put(col + m, row + 1, Cc.mid); return; }
+        if (size >= 1) { put(col - 1, row, Cc.edge); put(col + 1, row, Cc.edge); put(col, row - 1, Cc.edge); put(col, row + 1, Cc.edge); }
+        if (size >= 2) { put(col - 2, row, Cc.mid); put(col + 2, row, Cc.mid); put(col, row - 2, Cc.mid); put(col, row + 2, Cc.mid); }
+        put(col, row, Cc.core);
+      }
+      var spread = Math.max(3, Math.round(0.22 / pw));   /* 얼굴 열 밖으로 퍼지는 폭 — 미터로 (픽셀 크기가 달라도 머리 · 어깨 둘레) */
+      function sideCol(side, k) { return side * (faceC + 2 + Math.round(k * spread)); }
+      if (fx === 'sparkle') {   /* 8 자리 · 8칸 주기 (작게 · 보통 · '+' · 보통 · 작게 · 보통 · 작게 · 꺼짐), 자리마다 한 칸씩 엇갈림 → 늘 7 개 · 떠오르며 (2칸에 1 px) */
+        for (var i = 0; i < 8; i++) {
+          var ph = red ? 3 : s + i, cyc = Math.floor(ph / 8), u = ((ph % 8) + 8) % 8, sl = auraSlot(A, i, red ? 0 : cyc), sz = [0, 1, 2, 1, 0, 1, 0, -1][u];
+          if (red) sz = 1;
+          if (sz < 0) continue;
+          var above = sl.v > 0.72, row = above ? topR + Math.max(1, Math.round(0.06 / up)) + Math.round(sl.u * 0.15 / up) : shR + Math.round(sl.v / 0.72 * (topR - shR)), col = above ? Math.round((sl.u - 0.5) * 2 * faceC) : sideCol(sl.side, sl.u);
+          grain(col, row + (red ? 0 : Math.floor(u / 2)), sz);
         }
-      } else if (fx === 'star') {
-        var hy = Math.round((oc ? 0.65 : 1.05) / up);
-        for (var j = 0; j < (red ? 3 : 4); j++) {
-          var a = red ? j * 2 * Math.PI / 3 + Math.PI / 2 : (s * 6 * DEG) + j * Math.PI / 2, cr2 = ringCR(a, 0.32), tw = red || (Math.floor((s + j * 3) / 6) & 1) === 0;
-          plus(cr2[0], hy + (red ? 2 : 0), cr2[1], Cc.core, Cc.arm[0], tw);
+      } else if (fx === 'star') {   /* 별 6 개가 머리 위 고리를 돈다 (칸마다 8°) · 차례로 '+' 로 반짝 */
+        var hr = oc ? 0.40 : 0.32, hy = topR + Math.max(2, Math.round(0.1 / up));
+        for (var j = 0; j < 6; j++) {
+          var a = (red ? 0 : s * 8 * DEG) + j * Math.PI / 3, ox = Math.cos(a) * hr, oz = Math.sin(a) * hr, col2 = Math.round((ox * _r.x + oz * _r.z) / pw), dep = ox * _r.z - oz * _r.x;
+          var tw = red ? 1 : ((s + j * 3) % 9 < 2 ? 2 : 1);
+          grain(col2, hy + Math.round(dep / up * 0.5), tw);
         }
-      } else if (fx === 'petal') {
-        var top = Math.round((oc ? 0.9 : 1.3) / up), np = red ? 3 : 6;
+      } else if (fx === 'petal') {   /* 꽃잎 8 장: 머리 위에서 생겨 칸마다 1 행 떨어지고 3칸마다 1 열 흔들림 · 바닥 닿으면 다시 · 몸 열은 비켜 간다 */
+        var top = topR + Math.max(3, Math.round(0.2 / up)), np = red ? 6 : 8, period = top + 2;
         for (var k = 0; k < np; k++) {
-          var period = top + 4, ph2 = s + k * Math.floor(period / np), cyc2 = Math.floor(ph2 / period), fall = ph2 % period, sl2 = auraSlot(A, k, cyc2), cr3 = ringCR(sl2.a, 0.2 + (sl2.rad - 0.28) * 2), sway = Math.floor(fall / 3) & 1 ? 1 : 0;
-          var prow = red ? Math.round(top * (k + 1) / 4) : top - fall, pc = Cc.pet[k % 3];
-          if (prow < 1) continue;
-          put(cr3[0] + (red ? 0 : sway), prow, cr3[1], pc); put(cr3[0] + (red ? 0 : sway) + 1, prow, cr3[1], pc);
+          var ph2 = red ? 0 : s + Math.floor(k * period / np), cyc2 = Math.floor(ph2 / period), fall = ph2 % period, sl2 = auraSlot(A, k, cyc2), sway = red ? 0 : (Math.floor(fall / 3) & 1 ? 1 : -1);
+          var prow = red ? Math.round(shR + (top - shR) * (k + 1) / (np + 1)) : top - fall, pcol = Math.round((sl2.u * 2 - 1) * (faceC + 2 + spread)) + sway;
+          if (prow < 2) continue;
+          if (prow > faceLo && prow < faceHi && Math.abs(pcol) < faceC + 2) pcol = (pcol < 0 || (pcol === 0 && (k & 1)) ? -1 : 1) * (faceC + 2);   /* 얼굴 높이에선 얼굴 열 밖으로 비켜 떨어진다 */
+          grain(pcol, prow, 'petal', (k & 1) === 0);
         }
       }
       for (var z = n; z < AURA_N; z++) { pa[z * 3] = 0; pa[z * 3 + 1] = -50; pa[z * 3 + 2] = 0; }
-      for (var zt = tn; zt < AURA_TW; zt++) { ta[zt * 3] = 0; ta[zt * 3 + 1] = -50; ta[zt * 3 + 2] = 0; }
-      A.twin.visible = fx !== 'petal' && tn > 0;
-      obj.geometry.attributes.position.needsUpdate = true; obj.geometry.attributes.color.needsUpdate = true; A.twin.geometry.attributes.position.needsUpdate = true;
-      A.n = n; A.tn = tn;
+      obj.geometry.attributes.position.needsUpdate = true; obj.geometry.attributes.color.needsUpdate = true;
+      A.n = n; A.tn = 0; A.parts = parts;
     }
     function stepAura(dt) {
       if (!AU.me.fx && !AU.oct.fx) { AU.me.obj.visible = AU.oct.obj.visible = false; return; }
