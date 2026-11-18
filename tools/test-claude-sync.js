@@ -73,6 +73,22 @@ var ALL = '2026-11-17-1.json,2026-11-17-2.json';
   ok(w.firstSaves.length === 2 && w.firstSaves.every(function (sv, i) { var t = sv.trips[sv.trips.length - 1]; return typeof t.walk === 'string' && t.walk.indexOf(t.file) > 0 && sv.settings.claudeRoom.last === t.file; }),
     '여행의 첫 저장에 꼬리표 · 자리가 같이 있다 (' + w.firstSaves.map(function (sv) { return sv.settings.claudeRoom.last; }).join(' · ') + ')');
 
+  /* 7. (검증 11-18) 다른 탭이 **옛 빌드** (꼬리표를 안 적는다): 그 탭이 둘을 먼저 들이고 자리를 끝 파일로 저장해 두었다. 이 탭은 storage 이벤트 전의 낡은 자리 (없음) 로 목록을 받았다
+        → 저장소부터 받은 뒤, 자리가 이미 그 파일들 뒤이므로 다시 들이지 않고, 자리를 앞 파일로 되돌리지 않는다 */
+  var oldTab = { settings: { claudeRoom: { key: 'k'.repeat(32), mcp: 'https://x/api/mcp/' + 'k'.repeat(32), last: '2026-11-17-2.json' } }, trips: [{ id: 'trip_a', file: '2026-11-17-1.json' }, { id: 'trip_b', file: '2026-11-17-2.json' }] };
+  w = world(); w.remote = JSON.parse(JSON.stringify(oldTab)); w.api.claudeSync(false); await w.settle();
+  var st7 = w.stored ? w.saved() : w.env.S;
+  ok(w.fetched[0] === null && w.imported.length === 0 && st7.trips.length === 2 && st7.trips.every(function (t) { return t.walk === undefined; }) && st7.settings.claudeRoom.last === '2026-11-17-2.json',
+    '옛 빌드 탭이 먼저 들인 산책 (꼬리표 없음): 다시 들이지 않는다 (들인 것 ' + w.imported.length + ' · 여행 ' + st7.trips.length + ') · 자리는 그대로 (' + st7.settings.claudeRoom.last + ')');
+  /* 7-1. 옛 빌드 탭이 첫째만 들인 때: 첫째는 건너뛰고 둘째만 들인다 (자리는 둘째로) */
+  var oldOne = JSON.parse(JSON.stringify(oldTab)); oldOne.trips.pop(); oldOne.settings.claudeRoom.last = '2026-11-17-1.json';
+  w = world(); w.remote = oldOne; w.api.claudeSync(false); await w.settle();
+  ok(w.imported.join() === '2026-11-17-2.json' && w.saved().trips.length === 2 && w.saved().settings.claudeRoom.last === '2026-11-17-2.json', '옛 빌드 탭이 첫째만 들였으면 둘째만 들인다 (들인 것 ' + w.imported.join() + ' · 자리 ' + w.saved().settings.claudeRoom.last + ')');
+  /* 7-2. 차례는 글자 순이 아니라 날짜 → 번호: …-10.json 은 …-9.json 뒤다 */
+  var w10 = world(); var c10 = new Function('env', 'with (env) {\n' + [SRC[line(/^  var WALK_FILE_RE = /)], SRC[line(/^  function walkDone\(/)]].join('\n') + '\nreturn walkDone; }')({});
+  ok(c10('2026-11-17-9.json', '2026-11-17-10.json') === true && c10('2026-11-17-10.json', '2026-11-17-9.json') === false && c10('2026-11-18-1.json', '2026-11-17-10.json') === false && c10('2026-11-17-2.json', '2026-11-17-2.json') === true && c10('x.json', '2026-11-17-2.json') === false && c10('2026-11-17-2.json', null) === false,
+    '자리 견줌은 서버와 같은 차례 (날짜 → 번호 · 9 < 10 · 같은 파일은 받은 것 · 모양을 모르면 받은 것으로 치지 않는다)');
+
   console.log('\ntest-claude-sync: ' + pass + ' ok' + (fail ? ', ' + fail + ' FAIL' : ''));
   process.exit(fail ? 1 : 0);
 })().catch(function (e) { console.error(e); process.exit(1); });

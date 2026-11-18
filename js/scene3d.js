@@ -1522,7 +1522,7 @@ var SCENE3D = (function () {
     var _stairTreads = null, _stv = new T.Vector3();
     function stairRayDist(cx, cy, n) {   /* 톡 광선이 다락 계단 (디딤판 일곱 칸 — 칸마다 그 아래 옆판 두께까지 싼 상자) 에 닿는 거리 · 안 닿으면 Infinity · n = 아래에서 몇 칸까지 볼지 (계단이 잘려 아래 두 칸만 그려질 때 2) */
       if (!furnRay(cx, cy)) return Infinity;
-      if (!_stairTreads) { _stairTreads = []; for (var k = 0, n = 7, run = (STAIR.x1 - STAIR.x0) / n, rise = STAIR.top / n; k < n; k++) _stairTreads.push(new T.Box3(new T.Vector3(STAIR.x1 - run * (k + 1) - 0.03, Math.max(0, rise * (k + 1) - 0.42), STAIR.z0), new T.Vector3(STAIR.x1 - run * k + 0.03, rise * (k + 1) + 0.03, STAIR.z1))); }
+      if (!_stairTreads) { _stairTreads = []; for (var k = 0, NT = 7, run = (STAIR.x1 - STAIR.x0) / NT, rise = STAIR.top / NT; k < NT; k++) _stairTreads.push(new T.Box3(new T.Vector3(STAIR.x1 - run * (k + 1) - 0.03, Math.max(0, rise * (k + 1) - 0.42), STAIR.z0), new T.Vector3(STAIR.x1 - run * k + 0.03, rise * (k + 1) + 0.03, STAIR.z1))); }
       var best = Infinity;
       for (var i = 0, m = Math.min(_stairTreads.length, n || _stairTreads.length); i < m; i++) if (_fray.ray.intersectBox(_stairTreads[i], _stv)) { var d = _fray.ray.origin.distanceTo(_stv); if (d < best) best = d; }
       return best;
@@ -5494,7 +5494,7 @@ var SCENE3D = (function () {
         var se = spotInfo('atticStair'), scut = se && se.mode === 'edge' ? cutOf('attic', 'stair') : null;
         if (se && se.mode === 'edge' && stairRayDist(cx, cy, scut && scut.cut ? 2 : 7) < Infinity) sp = 'atticStair';
       }
-      if (sp === 'atticStair') { var fd = furnRayDist(cx, cy); if (fd < Infinity && !(stairRayDist(cx, cy) < fd)) sp = null; }   /* 11-18: 계단 옆이 소파 자리 — 계단의 넓힌 칸 안이라도 손가락 밑에 보이는 것이 가구 몸이면 가구 (소파 톡 = 앉기). 계단에 가려진 뒤쪽 소파는 아니다: 광선이 계단 디딤판에 먼저 닿으면 계단 (검증: 가구가 늘 이기던 첫 고침은 계단 그림의 5분의 1 을 눌러도 소파에 앉았다) */
+      if (sp === 'atticStair') { var fd = furnRayDist(cx, cy), sct = cutOf('attic', 'stair'); if (fd < Infinity && !(stairRayDist(cx, cy, sct && sct.cut ? 2 : 7) < fd)) sp = null; }   /* (검증 11-18: 계단이 잘려 아래 두 칸만 그려질 땐 그 두 칸만 견준다 — 안 그려진 윗칸 자리 너머로 보이는 소파를 눌러도 위층으로 갔다) */   /* 11-18: 계단 옆이 소파 자리 — 계단의 넓힌 칸 안이라도 손가락 밑에 보이는 것이 가구 몸이면 가구 (소파 톡 = 앉기). 계단에 가려진 뒤쪽 소파는 아니다: 광선이 계단 디딤판에 먼저 닿으면 계단 (검증: 가구가 늘 이기던 첫 고침은 계단 그림의 5분의 1 을 눌러도 소파에 앉았다) */
       if (sp) return spotHit(sp);   /* 위층 계단 · 문간 둘레의 넓힌 칸 */   /* 위층 계단 */   /* 문 그림 둘레의 넓힌 칸 (44×44 이상) */
       var ni = nearItem(cx - r.left, cy - r.top, r);
       if (ni) return ni;   /* 등불 8칸 선반 기념품이 거울 위에 겹쳐도 기념품이 먼저 */

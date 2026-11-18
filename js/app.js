@@ -3301,6 +3301,9 @@ var APP = (function () {
   }
   /* 가져오기: 새 산책을 한 개씩 재생한다 (APP.importEvents 와 같은 길 · 고른 이: 모델). 바쁘면 기다린다 */
   var claudeSyncing = false;
+  /* 11-18 (검증): 저장소의 자리 last 가 file 과 같거나 뒤인가 — 서버 (api/walks/[key].js 의 order) 와 같은 차례: 날짜 → 번호. 모양을 모르면 false (예전처럼 꼬리표로만 본다) */
+  var WALK_FILE_RE = /^(\d{4}-\d{2}-\d{2})-(\d+)\.json$/;
+  function walkDone(file, last) { var x = WALK_FILE_RE.exec(file || ''), y = WALK_FILE_RE.exec(last || ''); return !!x && !!y && (y[1] > x[1] || (y[1] === x[1] && +y[2] >= +x[2])); }
   function claudeSync(manual) {
     var r = claudeRoom(); if (!r || claudeSyncing) return;
     claudeSyncing = true;
@@ -3326,6 +3329,9 @@ var APP = (function () {
             syncFromStore();   /* 재생을 기다린 사이 (busy) 다른 탭이 같은 산책을 들였을 수 있다 — 꼬리표를 보기 전에 저장소의 지금 기록을 받는다 */
             var cur = claudeRoom(); if (!cur || cur.key !== r.key) { claudeSyncing = false; return; }
             var tag = (B && B.hashSeed ? B.hashSeed('walk', cur.key).toString(36) : 'w') + ':' + w.file;
+            /* 11-18 (검증): 다른 탭 · 설치한 앱이 옛 빌드면 여행에 꼬리표를 안 적는다 — 그 탭이 먼저 들인 산책을 꼬리표만으로는 못 알아봐 한 번 더 들였고 (같은 포스터가 또 저장됨), 자리도 목록의 앞 파일로 되돌려 저장했다
+               → 방금 받은 저장소의 자리가 이 파일과 같거나 뒤면 이미 받은 산책이다: 건너뛰고 자리는 그대로 둔다 */
+            if (walkDone(w.file, cur.last)) return next();
             cur.last = w.file;   /* 자리와 꼬리표는 그 여행의 첫 저장 (importEvents 안) 에 같이 나간다 — 예전엔 첫 저장 뒤에 붙여, 그 사이 탭이 닫히면 꼬리표 없는 여행이 남았다 */
             var ok = !S.trips.some(function (t) { return t && t.walk === tag; }) && importEvents(w.events, { walk: tag });
             save();   /* 재생에 실패한 기록 · 이미 들어온 기록도 다시 잡지 않게 자리를 넘긴다 (그대로 서버에 남아 있다) */
@@ -5349,8 +5355,10 @@ var APP = (function () {
       var by = h('button', { type: 'button', class: 'btn sm pressable sew-yes', text: yes }), bn = h('button', { type: 'button', class: 'btn sm pressable sew-no', text: '그만' });
       /* 11-18 (검증): 확인 줄은 색 칸 자리에 뜬다 → 색 칸을 빠르게 두 번 톡하면 둘째가 그 자리에 놓인 '살래' · '물들일래' 에 떨어져 확인 없이 조개 · 염료가 나갔다.
          확인 줄이 뜬 뒤 SHEET_SETTLE (0.6 s) 안의 누름은 '살래' 도 '그만' 도 받지 않는다 (시트가 닫힌 직후의 큰 버튼과 같은 규칙 — afterSheet). 키보드 (Enter) 는 포커스가 '그만' 에 먼저 간다 */
-      by.addEventListener('click', function (e) { if (tapTime(e) - sewAskAt < SHEET_SETTLE) return; var a = sewAsk; sewAsk = null; if (a) sewDo(a); });
-      bn.addEventListener('click', function (e) { if (tapTime(e) - sewAskAt < SHEET_SETTLE) return; sewAsk = null; renderSew(); sewFocus('#sew-body .sew-grid', 0); });
+      /* (검증 11-18) 0.6 s 규칙은 손가락 · 마우스의 '같은 자리 두 번 누름' 을 막는 것 — 키보드 (Enter · Space: 진짜 누름이고 detail 0) 는 포커스가 '그만' 에 먼저 가 두 번 누름이 '살래' 에 닿지 않으니 빼 준다 (Enter → Tab → Enter 가 아무 표시 없이 무시됐다) */
+      var sewEarly = function (e) { return !(e && e.isTrusted && e.detail === 0) && tapTime(e) - sewAskAt < SHEET_SETTLE; };
+      by.addEventListener('click', function (e) { if (sewEarly(e)) return; var a = sewAsk; sewAsk = null; if (a) sewDo(a); });
+      bn.addEventListener('click', function (e) { if (sewEarly(e)) return; sewAsk = null; renderSew(); sewFocus('#sew-body .sew-grid', 0); });
       by.setAttribute('aria-describedby', 'sew-ask-line'); bn.setAttribute('aria-describedby', 'sew-ask-line');   /* 포커스가 단추에 가면 물음 글 (무엇을 · 얼마에) 도 읽힌다 */
       frag.appendChild(h('div', { class: 'sew-ask', role: 'group', 'aria-labelledby': 'sew-ask-line' }, [h('p', { class: 'sew-ask-line', id: 'sew-ask-line' }, (sw ? [sw] : []).concat(line)), h('div', { class: 'btn-row sew-ask-btns' }, [bn, by])]));
     } else {
