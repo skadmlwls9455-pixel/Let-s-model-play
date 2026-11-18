@@ -761,7 +761,7 @@ var RUNNER = (function () {
     /* 그림자: 땅에 닿는 폭에서, 높이 오를수록 좁게 */
     var sw = Math.max(6, (S.gw || 14) - (h >> 1));
     R(C.OCT_X + 7 - (sw >> 1), V.G, sw, 1, T.shadow);
-    var dx = C.OCT_X + 7 - (w >> 1), dy = V.G - h - hh + 1 + bob;   /* 맨 아래 줄(발) = 바닥선 V.G − 높이 */
+    var dx = Math.max(0, C.OCT_X + 7 - (w >> 1)), dy = V.G - h - hh + 1 + bob;   /* 맨 아래 줄(발) = 바닥선 V.G − 높이 · 넓은 칸 (착지 38 · 숙이기 42) 은 왼쪽 끝에서 잘리지 않게 0 부터 */
     ctx.drawImage(img, dx | 0, dy | 0);
   }
   /* 꾸밈 입자(계절 꽃잎·눈): 판 시드에서 갈라 낸 따로 된 mulberry32 — 시뮬레이션 난수(s.rng)는 건드리지 않는다. 같은 판은 같은 입자 */

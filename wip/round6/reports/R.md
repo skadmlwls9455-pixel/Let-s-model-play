@@ -9,7 +9,7 @@ device pixels on big screens, with a 1.0 s minimum cover; after naming, the octo
 self-introduction in a bubble before the gift toast; after the first finished walk a pixel hand taps the play-room door,
 the yard door and the stair once each; the loft mirror's "downstairs" line now says what to do.
 `npm test` passes; smoke R, FM (new) and the Z boot part pass; `node tools/test-runner.js` 583/583 unchanged; the
-loading-strip tool render is byte-identical (no `sq`). Independent check: see "Independent check" below.
+loading-strip tool render is byte-identical (no `sq`). The independent check found no `must` and four `should`s; three are fixed and one is flagged for the owner (see "Independent check").
 
 ## Changes
 
@@ -17,12 +17,12 @@ loading-strip tool render is byte-identical (no `sq`). Independent check: see "I
 |---|---|---|
 | `js/scene3d.js` | `renderPortrait` (one line after the pose scale) · `walkPortrait` (passes `sq`) · new `sqOf` next to `portraitColor` | `pw.sq = [sx, sy]` → `bodyG.scale.set(sx, sy, sx)` while rendering; restored by the existing `sv` save. Invalid / missing `sq` → `null` → exactly the old path. |
 | `js/runner.js` | sprite section (replaces `EXPR`, `blank/put/alphaAt/outline`, `fromPortraits`, `toCanvas`, old `drawnOctopus`, `buildSprites`) | `BAKE` table (yaw 30, tilt 15, hw 2.82, ty 0.4; run ×4 phases 0/0.5/1/1.5, jump `sq [0.92, 1.10]`, land `[1.10, 0.88]`, duck `[1.20, 0.62]`, hit, idle — `still`); `cropState` crops one shared alpha box per state (feet on the bottom row, alpha 0/255, ground width from the bottom 3 rows for the shadow); `bakeSprites` caches per `scene.color()` + `scene.paletteName()`; fallback `drawnOctopus(hex, { sx, sy, lp })` draws each state from parameters (idle eyes), `src = 'drawn'`. |
-| `js/runner.js` | `drawOct` | picks hit (over) · idle (ready / pause) · duck · jump · land (6 ticks) · run `floor(tick/5) % 4`; `ctx.drawImage(img, dx, dy)` with integers, no width/height; feet at `V.G − height`, centred on `OCT_X + 7`; shadow `max(6, groundWidth − (h >> 1))`. |
+| `js/runner.js` | `drawOct` | picks hit (over) · idle (ready / pause) · duck · jump · land (6 ticks) · run `floor(tick/5) % 4`; `ctx.drawImage(img, dx, dy)` with integers, no width/height; feet at `V.G − height`, centred on `OCT_X + 7` (left edge clamped to 0 so the wider land / duck frames are not cut at the canvas edge — a 2 / 4 px shift); shadow `max(6, groundWidth − (h >> 1))`. |
 | `js/runner.js` | API | `RUNNER.sprites()` (test hook: the bake for the current scene colour), `RUNNER.pix(name)` (12×12 guide pictures as SVG — the hand for F2). |
 | `index.html` | head boot block | new inline script before the boot `<style>`: reads `"motion":"reduce"` from `ppolppol_v2` → `data-motion="reduce"` early; computes `U = max(round(2·dpr), floor(min(vw, vh)·dpr/200))`, `u = U/dpr`, `x0`, `y0`, `n`, `dx = n·u`, `dur = n/52 s` → `--boot-u/x0/y0/dx/n/dur` (again on resize); adds `boot-min` after 1.0 s (at once under reduced motion). CSS: `56u × 39u`, `background-size 448u 39u`, legs `steps(8)` 1.0 s, cross `translate(x0, y0)` → `translate(x0+dx, y0)` `steps(n)` over `dur`, fallbacks for every variable; reduced motion (device or saved) = no animation (centred, cell 0); hide rule `html.booted.boot-min #boot`. Static `#boot` line, 12 s safety, `html:not(.booted) #oct-svg` rule and the preload unchanged. |
 | `js/app.js` | `DOWN_SAY` | F3 line (below). |
 | `js/app.js` | name-form submit handler | F1: after the dialog closes, `bubble(firstSentence, 2600, 'say')` (first sentence of `STR.firstGreeting(v)` = up to the first '. ' after the name, so the josa is the row's); the row keeps the full line; `giftWait = true` while the bubble is up, then `dailyGift()` at 2.8 s (was 1.5 s). |
-| `js/app.js` | new hints block right after `hideTip` | F2: `hintsAfterWalk(trip)` arms the hints (`ppolppol_ui.hintsArm`) only when the trip is an `out` walk and it is the only finished `out` walk; a 700 ms poll shows the next unseen hint at a quiet moment (name set, tab visible, no open dialog, no toast, no reveal, no ceremony, no intro, not furniture mode, not the play room, the attic in view, no tip); visible spot only (hidden ones wait); hand = `RUNNER.pix('hand')`, `aria-hidden`, no `title`, `position: fixed`, box on whole device px, art px = `round(2·dpr)` dev px; mirrored (CSS `scaleX(-1)` of the SVG, exact) when the button is too near the right edge; 1.6 s each, then the next; any `pointerdown` (capture, not prevented) or resize ends the run; each shown spot is written to `ppolppol_ui.hints` when it shows. A 3 s boot timer resumes armed hints after a reload. |
+| `js/app.js` | new hints block right after `hideTip` | F2: `hintsAfterWalk(trip)` arms the hints (`ppolppol_ui.hintsArm`) only when the trip is an `out` walk and it is the only finished `out` walk; a 700 ms poll shows the next unseen hint at a quiet moment (name set, tab visible, no open dialog, no toast, no reveal, no ceremony, no intro, not furniture mode, not the play room, the attic in view, no tip); visible spot only (hidden ones wait); after a tap no further hand for 8 s (the run ends there, the rest wait for a later quiet moment); hand = `RUNNER.pix('hand')`, `aria-hidden`, no `title`, `position: fixed`, box on whole device px, art px = `round(2·dpr)` dev px; mirrored (CSS `scaleX(-1)` of the SVG, exact) when the button is too near the right edge; 1.6 s each, then the next; any `pointerdown` (capture, not prevented) or resize ends the run; each shown spot is written to `ppolppol_ui.hints` when it shows. A 3 s boot timer resumes armed hints after a reload, and also arms them when the save has exactly one finished `out` walk, no hint seen yet and no running walk (a first walk that finished without a reveal — reload or close mid-walk → `resumeRunning`). |
 | `js/app.js` | `reveal` end (one line) | `hintsAfterWalk(trip);` after `finalPose(trip)` — the homecoming (log, ceremony: poster, lantern, items) is done there. |
 | `js/app.js` | boot gift timer (one guard) | `if (greetT) return;` — **outside my named regions**, see below. |
 | `css/style.css` | right after the `.tip` rules | `.hint-hand` (fixed, z 11: above scene buttons z ≤ 10, below dialogs/toast which are top layer), `hint-tap` keyframes (two presses of one art px toward the button, `step-end`, no scale), `.flip`, reduced motion (device `auto` and saved `reduce`) = still. |
@@ -89,16 +89,34 @@ loading-strip tool render is byte-identical (no `sq`). Independent check: see "I
 
 - `npm test` — pass (all suites; `test-runner` 583 passed).
 - `SMOKE_ONLY=R` — pass (65 + new checks; see the log lines `11-18`).
-- `SMOKE_ONLY=Z` — boot part all pass (14 new checks); the kitchen part (K2) passed; see "Not verified" for the loft run.
+- `SMOKE_ONLY=Z` — boot part all pass (14 new checks), the kitchen part passed; the loft part failed 3 checks on the stale `DOWN` pin, now fixed (rerun result below).
 - `SMOKE_ONLY=FM` (new) — 12 passed, 0 failed.
 
 For the lead: add nothing to `npm test` (no new test files); CI smoke lists can add `FM`.
 
 ## Shots (`wip/round6/shots/R/`)
 
-1 runner ready / run / jump / duck / hit at 360x740@2 (canvas read at the moment, shown at the real scale k = 7) · 2 runner run
-at 412x915@2.625 · 3 boot t 0 / 0.5 / 1.0 s 360x740@2 · 4 the same 1280x800@1 · 5 real boot 1280x800@1 (screencast, a frame
-every ≥ 100 ms) · 6 real boot 360x740@2 · 7 greeting bubble 360x740@2 · 8 a hint frame (the yard door, hand mirrored) 360x740@2.
+1 the baked frames (run ×4, jump, land, duck, idle) at the real scale k = 7 (DPR 2) · 2 the runner screen ready / run / hit at
+360x740@2 (smoke R captures) · 3 boot t 0 / 0.5 / 1.0 s 360x740@2 · 4 the same 1280x800@1 · 5 real boot 1280x800@1 (CDP
+screencast, a frame every ≥ 100 ms) · 6 real boot 360x740@2 · 7 greeting bubble 360x740@2 · 8 a hint frame (the yard door, hand
+mirrored) 360x740@2. Missing from the brief's list: in-game jump / duck frames and the 412x915@2.625 run frame — the in-page
+capture (`R-shots.js`, `RUNNER_SHOTS=1`) hangs in this container under load; the sizes and crispness at 2.625 are covered by
+smoke R2/R3 and the independent check (alpha 0/255, native draws, integer positions at 360@2 and 412@2.625).
+
+## Independent check (fresh reviewer, played at 360@2 / 412@2.625 / 1280@1)
+
+No `must`. `should`s and what I did:
+1. The loft scenario pinned the old mirror line in a second place (`DOWN` constant, ~6405) → updated (outside my area, D's
+   scenario); the three loft checks it broke are about that string only.
+2. A tap hid the hand but the next hint appeared ≈ 0.3 s later (reads as nagging) → fixed: a tap ends the run, no hand for 8 s,
+   the rest at a later quiet moment. Probe: tap during the first hand → 0 hands in the next 4 s, only `atticPlay` recorded.
+3. A first walk that finished through `resumeRunning` (reload / close mid-walk) never armed the hints → fixed in the hints
+   block's boot timer (arms with exactly one finished walk and no hint seen).
+4. Land 38×21 and duck 42×18 miss the spec's ≈ 35×20 / 38×15 by more than ±2 (the scene outline adds 1 px a side; the `sq`
+   values are the spec's), and the smoke pins measured sizes for those two; the ducked sprite top (17 px) sits ≈ 4 rows into a
+   web whose bottom is 13 px while the sim (duck height 10) passes under it; land / duck started at x −2 / −4 → the left clip is
+   fixed (dx clamped to 0). **Flag for the owner / lead:** the ducked octopus visually overlaps the web by a few rows; a flatter
+   duck (`sq` y ≈ 0.5) would match the spec size, but the spec fixes `[1.20, 0.62]`, so I left it.
 
 ## Needs another lane merged
 
