@@ -1705,3 +1705,6 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 #scene.meal-busy :is(#btn-table, #btn-call, #btn-seat) { visibility: hidden; pointer-events: none; }
 /* 문어가 식탁에 앉아 있는 동안엔 놀이방에서도 이름표 · 말풍선을 보인다 (위의 '놀이방이면 #oct 숨김' 의 예외 — 3D 의 2D 문어 그림은 제 규칙대로 숨은 채) */
 #scene[data-view="play"].oct-table #oct { visibility: visible; }
+/* 11-18 식탁 대답 알림의 꼬리 (누가 정했나 — '데모 규칙' · '모델' · '사람이 정함'): 문장 뒤 제 줄에 통째로 (가운데서 끊기지 않게) · 꼬리 색 · 글자 크기는 알림 그대로 */
+#toast .lby { display: block; white-space: nowrap; color: var(--dim); }
+:root[data-font="pixel"] #toast .lby { color: var(--muted); }

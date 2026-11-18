@@ -7571,6 +7571,8 @@ async function scenarioEat(browser) {
   await pa.waitForFunction(function () { return document.getElementById('toast').textContent.indexOf('데모 규칙') >= 0; }, null, { timeout: 8000 }).catch(function () {});
   var s4 = await st(pa);
   ok(s4.toast === '뚜루도 같이 먹기로 했어. 데모 규칙' && s4.tail === '데모 규칙', "알림: '뚜루도 같이 먹기로 했어.' + 꼬리 '데모 규칙' (" + s4.toast + ')');
+  var tl = await pa.evaluate(function () { var t = document.getElementById('toast'), b = t.querySelector('.lby'), cs = getComputedStyle(b); return { rects: b.getClientRects().length, fs: cs.fontSize, tfs: getComputedStyle(t).fontSize, col: cs.color, tcol: getComputedStyle(t).color }; });
+  ok(tl.rects === 1 && tl.fs === tl.tfs && tl.col !== tl.tcol, '알림 꼬리는 한 줄 통째 · 글자 크기 그대로 · 꼬리 색 (' + JSON.stringify(tl) + ')');
   await pa.screenshot({ path: path.join(SHOTS, 'eat-answer.png') });
   ok(await idle(pa), '식사가 끝난다');
   var s5 = await st(pa);
