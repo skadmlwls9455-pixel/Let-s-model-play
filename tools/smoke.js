@@ -5584,10 +5584,14 @@ async function scenarioWeek(browser) {
   var s1 = await pb.evaluate(function () {
     document.dispatchEvent(new Event('visibilitychange'));   /* 탭으로 돌아옴: 앱이 새 날을 알아채는 그 길 (1분 틱과 같은 checkDay) */
     var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user, b = document.getElementById('btn-bag');
-    return { shells: u.shells, seeds: u.seeds, key: u.week.key, prev: u.week.prev || null, dot: b.classList.contains('has-gift'), chip: b.textContent.trim() };
+    return { shells: u.shells, seeds: u.seeds, key: u.week.key, prev: u.week.prev || null, dot: b.classList.contains('has-gift'), chip: b.textContent.trim(),
+      giftDay: u.giftDay || null, giftShells: u.giftTell && u.giftTell.day === u.giftDay ? u.giftTell.shells : 0 };
   });
   console.log('   열어 둔 탭, 월요일:', JSON.stringify(s1));
-  ok(s1.key === MON && s1.shells === 32 && s1.seeds === 3 && s1.prev && s1.prev.shells === 12 && !s1.dot && s1.chip === '조개 32', '열어 둔 탭: 새 날을 알아챈 그 자리에서 조개 20 → 32 · 씨앗 1 → 3 이 새 주와 함께 저장되고 꼬리표가 «조개 32» · 점 없음으로 다시 그려진다');
+  /* 11-19 리드: 앱의 1분 틱 (dailyGift) 이 setDay 와 이 읽기 사이에 들 수 있다 (느린 CI 러너에서 탭이 막 1분을 넘겼을 때 — 5b21a1d) — 그러면 그날
+     선물 (조개 3 · 씨앗 1) 이 이미 들어와 있다. 그 몫만 빼고 보면 지난주 선물은 그대로 새 날을 알아챈 그 자리에서 +12 · +2 여야 한다 */
+  var dg1 = s1.giftDay === MON ? s1.giftShells : 0, ds1 = s1.giftDay === MON ? 1 : 0;
+  ok(s1.key === MON && s1.shells === 32 + dg1 && s1.seeds === 3 + ds1 && s1.prev && s1.prev.shells === 12 && !s1.dot && s1.chip === '조개 ' + (32 + dg1), '열어 둔 탭: 새 날을 알아챈 그 자리에서 조개 20 → 32 · 씨앗 1 → 3 이 새 주와 함께 저장되고 꼬리표가 «조개 ' + (32 + dg1) + '» · 점 없음으로 다시 그려진다' + (dg1 ? ' (1분 틱의 그날 선물 ' + dg1 + ' 이 먼저 들어옴)' : ''));
   var told2 = await toldWait(pb);
   await pb.evaluate(function () { document.dispatchEvent(new Event('visibilitychange')); });
   var g2 = await bagOf(pb), s2 = await snap(pb), d2i = s2.toasts.map(function (t) { return /^오늘 선물: 조개 3 · 씨앗 1/.test(t); }).indexOf(true);
