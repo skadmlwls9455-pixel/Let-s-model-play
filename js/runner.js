@@ -187,8 +187,10 @@ var RUNNER = (function () {
      예전 curious · happy · calm 은 코드가 기분을 칠한 것). 3D 장면이 없거나 굽기가 실패하면 코드로 그린 문어 (상태별 모양을 수치로, 역시 제 크기) */
   var OUTLINE = [36, 21, 39];   /* #241527 */
   var BAKE = { yaw: 30, tilt: 15, hw: 2.82, ty: 0.4,   /* ty 0.4 = 64×64 안에 발 · 머리가 여유 있게 (재 보니 위아래 14 px 넘게 빈다) */
+    /* 11-18 리드: 숙이기는 거미줄 그림 아래로 또렷이 — 그림 꼭대기가 거미줄 아래 끝 (바닥 위 13 px = 판정 상자 lo) 보다 1 px 넘게 아래 → 높이 ≤ 13.
+       스펙 [1.20, 0.62] 는 18 px (4 줄 겹침), 0.45~0.5 도 15~16 px 라 0.36 (40×13) */
     states: { run: [{ ph: 0 }, { ph: 0.5 }, { ph: 1.0 }, { ph: 1.5 }], jump: [{ still: true, sq: [0.92, 1.10] }], land: [{ still: true, sq: [1.10, 0.88] }],
-      duck: [{ still: true, sq: [1.20, 0.62] }], hit: [{ still: true }], idle: [{ still: true }] } };
+      duck: [{ still: true, sq: [1.20, 0.36] }], hit: [{ still: true }], idle: [{ still: true }] } };
   var SPR_CACHE = {};   /* 몸색 | 팔레트 → 구운 그림 (열 때마다 다시 굽지 않는다) */
   function hexRGB(h) { var n = parseInt(String(h || '').replace('#', ''), 16); if (!/^#?[0-9a-f]{6}$/i.test(String(h))) n = 0xe8463c; return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
   function mix(c, k) { return c.map(function (v) { return Math.max(0, Math.min(255, Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k))); }); }
@@ -255,7 +257,7 @@ var RUNNER = (function () {
     }
     return d;
   }
-  var DRAWN = { run: [{ lp: 0 }, { lp: 1, sy: 1.04 }, { lp: 1 }, { lp: 0, sy: 1.04 }], jump: [{ sx: 0.92, sy: 1.10 }], land: [{ sx: 1.10, sy: 0.88 }], duck: [{ sx: 1.20, sy: 0.62 }], hit: [{}], idle: [{}] };
+  var DRAWN = { run: [{ lp: 0 }, { lp: 1, sy: 1.04 }, { lp: 1 }, { lp: 0, sy: 1.04 }], jump: [{ sx: 0.92, sy: 1.10 }], land: [{ sx: 1.10, sy: 0.88 }], duck: [{ sx: 1.20, sy: 0.45 }], hit: [{}], idle: [{}] };
   function buildSprites() {
     var sc = null;
     try { sc = window.APP && window.APP.scene; } catch (e) { sc = null; }
