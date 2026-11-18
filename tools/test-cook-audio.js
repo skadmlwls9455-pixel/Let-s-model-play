@@ -14,7 +14,8 @@
  *     -10 dB, 닫으면 풀림 · 진짜 출력: 지글 동안 소리, 멈춘 뒤 조용 (음악 0)
  *  B. ?reduced=1 + 단추 길 (COOK.auto): 뒤집기는 휙을 건너뛴다 (off 0.21) · 접시는 공개와 같이 · 톡톡 i 0 · 3 · 6 의 빠르기 ·
  *     단추를 많이 눌러도 (33번) 들린 톡 변형이 연달아 같지 않다 (한 번 누름에 tap 셋 — 버려진 둘이 '직전 것' 으로 남지 않는다)
- *  C. 소리 꺼짐 (기본): 손가락으로 한 판 내내 AudioContext 없음 · 재생 0 · audio/ · foley/ 요청 0
+ *  C. 소리 꺼짐 (기본): 손가락으로 한 판 내내 AudioContext 없음 · 재생 0 · audio/ · foley/ 요청 0 · 노릇노릇에 '띵' 을 청해도 소리 없음 (11-18)
+ *  O. (11-18) foley/manifest.json 404 여도 '띵' 은 운다 (파일 없이 만든 소리) · cut 다음 place · step · done 을 미리 받는다 (COOK_NEXT.cut)
  *  D. 파일이 없다: foley/manifest.json 404 · foley/cook/* 404 → 조용히, 페이지 오류 0, 부엌 오류 0, 한 판 끝까지 · 부엌 목록이 없으면 (아직 안 왔어도)
  *     부엌이 열려 있어도 음악 · 비를 내리지 않는다, 목록이 온 순간부터 내린다
  *  E. file:// + ?sound=1 → 조용히 (reason 'file' · 저장 안 함) · 오류 0
@@ -250,6 +251,9 @@ async function scenarioA(browser, base) {
   var xf = (s6 || s5 || s4).cook.log.filter(function (x) { return x.ev === 'xfade'; });
   ok(!!s5 && !!s6 && xf.length === 2 && xf[0].id === 'cook_sizzle_1' && xf[1].id === 'cook_sizzle_2' && xf.every(function (x) { return x.fade === 0.15 && x.pop === 4; }), '노릇노릇 · 바삭바삭 → 지글 1 · 지글 2 로 0.15 s 크로스페이드 + 치익 (+4 dB) ' + JSON.stringify(xf));
   ok(xf.length === 2 && xf[0].t - st0.t > 2.6 && xf[0].t - st0.t < 3.6 && xf[1].t - xf[0].t > 2.6 && xf[1].t - xf[0].t < 3.6, '굽기가 바뀌는 때 = 3 s 마다 (' + (xf[0] && (xf[0].t - st0.t).toFixed(2)) + ', ' + (xf[1] && (xf[1].t - xf[0].t).toFixed(2)) + ')');
+  /* 11-18 '띵': 노릇노릇이 되는 순간 한 번 (지글 1 크로스페이드가 걸린 바로 그때), 바삭바삭에는 없다 */
+  var dings = ids(s6 || s5 || s4, /^cook_ding$/);
+  ok(dings.length === 1 && xf[0] && dings[0].t >= xf[0].t - 0.03 && dings[0].t - xf[0].t < 0.15, "노릇노릇 → '띵' 한 번, 지글 1 크로스페이드가 걸린 그때 (" + (dings[0] && xf[0] ? (dings[0].t - xf[0].t).toFixed(3) : dings.length) + ' s) · 바삭바삭엔 없음');
   /* 위로 쓸기 → 뒤집기 + quiet */
   await K.drag(line([144, 236], [146, 140], 6));
   var s7 = await K.waitSt(function (x) { return ids(x, /^cook_flip_\d$/).length > 0 && !x.cook.loop; }, 3000);
@@ -278,7 +282,7 @@ async function scenarioA(browser, base) {
   ok(steam.length === 1 && plate[0] && Math.abs(steam[0].t - plate[0].t - 0.15) < 0.03, '…그 0.15 s 뒤 작은 김 쉬익 (cook_steam)');
   var all = s9.played.filter(function (x) { return /^cook_/.test(x.id); }).map(function (x) { return x.id.replace(/_\d$/, ''); });
   var seq = all.filter(function (x, j) { return j === 0 || x !== all[j - 1]; });
-  ok(seq.join(' ') === 'cook_pat cook_step cook_heat_on cook_flip cook_step cook_cut cook_step cook_plate cook_steam', '한 판 소리 차례 (한 번짜리): ' + seq.join(' > '));
+  ok(seq.join(' ') === 'cook_pat cook_step cook_heat_on cook_ding cook_flip cook_step cook_cut cook_step cook_plate cook_steam', '한 판 소리 차례 (한 번짜리): ' + seq.join(' > '));
   var lv = await K.live();
   ok(lv.err === 0 && lv.done, '부엌 오류 0 · 접시까지');
   ok(s9.requests > 0 && K.bag.net.some(function (u) { return /\/foley\/manifest\.json$/.test(u); }) && K.bag.net.some(function (u) { return /\/foley\/cook\/cook_sizzle_2\.ogg$/.test(u); }), 'Opus(.ogg) 를 먼저 받는다 (' + s9.fmt + ')');
@@ -335,21 +339,56 @@ async function scenarioB(browser, base) {
 async function scenarioC(browser, base) {
   console.log('\n== C. 소리 꺼짐 (기본): 한 판 내내 조용 · 요청 0');
   var K = await kitchen(browser, { url: base + '/cook.html?seed=9' });
+  await K.page.evaluate(function () { window.__dingAsked = 0; var on = AUDIO.on; AUDIO.on = function (n, d) { if (n === 'cook' && d && d.act === 'ding') window.__dingAsked++; return on.apply(this, arguments); }; });
   await K.tapAt([180, 40]);
   await playTapMarks(K);
   await K.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 5000, 'flip');
-  await wait(800); await K.tap(144, 176); await wait(1200);
+  await wait(800); await K.tap(144, 176); await wait(3600);   /* 11-18: 노릇노릇까지 기다린다 (부엌은 '띵' 을 청한다) */
   await K.drag(line([144, 236], [146, 140], 6));
   await playSlice(K);
   await K.until(function (x) { return x.screen === 'reveal'; }, 5000, 'reveal');
   await wait(800);
   var s = await K.st(), ls = await K.page.evaluate(function () { return localStorage.getItem('ppolppol_audio'); });
   ok(s.enabled === false && s.ctx === 'none' && !s.started && s.played.length === 0 && !s.cook.ready && !s.cook.loop, '꺼짐: AudioContext 없음 · 재생 0 · 부엌 목록도 안 받음');
+  var asked = await K.page.evaluate(function () { return window.__dingAsked; });
+  ok(asked === 1 && ids(s, /ding/).length === 0, "꺼짐: 부엌은 노릇노릇에 '띵' 을 한 번 청했지만 (" + asked + ') 버퍼도 소리도 없다');
   ok(K.bag.net.length === 0, '꺼짐: audio/ · foley/ 요청 0 (' + K.bag.net.length + ')');
   ok(ls === null, '꺼짐: 소리 설정을 쓰지 않는다 (기본 그대로)');
   ok((await K.live()).err === 0, '부엌 오류 0');
   noErrors(K, 'C');
   await K.close();
+}
+
+/* O (11-18 '띵' · COOK_NEXT.cut): foley/manifest.json 을 못 받아도 '띵' 은 운다 (파일이 필요 없다 — 부엌 층을 기다리지 않는다) ·
+   썰기(cut) 다음에 place · step · done 을 미리 받는다 (과일 꼬치: 썰고 꽂고 접시, 뒤집기 없음) */
+async function scenarioO(browser, base) {
+  console.log("\n== O. '띵' 은 파일 없이 · cut 다음 미리 받기");
+  var K = await kitchen(browser, { url: base + '/cook.html?sound=1&seed=31', audio: { on: false, music: 0, sfx: 0.8 }, allow: /\/foley\/manifest\.json$/,
+    route: function (ctx) { return ctx.route('**/foley/manifest.json', function (r) { return r.fulfill({ status: 404, contentType: 'text/plain', body: 'gone' }); }); } });
+  await K.tapAt([180, 40]);
+  var on = await K.waitSt(function (x) { return x.started && x.ctx === 'running'; }, 15000);
+  await playTapMarks(K);
+  await K.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 5000, 'flip');
+  await wait(800); await K.tap(144, 176);
+  await K.until(function (x) { return x.band === 1; }, 5000, 'golden');
+  var s = await K.waitSt(function (x) { return ids(x, /^cook_ding$/).length > 0; }, 2000) || await K.st();
+  ok(!!on && !s.cook.ready && ids(s, /^cook_ding$/).length === 1, "foley/manifest.json 404: 부엌 소리는 없어도 '띵' 은 한 번 운다 (" + ids(s, /^cook_ding$/).length + ')');
+  ok(s.played.filter(function (x) { return /^cook_/.test(x.id) && x.id !== 'cook_ding'; }).length === 0 && !K.bag.net.some(function (u) { return /ding/.test(u); }), "…다른 부엌 소리는 없고, '띵' 은 아무것도 받지 않는다 (파일 없음)");
+  noErrors(K, 'O 목록 없음');
+  await K.close();
+  var P = await kitchen(browser, { url: base + '/cook.html?sound=1&seed=32', audio: { on: false, music: 0, sfx: 0.8 } });
+  ok(!!(await P.unlock()), '첫 탭 → 켜짐');
+  await P.spy();
+  await P.page.evaluate(function () { COOK.auto(true); });
+  await P.until(function (x) { return x.kind === 'slice' && x.phase === 'step'; }, 20000, 'slice');
+  var placeBefore = P.bag.net.filter(function (u) { return /\/foley\/cook\/cook_place_/.test(u); }).length;
+  await P.until(function (x) { return x.screen === 'reveal'; }, 20000, 'reveal');
+  await wait(600);
+  var net = P.bag.net.map(function (u) { return u.replace(/^.*\/foley\/cook\//, ''); }), acts = (await P.acts()).map(function (a) { return a.act; });
+  ok(acts.indexOf('cut') >= 0 && placeBefore === 0 && net.some(function (u) { return /^cook_place_\d\.ogg$/.test(u); }) && net.some(function (u) { return /^cook_step\.ogg$/.test(u); }) && net.some(function (u) { return /^cook_plate_\d\.ogg$/.test(u); }),
+    'cut 다음에 place · step · done(접시) 을 미리 받는다 (cut 전 place 요청 ' + placeBefore + ')');
+  noErrors(P, 'O 미리 받기');
+  await P.close();
 }
 
 async function scenarioD(browser, base) {
@@ -889,7 +928,7 @@ async function scenarioG(browser, base) {
 (async function main() {
   var srv = await serve(), base = 'http://127.0.0.1:' + srv.address().port, t0 = Date.now();
   var browser = await chromium.launch();
-  var all = { A: scenarioA, B: scenarioB, C: scenarioC, D: scenarioD, E: scenarioE, F: scenarioF, H: scenarioH, I: scenarioI, J: scenarioJ, K: scenarioK, M: scenarioM, N: scenarioN, L: scenarioL, G: scenarioG };
+  var all = { A: scenarioA, B: scenarioB, C: scenarioC, D: scenarioD, E: scenarioE, F: scenarioF, H: scenarioH, I: scenarioI, J: scenarioJ, K: scenarioK, M: scenarioM, N: scenarioN, O: scenarioO, L: scenarioL, G: scenarioG };
   try {
     for (var k in all) {
       if (ONLY.length && ONLY.indexOf(k) < 0) continue;

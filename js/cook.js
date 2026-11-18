@@ -38,14 +38,16 @@
  *          bandMs after heat-on and waits at 2), res (band it was flipped at) or null, bandMs 3000,
  *          stroke { id, x0, y0, t0, b0 } or null. The jeon colour on screen is band (res once flipped).
  *   slice: lines [{ ax, ay, bx, by (logical), len (A to B, logical: the food's size along the line + 3 art px at
- *          each end, at most 128), ux, uy, off (art px, -4..4), bins [0|1 x 40] knife score along
- *          A to B, n painted bins, cut (bool), how null|'drag'|'cross'|'b', ang (cut angle, multiple of 6,
- *          -30..30), ws, as (internal) }], cur (lit guide; one at a time), band (half width, logical px),
- *          hand { x, y } logical ints of the knife hand or null, pen (internal).
+ *          each end, at most 128), ux, uy, off (art px, always 0 since 11-18), bins [0|1 x 40] knife score along
+ *          A to B, n painted bins, cut (bool), how null|'drag'|'cross'|'b', ang (always 0: cuts are exact),
+ *          ws, as (internal) }], cur (lit guide; one at a time), band (half width, logical px),
+ *          hand { x, y } logical ints of the knife hand or null, pen (internal), cross (bool: a '+' step, line 0
+ *          vertical through the food centre, line 1 horizontal).
  * LOOK   ints only, set when a step finishes. run.looks[si]: tap { dents }, flip { band }, slice { cuts, offs }.
  *   COOK.lookOf(run) merges them: { v: 1, dents, band, cuts, offs, plate }. Dents are food box px (64 x 48);
  *   cuts[i] is the angle of cut i against its guide (line 0 horizontal, line 1 vertical: cook-art GEO.cross),
- *   offs[i] the guide's offset in art px across the line (down for line 0, right for line 1).
+ *   offs[i] the guide's offset in art px across the line (down for line 0, right for line 1). Since 11-18 a new run
+ *   always gives zeros (exact '+'); old book looks keep their values.
  * EVENTS COOK.drain(run) -> [{ type, si, ... }]. snd = the payload for AUDIO.on('cook', snd); say = aria text.
  *   run:   start { kind, say }, step { kind, tag, snd step }, quiet { snd quiet } (after every step), reveal { dish,
  *          say (plate description), snd done }.
@@ -350,9 +352,8 @@ var COOK = (function () {
   /* ---------- KIND.slice: follow the lit guide (any direction, any speed, lift and continue), or slash across it.
    * Follow: the guide has 40 bins; a pair of resampled samples inside the band, moving within +-axis deg of the guide,
    * paints the bins between their projections; 80 % painted = cut. Across: a stroke crossing inside 15-85 % of the
-   * guide at >= crossDeg cuts the whole line, straight. Angle (the shape the hand leaves): principal axis (least
-   * squares) of the in-band samples of each stroke part, weighted by its length along the guide, rounded to 6 deg;
-   * |angle| >= 12 = slant. Step tag: 'slant' when at least half of the lines are slanted. ---------- */
+   * guide at >= crossDeg cuts the whole line. 11-18 '+': every cut is exact (angle 0, offset 0) and the step tag is
+   * always 'straight'; the stroke's principal axis is still folded in (ws, as) but no longer read. ---------- */
   function sliceLine(ax, ay, bx, by, off) {
     var len = dist(ax, ay, bx, by), bins = [];
     for (var i = 0; i < TUNE.slice.bins; i++) bins.push(0);
@@ -377,10 +378,6 @@ var COOK = (function () {
     if (phi === null || !(w > 0) || Math.abs(phi) > S2.axis) return;   /* parts that cross the band steeply do not steer the angle */
     L.ws = z(L.ws + w); L.as = z(L.as + w * phi);
   }
-  function quantAng(phi) {
-    var S2 = TUNE.slice, q = Math.round(phi / S2.angStep) * S2.angStep;
-    return Math.max(-S2.angMax, Math.min(S2.angMax, q)) | 0;
-  }
   function paint(L, a, b) {
     var N = L.bins.length, lo = Math.min(a, b), hi = Math.max(a, b), half = 0.5 / N, added = 0;
     for (var i = 0; i < N; i++) { var c = (i + 0.5) / N; if (!L.bins[i] && c >= lo - half && c <= hi + half) { L.bins[i] = 1; L.n++; added++; } }
@@ -397,14 +394,14 @@ var COOK = (function () {
     if (!L || L.cut) return;
     if (pen && pen.sub) { if (how === 'drag') subEnd(L, pen.sub); pen.sub = null; }
     L.cut = true; L.how = how;
-    L.ang = how === 'drag' && L.ws > 0 ? quantAng(L.as / L.ws) : 0;   /* a slash across or the button cuts straight */
+    L.ang = 0;   /* 11-18 '+': every cut lands exactly on its guide, however the finger wandered (round 6 R3) */
     for (var i = 0; i < L.bins.length; i++) L.bins[i] = 1;
     L.n = L.bins.length; st.prog = t;
-    var cuts = 0, slants = 0;
-    st.lines.forEach(function (l) { if (l.cut) { cuts++; if (Math.abs(l.ang) >= TUNE.slice.slant) slants++; } });
+    var cuts = 0;
+    st.lines.forEach(function (l) { if (l.cut) cuts++; });
     var last = cuts >= st.lines.length;
-    emit(st, 'cut', { i: st.cur, ang: L.ang, how: how, say: last ? null : WORDS.line, snd: { act: 'cut', i: st.cur } });
-    if (last) st.tag = slants * 2 >= st.lines.length ? 'slant' : 'straight';
+    emit(st, 'cut', { i: st.cur, ang: 0, how: how, say: last ? null : WORDS.line, snd: { act: 'cut', i: st.cur } });
+    if (last) st.tag = 'straight';
     else { st.cur++; if (pen) pen.nocross = true; emit(st, 'line', { i: st.cur }); }
     sliceRise(st, t);
   }
@@ -453,16 +450,17 @@ var COOK = (function () {
   KIND.slice = {
     multi: false, sayHalf: false,
     init: function (step, seed, food) {
-      var S2 = TUNE.slice, sc = TUNE.stage.scale, rng = mulberry32(seed), n = clampInt(step.lines, 1, 3, 2), lines = [];
-      var cx = food.cx * sc, cy = food.cy * sc, j = S2.jitter;
+      /* 11-18 '+': guides sit exactly on the food centre (no seeded offset any more; seed is unused here). A cross step
+         cuts line 0 vertical first, then line 1 horizontal (a portrait thumb swipes down first). */
+      var S2 = TUNE.slice, sc = TUNE.stage.scale, n = clampInt(step.lines, 1, 3, 2), lines = [];
+      var cx = food.cx * sc, cy = food.cy * sc;
       var rx = food.rx ? food.rx[food.rx.length - 1] : food.w >> 1, ry = food.ry ? food.ry[food.ry.length - 1] : food.h >> 1;
       var hx = Math.min(S2.len, 2 * (rx + S2.over) * sc) / 2, hy = Math.min(S2.len, 2 * (ry + S2.over) * sc) / 2;   /* half guide, logical */
       for (var i = 0; i < n; i++) {
-        var off = (rng() % (2 * j + 1)) - j;
-        if (step.cross && n === 2) lines.push(i === 0 ? sliceLine(cx - hx, cy + off * sc, cx + hx, cy + off * sc, off) : sliceLine(cx + off * sc, cy - hy, cx + off * sc, cy + hy, off));
-        else { var x = cx + ((2 * i - (n - 1)) * S2.gap / 2 + off) * sc; lines.push(sliceLine(x, cy - hy, x, cy + hy, off)); }
+        if (step.cross && n === 2) lines.push(i === 0 ? sliceLine(cx, cy - hy, cx, cy + hy, 0) : sliceLine(cx - hx, cy, cx + hx, cy, 0));
+        else { var x = cx + ((2 * i - (n - 1)) * S2.gap / 2) * sc; lines.push(sliceLine(x, cy - hy, x, cy + hy, 0)); }
       }
-      return base('slice', { box: boxOf(food), lines: lines, cur: 0, band: Math.max(S2.bandMin, S2.bandK * S2.len), hand: null, pen: null });
+      return base('slice', { box: boxOf(food), lines: lines, cur: 0, band: Math.max(S2.bandMin, S2.bandK * S2.len), hand: null, pen: null, cross: !!(step.cross && n === 2) });
     },
     down: function (st, s) {
       sliceEnd(st);
@@ -475,7 +473,12 @@ var COOK = (function () {
     cancel: function (st, s) { if (!s || (st.pen && st.pen.id === s.id)) sliceEnd(st); },
     tick: function () {},
     alt: function (st, t) { if (!st.done) cutLine(st, 'b', t); },   /* one press = the lit line, cut straight */
-    look: function (st) { return { cuts: st.lines.map(function (l) { return l.ang; }), offs: st.lines.map(function (l) { return l.off; }) }; },
+    /* look keeps the canonical order (cross: index 0 = the horizontal line, 1 = the vertical one, cook-art GEO.cross);
+       the sim cuts vertical first, so a cross step reads its lines back to front. Every value is 0 since 11-18. */
+    look: function (st) {
+      var ls = st.cross ? st.lines.slice().reverse() : st.lines;
+      return { cuts: ls.map(function (l) { return l.ang; }), offs: ls.map(function (l) { return l.off; }) };
+    },
     tag: function (st) { return st.tag; }
   };
 
@@ -1007,7 +1010,7 @@ var COOK = (function () {
       else if (q.k === 'flash') { if (fr === 0) J.flash = true; on = fr < 1; }
       else if (q.k === 'bump') { if (fr === 0) { if (L.reduced) J.flash = true; else J.bump = true; } on = fr < 1; }
       else if (q.k === 'arc') { if (!L.reduced && fr <= 3) J.arc = { f: fr, lift: q.lift }; on = fr <= 3; }
-      else if (q.k === 'cut') { if (fr <= 1) J.cut = q.i; on = fr < 2; }   /* two frames: the cut sound's crunch lands 70-130 ms in */
+      else if (q.k === 'cut') { if (fr <= 1) J.cut = { i: q.i, f: fr }; on = fr < 2; }   /* two frames: the cut sound's crunch lands 70-130 ms in; 11-18: f 0 = the pop (sep 2), f 1 = the settle */
       else if (q.k === 'shake') { if (!L.reduced && fr >= q.from && fr <= q.from + 1) J.shake = fr === q.from ? [q.dx, q.dy] : [-q.dx, -q.dy]; on = fr <= q.from + 1; }
       else if (q.k === 'rise') { J.rise = L.reduced ? TUNE.reveal.frames - 1 : Math.min(TUNE.reveal.frames - 1, fr); on = fr < TUNE.reveal.frames - 1; }
       if (on) keep.push(q);
@@ -1110,6 +1113,10 @@ var COOK = (function () {
         fxAdd({ k: 'shake', from: 3, dx: 0, dy: 1 }, e.si);
         break;
       case 'score': L.fx++; break;
+      case 'band':   /* 11-18 golden: the bell picture (always) and the ding (only when sound is on; js/audio.js decides). No
+                        buzz, no sticker call (handle already cued the band), no new aria word (the line says the band) */
+        if (e.band === 1) { L.bell = { at: L.lastT, si: e.si }; L.dirty = true; sound({ act: 'ding' }); }
+        break;
       case 'cut':
         L.fx++; fxAdd({ k: 'cut', i: e.i }, e.si); buzz('cut');
         ln = st && st.kind === 'slice' && st.lines[e.i];
@@ -1350,7 +1357,7 @@ var COOK = (function () {
   function follow(id, q) {   /* the spatula follows the finger of a stroke after heat-on (display rate, art px) */
     var st = L.run && L.run.st;
     if (!st || st.kind !== 'flip' || !st.stroke || st.stroke.id !== id || st.done) return;
-    L.finger = [Math.round(q.x / TUNE.stage.scale), Math.round(q.y / TUNE.stage.scale) - 6]; L.dirty = true;
+    L.finger = [Math.round(q.x / TUNE.stage.scale), Math.round(q.y / TUNE.stage.scale) - 8]; L.dirty = true;   /* 11-18: the bigger blade sits 8 art px above the finger */
   }
   function onDown(e, routed) {   /* routed: a stroke that began on the quiet chip belongs to the stage */
     if (!L) return;
@@ -1499,10 +1506,19 @@ var COOK = (function () {
     D.verb.style.left = dev(Math.round((vw - LAY.CHIP) / 2)) + 'px'; D.verb.style.top = dev(chipTop) + 'px';
     D.verb.style.width = dev(LAY.CHIP) + 'px'; D.verb.style.height = dev(LAY.CHIP) + 'px';
     D.note.style.left = left0 + 'px'; D.note.style.right = right0 + 'px'; D.note.style.top = dev(hudB + LAY.PAD) + 'px';
-    /* stickers (5.4): one sticker px = n device px (n = floor(2 dpr)); the engine draws at 2 CSS px a sticker px, so the
-       layer is zoomed by n / dpr / 2 and its own lengths are given before the zoom. Shown only above STICK_ROW */
-    var n2 = Math.max(1, Math.floor(2 * dpr + 1e-6)), s = 32 * n2 / dpr, z = n2 / dpr / 2, st = D.stick.style;
-    var showStick = hudB + 4 + s + 8 <= (LAY.STICK_ROW + oy) * css;
+    /* stickers (5.4): one sticker px = n device px; the engine draws at 2 CSS px a sticker px, so the layer is zoomed by
+       n / dpr / 2 and its own lengths are given before the zoom. Shown only above STICK_ROW, decided at n0 = floor(2 dpr)
+       as before; 11-18: when shown, n is the largest of n0 .. floor(3 dpr) that still fits (up to 1.5x, never smaller),
+       but only with a zoom the browser holds exactly (a whole number of 1/64): Chrome keeps zoom as a short float, and
+       a zoom like 4/3 (n 7 at DPR 2.625) or 8/7 drifts the picture by a device px every few sticker px. n0 is kept as
+       it always was. Measured: 360x740 @2 and @3, 412x915 @2, 390x844 @3 -> 96 CSS; 412x915 @2.625 stays 61 */
+    var n0 = Math.max(1, Math.floor(2 * dpr + 1e-6)), n3 = Math.max(n0, Math.floor(3 * dpr + 1e-6)), stickRoom = (LAY.STICK_ROW + oy) * css;
+    var showStick = hudB + 4 + 32 * n0 / dpr + 8 <= stickRoom, n2 = n0;
+    if (showStick) for (var nn = n3; nn > n0; nn--) {
+      var zz = nn / dpr / 2 * 64;
+      if (hudB + 4 + 32 * nn / dpr + 8 <= stickRoom && Math.abs(zz - Math.round(zz)) < 1e-6) { n2 = nn; break; }
+    }
+    var s = 32 * n2 / dpr, z = n2 / dpr / 2, st = D.stick.style;
     D.stick.hidden = !showStick;
     st.zoom = Math.abs(z - 1) < 1e-9 ? '' : String(z);
     st.top = (dev(hudB + 4) / z) + 'px'; st.left = '0px'; st.width = (vw / z) + 'px'; st.height = (s / z) + 'px';
@@ -1542,11 +1558,19 @@ var COOK = (function () {
     for (i = 0; i < L.parts.length; i++) s = (Math.imul(s, 31) + Math.floor((t - L.parts[i].at) / FMS)) >>> 0;
     if (L.hint) s = (Math.imul(s, 31) + Math.floor((t - L.hint.at) / FMS)) >>> 0;
     if (L.slide) s = (Math.imul(s, 31) + 0x51 + Math.floor((t - L.slide.t0) / FMS)) >>> 0;
+    var bl = bellNow(t); if (bl && bl.f < 8) s = (Math.imul(s, 31) + 0xbe11 + bl.f) >>> 0;
     if (!L.reduced && L.run) {
       fx = fxNow(L.run, t);
       [fx.fh, fx.fbc, fx.fl, fx.t].forEach(function (v) { s = (Math.imul(s, 31) + (v == null ? 0x5bd1 : v + 1)) >>> 0; });
     }
     return s;
+  }
+  /* 11-18 the bell (spec 2.1): null, or { f (12 fps frames since the golden moment), shown (painted now: the flip step is
+     golden and not flipped yet) } */
+  function bellNow(t) {
+    var run = L.run, st = run && run.st, b = L.bell;
+    if (!b || !run || b.si !== run.si || run.t0 == null || b.at < run.t0) return null;
+    return { f: Math.max(0, Math.floor((t - b.at) / FMS)), shown: run.phase === 'step' && !!st && st.kind === 'flip' && st.band === 1 && st.res === null };
   }
   var FL_MAX = 48;   /* the landing counter stops at 4 s (the art's landing bloom ends at 36): no more redraws for it */
   function fxNow(run, t) {   /* frame counters for the art's stateless heat effects (12 fps); null = not known */
@@ -1572,7 +1596,8 @@ var COOK = (function () {
           spatula: L.finger && !J.arc ? L.finger : undefined, arrow: st.heat && st.res === null ? (L.reduced ? 0 : (f >> 2) & 1) : null,
           bump: J.bump, flash: J.flash, still: L.reduced, f: f, seed: fx.seed, fh: fx.fh, fbc: fx.fbc, fl: fx.fl });
       } else if (st.kind === 'slice') {
-        A.sliceScene(b, { band: run.looks[1] ? run.looks[1].band : 1, herb: herb, dents: d0, lines: st.lines, cur: st.cur, flash: J.cut, hand: st.hand, f: f, seed: fx.seed, fl: fx.fl, still: L.reduced });
+        A.sliceScene(b, { band: run.looks[1] ? run.looks[1].band : 1, herb: herb, dents: d0, lines: st.lines, cur: st.cur,
+          flash: J.cut ? J.cut.i : null, pop: !!(J.cut && J.cut.f === 0), hand: st.hand, f: f, seed: fx.seed, fl: fx.fl, still: L.reduced });
       }
     }
     if (J.squash) L.stats.squash++;
@@ -1604,6 +1629,8 @@ var COOK = (function () {
       composeSlide(V, sl, sp);
     } else {
       paintStage(L.buf, J, t, false);
+      var bl = bellNow(t), BA = art();   /* 11-18: the golden bell sits on top of the stove scene */
+      if (bl && bl.shown && BA && BA.bell && BA.GEO.bell) BA.bell(L.buf, BA.GEO.bell[0], BA.GEO.bell[1], bl.f, L.reduced);
       layer(V, stationNow(), L.buf, L.ox, L.oy, 0, V.w);
     }
     if (J.shake) { shakeView(V, J.shake[0], J.shake[1]); L.stats.shake++; }
@@ -1795,7 +1822,7 @@ var COOK = (function () {
   /* ---------- test hooks (spec 14) ---------- */
   function live() {
     if (!L) return { screen: 'closed', recipe: null, si: null, kind: null, phase: null, progress: 0, done: false, tag: null, band: null, quiet: true, fx: 0,
-      station: null, slide: null, view: null, verb: '', stick: false, err: lastErr };
+      station: null, slide: null, view: null, verb: '', stick: false, err: lastErr, bell: null };
     var run = L.run, st = run && run.st, sp = slideAt(L.lastT), sl = L.slide;
     return { screen: L.screen, recipe: run ? run.recipe : null, si: run ? run.si : null, kind: st && run.phase !== 'reveal' ? st.kind : null,
       phase: run ? run.phase : null, progress: st ? st.progress : 0, done: run ? !!run.done : false, tag: st ? st.tag : null,
@@ -1806,7 +1833,7 @@ var COOK = (function () {
       stick: !D.stick.hidden, chip: L.chipOn, t0: run ? run.t0 : null, revealAt: L.screen === 'reveal' ? L.revealAt : null,
       k: L.k, css: L.css, tight: false, reduced: L.reduced, slow: L.slow, frames: L.frames, err: L.err, said: L.said.slice(),
       stats: clone(L.stats), seed: run ? run.seed : null, id: run ? run.id : null, look: run ? lookOf(run) : null,
-      st: st ? clone(st) : null, pending: !!(run && !run.done), key: curKey, seen: L.seen.slice() };
+      st: st ? clone(st) : null, pending: !!(run && !run.done), key: curKey, seen: L.seen.slice(), bell: bellNow(L.lastT) };
   }
   function auto(on) { if (!isOpen()) return false; L.auto = on ? { next: 0 } : null; return true; }
 
