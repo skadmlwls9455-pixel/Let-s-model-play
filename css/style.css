@@ -1720,3 +1720,24 @@ dialog.dish-pick .dp-chip img { position: absolute; left: var(--dp-icp, 8px); to
 html.dish-picking #btn-go, html.dish-picking #stick { visibility: hidden !important; }   /* 리드 11-18: 쟁반이 열린 동안 아래 막대의 큰 단추 · 손잡이가 칩 사이로 비치지 않게 (닫으면 클래스만 빠진다 → 그대로) */
 dialog.dish-pick .dp-chip:focus { outline: none; }
 dialog.dish-pick .dp-chip:focus-visible, .cook-wait .cw-close:focus-visible { outline: var(--dp-b, 2px) solid #341c27; outline-offset: var(--dp-b, 2px); }
+/* 11-18 식탁 (lane M · docs/MEAL.md): 식탁 단추 (#btn-table — scene-spot 그대로) · 내 자리 노란 점 (#btn-seat — sofa-dot 모양) · 문어 부르기 칩 (#btn-call).
+   셋 다 그림만 (글자 0 · title 없음). 칩: 44 px 누르는 곳 안에 40 px 종이 + 16×16 문어 머리 (한 칸 = floor(2·dpr) 기기 px — 크기 · 자리는 app.js mealUI 가 기기 px 로 맞춘다) */
+.meal-seat { pointer-events: auto; }   /* 장면이 자리 톡을 넘기지 않아도 눌린다 (소파 점과 다름) */
+.meal-call { position: absolute; left: 0; top: 0; z-index: 9; width: 44px; height: 44px; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.meal-call[hidden] { display: none; }
+.meal-call .call-paper { position: absolute; left: var(--cp-o, 2px); top: var(--cp-o, 2px); width: var(--cp-s, 40px); height: var(--cp-s, 40px); background: var(--paper0); box-shadow: inset 0 0 0 var(--cp-b, 2px) #2a2620; display: block; }
+.meal-call .call-art { position: absolute; left: var(--cp-ao, 4px); top: var(--cp-ao, 4px); width: var(--cp-a, 32px); height: var(--cp-a, 32px); display: block; }
+.meal-call .ca-ink, .meal-call .ca-eye { fill: #172038; }
+.meal-call .ca-body { fill: currentColor; }
+.meal-call .ca-hi { fill: #ebede9; opacity: .5; }
+.meal-call .ca-arc { fill: #e8c170; }
+.meal-call:active .call-paper { transform: translateY(var(--cp-o, 2px)); }   /* 누름 = 2 px 내려앉기 (크기 안 바뀜) */
+.meal-call:focus-visible { outline: none; }
+.meal-call:focus-visible .call-paper { outline: 2px solid #e8c170; outline-offset: 2px; }
+.meal-call.ring-off:focus-visible .call-paper { outline: none; }
+html.intro-on .meal-call { opacity: 0; visibility: hidden; }
+:root.furn-on .meal-call, :root.furn-on .meal-seat { visibility: hidden; }
+/* 연출 중 (부름을 누른 때부터 마지막 한 입까지): 식탁 단추 · 칩 · 점이 숨는다 (장면이 hidden 을 쥐는 식탁 단추는 여기서 가린다) */
+#scene.meal-busy :is(#btn-table, #btn-call, #btn-seat) { visibility: hidden; pointer-events: none; }
+/* 문어가 식탁에 앉아 있는 동안엔 놀이방에서도 이름표 · 말풍선을 보인다 (위의 '놀이방이면 #oct 숨김' 의 예외 — 3D 의 2D 문어 그림은 제 규칙대로 숨은 채) */
+#scene[data-view="play"].oct-table #oct { visibility: visible; }

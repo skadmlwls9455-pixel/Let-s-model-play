@@ -287,8 +287,9 @@ var APP = (function () {
       if (!ev && !no) return t;
       cut++; var c = Object.assign({}, t); if (ev) c.events = []; if (no) delete c.noteOut; return c;
     });
-    var o = { trips: trips }, salon = slimAsks();
+    var o = { trips: trips }, salon = slimAsks(), meals = slimMeals();
     if (salon) { cut++; o.salon = salon; }
+    if (meals) { cut++; o.user = meals; }   /* 11-18 식탁 기록도 같은 규칙 (MEAL.slim — 말은 안 뺀다) */
     return cut ? JSON.stringify(Object.assign({}, S, o)) : null;
   }
   /* 미용실 물음 (docs/SALON.md §7.6): 저장 사본에서만 1년 넘은 물음의 seed · raw 를 뺀다. 고른 이의 말(line)은 절대 안 뺀다. 뺄 게 없으면 null */
@@ -558,7 +559,7 @@ var APP = (function () {
         pet: pet,
         tap: tapOct,   /* 글자만 (예전 '…zZ' · '?' 는 기호로 읽혀 뺐다 — 주인 11-07). 깨어 있으면 그날 마지막 차례 한 줄 (11-08) */
         windowTap: function () {
-          if (oct.busy || salonActive) return;   /* 미용실 연출 중엔 창문으로 걷지 않는다 */
+          if (oct.busy || salonActive || octAtTable()) return;   /* 미용실 연출 중엔 창문으로 걷지 않는다 · 11-18 식탁에 앉아 있어도 */
           if (oct.state === 'sleep') { bubble(SLEEP_SAY, 1500, 'sleep'); return; }   /* 자는 중엔 깨우지 않는다 (쓰다듬기·탭과 같은 말 · 말풍선만) */
           walkTo('window').then(function () { if (!oct.busy) { octState('idle'); var w = weatherFor(S.room.lantern), hr = new Date().getHours(); say(w === 'clear' ? (hr >= 19 || hr < 6 ? '별이 보여' : '맑네') : w === 'snow' ? '눈이 와' : '비가 와', 'idle', 2000);   /* 11-15 (주인 C6 b): 평소 얼굴 (예전 calm) */ } });
         },
@@ -572,6 +573,7 @@ var APP = (function () {
         /* 11-10 인테리어 v0: 가구를 꾹 눌러 옮기면 자리를 저장 (S.room.layout) · 소파 위 노란 점 = 앉기 */
         furnEdit: function (stt) { furnUI(stt); },   /* 11-15 가구 모드: 열림 · 고름 · 끌기 · 바뀜 · 끝(null) */
         furnSave: function (d) { furnSaved(d); },   /* 저장하기로 닫힘 — 바뀐 가구만 적는다 (11-12 검증 C12: 그대로면 '옮겨 놓기' 가 아니다) */
+        tableSpot: function (p) { mealSpots(p); },   /* 11-18 식탁: 내 자리 점 · 문어 자리 위 (부르기 칩) · 요리 (장면 CSS px) */
         sofaSpot: function (p) { var b = $('btn-sofa'); if (!b) return; if (!p) { b.hidden = true; return; } b.style.left = (p.x - 22) + 'px'; b.style.top = (p.y - 22) + 'px'; b.hidden = false; },
         playerDoor: function (to) { if (!roomJob && !busyRoomWalk()) goRoom(to === 'attic' ? 'attic' : to === 'loft' ? 'loft' : to === 'yard' ? 'yard' : 'play', $(to === 'attic' ? (roomNow() === 'loft' ? 'btn-loft-stair' : roomNow() === 'yard' ? 'btn-yard-door' : 'btn-play-door') : to === 'loft' ? 'btn-stair' : to === 'yard' ? 'btn-yard' : 'btn-door'), false); },   /* 문에 닿은 채 걸어 들어감 (장면이 한 번만 쏜다) */   /* 11-08 움직이기: 내 캐릭터를 움직일 수 있는 때가 바뀐 프레임 (바뀔 때만 온다) → 발자국 손잡이 hidden */
         playerStep: function () { if (window.AUDIO) AUDIO.on('step', { who: 'player' }); }   /* 내 캐릭터 한 걸음 (장면은 AUDIO 를 부르지 않는다) — js/audio.js 에 'step' 갈래가 생기면 발소리 step_* (지금은 조용히) */
@@ -599,7 +601,7 @@ var APP = (function () {
     salonSpotOn = null;   /* 새 장면: 미용실 단추 허락을 다시 준다 (bindSpots → syncSalonSpot) */
     bindSpots();   /* 방 문 · 오락기 · 미용실 거울 단추를 장면에 넘긴다 (자리 · hidden 은 장면이) */
     stickSync();   /* 발자국 손잡이: 지금 장면이 움직이기를 허락하는가 (2D · API 없음 = 숨김) */
-    if (!timeTimer) timeTimer = setInterval(function () { scene.setTime(hourNow()); updateSceneDesc(); checkDay(); }, 60000);   /* 1분마다: 시각 · 자정이 지나면 오늘 칸 넘기기 */
+    if (!timeTimer) timeTimer = setInterval(function () { scene.setTime(hourNow()); updateSceneDesc(); checkDay(); mealApply(); }, 60000);   /* 1분마다: 시각 · 자정이 지나면 오늘 칸 넘기기 */
   }
   /* WebGL 컨텍스트를 잃고 3 s 안에 돌아오지 않음 (scene3d 의 opts.onLost, docs/research/a11y-and-mobile-perf.md 3): 검게 멈춘 3D 를 버리고 같은 initScene 경로로 2D 폴백.
      돌아오면 scene3d 가 부르지 않는다 → 3D 그대로. 지금 앱 상태(등불·소품·날씨·벽·선반·문어 자리와 상태)를 새 장면에 다시 그린다. 걸린 의식은 runCeremony 가 새 장면의 빈 이름을 보고 푼다 */
@@ -1166,8 +1168,10 @@ var APP = (function () {
   function sceneDescText() {
     if (sceneView() === 'yard')   /* 11-15 마당: 문어는 따라 나오지 않는다 */
       return '마당, ' + (WX_DESC[weatherFor(S.room.lantern)] ? WX_DESC[weatherFor(S.room.lantern)] + ' ' : '') + partOfDay(hourNow()) + '. 집 앞에 텃밭 ' + gardenOpen() + '칸이 있어. ' + (oct.state === 'away' || sceneCeremony() === 'depart' ? '문어는 산책 나갔어.' : '문어는 다락방에 있어.');
-    if (sceneView() === 'play')   /* 놀이방 (8물결): 문어는 다락(또는 산책) — 놀이방엔 오지 않는다 */
-      return '놀이방, ' + partOfDay(hourNow()) + '. 다락방 달리기 오락기랑 작은 부엌이 있어. ' + (oct.state === 'away' || sceneCeremony() === 'depart' ? '문어는 산책 나갔어.' : '문어는 다락방에 있어.');
+    if (sceneView() === 'play') {   /* 놀이방 (8물결): 문어는 다락(또는 산책). 11-18: 식탁에 불렀으면 맞은편 · 식탁의 요리 · 따라다니는 효과 (3D 만 — 2D 엔 식탁이 없다) */
+      var atT = octAtTable(), md = sceneMode === '3d' && MEALR ? MEALR.sceneDesc(S, todayKey(), S.octopus.name, atT) : '';
+      return '놀이방, ' + partOfDay(hourNow()) + '. 다락방 달리기 오락기랑 작은 부엌이 있어. ' + (md ? md + (atT ? '' : ' ') : '') + (atT ? '' : (oct.state === 'away' || sceneCeremony() === 'depart' ? '문어는 산책 나갔어.' : '문어는 다락방에 있어.'));
+    }
     var lv = S.room.lantern, outside = sceneMode === '3d' && !!scene && typeof scene.place === 'function' && scene.place() === 'exterior';   /* 2D 무대는 바깥을 그리지 않는다 (장소 값만 기억) → 늘 다락 */
     var loft = !outside && sceneView() === 'loft', up = loft && octWithMe();   /* 11-12 (검증): 위층에서도 다락 · 다락 자리를 읽었다 — 위층이면 위층, 문어가 따라 올라와 있으면 '위층', 아래층에 있으면 '아래층' */
     var where = outside ? '집 바깥' : loft ? '위층 다락 옷방' : lv ? '등불 ' + lv + '칸 켜진 다락' : '불씨 하나 켜진 다락';   /* 0칸이어도 등불 속 불씨는 켜져 있다 */
@@ -1411,7 +1415,7 @@ var APP = (function () {
     if (!t || t.id !== my || other || oct.state === 'away') { clearRest(); return; }
     if (S.octopus.state !== 'sleep' || napOver()) { clearRest(); if (S.octopus.state === 'sleep') { S.octopus.state = 'idle'; save(); } return; }
     var b = $('oct-bubble');
-    if (salonActive) { clearTimeout(restTimer); restTimer = setTimeout(lieDown, 700); return; }   /* 미용실 연출 중엔 눕지 않는다 (끝나면 곧 — 8 s 한도와 따로) */
+    if (salonActive || octAtTable()) { clearTimeout(restTimer); restTimer = setTimeout(lieDown, 700); return; }   /* 11-18: 식탁에서도 눕지 않는다 (놀이방 안에서 담요 자리로 뛰지 않게 — 떠난 뒤 곧) */   /* 미용실 연출 중엔 눕지 않는다 (끝나면 곧 — 8 s 한도와 따로) */
     if (!rest.now && (oct.state === 'pet' || (b && !b.hidden && b.textContent)) && rest.wait < 8000 && watching()) { rest.wait += 700; clearTimeout(restTimer); restTimer = setTimeout(lieDown, 700); return; }
     if (rest.lying) return;
     rest.lying = true;
@@ -1420,6 +1424,7 @@ var APP = (function () {
     walkTo('blanket').then(function () { clearTimeout(guard); if (rest && rest.id === my && rest.lying) sleepNow(t); });   /* lying 이 풀렸으면 (미용실 연출이 끼어듦) 눕지 않는다 */
   }
   function sleepNow(t, place) {
+    if (octAtTable()) { setTimeout(function () { sleepNow(t, place); }, 700); return; }   /* 11-18: 식탁에서 잠들지 않는다 (지킴이 6 s 가 여기로 와도) */
     clearRest(); restSeen = t ? t.id : restSeen;
     if (place || octWithMe()) { if (scene && typeof scene.finishWalk === 'function') scene.finishWalk(); restDown(); octPlace('blanket'); }   /* 11-13: 자는 문어는 늘 다락 담요 (위층에서 잠들지 않는다). octWithMe: 틈이 끝나 담요로 걷는 몇 초 사이 날이 바뀌면 (낮잠도 끝 — 쉬는 차례가 아니다) 내가 오를 때 따라 오고, 그 걸음이 위층에서 끝나 place 없이 여기 온다 (재검 RC3-1) */
     if (oct.state === 'sleep') return;
@@ -1435,7 +1440,7 @@ var APP = (function () {
   function restDown() { if (octWithMe() && typeof scene.octDown === 'function') { scene.octDown(); octPlace('blanket'); } }
   /* 다른 탭이 차례를 끝냈거나 · 이 탭이 다시 보일 때: 쉬는 차례가 바뀌었으면 맞춘다 (틈 안이면 깨어 있게, 지났으면 담요에서 잔다, 날이 바뀌었으면 그대로) */
   function syncRest() {
-    if (busy || oct.busy || salonActive || lookHook() || S.trips.some(function (t) { return t.status === 'running'; })) return;
+    if (busy || oct.busy || salonActive || lookHook() || octAtTable() || S.trips.some(function (t) { return t.status === 'running'; })) return;   /* 11-18: 식탁에 앉아 있으면 집에 온 뒤 (mealLeave 가 다시 부른다) */
     var t = lastRestTrip();
     if (rest && (!t || rest.id !== t.id || S.octopus.state !== 'sleep')) clearRest();
     if (rest) { restTick(); return; }
@@ -1458,7 +1463,7 @@ var APP = (function () {
     clearTimeout(dreamTimer);
     dreamTimer = setTimeout(function () {
       if (oct.state !== 'sleep') return;
-      if (!oct.busy && !salonActive && !document.hidden && !lookHook() && napOver()) { selfWake(); return; }   /* 숨은 탭에선 기다렸다가 돌아와서 (깨는 걸 볼 수 있게) */
+      if (!oct.busy && !salonActive && !document.hidden && !lookHook() && !octAtTable() && napOver()) { selfWake(); return; }   /* 11-18: 식탁에 있으면 미룬다 */   /* 숨은 탭에선 기다렸다가 돌아와서 (깨는 걸 볼 수 있게) */
       scheduleDreamLabel();
     }, 9000 + uiRng() * 6000);
   }
@@ -1471,7 +1476,7 @@ var APP = (function () {
   function scheduleWander() {
     stopWander();
     oct.wanderTimer = setTimeout(function () {
-      if (oct.busy || salonActive || oct.state !== 'idle' || document.hidden || rest || octWithMe() || furnMode) { scheduleWander(); return; }   /* 11-15: 가구 모드 중엔 (안 보이는) 문어가 제자리에 있는다 — 옮기는 가구와 엇갈리지 않게 */   /* 11-12: 위층에 따라 올라와 있는 동안엔 온 자리에 있는다 (돌아다닐 자리는 다락 것뿐) */   /* 깨어 있는 틈엔 담요에 있는다 · 미용실 연출 중엔 그 자리 */
+      if (oct.busy || salonActive || oct.state !== 'idle' || document.hidden || rest || octWithMe() || furnMode || octAtTable()) { scheduleWander(); return; }   /* 11-18: 식탁에 앉아 있는 동안엔 미룬다 (돌아오면 다시) */   /* 11-15: 가구 모드 중엔 (안 보이는) 문어가 제자리에 있는다 — 옮기는 가구와 엇갈리지 않게 */   /* 11-12: 위층에 따라 올라와 있는 동안엔 온 자리에 있는다 (돌아다닐 자리는 다락 것뿐) */   /* 깨어 있는 틈엔 담요에 있는다 · 미용실 연출 중엔 그 자리 */
       var opts = allowedIdleAnchors().filter(function (a) { return a !== oct.anchor; });
       var next = opts[Math.floor(uiRng() * opts.length)] || 'center';
       scheduleWander();   /* 다음 산책은 지금 예약: 걷기가 다른 이동에 끊기면 그 Promise 는 풀리지 않는다 → .then 에서 걸면 산책이 영영 멈춘다 */
@@ -1493,7 +1498,7 @@ var APP = (function () {
     clearTimeout(thinkTimer);
     thinkTimer = setTimeout(function () {
       var dlgOpen = !!document.querySelector('dialog[open]');
-      if (!oct.busy && !salonActive && oct.state === 'idle' && !document.hidden && !dlgOpen && !lookHook() && !rest) {   /* 깨어 있는 틈 · 미용실 연출 중엔 생각 말풍선 없음 (톡 한 줄 · 대답 말풍선을 덮지 않게) */
+      if (!oct.busy && !salonActive && oct.state === 'idle' && !document.hidden && !dlgOpen && !lookHook() && !rest && !octAtTable()) {   /* 11-18: 식탁에선 생각 말풍선 없음 */   /* 깨어 있는 틈 · 미용실 연출 중엔 생각 말풍선 없음 (톡 한 줄 · 대답 말풍선을 덮지 않게) */
         var t = thinkLine(); if (t) { bubble(t.text, 3600, 'think', { raw: t.by, rawText: t.note }); expressRow('idle'); }   /* 11-15 (주인 C6 b): 예전 curious */
       }
       scheduleThink();
@@ -1502,7 +1507,7 @@ var APP = (function () {
   /* kind → 말풍선 모양 (js/ui-art.js) · 말풍선 목소리 (js/audio.js). opt: { icon: 'memory/sea' (말 뒤 픽셀 그림), raw: 'model'|… (남이 쓴 말), rawText: 그중 남의 글 부분 (없으면 전부) } */
   /* opt.silent = 소리 없이 (같은 톡 한 줄을 또 누름) · opt.tap = 톡 한 줄 (말풍선에 표시를 남겨 다음 톡이 알아본다) */
   function bubble(text, ms, kind, opt) {
-    if (text && inPlay() && !octWithMe()) return;   /* 놀이방에 있는 동안 문어의 말풍선은 띄우지 않는다 (문어는 다락에 · 말풍선 소리도 없이). 로그 행은 그대로 (say) */
+    if (text && inPlay() && !octWithMe() && !octAtTable()) return;   /* 11-18: 식탁에 앉은 문어는 놀이방에 있다 — 그 말풍선은 띄운다 */   /* 놀이방에 있는 동안 문어의 말풍선은 띄우지 않는다 (문어는 다락에 · 말풍선 소리도 없이). 로그 행은 그대로 (say) */
     if (tapGivenBy && !(opt && opt.tap)) { tapGivenBy = null; clearTimeout(tapTagTimer); renderBrainTag(); }   /* 모델의 톡 한 줄이 내려가면 '데모' 꼬리표도 돌아온다 */
     scene.bubble(text, ms);
     var b = $('oct-bubble');
@@ -1632,7 +1637,7 @@ var APP = (function () {
   }
   var petTimer = null;
   function pet() {
-    if (oct.busy || salonActive || oct.state === 'away') return;
+    if (oct.busy || salonActive || oct.state === 'away' || octAtTable()) return;   /* 11-18: 식탁의 문어는 쓰다듬는 곳이 아니다 */
     if (oct.state === 'sleep') { bubble(SLEEP_SAY, 1500, 'sleep'); tapSR(SLEEP_SAY); return; }   /* 말풍선만 (11-08) — 낭독기엔 보이지 않는 칸으로 */
     octState('pet');
     if (window.UIART) UIART.fx('heart');
@@ -2097,6 +2102,8 @@ var APP = (function () {
        다른 문어(born 이 다름)면 SALON.merge 가 mine 을 버린다 */
     var sm = SAL ? SAL.merge(S, R, mineAsks, now) : null;
     if (sm) { R = sm.state; mineAsks = sm.mine; }
+    var mm = MEALR ? MEALR.merge(S, R, mineMeals, now) : null;   /* 11-18 식탁 (docs/MEAL.md): 기록은 id 로 합치고, 이 탭이 막 놓은 요리는 더 새로우면 남긴다 */
+    if (mm) { R = mm.state; mineMeals = mm.mine; }
     S = R; lastSaved = raw;
     var redo = !!T && carry(T);
     mine = !same ? [] : mine.filter(function (m) {
@@ -2106,7 +2113,7 @@ var APP = (function () {
       if (!(theirs && theirs.status === 'done') && carry(m.trip)) redo = true;   /* 그쪽도 반영했으면 그쪽 것 그대로 */
       return true;
     });
-    if (redo || (sm && sm.changed)) save();
+    if (redo || (sm && sm.changed) || (mm && mm.changed)) save();
     applyLook({ still: true });   /* 다른 탭이 바꾼 몸 색을 따라간다 (산책 중에도 — 다시 그리기는 끝난 뒤지만 몸색은 바로. 미용실 연출 중이면 끝난 뒤) */
     return true;
   }
@@ -2444,12 +2451,14 @@ var APP = (function () {
   var greetingRow = null;
   /* 한 날의 여행들 (+ 그 날의 미용실 물음) → 로그 행 (오늘 칸 · 앨범 일기 공용). 다시 그려도 같은 말 (저장된 기록에서만).
      물음 행 셋은 여행 차례 사이에 시각(at) 순으로 끼운다 (여행 순서는 그대로 — 물음은 산책 중엔 생기지 않는다). 연출 중인 물음은 지금 박자까지만 */
-  function dayRows(list, asks) {
-    var rows = [], q = (asks || []).map(function (a, i) { return [a, i]; }).sort(function (x, y) {
-      var p = typeof x[0].at === 'number' ? x[0].at : Infinity, r = typeof y[0].at === 'number' ? y[0].at : Infinity;
-      return p !== r ? (p < r ? -1 : 1) : x[1] - y[1];
-    }).map(function (x) { return x[0]; });
-    function flush(before) { while (q.length && (before == null || (typeof q[0].at === 'number' && q[0].at < before))) salonRowsDOM(q.shift()).forEach(function (r) { rows.push(r); }); }
+  function dayRows(list, asks, meals) {   /* 11-18: meals = 그날 먹은 식탁 기록 — 미용실 물음처럼 먹은 시각(ate.at) 순으로 끼운다 */
+    var rows = [], q = (asks || []).map(function (a) { return { at: a.at, rows: function () { return salonRowsDOM(a); } }; })
+      .concat((meals || []).map(function (m) { return { at: m.ate && m.ate.at, rows: function () { return mealRowsDOM(m); } }; }))
+      .map(function (a, i) { return [a, i]; }).sort(function (x, y) {
+        var p = typeof x[0].at === 'number' ? x[0].at : Infinity, r = typeof y[0].at === 'number' ? y[0].at : Infinity;
+        return p !== r ? (p < r ? -1 : 1) : x[1] - y[1];
+      }).map(function (x) { return x[0]; });
+    function flush(before) { while (q.length && (before == null || (typeof q[0].at === 'number' && q[0].at < before))) q.shift().rows().forEach(function (r) { rows.push(r); }); }
     list.forEach(function (t) {
       if (typeof t.startedAt === 'number') flush(t.startedAt);
       if (t.by === 'legacy') { var lt = (t.poster && t.poster.title) || ''; rows.push(logRow('포스터', appendAll(document.createDocumentFragment(), [document.createTextNode('옛 기록에서 복원된 포스터 · ')].concat(partRaw(lt, lt, 'player'))), '', false)); return; }   /* 옛 제목은 옛 저장 그대로 */
@@ -2473,7 +2482,7 @@ var APP = (function () {
     logDay = today;
     var sec = h('div', { class: 'lday', 'data-day': today });
     greetRows().forEach(function (g) { sec.appendChild(g); });
-    dayRows(tripsOn(today), asksOn(today)).forEach(function (r) { sec.appendChild(r); });   /* 미용실 물음 행도 (연출 중인 물음은 지금 박자까지 — 두 번 그리지 않는다) */
+    dayRows(tripsOn(today), asksOn(today), mealsOn(today)).forEach(function (r) { sec.appendChild(r); });   /* 11-18: 식탁 행도 (먹은 기록만 — 연출 중인 식사는 지금 박자까지) */   /* 미용실 물음 행도 (연출 중인 물음은 지금 박자까지 — 두 번 그리지 않는다) */
     log.appendChild(sec);
     if (!log.querySelector('.lrow')) log.appendChild(h('div', { class: 'lempty', text: S.octopus.name ? "아직 아무 데도 안 갔어. '" + (STR.goButton || '산책 갈래?') + "'를 눌러 봐." : '문어 이름부터 지어 주자.' }));
     logStick = true; scrollLog();
@@ -2948,12 +2957,13 @@ var APP = (function () {
   /* 앨범 › 일기: 지난 날 로그 (오늘 칸은 아래 '오늘의 산책'). 날마다 접힘, 새 날이 위 · 가장 새 날만 펼쳐 둔다 (나머지 행은 펼칠 때 만든다). 읽기만 */
   /* 지난 날: 산책 날짜와 미용실 물음 날짜를 합친다 (물음만 있는 날도 일기에 — docs/SALON.md §3.7) */
   function diaryDays() {
-    var today = todayKey(), byDay = {}, asks = {}, seen = {};
+    var today = todayKey(), byDay = {}, asks = {}, meals = {}, seen = {};
     S.trips.forEach(function (t) { if (t.date === today || !(t.status === 'done' || t.by === 'legacy')) return; (byDay[t.date] = byDay[t.date] || []).push(t); seen[t.date] = 1; });
     salonAsks().forEach(function (a) { if (!a || a.date === today || a.status === 'dropped' || typeof a.date !== 'string') return; (asks[a.date] = asks[a.date] || []).push(a); seen[a.date] = 1; });
-    return { byDay: byDay, asks: asks, days: Object.keys(seen).sort().reverse() };
+    mealsAll().forEach(function (m) { var d = isObj(m) && isObj(m.ate) ? m.ate.date : null; if (typeof d !== 'string' || d === today || !mealRowsDOM(m).length) return; (meals[d] = meals[d] || []).push(m); seen[d] = 1; });   /* 11-18: 지난 날 먹은 식탁 기록 (그릴 행이 있는 것만) */
+    return { byDay: byDay, asks: asks, meals: meals, days: Object.keys(seen).sort().reverse() };
   }
-  function hasDiary() { var today = todayKey(); return S.trips.some(function (t) { return t.date !== today && (t.status === 'done' || t.by === 'legacy'); }) || salonAsks().some(function (a) { return a && a.date !== today && a.status !== 'dropped'; }); }
+  function hasDiary() { var today = todayKey(); return S.trips.some(function (t) { return t.date !== today && (t.status === 'done' || t.by === 'legacy'); }) || salonAsks().some(function (a) { return a && a.date !== today && a.status !== 'dropped'; }) || mealsAll().some(function (m) { return isObj(m) && isObj(m.ate) && typeof m.ate.date === 'string' && m.ate.date !== today && mealRowsDOM(m).length > 0; }); }
   function renderDiary() {
     var box = $('album-diary'); if (!box) return;
     box.innerHTML = ''; box.hidden = albumFilter !== 'diary';
@@ -2961,9 +2971,9 @@ var APP = (function () {
     var D = diaryDays(), yest = keyAdd(todayKey(), -1);
     if (!D.days.length) { box.appendChild(h('div', { class: 'lempty', text: '아직 지난 날이 없어' })); return; }
     D.days.forEach(function (d, i) {
-      var trips = D.byDay[d] || [], asks = D.asks[d] || [];   /* 날 머리 '· N건' = 산책 + 물음 */
-      var det = h('details', { class: 'dday', 'data-day': d }, [h('summary', { text: (d === yest ? '어제' : fmtDate(d)) + ' · ' + (trips.length + asks.length) + '건' })]), filled = false;
-      function fill() { if (filled) return; filled = true; var body = h('div', { class: 'dday-rows' }); dayRows(trips, asks).forEach(function (r) { body.appendChild(r); }); det.appendChild(body); }
+      var trips = D.byDay[d] || [], asks = D.asks[d] || [], meals = D.meals[d] || [];   /* 날 머리 '· N건' = 산책 + 물음 + 식사 */
+      var det = h('details', { class: 'dday', 'data-day': d }, [h('summary', { text: (d === yest ? '어제' : fmtDate(d)) + ' · ' + (trips.length + asks.length + meals.length) + '건' })]), filled = false;
+      function fill() { if (filled) return; filled = true; var body = h('div', { class: 'dday-rows' }); dayRows(trips, asks, meals).forEach(function (r) { body.appendChild(r); }); det.appendChild(body); }
       det.addEventListener('toggle', function () { if (det.open) fill(); });
       if (i === 0) { fill(); det.open = true; }
       box.appendChild(det);
@@ -3020,7 +3030,7 @@ var APP = (function () {
       return { id: sv.id, tripId: sv.tripId, name: def ? def.name : sv.id, img: assetPath('souvenir.' + sv.id), icon: window.UIART && UIART.iconSrc && def ? UIART.iconSrc('souvenir/' + sv.id) : null };   /* 그림이 안 오면 16×16 기념품 아이콘 (2D 선반 · js/scene2d.js) — 이모지는 쓰지 않는다 */
     }));
   }
-  function renderAll() { renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderLog(); renderShelf(); renderBagChip(); applyGarden(); applyDye(); var bs = $('bag-sheet'); if (bs && bs.open) renderBag(); var sw = $('sew-sheet'); if (sw && sw.open) renderSew(); }   /* 살림(조개 꼬리표 · 바깥 텃밭 · 옷 색)도 — 초기화 · 불러오기 · 다른 탭 뒤 (11-12 검증) · 열린 재봉틀 시트도 (11-11) */
+  function renderAll() { mealRefresh(); renderStatus(false); renderScene(); renderSouvenirs(); renderWall(); renderAlbum(); renderLog(); renderShelf(); renderBagChip(); applyGarden(); applyDye(); var bs = $('bag-sheet'); if (bs && bs.open) renderBag(); var sw = $('sew-sheet'); if (sw && sw.open) renderSew(); }   /* 살림(조개 꼬리표 · 바깥 텃밭 · 옷 색)도 — 초기화 · 불러오기 · 다른 탭 뒤 (11-12 검증) · 열린 재봉틀 시트도 (11-11) */
   /* 큰 도서관 '오늘의 서가' — 날짜로 정해지는 8편 (js/shelf.js, MCP 서버와 같은 뽑기). 고른 이가 없는 무작위라 문어 마음을 대신 말하지 않는다 */
   function renderShelf() {
     var box = $('shelf-today'), ul = $('shelf-list'); if (!box || !ul) return;
@@ -3180,7 +3190,7 @@ var APP = (function () {
   var COLOR_PRESETS = (SAL && SAL.PRESETS) || [{ hex: '#e8463c', short: '빨강', name: '빨간색' }, { hex: '#f08a3c', short: '주황', name: '주황색' }, { hex: '#9a5cc8', short: '보라', name: '보라색' },
     { hex: '#4a86d8', short: '파랑', name: '파란색' }, { hex: '#4fa868', short: '초록', name: '초록색' }, { hex: '#f07aa8', short: '분홍', name: '분홍색' }];
   /* 누가 고르나 (정직 표기): 앞 문장은 '데모' 말풍선과 같은 말. '고른 이:' 줄은 포스터·쪽지를 뒤집은 면(일기)과 미용실 로그 줄(꼬리 '데모 규칙' 등)에 있다 — 앨범의 '일기' 탭(지난 날 로그)과 헷갈리지 않게 자리를 말한다 */
-  var WHO_LINE = '지금은 모델이 아니라 미리 만든 규칙이 골라. 고른 이는 포스터와 쪽지 뒷면, 미용실 줄에 적혀.';
+  var WHO_LINE = '지금은 모델이 아니라 미리 만든 규칙이 골라. 고른 이는 포스터와 쪽지 뒷면, 미용실 · 식탁 줄에 적혀.';   /* 11-18: 식탁 줄 (먹기 · 보기만 — docs/MEAL.md) */
   /* 설정 › 문어 색 (docs/SALON.md §1.2). 플레이어: 거울 전(등불 0–1칸)엔 칸 자체가 없고, 거울 뒤엔 제목 + 안내 한 줄뿐 (누르는 것 없음 — 색은 처음 한 번만 고르고, 그 뒤엔 미용실에서 문어에게 묻는다).
      ?dev=1 을 직접 붙인 탭(DEV_EXPLICIT)엔 그 아래 '개발용 · 바로 바꾸기' + 옛 슬라이더 + 프리셋 6: 슬라이더 input 은 장면만 미리 보이고(저장 없음),
      change(놓을 때) · 프리셋 누름이 setOctColor(hex, { how: 'dev', by: 'dev' }) 한 번 = 기록 한 줄. 시트를 닫으면 장면은 기록 색으로 (applyLook) */
@@ -3771,7 +3781,7 @@ var APP = (function () {
       try { renderAll(); } catch (e2) { /* 원래 기록은 저장된 그대로 */ }
       toast('이 파일은 뽈뽈 기록이 아닌 것 같아'); return false;
     }
-    mine = []; mineAsks = [];   /* 바꾼 기록에 예전 여행 · 미용실 물음을 다시 얹지 않게 */
+    mine = []; mineAsks = []; mineMeals = [];   /* 바꾼 기록에 예전 여행 · 미용실 물음 · 식탁 기록을 다시 얹지 않게 */
     S.settings.lastSeen = Math.min(seenOf(S), Date.now());   /* 11-13 (재검): 불러온 기록의 lastSeen 도 지금으로 — 미래면 이 탭 미러(window.name)가 그 뒤 다른 탭의 초기화보다 '새것' 으로 남아, 새로고침 때 옛 기록이 돌아와 저장소에 되써졌다 */
     save(); importSeen = Math.min(seenOf(S), Date.now()); importAt = performance.now(); applyMotion(); applyFont(); syncSceneLook();
     var ot = null, kr = null;   /* 11-14 (P-2): 같은 문어의 같은 차례 (끝난 시각까지 같다 — 방금 내보낸 내 파일) 면 이 탭의 틈을 넘긴다. 새로고침처럼 남은 만큼 (octInitial 의 restKept) — 위층에서 멈춘 시간을 시계로 다시 세지 않게. 다른 기록 · 다른 차례의 틈은 예전처럼 버린다 (C-2) */
@@ -3791,7 +3801,7 @@ var APP = (function () {
     salonFinish();   /* 미용실 연출 중이면 끝 상태로 먼저 */
     var ssh = $('salon-sheet'); if (ssh && ssh.open) ssh.close();
     store.remove(KEY); clearRest();   /* 11-13 (재검증 S4): 앞 문어의 깨어 있는 틈도 */
-    S = defaults(); mine = []; mineAsks = []; save(); setDayGreeting(); renderAll(); syncSceneLook();   /* renderAll → renderScene → applyLook: 장면 문어도 기본 빨강. 몸 색은 이름 창에서 다시 고른다 */
+    S = defaults(); mine = []; mineAsks = []; mineMeals = []; save(); setDayGreeting(); renderAll(); syncSceneLook();   /* renderAll → renderScene → applyLook: 장면 문어도 기본 빨강. 몸 색은 이름 창에서 다시 고른다 */
     if (octWithMe() && typeof scene.octDown === 'function') scene.octDown(); octInitial();   /* 11-14: 위층에 따라 와 있던 문어였으면 다락으로 먼저 (불러오기 C-1 과 같은 까닭 — 다락 창가 좌표로 위층 방 안에 서지 않게). 새 문어는 나를 따라 온 적이 없다: 부팅처럼 다락 창가에서 처음 만난다 */
     var d = $('settings-sheet'); if (d && d.open) d.close();
     openNameDialog();
@@ -3806,7 +3816,7 @@ var APP = (function () {
      장면은 놀이방에 있는 동안 의식이 장소를 바꿔도 화면을 끌고 가지 않는다 (scene3d setPlaceNow). 문어가 돌아오면 구석 쪽지 "뚜루가 돌아왔어." + 보러 가기.
      큰 버튼(뽈뽈 다녀와 · 다녀오는 중…)은 문어 방의 일 → 놀이방이면 먼저 문으로 돌아와서 한다. 새로고침은 늘 문어 방 (지금 방은 저장하지 않는다).
      내 캐릭터 (SCENE.md '내 캐릭터'): walkFirst — 장면의 playerWalkTo(문 앞 앵커 atticPlayDoor · playAtticDoor)가 문 앞까지 걸어가서 풀리면 그때 문이 열린다 (2D 폴백엔 캐릭터가 없어 바로 풀린다) */
-  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew', plot0: 'btn-plot0', plot1: 'btn-plot1', plot2: 'btn-plot2', plot3: 'btn-plot3', plot4: 'btn-plot4', plot5: 'btn-plot5', atticYard: 'btn-yard', yardAttic: 'btn-yard-door', counter: 'btn-cook' };   /* 11-15: 밭 여섯 칸은 마당에 · 마당 문 (다락 뒷벽 문간 ↔ 마당 현관) */   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
+  var ROOM_SPOT = { atticPlay: 'btn-door', playAttic: 'btn-play-door', machine: 'btn-machine', salon: 'btn-salon', atticStair: 'btn-stair', loftStair: 'btn-loft-stair', sew: 'btn-sew', plot0: 'btn-plot0', plot1: 'btn-plot1', plot2: 'btn-plot2', plot3: 'btn-plot3', plot4: 'btn-plot4', plot5: 'btn-plot5', atticYard: 'btn-yard', yardAttic: 'btn-yard-door', counter: 'btn-cook', table: 'btn-table' };   /* 11-15: 밭 여섯 칸은 마당에 · 마당 문 (다락 뒷벽 문간 ↔ 마당 현관) */   /* salon = 다락 거울 코너 (#btn-salon → 미용실 시트 — 방이 아니라 다락 한 구석, docs/SALON.md §2) */
   var ROOM_BACK = { play: 'btn-play-door', attic: 'btn-door', loft: 'btn-loft-stair', yard: 'btn-yard-door' };   /* 도착한 방에서 포커스를 받을 단추 (들어온 문의 맞은편) */
   var furnHinted = false;   /* 첫 안내 한 줄은 이 창에서 처음 연 모드에만 (고르거나 끌면 걷힌다) */
   /* 11-15 가구 모드 (주인: "아예 가구 모드로 들어가서 문어나 캐릭터 없애고 가구만 딱딱 바꿀 수 있게"): 망치 단추 → 장면 furnMode. 문어 · 캐릭터 · 스틱 · 큰 버튼 · 방 단추가 숨고,
@@ -3956,11 +3966,12 @@ var APP = (function () {
     if (sc.getAttribute('aria-label') !== lbl) sc.setAttribute('aria-label', lbl);
     if (v !== 'play' && v !== 'yard') hideBackNote();   /* 11-15: 마당도 놀이방처럼 (문어가 돌아오면 구석 쪽지) */
     updateSceneDesc();
+    mealRoom(v);   /* 11-18 식탁: 놀이방에 들어오면 요리를 놓고 · 나가면 앉아 있던 문어는 바로 다락으로 */
     stickSync();   /* 보이는 장소가 바뀌면 발자국 손잡이도 다시 (장면의 on.playerInput 이 먼저지만, 같은 답을 한 번 더 묻는 건 싸다) */
   }
   function resetRoomUI() {   /* 장면을 바꿀 때 (sceneLost): 단추는 새 장면이 다시 맡는다 · 그 전까지 놀이방 단추는 숨김 */
     roomJob = null; hideBackNote(); if (furnMode) furnUI(null);   /* 11-15: 가구 모드는 장면과 같이 끝 (저장 안 한 것은 장면과 같이 사라진다) */
-    ['btn-play-door', 'btn-machine', 'btn-salon', 'btn-stair', 'btn-loft-stair', 'btn-sew', 'btn-plot0', 'btn-plot1', 'btn-plot2', 'btn-plot3', 'btn-plot4', 'btn-plot5', 'btn-yard', 'btn-yard-door', 'btn-cook'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
+    ['btn-play-door', 'btn-machine', 'btn-salon', 'btn-stair', 'btn-loft-stair', 'btn-sew', 'btn-plot0', 'btn-plot1', 'btn-plot2', 'btn-plot3', 'btn-plot4', 'btn-plot5', 'btn-yard', 'btn-yard-door', 'btn-cook', 'btn-table', 'btn-seat', 'btn-call'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; });
     var d = $('btn-door'); if (d) { d.hidden = false; d.removeAttribute('data-spot'); ['left', 'top', 'width', 'height', 'right', 'bottom'].forEach(function (k) { d.style[k] = ''; }); }
     var sc = $('scene'); if (sc) { sc.setAttribute('data-view', 'attic'); sc.setAttribute('aria-label', '문어의 다락방'); }
   }
@@ -4007,6 +4018,7 @@ var APP = (function () {
     });
   }
   function openMachine(opener, kbd) {   /* 오락기 → 다락방 달리기 창 (js/runner.js 그대로). 닫으면 runner 가 opener(오락기 단추)로 포커스를 돌려준다 · 놀이방은 그대로 */
+    if (typeof mealBusy === 'function' && mealBusy()) return false;   /* 11-18: 식탁 연출 중엔 오락기가 아무것도 안 한다 (스펙 R19) */
     if (!inPlay() || roomJob) return false;
     if (!window.RUNNER || typeof RUNNER.open !== 'function') return false;
     hideTip();   /* 구석 쪽지는 그대로 (달리기 창은 모달 — 닫으면 다시 보인다) */
@@ -4213,10 +4225,319 @@ var APP = (function () {
     on('btn-loft-stair', function (b, k) { goRoom('attic', b, k); });
     on('btn-sew', function () { openSew(); });
     on('btn-cook', function (b, k) { openCook(b, k); });   /* 11-15: 놀이방 조리대 → 부엌 */
+    on('btn-table', function (b, k) { mealTableTap(b, k); });   /* 11-18 식탁: 앉기 · 앉아 있으면 먹기 */
+    on('btn-seat', function (b, k) { mealTableTap(b, k); });    /* 11-18 식탁 노란 점: 앉기 */
+    on('btn-call', function (b, k) { mealCall(b, k); });        /* 11-18 문어 부르기 칩 */
     [0, 1, 2, 3, 4, 5].forEach(function (i) { on('btn-plot' + i, function () { gardenAct(i); }); var b = $('btn-plot' + i); if (b) b.addEventListener('focus', plotLabels); });   /* 마당 텃밭 칸 (11-15: 마당이 보일 때 연 칸만 장면이 단추를 올린다) · 포커스 때 이름을 다시 (11-11: 씨앗 수 · 날짜가 바뀌었을 수 있다) */
     on('btn-salon', function () { openSalon(); });   /* 미용실 거울 (그림 위 투명 단추 — 톡은 장면이 그린 순서대로 넘긴다: 문어가 거울 옆이면 문어가 먼저) */
     on('btn-back-see', function (b, k) { goRoom('attic', b, k); });
     document.addEventListener('keydown', function () { var r = document.querySelectorAll('.ring-off'); for (var i = 0; i < r.length; i++) r[i].classList.remove('ring-off'); }, true);   /* 키를 누르면 링은 다시 (키보드로 이어 가는 사람) */
+  }
+
+  /* ───────────────────────── meal: 식탁 (docs/MEAL.md · 주인 11-18 "문어와 같이 먹기 — 문어가 그때 고른다 · 효과는 그날 하루") ─────────────────────────
+     부엌에서 다 만든 요리 (K2 의 result 글 → cookMsg → mealDish) 가 놀이방 식탁에 하나 기다린다 (S.user.table). 식탁 · 노란 점을 누르면 내 캐릭터가 앉고,
+     앉아서 식탁을 또 누르면 혼자 먹는다. 문어 부르기 칩 (#btn-call) 을 누르면: 저장소 다시 읽기 → MEAL.canCall → 장면 octCanCome → 대답을 그 자리에서 저장 →
+     문어가 와서 앉고 → 생각 '…' (소리 없음) → 움츠림 → 누가 정했는지 알림 → 먹기 · 보기만 → 식사를 저장 (먹기 시작하는 순간) → 한 입씩 → 효과.
+     연출은 저장된 사실을 다시 보여 줄 뿐이다 (새로고침 · 다른 탭 · 앨범은 기록의 행을 그린다). 얼굴은 늘 idle · 소리 · 진동 없음 (스펙 R17).
+     장면 API (lane D, wip/round6/eat-spec.md §10.3) 는 하나하나 있는지 보고 부른다 — 2D 폴백 · 옛 장면엔 식탁이 없다 (요리만 기다린다). 식탁 자리 숫자는 쓰지 않는다 */
+  var MEALR = window.MEAL || null;
+  var mineMeals = [];          /* 이 탭이 쓴 식탁 기록 [{ table | entry, at }] (MEAL.MINE_MS 동안) — 다른 탭의 옛 저장이 와도 MEAL.merge 가 다시 얹는다 */
+  var mealRun = null;          /* 지금 연출 { stage: coming · thinking · answer · eating, dish(요리 id), n(보인 행), busy, scene, t0, wakers, focus, ring } — 없으면 null */
+  var mealSpot = { seat: null, call: null, dish: null };   /* 장면 on.tableSpot (장면 CSS px) */
+  var mealDishKey;             /* 장면에 마지막으로 준 식탁 요리 id (undefined = 아직 안 줌) */
+  var mealAppear = false;      /* 부엌이 열려 있는 동안 요리가 왔다 → 부엌이 닫히면 나타나기 박자 */
+  var mealAura = { me: undefined, oct: undefined };       /* 장면에 마지막으로 준 효과 */
+  var mealLeaving = false, mealNext = null, mealIv = 0;   /* mealNext = 개발용 '다음 식탁 대답' (?dev=1 을 직접 붙인 탭만): null · 'eat' · 'watch' · 'stop' · 'none' */
+  function mealApi(fn) { return sceneMode === '3d' && !!scene && typeof scene[fn] === 'function'; }
+  function octAtTable() { if (!mealApi('octAtTable')) return false; try { return !!scene.octAtTable(); } catch (e) { return false; } }
+  function mealBusy() { return !!(mealRun && mealRun.busy); }   /* 부름을 누른 때부터 마지막 한 입까지 (K2 openCook · openMachine 이 먼저 본다) */
+  function mealInfo() { if (!mealApi('tableInfo')) return null; try { return scene.tableInfo() || null; } catch (e) { return null; } }
+  function mealSeated() { var i = mealInfo(); return !!i && i.me === 'seated'; }
+  function mealTable() { var u = S.user; return isObj(u) && isObj(u.table) && typeof u.table.id === 'string' ? u.table : null; }   /* 읽기만 (지킴이가 자주 부른다 — userState 의 옮기기를 매번 돌리지 않는다) */
+  /* 부엌 result 글 (K2 cookMsg 가 부른다): 검사 → 식탁에 하나 (기다리던 것은 바뀐다 — 부엌 수첩엔 남아 있다) → save 한 번 */
+  function mealDish(d) {
+    if (!MEALR) return false;
+    var n = MEALR.normDish(d); if (!n) return false;
+    var u = userState(), at = Date.now();
+    n.at = at; u.table = n;
+    save(); mineMeals.push({ table: n, at: at });
+    var ov = $('cook-overlay');
+    if (ov && ov.open) mealAppear = true; else mealTableSync(inPlay());
+    mealUI(); updateSceneDesc();
+    return true;
+  }
+  window.mealDish = mealDish; window.mealBusy = mealBusy;   /* 계약 (스펙 §10.2): 전역 이름 — 다른 갈래는 typeof 로 보고 부른다 */
+  function mealTableSync(appear) {   /* 장면 식탁의 요리를 기록에 맞춘다 (같으면 그대로). 먹은 빈 접시는 장면이 내가 일어날 때까지 둔다 */
+    if (!mealApi('setTableDish')) return;
+    var t = mealTable(), key = t ? t.id : null;
+    if (key === mealDishKey) return;
+    try { scene.setTableDish(t ? { id: t.id, recipe: t.recipe, look: t.look, seed: t.seed } : null, { appear: !!appear && !!t }); mealDishKey = key; }
+    catch (e) { console.warn('[app] setTableDish', e); }
+  }
+  /* 오늘의 효과 (MEAL.active — 기록에서 끌어낸다): 부팅 · 저장 뒤 · 다른 탭 · 1분 틱 · 다시 보일 때. 날이 바뀌면 둘 다 null. 먹는 연출 중엔 마지막 한 입 뒤 (피어나기) */
+  function mealApply() {
+    if (!MEALR || !mealApi('setAura')) return;
+    if (mealRun && mealRun.stage === 'eating') return;
+    var a = MEALR.active(S, todayKey());
+    ['me', 'oct'].forEach(function (w) {
+      if (mealAura[w] === a[w]) return;
+      try { scene.setAura(w, a[w], { bloom: false }); mealAura[w] = a[w]; } catch (e) { console.warn('[app] setAura', e); }
+    });
+    updateSceneDesc();
+  }
+  function mealRefresh() { mealTableSync(false); mealApply(); mealUI(); }   /* 다시 그릴 때 (초기화 · 불러오기 · 다른 탭) */
+  /* 문어 쪽 (MEAL.canCall): 돌아온 뒤 깨어 있는 틈은 깨어 있다 · 자는 중은 안 깨운다 · 산책 · 의식 · 미용실 · 다른 식사 연출 중은 바쁨 */
+  function mealOct() {
+    var c = sceneCeremony();
+    return { seated: mealSeated(), away: oct.state === 'away' || c === 'depart', asleep: oct.state === 'sleep', busy: busy || !!c || !!salonRun || salonActive || mealBusy() || furnMode };
+  }
+  function mealCallOK() {
+    if (!MEALR || mealBusy() || !mealSpot.call || !mealApi('octCanCome') || !inPlay()) return false;
+    if (!MEALR.canCall(S, todayKey(), mealOct()).ok) return false;
+    try { return !!scene.octCanCome(); } catch (e) { return false; }
+  }
+  /* 문어 부르기 칩 그림 16×16 (×floor(2·dpr) 기기 px): 지금 몸 색 머리 · 먹물 눈 · 호박색 부름 호 둘. 글자 없음 (이름은 aria-label) */
+  var CALL_SVG = (function () {
+    var R = { ink: [[5, 3, 6, 1], [4, 4, 1, 1], [11, 4, 1, 1], [3, 5, 1, 1], [12, 5, 1, 1], [2, 6, 1, 7], [13, 6, 1, 7], [2, 13, 1, 1], [5, 13, 1, 1], [10, 13, 1, 1], [13, 13, 1, 1], [3, 14, 2, 1], [6, 14, 4, 1], [11, 14, 2, 1]],
+      body: [[5, 4, 6, 1], [4, 5, 8, 1], [3, 6, 10, 7], [3, 13, 2, 1], [6, 13, 4, 1], [11, 13, 2, 1]],
+      eye: [[5, 8, 1, 2], [10, 8, 1, 2]], hi: [[5, 5, 2, 1]], arc: [[1, 1, 1, 1], [0, 2, 1, 2], [1, 4, 1, 1], [14, 1, 1, 1], [15, 2, 1, 2], [14, 4, 1, 1]] };
+    var s = '<svg class="call-art" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">';
+    Object.keys(R).forEach(function (k) { R[k].forEach(function (q) { s += '<rect class="ca-' + k + '" x="' + q[0] + '" y="' + q[1] + '" width="' + q[2] + '" height="' + q[3] + '"/>'; }); });
+    return '<span class="call-paper" aria-hidden="true">' + s + '</svg></span>';
+  })();
+  function devPx(v, dpr) { return Math.round(v * dpr) / dpr; }
+  /* 식탁 단추들: 노란 점 (내가 앉기 전) · 칩 (부를 수 있을 때만) · 식탁 단추 이름 · #scene 의 oct-table / meal-busy 표시. 연출 중엔 칩 · 점 · 식탁 단추가 숨는다 */
+  function mealUI() {
+    var sc = $('scene'), on3 = sceneMode === '3d', at = on3 && octAtTable(), bz = mealBusy();
+    if (sc) { sc.classList.toggle('oct-table', at); sc.classList.toggle('meal-busy', bz); }
+    var dpr = window.devicePixelRatio || 1, seat = $('btn-seat'), call = $('btn-call'), tb = $('btn-table');
+    if (seat) {
+      var p = on3 && !bz && inPlay() ? mealSpot.seat : null;
+      if (!p) seat.hidden = true;
+      else { seat.style.left = devPx(p.x - 22, dpr) + 'px'; seat.style.top = devPx(p.y - 22, dpr) + 'px'; seat.hidden = false; }
+    }
+    if (call) {
+      if (!(on3 && mealCallOK())) call.hidden = true;
+      else {
+        if (!call.firstChild) call.innerHTML = CALL_SVG;
+        var q = mealSpot.call, W = sc ? sc.clientWidth : 0, H = sc ? sc.clientHeight : 0, lo = 8;
+        if (layoutOne() && sc) { var st = $('status'); if (st && !st.hidden) lo = Math.max(lo, Math.ceil(st.getBoundingClientRect().bottom - sc.getBoundingClientRect().top) + 4); }   /* 위쪽 바 밑으로 들어가지 않게 */
+        var x = clamp(q.x - 22, 8, Math.max(8, W - 52)), y = clamp(q.y - 48, lo, Math.max(lo, H - 52));   /* 44 px 누르는 곳 · 장면 안쪽 8 px · 문어 머리 위 */
+        var col = (scene && typeof scene.color === 'function' && scene.color()) || S.octopus.color || '#e8463c', key = [devPx(x, dpr), devPx(y, dpr), dpr, col].join('|');
+        if (call._mk !== key) {   /* 바뀔 때만 쓴다 (지킴이가 300 ms 마다 부른다) */
+          call._mk = key;
+          call.style.left = devPx(x, dpr) + 'px'; call.style.top = devPx(y, dpr) + 'px';
+          var n = Math.max(1, Math.floor(2 * dpr)), paper = devPx(40, dpr), art = 16 * n / dpr;
+          call.style.setProperty('--cp-o', devPx(2, dpr) + 'px'); call.style.setProperty('--cp-s', paper + 'px'); call.style.setProperty('--cp-b', (n / dpr) + 'px');
+          call.style.setProperty('--cp-a', art + 'px'); call.style.setProperty('--cp-ao', Math.round((paper * dpr - 16 * n) / 2) / dpr + 'px');
+          call.style.color = col;
+        }
+        var cl = MEALR.aria('call', { name: S.octopus.name }); if (call.getAttribute('aria-label') !== cl) call.setAttribute('aria-label', cl);
+        call.hidden = false;
+      }
+    }
+    if (tb && MEALR) { var t = mealTable(), lbl = MEALR.aria('table', { recipe: t && t.recipe, seated: on3 && mealSeated() }); if (tb.getAttribute('aria-label') !== lbl) tb.setAttribute('aria-label', lbl); }
+  }
+  function mealSpots(p) {   /* 장면 on.tableSpot({ seat, call, dish }) — 바뀔 때만 온다 */
+    p = isObj(p) ? p : {};
+    function pt(v) { return isObj(v) && isFinite(v.x) && isFinite(v.y) ? { x: +v.x, y: +v.y } : null; }
+    mealSpot = { seat: pt(p.seat), call: pt(p.call), dish: pt(p.dish) };
+    mealUI();
+  }
+  /* 식탁 · 노란 점: 앉기 전이면 앉으러 간다. 앉아서 요리가 있으면 묻지 않고 먹는다 (문어가 앞 식사에서 아직 앉아 있으면 ate.oct false — 효과 없음).
+     다만 문어가 앉아 있고 이 요리에 이미 적힌 대답이 있으면 그 대답을 다시 보여 준다 (지어낸 행이 생기지 않게) */
+  function mealTableTap(b, kbd) {
+    if (!MEALR || mealBusy() || !mealApi('playerSitTable') || !inPlay() || roomJob || furnMode) return false;
+    if (!mealSeated()) { Promise.resolve(scene.playerSitTable()).then(function () { mealUI(); updateSceneDesc(); }, function (e) { console.warn('[app] playerSitTable', e); }); return true; }
+    var t = mealTable(); if (!t) return false;
+    var had = MEALR.entryFor(S, t.id);
+    if (octAtTable() && had && isObj(had.ask)) { mealStage(had, { focus: b, ring: kbd }); return true; }
+    var my = mealRun = mealNewRun('eating', t.id, b, kbd);
+    mealUI();
+    mealEatRun(my, octAtTable() ? false : null);
+    return true;
+  }
+  function mealNewRun(stage, dishId, focus, ring) { return { stage: stage, dish: dishId, n: 0, busy: true, scene: scene, t0: Date.now(), wakers: [], focus: focus || null, ring: !!ring }; }
+  /* 문어 부르기 (한 처리기 안에서): 저장소 다시 읽기 → 규칙 · 장면이 둘 다 된다고 할 때만 대답을 저장 (요리 하나에 대답 하나 — 이미 있으면 그대로) → 연출 */
+  function mealCall(b, kbd) {
+    if (!MEALR || mealBusy() || !mealApi('octToTable') || !mealApi('octCanCome')) return false;
+    var call = $('btn-call'); if (call) call.hidden = true;
+    syncFromStore();
+    var today = todayKey();
+    if (!MEALR.canCall(S, today, mealOct()).ok) { mealUI(); return false; }
+    var can = false; try { can = !!scene.octCanCome(); } catch (e) { can = false; }
+    if (!can) { mealUI(); return false; }
+    var t = mealTable(), had = MEALR.entryFor(S, t.id), fresh = !(had && isObj(had.ask));
+    var dev = fresh && DEV_EXPLICIT && mealNext ? MEALR.humanAnswer(mealNext === 'none' ? null : mealNext) : undefined;
+    var e = MEALR.makeAsk(S, { at: Date.now(), today: today, dish: t, answer: dev });
+    if (!e || !isObj(e.ask)) { mealUI(); return false; }
+    if (fresh) { if (dev) mealNext = null; save(); mineMeals.push({ entry: e, at: Date.now() }); }
+    mealStage(e, { focus: b, ring: kbd });
+    return true;
+  }
+  function mealWait(my, ms) {
+    if (mealRun !== my) return Promise.resolve();
+    return new Promise(function (res) {
+      var t = 0;
+      function done() { clearTimeout(t); var i = my.wakers.indexOf(done); if (i >= 0) my.wakers.splice(i, 1); res(); }
+      t = setTimeout(done, Math.max(0, ms));
+      my.wakers.push(done);
+    });
+  }
+  function mealBeat(my, name, ms) {   /* 장면 박자 (octTableBeat) — 장면이 늦거나 없어도 ms 뒤엔 다음으로 */
+    var p = Promise.resolve();
+    if (mealApi('octTableBeat')) { try { p = Promise.resolve(scene.octTableBeat(name)); } catch (e) { console.warn('[app] octTableBeat', e); } }
+    return Promise.race([p, mealWait(my, (ms + 600) * speed())]);
+  }
+  /* 연출 (스펙 §4.3): 오기 → 생각 1.0 s ('…' 1.2 s, 소리 없음) → 움츠림 → 알림 (누가 정했나) → 먹기 · 보기만 → 0.5 s → 식사. 이미 앉아 있으면 걸어오지 않는다 */
+  function mealStage(e, o) {
+    o = o || {};
+    if (mealRun) return false;
+    var my = mealRun = mealNewRun('coming', e.dish, o.focus, o.ring), red = reduced();
+    mealUI();
+    function live() { return mealRun === my && scene === my.scene; }
+    var come;
+    try { come = Promise.resolve(scene.octToTable({ instant: red })); } catch (err) { come = Promise.resolve(false); }
+    Promise.race([come, mealWait(my, 12000 * speed())]).then(function (ok) {
+      if (!live()) return;
+      if (ok !== true && !octAtTable()) { mealAbort(my, false); return; }   /* 장면이 못 온다고 했다 (그새 잠듦 · 의식): 대답은 그 요리에 남고 행은 없다 */
+      my.stage = 'thinking'; mealUI();
+      bubble('…', 1200, 'think', { silent: true });   /* 생각 말풍선 (스펙 R17: 식탁엔 소리가 없다) */
+      return mealBeat(my, 'think', 1000).then(function () {
+        if (!live()) return;
+        my.stage = 'answer';
+        return mealBeat(my, 'ponder', 120);
+      }).then(function () {
+        if (!live()) return;
+        var cur = MEALR.entryFor(S, my.dish) || e, a = cur.ask || {}, tp = MEALR.toastParts(cur, S.octopus.name);
+        if (tp) toast(tp.tail ? [tp.text, ' ', h('span', { class: 'lby', text: tp.tail })] : [tp.text]);
+        if (a.action === 'stop') { mealAbort(my, false); return; }   /* 다락으로 돌아가기로 함 (개발용 · 나중 모델 길): 먹지 않고 나간다 */
+        var together = a.action === 'eat';
+        return mealBeat(my, together ? 'eat' : 'watch', 120).then(function () { return mealWait(my, 500 * speed()); }).then(function () {
+          if (!live()) return;
+          return mealEatRun(my, together);
+        });
+      });
+    }).catch(function (err) { console.warn('[app] meal stage', err); if (mealRun === my) { if (my.stage === 'eating') mealFinish(my); else mealAbort(my, true); } });
+    return true;
+  }
+  /* 식사: 먼저 저장 (스펙 R9 — 기록 · 식탁 비우기 한 번에) → 대답 행 (문어가 앉아 있던 식사만) → 한 입씩 (같이: 나 · 문어 · 나 · 문어 / 아니면 나 넷) → 효과 피어나기 → 식사 행 */
+  function mealEatRun(my, octVal) {
+    var e = MEALR.eat(S, { at: Date.now(), today: todayKey(), oct: octVal, dish: my.dish });
+    if (!e || !isObj(e.ate)) { mealEnd(my); return; }
+    my.stage = 'eating';
+    if (!mealTable()) mealDishKey = null;   /* 빈 접시는 장면이 내가 일어날 때까지 둔다 (setTableDish(null) 을 부르지 않는다) */
+    save(); mineMeals.push({ entry: e, at: Date.now() });
+    mealUI(); mealRows(my, 1); updateSceneDesc();
+    var red = reduced(), who = e.ate.oct === true ? ['me', 'oct', 'me', 'oct'] : ['me', 'me', 'me', 'me'];
+    function live() { return mealRun === my && scene === my.scene && my.stage === 'eating'; }
+    var p = mealWait(my, (red ? 0 : 250) * speed());
+    who.forEach(function (w) {
+      p = p.then(function () {
+        if (!live()) return;
+        var b = Promise.resolve();
+        if (mealApi('mealBite')) { try { b = Promise.resolve(scene.mealBite(w)); } catch (err) { console.warn('[app] mealBite', err); } }
+        return Promise.race([b, mealWait(my, 1500 * speed())]);
+      });
+    });
+    return p.then(function () { if (live()) mealFinish(my, true); }, function (err) { console.warn('[app] meal bites', err); if (mealRun === my) mealFinish(my); });
+  }
+  /* 식사 끝 (bloom = 정상으로 끝남: 효과가 피어난다. 아니면 감기 — 남은 조각은 치우고 효과는 그냥 켠다) */
+  function mealFinish(my, bloom) {
+    if (!my || mealRun !== my) return false;
+    var e = MEALR.entryFor(S, my.dish), a = MEALR.active(S, todayKey());
+    if (!bloom && mealApi('setTableDish')) { try { scene.setTableDish(null, { appear: false }); } catch (err) { /* 장면 없음 */ } mealDishKey = undefined; }
+    if (mealApi('setAura')) ['me', 'oct'].forEach(function (w) {
+      try { scene.setAura(w, a[w], { bloom: !!bloom && !!a[w] && (w === 'me' || (e && e.ate && e.ate.oct === true)) }); mealAura[w] = a[w]; } catch (err) { console.warn('[app] setAura', err); }
+    });
+    mealRows(my, 2);
+    mealEnd(my);
+    return true;
+  }
+  /* 식사 전 멈춤 (일어남 · 방을 나감 · 산책 초대 · 숨은 탭 · 장면 잃음 · 장면이 거절): 문어는 나간다 (방이 바뀌었거나 숨었으면 바로). 요리는 남고, 적힌 대답은 그 요리에 그대로 */
+  function mealAbort(my, instant) {
+    if (!mealEnd(my)) return false;
+    var i = mealInfo();
+    if (i && i.oct && i.oct !== 'none' && i.oct !== 'leaving') mealLeave(instant);
+    return true;
+  }
+  function mealEnd(my) {
+    if (!my || mealRun !== my) return false;
+    mealRun = null;
+    my.wakers.splice(0).forEach(function (f) { f(); });
+    try { mealTableSync(false); mealUI(); updateSceneDesc(); }
+    catch (e) { console.warn('[app] meal end', e); }
+    if (my.focus && (!document.activeElement || document.activeElement === document.body)) {   /* 키보드로 불렀으면 (칩은 연출 중 숨었다) 식탁 단추로 돌아온다 */
+      var b = $('btn-call'); if (!b || b.hidden) b = $('btn-table');
+      if (b && !b.hidden) focusRoomBtn(b, my.ring);
+    }
+    return true;
+  }
+  function mealLeave(instant) {   /* 문어가 식탁을 떠난다 (일어남 · 방을 나감) → 다 떠나면 미뤄 둔 것 (쉬기 · 돌아다니기) */
+    if (mealLeaving || !mealApi('octLeaveTable')) return;
+    mealLeaving = true;
+    var p; try { p = Promise.resolve(scene.octLeaveTable({ instant: !!instant })); } catch (e) { p = Promise.resolve(); }
+    Promise.race([p, new Promise(function (r) { setTimeout(r, 8000); })]).then(function () {
+      mealLeaving = false; mealUI(); updateSceneDesc();
+      if (!octAtTable()) { syncRest(); if (rest) restTick(); }
+    });
+  }
+  /* 지킴이 (300 ms · 다시 보일 때): 연출 중 — 장면이 바뀜 · 놀이방을 나감 · 산책 초대 · 숨은 탭이면 바로, 일어났으면 걸어서, 너무 길면 감기.
+     연출 밖 — 식탁에 앉은 문어는 내가 일어나면 걸어 나가고, 방이 바뀌면 바로 */
+  function mealTick() {
+    if (!MEALR) return;
+    var my = mealRun;
+    if (my) {
+      var gone = scene !== my.scene || sceneMode !== '3d', away = gone || roomNow() !== 'play' || busy || document.hidden;
+      var stood = !away && my.stage !== 'coming' && !mealSeated(), late = Date.now() - my.t0 > 30000 * speed();
+      if (away || stood || late) { if (my.stage === 'eating') mealFinish(my, false); else mealAbort(my, away); }
+    } else if (octAtTable() && !mealLeaving) {
+      if (roomNow() !== 'play' || busy) mealLeave(true);
+      else if (!mealSeated()) mealLeave(false);
+    }
+    if (inPlay() || octAtTable()) mealUI();
+    else { var sc = $('scene'); if (sc && (sc.classList.contains('oct-table') || sc.classList.contains('meal-busy'))) mealUI(); }
+  }
+  function mealRoom(v) {   /* 보이는 장소가 바뀜 (syncRoomUI): 놀이방에 들어오면 요리를 (나타나기 없이) 놓고, 나가면 단추를 숨긴다 */
+    if (v === 'play') mealTableSync(false);
+    mealTick();
+    if (v !== 'play') { ['btn-seat', 'btn-call'].forEach(function (id) { var b = $(id); if (b) b.hidden = true; }); }
+  }
+  /* 식탁 기록 행 DOM (MEAL.rows → 집 목소리 '식탁' 행 + 누가 정했나 꼬리 span.lby). 모델 말은 data-raw — 한 글자도 안 바꾼다 */
+  function mealRowDOM(e, r) {
+    var row;
+    if (r.voice === 'octopus') row = logRow(r.label, rawSpan(r.text, r.raw ? 'model' : null), 'c-amber', false, r.expr || 'idle');
+    else row = logRow(r.label, document.createTextNode(r.text), 'c-amber', false, null);
+    if (r.tail) { var tx = row.querySelector('.ltext'); if (tx) { tx.appendChild(document.createTextNode(' ')); tx.appendChild(h('span', { class: 'lby', text: r.tail })); } }
+    row.setAttribute('data-meal', String(e.id)); row.setAttribute('data-n', String(r.n));
+    return row;
+  }
+  function mealRowsDOM(e) {   /* 먹은 기록의 행 (연출 중인 식사는 지금 박자까지 — 두 번 그리지 않는다) */
+    if (!MEALR || !isObj(e)) return [];
+    var lim = mealRun && mealRun.dish === e.dish ? mealRun.n : 2;
+    return MEALR.rows(e, S.octopus.name).filter(function (r) { return r.n <= lim; }).map(function (r) { return mealRowDOM(e, r); });
+  }
+  function mealRows(my, upto) {   /* 연출 박자에 맞춰 오늘 칸에 붙인다 */
+    var e = MEALR.entryFor(S, my.dish);
+    var rows = e ? MEALR.rows(e, S.octopus.name).filter(function (r) { return r.n > my.n && r.n <= upto; }) : [];
+    my.n = Math.max(my.n, upto);
+    if (!rows.length || !$('log')) return;
+    var sec = ensureTodaySection();
+    rows.forEach(function (r) { appendLogRow(sec, mealRowDOM(e, r)); });
+  }
+  function mealsAll() { return S.user && Array.isArray(S.user.meals) ? S.user.meals : []; }
+  function mealsOn(key) { return mealsAll().filter(function (m) { return isObj(m) && isObj(m.ate) && m.ate.date === key; }); }   /* 그날 먹은 기록 (행은 먹은 날에) */
+  /* 저장 사본에서만 1년 넘은 식탁 기록의 seed · raw 를 뺀다 (slimAsks 와 같다 — line 은 안 뺀다). 뺄 게 없으면 null */
+  function slimMeals() {
+    var m = MEALR && S.user && Array.isArray(S.user.meals) ? MEALR.slim(S.user.meals, todayKey()) : null;
+    return m ? Object.assign({}, S.user, { meals: m }) : null;
+  }
+  function mealInit() {
+    var ov = $('cook-overlay');
+    if (ov) ov.addEventListener('close', function () { if (!mealAppear) return; mealAppear = false; if (inPlay()) mealTableSync(true); mealUI(); updateSceneDesc(); });   /* 부엌이 닫히면 방금 온 요리가 식탁에 나타난다 */
+    document.addEventListener('visibilitychange', function () { mealTick(); if (!document.hidden) mealApply(); });
+    if (!mealIv) mealIv = setInterval(mealTick, 300);
+    mealRefresh();
   }
 
   /* ───────────────────────── stick: 내 캐릭터 움직이기 — 발자국 손잡이(가상 스틱) + 방향키 (주인 11-08) ───────────────────────── */
@@ -4692,7 +5013,8 @@ var APP = (function () {
     u.shells = Math.max(0, u.shells | 0); u.seeds = Math.max(0, u.seeds | 0);
     if (!isObj(u.dyes)) u.dyes = {}; if (!Array.isArray(u.days)) u.days = []; if (!Array.isArray(u.earned)) u.earned = [];
     if (!Array.isArray(u.garden)) u.garden = [null, null, null]; while (u.garden.length < GARDEN_N) u.garden.push(null);   /* 11-15: 세 칸 → 여섯 칸 (뒤에 빈 칸만 덧붙인다 — 있던 세 칸은 자리 · 내용 그대로) */
-    if (typeof u.plotTold !== 'number' || !(u.plotTold >= 3)) u.plotTold = 3;   /* 11-15: 새로 생긴 밭을 알린 칸 수 (처음 세 칸은 늘 있다) */
+    if (typeof u.plotTold !== 'number' || !(u.plotTold >= 3)) u.plotTold = 3;
+    if (window.MEAL) MEAL.normalize(u);   /* 11-18 식탁: table · meals (모르는 값은 그대로 — js/meal.js) */   /* 11-15: 새로 생긴 밭을 알린 칸 수 (처음 세 칸은 늘 있다) */
     for (var gi = 0; gi < u.garden.length; gi++) if (u.garden[gi] != null && !(isObj(u.garden[gi]) && typeof u.garden[gi].color === 'string' && u.garden[gi].color)) u.garden[gi] = null;   /* 11-11: 객체가 아닌 칸만 빈 칸으로 (모르는 색은 그대로 둔다 — 나중 빌드가 알 수도 있다). 11-13: 색 글자가 없는 칸도 (심을 때 늘 색을 넣는다 — 거두면 염료 'undefined' 가 생겼다) */
     return u;
   }
@@ -5000,6 +5322,7 @@ var APP = (function () {
     setDayGreeting();
     renderLog();
     octInitial();
+    mealInit();   /* 11-18 식탁: 기다리는 요리를 장면에 (나타나기 없이) · 오늘의 효과 · 부엌 닫힘 · 지킴이 */
     scheduleThink();
     /* 초상은 장면이 두 프레임 그린 뒤부터 (3D 는 2번째 프레임에 idle 을 미리 찍어 셰이더를 데운다) */
     requestAnimationFrame(function () { requestAnimationFrame(function () { PORT.ready = true; flushPortraits(); document.documentElement.classList.add('booted'); }); });   /* 11-15: 장면이 두 프레임 그렸다 → 로딩 문어 (index.html #boot) 를 걷는다 */
@@ -5033,6 +5356,10 @@ var APP = (function () {
        ?dev=1 을 직접 붙인 탭인가 */
     applyLook: applyLook, setSalonActive: setSalonActive, get salonActive() { return salonActive; }, get devExplicit() { return DEV_EXPLICIT; },
     /* 미용실 (테스트 · 도구): 거울 단추와 같은 길로 시트 열기 · 병 고르기 · [물어보기] · 남은 연출 감기 · 지금 연출 중인 물음 { id, n(보인 행), face } | null · 행 DOM */
+    /* 11-18 식탁 (테스트 · 도구): 단추와 같은 길 · 부엌 result 를 대신 받기 · 지금 연출 { stage, dish, n } | null · 개발용 다음 대답 (?dev=1 을 직접 붙인 탭만) */
+    mealDish: mealDish, mealBusy: mealBusy, mealTableTap: mealTableTap, mealCall: mealCall, mealApply: mealApply, octAtTable: octAtTable,
+    get meal() { return mealRun ? { stage: mealRun.stage, dish: mealRun.dish, n: mealRun.n } : null; },
+    mealNext: function (a) { if (!DEV_EXPLICIT) return false; mealNext = a === 'eat' || a === 'watch' || a === 'stop' || a === 'none' ? a : null; return true; },
     openSalon: openSalon, salonPick: salonPick, salonAsk: salonAsk, salonFinish: salonFinish, renderSalonSheet: renderSalonSheet, salonRowsDOM: salonRowsDOM,
     get salonStage() { return salonRun ? { id: salonRun.ask.id, n: salonRun.n, face: salonRun.face, action: salonRun.st.action, done: salonRun.done } : null; }
   };
