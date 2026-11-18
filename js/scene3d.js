@@ -5490,7 +5490,7 @@ var SCENE3D = (function () {
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(candleG.quaternion).invert().multiply(camera.quaternion);   /* 11-15: 양초 그룹이 상자와 같이 돌아도 글로우는 화면을 본다 */
       if (ATTIC_CUE) ATTIC_CUE.glow.quaternion.copy(camera.quaternion); if (LROOM) LROOM.cue.glow.quaternion.copy(camera.quaternion);   /* 11-15 계단 초롱 글로우도 늘 카메라 쪽으로 */
       stepZoom(dt); stepPan(dt); placeCamera(); if (YARD_WIDE && PLACE.vis === 'yard') { wideHoldCentre(); fitShadowView(); wideCull(); } updateOverlay();
-      if (!st.offscreen || st.force) draw(t0);   /* 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 */
+      if ((!st.offscreen || st.force) && !st.simOnly) draw(t0);   /* 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 · simOnly = 시험의 debugSim (그리지 않고 민다) */
       if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
     }
     function draw(t0) {   /* 렌더 패스: 뷰티 → 노멀 → 발광(+블러) → 후처리 합성 · 프레임 ms · 드로우콜 로그 */
@@ -6348,9 +6348,9 @@ var SCENE3D = (function () {
       /* 움직이기 (brief MOVE.md · docs/SCENE.md '내 캐릭터 · 움직이기'): setPlayerInput({ x, y } | null) 화면 축 벡터(오른쪽 +x · 위 +y · 길이 0..1) → 매 프레임 1.2 m/s · playerInputAllowed() 보이는 때 규칙 ·
          on.playerInput(allowed) 바뀔 때만 · on.playerStep() 걸음마다 · player().input / footprints · debugPlayerAt(x, z) 자리 옮김 (검사용) */
       setPlayerInput: setPlayerInput, playerInputAllowed: playerInputAllowed, playerInputPause: playerInputPause,
-      /* 디버그 (시험): n 프레임을 dt 초씩 **그리지 않고** 민다 — 걷기 · 따라오는 화면 · 단추 자리는 다 돌고 렌더 패스만 건너뛴다 (화면 밖일 때와 같은 길). 그린 화면이 필요하면 뒤에 debugStep 한 번.
-         소프트웨어 렌더 (시험 · CI) 에선 debugStep 을 수백 번 이어 부르면 그릴 것이 밀려 그다음 캡처가 30 s 를 넘긴다 (11-18 CI '저녁 빛 · 계단' 이 그래서 멈췄다). dt 는 0.04 s 이상 (화면 밖 프레임 상한 30 fps) */
-      debugSim: function (dt, n) { st.paused = true; cancelAnimationFrame(raf); var off = st.offscreen, d = Math.max(0.04, +dt || 0.1); st.offscreen = true; for (var i = 0, m = Math.max(1, n | 0); i < m; i++) frame((lastDraw || 0) + d * 1000); st.offscreen = off; },
+      /* 디버그 (시험): n 프레임을 dt 초씩 **그리지 않고** 민다 — 걷기 · 몸짓 · 따라오는 화면 · 단추 자리는 다 돌고 렌더 패스만 건너뛴다 (dt 는 debugStep 처럼 아무 값 — 1/60 도 된다). 그린 화면이 필요하면 뒤에 debugStep 한 번.
+         소프트웨어 렌더 (시험 · CI) 에선 debugStep 을 한 호출 안에서 백 번쯤 이어 부르면 그릴 것이 밀려, 바로 뒤의 캡처 · 누름이 30 s 제한을 넘긴다 (11-18 CI: '저녁 빛 · 계단' L8 · 스모크 T 의 '톡마다 몸이 작게 톡' 이 그렇게 멈췄다 — CPU 한 코어에 묶으면 로컬에서도 재현) */
+      debugSim: function (dt, n) { st.paused = true; cancelAnimationFrame(raf); st.force = true; st.simOnly = true; try { for (var i = 0, m = Math.max(1, n | 0); i < m; i++) frame((lastDraw || 0) + Math.max(0.001, +dt || 1 / 12) * 1000); } finally { st.simOnly = false; st.force = false; } },
       wide: function () { return YARD_WIDE ? { on: true, T: WIDE.T, S_OUT: WIDE.S_OUT, S1: WIDE.S1, gate: WIDE.gate, trees: WIDE_IM ? WIDE_IM.map(function (w) { return [w.im.count - w.base, w.list.length]; }) : null, shadow: [sun.shadow.camera.left, sun.shadow.camera.right, sun.shadow.camera.bottom, sun.shadow.camera.top] } : { on: false }; },   /* 11-18 넓은 바깥 (시험 중 — ?wide=1) */
       debugPlayerAt: function (x, z) { plStop(); PL.pending = ''; PL.pos.set(+x || 0, 0, +z || 0); PL.moving = false; plSnap(); return plInfo(); },
       debugPlayerYaw: function (deg) { if (deg == null) { PL.faceCam = true; return; } PL.faceCam = false; PL.wantYaw = PL.yaw = deg * DEG; },

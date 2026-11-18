@@ -4871,8 +4871,9 @@ async function scenarioTapLine(browser) {
   await page.waitForFunction(function () { var m = APP.scene.motion ? APP.scene.motion() : null; return APP.oct.state === 'idle' && !!m && !(m.gait && m.gait.moving); }, null, { timeout: 20000 });
   var hp = await page.evaluate(function () {
     var sc = APP.scene; if (typeof sc.debugStep !== 'function') return null;
-    function peak(n) { var m = -1; for (var i = 0; i < n; i++) { sc.debugStep(1 / 60); m = Math.max(m, sc.motion().hop); } return m; }
-    function settle(n) { for (var i = 0; i < n; i++) sc.debugStep(1 / 60); return sc.motion().hop; }
+    var step = typeof sc.debugSim === 'function' ? function () { sc.debugSim(1 / 60, 1); } : function () { sc.debugStep(1 / 60); };   /* 11-18: 그리지 않고 민다 — 한 호출 안의 108 프레임이 소프트웨어 렌더에 쌓여, 느린 러너에선 바로 아래 '산책 갈래?' 누름이 30 s 를 넘겼다 (CPU 한 코어에 묶으면 재현). 재는 값 (hop) 은 그리기와 무관하다 */
+    function peak(n) { var m = -1; for (var i = 0; i < n; i++) { step(); m = Math.max(m, sc.motion().hop); } return m; }
+    function settle(n) { for (var i = 0; i < n; i++) step(); return sc.motion().hop; }
     settle(60);   /* 위 '응?' 톡의 몸짓이 다 끝난 뒤부터 */
     var base = peak(4); APP.tapOct(); var tap = peak(4); var after = settle(40); sc.resume();   /* 2px 위로 90 ms → 0.67 s 뒤엔 제자리 */
     return { base: base, tap: tap, after: after, oct: APP.oct.state, phase: APP.restPhase() };
