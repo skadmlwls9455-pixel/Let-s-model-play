@@ -1,5 +1,8 @@
 # 6차 — 세계 넓히기 (2026-11-18 시작)
 
+> 폴더 이름: 다른 세션의 6차 (부엌 손맛 · 요리 셋 · 놀이방 식탁 · 달리기 문어 · 로딩) 가 `wip/round6/` 를 쓴다 (`claude/game-launch-completion-hwvre5`).
+> 두 가지가 합쳐질 때 같은 이름의 파일 (README · briefs/COMMON) 이 부딪히지 않게 이쪽은 **`wip/round6-world/`** 다. 그쪽의 갈래 (K1 · K2 · D · M · R) 와 이쪽의 갈래 (S · B · F · G · P · H · D) 는 서로 다른 것이다 — 이쪽 D 는 가구 표, 그쪽 D 는 식탁 3D.
+
 주인 말 (11-18): "크기가 너무 작은 느낌, 맵이 좁아서 답답 … 문어 집만 띨롱 있으니까 심심 … 마을에서 이것저것 할 수 있으면 좋겠어.
 축제 같은 기간도 있고 … 맵들 돌아다니면서 문어랑 사진 찍기는 꼭."
 
@@ -15,7 +18,7 @@
 
 ### 두 세션 사이의 약속 (주인이 다른 세션에 전해 줄 것 — 계정이 달라 서로 말을 못 건다)
 
-- **이름이 겹친다.** 양쪽 다 '6차' 다. 이쪽이 `wip/round6/` 와 `lane/6-*` 를 이미 쓰고 있으니 (크레딧 갈래의 실행 명령이 이 경로를 쓴다), **그쪽은 다른 폴더 · 가지 이름** 을 쓴다 (예: `wip/round6-eat/` · `lane/eat-*`).
+- **이름.** 양쪽 다 '6차' 다. 그쪽이 `wip/round6/` 를 쓰고 (11-18 올림), 이쪽은 `wip/round6-world/` 와 가지 `lane/6-*` 를 쓴다 — 폴더도 가지 이름도 겹치지 않는다.
 - **구역 (열쇠).** 리드: `js/scene3d.js` 의 다락 계단 · 마당 · 위층 마네킹 · 내 캐릭터 색 (물들이기) · 장소 · 카메라 · 바깥, `js/app.js` 의 재봉틀 창 · 모델 산책 받아 오기 (claudeSync), `js/poster-art.js`.
   다른 세션: 달리기 · 부엌 · 로딩 · 놀이방 (식탁 · 소파 · 앉기 · 먹기) · 문어가 고르는 자리 (brain · world · mcp).
   한 줄짜리 표 (`SPOT_KEYS` 등) 는 그 줄을 고치지 말고 바로 아래 새 줄로 덧붙인다 (이쪽은 `SPOT_KEYS.push('sewDoll')` 로 넣었다).
@@ -81,7 +84,7 @@ cd ../ppol-swim && npm ci --no-audit --no-fund && npm i --no-save --no-audit --n
 (화면 시험에 쓰는 Playwright 를 **미리** 깐다 — 자동 모드의 세션은 스스로 고른 패키지 설치를 거절당할 수 있다. `package.json` 은 바뀌지 않는다.)
 
 ```bash
-CLAUDE_CODE_PROMPT_CACHE_TTL=1h claude -p "wip/round6/briefs/COMMON.md 와 wip/round6/briefs/S-swim.md 를 읽고 그 갈래를 끝까지 해. Playwright 가 없으면 npm 공식 레지스트리의 playwright 패키지를 npm i --no-save playwright 로, 그 Chromium 을 npx playwright install chromium 으로 깔아도 된다." --model claude-opus-5-5 --effort high --autocompact 300k --strict-mcp-config --max-budget-usd 55 --permission-mode auto --permission-prompts none --output-format json > ../ppol-swim.json
+CLAUDE_CODE_PROMPT_CACHE_TTL=1h claude -p "wip/round6-world/briefs/COMMON.md 와 wip/round6-world/briefs/S-swim.md 를 읽고 그 갈래를 끝까지 해. Playwright 가 없으면 npm 공식 레지스트리의 playwright 패키지를 npm i --no-save playwright 로, 그 Chromium 을 npx playwright install chromium 으로 깔아도 된다." --model claude-opus-5-5 --effort high --autocompact 300k --strict-mcp-config --max-budget-usd 55 --permission-mode auto --permission-prompts none --output-format json > ../ppol-swim.json
 ```
 
 다른 갈래는 이름 · 지시문 · 상한만 바꾼다:
@@ -111,7 +114,7 @@ git push -u origin lane/6-swim
 끊겼을 때 (상한에 닿음 · 창을 닫음) — 같은 폴더에서 **새 세션으로** 이어 하기 (메모와 커밋을 보고 남은 것만 한다):
 
 ```bash
-CLAUDE_CODE_PROMPT_CACHE_TTL=1h claude -p "wip/round6/briefs/COMMON.md 와 wip/round6/briefs/S-swim.md 를 읽고, wip/round6/notes 의 메모 · git log · git status 를 보고 남은 것만 끝내. Playwright 가 없으면 npm 공식 레지스트리의 playwright 패키지를 npm i --no-save playwright 로, 그 Chromium 을 npx playwright install chromium 으로 깔아도 된다." --model claude-opus-5-5 --effort high --autocompact 300k --strict-mcp-config --max-budget-usd 12 --permission-mode auto --permission-prompts none --output-format json > ../ppol-swim-2.json
+CLAUDE_CODE_PROMPT_CACHE_TTL=1h claude -p "wip/round6-world/briefs/COMMON.md 와 wip/round6-world/briefs/S-swim.md 를 읽고, wip/round6-world/notes 의 메모 · git log · git status 를 보고 남은 것만 끝내. Playwright 가 없으면 npm 공식 레지스트리의 playwright 패키지를 npm i --no-save playwright 로, 그 Chromium 을 npx playwright install chromium 으로 깔아도 된다." --model claude-opus-5-5 --effort high --autocompact 300k --strict-mcp-config --max-budget-usd 12 --permission-mode auto --permission-prompts none --output-format json > ../ppol-swim-2.json
 ```
 
 참고:

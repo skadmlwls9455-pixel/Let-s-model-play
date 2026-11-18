@@ -1,6 +1,6 @@
 # 갈래 B — 도감 책 (가지 `lane/6-book` · 상한 40달러)
 
-먼저 `wip/round6/briefs/COMMON.md`. 그다음 참고로: `js/app.js` 의 세트 도감 (`grep -n "LOOK_SETS\|renderSets"`) 과 옷장 시트 (`grep -n "look-sheet\|look-tile"`),
+먼저 `wip/round6-world/briefs/COMMON.md`. 그다음 참고로: `js/app.js` 의 세트 도감 (`grep -n "LOOK_SETS\|renderSets"`) 과 옷장 시트 (`grep -n "look-sheet\|look-tile"`),
 `css/style.css` 의 `.look-tile` · `.sew-sets` · `.week-list`, `js/cook.js` 의 수첩 (`grep -n "book\b\|drawDish"`) · `docs/COOK_PROTO.md` §6,
 `js/world.js` 의 souvenirs (16종) · `assets/souvenirs32/`.
 
@@ -34,7 +34,7 @@
   `COOK.drawDish(recipe, look, seed, w, h)` 는 캔버스가 아니라 `{ w, h, d: Uint8ClampedArray }` 를 준다 → 어댑터 `BOOK.dishFrom(COOK)` → `function (row) → canvas` 를 네가 만든다 (`putImageData`).
   시험용 쪽은 `js/cook.js` · `js/cook-art.js` 를 읽기 전용으로 싣고 이 어댑터를 넘긴다.
   요리에 등급 · 별 · 점수 · 걸린 시간을 붙이지 않는다.
-  **요리는 곧 셋이 된다** (다른 세션이 해초전에 둘을 더하는 중 — 주먹밥 · 과일 꼬치 같은 것, 이름은 아직 안 정해졌다). 그래서:
+  **요리는 곧 셋이 된다** (다른 세션이 해초전에 주먹밥 · 과일 꼬치를 더하는 중 — 요리 id 는 그쪽이 정한다). 그래서:
   요리 이름 · 수를 네 코드에 박지 않는다 — 수첩 줄의 요리 칸 (`recipe` 류) 이 모르는 값이어도 그 값으로 묶어 한 칸을 만들고 던지지 않는다.
   음식 탭의 분모 `N` 은 넘겨받은 `sources.recipes: [{ id, name }]` 의 길이다. 없으면 `n/N` 과 `?` 칸을 그리지 않고 만든 것만 보인다. 먹기 · 효과 · 문어가 먹었는지는 다루지 않는다 (그쪽 것).
 - **박물관의 첫 조각**: '전시' 표시 — 주운 것 · 바다 것 타일에서 `전시하기` 를 누르면 `user.shown[id] = 날짜` (물건은 없어지지 않는다).

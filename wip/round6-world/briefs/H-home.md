@@ -1,6 +1,6 @@
 # 갈래 H — 친구 집 방문의 서버 쪽과 스냅샷 (가지 `lane/6-home` · 상한 30달러)
 
-먼저 `wip/round6/briefs/COMMON.md`. 그다음 참고로: `api/_lib/core.js` (서명 토큰 · 닉네임 정리 · 메모리 저장소 · 주입 시계), `api/room.js` (방 만들기의 남용 막기),
+먼저 `wip/round6-world/briefs/COMMON.md`. 그다음 참고로: `api/_lib/core.js` (서명 토큰 · 닉네임 정리 · 메모리 저장소 · 주입 시계), `api/room.js` (방 만들기의 남용 막기),
 `mcp/store.js` (Blob 어댑터), `api/runner/submit.js` (덮어쓰기 금지 블롭 패턴), `tools/test-api.js` (서버 시험의 본보기), `docs/PROTOCOL.md` §3.
 
 ## 주인 말 (11-18)
@@ -52,7 +52,7 @@ getVisit(store, code)                             → { ok, snap } | 404
 ### 3) 문서 `docs/next/home.md`
 
 끝점 모양 (리드가 만들 `POST /api/home` · `POST|DELETE /api/home/<key>` · `GET /api/visit/<code>`), 스냅샷 칸 표, 개인정보 선, 무료 요금제 한도와 그에 맞춘 수치,
-실시간으로 갈 때의 길 (Vercel Functions 가 2026-10 부터 WebSocket 을 받지만 300초마다 끊기고 방 상태는 외부 Redis 가 필요하다는 것 — 조사 요약은 `wip/round6/README.md`).
+실시간으로 갈 때의 길 (Vercel Functions 가 2026-10 부터 WebSocket 을 받지만 300초마다 끊기고 방 상태는 외부 Redis 가 필요하다는 것 — 조사 요약은 `wip/round6-world/README.md`).
 
 ## 파일
 

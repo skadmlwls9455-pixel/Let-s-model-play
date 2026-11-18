@@ -1,6 +1,6 @@
 # 갈래 F — 줍기 · 가방 · 계절 달력 · 만들기 규칙 (가지 `lane/6-forage` · 상한 40달러)
 
-먼저 `wip/round6/briefs/COMMON.md` (5절의 `user` 칸과 가구 id 22개). 그다음 참고로: `js/app.js` 의 텃밭 (`grep -n "gardenAct\|DYES\|weatherFor\|weekPick"`) —
+먼저 `wip/round6-world/briefs/COMMON.md` (5절의 `user` 칸과 가구 id 22개). 그다음 참고로: `js/app.js` 의 텃밭 (`grep -n "gardenAct\|DYES\|weatherFor\|weekPick"`) —
 날짜 시드로 정하고 사실만 알리는 본보기, `js/salon.js` (DOM 없는 규칙 파일 + node 시험의 본보기) · `tools/test-salon.js`,
 `js/world.js` 의 souvenirs (겹치면 안 되는 이름 16개), `tools/make-souvenirs32.js` (그림 만드는 도구의 본보기).
 
