@@ -1,6 +1,6 @@
 # 갈래 D — 가구 · 벽지 표와 미리보기 (가지 `lane/6-decor` · 상한 35달러)
 
-먼저 `wip/round6/briefs/COMMON.md` (5절의 가구 id 22개). 그다음 참고로: `js/scene3d.js` 의 소파 (`grep -n "var sofaM"` 둘레 20줄 — 가구 하나가 '상자 · 원기둥 조각 목록' 인 모양),
+먼저 `wip/round6-world/briefs/COMMON.md` (5절의 가구 id 22개). 그다음 참고로: `js/scene3d.js` 의 소파 (`grep -n "var sofaM"` 둘레 20줄 — 가구 하나가 '상자 · 원기둥 조각 목록' 인 모양),
 `mergeParts` · `box` · `M` (`grep -n "function mergeParts\|function box\|function M("`), 색 표 `RAMPS` · `FIXED` · `MAT` (`grep -n "var RAMPS\|var FIXED\|var W = PAL\|var MAT"`), 벽 · 바닥 조각 (`grep -n "벽 2면"` 둘레),
 `js/app.js` 의 가구 아이콘 (`grep -n "FURN_ICON"` — 17×13 픽셀 격자), `js/palettes.js`, `docs/INTERIOR_MODE.md` 머리말.
 

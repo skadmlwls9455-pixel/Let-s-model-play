@@ -1,6 +1,6 @@
 # 갈래 P — 사진 (가지 `lane/6-photo` · 상한 40달러)
 
-먼저 `wip/round6/briefs/COMMON.md`. 그다음 **`docs/PHOTO_AND_FURNITURE.md` 의 §1 · §2 · §5 가 이 갈래의 바탕 설계** 다 (주인 11-05 요청으로 쓴 것 — §3 · §4 는 소파 · 같이 앉기라 읽지 않는다).
+먼저 `wip/round6-world/briefs/COMMON.md`. 그다음 **`docs/PHOTO_AND_FURNITURE.md` 의 §1 · §2 · §5 가 이 갈래의 바탕 설계** 다 (주인 11-05 요청으로 쓴 것 — §3 · §4 는 소파 · 같이 앉기라 읽지 않는다).
 **이 지시문과 어긋나면 이 지시문이 이긴다.** 바탕 설계에서 그대로 가져오는 것: §1.4 문어 상태 표 · §1.7 공유 차례 · §2.1 규칙 표 · §5.
 이번에 만들지 않는 것: 문어 혼자 하는 포즈와 그 값 · 필터 · 비율 칩 · 격자 · 구도 프리셋 · 액자 7종 · 셀프 타이머 · GIF · 소리 · 진동 · 요정 쪽지 · `S.photo` 저장 (§6.4)
 (나중에 문어 혼자 포즈를 더할 수 있게 `POSES` 에 `who: 'me' | 'both'` 칸을 둔다 — `'octopus'` 는 자리만). 참고: `js/app.js` 의 포스터 PNG 내보내기 (`grep -n "toBlob\|exportPng\|download"`),

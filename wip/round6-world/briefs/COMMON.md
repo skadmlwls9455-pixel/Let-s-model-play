@@ -18,7 +18,7 @@
 | 누구 | 가지 | 맡은 것 |
 |---|---|---|
 | 리드 세션 | `claude/serene-cannon-awp5y2` | `js/scene3d.js` · `js/app.js` · `index.html` · `css/style.css` · `tools/smoke.js` 등 **기존 파일 전부**. 3D 맵 넓히기 · 카메라 · 갈래 합치기 · 본 게임에 잇기 |
-| 다른 세션 | `claude/game-launch-completion-hwvre5` | 달리기 문어 다시 그림 · 로딩 문어 · 부엌 손맛 · **먹기** (놀이방 식탁 + 2인 소파 · 요리 3개 · 문어가 같이 먹을지는 문어가 고름). 달리기 · 부엌 · 놀이방은 그쪽 구역이다 |
+| 다른 세션 | `claude/game-launch-completion-hwvre5` | 달리기 문어 다시 그림 · 로딩 문어 · 부엌 손맛 · **먹기** (놀이방 식탁 + 2인 소파 · 요리 3개: 해초전 · 주먹밥 · 과일 꼬치 · 문어가 같이 먹을지는 문어가 고름). 달리기 · 부엌 · 놀이방은 그쪽 구역이다. 그쪽 글은 `wip/round6/` (이 폴더 `wip/round6-world/` 와 다른 것 — 그쪽의 '갈래 D' 는 식탁 3D 다) |
 | **너 (크레딧 갈래)** | `lane/6-<갈래>` | **새 파일만.** 아래 3절 자리에 만든다 |
 
 **가장 중요한 규칙: 기존 파일은 한 글자도 고치지 않는다.** (읽는 것은 얼마든지.)
@@ -38,7 +38,7 @@
 | 빠른 시험 (node) | `tools/next/test-<이름>.js` — DOM 없이, 5초 안 |
 | 화면 시험 (Playwright) | `tools/next/test-<이름>-live.js` — 네 시험용 쪽만 연다 |
 | 문서 | `docs/next/<이름>.md` — 규칙 · API · 저장 칸 · '리드가 이을 것' |
-| 메모 · 보고 · 스크린샷 | `wip/round6/notes/<갈래>.md` · `wip/round6/reports/<갈래>.md` · `wip/round6/shots/<갈래>/` |
+| 메모 · 보고 · 스크린샷 | `wip/round6-world/notes/<갈래>.md` · `wip/round6-world/reports/<갈래>.md` · `wip/round6-world/shots/<갈래>/` |
 
 - 공용 시드 난수: `js/next/prng.js` (전역 `NEXT_PRNG`, node 에서는 `require`). 고치지 말고 쓴다.
 - 새 최상위 폴더 · 새 `api/*.js` 함수 파일 · 새 npm 의존성을 만들지 않는다 (Vercel 무료 요금제의 함수 수 한도가 있다).
@@ -107,7 +107,7 @@
   | `user.skin` | `{ wall: 프리셋 id, floor: 프리셋 id }` | 리드 (id 는 D 의 SKINS) |
 
   이미 있는 칸 (읽기만 — 리드와 본 게임 것): `user.dyes` `{ 색 id: 개수 }` 텃밭 염료 · `user.dyed` 물건별 물들인 색 · `user.look` 지금 모습.
-  **이미 쓰는 이름 — 새 칸으로 쓰지 않는다:** `shells` · `seeds` · `dyes` · `days` · `giftDay` · `giftTell` · `garden` · `plotTold` · `dye` · `dyed` · `earned` · `week` · `sets` (`week` 는 주간 할 일이다 — '주마다 한 번' 을 여기에 적지 않는다).
+  **이미 쓰는 이름 — 새 칸으로 쓰지 않는다:** `shells` · `seeds` · `dyes` · `days` · `giftDay` · `giftTell` · `garden` · `plotTold` · `dye` · `dyed` · `earned` · `week` · `sets` (`week` 는 주간 할 일이다 — '주마다 한 번' 을 여기에 적지 않는다), 그리고 다른 세션의 먹기가 새로 쓰는 `table` · `meals`.
   위 표에 없는 칸이 필요하면 `user.<네 전역 이름 소문자>_…` 로 시작하는 이름으로 만들고 보고서 '저장 칸' 에 적는다 (다른 갈래 · 다른 세션과 겹치지 않게).
 
 - **목록은 `CATALOG` 로 내놓는다.** 물건 · 바다 것 · 손님 · 가구 · 모션을 가진 모듈은 `X.CATALOG = [{ id, name, icon, hint }]` 을 내놓는다
@@ -150,13 +150,13 @@
 
 1. 이 글과 네 갈래 지시문, 지시문이 가리키는 기존 코드 · 문서를 읽는다. 큰 파일 (`js/scene3d.js` 6천 줄 · `js/app.js` 5천 줄 · `tools/smoke.js`) 은
    **통째로 읽지 말고 grep 으로 찾아 조각만** 읽는다. 본보기 파일도 머리말과 필요한 함수만 (`tools/test-salon.js` · `js/cook.js` · `js/world.js` · `js/runner.js` 는 60~120KB 다).
-   메모는 `wip/round6/notes/<갈래>.md` 에 (세션이 다시 시작되면 그것과 `git log` · `git status` 로 잇는다). **문맥이 요약 (압축) 된 뒤에는 이 글 · 갈래 지시문 · 네 메모를 다시 읽는다.**
+   메모는 `wip/round6-world/notes/<갈래>.md` 에 (세션이 다시 시작되면 그것과 `git log` · `git status` 로 잇는다). **문맥이 요약 (압축) 된 뒤에는 이 글 · 갈래 지시문 · 네 메모를 다시 읽는다.**
 2. 규칙 (순수 함수) → node 시험 → 그림 → 화면 → 화면 시험 차례로 만든다. 처음부터 꼼꼼히.
-3. 화면은 진짜로 본다: Playwright 로 360×740 @2 스크린샷을 찍어 **네가 직접 읽는다** (최대 8장, `wip/round6/shots/<갈래>/`).
+3. 화면은 진짜로 본다: Playwright 로 360×740 @2 스크린샷을 찍어 **네가 직접 읽는다** (최대 8장, `wip/round6-world/shots/<갈래>/`).
    Playwright 가 `require` 되지 않으면 한 번만 `npm i --no-save playwright && npx playwright install chromium` (package.json 은 그대로).
    **설치가 거절되거나 실패하면 다시 시도하거나 다른 길로 깔지 않는다.** 화면 시험 파일은 써 두고, 못 돌린 것을 보고서 '확인 못 한 것' 맨 위에 적은 뒤 나머지를 끝낸다.
 4. `npm test` 한 번 (기존 시험이 그대로 초록이어야 한다) + 네 시험 둘.
-5. **먼저 남긴다:** `docs/next/<이름>.md` 와 보고서 초안 `wip/round6/reports/<갈래>.md` (결론 먼저 · 만든 파일 · API · 정한 것 · **리드가 이을 것 (어느 파일 어디에 무엇)** ·
+5. **먼저 남긴다:** `docs/next/<이름>.md` 와 보고서 초안 `wip/round6-world/reports/<갈래>.md` (결론 먼저 · 만든 파일 · API · 정한 것 · **리드가 이을 것 (어느 파일 어디에 무엇)** ·
    시험 결과 (수) · 스크린샷 · 못 한 것 · 확인 못 한 것) 를 써서 메모 · 스크린샷과 함께 **커밋하고 push** 한다 — 리드는 다른 환경이라 push 된 것만 본다.
    상한에 걸려 끊겨도 여기까지는 남는다.
 6. **독립 점검 한 번:** 네 생각을 못 본 새 하위 에이전트 하나에게 이 글 · 갈래 지시문 · `git diff --stat origin/claude/serene-cannon-awp5y2...HEAD` 를 주고,

@@ -1,6 +1,6 @@
 # 갈래 S — 바다 헤엄 (가지 `lane/6-swim` · 상한 55달러)
 
-먼저 `wip/round6/briefs/COMMON.md`. 그다음 참고로: `js/runner.js` (구조의 본보기 — 고정 틱 · 시드 · 입력 기록 · DOM 없는 simulate · 정수 배 캔버스 · 결과 판),
+먼저 `wip/round6-world/briefs/COMMON.md`. 그다음 참고로: `js/runner.js` (구조의 본보기 — 고정 틱 · 시드 · 입력 기록 · DOM 없는 simulate · 정수 배 캔버스 · 결과 판),
 `css/runner.css`, `docs/MINIGAME.md`, `tools/test-runner.js` (시험의 본보기), `js/palettes.js`.
 
 ## 주인 말 (11-18)

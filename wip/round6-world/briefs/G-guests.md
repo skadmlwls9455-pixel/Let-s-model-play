@@ -1,6 +1,6 @@
 # 갈래 G — 놓아둔 것을 보고 오는 손님 (가지 `lane/6-guests` · 상한 35달러)
 
-먼저 `wip/round6/briefs/COMMON.md` (5절: 가구 id · 계절 · 시간대 · 날씨 · 구역 낱말). 그다음 참고로: `js/salon.js` + `tools/test-salon.js` (DOM 없는 규칙 파일의 본보기),
+먼저 `wip/round6-world/briefs/COMMON.md` (5절: 가구 id · 계절 · 시간대 · 날씨 · 구역 낱말). 그다음 참고로: `js/salon.js` + `tools/test-salon.js` (DOM 없는 규칙 파일의 본보기),
 `assets/fx/` (반딧불 · 꽃잎 같은 작은 픽셀 그림의 크기감), `tools/ui-art/` (픽셀 그림을 코드로 찍는 법), `docs/MODEL_VOICE.md` (정직 원칙).
 
 ## 주인 말 (11-18)
