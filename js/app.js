@@ -4044,7 +4044,7 @@ var APP = (function () {
   function cookSafeSoon() { clearTimeout(cookSafeT); cookSafeT = setTimeout(cookSafeSend, 100); }
   /* 5차 검증 K-5: 게임의 모션 줄이기는 이 쪽 <html> 에만 있다 → 부엌 iframe 에도 알린다 (처음엔 주소 &reduced=1, 그 뒤엔 'open' 바로 전 · 설정이 바뀔 때 {ppolCook:'motion', reduce}).
      K-11: 키로 열었는지도 (&kbd=1 · 'open' 의 kbd) — 부엌 안의 마지막 입력 (닫을 때의 Esc) 이 아니라 여는 손으로 칩 포커스를 정하게 */
-  function cookSrc(kbd) { return 'cook.html?embed=1' + (reduced() ? '&reduced=1' : '') + (kbd ? '&kbd=1' : ''); }
+  function cookSrc(kbd, recipe) { return 'cook.html?embed=1' + (reduced() ? '&reduced=1' : '') + (kbd ? '&kbd=1' : '') + (recipe && COOK_TUNES[recipe] ? '&recipe=' + recipe : ''); }   /* 11-18 6차: 쟁반에서 고른 요리 */
   function cookMotionSend() {
     if (!cookFrame || !cookReady) return;
     try { cookFrame.contentWindow.postMessage({ ppolCook: 'motion', reduce: reduced() }, '*'); } catch (e) { /* 닫힌 부엌 */ }
@@ -4054,11 +4054,17 @@ var APP = (function () {
     if (e.origin !== 'null' && e.origin !== location.origin) return;
     var d = e.data; if (!d || typeof d !== 'object') return;
     var ov = $('cook-overlay');
-    if (d.ppolCook === 'ready') { cookReady = true; cookSafeSend(); cookMotionSend(); }
+    if (d.ppolCook === 'ready') { cookReady = true; cookWaitEnd(); cookSafeSend(); cookMotionSend(); }   /* 11-18 (점검 rel-01): 기다림 그림 · 닫기 · 6초 시계를 걷는다 */
     else if (d.ppolCook === 'close' && ov && ov.open) { cookKbd = !!d.kbd; ov.close(); }
+    else if (d.ppolCook === 'result') { if (typeof mealDish === 'function') mealDish(d); }   /* 11-18 6차: 다 만든 요리 → 식탁 (M 의 mealDish 가 확인 · 저장) */
   }
-  function openCook(opener, kbd) {
+  function openCook(opener, kbd, recipe) {
+    if (typeof mealBusy === 'function' && mealBusy()) return false;   /* 11-18 6차 R19: 문어를 부르는 동안 조리대는 아무것도 안 한다 */
     var ov = $('cook-overlay'); if (!ov || ov.open || !inPlay() || roomJob) return false;
+    if (!recipe || !COOK_TUNES[recipe]) {   /* 11-18 6차 (spec 3.5): 단계 하나라도 해 둔 냄비면 바로 이어서, 아니면 요리 쟁반 */
+      recipe = cookPot();
+      if (!recipe) return dishPickOpen(opener || $('btn-cook'), kbd);
+    }
     hideTip();
     opener = opener || $('btn-cook'); cookOpener = opener; cookKbd = false;
     if (opener && document.activeElement !== opener && !opener.hidden) focusRoomBtn(opener, !!kbd);   /* 닫으면 브라우저가 포커스를 조리대 단추로 돌려준다 */
@@ -4067,18 +4073,96 @@ var APP = (function () {
       window.addEventListener('resize', cookSafeSoon); window.addEventListener('orientationchange', cookSafeSoon);
       cookFrame = document.createElement('iframe');
       cookFrame.className = 'cook-frame'; cookFrame.title = '부엌';
-      cookFrame.src = cookSrc(kbd);
+      cookFrame.src = cookSrc(kbd, recipe);
       ov.appendChild(cookFrame);
+      var cc = $('cook-close'); if (cc) cc.addEventListener('click', function (e) { cookKbd = kbdClick(e); ov.close(); });   /* 11-18 (rel-01): 못 열린 부엌에서 나가는 문 */
       ov.addEventListener('close', function () {
+        if (!cookReady) cookAbort();   /* 11-18 (rel-01): 안 열린 부엌은 멈춘다 (늦게 열려 냄비를 만들지 않게) · 다음엔 새로 불러온다 */
+        cookWaitEnd();
         try { cookFrame.contentWindow.postMessage({ ppolCook: 'close' }, '*'); } catch (e) { /* 닫힌 부엌 */ }   /* 이쪽 Esc 로 닫혀도 부엌은 냄비를 저장하고 조용히 */
         var b = cookOpener; if (b && !cookKbd && !b.hidden && document.activeElement === b) focusRoomBtn(b, false);   /* 11-15 (검증 V2-1): 손가락으로 닫았으면 조리대 단추에 링 없이 (iframe 으로 포커스가 갈 때 ring-off 가 지워져 노란 테가 남았다) */
         cookKbd = false;
       });
       ov.addEventListener('cancel', function () { cookKbd = true; });   /* Esc = 키보드 → 링 그대로 */
-    } else if (cookReady) { cookSafeSend(); cookMotionSend(); try { cookFrame.contentWindow.postMessage({ ppolCook: 'open', kbd: !!kbd }, '*'); } catch (e) { /* 다시 불러온다 */ cookFrame.src = cookSrc(kbd); } }
+    } else if (cookReady) { cookSafeSend(); cookMotionSend(); try { cookFrame.contentWindow.postMessage({ ppolCook: 'open', kbd: !!kbd, recipe: recipe }, '*'); } catch (e) { /* 다시 불러온다 */ cookFrame.src = cookSrc(kbd, recipe); } }
+    else cookFrame.src = cookSrc(kbd, recipe);   /* 11-18 (rel-01): 'ready' 를 한 번도 못 보낸 부엌 → 새로 불러온다 (보여 주기만 하면 영영 빈 화면) */
     showDialog(ov);
+    if (!cookReady) cookWaitStart();
     try { cookFrame.focus(); } catch (e) { /* 포커스는 부엌이 연 뒤 스스로 */ }
     return true;
+  }
+  /* ── 11-18 6차: 못 열린 부엌 (점검 rel-01) ── 'ready' 를 기다리는 동안 300 ms 가 지나면 기어가는 문어 그림 + 게임 쪽 닫기 단추 (그림뿐 ·
+     aria-label 만). 6 초 안에 'ready' 가 없으면 덮개를 닫고 토스트 한 줄. 닫히면 iframe 을 멈춘다 (늦게 열려 냄비를 만들지 않게) → 다음 열기는 새로 불러온다 */
+  var cookWaitT = 0, cookFailT = 0;
+  function cookWaitStart() {
+    cookWaitEnd();
+    cookWaitT = setTimeout(function () { var w = $('cook-wait'); if (!w || cookReady) return; cookWaitFit(); w.hidden = false; }, 300);
+    cookFailT = setTimeout(function () {
+      var ov = $('cook-overlay'); if (cookReady || !ov || !ov.open) return;
+      ov.close(); toast('부엌을 못 열었어. 다시 눌러 줘.');
+    }, 6000);
+  }
+  function cookWaitEnd() { clearTimeout(cookWaitT); clearTimeout(cookFailT); var w = $('cook-wait'); if (w) w.hidden = true; }
+  function cookAbort() { cookReady = false; try { cookFrame.src = 'about:blank'; } catch (e) { /* 다음 열기가 새로 */ } }
+  function cookWaitFit() {   /* 문어 그림 (로딩 그림 한 칸 56×39) 은 round(2·dpr) 기기 px 배 · 가운데 · 닫기는 오른쪽 위 안전 여백 안 — 전부 기기 px 위에 */
+    var w = $('cook-wait'); if (!w) return;
+    var dpr = window.devicePixelRatio || 1, dev = function (v) { return Math.round(v * dpr) / dpr; }, n = Math.max(1, Math.round(2 * dpr)), sf = cookSafe();
+    var ow = 56 * n / dpr, oh = 39 * n / dpr, vw = window.innerWidth, vh = window.innerHeight, n2 = Math.max(1, Math.floor(2 * dpr + 1e-6)), ic = 16 * n2 / dpr, box = dev(48);
+    w.style.setProperty('--cw-ow', ow + 'px'); w.style.setProperty('--cw-oh', oh + 'px'); w.style.setProperty('--cw-sheet', (448 * n / dpr) + 'px');
+    w.style.setProperty('--cw-ox', dev((vw - ow) / 2) + 'px'); w.style.setProperty('--cw-oy', dev((vh - oh) / 2) + 'px');
+    w.style.setProperty('--cw-box', box + 'px'); w.style.setProperty('--cw-ic', ic + 'px'); w.style.setProperty('--cw-icp', (Math.round((box - ic) / 2 * dpr) / dpr) + 'px');
+    w.style.setProperty('--cw-cx', dev(vw - Math.max(8, sf.r + 8) - 48) + 'px'); w.style.setProperty('--cw-cy', dev(Math.max(8, sf.t + 8)) + 'px');
+    w.style.setProperty('--cw-b', dev(2) + 'px');
+  }
+
+  /* ── 11-18 6차: 요리 쟁반 (#dish-pick) — 조리대 톡 → 그림 칩 셋 (해초전 · 주먹밥 · 과일 꼬치), 보이는 글자 0 · title 없음.
+     부엌 저장 (ppolppol_cook_v0) 은 읽기만 한다: 단계를 하나라도 끝낸 냄비 (이어 갈 수 있는 것만) 면 쟁반 없이 바로 이어서.
+     빈 냄비 (si 0 — 부엌은 요리를 시작하자마자 하나 쓴다) · 다른 판 · 깨진 냄비는 쟁반 (spec 3.5). 게임 쪽은 js/cook.js 를 안 싣는다 →
+     요리마다 냄비 해시를 여기 적어 둔다 (smoke Z 가 부엌의 COOK.tuneOf 와 같은지 본다) */
+  var COOK_TUNES = { jeon: 2827089308, jumeokbap: 1403436335, kkochi: 3381042548 };
+  function cookPot() {
+    try {
+      var o = JSON.parse(localStorage.getItem('ppolppol_cook_v0') || 'null'), p = o && typeof o === 'object' && !Array.isArray(o) ? o.pot : null;
+      if (!p || typeof p !== 'object' || Array.isArray(p) || p.ver !== 'cook-1') return null;
+      if (typeof p.recipe !== 'string' || !Object.prototype.hasOwnProperty.call(COOK_TUNES, p.recipe) || p.tune !== COOK_TUNES[p.recipe]) return null;
+      return typeof p.si === 'number' && Math.floor(p.si) === p.si && p.si >= 1 ? p.recipe : null;
+    } catch (e) { return null; }
+  }
+  var dishPickBound = false, dishPickOpener = null, dishPickKbd = false, dishPicked = false;
+  function dishPickOpen(opener, kbd) {
+    var d = $('dish-pick'); if (!d || d.open) return false;
+    hideTip();
+    if (!dishPickBound) {
+      dishPickBound = true;
+      d.addEventListener('click', function (e) {
+        var b = e.target && e.target.closest ? e.target.closest('button[data-recipe]') : null;
+        if (!b) { if (e.target === d || (e.target && e.target.classList && e.target.classList.contains('dp-row'))) { dishPickKbd = false; d.close(); } return; }   /* 칩 밖 (투명 배경) 톡 = 닫기 */
+        var r = b.getAttribute('data-recipe'), k = kbdClick(e), op = dishPickOpener;
+        dishPickKbd = k; dishPicked = true; d.close();   /* close 사건은 나중에 온다 → 고른 것은 깃발로 */
+        openCook(op, k, r);
+      });
+      d.addEventListener('cancel', function () { dishPickKbd = true; });   /* Esc · 뒤로 */
+      d.addEventListener('close', function () {
+        var op = dishPickOpener; window.removeEventListener('resize', dishPickFit);
+        if (!dishPicked && op && !op.hidden) focusRoomBtn(op, dishPickKbd);   /* 고르지 않고 닫으면 조리대 단추로 */
+      });
+    }
+    dishPickOpener = opener; dishPickKbd = !!kbd; dishPicked = false;
+    if (opener && document.activeElement !== opener && !opener.hidden) focusRoomBtn(opener, !!kbd);
+    d.showModal();
+    dishPickFit(); window.addEventListener('resize', dishPickFit);
+    var first = d.querySelector('button[data-recipe]');
+    try { if (kbd && first) first.focus({ preventScroll: true }); else d.focus({ preventScroll: true }); } catch (e) { /* 포커스는 그대로 */ }
+    return true;
+  }
+  function dishPickFit() {   /* 칩 64 · 틈 16 · 아래 max(16, 안전 + 16) · 그림 16 px × floor(3·dpr) 기기 px — 모든 가장자리를 기기 px 위에 */
+    var d = $('dish-pick'); if (!d) return;
+    var dpr = window.devicePixelRatio || 1, dev = function (v) { return Math.round(v * dpr) / dpr; }, n = Math.max(1, Math.floor(3 * dpr + 1e-6)), ic = 16 * n / dpr;
+    var chip = dev(64), gap = dev(16), row = 3 * chip + 2 * gap, sf = cookSafe(), vw = window.innerWidth, vh = window.innerHeight;
+    var st = d.style;
+    st.setProperty('--dp-chip', chip + 'px'); st.setProperty('--dp-gap', gap + 'px'); st.setProperty('--dp-ic', ic + 'px');
+    st.setProperty('--dp-icp', (Math.round((chip - ic) / 2 * dpr) / dpr) + 'px'); st.setProperty('--dp-b', dev(2) + 'px');
+    st.setProperty('--dp-x', dev((vw - row) / 2) + 'px'); st.setProperty('--dp-y', dev(vh - Math.max(16, sf.b + 16) - chip) + 'px');
   }
   /* 구석 쪽지: 놀이방에 있는 동안 문어가 산책에서 돌아오면 (sceneFor 'return'). 이름 + 조사 (WORLD.strings.backNote) · 보러 가기 = 문으로 다락에.
      놀이방을 벗어나면(어느 길로든) 걷는다. 글은 보인 뒤에 넣는다 (role=status 가 읽어 준다) */

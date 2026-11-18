@@ -336,7 +336,9 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 </dialog>
 
 <!-- 11-15: 부엌 (조리대 톡). 화면 가득 · 안은 cook.html?embed=1 (닫기 · Esc 는 부엌 쪽이 받아 postMessage 로 알린다) -->
-<dialog id="cook-overlay" class="cook-overlay" aria-label="부엌"></dialog>
+<dialog id="cook-overlay" class="cook-overlay" aria-label="부엌"><div id="cook-wait" class="cook-wait" hidden><i class="cw-oct" aria-hidden="true"></i><button type="button" id="cook-close" class="cw-close" aria-label="닫기"><img src="assets/icons/dish/close.png" alt="" width="16" height="16"></button></div></dialog>
+<!-- 11-18 6차: 부엌이 아직 안 열렸을 때 (점검 rel-01) 300 ms 뒤 기어가는 문어 + 닫기 (그림뿐) · 6 초면 닫고 토스트. 요리 쟁반: 조리대 톡 → 그림 칩 셋 (보이는 글자 0 · title 없음) -->
+<dialog id="dish-pick" class="dish-pick" aria-label="요리 고르기" tabindex="-1"><div class="dp-row"><button type="button" class="dp-chip" data-recipe="jeon" aria-label="해초전"><img src="assets/icons/dish/jeon.png" alt="" width="16" height="16"></button><button type="button" class="dp-chip" data-recipe="jumeokbap" aria-label="주먹밥"><img src="assets/icons/dish/jumeokbap.png" alt="" width="16" height="16"></button><button type="button" class="dp-chip" data-recipe="kkochi" aria-label="과일 꼬치"><img src="assets/icons/dish/kkochi.png" alt="" width="16" height="16"></button></div></dialog>
 
 <dialog id="sew-sheet" class="sheet bag-sheet sew-sheet" aria-labelledby="sew-h">
   <div class="handle" aria-hidden="true"></div>
