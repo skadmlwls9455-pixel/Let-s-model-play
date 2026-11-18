@@ -1684,3 +1684,30 @@ dialog.cook-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-
 dialog.cook-overlay::backdrop { background: #d7b594; }
 :root[data-font="pixel"] dialog.cook-overlay, :root[data-font="pixel"] dialog.cook-overlay[open] { border: 0; border-radius: 0; box-shadow: none; padding: 0; animation: none; background: #d7b594; }   /* 11-15 (검증 V2-2): 픽셀 글꼴 대화상자 규칙 (테 2px · 그림자 · 떠오름) 이 부엌 덮개에 붙어 320 폭에서 부엌 무대가 한 단 작았다. 5차 검증 K-1: 판 색 디더도 — 부엌 쪽이 그리기 전 첫 칠이 부엌 쪽 색이게 */
 dialog.cook-overlay .cook-frame { display: block; width: 100%; height: 100%; border: 0; }
+/* 11-18 6차 (점검 rel-01): 부엌을 기다릴 때 — 문어 그림 (로딩 그림 한 칸, round(2·dpr) 기기 px 배) · 오른쪽 위 닫기 (부엌 안 닫기와 같은 종이 칩). 크기 · 자리는 app.js cookWaitFit 가 기기 px 로 */
+dialog.cook-overlay .cook-wait { position: absolute; inset: 0; z-index: 1; background: #d7b594; }
+dialog.cook-overlay .cook-wait[hidden] { display: none; }
+.cook-wait .cw-oct { position: absolute; left: var(--cw-ox, 50%); top: var(--cw-oy, 50%); width: var(--cw-ow, 112px); height: var(--cw-oh, 78px);
+  background: url("../assets/ui/loading_oct.png") 0 0 / var(--cw-sheet, 896px) var(--cw-oh, 78px) no-repeat; image-rendering: pixelated; animation: cw-walk .8s steps(8) infinite; }
+@keyframes cw-walk { to { background-position: calc(-1 * var(--cw-sheet, 896px)) 0; } }
+:root[data-motion="reduce"] .cook-wait .cw-oct { animation: none; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion="auto"]) .cook-wait .cw-oct { animation: none; } }
+.cook-wait .cw-close, dialog.dish-pick .dp-chip { position: absolute; margin: 0; padding: 0; background-color: #e7d5b3; border: 0; border-radius: 0; box-sizing: border-box;
+  box-shadow: inset 0 0 0 var(--dp-b, 2px) #602c2c, inset calc(2 * var(--dp-b, 2px)) calc(2 * var(--dp-b, 2px)) 0 #ebede9,
+    inset calc(-2 * var(--dp-b, 2px)) calc(-2 * var(--dp-b, 2px)) 0 #c09473, var(--dp-b, 2px) var(--dp-b, 2px) 0 #602c2c;   /* 부엌 칩 (.ck-paper) 과 같은 종이 */
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; cursor: pointer; }
+.cook-wait .cw-close { --dp-b: var(--cw-b, 2px); left: var(--cw-cx, auto); top: var(--cw-cy, 8px); width: var(--cw-box, 48px); height: var(--cw-box, 48px); }
+.cook-wait .cw-close img { position: absolute; left: var(--cw-icp, 16px); top: var(--cw-icp, 16px); width: var(--cw-ic, 16px); height: var(--cw-ic, 16px); image-rendering: pixelated; }
+.cook-wait .cw-close:active, dialog.dish-pick .dp-chip:active { transform: translate(0, var(--dp-b, 2px)); }
+/* 요리 쟁반: 투명 배경 (뒤의 놀이방이 보인다) · 가운데 아래 · 칩 64 · 틈 16 · 그림 floor(3·dpr) 기기 px 배 (app.js dishPickFit) */
+dialog.dish-pick, :root[data-font="pixel"] dialog.dish-pick, :root[data-font="pixel"] dialog.dish-pick[open] { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
+  border: 0; border-radius: 0; background: transparent; box-shadow: none; animation: none; overflow: hidden; outline: none; }
+dialog.dish-pick::backdrop { background: transparent; }
+dialog.dish-pick .dp-row { position: absolute; left: var(--dp-x, 0px); top: var(--dp-y, 0px); width: calc(3 * var(--dp-chip, 64px) + 2 * var(--dp-gap, 16px)); height: var(--dp-chip, 64px); }
+dialog.dish-pick .dp-chip { top: 0; width: var(--dp-chip, 64px); height: var(--dp-chip, 64px); }
+dialog.dish-pick .dp-chip:nth-child(1) { left: 0; }
+dialog.dish-pick .dp-chip:nth-child(2) { left: calc(var(--dp-chip, 64px) + var(--dp-gap, 16px)); }
+dialog.dish-pick .dp-chip:nth-child(3) { left: calc(2 * var(--dp-chip, 64px) + 2 * var(--dp-gap, 16px)); }
+dialog.dish-pick .dp-chip img { position: absolute; left: var(--dp-icp, 8px); top: var(--dp-icp, 8px); width: var(--dp-ic, 48px); height: var(--dp-ic, 48px); image-rendering: pixelated; }
+dialog.dish-pick .dp-chip:focus { outline: none; }
+dialog.dish-pick .dp-chip:focus-visible, .cook-wait .cw-close:focus-visible { outline: var(--dp-b, 2px) solid #341c27; outline-offset: var(--dp-b, 2px); }
