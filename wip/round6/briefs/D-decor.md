@@ -1,7 +1,7 @@
 # 갈래 D — 가구 · 벽지 표와 미리보기 (가지 `lane/6-decor` · 상한 35달러)
 
 먼저 `wip/round6/briefs/COMMON.md` (5절의 가구 id 22개). 그다음 참고로: `js/scene3d.js` 의 소파 (`grep -n "var sofaM"` 둘레 20줄 — 가구 하나가 '상자 · 원기둥 조각 목록' 인 모양),
-`mergeParts` · `box` · `M` (`grep -n "function mergeParts\|function box\|function M("`), 색 표 `PAL` · `MAT` (`grep -n "var PAL\|var MAT\|W = \["`), 벽 · 바닥 조각 (`grep -n "벽 2면"` 둘레),
+`mergeParts` · `box` · `M` (`grep -n "function mergeParts\|function box\|function M("`), 색 표 `RAMPS` · `FIXED` · `MAT` (`grep -n "var RAMPS\|var FIXED\|var W = PAL\|var MAT"`), 벽 · 바닥 조각 (`grep -n "벽 2면"` 둘레),
 `js/app.js` 의 가구 아이콘 (`grep -n "FURN_ICON"` — 17×13 픽셀 격자), `js/palettes.js`, `docs/INTERIOR_MODE.md` 머리말.
 
 ## 주인 말 (11-18)
@@ -17,7 +17,8 @@
 22개 (COMMON 의 id 그대로) 마다:
 
 ```
-{ id, name, zone: 'in' | 'yard' | 'both', season: null | 'spring' | …,
+{ id, name, zone: 'in' | 'out' | 'both', where: ['yard', 'beach'],   밖에 놓는 것만 where (COMMON 의 구역 낱말). `bench` · `parasol` · `swim_ring` 의 where 에는 beach 가 든다 (손님 갈래의 소라게 · 갈매기)
+  season: null | 'spring' | …,
   w, d, h,                      발자국 반폭 (m) 과 높이 — 실내 가구는 w·d 0.2~0.8, 높이 ≤ 1.6 (창 · 포스터를 가리지 않게)
   flat: true|false,             납작 (깔개 · 방석 · 돗자리 — 밟고 지나간다)
   parts: [ { s: 'box'|'cyl'|'sph'|'cone', size: […], at: [x, y, z], rot: [rx, ry, rz], scale: [sx, sy, sz], c: '색 이름' , dye: true } … ],
@@ -27,8 +28,9 @@
 ```
 
 - 조각 수는 가구 하나에 8~20. 치수는 m, 가구 가운데 바닥이 원점. 소파 (0.8 × 1.36 × 0.66) 와 내 캐릭터 (키 1.22) 에 견줘 크기를 잡는다.
-- 색은 **색 이름** 으로 (`wood1`~`wood6` · `paper0`~ · `rose2` · `moss2` · `amber3` · `navy3` · `slate1` · `sky2` · `glass2` · `ink` … — `scene3d.js` 의 `PAL` · `W` 에 있는 이름만.
-  표 맨 위에 네가 쓴 이름 → 그 파일의 식을 주석으로 적는다). 천 부분 (방석 · 파라솔 천 · 돗자리) 에는 `dye: true` — 나중에 염료로 물들인다.
+- 색은 **색 이름** 으로: 램프 이름 + 0부터의 칸 번호 (`wood3` = `PAL.wood[3]` — `js/scene3d.js` 의 `var RAMPS` · `var FIXED`, `grep -n "var RAMPS\|var FIXED\|var W = PAL\|var MAT"`).
+  허용 목록: `wood0~7` · `paper0~3` · `amber0~5` · `navy0~5` · `moss0~3` · `slate0~5` · `sky0~3` · `dusk0~3` · `glass0~3` · `rose0~2` · `ink` · `white` · `night`
+  (칸 수는 그 파일에서 다시 세어 맞춘다 — 시험이 이 목록 밖의 이름을 잡게 한다). 천 부분 (방석 · 파라솔 천 · 돗자리) 에는 `dye: true` — 나중에 염료로 물들인다.
 - 픽셀 장면에서 읽히는 모양: 덩어리를 크게, 3cm 보다 가는 것은 1px 선이 된다 (0.045m 근처로). 납작한 것은 바닥과 색 대비로만 읽힌다.
 
 ### 2) 벽지 · 바닥 프리셋 `FURNITURE.SKINS`
@@ -51,9 +53,11 @@
 
 ## 끝난 것으로 보는 조건
 
-- node 시험: id 가 COMMON 의 22개와 정확히 같음 · 계절 꾸밈 8개의 `season` 이 맞음 · 모든 조각이 발자국 (w · d · h) 안 (여유 2cm) · 조각 수 8~20 ·
+- node 시험: id 가 COMMON 의 22개와 정확히 같음 · 계절 꾸밈 8개의 `season` 이 맞음 · `bench` · `parasol` · `swim_ring` 의 `where` 에 beach · 모든 조각이 발자국 (w · d · h) 안 (여유 2cm) · 조각 수 8~20 ·
   색 이름이 허용 목록 안 · 아이콘이 17×13 · `flat` 인 것의 높이 ≤ 0.2 · 프리셋 12개의 a ≠ b 팔레트 칸 · `build` 가 가짜 THREE 로도 던지지 않음.
 - 미리보기 스크린샷 ≤ 8 (360×740 @2): 실내 8 · 마당 6 · 계절 8 · 벽지 바꿈 2 · 아이콘 줄. **네가 직접 보고** 무엇인지 한눈에 읽히지 않는 가구는 고친다.
+
+- 놀이방 식탁 · 2인 소파 · 다락 소파는 만들지 않는다 (22개에 없다 — 식탁과 2인 소파는 다른 세션이 놀이방에 만드는 중).
 
 ## 리드가 이을 것
 
