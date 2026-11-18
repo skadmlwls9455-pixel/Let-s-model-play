@@ -44,15 +44,26 @@
 | id | 이름 | 소품 | 단계 1 | 단계 2 | 단계 3 | 판마다 바뀜 (시드) |
 |---|---|---|---|---|---|---|
 | `jeon` | 해초전 | 팬 (`pan`) | `tap` 톡톡: 표시 3 × 3번 (반죽 펴기) | `flip` 뒤집기: 굽기 고르기 (3초씩) | `slice` 썰기: 열십자 2줄 | 반죽 속 해초 `parae` 파래 · `tot` 톳, 접시 색 3가지, 표시 · 안내선 자리 |
+| `jumeokbap` (11-18) | 주먹밥 | 팬 | `tap` 톡톡: 밥을 둥글게 (표시 3 × 3) | `flip` 뒤집기: 누룽지 굽기 | — | 접시 색, 표시 자리 |
+| `kkochi` (11-18) | 과일 꼬치 | 도마 (`board`) | `slice` 썰기: 세로 2줄 (수박 막대 → 세 조각) | `tap` 톡톡: 조각마다 3번 → 꼬치에 (도마에서, `station: 'board'`) | — | 접시 색 |
 
 ```js
 { id: 'jeon', tier: 1, at: 'pan', ings: ['batter'], swap: { herb: ['parae', 'tot'] }, steps: [
   { kind: 'tap', marks: 3, hits: 3, food: 'batter' }, { kind: 'flip', band: 3000 },
-  { kind: 'slice', lines: 2, cross: true, food: 'jeon' }] }
+  { kind: 'slice', lines: 2, cross: true, food: 'jeon' }] },
+{ id: 'jumeokbap', tier: 1, at: 'pan', ings: ['rice'], steps: [
+  { kind: 'tap', marks: 3, hits: 3, food: 'rice' }, { kind: 'flip', band: 3000, food: 'rice' }] },
+{ id: 'kkochi', tier: 1, at: 'board', ings: ['watermelon', 'grape', 'tangerine'], steps: [
+  { kind: 'slice', lines: 2, cross: false, food: 'fruit' }, { kind: 'tap', marks: 3, hits: 3, food: 'fruit', station: 'board' }] }
+// 11-18: 새 요리의 수치는 TUNE 밖 (TUNE_HASH 2827089308 그대로 → 저장된 해초전 판은 그대로 이어진다)
+TUNE_R = { jumeokbap: { food: { rice: { cx: 72, cy: 86, w: 64, h: 48, rx: [18, 21, 24], ry: [13, 15, 17], inset: 3 } } },
+           kkochi: { food: { fruit: { cx: 72, cy: 86, w: 64, h: 48, rx: [24], ry: [9], inset: 2 } }, tapAt: [[-16, 0], [0, 0], [16, 0]], tapJitter: 0 } }
 ```
 
-- 열면 바로 이 요리다 (고르는 화면이 없다). `PROPS` (팬 하나) 와 `COOK_ART.counter` · `GEO.spot` 은 4차 것 그대로 남아 있지만 살아 있는 쪽은 쓰지 않는다. `opts.recipe` · `?recipe=` 는 받아도 바뀌는 것이 없다.
-- 조각 2 (미역국 `pot`: slice → stir → place, 톳 주먹밥 `jar`: stir → tap → place) 는 이번 범위 밖이다 (주인 11-15: 해초전 하나). 더할 때는 `RECIPES` 에 같은 모양으로 더하고, 무엇으로 고르게 할지는 그때 정한다. 고리 화살표 그림은 '다시' 몫 (HUD 에만) 이라 젓기 신호는 다른 모양 (국자 + 휜 자국) 으로 한다.
+- **11-18 6차**: 요리마다 판 해시가 따로다: `COOK.tuneOf(id)` = 해초전은 `TUNE_HASH` (2827089308), 새 요리는 `hash32(TUNE_HASH + '|' + JSON.stringify(TUNE_R[id]))` — 주먹밥 **1403436335** · 과일 꼬치 **3381042548** (시험이 일부러 고정). `potOf` 가 그 값을 쓰고 `resumeRun` 이 그 값을 요구한다. `COOK.foodOf(r, step)` = `TUNE_R[r.id].food[step.food]` → `TUNE.food[step.food]` → `TUNE.food[r.id]` → `TUNE.food.jeon` (그래서 새 요리의 단계는 늘 `food` 를 적는다 — 주먹밥의 뒤집기도). 과일 꼬치의 톡톡 표시는 조각 가운데 (56 · 72 · 88, 86) 에 떨림 없이. 그림은 `js/cook-dishes.js` (`COOK_ART.dishes[id]`, `js/cook-art.js` 바로 다음에 싣는다). 단계의 자리: `step.station` 이 있으면 그것, 없으면 종류의 자리 (톡톡 조리대 · 뒤집기 화구 · 썰기 도마). 같은 자리의 두 단계 사이에는 미끄러짐이 없다 (과일 꼬치). 들고 가는 것: 주먹밥 조리대 → 화구 `'pan'`, 화구 → 접시 `'cake'`, 과일 꼬치 도마 → 접시 `'skewer'`. 과일 꼬치의 센 톡은 소리 `place` (120 ms 간격 문 뒤에서 바꾼다). 진동 수 (한 판): 해초전 tap 10 · flip 1 · cut 2, 주먹밥 tap 10 · flip 1 · cut 0, 과일 꼬치 tap 9 · flip 0 · cut 2.
+
+- 부엌 안에는 고르는 화면이 없다 (주인 11-15). 11-18 부터 요리는 **놀이방에서** 고른다 (요리 쟁반, §9) 그리고 `opts.recipe` · `?recipe=` 로 부엌에 온다. 없으면 이어 할 판, 그것도 없으면 해초전. `PROPS` (팬 하나) 와 `COOK_ART.counter` · `GEO.spot` 은 4차 것 그대로 남아 있지만 살아 있는 쪽은 쓰지 않는다.
+- 미역국 (`pot`, 젓기) 은 아직 없다 (`createRun('miyeok') === null`).
 
 ## 3. 단계 종류 (판정 요약)
 
@@ -210,6 +221,7 @@ localStorage[storeKey] = { v: 1, day: 'YYYY-MM-DD', dayN: 3, seen: ['tap', 'flip
 ```
 
 - 판(`pot`)은 **단계 경계**에서만 쓴다: 새 판을 열 때 바로 (열기 · 다시), 단계가 끝날 때, 탭이 숨을 때 (`visibilitychange`), `pagehide`, 닫기, [보러 가기]. 이어 하면 지금 단계를 처음부터 한다 (끝난 단계의 모양은 그대로).
+- **11-18 고른 요리와 판** (`begin`, '다시' 가 아닐 때): 단계를 하나라도 끝낸 판 (`si ≥ 1`) 이 이어지면 무엇을 골랐든 그 판이 이긴다 (두 탭 · 주소에 친 `?recipe=` 가 진행을 치우지 않게). 아니면, 고른 요리가 있을 때: 그 요리의 빈 판 (`si 0`) 은 이어 하고 (같은 시드), **다른 요리의 빈 판은 바이트 그대로 `potOld` 로** 옮기고 고른 요리를 새로 연다. 고른 요리가 없으면 이어지는 판이면 무엇이든, 없으면 해초전. '다시' 는 지금 요리를 한 번 더. 판의 `tune` 은 그 요리의 `tuneOf` (§2).
 - **열 때** (`begin`): 판이 맞으면 (`resumeRun`) 미끄러짐 없이 그 단계의 자리에서 이어 한다. 맞지 않으면 (`ver` · `tune` · 레시피 · 시드 · `swaps` · `si` · 모양 · `tag` · 판 id 가운데 하나라도 틀리거나 깨짐) 그 판을 바이트 그대로 `potOld` 맨 앞에 넣고 (`[pot].concat(potOld).slice(0, 4)`) `pot` 을 비운 뒤 새 판을 연다. `potOld` 의 판은 이어 하지 않고 내보내지 않으며, 가져오기도 건드리지 않는다. 수첩은 그대로다.
 - `normStore` 는 `potOld` 에서 보통 객체인 칸을 크기와 상관없이 앞에서 4개 남기고, 객체가 아닌 칸 (글 · 배열 · 숫자) 은 버린다. 남는 칸이 없으면 열쇠를 두지 않는다. `'{{{'` 는 여전히 6 열쇠 기본값이다. 5차 검증 O-6: 예전에는 JSON 이 2048 바이트가 넘는 칸도 버려서, 2 KB 가 넘는 판은 `potOld` 로 갔다가 다음에 읽을 때 사라졌다 (기록은 잃지 않는다는 규칙). 지금은 바이트 그대로 남는다. 객체가 아닌 판 (글 · 배열) 은 `pot` 자리에서부터 남지 않는다 (게임이 쓰는 판은 늘 객체다. §14).
 - **새 판** (열기 · 다시): `dayN` + 1 (날이 바뀌면 처음부터, 첫 판이 1), 시드 = `hash32(day + '|cook|' + dayN)` (`?seed=` 면 그 값), 판 id = `'ck_' + hash32(day|dayN|난수).toString(36)` (`crypto.getRandomValues`, 없으면 수첩 줄 수). **시작 시각은 쓰지 않는다**: 수첩 줄에 `madeAt` 이 같이 있어서, 시작 시각이 id 에 들어가면 걸린 시간을 거꾸로 찾을 수 있다 (설계 §4.2 의 `startedAt` 에서 바꿈, 주인 확인 거리). 날짜는 로컬, 시험은 `window.__ppolTest.today`.
@@ -231,7 +243,7 @@ localStorage[storeKey] = { v: 1, day: 'YYYY-MM-DD', dayN: 3, seen: ['tap', 'flip
 
 | 부름 | 무엇 |
 |---|---|
-| `COOK.open({ opener, reduced, kbd, palette, day, storeKey, onResult, onClose })` → boolean | 부엌 창을 열고 바로 요리를 시작한다: 맞는 판이면 이어 하고, 맞지 않는 판은 `potOld` 로 옮기고 새 판 (§6). 던지지 않는다 (안에서 터지면 정리하고 `false`). 이미 열려 있으면 `true`. `storeKey` 는 `ppolppol_cook` · `ppolppol_cook_…` 만. `onClose({ kbd })`: Esc · 키로 누른 닫기 · 마지막 입력이 키였으면 `kbd` 가 참. `kbd` (참 · 거짓, 5차 검증 K-11): 여는 쪽의 마지막 입력이 키였나. 주면 부엌 안의 마지막 입력 대신 이것으로 칩 포커스를 정한다 (게임 안 창은 게임이 준다). 시험 · 개발용 옵션: `seed`, `slow`, `rec` (`recipe` 는 받아도 바뀌는 것이 없다). `palette` 는 받아 두기만 한다 (창의 `data-palette` 뿐, 그림에는 쓰지 않음) |
+| `COOK.open({ opener, reduced, kbd, palette, day, storeKey, onResult, onClose })` → boolean | 부엌 창을 열고 바로 요리를 시작한다: 맞는 판이면 이어 하고, 맞지 않는 판은 `potOld` 로 옮기고 새 판 (§6). 던지지 않는다 (안에서 터지면 정리하고 `false`). 이미 열려 있으면 `true`. `storeKey` 는 `ppolppol_cook` · `ppolppol_cook_…` 만. `onClose({ kbd })`: Esc · 키로 누른 닫기 · 마지막 입력이 키였으면 `kbd` 가 참. `kbd` (참 · 거짓, 5차 검증 K-11): 여는 쪽의 마지막 입력이 키였나. 주면 부엌 안의 마지막 입력 대신 이것으로 칩 포커스를 정한다 (게임 안 창은 게임이 준다). `recipe` (11-18): `'jeon'` · `'jumeokbap'` · `'kkochi'` — 고른 요리 (§6 의 판 규칙). 모르는 값은 없는 것과 같다. 창의 `aria-label` 은 그 요리 이름. `onResult(봉투)`: 접시 공개 때 한 판에 한 번 (§6 의 봉투). 시험 · 개발용 옵션: `seed`, `slow`, `rec`. `palette` 는 받아 두기만 한다 (창의 `data-palette` 뿐, 그림에는 쓰지 않음) |
 | `COOK.close()` · `COOK.isOpen()` · `COOK.refit()` | 닫기 (판 저장 · `quiet`) · 열림 여부 · 배치 다시 (`fit()`. 열려 있으면 `true`. `cook.html` 이 `safe` 메시지를 받으면 부른다) |
 | `COOK.notice({ text, short, label, fn })` → boolean | 잠든 쪽지 칸: 지금은 아무도 부르지 않는다 (글을 띄우므로 쓰려면 주인 결정). HUD 아래 (hudB + 8, 높이 44). 포커스를 가져가지 않고 캔버스를 움직이지 않는다. `short` 는 받아 두기만 한다. [`label`] = 판 저장 → 창 닫기 → close 이벤트 끝에서 `fn` |
 | `COOK.exportData()` · `COOK.importData(obj)` | 수첩 (`seen` · `book`) 만 오간다. 판 (`pot` · `potOld`) 은 가지 않고, 가져오기는 `potOld` 를 건드리지 않는다. 둘째 인자로 다른 부엌 키를 줄 수 있다 (부엌 키가 아니면 `null` · `false`) |
@@ -268,6 +280,8 @@ localStorage[storeKey] = { v: 1, day: 'YYYY-MM-DD', dayN: 3, seen: ['tap', 'flip
 
 부엌은 따로 쪽 (`cook.html`) 그대로이고, 게임은 그 쪽을 화면 가득한 창 안에 띄운다. `index.html` 은 `cook.js` 를 싣지 않는다.
 
+- **11-18 6차 요리 쟁반** (`<dialog id="dish-pick" aria-label="요리 고르기">`): 조리대를 누르면 `openCook` 이 먼저 `mealBusy()` (M, 문어를 부르는 동안 참) 면 아무것도 안 하고, 부엌 저장 (`ppolppol_cook_v0`) 을 **읽기만** 해서 (`cookPot()`) 이어 갈 판 — 보통 객체 · `ver 'cook-1'` · 아는 요리 · `tune === COOK_TUNES[recipe]` · `si ≥ 1` — 이면 쟁반 없이 바로 그 판으로. 그 밖 (판 없음 · 빈 판 `si 0` · 옛 판 · 깨진 판) 은 쟁반: 종이 칩 셋 (64 × 64, 틈 16, 아래 `max(16, 안전 + 16)`), 16 × 16 그림 (`assets/icons/dish/*.png`, `node tools/make-dish-icons.js`) 을 `floor(3·dpr)` 기기 px 배로, `aria-label` 해초전 · 주먹밥 · 과일 꼬치, 보이는 글자 0 · `title` 없음, 투명 배경. 칩 밖 톡 · Esc · 뒤로 = 닫기 (포커스는 조리대 단추). 키로 열면 첫 칩에 포커스. 칩을 고르면 쟁반을 닫고 `openCook(opener, kbd, recipe)`. 게임은 `js/cook.js` 를 싣지 않아서 `COOK_TUNES` (`jeon 2827089308 · jumeokbap 1403436335 · kkochi 3381042548`) 를 `js/app.js` 에 적어 둔다 (스모크 Z 가 부엌의 `COOK.tuneOf` 와 같은지 본다). 빈 판을 세지 않는 까닭: 부엌은 요리를 시작하자마자 `si 0` 판을 쓰고 닫을 때 저장하므로, 그것까지 세면 거의 늘 쟁반이 안 뜬다.
+- **11-18 못 열린 부엌** (점검 rel-01): `ready` 를 기다린 지 300 ms 가 지나면 덮개 위에 기어가는 문어 (로딩 그림 한 칸, `round(2·dpr)` 기기 px 배) 와 게임 쪽 닫기 단추 `#cook-close` (부엌 안 닫기와 같은 그림 `assets/icons/dish/close.png`, `aria-label` 닫기, 오른쪽 위 안전 여백 안) 가 뜬다. `ready` 가 오면 둘 다 사라진다. 6 초 안에 안 오면 덮개를 닫고 토스트 '부엌을 못 열었어. 다시 눌러 줘.'. `ready` 전에 덮개가 닫히면 iframe 을 `about:blank` 로 멈추고 (늦게 열려 판을 쓰지 않게), 다음 열기는 주소를 새로 넣는다. 저장은 그대로다.
 - 놀이방 조리대 단추 `#btn-cook` (`aria-label="부엌"`) → `js/app.js` `openCook`: 화면 가득한 `<dialog id="cook-overlay">` 안에 `cook.html?embed=1` iframe 을 (처음 열 때 하나) 만들고 연다. 놀이방에 있을 때만 열린다. 닫으면 놀이방 그대로, 포커스는 `#btn-cook` (손가락으로 닫았으면 테 없이).
 - `?embed=1` 쪽: 문 단추와 크레딧 링크를 숨기고 열자마자 부엌을 연다. 5차 검증 K-1: `<head>` 의 작은 스크립트가 `<body>` 를 읽기 전에 `ck-embed` 와 `ck-boot` (따로 연 쪽에서도 첫 열기 전엔 문을 숨김) 를 붙여서, 스크립트를 받는 동안에도 문 · 링크가 한 프레임도 그려지지 않는다. 그동안 보이는 것은 `#d7b594` 한 색이다 (게임의 `dialog.cook-overlay` 와 iframe 쪽 바탕이 같은 색, 어두운 모드에서도). 게임은 주소에 `&reduced=1` (게임 설정 모션 줄이기) · `&kbd=1` (조리대를 키로 열었을 때) 을 붙인다. 저장 키는 따로 연 `cook.html` 과 같은 `ppolppol_cook_v0` (같은 판 · 수첩 · `seen`). 소리 · 진동 설정도 같은 저장 (`ppolppol_audio` · `ppolppol_haptics`). 본 게임의 기록 · 내보내기 · 불러오기 · 처음부터는 부엌 키를 건드리지 않는다.
 - 메시지 (`{ ppolCook: … }`, 부모 창과만, 출처를 본다):
@@ -276,7 +290,8 @@ localStorage[storeKey] = { v: 1, day: 'YYYY-MM-DD', dayN: 3, seen: ['tap', 'flip
 |---|---|---|
 | 부엌 → 게임 | `ready` | 쪽을 다 읽고 부엌을 연 뒤 |
 | 부엌 → 게임 | `close` + `kbd` | 부엌이 닫혔다 (닫기 · Esc · 뒤로). `kbd` 는 `onClose({ kbd })` 그대로 (§7). 게임이 창을 닫고, 키로 닫혔으면 조리대 단추의 테를 남긴다 |
-| 게임 → 부엌 | `open` + `kbd` | 다시 열 때 (하다 만 판이면 이어 하기). `kbd` 는 조리대를 키로 열었나 (5차 검증 K-11: Esc 로 닫은 뒤 손가락으로 다시 열어도 칩에 포커스 링이 남았다) |
+| 부엌 → 게임 | `result` + `v` `id` `recipe` `seed` `look` `day` (11-18) | 접시 공개 때 한 판에 한 번 (`onResult`). 게임은 `typeof mealDish === 'function'` 이면 `mealDish(d)` (M: 식탁에 놓기). 공개와 메시지 사이에 쪽이 죽으면 요리는 부엌 수첩에만 남는다 |
+| 게임 → 부엌 | `open` + `kbd` + `recipe` (11-18) | 다시 열 때 (하다 만 판이면 이어 하기). `recipe` 는 쟁반에서 고른 요리 (처음 열 때는 주소 `&recipe=`). `cook.html` 은 열 때마다 `recipe` 를 넘긴다. `kbd` 는 조리대를 키로 열었나 (5차 검증 K-11: Esc 로 닫은 뒤 손가락으로 다시 열어도 칩에 포커스 링이 남았다) |
 | 게임 → 부엌 | `motion` + `reduce` | `ready` 를 받았을 때 · `open` 바로 전 · 게임의 모션 설정이 바뀔 때 (5차 검증 K-5). 부엌 쪽 `<html>` 의 `data-motion="reduce"` 를 붙이거나 떼고, 다음 열기의 `reduced` 가 된다 (`reduce` 가 아니면 기기 설정을 그대로 따른다) |
 | 게임 → 부엌 | `close` | 게임 쪽에서 창이 닫혔을 때 (부엌이 판을 저장하고 조용히) |
 | 게임 → 부엌 | `safe` + `t` `r` `b` `l` | `ready` 를 받았을 때 · `open` 바로 전 · 크기 · 방향이 바뀌면 (100 ms 모아서). 게임이 보이지 않는 상자로 잰 `env(safe-area-inset-*)` 의 CSS px (0~200 으로 자름, 숫자가 아니면 0). 부엌은 `--ck-safe-*` 로 받고, 열려 있으면 `COOK.refit()` (iframe 안의 `env()` 는 0 일 수 있어서) |
@@ -324,6 +339,9 @@ node tools/test-cook-stickers.js                                 # 노드: 스�
 NODE_PATH=$(npm root -g) node tools/test-cook-live.js            # Playwright Chromium (COOK_URL=http://… 로 http, ONLY=L1,N2 로 일부)
 NODE_PATH=$(npm root -g) node tools/test-cook-audio.js           # Playwright Chromium + 진짜 Web Audio (ONLY=A,G 로 일부). http 서버는 스스로 띄운다
 NODE_PATH=$(npm root -g) node tools/test-cook-stickers-live.js   # Playwright, 부엌 위 스티커 (ONLY=K1,K4 로 일부)
+node tools/test-cook-dishes.js                                   # 노드 (11-18): 주먹밥 · 과일 꼬치 시뮬레이션 · 판 · 그림
+NODE_PATH=$(npm root -g) node tools/test-cook-dishes-live.js     # Playwright (11-18): 새 요리 두 판 · 자리 · 미끄러짐 · 글자 0 · 진동 수 · 판 규칙 · result 메시지
+node tools/make-dish-icons.js --check                            # 쟁반 그림 넷이 그리드와 같은지
 SMOKE_ONLY=Z NODE_PATH=$(npm root -g) node tools/smoke.js        # 게임 안 창 (놀이방 조리대 → 부엌). Z 는 재봉틀 톡 · 위층 장면 (scenarioLoft) 도 같이 돈다
 PYTHONPATH=… python3 tools/subset-fonts.py --check               # 새 글자가 글꼴 부분집합 밖으로 나가지 않았는지
 ```
@@ -347,6 +365,7 @@ PYTHONPATH=… python3 tools/subset-fonts.py --check               # 새 글자�
 - 스티커 (`test-cook-stickers-live.js`, K1~K10): K1 무대 자식 순서 `ck-cv ck-sim ck-stick`, 열 때 터치 전에 `pick` 이 닿음, 요리 순간마다 부엌의 act 이름 그대로 차례대로 닿고 판 시드가 스티커 판 id, 보인 스티커가 노드로 다시 돌린 엔진의 고르기와 같음, 기분 얼굴 없음, 저장 열쇠는 그대로 (`book · day · dayN · pot · seen · v`) · K2 크기 s = 32 n / dpr, 자리 (hudB + 4, 양 끝), 기기 px, 여덟 크기에서 §5 규칙대로 보임 · 숨김 · K3 손길을 가로채지 않음 (스티커 밑에서 시작한 쓸기도 뒤집고 썲), 음식 · 고리 · 안내선 · 손 그림 · HUD · 칩을 안 가림, 320 × 568 · 360 × 560 에서 숨음 · K4 다시 열면 그 단계에서 바로 이어 하기, '다시' 로 둘째 판, 닫은 뒤 아무것도 없음 · K5 탭 숨김 · K6 동작 줄이기 · K7 소리 꺼짐 · K8 글자 · 화면 읽기 · K9 파일 막힘 · K10 던지는 스티커. 노드 `test-cook-stickers.js` 는 부엌 순간이 닿는 규칙에 기분 얼굴이 없는지 (1200 판에 0) 와 "한 판에 스티커 5개 이상" 을 본다.
 - 소리 (`tools/test-cook-audio.js`, 장면 A~N. 진짜 Web Audio: 무엇을 틀었는지는 `AUDIO.state()` 로, 실제 출력은 엿듣는 노드로 본다. 모든 장면이 열자마자 단계에서 시작한다): A `?sound=1` 은 그 쪽에서만 켜고 저장하지 않음 · 첫 탭 전에는 `AudioContext` 도 소리도 없음 (목록 둘과 첫 소리 바이트만) · 열 때의 `pick` 은 잠겨 있어 들리지 않음 · 손가락으로 해초전 한 판의 소리 차례와 때 (§8 표: 톡톡 변형과 빠르기, 불 켜기 + 지글 0, 굽기마다 크로스페이드 + 치익, 뒤집기와 그 뒤 `quiet`, 철퍽 뒤의 단계 톡, 썰기 둘, 접시 + 김) · 음악 내리기 -6 / -10 dB 와 닫으면 풀림 · 지글 동안 출력이 있고 멈추면 조용함 · B 동작 줄이기 + 칩 길 (휙을 건너뛴 뒤집기, 공개와 같이 놓이는 접시, 톡톡 `i` 0 · 3 · 6 의 빠르기, 칩을 33번 눌러도 들린 톡 변형이 이어지지 않음) · C 소리 꺼짐 (기본): 한 판 내내 `AudioContext` 없음 · 재생 0 · `audio/` · `foley/` 요청 0 · D 목록과 소리 파일이 404 여도 조용히 한 판 끝까지, 부엌 목록이 없으면 (아직 안 왔어도) 음악을 내리지 않고 온 순간부터 내림 · E `file://` + `?sound=1` 은 조용하고 저장하지 않음 · F 탭 숨김 → 멈춤 → 돌아오면 불 켜기 소리 없이 다시 · H 뒤집기 단계의 판으로 다시 열어 (다시 불러와 사람 활성화도 새로) 첫 손길이 불 켜기 → `cook_heat_on` + 지글 0 · I 연 지 2 s 뒤 첫 손길이 고리 위: 첫 소리는 `cook_pat` (팬 들기가 아니다), 목록이 늦게 와도 그 톡이 남 · J 못 받은 변형은 빼고 고르고 다시 받지 않음 · K 효과음 0 이면 음악을 내리지 않음 · M 뒤집기: 간격 문이 버렸거나 파일이 늦어 버려진 뒤집기 뒤에도 들린 변형이 이어지지 않음, 파일이 조금 늦으면 단계 톡은 정말 난 철퍽의 0.1 s 뒤, 뒤집기가 버려졌으면 (파일을 둘 다 못 받을 때도) 톡도 없음 · N 소리 목록 503: 한 번이면 첫 손길이 다시 받음, 두 번이면 `AudioContext` 를 쉬게 두고 1분 뒤의 손길이 새로고침 없이 다시 받아 켬, 새 `AudioContext` 가 한동안 `suspended` 로 읽히는 브라우저를 흉내 내도 (Chromium 안에서 상태 읽기만 바꾼 것) 돈 채로 남지 않음 · L 페이드인 도중의 `quiet` 와 크로스페이드가 지금 크기에서 내려감 (`OfflineAudioContext`) · G 크레딧: 따로 연 쪽의 닫힌 화면에만 링크 (44 px 이상, 화면 안. 부엌 창 안에는 한 번도 없음) → `credits.html` 의 CC BY 두 줄이 `foley/CREDITS.md` 와 글자 그대로 · CC0 원본 쪽 모두 · 라이선스 파일 · 320 px 넘침 없음 · 이모지 없음 · 본 게임 설정 맨 아래 링크 · 본 게임에서 소리를 켜도 부엌 act 가 없으면 `foley/` 요청 0.
 - 스모크 Z (게임 안 창): 놀이방 조리대 위 부엌 단추 (44 px 이상) → 톡 → 화면 가득 부엌 (`?embed=1`, 자기 문 · 링크 숨김) · 열자마자 톡톡 단계 · 창 글자 0 · `title` 0 · 창 안 크레딧 링크 0 · 닫기는 aria-label 닫기, 글자 없음, 48 px 이상 · `safe` (준비 때 보냄, 47 · 999 · 34 · `'x'` → 47 · 200 · 34 · 0 px 로 잘라 열린 부엌이 다시 맞춤, 창 크기가 바뀌면 다시 보냄, `open` 바로 전에 `safe`) · 다시 열면 같은 판 · 닫힐 때 `kbd` (손가락 `false` · Esc `true`) · 닫으면 놀이방 그대로 · 포커스 `#btn-cook`. 5차 검증: 처음 열 때 iframe 의 첫 그림 (FCP) 전에 `ck-embed` 이고 문 · 링크가 그려진 프레임 0 (K-1) · 다시 열 때 `safe` · `motion` · `open` 차례 · Esc 로 닫고 손가락으로 다시 열면 칩에 포커스 링 · 포커스 없음 (K-11) · 게임 설정 모션 줄이기면 부엌 `reduced` · `data-motion`, 톡톡 다음 화덕으로 가도 미끄러짐 · 흔들림 · 입자 0 (K-5).
+- 11-18 새 요리: `test-cook-dishes.js` — 칩 · 터치로 두 요리 끝까지 (60 · 120 Hz 같은 모양), 모양 · 설명 줄 · 봉투 · 수첩 줄, `tuneOf` 두 값 고정, ada2967 코드가 (git 에서) 직접 쓴 해초전 판이 이어지고 같은 바이트를 다시 씀, 다른 요리의 tune 판은 거절, 그림 결정성 · Apollo + FOOD · 알파 · 들고 가기 = 멈춘 장면 · 접시 x 33..111 · `drawDish` 안 던짐. `test-cook-dishes-live.js` (D1~D6) — 머리말 참고. D6 (화구의 종 그림 · 띵) 은 K1 이 합쳐진 뒤에만 돈다. 스모크 Z 의 부엌 몫: 쟁반 (칩 셋 · 이름 · 글자 0 · title 0 · 44 px 이상 · 선명한 그림) · 못 열린 부엌 (닫기 · 6 초 토스트 · 저장 그대로 · 풀면 열림) · 쟁반 규칙 (`si ≥ 1` 판은 바로 · 빈 판은 쟁반 · 옛 판 · 다른 요리의 빈 판은 `potOld` 에 바이트 그대로) · `COOK_TUNES` = `COOK.tuneOf` · 주먹밥 `result` 한 번 · `mealBusy` 가짜면 조리대 무반응.
 - 진동 (`test-haptics.js`, 노드. navigator · document · matchMedia · localStorage 를 가짜로): 기본 켬 · `set(false)` 면 한 번도 부르지 않음 · `supported()` (아이폰 · 파이어폭스 · 데스크톱은 거짓) · 사람이 누르기 전 · 숨은 쪽 → 부르지 않음 · 30 ms 합치기 · 부엌 무늬 (3번 이하 · 250 ms 이하 · `done` 의 쉼 70 ms 이상, 다른 무늬는 그대로) · `js/cook.js` 가 부르는 이름은 tap · flip · cut 뿐 (O-5) · 무엇이 던져도 `buzz` 는 `false` 만.
 - 터치는 CDP `Input.dispatchTouchEvent` 로 보낸다 (Playwright `touchscreen` 은 톡만 된다). Chromium 은 `touchmove` 를 다음 실제 프레임에 넘기므로, 프레임 단위로 재는 시험은 움직임 뒤에 잠깐 실제 시간을 기다린다. 썰기 끌기는 안내선 끝 2 논리 px 바깥에서 시작한다 (10 이면 가까이 보기에서 24 px 가장자리 띠 안이라 일부러 무시된다). N6 은 폰처럼 첫 손가락을 뗄 때까지 사람 활성화가 없게 흉내 낸다 (Playwright 는 쪽을 열며 활성화를 켜 두고, CDP 터치는 누를 때 켜서).
 

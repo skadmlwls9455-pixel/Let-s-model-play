@@ -1702,7 +1702,7 @@ dialog.cook-overlay .cook-wait[hidden] { display: none; }
 /* 요리 쟁반: 투명 배경 (뒤의 놀이방이 보인다) · 가운데 아래 · 칩 64 · 틈 16 · 그림 floor(3·dpr) 기기 px 배 (app.js dishPickFit) */
 dialog.dish-pick, :root[data-font="pixel"] dialog.dish-pick, :root[data-font="pixel"] dialog.dish-pick[open] { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
   border: 0; border-radius: 0; background: transparent; box-shadow: none; animation: none; overflow: hidden; outline: none; }
-dialog.dish-pick::backdrop { background: transparent; }
+dialog.dish-pick::backdrop, :root[data-font="pixel"] dialog.dish-pick::backdrop { background: none transparent; }   /* 픽셀 테마의 대화상자 디더 막 (어둡게) 보다 앞서게 — 뒤의 놀이방이 그대로 보인다 */
 dialog.dish-pick .dp-row { position: absolute; left: var(--dp-x, 0px); top: var(--dp-y, 0px); width: calc(3 * var(--dp-chip, 64px) + 2 * var(--dp-gap, 16px)); height: var(--dp-chip, 64px); }
 dialog.dish-pick .dp-chip { top: 0; width: var(--dp-chip, 64px); height: var(--dp-chip, 64px); }
 dialog.dish-pick .dp-chip:nth-child(1) { left: 0; }

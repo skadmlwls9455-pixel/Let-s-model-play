@@ -7253,9 +7253,52 @@ async function scenarioSceneTap(browser) {
   await page.evaluate(function () { return APP.goRoom('play'); });
   await page.waitForFunction(function () { var e = document.getElementById('btn-cook'); return APP.scene.view() === 'play' && e && !e.hidden && !APP.goResting; }, null, { timeout: 20000 }); await page.waitForTimeout(600);
   var cpt = await page.evaluate(function () { var q = document.getElementById('btn-cook').getBoundingClientRect(), F = [0.5, 0.35, 0.65, 0.2, 0.8]; for (var i = 0; i < F.length; i++) for (var j = 0; j < F.length; j++) { var x = q.x + q.width * F[j], y = q.y + q.height * F[i], k = APP.scene.pickAt(x, y); if (k && k.kind === 'spot' && k.id === 'counter') return { x: x, y: y, w: q.width, h: q.height, label: document.getElementById('btn-cook').getAttribute('aria-label'), pan: JSON.stringify(APP.scene.pan()) }; } return null; });
-  var ck = { spot: !!cpt };
+  var ck = { spot: !!cpt }, k2 = {};
+  /* 11-18 6차 (K2): 조리대 톡 → 요리 쟁반 (#dish-pick) → 칩을 손가락으로 */
+  async function pickDish(id) {
+    var shown = await page.waitForSelector('#dish-pick[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+    if (!shown) return false;
+    await page.tap('#dish-pick .dp-chip[data-recipe="' + id + '"]');
+    return true;
+  }
+  function cookStore() { return page.evaluate(function () { return localStorage.getItem('ppolppol_cook_v0'); }); }
   if (cpt) {
+    /* 11-18 (점검 rel-01): 부엌 쪽이 못 열리면 (cook.html 대신 빈 쪽 = 네트워크가 끊겨 'ready' 가 오지 않는 것처럼) 300 ms 뒤 문어 그림 + 게임 쪽 닫기 → 놀이방으로.
+       또 막힌 채 열면 6 초 뒤 덮개를 닫고 토스트 한 줄. 저장은 그대로. 풀고 나서 열면 새로 불러와 부엌이 열린다 */
+    await page.evaluate(function () {
+      var d = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src'); window.__ckBlock = true;
+      Object.defineProperty(HTMLIFrameElement.prototype, 'src', { configurable: true, get: function () { return d.get.call(this); },
+        set: function (v) { d.set.call(this, window.__ckBlock && /cook\.html/.test(String(v)) ? 'about:blank#k2-blocked' : v); } });   /* 아무것도 안 오는 쪽 = 'ready' 없음 */
+    });
+    k2.s0 = await cookStore();
     await page.touchscreen.tap(cpt.x, cpt.y);
+    k2.tray = await page.waitForSelector('#dish-pick[open]', { timeout: 5000 }).then(function () {
+      return page.evaluate(function () {
+        var d = document.getElementById('dish-pick'), dc = d.cloneNode(true), dpr = window.devicePixelRatio || 1;
+        var bd = getComputedStyle(d, '::backdrop');
+        return { label: d.getAttribute('aria-label'), text: (dc.textContent || '').trim(), backdrop: [bd.backgroundColor, bd.backgroundImage], titles: d.querySelectorAll('[title]').length + (d.hasAttribute('title') ? 1 : 0),
+          chips: Array.prototype.map.call(d.querySelectorAll('.dp-chip'), function (c) { var r = c.getBoundingClientRect(), im = c.querySelector('img'), ir = im.getBoundingClientRect();
+            return { name: c.getAttribute('aria-label'), w: r.width, h: r.height, iw: ir.width * dpr, ix: ir.x * dpr, iy: ir.y * dpr, nat: im.naturalWidth, pix: getComputedStyle(im).imageRendering, bottom: window.innerHeight - r.bottom }; }) };
+      });
+    }, function () { return null; });
+    await page.tap('#dish-pick .dp-chip[data-recipe="jeon"]');
+    k2.wait = await page.waitForSelector('#cook-wait:not([hidden])', { timeout: 3000 }).then(function () {
+      return page.evaluate(function () { var c = document.getElementById('cook-close'), r = c.getBoundingClientRect(), o = document.querySelector('#cook-wait .cw-oct').getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+        return { label: c.getAttribute('aria-label'), text: c.textContent, title: c.hasAttribute('title'), w: r.width, h: r.height, top: r.top, right: window.innerWidth - r.right, oct: [o.width * dpr % 56, o.x * dpr % 1, o.y * dpr % 1] }; });
+    }, function () { return null; });
+    await page.tap('#cook-close');
+    k2.closed = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 3000 }).then(function () {
+      return page.evaluate(function () { return { view: APP.scene.view(), focus: document.activeElement && document.activeElement.id, waitHidden: document.getElementById('cook-wait').hidden }; }); }, function () { return null; });
+    await page.waitForTimeout(700);
+    await page.touchscreen.tap(cpt.x, cpt.y);
+    await pickDish('jeon');
+    await page.waitForTimeout(6400);
+    k2.timeout = await page.evaluate(function () { var t = document.getElementById('toast'); return { open: document.getElementById('cook-overlay').open, toast: t && t.classList.contains('show') ? t.textContent : null }; });
+    k2.s1 = await cookStore();
+    await page.evaluate(function () { window.__ckBlock = false; });
+    await page.waitForTimeout(2700);
+    await page.touchscreen.tap(cpt.x, cpt.y);
+    k2.pickFirst = await pickDish('jeon');
     ck.open = await page.waitForSelector('#cook-overlay[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; });
     var fh = await page.$('#cook-overlay iframe'), fr = fh && await fh.contentFrame();
     ck.kitchen = !!fr && await fr.waitForFunction(function () { return window.COOK && COOK.isOpen() && document.documentElement.classList.contains('ck-embed'); }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
@@ -7289,6 +7332,7 @@ async function scenarioSceneTap(browser) {
       await page.waitForTimeout(700);
       await fr.evaluate(function () { window.__ckIn = []; window.addEventListener('message', function (e) { var d = e.data; if (d && typeof d === 'object' && d.ppolCook) window.__ckIn.push(d.ppolCook); }); });
       await page.evaluate(function () { window.__ckMsgs = []; document.getElementById('btn-cook').click(); });
+      await pickDish('jeon');
       ck.again = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
       ck.again2 = await fr.evaluate(function () { var l = COOK.live(); return { screen: l.screen, kind: l.kind, id: l.id }; });
       ck.inOrder = await fr.evaluate(function () { return window.__ckIn.slice(); });   /* 다시 열 때 iframe 이 받은 차례: 'safe' 가 'open' 바로 앞 */
@@ -7299,6 +7343,7 @@ async function scenarioSceneTap(browser) {
       /* 5차 검증 K-11: Esc 로 닫은 뒤 손가락으로 다시 열면 칩에 포커스 링이 없다 (부엌 안의 마지막 입력이 그 Esc 여도 — 게임이 'open' 에 kbd 를 실어 보낸다) */
       await page.waitForTimeout(600);
       await page.touchscreen.tap(cpt.x, cpt.y);
+      await pickDish('jeon');
       ck.finger = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(function () {
         return fr.evaluate(function () { var v = document.querySelector('.ck-verb'); return { ring: document.getElementById('cook-dlg').classList.contains('ck-kbd'), chipFocus: document.activeElement === v, quiet: COOK.live().quiet }; });
       }, function () { return null; });
@@ -7309,6 +7354,7 @@ async function scenarioSceneTap(browser) {
       await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]'); await page.selectOption('#set-motion', 'reduce'); await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
       await page.waitForTimeout(400);
       await page.touchscreen.tap(cpt.x, cpt.y);
+      await pickDish('jeon');
       ck.red = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(async function () {
         var r0 = await fr.evaluate(function () { var l = COOK.live(); COOK.auto(true); return { reduced: l.reduced, motion: document.documentElement.getAttribute('data-motion'), kind: l.kind }; });
         var flip = await fr.waitForFunction(function () { var l = COOK.live(); return l.kind === 'flip' && l.phase === 'step'; }, null, { timeout: 20000 }).then(function () { return true; }, function () { return false; });
@@ -7317,8 +7363,97 @@ async function scenarioSceneTap(browser) {
       }, function () { return null; });
       await page.keyboard.press('Escape');
       await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).catch(function () { /* 끝 */ });
+      /* 11-18 6차 (K2) 쟁반 규칙: 단계를 끝낸 냄비 (부엌의 tuneOf 그대로) → 쟁반 없이 바로 그 요리 · 빈 냄비 (si 0) → 쟁반 · 옛 판 냄비 → 쟁반,
+         고르면 그 냄비는 potOld 에 바이트 그대로 · 다른 요리를 고르면 빈 냄비도 potOld 로 · 주먹밥을 다 만들면 'result' 한 번 */
+      async function shut(noKey) {   /* Esc 로 닫고, 바쁜 기계에서 Esc 가 빠졌으면 덮개를 직접 닫는다 — 다음 검사는 부엌까지 닫힌 데서 시작 */
+        if (!noKey) await page.keyboard.press('Escape');
+        var gone = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open && !document.getElementById('dish-pick').open; }, null, { timeout: 3000 }).then(function () { return true; }, function () { return false; });
+        if (!gone) await page.evaluate(function () { ['cook-overlay', 'dish-pick'].forEach(function (id) { var d = document.getElementById(id); if (d.open) d.close(); }); });
+        var shutOk = await fr.waitForFunction(function () { return !COOK.isOpen(); }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+        (k2.shuts = k2.shuts || []).push(shutOk ? 1 : await fr.evaluate(function () { var l = COOK.live(); return { r: l.recipe, si: l.si, s: l.screen, url: location.search }; }).catch(function (e) { return String(e).slice(0, 80); }));
+        await page.waitForTimeout(700);
+      }
+      await shut(true);
+      async function setPot(pot) { await page.evaluate(function (p) { var o = JSON.parse(localStorage.getItem('ppolppol_cook_v0') || '{}'); o.pot = p; localStorage.setItem('ppolppol_cook_v0', JSON.stringify(o)); }, pot); }
+      async function tapCounter() { await page.touchscreen.tap(cpt.x, cpt.y); await page.waitForTimeout(500); return page.evaluate(function () { return { tray: document.getElementById('dish-pick').open, overlay: document.getElementById('cook-overlay').open }; }); }
+      k2.tunes = await fr.evaluate(function () { return ['jeon', 'jumeokbap', 'kkochi'].map(function (id) { return COOK.tuneOf(id); }); });
+      k2.straight = [];
+      for (var rid of ['jeon', 'jumeokbap', 'kkochi']) {
+        var pot1 = await fr.evaluate(function (id) { var b = [{ t: 400, k: 'b' }, { t: 800, k: 'b' }, { t: 1200, k: 'b' }, { t: 1600, k: 'b' }]; return COOK.potOf(COOK.simulate(id, 5, [b], { run: true }).run, 1); }, rid);
+        await setPot(pot1);
+        var tc = await tapCounter();
+        var lv = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(function () { return fr.evaluate(function () { var l = COOK.live(); return { r: l.recipe, si: l.si }; }); }, function () { return null; });
+        k2.straight.push({ id: rid, tune: pot1.tune, tray: tc.tray, overlay: tc.overlay, live: lv });
+        await shut();
+      }
+      var potE = await fr.evaluate(function () { return COOK.potOf(COOK.createRun('jeon', 9), 1); });
+      await setPot(potE); k2.empty = await tapCounter();
+      k2.emptyFocus = await shut().then(function () { return page.evaluate(function () { return document.activeElement && document.activeElement.id; }); });
+      var potOldTune = await fr.evaluate(function () { var b = [{ t: 400, k: 'b' }, { t: 800, k: 'b' }, { t: 1200, k: 'b' }, { t: 1600, k: 'b' }]; var p = COOK.potOf(COOK.simulate('jeon', 6, [b], { run: true }).run, 1); p.tune = 12345; return p; });
+      await setPot(potOldTune); var otText = JSON.stringify(potOldTune);
+      k2.oldTray = await tapCounter();
+      await page.evaluate(function () { window.__ckMsgs = []; });
+      await page.tap('#dish-pick .dp-chip[data-recipe="jumeokbap"]');
+      k2.oldPick = await fr.waitForFunction(function () { return COOK.isOpen() && COOK.live().recipe; }, null, { timeout: 5000 }).then(async function () {
+        var st = JSON.parse(await cookStore());
+        return { r: await fr.evaluate(function () { return COOK.live().recipe; }), old0: st.potOld && JSON.stringify(st.potOld[0]), pot: st.pot };
+      }, function () { return null; });
+      await fr.evaluate(function () { COOK.auto(true); });
+      k2.result = await fr.waitForFunction(function () { return COOK.live().screen === 'reveal'; }, null, { timeout: 30000 }).then(async function () {
+        await page.waitForTimeout(500);
+        return page.evaluate(function () { return window.__ckMsgs.filter(function (m) { return m.ppolCook === 'result'; }); });
+      }, function () { return null; });
+      await shut();
+      var emptyJ = JSON.parse(await cookStore()).pot;   /* again: a fresh jumeokbap is not made here — write an empty jumeokbap pot */
+      emptyJ = await fr.evaluate(function () { return COOK.potOf(COOK.createRun('jumeokbap', 4), 1); });
+      await setPot(emptyJ); var ejText = JSON.stringify(emptyJ);
+      k2.other = await tapCounter();
+      await page.tap('#dish-pick .dp-chip[data-recipe="kkochi"]');
+      k2.otherPick = await fr.waitForFunction(function () { return COOK.isOpen() && COOK.live().recipe === 'kkochi'; }, null, { timeout: 5000 }).then(async function () {
+        var st = JSON.parse(await cookStore()); return { old0: st.potOld && JSON.stringify(st.potOld[0]), pot: st.pot && st.pot.recipe };
+      }, function () { return null; });
+      await shut();
+      /* R19: 문어를 부르는 동안 (M 의 mealBusy() 가 참) 조리대는 아무것도 안 한다 — M 이 합쳐지기 전엔 전역 가짜로 */
+      var mOwn = /function mealBusy\s*\(/.test(fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8'));
+      if (!mOwn) {
+        await page.evaluate(function () { window.mealBusy = function () { return true; }; });
+        k2.busy = await tapCounter();
+        await page.evaluate(function () { delete window.mealBusy; });
+        k2.unbusy = await tapCounter(); await shut();
+      } else console.log('   (mealBusy 는 M 의 것 — 가짜로 막는 검사는 smoke EAT 가 본다)');
+      /* 독립 점검 (11-18): 조리대를 두 번 톡 (120 ms) 해도 쟁반이 바로 닫히지 않는다 */
+      var cdpT = await page.context().newCDPSession(page);   /* touchscreen.tap 은 한 번에 수백 ms 걸려서 진짜 두 번 톡 (톡 사이 120 ms) 은 CDP 로 */
+      for (var tt = 0; tt < 2; tt++) {
+        await cdpT.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cpt.x, y: cpt.y, id: 7 + tt }] }); await page.waitForTimeout(40);
+        await cdpT.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); if (!tt) await page.waitForTimeout(120);
+      }
+      await page.waitForTimeout(500);
+      k2.dbl = await page.evaluate(function () { return document.getElementById('dish-pick').open; });
+      await page.touchscreen.tap(30, 300); await page.waitForTimeout(400);   /* 조리대 밖 (투명 배경) 톡 = 닫기 */
+      k2.backdrop = await page.evaluate(function () { return { open: document.getElementById('dish-pick').open, overlay: document.getElementById('cook-overlay').open }; });
+      await shut();
     }
   }
+  console.log('   K2 쟁반 · 못 열린 부엌:', JSON.stringify(k2));
+  var tr = k2.tray || {}, chips = tr.chips || [];
+  ok(tr.label === '요리 고르기' && tr.text === '' && tr.titles === 0 && chips.map(function (c) { return c.name; }).join() === '해초전,주먹밥,과일 꼬치', "빈 저장에 조리대 톡 → 요리 쟁반 '요리 고르기' · 칩 해초전 · 주먹밥 · 과일 꼬치 · 보이는 글자 0 · title 0 (" + JSON.stringify(tr.text) + ')');
+  ok(tr.backdrop && /rgba\(0, 0, 0, 0\)|transparent/.test(tr.backdrop[0]) && tr.backdrop[1] === 'none', '쟁반 배경은 투명 (픽셀 테마의 어두운 막 없음: ' + JSON.stringify(tr.backdrop) + ')');
+  ok(k2.dbl === true, '조리대 두 번 톡 (120 ms) → 쟁반은 열린 채 (조리대 자리 톡은 닫지 않는다)');
+  ok(k2.backdrop && !k2.backdrop.open && !k2.backdrop.overlay, '칩 밖 톡 → 쟁반만 닫힌다 (' + JSON.stringify(k2.backdrop) + ')');
+  ok(chips.length === 3 && chips.every(function (c) { return c.w >= 44 && c.h >= 44 && c.nat === 16 && c.iw % 16 === 0 && Math.abs(c.ix - Math.round(c.ix)) < 0.01 && Math.abs(c.iy - Math.round(c.iy)) < 0.01 && c.pix === 'pixelated' && c.bottom >= 16; }), '칩 44px 이상 · 16×16 그림이 정수 배 · 기기 px 위 · 아래 여백 16 이상 (' + JSON.stringify(chips) + ')');
+  ok(k2.wait && k2.wait.label === '닫기' && k2.wait.text === '' && !k2.wait.title && k2.wait.w >= 44 && k2.wait.oct.join() === '0,0,0', '부엌이 못 열리면 300 ms 뒤 문어 그림 + 글자 없는 닫기 그림 단추 (aria-label 닫기 · title 없음 · 44px 이상 · 문어는 기기 px 위) (' + JSON.stringify(k2.wait) + ')');
+  ok(k2.closed && k2.closed.view === 'play' && k2.closed.focus === 'btn-cook' && k2.closed.waitHidden, '그 닫기 → 놀이방 그대로 · 포커스 조리대 (' + JSON.stringify(k2.closed) + ')');
+  ok(k2.timeout && !k2.timeout.open && k2.timeout.toast === '부엌을 못 열었어. 다시 눌러 줘.', "막힌 채 6 초 → 덮개 닫힘 · 토스트 '부엌을 못 열었어. 다시 눌러 줘.' (" + JSON.stringify(k2.timeout) + ')');
+  ok(k2.s0 === k2.s1, '못 열린 부엌은 저장을 건드리지 않는다 (ppolppol_cook_v0 그대로)');
+  ok(k2.pickFirst && ck.open && ck.kitchen, '풀고 다시 누르면 새로 불러와 부엌이 열린다');
+  ok(k2.tunes && k2.tunes.join() === '2827089308,1403436335,3381042548' && (k2.straight || []).length === 3 && k2.straight.every(function (q) { return !q.tray && q.overlay && q.live && q.live.r === q.id && q.live.si === 1; }),
+    '단계를 끝낸 냄비 (부엌의 tuneOf 그대로 = COOK_TUNES) → 쟁반 없이 바로 그 요리로 (' + JSON.stringify(k2.straight) + ')');
+  ok(k2.empty && k2.empty.tray && !k2.empty.overlay && k2.emptyFocus === 'btn-cook', '빈 냄비 (si 0) → 쟁반 · Esc 로 닫으면 조리대 단추로 (' + JSON.stringify(k2.empty) + ' · ' + k2.emptyFocus + ')');
+  ok(k2.oldTray && k2.oldTray.tray && k2.oldPick && k2.oldPick.r === 'jumeokbap' && k2.oldPick.old0 === otText, '옛 판 냄비 → 쟁반 · 주먹밥을 고르면 주먹밥이 열리고 옛 냄비는 potOld 에 바이트 그대로');
+  var rs = k2.result || [];
+  ok(rs.length === 1 && rs[0].recipe === 'jumeokbap' && rs[0].v === 1 && /^ck_/.test(rs[0].id) && rs[0].look && /^\d{4}-\d{2}-\d{2}$/.test(rs[0].day), "주먹밥을 다 만들면 게임이 'result' 를 한 번 받는다 (" + JSON.stringify(rs) + ')');
+  ok(k2.other && k2.other.tray && k2.otherPick && k2.otherPick.old0 === ejText && k2.otherPick.pot === 'kkochi', '빈 주먹밥 냄비가 있을 때 과일 꼬치를 고르면 그 냄비는 potOld 에 바이트 그대로 · 과일 꼬치가 열린다');
+  if (k2.busy) ok(!k2.busy.tray && !k2.busy.overlay && k2.unbusy && k2.unbusy.tray, '부르는 중 (mealBusy 참) 엔 조리대가 아무것도 안 한다 · 풀리면 쟁반 (' + JSON.stringify([k2.busy, k2.unbusy]) + ')');
   console.log('   조리대:', JSON.stringify({ pt: cpt, ck: ck }));
   ok(ck.spot && cpt.w >= 44 && cpt.h >= 44 && cpt.label === '부엌', '놀이방 조리대 위에 부엌 단추 (44px 이상 · «' + (cpt && cpt.label) + '»)');
   ok(ck.open && ck.kitchen && ck.home === 'none', '조리대를 손가락으로 톡 → 게임 안 화면 가득 부엌 (cook.html?embed=1 · 자기 문 · 링크는 숨김)');
