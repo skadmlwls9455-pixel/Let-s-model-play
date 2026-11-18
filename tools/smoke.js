@@ -2047,7 +2047,29 @@ async function scenarioRunner() {
     console.log('   start:', JSON.stringify(info));
     ok(info.state === 'ready' && info.focus === 'rn-cv', '준비 상태 · 캔버스에 포커스');
     ok(info.w >= 360 && info.h >= 740 && info.cw <= 192 && Number.isInteger(Math.round(info.w * info.dpr) / info.cw) && Math.round(info.w * info.dpr) % info.cw === 0, '11-15 캔버스가 창을 꽉 채움 · 아트 px 정수 배 (' + info.cw + '×' + info.ch + ' 아트 px, ' + (info.w * info.dpr / info.cw) + '×)');
-    ok(info.sprites === 'portrait', '문어 스프라이트 = 장면 초상 캡처');
+    ok(info.sprites === 'bake', '11-18 문어 스프라이트 = 다락 3D 문어를 그대로 구움 (bake)');
+    /* 11-18 6차: 상태별 구운 그림 — 크기 (스펙 §7 표 ±2) · 알파 0/255 · 같은 상태 칸은 한 상자 */
+    var spr = await page.evaluate(function () {
+      var S = RUNNER.sprites(), out = { src: S.src, gw: S.gw, st: {} };
+      ['run', 'jump', 'land', 'duck', 'hit', 'idle'].forEach(function (k) {
+        var fr = S[k], semi = 0, sizes = fr.map(function (c) { return c.width + 'x' + c.height; });
+        fr.forEach(function (c) { var d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; for (var i = 3; i < d.length; i += 4) if (d[i] !== 0 && d[i] !== 255) semi++; });
+        var c0 = fr[0], d0 = c0.getContext('2d').getImageData(0, c0.height - 1, c0.width, 1).data, foot = 0; for (var j = 3; j < d0.length; j += 4) if (d0[j]) foot++;
+        out.st[k] = { n: fr.length, w: c0.width, h: c0.height, same: sizes.every(function (z) { return z === sizes[0]; }), semi: semi, foot: foot };
+      });
+      return out;
+    });
+    console.log('   sprites:', JSON.stringify(spr));
+    var SPEC = { run: [32, 23], jump: [30, 25], land: [35, 20], duck: [38, 15], hit: [32, 23], idle: [32, 23] }, MEAS = { land: [38, 21], duck: [42, 18] };   /* 착지 · 엎드림은 잰 크기 (스펙의 ≈ 표보다 2~4 px 크다: 외곽선 1 px 씩 — 보고서 decisions) */
+    Object.keys(SPEC).forEach(function (k) {
+      var e = MEAS[k] || SPEC[k], g = spr.st[k];
+      ok(g && Math.abs(g.w - e[0]) <= 2 && Math.abs(g.h - e[1]) <= 2 && g.same && g.semi === 0 && (k !== 'run' || g.n === 4), '11-18 문어 ' + k + ' ' + (g && g.w + '×' + g.h) + ' (기준 ' + e.join('×') + ' ±2) · 알파 0/255 · 칸 ' + (g && g.n));
+    });
+    ok(spr.st.idle.foot > 0 && spr.st.duck.foot > 0, '11-18 발이 그림 맨 아래 줄에 닿음 (idle ' + spr.st.idle.foot + ' · duck ' + spr.st.duck.foot + ' px)');
+    await page.evaluate(function () {   /* 그리기 호출 엿보기: 문어 그림은 제 크기 그대로(인자 3 개) · 정수 자리 */
+      var cx = document.getElementById('rn-cv').getContext('2d'), o = cx.drawImage; window.__octDraws = [];
+      cx.drawImage = function (img) { if (img && img.octKey) window.__octDraws.push({ k: img.octKey, n: arguments.length, x: arguments[1], y: arguments[2] }); return o.apply(this, arguments); };
+    });
     ok(info.minBtn >= 44, '보이는 버튼 ≥ 44px (' + info.minBtn + ')');
     ok(info.docW <= 360, '가로 스크롤 없음');
     await page.screenshot({ path: path.join(EVD, 'runner-start.png') });
@@ -2079,6 +2101,8 @@ async function scenarioRunner() {
     if ((await page.evaluate(function () { var L = RUNNER.live(); return L.state === 'run' && L.obs.length >= 2; }))) await page.screenshot({ path: path.join(EVD, 'runner-mid.png') });
     var rest = 6000 - (Date.now() - t0); if (rest > 0) await page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: rest }).catch(function () {});
     var midObs = await page.evaluate(function () { clearInterval(window.__rnPilot); return RUNNER.live().ticks; });
+    var od = await page.evaluate(function () { var D = window.__octDraws || [], seen = {}; D.forEach(function (d) { seen[d.k] = (seen[d.k] || 0) + 1; }); return { n: D.length, bad: D.filter(function (d) { return d.n !== 3 || d.x !== Math.round(d.x) || d.y !== Math.round(d.y); }).length, seen: seen }; });
+    ok(od.n > 20 && od.bad === 0 && od.seen.run > 0, '11-18 문어 그리기 ' + od.n + '번 모두 제 크기 · 정수 자리 (상태별 ' + JSON.stringify(od.seen) + ')');
     var ended = await page.evaluate(function () { return RUNNER.live().state; });
     if (ended !== 'over') { await page.click('#rn-close'); await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' }); }
     else await page.waitForTimeout(600);
@@ -2142,11 +2166,97 @@ async function scenarioRunner() {
     await page.screenshot({ path: path.join(EVD, 'runner-over.png') });
     await page.click('#rn-stop');
     await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
+    /* 11-18: 미용실 색 (파랑) 이면 구운 몸의 가장 흔한 색이 그 색의 문어 램프 */
+    var blue = await page.evaluate(function () {
+      var was = APP.scene.color(); APP.scene.setColor('#3b6fd8', { still: true });
+      var S = RUNNER.sprites(), c = S.run[0], d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, n = {}, top = null;
+      for (var i = 0; i < d.length; i += 4) if (d[i + 3]) { var h = '#' + [d[i], d[i + 1], d[i + 2]].map(function (v) { return (v < 16 ? '0' : '') + v.toString(16); }).join(''); n[h] = (n[h] || 0) + 1; if (!top || n[h] > n[top]) top = h; }
+      var ramp = (APP.scene.palette().filter(function (r) { return r.name === 'oct'; })[0] || { colors: [] }).colors.map(function (x) { return String(x).toLowerCase(); });
+      APP.scene.setColor(was, { still: true });
+      return { src: S.src, top: top, ramp: ramp, back: RUNNER.sprites().src };
+    });
+    ok(blue.src === 'bake' && blue.ramp.indexOf(blue.top) >= 0, '11-18 파랑 몸색으로 구우면 가장 흔한 색 ' + blue.top + ' = 문어 램프 ' + JSON.stringify(blue.ramp));
     reportErrors(bag, 'R');
     await ctx.close();
     await runnerTouch(br);
     await runnerCrisp(br);
   } finally { await br.close(); }
+}
+
+/* F. 첫 몇 분 (11-18 점검 J1 · J2): 이름을 지으면 자기소개 첫 문장이 말풍선으로 (첫날 선물 알림은 말풍선이 내려간 뒤) · 2D 도 ·
+   첫 산책이 다 끝나 집에 오면 손 그림이 놀이방 문 → 마당 문 → 위층 계단 순서로 한 번씩 (보이는 것만, 숨은 건 다음에) · 새로 열면 없음 · 여러 번 다녀온 기록은 없음 */
+async function scenarioFirst(browser) {
+  console.log('\n== F. 첫 몇 분 (말풍선 인사 · 첫 손 힌트)');
+  var bag = []; bag.ignored = [];
+  async function fresh(q, dpr) {
+    var c = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: dpr || 2, locale: 'ko-KR', colorScheme: 'light' });
+    await c.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var pg = await c.newPage(); watchErrors(pg, bag);
+    if (useStubs) { await pg.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await pg.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+    await routeWiki(pg, 'ok');
+    await pg.goto(INDEX + '?dev=0&intro=0' + (q || ''));
+    await pg.waitForSelector('#name-dialog[open]');
+    return { c: c, p: pg };
+  }
+  async function greet(pg, tag) {
+    await pg.fill('#name-in', '뚜루');
+    await pg.evaluate(function () {   /* 50 ms 마다: 말풍선 글 · 알림이 떠 있나 */
+      var t0 = performance.now(), L = window.__fs = [];
+      (function tick() { var b = document.getElementById('oct-bubble'), t = document.getElementById('toast'), r = b && b.getBoundingClientRect();
+        L.push({ t: Math.round(performance.now() - t0), bub: b && !b.hidden && r.width > 0 && getComputedStyle(b).visibility !== 'hidden' && getComputedStyle(b).opacity !== '0' ? b.textContent.trim() : '', toast: !!(t && t.classList.contains('show')), open: document.getElementById('name-dialog').open });
+        if (L.length < 160) setTimeout(tick, 50); })();
+    });
+    await pg.click('#name-form button[type=submit]');
+    await pg.waitForFunction(function () { return window.__fs.length >= 160; }, null, { timeout: 30000 }).catch(function () {});
+    var g = await pg.evaluate(function () { return { log: window.__fs, row: [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).join(' | ') }; });
+    var shut = (g.log.filter(function (x) { return !x.open; })[0] || { t: 0 }).t; g.log.forEach(function (x) { x.t -= shut; });   /* 이름 창이 닫힌 때부터 (첫 3 초는 장면을 세우느라 바빠 누름 자체가 늦다) */
+    var first = g.log.filter(function (x) { return x.bub; })[0], both = g.log.filter(function (x) { return x.bub && x.toast; }).length, toastAt = (g.log.filter(function (x) { return x.toast; })[0] || {}).t;
+    ok(first && first.bub === '안녕, 나는 뚜루야.' && first.t <= 1000, '11-18 ' + tag + ' 이름 짓고 ' + (first && first.t) + ' ms 에 문어 말풍선 «' + (first && first.bub) + '»');
+    ok(both === 0 && toastAt != null, '11-18 ' + tag + ' 첫날 선물 알림은 말풍선이 내려간 뒤 (' + toastAt + ' ms · 겹친 표본 ' + both + ')');
+    ok(/안녕, 나는 뚜루야\. 비 오는 다락방에 온 걸 환영해\./.test(g.row), '11-18 ' + tag + ' 기록 행은 온 문장 그대로');
+    return first;
+  }
+  var A = await fresh('', 2);
+  await greet(A.p, '3D');
+  var B = await fresh('&scene=2d', 2); await greet(B.p, '2D'); await B.c.close();
+
+  /* 첫 산책 → 집 → 손 힌트 */
+  var pg = A.p;
+  await waitIdle(pg); await pg.click('#btn-go'); await pg.waitForSelector('#btn-go.away', { timeout: 10000 });
+  await pg.waitForSelector('#log .lrow.typing, #log .lrow.c-amber', { state: 'attached', timeout: 10000 }); await pg.waitForTimeout(1200);
+  await pg.evaluate(function () {   /* 손이 뜰 때마다: 어느 단추 위였나 (손가락 끝 = 손 왼쪽 · 4 번째 줄) */
+    var H = window.__hh = [], was = false;
+    (function tick() { var e = document.getElementById('hint-hand'), on = !!(e && !e.hidden);
+      var pos = on ? e.style.left + ',' + e.style.top + ',' + e.style.animation : '';
+      if (on && (!was || pos !== window.__hpos)) { window.__hpos = pos; var r = e.getBoundingClientRect(), x = e.classList.contains('flip') ? r.right - 1 : r.left + 1, y = r.top + r.height * 3.5 / 12, hit = ['btn-door', 'btn-yard', 'btn-stair'].map(function (id) { var b = document.getElementById(id), q = b && !b.hidden && b.getBoundingClientRect(); return q && q.width ? { id: id, d: Math.hypot(x - (q.left + q.width / 2), y - (q.top + q.height / 2)), r: [q.left, q.top, q.width, q.height].map(Math.round) } : null; }).filter(Boolean).sort(function (a, b) { return a.d - b.d; })[0];   /* 손가락 끝에 가운데가 가장 가까운 단추 (마당 문 단추가 계단 칸과 겹칠 수 있다) */
+        hit = hit && hit.d < 4 ? hit.id : '?';
+        var d = devicePixelRatio; H.push({ t: Math.round(performance.now()), on: hit, dlg: !!document.querySelector('dialog[open]'), crisp: [r.left, r.top, r.width].every(function (v) { return Math.abs(v * d - Math.round(v * d)) < 0.06; }), aria: e.getAttribute('aria-hidden'), title: e.hasAttribute('title'), text: e.textContent }); }
+      was = on; setTimeout(tick, 40); })();
+  });
+  await pg.click('#btn-go'); await waitIdle(pg);
+  var walk = await pg.evaluate(function () { return APP.state.trips.filter(function (t) { return t.status === 'done' && t.kind === 'out'; }).length; });
+  await pg.waitForFunction(function () { var o = JSON.parse(localStorage.getItem('ppolppol_ui') || '{}'); return o.hints && Object.keys(o.hints).length >= 2; }, null, { timeout: 30000 }).catch(function () {});
+  await pg.waitForFunction(function () { var e = document.getElementById('hint-hand'); return e && !e.hidden; }, null, { timeout: 20000 }).catch(function () {}); await pg.waitForTimeout(200); await pg.screenshot({ path: path.join(SHOTS, 'first-hint.png') });
+  await pg.waitForTimeout(5000);
+  var hs = await pg.evaluate(function () { return { seen: window.__hh, pref: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}'), yard: !document.getElementById('btn-yard').hidden, inV2: !!JSON.parse(localStorage.getItem('ppolppol_v2')).hints }; });
+  console.log('   hints:', JSON.stringify(hs));
+  var order = hs.seen.map(function (x) { return x.on; }), want = ['btn-door', 'btn-yard', 'btn-stair'].filter(function (id) { return order.indexOf(id) >= 0; });
+  ok(walk === 1 && order.length >= 2 && order.join() === want.join() && order[0] === 'btn-door', '11-18 첫 산책 뒤 손 힌트: 차례대로 한 번씩 ' + JSON.stringify(order));
+  ok(hs.seen.every(function (x) { return x.crisp && x.aria === 'true' && !x.title && !x.text && !x.dlg; }), '11-18 손 힌트: 기기 px 정수 자리 · aria-hidden · title 없음 · 글자 없음 · 시트 열린 동안 없음');
+  ok(Object.keys(hs.pref.hints || {}).length === order.length && !hs.inV2, '11-18 본 힌트는 ppolppol_ui 에만 (' + JSON.stringify(hs.pref.hints) + ')');
+  /* 새로 열기 → 본 힌트는 다시 없음 */
+  var before = hs.seen.length;
+  await pg.reload(); await pg.waitForSelector('#btn-go:not(.away)', { timeout: 30000 });
+  var re = await pg.evaluate(function () { return new Promise(function (res) { var n = 0, was = false; var iv = setInterval(function () { var e = document.getElementById('hint-hand'), on = !!(e && !e.hidden); if (on && !was) n++; was = on; }, 40); setTimeout(function () { clearInterval(iv); res({ n: n, pref: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}').hints }); }, 7000); }); });
+  ok(re.n === 3 - before && Object.keys(re.pref || {}).length === 3, '11-18 새로 열면 본 힌트는 다시 없음 (남은 것만 ' + re.n + ' · ' + JSON.stringify(re.pref) + ')');
+  /* 여러 번 다녀온 기록: 둘째 산책 뒤엔 (기기 표시를 지워도) 켜지지 않는다 */
+  await pg.evaluate(function () { localStorage.setItem('ppolppol_ui', '{}'); });
+  await pg.reload(); await pg.waitForSelector('#btn-go:not(.away)', { timeout: 30000 });
+  await waitIdle(pg); await pg.click('#btn-go'); await pg.waitForSelector('#btn-go.away', { timeout: 10000 }); await pg.waitForTimeout(1200); await pg.click('#btn-go'); await waitIdle(pg);
+  var two = await pg.evaluate(function () { return new Promise(function (res) { var n = 0; var iv = setInterval(function () { var e = document.getElementById('hint-hand'); if (e && !e.hidden) n++; }, 40); setTimeout(function () { clearInterval(iv); res({ n: n, walks: APP.state.trips.filter(function (t) { return t.status === 'done' && t.kind === 'out'; }).length, arm: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}').hintsArm }); }, 6000); }); });
+  ok(two.n === 0 && !two.arm, '11-18 이미 여러 번 다녀온 기록은 손 힌트 없음 (산책 ' + two.walks + ' · ' + JSON.stringify(two) + ')');
+  await A.c.close();
+  reportErrors(bag, 'F');
 }
 
 /* S. 7물결 (주인 11-07 · docs/OWNER_DECISIONS.md '주인 답 (11-07)'): 방 보기는 없앴다 → ⚙ 설정 시트 · 앨범(문어의 요즘 · 다음 산책 메모 · 일기 탭) ·
@@ -6234,7 +6344,7 @@ async function scenarioLoft(browser) {
   await stair(pg, true); await tick(pg, 4);
   var allGood = await mirror('아래층에서 잠', { toast: '지금은 아래층에서 자고 있어.', hidden: false });
   await pg.evaluate(function () { APP.octState('idle'); clearTimeout(APP.oct.wanderTimer); }); await tick(pg, 0.5);   /* 내가 위층에 있는 동안 깼다 (스스로 깸과 같은 상태) — 혼자 올라오지 않는다. 돌아다니기 타이머는 같은 순간에 끈다 (아래층에서 걷기 시작하면 '깨어서 아래층' 읽기와 겨뤘다) */
-  allGood = await mirror('깨어서 아래층', { toast: '지금은 아래층에 있어.', hidden: false }) && allGood;
+  allGood = await mirror('깨어서 아래층', { toast: '깨어 있을 때 같이 올라오면 물어볼 수 있어.', hidden: false }) && allGood;
   s = await S(pg); allGood = allGood && !s.up && /문어는 아래층 .+에서 쉬고 있어\./.test(s.desc);
   lines.push('장면 설명: ' + s.desc);
   await pg.evaluate(function () { APP.walkTo(APP.oct.anchor === 'window' ? 'center' : 'window').then(function () { APP.octState('idle'); }); }); await tick(pg, 0.3);   /* 아래층에서 걷는 중 (내가 위층에서 들으면) */
@@ -7165,6 +7275,52 @@ async function scenarioGarden(browser) {
 /* E2. 장면 톡 뒤 따라오는 진짜 click (11-15 4차 갈래 E): 장면이 pointerup 에서 단추를 누르고 시트가 열리면, 브라우저가 같은 손가락의 click 을 그 자리에 또 보낸다 —
    시트 바깥이면 닫히고(재봉틀이 첫 톡에 안 열리던 결함) 안이면 염료 칩이 눌렸다. 진짜 손가락(touchscreen.tap)으로 재봉틀을 톡 → 시트가 열린 채 · 칩은 안 눌림 (토스트 · 조개 그대로).
    관성으로 흐르는 중에 단추를 톡 해도 연다 (예전엔 멈추기만). 세트 도감은 접힌 한 줄 · 시트는 화면 반쯤 */
+/* 11-18 6차 (주인: "폰이랑 컴퓨터 기준 중앙에서 오른쪽으로 뽈뽈"): 로딩 문어 — app.js 를 붙잡아 덮개를 세워 두고 잰다.
+   가운데에서 출발 (±1 기기 px) · 크기 56u × 39u (u = max(round(2·dpr), floor(짧은 변·dpr/200)) / dpr) · 0.5 초에 아트 26 px (52 px/초 ±10 %) · 자리와 크기는 기기 px 정수 ·
+   동작 줄이기면 가운데 멈춤 · 최소 1.0 초 (booted 가 일찍 와도 boot-min 전엔 안 걷힘) · 아무것도 안 붙잡으면 첫 표시부터 ≥ 1.0 초 뒤 booted 와 함께 걷힘 */
+async function bootCrawl(browser) {
+  var holdApp = function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* held back by tools/smoke.js */' }); };
+  var probe = function () {
+    var e = document.querySelector('#boot .boot-oct'), cross = e.getAnimations().filter(function (a) { return a.animationName === 'boot-cross'; })[0], dpr = devicePixelRatio, vw = innerWidth, vh = innerHeight;
+    var U = Math.max(Math.round(2 * dpr), Math.floor(Math.min(vw, vh) * dpr / 200)), u = U / dpr, cs = getComputedStyle(e);
+    function at(t) { if (cross) { cross.pause(); cross.currentTime = t; } var r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }
+    var a0 = at(0), a5 = at(500); if (cross) cross.play();
+    return { dpr: dpr, u: u, U: U, cross: !!cross, cw: parseFloat(cs.width), ch: parseFloat(cs.height), a0: a0, a5: a5, cx0: Math.round((vw / 2 - 28 * u) * dpr) / dpr, cy0: Math.round((vh / 2 - 19.5 * u) * dpr) / dpr };
+  };
+  function whole(v, dpr) { return Math.abs(v * dpr - Math.round(v * dpr)) < 0.06; }
+  for (var V of [[360, 740, 2], [412, 915, 2.625], [1280, 800, 1]]) {
+    var tag = V[0] + 'x' + V[1] + '@' + V[2];
+    var c = await browser.newContext({ viewport: { width: V[0], height: V[1] }, deviceScaleFactor: V[2], locale: 'ko-KR' });
+    var p = await c.newPage(); await p.route(/\/js\/app\.js$/, holdApp);
+    await p.goto(INDEX + '?dev=0&intro=0'); await p.waitForSelector('#boot .boot-oct'); await p.waitForTimeout(150);
+    var b = await p.evaluate(probe);
+    var mv = (b.a5.x - b.a0.x) / b.u;
+    ok(b.cross && Math.abs(b.a0.x - b.cx0) * b.dpr <= 1 && Math.abs(b.a0.y - b.cy0) * b.dpr <= 1, '11-18 로딩 문어 ' + tag + ': 가운데에서 출발 (x ' + b.a0.x.toFixed(2) + ' · 기대 ' + b.cx0.toFixed(2) + ')');
+    ok(Math.abs(b.cw - 56 * b.u) < 0.02 && Math.abs(b.ch - 39 * b.u) < 0.02 && (V[2] !== 1 || V[0] !== 1280 || b.u === 4), '11-18 로딩 문어 ' + tag + ': 크기 56u × 39u (u ' + b.u.toFixed(3) + ' CSS px = 기기 ' + b.U + ' px · ' + b.cw.toFixed(2) + '×' + b.ch.toFixed(2) + ')');
+    ok(Math.abs(mv - 26) <= 2.6, '11-18 로딩 문어 ' + tag + ': 0.5 초에 아트 ' + mv.toFixed(1) + ' px 오른쪽 (52 px/초 ±10 %)');
+    ok([b.a0.x, b.a5.x, b.a0.y, b.a0.w, b.a0.h].every(function (v) { return whole(v, b.dpr); }), '11-18 로딩 문어 ' + tag + ': 자리 · 크기가 기기 px 정수 (' + [b.a0.x, b.a5.x, b.a0.w].map(function (v) { return (v * b.dpr).toFixed(2); }).join(' · ') + ')');
+    if (V[0] === 360) {   /* 최소 1.0 초: booted 를 일찍 붙여도 boot-min 전엔 덮개가 그대로 */
+      var mc = await p.evaluate(function () { return new Promise(function (res) { var t0 = performance.now(); document.documentElement.classList.add('booted'); var d = getComputedStyle(document.getElementById('boot')).display, min = document.documentElement.classList.contains('boot-min');
+        (function w() { if (getComputedStyle(document.getElementById('boot')).display === 'none') res({ early: d, min: min, at: performance.now() - t0 }); else setTimeout(w, 20); })(); }); });
+      ok(mc.early !== 'none' && mc.at < 1200, '11-18 로딩 최소 1.0 초: 일찍 온 booted 에도 덮개가 남았다가 boot-min 과 함께 걷힘 (' + JSON.stringify(mc) + ')');
+    }
+    await c.close();
+  }
+  var c2 = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, locale: 'ko-KR', reducedMotion: 'reduce' });
+  var p2 = await c2.newPage(); await p2.route(/\/js\/app\.js$/, holdApp);
+  await p2.goto(INDEX + '?dev=0&intro=0'); await p2.waitForSelector('#boot .boot-oct'); await p2.waitForTimeout(400);
+  var rm = await p2.evaluate(function () { var e = document.querySelector('#boot .boot-oct'), r = e.getBoundingClientRect(); return { n: e.getAnimations().length, x: r.left, mid: innerWidth / 2 - r.width / 2, bp: getComputedStyle(e).backgroundPosition, min: document.documentElement.classList.contains('boot-min') }; });
+  ok(rm.n === 0 && Math.abs(rm.x - rm.mid) <= 0.5 && /^0(px)? 0(px)?$/.test(rm.bp) && rm.min, '11-18 로딩 문어 동작 줄이기: 가운데 멈춘 첫 칸 · 최소 시간 없음 (' + JSON.stringify(rm) + ')');
+  await c2.close();
+  var c3 = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: 'ko-KR' });
+  await c3.addInitScript({ content: "window.__ppolAwakeMs = 0; (function () { var r = window.__cov = { shown: null, hide: null, booted: null }; requestAnimationFrame(function t() { var b = document.getElementById('boot'); if (b) { var d = getComputedStyle(b).display; if (d !== 'none' && r.shown == null) r.shown = performance.now(); if (d === 'none' && r.shown != null) { r.hide = performance.now(); r.booted = document.documentElement.classList.contains('booted'); return; } } requestAnimationFrame(t); }); })();" });
+  var p3 = await c3.newPage(); await p3.goto(INDEX + '?dev=0&intro=0');
+  await p3.waitForFunction(function () { return window.__cov && window.__cov.hide != null; }, null, { timeout: 30000 });
+  var cv = await p3.evaluate(function () { return window.__cov; });
+  ok(cv.booted && cv.hide - cv.shown >= 950, '11-18 로딩 덮개 (아무것도 안 붙잡음, 1280×800@1): 첫 표시부터 ' + Math.round(cv.hide - cv.shown) + ' ms 뒤 booted 와 함께 걷힘 (≥ 1.0 초)');
+  await c3.close();
+}
+
 async function scenarioSceneTap(browser) {
   console.log('\n== Z2. 장면 톡: 재봉틀 첫 톡 · 관성 중 톡 · 재봉틀 시트 크기');
   var bag = []; bag.ignored = [];
@@ -7194,6 +7350,7 @@ async function scenarioSceneTap(browser) {
   var bootStatic = /<body>\s*<div id="boot" aria-hidden="true"><i class="boot-oct"><\/i><\/div>/.test(html0) && html0.indexOf('html:not(.booted) #oct-svg { visibility: hidden; }') > 0 && /loading_oct\.png/.test(html0);
   var bootDone = await page.waitForFunction(function () { var b = document.getElementById('boot'); return document.documentElement.classList.contains('booted') && b && getComputedStyle(b).display === 'none'; }, null, { timeout: 10000 }).then(function () { return true; }, function () { return false; });
   ok(bootStatic && bootDone, '로딩 문어: 정적 HTML 의 첫 줄 #boot (스크립트 전부터 · 벡터 문어는 숨김) · 게임이 서면 걷힌다');
+  await bootCrawl(browser);
   if (await page.evaluate(function () { return APP.sceneMode !== '3d'; })) { console.log('   (3D 장면이 없어 건너뜀)'); await ctx.close(); return; }
   await page.evaluate(function () { return APP.goRoom('loft'); });
   await page.waitForFunction(function () { var e = document.getElementById('btn-sew'); return APP.room === 'loft' && e && !e.hidden && e.getBoundingClientRect().width > 0 && !APP.goResting; }, null, { timeout: 20000 });
@@ -7493,7 +7650,7 @@ async function scenarioTurn(browser) {
       ['W', function () { return scenarioWake(browser); }], ['V', function () { return scenarioDevPanel(browser); }], ['P', function () { return scenarioPlayer(browser); }],
       ['L', function () { return scenarioAlbumIcon(browser); }], ['N', function () { return scenarioNotes(browser); }], ['M', function () { return scenarioReactions(browser); }],
       ['O', function () { return scenarioFirstColor(browser); }], ['Y', function () { return scenarioSalon(browser); }],   /* 미용실: 첫 실행 몸 색은 글자 O 의 둘째 묶음 (O 의 첫 묶음 = 한 화면 배치 scenarioLayoutOne 은 아래 줄 — SMOKE_ONLY=O 면 둘 다 돈다, 따로 try/catch) · Y = 미용실 */
-      ['R', function () { return scenarioRunner(); }], ['S', function () { return scenarioWave7(browser); }], ['J', function () { return scenarioWave8(browser); }], ['U', function () { return scenarioGlyphs(browser); }],
+      ['R', function () { return scenarioRunner(); }], ['FM', function () { return scenarioFirst(browser); }], ['S', function () { return scenarioWave7(browser); }], ['J', function () { return scenarioWave8(browser); }], ['U', function () { return scenarioGlyphs(browser); }],
       ['T', function () { return scenarioTapLine(browser); }], ['K', function () { return scenarioBringBack(browser); }], ['O', function () { return scenarioLayoutOne(browser); }],
       ['Q', function () { return scenarioWeek(browser); }],   /* Q = 이번 주 할 일 · 선물 상자 (검증 11-11) */
       ['Z', function () { return scenarioSceneTap(browser); }],   /* 11-15 장면 톡 (재봉틀 첫 톡 · 관성 중 톡 · 조리대 → 부엌) */
