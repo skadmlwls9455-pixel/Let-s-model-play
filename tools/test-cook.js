@@ -35,8 +35,11 @@ check(typeof A.open === 'undefined', 'without a DOM the live half (open) is not 
 check(A.VERSION === 'cook-1', 'VERSION cook-1');
 check(A !== B && A.TUNE_HASH === B.TUNE_HASH && A.TUNE_HASH === A.hash32(JSON.stringify(A.TUNE)), 'TUNE_HASH = hash32(JSON.stringify(TUNE)), same in both instances');
 check(A.TUNE_HASH === 2827089308, 'TUNE is byte-identical to round 4: TUNE_HASH pinned at 2827089308 (' + A.TUNE_HASH + ')');
-check(A.RECIPES.length === 1 && A.RECIPES[0].id === 'jeon' && A.PROPS.length === 1 && A.PROPS[0].id === 'pan', 'slice 1: one live recipe (jeon) and one live prop (pan)');
+check(same(A.RECIPES.map(function (r) { return r.id; }), ['jeon', 'jumeokbap', 'kkochi']) && A.PROPS.length === 1 && A.PROPS[0].id === 'pan', '11-18: three recipes (jeon, jumeokbap, kkochi) in that order, one live prop (pan)');
 check(same(A.RECIPES[0].steps.map(function (s) { return s.kind; }), ['tap', 'flip', 'slice']), 'jeon = tap -> flip -> slice');
+check(same(A.recipe('jumeokbap').steps.map(function (s) { return s.kind; }), ['tap', 'flip']) && A.recipe('jumeokbap').steps.every(function (s) { return s.food === 'rice'; }), 'jumeokbap = tap -> flip, both steps name the rice food (the flip too)');
+check(same(A.recipe('kkochi').steps.map(function (s) { return s.kind; }), ['slice', 'tap']) && A.recipe('kkochi').steps[1].station === 'board' && A.recipe('kkochi').steps[0].cross === false, "kkochi = slice (two parallel lines) -> tap on the 'board'");
+check(A.tuneOf('jeon') === A.TUNE_HASH && Object.isFrozen(A.TUNE_R) && !('TUNE_R' in A.TUNE), 'jeon pot hash = TUNE_HASH; TUNE_R frozen and outside TUNE');
 check(['tap', 'flip', 'slice'].every(function (k) { var K = A.KIND[k]; return ['init', 'down', 'move', 'up', 'cancel', 'tick', 'alt', 'look', 'tag'].every(function (f) { return typeof K[f] === 'function'; }); }), 'KIND tap / flip / slice have the full interface');
 check(Object.isFrozen(A.TUNE) && Object.isFrozen(A.TUNE.tap) && Object.isFrozen(A.WORDS) && Object.isFrozen(A.RECIPES[0].steps[0]), 'TUNE, WORDS, RECIPES are frozen');
 check(A.createRun('nope', 1) === null && A.createRun('miyeok', 1) === null, 'createRun: unknown recipe -> null');
@@ -774,7 +777,7 @@ section('14. static checks');
   function noComments(src) { return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1'); }
   check(!/Date\.now|performance\.now/.test(sim), 'simulation half: no Date.now / performance.now (comments included)');
   check(!/\bdocument\.|\bwindow\.|localStorage|sessionStorage|setTimeout|setInterval|requestAnimationFrame|\bnew Date\b/.test(noComments(sim)), 'simulation half: no DOM, storage, timers or Date');
-  var files = ['js/cook.js', 'js/cook-art.js', 'css/cook.css', 'cook.html'].filter(function (f) { return fs.existsSync(path.join(ROOT, f)); });
+  var files = ['js/cook.js', 'js/cook-art.js', 'js/cook-dishes.js', 'css/cook.css', 'cook.html'].filter(function (f) { return fs.existsSync(path.join(ROOT, f)); });
   console.log('   scanning: ' + files.join(', '));
   var BANNED = ['맛있', '좋아해', '좋아하', '먹고 싶', '기다렸', '아쉽', '미안', '실패', '성공', '점수', '완벽', '최고', '잘했', '탔', '등급', '메달', '마마', 'Mama'];
   var ks = (function () {   /* KS X 1001: decode every EUC-KR Hangul code (rows 4 jamo, 16-40 syllables) */
@@ -803,7 +806,7 @@ section('14. static checks');
   var nonAscii = noStr.match(/[^\x00-\x7F]/g) || [];
   check(nonAscii.length === 0, 'js/cook.js: comments and code are ASCII (Korean only inside strings)' + (nonAscii.length ? ' (' + nonAscii.slice(0, 10).join('') + ')' : ''));
   var VOCAB = ['부엌', '닫기', '다시', '요리 수첩', '돌아가기', '이어서', '미역국', '해초전', '톳 주먹밥', '썰기', '톡톡', '젓기', '불 켜기', '뒤집기', '올리기', '보들보들', '노릇노릇', '바삭바삭', '반쯤', '한 줄', '하나 올렸어', '다 됐어',
-    '요리 수첩에 넣었어', '아직 비어 있어', '반듯하게 썰었어', '어슷하게 썰었어', '꾹꾹 눌렀어', '보들보들하게 구웠어', '노릇노릇 구웠어', '바삭바삭하게 구웠어', '세 개 올렸어', '보러 가기', '두부', '바다포도', '김', '깨', '파래', '톳'];
+    '요리 수첩에 넣었어', '아직 비어 있어', '반듯하게 썰었어', '어슷하게 썰었어', '꾹꾹 눌렀어', '보들보들하게 구웠어', '노릇노릇 구웠어', '바삭바삭하게 구웠어', '세 개 올렸어', '보러 가기', '두부', '바다포도', '김', '깨', '파래', '톳', '주먹밥', '과일 꼬치'];
   var BAD = /[^\sA-Za-z0-9.,!?:;'"()\/%+~\-ᄀ-ᇿ㄰-㆏가-힣·…‘’“”—–]/gu, EMOTE = /zZ|Zz|\^\^|<3|[:;]-?[()]|T_T|>_</g;
   var leaves = [];
   (function walk(o) { if (typeof o === 'string') leaves.push(o); else if (o && typeof o === 'object') Object.keys(o).forEach(function (k) { walk(o[k]); }); })(A.WORDS);
