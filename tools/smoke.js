@@ -2250,11 +2250,11 @@ async function scenarioFirst(browser) {
   var re = await pg.evaluate(function () { return new Promise(function (res) { var n = 0, was = false; var iv = setInterval(function () { var e = document.getElementById('hint-hand'), on = !!(e && !e.hidden); if (on && !was) n++; was = on; }, 40); setTimeout(function () { clearInterval(iv); res({ n: n, pref: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}').hints }); }, 7000); }); });
   ok(re.n === 3 - before && Object.keys(re.pref || {}).length === 3, '11-18 새로 열면 본 힌트는 다시 없음 (남은 것만 ' + re.n + ' · ' + JSON.stringify(re.pref) + ')');
   /* 여러 번 다녀온 기록: 둘째 산책 뒤엔 (기기 표시를 지워도) 켜지지 않는다 */
-  await pg.evaluate(function () { localStorage.setItem('ppolppol_ui', '{}'); });
-  await pg.reload(); await pg.waitForSelector('#btn-go:not(.away)', { timeout: 30000 });
   await waitIdle(pg); await pg.click('#btn-go'); await pg.waitForSelector('#btn-go.away', { timeout: 10000 }); await pg.waitForTimeout(1200); await pg.click('#btn-go'); await waitIdle(pg);
+  await pg.evaluate(function () { localStorage.setItem('ppolppol_ui', '{}'); });   /* 기기 표시를 지우고 새로 열어도 (산책 둘) 켜지지 않는다 */
+  await pg.reload(); await pg.waitForSelector('#btn-go:not(.away)', { timeout: 30000 });
   var two = await pg.evaluate(function () { return new Promise(function (res) { var n = 0; var iv = setInterval(function () { var e = document.getElementById('hint-hand'); if (e && !e.hidden) n++; }, 40); setTimeout(function () { clearInterval(iv); res({ n: n, walks: APP.state.trips.filter(function (t) { return t.status === 'done' && t.kind === 'out'; }).length, arm: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}').hintsArm }); }, 6000); }); });
-  ok(two.n === 0 && !two.arm, '11-18 이미 여러 번 다녀온 기록은 손 힌트 없음 (산책 ' + two.walks + ' · ' + JSON.stringify(two) + ')');
+  ok(two.n === 0 && !two.arm, '11-18 이미 여러 번 다녀온 기록은 (기기 표시를 지우고 새로 열어도) 손 힌트 없음 (산책 ' + two.walks + ' · ' + JSON.stringify(two) + ')');
   await A.c.close();
   reportErrors(bag, 'F');
 }

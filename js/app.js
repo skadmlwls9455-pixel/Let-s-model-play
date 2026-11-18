@@ -4273,7 +4273,7 @@ var APP = (function () {
      지금 숨은 단추는 건너뛰고 다음 조용한 때 다시. 아무 데나 누르면 이번 차례는 끝 (누른 단추는 제 할 일을 한다). 기기마다 한 번 (ppolppol_ui 'hints' — 문어 기록엔 안 쓴다).
      처음 집에 온 산책이 첫 산책일 때만 켠다 (집에 있던 차례는 안 셈) → 이미 여러 번 다녀온 기록은 보지 않는다. 안내 요정 (윤슬 · 다음 차례) 이 오기 전까지 잇는 다리 */
   var HINT_SPOTS = [['atticPlay', 'btn-door'], ['atticYard', 'btn-yard'], ['atticStair', 'btn-stair']], HINT_MS = 1600;
-  var hintPoll = 0, hintRun = null, greetT = 0;   /* greetT = 첫 인사 말풍선 (이름 지은 직후 · 이름 창 처리) 동안 선물 알림을 붙잡는 타이머 */
+  var hintPoll = 0, hintRun = null, greetT = 0, hintCalm = 0;   /* hintCalm = 누름으로 끝낸 뒤 다음 조용한 때까지 (그동안 다음 손은 안 뜬다) */   /* greetT = 첫 인사 말풍선 (이름 지은 직후 · 이름 창 처리) 동안 선물 알림을 붙잡는 타이머 */
   function hintSeen() { var o = uiPref().hints; return (o && typeof o === 'object') ? o : {}; }
   function hintLeft() { var seen = hintSeen(); return HINT_SPOTS.filter(function (sp) { return !seen[sp[0]]; }); }
   function hintsAfterWalk(trip) {   /* 귀가가 다 끝난 자리 (reveal 끝) 에서 한 번 부른다 */
@@ -4289,14 +4289,15 @@ var APP = (function () {
   }
   function hintBtn(id) { var b = $(id); if (!b || b.hidden) return null; var r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(b).visibility !== 'hidden' ? r : null; }
   function hintTick() {
-    if (hintRun) return;
+    if (hintRun || Date.now() < hintCalm) return;
     var left = hintLeft(); if (!left.length) { clearInterval(hintPoll); hintPoll = 0; return; }
     if (!hintQuiet()) return;
     var at = null; for (var i = 0; i < left.length && !at; i++) { var r = hintBtn(left[i][1]); if (r) at = { spot: left[i][0], r: r }; }
     if (at) hintShow(at.spot, at.r);
   }
-  function hintEnd() {
+  function hintEnd(e) {
     if (!hintRun) return;
+    if (e && e.type) hintCalm = Date.now() + 8000;   /* 누름 · 크기 바뀜 = 이번 차례 끝 — 남은 손은 한참 뒤 조용한 때에 (바로 다음 단추로 옮겨 가 조르지 않게) */
     clearTimeout(hintRun.t); document.removeEventListener('pointerdown', hintEnd, true); window.removeEventListener('resize', hintEnd);
     if (hintRun.el) hintRun.el.hidden = true;
     hintRun = null;
@@ -4314,7 +4315,11 @@ var APP = (function () {
     hintRun = { spot: spot, el: el, t: setTimeout(function () { hintEnd(); hintTick(); }, HINT_MS) };
     document.addEventListener('pointerdown', hintEnd, true); window.addEventListener('resize', hintEnd);
   }
-  setTimeout(hintStart, 3000);   /* 새로 열었을 때: 켜 둔 힌트가 남았으면 이어서 (조용한 때에) */
+  setTimeout(function () {   /* 새로 열었을 때: 켜 둔 힌트가 남았으면 이어서 (조용한 때에). 첫 산책이 새로고침 · 닫힘으로 공개 없이 끝났어도 (resumeRunning) 다 끝난 첫 산책 하나뿐이면 켠다 */
+    var n = S.trips.filter(function (t) { return t && t.status === 'done' && t.kind === 'out'; }).length, p = uiPref();
+    if (!p.hintsArm && n === 1 && !Object.keys(hintSeen()).length && !S.trips.some(function (t) { return t && t.status === 'running'; })) setUiPref('hintsArm', 1);
+    hintStart();
+  }, 3000);
   /* 폰에서(상태 줄이 방 제목을 숨기는 폭) 등불 말풍선 첫 줄 = 방 제목. 넓은 화면은 상태 줄에 이미 보이니 빼고 한 줄만 */
   /* 등불 설명의 첫 줄 = 상태 줄에서 숨긴 것들: 방 제목 · (좁은 폰의 한 화면 배치에서) 등불 숫자 */
   function pipsHead() {
