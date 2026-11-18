@@ -7275,8 +7275,8 @@ async function scenarioSceneTap(browser) {
     k2.tray = await page.waitForSelector('#dish-pick[open]', { timeout: 5000 }).then(function () {
       return page.evaluate(function () {
         var d = document.getElementById('dish-pick'), dc = d.cloneNode(true), dpr = window.devicePixelRatio || 1;
-        var bd = getComputedStyle(d, '::backdrop');
-        return { label: d.getAttribute('aria-label'), text: (dc.textContent || '').trim(), backdrop: [bd.backgroundColor, bd.backgroundImage], titles: d.querySelectorAll('[title]').length + (d.hasAttribute('title') ? 1 : 0),
+        var bd = getComputedStyle(d, '::backdrop'), go = document.getElementById('btn-go'), gr = go.getBoundingClientRect();
+        return { label: d.getAttribute('aria-label'), text: (dc.textContent || '').trim(), backdrop: [bd.backgroundColor, bd.backgroundImage], go: getComputedStyle(go).visibility, goUnder: gr.bottom > window.innerHeight - 100, stick: getComputedStyle(document.getElementById('stick')).visibility, titles: d.querySelectorAll('[title]').length + (d.hasAttribute('title') ? 1 : 0),
           chips: Array.prototype.map.call(d.querySelectorAll('.dp-chip'), function (c) { var r = c.getBoundingClientRect(), im = c.querySelector('img'), ir = im.getBoundingClientRect();
             return { name: c.getAttribute('aria-label'), w: r.width, h: r.height, iw: ir.width * dpr, ix: ir.x * dpr, iy: ir.y * dpr, nat: im.naturalWidth, pix: getComputedStyle(im).imageRendering, bottom: window.innerHeight - r.bottom }; }) };
       });
@@ -7389,6 +7389,7 @@ async function scenarioSceneTap(browser) {
       var potE = await fr.evaluate(function () { return COOK.potOf(COOK.createRun('jeon', 9), 1); });
       await setPot(potE); k2.empty = await tapCounter();
       k2.emptyFocus = await shut().then(function () { return page.evaluate(function () { return document.activeElement && document.activeElement.id; }); });
+      k2.goEsc = await page.evaluate(function () { return getComputedStyle(document.getElementById('btn-go')).visibility; });
       var potOldTune = await fr.evaluate(function () { var b = [{ t: 400, k: 'b' }, { t: 800, k: 'b' }, { t: 1200, k: 'b' }, { t: 1600, k: 'b' }]; var p = COOK.potOf(COOK.simulate('jeon', 6, [b], { run: true }).run, 1); p.tune = 12345; return p; });
       await setPot(potOldTune); var otText = JSON.stringify(potOldTune);
       k2.oldTray = await tapCounter();
@@ -7396,7 +7397,8 @@ async function scenarioSceneTap(browser) {
       await page.tap('#dish-pick .dp-chip[data-recipe="jumeokbap"]');
       k2.oldPick = await fr.waitForFunction(function () { return COOK.isOpen() && COOK.live().recipe; }, null, { timeout: 5000 }).then(async function () {
         var st = JSON.parse(await cookStore());
-        return { r: await fr.evaluate(function () { return COOK.live().recipe; }), old0: st.potOld && JSON.stringify(st.potOld[0]), pot: st.pot };
+        return { r: await fr.evaluate(function () { return COOK.live().recipe; }), old0: st.potOld && JSON.stringify(st.potOld[0]), pot: st.pot,
+          picking: await page.evaluate(function () { return document.documentElement.classList.contains('dish-picking'); }) };
       }, function () { return null; });
       await fr.evaluate(function () { COOK.auto(true); });
       k2.result = await fr.waitForFunction(function () { return COOK.live().screen === 'reveal'; }, null, { timeout: 30000 }).then(async function () {
@@ -7430,7 +7432,7 @@ async function scenarioSceneTap(browser) {
       await page.waitForTimeout(500);
       k2.dbl = await page.evaluate(function () { return document.getElementById('dish-pick').open; });
       await page.touchscreen.tap(30, 300); await page.waitForTimeout(400);   /* 조리대 밖 (투명 배경) 톡 = 닫기 */
-      k2.backdrop = await page.evaluate(function () { return { open: document.getElementById('dish-pick').open, overlay: document.getElementById('cook-overlay').open }; });
+      k2.backdrop = await page.evaluate(function () { return { open: document.getElementById('dish-pick').open, overlay: document.getElementById('cook-overlay').open, go: getComputedStyle(document.getElementById('btn-go')).visibility }; });
       await shut();
     }
   }
@@ -7438,6 +7440,8 @@ async function scenarioSceneTap(browser) {
   var tr = k2.tray || {}, chips = tr.chips || [];
   ok(tr.label === '요리 고르기' && tr.text === '' && tr.titles === 0 && chips.map(function (c) { return c.name; }).join() === '해초전,주먹밥,과일 꼬치', "빈 저장에 조리대 톡 → 요리 쟁반 '요리 고르기' · 칩 해초전 · 주먹밥 · 과일 꼬치 · 보이는 글자 0 · title 0 (" + JSON.stringify(tr.text) + ')');
   ok(tr.backdrop && /rgba\(0, 0, 0, 0\)|transparent/.test(tr.backdrop[0]) && tr.backdrop[1] === 'none', '쟁반 배경은 투명 (픽셀 테마의 어두운 막 없음: ' + JSON.stringify(tr.backdrop) + ')');
+  ok(tr.go === 'hidden' && tr.stick === 'hidden' && tr.goUnder && k2.goEsc === 'visible' && k2.backdrop && k2.backdrop.go === 'visible' && k2.oldPick && k2.oldPick.picking === false && k2.closed && k2.closed.view === 'play',
+    "쟁반이 열린 동안 '산책 갈래?' 단추 · 발자국 손잡이는 안 보이고 (" + tr.go + ' · ' + tr.stick + '), Esc · 칩 밖 톡 · 고르기로 닫으면 그대로 돌아온다 (' + k2.goEsc + ' · ' + (k2.backdrop && k2.backdrop.go) + ' · ' + (k2.oldPick && k2.oldPick.picking) + ')');
   ok(k2.dbl === true, '조리대 두 번 톡 (120 ms) → 쟁반은 열린 채 (조리대 자리 톡은 닫지 않는다)');
   ok(k2.backdrop && !k2.backdrop.open && !k2.backdrop.overlay, '칩 밖 톡 → 쟁반만 닫힌다 (' + JSON.stringify(k2.backdrop) + ')');
   ok(chips.length === 3 && chips.every(function (c) { return c.w >= 44 && c.h >= 44 && c.nat === 16 && c.iw % 16 === 0 && Math.abs(c.ix - Math.round(c.ix)) < 0.01 && Math.abs(c.iy - Math.round(c.iy)) < 0.01 && c.pix === 'pixelated' && c.bottom >= 16; }), '칩 44px 이상 · 16×16 그림이 정수 배 · 기기 px 위 · 아래 여백 16 이상 (' + JSON.stringify(chips) + ')');
