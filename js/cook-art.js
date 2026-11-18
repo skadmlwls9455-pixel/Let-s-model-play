@@ -1216,15 +1216,15 @@ var COOK_ART = (function () {
       for (var q = 0; q < 4; q++) { var gx = i + N4[q][0], gy = j + N4[q][1]; if (gx >= 0 && gy >= 0 && gx < W2 && gy < out.h && !occ[gy * W2 + gx] && inSil(gx, gy)) { faces.push([i, j, q]); break; } }
     }
     for (j = 0; j < out.h; j++) for (i = 0; i < W2; i++) if (!occ[j * W2 + i] && inSil(i, j)) gaps.push([i, j]);
-    /* the opened cut: a 1-px crack is the gap colour (J1); a wider opening shows the far piece's cut wall (its soft inside,
-       a seaweed fleck, then its bottom crust) and, where the opening is wider still, a warm dark shadow (never the plate) */
+    /* the opened cut: a 1-px crack is the gap colour (J1); a wider opening is a warm dark shadow (never the plate). 11-18:
+       the far piece's cut wall (soft inside, crust) is no longer painted inside the opening: the horizontal arm of a '+'
+       read 1 px dark against the vertical arm's 3 px */
     var isOcc = function (x, y) { return x >= 0 && y >= 0 && x < W2 && y < out.h && occ[y * W2 + x] === 1; };
     if (gap) gaps.forEach(function (g) {
       var x = g[0], y = g[1], col;
       if ((isOcc(x - 1, y) && isOcc(x + 1, y)) || (isOcc(x, y - 1) && isOcc(x, y + 1))) col = gap;
-      else if (isOcc(x, y - 1)) col = fc(ih(x, y, seed + 9) % 5 === 0 ? (J.herb === 'tot' ? 'T1' : 'P1') : 'J5');
-      else if (isOcc(x, y - 2) && !isOcc(x, y - 1)) col = fc(T.side[0]);
-      else col = C.w1;
+      else col = C.w1;   /* 11-18: the whole opening is dark, so both arms of a '+' read with the same weight (the cut face
+                            sits on the piece above the gap, painted by the faces pass below, not inside the gap) */
       put(out, x, y, col);
     });
     faces.forEach(function (f) {
