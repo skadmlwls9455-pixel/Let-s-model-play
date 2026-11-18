@@ -5208,6 +5208,18 @@ var SCENE3D = (function () {
       });
       return best && d1 <= NEAR_PX && d2 - d1 >= NEAR_GAP ? best : null;
     }
+    function playSurface() {   /* 놀이방: 광선이 처음 맞는 보이는 면 → 'machine' | 'counter' | 'table' | null (식탁 위 요리 · 앉은 두 캐릭터도 식탁) */
+      if (!PROOM) return null;
+      var ms = []; PROOM.g.traverseVisible(function (o) { if (o.isMesh && (o.material === lambert || o === TB.mesh || o.material === basicV)) ms.push(o); });
+      var bod = []; if (octG.parent === PROOM.g && octG.visible) bod = bod.concat(bodyMeshes()); if (plG.parent === PROOM.g && PL.tbl) plMeshes.forEach(function (m) { bod.push(m); });
+      var hs = ray.intersectObjects(ms.concat(bod), false); if (!hs.length) return null;
+      if (bod.indexOf(hs[0].object) >= 0 || hs[0].object === TB.mesh) return 'table';
+      var lp = PROOM.g.worldToLocal(hs[0].point.clone()), e = 0.02;
+      if (PROOM.boothBox.clone().expandByScalar(e).containsPoint(lp)) return 'table';
+      if (PROOM.machineBox.clone().expandByScalar(e).containsPoint(lp)) return 'machine';
+      if (PROOM.counterBox.clone().expandByScalar(e).containsPoint(lp) || PROOM.legBox.clone().expandByScalar(e).containsPoint(lp)) return 'counter';
+      return null;
+    }
     function pick(cx, cy) {   /* 클라이언트 CSS px (PointerEvent clientX/Y) → 탭 표적 메시 | null */
       var r = canvas.getBoundingClientRect();
       ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
