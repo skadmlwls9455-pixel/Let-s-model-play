@@ -14,7 +14,8 @@
  *      its detail; the dish seed is the sticker run id; what shows is what their own engine picks for that run id, those
  *      moments and those times (replayed in node); the same seed twice shows the same; one node per shown sticker,
  *      inside the kitchen's layer; no feeling face; the save keys are exactly book, day, dayN, pot, seen, v.
- *  K2  where and how long: s = 32 n / dpr CSS px (n = floor(2 dpr)) at hudB + 4, slot 0 at left max(8, safeL + 8) and
+ *  K2  where and how long: s = 32 n / dpr CSS px (shown by n0 = floor(2 dpr); round 6: n = the largest of n0 .. floor(3 dpr)
+ *      that fits) at hudB + 4, slot 0 at left max(8, safeL + 8) and
  *      slot 1 at right max(8, safeR + 8), on whole device px; shown or hidden by the spec 5.4 rule at eight phone sizes;
  *      about 1.85 s; never two in one slot (three moments inside 1.87 s).
  *  K3  touches pass through and nothing is covered: a flick that starts under a sticker flips, a slash that starts under
@@ -267,16 +268,21 @@ var ACTS = ['pick'].concat(['tap', 'tap', 'tap', 'tap', 'tap', 'tap', 'tap', 'ta
 var FEEL = ['moved', 'love', 'flush', 'shock', 'ink', 'hmm', 'sweat'];
 function feelings(list) { return list.filter(function (id) { return FEEL.indexOf(id) >= 0; }); }
 var DISH = null;   /* K1's first dish (look, tags): K9 plays the same touches without the sticker script */
-/* spec 5.4: the layer is a strip at hudB + 4, one sticker px = n device px (n = floor(2 dpr)), s = 32 n / dpr CSS px;
-   slot 0 at left max(8, safeL + 8), slot 1 at right max(8, safeR + 8); shown only when hudB + 4 + s + 8 <= (44 + oy) css */
+/* spec 5.4: the layer is a strip at hudB + 4, one sticker px = n device px, s = 32 n / dpr CSS px; slot 0 at left
+   max(8, safeL + 8), slot 1 at right max(8, safeR + 8); shown only when hudB + 4 + 32 n0 / dpr + 8 <= (44 + oy) css with
+   n0 = floor(2 dpr) (unchanged); round 6 (11-18, spec 2.3): when shown, n is the largest of n0 .. floor(3 dpr) that fits
+   and whose layer zoom n / dpr / 2 is a whole number of 1/64 (a zoom the browser keeps exactly; 4/3 drifts by a device px) */
 function stickGeo(v, dpr, vw) {
-  var n = Math.floor(2 * dpr), s = 32 * n / dpr, safe = v.safe || [0, 0, 0, 0];
-  return { n: n, s: s, top: v.hudB + 4, l0: Math.max(8, safe[3] + 8), r1: vw - Math.max(8, safe[1] + 8), shown: v.hudB + 4 + s + 8 <= (44 + v.oy) * v.css };
+  var n0 = Math.floor(2 * dpr), n3 = Math.floor(3 * dpr), room = (44 + v.oy) * v.css, safe = v.safe || [0, 0, 0, 0];
+  var shown = v.hudB + 4 + 32 * n0 / dpr + 8 <= room, n = n0;
+  if (shown) for (var k = n3; k > n0; k--) { var zz = k / dpr / 2 * 64; if (v.hudB + 4 + 32 * k / dpr + 8 <= room && Math.abs(zz - Math.round(zz)) < 1e-6) { n = k; break; } }
+  var s = 32 * n / dpr;
+  return { n: n, s: s, top: v.hudB + 4, l0: Math.max(8, safe[3] + 8), r1: vw - Math.max(8, safe[1] + 8), shown: shown };
 }
-var STICK_SIZES = [
-  { vp: { width: 360, height: 740 }, dpr: 2, shown: true }, { vp: { width: 360, height: 740 }, dpr: 3, shown: true },
-  { vp: { width: 412, height: 915 }, dpr: 2.625, shown: true }, { vp: { width: 412, height: 915 }, dpr: 2, shown: true },
-  { vp: { width: 390, height: 844 }, dpr: 3, shown: true },
+var STICK_SIZES = [   /* s: the sticker size in CSS px (round 6, spec 2.3: 1.5x where there is room, never smaller) */
+  { vp: { width: 360, height: 740 }, dpr: 2, shown: true, s: 96 }, { vp: { width: 360, height: 740 }, dpr: 3, shown: true, s: 96 },
+  { vp: { width: 412, height: 915 }, dpr: 2.625, shown: true, s: 60.95 }, { vp: { width: 412, height: 915 }, dpr: 2, shown: true, s: 96 },
+  { vp: { width: 390, height: 844 }, dpr: 3, shown: true, s: 96 }, { vp: { width: 360, height: 640 }, dpr: 2, shown: true, s: 64 },
   { vp: { width: 320, height: 568 }, dpr: 2, shown: false }, { vp: { width: 320, height: 568 }, dpr: 3, shown: false },
   { vp: { width: 360, height: 560 }, dpr: 2, shown: false }
 ];
@@ -421,6 +427,7 @@ async function K2(browser) {
     var gg = stickGeo(m.view, m.dpr, m.vw), two = m.st.filter(function (x) { return x.id === 'thumbs' || x.id === 'clap'; });
     check(m.stick === gg.shown && gg.shown === su.shown, 'K2 ' + tag + ': the layer is ' + (su.shown ? 'shown' : 'hidden') + ' (live ' + m.stick + ', rule hudB ' + m.view.hudB + ' + 4 + ' + gg.s + ' + 8 <= (44 + ' + m.view.oy + ') x ' + m.view.css + ')');
     check(m.lay.pe === 'none', 'K2 ' + tag + ': the layer takes no touch');
+    if (su.shown) check(near(gg.s, su.s, 0.01), 'K2 ' + tag + ': stickers are ' + su.s + ' CSS px (n ' + gg.n + ', ' + gg.s.toFixed(2) + ')');
     if (su.shown) {
       check(two.length === 2 && two.every(function (x) { return x.vis && near(x.px, gg.n, 0.02) && near(x.py, gg.n, 0.02); }), 'K2 ' + tag + ': one sticker pixel is n = ' + gg.n + ' device px (' + two.map(function (x) { return x.px.toFixed(3); }).join(', ') + ')');
       var snap = function (v) { return Math.round(v * m.dpr) / m.dpr; }, tol = 0.5 / m.dpr + 0.01;   /* spec 2.5: every box sits on whole device px (round(v dpr) / dpr) */
@@ -438,7 +445,11 @@ async function K2(browser) {
   /* 11-15 round 5 (check K-2): at DPR 2.625 a sticker at rest is whole device-px blocks: every opaque px of its 32 x 32
      picture is an n x n block of exactly its own colour (an identity transform kept after the rise put the shadowed
      sticker on a layer of its own, resampled under the layer zoom: 29-49 % of the blocks were exact) */
-  var X = await openPage(browser, { store: SEEN_ALL, q: 'seed=' + SEED, vp: { width: 412, height: 915 }, dpr: 2.625 });
+  /* round 6: also the grown sizes (n 6 at 360x740@2, n 9 at 360x740@3) */
+  var BLK = [{ vp: { width: 412, height: 915 }, dpr: 2.625, n: 5 }, { vp: { width: 360, height: 740 }, dpr: 2, n: 6 }, { vp: { width: 360, height: 740 }, dpr: 3, n: 9 }];
+  for (var bi = 0; bi < BLK.length; bi++) {
+  var BK = BLK[bi], btag = BK.vp.width + 'x' + BK.vp.height + '@' + BK.dpr;
+  var X = await openPage(browser, { store: SEEN_ALL, q: 'seed=' + SEED, vp: BK.vp, dpr: BK.dpr });
   await X.page.evaluate(function () { document.querySelector('.ck-stick').textContent = ''; COOK_STICKERS.show('thumbs', { slot: 0 }); COOK_STICKERS.show('star', { slot: 1 }); });
   await X.page.evaluate(function () { return Promise.all(Array.prototype.map.call(document.querySelectorAll('.cook-sticker'), function (i) { return i.decode ? i.decode().catch(function () { /* checked below */ }) : null; })); });
   await X.settle();
@@ -465,9 +476,10 @@ async function K2(browser) {
     }
     return { id: b.id, n: n, tr: b.tr, exact: best };
   });
-  check(blocks.length === 2 && blocks.every(function (b) { return b.n === 5 && b.exact === 1; }), 'K2 412x915@2.625: resting stickers are exact 5 x 5 device-px blocks (' + blocks.map(function (b) { return b.id + ' ' + (b.exact * 100).toFixed(1) + ' % ' + b.tr; }).join(', ') + ')');
-  check(X.errs.length === 0, 'K2 412x915@2.625 blocks: no errors ' + X.errs.join(' | '));
+  check(blocks.length === 2 && blocks.every(function (b) { return b.n === BK.n && b.exact === 1; }), 'K2 ' + btag + ': resting stickers are exact ' + BK.n + ' x ' + BK.n + ' device-px blocks (2.625: n 7 would need zoom 4/3, which drifts) (' + blocks.map(function (b) { return b.id + ' ' + (b.exact * 100).toFixed(1) + ' % ' + b.tr; }).join(', ') + ')');
+  check(X.errs.length === 0, 'K2 ' + btag + ' blocks: no errors ' + X.errs.join(' | '));
   await X.done();
+  }
 }
 
 async function K3(browser) {
