@@ -22,7 +22,7 @@
  *   { recipe, seed, steps: [[rec minus si, ...] per si], pot (the saved pot of a resumed dish, else null) };
  *   COOK.simulate(recipe, seed, steps, { pot }) replays it.
  * RUN    plain JSON (JSON round trip gives an equal object). Read it, never write it.
- *   v 1, ver VERSION, id 'ck_...', recipe 'jeon', seed uint32, swaps { herb: 'parae'|'tot' }, plate 0..2,
+ *   v 1, ver VERSION, id 'ck_...', recipe 'jeon'|'jumeokbap'|'kkochi', seed uint32, swaps { herb: 'parae'|'tot' } (jeon only), plate 0..2,
  *   n steps, si current step 0..n-1 (n once revealed), phase 'step' | 'between' (a step just finished, inputs
  *   ignored for COOK.betweenOf(kind): TUNE.betweenMs, a flip TUNE.flip.betweenMs) | 'reveal' (dish done), done (true once the last step is finished, already in
  *   its 'between'), t0 / t / doneAt (caller clock ms), looks[] + tags[] (one per finished step), st (current step
@@ -66,7 +66,10 @@
  * ART    COOK.drawDish(recipe, look, seed, w, h) -> { w, h, d: Uint8ClampedArray } never throws (default 96 x 66).
  *   If a global COOK_ART.dish exists it paints a blank img of that size in place: COOK_ART.dish(img, look, { herb,
  *   recipe, seed, swaps }) with a checked look (COOK_ART.dishSmall instead when img is smaller than COOK_ART.GEO.dish).
+ *   11-18: the new dishes use COOK_ART.dishes[recipe].dish / dishSmall (js/cook-dishes.js) the same way.
  *   If the painter throws, a plain stub dish is drawn (Apollo colours only, integer geometry).
+ * TUNE_R 11-18: the new dishes' numbers live outside TUNE (TUNE_HASH unchanged). COOK.tuneOf(recipe) = the pot hash of
+ *   that recipe (jeon: TUNE_HASH); potOf writes it, resumeRun requires it. COOK.foodOf(r, step) = a step's food box.
  * =================================================================================================
  */
 var COOK = (function () {
@@ -144,7 +147,7 @@ var COOK = (function () {
   /* ---------- WORDS: every Korean string the kitchen shows or says (only the design's vocabulary, KS X 1001) ---------- */
   var WORDS = deepFreeze({
     kitchen: '부엌', close: '닫기', back: '돌아가기', resume: '이어서', go: '보러 가기',
-    dish: { jeon: '해초전' },
+    dish: { jeon: '해초전', jumeokbap: '주먹밥', kkochi: '과일 꼬치' },
     title: { tap: '톡톡', flip: '뒤집기', slice: '썰기' },
     verb: { tap: '톡톡', heat: '불 켜기', flip: '뒤집기', slice: '썰기', again: '다시' },
     band: ['보들보들', '노릇노릇', '바삭바삭'],
@@ -153,18 +156,44 @@ var COOK = (function () {
     cut: { straight: '반듯하게 썰었어', slant: '어슷하게 썰었어' }
   });
 
-  /* ---------- RECIPES: pure data; ids are ASCII. Slice 2 adds miyeok (at 'pot': slice, stir, place) and
-     jumeokbap (at 'jar': stir, tap, place) here in the same shape, once KIND.stir and KIND.place exist. ---------- */
+  /* ---------- RECIPES: pure data; ids are ASCII. 11-18 round 6: three dishes, the same three step kinds mixed
+     differently (jeon tap-flip-slice, jumeokbap tap-flip, kkochi slice-tap). A step names its food box (foodOf) and,
+     when it is not the kind's usual one, its station (the live half: tap -> counter, flip -> stove, slice -> board). ---------- */
   var RECIPES = deepFreeze([
     { id: 'jeon', tier: 1, at: 'pan', ings: ['batter'], swap: { herb: ['parae', 'tot'] }, steps: [
       { kind: 'tap', marks: 3, hits: 3, food: 'batter' },
       { kind: 'flip', band: 3000 },
-      { kind: 'slice', lines: 2, cross: true, food: 'jeon' }] }
+      { kind: 'slice', lines: 2, cross: true, food: 'jeon' }] },
+    { id: 'jumeokbap', tier: 1, at: 'pan', ings: ['rice'], steps: [
+      { kind: 'tap', marks: 3, hits: 3, food: 'rice' },
+      { kind: 'flip', band: 3000, food: 'rice' }] },
+    { id: 'kkochi', tier: 1, at: 'board', ings: ['watermelon', 'grape', 'tangerine'], steps: [
+      { kind: 'slice', lines: 2, cross: false, food: 'fruit' },
+      { kind: 'tap', marks: 3, hits: 3, food: 'fruit', station: 'board' }] }
   ]);
+  /* 11-18 TUNE_R: the numbers of the two new dishes, frozen and kept OUT of TUNE (TUNE_HASH stays 2827089308, so every
+     saved jeon pot still resumes). Each recipe has its own pot hash: tuneOf(id). food = the food box per step food
+     (art px, same box as TUNE.food), tapAt / tapJitter = the tap marks (else TUNE.tap.at / TUNE.tap.jitter). */
+  var TUNE_R = deepFreeze({
+    jumeokbap: { food: { rice: { cx: 72, cy: 86, w: 64, h: 48, rx: [18, 21, 24], ry: [13, 15, 17], inset: 3 } } },
+    kkochi: { food: { fruit: { cx: 72, cy: 86, w: 64, h: 48, rx: [24], ry: [9], inset: 2 } },
+      tapAt: [[-16, 0], [0, 0], [16, 0]], tapJitter: 0 }
+  });
   /* counter props that work now, in focus order (the counter draws only these; slice 2 adds pot and jar) */
   var PROPS = deepFreeze([{ id: 'pan', recipe: 'jeon' }]);
   var BANDS = ['soft', 'golden', 'crisp'];
   var TUNE_HASH = hash32(JSON.stringify(TUNE));
+  /* pot hash per recipe: jeon keeps TUNE_HASH; a new dish hashes TUNE_HASH with its own TUNE_R entry (null = unknown) */
+  function tuneOf(id) {
+    if (id === 'jeon') return TUNE_HASH;
+    if (typeof id !== 'string' || !Object.prototype.hasOwnProperty.call(TUNE_R, id)) return null;
+    return hash32(TUNE_HASH + '|' + JSON.stringify(TUNE_R[id]));
+  }
+  /* the food box of a step: the recipe's own (TUNE_R), then TUNE.food by the step's food, by the recipe, else the jeon */
+  function foodOf(r, step) {
+    var own = TUNE_R[r.id] && TUNE_R[r.id].food;
+    return (own && step.food && own[step.food]) || TUNE.food[step.food] || TUNE.food[r.id] || TUNE.food.jeon;
+  }
 
   /* ---------- small helpers ---------- */
   function deepFreeze(o) {
@@ -268,12 +297,12 @@ var COOK = (function () {
   }
   KIND.tap = {
     multi: true, sayHalf: true,
-    init: function (step, seed, food) {
-      var T = TUNE.tap, sc = TUNE.stage.scale, rng = mulberry32(seed), j = T.jitter, marks = [];
-      var nm = clampInt(step.marks, 1, T.at.length, T.at.length), per = clampInt(step.hits, 1, 9, 3);
+    init: function (step, seed, food, lay) {   /* lay (optional): { at, jitter } a recipe's own mark layout (TUNE_R) */
+      var T = TUNE.tap, sc = TUNE.stage.scale, rng = mulberry32(seed), at = lay && lay.at ? lay.at : T.at, j = lay && isInt(lay.jitter) ? lay.jitter : T.jitter, marks = [];
+      var nm = clampInt(step.marks, 1, at.length, at.length), per = clampInt(step.hits, 1, 9, 3);
       for (var i = 0; i < nm; i++) {
         var ox = (rng() % (2 * j + 1)) - j, oy = (rng() % (2 * j + 1)) - j;
-        marks.push({ x: (food.cx + T.at[i][0] + ox) * sc, y: (food.cy + T.at[i][1] + oy) * sc, n: 0 });
+        marks.push({ x: (food.cx + at[i][0] + ox) * sc, y: (food.cy + at[i][1] + oy) * sc, n: 0 });
       }
       return base('tap', { box: boxOf(food), rx: (food.rx || [food.w >> 1]).slice(), ry: (food.ry || [food.h >> 1]).slice(), inset: food.inset || 0, marks: marks, per: per, need: per * nm, hits: 0, dents: [], shape: 0, last: null, press: null });
     },
@@ -486,8 +515,9 @@ var COOK = (function () {
   /* how long a finished step of this kind stays on screen ('between') before the next one starts */
   function betweenOf(kind) { var k = TUNE[kind]; return k && typeof k.betweenMs === 'number' ? k.betweenMs : TUNE.betweenMs; }
   function initStep(run, si) {
-    var r = recipe(run.recipe), step = r.steps[si], food = TUNE.food[step.food] || TUNE.food[r.id] || TUNE.food.jeon;
-    return KIND[step.kind].init(step, stepSeed(run.seed, si), food);
+    var r = recipe(run.recipe), step = r.steps[si], own = TUNE_R[r.id];
+    var lay = step.kind === 'tap' && own && own.tapAt ? { at: own.tapAt, jitter: own.tapJitter } : null;
+    return KIND[step.kind].init(step, stepSeed(run.seed, si), foodOf(r, step), lay);
   }
   function newRun(r, seed, id) {
     return { v: 1, ver: VERSION, id: typeof id === 'string' && ID_RE.test(id) ? id : 'ck_' + hash32(r.id + '|' + seed).toString(36),
@@ -694,7 +724,7 @@ var COOK = (function () {
   function potOf(run, at) {
     if (!run || !run.st || run.done || run.phase === 'reveal') return null;
     var a = num(at);
-    return { ver: VERSION, tune: TUNE_HASH, runId: run.id, seed: run.seed, recipe: run.recipe, swaps: clone(run.swaps),
+    return { ver: VERSION, tune: tuneOf(run.recipe), runId: run.id, seed: run.seed, recipe: run.recipe, swaps: clone(run.swaps),
       si: run.looks.length, looks: clone(run.looks), tags: run.tags.slice(), at: a === null ? null : Math.round(a) };
   }
   function isIntIn(v, lo, hi) { return isInt(v) && v >= lo && v <= hi; }
@@ -705,7 +735,7 @@ var COOK = (function () {
     return true;
   }
   function validLook(r, si, lk) {
-    var step = r.steps[si], food = TUNE.food[step.food] || TUNE.food[r.id] || TUNE.food.jeon;
+    var step = r.steps[si], food = foodOf(r, step);
     if (step.kind === 'tap') {
       return sameKeys(lk, ['dents']) && Array.isArray(lk.dents) && lk.dents.length <= TUNE.tap.dents && allOf(lk.dents, function (d) {
         return Array.isArray(d) && d.length === 2 && allOf(d, function () { return true; }) && isIntIn(d[0], 0, food.w - 1) && isIntIn(d[1], 0, food.h - 1); });
@@ -730,8 +760,8 @@ var COOK = (function () {
     try {
       if (typeof pot === 'string') pot = JSON.parse(pot);
       if (!pot || typeof pot !== 'object' || Array.isArray(pot)) return null;
-      if (pot.ver !== VERSION || pot.tune !== TUNE_HASH) return null;
-      var r = recipe(pot.recipe); if (!r) return null;
+      if (pot.ver !== VERSION) return null;
+      var r = recipe(pot.recipe); if (!r || pot.tune !== tuneOf(r.id)) return null;   /* each recipe its own pot hash */
       if (!isIntIn(pot.seed, 0, 4294967295)) return null;
       var si = pot.si;
       if (!isIntIn(si, 0, r.steps.length - 1)) return null;
@@ -844,9 +874,12 @@ var COOK = (function () {
     try {
       var r = recipe(recipeId); if (!r) return img;
       var L = normLook(r.id, look), sd = toU32(seed);
-      var art = typeof COOK_ART !== 'undefined' && COOK_ART && typeof COOK_ART.dish === 'function' ? COOK_ART : null;
+      var CA = typeof COOK_ART !== 'undefined' && COOK_ART ? COOK_ART : null;
+      /* 11-18: a new dish paints with its own painters (COOK_ART.dishes[id], js/cook-dishes.js); without them, the stub */
+      var own = r.id === 'jeon' ? CA : CA && CA.dishes && CA.dishes[r.id] && typeof CA.dishes[r.id] === 'object' ? CA.dishes[r.id] : null;
+      var art = own && typeof own.dish === 'function' ? own : null;
       if (art) {
-        var G = art.GEO || {}, sw = swapsFor(r, sd), small = G.dish && (w < G.dish.w || h < G.dish.h) && typeof art.dishSmall === 'function';
+        var G = (CA && CA.GEO) || {}, sw = swapsFor(r, sd), small = G.dish && (w < G.dish.w || h < G.dish.h) && typeof art.dishSmall === 'function';
         try { (small ? art.dishSmall : art.dish)(img, clone(L), { herb: sw.herb, recipe: r.id, seed: sd, swaps: sw });
           if (img.w === w && img.h === h && img.d && img.d.length === w * h * 4) return img; }
         catch (e) { /* the painter failed: draw the stub below */ }
@@ -860,7 +893,7 @@ var COOK = (function () {
   var API = {
     VERSION: VERSION, TUNE: TUNE, TUNE_HASH: TUNE_HASH, WORDS: WORDS, RECIPES: RECIPES, PROPS: PROPS, KIND: KIND, BANDS: BANDS,
     hash32: hash32, mulberry32: mulberry32, seedFor: seedFor, runIdFor: runIdFor, stepSeed: stepSeed, fxSeed: fxSeed,
-    recipe: recipe, swapsFor: swapsFor, plateFor: plateFor, betweenOf: betweenOf,
+    recipe: recipe, swapsFor: swapsFor, plateFor: plateFor, betweenOf: betweenOf, TUNE_R: TUNE_R, tuneOf: tuneOf, foodOf: foodOf,
     createRun: createRun, resumeRun: resumeRun, input: input, tick: tick, drain: drain, feed: feed, simulate: simulate,
     lookOf: lookOf, normLook: normLook, resultOf: resultOf, bookLine: bookLine, potOf: potOf, normStore: normStore, bookAdd: bookAdd,
     verb: verb, describe: describe, hintAt: hintAt, drawDish: drawDish
@@ -891,6 +924,17 @@ var COOK = (function () {
   var ART_W = TUNE.stage.w / TUNE.stage.scale, ART_H = TUNE.stage.h / TUNE.stage.scale;
   var FOOD_X = TUNE.food.batter.cx, FOOD_Y = TUNE.food.batter.cy;   /* food centre on the stage (art px) */
   var STATION = { tap: 'counter', flip: 'stove', slice: 'board' };
+  /* 11-18 round 6: a step's station (its own, else its kind's); per recipe what rides over a slide between two stations and
+     onto the plate (jeon: the pan, then the cooked jeon, then the cut jeon) */
+  function stationOf(step) { return (step && step.station) || STATION[step && step.kind] || 'counter'; }
+  var CARRY_R = { jeon: { between: ['pan', 'jeon'], reveal: 'cut' }, jumeokbap: { between: ['pan'], reveal: 'cake' }, kkochi: { between: [], reveal: 'skewer' } };
+  /* the painters of the dish now: jeon -> COOK_ART itself, a new dish -> COOK_ART.dishes[id] (js/cook-dishes.js) or null */
+  function dishArt(id) {
+    var A = art(); if (!A || id === 'jeon' || !id) return A;
+    return A.dishes && A.dishes[id] && typeof A.dishes[id] === 'object' ? A.dishes[id] : null;
+  }
+  /* particles per recipe (COOK_ART.PART kinds; js/cook-dishes.js adds rice and juice) */
+  var PART_R = { jumeokbap: { drop: 'rice', crumb: 'rice' }, kkochi: { drop: 'juice', crumb: 'juice' } };
   var SLIDE_AT = [0.40, 0.75, 0.94];                          /* slide offset per 12 fps frame, as a share of STRIDE */
   var AGAIN_MS = 900;                                         /* the result chip ignores presses until then */
   var SND_FREE = { tap: 1, step: 1, done: 1, pick: 1, quiet: 1 };   /* acts that skip the 120 ms gap (a counted tap is >= 90 ms
@@ -951,7 +995,9 @@ var COOK = (function () {
       if (last != null && p - last < TUNE.sndGapMs) return;
       L.sndAt[snd.act] = p;
     }
-    try { if (window.AUDIO && AUDIO.on) AUDIO.on('cook', clone(snd)); } catch (e) { /* sound is a bonus */ }
+    var out = clone(snd);
+    if (out.act === 'tap' && L.run && L.run.recipe === 'kkochi') out.act = 'place';   /* 11-18: a cube onto the skewer; after the gate (tap is free) */
+    try { if (window.AUDIO && AUDIO.on) AUDIO.on('cook', out); } catch (e) { /* sound is a bonus */ }
   }
   /* 11-15 haptics (spec 7.2): tap (a counted hit, heat-on), flip (the landing frame), cut (a line); round 5 check O-5:
      none on the plate (the owner named only tap, flip and slice for the kitchen). Called in the same handler or on the
@@ -996,7 +1042,8 @@ var COOK = (function () {
   function fxAdd(o, si, at) { o.at = at == null ? L.lastT : at; o.si = si; L.fxq.push(o); if (L.fxq.length > 24) L.fxq.shift(); L.dirty = true; }
   function burst(kind, x, y, lo, hi, spread) {   /* 1 x 1 art px, integer velocities, gravity 1 px per frame^2 */
     if (L.reduced || !L.prng) return;
-    var r = L.prng, n = lo + r() % (hi - lo + 1);
+    var r = L.prng, n = lo + r() % (hi - lo + 1), pm = L.run && PART_R[L.run.recipe];
+    if (pm && pm[kind]) kind = pm[kind];
     for (var i = 0; i < n; i++) L.parts.push({ x: x | 0, y: y | 0, vx: (r() % (2 * spread + 1)) - spread, vy: -1 - (r() % 3), k: kind, life: 4 + r() % 3, at: L.lastT });
     if (L.parts.length > 48) L.parts.splice(0, L.parts.length - 48);
     L.stats.parts += n;
@@ -1135,11 +1182,12 @@ var COOK = (function () {
     L.titleUntil = (run.t0 != null ? run.t0 : L.lastT) + TUNE.titleMs;   /* no title any more: the demo hand still waits for it */
     stripOn(run.si);
     if (L.noSlide) { L.noSlide = false; return; }   /* open, resume and again place the station themselves */
-    var prev = r && e.si > 0 ? r.steps[e.si - 1].kind : null;
-    if (!prev || STATION[prev] === STATION[e.kind]) return;
-    var lk = lookOf(run);
-    if (prev === 'tap') startSlide('counter', 'stove', run.t0, { station: 'counter' }, { station: 'stove', pan: false }, 'pan');
-    else startSlide('stove', 'board', run.t0, { station: 'stove', pan: true, heat: true, band: lk.band }, { station: 'board' }, 'jeon');
+    var prev = r && e.si > 0 ? r.steps[e.si - 1] : null, cur = r && r.steps[e.si];
+    if (!prev || !cur || stationOf(prev) === stationOf(cur)) return;   /* 11-18: kkochi's two board steps do not slide */
+    var lk = lookOf(run), from = stationOf(prev), to = stationOf(cur), cr = (CARRY_R[run.recipe] || CARRY_R.jeon).between[e.si - 1] || null;
+    var outO = from === 'stove' ? { station: 'stove', pan: true, heat: true, band: lk.band } : { station: from };
+    var inO = to === 'stove' ? { station: 'stove', pan: false } : { station: to };
+    startSlide(from, to, run.t0, outO, inO, cr);
   }
   function hideTitle() { if (L.titleUntil) { L.titleUntil = 0; L.dirty = true; } }   /* a press ends the wait for the first-time demo */
   function onStepEnd(e) {
@@ -1155,7 +1203,9 @@ var COOK = (function () {
     L.hint = null; L.parts = []; L.titleUntil = 0;
     fxAdd({ k: 'rise' }, e.si, at); fxAdd({ k: 'shake', from: TUNE.reveal.frames - 1, dx: 0, dy: 1 }, e.si, at);
     stripOn(L.run.n);
-    startSlide('board', 'plate', at, { station: 'board' }, { station: 'plate' }, 'cut');
+    var r = recipe(L.run.recipe), last = r ? stationOf(r.steps[r.steps.length - 1]) : 'board', lk = lookOf(L.run);
+    startSlide(last, 'plate', at, last === 'stove' ? { station: 'stove', pan: true, heat: true, band: lk.band } : { station: last }, { station: 'plate' },
+      (CARRY_R[L.run.recipe] || CARRY_R.jeon).reveal);
     if (L.finished !== L.run.id) finish();
   }
   function finish() {   /* the dish is done: book line (newest first), clear the pot, hand the result to the host */
@@ -1177,12 +1227,14 @@ var COOK = (function () {
   function stationNow() {
     var run = L && L.run;
     if (!run) return 'counter';
-    return run.phase === 'reveal' ? 'plate' : STATION[run.st.kind] || 'counter';
+    if (run.phase === 'reveal') return 'plate';
+    var r = recipe(run.recipe);
+    return stationOf(r && r.steps[Math.min(run.si, r.steps.length - 1)] || run.st);
   }
   function copyBuf(b) { return { w: b.w, h: b.h, d: new Uint8ClampedArray(b.d) }; }
   function baseOf(o) {   /* a still station picture (COOK_ART.base), or null when the art has none */
-    var A = art(); if (typeof A.base !== 'function') return null;
-    var run = L.run, lk = run ? lookOf(run) : {}, b = A.blank(ART_W, ART_H), p = {}, k;
+    var run0 = L.run, A = dishArt(run0 ? run0.recipe : 'jeon') || art(); if (typeof A.base !== 'function') return null;
+    var run = L.run, lk = run ? lookOf(run) : {}, b = art().blank(ART_W, ART_H), p = {}, k;
     for (k in o) p[k] = o[k];
     p.f = 0; p.still = true; p.look = lk; p.herb = run ? run.swaps.herb : 'parae'; p.seed = run ? fxSeed(run.seed, 0) & 0x7fffffff : 0;
     try { A.base(b, p); } catch (e) { return null; }
@@ -1192,7 +1244,7 @@ var COOK = (function () {
      COOK_ART.base the outgoing scene is the last painted frame and the incoming one the live scene, with no carry */
   function startSlide(from, to, t0, outO, inO, carry, snapshot) {
     if (L.reduced) { L.slide = null; return; }
-    var A = art(), out = snapshot || (outO ? baseOf(outO) : null), inb = inO ? baseOf(inO) : null;
+    var A = (L.run && dishArt(L.run.recipe)) || art(), out = snapshot || (outO ? baseOf(outO) : null), inb = inO ? baseOf(inO) : null;
     if (!out) out = copyBuf(L.buf);
     L.slide = { from: from, to: to, t0: t0, out: out, inb: inb, carry: inb && carry && typeof A.carry === 'function' ? carry : null };
     L.stats.slides++; L.dirty = true;
@@ -1251,9 +1303,9 @@ var COOK = (function () {
     layer(V, sl.to, sl.inb || L.buf, ox - s + L.stride, oy, seam, W);
     if (!sl.carry && sl.to === 'counter' && typeof A.view === 'function') overSeam(V, sl.inb || L.buf, ox - s + L.stride, oy, seam);
     if (sl.carry) {
-      var run = L.run, lk = run ? lookOf(run) : {};
+      var run = L.run, lk = run ? lookOf(run) : {}, DA = (run && dishArt(run.recipe)) || A;
       try {
-        A.carry(V, { what: sl.carry, x: ox + FOOD_X, y: oy + FOOD_Y, lift: 2, shadow: true, herb: run ? run.swaps.herb : 'parae',
+        DA.carry(V, { what: sl.carry, x: ox + FOOD_X, y: oy + FOOD_Y, lift: 2, shadow: true, herb: run ? run.swaps.herb : 'parae',
           dents: lk.dents || [], band: lk.band == null ? 1 : lk.band, look: lk, seed: run ? fxSeed(run.seed, 0) & 0x7fffffff : 0 });
       } catch (e) { /* the scenes still slide */ }
     }
@@ -1425,13 +1477,18 @@ var COOK = (function () {
     try { var a = new Uint32Array(2); window.crypto.getRandomValues(a); return a[0].toString(36) + a[1].toString(36); }
     catch (e) { return 'b' + o.book.length; }
   }
+  /* 11-18 round 6 (spec 3.3): which dish. again = the same recipe again. Otherwise a resumable pot WITH progress (si >= 1)
+     always wins, whatever was asked (a two-tab race or a typed ?recipe= never sets progress aside); with a picked recipe
+     (the play-room tray, ?recipe=) an empty pot (si 0) of that recipe resumes and an empty pot of another recipe moves to
+     potOld unchanged; without one any resumable pot wins, else jeon. A pot that cannot resume moves to potOld as before. */
   function begin(isAgain) {
-    var r = RECIPES[0], o = readStore(), day = today(), run = null, pot = null;
+    var want = isAgain && L.run ? L.run.recipe : L.recipe, r = recipe(want) || RECIPES[0], o = readStore(), day = today(), run = null, pot = null;
     o.seen.forEach(function (k) { if (L.seen.indexOf(k) < 0) L.seen.push(k); });
     if (!isAgain && o.pot) {
       run = resumeRun(o.pot);
-      if (run && run.recipe === r.id) pot = clone(o.pot);
-      else {   /* old build, other tune or broken: kept as it was in potOld (newest first), never resumed */
+      var keep = !!run && (run.si >= 1 || !L.recipe || run.recipe === L.recipe);
+      if (run && keep) { pot = clone(o.pot); r = recipe(run.recipe); }
+      else {   /* old build, other tune or broken, or an empty pot of another dish: kept as it was in potOld (newest first) */
         run = null;
         o.potOld = [o.pot].concat(o.potOld || []).slice(0, 4); o.pot = null;
         writeStore(o); L.stats.potOld++;
@@ -1446,7 +1503,8 @@ var COOK = (function () {
       writeStore(o);
     }
     sound({ act: 'pick', dish: r.id });
-    L.run = run; L.runDay = day; L.screen = 'step'; L.shown = false; L.finished = null; L.hintKey = null; L.hint = null; L.nextAt = null;
+    try { D.dlg.setAttribute('aria-label', WORDS.dish[r.id] || WORDS.dish.jeon); } catch (e) { /* label stays */ }
+    L.run = run; L.hitMemo = null; L.runDay = day; L.screen = 'step'; L.shown = false; L.finished = null; L.hintKey = null; L.hint = null; L.nextAt = null;
     L.fxq = []; L.parts = []; L.dust = []; L.down = {}; L.finger = null; L.rowPress = false; L.nudges = 0; L.chipOn = false;
     sticker({ act: 'pick', dish: r.id });   /* here, not beside the sound above: the run (its seed) has to exist first */
     if (L.rec) {   /* a resumed dish keeps its pot: COOK.simulate(recipe, seed, steps, { pot }) replays it */
@@ -1466,7 +1524,8 @@ var COOK = (function () {
     var snap = copyBuf(L.buf);
     unstick();
     if (!begin(true)) return;
-    startSlide('plate', 'counter', L.run.t0, null, null, null, snap);   /* the live tap scene comes in */
+    var r = recipe(L.run.recipe);
+    startSlide('plate', r ? stationOf(r.steps[0]) : 'counter', L.run.t0, null, null, null, snap);   /* the live first scene comes in */
   }
 
   /* ---------- layout (spec 2.2): one art px = k device px; the stage's band of interest sits between HUD and chip ---------- */
@@ -1584,9 +1643,43 @@ var COOK = (function () {
     if (run && run.phase === 'reveal' && !L.reduced) o.t = Math.max(0, Math.floor((t - L.revealAt) / FMS));
     return o;
   }
+  /* 11-18 round 6: the two new dishes paint with COOK_ART.dishes[recipe] (js/cook-dishes.js), the same option shapes as the
+     jeon painters. false for the jeon (paintStage paints it). A missing painter paints the station background only. */
+  function cutOf(J) { var c = J.cut; return c == null ? null : typeof c === 'object' ? c : { i: c, f: 0 }; }   /* K1: null | { i, f } (a number before) */
+  function lastHit(st, t) {   /* the mark hit last and 12 fps frames since (kkochi: which cube squashes or drops) */
+    var m = L.hitMemo, n = st.marks.map(function (k) { return k.n; });
+    if (!m || m.si !== L.run.si || m.id !== L.run.id) m = L.hitMemo = { si: L.run.si, id: L.run.id, n: n.slice(), m: null, at: 0 };
+    for (var i = 0; i < n.length; i++) if (n[i] !== m.n[i]) { if (n[i] > m.n[i]) { m.m = i; m.at = t; } m.n[i] = n[i]; }
+    return m.m === null ? null : { m: m.m, fr: Math.max(0, Math.floor((t - m.at) / FMS)) };
+  }
+  function paintDish(b, J, t, f, fx) {
+    var run = L.run; if (!run || run.recipe === 'jeon') return false;
+    var P = dishArt(run.recipe), st = run.st, lk = lookOf(run), sta = stationNow(), c = cutOf(J);
+    try {
+      if (run.phase === 'reveal') {
+        if (P && P.revealScene) { P.revealScene(b, { geo: 'close', look: lk, f: J.rise, t: fx.t, seed: fx.seed, still: L.reduced }); return true; }
+      } else if (st.kind === 'tap' && P && P.tapScene) {
+        P.tapScene(b, { shape: st.shape, dents: st.dents, marks: st.marks, per: st.per, flash: J.flash, squash: J.squash, dust: L.dust, f: f, look: lk,
+          hit: lastHit(st, t), still: L.reduced });
+        return true;
+      } else if (st.kind === 'flip' && P && P.flipScene) {
+        P.flipScene(b, { heat: st.heat, band: st.band, res: J.arc ? null : st.res, arc: J.arc, dents: run.looks[0] && run.looks[0].dents ? run.looks[0].dents : [],
+          spatula: L.finger && !J.arc ? L.finger : undefined, arrow: st.heat && st.res === null ? (L.reduced ? 0 : (f >> 2) & 1) : null,
+          bump: J.bump, flash: J.flash, still: L.reduced, f: f, seed: fx.seed, fh: fx.fh, fbc: fx.fbc, fl: fx.fl });
+        return true;
+      } else if (st.kind === 'slice' && P && P.sliceScene) {
+        P.sliceScene(b, { lines: st.lines, cur: st.cur, flash: c ? c.i : null, pop: !!(c && c.f === 0), hand: st.hand, f: f, seed: fx.seed, still: L.reduced });
+        return true;
+      }
+    } catch (e) { L.err++; }
+    var A = art(), base = P && typeof P.base === 'function' ? P : A;   /* no painter: the station only */
+    try { base.base(b, { station: sta, pan: sta === 'stove', look: lk }); } catch (e2) { try { A.base(b, { station: 'counter' }); } catch (e3) { /* nothing */ } }
+    return true;
+  }
   function paintStage(b, J, t, bare) {   /* the stage scene into the 144 x 160 buffer; bare: no particles and no hand (slides) */
     var A = art(), run = L.run, f = L.reduced ? 0 : Math.floor(t / FMS), fx = fxNow(run, t);
     if (!run) return;
+    if (paintDish(b, J, t, f, fx)) {} else
     if (run.phase === 'reveal') A.revealScene(b, { geo: 'close', look: lookOf(run), herb: run.swaps.herb, f: J.rise, t: fx.t, seed: fx.seed, still: L.reduced });
     else {
       var st = run.st, herb = run.swaps.herb, d0 = run.looks[0] && run.looks[0].dents ? run.looks[0].dents : [];
@@ -1750,6 +1843,7 @@ var COOK = (function () {
       L = { opener: opts.opener || document.activeElement, day: typeof opts.day === 'string' && DAY_RE.test(opts.day) ? opts.day : null,
         reduced: wantReduced(opts.reduced), slow: Math.max(0.25, Math.min(16, slow)), rec: !!(opts.rec || urlOpt('rec') === '1'),
         seed: seed === undefined || seed === null || seed === '' ? null : toU32(seed),
+        recipe: typeof opts.recipe === 'string' && recipe(opts.recipe) ? opts.recipe : null, hitMemo: null,
         palette: typeof opts.palette === 'string' ? opts.palette.slice(0, 16) : null,
         onResult: opts.onResult, onClose: opts.onClose, after: null, closed: false, closeKbd: false,
         clock: { base: 0, since: document.hidden ? null : performance.now() }, lastT: 0, jf: -1,
