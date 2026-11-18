@@ -2972,7 +2972,7 @@ var SCENE3D = (function () {
       if (to === 'attic' || isRoomP(to)) {
         var g = groupOf(to); if (plG.parent !== g) g.add(plG); fpClear(g);
         var an = to === 'play' ? 'playAtticDoor' : to === 'loft' ? 'loftStair' : to === 'yard' ? 'yardAttic' : from === 'loft' ? 'atticStair' : from === 'yard' ? 'atticYard' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
-        PL.sit = false; PL.hop = null; PL.tbl = false; TB.meBite = null; plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false;
+        PL.sit = false; PL.hop = null; PL.tbl = false; var mb0 = TB.meBite; TB.meBite = null; if (mb0) mb0.done(false); plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false;
         /* 11-18 주인: 돌린 각에서 들어와도 방 안쪽을 본 채 (카메라 쪽으로 돌려 세우던 11-15 규칙은 뺐다) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
       } else { if (plG.parent !== atticG) atticG.add(plG); fpClear(atticG); PL.place = 'attic'; plRest(true); }
     }
@@ -3894,11 +3894,14 @@ var SCENE3D = (function () {
       if (TB.busy()) { TB.queued = { d: d, o: o }; return true; }
       var same = d && TB.dish && TB.dish.id === d.id;
       TB.dish = d; TB.look = d ? d.look : null;
-      if (!same) { TB.n = d ? 4 : 0; TB.eaten = []; TB.crumbs = []; }
+      if (!same) { TB.n = d ? 4 : 0; TB.eaten = []; TB.crumbs = []; TB.beat = ''; TB.beatT = 0; }   /* 새 요리: 문어는 앉은 채 숨쉬기로 (앞 요리의 기울임을 남기지 않는다) */
       TB.appear = d && o.appear && !same && !st.reduced ? 0 : -1; TB.steamT = 0; TB.steamF = -1;
       dishRebuild(); spotLast.table = null; return true;
     }
-    TB.busy = function () { return !!(TB.bite || TB.meBite || TB.oct === 'coming' || TB.oct === 'leaving' || (TB.beat && TB.beat !== 'eat' && TB.beat !== 'watch' && TB.beatT > 0)); };
+    TB.busy = function () {   /* 식사 연출 중 = 걸어오기 · 나가기 · 한입 · 또는 앉아 있는 동안 박자가 시작됐거나 한입이라도 먹었고 조각이 남았다 (§4.3: 새 요리는 마지막 한입 뒤로) */
+      if (TB.bite || TB.meBite || TB.oct === 'coming' || TB.oct === 'leaving') return true;
+      return !!TB.dish && TB.n > 0 && (TB.n < 4 || !!TB.beat) && (!!PL.tbl || TB.oct !== 'none');
+    };
     function tableFlushQueue() { if (TB.queued === undefined || TB.busy()) return; var q = TB.queued; TB.queued = undefined; setTableDish(q.d, q.o); }
     function stepDish(dt) {   /* 나타남 6칸 (12 fps): 2 px 위에서 떨어짐 2 · 눌림 1 · 김 2점 3 → 기다리는 동안 1.5 s 마다 김 2점 (모션 감소: 김 없음) */
       if (!TB.mesh || !TB.dish) return;
@@ -3954,11 +3957,11 @@ var SCENE3D = (function () {
         if (st.reduced || st.hidden || ctxLost()) { var hp = PL.hop; if (hp) { PL.pos.copy(hp.b); PL.sit = false; PL.hop = null; if (hp.done) hp.done(); } }
       });
     }
-    function tableStood() {   /* 일어났다: 빈 접시는 치우고 · 문어는 내려와 나간다 (§4.3 'after') */
-      TB.meBite = null;
+    function tableStood() {   /* 일어났다: 빈 접시는 치우고 · 문어는 내려와 나간다 (§4.3 'after') · 먹던 한입은 false 로 끝 */
+      var mb = TB.meBite; TB.meBite = null; if (mb) mb.done(false);
       if (TB.dish && TB.n <= 0) setTableDish(null);
       if (TB.oct === 'seated' || TB.oct === 'coming') octLeaveTable({});
-      spotLast.table = null;
+      spotLast.table = null; tableFlushQueue();
     }
     function mealBite(who) {   /* 한입 (8칸 · 12 fps — 뻗기 2 · 한입 1 · 씹기 3 · 정착 2; 모션 감소 0.25 s 정지) → Promise<bool> */
       if (!TB.dish || TB.n <= 0) return Promise.resolve(false);
@@ -4079,6 +4082,11 @@ var SCENE3D = (function () {
       var h = TB.held; TB.held = null;
       if (h) { if (h.anchor) { oct.anchor = h.anchor; jumpTo(h.anchor); } else if (h.to) { oct.pos.copy(h.to); snapScreen(octG.position.copy(oct.pos)); } if (h.done) h.done(); if (h.res) h.res(h.val); }
       dither.still = 0; spotLast.table = null; if (cr) cr(false); if (lr) lr(); tableFlushQueue();
+    }
+    function tableLost() {   /* 컨텍스트 잃음: 프레임이 안 돈다 → 걸린 박자 · 한입 Promise 를 지금 푼다 (한입은 false) · 문어는 내려놓는다 */
+      var mb = TB.meBite, bt = TB.bite, ws = TB.waits; TB.meBite = TB.bite = null; TB.waits = [];
+      if (mb) mb.done(false); if (bt) bt.done(false); ws.forEach(function (w) { w.res(); });
+      octTableUnmount();
     }
     function tableHold(kind, a, done, val) {   /* 문어가 식탁에 있는 동안 다락 쪽 이동을 붙잡는다 (마지막 것만) → Promise(val) */
       var prev = TB.held;
@@ -5406,7 +5414,7 @@ var SCENE3D = (function () {
       if (!st.lost || lostTold || document.hidden || typeof opts.onLost !== 'function') return;
       lostTimer = setTimeout(function () { lostTimer = 0; if (!st.lost || lostTold || document.hidden) return; lostTold = true; opts.onLost(); }, 3000);
     }
-    listen(canvas, 'webglcontextlost', function (e) { e.preventDefault(); st.lost = true; if (oct.walking && oct.walking.finish) oct.walking.finish(); dqFinish(); if (SAL.active) salFinishNow(); octTableUnmount(); armLost(); });   /* 문 작업 · 미용실 연출도 지금 끝낸다 (프레임이 안 돌아 Promise 가 걸리지 않게) */
+    listen(canvas, 'webglcontextlost', function (e) { e.preventDefault(); st.lost = true; if (oct.walking && oct.walking.finish) oct.walking.finish(); dqFinish(); if (SAL.active) salFinishNow(); tableLost(); armLost(); });   /* 문 작업 · 미용실 연출도 지금 끝낸다 (프레임이 안 돌아 Promise 가 걸리지 않게) */
     listen(canvas, 'webglcontextrestored', function () { st.lost = false; renderer.shadowMap.needsUpdate = true; armLost(); });
     listen(document, 'visibilitychange', function () { st.hidden = document.hidden; armLost(); if (st.hidden && SAL.active) salFinishNow(); if (!st.hidden) { lastDraw = 0; loop(); } });   /* 탭이 숨으면 미용실 연출은 끝 상태로 (돌아와서 다시 보이지 않는다 — 재생은 결정이 아니다) */
     var ro = null;

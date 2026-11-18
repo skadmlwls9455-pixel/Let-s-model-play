@@ -2,6 +2,8 @@
 
 ## Booth layout (spec §4.1) — first commit
 
+> Updated after the first commit (what the code has now): table x −0.47..−0.06 (was −0.01 — my torso box reaches 0.26 forward), z −1.70..−0.80; the dish spot is the table's front (x −0.265, z −0.99) so neither head hides it; seats are staggered in z so my head does not cover the octopus's face: octopus (−0.95, 0.42, −1.04) yaw 70°, me (0.21, 0.18, −1.36) yaw −90°. The rest below is the first commit's text.
+
 Play-room group coordinates, metres; floor y 0; camera from +x+z. Code: `BOOTH` + `boothParts()` next to `buildPlayRoom` in
 `js/scene3d.js`; `PROOM.boothBox` is the obstacle / hotspot box; the keep box goes into `cutSplit` `keep`.
 

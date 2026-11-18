@@ -6664,6 +6664,7 @@ async function scenarioLoft(browser) {
         var l = Math.max(2, Math.min.apply(null, bx.map(function (x) { return x.art.l; }))), t = Math.max(2, Math.min.apply(null, bx.map(function (x) { return x.art.t; }))), r = Math.min(sc.width - 2, Math.max.apply(null, bx.map(function (x) { return x.art.r; }))), b = Math.min(sc.height - 2, Math.max.apply(null, bx.map(function (x) { return x.art.b; })));
         for (var y = t; y <= b; y += 4) for (var x = l; x <= r; x += 4) {
           var cx = sc.left + x, cy = sc.top + y, tr = S.debugTapTruth(cx, cy); if (tr !== 'stair' && tr !== 'door') continue;
+          if (!S.spotRect(tr === 'stair' ? 'atticStair' : 'atticYard')) continue;   /* 그 단추가 숨은 때 (보이는 조각 8 px 미만 — 장면 가장자리) 는 셀 수 없다 */
           var p = S.pickAt(cx, cy); out[tr][1]++; if (p && p.id === (tr === 'stair' ? 'atticStair' : 'atticYard')) out[tr][0]++;
         }
         return out;

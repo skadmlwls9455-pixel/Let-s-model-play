@@ -649,11 +649,13 @@ function harness() {
       /* 다시: instant 로 앉히고 의식 시작 → 바로 내려놓음 */
       SC.setTableDish({ id: 't8-9', recipe: 'kkochi', look: {} }); sat = null; SC.playerSitTable().then(function (v) { sat = v; }); await until(function () { return sat !== null; }); await go(3);
       var ci = null; SC.octToTable({ instant: true }).then(function (v) { ci = v; }); await go(2); out.instant = [ci, SC.tableInfo().oct];
+      var qb = null; SC.mealBite('me').then(function (v) { qb = v; }); await go(3); SC.setTableDish({ id: 't8-q', recipe: 'jeon', look: {} }); var q1 = SC.tableInfo(); await until(function () { return qb !== null; }); await go(2); var q2 = SC.tableInfo();
+      out.queue = { during: [q1.dish.id, q1.queued], after: [q2.dish.id, q2.queued, q2.pieces], bite: qb };
       SC.setReducedMotion(true); await go(2); var rb = SC.auraInfo('oct').pts.slice(); await go(30); out.auraStill = JSON.stringify(rb) === JSON.stringify(SC.auraInfo('oct').pts); SC.setReducedMotion(false);
       window.__cer8 = 0; SC.departCeremony(function () { window.__cer8++; }); out.cerUnmount = SC.tableInfo().oct;
       await go(2); out.cerGroup = SC.scene.getObjectByName('oct').parent.name;
       /* 출발 의식 동안 바깥의 문어 오라 (화면은 놀이방 — 바깥은 다락으로 돌아가서 본다) */
-      SC.playerStandTable(); await go(30);
+      var sb = 'x'; SC.mealBite('me').then(function (v) { sb = v; }); await go(2); SC.playerStandTable(); await go(30); out.standBite = sb;
       var gb = null; SC.goRoom('attic').then(function (r) { gb = r; }); await until(function () { return gb; }, 900); await go(4);
       await until(function () { var a = SC.auraInfo('oct'); return SC.view() === 'exterior' && a.visible && a.parent === 'exterior'; }, 1500); await go(14);
       out.extAura = { view: SC.view(), oct: SC.auraInfo('oct'), keysSame: keys() === kPre };
@@ -745,6 +747,8 @@ function harness() {
       ok(t8.stand.me === 'none' && Math.abs(t8.stand.at[0] - G.aisles.me[0]) < 0.01 && Math.abs(t8.stand.at[2] - G.aisles.me[1]) < 0.01, 'T8 일어나기 → 내 통로 자리 ' + JSON.stringify(t8.stand));
       ok(JSON.stringify(t8.crateAt) === JSON.stringify(t8.crateRef), 'T8 붙잡은 jumpTo(crate) 는 내려놓은 뒤 다락 crate 앵커에 (' + JSON.stringify(t8.crateAt) + ' = ' + JSON.stringify(t8.crateRef) + ')');
       ok(t8.left.oct === 'none' && t8.left.group === 'attic' && t8.left.held === null && t8.left.dish === null, 'T8 일어나면 문어가 걸어 나가 다락 그룹으로 · 빈 접시 치움 ' + JSON.stringify(t8.left));
+      ok(JSON.stringify(t8.queue.during) === '["t8-9",true]' && t8.queue.after[0] === 't8-9' && t8.queue.after[1] === true && t8.queue.after[2] === 3, 'T8 식사 중(조각이 남은 동안) 새 요리는 미뤄진다 ' + JSON.stringify(t8.queue));
+      ok(t8.standBite === false, 'T8 한입 도중 일어나면 그 한입 Promise 는 false 로 풀린다 (' + t8.standBite + ')');
       ok(t8.endView.join() === 'attic,attic,', 'T8 끝: 다락 (' + t8.endView.join() + ')');
       ok(t8.instant[0] === true && t8.instant[1] === 'seated' && t8.cerUnmount === 'none' && t8.cerGroup !== 'play', 'T8 instant 앉기 · 의식이 시작되면 바로 내려놓음 (' + t8.cerUnmount + ' · 그룹 ' + t8.cerGroup + ')');
     })();
