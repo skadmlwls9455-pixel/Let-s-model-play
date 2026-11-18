@@ -89,8 +89,8 @@ loading-strip tool render is byte-identical (no `sq`). The independent check fou
 
 - `npm test` — pass (all suites; `test-runner` 583 passed).
 - `SMOKE_ONLY=R` — pass (65 + new checks; see the log lines `11-18`).
-- `SMOKE_ONLY=Z` — boot part all pass (14 new checks), the kitchen part passed; the loft part failed 3 checks on the stale `DOWN` pin, now fixed (rerun result below).
-- `SMOKE_ONLY=FM` (new) — 12 passed, 0 failed.
+- `SMOKE_ONLY=Z` — boot part all pass (14 new checks), the kitchen part passed; the loft part failed 3 checks on the stale `DOWN` pin, now fixed: rerun after the fix — 100 ok, 0 FAIL through the whole loft part incl. all mirror-line checks (the rest of Z was still running when I wrapped up; the reviewer saw a "Target page… closed" crash later in Z on both base and head, a load issue of this container).
+- `SMOKE_ONLY=FM,R` after the review fixes — 80 passed, 0 failed (FM 12 incl. the reworked "several walks" check).
 
 For the lead: add nothing to `npm test` (no new test files); CI smoke lists can add `FM`.
 
