@@ -1205,16 +1205,16 @@ section('round 6 K1 (11-18): bell, bigger knife and spatula, the symmetric \'+\'
     check(mir && n > 800, 'cutBuf sep ' + sp2.join(' / ') + ': the left and right quarters mirror each other pixel for pixel (' + n + ' px a side)');
     check(gv.every(function (g) { return g === 2 * sp2[0] + 1; }) && gh.every(function (g) { return g === 2 * sp2[1] + 1; }), 'cutBuf sep ' + sp2.join(' / ') + ': even gaps the whole way, vertical ' + gv.join(',') + ' horizontal ' + gh.join(',') + ' (2 sep + 1)');
   });
-  /* the scenes paint an opened cut as food seen from above: the far wall of a horizontal cut shows its soft inside and its
-     crust (two rows), so there the dark part is 2 sep - 1 rows, measured from the row under the cut (cy + 1) */
+  /* 11-18 (lead follow-up): both arms of the '+' read with the same weight: the dark rows of the horizontal arm equal the
+     dark columns of the vertical arm (3 at rest, 5 on the pop), measured through the cut (cy + 1 / cx) */
   /* sliceScene: the popping line opens to sep 2 on its cut frame, every other cut sits at sep 1 */
   var food = function (c) { return !!FS[c]; };
   var SL = [{ x: 72, y: 86, deg: 90, len: 44, cut: true }, { x: 72, y: 86, deg: 0, len: 64, cut: true }];
   function sl(o) { return paint(K, function (L, b) { L.sliceScene(b, Object.assign({ band: 1, dents: M9, lines: SL, cur: -1, knife: null, f: 0 }, o)); }); }
   var s0 = sl({}), sPop0 = sl({ flash: 0, pop: true }), sPop1 = sl({ flash: 1, pop: true }), sSet = sl({ flash: 0, pop: false });
   function gaps(b) { return [gapAt(b, food, 72, 96, 1, 0), gapAt(b, food, 90, 87, 0, 1)]; }
-  check(same(gaps(s0), [3, 1]) && same(gaps(sPop0), [5, 3]) && same(gaps(sPop1), [3, 5]) && same(gaps(sSet), [3, 3]),
-    'sliceScene: rest 3 / 1 dark; the cut frames light every opened gap (s6) and the pop opens only the new cut to 5 (' + [gaps(s0), gaps(sPop0), gaps(sPop1), gaps(sSet)].map(function (g) { return g.join('/'); }).join(' · ') + ')');
+  check(same(gaps(s0), [3, 3]) && same(gaps(sPop0), [5, 3]) && same(gaps(sPop1), [3, 5]) && same(gaps(sSet), [3, 3]),
+    'sliceScene: rest 3 / 3 (both arms the same dark weight); the pop opens only the new cut to 5 (' + [gaps(s0), gaps(sPop0), gaps(sPop1), gaps(sSet)].map(function (g) { return g.join('/'); }).join(' · ') + ')');
   /* REV2: t <= 4 the board look (sep 1), t 5 sep 2, t >= 6 and rest sep 1; no nudge (gaps even all along) */
   var LOOK0 = { v: 1, dents: M9, band: 2, cuts: [0, 0], offs: [0, 0], plate: 1 };
   function rv(t) { return paint(K, function (L, b) { L.revealScene(b, { geo: 'close', look: LOOK0, t: t, seed: 3 }); }); }
@@ -1223,13 +1223,15 @@ section('round 6 K1 (11-18): bell, bigger knife and spatula, the symmetric \'+\'
     var b = rv(t), up = t === 3 ? -2 : 0; rvG[t] = [[-12, -6, 8, 13].map(function (d) { return gapAt(b, food, G2.jcx, G2.jcy + d, 1, 0); }), [-20, -10, 10, 20].map(function (d) { return gapAt(b, food, G2.jcx + d, G2.jcy + 1 + up, 0, 1); })];
   });
   function all(a, v) { return a.every(function (g) { return g === v; }); }
-  check(all(rvG[null][0], 3) && all(rvG[null][1], 1) && all(rvG[6][0], 3) && all(rvG[6][1], 1) && all(rvG[40][0], 3), 'REV2 at rest (t null, 6, 40): four equal quarters, sep 1 all along (' + JSON.stringify(rvG[null]) + ')');
-  check(all(rvG[5][0], 5) && all(rvG[5][1], 3), 'REV2 t 5 (landing): the quarters part to sep 2 (' + JSON.stringify(rvG[5]) + ')');
-  check(all(rvG[3][0], 3) && all(rvG[3][1], 1), 'REV2 t 3 (carried): the board look, sep 1 (' + JSON.stringify(rvG[3]) + ')');
+  check(all(rvG[null][0], 3) && all(rvG[null][1], 3) && all(rvG[6][0], 3) && all(rvG[6][1], 3) && all(rvG[40][0], 3) && all(rvG[40][1], 3), 'REV2 at rest (t null, 6, 40): four equal quarters, sep 1 all along (' + JSON.stringify(rvG[null]) + ')');
+  check(all(rvG[5][0], 5) && all(rvG[5][1], 5), 'REV2 t 5 (landing): the quarters part to sep 2 (' + JSON.stringify(rvG[5]) + ')');
+  check(all(rvG[3][0], 3) && all(rvG[3][1], 3), 'REV2 t 3 (carried): the board look, sep 1 (' + JSON.stringify(rvG[3]) + ')');
+  check(gaps(s0)[0] === gaps(s0)[1] && gaps(sPop0)[0] === gaps(sPop1)[1] && same(rvG[null][0], rvG[null][1]) && same(rvG[5][0], rvG[5][1]),
+    'the horizontal arm\'s dark rows equal the vertical arm\'s dark columns: board at rest, plate at rest and at the landing');
   /* dish(): the counter / notebook picture, symmetric too (no nudge, no half) */
   var dsh = (function () { var b = K.blank(96, 66); K.dish(b, LOOK0, { herb: 'parae' }); return b; })(), DG = { jcx: 48, jcy: 29 };
   var dv = [-12, -6, 8, 13].map(function (d) { return gapAt(dsh, food, DG.jcx, DG.jcy + d, 1, 0); }), dhz = [-20, -10, 10, 20].map(function (d) { return gapAt(dsh, food, DG.jcx + d, DG.jcy + 1, 0, 1); });
-  check(all(dv, 3) && all(dhz, 1), 'dish(): four equal quarters, sep 1 all along (no nudge): ' + dv.join(',') + ' / ' + dhz.join(','));
+  check(all(dv, 3) && all(dhz, 3), 'dish(): four equal quarters, sep 1 all along (no nudge): ' + dv.join(',') + ' / ' + dhz.join(','));
   var srcArt = fs.readFileSync(ART, 'utf8');
   check(!/nudge:\s*1/.test(srcArt.slice(srcArt.indexOf('var DISHG'), srcArt.indexOf('var DISHG') + 400)) && !/half:\s*1,\s*nudge:\s*1,\s*gap/.test(srcArt), 'DISHG and the REV2 close-up carry no nudge and no half');
 })();
