@@ -235,16 +235,6 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
 - **검사**: `tools/test-scene-perf.js` T6 (`docs/SALON.md` §9.4) — 단추 · 톡 차례 · 유리 60 % · 드로우콜 · 셰이더 그대로 · Promise · 끝 색 · 초상 · 모션 감소 · 화면 밖 · `ponder` · `still` · 코너 밖 픽셀 0 · 등불 8칸 선반이 아치를 안 덮음 · 밤 유리 · 맑은 물 · 병 · 물 색상 ±25° (6색 × 낮 · 밤) · 되돌림.
 - **v2 (나중)**: 대야 속 잠수. 맞는 값은 `docs/SALON.md` §2.1 끝.
 
-## 데모 패널 (`<details id=demo>` 안, localStorage `ppolppol_look`)
-픽셀 1–4 · 디더 0–1(배율: 0.25 = 램프 0.4 칸 / 평지 0.05 칸, 룩 패스 5) · 외곽선 on/off · 시점 −25°~25° · **키 광 0.5–4 · 필 광 0–1**(낮 태양·헤미 세기, 키/필 비율 표시) · 팔레트 칩 4갈래(`settings.palette`, 설정 시트의 개발 모드 줄과 같은 칩) · 팔레트 스와치 줄(검증 팔레트는 8칸씩 + 문어 램프). 2D 모드에서는 "적용 안 돼" 안내만. `setLook` 은 추가로 `zoom`(0..3 단계)·`focus`(`'oct'` = 문어 중심) 를 받는다 — `tools/look-shots.js` 의 close 샷용(4번째 인자 yaw 로 요 9° 비교 샷 `<pass>-y9-*`). 테스트 훅 `window.__ppolLook = { hour, lantern, weather, octState, anchor, palette, key, fill }` 는 있을 때만 APP 이 읽는다(`palette`·`key`·`fill` 은 저장하지 않고 장면에만).
-
-## 성능 · 접근성 · 폴백
-- 기본 p=2 (178×162 타깃, 자동 폴백 p=3 — 위 "공간·카메라"), `antialias:false`, `setPixelRatio(1)`, 섀도맵 2048 PCF(태양만, `autoUpdate` 끄고 뷰티 패스에서만 갱신, 카메라는 방에 꼭 맞춤), 정적 방 = 2메시(`room` + 그림자 안 던지는 `roomHi`) + 보이지 않는 차폐 1메시, 가만히 있을 땐 30 fps, `document.hidden` 이면 rAF 정지, dt ≤ 0.1 s, `destroy()` 가 RT·기하·재질·텍스처 해제 + `forceContextLoss`.
-- 모션 감소(설정 또는 OS): 숨쉬기·흔들림·비 정지, 먼지 숨김, 양초 불꽃 깜빡임 정지(중간값), `moveTo` 즉시, 디더 0, 색 전환은 유지.
-- WebGL/THREE 없음 또는 `init` 예외 → `SCENE2D`(js/scene2d.js, 1차 구현의 인라인 SVG 레이어 + DOM 문어)가 같은 API(`setCarry`, `jumpTo`, `lookAt`, `setLook`, `palette`, `stats`, `refresh`, `setReducedMotion` 확장 포함 · 8물결 방 API 포함)로 받는다. 놀이방에 있다가 컨텍스트를 잃어 2D 로 내려가면 앱이 쪽지 · 단추를 걷고 2D 는 문어 방에서 다시 시작한다 (장면 `destroy()` 와 앱이 `#oct` 의 인라인 `display:none` 을 걷어 문어 · 이름표 · 말풍선도 다시 보인다). 두 장면 모두 호스트에 `data-items`, `data-posters` 를 쓴다(스모크가 본다).
-- 한 화면 배치 증거: `node tools/layout-shots.js` → `tests/evidence/layout/one-*.png` + 좌표 검사 (조작 안 겹침 · 스크롤 없음 · `frameY` · 픽셀 2 · `autoMs ≤ 24`).
-- 증거: `node tools/evidence3d.js` → `tests/evidence/3d-{lantern0-night,lantern4-day,lantern8-night-clear,pet,away,dark-ui}.png` + 순도·드로우콜·에러 0 검사.
-
 ## 11-18 바뀐 것 (주인이 플레이하며 말한 불편 — `docs/next/owner-2026-11-18.md`)
 - **다락 계단**: 뒷벽 오른쪽 구석 (마당 문간 바로 옆) → **왼벽 앞쪽 구석** `STAIR { x0 −2.32, x1 −1.50, z0 2.78, z1 3.44 }` (발치 x1 에서 왼벽 쪽으로 오른다, 앵커 `atticStair` = (x1 + 0.32, 3.11)).
   **발치에서만** 오른다: 발치 칸 (계단 앞 0.5 m · 계단 폭) 에서 −x 로 밀 때 — 옆면에 붙어 밀어서는 안 오른다 (위층의 계단 구멍은 예전처럼 어느 쪽에서든).
@@ -267,3 +257,13 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
   그동안 앱 (`stickShow`) 은 쥐고 있던 손가락 · 키를 놓지 않고 (스틱 그림만 숨김 · 누르는 구역은 남김) 도착하면 쥐고 있던 값을 다시 보낸다. 그 밖의 막힘 (창 · 가구 모드 · 바깥 · 연출) 은 예전처럼 다 놓는다.
 - **마당은 가운데 따라오기**: 스틱으로 걷는 동안 캐릭터가 화면 가운데에서 `YARD_FOLLOW` (가로 0.8 · 세로 1.0 m) 넘게 벗어나면 민다 (방은 가장자리 1.1 m 에 닿을 때만 — 예전 그대로).
   위층에서 내려와 다락 계단 발치에 서면 계단 몸까지 보이게 한 번 따라간다 (1.5 m).
+
+## 데모 패널 (`<details id=demo>` 안, localStorage `ppolppol_look`)
+픽셀 1–4 · 디더 0–1(배율: 0.25 = 램프 0.4 칸 / 평지 0.05 칸, 룩 패스 5) · 외곽선 on/off · 시점 −25°~25° · **키 광 0.5–4 · 필 광 0–1**(낮 태양·헤미 세기, 키/필 비율 표시) · 팔레트 칩 4갈래(`settings.palette`, 설정 시트의 개발 모드 줄과 같은 칩) · 팔레트 스와치 줄(검증 팔레트는 8칸씩 + 문어 램프). 2D 모드에서는 "적용 안 돼" 안내만. `setLook` 은 추가로 `zoom`(0..3 단계)·`focus`(`'oct'` = 문어 중심) 를 받는다 — `tools/look-shots.js` 의 close 샷용(4번째 인자 yaw 로 요 9° 비교 샷 `<pass>-y9-*`). 테스트 훅 `window.__ppolLook = { hour, lantern, weather, octState, anchor, palette, key, fill }` 는 있을 때만 APP 이 읽는다(`palette`·`key`·`fill` 은 저장하지 않고 장면에만).
+
+## 성능 · 접근성 · 폴백
+- 기본 p=2 (178×162 타깃, 자동 폴백 p=3 — 위 "공간·카메라"), `antialias:false`, `setPixelRatio(1)`, 섀도맵 2048 PCF(태양만, `autoUpdate` 끄고 뷰티 패스에서만 갱신, 카메라는 방에 꼭 맞춤), 정적 방 = 2메시(`room` + 그림자 안 던지는 `roomHi`) + 보이지 않는 차폐 1메시, 가만히 있을 땐 30 fps, `document.hidden` 이면 rAF 정지, dt ≤ 0.1 s, `destroy()` 가 RT·기하·재질·텍스처 해제 + `forceContextLoss`.
+- 모션 감소(설정 또는 OS): 숨쉬기·흔들림·비 정지, 먼지 숨김, 양초 불꽃 깜빡임 정지(중간값), `moveTo` 즉시, 디더 0, 색 전환은 유지.
+- WebGL/THREE 없음 또는 `init` 예외 → `SCENE2D`(js/scene2d.js, 1차 구현의 인라인 SVG 레이어 + DOM 문어)가 같은 API(`setCarry`, `jumpTo`, `lookAt`, `setLook`, `palette`, `stats`, `refresh`, `setReducedMotion` 확장 포함 · 8물결 방 API 포함)로 받는다. 놀이방에 있다가 컨텍스트를 잃어 2D 로 내려가면 앱이 쪽지 · 단추를 걷고 2D 는 문어 방에서 다시 시작한다 (장면 `destroy()` 와 앱이 `#oct` 의 인라인 `display:none` 을 걷어 문어 · 이름표 · 말풍선도 다시 보인다). 두 장면 모두 호스트에 `data-items`, `data-posters` 를 쓴다(스모크가 본다).
+- 한 화면 배치 증거: `node tools/layout-shots.js` → `tests/evidence/layout/one-*.png` + 좌표 검사 (조작 안 겹침 · 스크롤 없음 · `frameY` · 픽셀 2 · `autoMs ≤ 24`).
+- 증거: `node tools/evidence3d.js` → `tests/evidence/3d-{lantern0-night,lantern4-day,lantern8-night-clear,pet,away,dark-ui}.png` + 순도·드로우콜·에러 0 검사.
