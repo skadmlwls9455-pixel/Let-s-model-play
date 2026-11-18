@@ -185,8 +185,14 @@ var APP = (function () {
     clearTimeout(rowTimer); rowWait = null; toastRow = false; t.classList.remove('row');   /* 보통 알림이 새 줄 알림을 밀어낸다 (거꾸로는 아니다 — rowToast) */
     var moved = raiseToast(t);
     if (moved && !t.classList.contains('show')) void t.offsetWidth;   /* 옮긴 직후에도 나타나는 전환이 돌게 */
-    t.textContent = ''; (Array.isArray(msg) ? msg : partRaw(msg, raw && raw.part, raw && raw.by)).forEach(function (n) { if (n != null) t.appendChild(typeof n === 'string' ? document.createTextNode(n) : n); }); toastPlace(t); t.classList.add('show'); if (window.UIART && UIART.snapLeft) UIART.snapLeft(t);   /* 11-15 (UI 점검): 글 시작을 기기 px 에 */
+    t.textContent = ''; (Array.isArray(msg) ? msg : partRaw(msg, raw && raw.part, raw && raw.by)).forEach(function (n) { if (n != null) t.appendChild(typeof n === 'string' ? document.createTextNode(n) : n); }); toastPlace(t); t.classList.add('show'); toastSnap(t);   /* 11-15 (UI 점검): 글 시작을 기기 px 에 */
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2500);
+  }
+  /* 알림 글 시작을 기기 px 에 (UIART.snapLeft) — 11-18: 글 뒤에 오는 조개 그림 + 수 (.shell-amt) 도 따로 맞춘다. 앞 글 ('오늘 선물: ') 의 폭이 기기 px 정수가 아닌 환경
+     (글자 폭을 CSS px 로 반올림하는 곳 — CI 기계가 그렇다: 100 CSS px = 262.5 기기 px @2.625) 에선 그림과 수가 반 px 에 걸려 흐렸다. 그림 32 + 여백 4 + 틈 4 = 40 CSS px 라 묶음의 시작만 맞추면 수도 맞는다 */
+  function toastSnap(t) {
+    if (!window.UIART || !UIART.snapLeft) return;
+    UIART.snapLeft(t); [].forEach.call(t.querySelectorAll('.shell-amt'), function (a) { UIART.snapLeft(a); });
   }
   /* 모달 <dialog> 가 열려 있으면 그 밖은 inert 라 토스트가 대화상자 밑에 깔리고 화면 낭독기에도 안 읽힌다 (복사·저장·불러오기 결과).
      → 열린 대화상자 안으로 옮기고 popover(최상층)로 띄운다. popover 가 없는 브라우저는 대화상자 안(최상층)이라 그대로 위에 보인다. 닫히면 body 로 (bindDialogs) → 옮겼으면 true */
@@ -195,7 +201,7 @@ var APP = (function () {
     var host = openDialog() || document.body, moved = t.parentNode !== host;
     if (moved) host.appendChild(t);   /* 옮기면 열려 있던 popover 는 저절로 닫힌다 */
     if (host !== document.body && typeof t.showPopover === 'function') { try { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } catch (e) { /* popover 속성 없음 등: 대화상자 안이라 그대로 보인다 */ } }
-    if (moved && t.classList.contains('show') && window.UIART && UIART.snapLeft) UIART.snapLeft(t);   /* 11-18: 떠 있는 채로 옮겼으면 글 시작을 옮긴 자리에서 다시 기기 px 에 (옮기기 전에 잰 몫이 그대로 남았다) */
+    if (moved && t.classList.contains('show')) toastSnap(t);   /* 11-18: 떠 있는 채로 옮겼으면 글 시작을 옮긴 자리에서 다시 기기 px 에 (옮기기 전에 잰 몫이 그대로 남았다) */
     return moved;
   }
   /* ── 저장소: localStorage 감지 → 없으면 메모리 (조용히 한 줄). QuotaExceeded 는 오래된 여행의 이벤트를 뺀 저장용 사본으로 다시 시도 — 메모리의 기록은 그대로 (R2–R5) ── */
@@ -704,7 +710,7 @@ var APP = (function () {
     var moved = raiseToast(t); if (moved && !t.classList.contains('show')) void t.offsetWidth;
     t.textContent = ''; t.classList.add('row');
     if (src) { var ic = src.cloneNode(true); ic.setAttribute('class', 't-ico'); ic.setAttribute('width', '16'); ic.setAttribute('height', '16'); ic.setAttribute('aria-hidden', 'true'); t.appendChild(ic); }
-    t.appendChild(body); toastRow = true; toastPlace(t); t.classList.add('show'); if (window.UIART && UIART.snapLeft) UIART.snapLeft(t);   /* 11-15 (UI 점검): 글 시작을 기기 px 에 */
+    t.appendChild(body); toastRow = true; toastPlace(t); t.classList.add('show'); toastSnap(t);   /* 11-15 (UI 점검): 글 시작을 기기 px 에 */
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); toastRow = false; }, 2500);
   }
   /* 알림 자리: 기본은 바닥 줄 바로 위(--stack-b). 떠 있는 대사 · '돌아왔어' 쪽지와 겹치면 그 위로 올린다 (--toast-b).
