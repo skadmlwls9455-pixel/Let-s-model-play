@@ -2016,10 +2016,21 @@ async function runnerCrisp(br) {
         };
       });
     });
-    var mt = await D.page.evaluate(RN_STARTS), tt = await D.page.evaluate(function () { var t = document.getElementById('toast'); return { inside: !!t.closest('#runner-dlg'), show: t.classList.contains('show'), text: t.textContent, left: Math.round(t.getBoundingClientRect().left * 1000) / 1000, snap: t.style.translate || '' }; });
+    var TOAST_DIAG = function () {   /* 알림 안의 자리 (기기 px): 글 줄 · 조개 그림 · 틈 — 어긋나면 어디서 어긋났는지 로그에 남게 */
+      var t = document.getElementById('toast'), d = devicePixelRatio, r3 = function (v) { return Math.round(v * 1000) / 1000; }, runs = [], w = document.createTreeWalker(t, NodeFilter.SHOW_TEXT);
+      for (var n = w.nextNode(); n; n = w.nextNode()) { var e = n.parentElement; if (!n.textContent.trim()) continue; var rg = document.createRange(); rg.selectNodeContents(n); [].forEach.call(rg.getClientRects(), function (r) { runs.push([n.textContent.trim().slice(0, 6), e.className || e.id, r3(r.left * d), r3(r.width * d), getComputedStyle(e).position]); }); }
+      var ic = t.querySelector('.shell-ico'), am = t.querySelector('.shell-amt'), ir = ic && ic.getBoundingClientRect(), ar = am && am.getBoundingClientRect(), ics = ic && getComputedStyle(ic), tr = t.getBoundingClientRect(), tc = getComputedStyle(t);
+      return { inside: !!t.closest('#runner-dlg'), show: t.classList.contains('show'), text: t.textContent, left: r3(tr.left), snap: t.style.translate || '', box: [r3(tr.left * d), r3(tr.width * d)], pad: tc.paddingLeft, bord: tc.borderLeftWidth, fs: tc.fontSize, ff: tc.fontFamily.slice(0, 10),
+        font9: document.fonts.check(tc.fontSize + ' Galmuri9'), runs: runs,
+        ico: ic ? { x: r3(ir.left * d), w: r3(ir.width * d), m: ics.marginLeft + ' ' + ics.marginRight, disp: ics.display, done: ic.complete, nat: ic.naturalWidth, src: String(ic.getAttribute('src')).slice(0, 40) } : null,
+        amt: am ? { x: r3(ar.left * d), w: r3(ar.width * d), gap: getComputedStyle(am).gap, disp: getComputedStyle(am).display, kids: am.children.length } : null };
+    };
+    var mt = await D.page.evaluate(RN_STARTS), tt = await D.page.evaluate(TOAST_DIAG);
     var tr9 = mt.runs.filter(function (r) { return r.id === 'toast'; });
     ok(tt.inside && tt.show && /선물/.test(tt.text) && tr9.length >= 3, 'R-9 떠 있던 알림은 열린 달리기 창 안으로 옮겨져 그대로 보인다 (' + JSON.stringify(tt) + ' · 글 ' + tr9.length + '줄)');
     crisp({ runs: tr9, font: mt.font, dpr: mt.dpr }, 'R-9 412×915 @2.625 달리기 창 안으로 옮겨진 알림');   /* 알림 글만 — 창의 글은 준비가 끝난 뒤 아래에서 잰다 */
+    await D.page.waitForTimeout(700);
+    var tt2 = await D.page.evaluate(TOAST_DIAG); console.log('   R-9 0.7 s 뒤: ' + JSON.stringify({ runs: tt2.runs, ico: tt2.ico, amt: tt2.amt, show: tt2.show }));
     await readyHand(D.page);
     await D.page.touchscreen.tap(100, 360);
     await D.page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: 20000 });
