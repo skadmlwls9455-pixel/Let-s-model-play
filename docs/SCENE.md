@@ -235,6 +235,9 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
 - **검사**: `tools/test-scene-perf.js` T6 (`docs/SALON.md` §9.4) — 단추 · 톡 차례 · 유리 60 % · 드로우콜 · 셰이더 그대로 · Promise · 끝 색 · 초상 · 모션 감소 · 화면 밖 · `ponder` · `still` · 코너 밖 픽셀 0 · 등불 8칸 선반이 아치를 안 덮음 · 밤 유리 · 맑은 물 · 병 · 물 색상 ±25° (6색 × 낮 · 밤) · 되돌림.
 - **v2 (나중)**: 대야 속 잠수. 맞는 값은 `docs/SALON.md` §2.1 끝.
 
+## 데모 패널 (`<details id=demo>` 안, localStorage `ppolppol_look`)
+픽셀 1–4 · 디더 0–1(배율: 0.25 = 램프 0.4 칸 / 평지 0.05 칸, 룩 패스 5) · 외곽선 on/off · 시점 −25°~25° · **키 광 0.5–4 · 필 광 0–1**(낮 태양·헤미 세기, 키/필 비율 표시) · 팔레트 칩 4갈래(`settings.palette`, 설정 시트의 개발 모드 줄과 같은 칩) · 팔레트 스와치 줄(검증 팔레트는 8칸씩 + 문어 램프). 2D 모드에서는 "적용 안 돼" 안내만. `setLook` 은 추가로 `zoom`(0..3 단계)·`focus`(`'oct'` = 문어 중심) 를 받는다 — `tools/look-shots.js` 의 close 샷용(4번째 인자 yaw 로 요 9° 비교 샷 `<pass>-y9-*`). 테스트 훅 `window.__ppolLook = { hour, lantern, weather, octState, anchor, palette, key, fill }` 는 있을 때만 APP 이 읽는다(`palette`·`key`·`fill` 은 저장하지 않고 장면에만).
+
 ## 11-18 바뀐 것 (주인이 플레이하며 말한 불편 — `docs/next/owner-2026-11-18.md`)
 - **다락 계단**: 뒷벽 오른쪽 구석 (마당 문간 바로 옆) → **왼벽 앞쪽 구석** `STAIR { x0 −2.32, x1 −1.50, z0 2.78, z1 3.44 }` (발치 x1 에서 왼벽 쪽으로 오른다, 앵커 `atticStair` = (x1 + 0.32, 3.11)).
   **발치에서만** 오른다: 발치 칸 (계단 앞 0.5 m · 계단 폭) 에서 −x 로 밀 때 — 옆면에 붙어 밀어서는 안 오른다 (위층의 계단 구멍은 예전처럼 어느 쪽에서든).
@@ -268,9 +271,6 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
   - 아직 안 한 것: 길 끝 너머 (마을 · 해변) · 비 · 눈 · 낙엽 입자가 화면을 따라오기 (지금은 마당 둘레에만) · 2D 폴백 · 빈터의 꾸밈 (덤불 · 꽃 · 돌) · 스모크. 시험: `tools/test-light.js` L8.
 - **`debugSim(dt, n)` (시험용)**: n 프레임을 그리지 않고 민다 (걷기 · 따라오는 화면 · 단추 자리는 다 돌고 렌더 패스만 건너뛴다 — 화면 밖일 때와 같은 길 · dt ≥ 0.04 s). 그린 화면이 필요하면 뒤에 `debugStep` 한 번.
   소프트웨어 렌더 (시험 · CI) 에서 `debugStep` 을 한 번의 호출 안에서 수백 번 이어 부르면 그릴 것이 밀려 바로 뒤의 캡처가 제한 시간을 넘긴다 (11-18: CI 에서 L8 이 그렇게 멈췄다 — 한 코어로 묶어 돌리면 로컬에서도 재현).
-
-## 데모 패널 (`<details id=demo>` 안, localStorage `ppolppol_look`)
-픽셀 1–4 · 디더 0–1(배율: 0.25 = 램프 0.4 칸 / 평지 0.05 칸, 룩 패스 5) · 외곽선 on/off · 시점 −25°~25° · **키 광 0.5–4 · 필 광 0–1**(낮 태양·헤미 세기, 키/필 비율 표시) · 팔레트 칩 4갈래(`settings.palette`, 설정 시트의 개발 모드 줄과 같은 칩) · 팔레트 스와치 줄(검증 팔레트는 8칸씩 + 문어 램프). 2D 모드에서는 "적용 안 돼" 안내만. `setLook` 은 추가로 `zoom`(0..3 단계)·`focus`(`'oct'` = 문어 중심) 를 받는다 — `tools/look-shots.js` 의 close 샷용(4번째 인자 yaw 로 요 9° 비교 샷 `<pass>-y9-*`). 테스트 훅 `window.__ppolLook = { hour, lantern, weather, octState, anchor, palette, key, fill }` 는 있을 때만 APP 이 읽는다(`palette`·`key`·`fill` 은 저장하지 않고 장면에만).
 
 ## 성능 · 접근성 · 폴백
 - 기본 p=2 (178×162 타깃, 자동 폴백 p=3 — 위 "공간·카메라"), `antialias:false`, `setPixelRatio(1)`, 섀도맵 2048 PCF(태양만, `autoUpdate` 끄고 뷰티 패스에서만 갱신, 카메라는 방에 꼭 맞춤), 정적 방 = 2메시(`room` + 그림자 안 던지는 `roomHi`) + 보이지 않는 차폐 1메시, 가만히 있을 땐 30 fps, `document.hidden` 이면 rAF 정지, dt ≤ 0.1 s, `destroy()` 가 RT·기하·재질·텍스처 해제 + `forceContextLoss`.

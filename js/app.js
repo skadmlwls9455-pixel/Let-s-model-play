@@ -2117,7 +2117,7 @@ var APP = (function () {
     });
     if (redo || (sm && sm.changed) || (mm && mm.changed)) save();
     applyLook({ still: true });   /* 다른 탭이 바꾼 몸 색을 따라간다 (산책 중에도 — 다시 그리기는 끝난 뒤지만 몸색은 바로. 미용실 연출 중이면 끝난 뒤) */
-    if (dyeIn && !(redo || (sm && sm.changed))) save();   /* 11-18: 옛 빌드 탭의 색을 받아들였으면 적어 둔다 (위 저장 줄이 이미 저장했으면 또 하지 않는다) */
+    if (dyeIn && !(redo || (sm && sm.changed) || (mm && mm.changed))) save();   /* 11-18: 옛 빌드 탭의 색을 받아들였으면 적어 둔다 (위 저장 줄이 이미 저장했으면 또 하지 않는다) */
     return true;
   }
   /* 다른 탭의 기록을 받아 다시 그린다 (storage 이벤트) → 받았으면 true */
