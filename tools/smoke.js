@@ -2852,7 +2852,7 @@ async function scenarioFirstColor(browser) {
     "미용실 전 기록: 지금 색(옛 설정 색 #c06040) 그대로 { how: 'first', by: 'migrated', at: born, date: null } · 장면도 그 색 · 이름 창 없음");
   var s4 = await pd.evaluate(function () { APP.openSettings(); var b = document.getElementById('set-body'), o = { h: (document.getElementById('set-color-h') || {}).textContent, line: (document.getElementById('set-color') || {}).textContent, dev: !!document.getElementById('set-color-dev'), hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.preset').length, who: (document.getElementById('set-who') || {}).textContent }; return o; });
   ok(s4.h === '문어 색' && s4.line === '거울 앞에서 옛문어에게 물어볼 수 있어.' && !s4.dev && !s4.hue && s4.presets === 0, "설정 (등불 3칸 · 배포 주소): '문어 색' + 안내 한 줄뿐 · 색 슬라이더 · 프리셋 · 개발용 칸 없음 " + JSON.stringify(s4));
-  ok(s4.who === '지금은 모델이 아니라 미리 만든 규칙이 골라. 고른 이는 포스터와 쪽지 뒷면, 미용실 줄에 적혀.', "설정 '누가 고르나': 고른 이는 포스터와 쪽지 뒷면, 미용실 줄에 (" + s4.who + ')');
+  ok(s4.who === '지금은 모델이 아니라 미리 만든 규칙이 골라. 고른 이는 포스터와 쪽지 뒷면, 미용실 · 식탁 줄에 적혀.', "설정 '누가 고르나': 고른 이는 포스터와 쪽지 뒷면, 미용실 · 식탁 줄에 (" + s4.who + ')');   /* 11-18 식탁 줄 */
   await resetTwice(pd);
   await pd.waitForSelector('#name-dialog[open]', { timeout: 10000 });
   await pd.waitForTimeout(200);
@@ -7481,6 +7481,230 @@ async function scenarioTurn(browser) {
   ok(bag.length === 0, 'CAM 페이지 에러 없음' + (bag.length ? ' — ' + bag.slice(0, 3).join(' | ') : ''));
   await ctx.close();
 }
+/* ───────── EAT. 11-18 식탁 (lane M · docs/MEAL.md · wip/round6/eat-spec.md §4.3–§6) ─────────
+   기다리는 해초전 → 놀이방 → 식탁 → 앉기 → 부르기 칩 (이름 · 글자 0 · title 없음 · 44 px) → 문어가 와서 앉음 → 생각 '…' 이 보이고 소리 없음 → 알림 '데모 규칙' →
+   한 입씩 → 효과 둘 (처음 = 먹기) → 기록 (table null · meals 하나: ask + ate) → 연출 중 오락기 · 조리대가 아무것도 안 함 → 앉은 채 둘째 요리: 문어 위 칩 · 걸어오지 않음 →
+   새로고침: 효과 그대로 → 다음 날: 효과 없음 · 기록 그대로 → 혼자 먹기 (식사 행만) → 자는 문어: 칩 없음 · 저장 없음 → 다른 탭이 쉬는 차례를 끝냄 + 숨김 · 보임:
+   식탁에서 잠들지 않고 다락 자리로 뛰지 않음 · 떠난 뒤에 잠 → 두 탭 (다른 탭에 효과) → 모션 줄이기 → ?scene=2d (식탁 UI 없음 · 에러 0).
+   lane D 의 식탁이 아직 없는 장면이면 tools/meal-stub-scene.js 대역으로 돈다 (그림 없이 상태 · 부른 기록만 — 로그에 '대역' 이라고 적는다).
+   부엌 result 글은 APP.mealDish 로 대신 넣는다 (K2 의 cookMsg 가 부르는 것과 같은 함수) */
+async function scenarioEat(browser) {
+  console.log('\n== EAT. 식탁: 앉기 · 부르기 · 데모 대답 · 한 입씩 · 효과 · 하루 · 혼자 · 잠 · 두 탭 · 모션 줄이기 · 2D');
+  var bag = []; bag.ignored = [];
+  var BORN = 1762600000000, D1 = '2026-11-18', D2 = '2026-11-19';
+  var STUB = { path: path.join(ROOT, 'tools/meal-stub-scene.js') };
+  var appSrc = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+  var cookGuarded = (appSrc.match(/typeof mealBusy === 'function' && mealBusy\(\)\) return false;/g) || []).length >= 2;   /* K2 의 openCook 줄이 들어왔나 */
+  function dish(id, recipe) { return { ppolCook: 'result', v: 1, id: id, recipe: recipe || 'jeon', seed: 5, look: { band: 1, plate: 0 }, day: D1 }; }
+  function REC(o) {
+    o = o || {};
+    return { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 2, days: ['2026-11-16', '2026-11-17'], affinity: {}, visits: {}, state: 'idle', color: '#4a86d8',
+      colors: [{ at: BORN, date: '2026-11-06', color: '#4a86d8', how: 'first', by: 'player' }] }, room: { lantern: 2, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
+      settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: '#4a86d8', flipped: false, pixelFont: true, albumSeen: 0 },
+      user: { table: o.table === undefined ? { v: 1, id: 'ck_first', recipe: 'jeon', seed: 5, look: { band: 1, plate: 0 }, day: D1, at: 1 } : o.table, meals: o.meals || [] } };
+  }
+  async function open(o) {
+    o = o || {};
+    var ctx = o.ctx || await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: o.dpr || 1, locale: 'ko-KR', reducedMotion: o.reduced ? 'reduce' : 'no-preference' });
+    if (!o.ctx) await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var page = await ctx.newPage(); watchErrors(page, bag);
+    if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+    await page.addInitScript(STUB);
+    await page.addInitScript({ content: "if (!localStorage.getItem('__eat_seed')) { localStorage.setItem('__eat_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(o.rec || REC())) + '); } ' +
+      "window.__ppolTest = { today: sessionStorage.getItem('__eat_day') || '" + D1 + "' }; window.__eatSounds = [];" });
+    await routeWiki(page, 'ok');
+    await page.goto(INDEX + '?intro=0' + (o.q || ''));
+    await page.waitForFunction(function () { return window.APP && APP.scene && document.documentElement.classList.contains('booted'); }, null, { timeout: 30000 });
+    await page.evaluate(function () { if (window.AUDIO && AUDIO.on && !AUDIO.__eat) { var f = AUDIO.on; AUDIO.on = function (k, d) { window.__eatSounds.push(k + ':' + (d && (d.kind || d.act) || '')); return f.apply(this, arguments); }; AUDIO.__eat = true; } });
+    return { ctx: ctx, page: page };
+  }
+  function st(pg) { return pg.evaluate(function () {
+    var sc = APP.scene, info = sc && sc.tableInfo ? sc.tableInfo() : null, call = document.getElementById('btn-call'), tb = document.getElementById('btn-table'), seat = document.getElementById('btn-seat'), bb = document.getElementById('oct-bubble'), t = document.getElementById('toast');
+    function box(b) { var r = b.getBoundingClientRect(); return { hidden: b.hidden || getComputedStyle(b).visibility === 'hidden', w: r.width, h: r.height, x: r.left, y: r.top, label: b.getAttribute('aria-label'), title: b.hasAttribute('title'), text: b.textContent.replace(/\s/g, '') }; }
+    var rows = [].map.call(document.querySelectorAll('#log .lrow[data-meal]'), function (r) { var x = r.querySelector('.ltext'), by = x && x.querySelector('.lby'); return { n: +r.getAttribute('data-n'), label: (r.querySelector('.ltool') || {}).textContent, text: x ? x.textContent : '', tail: by ? by.textContent : null, expr: r.dataset.expr || null }; });
+    var u = APP.state.user || {};
+    return { stub: !!window.__mealStub, info: info, call: box(call), table: box(tb), seat: box(seat), meal: APP.meal, busy: APP.mealBusy(), atTable: APP.octAtTable(), oct: APP.oct.state, anchor: APP.oct.anchor,
+      bubble: bb && !bb.hidden ? bb.textContent : '', octVis: getComputedStyle(document.getElementById('oct')).visibility, toast: t.classList.contains('show') ? t.textContent : '', tail: (t.querySelector('.lby') || {}).textContent || null,
+      rows: rows, table0: u.table ? u.table.id : null, meals: (u.meals || []).map(function (m) { return { dish: m.dish, ask: m.ask ? m.ask.action + '/' + m.ask.by + '/' + (m.ask.rule || '') : null, ate: m.ate ? { oct: m.ate.oct, fx: m.ate.fx, date: m.ate.date } : null }; }),
+      saved: JSON.parse(localStorage.getItem('ppolppol_v2') || '{}').user || null, sounds: window.__eatSounds.slice(), calls: window.__mealStub ? window.__mealStub.calls.slice() : [], desc: document.getElementById('scene-desc').textContent,
+      aura: info && info.aura ? info.aura : null, room: APP.room };
+  }); }
+  async function toPlay(pg) { await pg.evaluate(function () { return APP.goRoom('play'); }); return pg.waitForFunction(function () { return APP.room === 'play' && !document.getElementById('btn-table').hidden; }, null, { timeout: 20000 }).then(function () { return true; }, function () { return false; }); }
+  async function sit(pg) { await pg.click('#btn-table'); return pg.waitForFunction(function () { var i = APP.scene.tableInfo(); return i && i.me === 'seated'; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; }); }
+  function poke(pg) { return pg.evaluate(function () { var v = localStorage.getItem('ppolppol_v2'); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v })); }); }   /* 다른 탭의 storage 이벤트 (헤드리스에선 늦거나 안 올 수 있어 손으로 — 같은 값이면 앱이 무시한다) */
+  function idle(pg, ms) { return pg.waitForFunction(function () { return !APP.mealBusy(); }, null, { timeout: ms || 20000 }).then(function () { return true; }, function () { return false; }); }
+
+  /* 1. 처음 부름 = 먹기 */
+  var A = await open({ dpr: 2 });
+  var pa = A.page, s0 = await st(pa);
+  console.log('  (식탁 장면: ' + (s0.stub ? '대역 tools/meal-stub-scene.js — lane D 를 합친 뒤 진짜로 다시' : '진짜 (lane D)') + ')');
+  ok(s0.table0 === 'ck_first' && s0.meals.length === 0, '기다리는 해초전 하나 · 식탁 기록 없음');
+  ok(await toPlay(pa), '놀이방: 식탁 단추가 보인다');
+  var s1 = await st(pa);
+  ok(s1.table.label === '식탁, 해초전' && !s1.table.title && s1.table.text === '' && s1.table.w >= 44 && s1.table.h >= 44, "식탁 단추: '식탁, 해초전' · title 없음 · 글자 0 · 44 px (" + JSON.stringify(s1.table) + ')');
+  ok(!s1.seat.hidden && s1.seat.label === '식탁에 앉기' && !s1.seat.title && s1.seat.w >= 44, "노란 점: '식탁에 앉기' · title 없음 · 44 px");
+  ok(s1.call.hidden, '앉기 전엔 부르기 칩 없음');
+  ok(await sit(pa), '식탁을 누르면 앉는다');
+  await pa.waitForFunction(function () { return !document.getElementById('btn-call').hidden; }, null, { timeout: 5000 }).catch(function () {});
+  var s2 = await st(pa);
+  ok(!s2.call.hidden && s2.call.label === '뚜루 부르기' && !s2.call.title && s2.call.text === '' && s2.call.w >= 44 && s2.call.h >= 44, "부르기 칩: '뚜루 부르기' · 그림만 · title 없음 · 44 px (" + JSON.stringify(s2.call) + ')');
+  ok(s2.table.label === '해초전 먹기' && s2.seat.hidden, "앉은 뒤 식탁 단추 = '해초전 먹기' · 노란 점은 숨음");
+  var dprOk = await pa.evaluate(function () { var b = document.getElementById('btn-call'), r = b.getBoundingClientRect(), d = window.devicePixelRatio; var a = b.querySelector('.call-art').getBoundingClientRect(); return [r.left, r.top, a.left, a.top, a.width].every(function (v) { return Math.abs(v * d - Math.round(v * d)) < 0.01; }) && Math.round(a.width * d) === 16 * Math.floor(2 * d); });
+  ok(dprOk, '칩 자리 · 그림이 기기 px 에 맞고 한 칸 = floor(2·dpr) 기기 px');
+  await pa.screenshot({ path: path.join(SHOTS, 'eat-call-chip.png') });
+  await pa.evaluate(function () { window.__eatSounds.length = 0; });
+  await pa.click('#btn-call');
+  await pa.waitForFunction(function () { var m = APP.meal; return m && m.stage === 'thinking'; }, null, { timeout: 15000 }).catch(function () {});
+  var s3 = await st(pa);
+  ok(s3.busy && s3.atTable && s3.bubble === '…' && s3.octVis === 'visible', "문어가 와서 앉고 생각 말풍선 '…' 이 보인다 (" + JSON.stringify({ busy: s3.busy, at: s3.atTable, b: s3.bubble, v: s3.octVis }) + ')');
+  ok(s3.sounds.filter(function (x) { return /^bubble/.test(x); }).length === 0, '생각 말풍선은 소리 훅을 부르지 않는다 (' + s3.sounds.join(',') + ')');
+  ok(s3.meals.length === 1 && s3.meals[0].ask === 'eat/demo-rules/first' && s3.meals[0].ate === null && s3.saved.meals.length === 1 && s3.saved.meals[0].ask, '대답은 누른 순간 저장 (처음 = 먹기 · 아직 안 먹음)');
+  ok(s3.call.hidden && s3.table.hidden, '연출 중엔 칩 · 식탁 단추가 숨는다');
+  var blocked = await pa.evaluate(function () { var r = APP.openMachine(); var c = document.getElementById('btn-cook'); if (c) c.click(); return { machine: r, runner: !!document.querySelector('.rn-overlay[open], dialog#runner[open], #runner-dlg[open]'), cook: document.getElementById('cook-overlay').open }; });
+  ok(blocked.machine === false && !blocked.runner, '연출 중 오락기는 아무것도 안 한다');
+  if (cookGuarded) ok(!blocked.cook, '연출 중 조리대는 아무것도 안 한다 (K2 openCook 줄)');
+  else console.log('  (조리대 막기: K2 의 openCook 줄이 아직 없다 — 합친 뒤 다시)');
+  if (blocked.cook) await pa.evaluate(function () { document.getElementById('cook-overlay').close(); });
+  await pa.waitForFunction(function () { return document.getElementById('toast').textContent.indexOf('데모 규칙') >= 0; }, null, { timeout: 8000 }).catch(function () {});
+  var s4 = await st(pa);
+  ok(s4.toast === '뚜루도 같이 먹기로 했어. 데모 규칙' && s4.tail === '데모 규칙', "알림: '뚜루도 같이 먹기로 했어.' + 꼬리 '데모 규칙' (" + s4.toast + ')');
+  await pa.screenshot({ path: path.join(SHOTS, 'eat-answer.png') });
+  ok(await idle(pa), '식사가 끝난다');
+  var s5 = await st(pa);
+  ok(s5.table0 === null && s5.meals.length === 1 && s5.meals[0].ate && s5.meals[0].ate.oct === true && s5.meals[0].ate.fx === 'sparkle', '기록: 식탁 비움 · ate { oct: true, fx: sparkle }');
+  ok(s5.saved.table === null && s5.saved.meals[0].ate, '식사가 저장됐다');
+  ok(s5.rows.length === 2 && s5.rows[0].label === '식탁' && s5.rows[0].text === '뚜루도 같이 먹기로 했어. 데모 규칙' && s5.rows[0].tail === '데모 규칙' && s5.rows[1].text === '해초전을 같이 먹었어. 오늘 하루 둘 다 반짝이가 따라다녀.', "로그 '식탁' 행 둘 (" + JSON.stringify(s5.rows) + ')');
+  ok(s5.rows.every(function (r) { return r.expr === null; }), '식탁 행에 초상 · 얼굴 없음 (집 목소리)');
+  ok(s5.aura && s5.aura.me === 'sparkle' && s5.aura.oct === 'sparkle', '효과: 나 · 문어 둘 다 반짝이');
+  if (s5.stub) {
+    var bites = s5.calls.filter(function (c) { return c[0] === 'bite'; }).map(function (c) { return c[1]; }).join(',');
+    ok(bites === 'me,oct,me,oct', '한 입씩: 나 · 문어 · 나 · 문어 (' + bites + ')');
+    ok(s5.calls.some(function (c) { return c[0] === 'aura' && c[1] === 'me' && c[2] === 'sparkle' && c[3]; }), '효과는 피어나며 (bloom) 켜진다');
+    var beats = s5.calls.filter(function (c) { return c[0] === 'beat'; }).map(function (c) { return c[1]; }).join(',');
+    ok(beats === 'think,ponder,eat', '박자: think · ponder · eat (' + beats + ')');
+  }
+  ok(s5.atTable && !s5.call.hidden === false || s5.atTable, '식사 뒤 문어는 앉아 있다 (내가 앉아 있는 동안)');
+  ok(/뚜루는 식탁 맞은편에 앉아 있어\./.test(s5.desc) && /반짝이가 따라다녀\./.test(s5.desc), '장면 설명: 맞은편 · 효과 (' + s5.desc + ')');
+  await pa.screenshot({ path: path.join(SHOTS, 'eat-after.png') });
+
+  /* 2. 앉은 채 둘째 요리 → 문어 위 칩 → 걸어오지 않고 묻는다 */
+  await pa.evaluate(function (d) { APP.mealDish(d); }, dish('ck_second', 'kkochi'));
+  await pa.waitForFunction(function () { return !document.getElementById('btn-call').hidden; }, null, { timeout: 5000 }).catch(function () {});
+  var s6 = await st(pa);
+  ok(!s6.call.hidden && s6.atTable && s6.table0 === 'ck_second', '둘째 요리: 앉아 있는 문어 위에 칩');
+  var comes0 = s6.calls.filter(function (c) { return c[0] === 'come'; }).length;
+  await pa.click('#btn-call');
+  ok(await idle(pa), '둘째 식사도 끝난다');
+  var s7 = await st(pa);
+  ok(s7.meals.length === 2 && s7.meals[1].ask && s7.meals[1].ate && s7.meals[1].ate.oct === (s7.meals[1].ask.indexOf('eat/') === 0), '둘째 요리에 대답 하나 · 대답대로 먹음');
+  if (s7.stub) { var c2 = s7.calls.filter(function (c) { return c[0] === 'come'; }).slice(comes0); ok(c2.length === 1 && c2[0][2] === 'seated', '이미 앉아 있어서 걸어오지 않는다 (octToTable 은 바로 풀림)'); }
+  else ok(s7.info.oct === 'seated', '문어는 그대로 앉아 있다');
+  ok(s7.aura.me === 'petal', '내 효과는 늦게 먹은 꽃잎으로 바뀐다');
+
+  /* 3. 새로고침: 효과 그대로 · 다시 묻지 않음 */
+  await pa.reload(); await pa.waitForFunction(function () { return window.APP && APP.scene && document.documentElement.classList.contains('booted'); }, null, { timeout: 30000 });
+  await pa.waitForTimeout(300);
+  var s8 = await st(pa);
+  ok(s8.meals.length === 2 && s8.meals.every(function (m) { return m.ate; }) && s8.aura && s8.aura.me === 'petal', '새로고침: 기록 그대로 · 효과 다시 (' + JSON.stringify(s8.aura) + ')');
+  ok(s8.rows.length >= 3, '새로고침: 오늘 칸에 식탁 행이 다시 그려진다 (' + s8.rows.length + ')');
+  /* 4. 다음 날: 효과 없음 · 기록 그대로 */
+  await pa.evaluate(function (d) { sessionStorage.setItem('__eat_day', d); window.__ppolTest.today = d; APP.mealApply(); }, D2);
+  var s9 = await st(pa);
+  ok(s9.aura && s9.aura.me === null && s9.aura.oct === null && s9.meals.length === 2, '다음 날: 효과 없음 · 기록 그대로');
+  await pa.screenshot({ path: path.join(SHOTS, 'eat-next-day.png') });
+  /* 5. 혼자 먹기: 식사 행만 */
+  await pa.evaluate(function (d) { APP.mealDish(d); }, Object.assign(dish('ck_alone', 'jumeokbap'), { day: D2 }));
+  ok(await toPlay(pa) && await sit(pa), '셋째 요리: 놀이방 · 앉기');
+  await pa.click('#btn-table');
+  ok(await idle(pa), '혼자 먹기가 끝난다');
+  var s10 = await st(pa);
+  var al = s10.meals[2];
+  ok(al && al.ask === null && al.ate && al.ate.oct === null && al.ate.fx === 'star', '혼자: ask 없음 · ate.oct null');
+  var todayRows = s10.rows.filter(function (r) { return /주먹밥/.test(r.text); });
+  ok(todayRows.length === 1 && todayRows[0].text === '주먹밥을 먹었어. 오늘 하루 별이 따라다녀.' && s10.rows.length === 1, "식사 행만 ('" + (todayRows[0] || {}).text + "')");
+  ok(s10.aura.me === 'star' && s10.aura.oct === null, '내 효과만');
+  /* 6. 자는 문어: 칩 없음 · 저장 없음 */
+  await pa.evaluate(function (d) { APP.mealDish(d); }, Object.assign(dish('ck_sleep', 'jeon'), { day: D2 }));
+  await pa.evaluate(function () { APP.octState('sleep'); });
+  await pa.waitForTimeout(500);
+  var s11 = await st(pa), before = JSON.stringify(s11.saved.meals);
+  var r11 = await pa.evaluate(function () { return APP.mealCall(); });
+  var s12 = await st(pa);
+  ok(s11.call.hidden && r11 === false && JSON.stringify(s12.saved.meals) === before && !s12.atTable, '자는 문어: 칩 없음 · 불러도 저장 없음 · 깨우지 않음');
+  await pa.evaluate(function () { APP.octState('idle'); });
+  await A.ctx.close();
+
+  /* 7. 두 탭 · 다른 탭이 쉬는 차례를 끝냄 · 숨김 → 보임 */
+  var ctx2 = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.625, locale: 'ko-KR' });
+  await ctx2.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+  var T1 = await open({ ctx: ctx2 }), T2 = await open({ ctx: ctx2 });
+  var p1 = T1.page, p2 = T2.page;
+  ok(await toPlay(p1) && await sit(p1), '[두 탭] 1: 놀이방 · 앉기');
+  await p1.waitForFunction(function () { return !document.getElementById('btn-call').hidden; }, null, { timeout: 5000 }).catch(function () {});
+  await p1.click('#btn-call');
+  await p1.waitForFunction(function () { var m = APP.meal; return m && (m.stage === 'thinking' || m.stage === 'answer' || m.stage === 'eating'); }, null, { timeout: 10000 }).catch(function () {});
+  /* 다른 탭: 방금 끝난 산책 (깨어 있는 틈 0 → 바로 낮잠) */
+  await p2.evaluate(function () { var S = APP.state, now = Date.now(); S.trips.push({ id: 'trip_eat', status: 'done', kind: 'out', date: window.__ppolTest.today, startedAt: now - 60000, endedAt: now, by: 'demo', events: [] }); S.octopus.state = 'sleep'; APP.save(); });
+  await poke(p1);
+  var tw = await p1.evaluate(function () { return { trip: APP.state.trips.some(function (t) { return t.id === 'trip_eat'; }), st: APP.state.octopus.state, oct: APP.oct.state, at: APP.octAtTable() }; });
+  ok(tw.trip && tw.st === 'sleep' && tw.oct !== 'sleep' && tw.at, '[두 탭] 다른 탭의 쉬는 차례를 받았지만 식탁에선 잠들지 않는다 (' + JSON.stringify(tw) + ')');
+  await p1.evaluate(function () { Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } }); document.dispatchEvent(new Event('visibilitychange')); });
+  await p1.waitForTimeout(400);
+  await p1.evaluate(function () { delete document.hidden; Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return false; } }); document.dispatchEvent(new Event('visibilitychange')); });
+  await idle(p1);
+  var t1 = await st(p1);
+  ok(t1.oct !== 'sleep' && t1.anchor !== 'blanket' || !t1.atTable, '[두 탭] 식탁에 앉은 채 잠들지 않고 담요 자리로 뛰지 않는다 (oct ' + t1.oct + ', anchor ' + t1.anchor + ', atTable ' + t1.atTable + ')');
+  var meal1 = t1.meals.filter(function (m) { return m.dish === 'ck_first'; })[0];
+  ok(meal1 && meal1.ask && (meal1.ate === null ? t1.rows.length === 0 : true), '[두 탭] 숨김 전에 먹지 않았으면 대답만 남고 행은 없다 (' + JSON.stringify(meal1) + ')');
+  /* 일어남 → 문어가 떠남 → 그 뒤에 잠 */
+  await p1.evaluate(function () { if (window.__mealStub) __mealStub.stand(); else return APP.scene.playerStandTable(); });
+  await p1.waitForFunction(function () { return !APP.octAtTable(); }, null, { timeout: 10000 }).catch(function () {});
+  await p1.waitForFunction(function () { return APP.oct.state === 'sleep'; }, null, { timeout: 15000 }).catch(function () {});
+  var t2 = await st(p1);
+  ok(!t2.atTable && t2.oct === 'sleep', '[두 탭] 문어는 집에 간 뒤에 잔다 (oct ' + t2.oct + ')');
+  /* 다른 탭이 먹은 식사의 효과를 본다 */
+  var hasAte = t2.meals.some(function (m) { return m.ate; });
+  if (hasAte) {
+    await poke(p2);
+    var t3 = await st(p2);
+    ok(t3.aura && t3.aura.me, '[두 탭] 다른 탭도 효과를 켠다 (' + JSON.stringify(t3.aura) + ')');
+  } else {
+    await p1.evaluate(function () { APP.octState('idle'); });
+    ok(await sit(p1), '[두 탭] 다시 앉기');
+    await p1.click('#btn-table');
+    await idle(p1);
+    await poke(p2);
+    var t4 = await st(p2);
+    ok(t4.aura && t4.aura.me === 'sparkle' && t4.meals.some(function (m) { return m.dish === 'ck_first' && m.ate; }), '[두 탭] 다른 탭이 먹은 식사 · 효과를 받는다 (' + JSON.stringify(t4.aura) + ')');
+  }
+  await ctx2.close();
+
+  /* 8. 모션 줄이기 */
+  var R = await open({ reduced: true, w: 320, h: 568, dpr: 2 });
+  ok(await toPlay(R.page) && await sit(R.page), '[모션 줄이기] 앉기');
+  await R.page.waitForFunction(function () { return !document.getElementById('btn-call').hidden; }, null, { timeout: 5000 }).catch(function () {});
+  var r0 = await st(R.page);
+  ok(!r0.call.hidden && r0.call.y >= 0, '[모션 줄이기 · 320×568] 칩이 보인다');
+  await R.page.click('#btn-call');
+  ok(await idle(R.page), '[모션 줄이기] 식사가 끝난다');
+  var r1 = await st(R.page);
+  ok(r1.meals[0] && r1.meals[0].ate, '[모션 줄이기] 기록');
+  if (r1.stub) ok(r1.calls.some(function (c) { return c[0] === 'come' && c[1] === true; }), '[모션 줄이기] 문어는 바로 앉는다 (instant)');
+  await R.ctx.close();
+
+  /* 9. ?scene=2d: 식탁 UI 없음 · 요리는 기다림 · 에러 0 */
+  var G = await open({ q: '&scene=2d' });
+  await G.page.evaluate(function () { return APP.goRoom('play'); });
+  await G.page.waitForTimeout(800);
+  var g = await G.page.evaluate(function (d) {
+    var ok1 = APP.mealDish(d);
+    return { mode: APP.sceneMode, ok: ok1, table: APP.state.user.table && APP.state.user.table.id, b: ['btn-table', 'btn-seat', 'btn-call'].map(function (id) { return document.getElementById(id).hidden; }), tap: APP.mealTableTap(), call: APP.mealCall() };
+  }, dish('ck_twod'));
+  ok(g.mode === '2d' && g.ok && g.table === 'ck_twod' && g.b.every(Boolean) && g.tap === false && g.call === false, '[2D] 식탁 단추 없음 · 요리는 기록 · 누름은 아무것도 안 함 (' + JSON.stringify(g) + ')');
+  await G.ctx.close();
+  ok(bag.length === 0, '[EAT] 페이지 에러/콘솔 에러 0' + (bag.length ? ': ' + bag.join(' | ') : ''));
+}
+
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
@@ -7499,6 +7723,7 @@ async function scenarioTurn(browser) {
       ['Z', function () { return scenarioSceneTap(browser); }],   /* 11-15 장면 톡 (재봉틀 첫 톡 · 관성 중 톡 · 조리대 → 부엌) */
       ['Z', function () { return scenarioLoft(browser); }],   /* 11-12 위층 문어 (계단 · 돌아다니기 · 거울 길 · 비켜서기 · 거울 한 줄 · 방석 · 가구 배치 · 시트 올림) */
       ['X', function () { return scenarioGarden(browser); }],   /* X = 바깥 텃밭 · 살림 다시 그리기 (검증 11-11) */
+      ['EAT', function () { return scenarioEat(browser); }],   /* EAT = 11-18 식탁 (부르기 · 데모 대답 · 효과 · 두 탭 · 2D) — lane D 가 없으면 tools/meal-stub-scene.js 대역 */
       ['CAM', function () { return scenarioTurn(browser); }]];   /* CAM = 11-15 돌려 보기 (두 손가락 360° · 벽 자르기) — SMOKE_ONLY=CAM */
     for (var sc of all) {   /* 한 시나리오가 터져도 (부하 큰 기계의 시간 초과 등) 뒤 시나리오는 돈다 — 터진 것은 실패 하나로 센다 */
       if (only.length && only.indexOf(sc[0]) < 0) continue;
