@@ -50,6 +50,30 @@ a = A.forTrip(trip('베토벤', 'wild', { receipt: { stops: [{ name: '베토벤'
 check(a && a.kind === 'corner' && a.id === 'sounds', '도서관 밖 글 → 그 주제 그림');
 a = A.forTrip(trip('어딘가', 'sea'), WORLD);
 check(a && a.kind === 'corner' && a.id === 'sea', '주제를 모르면 포스터 장면의 주제 그림');
+/* 11-18 (주인: "새 주제인데 이전 포스터랑 그대로 출력"): 두뇌가 도서관 밖 글(위키 글 · 서가 카드)에 실제로 저장하는 모양 — sticker · scene · 정류장 corner 가 모두 'wild', node 없음 — 으로
+   제목만 다른 두 여행의 그림이 서로 달라야 한다 (예전엔 전부 같은 들판 그림). 같은 제목이면 같고, 방 그림 · 주제 그림은 그대로다 */
+function wildTrip(title) { return trip('wild', 'wild', { poster: { type: 'poster', title: title, sticker: 'wild', scene: 'wild' }, receipt: { rememberedIdx: 0, stops: [{ kind: 'wild', node: null, id: null, title: title, name: title, corner: 'wild', status: 'read' }] } }); }
+var w1 = A.forTrip(wildTrip('블랙홀'), WORLD), w2 = A.forTrip(wildTrip('세종대왕'), WORLD);
+check(w1 && w1.kind === 'topic' && w2 && w2.kind === 'topic' && w1.id !== w2.id, '도서관 밖 글 (전부 wild 로 저장됨) → 제목 무늬, 제목이 다르면 다른 무늬 (' + (w1 && w1.id) + ' · ' + (w2 && w2.id) + ')');
+check(A.svg(wildTrip('블랙홀'), 0, 0, 96, 96, WORLD) !== A.svg(wildTrip('세종대왕'), 0, 0, 96, 96, WORLD) && A.miniSvg(wildTrip('블랙홀'), 0, 0, 40, 40, WORLD) !== A.miniSvg(wildTrip('세종대왕'), 0, 0, 40, 40, WORLD), '제목이 다른 도서관 밖 포스터: 큰 그림 · 작은 그림 (벽 · 들고 오는 포스터) 이 서로 다르다');
+check(A.svg(wildTrip('블랙홀'), 0, 0, 96, 96, WORLD) === A.svg(wildTrip('블랙홀'), 0, 0, 96, 96, WORLD) && A.svg(wildTrip(' 블랙홀  '), 0, 0, 96, 96, WORLD) === A.svg(wildTrip('블랙홀'), 0, 0, 96, 96, WORLD), '같은 제목이면 늘 같은 무늬 (앞뒤 빈칸은 같은 글)');
+(function () {
+  var seen = {}, names = ['블랙홀', '세종대왕', '판소리', '증기 기관', '바이올린', '크누트 (북극곰)', '김치', '오로라', '훈민정음', '달팽이', '등대', '수달', '화석', '혜성', '거북선', '반딧불이', '고래', '종이접기', '활자', '나침반'], dup = 0;
+  names.forEach(function (n) { var k = A.svg(wildTrip(n), 0, 0, 96, 96, WORLD); if (seen[k]) dup++; seen[k] = 1; });
+  check(dup === 0, '제목 20개의 무늬가 전부 다르다 (겹침 ' + dup + ')');
+  var e = A.emblem('블랙홀'), sym = e.cells.every(function (r) { return r.length === 6 && r.join() === r.slice().reverse().join(); });
+  check(e.cells.length === 6 && sym && e.ramp.length === 3 && /^<g class="poster-art" data-art="topic:/.test(A.svg(wildTrip('블랙홀'), 0, 0, 96, 96, WORLD)), '무늬는 안 6×6 좌우 대칭 · 세 톤 · data-art="topic:…"');
+})();
+a = A.forTrip(trip('wild', 'wild', { receipt: { rememberedIdx: 0, stops: [{ kind: 'wild', node: null, id: null, corner: 'wild' }] } }), WORLD);
+check(a && a.kind === 'corner' && a.id === 'wild', '제목이 없는 도서관 밖 포스터는 예전처럼 들판 그림');
+a = A.forStop({ kind: 'wild', node: null, id: null, title: '블랙홀', name: '블랙홀', corner: 'wild' });
+check(a && a.kind === 'topic' && /^data:image\/png/.test(a.src), '들른 곳 줄: 도서관 밖 정류장도 제목 무늬 (src 는 들판 그림 그대로 — 일기의 아이콘이 읽는다)');
+(function () {   /* 두뇌가 만든 진짜 정류장으로 */
+  var B = require('../js/brain.js'), st = (B.makeWildStop || (B._test && B._test.makeWildStop)) ? (B.makeWildStop || B._test.makeWildStop)('증기 기관') : null;
+  if (!st) { check(true, '(두뇌가 makeWildStop 을 내놓지 않는다 — 건너뜀)'); return; }
+  var t2 = trip('wild', 'wild', { poster: { type: 'poster', title: st.name, sticker: 'wild', scene: 'wild' }, receipt: { rememberedIdx: 0, stops: [st] } });
+  check(A.forTrip(t2, WORLD).kind === 'topic', '두뇌의 makeWildStop 으로 만든 포스터 → 제목 무늬');
+})();
 a = A.forTrip(trip('어딘가', '없는장면'), null);
 check(a && a.kind === 'corner' && a.id === 'wild', '아무것도 모르면 들판');
 check(A.forTrip({ poster: { type: 'note', sticker: 'tea' } }, WORLD) === null, '활동을 모르는 쪽지에는 안 붙인다');
