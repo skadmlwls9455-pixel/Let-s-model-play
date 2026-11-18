@@ -4,6 +4,7 @@
  *   L1 노을 → 밤 섞기: SCENE3D.duskBlend 가 19:00 0 → 15분마다 1/8 → 21:00 1 (8칸, 단조, 19시 전 0 = 툭 바뀌지 않음) · 조명 열쇠도 8번 바뀐다
  *   L2 22시 장면: 밤 등불 세기 1.5 · 닿는 거리 7.5 · 달빛 바닥 0.48 (등불 0칸이면 헤미가 그 값)
  *   L3 20시 · 등불 3 · 맑음: 다락 방 띠 평균 루마 ≥ 바닥값 (예전 0.117 · 지금 0.147 — 재어 둔 값에서 여유를 뺀 것)
+ *   L7 (11-18) 톡 격자: 다락 계단 그림 위 톡은 계단으로 · 뒷벽 문간 위 톡은 마당으로 (계단이 문 옆이던 때는 계단 톡이 마당 문으로 갔다) · 가장자리 단추가 뜬 동안에도 보이는 계단은 눌린다
  *   L6 (11-18 검증) 쥔 채로 들어온 문으로 되튀지 않는다 (마당 → 다락, 60 fps 걸음)
  *   L5 (11-18) 다락 계단 단추 (가장자리) · 걸음 따라오기 · 내려오면 계단이 보임 · 방을 옮겨도 방향키가 이어짐
  *   L4 계단 표시: 다락 · 위층 모두 밤엔 켜짐 · 낮엔 꺼짐 · 20시 등불 0 에서 계단 칸의 루마 대비 ≥ 바닥값 · 위층 다녀와도 셰이더 프로그램 그대로
@@ -30,8 +31,8 @@ function rec(lv) {
     colors: [{ at: BORN, date: '2026-11-06', color: RED, how: 'first', by: 'player' }] }, room: { lantern: lv, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
     settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
 }
-async function open(browser, lv, look) {
-  var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', hasTouch: true, isMobile: true });
+async function open(browser, lv, look, vp) {   /* vp = [폭, 높이] (기본 360×740) */
+  var ctx = await browser.newContext({ viewport: { width: vp ? vp[0] : 360, height: vp ? vp[1] : 740 }, deviceScaleFactor: 1, locale: 'ko-KR', hasTouch: true, isMobile: true });
   var page = await ctx.newPage();
   page.on('pageerror', function (e) { ok(false, 'pageerror: ' + e.message); });
   await page.addInitScript({ content: 'window.__ppolAwakeMs = 0; if (!localStorage.getItem("__seed")) { localStorage.setItem("__seed", "1"); localStorage.setItem("ppolppol_v2", ' + JSON.stringify(JSON.stringify(rec(lv))) + '); }' +
@@ -170,6 +171,31 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     await page.keyboard.up('ArrowUp');
     ok(seq6.length === 2 && seq6[0][0] === 'yard' && seq6[1][0] === 'attic', 'L6 마당에서 위쪽을 쥔 채 집에 들어가면 다락에 머문다 (다시 마당으로 되튀지 않음 · 60 fps) ' + JSON.stringify(seq6));
     await o.ctx.close();
+
+    /* ── L7 (11-18) 톡 격자 — 계단 디딤판 위 7×5 점 · 뒷벽 문간 (x 1.5~2.4) 위 7×7 점을 화면에 내려 그 자리를 장면에 묻는다 (pickAt: 누르지는 않는다).
+          계단이 마당 문 옆 (뒷벽 오른쪽 구석) 이던 때는 계단을 눌러도 마당 문으로 갔다 (다른 세션 점검 J3) → 계단을 왼벽 앞쪽 구석으로 옮긴 뒤 둘이 화면에서 겹치지 않는다.
+          뒤에서 보면 (180°) 계단 맨 아래 칸은 소파 등받이에 가려 있다 — 그 두 점은 소파 몫이라 계단 비율의 바닥값은 0.85 ── */
+    var grid7 = function () {
+      var sc = APP.scene, cv = document.querySelector('canvas'), cr = cv.getBoundingClientRect(), co = cv.parentElement.getBoundingClientRect(), a = sc.doorAnchors.atticStair;
+      var X1 = a[0] - 0.32, X0 = X1 - 0.82, Z0 = a[2] - 0.33, Z1 = a[2] + 0.33, TOP = 2.5, sp = [], dp = [], i, j;
+      for (i = 0; i < 7; i++) for (j = 0; j < 5; j++) sp.push([X1 - (i + 0.5) * (X1 - X0) / 7, (i + 1) * TOP / 7, Z0 + (j + 0.5) * (Z1 - Z0) / 5]);
+      for (i = 0; i < 7; i++) for (j = 0; j < 7; j++) dp.push([1.55 + i * 0.8 / 6, 0.15 + j * 1.2 / 6, -2.5]);
+      function tally(pts) { var t = { n: 0, stair: 0, yard: 0, none: 0 }; pts.forEach(function (p) { var s = sc.screenOf(p[0], p[1], p[2]), x = co.left + s.x, y = co.top + s.y; if (x < cr.left + 2 || x > cr.right - 2 || y < cr.top + 2 || y > cr.bottom - 2) return; var k = sc.pickAt(x, y), id = k ? k.id : ''; t.n++; if (id === 'atticStair') t.stair++; else if (id === 'atticYard') t.yard++; else if (!id) t.none++; }); return t; }
+      return { stair: tally(sp), door: tally(dp), spot: document.getElementById('btn-stair').dataset.spot || '' };
+    };
+    o = await open(browser, 8, { hour: 13, weather: 'clear' }); page = o.page;
+    var g7 = {};
+    for (var y7 of [0, 90, 180]) { await page.evaluate(function (y) { APP.scene.setYaw(y, true); }, y7); await page.waitForTimeout(500); g7[y7] = await page.evaluate(grid7); }
+    await o.ctx.close();
+    o = await open(browser, 8, { hour: 13, weather: 'clear' }, [412, 915]); page = o.page;
+    await page.waitForTimeout(400); var g7w = await page.evaluate(grid7);
+    await o.ctx.close();
+    var all7 = [g7[0], g7[90], g7[180], g7w];
+    ok(all7.every(function (g) { return g.stair.yard === 0 && g.door.stair === 0; }), 'L7 계단 위 톡이 마당 문으로 가는 것 0 · 문간 위 톡이 계단으로 가는 것 0 (360 폭 0° · 90° · 180° · 412 폭 0°) ' + JSON.stringify(all7.map(function (g) { return [g.stair.yard, g.door.stair]; })));
+    ok(all7.every(function (g) { return g.door.n > 0 && g.door.yard >= g.door.n * 0.95; }), 'L7 뒷벽 문간 위 톡 → 마당 문 ≥ 95% ' + JSON.stringify(all7.map(function (g) { return g.door.yard + '/' + g.door.n; })));
+    ok(g7[90].spot === 'over' && g7[90].stair.n === 35 && g7[90].stair.stair >= 34, 'L7 계단이 온전히 보일 때 (90°) 계단 위 톡 → 계단 ' + g7[90].stair.stair + '/' + g7[90].stair.n + ' (≥ 95%)');
+    ok(g7[180].spot === 'edge' && g7[180].stair.n >= 10 && g7[180].stair.stair >= g7[180].stair.n * 0.85, 'L7 계단이 가장자리에 걸쳐 가장자리 단추가 뜬 동안 (360 폭 180°) 에도 보이는 계단 위 톡 → 계단 ' + g7[180].stair.stair + '/' + g7[180].stair.n + ' (≥ 85% · 맨 아래 칸은 소파 뒤 — 예전 0)');
+    ok(g7w.spot === 'edge' && g7w.stair.n >= 5 && g7w.stair.stair === g7w.stair.n, 'L7 412 폭 기본 구도: 왼쪽 가장자리에 걸친 계단 위 톡 → 계단 ' + g7w.stair.stair + '/' + g7w.stair.n + ' (예전 0)');
   } catch (e) {
     fails++; console.error('CRASH ' + (e && e.stack || e));
   } finally { await browser.close(); }

@@ -1451,11 +1451,11 @@ var SCENE3D = (function () {
       return _fray.ray.intersectPlane(_fpl, _fpt) ? _fpt.sub(atticG.position) : null;
     }
     var _stairTreads = null, _stv = new T.Vector3();
-    function stairRayDist(cx, cy) {   /* 톡 광선이 다락 계단 (디딤판 일곱 칸 — 칸마다 그 아래 옆판 두께까지 싼 상자) 에 닿는 거리 · 안 닿으면 Infinity */
+    function stairRayDist(cx, cy, n) {   /* 톡 광선이 다락 계단 (디딤판 일곱 칸 — 칸마다 그 아래 옆판 두께까지 싼 상자) 에 닿는 거리 · 안 닿으면 Infinity · n = 아래에서 몇 칸까지 볼지 (계단이 잘려 아래 두 칸만 그려질 때 2) */
       if (!furnRay(cx, cy)) return Infinity;
       if (!_stairTreads) { _stairTreads = []; for (var k = 0, n = 7, run = (STAIR.x1 - STAIR.x0) / n, rise = STAIR.top / n; k < n; k++) _stairTreads.push(new T.Box3(new T.Vector3(STAIR.x1 - run * (k + 1) - 0.03, Math.max(0, rise * (k + 1) - 0.42), STAIR.z0), new T.Vector3(STAIR.x1 - run * k + 0.03, rise * (k + 1) + 0.03, STAIR.z1))); }
       var best = Infinity;
-      for (var i = 0; i < _stairTreads.length; i++) if (_fray.ray.intersectBox(_stairTreads[i], _stv)) { var d = _fray.ray.origin.distanceTo(_stv); if (d < best) best = d; }
+      for (var i = 0, m = Math.min(_stairTreads.length, n || _stairTreads.length); i < m; i++) if (_fray.ray.intersectBox(_stairTreads[i], _stv)) { var d = _fray.ray.origin.distanceTo(_stv); if (d < best) best = d; }
       return best;
     }
     function furnRayDist(cx, cy) {   /* 톡 광선이 가구 몸 (메시) 에 닿는 거리 · 바닥 발자국만 걸리면 Infinity */
@@ -4854,6 +4854,10 @@ var SCENE3D = (function () {
       if (doorOn && spotAt(cx, cy, ['atticPlay'])) return spotHit('atticPlay');
       if (SPOTS.atticYard && spotInfo('atticYard')) { var dh = ray.intersectObjects([room, doorDark], false); if (dh.length && dh[0].object === doorDark) return spotHit('atticYard'); }   /* 11-15 마당 문: 톡한 자리에 보이는 게 뒷벽 문간의 어둠이면 (계단 · 난간이 앞에 있으면 계단) — 계단의 화면 상자는 크게 잡혀 문간까지 덮는다. 문어가 문간 앞이면 문어가 먼저 (위 레이캐스트) */
       sp = spotAt(cx, cy, ['atticYard', 'atticStair']);
+      if (!sp && SPOTS.atticStair) {   /* 11-18: 계단이 화면 가장자리에 조금만 걸쳐 가장자리 단추로 바뀐 동안에도, 보이는 계단 그림을 누르면 계단 (그림 위 칸이 없어 아무 일도 없었다 — 360 폭 뒤에서 보기: 계단 절반이 보이는데 0/18). 광선이 그려진 디딤판에 닿을 때만 */
+        var se = spotInfo('atticStair'), scut = se && se.mode === 'edge' ? cutOf('attic', 'stair') : null;
+        if (se && se.mode === 'edge' && stairRayDist(cx, cy, scut && scut.cut ? 2 : 7) < Infinity) sp = 'atticStair';
+      }
       if (sp === 'atticStair') { var fd = furnRayDist(cx, cy); if (fd < Infinity && !(stairRayDist(cx, cy) < fd)) sp = null; }   /* 11-18: 계단 옆이 소파 자리 — 계단의 넓힌 칸 안이라도 손가락 밑에 보이는 것이 가구 몸이면 가구 (소파 톡 = 앉기). 계단에 가려진 뒤쪽 소파는 아니다: 광선이 계단 디딤판에 먼저 닿으면 계단 (검증: 가구가 늘 이기던 첫 고침은 계단 그림의 5분의 1 을 눌러도 소파에 앉았다) */
       if (sp) return spotHit(sp);   /* 위층 계단 · 문간 둘레의 넓힌 칸 */   /* 위층 계단 */   /* 문 그림 둘레의 넓힌 칸 (44×44 이상) */
       var ni = nearItem(cx - r.left, cy - r.top, r);
