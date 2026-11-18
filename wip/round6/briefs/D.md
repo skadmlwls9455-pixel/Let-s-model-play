@@ -124,7 +124,12 @@ kitchen files, `js/runner.js`.
   composite strips are fine); then each dish at 2× zoom; me seated; the octopus seated; a bite frame; auras (me in the attic
   and the yard, the octopus in the attic).
 
-## Added 11-18 after the plan-vs-build check — the loft stair tap (yours)
+## ~~Added 11-18 after the plan-vs-build check — the loft stair tap~~ (WITHDRAWN 11-18 evening by the owner)
+
+> Withdrawn: the owner's other branch `claude/serene-cannon-awp5y2` moved the stair to the left wall's front corner, which removed
+> the overlap (its `tools/test-light.js` L7: stair taps → yard 0). A fix on the old stair position would collide with it on the same
+> lines (`pick`, `spotInfo`, smoke `scenarioLoft`), so lane D takes it out again (one new commit, base lines restored).
+
 
 Audit J3 (must, `wip/round6/audit-11-18.md`): in the attic, a tap on the stair to the loft mostly walks my character to the
 yard doorway instead, so the loft (sewing machine, salon, set book) is hard to find. The yard door's hit test runs first and
