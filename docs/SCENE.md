@@ -244,3 +244,20 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
 - WebGL/THREE 없음 또는 `init` 예외 → `SCENE2D`(js/scene2d.js, 1차 구현의 인라인 SVG 레이어 + DOM 문어)가 같은 API(`setCarry`, `jumpTo`, `lookAt`, `setLook`, `palette`, `stats`, `refresh`, `setReducedMotion` 확장 포함 · 8물결 방 API 포함)로 받는다. 놀이방에 있다가 컨텍스트를 잃어 2D 로 내려가면 앱이 쪽지 · 단추를 걷고 2D 는 문어 방에서 다시 시작한다 (장면 `destroy()` 와 앱이 `#oct` 의 인라인 `display:none` 을 걷어 문어 · 이름표 · 말풍선도 다시 보인다). 두 장면 모두 호스트에 `data-items`, `data-posters` 를 쓴다(스모크가 본다).
 - 한 화면 배치 증거: `node tools/layout-shots.js` → `tests/evidence/layout/one-*.png` + 좌표 검사 (조작 안 겹침 · 스크롤 없음 · `frameY` · 픽셀 2 · `autoMs ≤ 24`).
 - 증거: `node tools/evidence3d.js` → `tests/evidence/3d-{lantern0-night,lantern4-day,lantern8-night-clear,pet,away,dark-ui}.png` + 순도·드로우콜·에러 0 검사.
+
+## 11-18 바뀐 것 (주인이 플레이하며 말한 불편 — `docs/next/owner-2026-11-18.md`)
+- **다락 계단**: 뒷벽 오른쪽 구석 (마당 문간 바로 옆) → **왼벽 앞쪽 구석** `STAIR { x0 −2.32, x1 −1.48, z0 2.78, z1 3.44 }` (발치 x1 에서 왼벽 쪽으로 오른다, 앵커 `atticStair` = (x1 + 0.32, 3.11)).
+  **발치에서만** 오른다: 발치 칸 (계단 앞 0.5 m · 계단 폭) 에서 −x 로 밀 때 — 옆면에 붙어 밀어서는 안 오른다 (위층의 계단 구멍은 예전처럼 어느 쪽에서든).
+  360~430px 폭의 기본 구도에선 그 구석이 왼쪽 가장자리 밖이다 → `spotInfo('atticStair')` 가 `{ mode: 'edge', side, y }` 를 주고 `#btn-stair` 가 그쪽 가장자리의
+  작은 계단 그림 단추가 된다 (CSS `#btn-stair[data-spot="edge"]`, 세로 자리 = 발치 높이). 계단이 40px 넘게 보이면 예전처럼 그림 위 투명 칸 (`over`). 계단 자르기는 270° 근처 (예전 90°).
+- **톡해서 걷는 동안에도 화면이 따라온다**: `playerWalkTo(anchor)` 가 걷는 동안 `PL.camGap` (문 0.5 m · 계단 1.5 m) 만큼 캐릭터가 화면 안에 들게 민다 (`plFollow`). 기본 구도의 문들은 이미 안이라 안 민다.
+- **마당 현관**: 마루와 계단 세 칸을 실제로 걷는다 (`plGroundY` — 통로 z = HZC ± 0.55). 집에서 나오면 마루 위 문 앞 (`yardAttic` (0.42, −1.1)) 에 서고,
+  계단을 한 칸 넘게 내려갔다 와야 (`PL.yardArm`) 문 앞에서 −x 로 밀어 들어간다. 문을 톡하면 계단 발치를 거쳐 올라간다.
+- **위층 마네킹**: 흰 원피스 (몸판 · 어깨 · 분홍 허리 띠 · 퍼지는 치마 · 밑단). 톡 = 재봉틀과 같은 창 (단추 칸 `sewDoll` — `#btn-sew-doll`).
+- **물들이기는 물건마다**: `setPlayerDyes({ outfit: { id: '#hex' }, shoes: {…}, acc: {…} })` · `playerDyes()` · `dyeable(cat, id)`. 옷은 예전 범위 (`OUTFIT_MAIN`), 신발 (`SHOES_MAIN`) · 머리 장식 (`ACC_MAIN`) 은 그 물건의 주색만.
+  예전 `setPlayerDye(hex)` 는 지금 입은 옷 하나에만 듣는다.
+- **들고 오는 포스터**: `setOctState('carry', { svg, id })` 는 다른 포스터면 앞서 든 그림부터 내려놓고 (빈 종이), 늦게 온 굽기 결과는 버린다 (`octState.carryTok`).
+- **방을 옮겨도 스틱 · 방향키가 이어진다** (주인 "따로 뚝 끊기는 게 핵심"): 장면의 `playerInputPause()` = 입력이 막힌 까닭이 내 방 이동 (문까지 걷기 · 문 작업 · 전환) 뿐인가.
+  그동안 앱 (`stickShow`) 은 쥐고 있던 손가락 · 키를 놓지 않고 (스틱 그림만 숨김 · 누르는 구역은 남김) 도착하면 쥐고 있던 값을 다시 보낸다. 그 밖의 막힘 (창 · 가구 모드 · 바깥 · 연출) 은 예전처럼 다 놓는다.
+- **마당은 가운데 따라오기**: 스틱으로 걷는 동안 캐릭터가 화면 가운데에서 `YARD_FOLLOW` (가로 0.8 · 세로 1.0 m) 넘게 벗어나면 민다 (방은 가장자리 1.1 m 에 닿을 때만 — 예전 그대로).
+  위층에서 내려와 다락 계단 발치에 서면 계단 몸까지 보이게 한 번 따라간다 (1.5 m).
