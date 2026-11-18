@@ -7819,7 +7819,7 @@ async function scenarioEat(browser) {
   function st(pg) { return pg.evaluate(function () {
     var sc = APP.scene, info = sc && sc.tableInfo ? sc.tableInfo() : null, call = document.getElementById('btn-call'), tb = document.getElementById('btn-table'), seat = document.getElementById('btn-seat'), bb = document.getElementById('oct-bubble'), t = document.getElementById('toast');
     function box(b) { var r = b.getBoundingClientRect(); return { hidden: b.hidden || getComputedStyle(b).visibility === 'hidden', w: r.width, h: r.height, x: r.left, y: r.top, label: b.getAttribute('aria-label'), title: b.hasAttribute('title'), text: b.textContent.replace(/\s/g, '') }; }
-    var rows = [].map.call(document.querySelectorAll('#log .lrow[data-meal]'), function (r) { var x = r.querySelector('.ltext'), by = x && x.querySelector('.lby'); return { n: +r.getAttribute('data-n'), label: (r.querySelector('.ltool') || {}).textContent, text: x ? x.textContent : '', tail: by ? by.textContent : null, expr: r.dataset.expr || null }; });
+    var rows = [].map.call(document.querySelectorAll('#log .lrow[data-meal]'), function (r) { var x = r.querySelector('.ltext'), by = x && x.querySelector('.lby'); return { day: (r.closest('[data-day]') || { getAttribute: function () { return null; } }).getAttribute('data-day'), n: +r.getAttribute('data-n'), label: (r.querySelector('.ltool') || {}).textContent, text: x ? x.textContent : '', tail: by ? by.textContent : null, expr: r.dataset.expr || null }; });
     var u = APP.state.user || {};
     return { stub: !!window.__mealStub, info: info, call: box(call), table: box(tb), seat: box(seat), meal: APP.meal, busy: APP.mealBusy(), atTable: APP.octAtTable(), oct: APP.oct.state, anchor: APP.oct.anchor,
       bubble: bb && !bb.hidden ? bb.textContent : '', octVis: getComputedStyle(document.getElementById('oct')).visibility, toast: t.classList.contains('show') ? t.textContent : '', tail: (t.querySelector('.lby') || {}).textContent || null,
@@ -7829,7 +7829,10 @@ async function scenarioEat(browser) {
   }); }
   async function toPlay(pg) { await pg.evaluate(function () { return APP.goRoom('play'); }); return pg.waitForFunction(function () { return APP.room === 'play' && !document.getElementById('btn-table').hidden; }, null, { timeout: 20000 }).then(function () { return true; }, function () { return false; }); }
   async function sit(pg) { await pg.click('#btn-table'); return pg.waitForFunction(function () { var i = APP.scene.tableInfo(); return i && i.me === 'seated'; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; }); }
-  function poke(pg) { return pg.evaluate(function () { var v = localStorage.getItem('ppolppol_v2'); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v })); }); }   /* 다른 탭의 storage 이벤트 (헤드리스에선 늦거나 안 올 수 있어 손으로 — 같은 값이면 앱이 무시한다) */
+  async function poke(pg, from) {   /* 다른 탭(from)의 storage 이벤트를 손으로 (헤드리스에선 늦거나 저장소 경합에 묻힐 수 있다) — 그 탭이 가진 기록 그대로 */
+    var v = await from.evaluate(function () { return JSON.stringify(APP.state); });
+    return pg.evaluate(function (v) { window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v })); }, v);
+  }
   function idle(pg, ms) { return pg.waitForFunction(function () { return !APP.mealBusy(); }, null, { timeout: ms || 20000 }).then(function () { return true; }, function () { return false; }); }
 
   /* 1. 처음 부름 = 먹기 */
@@ -7918,8 +7921,8 @@ async function scenarioEat(browser) {
   var s10 = await st(pa);
   var al = s10.meals[2];
   ok(al && al.ask === null && al.ate && al.ate.oct === null && al.ate.fx === 'star', '혼자: ask 없음 · ate.oct null');
-  var todayRows = s10.rows.filter(function (r) { return /주먹밥/.test(r.text); });
-  ok(todayRows.length === 1 && todayRows[0].text === '주먹밥을 먹었어. 오늘 하루 별이 따라다녀.' && s10.rows.length === 1, "식사 행만 ('" + (todayRows[0] || {}).text + "')");
+  var todayRows = s10.rows.filter(function (r) { return r.day === D2; });   /* 어제 칸은 1분 틱이 넘길 때까지 남아 있을 수 있다 — 오늘 칸만 본다 */
+  ok(todayRows.length === 1 && todayRows[0].text === '주먹밥을 먹었어. 오늘 하루 별이 따라다녀.', "식사 행만 ('" + (todayRows[0] || {}).text + "')");
   ok(s10.aura.me === 'star' && s10.aura.oct === null, '내 효과만');
   /* 6. 자는 문어: 칩 없음 · 저장 없음 */
   await pa.evaluate(function (d) { APP.mealDish(d); }, Object.assign(dish('ck_sleep', 'jeon'), { day: D2 }));
@@ -7939,11 +7942,13 @@ async function scenarioEat(browser) {
   var p1 = T1.page, p2 = T2.page;
   ok(await toPlay(p1) && await sit(p1), '[두 탭] 1: 놀이방 · 앉기');
   await p1.waitForFunction(function () { return !document.getElementById('btn-call').hidden; }, null, { timeout: 5000 }).catch(function () {});
+  var px26 = await p1.evaluate(function () { var b = document.getElementById('btn-call'), r = b.getBoundingClientRect(), d = window.devicePixelRatio, a = b.querySelector('.call-art').getBoundingClientRect(); return { d: d, v: [r.left, r.top, a.left, a.top].map(function (v) { return +(v * d).toFixed(3); }), w: +(a.width * d).toFixed(2) }; });
+  ok(px26.d === 2.625 && px26.v.every(function (v) { return Math.abs(v - Math.round(v)) < 0.1; }) && Math.abs(px26.w - 80) < 0.1, '[412×915 @2.625] 칩 자리 · 그림 왼쪽 위가 기기 px 에 (레이아웃 단위 1/64 CSS px 반올림 안 — 그리기는 기기 px 에 맞춰진다) · 한 칸 5 기기 px (' + JSON.stringify(px26) + ')');
   await p1.click('#btn-call');
   await p1.waitForFunction(function () { var m = APP.meal; return m && (m.stage === 'thinking' || m.stage === 'answer' || m.stage === 'eating'); }, null, { timeout: 10000 }).catch(function () {});
   /* 다른 탭: 방금 끝난 산책 (깨어 있는 틈 0 → 바로 낮잠) */
-  await p2.evaluate(function () { var S = APP.state, now = Date.now(); S.trips.push({ id: 'trip_eat', status: 'done', kind: 'out', date: window.__ppolTest.today, startedAt: now - 60000, endedAt: now, by: 'demo', events: [] }); S.octopus.state = 'sleep'; APP.save(); });
-  await poke(p1);
+  var other = await p2.evaluate(function () { var S = APP.state, now = Date.now(); S.trips.push({ id: 'trip_eat', status: 'done', kind: 'out', date: window.__ppolTest.today, startedAt: now - 60000, endedAt: now, by: 'demo', events: [] }); S.octopus.state = 'sleep'; APP.save(); return JSON.stringify(S); });
+  await p1.evaluate(function (v) { window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v })); }, other);   /* 그 탭이 쓴 그대로 (저장소 경합 없이) */
   var tw = await p1.evaluate(function () { return { trip: APP.state.trips.some(function (t) { return t.id === 'trip_eat'; }), st: APP.state.octopus.state, oct: APP.oct.state, at: APP.octAtTable() }; });
   ok(tw.trip && tw.st === 'sleep' && tw.oct !== 'sleep' && tw.at, '[두 탭] 다른 탭의 쉬는 차례를 받았지만 식탁에선 잠들지 않는다 (' + JSON.stringify(tw) + ')');
   await p1.evaluate(function () { Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } }); document.dispatchEvent(new Event('visibilitychange')); });
@@ -7963,7 +7968,7 @@ async function scenarioEat(browser) {
   /* 다른 탭이 먹은 식사의 효과를 본다 */
   var hasAte = t2.meals.some(function (m) { return m.ate; });
   if (hasAte) {
-    await poke(p2);
+    await poke(p2, p1);
     var t3 = await st(p2);
     ok(t3.aura && t3.aura.me, '[두 탭] 다른 탭도 효과를 켠다 (' + JSON.stringify(t3.aura) + ')');
   } else {
@@ -7971,7 +7976,7 @@ async function scenarioEat(browser) {
     ok(await sit(p1), '[두 탭] 다시 앉기');
     await p1.click('#btn-table');
     await idle(p1);
-    await poke(p2);
+    await poke(p2, p1);
     var t4 = await st(p2);
     ok(t4.aura && t4.aura.me === 'sparkle' && t4.meals.some(function (m) { return m.dish === 'ck_first' && m.ate; }), '[두 탭] 다른 탭이 먹은 식사 · 효과를 받는다 (' + JSON.stringify(t4.aura) + ')');
   }

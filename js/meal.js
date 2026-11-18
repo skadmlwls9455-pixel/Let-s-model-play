@@ -47,6 +47,8 @@
     none: '대답이 없었어.',
     mealAlone: '{dish}{을} 먹었어. 오늘 하루 {fx}{이} 따라다녀.',
     mealTogether: '{dish}{을} 같이 먹었어. 오늘 하루 둘 다 {fx}{이} 따라다녀.',
+    mealAlonePast: '{dish}{을} 먹었어. 그날 하루 {fx}{이} 따라다녔어.',          /* 지난 날 (앨범 일기 — 효과는 그날로 끝났다) */
+    mealTogetherPast: '{dish}{을} 같이 먹었어. 그날 하루 둘 다 {fx}{이} 따라다녔어.',
     descDish: '식탁에 {dish}{이} 있어.',
     descSeated: '{name}{은} 식탁 맞은편에 앉아 있어.',
     descFx: '{fx}{이} 따라다녀.',
@@ -163,21 +165,25 @@
     if (!isObj(u)) return u;
     if (u.table != null && !(isObj(u.table) && typeof u.table.id === 'string')) u.table = null;
     if (u.table === undefined) u.table = null;
-    var seen = Object.create(null);
-    u.meals = (Array.isArray(u.meals) ? u.meals : []).filter(function (m) {
-      if (!isObj(m)) return false;
-      if (typeof m.id === 'string') { if (seen[m.id]) return false; seen[m.id] = 1; }
-      return true;
+    var seen = Object.create(null), list = [];
+    (Array.isArray(u.meals) ? u.meals : []).forEach(function (m) {   /* 같은 id 가 둘이면 먹은 · 물은 쪽 (merge 와 같은 순위) — 자리는 처음 것 */
+      if (!isObj(m)) return;
+      if (typeof m.id === 'string' && m.id in seen) { var i = seen[m.id]; if (rank(m) > rank(list[i])) list[i] = m; return; }
+      if (typeof m.id === 'string') seen[m.id] = list.length;
+      list.push(m);
     });
+    u.meals = list;
     u.meals.forEach(function (m) {
       if (m.ask != null && !isObj(m.ask)) m.ask = null;
       if (m.ate != null && !isObj(m.ate)) m.ate = null;
       if (m.ask === undefined) m.ask = null;
       if (m.ate === undefined) m.ate = null;
-      if (m.ate && !(m.ate.oct === true || m.ate.oct === false || m.ate.oct === null)) m.ate.oct = null;
     });
     return u;
   }
+
+  function rank(m) { return (isObj(m.ate) ? 2 : 0) + (isObj(m.ask) ? 1 : 0); }
+  function octOfAte(a) { return a.oct === true ? true : a.oct === false ? false : null; }   /* 모르는 값 (나중 빌드) 은 저장엔 그대로, 읽을 땐 '식탁에 없었음' */
 
   /* ---------- 부를 수 있나 ---------- */
   /* oct = { seated: 내가 식탁에 앉아 있나, away, asleep, busy } (앱이 장면 · 상태에서 채운다).
@@ -304,15 +310,15 @@
   }
   /* 로그 행 데이터 (DOM 은 앱): [{ n, label, text, voice, raw, by, tail, expr }].
      먹은 기록만 그린다. 1 대답 — 문어가 그 식사에 앉아 있었을 때만 (ate.oct !== null) 이고 대답이 있을 때. 2 식사 — 이 빌드가 아는 요리일 때 */
-  function rows(entry, name) {
+  function rows(entry, name, today) {   /* today 를 주면 다른 날의 식사는 지난 말 ('그날 하루 … 따라다녔어.') */
     if (!isObj(entry) || !isObj(entry.ate)) return [];
-    var out = [], a = entry.ate;
-    if (a.oct !== null && a.oct !== undefined && isObj(entry.ask)) {
+    var out = [], a = entry.ate, oc = octOfAte(a), past = isKey(today) && a.date !== today;
+    if (oc !== null && isObj(entry.ask)) {
       var d = decision(entry.ask, name);
       out.push({ n: 1, label: TEXT.label, text: d.text, voice: d.voice, raw: d.raw, by: d.by, tail: d.tail, expr: d.expr });
     }
     var dn = dishName(entry.recipe), fn = fxName(a.fx);
-    if (dn && fn) out.push({ n: 2, label: TEXT.label, text: fill(a.oct === true ? TEXT.mealTogether : TEXT.mealAlone, { dish: dn, fx: fn }), voice: 'house', raw: false, by: null, tail: null, expr: null });
+    if (dn && fn) out.push({ n: 2, label: TEXT.label, text: fill(oc === true ? (past ? TEXT.mealTogetherPast : TEXT.mealTogether) : (past ? TEXT.mealAlonePast : TEXT.mealAlone), { dish: dn, fx: fn }), voice: 'house', raw: false, by: null, tail: null, expr: null });
     return out;
   }
   /* 장면 설명 (놀이방, 3D): 식탁의 요리 · 맞은편의 문어 · 내 효과. 없으면 '' */
@@ -346,7 +352,6 @@
     var same = isObj(local) && ((local.octopus && local.octopus.born) || 0) === ((remote.octopus && remote.octopus.born) || 0);
     var list = mealsOf(remote).filter(isObj).map(copy), changed = false, at = Object.create(null);
     list.forEach(function (m, i) { if (typeof m.id === 'string') at[m.id] = i; });
-    function rank(m) { return (isObj(m.ate) ? 2 : 0) + (isObj(m.ask) ? 1 : 0); }
     if (same) mealsOf(local).forEach(function (m) {
       if (!isObj(m) || typeof m.id !== 'string') return;
       if (!(m.id in at)) { at[m.id] = list.length; list.push(copy(m)); changed = true; return; }
