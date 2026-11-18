@@ -198,6 +198,11 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <button type="button" id="btn-sew" class="scene-spot" aria-label="재봉틀 · 옷 물들이기" title="재봉틀" aria-haspopup="dialog" hidden></button>
   <!-- 11-15: 놀이방 조리대 → 부엌 (cook.html?embed=1 을 #cook-overlay 안 iframe 으로 — 처음 열 때 만든다) -->
   <button type="button" id="btn-cook" class="scene-spot" aria-label="부엌" title="부엌" aria-haspopup="dialog" hidden></button>
+  <!-- 11-18 식탁 (docs/MEAL.md): 그림만 · 글자 0 · title 없음 (이름은 aria-label). #btn-table = 식탁 (장면 hotspot 'table' 이 자리 · hidden 을 쥔다) · #btn-seat = 내 자리 노란 점 ·
+       #btn-call = 문어 부르기 칩 (문어 머리 그림 — 부를 수 있을 때만). 점 · 칩 자리는 장면의 on.tableSpot (app.js mealUI) -->
+  <button type="button" id="btn-table" class="scene-spot" aria-label="식탁" hidden></button>
+  <button type="button" id="btn-seat" class="sofa-dot meal-seat" aria-label="식탁에 앉기" hidden><span aria-hidden="true"></span></button>
+  <button type="button" id="btn-call" class="meal-call" aria-label="문어 부르기" hidden></button>
   <!-- 발자국 손잡이 (가상 스틱, 주인 11-08 "바닥 톡보다 훨씬 자연스럽다"): 장면 왼쪽 아래 72px 고리 + 28px 손잡이. 끌면 그 화면 방향으로 내 캐릭터가 걷는다 (js/app.js stick 절 · scene.setPlayerInput).
        다락 · 놀이방이 보일 때만 — hidden 은 장면의 on.playerInput(allowed) 로 앱이 쥔다 (바깥 · 입장 연출 · 문 작업 · 전환 · 2D 폴백에선 숨김). 바깥의 집 단추(#btn-door edge)와 자리는 같은 왼쪽 아래지만 보이는 때가 서로 배타적이다.
        키보드 포커스는 받지 않는다 (aria-hidden — 키보드는 방향키 · WASD). 그림은 16×16 ×2 'ctl.walk' (발자국 둘), 안 오면 글자 '걷기'. 발자국 그림이 곧 손잡이다 (--kx · --ky) — 그 밑의 회색 네모 손잡이는 뺐다 (주인 11-10) -->
@@ -419,6 +424,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <script src="js/brain.js"></script>
 <script src="js/shelf.js"></script>
 <script src="js/salon.js"></script><!-- 미용실 규칙 (전역 SALON, DOM 없음): 몸 색은 처음 한 번만 · 그 뒤엔 미용실에서 문어에게 묻는다 (docs/SALON.md) -->
+<script src="js/meal.js"></script><!-- 11-18 식탁 규칙 (전역 MEAL, DOM 없음): 같이 먹을지는 문어가 그때 고른다 (지금은 데모 규칙) · 효과는 그날 하루 (docs/MEAL.md) -->
 <script src="js/palettes.js"></script>
 <script src="js/clouds.js"></script><!-- 입장 하늘의 몽글한 픽셀 구름 (2D 캔버스, 날씨 × 시각대) -->
 <script src="js/scene3d.js"></script>
