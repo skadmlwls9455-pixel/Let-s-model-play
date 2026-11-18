@@ -14,16 +14,17 @@
 ### 1) 줍기 `FORAGE` (`js/next/forage.js`)
 
 - 물건 24개 안팎 (id 는 `f_…` — 도토리는 `f_acorn` 고정, COMMON 5절). 구역 (`yard` · `path` · `village` · `beach`) · 계절 · 날씨에 따라 나오는 표. 흔한 것만 — **드문 것 · 그날만 나오는 것 없음.**
-  예: 마당 도토리 · 잔가지 · 토끼풀 · 들꽃 / 길 밤송이 · 버섯 (비 온 다음 날) · 산딸기 (여름) / 해변 유목 · 바다 유리 · 불가사리 · 소라 껍데기 · 미역 줄기 · 밧줄 토막.
+  예: 마당 도토리 · 잔가지 · 토끼풀 · 들꽃 / 길 밤송이 · 버섯 (비 온 다음 날) · 산딸기 (여름) / 해변 유목 · 바다 유리 · 소라 껍데기 · 미역 줄기 · 밧줄 토막.
   이름에 '조개' 금지, 문어 기념품 16종과 같은 이름 금지 (COMMON 4절 11).
 - `FORAGE.today(user, day, zone, { season, weather, yesterdayWeather })` → 그날 그 구역에 놓인 자리 목록 `[{ spot: 'beach3', item }]` (`user` 는 읽기만).
   구역마다 하루 3~5개 (시드), 자리 id 는 구역마다 8개쯤 고정 (`yard0…`) — 실제 좌표는 리드가 장면에서 정한다.
 - `FORAGE.pick(user, day, spot, ctx)` → 그 자리를 오늘 처음이면 `user.mats[item]++` · `user.finds[item]` (처음 날) · `user.pick` 갱신 → `{ ok, item, first }`.
   어제 안 주운 것은 오늘도 그 자리에 남아 있다 (하루 치까지만 이월 — 상수 `CARRY_DAYS = 1`, 그보다 오래된 것은 조용히 없어지고 놓쳤다는 표시는 없다).
   → `FORAGE.today` 가 오늘 것 + 어제 남은 것을 같이 돌려준다 (`user.pick` 과 `user.pickPrev` 둘을 본다).
-  어제 목록은 어제 날씨 없이는 다시 못 만든다 → **날이 바뀌면 `FORAGE.roll(user, day)` 가 `user.pick` 을 `user.pickPrev` 로 옮기되 그날 놓였던 목록도 같이 둔다**
-  (`{ day, got, list: { 구역: [{ spot, item }] } }` — `today` 가 부를 때마다 그 구역의 목록을 `user.pick.list` 에 적어 둔다는 뜻이라, 적는 일은 `FORAGE.visit(user, day, zone, ctx)` 로 가른다).
-  어제 그 구역을 열지 않았으면 이월은 없다. 오늘 것은 어제 남은 자리를 피해 빈 자리에만 놓는다 (구역마다 3~5개는 이월이 없을 때의 수 — 이월까지 합쳐 자리 8개를 넘지 않는다).
+  정확한 꼴: `FORAGE.today(user, day, zone, ctx)` → `[{ spot, item, from: 'today' | 'prev' }]` (읽기만). 적는 일은 `FORAGE.visit(user, day, zone, ctx)` 하나가 한다 (리드가 그 구역에 들어설 때 부른다):
+  `user.pick = { day, list: { 구역: { 자리 id: 물건 id } }, got: { 자리 id: 1 } }` — 그 구역의 오늘 목록을 처음 낼 때 `list` 에 적는다.
+  날이 바뀐 뒤 처음 부르면 먼저 넘긴다: `user.pick.day` 가 **바로 어제** 면 `list` 에서 `got` 에 없는 것을 `user.pickPrev = { day: 어제, left: { 자리 id: 물건 id } }` 로 옮기고 (구역마다 3개까지), 아니면 `pickPrev` 를 비운다 —
+  **본 적 없는 날의 것은 이월하지 않는다.** 오늘 목록은 `pickPrev` 가 차지한 자리를 피해 놓는다. 시험의 '구역마다 3~5개' 는 `from` 이 `'today'` 인 것만 센다.
 - 주운 것은 전부 가진다 (개수 상한은 물건마다 99).
 
 ### 2) 계절 달력 `SEASON` (같은 파일이나 `js/next/season.js`)
@@ -75,3 +76,11 @@
 ## 리드가 이을 것
 
 장면의 줍기 자리 좌표 · 줍기 단추 · 가방을 살림 시트에 · 만들기 창 · 축제 연출 · `S.user` 넘기기와 저장.
+
+## 덧붙임 — 독립 점검에서 나온 것 (위 글과 어긋나면 이 절이 이긴다)
+
+- 서랍 (`CRAFT.drawer`) 에는 **지금 계절이 아닌 계절 꾸밈 6개 가운데 아직 모르는 것** 이 이름으로 보인다. `CRAFT.take` 는 `user.plans` 에 `from: 'box'` 이고 `at` 이 이번 주 (월요일 시작) 인 것이 있으면 거절한다 — 새 칸을 만들지 않는다 (`user.week` 는 본 게임의 주간 할 일이다).
+- 염료 (`user.dyes`) 는 재료로 쓰지 않는다 (읽기만인 칸이라 뺄 수 없다).
+- 값을 치르는 함수는 `{ ok, cost }` 로 돌려준다 (칸 이름 `shells` 아님). `CRAFT.make` 는 `user.shells < cost` 여도, 재료가 모자라도 아무것도 바꾸지 않는다.
+- `FORAGE.CATALOG` 의 `hint` = 구역 · 계절 한 조각 (예 '해변 · 여름'). 날씨 · 시각 · 확률은 넣지 않는다.
+- 리드가 이을 것에 더한다: `SEASON.grant` 를 날이 바뀔 때 한 번 부르기 · 바깥 날씨 (다락 창밖 날씨와 따로) 넘기기.

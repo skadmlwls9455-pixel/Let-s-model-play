@@ -74,3 +74,17 @@ host = { capture() → canvas, info() → { day, place, weather }, hideUi(bool),
 `host` 여섯 함수를 장면 · 앱에 구현 (렌더 타깃 읽기 · UI 숨기기 — '데모' 꼬리표는 남긴다 · 포즈 · 조개 치르기 · 문어 상태) · 카메라 단추 · 사진첩 들어가는 곳 · 액자 가구.
 모델이 붙은 방에서 함께 모션 전에 문어에게 묻는 일 (바탕 설계 기본값: 들어갈 때 한 번) 은 주인 답을 받은 뒤 host 가 `'asking'` · `'no'` 로 잇는다.
 사진과 모션 기록은 두뇌 입력과 MCP 상황에 넣지 않는다.
+
+## 덧붙임 — 독립 점검에서 나온 것 (위 글과 어긋나면 이 절이 이긴다)
+
+- **사진 모드 띠는 모달이 아니다.** 띠가 떠 있는 동안 장면이 손짓 (돌리기 · 밀기 · 줌) 을 받아야 한다 — `showModal()` 금지 (밖이 inert 가 된다). 그냥 요소이거나 `dialog.show()`.
+  미리보기 · 사기 확인 · 사진첩만 모달 `<dialog>`.
+- 본 게임의 장면은 화면을 다 쓴다 → 띠는 캔버스 아래쪽을 덮는다. host 를 `hideUi(on, { bottom: 띠가 덮는 높이 CSS px })` 로 부르고, `capture()` 는 **띠에 가리지 않은 부분만** 준다고 약속한다.
+  시험용 쪽의 가짜 host 도 화면 가득 캔버스 위에 띠가 얹히는 꼴로 만든다. 시험: 띠가 떠 있는 동안 가짜 장면 캔버스를 끌면 가짜 장면이 한 칸 돈다 · 미리보기에 띠 밑에 깔려 있던 부분이 들어 있지 않다.
+- '포즈 놀이' 표시는 **확대 전에 아트 해상도 그림에 먼저** 찍는다. 사진첩에는 표시가 찍힌 그림과 `{ day, place, weather, pose, who }` 를 같이 넣는다 → 사진첩에서 다시 꺼낸 함께 사진에도 표시 픽셀이 있다 (시험).
+- 사기 차례: `PHOTO.buy(user, id, day)` — `user.shells < price` 면 `{ ok: false, cost, short }` 이고 아무것도 안 바꾼다. 넉넉하면 `user.poses[id] = day` 를 적고 `{ ok: true, cost }`.
+  창은 확인 뒤 `buy` 가 ok 일 때만 `host.spend(cost)` 를 부르고, `false` 가 오면 `user.poses[id]` 를 지운다.
+- `PHOTO.get(id)` 는 `Promise<canvas>` (한 가지로). 액자에 거는 일과 액자 가구는 리드 몫이다 (갈래 D 의 22개에는 액자가 없다).
+- `host.info()` 의 `place` · `weather` 는 그대로 찍을 한국어 글 (host 가 만든다), `day` 는 `'YYYY-MM-DD'` (네가 '11월 18일' 로 바꾼다).
+- 값 · 모자란 수의 조개 그림은 `assets/icons/souvenir/shell.png` (`<img>`). `PHOTO.open` · `PHOTO.album` 은 `opts.reduced` 도 받는다.
+- 문어 상태가 `'no'` 일 때의 `line` 은 host 가 준 글을 글자 그대로 (모델이 쓴 말일 수 있다 — 고치거나 자르지 않는다).

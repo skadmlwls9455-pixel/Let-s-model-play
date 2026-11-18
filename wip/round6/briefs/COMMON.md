@@ -31,7 +31,7 @@
 | 무엇 | 자리 |
 |---|---|
 | 실행 코드 | `js/next/<이름>.js` (IIFE · 전역 하나 · ES5 문법: `var` · `function`) |
-| 화면 모양 | `css/next/<이름>.css` |
+| 화면 모양 | `css/next/<이름>.css` — 선택자 · id · CSS 변수 · `@keyframes` 이름은 **모듈 머리글자로 시작** 한다: swim `sw-` · book `bk-` · forage `fg-` · guests `gs-` · photo `ph-` · visit `vs-` · decor `dc-` (창의 id 는 `<머리글자>-dlg`). `body` · `button` · `dialog` · `:root` 같은 맨 선택자에 규칙을 걸지 않는다 (시험용 쪽만의 바탕은 그 html 안 `<style>` 에). 본 게임의 클래스 (`.btn` · `.sheet` …) 를 빌려 쓰지 않고 `css/style.css` 를 싣지 않는다 — 나중에 같은 쪽에 같이 실린다 |
 | 시험용 쪽 | `next/<이름>.html` — `file://` 로 바로 열린다. `<head>` 에 `<base href="../">` 를 넣어 본 게임과 같은 **저장소 뿌리 기준 경로** 를 쓴다 (`js/next/…` · `assets/next/…` · `vendor/…`). 기존 파일은 **읽기만** 한다 |
 | 그림 | `assets/next/<이름>/<id>.png` (32×32 한 벌 — 목록은 1배, 도감은 2배로 쓴다. 16px 를 따로 그리지 않는다) + `assets/next/<이름>/manifest.json` (`{ "id": "파일.png" }` — 리드와 도구가 보는 목록이다. 모듈은 실행 중에 읽지 않는다: `file://` 에서는 fetch 가 막힌다) |
 | 그림 만드는 도구 | `tools/next/make-<이름>-art.js` (코드로 픽셀을 찍어 PNG 로. 외부 그림 내려받기 금지). 본보기 `tools/make-souvenirs32.js` · `tools/ui-art/` 는 **읽기만 하고 돌리지 않는다** (돌리면 `assets/manifest.json` 을 다시 쓴다). 네 도구는 `tools/ui-art/pixel-out.js` 의 `encodePNG` 를 require 해서 `assets/next/<이름>/` 에만 쓴다 |
@@ -102,20 +102,26 @@
   | `user.poses` | `{ 모션 id: 가진 날 }` | P |
   | `user.shown` | `{ 물건 id: 전시한 날 }` 도감 진열장에 올려 둔 것 | B |
   | `user.visitDay` | `{ day, n }` 오늘 친구 집에서 받은 설계도 수 | H |
+  | `user.bookSeen` | `{ 탭: 마지막으로 열었을 때 찾은 수 }` 도감의 '새로 생긴 것' 점 | B |
+  | `user.placed` | `[{ id, zone, x, z, r }]` 놓은 가구 — zone 은 `in` · `yard` · `beach`, x · z 는 m (소수 둘째 자리), r 은 도, 60개까지 | 리드 (G 는 그 구역에 놓인 것을 `{ id: 개수 }` 로 세어 받고, H 는 그대로 스냅샷 `furn` 에 담는다) |
+  | `user.skin` | `{ wall: 프리셋 id, floor: 프리셋 id }` | 리드 (id 는 D 의 SKINS) |
 
   이미 있는 칸 (읽기만 — 리드와 본 게임 것): `user.dyes` `{ 색 id: 개수 }` 텃밭 염료 · `user.dyed` 물건별 물들인 색 · `user.look` 지금 모습.
-  위 표에 없는 칸이 필요하면 `user.<네 전역 이름 소문자>_…` 로 시작하는 이름으로 만들고 보고서에 적는다 (다른 갈래 · 다른 세션과 겹치지 않게).
+  **이미 쓰는 이름 — 새 칸으로 쓰지 않는다:** `shells` · `seeds` · `dyes` · `days` · `giftDay` · `giftTell` · `garden` · `plotTold` · `dye` · `dyed` · `earned` · `week` · `sets` (`week` 는 주간 할 일이다 — '주마다 한 번' 을 여기에 적지 않는다).
+  위 표에 없는 칸이 필요하면 `user.<네 전역 이름 소문자>_…` 로 시작하는 이름으로 만들고 보고서 '저장 칸' 에 적는다 (다른 갈래 · 다른 세션과 겹치지 않게).
 
 - **목록은 `CATALOG` 로 내놓는다.** 물건 · 바다 것 · 손님 · 가구 · 모션을 가진 모듈은 `X.CATALOG = [{ id, name, icon, hint }]` 을 내놓는다
   (`icon` = 저장소 뿌리 기준 32×32 PNG 경로 `assets/next/<이름>/<id>.png` · `hint` = 도감의 못 찾은 칸에 보일 구역 · 계절 · 날씨 낱말 한 조각, 없으면 빈 글). 도감 갈래 (B) 는 이 꼴만 알고 그린다.
   가구 22개의 그림은 갈래 D 의 `FURNITURE` 격자 (17×13) 하나뿐이다 — 갈래 F 의 `CRAFT.CATALOG` 는 `{ id, name }` 만 내고 가구 그림을 따로 그리지 않는다 (시험용 쪽은 가구를 이름으로 보여도 된다).
 - **id 에는 갈래 머리글자를 붙인다** (서로 겹치지 않게 — 불가사리는 줍기에도 바다에도 나온다): 줍기 `f_…` · 바다 `s_…` · 손님 `g_…` · 모션 `p_…`.
+  모든 id 는 `/^[a-z0-9_]{1,24}$/` (집 방문 갈래가 이 꼴이 아닌 id 를 통째로 거절한다 — `sea-glass` · `seaGlass` 는 안 된다).
   가구 22개는 아래 이름 그대로. **도토리는 `f_acorn` 으로 고정** (손님 갈래의 다람쥐가 `user.mats.f_acorn` 을 본다).
 - **가구 · 꾸밈 id 는 아래 22개로 고정** (D 가 모양을, F 가 만드는 법을, G 가 손님 규칙을 이 id 로 쓴다):
   - 실내 8: `stool` 걸상 · `lowtable` 낮은 탁자 · `bookcase` 작은 책장 · `floorlamp` 스탠드 등 · `plant_tall` 키 큰 화분 · `showcase` 진열장 · `cushion` 방석 (납작) · `rug_round` 둥근 깔개 (납작)
   - 마당 6: `birdbath` 물그릇 받침 · `feeder` 모이통 · `bench` 벤치 · `flowerbox` 꽃 상자 · `pond` 작은 연못 · `campfire` 모닥불 자리
   - 계절 8: 봄 `blossom_arch` 꽃 아치 · `picnic_mat` 소풍 돗자리 / 여름 `parasol` 파라솔 · `swim_ring` 튜브 / 가을 `scarecrow` 허수아비 · `haybale` 짚단 / 겨울 `snowman` 눈사람 · `stove` 난로
-- **계절** = `spring` (3~5월) · `summer` (6~8) · `autumn` (9~11) · `winter` (12~2). **시간대** = `dawn` (5~8시) · `day` (8~17) · `dusk` (17~20) · `night` (20~5).
+- **계절** = `spring` (3~5월) · `summer` (6~8) · `autumn` (9~11) · `winter` (12~2) — 판정은 `NEXT_PRNG.seasonOf(day)` 하나만 쓴다 (따로 짜지 않는다).
+  **시간대** = `night` (19~6시) · `dawn` (6~9) · `day` (9~17) · `dusk` (17~19) — 본 게임의 낮밤과 같다. **갈래는 시각으로 시간대를 계산하지 않고 넘겨받는다** (날씨도 넘겨받는다 — 네 가지 각각으로 시험한다).
   **날씨** = `clear` · `drizzle` · `rain` · `snow`. **구역** = `yard` 마당 · `path` 길 · `village` 마을 · `beach` 해변 · `sea` 바다.
 - 결과를 밖으로 알릴 때는 콜백 하나: `opts.onResult({ v: 1, id, by: 'user', game 또는 kind, status, out })`.
 
@@ -129,7 +135,11 @@
   **16px 보다 작은 글 금지. 글이 넘치면 글자 수를 줄이고 크기는 줄이지 않는다** (주인이 5차에 두 번 바로잡은 규칙). 화면 글은 js 에서 넣는다.
 - 사람 (내 캐릭터) 을 그릴 때: 머리 크고 짧은 몸, 동그란 눈, **입 · 눈썹 · 볼터치 없음** (본 게임 캐릭터의 얼굴 규칙).
 - 글은 짧게. 값 · 개수는 그림 + 숫자로. 단추는 진짜 `<button>` + `aria-label`. 알림은 `aria-live="polite"` 한 곳.
-- `prefers-reduced-motion` 이면 이동 · 흔들림 대신 바로 바뀜. 탭이 숨으면 움직임을 멈춘다.
+- 모션 줄이기 = `(prefers-reduced-motion: reduce)` **이거나** `<html data-motion="reduce">` (본 게임 설정). CSS 는 `@media (prefers-reduced-motion: reduce)` 와 `:root[data-motion="reduce"]` 둘 다에 걸고,
+  JS 는 `js/runner.js` 의 `reducedMotion()` 과 같은 판정. 창을 여는 함수는 `opts.reduced` 도 받는다. 줄이면 이동 · 흔들림 대신 바로 바뀜. 탭이 숨으면 움직임을 멈춘다.
+- 화면 끝에 붙는 것 (HUD · 아래 띠 · 닫기) 은 `max(8px, env(safe-area-inset-…, 0px))` 만큼 띄운다 (`css/runner.css` 본보기). 시험용 쪽 viewport 는 본 게임과 같게 `width=device-width, initial-scale=1, viewport-fit=cover`.
+- **조개 (돈) 그림은 새로 그리지 않는다** — `assets/icons/souvenir/shell.png` (16×16, 본 게임의 돈 그림) 을 정수 배로 쓴다. 값 · HUD · 결과 판 어디서나 이 그림 하나
+  (지킬 선 11 의 '기념품과 같은 그림 금지' 는 줍는 물건 얘기다 — 돈 그림은 이것이 맞다).
 - 시험은 `file://` 그대로 한다 (본 게임 스모크도 그렇다). **서버나 감시 명령을 백그라운드로 띄우지 않는다** — 창 없는 실행은 백그라운드 명령이 끝날 때까지 끝나지 않는다.
   `file://` 에서는 파일에서 읽은 그림을 그린 캔버스가 '오염' 돼 `toBlob` · `toDataURL` · `getImageData` 가 막힌다 — 캔버스에서 픽셀을 읽거나 PNG 로 내보내야 하는 그림은 js 안의 픽셀 표로 직접 찍는다.
 - 창은 `<dialog>`. 닫기는 늘 있고 이유를 묻지 않는다.

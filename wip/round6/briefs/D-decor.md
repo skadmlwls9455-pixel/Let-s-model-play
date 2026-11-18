@@ -17,7 +17,7 @@
 22개 (COMMON 의 id 그대로) 마다:
 
 ```
-{ id, name, zone: 'in' | 'out' | 'both', where: ['yard', 'beach'],   밖에 놓는 것만 where (COMMON 의 구역 낱말). `bench` · `parasol` · `swim_ring` 의 where 에는 beach 가 든다 (손님 갈래의 소라게 · 갈매기)
+{ id, name, where: ['in'] | ['yard'] | ['yard', 'beach'] | ['in', 'yard'],   놓을 수 있는 곳 (COMMON 의 구역 낱말 + 실내 `in`). `bench` · `parasol` · `swim_ring` · `picnic_mat` 은 ['yard', 'beach'], `cushion` 은 ['in', 'yard']
   season: null | 'spring' | …,
   w, d, h,                      발자국 반폭 (m) 과 높이 — 실내 가구는 w·d 0.2~0.8, 높이 ≤ 1.6 (창 · 포스터를 가리지 않게)
   flat: true|false,             납작 (깔개 · 방석 · 돗자리 — 밟고 지나간다)
@@ -53,7 +53,7 @@
 
 ## 끝난 것으로 보는 조건
 
-- node 시험: id 가 COMMON 의 22개와 정확히 같음 · 계절 꾸밈 8개의 `season` 이 맞음 · `bench` · `parasol` · `swim_ring` 의 `where` 에 beach · 모든 조각이 발자국 (w · d · h) 안 (여유 2cm) · 조각 수 8~20 ·
+- node 시험: id 가 COMMON 의 22개와 정확히 같음 · 계절 꾸밈 8개의 `season` 이 맞음 · `bench` · `parasol` · `swim_ring` · `picnic_mat` 의 `where` 에 beach · 모든 조각이 발자국 (w · d · h) 안 (여유 2cm) · 조각 수 8~20 ·
   색 이름이 허용 목록 안 · 아이콘이 17×13 · `flat` 인 것의 높이 ≤ 0.2 · 프리셋 12개의 a ≠ b 팔레트 칸 · `build` 가 가짜 THREE 로도 던지지 않음.
 - 미리보기 스크린샷 ≤ 8 (360×740 @2): 실내 8 · 마당 6 · 계절 8 · 벽지 바꿈 2 · 아이콘 줄. **네가 직접 보고** 무엇인지 한눈에 읽히지 않는 가구는 고친다.
 
@@ -62,3 +62,16 @@
 ## 리드가 이을 것
 
 `scene3d.js` 에 `buildFurn(def)` (네 `FURNITURE.build` 를 불러 `FURN` 에 등록) · 벽 · 바닥 조각에 tag 달고 `setSkin` · 가구 모드 줄에 새 가구와 서랍 · 저장 칸.
+
+## 덧붙임 — 독립 점검에서 나온 것 (위 글과 어긋나면 이 절이 이긴다)
+
+- `FURNITURE.build(THREE, def, colorOf)` 는 **본 게임의 `mergeParts` 에 그대로 넣을 조각 배열** `[{ g: BufferGeometry, m: Matrix4, c: '#rrggbb', tag }]` 을 돌려준다 (`m` 은 `js/scene3d.js` 의 `M(…)` 과 같은 차례 — 위치 · 회전 · 배율, `dye: true` 조각은 tag 1 · 나머지 0).
+  조각마다 Mesh 를 단 Group 을 돌려주지 않는다 — 본 게임은 가구 하나 = 정점색 한 덩어리 = 드로우콜 1 이고 예산이 150 이다. 합치는 일은 미리보기가 `FURNITURE.merge(THREE, parts)` 로 하고 리드는 자기 `mergeParts` 를 쓴다.
+  시험: build 결과의 모든 항목에 g · m · c 가 있고 c 가 `#rrggbb` · 미리보기에서 가구 하나 = 드로우콜 1.
+- 미리보기의 `colorOf` (색 이름 → 색) 는 `js/scene3d.js` 의 `RAMPS` 표와 그 위의 OKLab 램프 식을 옮겨 적어 계산한다 (`scene3d.js` 를 싣지 않는다).
+- 표에 두 칸을 더한다: `perch: [x, y, z]` — 작은 손님이 올라앉는 자리 (`birdbath` · `feeder` · `bench` · `picnic_mat` · `pond` · `haybale` · `snowman` · `scarecrow` 는 반드시) · `slots: [[x, y, z] …]` — `showcase` 의 진열 칸 6개. 액자는 이번에 만들지 않는다.
+- 아이콘 색: `FURNITURE.ICON_PAL = { 글자: '#rrggbb' }` 를 따로 낸다 — `js/app.js` 의 `FURN_ICON.pal` 글자 뜻은 그대로 두고, 없는 색 (연못 · 화분 · 눈) 은 새 글자로.
+- 벽지 · 바닥 프리셋 12개는 전부 처음부터 고를 수 있다 (값 · 잠금 없음) 고 문서에 적는다.
+- `CATALOG` 는 내지 않는다 — 가구 목록은 `FURNITURE.ITEMS` (22개) 하나.
+- 고쳐 찍기는 **두 바퀴까지** (처음 한 번 + 고친 뒤 한 번). 그 뒤에도 안 읽히는 가구는 id 와 까닭을 보고서 '못 한 것' 에 적고 넘어간다.
+- 미리보기는 WebGL 이다 — 화면 시험은 `tools/look-shots.js` 와 같은 인자로 크로미움을 띄운다 (`--use-gl=swiftshader` · `--enable-webgl` · `--ignore-gpu-blocklist`). 그래도 캔버스가 비면 아이콘 줄 · 색 계산 표만 찍고 보고서 '확인 못 한 것' 에 적는다.
