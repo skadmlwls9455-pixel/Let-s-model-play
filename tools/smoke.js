@@ -7828,7 +7828,12 @@ async function scenarioEat(browser) {
       aura: info && info.aura ? info.aura : null, room: APP.room };
   }); }
   async function toPlay(pg) { await pg.evaluate(function () { return APP.goRoom('play'); }); return pg.waitForFunction(function () { return APP.room === 'play' && !document.getElementById('btn-table').hidden; }, null, { timeout: 20000 }).then(function () { return true; }, function () { return false; }); }
-  async function sit(pg) { await pg.click('#btn-table'); return pg.waitForFunction(function () { var i = APP.scene.tableInfo(); return i && i.me === 'seated'; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; }); }
+  async function tapSpot(pg, sel) {   /* 11-18 리드 (합친 뒤): 진짜 장면 (lane D) 에선 장면 위 단추 (data-spot="over") 가 누름을 받지 않는다 — 손가락 · 마우스는
+                                         캔버스로 가고 장면이 보이는 면으로 고른다 (진짜 길 · 오락기 · 조리대와 같다). 대역 장면에선 그 자리의 단추가 받는다 */
+    var c = await pg.evaluate(function (s) { var r = document.querySelector(s).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, sel);
+    await pg.mouse.click(c.x, c.y);
+  }
+  async function sit(pg) { await tapSpot(pg, '#btn-table'); return pg.waitForFunction(function () { var i = APP.scene.tableInfo(); return i && i.me === 'seated'; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; }); }
   async function poke(pg, from) {   /* 다른 탭(from)의 storage 이벤트를 손으로 (헤드리스에선 늦거나 저장소 경합에 묻힐 수 있다) — 그 탭이 가진 기록 그대로 */
     var v = await from.evaluate(function () { return JSON.stringify(APP.state); });
     return pg.evaluate(function (v) { window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v })); }, v);
@@ -7918,7 +7923,7 @@ async function scenarioEat(browser) {
   /* 5. 혼자 먹기: 식사 행만 */
   await pa.evaluate(function (d) { APP.mealDish(d); }, Object.assign(dish('ck_alone', 'jumeokbap'), { day: D2 }));
   ok(await toPlay(pa) && await sit(pa), '셋째 요리: 놀이방 · 앉기');
-  await pa.click('#btn-table');
+  await tapSpot(pa, '#btn-table');
   ok(await idle(pa), '혼자 먹기가 끝난다');
   var s10 = await st(pa);
   var al = s10.meals[2];
@@ -7976,7 +7981,7 @@ async function scenarioEat(browser) {
   } else {
     await p1.evaluate(function () { APP.octState('idle'); });
     ok(await sit(p1), '[두 탭] 다시 앉기');
-    await p1.click('#btn-table');
+    await tapSpot(p1, '#btn-table');
     await idle(p1);
     await poke(p2, p1);
     var t4 = await st(p2);
