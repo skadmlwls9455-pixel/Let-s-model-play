@@ -2994,16 +2994,19 @@ async function scenarioSalon(browser) {
   await pa.waitForSelector('#sew-sheet[open]', { timeout: 5000 }); await pa.waitForTimeout(200);
   /* 11-18 (주인: 확인하고 사고 · 물들일 것은 나중에 고른다): 파랑 칸 → '살까?' → 살래 (염료 +1 · 옷은 그대로) → 파랑 칸 → '물들일까?' → 물들일래 */
   var blueChip = function () { var c = [].filter.call(document.querySelectorAll('#sew-sheet .sew-chip'), function (x) { return /파랑/.test(x.textContent); })[0]; if (c) c.click(); return { ask: !!document.querySelector('#sew-sheet .sew-ask'), yes: (document.querySelector('#sew-sheet .sew-yes') || {}).textContent || '', shells: APP.state.user.shells, dyes: APP.state.user.dyes.blue | 0, clothes: APP.scene.playerDye ? APP.scene.playerDye() : null }; };
-  var sewYes = function () { var b = document.querySelector('#sew-sheet .sew-yes'); if (b) b.click(); return { shells: APP.state.user.shells, dyes: APP.state.user.dyes.blue | 0, clothes: APP.scene.playerDye ? APP.scene.playerDye() : null, dyed: JSON.stringify(APP.state.user.dyed) }; };
-  var b1 = await pa.evaluate(blueChip), y1 = await pa.evaluate(sewYes); await pa.waitForTimeout(150);
-  var b2 = await pa.evaluate(blueChip), y2 = await pa.evaluate(sewYes);
+  var sewYes = function () { var b = document.querySelector('#sew-sheet .sew-yes'); if (b) b.click(); return { ask: !!document.querySelector('#sew-sheet .sew-ask'), shells: APP.state.user.shells, dyes: APP.state.user.dyes.blue | 0, clothes: APP.scene.playerDye ? APP.scene.playerDye() : null, dyed: JSON.stringify(APP.state.user.dyed) }; };
+  var b1 = await pa.evaluate(blueChip), y0 = await pa.evaluate(sewYes);   /* 확인 줄이 뜨자마자 누른 '살래' (빠른 두 번 톡의 둘째) */
+  await pa.waitForTimeout(700); var y1 = await pa.evaluate(sewYes); await pa.waitForTimeout(150);
+  var b2 = await pa.evaluate(blueChip); await pa.waitForTimeout(700); var y2 = await pa.evaluate(sewYes);
   await pa.waitForTimeout(300);
   var o1 = await st(pa);
+  ok(y0.ask && y0.shells === 6 && y0.dyes === 0 && !y0.clothes, "11-18 (검증) 재봉틀: 확인 줄이 뜬 직후 (0.6 s 안) 의 '살래' 는 받지 않는다 — 색 칸을 빠르게 두 번 톡해도 조개가 나가지 않는다 (" + JSON.stringify(y0) + ')');
   ok(b1.ask && b1.yes === '살래' && b1.shells === 6 && b1.dyes === 0 && !b1.clothes && y1.shells === 0 && y1.dyes === 1 && !y1.clothes,
     "11-18 재봉틀: 염료가 없는 색 칸을 눌러도 조개는 그대로 — '살래' 를 눌러야 조개 6 → 염료 1 (옷은 아직 그대로) (" + JSON.stringify([b1, y1]) + ')');
   ok(b2.ask && b2.yes === '물들일래' && b2.dyes === 1 && !b2.clothes && y2.dyes === 0 && y2.clothes === BLUE && /"outfit":\{"dress":"#4a86d8"\}/.test(y2.dyed),
     "11-18 재봉틀: 염료가 있는 색 칸 → '물들일래' 를 눌러야 고른 옷 (지금 입은 원피스) 이 파랑 · 염료 1 → 0 (" + JSON.stringify([b2, y2]) + ')');
-  await pa.evaluate(function () { var c = [].filter.call(document.querySelectorAll('#sew-sheet button'), function (x) { return /원래 색으로/.test(x.textContent); })[0]; if (c) c.click(); var y = document.querySelector('#sew-sheet .sew-yes'); if (y) y.click(); document.getElementById('sew-sheet').close(); });   /* 옷은 원래 색으로 (공짜 · 11-18: '돌릴래' 확인 한 번) */
+  await pa.evaluate(function () { var c = [].filter.call(document.querySelectorAll('#sew-sheet button'), function (x) { return /원래 색으로/.test(x.textContent); })[0]; if (c) c.click(); }); await pa.waitForTimeout(700);
+  await pa.evaluate(function () { var y = document.querySelector('#sew-sheet .sew-yes'); if (y) y.click(); document.getElementById('sew-sheet').close(); });   /* 옷은 원래 색으로 (공짜 · 11-18: '돌릴래' 확인 한 번) */
   await pa.waitForTimeout(200);
   var o2 = await st(pa);
   ok(inLoft, '위층에선 재봉틀 단추와 거울 단추가 같이 보인다');

@@ -107,7 +107,7 @@
   | `user.skin` | `{ wall: 프리셋 id, floor: 프리셋 id }` | 리드 (id 는 D 의 SKINS) |
 
   이미 있는 칸 (읽기만 — 리드와 본 게임 것): `user.dyes` `{ 색 id: 개수 }` 텃밭 염료 · `user.dyed` 물건별 물들인 색 · `user.look` 지금 모습.
-  **이미 쓰는 이름 — 새 칸으로 쓰지 않는다:** `shells` · `seeds` · `dyes` · `days` · `giftDay` · `giftTell` · `garden` · `plotTold` · `dye` · `dyed` · `earned` · `week` · `sets` (`week` 는 주간 할 일이다 — '주마다 한 번' 을 여기에 적지 않는다), 그리고 다른 세션의 먹기가 새로 쓰는 `table` · `meals`.
+  **이미 쓰는 이름 — 새 칸으로 쓰지 않는다:** `shells` · `seeds` · `dyes` · `days` · `giftDay` · `giftTell` · `garden` · `plotTold` · `dye` · `dyeFor` · `dyed` · `earned` · `week` · `sets` (`week` 는 주간 할 일이다 — '주마다 한 번' 을 여기에 적지 않는다), 그리고 다른 세션의 먹기가 새로 쓰는 `table` · `meals`.
   위 표에 없는 칸이 필요하면 `user.<네 전역 이름 소문자>_…` 로 시작하는 이름으로 만들고 보고서 '저장 칸' 에 적는다 (다른 갈래 · 다른 세션과 겹치지 않게).
 
 - **목록은 `CATALOG` 로 내놓는다.** 물건 · 바다 것 · 손님 · 가구 · 모션을 가진 모듈은 `X.CATALOG = [{ id, name, icon, hint }]` 을 내놓는다
