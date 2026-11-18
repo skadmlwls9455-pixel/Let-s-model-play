@@ -7238,6 +7238,16 @@ async function scenarioSceneTap(browser) {
   await page.waitForFunction(function () { return !document.getElementById('sew-sheet').open && !APP.goResting; }, null, { timeout: 5000 });
   ok(sc0.shells < 6 && sc1.show && sc1.pic && sc1.vis === (6 - sc0.shells) + ' 모자라' && sc1.sr === '조개가 ' + (6 - sc0.shells) + '개 모자라. 다락방 달리기나 들어온 날 선물로 생겨' && sc1.shake && !sc1.vib && sc1.same,
     '조개가 모자란 색 칸: 알림은 조개 그림 + «' + sc1.vis + '» 한 줄 (읽어 주기 «' + sc1.sr + '») · 값 표가 흔들림 ' + sc1.shake + ' · 진동 ' + sc1.vib + ' · 조개 ' + sc0.shells + ' · 옷 색 그대로 ' + sc1.same);
+  /* 11-18: 위층 마네킹 (흰 원피스) — 진짜 손가락으로 톡 하면 재봉틀과 같은 창. 단추 칸이 뜬다는 것은 장면의 단추 목록 (SPOT_KEYS) · 앱의 단추 표 (ROOM_SPOT) 에 마네킹이 들어 있다는 뜻 (둘 다 그 표의 줄 밖에서 덧붙인다) */
+  var dl = await page.evaluate(function () { var e = document.getElementById('btn-sew-doll'), q = e.getBoundingClientRect(), k = APP.scene.pickAt(q.x + q.width / 2, q.y + q.height / 2); return { hidden: e.hidden, x: q.x, y: q.y, w: q.width, h: q.height, pick: k && k.id, title: e.getAttribute('title'), name: e.getAttribute('aria-label') || '' }; });
+  await page.touchscreen.tap(dl.x + dl.w / 2, dl.y + dl.h / 2);
+  var dlOpen = await page.waitForSelector('#sew-sheet[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+  await page.waitForTimeout(900);
+  var dlStay = await page.evaluate(function () { return document.getElementById('sew-sheet').open; });
+  await page.evaluate(function () { document.getElementById('sew-close').click(); });
+  await page.waitForFunction(function () { return !document.getElementById('sew-sheet').open && !APP.goResting; }, null, { timeout: 5000 });
+  ok(!dl.hidden && dl.w >= 44 && dl.h >= 44 && (dl.pick === 'sewDoll' || dl.pick === 'sew') && dl.title === null && /마네킹/.test(dl.name) && dlOpen && dlStay,
+    '위층 마네킹을 진짜 손가락으로 톡 하면 재봉틀 창이 열린 채 남는다 (단추 칸 ' + Math.round(dl.w) + '×' + Math.round(dl.h) + ' · 장면 톡 = ' + dl.pick + ' · 이름 «' + dl.name + '» · title ' + dl.title + ')');
   await page.waitForTimeout(700);
   /* 2. 관성 중 톡: 느린 기계에선 CDP 손가락 사이가 길어 관성이 안 생긴다 → 페이지 안에서 8 ms 간격 합성 PointerEvent 로 밀어 놓고 그 사이 재봉틀 칸을 톡 */
   await page.evaluate(function () { APP.scene.zoomTo(9999); }); await page.waitForTimeout(600);
