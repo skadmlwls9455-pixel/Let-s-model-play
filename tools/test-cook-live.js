@@ -177,6 +177,10 @@ async function openPage(browser, o) {
 }
 
 /* ---------- play helpers (touch) ---------- */
+/* round 6: the last slice is now the horizontal line, swiped in a few real ms by CDP; Chrome then swallows the click of a
+   tap that comes within about a second of real time (the tap only stops the swipe's gesture). A finger is never that fast
+   and the again chip waits 0.9 s anyway, so a test lets real time pass before it taps the chip after a touch-cut dish */
+function afterSwipe() { return realWait(1200); }
 var DUST = [144, 280];   /* logical: on the wood under the pan, 92 logical px from the nearest mark (reach 80): a speck, never a hit */
 async function playTap(T) {
   await T.until(function (l) { return l.kind === 'tap' && l.phase === 'step'; }, 4000, 'tap step');
@@ -235,7 +239,7 @@ async function L1(browser) {   /* touch: open straight into the tap step, the di
     check(st && st.pot === null && st.book.length === 1 && st.book[0].recipe === 'jeon' && JSON.stringify(st.book[0].look) === dishLook, 'L1 ' + su.tag + ': one book line with the look of the plate, no pot');
     l = await T.live();
     check(l.verb === '다시' && l.screen === 'reveal' && !l.hint, 'L1 ' + su.tag + ': the result shows the again chip (다시), no hand');
-    await T.tapEl('.ck-verb'); await realWait(40); await T.go(50);
+    await afterSwipe(); await T.tapEl('.ck-verb'); await realWait(40); await T.go(50);
     l = await T.until(function (x) { return x.screen === 'step'; }, 2000, 'again');
     st = await T.store();
     check(l.kind === 'tap' && l.si === 0 && l.id !== id0 && st.book.length === 1 && st.pot && st.pot.runId === l.id && st.pot.si === 0,
@@ -337,7 +341,7 @@ async function L3(browser) {   /* touch: quiet chip, still in the tab order and 
   await playFlip(T, 500);
   await playSlice(T);
   await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
-  await T.go(1000); await T.tapEl('.ck-verb'); await realWait(40); await T.go(50);
+  await T.go(1000); await afterSwipe(); await T.tapEl('.ck-verb'); await realWait(40); await T.go(50);
   await T.until(function (x) { return x.screen === 'step'; }, 2000, 'again');
   await T.go(700);
   v = await T.verb();
@@ -454,8 +458,17 @@ async function L6(browser) {   /* sound off is the main case: every counted inpu
   l = await T.live();
   var ln = l.st.lines[0], pts = line([ln.ax - 2 * ln.ux, ln.ay - 2 * ln.uy], [ln.bx + 2 * ln.ux, ln.by + 2 * ln.uy], 16), sl = [];
   await T.touch('touchStart', await T.pt(pts[0][0], pts[0][1]));
-  for (var j = 1; j < pts.length; j++) { var q = await T.pt(pts[j][0], pts[j][1]); sl.push(await nextFrame('slice ' + j, function () { return T.touch('touchMove', q); })); }
+  var kf = null;
+  for (var j = 1; j < pts.length; j++) {
+    var q = await T.pt(pts[j][0], pts[j][1]); sl.push(await nextFrame('slice ' + j, function () { return T.touch('touchMove', q); }));
+    if (j === 6) {   /* round 6: the bigger knife (49 x 7) follows the hand on the lit (vertical) guide */
+      var lk = await T.live(), hd = lk.st.hand, hx = lk.view.ox + (hd.x >> 1), hy = lk.view.oy + (hd.y >> 1);
+      kf = { hand: hd, deg: lk.st.lines[lk.st.cur].ax === lk.st.lines[lk.st.cur].bx, px: await T.px([[hx, hy], [hx, hy - 14], [hx + 1, hy + 17], [hx + 1, hy + 26], [hx + 2, hy + 26]]) };
+    }
+  }
   await T.touch('touchEnd');
+  check(kf && kf.deg && js(kf.px) === js(['#ebede9', '#172038', '#577277', '#4d2b32', '#7a4841']),
+    'L6: the knife follows the hand at 90 deg: its bright edge under the finger, the tip 14 px above, bolster and handle below (' + js(kf) + ')');
   check(sl.every(function (r) { return r.changed; }) && sl.some(function (r) { return r.fx; }), 'L6: every knife sample shows on the next frame (the kerf follows the hand)');
   await T.go(400);
   l = await T.live();
@@ -494,7 +507,7 @@ async function L6(browser) {   /* sound off is the main case: every counted inpu
     check(tail.indexOf('quiet') >= 0, 'L6: quiet on ' + label + ' (' + tail.join(',') + ')');
   }
   var n1 = await A.page.evaluate(function () { return window.__acts.length; });
-  await A.go(300); await A.tapEl('.ck-verb'); await realWait(40); await A.go(900);
+  await A.go(300); await afterSwipe(); await A.tapEl('.ck-verb'); await realWait(40); await A.go(900);
   var again = await A.page.evaluate(function (n) { return window.__acts.slice(n).map(function (x) { return x.p.act; }); }, n1);
   check(again[0] === 'pick', 'L6: again sends pick for the new dish (' + again.join(',') + ')');
   await quietAfter('hidden tab', function () {
@@ -1326,9 +1339,90 @@ async function N10(browser) {
   await T.done();
 }
 
+/* N11 (round 6, 11-18) the golden bell and the ding: the bell appears on the frame of the band-1 event (f 0: popped 2 px up
+   with a bright rim), swings f 1..7 (A on odd frames with ring marks, B on even), rests from f 8, and hides at the flip and
+   at band 2; exactly one AUDIO 'ding' act per flip step; no vibrate call at that moment; reduced motion: still from f 0,
+   ring marks held for f 0..7. Pixels are read from the canvas (art px of the view) at the bell sprite (GEO.bell 102, 44). */
+var BELLPX = { rim: [95, 42], a: [95, 44], b: [97, 44], rest: [96, 44], mark: [93, 42] }, R1 = '#884b2b', A3 = '#e8c170', S6 = '#ebede9';
+async function bellPx(T) {
+  var l = await T.live(), v = l.view, keys = Object.keys(BELLPX);
+  var got = await T.px(keys.map(function (k) { return [v.ox + BELLPX[k][0], v.oy + BELLPX[k][1]]; })), o = { l: l };
+  keys.forEach(function (k, i) { o[k] = got[i]; });
+  return o;
+}
+async function toGolden(T) {
+  await verbThrough(T, 'tap', 3);
+  await T.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 3000, 'flip');
+  await T.go(700);
+  await T.tap(144, 176);   /* heat on (a touch: it also gives user activation, so a vibrate would really be called) */
+  await T.go(2600);
+  var pre = await T.live();
+  var l = await T.until(function (x) { return x.band === 1; }, 1200, 'golden', 10);
+  return { pre: pre, l: l };
+}
+async function N11(browser) {
+  var T = await openPage(browser, { store: SEEN_ALL, q: 'seed=16', audio: true, vib: true });
+  var g = await toGolden(T), vib0 = await T.page.evaluate(function () { return window.__vib.length; });
+  check(g.pre.band === 0 && (g.pre.bell === null || !g.pre.bell.shown), 'N11: no bell while the jeon is still soft (' + js(g.pre.bell) + ')');
+  var f0 = await bellPx(T);
+  check(f0.l.bell && f0.l.bell.shown && f0.l.bell.f === 0, 'N11: the bell shows on the frame of the band-1 event (' + js(f0.l.bell) + ')');
+  check(f0.rim === S6, 'N11: f 0 pops: the bell sits 2 px higher with a bright rim (' + f0.rim + ')');
+  var byF = {};
+  for (var k = 0; k < 60; k++) { await T.go(20); var q = await bellPx(T); if (!q.l.bell) break; if (!byF[q.l.bell.f]) byF[q.l.bell.f] = q; if (q.l.bell.f >= 10) break; }
+  var fs2 = Object.keys(byF).map(Number), swingOk = true, restOk = true;
+  fs2.forEach(function (f) {
+    var q = byF[f];
+    if (!q.l.bell.shown) swingOk = false;
+    if (f >= 1 && f <= 7) { if ((f & 1) ? !(q.a === R1 && q.mark === A3) : !(q.b === R1 && q.mark !== A3)) swingOk = false; }
+    if (f >= 8 && !(q.rest === R1 && q.a !== R1 && q.mark !== A3)) restOk = false;
+  });
+  check(fs2.filter(function (f) { return f >= 1 && f <= 7; }).length >= 5 && swingOk, 'N11: f 1..7 swing: A (lean left, ring marks) on odd frames, B (lean right) on even (frames seen ' + fs2.join(',') + ')');
+  check(fs2.some(function (f) { return f >= 8; }) && restOk, 'N11: from f 8 the bell rests, no marks');
+  var vib1 = await T.page.evaluate(function () { return window.__vib.length; });
+  check(vib1 === vib0, 'N11: no vibrate call at the golden moment or while the bell rings (' + (vib1 - vib0) + ')');
+  var acts = await T.page.evaluate(function () { return window.__acts.map(function (x) { return x.p.act + (x.p.band != null ? x.p.band : ''); }); });
+  var di = acts.indexOf('ding');
+  check(acts.filter(function (a) { return a === 'ding'; }).length === 1 && di > acts.indexOf('sizzle1') && acts.indexOf('sizzle1') >= 0, 'N11: one ding act, right after the golden sizzle (' + acts.slice(-4).join(',') + ')');
+  var said = (await T.live()).said;
+  check(said.indexOf('노릇노릇') >= 0 && said.every(function (w) { return !/띵|종/.test(w); }), 'N11: no new aria word (the line says 노릇노릇)');
+  await T.drag(line([144, 236], [146, 140], 6), 16);   /* the flip */
+  await T.go(120);
+  var fl = await bellPx(T);
+  check(fl.l.bell && !fl.l.bell.shown && fl.rest !== R1, 'N11: the flip hides the bell quietly');
+  await verbThrough(T, 'slice', 2);
+  await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal'); await T.go(600);
+  acts = await T.page.evaluate(function () { return window.__acts.map(function (x) { return x.p.act; }); });
+  check(acts.filter(function (a) { return a === 'ding'; }).length === 1, 'N11: exactly one ding for the dish (one flip step)');
+  check(T.errs.length === 0, 'N11: no errors ' + T.errs.join(' | '));
+  await T.done();
+  /* band 2 without a flip: the bell goes quietly, no second ding */
+  var C = await openPage(browser, { store: SEEN_ALL, q: 'seed=17', audio: true });
+  await toGolden(C);
+  await C.go(1500);
+  var mid = await C.live();
+  await C.until(function (x) { return x.band === 2; }, 3000, 'crisp', 20);
+  var cr = await bellPx(C);
+  check(mid.bell && mid.bell.shown && cr.l.bell && !cr.l.bell.shown && cr.rest !== R1, 'N11: at band 2 (crisp) the bell is gone');
+  acts = await C.page.evaluate(function () { return window.__acts.map(function (x) { return x.p.act; }); });
+  check(acts.filter(function (a) { return a === 'ding'; }).length === 1, 'N11: crisp brings no second ding');
+  check(C.errs.length === 0, 'N11: no errors (crisp) ' + C.errs.join(' | '));
+  await C.done();
+  /* reduced motion: still from f 0, the ring marks held for f 0..7 */
+  var M = await openPage(browser, { store: SEEN_ALL, q: 'seed=16', reduced: true });
+  await toGolden(M);
+  var m0 = await bellPx(M);
+  check(m0.l.bell && m0.l.bell.shown && m0.l.bell.f === 0 && m0.rest === R1 && m0.rim !== S6 && m0.mark === A3, 'N11 reduced: f 0 is the still bell (no pop) with the ring marks');
+  var m5 = null, m9 = null;
+  for (k = 0; k < 60 && !m9; k++) { await M.go(20); var q2 = await bellPx(M); if (q2.l.bell.f === 5 && !m5) m5 = q2; if (q2.l.bell.f >= 9) m9 = q2; }
+  check(m5 && m5.rest === R1 && m5.a !== R1 && m5.b !== R1 && m5.mark === A3, 'N11 reduced: f 5 still, no swing, marks held');
+  check(m9 && m9.rest === R1 && m9.mark !== A3, 'N11 reduced: from f 8 the marks are gone, the bell stays');
+  check(M.errs.length === 0, 'N11: no errors (reduced) ' + M.errs.join(' | '));
+  await M.done();
+}
+
 (async function main() {
   var tests = { L1: L1, L2: L2, L3: L3, L4: L4, L5: L5, L6: L6, L7: L7, L8: L8, L9: L9, L10: L10, L11: L11, L12: L12, L13: L13, L15: L15, L16: L16, L17: L17, L18: L18, L19: L19,
-    N1: N1, N2: N2, N5: N5, N6: N6, N7: N7, N10: N10 };
+    N1: N1, N2: N2, N5: N5, N6: N6, N7: N7, N10: N10, N11: N11 };
   var browser = await chromium.launch(), t0 = Date.now();
   try {
     for (var name in tests) {

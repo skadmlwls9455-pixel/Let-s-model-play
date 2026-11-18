@@ -18,8 +18,9 @@
  *                 the stage, so box = stage - box0. Up to 9. toFood(x, y) / fromFood(fx, fy) convert.
  *          band   0 soft, 1 golden, 2 crisp  (face colors #e8c170 / #de9e41 / #be772b, edge #884b2b).
  *          cuts   per cut line: signed deviation from that line's guide angle, a multiple of 6, drawn clamped to +-30.
- *                 jeon guides are GEO.cross = [0, 90] (horizontal line first, then vertical): the dish shows a cross.
- *          offs   per cut line: its seeded guide offset in art px (-4..4), down for line 0, right for line 1.
+ *                 jeon guides are GEO.cross = [0, 90] (look index 0 horizontal, 1 vertical): the dish shows a cross.
+ *          offs   per cut line: its guide offset in art px (-4..4), down for line 0, right for line 1. 11-18: a new
+ *                 dish always has cuts and offs 0 (an exact '+'); old book looks keep theirs.
  *          plate  0 paper, 1 sky, 2 pink.     herb ('parae' | 'tot') comes from the run's swaps and is passed as o.herb.
  *          Unknown look.v or broken fields fall back to the default look (dish() and dishSmall() never throw).
  *
@@ -56,10 +57,11 @@
  *                      | knife ([x, y, deg] art px; null = hidden; neither = resting on the board), trail [[x, y]], f }
  *                      painted bins become the kerf and drop their guide dashes; a cut line splits the jeon at
  *                      guide angle + ang through the line's centre and the pieces part 1 art px each way.
+ *                      11-18: o.pop (with flash = i) = the cut frame: line i parts 2 px each way, the rest stay at 1.
  *   revealScene(b, o)  o = { look, herb, f 0..5 }: the plate rises 2 px per frame (6 frames at 12 fps), f >= 5 = at rest.
  *                      o.geo = 'close' (11-15): the close-up plate GEO.rev2 driven by o.t (12 fps frames since the reveal):
  *                      t null rest frame | t <= 3 the board's cut jeon at lift 2 with a checker shadow | t 4 lift 1 |
- *                      t 5 the plated look (seeded nudge, garnish 8) squashed rx + 2 / ry - 1 | t >= 6 rest with steam,
+ *                      t 5 the plated look (garnish 8, quarters at sep 2) squashed rx + 2 / ry - 1 | t >= 6 rest with steam,
  *                      twinkles and the flare on the 96-frame loop. Plate and jeon stay in stage x 33..111.
  * CLOSE-UP (11-15; js/cook.js composes a canvas wider and taller than the stage around it)
  *   view(b, o)         o = { station 'counter' | 'stove' | 'board' | 'plate', ox, oy, x0 = 0, x1 = b.w }: that station's
@@ -83,6 +85,7 @@
  *          dents: hits within 3 px are one round dimple that grows with its count; herbs: wavy strands + clumps
  *          bubbles(b, list, f, still) spatula(b, x, y) arrow(b, x, y, f) guide(b, x, y, deg, len, f, cells)
  *          knife(b, x, y, deg) (x, y = edge point under the finger; handle always to the right / below)
+ *          bell(b, x, y, f, still) (11-18: the 13 x 13 golden desk bell at GEO.bell; f frames since golden)
  *          plate(b, color, o) dish(b, look, o) (o = { herb, x, y }; GEO.dish 96 x 66, centred in b unless x / y given)
  *          dishSmall(b, look, o) (GEO.small 40 x 26). js/cook.js drawDish() calls these two with o = { herb, ... }.
  *          hand(b, o)  ghost hand (solid slate outline, 50 % checker fill). o = { kind: 'tap', x, y, f } |
@@ -155,8 +158,9 @@ var COOK_ART = (function () {
     box0: [40, 62], boxW: 64, boxH: 48,                         /* food box (dents live here) = food centre - [32, 24] */
     board: { x: 10, y: 36, w: 124, h: 100 },                    /* slice scene board (top face) */
     cross: [0, 90],                                             /* jeon guide angles, in order */
-    rest: { spatula: [100, 112], knife: [100, 124, 0] },       /* tools at rest: spatula blade centre, knife [x, y, deg] (11-15: the
-                                                                  spatula rests low right on the stove, its blade in x 92..107) */
+    rest: { spatula: [100, 114], knife: [100, 124, 0] },       /* tools at rest: spatula blade centre, knife [x, y, deg] (11-18: the
+                                                                  bigger spatula rests low right on the stove, blade x 88..111, y 108..119) */
+    bell: [102, 44],                                            /* 11-18 desk bell (13 x 13) centre: on the stove behind the pan's upper right rim */
     flipArrow: [72, 110],                                       /* 11-15 flip glyph: the up-arrow's tip, on the pan floor under the jeon */
     knob: [96, 148], knob0: [48, 148], knobDot: [106, 142],     /* 11-15 stove knobs (right = the burner) and the burner's 2x2 dot */
     rev2: { pcx: 72, pcy: 89, prx: 39, pry: 26, rim: 5, pth: 3, jcx: 72, jcy: 86, jrx: 29, jry: 19, soy: [98, 54, 9, 5],
@@ -1132,7 +1136,11 @@ var COOK_ART = (function () {
     var rx = o.rx || GEO.food.rx[2], ry = o.ry || GEO.food.ry[2], cx = o.cx == null ? GEO.food.cx : o.cx | 0, cy = o.cy == null ? GEO.food.cy : o.cy | 0;
     var dl = (o.dents || []).slice(0, 9);
     var ds = dl.map(function (d) { return [idiv(((d[0] | 0) - 32) * rx, GEO.food.rx[2]), idiv(((d[1] | 0) - 24) * ry, GEO.food.ry[2])]; });
-    var cuts = (o.cuts || []).map(function (c) { return [Math.round(+c.deg || 0), c.x == null ? 0 : (c.x | 0) - cx, c.y == null ? 0 : (c.y | 0) - cy]; });
+    var cuts = (o.cuts || []).map(function (c) {   /* [deg, dx, dy] + an optional per-cut sep (11-18: the '+' pop) */
+      var a = [Math.round(+c.deg || 0), c.x == null ? 0 : (c.x | 0) - cx, c.y == null ? 0 : (c.y | 0) - cy];
+      if (c.sep != null) a.push(c.sep | 0);
+      return a;
+    });
     var face = o.face === 'top' || o.face === 'raw' ? o.face : 'bottom', band = clampI(o.band, 0, 2), herb = o.herb === 'tot' ? 'tot' : 'parae', th = o.thick == null ? 2 : o.thick | 0;
     var sep = o.sep == null ? 1 : o.sep | 0, seed = o.seed == null ? texSeed(dl) : o.seed | 0;
     var fk = faceKey(rx, ry, face, band, herb, th, ds, seed, o);
@@ -1157,7 +1165,10 @@ var COOK_ART = (function () {
       if ((x + 1 < w && K[y * w + x + 1]) || (x > 0 && K[y * w + x - 1]) || (y + 1 < h && K[(y + 1) * w + x]) || (y > 0 && K[(y - 1) * w + x])) put(b, ox + x, oy + y, C.s6);
     }
   }
-  /* split a jeon by straight cuts: every piece moves `sep` px away from each cut (normal snapped to 8 directions); with
+  /* split a jeon by straight cuts: every piece moves `sep` px away from each cut (normal snapped to 8 directions; a cut
+     [deg, dx, dy, sep] has its own sep, 11-18). A cut at 0 / 90 / 180 / 270 deg runs through a row / column of pixels:
+     that row / column is the knife's kerf and is left out, so the two sides are mirror images and the opened gap is
+     2 x sep + 1 px (an odd jeon cannot part evenly round a 2-px gap). With
      `nudge` each piece also slides 0..1 px further out by the seed, so four pieces never line up into a perfect cross.
      Cut faces read as food, never as a plate-coloured line: the piece above a gap shows its soft inside (batter with a
      seaweed fleck) and, if the gap is wide, the crust under it; the piece below shows a crust line; the left piece a
@@ -1169,19 +1180,22 @@ var COOK_ART = (function () {
     var L = cuts.map(function (c) {
       var s = isin(c[0]), co = icos(c[0]);
       var nx = -s > 1567 ? 1 : -s < -1567 ? -1 : 0, ny = co > 1567 ? 1 : co < -1567 ? -1 : 0;
-      return { s: s, c: co, x: J.cx + c[1], y: J.cy + c[2], nx: nx, ny: ny };
+      var a = ((c[0] % 180) + 180) % 180;
+      return { s: s, c: co, x: J.cx + c[1], y: J.cy + c[2], nx: nx, ny: ny, sep: c[3] == null ? sep : c[3], kerf: a === 0 ? 1 : a === 90 ? 2 : 0 };
     });
     var piece = new Uint8Array(src.w * src.h), NUD = {};
     for (j = 0; j < src.h; j++) for (i = 0; i < src.w; i++) {
       var si = (j * src.w + i) << 2; if (!src.d[si + 3]) continue;
-      var mx = 0, my = 0, key = 0, ox2 = 0, oy2 = 0;
+      var mx = 0, my = 0, key = 0, ox2 = 0, oy2 = 0, cutAway = false;
+      for (k = 0; k < L.length; k++) if ((L[k].kerf === 1 && j === L[k].y) || (L[k].kerf === 2 && i === L[k].x)) cutAway = true;
+      if (cutAway) continue;   /* the kerf: it shows as part of the opened gap */
       for (k = 0; k < L.length; k++) {
         var X = 2 * (i - L[k].x) + 1, Y = 2 * (j - L[k].y) + 1, neg = X * L[k].s - Y * L[k].c < 0;
         var vx = neg ? L[k].nx : -L[k].nx, vy = neg ? L[k].ny : -L[k].ny;
         if (neg) key |= 1 << k;
         ox2 += vx; oy2 += vy;
         if (half && vx + vy >= 0) continue;   /* half: only the piece moving up / left moves -> a 1-px gap */
-        mx += vx * sep; my += vy * sep;
+        mx += vx * L[k].sep; my += vy * L[k].sep;
       }
       if (nudge) {
         var nd = NUD[key];
@@ -1608,33 +1622,85 @@ var COOK_ART = (function () {
       } else { [[-1, -1], [2, -1], [-1, 2], [2, 2]].forEach(function (p) { put(b, x + p[0], y + p[1], C.s3); }); }
     });
   }
-  /* spatula (turner): slotted blade with its centre at (x, y), handle down-right */
+  /* spatula (turner): slotted blade with its centre at (x, y), handle down-right. 11-18: bigger (blade 24 x 12 with 5
+     slots, handle 38 long and 3 thick + outline at 40 deg), so it reads as a tool next to the jeon. */
   var SPATULA = [
-    '.oooooooooooooo.',
-    'oWWWWWWWWWWWWWYo',
-    'oWYYYYYYYYYYYYXo',
-    'oWYVYYVYYVYYVYXo',
-    'oWYVYYVYYVYYVYXo',
-    'oWYVYYVYYVYYVYXo',
-    'oYYYYYYYYYYYYYXo',
-    '.oXXXXXXXXXXXXo.',
-    '..ooooooXXoooo..'];
+    '.oooooooooooooooooooooo.',
+    'oWWWWWWWWWWWWWWWWWWWWWYo',
+    'oWYYYYYYYYYYYYYYYYYYYYXo',
+    'oWYVVYYVVYYVVYYVVYYVVYXo',
+    'oWYVVYYVVYYVVYYVVYYVVYXo',
+    'oWYVVYYVVYYVVYYVVYYVVYXo',
+    'oWYVVYYVVYYVVYYVVYYVVYXo',
+    'oWYVVYYVVYYVVYYVVYYVVYXo',
+    'oWYVVYYVVYYVVYYVVYYVVYXo',
+    'oYYYYYYYYYYYYYYYYYYYYYXo',
+    '.oXXXXXXXXXXXXXXXXXXXXo.',
+    '..oooooooooXXooooooooo..'];
   function spatula(b, x, y) {
     x |= 0; y |= 0;
     var sp = remember('spatula', function () {
-      var R = 40, spr = blank(2 * R + 1, 2 * R + 1), sh = [];
-      stick(spr, R + 3, R + 8, 40, 30, 2, function (u, v) { return v < -2 || v > 1 || u < 3 ? null : '#000'; }, null, function (px, py) { sh.push([px - R + 2, py - R + 3]); });
-      stick(spr, R + 2, R + 5, 40, 30, 2, function (u, v) {
-        if (u < 9) return v < -1 || v > 0 ? null : v === -1 ? C.s3 : C.s2;
-        if (v < -2 || v > 1) return null;
-        if (u > 28 && (v === -2 || v === 1)) return null;
-        return v === -2 ? C.w4 : v === 1 ? C.w1 : v === -1 ? C.w3 : C.w2;
+      var R = 48, spr = blank(2 * R + 1, 2 * R + 1), sh = [];
+      stick(spr, R + 3, R + 9, 40, 38, 3, function (u, v) { return v < -3 || v > 2 || u < 3 ? null : '#000'; }, null, function (px, py) { sh.push([px - R + 2, py - R + 3]); });
+      stick(spr, R + 2, R + 6, 40, 38, 3, function (u, v) {
+        if (u < 11) return v < -1 || v > 1 ? null : v === -1 ? C.s3 : C.s2;   /* steel shank */
+        if (v < -3 || v > 2) return null;
+        if (u > 36 && (v === -3 || v === 2)) return null;                 /* rounded end */
+        return v === -3 ? C.w4 : v === 2 ? C.w1 : v === -2 ? C.w3 : C.w2;
       }, C.ink);
-      sprite(spr, SPATULA, { o: C.ink, W: C.s6, Y: C.s5, X: C.s4, V: C.s1 }, R - 8, R - 4);
+      sprite(spr, SPATULA, { o: C.ink, W: C.s6, Y: C.s5, X: C.s4, V: C.s1 }, R - 12, R - 6);
       return { spr: spr, sh: sh, R: R };
     });
     sp.sh.forEach(function (q) { shadeAt(b, x + q[0], y + q[1]); });
     blit(b, sp.spr, x - sp.R, y - sp.R);
+  }
+  /* 11-18 desk bell (13 x 13, Apollo only), centre (x, y) = GEO.bell. f = 12 fps frames since the golden moment:
+     0 pop (2 px higher, a 1-frame bright rim) | 1..7 swing (rows 0..6 lean 1 px left on odd frames, right on even) with
+     ring marks (a 1 x 3 stroke 2 px outside each side of the dome and a dot above) on odd frames | >= 8 still.
+     still (reduced motion): the bell at rest from f 0, the ring marks held for f 0..7. */
+  var BELL = [
+    '.....BBB.....',
+    '.....BBB.....',
+    '....ooooo....',
+    '..ooLLLMMoo..',
+    '.oLLSSLMMMDo.',
+    '.oLLLLMMMMDo.',
+    'oLLLMMMMMMMDo',
+    'oLLMMMMMMMMDo',
+    'oLMMMMMMMMDDo',
+    'oMMMMMMMMMDDo',
+    'ooooooooooooo',
+    '.WWWWWWWWWWW.',
+    '.VVVVVVVVVVV.'];
+  function bellSprite(lean, rim) {
+    return remember('bell|' + lean + '|' + (rim ? 1 : 0), function () {
+      var P = 1, s = blank(13 + 2 * P, 13 + 2 * P), K = { B: C.a1, o: C.r1, L: C.a3, M: C.a2, D: C.a1, S: C.s6, W: C.w2, V: C.w1 };
+      for (var j = 0; j < 13; j++) for (var i = 0; i < 13; i++) {
+        var c = K[BELL[j].charAt(i)]; if (!c) continue;
+        put(s, P + i + (j <= 6 ? lean : 0), P + j, c);
+      }
+      if (rim) {   /* one-frame bright rim: the ring of empty pixels round the bell */
+        var src = clone(s);
+        for (var y = 0; y < s.h; y++) for (var x = 0; x < s.w; x++) {
+          if (get(src, x, y)) continue;
+          if (get(src, x + 1, y) || get(src, x - 1, y) || get(src, x, y + 1) || get(src, x, y - 1)) put(s, x, y, C.s6);
+        }
+      }
+      return s;
+    });
+  }
+  function bell(b, x, y, f, still) {
+    f = Math.max(0, f | 0);
+    var x0 = (x | 0) - 6, y0 = (y | 0) - 6, lean = 0, up = 0, rim = false, marks = false;
+    if (still) marks = f <= 7;
+    else if (f === 0) { up = 2; rim = true; }
+    else if (f <= 7) { lean = f & 1 ? -1 : 1; marks = (f & 1) === 1; }
+    blit(b, bellSprite(lean, rim), x0 - 1, y0 - 1 - up);
+    if (marks) {
+      for (var k = 0; k < 3; k++) { put(b, x0 - 3, y0 + 4 + k, C.a3); put(b, x0 + 15, y0 + 4 + k, C.a3); }
+      put(b, x0 + 6, y0 - 2, C.a3);
+    }
+    return b;
   }
   /* pixel up-arrow, 2-frame bob (f 0 | 1) */
   var ARROW = [
@@ -1662,25 +1728,31 @@ var COOK_ART = (function () {
     mEach(D, function (px, py) { [[1, 0], [0, 1], [1, 1]].forEach(function (q) { if (!mhas(D, px + q[0], py + q[1])) put(b, px + q[0], py + q[1], C.w1); }); });
     mEach(D, function (px, py, v) { put(b, px, py, v === 2 && lit ? C.a3 : C.a2); });
   }
-  /* kitchen knife along deg; (x, y) = point of the edge under the finger. The handle always points right / down. */
+  /* kitchen knife along deg; (x, y) = point of the edge under the finger (14 px from the tip). The handle always points
+     right / down. 11-18: bigger, 49 x 7 at 0 deg: blade 30 (2 tall at the tip, 6 at the heel, the edge on the axis
+     row, the spine on the -v side), a 3 x 7 bolster, a 16 x 5 handle with two rivets. Outline painted in, so the box is
+     exact. Cuts are exact now, so the live knife is at 0 or 90 deg; other angles still draw (old callers). */
+  function knifeProf(u, v) {
+    if (u <= 29) {   /* blade: height 2 at the tip rising to 6 by u 14 */
+      var h = Math.min(6, 2 + idiv(u * 4, 14)), top = 2 - h;
+      if (v < top || v > 1) return null;
+      if (v === top || v === 1) return C.ink;
+      if (v === 0) return C.s6;                       /* the bright edge sits on the cut */
+      return v === top + 1 ? C.s4 : C.s5;
+    }
+    if (u <= 32) { if (v < -4 || v > 2) return null; return v === -4 || v === 2 || u === 32 ? C.ink : v === -3 ? C.s3 : C.s2; }   /* bolster */
+    if (v < -3 || v > 1) return null;                 /* handle */
+    if (v === -3 || v === 1 || u === 48) return C.ink;
+    if ((u === 37 || u === 44) && v === -1) return C.s5;   /* rivets */
+    return v === -2 ? C.w2 : C.w1;
+  }
   function knife(b, x, y, deg) {
     deg = Math.round(+deg || 0) % 180; if (deg < 0) deg += 180;
     if (deg > 100) deg -= 180;                       /* keep the handle on the right / lower side */
-    var c = icos(deg), s2 = isin(deg), tipx = (x | 0) - iround(12 * c, 4096), tipy = (y | 0) - iround(12 * s2, 4096), R = 42;
+    var c = icos(deg), s2 = isin(deg), tipx = (x | 0) - iround(14 * c, 4096), tipy = (y | 0) - iround(14 * s2, 4096), R = 54;
     var spr = remember('knife|' + deg, function () {
       var k = blank(2 * R + 1, 2 * R + 1);
-      stick(k, R, R, deg, 36, 3, function (u, v) {
-        if (u <= 22) {
-          var top = u < 3 ? 0 : -1, bot = u < 2 ? 0 : u < 5 ? 1 : 2;
-          if (v < top || v > bot) return null;
-          if (v === bot && u > 1) return C.s6;
-          return v === top ? C.s3 : C.s5;
-        }
-        if (u <= 24) return v < -1 || v > 2 ? null : C.s2;
-        if (v < -1 || v > 1) return null;
-        if ((u === 28 || u === 33) && v === 0) return C.s5;
-        return v === -1 ? C.w2 : C.w1;
-      }, C.ink);
+      stick(k, R, R, deg, 48, 4, knifeProf, null);
       return k;
     });
     blit(b, spr, tipx - R, tipy - R);
@@ -1837,8 +1909,9 @@ var COOK_ART = (function () {
   function plated(b, L, herb, G) {
     plate(b, L.plate, { cx: G.pcx, cy: G.pcy, rx: G.prx, ry: G.pry, th: G.pth, rim: G.rim, deco: G.deco });
     var soy = G.soy ? soyDish(b, G.soy[0], G.soy[1], G.soy[2], G.soy[3], texSeed(L.dents)) : null;
-    var cuts = GEO.cross.map(function (g, i) { return { deg: g + L.cuts[i], x: G.jcx + (i === 1 ? idiv(L.offs[i] * G.jrx, 29) : 0), y: G.jcy - 1 + (i === 0 ? idiv(L.offs[i] * G.jry, 19) : 0) }; });
-    var o = platedFace(L, herb, G); o.cx = G.jcx; o.cy = G.jcy; o.cuts = cuts; o.sep = 1; o.half = G.half == null ? 1 : G.half; o.nudge = G.nudge; o.gap = G.gap || F.J1;
+    /* 11-18: symmetric '+' (no half, no nudge) unless G asks for the old look (REV, tests only) */
+    var cuts = GEO.cross.map(function (g, i) { return { deg: g + L.cuts[i], x: G.jcx + (i === 1 ? idiv(L.offs[i] * G.jrx, 29) : 0), y: G.jcy - (G.half ? 1 : 0) + (i === 0 ? idiv(L.offs[i] * G.jry, 19) : 0) }; });
+    var o = platedFace(L, herb, G); o.cx = G.jcx; o.cy = G.jcy; o.cuts = cuts; o.sep = 1; o.half = G.half ? 1 : 0; o.nudge = G.nudge; o.gap = G.gap || F.J1;
     var R = jeonComp(o);
     var x0 = G.jcx + R.ox, y0 = G.jcy + R.oy, rb = R.buf, i, j;
     for (j = 0; j < rb.h; j++) for (i = 0; i < rb.w; i++) {   /* contact shadow: down-right, one step darker */
@@ -1852,7 +1925,7 @@ var COOK_ART = (function () {
   }
   /* the finished jeon as the player's hands left it (96 x 66, no soy dish). b = any buffer. o = { herb, x, y } (o.seed is
      ignored for the picture: the dents pick the texture, so this matches the reveal and the counter) */
-  var DISHG = { pcx: 48, pcy: 31, prx: 44, pry: 27, pth: 3, rim: 5, jcx: 48, jcy: 29, jrx: 29, jry: 19, glints: [3, 9], garnish: 8, shadow: 2, thick: 2, nudge: 1 };
+  var DISHG = { pcx: 48, pcy: 31, prx: 44, pry: 27, pth: 3, rim: 5, jcx: 48, jcy: 29, jrx: 29, jry: 19, glints: [3, 9], garnish: 8, shadow: 2, thick: 2 };
   function dish(b, look, o) {
     o = o || {};
     var L = safeLook(look), D = GEO.dish, ox = o.x == null ? (b.w - D.w) >> 1 : o.x | 0, oy = o.y == null ? (b.h - D.h) >> 1 : o.y | 0;
@@ -2310,7 +2383,8 @@ var COOK_ART = (function () {
     var dl = (o.dents || []).slice(0, 9), tseed = texSeed(dl), seed = o.seed == null ? tseed : o.seed | 0;
     copy(b, cached('board', function (c) { bgStep(c); board(c, G.x, G.y, G.w, G.h, false); }));
     var lines = (o.lines || []).map(lineOf), cuts = [], fresh = true;
-    lines.forEach(function (L) { if (L && L.cut) cuts.push({ deg: L.cutDeg == null ? L.deg : L.cutDeg, x: L.x, y: L.y }); if (L && (L.cut || (L.cells && L.cells.some(function (v) { return v; })))) fresh = false; });
+    /* 11-18 '+': on the cut frame (o.pop with o.flash = that line) the new cut opens to sep 2, then settles to sep 1 */
+    lines.forEach(function (L, i) { if (L && L.cut) cuts.push({ deg: L.cutDeg == null ? L.deg : L.cutDeg, x: L.x, y: L.y, sep: o.pop && o.flash === i ? 2 : 1 }); if (L && (L.cut || (L.cells && L.cells.some(function (v) { return v; })))) fresh = false; });
     var anyFlash = lines.some(function (L, i) { return L && L.cut && (L.flash || o.flash === i); });
     var R = jeonComp({ cx: cx, cy: cy, face: 'bottom', band: band, herb: herb, dents: dl, cuts: cuts, sep: 1, seed: tseed, ol: 1, gap: C.w4 });
     var x0 = cx + R.ox, y0 = cy + R.oy, rb = R.buf, i, j, s;
@@ -2369,7 +2443,7 @@ var COOK_ART = (function () {
      on the glints and now and then a white flare on the food. Everything ends above y 120 (the dish-name tag sits at 124).
      o = { look, herb, f 0..5 (rise), t (frames since the reveal began; optional), still }. Without t the reveal is a
      still frame (static puffs, no twinkle), which is also its reduced-motion picture. */
-  var REV = { pcx: 72, pcy: 83, prx: 60, pry: 33, pth: 3, rim: 7, jcx: 72, jcy: 80, jrx: 42, jry: 26, soy: [121, 52, 12, 7], glints: [5, 14], garnish: 10, shadow: 2, thick: 3, nudge: 1 };
+  var REV = { pcx: 72, pcy: 83, prx: 60, pry: 33, pth: 3, rim: 7, jcx: 72, jcy: 80, jrx: 42, jry: 26, soy: [121, 52, 12, 7], glints: [5, 14], garnish: 10, shadow: 2, thick: 3, nudge: 1, half: 1 };
   var REVC = lru(8);
   function prewarmReveal(band, herb, dl) {   /* the slice step already knows band, herb and dents: build the big face early */
     if (!cache.reveal) { cached('reveal', function (cc) { bgStep(cc); }); return; }
@@ -2486,8 +2560,9 @@ var COOK_ART = (function () {
   }
   /* revealScene with geo 'close' (GEO.rev2, the plate filling the close-up), driven by t (12 fps frames since the reveal):
      t null = the rest frame (reduced motion, tests) | t <= 3 the board's cut jeon carried in at lift 2 with its shadow |
-     t 4 lift 1 | t 5 landing: the plated look (pieces nudged by the seed, garnish 8) squashed rx + 2 / ry - 1 |
-     t >= 6 at rest with steam, twinkles and the rare flare on the 96-frame loop. Plate and jeon stay in x 33..111. */
+     t 4 lift 1 | t 5 landing: the plated look (garnish 8, the quarters parted at sep 2) squashed rx + 2 / ry - 1 |
+     t >= 6 at rest (four equal quarters, sep 1) with steam, twinkles and the rare flare on the 96-frame loop. Plate and
+     jeon stay in x 33..111. */
   var REV2C = lru(8);
   function revealClose(b, o) {
     var G = GEO.rev2, t = o.t == null ? null : Math.max(0, o.t | 0), L = safeLook(o.look), herb = o.herb === 'tot' ? 'tot' : 'parae';
@@ -2500,7 +2575,7 @@ var COOK_ART = (function () {
     var land = t === 5;
     var R = lruGet(REV2C, herb + '|' + JSON.stringify(L) + '|' + (land ? 1 : 0), function () {
       var q = { cx: G.jcx, cy: G.jcy, rx: G.jrx + (land ? 2 : 0), ry: G.jry - (land ? 1 : 0), face: 'bottom', band: L.band, herb: herb, dents: L.dents,
-        ol: 1, glints: G.glints, garnish: G.garnish, thick: G.thick, cuts: cutsOf(L, G.jcx, G.jcy), sep: 1, half: 1, nudge: 1, gap: F.J1 };
+        ol: 1, glints: G.glints, garnish: G.garnish, thick: G.thick, cuts: cutsOf(L, G.jcx, G.jcy), sep: land ? 2 : 1, gap: F.J1 };   /* 11-18: '+' at sep 1, the landing at sep 2 */
       return jeonComp(q);
     });
     var x0 = G.jcx + R.ox, y0 = G.jcy + R.oy, rb = R.buf, i, j, s;
@@ -2563,7 +2638,7 @@ var COOK_ART = (function () {
     dither: dither, blit: blit, hash: hash, colors: colors, imageData: imageData, toCanvas: toCanvas,
     counter: counter, tapScene: tapScene, flipScene: flipScene, sliceScene: sliceScene, revealScene: revealScene, frame: frame,
     pan: pan, panHeat: panHeat, board: board, batter: batter, marks: marks, jeon: jeon, bubbles: bubbles, spatula: spatula,
-    arrow: arrow, guide: guide, knife: knife, plate: plate, dish: dish, dishSmall: dishSmall, hand: hand, icon: icon,
+    arrow: arrow, guide: guide, knife: knife, bell: bell, plate: plate, dish: dish, dishSmall: dishSmall, hand: hand, icon: icon,
     particles: particles, safeLook: safeLook, shake: shake, wallTile: wallTile,
     view: view, base: base, carry: carry, bgStove: bgStove,
     toFood: toFood, fromFood: fromFood, inFood: inFood, pullIn: pullIn,
