@@ -7440,9 +7440,18 @@ async function scenarioTurn(browser) {
       var v2 = await voidIn(CORN[room], WALL_H[room]);
       ok(v2.n > 400 && v2.bad === 0, room + ' ' + a2 + '°: 방 실루엣 안에 허공 ' + v2.bad + '/' + v2.n + ' 칸' + (v2.at ? ' (처음 ' + v2.at + ')' : ''));
     }
-    if (room === 'play') {   /* 문으로 들어와 방 안쪽을 보고 선 나도, 돌리면 카메라 쪽을 본다 (검증 11-15: 뒤통수만 보였다) */
-      var pf = await page.waitForFunction(function () { var y = APP.scene.player().yaw, c = 45 + APP.scene.yawInfo().shown, d = Math.atan2(Math.sin((y - c) * Math.PI / 180), Math.cos((y - c) * Math.PI / 180)) * 180 / Math.PI; return Math.abs(d) < 10 ? y : false; }, null, { timeout: 20000, polling: 100 }).then(function (h) { return h.jsonValue(); }, function () { return null; });
-      ok(pf !== null, '놀이방 (돌린 뒤): 문 앞에 선 내 캐릭터가 카메라 쪽을 본다 (yaw ' + pf + ')');
+    if (room === 'play') {   /* 11-18 주인: 내 캐릭터는 카메라 쪽으로 슉 돌지 않는다 — 방을 돌려도 · 스틱을 놓아도 마지막으로 보던 쪽 그대로 */
+      await page.waitForFunction(function () { var p = APP.scene.player(); return !p.walking && !p.pending; }, null, { timeout: 20000, polling: 100 });
+      var pf = await page.evaluate(function () {
+        var a = APP.scene.player().yaw; APP.scene.setYaw(APP.scene.yawInfo().yaw + 90, true);
+        return new Promise(function (r) { setTimeout(function () { r({ before: a, after: APP.scene.player().yaw, walking: APP.scene.player().walking }); }, 900); });
+      });
+      ok(!pf.walking && pf.after === pf.before, '놀이방: 방을 90° 더 돌려도 쉬는 내 캐릭터는 보던 쪽 그대로 (' + pf.before + '° → ' + pf.after + '°)');
+      var ps = await page.evaluate(function () {
+        APP.scene.setPlayerInput({ x: 1, y: 0 });
+        return new Promise(function (r) { setTimeout(function () { var mid = APP.scene.player().yaw; APP.scene.setPlayerInput(null); setTimeout(function () { r({ mid: mid, after: APP.scene.player().yaw }); }, 900); }, 600); });
+      });
+      ok(ps.after === ps.mid, '놀이방: 스틱을 놓아도 내 캐릭터는 걷던 쪽 그대로 (' + ps.mid + '° → ' + ps.after + '°, 카메라 쪽으로 돌지 않음)');
     }
     if (room === 'attic') {   /* 90°: 계단이 잘려 아래 두 칸만 — 위층 단추도 그 두 칸 위만 (방 가운데 톡이 위층으로 가지 않게) */
       var sr = await page.evaluate(function () { var a = APP.scene.spotRect('atticStair'); APP.scene.setYaw(90, true); var b = APP.scene.spotRect('atticStair'); var cut = APP.scene.yawInfo().cut.stair; var mid = APP.scene.screenOf(0.5, 0.3, 0.5), r = document.getElementById('scene').getBoundingClientRect(), k = APP.scene.pickAt(r.left + mid.x, r.top + mid.y); return { a: a && a.h, b: b && b.h, cut: cut, mid: k && k.id }; });
