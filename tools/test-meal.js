@@ -200,6 +200,9 @@ section('7 rows · toast · desc · aria', function () {
   M.makeAsk(X, { at: 1, today: D0 });
   var xe = M.eat(X, { at: 2, today: D0, oct: null });
   check(M.rows(xe, '뚜루').length === 1, 'asked, then the visit was aborted and I ate alone: no decision row (ate.oct null)');
+  var past = M.rows(e, '뚜루', D1);
+  check(past[1].text === '해초전을 같이 먹었어. 그날 하루 둘 다 반짝이가 따라다녔어.' && M.rows(e, '뚜루', D0)[1].text === r[1].text, 'past days say 그날 하루 … 따라다녔어 (the effect ended)');
+  check(M.rows(ae, '뚜루', D1)[0].text === '주먹밥을 먹었어. 그날 하루 별이 따라다녔어.', 'past alone');
   var nm = M.rows(e, '');
   check(nm[0].text === '문어도 같이 먹기로 했어.', "no name → '문어'");
   var md = { id: 'ml_m', dish: 'ck_m', recipe: 'jeon', ask: { at: 1, action: 'eat', by: 'model', line: '같이 먹을게 :)', expr: 'happy' }, ate: { at: 2, date: D0, me: true, oct: true, fx: 'sparkle' } };
@@ -227,7 +230,11 @@ section('8 normalize', function () {
   M.normalize(u);
   check(u.table === null, 'a non-object table → null');
   check(u.meals.length === 2 && u.meals[0].recipe === 'future' && u.meals[0].ate.fx === 'glow' && u.meals[0].extra.keep === 1, 'unknown values kept; non-objects and a duplicate id dropped');
-  check(u.meals[0].ask === null && u.meals[0].ate.oct === null && u.meals[1].ask === null && u.meals[1].ate === null, 'ask / ate fixed to null or object; ate.oct only true / false / null');
+  check(u.meals[0].ask === null && u.meals[0].ate.oct === 'maybe' && u.meals[1].ask === null && u.meals[1].ate === null, 'ask / ate fixed to null or object; an unknown ate.oct is kept in storage');
+  check(M.rows({ id: 'x', dish: 'ck_x', recipe: 'jeon', ask: { by: 'demo-rules', action: 'eat' }, ate: { at: 1, date: D0, oct: 'maybe', fx: 'sparkle' } }, 'a').length === 1, 'an unknown ate.oct reads as not at the table (no decision row)');
+  var dup = { meals: [{ id: 'ml_d', dish: 'ck_d', ask: null, ate: null, first: 1 }, { id: 'ml_d', dish: 'ck_d', ask: { by: 'demo-rules', action: 'eat' }, ate: { at: 1, date: D0, me: true, oct: true, fx: 'star' } }] };
+  M.normalize(dup);
+  check(dup.meals.length === 1 && dup.meals[0].ate && dup.meals[0].ate.fx === 'star', 'a duplicate id keeps the eaten one (never loses a meal)');
   var j = JSON.stringify(u); M.normalize(u);
   check(JSON.stringify(u) === j, 'idempotent');
   var v = {}; M.normalize(v);

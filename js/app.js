@@ -3789,7 +3789,7 @@ var APP = (function () {
     clearRest();   /* 11-13 (마지막 검증 C-2): 이 탭의 깨어 있는 틈은 불러온 기록의 것이 아니다 (octInitial 이 시계로 다시 잡는다) */
     if (kr && kr.left > 0) { try { sessionStorage.setItem(REST_KEY, JSON.stringify(kr)); } catch (e) { /* noop */ } }
     if (octWithMe() && S.octopus.state !== 'sleep') { octState('idle'); scheduleWander(); }   /* 11-14 (게이트 Y): 위층에 따라 와 있고 불러온 문어가 깨어 있으면 내 곁 그 자리에 그대로 — 다락 창가 좌표로 위층 방 안에 서지도 (예전) 다락으로 내려가지도 (e8bad0f: 거울이 '지금은 아래층에 있어.' 만 했다) 않는다 */
-    else { if (octWithMe() && typeof scene.octDown === 'function') scene.octDown(); octInitial(); }   /* 11-13 (C-1): 낮잠 기록이면 위층에 따라 와 있던 문어는 다락으로 먼저 내려 담요에서 — 자는 문어는 늘 다락 담요 (아니면 다락 자리 좌표로 위층 방 안에서 잤다) */
+    else { mealDrop(); if (octWithMe() && typeof scene.octDown === 'function') scene.octDown(); octInitial(); }   /* 11-18: 식탁에 앉아 있던 문어는 먼저 다락으로 (식탁에서 잠들거나 놀이방 안 다락 자리로 뛰지 않게) */   /* 11-13 (C-1): 낮잠 기록이면 위층에 따라 와 있던 문어는 다락으로 먼저 내려 담요에서 — 자는 문어는 늘 다락 담요 (아니면 다락 자리 좌표로 위층 방 안에서 잤다) */
     resumeRunning().then(function (k) { if (k) finalPose({ kind: k }); });   /* 11-14 (C-b): 다녀오는 중에 내보낸 파일이면 부팅처럼 지금 데려온다 (같은 규칙 · 같은 한 줄 '네가 없는 동안 …'). 예전엔 running 으로 남아 다음 차례 뒤 눕지 못했다 (lieDown · syncRest) */
     applyLook({ still: true });   /* 불러온 몸 색 (renderAll 의 renderScene 이 이미 맞췄으면 할 일 없음) */
     var d = $('settings-sheet'); if (d && d.open) d.close();
@@ -3801,7 +3801,7 @@ var APP = (function () {
     var ssh = $('salon-sheet'); if (ssh && ssh.open) ssh.close();
     store.remove(KEY); clearRest();   /* 11-13 (재검증 S4): 앞 문어의 깨어 있는 틈도 */
     S = defaults(); mine = []; mineAsks = []; mineMeals = []; save(); setDayGreeting(); renderAll(); syncSceneLook();   /* renderAll → renderScene → applyLook: 장면 문어도 기본 빨강. 몸 색은 이름 창에서 다시 고른다 */
-    if (octWithMe() && typeof scene.octDown === 'function') scene.octDown(); octInitial();   /* 11-14: 위층에 따라 와 있던 문어였으면 다락으로 먼저 (불러오기 C-1 과 같은 까닭 — 다락 창가 좌표로 위층 방 안에 서지 않게). 새 문어는 나를 따라 온 적이 없다: 부팅처럼 다락 창가에서 처음 만난다 */
+    mealDrop(); if (octWithMe() && typeof scene.octDown === 'function') scene.octDown(); octInitial();   /* 11-18: 식탁의 문어도 먼저 다락으로 · 11-14: 위층에 따라 와 있던 문어였으면 다락으로 먼저 (불러오기 C-1 과 같은 까닭 — 다락 창가 좌표로 위층 방 안에 서지 않게). 새 문어는 나를 따라 온 적이 없다: 부팅처럼 다락 창가에서 처음 만난다 */
     var d = $('settings-sheet'); if (d && d.open) d.close();
     openNameDialog();
   }
@@ -4210,7 +4210,7 @@ var APP = (function () {
       eye: [[5, 8, 1, 2], [10, 8, 1, 2]], hi: [[5, 5, 2, 1]], arc: [[1, 1, 1, 1], [0, 2, 1, 2], [1, 4, 1, 1], [14, 1, 1, 1], [15, 2, 1, 2], [14, 4, 1, 1]] };
     var s = '<svg class="call-art" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">';
     Object.keys(R).forEach(function (k) { R[k].forEach(function (q) { s += '<rect class="ca-' + k + '" x="' + q[0] + '" y="' + q[1] + '" width="' + q[2] + '" height="' + q[3] + '"/>'; }); });
-    return '<span class="call-paper" aria-hidden="true">' + s + '</svg></span>';
+    return '<span class="call-paper" aria-hidden="true"></span>' + s + '</svg>';   /* 그림은 종이의 형제 — 단추 기준 자리 하나만 (반올림이 쌓이지 않게) */
   })();
   function devPx(v, dpr) { return Math.round(v * dpr) / dpr; }
   /* 식탁 단추들: 노란 점 (내가 앉기 전) · 칩 (부를 수 있을 때만) · 식탁 단추 이름 · #scene 의 oct-table / meal-busy 표시. 연출 중엔 칩 · 점 · 식탁 단추가 숨는다 */
@@ -4221,7 +4221,7 @@ var APP = (function () {
     if (seat) {
       var p = on3 && !bz && inPlay() ? mealSpot.seat : null;
       if (!p) seat.hidden = true;
-      else { seat.style.left = devPx(p.x - 22, dpr) + 'px'; seat.style.top = devPx(p.y - 22, dpr) + 'px'; seat.hidden = false; }
+      else { var r0 = sc ? sc.getBoundingClientRect() : { left: 0, top: 0 }, ox = r0.left + (sc ? sc.clientLeft : 0), oy = r0.top + (sc ? sc.clientTop : 0); seat.style.left = (devPx(ox + p.x - 22, dpr) - ox) + 'px'; seat.style.top = (devPx(oy + p.y - 22, dpr) - oy) + 'px'; seat.hidden = false; }
     }
     if (call) {
       if (!(on3 && mealCallOK())) call.hidden = true;
@@ -4230,13 +4230,13 @@ var APP = (function () {
         var q = mealSpot.call, W = sc ? sc.clientWidth : 0, H = sc ? sc.clientHeight : 0, lo = 8;
         if (layoutOne() && sc) { var st = $('status'); if (st && !st.hidden) lo = Math.max(lo, Math.ceil(st.getBoundingClientRect().bottom - sc.getBoundingClientRect().top) + 4); }   /* 위쪽 바 밑으로 들어가지 않게 */
         var x = clamp(q.x - 22, 8, Math.max(8, W - 52)), y = clamp(q.y - 48, lo, Math.max(lo, H - 52));   /* 44 px 누르는 곳 · 장면 안쪽 8 px · 문어 머리 위 */
-        var col = (scene && typeof scene.color === 'function' && scene.color()) || S.octopus.color || '#e8463c', key = [devPx(x, dpr), devPx(y, dpr), dpr, col].join('|');
+        var col = (scene && typeof scene.color === 'function' && scene.color()) || S.octopus.color || '#e8463c', sr = sc ? sc.getBoundingClientRect() : { left: 0, top: 0 }, bx = sr.left + (sc ? sc.clientLeft : 0), by = sr.top + (sc ? sc.clientTop : 0), key = [x, y, bx, by, dpr, col].join('|');
         if (call._mk !== key) {   /* 바뀔 때만 쓴다 (지킴이가 300 ms 마다 부른다) */
           call._mk = key;
-          call.style.left = devPx(x, dpr) + 'px'; call.style.top = devPx(y, dpr) + 'px';
+          call.style.left = (devPx(bx + x, dpr) - bx) + 'px'; call.style.top = (devPx(by + y, dpr) - by) + 'px';   /* 화면 기준 기기 px (장면 테두리 2 px 가 2.625 에선 5.25 기기 px) */
           var n = Math.max(1, Math.floor(2 * dpr)), paper = devPx(40, dpr), art = 16 * n / dpr;
           call.style.setProperty('--cp-o', devPx(2, dpr) + 'px'); call.style.setProperty('--cp-s', paper + 'px'); call.style.setProperty('--cp-b', (n / dpr) + 'px');
-          call.style.setProperty('--cp-a', art + 'px'); call.style.setProperty('--cp-ao', Math.round((paper * dpr - 16 * n) / 2) / dpr + 'px');
+          call.style.setProperty('--cp-a', art + 'px'); call.style.setProperty('--cp-ao', (Math.round(2 * dpr) + Math.round((paper * dpr - 16 * n) / 2)) / dpr + 'px');
           call.style.color = col;
         }
         var cl = MEALR.aria('call', { name: S.octopus.name }); if (call.getAttribute('aria-label') !== cl) call.setAttribute('aria-label', cl);
@@ -4308,7 +4308,7 @@ var APP = (function () {
     Promise.race([come, mealWait(my, 12000 * speed())]).then(function (ok) {
       if (!live()) return;
       if (ok !== true && !octAtTable()) { mealAbort(my, false); return; }   /* 장면이 못 온다고 했다 (그새 잠듦 · 의식): 대답은 그 요리에 남고 행은 없다 */
-      my.stage = 'thinking'; mealUI();
+      my.stage = 'thinking'; mealUI(); updateSceneDesc();
       bubble('…', 1200, 'think', { silent: true });   /* 생각 말풍선 (스펙 R17: 식탁엔 소리가 없다) */
       return mealBeat(my, 'think', 1000).then(function () {
         if (!live()) return;
@@ -4380,6 +4380,11 @@ var APP = (function () {
     }
     return true;
   }
+  /* 불러오기 · 초기화: 연출을 접고 식탁의 문어를 바로 다락으로 (그 뒤 octInitial 이 다락 자리에 놓는다) */
+  function mealDrop() {
+    if (mealRun) { var my = mealRun; if (my.stage === 'eating') mealFinish(my, false); else mealEnd(my); }
+    if (octAtTable() && mealApi('octLeaveTable')) { try { scene.octLeaveTable({ instant: true }); } catch (e) { console.warn('[app] octLeaveTable', e); } }
+  }
   function mealLeave(instant) {   /* 문어가 식탁을 떠난다 (일어남 · 방을 나감) → 다 떠나면 미뤄 둔 것 (쉬기 · 돌아다니기) */
     if (mealLeaving || !mealApi('octLeaveTable')) return;
     mealLeaving = true;
@@ -4422,11 +4427,11 @@ var APP = (function () {
   function mealRowsDOM(e) {   /* 먹은 기록의 행 (연출 중인 식사는 지금 박자까지 — 두 번 그리지 않는다) */
     if (!MEALR || !isObj(e)) return [];
     var lim = mealRun && mealRun.dish === e.dish ? mealRun.n : 2;
-    return MEALR.rows(e, S.octopus.name).filter(function (r) { return r.n <= lim; }).map(function (r) { return mealRowDOM(e, r); });
+    return MEALR.rows(e, S.octopus.name, todayKey()).filter(function (r) { return r.n <= lim; }).map(function (r) { return mealRowDOM(e, r); });
   }
   function mealRows(my, upto) {   /* 연출 박자에 맞춰 오늘 칸에 붙인다 */
     var e = MEALR.entryFor(S, my.dish);
-    var rows = e ? MEALR.rows(e, S.octopus.name).filter(function (r) { return r.n > my.n && r.n <= upto; }) : [];
+    var rows = e ? MEALR.rows(e, S.octopus.name, todayKey()).filter(function (r) { return r.n > my.n && r.n <= upto; }) : [];
     my.n = Math.max(my.n, upto);
     if (!rows.length || !$('log')) return;
     var sec = ensureTodaySection();
