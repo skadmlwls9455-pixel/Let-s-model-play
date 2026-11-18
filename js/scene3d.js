@@ -3067,6 +3067,10 @@ var SCENE3D = (function () {
     }
     function plRoute(from, to) {   /* 경유점 (리뷰 11-09: 직선 lerp 는 상자 속을 걸어 지나갔다): 직선이 장애물 상자를 지나면 상자 모서리(둘레 +0.05) 하나 또는 이웃한 둘을 거친다 — 모든 선분이 상자를 안 지나는 길 중 가장 짧은 것. 없으면(출발·도착이 둘레 안 등) 직선 그대로 (plMove 가 미끄러뜨린다) */
       var boxes = plBoxes(), hit = null, i;
+      if (PL.place === 'yard') {   /* 11-18 (검증): 마당은 둥근 것 (나무 줄기 · 덤불 · 돌) 까지 넣어 처음부터 온 길을 찾는다. 상자 하나만 돌면 다른 상자나 나무에 다시 걸려, 마당 왼쪽 · 집 뒤에서 집 문을 톡하면 문 앞에 못 닿았다 (111 자리 가운데 64) */
+        var ya = plRouteAll(from, to, boxes, plCircles());
+        if (ya) return ya;
+      }
       for (i = 0; i < boxes.length; i++) if (plSegHits(from.x, from.z, to.x, to.z, boxes[i])) { hit = boxes[i]; break; }
       if (!hit) return [to];
       var m = 0.05, cs = [[hit[0] - m, hit[2] - m], [hit[1] + m, hit[2] - m], [hit[1] + m, hit[3] + m], [hit[0] - m, hit[3] + m]];   /* 모서리 4개, 둘레 순서 */
@@ -3082,7 +3086,33 @@ var SCENE3D = (function () {
           var l2 = len(from.x, from.z, c[0], c[1]) + len(c[0], c[1], c2[0], c2[1]) + len(c2[0], c2[1], to.x, to.z); if (l2 < bl) { bl = l2; best = [c, c2]; }
         });
       });
-      return best ? best.map(function (c) { return new T.Vector3(c[0], 0, c[1]); }).concat([to]) : [to];
+      return best ? best.map(function (c) { return new T.Vector3(c[0], 0, c[1]); }).concat([to]) : (plRouteAll(from, to, boxes, []) || [to]);
+    }
+    function plRouteAll(from, to, boxes, circles) {   /* 11-18 (검증): '상자 하나 돌기' 로 길이 안 나올 때 — 상자 여럿이 겹쳐 막는 자리 (마당 왼쪽 · 집 뒤에서 집 문: 집 몸통 · 현관 옆 · 우체통 · 나무).
+                                                       장애물 모서리 (상자는 둘레 +0.05 · 둥근 것은 감싸는 네모의 모서리) 가운데 서로 보이는 것끼리 이어 가장 짧은 길 (다익스트라). 없으면 null → 예전처럼
+                                                       (출발 · 도착이 둘레 안 · 가구로 둘러싸인 칸). 넓은 바깥에선 마당 안에서만 (울타리 밖은 걷는 곳이 띠뿐이라 playerWalkTo 가 울타리 문을 먼저 거친다) */
+      var wide = YARD_WIDE && PL.place === 'yard', m = 0.05, e = 0.01, P = [[from.x, from.z], [to.x, to.z]], i, j;
+      if (wide && (yardOut(from.x, from.z) || yardOut(to.x, to.z))) return null;
+      function corner(x, z) { if (plInRoom(x, z) && !(wide && yardOut(x, z)) && plPen(x, z, boxes, circles) <= 0) P.push([x, z]); }
+      boxes.forEach(function (b) { corner(b[0] - m, b[2] - m); corner(b[1] + m, b[2] - m); corner(b[1] + m, b[3] + m); corner(b[0] - m, b[3] + m); });
+      circles.forEach(function (c) { var q = c[2] + m; corner(c[0] - q, c[1] - q); corner(c[0] + q, c[1] - q); corner(c[0] + q, c[1] + q); corner(c[0] - q, c[1] + q); });
+      function free(p, q) {   /* 둘레에 닿기만 하는 선분 (둘레에 붙어 선 출발 자리) 은 막힌 것이 아니다 → 1 cm 안쪽부터 막힌 것으로 */
+        var k, b, c, dx = q[0] - p[0], dz = q[1] - p[1], l2 = dx * dx + dz * dz, t;
+        for (k = 0; k < boxes.length; k++) { b = boxes[k]; if (plSegHits(p[0], p[1], q[0], q[1], [b[0] + e, b[1] - e, b[2] + e, b[3] - e])) return false; }
+        for (k = 0; k < circles.length; k++) { c = circles[k]; t = l2 > 1e-12 ? clamp(((c[0] - p[0]) * dx + (c[1] - p[1]) * dz) / l2, 0, 1) : 0; if (Math.hypot(p[0] + dx * t - c[0], p[1] + dz * t - c[1]) < c[2] - e) return false; }
+        return true;
+      }
+      var n = P.length, dist = [], prev = [], done = [];
+      for (i = 0; i < n; i++) { dist.push(i ? Infinity : 0); prev.push(-1); done.push(false); }
+      for (;;) {
+        var u = -1; for (i = 0; i < n; i++) if (!done[i] && dist[i] < Infinity && (u < 0 || dist[i] < dist[u])) u = i;
+        if (u < 0 || u === 1) break;
+        done[u] = true;
+        for (j = 0; j < n; j++) { if (done[j]) continue; var d = dist[u] + Math.hypot(P[j][0] - P[u][0], P[j][1] - P[u][1]); if (d < dist[j] && free(P[u], P[j])) { dist[j] = d; prev[j] = u; } }
+      }
+      if (dist[1] === Infinity) return null;
+      var path = [to]; for (i = prev[1]; i > 0; i = prev[i]) path.unshift(new T.Vector3(P[i][0], 0, P[i][1]));
+      return path;
     }
     function plWalkTo(to, face) {   /* 점까지 걷기 → Promise<walked:boolean>. face = 도착해 볼 방향(rad, 없으면 걸어온 쪽 그대로 — 11-18 주인). 모션 감소 · 숨은 탭 · 컨텍스트 잃음 · 준비 전 · 5 cm 미만 = 바로.
                                        걸음은 스틱과 같은 plMove(1.8 m/s — 스틱은 2.2 · 범위·장애물 미끄러짐) 로 경유점(plRoute)을 차례로 — 목표 5 cm 안이면 도착(마지막 점은 정확히 그 자리로), 세 프레임 연속 못 움직이면 다음 점으로(마지막이면 거기서 끝) · 길이 × 1.5 + 0.3 s 가 지나면 끝 (Promise 가 걸리지 않게) */
@@ -3202,7 +3232,7 @@ var SCENE3D = (function () {
         var yq = PL.place === 'attic' ? DOOR_ANCHORS.atticYard : PL.place === 'yard' ? DOOR_ANCHORS.yardAttic : null;
         if (PL.place === 'attic' && PL.yardBack === false && yq && (!(Math.abs(PL.pos.x - yq[0]) < 0.42 && PL.pos.z - yq[2] < 0.3) || -wz / pushN < 0.1)) PL.yardBack = true;   /* 11-18 (검증): 마당에서 위쪽 (−x−z) 을 쥔 채 들어오면 이어 걷는 방향이 이 문 조건 (−z) 에도 맞아 0.2 s 뒤 마당으로 되튀었다 (쉼 0.5 s 의 절반을 전환이 쓴다) → 문간을 벗어나거나 다른 쪽으로 틀 때까지 잠근다 (계단의 doorArm 과 같은 뜻) */
         if (PL.place === 'yard' && !PL.yardArm && PL.pos.x > EXT.HX1 + 0.62) PL.yardArm = true;   /* 11-18: 집에서 막 나와 마루에 선 채 뒤돌아 밀어도 들어가지 않는다 — 계단을 한 칸 넘게 내려갔다 와야 문이 다시 듣는다 (스틱을 놓아도 풀리지 않는다) */
-        if (yq && !PL.doorCd && !DQ.active && !DQ.pending && !PLACE.trans && (PL.place === 'attic' ? PL.yardBack !== false && Math.abs(PL.pos.x - yq[0]) < 0.42 && PL.pos.z - yq[2] < 0.3 && -wz / pushN > 0.5 : PL.yardArm && Math.abs(PL.pos.z - yq[2]) < 0.4 && PL.pos.x < EXT.HX1 + 0.5 && -wx / pushN > 0.5)) { PL.doorCd = 0.4; emit('playerDoor', PL.place === 'attic' ? 'yard' : 'attic'); }
+        if (yq && !PL.doorCd && !DQ.active && !DQ.pending && !PLACE.trans && (PL.place === 'attic' ? PL.yardBack !== false && Math.abs(PL.pos.x - yq[0]) < 0.42 && PL.pos.z - yq[2] < 0.3 && -wz / pushN > 0.5 : PL.yardArm && Math.abs(PL.pos.z - yq[2]) < 0.4 && PL.pos.x < EXT.HX1 + 0.5 && PL.pos.x > EXT.HX1 && -wx / pushN > 0.5)) { PL.doorCd = 0.4; emit('playerDoor', PL.place === 'attic' ? 'yard' : 'attic'); }   /* 11-18 (검증): x > HX1 = 마루 위일 때만 — 아래 끝이 없어서 집 뒤 (같은 z 띠) 에서 서쪽으로 밀어도 집 안으로 넘어갔다 */
       } else if (PL.held && !held) { PL.doorArm = true; PL.yardBack = true; if (PL.heldStop) { PL.settleT = 0; PL.heldStop = false; } }   /* 손을 떼면(막힌 채 서 있다 떼도 · 데드존에 잡고만 있다 떼도) 보던 쪽 그대로 (11-18 주인) + 도착 눌림 한 번 — 전이는 '잡고 있었나'(held) 기준 */
       if (allowed && !PL.walking && PL.place === 'attic' && !PL.sit && !PL.hop) {   /* 문어가 걸어와 내 캐릭터 위에 서면(문어 걷기는 플레이어를 모른다 — 걷기 시작 때 plAvoidOct 가 미리 비켜세우지만 길이 지나가기도 한다) 둥근 장애물 밖으로 밀려난다 — 걷는 속도로, 스틱을 쥐고 있어도(문어가 미는 셈), 미끄러짐은 plMove 몫 (리뷰 11-09) */
         var circ = plCircles(), pen = plPen(PL.pos.x, PL.pos.z, [], circ);

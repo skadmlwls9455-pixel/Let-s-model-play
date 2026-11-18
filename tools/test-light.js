@@ -4,6 +4,7 @@
  *   L1 노을 → 밤 섞기: SCENE3D.duskBlend 가 19:00 0 → 15분마다 1/8 → 21:00 1 (8칸, 단조, 19시 전 0 = 툭 바뀌지 않음) · 조명 열쇠도 8번 바뀐다
  *   L2 22시 장면: 밤 등불 세기 1.5 · 닿는 거리 7.5 · 달빛 바닥 0.48 (등불 0칸이면 헤미가 그 값)
  *   L3 20시 · 등불 3 · 맑음: 다락 방 띠 평균 루마 ≥ 바닥값 (예전 0.117 · 지금 0.147 — 재어 둔 값에서 여유를 뺀 것)
+ *   L9 (11-18 검증) 마당 어디서 집 문을 톡해도 계단 발치를 거쳐 문 앞에 선다 (왼쪽 절반 · 집 뒤 포함 — 길 찾기가 상자 여럿 · 나무를 돌아간다)
  *   L8 (11-18 시험판) 넓은 바깥 (?wide=1): 끄면 마당은 예전 그대로 · 켜면 땅이 화면을 채우고 · 울타리는 앞 모서리의 문으로만 나가고 · 문 밖 띠 안에서만 걷고 · 화면이 따라오고 ·
  *      돌려 봐도 캐릭터가 그 자리 · 드로우콜 · 셰이더 프로그램 그대로 · 문 밖에서 집 문을 톡하면 울타리 문을 거쳐 들어온다
  *   L7 (11-18) 톡 격자: 다락 계단 그림 위 톡은 계단으로 · 뒷벽 문간 위 톡은 마당으로 (계단이 문 옆이던 때는 계단 톡이 마당 문으로 갔다) · 가장자리 단추가 뜬 동안에도 보이는 계단은 눌린다
@@ -214,6 +215,49 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     var off8 = await page.evaluate(function () { var sc = APP.scene; sc.debugPlayerAt(3.6, 3.6); sc.setPlayerInput({ x: 0, y: -1 }); sc.debugSim(0.1, 30); sc.setPlayerInput(null); sc.debugStep(0.1); return { on: sc.wide().on, at: sc.player().at }; });
     var offC = await corners8(page);
     ok(off8.on === false && off8.at[0] <= 3.96 && off8.at[2] <= 3.96 && Math.min.apply(null, offC) < 0.08, 'L8 켜지 않으면 마당은 예전 그대로: 앞 모서리에서 더 못 나가고 (' + off8.at[0] + ', ' + off8.at[2] + ') 받침 밖은 허공 (구석 루마 ' + JSON.stringify(offC) + ')');
+    /* ── L9 (11-18 검증) 마당 어디서 집 문을 톡해도 (playerWalkTo('yardAttic')) 계단 발치를 거쳐 통로로 올라 문 앞에 선다.
+          예전엔 길 찾기가 처음 걸리는 상자 하나만 돌아, 왼쪽 절반 · 집 뒤에서는 현관 옆이나 뒷벽에 걸린 채 '도착' 으로 치고 그 자리에서 집 안으로 넘어갔다.
+          1.3 m 격자에서 걸어서 설 수 있는 자리만: 여덟 방향으로 세 걸음 나갔다 그대로 되돌아와지는 곳 (장애물 둘레 안에 놓인 자리는 나갈 수만 있고 못 되돌아온다) ── */
+    var d9 = await page.evaluate(async function () {
+      var sc = APP.scene, A = sc.doorAnchors.yardAttic, rows = [], tick = function () { return new Promise(function (r) { setTimeout(r, 0); }); };
+      function stand(x, z) {   /* 세 걸음 (0.33 m) 을 다 나간 방향만 본다 — 벽에 막혀 덜 나간 방향은 되돌아올 때 지나쳐서 가릴 수 없다 */
+        var full = 0;
+        for (var k = 0; k < 8; k++) {
+          var ix = Math.cos(k * Math.PI / 4), iy = Math.sin(k * Math.PI / 4);
+          sc.debugPlayerAt(x, z); sc.setPlayerInput({ x: ix, y: iy }); sc.debugSim(0.05, 3); var a = sc.player().at, went = Math.hypot(a[0] - x, a[2] - z);
+          sc.setPlayerInput({ x: -ix, y: -iy }); sc.debugSim(0.05, 3); sc.setPlayerInput(null); a = sc.player().at;
+          if (went >= 0.3) { full++; if (Math.hypot(a[0] - x, a[2] - z) > 0.05) return false; }
+        }
+        return full >= 4;
+      }
+      var spots = [];   /* 설 수 있는 자리를 먼저 다 고른다 — 걸음 사이에 스틱을 넣지 않게 (문 앞에 선 뒤의 스틱 입력은 앱의 문 작업을 부를 수 있다) */
+      for (var xi = -3; xi <= 3; xi++) for (var zi = -3; zi <= 3; zi++) {
+        var sx = xi * 1.3, sz = zi * 1.3;
+        if (sx > -2.7 && sx < 1.6 && sz > -2.5 && sz < 0.4) continue;   /* 집 · 현관 */
+        if (stand(sx, sz)) spots.push([sx, sz]);
+      }
+      for (var si = 0; si < spots.length; si++) {
+        var x = spots[si][0], z = spots[si][1];
+        sc.debugPlayerAt(x, z); sc.debugSim(0.05, 1);
+        var done = null, f = 0, foot = false; sc.playerWalkTo('yardAttic').then(function (q) { done = q; });
+        for (; f < 400 && !done; f++) { sc.debugSim(0.05, 1); var p = sc.player().at; if (p[0] > A[0] + 1.0 && Math.abs(p[2] - A[2]) < 0.36) foot = true; if (f % 8 === 7) await tick(); }
+        await tick();
+        var e = sc.player().at; rows.push([+x.toFixed(1), +z.toFixed(1), +(f * 0.05).toFixed(1), +Math.hypot(e[0] - A[0], e[2] - A[2]).toFixed(2), foot]);
+      }
+      return rows;
+    });
+    var miss9 = d9.filter(function (q) { return q[3] > 0.1 || !q[4]; }), left9 = d9.filter(function (q) { return q[0] <= 0; }).length, back9 = d9.filter(function (q) { return q[0] < -2.65 && q[1] < 0.4; }).length;
+    ok(d9.length >= 20 && left9 >= 8 && back9 >= 1 && miss9.length === 0 && Math.max.apply(null, d9.map(function (q) { return q[2]; })) <= 9,
+      'L9 마당 ' + d9.length + ' 자리 (왼쪽 절반 ' + left9 + ' · 집 뒤 ' + back9 + ') 어디서 집 문을 톡해도 계단 발치를 거쳐 문 앞에 선다 (가장 긴 걸음 ' + Math.max.apply(null, d9.map(function (q) { return q[2]; })) + ' s' + (miss9.length ? ' · 못 닿은 자리 [x, z, 초, 남은 m, 발치] ' + JSON.stringify(miss9) : '') + ')');
+    /* 집 뒤 (현관 통로와 같은 z 띠) 에서 서쪽 (−x) 으로 밀어도 집 안으로 넘어가지 않는다 — 문 조건에 x 아래 끝이 없어 넘어갔다 (스틱 (−0.707, 0.707) = 월드 −x) */
+    var b9 = await page.evaluate(async function () {
+      var sc = APP.scene, A = sc.doorAnchors.yardAttic;
+      sc.debugPlayerAt(-3.3, A[2] - 0.2); sc.debugSim(0.05, 2);
+      sc.setPlayerInput({ x: -0.707, y: 0.707 }); sc.debugSim(0.05, 12); var mid = sc.playerInputAllowed(); sc.setPlayerInput(null); sc.debugSim(0.05, 4);
+      await new Promise(function (r) { setTimeout(r, 50); }); sc.debugSim(0.05, 10);
+      return { mid: mid, allowed: sc.playerInputAllowed(), view: sc.view(), room: APP.room, at: sc.player().at.map(function (v) { return +v.toFixed(2); }) };
+    });
+    ok(b9.mid && b9.allowed && b9.view === 'yard' && b9.room === 'yard' && b9.at[0] < -3.3, 'L9 집 뒤에서 서쪽으로 밀어도 집 안으로 넘어가지 않는다 (문 작업 없음 · 그대로 마당 ' + JSON.stringify(b9) + ')');
     await o.ctx.close();
     o = await open(browser, 8, { hour: 13, weather: 'clear' }, null, '&wide=1'); page = o.page;
     await yardGo(page);
