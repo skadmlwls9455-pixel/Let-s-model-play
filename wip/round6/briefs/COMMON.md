@@ -37,7 +37,7 @@ The plan-vs-build check of 11-18 (`wip/round6/audit-11-18.md`) added must-fix it
 
 Base: branch `claude/game-launch-completion-hwvre5`, code at **`ada2967`** plus one test-only fix (`9bb58e0`, `tools/smoke.js`
 scenario T). The lead commits `wip/round6/` (this brief, the spec, the README, the audit) on top; the lead's latest docs commit
-is your base: `git checkout -b lane/<key>` from it, check `git diff --stat ada2967 HEAD` lists only `wip/round6/` files and
+is your base: `git checkout -b <your branch from the table below>` from it (`lane/k1` · `lane/k2` · `lane/d` · `lane/m` · `lane/r6`), check `git diff --stat ada2967 HEAD` lists only `wip/round6/` files and
 `tools/smoke.js`, and note `BASE=$(git rev-parse HEAD)` — your diffs are against `$BASE`. Push only your lane branch. Never merge or cherry-pick another
 lane; never push to `claude/game-launch-completion-hwvre5`. The lead merges the lanes after the owner says '넣어' (the
 auto-mode check blocks merging other branches without the owner's approval).
@@ -48,7 +48,7 @@ auto-mode check blocks merging other branches without the owner's approval).
 | K2 | `lane/k2` | two new dishes (주먹밥, 과일 꼬치), per-recipe sim/art/slides, the dish tray in the play room, the `result` message; a kitchen that cannot load (audit rel-01) | `briefs/K2.md` |
 | D | `lane/d` | dining scene in 3D: booth (table + two sofas), the table dish, my character sitting/eating, the octopus coming/sitting/eating, the auras; the loft stair tap (audit J3) | `briefs/D.md` |
 | M | `lane/m` | meal logic and UI: `js/meal.js` (decision, records, merge, words), the app flow, table/seat/call buttons, saves, day change, two tabs | `briefs/M.md` |
-| R | `lane/r` | runner octopus redrawn natively from the 3D octopus; loading crawl centre → right edge; the first minutes (audit J1 greeting bubble, J2 hand hints, J3 mirror line) | `briefs/R.md` |
+| R | `lane/r6` | runner octopus redrawn natively from the 3D octopus; loading crawl centre → right edge; the first minutes (audit J1 greeting bubble, J2 hand hints, J3 mirror line) | `briefs/R.md` |
 
 Suggested merge order for the lead: R, K1, K2, D, M (M last: it uses K2's message and D's scene API).
 
@@ -136,7 +136,7 @@ outside your area in your report under "outside my area".
 ## Setup in your session
 
 ```bash
-git checkout -b lane/<key>          # from the lead's latest round-6 docs commit (code = ada2967 + smoke T fix 9bb58e0)
+git checkout -b lane/<key>          # your branch from the lanes table (R: lane/r6); from the lead's latest round-6 docs commit (code = ada2967 + smoke T fix 9bb58e0)
 git diff --stat ada2967 HEAD        # only wip/round6/ files and tools/smoke.js
 BASE=$(git rev-parse HEAD)          # your diffs are against this
 npm ci --no-audit --no-fund

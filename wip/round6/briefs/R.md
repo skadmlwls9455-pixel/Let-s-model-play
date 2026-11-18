@@ -1,4 +1,4 @@
-# Lane R — runner octopus redrawn from the attic octopus; loading crawl centre → right edge (branch `lane/r`)
+# Lane R — runner octopus redrawn from the attic octopus; loading crawl centre → right edge (branch `lane/r6` — `lane/r` is round 5's, still on the remote)
 
 Read `wip/round6/briefs/COMMON.md` first, then `wip/round6/eat-spec.md` §0 (R13, R14), §1, **§7**, **§8**, §10.4, §11 (R),
 §13 (R).
