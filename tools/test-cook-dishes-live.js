@@ -139,7 +139,9 @@ function store(page) { return page.evaluate(function () { return localStorage.ge
     else {
       await P6.page.evaluate(function () { COOK.auto(true); });
       await P6.page.waitForFunction(function () { return COOK.live().kind === 'flip'; }, null, { timeout: 15000 });
-      await P6.page.evaluate(function () { COOK.auto(false); document.querySelector('.ck-verb').click(); });   /* heat on, then wait for golden */
+      await P6.page.evaluate(function () { COOK.auto(false); });
+      await P6.page.waitForTimeout(300);   /* 11-18 lead: auto lets go on its next frame; a press in the same tick was dropped (band never rose) */
+      await P6.page.evaluate(function () { document.querySelector('.ck-verb').click(); });   /* heat on, then wait for golden */
       await P6.page.waitForFunction(function () { return COOK.live().band === 1; }, null, { timeout: 8000 });
       await P6.page.waitForTimeout(200);
       var snd6 = await P6.page.evaluate(function () { return window.__cdSnd.filter(function (a) { return a === 'ding'; }).length; });
