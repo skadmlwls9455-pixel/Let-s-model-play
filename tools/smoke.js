@@ -4743,6 +4743,18 @@ async function scenarioTapLine(browser) {
   var r0 = await page.evaluate(function () { var n = document.querySelectorAll('#log .lrow').length; APP.tapOct(); return { b: document.getElementById('oct-bubble').textContent, rows: document.querySelectorAll('#log .lrow').length - n, line: APP.tapLine(), awake: window.__ppolAwakeMs }; });
   ok(r0.awake === 9000, '시험 훅: 이 시나리오는 깨어 있는 틈 9 s (공통 0 을 덮음)');
   ok(r0.b === '응?' && r0.rows === 0 && r0.line === null, "산책 전 톡 → '응?' · 말풍선만 (로그 행 +" + r0.rows + ')');
+  /* 1a. 톡마다 몸이 작게 톡 — 산책 전, 가만히 있을 때 잰다 (걸으며 통통하는 몸짓과 섞이지 않게). 장면 시계는 손으로 1/60 s 씩 — 기계가 바빠 프레임이 느려도 같은 값.
+     11-18 CI: 예전엔 다녀온 뒤 깨어 있는 틈 (이 시나리오 9 s) 안에서 쟀는데, 느린 러너에선 문어가 담요에 가만히 서기 전에 틈이 끝나 잠들었다 (hop 0 · nap) → 틈과 경합하지 않는 산책 전으로 옮김 */
+  await page.waitForFunction(function () { var m = APP.scene.motion ? APP.scene.motion() : null; return APP.oct.state === 'idle' && !!m && !(m.gait && m.gait.moving); }, null, { timeout: 20000 });
+  var hp = await page.evaluate(function () {
+    var sc = APP.scene; if (typeof sc.debugStep !== 'function') return null;
+    function peak(n) { var m = -1; for (var i = 0; i < n; i++) { sc.debugStep(1 / 60); m = Math.max(m, sc.motion().hop); } return m; }
+    function settle(n) { for (var i = 0; i < n; i++) sc.debugStep(1 / 60); return sc.motion().hop; }
+    settle(60);   /* 위 '응?' 톡의 몸짓이 다 끝난 뒤부터 */
+    var base = peak(4); APP.tapOct(); var tap = peak(4); var after = settle(40); sc.resume();   /* 2px 위로 90 ms → 0.67 s 뒤엔 제자리 */
+    return { base: base, tap: tap, after: after, oct: APP.oct.state, phase: APP.restPhase() };
+  });
+  ok(hp && hp.oct === 'idle' && hp.tap - hp.base >= 0.02 && hp.after - hp.base < 0.02, '톡마다 몸이 작게 톡 (산책 전 가만히 · 3D 2px 위로 90 ms → 제자리: hop ' + JSON.stringify(hp) + ')');
   /* 2. 산책 → 큰 버튼으로 데려옴 → 깨어 있는 틈 */
   await page.click('#btn-go'); await skipAway(page); await waitIdle(page);
   await page.waitForTimeout(250);
@@ -4769,16 +4781,6 @@ async function scenarioTapLine(browser) {
   ok(r3.voice === 1, '같은 줄을 다시 눌러도 목소리는 한 번 (' + r3.voice + ')');
   ok(r3.tag, "데모 규칙이 지은 줄은 '데모' 꼬리표가 보이는 동안");
   ok(r3.sr === r3.text && r3.srLive === 'polite/status/sr-only' && !r3.srLog, '화면 낭독기: 같은 한 줄을 보이지 않는 칸(role=status · aria-live polite)에 — 로그 행 아님 (' + JSON.stringify([r3.sr, r3.srLive]) + ')');
-  /* 3a. 톡마다 몸이 작게 톡: 담요에서 가만히 있을 때 잰다 (걸으며 통통하는 몸짓과 섞이지 않게). 장면 시계는 손으로 1/60 s 씩 — 기계가 바빠 프레임이 느려도 같은 값 */
-  await page.waitForFunction(function () { var m = APP.scene.motion ? APP.scene.motion() : null; return APP.oct.state === 'idle' && APP.restPhase() === 'awake' && !!m && !(m.gait && m.gait.moving); }, null, { timeout: 20000 }).catch(function () {});
-  var hp = await page.evaluate(function () {
-    var sc = APP.scene; if (typeof sc.debugStep !== 'function') return null;
-    function peak(n) { var m = -1; for (var i = 0; i < n; i++) { sc.debugStep(1 / 60); m = Math.max(m, sc.motion().hop); } return m; }
-    function settle(n) { for (var i = 0; i < n; i++) sc.debugStep(1 / 60); return sc.motion().hop; }
-    var base = peak(4); APP.tapOct(); var tap = peak(4); var after = settle(40); sc.resume();   /* 2px 위로 90 ms → 0.67 s 뒤엔 제자리 */
-    return { base: base, tap: tap, after: after, oct: APP.oct.state, phase: APP.restPhase() };
-  });
-  ok(hp && hp.oct === 'idle' && hp.tap - hp.base >= 0.02 && hp.after - hp.base < 0.02, '톡마다 몸이 작게 톡 (담요에서 가만히 · 3D 2px 위로 90 ms → 제자리: hop ' + JSON.stringify(hp) + ')');
   /* 4. 틈이 끝나면 담요에서 잠 — 잠 훅 한 번 · 이 차례의 반응 */
   var slept = await page.waitForFunction(function () { return APP.oct.state === 'sleep'; }, null, { timeout: 25000 }).then(function () { return true; }, function () { return false; });
   await page.waitForTimeout(400);
