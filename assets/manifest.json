@@ -1235,6 +1235,30 @@
     "h": 8,
     "note": "조개 동전 8×8 (×2 = 16px, 글줄 안)."
   },
+  "icon.dish.jeon": {
+    "src": "assets/icons/dish/jeon.png",
+    "w": 16,
+    "h": 16,
+    "note": "놀이방 요리 쟁반 (#dish-pick) 해초전 칩 그림 16×16 — floor(3·dpr) 기기 px 배로만 (tools/make-dish-icons.js)"
+  },
+  "icon.dish.jumeokbap": {
+    "src": "assets/icons/dish/jumeokbap.png",
+    "w": 16,
+    "h": 16,
+    "note": "놀이방 요리 쟁반 (#dish-pick) 주먹밥 칩 그림 16×16 — floor(3·dpr) 기기 px 배로만 (tools/make-dish-icons.js)"
+  },
+  "icon.dish.kkochi": {
+    "src": "assets/icons/dish/kkochi.png",
+    "w": 16,
+    "h": 16,
+    "note": "놀이방 요리 쟁반 (#dish-pick) 과일 꼬치 칩 그림 16×16 — floor(3·dpr) 기기 px 배로만 (tools/make-dish-icons.js)"
+  },
+  "icon.dish.close": {
+    "src": "assets/icons/dish/close.png",
+    "w": 16,
+    "h": 16,
+    "note": "부엌이 아직 안 열렸을 때 게임 쪽 닫기 단추 (#cook-close) 그림 16×16 = 부엌 안 닫기 그림 (COOK_ART.icon close) — floor(2·dpr) 기기 px 배로만"
+  },
   "prop.badge.bell": {
     "src": "assets/badges/prop_bell.png",
     "w": 24,
