@@ -15,7 +15,7 @@ Test results:
 | `node tools/test-meal.js` | 134 / 0 |
 | `node tools/test-brain.js` | 573 / 0 |
 | `npm test` | passes |
-| `SMOKE_ONLY=EAT` | 55 / 0, three runs in a row (against the stub) |
+| `SMOKE_ONLY=EAT` | 56 / 0 after the toast follow-up (55 / 0 three runs in a row before it; against the stub) |
 | `SMOKE_ONLY=A,S,Y,J,O` | 451 passed, 0 assertion failures |
 | `SMOKE_ONLY=Q` | passes |
 | `python3 tools/subset-fonts.py --check` | `stale: none` |
@@ -180,6 +180,14 @@ No `must`. Five `should`, all fixed:
 - **S5:** normalize could drop a duplicate eaten entry and rewrote unknown `ate.oct` values. Both fixed.
 
 It also noted that the scene description was stale during the think beat; that is fixed too.
+
+## Follow-up from the lead (toast tail)
+In the answer toast the tail used to wrap in the middle ('… 데모' / '규칙').
+- **Fix:** `#toast .lby` is now `display: block; white-space: nowrap` in the tail colour (`--muted` in the pixel theme, `--dim` on the dark system toast). The tail sits on its own line, whole, at the toast's own font size (never smaller).
+- **Probe:** eat and watch × tails '데모 규칙' and '사람이 정함' × names '뚜루' and '가나다라마바사아' (8 characters) × 360×740@2, 412×915@2.625 and 320×568@2. All 24 cases: the tail is one client rect, has the same font size as the toast, and stays inside the toast.
+- '모델' cannot show this round (no model path); it uses the same rule.
+- **Smoke EAT:** new check that the tail is one client rect, same font size, distinct colour. EAT 56 / 0, `npm test` passes.
+- Shots 3 and 4 refreshed.
 
 ## Known limits / not verified
 - **The 2.625 chip is not perfectly crisp.** At @2.625 a CSS box can only land on 1/64 CSS px (≈ 0.04 dev px). The 80-dev-px art comes out as 79.98 dev px, and its right column shows a faint soft edge (shot 7). @2 and @3 are exact. A canvas-drawn chip would fix it if the owner minds.
