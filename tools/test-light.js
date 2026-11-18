@@ -45,7 +45,7 @@ async function open(browser, lv, look, vp, q) {   /* vp = [폭, 높이] (기본 
   return { ctx: ctx, page: page };
 }
 async function at(page, h) { await page.evaluate(function (h) { APP.scene.setTime(h, true); }, h); await page.waitForTimeout(400); }
-async function shot(page) { var f = path.join(os.tmpdir(), 'ppol-light-' + process.pid + '.png'); await page.screenshot({ path: f }); var img = LM.decodePNG(f); fs.unlinkSync(f); return img; }
+async function shot(page) { var f = path.join(os.tmpdir(), 'ppol-light-' + process.pid + '.png'); await page.screenshot({ path: f, timeout: 120000 }); var img = LM.decodePNG(f); fs.unlinkSync(f); return img; }
 function region(img, r) {   /* r = [l, t, r, b] → { mean, std, p50, p95 } 루마 (0..1) · bright = 루마 > 0.6 화소 수 */
   var s = 0, s2 = 0, n = 0, all = [], hi = 0;
   for (var y = Math.max(0, r[1] | 0); y < Math.min(img.h, r[3] | 0); y++) for (var x = Math.max(0, r[0] | 0); x < Math.min(img.w, r[2] | 0); x++) {
@@ -211,7 +211,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     };
     o = await open(browser, 8, { hour: 13, weather: 'clear' }); page = o.page;
     await yardGo(page);
-    var off8 = await page.evaluate(function () { var sc = APP.scene; sc.debugPlayerAt(3.6, 3.6); sc.setPlayerInput({ x: 0, y: -1 }); for (var i = 0; i < 30; i++) sc.debugStep(0.1); sc.setPlayerInput(null); sc.debugStep(0.1); return { on: sc.wide().on, at: sc.player().at }; });
+    var off8 = await page.evaluate(function () { var sc = APP.scene; sc.debugPlayerAt(3.6, 3.6); sc.setPlayerInput({ x: 0, y: -1 }); sc.debugSim(0.1, 30); sc.setPlayerInput(null); sc.debugStep(0.1); return { on: sc.wide().on, at: sc.player().at }; });
     var offC = await corners8(page);
     ok(off8.on === false && off8.at[0] <= 3.96 && off8.at[2] <= 3.96 && Math.min.apply(null, offC) < 0.08, 'L8 켜지 않으면 마당은 예전 그대로: 앞 모서리에서 더 못 나가고 (' + off8.at[0] + ', ' + off8.at[2] + ') 받침 밖은 허공 (구석 루마 ' + JSON.stringify(offC) + ')');
     await o.ctx.close();
@@ -220,7 +220,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     var homeC = await corners8(page);
     var w8 = await page.evaluate(function () {
       var sc = APP.scene, K = Math.SQRT1_2, r = { on: sc.wide().on, S1: sc.wide().S1, T: sc.wide().T }, st0 = sc.stats();
-      function push(x, y, n) { sc.setPlayerInput({ x: x, y: y }); for (var i = 0; i < n; i++) sc.debugStep(0.1); sc.setPlayerInput(null); sc.debugStep(0.1); return sc.player().at; }
+      function push(x, y, n) { sc.setPlayerInput({ x: x, y: y }); sc.debugSim(0.1, n); sc.setPlayerInput(null); sc.debugStep(0.1); return sc.player().at; }   /* 걷는 동안은 그리지 않고 민다 (debugSim) · 멈춘 뒤 한 프레임만 그린다 */
       function st(a) { return [+((a[0] + a[2]) * K).toFixed(2), +((a[0] - a[2]) * K).toFixed(2)]; }
       function scr() { var a = sc.player().at, q = sc.screenOf(a[0], 0.6, a[2]); return [Math.round(q.x), Math.round(q.y)]; }
       r.calls0 = st0.calls; r.prog0 = st0.programs;
@@ -228,7 +228,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
       sc.debugPlayerAt(3.6, 3.6); r.out = st(push(0, -1, 50)); r.outScr = scr();          /* 앞 모서리의 문으로 나가 길을 따라 6 m */
       r.side = st(push(1, 0, 45)); r.sideScr = scr();                                      /* 띠의 오른쪽 끝까지 */
       r.end = st(push(0, -1, 90)); r.endScr = scr();                                       /* 길 끝까지 */
-      var p0 = scr(); sc.setYaw(120, true); for (var i = 0; i < 4; i++) sc.debugStep(0.1); r.turn = [p0, scr()]; sc.setYaw(0, true); for (i = 0; i < 4; i++) sc.debugStep(0.1); r.back = scr();
+      var p0 = scr(); sc.setYaw(120, true); sc.debugSim(0.1, 3); sc.debugStep(0.1); r.turn = [p0, scr()]; sc.setYaw(0, true); sc.debugSim(0.1, 3); sc.debugStep(0.1); r.back = scr();
       var st1 = sc.stats(); r.calls1 = st1.calls; r.prog1 = st1.programs; r.trees = sc.wide().trees; r.vh = innerHeight; r.vw = innerWidth;
       return r;
     });
@@ -243,7 +243,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     var in8 = await page.evaluate(async function () {   /* 길 끝 (울타리 밖) 에서 집 문 앵커로 걸어가라고 하면 앞 모서리의 문을 거쳐 현관 문 앞까지 */
       var sc = APP.scene, done = false, minGate = 9;
       sc.playerWalkTo('yardAttic').then(function () { done = true; });
-      for (var i = 0; i < 420 && !done; i++) { sc.debugStep(0.1); var a = sc.player().at; if (a[0] > 3.96 || a[2] > 3.96) { if (a[0] > 3.96 && a[0] < 4.6) minGate = Math.min(minGate, a[2]); if (a[2] > 3.96 && a[2] < 4.6) minGate = Math.min(minGate, a[0]); } await new Promise(function (r) { setTimeout(r, 0); }); }
+      for (var i = 0; i < 420 && !done; i++) { sc.debugSim(0.1, 1); var a = sc.player().at; if (a[0] > 3.96 || a[2] > 3.96) { if (a[0] > 3.96 && a[0] < 4.6) minGate = Math.min(minGate, a[2]); if (a[2] > 3.96 && a[2] < 4.6) minGate = Math.min(minGate, a[0]); } await new Promise(function (r) { setTimeout(r, 0); }); }
       return { done: done, at: sc.player().at, a: sc.doorAnchors.yardAttic, minGate: +minGate.toFixed(2), gate: sc.wide().gate };
     });
     ok(in8.done && Math.abs(in8.at[0] - in8.a[0]) < 0.1 && Math.abs(in8.at[2] - in8.a[2]) < 0.1 && in8.minGate > in8.gate + 0.2, 'L8 문 밖에서 집 문으로: 울타리 문을 거쳐 (울타리 줄을 넘은 자리 ' + in8.minGate + ' > 문 기둥 ' + in8.gate + ') 현관 문 앞에 선다 ' + JSON.stringify(in8.at));

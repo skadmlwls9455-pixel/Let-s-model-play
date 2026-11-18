@@ -6345,6 +6345,9 @@ var SCENE3D = (function () {
       /* 움직이기 (brief MOVE.md · docs/SCENE.md '내 캐릭터 · 움직이기'): setPlayerInput({ x, y } | null) 화면 축 벡터(오른쪽 +x · 위 +y · 길이 0..1) → 매 프레임 1.2 m/s · playerInputAllowed() 보이는 때 규칙 ·
          on.playerInput(allowed) 바뀔 때만 · on.playerStep() 걸음마다 · player().input / footprints · debugPlayerAt(x, z) 자리 옮김 (검사용) */
       setPlayerInput: setPlayerInput, playerInputAllowed: playerInputAllowed, playerInputPause: playerInputPause,
+      /* 디버그 (시험): n 프레임을 dt 초씩 **그리지 않고** 민다 — 걷기 · 따라오는 화면 · 단추 자리는 다 돌고 렌더 패스만 건너뛴다 (화면 밖일 때와 같은 길). 그린 화면이 필요하면 뒤에 debugStep 한 번.
+         소프트웨어 렌더 (시험 · CI) 에선 debugStep 을 수백 번 이어 부르면 그릴 것이 밀려 그다음 캡처가 30 s 를 넘긴다 (11-18 CI '저녁 빛 · 계단' 이 그래서 멈췄다). dt 는 0.04 s 이상 (화면 밖 프레임 상한 30 fps) */
+      debugSim: function (dt, n) { st.paused = true; cancelAnimationFrame(raf); var off = st.offscreen, d = Math.max(0.04, +dt || 0.1); st.offscreen = true; for (var i = 0, m = Math.max(1, n | 0); i < m; i++) frame((lastDraw || 0) + d * 1000); st.offscreen = off; },
       wide: function () { return YARD_WIDE ? { on: true, T: WIDE.T, S_OUT: WIDE.S_OUT, S1: WIDE.S1, gate: WIDE.gate, trees: WIDE_IM ? WIDE_IM.map(function (w) { return [w.im.count - w.base, w.list.length]; }) : null, shadow: [sun.shadow.camera.left, sun.shadow.camera.right, sun.shadow.camera.bottom, sun.shadow.camera.top] } : { on: false }; },   /* 11-18 넓은 바깥 (시험 중 — ?wide=1) */
       debugPlayerAt: function (x, z) { plStop(); PL.pending = ''; PL.pos.set(+x || 0, 0, +z || 0); PL.moving = false; plSnap(); return plInfo(); },
       debugPlayerYaw: function (deg) { if (deg == null) { PL.faceCam = true; return; } PL.faceCam = false; PL.wantYaw = PL.yaw = deg * DEG; },
