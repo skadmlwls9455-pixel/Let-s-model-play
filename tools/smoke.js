@@ -6653,6 +6653,26 @@ async function scenarioLoft(browser) {
     await pg.screenshot({ path: path.join(SHOTS, 'z6-furn-' + ph6.w + (ph6.dark ? 'd' : '') + '.png') });
     reportErrors(bag, 'Z-6 ' + tag6); await A.ctx.close();
   }
+  /* 11-18 (6차 · 검사 J3): 다락 계단 톡 — 계단 모양(디딤판 · 옆판 · 난간)이 보이는 자리는 계단(위층)으로, 뒷벽 문간의 어둠이 보이는 자리만 마당 문으로. 두 단추 칸을 덮는 4 px 격자 · 두 폰 배율 · 기본 · 90° · 180° · 낮 · 밤 → 각 ≥ 95 % */
+  for (var ph7 of [{ w: 360, h: 740, dpr: 2 }, { w: 412, h: 915, dpr: 2.625 }]) {
+    A = await open({ rec: REC(5), w: ph7.w, h: ph7.h, dpr: ph7.dpr }); pg = A.page;
+    for (var hr7 of [14, 21]) for (var yw7 of [0, 90, 180]) {
+      await pg.evaluate(function (a) { APP.scene.setTime(a[0]); APP.scene.setLook({ yaw: a[1] }); }, [hr7, yw7]); await tick(pg, 0.3);
+      var g7 = await pg.evaluate(function () {
+        var S = APP.scene, sc = document.getElementById('scene').getBoundingClientRect(), bx = ['atticStair', 'atticYard'].map(function (id) { return S.spotRect(id); }).filter(function (x) { return x && x.art; });
+        var out = { stair: [0, 0], door: [0, 0] }; if (!bx.length) return out;
+        var l = Math.max(2, Math.min.apply(null, bx.map(function (x) { return x.art.l; }))), t = Math.max(2, Math.min.apply(null, bx.map(function (x) { return x.art.t; }))), r = Math.min(sc.width - 2, Math.max.apply(null, bx.map(function (x) { return x.art.r; }))), b = Math.min(sc.height - 2, Math.max.apply(null, bx.map(function (x) { return x.art.b; })));
+        for (var y = t; y <= b; y += 4) for (var x = l; x <= r; x += 4) {
+          var cx = sc.left + x, cy = sc.top + y, tr = S.debugTapTruth(cx, cy); if (tr !== 'stair' && tr !== 'door') continue;
+          var p = S.pickAt(cx, cy); out[tr][1]++; if (p && p.id === (tr === 'stair' ? 'atticStair' : 'atticYard')) out[tr][0]++;
+        }
+        return out;
+      });
+      var rs7 = g7.stair[1] ? g7.stair[0] / g7.stair[1] : 1, rd7 = g7.door[1] ? g7.door[0] / g7.door[1] : 1;
+      ok(rs7 >= 0.95 && rd7 >= 0.95, '다락 계단 · 마당 문 톡 격자 ' + ph7.w + 'x' + ph7.h + ' @' + ph7.dpr + (hr7 < 18 ? ' 낮' : ' 밤') + ' ' + yw7 + '°: 계단 ' + g7.stair.join('/') + ' · 문간 ' + g7.door.join('/') + ' (각 ≥ 95 %)');
+    }
+    reportErrors(bag, 'Z-7 ' + ph7.w); await A.ctx.close();
+  }
   }
 }
 
