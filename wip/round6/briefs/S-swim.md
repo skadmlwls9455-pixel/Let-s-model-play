@@ -1,0 +1,59 @@
+# 갈래 S — 바다 헤엄 (가지 `lane/6-swim` · 상한 55달러)
+
+먼저 `wip/round6/briefs/COMMON.md`. 그다음 참고로: `js/runner.js` (구조의 본보기 — 고정 틱 · 시드 · 입력 기록 · DOM 없는 simulate · 정수 배 캔버스 · 결과 판),
+`css/runner.css`, `docs/MINIGAME.md`, `tools/test-runner.js` (시험의 본보기), `js/palettes.js`.
+
+## 주인 말 (11-18)
+
+"해변가 … 들어가서 수영하면서 조개 먹는 게임. 시간 제한 있는데 잘하든 못하든 일정 갯수는 주자."
+
+## 무엇을 만드나
+
+해변 물가에서 들어가는 **한 판짜리 바다 헤엄**. 내 캐릭터가 물속을 헤엄치며 조개를 먹고, 판이 끝나면 먹은 만큼 조개 (돈) 를 받는다.
+
+- **주체는 내 캐릭터** (문어가 아니다). 물안경을 쓴 작은 사람 그림을 코드로 그린다 (24×24 안팎).
+  나중에 리드가 진짜 내 모습 그림을 넘길 수 있게 `opts.sprite` (캔버스) 가 오면 그것을 쓴다.
+- **화면**: 세로 전체 화면 `<dialog>` + 캔버스 (기기 px 정수 배). 바다는 오른쪽으로 흐르는 가로 스크롤.
+- **조작**: 화면 어디든 누르고 있으면 위로, 떼면 천천히 가라앉는다 (한 손가락 · 스페이스/위 화살표). 죽지 않는다 — 바위 · 해초에 닿으면 잠깐 빙글 돌고 계속 간다.
+- **한 판의 길이**: 정해진 길이의 물길 (기본 `COURSE_TICKS = 2700` = 45초). **화면에 시계 · 남은 시간 · 줄어드는 막대를 두지 않는다.**
+  끝은 물살이 해변으로 데려다주는 장면 ("뭍에 닿았어").
+- **조개**: 시드로 놓인 줄을 따라 떠 있다. 닿으면 먹는다 (수가 HUD 에 조개 그림 + 숫자로).
+- **못해도 주는 수**: 아무것도 누르지 않아도 지나가는 가운데 물살 줄에 조개가 깔려 있어 최소가 채워지고, 지급은 `clamp(먹은 수, PAY_MIN, PAY_MAX)`.
+  기본 `PAY_MIN = 4` · `PAY_MAX = 10`. 중간에 닫아도 (`status: 'cut'`) 최소는 준다.
+- **바다에서 본 것**: 물길에 배경 생물 10종쯤 (해파리 · 불가사리 · 거북 · 가오리 · 흰동가리 · 성게 · 해마 · 문어 아님! …) 이 시드로 지나간다.
+  가까이 스치면 '봤다' 로 친다 → 결과의 `out.seen`. `SWIM.CATALOG` 로 목록 (id · name · icon) 을 내놓는다. 해롭거나 무서운 연출 없음.
+- **결과 판**: 그림 중심 — 큰 조개 그림 + `+n`, 이번에 처음 본 것 그림 줄 (있을 때만), 단추 `다시` · `닫기`. 점수 · 순위 · 기록 갱신 표시 없음.
+- 주인이 나중에 고를 수 있게 맨 위 상수로: `COURSE_TICKS` · `PAY_MIN` · `PAY_MAX` · `SHOW_CLOCK = false` (true 는 만들지 않는다 — 자리만).
+
+## API (전역 `SWIM`, `js/next/swim.js`)
+
+```
+SWIM.VERSION                      'swim-1'
+SWIM.simulate(seed, inputs, o)    DOM 없이 한 판을 돈다 → { ticks, eaten, pay, seen: [id…], status }   (inputs = [{ t, a: 'd'|'u' }])
+SWIM.open({ parent, seed, n, day, reduced, sprite, onResult, onClose })   창을 열고 판을 시작. seed 가 없으면 hashSeed('swim', day, n)
+SWIM.close()
+SWIM.apply(user, out, day)        순수 함수: user.sea[id] = { first, n } 갱신 → { firstSeen: [id…] }   (조개는 건드리지 않는다)
+SWIM.CATALOG                      [{ id, name, icon }]
+onResult({ v: 1, id: 'swim_<n>_<day>', by: 'user', game: 'swim', status: 'done'|'cut', ms, out: { shells, eaten, seen } })
+```
+
+- 시뮬은 `js/runner.js` 처럼 60Hz 고정 틱 · 정수 상태 · mulberry32. 같은 seed + 같은 inputs → 같은 결과. 꾸밈 입자도 판 시드에서 가른 난수로.
+- 창은 자기 DOM 을 `opts.parent` (없으면 `document.body`) 에 만든다. 탭이 숨으면 멈추고, 돌아오면 누를 때 다시 간다.
+- 저장: 판 번호 `n` 은 호출하는 쪽이 준다. 시험용 쪽만 `ppolppol_next_swim` 에 `{ n }` 을 둔다.
+
+## 파일
+
+`js/next/swim.js` · `css/next/swim.css` · `next/swim.html` · `assets/next/swim/` (바다 것 그림 16px + 32px, 조개 그림은 직접 그린다) ·
+`tools/next/make-swim-art.js` · `tools/next/test-swim.js` · `tools/next/test-swim-live.js` · `docs/next/swim.md`
+
+## 끝난 것으로 보는 조건
+
+- `node tools/next/test-swim.js`: 무작위 입력 200판이 두 번 돌려 같은 결과 · 입력 0 인 판의 지급 = `PAY_MIN` 이상 · 어떤 입력으로도 지급 ≤ `PAY_MAX` ·
+  판이 `COURSE_TICKS` 에서 반드시 끝남 · 골든 값 3개 · `grep Math.random` 0건.
+- 360×740 @2 · 320×568 @2 · 412×915 @2.625 에서: 가로 스크롤 없음, 글자 없는 판 (HUD 는 조개 그림 + 수뿐), 결과 판이 그림 배치, 시계 없음.
+- 모션 줄이기: 화면 흔들림 · 입자 없음 (판은 그대로 된다). 키보드만으로 시작 · 조작 · 닫기.
+- 스크린샷: 시작 · 헤엄 중 · 부딪힘 · 결과 (처음 본 것 있음 / 없음) · 모션 줄이기.
+
+## 리드가 이을 것 (보고서에 더 정확히 적어 줘)
+
+`index.html` script/link · `js/app.js` 의 `openSwim` (달리기 `openMachine` 꼴) · `APP.earnFromPlay` 에 swim 규칙 · 해변 물가 단추 · `user.sea` 도감 연결.
