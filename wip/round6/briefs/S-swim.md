@@ -49,7 +49,7 @@ onResult({ v: 1, id: 'swim_<n>_<day>', by: 'user', game: 'swim', status: 'done'|
 
 ## 파일
 
-`js/next/swim.js` · `css/next/swim.css` · `next/swim.html` · `assets/next/swim/` (바다 것 그림 32px 한 벌 — 도감 · 결과 판의 `<img>` 용. 판 안 캔버스에 그리는 것은 js 안의 픽셀 표로 직접 찍는다, 조개 그림도) ·
+`js/next/swim.js` · `css/next/swim.css` · `next/swim.html` · `assets/next/swim/` (바다 것 그림 32px 한 벌 — 도감 · 결과 판의 `<img>` 용. 판 안 캔버스에 그리는 바다 것은 js 안의 픽셀 표로 직접 찍는다. 조개는 본 게임의 돈 그림 `assets/icons/souvenir/shell.png` 를 Image 로 읽어 그린다 — 못 읽으면 같은 크기의 네모 대체. 캔버스 픽셀을 읽는 시험은 하지 않는다, 스크린샷으로 본다) ·
 `tools/next/make-swim-art.js` · `tools/next/test-swim.js` · `tools/next/test-swim-live.js` · `docs/next/swim.md`
 
 ## 끝난 것으로 보는 조건
@@ -65,3 +65,10 @@ onResult({ v: 1, id: 'swim_<n>_<day>', by: 'user', game: 'swim', status: 'done'|
 ## 리드가 이을 것 (보고서에 더 정확히 적어 줘)
 
 `index.html` script/link · `js/app.js` 의 `openSwim` (달리기 `openMachine` 꼴) · `APP.earnFromPlay` 에 swim 규칙 · 해변 물가 단추 · `user.sea` 도감 연결.
+
+## 덧붙임 — 독립 점검에서 나온 것 (위 글과 어긋나면 이 절이 이긴다)
+
+- `opts.sprite` = **정면 머리 그림** (정사각 캔버스 32×32 — 리드가 본 게임의 머리 초상으로 만든다). 네가 그린 몸 · 물안경은 그대로 두고 머리 자리에만 정수 배로 얹는다. 없거나 정사각이 아니면 네 그림을 쓴다.
+- 판은 **첫 입력 뒤에** 시작한다. 시작 전에 닫으면 `onResult` 를 부르지 않는다 (지급 없음). 하루 · 시간 지급 상한은 리드 훅 몫이라고 `docs/next/swim.md` 에 적고, 모듈 안에 쿨다운 · 기다림을 만들지 않는다.
+- 시험에 더한다: `SWIM.apply` 는 `first` 를 덮지 않고, 부를 때마다 본 것마다 `n` +1.
+- `SWIM.CATALOG` 의 `hint` 는 빈 글 (바다 것은 헤엄치면 지나간다 — 조건이 없다).

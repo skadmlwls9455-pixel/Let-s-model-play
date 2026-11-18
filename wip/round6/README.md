@@ -158,13 +158,15 @@ CLAUDE_CODE_PROMPT_CACHE_TTL=1h claude -p "wip/round6/briefs/COMMON.md 와 wip/r
 ## 6. 합치기
 
 - 갈래가 push 하면 리드가 `lane/6-*` 를 자기 가지에 들인다 (자동 모드가 병합을 막으면 주인에게 "합쳐도 돼" 를 받는다 — HANDOFF §3).
-- 새 파일뿐이라 충돌은 없다. 리드가 `js/next/…` 를 `index.html` 에 싣고 (`tools/export-site.js` 의 `js/next/` 줄에서 꺼내며) 장면 · 저장에 잇는다.
+- 새 파일뿐이라 충돌은 없다. **합칠 때 파일을 옮기지 않는다** — `js/next` · `css/next` · `assets/next` 자리 그대로 `index.html` 에 싣고 `tools/export-site.js` 의 LEAVE 에서 그 폴더 줄을 지운다
+  (옮기면 갈래 시험의 require 경로 · 시험용 쪽의 주소 · 모듈 안의 그림 주소가 한꺼번에 깨진다).
 - 리드 가지는 다른 세션 가지 (`claude/game-launch-completion-hwvre5`) 를 그때그때 받아 온다 (주인 '합쳐도 돼' 뒤에).
 
 ### 본 게임에 올리는 날 점검표 (리드)
 
-1. `js/next/<이름>.js` · `css/next/<이름>.css` 를 `index.html` 에 싣는다 → `tools/export-site.js` 의 LEAVE 에서 그 파일을 TAKE 로 옮기고 `tools/test-export.js` 의 목록 · `assets/manifest.json` 을 맞춘다.
-2. 글꼴: `tools/subset-fonts.py` 는 `js/*.js` · `css/*.css` · `index.html` 만 센다 — `js/next/` 의 화면 글도 세게 고치거나 파일을 `js/` 로 올린 뒤 다시 만들고 `--check` 가 `stale: none` 인지 본다.
+1. `js/next/<이름>.js` · `css/next/<이름>.css` 를 자리 그대로 `index.html` 에 싣는다 → `tools/export-site.js` 의 LEAVE 에서 `js/next/` · `css/next/` · `assets/next/` 줄을 지우고 (아직 안 실은 모듈 파일이 있으면 '안 쓰는 파일' 검사에 걸린다 — 한꺼번에 싣거나 파일 단위로 남긴다) `tools/test-export.js` 를 맞춘다.
+2. 글꼴: `tools/subset-fonts.py` 는 `js/*.js` · `css/*.css` · `index.html` 만 센다 — `js/next/*.js` 의 화면 글도 세게 그 스크립트를 고친 뒤 다시 만들고 `--check` 가 `stale: none` 인지 본다.
+   바깥 날씨: 다락 창밖 날씨 (`weatherFor` — 등불 칸에 묶여 있다) 를 갈래에 넘기지 않는다. 등불과 무관한 날짜 시드의 바깥 날씨를 새로 만들어 넘긴다. 시간대는 `phaseOf` 그대로.
 3. 저장: 새 `S.user` 칸을 `userState()` 의 기본값 · 두 탭 합치기 (`js/app.js` 의 저장 직전 합치는 곳 — `grep -n "storage\|merge"`) · 내보내기/가져오기 검증에 넣는다. 옛 저장이 그대로 열리는지 스모크.
 4. 시험: `tools/next/test-*.js` 를 `package.json` 의 `test` 와 `.github/workflows/test.yml` 빠른 단계에 넣는다. 스모크 글자는 A~Z 가 다 찼다 — 새 시나리오는 두 글자 이름 (`CAM` 처럼).
 5. 정직 표시: 문어가 나오는 새 화면마다 '데모' 꼬리표가 가려지지 않는지, 코드가 쓴 글에 문어의 감정 · 취향 말이 없는지 본다.

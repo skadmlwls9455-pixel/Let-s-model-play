@@ -31,7 +31,8 @@
 - **음식 탭**: 넘겨받은 수첩 줄을 음식 키로 묶는다 — **음식 키는 요리 id (`recipe`) 하나다.** 변주 (해초 종류 · 굽기 · 썰기) 는 칸을 가르지 않고
   타일의 사실 줄에만 쓴다 ("11월 18일에 처음 만들었어 · 4번 · 노릇노릇"). 해초 종류는 판 시드가 고르는 것이라 칸으로 두면 '나올 때까지 되풀이' 가 된다.
   (`js/cook.js` 를 읽고 수첩 줄의 실제 칸으로 정하되, 부엌은 다른 세션이 고치는 중이라 그 낱말 표를 베껴 넣지 않는다.) 접시 그림은 `opts.drawDish(row) → canvas` 가 오면 그것을, 없으면 네가 그린 16px 그림.
-  시험용 쪽에서는 `../js/cook.js` · `../js/cook-art.js` 를 읽기 전용으로 실어 `COOK.drawDish` 로 확인해도 된다 (되는 만큼만).
+  `COOK.drawDish(recipe, look, seed, w, h)` 는 캔버스가 아니라 `{ w, h, d: Uint8ClampedArray }` 를 준다 → 어댑터 `BOOK.dishFrom(COOK)` → `function (row) → canvas` 를 네가 만든다 (`putImageData`).
+  시험용 쪽은 `js/cook.js` · `js/cook-art.js` 를 읽기 전용으로 싣고 이 어댑터를 넘긴다.
   요리에 등급 · 별 · 점수 · 걸린 시간을 붙이지 않는다.
   **요리는 곧 셋이 된다** (다른 세션이 해초전에 둘을 더하는 중 — 주먹밥 · 과일 꼬치 같은 것, 이름은 아직 안 정해졌다). 그래서:
   요리 이름 · 수를 네 코드에 박지 않는다 — 수첩 줄의 요리 칸 (`recipe` 류) 이 모르는 값이어도 그 값으로 묶어 한 칸을 만들고 던지지 않는다.
@@ -68,3 +69,11 @@ BOOK.open({ parent, user, sources, tab, drawDish, onChange, onClose })    창
 ## 리드가 이을 것
 
 들어가는 단추 (앨범 옆) · `S.user` 넘기기 · 부엌 수첩 읽어 넘기기 · 다른 갈래의 `CATALOG` 넘기기 · 저장 호출 (`onChange`) · 두 탭 합치기 규칙에 새 칸 넣기.
+
+## 덧붙임 — 독립 점검에서 나온 것 (위 글과 어긋나면 이 절이 이긴다)
+
+- 힌트는 네가 짓지 않는다. `CATALOG` 항목의 `hint` 가 있으면 글자 그대로 보이고, 없으면 `?` 타일만.
+- '새로 생긴 것' 점은 `user.bookSeen = { 탭: 마지막으로 열었을 때 찾은 수 }` 로 기억한다 (모듈의 localStorage 에 적지 않는다). `BOOK.view` 의 탭 자료에 `fresh: true | false`, 탭을 열면 `BOOK.seen(user, tab, n)` 이 적고 `onChange` 를 부른다.
+- 전시는 24개까지 — 넘으면 `{ ok: false, full: true }` 이고 단추가 살짝 흔들린다. 시험: `show` 를 두 번 불러도 날짜를 덮지 않음 · 25번째 거절 · 탭을 열면 `fresh` 가 꺼짐.
+- 시험용 쪽 가짜 자료의 물건 그림은 새로 그리지 않는다 — 기존 `assets/souvenirs32/*.png` 를 빌려 쓴다 (이름만 가짜로). 네가 그리는 것은 받침대 · `?` 타일 · 탭 그림뿐.
+- `BOOK.open` 은 `opts.reduced` 도 받는다 (COMMON 6절).
