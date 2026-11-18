@@ -35,7 +35,7 @@ var APP = (function () {
   var STATE_EXPR = { happy: 'happy', pet: 'pet', sleep: 'sleep' };   /* 11-15 (주인 C6 b · 검증): 출발 움츠림 anticipate 도 평소 얼굴 (예전 반눈 calm — 집에 남는 차례에도 보여 시무룩하게 읽혔다) */   /* 상태의 기본 표정 (SCENE.md 초상·표정) — 대화창 표정은 4 s 뒤 여기로 돌아온다 */
   /* 자는 문어를 누르면 · 깨어 있는 문어를 톡 누르면 (말풍선만 — 로그 · 저장에 안 남는다, 11-08). 소리(js/audio.js)는 글자가 아니라 kind('sleep' · 'curious' · 'say')로 고른다.
      깨어 있으면 '응?' 대신 그날 마지막으로 끝낸 차례에 대한 한 줄 (BRAIN.tapLine · 주인 11-08) — 없으면 '응?' */
-  var SLEEP_SAY = '쿨쿨…', TAP_SAY = '응?', SLEEP_DOWN_SAY = '지금은 아래층에서 자고 있어.', DOWN_SAY = '지금은 아래층에 있어.', AWAY_SAY = '지금은 산책 나가 있어.';
+  var SLEEP_SAY = '쿨쿨…', TAP_SAY = '응?', SLEEP_DOWN_SAY = '지금은 아래층에서 자고 있어.', DOWN_SAY = '깨어 있을 때 같이 올라오면 물어볼 수 있어.', AWAY_SAY = '지금은 산책 나가 있어.';
   var TAP_CLIP = 24;   /* 모델 · 사람이 쓴 톡 한 줄: 화면엔 24글자 + '…' (원문은 기록 그대로) */
   /* 돌아온 뒤 담요에서 깨어 있는 틈 (주인 11-08 '자동으로 쉬는 느낌'): 보이는 다락에서 90 s → 그다음 낮잠. 탭을 떠났거나 · 놀이방 · 창이 열렸거나 · 장면을 아래로 내려 둔 동안은 세지 않고,
      돌아오면 적어도 15 s 는 깨어 있다. 게임 기록엔 저장하지 않는다 (이 탭의 새로고침만 남은 틈을 sessionStorage 로 이어 받는다 — 없으면 차례가 끝난 시각부터 센다).
@@ -1874,6 +1874,7 @@ var APP = (function () {
       var sr = summaryRow(trip); if (sr) appendLogRow(today, sr);
       revealing = null;
       finalPose(trip);
+      hintsAfterWalk(trip);   /* 11-18 첫 손 힌트 (점검 J2) */
     });
   }
   /* 귀가 연출 (UI R25 · GF R15/R18): 로그 끝 → 포스터 올라옴 → 토스트 → 등불 칸 → 200ms 뒤 소품 + 집 한 줄.
@@ -4267,6 +4268,53 @@ var APP = (function () {
     if (tipFor) tipFor.setAttribute('aria-expanded', 'false');
     tipFor = null;
   }
+  /* ───────────────────────── 11-18 첫 손 힌트 (점검 J2): 첫 산책이 다 끝나 집에 온 뒤, 조용한 때마다 손 그림이 다락 단추 하나씩을 두 번 톡 ─────────────────────────
+     놀이방 문 → 마당 문 → 위층 계단 (각 1.6 s). 글자 없음 (단추마다 이미 aria 이름 · 손은 aria-hidden) · 진동 · 소리 없음. 손은 달리기 안내의 12×12 손 (RUNNER.pix('hand')).
+     지금 숨은 단추는 건너뛰고 다음 조용한 때 다시. 아무 데나 누르면 이번 차례는 끝 (누른 단추는 제 할 일을 한다). 기기마다 한 번 (ppolppol_ui 'hints' — 문어 기록엔 안 쓴다).
+     처음 집에 온 산책이 첫 산책일 때만 켠다 (집에 있던 차례는 안 셈) → 이미 여러 번 다녀온 기록은 보지 않는다. 안내 요정 (윤슬 · 다음 차례) 이 오기 전까지 잇는 다리 */
+  var HINT_SPOTS = [['atticPlay', 'btn-door'], ['atticYard', 'btn-yard'], ['atticStair', 'btn-stair']], HINT_MS = 1600;
+  var hintPoll = 0, hintRun = null, greetT = 0;   /* greetT = 첫 인사 말풍선 (이름 지은 직후 · 이름 창 처리) 동안 선물 알림을 붙잡는 타이머 */
+  function hintSeen() { var o = uiPref().hints; return (o && typeof o === 'object') ? o : {}; }
+  function hintLeft() { var seen = hintSeen(); return HINT_SPOTS.filter(function (sp) { return !seen[sp[0]]; }); }
+  function hintsAfterWalk(trip) {   /* 귀가가 다 끝난 자리 (reveal 끝) 에서 한 번 부른다 */
+    if (!trip || trip.kind !== 'out') return;
+    var n = S.trips.filter(function (t) { return t && t.status === 'done' && t.kind === 'out'; }).length;
+    if (n !== 1 || !hintLeft().length || uiPref().hintsArm) return;
+    setUiPref('hintsArm', 1); hintStart();
+  }
+  function hintStart() { if (!hintPoll && uiPref().hintsArm && hintLeft().length) hintPoll = setInterval(hintTick, 700); }
+  function hintQuiet() {
+    var t = $('toast'), inAttic = sceneMode === '3d' ? (typeof scene.view !== 'function' || scene.view() === 'attic') && !(typeof scene.room === 'function' && scene.room()) : true;
+    return !!S.octopus.name && !document.hidden && !document.querySelector('dialog[open]') && !(t && t.classList.contains('show')) && !revealing && !cer.kind && !introUp() && !furnMode && !inPlay() && inAttic && !tipFor;
+  }
+  function hintBtn(id) { var b = $(id); if (!b || b.hidden) return null; var r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(b).visibility !== 'hidden' ? r : null; }
+  function hintTick() {
+    if (hintRun) return;
+    var left = hintLeft(); if (!left.length) { clearInterval(hintPoll); hintPoll = 0; return; }
+    if (!hintQuiet()) return;
+    var at = null; for (var i = 0; i < left.length && !at; i++) { var r = hintBtn(left[i][1]); if (r) at = { spot: left[i][0], r: r }; }
+    if (at) hintShow(at.spot, at.r);
+  }
+  function hintEnd() {
+    if (!hintRun) return;
+    clearTimeout(hintRun.t); document.removeEventListener('pointerdown', hintEnd, true); window.removeEventListener('resize', hintEnd);
+    if (hintRun.el) hintRun.el.hidden = true;
+    hintRun = null;
+  }
+  function hintShow(spot, r) {
+    var el = $('hint-hand');
+    if (!el) { el = h('span', { id: 'hint-hand', class: 'hint-hand', 'aria-hidden': 'true' }); el.innerHTML = window.RUNNER && RUNNER.pix ? RUNNER.pix('hand') : ''; document.body.appendChild(el); }
+    if (!el.innerHTML) return;
+    var d = window.devicePixelRatio || 1, U = Math.max(1, Math.round(2 * d)), u = U / d;   /* 그림 1 점 = 기기 px 정수 */
+    var vw = document.documentElement.clientWidth || window.innerWidth, flip = r.left + r.width / 2 + 12 * u > vw - 4;   /* 오른쪽 끝 단추는 손을 좌우로 뒤집어 왼쪽에서 (그림 밖으로 잘리지 않게 · 뒤집기는 점을 다시 찍지 않는다) */
+    var x = r.left + r.width / 2 - (flip ? 12 * u : 0), y = r.top + r.height / 2 - 3.5 * u;   /* 손가락 끝 (그림 왼쪽 · 4 번째 줄, 뒤집으면 오른쪽) 이 단추 가운데 */
+    el.classList.toggle('flip', flip); el.style.setProperty('--hint-u', u + 'px'); el.style.left = Math.round(x * d) / d + 'px'; el.style.top = Math.round(y * d) / d + 'px';
+    var seen = hintSeen(); seen[spot] = 1; setUiPref('hints', seen);
+    el.hidden = false; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
+    hintRun = { spot: spot, el: el, t: setTimeout(function () { hintEnd(); hintTick(); }, HINT_MS) };
+    document.addEventListener('pointerdown', hintEnd, true); window.addEventListener('resize', hintEnd);
+  }
+  setTimeout(hintStart, 3000);   /* 새로 열었을 때: 켜 둔 힌트가 남았으면 이어서 (조용한 때에) */
   /* 폰에서(상태 줄이 방 제목을 숨기는 폭) 등불 말풍선 첫 줄 = 방 제목. 넓은 화면은 상태 줄에 이미 보이니 빼고 한 줄만 */
   /* 등불 설명의 첫 줄 = 상태 줄에서 숨긴 것들: 방 제목 · (좁은 폰의 한 화면 배치에서) 등불 숫자 */
   function pipsHead() {
@@ -4467,9 +4515,14 @@ var APP = (function () {
       $('name-dialog').close(); renderStatus(false); renderScene();
       if (first) {
         checkDay(true);   /* 앱을 연 채로 자정을 넘겨 이름을 지었으면 먼저 새 날로 넘긴다 (아래 renderLog 가 넘기며 자기소개를 날 인사로 덮지 않게) */
-        setTimeout(function () { renderBagChip(); dailyGift(); }, 1500);   /* 첫날도 선물 */
-        setGreeting(typeof STR.firstGreeting === 'function' ? STR.firstGreeting(v) : '안녕, 나는 ' + v + '야. 비 오는 다락방에 온 걸 환영해.');   /* 문어의 자기소개 (11-15 주인 C6 b: 평소 얼굴 — 예전 웃는 얼굴) */
+        var hello = typeof STR.firstGreeting === 'function' ? STR.firstGreeting(v) : '안녕, 나는 ' + v + '야. 비 오는 다락방에 온 걸 환영해.';
+        setGreeting(hello);   /* 문어의 자기소개 (11-15 주인 C6 b: 평소 얼굴 — 예전 웃는 얼굴) · 행은 온 문장 그대로 */
         renderLog();
+        /* 11-18 (점검 J1): 자기소개 첫 문장을 문어 말풍선으로 (예전엔 닫힌 '오늘의 산책' 행에만 있었다) · 얼굴은 평소 (말풍선은 얼굴을 안 바꾼다) · 입력은 막지 않는다.
+           첫날 선물 알림은 말풍선이 내려간 뒤 (giftWait 동안 알림 줄은 기다린다) */
+        var cut = hello.indexOf('. ', hello.indexOf(v) + v.length), hi = cut > 0 ? hello.slice(0, cut + 1) : hello;
+        giftWait = true; bubble(hi, 2600, 'say');
+        greetT = setTimeout(function () { greetT = 0; giftWait = false; renderBagChip(); dailyGift(); }, 2800);   /* 첫날도 선물 */
       }
     });
     $('name-dialog').addEventListener('cancel', function (e) { if (!S.octopus.name) e.preventDefault(); });
@@ -4830,7 +4883,7 @@ var APP = (function () {
     sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     var sw = $('sew-sheet'); if (sw) { $('sew-close').addEventListener('click', function () { sw.close(); }); sw.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); }); }
     salonLiftInit();
-    giftWait = true; setTimeout(function () { giftWait = false; dailyGift(); }, 2500);
+    giftWait = true; setTimeout(function () { if (greetT) return; giftWait = false; dailyGift(); }, 2500);   /* 11-18: 첫 인사 말풍선이 떠 있으면 그쪽 타이머가 푼다 */
     weekTell();   /* 11-11 (검증 W1): 지난주 선물 알림을 못 띄운 채 새로고침했으면 이어서 (오늘 선물 알림 뒤에) */
     setInterval(function () { if (!document.hidden) dailyGift(); }, 60000);   /* 11-12 (검증): 열어 둔 채 자정을 넘기면 그날 선물 · 들어온 날이 안 올라갔다 — 1분마다 (그날 한 번만 준다) */
     document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(dailyGift, 400); });

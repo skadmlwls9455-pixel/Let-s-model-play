@@ -1078,6 +1078,14 @@ button.pips::before { content: ''; position: absolute; inset: -12px -4px; }   /*
 .tip .tip-head { color: var(--muted); }
 .tip::before { content: ''; position: absolute; top: -6px; left: var(--tip-x, 24px); margin-left: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: var(--rim); }
 .tip::after { content: ''; position: absolute; top: -5px; left: var(--tip-x, 24px); margin-left: -5px; border: 5px solid transparent; border-top: 0; border-bottom-color: var(--panel2); }
+.hint-hand { position: fixed; left: 0; top: 0; z-index: 11; width: calc(12 * var(--hint-u, 2px)); height: calc(12 * var(--hint-u, 2px)); pointer-events: none; animation: hint-tap 1.6s step-end 1 both; }   /* 11-18 첫 손 힌트 (app.js hint): 단추 위 · 시트(top layer) · 알림 아래 · 누름 = 한 점 이동 (배율 없음) */
+.hint-hand[hidden] { display: none; }
+.hint-hand svg { display: block; width: 100%; height: 100%; }
+.hint-hand.flip { --hint-dir: 1; }
+.hint-hand.flip svg { transform: scaleX(-1); }
+@keyframes hint-tap { 0% { transform: none; } 20% { transform: translate(calc(var(--hint-dir, -1) * var(--hint-u, 2px)), 0); } 35% { transform: none; } 55% { transform: translate(calc(var(--hint-dir, -1) * var(--hint-u, 2px)), 0); } 70%, 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .hint-hand { animation: none; } }
+:root[data-motion="reduce"] .hint-hand { animation: none; }
 .tip:empty::before, .tip:empty::after { display: none; }
 :root[data-font="pixel"] .tip {
   border: 2px solid var(--line); border-radius: 0; font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; padding: 4px 10px;
