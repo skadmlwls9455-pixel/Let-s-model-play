@@ -29,7 +29,7 @@ var SCENE3D = (function () {
   var PLAY_R = 2.8, PLAY_H = 2.2;   /* 11-10 (3): 2.4 → 2.8 (주인 "너무 좁아 보여, 전처럼 조금만 넓혀 줘") — 화면보다 넓어진 만큼은 거실처럼 카메라가 캐릭터를 따라간다 */   /* 11-10: 1.7 → 2.4 (바닥 3.4 → 4.8 m, 넓이 두 배 — 주인 "부엌~게임기 쪽이 너무 좁음, 특히 넓혀 줘"). 한 화면 배치로 장면이 화면을 다 써서 세로가 넉넉하다 */   /* ROOM_EXPANSION §5.2 의 3.6 × 2.4 m 는 360×640 장면(139 아트px)에 145 px 라 위아래가 잘려, 카드의 둘째 후보 3.4 × 2.2 m (≈ 135 px) 로 — scene-api.md '크기' */
   var LOFT_R = 2.2, LOFT_H = 1.5, LOFT_PEAK = 3.15;
   var YARD_L = 4.6;   /* 11-15 마당 받침 반폭 (바깥 3.2 보다 넓게 — 밭 여섯 칸 · 둘레 나무) */   /* 11-10 위층 다락 (지붕 밑 방): 바닥 4.4 m · 무릎벽 1.5 m · 박공 꼭대기 3.15 m */
-  var STAIR = { x0: -2.32, x1: -1.48, z0: 2.78, z1: 3.44, top: 2.5 }, HATCH = { x0: 1.3, x1: 2.0, z0: -2.0, z1: -1.2 };   /* 거실 왼벽 앞쪽 구석의 가파른 계단 (발치 x1 → 왼벽 쪽 x0 로 오른다) · 위층 바닥의 계단 구멍 */   /* 11-18 (주인: "계단이랑 방이 붙어있어서 잘못 방문 — 계단이나 문을 옮겨줘"): 예전 자리(뒷벽 오른쪽 구석 x 2.62~3.46)는 발치가 마당 문간 앞 0.4 m 였다 → 두 문(마당 · 놀이방)에서 가장 먼 왼벽 앞쪽 구석으로. 소파 기본 자리(z ≤ 2.68) 바로 앞 · 왼벽 샛기둥(z 3.25) 앞에서 멈춘다 */
+  var STAIR = { x0: -2.32, x1: -1.50, z0: 2.78, z1: 3.44, top: 2.5 }, HATCH = { x0: 1.3, x1: 2.0, z0: -2.0, z1: -1.2 };   /* 거실 왼벽 앞쪽 구석의 가파른 계단 (발치 x1 → 왼벽 쪽 x0 로 오른다) · 위층 바닥의 계단 구멍 */   /* 11-18 (주인: "계단이랑 방이 붙어있어서 잘못 방문 — 계단이나 문을 옮겨줘"): 예전 자리(뒷벽 오른쪽 구석 x 2.62~3.46)는 발치가 마당 문간 앞 0.4 m 였다 → 두 문(마당 · 놀이방)에서 가장 먼 왼벽 앞쪽 구석으로. 소파 기본 자리(z ≤ 2.68) 바로 앞 · 왼벽 샛기둥(z 3.25) 앞에서 멈춘다. 발치 x1 −1.50 = 소파 기본 자리의 앞 끝 — 둘의 둘레가 한 줄 (−1.25) 이라 소파 앞면을 타고 내려오다 2 cm 턱에 걸리지 않는다 (검증 11-18: −1.48 일 땐 프레임에 따라 걸리거나 미끄러져 들어갔다) */
   var DOOR_ANCHORS = { atticPlayDoor: [RF - 0.55, 0, 1.92], playAtticDoor: [-(PLAY_R - 0.35), 0, -0.33], atticStair: [STAIR.x1 + 0.32, 0, 3.11], loftStair: [0.95, 0, -1.35],
     atticYard: [1.9, 0, -1.95], yardAttic: [0.42, 0, -1.1] };   /* 11-15 마당: 다락 뒷벽 문간(문어 산책 문 — x 1.5~2.4) 앞 · 11-18 마당 집 현관 마루 위 문 앞 (마루 x 0.1~0.48 · 계단 세 칸 ~1.2 — 예전엔 계단 발치 x 1.62 라 뒤돌기만 해도 집으로 들어갔다, 주인 11-18) */   /* 11-11: 옷감 선반(앞면 z −1.72)의 둘레에 걸리지 않게 조금 앞으로 */   /* 내 캐릭터가 문을 열기 전에 서는 자리. 다락 문은 +x 벽에서 카메라 쪽으로 서 있어 문 바로 안쪽(z 1.4)에 서면 문짝 뒤에 다 가려진다 → 손잡이 쪽 옆(z 1.92, 문 끝 1.76 에서 0.16 m)에 선다 · 놀이방 문은 −x 벽이라 문 앞(x −1.35)이 문보다 앞에 보인다 */
   var EXPRESSIONS = ['idle', 'blink', 'happy', 'pet', 'sleep', 'curious', 'calm', 'sleepy'];   /* 표정 8 (DESIGN §15.2) — 장면과 초상이 setExpression 하나로 공유 */
@@ -1093,13 +1093,13 @@ var SCENE3D = (function () {
       var n = 7, run = (STAIR.x1 - STAIR.x0) / n, rise = STAIR.top / n, zc = (STAIR.z0 + STAIR.z1) / 2, zw = STAIR.z1 - STAIR.z0;
       for (var k = 0; k < n; k++) parts.push({ g: box(run + 0.05, 0.05, zw - 0.1), m: M(STAIR.x1 - run * (k + 0.5), rise * (k + 1) - 0.03, zc), c: k % 2 ? W[3] : W[4] });
       [STAIR.z0 + 0.04, STAIR.z1 - 0.04].forEach(function (z) { seg(parts, [STAIR.x1 + 0.06, 0, z], [STAIR.x0 - 0.02, STAIR.top, z], 0.07, W[1]); });
-      seg(parts, [STAIR.x1 + 0.02, 0.85, STAIR.z1 - 0.04], [STAIR.x0 - 0.02, STAIR.top + 0.85, STAIR.z1 - 0.04], 0.035, W[2]);   /* 난간 (카메라 쪽 +z 옆) */
-      [0, 0.5, 1].forEach(function (t) { var x = STAIR.x1 - (STAIR.x1 - STAIR.x0) * t, y = STAIR.top * t; parts.push({ g: box(0.05, 0.85, 0.05), m: M(x, y + 0.43, STAIR.z1 - 0.04), c: W[1] }); });
+      seg(parts, [STAIR.x1 + 0.02, 0.85, STAIR.z0 + 0.04], [STAIR.x0 - 0.02, STAIR.top + 0.85, STAIR.z0 + 0.04], 0.035, W[2]);   /* 난간 (방 쪽 −z 옆 — 11-18: 앞벽 쪽 +z 는 벽이다. 예전 자리 (z1) 의 발치 초롱은 앞벽이 그려지는 각에서 앞벽 샛기둥 속에 묻혔다, 검증) */
+      [0, 0.5, 1].forEach(function (t) { var x = STAIR.x1 - (STAIR.x1 - STAIR.x0) * t, y = STAIR.top * t; parts.push({ g: box(0.05, 0.85, 0.05), m: M(x, y + 0.43, STAIR.z0 + 0.04), c: W[1] }); });
       propCount += 2;
-      /* 11-15 계단 표시: 디딤판마다 앞(+x, 오르기 시작하는 쪽) 모서리 위에 옅은 띠 (디딤판보다 4 mm 크게 — 면이 겹쳐 깜빡이지 않게) · 발치 기둥(x1, z1) 꼭대기에 초롱 */
+      /* 11-15 계단 표시: 디딤판마다 앞(+x, 오르기 시작하는 쪽) 모서리 위에 옅은 띠 (디딤판보다 4 mm 크게 — 면이 겹쳐 깜빡이지 않게) · 발치 기둥(x1, z0 — 방 쪽) 꼭대기에 초롱 */
       var ed = [];
       for (k = 0; k < n; k++) ed.push([STAIR.x1 - run * k + 0.027 - 0.025, rise * (k + 1) - 0.03, zc, 0.054, 0.056, zw - 0.092]);
-      ATTIC_CUE = stairCue(atticG, ed, [STAIR.x1, 0.86, STAIR.z1 - 0.04], KNEE + 0.12);   /* 아래 두 칸 띠는 계단 자르기 (lowMax KNEE + 0.12) 와 같이 남는다 */
+      ATTIC_CUE = stairCue(atticG, ed, [STAIR.x1, 0.86, STAIR.z0 + 0.04], KNEE + 0.12);   /* 아래 두 칸 띠는 계단 자르기 (lowMax KNEE + 0.12) 와 같이 남는다 */
     })();
     /* 창: 턱·틀·살 */
     parts.push({ g: box(0.5, 0.08, WIN.z1 - WIN.z0 + 0.5), m: M(-R + 0.22, WIN.y0, (WIN.z0 + WIN.z1) / 2), c: W[2] });                                 /* 창턱 */
@@ -1450,6 +1450,19 @@ var SCENE3D = (function () {
       if (!furnRay(cx, cy)) return null; _fpl.constant = -(atticG.position.y + 0.2);
       return _fray.ray.intersectPlane(_fpl, _fpt) ? _fpt.sub(atticG.position) : null;
     }
+    var _stairTreads = null, _stv = new T.Vector3();
+    function stairRayDist(cx, cy) {   /* 톡 광선이 다락 계단 (디딤판 일곱 칸 — 칸마다 그 아래 옆판 두께까지 싼 상자) 에 닿는 거리 · 안 닿으면 Infinity */
+      if (!furnRay(cx, cy)) return Infinity;
+      if (!_stairTreads) { _stairTreads = []; for (var k = 0, n = 7, run = (STAIR.x1 - STAIR.x0) / n, rise = STAIR.top / n; k < n; k++) _stairTreads.push(new T.Box3(new T.Vector3(STAIR.x1 - run * (k + 1) - 0.03, Math.max(0, rise * (k + 1) - 0.42), STAIR.z0), new T.Vector3(STAIR.x1 - run * k + 0.03, rise * (k + 1) + 0.03, STAIR.z1))); }
+      var best = Infinity;
+      for (var i = 0; i < _stairTreads.length; i++) if (_fray.ray.intersectBox(_stairTreads[i], _stv)) { var d = _fray.ray.origin.distanceTo(_stv); if (d < best) best = d; }
+      return best;
+    }
+    function furnRayDist(cx, cy) {   /* 톡 광선이 가구 몸 (메시) 에 닿는 거리 · 바닥 발자국만 걸리면 Infinity */
+      if (!furnRay(cx, cy)) return Infinity;
+      var ms = []; ['sofa', 'crate', 'blanket'].forEach(function (id) { var m = FURN[id].m; if (m.visible) ms.push(m); }); if (props.crate.visible && candleG.visible) ms.push(candleG);
+      var hs = _fray.intersectObjects(ms, true); return hs.length ? hs[0].distance : Infinity;
+    }
     function furnAt(cx, cy) {   /* 11-15: 가구 몸(메시)을 먼저 — 키 큰 소파 등받이 · 상자 위 양초를 눌러도 그 가구. 없으면 바닥 발자국 (+0.1) — 담요는 맨 나중 (깔개라 다른 가구 밑에 있을 수 있다) */
       if (!furnRay(cx, cy)) return null;
       var ms = [], ids = [];
@@ -1462,7 +1475,7 @@ var SCENE3D = (function () {
       return hit;
     }
     function furnLim(f) { return [-R + 0.16 + f.hw, RF - 0.1 - f.hw, -R + 0.16 + f.hd, RF - 0.1 - f.hd]; }
-    var FURN_KEEP = [[RF - 1.2, RF + 1, 0.7, 2.7], [1.3, 2.6, -R - 1, -1.6], [-R - 1, STAIR.x1 + 0.6, STAIR.z0 - 0.05, RF + 1]];   /* 놀이방 문 앞 · 바깥 문 앞 · 위층 계단 (11-18: 왼벽 앞쪽 구석 — 발치 0.6 m 까지 = 내 캐릭터가 설 자리, 소파 기본 자리 z ≤ 2.68 은 안 걸린다) 은 비워 둔다 */
+    var FURN_KEEP = [[RF - 1.2, RF + 1, 0.7, 2.7], [1.3, 2.6, -R - 1, -1.6], [-R - 1, STAIR.x1 + 0.6, STAIR.z0 - 0.05, RF + 1], [STAIR.x1 + 0.02, STAIR.x1 + 0.6, STAIR.z0 - 0.75, RF + 1]];   /* 넷째 (11-18 검증): 발치 칸에서 방 쪽 (−z) 으로 나가는 길 0.58 m — 소파와 상자로 발치를 둘러싸면 위층에서 내려온 캐릭터가 0.3 m 칸에 갇혔다. 소파 기본 자리 (x ≤ −1.5) 는 안 걸린다 */   /* 놀이방 문 앞 · 바깥 문 앞 · 위층 계단 (11-18: 왼벽 앞쪽 구석 — 발치 0.6 m 까지 = 내 캐릭터가 설 자리, 소파 기본 자리 z ≤ 2.68 은 안 걸린다) 은 비워 둔다 */
     var OCT_PAD = 0.42, BED_DZ = 0.1;   /* 11-15: 문어 몸 반폭 (머리 r 0.42 — 다리는 그 안) · 담요 가운데에서 잠자리까지 (−z) */
     function furnBoxes(skip, pad) {   /* 단단한 가구 (소파 · 상자) 발자국 [x0, x1, z0, z1] + pad — 문어 자리 · 문어 길이 피한다 */
       var out = [];
@@ -1707,13 +1720,14 @@ var SCENE3D = (function () {
       octSpots(); rebuildDecals(); dither.still = 0;   /* 11-15: 저장된 배치가 문어 자리를 덮으면 자리만 비켜 간다 (가구 값은 그대로 — 다시 칸에 맞추지 않는다) · 상자 접지 그림자도 새 자리에 */
     }
     function furnOffStair(id) {   /* 11-18: 이 가구가 계단 금지 구역(FURN_KEEP 셋째)에 걸려 있으면 놓을 수 있는 가장 가까운 칸으로 */
-      var f = FURN[id], K = FURN_KEEP[2], x0 = f.m.position.x, z0 = f.m.position.z;
-      if (!(x0 + f.hw > K[0] && x0 - f.hw < K[1] && z0 + f.hd > K[2] && z0 - f.hd < K[3])) return false;
+      var f = FURN[id], x0 = f.m.position.x, z0 = f.m.position.z;
+      function hits(K) { return x0 + f.hw > K[0] && x0 - f.hw < K[1] && z0 + f.hd > K[2] && z0 - f.hd < K[3]; }
+      if (!hits(FURN_KEEP[2]) && !hits(FURN_KEEP[3])) return false;
       var l = furnLim(f), best = null, bd = 1e9, gx, gz, d;
-      for (gx = Math.ceil(l[0] / GRID) * GRID; gx <= l[1] + 1e-6; gx += GRID) for (gz = Math.ceil(l[2] / GRID) * GRID; gz <= l[3] + 1e-6; gz += GRID) {
-        if (!furnOk(id, gx, gz)) continue;
-        d = Math.hypot(gx - x0, gz - z0); if (d < bd) { bd = d; best = [gx, gz]; }
-      }
+      function tryAt(x, z) { if (x < l[0] - 1e-6 || x > l[1] + 1e-6 || z < l[2] - 1e-6 || z > l[3] + 1e-6 || !furnOk(id, x, z)) return; d = Math.hypot(x - x0, z - z0); if (d < bd - 1e-9) { bd = d; best = [x, z]; } }
+      for (gz = Math.ceil(l[2] / GRID) * GRID; gz <= l[3] + 1e-6; gz += GRID) tryAt(x0, gz);   /* 벽에 붙여 둔 자리 (격자 밖 x · z) 는 그 줄 그대로 먼저 — 격자만 보면 벽에서 떴다 (검증 11-18) */
+      for (gx = Math.ceil(l[0] / GRID) * GRID; gx <= l[1] + 1e-6; gx += GRID) tryAt(gx, z0);
+      for (gx = Math.ceil(l[0] / GRID) * GRID; gx <= l[1] + 1e-6; gx += GRID) for (gz = Math.ceil(l[2] / GRID) * GRID; gz <= l[3] + 1e-6; gz += GRID) tryAt(gx, gz);
       if (!best) return false;
       f.m.position.x = best[0]; f.m.position.z = best[1]; furnApply(id); return true;
     }
@@ -2952,7 +2966,7 @@ var SCENE3D = (function () {
     /* 11-18 (주인: "계단을 사용자가 잘못 집으로 돌아가지 않도록 오르내릴 수 있도록"): 내 캐릭터가 선 자리의 바닥 높이 — 마당 현관 마루(EXT.PL)와 계단 세 칸(0.12 m 씩). 그 밖은 0.
        PL.pos 는 늘 y 0 평면 그대로 두고 (충돌 · 따라가기 · 자동 걷기가 그 값을 쓴다) 그릴 때만 올린다 */
     function plGroundY(x, z) {
-      if (PL.place !== 'yard' || Math.abs(z - EXT.HZC) > 0.55 || x >= EXT.HX1 + 1.10) return 0;
+      if (PL.place !== 'yard' || Math.abs(z - EXT.HZC) > 0.55 || x >= EXT.HX1 + 1.10 || x < EXT.HX1 - 0.3) return 0;   /* x 아래 한계 (11-18 검증): 집 뒤 (x < −2.65) 를 같은 z 로 걸으면 0.48 m 떠서 그려졌다 — 마루는 집 앞 (HX1) 뿐 */
       return EXT.PL - 0.12 * (x < EXT.HX1 + 0.38 ? 0 : x < EXT.HX1 + 0.62 ? 1 : x < EXT.HX1 + 0.86 ? 2 : 3);
     }
     function plSnap() { var p = plG.position.copy(PL.pos); p.y += plGroundY(PL.pos.x, PL.pos.z); snapScreen(p); }
@@ -3013,16 +3027,16 @@ var SCENE3D = (function () {
         var g = groupOf(to); if (plG.parent !== g) g.add(plG); fpClear(g);
         var an = to === 'play' ? 'playAtticDoor' : to === 'loft' ? 'loftStair' : to === 'yard' ? 'yardAttic' : from === 'loft' ? 'atticStair' : from === 'yard' ? 'atticYard' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
         plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false;
-        /* 11-18 주인: 돌린 각에서 들어와도 방 안쪽을 본 채 (카메라 쪽으로 돌려 세우던 11-15 규칙은 뺐다) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; if (to === 'yard') PL.yardArm = false; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
+        /* 11-18 주인: 돌린 각에서 들어와도 방 안쪽을 본 채 (카메라 쪽으로 돌려 세우던 11-15 규칙은 뺐다) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; if (to === 'yard') PL.yardArm = false; if (to === 'attic' && from === 'yard') PL.yardBack = false; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
       } else { if (plG.parent !== atticG) atticG.add(plG); fpClear(atticG); PL.place = 'attic'; plRest(true); }
     }
     function playerWalkTo(anchor) {   /* goRoom 의 walkFirst: 문 앞 앵커까지 걷고 문 쪽을 보며 서면 푼다 → { ok, walked, anchor, at }. 그 방에 없으면(바깥에서 들어갈 때) 걷기 없이 바로 */
       var a = DOOR_ANCHORS[anchor], at = a ? a.slice() : [0, 0, 0], room = anchor === 'playAtticDoor' ? 'play' : anchor === 'loftStair' ? 'loft' : anchor === 'yardAttic' ? 'yard' : 'attic';
       if (!a || PL.place !== room || plG.parent !== groupOf(room)) return Promise.resolve({ ok: true, walked: false, anchor: anchor, at: at });
       PL.pending = ''; PL.camGap = anchor === 'atticStair' ? 1.5 : 0.5;   /* 11-18: 이 걸음 동안 화면이 따라온다 (plFollow) — 문은 몸이 화면 안에 들 만큼 (0.5 m: 기본 구도의 문들은 이미 안이라 안 민다), 계단은 계단 몸까지 보이게 (발치 0.32 + 계단 0.84 + 여유) */
-      if (anchor === 'yardAttic' && !(Math.abs(PL.pos.z - EXT.HZC) < 0.34 && PL.pos.x < EXT.HX1 + 1.6)) {   /* 11-18 마당 집 문 톡: 계단 발치를 거쳐 통로로 오른다 (곧장 가면 현관 옆에 걸린다) */
+      if (anchor === 'yardAttic' && !(Math.abs(PL.pos.z - EXT.HZC) < 0.36 && PL.pos.x < EXT.HX1 + 1.6)) {   /* 0.36: 통로 반폭 0.35 (난간 ±0.6 − 몸 0.25) 보다 크게 — 0.34 일 땐 난간에 붙어 문에 닿으면 계단 발치까지 도로 내려갔다 왔다 (검증 11-18) */   /* 11-18 마당 집 문 톡: 계단 발치를 거쳐 통로로 오른다 (곧장 가면 현관 옆에 걸린다) */
         return plWalkTo(new T.Vector3(EXT.HX1 + 1.6, 0, EXT.HZC), null).then(function () {
-          if (PL.place !== 'yard' || PL_IN.held || Math.abs(PL.pos.z - EXT.HZC) > 0.34) return false;
+          if (PL.place !== 'yard' || PL_IN.held || Math.abs(PL.pos.z - EXT.HZC) > 0.36) return false;
           return plWalkTo(new T.Vector3(a[0], 0, a[2]), PL_FACE[anchor]);
         }).then(function () { PL.camGap = 0; return { ok: true, walked: true, anchor: anchor, at: at }; });
       }
@@ -3058,6 +3072,7 @@ var SCENE3D = (function () {
       if (!allowed) { PL_IN.v = null; PL_IN.held = false; }   /* 막힌 동안은 매 프레임 누르던 입력을 놓는다 (전이 프레임만 지우면 막힌 채 들어온 입력이 남아 방이 다시 보일 때 입력 없이 움직였다 — 리뷰 11-09) */
       if (allowed !== PL_IN.allowed) { PL_IN.allowed = allowed; emit('playerInput', allowed); }   /* 바뀔 때만 (앱이 스틱 hidden 을 쥔다) */
       var v = PL_IN.v, held = PL_IN.held, stick = false, pushed = false;
+      if (allowed && !v) { PL.doorArm = true; PL.yardBack = true; }   /* 11-18: 아무것도 쥐지 않은 프레임 = 문 · 계단 잠금이 풀린다. 잠금은 '쥔 채로 방을 옮겨 도착한' 걸음만 막는다 (방을 옮겨도 스틱이 이어지므로 — 톡으로 와서 서 있다가 미는 첫 걸음은 바로 듣는다) */
       if (PL.hop) {   /* 폴짝: 0.34 s 포물선 (앉기 · 내려오기) */
         var hp = PL.hop; hp.t += dt; var hk = Math.min(1, hp.t / 0.34);
         PL.pos.lerpVectors(hp.a, hp.b, hk); PL.pos.y = hp.a.y + (hp.b.y - hp.a.y) * hk + 0.3 * Math.sin(Math.PI * hk);
@@ -3089,9 +3104,10 @@ var SCENE3D = (function () {
         }
         /* 11-15 마당 문: 다락 뒷벽 문간(문어 산책 문) 앞에서 벽 쪽(−z)으로 · 11-18 마당에선 현관 계단을 걸어 올라 마루 위 문 앞에서 문 쪽(−x)으로 밀면 넘어간다 (문어가 그 문을 쓰는 동안은 앱 goRoom 이 거절) */
         var yq = PL.place === 'attic' ? DOOR_ANCHORS.atticYard : PL.place === 'yard' ? DOOR_ANCHORS.yardAttic : null;
+        if (PL.place === 'attic' && PL.yardBack === false && yq && (!(Math.abs(PL.pos.x - yq[0]) < 0.42 && PL.pos.z - yq[2] < 0.3) || -wz / pushN < 0.1)) PL.yardBack = true;   /* 11-18 (검증): 마당에서 위쪽 (−x−z) 을 쥔 채 들어오면 이어 걷는 방향이 이 문 조건 (−z) 에도 맞아 0.2 s 뒤 마당으로 되튀었다 (쉼 0.5 s 의 절반을 전환이 쓴다) → 문간을 벗어나거나 다른 쪽으로 틀 때까지 잠근다 (계단의 doorArm 과 같은 뜻) */
         if (PL.place === 'yard' && !PL.yardArm && PL.pos.x > EXT.HX1 + 0.62) PL.yardArm = true;   /* 11-18: 집에서 막 나와 마루에 선 채 뒤돌아 밀어도 들어가지 않는다 — 계단을 한 칸 넘게 내려갔다 와야 문이 다시 듣는다 (스틱을 놓아도 풀리지 않는다) */
-        if (yq && !PL.doorCd && !DQ.active && !DQ.pending && !PLACE.trans && (PL.place === 'attic' ? Math.abs(PL.pos.x - yq[0]) < 0.42 && PL.pos.z - yq[2] < 0.3 && -wz / pushN > 0.5 : PL.yardArm && Math.abs(PL.pos.z - yq[2]) < 0.4 && PL.pos.x < EXT.HX1 + 0.5 && -wx / pushN > 0.5)) { PL.doorCd = 0.4; emit('playerDoor', PL.place === 'attic' ? 'yard' : 'attic'); }
-      } else if (PL.held && !held) { PL.doorArm = true; if (PL.heldStop) { PL.settleT = 0; PL.heldStop = false; } }   /* 손을 떼면(막힌 채 서 있다 떼도 · 데드존에 잡고만 있다 떼도) 보던 쪽 그대로 (11-18 주인) + 도착 눌림 한 번 — 전이는 '잡고 있었나'(held) 기준 */
+        if (yq && !PL.doorCd && !DQ.active && !DQ.pending && !PLACE.trans && (PL.place === 'attic' ? PL.yardBack !== false && Math.abs(PL.pos.x - yq[0]) < 0.42 && PL.pos.z - yq[2] < 0.3 && -wz / pushN > 0.5 : PL.yardArm && Math.abs(PL.pos.z - yq[2]) < 0.4 && PL.pos.x < EXT.HX1 + 0.5 && -wx / pushN > 0.5)) { PL.doorCd = 0.4; emit('playerDoor', PL.place === 'attic' ? 'yard' : 'attic'); }
+      } else if (PL.held && !held) { PL.doorArm = true; PL.yardBack = true; if (PL.heldStop) { PL.settleT = 0; PL.heldStop = false; } }   /* 손을 떼면(막힌 채 서 있다 떼도 · 데드존에 잡고만 있다 떼도) 보던 쪽 그대로 (11-18 주인) + 도착 눌림 한 번 — 전이는 '잡고 있었나'(held) 기준 */
       if (allowed && !PL.walking && PL.place === 'attic' && !PL.sit && !PL.hop) {   /* 문어가 걸어와 내 캐릭터 위에 서면(문어 걷기는 플레이어를 모른다 — 걷기 시작 때 plAvoidOct 가 미리 비켜세우지만 길이 지나가기도 한다) 둥근 장애물 밖으로 밀려난다 — 걷는 속도로, 스틱을 쥐고 있어도(문어가 미는 셈), 미끄러짐은 plMove 몫 (리뷰 11-09) */
         var circ = plCircles(), pen = plPen(PL.pos.x, PL.pos.z, [], circ);
         if (pen > 1e-3) {
@@ -3224,7 +3240,7 @@ var SCENE3D = (function () {
       o = o || {};
       var name = PSHOT.frames[o.frame] ? o.frame : 'full', fr = PSHOT.frames[name], bg = portraitBg(o);
       var look = o.look ? normalizePlayer(Object.assign({}, PL.look, o.look)) : PL.look;
-      var k = JSON.stringify(look) + '|' + name + '|' + st.color + '|' + PAL.source + '|' + (bg || 't'), e = PSHOT.cache[k];
+      var k = JSON.stringify(look) + '|' + name + '|' + st.color + '|' + PAL.source + '|' + (bg || 't') + '|' + JSON.stringify(PL_DYES), e = PSHOT.cache[k];   /* 11-18: 물들인 색도 열쇠에 — 물들인 뒤 옷장 그림이 옛 색이었다 */
       if (!e && ctxLost()) { var blank = document.createElement('canvas'); blank.width = fr.w; blank.height = fr.h; return blank; }
       if (!e) {
         e = PSHOT.cache[k] = { cv: renderPlayerShot(look, fr, bg) }; PSHOT.keys.push(k);
@@ -3233,7 +3249,7 @@ var SCENE3D = (function () {
       if (o.shared) return e.cv;
       var cv = document.createElement('canvas'); cv.width = fr.w; cv.height = fr.h; cv.getContext('2d').drawImage(e.cv, 0, 0); return cv;
     }
-    var octState = { carrySvg: null, hang: null, carryId: null, carryTok: 0 };   /* carryId = 들고 있는 포스터의 여행 id (APP 의 carry { svg, id }) · carryTok = 굽기 요청 번호 (늦게 온 지난 그림은 버린다) */
+    var octState = { carrySvg: null, hang: null, carryId: null, carryTok: 0, carryBaking: -1 };   /* carryId = 들고 있는 포스터의 여행 id (APP 의 carry { svg, id }) · carryTok = 들고 있는 포스터 번호 (새 포스터마다 +1 — 늦게 온 지난 그림은 버린다) · carryBaking = 굽는 중인 번호 */
     function setOctState(s, extra) {
       st.octState = s; oct.animT = 0;
       if (opts.octEl) opts.octEl.className = opts.octEl.className.replace(/\bst-[a-z]+/g, '').trim() + ' st-' + s;
@@ -3242,17 +3258,25 @@ var SCENE3D = (function () {
       octG.visible = !away && FADE.d > 0; octDecal.visible = !away && FADE.d >= 0.5;
       setExpression(STATE_EXPR[s] || 'idle');   /* 상태의 기본 표정 (룩 패스 8) */
       if (s === 'carry') {
-        /* 11-18 (주인: "새 주제인데 이전 포스터랑 그대로"): 새 포스터를 들 때 앞서 들었던 그림을 먼저 내려놓는다 — 예전엔 새 그림이 구워질 때까지 (굽기가 실패하면 끝까지) 지난 산책의 포스터가 손에 보였다.
-           같은 포스터를 다시 드는 것 (상태만 다시 부름) 은 그대로 둔다. 거는 연출 (hangFly) 이 그 재질을 쓰는 중이면 버리지 않고 놓기만 한다. 늦게 온 굽기 결과는 번호 (carryTok) 로 버린다 */
-        var cid = extra && extra.id ? extra.id : null, tok = ++octState.carryTok;
-        if (carry.material !== posterMat && (!cid || cid !== octState.carryId)) { var om = carry.material; carry.material = posterMat; if (!hangFly || hangFly.m.material !== om) { if (om.map) om.map.dispose(); om.dispose(); } }
+        /* 11-18 (주인: "새 주제인데 이전 포스터랑 그대로"): 새 포스터 (extra 에 svg · id) 를 들 때 앞서 들었던 그림을 먼저 내려놓는다 — 예전엔 새 그림이 구워질 때까지 (굽기가 실패하면 끝까지) 지난 산책의 포스터가 손에 보였다.
+           같은 포스터를 다시 드는 것 · extra 없이 상태만 다시 부르는 것 (앱의 walkTo 가 걷기 시작하며 그렇게 부른다) 은 아무것도 바꾸지 않는다 — 검증 11-18: 그 호출도 굽기 번호를 올리던 첫 고침은
+           첫 굽기 결과를 버려, 문에서 보드까지 걷는 내내 빈 종이를 들었다. 거는 연출 (hangFly) 이 쓰는 재질은 버리지 않고 놓기만 한다. 늦게 온 지난 그림은 번호 (carryTok) 로 버린다 */
+        var cid = extra && extra.id ? extra.id : null, same = !!cid && cid === octState.carryId;
+        if (extra && (extra.svg || cid) && !same) {
+          octState.carryTok++;
+          if (carry.material !== posterMat) { var om = carry.material; carry.material = posterMat; if (!hangFly || hangFly.m.material !== om) { if (om.map) om.map.dispose(); om.dispose(); } }
+        }
         carry.visible = true; if (cid) octState.carryId = cid;
-        if (extra && extra.svg) bakeSVG(extra.svg, 48, 64).then(function (t) {
-          if (!t) return;
-          if (tok !== octState.carryTok || st.octState !== 'carry') { t.dispose(); return; }
-          if (carry.material !== posterMat && (!hangFly || hangFly.m.material !== carry.material)) { if (carry.material.map) carry.material.map.dispose(); carry.material.dispose(); }
-          carry.material = new T.MeshPhongMaterial({ map: t, shininess: 0, specular: 0x000000 });
-        });
+        if (extra && extra.svg && (!same || carry.material === posterMat) && octState.carryBaking !== octState.carryTok) {
+          var tok = octState.carryTok; octState.carryBaking = tok;
+          bakeSVG(extra.svg, 48, 64).then(function (t) {
+            if (octState.carryBaking === tok) octState.carryBaking = -1;
+            if (!t) return;
+            if (tok !== octState.carryTok || st.octState !== 'carry') { t.dispose(); return; }
+            if (carry.material !== posterMat && (!hangFly || hangFly.m.material !== carry.material)) { if (carry.material.map) carry.material.map.dispose(); carry.material.dispose(); }
+            carry.material = new T.MeshPhongMaterial({ map: t, shininess: 0, specular: 0x000000 });
+          });
+        }
       }
       else if (s === 'hang') { if (carry.visible && !st.reduced) startHang(); carry.visible = false; octState.carryId = null; }
       else { carry.visible = false; octState.carryId = null; }
@@ -3271,7 +3295,7 @@ var SCENE3D = (function () {
       if (!hangFly) return;
       hangFly.k += dt; var k = Math.min(1, hangFly.k / hangFly.dur), e = k * k * (3 - 2 * k);
       hangFly.m.position.lerpVectors(hangFly.from, hangFly.to, e); hangFly.m.position.y += Math.sin(k * Math.PI) * 0.4; hangFly.m.scale.setScalar(hangFly.s0 + (1 - hangFly.s0) * e);
-      if (k >= 1) { atticG.remove(hangFly.m); hangFly = null; }
+      if (k >= 1) { var hm = hangFly.m.material; atticG.remove(hangFly.m); hangFly = null; if (hm !== posterMat && hm !== carry.material) { if (hm.map) hm.map.dispose(); hm.dispose(); } }   /* 거는 0.5 s 사이 새 포스터가 들렸으면 이 재질은 주인이 없다 (검증 11-18: 텍스처가 남았다) */
     }
     var _hp = new T.Vector3();
     function octScreen() { /* 머리 꼭대기 → 컨테이너 CSS px */
@@ -3335,7 +3359,7 @@ var SCENE3D = (function () {
            계단이 어디 있는지 보이게. 세로 자리 = 계단 발치 높이 (위 바 · 아래 스틱 자리는 피한다). 걸어가 화면이 따라오면 그림 위 단추로 돌아간다 */
         var svw = Math.min(S.W, q.r) - Math.max(0, q.l), svh = Math.min(S.H, q.b) - Math.max(0, q.t);   /* 보이는 폭 · 높이 */
         if (isFinite(q.l) && ((svw < q.r - q.l - 0.5 && svw < STAIR_EDGE_VIS) || (svh < q.b - q.t - 0.5 && svh < SPOT_MIN_VIS)))   /* 화면 가장자리에 잘렸고 남은 게 좁을 때만 (잘린 계단 아래 두 칸처럼 원래 작은 상자는 그림 위 단추 그대로) */
-          return { id: id, mode: 'edge', side: (q.l + q.r) / 2 < S.W / 2 ? 'left' : 'right', y: clamp(Math.round(q.b - 8), 56, Math.max(56, S.H - 140)) };
+          return { id: id, mode: 'edge', side: (q.l + q.r) / 2 < S.W / 2 ? 'left' : 'right', y: clamp(Math.round(q.b - 8), 56, Math.max(56, Math.round(S.H - Math.min(S.H * 0.3, 240) - 48))) };   /* 아래 한계 = 떠다니는 스틱 구역 (.stick-zone: 높이 min(30%, 240px)) 바로 위 — 키워서 뒤쪽을 걸으면 단추가 그 구역 안에 놓여 스틱을 잡으려던 톡이 위층으로 갔다 (검증 11-18) */
       } else if (id === 'loftStair' || id === 'sew' || id === 'sewDoll') {
         if (v !== 'loft' || !LROOM || busy) return null;
         q = boxScreen(id === 'sew' ? LROOM.sewBox : id === 'sewDoll' ? LROOM.dollBox : LROOM.hatchBox, LROOM.g);
@@ -4827,7 +4851,8 @@ var SCENE3D = (function () {
       if (ray.intersectObject(glass, false).length) return glass;
       if (doorOn && spotAt(cx, cy, ['atticPlay'])) return spotHit('atticPlay');
       if (SPOTS.atticYard && spotInfo('atticYard')) { var dh = ray.intersectObjects([room, doorDark], false); if (dh.length && dh[0].object === doorDark) return spotHit('atticYard'); }   /* 11-15 마당 문: 톡한 자리에 보이는 게 뒷벽 문간의 어둠이면 (계단 · 난간이 앞에 있으면 계단) — 계단의 화면 상자는 크게 잡혀 문간까지 덮는다. 문어가 문간 앞이면 문어가 먼저 (위 레이캐스트) */
-      sp = spotAt(cx, cy, ['atticYard', 'atticStair']); if (sp === 'atticStair' && furnAt(cx, cy)) sp = null;   /* 11-18: 계단 옆이 소파 자리 — 계단의 넓힌 칸 안이라도 손가락 밑이 가구면 가구 (소파 톡 = 앉기) */
+      sp = spotAt(cx, cy, ['atticYard', 'atticStair']);
+      if (sp === 'atticStair') { var fd = furnRayDist(cx, cy); if (fd < Infinity && !(stairRayDist(cx, cy) < fd)) sp = null; }   /* 11-18: 계단 옆이 소파 자리 — 계단의 넓힌 칸 안이라도 손가락 밑에 보이는 것이 가구 몸이면 가구 (소파 톡 = 앉기). 계단에 가려진 뒤쪽 소파는 아니다: 광선이 계단 디딤판에 먼저 닿으면 계단 (검증: 가구가 늘 이기던 첫 고침은 계단 그림의 5분의 1 을 눌러도 소파에 앉았다) */
       if (sp) return spotHit(sp);   /* 위층 계단 · 문간 둘레의 넓힌 칸 */   /* 위층 계단 */   /* 문 그림 둘레의 넓힌 칸 (44×44 이상) */
       var ni = nearItem(cx - r.left, cy - r.top, r);
       if (ni) return ni;   /* 등불 8칸 선반 기념품이 거울 위에 겹쳐도 기념품이 먼저 */

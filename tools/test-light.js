@@ -4,6 +4,7 @@
  *   L1 노을 → 밤 섞기: SCENE3D.duskBlend 가 19:00 0 → 15분마다 1/8 → 21:00 1 (8칸, 단조, 19시 전 0 = 툭 바뀌지 않음) · 조명 열쇠도 8번 바뀐다
  *   L2 22시 장면: 밤 등불 세기 1.5 · 닿는 거리 7.5 · 달빛 바닥 0.48 (등불 0칸이면 헤미가 그 값)
  *   L3 20시 · 등불 3 · 맑음: 다락 방 띠 평균 루마 ≥ 바닥값 (예전 0.117 · 지금 0.147 — 재어 둔 값에서 여유를 뺀 것)
+ *   L6 (11-18 검증) 쥔 채로 들어온 문으로 되튀지 않는다 (마당 → 다락, 60 fps 걸음)
  *   L5 (11-18) 다락 계단 단추 (가장자리) · 걸음 따라오기 · 내려오면 계단이 보임 · 방을 옮겨도 방향키가 이어짐
  *   L4 계단 표시: 다락 · 위층 모두 밤엔 켜짐 · 낮엔 꺼짐 · 20시 등불 0 에서 계단 칸의 루마 대비 ≥ 바닥값 · 위층 다녀와도 셰이더 프로그램 그대로
  * 시간에 기대지 않는다: 저장을 심고(__ppolLook · __ppolTest), setTime(h, true) 로 바로 바꾸고, 상태를 기다린다.
@@ -150,6 +151,24 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     await page.keyboard.up('ArrowRight'); await page.keyboard.up('ArrowDown'); await page.waitForTimeout(200);
     var k6 = await page.evaluate(function () { return { input: APP.scene.player().input, keys: APP.stick.keys.length }; });
     ok(kp5 && k5.room === 'play' && !!k5.input && k5.walking && k5.keys === 2 && k6.input === null && k6.keys === 0, 'L5 방향키를 쥔 채 놀이방 문을 지나면 도착해서 그대로 걷는다 · 놓으면 멈춘다 ' + JSON.stringify({ arrive: k5, off: k6 }));
+    await o.ctx.close();
+
+    /* ── L6 (11-18 검증) 쥔 채로 들어온 문으로 되튀지 않는다 — 60 fps 걸음으로 (느린 프레임에선 안 드러난다): 마당 현관에서 위쪽 (−x−z) 만 쥐고 집에 들어가면
+          이어 걷는 방향이 다락 쪽 마당 문 조건 (−z) 에도 맞아, 예전엔 0.2 s 뒤 다시 마당으로 나갔다 ── */
+    o = await open(browser, 8, { hour: 13, weather: 'clear' }); page = o.page;
+    await page.evaluate(function () { return APP.goRoom('yard'); });
+    await page.waitForFunction(function () { var m = APP.scene.motion(); return APP.room === 'yard' && !m.trans && m.dq === ''; }, null, { timeout: 30000 });
+    await page.waitForTimeout(500);
+    await page.evaluate(function () { APP.scene.debugPlayerAt(0.95, -1.1); if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); APP.scene.debugStep(1 / 60); APP.scene.debugStep(1 / 60); });
+    await page.keyboard.down('ArrowUp');
+    var seq6 = [], last6 = null;
+    for (var i6 = 1; i6 <= 420; i6++) {
+      var v6 = await page.evaluate(function () { APP.scene.debugStep(1 / 60); return APP.scene.view(); });
+      if (v6 !== last6) { seq6.push([v6, i6]); last6 = v6; }
+      if (seq6.length >= 3 || (seq6.length === 2 && i6 - seq6[1][1] > 200)) break;
+    }
+    await page.keyboard.up('ArrowUp');
+    ok(seq6.length === 2 && seq6[0][0] === 'yard' && seq6[1][0] === 'attic', 'L6 마당에서 위쪽을 쥔 채 집에 들어가면 다락에 머문다 (다시 마당으로 되튀지 않음 · 60 fps) ' + JSON.stringify(seq6));
     await o.ctx.close();
   } catch (e) {
     fails++; console.error('CRASH ' + (e && e.stack || e));
