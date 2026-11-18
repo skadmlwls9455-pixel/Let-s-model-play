@@ -879,7 +879,7 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 .lrow[data-salon] .ltool { white-space: nowrap; }
 :root[data-font="pixel"] .lrow[data-salon]:not(.dialog) { grid-template-columns: 48px 1fr; }
 /* 미용실 연출 중: 놀이방 문 · 위층 계단 단추를 숨긴다 (장면 톡 · 캐릭터가 문에 닿아도 앱이 막는다 — 기술 SHOULD 8 · 계단은 11-10 에 생겼다) */
-#scene.salon-on #btn-door, #scene.salon-on #btn-stair, #scene.salon-on #btn-loft-stair, #scene.salon-on #btn-sew { visibility: hidden; }   /* 11-11: 미용실은 위층 — 연출 중엔 내려가는 계단 · 재봉틀 단추도 숨긴다 */
+#scene.salon-on #btn-door, #scene.salon-on #btn-stair, #scene.salon-on #btn-loft-stair, #scene.salon-on #btn-sew, #scene.salon-on #btn-sew-doll { visibility: hidden; }   /* 11-11: 미용실은 위층 — 연출 중엔 내려가는 계단 · 재봉틀 단추도 숨긴다 */
 @media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])):is([data-font], :not([data-font])) .bottle:active { transform: none; } }   /* 두 글꼴 테마 모두 (픽셀 2px 이동 규칙보다 앞서게) */
 :root[data-motion="reduce"]:is([data-font], :not([data-font])) .bottle:active { transform: none; }
 
@@ -1132,6 +1132,18 @@ html.intro-reveal .scene-door { transition: opacity var(--t-ui) var(--ease-enter
        #btn-door 는 문어가 나가 바깥이 보이는 동안 data-spot="edge" → 위 7물결 모양(오른쪽 아래 픽셀 문 단추) 그대로. 장면 오른쪽 위 묶음(10)보다 아래 층 */
 .scene-spot { position: absolute; left: 0; top: 0; width: 44px; height: 44px; z-index: 8; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .scene-spot[hidden], .scene-door[hidden] { display: none; }
+/* 11-18 위층 계단 단추: 그림 위(over)에선 투명한 칸 · 계단이 화면 밖이면(edge) 그쪽 가장자리의 작은 계단 그림 단추 (문 가장자리 단추 .scene-door 와 같은 상자). 세로 자리는 장면이 계단 발치 높이로 넣는다 (style.top) */
+#btn-stair .stair-box { display: none; }
+#btn-stair[data-spot="edge"] { left: 4px; display: inline-flex; align-items: center; justify-content: center; z-index: 9; }
+#btn-stair[data-spot="edge"][data-side="right"] { left: auto; right: 4px; }
+#btn-stair[data-spot="edge"] .stair-box { display: grid; place-items: center; box-sizing: border-box; width: 36px; height: 36px; border: 1px solid var(--rim); border-radius: 8px; background: var(--panel2); transition: transform var(--t-press) var(--ease-out); }
+#btn-stair .stair-ico { display: block; width: 32px; height: 32px; }
+#btn-stair[data-spot="edge"]:active .stair-box { transform: scale(.97); }
+#btn-stair[data-spot="edge"]:focus-visible { outline: none; box-shadow: none; }
+#btn-stair[data-spot="edge"]:focus-visible .stair-box { outline: 2px solid var(--amber); outline-offset: 2px; }
+:root[data-font="pixel"] #btn-stair[data-spot="edge"] .stair-box { border: 2px solid var(--line); border-radius: 0; box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line); }
+:root[data-font="pixel"] #btn-stair[data-spot="edge"]:active .stair-box { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
+:root[data-font="pixel"] #btn-stair[data-spot="edge"]:focus-visible .stair-box { outline-color: var(--fg); }
 .scene-door[data-spot="over"] { z-index: 8; }
 /* 그림 위 단추는 손가락 · 마우스를 그냥 통과시킨다: 밀기 · 핀치 · 휠이 문 · 오락기 위에서 시작해도 장면이 받고, 톡은 장면이 그린 순서대로 가려 그 단추를 누른다
    (문어가 문 앞이면 문어 — js/scene3d.js pick · js/scene2d.js). 키보드 Tab/Enter · 화면 낭독기는 단추 그대로. 바깥의 가장자리 문 단추(edge)는 보이는 단추라 그대로 받는다 */
@@ -1640,6 +1652,25 @@ html.intro-on .bag-tag, :root.furn-on .bag-tag { visibility: hidden; }
 .sew-sheet .bag-line { margin: 4px 0 0; }
 .sew-sheet .set-note { margin: 0; font-size: 12px; color: var(--muted); }
 .sew-sheet .sew-grid { gap: 6px; margin: 8px 0; }
+/* 11-18 재봉틀: 맨 윗줄 = 물들일 것 단추 + 조개 · 고르는 화면 (갈래 → 물건) · 확인 줄 (사기 · 물들이기 · 돌리기 전에 한 번 묻는다). 시트 높이는 예전 그대로 (화면 반) */
+.sew-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; }
+.sew-sheet .sew-top + .sew-grid { margin-top: 4px; }   /* 윗줄이 칩 높이 (32) 가 돼 예전 한 줄 (24) 보다 8px 높다 → 위 · 아래 여백에서 4px 씩 덜어 시트를 화면 반 (360×740 에서 370px) 안에 둔다 */
+.sew-top .bag-line { margin: 0; }
+.sew-target { min-width: 0; }
+.sew-change { color: var(--muted); }
+.sew-target.on .sew-change { color: inherit; }
+.sew-sheet .sew-cats { margin: 8px 0 4px; flex-wrap: wrap; }
+.sew-sheet .sew-items { margin: 0 0 8px; flex-wrap: wrap; row-gap: 12px; padding: 4px 0; }
+.sew-item { display: inline-flex; align-items: center; gap: 6px; }
+.sew-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+:root[data-font="pixel"] .sew-dot { border-radius: 0; }
+.sew-worn { color: var(--muted); }
+.sew-item.on .sew-worn { color: inherit; }
+.sew-ask { margin: 8px 0; padding: 8px 12px; border: 1px solid var(--amber); border-radius: 8px; background: var(--amber-g); }
+:root[data-font="pixel"] .sew-ask { border: 0; border-radius: 0; box-shadow: inset 0 0 0 2px var(--fg); }
+.sew-ask-line { margin: 0 0 8px; word-break: keep-all; overflow-wrap: anywhere; }
+.sew-ask-btns { margin-top: 0; justify-content: flex-end; }
+.sew-ask-sw { display: inline-block; vertical-align: middle; margin-right: 8px; width: 16px; height: 16px; }
 .sew-sheet .sew-chip { display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-height: 48px; padding: 4px; text-align: center; }
 .sew-sheet .sew-sw { position: relative; display: flex; align-items: center; justify-content: center; width: auto; height: 40px; border-radius: 4px; }   /* 11-15 (주인 답): 칸 폭 색 덩어리 40px — 값은 덩어리 위 작은 표 */
 .sew-sheet .sew-cost { display: inline-flex; align-items: center; gap: 2px; min-height: 28px; padding: 0 4px; border-radius: 4px; background: var(--panel); color: var(--fg); }
