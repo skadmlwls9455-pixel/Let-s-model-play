@@ -638,10 +638,9 @@ var SCENE3D = (function () {
       var px = (pb[0][0] + pb[0][1]) / 2, pz = (pb[2][0] + pb[2][1]) / 2, dx = b.x - px, dz = b.z - pz, c = Math.cos(a), sn = Math.sin(a);
       return _tr.set(px + dx * c + dz * sn, b.y, pz - dx * sn + dz * c);
     }
-    function yawMoved() {   /* 그려지는 각이 바뀌었다: 디더 쉼 · 쉬는 문어는 카메라 쪽을 본다 (내 캐릭터는 stepPlayer 가 매 프레임) */
+    function yawMoved() {   /* 그려지는 각이 바뀌었다: 디더 쉼 · 쉬는 문어는 카메라 쪽을 본다 (내 캐릭터는 돌리지 않는다 — 11-18 주인: 보던 쪽 그대로) */
       dither.still = 0;
       if (oct && !oct.walking && !(CER && CER.active) && !(SAL && SAL.active) && st.octState !== 'walk' && st.octState !== 'carry' && st.octState !== 'away') oct.wantYaw = camYaw();
-      if (typeof PL !== 'undefined' && PL && !PL.walking && !PL.stick && !PL.sit && !PL.hop && !(SAL && SAL.active)) plFaceAfter(null);   /* 쉬는 나도 카메라 쪽으로 (문을 지나 방 안쪽을 보고 선 채 돌리면 뒤통수만 보였다 — 검증 11-15) */
     }
     function yawLive() {   /* 손가락 · 마우스가 yawDrag 를 바꿨다 → 바로 그 각으로 (1:1) */
       if (!YAWX.held) { YAWX.show = yawDrag; YAWX.ease = false; }
@@ -2760,7 +2759,7 @@ var SCENE3D = (function () {
     var plArmL = plMesh(plGeo0[3], -0.24, 0.50), plArmR = plMesh(plGeo0[4], 0.24, 0.50), plLegL = plMesh(plGeo0[5], -0.115, 0.24), plLegR = plMesh(plGeo0[6], 0.115, 0.24);   /* 어깨 ±0.24(소매 바깥 2.4 px 가 몸통 밖) · 엉덩이 ±0.115(두 신발 틈 0.07) */
     var plMeshes = [plHead, plEyes, plTorso, plArmL, plArmR, plLegL, plLegR], plLimbs = [plArmL, plArmR, plLegL, plLegR];
     var plDecal = new T.Mesh(keep(new T.PlaneGeometry(0.95, 0.95)), decalMat); plDecal.rotation.x = -Math.PI / 2; plDecal.position.y = 0.012; plDecal.renderOrder = 1; plG.add(plDecal);   /* 접지 그림자 (문어와 같은 데칼) */
-    var PL = { place: 'attic', pos: new T.Vector3(PL_REST.attic[0], 0, PL_REST.attic[2]), yaw: 0, wantYaw: 0, faceCam: true, walking: null, pending: '', phase: 0, n: 0, last: new T.Vector3(), moving: false, antic: 0, settleT: 9, t: 0, stick: false, held: false, heldStop: false, pushed: false, dir8: null,
+    var PL = { place: 'attic', pos: new T.Vector3(PL_REST.attic[0], 0, PL_REST.attic[2]), yaw: YAW, wantYaw: YAW, faceCam: false, walking: null, pending: '', phase: 0, n: 0, last: new T.Vector3(), moving: false, antic: 0, settleT: 9, t: 0, stick: false, held: false, heldStop: false, pushed: false, dir8: null,
       blinkT: 4 + (hash('plblink') % 1000) / 1000 * 3, blinkLeft: 0, shut: false, lod: 1, walks: 0, look: PL_LOOK0 };   /* shut = 눈 uv 가 지금 '감은 눈' 칸인가 · lod = 눈 아틀라스 줄(0 · 1 · 2, plEyeLod) · look = 정규화된 cfg · stick·held·heldStop·pushed·dir8 = 움직이기 상태(아래 '움직이기') */
     plDrawEyes(PL_LOOK0); plEyeLod(); plEyeUV();   /* 첫 눈 그림 + 지금 N 의 LOD 칸 — prewarm(renderer.compile) 전이라 toonEye 가 처음부터 눈 텍스처로 컴파일된다 */
     PL.last.copy(PL.pos);
@@ -2915,7 +2914,7 @@ var SCENE3D = (function () {
     }
     function plSnap() { snapScreen(plG.position.copy(PL.pos)); }
     function plStop() { if (PL.walking) { PL.walking.cancel(); PL.walking = null; } PL.antic = 0; }
-    function plFaceAfter(face) { PL.faceCam = face == null; PL.wantYaw = face == null ? camYaw() : face; }
+    function plFaceAfter(face) { PL.faceCam = false; if (face != null) PL.wantYaw = face; }   /* 11-18 주인: 멈추면 마지막으로 보던 쪽 그대로 (예전엔 카메라 쪽으로 슉 돌았다 — 부자연스러웠다). face 를 준 자리만 그쪽으로 */
     function plSegHits(ax, az, bx, bz, b) {   /* 선분 a→b 가 상자 [x0, x1, z0, z1] 를 지나나 (slab) */
       var t0 = 0, t1 = 1, dx = bx - ax, dz = bz - az;
       function slab(p, d, lo, hi) { if (Math.abs(d) < 1e-9) return p >= lo && p <= hi; var ta = (lo - p) / d, tb = (hi - p) / d; if (ta > tb) { var t = ta; ta = tb; tb = t; } t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); return t0 <= t1; }
@@ -2940,7 +2939,7 @@ var SCENE3D = (function () {
       });
       return best ? best.map(function (c) { return new T.Vector3(c[0], 0, c[1]); }).concat([to]) : [to];
     }
-    function plWalkTo(to, face) {   /* 점까지 걷기 → Promise<walked:boolean>. face = 도착해 볼 방향(rad, 없으면 카메라 쪽). 모션 감소 · 숨은 탭 · 컨텍스트 잃음 · 준비 전 · 5 cm 미만 = 바로.
+    function plWalkTo(to, face) {   /* 점까지 걷기 → Promise<walked:boolean>. face = 도착해 볼 방향(rad, 없으면 걸어온 쪽 그대로 — 11-18 주인). 모션 감소 · 숨은 탭 · 컨텍스트 잃음 · 준비 전 · 5 cm 미만 = 바로.
                                        걸음은 스틱과 같은 plMove(1.8 m/s — 스틱은 2.2 · 범위·장애물 미끄러짐) 로 경유점(plRoute)을 차례로 — 목표 5 cm 안이면 도착(마지막 점은 정확히 그 자리로), 세 프레임 연속 못 움직이면 다음 점으로(마지막이면 거기서 끝) · 길이 × 1.5 + 0.3 s 가 지나면 끝 (Promise 가 걸리지 않게) */
       plStop();
       var from = PL.pos.clone(), d = to.clone().sub(from), dist = Math.hypot(d.x, d.z);
@@ -2971,7 +2970,7 @@ var SCENE3D = (function () {
         var g = groupOf(to); if (plG.parent !== g) g.add(plG); fpClear(g);
         var an = to === 'play' ? 'playAtticDoor' : to === 'loft' ? 'loftStair' : to === 'yard' ? 'yardAttic' : from === 'loft' ? 'atticStair' : from === 'yard' ? 'atticYard' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
         plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false;
-        if (Math.abs(yawDelta()) > 0.01 && Math.cos(angDiff(PL.yaw, camYaw())) < -0.2) { PL.yaw = PL.wantYaw = camYaw(); PL.faceCam = true; }   /* 11-15 합침 (검증 V1 S3): 돌린 각에서 들어오면 방 안쪽이 화면 안쪽일 수 있다 — 등을 보이고 서지 않게 카메라 쪽으로 (0° 는 예전 그대로) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
+        /* 11-18 주인: 돌린 각에서 들어와도 방 안쪽을 본 채 (카메라 쪽으로 돌려 세우던 11-15 규칙은 뺐다) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
       } else { if (plG.parent !== atticG) atticG.add(plG); fpClear(atticG); PL.place = 'attic'; plRest(true); }
     }
     function playerWalkTo(anchor) {   /* goRoom 의 walkFirst: 문 앞 앵커까지 걷고 문 쪽을 보며 서면 푼다 → { ok, walked, anchor, at }. 그 방에 없으면(바깥에서 들어갈 때) 걷기 없이 바로 */
@@ -3040,7 +3039,7 @@ var SCENE3D = (function () {
         /* 11-15 마당 문: 다락 뒷벽 문간(문어 산책 문) 앞에서 벽 쪽(−z)으로 · 마당 현관 계단 발치에서 계단 쪽(−x)으로 밀면 넘어간다 (문어가 그 문을 쓰는 동안은 앱 goRoom 이 거절) */
         var yq = PL.place === 'attic' ? DOOR_ANCHORS.atticYard : PL.place === 'yard' ? DOOR_ANCHORS.yardAttic : null;
         if (yq && !PL.doorCd && !DQ.active && !DQ.pending && !PLACE.trans && (PL.place === 'attic' ? Math.abs(PL.pos.x - yq[0]) < 0.42 && PL.pos.z - yq[2] < 0.3 && -wz / pushN > 0.5 : Math.abs(PL.pos.z - yq[2]) < 0.55 && PL.pos.x - yq[0] < 0.4 && -wx / pushN > 0.5)) { PL.doorCd = 0.4; emit('playerDoor', PL.place === 'attic' ? 'yard' : 'attic'); }
-      } else if (PL.held && !held) { PL.doorArm = true; PL.faceCam = true; if (PL.heldStop) { PL.settleT = 0; PL.heldStop = false; } }   /* 손을 떼면(막힌 채 서 있다 떼도 · 데드존에 잡고만 있다 떼도) 다시 카메라 쪽 + 도착 눌림 한 번 — 전이는 '잡고 있었나'(held) 기준 */
+      } else if (PL.held && !held) { PL.doorArm = true; if (PL.heldStop) { PL.settleT = 0; PL.heldStop = false; } }   /* 손을 떼면(막힌 채 서 있다 떼도 · 데드존에 잡고만 있다 떼도) 보던 쪽 그대로 (11-18 주인) + 도착 눌림 한 번 — 전이는 '잡고 있었나'(held) 기준 */
       if (allowed && !PL.walking && PL.place === 'attic' && !PL.sit && !PL.hop) {   /* 문어가 걸어와 내 캐릭터 위에 서면(문어 걷기는 플레이어를 모른다 — 걷기 시작 때 plAvoidOct 가 미리 비켜세우지만 길이 지나가기도 한다) 둥근 장애물 밖으로 밀려난다 — 걷는 속도로, 스틱을 쥐고 있어도(문어가 미는 셈), 미끄러짐은 plMove 몫 (리뷰 11-09) */
         var circ = plCircles(), pen = plPen(PL.pos.x, PL.pos.z, [], circ);
         if (pen > 1e-3) {
@@ -3051,7 +3050,6 @@ var SCENE3D = (function () {
           if (pushed && !v) { PL.faceCam = false; PL.wantYaw = Math.atan2(ox, oz); }
         }
       }
-      if (PL.pushed && !pushed && !held) PL.faceCam = true;   /* 밀려나기가 끝나면 다시 카메라 쪽 */
       PL.stick = stick; PL.held = held; PL.pushed = pushed;
       if (PL.walking) PL.walking.step(dt);
       if (PL.pending === 'rest' && !DQ.active && !PLACE.trans) plRest(false);   /* 들어온 문이 닫힌 뒤: 쉬는 자리로 */
@@ -3061,7 +3059,7 @@ var SCENE3D = (function () {
       else if (PL.moving) { PL.phase = Math.ceil(PL.phase - 1e-6); if (held) PL.heldStop = true; else PL.settleT = 0; }   /* 멈춤 = 서기 프레임 + 착지 눌림 한 번 (잡은 채 멈췄으면 — 데드존 · 벽에 막힘 — 눌림은 놓을 때) */
       PL.last.copy(PL.pos); PL.moving = moving; PL.settleT += dt;
       stepFoot(dt);
-      if (PL.sit || PL.hop) { if (PL.sit || (PL.hop && PL.hop.sit)) PL.wantYaw = PL.sitYaw || 0; } else if (PL.faceCam && !PL.walking) PL.wantYaw = camYaw();   /* 쉴 땐 카메라 쪽 (돌려 보기를 따라간다) */
+      if (PL.sit || PL.hop) { if (PL.sit || (PL.hop && PL.hop.sit)) PL.wantYaw = PL.sitYaw || 0; } else if (PL.faceCam && !PL.walking) PL.wantYaw = camYaw();   /* 카메라 쪽은 검사 훅 debugPlayerYaw(null) 일 때만 — 놀이에선 마지막 방향 그대로 (11-18 주인) */
       var dy = angDiff(PL.wantYaw, PL.yaw);
       PL.yaw = red ? PL.wantYaw : PL.yaw + dy * Math.min(1, dt * PL_TURN); PL.yaw = Math.atan2(Math.sin(PL.yaw), Math.cos(PL.yaw));
       if (PL.dir8 == null || red || Math.abs(angDiff(PL.yaw, PL.dir8 * (Math.PI / 4))) > Math.PI / 8 + 0.12) PL.dir8 = Math.round(PL.yaw / (Math.PI / 4));   /* 8방향 계단 + 히스테리시스 ≈ 7°: 스틱 각이 22.5° 경계 근처에서 흔들려도 칸이 매 프레임 45° 씩 왔다 갔다 하지 않는다 (리뷰 11-09) */
