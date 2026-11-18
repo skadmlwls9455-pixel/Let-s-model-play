@@ -3108,11 +3108,12 @@ var SCENE3D = (function () {
     }
     function plRest(instant) { var r = PL_REST[PL.place] || PL_REST.attic, to = new T.Vector3(r[0], 0, r[2]); PL.pending = ''; if (instant) { plStop(); PL.pos.copy(to); plFaceAfter(null); PL.yaw = PL.wantYaw; PL.moving = false; plSnap(); } else plWalkTo(to, null); }
     function plEnter(to, from) {   /* 문 전환 가운데 프레임 (runDoor 의 swap): 들어온 방 문 앞에 서서 방 안쪽을 보고, 문이 닫히면 쉬는 자리로. 바깥(문어가 아직 산책 중)으로 나왔으면 내 캐릭터는 다락 쉬는 자리에 (안 보이는 곳에서 바로) */
+      if (to === 'yard') PL.yardArm = false; if (to === 'attic' && from === 'yard') PL.yardBack = false;   /* 11-18 방에 들어온 프레임의 문 잠금 둘: 마당 현관 (계단을 내려갔다 와야 다시 들어간다) · 다락의 마당 문 (쥔 채 들어오면 벗어날 때까지). 아래 '방 안쪽을 본 채' 줄을 고치지 않고 여기서 건다 (다른 가지가 그 윗줄을 고친다) — 그 사이 읽는 곳이 없어 차례는 상관없다 */
       if (to === 'attic' || isRoomP(to)) {
         var g = groupOf(to); if (plG.parent !== g) g.add(plG); fpClear(g);
         var an = to === 'play' ? 'playAtticDoor' : to === 'loft' ? 'loftStair' : to === 'yard' ? 'yardAttic' : from === 'loft' ? 'atticStair' : from === 'yard' ? 'atticYard' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
         plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false;
-        /* 11-18 주인: 돌린 각에서 들어와도 방 안쪽을 본 채 (카메라 쪽으로 돌려 세우던 11-15 규칙은 뺐다) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; if (to === 'yard') PL.yardArm = false; if (to === 'attic' && from === 'yard') PL.yardBack = false; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
+        /* 11-18 주인: 돌린 각에서 들어와도 방 안쪽을 본 채 (카메라 쪽으로 돌려 세우던 11-15 규칙은 뺐다) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
       } else { if (plG.parent !== atticG) atticG.add(plG); fpClear(atticG); PL.place = 'attic'; plRest(true); }
     }
     function playerWalkTo(anchor) {   /* goRoom 의 walkFirst: 문 앞 앵커까지 걷고 문 쪽을 보며 서면 푼다 → { ok, walked, anchor, at }. 그 방에 없으면(바깥에서 들어갈 때) 걷기 없이 바로 */
@@ -3409,7 +3410,7 @@ var SCENE3D = (function () {
        다락 위 = data-spot="over". 확대·밀기로 상자가 화면 밖이면 숨긴다 */
     var YARD_DOOR_BOX = new T.Box3(new T.Vector3(DOOR.x0, 0, -R), new T.Vector3(DOOR.x1, DOOR.h, -R + 0.12));   /* 11-15: 다락 뒷벽 문간 (문어 산책 문 — 마당으로) */
     var STAIR_BOX = new T.Box3(new T.Vector3(STAIR.x0, 0, STAIR.z0), new T.Vector3(STAIR.x1, STAIR.top, STAIR.z1));
-    var STAIR_LOW = new T.Box3(new T.Vector3(STAIR.x1 - 2 * (STAIR.x1 - STAIR.x0) / 7 - 0.05, 0, STAIR.z0), new T.Vector3(STAIR.x1 + 0.06, KNEE + 0.12, STAIR.z1));   /* 11-15: 계단이 잘려 아래 두 칸만 보일 때 (돌려 보기 90° 근처) 단추는 그 두 칸 위에만 — 온 계단 상자면 방 가운데의 나 · 상자를 톡 해도 위층으로 갔다 */
+    var STAIR_LOW = new T.Box3(new T.Vector3(STAIR.x0 - 0.06, 0, STAIR.z0), new T.Vector3(STAIR.x0 + 2 * (STAIR.x1 - STAIR.x0) / 7 + 0.05, KNEE + 0.12, STAIR.z1));   /* 11-15: 계단이 잘려 아래 두 칸만 보일 때 (돌려 보기 90° 근처) 단추는 그 두 칸 위에만 — 온 계단 상자면 방 가운데의 나 · 상자를 톡 해도 위층으로 갔다 */
     var SPOTS = {}, SPOT_KEYS = ['atticPlay', 'playAttic', 'machine', 'salon', 'atticStair', 'loftStair', 'sew', 'plot0', 'plot1', 'plot2', 'plot3', 'plot4', 'plot5', 'atticYard', 'yardAttic', 'counter'], spotEdge = true, spotLast = {}, _sv8 = new T.Vector3(), SPOT_MIN_VIS = 8;   /* 보이는 문 조각이 8 CSS px 보다 좁으면 단추를 숨긴다 · salon = 미용실 거울 (#btn-salon) */
     function boxScreen(b, obj) {   /* 그룹 좌표 상자 → 컨테이너 CSS px {l,t,r,b} */
       obj.updateWorldMatrix(true, false);
@@ -3425,6 +3426,7 @@ var SCENE3D = (function () {
        계단이 화면 가장자리에 잘려 보이는 폭이 이보다 좁으면 가장자리 단추 */
     SPOT_KEYS.push('sewDoll');
     var STAIR_EDGE_VIS = 40;
+    STAIR_LOW.set(new T.Vector3(STAIR.x1 - 2 * (STAIR.x1 - STAIR.x0) / 7 - 0.05, 0, STAIR.z0), new T.Vector3(STAIR.x1 + 0.06, KNEE + 0.12, STAIR.z1));   /* 11-18 계단 발치는 x1 쪽 (왼벽 앞 구석으로 옮기며 오르는 방향이 뒤집혔다) — 위 STAIR_LOW 줄은 옛 방향 그대로 두고 (다른 가지가 그 아랫줄을 고친다) 여기서 맞춘다 */
     function spotInfo(id) {
       var busy = DQ.active || DQ.pending || !!PLACE.trans || INTRO.on, v = PLACE.vis, q;
       if (id === 'atticPlay') {
