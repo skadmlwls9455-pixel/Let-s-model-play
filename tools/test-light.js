@@ -4,6 +4,8 @@
  *   L1 노을 → 밤 섞기: SCENE3D.duskBlend 가 19:00 0 → 15분마다 1/8 → 21:00 1 (8칸, 단조, 19시 전 0 = 툭 바뀌지 않음) · 조명 열쇠도 8번 바뀐다
  *   L2 22시 장면: 밤 등불 세기 1.5 · 닿는 거리 7.5 · 달빛 바닥 0.48 (등불 0칸이면 헤미가 그 값)
  *   L3 20시 · 등불 3 · 맑음: 다락 방 띠 평균 루마 ≥ 바닥값 (예전 0.117 · 지금 0.147 — 재어 둔 값에서 여유를 뺀 것)
+ *   L8 (11-18 시험판) 넓은 바깥 (?wide=1): 끄면 마당은 예전 그대로 · 켜면 땅이 화면을 채우고 · 울타리는 앞 모서리의 문으로만 나가고 · 문 밖 띠 안에서만 걷고 · 화면이 따라오고 ·
+ *      돌려 봐도 캐릭터가 그 자리 · 드로우콜 · 셰이더 프로그램 그대로 · 문 밖에서 집 문을 톡하면 울타리 문을 거쳐 들어온다
  *   L7 (11-18) 톡 격자: 다락 계단 그림 위 톡은 계단으로 · 뒷벽 문간 위 톡은 마당으로 (계단이 문 옆이던 때는 계단 톡이 마당 문으로 갔다) · 가장자리 단추가 뜬 동안에도 보이는 계단은 눌린다
  *   L6 (11-18 검증) 쥔 채로 들어온 문으로 되튀지 않는다 (마당 → 다락, 60 fps 걸음)
  *   L5 (11-18) 다락 계단 단추 (가장자리) · 걸음 따라오기 · 내려오면 계단이 보임 · 방을 옮겨도 방향키가 이어짐
@@ -31,13 +33,13 @@ function rec(lv) {
     colors: [{ at: BORN, date: '2026-11-06', color: RED, how: 'first', by: 'player' }] }, room: { lantern: lv, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
     settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
 }
-async function open(browser, lv, look, vp) {   /* vp = [폭, 높이] (기본 360×740) */
+async function open(browser, lv, look, vp, q) {   /* vp = [폭, 높이] (기본 360×740) · q = 주소 뒤에 붙일 것 ('&wide=1') */
   var ctx = await browser.newContext({ viewport: { width: vp ? vp[0] : 360, height: vp ? vp[1] : 740 }, deviceScaleFactor: 1, locale: 'ko-KR', hasTouch: true, isMobile: true });
   var page = await ctx.newPage();
   page.on('pageerror', function (e) { ok(false, 'pageerror: ' + e.message); });
   await page.addInitScript({ content: 'window.__ppolAwakeMs = 0; if (!localStorage.getItem("__seed")) { localStorage.setItem("__seed", "1"); localStorage.setItem("ppolppol_v2", ' + JSON.stringify(JSON.stringify(rec(lv))) + '); }' +
     'window.__ppolTest = { today: "2026-11-14" }; window.__ppolLook = ' + JSON.stringify(look) + ';' });
-  await page.goto('file://' + ROOT + '/index.html?dev=0&intro=0');
+  await page.goto('file://' + ROOT + '/index.html?dev=0&intro=0' + (q || ''));
   await page.waitForSelector('#btn-go:not(.away)', { timeout: 30000 });
   await page.waitForFunction(function () { return window.APP && APP.scene && !APP.goResting; }, null, { timeout: 30000 });
   return { ctx: ctx, page: page };
@@ -196,6 +198,56 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     ok(g7[90].spot === 'over' && g7[90].stair.n === 35 && g7[90].stair.stair >= 34, 'L7 계단이 온전히 보일 때 (90°) 계단 위 톡 → 계단 ' + g7[90].stair.stair + '/' + g7[90].stair.n + ' (≥ 95%)');
     ok(g7[180].spot === 'edge' && g7[180].stair.n >= 10 && g7[180].stair.stair >= g7[180].stair.n * 0.85, 'L7 계단이 가장자리에 걸쳐 가장자리 단추가 뜬 동안 (360 폭 180°) 에도 보이는 계단 위 톡 → 계단 ' + g7[180].stair.stair + '/' + g7[180].stair.n + ' (≥ 85% · 맨 아래 칸은 소파 뒤 — 예전 0)');
     ok(g7w.spot === 'edge' && g7w.stair.n >= 5 && g7w.stair.stair === g7w.stair.n, 'L7 412 폭 기본 구도: 왼쪽 가장자리에 걸친 계단 위 톡 → 계단 ' + g7w.stair.stair + '/' + g7w.stair.n + ' (예전 0)');
+
+    /* ── L8 (11-18 시험판) 넓은 바깥 — 주소에 ?wide=1 이 있을 때만. 스틱 값은 화면 축 (오른쪽 +x · 위 +y): 아래 (0, −1) = 월드 (+x, +z) = 앞 모서리 쪽 · (0.707, −0.707) = 월드 +x.
+          대각 좌표 s = (x + z)/√2 (화면 아래) · t = (x − z)/√2 (화면 오른쪽). 프레임은 0.1 s 씩 손으로 민다 (소프트웨어 렌더가 밀리지 않게 적게) ── */
+    var yardGo = async function (pg) {
+      await pg.evaluate(function () { return APP.goRoom('yard'); });
+      await pg.waitForFunction(function () { var m = APP.scene.motion(); return APP.room === 'yard' && !m.trans && m.dq === ''; }, null, { timeout: 30000 });
+      await pg.waitForTimeout(500);
+    };
+    var corners8 = async function (pg) {   /* 장면 네 구석의 평균 루마 (위 막대 · 아래 단추 · 조개 표 · 스틱 자리를 피해 조금 안쪽) — 허공은 0.05 아래, 낮의 풀은 0.4 위 */
+      var im = await shot(pg); return [[8, 150, 40, 190], [300, 150, 340, 190], [8, 560, 40, 600], [150, 610, 180, 640]].map(function (r) { return +region(im, r).mean.toFixed(3); });
+    };
+    o = await open(browser, 8, { hour: 13, weather: 'clear' }); page = o.page;
+    await yardGo(page);
+    var off8 = await page.evaluate(function () { var sc = APP.scene; sc.debugPlayerAt(3.6, 3.6); sc.setPlayerInput({ x: 0, y: -1 }); for (var i = 0; i < 30; i++) sc.debugStep(0.1); sc.setPlayerInput(null); sc.debugStep(0.1); return { on: sc.wide().on, at: sc.player().at }; });
+    var offC = await corners8(page);
+    ok(off8.on === false && off8.at[0] <= 3.96 && off8.at[2] <= 3.96 && Math.min.apply(null, offC) < 0.08, 'L8 켜지 않으면 마당은 예전 그대로: 앞 모서리에서 더 못 나가고 (' + off8.at[0] + ', ' + off8.at[2] + ') 받침 밖은 허공 (구석 루마 ' + JSON.stringify(offC) + ')');
+    await o.ctx.close();
+    o = await open(browser, 8, { hour: 13, weather: 'clear' }, null, '&wide=1'); page = o.page;
+    await yardGo(page);
+    var homeC = await corners8(page);
+    var w8 = await page.evaluate(function () {
+      var sc = APP.scene, K = Math.SQRT1_2, r = { on: sc.wide().on, S1: sc.wide().S1, T: sc.wide().T }, st0 = sc.stats();
+      function push(x, y, n) { sc.setPlayerInput({ x: x, y: y }); for (var i = 0; i < n; i++) sc.debugStep(0.1); sc.setPlayerInput(null); sc.debugStep(0.1); return sc.player().at; }
+      function st(a) { return [+((a[0] + a[2]) * K).toFixed(2), +((a[0] - a[2]) * K).toFixed(2)]; }
+      function scr() { var a = sc.player().at, q = sc.screenOf(a[0], 0.6, a[2]); return [Math.round(q.x), Math.round(q.y)]; }
+      r.calls0 = st0.calls; r.prog0 = st0.programs;
+      sc.debugPlayerAt(3.6, 1.0); r.fence = push(0.707, -0.707, 25);                       /* 오른쪽 변의 울타리로 민다 → 마당 안 */
+      sc.debugPlayerAt(3.6, 3.6); r.out = st(push(0, -1, 50)); r.outScr = scr();          /* 앞 모서리의 문으로 나가 길을 따라 6 m */
+      r.side = st(push(1, 0, 45)); r.sideScr = scr();                                      /* 띠의 오른쪽 끝까지 */
+      r.end = st(push(0, -1, 90)); r.endScr = scr();                                       /* 길 끝까지 */
+      var p0 = scr(); sc.setYaw(120, true); for (var i = 0; i < 4; i++) sc.debugStep(0.1); r.turn = [p0, scr()]; sc.setYaw(0, true); for (i = 0; i < 4; i++) sc.debugStep(0.1); r.back = scr();
+      var st1 = sc.stats(); r.calls1 = st1.calls; r.prog1 = st1.programs; r.trees = sc.wide().trees; r.vh = innerHeight; r.vw = innerWidth;
+      return r;
+    });
+    var pathC = await corners8(page);
+    ok(w8.on === true && Math.min.apply(null, homeC) > 0.25 && Math.min.apply(null, pathC) > 0.25, 'L8 넓은 바깥: 땅이 화면 네 구석까지 (집 앞 ' + JSON.stringify(homeC) + ' · 길 끝 ' + JSON.stringify(pathC) + ' — 허공이면 0.05 아래)');
+    ok(w8.fence[0] <= 3.96, 'L8 울타리는 못 지나간다 (오른쪽 변으로 밀어도 x ' + w8.fence[0] + ' ≤ 3.95)');
+    ok(w8.out[0] > 10 && Math.abs(w8.out[1]) < 0.3 && w8.outScr[1] > 90 && w8.outScr[1] < w8.vh - 230, 'L8 앞 모서리의 문으로 나가 길을 걷는다 (s ' + w8.out[0] + ' · t ' + w8.out[1] + ') · 화면이 따라와 캐릭터가 단추들 위에 (y ' + w8.outScr[1] + ')');
+    ok(w8.side[1] <= w8.T + 0.02 && w8.side[1] > w8.T - 0.2 && w8.sideScr[0] > 20 && w8.sideScr[0] < w8.vw - 20, 'L8 문 밖 띠의 옆 끝에서 멈춘다 (t ' + w8.side[1] + ' ≤ ' + w8.T + ') · 캐릭터는 화면 안 (x ' + w8.sideScr[0] + ')');
+    ok(w8.end[0] <= w8.S1 + 0.02 && w8.end[0] > w8.S1 - 0.3 && w8.endScr[1] > 90 && w8.endScr[1] < w8.vh - 230, 'L8 길 끝에서 멈춘다 (s ' + w8.end[0] + ' ≤ ' + w8.S1 + ') · 캐릭터가 단추들 위에 (y ' + w8.endScr[1] + ')');
+    ok(Math.abs(w8.turn[0][0] - w8.turn[1][0]) <= 8 && Math.abs(w8.turn[0][1] - w8.turn[1][1]) <= 8 && Math.abs(w8.turn[0][0] - w8.back[0]) <= 8 && Math.abs(w8.turn[0][1] - w8.back[1]) <= 8, 'L8 길 끝에서 돌려 봐도 (120° · 다시 0°) 캐릭터는 화면 그 자리 ' + JSON.stringify(w8.turn) + ' → ' + JSON.stringify(w8.back));
+    ok(w8.calls1 <= 150 && w8.prog1 === w8.prog0 && w8.trees.every(function (t) { return t[0] < t[1]; }), 'L8 드로우콜 ' + w8.calls0 + ' → ' + w8.calls1 + ' (≤ 150) · 셰이더 프로그램 그대로 (' + w8.prog0 + ') · 숲은 보이는 나무만 ' + JSON.stringify(w8.trees));
+    var in8 = await page.evaluate(async function () {   /* 길 끝 (울타리 밖) 에서 집 문 앵커로 걸어가라고 하면 앞 모서리의 문을 거쳐 현관 문 앞까지 */
+      var sc = APP.scene, done = false, minGate = 9;
+      sc.playerWalkTo('yardAttic').then(function () { done = true; });
+      for (var i = 0; i < 420 && !done; i++) { sc.debugStep(0.1); var a = sc.player().at; if (a[0] > 3.96 || a[2] > 3.96) { if (a[0] > 3.96 && a[0] < 4.6) minGate = Math.min(minGate, a[2]); if (a[2] > 3.96 && a[2] < 4.6) minGate = Math.min(minGate, a[0]); } await new Promise(function (r) { setTimeout(r, 0); }); }
+      return { done: done, at: sc.player().at, a: sc.doorAnchors.yardAttic, minGate: +minGate.toFixed(2), gate: sc.wide().gate };
+    });
+    ok(in8.done && Math.abs(in8.at[0] - in8.a[0]) < 0.1 && Math.abs(in8.at[2] - in8.a[2]) < 0.1 && in8.minGate > in8.gate + 0.2, 'L8 문 밖에서 집 문으로: 울타리 문을 거쳐 (울타리 줄을 넘은 자리 ' + in8.minGate + ' > 문 기둥 ' + in8.gate + ') 현관 문 앞에 선다 ' + JSON.stringify(in8.at));
+    await o.ctx.close();
   } catch (e) {
     fails++; console.error('CRASH ' + (e && e.stack || e));
   } finally { await browser.close(); }
