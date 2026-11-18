@@ -2793,6 +2793,7 @@ var SCENE3D = (function () {
       } else if (PL.place === 'play' && PROOM) {
         var mb = PROOM.machineBox, cb = PROOM.counterBox;
         out.push([mb.min.x - r, mb.max.x + r, mb.min.z - r, mb.max.z + r], [cb.min.x - r, cb.max.x + r, cb.min.z - r, cb.max.z + r]); var lb = PROOM.legBox; out.push([lb.min.x - r, lb.max.x + r, lb.min.z - r, lb.max.z + r]);   /* ㄱ자 다리 */
+        var bb = PROOM.boothBox; out.push([bb.min.x - r, bb.max.x + r, bb.min.z - r, bb.max.z + r]);   /* 11-18 식탁 자리 */
       } else if (PL.place === 'yard' && YROOM) {   /* 11-15 마당: 집 · 계단 · 우체통 · 등 · 울타리 토막 · 연 밭 (밭 사이는 돌아서 간다) */
         YROOM.boxes.forEach(function (q) { out.push([q[0] - r, q[1] + r, q[2] - r, q[3] + r]); });
         plotBoxes.forEach(function (q) { out.push([q.min.x + 0.05 - 0.15, q.max.x - 0.05 + 0.15, q.min.z + 0.05 - 0.15, q.max.z - 0.05 + 0.15]); });   /* 흙 + 0.15 (몸 반지름보다 작게 — 밭 사이 길을 걸을 수 있게, 검증 11-15) */
@@ -3990,6 +3991,32 @@ var SCENE3D = (function () {
     }
     var PLAY_WIN = { z0: 0.72, z1: 1.52, y0: 0.9, y1: 1.8 }, PLAY_DOOR_Z = snapPos(DOOR_ANCHORS.playAtticDoor[2]), PLAY_MX = -1.8;   /* 11-10: 방을 넓히며 오락기를 왼쪽으로 (조리대와 사이를 띄운다) */
     var SCR = { bg: PAL.navy[4], run: PAL.rose[2], hide: PAL.navy[4] };
+    /* 11-18 식탁 자리 (6차 §4.1, 주인 "조리대 옆에 식탁 하나 + 마주 보는 2인 소파"): 숫자는 캐릭터 실제 크기에서 — 문어 머리 0.84 m 폭(원점 위 0.386 중심, 반축 0.42 × 0.37) · 내 머리칼 껍질 r 0.38.
+       자리 B (오락기 줄 x −1.8 · 조리대 줄 x 0.95 사이, 뒷벽에서 띄움): 상자 + 0.25 가 T7 통로(문 줄 z −0.33 · 오락기 줄 · 조리대 줄 · 쉬는 자리 걷기)를 안 건드린다 — x −1.53..0.66 (가장자리 둘 다 2 cm 남김), z −1.92..−0.62.
+       서쪽 소파 = 문어 (+x 를 보고 앉는다 → 기본 카메라에 얼굴 3/4) · 동쪽 소파 = 나 (−x, 카메라에 등 3/4). 소파는 뒷벽 쪽 끝에만 팔걸이 — 앞(+z) 끝이 열려 거기서 폴짝 올라앉는다.
+       x 축: 등 0.12 · 문어 등판 면 → 원점 0.46 · 원점 → 식탁 0.48 (기울여 8° 에도 머리가 식탁 가장자리에서 ≥ 0.03) · 식탁 0.46 · 식탁 → 내 원점 0.22 · 내 원점 → 등판 면 0.33 · 등 0.12 */
+    var BOOTH = { x0: -1.53, x1: 0.66, z0: -1.92, z1: -0.62, seatY: 0.42, backH: 0.82, armH: 0.58, armD: 0.12, seatZ: -1.12,
+      oct: { back: -1.53, face: -1.41, front: -0.79, x: -0.95, yaw: Math.PI / 2, aisle: [-0.95, 0.02], via: [-2.0, 0.02] },
+      me: { back: 0.66, face: 0.54, front: 0.0, x: 0.21, yaw: -Math.PI / 2, aisle: [0.21, -0.30] },
+      table: { x0: -0.47, x1: -0.01, z0: -1.52, z1: -0.72, top: 0.63, th: 0.06 }, cushion: 'sky' };
+    function boothParts(pp) {   /* 식탁 + 2인 소파 둘 (정적 병합 — 드로우콜 0): 다락 소파 말씨 (통통한 상자 · 방석 윗면 1px 밝은 띠) · PAL 램프만 */
+      var B = BOOTH, CU = PAL[B.cushion], cD = CU[1], cM = CU[2], cL = CU[3], zc = (B.z0 + B.z1) / 2, zl = B.z1 - B.z0, sy = B.seatY;
+      [B.oct, B.me].forEach(function (S) {
+        var dir = S.front > S.back ? 1 : -1, xb = Math.min(S.back, S.face), xf = Math.max(S.back, S.face), sx0 = Math.min(S.face, S.front), sx1 = Math.max(S.face, S.front), d = sx1 - sx0;
+        pp.push({ g: box(Math.abs(S.front - S.back), 0.21, zl), m: M((S.front + S.back) / 2, 0.175, zc), c: W[2] });   /* 몸통 (나무 틀) */
+        [B.z0 + 0.06, B.z1 - 0.06].forEach(function (z) { [S.back + dir * 0.06, S.front - dir * 0.06].forEach(function (x) { pp.push({ g: box(0.07, 0.07, 0.07), m: M(x, 0.035, z), c: W[1] }); }); });   /* 발 4 */
+        var cz0 = B.z0 + B.armD, cl = (B.z1 - cz0 - 0.02) / 2;
+        [cz0 + cl / 2, cz0 + cl * 1.5 + 0.02].forEach(function (z) {   /* 방석 2 (2인용) + 윗면 띠 */
+          pp.push({ g: box(d, 0.13, cl), m: M((sx0 + sx1) / 2, sy - 0.08, z), c: cM }, { g: box(d - 0.06, 0.03, cl - 0.06), m: M((sx0 + sx1) / 2, sy - 0.015, z), c: cL });
+        });
+        pp.push({ g: box(xf - xb, B.backH - 0.07, zl), m: M((xb + xf) / 2, (B.backH + 0.07) / 2, zc), c: cD }, { g: box(xf - xb - 0.04, 0.03, zl - 0.04), m: M((xb + xf) / 2, B.backH - 0.015, zc), c: cM });   /* 등판 + 윗면 띠 */
+        pp.push({ g: box(sx1 - sx0, B.armH - 0.07, B.armD), m: M((sx0 + sx1) / 2, (B.armH + 0.07) / 2, B.z0 + B.armD / 2), c: cD }, { g: box(sx1 - sx0 - 0.04, 0.03, B.armD - 0.04), m: M((sx0 + sx1) / 2, B.armH - 0.015, B.z0 + B.armD / 2), c: cM });   /* 팔걸이 (뒷벽 쪽 끝 하나) */
+      });
+      var Tb = B.table, tx = (Tb.x0 + Tb.x1) / 2, tz = (Tb.z0 + Tb.z1) / 2, tw = Tb.x1 - Tb.x0, td = Tb.z1 - Tb.z0;
+      pp.push({ g: box(tw, Tb.th - 0.012, td), m: M(tx, Tb.top - 0.012 - (Tb.th - 0.012) / 2, tz), c: W[2] }, { g: box(tw - 0.04, 0.012, td - 0.04), m: M(tx, Tb.top - 0.006, tz), c: W[3] });   /* 윗판 (W[2] 테 + W[3] 면) */
+      [[Tb.x0 + 0.06, Tb.z0 + 0.06], [Tb.x1 - 0.06, Tb.z0 + 0.06], [Tb.x0 + 0.06, Tb.z1 - 0.06], [Tb.x1 - 0.06, Tb.z1 - 0.06]].forEach(function (q) { pp.push({ g: box(0.06, Tb.top - Tb.th, 0.06), m: M(q[0], (Tb.top - Tb.th) / 2, q[1]), c: W[1] }); });
+      pp.push({ g: box(0.30, 0.004, 0.40), m: M(tx, Tb.top + 0.002, tz), c: PAL.paper[2] });   /* 접시 자리 깔개 */
+    }
     function buildPlayRoom() {
       var Rp = PLAY_R, H = PLAY_H, g = new T.Group(); g.name = 'play'; g.visible = false; scene.add(g);
       var pp = [], n = 0, P = 0.12, dw = 0.72, dh = 1.68, WZ = PLAY_WIN, MX = PLAY_MX;
@@ -4112,9 +4139,10 @@ var SCENE3D = (function () {
         pp.push({ g: box(ax ? 0.16 : 0.06, 0.06, ax ? 0.06 : 0.16), m: M(ax ? -Rp + 0.14 : q[0], 1.8, ax ? q[2] : -Rp + 0.14), c: W[1] }); n++;
       });
       /* 놀이방 → 다락 문 (왼쪽 벽, 다락 문과 같은 칠): 문틀은 벽에 박힌 깊은 틀 (0.2 m), 그림자를 던진다 (닫히면 문짝이, 열리면 문간판이 해를 막는다) */
+      boothParts(pp); n += 3;   /* 11-18 식탁 · 소파 둘 */
       PLAY_DOOR = makeDoor(Object.assign({}, DOOR_PAINT, { name: 'playAttic', parent: g, x: -Rp, z: PLAY_DOOR_Z, w: dw, h: dh, depth: 0.2, cast: true, sill: null }));
       var CUT_P = cutSplit(pp, { walls: [['left', 'x', -Rp, 1.0], ['back', 'z', -Rp, 1.4]], knee: 2 * rh,   /* 11-15 돌려 보기: 오락기 · 부엌 (조리대 위 냄비 · 주전자까지)은 바닥 가구라 남긴다 — 걸이 봉 · 선반 · 후드는 뒷벽과 같이 */
-        keep: [[MX - 0.45, MX + 0.45, -1, 1.75, -Rp + 0.04, zb + 0.6], [KX + 0.2, KX + ox + 0.45, -1, 1.15, -Rp + 0.15, lz1 + 0.15]] });
+        keep: [[MX - 0.45, MX + 0.45, -1, 1.75, -Rp + 0.04, zb + 0.6], [KX + 0.2, KX + ox + 0.45, -1, 1.15, -Rp + 0.15, lz1 + 0.15], [BOOTH.x0 - 0.05, BOOTH.x1 + 0.05, -1, BOOTH.backH + 0.1, BOOTH.z0 - 0.05, BOOTH.z1 + 0.05]] });   /* 11-18 식탁 자리도 남긴다 */
       var room = new T.Mesh(keep(mergeParts(pp)), lambert); room.castShadow = true; room.receiveShadow = true; g.add(room);
       /* 창 유리: 다락 창의 재질을 같이 쓴다 (시각대 색·발광을 applyLight 가 이미 맞춘다) */
       var gl = new T.Mesh(keep(new T.PlaneGeometry(wzl, wyl)), glass.material); gl.position.set(-Rp + 0.01, wyc, wzc); gl.rotation.y = Math.PI / 2; g.add(gl);
@@ -4144,7 +4172,8 @@ var SCENE3D = (function () {
         newWalls: function (q, k) { if (k === 'right') { cutBoards(q, 'x', Rp, -1, -Rp, Rp, H, rows, []); cutStuds(q, 'x', Rp, -1, [0.6, 1.9], H); } else { cutBoards(q, 'z', Rp, -1, -Rp, Rp, H, rows, [], true); cutStuds(q, 'z', Rp, -1, [-1.4, 0, 1.4], H); } },
         dyn: function () { var L = cutOf('play', 'left'); return [[gl, L], [PLAY_DOOR.g, L]]; } });
       PROOM = { g: g, room: room, glass: gl, screen: scr, screenGeo: scrGeo, screenEm: scrEm, bulbs: bulbs, bulbEm: bulbEm, lA: lA, lB: lB, shade: shp, props: n,
-        machineBox: new T.Box3(new T.Vector3(MX - 0.36, 0, zb), new T.Vector3(MX + 0.36, 1.66, zb + 0.54)), counterBox: new T.Box3(new T.Vector3(KX + cx - 0.73, 0, cz - 0.28), new T.Vector3(KX + ox + 0.35, 0.87, cz + 0.32)), legBox: new T.Box3(new T.Vector3(KX + lx - 0.3, 0, lz0), new T.Vector3(KX + lx + 0.3, 0.87, lz1 + 0.06)), scr: { t: 0, f: 0 } };   /* counterBox = 조리대 윗판 둘레 (내 캐릭터 장애물) */
+        machineBox: new T.Box3(new T.Vector3(MX - 0.36, 0, zb), new T.Vector3(MX + 0.36, 1.66, zb + 0.54)), counterBox: new T.Box3(new T.Vector3(KX + cx - 0.73, 0, cz - 0.28), new T.Vector3(KX + ox + 0.35, 0.87, cz + 0.32)), legBox: new T.Box3(new T.Vector3(KX + lx - 0.3, 0, lz0), new T.Vector3(KX + lx + 0.3, 0.87, lz1 + 0.06)), scr: { t: 0, f: 0 },
+        boothBox: new T.Box3(new T.Vector3(BOOTH.x0, 0, BOOTH.z0), new T.Vector3(BOOTH.x1, BOOTH.backH, BOOTH.z1)) };   /* 11-18 식탁 자리 (장애물 · 'table' 단추) */   /* counterBox = 조리대 윗판 둘레 (내 캐릭터 장애물) */
       playApplyLight(); doorsApplyLight();
       return PROOM;
     }
