@@ -20,14 +20,21 @@
 
 - `VISIT.snapshot(state, day)` → 본 게임 저장 `S` (넘겨받는다) 에서 **꾸밈만** 골라 담는다. 담는 것 (전부 id · 수 · 색):
   `v` · `day` · `season` · `player` (모습 12범주 id) · `dyed` · `layout` (가구 자리) · `skin` (벽지 · 바닥 id) · `furn` (놓인 가구 id 와 자리) ·
-  `garden` (칸 색 · 물) · `lantern` · `souvenirs` (id 만) · `posters` (스티커 id 만, 최대 6) · `shown` (전시한 것 id) · `plans` (가진 계절 꾸밈 id — 설계도로 받아 갈 수 있는 것).
+  `garden` (칸 색 · 물) · `lantern` · `souvenirs` (id 만) · `posters` (스티커 id 만, 최대 6) · `shown` (전시한 것 id).
+  친구가 설계도로 받아 갈 수 있는 것은 따로 담지 않는다 — **집에 놓여 있는 것 (`furn`) 이 곧 받을 수 있는 것** 이다 (주인: "친구가 가지고 있는 집").
   아직 저장에 없는 칸은 건너뛴다 (리드가 차차 넣는다).
-- **담지 않는 것**: 문어가 쓴 말 · 메모 · 포스터 글 · 산책 기록 · 위키 요약 · 조개 수 · 접속 시각 · 이름 · 방 열쇠 (`settings.claudeRoom`). 자유 글 0.
+- **담지 않는 것**: **문어에 관한 것 전부** — 몸 색 · 이름 · 모습 · 지금 있는 곳 · 취향 값 · 미용실 대답 (`S.octopus` · `S.salon` · `S.notes` · `S.curiosityNotes` · `S.trips` 는 읽지 않는다.
+  예외는 벽에 걸린 포스터의 스티커 id 최대 6 과 선반의 기념품 id 뿐). 그리고 문어가 쓴 말 · 메모 · 포스터 글 · 산책 기록 · 위키 요약 · 조개 수 · 접속 시각 · 이름 · 방 열쇠 (`settings.claudeRoom`). 자유 글 0.
 - `VISIT.validate(snap)` → 모양만 엄격히: 키 화이트리스트 · id 는 `/^[a-z0-9_]{1,24}$/` · 색은 `#rrggbb` · 숫자 범위 · 배열 길이 · 전체 4KB 이하. 어긋나면 **거절** (자르지 않는다).
-- `VISIT.learn(user, snap, id, day)` → 스냅샷의 `plans` 에 있는 계절 꾸밈이면 `user.plans[id] = { at: day, from: 'friend' }` (하루 한 집에서 3장까지 — 상수).
+- `VISIT.learn(user, snap, id, day)` → id 가 스냅샷 `furn` 에 **놓여 있는** 계절 꾸밈 (COMMON 의 계절 8개) 이면 `user.plans[id] = { at: day, from: 'friend' }`.
+  이미 아는 것은 그대로 둔다 (쓰는 모양은 갈래 F 의 `CRAFT.learn` 과 같다). 상한은 **하루 통틀어 3장** (상수 `LEARN_PER_DAY = 3`) — `user.visitDay = { day, n }` 로 센다 (친구 집 코드는 저장하지 않는다).
 - `VISIT.CODE_RE` · 코드는 헷갈리는 글자 (0 O 1 I L) 를 뺀 8자.
 
 ### 2) 서버 로직 `api/_lib/home.js` (CommonJS, 저장소 · 시계 · 비밀값은 주입)
+
+`store` 는 `mcp/store.js` 어댑터 꼴 (`read(path) → 글 | null` · `write(path, 글)` 덮어쓰기 · `list(prefix)`) 에 **`del(path)` 하나를 더한 것** 으로 한다.
+기존 어댑터에는 `del` 이 없으니 시험은 `tools/next/test-home.js` 안의 네 메모리 저장소로 하고, Blob 지우기를 `mcp/store.js` 에 더하는 일은 '리드가 이을 것' 에 적는다.
+`api/_lib/core.js` 의 `memoryStore` 는 같은 경로 덮어쓰기를 막으니 쓰지 않는다. 비밀값과 시계는 `opts.secret` · `opts.now` 로 받는다 (아래 함수 넷 모두의 마지막 인자).
 
 ```
 createHome(store, { ip, origin, host })           → { ok, key, code }       key = 주인만 아는 열쇠 (192비트), code = HMAC 로 유도한 읽기 전용 8자
@@ -53,11 +60,12 @@ getVisit(store, code)                             → { ok, snap } | 404
 
 ## 끝난 것으로 보는 조건
 
-- node 시험: 스냅샷에 금지 칸 (말 · 메모 · 열쇠 · 조개 · 이름) 이 없음 (깊이 훑어 낱말 검사) · 가짜 저장에 `javascript:` · 긴 글 · 모르는 키를 심어도 검증이 거절 ·
+- node 시험: 스냅샷에 금지 칸 (말 · 메모 · 열쇠 · 조개 · 이름) 이 없음 (깊이 훑어 낱말 검사) · 가짜 저장의 문어 이름 · 몸 색 · 미용실 말 · 메모에 심은 표식 글자가 스냅샷 JSON 에 0건 · 가짜 저장에 `javascript:` · 긴 글 · 모르는 키를 심어도 검증이 거절 ·
   4KB 넘으면 거절 · `createHome` 의 code 가 key 에서만 나오고 code 로 key 를 못 구함 · 하루 4번째 올리기 거절 · 삭제 뒤 방문 404 · 스위치 off 면 503 ·
-  `learn` 이 스냅샷에 없는 id 는 거절 · 하루 3장 상한 · 모든 시험이 네트워크 없이 5초 안.
+  `learn` 이 놓여 있지 않은 id · 계절 꾸밈이 아닌 id 는 거절 · 하루 통틀어 3장 상한 · 모든 시험이 네트워크 없이 5초 안.
 - `npm test` 그대로 초록 (기존 `tools/test-api.js` · `tools/test-export.js` 를 건드리지 않고).
 
 ## 리드가 이을 것
 
 얇은 함수 파일 셋과 `vercel.json` · `tools/test-export.js` 의 주소 단언 · 설정의 '우리 집 코드' 줄 · 방문 모드 (장면 setter 로 남의 집 그리기, 저장 잠금) · 설계도 받기 단추.
+`docs/next/home.md` 의 이 절 첫 줄로 적는다: **방문 화면에는 문어가 나오지 않는다** — 남의 문어를 코드가 움직이지 않는다 (주인 답이 오면 바뀔 수 있다).
