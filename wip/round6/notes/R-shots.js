@@ -19,25 +19,25 @@ async function runner(br, w, h, dpr, file, states) {
   const ctx = await br.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, locale: 'ko-KR' });
   await ctx.addInitScript({ content: "window.__ppolAwakeMs = 0; if (!localStorage.getItem('ppolppol_v2')) localStorage.setItem('ppolppol_v2', " + JSON.stringify(REC) + ");" });
   const page = await ctx.newPage(); page.on('pageerror', e => console.log('ERR', e.message));
-  await page.goto(URL); await page.waitForFunction(() => window.APP && APP.scene && !APP.goResting, null, { timeout: 30000 });
+  console.log('goto', file); await page.goto(URL); await page.waitForFunction(() => window.APP && APP.scene && !APP.goResting, null, { timeout: 30000 }); console.log('booted');
   await page.evaluate(() => APP.goRoom('play')); await page.waitForTimeout(1500);
-  await page.evaluate(() => APP.openMachine()); await page.waitForSelector('#runner-dlg[open]'); await page.waitForTimeout(500);
+  await page.evaluate(() => APP.openMachine()); await page.waitForSelector('#runner-dlg[open]'); await page.waitForTimeout(500); console.log('runner open');
   const shots = await page.evaluate(async (want) => {
     const cv = document.getElementById('rn-cv'), L = () => RUNNER.live(), k = L().view.k, out = {};
     const key = (t, k2) => cv.dispatchEvent(new KeyboardEvent(t, { key: k2, bubbles: true, cancelable: true }));
-    const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const frame = () => new Promise(r => setTimeout(r, 50));
     function grab(name) {   /* 문어 둘레 64×56 아트 px 를 k 배 (기기 px 그대로) */
       const v = L().view, sx = 0, sy = Math.max(0, v.G - 50), sw = 64, sh = 56, c = document.createElement('canvas'); c.width = sw * k; c.height = sh * k;
       const x = c.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(cv, sx, sy, sw, sh, 0, 0, sw * k, sh * k); out[name] = c.toDataURL();
     }
-    const until = async (f, n) => { for (let i = 0; i < (n || 400) && !f(); i++) await frame(); };
+    const until = async (f, ms) => { const t0 = performance.now(); while (!f() && performance.now() - t0 < (ms || 8000)) await new Promise(r => setTimeout(r, 4)); };
     if (want.includes('ready')) { await frame(); grab('ready'); }
     key('keydown', ' '); await frame(); key('keyup', ' ');
     await until(() => L().ground && L().ticks > 40);
     if (want.includes('run')) { await until(() => L().ground && Math.floor(L().ticks / 5) % 4 === 1); grab('run'); }
     if (want.includes('jump')) { key('keydown', ' '); await until(() => L().y > 256 * 14); grab('jump'); key('keyup', ' '); await until(() => L().ground); }
     if (want.includes('duck')) { key('keydown', 'ArrowDown'); await frame(); await frame(); grab('duck'); key('keyup', 'ArrowDown'); }
-    if (want.includes('hit')) { await until(() => L().state === 'over', 3000); await frame(); grab('hit'); }
+    if (want.includes('hit')) { await until(() => L().state === 'over', 30000); await frame(); grab('hit'); }
     return out;
   }, states);
   await compose(page, states.filter(s => shots[s]).map(s => shots[s]), file, 8 * dpr);
@@ -76,8 +76,7 @@ async function realBoot(br, w, h, dpr, file) {   /* CDP 화면 흐름: 그려진
 (async () => {
   const br = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
   try {
-    await runner(br, 360, 740, 2, '1-runner-states-360x740@2.png', ['ready', 'run', 'jump', 'duck', 'hit']);
-    await runner(br, 412, 915, 2.625, '2-runner-run-412x915@2.625.png', ['run']);
+    if (process.env.RUNNER_SHOTS) { await runner(br, 360, 740, 2, '1-runner-states-360x740@2.png', ['ready', 'run', 'jump', 'duck', 'hit']); await runner(br, 412, 915, 2.625, '2-runner-run-412x915@2.625.png', ['run']); }   /* 이 컨테이너에선 멈춰서 기본은 건너뜀 — 달리기 화면은 스모크 R 의 tests/evidence 그림 */
     await bootStrip(br, 360, 740, 2, '3-boot-t0-05-10-360x740@2.png');
     await bootStrip(br, 1280, 800, 1, '4-boot-t0-05-10-1280x800@1.png');
     await realBoot(br, 1280, 800, 1, '5-real-boot-1280x800@1.png');
