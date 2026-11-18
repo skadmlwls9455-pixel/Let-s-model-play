@@ -14,6 +14,8 @@ Source of truth for this round: `docs/OWNER_DECISIONS.md` section **"주인 답 
 **`wip/round6/eat-spec.md`** (read §0 and §1, then the sections your brief names, then §10 contracts). The code map the spec was
 built from is **`wip/round6/notes/map.md`** (`file:line` references at `ada2967`; line numbers drift, function names do not;
 where the map suggests a design, the spec decides).
+The plan-vs-build check of 11-18 (`wip/round6/audit-11-18.md`) added must-fix items to R, D and K2 — each brief has an
+"Added 11-18" section; nothing else in that file is in scope this round.
 
 ## Owner rules learned the hard way (read twice)
 
@@ -33,19 +35,20 @@ where the map suggests a design, the spec decides).
 
 ## This round's lanes (separate cloud sessions, each on its own branch from the same commit)
 
-Base: branch `claude/game-launch-completion-hwvre5`, code at **`ada2967`**. The lead commits `wip/round6/` (this brief, the
-spec, the README) on top of `ada2967`; that docs-only commit is your base: `git checkout -b lane/<key>` from it, and check
-`git diff --stat ada2967 HEAD` lists only `wip/round6/` files. Push only your lane branch. Never merge or cherry-pick another
+Base: branch `claude/game-launch-completion-hwvre5`, code at **`ada2967`** plus one test-only fix (`9bb58e0`, `tools/smoke.js`
+scenario T). The lead commits `wip/round6/` (this brief, the spec, the README, the audit) on top; the lead's latest docs commit
+is your base: `git checkout -b lane/<key>` from it, check `git diff --stat ada2967 HEAD` lists only `wip/round6/` files and
+`tools/smoke.js`, and note `BASE=$(git rev-parse HEAD)` — your diffs are against `$BASE`. Push only your lane branch. Never merge or cherry-pick another
 lane; never push to `claude/game-launch-completion-hwvre5`. The lead merges the lanes after the owner says '넣어' (the
 auto-mode check blocks merging other branches without the owner's approval).
 
 | key | branch | area | brief |
 |---|---|---|---|
 | K1 | `lane/k1` | kitchen feel: '띵' + bell picture, bigger spatula / knife / stickers, '+' slicing | `briefs/K1.md` |
-| K2 | `lane/k2` | two new dishes (주먹밥, 과일 꼬치), per-recipe sim/art/slides, the dish tray in the play room, the `result` message | `briefs/K2.md` |
-| D | `lane/d` | dining scene in 3D: booth (table + two sofas), the table dish, my character sitting/eating, the octopus coming/sitting/eating, the auras | `briefs/D.md` |
+| K2 | `lane/k2` | two new dishes (주먹밥, 과일 꼬치), per-recipe sim/art/slides, the dish tray in the play room, the `result` message; a kitchen that cannot load (audit rel-01) | `briefs/K2.md` |
+| D | `lane/d` | dining scene in 3D: booth (table + two sofas), the table dish, my character sitting/eating, the octopus coming/sitting/eating, the auras; the loft stair tap (audit J3) | `briefs/D.md` |
 | M | `lane/m` | meal logic and UI: `js/meal.js` (decision, records, merge, words), the app flow, table/seat/call buttons, saves, day change, two tabs | `briefs/M.md` |
-| R | `lane/r` | runner octopus redrawn natively from the 3D octopus; loading crawl centre → right edge | `briefs/R.md` |
+| R | `lane/r` | runner octopus redrawn natively from the 3D octopus; loading crawl centre → right edge; the first minutes (audit J1 greeting bubble, J2 hand hints, J3 mirror line) | `briefs/R.md` |
 
 Suggested merge order for the lead: R, K1, K2, D, M (M last: it uses K2's message and D's scene API).
 
@@ -74,10 +77,10 @@ outside your area in your report under "outside my area".
 | `js/scene3d.js` | D | R: `walkPortrait` / the `pw` plumbing in `renderPortrait` only |
 | `tools/test-scene-perf.js` | D | — |
 | `js/meal.js`, `tools/test-meal.js`, `docs/MEAL.md` (new) | M | — |
-| `js/app.js` | M (new meal block before the `stick` section; touch points: `adoptRemote`, the 60-s `timeTimer` callback, `bubble()` (one `octAtTable()` exception), the octopus's autonomous paths deferred while it sits at the table (`scheduleWander`, `scheduleThink`, `syncRest` / `armRest` / `restTick` → `lieDown` / `sleepNow` / `restDown`, `selfWake`, other `octPlace` / `walkTo` callers — spec §4.5), `openMachine` (one `mealBusy()` guard line), `sceneDescText` play branch, `ROOM_SPOT`, `resetRoomUI` list, `bindRooms` new `on(...)` lines, `WHO_LINE`, `userState`, `dayRows` + `renderLog` / `renderDiary`, `slimJSON`, boot / room-entry calls) | K2: `cookSrc`, `cookMsg` (one `result` case), `openCook` (the `mealBusy()` guard line, tray + recipe), new `cookPot` + `COOK_TUNES` and tray functions right after `openCook` |
+| `js/app.js` | M (new meal block before the `stick` section; touch points: `adoptRemote`, the 60-s `timeTimer` callback, `bubble()` (one `octAtTable()` exception), the octopus's autonomous paths deferred while it sits at the table (`scheduleWander`, `scheduleThink`, `syncRest` / `armRest` / `restTick` → `lieDown` / `sleepNow` / `restDown`, `selfWake`, other `octPlace` / `walkTo` callers — spec §4.5), `openMachine` (one `mealBusy()` guard line), `sceneDescText` play branch, `ROOM_SPOT`, `resetRoomUI` list, `bindRooms` new `on(...)` lines, `WHO_LINE`, `userState`, `dayRows` + `renderLog` / `renderDiary`, `slimJSON`, boot / room-entry calls) | K2: `cookSrc`, `cookMsg` (one `result` case), `openCook` (the `mealBusy()` guard line, tray + recipe, the cannot-load fix), the `ready` case of `cookMsg`, new `cookPot` + `COOK_TUNES` and tray functions right after `openCook`; R: the name-form submit handler, `DOWN_SAY` (line ~38) only, one new hints block directly after the tip section, one call line where the walk's homecoming finishes |
 | `index.html` | — | R: the head boot block (inline script + `<style>` for `#boot`, the minimum-cover class included); K2: `<dialog id="dish-pick">` next to `#cook-overlay`; M: `#btn-table`, `#btn-seat`, `#btn-call` after `#btn-cook` (no `title` attributes), and `<script src="js/meal.js">` after `js/salon.js` |
-| `css/style.css` | — | K2: tray rules right after the `dialog.cook-overlay` rules; M: its rules appended at the end of the file (incl. the play-view override that shows `#oct` while the octopus sits at the table) |
-| `tools/smoke.js` | — | K2: the kitchen part of `scenarioSceneTap` (Z); R: `scenarioRunner` (R) and the boot block at the top of `scenarioSceneTap`; M: new `scenarioEat` + one `['EAT', …]` entry in the scenario list + the exact `WHO_LINE` pin in scenario O (~2855, that one line) |
+| `css/style.css` | — | K2: tray and cannot-load rules right after the `dialog.cook-overlay` rules; R: hint rules directly after the `.tip` rules; M: its rules appended at the end of the file (incl. the play-view override that shows `#oct` while the octopus sits at the table) |
+| `tools/smoke.js` | — | K2: the kitchen part of `scenarioSceneTap` (Z); R: `scenarioRunner` (R), the boot block at the top of `scenarioSceneTap`, a new `scenarioFirst` with its list entry on the `['R', …]` line; D: `scenarioLoft` (the stair grid); M: new `scenarioEat` + one `['EAT', …]` entry in the scenario list + the exact `WHO_LINE` pin in scenario O (~2855, that one line) |
 | `tools/test-brain.js` | M (add `js/meal.js` to the honesty scan) | — |
 | `js/runner.js`, `tools/test-runner.js` | R | — |
 | docs | each lane its sections (spec §12) | — |
@@ -133,8 +136,9 @@ outside your area in your report under "outside my area".
 ## Setup in your session
 
 ```bash
-git checkout -b lane/<key>          # from the round-6 docs commit (code = ada2967)
-git diff --stat ada2967 HEAD        # only wip/round6/ files
+git checkout -b lane/<key>          # from the lead's latest round-6 docs commit (code = ada2967 + smoke T fix 9bb58e0)
+git diff --stat ada2967 HEAD        # only wip/round6/ files and tools/smoke.js
+BASE=$(git rev-parse HEAD)          # your diffs are against this
 npm ci --no-audit --no-fund
 pip install fonttools brotli
 export NODE_PATH=$(npm root -g)   # Playwright is pre-installed globally; never run "playwright install"
@@ -153,7 +157,7 @@ export NODE_PATH=$(npm root -g)   # Playwright is pre-installed globally; never 
 ## How to work
 
 1. Read your brief, the spec sections it names and the code it points to. Keep notes in `wip/round6/notes/<KEY>.md` (if your
-   session restarts, read them plus `git status` / `git diff ada2967` and continue).
+   session restarts, read them plus `git status` / `git diff $BASE` and continue).
 2. Write the code carefully the first time. Match each file's style: short Korean comments dated `11-18` saying why (the
    kitchen files `js/cook.js`, `js/cook-art.js`, `js/cook-dishes.js` keep ASCII-only comments).
 3. Look at your change on the phone sizes with screenshots you actually read.
@@ -163,7 +167,7 @@ export NODE_PATH=$(npm root -g)   # Playwright is pre-installed globally; never 
    the new behaviour (states, not durations). New test files: run them directly and list them in your report for the lead to
    add to `npm test` / CI.
 5. **One independent check:** start a fresh subagent that has not seen your reasoning, give it your brief, this common brief,
-   the spec sections and the diff (`git diff ada2967`), and ask it to play the change on the phone sizes, try to break it, and
+   the spec sections and the diff (`git diff $BASE`), and ask it to play the change on the phone sizes, try to break it, and
    report only `must` / `should` defects with evidence (no edits). Fix the real ones. One check, one round of fixes.
 6. Commit in a few meaningful commits (stage files one by one, never `node_modules`, never force-push) and push to your lane
    branch once at the end (a second push only if you fix something after). Exception: lane D pushes its first commit (the

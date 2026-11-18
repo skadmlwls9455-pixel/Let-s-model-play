@@ -93,6 +93,46 @@ Not yours: everything else in `js/scene3d.js` (lane D), `assets/ui/loading_oct.p
 - Shots (≤ 8): runner ready, run, jump, duck, hit at 360x740@2; run at 412x915@2.625; boot at t 0 / 0.5 / 1.0 s on 360x740@2 and
   1280x800@1 (a strip); the real-boot strip (nothing held back) at 1280x800@1 and 360x740@2.
 
+## Added 11-18 after the plan-vs-build check — the first minutes (also yours)
+
+The owner chose "꼭 고칠 것만 6차에" for the audit (`wip/round6/audit-11-18.md`). Three of its must items are about the first
+minutes of play, next to your loading work, so they are yours. Keep each small: pictures before words, no new font sizes,
+the owner rules in COMMON (above all hard lines 1, 4, 5, 8, 11).
+
+**F1. The first greeting on screen (audit J1).** Today, after the name dialog closes, the octopus's self-introduction
+(`STR.firstGreeting`, `js/world.js`) only becomes a row inside the closed '오늘의 산책' sheet; the only thing the player sees is
+the daily-gift toast. In the name-form submit handler in `js/app.js` (the `if (first) { … }` block): once the dialog has
+closed, show the first sentence — '안녕, 나는 ○○이야.' with the josa from `nameJosa`, exactly as the row has it — as the
+octopus's speech bubble through the existing `bubble()` for about 2.6 s, `idle` face (owner 11-15 C6 b: no smile). The row
+keeps the full line, unchanged. Start the daily-gift toast (`dailyGift`, now at 1.5 s) only after the bubble is gone. The
+'데모' tag stays as it is (a code line; `WHO_LINE` rules unchanged). Never block input. Check: after naming, `#oct-bubble`
+shows the first sentence within 1 s; the gift toast is not up while the bubble is; 2D (`?scene=2d`) shows it too.
+
+**F2. First-time hand hints in the attic (audit J2)** — a light bridge until the guide fairy (윤슬, a later round). After the
+player's first finished walk has fully come home (return ritual, poster and lantern done; a stay-at-home turn does not
+count), at the first quiet moment (no sheet, dialog, toast or ritual; the attic in view; not in furniture mode), show the
+pixel hand from the runner's guide (`runner.js` `hand` grid — expose it or share it, your choice) tapping twice over one
+scene button at a time, in this order: 놀이방 문 (`atticPlay` spot), 마당 문 (`atticYard`), 위층 계단 (`atticStair`). Zero
+characters (the buttons already have aria names; the hand is `aria-hidden`, no `title`). About 1.6 s per button, then the
+next; a spot that is hidden right now is skipped and tried at the next quiet moment. Any tap ends the current run (the
+tapped button still does its normal job). Record what was shown in `ppolppol_ui` (`setUiPref`; never in `ppolppol_v2`) so
+each hint shows at most once per device; saves that already have more than one finished walk never see them (players who
+already know the house). Reduced motion: the hand shows still for the same time, no tapping. Crisp: whole device px per art
+px, boxes `round(v·dpr)/dpr`; above the scene buttons, below sheets and toasts; press look = 2 px translate, never scale. No
+vibration, no sound.
+
+**F3. The loft mirror's "downstairs" line (audit J3, the words part).** `DOWN_SAY` '지금은 아래층에 있어.' → '깨어 있을 때 같이
+올라오면 물어볼 수 있어.' (shown when the player taps the loft mirror while the octopus is awake downstairs; it says what to do
+and claims nothing about the octopus). `SLEEP_DOWN_SAY` and `AWAY_SAY` stay. Run `python3 tools/subset-fonts.py --check`
+(regenerate and commit the font files if stale). The stair tap itself is lane D's.
+
+Your extra regions (also in COMMON's table): `js/app.js` — the name-form submit handler, `DOWN_SAY` on line ~38 only, one new
+hints block directly after the tip section (`tip` / `hideTip`), and one call line where the walk's homecoming finishes;
+`css/style.css` — the hint rules directly after the `.tip` rules (not at the end of the file: M appends there);
+`tools/smoke.js` — a new `scenarioFirst` (fresh save → name → the greeting bubble; first walk home → the three hints in
+order, each once; reload → none; a save with several walks → none) with its list entry added on the `['R', …]` line (M adds
+its own entry at the end). Shots: add the greeting bubble and one hint frame at 360x740@2 (the ≤ 8 limit becomes ≤ 10).
+
 ## Do not touch
 
 The runner sim, `VERSION 'runner-2'`, the server replay, haptics, `css/runner.css` text rules, the rest of `js/scene3d.js`,

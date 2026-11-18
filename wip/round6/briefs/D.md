@@ -124,6 +124,20 @@ kitchen files, `js/runner.js`.
   composite strips are fine); then each dish at 2× zoom; me seated; the octopus seated; a bite frame; auras (me in the attic
   and the yard, the octopus in the attic).
 
+## Added 11-18 after the plan-vs-build check — the loft stair tap (yours)
+
+Audit J3 (must, `wip/round6/audit-11-18.md`): in the attic, a tap on the stair to the loft mostly walks my character to the
+yard doorway instead, so the loft (sewing machine, salon, set book) is hard to find. The yard door's hit test runs first and
+the stair's screen box is large (`js/scene3d.js`: the tap handler at `if (SPOTS.atticYard && spotInfo('atticYard'))` and
+`spotAt(cx, cy, ['atticYard', 'atticStair'])`, and the `atticStair` / `atticYard` spot boxes in the spot layout). Make a tap
+that lands on the stair's own geometry (treads, side boards, railing) or on its button go to the stair; the yard door wins
+only where the doorway's dark opening is what the player sees at that point (narrow its box to the opening). The octopus in
+front still wins first, as now. Measure at 360x740@2 and 412x915@2.625, default view and turned 90° and 180°, day and night:
+a grid of taps over the stair goes to the stair ≥ 95 %, over the doorway to the yard ≥ 95 %. Put the grid check in the smoke's
+`scenarioLoft` (yours for this; nobody else edits it). A small step marker on the first tread is optional — only if your
+shots show the stair still does not read as something to tap. The mirror's refusal words are lane R's (F3), not yours.
+Report the before / after hit rates.
+
 ## Do not touch
 
 `walkPortrait` (R), `js/app.js`, the attic furniture mode, `FURN`, the kitchen, `js/scene2d.js`, the T7 numbers (task 1's
