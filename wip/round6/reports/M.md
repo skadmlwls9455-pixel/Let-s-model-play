@@ -128,6 +128,8 @@ The independent check found no `must` and 5 `should`; all 5 are fixed (see "Inde
 5. **Dev answers are tab-only.** `APP.mealNext('eat'|'watch'|'stop'|'none')` works only in a `?dev=1` tab. There are no panel chips. A 'stop' answer leaves without eating and draws no row.
 6. **Chip art.** 16×16: a body-colour head, ink outline and eyes, a light highlight, four leg nubs, and two amber '( )' arcs at the top corners. The chip sits centred 48 px above `tableSpot.call`, clamped 8 px inside the scene and below the status bar.
 7. **The seat dot is tappable itself.** Unlike `.sofa-dot`, it gets `pointer-events: auto`, so it works whether or not D forwards seat taps.
+   *Lead, after the merge (verification dining-1):* withdrawn — the dot's 44 px box took taps meant for the counter (turned 270°) and the arcade
+   (180°). `#btn-seat` now takes no pointer events, like `.sofa-dot`; D's first-visible-surface pick sends taps on my sofa and the table to 'table'.
 8. **Merge unions this tab's own records.** `MEAL.merge` unions all of this tab's meal records when the octopus is the same (records are never deleted). `mine` is used only for the table rule.
 
 ## Player-facing lines and aria names (before → after)
