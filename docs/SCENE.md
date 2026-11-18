@@ -266,6 +266,8 @@ three.js r128 UMD(`vendor/three.min.js`, 없으면 cdnjs `onerror` 폴백) 로 �
   - 그림자: 장소 상자가 아니라 **화면에 보이는 땅** 을 따라간다 (`fitShadowView` — 화면 폭 × 화면 높이 / sin 틸트, 둘레 1.2 m · 빛 공간에서 텍셀 눈금에 맞춤 · 해 쪽으로 12 m 더). 360×740 에서 30 × 12 m.
   - 집 문을 울타리 밖에서 톡하면 울타리 문 (3.7, 3.7) 을 거쳐 예전 길로 들어온다 (`playerWalkTo`). `APP.scene.wide()` → `{ on, T, S_OUT, S1, gate, trees, shadow }`.
   - 아직 안 한 것: 길 끝 너머 (마을 · 해변) · 비 · 눈 · 낙엽 입자가 화면을 따라오기 (지금은 마당 둘레에만) · 2D 폴백 · 빈터의 꾸밈 (덤불 · 꽃 · 돌) · 스모크. 시험: `tools/test-light.js` L8.
+- **`debugSim(dt, n)` (시험용)**: n 프레임을 그리지 않고 민다 (걷기 · 따라오는 화면 · 단추 자리는 다 돌고 렌더 패스만 건너뛴다 — 화면 밖일 때와 같은 길 · dt ≥ 0.04 s). 그린 화면이 필요하면 뒤에 `debugStep` 한 번.
+  소프트웨어 렌더 (시험 · CI) 에서 `debugStep` 을 한 번의 호출 안에서 수백 번 이어 부르면 그릴 것이 밀려 바로 뒤의 캡처가 제한 시간을 넘긴다 (11-18: CI 에서 L8 이 그렇게 멈췄다 — 한 코어로 묶어 돌리면 로컬에서도 재현).
 
 ## 데모 패널 (`<details id=demo>` 안, localStorage `ppolppol_look`)
 픽셀 1–4 · 디더 0–1(배율: 0.25 = 램프 0.4 칸 / 평지 0.05 칸, 룩 패스 5) · 외곽선 on/off · 시점 −25°~25° · **키 광 0.5–4 · 필 광 0–1**(낮 태양·헤미 세기, 키/필 비율 표시) · 팔레트 칩 4갈래(`settings.palette`, 설정 시트의 개발 모드 줄과 같은 칩) · 팔레트 스와치 줄(검증 팔레트는 8칸씩 + 문어 램프). 2D 모드에서는 "적용 안 돼" 안내만. `setLook` 은 추가로 `zoom`(0..3 단계)·`focus`(`'oct'` = 문어 중심) 를 받는다 — `tools/look-shots.js` 의 close 샷용(4번째 인자 yaw 로 요 9° 비교 샷 `<pass>-y9-*`). 테스트 훅 `window.__ppolLook = { hour, lantern, weather, octState, anchor, palette, key, fill }` 는 있을 때만 APP 이 읽는다(`palette`·`key`·`fill` 은 저장하지 않고 장면에만).
