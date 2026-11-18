@@ -3104,10 +3104,21 @@ async function scenarioSalon(browser) {
   var o0 = await st(pa);
   await pa.evaluate(function () { if (!APP.state.user) APP.state.user = {}; APP.state.user.shells = 6; document.getElementById('btn-sew').click(); });   /* 조개 6 = 옷감 한 번 값 (메모리만) */
   await pa.waitForSelector('#sew-sheet[open]', { timeout: 5000 }); await pa.waitForTimeout(200);
-  await pa.evaluate(function () { var c = [].filter.call(document.querySelectorAll('#sew-sheet .sew-chip'), function (x) { return /파랑/.test(x.textContent); })[0]; if (c) c.click(); });
+  /* 11-18 (주인: 확인하고 사고 · 물들일 것은 나중에 고른다): 파랑 칸 → '살까?' → 살래 (염료 +1 · 옷은 그대로) → 파랑 칸 → '물들일까?' → 물들일래 */
+  var blueChip = function () { var c = [].filter.call(document.querySelectorAll('#sew-sheet .sew-chip'), function (x) { return /파랑/.test(x.textContent); })[0]; if (c) c.click(); return { ask: !!document.querySelector('#sew-sheet .sew-ask'), yes: (document.querySelector('#sew-sheet .sew-yes') || {}).textContent || '', shells: APP.state.user.shells, dyes: APP.state.user.dyes.blue | 0, clothes: APP.scene.playerDye ? APP.scene.playerDye() : null }; };
+  var sewYes = function () { var b = document.querySelector('#sew-sheet .sew-yes'); if (b) b.click(); return { ask: !!document.querySelector('#sew-sheet .sew-ask'), shells: APP.state.user.shells, dyes: APP.state.user.dyes.blue | 0, clothes: APP.scene.playerDye ? APP.scene.playerDye() : null, dyed: JSON.stringify(APP.state.user.dyed) }; };
+  var b1 = await pa.evaluate(blueChip), y0 = await pa.evaluate(sewYes);   /* 확인 줄이 뜨자마자 누른 '살래' (빠른 두 번 톡의 둘째) */
+  await pa.waitForTimeout(700); var y1 = await pa.evaluate(sewYes); await pa.waitForTimeout(150);
+  var b2 = await pa.evaluate(blueChip); await pa.waitForTimeout(700); var y2 = await pa.evaluate(sewYes);
   await pa.waitForTimeout(300);
   var o1 = await st(pa);
-  await pa.evaluate(function () { var c = [].filter.call(document.querySelectorAll('#sew-sheet button'), function (x) { return /원래 색으로/.test(x.textContent); })[0]; if (c) c.click(); document.getElementById('sew-sheet').close(); });   /* 옷은 원래 색으로 (공짜) */
+  ok(y0.ask && y0.shells === 6 && y0.dyes === 0 && !y0.clothes, "11-18 (검증) 재봉틀: 확인 줄이 뜬 직후 (0.6 s 안) 의 '살래' 는 받지 않는다 — 색 칸을 빠르게 두 번 톡해도 조개가 나가지 않는다 (" + JSON.stringify(y0) + ')');
+  ok(b1.ask && b1.yes === '살래' && b1.shells === 6 && b1.dyes === 0 && !b1.clothes && y1.shells === 0 && y1.dyes === 1 && !y1.clothes,
+    "11-18 재봉틀: 염료가 없는 색 칸을 눌러도 조개는 그대로 — '살래' 를 눌러야 조개 6 → 염료 1 (옷은 아직 그대로) (" + JSON.stringify([b1, y1]) + ')');
+  ok(b2.ask && b2.yes === '물들일래' && b2.dyes === 1 && !b2.clothes && y2.dyes === 0 && y2.clothes === BLUE && /"outfit":\{"dress":"#4a86d8"\}/.test(y2.dyed),
+    "11-18 재봉틀: 염료가 있는 색 칸 → '물들일래' 를 눌러야 고른 옷 (지금 입은 원피스) 이 파랑 · 염료 1 → 0 (" + JSON.stringify([b2, y2]) + ')');
+  await pa.evaluate(function () { var c = [].filter.call(document.querySelectorAll('#sew-sheet button'), function (x) { return /원래 색으로/.test(x.textContent); })[0]; if (c) c.click(); }); await pa.waitForTimeout(700);
+  await pa.evaluate(function () { var y = document.querySelector('#sew-sheet .sew-yes'); if (y) y.click(); document.getElementById('sew-sheet').close(); });   /* 옷은 원래 색으로 (공짜 · 11-18: '돌릴래' 확인 한 번) */
   await pa.waitForTimeout(200);
   var o2 = await st(pa);
   ok(inLoft, '위층에선 재봉틀 단추와 거울 단추가 같이 보인다');
@@ -4042,10 +4053,10 @@ async function scenarioWave8(browser) {
     ok(!st0.hidden && st0.allowed && st0.w >= 44 && st0.h >= 44 && st0.inside && !st0.ctl && !st0.door && !st0.edge && st0.left >= 8 && st0.bottom >= 8 && (st0.icon || st0.noImg), '다락: 스틱이 왼쪽 아래에 보인다 (' + st0.w + '×' + st0.h + ' · 장면 안 · 오른쪽 위 묶음 · 문 단추와 안 겹침 · 집 단추는 숨음 · 발자국 그림)');
     await page.evaluate(function () { window.__ev.length = 0; if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
     var at0 = await page.evaluate(function () { return APP.scene.player().at; });
-    var dg = await dragStick(-30, 0, 350);   /* 왼쪽(문 반대쪽)으로 — 오른쪽으로 끌면 캐릭터가 문 앞에 서서 아래 문 톡의 pick 을 가린다 */
+    var dg = await dragStick(0, -30, 350);   /* 위쪽(문 · 계단 반대쪽 — 뒷벽 왼쪽 구석)으로 — 오른쪽으로 끌면 캐릭터가 문 앞에 서서 아래 문 톡의 pick 을 가리고, 왼쪽은 11-18 부터 계단 발치로 이어져 위층으로 올라간다 */
     var moved = dist2(at0, dg.end.pl.at);
     console.log('   drag:', JSON.stringify({ at0: at0, mid: { input: dg.mid.input, walking: dg.mid.pl.walking, knob: dg.mid.knob }, end: { at: dg.end.pl.at, input: dg.end.input, walking: dg.end.pl.walking }, moved: Math.round(moved * 1000) / 1000 }));
-    ok(dg.mid.on && dg.mid.pointer && dg.mid.input && dg.mid.input.x < -0.9 && Math.abs(dg.mid.input.y) < 0.05 && dg.mid.knob !== 'none' && dg.mid.view === 'attic', '스틱을 왼쪽으로 끌면: .on · 손가락 잡음 · 장면에 { x: -1, y: 0 } · 손잡이가 움직인다 ' + JSON.stringify(dg.mid.input));
+    ok(dg.mid.on && dg.mid.pointer && dg.mid.input && dg.mid.input.y > 0.9 && Math.abs(dg.mid.input.x) < 0.05 && dg.mid.knob !== 'none' && dg.mid.view === 'attic', '스틱을 위쪽으로 끌면: .on · 손가락 잡음 · 장면에 { x: 0, y: 1 } · 손잡이가 움직인다 ' + JSON.stringify(dg.mid.input));
     ok(moved > 0.05 && !dg.end.on && !dg.end.pointer && dg.end.input === null && dg.end.view === 'attic' && !dg.end.doorEv, '끄는 동안 내 캐릭터가 걸었다 (' + Math.round(moved * 100) / 100 + ' m) · 놓으면 null · .on 해제 · 장면 톡(문 · 밀기)은 안 났다');
     await page.locator('#scene').screenshot({ path: path.join(SHOTS, 'w8-stick.png') });
     await page.keyboard.down('ArrowUp'); await page.waitForTimeout(120);
@@ -6228,7 +6239,7 @@ async function scenarioLoft(browser) {
         시트를 연 채 45 s 도 그대로 (예전엔 시트 밑으로 걸어 들어갔다). 내려오면 다시 돌아다닌다 */
   if (ZP.indexOf('1') >= 0) for (var D of [0.6, 0.15]) {
     A = await open({ w: 320, h: 568 }); pg = A.page;
-    await pg.evaluate(function () { APP.scene.debugPlayerAt(2.3, -2.05); });   /* 계단 앞: 단추를 누르면 바로 오른다 */
+    await pg.evaluate(function () { var a = APP.scene.doorAnchors.atticStair; APP.scene.debugPlayerAt(a[0], a[2]); });   /* 계단 발치 (11-18: 왼벽 앞쪽 구석 — 이 화면에선 왼쪽 밖이라 단추는 가장자리의 계단 그림 단추): 누르면 바로 오른다 */
     var w0 = await tick(pg, 60, function () { return APP.oct.state === 'walk'; });   /* 앱이 스스로 돌아다니기 시작 (걸음 첫 프레임까지 0.1 s 씩) */
     var tg = await pg.evaluate(function () { return APP.scene.anchors[APP.oct.anchor]; });
     await tick(pg, 10, new Function('var a = APP.scene.motion().gait.at, t = ' + JSON.stringify(tg) + '; return Math.hypot(a[0] - t[0], a[2] - t[2]) < ' + D + ';'));
@@ -7388,6 +7399,16 @@ async function scenarioSceneTap(browser) {
   await page.waitForFunction(function () { return !document.getElementById('sew-sheet').open && !APP.goResting; }, null, { timeout: 5000 });
   ok(sc0.shells < 6 && sc1.show && sc1.pic && sc1.vis === (6 - sc0.shells) + ' 모자라' && sc1.sr === '조개가 ' + (6 - sc0.shells) + '개 모자라. 다락방 달리기나 들어온 날 선물로 생겨' && sc1.shake && !sc1.vib && sc1.same,
     '조개가 모자란 색 칸: 알림은 조개 그림 + «' + sc1.vis + '» 한 줄 (읽어 주기 «' + sc1.sr + '») · 값 표가 흔들림 ' + sc1.shake + ' · 진동 ' + sc1.vib + ' · 조개 ' + sc0.shells + ' · 옷 색 그대로 ' + sc1.same);
+  /* 11-18: 위층 마네킹 (흰 원피스) — 진짜 손가락으로 톡 하면 재봉틀과 같은 창. 단추 칸이 뜬다는 것은 장면의 단추 목록 (SPOT_KEYS) · 앱의 단추 표 (ROOM_SPOT) 에 마네킹이 들어 있다는 뜻 (둘 다 그 표의 줄 밖에서 덧붙인다) */
+  var dl = await page.evaluate(function () { var e = document.getElementById('btn-sew-doll'), q = e.getBoundingClientRect(), k = APP.scene.pickAt(q.x + q.width / 2, q.y + q.height / 2); return { hidden: e.hidden, x: q.x, y: q.y, w: q.width, h: q.height, pick: k && k.id, title: e.getAttribute('title'), name: e.getAttribute('aria-label') || '' }; });
+  await page.touchscreen.tap(dl.x + dl.w / 2, dl.y + dl.h / 2);
+  var dlOpen = await page.waitForSelector('#sew-sheet[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; });
+  await page.waitForTimeout(900);
+  var dlStay = await page.evaluate(function () { return document.getElementById('sew-sheet').open; });
+  await page.evaluate(function () { document.getElementById('sew-close').click(); });
+  await page.waitForFunction(function () { return !document.getElementById('sew-sheet').open && !APP.goResting; }, null, { timeout: 5000 });
+  ok(!dl.hidden && dl.w >= 44 && dl.h >= 44 && (dl.pick === 'sewDoll' || dl.pick === 'sew') && dl.title === null && /마네킹/.test(dl.name) && dlOpen && dlStay,
+    '위층 마네킹을 진짜 손가락으로 톡 하면 재봉틀 창이 열린 채 남는다 (단추 칸 ' + Math.round(dl.w) + '×' + Math.round(dl.h) + ' · 장면 톡 = ' + dl.pick + ' · 이름 «' + dl.name + '» · title ' + dl.title + ')');
   await page.waitForTimeout(700);
   /* 2. 관성 중 톡: 느린 기계에선 CDP 손가락 사이가 길어 관성이 안 생긴다 → 페이지 안에서 8 ms 간격 합성 PointerEvent 로 밀어 놓고 그 사이 재봉틀 칸을 톡 */
   await page.evaluate(function () { APP.scene.zoomTo(9999); }); await page.waitForTimeout(600);
@@ -7753,9 +7774,9 @@ async function scenarioTurn(browser) {
       });
       ok(ps.after === ps.mid, '놀이방: 스틱을 놓아도 내 캐릭터는 걷던 쪽 그대로 (' + ps.mid + '° → ' + ps.after + '°, 카메라 쪽으로 돌지 않음)');
     }
-    if (room === 'attic') {   /* 90°: 계단이 잘려 아래 두 칸만 — 위층 단추도 그 두 칸 위만 (방 가운데 톡이 위층으로 가지 않게) */
-      var sr = await page.evaluate(function () { var a = APP.scene.spotRect('atticStair'); APP.scene.setYaw(90, true); var b = APP.scene.spotRect('atticStair'); var cut = APP.scene.yawInfo().cut.stair; var mid = APP.scene.screenOf(0.5, 0.3, 0.5), r = document.getElementById('scene').getBoundingClientRect(), k = APP.scene.pickAt(r.left + mid.x, r.top + mid.y); return { a: a && a.h, b: b && b.h, cut: cut, mid: k && k.id }; });
-      ok(sr.cut && sr.b && sr.a && sr.b < sr.a * 0.6 && sr.mid !== 'atticStair', '다락 90°: 계단이 잘리면 위층 단추도 낮은 두 칸만 (높이 ' + sr.a + ' → ' + sr.b + ') · 방 가운데 톡은 계단이 아니다 (' + sr.mid + ')');
+    if (room === 'attic') {   /* 270° (11-18: 계단이 왼벽 앞쪽 구석으로 옮겨 가며 90° → 270°): 계단이 잘려 아래 두 칸만 — 위층 단추도 그 두 칸 위만 (방 가운데 톡이 위층으로 가지 않게) */
+      var sr = await page.evaluate(function () { APP.scene.setYaw(90, true); var a = APP.scene.spotRect('atticStair'); APP.scene.setYaw(270, true); var b = APP.scene.spotRect('atticStair'); var cut = APP.scene.yawInfo().cut.stair; var mid = APP.scene.screenOf(0.5, 0.3, 0.5), r = document.getElementById('scene').getBoundingClientRect(), k = APP.scene.pickAt(r.left + mid.x, r.top + mid.y); return { a: a && a.h, b: b && b.h, cut: cut, mid: k && k.id }; });
+      ok(sr.cut && sr.b && sr.a && sr.b < sr.a * 0.6 && sr.mid !== 'atticStair', '다락 270°: 계단이 잘리면 위층 단추도 낮은 두 칸만 (높이 ' + sr.a + ' → ' + sr.b + ') · 방 가운데 톡은 계단이 아니다 (' + sr.mid + ')');
       await page.evaluate(function () { APP.scene.setYaw(180, true); });
     }
     if (room === 'play') for (var ang of [90, 180]) {
