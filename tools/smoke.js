@@ -6402,7 +6402,7 @@ async function scenarioLoft(browser) {
         문어는 다락 담요에 · 깨우지 않는다 · 거울은 '아래층' 한 줄 (물음 · 행 · 미용실 소리 0) · 틈은 보는 다락에서만 준다 (주인 11-08 — 위층에선 그대로). 틈이 끝나 깨어 있으면 예전처럼 따라 온다.
         11-13 주인 (OW-3 b): 이미 위층에 따라 와 있던 채 차례가 끝나면 내가 내려갈 때까지 위층 그 자리 (깨어 있는 틈) — 내려가면 (계단 · 새로고침) 다락 담요. 위층에서 자는 문어는 없다 */
   if (ZP.indexOf('5') >= 0) {
-  var AW = 60000, DOWN = '지금은 아래층에 있어.', DOWN_Z = '지금은 아래층에서 자고 있어.';   /* 깨어 있는 틈 60 s (테스트 훅) · 등불 4칸 (담요 자리가 있다) */
+  var AW = 60000, DOWN = '깨어 있을 때 같이 올라오면 물어볼 수 있어.', DOWN_Z = '지금은 아래층에서 자고 있어.';   /* 깨어 있는 틈 60 s (테스트 훅) · 등불 4칸 (담요 자리가 있다) */
   function R5(pg) { return pg.evaluate(function () { var t = document.getElementById('toast'); return { room: APP.room, up: APP.scene.octUp(), st: APP.oct.state, an: APP.oct.anchor, phase: APP.restPhase(), rest: APP.rest, saved: APP.state.octopus.state,
     running: APP.state.trips.some(function (x) { return x.status === 'running'; }), rows: document.querySelectorAll('#log .lrow').length, snd: window.__snd.filter(function (k) { return k === 'salon'; }).length, toast: t.classList.contains('show') ? t.textContent : '' }; }); }
   function J5(r) { return JSON.stringify({ room: r.room, up: r.up, st: r.st, an: r.an, phase: r.phase, left: r.rest && r.rest.left, saved: r.saved }); }
