@@ -181,81 +181,89 @@ var RUNNER = (function () {
   };
   var SEASON = { spring: ['#df84a5', '#c65197'], summer: ['#a8ca58', '#75a743'], autumn: ['#da863e', '#cf573c'], winter: ['#ebede9', '#c7cfcc'] };
 
-  /* ── 문어 스프라이트: 초상 캡처 → 최근접 축소 24×24, 없으면 코드로 그린 문어 ── */
-  var EXPR = { run: 'curious', jump: 'happy', hit: 'calm', idle: 'idle' };   /* 11-14: 준비 그림은 idle 초상 — 예전 'pet' (웃는 눈 · 홍조). 'pet' 은 이제 쓰다듬는 동안의 눌린 idle 얼굴이라 (주인 O2 c) 빌려 쓰지 않는다 */
+  /* ── 문어 스프라이트 (11-18 6차, 주인 "원본 참고해서 다시 그려"): 다락 3D 문어를 그대로 굽는다 (walkPortrait · 다락 1× 밀도 27 px/m).
+     예전엔 64×64 머리 초상을 정수 아닌 비율로 줄이고(24×24) ±7° 돌리고(26×26) 늘여 그려서(30×16 · 28×22 · 24×28) 줄이 겹치거나 빠졌다.
+     이제 상태마다 따로 찍은 그림을 제 크기 그대로 정수 자리에만 놓는다 (줄이기 · 돌리기 · 늘이기 없음). 얼굴은 모든 칸 idle (리드 선택 —
+     예전 curious · happy · calm 은 코드가 기분을 칠한 것). 3D 장면이 없거나 굽기가 실패하면 코드로 그린 문어 (상태별 모양을 수치로, 역시 제 크기) */
   var OUTLINE = [36, 21, 39];   /* #241527 */
+  var BAKE = { yaw: 30, tilt: 15, hw: 2.82, ty: 0.4,   /* ty 0.4 = 64×64 안에 발 · 머리가 여유 있게 (재 보니 위아래 14 px 넘게 빈다) */
+    states: { run: [{ ph: 0 }, { ph: 0.5 }, { ph: 1.0 }, { ph: 1.5 }], jump: [{ still: true, sq: [0.92, 1.10] }], land: [{ still: true, sq: [1.10, 0.88] }],
+      duck: [{ still: true, sq: [1.20, 0.62] }], hit: [{ still: true }], idle: [{ still: true }] } };
+  var SPR_CACHE = {};   /* 몸색 | 팔레트 → 구운 그림 (열 때마다 다시 굽지 않는다) */
   function hexRGB(h) { var n = parseInt(String(h || '').replace('#', ''), 16); if (!/^#?[0-9a-f]{6}$/i.test(String(h))) n = 0xe8463c; return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
   function mix(c, k) { return c.map(function (v) { return Math.max(0, Math.min(255, Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k))); }); }
-  function blank() { return { w: 24, h: 24, d: new Uint8ClampedArray(24 * 24 * 4) }; }
-  function put(img, x, y, c) { if (x < 0 || y < 0 || x >= img.w || y >= img.h) return; var i = (y * img.w + x) * 4; img.d[i] = c[0]; img.d[i + 1] = c[1]; img.d[i + 2] = c[2]; img.d[i + 3] = 255; }
-  function alphaAt(img, x, y) { return (x < 0 || y < 0 || x >= img.w || y >= img.h) ? 0 : img.d[(y * img.w + x) * 4 + 3]; }
-  function outline(img) {
-    var out = { w: img.w, h: img.h, d: new Uint8ClampedArray(img.d) };
-    for (var y = 0; y < img.h; y++) for (var x = 0; x < img.w; x++) {
-      if (alphaAt(img, x, y)) continue;
-      if (alphaAt(img, x - 1, y) || alphaAt(img, x + 1, y) || alphaAt(img, x, y - 1) || alphaAt(img, x, y + 1)) put(out, x, y, OUTLINE);
-    }
-    return out;
-  }
-  function fromPortraits(raws) {
-    var bx0 = 999, by0 = 999, bx1 = -1, by1 = -1, k, T = 128;
-    for (k in raws) { var r = raws[k]; for (var y = 0; y < r.height; y++) for (var x = 0; x < r.width; x++) if (r.data[(y * r.width + x) * 4 + 3] >= T) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; } }
-    if (bx1 < 0) return null;
-    var bw = bx1 - bx0 + 1, bh = by1 - by0 + 1, s = Math.max(bw / 22, bh / 23), dw = Math.max(1, Math.round(bw / s)), dh = Math.max(1, Math.round(bh / s));
-    var ox = (24 - dw) >> 1, oy = 23 - dh, out = {};
-    for (k in raws) {
-      var src = raws[k], img = blank();
-      for (var j = 0; j < dh; j++) for (var i = 0; i < dw; i++) {
-        var sx = bx0 + Math.min(bw - 1, Math.floor((i + 0.5) * s)), sy = by0 + Math.min(bh - 1, Math.floor((j + 0.5) * s)), p = (sy * src.width + sx) * 4;
-        if (src.data[p + 3] >= T) put(img, ox + i, oy + j, [src.data[p], src.data[p + 1], src.data[p + 2]]);
+  /* 그림 묶음 (ImageData 들) → 한 상태의 공통 알파 상자로 잘라 캔버스로. 발은 맨 아래 줄 · 알파는 0 / 255 만 */
+  function cropState(datas) {
+    var W = datas[0].width, H = datas[0].height, l = W, t = H, r = -1, b = -1;
+    datas.forEach(function (d) { for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) if (d.data[(y * W + x) * 4 + 3] >= 128) { if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > b) b = y; } });
+    if (r < 0) return null;
+    var w = r - l + 1, h = b - t + 1;
+    return datas.map(function (d) {
+      var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      var cx = cv.getContext('2d'), id = cx.createImageData(w, h), gw0 = w, gw1 = -1;
+      for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+        var p = ((y + t) * W + x + l) * 4, q = (y * w + x) * 4;
+        if (d.data[p + 3] < 128) continue;
+        id.data[q] = d.data[p]; id.data[q + 1] = d.data[p + 1]; id.data[q + 2] = d.data[p + 2]; id.data[q + 3] = 255;
+        if (y >= h - 3) { if (x < gw0) gw0 = x; if (x > gw1) gw1 = x; }
       }
-      out[k] = outline(img);
-    }
+      cx.putImageData(id, 0, 0);
+      cv.gw = gw1 < 0 ? 0 : gw1 - gw0 + 1;   /* 땅 가까운 폭 (아래 3 줄 — 그림자 폭) */
+      return cv;
+    });
+  }
+  function bakeSprites(sc) {
+    var key = String(sc.color ? sc.color() : '') + '|' + String(sc.paletteName ? sc.paletteName() : '');
+    if (SPR_CACHE[key]) return SPR_CACHE[key];
+    var out = { src: 'bake' };
+    Object.keys(BAKE.states).forEach(function (k) {
+      var datas = BAKE.states[k].map(function (f) {
+        var cv = sc.walkPortrait(f.ph || 0, { yaw: BAKE.yaw, tilt: BAKE.tilt, hw: BAKE.hw, ty: BAKE.ty, still: !!f.still, sq: f.sq, bg: 'transparent' });
+        return cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
+      });
+      var fr = cropState(datas);
+      if (!fr) throw new Error('empty bake');
+      fr.forEach(function (c) { c.octKey = k; });   /* 시험용 표시 (스모크가 그리기 호출에서 문어 그림을 알아본다) */
+      out[k] = fr;
+    });
+    out.gw = out.idle[0].gw;
+    SPR_CACHE[key] = out;
     return out;
   }
-  function drawnOctopus(expr, hex) {
-    var img = blank(), base = hexRGB(hex), sh = mix(base, -0.28), hi = mix(base, 0.35), ink = [23, 32, 56], cheek = mix(base, 0.55);
-    for (var y = 2; y <= 16; y++) for (var x = 3; x <= 20; x++) {
-      var dx = (x + 0.5 - 12) / 8.6, dy = (y + 0.5 - 10) / 7.6;
-      if (dx * dx + dy * dy <= 1) put(img, x, y, (dy > 0.45 || dx > 0.6) ? sh : base);
+  /* 코드로 그린 문어 (굽기를 못 할 때): 머리 타원 + 뭉툭한 다리 6, 상태별로 너비 sx · 높이 sy · 다리 위상 lp 만 바꿔 처음부터 그린다 (줄이기 · 돌리기 없음) */
+  function drawnOctopus(hex, o) {
+    var W = 44, H = 34, d = { width: W, height: H, data: new Uint8ClampedArray(W * H * 4) };
+    function put(x, y, c) { if (x < 0 || y < 0 || x >= W || y >= H) return; var i = (y * W + x) * 4; d.data[i] = c[0]; d.data[i + 1] = c[1]; d.data[i + 2] = c[2]; d.data[i + 3] = 255; }
+    var base = hexRGB(hex), sh = mix(base, -0.28), hi = mix(base, 0.35), ink = [23, 32, 56];
+    var sx = o.sx || 1, sy = o.sy || 1, rx = 8.6 * sx, ry = 7.6 * sy, legH = Math.max(2, Math.round(6 * sy)), foot = H - 2, cy = foot - legH - ry + 2, cx = W / 2;
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      var ex = (x + 0.5 - cx) / rx, ey = (y + 0.5 - cy) / ry;
+      if (ex * ex + ey * ey <= 1) put(x, y, (ey > 0.45 || ex > 0.6) ? sh : base);
     }
-    [3, 6, 9, 13, 16, 19].forEach(function (ax, n) {   /* 뭉툭한 팔 6개 (끝이 바깥으로 살짝 말림) */
-      for (var y = 15; y <= 20; y++) { put(img, ax, y, y > 18 ? sh : base); put(img, ax + 1, y, sh); }
-      put(img, n < 3 ? ax - 1 : ax + 2, 21, sh);
+    [-9, -6, -3, 1, 4, 7].forEach(function (off, n) {   /* 다리 6 — lp 로 번갈아 한 칸 들린다 */
+      var ax = Math.round(cx + off * sx), lift = (o.lp != null && (n & 1) === (o.lp & 1)) ? 1 : 0;
+      for (var y = foot - legH; y <= foot - lift; y++) { put(ax, y, y > foot - 2 ? sh : base); put(ax + 1, y, sh); }
     });
-    put(img, 7, 5, hi); put(img, 8, 5, hi); put(img, 7, 6, hi);
-    var ey = 10;
-    if (expr === 'happy') { put(img, 8, ey, ink); put(img, 9, ey - 1, ink); put(img, 10, ey, ink); put(img, 14, ey, ink); put(img, 15, ey - 1, ink); put(img, 16, ey, ink); }
-    else if (expr === 'calm' || expr === 'pet') { [8, 9, 10, 14, 15, 16].forEach(function (x) { put(img, x, ey, ink); }); }
-    else { put(img, 9, ey, ink); put(img, 9, ey + 1, ink); put(img, 15, ey, ink); put(img, 15, ey + 1, ink); }
-    put(img, 7, 12, cheek); put(img, 17, 12, cheek);
-    return outline(img);
-  }
-  function toCanvas(img, deg) {   /* 최근접 회전 → 26×26 캔버스 (각도 0 은 그대로) */
-    var cv = document.createElement('canvas'); cv.width = cv.height = 26;
-    var cx = cv.getContext('2d'), id = cx.createImageData(26, 26), a = -deg * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
-    for (var y = 0; y < 26; y++) for (var x = 0; x < 26; x++) {
-      var rx = x + 0.5 - 13, ry = y + 0.5 - 13, sx = Math.floor(rx * ca - ry * sa + 12), sy = Math.floor(rx * sa + ry * ca + 12);
-      if (sx < 0 || sy < 0 || sx >= 24 || sy >= 24) continue;
-      var p = (sy * 24 + sx) * 4, q = (y * 26 + x) * 4;
-      if (img.d[p + 3]) { id.data[q] = img.d[p]; id.data[q + 1] = img.d[p + 1]; id.data[q + 2] = img.d[p + 2]; id.data[q + 3] = 255; }
+    put(Math.round(cx - 4 * sx), Math.round(cy - 4 * sy), hi); put(Math.round(cx - 3 * sx), Math.round(cy - 4 * sy), hi);
+    var eyY = Math.round(cy), eL = Math.round(cx - 3 * sx), eR = Math.round(cx + 3 * sx);
+    put(eL, eyY, ink); put(eR, eyY, ink); if (sy >= 0.8) { put(eL, eyY + 1, ink); put(eR, eyY + 1, ink); }   /* idle 눈 (점 · 납작할 땐 한 칸) */
+    var src = new Uint8ClampedArray(d.data);   /* 외곽선 1 px (#241527) */
+    for (var y2 = 0; y2 < H; y2++) for (var x2 = 0; x2 < W; x2++) {
+      if (src[(y2 * W + x2) * 4 + 3]) continue;
+      var nb = [[x2 - 1, y2], [x2 + 1, y2], [x2, y2 - 1], [x2, y2 + 1]].some(function (q) { return q[0] >= 0 && q[1] >= 0 && q[0] < W && q[1] < H && src[(q[1] * W + q[0]) * 4 + 3]; });
+      if (nb) put(x2, y2, OUTLINE);
     }
-    cx.putImageData(id, 0, 0);
-    return cv;
+    return d;
   }
+  var DRAWN = { run: [{ lp: 0 }, { lp: 1, sy: 1.04 }, { lp: 1 }, { lp: 0, sy: 1.04 }], jump: [{ sx: 0.92, sy: 1.10 }], land: [{ sx: 1.10, sy: 0.88 }], duck: [{ sx: 1.20, sy: 0.62 }], hit: [{}], idle: [{}] };
   function buildSprites() {
-    var imgs = null, src = 'drawn', sc = null;
+    var sc = null;
     try { sc = window.APP && window.APP.scene; } catch (e) { sc = null; }
-    if (sc && typeof sc.portrait === 'function') {
-      try {
-        var raws = {};
-        Object.keys(EXPR).forEach(function (k) { var cv = sc.portrait(EXPR[k], { bg: 'transparent' }); raws[k] = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height); });
-        imgs = fromPortraits(raws); if (imgs) src = 'portrait';
-      } catch (e) { imgs = null; }
-    }
-    if (!imgs) { var oc = saved().octopus, col = (oc && /^#[0-9a-f]{6}$/i.test(oc.color || '') ? oc.color : null) || settings().octColor || '#e8463c'; imgs = {};   /* 몸 색은 octopus.color 먼저 (settings.octColor 는 그 사본 — docs/SALON.md §1.3) */ Object.keys(EXPR).forEach(function (k) { imgs[k] = drawnOctopus(EXPR[k], col); }); }
-    var out = { src: src };
-    Object.keys(imgs).forEach(function (k) { out[k] = { '-7': toCanvas(imgs[k], -7), '0': toCanvas(imgs[k], 0), '7': toCanvas(imgs[k], 7) }; });
+    if (sc && typeof sc.walkPortrait === 'function') { try { return bakeSprites(sc); } catch (e) { /* 아래 그린 문어로 */ } }
+    var oc = saved().octopus, col = (oc && /^#[0-9a-f]{6}$/i.test(oc.color || '') ? oc.color : null) || settings().octColor || '#e8463c';   /* 몸 색은 octopus.color 먼저 (settings.octColor 는 그 사본 — docs/SALON.md §1.3) */
+    var out = { src: 'drawn' };
+    Object.keys(DRAWN).forEach(function (k) { out[k] = cropState(DRAWN[k].map(function (o) { return drawnOctopus(col, o); })); out[k].forEach(function (c) { c.octKey = k; }); });
+    out.gw = out.idle[0].gw;
     return out;
   }
 
@@ -739,22 +747,22 @@ var RUNNER = (function () {
       R(x, my + 3, 6, 3, O.moss2); R(x + 1, my + 1, 4, 3, O.moss); R(x + 2, my, 1, 1, O.mossHi); R(x + 4, my + 1, 1, 1, O.mossHi); R(x + 1, my + 2, 1, 1, O.mossHi);
     }
   }
-  function drawOct(s, T, ts) {
+  function drawOct(s, T, ts) {   /* 11-18: 상태별 구운 그림을 제 크기 그대로 (drawImage 에 폭 · 높이를 주지 않는다) · 자리는 정수 */
     var S = L.sprites, h = Math.floor(s.y / SUB), st = L.state;
     var duck = s.ground && s.dHeld && st !== 'over';
-    var key = st === 'over' ? 'hit' : st === 'ready' ? 'idle' : !s.ground ? 'jump' : 'run';
-    var tilt = '0', bob = 0;
-    if (st === 'run' && s.ground && !duck) { var f = Math.floor(s.tick / 5) % 4; tilt = ['-7', '0', '7', '0'][f]; bob = f % 2 ? -1 : 0; }
-    if (st === 'ready' || st === 'pause') bob = (L.reduced ? 0 : Math.floor(ts / 500) % 2) ? -1 : 0;
-    var img = S[key][tilt], w = 26, hh = 26;
-    if (duck) { img = S.idle['0']; w = 30; hh = 16; }
-    else if (st === 'run' && s.ground && s.tick - s.landT < 6) { w = 28; hh = 22; }
-    else if (st === 'run' && !s.ground && s.tick - s.jumpT < 5) { w = 24; hh = 28; }
-    /* 그림자 */
-    var sw = Math.max(6, 14 - (h >> 2));
+    var key = 'run', f = 0, bob = 0;
+    if (st === 'over') key = 'hit';
+    else if (st === 'ready' || st === 'pause') { key = 'idle'; bob = (L.reduced ? 0 : Math.floor(ts / 500) % 2) ? -1 : 0; }
+    else if (duck) key = 'duck';
+    else if (!s.ground) key = 'jump';
+    else if (s.tick - s.landT < 6) key = 'land';
+    else { f = Math.floor(s.tick / 5) % 4; if (S.src !== 'bake') bob = f % 2 ? -1 : 0; }   /* 구운 걸음은 걸음 중간 1 px 들림이 그림에 들어 있다 (0 / −1 그대로) */
+    var fr = S[key], img = fr[f % fr.length], w = img.width, hh = img.height;
+    /* 그림자: 땅에 닿는 폭에서, 높이 오를수록 좁게 */
+    var sw = Math.max(6, (S.gw || 14) - (h >> 1));
     R(C.OCT_X + 7 - (sw >> 1), V.G, sw, 1, T.shadow);
-    var dx = C.OCT_X + 7 - (w >> 1), dy = V.G - h - hh + 1 + bob + (hh === 26 ? 1 : 0);
-    ctx.drawImage(img, dx, dy, w, hh);
+    var dx = C.OCT_X + 7 - (w >> 1), dy = V.G - h - hh + 1 + bob;   /* 맨 아래 줄(발) = 바닥선 V.G − 높이 */
+    ctx.drawImage(img, dx | 0, dy | 0);
   }
   /* 꾸밈 입자(계절 꽃잎·눈): 판 시드에서 갈라 낸 따로 된 mulberry32 — 시뮬레이션 난수(s.rng)는 건드리지 않는다. 같은 판은 같은 입자 */
   function particles(s, ck, ts) {
@@ -778,6 +786,8 @@ var RUNNER = (function () {
   API.open = open;
   API.close = function () { if (dlg && dlg.open) dlg.close(); };
   API.load = load;
+  API.pix = function (name) { return PIX[name] ? pixSVG(PIX[name]) : ''; };   /* 11-18: 12×12 픽셀 그림 SVG (다락 첫 손 힌트가 이 손을 빌려 쓴다 — js/app.js hint) */
+  API.sprites = function () { return buildSprites(); };   /* 시험용 (11-18): 지금 장면 색으로 구운 문어 그림 묶음 { src, run[4], jump, land, duck, hit, idle, gw } */
   API.live = function () { return L ? { state: L.state, score: L.sim.score, ticks: L.sim.tick, seed: L.seed, inputs: L.inputs.slice(), night: L.sim.night, sprites: L.sprites.src, phase: L.clock.phase, season: L.clock.season, speed: L.sim.speed, ground: L.sim.ground, y: L.sim.y, moss: L.sim.moss, duck: !!(L.sim.ground && L.sim.dHeld), view: { W: V.W, H: V.H, G: V.G, css: V.css },
     obs: L.sim.obs.map(function (o) { return { k: o.k, x: Math.floor(o.x / SUB), w: o.w, got: o.got }; }) } : null; };   /* 읽기 전용 복사본 (스모크·디버그용) */
   return API;

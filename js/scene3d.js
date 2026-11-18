@@ -2336,7 +2336,7 @@ var SCENE3D = (function () {
       var hex = expr === 'sleep' ? hueHex(base, 12) : base;   /* sleep = 색 순환 한 자락. pet 은 몸색 그대로 (11-14 주인 O2 c — 예전 홍조 끝값) */
       if (hex !== sv.hex) octColor(hex);
       PORT.last = { expr: expr, hex: hex, base: base, arcs: arcs.visible, smile: smile.visible, blush: blush.visible, eyes: pupils[0].visible };   /* 시험용 (11-14 O2 c): 이 초상에 칠한 몸색 · 보인 얼굴 부품 — 밝기 어림 대신 색 그대로 견준다 */
-      octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]);   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = pw ? pw.by : 0; if (pw) bodyG.rotation.set(0, pw.yaw, pw.roll); else bodyG.rotation.set(0, 0, pose[2]);
+      octG.visible = true; if (octG.parent) octG.parent.visible = true; bodyG.scale.set(pose[0], pose[1], pose[0]); if (pw && pw.sq) bodyG.scale.set(pw.sq[0], pw.sq[1], pw.sq[0]);   /* 11-18 pw.sq = 눌림·늘임 (달리기 문어 굽기 — 점프 · 착지 · 엎드림). 되돌리기는 위 sv 그대로 */   /* 문어가 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */ bodyG.position.y = pw ? pw.by : 0; if (pw) bodyG.rotation.set(0, pw.yaw, pw.roll); else bodyG.rotation.set(0, 0, pose[2]);
       var salClean = !!(SAL.active || SAL.lookAt || SAL.offer >= 0);   /* 미용실이 눈·몸을 쥐고 있을 때만 (병을 내밀었거나 연출 중) 초상을 정지 자세로 씻는다 — 그 밖엔 예전 그대로 찍는다 */
       if (!pw) arms.forEach(function (m) { m.rotation.y = -m.userData.a; m.rotation.z = 0.05; if (salClean) m.scale.x = 1; });   /* 걸음 중이어도 초상은 정지 자세 (다리 기본 0.05 · 미용실 기쁨 폴짝 꼭대기의 다리 ×1.3 도 풀고) */
       if (salClean) pupils.forEach(function (p, k) { p.position.x = EYE[k][0]; p.position.y = EYE[k][1] + (FACES[expr].dy || 0); });   /* 눈은 앞을 본다 (미용실 병을 따라가던 동공이 초상에 새지 않게) */
@@ -2383,10 +2383,11 @@ var SCENE3D = (function () {
       if (o.still) sr = 0;
       var roll = o.roll ? ((n & 1) ? -1 : 1) * GAIT.roll * (sr > 0.6 ? 1 : 0) : 0, by = sr > 0.5 ? 2 * hw / PORT.N : 0;   /* 굴림은 앞에서 볼 때 몸짓 — 옆모습에선 고개 끄덕임처럼 보여 기본은 뺀다 */
       var cv;
-      try { cv = renderPortrait('idle', portraitBg(o), portraitColor(o), { yaw: (o.yaw == null ? 90 : +o.yaw) * DEG, roll: roll, by: by, hw: hw, ty: o.ty == null ? 0.62 : +o.ty, tilt: (o.tilt == null ? 10 : +o.tilt) * DEG }); }
+      try { cv = renderPortrait('idle', portraitBg(o), portraitColor(o), { yaw: (o.yaw == null ? 90 : +o.yaw) * DEG, roll: roll, by: by, hw: hw, ty: o.ty == null ? 0.62 : +o.ty, tilt: (o.tilt == null ? 10 : +o.tilt) * DEG, sq: sqOf(o.sq) }); }
       finally { arms.forEach(function (m, i) { m.rotation.y = sv[i][0]; m.rotation.z = sv[i][1]; m.scale.x = sv[i][2]; }); }
       return cv;
     }
+    function sqOf(q) { return (q && q.length === 2 && isFinite(q[0]) && isFinite(q[1]) && q[0] > 0 && q[1] > 0) ? [+q[0], +q[1]] : null; }   /* 11-18 o.sq = [sx, sy] (없거나 이상하면 null → 예전 그대로) */
     function portraitColor(o) { var c = o && o.color; return /^#[0-9a-f]{6}$/i.test(c || '') ? String(c).toLowerCase() : null; }   /* o.color = 그 몸색으로 찍기 (장면 색은 그대로) */
     function portraitKey(expr, o) { return expr + '|' + (portraitColor(o) || String(st.color).toLowerCase()) + '|' + PAL.source + '|' + (portraitBg(o) || 't'); }   /* 몸색이 캐시 키에 든다 */
     function portrait(expr, o) { /* → 64×64 캔버스 (CSS 로 키운다). 기본은 캐시의 복사본(로그 행마다 하나씩 붙일 수 있게), o.shared = 캐시 캔버스 그대로 · o.fresh = 캐시 없이 지금 찍기 (시험용) */
