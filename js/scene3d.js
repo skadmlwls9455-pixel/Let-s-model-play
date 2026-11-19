@@ -500,9 +500,18 @@ var SCENE3D = (function () {
       if (LIFT.y === LIFT.to) return;
       var d = LIFT.to - LIFT.y; LIFT.y = st.reduced || Math.abs(d) < 0.5 / S.N ? LIFT.to : LIFT.y + d * Math.min(1, dt / 0.1); dither.still = 0;
     }
+    /* 11-18 넓은 바깥 (검증): 카메라가 타깃에서 24 m 면 near 평면이 s ≈ 30 에서 땅 · 나무를 자른다 (길 끝에 서면 화면 아래 나무가 속 빈 고리 · 높은 화면과 아래로 민 화면은 허공 띠).
+       넓은 마당이 보이는 동안만 카메라를 시선 축으로 뒤로 빼고 (직교라 구도는 그대로) far 도 늘린다 — 깔아 둔 땅 (G0..G1) 이 어느 각에서나 near 와 far 사이에 든다 (땅을 더 넓히면 이 둘도 같이).
+       후처리는 uFar 로 깊이를 푼다 (외곽선 문턱 · 허공 판정) → 같은 값으로. 다른 방 · 산책 바깥 · 끈 마당은 24 m · 60 그대로 (near 는 늘 0.1 — 음수면 광선 톡이 틀어진다) */
+    var WIDE_CAM = { dist: 44, far: 90 }, CAM_FAR = camera.far;
+    function camDepth(wide) {   /* placeCamera 가 부른다 — 장소가 바뀐 바로 그 프레임에 바뀌고 되돌아온다 */
+      var f = wide ? WIDE_CAM.far : CAM_FAR; if (camera.far === f) return;
+      camera.far = f; camera.updateProjectionMatrix(); post.uniforms.uFar.value = f;
+    }
     function placeCamera() {
-      var tgt = camTargetNow(), ref = tgt;
-      _off.set(0, 0, DIST).applyAxisAngle(_ax, -TILT).applyAxisAngle(_ay, YAW + yawDelta());
+      var tgt = camTargetNow(), ref = tgt, wide = YARD_WIDE && PLACE.vis === 'yard';
+      if (YARD_WIDE) camDepth(wide);
+      _off.set(0, 0, wide ? WIDE_CAM.dist : DIST).applyAxisAngle(_ax, -TILT).applyAxisAngle(_ay, YAW + yawDelta());
       camera.position.copy(tgt).add(_off); camera.lookAt(tgt); camera.updateMatrixWorld();
       _r.setFromMatrixColumn(camera.matrixWorld, 0); _u.setFromMatrixColumn(camera.matrixWorld, 1);
       if (panOn() && (PAN.x || PAN.y)) {   /* 밀기: 카메라를 화면 우/상 축으로 평행이동 (직교라 = 타깃 이동). 스냅 기준도 밀린 타깃 → 1 아트px 계단 */
@@ -535,9 +544,15 @@ var SCENE3D = (function () {
       }
       var x0 = a0 - m + hw, x1 = a1 + m - hw, y0 = c0 - m + hh, y1 = c1 + m - hh;
       var s = PLACE.vis === 'attic' || isRoomP(PLACE.vis) ? 1 : clamp((st.zoomF - 1) / (ZOOM_STEPS[1] - 1), 0, 1);   /* 다락은 1× 에서도 방이 화면보다 넓다 (11-10 넓히기) → 늘 온전한 경계 */   /* 1× = 0 (고무줄만 — 360 폭에서도 기본 구도가 비뚤게 남지 않는다) → 첫 멈춤(1.12×)에서 온전한 경계. 핀치가 1× 로 돌아올 때 한 번에 튀지 않게 비례 */
+      if (wp && _wideKeep.on) {   /* 넓은 바깥: 돌려 보기가 맞춘 값 (wideHoldCentre) 은 띠 경계 밖이어도 품는다 — 안 그러면 손을 떼거나 빈 땅 톡 · 키우기에서 잘려 화면이 덜컥 돌아갔다 (11-18 검증).
+                                     쉴 때 정수 아트px 로 맞춰도 안이게 한 칸까지. 세로 (카메라 높이) 는 띠 경계가 0° · 180° 에서 내주는 데까지만 — 더 가면 길 끝 너머의 땅이 카메라 앞뒤 평면에 잘려 허공이 남는다 */
+        var kx = _wideKeep.x * S.N, ky = _wideKeep.y * S.N, kc = -tgt.dot(_u), ks = Math.sin(TILT) * WIDE.PAN_S1;
+        return [Math.min(x0, x1, 0, Math.floor(kx + 1e-6) / S.N), Math.max(x0, x1, 0, Math.ceil(kx - 1e-6) / S.N),
+          Math.min(y0, y1, 0, Math.max(Math.floor(ky + 1e-6) / S.N, kc + wp[0][1] * _u.y - ks - m + hh)), Math.max(y0, y1, 0, Math.min(Math.ceil(ky - 1e-6) / S.N, kc + wp[4][1] * _u.y + ks + m - hh))];
+      }
       return [Math.min(x0, x1, 0) * s, Math.max(x0, x1, 0) * s, Math.min(y0, y1, 0) * s, Math.max(y0, y1, 0) * s];
     }
-    var _widePts = null;
+    var _widePts = null, _wideKeep = { on: false, x: 0, y: 0 };   /* _wideKeep = 돌려 보기가 마지막으로 맞춘 밀기 값 (m) — 걸으면 화면이 지나온 데까지로 줄어든다 (plFollow) */
     function widePts() {
       if (!_widePts) { _widePts = []; for (var i = 0; i < 8; i++) { var q = wideXZ(i & 1 ? WIDE.PAN_S1 : WIDE.PAN_S0, i & 2 ? WIDE.PAN_T : -WIDE.PAN_T); _widePts.push([q[0], i & 4 ? 3.3 : -0.48, q[1]]); } }
       return _widePts;
@@ -587,6 +602,10 @@ var SCENE3D = (function () {
       var auto = !arrive && typeof PL !== 'undefined' && PL && !PL.stick && PL.walking && PL.camGap > 0 && !GEST.mode;
       if (typeof PL === 'undefined' || !PL || !(PL.stick || arrive || auto) || !(PLACE.vis === 'attic' || isRoomP(PLACE.vis)) || PL.place !== PLACE.vis) return null;
       var b = panBox();
+      if (YARD_WIDE && PLACE.vis === 'yard' && _wideKeep.on) {   /* 넓은 바깥: 따라가기는 예전 띠 경계로 잰다 (걸으면 화면이 띠 안으로 돌아온다). 돌려 보기가 넓혀 둔 몫 (panBox) 은 화면이 지나온 데까지로 줄인다 — 걷다 서도 튀지 않고, 다시 넓어지지 않는다 */
+        _wideKeep.x = clamp(PAN.x, b[0], b[1]); _wideKeep.y = clamp(PAN.y, b[2], b[3]); _wideKeep.on = false; b = panBox();
+        _wideKeep.on = _wideKeep.x < b[0] || _wideKeep.x > b[1] || _wideKeep.y < b[2] || _wideKeep.y > b[3];   /* 띠 경계 안에 다 들어왔으면 끝 */
+      }
       _fw.copy(PL.pos).setY(0.6).sub(camTargetNow());
       var atFoot = arrive && PL.place === 'attic' && PL.pos.x < STAIR.x1 + 0.7 && PL.pos.z > STAIR.z0 - 0.3;   /* 위층에서 막 내려와 계단 발치에 서 있다 → 계단 몸까지 보이게 (1.5 m) */
       var ox = _fw.dot(_r), oy = _fw.dot(_u), hx = Math.max(0, S.rw / 2 / S.N - (auto ? PL.camGap : atFoot ? 1.5 : arrive ? 0.5 : 1.1)), hy = Math.max(0, S.rh / 2 / S.N - 1.4);   /* 도착은 몸이 화면 안이면 됨 (0.5 m — 0° 기본 구도는 안 민다) */
@@ -825,8 +844,12 @@ var SCENE3D = (function () {
       if (pin && fresh && _wideYawPrev !== null && y !== _wideYawPrev && !PAN.cut && !INTRO.on) {
         var dx = PL.pos.x - _wideHold.x * _r.x - _wideHold.z * _svg.x - _svc.x, dz = PL.pos.z - _wideHold.x * _r.z - _wideHold.z * _svg.z - _svc.z;   /* 가운데가 가야 할 땅 − 지금 가운데 */
         PAN.x += dx * _r.x + dz * _r.z; PAN.y += (dx * _svg.x + dz * _svg.z) * Math.sin(TILT);
+        _wideKeep.on = true; _wideKeep.x = PAN.x; _wideKeep.y = PAN.y;   /* 이 값은 밀기 경계가 품는다 (panBox) */
         placeCamera();
-      } else if (pin) _wideHold.set((PL.pos.x - _svc.x) * _r.x + (PL.pos.z - _svc.z) * _r.z, 0, (PL.pos.x - _svc.x) * _svg.x + (PL.pos.z - _svc.z) * _svg.z);   /* 캐릭터의 화면 자리 (가운데에서 오른쪽 · 위쪽으로 몇 m — 땅 위) */
+      } else {
+        if (pin) _wideHold.set((PL.pos.x - _svc.x) * _r.x + (PL.pos.z - _svc.z) * _r.z, 0, (PL.pos.x - _svc.x) * _svg.x + (PL.pos.z - _svc.z) * _svg.z);   /* 캐릭터의 화면 자리 (가운데에서 오른쪽 · 위쪽으로 몇 m — 땅 위) */
+        if (!pin || !fresh || y !== _wideYawPrev) _wideKeep.on = false;   /* 마당을 떠났다 왔거나 맞추지 않고 각만 바뀌었으면 옛 값은 버린다 */
+      }
       _wideYawPrev = y;
     }
     function wideCull() {
@@ -3149,14 +3172,26 @@ var SCENE3D = (function () {
         /* 11-18 주인: 돌린 각에서 들어와도 방 안쪽을 본 채 (카메라 쪽으로 돌려 세우던 11-15 규칙은 뺐다) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
       } else { if (plG.parent !== atticG) atticG.add(plG); fpClear(atticG); PL.place = 'attic'; plRest(true); }
     }
+    var WIDE_WALK = 8;   /* 11-19 넓은 바깥: 울타리 밖에서 집 문까지 남은 길 (m — 여기 → 울타리 문 → 계단 발치 → 문 앞, 곧은 선으로) 이 이보다 길면 걷지 않는다. 울타리 문에서 문 앞까지가 6.48 m 라 울타리 문 1.5 m 안에서만 걸어 들어온다 (걸음 5 s 쯤까지 — 마당 안의 가장 긴 걸음 6.6 s 보다 짧다) */
     function playerWalkTo(anchor) {   /* goRoom 의 walkFirst: 문 앞 앵커까지 걷고 문 쪽을 보며 서면 푼다 → { ok, walked, anchor, at }. 그 방에 없으면(바깥에서 들어갈 때) 걷기 없이 바로 */
       var a = DOOR_ANCHORS[anchor], at = a ? a.slice() : [0, 0, 0], room = anchor === 'playAtticDoor' ? 'play' : anchor === 'loftStair' ? 'loft' : anchor === 'yardAttic' ? 'yard' : 'attic';
       if (!a || PL.place !== room || plG.parent !== groupOf(room)) return Promise.resolve({ ok: true, walked: false, anchor: anchor, at: at });
       PL.pending = ''; PL.camGap = anchor === 'atticStair' ? 1.5 : 0.5;   /* 11-18: 이 걸음 동안 화면이 따라온다 (plFollow) — 문은 몸이 화면 안에 들 만큼 (0.5 m: 기본 구도의 문들은 이미 안이라 안 민다), 계단은 계단 몸까지 보이게 (발치 0.32 + 계단 0.84 + 여유) */
       if (anchor === 'yardAttic' && YARD_WIDE && yardOut(PL.pos.x, PL.pos.z)) {   /* 11-18 넓은 바깥: 울타리 밖에서 집 문을 톡 → 앞 모서리의 울타리 문을 거쳐 들어온 뒤 예전 길로 */
-        return plWalkTo(new T.Vector3(3.7, 0, 3.7), null).then(function () {
-          if (PL.place !== 'yard' || PL_IN.held || yardOut(PL.pos.x, PL.pos.z)) { PL.camGap = 0; return { ok: true, walked: true, anchor: anchor, at: at }; }
-          return playerWalkTo(anchor);
+        /* 11-19 (검증): 멀리서는 걷지 않고 바로 푼다 (goRoom 은 곧바로 문 작업으로) — 길 끝에서 '산책 갈래?' · 집 문 톡이 11 초를 혼자 걸었고 그동안 입력이 막혔다.
+           가까우면 예전 길 그대로 (울타리 문 → 계단 발치 → 문 앞) 걷되 세 구간을 여기서 잇는다: 걷던 구간이 끊기면 (plStop — plWalkTo 는 끊긴 걸음을 풀지 않는다) ok false 로 풀어 문 작업이 걸린 채 남지 않게 */
+        var wg = new T.Vector3(3.7, 0, 3.7), wf = new T.Vector3(EXT.HX1 + 1.6, 0, EXT.HZC), wd = new T.Vector3(a[0], 0, a[2]);
+        var wend = function (ok, walked) { if (ok || !PL.walking) PL.camGap = 0; return { ok: ok, walked: walked, anchor: anchor, at: at }; };   /* 끊은 쪽이 새 걸음이면 그 걸음의 따라오기는 두고 */
+        if (Math.hypot(PL.pos.x - wg.x, PL.pos.z - wg.z) + wg.distanceTo(wf) + wf.distanceTo(wd) > WIDE_WALK) { plStop(); return Promise.resolve(wend(true, false)); }
+        var wleg = function (to, face) { var p = plWalkTo(to, face), w = PL.walking; return !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); }); };   /* 한 구간 → 끊기면 null */
+        return wleg(wg, null).then(function (r) {
+          if (r === null) return wend(false, true);
+          if (PL.place !== 'yard' || PL_IN.held || yardOut(PL.pos.x, PL.pos.z)) return wend(true, true);
+          return wleg(wf, null).then(function (r2) {   /* 아래 마당 안 걸음의 두 구간과 같은 조건 · 같은 답 */
+            if (r2 === null) return wend(false, true);
+            if (PL.place !== 'yard' || PL_IN.held || Math.abs(PL.pos.z - EXT.HZC) > 0.36) return wend(true, true);
+            return wleg(wd, PL_FACE[anchor]).then(function (r3) { return wend(r3 !== null, true); });
+          });
         });
       }
       if (anchor === 'yardAttic' && !(Math.abs(PL.pos.z - EXT.HZC) < 0.36 && PL.pos.x < EXT.HX1 + 1.6)) {   /* 0.36: 통로 반폭 0.35 (난간 ±0.6 − 몸 0.25) 보다 크게 — 0.34 일 땐 난간에 붙어 문에 닿으면 계단 발치까지 도로 내려갔다 왔다 (검증 11-18) */   /* 11-18 마당 집 문 톡: 계단 발치를 거쳐 통로로 오른다 (곧장 가면 현관 옆에 걸린다) */
