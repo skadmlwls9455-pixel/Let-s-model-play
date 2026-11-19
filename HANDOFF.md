@@ -8,6 +8,16 @@
 - production 배포 기록은 `wip/round5/README.md` 끝 줄에 남긴다 (커밋 · 배포 주소).
 - PR #13 (초안, 이 가지 → `ccr-38ad393e-15xr9t`). PR #1 (초안) 은 그대로.
 
+## 1-0. 6차 (11-18 ~ 19) — 다 하고 배포함
+- 6차 (주인 11-18 답): 갈래 다섯 (R 달리기 문어 · 로딩 · 첫 몇 분 / K1 부엌 손맛 / K2 요리 둘 · 고르기 판 / D 놀이방 식탁 3D · 효과 / M 먹기 규칙)
+  을 합치고 독립 검증 (must 0 · should 1 고침) 뒤 production `dpl_D5HfAEyRajPknERCqSXBa6e8r6Nb` ← `96e4722`. 기록: `wip/round6/README.md`
+  (진행 · 다른 가지), 점검과 주인이 고를 목록: `wip/round6/audit-11-18.md`.
+- 다른 세션의 세계 넓히기 가지가 `5b21a1d` 로 이 가지에 들어왔다 (주인 '넣어줘' — 그 세션에). 이제 두 일이 한 가지에 있다.
+- 남은 것: 주인이 고를 목록 (작은 고침 10 · 중간 3 · 큰 기능 9 — J9 는 다른 가지가 고쳐 뺌), 3D 방이 부엌 · 달리기 뒤에서 계속 그림 (rel-07),
+  쟁반 칩 사이 틈 손가락 톡이 옆 요리를 엶 (터치 보정), 2D 폴백 쟁반이 로그 위에 뜸.
+- 배운 것: 2.625 같은 소수 배율의 또렷함은 Playwright `deviceScaleFactor` 흉내 (CSS 1/64 배치) 로 재면 틀린다 — 진짜 그리기 길
+  (`--force-device-scale-factor=2.625`, viewport null) 로 잰다 (스티커 시험이 이렇게 바뀜).
+
 ## 1-1. 같은 저장소의 다른 세션 (11-18 밤 주인이 전해 줌)
 - `claude/serene-cannon-awp5y2` 가지의 다른 세션이 '세계 넓히기' 6차 (`wip/round6-world/`, 가지 `lane/6-*`) 를 한다. 계정이 달라 두 세션은
   서로 말을 못 건다 — 주인이 전해 준다. 약속: 배포는 이 가지 (`claude/game-launch-completion-hwvre5`) 에서만 · 그 가지의 고침을 이 가지에
