@@ -13,6 +13,7 @@
  *   7 레코드, 소리 켬: 스피커 단추 → 한 곡 · 다른 재킷 → 그 곡만 · 다시 누르면 멈춤 · 시트 닫기 · 탭 숨김 · 부엌 열림에 멈춤
  *   8 켜 둔 채 새로고침: 누르기 전에는 AudioContext 0
  *   9 글 · 그림: 기호 없음 · 그림 px 이 기기 px 의 정수 배 (2 · 2.625)
+ *  12 진짜 카페 방 (방 갈래가 합쳐진 빌드에서만, 11 대신): 마을 → 문 → 같은 차례를 진짜 장면으로 · 먹다 만 접시가 기다린다
  *  11 카페 방 (갈래 W · V · T 의 장면 함수는 대역): 칠판 카드 → 주문 → 만드는 중 → 쟁반 → 들고 가 앉기 → 접시 세 번 → 도장 카드 → 레시피 · 끊김 셋 · 레코드 선반 카드
  */
 'use strict';
@@ -63,6 +64,85 @@ async function orderItem(page, idx) {
 }
 async function eatAll(page) { for (var i = 0; i < 3; i++) { await page.click('button#cafe-eat'); await page.waitForTimeout(80); } }
 async function shot(page, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursive: true }); await page.waitForTimeout(350); await page.screenshot({ path: path.join(SHOTS, name + '.png') }); }
+
+/* 12. 진짜 카페 방 (갈래 W 의 방 · V 의 가구와 단추 · T 의 들기 · 그림 놓기가 합쳐진 빌드에서만): 마을 → 문 → 방 안의 차례를 진짜 장면으로 */
+async function realRoom(p, s) {
+  console.log('== 12. 진짜 카페 방: 들어가기 → 칠판 → 주문 → 쟁반 → 들고 가 앉기 → 접시 → 도장 → 일어나기 → 레코드 → 나가기');
+  function st() { return p.evaluate(function () { var sc = APP.scene, d = sc.debugSprites ? sc.debugSprites() : { props: {}, carry: null }, card = document.getElementById('cafe-card'), pb = document.getElementById('btn-cafe-plate'); return { inRoom: sc.inRoom(), ui: APP.cafe, props: d.props || {}, carry: d.carry, sat: sc.cafeSeated ? sc.cafeSeated() : null, shells: APP.state.user.shells, st: JSON.parse(JSON.stringify(APP.state.user.cafe || null)), card: !card.hidden, mode: card.getAttribute('data-mode'), dlg: document.querySelectorAll('dialog[open]').length, plate: !pb.hidden, tray: !document.getElementById('cafe-tray').hidden }; }); }
+  function tap(id) { return p.evaluate(function (i) { document.getElementById(i).click(); }, id); }   /* 장면 단추: 멀면 갈래 V · W 가 먼저 걸어가게 한 뒤 다시 누른다 */
+  function until(fn, ms) { return p.waitForFunction(fn, null, { timeout: ms || 40000 }).then(function () { return true; }, function () { return false; }); }
+  for (var i = 0; i < 12 && await p.evaluate(function () { return APP.scene.area() !== 'village'; }); i++) { await p.evaluate(function () { if (APP.room !== 'yard') APP.goRoom('yard'); else APP.goPlace('village'); }); await p.waitForTimeout(2500); }
+  await shells(p, 60);
+  await p.evaluate(function () { return APP.goInside('cafe'); });
+  ok(await until(function () { return APP.scene.inRoom() === 'cafe'; }), '마을에서 카페 방으로 들어왔다');
+  await p.waitForTimeout(1500);
+  var r = await st();
+  ok(r.ui.stage === null && !r.card && !r.plate && Object.keys(r.props).length === 0, '들어옴: 아무것도 뜨지 않는다');
+  await tap('btn-cafe-menu');
+  ok(await until(function () { return APP.cafe.card === 'menu'; }), '칠판 단추: 걸어가서 칠판 확대 카드');
+  r = await st();
+  ok(r.dlg === 0 && await p.locator('#cafe-card .cafe-item').count() === 3, '카드는 dialog 가 아니다 · 메뉴 셋');
+  await shot(p, '21-real-board');
+  await p.locator('#cafe-card .cafe-item').nth(1).click(); await p.waitForSelector('#cafe-card .sew-ask'); await p.waitForTimeout(700);
+  var br = await p.evaluate(function () { document.querySelector('#cafe-card .sew-yes').click(); return { shells: APP.state.user.shells, stage: APP.cafe.stage, card: !document.getElementById('cafe-card').hidden }; });
+  ok(br.shells === 55 && br.stage === 'brew' && !br.card, '"시킬래": 조개 55 · 지킴이가 만드는 중');
+  ok(await until(function () { return APP.cafe.stage === 'ready'; }, 8000), '쟁반이 나왔다');
+  r = await st();
+  ok(r.props['cafe-tray'] && r.props['cafe-tray'].visible !== false, '받는 자리에 쟁반 그림 (' + (r.props['cafe-tray'] && r.props['cafe-tray'].id) + ')');
+  await shot(p, '22-real-tray');
+  await tap('btn-cafe-counter');
+  ok(await until(function () { return APP.cafe.stage === 'carry' || APP.cafe.stage === 'eat'; }), '카운터 단추: 쟁반을 집어 들었다');
+  ok(await until(function () { return APP.cafe.stage === 'eat' && APP.scene.cafeSeated(); }), '내 자리에 앉았다');
+  await p.waitForTimeout(600);
+  r = await st();
+  ok(r.carry === null && !r.props['cafe-tray'] && r.props['cafe-plate'] && r.props['cafe-plate'].frame === 0 && r.plate && !r.tray, '접시를 식탁에 내려놓았다 · 접시 단추가 보인다 · 아래 쟁반 판은 없다');
+  ok(await p.evaluate(function () { var b = document.getElementById('btn-cafe-plate'), q = b.getBoundingClientRect(), e = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2); return !!e && e.id === 'btn-cafe-plate'; }), '접시 단추가 맨 위에 있다 (눌린다)');
+  await shot(p, '23-real-plate');
+  await p.click('#btn-cafe-plate'); await p.waitForTimeout(200);
+  r = await st(); ok(r.st.tray.left === 2 && r.props['cafe-plate'].frame === 1, '접시를 누름: 한 입');
+  await p.click('#btn-cafe-plate'); await p.waitForTimeout(200); await p.click('#btn-cafe-plate'); await p.waitForTimeout(300);
+  r = await st();
+  ok(r.st.eaten.cake === 1 && !r.plate && r.card && r.mode === 'stamp' && r.st.tray.left === 0, '세 입: 도장 카드');
+  ok(await p.evaluate(function () { var x = (APP.state.user.recipes || {}).cake; return x ? x.n : -1; }) === 1, '레시피 갈래가 한 번 셌다');
+  await shot(p, '24-real-stamp');
+  await until(function () { return document.getElementById('cafe-card').hidden; }, 6000);
+  await tap('btn-cafe-seat');
+  ok(await until(function () { return !APP.cafe.seated; }, 15000), '자리 단추: 일어났다');
+  await p.waitForTimeout(800);
+  r = await st(); ok(!r.props['cafe-plate'] && r.st.tray === null, '빈 접시는 치웠다');
+  /* 먹다 만 접시는 기다린다: 시키고 → 받고 → 한 입 → 문으로 나갔다가 다시 */
+  await tap('btn-cafe-menu'); await until(function () { return APP.cafe.card === 'menu'; });
+  await p.locator('#cafe-card .cafe-item').nth(2).click(); await p.waitForSelector('#cafe-card .sew-ask'); await p.waitForTimeout(700); await p.click('#cafe-card .sew-yes');
+  await until(function () { return APP.cafe.stage === 'ready'; }, 8000); await tap('btn-cafe-counter');
+  await until(function () { return APP.cafe.stage === 'eat' && APP.scene.cafeSeated(); }); await p.waitForTimeout(400);
+  await p.click('#btn-cafe-plate'); await p.waitForTimeout(200);
+  await p.evaluate(function () { return APP.goOutside(); });
+  ok(await until(function () { return APP.scene.inRoom() !== 'cafe'; }), '문으로 나왔다');
+  await p.waitForTimeout(800);
+  r = await st();
+  ok(!r.ui.seated && r.ui.stage === null && !r.plate && r.st.tray.id === 'kkochi' && r.st.tray.left === 2 && r.shells === 51, '나감: 자리는 끝나고 · 먹다 만 꼬치는 기록에 남는다');
+  await p.evaluate(function () { return APP.goInside('cafe'); }); await until(function () { return APP.scene.inRoom() === 'cafe'; }); await p.waitForTimeout(1500);
+  r = await st();
+  ok(r.ui.stage === 'eat' && r.props['cafe-plate'] && r.props['cafe-plate'].frame === 1 && r.plate, '다시 들어옴: 먹다 만 접시가 식탁에서 기다린다');
+  await tap('btn-cafe-plate'); await until(function () { return APP.cafe.seated && APP.scene.cafeSeated(); }); await p.waitForTimeout(600);
+  await p.click('#btn-cafe-plate'); await p.waitForTimeout(200); await p.click('#btn-cafe-plate'); await p.waitForTimeout(2600);
+  ok((await st()).st.eaten.kkochi === 1, '앉아서 마저 먹었다');
+  await tap('btn-cafe-seat'); await until(function () { return !APP.cafe.seated; }, 15000);
+  /* 레코드 구석 */
+  await tap('btn-cafe-lp');
+  ok(await until(function () { return APP.cafe.card === 'lp'; }), '레코드 단추: 걸어가서 선반 확대 카드');
+  await shot(p, '25-real-rack');
+  await p.locator('#cafe-card .lp-sleeve').nth(1).click(); await p.waitForTimeout(300);
+  r = await st();
+  ok(r.ui.lp === 'clair' && !r.ui.sound && r.ui.music.made === 0, '재킷: 판이 올라간다 · 소리 설정이 꺼져 있어 소리는 없다');
+  await p.click('#cafe-card-close'); await p.waitForTimeout(1200);
+  ok((await st()).ui.lp === 'clair', '카드를 닫아도 방 안에서는 판이 돈다');
+  await shot(p, '26-real-disc');
+  await p.evaluate(function () { return APP.goOutside(); }); await until(function () { return APP.scene.inRoom() !== 'cafe'; }); await p.waitForTimeout(600);
+  r = await st();
+  ok(r.ui.lp === null && r.ui.music.playing === null, '방을 나오면 판이 멈춘다');
+  ok(s.bag.errors.length === 0 && s.bag.audio.length === 0, '페이지 오류 없음 · audio/ foley/ 요청 0' + (s.bag.errors.length ? ': ' + s.bag.errors.join(' | ') : ''));
+}
 
 async function main() {
   var browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
@@ -262,6 +342,9 @@ async function main() {
   console.log('== 11. 카페 방 (갈래 W · V · T 대역): 칠판 → 주문 → 쟁반 → 들고 가 앉기 → 접시 → 도장 → 레코드 → 끊김');
   var bR = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
   var sR = await open(bR, null, URL0.replace('&scene=2d', '')), pr = sR.page, r;   /* 3D 장면 (화면을 다 쓴다 — 카드가 장면 안에 뜬다) */
+  var REAL = await pr.evaluate(function () { return typeof APP.goInside === 'function' && typeof APP.scene.inRoom === 'function' && typeof APP.scene.roomSlots === 'function'; });   /* 방 갈래 (W · V) 가 합쳐진 빌드인가 */
+  if (REAL) { console.log('   (진짜 방이 있는 빌드 — 대역 대신 12 에서 진짜 방으로 확인한다)'); await realRoom(pr, sR); }
+  else {
   await stubs(pr);
   await pr.evaluate(function () {
     window.__room = { key: null, props: {}, carry: null, sat: false, rec: null, sitMs: 150 };
@@ -321,6 +404,7 @@ async function main() {
   r = await room(pr);
   ok(r.st.eaten.cake === 1 && !r.plate && r.R.props['cafe-plate'].frame === 3 && r.card && r.mode === 'stamp' && await pr.locator('#cafe-card .cafe-dots i.on').count() === 1, '세 입: 빈 접시 · 도장 카드에 도장 하나');
   ok(await pr.evaluate(function () { return window.__rec.cake.n; }) === 1 && JSON.stringify(await pr.evaluate(function () { return window.__said.map(function (x) { return x[1]; }); })) === JSON.stringify(['cafe.hello', 'cafe.hello', 'cafe.hello', 'cafe.order', 'cafe.serve', 'cafe.stamp']), 'recipeEat 한 번 · 지킴이 말 차례 (hello · order · serve · stamp)');
+  ok(await pr.evaluate(function () { var r = document.getElementById('cafe-card').getBoundingClientRect(); return r.height < 120 && r.width < 320; }), '도장 카드는 작다 (늘어나지 않는다)');
   await shot(pr, '13-room-stamp');
   await pr.waitForFunction(function () { return document.getElementById('cafe-card').hidden; }, null, { timeout: 5000 });
   await pr.click('#btn-cafe-seat'); await pr.waitForTimeout(100);
@@ -385,6 +469,7 @@ async function main() {
   await pr.evaluate(function () { AUDIO.setEnabled(false); APP.openCafe(); }); await pr.waitForTimeout(200);
   ok(await pr.locator('#cafe-sheet[open]').count() === 1 && !(await room(pr)).card, '방 밖: 예전 시트가 열린다');
   ok(sR.bag.errors.length === 0 && sR.bag.audio.length === 0, '페이지 오류 없음 · audio/ foley/ 요청 0' + (sR.bag.errors.length ? ': ' + sR.bag.errors.join(' | ') : ''));
+  }
   await bR.close();
 
   console.log('== 10. 3D 폰 화면: 쟁반이 큰 단추에 가리지 않는다');
