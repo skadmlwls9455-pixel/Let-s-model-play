@@ -913,6 +913,7 @@ async function scenarioG(browser, base) {
   ok(g && g.text === '만든 것들' && g.href === 'credits.html' && g.last, "본 게임 설정 시트: 맨 아래 '만든 것들' 글자 링크 하나 → credits.html " + JSON.stringify(g));
   ok(g && g.h >= 44, '설정의 링크: 글자는 작아도 누르는 곳 44px (' + (g && Math.round(g.h)) + 'px)');
   await page.screenshot({ path: path.join(SHOTS, 'settings-credits-360.png') });
+  await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: the settings sections start folded: unfold, then press */
   await page.click('#set-sound');
   var on = await page.waitForFunction(function () { var x = AUDIO.state(); return x.started && x.ctx === 'running'; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
   await wait(3200);

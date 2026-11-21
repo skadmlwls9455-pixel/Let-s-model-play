@@ -3561,11 +3561,12 @@ var SCENE3D = (function () {
       } else if (id === 'atticStair') {
         if (v !== 'attic' || PLACE.room || busy) return null;
         var sc = cutOf('attic', 'stair'); q = boxScreen(sc && sc.cut ? STAIR_LOW : STAIR_BOX, atticG);
-        /* 11-18: 계단이 화면 가장자리 밖이거나 조금만 걸쳐 보이면 (왼벽 앞쪽 구석 — 360px 폰의 기본 구도에선 왼쪽 밖) 그쪽 가장자리의 작은 계단 단추로 (앱 CSS 의 #btn-stair[data-spot="edge"]) —
-           계단이 어디 있는지 보이게. 세로 자리 = 계단 발치 높이 (위 바 · 아래 스틱 자리는 피한다). 걸어가 화면이 따라오면 그림 위 단추로 돌아간다 */
+        /* 11-21 (주인: "문 근처에 가면 계단 버튼이 떠서 어색해"): 가장자리의 계단 단추는 없앴다. 계단이 화면 가장자리 밖이거나 조금만 걸쳐 보이는 동안 단추는
+           그쪽 가장자리의 **안 보이는** 44px 칸 (mode 'key') 으로만 남는다 — 키보드 · 화면 낭독기가 닿을 곳 (포커스 링만 보인다). 손가락 · 마우스는 이 칸을 못 누른다 (spotAt 은 'over' 만 본다):
+           보이는 계단 그림을 누를 때만 계단이다 (pick 의 디딤판 광선). 걸어가거나 밀어서 계단이 보이면 그림 위 단추 (over) 로 돌아간다 */
         var svw = Math.min(S.W, q.r) - Math.max(0, q.l), svh = Math.min(S.H, q.b) - Math.max(0, q.t);   /* 보이는 폭 · 높이 */
         if (isFinite(q.l) && ((svw < q.r - q.l - 0.5 && svw < STAIR_EDGE_VIS) || (svh < q.b - q.t - 0.5 && svh < SPOT_MIN_VIS)))   /* 화면 가장자리에 잘렸고 남은 게 좁을 때만 (잘린 계단 아래 두 칸처럼 원래 작은 상자는 그림 위 단추 그대로) */
-          return { id: id, mode: 'edge', side: (q.l + q.r) / 2 < S.W / 2 ? 'left' : 'right', y: clamp(Math.round(q.b - 8), 56, Math.max(56, Math.round(S.H - Math.min(S.H * 0.3, 240) - 48))) };   /* 아래 한계 = 떠다니는 스틱 구역 (.stick-zone: 높이 min(30%, 240px)) 바로 위 — 키워서 뒤쪽을 걸으면 단추가 그 구역 안에 놓여 스틱을 잡으려던 톡이 위층으로 갔다 (검증 11-18) */
+          return { id: id, mode: 'key', x: (q.l + q.r) / 2 < S.W / 2 ? 0 : Math.max(0, S.W - 44), y: clamp(Math.round(q.b - 52), 56, Math.max(56, Math.round(S.H - Math.min(S.H * 0.3, 240) - 48))), w: 44, h: 44 };   /* 아래 한계 = 떠다니는 스틱 구역 (.stick-zone: 높이 min(30%, 240px)) 바로 위 — 키워서 뒤쪽을 걸으면 단추가 그 구역 안에 놓여 스틱을 잡으려던 톡이 위층으로 갔다 (검증 11-18) */
       } else if (id === 'loftStair' || id === 'sew' || id === 'sewDoll') {
         if (v !== 'loft' || !LROOM || busy) return null;
         q = boxScreen(id === 'sew' ? LROOM.sewBox : id === 'sewDoll' ? LROOM.dollBox : LROOM.hatchBox, LROOM.g);
@@ -3590,13 +3591,13 @@ var SCENE3D = (function () {
       if (spotFocus && ae && ae !== document.body && ae !== SPOTS[spotFocus]) spotFocus = null;
       for (var i = 0; i < SPOT_KEYS.length; i++) {
         var id = SPOT_KEYS[i], el = SPOTS[id]; if (!el) continue;
-        var s = spotInfo(id), key = !s ? 'off' : s.mode === 'edge' ? 'edge' + (s.y == null ? '' : ',' + s.side + ',' + s.y) : s.x + ',' + s.y + ',' + s.w + ',' + s.h;
+        var s = spotInfo(id), key = !s ? 'off' : s.mode === 'edge' ? 'edge' : (s.mode === 'key' ? 'k' : '') + s.x + ',' + s.y + ',' + s.w + ',' + s.h;
         if (spotLast[id] === key) continue;
         spotLast[id] = key;
         if (!s) { if (!el.hidden && ae === el) { spotFocus = id; try { spotQuiet = !el.matches(':focus-visible'); } catch (e) { spotQuiet = false; } }   /* :focus-visible 을 모르는 옛 브라우저 = 링 있는 쪽으로 */ el.hidden = true; continue; }
         var es = el.style; el.dataset.spot = s.mode;
-        if (s.mode === 'over') { es.left = s.x + 'px'; es.top = s.y + 'px'; es.width = s.w + 'px'; es.height = s.h + 'px'; es.right = 'auto'; es.bottom = 'auto'; }
-        else { es.left = es.top = es.width = es.height = es.right = es.bottom = ''; if (s.y != null) { es.top = s.y + 'px'; el.dataset.side = s.side; } }   /* 가장자리 단추: 자리는 앱 CSS — 계단 단추만 세로 자리를 받는다 */
+        if (s.mode !== 'edge') { es.left = s.x + 'px'; es.top = s.y + 'px'; es.width = s.w + 'px'; es.height = s.h + 'px'; es.right = 'auto'; es.bottom = 'auto'; }   /* 'over' · 'key' (11-21: 계단의 안 보이는 키보드 칸) */
+        else { es.left = es.top = es.width = es.height = es.right = es.bottom = ''; }   /* 가장자리 단추: 자리는 앱 CSS */
         if (el.hidden) {
           el.hidden = false;
           if (spotFocus === id) {   /* 링이 없던 포커스(손가락으로 온 것)는 링 없이 돌려준다 — 'ring-off' 는 앱 css 의 같은 뜻 (focusVisible 옵션을 모르는 브라우저) */
@@ -5842,6 +5843,9 @@ var SCENE3D = (function () {
 
 
     /* [7-U] 화면 채우기 · 계단 단추 */
+    /* 11-21 가려진 동안 멈춤: 전체 화면 놀이 (부엌 · 달리기) 가 장면을 덮은 동안 프레임 고리를 세운다 (배터리 · 열). 탭이 숨었을 때 (st.hidden) 와 같은 길 —
+       시계 (time) 는 그린 프레임의 dt 로만 가므로 다시 돌 때 뛰지 않는다 (lastDraw = 0 → 첫 프레임 dt 0.016). pause / resume (테스트 · 의식 감기) 과는 따로 센다 */
+    function setCovered(on) { on = !!on; if (!!st.covered === on) return; st.covered = on; if (on) cancelAnimationFrame(raf); else { lastDraw = 0; loop(); } }
 
 
     function pick(cx, cy) {   /* 클라이언트 CSS px (PointerEvent clientX/Y) → 탭 표적 메시 | null */
@@ -5876,8 +5880,8 @@ var SCENE3D = (function () {
       if (SPOTS.atticYard && spotInfo('atticYard')) { var dh = ray.intersectObjects([room, doorDark], false); if (dh.length && dh[0].object === doorDark) return spotHit('atticYard'); }   /* 11-15 마당 문: 톡한 자리에 보이는 게 뒷벽 문간의 어둠이면 (계단 · 난간이 앞에 있으면 계단) — 계단의 화면 상자는 크게 잡혀 문간까지 덮는다. 문어가 문간 앞이면 문어가 먼저 (위 레이캐스트) */
       sp = spotAt(cx, cy, ['atticYard', 'atticStair']);
       if (!sp && SPOTS.atticStair) {   /* 11-18: 계단이 화면 가장자리에 조금만 걸쳐 가장자리 단추로 바뀐 동안에도, 보이는 계단 그림을 누르면 계단 (그림 위 칸이 없어 아무 일도 없었다 — 360 폭 뒤에서 보기: 계단 절반이 보이는데 0/18). 광선이 그려진 디딤판에 닿을 때만 */
-        var se = spotInfo('atticStair'), scut = se && se.mode === 'edge' ? cutOf('attic', 'stair') : null;
-        if (se && se.mode === 'edge' && stairRayDist(cx, cy, scut && scut.cut ? 2 : 7) < Infinity) sp = 'atticStair';
+        var se = spotInfo('atticStair'), scut = se && se.mode === 'key' ? cutOf('attic', 'stair') : null;
+        if (se && se.mode === 'key' && stairRayDist(cx, cy, scut && scut.cut ? 2 : 7) < Infinity) sp = 'atticStair';
       }
       if (sp === 'atticStair') { var fd = furnRayDist(cx, cy), sct = cutOf('attic', 'stair'); if (fd < Infinity && !(stairRayDist(cx, cy, sct && sct.cut ? 2 : 7) < fd)) sp = null; }   /* (검증 11-18: 계단이 잘려 아래 두 칸만 그려질 땐 그 두 칸만 견준다 — 안 그려진 윗칸 자리 너머로 보이는 소파를 눌러도 위층으로 갔다) */   /* 11-18: 계단 옆이 소파 자리 — 계단의 넓힌 칸 안이라도 손가락 밑에 보이는 것이 가구 몸이면 가구 (소파 톡 = 앉기). 계단에 가려진 뒤쪽 소파는 아니다: 광선이 계단 디딤판에 먼저 닿으면 계단 (검증: 가구가 늘 이기던 첫 고침은 계단 그림의 5분의 1 을 눌러도 소파에 앉았다) */
       if (sp) return spotHit(sp);   /* 위층 계단 · 문간 둘레의 넓힌 칸 */   /* 위층 계단 */   /* 문 그림 둘레의 넓힌 칸 (44×44 이상) */
@@ -6411,7 +6415,7 @@ var SCENE3D = (function () {
         }
       }
     }
-    function loop() { if (st.paused || st.hidden) return; cancelAnimationFrame(raf); raf = requestAnimationFrame(function (ts) { frame(ts); loop(); }); }
+    function loop() { if (st.paused || st.hidden || st.covered) return; cancelAnimationFrame(raf); raf = requestAnimationFrame(function (ts) { frame(ts); loop(); }); }
 
     /* ── 초기 상태 ── */
     var hookSeason = null; try { hookSeason = window.__ppolLook && window.__ppolLook.season; } catch (e) { /* noop */ }
@@ -7268,6 +7272,7 @@ var SCENE3D = (function () {
       /* [7-N] */
 
       /* [7-U] */
+      setCovered: setCovered, covered: function () { return !!st.covered; }, clock: function () { return { time: time, frames: frameNo }; },
 
       spotRect: function (id) { var s = spotInfo(id); if (!s || s.mode !== 'over') return s; var r = container.getBoundingClientRect(); s.client = { x: r.left + s.x, y: r.top + s.y, w: s.w, h: s.h }; return s; },
       doorAnchors: JSON.parse(JSON.stringify(DOOR_ANCHORS)),
