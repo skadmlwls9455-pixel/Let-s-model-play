@@ -5628,6 +5628,7 @@ var APP = (function () {
     }
     $('story-next').onclick = next; $('story-skip').onclick = end;
     document.addEventListener('keydown', key, true);
+    el.inert = false;   /* 입장 연출은 제 레이어 밖을 inert 로 묶는다 — 이 줄들은 눌려야 한다 */
     el.hidden = false; show();
     try { $('story-next').focus({ preventScroll: true }); } catch (e) { /* 포커스 없음 */ }
     return true;
