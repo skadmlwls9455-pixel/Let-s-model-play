@@ -5603,16 +5603,32 @@ var APP = (function () {
     return box;
   }
   var SHOP_SEED = ['................', '...oooooooooo...', '...occcccccco...', '...oooooooooo...', '...occcccccco...', '...ocggccggco...', '...occggggcco...', '...occcggccco...', '...occcggccco...', '...occbbbbcco...', '...occcccccco...', '...oooooooooo...', '................', '.....b....b.....', '........b.......', '................'];
-  function shopSeedPic() {   /* 씨앗 봉투 (16×16 을 조개 그림처럼 32px 로 — 그림 파일을 새로 두지 않고 여기서 찍는다) */
+  function shopSeedPic() {   /* 씨앗 봉투: 그림 갈래의 것 (goods.seed) 이 있으면 그것, 없으면 여기서 찍은 16×16 */
+    var sp = shopSpr('goods.seed', 0, 48); if (sp) { sp.classList.add('shop-seed'); return sp; }
     var cv = h('canvas', { class: 'shop-seed', width: '16', height: '16' }), cx = cv.getContext('2d'), col = { o: '#5a3422', c: '#f3e3c0', g: '#4fa868', b: '#7a4a30' };
     SHOP_SEED.forEach(function (row, y) { for (var x = 0; x < 16; x++) if (col[row[x]]) { cx.fillStyle = col[row[x]]; cx.fillRect(x, y, 1, 1); } });
     return shopSnap(cv, 16, 64);
   }
   var SHOP_JAR = ['................', '................', '................', '.....oooooo.....', '.....ollllo.....', '....oooooooo....', '....owwwwwwo....', '...occcccccco...', '...ochcccccco...', '...ochcccccco...', '...occcccccco...', '...occcccccco...', '...occcccccco...', '...occccccddo...', '....occcdddo....', '....oooooooo....'];
-  function shopJarPic(hex) {   /* 염료 병 (16×16): 뚜껑 · 유리 · 그 색 물 */
+  var SHOP_DYE_FR = ['red', 'blue', 'green', 'yellow', 'purple', 'pink'];   /* 그림 갈래의 goods.dye 프레임 차례 — 여섯 색이 다 있을 때만 쓴다 (선반에 두 가지 그림체가 섞이지 않게) */
+  function shopJarPic(hex, id) {   /* 염료 병 (16×16): 뚜껑 · 유리 · 그 색 물 */
+    var inf = null; try { inf = window.COOK_SPR && COOK_SPR.info ? COOK_SPR.info('goods.dye') : null; } catch (e) { inf = null; }
+    if (inf && inf.frames >= 6 && SHOP_DYE_FR.indexOf(id) >= 0) { var sp = shopSpr('goods.dye', SHOP_DYE_FR.indexOf(id), 48); if (sp) { sp.classList.add('shop-dye'); return sp; } }
     var cv = h('canvas', { class: 'shop-dye', width: '16', height: '16' }), cx = cv.getContext('2d'), col = { o: '#3a2a20', l: '#b98a5a', w: '#eef3ee', c: hex || '#888888', h: 'rgba(255,255,255,.6)', d: 'rgba(0,0,0,.22)' };
     SHOP_JAR.forEach(function (row, y) { for (var x = 0; x < 16; x++) { var ch = row[x]; if (ch === '.') continue; if (ch === 'h' || ch === 'd') { cx.fillStyle = col.c; cx.fillRect(x, y, 1, 1); } cx.fillStyle = col[ch]; cx.fillRect(x, y, 1, 1); } });
     return shopSnap(cv, 16, 64);
+  }
+  function shopSpr(id, frame, want) {   /* 그림 갈래의 그림 (COOK_SPR) → 캔버스 (기기 px 정수배). 없으면 null → 부르는 쪽이 제 그림을 쓴다 */
+    var C = window.COOK_SPR, g = null; try { g = C && typeof C.get === 'function' ? C.get(id, frame | 0) : null; } catch (e) { g = null; }
+    if (!g || !g.w || !g.h || !g.d) return null;
+    var cv = h('canvas', { class: 'shop-spr', width: String(g.w), height: String(g.h), 'aria-hidden': 'true' }), cx = cv.getContext('2d'), im = cx.createImageData(g.w, g.h); im.data.set(g.d); cx.putImageData(im, 0, 0);
+    return shopSnap(cv, g.w, want);
+  }
+  function shopTagSkin(el, sold) {   /* 값표에 종이 꼬리표 그림을 깔고 (자리: 그림의 x 13..36 · y 6..17), 팔린 것 · 다 팔린 것엔 붉은 도장을 얹는다 */
+    var bg = shopSpr('ui.tag', 0, 80); if (!bg) return el;
+    el.classList.add('spr'); bg.classList.add('shop-tag-bg'); el.insertBefore(bg, el.firstChild); el.style.width = bg.style.width; el.style.height = bg.style.height;
+    var st = sold ? shopSpr('ui.sold', 0, 64) : null; if (st) { st.classList.add('shop-tag-sold'); el.appendChild(st); el.classList.add('sold'); }
+    return el;
   }
   function shopBand(u, goods, slim) {   /* 11-21 UI 2차 (주인: "ui가 너무 조잡"): 시트 맨 위 그림 띠 — 선반 벽 · 계산대 뒤의 가게 주인 (NPC 갈래의 초상, 없으면 빈 계산대) · 오른쪽에 조개 주머니 */
     var kids = [], who = typeof NPCR !== 'undefined' && NPCR && typeof NPCR.who === 'function' ? NPCR.who(shopKind) : null;
@@ -5675,7 +5691,7 @@ var APP = (function () {
       by.addEventListener('click', function (e) { if (early(e)) return; var a = shopAsk; if (a) shopDo(a); });
       bn.addEventListener('click', function (e) { if (early(e)) return; var i = shopAsk ? shopAsk.i | 0 : 0; shopAsk = null; renderShop(); sewFocus('#shop-body .shop-grid', i); });
       by.setAttribute('aria-describedby', 'shop-ask-line'); bn.setAttribute('aria-describedby', 'shop-ask-line');
-      frag.appendChild(h('div', { class: 'sew-ask shop-ask', role: 'group', 'aria-labelledby': 'shop-ask-line' }, [cv ? h('span', { class: 'shop-mirror' }, [cv]) : goods ? h('span', { class: 'shop-ask-pic', 'aria-hidden': 'true' }, [it.type === 'seed' ? shopSeedPic() : shopJarPic(it.hex)]) : null, h('p', { class: 'sew-ask-line', id: 'shop-ask-line' }, (sw ? [sw] : []).concat(line)), h('div', { class: 'btn-row sew-ask-btns' }, [bn, by])]));
+      frag.appendChild(h('div', { class: 'sew-ask shop-ask', role: 'group', 'aria-labelledby': 'shop-ask-line' }, [cv ? h('span', { class: 'shop-mirror' }, [cv]) : goods ? h('span', { class: 'shop-ask-pic', 'aria-hidden': 'true' }, [it.type === 'seed' ? shopSeedPic() : shopJarPic(it.hex, it.id)]) : null, h('p', { class: 'sew-ask-line', id: 'shop-ask-line' }, (sw ? [sw] : []).concat(line)), h('div', { class: 'btn-row sew-ask-btns' }, [bn, by])]));
     } else if (!st.items.length) {
       frag.appendChild(h('p', { class: 'set-note', text: '옷은 아직 없어.' }));
     } else {
@@ -5683,11 +5699,12 @@ var APP = (function () {
       st.items.forEach(function (x, i) {
         var pic, cost, out = x.type === 'seed' && x.left < 1;
         if (x.type === 'seed') pic = h('span', { class: 'shop-pic', 'aria-hidden': 'true' }, [shopSeedPic()]);
-        else if (x.type === 'dye') pic = h('span', { class: 'shop-pic', 'aria-hidden': 'true' }, [shopJarPic(x.hex)]);
+        else if (x.type === 'dye') pic = h('span', { class: 'shop-pic', 'aria-hidden': 'true' }, [shopJarPic(x.hex, x.id)]);
         else pic = shopThumb(x, 64);
         if (x.owned) cost = h('span', { class: 'sew-cost own' + (shopJust === x.key ? ' new' : '') }, [pxIco('check'), h('span', { class: 'sr-only', text: '가지고 있어' })]);
-        else if (out) cost = h('span', { class: 'sew-cost own', text: '내일' });
+        else if (out) cost = h('span', { class: 'sew-cost own' }, [h('span', { class: 'shop-tag-txt', text: '내일' })]);
         else cost = h('span', { class: 'sew-cost' }, [shellAmt(x.price)]);
+        shopTagSkin(cost, x.owned);
         var b = h('button', { type: 'button', class: 'sew-chip pressable shop-tile' + (x.owned ? ' own' : ''), 'data-key': x.key }, [pic, cost, h('span', { class: 'sew-name', text: x.type === 'dye' ? x.name + ' 염료' : x.name })]);
         b.style.setProperty('--i', String(i));
         b.addEventListener('click', function () { shopTap(x, i, b); });
@@ -5776,7 +5793,7 @@ var APP = (function () {
   }
   function roomEarly(e) { return !(e && e.isTrusted && e.detail === 0) && tapTime(e) - room.at < SHEET_SETTLE; }   /* 카드가 뜬 뒤 0.6 s 안의 누름은 안 받는다 (같은 자리 두 번 톡) */
   function roomBtn(text, cls, fn) { var b = h('button', { type: 'button', class: 'btn sm pressable ' + cls, text: text }); b.addEventListener('click', function (e) { e.stopPropagation(); if (roomEarly(e)) return; fn(b); }); return b; }
-  function roomTagEl(x, out) { return x.owned ? h('span', { class: 'sew-cost own' }, [pxIco('check'), h('span', { class: 'sr-only', text: '가지고 있어' })]) : out ? h('span', { class: 'sew-cost own', text: '내일' }) : h('span', { class: 'sew-cost' }, [shellAmt(x.price)]); }
+  function roomTagEl(x, out) { return shopTagSkin(x.owned ? h('span', { class: 'sew-cost own' }, [pxIco('check'), h('span', { class: 'sr-only', text: '가지고 있어' })]) : out ? h('span', { class: 'sew-cost own' }, [h('span', { class: 'shop-tag-txt', text: '내일' })]) : h('span', { class: 'sew-cost' }, [shellAmt(x.price)]), x.owned); }
   function roomTryOff(x) { var f = roomApi('tryOff'); if (f) { try { f(x.cat); } catch (e) { console.warn('[app] tryOff', e); } } delete room.basket[x.key]; }
   function roomTry(x) {   /* 입어 보기: 같은 갈래에 입어 보던 것은 마네킹으로 돌아간다. 저장 없음 */
     var f = roomApi('tryOn'), k; if (!f) return;
@@ -5805,7 +5822,7 @@ var APP = (function () {
     var no = roomBtn('그만', 'sew-no', function () { for (var k in room.basket) if (!room.basket[k].tried) delete room.basket[k]; roomCardClose(); });   /* 입어 보지 않고 고른 것만 내려놓는다 */
     var yes = roomBtn('살래', 'sew-yes', function () { roomPay(sum); });
     no.setAttribute('aria-describedby', 'shop-rc-sum'); yes.setAttribute('aria-describedby', 'shop-rc-sum');
-    roomCard('btn-room-counter', 'receipt', '영수증', [h('p', { class: 'bag-line shop-purse' }, [shellAmt(u.shells)]), h('ul', { class: 'shop-rc-list' }, rows), sum, h('div', { class: 'btn-row shop-card-btns' }, [no, yes])]);
+    roomCard('btn-room-counter', 'receipt', '영수증', [h('div', { class: 'shop-rc-top' }, [shopSpr('ui.receipt', 0, 32), h('p', { class: 'bag-line shop-purse' }, [shellAmt(u.shells)])]), h('ul', { class: 'shop-rc-list' }, rows), sum, h('div', { class: 'btn-row shop-card-btns' }, [no, yes])]);
     var f0 = room.card.querySelector('button'); if (f0) f0.focus();
   }
   function shopApply(u, r, it, dk) {   /* SHOP.buy 가 돌려준 상태를 저장 칸에 (조개 · 씨앗 · 염료 · 기록) + 이 탭이 막 산 것 표시 */
@@ -5845,7 +5862,7 @@ var APP = (function () {
   function roomShelfItem(i) { var it = shopStock('goods').items; return i % 2 === 0 ? it[0] : it[1 + (i - 1) / 2] || null; }   /* 건물 갈래의 선반: 짝수 칸 = 씨앗 봉투, 홀수 칸 (1 · 3 · 5) = 그날의 염료 셋 */
   function roomShelf(i) {   /* 잡화점 선반의 꼬리표 카드 */
     var x = roomShelfItem(i); if (!x) return;
-    var out = x.type === 'seed' && x.left < 1, nm = x.type === 'dye' ? x.name + ' 염료' : x.name, pic = h('span', { class: 'shop-pic', 'aria-hidden': 'true' }, [x.type === 'seed' ? shopSeedPic() : shopJarPic(x.hex)]), tag = roomTagEl(x, out), btns = [];
+    var out = x.type === 'seed' && x.left < 1, nm = x.type === 'dye' ? x.name + ' 염료' : x.name, pic = h('span', { class: 'shop-pic', 'aria-hidden': 'true' }, [x.type === 'seed' ? shopSeedPic() : shopJarPic(x.hex, x.id)]), tag = roomTagEl(x, out), btns = [];
     if (out) btns.push(h('p', { class: 'shop-card-note', text: '오늘은 이게 다야' }));
     else {
       btns.push(roomBtn('그만', 'sew-no', function () { roomCardClose(); }));
