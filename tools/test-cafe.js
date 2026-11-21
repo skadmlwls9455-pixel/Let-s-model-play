@@ -92,6 +92,18 @@ var m = CAFE.merge({ eaten: { cake: 1 }, gifts: { cake: '2026-11-25' }, lp: { cl
 check(m.eaten.cake === 3 && m.eaten.kkochi === 2 && m.lp.clair === 1 && m.lp.elise === 4, 'merge: 센 것은 큰 쪽');
 check(m.gifts.cake === '2026-11-22' && m.gifts.kkochi2 === '2026-11-23' && m.tray.left === 1 && m.later === 5, 'merge: 선물 합집합 (이른 날) · 쟁반 · 모르는 칸');
 
+/* 두 탭 (adoptRemote 길): 이 탭이 센 것이 다른 탭의 옛 저장에 덮이지 않는다 · 쟁반은 받은 쪽 것 */
+var mineTab = { eaten: { cake: 3 }, gifts: { cake: '2026-11-21' }, lp: { clair: 2 }, tray: { id: 'cake', left: 1, day: '2026-11-21' } };
+var otherTab = { eaten: { cake: 2, kkochi: 1 }, gifts: {}, lp: { elise: 1 }, tray: null };
+var ad = CAFE.adopt(mineTab, otherTab);
+check(ad.eaten.cake === 3 && ad.gifts.cake === '2026-11-21' && ad.lp.clair === 2, 'adopt: 이 탭에서 센 수 · 받은 선물 · 튼 수가 남는다');
+check(ad.eaten.kkochi === 1 && ad.lp.elise === 1, 'adopt: 다른 탭에서 센 것도 남는다');
+check(ad.tray === null, 'adopt: 쟁반은 받은 쪽 것 (다른 탭에서 다 먹은 접시를 되살리지 않는다)');
+check(mineTab.eaten.cake === 3 && otherTab.eaten.cake === 2 && otherTab.lp.clair === undefined, 'adopt: 넘겨받은 둘을 고치지 않는다');
+check(CAFE.adopt(mineTab, undefined).tray.left === 1 && CAFE.adopt(mineTab, undefined).eaten.cake === 3, 'adopt: 받은 쪽에 카페 기록이 없으면 (옛 빌드 탭) 이 탭 것을 지킨다');
+check(CAFE.adopt(undefined, otherTab).eaten.cake === 2, 'adopt: 이 탭에 기록이 없으면 받은 것 그대로');
+check(JSON.stringify(CAFE.adopt(ad, ad)) === JSON.stringify(CAFE.normalize(JSON.parse(JSON.stringify(ad)))), 'adopt: 같은 것끼리는 그대로 (멱등)');
+
 console.log('== 7. 그림');
 ['coffee', 'cake', 'kkochi', 'card', 'speaker', 'mute'].forEach(function (id) { var a = CAFE.art(id); check(a && a.d.length === a.w * a.h * 4 && a.w >= 11, '그림 ' + id + ' ' + (a && a.w + 'x' + a.h)); });
 var sl = {}; for (var i = 0; i < CAFE.SLEEVE_N; i++) { var s = CAFE.sleeve(i); sl[Buffer.from(s.d).toString('base64')] = 1; }

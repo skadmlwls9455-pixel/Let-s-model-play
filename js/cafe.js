@@ -71,6 +71,16 @@ var CAFE = (function () {
     return a;
   }
 
+  /* 다른 탭의 기록 (remote) 을 받을 때: 센 것 · 선물은 이 탭 것과 합치고, 쟁반은 받은 쪽 것 그대로 (그쪽이 더 새 저장 — 이 탭의 옛 쟁반을 되살리면 한 접시를 두 번 먹는다).
+     받은 쪽에 카페 기록이 아예 없으면 (옛 빌드 탭) 이 탭 쟁반을 지킨다. 새 객체를 돌려준다 */
+  function adopt(mine, remote) {
+    var had = isObj(remote), r = normalize(had ? JSON.parse(JSON.stringify(remote)) : {}), tray = r.tray;
+    if (!isObj(mine)) return r;
+    var m = merge(r, JSON.parse(JSON.stringify(mine)));
+    if (had) m.tray = tray;
+    return m;
+  }
+
   /* ───────── 그림 (RGBA) ───────── */
   var PAL = { k: [59, 42, 38], c: [244, 234, 216], b: [107, 64, 40], w: [232, 224, 212], s: [217, 201, 176], r: [214, 69, 80], y: [244, 208, 132], p: [232, 222, 206],
     o: [240, 150, 60], g: [120, 180, 90], t: [150, 110, 70], n: [250, 246, 236], l: [176, 160, 140], d: [40, 34, 44], e: [96, 90, 104] };
@@ -122,6 +132,6 @@ var CAFE = (function () {
     return { w: n, h: n, d: d };
   }
   return { MENU: MENU, GIFT_AT: GIFT_AT, BITES: BITES, item: item, normalize: normalize, order: order, pending: pending, bite: bite,
-    giftDue: giftDue, giftMark: giftMark, dots: dots, leave: leave, played: played, merge: merge, art: art, sleeve: sleeve, SLEEVE_N: SLEEVES.length };
+    giftDue: giftDue, giftMark: giftMark, dots: dots, leave: leave, played: played, merge: merge, adopt: adopt, art: art, sleeve: sleeve, SLEEVE_N: SLEEVES.length };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = CAFE;

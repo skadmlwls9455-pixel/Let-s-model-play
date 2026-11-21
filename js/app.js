@@ -2112,6 +2112,7 @@ var APP = (function () {
     if (sm) { R = sm.state; mineAsks = sm.mine; }
     var mm = MEALR ? MEALR.merge(S, R, mineMeals, now) : null;   /* 11-18 식탁 (docs/MEAL.md): 기록은 id 로 합치고, 이 탭이 막 놓은 요리는 더 새로우면 남긴다 */
     if (mm) { R = mm.state; mineMeals = mm.mine; }
+    if (same) cafeAdopt(S, R);   /* [7-C] 11-21 7차: 이 탭이 센 카페 기록 (먹은 수 · 선물 · 튼 레코드) 을 다른 탭의 저장이 덮지 않게 (CAFE.adopt) */
     S = R; lastSaved = raw;
     var dyeIn = dyeAdopt();   /* 옛 빌드 탭이 물들인 색 (dye 만 바뀜) 을 받아들인다 */
     var redo = !!T && carry(T);
@@ -5497,6 +5498,15 @@ var APP = (function () {
        카페 (마을) 를 벗어나거나, 부엌 · 달리기를 열거나, 탭을 숨기면 멈춘다. */
   var cafeAsk = null, cafeAskAt = 0, cafeSeated = false, cafeWatch = 0, cafeLp = { id: null, sound: false, ang: 0, spin: 0, watch: 0, vol: -1 };
   function cafeState() { var u = userState(); u.cafe = CAFE.normalize(u.cafe); return u.cafe; }
+  function cafeAdopt(mineS, R) {   /* adoptRemote: 이 탭 것과 받은 것을 합친다 (큰 수 · 선물 합집합 · 쟁반은 받은 쪽). 받은 쪽이 모자랐으면 다음 틱에 저장 */
+    if (!window.CAFE || !isObj(R)) return;
+    var a = isObj(mineS) && isObj(mineS.user) ? mineS.user.cafe : null, b = isObj(R.user) ? R.user.cafe : null;
+    if (!isObj(a)) return;
+    var m = CAFE.adopt(a, b), changed = !isObj(b) || JSON.stringify(m) !== JSON.stringify(CAFE.normalize(JSON.parse(JSON.stringify(b))));
+    if (!isObj(R.user)) R.user = {};
+    R.user.cafe = m;
+    setTimeout(function () { try { if (changed) save(); if (cafeSeated) renderCafeTray(); } catch (e) { console.warn('[app] cafe save', e); } }, 0);
+  }
   function cafeApi(name) { return window.APP && typeof window.APP[name] === 'function' ? window.APP[name] : null; }
   function cafeSay(key, vars) { var f = cafeApi('npcSay'); if (f) { try { var p = f('cafe', key, vars || {}); if (p && typeof p.catch === 'function') p.catch(function () {}); } catch (e) { console.warn('[cafe] npcSay', e); } } }
   function cafeScene(name, arg) { if (scene && typeof scene[name] === 'function') { try { var p = scene[name](arg); if (p && typeof p.catch === 'function') p.catch(function () {}); return true; } catch (e) { console.warn('[cafe] ' + name, e); } } return false; }
