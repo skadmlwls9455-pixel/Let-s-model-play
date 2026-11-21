@@ -6101,17 +6101,23 @@ var APP = (function () {
     lost.forEach(function (m) { var wk = CT.week(m.dk); if (!mine.weeks[wk.key]) mine.weeks[wk.key] = { theme: wk.theme.id, days: {} }; mine.weeks[wk.key].days[m.dk] = m.entry; u.shells += CT.shellsOf(m.entry); });
     u.contest = CT.merge(mine, u.contest); save(); return true;
   }
-  function ctEnter(ev) {
-    if (ev && ev.isTrusted && ev.detail !== 0 && tapTime(ev) - ctOpenedAt < SHEET_SETTLE) return;   /* 시트를 연 손가락이 그대로 누르는 것 */
-    if (!ctApi() || ctRun || !ctCats().length) return;
+  function ctEnterCore() {   /* 나가기의 속 (시트 · 장면 공통): 저장소를 다시 읽고 · 채점하고 · 조개를 한 번 준다 → { entry, replay } | null */
+    if (!ctApi() || !ctCats().length) return null;
     try { var raw = storeOK ? localStorage.getItem(KEY) : null; if (raw && raw !== lastSaved) takeRemote(raw); } catch (e) { /* noop */ }   /* 다른 탭이 방금 나갔을 수 있다 — 그 저장부터 받는다 */
     var dk = todayKey(), u = userState(); CT.normalize(u);
     var res = CT.enter(u, dk, ctWorn(), { catalog: ctCats(), salt: S.octopus.born || 0, at: Date.now() });
-    if (!res) { ctRender(); return; }
+    if (!res) return null;
     var e = res.entry;
     if (!e.paid) { e.paid = true; u.shells += CT.shellsOf(e); ctMine.push({ dk: dk, entry: e, born: S.octopus.born || 0, t: performance.now() }); save(); renderBagChip(); ctLogSync(); ctBand(); ctTell = e; }   /* 조개는 여기 한 번만 (주간 선물과 같은 방식) */
+    return { entry: e, replay: res.replay };
+  }
+  function ctEnter(ev) {
+    if (ev && ev.isTrusted && ev.detail !== 0 && tapTime(ev) - ctOpenedAt < SHEET_SETTLE) return;   /* 시트를 연 손가락이 그대로 누르는 것 */
+    if (!ctApi() || ctRun || ctL || !ctCats().length) return;
+    var res = ctEnterCore();
+    if (!res) { ctRender(); return; }
     if (res.replay || reduced()) { ctRender(); ctFocusLine(); ctTold(); return; }
-    ctShow(e);
+    ctShow(res.entry);
   }
   function ctSay(key, vars) { var A = window.APP; if (A && typeof A.npcSay === 'function') { try { A.npcSay('clothes', key, vars); } catch (e) { console.warn('[contest] npcSay', e); } } }   /* 옷가게 문어의 대본 한 줄 (N 갈래의 말상자 · '대본' 표시 — 없으면 아무것도 안 띄운다) */
   function ctTold() { var t = ctTell; ctTell = null; if (t) ctSay('contest.result', { rank: t.rank, shells: CT.shellsOf(t) }); }   /* 결과가 보일 때 한 번 */
@@ -6170,6 +6176,186 @@ var APP = (function () {
     if (fresh && wk && wk.open && !ctEntry() && ctOpenTold !== dk) { ctOpenTold = dk; ctSay('contest.open', { theme: wk.theme.title }); }   /* 열린 날 처음 열 때 한 번 */
     return true;
   }
+  /* ── 11-22 장면 안의 콘테스트 (주인: "기능들을 탭같은 느낌으로 축약하지 말고 … 개별 콘텐츠 같은 느낌"; wip/round7/briefs/CONTENT.md) ──
+     무대 (V: scene.stage · stageDress · npcSet · npcPlace · npcPose) 와 화면 좌표 (W: scene.project) 가 있으면 쇼가 장면에서 벌어진다:
+     무대 톡 → 대기 자리로 걸어감 → 참가 카드 → 경쟁자 셋이 길을 지남 → 내 캐릭터가 걷고 돌고 섬 (P: playerWalkPath · playerPose) → 심사 팻말 셋 → 단상 → 결과 카드.
+     카드는 dialog 가 아니라 #scene 안의 요소 (#ct-world). 규칙 · 저장 · 조개는 시트와 같은 길 (ctEnter). 하나라도 없거나 움직임 줄이기 · 2D 면 시트가 열린다 */
+  var ctL = null, ctWorld = null, ctAnch = [], ctAnchRaf = 0, ctSceneKey = null, ctPosterEl = null;
+  function ctStageInfo() {
+    if (!scene || sceneMode !== '3d' || typeof scene.stage !== 'function' || typeof scene.project !== 'function') return null;
+    try { var s = scene.stage(); return isObj(s) && Array.isArray(s.path) && s.path.length && Array.isArray(s.judges) && s.judges.length >= 3 && Array.isArray(s.podium) && s.podium.length >= 4 ? s : null; } catch (e) { return null; }
+  }
+  function ctInHall() { try { return typeof scene.inRoom === 'function' && scene.inRoom() === 'hall'; } catch (e) { return false; } }
+  function ctAtStage() {   /* 무대가 보이는 곳인가 (공연장 안 · 또는 공연장이 없을 때의 광장) */
+    if (ctInHall()) return true;
+    try { return typeof scene.inRoom === 'function' && scene.inRoom() ? false : typeof scene.area === 'function' ? scene.area() === 'plaza' : false; } catch (e) { return false; }
+  }
+  function ctLiveOk() { return !!ctApi() && ctCats().length > 0 && !reduced() && !!ctStageInfo(); }
+  function ctHost() {
+    if (ctWorld && document.contains(ctWorld)) return ctWorld;
+    var sc = $('scene'); if (!sc) return null;
+    ctWorld = h('div', { id: 'ct-world', class: 'ct-world' }); sc.appendChild(ctWorld); return ctWorld;
+  }
+  function ctSceneCall(fn) { if (scene && typeof scene[fn] === 'function') { try { return scene[fn].apply(scene, Array.prototype.slice.call(arguments, 1)); } catch (e) { console.warn('[contest] ' + fn, e); } } return undefined; }
+  function ctWaitMs(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
+  function ctWithin(p, ms) { return Promise.race([Promise.resolve(p).catch(function () { /* noop */ }), ctWaitMs(ms)]); }   /* 다른 갈래의 Promise 가 안 끝나도 쇼는 간다 */
+  function ctWalk(points, ms) { return typeof scene.playerWalkPath === 'function' ? ctWithin(ctSceneCall('playerWalkPath', points, { speed: 1.6 }), ms || 6000) : ctWaitMs(500); }
+  function ctPose(name, ms) { return typeof scene.playerPose === 'function' ? ctWithin(ctSceneCall('playerPose', name), ms || 1600) : ctWaitMs(600); }
+  /* 장면 좌표에 붙는 요소 (포스터 · 팻말): 프레임마다 scene.project 로 자리를 맞춘다 (기기 픽셀에 맞춰) */
+  function ctAnchor(el, x, y, z) { el._pt = [x, y, z]; if (ctAnch.indexOf(el) < 0) ctAnch.push(el); if (!ctAnchRaf) ctAnchRaf = requestAnimationFrame(ctAnchTick); }
+  function ctAnchTick() {
+    ctAnchRaf = 0; ctAnch = ctAnch.filter(function (el) { return document.contains(el); });
+    if (!ctAnch.length) return;
+    var dpr = window.devicePixelRatio || 1, on = ctAtStage();
+    ctAnch.forEach(function (el) {
+      var p = on ? ctSceneCall('project', el._pt[0], el._pt[1], el._pt[2]) : null;
+      if (!p || !isFinite(p.x) || !isFinite(p.y)) { el.style.visibility = 'hidden'; return; }
+      el.style.visibility = ''; el.style.transform = 'translate(' + (Math.round((p.x - el.offsetWidth / 2) * dpr) / dpr) + 'px,' + (Math.round((p.y - el.offsetHeight) * dpr) / dpr) + 'px)';
+    });
+    ctAnchRaf = requestAnimationFrame(ctAnchTick);
+  }
+  function ctRivalsNow(e) {   /* 이번 주 경쟁자 셋 (나간 날은 적힌 것) */
+    if (e && Array.isArray(e.rivals) && e.rivals.length >= 3) return e.rivals;
+    var wk = CT.week(todayKey()); return wk ? CT.rivals(wk.key, ctCats(), wk.theme, S.octopus.born || 0) : [];
+  }
+  function ctJudgeId(i) { return ctInHall() ? 'judge' + i : CT_JUDGES[i]; }   /* 공연장 안: 심사 자리의 문어 (가게 문어의 색) · 광장: 가게 문어가 직접 와 앉는다 */
+  /* 무대 차림: 주말엔 꾸미고 심사 셋이 앉고 경쟁자가 선다. 그날 나갔으면 단상에 등수대로. 평일엔 걷는다 */
+  function ctSceneSync(force) {
+    var st = ctStageInfo(); if (!st || !CT) return;
+    var dk = todayKey(), wk = CT.week(dk), at = ctAtStage(), e = S.user ? CT.today(S.user, dk) : null, hall = ctInHall();
+    var key = [dk, at, hall, !!e, wk && wk.open, ctL ? 1 : 0].join('|');
+    if (!force && key === ctSceneKey) return; ctSceneKey = key;
+    ctPoster(st, wk);
+    if (!at || ctL) return;
+    var open = !!(wk && wk.open) && !!ctApi() && ctCats().length > 0;
+    ctSceneCall('stageDress', open);
+    if (typeof scene.npcSet !== 'function') return;
+    var base = !hall && window.NPC && typeof NPC.list === 'function' ? (NPC.list(dk) || []).filter(function (n) { return isObj(n) && !/^(judge|rival)\d$/.test(n.id); }) : [];
+    if (!open) { if (hall) ctSceneCall('npcSet', []); else { CT_JUDGES.forEach(function (id) { ctSceneCall('npcPlace', id, null); }); } return; }
+    var rv = ctRivalsNow(e), list = base.slice();
+    if (hall) CT_JUDGES.forEach(function (id, i) { var who = ctNpc(id), ro = window.NPC && isObj(NPC.roster) && isObj(NPC.roster[id]) ? NPC.roster[id] : null; list.push({ id: 'judge' + i, color: (who && who.color) || '#8a8494', hat: (ro && ro.hat) || 'none', pose: 'stand' }); });
+    rv.forEach(function (r, k) { list.push({ id: 'rival' + k, color: typeof r.color === 'string' ? r.color : '#8a8494', hat: 'none', pose: 'stand' }); });
+    ctSceneCall('npcSet', list);
+    st.judges.slice(0, 3).forEach(function (j, i) { ctSceneCall('npcPlace', ctJudgeId(i), j[0], j[1], j[2]); ctSceneCall('npcPose', ctJudgeId(i), 'sit'); });
+    if (e) ctPodiumPlace(st, e);
+  }
+  function ctPodiumPlace(st, e) {   /* 등수대로 단상에 (내 캐릭터는 자리를 옮기는 함수가 있을 때만) */
+    CT.board(e).forEach(function (b) {
+      var p = st.podium[b.rank - 1]; if (!p) return;
+      if (b.who === 'me') { if (typeof scene.playerPlace === 'function') ctSceneCall('playerPlace', p[0], p[1], p[2]); }
+      else ctSceneCall('npcPlace', 'rival' + b.who, p[0], p[1], 0);
+    });
+  }
+  function ctPoster(st, wk) {   /* 무대 옆 포스터 판에 이번 주 주제 그림 (일주일 내내). 톡 = 무대 톡과 같다 */
+    var host = ctHost(); if (!host || !wk || !Array.isArray(st.poster)) return;
+    if (ctPosterEl && ctPosterEl.dataset.theme === wk.theme.id && document.contains(ctPosterEl)) return;
+    if (ctPosterEl) ctPosterEl.remove();
+    ctPosterEl = h('button', { type: 'button', class: 'ct-wposter', id: 'ct-wposter', 'data-theme': wk.theme.id, 'aria-label': CT.TEXT.title + ' · ' + wk.theme.title }, [ctArt('theme', wk.theme.id, 2)]);
+    ctPosterEl.addEventListener('click', function () { ctStageTap(); });
+    host.appendChild(ctPosterEl); ctAnchor(ctPosterEl, st.poster[0], (st.y || 0) + 1.5, st.poster[1]);
+  }
+  function ctCardClear() { var host = ctHost(); if (host) Array.prototype.slice.call(host.querySelectorAll('.ct-wcard, .ct-whud')).forEach(function (el) { el.remove(); }); }
+  function ctPlacClear() { var host = ctHost(); if (host) Array.prototype.slice.call(host.querySelectorAll('.ct-wplac')).forEach(function (el) { el.remove(); }); }
+  function ctWorldCard(kind, kids) {   /* 장면 아래쪽에 놓이는 종이 카드 (대사창은 이 카드를 피해 위로 뜬다 — data-npc-avoid) */
+    var host = ctHost(); if (!host) return null;
+    ctCardClear();
+    var card = h('div', { class: 'ct-wcard ct-w' + kind, id: 'ct-wcard', role: 'group', 'aria-label': CT.TEXT.title, 'data-npc-avoid': '', 'data-kind': kind }, kids);
+    host.appendChild(card); return card;
+  }
+  function ctWBtn(id, text, cls, fn) { var b = h('button', { type: 'button', class: 'btn sm pressable' + (cls ? ' ' + cls : ''), id: id, text: text }); b.addEventListener('click', fn); return b; }
+  function ctEntryCard() {   /* 참가 카드: 주제 · 바라는 것 · 옷 갈아입기 · 나가기 (평일엔 '주말에 열려.') */
+    var wk = CT.week(todayKey()); if (!wk) return;
+    var e = ctEntry(); if (e) { ctResultCard(e); return; }
+    var row = [ctWBtn('ct-w-change', CT.TEXT.change, '', function () { openLook(); })];
+    if (wk.open) row.push(ctWBtn('ct-w-go', CT.TEXT.enter, 'primary', function (ev) { ctLiveEnter(ev); }));
+    row.push(ctWBtn('ct-w-close', CT.TEXT.close, '', function () { ctCardClear(); }));
+    var card = ctWorldCard('entry', [ctThemeHead(wk.theme, false), wk.open ? null : h('p', { class: 'ct-closed', id: 'ct-w-closed', text: CT.TEXT.closed }), h('div', { class: 'btn-row ct-wrow' }, row)]);
+    ctOpenedAt = performance.now();
+    if (card && wk.open && ctOpenTold !== todayKey()) { ctOpenTold = todayKey(); ctSay('contest.open', { theme: wk.theme.title }); }
+  }
+  function ctResultCard(e) {   /* 작은 결과 카드: 리본 (등수 · 조개 · '채점 규칙') · 닫기. 단상과 팻말은 장면에 있다 */
+    var line = h('p', { class: 'ct-line', id: 'ct-w-line', tabindex: '-1' }, [h('span', { class: 'ct-place', text: CT.fill(CT.TEXT.rank, { n: e.rank }) }), shellAmt(CT.shellsOf(e)), h('span', { class: 'ct-rule', text: CT.TEXT.rule })]);
+    ctWorldCard('result', [line, h('div', { class: 'btn-row ct-wrow' }, [ctWBtn('ct-w-close', CT.TEXT.close, '', function () { ctCardClear(); })])]);
+    var st = ctStageInfo(); if (st) ctPlacards(st, e, 3);
+  }
+  function ctPlacards(st, e, n) {   /* 심사 팻말 (그림 + 별) 을 심사 문어 머리 위에 — n 번째까지 */
+    var host = ctHost(), th = CT.themeById(e.theme) || CT.week(todayKey()).theme; if (!host) return;
+    var names = { theme: CT.TEXT.partTheme, color: CT.TEXT.partColor, match: CT.TEXT.partMatch };
+    CT.cards(e, th).forEach(function (c, i) {
+      if (i >= n || host.querySelector('.ct-wplac[data-i="' + i + '"]')) return;
+      var who = ctNpc(CT_JUDGES[i]), j = st.judges[i];
+      var el = h('div', { class: 'ct-wplac', 'data-i': String(i), role: 'img', 'aria-label': (who && who.name ? who.name : CT.fill(CT.TEXT.ariaJudge, { n: i + 1 })) + ' · ' + names[c.what] + ' · ' + CT.fill(CT.TEXT.ariaStars, { n: c.stars }) }, [h('div', { class: 'ct-card' }, [ctArt('tag', c.icon, 2), ctStars(c.stars)]), h('span', { class: 'ct-stick', 'aria-hidden': 'true' })]);
+      host.appendChild(el); ctAnchor(el, j[0], (st.y || 0) + 1.15, j[1]);
+    });
+  }
+  function ctJudgeN(e, i) {   /* 심사 문어가 센 수 (사실만): 맞은 주제 꼬리표 · 주제 색인 것 · 같은 느낌으로 모인 것 */
+    var ps = {}; (e.parts || []).forEach(function (p) { if (p) ps[p.what] = p; });
+    if (i === 0) return ps.theme ? Math.round(ps.theme.points / CT.PTS.tag) : 0;
+    if (i === 1) return ps.color ? Math.round(ps.color.points / CT.PTS.color) : 0;
+    return ps.match ? (ps.match.points >= CT.PTS.match3 ? 3 : ps.match.points >= CT.PTS.match2 ? 2 : 0) : 0;
+  }
+  function ctSayAs(id, key, vars) { var A = window.APP; if (A && typeof A.npcSay === 'function') { try { A.npcSay(id, key, vars); } catch (e) { console.warn('[contest] npcSay', e); } } }
+  function ctStageTap() {   /* 무대 · 포스터 톡 */
+    if (ctL || ctRun) return false;
+    if (!ctLiveOk()) return openContest();
+    if (!ctAtStage()) {   /* 밖이면 공연장 안으로 (W 의 길) — 없으면 시트 */
+      var A = window.APP;
+      if (A && typeof A.goInside === 'function' && scene.roomReg && scene.roomReg.hall) { Promise.resolve(A.goInside('hall')).then(function (ok) { if (ok) { ctSceneSync(true); } else openContest(); }); return true; }
+      return openContest();
+    }
+    var st = ctStageInfo(); ctSceneSync(true);
+    var L = ctL = { stage: 'go', n: 0, skip: false, done: false, entry: null };
+    ctWalk([st.wait], 5000).then(function () { if (ctL === L) { ctL = null; ctEntryCard(); } });
+    return true;
+  }
+  function ctLiveEnter(ev) {
+    if (ev && ev.isTrusted && ev.detail !== 0 && tapTime(ev) - ctOpenedAt < SHEET_SETTLE) return;
+    if (ctL || ctRun) return;
+    var e = ctEnterCore(); if (!e) { ctEntryCard(); return; }
+    if (e.replay || !ctLiveOk()) { ctResultCard(e.entry); ctTold(); return; }
+    ctLiveShow(e.entry);
+  }
+  function ctLiveSet(L, stage, n) { L.stage = stage; L.n = n; var host = ctHost(); if (host) { host.dataset.stage = stage; host.dataset.n = String(n); } }
+  function ctLiveShow(e) {
+    var st = ctStageInfo(), host = ctHost(); if (!st || !host) { ctResultCard(e); ctTold(); return; }
+    ctCardClear(); ctPlacClear();
+    var L = ctL = { stage: 'start', n: 0, skip: false, done: false, entry: e }, live = function () { return ctL === L && !L.skip; };
+    ctSceneKey = null; ctSceneCall('stageDress', true);
+    var hud = h('div', { class: 'ct-whud', 'data-npc-avoid': '' }, [h('span', { class: 'ct-rule', text: CT.TEXT.rule }), ctWBtn('ct-w-skip', CT.TEXT.skip, '', function () { ctLiveEnd(L); })]);
+    host.appendChild(hud);
+    ctSayAs(CT_JUDGES[0], 'contest.start');
+    (function run() {
+      var seq = Promise.resolve().then(function () { return ctWaitMs(700); });
+      [0, 1, 2].forEach(function (k) {   /* 경쟁자 셋이 차례로 길을 지난다 */
+        st.path.forEach(function (pt, pi) { seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'walk', k + 1); var nx = st.path[pi + 1] || st.path[pi - 1] || pt; ctSceneCall('npcPlace', 'rival' + k, pt[0], pt[1], Math.atan2(nx[0] - pt[0], nx[1] - pt[1])); return ctWaitMs(260); }); });
+        seq = seq.then(function () { if (!live()) return; ctSceneCall('npcPlace', 'rival' + k, null); return ctWaitMs(120); });
+      });
+      seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'walk', 4); return ctWalk(st.path, 7000); })   /* 내 차례: 걷고 · 돌고 · 선다 */
+        .then(function () { if (!live()) return; ctLiveSet(L, 'pose', 0); return ctPose('twirl'); })
+        .then(function () { if (!live()) return; return ctPose('pose'); });
+      [0, 1, 2].forEach(function (i) {   /* 심사 팻말 하나씩 + 센 수를 말하는 대본 */
+        seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'judge', i + 1); ctPlacards(st, e, i + 1); ctSayAs(CT_JUDGES[i], 'contest.judge', { n: ctJudgeN(e, i) }); return ctWaitMs(1500); });
+      });
+      seq.then(function () { if (!live()) return; ctLiveSet(L, 'podium', 0); ctPodiumPlace(st, e); ctSayAs(CT_JUDGES[0], 'contest.podium'); return ctPose('cheer', 1200); })
+        .then(function () { if (ctL === L) ctLiveEnd(L); });
+    })();
+  }
+  function ctLiveEnd(L) {   /* 쇼 끝 (다 봤거나 넘겼거나): 단상 · 팻말 · 결과 카드 */
+    if (!L || ctL !== L) return;
+    L.skip = true; L.done = true; ctL = null;
+    var st = ctStageInfo(), host = ctHost(); if (host) { delete host.dataset.stage; delete host.dataset.n; }
+    if (st) { [0, 1, 2].forEach(function (k) { ctSceneCall('npcPlace', 'rival' + k, null); }); ctPodiumPlace(st, L.entry); }
+    ctResultCard(L.entry); ctSceneKey = null; ctTold();
+    var l = $('ct-w-line'); if (l) { try { l.focus({ preventScroll: true }); } catch (e) { l.focus(); } }
+  }
+  function ctLiveInit() {
+    ['btn-hall-stage', 'btn-plaza-stage'].forEach(function (id) { var b = $(id); if (b) b.addEventListener('click', function () { ctStageTap(); }); });
+    var rk = $('btn-hall-rack'); if (rk) rk.addEventListener('click', function () { openLook(); });
+    var bd = $('btn-hall-board'); if (bd) bd.addEventListener('click', function () { var e = ctEntry(); if (e && ctLiveOk()) ctResultCard(e); else openContest(); });
+    document.addEventListener('ppol:room', function () { ctCardClear(); ctPlacClear(); if (ctL) { ctL.skip = true; ctL = null; } ctSceneKey = null; setTimeout(function () { ctSceneSync(true); }, 0); });
+    setInterval(function () { if (!document.hidden && !ctL) ctSceneSync(false); }, 1000);   /* 광장에 들어섬 · 날이 바뀜 · 다른 탭이 나감 */
+    setTimeout(function () { ctSceneSync(true); }, 0);
+  }
   function ctInit() {
     var d = $('contest-sheet'); if (!d || !CT) return;
     var h2 = $('contest-h'); if (h2) h2.textContent = CT.TEXT.title;
@@ -6179,7 +6365,7 @@ var APP = (function () {
     d.addEventListener('close', function () {
       if (ctRun) ctEnd();
     });
-    var sb = $('btn-plaza-stage'); if (sb) sb.addEventListener('click', function () { openContest(); });
+    ctLiveInit();   /* 무대 단추 (#btn-hall-stage · #btn-plaza-stage) — 장면 안의 쇼, 안 되면 시트 */
     var lk = $('look-sheet'); if (lk) lk.addEventListener('close', function () { if (d.open && !ctRun) ctRender(); });   /* 갈아입고 돌아오면 내 모습을 다시 */
     window.addEventListener('storage', function (e) { if (e.key !== KEY) return; setTimeout(function () { var healed = ctHeal(); if (healed) { renderBagChip(); ctLogSync(); } if (d.open && !ctRun) ctRender(); }, 0); });
   }
@@ -6236,7 +6422,8 @@ var APP = (function () {
     get npc() { return npcNow ? { id: npcNow.ln.id, key: npcNow.ln.key, n: npcNow.ln.n, i: npcNow.i, tag: npcNow.ln.tag, text: npcNow.ln.bubbles[npcNow.i] } : null; },   /* 지금 떠 있는 마을 문어의 말 (테스트 · 도구) */
 
     /* [7-F] */
-    openContest: openContest, contestEnter: function () { ctEnter(null); }, contestSkip: ctEnd, get contestStage() { return ctRun ? { stage: CT_STEPS[ctRun.i] ? CT_STEPS[ctRun.i][0] : null, n: CT_STEPS[ctRun.i] ? CT_STEPS[ctRun.i][1] : 0, i: ctRun.i } : null; },   /* 11-21 주말 콘테스트 (테스트 · 도구): 무대 단추와 같은 길 · 나가기 · 쇼 넘기기 · 지금 쇼 단계 */
+    openContest: openContest, contestEnter: function () { ctEnter(null); }, contestSkip: ctEnd, contestStageTap: function () { return ctStageTap(); }, contestLiveEnter: function () { ctLiveEnter(null); }, contestLiveSkip: function () { if (ctL) ctLiveEnd(ctL); }, get contestLive() { return ctL ? { stage: ctL.stage, n: ctL.n } : null; },
+    get contestStage() { return ctRun ? { stage: CT_STEPS[ctRun.i] ? CT_STEPS[ctRun.i][0] : null, n: CT_STEPS[ctRun.i] ? CT_STEPS[ctRun.i][1] : 0, i: ctRun.i } : null; },   /* 11-21 주말 콘테스트 (테스트 · 도구): 무대 단추와 같은 길 · 나가기 · 쇼 넘기기 · 지금 쇼 단계 */
 
     r7: true
   };
