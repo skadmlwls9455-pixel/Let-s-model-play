@@ -6032,7 +6032,7 @@ var APP = (function () {
     return f ? { name: typeof f.name === 'string' ? f.name : '', color: typeof f.color === 'string' && /^#[0-9a-f]{6}$/i.test(f.color) ? f.color : null } : null;
   }
   function ctEntry() { var u = userState(); return CT.today(u, todayKey()); }
-  function ctStars(n) { var b = h('span', { class: 'ct-stars' }, [h('span', { class: 'sr-only', text: CT.fill(CT.TEXT.ariaStars, { n: n }) })]); for (var i = 0; i < n; i++) b.appendChild(ctArt('star', null, 2)); return b; }
+  function ctStars(n, k) { var b = h('span', { class: 'ct-stars' }, [h('span', { class: 'sr-only', text: CT.fill(CT.TEXT.ariaStars, { n: n }) })]); for (var i = 0; i < n; i++) b.appendChild(ctArt('star', null, k || 2)); return b; }
   function ctCards(e, th, cls) {   /* 심사 셋: 문어 + 든 카드 (그림 + 별) */
     var names = { theme: CT.TEXT.partTheme, color: CT.TEXT.partColor, match: CT.TEXT.partMatch };
     return h('div', { class: 'ct-judges' + (cls ? ' ' + cls : '') }, CT.cards(e, th).map(function (c, i) {
@@ -6290,8 +6290,8 @@ var APP = (function () {
     CT.cards(e, th).forEach(function (c, i) {
       if (i >= n || host.querySelector('.ct-wplac[data-i="' + i + '"]')) return;
       var who = ctNpc(CT_JUDGES[i]), j = st.judges[i];
-      var el = h('div', { class: 'ct-wplac', 'data-i': String(i), role: 'img', 'aria-label': (who && who.name ? who.name : CT.fill(CT.TEXT.ariaJudge, { n: i + 1 })) + ' · ' + names[c.what] + ' · ' + CT.fill(CT.TEXT.ariaStars, { n: c.stars }) }, [h('div', { class: 'ct-card' }, [ctArt('tag', c.icon, 2), ctStars(c.stars)]), h('span', { class: 'ct-stick', 'aria-hidden': 'true' })]);
-      host.appendChild(el); ctAnchor(el, j[0], (st.y || 0) + 1.15, j[1]);
+      var el = h('div', { class: 'ct-wplac', 'data-i': String(i), role: 'img', 'aria-label': (who && who.name ? who.name : CT.fill(CT.TEXT.ariaJudge, { n: i + 1 })) + ' · ' + names[c.what] + ' · ' + CT.fill(CT.TEXT.ariaStars, { n: c.stars }) }, [h('div', { class: 'ct-card' }, [ctArt('tag', c.icon, 2), ctStars(c.stars, 1)]), h('span', { class: 'ct-stick', 'aria-hidden': 'true' })]);
+      host.appendChild(el); ctAnchor(el, j[0], (st.y || 0) + 1.1 + (i === 1 ? 0.45 : 0), j[1]);   /* 가운데 팻말은 높이 들어 셋이 안 겹치게 */
     });
   }
   function ctJudgeN(e, i) {   /* 심사 문어가 센 수 (사실만): 맞은 주제 꼬리표 · 주제 색인 것 · 같은 느낌으로 모인 것 */
