@@ -2478,6 +2478,7 @@ var APP = (function () {
       var sr = summaryRow(t); if (sr) rows.push(sr);
     });
     flush(null);   /* 마지막 차례 뒤 (또는 물음만 있는 날) */
+    ctDayRows(list, asks, meals).forEach(function (r) { rows.push(r); });   /* 11-21 주말 콘테스트: 그날 나간 결과 한 줄 ([7-F]) */
     return rows;
   }
   /* 아래 '오늘의 산책' 은 오늘 칸만 (주인 11-07). 지난 날은 앨범 › 일기 (renderDiary). 자정이 지나면 checkDay 가 넘긴다 */
@@ -5500,7 +5501,7 @@ var APP = (function () {
      - 채점은 규칙이다: 결과에 '채점 규칙' 꼬리표. 심사 문어는 그림 카드만 든다 (말 · 마음 없음).
      - 조개는 나가는 순간 한 번 (기록의 paid). 주기 전에 저장소를 다시 읽어 다른 탭이 먼저 나갔으면 그 결과를 그대로 보여 준다.
      - 그날 다시 열면 적힌 결과 그대로 (다시 뽑지 않는다). 쇼는 넘길 수 있고, 움직임 줄이기면 바로 결과 */
-  var CT = window.CONTEST || null, ctRun = null, ctMine = [], ctTell = null, ctOpenedAt = -1e9;
+  var CT = window.CONTEST || null, ctRun = null, ctMine = [], ctTell = null, ctOpenTold = null, ctOpenedAt = -1e9;
   var CT_STEPS = [['walk', 1, 650], ['walk', 2, 650], ['walk', 3, 650], ['walk', 4, 900], ['judge', 1, 1200], ['judge', 2, 1200], ['judge', 3, 1400], ['count', 0, 2300], ['podium', 0, 2400]];   /* [단계, 몇 번째, ms] — 모두 약 12초 */
   var CT_JUDGES = ['clothes', 'goods', 'cafe'];
   function ctApi() { var A = window.APP; return CT && sceneMode === '3d' && A && typeof A.wardrobe === 'function' ? A : null; }
@@ -5513,17 +5514,18 @@ var APP = (function () {
     for (var i = 0; i < DYES.length; i++) if (DYES[i][2] === hex.toLowerCase()) return 'c-' + DYES[i][0];
     return null;
   }
-  function ctWorn() {
-    var cats = ctCats(), out = [];
-    cats.forEach(function (c) { c.items.forEach(function (it) { if (isObj(it) && it.worn && it.id != null) out.push({ cat: c.key, id: it.id, name: it.name, tags: Array.isArray(it.tags) ? it.tags : [], dye: ctDye(c.key, it.id) }); }); });
-    if (out.length) return out;
-    var A = ctApi(), w = null; try { w = A && typeof A.wearing === 'function' ? A.wearing() : null; } catch (e) { w = null; }   /* worn 표시가 없는 목록이면 wearing() 으로 */
+  function ctWorn() {   /* 입은 것: wearing() (P 갈래 — 물들인 색 · 머리 색이 꼬리표에 들어 있다) 에 목록의 본디 꼬리표를 합친다 (물들여서 잃는 것이 없게). wearing 이 없으면 목록의 worn 표시 */
+    var cats = ctCats(), A = ctApi(), w = null, out = [];
+    function base(cat, id) { var t = []; cats.forEach(function (c) { if (c.key === cat) c.items.forEach(function (it) { if (isObj(it) && it.id === id && Array.isArray(it.tags)) t = it.tags; }); }); return t; }
+    try { w = A && typeof A.wearing === 'function' ? A.wearing() : null; } catch (e) { w = null; }
     (Array.isArray(w) ? w : isObj(w) ? Object.keys(w).map(function (k) { return isObj(w[k]) ? { cat: w[k].cat || k, id: w[k].id, tags: w[k].tags } : { cat: k, id: w[k] }; }) : []).forEach(function (p) {
       if (!isObj(p) || p.id == null) return;
-      var tags = Array.isArray(p.tags) ? p.tags : null;
-      if (!tags) cats.forEach(function (c) { if (c.key === p.cat) c.items.forEach(function (it) { if (it.id === p.id && Array.isArray(it.tags)) tags = it.tags; }); });
-      if (tags && tags.length) out.push({ cat: p.cat, id: p.id, tags: tags, dye: ctDye(p.cat, p.id) });
+      var tags = (Array.isArray(p.tags) ? p.tags : []).slice();
+      base(p.cat, p.id).forEach(function (t) { if (tags.indexOf(t) < 0) tags.push(t); });
+      if (tags.length) out.push({ cat: p.cat, id: p.id, tags: tags, dye: ctDye(p.cat, p.id) });
     });
+    if (out.length) return out;
+    cats.forEach(function (c) { c.items.forEach(function (it) { if (isObj(it) && it.worn && it.id != null && Array.isArray(it.tags) && it.tags.length) out.push({ cat: c.key, id: it.id, tags: it.tags, dye: ctDye(c.key, it.id) }); }); });
     return out;
   }
   /* 픽셀 그림: 아트 1px = 기기 픽셀 정수 배 (k = 바라는 CSS 배율) */
@@ -5627,9 +5629,11 @@ var APP = (function () {
     if (!res) { ctRender(); return; }
     var e = res.entry;
     if (!e.paid) { e.paid = true; u.shells += e.shells | 0; ctMine.push({ dk: dk, entry: e, born: S.octopus.born || 0 }); save(); renderBagChip(); ctLogSync(); ctTell = e; }   /* 조개는 여기 한 번만 (주간 선물과 같은 방식) */
-    if (res.replay || reduced()) { ctRender(); ctFocusLine(); return; }
+    if (res.replay || reduced()) { ctRender(); ctFocusLine(); ctTold(); return; }
     ctShow(e);
   }
+  function ctSay(key, vars) { var A = window.APP; if (A && typeof A.npcSay === 'function') { try { A.npcSay('clothes', key, vars); } catch (e) { console.warn('[contest] npcSay', e); } } }   /* 옷가게 문어의 대본 한 줄 (N 갈래의 말상자 · '대본' 표시 — 없으면 아무것도 안 띄운다) */
+  function ctTold() { var t = ctTell; ctTell = null; if (t) ctSay('contest.result', { rank: t.rank, shells: t.shells | 0 }); }   /* 결과가 보일 때 한 번 */
   function ctFocusLine() { var l = $('ct-line'); if (l) { try { l.focus({ preventScroll: true }); } catch (e) { l.focus(); } } }
   /* 쇼: 참가자 넷이 차례로 → 심사 카드 셋 → 점수 오름 → 단상 → 결과. 넘기기는 언제나 */
   function ctShow(e) {
@@ -5668,18 +5672,23 @@ var APP = (function () {
     clearTimeout(ctRun.timer); cancelAnimationFrame(ctRun.raf); ctRun = null;
     var cl = $('contest-close'); if (cl) cl.hidden = false;
     ctRender(); var d = $('contest-sheet'); if (d && d.open) ctFocusLine();
+    ctTold();
   }
-  function ctLogSync() {   /* 오늘 기록 칸에 한 줄 ('콘테스트 2등 · 조개 8') — 기록을 다시 그릴 때마다 다시 붙인다 */
-    var log = $('log'); if (!log || !CT) return;
-    var dk = todayKey(), sec = log.querySelector('.lday[data-day="' + dk + '"]'), e = S.user ? CT.today(S.user, dk) : null;
-    if (!sec || !e || sec.querySelector('.ct-row')) return;
-    sec.appendChild(logRow(CT.TEXT.label, CT.logLine(e), 'ct-row', false));
-    var em = log.querySelector('.lempty'); if (em) em.remove();
+  /* 그날 기록 칸의 한 줄 ('콘테스트 2등 · 조개 8'). dayRows 가 부른다 — 날짜는 그날의 차례 · 물음 · 식사에서 읽고, 셋 다 없으면 오늘 (지난 날 칸은 비어 있으면 안 그려진다) */
+  function ctDayRows(list, asks, meals) {
+    if (!CT || !isObj(S.user)) return [];
+    var dk = (list && list[0] && list[0].date) || (asks && asks[0] && asks[0].date) || (meals && meals[0] && isObj(meals[0].ate) && meals[0].ate.date) || todayKey();
+    var e = CT.today(S.user, dk);
+    return e ? [logRow(CT.TEXT.label, CT.logLine(e), 'ct-row', false)] : [];
   }
+  function ctLogSync() { renderLog(); }
   function openContest() {
     var d = $('contest-sheet'); if (!d || !ctApi()) return false;
-    if (!d.open) ctOpenedAt = performance.now();
-    ctRender(); showDialog(d); return true;
+    var fresh = !d.open; if (fresh) ctOpenedAt = performance.now();
+    ctRender(); showDialog(d);
+    var dk = todayKey(), wk = CT.week(dk);
+    if (fresh && wk && wk.open && !ctEntry() && ctOpenTold !== dk) { ctOpenTold = dk; ctSay('contest.open', { theme: wk.theme.title }); }   /* 열린 날 처음 열 때 한 번 */
+    return true;
   }
   function ctInit() {
     var d = $('contest-sheet'); if (!d || !CT) return;
@@ -5689,14 +5698,10 @@ var APP = (function () {
     d.addEventListener('cancel', function (e) { if (ctRun) { e.preventDefault(); ctEnd(); } });   /* Esc: 쇼 중이면 넘기기 */
     d.addEventListener('close', function () {
       if (ctRun) ctEnd();
-      var t = ctTell, A = window.APP; ctTell = null;
-      if (t && A && typeof A.npcSay === 'function') { try { A.npcSay('clothes', 'contest.result', { rank: t.rank, shells: t.shells | 0 }); } catch (e) { console.warn('[contest] npcSay', e); } }   /* 옷가게 문어의 대본 한 줄 (N 갈래 — 없으면 아무것도 안 띄운다) */
     });
     var sb = $('btn-plaza-stage'); if (sb) sb.addEventListener('click', function () { openContest(); });
     var lk = $('look-sheet'); if (lk) lk.addEventListener('close', function () { if (d.open && !ctRun) ctRender(); });   /* 갈아입고 돌아오면 내 모습을 다시 */
-    window.addEventListener('storage', function (e) { if (e.key !== KEY) return; setTimeout(function () { var healed = ctHeal(); ctLogSync(); if (healed) renderBagChip(); if (d.open && !ctRun) ctRender(); }, 0); });
-    var log = $('log'); if (log && window.MutationObserver) new MutationObserver(ctLogSync).observe(log, { childList: true });
-    ctLogSync();
+    window.addEventListener('storage', function (e) { if (e.key !== KEY) return; setTimeout(function () { var healed = ctHeal(); if (healed) { renderBagChip(); ctLogSync(); } if (d.open && !ctRun) ctRender(); }, 0); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ctInit); else ctInit();
 
