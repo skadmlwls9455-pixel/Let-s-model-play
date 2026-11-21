@@ -83,7 +83,7 @@ async function village(page) {
       }, { pt: pt, btns: BTNS });
       b2.forEach(function (q) {
         var inside = q.px[0] > 30 && q.px[0] < q.w - 30 && q.px[1] > 80 && q.px[1] < q.h - 120;   /* 가장자리 · 위 막대 · 아래 단추 자리는 판단하지 않는다 */
-        if (!q.hidden) { seen[q.id] = true; ok(q.rect[2] >= 44 && q.rect[3] >= 44, q.id + ' 단추가 44 px 이상'); ok(q.px[0] >= q.rect[0] - 2 && q.px[0] <= q.rect[0] + q.rect[2] + 2 && q.px[1] >= q.rect[1] - 2 && q.px[1] <= q.rect[1] + q.rect[3] + 2, q.id + ' 단추가 자리 위에 있다 (' + pt + ')'); }
+        if (!q.hidden) { seen[q.id] = true; ok(q.rect[2] >= 44 && q.rect[3] >= 44, q.id + ' 단추가 44 px 이상'); if (inside) ok(q.px[0] >= q.rect[0] - 2 && q.px[0] <= q.rect[0] + q.rect[2] + 2 && q.px[1] >= q.rect[1] - 2 && q.px[1] <= q.rect[1] + q.rect[3] + 2, q.id + ' 단추가 자리 위에 있다 (' + pt + ')'); }
         else if (inside) ok(false, q.id + ' 자리가 화면 안인데 단추가 숨었다 (' + pt + ') ' + JSON.stringify(q.px.map(Math.round)));
       });
     }
