@@ -2606,12 +2606,24 @@ var APP = (function () {
     /* 방 그림(art)이 붙은 포스터: 주제 스티커가 그림과 겹치고 기울어 계단이 졌다 (주인 11-10) → 오른쪽 가장자리 세로 띠에만 놓고 (그림 칸 밖),
        반 크기 정수 배 (300px 포스터 = 32px) · 기울기 0 (픽셀 그대로). 높이는 저장된 stickerPos.y 그대로라 포스터마다 다르다. 저장 데이터는 안 바꾼다 */
     if (art) { ss = 16 * Math.max(1, Math.round(w * 0.107 / 16)); stx = sx + sw * ((81 + (Math.abs(pos.x | 0) % 7)) / 100); sty = sy + sh * (Math.max(14, Math.min(84, pos.y)) / 100); pos = { x: pos.x, y: pos.y, rot: 0 }; }
+    /* 11-21 (주인: "지금은 너무 작아서 안 보여"): 스티커를 키운다 — 앨범 카드 32 CSS px · 크게 보기 앞면 · 저장 그림은 1.5배 (posterStickerSize). 제 칸 안에만: 방 그림이 있으면 그 오른쪽 띠, 없으면 장면 칸 —
+       안 들어가면 들어가는 크기까지만 (좁은 쪽지 카드의 띠는 18px 라 예전 크기 그대로). 작은 포스터 (벽 · 들고 오는) 는 그대로 */
+    var ss0 = ss, sdpr = window.devicePixelRatio || 1, sstep = opts.card ? 16 / sdpr : 16; ss = posterStickerSize(ss, opts);
+    if (ss !== ss0) {
+      var sx0 = art ? sx + sw * (note ? 0.75 : 0.58) : sx, sx1 = sx + sw;
+      while (ss > ss0 && (ss > sx1 - sx0 || ss > sh)) ss -= sstep;
+      if (ss <= ss0) ss = ss0;
+      else {
+        stx = clamp(stx, sx0 + ss / 2, sx1 - ss / 2); sty = clamp(sty, sy + ss / 2, sy + sh - ss / 2);
+        if (opts.card && !pos.rot) { stx = Math.round((stx - ss / 2) * sdpr) / sdpr + ss / 2; sty = Math.round((sty - ss / 2) * sdpr) / sdpr + ss / 2; }   /* 카드는 1단위 = 1 CSS px → 기기 px 격자에 */
+      }
+    }
     var stHref = opts.inlineSticker || stickerSrc(trip);
     if (stHref && !/^data:/.test(stHref) && window.UIART && UIART.iconBad && UIART.iconBad(stHref)) stHref = null;   /* 한 번 안 온 그림은 넣지 않는다 (깨진 그림 표시 대신 스티커 없이) */
     if (miniArt) stHref = null;   /* 작은 포스터에 방 그림이 있으면 주제 스티커는 뺀다 (둘이 겹쳐 뭉개진다) */
     if (stHref && (!opts.noExternal || /^data:/.test(stHref))) {
       /* 기울기는 <image> 에 (바깥 g.stk 는 새 카드 등장 애니메이션 scale/fade 가 transform 을 덮어쓴다 — 거기 두면 기울기 · 자리가 풀린다) */
-      s += '<g class="stk"><image href="' + esc(stHref) + '" x="' + (stx - ss / 2).toFixed(1) + '" y="' + (sty - ss / 2).toFixed(1) + '" width="' + ss.toFixed(1) + '" height="' + ss.toFixed(1) + '" transform="rotate(' + (pos.rot || 0) + ' ' + stx.toFixed(1) + ' ' + sty.toFixed(1) + ')" image-rendering="optimizeSpeed" style="image-rendering:pixelated"/></g>';
+      s += '<g class="stk"><image href="' + esc(stHref) + '" x="' + +(stx - ss / 2).toFixed(3) + '" y="' + +(sty - ss / 2).toFixed(3) + '" width="' + +ss.toFixed(3) + '" height="' + +ss.toFixed(3) + '" data-cx="' + +stx.toFixed(3) + '" data-cy="' + +sty.toFixed(3) + '" data-ss="' + +ss.toFixed(3) + '" transform="rotate(' + (pos.rot || 0) + ' ' + +stx.toFixed(3) + ' ' + +sty.toFixed(3) + ')" image-rendering="optimizeSpeed" style="image-rendering:pixelated"/></g>';
     }
     if (opts.mini) {
       s += '<rect x="' + sx + '" y="' + (sy + sh + hgt * 0.08) + '" width="' + (sw * 0.8) + '" height="' + (hgt * 0.05) + '" fill="#5f5849" opacity=".5"/>';
@@ -2852,7 +2864,7 @@ var APP = (function () {
       var g = h('div', { class: 'aday' }, [h('span', { class: 'adate', text: fmtDate(d) })]);
       byDay[d].forEach(function (t) {
         var note = t.poster.type === 'note', isNew = !!albumFresh[t.id] || (t.id === lastNewPoster && albumOpen());   /* 올라오는 카드: 앨범을 열 때 지난번 뒤로 붙은 것 · 열려 있는 동안 막 붙은 것 */
-        var c = h('button', { type: 'button', class: 'pcard' + (note ? ' note' : '') + (isNew ? ' in' : '') + (newest && t.id === newest.id ? ' newest' : ''), 'data-trip': t.id, 'aria-label': (t.poster.title || '포스터') + ' · ' + (t.poster.line || ''), 'data-raw-attr': rawBy(t) || posterTitleRaw(t) ? 'aria-label' : null, html: note ? posterSVG(t, 84, 112, { noText: true }) : posterSVG(t, 108, 144, { noText: true }) });   /* 이름표에 모델·사람이 쓴 한 줄 (그대로) */
+        var c = h('button', { type: 'button', class: 'pcard' + (note ? ' note' : '') + (isNew ? ' in' : '') + (newest && t.id === newest.id ? ' newest' : ''), 'data-trip': t.id, 'aria-label': (t.poster.title || '포스터') + ' · ' + (t.poster.line || ''), 'data-raw-attr': rawBy(t) || posterTitleRaw(t) ? 'aria-label' : null, html: note ? posterSVG(t, 84, 112, { noText: true, card: true }) : posterSVG(t, 108, 144, { noText: true, card: true }) });   /* 이름표에 모델·사람이 쓴 한 줄 (그대로) */
         if (isNew) c.style.setProperty('--rot', ((mkRng(t.seed >>> 0)() * 6) - 3).toFixed(1) + 'deg');   /* 최종 각도 ±3° (GF R15) */
         c.addEventListener('click', function () { openPoster(t.id); });
         g.appendChild(c);
@@ -5488,6 +5500,28 @@ var APP = (function () {
     });
     return out;
   }
+  /* 11-21 포스터 스티커 크기 (SVG 단위): 앨범 카드 (opts.card — 1단위 = 1 CSS px) 는 32 CSS px 에 가장 가까운 '아트 1px = 기기 px 정수' 크기 (배율 2 → 32 · 2.625 → 30.48 = 80 기기 px),
+     그 밖 (크게 보기 앞면 300 · 저장 그림 600) 은 예전의 1.5배를 16의 배수로 (32 → 48 · 64 → 96). 작은 포스터 (mini) 는 그대로. 앞면은 CSS 가 늘이고 줄여 그리므로 열린 뒤 fitFrontSticker 가 기기 px 에 맞춘다 */
+  function posterStickerSize(ss, opts) {
+    if (opts.mini || ss < 16) return ss;
+    if (opts.card) { var d = window.devicePixelRatio || 1; return 16 * Math.max(1, Math.round(32 * d / 16)) / d; }
+    return 16 * Math.max(1, Math.round(ss * 1.5 / 16));
+  }
+  /* 크게 보기 앞면: 그려진 폭 (CSS 가 정한다 — 360 폭 0.97배 · 412 폭 1.15배) 과 기기 배율로 스티커를 '아트 1px = 기기 px 정수' 크기 · 자리로 다시 놓는다. 가운데는 그대로 (기운 스티커는 크기만) */
+  function fitFrontSticker() {
+    var sv = document.querySelector('#pd-front svg'), im = sv && sv.querySelector('.stk image'); if (!im || !im.getAttribute('data-ss')) return;
+    var r = sv.getBoundingClientRect(), vb = sv.viewBox.baseVal, k = vb.width && vb.height ? Math.min(r.width / vb.width, r.height / vb.height) : 0, d = window.devicePixelRatio || 1; if (!(k > 0)) return;
+    var ox = r.left + (r.width - vb.width * k) / 2, oy = r.top + (r.height - vb.height * k) / 2;   /* 그림은 칸 가운데에 맞춰 그려진다 (preserveAspectRatio 기본값) */
+    var cx = +im.getAttribute('data-cx'), cy = +im.getAttribute('data-cy'), n = Math.max(1, Math.round(+im.getAttribute('data-ss') * k * d / 16)), ss = 16 * n / (d * k), x = cx - ss / 2, y = cy - ss / 2;
+    if (/rotate\(0 /.test(im.getAttribute('transform') || '')) { x = (Math.round((ox + x * k) * d) / d - ox) / k; y = (Math.round((oy + y * k) * d) / d - oy) / k; }
+    im.setAttribute('x', x.toFixed(4)); im.setAttribute('y', y.toFixed(4)); im.setAttribute('width', ss.toFixed(4)); im.setAttribute('height', ss.toFixed(4));
+  }
+  (function () {
+    var pf = $('pd-front'), t1 = 0; if (!pf || !window.MutationObserver) return;
+    function soon() { requestAnimationFrame(fitFrontSticker); clearTimeout(t1); t1 = setTimeout(function () { fitFrontSticker(); t1 = setTimeout(fitFrontSticker, 700); }, 450); }   /* 두 번 더: 여는 움직임이 끝난 뒤의 폭 · 자리로 */
+    new MutationObserver(soon).observe(pf, { childList: true });
+    window.addEventListener('resize', soon);
+  })();
   function dayCount() { return isObj(S.user) && Array.isArray(S.user.days) ? S.user.days.length : 0; }
   function renderDayN() {
     var el = $('day-n'), n = dayCount(); if (!el) return;

@@ -8124,6 +8124,18 @@ async function scenarioU7(browser) {
   var f2 = await folds();
   ok(f1 === 'gift- color- look+ sound+ screen- claude- data- who-' && f2 === f1, '설정: 제목 줄을 누르면 (키보드 Enter 도) 펼쳐지고 접힌다 · 닫았다 다시 열어도 그대로 (' + f1 + ' → ' + f2 + ')');
   await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  /* 포스터 스티커 (11-21 주인: "너무 작아서 안 보여"): 앨범 카드 32 CSS px (예전 16) · 크게 보기 앞면 1.5배 (300 단위 포스터: 방 그림 있음 32 → 48 · 없음 64 → 96) — 아트 1px = 기기 px 정수 · 장면 칸 안 */
+  await page.evaluate(function () { APP.state.trips.push({ id: 'u7-poster', date: '2026-11-08', seq: 1, seed: 77, status: 'done', kind: 'out', startedAt: 1, endedAt: 2, events: [], receipt: null, poster: { title: '시험 포스터', type: 'poster', line: '시험', scene: 'home', stickerPos: { x: 70, y: 28, rot: 0 } } }); APP.state.room.posterOrder.push('u7-poster'); APP.save(); APP.renderAll(); });
+  function stk(sel) { return page.evaluate(function (sel) { var e = document.querySelector(sel); if (!e) return null; var r = e.getBoundingClientRect(), sv = e.ownerSVGElement.getBoundingClientRect(), d = devicePixelRatio; return { css: r.width, per: r.width * d / 16, inside: r.left >= sv.left - 0.5 && r.right <= sv.right + 0.5 && r.top >= sv.top - 0.5 && r.bottom <= sv.bottom + 0.5, units: +e.getAttribute('data-ss'), k: sv.width / e.ownerSVGElement.viewBox.baseVal.width }; }, sel); }
+  await page.click('#btn-album'); await page.waitForSelector('#album-sheet[open]'); await page.waitForTimeout(500);
+  var sc = await stk('#album .pcard[data-trip="u7-poster"] .stk image');
+  await page.click('#album .pcard[data-trip="u7-poster"]'); await page.waitForSelector('#poster-dialog[open]'); await page.waitForTimeout(1500);
+  var sf = await stk('#pd-front .stk image');
+  console.log('   stickers:', JSON.stringify({ card: sc, front: sf }));
+  ok(sc && Math.abs(sc.css - 32) < 0.01 && Math.abs(sc.per - Math.round(sc.per)) < 0.01 && sc.inside, '앨범 카드 스티커 32 CSS px (아트 1px = 기기 px 정수 · 카드 안)');
+  ok(sf && (sf.units === 48 || sf.units === 96) && sf.css >= 44 && Math.abs(sf.per - Math.round(sf.per)) < 0.01 && sf.inside, '크게 보기 앞면 스티커: ' + (sf && sf.units) + ' 단위 (예전 32 · 64 의 1.5배) · 그려진 크기 ' + (sf && sf.css.toFixed(1)) + ' CSS px 가 기기 px 정수 배 · 포스터 안');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+  if (await page.$('#album-sheet[open]')) { await page.keyboard.press('Escape'); await page.waitForTimeout(400); }
   /* 열어 둔 탭에서 날이 바뀌면 같이 오른다 (dailyGift) */
   await page.evaluate(function () { window.__ppolTest.today = '2026-11-09'; APP.dailyGift(); });
   var d1 = await dayNow();
