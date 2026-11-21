@@ -2147,7 +2147,7 @@ var COOK = (function () {
       end: { call: !D.call.hidden, table: !D.table.hidden, at: L.screen === 'reveal' ? L.againAt : null }, canCall: L.canCall, served: L.served,
       screen: L.screen, recipe: run ? run.recipe : null, si: run ? run.si : null, kind: st && run.phase !== 'reveal' ? st.kind : null,
       phase: run ? run.phase : null, progress: st ? st.progress : 0, done: run ? !!run.done : false, tag: st ? st.tag : null,
-      band: st && st.kind === 'flip' ? st.band : null, quiet: !(L.shown || document.activeElement === D.verb), fx: L.fx,
+      band: st && (st.kind === 'flip' || st.kind === 'bake') ? st.band : null, quiet: !(L.shown || document.activeElement === D.verb), fx: L.fx,
       verb: D.verb.hidden ? '' : D.verb.getAttribute('aria-label') || '', hint: L.hint ? L.hint.why : null, title: false, note: !D.note.hidden,
       station: stationNow(), slide: sp && sl ? { from: sl.from, to: sl.to, f: sp.f, s: sp.s, carry: sl.carry } : null,
       view: { k: L.k, css: L.css, W: L.W, H: L.H, ox: L.ox, oy: L.oy, hudB: L.hudB, chipTop: L.chipTop, safe: L.safe.slice() },
