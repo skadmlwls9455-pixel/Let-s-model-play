@@ -6053,12 +6053,17 @@ var APP = (function () {
   }
   /* 픽셀 그림: 아트 1px = 기기 픽셀 정수 배 (k = 바라는 CSS 배율) */
   function ctSnap(cv, w, hh, k) { var dpr = window.devicePixelRatio || 1, n = Math.max(1, Math.round(k * dpr)); cv.style.width = (w * n / dpr) + 'px'; cv.style.height = (hh * n / dpr) + 'px'; return n; }
+  function ctMix(a, b, t) {   /* '#rrggbb' 둘을 섞는다 (문어 테두리 · 윤기 색) */
+    var x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16), o = 0;
+    for (var sft = 16; sft >= 0; sft -= 8) o |= Math.round(((x >> sft) & 255) * (1 - t) + ((y >> sft) & 255) * t) << sft;
+    return '#' + ('000000' + o.toString(16)).slice(-6);
+  }
   function ctArt(kind, id, k, tint, label) {
     var a = CT.art(kind, id, tint); if (!a) return null;
     var cv = h('canvas', label ? { class: 'ct-art', role: 'img', 'aria-label': label } : { class: 'ct-art', 'aria-hidden': 'true' }), n = ctSnap(cv, a.w, a.h, k);
     cv.width = a.w * n; cv.height = a.h * n;
-    var cx = cv.getContext('2d');
-    a.rows.forEach(function (row, j) { for (var i = 0; i < row.length; i++) { var ch = row.charAt(i); if (ch === '.') continue; cx.fillStyle = ch === 'x' ? a.tint : a.pal[ch]; cx.fillRect(i * n, j * n, n, n); } });
+    var cx = cv.getContext('2d'), dark = a.tint ? ctMix(a.tint, '#2a2438', 0.42) : null, lite = a.tint ? ctMix(a.tint, '#fff6e0', 0.5) : null;
+    a.rows.forEach(function (row, j) { for (var i = 0; i < row.length; i++) { var ch = row.charAt(i); if (ch === '.') continue; cx.fillStyle = ch === 'x' ? a.tint : ch === 'X' && dark ? dark : ch === 'h' && lite ? lite : a.pal[ch]; cx.fillRect(i * n, j * n, n, n); } });
     return cv;
   }
   function ctMe(frame, k, label) {   /* 내 캐릭터 (지금 차림) — 장면의 전신 · 얼굴 사진 */
@@ -6069,17 +6074,6 @@ var APP = (function () {
       cv.width = src.width; cv.height = src.height; ctSnap(cv, src.width, src.height, k); cv.getContext('2d').drawImage(src, 0, 0);
       return cv;
     } catch (e) { console.warn('[contest] playerShot', e); return null; }
-  }
-  function ctThumb(cat, id) {   /* 경쟁자가 입은 것 (P 갈래의 그림 — 없으면 안 그린다). 받은 그림의 1px 도 기기 픽셀 정수 배로 (약 32 CSS px) */
-    var A = ctApi(); if (!A || typeof A.itemThumb !== 'function') return null;
-    try {
-      var t = A.itemThumb(cat, id, 32); if (!t) return null;
-      var cv = h('canvas', { class: 'ct-art ct-thumb', 'aria-hidden': 'true' });
-      var put = function (src, w, hh) { if (!(w > 0 && hh > 0)) return; cv.width = w; cv.height = hh; ctSnap(cv, w, hh, 32 / w); cv.getContext('2d').drawImage(src, 0, 0); };
-      if (typeof t === 'string') { cv.width = cv.height = 32; ctSnap(cv, 32, 32, 1); var im = new Image(); im.onload = function () { put(im, im.naturalWidth, im.naturalHeight); }; im.src = t; }
-      else put(t, t.width, t.height);
-      return cv;
-    } catch (e) { return null; }
   }
   function ctNpc(id) {   /* 심사 문어의 이름 · 색 (N 갈래의 명단 — 없으면 이름 없는 그림자) */
     var N = window.NPC, r = N && N.roster, f = null;
@@ -6094,26 +6088,27 @@ var APP = (function () {
       var who = ctNpc(CT_JUDGES[i]);
       return h('div', { class: 'ct-judge', 'data-at': String(5 + i), role: 'group', 'aria-label': (who && who.name ? who.name : CT.fill(CT.TEXT.ariaJudge, { n: i + 1 })) + ' · ' + names[c.what] }, [
         h('div', { class: 'ct-card' }, [ctArt('tag', c.icon, 3), ctStars(c.stars)]),
+        h('span', { class: 'ct-stick', 'aria-hidden': 'true' }),
         ctArt('oct', null, 2, (who && who.color) || '#8a8494'),
         who && who.name ? h('span', { class: 'ct-jname', 'aria-hidden': 'true', text: who.name }) : null
       ]);
     }));
   }
   function ctFigure(e, who, k) {   /* 참가자 그림: 나 = 내 캐릭터 얼굴, 그 밖 = 문어 그림자 */
-    if (who === 'me') return ctMe('head', k, CT.TEXT.me) || ctArt('oct', null, 3, '#5f5749', CT.TEXT.me);
+    if (who === 'me') return ctMe('head', k, CT.TEXT.me) || ctArt('oct', 'star', 3, '#8a8494', CT.TEXT.me);
     var r = e.rivals[who] || {};
-    return ctArt('oct', null, 3, typeof r.color === 'string' ? r.color : '#8a8494', CT.fill(CT.TEXT.ariaRival, { n: who + 1 }));
+    return ctArt('oct', CT.RIVAL_HATS[who] || null, 3, typeof r.color === 'string' ? r.color : '#8a8494', CT.fill(CT.TEXT.ariaRival, { n: who + 1 }));
   }
   function ctPodium(e, cls) {   /* 단상: 2 · 1 · 3등 순으로 서고 4등은 옆 바닥 */
     var bd = CT.board(e), order = [1, 0, 2, 3];
-    return h('div', { class: 'ct-podium' + (cls ? ' ' + cls : ''), 'data-at': '9' }, order.map(function (i) {
+    return h('div', { class: 'ct-podium ct-stage' + (cls ? ' ' + cls : ''), 'data-at': '9' }, order.map(function (i) {
       var b = bd[i]; if (!b) return null;
       return h('div', { class: 'ct-pod r' + b.rank + (b.who === 'me' ? ' me' : '') }, [ctFigure(e, b.who, 1.5), h('div', { class: 'ct-block' }, [h('span', { class: 'ct-rank', text: CT.fill(CT.TEXT.rank, { n: b.rank }) }), h('span', { class: 'ct-pts', text: CT.fill(CT.TEXT.ariaTotal, { n: b.total }) })])]);
     }));
   }
   function ctThemeHead(th, big) {
-    var want = h('div', { class: 'ct-want', role: 'group', 'aria-label': CT.TEXT.ariaWant }, th.tags.concat([th.color]).map(function (t) { return ctArt('tag', t, 3, null, CT.TAG_NAME[t] || t); }));
-    return h('div', { class: 'ct-theme' + (big ? ' big' : '') }, [ctArt('theme', th.id, big ? 6 : 3), h('div', { class: 'ct-theme-txt' }, [h('p', { class: 'ct-title', text: th.title }), want])]);
+    var want = h('div', { class: 'ct-want', role: 'group', 'aria-label': CT.TEXT.ariaWant }, th.tags.concat([th.color]).map(function (t) { return h('span', { class: 'ct-chip' }, [ctArt('tag', t, 3, null, CT.TAG_NAME[t] || t)]); }));
+    return h('div', { class: 'ct-theme' + (big ? ' big' : '') }, [h('span', { class: 'ct-poster' }, [ctArt('theme', th.id, big ? 6 : 3)]), h('div', { class: 'ct-theme-txt' }, [h('p', { class: 'ct-title', text: th.title }), want])]);
   }
   function ctResult(e, fresh) {   /* 결과: 등수 + 조개 + '채점 규칙' · 단상 · 심사 카드 */
     var th = CT.themeById(e.theme) || CT.week(todayKey()).theme;
@@ -6130,7 +6125,7 @@ var APP = (function () {
     frag.appendChild(ctThemeHead(wk.theme, true));
     var me = ctMe('full', e ? 1 : 2, CT.TEXT.ariaMe), chg = h('button', { type: 'button', class: 'btn sm pressable', id: 'ct-change', text: CT.TEXT.change });
     chg.addEventListener('click', function () { openLook(); });
-    frag.appendChild(h('div', { class: 'ct-mine' }, [me, chg]));
+    frag.appendChild(h('div', { class: 'ct-mine' }, [h('div', { class: 'ct-stage ct-solo' }, [me]), chg]));
     if (e) frag.appendChild(ctResult(e));
     else if (wk.open) { var go = h('button', { type: 'button', class: 'btn wide pressable ct-go', id: 'ct-go', text: CT.TEXT.enter }); go.addEventListener('click', ctEnter); frag.appendChild(go); }
     else frag.appendChild(h('p', { class: 'ct-closed', id: 'ct-closed', text: CT.TEXT.closed }));
@@ -6164,10 +6159,9 @@ var APP = (function () {
   /* 쇼: 참가자 넷이 차례로 → 심사 카드 셋 → 점수 오름 → 단상 → 결과. 넘기기는 언제나 */
   function ctShow(e) {
     var body = $('contest-body'), th = CT.themeById(e.theme) || CT.week(todayKey()).theme; if (!body) return;
-    var line = h('div', { class: 'ct-lineup' }, [0, 1, 2, 'me'].map(function (who, i) {
-      var fig = who === 'me' ? (ctMe('full', 1, CT.TEXT.me) || ctFigure(e, 'me', 1)) : ctFigure(e, who, 1), r = who === 'me' ? null : e.rivals[who];
-      var thumbs = r && Array.isArray(r.look) ? h('div', { class: 'ct-thumbs', 'aria-hidden': 'true' }, r.look.slice(0, 4).map(function (p) { return ctThumb(p.cat, p.id); })) : null;
-      return h('div', { class: 'ct-slot' + (who === 'me' ? ' me' : ''), 'data-at': String(i + 1) }, [fig, thumbs, h('span', { class: 'ct-total', 'data-total': String(who === 'me' ? e.total : (r && r.total) | 0), text: '0' })]);
+    var line = h('div', { class: 'ct-lineup ct-stage' }, [0, 1, 2, 'me'].map(function (who, i) {
+      var fig = who === 'me' ? (ctMe('full', 1.5, CT.TEXT.me) || ctFigure(e, 'me', 1)) : ctFigure(e, who, 1), r = who === 'me' ? null : e.rivals[who];
+      return h('div', { class: 'ct-slot' + (who === 'me' ? ' me' : ''), 'data-at': String(i + 1) }, [h('span', { class: 'ct-total', 'data-total': String(who === 'me' ? e.total : (r && r.total) | 0), text: '0' }), fig]);
     }));
     var skip = h('button', { type: 'button', class: 'btn sm pressable', id: 'ct-skip', text: CT.TEXT.skip });
     skip.addEventListener('click', function () { ctEnd(); });
