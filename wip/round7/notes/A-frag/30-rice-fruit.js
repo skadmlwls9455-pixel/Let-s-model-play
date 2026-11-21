@@ -43,7 +43,7 @@
       l.on('WQ6'); rfDots(l, 4, 3, 48, 26, 34, 'A', 8); rfDots(l, 6, 4, 44, 24, 12, 'a', 9); l.on();
       l.p(12, 6, 'W').p(13, 6, 'W').p(12, 7, 'W').p(27, 9, 'W').p(28, 9, 'W').p(38, 15, 'W').p(20, 18, 'W');
     }
-    F.put(l, 2, 3, 'EFu', 0);
+    F.put(l, 2, 3, 'FuU', 0);
   });
 
   /* ---- the rice pot: full and steaming, then one, two, three scoops taken ---- */
@@ -77,7 +77,7 @@
       var r = lay(16, 13);
       r.e(0, 2, 16, 11, 'e').ball(0, 1, 16, 11, 'W', 'W', 'Q', 3).e(3, 0, 8, 6, 'W').e(8, 1, 7, 6, 'W');
       r.on('W'); rfDots(r, 2, 2, 11, 7, 7, 'Q', 3); r.on();
-      F.put(r, 6, 4, 'EFu', 2);
+      F.put(r, 6, 4, 'FuU', 2);
     }
   });
 
@@ -116,27 +116,27 @@
       l.e(2, 9, 43, 13, 'e').e(0, 7, 26, 13, 'Q').e(13, 3, 26, 17, 'Q').e(24, 8, 21, 12, 'Q').e(6, 13, 30, 8, 'Q');
       l.e(1, 7, 20, 9, 'W').e(14, 3, 21, 11, 'W').e(25, 8, 15, 7, 'W').e(9, 11, 22, 6, 'W');
       l.on('W'); rfDots(l, 2, 4, 38, 13, 26, 'Q', 1); l.on('Q'); rfDots(l, 4, 12, 40, 9, 16, 'e', 2); rfDots(l, 4, 12, 40, 9, 10, 'W', 4); l.on();
-      F.put(l, 7, 14, 'EFu', 2);
+      F.put(l, 7, 14, 'FuU', 2);
       g = lay(2, 1); g.r(0, 0, 2, 1, 'W');
-      [[5, 30], [52, 37], [44, 12], [12, 38], [55, 22]].forEach(function (p) { F.put(g, p[0], p[1], 'EFu', 0); });
+      [[5, 30], [52, 37], [44, 12], [12, 38], [55, 22]].forEach(function (p) { F.put(g, p[0], p[1], 'FuU', 0); });
     } else if (f === 1) {
       /* pressed into a rounder ball */
       l = lay(34, 26);
       l.e(1, 3, 33, 23, 'e').ball(0, 0, 33, 25, 'W', 'W', 'Q', 5);
       l.on('W'); rfDots(l, 3, 3, 24, 16, 14, 'Q', 1); l.on('Q'); rfDots(l, 8, 14, 22, 10, 8, 'e', 2); l.on();
-      F.put(l, 13, 10, 'EFu', 2);
+      F.put(l, 13, 10, 'FuU', 2);
       g = lay(2, 1); g.r(0, 0, 2, 1, 'W');
-      F.put(g, 7, 34, 'EFu', 0); F.put(g, 51, 30, 'EFu', 0);
+      F.put(g, 7, 34, 'FuU', 0); F.put(g, 51, 30, 'FuU', 0);
     } else if (f === 2) {
       /* a soft triangle: round corners, bulging sides, still low */
       l = rfTri([[7, 3], [11, 1], [16, 3], [22, 12], [24, 17], [22, 21], [18, 23], [5, 23], [1, 21], [-1, 17], [1, 12]], 3, -1);
       l.on('W'); rfDots(l, 6, 9, 18, 14, 8, 'Q', 3); l.on();
-      F.put(l, 13, 7, 'EFu', 2);
+      F.put(l, 13, 7, 'FuU', 2);
     } else if (f === 3) {
       l = rfTri([[9, 0], [14, 0], [23, 16], [23, 19], [20, 22], [3, 22], [0, 19], [0, 16]], 5, -2);
-      F.put(l, 13, 7, 'EFu', 2);
+      F.put(l, 13, 7, 'FuU', 2);
     } else {
-      F.put(riceBall(1, 0), 13, 7, 'EFu', 2);
+      F.put(riceBall(1, 0), 13, 7, 'FuU', 2);
     }
   });
 
@@ -152,20 +152,20 @@
 
   /* ---- the basin of clear water ---- */
   def('basin', 100, 68, 50, 40, 1, function (F) {
-    var l = lay(96, 56);
-    l.e(0, 4, 96, 52, 'n').r(0, 26, 96, 4, 'n');
-    l.on('n').r(0, 0, 22, 56, 'm').r(72, 0, 24, 56, 'N').on();
-    l.e(0, 0, 96, 52, 'l');
-    l.on('l').e(0, 0, 89, 46, 'w').on();
-    l.e(3, 2, 90, 47, 'm');
+    var l = lay(94, 56);
+    l.e(0, 4, 94, 52, 'n').r(0, 26, 94, 4, 'n');
+    l.on('n').r(0, 0, 22, 56, 'm').r(71, 0, 23, 56, 'N').on();
+    l.e(0, 0, 94, 52, 'l');
+    l.on('l').e(0, 0, 87, 46, 'w').on();
+    l.e(3, 2, 88, 47, 'm');
     l.on('m').r(52, 0, 44, 28, 'n').r(3, 0, 26, 30, 'l').on();
-    l.on('mnl').e(4, 7, 88, 44, 'z').on();
-    l.on('z').e(5, 9, 86, 44, 'C').on();
+    l.on('mnl').e(4, 7, 86, 44, 'z').on();
+    l.on('z').e(5, 9, 84, 44, 'C').on();
     /* ripples and a glint */
     l.on('C').ring(14, 13, 40, 14, 1, 'w').e(13, 15, 42, 14, 'C').ring(48, 30, 34, 12, 1, 'z').e(46, 28, 35, 12, 'C');
     l.ln(60, 16, 74, 18, 'w').ln(24, 38, 40, 41, 'w').ln(66, 24, 76, 25, 'z').ln(16, 30, 24, 32, 'z').on();
     l.p(22, 17, 'W').p(23, 17, 'W').p(22, 18, 'W').p(27, 16, 'W');
-    F.put(l, 2, 9, OS, 0);
+    F.put(l, 3, 9, OS, 0);
   });
 
   /* ---- fruit ---- */
@@ -234,7 +234,7 @@
       /* the water ring around the fruit */
       F.ring(x - 4, ry, l.w + 8, 9, 1, 'z');
       if (f) F.ring(x - 3, ry + 1, l.w + 6, 7, 1, 'w');
-      if (f > 1) F.ring(x - 6, ry - 1, l.w + 12, 11, 1, 'w');
+      if (f > 1) F.on('z').ring(x - 4, ry, l.w + 8, 9, 1, 'C').on();
     });
     list.forEach(function (o, i) {
       var l = rfDull(o[0], i === 1 || i === 3 ? dull : (dull > 1 ? 2 : (f === 1 && i % 2 ? 1 : 0)), i);
@@ -312,7 +312,7 @@
   }
   def('kkochi.coat', 100, 28, 50, 16, 3, function (F, f) {
     var st = rfStick(), list = [[strawberry(), 53, 7, OR], [grape(), 66, 9, OG], [tang(), 78, 9, OW]];
-    if (f) { st.on('A').r(40, 1, 50, 1, 'y').on().on('y').r(44, 0, 46, 1, '6').on(); if (f > 1) st.map({ A: 'y', y: '6' }).p(20, 0, 'W').p(21, 0, 'W').p(36, 0, 'W'); }
+    if (f) { st.on('A').r(40, 1, 50, 1, 'y').on().on('y').r(44, 0, 46, 1, '6').on(); if (f > 1) st.p(47, 0, 'W').p(48, 0, 'W'); }
     F.put(st, 5, 14, OW, 0);
     list.forEach(function (o, i) {
       var l = o[0].copy(), w = l.w, h = l.h;
@@ -321,7 +321,7 @@
         /* a long glint down the lit side and a small one opposite */
         l.on('*').ln(3, 2, 2, 5, 'W').p(4, 2, 'W').p(3, 6, 'W').p(w - 4, h - 5, 'W').p(w - 3, h - 6, 'W').p(w - 5, h - 3, '6').on();
       }
-      F.put(rfSugar(l, f), o[1] - 1, o[2] - 1, f > 1 ? 'yAa' : o[3], 0);
+      F.put(rfSugar(l, f), o[1] - 1, o[2] - 1, f > 1 ? 'Aak' : o[3], 0);
     });
     if (f === 1) F.p(60, 21, '5').p(60, 22, 'y');
     if (f === 2) {
