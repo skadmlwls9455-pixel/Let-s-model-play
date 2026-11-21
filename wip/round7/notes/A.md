@@ -13,3 +13,5 @@ Decisions
 - Sprites are painter functions (shapes + hand rows) instead of full typed canvases: only `get()` is the contract.
 - Two extra colours: Q #f7ecd3 (warm white shade), = #ffb0a6 (berry flesh).
 - No question for the owner so far.
+
+State 11-21 late: everything drawn, one independent check done and fixed, fragments removed (js/cook-sprites.js is the source). Report: wip/round7/reports/A.md.
