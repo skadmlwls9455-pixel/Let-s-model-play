@@ -5914,7 +5914,7 @@ var APP = (function () {
     var el = $('story-intro'), force = /[?&]story=1(&|$)/.test(location.search);
     if (typeof done !== 'function') done = function () {};
     if (!NPCR || !el || S.octopus.name || storyState().intro || (navigator.webdriver && !force) || !el.hidden) { done(); return false; }
-    var p = $('story-line'), i = 0, over = false, t0 = Date.now();   /* t0: 타이틀을 누른 그 손가락의 click 이 첫 줄을 넘기지 않게 (0.4초 동안은 넘기지 않는다) */
+    var p = $('story-line'), i = 0, over = false, t0 = Date.now(), armed = false;   /* 타이틀을 누른 그 손가락의 click 이 첫 줄을 넘기지 않게: 이 화면을 새로 누른 click 이거나 (armed) 0.4초가 지난 뒤에만 넘긴다 */
     function show() { p.textContent = NPCR.intro[i]; el.setAttribute('data-n', String(i + 1)); }
     function end() {
       if (over) return; over = true;
@@ -5924,13 +5924,13 @@ var APP = (function () {
       setTimeout(function () { el.hidden = true; el.classList.remove('leaving'); p.textContent = ''; }, reduced() ? 0 : 260);
       done();
     }
-    function next() { if (over || Date.now() - t0 < 400) return; if (i < NPCR.intro.length - 1) { i++; show(); } else end(); }
+    function next() { if (over || (!armed && Date.now() - t0 < 400)) return; if (i < NPCR.intro.length - 1) { i++; show(); } else end(); }
     function key(e) {
       if (over) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); end(); }
-      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (e.target === $('story-skip')) end(); else next(); }   /* 입장 레이어가 Enter · Space 의 기본 동작을 막는다 → 건너뛰기 단추도 여기서 받는다 */
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (e.repeat) return; armed = true; if (e.target === $('story-skip')) end(); else next(); }   /* 입장 레이어가 Enter · Space 의 기본 동작을 막는다 → 건너뛰기 단추도 여기서 받는다 */
     }
-    $('story-next').onclick = next; $('story-skip').onclick = end;
+    $('story-next').onpointerdown = function () { armed = true; }; $('story-next').onclick = next; $('story-skip').onclick = end;
     document.addEventListener('keydown', key, true);
     el.inert = false;   /* 입장 연출은 제 레이어 밖을 inert 로 묶는다 — 이 줄들은 눌려야 한다 */
     el.hidden = false; show();
