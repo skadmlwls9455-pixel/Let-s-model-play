@@ -11,11 +11,11 @@ var NPC = (function () {
 
   /* 가게 문어 셋: 이름 · 몸 색 (다락 문어의 여섯 색과 뚜렷이 다른 색) · 모자 · 말투 · 버릇 */
   var ROSTER = {
-    clothes: { id: 'clothes', name: '시침', color: '#2f6f7a', hat: 'beret', shop: '옷가게',
+    clothes: { id: 'clothes', name: '시침', color: '#3f9c9c', hat: 'beret', shop: '옷가게',
       voice: '짧고 정확하게 말한다. 입은 옷의 소매 · 단 · 끈을 본다', habit: '치수를 눈으로 잰다' },
-    goods: { id: 'goods', name: '모아', color: '#a89a2e', hat: 'apron', shop: '잡화점',
+    goods: { id: 'goods', name: '모아', color: '#cdb94a', hat: 'apron', shop: '잡화점',
       voice: '말이 많고 같은 말을 두 번 한다. 뭐든 세고 적는다', habit: '장부와 목록에 다 적는다' },
-    cafe: { id: 'cafe', name: '느루', color: '#7a5a48', hat: 'cap', shop: '카페',
+    cafe: { id: 'cafe', name: '느루', color: '#a67c62', hat: 'cap', shop: '카페',
       voice: '느리게, 말끝을 늘여 말한다. 바다와 물때 이야기를 한다', habit: '바다 쪽을 본다' }
   };
   var KEEPERS = ['clothes', 'goods', 'cafe'];
