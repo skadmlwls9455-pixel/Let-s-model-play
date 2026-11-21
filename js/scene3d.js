@@ -5869,7 +5869,10 @@ var SCENE3D = (function () {
       var lB = new T.PointLight(C('#ffb066').getHex(), 0, 4.4, 2); lB.position.set(L[1][0], L[1][1], L[1][2]); g.add(lB);
       var kit = { T: T, box: box, M: M, mergeParts: mergeParts, keep: keep, lambert: lambert, toon: toon, PAL: PAL, MAT: MAT, W: W, C: C, snapPos: snapPos, hash: hash, flower: wideFlower, leaf: wideLeaf,
         mesh: function (parts, o) { var m = new T.Mesh(keep(mergeParts(parts)), (o && o.material) || lambert); m.castShadow = !(o && o.cast === false); m.receiveShadow = true; g.add(m); return m; } };
-      if (typeof R.build === 'function') { try { R.build(g, kit); } catch (e) { console.error('[scene3d] ROOM_REG.' + key + '.build', e); } }
+      if (typeof R.build === 'function') { try { var br = R.build(g, kit);
+        /* 방은 기본 구도 고정 (돌려 보기 없음) → build 가 돌려준 cuts [{ full, low, nx, nz }] 가운데 카메라 쪽 벽 (바깥 법선이 +x 나 +z) 은 늘 무릎 높이 쌍둥이로 */
+        if (br && br.cuts) br.cuts.forEach(function (c) { if (!c || !c.full) return; var front = (c.nx || 0) + (c.nz || 0) > 0.01; c.full.visible = !front; if (c.low) c.low.visible = front; });
+      } catch (e) { console.error('[scene3d] ROOM_REG.' + key + '.build', e); } }
       IN.groups[key] = { g: g, lA: lA, lB: lB, R: R };
       inRegSync(key); return IN.groups[key];
     }
@@ -5889,7 +5892,7 @@ var SCENE3D = (function () {
       showPlace('inside'); PLACE.room = 'inside'; container.dataset.room = 'inside'; container.dataset.inside = key;
       if (plG.parent !== G.g) G.g.add(plG); fpClear(G.g);
       var d = R.door || [hx - 0.4, 0], px = clamp(d[0], -hx + PL_MARGIN, hx - PL_MARGIN), pz = clamp(d[1], -hz + PL_MARGIN, hz - PL_MARGIN);
-      PL.sit = false; PL.hop = null; PL.tbl = false; plStop(); PL.place = 'inside'; PL.pos.set(px, 0, pz); PL.faceCam = false; PL.yaw = PL.wantYaw = Math.atan2(-px, -pz); PL.moving = false; PL.pending = ''; plSnap();
+      PL.sit = false; PL.hop = null; PL.tbl = false; plStop(); PL.place = 'inside'; PL.pos.set(px, 0, pz); PL.faceCam = false; PL.yaw = PL.wantYaw = typeof R.face === 'number' ? R.face : Math.atan2(-px, -pz); PL.moving = false; PL.pending = ''; plSnap();
       inApplyLight(); fitShadow(); dither.still = 0;
     }
     function inHide() {   /* 덮인 프레임: 다시 넓은 바깥의 문 앞으로 */
@@ -5956,7 +5959,7 @@ var SCENE3D = (function () {
       return { key: key, half: R.half.slice(), wallH: R.wallH || 2.3, door: (R.door || [R.half[0] - 0.4, 0]).slice(), spots: sp, slots: R.slots || null, built: !!IN.groups[key] };
     }
     function inStub(key, o) {   /* 시험 · 다른 갈래가 오기 전: 빈 상자 방 하나를 등록부에 (이미 있으면 그대로) */
-      o = o || {}; var def = { clothes: [[3.0, 2.6], [24.8, -2.1]], goods: [[2.6, 2.4], [24.8, 2.1]], cafe: [[3.2, 2.6], [33.4, 2.1]] }[key] || [[3.0, 2.6], [30, 0]];
+      o = o || {}; var def = { clothes: [[3.0, 2.6], [24.8, -2.1]], goods: [[2.6, 2.4], [24.8, 2.1]], cafe: [[3.2, 2.6], [33.4, 2.1]], hall: [[3.5, 3.0], [44.5, 5.0]] }[key] || [[3.0, 2.6], [30, 0]];
       if (!ROOM_REG[key]) ROOM_REG[key] = { half: o.half || def[0], wallH: o.wallH || 2.3, door: o.door || [def[0][0] - 0.4, 0.8], outside: o.outside || def[1], boxes: o.boxes || [], circles: o.circles || [], spots: o.spots || [] };
       return inSlots(key);
     }
