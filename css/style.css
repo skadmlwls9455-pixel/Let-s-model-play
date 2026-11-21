@@ -1797,6 +1797,39 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 
 
 /* [7-C] 카페 (메뉴 · 레코드 · 레시피 선물) */
+/* 11-21: 메뉴 시트 · 쟁반 · 레코드 시트. 그림은 canvas (그림 px = 기기 px 의 정수 배 — app.js cafeCanvas), 눌림은 2px 내림 (크기는 안 바뀐다) */
+:root[data-font="pixel"] .cafe-sheet #cafe-h, :root[data-font="pixel"] .cafe-sheet #lp-h { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 36px; font-weight: 700; }
+.cafe-pic { display: block; image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: pixelated; }
+.cafe-menu { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0 12px; }
+.cafe-item { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 44px; margin: 0; padding: 8px 2px 12px; border: 1px solid var(--rim); border-radius: 8px; background: none; color: var(--fg); font: inherit; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+:root[data-font="pixel"] .cafe-item { border: 0; border-radius: 0; box-shadow: inset 0 0 0 2px var(--rim); }
+.cafe-item:active { transform: translateY(2px); }
+.cafe-plate { display: flex; align-items: flex-end; justify-content: center; height: 66px; }
+.cafe-name { word-break: keep-all; text-align: center; font-weight: 700; }
+:root[data-font="pixel"] .cafe-name { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 24px; }
+:root[data-font="pixel"] .cafe-cost { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
+.cafe-dots { display: flex; gap: 4px; height: 6px; margin-top: 2px; }
+.cafe-dots i { display: block; width: 6px; height: 6px; box-shadow: inset 0 0 0 2px var(--rim); }
+.cafe-dots i.on { background: var(--amber); box-shadow: none; }
+.cafe-tray { position: absolute; left: 50%; bottom: 8px; z-index: 12; transform: translateX(-50%); display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 6px 12px; background: var(--panel); box-shadow: 0 0 0 2px var(--fg); }
+.cafe-tray[hidden] { display: none; }
+.cafe-tray .btn { white-space: nowrap; flex: 0 0 auto; margin: 0; }
+.cafe-eat { display: block; min-width: 64px; min-height: 44px; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+div.cafe-eat { cursor: default; }
+button.cafe-eat:active { transform: translateY(2px); }
+.cafe-crumb { position: absolute; width: 4px; height: 4px; background: #e9c98a; pointer-events: none; animation: cafe-crumb .5s steps(5) forwards; }
+@keyframes cafe-crumb { to { transform: translate(var(--dx, 0), var(--dy, -12px)); opacity: 0; } }
+.cafe-fly { position: fixed; z-index: 60; pointer-events: none; transition: transform .8s steps(12), opacity .8s steps(4); }
+.lp-top { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 4px 0; }
+.lp-deck { display: block; }
+.lp-sound { min-width: 48px; min-height: 48px; margin: 0; padding: 4px; border: 0; background: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; box-shadow: inset 0 0 0 2px var(--amber); }
+.lp-sound:active, .lp-sleeve:active { transform: translateY(2px); }
+.lp-now { min-height: 24px; margin: 4px 0 8px; text-align: center; font-weight: 700; color: var(--fg); }
+:root[data-font="pixel"] .lp-now { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 24px; }
+.lp-shelf { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; justify-items: center; margin: 0 0 12px; }
+.lp-sleeve { margin: 0; padding: 4px; border: 0; background: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.lp-sleeve.on { box-shadow: 0 0 0 2px var(--amber); }
+@media (prefers-reduced-motion: reduce) { .cafe-crumb { animation: none; display: none; } .cafe-fly { transition: none; } }
 
 
 /* [7-N] NPC 문어 · 세계관 */
