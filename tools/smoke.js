@@ -8070,6 +8070,37 @@ async function scenarioEat(browser) {
   ok(bag.length === 0, '[EAT] 페이지 에러/콘솔 에러 0' + (bag.length ? ': ' + bag.join(' | ') : ''));
 }
 
+/* ── 7차 갈래 자리 (11-21): 새 시나리오 함수는 제 표시 줄 바로 아래에만 ── */
+/* [7-U] */
+
+
+/* [7-T] */
+
+
+/* [7-P] */
+
+
+/* [7-W] */
+
+
+/* [7-V] */
+
+
+/* [7-S] */
+
+
+/* [7-C] */
+
+
+/* [7-N] */
+
+
+/* [7-F] */
+
+
+/* [7-K] */
+
+
 (async function main() {
   console.log('smoke: ' + (useStubs ? 'tools/stubs.js 주입' : '실제 js/world.js + js/brain.js') + ' · ' + INDEX);
   var browser = await chromium.launch();
@@ -8089,6 +8120,26 @@ async function scenarioEat(browser) {
       ['Z', function () { return scenarioLoft(browser); }],   /* 11-12 위층 문어 (계단 · 돌아다니기 · 거울 길 · 비켜서기 · 거울 한 줄 · 방석 · 가구 배치 · 시트 올림) */
       ['X', function () { return scenarioGarden(browser); }],   /* X = 바깥 텃밭 · 살림 다시 그리기 (검증 11-11) */
       ['EAT', function () { return scenarioEat(browser); }],   /* EAT = 11-18 식탁 (부르기 · 데모 대답 · 효과 · 두 탭 · 2D) — lane D 가 없으면 tools/meal-stub-scene.js 대역 */
+      /* [7-U] 목록 줄: ['U7', function () { return scenario…(browser); }], */
+
+      /* [7-T] 목록 줄: ['T7', function () { return scenario…(browser); }], */
+
+      /* [7-P] 목록 줄: ['P7', function () { return scenario…(browser); }], */
+
+      /* [7-W] 목록 줄: ['W7', function () { return scenario…(browser); }], */
+
+      /* [7-V] 목록 줄: ['V7', function () { return scenario…(browser); }], */
+
+      /* [7-S] 목록 줄: ['S7', function () { return scenario…(browser); }], */
+
+      /* [7-C] 목록 줄: ['C7', function () { return scenario…(browser); }], */
+
+      /* [7-N] 목록 줄: ['N7', function () { return scenario…(browser); }], */
+
+      /* [7-F] 목록 줄: ['F7', function () { return scenario…(browser); }], */
+
+      /* [7-K] 목록 줄: ['K7', function () { return scenario…(browser); }], */
+
       ['CAM', function () { return scenarioTurn(browser); }]];   /* CAM = 11-15 돌려 보기 (두 손가락 360° · 벽 자르기) — SMOKE_ONLY=CAM */
     for (var sc of all) {   /* 한 시나리오가 터져도 (부하 큰 기계의 시간 초과 등) 뒤 시나리오는 돈다 — 터진 것은 실패 하나로 센다 */
       if (only.length && only.indexOf(sc[0]) < 0) continue;

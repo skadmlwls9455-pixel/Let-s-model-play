@@ -34,6 +34,10 @@ var SCENE3D = (function () {
   var YARD_WIDE = (function () { try { return /[?&]wide=1(?:&|$)/.test(String(location.search || '')); } catch (e) { return false; } })();
   var WIDE = { T: 3.0, S_OUT: 5.0, S1: 16.5, G0: -24, G1: 36, PAN_T: 6.5, PAN_S0: -6.5, PAN_S1: 30, gate: 2.74 };   /* gate = 앞쪽 두 변에서 울타리가 끝나는 자리 (그 뒤 모서리까지가 문) */
   function wideXZ(sd, td) { return [(sd + td) * Math.SQRT1_2, (sd - td) * Math.SQRT1_2]; }
+  /* 11-21 7차: 넓은 바깥에 얹는 것들의 등록부 — 갈래 W 가 읽고 (buildYard 끝 · 톡 · 부딪힘 · 가리기 · 프레임), 갈래 V 가 채운다. 서로의 함수를 고치지 않게.
+     builders: function (g) (마당 그룹에 메시를 더한다) · spots: { key, btn, x, y, z, r } (누르는 자리 → 단추 id) · boxes: [x0, z0, x1, z1] · circles: [x, z, r] (부딪힘) ·
+     segments: { s0, s1, obj } (대각 s 범위가 화면 밖이면 숨길 것) · frame: function (dt, now) (마당이 보이는 동안 프레임마다) */
+  var WIDE_REG = { builders: [], spots: [], boxes: [], circles: [], segments: [], frame: [] };
   var STAIR = { x0: -2.32, x1: -1.50, z0: 2.78, z1: 3.44, top: 2.5 }, HATCH = { x0: 1.3, x1: 2.0, z0: -2.0, z1: -1.2 };   /* 거실 왼벽 앞쪽 구석의 가파른 계단 (발치 x1 → 왼벽 쪽 x0 로 오른다) · 위층 바닥의 계단 구멍 */   /* 11-18 (주인: "계단이랑 방이 붙어있어서 잘못 방문 — 계단이나 문을 옮겨줘"): 예전 자리(뒷벽 오른쪽 구석 x 2.62~3.46)는 발치가 마당 문간 앞 0.4 m 였다 → 두 문(마당 · 놀이방)에서 가장 먼 왼벽 앞쪽 구석으로. 소파 기본 자리(z ≤ 2.68) 바로 앞 · 왼벽 샛기둥(z 3.25) 앞에서 멈춘다. 발치 x1 −1.50 = 소파 기본 자리의 앞 끝 — 둘의 둘레가 한 줄 (−1.25) 이라 소파 앞면을 타고 내려오다 2 cm 턱에 걸리지 않는다 (검증 11-18: −1.48 일 땐 프레임에 따라 걸리거나 미끄러져 들어갔다) */
   var DOOR_ANCHORS = { atticPlayDoor: [RF - 0.55, 0, 1.92], playAtticDoor: [-(PLAY_R - 0.35), 0, -0.33], atticStair: [STAIR.x1 + 0.32, 0, 3.11], loftStair: [0.95, 0, -1.35],
     atticYard: [1.9, 0, -1.95], yardAttic: [0.42, 0, -1.1] };   /* 11-15 마당: 다락 뒷벽 문간(문어 산책 문 — x 1.5~2.4) 앞 · 11-18 마당 집 현관 마루 위 문 앞 (마루 x 0.1~0.48 · 계단 세 칸 ~1.2 — 예전엔 계단 발치 x 1.62 라 뒤돌기만 해도 집으로 들어갔다, 주인 11-18) */   /* 11-11: 옷감 선반(앞면 z −1.72)의 둘레에 걸리지 않게 조금 앞으로 */   /* 내 캐릭터가 문을 열기 전에 서는 자리. 다락 문은 +x 벽에서 카메라 쪽으로 서 있어 문 바로 안쪽(z 1.4)에 서면 문짝 뒤에 다 가려진다 → 손잡이 쪽 옆(z 1.92, 문 끝 1.76 에서 0.16 m)에 선다 · 놀이방 문은 −x 벽이라 문 앞(x −1.35)이 문보다 앞에 보인다 */
@@ -5524,6 +5528,22 @@ var SCENE3D = (function () {
       if (PROOM.counterBox.clone().expandByScalar(e).containsPoint(lp) || PROOM.legBox.clone().expandByScalar(e).containsPoint(lp)) return 'counter';
       return null;
     }
+    /* ───────── 7차 갈래 자리 (11-21): 갈래마다 제 표시 줄 바로 아래에만 새 함수를 쓴다. 표시 줄과 빈 줄은 건드리지 않는다 ───────── */
+    /* [7-T] 식탁 · 들고 가기 · 새 효과 */
+
+
+    /* [7-P] 내 캐릭터 · 뛰기 · 마네킹 */
+
+
+    /* [7-W] 바깥 한 장 · 해안가 · 이동 */
+
+
+    /* [7-V] 마을 건물 · NPC 그리기 */
+
+
+    /* [7-U] 화면 채우기 · 계단 단추 */
+
+
     function pick(cx, cy) {   /* 클라이언트 CSS px (PointerEvent clientX/Y) → 탭 표적 메시 | null */
       var r = canvas.getBoundingClientRect();
       ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
@@ -6932,6 +6952,19 @@ var SCENE3D = (function () {
       },
       setTableDish: setTableDish, tableInfo: tableInfo, playerSitTable: playerSitTable, playerStandTable: playerStandTable, octCanCome: octCanCome, octToTable: octToTable,
       octTableBeat: octTableBeat, mealBite: mealBite, octLeaveTable: octLeaveTable, octAtTable: octAtTable, setAura: setAura, auraInfo: auraInfo, debugTableBodies: tableBodies,
+      /* 7차 갈래가 장면 API 에 더하는 것 (11-21): 제 표시 줄 바로 아래에 '이름: 값,' 줄로 (쉼표까지) */
+      /* [7-T] */
+
+      /* [7-P] */
+
+      /* [7-W] */
+
+      /* [7-V] */
+
+      /* [7-N] */
+
+      /* [7-U] */
+
       spotRect: function (id) { var s = spotInfo(id); if (!s || s.mode !== 'over') return s; var r = container.getBoundingClientRect(); s.client = { x: r.left + s.x, y: r.top + s.y, w: s.w, h: s.h }; return s; },
       doorAnchors: JSON.parse(JSON.stringify(DOOR_ANCHORS)),
       debugDoor: function (v) { ATTIC_DOOR.g.visible = v !== false; dither.still = 0; return ATTIC_DOOR.g.visible; },   /* 디버그 (덧그림 비교 캡처): 다락 문을 숨겼다 보였다 */

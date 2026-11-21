@@ -206,6 +206,25 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <button type="button" id="btn-table" class="scene-spot" aria-label="식탁" hidden></button>
   <button type="button" id="btn-seat" class="sofa-dot meal-seat" aria-label="식탁에 앉기" hidden><span aria-hidden="true"></span></button>
   <button type="button" id="btn-call" class="meal-call" aria-label="문어 부르기" hidden></button>
+  <!-- 7차 갈래 자리 (11-21) · 장면 단추: 갈래마다 제 표시 줄 바로 아래에만 -->
+  <!-- [7-T] 단추 -->
+
+  <!-- [7-P] 단추 -->
+
+  <!-- [7-W] 단추 -->
+
+  <!-- [7-V] 단추 -->
+
+  <!-- [7-S] 단추 -->
+
+  <!-- [7-C] 단추 -->
+
+  <!-- [7-N] 단추 -->
+
+  <!-- [7-F] 단추 -->
+
+  <!-- [7-U] 단추 -->
+
   <!-- 발자국 손잡이 (가상 스틱, 주인 11-08 "바닥 톡보다 훨씬 자연스럽다"): 장면 왼쪽 아래 72px 고리 + 28px 손잡이. 끌면 그 화면 방향으로 내 캐릭터가 걷는다 (js/app.js stick 절 · scene.setPlayerInput).
        다락 · 놀이방이 보일 때만 — hidden 은 장면의 on.playerInput(allowed) 로 앱이 쥔다 (바깥 · 입장 연출 · 문 작업 · 전환 · 2D 폴백에선 숨김). 바깥의 집 단추(#btn-door edge)와 자리는 같은 왼쪽 아래지만 보이는 때가 서로 배타적이다.
        키보드 포커스는 받지 않는다 (aria-hidden — 키보드는 방향키 · WASD). 그림은 16×16 ×2 'ctl.walk' (발자국 둘), 안 오면 글자 '걷기'. 발자국 그림이 곧 손잡이다 (--kx · --ky) — 그 밑의 회색 네모 손잡이는 뺐다 (주인 11-10) -->
@@ -369,6 +388,25 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- 11-18 6차: 부엌이 아직 안 열렸을 때 (점검 rel-01) 300 ms 뒤 기어가는 문어 + 닫기 (그림뿐) · 6 초면 닫고 토스트. 요리 쟁반: 조리대 톡 → 그림 칩 셋 (보이는 글자 0 · title 없음) -->
 <dialog id="dish-pick" class="dish-pick" aria-label="요리 고르기" tabindex="-1"><div class="dp-row"><button type="button" class="dp-chip" data-recipe="jeon" aria-label="해초전"><img src="assets/icons/dish/jeon.png" alt="" width="16" height="16"></button><button type="button" class="dp-chip" data-recipe="jumeokbap" aria-label="주먹밥"><img src="assets/icons/dish/jumeokbap.png" alt="" width="16" height="16"></button><button type="button" class="dp-chip" data-recipe="kkochi" aria-label="과일 꼬치"><img src="assets/icons/dish/kkochi.png" alt="" width="16" height="16"></button></div></dialog>
 
+<!-- 7차 갈래 자리 (11-21) · 창과 시트: 갈래마다 제 표시 줄 바로 아래에만 -->
+<!-- [7-T] 창 -->
+
+<!-- [7-P] 창 -->
+
+<!-- [7-W] 창 -->
+
+<!-- [7-V] 창 -->
+
+<!-- [7-S] 창 -->
+
+<!-- [7-C] 창 -->
+
+<!-- [7-N] 창 -->
+
+<!-- [7-F] 창 -->
+
+<!-- [7-U] 창 -->
+
 <dialog id="sew-sheet" class="sheet bag-sheet sew-sheet" aria-labelledby="sew-h">
   <div class="handle" aria-hidden="true"></div>
   <h2 id="sew-h" class="set-h dlg-top" tabindex="-1">재봉틀</h2>
@@ -437,6 +475,25 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <script src="js/dialogue-stub.js"></script><!-- 대사창 가짜 (전역 DLG — 카드 13 의 얼린 표). 진짜 js/dialogue.js 가 오면 이 줄만 바꾼다. 한 화면 배치의 대사 자리(#dlg-host)가 쓴다 -->
 <script src="js/poster-art-data.js"></script><!-- 포스터 픽셀 그림 (만든 파일, data URI) -->
 <script src="js/poster-art.js"></script><!-- 전역 POSTER_ART: 포스터 앞면에 방 그림을 붙인다 (없어도 게임은 그대로 — 예전처럼 사진) -->
+<!-- 7차 갈래 자리 (11-21) · app.js 앞에 싣는 규칙 파일 (DOM 없는 전역): 갈래마다 제 표시 줄 바로 아래에만 -->
+<!-- [7-T] 스크립트 -->
+
+<!-- [7-P] 스크립트 -->
+
+<!-- [7-W] 스크립트 -->
+
+<!-- [7-V] 스크립트 -->
+
+<!-- [7-S] 스크립트 -->
+
+<!-- [7-C] 스크립트 -->
+
+<!-- [7-N] 스크립트 -->
+
+<!-- [7-F] 스크립트 -->
+
+<!-- [7-U] 스크립트 -->
+
 <script src="js/app.js"></script>
 <script src="js/ui-art.js"></script>
 <script src="js/runner.js"></script>
