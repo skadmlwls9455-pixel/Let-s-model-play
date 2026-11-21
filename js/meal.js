@@ -25,13 +25,19 @@
     return Object.freeze(o);
   }
 
-  /* 요리 셋 (부엌 recipe id → 이름 · 효과). 모르는 요리(나중 빌드)는 기록엔 남고 그리지 않는다 */
+  /* 요리 (부엌 recipe id → 이름 · 효과). 모르는 요리(나중 빌드)는 기록엔 남고 그리지 않는다 */
   var DISHES = deepFreeze({
     jeon: { name: '해초전', fx: 'sparkle' },
     jumeokbap: { name: '주먹밥', fx: 'star' },
-    kkochi: { name: '과일 꼬치', fx: 'petal' }
+    kkochi: { name: '과일 꼬치', fx: 'petal' },
+    /* 11-21 7차: 레시피 북의 새 요리 다섯 (옛 셋은 그대로 안다 — 기다리던 요리 · 옛 기록 · 일기 행이 계속 그려진다) */
+    jeon2: { name: '해초전', fx: 'sparkle' },
+    gyeran: { name: '계란말이', fx: 'bubble' },
+    jumeokbap2: { name: '주먹밥', fx: 'star' },
+    kkochi2: { name: '과일 꼬치', fx: 'petal' },
+    cake: { name: '딸기 케이크', fx: 'confetti' }
   });
-  var FX_NAME = deepFreeze({ sparkle: '반짝이', star: '별', petal: '꽃잎' });
+  var FX_NAME = deepFreeze({ sparkle: '반짝이', star: '별', petal: '꽃잎', bubble: '방울', confetti: '색종이' });
   /* 누가 정했나 꼬리. fallback(아무도 안 고름)은 꼬리가 없다 */
   var TAILS = deepFreeze({ 'demo-rules': '데모 규칙', model: '모델', human: '사람이 정함' });
   var BYS = ['demo-rules', 'model', 'human', 'fallback'];
