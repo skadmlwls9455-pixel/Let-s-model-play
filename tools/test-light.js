@@ -519,6 +519,43 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     var end8 = await page.evaluate(function () { var sc = APP.scene; sc.debugSim(0.05, 12); return { p: window.__scr8(), yaw: sc.yawInfo().shown }; });
     ok(end8.yaw > 100 && dev8 <= 4 && near8(last8, end8.p, 8), 'L8 두 손가락으로 천천히 돌리고 (' + end8.yaw + '°) 떼도 캐릭터는 화면 그 자리: 돌리는 동안 가장 멀리 ' + dev8 + ' px (≤ 4) · 떼기 직전 ' + JSON.stringify(last8) + ' → 뗀 뒤 ' + JSON.stringify(end8.p) + ' (±8 px)');
     await o.ctx.close();
+    /* ── L11 (11-22 7차 계약 C9) 걸어 들어가는 방: 등록부의 방 하나로 들어가 걷고 · 자리를 톡하고 · 나온다. 방은 방 배율 · 점광 둘 (프로그램 그대로) · 60 콜 안 ── */
+    o = await open(browser, 8, { hour: 13, weather: 'clear' }); page = o.page;
+    await yardGo(page);
+    var rm = await page.evaluate(async function () {
+      var sc = APP.scene, K = Math.SQRT1_2, r = {}, tick = function () { return new Promise(function (q) { setTimeout(q, 0); }); };
+      async function run(p, n) { var v = null, f = 0; p.then(function (q) { v = q; }); await tick(); for (; f < (n || 200) && v === null; f++) { sc.debugSim(0.05, 1); await tick(); } sc.debugSim(0.05, 2); await tick(); return [v, +(f * 0.05).toFixed(2)]; }
+      window.__room = { ev: [], clicks: 0, built: 0, frames: 0 }; document.addEventListener('ppol:room', function (e) { window.__room.ev.push(e.detail.key); });
+      var b = document.createElement('button'); b.id = 'btn-w-room'; b.className = 'scene-spot'; b.hidden = true; b.setAttribute('aria-label', '시험'); document.getElementById('scene').appendChild(b); b.addEventListener('click', function () { window.__room.clicks++; });
+      sc.roomReg.wtest = { half: [3.0, 2.6], wallH: 2.3, door: [2.6, 0.8], outside: [24.8, -2.1], boxes: [[-0.5, -0.5, 0.5, 0.5]], circles: [[-1.8, 1.4, 0.3]],
+        spots: [{ key: 'room.wtest.a', btn: 'btn-w-room', x: -2.6, y: 0.9, z: -1.2, r: 0.4, stand: [-2.0, -1.2] }], build: function (g, kit) { window.__room.built++; window.__room.kit = !!(g && g.isGroup && kit && kit.mesh && kit.box && kit.flower); kit.mesh([{ g: kit.box(1, 0.8, 1), m: kit.M(0, 0.4, 0), c: kit.PAL.paper[1] }]); }, frame: function (dt, t) { if (dt >= 0 && t > 0) window.__room.frames++; } };
+      r.none = (await run(sc.enterRoom('nope'), 5))[0];
+      sc.debugPlayerAt(27 * K, 27 * K); sc.debugSim(0.05, 3); var st0 = sc.stats(); r.n0 = sc.pan().n; r.prog0 = st0.programs;
+      var en = await run(APP.goInside('wtest'), 300); r.enter = en; r.inside = APP.inside; r.room = APP.room; r.view = sc.view(); r.sceneIn = sc.inRoom(); r.n1 = sc.pan().n; r.allowed = sc.playerInputAllowed();
+      sc.debugStep(0.05); var st1 = sc.stats(); r.calls = st1.calls; r.prog1 = st1.programs; r.at0 = sc.player().at; r.slots = sc.roomSlots('wtest'); r.ds = document.getElementById('scene3d').dataset.inside;
+      var pc = sc.project(0, 0, 0), pa = sc.screenOf(0, 0, 0); r.proj = [Math.round(pc.x), Math.round(pc.y), Math.round(pa.x), Math.round(pa.y), innerWidth, innerHeight];
+      function push(x, y, n) { sc.setPlayerInput({ x: x, y: y }); sc.debugSim(0.05, n); sc.setPlayerInput(null); sc.debugSim(0.05, 1); return sc.player().at; }
+      var ext = [0, 0, 0, 0]; [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7, 0.7], [-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7]].forEach(function (d) { var a = push(d[0], d[1], 80); ext[0] = Math.min(ext[0], a[0]); ext[1] = Math.max(ext[1], a[0]); ext[2] = Math.min(ext[2], a[2]); ext[3] = Math.max(ext[3], a[2]); });
+      r.ext = ext.map(function (v) { return +v.toFixed(2); });
+      sc.debugPlayerAt(2.0, 0); var gap = 9; sc.setPlayerInput({ x: -0.707, y: 0.707 }); for (var f = 0; f < 60; f++) { sc.debugSim(0.05, 1); var a2 = sc.player().at; gap = Math.min(gap, Math.max(Math.abs(a2[0]), Math.abs(a2[2]))); } sc.setPlayerInput(null); r.gap = +gap.toFixed(3);
+      sc.debugPlayerAt(1.5, 1.5); sc.debugSim(0.05, 2); sc.debugStep(0.05);
+      var q = b.getBoundingClientRect(); r.btn = [b.hidden, b.dataset.spot, Math.round(q.left + q.width / 2), Math.round(q.top + q.height / 2)]; var pk = sc.pickAt(q.left + q.width / 2, q.top + q.height / 2); r.pick = pk && pk.id;
+      r.walkStart = sc.roomSpotGo('btn-w-room'); r.c0 = window.__room.clicks;
+      for (f = 0; f < 200 && !window.__room.clicks; f++) { sc.debugSim(0.05, 1); await tick(); } await tick(); r.c1 = window.__room.clicks; r.stand = sc.player().at; r.frames = window.__room.frames;
+      var out = await run(APP.goOutside(), 300); r.leave = out; r.inside2 = APP.inside; r.view2 = sc.view(); r.n2 = sc.pan().n; var a3 = sc.player().at; r.back = [+((a3[0] + a3[2]) * K).toFixed(2), +((a3[0] - a3[2]) * K).toFixed(2)]; r.area = sc.area(); r.allowed2 = sc.playerInputAllowed(); r.prog2 = sc.stats().programs;
+      var sq = sc.screenOf(a3[0], 0.6, a3[2]); r.scr = [Math.round(sq.x), Math.round(sq.y)];
+      r.again = (await run(APP.goInside('wtest'), 300))[0]; r.built = window.__room.built; r.kit = window.__room.kit;
+      var home = await run(APP.goRoom('attic'), 400); r.home = [home[0] && home[0].ok, sc.view(), APP.room || '', APP.inside, home[1]]; r.ev = window.__room.ev;
+      return r;
+    });
+    ok(rm.none && rm.none.ok === false && rm.none.reason === 'none' && rm.enter[0] === true && rm.inside === 'wtest' && rm.sceneIn === 'wtest' && rm.room === 'inside' && rm.view === 'inside' && rm.ds === 'wtest' && rm.allowed === true, 'L11 방으로 들어간다 (APP.goInside → ' + rm.enter[0] + ' · ' + rm.enter[1] + ' s · APP.inside ' + rm.inside + ' · 장소 ' + rm.view + ') · 없는 방은 none');
+    ok(rm.n0 === 18 && rm.n1 === 27 && rm.n2 === 18 && rm.prog1 === rm.prog0 && rm.prog2 === rm.prog0 && rm.calls <= 60, 'L11 방 안은 방 배율 (m 당 ' + rm.n0 + ' → ' + rm.n1 + ' → 나오면 ' + rm.n2 + ' 아트px) · 셰이더 프로그램 그대로 (' + rm.prog0 + ') · 방 ' + rm.calls + ' 콜 (≤ 60)');
+    ok(rm.ext[0] >= -2.651 && rm.ext[1] <= 2.651 && rm.ext[2] >= -2.251 && rm.ext[3] <= 2.251 && rm.ext[0] < -2.5 && rm.ext[1] > 2.5 && rm.ext[2] < -2.1 && rm.ext[3] > 2.1 && rm.gap >= 0.749, 'L11 방 안 걸음은 바닥 안 (x ' + rm.ext[0] + ' ~ ' + rm.ext[1] + ' · z ' + rm.ext[2] + ' ~ ' + rm.ext[3] + ') · 가운데 상자는 못 뚫는다 (가장 가까이 ' + rm.gap + ' m ≥ 0.75)');
+    ok(rm.btn[0] === false && rm.btn[1] === 'over' && rm.pick === 'room.wtest.a' && rm.walkStart === true && rm.c0 === 0 && rm.c1 === 1 && Math.hypot(rm.stand[0] + 2.0, rm.stand[2] + 1.2) < 0.1 && rm.frames > 10, 'L11 방 안의 자리: 단추가 그림 위에 놓이고 · 멀리서 누르면 설 자리 (' + rm.stand[0] + ', ' + rm.stand[2] + ') 로 걸어간 뒤 한 번 눌린다 · frame 콜백 ' + rm.frames);
+    ok(Math.abs(rm.proj[0] - rm.proj[2]) <= 1 && Math.abs(rm.proj[1] - rm.proj[3]) <= 1 && rm.proj[0] > 0 && rm.proj[0] < rm.proj[4] && rm.proj[1] > 0 && rm.proj[1] < rm.proj[5] && rm.slots && rm.slots.half[0] === 3 && !!rm.slots.spots['room.wtest.a'] && rm.slots.built === true, 'L11 scene.project 는 방 좌표를 #scene 안 px 로 (' + rm.proj.slice(0, 2) + ') · roomSlots 가 치수와 자리를 돌려준다');
+    ok(rm.leave[0] === true && rm.inside2 === null && rm.view2 === 'yard' && rm.area === 'village' && Math.abs(rm.back[0] - 24.8) < 0.05 && Math.abs(rm.back[1] + 2.1) < 0.05 && rm.allowed2 === true && Math.abs(rm.scr[0] - 180) < 40 && rm.scr[1] > 90, 'L11 나오면 들어간 문 밖 (s ' + rm.back[0] + ' · t ' + rm.back[1] + ') 에 서고 화면이 따라온다 ' + JSON.stringify(rm.scr) + ' (' + rm.leave[1] + ' s)');
+    ok(rm.again === true && rm.built === 1 && rm.kit === true && rm.home[0] === true && rm.home[1] === 'attic' && !rm.home[2] && rm.home[3] === null && JSON.stringify(rm.ev) === '["wtest",null,"wtest",null]', 'L11 다시 들어가도 build 는 한 번 · 방 안에서 집으로 (goRoom attic) = 먼저 나온 뒤 다락 (' + rm.home[4] + ' s) · ppol:room 사건 ' + JSON.stringify(rm.ev));
+    await o.ctx.close();
   } catch (e) {
     fails++; console.error('CRASH ' + (e && e.stack || e));
   } finally { await browser.close(); }
