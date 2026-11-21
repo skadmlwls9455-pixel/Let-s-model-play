@@ -5881,8 +5881,8 @@ var SCENE3D = (function () {
     /* ── NPC 문어 (계약 C6): 다락 문어와 같은 모양 (머리 · 눈 · 다리 여덟) 을 한 메시로 구워 색만 달리한다 — 다락 문어 물체는 쓰지 않는다 (그 문어는 밖에 나오지 않는다).
        얼굴은 뜬 눈 · 감은 눈뿐 (기분 표정 없음 — 대본 캐릭터). 재질은 건물과 같은 lambert (툰은 한낮 햇빛에서 몸 색이 하얗게 떴다 · 문어 툰은 다락 문어가 체크로 사라질 때 같이 사라진다). 그림자는 받기만 ── */
     function vilOctGeo(hex, hat, sleep) {
-      /* 밝은 몸 색은 한 톤 가라앉혀 굽는다 (밝기 0.5 아래는 그대로 · 0.8 위는 22 %): 바깥 한낮 햇빛 (다락 안보다 훨씬 밝다) 에서 하얗게 뜨지 않게 */
-      var c = octDerived(mixHex(hex, '#1b1522', clamp((hexToOklab(hex)[0] - 0.5) / 0.3, 0, 1) * 0.22)), L = [{ g: new T.SphereGeometry(1, 16, 11), m: M(0, HEAD_Y, 0, 0, 0, 0, 1, HEAD_SQ, 1), c: c.body },
+      /* 밝은 몸 색은 한 톤 가라앉혀 굽는다 (밝기 0.45 아래는 그대로 · 0.8 위는 40 %): 바깥 한낮 햇빛 (다락 안보다 훨씬 밝다) 에서 하얗게 뜨지 않게 */
+      var c = octDerived(mixHex(hex, '#1b1522', clamp((hexToOklab(hex)[0] - 0.45) / 0.35, 0, 1) * 0.4)), L = [{ g: new T.SphereGeometry(1, 16, 11), m: M(0, HEAD_Y, 0, 0, 0, 0, 1, HEAD_SQ, 1), c: c.body },
         { g: new T.SphereGeometry(0.3, 8, 6), m: M(-0.45, 1.50, 0.52, 0.5, -0.4, 0, 1, 0.55, 0.5), c: c.hi }, { g: box(0.30, 0.07, 0.08), m: M(0, 0.44, 0.82), c: c.mouth }];
       EYE.forEach(function (e) {
         if (sleep) { L.push({ g: box(0.42, 0.07, 0.1), m: M(e[0], e[1] - 0.04, e[2] + 0.02, 0, e[0] < 0 ? -0.3 : 0.3, e[0] < 0 ? 0.14 : -0.14), c: c.eye }); return; }
