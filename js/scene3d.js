@@ -31,8 +31,16 @@ var SCENE3D = (function () {
   var YARD_L = 4.6;   /* 11-15 마당 받침 반폭 (바깥 3.2 보다 넓게 — 밭 여섯 칸 · 둘레 나무) */   /* 11-10 위층 다락 (지붕 밑 방): 바닥 4.4 m · 무릎벽 1.5 m · 박공 꼭대기 3.15 m */
   /* 11-18 넓은 바깥 (시험 중 — 주소에 ?wide=1 이 있을 때만 켠다. 꺼져 있으면 마당은 예전 그대로): 받침이 허공에 뜬 섬 대신 화면 끝까지 이어지는 땅 · 앞 모서리의 울타리 문 · 문 밖으로 나가는 길과 숲.
      대각 좌표 s = (x + z)/√2 (화면 아래쪽 = 카메라 쪽) · t = (x − z)/√2 (화면 오른쪽). 걷는 곳 = 마당 네모 + 문 밖 띠 (S_OUT ≤ s ≤ S1 · |t| ≤ T). G0..G1 = 깔아 둔 땅 (x · z), PAN_* = 화면이 따라갈 수 있는 범위 */
-  var YARD_WIDE = (function () { try { return /[?&]wide=1(?:&|$)/.test(String(location.search || '')); } catch (e) { return false; } })();
-  var WIDE = { T: 3.0, S_OUT: 5.0, S1: 16.5, G0: -24, G1: 36, PAN_T: 6.5, PAN_S0: -6.5, PAN_S1: 30, gate: 2.74 };   /* gate = 앞쪽 두 변에서 울타리가 끝나는 자리 (그 뒤 모서리까지가 문) */
+  var YARD_WIDE = (function () { try { return !/[?&]wide=0(?:&|$)/.test(String(location.search || '')); } catch (e) { return true; } })();   /* 11-21 7차: 기본이 넓은 바깥 — 주소에 wide=0 일 때만 예전 마당 (시험용) */
+  var WIDE = { T: 3.0, S_OUT: 5.0, S1: 59.7, PAN_T: 13, PAN_S0: -3, PAN_S1: 63, gate: 2.74,
+    L0: -60, LAND: 46, SEA: 60, SEA1: 140, GT: 80, BEACH_Y: -0.6, PIER_Y: -0.42, STEP_S: 46, STEP_D: 0.6,
+    /* 11-21 7차 (갈래 W): 집 문 → 숲길 → 마을 → 광장 → 계단 → 모래 → 바다 한 장. S1 = 걸어서 닿는 물가 · PAN_* = 화면 가운데가 볼 수 있는 땅 (대각 네모) ·
+       L0..LAND = 풀 땅 · LAND 부터 0.6 m 낮은 모래 · SEA 부터 물 (SEA1 까지) · GT = 땅의 반폭. AREAS = 걷는 곳 [s0, s1, t0, t1] (이웃끼리 조금 겹친다 — 마당 네모는 따로) */
+    AREAS: [[5.0, 38.1, -3, 3], [30.3, 36.7, 2.9, 6.9], [38, 46.1, -8, 8], [46, 49.1, -3, 3], [49, 59.7, -12, 12], [55.9, 65.7, 6.45, 7.55]],
+    SIGNS: [[6, 2.2], [39, 0], [50, 0]],   /* 표지판 (s, t) */
+    ARRIVE: { home: [6.6, 0, -1], village: [37, 0, 1], beach: [51.5, 0.9, 1] },   /* 빠른 이동 도착 자리 (s, t, 보는 쪽: +1 = 바다 쪽 · −1 = 집 쪽) */
+    SHELLS: [[52.0, -6.5], [53.4, 4.4], [56.4, -2.6], [57.8, 10.2], [58.6, -6.0]],   /* 조개 자리 다섯 (s, t) */
+    ROCKS: [[55, -9, 0.62, 0.42], [53.2, -11.4, 0.4, 0.3], [57.3, -11.2, 0.34, 0.24], [51.2, 10.6, 0.46, 0.34], [54.6, 11.5, 0.36, 0.26], [58.6, 3.2, 0.3, 0.2]] };   /* 바위 (s, t, 반지름, 높이) — 첫째가 잠든 문어 sleep-3 의 넓적 바위 */   /* gate = 앞쪽 두 변에서 울타리가 끝나는 자리 (그 뒤 모서리까지가 문) */
   function wideXZ(sd, td) { return [(sd + td) * Math.SQRT1_2, (sd - td) * Math.SQRT1_2]; }
   /* 11-21 7차: 넓은 바깥에 얹는 것들의 등록부 — 갈래 W 가 읽고 (buildYard 끝 · 톡 · 부딪힘 · 가리기 · 프레임), 갈래 V 가 채운다. 서로의 함수를 고치지 않게.
      builders: function (g) (마당 그룹에 메시를 더한다) · spots: { key, btn, x, y, z, r } (누르는 자리 → 단추 id) · boxes: [x0, z0, x1, z1] · circles: [x, z, r] (부딪힘) ·
@@ -512,6 +520,7 @@ var SCENE3D = (function () {
       var f = wide ? WIDE_CAM.far : CAM_FAR; if (camera.far === f) return;
       camera.far = f; camera.updateProjectionMatrix(); post.uniforms.uFar.value = f;
     }
+    var _camZ = new T.Vector3();
     function placeCamera() {
       var tgt = camTargetNow(), ref = tgt, wide = YARD_WIDE && PLACE.vis === 'yard';
       if (YARD_WIDE) camDepth(wide);
@@ -520,6 +529,7 @@ var SCENE3D = (function () {
       _r.setFromMatrixColumn(camera.matrixWorld, 0); _u.setFromMatrixColumn(camera.matrixWorld, 1);
       if (panOn() && (PAN.x || PAN.y)) {   /* 밀기: 카메라를 화면 우/상 축으로 평행이동 (직교라 = 타깃 이동). 스냅 기준도 밀린 타깃 → 1 아트px 계단 */
         ref = _pnt.copy(tgt).addScaledVector(_r, PAN.x).addScaledVector(_u, PAN.y); camera.position.addScaledVector(_r, PAN.x).addScaledVector(_u, PAN.y);
+        if (wide && PAN.y) camera.position.addScaledVector(_camZ.setFromMatrixColumn(camera.matrixWorld, 2), -PAN.y / Math.tan(TILT));   /* 11-21 7차: 긴 맵 — 세로로 민 만큼 시선 축으로도 옮겨 카메라 높이를 그대로 둔다 (직교라 그림은 같다). 안 그러면 s 55 쯤에서 카메라가 땅 밑으로 내려가 near · far 가 땅을 자른다 */
       }
       if (LIFT.y) { if (ref === tgt) ref = _pnt.copy(tgt); ref.addScaledVector(_u, -LIFT.y); camera.position.addScaledVector(_u, -LIFT.y); }   /* 시트가 아래를 덮는 동안 장면을 위로 (setSheetInset) */
       snapScreen(camera.position, ref);   /* 타깃을 카메라 우/상 축 기준 pixelWorldSize 격자에 스냅 → 패닝/추적 중 픽셀 크리프 없음 */
@@ -541,6 +551,7 @@ var SCENE3D = (function () {
     function panBox() {   /* 카메라 오프셋 허용 범위 [x0, x1, y0, y1] (m). 방이 화면보다 크면 화면이 방(+여백) 안, 작으면 방이 화면 안. 0(기본 구도)은 늘 포함 */
       var b = PLACE_BOX[PLACE.vis] || PLACE_BOX.attic, tgt = camTargetNow(), m = 12 / S.N, hw = S.rw / 2 / S.N, hh = S.rh / 2 / S.N, a0 = 1e9, a1 = -1e9, c0 = 1e9, c1 = -1e9;
       var wp = YARD_WIDE && PLACE.vis === 'yard' ? widePts() : null;   /* 11-18 넓은 바깥: 네모 상자가 아니라 화면 아래로 뻗은 띠 */
+      if (wp) m = hw = hh = 0;   /* 11-21 7차: 띠 = 화면 '가운데' 가 볼 수 있는 땅 (PAN_*) — 화면 크기와 상관없이 캐릭터를 가운데 두고 끝까지 따라간다. 땅 · 바다는 그 둘레로 넉넉히 깔려 있다 */
       for (var i = 0; i < 8; i++) {
         if (wp) _pnt.set(wp[i][0], wp[i][1], wp[i][2]).sub(tgt); else _pnt.set(b[0][i & 1], b[1][(i >> 1) & 1], b[2][(i >> 2) & 1]).sub(tgt);
         var a = _pnt.dot(_r), c = _pnt.dot(_u);
@@ -550,15 +561,14 @@ var SCENE3D = (function () {
       var s = PLACE.vis === 'attic' || isRoomP(PLACE.vis) ? 1 : clamp((st.zoomF - 1) / (ZOOM_STEPS[1] - 1), 0, 1);   /* 다락은 1× 에서도 방이 화면보다 넓다 (11-10 넓히기) → 늘 온전한 경계 */   /* 1× = 0 (고무줄만 — 360 폭에서도 기본 구도가 비뚤게 남지 않는다) → 첫 멈춤(1.12×)에서 온전한 경계. 핀치가 1× 로 돌아올 때 한 번에 튀지 않게 비례 */
       if (wp && _wideKeep.on) {   /* 넓은 바깥: 돌려 보기가 맞춘 값 (wideHoldCentre) 은 띠 경계 밖이어도 품는다 — 안 그러면 손을 떼거나 빈 땅 톡 · 키우기에서 잘려 화면이 덜컥 돌아갔다 (11-18 검증).
                                      쉴 때 정수 아트px 로 맞춰도 안이게 한 칸까지. 세로 (카메라 높이) 는 띠 경계가 0° · 180° 에서 내주는 데까지만 — 더 가면 길 끝 너머의 땅이 카메라 앞뒤 평면에 잘려 허공이 남는다 */
-        var kx = _wideKeep.x * S.N, ky = _wideKeep.y * S.N, kc = -tgt.dot(_u), ks = Math.sin(TILT) * WIDE.PAN_S1;
-        return [Math.min(x0, x1, 0, Math.floor(kx + 1e-6) / S.N), Math.max(x0, x1, 0, Math.ceil(kx - 1e-6) / S.N),
-          Math.min(y0, y1, 0, Math.max(Math.floor(ky + 1e-6) / S.N, kc + wp[0][1] * _u.y - ks - m + hh)), Math.max(y0, y1, 0, Math.min(Math.ceil(ky - 1e-6) / S.N, kc + wp[4][1] * _u.y + ks + m - hh))];
+        var kx = _wideKeep.x * S.N, ky = _wideKeep.y * S.N;   /* 11-21 7차: 카메라 높이가 그대로라 (placeCamera) 세로도 맞춘 값 그대로 품는다 */
+        return [Math.min(x0, x1, 0, Math.floor(kx + 1e-6) / S.N), Math.max(x0, x1, 0, Math.ceil(kx - 1e-6) / S.N), Math.min(y0, y1, 0, Math.floor(ky + 1e-6) / S.N), Math.max(y0, y1, 0, Math.ceil(ky - 1e-6) / S.N)];
       }
       return [Math.min(x0, x1, 0) * s, Math.max(x0, x1, 0) * s, Math.min(y0, y1, 0) * s, Math.max(y0, y1, 0) * s];
     }
     var _widePts = null, _wideKeep = { on: false, x: 0, y: 0 };   /* _wideKeep = 돌려 보기가 마지막으로 맞춘 밀기 값 (m) — 걸으면 화면이 지나온 데까지로 줄어든다 (plFollow) */
     function widePts() {
-      if (!_widePts) { _widePts = []; for (var i = 0; i < 8; i++) { var q = wideXZ(i & 1 ? WIDE.PAN_S1 : WIDE.PAN_S0, i & 2 ? WIDE.PAN_T : -WIDE.PAN_T); _widePts.push([q[0], i & 4 ? 3.3 : -0.48, q[1]]); } }
+      if (!_widePts) { _widePts = []; for (var i = 0; i < 8; i++) { var q = wideXZ(i & 1 ? WIDE.PAN_S1 : WIDE.PAN_S0, i & 2 ? WIDE.PAN_T : -WIDE.PAN_T); _widePts.push([q[0], 0, q[1]]); } }
       return _widePts;
     }
     function band(v, lo, hi) {   /* 고무줄: 경계 밖 e → M(1 − e^(−0.4 e / M)) (기울기 0.4 로 시작, M = 20 아트px 에 포화). 모션 감소면 딱 멈춤 */
@@ -660,7 +670,7 @@ var SCENE3D = (function () {
     function followStep(f, dt) {
       if (PAN.cut || st.reduced) { PAN.x = f[0]; PAN.y = f[1]; PAN.vx = PAN.vy = 0; PAN.cut = false; PAN.mode = ''; return; }
       var dx = f[0] - PAN.x, dy = f[1] - PAN.y, d = Math.hypot(dx, dy);
-      var sp = d > 1e-6 ? Math.min(FOLLOW.vmax, d / FOLLOW.tau, Math.sqrt(2 * FOLLOW.amax * d)) : 0;
+      var vm = YARD_WIDE && PLACE.vis === 'yard' ? WSTATE.vmax : FOLLOW.vmax, sp = d > 1e-6 ? Math.min(vm, d / FOLLOW.tau, Math.sqrt(2 * FOLLOW.amax * d)) : 0;   /* 11-21 7차: 넓은 바깥은 걷는 속도를 따라 (wideStep) */
       var ax = (d > 1e-6 ? dx / d * sp : 0) - PAN.vx, ay = (d > 1e-6 ? dy / d * sp : 0) - PAN.vy, al = Math.hypot(ax, ay), am = FOLLOW.amax * Math.max(dt, 1e-4);
       if (al > am) { ax *= am / al; ay *= am / al; }
       PAN.vx += ax; PAN.vy += ay; PAN.x += PAN.vx * dt; PAN.y += PAN.vy * dt;
@@ -2929,15 +2939,21 @@ var SCENE3D = (function () {
     function playerInputAllowed() {   /* '보이는 때' 규칙: 캐릭터가 지금 그려지는 방(다락·놀이방)에 있고, 연출·문 작업·전환·놀이 kit 이 아니다 */
       return ready && !INTRO.on && !DQ.active && !DQ.pending && !PLACE.trans && !PLAY && !(FM && FM.on) && (PLACE.vis === 'attic' || isRoomP(PLACE.vis)) && PL.place === PLACE.vis && plG.parent === groupOf(PLACE.vis) && plG.parent.visible;
     }
-    function plLim() { return PL.place === 'play' ? [-(PLAY_R - PL_MARGIN), PLAY_R - PL_MARGIN] : PL.place === 'yard' ? [-(YARD_L - 0.3 - PL_MARGIN), YARD_WIDE ? (WIDE.S1 + WIDE.T) * Math.SQRT1_2 + 0.05 : YARD_L - 0.3 - PL_MARGIN] : PL.place === 'loft' ? [-(LOFT_R - PL_MARGIN), LOFT_R - PL_MARGIN] : [-(R - PL_MARGIN), RF - PL_MARGIN]; }   /* 걸을 수 있는 범위 [낮은 쪽, 높은 쪽] (x · z 같은 값 — 다락은 앞쪽이 RF 까지) */
+    function plLim() { return PL.place === 'play' ? [-(PLAY_R - PL_MARGIN), PLAY_R - PL_MARGIN] : PL.place === 'yard' ? [-(YARD_L - 0.3 - PL_MARGIN), YARD_WIDE ? 60 : YARD_L - 0.3 - PL_MARGIN] : PL.place === 'loft' ? [-(LOFT_R - PL_MARGIN), LOFT_R - PL_MARGIN] : [-(R - PL_MARGIN), RF - PL_MARGIN]; }   /* 걸을 수 있는 범위 [낮은 쪽, 높은 쪽] (x · z 같은 값 — 다락은 앞쪽이 RF 까지) */
     function plInRoom(x, z) { var l = plLim(); return x >= l[0] && x <= l[1] && z >= l[0] && z <= l[1]; }
     /* 11-18 넓은 바깥: 마당 네모 (울타리 안) 이거나 문 밖 띠. 마당 안에서 울타리 쪽으로 밀면 예전처럼 네모 가장자리에 서고, 앞 모서리 (문) 쪽으로만 띠로 나간다. 띠에서는 띠 안에 머문다 (대각 벽을 따라 미끄러진다) */
     function yardOut(x, z) { var Y = YARD_L - 0.3 - PL_MARGIN; return Math.abs(x) > Y + 1e-6 || Math.abs(z) > Y + 1e-6; }
+    function wideIn(sd, td) { for (var A = WIDE.AREAS, i = 0; i < A.length; i++) if (sd >= A[i][0] && sd <= A[i][1] && td >= A[i][2] && td <= A[i][3]) return true; return false; }
     function yardClamp(x0, z0, x, z) {
       var Y = YARD_L - 0.3 - PL_MARGIN; if (Math.abs(x) <= Y && Math.abs(z) <= Y) return [x, z];
       var k = Math.SQRT1_2, sd = (x + z) * k, td = (x - z) * k;
       if (!yardOut(x0, z0) && sd < WIDE.S_OUT) return [clamp(x, -Y, Y), clamp(z, -Y, Y)];
-      return wideXZ(clamp(sd, WIDE.S_OUT, WIDE.S1), clamp(td, -WIDE.T, WIDE.T));
+      if (wideIn(sd, td)) return [x, z];
+      /* 11-21 7차: 걷는 곳이 네모 여럿 (길 · 마루 · 광장 · 계단 · 모래 · 부두). 밖으로 나가는 걸음은 지금 서 있는 네모 (들) 의 가장자리로 맞춘다 — 벽을 따라 미끄러지고, 이웃 네모와 겹친 데서 넘어간다 */
+      var s0 = (x0 + z0) * k, t0 = (x0 - z0) * k, A = WIDE.AREAS, bs = 0, bt = 0, bd = 1e9, any = false, e = 1e-6, i, a, cs, ct, d;
+      for (i = 0; i < A.length; i++) { a = A[i]; if (s0 < a[0] - e || s0 > a[1] + e || t0 < a[2] - e || t0 > a[3] + e) continue; any = true; cs = clamp(sd, a[0], a[1]); ct = clamp(td, a[2], a[3]); d = Math.hypot(cs - sd, ct - td); if (d < bd) { bd = d; bs = cs; bt = ct; } }
+      if (!any) for (i = 0; i < A.length; i++) { a = A[i]; cs = clamp(sd, a[0], a[1]); ct = clamp(td, a[2], a[3]); d = Math.hypot(cs - sd, ct - td); if (d < bd) { bd = d; bs = cs; bt = ct; } }   /* 마당 네모에서 문으로 나가는 걸음 · 시험이 옮겨 둔 자리 */
+      return wideXZ(bs, bt);
     }
     function plBoxes() {   /* 지금 방의 장애물 [x0, x1, z0, z1] (반지름만큼 키운 것) — 소품 위치·치수를 코드에서 읽는다. 담요·깔개는 밟아도 된다 */
       var out = [], r = PL_RAD;
@@ -2955,6 +2971,7 @@ var SCENE3D = (function () {
         var bb = PROOM.boothBox; out.push([bb.min.x - r, bb.max.x + r, bb.min.z - r, bb.max.z + r]);   /* 11-18 식탁 자리 */
       } else if (PL.place === 'yard' && YROOM) {   /* 11-15 마당: 집 · 계단 · 우체통 · 등 · 울타리 토막 · 연 밭 (밭 사이는 돌아서 간다) */
         YROOM.boxes.forEach(function (q) { out.push([q[0] - r, q[1] + r, q[2] - r, q[3] + r]); });
+        if (YARD_WIDE) wideCols().boxes.forEach(function (q) { out.push([q[0] - r, q[1] + r, q[2] - r, q[3] + r]); });   /* 11-21 7차: 마을 · 해변 (등록부) */
         plotBoxes.forEach(function (q) { out.push([q.min.x + 0.05 - 0.15, q.max.x - 0.05 + 0.15, q.min.z + 0.05 - 0.15, q.max.z - 0.05 + 0.15]); });   /* 흙 + 0.15 (몸 반지름보다 작게 — 밭 사이 길을 걸을 수 있게, 검증 11-15) */
       } else if (PL.place === 'loft' && LROOM) {
         LROOM.boxes.forEach(function (q) { bx(q[0], q[1], q[2], q[3]); });
@@ -2968,6 +2985,7 @@ var SCENE3D = (function () {
         if (octG.parent === atticG && octG.visible && st.octState !== 'away') out.push([oct.pos.x, oct.pos.z, PL_OCT_R]);
       } else if (PL.place === 'yard' && YROOM) {
         YROOM.circles.forEach(function (c) { out.push([c[0], c[1], c[2] + PL_RAD]); });   /* 나무 줄기 · 덤불 · 돌 */
+        if (YARD_WIDE) wideCols().circles.forEach(function (c) { out.push([c[0], c[1], c[2] + PL_RAD]); });
       } else if (PL.place === 'loft') {
         if (octUp() && octG.visible) out.push([oct.pos.x + LSAL.dx, oct.pos.z + LSAL.dz, PL_OCT_R]);
         if (salG.visible && salE.visible) out.push([SALC.tx + LSAL.dx, SALC.tz + LSAL.dz, 0.30 + PL_RAD]);
@@ -3081,6 +3099,7 @@ var SCENE3D = (function () {
     /* 11-18 (주인: "계단을 사용자가 잘못 집으로 돌아가지 않도록 오르내릴 수 있도록"): 내 캐릭터가 선 자리의 바닥 높이 — 마당 현관 마루(EXT.PL)와 계단 세 칸(0.12 m 씩). 그 밖은 0.
        PL.pos 는 늘 y 0 평면 그대로 두고 (충돌 · 따라가기 · 자동 걷기가 그 값을 쓴다) 그릴 때만 올린다 */
     function plGroundY(x, z) {
+      if (YARD_WIDE && PL.place === 'yard' && x + z > 60) return wideGroundY(x, z);   /* 11-21 7차: 계단 아래 모래 · 부두 (갈래 W) */
       if (PL.place !== 'yard' || Math.abs(z - EXT.HZC) > 0.55 || x >= EXT.HX1 + 1.10 || x < EXT.HX1 - 0.3) return 0;   /* x 아래 한계 (11-18 검증): 집 뒤 (x < −2.65) 를 같은 z 로 걸으면 0.48 m 떠서 그려졌다 — 마루는 집 앞 (HX1) 뿐 */
       return EXT.PL - 0.12 * (x < EXT.HX1 + 0.38 ? 0 : x < EXT.HX1 + 0.62 ? 1 : x < EXT.HX1 + 0.86 ? 2 : 3);
     }
@@ -3186,7 +3205,7 @@ var SCENE3D = (function () {
            가까우면 예전 길 그대로 (울타리 문 → 계단 발치 → 문 앞) 걷되 세 구간을 여기서 잇는다: 걷던 구간이 끊기면 (plStop — plWalkTo 는 끊긴 걸음을 풀지 않는다) ok false 로 풀어 문 작업이 걸린 채 남지 않게 */
         var wg = new T.Vector3(3.7, 0, 3.7), wf = new T.Vector3(EXT.HX1 + 1.6, 0, EXT.HZC), wd = new T.Vector3(a[0], 0, a[2]);
         var wend = function (ok, walked) { if (ok || !PL.walking) PL.camGap = 0; return { ok: ok, walked: walked, anchor: anchor, at: at }; };   /* 끊은 쪽이 새 걸음이면 그 걸음의 따라오기는 두고 */
-        if (Math.hypot(PL.pos.x - wg.x, PL.pos.z - wg.z) + wg.distanceTo(wf) + wf.distanceTo(wd) > WIDE_WALK) { plStop(); return Promise.resolve(wend(true, false)); }
+        if (Math.hypot(PL.pos.x - wg.x, PL.pos.z - wg.z) + wg.distanceTo(wf) + wf.distanceTo(wd) > WIDE_WALK) { plStop(); return wideJumpGo(a[0], a[2], PL_FACE[anchor]).then(function () { return wend(true, false); }); }   /* 11-21 7차: 멀리서는 빠른 이동과 같은 페이드로 문 앞에 선 뒤 문 작업 */
         var wleg = function (to, face) { var p = plWalkTo(to, face), w = PL.walking; return !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); }); };   /* 한 구간 → 끊기면 null */
         return wleg(wg, null).then(function (r) {
           if (r === null) return wend(false, true);
@@ -3501,6 +3520,7 @@ var SCENE3D = (function () {
     var STAIR_EDGE_VIS = 40;
     STAIR_LOW.set(new T.Vector3(STAIR.x1 - 2 * (STAIR.x1 - STAIR.x0) / 7 - 0.05, 0, STAIR.z0), new T.Vector3(STAIR.x1 + 0.06, KNEE + 0.12, STAIR.z1));   /* 11-18 계단 발치는 x1 쪽 (왼벽 앞 구석으로 옮기며 오르는 방향이 뒤집혔다) — 위 STAIR_LOW 줄은 옛 방향 그대로 두고 (다른 가지가 그 아랫줄을 고친다) 여기서 맞춘다 */
     function spotInfo(id) {
+      if (WIDE_SPOT[id]) return wideSpotInfo(id);   /* 11-21 7차: 등록부의 자리 (갈래 W) */
       var busy = DQ.active || DQ.pending || !!PLACE.trans || INTRO.on, v = PLACE.vis, q;
       if (id === 'atticPlay') {
         if (PLACE.room || busy) return null;
@@ -3604,6 +3624,7 @@ var SCENE3D = (function () {
     function setHotspots(map, o) {
       clearSpots(); map = map || {}; o = o || {}; spotEdge = o.edge !== false;
       SPOT_KEYS.forEach(function (k) { if (map[k] && map[k].nodeType === 1) SPOTS[k] = map[k]; });
+      wideSpotsBind();
       if (ready) updateSpots();
       return Object.keys(SPOTS);
     }
@@ -5340,8 +5361,7 @@ var SCENE3D = (function () {
       /* 받침: 바깥과 같은 지층 (풀 태그 10 · 흙 · 1px 줄 · 아래 지층), 더 넓게 */
       yp.push({ g: box(SW, 2 * PX, SW, 8, 1, 8), m: M(0, -PX, 0), c: sc.ground, tag: 10 });
       if (YARD_WIDE) {   /* 11-18 넓은 바깥: 받침의 지층 대신 화면 끝까지 이어지는 땅 한 장 (마당 풀과 같은 색 · 같은 계절 재색 — 받침 윗면 바로 아래). 정점 조명이라 1.5 m 눈금으로 나눈다 */
-        var GW = WIDE.G1 - WIDE.G0, GC = (WIDE.G0 + WIDE.G1) / 2, GN = Math.round(GW / 1.5);
-        yp.push({ g: new T.PlaneGeometry(GW, GW, GN, GN), m: M(GC, -0.004, GC, -Math.PI / 2, 0, 0), c: sc.ground, tag: 10 });
+        yp.push(stPlane(WIDE.L0, WIDE.LAND, -WIDE.GT, WIDE.GT, -0.004, 4, sc.ground, 10));   /* 11-21 7차: 대각 네모 (집 뒤 60 m ~ 해변 계단 위 · 반폭 80 m) — 그 아래는 모래와 바다 (wideBuild) */
       } else {
       yp.push({ g: box(SW, 4 * PX, SW), m: M(0, -4 * PX, 0), c: MAT.slabTop });
       yp.push({ g: box(SW + 0.02, PX, SW + 0.02), m: M(0, -6.5 * PX, 0), c: MAT.slabLine });
@@ -5360,13 +5380,14 @@ var SCENE3D = (function () {
       /* 11-15 5차: 계단 발치에서 밭 사이로 가던 흙길 가지 둘은 지웠다 (주인 — 위 흙길과 같이) */
       if (YARD_WIDE) {
         /* 마당 밖 풀 포기 (대각 좌표로 흩는다 — 마당 네모 안 · 길 위는 비운다) */
-        for (i = 0, n = 0; i < 2400 && n < 560; i++) {
-          var wr = hash('wtuft' + i), wq = wideXZ(-22 + (wr % 1000) / 1000 * 56, -10.5 + ((wr >>> 10) % 1000) / 1000 * 21), wt = (wq[0] - wq[1]) * Math.SQRT1_2;
-          if ((Math.abs(wq[0]) < L + 0.1 && Math.abs(wq[1]) < L + 0.1) || (Math.abs(wt) < 0.5 && wq[0] + wq[1] > 8)) continue;
-          yp.push({ g: box(0.07, 0.05 + (wr >>> 20) % 3 * 0.015, 0.07), m: M(snapPos(wq[0]), 0.025, snapPos(wq[1])), c: sc.tuft, tag: 11 }); n++;
+        var segV = WIDE_PARTS.village;
+        for (i = 0, n = 0; i < 6000 && n < 1150; i++) {   /* 11-21 7차: 마을 · 광장 둘레까지 (포장한 길 · 광장 · 가게 터는 비운다). s 20 부터는 마을 구간 메시로 */
+          var wr = hash('wtuft' + i), wsd = -24 + (wr % 1000) / 1000 * 69.6, wtd = -26 + ((wr >>> 10) % 1000) / 1000 * 52, wq = wideXZ(wsd, wtd), wt = Math.abs(wtd);
+          if ((Math.abs(wq[0]) < L + 0.1 && Math.abs(wq[1]) < L + 0.1) || (wt < 0.5 && wsd > 5.6 && wsd < 20) || (wsd >= 19.6 && wsd < 38 && wt < 10.2) || (wsd >= 37.6 && wt < 8.3)) continue;
+          (wsd < 20 ? yp : segV).push({ g: box(0.07, 0.05 + (wr >>> 20) % 3 * 0.015, 0.07), m: M(snapPos(wq[0]), 0.025, snapPos(wq[1])), c: sc.tuft, tag: 11 }); n++;
         }
         /* 디딤돌: 현관 계단 발치 → 밭 오른쪽 샛길 → 앞 모서리의 울타리 문 → 문 밖 길 (화면 아래로) */
-        var WPATH = [[2.35, -0.75], [3.88, -0.35], [3.88, 3.3], [4.15, 4.15]].concat([wideXZ(WIDE.S1 + 6.5, 0)]);   /* 길 끝 울타리 너머로도 조금 더 (숲 속으로 이어지는 길) */
+        var WPATH = [[2.35, -0.75], [3.88, -0.35], [3.88, 3.3], [4.15, 4.15]].concat([wideXZ(19.4, 0)]);   /* 11-21 7차: 마을 문 (s 19) 까지 — 그 뒤는 포장한 마을 길 */
         for (i = 0; i < WPATH.length - 1; i++) {
           var wa = WPATH[i], wb = WPATH[i + 1], wdx = wb[0] - wa[0], wdz = wb[1] - wa[1], wl = Math.hypot(wdx, wdz), ws = Math.max(1, Math.floor(wl / 0.44));
           for (var wk = 0; wk < ws; wk++) {
@@ -5374,6 +5395,8 @@ var SCENE3D = (function () {
             yp.push({ g: box(ww, 0.02, ww * 0.8), m: M(snapPos(wa[0] + wdx * wu - wdz / wl * wo), 0.01, snapPos(wa[1] + wdz * wu + wdx / wl * wo), 0, (wh >>> 8) % 6 * 0.25, 0), c: EXT_C.stone[wh & 1] });
           }
         }
+        wideSignParts(yp, 0);   /* 11-21 7차: 길 어귀의 표지판 (빠른 이동) */
+        wideRoadDress(yp);
         /* 울타리 문 기둥 둘 (조금 굵고 높게 · 머리에 1px 띠) */
         [[L - 0.3, WIDE.gate], [WIDE.gate, L - 0.3]].forEach(function (gp) {
           yp.push({ g: box(0.11, 0.76, 0.11), m: M(snapPos(gp[0]), 0.38, snapPos(gp[1])), c: EXT_C.fence });
@@ -5401,7 +5424,7 @@ var SCENE3D = (function () {
         var t0 = -FE + i * FS, gap = YARD_WIDE && t0 + FS > WIDE.gate + 0.01;   /* 11-18 넓은 바깥: 앞쪽 두 변은 문 자리 (모서리까지) 를 비운다 */
         fl.push([t0, -FE, 0], [-FE, t0 + FS, Math.PI / 2]); if (!gap) fl.push([t0, FE, 0], [FE, t0 + FS, Math.PI / 2]);
       }
-      if (YARD_WIDE) for (i = 0; i < 4; i++) { var eq = wideXZ(WIDE.S1 + 0.75, -1.28 + i * FS); fl.push([eq[0], eq[1], Math.PI / 4]); }   /* 길 끝의 가로 울타리 (아직 길이 이어지지 않는 곳) */
+      if (YARD_WIDE) for (i = 0; i < 12; i++) { var eq = wideXZ(19, i < 6 ? 3.5 + i * FS : -3.5 - (i - 5) * FS); fl.push([eq[0], eq[1], Math.PI / 4]); }   /* 11-21 7차: 마을 문 (아치) 양옆의 울타리 여섯 칸씩 — 길은 열려 있다 */
       inst(fenceIM.geometry, fl, function (f) { return M(snapPos(f[0]), 0, snapPos(f[1]), 0, f[2], 0); });
       /* 계절 장식 (바깥 것 그대로 — 지금 계절 것만) · 창 2 (재질을 같이 써서 시각대 · 등불 빛이 같다) · 현관문 (닫힌 채) */
       /* 11-15 합침 (검증 V4 S1 · S2): 겨울 장식은 집에 붙은 것 (지붕 · 굴뚝 · 창 서리 — 집 터 위 · 바닥보다 높은 부품) 과 땅의 것을 나눈다. 집에 붙은 것 · 창 둘 · 현관문은
@@ -5420,21 +5443,26 @@ var SCENE3D = (function () {
           [EXT_FENCE[0][0] - 0.04, EXT_FENCE_END[0] + 0.04, 2.5, 2.66]].concat(YARD_WIDE ? [[L - 0.34, L - 0.26, -(L - 0.3), WIDE.gate], [-(L - 0.3), WIDE.gate, L - 0.34, L - 0.26]] : []),   /* (넓은 바깥: 앞쪽 두 변의 울타리 — 문 자리만 열려 있다) */   /* 집 몸통 · 현관 양옆 (11-18: 현관 마루와 계단 세 칸은 걸어 오르내린다 — 난간 사이 통로 z HZC ± 0.6 만 열어 둔다) · 우체통 · 등 · 바깥에서 가져온 울타리 토막 */
         circles: YARD_TREES.round.concat(YARD_TREES.cone, EXT_TREES.round, EXT_TREES.cone).map(function (t) { return [t[0], t[1], 0.22 * t[2] + 0.05]; })
           .concat([[0.5, -0.05, 0.4], [-2.55, 0.05, 0.35], [2.5, -1.5, 0.25], [-0.55, 1.95, 0.2]]) };   /* 나무 줄기 · 덤불 · 돌 (반지름은 내 캐릭터 몸을 더하기 전) */
+      if (YARD_WIDE) wideBuild(g);   /* 11-21 7차: 마을 · 해변 구간 메시 + 등록부 (갈래 V 가 채운 것) — YROOM 이 선 뒤 */
       applySeasonYard(); yardPlots(true);
       if (typeof cutAdd === 'function') YARD_CUTS.forEach(function (c, i) { cutAdd('yard', c.full, c.low, c.nx, c.nz, c.cx, c.cz).key = i ? 'yard' + i : 'house'; });   /* 11-15: 갈래 A 의 자르기 (첫째 = 집) */
       CUT_DYN.yard = function () { var H = cutOf('yard', 'house'), out = [[YROOM.door, H], [YROOM.decoHouse, H]]; YROOM.wins.forEach(function (m) { out.push([m, H]); }); return out; };   /* 집에 붙은 것들 (보임은 계절 · 빛 코드 몫이라 layers 로 숨긴다) */
       dither.still = 0;
     }
-    function wideTrees() {   /* 11-18 넓은 바깥의 숲: 대각 좌표에 시드로 흩는다 (마당 네모 둘레 · 문 밖 길의 빈터는 비운다 · 서로 1.75 m 넘게) → { round, cone } 의 [x, z, 배율, 요] */
-      var out = { round: [], cone: [] }, all = [];
-      for (var i = 0; i < 1400 && all.length < 190; i++) {
-        var r = hash('wtree' + i), sd = -21 + (r % 1000) / 1000 * 54, td = -10.5 + ((r >>> 10) % 1000) / 1000 * 21, q = wideXZ(sd, td);
+    function wideTrees() {   /* 11-18 넓은 바깥의 숲: 대각 좌표에 시드로 흩는다 (마당 네모 둘레 · 걷는 곳 · 가게 터는 비운다 · 서로 1.75 m 넘게) → { round, cone } 의 [x, z, 배율, 요].
+                                 11-21 7차: 마을 뒤 (s 45) 까지 · 반폭 30 m. 걷는 곳 가까운 나무는 낮춘다 — 키 ≤ 거리 × tan 32° + 0.45 m: 어느 각으로 돌려 봐도 (90° · 270° 포함) 길가의 캐릭터가 발목까지만 가린다. 0.45 배 아래면 심지 않는다 */
+      var out = { round: [], cone: [] }, all = [], grid = {};
+      for (var i = 0; i < 5200 && all.length < 560; i++) {
+        var r = hash('wtree' + i), sd = -24 + (r % 1000) / 1000 * 69, td = -30 + ((r >>> 10) % 1000) / 1000 * 60, q = wideXZ(sd, td), at = Math.abs(td);
         if (Math.abs(q[0]) < YARD_L + 0.7 && Math.abs(q[1]) < YARD_L + 0.7) continue;
-        if (Math.abs(td) < WIDE.T + 0.8 && sd > WIDE.S_OUT - 1.2 && sd < WIDE.S1 + 1.7) continue;
-        if (Math.abs(td) < 2.4 && sd >= WIDE.S1 + 1.7 && sd < WIDE.S1 + 9) continue;   /* 길 끝 너머: 서 있는 캐릭터를 나무가 가리지 않게 길 둘레를 비운다 */
-        var ok = true; for (var k = 0; k < all.length && ok; k++) if (Math.hypot(all[k][0] - q[0], all[k][1] - q[1]) < 1.75) ok = false;
+        if (at > 16 && (r >>> 5) % 3 === 0) continue;   /* 먼 숲은 조금 성기게 */
+        if ((sd > 19.2 && sd < 38.6 && at < 11.2) || (sd >= 37.4 && at < 9.4) || (sd > 18 && sd < 20 && at < 7.6)) continue;   /* 가게 터 · 광장 · 마을 문 울타리 */
+        var wd = wideDist(sd, td); if (wd < 0.8) continue;
+        var sc = Math.min(0.85 + ((r >>> 20) % 5) * 0.09, (wd * 0.62 + 0.45) / 2.2); if (sc < 0.45) continue;
+        var gx = Math.floor(q[0] / 1.75), gz = Math.floor(q[1] / 1.75), ok = true;
+        for (var a = -1; a <= 1 && ok; a++) for (var b = -1; b <= 1 && ok; b++) { var cell = grid[(gx + a) + ',' + (gz + b)]; if (cell) for (var k = 0; k < cell.length && ok; k++) if (Math.hypot(cell[k][0] - q[0], cell[k][1] - q[1]) < 1.75) ok = false; }
         if (!ok) continue;
-        var it = [q[0], q[1], 0.85 + ((r >>> 20) % 5) * 0.09, ((r >>> 23) % 8) * 0.4]; all.push(it); out[(r >>> 27) % 20 < 9 ? 'round' : 'cone'].push(it);   /* 둥근 나무 45% (한 그루 ≈ 770 삼각형 — 뾰족 나무는 ≈ 120) */
+        var it = [q[0], q[1], sc, ((r >>> 23) % 8) * 0.4]; all.push(it); (grid[gx + ',' + gz] || (grid[gx + ',' + gz] = [])).push(it); out[(r >>> 27) % 20 < 9 ? 'round' : 'cone'].push(it);   /* 둥근 나무 45% (한 그루 ≈ 770 삼각형 — 뾰족 나무는 ≈ 120) */
       }
       return out;
     }
@@ -5445,12 +5473,13 @@ var SCENE3D = (function () {
       recolor(g2, 10, c.ground); recolor(g2, 11, c.tuft); recolor(g2, 12, c.path); recolor(g2, 17, EXT_WATER[SEASON.cur]);
       recolor(g2, 13, c.leaf[0]); recolor(g2, 14, c.leaf[1]); recolor(g2, 15, c.leaf[2]); recolor(g2, 16, SEASON.cur === 'spring' ? c.bloom : c.leaf[1]);
       SEASONS.forEach(function (s2) { YROOM.deco[s2].visible = s2 === SEASON.cur; }); YROOM.decoHouse.visible = SEASON.cur === 'winter';
+      if (YARD_WIDE) wideSeason();
     }
     /* 마당이 보이는 동안: 바깥의 비 · 눈 · 꽃잎 · 낙엽 · 반딧불 입자와 1층 창 불빛(점광)을 마당 그룹으로 옮긴다 · 바깥이 보이면 돌려준다 (둘이 같이 보이는 프레임은 없다) */
     var EXT_LAMP_AT = extLamp.position.clone();
     function yardBorrow(on) {
       var to = on && YROOM ? YROOM.g : extG;
-      Object.keys(XCOUNT).forEach(function (k) { if (XP[k].obj.parent !== to) to.add(XP[k].obj); });
+      Object.keys(XCOUNT).forEach(function (k) { if (XP[k].obj.parent !== to) to.add(XP[k].obj); if (!on) XP[k].obj.position.set(0, 0, 0); });   /* 11-21 7차: 넓은 바깥에서 화면을 따라 옮겨 둔 입자를 제자리로 */
       if (extLamp.parent !== to) { to.add(extLamp); if (on) extLamp.position.set(YARD_LAMP[0] + 0.12, 0.7, YARD_LAMP[1] + 0.15); else extLamp.position.copy(EXT_LAMP_AT); }
     }
     function yardPlots(force) {   /* 밭 흙 테 (연 칸 수만큼) + 심은 것 — 마당이 지어진 뒤에만 */
@@ -5536,6 +5565,189 @@ var SCENE3D = (function () {
 
 
     /* [7-W] 바깥 한 장 · 해안가 · 이동 */
+    var WIDE_PARTS = { village: [], beach: [] }, WIDE_SPOT = {}, WIDE_SPOT_KEYS = [];
+    var WSTATE = { own: false, spotN: 0, cols: null, colKey: '', beach: null, wave: null, waveF: -1, shells: null, shellOn: [], jump: null, vmax: 3, lastX: 0, lastZ: 0, xoff: [0, 0] };
+    var WIDE_C = { pave: ['#8f887c', '#857e73', '#7c756b'], edge: '#6e685f', wallTop: '#8f887c', wall: '#6e685f',
+      sand: { spring: '#c8ac7c', summer: '#ccb07e', autumn: '#c2a676', winter: '#c6c6bc' }, wet: { spring: '#a88c62', summer: '#ac9064', autumn: '#a2865e', winter: '#a4a8a8' }, grain: { spring: '#b89c6e', summer: '#bca070', autumn: '#b2966a', winter: '#b4b6ae' },
+      sea: { spring: ['#78b4c8', '#4a8cae', '#3a6f9a'], summer: ['#6cb8c8', '#3f8fb0', '#2f6c9c'], autumn: ['#76a8ba', '#4a7f9e', '#3a658c'], winter: ['#8ab0c0', '#5a849c', '#46687f'] },
+      dune: { spring: '#b8c070', summer: '#a8b860', autumn: '#c8a858', winter: '#c8cdc0' } };
+    var WAVE_F = [0, 0.11, 0.22, 0.33, 0.22, 0.11];   /* 물가 거품 줄이 모래 위로 올라오는 거리 (m) — 초당 5 칸, 여섯 칸 한 바퀴. 모션 감소면 첫 칸에 선다 */
+    /* 대각 좌표의 납작한 판 · 상자 (s = 집에서 바다 쪽 · t = 화면 오른쪽). 판은 s 가 가로 · t 가 세로가 되게 −45° 돌린다 */
+    function stPlane(s0, s1, t0, t1, y, step, c, tag) {
+      var g = new T.PlaneGeometry(s1 - s0, t1 - t0, Math.max(1, Math.round((s1 - s0) / step)), Math.max(1, Math.round((t1 - t0) / step))); g.rotateX(-Math.PI / 2);
+      var q = wideXZ((s0 + s1) / 2, (t0 + t1) / 2); return { g: g, m: M(q[0], y, q[1], 0, -Math.PI / 4, 0), c: c, tag: tag || 0 };
+    }
+    function stBox(sc, tc, y, ls, h, lt, c, tag) { var q = wideXZ(sc, tc); return { g: box(ls, h, lt), m: M(snapPos(q[0]), y, snapPos(q[1]), 0, -Math.PI / 4, 0), c: c, tag: tag || 0 }; }
+    function wideDist(sd, td) { var b = 1e9; WIDE.AREAS.forEach(function (a) { var d = Math.hypot(Math.max(a[0] - sd, 0, sd - a[1]), Math.max(a[2] - td, 0, td - a[3])); if (d < b) b = d; }); return b; }   /* 걷는 곳 (길 · 마루 · 광장 · 계단 · 모래 · 부두) 까지의 거리 — 안이면 0 */
+    function wideGroundY(x, z) {   /* 땅 높이 (m): 풀 땅 0 · 계단 네 칸 (0.12 m 씩) · 모래 −0.6 · 부두 마루 −0.42 (발치에 한 칸) */
+      var sd = (x + z) * Math.SQRT1_2, td = (x - z) * Math.SQRT1_2, P = WIDE.AREAS[5];
+      if (sd < WIDE.STEP_S) return 0;
+      if (td >= P[2] - 0.2 && td <= P[3] + 0.2) { if (sd >= 56.2) return WIDE.PIER_Y; if (sd >= 55.8) return -0.51; }
+      return Math.max(WIDE.BEACH_Y, -0.12 * (Math.floor((sd - WIDE.STEP_S) / WIDE.STEP_D) + 1));
+    }
+    function wideSignParts(out, i) {   /* 표지판: 기둥 + 화살 판 둘 (바다 쪽 · 집 쪽) — 글자 없음 */
+      var sg = WIDE.SIGNS[i], q = wideXZ(sg[0], sg[1]), y0 = wideGroundY(q[0], q[1]);
+      out.push({ g: box(0.1, 1.34, 0.1), m: M(snapPos(q[0]), y0 + 0.67, snapPos(q[1])), c: EXT_C.trunk }, { g: box(0.14, 0.04, 0.14), m: M(snapPos(q[0]), y0 + 1.36, snapPos(q[1])), c: EXT_C.fence });
+      out.push(stBox(sg[0] + 0.06, sg[1] + 0.2, y0 + 1.12, 0.04, 0.2, 0.62, PAL.paper[1]), stBox(sg[0] + 0.06, sg[1] + 0.55, y0 + 1.12, 0.04, 0.1, 0.08, PAL.paper[1]));
+      out.push(stBox(sg[0] + 0.06, sg[1] - 0.2, y0 + 0.84, 0.04, 0.2, 0.62, PAL.paper[2] || PAL.paper[1]), stBox(sg[0] + 0.06, sg[1] - 0.55, y0 + 0.84, 0.04, 0.1, 0.08, PAL.paper[2] || PAL.paper[1]));
+    }
+    function wideRoadDress(out) {   /* 숲길 (s 7 ~ 18) 가의 낮은 것들: 꽃 무더기 · 버섯 · 작은 덤불 · 그루터기 · 쓰러진 통나무. 폰 화면 폭 (6.7 m) 이 걷는 띠와 거의 같아 숲이 화면 밖이라 길이 비어 보였다.
+                                    다 무릎 아래라 캐릭터를 가리지 않는다. 가운데 (|t| < 1.3) 는 비워 둔다. 덤불 · 그루터기 · 통나무는 부딪힌다 */
+      var sc = SEASON_C[SEASON.cur], bl = [PAL.rose[2] || PAL.rose[1], PAL.amber[4], FIXED.white, PAL.dusk[2]];
+      for (var i = 0; i < 18; i++) {
+        var h = hash('wdress' + i), sd = 7.2 + i * 0.62 + (h % 10) * 0.03, side = i % 2 ? 1 : -1, td = side * (1.55 + ((h >>> 4) % 12) * 0.11), q = wideXZ(sd, td), x = snapPos(q[0]), z = snapPos(q[1]), kind = (h >>> 9) % 6, k;
+        if (kind < 2) { for (k = 0; k < 4; k++) { var fx = x + ((h >>> (12 + k * 3)) % 5 - 2) * 0.08, fz = z + ((h >>> (13 + k * 3)) % 5 - 2) * 0.08; out.push({ g: box(0.035, 0.14, 0.035), m: M(fx, 0.07, fz), c: sc.tuft, tag: 11 }, { g: box(0.075, 0.075, 0.075), m: M(fx, 0.17, fz), c: bl[(h >>> (20 + k)) % 4] }); } }
+        else if (kind === 2) { for (k = 0; k < 2; k++) { var mx = x + k * 0.16, mz = z + k * 0.07, mh = 0.1 + k * 0.05; out.push({ g: box(0.05, mh, 0.05), m: M(mx, mh / 2, mz), c: PAL.paper[2] || PAL.paper[1] }, { g: box(0.15, 0.06, 0.15), m: M(mx, mh + 0.03, mz), c: PAL.rose[1] }, { g: box(0.04, 0.02, 0.04), m: M(mx + 0.03, mh + 0.065, mz), c: FIXED.white }); } }
+        else if (kind === 3) { var br = 0.24 + (h >>> 14) % 3 * 0.03; out.push({ g: new T.SphereGeometry(br, 7, 5), m: M(x, br * 0.6, z, 0, 0, 0, 1, 0.8, 1), c: sc.leaf[i % 3], tag: 13 + i % 3 }); WIDE_REG.circles.push([x, z, br * 0.7]); }
+        else if (kind === 4) { out.push({ g: new T.CylinderGeometry(0.15, 0.18, 0.2, 8), m: M(x, 0.1, z), c: EXT_C.trunk }, { g: new T.CylinderGeometry(0.13, 0.13, 0.02, 8), m: M(x, 0.21, z), c: W[4] }); WIDE_REG.circles.push([x, z, 0.16]); }
+        else { out.push(stBox(sd, td, 0.1, 0.2, 0.2, 0.9, EXT_C.trunk), stBox(sd, td + 0.455, 0.1, 0.16, 0.16, 0.02, W[4]), stBox(sd, td - 0.455, 0.1, 0.16, 0.16, 0.02, W[4]), { g: box(0.09, 0.05, 0.09), m: M(x + 0.05, 0.22, z - 0.1), c: sc.tuft, tag: 11 });
+          [-0.3, 0, 0.3].forEach(function (d) { var lq = wideXZ(sd, td + d); WIDE_REG.circles.push([lq[0], lq[1], 0.12]); }); }
+      }
+    }
+    function wideBuild(g) {
+      var V = WIDE_PARTS.village, B = WIDE_PARTS.beach, sc = SEASON_C[SEASON.cur], sn = SEASON.cur, GT = WIDE.GT, BY = WIDE.BEACH_Y, i, k, h, q, y;
+      /* ── 마을 구간 (s 18 ~ 46): 마을 문 (아치) · 포장한 길 · 광장 · 가게 터 뒤 낮은 담과 덤불 · 표지판 ── */
+      [-3.45, 3.45].forEach(function (t) { V.push(stBox(19, t, 1.25, 0.2, 2.5, 0.2, EXT_C.trunk), stBox(19, t, 0.08, 0.3, 0.16, 0.3, EXT_C.stone[1])); });
+      V.push(stBox(19, 0, 2.5, 0.2, 0.2, 7.3, EXT_C.fence), stBox(19, 0, 2.66, 0.5, 0.07, 7.8, EXT_C.roof), stBox(19, 0, 2.72, 0.26, 0.06, 7.6, EXT_C.roofLine));
+      V.push(stBox(19.02, 0, 2.2, 0.05, 0.34, 1.0, PAL.paper[1]), stBox(19.05, 0, 2.2, 0.03, 0.12, 0.3, PAL.rose[1]));   /* 아치에 걸린 빈 나무패 (글자 없음) */
+      for (i = 0; i < 29; i++) for (k = -4; k <= 3; k++) { h = hash('wpave' + i + '_' + k); if ((h >>> 3) % 23 === 0) continue; V.push(stBox(20.3 + i * 0.62, (k + 0.5) * 0.62 + ((h >>> 5) % 3 - 1) * 0.02, 0.01, 0.56, 0.02, 0.56, WIDE_C.pave[(h >>> 8) % 3])); }
+      for (i = 0; i < 13; i++) for (k = -13; k <= 13; k++) { h = hash('wplz' + i + '_' + k); if ((h >>> 3) % 37 === 0) continue; V.push(stBox(38.28 + i * 0.62, k * 0.62, 0.01, 0.56, 0.02, 0.56, i === 0 || i === 12 || Math.abs(k) === 13 ? WIDE_C.edge : WIDE_C.pave[(h >>> 8) % 3])); }
+      [-10.6, 10.6].forEach(function (t) {
+        V.push(stBox(29, t, 0.16, 17.2, 0.32, 0.22, WIDE_C.wall), stBox(29, t, 0.34, 17.3, 0.04, 0.3, WIDE_C.wallTop));
+        for (var b = 0; b < 7; b++) { var hb = hash('wbush' + t + b), bq = wideXZ(21.4 + b * 2.5 + (hb % 10) * 0.08, t + (t > 0 ? 0.75 : -0.75) + ((hb >>> 6) % 5) * 0.05 * (t > 0 ? 1 : -1)), br = 0.3 + (hb >>> 10) % 4 * 0.04;
+          V.push({ g: new T.SphereGeometry(br, 7, 5), m: M(snapPos(bq[0]), br * 0.62, snapPos(bq[1]), 0, 0, 0, 1, 0.8, 1), c: sc.leaf[b % 3], tag: 13 + b % 3 }); }
+      });
+      wideSignParts(V, 1);
+      /* ── 해변 구간 (s 46 ~): 축대와 계단 · 모래 · 젖은 모래 · 바다 세 띠 · 모래 알 · 모래 풀 · 바위 · 부두 · 표지판 ── */
+      [-1, 1].forEach(function (d) { var len = GT - 3.4, tc = d * (3.4 + len / 2); B.push(stBox(46.1, tc, BY / 2, 0.2, -BY, len, WIDE_C.wall), stBox(46.08, tc, -0.02, 0.26, 0.04, len, WIDE_C.wallTop)); });
+      for (k = 0; k < 4; k++) { y = -0.12 * (k + 1); B.push(stBox(46.3 + 0.6 * k, 0, (BY + y) / 2, 0.6, y - BY, 6.8, WIDE_C.pave[k % 2 ? 2 : 0])); }
+      B.push(stPlane(WIDE.LAND, WIDE.SEA + 0.6, -GT, GT, BY, 4, WIDE_C.sand[sn], 18), stPlane(WIDE.SEA - 1, WIDE.SEA + 0.6, -GT, GT, BY + 0.004, 8, WIDE_C.wet[sn], 19));
+      B.push(stPlane(WIDE.SEA + 0.2, WIDE.SEA + 3.5, -GT, GT, BY - 0.04, 8, WIDE_C.sea[sn][0], 20), stPlane(WIDE.SEA + 3.5, WIDE.SEA + 12, -GT, GT, BY - 0.04, 8, WIDE_C.sea[sn][1], 21), stPlane(WIDE.SEA + 12, WIDE.SEA1, -GT, GT, BY - 0.04, 8, WIDE_C.sea[sn][2], 22));
+      for (i = 0; i < 300; i++) { h = hash('wgrain' + i); q = wideXZ(46.5 + (h % 1000) / 1000 * 12.3, -24 + ((h >>> 10) % 1000) / 1000 * 48); B.push({ g: box(0.07, 0.012, 0.07), m: M(snapPos(q[0]), BY + 0.006, snapPos(q[1])), c: WIDE_C.grain[sn], tag: 23 }); }
+      for (i = 0; i < 130; i++) {   /* 모래 풀: 축대 아래 · 축대 위 가장자리 (계단 앞과 광장은 비운다) */
+        h = hash('wdune' + i); var ds = 44.8 + (h % 1000) / 1000 * 3.9, dt2 = -24 + ((h >>> 10) % 1000) / 1000 * 48, top = ds < 46;
+        if (ds > 45.9 && ds < 46.4) continue; if (top ? Math.abs(dt2) < 8.7 : Math.abs(dt2) < 3.9) continue;
+        q = wideXZ(ds, dt2);
+        for (k = 0; k < 3; k++) B.push({ g: box(0.04, 0.2 + ((h >>> (20 + k * 2)) % 3) * 0.06, 0.04), m: M(snapPos(q[0] + (k - 1) * 0.07), (top ? 0 : BY) + 0.1 + ((h >>> (20 + k * 2)) % 3) * 0.03, snapPos(q[1] + (k % 2) * 0.07)), c: WIDE_C.dune[sn], tag: 24 });
+      }
+      WIDE.ROCKS.forEach(function (r, ri) {
+        var rq = wideXZ(r[0], r[1]);
+        if (!ri) { B.push({ g: new T.CylinderGeometry(r[2] * 0.8, r[2], r[3], 8), m: M(snapPos(rq[0]), BY + r[3] / 2, snapPos(rq[1])), c: EXT_C.rock[0] }, { g: new T.CylinderGeometry(r[2] * 0.74, r[2] * 0.8, 0.04, 8), m: M(snapPos(rq[0]), BY + r[3] + 0.02, snapPos(rq[1])), c: EXT_C.rock[1] }); }
+        else { B.push({ g: new T.SphereGeometry(r[2], 7, 5), m: M(snapPos(rq[0]), BY, snapPos(rq[1]), 0, ri * 0.7, 0, 1, r[3] / r[2], 0.85), c: EXT_C.rock[ri % 2] }); }
+        WIDE_REG.circles.push([rq[0], rq[1], r[2]]);
+      });
+      var P = WIDE.AREAS[5], PY = WIDE.PIER_Y, pt = (P[2] + P[3]) / 2;   /* 부두: 모래 (s 56) 에서 물 위로 10 m · 폭 1.6 m · 난간 없음 (캐릭터를 가리지 않는다) */
+      B.push(stBox(61, pt, PY - 0.03, 10, 0.06, 1.6, W[3]), stBox(55.9, pt, (BY - 0.51) / 2, 0.36, 0.09, 1.6, W[2]));
+      for (i = 0; i <= 20; i++) B.push(stBox(56 + i * 0.5, pt, PY - 0.029, 0.04, 0.062, 1.6, W[1]));
+      for (i = 0; i <= 5; i++) [-0.8, 0.8].forEach(function (d) { var end = i === 5, pq = wideXZ(56 + i * 2, pt + d);
+        B.push(stBox(56 + i * 2, pt + d, -0.5 + (end ? 0.2 : 0), 0.12, 1.2 + (end ? 0.4 : 0), 0.12, W[1]), stBox(56 + i * 2, pt + d, PY + 0.13 + (end ? 0.4 : 0), 0.16, 0.04, 0.16, W[4]));
+        if (i < 2) WIDE_REG.circles.push([pq[0], pq[1], 0.07]); });
+      wideSignParts(B, 2);
+      var vm = new T.Mesh(keep(mergeParts(V)), lambert); vm.castShadow = true; vm.receiveShadow = true; vm.name = 'wideVillage'; g.add(vm);
+      var bg = new T.Group(); bg.name = 'wideBeach'; g.add(bg);
+      var bm = new T.Mesh(keep(mergeParts(B)), lambert); bm.castShadow = true; bm.receiveShadow = true; bg.add(bm);
+      var wp = [];   /* 물가 거품 줄 (모래 위 0.6 m 토막 · 들쭉날쭉) + 바다 쪽 성긴 둘째 줄 */
+      for (i = 0; i < Math.round(2 * GT / 0.6); i++) { h = hash('wfoam' + i); var ft = -GT + 0.3 + i * 0.6;
+        wp.push(stBox(WIDE.SEA + ((h % 3) - 1) * 0.07, ft, BY + 0.011, 0.15, 0.012, 0.6, FIXED.white));
+        if ((h >>> 4) % 3) wp.push(stBox(WIDE.SEA + 1.5 + ((h >>> 8) % 3) * 0.11, ft, BY - 0.03, 0.08, 0.012, 0.6, FIXED.white)); }
+      var wv = new T.Mesh(keep(mergeParts(wp)), lambert); wv.receiveShadow = true; wv.name = 'wideWave'; bg.add(wv);
+      WSTATE.village = vm; WSTATE.beach = bg; WSTATE.sand = bm; WSTATE.wave = wv;
+      WIDE_REG.segments.push({ s0: 17, s1: 47.5, obj: vm }, { s0: 43.5, s1: 1e3, obj: bg });
+      /* 걷는 곳 가의 서 있는 것: 표지판 셋 (아치 기둥은 걷는 곳 밖) · 톡 자리: 표지판 셋 · 조개 다섯 (조개는 beachShells 가 켠다) */
+      WIDE.SIGNS.forEach(function (sg, si) { var sq = wideXZ(sg[0], sg[1]); WIDE_REG.circles.push([sq[0], sq[1], 0.1]); WIDE_REG.spots.push({ key: 'wsign' + si, btn: 'btn-sign-' + si, x: sq[0], y: wideGroundY(sq[0], sq[1]) + 0.8, z: sq[1], r: 0.5 }); });
+      WIDE.SHELLS.forEach(function (sh, si) { var sq = wideXZ(sh[0], sh[1]); WIDE_REG.spots.push({ key: 'wshell' + si, btn: 'btn-beach-shell-' + si, x: sq[0], y: BY + 0.1, z: sq[1], r: 0.26, on: false }); });
+      WIDE_REG.builders.forEach(function (fn) { try { fn(g); } catch (e) { console.error('[scene3d] WIDE_REG.builders', e); } });
+      wideRegSync(); wideShells(WSTATE.shellOn);
+    }
+    function wideSeason() {   /* 계절: 내 구간 메시의 풀 · 덤불 · 모래 · 바다 (applySeasonYard 가 부른다) */
+      if (!WSTATE.village) return; var c = SEASON_C[SEASON.cur], sn = SEASON.cur, vg = WSTATE.village.geometry, bg = WSTATE.sand.geometry;
+      recolor(vg, 11, c.tuft); recolor(vg, 13, c.leaf[0]); recolor(vg, 14, c.leaf[1]); recolor(vg, 15, c.leaf[2]);
+      recolor(bg, 18, WIDE_C.sand[sn]); recolor(bg, 19, WIDE_C.wet[sn]); recolor(bg, 20, WIDE_C.sea[sn][0]); recolor(bg, 21, WIDE_C.sea[sn][1]); recolor(bg, 22, WIDE_C.sea[sn][2]); recolor(bg, 23, WIDE_C.grain[sn]); recolor(bg, 24, WIDE_C.dune[sn]);
+    }
+    /* 등록부 (WIDE_REG): 새로 들어온 자리를 단추 칸으로 · 부딪힘 상자 [x0, z0, x1, z1] 를 마당 형식 [x0, x1, z0, z1] 으로 (늘면 다시) */
+    function wideRegSync() {
+      var sp = WIDE_REG.spots, n0 = WIDE_SPOT_KEYS.length;
+      for (; WSTATE.spotN < sp.length; WSTATE.spotN++) { var s1 = sp[WSTATE.spotN]; if (!s1 || !s1.key || !s1.btn || WIDE_SPOT[s1.key] || SPOT_KEYS.indexOf(s1.key) >= 0) continue; WIDE_SPOT[s1.key] = { sp: s1, box: new T.Box3() }; WIDE_SPOT_KEYS.push(s1.key); SPOT_KEYS.push(s1.key); }
+      if (WIDE_SPOT_KEYS.length !== n0) wideSpotsBind();
+    }
+    function wideSpotsBind() { WIDE_SPOT_KEYS.forEach(function (k) { if (SPOTS[k]) return; var el = document.getElementById(WIDE_SPOT[k].sp.btn); if (el && container.contains(el)) SPOTS[k] = el; }); }
+    function wideCols() {
+      var key = WIDE_REG.boxes.length + '|' + WIDE_REG.circles.length; if (WSTATE.cols && WSTATE.colKey === key) return WSTATE.cols;
+      WSTATE.colKey = key;
+      return (WSTATE.cols = { boxes: WIDE_REG.boxes.map(function (b) { return [Math.min(b[0], b[2]), Math.max(b[0], b[2]), Math.min(b[1], b[3]), Math.max(b[1], b[3])]; }), circles: WIDE_REG.circles.map(function (c) { return [c[0], c[1], c[2]]; }) });
+    }
+    function wideSpotInfo(id) {   /* spotInfo 의 등록부 갈래: 자리 (x, y, z) 둘레 r 의 상자를 화면에 → 보이는 만큼만 · 44 px 아래면 넓힌다 */
+      var w = WIDE_SPOT[id], sp = w.sp;
+      if (PLACE.vis !== 'yard' || !YROOM || sp.on === false || DQ.active || DQ.pending || PLACE.trans || INTRO.on || yardDoorBusy() || WSTATE.jump) return null;
+      var r = sp.r || 0.4, y = sp.y || 0; w.box.min.set(sp.x - r, y - r, sp.z - r); w.box.max.set(sp.x + r, y + r, sp.z + r);
+      var q = boxScreen(w.box, YROOM.g); if (!isFinite(q.l)) return null;
+      var vl = Math.max(0, q.l), vt = Math.max(0, q.t), vr = Math.min(S.W, q.r), vb = Math.min(S.H, q.b);
+      if (vr - vl < SPOT_MIN_VIS || vb - vt < SPOT_MIN_VIS) return null;
+      var ww = Math.min(S.W, Math.round(Math.max(44, vr - vl))), hh = Math.min(S.H, Math.round(Math.max(44, vb - vt)));
+      return { id: id, mode: 'over', x: clamp(Math.round((vl + vr) / 2 - ww / 2), 0, Math.max(0, S.W - ww)), y: clamp(Math.round((vt + vb) / 2 - hh / 2), 0, Math.max(0, S.H - hh)), w: ww, h: hh, art: { l: Math.round(q.l), t: Math.round(q.t), r: Math.round(q.r), b: Math.round(q.b) } };
+    }
+    function wideCentreOn() {   /* 화면 가운데를 내 캐릭터로 (빠른 이동 뒤 — 페이드에 덮인 프레임에) */
+      var tgt = camTargetNow(); _fw.copy(PL.pos).setY(0.6 + plGroundY(PL.pos.x, PL.pos.z)).sub(tgt);
+      PAN.x = Math.round(_fw.dot(_r) * S.N) / S.N; PAN.y = Math.round(_fw.dot(_u) * S.N) / S.N; PAN.vx = PAN.vy = 0; PAN.mode = ''; _wideKeep.on = false; clampPan(); dither.still = 0;
+    }
+    function wideJumpGo(x, z, yaw) {   /* 빠른 이동 한 번: 화면을 0.15 s 덮고 (전환과 같은 디더) 자리를 옮긴 뒤 0.15 s 에 연다 → Promise. 모션 감소 · 숨은 탭 = 바로 */
+      plStop(); PL.pending = '';
+      var put = function () { PL.pos.set(x, 0, z); PL.moving = false; if (yaw != null) { PL.faceCam = false; PL.wantYaw = PL.yaw = yaw; } plSnap(); wideCentreOn(); };
+      if (WSTATE.jump) { var o = WSTATE.jump; WSTATE.jump = null; PLACE.fade = 0; o.res(false); }
+      if (st.reduced || !ready || (typeof document !== 'undefined' && document.hidden) || PLACE.vis !== 'yard') { put(); return Promise.resolve(true); }
+      return new Promise(function (res) { WSTATE.jump = { t: 0, put: put, done: false, res: res }; });
+    }
+    function wideGo(place) {   /* 'home' | 'village' | 'beach' → Promise<boolean> (마당이 보이고 한가할 때만) */
+      var a = WIDE.ARRIVE[place];
+      if (!YARD_WIDE || !a || !YROOM || PLACE.vis !== 'yard' || PL.place !== 'yard' || DQ.active || DQ.pending || PLACE.trans || INTRO.on || WSTATE.jump || yardDoorBusy()) return Promise.resolve(false);
+      var q = wideXZ(a[0], a[1]); return wideJumpGo(q[0], q[1], a[2] > 0 ? Math.PI / 4 : -3 * Math.PI / 4);
+    }
+    function wideArea() {   /* 내 캐릭터가 선 곳: 'yard' | 'road' | 'village' | 'plaza' | 'beach' (마당에 없으면 null) */
+      if (PL.place !== 'yard') return null;
+      var sd = (PL.pos.x + PL.pos.z) * Math.SQRT1_2;
+      return !YARD_WIDE || !yardOut(PL.pos.x, PL.pos.z) ? 'yard' : sd < 20 ? 'road' : sd < 38 ? 'village' : sd < 46 ? 'plaza' : 'beach';
+    }
+    function wideShells(list) {   /* 보일 조개 번호들 → 작은 조개 메시 하나 (해변 그룹 안) + 그 자리만 톡 */
+      var on = [], ps = [], i;
+      for (i = 0; i < WIDE.SHELLS.length; i++) on.push(!!list && list.indexOf(i) >= 0);
+      WSTATE.shellOn = on.map(function (v, k) { return v ? k : -1; }).filter(function (k) { return k >= 0; });
+      if (!WSTATE.beach) return WSTATE.shellOn.slice();
+      if (WSTATE.shells) { WSTATE.beach.remove(WSTATE.shells); var di = disposables.indexOf(WSTATE.shells.geometry); if (di >= 0) disposables.splice(di, 1); WSTATE.shells.geometry.dispose(); WSTATE.shells = null; }
+      WIDE.SHELLS.forEach(function (sh, k) {
+        if (WIDE_SPOT['wshell' + k]) WIDE_SPOT['wshell' + k].sp.on = on[k]; if (!on[k]) return;
+        var h = hash('wshell' + k), c = (h % 2) ? PAL.dusk[2] : PAL.rose[1], y = WIDE.BEACH_Y;
+        ps.push(stBox(sh[0], sh[1], y + 0.03, 0.15, 0.06, 0.22, FIXED.white), stBox(sh[0] - 0.09, sh[1], y + 0.025, 0.07, 0.05, 0.12, FIXED.white), stBox(sh[0] - 0.14, sh[1], y + 0.02, 0.05, 0.04, 0.06, c));
+        [-0.074, 0, 0.074].forEach(function (d) { ps.push(stBox(sh[0] + 0.01, sh[1] + d, y + 0.062, 0.13, 0.012, 0.035, c)); });
+      });
+      if (ps.length) { var m = new T.Mesh(keep(mergeParts(ps)), lambert); m.castShadow = true; m.receiveShadow = true; m.name = 'wideShells'; WSTATE.beach.add(m); WSTATE.shells = m; }
+      dither.still = 0; return WSTATE.shellOn.slice();
+    }
+    function wideShellNear(i) { var sh = WIDE.SHELLS[i]; if (!sh || PL.place !== 'yard') return false; var q = wideXZ(sh[0], sh[1]); return Math.hypot(PL.pos.x - q[0], PL.pos.z - q[1]) <= 1.5; }
+    function wideShellGo(i) {   /* 조개 곁 (0.7 m) 까지 걸어간다 → Promise<가까이 왔나>. 걷다 끊기면 풀리지 않는다 (plWalkTo 와 같다) */
+      var sh = WIDE.SHELLS[i]; if (!sh || !YARD_WIDE || PL.place !== 'yard' || PLACE.vis !== 'yard' || DQ.active || DQ.pending || PLACE.trans) return Promise.resolve(false);
+      if (wideShellNear(i)) return Promise.resolve(true);
+      var q = wideXZ(sh[0], sh[1]), dx = PL.pos.x - q[0], dz = PL.pos.z - q[1], d = Math.hypot(dx, dz) || 1, to = yardClamp(q[0], q[1], q[0] + dx / d * 0.7, q[1] + dz / d * 0.7);
+      PL.camGap = 1.4;
+      return plWalkTo(new T.Vector3(to[0], 0, to[1]), null).then(function () { if (!PL.walking) PL.camGap = 0; return wideShellNear(i); });
+    }
+    function wideStep(dt) {   /* 넓은 바깥이 보이는 프레임마다 (카메라를 놓은 바로 뒤) */
+      var i, o, v;
+      wideRegSync();
+      if (wideCentre(_svc)) {   /* 구간 가리기: 화면이 닿는 대각 s 범위 (어느 각에서나 · 그림자와 키 큰 것 몫 7 m) 밖의 구간은 그리지 않는다 */
+        var R = Math.hypot(S.rw / 2 / S.N, S.rh / 2 / S.N / Math.sin(TILT)) + 7, cs = (_svc.x + _svc.z) * Math.SQRT1_2, sg = WIDE_REG.segments;
+        for (i = 0; i < sg.length; i++) { o = sg[i]; if (!o || !o.obj) continue; v = o.s1 >= cs - R && o.s0 <= cs + R; if (o.obj.visible !== v) { o.obj.visible = v; dither.still = 0; } }
+        var ox = Math.round(_svc.x / 2) * 2, oz = Math.round(_svc.z / 2) * 2;   /* 비 · 눈 · 꽃잎 · 낙엽은 화면을 따라온다 (2 m 눈금 — 집 앞에선 예전 자리 그대로). 반딧불은 마당 덤불 곁에 */
+        if (ox !== WSTATE.xoff[0] || oz !== WSTATE.xoff[1]) { WSTATE.xoff = [ox, oz]; ['rain', 'snow', 'petal', 'leaf'].forEach(function (kk) { if (XP[kk] && XP[kk].obj && XP[kk].obj.parent === YROOM.g) XP[kk].obj.position.set(ox, 0, oz); }); }
+      }
+      var wf = st.reduced ? 0 : Math.floor(time * 5) % WAVE_F.length;
+      if (WSTATE.wave && wf !== WSTATE.waveF) { WSTATE.waveF = wf; var wo = -WAVE_F[wf] * Math.SQRT1_2; WSTATE.wave.position.set(wo, 0, wo); }
+      /* 따라가기 최고 속도: 걷는 속도를 재서 그 1.3 배 (달리기가 3.8 m/s 여도 화면이 뒤처지지 않는다 — 서 있으면 천천히 예전 값 3 으로) */
+      var sp = dt > 1e-4 ? Math.hypot(PL.pos.x - WSTATE.lastX, PL.pos.z - WSTATE.lastZ) / dt : 0; WSTATE.lastX = PL.pos.x; WSTATE.lastZ = PL.pos.z;
+      if (sp < 12) WSTATE.vmax = Math.max(3, sp * 1.3, WSTATE.vmax - dt * 2);
+      var J = WSTATE.jump;
+      if (J) { J.t += dt; var k = J.t / 0.3; if (k >= 0.5 && !J.done) { J.done = true; J.put(); } PLACE.fade = k >= 1 ? 0 : k < 0.5 ? k * 2 : 2 - k * 2; if (k >= 1) { WSTATE.jump = null; J.res(true); } }
+      for (i = 0; i < WIDE_REG.frame.length; i++) { try { WIDE_REG.frame[i](dt, time); } catch (e) { if (!WSTATE.frameErr) { WSTATE.frameErr = true; console.error('[scene3d] WIDE_REG.frame', e); } } }
+    }
 
 
     /* [7-V] 마을 건물 · NPC 그리기 */
@@ -5563,7 +5775,7 @@ var SCENE3D = (function () {
       if (PLACE.vis === 'yard') {   /* 11-15 마당: 문어는 없다. 흙 · 심은 것을 레이캐스트 → 맞은 자리에 가장 가까운 연 칸 · 현관 단추 칸 · 밭 단추 칸 */
         var pm = [plotBase, plotPlants].filter(Boolean), hx = pm.length ? ray.intersectObjects(pm, false) : [];
         if (hx.length && YROOM) { var lp = YROOM.g.worldToLocal(hx[0].point.clone()), pi = -1, bd = 1e9; for (var q = 0; q < plotBoxes.length; q++) { var c = plotXZ(q), d = Math.hypot(lp.x - c[0], lp.z - c[1]); if (d < bd) { bd = d; pi = q; } } if (pi >= 0) return SPOTS['plot' + pi] && spotInfo('plot' + pi) ? spotHit('plot' + pi) : null; }   /* 맞은 칸 단추가 없으면 (화면 끝에 조금만 보인다) 아무것도 */
-        sp = spotAt(cx, cy, ['yardAttic', 'plot0', 'plot1', 'plot2', 'plot3', 'plot4', 'plot5']); return sp ? spotHit(sp) : null;
+        sp = spotAt(cx, cy, ['yardAttic', 'plot0', 'plot1', 'plot2', 'plot3', 'plot4', 'plot5'].concat(WIDE_SPOT_KEYS)); return sp ? spotHit(sp) : null;
       }
       if (PLACE.vis === 'exterior') return okOct && ray.intersectObject(hit, false).length ? hit : null;
       var doorOn = !!SPOTS.atticPlay && !!spotInfo('atticPlay'), dm = doorOn ? doorMeshes(ATTIC_DOOR) : [];
@@ -6071,7 +6283,7 @@ var SCENE3D = (function () {
       stepHang(dt); stepIntro(dt);
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(candleG.quaternion).invert().multiply(camera.quaternion);   /* 11-15: 양초 그룹이 상자와 같이 돌아도 글로우는 화면을 본다 */
       if (ATTIC_CUE) ATTIC_CUE.glow.quaternion.copy(camera.quaternion); if (LROOM) LROOM.cue.glow.quaternion.copy(camera.quaternion);   /* 11-15 계단 초롱 글로우도 늘 카메라 쪽으로 */
-      stepZoom(dt); stepPan(dt); placeCamera(); if (YARD_WIDE && PLACE.vis === 'yard') { wideHoldCentre(); fitShadowView(); wideCull(); } updateOverlay();
+      stepZoom(dt); stepPan(dt); placeCamera(); if (YARD_WIDE && PLACE.vis === 'yard') { wideHoldCentre(); fitShadowView(); wideCull(); wideStep(dt); } updateOverlay();
       if ((!st.offscreen || st.force) && !st.simOnly) draw(t0);   /* 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 · simOnly = 시험의 debugSim (그리지 않고 민다) */
       if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
     }
@@ -6958,6 +7170,8 @@ var SCENE3D = (function () {
       /* [7-P] */
 
       /* [7-W] */
+      area: wideArea, goPlace: wideGo, beachShells: wideShells, beachShellNear: wideShellNear, beachShellGo: wideShellGo, groundY: function (x, z) { return YARD_WIDE ? wideGroundY(+x || 0, +z || 0) : 0; },   /* 11-21 7차 바깥 한 장: 선 곳 · 빠른 이동 · 조개 · 땅 높이 */
+      wideMap: function () { return YARD_WIDE ? { areas: WIDE.AREAS.map(function (a) { return a.slice(); }), signs: WIDE.SIGNS.map(function (q) { return wideXZ(q[0], q[1]); }), arrive: WIDE.ARRIVE, shells: WIDE.SHELLS.map(function (q) { return wideXZ(q[0], q[1]); }), shellOn: WSTATE.shellOn.slice(), spots: WIDE_SPOT_KEYS.slice(), segments: WIDE_REG.segments.map(function (o) { return [o.s0, o.s1, !!(o.obj && o.obj.visible)]; }), cols: [wideCols().boxes.length, wideCols().circles.length], jump: !!WSTATE.jump, vmax: WSTATE.vmax, wave: WSTATE.waveF, centre: wideCentre(_svc) ? [_svc.x, _svc.z] : null } : null; },
 
       /* [7-V] */
 
