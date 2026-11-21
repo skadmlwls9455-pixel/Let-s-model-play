@@ -12,7 +12,7 @@ var REC = { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 8, d
   room: { lantern: 8, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] }, settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
 var NPCS = [{ id: 'clothes', color: '#5c86b0', hat: 'beret', pose: 'stand' }, { id: 'goods', color: '#e8b04a', hat: 'cap', pose: 'stand' }, { id: 'cafe', color: '#9a5058', hat: 'apron', pose: 'stand' },
   { id: 'sleep-1', color: '#8cc05a', hat: 'none', pose: 'sleep' }, { id: 'sleep-2', color: '#e39a8c', hat: 'none', pose: 'sleep' }];
-var BTNS = ['btn-shop-clothes', 'btn-shop-goods', 'btn-cafe-seat', 'btn-cafe-lp', 'btn-plaza-stage', 'btn-plaza-board', 'btn-npc-clothes', 'btn-npc-goods', 'btn-npc-cafe', 'btn-in-clothes', 'btn-in-goods', 'btn-in-cafe'];   /* 바깥의 단추 열둘 (가게 · 카페 · 광장 · 문어 셋 · 문 셋) */
+var BTNS = ['btn-shop-clothes', 'btn-shop-goods', 'btn-cafe-seat', 'btn-cafe-lp', 'btn-plaza-stage', 'btn-plaza-board', 'btn-npc-clothes', 'btn-npc-goods', 'btn-npc-cafe', 'btn-in-clothes', 'btn-in-goods', 'btn-in-cafe', 'btn-in-hall'];   /* 바깥의 단추 열셋 (가게 · 카페 · 광장 · 문어 셋 · 문 넷) */
 
 async function open(browser, q, look) {
   var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', hasTouch: true, isMobile: true });
@@ -87,7 +87,7 @@ async function village(page) {
         else if (inside) ok(false, q.id + ' 자리가 화면 안인데 단추가 숨었다 (' + pt + ') ' + JSON.stringify(q.px.map(Math.round)));
       });
     }
-    ok(BTNS.every(function (id) { return seen[id]; }), '바깥 단추 열둘이 다 한 번은 보였다: ' + BTNS.filter(function (id) { return !seen[id]; }).join(' '));
+    ok(BTNS.every(function (id) { return seen[id]; }), '바깥 단추 열셋이 다 한 번은 보였다: ' + BTNS.filter(function (id) { return !seen[id]; }).join(' '));
 
     lap('A3. 누르면');
     /* A3. 누르면 걸어가서 누른다 (멀리서) · 가까이서는 바로 · 걷다가 스틱을 밀면 눌리지 않는다 */
@@ -150,42 +150,44 @@ async function village(page) {
     ok(t5.p1 === t5.p0, '셰이더 프로그램 수 그대로 (' + t5.p0 + ' → ' + t5.p1 + ')');
     var c90 = t5.rows.filter(function (r) { return r.yaw === 90; })[0].cut, c270 = t5.rows.filter(function (r) { return r.yaw === 270; })[0].cut, c0 = t5.rows[0].cut;
     ok(!c0.vilL && !c0.vilR && c90.vilL !== c90.vilR && c270.vilL !== c270.vilR && c90.vilL !== c270.vilL, '기본 각에선 안 자른다 · 90° 와 270° 에선 카메라 쪽 줄만 무릎 높이로 자른다');
-    /* A6. 무대 (계약 C10): stage() 자리 · stageDress · 심사 · 경쟁 문어 · npcPlace / npcPose */
+    /* A6. 콘테스트 (계약 C10 — 공연장 방 안의 자리): stage() 의 꼴 · stageDress · 심사 / 경쟁 문어는 바깥에 그려지지 않는다 */
     var t8 = await page.evaluate(function (list) {
       var sc = APP.scene, r = {}, st = sc.stage(); r.st = st;
-      r.d0 = st.dressed; r.d1 = sc.stageDress(true); r.d2 = sc.stage().dressed;
-      r.n = sc.npcSet(list.concat([{ id: 'judge0', color: '#3f9c9c', hat: 'beret', pose: 'sit' }, { id: 'judge1', color: '#cdb94a', hat: 'apron', pose: 'sit' }, { id: 'judge2', color: '#a67c62', hat: 'cap', pose: 'sit' }, { id: 'rival0', color: '#d9694f', hat: 'none', pose: 'stand' }, { id: 'rival1', color: '#5c86b0', hat: 'none', pose: 'stand' }, { id: 'rival2', color: '#9a5058', hat: 'none', pose: 'stand' }]));
-      function at(id) { return sc.villageInfo().npcs.filter(function (q) { return q.id === id; })[0]; }
-      r.j1 = at('judge1'); r.place = sc.npcPlace('rival0', st.podium[0][0], st.podium[0][1], 0); __V.frame(); r.onPodium = at('rival0').at;
-      sc.npcPlace('rival1', st.centre[0], st.centre[1] + 0.9, 0); __V.frame(); r.onStage = at('rival1').at;
-      sc.npcPlace('rival0', null); __V.frame(); r.back = at('rival0').at; r.pose = sc.npcPose('rival2', 'sleep'); r.poseNo = sc.npcPose('nobody', 'sit'); r.placeNo = sc.npcPlace('nobody', 0, 0, 0);
-      r.sleep = at('rival2').pose; sc.stageDress(false); r.d3 = sc.stage().dressed; sc.npcSet(list); r.left = sc.villageInfo().npcs.length;
+      r.d0 = st.dressed; r.d1 = sc.stageDress(true); r.d2 = sc.stage().dressed; r.d3 = sc.stageDress(false);
+      r.n = sc.npcSet(list.concat([{ id: 'judge0', color: '#3f9c9c', hat: 'beret', pose: 'sit' }, { id: 'rival0', color: '#d9694f', hat: 'none', pose: 'stand' }]));
+      r.out = sc.villageInfo().npcs.map(function (q) { return q.id; }); r.placeNo = sc.npcPlace('nobody', 0, 0, 0); r.poseNo = sc.npcPose('nobody', 'sit');
+      r.keeper = sc.npcPlace('clothes', sc.npcSpots()[0].x + 0.5, sc.npcSpots()[0].z, 0); r.kAt = sc.villageInfo().npcs.filter(function (q) { return q.id === 'clothes'; })[0].at[0] - sc.npcSpots()[0].x; sc.npcPlace('clothes', null);
       return r;
     }, NPCS);
-    ok(t8.st.path.length === 4 && t8.st.judges.length === 3 && t8.st.podium.length === 4 && t8.st.wait.length === 2 && t8.st.judges[0].length === 3, 'stage() 의 꼴');
+    ok(t8.st.room === 'hall' && t8.st.path.length === 4 && t8.st.judges.length === 3 && t8.st.podium.length === 4 && t8.st.wait.length === 2 && t8.st.judges[0].length === 3, 'stage() 의 꼴 (공연장 방 안 좌표)');
     ok(t8.d0 === false && t8.d1 === true && t8.d2 === true && t8.d3 === false, 'stageDress 켜고 끄기');
-    ok(t8.n === 11 && Math.abs(t8.j1.at[0] - t8.st.judges[1][0]) < 0.05 && Math.abs(t8.j1.at[2] - t8.st.judges[1][1]) < 0.05, '심사 · 경쟁 문어 여섯이 더 그려진다 · 심사는 심사석에');
-    ok(t8.place === true && Math.abs(t8.onPodium[1] - t8.st.podium[0][2]) < 0.05, 'npcPlace: 시상대 위에 선다 (높이 ' + t8.onPodium[1].toFixed(2) + ')');
-    ok(Math.abs(t8.onStage[1] - t8.st.y) < 0.05 && Math.abs(t8.back[1]) < 0.05, '무대 위는 무대 높이 · 되돌리면 땅');
-    ok(t8.pose === true && t8.sleep === 'sleep' && t8.poseNo === false && t8.placeNo === false && t8.left === 5, 'npcPose · 모르는 id 는 false · 목록에서 빼면 사라진다');
+    ok(t8.n === 7 && t8.out.indexOf('judge0') < 0 && t8.out.indexOf('rival0') < 0 && t8.out.length === 5, '심사 · 경쟁 문어는 npcSet 이 받되 바깥에는 그려지지 않는다');
+    ok(t8.placeNo === false && t8.poseNo === false && t8.keeper === true && Math.abs(t8.kAt - 0.5) < 0.05, 'npcPlace: 마을 문어를 옮긴다 · 모르는 id 는 false');
 
     /* A7. 들어가는 방 (갈래 W 의 방 배관이 있을 때만): 들어가기 · 단추 · 가게 문어 · 드로우콜 ≤ 60 · 카페 자리 / 잔 / 레코드 · 나오기 */
     var hasRooms = await page.evaluate(function () { return typeof APP.scene.enterRoom === 'function' && APP.scene.villageRooms().reg; });
     if (!hasRooms) console.log('  (방 배관 없음 — 방은 debugVillageRoom 으로만 짓는다: 아래에서 짓기만 시험)');
-    for (var rk of ['clothes', 'cafe', 'goods']) {
+    for (var rk of ['clothes', 'cafe', 'hall', 'goods']) {
       var t9 = await page.evaluate(async function (a) {
         var sc = APP.scene, r = { key: a.key };
         if (!a.has) { r.dbg = sc.debugVillageRoom(a.key); sc.debugStep(0.1); r.rooms = sc.villageRooms(); sc.debugVillageRoom(null); return r; }
         var res = null; sc.enterRoom(a.key).then(function (x) { res = x; }); await __V.run(500, function () { return res !== null; }); await __V.run(20); __V.frame();
         r.enter = res; r.in = sc.inRoom(); r.rooms = sc.villageRooms(); r.calls = sc.stats().calls; r.slots = sc.roomSlots(a.key);
         r.btns = VILLAGE.ROOMS[a.key].spots.map(function (sp) { var el = document.getElementById(sp.btn); return [sp.btn, !!el && !el.hidden]; });
+        if (a.key === 'hall') {   /* 공연장: 심사 · 경쟁 문어가 방 안에 · 시상대 위 · 무대 위에 서면 올려 그린다 */
+          var st = sc.stage(); sc.stageDress(true); sc.npcSet([{ id: 'judge0', color: '#3f9c9c', hat: 'beret', pose: 'sit' }, { id: 'judge1', color: '#cdb94a', hat: 'apron', pose: 'sit' }, { id: 'judge2', color: '#a67c62', hat: 'cap', pose: 'sit' }, { id: 'rival0', color: '#d9694f', hat: 'none', pose: 'stand' }, { id: 'rival1', color: '#5c86b0', hat: 'none', pose: 'stand' }, { id: 'rival2', color: '#9a5058', hat: 'none', pose: 'stand' }]);
+          sc.npcPlace('rival0', st.podium[0][0], st.podium[0][1], 0); sc.npcPlace('rival1', st.path[3][0] + 1.2, st.path[3][1] + 0.5, 0); __V.frame(); r.hall = sc.villageRooms().hallNpcs; r.st = st;
+          sc.debugPlayerAt(st.path[1][0], st.path[1][1]); await __V.run(6); r.lift = sc.villageRooms().lift; sc.debugPlayerAt(st.wait[0], st.wait[1]); await __V.run(6); r.lift0 = sc.villageRooms().lift; r.calls2 = sc.stats().calls;
+          sc.npcSet([]); sc.stageDress(false); r.hall0 = sc.villageRooms().hallNpcs.length;
+        }
         if (a.key === 'cafe') { var s = null; sc.cafeSit(true).then(function (x) { s = x; }); await __V.run(400, function () { return s !== null; }); r.sat = s; r.seated = sc.cafeSeated(); r.cup = sc.cafeCup(true); r.rec = sc.cafeRecord(true, '#3f6690'); __V.frame(); r.info = sc.villageRooms().rooms.cafe; var p = sc.player().at, S = VILLAGE.ROOMS.cafe.slots.seat; r.seatD = Math.hypot(p[0] - S[0], p[2] - S[2]); sc.cafeRecord(false); }
         var out = null; sc.leaveRoom().then(function (x) { out = x; }); await __V.run(500, function () { return out !== null; }); await __V.run(20); r.leave = out; r.after = sc.inRoom(); r.seatedAfter = sc.cafeSeated(); r.view = sc.view();
         return r;
       }, { key: rk, has: hasRooms });
-      if (!hasRooms) { ok(t9.dbg === true && t9.rooms.rooms[rk] && t9.rooms.rooms[rk].keeper === true, rk + ' 방이 지어진다 (가게 문어 포함)'); continue; }
+      if (!hasRooms) { ok(t9.dbg === true && t9.rooms.rooms[rk] && (rk === 'hall' || t9.rooms.rooms[rk].keeper === true), rk + ' 방이 지어진다 (가게 문어 포함)'); continue; }
       ok(t9.enter && t9.enter.ok && t9.in === rk, rk + ' 에 들어간다');
-      ok(t9.rooms.cur === rk && t9.rooms.rooms[rk].keeper === true, rk + ' 안에 가게 문어가 서 있다');
+      ok(t9.rooms.cur === rk && (rk === 'hall' || t9.rooms.rooms[rk].keeper === true), rk + ' 안에 가게 문어가 서 있다');
+      if (rk === 'hall') { var hn = function (id) { return t9.hall.filter(function (q) { return q.id === id; })[0]; }; ok(t9.hall.length === 6 && Math.abs(hn('rival0').at[1] - t9.st.podium[0][2]) < 0.02 && Math.abs(hn('rival1').at[1] - t9.st.y) < 0.02 && Math.abs(hn('rival2').at[1]) < 0.02 && Math.abs(hn('judge1').at[0] - t9.st.judges[1][0]) < 0.02, '공연장: 문어 여섯 · 시상대 위 · 무대 위 · 바닥 · 심사석'); ok(t9.lift > 0.25 && t9.lift0 < 0.05 && t9.calls2 <= 60 && t9.hall0 === 0, '공연장: 길 위에 서면 0.3 m 올려 그린다 (' + t9.lift + ' / ' + t9.lift0 + ') · 드로우콜 ' + t9.calls2); }
       ok(t9.calls <= 60, rk + ' 드로우콜 ' + t9.calls + ' (≤ 60)');
       ok(t9.slots && t9.slots.slots && t9.slots.slots.keeper && t9.slots.slots.exit && t9.slots.built, rk + ' roomSlots(key).slots 에 내 자리들');
       ok(t9.btns.filter(function (q) { return q[1]; }).length >= Math.min(4, t9.btns.length), rk + ' 단추가 보인다: ' + t9.btns.filter(function (q) { return !q[1]; }).map(function (q) { return q[0]; }).join(' '));

@@ -101,8 +101,9 @@ V.SPOTS.forEach(function (s2) { var a2 = V.xz(s2.stand[0], s2.stand[1]); ok(!V.B
 (function () {
   var WANT = { clothes: { size: [6.0, 5.2], slots: ['mq0', 'mq1', 'mq2', 'mq3', 'mirror', 'counter', 'keeper', 'exit'], btns: ['btn-mq-0', 'btn-mq-1', 'btn-mq-2', 'btn-mq-3', 'btn-room-mirror', 'btn-room-counter', 'btn-npc-clothes', 'btn-room-exit'] },
     cafe: { size: [6.4, 5.2], slots: ['keeper', 'menu', 'pickup', 'seat', 'table', 'turntable', 'lp', 'exit'], btns: ['btn-cafe-menu', 'btn-cafe-counter', 'btn-cafe-seat', 'btn-cafe-lp', 'btn-npc-cafe', 'btn-room-exit'] },
+    hall: { size: [7.0, 6.0], slots: ['stage', 'catwalk', 'wait', 'rack', 'mirror', 'board', 'judge0', 'judge1', 'judge2', 'exit'], btns: ['btn-hall-stage', 'btn-hall-rack', 'btn-hall-board', 'btn-room-exit'] },
     goods: { size: [5.2, 4.8], slots: ['shelf0', 'shelf1', 'shelf2', 'shelf3', 'shelf4', 'shelf5', 'keeper', 'counter', 'exit'], btns: ['btn-shelf-0', 'btn-shelf-1', 'btn-shelf-2', 'btn-shelf-3', 'btn-shelf-4', 'btn-shelf-5', 'btn-room-counter', 'btn-npc-goods', 'btn-room-exit'] } };
-  ok(Object.keys(V.ROOMS).sort().join() === 'cafe,clothes,goods', '방 셋');
+  ok(Object.keys(V.ROOMS).sort().join() === 'cafe,clothes,goods,hall', '방 넷');
   Object.keys(WANT).forEach(function (key) {
     var R = V.ROOMS[key], W = WANT[key], hx = R.half[0], hz = R.half[1];
     ok(near(2 * hx, W.size[0], 1e-9) && near(2 * hz, W.size[1], 1e-9) && R.wallH >= 2, key + ' 크기 ' + W.size.join(' x '));
@@ -121,15 +122,16 @@ V.SPOTS.forEach(function (s2) { var a2 = V.xz(s2.stand[0], s2.stand[1]); ok(!V.B
     /* 문에서 누르는 자리마다: 방 가운데 통로 (서는 자리들의 볼록한 안쪽) 가 막히지 않았다 — 문 → 서는 자리 곧은 선의 가운데 점이 가구 안이 아니다 (대충의 걸림 검사) */
   });
   ['mq0', 'mq1', 'mq2', 'mq3'].forEach(function (n, i) { var a = V.ROOMS.clothes.slots[n], b = V.ROOMS.clothes.slots['mq' + (i + 1)]; if (b) ok(b[0] - a[0] >= 0.9, '마네킹 받침 사이 0.9 m 넘게'); });
-  ok(V.DOORS.length === 3 && V.DOORS.every(function (d) { return V.ROOMS[d.room] && V.inWalk(d.stand[0], d.stand[1], 0) && html.indexOf('id="' + d.btn + '"') > 0; }), '바깥 문 셋: 방 · 서는 자리 · 단추');
+  ok(V.DOORS.length === 4 && V.DOORS.every(function (d) { return V.ROOMS[d.room] && V.inWalk(d.stand[0], d.stand[1], 0) && html.indexOf('id="' + d.btn + '"') > 0; }), '바깥 문 넷: 방 · 서는 자리 · 단추');
   V.DOORS.forEach(function (d) { V.CIRCLES.forEach(function (c) { if (Math.hypot(c[0] - d.stand[0], c[1] - d.stand[1]) < c[2] + 0.22) ok(false, d.key + ' 문 앞 서는 자리가 원 안'); }); });
-  /* 무대: 자리들이 광장의 빈 곳 */
-  var S2 = V.SHOW; ok(S2.path.length === 4 && S2.judges.length === 3 && S2.podium.length === 4 && S2.rivals.length === 3, '무대 자리: 길 넷 · 심사 셋 · 시상대 넷 · 경쟁 셋');
-  S2.path.concat([S2.wait], S2.rivals, S2.judges).forEach(function (p) {
-    ok(V.inWalk(p[0], p[1], 0.2) && !V.CIRCLES.some(function (c) { return Math.hypot(c[0] - p[0], c[1] - p[1]) < c[2] + 0.25; }), '무대 둘레 자리 (' + p[0].toFixed(1) + ', ' + p[1].toFixed(1) + ') 가 빈 곳');
-    var a = V.xz(p[0], p[1]); ok(!V.BOXES.some(function (b) { return a[0] > b[0] - 0.25 && a[0] < b[2] + 0.25 && a[1] > b[1] - 0.25 && a[1] < b[3] + 0.25; }), '… 네모 밖');
-  });
-  S2.podium.forEach(function (p) { var a = V.xz(p[0], p[1]), c = V.xz(V.STAGE.c[0], V.STAGE.c[1]); ok(Math.abs(a[0] - c[0]) < V.STAGE.h && Math.abs(a[1] - c[1]) < V.STAGE.h && p[2] >= V.STAGE.y, '시상대는 무대 위'); });
+  /* 콘테스트 자리 (공연장 방 안): 기다리는 곳 · 경쟁 줄은 빈 바닥 · 걷는 길은 계단 → 길 → 무대 · 시상대는 무대 위 · 심사 자리는 걸상 */
+  var S2 = V.SHOW, HL = V.ROOMS.hall, inB = function (b, x, z) { return x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1; };
+  ok(S2.room === 'hall' && S2.path.length === 4 && S2.judges.length === 3 && S2.podium.length === 4 && S2.rivals.length === 3, '콘테스트 자리: 길 넷 · 심사 셋 · 시상대 넷 · 경쟁 셋');
+  [S2.wait].concat(S2.rivals).forEach(function (p) { ok(Math.abs(p[0]) < HL.half[0] - 0.3 && Math.abs(p[1]) < HL.half[1] - 0.3 && !HL.boxes.some(function (b) { return p[0] > b[0] - 0.25 && p[0] < b[2] + 0.25 && p[1] > b[1] - 0.25 && p[1] < b[3] + 0.25; }) && !HL.circles.some(function (c) { return Math.hypot(c[0] - p[0], c[1] - p[1]) < c[2] + 0.25; }), '기다리는 자리 (' + p.join(', ') + ') 가 빈 바닥'); });
+  ok(S2.path[0][1] > HL.walk.z1 && inB(HL.walk, S2.path[1][0], S2.path[1][1]) && (inB(HL.walk, S2.path[2][0], S2.path[2][1]) || inB(HL.stage, S2.path[2][0], S2.path[2][1])) && inB(HL.stage, S2.path[3][0], S2.path[3][1]), '걷는 길: 계단 앞 → 길 → 무대');
+  S2.podium.forEach(function (p) { ok(inB(HL.stage, p[0], p[1]) && p[2] >= HL.stage.y, '시상대는 무대 위'); });
+  S2.judges.forEach(function (p, n) { var q = HL.slots['judge' + n]; ok(near(p[0], q[0]) && near(p[1], q[2]), '심사 자리 = 걸상 ' + n); });
+  HL.boxes.forEach(function (b) { ok(!(0 > b[0] && 0 < b[2] && b[1] < HL.walk.z1 && b[3] > HL.walk.z0), '길 (캣워크) 은 부딪힘 네모가 아니다 (걸어 오른다)'); });
   ok(V.EXTRA.join() === 'judge0,judge1,judge2,rival0,rival1,rival2', '콘테스트 문어 id');
 })();
 
