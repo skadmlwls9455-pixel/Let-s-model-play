@@ -51,8 +51,9 @@ section('0 load', function () {
   vm.runInNewContext(SRC, ctx);
   check(ctx.MEAL && typeof ctx.MEAL.demoAnswer === 'function', 'loads in a bare context (browser path)');
   check(M.P_EAT === 0.6 && M.FIRST_EAT === true && M.MINE_MS === 60000, 'P_EAT 0.6 · FIRST_EAT · MINE_MS 60000');
-  check(JSON.stringify(M.DISHES) === JSON.stringify({ jeon: { name: '해초전', fx: 'sparkle' }, jumeokbap: { name: '주먹밥', fx: 'star' }, kkochi: { name: '과일 꼬치', fx: 'petal' } }), 'DISHES exact');
-  check(JSON.stringify(M.FX_NAME) === JSON.stringify({ sparkle: '반짝이', star: '별', petal: '꽃잎' }), 'FX_NAME exact');
+  check(JSON.stringify(M.DISHES) === JSON.stringify({ jeon: { name: '해초전', fx: 'sparkle' }, jumeokbap: { name: '주먹밥', fx: 'star' }, kkochi: { name: '과일 꼬치', fx: 'petal' },
+    jeon2: { name: '해초전', fx: 'sparkle' }, gyeran: { name: '계란말이', fx: 'bubble' }, jumeokbap2: { name: '주먹밥', fx: 'star' }, kkochi2: { name: '과일 꼬치', fx: 'petal' }, cake: { name: '딸기 케이크', fx: 'confetti' } }), 'DISHES exact (11-21: the legacy three + the five of the recipe book)');
+  check(JSON.stringify(M.FX_NAME) === JSON.stringify({ sparkle: '반짝이', star: '별', petal: '꽃잎', bubble: '방울', confetti: '색종이' }), 'FX_NAME exact');
   check(JSON.stringify(M.TAILS) === JSON.stringify({ 'demo-rules': '데모 규칙', model: '모델', human: '사람이 정함' }), 'TAILS exact');
   check(Object.isFrozen(M.TEXT) && Object.isFrozen(M.DISHES.jeon), 'tables are frozen');
 });
@@ -282,6 +283,37 @@ section('10 slim', function () {
   check(out && out[0] !== old && !('seed' in out[0].ask) && !('raw' in out[0].ask) && out[0].ask.line === '말 그대로', 'older than 365 days: seed and raw dropped, line kept');
   check(out[1] === mid && old.ask.seed === 9, 'newer entries and the original untouched');
   check(M.slim([mid], D0) === null, 'nothing to slim → null');
+});
+
+section('12 round 7: the five dishes of the recipe book', function () {
+  var NEW = { jeon2: ['해초전', 'sparkle', '반짝이'], gyeran: ['계란말이', 'bubble', '방울'], jumeokbap2: ['주먹밥', 'star', '별'], kkochi2: ['과일 꼬치', 'petal', '꽃잎'], cake: ['딸기 케이크', 'confetti', '색종이'] };
+  var CLAIM = /좋|싫|맛있|싶|배불|즐거|재밌|행복|기뻐|기쁘|반가|궁금|설레|원해|바라|고마|미안|슬프|아쉬|맛|기분/;
+  Object.keys(NEW).forEach(function (r, i) {
+    var w = NEW[r], id = 'ck_n' + i;
+    var msg = { ppolCook: 'result', v: 1, id: id, recipe: r, seed: 5, look: { band: 2, steps: [{ k: 'stir', n: 3 }] }, day: D0 };
+    var n = M.normDish(msg);
+    check(n && n.recipe === r && n.look.band === 2, r + ': result message accepted');
+    var St = stateWith({ table: Object.assign({ at: 10 }, n) });
+    check(M.aria('table', { recipe: r }) === '식탁, ' + w[0] && M.aria('table', { recipe: r, seated: true }) === w[0] + ' 먹기', r + ': table button names');
+    var first = M.demoAnswer({ dish: id, name: '뚜루', born: 111, asksBefore: 0 }), later = M.demoAnswer({ dish: id, name: '뚜루', born: 111, asksBefore: 3 });
+    var same = M.demoAnswer({ dish: id, name: '뚜루', born: 111, asksBefore: 3, recipe: 'jeon', fx: 'sparkle' });
+    check(first.action === 'eat' && first.rule === 'first' && JSON.stringify(later) === JSON.stringify(same), r + ': the demo answer does not look at the dish');
+    var ask = M.makeAsk(St, { at: 20, today: D0, dish: St.user.table });
+    var e = M.eat(St, { at: 30, today: D0, oct: ask.ask.action === 'eat', dish: id });
+    check(e && e.ate && e.ate.fx === w[1] && St.user.table === null, r + ': eating records fx ' + w[1] + ' and clears the table');
+    var act = M.active(St, D0);
+    check(act.me === w[1] && act.oct === w[1] && M.active(St, D1).me === null, r + ': day effect today, none tomorrow');
+    var rows = M.rows(e, '뚜루', D0), past = M.rows(e, '뚜루', D1);
+    var meal = rows[rows.length - 1].text;
+    check(meal === M.josa(w[0], '을') + ' 같이 먹었어. 오늘 하루 둘 다 ' + M.josa(w[2], '이') + ' 따라다녀.', r + ': meal row "' + meal + '"');
+    check(past[past.length - 1].text === M.josa(w[0], '을') + ' 같이 먹었어. 그날 하루 둘 다 ' + M.josa(w[2], '이') + ' 따라다녔어.', r + ': past meal row');
+    check(rows.every(function (x) { return !CLAIM.test(x.text); }), r + ': no feeling or taste words in the rows');
+    var alone = stateWith({ table: Object.assign({ at: 10 }, M.normDish(msg)) }), ea = M.eat(alone, { at: 30, today: D0, oct: null, dish: id });
+    check(M.rows(ea, '뚜루', D0).length === 1 && M.rows(ea, '뚜루', D0)[0].text === M.josa(w[0], '을') + ' 먹었어. 오늘 하루 ' + M.josa(w[2], '이') + ' 따라다녀.', r + ': eaten alone → one row');
+    check(M.sceneDesc(stateWith({ table: Object.assign({ at: 10 }, M.normDish(msg)) }), D0, '뚜루', false).indexOf('식탁에 ' + M.josa(w[0], '이') + ' 있어.') >= 0, r + ': scene description names the dish');
+  });
+  check(M.josa('방울', '이') === '방울이' && M.josa('색종이', '이') === '색종이가' && M.josa('계란말이', '을') === '계란말이를' && M.josa('딸기 케이크', '을') === '딸기 케이크를', 'particles of the new words');
+  ['jeon', 'jumeokbap', 'kkochi'].forEach(function (r) { check(M.DISHES[r] && M.aria('table', { recipe: r }).indexOf('식탁, ') === 0, 'legacy ' + r + ' still known'); });
 });
 
 section('11 R11: no model-path code', function () {
