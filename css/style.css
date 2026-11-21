@@ -1856,7 +1856,7 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 .shop-ask-pic { display: flex; justify-content: center; margin: 0 0 8px; }
 /* 11-21 밤 가게 방의 카드 (#scene 안의 평범한 요소 — dialog 아님): 마네킹 · 선반의 꼬리표 카드, 계산대의 영수증. 종이 · 2px 테 · 4px 굳은 그림자, 틈 8px */
 .shop-card { position: absolute; left: 0; top: 0; z-index: 12; box-sizing: border-box; width: 200px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: #2a2620; background: var(--sw-paper); box-shadow: inset 0 0 0 2px var(--sw-line), inset 2px 2px 0 2px #fffaf0, 4px 4px 0 rgba(0, 0, 0, .35); }
-.shop-card.tag { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; gap: 4px 8px; width: 224px; }   /* 물건을 덜 가리게 낮게: 왼쪽 그림, 오른쪽 이름 · 값표, 아래 단추 */
+.shop-card.tag { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; gap: 4px 8px; width: 232px; }   /* 물건을 덜 가리게 낮게: 왼쪽 그림, 오른쪽 이름 · 값표, 아래 단추 */
 .shop-card.tag .shop-pic { grid-row: 1 / span 2; width: 72px; height: 72px; border-bottom: 0; box-shadow: none; align-items: center; }
 .shop-card.tag .sew-cost { justify-self: center; }
 .shop-card.tag .shop-card-btns { grid-column: 1 / -1; }
@@ -1879,13 +1879,12 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 .shop-rc-sum { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0 4px; font-weight: 700; }
 .shop-card.receipt .shop-card-btns { justify-content: flex-end; }
 .shop-hop { position: fixed; z-index: 60; pointer-events: none; image-rendering: pixelated; transition: transform 360ms steps(6), opacity 360ms steps(6); }
-/* 그림 갈래의 그림을 입힌 값표 (ui.tag 40×24 → 80×48, 글 자리는 그림의 x 13..36 · y 6..17) · 팔림 도장 (ui.sold) · 영수증 머리 그림 */
+/* 그림 갈래의 그림을 입힌 값표 (ui.tag 40×24 → 120×72, 글 자리는 그림의 x 13..36 · y 6..17) · 팔림 도장 (ui.sold) · 영수증 머리 그림 */
 .shop-spr { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
 :is(.shop-sheet .shop-tile, .shop-card) .sew-cost.spr, :root[data-font="pixel"] :is(.shop-sheet .shop-tile, .shop-card) .sew-cost.spr { box-sizing: border-box; min-width: 0; min-height: 0; padding: 0 6% 4% 30%; background: none; box-shadow: none; clip-path: none; justify-content: center; }
 :is(.shop-sheet .shop-tile, .shop-card) .sew-cost.spr::before, :is(.shop-sheet .shop-tile, .shop-card) .sew-cost.spr::after { content: none; }
 .sew-cost.spr > .shop-tag-bg { position: absolute; left: 0; top: 0; z-index: 0; }
 .sew-cost.spr > :not(.shop-spr) { position: relative; z-index: 1; }
-.sew-cost.spr .shell-ico { width: 16px; height: 16px; margin: 0 2px 0 0; }
 .sew-cost.spr.sold > .px-ico, .sew-cost.spr.sold > svg { display: none; }
 .sew-cost.spr > .shop-tag-sold { position: absolute; left: 50%; top: 50%; z-index: 2; transform: translate(-42%, -50%); }
 .shop-rc-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
