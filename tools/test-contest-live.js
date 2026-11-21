@@ -149,13 +149,13 @@ async function main() {
   check(r.log.length === 1 && r.log[0] === '콘테스트 ' + e.rank + '등 · 조개 ' + e.shells, '오늘 기록 줄: ' + JSON.stringify(r.log));
   await shot(page, '6-result');
   /* 다시 열기 · 다시 나가기 · 새로고침 */
+  check(await page.evaluate(function () { var s = window.__npcSaid; return s.length === 2 && s[0][0] === 'clothes' && s[0][1] === 'contest.open' && typeof s[0][2].theme === 'string' && s[1][1] === 'contest.result' && s[1][2].shells >= 3; }), '옷가게 문어 대본: 열 때 한 번 · 결과에 한 번');
   await page.click('#contest-close'); await page.waitForTimeout(200);
-  check(await page.evaluate(function () { return window.__npcSaid.length === 1 && window.__npcSaid[0][0] === 'clothes' && window.__npcSaid[0][1] === 'contest.result' && window.__npcSaid[0][2].rank >= 1; }), '닫을 때 옷가게 문어 대본을 한 번 부름');
   await page.evaluate(function () { APP.setPlayerPart('outfit', 'knit'); APP.openContest(); APP.contestEnter(); });
   var e2 = await entry(page, SAT);
   check((await view(page)).view === 'result' && JSON.stringify(e2) === JSON.stringify(e) && (await shells(page)) === s0 + e.shells && !(await page.evaluate(function () { return APP.contestStage; })), '같은 날 다시: 적힌 결과 그대로 · 조개 그대로 (옷을 바꿔도 다시 안 뽑음)');
   await page.evaluate(function () { document.getElementById('contest-sheet').close(); APP.renderLog(); });
-  check(await page.evaluate(function () { return window.__npcSaid.length === 1 && document.querySelectorAll('#log .ct-row').length === 1; }), '다시 닫아도 대본은 한 번 · 기록을 다시 그려도 줄은 하나');
+  check(await page.evaluate(function () { return window.__npcSaid.length === 2 && document.querySelectorAll('#log .ct-row').length === 1; }), '다시 열고 닫아도 대본은 그대로 · 기록을 다시 그려도 줄은 하나');
   await page.reload(); await page.waitForSelector('#btn-go:not(.away)'); await page.waitForTimeout(600); await page.evaluate(STUB);
   await page.evaluate(function () { APP.openContest(); });
   r = await page.evaluate(function () { var u = APP.state.user; return { shells: u.shells, later: JSON.stringify(u.later), seeds: u.seeds, log: document.querySelectorAll('#log .ct-row').length, exp: typeof APP.exportJSON === 'function' }; });
