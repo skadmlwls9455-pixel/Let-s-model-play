@@ -5803,6 +5803,7 @@ var SCENE3D = (function () {
     function vilMesh(list, mat) { var m = new T.Mesh(keep(mergeParts(list)), mat || lambert); if (!mat) { m.castShadow = true; m.receiveShadow = true; } return m; }
     function vilBuild(g) {   /* 등록부의 builder: 갈래 W 의 buildYard 가 마당 그룹을 넘겨 부른다 (한 번만) */
       if (VIL.built || !VIL.on) return; VIL.built = true;
+      var yard = g; g = VIL.root = new T.Group(); g.name = 'village'; yard.add(g);   /* 마을 것은 모두 이 그룹 아래 (시험에서 통째로 숨겨 내 드로우콜만 잰다 — debugVillageHide) */
       var P = { rowL: [], rowR: [], street: [], plaza: [], thin: [], glL: [], glR: [], lamp: [], pool: [], snowL: [], snowR: [] };
       vilShops(P); vilEmpty(P); vilCafe(P); vilPlaza(P); vilStreet(P);
       var low = function (q) { return !q.m || q.m.elements[13] < KNEE + 0.02; };
@@ -5894,7 +5895,10 @@ var SCENE3D = (function () {
       if (!VIL.built) return false;
       var o = VIL.npcs[id], mk = VIL.marks[id];
       if (!on || !o) { if (mk) mk.visible = false; dither.still = 0; return false; }
-      if (!mk) { mk = VIL.marks[id] = vilMesh([{ g: box(0.11, 0.11, 0.11), m: M(0, 0, 0, K_MARK, 0, K_MARK), c: VC.yellow }, { g: box(0.05, 0.05, 0.05), m: M(0, 0, 0, K_MARK, 0, K_MARK), c: VC.white }]); mk.castShadow = false; VIL.g.add(mk); }
+      if (!mk) {   /* 차양 · 지붕 밑에 선 문어의 표시도 보이게 깊이 검사 없이 맨 나중에 그린다 (재질 종류는 창 유리와 같은 MeshBasic) */
+        if (!VIL.markMat) VIL.markMat = keep(new T.MeshBasicMaterial({ color: C(VC.yellow), depthTest: false, depthWrite: false }));
+        mk = VIL.marks[id] = vilMesh([{ g: box(0.12, 0.12, 0.12), m: M(0, 0, 0, K_MARK, 0, K_MARK), c: VC.yellow }], VIL.markMat); mk.renderOrder = 5; VIL.g.add(mk);
+      }
       mk.position.set(o.m.position.x, o.y + (o.pose === 'sleep' ? 0.92 : 1.02), o.m.position.z); mk.visible = true; o.f = -1; vilNpcPose(false); dither.still = 0; return true;
     }
     var K_MARK = Math.PI / 4;
@@ -5906,6 +5910,7 @@ var SCENE3D = (function () {
     function vilSeatSync() {   /* 앉은 표시가 실제와 어긋났으면 맞춘다 (방을 옮김 · 스틱으로 일어남) */
       var V = VIL.cafe; if (!V.seated) return;
       if (PL.hop && !PL.hop.cafe && !PL.hop.sit) { PL.hop.b.copy(vilSeatPts().aisle); PL.hop.cafe = true; }   /* 스틱으로 일어난 폴짝 (소파 쪽으로 뛰게 돼 있다) → 걸상 옆 통로로 */
+      if (PL.sit && PL.place === 'yard' && Math.hypot(PL.pos.x - vilSeatPts().seat.x, PL.pos.z - vilSeatPts().seat.z) > 0.5) { PL.sit = false; PL.pos.y = 0; plSnap(); }   /* 앉은 채 다른 데로 옮겨졌다 (표지판 빠른 이동) → 서 있는 몸으로 */
       if (PL.place !== 'yard' || (!PL.sit && !(PL.hop && PL.hop.sit))) { V.seated = false; if (VIL.cup) VIL.cup.visible = false; dither.still = 0; vilSeatEmit(false); }
     }
     function vilCafeSit(on) {   /* true → Promise<앉았나> · false → Promise<일어났나> */
@@ -5940,16 +5945,17 @@ var SCENE3D = (function () {
         var pr = !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); });
         return pr.then(function (r) { if (r === null || PL.place !== 'yard' || PL_IN.v) return false; return last ? Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z) <= 0.3 : leg(i + 1); });
       };
-      return leg(0);
+      PL.camGap = 1.4;   /* 이 걸음 동안 화면이 따라온다 (plFollow — 문 앞까지 혼자 걷기와 같은 식) */
+      return leg(0).then(function (ok) { if (!PL.walking) PL.camGap = 0; return ok; });
     }
     function vilNear(key) {
-      var p = vilSpotPts(key); if (!p || PL.place !== 'yard') return false;
+      var p = vilSpotPts(key); if (!p || !VIL.built || PL.place !== 'yard') return false;
       if (VIL.cafe.seated && /^(cafe|npcCafe)/.test(p.sp.key)) return true;   /* 카페에 앉은 채로는 카페 것을 그 자리에서 */
       return Math.hypot(PL.pos.x - p.x, PL.pos.z - p.z) <= 1.5 || Math.hypot(PL.pos.x - p.ax, PL.pos.z - p.az) <= 0.45;
     }
     function vilGo(key) {   /* → Promise<가까이 섰나> (걷다가 스틱을 밀어 끊으면 풀리지 않거나 false) */
       var p = vilSpotPts(key); vilSeatSync();
-      if (!p || PL.place !== 'yard' || PLACE.vis !== 'yard') return Promise.resolve(false);
+      if (!p || !VIL.built || PL.place !== 'yard' || PLACE.vis !== 'yard') return Promise.resolve(false);   /* 마을이 없는 마당 (wide=0) 에선 아무 데도 가지 않는다 */
       if (vilNear(key)) return Promise.resolve(true);
       if (!playerInputAllowed() && !VIL.cafe.seated) return Promise.resolve(false);
       var go = function () {
@@ -5963,7 +5969,7 @@ var SCENE3D = (function () {
     /* ── 시험 스텁 (갈래 W 가 합쳐지기 전에만 쓴다): 걷는 띠와 땅을 광장까지 늘리고, 마당 그룹에 builders 를 부르고, 부딪힘을 마당 목록에 더한다. W 의 배관이 이미 지었으면 아무것도 하지 않는다.
        debugVillageFrame(dt) = frame 콜백 + 단추를 자리 위에 놓기 (W 의 배관이 하는 일의 가장 작은 흉내) ── */
     function vilStub() {
-      if (!VIL.on || !YARD_WIDE) return false;
+      if (!VIL.on || !YARD_WIDE || typeof wideRegSync === 'function') return false;   /* 갈래 W 의 배관이 있으면 스텁은 아무것도 하지 않는다 */
       if (VIL.built && !VIL.stub) return false;
       if (!VIL.built) {
         VIL.stub = true; WIDE.S1 = 46; WIDE.T = 8; WIDE.G1 = 48; WIDE.PAN_S1 = 60; WIDE.PAN_T = 12;
@@ -7417,7 +7423,7 @@ var SCENE3D = (function () {
       /* 11-21 마을 (docs/VILLAGE.md): npcSpots() → [{ id, x, y, z, face }] · npcSet([{ id, color, hat, pose }]) → 그린 수 · npcMark(id, on) · cafeSit(on) → Promise<bool> · cafeCup(on) · cafeSeated() ·
          villageGo(단추 id | 자리 key) → Promise<가까이 섰나> · villageNear(…) · villageInfo() (시험) · debugVillageStub() / debugVillageFrame(dt) (갈래 W 가 합쳐지기 전의 시험 스텁) */
       npcSpots: vilNpcSpots, npcSet: vilNpcSet, npcMark: vilNpcMark, cafeSit: vilCafeSit, cafeCup: vilCafeCup, cafeSeated: function () { vilSeatSync(); return VIL.cafe.seated && !!PL.sit; },
-      villageGo: vilGo, villageNear: vilNear, debugVillageStub: vilStub, debugVillageFrame: vilStubFrame,
+      villageGo: vilGo, villageNear: vilNear, debugVillageStub: vilStub, debugVillageFrame: vilStubFrame, debugVillageHide: function (on) { if (VIL.root) { VIL.root.visible = !on; dither.still = 0; } return !!VIL.root; },
       villageInfo: function () { var c = {}; (CUTS.yard || []).forEach(function (e) { if (/^vil/.test(e.key)) c[e.key] = e.cut; }); return { on: VIL.on, built: VIL.built, stub: VIL.stub, npcs: Object.keys(VIL.npcs).map(function (id) { var o = VIL.npcs[id]; return { id: id, pose: o.pose, at: [o.m.position.x, o.m.position.y, o.m.position.z], visible: o.m.visible }; }), marks: Object.keys(VIL.marks).filter(function (id) { return VIL.marks[id].visible; }), cut: c, cup: !!(VIL.cup && VIL.cup.visible), seated: VIL.cafe.seated, lamps: !!(VIL.lampGlow && VIL.lampGlow.visible), snow: VIL.snow.some(function (m) { return m.visible; }), calls: callsBy.yard || 0, reg: { builders: WIDE_REG.builders.length, spots: WIDE_REG.spots.length, boxes: WIDE_REG.boxes.length, circles: WIDE_REG.circles.length, segments: WIDE_REG.segments.length, frame: WIDE_REG.frame.length } }; },
 
       /* [7-N] */
