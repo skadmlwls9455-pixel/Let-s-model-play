@@ -6254,13 +6254,18 @@ var APP = (function () {
     ctPosterEl.addEventListener('click', function () { ctStageTap(); });
     host.appendChild(ctPosterEl); ctAnchor(ctPosterEl, st.poster[0], (st.y || 0) + 1.5, st.poster[1]);
   }
+  function ctDock(el) {   /* 장면 아래쪽 카드: 큰 단추 ('산책 갈래?') 가 장면 아래를 덮는 배치면 그 위로 올린다 */
+    var sc = $('scene'), go = $('btn-go'); if (!el || !sc) return;
+    var sr = sc.getBoundingClientRect(), gr = go && go.offsetParent ? go.getBoundingClientRect() : null;
+    el.style.bottom = (gr && gr.top < sr.bottom && gr.bottom > sr.top ? Math.round(sr.bottom - gr.top) + 10 : 10) + 'px';
+  }
   function ctCardClear() { var host = ctHost(); if (host) Array.prototype.slice.call(host.querySelectorAll('.ct-wcard, .ct-whud')).forEach(function (el) { el.remove(); }); }
   function ctPlacClear() { var host = ctHost(); if (host) Array.prototype.slice.call(host.querySelectorAll('.ct-wplac')).forEach(function (el) { el.remove(); }); }
   function ctWorldCard(kind, kids) {   /* 장면 아래쪽에 놓이는 종이 카드 (대사창은 이 카드를 피해 위로 뜬다 — data-npc-avoid) */
     var host = ctHost(); if (!host) return null;
     ctCardClear();
     var card = h('div', { class: 'ct-wcard ct-w' + kind, id: 'ct-wcard', role: 'group', 'aria-label': CT.TEXT.title, 'data-npc-avoid': '', 'data-kind': kind }, kids);
-    host.appendChild(card); return card;
+    host.appendChild(card); ctDock(card); return card;
   }
   function ctWBtn(id, text, cls, fn) { var b = h('button', { type: 'button', class: 'btn sm pressable' + (cls ? ' ' + cls : ''), id: id, text: text }); b.addEventListener('click', fn); return b; }
   function ctEntryCard() {   /* 참가 카드: 주제 · 바라는 것 · 옷 갈아입기 · 나가기 (평일엔 '주말에 열려.') */
@@ -6323,7 +6328,7 @@ var APP = (function () {
     var L = ctL = { stage: 'start', n: 0, skip: false, done: false, entry: e }, live = function () { return ctL === L && !L.skip; };
     ctSceneKey = null; ctSceneCall('stageDress', true);
     var hud = h('div', { class: 'ct-whud', 'data-npc-avoid': '' }, [h('span', { class: 'ct-rule', text: CT.TEXT.rule }), ctWBtn('ct-w-skip', CT.TEXT.skip, '', function () { ctLiveEnd(L); })]);
-    host.appendChild(hud);
+    host.appendChild(hud); ctDock(hud);
     ctSayAs(CT_JUDGES[0], 'contest.start');
     (function run() {
       var seq = Promise.resolve().then(function () { return ctWaitMs(700); });

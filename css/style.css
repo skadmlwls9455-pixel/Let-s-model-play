@@ -1987,7 +1987,7 @@ button.cafe-eat:active { transform: translateY(2px); }
 @media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .ct-result .ct-pod, :root:is([data-motion="auto"], :not([data-motion])) .ct-result .ct-judge { animation: none; } }
 :root[data-motion="reduce"] .ct-result .ct-pod, :root[data-motion="reduce"] .ct-result .ct-judge { animation: none; }
 /* 11-22 장면 안의 콘테스트 (#scene 안의 #ct-world — dialog 아님): 포스터 · 참가 카드 · 팻말 · 결과 카드 */
-.ct-world { position: absolute; inset: 0; z-index: 6; pointer-events: none; overflow: hidden;
+.ct-world { position: absolute; inset: 0; z-index: 12; pointer-events: none; overflow: hidden;
   --ct-ink: #3a2a3a; --ct-floor2: #a97c4c; --ct-paper: #f6ecd2; --ct-gold: #e8a93a; --ct-card: 0 0 0 2px var(--ct-ink), inset 2px 2px 0 #fffaf0, inset -2px -2px 0 #d9c9a4, 4px 4px 0 2px rgba(58, 42, 58, .3); }
 .ct-world > * { pointer-events: auto; }
 .ct-wposter, .ct-wplac { position: absolute; left: 0; top: 0; will-change: transform; }
