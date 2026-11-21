@@ -204,6 +204,100 @@ async function tabsRun(browser) {
   await ctx.close();
 }
 
+/* 가게 방 (걸어 들어가는 옷가게 · 잡화점): 방 · 단추 · 마네킹 · 입어 보기는 다른 갈래 것이라 여기서 대역으로 끼운다 (계약 C9~C11 의 이름 그대로). 누름은 진짜 누름 */
+function roomStub() {
+  const sc = document.getElementById('scene'), mk = (id, x, y) => { if (document.getElementById(id)) return; const b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'scene-spot'; b.setAttribute('aria-label', id); b.style.cssText = 'left:' + x + 'px;top:' + y + 'px;outline:2px dashed #0a0'; sc.appendChild(b); };
+  for (let i = 0; i < 4; i++) mk('btn-mq-' + i, 24 + i * 80, 230);
+  mk('btn-room-mirror', 290, 150); mk('btn-room-counter', 150, 290);
+  for (let i = 0; i < 6; i++) mk('btn-shelf-' + i, 16 + i * 56, 190);
+  const L = window.__room = { mq: [], pose: [], close: [], tryOff: [], wear: [] }, T = window.__try = {};
+  APP.scene.enterRoom = () => Promise.resolve({ ok: true }); APP.scene.inRoom = () => null;
+  APP.scene.mannequins = (k, l) => { L.mq.push(JSON.parse(JSON.stringify(l))); };
+  APP.scene.playerPose = n => { L.pose.push(n); return Promise.resolve(); };
+  APP.scene.playerCloseup = on => { L.close.push(on); return Promise.resolve(); };
+  APP.tryOn = (c, id) => { T[c] = id; }; APP.tryOff = c => { L.tryOff.push(c); delete T[c]; }; APP.trying = () => Object.assign({}, T);
+  APP.wear = (c, id) => { L.wear.push(c + ':' + id); delete T[c]; return APP.setPlayerPart(c, id); };
+}
+const enter = (page, key) => page.evaluate(k => document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: k } })), key);
+const R = page => page.evaluate(() => Object.assign({ mq: window.__room.mq.slice(-1)[0], log: window.__room, trying: Object.assign({}, window.__try), said: window.__said.slice() }, APP.shopRoom));
+const cardBtn = async (page, text, wait) => { if (wait !== false) await page.waitForTimeout(700); await page.click('#shop-card button:has-text("' + text + '")'); };
+async function roomRun(browser) {
+  console.log('== 가게 방');
+  const { ctx, page } = await open(browser, { shells: 10, q: SHOTS ? '' : '&scene=2d' });
+  await page.evaluate(stub); await page.evaluate(roomStub);
+  const stock = await page.evaluate(() => APP.shopStock('clothes').items), look0 = await page.evaluate(() => JSON.stringify(APP.state.settings.player)), raw0 = await page.evaluate(() => localStorage.getItem('ppolppol_v2'));
+  await enter(page, 'clothes');
+  let r = await R(page);
+  ok(r.key === 'clothes' && r.mq.length === 4 && r.mq.every((m, i) => m.slot === 'mq' + i && !m.sold && m.parts && m.parts[stock[i].cat] === stock[i].id && Object.keys(m.parts).length === 1), '들어가면 마네킹 넷이 오늘의 네 벌');
+  ok(r.said.join() === 'clothes|shop.enter', '가게 주인 줄 한 번');
+  /* 마네킹 톡 → 꼬리표 카드 (dialog 가 아니라 장면 안의 요소) */
+  await page.evaluate(() => { document.getElementById('btn-mq-0').click(); document.querySelector('#shop-card button').click(); });   /* 같은 자리 두 번 톡 */
+  ok((await R(page)).tried.length === 0 && !!(await page.$('#shop-card')), '카드가 뜬 지 0.6 s 안의 누름은 안 받는다');
+  await page.mouse.click(8, 300); await page.click('#btn-mq-0');
+  ok(await page.evaluate(() => { const c = document.getElementById('shop-card'); return !!c && c.parentNode.id === 'scene' && c.tagName !== 'DIALOG' && !document.querySelector('dialog[open]') && c.classList.contains('tag'); }), '꼬리표 카드는 장면 안의 요소');
+  ok(await page.evaluate(n => { const c = document.getElementById('shop-card'), t = [...c.querySelectorAll('button')].map(b => b.textContent).join(); const a = document.getElementById('btn-mq-0').getBoundingClientRect(), b = c.getBoundingClientRect(), s = document.getElementById('scene').getBoundingClientRect(); return t === '입어 보기,살래' && c.textContent.includes(n) && (b.bottom <= a.top + 1 || b.top >= a.bottom - 1) && b.left >= s.left && b.right <= s.right + 0.5 && b.top >= s.top; }, stock[0].name), '카드: 이름 · 값 · 입어 보기 / 살래, 마네킹 바로 위 · 장면 안');
+  await shot(page, 'room-tag-360');
+  await cardBtn(page, '입어 보기');
+  r = await R(page);
+  ok(r.trying[stock[0].cat] === stock[0].id && r.tried.join() === stock[0].key && r.mq[0].parts === null && !r.mq[0].sold && r.mq[1].parts && r.log.pose.join() === 'twirl' && r.card === null, '입어 보기: 내가 갈아입고 한 바퀴 · 그 마네킹은 민몸');
+  ok(await page.evaluate(() => JSON.stringify(APP.state.settings.player)) === look0 && await page.evaluate(() => localStorage.getItem('ppolppol_v2')) === raw0 && (await U(page)).shells === 10, '입어 보기는 아무것도 저장하지 않는다');
+  await page.click('#btn-room-mirror'); await page.waitForTimeout(300);
+  r = await R(page);
+  ok(r.log.close.join() === 'true,false' && r.log.pose.join() === 'twirl,pose' && r.said.includes('clothes|shop.mirror'), '거울: 가까이 · 자세 · 돌아옴');
+  /* 둘째 것은 입어 보지 않고 살래 → 계산대의 영수증 */
+  await page.click('#btn-mq-1'); await cardBtn(page, '살래');
+  const total = stock[0].price + stock[1].price;
+  ok(await page.evaluate(t => { const c = document.getElementById('shop-card'); return !!c && c.classList.contains('receipt') && c.querySelectorAll('.shop-rc-list li').length === 2 && c.querySelector('.shop-rc-sum .shell-n').textContent === String(t) && document.activeElement && document.activeElement.textContent === '그만'; }, total), '영수증: 고른 둘 · 합계 · 포커스는 그만');
+  await shot(page, 'room-receipt-360');
+  await cardBtn(page, '살래');
+  r = await R(page);
+  ok((await U(page)).shells === 10 && !!(await page.$('#shop-card.receipt')) && /모자라/.test(await page.textContent('#toast')) && !((await U(page)).owned || {})[stock[0].key], '모자라면 안 사진다 (영수증은 그대로)');
+  await cardBtn(page, '그만');
+  r = await R(page);
+  ok(r.card === null && r.basket.join() === stock[0].key, '그만: 입어 보지 않고 고른 것만 내려놓는다');
+  await page.evaluate(n => { APP.state.user.shells = n; APP.save(); }, total + 5);
+  await page.click('#btn-mq-1'); await page.waitForTimeout(700);
+  await page.evaluate(() => { [...document.querySelectorAll('#shop-card button')].pop().click(); const b = [...document.querySelectorAll('#shop-card.receipt button')].pop(); if (b) b.click(); });   /* 살래 → 영수증이 뜨자마자 살래 */
+  ok((await U(page)).shells === total + 5, '영수증도 뜬 지 0.6 s 안의 살래는 안 받는다');
+  await cardBtn(page, '살래');
+  let u = await U(page); r = await R(page);
+  ok(u.shells === 5 && u.owned[stock[0].key] === DAY && u.owned[stock[1].key] === DAY && u.shop.got[stock[0].key] === DAY, '계산: 합계만큼 조개가 나가고 둘 다 내 것');
+  ok(r.log.wear.length === 2 && r.basket.length === 0 && r.mq[0].sold && r.mq[0].parts === null && r.mq[1].sold && !r.mq[2].sold && r.said.includes('clothes|shop.pay'), '입은 채 · 마네킹엔 팔림 표 · 가게 주인 줄');
+  ok(JSON.parse(await page.evaluate(() => localStorage.getItem('ppolppol_v2'))).user.owned[stock[1].key] === DAY, '저장됐다');
+  await page.waitForTimeout(900);
+  await page.click('#btn-mq-0');
+  ok(/입고 있어|입을래/.test(await page.textContent('#shop-card')) && !/살래/.test(await page.textContent('#shop-card')), '팔린 마네킹의 카드에는 살래가 없다');
+  /* 안 사고 나가기 */
+  await page.click('#btn-mq-2'); await cardBtn(page, '입어 보기');
+  const offs = (await R(page)).log.tryOff.length;
+  await enter(page, null);
+  r = await R(page);
+  ok(r.key === null && r.log.tryOff.length === offs + 1 && r.log.tryOff.slice(-1)[0] === stock[2].cat && r.basket.length === 0 && r.said.slice(-1)[0] === 'clothes|shop.leave' && !(u.owned || {})[stock[2].key], '안 사고 나가면 제자리로 (가게 주인 줄)');
+  ok((await U(page)).shells === 5, '나가도 조개는 그대로');
+  /* 다음 날 다시 들어가면 새 네 벌 */
+  await page.evaluate(d => { window.__ppolTest.today = d; }, NEXT);
+  await enter(page, 'clothes');
+  r = await R(page);
+  ok(r.mq.every(m => !m.sold && m.parts) && !r.mq.some(m => m.parts[stock[0].cat] === stock[0].id || m.parts[stock[1].cat] === stock[1].id), '다음 날: 팔림 표가 걷히고 다른 옷이 온다');
+  await page.evaluate(d => { window.__ppolTest.today = d; }, DAY);
+  /* 잡화점 */
+  await enter(page, 'goods');
+  ok((await R(page)).said.slice(-1)[0] === 'goods|goods.enter', '잡화점: 가게 주인 줄');
+  await page.click('#btn-shelf-5');
+  ok(!(await page.$('#shop-card')), '빈 선반은 아무 일 없다');
+  await page.click('#btn-shelf-0');
+  ok(await page.evaluate(() => { const c = document.getElementById('shop-card'); return !!c && c.parentNode.id === 'scene' && !!c.querySelector('.shop-seed') && [...c.querySelectorAll('button')].map(b => b.textContent).join() === '그만,살래'; }), '선반 톡 → 꼬리표 카드 (씨앗 봉투 · 그만 / 살래)');
+  await shot(page, 'room-shelf-360');
+  await cardBtn(page, '살래');
+  u = await U(page);
+  ok(u.shells === 3 && u.seeds === 2 && !(await page.$('#shop-card')) && (await R(page)).said.slice(-1)[0] === 'goods|shop.thanks', '살래 → 조개 2 · 씨앗 +1 · 카드가 접힌다');
+  await page.click('#btn-shelf-1'); await cardBtn(page, '살래');
+  ok((await U(page)).shells === 3 && !!(await page.$('#shop-card')), '염료 (6) 는 모자라면 안 사진다');
+  await page.mouse.click(8, 300);
+  ok(!(await page.$('#shop-card')), '카드 밖을 누르면 접힌다');
+  await ctx.close();
+}
+
 async function sizesRun(browser) {
   console.log('== 화면 크기');
   for (const s of [[320, 568, 2], [360, 740, 2], [1280, 800, 1]]) {
@@ -226,7 +320,7 @@ async function sizesRun(browser) {
 (async () => {
   const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
   const T = async f => { const t = Date.now(); await f(browser); console.log('   (' + ((Date.now() - t) / 1000).toFixed(1) + ' s)'); };
-  try { await T(goodsRun); await T(clothesRun); await T(beachRun); await T(tabsRun); await T(sizesRun); }
+  try { if (process.env.ONLY_ROOM) await T(roomRun); else { await T(goodsRun); await T(clothesRun); await T(beachRun); await T(tabsRun); await T(roomRun); await T(sizesRun); } }
   catch (e) { fail++; console.log('  ERROR ' + (e && e.stack || e)); }
   await browser.close();
   console.log('\n' + pass + ' passed' + (fail ? ', ' + fail + ' FAILED' : ''));
