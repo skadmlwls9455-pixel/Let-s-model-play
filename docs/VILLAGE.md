@@ -107,21 +107,27 @@
 |---|---|---|---|---|
 | `clothes` | 6.0 × 5.2 | 마네킹 받침 넷과 값표 걸이 · 선 거울 · 계산대와 금전함 · 옷걸이 줄 · 재단대와 천 두루마리 · 신발 벤치 · 깔개 · 갈아입는 칸 (걷어 묶은 커튼) · 모자 상자 선반 · 창 | `mq0..mq3` `mirror` `mirrorStand` `counter` `keeper` `fitting` `exit` | `#btn-mq-0..3` `#btn-room-mirror` `#btn-room-counter` `#btn-npc-clothes` `#btn-room-exit` |
 | `cafe` | 6.4 × 5.2 | 계산대 (커피 기계 · 유리 덮개 케이크 받침 · 내주는 자리와 종) · 분필 차림판과 도장 카드 · 식탁 셋과 걸상 · 레코드 장 (턴테이블 · 나팔 · 레코드 꽂이) · 바다 창 · 원두 병 선반 | `keeper` `menu` `pickup` `counter` `table` `seat` `aisle` `table1` `table2` `nap` `turntable` `lp` `exit` | `#btn-cafe-menu` `#btn-cafe-counter` `#btn-cafe-seat` `#btn-cafe-lp` `#btn-npc-cafe` `#btn-room-exit` |
+| `hall` | 7.0 × 6.0 | 아래 '공연장' | | |
 | `goods` | 5.2 × 4.8 | 선반 장 여섯 (씨앗 봉지 · 물감 병) · 계산대와 접시저울 · 나무통 · 자루 · 물뿌리개 · 걸린 연장 · 창 | `shelf0..shelf5` `counter` `scale` `keeper` `exit` | `#btn-shelf-0..5` `#btn-room-counter` `#btn-npc-goods` `#btn-room-exit` |
 
-- 바깥의 문: `#btn-in-clothes` · `#btn-in-goods` · `#btn-in-cafe` (`VILLAGE.DOORS`). 멀리서 누르면 문 앞까지 걸어간 뒤 눌린다.
+- 바깥의 문: `#btn-in-clothes` · `#btn-in-goods` · `#btn-in-cafe` · `#btn-in-hall` (`VILLAGE.DOORS`). 멀리서 누르면 문 앞까지 걸어간 뒤 눌린다.
 - 가게 문어: `npcSet` 에 준 `clothes` · `goods` · `cafe` 는 바깥 판매대와 방 안 `keeper` 자리 **양쪽에** 같은 색 · 모자로 선다.
 - 카페: `cafeSit` · `cafeCup` · `cafeSeated` 는 카페 방 안이면 방 안의 걸상 · 식탁에서, 아니면 테라스에서. `cafeRecord(on, '#rrggbb')` 는 턴테이블에 그 색 딱지의 판을 올려 돌리고 음표 셋을 띄운다 (모션 감소면 멈춘 채 · 소리는 다른 갈래).
 - 창 유리는 바깥 빛 (낮 하늘 · 노을 · 밤) 을 따르고, 갓등 둘은 저녁부터 켜진다. 점광은 방마다 둘 (`lights` — 다락과 같은 수).
 - 테라스 (바깥 덱) 는 그대로 남는다. 바깥의 `#btn-cafe-counter` 자리는 없어졌다 (주문은 안에서).
 - 방 배관이 없을 때 살펴보기: `scene.debugVillageRoom(key)` (다락 자리에 지어 보여 준다 · `null` 로 치운다).
 
-## 광장 무대 (주말 콘테스트)
+## 공연장 (주말 콘테스트 — 넷째 방 `hall`, 7.0 × 6.0)
 
-- `scene.stage()` → `{ wait, path: [[x, z] ×4], judges: [[x, z, face] ×3], podium: [[x, z, y] ×4], rivals, poster, table, centre, half, y, dressed }` (월드 좌표).
-  걷는 길은 무대 앞 둥근 깔개를 지나는 땅 위의 길이다 (무대는 부딪히는 배경). 시상대는 무대 위 (y = 땅에서의 높이).
-- `scene.stageDress(on)`: 심사석 (긴 상 · 빈 팻말 셋) · 시상대 단 셋 · 무대 앞 깃발 줄 · 등 둘. 포스터 판 (빈 종이) 은 늘 서 있다.
-- 문어 id `judge0..2` · `rival0..2` 를 `npcSet` 이 받는다. `scene.npcPlace(id, x, z, face)` 로 옮기고 (x 가 null 이면 제자리로 · 무대 위 / 시상대 위면 그 높이에 선다), `scene.npcPose(id, 'stand' | 'sit' | 'sleep')`.
+주인 (11-22 00:05): "카페나 콘테스트도 아예 맵을 따로." 콘테스트는 광장이 아니라 공연장 방 안에서 열린다.
+
+- 방: 뒷벽 앞의 높인 무대 (0.3 m) 와 방 안으로 뻗은 길 (끝에 계단 둘) · 붉은 막과 별 배경 · 조명 대 둘 · 길을 보는 심사석 (긴 상과 걸상 셋) · 구경 벤치 둘 · 무대 뒤 구석 (옷걸이 · 선 거울 · 가림막) · 왼벽의 결과판.
+  자리: `stage` `catwalk` `wait` `rack` `rackStand` `mirror` `board` `boardStand` `judge0..2` `table` `exit`. 단추: `#btn-hall-stage` `#btn-hall-rack` `#btn-hall-board` `#btn-room-exit`. 바깥: 광장 무대 오른쪽의 막 드리운 문 `#btn-in-hall`.
+- `scene.stage()` → `{ room: 'hall', wait, path: [[x, z] ×4] (계단 앞 → 길 → 무대 앞 → 무대 가운데), pathY, judges: [[x, z, face] ×3], podium: [[x, z, y] ×4] (무대 위 · y = 바닥에서), rivals, table, stageBox, walkBox, y, dressed, built }` — **방 안 좌표**.
+- `scene.stageDress(on)`: 심사석의 천과 팻말 셋 · 시상대 단 셋 · 무대 앞 깃발 줄 (광장 바깥 무대의 깃발과 등도 같이).
+- 문어 id `judge0..2` · `rival0..2` 를 `npcSet` 이 받아 **공연장 안에** 그린다 (심사는 걸상 위 · 경쟁은 문 쪽 줄). `scene.npcPlace(id, x, z, face)` 는 이 여섯에게는 방 안 좌표 (무대 · 길 위면 0.3 m, 꾸민 날 시상대 위면 그 단 높이), 마을의 문어에게는 월드 좌표. x 가 null 이면 제자리로. `scene.npcPose(id, 'stand' | 'sit' | 'sleep')`.
+- 무대 · 길은 부딪힘이 아니다: 내 캐릭터가 그 위에 서면 0.3 m 올려 그린다 (걷는 값은 그대로). 무대의 양 날개 (길 옆) 만 막힌다.
+- 광장: 포스터 판 (빈 종이 — 그 주의 주제 그림은 콘테스트 갈래가 띄운다) 은 늘 서 있다.
 
 ## 시험
 

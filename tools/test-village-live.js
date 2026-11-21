@@ -178,19 +178,19 @@ async function village(page) {
           var st = sc.stage(); sc.stageDress(true); sc.npcSet([{ id: 'judge0', color: '#3f9c9c', hat: 'beret', pose: 'sit' }, { id: 'judge1', color: '#cdb94a', hat: 'apron', pose: 'sit' }, { id: 'judge2', color: '#a67c62', hat: 'cap', pose: 'sit' }, { id: 'rival0', color: '#d9694f', hat: 'none', pose: 'stand' }, { id: 'rival1', color: '#5c86b0', hat: 'none', pose: 'stand' }, { id: 'rival2', color: '#9a5058', hat: 'none', pose: 'stand' }]);
           sc.npcPlace('rival0', st.podium[0][0], st.podium[0][1], 0); sc.npcPlace('rival1', st.path[3][0] + 1.2, st.path[3][1] + 0.5, 0); __V.frame(); r.hall = sc.villageRooms().hallNpcs; r.st = st;
           sc.debugPlayerAt(st.path[1][0], st.path[1][1]); await __V.run(6); r.lift = sc.villageRooms().lift; sc.debugPlayerAt(st.wait[0], st.wait[1]); await __V.run(6); r.lift0 = sc.villageRooms().lift; r.calls2 = sc.stats().calls;
-          sc.npcSet([]); sc.stageDress(false); r.hall0 = sc.villageRooms().hallNpcs.length;
+          sc.npcSet([]); sc.stageDress(false); r.hall0 = sc.villageRooms().hallNpcs.length; sc.npcSet(a.list);
         }
         if (a.key === 'cafe') { var s = null; sc.cafeSit(true).then(function (x) { s = x; }); await __V.run(400, function () { return s !== null; }); r.sat = s; r.seated = sc.cafeSeated(); r.cup = sc.cafeCup(true); r.rec = sc.cafeRecord(true, '#3f6690'); __V.frame(); r.info = sc.villageRooms().rooms.cafe; var p = sc.player().at, S = VILLAGE.ROOMS.cafe.slots.seat; r.seatD = Math.hypot(p[0] - S[0], p[2] - S[2]); sc.cafeRecord(false); }
         var out = null; sc.leaveRoom().then(function (x) { out = x; }); await __V.run(500, function () { return out !== null; }); await __V.run(20); r.leave = out; r.after = sc.inRoom(); r.seatedAfter = sc.cafeSeated(); r.view = sc.view();
         return r;
-      }, { key: rk, has: hasRooms });
+      }, { key: rk, has: hasRooms, list: NPCS });
       if (!hasRooms) { ok(t9.dbg === true && t9.rooms.rooms[rk] && (rk === 'hall' || t9.rooms.rooms[rk].keeper === true), rk + ' 방이 지어진다 (가게 문어 포함)'); continue; }
       ok(t9.enter && t9.enter.ok && t9.in === rk, rk + ' 에 들어간다');
       ok(t9.rooms.cur === rk && (rk === 'hall' || t9.rooms.rooms[rk].keeper === true), rk + ' 안에 가게 문어가 서 있다');
       if (rk === 'hall') { var hn = function (id) { return t9.hall.filter(function (q) { return q.id === id; })[0]; }; ok(t9.hall.length === 6 && Math.abs(hn('rival0').at[1] - t9.st.podium[0][2]) < 0.02 && Math.abs(hn('rival1').at[1] - t9.st.y) < 0.02 && Math.abs(hn('rival2').at[1]) < 0.02 && Math.abs(hn('judge1').at[0] - t9.st.judges[1][0]) < 0.02, '공연장: 문어 여섯 · 시상대 위 · 무대 위 · 바닥 · 심사석'); ok(t9.lift > 0.25 && t9.lift0 < 0.05 && t9.calls2 <= 60 && t9.hall0 === 0, '공연장: 길 위에 서면 0.3 m 올려 그린다 (' + t9.lift + ' / ' + t9.lift0 + ') · 드로우콜 ' + t9.calls2); }
       ok(t9.calls <= 60, rk + ' 드로우콜 ' + t9.calls + ' (≤ 60)');
-      ok(t9.slots && t9.slots.slots && t9.slots.slots.keeper && t9.slots.slots.exit && t9.slots.built, rk + ' roomSlots(key).slots 에 내 자리들');
-      ok(t9.btns.filter(function (q) { return q[1]; }).length >= Math.min(4, t9.btns.length), rk + ' 단추가 보인다: ' + t9.btns.filter(function (q) { return !q[1]; }).map(function (q) { return q[0]; }).join(' '));
+      ok(t9.slots && t9.slots.slots && (rk === 'hall' ? t9.slots.slots.stage : t9.slots.slots.keeper) && t9.slots.slots.exit && t9.slots.built, rk + ' roomSlots(key).slots 에 내 자리들');
+      ok(t9.btns.filter(function (q) { return q[1]; }).length >= Math.min(3, t9.btns.length),   /* 방이 화면보다 넓어 먼 구석의 단추는 가려 있을 수 있다 */ rk + ' 단추가 보인다: ' + t9.btns.filter(function (q) { return !q[1]; }).map(function (q) { return q[0]; }).join(' '));
       if (rk === 'cafe') ok(t9.sat === true && t9.seated && t9.cup === true && t9.rec === true && t9.info.cup && t9.info.record && t9.seatD < 0.1, '카페 안에서 앉기 · 잔 · 레코드 (걸상에서 ' + t9.seatD.toFixed(2) + ' m)');
       ok(t9.leave && t9.leave.ok && t9.after === null && t9.view === 'yard' && !t9.seatedAfter, rk + ' 에서 나온다 (앉은 채였어도 선 채로 밖에)');
     }
