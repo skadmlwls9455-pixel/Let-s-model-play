@@ -5498,7 +5498,7 @@ var APP = (function () {
   var cafeAsk = null, cafeAskAt = 0, cafeSeated = false, cafeWatch = 0, cafeLp = { id: null, sound: false, ang: 0, spin: 0, watch: 0, vol: -1 };
   function cafeState() { var u = userState(); u.cafe = CAFE.normalize(u.cafe); return u.cafe; }
   function cafeApi(name) { return window.APP && typeof window.APP[name] === 'function' ? window.APP[name] : null; }
-  function cafeSay(key, vars) { var f = cafeApi('npcSay'); if (f) { try { f('cafe', key, vars || {}); } catch (e) { console.warn('[cafe] npcSay', e); } } }
+  function cafeSay(key, vars) { var f = cafeApi('npcSay'); if (f) { try { var p = f('cafe', key, vars || {}); if (p && typeof p.catch === 'function') p.catch(function () {}); } catch (e) { console.warn('[cafe] npcSay', e); } } }
   function cafeScene(name, arg) { if (scene && typeof scene[name] === 'function') { try { var p = scene[name](arg); if (p && typeof p.catch === 'function') p.catch(function () {}); return true; } catch (e) { console.warn('[cafe] ' + name, e); } } return false; }
   function cafeUnit(k) { var d = window.devicePixelRatio || 1; return Math.max(1, Math.round(k * d)) / d; }   /* 그림 1px = 기기 px 의 정수 배 */
   /* 그림 한 장 → canvas (그림 px 그대로, CSS 크기는 정수 배). cols = 왼쪽부터 남길 열 수 (먹은 만큼 오른쪽이 사라진다) */
@@ -5707,6 +5707,8 @@ var APP = (function () {
       sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     });
     var ls = $('lp-sheet'); if (ls) ls.addEventListener('close', function () { if (cafeLp.id && typeof scene.area !== 'function') lpStop(); });
+    /* 갈래 V 가 알리는 앉음 · 일어남 (발자국 손잡이로 일어난 것도): 일어나면 자리가 끝나고, 앉으면 쟁반이 나온다 */
+    document.addEventListener('ppol:cafe-seat', function (e) { var on = !!(e && e.detail && e.detail.on); if (!on) cafeStand(); else if (!cafeSeated) { cafeSeated = true; renderCafeTray(); if (!cafeWatch) cafeWatch = setInterval(cafeTick, 400); } });
     document.addEventListener('visibilitychange', function () { if (document.hidden && cafeLp.id) lpStop(); });
     window.addEventListener('pagehide', function () { if (cafeLp.id) lpStop(); });
   }
