@@ -1,8 +1,12 @@
 # Food sprites — the contract between lane A (draws) and lanes K, T (use) — round 7
 
 `js/cook-sprites.js` → global `COOK_SPR` (contract C1 in `COMMON.md`). Hand-authored, palette-indexed pixel maps (rows of
-characters, one character per colour), decoded to RGBA. Only the game's fixed palette (the Apollo colours already used by
-`js/cook-art.js`). Transparent background. No text in any sprite.
+characters, one character per colour role), decoded to RGBA. Colours: only the kitchen's own palette — the Apollo 46 plus the
+24 FOOD colours of `js/cook-art.js` (the food ramps live in FOOD) — and `COOK_SPR` carries its own name-to-hex table,
+because the game page loads this file without `js/cook-art.js`. If white foods (rice, cream, egg white) need a warm shade the
+palette lacks, lane A may add at most four colours to its own table and must list them in its report. Transparent background.
+No text in any sprite. A dish may be built inside the file from small parts, placement lists and palette re-maps (doneness =
+a re-map of the skin colours), as the sample in `wip/round7/research/foodart/` does: only what `get()` returns is the contract.
 
 **Look** (the owner's complaint and references are in `RESEARCH.md` section 1b — read it): three-quarter view with volume
 (a lit top and a darker side face), a silhouette no other dish shares, a different container per dish, nameable ingredients,
@@ -27,6 +31,12 @@ play-room table.
 
 Small versions, each 16 x 16, anchor (8, 13): `icon.jeon`, `icon.gyeran`, `icon.jumeokbap`, `icon.kkochi`, `icon.cake`
 (redrawn by hand for the size, not scaled down).
+
+**For the play-room table** (the room is drawn at 27 art px per metre and the plate there is about 9 room px wide, so the
+big picture cannot be pasted in): `table.jeon` (3 frames by band), `table.gyeran`, `table.jumeokbap`, `table.kkochi`,
+`table.cake`, each 16 x 12, anchor (8, 10), drawn for that scale (two or three colours per food, the silhouette and the
+container are everything; see `omelette-table-12x.png` in the sample). Lane T shows these on the table and in the
+character's hands, one sprite px per room px, and shows the big `dish.*` picture in a close-up while eating.
 
 ## 2. Cooking states (priority 2, in recipe order: jeon, gyeran, jumeokbap, kkochi, cake)
 

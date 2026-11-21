@@ -18,13 +18,16 @@ draws every food picture of the new kitchen so that a player recognises the dish
   to `tests/evidence/food/` as PNG without dependencies (see how `tools/make-dish-icons.js` writes PNG files).
 - `tools/test-cook-sprites.js` — node checks: every id of `SPRITES.md` exists with the listed size, anchor and frame count;
   only palette colours; every frame has an outline that is not pure black; no fully empty frame; frames of one id differ
-  from each other; file size under 250 KB.
+  from each other; file size under 400 KB (the research measured about 380 KB if every frame were typed as a full canvas:
+  build dishes from parts, placement lists and palette re-maps, and generate big simple shapes such as pans, bowls and
+  plates as rows, as `wip/round7/research/foodart/gen-rows.js` does); the sample's lint (orphan pixels, touching colours
+  too close in brightness) as a warning list.
 - `docs/FOOD_ART.md` — one page: the format, how to add a sprite, the technique checklist, how to render the sheets.
 
 ## How to work
 
 1. Lock the pipeline in the first half hour (format, palette letters, decoder, sheet renderer, the node check).
-2. Draw in the priority order of `SPRITES.md`: **the five finished dishes first**, then cooking states recipe by recipe
+2. Draw in the priority order of `SPRITES.md`: **the five finished dishes first** (then their five small table sprites), then cooking states recipe by recipe
    (jeon, gyeran, jumeokbap, kkochi, cake), then the 16 px pictures. Push after each group so that lanes K and T can load
    your file while you continue.
 3. Every sprite: author it, render it at 4x and 6x, **look at the PNG with the Read tool**, compare against the checklist

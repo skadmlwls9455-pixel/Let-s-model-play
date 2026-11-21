@@ -53,13 +53,17 @@ comes in and sits → its labelled answer → eating → the day effect.** It al
    today (a waiting dish, old meal records and diary rows must keep drawing). Add the new ids `jeon2`, `gyeran`,
    `jumeokbap2`, `kkochi2`, `cake` to `js/meal.js` (names '해초전', '계란말이', '주먹밥', '과일 꼬치', '딸기 케이크'; effects
    sparkle, `bubble` '방울', star, petal, `confetti` '색종이', with the same sentence patterns; the demo answer rule
-   untouched: it must not depend on the dish) and to the scene: the table shows a new dish with lane A's picture
-   (`COOK_SPR.get('dish.…', frame)` per C2's picture list; for `jeon2` the frame is the saved look's band; load
-   `js/cook-sprites.js` in `index.html` under `[7-T] 스크립트`; when the sprite is missing draw the covered plate the
-   scene already has for unknown dishes), at a whole number of device pixels per art pixel, readable from the play-room
-   camera at 360x740; each of the four bites must visibly take something away (for a sprite: reveal less of it, or step
-   through "bitten" masks you derive from the picture); two new aura kinds drawn like the existing three (2 px grains, no
-   hearts, no faces).
+   untouched: it must not depend on the dish) and to the scene. The room is drawn at 27 art px per metre and the plate on
+   the table is about 9 room px wide, so the big dish picture cannot be pasted there. Instead:
+   - **on the table and in the character's hands**: lane A's small table sprite `COOK_SPR.get('table.…', frame)` (16 x 12,
+     drawn for the room's scale; for `jeon2` the frame is the saved look's band), as a camera-facing quad snapped so that one
+     sprite px is one room px, lit like the room; when the sprite is missing draw the covered plate the scene already has
+     for unknown dishes (load `js/cook-sprites.js` in `index.html` under `[7-T] 스크립트`);
+   - **while eating**: a close-up of the big picture (`dish.…`, C2's picture list) in a small paper panel above the table
+     buttons' area, at a whole number of device px per art px (about 160 CSS px wide on a 360 px screen), from the first
+     bite to the last; each of the four bites visibly takes a part of the picture away (masks you derive from the picture:
+     a wedge, a slice, a fruit, a corner). No words on it; it never covers the two characters;
+   - two new aura kinds drawn like the existing three (2 px grains, no hearts, no faces).
 4. **Recipes.** `js/recipes.js` (DOM-free, node-tested): the five new ids, which are always unlocked (`jeon2`, `gyeran`,
    `jumeokbap2`), `normalize(state)`, `eat(state, id, today)` → `{ state, n, gift }` (gift exactly once, when the count
    reaches 3 and the recipe was locked), `unlocked(state, hadNotebook)` (adds `kkochi2` when the kitchen notebook already
