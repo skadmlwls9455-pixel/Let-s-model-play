@@ -519,7 +519,7 @@ select { font-family: var(--f-body); font-size: 16px; min-height: 44px; border: 
       if (now - strokeT > 1500) { strokeN = 0; playOnce('pet_squish'); }
       strokeT = now; strokeN = Math.min(strokeN + 1, 5);
       playOnce('pet_stroke_' + strokeN);
-      if (strokeN === 4) setTimeout(function () { playOnce('pet_happy'); }, 250);
+      /* 11-15: 게임은 넷째에 pet_happy 를 더 안 낸다 (주인 C3 b) — 여기도 같이 */
     });
     chip($('#padTouch'), '창문 똑', null, function () { gesture(); playOnce('window_tap'); });
     chip($('#padTouch'), '뽈뽈 걸음', null, function () { gesture(); for (var i = 0; i < 6; i++) playOnce('step', { at: ctx.currentTime + 0.05 + i * 0.25 }); });

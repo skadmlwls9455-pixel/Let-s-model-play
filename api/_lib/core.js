@@ -104,27 +104,30 @@ function sanitizeNick(raw) {
 }
 
 /* ───────── 경로 코덱: 사전순 = 순위 ─────────
- *   runner/{week}/{(10_000_000 - score) 8자리}-{ticks 6자리}-{runId}~{base64url(nick)}.json
- *   같은 점수면 더 짧은 틱(빨리 도달)이 위. */
-function encodePath(e) {
+ *   {판}/{week}/{(10_000_000 - score) 8자리}-{ticks 6자리}-{runId}~{base64url(nick)}.json
+ *   같은 점수면 더 짧은 틱(빨리 도달)이 위.
+ *   11-15 판(VERSION)마다 순위표가 따로: runner-1 = 'runner/' · 'runner-ids/' (예전 그대로, 지우지 않는다), runner-2 = 'runner2/' · 'runner2-ids/'.
+ *   v 를 안 주면 지금 판(RUNNER.VERSION). */
+function verDir(v) { v = v || RUNNER.VERSION; return v === 'runner-1' ? 'runner' : 'runner' + String(v).replace(/^runner-/, '').replace(/[^0-9a-z]/gi, ''); }
+function encodePath(e, v) {
   var score = Math.max(0, Math.min(SCORE_CAP - 1, e.score | 0)), ticks = Math.max(0, Math.min(999999, e.ticks | 0));
-  return 'runner/' + e.week + '/' + String(SCORE_CAP - score).padStart(8, '0') + '-' + String(ticks).padStart(6, '0') + '-' + e.runId + '~' + b64u(Buffer.from(e.nick, 'utf8')) + '.json';
+  return verDir(v) + '/' + e.week + '/' + String(SCORE_CAP - score).padStart(8, '0') + '-' + String(ticks).padStart(6, '0') + '-' + e.runId + '~' + b64u(Buffer.from(e.nick, 'utf8')) + '.json';
 }
-var PATH_RE = /^runner\/(\d{4}-W\d{2})\/(\d{8})-(\d{6})-([0-9a-f]{12})~([A-Za-z0-9_-]*)\.json$/;
+var PATH_RE = /^(runner\d*)\/(\d{4}-W\d{2})\/(\d{8})-(\d{6})-([0-9a-f]{12})~([A-Za-z0-9_-]*)\.json$/;
 function decodePath(p) {
   var m = PATH_RE.exec(String(p || ''));
   if (!m) return null;
-  var nb = unb64u(m[5]);
-  return { week: m[1], score: SCORE_CAP - parseInt(m[2], 10), ticks: parseInt(m[3], 10), runId: m[4], nick: nb ? nb.toString('utf8') : FALLBACK_NICK };
+  var nb = unb64u(m[6]);
+  return { dir: m[1], week: m[2], score: SCORE_CAP - parseInt(m[3], 10), ticks: parseInt(m[4], 10), runId: m[5], nick: nb ? nb.toString('utf8') : FALLBACK_NICK };
 }
-function weekPrefix(week) { return 'runner/' + week + '/'; }
-function idPath(week, runId) { return 'runner-ids/' + week + '/' + runId + '.json'; }
+function weekPrefix(week, v) { return verDir(v) + '/' + week + '/'; }
+function idPath(week, runId, v) { return verDir(v) + '-ids/' + week + '/' + runId + '.json'; }
 /* 그 주의 기록 전부 → 순위순 [{pathname, uploadedAt, score, ticks, runId, nick, rank}]
  *   같은 runId 는 한 줄만 (가장 앞 = 가장 높은 것). 다시 보낸 제출이 겹쳐 쓴 경우에도 한 판 = 한 줄. */
-async function board(store, week) {
-  var items = await store.list(weekPrefix(week));
+async function board(store, week, v) {
+  var items = await store.list(weekPrefix(week, v)), dir = verDir(v);
   var out = [], seen = {};
-  items.forEach(function (b) { var d = decodePath(b.pathname); if (d && d.week === week) { d.pathname = b.pathname; d.uploadedAt = b.uploadedAt; out.push(d); } });
+  items.forEach(function (b) { var d = decodePath(b.pathname); if (d && d.week === week && d.dir === dir) { d.pathname = b.pathname; d.uploadedAt = b.uploadedAt; out.push(d); } });
   out.sort(function (a, b) { return a.pathname < b.pathname ? -1 : a.pathname > b.pathname ? 1 : 0; });
   out = out.filter(function (d) { if (seen[d.runId]) return false; seen[d.runId] = 1; return true; });
   out.forEach(function (d, i) { d.rank = i + 1; });
@@ -229,6 +232,6 @@ module.exports = {
   now: now, setClock: setClock, getStore: getStore, setStore: setStore, setSecret: setSecret, secret: secret,
   b64u: b64u, unb64u: unb64u, signToken: signToken, readToken: readToken, runIdOf: runIdOf,
   weekKey: weekKey, isWeek: isWeek, isEventWeek: isEventWeek, sanitizeNick: sanitizeNick,
-  encodePath: encodePath, decodePath: decodePath, weekPrefix: weekPrefix, idPath: idPath, board: board, weekClosed: weekClosed,
+  verDir: verDir, encodePath: encodePath, decodePath: decodePath, weekPrefix: weekPrefix, idPath: idPath, board: board, weekClosed: weekClosed,
   memoryStore: memoryStore, blobStore: blobStore, send: send, query: query, one: one, readJson: readJson
 };

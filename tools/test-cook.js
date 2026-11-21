@@ -34,8 +34,12 @@ check(A && typeof A.simulate === 'function' && typeof A.createRun === 'function'
 check(typeof A.open === 'undefined', 'without a DOM the live half (open) is not attached');
 check(A.VERSION === 'cook-1', 'VERSION cook-1');
 check(A !== B && A.TUNE_HASH === B.TUNE_HASH && A.TUNE_HASH === A.hash32(JSON.stringify(A.TUNE)), 'TUNE_HASH = hash32(JSON.stringify(TUNE)), same in both instances');
-check(A.RECIPES.length === 1 && A.RECIPES[0].id === 'jeon' && A.PROPS.length === 1 && A.PROPS[0].id === 'pan', 'slice 1: one live recipe (jeon) and one live prop (pan)');
+check(A.TUNE_HASH === 2827089308, 'TUNE is byte-identical to round 4: TUNE_HASH pinned at 2827089308 (' + A.TUNE_HASH + ')');
+check(same(A.RECIPES.map(function (r) { return r.id; }), ['jeon', 'jumeokbap', 'kkochi']) && A.PROPS.length === 1 && A.PROPS[0].id === 'pan', '11-18: three recipes (jeon, jumeokbap, kkochi) in that order, one live prop (pan)');
 check(same(A.RECIPES[0].steps.map(function (s) { return s.kind; }), ['tap', 'flip', 'slice']), 'jeon = tap -> flip -> slice');
+check(same(A.recipe('jumeokbap').steps.map(function (s) { return s.kind; }), ['tap', 'flip']) && A.recipe('jumeokbap').steps.every(function (s) { return s.food === 'rice'; }), 'jumeokbap = tap -> flip, both steps name the rice food (the flip too)');
+check(same(A.recipe('kkochi').steps.map(function (s) { return s.kind; }), ['slice', 'tap']) && A.recipe('kkochi').steps[1].station === 'board' && A.recipe('kkochi').steps[0].cross === false, "kkochi = slice (two parallel lines) -> tap on the 'board'");
+check(A.tuneOf('jeon') === A.TUNE_HASH && Object.isFrozen(A.TUNE_R) && !('TUNE_R' in A.TUNE), 'jeon pot hash = TUNE_HASH; TUNE_R frozen and outside TUNE');
 check(['tap', 'flip', 'slice'].every(function (k) { var K = A.KIND[k]; return ['init', 'down', 'move', 'up', 'cancel', 'tick', 'alt', 'look', 'tag'].every(function (f) { return typeof K[f] === 'function'; }); }), 'KIND tap / flip / slice have the full interface');
 check(Object.isFrozen(A.TUNE) && Object.isFrozen(A.TUNE.tap) && Object.isFrozen(A.WORDS) && Object.isFrozen(A.RECIPES[0].steps[0]), 'TUNE, WORDS, RECIPES are frozen');
 check(A.createRun('nope', 1) === null && A.createRun('miyeok', 1) === null, 'createRun: unknown recipe -> null');
@@ -147,7 +151,7 @@ section('1. verb button path: every step in <= 3 presses (flip 2)');
       A.tick(run, next); if (si < 2 && run.t0 !== next) ok = false;
     }
     if (!(run.done && run.phase === 'reveal')) ok = false;
-    if (seed === 1) check(same(labels, ['톡톡', '불 켜기', '뒤집기', '썰기']) && A.verb(run) === '돌아가기', 'verb labels: tap, heat on, flip, slice, then back (' + labels.join(' / ') + ')');
+    if (seed === 1) check(same(labels, ['톡톡', '불 켜기', '뒤집기', '썰기']) && A.verb(run) === '다시', 'verb labels: tap, heat on, flip, slice, then again on the reveal (' + labels.join(' / ') + ' / ' + A.verb(run) + ')');
     var res = A.resultOf(run, { madeAt: 1762576800000, day: '2026-11-08' });
     if (!res || res.out.steps[0].tag !== null || res.out.steps[1].tag !== 'soft' || res.out.steps[2].tag !== 'straight') ok = false;
   });
@@ -236,20 +240,24 @@ function pathSlice(seed) {
     if (s === 0) check(a.done && a.run.phase === 'reveal', 'a hand-made path cooks the whole dish');
   }
   check(diffs === 0 && cads === 0, 'whole dish x 40: simulate() identical across instances and 30/60/120/240 Hz (' + diffs + ' / ' + cads + ')');
-  /* the same geometric drag sampled at 60/120/240 Hz: slice tags and per-line slant do not change */
-  var tagDiff = 0, tried = 0;
+  /* round 6 (11-18 '+'): every cut is exact, so the tag no longer varies; the same geometric drag sampled at
+     60/120/240 Hz must give identical cut events (line, angle, how) in the same order, and the same tag */
+  var cutDiff = 0, tried = 0, allCut = 0;
   for (var q = 0; q < 50; q++) {
-    var sd = 5000 + q, g = geom(A, sd), deg = [0, 4, -4, 20, -20, 24, 2][q % 7], tags = [];
+    var sd = 5000 + q, g = geom(A, sd), deg = [0, 4, -4, 20, -20, 24, 2][q % 7], seen = [];
     [60, 120, 240].forEach(function (hz) {
       var speed = 400 + (q % 5) * 300, msPer = 1000 / hz, pxPer = speed / hz, evs = [];
       var t1 = stroke(evs, guideDrag(g.lines[0], deg, pxPer), 260, msPer, 1);
       stroke(evs, guideDrag(g.lines[1], -deg, pxPer), t1 + 200, msPer, 2);
       var r = runAt(A, sd, 2); A.feed(r, evs, { cadence: 60 });
-      tags.push(js([r.st.tag, r.st.lines.map(function (l) { return Math.abs(l.ang) >= 12; })]));
+      var cuts = A.drain(r).filter(function (e) { return e.type === 'cut'; }).map(function (e) { return [e.i, e.ang, e.how]; });
+      if (cuts.length === 2) allCut++;
+      seen.push(js([r.tags[2] === undefined ? r.st.tag : r.tags[2], cuts]));
     });
-    tried++; if (!(tags[0] === tags[1] && tags[1] === tags[2])) tagDiff++;
+    tried++; if (!(seen[0] === seen[1] && seen[1] === seen[2])) cutDiff++;
   }
-  check(tagDiff === 0, 'slice: the same drag sampled at 60/120/240 Hz keeps its tags (' + tagDiff + '/' + tried + ' differ)');
+  check(cutDiff === 0, 'slice: the same drag sampled at 60/120/240 Hz gives identical cut events in the same order (' + cutDiff + '/' + tried + ' differ)');
+  check(allCut === tried * 3, 'slice: every one of those drags (0..24 deg off the guide) cuts both lines (' + allCut + '/' + tried * 3 + ')');
 })();
 
 section('3. progress never falls; half and done once per step');
@@ -362,53 +370,69 @@ section('5. flip: bands by the moment of the press; taps never flip');
   check(same(bands, ['보들보들:sizzle0', '노릇노릇:sizzle1', '바삭바삭:sizzle2']), 'aria words and sizzle only when the band changes (' + bands.join(' ') + ')');
 })();
 
-section('6. slice: least-squares angle, 6 deg steps, slant from 12 deg; the slash across');
+section('6. slice (11-18 \'+\'): every cut is exact (ang 0, tag straight); line 0 vertical, line 1 horizontal; the slash across');
 (function () {
-  [0, 1, 2, 3, 4].forEach(function (j) {
-    var straight = [0, 0], slant20 = [0, 0], slantN20 = 0;
-    for (var s = 1; s <= 200; s++) {
-      for (var li = 0; li < 2; li++) {
-        var seed = s * 31 + j * 7, g = geom(A, seed), rnd = rng32(s * 977 + j * 13 + li);
-        var r = runAt(A, seed, 2); if (li === 1) A.input(r, { t: r.t0 + 260, k: 'b' });
-        var ev = []; stroke(ev, guideDrag(g.lines[li], 0, 2, rnd, j), 300, HZ120, 5); A.feed(r, ev, { cadence: 60 });
-        if (r.st.lines[li].cut && Math.abs(r.st.lines[li].ang) < 12) straight[li]++;
-        var r2 = runAt(A, seed, 2); if (li === 1) A.input(r2, { t: r2.t0 + 260, k: 'b' });
-        var ev2 = []; stroke(ev2, guideDrag(g.lines[li], 20, 2, rng32(s * 1999 + j + li), j), 300, HZ120, 5); A.feed(r2, ev2, { cadence: 60 });
-        if (r2.st.lines[li].cut && Math.abs(r2.st.lines[li].ang) >= 12) slant20[li]++;
+  /* guides: line 0 vertical through the food centre (144, 172) logical, line 1 horizontal; offsets 0 for every seed */
+  var offBad = 0, geoBad = 0;
+  for (var sd = 1; sd <= 50; sd++) {
+    var ls = geom(A, sd).lines;
+    if (ls.some(function (l) { return l.off !== 0; })) offBad++;
+    var v = ls[0], h = ls[1];
+    if (!(ls.length === 2 && v.ax === 144 && v.bx === 144 && v.ay < 172 && v.by > 172 && v.ay + v.by === 344 &&
+      h.ay === 172 && h.by === 172 && h.ax < 144 && h.bx > 144 && h.ax + h.bx === 288)) geoBad++;
+  }
+  check(offBad === 0, 'guide offsets are 0 for seeds 1..50 (' + offBad + ' differ)');
+  check(geoBad === 0, 'line 0 is vertical and line 1 horizontal, both through (144, 172) logical, for seeds 1..50 (' + geoBad + ' differ)');
+  var g0 = geom(A, 1).lines;
+  check(g0[0].len === 88 && g0[1].len === 128, 'guide lengths: vertical 44 art px, horizontal 64 art px (' + g0[0].len + ' / ' + g0[1].len + ')');
+  /* any drag within tolerance cuts exactly: straight or tilted 12 / 20 / -20 deg, shifted 0 / 10 px, with jitter */
+  [0, 2, 4].forEach(function (j) {
+    var exact = [0, 0], tried = 0;
+    [0, 12, 20, -20].forEach(function (deg) {
+      for (var s = 1; s <= 40; s++) {
+        for (var li = 0; li < 2; li++) {
+          var seed = s * 31 + j * 7, g = geom(A, seed), rnd = rng32(s * 977 + j * 13 + li + deg);
+          var r = runAt(A, seed, 2); if (li === 1) A.input(r, { t: r.t0 + 260, k: 'b' });
+          var ev = []; stroke(ev, guideDrag(g.lines[li], deg, 2, rnd, j, 8, (s % 3 - 1) * 10), 300, HZ120, 5); A.feed(r, ev, { cadence: 60 });
+          var L = r.st.lines[li], cuts = A.drain(r).filter(function (e) { return e.type === 'cut' && e.i === li; });
+          if (li === 0) tried++;
+          if (L.cut && L.ang === 0 && L.off === 0 && cuts.length === 1 && cuts[0].ang === 0) exact[li]++;
+        }
       }
-      var r3 = runAt(A, s, 2), ev3 = []; stroke(ev3, guideDrag(geom(A, s).lines[0], -20, 2, rng32(s + 555), j), 300, HZ120, 5); A.feed(r3, ev3, { cadence: 60 });
-      if (r3.st.lines[0].ang <= -12) slantN20++;
-    }
-    console.log('   jitter ' + j + ' px: straight -> straight ' + straight.join(' / ') + ' · 20 deg -> slant ' + slant20.join(' / ') + ' · -20 deg -> slant ' + slantN20 + ' (of 200, line 0 / line 1)');
-    check(straight[0] >= 199 && straight[1] >= 199, 'jitter ' + j + ' px: straight drags -> straight ' + straight.join(' / ') + ' of 200 (line 0 / line 1)');
-    check(slant20[0] >= 199 && slant20[1] >= 199 && slantN20 >= 199, 'jitter ' + j + ' px: 20 deg drags -> slant ' + slant20.join(' / ') + ', -20 deg -> ' + slantN20 + ' of 200');
+    });
+    check(exact[0] === tried && exact[1] === tried, 'jitter ' + j + ' px: drags at 0 / 12 / 20 / -20 deg, up to 10 px beside the guide, cut exactly (ang 0) ' + exact.join(' / ') + ' of ' + tried + ' (line 0 / line 1)');
   });
-  var g = geom(A, 7), L0 = g.lines[0], mx = (L0.ax + L0.bx) / 2, my = L0.ay;
-  var r = runAt(A, 7, 2), ev = []; stroke(ev, line(mx + 3, my - 40, mx - 2, my + 40, 4), 300, HZ120, 1); A.feed(r, ev, { cadence: 60 });
-  check(r.st.lines[0].cut && r.st.lines[0].how === 'cross' && r.st.lines[0].ang === 0 && !r.st.lines[1].cut, 'one slash across the guide cuts that line, straight, and only that line');
-  var rA = runAt(A, 7, 2), eA = []; stroke(eA, line(L0.ax + 8, my - 40, L0.ax + 8, my + 40, 4), 300, HZ120, 1); A.feed(rA, eA, { cadence: 60 });
+  /* slashes across: line 0 is vertical, so a slash runs sideways across it */
+  function at(L, u, v) { return [L.ax + L.ux * u - L.uy * v, L.ay + L.uy * u + L.ux * v]; }   /* u along, v across (logical) */
+  function seg(L, u0, v0, u1, v1, step) { var p = at(L, u0, v0), q = at(L, u1, v1); return line(p[0], p[1], q[0], q[1], step); }
+  var g = geom(A, 7), L0 = g.lines[0], H = L0.len / 2;
+  var r = runAt(A, 7, 2), ev = []; stroke(ev, seg(L0, H - 3, -40, H + 2, 40, 4), 300, HZ120, 1); A.feed(r, ev, { cadence: 60 });
+  check(r.st.lines[0].cut && r.st.lines[0].how === 'cross' && r.st.lines[0].ang === 0 && !r.st.lines[1].cut, 'one slash across the guide cuts that line, exactly, and only that line');
+  var rA = runAt(A, 7, 2), eA = []; stroke(eA, seg(L0, 8, -40, 8, 40, 4), 300, HZ120, 1); A.feed(rA, eA, { cadence: 60 });
   check(!rA.st.lines[0].cut, 'a slash across the outer 15 % of the guide does not cut');
-  var a60 = 60 * Math.PI / 180, rB = runAt(A, 7, 2), eB = []; stroke(eB, line(mx - 40 * Math.cos(a60), my - 40 * Math.sin(a60), mx + 40 * Math.cos(a60), my + 40 * Math.sin(a60), 4), 300, HZ120, 1); A.feed(rB, eB, { cadence: 60 });
-  check(rB.st.lines[0].cut && rB.st.lines[0].how === 'cross', 'a 60 deg slash cuts');
-  var rC = runAt(A, 7, 2), eC = []; stroke(eC, line(mx - 4, my - 6, mx + 2, my + 6, 3), 300, HZ120, 1); A.feed(rC, eC, { cadence: 60 });
+  var a60 = 60 * Math.PI / 180, rB = runAt(A, 7, 2), eB = []; stroke(eB, seg(L0, H - 40 * Math.cos(a60), -40 * Math.sin(a60), H + 40 * Math.cos(a60), 40 * Math.sin(a60), 4), 300, HZ120, 1); A.feed(rB, eB, { cadence: 60 });
+  check(rB.st.lines[0].cut && rB.st.lines[0].how === 'cross' && rB.st.lines[0].ang === 0, 'a 60 deg slash cuts, exactly');
+  var rC = runAt(A, 7, 2), eC = []; stroke(eC, seg(L0, H - 6, -4, H + 6, 2, 3), 300, HZ120, 1); A.feed(rC, eC, { cadence: 60 });
   check(!rC.st.lines[0].cut, 'a 13 px wiggle across the guide (a tap) does not cut');
-  var rD = runAt(A, 7, 2), eD = []; stroke(eD, line(L0.ax - 10, my + 20, L0.bx + 10, my + 20, 3), 300, HZ120, 1); A.feed(rD, eD, { cadence: 60 });
-  check(rD.st.lines[0].cut, 'a drag 20 px beside the guide still cuts (band ' + rD.st.band + ' px)');
-  var rE = runAt(A, 7, 2), eE = []; stroke(eE, line(L0.ax - 10, my + 40, L0.bx + 10, my + 40, 3), 300, HZ120, 1); A.feed(rE, eE, { cadence: 60 });
+  var rD = runAt(A, 7, 2), eD = []; stroke(eD, seg(L0, -10, 20, L0.len + 10, 20, 3), 300, HZ120, 1); A.feed(rD, eD, { cadence: 60 });
+  check(rD.st.lines[0].cut && rD.st.lines[0].ang === 0, 'a drag 20 px beside the guide still cuts, on the guide (band ' + rD.st.band + ' px)');
+  var rE = runAt(A, 7, 2), eE = []; stroke(eE, seg(L0, -10, 40, L0.len + 10, 40, 3), 300, HZ120, 1); A.feed(rE, eE, { cadence: 60 });
   check(!rE.st.lines[0].cut && rE.st.lines[0].n === 0, 'a drag 40 px beside the guide paints nothing (no penalty)');
-  var rF = runAt(A, 7, 2), eF = [], t = stroke(eF, line(L0.ax - 5, my, mx, my, 3), 300, HZ120, 1); stroke(eF, line(mx - 4, my + 1, L0.bx + 5, my - 1, 3), t + 400, HZ120, 2); A.feed(rF, eF, { cadence: 60 });
+  var rF = runAt(A, 7, 2), eF = [], t = stroke(eF, seg(L0, -5, 0, H, 0, 3), 300, HZ120, 1); stroke(eF, seg(L0, H - 4, 1, L0.len + 5, -1, 3), t + 400, HZ120, 2); A.feed(rF, eF, { cadence: 60 });
   check(rF.st.lines[0].cut && rF.st.lines[0].how === 'drag', 'two half strokes (lift and continue) cut');
-  var rG = runAt(A, 7, 2), eG = []; stroke(eG, [[L0.ax - 5, my + 1], [mx, my - 2], [L0.bx + 5, my + 1]], 300, 16, 1); A.feed(rG, eG, { cadence: 60 });
+  var rG = runAt(A, 7, 2), eG = []; stroke(eG, [at(L0, -5, 1), at(L0, H, -2), at(L0, L0.len + 5, 1)], 300, 16, 1); A.feed(rG, eG, { cadence: 60 });
   check(rG.st.lines[0].cut, 'a 3-sample flick (no coalesced events) cuts');
-  var rH = runAt(A, 7, 2); A.input(rH, { t: rH.t0 + 300, k: 'd', x: 100, y: 100, p: 't', id: 1 }); A.input(rH, { t: rH.t0 + 310, k: 'd', x: L0.ax, y: my, p: 't', id: 2 });
-  for (var q = 1; q <= 40; q++) A.input(rH, { t: rH.t0 + 310 + q * 8, k: 'm', x: L0.ax + q * 4, y: my, p: 't', id: 2 });
+  var rH = runAt(A, 7, 2), p0 = at(L0, 0, 0); A.input(rH, { t: rH.t0 + 300, k: 'd', x: 40, y: 100, p: 't', id: 1 }); A.input(rH, { t: rH.t0 + 310, k: 'd', x: p0[0], y: p0[1], p: 't', id: 2 });
+  for (var q = 1; q <= 40; q++) { var pq = at(L0, q * 4, 0); A.input(rH, { t: rH.t0 + 310 + q * 8, k: 'm', x: pq[0], y: pq[1], p: 't', id: 2 }); }
   check(rH.st.lines[0].n === 0, 'a second finger is ignored while the first is down (slice follows one finger)');
   var tags = A.simulate('jeon', 7, [[], [], []]).steps.map(function (x) { return x.status; });
   check(same(tags, ['open', 'open', 'open']), 'simulate with no events finishes nothing');
-  var sl = A.simulate('jeon', 3, fullPath(3, { deg0: 20, deg1: 0, j: 1 }));
-  check(sl.done && sl.steps[2].tag === 'slant' && Math.abs(sl.look.cuts[0]) >= 12 && Math.abs(sl.look.cuts[1]) < 12, 'one of two lines slanted -> step tag slant (half or more)');
+  var sl = A.simulate('jeon', 3, fullPath(3, { deg0: 20, deg1: -24, j: 3 }));
+  check(sl.done && sl.steps[2].tag === 'straight' && same(sl.look.cuts, [0, 0]) && same(sl.look.offs, [0, 0]), 'slanted drags on both lines -> step tag straight, look cuts / offs all 0');
   var st2 = A.simulate('jeon', 3, fullPath(3, { deg0: 0, deg1: 0, j: 1 }));
   check(st2.done && st2.steps[2].tag === 'straight', 'both straight -> straight');
+  var bt = runAt(A, 9, 2); A.input(bt, { t: bt.t0 + 260, k: 'b' }); A.input(bt, { t: bt.t0 + 300, k: 'b' });
+  check(bt.st.done && bt.st.tag === 'straight' && bt.st.lines.every(function (l) { return l.cut && l.ang === 0; }), 'the verb button cuts the lit lines exactly too');
 })();
 
 section('7. tap: every pointerdown, two fingers, 90 ms merge, hold on a fixed schedule');
@@ -551,6 +575,20 @@ section('10. pot rules');
   var st = A.normStore('{"v":1,"day":"2026-11-08","dayN":3,"seen":["tap","flip","tap","<x>"],"pot":{"ver":"cook-1"},"book":[{"id":"ck_1","recipe":"jeon","seed":1,"look":{}},7,{"id":2}]}');
   check(st.dayN === 3 && same(st.seen, ['tap', 'flip']) && st.book.length === 1 && st.pot && st.pot.ver === 'cook-1', 'normStore keeps good parts of a saved key and drops junk');
   check(same(A.normStore('{{{'), { v: 1, day: '', dayN: 0, seen: [], pot: null, book: [] }), 'normStore: broken text -> an empty store');
+  /* 11-15 potOld: an unresumable pot is kept, never deleted: normStore passes a valid potOld through (array, newest first,
+     at most 4 plain objects) and drops junk entries (not a plain object). Round 5 check O-6: of any size (a pot over
+     2048 bytes was dropped on the next read) */
+  var keep = [{ ver: 'cook-0', recipe: 'jeon', si: 1 }, { big: 'z'.repeat(2100) }, { ver: 'cook-1', tune: 1, si: 9 }, { a: 1 }, { b: 2 }, { c: 3 }];
+  var potIn = { v: 1, day: '2026-11-08', dayN: 3, seen: [], pot: null, book: [], potOld: [keep[0], 7, 'x', null, [1], keep[1], keep[2], keep[3], keep[4], keep[5]] };
+  var po = A.normStore(JSON.stringify(potIn)).potOld;
+  check(same(po, keep.slice(0, 4)), 'normStore keeps a valid potOld (plain objects of any size, at most 4, order kept) and drops junk (' + String(js(po)).slice(0, 80) + ')');
+  /* round 5 check O-6: begin() moves an unresumable pot into potOld whole ([pot].concat(potOld).slice(0, 4)); a pot over
+     TUNE.pot.maxBytes stays there byte for byte through every later read and write */
+  var bigPot = { ver: 'cook-1', tune: 12345, runId: 'ck_abc', seed: 5, recipe: 'jeon', swaps: { herb: 'parae' }, si: 1, looks: [{ dents: [] }], tags: [null], at: 0, pad: 'z'.repeat(2150) };
+  var bigText = JSON.stringify(bigPot), moved = A.normStore({ v: 1, day: '2026-11-08', dayN: 3, seen: [], pot: null, book: [], potOld: [bigPot, keep[0]] });
+  var again1 = A.normStore(JSON.stringify(moved)), again2 = A.normStore(JSON.stringify(again1));
+  check(bigText.length > A.TUNE.pot.maxBytes && A.resumeRun(bigPot) === null && again2.potOld && JSON.stringify(again2.potOld[0]) === bigText && same(again2.potOld[1], keep[0]) && A.TUNE_HASH === 2827089308,
+    'O-6: a ' + bigText.length + '-byte pot in potOld survives two more reads byte for byte (TUNE_HASH ' + A.TUNE_HASH + ')');
   var store = A.normStore(null);
   for (var k2 = 0; k2 < 301; k2++) A.bookAdd(store, { id: 'ck_' + k2.toString(36), recipe: 'jeon', seed: k2, swaps: {}, look: { v: 1 }, day: '2026-11-08', madeAt: k2 });
   check(store.book.length === 300 && store.book[0].id === 'ck_' + (300).toString(36) && store.book[299].id === 'ck_1', 'book: newest first, the 301st line drops the oldest');
@@ -565,7 +603,7 @@ section('11. result envelope');
   var res = A.resultOf(run, { madeAt: 1762576800000, day: '2026-11-08' });
   check(res && res.ms === null && res.status === 'done' && res.by === 'user' && res.game === 'cook' && res.v === 1, 'ms is null, status done, by user, game cook');
   check(res.out.dish.id === 'jeon' && res.out.dish.name === '해초전' && res.out.dish.tier === 1 && same(res.out.dish.ingredients, ['batter', res.out.swaps.herb]), 'dish { id, name, tier, ingredients } with the seeded herb');
-  check(same(res.out.steps.map(function (s) { return s.tag; }), [null, 'golden', 'slant']), 'steps carry food tags only (' + js(res.out.steps) + ')');
+  check(same(res.out.steps.map(function (s) { return s.tag; }), [null, 'golden', 'straight']), 'steps carry food tags only; a 20 deg drag still cuts straight (' + js(res.out.steps) + ')');
   var ALLOW = { '': ['v', 'id', 'by', 'game', 'status', 'ms', 'out'], out: ['dish', 'recipe', 'seed', 'swaps', 'steps', 'look', 'madeAt', 'day'], 'out.dish': ['id', 'name', 'tier', 'ingredients'],
     'out.swaps': ['herb'], 'out.steps[]': ['kind', 'status', 'tag'], 'out.look': ['v', 'dents', 'band', 'cuts', 'offs', 'plate'] };
   var keyOk = true, banned = /score|grade|rank|fail|best|star|percent|accuracy|time|duration/i, bannedHit = [];
@@ -583,7 +621,8 @@ section('11. result envelope');
   var line = A.bookLine(res);
   check(same(Object.keys(line).sort(), ['day', 'id', 'look', 'madeAt', 'recipe', 'seed', 'swaps']), 'book line = { id, recipe, seed, swaps, look, day, madeAt } (no other time field)');
   check(A.resultOf(runAt(A, 1, 2)) === null, 'an unfinished run gives no result');
-  check(A.describe('jeon', res.out.steps.map(function (s) { return s.tag; })) === '해초전. 노릇노릇 구웠어. 어슷하게 썰었어.', 'plate description: ' + A.describe('jeon', [null, 'golden', 'slant']));
+  check(A.describe('jeon', res.out.steps.map(function (s) { return s.tag; })) === '해초전. 노릇노릇 구웠어. 반듯하게 썰었어.', 'plate description: ' + A.describe('jeon', res.out.steps.map(function (s) { return s.tag; })));
+  check(A.describe('jeon', [null, 'golden', 'slant']) === '해초전. 노릇노릇 구웠어. 어슷하게 썰었어.', 'an old book tag slant still reads back (' + A.describe('jeon', [null, 'golden', 'slant']) + ')');
   var evs = A.simulate('jeon', 5, fullPath(5), { run: true }).run.ev, acts = {};
   evs.forEach(function (e) { if (e.snd) acts[e.snd.act] = 1; });
   check(Object.keys(acts).every(function (a) { return ['tap', 'cut', 'stir', 'sizzle', 'flip', 'quiet', 'lift', 'place', 'back', 'step', 'done'].indexOf(a) >= 0; }) && acts.tap && acts.cut && acts.sizzle && acts.flip && acts.step && acts.quiet && acts.done, 'sound acts come from the act table only (' + Object.keys(acts).join(' ') + ')');
@@ -620,7 +659,9 @@ section('12. drawDish');
   check(okInts, 'every look value is an integer');
   check(okSame, 'same input -> same pixel hash (twice, and in the other instance)');
   check(okPal, 'every pixel is opaque Apollo 46 or transparent');
-  check(Object.keys(distinct).length >= 25, 'different hands leave different dishes (' + Object.keys(distinct).length + '/30 distinct)');
+  /* round 6 '+': cuts are exact, so only dents, band and plate vary; measured 11-18: 30 of 30, pinned at 27 */
+  console.log('   distinct dishes ' + Object.keys(distinct).length + ' / 30');
+  check(Object.keys(distinct).length >= 27, 'different hands leave different dishes (' + Object.keys(distinct).length + '/30 distinct; dents, band and plate vary)');
   var def = hashImg(A.drawDish('jeon', null, 5, 64, 48)), throws = false, defOk = true;
   [{ v: 2, band: 2 }, { v: 1, dents: 'x', band: 9, cuts: [7, 1e9], plate: 7 }, 'junk', [], { v: 1, dents: [[1.5, 2]] }, { v: 1, cuts: [0] }].forEach(function (lk) {
     try { var im = A.drawDish('jeon', lk, 5, 64, 48); if (hashImg(im) !== def || !colorsOk(im)) defOk = false; } catch (e) { throws = true; }
@@ -649,7 +690,19 @@ section('12b. js/cook-art.js (when present): shared geometry and the dish painte
   check(same(G.box0, box) && F.batter.w === 64 && F.batter.h === 48, 'food box: TUNE.food origin = GEO.box0 ' + js(G.box0) + ', 64 x 48');
   check(same(G.food.rx, F.batter.rx) && same(G.food.ry, F.batter.ry) && F.jeon.rx[0] === G.food.rx[2] && F.jeon.ry[0] === G.food.ry[2], 'batter outline per stage: TUNE.food.batter rx/ry = GEO.food rx/ry');
   check(same(G.markBase, IW.TUNE.tap.at), 'tap marks: TUNE.tap.at = GEO.markBase');
-  check(same(G.cross, [0, 90]) && IW.recipe('jeon').steps[2].cross, 'cut order: line 0 horizontal, line 1 vertical = GEO.cross');
+  /* round 6: the sim cuts vertical first; the look keeps GEO.cross order (look index 0 = horizontal). Mark each sim line
+     with its own angle and check that look.cuts[k] belongs to the line whose direction is GEO.cross[k]. */
+  (function () {
+    var r6 = IW.createRun('jeon', 41), st = IW.KIND.slice.init(IW.recipe('jeon').steps[2], IW.stepSeed(41, 2), IW.TUNE.food.jeon), ok = st.lines.length === 2;
+    st.lines.forEach(function (l, i) { l.ang = 6 * (i + 1); l.off = i + 1; });
+    var lk = IW.KIND.slice.look(st);
+    st.lines.forEach(function (l, i) {
+      var deg = Math.round(Math.atan2(l.uy, l.ux) * 180 / Math.PI), k = G.cross.indexOf(deg);
+      if (k < 0 || lk.cuts[k] !== 6 * (i + 1) || lk.offs[k] !== i + 1) ok = false;
+    });
+    check(r6 && ok && same(G.cross, [0, 90]) && IW.recipe('jeon').steps[2].cross, 'cut order: look index k is the line at GEO.cross[k] (0 horizontal, 90 vertical) whatever order the sim cuts in (' + js(lk) + ')');
+    check(Math.round(Math.atan2(st.lines[0].uy, st.lines[0].ux) * 180 / Math.PI) === 90, 'the sim lights the vertical line first');
+  })();
   check(G.dish && G.dish.w === IW.TUNE.dish.w && G.dish.h === IW.TUNE.dish.h, 'drawDish default size = GEO.dish');
   function hashImg(img) { var h = 0x811c9dc5; for (var i = 0; i < img.d.length; i++) { h ^= img.d[i]; h = Math.imul(h, 0x01000193); } return h >>> 0; }
   var set = {}; sb.COOK_ART.APOLLO.concat(sb.COOK_ART.FOOD || []).forEach(function (h) { set[h] = 1; });   /* props Apollo, food FOOD */
@@ -669,8 +722,8 @@ section('15. verifier fixes (slice 1 second pass)');
 (function () {
   /* slice guides fit the food along their own axis: a stroke over the whole jeon (and over 90 % of it) cuts each line */
   var J = A.TUNE.food.jeon, S2 = A.TUNE.slice, g = geom(A, 1);
-  check(g.lines[0].len === Math.min(S2.len, 2 * (J.rx[0] + S2.over) * 2) && g.lines[1].len === Math.min(S2.len, 2 * (J.ry[0] + S2.over) * 2) && g.lines[0].len === 128 && g.lines[1].len === 88,
-    'slice guides: food size + ' + S2.over + ' art px at each end along their own axis (64 / 44 art px)');
+  check(g.lines[1].len === Math.min(S2.len, 2 * (J.rx[0] + S2.over) * 2) && g.lines[0].len === Math.min(S2.len, 2 * (J.ry[0] + S2.over) * 2) && g.lines[1].len === 128 && g.lines[0].len === 88,
+    'slice guides: food size + ' + S2.over + ' art px at each end along their own axis (vertical line 0: 44, horizontal line 1: 64 art px)');
   var cutOk = [0, 0], tried = 0;
   [1, 0.9].forEach(function (frac) {
     for (var s = 1; s <= 40; s++) for (var li = 0; li < 2; li++) {
@@ -724,7 +777,7 @@ section('14. static checks');
   function noComments(src) { return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1'); }
   check(!/Date\.now|performance\.now/.test(sim), 'simulation half: no Date.now / performance.now (comments included)');
   check(!/\bdocument\.|\bwindow\.|localStorage|sessionStorage|setTimeout|setInterval|requestAnimationFrame|\bnew Date\b/.test(noComments(sim)), 'simulation half: no DOM, storage, timers or Date');
-  var files = ['js/cook.js', 'js/cook-art.js', 'css/cook.css', 'cook.html'].filter(function (f) { return fs.existsSync(path.join(ROOT, f)); });
+  var files = ['js/cook.js', 'js/cook-art.js', 'js/cook-dishes.js', 'js/cook-sprites.js', 'css/cook.css', 'cook.html'].filter(function (f) { return fs.existsSync(path.join(ROOT, f)); });
   console.log('   scanning: ' + files.join(', '));
   var BANNED = ['맛있', '좋아해', '좋아하', '먹고 싶', '기다렸', '아쉽', '미안', '실패', '성공', '점수', '완벽', '최고', '잘했', '탔', '등급', '메달', '마마', 'Mama'];
   var ks = (function () {   /* KS X 1001: decode every EUC-KR Hangul code (rows 4 jamo, 16-40 syllables) */
@@ -735,10 +788,14 @@ section('14. static checks');
   })();
   check(ks.syllables === 2350, 'EUC-KR table gives the 2,350 KS X 1001 syllables');
   function ksOk(ch) { var b = ks.map[ch]; return !!b && new TextDecoder('euc-kr').decode(Buffer.from(b)) === ch; }
+  /* round 5 check T-10: cook.html reads the game's font choice with credits.html's own line (a read, never a write), so
+     its closed page follows the pixel-font-off setting; that one line, exactly as in credits.html, is the only exception */
+  var FONT_PREF = (fs.readFileSync(path.join(ROOT, 'credits.html'), 'utf8').match(/<script>try \{ var raw = localStorage\.getItem\('ppolppol_v2'\)[^\n]*<\/script>/) || [''])[0];
+  check(FONT_PREF.length > 0 && !/setItem/.test(FONT_PREF), "credits.html's font-choice line is there and only reads");
   files.forEach(function (f) {
-    var text = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    var text = fs.readFileSync(path.join(ROOT, f), 'utf8'), own = f === 'cook.html' && FONT_PREF ? text.split(FONT_PREF).join('') : text;
     check(!/Math\.random/.test(text), f + ': no Math.random');
-    check(!/ppolppol_v2/.test(text) && !/\bAPP\./.test(text) && !/\bS\./.test(text) && !/BRAIN/.test(text), f + ': no main-game save key, APP., S. or BRAIN');
+    check(!/ppolppol_v2/.test(own) && !/\bAPP\./.test(text) && !/\bS\./.test(text) && !/BRAIN/.test(text), f + ': no main-game save key, APP., S. or BRAIN' + (f === 'cook.html' ? " (besides credits.html's font-choice line)" : ''));
     var hits = BANNED.filter(function (w) { return text.indexOf(w) >= 0; });
     check(hits.length === 0, f + ': no banned word' + (hits.length ? ' (' + hits.join(', ') + ')' : ''));
     check(text.indexOf('요리 수첩에 넣었어') < 0, f + ": slice 1 has no notebook, so no '요리 수첩에 넣었어'");
@@ -748,8 +805,8 @@ section('14. static checks');
   var noStr = SRC.replace(MARK, '').replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g, "''");
   var nonAscii = noStr.match(/[^\x00-\x7F]/g) || [];
   check(nonAscii.length === 0, 'js/cook.js: comments and code are ASCII (Korean only inside strings)' + (nonAscii.length ? ' (' + nonAscii.slice(0, 10).join('') + ')' : ''));
-  var VOCAB = ['부엌', '닫기', '요리 수첩', '돌아가기', '이어서', '미역국', '해초전', '톳 주먹밥', '썰기', '톡톡', '젓기', '불 켜기', '뒤집기', '올리기', '보들보들', '노릇노릇', '바삭바삭', '반쯤', '한 줄', '하나 올렸어', '다 됐어',
-    '요리 수첩에 넣었어', '아직 비어 있어', '반듯하게 썰었어', '어슷하게 썰었어', '꾹꾹 눌렀어', '보들보들하게 구웠어', '노릇노릇 구웠어', '바삭바삭하게 구웠어', '세 개 올렸어', '보러 가기', '두부', '바다포도', '김', '깨', '파래', '톳'];
+  var VOCAB = ['부엌', '닫기', '다시', '요리 수첩', '돌아가기', '이어서', '미역국', '해초전', '톳 주먹밥', '썰기', '톡톡', '젓기', '불 켜기', '뒤집기', '올리기', '보들보들', '노릇노릇', '바삭바삭', '반쯤', '한 줄', '하나 올렸어', '다 됐어',
+    '요리 수첩에 넣었어', '아직 비어 있어', '반듯하게 썰었어', '어슷하게 썰었어', '꾹꾹 눌렀어', '보들보들하게 구웠어', '노릇노릇 구웠어', '바삭바삭하게 구웠어', '세 개 올렸어', '보러 가기', '두부', '바다포도', '김', '깨', '파래', '톳', '주먹밥', '과일 꼬치'];
   var BAD = /[^\sA-Za-z0-9.,!?:;'"()\/%+~\-ᄀ-ᇿ㄰-㆏가-힣·…‘’“”—–]/gu, EMOTE = /zZ|Zz|\^\^|<3|[:;]-?[()]|T_T|>_</g;
   var leaves = [];
   (function walk(o) { if (typeof o === 'string') leaves.push(o); else if (o && typeof o === 'object') Object.keys(o).forEach(function (k) { walk(o[k]); }); })(A.WORDS);
@@ -813,7 +870,8 @@ section('16. js/cook-art.js look: palette, determinism, the 96-frame loop, heat 
     'board': prop(function (b) { K.board(b, 10, 36, 124, 100, false, false); K.board(b, 20, 20, 40, 30, true, true); }),
     'spatula': prop(function (b) { K.spatula(b, 72, 80); }), 'arrow': prop(function (b) { K.arrow(b, 72, 60, 0); K.arrow(b, 40, 60, 1); }),
     'guide': prop(function (b) { K.guide(b, 72, 85, 0, 64, 3, null); K.guide(b, 72, 86, 90, 48, 5, null); }),
-    'knife': prop(function (b) { K.knife(b, 100, 124, 0); K.knife(b, 60, 60, 24); }),
+    'knife': prop(function (b) { K.knife(b, 100, 124, 0); K.knife(b, 60, 60, 24); K.knife(b, 30, 30, 90); }),
+    'bell': prop(function (b) { [0, 1, 2, 9].forEach(function (f, k) { K.bell(b, 20 + 30 * k, 40, f); }); K.bell(b, 40, 100, 3, true); }),
     'plates': prop(function (b) { [0, 1, 2].forEach(function (c) { K.plate(b, c, { cx: 30 + 40 * c, cy: 60, rx: 18, ry: 10 }); }); }),
     'hand': prop(function (b) { K.hand(b, { kind: 'tap', x: 40, y: 60, f: 1 }); K.hand(b, { kind: 'flick', x: 90, y: 100, f: 2 }); K.hand(b, { kind: 'line', x0: 30, y0: 120, x1: 110, y1: 120, f: 3 }); }),
     'frame': prop(function (b) { K.frame(b); }), 'counter (empty)': prop(function (b) { K.counter(b, {}); })
@@ -940,6 +998,245 @@ section('16. js/cook-art.js look: palette, determinism, the 96-frame loop, heat 
     var t0 = process.hrtime.bigint(); for (k = 0; k < 200; k++) fn(k + 30); worst = Math.max(worst, Number(process.hrtime.bigint() - t0) / 1e6 / 200);
   });
   check(worst < 2, 'art: warm frames under 2 ms on desktop node (worst ' + worst.toFixed(2) + ' ms)');
+})();
+
+section('17. close-up art (11-15): seam, bleed periods, carry continuity, REV2, stove, icons, shake, determinism');
+(function () {
+  var ART = path.join(ROOT, 'js/cook-art.js'); if (!fs.existsSync(ART)) return;
+  function fresh() { var sb = {}; vm.createContext(sb); vm.runInContext(fs.readFileSync(ART, 'utf8'), sb, { filename: 'cook-art.js' }); return sb.COOK_ART; }
+  var K = fresh(), K2 = fresh(), W = K.W, H = K.H, F = K.F, PAL = K.PAL, GEO = K.GEO, x, y, i;
+  var M9 = [[18, 19], [16, 21], [20, 18], [47, 18], [49, 20], [45, 17], [33, 32], [31, 30], [35, 33]];
+  var LOOK = { v: 1, dents: M9, band: 2, cuts: [6, -12], offs: [2, -3], plate: 1 };
+  function shot(L, fn, o) { var b = L.blank(W, H); L[fn](b, o); return b; }
+  function px(b, X, Y) { var q = (Y * b.w + X) << 2; return b.d[q + 3] ? (b.d[q] << 16) | (b.d[q + 1] << 8) | b.d[q + 2] : -1; }
+  function eqb(a, b) { return a.w === b.w && a.h === b.h && Buffer.compare(Buffer.from(a.d.buffer, a.d.byteOffset, a.d.byteLength), Buffer.from(b.d.buffer, b.d.byteOffset, b.d.byteLength)) === 0; }
+  function hx(h) { return parseInt(h.slice(1), 16); }
+  var APO = {}; K.APOLLO.forEach(function (h) { APO[hx(h)] = 1; });
+  function apolloOnly(b) { for (var q = 0; q < b.d.length; q += 4) { if (!b.d[q + 3]) continue; if (b.d[q + 3] !== 255 || !APO[(b.d[q] << 16) | (b.d[q + 1] << 8) | b.d[q + 2]]) return false; } return true; }
+  function alphaOk(b) { for (var q = 3; q < b.d.length; q += 4) if (b.d[q] !== 0 && b.d[q] !== 255) return false; return true; }
+  check(['view', 'base', 'carry', 'bgStove'].every(function (k) { return typeof K[k] === 'function'; }), 'COOK_ART exports view, base, carry and bgStove');
+  check(same(GEO.rest.spatula, [100, 114]) && same(GEO.bell, [102, 44]) && same(GEO.flipArrow, [72, 110]) && same(GEO.knob, [96, 148]) && same(GEO.knob0, [48, 148]) && same(GEO.knobDot, [106, 142]) &&
+    same(GEO.rev2, { pcx: 72, pcy: 89, prx: 39, pry: 26, rim: 5, pth: 3, jcx: 72, jcy: 86, jrx: 29, jry: 19, soy: [98, 54, 9, 5], glints: [3, 9], garnish: 8, shadow: 2, thick: 2 }),
+    'GEO: rest.spatula (11-18 [100, 114]), bell, flipArrow, knob, knob0, knobDot and rev2 as in the spec');
+  /* (a) seam: view() into an 84 x 190 buffer equals the stage background inside the stage interior, 0 differing pixels */
+  var STATIONS = ['counter', 'stove', 'board', 'plate'], OFFS = [[-32, 0], [-32, -11], [-31, 10]];
+  var BG = { counter: shot(K, 'base', { station: 'counter' }), stove: (function () { var b = K.blank(W, H); K.bgStove(b, false); return b; })() };
+  var seamBad = 0, seamN = 0;
+  STATIONS.forEach(function (st) {
+    var ref = BG[st === 'stove' ? 'stove' : 'counter'];
+    OFFS.forEach(function (o) {
+      var V = K.blank(84, 190); K.view(V, { station: st, ox: o[0], oy: o[1] });
+      for (var sy = 2; sy < H - 2; sy++) for (var sx = 2; sx < W - 2; sx++) {
+        var bx = sx + o[0], by = sy + o[1]; if (bx < 0 || by < 0 || bx >= V.w || by >= V.h) continue;
+        seamN++; if (px(V, bx, by) !== px(ref, sx, sy)) seamBad++;
+      }
+      for (var q = 3; q < V.d.length; q += 4) if (V.d[q] !== 255) seamBad++;   /* every pixel of the buffer is painted */
+    });
+  });
+  check(seamBad === 0 && seamN > 40000, '(a) seam: view() = the stage background inside the interior for 4 stations x 3 offset pairs (' + seamBad + ' differing of ' + seamN + ')');
+  var V0 = K.blank(84, 190), V1 = K.blank(84, 190), colsOk = true;
+  K.view(V0, { station: 'stove', ox: -32, oy: -11 }); K.view(V1, { station: 'stove', ox: -32, oy: -11, x0: 20, x1: 50 });
+  for (y = 0; y < 190; y++) for (x = 0; x < 84; x++) { var want = x >= 20 && x < 50 ? px(V0, x, y) : -1; if (px(V1, x, y) !== want) colsOk = false; }
+  check(colsOk, '(a) view() paints only columns x0..x1-1');
+  /* (b) bleed periods: the wall repeats every 7 rows above stage row 2; below row 157 the wood's glue lines are 11 apart */
+  var wallOk = true;
+  ['counter', 'stove'].forEach(function (st) {
+    var V = K.blank(40, 80); K.view(V, { station: st, ox: -20, oy: 50 });
+    for (y = 0; y + 7 < 50 + 18; y++) for (x = 0; x < 40; x++) if (px(V, x, y) !== px(V, x, y + 7)) wallOk = false;
+  });
+  check(wallOk, '(b) bleed: the plank wall repeats every 7 rows from far above the stage down to its trim (counter and stove)');
+  var VW = K.blank(48, 300), glue = [];
+  K.view(VW, { station: 'counter', ox: -40, oy: 0 });
+  function lum(c) { return ((c >> 16) & 255) * 299 + ((c >> 8) & 255) * 587 + (c & 255) * 114; }
+  function uni(Y) { var c = px(VW, 0, Y); for (var X = 1; X < VW.w; X++) if (px(VW, X, Y) !== c) return -1; return c; }
+  for (y = 158; y < 298; y++) { var u0 = uni(y), u1 = uni(y + 1); if (u0 >= 0 && u1 >= 0 && lum(u1) > lum(u0)) glue.push(y); }
+  var gaps = glue.slice(1).map(function (g, k) { return g - glue[k]; });
+  check(glue.length >= 10 && gaps.every(function (g) { return g === 11; }), '(b) bleed: below stage row 157 the wood strips stay 11 rows tall (glue lines at ' + glue.slice(0, 4).join(', ') + ' ...)');
+  /* (c) carry continuity: every pixel carry() paints at lift 0 without a shadow equals the still scene's pixel */
+  function contin(C, S) { var n = 0, bad = 0; for (var Y = 2; Y < H - 2; Y++) for (var X = 2; X < W - 2; X++) { var c = px(C, X, Y); if (c < 0) continue; n++; if (c !== px(S, X, Y)) bad++; } return [n, bad]; }
+  var CUTL = [{ x: 72, y: 86 + LOOK.offs[0], deg: 0, len: 64, cut: true, cutDeg: 0 + LOOK.cuts[0] }, { x: 72 + LOOK.offs[1], y: 86, deg: 90, len: 48, cut: true, cutDeg: 90 + LOOK.cuts[1] }];
+  var UNCUT = CUTL.map(function (l) { return { x: l.x, y: l.y, deg: l.deg, len: l.len }; });
+  var cc = [];
+  [['pan', shot(K, 'flipScene', { heat: false, band: 0, dents: M9, f: 0, spatula: null }), { what: 'pan', dents: M9, band: 0 }],
+    ['jeon', shot(K, 'sliceScene', { band: 2, dents: M9, lines: UNCUT, cur: -1, knife: null, f: 0 }), { what: 'jeon', dents: M9, band: 2 }],
+    ['cut', shot(K, 'sliceScene', { band: 2, dents: M9, lines: CUTL, cur: -1, knife: null, f: 0 }), { what: 'cut', look: LOOK }]].forEach(function (T) {
+    var C = K.blank(W, H), o = Object.assign({ x: 72, y: 86, lift: 0, shadow: false }, T[2]); K.carry(C, o);
+    var r = contin(C, T[1]); cc.push(T[0] + ' ' + r[1] + '/' + r[0]);
+    check(r[0] > 1500 && r[1] === 0, '(c) carry ' + T[0] + ': its pixels equal the still scene (' + r[1] + ' mismatching of ' + r[0] + ')');
+  });
+  var C3 = K.blank(W, H); K.carry(C3, { what: 'cut', x: 72, y: 86, lift: 2, shadow: false, look: LOOK });
+  var r3 = contin(C3, shot(K, 'revealScene', { geo: 'close', look: LOOK, t: 3 }));
+  check(r3[0] > 1500 && r3[1] === 0, '(c) carry cut at lift 2 = REV2 at t 3 (' + r3[1] + ' mismatching of ' + r3[0] + ')');
+  var CS = K.blank(W, H), CN = K.blank(W, H); K.view(CS, { station: 'counter' }); K.view(CN, { station: 'counter' });
+  K.carry(CS, { what: 'jeon', dents: M9, band: 1 }); K.carry(CN, { what: 'jeon', dents: M9, band: 1, shadow: false });
+  var shN = 0, shBad = 0; for (y = 0; y < H; y++) for (x = 0; x < W; x++) if (px(CS, x, y) !== px(CN, x, y)) { shN++; if ((x + y) & 1) shBad++; }
+  check(shN > 40 && shBad === 0, '(c) carry shadow: a 50 % checker of one-step-darker pixels (' + shN + ' px)');
+  var CL = K.blank(30, 20); K.carry(CL, { what: 'pan', x: 5, y: 5 });
+  check(alphaOk(CL), '(c) carry clips to any buffer (a 30 x 20 buffer, the pan mostly outside)');
+  /* (d) REV2: bounds, the timeline, garnish only from t 5, the 96-frame loop */
+  var rest = shot(K, 'revealScene', { geo: 'close', look: LOOK }), out = 0, inSoy = function (X, Y) { return X >= 86 && X <= 112 && Y >= 45 && Y <= 66; };
+  for (y = 2; y < H - 2; y++) for (x = 2; x < W - 2; x++) if (px(rest, x, y) !== px(BG.counter, x, y) && (x < 33 || x > 111) && !inSoy(x, y)) out++;
+  check(out === 0, '(d) REV2 at rest: every plate and jeon pixel lies in stage x 33..111 (except the soy dish): ' + out + ' outside');
+  var T = {}; [0, 3, 4, 5, 6].forEach(function (t) { T[t] = shot(K, 'revealScene', { geo: 'close', look: LOOK, t: t, seed: 3 }); });
+  check(eqb(T[0], T[3]) && !eqb(T[3], T[4]) && !eqb(T[4], T[5]) && !eqb(T[5], T[6]) && !eqb(T[3], T[6]), '(d) REV2 frames: t 0..3 the same, t 3 / 4 / 5 / 6 all differ');
+  var CHILI = {}; [F.C0, F.C1, F.C2].forEach(function (h) { CHILI[hx(h)] = 1; });
+  function garn(b) { var n = 0; for (var Y = 64; Y < 120; Y++) for (var X = 33; X <= 111; X++) if (CHILI[px(b, X, Y)]) n++; return n; }
+  var gn = [3, 4, 5, 6].map(function (t) { return garn(T[t]); }).concat([garn(rest)]);
+  check(gn[0] === 0 && gn[1] === 0 && gn[2] > 0 && gn[3] > 0 && gn[4] > 0, '(d) REV2 garnish appears only from t 5 (chili px at t 3 / 4 / 5 / 6 / rest: ' + gn.join(' / ') + ')');
+  function foodW(b) { var lo = 999, hi = -1, FS = {}; K.FOOD.forEach(function (h) { FS[hx(h)] = 1; }); for (var Y = 70; Y < 104; Y++) for (var X = 2; X < W - 2; X++) if (FS[px(b, X, Y)]) { lo = Math.min(lo, X); hi = Math.max(hi, X); } return hi - lo; }
+  check(foodW(T[5]) >= foodW(T[6]) + 3, '(d) REV2 t 5 lands squashed (jeon ' + foodW(T[5]) + ' px wide against ' + foodW(T[6]) + ' at rest)');
+  var loop2 = true; for (var f = 0; f < 96; f += 11) if (!eqb(shot(K, 'revealScene', { geo: 'close', look: LOOK, t: 400 + f }), shot(K, 'revealScene', { geo: 'close', look: LOOK, t: 496 + f }))) loop2 = false;
+  check(loop2, '(d) REV2 at rest repeats every 96 frames (t 400 + f = t 496 + f)');
+  var anim = 0; for (f = 6; f < 30; f++) if (!eqb(shot(K, 'revealScene', { geo: 'close', look: LOOK, t: f }), shot(K, 'revealScene', { geo: 'close', look: LOOK, t: f + 1 }))) anim++;
+  check(anim >= 12, '(d) REV2 at rest moves (steam, twinkles): ' + anim + ' of 24 frame pairs differ');
+  var oldRev = shot(K, 'revealScene', { look: LOOK, f: 5 }), oldRev2 = shot(K2, 'revealScene', { look: LOOK, f: 5 });
+  check(eqb(oldRev, oldRev2) && !eqb(oldRev, rest), '(d) without geo the old REV path still paints (unchanged, unused live)');
+  /* (e) stove: Apollo only, arrow at GEO.flipArrow, the spatula blade in x 88..111 (11-18: 24 x 12), the knob dot */
+  var st0 = K.blank(W, H), st1 = K.blank(W, H), sv = K.blank(90, 220); K.bgStove(st0, false); K.bgStove(st1, true); K.view(sv, { station: 'stove', ox: -30, oy: 20 });
+  check(apolloOnly(st0) && apolloOnly(st1) && apolloOnly(sv) && apolloOnly(shot(K, 'base', { station: 'stove', pan: true, heat: true, f: 2 })), '(e) stove, knobs and grates are Apollo only (stage, bleed and the heated base)');
+  var aOff = shot(K, 'flipScene', { heat: true, band: 1, dents: M9, f: 4, fh: 40, seed: 3, arrow: null }), aOn = shot(K, 'flipScene', { heat: true, band: 1, dents: M9, f: 4, fh: 40, seed: 3, arrow: 0 });
+  var bb = [999, 999, -1, -1];
+  for (y = 0; y < H; y++) for (x = 0; x < W; x++) if (px(aOff, x, y) !== px(aOn, x, y)) { bb[0] = Math.min(bb[0], x); bb[1] = Math.min(bb[1], y); bb[2] = Math.max(bb[2], x); bb[3] = Math.max(bb[3], y); }
+  check(bb[0] === GEO.flipArrow[0] - 4 && bb[2] === GEO.flipArrow[0] + 4 && bb[1] === GEO.flipArrow[1] && bb[3] <= GEO.flipArrow[1] + 10, '(e) the flip arrow sits at GEO.flipArrow, tip at its top (' + bb.join(',') + ')');
+  var spA = shot(K, 'flipScene', { heat: false, band: 0, dents: M9, f: 0 }), spB = shot(K, 'flipScene', { heat: false, band: 0, dents: M9, f: 0, spatula: null }), blade = [999, -1], bn = 0;
+  for (y = GEO.rest.spatula[1] - 6; y <= GEO.rest.spatula[1] + 5; y++) for (x = 0; x < W; x++) if (px(spA, x, y) !== px(spB, x, y)) { bn++; blade[0] = Math.min(blade[0], x); blade[1] = Math.max(blade[1], x); }
+  check(bn > 200 && blade[0] === 88 && blade[1] === 111, '(e) the spatula rests at GEO.rest.spatula, its blade in x ' + blade.join('..'));
+  var kd = GEO.knobDot, cold = shot(K, 'flipScene', { heat: false, band: 0, dents: M9, f: 0 }), hot = shot(K, 'flipScene', { heat: true, band: 0, dents: M9, f: 0 });
+  var dotOk = [[0, 0], [1, 0], [0, 1], [1, 1]].every(function (d) { return px(cold, kd[0] + d[0], kd[1] + d[1]) === hx(PAL.s2) && px(hot, kd[0] + d[0], kd[1] + d[1]) === hx(PAL.a2); });
+  var knobMoved = 0; for (y = GEO.knob[1] - 5; y <= GEO.knob[1] + 5; y++) for (x = GEO.knob[0] - 5; x <= GEO.knob[0] + 5; x++) if (px(cold, x, y) !== px(hot, x, y)) knobMoved++;
+  var knob0Same = true; for (y = GEO.knob0[1] - 5; y <= GEO.knob0[1] + 5; y++) for (x = GEO.knob0[0] - 5; x <= GEO.knob0[0] + 5; x++) if (px(cold, x, y) !== px(hot, x, y)) knob0Same = false;
+  check(dotOk && knobMoved >= 4 && knob0Same, '(e) the knob dot is s2 with the heat off and a2 with it on; the burner knob turns (' + knobMoved + ' px), the other stays');
+  check(px(cold, 53, 41) === hx(PAL.coal) && px(cold, 52, 41) === hx(PAL.s2) && px(cold, 93, 133) !== px(BG.counter, 93, 133), '(e) the grates peek out above and below the pan');
+  /* (f) icons: heat and again exist, 16 x 16, Apollo only; every pair differs in >= 25 % of the union of their masks */
+  var NAMES = ['tap', 'heat', 'flip', 'slice', 'again', 'close'], IC = {};
+  NAMES.forEach(function (n) { IC[n] = K.icon(n); });
+  check(K.ICONS.indexOf('heat') >= 0 && K.ICONS.indexOf('again') >= 0 && NAMES.every(function (n) { return IC[n].w === 16 && IC[n].h === 16 && apolloOnly(IC[n]); }), '(f) icons heat and again are listed, 16 x 16, Apollo only');
+  var minR = 1, minP = '';
+  NAMES.forEach(function (a, ai) { NAMES.forEach(function (b, bi) {
+    if (bi <= ai) return; var u = 0, d = 0;
+    for (var q = 3; q < 1024; q += 4) { var A1 = IC[a].d[q] > 0, B1 = IC[b].d[q] > 0; if (A1 || B1) u++; if (A1 !== B1) d++; }
+    if (d / u < minR) { minR = d / u; minP = a + '/' + b; }
+  }); });
+  check(minR >= 0.25, '(f) every icon pair differs in >= 25 % of the union of their masks (closest ' + minP + ' ' + (minR * 100).toFixed(0) + ' %)');
+  check(eqb(K.icon('nope'), K.icon('tap')), '(f) an unknown icon falls back to tap');
+  /* (g) shake: m 0 moves the whole buffer with edge repeat; no m keeps the old 2-px frame */
+  var src = shot(K, 'tapScene', { shape: 2, dents: M9, marks: [], f: 3 }), s0 = K.clone(src), s2 = K.clone(src);
+  K.shake(s0, 1, 0, 0); K.shake(s2, 1, 0);
+  var g0 = true, g2 = true;
+  for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+    if (px(s0, x, y) !== px(src, Math.max(0, x - 1), y)) g0 = false;
+    var inside = x >= 2 && y >= 2 && x <= W - 3 && y <= H - 3;
+    if (px(s2, x, y) !== (inside ? px(src, Math.max(2, x - 1), y) : px(src, x, y))) g2 = false;
+  }
+  check(g0, '(g) shake(b, 1, 0, 0) shifts the whole buffer right with the left column repeated');
+  check(g2, '(g) shake(b, 1, 0) is unchanged: inside the 2-px frame only, the frame stays');
+  var sv0 = K.blank(84, 190); K.view(sv0, { station: 'counter', ox: -32 }); var sv1 = K.clone(sv0); K.shake(sv1, 0, 1, 0);
+  var g3 = true; for (y = 0; y < 190; y++) for (x = 0; x < 84; x++) if (px(sv1, x, y) !== px(sv0, x, Math.max(0, y - 1))) g3 = false;
+  check(g3, '(g) shake(b, 0, 1, 0) works on any buffer size (an 84 x 190 view)');
+  /* (h) determinism: every new painter gives the same bytes in a fresh instance, alpha 0 or 255 only */
+  function newFrames(L) {
+    var outF = [];
+    STATIONS.forEach(function (st) { OFFS.forEach(function (o) { var V = L.blank(84, 190); L.view(V, { station: st, ox: o[0], oy: o[1] }); outF.push(V); }); });
+    outF.push(shot(L, 'base', { station: 'counter' }), shot(L, 'base', { station: 'stove', pan: false }), shot(L, 'base', { station: 'stove', pan: true, heat: true, f: 3 }),
+      shot(L, 'base', { station: 'board' }), shot(L, 'base', { station: 'plate', look: LOOK }));
+    ['pan', 'jeon', 'cut'].forEach(function (w) { var V = L.blank(84, 190); L.view(V, { station: 'counter', ox: -32 }); L.carry(V, { what: w, x: 40, y: 86, dents: M9, band: 1, look: LOOK, herb: 'tot' }); outF.push(V); });
+    [null, 0, 3, 4, 5, 6, 40, 97].forEach(function (t) { outF.push(shot(L, 'revealScene', { geo: 'close', look: LOOK, t: t, herb: t === 40 ? 'tot' : 'parae' })); });
+    var b0 = L.blank(W, H); L.bgStove(b0, true); outF.push(b0, L.icon('heat'), L.icon('again'));
+    var sk = shot(L, 'flipScene', { heat: true, band: 2, dents: M9, f: 9, arrow: 1 }); L.shake(sk, -1, 1, 0); outF.push(sk);
+    return outF;
+  }
+  var NA = newFrames(K), NB = newFrames(K2);
+  check(NA.every(function (b, k) { return eqb(b, NB[k]); }) && NA.every(alphaOk), '(h) every new painter gives the same bytes in a fresh instance, alpha 0 or 255 only (' + NA.length + ' pictures)');
+  var NC = newFrames(K);
+  check(NA.every(function (b, k) { return eqb(b, NC[k]); }), '(h) painting again in the same instance (warm caches) gives the same bytes');
+  var srcTxt = fs.readFileSync(ART, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  check(!/Math\.(sin|cos|tan|atan2?|random)|Date\.now|performance\.now|new Date/.test(srcTxt), '(h) cook-art.js uses no float trig, random source or clock');
+  if (!quiet) console.log('   carry: ' + cc.join(', '));
+})();
+
+section('round 6 K1 (11-18): bell, bigger knife and spatula, the symmetric \'+\' split, REV2 and the dish');
+(function () {
+  var ART = path.join(ROOT, 'js/cook-art.js'); if (!fs.existsSync(ART)) return;
+  function fresh() { var sb = {}; vm.createContext(sb); vm.runInContext(fs.readFileSync(ART, 'utf8'), sb, { filename: 'cook-art.js' }); return sb.COOK_ART; }
+  var K = fresh(), K2 = fresh(), W = K.W, H = K.H, GEO = K.GEO, PAL = K.PAL, x, y;
+  function px(b, X, Y) { if (X < 0 || Y < 0 || X >= b.w || Y >= b.h) return -1; var q = (Y * b.w + X) << 2; return b.d[q + 3] ? (b.d[q] << 16) | (b.d[q + 1] << 8) | b.d[q + 2] : -1; }
+  function eqb(a, b) { return a.w === b.w && a.h === b.h && Buffer.compare(Buffer.from(a.d.buffer, a.d.byteOffset, a.d.byteLength), Buffer.from(b.d.buffer, b.d.byteOffset, b.d.byteLength)) === 0; }
+  function hx(h) { return parseInt(h.slice(1), 16); }
+  var APO = {}; K.APOLLO.forEach(function (h) { APO[hx(h)] = 1; });
+  var FS = {}; K.FOOD.forEach(function (h) { FS[hx(h)] = 1; });
+  function apolloOnly(b) { for (var q = 0; q < b.d.length; q += 4) { if (!b.d[q + 3]) continue; if (b.d[q + 3] !== 255 || !APO[(b.d[q] << 16) | (b.d[q + 1] << 8) | b.d[q + 2]]) return false; } return true; }
+  function bbox(b) { var r = [999, 999, -1, -1]; for (var Y = 0; Y < b.h; Y++) for (var X = 0; X < b.w; X++) if (px(b, X, Y) >= 0) { r[0] = Math.min(r[0], X); r[1] = Math.min(r[1], Y); r[2] = Math.max(r[2], X); r[3] = Math.max(r[3], Y); } return r; }
+  function paint(L, fn) { var b = L.blank(W, H); fn(L, b); return b; }
+  /* bell: 13 x 13 at GEO.bell, Apollo only, alpha 0/255, two swing frames A != B, pop, deterministic */
+  var BG = GEO.bell, bf = {};
+  [0, 1, 2, 3, 7, 8, 30].forEach(function (f) { bf[f] = paint(K, function (L, b) { L.bell(b, BG[0], BG[1], f); }); });
+  var still0 = paint(K, function (L, b) { L.bell(b, BG[0], BG[1], 0, true); }), still9 = paint(K, function (L, b) { L.bell(b, BG[0], BG[1], 9, true); });
+  var rb = bbox(bf[8]);
+  check(rb[0] === 96 && rb[2] === 108 && rb[1] === 38 && rb[3] === 50, 'bell at rest: 13 x 13 at stage x 96..108, y 38..50 (' + rb.join(',') + ')');
+  check(Object.keys(bf).every(function (f) { return apolloOnly(bf[f]); }) && apolloOnly(still0), 'bell: Apollo only, alpha 0 / 255, every frame');
+  check(!eqb(bf[1], bf[2]) && eqb(bf[1], bf[3]) && !eqb(bf[1], bf[8]) && !eqb(bf[2], bf[8]), 'bell: swing frames A (odd) and B (even) differ from each other and from the rest; A repeats');
+  check(eqb(bf[8], bf[30]) && !eqb(bf[0], bf[8]) && bbox(bf[0])[1] < 38, 'bell: f 0 pops (higher, a bright rim), f >= 8 stays still');
+  check(eqb(still9, bf[8]) && !eqb(still0, bf[8]) && bbox(still0)[1] === 36 && bbox(still0)[0] === 93, 'bell reduced: at rest from f 0, ring marks held through f 7, then gone');
+  var bK2 = [0, 1, 2, 8].map(function (f) { return paint(K2, function (L, b) { L.bell(b, BG[0], BG[1], f); }); });
+  check([0, 1, 2, 8].every(function (f, k) { return eqb(bf[f], bK2[k]); }), 'bell: the same bytes in a fresh instance');
+  check(bbox(bf[1])[1] >= 34 && bbox(bf[1])[3] <= 50 && bbox(bf[0])[1] >= 34, 'bell: every frame (marks included) stays in rows 34..50, under the HUD and clear of the stickers');
+  /* knife 49 x 7 (0 deg) / 7 x 49 (90 deg); the edge point under the finger is 14 px from the tip and is the bright edge */
+  var k0 = paint(K, function (L, b) { L.knife(b, 72, 80, 0); }), k90 = paint(K, function (L, b) { L.knife(b, 72, 80, 90); }), kb0 = bbox(k0), kb9 = bbox(k90);
+  check(kb0[2] - kb0[0] + 1 === 49 && kb0[3] - kb0[1] + 1 === 7 && kb9[2] - kb9[0] + 1 === 7 && kb9[3] - kb9[1] + 1 === 49, 'knife: 49 x 7 at 0 deg, 7 x 49 at 90 deg (' + kb0.join(',') + ' / ' + kb9.join(',') + ')');
+  check(kb0[0] === 58 && px(k0, 72, 80) === hx(PAL.s6) && kb9[1] === 66 && px(k90, 72, 80) === hx(PAL.s6), 'knife: tip 14 px before the finger point, which sits on the bright edge (0 and 90 deg)');
+  check(apolloOnly(k0) && apolloOnly(k90) && eqb(k0, paint(K2, function (L, b) { L.knife(b, 72, 80, 0); })), 'knife: Apollo only, the same bytes in a fresh instance');
+  var kr = paint(K, function (L, b) { var r = GEO.rest.knife; L.knife(b, r[0], r[1], r[2]); });
+  check(same(GEO.rest.knife, [100, 124, 0]) && bbox(kr)[2] <= W - 3, 'knife rest [100, 124, 0] stays inside the stage frame');
+  /* spatula: blade 24 x 12 (a blank sprite: rows 108..119 hold exactly the blade, x 88..111) */
+  var sp = paint(K, function (L, b) { L.spatula(b, GEO.rest.spatula[0], GEO.rest.spatula[1]); }), sb = [999, -1];
+  for (y = 108; y <= 118; y++) for (x = 0; x < W; x++) if (px(sp, x, y) >= 0) { sb[0] = Math.min(sb[0], x); sb[1] = Math.max(sb[1], x); }
+  check(sb[0] === 88 && sb[1] === 111 && px(sp, 99, 107) < 0 && px(sp, 99, 108) >= 0, 'spatula blade 24 x 12 at rest: x 88..111 from row 108 (' + sb.join('..') + ')');
+  check(apolloOnly(sp) && eqb(sp, paint(K2, function (L, b) { L.spatula(b, GEO.rest.spatula[0], GEO.rest.spatula[1]); })), 'spatula: Apollo only, deterministic');
+  /* the '+' split: four equal quarters (left and right mirror each other pixel for pixel), equal gaps 2 sep + 1 */
+  var M9 = [[18, 19], [16, 21], [20, 18], [47, 18], [49, 20], [45, 17], [33, 32], [31, 30], [35, 33]];
+  function plus(sepV, sepH) { return paint(K, function (L, b) { L.jeon(b, { cx: 72, cy: 86, face: 'bottom', band: 1, dents: M9, nolace: 1, cuts: [{ deg: 90, x: 72, y: 86, sep: sepV }, { deg: 0, x: 72, y: 86, sep: sepH }] }); }); }
+  function gapAt(b, isFood, X, Y, dx, dy) {   /* the run of non-food pixels through (X, Y) along (dx, dy) */
+    if (isFood(px(b, X, Y))) return 0;
+    var n = 1, a = 1; while (!isFood(px(b, X - a * dx, Y - a * dy)) && a < 12) { n++; a++; } a = 1; while (!isFood(px(b, X + a * dx, Y + a * dy)) && a < 12) { n++; a++; }
+    return n;
+  }
+  var any = function (c) { return c >= 0; };
+  [[1, 1], [2, 1], [1, 2]].forEach(function (sp2) {
+    var b = plus(sp2[0], sp2[1]), mir = true, n = 0, gv = [], gh = [];
+    for (y = 40; y < 130; y++) for (x = 1; x < 72; x++) { var l = px(b, 72 - x, y) >= 0, r = px(b, 72 + x, y) >= 0; if (l !== r) mir = false; if (l) n++; }
+    [-14, -7, 7, 14].forEach(function (d) { gv.push(gapAt(b, any, 72, 86 + d, 1, 0)); gh.push(gapAt(b, any, 72 + d, 86, 0, 1)); });
+    check(mir && n > 800, 'cutBuf sep ' + sp2.join(' / ') + ': the left and right quarters mirror each other pixel for pixel (' + n + ' px a side)');
+    check(gv.every(function (g) { return g === 2 * sp2[0] + 1; }) && gh.every(function (g) { return g === 2 * sp2[1] + 1; }), 'cutBuf sep ' + sp2.join(' / ') + ': even gaps the whole way, vertical ' + gv.join(',') + ' horizontal ' + gh.join(',') + ' (2 sep + 1)');
+  });
+  /* 11-18 (lead follow-up): both arms of the '+' read with the same weight: the dark rows of the horizontal arm equal the
+     dark columns of the vertical arm (3 at rest, 5 on the pop), measured through the cut (cy + 1 / cx) */
+  /* sliceScene: the popping line opens to sep 2 on its cut frame, every other cut sits at sep 1 */
+  var food = function (c) { return !!FS[c]; };
+  var SL = [{ x: 72, y: 86, deg: 90, len: 44, cut: true }, { x: 72, y: 86, deg: 0, len: 64, cut: true }];
+  function sl(o) { return paint(K, function (L, b) { L.sliceScene(b, Object.assign({ band: 1, dents: M9, lines: SL, cur: -1, knife: null, f: 0 }, o)); }); }
+  var s0 = sl({}), sPop0 = sl({ flash: 0, pop: true }), sPop1 = sl({ flash: 1, pop: true }), sSet = sl({ flash: 0, pop: false });
+  function gaps(b) { return [gapAt(b, food, 72, 96, 1, 0), gapAt(b, food, 90, 87, 0, 1)]; }
+  check(same(gaps(s0), [3, 3]) && same(gaps(sPop0), [5, 3]) && same(gaps(sPop1), [3, 5]) && same(gaps(sSet), [3, 3]),
+    'sliceScene: rest 3 / 3 (both arms the same dark weight); the pop opens only the new cut to 5 (' + [gaps(s0), gaps(sPop0), gaps(sPop1), gaps(sSet)].map(function (g) { return g.join('/'); }).join(' · ') + ')');
+  /* REV2: t <= 4 the board look (sep 1), t 5 sep 2, t >= 6 and rest sep 1; no nudge (gaps even all along) */
+  var LOOK0 = { v: 1, dents: M9, band: 2, cuts: [0, 0], offs: [0, 0], plate: 1 };
+  function rv(t) { return paint(K, function (L, b) { L.revealScene(b, { geo: 'close', look: LOOK0, t: t, seed: 3 }); }); }
+  var G2 = GEO.rev2, rvG = {};
+  [null, 3, 5, 6, 40].forEach(function (t) {
+    var b = rv(t), up = t === 3 ? -2 : 0; rvG[t] = [[-12, -6, 8, 13].map(function (d) { return gapAt(b, food, G2.jcx, G2.jcy + d, 1, 0); }), [-20, -10, 10, 20].map(function (d) { return gapAt(b, food, G2.jcx + d, G2.jcy + 1 + up, 0, 1); })];
+  });
+  function all(a, v) { return a.every(function (g) { return g === v; }); }
+  check(all(rvG[null][0], 3) && all(rvG[null][1], 3) && all(rvG[6][0], 3) && all(rvG[6][1], 3) && all(rvG[40][0], 3) && all(rvG[40][1], 3), 'REV2 at rest (t null, 6, 40): four equal quarters, sep 1 all along (' + JSON.stringify(rvG[null]) + ')');
+  check(all(rvG[5][0], 5) && all(rvG[5][1], 5), 'REV2 t 5 (landing): the quarters part to sep 2 (' + JSON.stringify(rvG[5]) + ')');
+  check(all(rvG[3][0], 3) && all(rvG[3][1], 3), 'REV2 t 3 (carried): the board look, sep 1 (' + JSON.stringify(rvG[3]) + ')');
+  check(gaps(s0)[0] === gaps(s0)[1] && gaps(sPop0)[0] === gaps(sPop1)[1] && same(rvG[null][0], rvG[null][1]) && same(rvG[5][0], rvG[5][1]),
+    'the horizontal arm\'s dark rows equal the vertical arm\'s dark columns: board at rest, plate at rest and at the landing');
+  /* dish(): the counter / notebook picture, symmetric too (no nudge, no half) */
+  var dsh = (function () { var b = K.blank(96, 66); K.dish(b, LOOK0, { herb: 'parae' }); return b; })(), DG = { jcx: 48, jcy: 29 };
+  var dv = [-12, -6, 8, 13].map(function (d) { return gapAt(dsh, food, DG.jcx, DG.jcy + d, 1, 0); }), dhz = [-20, -10, 10, 20].map(function (d) { return gapAt(dsh, food, DG.jcx + d, DG.jcy + 1, 0, 1); });
+  check(all(dv, 3) && all(dhz, 3), 'dish(): four equal quarters, sep 1 all along (no nudge): ' + dv.join(',') + ' / ' + dhz.join(','));
+  var srcArt = fs.readFileSync(ART, 'utf8');
+  check(!/nudge:\s*1/.test(srcArt.slice(srcArt.indexOf('var DISHG'), srcArt.indexOf('var DISHG') + 400)) && !/half:\s*1,\s*nudge:\s*1,\s*gap/.test(srcArt), 'DISHG and the REV2 close-up carry no nudge and no half');
 })();
 
 console.log('\n' + passes + ' passed, ' + fails + ' failed');

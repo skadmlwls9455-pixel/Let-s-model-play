@@ -72,6 +72,7 @@ var INTRO = (function () {
     el.appendChild(veil); el.appendChild(title); el.appendChild(hint);
     document.body.appendChild(el);
     st.el = el; st.hole = hole; st.title = title; st.lift = lift; st.logo = logo; st.hint = hint; st.spark = sp; st.host = host;
+    try { var fsnap = function () { if (st.el && st.phase === 'title') snapHint(); }; document.fonts.ready.then(fsnap); document.fonts.addEventListener('loadingdone', fsnap); } catch (e) { /* 글꼴 API 없음 */ }   /* 5차 검증: 픽셀 글꼴이 늦게 오면 안내 줄 폭이 바뀐다 → 그때 다시 맞춘다 */
     el.addEventListener('pointerdown', function (e) { if (e.button > 0) return; e.preventDefault(); go(); });
     title.addEventListener('click', function (e) { e.preventDefault(); go(); });   /* 키보드 Enter/Space 는 버튼 click 으로 들어온다 */
     document.addEventListener('keydown', onKey, true);
@@ -90,6 +91,7 @@ var INTRO = (function () {
     var s = Math.max(1, Math.min(3, Math.floor((Math.min(r.width, vw) - 32) / LOGO.w)));
     if (one) s = Math.max(1, Math.min(s, Math.floor(r.height * 0.26 / LOGO.h)));
     st.s = s; st.el.style.setProperty('--s', s);
+    st.el.style.setProperty('--hint-fs', s >= 3 ? (s * 10) + 'px' : 'var(--fs-b20f, 20px)');   /* 11-15 (UI 점검): 320 폰 (배율 1) 에서 10px 이던 첫 안내를 기기 px 에 맞춘 약 20px (12px 아래 금지) — 배율 3 이면 로고와 같은 30px. 11-15 (검증): 20px 밑으로 안 내려가게 b20f (가장 가까운 b20 은 2.625 배율에서 19.06px 로 4차보다 작았다) */
     var hs = st.hole.style; hs.left = Math.round(r.left) + 'px'; hs.top = Math.round(r.top) + 'px'; hs.width = Math.round(r.width) + 'px'; hs.height = Math.round(r.height) + 'px';
     var lw = LOGO.w * s, lh = LOGO.h * s, left = Math.round(r.left + (r.width - lw) / 2);
     var top = one ? Math.round(Math.min(r.top + r.height * 0.68, r.bottom - lh - 24 * s - 16)) : Math.round(r.bottom - lh * 0.62);   /* 24 × 배율 = 안내 글자까지 (틈 14 + 글자 10) */
@@ -98,7 +100,14 @@ var INTRO = (function () {
     st.lift.querySelectorAll('.intro-mote').forEach(function (d) { d.style.left = (+d.dataset.x * s) + 'px'; d.style.top = (+d.dataset.y * s) + 'px'; });
     st.spark.style.left = (lw - 14 * s) + 'px'; st.spark.style.top = (-6 * s) + 'px';
     st.hint.style.top = Math.round(top + lh + 14 * s) + 'px';
+    snapHint();
     if (st.d2 && st.d2.box) { var bs = st.d2.box.style; bs.left = hs.left; bs.top = hs.top; bs.width = hs.width; bs.height = hs.height; }   /* 2D 구름 창 = 장면 구멍 */
+  }
+  /* 11-15 (검증): 가운데 맞춘 안내 줄의 시작을 기기 px 에 — 2.625 배율에서 .5 기기 px 에서 시작해 획마다 회색 테가 생겼다. 상자 폭 = 글자 폭 (css width: max-content), 남는 몫은 translate 로 (깜빡임 transform 과 따로 겹친다) */
+  function snapHint() {
+    var e = st.hint; if (!e) return;
+    var d = window.devicePixelRatio || 1, l = e.getBoundingClientRect().left - (parseFloat(e.style.translate) || 0), dx = Math.round(l * d) / d - l;   /* 지금 민 몫을 빼고 다시 잰다 (몇 번 불러도 같다) */
+    e.style.translate = Math.abs(dx) < 1e-4 ? '' : dx + 'px 0';
   }
   function setSky(hex) {
     var sky = hex || (st.scene && st.scene.skyHex && st.scene.skyHex()) || '#090a14';
@@ -139,7 +148,7 @@ var INTRO = (function () {
     var cur = st.scene && st.scene.expression ? st.scene.expression() : null;
     if (!st.asleep && cur !== 'sleep' && cur !== 'sleepy' && st.scene && st.scene.setExpression) st.scene.setExpression(expr);
   }
-  function showHint() { if (st.el && st.phase === 'title') st.el.classList.add('hinted'); }
+  function showHint() { if (st.el && st.phase === 'title') { snapHint(); st.el.classList.add('hinted'); } }   /* 글꼴이 늦게 와 폭이 바뀌었어도 보이기 직전에 한 번 더 맞춘다 */
   function bob() {   /* 숨쉬기: 0.7 s 마다 1 아트px 위/아래 (스텝, 보간 없음). 3번 쉬고 멈춘다 (DIALOGUE_UI §5.9 규칙 3) */
     if (!st.el || st.phase !== 'title') return;
     var up = st.el.classList.toggle('bob-up'); setLift(up ? -1 : 0);
@@ -241,6 +250,9 @@ var INTRO = (function () {
   /* 들어가기: 하늘 단계면 바로 착지. 로고 눌림(80ms) → 위로 빠지며 사라짐 · 덮개 걷힘 · UI 올라옴 → 정리 */
   function go() {
     if (st.phase === 'off' || st.phase === 'out') return;
+    /* 11-21 (7차 N): 첫 실행이면 들어가기 앞에 이야기 세 줄 (app.js storyIntro — 볼 것이 없으면 바로 done 을 부른다). 보는 동안의 누르기 · 키는 그쪽이 받는다 */
+    if (st.story) return;
+    if (!st.storyDone && window.APP && typeof APP.storyIntro === 'function') { st.story = st.storyDone = true; APP.storyIntro(function () { st.story = false; go(); }); return; }
     var wasSky = st.phase === 'sky';
     st.phase = 'out'; st.el.dataset.phase = 'out';
     cancelAnimationFrame(st.raf);
