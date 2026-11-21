@@ -394,18 +394,18 @@ var COOK_SPR = (function () {
   });
 
   /* ---- seaweed pancake: cut pieces stacked on a round wicker tray, one lifted on chopsticks, a dish of soy dip ---- */
-  var JEON_PTS = [
-    [[2, 1], [25, 0], [27, 10], [1, 11]],
-    [[4, 0], [27, 2], [24, 12], [0, 9]],
-    [[0, 3], [22, 0], [26, 9], [4, 12]]];
+  var JEON_PTS = [   /* wedges of a round pancake: a curved crust edge and a cut tip */
+    [[1, 4], [8, 1], [18, 0], [26, 3], [15, 12]],
+    [[0, 2], [12, 0], [25, 1], [27, 6], [9, 12]],
+    [[4, 0], [18, 1], [27, 5], [14, 12], [0, 8]]];
   function jeonPiece(v, band) {
     var l = lay(28, 16), pts = JEON_PTS[v], cx = 0, cy = 0, i;
     function sh(dy) { return pts.map(function (p) { return [p[0], p[1] + dy]; }); }
-    pts.forEach(function (p) { cx += p[0] / 4; cy += p[1] / 4; });
-    l.poly(sh(3), '3').poly(sh(2), '6').poly(sh(1), '6').poly(pts, '2');
+    pts.forEach(function (p) { cx += p[0] / pts.length; cy += p[1] / pts.length; });
+    l.poly(sh(2), '3').poly(sh(1), '6').poly(pts, '2');
     l.on('2').poly(pts.map(function (p) { return [p[0] + (cx - p[0]) * 0.16, p[1] + (cy - p[1]) * 0.3]; }), '4').on();
     /* cut faces: green strands in the pale inside */
-    l.on('6'); for (i = 2; i < 27; i += 5) l.p(i + v, 11 + ((i + v) % 3), 'g').p(i + v + 1, 11 + ((i + v) % 3), 'G'); l.on();
+    l.on('6'); for (i = 2; i < 27; i += 5) l.p(i + v, 9 + ((i + v) % 4), 'g').p(i + v + 1, 9 + ((i + v) % 4), 'G'); l.on();
     l.on('4');
     l.e(4, 2, 9, 4, '5').p(6, 3, '6').p(7, 3, '6');
     l.e(15 - v, 6, 6, 3, '3').p(17 - v, 7, '2');
@@ -435,11 +435,11 @@ var COOK_SPR = (function () {
     F.put(d, 60, 38, OC, 0);
     /* chopsticks holding one piece up */
     var c = lay(40, 22);
-    c.ln(8, 16, 38, 1, 'F', 2).ln(8, 16, 38, 1, 'E');
+    c.ln(8, 16, 35, 2, 'F', 2).ln(8, 16, 35, 2, 'E');
     F.put(c, 40, 2, 'uUV', 0);
     F.put(jeonPiece(2, f), 34, 6, OW, 0);
     var c2 = lay(40, 22);
-    c2.ln(6, 12, 38, 6, 'F', 2).ln(6, 12, 38, 6, 'E');
+    c2.ln(6, 12, 35, 6, 'F', 2).ln(6, 12, 35, 6, 'E');
     F.put(c2, 40, 4, 'uUV', 1);
   });
 
@@ -672,19 +672,19 @@ var COOK_SPR = (function () {
     '..............U.']);
   step('crack', [
     '................',
-    '.....uuuuuu.....',
-    '...uuWWWQQQuu...',
-    '..uWWWWWWQQQQu..',
-    '.uWWWWWWWQQQQeu.',
+    '......uuuu......',
+    '....uuWWWQuu....',
+    '...uWWWWWWQQu...',
+    '..uWWWWWWWWQQu..',
+    '..uWWWWWWWWQQu..',
+    '.uWWWWUWWWWUQQu.',
+    '.uWWWUWUWWUWUQu.',
+    '.uUWUWWWUUWWWUu.',
+    '.uWUWWWWWWWQQQu.',
     '.uWWWWWWWWQQQeu.',
-    'uWWWuuWWWWQuQeeu',
-    'uuWuWWuWWuuWuuuu',
-    'uQuWW5uWuQQuQeeu',
-    'uWWW5455uQQQQeeu',
-    '.uWW5445QQQQeeu.',
-    '.uWWQ55QQQQQeeu.',
-    '..uQQQQQQQQeeu..',
-    '...uuQQQQeeuu...',
+    '.uWWWWWWWQQQQeu.',
+    '..uWWWWWQQQQeu..',
+    '...uuQQQQQeuu...',
     '.....uuuuuu.....',
     '................']);
   step('roll', [
@@ -1019,8 +1019,8 @@ var COOK_SPR = (function () {
       }
       F.put(l, 3, 3, 'Fuu', 0);
     } else {
-      F.put(jgShell(), 1, 12, 'Fuu', 0);
-      F.put(jgShell().flip(), 11, 8, 'Fuu', 1);
+      F.put(jgShell(), 2, 13, 'Fuu', 0);
+      F.put(jgShell().flip(), 10, 8, 'Fuu', 1);
     }
   });
 
@@ -1238,7 +1238,7 @@ var COOK_SPR = (function () {
     F.put(w, 3, 15, OS, 0);
     var h = lay(6, 17);
     h.rr(0, 0, 6, 17, 2, 'A').r(1, 1, 1, 11, 'y').r(4, 1, 2, 12, 'a').r(0, 13, 6, 4, 'm').r(0, 13, 2, 4, 'l').r(5, 13, 1, 4, 'n');
-    F.put(h, 11, 1, OD, 0);
+    F.put(h, 11, 2, OD, 0);
   });
 
   /* ================= cooking states: rice (jumeokbap) and fruit (kkochi) ================= */
@@ -1269,6 +1269,9 @@ var COOK_SPR = (function () {
     l.on('W'); rfDots(l, 5, 3, 42, 21, 30, 'Q', 1);
     l.on('Q'); rfDots(l, 2, 3, 52, 27, 26, 'W', 2); rfDots(l, 30, 16, 24, 14, 10, 'e', 3);
     l.on();
+    /* grains: short strokes one tone down, staggered */
+    l.on('W'); for (var gy = 3; gy < 29; gy += 3) for (var gx = 3 + (gy * 5) % 7; gx < 54; gx += 7) l.p(gx, gy, 'Q').p(gx + 1, gy, 'Q').p(gx + 1, gy + 1, 'Q'); l.on();
+    l.on('Q'); for (gy = 4; gy < 31; gy += 3) for (gx = 1 + (gy * 3) % 7; gx < 56; gx += 7) l.p(gx, gy, 'e').p(gx + 1, gy, 'e'); l.on();
     if (f === 0) {
       /* a heap of sesame and salt on top */
       l.e(20, 9, 21, 11, 'E').ball(18, 6, 21, 12, '6', 'y', 'A', 3);
@@ -1887,17 +1890,17 @@ var COOK_SPR = (function () {
     '....$$$$$$....'], 'kKK');
   /* gim: a stack of dark seaweed sheets with a paper band */
   ckSmall('ing.gim', [
-    '...tttttWrWt..',
-    '..t8tttWrWtt..',
-    '.ttttt8WrWttt.',
-    'tttttWrWt8ttT.',
-    'tt8tWrWttttTT.',
-    'ttttWrWttttT8.',
-    '8888WrW8888TT.',
-    'TTTTTWrWTTTT8.',
-    '.8888WrW8888T.',
-    '.TTTTTWrWTTTT.',
-    '..88888888888.'], '877');
+    '..ttttttttt...',
+    '.t8t8ttt8ttt..',
+    '.ttttt8ttttTt.',
+    '.t8tttttt8tTtt',
+    '.tttt8tttttTt8',
+    '.tt8ttttt8tTtt',
+    '.ttttt8ttttTt8',
+    '.t8tttttt8tTtT',
+    '.TTTTTTTTTTTtT',
+    '..ttttttttttTT',
+    '...TTTTTTTTTTT'], '877');
   /* sesame: a small white dish of pale seeds */
   ckSmall('ing.sesame', [
     '.....bybb.....',
@@ -1914,17 +1917,17 @@ var COOK_SPR = (function () {
   ckSmall('ing.grape', [
     '......kk....',
     '.....k......',
-    '..qgg.qgg...',
-    '.qWgGqWggG..',
-    '.gggGgggGG..',
-    '..GGqggGqgg.',
-    '..qggWgGWgG.',
-    '.qWgGggGggG.',
-    '.gggGqggGG..',
-    '..GGqWgG....',
-    '....gggG....',
-    '....gGGG....',
-    '.....GG.....'], OG);
+    'qgPqgPqgPqg.',
+    'WgPWgPWgPWgG',
+    'gGPgGPgGPgGG',
+    'PPqgPqgPqgPP',
+    '..WgPWgPWgG.',
+    '..gGPgGPgGG.',
+    '..PPqgPqgPP.',
+    '....WgPWgG..',
+    '....gGPgGG..',
+    '.....PqgP...',
+    '.....GWgG...'], OG);
   /* tangerine with a leaf */
   def('ing.tang', 16, 16, 8, 13, 1, function (F) {
     var l = lay(12, 13);

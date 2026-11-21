@@ -2,7 +2,7 @@
 
 ## Conclusion
 
-Every id of `SPRITES.md` is drawn and pushed: **78 ids, 141 frames, 90 KB** in `js/cook-sprites.js` (limit 400 KB).
+Every id of `SPRITES.md` is drawn and pushed: **78 ids, 141 frames, 91 KB** in `js/cook-sprites.js` (limit 400 KB).
 No canvas was grown, no id was added, removed or resized. `node tools/test-cook-sprites.js` passes, `npm test` passes.
 Only new files plus the empty base `js/cook-sprites.js` were touched; no shared file, no existing line elsewhere.
 
@@ -10,7 +10,7 @@ The five dishes at 4x: `wip/round7/shots/A/dishes-4x.png` (cake, gyeran, jeon pa
 
 | dish | what makes it readable |
 | --- | --- |
-| `dish.jeon` (3 bands) | cut pieces **stacked** on a round wicker tray, pale cut edges with green strands under a browned top, one piece lifted on chopsticks, a dish of soy dip; the band re-maps the skin colours only |
+| `dish.jeon` (3 bands) | thin cut wedges **piled overlapping** on a round wicker tray, a browned lacy rim, a pale cut edge and green strands on each, one piece lifted on chopsticks, a dish of soy dip; the band re-maps the skin colours only |
 | `dish.gyeran` | five standing slices in a rising row on a long white plate with a blue line, the rolled seam on every cut face, golden skin on top, a green sprig and a dab of ketchup |
 | `dish.jumeokbap` | two white triangles leaning on each other on a green leaf plate, a dark seaweed strip on each, sesame, two yellow radish slices |
 | `dish.kkochi` | two skewers crossed as a V on a pale blue round plate; strawberry, green grape, tangerine with a sugar shell (lighter lamp-side rim, two glints each) |
@@ -70,18 +70,32 @@ None. No sprite contains a letter or a digit.
 
 ## Screenshots (`wip/round7/shots/A/`)
 
-`dishes-4x.png`, `dishes-2x-wood.png`, `small-6x.png` (icons, table sprites, step pictograms). All frames: `tests/evidence/food/`.
+`dishes-4x.png`, `dishes-2x-wood.png`, `small-6x.png` (icons, table sprites, step pictograms), `states-2x.png` (cooking states). All frames: `tests/evidence/food/`.
 
 ## Needs another lane
 
 How the sprites look inside the kitchen stage, the recipe book and on the play-room table can only be judged once K and T
 draw them there.
 
+## The independent check (one round)
+
+No `must`. Ten `should`; fixed: `dish.jeon` (read as toast: now thin wedges, chopsticks no longer clipped), `mix.rice`
+(grain strokes added), `step.crack` (redrawn as an egg with one zigzag), `egg` frame 2 and `whisk` (were clipped at the
+canvas edge), `ing.gim` and `ing.grape` (redrawn). Not fixed, by choice of time:
+- `pan.square`: the handle is a short wooden stub at the lower right corner (the 100 x 76 canvas with a 72 x 48 floor leaves
+  about 10 px there); it can read as a tray. Growing the canvas to the right would fix it: lane K should say if it wants that.
+- `kkochi.coat` frame 1 (half glazed) differs from frame 0 only by a light rim; frame 2 is clearly glazed.
+- A few stray single pixels (`fruit.board` 2, `greens` 3, `cake.base` 0 to 2).
+- Margins of 1 px instead of 2 (nothing clipped): `bowl`, the four `mix.*` left and right, `egg` 0 and 1 bottom, `jug` 1
+  right, `berry.top`.
+The check also confirmed in a browser from `file://`: `cook.html` loads the file without errors (78 ids); `index.html`
+does not load it yet (lane T adds the script tag).
+
 ## Left out / weak / not verified
 
+- Still weak by my own look: `ing.sugar`, the early frames of `rice.shape` (plain white mounds), `gyeran.board` (the spiral
+  on the cut faces is only a hint), `greens` (reads as green onion more than seaweed), `mix.rice` frame 0 (the seasoning heap).
 - Not verified in the running game (no consumer yet), on a real phone, or at 2.625 device ratio: the sprites are data, the
   consumer chooses the scale.
-- Weakest reads (by my own look): `ing.gim`, `ing.sugar`, the early frames of `rice.shape` (plain white mounds),
-  `gyeran.board` (the spiral on the cut faces is only a hint), `greens` (reads as green onion more than seaweed),
-  `kkochi.coat` frame 1 (half glazed is subtle).
-- The drawing helpers and state groups were drawn by three parallel artists and reviewed once by me; the dishes got two passes.
+- The cooking states were drawn by three parallel artists and reviewed once by me; the dishes got two passes and the fix round.
+- The fragment files used while drawing are gone: `js/cook-sprites.js` is the only source.
