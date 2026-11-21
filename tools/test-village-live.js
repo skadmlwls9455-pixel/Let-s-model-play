@@ -113,7 +113,10 @@ async function village(page) {
     lap('A4. 카페');
     /* A4. 카페 자리: 앉기 · 잔 · 일어나기 · 스틱으로 일어나기 · 알림 */
     var t4 = await page.evaluate(async function () {
-      var sc = APP.scene, r = {}, ev = []; document.addEventListener('ppol:cafe-seat', function (e) { ev.push(e.detail.on); });
+      var sc = APP.scene, r = {}, ev = [];
+      await __V.run(80, function () { return sc.cafeSeated(); });   /* (걸어가 앉는 중이면 다 앉을 때까지) */
+      if (sc.cafeSeated()) { sc.cafeSit(false); await __V.run(60, function () { return !sc.cafeSeated() && !sc.playerSitting(); }); }   /* 카페 갈래가 합쳐져 있으면 A3 의 자리 단추가 진짜로 앉혔다 — 일으켜 세우고 시작 */
+      await __V.run(10); document.addEventListener('ppol:cafe-seat', function (e) { ev.push(e.detail.on); });
       r.cupNo = sc.cafeCup(true);
       __V.at(32.2, 4.6); var p = sc.cafeSit(true), res = null; p.then(function (x) { res = x; });
       await __V.run(200, function () { return res !== null; }); r.sat = res; r.seated = sc.cafeSeated(); r.sitting = sc.playerSitting(); r.cup = sc.cafeCup(true); r.cupInfo = sc.villageInfo().cup;
