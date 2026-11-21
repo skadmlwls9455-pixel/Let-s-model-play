@@ -153,6 +153,8 @@ NEW.forEach(function (id) {
   check(js(K.lookOf(oldRun)) === js(OLD.lookOf(oldRun)), 'a legacy run keeps its flat look');
   check(js(K.normLook('jeon2', look)) === js(K.normLook('jeon2', null)) && K.normLook('jeon2', null).v === 2, 'a flat look given to a book dish falls back to that dish\'s default, never a crash');
   var line = { id: 'ck_abc', recipe: 'jeon', seed: 5, swaps: { herb: 'parae' }, look: look, day: '2026-11-18', madeAt: 1 };
+  var fut = K.normStore({ v: 1, day: '2026-11-21', dayN: 2, seen: ['tap'], pot: null, book: [line], later: { a: [1, 2] }, note: 'x' });
+  check(js(fut.later) === js({ a: [1, 2] }) && fut.note === 'x' && fut.book.length === 1 && fut.dayN === 2, 'normStore keeps top-level fields it does not know (a later build\'s), untouched');
   check(js(K.normStore({ book: [line], seen: ['tap'], pot: pot, potOld: [pot] })) === js(OLD.normStore({ book: [line], seen: ['tap'], pot: pot, potOld: [pot] })), 'normStore reads an old save exactly as before');
 })();
 
@@ -191,6 +193,12 @@ section('the kinds, one by one');
   run = at('kkochi2', 2); st = run.st;   /* drag in order: any item first, slots fill in order */
   K.input(run, { t: 300, k: 'd', x: st.items[2].hx, y: st.items[2].hy, id: 1 }); K.input(run, { t: 340, k: 'm', x: st.slots[0].x, y: st.slots[0].y, id: 1 });
   check(st.items[2].on && st.items[2].slot === 0, 'drag (order): the third piece picked first goes onto the first slot');
+
+  run = at('kkochi2', 2); st = run.st;   /* round 7 check: a piece let go anywhere on the drawn skewer goes on */
+  K.input(run, { t: 300, k: 'd', x: st.items[0].hx, y: st.items[0].hy, id: 1 }); K.input(run, { t: 340, k: 'm', x: 96, y: 150, id: 1 });
+  check(st.n === 0 && !!st.pen, 'drag (zone): above the skewer nothing is placed yet');
+  K.input(run, { t: 380, k: 'm', x: 96, y: 208, id: 1 }); K.input(run, { t: 400, k: 'u', x: 96, y: 208, id: 1 });
+  check(st.n === 1 && st.items[0].on && st.items[0].slot === 0 && st.items[0].x === st.slots[0].x, 'drag (zone): dropped on the far end of the skewer it goes onto the next slot');
 
   run = at('kkochi2', 0); st = run.st;   /* rub */
   K.input(run, { t: 300, k: 'd', x: st.box[0] * 2 + 10, y: st.box[1] * 2 + 10, id: 1 }); K.input(run, { t: 340, k: 'u', x: st.box[0] * 2 + 10, y: st.box[1] * 2 + 10, id: 1 });

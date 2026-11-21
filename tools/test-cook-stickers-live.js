@@ -276,12 +276,12 @@ var DISH = null;   /* K1's first dish (look, tags): K9 plays the same touches wi
    (11-18 lead: no '1/64 zoom' condition any more: the drift seen at 2.625 was the test browser's DPR emulation; the
    real render path gives exact blocks at every n, checked below with --force-device-scale-factor) */
 /* 11-21 round 7 (owner: all stickers larger; the step strip is gone): the layer starts in the HUD row itself, top =
-   max(8, safeT + 8); n is the largest of floor(2 dpr) .. floor(4 dpr) whose sticker ends 8 px above stage row 44 and
-   leaves the two slots apart; slot 1 ends 8 px left of the 48 px close chip. Shown whenever floor(2 dpr) fits. */
+   max(8, safeT + 8); n is the largest of floor(2 dpr) .. floor(4 dpr) whose sticker ends 8 px above stage row 36 and
+   leaves the two slots apart (row 36 since the check of 11-21: eggs and berries stand at rows 36 and below); slot 1 ends 8 px left of the 48 px close chip. Shown whenever floor(2 dpr) fits. */
 function stickGeo(v, dpr, vw) {
-  var n0 = Math.floor(2 * dpr), n3 = Math.floor(4 * dpr), room = (44 + v.oy) * v.css, safe = v.safe || [0, 0, 0, 0];
+  var n0 = Math.floor(2 * dpr), n3 = Math.floor(4 * dpr), room = (36 + v.oy) * v.css, safe = v.safe || [0, 0, 0, 0];
   var top = Math.max(8, safe[0] + 8), l0 = Math.max(8, safe[3] + 8), r1 = vw - Math.max(8, safe[1] + 8) - 48 - 8;
-  function fits(k) { var z = 32 * k / dpr; return top + z + 8 <= room && l0 + z + 8 <= r1 - z; }
+  function fits(k) { if (k > n0 && dpr >= 3 && dpr === Math.floor(dpr) && k % 2 && k % dpr) return false; var z = 32 * k / dpr; return top + z + 8 <= room && l0 + z + 8 <= r1 - z; }
   var shown = fits(n0), n = n0;
   if (shown) for (var k = n3; k > n0; k--) { if (fits(k)) { n = k; break; } }
   var s = 32 * n / dpr;
@@ -291,9 +291,9 @@ var STICK_SIZES = [   /* s: the sticker size in CSS px. 11-21 round 7 (owner: al
                          sticker px from the HUD row's top; 96 -> 128, 85.33 -> 121.90, 64 -> 128, and the short screens show them now */
   { vp: { width: 360, height: 740 }, dpr: 2, shown: true, s: 128 }, { vp: { width: 360, height: 740 }, dpr: 3, shown: true, s: 128 },
   { vp: { width: 412, height: 915 }, dpr: 2.625, shown: true, s: 121.90, real: true },   /* 11-18 lead: on the real render path (see BLK) */ { vp: { width: 412, height: 915 }, dpr: 2, shown: true, s: 128 },
-  { vp: { width: 390, height: 844 }, dpr: 3, shown: true, s: 128 }, { vp: { width: 360, height: 640 }, dpr: 2, shown: true, s: 128 },
-  { vp: { width: 320, height: 568 }, dpr: 2, shown: true, s: 112 }, { vp: { width: 320, height: 568 }, dpr: 3, shown: true, s: 106.67 },
-  { vp: { width: 360, height: 560 }, dpr: 2, shown: true, s: 112 }
+  { vp: { width: 390, height: 844 }, dpr: 3, shown: true, s: 128 }, { vp: { width: 360, height: 640 }, dpr: 2, shown: true, s: 96 },
+  { vp: { width: 320, height: 568 }, dpr: 2, shown: true, s: 80 }, { vp: { width: 320, height: 568 }, dpr: 3, shown: true, s: 64 },
+  { vp: { width: 360, height: 560 }, dpr: 2, shown: true, s: 80 }
 ];
 function visibleStickers(page) {   /* only what a player can see (the layer may be hidden on short screens) */
   return page.evaluate(function () {
@@ -601,8 +601,8 @@ async function K3(browser) {
     var hs = await H.stk(), vis = await visibleStickers(H.page), lvH = await H.live();
     /* 11-21 round 7: with the strip gone the layer starts in the HUD row, so these short screens show stickers too */
     check(lvH.stick === true && hs.nodes.length >= 1 && vis.length >= 1, 'K3 ' + tg + ': the layer shows on a short screen now: the pick sticker ran (' + hs.nodes.length + ') and is visible (' + vis.length + ')');
-    var gS = stickGeo(lvH.view, short[q].dpr, short[q].vp.width), bS = await H.page.evaluate(function () { var b = document.querySelector('.cook-sticker').getBoundingClientRect(), v = COOK.live().view; return [b.width, b.bottom, (44 + v.oy) * v.css]; });
-    check(Math.abs(bS[0] - gS.s) < 0.02 && bS[0] >= 64 && bS[1] <= bS[2] + 0.01, 'K3 ' + tg + ': it is ' + bS[0] + ' CSS px and ends above the food rows (' + bS[1] + ' <= ' + bS[2] + ')');
+    var gS = stickGeo(lvH.view, short[q].dpr, short[q].vp.width), bS = await H.page.evaluate(function () { var b = document.querySelector('.cook-sticker').getBoundingClientRect(), v = COOK.live().view; return [b.width, b.bottom - 8, (36 + v.oy) * v.css]; });
+    check(Math.abs(bS[0] - gS.s) < 0.02 && bS[0] >= 64 && bS[1] <= bS[2] + 0.01, 'K3 ' + tg + ': it is ' + bS[0] + ' CSS px and ends 8 px above stage row 36 (' + bS[1] + ' + 8 <= ' + bS[2] + ')');
     await verbThrough(H, 'tap', 3);
     check(H.errs.length === 0, 'K3 ' + tg + ': no errors ' + H.errs.join(' | '));
     await H.done();

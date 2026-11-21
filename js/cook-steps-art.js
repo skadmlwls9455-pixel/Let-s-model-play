@@ -346,7 +346,6 @@
     rect(b, x - 1, y - 1, 14, 14, C.r0); rect(b, x, y, 12, 12, C.b1);
     grid(b, FX[name] || FX.sparkle, FX_KEY, x, y);
   }
-  var STAMP = ['...rrrrr...', '..r.....r..', '.r..r.r..r.', 'r..rrrrr..r', 'r.rrrrrrr.r', 'r..rrrrr..r', 'r.rrrrrrr.r', 'r..rrrrr..r', '.r..r.r..r.', '..r.....r..', '...rrrrr...'];
   /* the two end buttons, 20 x 20: a plate of food with the octopus beside it; a plate on the table by an empty seat */
   var END = {
     call: ['....................', '...........ooooo....', '..........oCCCCCo...', '.........oCCCCCCCo..', '.........oCkCCCkCo..', '.........oCkCCCkCo..', '.........oCCCCCCCo..', '.........oCCCCCCCo..', '..........oCCCCCo...', '...ffff..oCoCoCoCo..', '..fFFFFf.oCoCoCoCo..', '.fFFhFFFfoCoCoCoCo..', '.fFFFFFFf.o.o.o.o...', 'wwwwwwwwww..........', 'wPPPPPPPPw..........', '.wPPPPPPw...........', '..wwwwww............', '....................', '....................', '....................'],
@@ -356,14 +355,14 @@
   function endIcon(name) { var b = A.blank(20, 20); grid(b, END[name] || END.table, END_KEY, 0, 0); return b; }
 
   /* ---------- the recipe book ---------- */
-  var TAB_W = 15, TAB_H = 19, PAGE_H = 98, PAGE_TALL = 116;   /* tall: the step pictograms get two rows (no overlap) where the screen has the rows */
+  var TAB_W = 15, TAB_H = 19, PAGE_H = 98, PAGE_MID = 104, PAGE_TALL = 116;   /* mid, tall: the step pictograms get two rows (no overlap); tall has air between the rows */
   /* where the page sits in a view W wide with rows top..bot free: { x0, y0, w, tabs: [[x, y, w, h]...], go: [x, y, w, h] } */
   function bookLay(Wv, top, bot, n) {
-    var tall = bot - top >= PAGE_TALL + TAB_H, ph = tall ? PAGE_TALL : PAGE_H;
+    var room = bot - top, tall = room >= PAGE_TALL + TAB_H, mid = !tall && room >= PAGE_MID + TAB_H - 1, ph = tall ? PAGE_TALL : mid ? PAGE_MID : PAGE_H;
     var total = ph + TAB_H, y0 = top + Math.max(0, (bot - top - total) >> 1), w = Math.min(Wv - 4, 84), x0 = (Wv - w) >> 1;
     var tw = n * TAB_W, tx = (Wv - tw) >> 1, tabs = [];
     for (var i = 0; i < n; i++) tabs.push([tx + i * TAB_W, y0 + ph - 1, TAB_W, TAB_H]);
-    return { x0: x0, y0: y0, w: w, h: ph, tall: tall, tabs: tabs, go: [x0 + 2, y0 + 2, w - 4, 58] };
+    return { x0: x0, y0: y0, w: w, h: ph, tall: tall, two: tall || mid, tabs: tabs, go: [x0 + 2, y0 + 2, w - 4, 56] };
   }
   function paper(V, x0, y0, w, h) {
     rect(V, x0 + 2, y0 + 2, w, h, C.w1);                    /* its shadow on the counter */
@@ -392,24 +391,29 @@
       var on = i === (o.sel | 0), lock = !!(o.locked && o.locked[ids[i]]), x = t[0], y = t[1], h = on ? t[3] : t[3] - 2;
       rect(V, x, y, t[2], h, C.r0); rect(V, x + 1, y + (on ? 0 : 1), t[2] - 2, h - 1 - (on ? 0 : 1), on ? C.w6 : lock ? C.w4 : C.w5);
       if (lock) silhouette(V, ICON[ids[i]], 0, x + 7, y + 15, C.w2); else spr(V, ICON[ids[i]], 0, x + 7, y + (on ? 16 : 15));
+      if (o.made && o.made[ids[i]] && !lock) { rect(V, x + t[2] - 5, y + 2, 3, 3, RED); put(V, x + t[2] - 4, y + 3, ROSE); }   /* made before: a small red seal on its tab */
     });
     if (open === 2 || !r) return L;
-    var locked = !!(o.locked && o.locked[id]), dy = y0 + 2;
-    for (var ly = dy + 62; ly < y0 + L.h - 3; ly += 18) rect(V, x0 + 7, ly + 16, w - 12, 1, C.w5);   /* ruled lines under the rows */
+    var locked = !!(o.locked && o.locked[id]), two = L.two, pack = two && !L.tall, dy = y0 + (pack ? 1 : 2);
+    var yD = dy + (pack ? 44 : 46), yI = dy + (pack ? 55 : 60), yS = dy + (pack ? 71 : 78), gap = pack ? 16 : 18;
+    if (!pack) for (var ly = dy + 62; ly < y0 + L.h - 3; ly += 18) rect(V, x0 + 7, ly + 16, w - 12, 1, C.w5);   /* ruled lines under the rows */
     if (locked) {
-      silhouette(V, DISH[id], 0, cx, dy + 46, C.w4);
+      silhouette(V, DISH[id], 0, cx, yD, C.w4);
       rect(V, cx - 10, dy + 18, 20, 20, C.r0); rect(V, cx - 9, dy + 19, 18, 18, C.w6); spr(V, 'lock.cup', 0, cx, dy + 33);
       return L;
     }
-    spr(V, DISH[id], id === 'jeon2' ? 1 : 0, cx, dy + 46);
-    if (o.made && o.made[id]) grid(V, STAMP, { r: RED }, x0 + w - 16, dy + 2);
+    spr(V, DISH[id], id === 'jeon2' ? 1 : 0, cx, yD);
     var ings = (r.ings || []).map(function (k) { return 'ing.' + k; }), pics = r.steps.map(function (s) { return s.pic; });
-    if (L.tall) { row(V, ings, x0 + 6, w - 10, dy + 60); fxPic(V, r.fx, x0 + 9, dy + 4); }   /* the day effect: a small window in the page's top corner */
-    else { row(V, ings, x0 + 6, w - 26, dy + 60); fxPic(V, r.fx, x0 + w - 17, dy + 62); }
-    if (L.tall && pics.length > 4) {   /* two rows, in reading order */
+    if (two) {   /* two rows of steps in reading order; the day effect closes the second row */
       var n1 = (pics.length + 1) >> 1;
-      row(V, pics.slice(0, n1), x0 + 6, w - 10, dy + 78); row(V, pics.slice(n1), x0 + 6, w - 10, dy + 96);
-    } else row(V, pics, x0 + 6, w - 10, dy + (L.tall ? 87 : 78));
+      row(V, ings, x0 + 5, w - 7, yI);
+      row(V, pics.slice(0, n1), x0 + 6, w - 10, yS);
+      row(V, pics.slice(n1), x0 + 6, w - 28, yS + gap);
+      fxPic(V, r.fx, x0 + w - 18, yS + gap + 2);
+    } else {
+      row(V, ings, x0 + 6, w - 26, yI); fxPic(V, r.fx, x0 + w - 17, yI + 2);
+      row(V, pics, x0 + 6, w - 10, yS);
+    }
     return L;
   }
 
