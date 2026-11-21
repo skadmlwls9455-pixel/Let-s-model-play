@@ -49,13 +49,13 @@
   }
   function sprOf(id, frame) {
     frame = frame | 0; if (frame < 0) frame = 0;
-    var S = sprSrc(), key = id + '|' + frame + '|' + (S ? S.version || 1 : 0), hit = memo[key];
+    var src = sprSrc(), key = id + '|' + frame + '|' + (src ? src.version || 1 : 0), hit = memo[key];
     if (hit) return hit;
     var out = null;
     try {
-      var inf = S ? S.info(id) : null;
+      var inf = src ? src.info(id) : null;
       if (inf) {
-        var fr = Math.min(frame, Math.max(0, (inf.frames | 0) - 1)), g = S.get(id, fr);
+        var fr = Math.min(frame, Math.max(0, (inf.frames | 0) - 1)), g = src.get(id, fr);
         if (g && g.d && g.w > 0 && g.h > 0) out = { buf: { w: g.w, h: g.h, d: g.d }, ax: inf.ax | 0, ay: inf.ay | 0, frames: inf.frames | 0, plain: false };
       }
     } catch (e) { out = null; }
