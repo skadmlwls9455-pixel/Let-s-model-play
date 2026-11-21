@@ -91,7 +91,8 @@ var VILLAGE = (function () {
     CIRCLES.push([PLAZA.board[0], PLAZA.board[1] - 0.42, 0.22], [PLAZA.board[0], PLAZA.board[1] + 0.42, 0.22]);     /* 게시판 (화면 가로로 선 판) */
     CIRCLES.push([PLAZA.well[0], PLAZA.well[1], 0.95]);       /* 우물 */
     CIRCLES.push([PLAZA.nets[0], PLAZA.nets[1], 0.45]);
-    CIRCLES.push([BOARD.s, BOARD.t, BOARD.r]);                        /* 그물 · 부표 더미 */
+    CIRCLES.push([BOARD.s, BOARD.t, BOARD.r]);
+    CIRCLES.push([STAGE.c[0] + (-2.0 + 0.6) * K, STAGE.c[1] + (-2.0 - 0.6) * K, 0.2]);   /* 콘테스트 포스터 판 (SHOW.poster) */                        /* 그물 · 부표 더미 */
     LAMPS.forEach(function (l) { if (inWalk(l[0], l[1], -0.3)) CIRCLES.push([l[0], l[1], 0.06]); });
     NPCS.forEach(function (n) { CIRCLES.push([n.s, n.t, n.r]); });   /* 문어마다 원 하나 (걷는 곳 밖이어도 등록 — 가장자리에서 몸이 겹치지 않게) */
   })();
@@ -209,14 +210,16 @@ var VILLAGE = (function () {
   })();
   /* 광장 무대 (주말 콘테스트): 기다리는 자리 · 걷는 길 넷 · 심사 자리 셋 · 시상대 넷 — (s, t) */
   var SHOW = (function () {
-    var c = STAGE.c, K2 = Math.SQRT1_2, P = function (dx, dz) { return [c[0] + (dx + dz) * K2, c[1] + (dx - dz) * K2]; };   /* 무대 가운데에서 x · z 로 */
-    return { wait: P(-2.0, 2.2), path: [P(-0.9, 1.9), P(-0.9, 0.5), P(0.9, 0.5), P(0.9, 1.9)].map(function (p, i) { return i === 1 || i === 2 ? p : p; }), onStage: [1, 2],
-      judges: [P(-1.0, 3.3), P(0, 3.3), P(1.0, 3.3)].map(function (p) { return [p[0], p[1], Math.PI]; }), podium: [[0, -0.6, 0.36], [-0.75, -0.6, 0.24], [0.75, -0.6, 0.14], [1.4, -0.6, 0]].map(function (q) { var p = P(q[0], q[1]); return [p[0], p[1], q[2]]; }),
-      poster: P(-2.1, 0.9), table: P(0, 3.0) };
+    var c = STAGE.c, K2 = Math.SQRT1_2, P = function (dx, dz) { return [c[0] + (dx + dz) * K2, c[1] + (dx - dz) * K2]; };   /* 무대 가운데에서 x · z 로 (무대 앞 = +z) */
+    return { wait: P(-2.3, 2.3), path: [P(-1.5, 2.0), P(-0.7, 2.5), P(0.7, 2.5), P(1.5, 2.0)],          /* 무대 앞 깔개 위를 지나는 길 (땅 위 — 무대는 올라서지 않는 배경이다) */
+      judges: [P(-0.9, 3.9), P(0, 3.9), P(0.9, 3.9)].map(function (p) { return [p[0], p[1], Math.PI]; }), table: P(0, 3.45),   /* 심사석: 무대를 본다 */
+      podium: [[0, -0.5, 0.36], [-0.75, -0.5, 0.24], [0.75, -0.5, 0.14], [1.45, -0.5, 0]].map(function (q) { var p = P(q[0], q[1]); return [p[0], p[1], STAGE.y + q[2]]; }),   /* 시상대 (무대 위): 높이는 땅에서 */
+      rivals: [P(-2.3, 3.0), P(-2.7, 3.5), P(-2.3, 4.0)], poster: P(-2.0, 0.6) };
   })();
+  var EXTRA = ['judge0', 'judge1', 'judge2', 'rival0', 'rival1', 'rival2'];   /* 콘테스트 때만 서는 문어 (npcSet 에 올 수 있는 id — 자리는 SHOW, npcPlace 로 옮긴다) */
 
   var HATS = ['none', 'beret', 'apron', 'cap'], POSES = ['stand', 'sleep'];
   return { xz: xz, st: st, local: local, at: at, lot: lot, spot: spot, npc: npc, inWalk: inWalk,
-    WALK: WALK, LOTS: LOTS, DECK: DECK, STALL: STALL, STAGE: STAGE, PLAZA: PLAZA, CAFE: CAFE, SPOTS: SPOTS, NPCS: NPCS, LAMPS: LAMPS, NLAMP: NLAMP, POTS: POTS, BOARD: BOARD, CIRCLES: CIRCLES, BOXES: BOXES, BENCH: BENCH, route: route, ROOMS: ROOMS, DOORS: DOORS, SHOW: SHOW, SEGMENTS: SEGMENTS, HATS: HATS, POSES: POSES };
+    WALK: WALK, LOTS: LOTS, DECK: DECK, STALL: STALL, STAGE: STAGE, PLAZA: PLAZA, CAFE: CAFE, SPOTS: SPOTS, NPCS: NPCS, LAMPS: LAMPS, NLAMP: NLAMP, POTS: POTS, BOARD: BOARD, CIRCLES: CIRCLES, BOXES: BOXES, BENCH: BENCH, route: route, ROOMS: ROOMS, DOORS: DOORS, SHOW: SHOW, EXTRA: EXTRA, SEGMENTS: SEGMENTS, HATS: HATS, POSES: POSES };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = VILLAGE;
