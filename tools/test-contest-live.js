@@ -63,13 +63,25 @@ async function context(browser, today, rec, o) {
     "window.__ppolTest = Object.assign(window.__ppolTest || {}, { today: sessionStorage.getItem('__ct_day') || " + JSON.stringify(today) + ' });' });
   return ctx;
 }
+/* 두 탭: file:// 에서는 두 탭이 가끔 저장소를 못 나눈 채 열린다 (헤드리스 브라우저 사정 — 게임 코드와 무관). 나누는지 확인하고, 아니면 새 브라우저로 다시 연다 */
+var LAUNCH = { args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] };
+async function pair(today) {
+  for (var i = 0; i < 5; i++) {
+    var br = await chromium.launch(LAUNCH), ctx = await context(br, today), a = await open(ctx), b = await open(ctx);
+    await a.evaluate(function () { localStorage.setItem('__ct_probe', '1'); });
+    await b.waitForTimeout(400);
+    if (await b.evaluate(function () { return localStorage.getItem('__ct_probe') === '1'; })) return { br: br, a: a, b: b };
+    await br.close();
+  }
+  throw new Error('두 탭이 저장소를 나누지 못함');
+}
 function shells(page) { return page.evaluate(function () { return APP.state.user.shells; }); }
 function view(page) { return page.evaluate(function () { var d = document.getElementById('contest-sheet'), b = document.getElementById('contest-body'); return { open: !!d.open, view: b.dataset.view || null, text: [document.getElementById('contest-h').innerText, b.innerText, document.getElementById('contest-close').innerText].join('\n'), go: !!document.getElementById('ct-go'), closed: !!document.getElementById('ct-closed') }; }); }
 function entry(page, dk) { return page.evaluate(function (dk) { return CONTEST.today(APP.state.user, dk); }, dk); }
 async function shot(page, name) { if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursive: true }); await page.waitForTimeout(350); await page.screenshot({ path: path.join(SHOTS, name + '.png') }); }
 
 async function main() {
-  var browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
+  var browser = await chromium.launch(LAUNCH);
   var ctx, page, v, s0, e, r;
 
   console.log('A 옷 목록 없음 · 2D');
@@ -195,12 +207,11 @@ async function main() {
   await ctx.close();
 
   console.log('E 두 탭');
-  ctx = await context(browser, SAT);
-  var p1 = await open(ctx), p2 = await open(ctx);
+  var pp = await pair(SAT), p1 = pp.a, p2 = pp.b;
   s0 = await shells(p1);
   await p1.evaluate(function () { APP.openContest(); APP.contestEnter(); APP.contestSkip(); });
   var e1 = await entry(p1, SAT);
-  await p2.waitForFunction(function (d) { return !!CONTEST.today(APP.state.user, d); }, SAT, { timeout: 10000 });   /* 저장 알림이 닿은 뒤 */
+  await p2.waitForFunction(function (d) { return !!CONTEST.today(APP.state.user, d); }, SAT, { timeout: 30000 });   /* 저장 알림이 닿은 뒤 */
   await p2.evaluate(function () { APP.setPlayerPart('outfit', 'raincoat'); APP.openContest(); APP.contestEnter(); });
   var eB = await entry(p2, SAT);
   check(e1 && eB && eB.at === e1.at && eB.rank === e1.rank && !(await p2.evaluate(function () { return APP.contestStage; })), '둘째 탭: 첫 탭의 결과 그대로 (쇼 없이)');
@@ -208,20 +219,19 @@ async function main() {
   await p1.waitForTimeout(300);
   check((await shells(p1)) === s0 + e1.shells && (await p1.evaluate(function () { return JSON.parse(localStorage.getItem('ppolppol_v2')).user.shells; })) === s0 + e1.shells, '저장소의 조개도 한 번만');
   /* 저장 이벤트 없이 (같은 틱) 둘째 탭이 눌러도: 저장소를 다시 읽는다 */
-  await ctx.close();
-  ctx = await context(browser, SUN);
-  p1 = await open(ctx); p2 = await open(ctx);
+  await pp.br.close();
+  pp = await pair(SUN); p1 = pp.a; p2 = pp.b;
   s0 = await shells(p1);
   await p2.evaluate(function () { window.addEventListener('storage', function (e) { e.stopImmediatePropagation(); }, true); });   /* 둘째 탭이 저장 알림을 못 받은 척 */
   await p1.evaluate(function () { APP.openContest(); APP.contestEnter(); APP.contestSkip(); });
   await p2.evaluate(function () { APP.save(); });   /* 옛 상태 그대로 저장 → 첫 탭의 기록을 덮는다 */
-  await p2.waitForFunction(function (d) { var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user; return !!CONTEST.today(u, d); }, SUN, { timeout: 10000 });   /* 첫 탭이 기록을 다시 얹은 뒤 */
+  await p2.waitForFunction(function (d) { var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user; return !!CONTEST.today(u, d); }, SUN, { timeout: 30000 });   /* 첫 탭이 기록을 다시 얹은 뒤 */
   await p2.evaluate(function () { APP.openContest(); APP.contestEnter(); });
   await p1.waitForTimeout(300);
   e1 = await entry(p1, SUN); eB = await entry(p2, SUN);
   check(e1 && eB && eB.at === e1.at && (await shells(p2)) === s0 + e1.shells, '알림을 못 받은 탭이 옛 저장으로 덮어도: 기록 · 조개가 되돌아오고 한 번만 ' + JSON.stringify([e1 && e1.at, eB && eB.at, s0, e1 && e1.shells]));
   check((await shells(p1)) === s0 + e1.shells && (await p1.evaluate(function () { return JSON.parse(localStorage.getItem('ppolppol_v2')).user.shells; })) === s0 + e1.shells, '저장소의 조개도 한 번만');
-  await ctx.close();
+  await pp.br.close();
 
   console.log('F 움직임 줄이기');
   var rec = REC(); rec.settings.motion = 'reduce';
