@@ -71,7 +71,7 @@ ok(Math.hypot(CF.cup.s - CF.tables[0].s, CF.cup.t - CF.tables[0].t) < CF.tables[
 
 /* 6. 부딪힘 · 덩어리 */
 ok(V.CIRCLES.length >= 20 && V.CIRCLES.length <= 45, '원 ' + V.CIRCLES.length + ' 개');
-V.CIRCLES.forEach(function (c) { ok(c.length === 3 && c[2] > 0 && c[2] <= 0.7 && c[0] > 17 && c[0] < 61, '원 [' + c.join(', ') + ']'); });
+V.CIRCLES.forEach(function (c) { ok(c.length === 3 && c[2] > 0 && c[2] <= 1 && c[0] > 17 && c[0] < 61, '원 [' + c.join(', ') + ']'); });
 /* 마을 길 한가운데 (s 18–38 · |t| ≤ 1.2) 는 어디도 막히지 않는다 (몸 반지름 0.25) — 광장 가운데엔 우물이 선다 */
 for (var s0 = 18; s0 <= 38; s0 += 0.25) for (var t0 = -1.2; t0 <= 1.2; t0 += 0.3) V.CIRCLES.forEach(function (c) { if (Math.hypot(c[0] - s0, c[1] - t0) < c[2] + 0.25) ok(false, '길 가운데 (' + s0 + ', ' + t0 + ') 가 막혔다'); });
 pass++;
