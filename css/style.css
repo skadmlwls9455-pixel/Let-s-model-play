@@ -1808,6 +1808,7 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 .cafe-name { word-break: keep-all; text-align: center; font-weight: 700; }
 :root[data-font="pixel"] .cafe-name { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 24px; }
 :root[data-font="pixel"] .cafe-cost { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
+@media (max-width: 350px) { .cafe-name { display: flex; align-items: center; min-height: 48px; } }   /* 320 폭: '딸기 케이크' 가 두 줄 — 세 칸의 값 · 점 높이를 맞춘다 */
 .cafe-dots { display: flex; gap: 4px; height: 6px; margin-top: 2px; }
 .cafe-dots i { display: block; width: 6px; height: 6px; box-shadow: inset 0 0 0 2px var(--rim); }
 .cafe-dots i.on { background: var(--amber); box-shadow: none; }

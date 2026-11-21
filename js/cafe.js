@@ -40,6 +40,7 @@ var CAFE = (function () {
     if (!it) return { ok: false, why: 'unknown' };
     if (pending(c)) return { ok: false, why: 'busy' };
     if (cnt(shells) < it.price) return { ok: false, why: 'short', miss: it.price - cnt(shells) };
+    if (c.tray && !item(c.tray.id)) { if (!Array.isArray(c.held)) c.held = []; c.held.push(c.tray); }   /* 이 빌드가 모르는 메뉴가 쟁반에 있었다 (나중 빌드의 것): 지우지 않고 옆에 둔다 */
     c.tray = { id: it.id, left: it.bites, day: isDay(day) ? day : null };
     return { ok: true, cost: it.price, item: it };
   }
@@ -58,7 +59,7 @@ var CAFE = (function () {
   function giftMark(c, id, day) { c = normalize(c); var it = item(id); if (!it || !it.recipe || c.gifts[it.recipe]) return false; c.gifts[it.recipe] = isDay(day) ? day : true; return true; }
   function dots(c, id) { c = normalize(c); var it = item(id); if (!it || !it.recipe) return -1; return c.gifts[it.recipe] ? GIFT_AT : Math.min(GIFT_AT, cnt(c.eaten[id])); }   /* 메뉴 칸의 점 셋 (-1 = 점 없음) */
   /* 자리에서 일어남: 커피 · 다 먹은 접시는 치운다. 먹다 만 음식은 남겨 둔다 (다음에 카운터에서 다시 내준다 — 낸 조개가 사라지지 않게) */
-  function leave(c) { c = normalize(c); if (!pending(c)) c.tray = null; return c; }
+  function leave(c) { c = normalize(c); if (c.tray && item(c.tray.id) && !pending(c)) c.tray = null; return c; }   /* 모르는 메뉴의 쟁반은 그대로 둔다 */
   function played(c, tune) { c = normalize(c); if (typeof tune === 'string' && tune) c.lp[tune] = cnt(c.lp[tune]) + 1; return c; }
   /* 두 기록 합치기 (다른 탭 · 불러오기): 센 것은 큰 쪽, 받은 선물은 합집합, 쟁반은 a 것 (없으면 b 것) */
   function merge(a, b) {
