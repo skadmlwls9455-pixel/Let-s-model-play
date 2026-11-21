@@ -5610,7 +5610,7 @@ var APP = (function () {
     var el = $('story-intro'), force = /[?&]story=1(&|$)/.test(location.search);
     if (typeof done !== 'function') done = function () {};
     if (!NPCR || !el || S.octopus.name || storyState().intro || (navigator.webdriver && !force) || !el.hidden) { done(); return false; }
-    var p = $('story-line'), i = 0, over = false;
+    var p = $('story-line'), i = 0, over = false, t0 = Date.now();   /* t0: 타이틀을 누른 그 손가락의 click 이 첫 줄을 넘기지 않게 (0.4초 동안은 넘기지 않는다) */
     function show() { p.textContent = NPCR.intro[i]; el.setAttribute('data-n', String(i + 1)); }
     function end() {
       if (over) return; over = true;
@@ -5620,11 +5620,11 @@ var APP = (function () {
       setTimeout(function () { el.hidden = true; el.classList.remove('leaving'); p.textContent = ''; }, reduced() ? 0 : 260);
       done();
     }
-    function next() { if (over) return; if (i < NPCR.intro.length - 1) { i++; show(); } else end(); }
+    function next() { if (over || Date.now() - t0 < 400) return; if (i < NPCR.intro.length - 1) { i++; show(); } else end(); }
     function key(e) {
       if (over) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); end(); }
-      else if ((e.key === 'Enter' || e.key === ' ') && e.target !== $('story-skip')) { e.preventDefault(); e.stopPropagation(); next(); }
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (e.target === $('story-skip')) end(); else next(); }   /* 입장 레이어가 Enter · Space 의 기본 동작을 막는다 → 건너뛰기 단추도 여기서 받는다 */
     }
     $('story-next').onclick = next; $('story-skip').onclick = end;
     document.addEventListener('keydown', key, true);
@@ -5642,6 +5642,11 @@ var APP = (function () {
       var b = $('btn-npc-sleep-' + i); if (b && NPCR) b.addEventListener('click', function () { toast(NPCR.SLEEP_SAY); });
     });
     var nx = $('npc-next'); if (nx) nx.addEventListener('click', npcNext);
+    /* 말이 떠 있는 동안 모달 창이 열리면 그 창 위로 옮긴다 (밑에 깔려 안 보이고 안 눌리지 않게) */
+    if (typeof MutationObserver === 'function') new MutationObserver(function (ms) {
+      var box = $('npc-box'); if (!npcNow || !box) return;
+      if (ms.some(function (m) { return m.target.tagName === 'DIALOG' && m.target.open; }) && box.parentNode !== (openDialog() || document.body)) npcShow();
+    }).observe(document.body, { attributes: true, attributeFilter: ['open'], subtree: true });
     var tt = $('toast'); if (tt && typeof MutationObserver === 'function') new MutationObserver(function () { var box = $('npc-box'); if (npcNow && box) npcPlace(box); }).observe(tt, { attributes: true, attributeFilter: ['class'] });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && npcNow) { e.preventDefault(); e.stopPropagation(); npcEnd(false); } }, true);
     document.addEventListener('close', function () { if (npcNow) npcEnd(false); }, true);   /* 말이 떠 있던 창이 닫히면 말도 접는다 */

@@ -119,6 +119,12 @@ function box(p) {
     ok(!b4.hidden && b4.parent === 'story-sheet' && b4.top >= 0 && (b4.bottom <= sheetTop || b4.top <= 8), '시트가 열려 있으면 그 위에 뜬다 (시트 안의 단추를 가리지 않는다)');
     ok(await p.evaluate(function () { var b = document.getElementById('npc-box'), r = b.getBoundingClientRect(), e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!e && b.contains(e); }), '시트 위에서도 누를 수 있다');
     await p.click('#story-close');
+    /* 말이 떠 있는 동안 시트가 열리면 그 위로 옮겨 간다 */
+    await p.evaluate(function () { APP.npcSay('cafe', 'talk'); APP.openStory(); });
+    await p.waitForFunction(function () { return document.getElementById('npc-box').parentNode.id === 'story-sheet'; }, null, { timeout: 3000 }).catch(function () {});
+    var b5 = await box(p); ok(!b5.hidden && b5.parent === 'story-sheet' && b5.npc.id === 'cafe', '말하는 중에 시트가 열리면 말이 시트 위로 옮겨 간다');
+    await p.keyboard.press('Escape'); ok((await box(p)).hidden && await p.evaluate(function () { return document.getElementById('story-sheet').open; }), 'Esc 는 말만 닫고 시트는 둔다');
+    await p.click('#story-close');
     ok(!(await p.evaluate(function () { return document.getElementById('story-sheet').open; })) && (await box(p)).hidden && b4.parent === 'story-sheet' && (await box(p)).parent === 'BODY', '시트를 닫으면 말도 접힌다');
     ok(p.errs.length === 0, '오류 없음: ' + p.errs.join(' | '));
     await p.context().close();
@@ -148,7 +154,8 @@ function box(p) {
     await p.mouse.click(180, 400);
     var s1 = await story(p); ok(!s1.hidden && s1.text === LINES[0] && !s1.name && s1.phase === 'title', '타이틀을 누르면 첫 줄 (이름 창보다 먼저)');
     ok(await p.evaluate(function () { return document.getElementById('story-line').getAttribute('aria-live') === 'polite' && !!document.getElementById('story-skip').offsetWidth; }), '낭독 · 건너뛰기 단추');
-    await p.mouse.click(180, 300); ok((await story(p)).text === LINES[1], '누르면 둘째 줄');
+    await p.mouse.click(180, 300); ok((await story(p)).text === LINES[0], '타이틀을 누른 손가락이 첫 줄을 넘기지 않는다 (바로 이어진 누르기는 먹지 않는다)');
+    await p.waitForTimeout(450); await p.mouse.click(180, 300); ok((await story(p)).text === LINES[1], '누르면 둘째 줄');
     await p.keyboard.press('Enter'); ok((await story(p)).text === LINES[2], 'Enter 로 셋째 줄');
     await p.mouse.click(180, 300);
     await p.waitForFunction(function () { return document.getElementById('name-dialog').open; }, null, { timeout: 8000 });
@@ -162,7 +169,7 @@ function box(p) {
     /* 건너뛰기 · Esc · 모션 감소 */
     p = await open(browser, '?intro=1&story=1'); await toTitle(p); await p.mouse.click(180, 400);
     ok(!(await story(p)).hidden, '첫 줄');
-    await p.click('#story-skip');
+    await p.focus('#story-skip'); await p.keyboard.press('Enter');   /* 자판으로 건너뛰기 */
     await p.waitForFunction(function () { return document.getElementById('name-dialog').open && document.getElementById('story-intro').hidden; }, null, { timeout: 8000 });
     ok(await p.evaluate(function () { return !!APP.state.user.story.intro; }), '건너뛰어도 본 것으로 적는다');
     await p.context().close();
