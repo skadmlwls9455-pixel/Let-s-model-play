@@ -777,7 +777,7 @@ section('14. static checks');
   function noComments(src) { return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1'); }
   check(!/Date\.now|performance\.now/.test(sim), 'simulation half: no Date.now / performance.now (comments included)');
   check(!/\bdocument\.|\bwindow\.|localStorage|sessionStorage|setTimeout|setInterval|requestAnimationFrame|\bnew Date\b/.test(noComments(sim)), 'simulation half: no DOM, storage, timers or Date');
-  var files = ['js/cook.js', 'js/cook-art.js', 'js/cook-dishes.js', 'css/cook.css', 'cook.html'].filter(function (f) { return fs.existsSync(path.join(ROOT, f)); });
+  var files = ['js/cook.js', 'js/cook-art.js', 'js/cook-dishes.js', 'js/cook-sprites.js', 'css/cook.css', 'cook.html'].filter(function (f) { return fs.existsSync(path.join(ROOT, f)); });
   console.log('   scanning: ' + files.join(', '));
   var BANNED = ['맛있', '좋아해', '좋아하', '먹고 싶', '기다렸', '아쉽', '미안', '실패', '성공', '점수', '완벽', '최고', '잘했', '탔', '등급', '메달', '마마', 'Mama'];
   var ks = (function () {   /* KS X 1001: decode every EUC-KR Hangul code (rows 4 jamo, 16-40 syllables) */
