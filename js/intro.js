@@ -250,6 +250,9 @@ var INTRO = (function () {
   /* 들어가기: 하늘 단계면 바로 착지. 로고 눌림(80ms) → 위로 빠지며 사라짐 · 덮개 걷힘 · UI 올라옴 → 정리 */
   function go() {
     if (st.phase === 'off' || st.phase === 'out') return;
+    /* 11-21 (7차 N): 첫 실행이면 들어가기 앞에 이야기 세 줄 (app.js storyIntro — 볼 것이 없으면 바로 done 을 부른다). 보는 동안의 누르기 · 키는 그쪽이 받는다 */
+    if (st.story) return;
+    if (!st.storyDone && window.APP && typeof APP.storyIntro === 'function') { st.story = st.storyDone = true; APP.storyIntro(function () { st.story = false; go(); }); return; }
     var wasSky = st.phase === 'sky';
     st.phase = 'out'; st.el.dataset.phase = 'out';
     cancelAnimationFrame(st.raf);

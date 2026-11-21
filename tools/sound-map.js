@@ -29,7 +29,7 @@ const OUT = []; let mark = 0;
   await p.addInitScript(() => { window.__ppolLook = undefined; });
   await p.goto(base);
   await p.waitForSelector('#name-dialog[open]'); await p.fill('#name-in', '뚜루'); await p.click('#name-form button[type=submit]'); await p.waitForTimeout(800);
-  await step('소리 켜기 (설정 › 소리 체크 칸)', async () => { await p.click('#btn-settings'); await p.click('#set-sound'); await p.click('#set-close'); }, 3000);
+  await step('소리 켜기 (설정 › 소리 체크 칸)', async () => { await p.click('#btn-settings'); await p.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); }); await p.click('#set-sound'); await p.click('#set-close'); }, 3000);
   const oc = await p.evaluate(() => APP.scene.octScreenPos());
   await step('문어 톡', () => p.touchscreen.tap(oc.x, oc.y - 8));
   await step('문어 꾹 (쓰다듬기)', async () => { await p.mouse.move(oc.x, oc.y - 8); await p.mouse.down(); await p.waitForTimeout(600); await p.mouse.up(); }, 2500);
