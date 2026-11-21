@@ -5809,7 +5809,7 @@ var SCENE3D = (function () {
       [[0, 1], [2, 3]].forEach(function (pr) {
         var a = VILLAGE.LAMPS[pr[0]], b2 = VILLAGE.LAMPS[pr[1]], qa = vilXZ(a[0], a[1]), qb = vilXZ(b2[0], b2[1]), n = 11;
         seg(P.thin, [qa[0], 1.7, qa[1]], [qb[0], 1.7, qb[1]], 0.012, VC.cream, 4);
-        for (var f = 0; f < n; f++) { var u = (f + 0.5) / n; P.thin.push({ g: box(0.16, 0.16, 0.02), m: M(qa[0] + (qb[0] - qa[0]) * u, 1.62 - 0.2 * Math.sin(Math.PI * u), qa[1] + (qb[1] - qa[1]) * u, 0, -Math.PI / 4, Math.PI / 4), c: [VC.red, VC.yellow, VC.blueL, VC.cream, VC.moss][f % 5] }); }
+        for (var f = 0; f < n; f++) { var u = (f + 0.5) / n; P.thin.push({ g: box(0.16, 0.16, 0.02), m: M(qa[0] + (qb[0] - qa[0]) * u, 1.62 - 0.2 * Math.sin(Math.PI * u), qa[1] + (qb[1] - qa[1]) * u, 0, Math.PI / 4, Math.PI / 4), c: [VC.red, VC.yellow, VC.blueL, VC.cream, VC.moss][f % 5] }); }
       });
       /* 길 어깨 (포장과 건물 사이 |t| 2.6 ~ 3.4 — 걷는 곳 밖): 긴 화분 · 통 · 손수레 */
       var K4 = Math.PI / 4;
