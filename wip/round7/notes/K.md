@@ -28,3 +28,4 @@ cook-shots rewrite -> synthesized pour/scrub -> open animation polish -> cake ->
 - Stickers: start in the HUD row (the strip is gone), up to floor(4 dpr) device px per sticker px, right slot left of the close chip.
 
 ## Log
+- 11-21: a..e done and pushed; suites green (see reports/K.md). Working tree has lane A's js/cook-sprites.js locally (assume-unchanged; never commit it). Waiting for the independent check, then one round of fixes, final report.
