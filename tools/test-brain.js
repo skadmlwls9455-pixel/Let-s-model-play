@@ -1874,7 +1874,7 @@ async function honestDemoSuite(W) {
   check(as.length > 300, 'app.js string constants were read (' + as.length + ')');
   as.forEach(function (t) { look(t, 'app.js'); });
   /* 11-14 고침 둘째: js/salon.js · js/play.js 도 규칙이 짓는 문어 목소리 줄이 있다 — 같은 말로 본다. 그 '-ㄹ래' 결정 줄(규칙이 정한 대답 그 자체)만 글 그대로 허락 (DECISION_OK, 주인 몫 C4 가 정할 때까지) */
-  ['js/salon.js', 'js/play.js', 'js/meal.js', 'js/npc.js'].forEach(function (f) {   /* 11-21 7차: 마을 문어 대본 (js/npc.js) 도 같은 말로 본다 */     /* 11-18: 식탁 규칙 (js/meal.js) 도 같은 말로 본다 — '-기로 했어' 결정 줄은 허락 목록 없이 지나간다 */
+  ['js/salon.js', 'js/play.js', 'js/meal.js', 'js/npc.js', 'js/contest.js'].forEach(function (f) {   /* 11-21 7차: 마을 문어 대본 (js/npc.js) 도 같은 말로 본다 */     /* 11-18: 식탁 규칙 (js/meal.js) 도 같은 말로 본다 — '-기로 했어' 결정 줄은 허락 목록 없이 지나간다 */
     var fs2 = brainSourceStrings(path.join(ROOT, f)), used = {};
     check(fs2.length > 10, f + ' string constants were read (' + fs2.length + ')');
     fs2.forEach(function (t) { if (DECISION_OK[f] && DECISION_OK[f].indexOf(t) >= 0) { used[t] = 1; seen[t] = 1; return; } look(t, f); });
