@@ -6311,7 +6311,8 @@ var APP = (function () {
     }
     var st = ctStageInfo(); ctSceneSync(true);
     var L = ctL = { stage: 'go', n: 0, skip: false, done: false, entry: null };
-    ctWalk([st.wait], 5000).then(function () { if (ctL === L) { ctL = null; ctEntryCard(); } });
+    var near = !ctInHall() && typeof scene.villageGo === 'function' ? ctWithin(ctSceneCall('villageGo', 'plazaStage'), 9000) : Promise.resolve();   /* 광장: 먼저 무대 앞까지 (V 의 마을 걷기 — 이미 가까우면 바로 풀린다) */
+    near.then(function () { return ctL === L ? ctWalk([st.wait], 5000) : null; }).then(function () { if (ctL === L) { ctL = null; ctEntryCard(); } });
     return true;
   }
   function ctLiveEnter(ev) {
