@@ -527,6 +527,7 @@ async function partD() {
     await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
     ok(true, '/ (?intro=1): 입장 연출 → 톡 → 이름 짓기');
     await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
+    await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: 설정 구역은 접혀서 열린다 → 펼치고 누른다 */
     await page.click('#set-sound');
     var sound = await page.waitForFunction(function () { var s = window.AUDIO && AUDIO.state(); return s && s.started && s.ctx === 'running'; }, null, { timeout: 20000 }).then(function () { return true; }, function () { return false; });
     await page.click('#set-close');
