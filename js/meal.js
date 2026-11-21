@@ -432,7 +432,7 @@
   function pic(recipe, look) {
     if (typeof recipe !== 'string' || !has(PICS, recipe)) return null;
     var f = 0;
-    if (recipe === 'jeon2') { var b = isObj(look) && typeof look.band === 'number' && isFinite(look.band) ? Math.floor(look.band) : 1; f = Math.max(0, Math.min(2, b)); }
+    if (recipe === 'jeon2') { var b = isObj(look) && typeof look.band === 'number' && isFinite(look.band) ? Math.floor(look.band) : 0;   /* 부엌의 look = { v: 2, s, plate, band? } — band 가 없으면 첫 칸 */ f = Math.max(0, Math.min(2, b)); }
     return { id: PICS[recipe], frame: f };
   }
   /* 그림 { w, h, d: RGBA } 에서 그릇 줄을 찾는다: 아래쪽 6할 가운데, 가장 넓은 줄의 9할 넘게 넓은 맨 윗줄 (비스듬히 본 접시의 가장 넓은 데).
