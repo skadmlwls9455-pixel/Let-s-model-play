@@ -94,7 +94,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     await at(page, 20);
     await page.evaluate(function () { APP.scene.setYaw(90, true); }); await page.waitForTimeout(500);   /* 11-18: 계단이 왼벽 앞쪽 구석으로 옮겨 가 기본 구도에선 왼쪽 가장자리 밖이다 → 계단이 온전히 보이는 각 (90°) 에서 잰다 */
     var srMode = await page.evaluate(function () { return document.getElementById('btn-stair').dataset.spot; });
-    var sr = srMode === 'over' ? await rectOf(page, '#btn-stair') : null, img = await shot(page), st = sr && region(img, sr);   /* 가장자리 단추 (edge) 면 계단 그림이 아니라 단추 그림을 재게 된다 → 없음으로 */
+    var sr = srMode === 'over' ? await rectOf(page, '#btn-stair') : null, img = await shot(page), st = sr && region(img, sr);   /* 그림 위 단추 (over) 일 때만 잰다 */
     await page.evaluate(function () { APP.scene.setYaw(0, true); }); await page.waitForTimeout(300);
     ok(!!st && st.p95 - st.p50 >= FLOOR.stairSpread, 'L4 20시 등불 0 다락 계단 칸 루마 대비 p95−p50 ' + (st ? (st.p95 - st.p50).toFixed(3) : '없음') + ' ≥ ' + FLOOR.stairSpread + ' (예전 0.032)');
     /* 위층: 표시 켜짐/꺼짐 · 대비 · 셰이더 그대로 */
@@ -125,13 +125,30 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     /* ── L5 (11-18) 다락 계단 단추 · 톡해서 걸어갈 때 화면이 따라옴 · 내려오면 계단이 보임 · 방을 옮겨도 방향키가 이어짐 ── */
     o = await open(browser, 8, { hour: 13, weather: 'clear' }); page = o.page;
     var e5 = await page.evaluate(function () {
-      var b = document.getElementById('btn-stair'), r = b.getBoundingClientRect(), st = document.getElementById('stick').getBoundingClientRect(), sf = document.getElementById('btn-sofa'), sr = sf && !sf.hidden ? sf.getBoundingClientRect() : null, bx = b.querySelector('.stair-box').getBoundingClientRect();
+      var b = document.getElementById('btn-stair'), r = b.getBoundingClientRect(), st = document.getElementById('stick').getBoundingClientRect(), sf = document.getElementById('btn-sofa'), sr = sf && !sf.hidden ? sf.getBoundingClientRect() : null, bx = { width: b.querySelectorAll('*').length }, k = APP.scene.pickAt(r.left + r.width / 2, r.top + r.height / 2);
       function hit(a, c) { return !!c && a.left < c.right && c.left < a.right && a.top < c.bottom && c.top < a.bottom; }
-      return { hidden: b.hidden, spot: b.dataset.spot, side: b.dataset.side, w: r.width, h: r.height, left: r.left, top: r.top, box: bx.width, ico: !!b.querySelector('svg'), stick: hit(r, st), sofa: hit(r, sr), label: b.getAttribute('aria-label'), sw: document.documentElement.scrollWidth, iw: innerWidth };
+      return { hidden: b.hidden, spot: b.dataset.spot, side: b.dataset.side, w: r.width, h: r.height, left: r.left, top: r.top, box: bx.width, ico: !!b.querySelector('svg'), stick: hit(r, st), sofa: hit(r, sr), label: b.getAttribute('aria-label'), pe: getComputedStyle(b).pointerEvents, bg: getComputedStyle(b).backgroundColor, pick: k ? k.id : '', sw: document.documentElement.scrollWidth, iw: innerWidth };
     });
-    ok(!e5.hidden && e5.spot === 'edge' && e5.side === 'left' && e5.w >= 44 && e5.h >= 44 && e5.left >= 0 && e5.box >= 32 && e5.ico && !e5.stick && !e5.sofa && e5.label === '위층으로' && e5.sw <= e5.iw,
-      'L5 360px 기본 구도: 계단이 화면 밖이면 왼쪽 가장자리에 계단 그림 단추 (44px · 스틱 · 소파 점과 안 겹침 · 가로 스크롤 없음) ' + JSON.stringify({ spot: e5.spot, side: e5.side, at: [e5.left, e5.top], w: e5.w }));
-    await page.touchscreen.tap(e5.left + e5.w / 2, e5.top + e5.h / 2);
+    /* 11-21 (주인: "문 근처에 가면 계단 버튼이 떠서 어색해"): 가장자리의 계단 그림 단추는 없다. 계단이 화면 밖인 동안 단추는 왼쪽 가장자리의 안 보이는 칸 (data-spot="key") —
+       키보드 · 낭독기만 닿는다 (그림 · 바탕 없음 · 손가락은 못 누른다: 그 자리를 톡 해도 계단이 아니다). 손가락은 화면을 밀어 보이는 계단 그림을 누른다 */
+    ok(!e5.hidden && e5.spot === 'key' && e5.w >= 44 && e5.h >= 44 && e5.left >= 0 && e5.left <= 4 && e5.box === 0 && !e5.ico && e5.pe === 'none' && /rgba\(0, 0, 0, 0\)|transparent/.test(e5.bg) && e5.pick !== 'atticStair' && !e5.stick && e5.label === '위층으로' && e5.sw <= e5.iw,
+      'L5 360px 기본 구도: 계단이 화면 밖이면 계단 단추는 안 보이는 키보드 칸 (그림 없음 · 손가락은 못 누름 · 스틱과 안 겹침 · 가로 스크롤 없음) ' + JSON.stringify({ spot: e5.spot, at: [e5.left, e5.top], w: e5.w, pe: e5.pe, pick: e5.pick }));
+    await page.touchscreen.tap(e5.left + e5.w / 2, e5.top + e5.h / 2); await page.waitForTimeout(900);
+    var k5 = await page.evaluate(function () { var m = APP.scene.motion(); return { room: APP.room || '', dq: m.dq, trans: !!m.trans }; });
+    ok(!k5.room && k5.dq === '' && !k5.trans, 'L5 안 보이는 칸 자리를 톡 해도 위층으로 가지 않는다 ' + JSON.stringify(k5));
+    /* 화면을 오른쪽으로 밀면 (한 손가락) 계단이 보이고 그림 위 단추 (over) 가 된다 → 보이는 디딤판을 톡 */
+    await page.waitForTimeout(1200);
+    var cdp5 = await page.context().newCDPSession(page);
+    await cdp5.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 120, y: 330, id: 0 }] });
+    for (var s5 = 1; s5 <= 12; s5++) { await cdp5.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 120 + 15 * s5, y: 330, id: 0 }] }); await page.waitForTimeout(16); }
+    await cdp5.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await cdp5.detach(); await page.waitForTimeout(800);
+    var v5 = await page.evaluate(function () {
+      var b = document.getElementById('btn-stair'), q = b.getBoundingClientRect(), pt = null, n = 0;
+      for (var y = q.top + 2; y < q.bottom; y += 4) for (var x = q.left + 2; x < q.right; x += 4) { var k = APP.scene.pickAt(x, y); if (k && k.id === 'atticStair') { n++; if (!pt || x > pt.x) pt = { x: x, y: y }; } }
+      return { spot: b.hidden ? 'hidden' : b.dataset.spot, w: q.width, n: n, pt: pt };
+    });
+    ok(v5.spot === 'over' && v5.w >= 44 && v5.n > 20 && !!v5.pt, 'L5 화면을 밀면 계단이 보이고 (그림 위 단추 · 폭 ' + Math.round(v5.w) + ' px) 디딤판이 눌린다 (' + v5.n + ' 점)');
+    await page.touchscreen.tap(v5.pt ? v5.pt.x : 80, v5.pt ? v5.pt.y : 300);
     var w5 = { minX: 1e9, n: 0, up: false };
     for (var i5 = 0; i5 < 150 && !w5.up; i5++) {
       await page.waitForTimeout(80);
@@ -139,7 +156,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
       if (!q5.room && !q5.trans && q5.walking && q5.x !== null) { w5.n++; if (q5.x < w5.minX) w5.minX = q5.x; }
       if (q5.room === 'loft' && !q5.trans && q5.dq === '') w5.up = true;
     }
-    ok(w5.up && w5.n > 3 && w5.minX >= 20, 'L5 계단 단추 톡 → 걸어가 오른다 · 걷는 동안 화면이 따라와 캐릭터가 화면 안 (가장 왼쪽 ' + Math.round(w5.minX) + ' px ≥ 20 · ' + w5.n + ' 프레임)');
+    ok(w5.up && w5.n > 3 && w5.minX >= 20, 'L5 보이는 계단 톡 → 걸어가 오른다 · 걷는 동안 화면이 따라와 캐릭터가 화면 안 (가장 왼쪽 ' + Math.round(w5.minX) + ' px ≥ 20 · ' + w5.n + ' 프레임)');
     await page.waitForTimeout(700);
     await page.evaluate(function () { return APP.goRoom('attic'); });
     await page.waitForFunction(function () { var m = APP.scene.motion(); return !APP.room && !m.trans && m.dq === ''; }, null, { timeout: 20000 });
@@ -198,8 +215,8 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     ok(all7.every(function (g) { return g.stair.yard === 0 && g.door.stair === 0; }), 'L7 계단 위 톡이 마당 문으로 가는 것 0 · 문간 위 톡이 계단으로 가는 것 0 (360 폭 0° · 90° · 180° · 412 폭 0°) ' + JSON.stringify(all7.map(function (g) { return [g.stair.yard, g.door.stair]; })));
     ok(all7.every(function (g) { return g.door.n > 0 && g.door.yard >= g.door.n * 0.95; }), 'L7 뒷벽 문간 위 톡 → 마당 문 ≥ 95% ' + JSON.stringify(all7.map(function (g) { return g.door.yard + '/' + g.door.n; })));
     ok(g7[90].spot === 'over' && g7[90].stair.n === 35 && g7[90].stair.stair >= 34, 'L7 계단이 온전히 보일 때 (90°) 계단 위 톡 → 계단 ' + g7[90].stair.stair + '/' + g7[90].stair.n + ' (≥ 95%)');
-    ok(g7[180].spot === 'edge' && g7[180].stair.n >= 10 && g7[180].stair.stair >= g7[180].stair.n * 0.85, 'L7 계단이 가장자리에 걸쳐 가장자리 단추가 뜬 동안 (360 폭 180°) 에도 보이는 계단 위 톡 → 계단 ' + g7[180].stair.stair + '/' + g7[180].stair.n + ' (≥ 85% · 맨 아래 칸은 소파 뒤 — 예전 0)');
-    ok(g7w.spot === 'edge' && g7w.stair.n >= 5 && g7w.stair.stair === g7w.stair.n, 'L7 412 폭 기본 구도: 왼쪽 가장자리에 걸친 계단 위 톡 → 계단 ' + g7w.stair.stair + '/' + g7w.stair.n + ' (예전 0)');
+    ok(g7[180].spot === 'key' && g7[180].stair.n >= 10 && g7[180].stair.stair >= g7[180].stair.n * 0.85, 'L7 계단이 가장자리에 걸친 동안 (360 폭 180° · 단추는 안 보이는 키보드 칸) 에도 보이는 계단 위 톡 → 계단 ' + g7[180].stair.stair + '/' + g7[180].stair.n + ' (≥ 85% · 맨 아래 칸은 소파 뒤 — 예전 0)');
+    ok(g7w.spot === 'key' && g7w.stair.n >= 5 && g7w.stair.stair === g7w.stair.n, 'L7 412 폭 기본 구도: 왼쪽 가장자리에 걸친 계단 위 톡 → 계단 ' + g7w.stair.stair + '/' + g7w.stair.n + ' (예전 0)');
 
     /* ── L8 (11-18 시험판) 넓은 바깥 — 주소에 ?wide=1 이 있을 때만. 스틱 값은 화면 축 (오른쪽 +x · 위 +y): 아래 (0, −1) = 월드 (+x, +z) = 앞 모서리 쪽 · (0.707, −0.707) = 월드 +x.
           대각 좌표 s = (x + z)/√2 (화면 아래) · t = (x − z)/√2 (화면 오른쪽). 프레임은 0.1 s 씩 손으로 민다 (소프트웨어 렌더가 밀리지 않게 적게) ── */
