@@ -1856,6 +1856,10 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 .shop-ask-pic { display: flex; justify-content: center; margin: 0 0 8px; }
 /* 11-21 밤 가게 방의 카드 (#scene 안의 평범한 요소 — dialog 아님): 마네킹 · 선반의 꼬리표 카드, 계산대의 영수증. 종이 · 2px 테 · 4px 굳은 그림자, 틈 8px */
 .shop-card { position: absolute; left: 0; top: 0; z-index: 12; box-sizing: border-box; width: 200px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: #2a2620; background: var(--sw-paper); box-shadow: inset 0 0 0 2px var(--sw-line), inset 2px 2px 0 2px #fffaf0, 4px 4px 0 rgba(0, 0, 0, .35); }
+.shop-card.tag { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; gap: 4px 8px; width: 224px; }   /* 물건을 덜 가리게 낮게: 왼쪽 그림, 오른쪽 이름 · 값표, 아래 단추 */
+.shop-card.tag .shop-pic { grid-row: 1 / span 2; width: 72px; height: 72px; border-bottom: 0; box-shadow: none; align-items: center; }
+.shop-card.tag .sew-cost { justify-self: center; }
+.shop-card.tag .shop-card-btns { grid-column: 1 / -1; }
 .shop-card.receipt { width: 232px; align-items: stretch; padding: 12px; }
 .shop-card.receipt::after { content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 4px; background: repeating-linear-gradient(90deg, var(--sw-line) 0 4px, transparent 4px 8px); }
 .shop-card .shop-pic { align-self: center; width: 80px; height: 72px; padding: 0; }
