@@ -173,3 +173,32 @@ Looks only; rules, saves, lines, ids, aria names and test hooks are unchanged.
   `ui2-after-menu-412.png`, `ui2-before-record-360.png` / `ui2-after-record-360.png`, `ui2-after-ask-320.png`.
 - Smoke on the branch before this pass (letters A–I, L–P, V, W ran: all passed; the run was stopped for the base
   merge, the remaining letters were not run).
+
+## Content pass (11-21 late, after the owner's "탭같은 느낌으로 축약하지 말고 … 개별 콘텐츠 같은 느낌", brief `CONTENT.md`)
+
+The cafe now plays in the room when the 3D scene has one (`scene.inRoom() === 'cafe'` with `scene.project` and
+`scene.spriteProp`); the sheets and the tray panel stay as the fallback (2D, or any of those functions missing). Rules,
+saves and music are unchanged, except that coffee is now three sips (it used to be a still cup).
+
+- Beats (all in `js/app.js` `[7-C]`): chalkboard button → board close-up card `#cafe-card` (`cafeCardOpen('menu')`, a
+  plain element in `#scene`, not a dialog) → order and confirm (`cafeBuy`) → the keeper works for 1.5 s with steam
+  (`cafeBrew`) → the tray on the pick-up spot (`spriteProp`) → the counter button takes it (`cafeCarry`: `playerCarry`,
+  `cafeSit(true)`, set down as `spriteProp('cafe-plate', table, id, frame)`) → each tap on `#btn-cafe-plate` is a bite
+  (`cafePlateTap` → `cafeBite`, frame 1..3, crumbs) → the stamp card pops up with the new stamp (`cafeStampCard`), on
+  the third the gift line and the flying recipe card → rack button → rack close-up card (`cafeCardOpen('lp')`) → a
+  sleeve spins the room's disc (`scene.cafeRecord(on, colour)`) → the seat button, walking or the door end the visit
+  (`ppol:cafe-seat`, `ppol:room` → `cafeRoomLeave`); a half-eaten plate is put back on the table on the next entry
+  (`cafeRoomEnter`).
+- Interruptions tested: leaving while the keeper works, leaving while carrying, standing up mid-meal, tapping the
+  plate while standing (sits first), the board while a plate waits (no new order). In every case only saved facts
+  remain: what was paid for is in `S.user.cafe.tray`.
+- New player-facing names: card aria '메뉴 칠판' / '레코드 선반' / '도장 카드', button '닫기' on the card, plate button
+  '<이름> 먹기' or '커피 마시기', counter button '쟁반 가져가기' while a tray stands there.
+- New keeper keys used if lane N has them: `cafe.order`, `cafe.stamp`, `cafe.record` (besides hello / serve / gift).
+- Sprite ids used if lane A has them, with fallbacks to the menu pictures: `cafe.tray`, `cafe.cup` (frames 0..3),
+  `table.cake`, `table.kkochi` (frames 0..3).
+- Checks: `tools/test-cafe.js` 100; `tools/test-cafe-live.js` 91 (section 11 plays the whole chain with real taps in
+  the 3D scene; the scene functions of W, V and T are stubs there). **Not yet run against the real room**: W's rooms,
+  V's cafe room and T's two exports were not pushed when this was written.
+- Pictures (attic as a stand-in room, stubs): `wip/round7/shots/C/room-board.png`, `room-plate.png`,
+  `room-stamp.png`, `room-gift.png`, `room-rack.png`.
