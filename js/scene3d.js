@@ -5637,12 +5637,11 @@ var SCENE3D = (function () {
       GL.push({ g: box(0.16, 0.17, 0.16), m: M(x + 0.22, 1.52, z), c: VC.yellow });
       PO.push({ g: new T.PlaneGeometry(2.6, 2.6), m: M(x + 0.22, 0.03, z, -Math.PI / 2, 0, 0), c: VC.yellow });
     }
-    function vilBench(L, x, z, alongZ, c2) {   /* 등받이 있는 벤치 (앉는 면 y 0.3) → 부딪힘 상자 */
-      var w = alongZ ? 0.4 : 1.1, d = alongZ ? 1.1 : 0.4;
+    function vilBench(L, x, z, alongZ, c2) {   /* 등받이 있는 벤치 (앉는 면 y 0.3) — 부딪힘 네모는 VILLAGE.BOXES */
+      var BN = VILLAGE.BENCH, w = alongZ ? BN.w : BN.d, d = alongZ ? BN.d : BN.w;
       L.push({ g: box(w, 0.06, d), m: M(x, 0.27, z), c: c2 || VC.woodA });
       [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(function (q) { L.push({ g: box(0.06, 0.26, 0.06), m: M(x + q[0] * (w / 2 - 0.05), 0.13, z + q[1] * (d / 2 - 0.05)), c: VC.woodD }); });
       if (alongZ) { L.push({ g: box(0.05, 0.3, d), m: M(x - w / 2 + 0.025, 0.5, z), c: VC.woodB }); } else { L.push({ g: box(w, 0.3, 0.05), m: M(x, 0.5, z - d / 2 + 0.025), c: VC.woodB }); }
-      return [x - w / 2, z - d / 2, x + w / 2, z + d / 2];
     }
     function vilBlanket(L, x, y, z, a, b) { L.push({ g: box(0.62, 0.03, 0.56), m: M(x, y + 0.015, z), c: a }); [-0.18, 0, 0.18].forEach(function (d) { L.push({ g: box(0.63, 0.032, 0.05), m: M(x, y + 0.016, z + d), c: b }); }); }
 
@@ -5666,7 +5665,6 @@ var SCENE3D = (function () {
       [0.5, 1.3].forEach(function (z) { F.B(L, 0.05, 1.0, 0.05, 2.35, 0.5, z, VC.woodD); F.B(L, 0.24, 0.04, 0.08, 2.35, 0.02, z, VC.woodD); });
       F.B(L, 0.04, 0.04, 0.9, 2.35, 1.0, 0.9, VC.woodB);
       [[0.6, VC.red], [0.8, VC.blueL], [1.0, VC.yellow], [1.2, VC.moss]].forEach(function (q) { F.B(L, 0.3, 0.36, 0.05, 2.35, 0.76, q[0], q[1]); F.B(L, 0.46, 0.1, 0.05, 2.35, 0.89, q[0], q[1]); F.B(L, 0.03, 0.06, 0.02, 2.35, 0.96, q[0], VC.iron); });
-      var cb = F.p(ST.lx, ST.lz); WIDE_REG.boxes.push([cb[0] - ST.hw, cb[1] - ST.hd, cb[0] + ST.hw, cb[1] + ST.hd]);
       /* 잡화점: 나무 벽 · 풀빛 지붕 · 노랑 흰 줄 차양 · 바구니 간판 · 걸린 연장 · 상자 더미 */
       F = vilFrame(lg.c, true); L = P.rowR; hx = lg.hx; hz = lg.hz;
       ev = vilShell(L, F, hx, hz, { wa: VC.woodA, wb: VC.woodB, seam: VC.woodD, post: VC.dark });
@@ -5685,7 +5683,6 @@ var SCENE3D = (function () {
       [[2.3, 0.2, 0.75, 0.42], [2.36, 0.2, 1.2, 0.4], [2.32, 0.6, 0.95, 0.36]].forEach(function (q, k) { F.B(L, q[3], q[3], q[3], q[0], q[1], q[2], k % 2 ? VC.woodA : VC.woodL); F.B(L, q[3] + 0.02, 0.04, q[3] + 0.02, q[0], q[1] + q[3] / 2 - 0.06, q[2], VC.woodD); F.B(L, q[3] + 0.02, 0.04, q[3] + 0.02, q[0], q[1] - q[3] / 2 + 0.06, q[2], VC.woodD); });
       F.Y(L, 0.2, 0.16, 0.2, 8, 2.75, 0.1, 0.55, VC.woodL); F.Y(L, 0.215, 0.215, 0.03, 8, 2.75, 0.2, 0.55, VC.woodD);
       [[0.06, 0.04, VC.red], [-0.07, 0.02, VC.yellow], [0.0, -0.08, VC.red]].forEach(function (q) { F.S(L, 0.07, 2.75 + q[0], 0.24, 0.55 + q[1], q[2]); });
-      cb = F.p(ST.lx, ST.lz); WIDE_REG.boxes.push([cb[0] - ST.hd, cb[1] - ST.hw, cb[0] + ST.hd, cb[1] + ST.hw]);
       for (i = 0; i < 2; i++) { var q2 = vilXZ(VILLAGE.POTS[i][0], VILLAGE.POTS[i][1]); vilPot(P.street, q2[0], q2[1], i); }
     }
     /* ── 빈 집 (왼쪽 s 30–36): 닫힌 덧문 · 닫힌 문 · 바랜 빈 간판 · 현관 마루와 담요 · 우체통의 오래된 편지. 낡았지만 누가 돌본 집 ── */
@@ -5726,7 +5723,7 @@ var SCENE3D = (function () {
       });
       /* 계산대 (뒤쪽 가장자리) + 커피 기계 + 잔 쟁반 + 차림 그림판 (주문하는 자리) */
       var c = CF.counter, cl = c.s1 - c.s0, cm = (c.s0 + c.s1) / 2;
-      R(L, c.w, c.h, cl, cm, c.h / 2, c.t, VC.woodB); R(L, c.w + 0.08, 0.04, cl + 0.08, cm, c.h + 0.02, c.t, VC.cream); R(L, 0.02, 0.1, cl, cm, c.h - 0.12, c.t - c.w / 2 - 0.012, VC.rose);
+      R(L, c.w, c.h, cl, cm, c.h / 2, c.t, VC.woodB); R(L, c.w + 0.08, 0.04, cl + 0.08, cm, c.h + 0.02, c.t, VC.woodL); R(L, 0.02, 0.1, cl, cm, c.h - 0.12, c.t - c.w / 2 - 0.012, VC.rose);
       R(L, 0.32, 0.34, 0.36, c.s0 + 0.45, c.h + 0.21, c.t, VC.slateD); R(L, 0.34, 0.05, 0.38, c.s0 + 0.45, c.h + 0.4, c.t, VC.slateA); R(L, 0.1, 0.12, 0.1, c.s0 + 0.45, c.h + 0.1, c.t - 0.2, VC.iron); R(L, 0.1, 0.07, 0.1, c.s0 + 0.45, c.h + 0.075, c.t - 0.22, VC.white);
       [[0, 0], [0.14, 0.04], [0.07, -0.1]].forEach(function (q) { Y(0.045, 0.035, 0.08, 6, c.s0 + 1.3 + q[0], c.h + 0.08, c.t + q[1], VC.white); });
       R(L, 0.03, 0.4, 0.34, 33.5, c.h + 0.24, c.t, VC.blueD); R(L, 0.04, 0.44, 0.04, 33.5 - 0.19, c.h + 0.24, c.t, VC.woodD); R(L, 0.04, 0.44, 0.04, 33.5 + 0.19, c.h + 0.24, c.t, VC.woodD);
@@ -5738,7 +5735,7 @@ var SCENE3D = (function () {
       [VC.red, VC.yellow, VC.blueL, VC.cream, VC.moss, VC.rose, VC.sky, VC.dusk].forEach(function (c2, k) { R(L, 0.05, 0.2, 0.03, sh.s + sh.d / 2 + 0.012, k < 5 ? 0.2 : 0.5, sh.t0 + 0.18 + (k < 5 ? k * 0.09 : (k - 5) * 0.1 + 0.5), c2); });
       R(L, 0.44, 0.08, 0.34, sh.s, sh.h + 0.08, sm, VC.woodA); Y(0.15, 0.15, 0.02, 10, sh.s, sh.h + 0.13, sm - 0.03, VC.iron); Y(0.05, 0.05, 0.025, 6, sh.s, sh.h + 0.133, sm - 0.03, VC.red); R(L, 0.03, 0.03, 0.2, sh.s + 0.02, sh.h + 0.15, sm + 0.16, VC.cream);
       /* 식탁 둘 · 걸상 넷 */
-      CF.tables.forEach(function (tb) { Y(tb.r, tb.r, 0.04, 10, tb.s, tb.h - 0.02, tb.t, VC.cream); Y(tb.r + 0.01, tb.r + 0.01, 0.015, 10, tb.s, tb.h - 0.05, tb.t, VC.woodD); Y(0.05, 0.05, tb.h - 0.06, 6, tb.s, (tb.h - 0.06) / 2, tb.t, VC.woodD); Y(0.16, 0.18, 0.04, 8, tb.s, 0.02, tb.t, VC.woodD); });
+      CF.tables.forEach(function (tb) { Y(tb.r, tb.r, 0.04, 10, tb.s, tb.h - 0.02, tb.t, VC.woodL); Y(tb.r + 0.01, tb.r + 0.01, 0.015, 10, tb.s, tb.h - 0.05, tb.t, VC.woodD); Y(0.05, 0.05, tb.h - 0.06, 6, tb.s, (tb.h - 0.06) / 2, tb.t, VC.woodD); Y(0.16, 0.18, 0.04, 8, tb.s, 0.02, tb.t, VC.woodD); });
       CF.stools.forEach(function (q, k) { Y(CF.stoolR, CF.stoolR, 0.05, 8, q[0], CF.stoolH - 0.025, q[1], k % 2 ? VC.rose : VC.blueL); Y(0.04, 0.06, CF.stoolH - 0.05, 6, q[0], (CF.stoolH - 0.05) / 2, q[1], VC.woodD); });
       var pq = vilXZ(35.7, 5.6); vilPot(L, pq[0], pq[1], 0); for (i = 1; i <= 6; i++) { var e = L[L.length - i].m.elements; e[13] += 0.44 - 0.08; e[12] = pq[0] + (e[12] - pq[0]) * 0.6; e[14] = pq[1] + (e[14] - pq[1]) * 0.6; }   /* 둘째 식탁 위 작은 화분 */
       /* 부엌 집 (덱 뒤, 오른쪽 줄 메시): 크림 벽 · 붉은 지붕 · 내주는 창 · 잔 간판 */
@@ -5769,14 +5766,13 @@ var SCENE3D = (function () {
       });
       for (i = 0; i < 9; i++) { var u = (i + 0.5) / 9, fx = o[0] - h + 0.08 + (2 * h - 0.16) * u, fy = SG.y + 1.95 - 0.22 * Math.sin(Math.PI * u); P.thin.push({ g: box(0.14, 0.14, 0.02), m: M(fx, fy, o[1] - h + 0.08, 0, 0, K4), c: [VC.red, VC.yellow, VC.blueL, VC.cream][i % 4] }); }
       seg(P.thin, [o[0] - h + 0.08, SG.y + 2.0, o[1] - h + 0.08], [o[0] + h - 0.08, SG.y + 2.0, o[1] - h + 0.08], 0.012, VC.cream, 4);
-      WIDE_REG.boxes.push([o[0] - h, o[1] - h, o[0] + h, o[1] + h]);
       /* 우물: 돌 테 · 어두운 물 · 기둥 둘과 작은 지붕 · 두레박 */
       var w = vilXZ(PZ.well[0], PZ.well[1]);
       L.push({ g: new T.CylinderGeometry(0.5, 0.54, 0.46, 10), m: M(w[0], 0.23, w[1]), c: VC.stone }, { g: new T.CylinderGeometry(0.53, 0.53, 0.06, 10), m: M(w[0], 0.48, w[1]), c: VC.slateB }, { g: new T.CylinderGeometry(0.38, 0.38, 0.02, 10), m: M(w[0], 0.515, w[1]), c: VC.blueD });
       [-0.46, 0.46].forEach(function (d) { L.push({ g: box(0.07, 1.3, 0.07), m: M(w[0] + d, 0.65, w[1]), c: VC.woodD }); });
       L.push({ g: box(1.2, 0.05, 0.5), m: M(w[0], 1.36, w[1] + 0.2, 0.5, 0, 0), c: VC.roofR }, { g: box(1.2, 0.05, 0.5), m: M(w[0], 1.36, w[1] - 0.2, -0.5, 0, 0), c: VC.roofR }, { g: box(0.92, 0.04, 0.04), m: M(w[0], 1.12, w[1]), c: VC.woodB }, { g: box(0.14, 0.14, 0.14), m: M(w[0] + 0.1, 0.62, w[1]), c: VC.woodA }, { g: box(0.015, 0.44, 0.015), m: M(w[0] + 0.1, 0.9, w[1]), c: VC.cream });
       /* 벤치 둘 · 그물과 부표 (바닷가 쪽 구석) · 화분 */
-      PZ.benches.forEach(function (q) { var bq = vilXZ(q[0], q[1]); WIDE_REG.boxes.push(vilBench(L, bq[0], bq[1], !!q[2])); });
+      PZ.benches.forEach(function (q) { var bq = vilXZ(q[0], q[1]); vilBench(L, bq[0], bq[1], !!q[2]); });
       var n = vilXZ(PZ.nets[0], PZ.nets[1]);
       L.push({ g: new T.CylinderGeometry(0.46, 0.5, 0.1, 9), m: M(n[0], 0.05, n[1]), c: VC.blueD }, { g: new T.CylinderGeometry(0.3, 0.42, 0.12, 9), m: M(n[0] + 0.04, 0.14, n[1] - 0.03), c: VC.slateD });
       for (i = 0; i < 5; i++) L.push({ g: box(0.86, 0.012, 0.02), m: M(n[0], 0.105, n[1] - 0.3 + i * 0.15), c: VC.glass }, { g: box(0.02, 0.012, 0.86), m: M(n[0] - 0.3 + i * 0.15, 0.106, n[1]), c: VC.glass });
@@ -5790,9 +5786,9 @@ var SCENE3D = (function () {
       var L = P.street, i;
       VILLAGE.LAMPS.slice(0, 3).forEach(function (l) { var q = vilXZ(l[0], l[1]); vilLamp(L, P.lamp, P.pool, q[0], q[1]); });
       for (i = 2; i < VILLAGE.POTS.length; i++) { var q = vilXZ(VILLAGE.POTS[i][0], VILLAGE.POTS[i][1]); vilPot(L, q[0], q[1], i); }
-      var s1 = VILLAGE.npc('sleep-1'), b = vilXZ(s1.s, s1.t); WIDE_REG.boxes.push(vilBench(L, b[0], b[1], true, VC.woodL)); vilBlanket(L, b[0] + 0.02, 0.3, b[1], VC.blueL, VC.cream);
+      var s1 = VILLAGE.npc('sleep-1'), b = vilXZ(s1.s, s1.t); vilBench(L, b[0], b[1], true, VC.woodL); vilBlanket(L, b[0] + 0.02, 0.3, b[1], VC.blueL, VC.cream);
       /* 자전거 (옷가게와 빈 집 사이, 길 가장자리에 기대 놓은): 바퀴 둘 · 몸 · 손잡이 · 안장 · 바구니 */
-      var c = vilXZ(28.7, -3.75), wh = function (dz) { L.push({ g: new T.TorusGeometry(0.2, 0.025, 4, 10), m: M(c[0], 0.225, c[1] + dz, 0, Math.PI / 2, 0), c: VC.iron }, { g: box(0.02, 0.05, 0.05), m: M(c[0], 0.225, c[1] + dz), c: VC.slateA }); };
+      var c = vilXZ(28.25, -3.5), wh = function (dz) { L.push({ g: new T.TorusGeometry(0.2, 0.025, 4, 10), m: M(c[0], 0.225, c[1] + dz, 0, Math.PI / 2, 0), c: VC.iron }, { g: box(0.02, 0.05, 0.05), m: M(c[0], 0.225, c[1] + dz), c: VC.slateA }); };
       wh(-0.34); wh(0.34);
       seg(L, [c[0], 0.225, c[1] - 0.34], [c[0], 0.5, c[1] - 0.1], 0.018, VC.red, 4); seg(L, [c[0], 0.5, c[1] - 0.1], [c[0], 0.52, c[1] + 0.26], 0.018, VC.red, 4); seg(L, [c[0], 0.225, c[1] + 0.34], [c[0], 0.6, c[1] + 0.26], 0.018, VC.red, 4); seg(L, [c[0], 0.225, c[1] - 0.34], [c[0], 0.24, c[1] + 0.02], 0.018, VC.red, 4); seg(L, [c[0], 0.24, c[1] + 0.02], [c[0], 0.5, c[1] - 0.1], 0.018, VC.red, 4);
       L.push({ g: box(0.08, 0.04, 0.16), m: M(c[0], 0.56, c[1] - 0.12), c: VC.dark }, { g: box(0.3, 0.03, 0.03), m: M(c[0], 0.62, c[1] + 0.26), c: VC.iron }, { g: box(0.2, 0.14, 0.16), m: M(c[0], 0.52, c[1] + 0.42), c: VC.woodL });
@@ -5902,9 +5898,9 @@ var SCENE3D = (function () {
     }
     var K_MARK = Math.PI / 4;
 
-    /* ── 카페 자리 (계약 C6): 첫 식탁의 안쪽 걸상까지 걷고 → 폴짝 앉아 화면 쪽 (식탁 쪽) 을 본다. 스틱을 밀면 일어난다 (소파 · 놀이방 식탁과 같은 규칙).
+    /* ── 카페 자리 (계약 C6): 첫 식탁의 길 쪽 걸상 옆까지 걷고 → 폴짝 앉아 식탁 쪽을 본다. 스틱을 밀면 일어난다 (소파 · 놀이방 식탁과 같은 규칙).
        앉고 일어날 때 document 에 'ppol:cafe-seat' ({ detail: { on } }) 를 쏜다 — 카페 갈래가 스틱으로 일어난 것도 알 수 있게 ── */
-    function vilSeatPts() { var s = VILLAGE.CAFE.seat, a = vilXZ(s.aisle[0], s.aisle[1]), q = vilXZ(s.s, s.t); return { aisle: new T.Vector3(a[0], 0, a[1]), seat: new T.Vector3(q[0], VILLAGE.CAFE.stoolH - 0.24, q[1]), yaw: Math.PI / 4 }; }
+    function vilSeatPts() { var s = VILLAGE.CAFE.seat, a = vilXZ(s.aisle[0], s.aisle[1]), q = vilXZ(s.s, s.t); return { aisle: new T.Vector3(a[0], 0, a[1]), seat: new T.Vector3(q[0], VILLAGE.CAFE.stoolH - 0.24, q[1]), yaw: s.face }; }
     function vilSeatEmit(on) { try { document.dispatchEvent(new CustomEvent('ppol:cafe-seat', { detail: { on: !!on } })); } catch (e) { /* noop */ } }
     function vilSeatSync() {   /* 앉은 표시가 실제와 어긋났으면 맞춘다 (방을 옮김 · 스틱으로 일어남) */
       var V = VIL.cafe; if (!V.seated) return;
@@ -5925,8 +5921,8 @@ var SCENE3D = (function () {
       }
       if (!VIL.built || V.seated || PL.place !== 'yard' || PLACE.vis !== 'yard' || PL.sit || PL.hop || !playerInputAllowed()) return Promise.resolve(false);
       var P = vilSeatPts();
-      return plWalkTo(P.aisle, Math.atan2(P.seat.x - P.aisle.x, P.seat.z - P.aisle.z)).then(function () {
-        if (PL.place !== 'yard' || PLACE.vis !== 'yard' || PL_IN.v || PL.sit || PL.hop || Math.hypot(PL.pos.x - P.aisle.x, PL.pos.z - P.aisle.z) > 0.3) return false;
+      return vilWalk(P.aisle, Math.atan2(P.seat.x - P.aisle.x, P.seat.z - P.aisle.z)).then(function (ok) {
+        if (!ok || PL.place !== 'yard' || PLACE.vis !== 'yard' || PL_IN.v || PL.sit || PL.hop) return false;
         PL.sitYaw = P.yaw; PL.faceCam = false; PL.wantYaw = P.yaw; V.seated = true; vilSeatEmit(true);
         if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.seat); PL.sit = true; plSnap(); return true; }
         return new Promise(function (res) { PL.hop = { t: 0, a: PL.pos.clone(), b: P.seat, sit: true, cafe: true, done: function () { res(true); } }; });
@@ -5936,6 +5932,15 @@ var SCENE3D = (function () {
 
     /* ── 누르는 자리까지 걷기: 단추를 먼 데서 누르면 (1.5 m 밖) 그 자리 앞 (stand) 까지 걸어간 뒤 누른다 — js/app.js 의 [7-V] 가 click 을 잡아 villageGo 를 부른다 ── */
     function vilSpotPts(key) { var sp = VIL.on ? VILLAGE.spot(key) : null; if (!sp) return null; var q = vilXZ(sp.s, sp.t), a = vilXZ(sp.stand[0], sp.stand[1]); return { sp: sp, x: q[0], z: q[1], ax: a[0], az: a[1] }; }
+    function vilWalk(to, face, skip) {   /* 마을 안 혼자 걷기: VILLAGE.route 의 점들을 차례로 → Promise<끝까지 갔나>. 스틱으로 끊기면 false 로 푼다 (plWalkTo 는 끊긴 걸음을 풀지 않는다) */
+      var k = Math.SQRT1_2, pts = VILLAGE.route([(PL.pos.x + PL.pos.z) * k, (PL.pos.x - PL.pos.z) * k], [(to.x + to.z) * k, (to.x - to.z) * k], skip || null);
+      var leg = function (i) {
+        var last = i === pts.length - 1, q = last ? [to.x, to.z] : wideXZ(pts[i][0], pts[i][1]), p = plWalkTo(new T.Vector3(q[0], 0, q[1]), last ? face : null), w = PL.walking;
+        var pr = !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); });
+        return pr.then(function (r) { if (r === null || PL.place !== 'yard' || PL_IN.v) return false; return last ? Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z) <= 0.3 : leg(i + 1); });
+      };
+      return leg(0);
+    }
     function vilNear(key) {
       var p = vilSpotPts(key); if (!p || PL.place !== 'yard') return false;
       if (VIL.cafe.seated && /^(cafe|npcCafe)/.test(p.sp.key)) return true;   /* 카페에 앉은 채로는 카페 것을 그 자리에서 */
@@ -5948,7 +5953,7 @@ var SCENE3D = (function () {
       if (!playerInputAllowed() && !VIL.cafe.seated) return Promise.resolve(false);
       var go = function () {
         if (PL.place !== 'yard' || PL.sit || PL.hop) return false;
-        return plWalkTo(new T.Vector3(p.ax, 0, p.az), Math.atan2(p.x - p.ax, p.z - p.az)).then(function () { return PL.place === 'yard' && !PL_IN.v && Math.hypot(PL.pos.x - p.ax, PL.pos.z - p.az) <= 0.6; });
+        return vilWalk(new T.Vector3(p.ax, 0, p.az), Math.atan2(p.x - p.ax, p.z - p.az));
       };
       return VIL.cafe.seated ? vilCafeSit(false).then(go) : Promise.resolve(go());
     }
@@ -5984,6 +5989,7 @@ var SCENE3D = (function () {
       VILLAGE.SEGMENTS.forEach(function (sg) { var gg = new T.Group(); gg.name = 'vil-' + sg.key; VIL.grp[sg.key] = gg; WIDE_REG.segments.push({ s0: sg.s0, s1: sg.s1, obj: gg }); });
       VILLAGE.SPOTS.forEach(function (sp) { var q = vilXZ(sp.s, sp.t); WIDE_REG.spots.push({ key: sp.key, btn: sp.btn, x: q[0], y: sp.y, z: q[1], r: sp.r }); });
       VILLAGE.CIRCLES.forEach(function (c) { var q = wideXZ(c[0], c[1]); WIDE_REG.circles.push([q[0], q[1], c[2]]); });
+      VILLAGE.BOXES.forEach(function (b) { WIDE_REG.boxes.push(b.slice()); });
       WIDE_REG.builders.push(vilBuild); WIDE_REG.frame.push(vilFrameStep);
     }
 
