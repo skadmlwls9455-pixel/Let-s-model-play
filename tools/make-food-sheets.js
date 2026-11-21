@@ -15,8 +15,8 @@ var ROOT = path.resolve(__dirname, '..'), OUT = path.join(ROOT, 'tests/evidence/
 
 function arg(name) { var i = process.argv.indexOf(name); return i < 0 ? null : (process.argv[i + 1] || ''); }
 function load(frags) {
-  var src = fs.readFileSync(path.join(ROOT, 'js/cook-sprites.js'), 'utf8');
-  (frags || []).forEach(function (f) { src = src.replace('/*SPRITES*/', fs.readFileSync(path.resolve(f), 'utf8') + '\n/*SPRITES*/'); });
+  var src = fs.readFileSync((process.env.SPR_CORE || path.join(ROOT, 'js/cook-sprites.js')), 'utf8');
+  (frags || []).forEach(function (f) { var t = fs.readFileSync(path.resolve(f), 'utf8'); src = src.replace('/*SPRITES*/', function () { return t + '\n/*SPRITES*/'; }); });
   var sb = { module: { exports: {} } }; vm.createContext(sb); vm.runInContext(src, sb, { filename: 'cook-sprites.js' });
   return sb.module.exports;
 }

@@ -114,13 +114,15 @@
     var side = tri.map(function (p) { return [p[0] + 5, p[1] - 2]; });
     function R(pts) { return rot(pts.map(function (p) { return [p[0] + ox, p[1] + oy]; }), 16, 16, c, s); }
     l.poly(rot(side, 16, 16, c, s), 'e');
-    l.on('e').poly(R([[16, 10], [23, 8], [23, 22], [16, 24]]), 'T').on();
+    l.on('e').poly(R([[16, 11], [29, 11], [29, 24], [16, 24]]), 'T').on();
     l.on('e').poly(R([[5, -3], [20, -3], [27, 9], [21, 9]]), 'Q').on();
     l.poly(rot(tri, 16, 16, c, s), 'W');
     l.on('W').poly(R([[12, 17], [24, 15], [24, 23], [-1, 23], [-1, 20]]), 'Q').on();
     /* the seaweed strip, wrapped over the bottom edge */
     l.on('WQ').poly(R([[7, 12], [16, 12], [16, 23], [7, 23]]), 'T').on();
     l.on('T').poly(R([[8, 13], [10, 13], [10, 21], [8, 21]]), 't').on();
+    /* a few grains */
+    l.on('W'); [[9, 4], [12, 8], [6, 11], [17, 10], [4, 15], [19, 14]].forEach(function (g) { var q = R([[g[0], g[1]]])[0]; l.p(Math.round(q[0]), Math.round(q[1]), 'Q').p(Math.round(q[0]) + 1, Math.round(q[1]), 'Q'); }); l.on();
     return l;
   }
   def('dish.jumeokbap', 80, 56, 40, 44, 1, function (F) {
@@ -134,8 +136,8 @@
     leaf.on();
     F.put(leaf, 4, 28, '988', 0);
     var back = riceBall(0.97, 0.24), front = riceBall(1, 0);
-    F.put(back, 34, 6, 'EFu', 2);
-    F.put(front, 14, 12, 'EFu', 2);
+    F.put(back, 34, 6, 'FuU', 2);
+    F.put(front, 14, 12, 'FuU', 2);
     /* sesame on the rice */
     [[24, 22], [31, 26], [22, 30], [50, 16], [56, 21]].forEach(function (p) { F.p(p[0], p[1], 'u').p(p[0] + 1, p[1], 'E'); });
     /* two slices of yellow pickled radish */
@@ -150,7 +152,12 @@
     t.on('43').ln(6, 1, 5, 9, '3').ln(9, 2, 9, 8, '2').ln(3, 3, 2, 7, '3').on().p(3, 2, 'W').p(4, 2, 'W').p(7, 4, '6').p(10, 8, '2');
     return t;
   }
-  function glaze(l) { return l; }
+  function glaze(l) {   /* a sugar shell: the lamp-side rim one step lighter, a second small glint lower right */
+    var g = l.copy(), x, y;
+    for (y = 0; y < g.h; y++) for (x = 0; x < g.w; x++) if (l.at(x, y) && (!l.at(x - 1, y) || !l.at(x, y - 1)) && x + y < (g.w + g.h) / 2) g.p(x, y, '^');
+    g.p(g.w - 4, g.h - 4, 'W');
+    return g;
+  }
   def('dish.kkochi', 80, 56, 40, 44, 1, function (F) {
     var pl = lay(66, 28);
     pl.e(0, 3, 66, 25, 'H').e(0, 1, 66, 25, 'z').e(0, 0, 66, 24, 'C');
@@ -166,7 +173,7 @@
         F.put(f, cx - 6, cy - 6, f.ol, 2);
       });
     }
-    var sb = strawberry(), gr = grape(), tg = tang(); sb.ol = OR; gr.ol = OG; tg.ol = OW;
+    var sb = glaze(strawberry()), gr = glaze(grape()), tg = glaze(tang()); sb.ol = OR; gr.ol = OG; tg.ol = OW;
     skewer(1, [sb, gr, tg]);
     skewer(-1, [tg, sb, gr]);
     /* drops of glaze on the plate */
