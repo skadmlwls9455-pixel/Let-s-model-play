@@ -122,11 +122,8 @@ async function clothesRun(browser) {
   ok((await page.textContent('#shop-body .sew-yes')) === '입을래', '가진 옷은 입을지 묻는다');
   await yes(page);
   ok(await page.evaluate(k => { const p = k.split(':'); return APP.state.settings.player[p[0]] === p[1]; }, cheap.key) && (await U(page)).shells === 2, '입을래 → 입는다 (조개는 그대로)');
-  ok(await page.evaluate(() => window.__said.length) === 0, '시트가 열린 동안은 가게 주인 줄이 없다');
-  await page.click('#shop-close'); await page.waitForTimeout(100);
-  ok(await page.evaluate(() => window.__said.join()) === 'clothes|shop.thanks', '닫으면 가게 주인 줄 한 번');
-  await page.evaluate(() => APP.openShop('clothes')); await page.click('#shop-close'); await page.waitForTimeout(100);
-  ok(await page.evaluate(() => window.__said.length) === 1, '안 샀으면 줄이 없다');
+  ok(await page.evaluate(() => window.__said.join()) === 'clothes|shop.hello,clothes|shop.hello,clothes|shop.thanks', '가게 주인 줄: 열 때 인사 · 산 뒤 한 번 (입기 · 모자람 · 그만에는 없다)');
+  await page.click('#shop-close');
   /* 새로고침 → 대역을 다시 끼워도 산 것은 그대로 */
   await page.reload(); await page.waitForFunction(() => window.APP && APP.openShop, null, { timeout: 30000 }); await page.waitForTimeout(800);
   await page.evaluate(stub); await page.evaluate(() => APP.openShop('clothes'));
