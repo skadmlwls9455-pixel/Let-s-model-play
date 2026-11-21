@@ -5987,7 +5987,7 @@ var SCENE3D = (function () {
         var pr = !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); });
         return pr.then(function (r) { if (r === null || PL.place !== 'yard' || PL_IN.v) return false; return last ? Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z) <= 0.3 : leg(i + 1); });
       };
-      PL.camGap = 1.4;   /* 이 걸음 동안 화면이 따라온다 (plFollow — 문 앞까지 혼자 걷기와 같은 식) */
+      PL.camGap = Math.max(1.4, S.rw / 2 / S.N - 0.8);   /* 이 걸음 동안 화면이 따라온다 (plFollow 의 혼자 걷기 몫): 스틱으로 걸을 때처럼 캐릭터를 화면 가운데 0.8 m 안에 둔다 — 1.4 m 만 주면 화면 가장자리에 붙어서야 따라와 먼 자리로 걸을 때 캐릭터가 화면 밖에 있었다 */
       return leg(0).then(function (ok) { if (!PL.walking) PL.camGap = 0; return ok; });
     }
     function vilNear(key) {
