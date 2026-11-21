@@ -1783,6 +1783,20 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
   :root[data-layout="one"][data-font="pixel"] #status .day-n { top: calc(100% + 1px); padding: 1px 3px; line-height: calc(var(--fs-m16, 16px) + 2px); box-shadow: inset 0 0 0 1px var(--line); }
 }
 @media (max-width: 449px) { :root[data-layout="one"] #status .brain-tag:not([hidden]) + .day-n { left: 38px; } }
+/* 11-21 설정 구역 접기 (js/app.js setSecFold): 제목 줄 = summary (누르는 곳 44px), 오른쪽 끝에 픽셀 꺾쇠 그림 (글자 아님 — 닫힘 ▸ 모양 · 열림 ▾ 모양을 clip-path 계단으로).
+   구역 사이 줄은 summary 가 긋는다 (안의 h3 · .set-parts-h 는 제 줄 · 여백을 내려놓는다) */
+.settings-sheet .set-sec > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 8px; border-top: 1px solid var(--rim); cursor: pointer; list-style: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+:root[data-font="pixel"] .settings-sheet .set-sec > summary { border-top-width: 2px; }
+.settings-sheet #set-body > .set-sec:first-child > summary { margin-top: 0; border-top: 0; }
+.settings-sheet .set-sec > summary::-webkit-details-marker { display: none; }
+.settings-sheet #set-body .set-sec > summary h3, :root[data-font="pixel"] .settings-sheet #set-body .set-sec > summary h3 { flex: 1 1 auto; margin: 0; padding: 0; border: 0; }
+.settings-sheet #set-body .set-sec > summary .set-parts-h, :root[data-font="pixel"] .settings-sheet #set-body .set-sec > summary .set-parts-h { flex: 1 1 auto; margin: 4px 0; padding: 0; border: 0; }
+.settings-sheet .set-sec > summary::after { content: ''; flex: 0 0 auto; margin: 0 7px 0 4px; width: 9px; height: 15px; background: var(--fg); clip-path: polygon(0 0, 3px 0, 3px 3px, 6px 3px, 6px 6px, 9px 6px, 9px 9px, 6px 9px, 6px 12px, 3px 12px, 3px 15px, 0 15px); }
+.settings-sheet .set-sec[open] > summary::after { margin: 0 4px 0 1px; width: 15px; height: 9px; clip-path: polygon(0 0, 15px 0, 15px 3px, 12px 3px, 12px 6px, 9px 6px, 9px 9px, 6px 9px, 6px 6px, 3px 6px, 3px 3px, 0 3px); }
+.settings-sheet .set-sec > summary:focus-visible { outline: 2px solid var(--amber); outline-offset: -2px; }
+:root[data-font="pixel"] .settings-sheet .set-sec > summary:focus-visible { outline-color: var(--fg); }
+.settings-sheet .set-sec[open] { padding-bottom: 8px; }
+.settings-sheet .set-sec + .set-credits { margin-top: 8px; border-top: 1px solid var(--rim); }
 
 
 /* [7-T] 요리 → 식탁 잇기 · 레시피 */
@@ -1807,5 +1821,3 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 
 
 /* [7-F] 주말 콘테스트 */
-
-

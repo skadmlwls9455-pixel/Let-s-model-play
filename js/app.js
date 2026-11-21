@@ -3406,6 +3406,7 @@ var APP = (function () {
   }
   function renderSettings() {
     var body = $('set-body'); if (!body) return;
+    setSecRead(body);   /* 11-21: 접힌 · 펼친 구역을 그대로 (다시 그리기 전에 읽는다 — toggle 은 늦게 온다) */
     var frag = document.createDocumentFragment();
     renderGift(frag);   /* 문어 선물 상자 (맨 위) */
     colorRows(frag);   /* 맨 위 문어 색 (거울 전엔 없음) */
@@ -3450,7 +3451,7 @@ var APP = (function () {
     }
     /* 맨 아래 조용한 글자 링크 하나: 만든 것들 (credits.html — 부엌 소리 CC BY 크레딧 · CC0 녹음 · 글꼴 · three.js). 글자는 작아도 누르는 곳 44px */
     frag.appendChild(h('p', { class: 'help set-credits' }, [h('a', { href: 'credits.html', id: 'set-credits', text: '만든 것들', style: 'display:inline-block;padding:12px 4px;margin:-6px 0 -12px' })]));
-    body.innerHTML = ''; body.appendChild(frag);
+    body.innerHTML = ''; body.appendChild(setSecFold(frag));
   }
   /* 설정 › 내 모습 (docs/PLAYER_PARTS.md §3): 제목 옆 초상(3D 장면이 playerPortrait 를 주면 64×64 캔버스를 96px 로 · 2D 면 한 줄 안내) + 한 줄 = 지금 모습 한마디 · '모습 바꾸기'.
      고르는 건 옷장(#look-sheet · 아래 renderLook)에서 — 11-09 주인 "외관도 이런 느낌 ui로 각 항목별로 고를 수 있게 카테고리 나눠도 좋을 듯". 글자에 이모지·기호 없음 */
@@ -5468,6 +5469,25 @@ var APP = (function () {
   /* [7-U] 화면 고침 · 빈 화면 */
   /* 11-21 날 수 (주인: "D-14 처럼"): 상태 줄의 방 제목 자리에 'D+N' — N 은 가방 · 선물 줄의 '들어온 날 N일째' 와 같은 수 (연 날의 수. 쉬어도 줄지 않는다).
      첫 날을 세기 전(이름 짓기 전 · 첫 선물 전)엔 아무것도 안 보인다. 읽기만 한다 (S.user 를 여기서 만들지 않는다) */
+  /* 11-21 설정 구역 접기 (주인: 선물 상자 · 내 모습만 펼쳐 두고 나머지는 접어 줘): 구역마다 details.set-sec — 제목 (h3 · 내 모습은 초상이 든 .set-parts-h) 이 summary.
+     제목 차례 · id · 안쪽 칸은 그대로다 (지은 조각을 제목마다 묶기만 한다). 펼침 상태는 쪽이 사는 동안 기억 (시트는 열 때마다 새로 그린다). 맨 아래 '만든 것들' 링크는 구역 밖 */
+  var SET_SEC = { '문어 선물 상자': 'gift', '내 모습': 'look', '소리': 'sound', '화면': 'screen', '내 Claude 와 연결': 'claude', '기록': 'data', '누가 고르나': 'who', '팔레트': 'pal' };
+  var setSecOpen = { gift: true, look: true };
+  function setSecRead(body) { Array.prototype.forEach.call(body.querySelectorAll('details.set-sec'), function (d) { setSecOpen[d.getAttribute('data-sec')] = d.open; }); }
+  function setSecFold(frag) {
+    var out = document.createDocumentFragment(), cur = null;
+    Array.prototype.slice.call(frag.childNodes).forEach(function (n) {
+      var el = n.nodeType === 1, h3 = !el ? null : n.tagName === 'H3' ? n : n.classList.contains('set-parts-h') ? n.querySelector('h3') : null;
+      if (h3) {
+        var key = h3.id === 'set-color-h' ? 'color' : SET_SEC[h3.textContent] || h3.textContent;
+        cur = h('details', { class: 'set-sec', 'data-sec': key }, [h('summary', null, [n])]); if (setSecOpen[key]) cur.open = true;
+        (function (d, k) { d.addEventListener('toggle', function () { setSecOpen[k] = d.open; }); })(cur, key);
+        out.appendChild(cur);
+      } else if (el && n.classList.contains('set-credits')) { cur = null; out.appendChild(n); }
+      else (cur || out).appendChild(n);
+    });
+    return out;
+  }
   function dayCount() { return isObj(S.user) && Array.isArray(S.user.days) ? S.user.days.length : 0; }
   function renderDayN() {
     var el = $('day-n'), n = dayCount(); if (!el) return;

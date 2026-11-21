@@ -108,6 +108,7 @@ async function openSettings(page) {
   var sel = await settingsBtn(page);
   if (!sel) return { sel: null, id: null };
   await page.click(sel);
+  await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: 설정 구역은 접혀서 열린다 → 펼치고 누른다 */
   await page.waitForSelector('#set-music', { state: 'visible', timeout: 8000 }).catch(function () {});
   var id = await page.evaluate(function () { var m = document.getElementById('set-music'), d = m && m.closest('dialog'); return d && d.open ? d.id : null; });
   return { sel: sel, id: id };
@@ -115,6 +116,7 @@ async function openSettings(page) {
 /* 소리 켜기·끄기 = 설정 › 소리 맨 위 '켜기' 체크 칸 (#set-sound, 낭독 이름 '소리 켜기' — 주인 11-08). 시트가 닫혀 있으면 ⚙ 를 눌러 연다 (꺼져 있을 땐 아무 소리도 요청도 없다) */
 async function ensureSettings(page) {
   if (!(await page.$('#settings-sheet[open]'))) await page.click('#btn-settings');
+  await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: 설정 구역은 접혀서 열린다 → 펼치고 누른다 */
   await page.waitForSelector('#set-sound', { state: 'visible', timeout: 8000 });
 }
 /* 체크 칸을 한 번 누른다. keep 이 아니면 닫기 단추로 시트를 닫는다 */
@@ -129,7 +131,7 @@ function soundUI(page) {
     var c = document.getElementById('set-sound'); if (!c) return null;
     var row = c.closest('label'), h = document.getElementById('rs-sound'), m = document.getElementById('set-music'), n = document.getElementById('rs-sound-note');
     var r = row.getBoundingClientRect();
-    return { checked: c.checked, type: c.type, name: (row.textContent || '').trim(), rowId: row.id, rowCls: row.className, afterHead: !!h && h.nextElementSibling === row, aboveMusic: !!m && !!(row.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING),
+    return { checked: c.checked, type: c.type, name: (row.textContent || '').trim(), rowId: row.id, rowCls: row.className, afterHead: !!h && (h.closest('summary') || h).nextElementSibling === row, aboveMusic: !!m && !!(row.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING),
       focusable: c.tabIndex >= 0 && !c.disabled, w: r.width, h: r.height, left: r.left, right: r.right, vw: innerWidth, note: n ? n.textContent : null, noteHidden: n ? n.hidden : null,
       describedBy: c.getAttribute('aria-describedby'), ls: JSON.parse(localStorage.getItem('ppolppol_audio') || 'null') };
   });
@@ -364,7 +366,7 @@ async function scenarioHttp(browser, base) {
   /* B. 시트는 사용자 동작 없이 연다 (APP.openSettings — 탭이 아니다). 기억은 켜짐이지만 아직 아무것도 안 들린다 → 칸은 들리는 대로 빈 칸 (체크가 소리 없이 보이지 않게).
      첫 동작 = 시트가 열린 채로 키 하나 (포커스는 시트 제목) → 다시 흐르고, 열린 시트의 칸이 늦게 와도 따라 칠해진다 */
   await reloadOn();
-  await page.evaluate(function () { APP.openSettings(); });
+  await page.evaluate(function () { APP.openSettings(); [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });
   await page.waitForSelector('#set-sound', { state: 'visible' });
   var o6 = await page.evaluate(function () { return { c: document.getElementById('set-sound').checked, st: AUDIO.state() }; });
   ok(o6.c === false && o6.st.enabled && !o6.st.started && s.bag.audioReq.length === 0, '켜 둔 채 새로고침 + 동작 없이 연 시트: 칸은 빈 칸(아직 안 들림) · 요청·소리 없음');
@@ -378,7 +380,7 @@ async function scenarioHttp(browser, base) {
   await page.evaluate(function () { document.getElementById('settings-sheet').close(); });
   /* C. 빈 칸에 포커스만 옮기고(동작 아님) Enter: 체크 칸은 Enter 로 안 뒤집히지만 다른 키처럼 첫 동작이다 → 다시 흐르고 체크 (옛 스피커 단추는 Enter 로 켜졌다) */
   await reloadOn();
-  var o8a = await page.evaluate(function () { APP.openSettings(); document.getElementById('set-sound').focus(); return { c: document.getElementById('set-sound').checked, focus: document.activeElement && document.activeElement.id, st: AUDIO.state() }; });
+  var o8a = await page.evaluate(function () { APP.openSettings(); [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); document.getElementById('set-sound').focus(); return { c: document.getElementById('set-sound').checked, focus: document.activeElement && document.activeElement.id, st: AUDIO.state() }; });
   await page.keyboard.press('Enter');
   var back3 = await waitState(page, runningNow, null, 15000);
   await waitState(page, function () { return document.getElementById('set-sound').checked; }, null, 3000);
@@ -388,7 +390,7 @@ async function scenarioHttp(browser, base) {
   await page.evaluate(function () { document.getElementById('settings-sheet').close(); });
   /* D. 첫 동작이 바로 그 칸 줄 톡이면: 끄지 않고 다시 흐르게 (빈 칸으로 보이니 누르면 켜진다) */
   await reloadOn();
-  await page.evaluate(function () { APP.openSettings(); });
+  await page.evaluate(function () { APP.openSettings(); [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });
   await page.waitForSelector('#set-sound', { state: 'visible' });
   var o9a = await page.evaluate(function () { return { c: document.getElementById('set-sound').checked, st: AUDIO.state() }; });
   await page.click('#set-sound-row > span');   /* 칸 옆 글자 '켜기' 를 톡 (줄 전체가 누르는 곳 — 탭 대기가 먼저 켜고 이 칸이 다시 끄면 안 된다) */

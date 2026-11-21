@@ -393,6 +393,7 @@ async function scenarioMain(browser) {
   await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
   await page.evaluate(function () { APP.state.settings.claudeRoom = { key: new Array(41).join('k'), mcp: 'https://example.invalid/api/mcp/k', last: null, lang: 'id', pin: false }; });
   await page.click('#btn-settings');
+  await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: 설정 구역은 접혀서 열린다 → 펼치고 누른다 */
   await page.waitForSelector('#set-claude-lang');
   var lp = await page.evaluate(function () {
     var d = document.getElementById('settings-sheet'), sel = document.getElementById('set-claude-lang'), cs = getComputedStyle(d);
@@ -2371,6 +2372,9 @@ async function scenarioWave7(browser) {
   /* 2. ⚙ 설정 시트: (문어 색 — 거울이 생긴 뒤 안내 한 줄만) · 소리(js/audio.js) · 화면 · 기록 · 누가 고르나 (플레이어에겐 팔레트 없음)
         몸 색은 첫 실행 창에서 처음 한 번만 고른다 (주인 11-08 밤 · docs/SALON.md §1.2): 플레이어 설정엔 색 슬라이더 · 프리셋이 없다 (?dev=0 · 배포 주소). 개발용 칸은 시나리오 O */
   await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
+  var fold0 = await page.evaluate(function () { return [].map.call(document.querySelectorAll('#set-body > details.set-sec'), function (d) { return d.getAttribute('data-sec') + (d.open ? '+' : '-'); }).join(' '); });
+  ok(fold0 === 'gift+ look+ sound- screen- claude- data- who-', "11-21 설정 구역 접기: '문어 선물 상자' · '내 모습' 만 펼쳐져 열린다 (" + fold0 + ')');
+  await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 아래 검사는 칸을 누르고 재므로 다 펼친다 */
   var st = await page.evaluate(function () {
     var b = document.getElementById('set-body');
     return { hs: [].map.call(b.querySelectorAll('h3'), function (x) { return x.textContent; }), hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.presets .preset').length, colorLine: !!document.getElementById('set-color'), lantern: APP.state.room.lantern,
@@ -2635,7 +2639,7 @@ async function scenarioWave7(browser) {
   function sndNow() { return page.evaluate(function () {
     var c = document.getElementById('set-sound'), row = c && c.closest('label'), h = document.getElementById('rs-sound'), r = row && row.getBoundingClientRect(), n = document.getElementById('rs-sound-note');
     return { ctl: [].map.call(document.querySelectorAll('#scene-ctl button'), function (x) { return x.id; }).join(','), speaker: !!document.querySelector('#btn-sound, .sound-btn, #scene-ctl [aria-label*="소리"]'),
-      has: !!c, type: c && c.type, name: row && row.textContent.trim(), cls: row && row.className, first: !!h && !!row && h.nextElementSibling === row && !!(row.compareDocumentPosition(document.getElementById('set-music')) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(row.compareDocumentPosition(document.getElementById('set-sfx')) & Node.DOCUMENT_POSITION_FOLLOWING),
+      has: !!c, type: c && c.type, name: row && row.textContent.trim(), cls: row && row.className, first: !!h && !!row && (h.closest('summary') || h).nextElementSibling === row && !!(row.compareDocumentPosition(document.getElementById('set-music')) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(row.compareDocumentPosition(document.getElementById('set-sfx')) & Node.DOCUMENT_POSITION_FOLLOWING),
       checked: c && c.checked, en: AUDIO.enabled(), avail: AUDIO.state().available, focusable: !!c && c.tabIndex >= 0 && !c.disabled, h: r ? Math.round(r.height) : 0, note: n ? (n.hidden ? '' : n.textContent) : null };
   }); }
   var sn0 = await sndNow();
@@ -2665,7 +2669,7 @@ async function scenarioWave7(browser) {
   await page.keyboard.press('Escape'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
   var mz = await page.evaluate(function () { var keep = APP.state.room.lantern; APP.state.room.lantern = 2; return { lantern: keep }; });
   await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
-  mz.row = await page.evaluate(function () { var b = document.getElementById('set-body'), l = document.getElementById('set-color'), h = document.getElementById('set-color-h'); return { hs: [].map.call(b.querySelectorAll('h3'), function (x) { return x.textContent; }), line: l ? l.textContent : '', hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.preset[data-hex]').length, h: h ? h.textContent : '', next: !!l && !!h && h.nextElementSibling === l, ctrls: l ? l.querySelectorAll('button, input, select, a').length : -1, dev: !!document.getElementById('set-color-dev') }; });
+  mz.row = await page.evaluate(function () { var b = document.getElementById('set-body'), l = document.getElementById('set-color'), h = document.getElementById('set-color-h'); return { hs: [].map.call(b.querySelectorAll('h3'), function (x) { return x.textContent; }), line: l ? l.textContent : '', hue: !!document.getElementById('set-hue'), presets: b.querySelectorAll('.preset[data-hex]').length, h: h ? h.textContent : '', next: !!l && !!h && (h.closest('summary') || h).nextElementSibling === l, ctrls: l ? l.querySelectorAll('button, input, select, a').length : -1, dev: !!document.getElementById('set-color-dev') }; });
   ok(mz.lantern < 2 && mz.row.h === '문어 색' && mz.row.hs.indexOf('문어 색') >= 0 && mz.row.hs.indexOf('문어 색') < mz.row.hs.indexOf('내 모습') && mz.row.next && mz.row.line === '거울 앞에서 뚜루에게 물어볼 수 있어.' && !/\p{Extended_Pictographic}/u.test(mz.row.line) && mz.row.ctrls === 0 && !mz.row.hue && mz.row.presets === 0 && !mz.row.dev, "설정 (등불 2칸 = 거울 뒤): '문어 색' 제목 ('내 모습' 위) + 바로 아래 '거울 앞에서 뚜루에게 물어볼 수 있어.' 한 줄 · 누르는 것 · 색 슬라이더 · 프리셋 · 개발용 칸 없음 " + JSON.stringify(mz.row));
   var wide = [];
   for (var w of [320, 360, 412]) {
@@ -3550,7 +3554,7 @@ async function scenarioSalon(browser) {
 
   /* 8. 11-11 모션 줄이기: [물어보기] → 행 3 까지 4.5 s 안 · 걷기 · 폴짝 · 물보라 없음 */
   await pa.keyboard.press('Escape'); await pa.waitForSelector('#salon-sheet[open]', { state: 'hidden' });
-  await pa.click('#btn-settings'); await pa.waitForSelector('#settings-sheet[open]'); await pa.selectOption('#set-motion', 'reduce'); await pa.click('#set-close'); await pa.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  await pa.click('#btn-settings'); await pa.waitForSelector('#settings-sheet[open]'); await pa.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); }); await pa.selectOption('#set-motion', 'reduce'); await pa.click('#set-close'); await pa.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
   await park(pa, 'window');   /* 거울에서 떨어진 곳에서 묻는다 (모션 줄이기면 걷지 않고 그 자리로) */
   await openSheet(pa); await pa.click('#salon-bottles .bottle[data-hex="' + PINK + '"]');
   await pa.evaluate(function () {
@@ -3577,7 +3581,7 @@ async function scenarioSalon(browser) {
   ok(ask3.action === 'dye' && a4.color === PINK && a4.sceneColor === PINK, "11-11 '바꾸기' → 분홍 (장면도)");
   var gives = await pa.evaluate(function () { var S = APP.state; return { lantern: S.room.lantern, days: S.octopus.days.length, souvenirs: S.room.souvenirs.length, invites: S.octopus.invites, trips: S.trips.length, affinity: Object.keys(S.octopus.affinity).length, notes: S.curiosityNotes.length }; });
   ok(gives.lantern === 2 && gives.days === 2 && gives.souvenirs === 0 && gives.invites === 2 && gives.trips === 0 && gives.affinity === 0 && gives.notes === 0, '미용실은 아무것도 주지 않는다: 물음 셋 뒤에도 등불 · 함께한 날 · 기념품 · 초대 수 · 취향 · 메모 그대로 ' + JSON.stringify(gives));
-  await pa.click('#btn-settings'); await pa.waitForSelector('#settings-sheet[open]'); await pa.selectOption('#set-motion', 'auto'); await pa.click('#set-close'); await pa.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  await pa.click('#btn-settings'); await pa.waitForSelector('#settings-sheet[open]'); await pa.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); }); await pa.selectOption('#set-motion', 'auto'); await pa.click('#set-close'); await pa.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
 
   /* 9. 11-12: 연출 중 주 버튼 → 남은 연출을 한 번에 (새 색 · 대야 없음 · 행 셋) · 초대는 평소대로 → 돌아와 자는 문어는 거울 톡에 '쿨쿨…' 만 */
   await setDay(pa, D4);
@@ -4564,6 +4568,7 @@ async function scenarioGlyphs(browser) {
   await page.click('#set-look-open'); await page.waitForSelector('#look-sheet[open]');
   for (var lookTab of [['hair', '머리'], ['eyes', '눈'], ['face', '얼굴'], ['outfit', '옷'], ['shoes', '신발'], ['acc', '장식']]) { await page.click('#look-tab-' + lookTab[0]); await page.waitForTimeout(120); await scan('옷장 · ' + lookTab[1]); }
   await page.click('#look-close'); await page.waitForSelector('#look-sheet[open]', { state: 'hidden' });
+  await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: 설정 구역은 접혀서 열린다 → 펼치고 누른다 */
   await page.click('#set-reset'); await page.waitForTimeout(150); await scan('설정 · 초기화 한 번 누름 (다시 누르면 지워짐)');
   var dl = page.waitForEvent('download', { timeout: 4000 }).catch(function () { return null; });
   await page.click('#set-export'); await dl; await scan('설정 · 내보내기');
@@ -7565,7 +7570,7 @@ async function scenarioSceneTap(browser) {
       await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).catch(function () { /* 아래 검사가 본다 */ });
       /* 5차 검증 K-5: 게임 설정 › 화면 › 모션 '모션 줄이기' 가 부엌 iframe 에도 닿는다 (COOK.live().reduced · data-motion) — 톡톡 단계가 끝나 화덕으로 가도 미끄러짐 0 */
       await page.waitForTimeout(600);
-      await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]'); await page.selectOption('#set-motion', 'reduce'); await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+      await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]'); await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); }); await page.selectOption('#set-motion', 'reduce'); await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
       await page.waitForTimeout(400);
       await page.touchscreen.tap(cpt.x, cpt.y);
       await pickDish('jeon');
@@ -8100,6 +8105,24 @@ async function scenarioU7(browser) {
   ok(d0.txt === 'D+3' && d0.aria === '들어온 지 3일째' && !d0.hidden && d0.n === 3, "상태 줄 'D+3' · aria '들어온 지 3일째' (가방의 '들어온 날 N일' 과 같은 수)");
   ok(d0.vis && !d0.cut && d0.pipsW >= 55 && d0.tagW > 0 && d0.l >= d0.tagR - 0.5 && d0.fs >= 12, '360 px: 이름 (안 잘림) · 데모 · 등불 칸 · D+N 이 다 보이고 안 겹친다 (글자 ' + d0.fs + 'px)');
   ok(d0.doc === '뚜루 · 뽈뽈 문어', "탭 제목 '<이름> · 뽈뽈 문어' (" + d0.doc + ')');
+  /* 설정 구역 접기 (11-21): 선물 상자 · 내 모습만 펼쳐서 열린다 · 제목 줄 (summary) 을 누르면 펼쳐진다 · 닫았다 다시 열어도 그대로 (쪽이 사는 동안) · 꺾쇠는 그림 (글자 없음) */
+  function folds() { return page.evaluate(function () { return [].map.call(document.querySelectorAll('#set-body > details.set-sec'), function (d) { return d.getAttribute('data-sec') + (d.open ? '+' : '-'); }).join(' '); }); }
+  await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
+  var f0 = await folds(), fi = await page.evaluate(function () {
+    var sm = document.querySelector('#set-body details[data-sec="sound"] > summary'), r = sm.getBoundingClientRect(), af = getComputedStyle(sm, '::after'), snd = document.getElementById('set-sound').getBoundingClientRect();
+    return { focus: document.activeElement && document.activeElement.id, h: r.height, h3: !!sm.querySelector('h3#rs-sound'), mark: af.content, clip: af.clipPath !== 'none', mw: parseFloat(af.width), sndH: snd.height, last: document.getElementById('set-body').lastElementChild.className, txt: sm.innerText.trim() };
+  });
+  ok(f0 === 'gift+ color- look+ sound- screen- claude- data- who-', "설정: '문어 선물 상자' · '내 모습' 만 펼쳐져 열린다 (" + f0 + ')');
+  fi.sndH = (await page.isVisible('#set-sound')) ? 1 : 0;
+  ok(fi.focus === 'set-h' && fi.h >= 44 && fi.h3 && fi.txt === '소리' && fi.mark === '\"\"' && fi.clip && fi.mw >= 9 && fi.sndH === 0 && /set-credits/.test(fi.last), '설정: 포커스는 제목 · 접힌 구역의 제목 줄 44px 이상 · 꺾쇠는 그림 (글자 없음) · 접힌 칸은 안 보임 · 맨 아래 링크는 구역 밖 ' + JSON.stringify(fi));
+  await page.click('#set-body details[data-sec="sound"] > summary'); await page.waitForTimeout(100);
+  await page.focus('#set-body details[data-sec="gift"] > summary'); await page.keyboard.press('Enter'); await page.waitForTimeout(100);
+  var f1 = await folds(); await page.click('#set-sound'); await page.click('#set-sound');   /* 펼친 구역의 칸은 눌린다 (켰다 끈다) */
+  await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
+  await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]');
+  var f2 = await folds();
+  ok(f1 === 'gift- color- look+ sound+ screen- claude- data- who-' && f2 === f1, '설정: 제목 줄을 누르면 (키보드 Enter 도) 펼쳐지고 접힌다 · 닫았다 다시 열어도 그대로 (' + f1 + ' → ' + f2 + ')');
+  await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });
   /* 열어 둔 탭에서 날이 바뀌면 같이 오른다 (dailyGift) */
   await page.evaluate(function () { window.__ppolTest.today = '2026-11-09'; APP.dailyGift(); });
   var d1 = await dayNow();
