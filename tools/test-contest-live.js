@@ -10,6 +10,7 @@
  *   D 일요일: 넘기기 → 바로 결과 · 조개 한 번 · 토요일 기록도 남음
  *   E 두 탭: 한 탭이 나간 뒤 다른 탭이 나가면 같은 결과 · 조개는 한 번
  *   F 움직임 줄이기: 쇼 없이 바로 결과
+ *   H 장면 안의 콘테스트: 무대 톡 → 참가 카드 (#scene 안) → 쇼 박자 → 팻말 → 단상 → 결과 카드 · 넘기기 · 뒷길 (시트)
  *   G 그림이 또렷 (기기 픽셀 정수 배) · 저장된 다른 값 그대로 · 옷가게 문어 대본 부름 한 번
  */
 'use strict';
@@ -43,6 +44,22 @@ function STUB() {
   APP.itemThumb = function (cat, id, px) { var o = {}; o[cat] = id; return APP.scene.playerShot({ look: o, frame: cat === 'shoes' ? 'feet' : cat === 'outfit' ? 'body' : 'hair', shared: true }); };
   APP.npcSay = function (id, key, vars) { window.__npcSaid.push([id, key, vars]); };
 }
+/* V · W · P 갈래 대역: 무대 자리 · 화면 좌표 · 문어 세우기 · 내 캐릭터 걷기와 포즈 (부른 것을 window.__sc 에 적는다) */
+function SCENE_STUB() {
+  var sc = APP.scene; window.__sc = [];
+  sc.stage = function () { return { wait: [1, 1], path: [[1, 0], [2, 0], [3, 0], [4, 0]], judges: [[1, 3, 0], [2, 3, 0], [3, 3, 0]], podium: [[1, 5, 0.6], [2, 5, 0.48], [3, 5, 0.38], [4, 5, 0.24]], rivals: [[0, 6], [1, 6], [2, 6]], poster: [0.5, 0], y: 0 }; };
+  sc.project = function (x, y, z) { return { x: 40 + x * 64, y: 330 - z * 30 - y * 40 }; };
+  sc.area = function () { return 'plaza'; }; sc.inRoom = function () { return null; };
+  sc.stageDress = function (on) { window.__sc.push(['dress', !!on]); };
+  sc.npcSet = function (l) { window.__sc.push(['set', l.map(function (n) { return n.id; }).join(',')]); };
+  sc.npcPlace = function (id, x, z) { window.__sc.push(['place', id, x, z]); };
+  sc.npcPose = function (id, pose) { window.__sc.push(['npose', id, pose]); };
+  sc.playerWalkPath = function (pts) { window.__sc.push(['walk', pts.length]); return new Promise(function (r) { setTimeout(r, 250); }); };
+  sc.playerPose = function (n) { window.__sc.push(['pose', n]); return new Promise(function (r) { setTimeout(r, 150); }); };
+  sc.playerPlace = function (x, z, y) { window.__sc.push(['me', x, z, y]); };
+}
+function calls(page, kind) { return page.evaluate(function (k) { return window.__sc.filter(function (c) { return c[0] === k; }); }, kind); }
+function wcard(page) { return page.evaluate(function () { var c = document.getElementById('ct-wcard'); return c ? { kind: c.dataset.kind, inScene: !!c.closest('#scene'), dialog: !!c.closest('dialog'), text: c.innerText, go: !!document.getElementById('ct-w-go'), avoid: c.hasAttribute('data-npc-avoid') } : null; }); }
 async function open(ctx, o) {
   o = o || {};
   var page = await ctx.newPage(), errs = [];
@@ -263,6 +280,90 @@ async function main() {
     check(page._errs.length === 0, '오류 없음');
     await ctx.close();
   }
+
+  console.log('H 장면 안의 콘테스트 (무대 · 좌표 · 걷기는 대역)');
+  ctx = await context(browser, WED);
+  page = await open(ctx); await page.evaluate(SCENE_STUB);
+  s0 = await shells(page);
+  check(await page.evaluate(function () { return APP.contestStageTap(); }) === true, '무대 톡 (평일)');
+  await page.waitForFunction(function () { return !!document.getElementById('ct-wcard'); }, null, { timeout: 8000 });
+  r = await wcard(page);
+  check(r.kind === 'entry' && r.inScene && !r.dialog && r.avoid && !r.go && r.text.indexOf('주말에 열려.') >= 0, '대기 자리로 걸은 뒤 참가 카드가 #scene 안에 (dialog 아님) · 평일엔 나가기 없음');
+  check((await calls(page, 'walk')).length === 1 && !(await page.evaluate(function () { return document.querySelector('dialog[open]'); })), '걷기를 한 번 불렀고 시트는 안 열림');
+  check(await page.evaluate(function () { var p = document.getElementById('ct-wposter'); return !!p && !!p.closest('#scene') && !!p.querySelector('canvas') && /주말 콘테스트/.test(p.getAttribute('aria-label')); }), '무대 옆 포스터에 이번 주 주제 그림');
+  check((await calls(page, 'dress')).every(function (c) { return c[1] === false; }), '평일엔 무대를 꾸미지 않음');
+  await page.click('#ct-w-close');
+  check((await wcard(page)) === null && (await shells(page)) === s0, '닫기 → 카드 없음');
+  check(page._errs.length === 0, '오류 없음');
+  await ctx.close();
+
+  ctx = await context(browser, SAT);
+  page = await open(ctx); await page.evaluate(SCENE_STUB);
+  s0 = await shells(page);
+  await page.evaluate(function () { APP.contestStageTap(); });
+  await page.waitForFunction(function () { return !!document.getElementById('ct-w-go'); }, null, { timeout: 8000 });
+  r = await calls(page, 'set');
+  check((await calls(page, 'dress')).some(function (c) { return c[1] === true; }) && r.length && /rival0,rival1,rival2/.test(r[r.length - 1][1]), '주말: 무대를 꾸미고 경쟁자 셋을 세움');
+  check((await calls(page, 'npose')).filter(function (c) { return c[2] === 'sit'; }).length >= 3, '심사 문어 셋이 앉음');
+  await shot(page, '8-live-entry');
+  await page.waitForTimeout(700); await page.click('#ct-w-go');
+  e = await entry(page, SAT);
+  check(e && e.paid && (await shells(page)) === s0 + e.shells && !!(await page.evaluate(function () { return APP.contestLive; })), '나가기 → 조개 한 번 · 쇼 시작');
+  check(await page.evaluate(function () { return !!document.querySelector('.ct-whud .ct-rule') && !!document.getElementById('ct-w-skip') && !document.querySelector('dialog[open]'); }), "쇼 중: 넘기기 · '채점 규칙' · 시트 없음");
+  seen = {}; t0 = Date.now();
+  while (Date.now() - t0 < 30000) {
+    r = await page.evaluate(function () { var s = APP.contestLive; return s ? s.stage + s.n : null; });
+    if (!r) break;
+    if (!seen[r]) { seen[r] = 1; if (r === 'judge3') await shot(page, '9-live-placards'); }
+    await page.waitForTimeout(100);
+  }
+  check(['walk1', 'walk2', 'walk3', 'walk4', 'pose0', 'judge1', 'judge2', 'judge3'].every(function (k) { return seen[k]; }), '박자가 차례로: ' + Object.keys(seen).join(' '));
+  took = Date.now() - t0;
+  check(took > 6000 && took < 20000, '쇼 길이 (' + took + 'ms)');
+  r = await wcard(page);
+  check(r && r.kind === 'result' && r.inScene && !r.dialog && r.text.indexOf('채점 규칙') >= 0 && r.text.indexOf(e.rank + '등') >= 0, "결과 카드: 등수 · '채점 규칙'");
+  check(await page.evaluate(function () { return document.querySelectorAll('#ct-world .ct-wplac').length === 3 && Array.prototype.every.call(document.querySelectorAll('#ct-world .ct-wplac'), function (p) { var n = p.querySelectorAll('.ct-stars canvas').length; return n >= 1 && n <= 3 && !!p.getAttribute('aria-label'); }); }), '심사 팻말 셋 (별 1~3)');
+  r = await page.evaluate(function () { var sc = window.__sc; return { poses: sc.filter(function (c) { return c[0] === 'pose'; }).map(function (c) { return c[1]; }), walk: sc.filter(function (c) { return c[0] === 'walk'; }).map(function (c) { return c[1]; }), pod: sc.filter(function (c) { return c[0] === 'place' && /^rival/.test(c[1]) && c[3] === 5; }).map(function (c) { return c[1]; }), me: sc.filter(function (c) { return c[0] === 'me'; }).length, said: window.__npcSaid.map(function (x) { return x[0] + ':' + x[1]; }) }; });
+  check(r.poses.indexOf('twirl') >= 0 && r.poses.indexOf('pose') >= 0 && r.walk.indexOf(4) >= 0, '내 캐릭터: 길을 걷고 · 돌고 · 선다');
+  check(['rival0', 'rival1', 'rival2'].every(function (id) { return r.pod.indexOf(id) >= 0; }) && r.me >= 1, '단상: 경쟁자 셋과 내가 등수 자리에');
+  check(r.said.indexOf('clothes:contest.judge') >= 0 && r.said.indexOf('goods:contest.judge') >= 0 && r.said.indexOf('cafe:contest.judge') >= 0 && r.said.indexOf('clothes:contest.result') >= 0, '심사 대본: 셋이 한 번씩 센 수 · 결과 한 번 (' + r.said.join(' ') + ')');
+  check(await page.evaluate(function () { return window.__npcSaid.filter(function (x) { return x[1] === 'contest.judge'; }).every(function (x) { return typeof x[2].n === 'number' && x[2].n >= 0; }); }), '센 수는 숫자');
+  await shot(page, '10-live-result');
+  await page.click('#ct-w-close');
+  await page.evaluate(function () { APP.contestStageTap(); });
+  await page.waitForFunction(function () { return !!document.getElementById('ct-wcard'); }, null, { timeout: 8000 });
+  check((await wcard(page)).kind === 'result' && (await shells(page)) === s0 + e.shells && JSON.stringify(await entry(page, SAT)) === JSON.stringify(e), '그날 다시 무대 톡: 결과 카드 그대로 · 조개 그대로');
+  check(await page.evaluate(function () { return document.querySelectorAll('#log .ct-row').length === 1; }), '기록 줄 하나');
+  check(page._errs.length === 0, '오류 없음');
+  /* 일요일: 넘기기 */
+  await page.evaluate(function (d) { sessionStorage.setItem('__ct_day', d); }, SUN);
+  await page.reload(); await page.waitForSelector('#btn-go:not(.away)'); await page.waitForTimeout(600); await page.evaluate(STUB); await page.evaluate(SCENE_STUB);
+  await page.waitForFunction(function (d) { return APP.state.user.giftDay === d; }, SUN, { timeout: 10000 });
+  s0 = await shells(page);
+  await page.evaluate(function () { APP.contestStageTap(); });
+  await page.waitForFunction(function () { return !!document.getElementById('ct-w-go'); }, null, { timeout: 8000 });
+  await page.waitForTimeout(700); await page.click('#ct-w-go'); await page.waitForTimeout(900);
+  await page.click('#ct-w-skip');
+  var eL = await entry(page, SUN);
+  r = await wcard(page);
+  check(r && r.kind === 'result' && !(await page.evaluate(function () { return APP.contestLive; })) && (await shells(page)) === s0 + eL.shells, '넘기기 → 바로 결과 카드 · 조개 한 번');
+  await page.waitForTimeout(2500);
+  check((await shells(page)) === s0 + eL.shells && (await wcard(page)).kind === 'result' && (await page.evaluate(function () { return document.querySelectorAll('#ct-world .ct-wplac').length; })) === 3, '넘긴 뒤 남은 박자가 아무것도 안 바꿈');
+  check(page._errs.length === 0, '오류 없음');
+  await ctx.close();
+  /* 뒷길: 움직임 줄이기 · 무대 함수 없음 → 시트 */
+  rec = REC(); rec.settings.motion = 'reduce';
+  ctx = await context(browser, SAT, rec);
+  page = await open(ctx); await page.evaluate(SCENE_STUB);
+  await page.evaluate(function () { APP.contestStageTap(); }); await page.waitForTimeout(300);
+  check(await page.evaluate(function () { return document.getElementById('contest-sheet').open && !document.getElementById('ct-wcard'); }), '움직임 줄이기: 시트가 열림');
+  await ctx.close();
+  ctx = await context(browser, SAT);
+  page = await open(ctx);
+  await page.evaluate(function () { delete APP.scene.stage; APP.contestStageTap(); }); await page.waitForTimeout(300);
+  check(await page.evaluate(function () { return typeof APP.scene.stage !== 'function' ? document.getElementById('contest-sheet').open && !document.getElementById('ct-wcard') : true; }), '무대 함수가 없으면: 시트가 열림');
+  check(page._errs.length === 0, '오류 없음');
+  await ctx.close();
 
   /* 진짜 폰 배율 2.625 (에뮬레이션은 이 배율에서 어긋난다 — 창 자체를 그 배율로) */
   var real = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--force-device-scale-factor=2.625', '--window-size=412,915'] });
