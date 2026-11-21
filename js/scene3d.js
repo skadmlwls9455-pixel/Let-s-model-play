@@ -5607,12 +5607,25 @@ var SCENE3D = (function () {
       out.push(stBox(sg[0] + 0.06, sg[1] + 0.2, y0 + 1.12, 0.04, 0.2, 0.62, PAL.paper[1]), stBox(sg[0] + 0.06, sg[1] + 0.55, y0 + 1.12, 0.04, 0.1, 0.08, PAL.paper[1]));
       out.push(stBox(sg[0] + 0.06, sg[1] - 0.2, y0 + 0.84, 0.04, 0.2, 0.62, PAL.paper[2] || PAL.paper[1]), stBox(sg[0] + 0.06, sg[1] - 0.55, y0 + 0.84, 0.04, 0.1, 0.08, PAL.paper[2] || PAL.paper[1]));
     }
+    /* 11-21 주인: "꽃 안 같아 징그러워 — 에셋 재활용 말고 꽃 만들어줘". 둥근 잎 뭉치 (나무 우듬지 조각) 를 쓰지 않고 꽃을 따로 빚는다 — 정원 일에서도 쓴다.
+       wideFlower(out, x, y, z, kind, sz): 한 송이. 노란 꽃술 하나 + 꽃잎 여섯 (위 · 아래 · 좌 · 우 · 앞 · 뒤 — 어느 각에서 봐도 열십자 꽃 모양). kind = 꽃잎 색 (분홍 · 흰 · 연보라 · 노랑 · 진분홍), sz = 꽃잎 한 장 (m).
+       wideLeaf(out, x, y, z, k): 납작한 잎 한 쌍 (초록 — 계절과 무관하게 잎은 잎 색). */
+    var FLOWER_C = ['#f2a6c0', '#fbf6ea', '#c8a8e8', '#ffd866', '#e86a92'], LEAF_C = ['#5f8a3a', '#7aa04c', '#4c7a36'];
+    function wideFlower(out, x, y, z, kind, sz) {
+      var c = FLOWER_C[kind % FLOWER_C.length], p = sz || 0.09, d = p * 0.95;
+      out.push({ g: box(p, p, p), m: M(x, y, z), c: kind % FLOWER_C.length === 3 ? '#e8963c' : '#ffd866' });
+      [[d, 0, 0], [-d, 0, 0], [0, d, 0], [0, -d, 0], [0, 0, d], [0, 0, -d]].forEach(function (o) { out.push({ g: box(p, p, p), m: M(x + o[0], y + o[1], z + o[2]), c: c }); });
+    }
+    function wideLeaf(out, x, y, z, k) {
+      var ry = k * 1.3;
+      out.push({ g: box(0.17, 0.035, 0.09), m: M(x + Math.cos(ry) * 0.08, y, z - Math.sin(ry) * 0.08, 0, ry, 0.35), c: LEAF_C[k % 3] }, { g: box(0.15, 0.035, 0.08), m: M(x - Math.cos(ry) * 0.08, y + 0.03, z + Math.sin(ry) * 0.08, 0, ry, -0.35), c: LEAF_C[(k + 1) % 3] });
+    }
     function wideRoadDress(out) {   /* 숲길 (s 7 ~ 18) 가의 낮은 것들: 꽃 무더기 · 버섯 · 작은 덤불 · 그루터기 · 쓰러진 통나무. 폰 화면 폭 (6.7 m) 이 걷는 띠와 거의 같아 숲이 화면 밖이라 길이 비어 보였다.
                                     다 무릎 아래라 캐릭터를 가리지 않는다. 가운데 (|t| < 1.3) 는 비워 둔다. 덤불 · 그루터기 · 통나무는 부딪힌다 */
       var sc = SEASON_C[SEASON.cur], bl = [PAL.rose[2] || PAL.rose[1], PAL.amber[4], FIXED.white, PAL.dusk[2]];
       for (var i = 0; i < 18; i++) {
         var h = hash('wdress' + i), sd = 7.2 + i * 0.62 + (h % 10) * 0.03, side = i % 2 ? 1 : -1, kind = (h >>> 9) % 6, td = side * (kind < 3 ? 1.55 + ((h >>> 4) % 12) * 0.11 : 1.5 + ((h >>> 4) % 6) * 0.1), q = wideXZ(sd, td), x = snapPos(q[0]), z = snapPos(q[1]), k;   /* 부딪히는 것 (덤불 · 그루터기 · 통나무) 은 |t| ≤ 2.0 — 가장자리 (3.0) 와의 사이로 몸이 지나간다 (좁은 틈에 끼어 서지 않게) */
-        if (kind < 2) { for (k = 0; k < 4; k++) { var fx = x + ((h >>> (12 + k * 3)) % 5 - 2) * 0.08, fz = z + ((h >>> (13 + k * 3)) % 5 - 2) * 0.08; out.push({ g: box(0.035, 0.14, 0.035), m: M(fx, 0.07, fz), c: sc.tuft, tag: 11 }, { g: box(0.075, 0.075, 0.075), m: M(fx, 0.17, fz), c: bl[(h >>> (20 + k)) % 4] }); } }
+        if (kind < 2) { for (k = 0; k < 4; k++) { var fx = x + ((h >>> (12 + k * 3)) % 5 - 2) * 0.08, fz = z + ((h >>> (13 + k * 3)) % 5 - 2) * 0.08; out.push({ g: box(0.035, 0.16, 0.035), m: M(fx, 0.08, fz), c: LEAF_C[k % 3] }); wideFlower(out, fx, 0.2, fz, (h >>> (20 + k)) % 5, 0.05); } }
         else if (kind === 2) { for (k = 0; k < 2; k++) { var mx = x + k * 0.16, mz = z + k * 0.07, mh = 0.1 + k * 0.05; out.push({ g: box(0.05, mh, 0.05), m: M(mx, mh / 2, mz), c: PAL.paper[2] || PAL.paper[1] }, { g: box(0.15, 0.06, 0.15), m: M(mx, mh + 0.03, mz), c: PAL.rose[1] }, { g: box(0.04, 0.02, 0.04), m: M(mx + 0.03, mh + 0.065, mz), c: FIXED.white }); } }
         else if (kind === 3) { var br = 0.24 + (h >>> 14) % 3 * 0.03; out.push({ g: new T.SphereGeometry(br, 7, 5), m: M(x, br * 0.6, z, 0, 0, 0, 1, 0.8, 1), c: sc.leaf[i % 3], tag: 13 + i % 3 }); WIDE_REG.circles.push([x, z, br * 0.7]); }
         else if (kind === 4) { out.push({ g: new T.CylinderGeometry(0.15, 0.18, 0.2, 8), m: M(x, 0.1, z), c: EXT_C.trunk }, { g: new T.CylinderGeometry(0.13, 0.13, 0.02, 8), m: M(x, 0.21, z), c: W[4] }); WIDE_REG.circles.push([x, z, 0.16]); }
@@ -5656,8 +5669,8 @@ var SCENE3D = (function () {
       /* 마을 문 (11-21 주인: 신사 같은 문 X → 덩굴 아치도 아직 이상 → "꽃덩굴이 얽힌 구조물"): 깊이가 있는 나무 덩굴 시렁 —
          기둥 넷 (앞뒤 0.7 m) · 앞뒤 두 줄의 둥근 살 · 그 사이 가로살 · 기둥 사이 X 살. 잎 뭉치가 살을 덮고 기둥을 타고 오르며, 꽃 송이와 아래로 늘어진 덩굴 */
       var arcN = 13, arcBl = [PAL.rose[2] || PAL.rose[1], FIXED.white, PAL.amber[4], PAL.dusk[2]], AS = [18.65, 19.35];
-      function vine(sd, td, y, r, k) { var lq = wideXZ(sd, td); V.push({ g: new T.SphereGeometry(r, 6, 4), m: M(snapPos(lq[0]), y, snapPos(lq[1]), 0, k, 0, 1, 0.8, 1), c: sc.leaf[k % 3], tag: 13 + k % 3 }); }
-      function bloom(sd, td, y, k) { var lq = wideXZ(sd, td); V.push({ g: box(0.11, 0.11, 0.11), m: M(snapPos(lq[0]), y, snapPos(lq[1])), c: arcBl[k % 4] }, { g: box(0.05, 0.05, 0.05), m: M(snapPos(lq[0]), y + 0.07, snapPos(lq[1])), c: PAL.amber[4] }); }
+      function vine(sd, td, y, r, k) { var lq = wideXZ(sd, td); wideLeaf(V, snapPos(lq[0]), y, snapPos(lq[1]), k); wideLeaf(V, snapPos(lq[0]) + 0.06, y + 0.09, snapPos(lq[1]) - 0.05, k + 2); }   /* 잎 두 쌍 */
+      function bloom(sd, td, y, k) { var lq = wideXZ(sd, td); wideFlower(V, snapPos(lq[0]), y, snapPos(lq[1]), k, 0.085); }
       [-3.45, 3.45].forEach(function (t, ti) {
         V.push(stBox(19, t, 0.12, 1.0, 0.24, 0.4, EXT_C.stone[1]));
         AS.forEach(function (as) { V.push(stBox(as, t, 1.12, 0.12, 1.8, 0.12, W[3])); });
@@ -5669,8 +5682,8 @@ var SCENE3D = (function () {
         AS.forEach(function (as) { V.push(stBox(as, at2, ay, 0.1, 0.1, 0.9, W[3])); });
         V.push(stBox(19, at2, ay + 0.06, 0.82, 0.06, 0.07, W[4]));
         vine(18.65 + (ah % 3) * 0.05, at2 - 0.2, ay + 0.14, 0.24 + (ah >>> 3) % 3 * 0.04, i); vine(19.35 - ((ah >>> 5) % 3) * 0.05, at2 + 0.2, ay + 0.12, 0.23 + (ah >>> 7) % 3 * 0.04, i + 1); vine(19, at2, ay + 0.2, 0.2, i + 2);
-        bloom(19.42, at2 + ((ah >>> 9) % 5 - 2) * 0.08, ay + 0.02 + (ah >>> 12) % 3 * 0.08, i); if (i % 2) bloom(18.75, at2 + 0.15, ay + 0.3, i + 2);
-        if (i % 3 === 1 && i !== 6) { var hl = 2 + (ah >>> 14) % 3; for (k = 0; k < hl; k++) { q = wideXZ(19.38, at2 + ((k % 2) ? 0.04 : -0.03)); V.push({ g: box(0.07, 0.11, 0.07), m: M(snapPos(q[0]), ay - 0.12 - k * 0.13, snapPos(q[1])), c: sc.leaf[(i + k) % 3], tag: 13 + (i + k) % 3 }); } bloom(19.4, at2, ay - 0.16 - hl * 0.13, i + 1); }
+        bloom(19.44, at2 + ((ah >>> 9) % 5 - 2) * 0.08, ay + 0.04 + (ah >>> 12) % 3 * 0.08, i); bloom(19.2, at2 + 0.22, ay + 0.3, i + 3); bloom(18.6, at2 - 0.18, ay + 0.28, i + 2); if (i % 2) bloom(19.44, at2 - 0.25, ay - 0.1, i + 1);
+        if (i % 3 === 1 && i !== 6) { var hl = 2 + (ah >>> 14) % 3; for (k = 0; k < hl; k++) { q = wideXZ(19.38, at2 + ((k % 2) ? 0.04 : -0.03)); V.push({ g: box(0.03, 0.13, 0.03), m: M(snapPos(q[0]), ay - 0.12 - k * 0.13, snapPos(q[1])), c: LEAF_C[0] }); wideLeaf(V, snapPos(q[0]), ay - 0.14 - k * 0.13, snapPos(q[1]), i + k); } bloom(19.4, at2, ay - 0.16 - hl * 0.13, i + 1); }
       }
       /* 포장 (리드 11-21): 줄눈은 판석보다 한 톤 어두운 돌 (풀빛 줄 없음) — 줄마다 깔린 바닥 띠 위에 판석. 마을 길은 |t| ≤ 2.5 안팎의 들쭉날쭉한 가장자리 (그 밖은 풀 어깨),
          광장은 가운데 둥근 고리와 십자를 둘째 돌빛으로. 이끼는 몇 포기만 */
