@@ -48,7 +48,7 @@ const shot = async (page, name) => { if (SHOTS) { fs.mkdirSync(SHOTS, { recursiv
 
 async function goodsRun(browser) {
   console.log('== 잡화점');
-  const { ctx, page } = await open(browser, { shells: 0 });
+  const { ctx, page } = await open(browser, { shells: 0, q: '&scene=2d' });   /* 잡화점은 장면이 필요 없다 → 2D 로 (빠르고, 2D 폴백에서도 도는지 같이 본다) */
   ok(await page.evaluate(() => APP.openShop('clothes')) === false && !(await page.evaluate(() => document.getElementById('shop-sheet').open)), '옷장이 없으면 옷가게는 안 열린다');
   ok(await page.evaluate(() => APP.openShop('goods')) === true, '잡화점 열기');
   let t = await tiles(page);
@@ -160,23 +160,31 @@ async function beachRun(browser) {
 
 async function tabsRun(browser) {
   console.log('== 두 탭');
-  const { ctx, page: A } = await open(browser, { shells: 40 });
-  const { page: B } = await open(browser, { ctx });
-  await A.evaluate(stub); await B.evaluate(stub);
-  const stale = await B.evaluate(() => localStorage.getItem('ppolppol_v2'));
+  /* 다른 탭의 늦은 저장 = storage 이벤트. 헤드리스 file:// 에서는 두 쪽의 저장소 스냅숏이 갈리는 일이 있어 (시험 환경의 경합), 브라우저가 보낼 이벤트를 그대로 만들어 넣는다:
+     사기 전의 기록을 (조금 바꿔) 저장소에 쓰고 알린다 → 앱이 그것을 받아들인 뒤 (S 가 통째로 바뀐다) 제 영수증을 다시 얹어야 한다 */
+  const { ctx, page: A } = await open(browser, { shells: 40, q: '&scene=2d' });
+  await A.evaluate(stub);
+  const stale = await A.evaluate(() => localStorage.getItem('ppolppol_v2'));
   await A.evaluate(() => APP.openShop('clothes'));
   const it = (await A.evaluate(() => APP.shopStock('clothes').items))[0];
   await tile(A, it.key); await yes(A);
-  ok((await U(A)).owned[it.key] === DAY, '탭 A 가 산다');
-  /* 탭 B 가 사기 전의 기록을 (조금 바꿔) 늦게 쓴다 → A 는 그것을 받아들인 뒤 제 영수증을 다시 얹는다 */
-  await B.evaluate(raw => { const o = JSON.parse(raw); o.user.seeds = 7; localStorage.setItem('ppolppol_v2', JSON.stringify(o)); }, stale);
-  await A.waitForTimeout(1500);
+  ok((await U(A)).owned[it.key] === DAY && (await U(A)).shells === 40 - it.price, '탭 A 가 산다');
+  const left = await A.evaluate(() => APP.beachLeft);
+  await A.evaluate(i => APP.beachPick(i), left[0]);
+  await A.evaluate(raw => { const o = JSON.parse(raw); o.user.seeds = 7; const v = JSON.stringify(o); localStorage.setItem('ppolppol_v2', v); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v, storageArea: localStorage })); }, stale);
+  await A.waitForTimeout(1300);
   const a = await U(A);
-  ok(a.seeds === 7, '탭 A 가 다른 탭의 기록을 받았다');
+  ok(a.seeds === 7 && a.shells === 40, '탭 A 가 다른 탭의 기록을 받았다 (조개는 지금까지의 두 탭 규칙대로 그쪽 값)');
   ok(a.shop.got[it.key] === DAY && a.owned[it.key] === DAY, '산 옷은 사라지지 않는다 (영수증 · 옷장)');
+  ok(a.beach.day === DAY && a.beach.picked.indexOf(left[0]) >= 0 && (await A.evaluate(() => APP.beachLeft)).length === 2, '주운 자리도 다시 나오지 않는다');
   const saved = JSON.parse(await A.evaluate(() => localStorage.getItem('ppolppol_v2')));
   ok(saved.user.shop.got[it.key] === DAY && saved.user.owned[it.key] === DAY, '저장에도 다시 적힌다');
   ok(await A.evaluate(k => !!document.querySelector('#shop-body .shop-tile[data-key="' + k + '"] .sew-cost.own'), it.key), '열린 선반의 표시도 그대로');
+  /* 다른 문어의 기록 (초기화 뒤 새로 시작한 탭) 이면 얹지 않는다 */
+  await A.evaluate(raw => { const o = JSON.parse(raw); o.octopus.born = '2026-11-20T00:00:00.000Z'; delete o.user.owned; delete o.user.shop; const v = JSON.stringify(o); localStorage.setItem('ppolppol_v2', v); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v, storageArea: localStorage })); }, stale);
+  await A.waitForTimeout(1300);
+  const z = await U(A);
+  ok(!(z.owned || {})[it.key] && !((z.shop || {}).got || {})[it.key], '다른 문어의 기록에는 얹지 않는다');
   await ctx.close();
 }
 
@@ -201,7 +209,8 @@ async function sizesRun(browser) {
 
 (async () => {
   const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
-  try { await goodsRun(browser); await clothesRun(browser); await beachRun(browser); await tabsRun(browser); await sizesRun(browser); }
+  const T = async f => { const t = Date.now(); await f(browser); console.log('   (' + ((Date.now() - t) / 1000).toFixed(1) + ' s)'); };
+  try { await T(goodsRun); await T(clothesRun); await T(beachRun); await T(tabsRun); await T(sizesRun); }
   catch (e) { fail++; console.log('  ERROR ' + (e && e.stack || e)); }
   await browser.close();
   console.log('\n' + pass + ' passed' + (fail ? ', ' + fail + ' FAILED' : ''));
