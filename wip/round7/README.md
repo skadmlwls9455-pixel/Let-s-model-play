@@ -42,6 +42,9 @@
 - 주인 답 (갈래 · 다른 가지 · 상태 글 · 스티커): ① 독립 갈래 에이전트로 빠르게, 구현 위주 ② 다른 가지를 **합쳐서 이어 만든다** ③ 지울 것은 이름 · 등불 칸 뒤의 '불씨 하나 켜진 다락' 글 ④ 스티커는 **전부** 크게 ("너무 작아서 안 보여").
 
 ## 진행 (새 것이 위)
+- 11-21 21:45 KST 갈래 세션 열하나를 띄움 (바탕 `e7b8507` · 그 위 문서 `493571b`, 가지 `lane/7-<갈래>`). 갈래는 10시 KST (11-22) 까지 올리고, 리드가 합친다.
+  세션: K `session_01Tq2y4QZUpNpnV5cRfjKJa2` · A `session_01Tq2y4SQwfkkg9USFewi5UN` · T `session_01Tq2y4TbHYmokrSAA7VNooD` · U `session_01Tq2y4RoYgpT5jfRgYAa5sm` · P `session_01Tq2y4Rry4gKkYx9QU9ferB` · W `session_01Tq2y4TM4YC1T1S8gH7WyyS` ·
+  V `session_01Tq2y4RN5FrCBChDE4gtErh` · S `session_01Tq2y4UyHAQAeqPneYKgSFN` · C `session_01Tq2y4QXFsUtLrpN2vY4A4y` · N `session_01Tq2y4Qqoq9WNyhe5zitdEt` · F `session_01Tq2y4SbbcvooKJ5ykn66Da`.
 - 11-21 22시 KST 갈래 열하나로 나눔 (`briefs/COMMON.md` 표): U 화면 고침 · 빈 화면 / A 음식 그림 / K 요리 게임 / T 요리 → 식탁 · 레시피 / P 내 캐릭터 · 뛰기 / W 바깥 한 장 (땅 · 이동) / V 마을 건물 · NPC 그리기 / S 가게 / C 카페 / N NPC · 세계관 / F 주말 콘테스트.
   갈래끼리 안 부딪히게 공유 파일 (`js/app.js` · `js/scene3d.js` · `css/style.css` · `index.html` · `tools/smoke.js`) 에 갈래별 자리 표시 `[7-<갈래>]` 와 바깥 등록부 `WIDE_REG` 를 바탕 커밋에 넣었다 (동작 변화 없음 · `npm test` 통과 · 글꼴 그대로).
   약속: 음식 그림 `briefs/SPRITES.md` · 갈래 사이 계약 C1~C8 (`briefs/COMMON.md`) · 주인 답과 기본값 `briefs/ANSWERS.md`. 코드 지도: `maps/world.md` · `maps/player-economy.md` · `research/07-codebase-map.md`.
