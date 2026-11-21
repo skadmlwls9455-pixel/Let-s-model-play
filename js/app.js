@@ -5610,6 +5610,20 @@ var APP = (function () {
     try { if (kbd && first) first.focus({ preventScroll: true }); else d.focus({ preventScroll: true }); } catch (e) { /* 포커스는 그대로 */ }
     return true;
   }
+  /* 11-22 계약 C9: 걸어 들어가는 방 (옷가게 · 잡화점 · 카페). 장면이 문 밖까지 걷고 화면을 덮은 뒤 방을 보여 준다. 2D · 장면 함수가 없으면 false (예전 시트가 열린다 — 부르는 쪽이 정한다) */
+  var insideJob = null;
+  function goInside(key) {   /* → Promise<boolean> */
+    if (!scene || sceneMode !== '3d' || typeof scene.enterRoom !== 'function' || roomJob || travelJob || insideJob || furnMode) return Promise.resolve(false);
+    hideTip();
+    var job = insideJob = Promise.resolve(scene.enterRoom(key)).then(function (r) { if (insideJob === job) insideJob = null; syncRoomUI(); return !!(r && r.ok); }, function (e) { console.warn('[app] goInside', e); if (insideJob === job) insideJob = null; return false; });
+    return job;
+  }
+  function goOutside() {   /* → Promise<boolean> */
+    if (!scene || typeof scene.leaveRoom !== 'function' || insideJob) return Promise.resolve(false);
+    var job = insideJob = Promise.resolve(scene.leaveRoom()).then(function (r) { if (insideJob === job) insideJob = null; syncRoomUI(); return !!(r && r.ok); }, function (e) { console.warn('[app] goOutside', e); if (insideJob === job) insideJob = null; return false; });
+    return job;
+  }
+  function insideNow() { return scene && typeof scene.inRoom === 'function' ? scene.inRoom() : null; }
   function wideUIReset() { for (var i = 0; i < 5; i++) { var a = $('btn-sign-' + i), b = $('btn-beach-shell-' + i); if (a) a.hidden = true; if (b) b.hidden = true; } var d = $('travel-pick'); if (d && d.open) d.close(); }   /* 장면을 잃었을 때 (resetRoomUI) */
   [0, 1, 2].forEach(function (i) { var b = $('btn-sign-' + i); if (b) b.addEventListener('click', function (e) { travelOpen(i, b, kbdClick(e)); }); });
   document.addEventListener('click', function (e) {   /* 조개: 1.5 m 보다 멀면 누름을 삼키고 곁까지 걸어간 뒤 다시 누른다 (그림 위 톡 · 키보드 둘 다 — 무엇을 주는지는 갈래 S 의 click) */
@@ -6295,6 +6309,7 @@ var APP = (function () {
 
     /* [7-W] */
     goPlace: goPlace, travelOpen: travelOpen,
+    goInside: goInside, goOutside: goOutside, get inside() { return insideNow(); },
 
     /* [7-V] */
 
