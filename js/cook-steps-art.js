@@ -87,8 +87,8 @@
   function half(p) { return [(p.x | 0) >> 1, (p.y | 0) >> 1]; }
   function riceMound(b, x, y, n) {   /* plain cooked rice in the bowl while it is being scooped in (n 1..3) */
     if (n <= 0) return;
-    var rx = 8 + 5 * n, ry = 3 + 2 * n;
-    A.ellipse(b, x, y + 1, rx, ry, C.s4); A.ellipse(b, x, y, rx, ry, C.s5); A.ellipse(b, x - 1, y - 1, rx - 2, ry - 1, C.s6);
+    var rx = 7 + 4 * n, ry = 3 + 2 * n;
+    A.ellipse(b, x, y + 1, rx, ry, C.w5); A.ellipse(b, x, y, rx, ry, C.s5); A.ellipse(b, x - 1, y - 1, rx - 1, ry - 1, C.s6);
   }
   function stream(b, x, y0, y1, f) {   /* the pour: a 2 px column of batter with a moving light bead */
     for (var y = y0; y <= y1; y++) { put(b, x, y, F.B1); put(b, x + 1, y, F.B2); if (((y + (f | 0)) % 5) === 0) put(b, x, y, F.J6); }
@@ -209,8 +209,8 @@
         riceMound(b, cx, cy, 3);
         for (var k = 0; k < st.bins.length; k++) {   /* sesame and salt where the shaker has been */
           if (!st.bins[k]) continue;
-          var i = k % st.cols, j = (k / st.cols) | 0, x = cx - 18 + i * 5 + (j & 1), y = cy - 6 + j * 2;
-          if ((x - cx) * (x - cx) * 81 + (y - cy) * (y - cy) * 529 <= 529 * 81) put(b, x, y, (i + j) & 1 ? C.w1 : C.a2);
+          var x = cx - 15 + (k * 7) % 31, y = cy - 6 + (k * 5) % 11;
+          if ((x - cx) * (x - cx) * 64 + (y - cy) * (y - cy) * 324 <= 324 * 64) put(b, x, y, k & 1 ? C.w1 : C.a2);
         }
       }
       tool(b, a.tool, st.hand ? { x: st.hand.x, y: st.hand.y - 20 } : null, [104, 96]);
@@ -276,7 +276,7 @@
   var HOT = { jeon2: 1, gyeran: 1 };
   function dishFrame(id, look) { return id === 'jeon2' && look && typeof look.band === 'number' ? Math.max(0, Math.min(2, look.band | 0)) : 0; }
   function mat(b) {   /* a cloth under the dish: the dish sprites bring their own plates */
-    var x0 = 28, y0 = 58, w = 88, h = 62, x, y;
+    var x0 = 34, y0 = 60, w = 76, h = 60, x, y;
     for (y = 0; y < h; y++) for (x = 0; x < w; x++) {
       var e = x === 0 || y === 0 || x === w - 1 || y === h - 1, s = x % 8 === 3 || y % 8 === 3;
       put(b, x0 + x, y0 + y, e ? C.b2 : s ? C.b4 : C.s6);
@@ -349,10 +349,10 @@
   var STAMP = ['...rrrrr...', '..r.....r..', '.r..r.r..r.', 'r..rrrrr..r', 'r.rrrrrrr.r', 'r..rrrrr..r', 'r.rrrrrrr.r', 'r..rrrrr..r', '.r..r.r..r.', '..r.....r..', '...rrrrr...'];
   /* the two end buttons, 20 x 20: a plate of food with the octopus beside it; a plate on the table by an empty seat */
   var END = {
-    call: ['....................', '....................', '.............ooo....', '...........ooCCCoo..', '..........oCCCCCCCo.', '..........oCkCCCkCo.', '..........oCCCCCCCo.', '...........oCCCCCo..', '..ffff....oCoCoCoCo.', '.fFFFFf...oCoCoCoCo.', 'fFFffFFf...o.o.o.o..', '.fFFFFf.............', 'wwwwwwwww...........', 'wPPPPPPPw...........', '.wwwwwww............', '....................', '....................', '....................', '....................', '....................'],
-    table: ['....................', '....................', '....................', '.....ffff...........', '....fFFFFf..........', '...fFFffFFf.........', '....wwwwww....ssss..', '...wPPPPPPw...sSSs..', '.tttttttttttt.sSSs..', '.tTTTTTTTTTTt.sSSs..', '.tttttttttttt.ssss..', '...tt....tt..sSSSSs.', '...tt....tt..ssssss.', '...tt....tt...s..s..', '...tt....tt...s..s..', '...tt....tt...s..s..', '....................', '....................', '....................', '....................']
+    call: ['....................', '...........ooooo....', '..........oCCCCCo...', '.........oCCCCCCCo..', '.........oCkCCCkCo..', '.........oCkCCCkCo..', '.........oCCCCCCCo..', '.........oCCCCCCCo..', '..........oCCCCCo...', '...ffff..oCoCoCoCo..', '..fFFFFf.oCoCoCoCo..', '.fFFhFFFfoCoCoCoCo..', '.fFFFFFFf.o.o.o.o...', 'wwwwwwwwww..........', 'wPPPPPPPPw..........', '.wPPPPPPw...........', '..wwwwww............', '....................', '....................', '....................'],
+    table: ['....................', '....................', '.....ffff...........', '....fFFFFf.....ss...', '...fFFhFFFf....sS...', '...fFFFFFFf....sS...', '..wwwwwwwwww...sS...', '..wPPPPPPPPw...sS...', '...wwwwwwww....sS...', 'tttttttttttttt.sS...', 'tTTTTTTTTTTTTt.sssss', 'tttttttttttttt.sSSSs', '..tt......tt...sssss', '..tt......tt...s...s', '..tt......tt...s...s', '..tt......tt...s...s', '..tt......tt...s...s', '....................', '....................', '....................']
   };
-  var END_KEY = { o: C.w0, C: CORAL, k: C.w0, f: C.r1, F: C.a2, w: C.s3, P: C.s6, t: C.w1, T: C.w3, s: C.w1, S: C.w4 };
+  var END_KEY = { o: C.w0, C: CORAL, k: C.w0, f: C.r1, F: C.a2, h: C.a3, w: C.s3, P: C.s6, t: C.w1, T: C.w3, s: C.w1, S: C.w4 };
   function endIcon(name) { var b = A.blank(20, 20); grid(b, END[name] || END.table, END_KEY, 0, 0); return b; }
 
   /* ---------- the recipe book ---------- */
