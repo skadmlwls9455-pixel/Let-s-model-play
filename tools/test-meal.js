@@ -338,6 +338,18 @@ section('13 round 7: dish pictures and bite masks', function () {
   var t1 = M.biteMask(spr, [3], 7, 2), t4 = M.biteMask(spr, [0, 1, 2, 3], 7, 2);
   check(count(t1) < full && count(t1) !== count(m1), 'toothed edge (amp 2) differs from the straight cut');
   check(count(t4) >= 18 * 3 && count(t4) < full - 30, 'toothed: the food is gone but for a few crumbs, the plate stays');
+  /* 둥근 접시 (타원) 위에 음식이 겹쳐 그려진 그림: 다 먹으면 음식 색은 없고, 접시는 뒤쪽 반까지 남는다 */
+  var W2 = 40, H2 = 30, d2 = new Uint8ClampedArray(W2 * H2 * 4);
+  function p2(x, y, c) { var k = (y * W2 + x) * 4; d2[k] = c[0]; d2[k + 1] = c[1]; d2[k + 2] = c[2]; d2[k + 3] = 255; }
+  for (var yy = 0; yy < H2; yy++) for (var xx = 0; xx < W2; xx++) { var ex = (xx - 19.5) / 19, ey = (yy - 20) / 8; if (ex * ex + ey * ey <= 1) p2(xx, yy, ex * ex + ey * ey > 0.8 ? [60, 60, 90] : [230, 230, 240]); }
+  for (yy = 4; yy <= 22; yy++) for (xx = 10; xx <= 29; xx++) p2(xx, yy, [240, 150, 40]);
+  var sp2 = { w: W2, h: H2, d: d2 }, L2 = M.biteLine(sp2), e4 = M.biteMask(sp2, [0, 1, 2, 3], L2, 2), e1 = M.biteMask(sp2, [3], L2, 2);
+  function has2(m, c) { for (var i = 0; i < m.length; i += 4) if (m[i + 3] >= 128 && m[i] === c[0] && m[i + 1] === c[1] && m[i + 2] === c[2]) return true; return false; }
+  function a2(m, x, y) { return m[(y * W2 + x) * 4 + 3]; }
+  check(L2 >= 16 && L2 <= 20, 'round plate: the container line is in the wide middle of the ellipse (' + L2 + ')');
+  check(!has2(e4, [240, 150, 40]) && has2(e4, [230, 230, 240]) && has2(e4, [60, 60, 90]), 'round plate, four bites: no food colour left, plate surface and rim remain');
+  check(a2(e4, 20, 14) >= 128 && a2(e4, 20, 26) >= 128 && a2(e4, 20, 6) === 0, 'round plate: its back half is kept (mirrored), above the plate is empty');
+  check(has2(e1, [240, 150, 40]) && a2(e1, 12, 8) === 255 && a2(e1, 28, 8) === 0, 'round plate, one bite: only the right part of the food is gone');
   check(M.biteMask(null, [0]) === null && M.biteMask({ w: 2, h: 2, d: [] }, [0]) === null && M.biteLine(null) === 0, 'broken pictures → null / 0');
   check(JSON.stringify(Array.prototype.slice.call(M.biteMask(spr, [3], 7, 2))) === JSON.stringify(Array.prototype.slice.call(M.biteMask(spr, [3], 7, 2))), 'deterministic');
 });
