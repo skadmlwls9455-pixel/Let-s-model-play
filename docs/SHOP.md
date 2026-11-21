@@ -13,7 +13,24 @@
 | `css/style.css` `[7-S]` | 선반 두 칸씩 · 그림 칸 (나머지는 재봉틀 시트의 `sew-*` 를 그대로) |
 | `tools/test-shop.js` · `tools/test-shop-live.js` | 규칙 (node) · 화면 (브라우저, 옷장은 대역 여섯 개) |
 
-## 옷가게
+## 가게 방 (걸어 들어가는 가게 — 11-21 밤, 주인: "옷가게 맵을 아예 따로 만들고 마네킹에 입혀진 거를 입어보고 살 수 있는")
+
+가게는 방이다. 아래의 시트 (`#shop-sheet`) 는 방이 없을 때 (2D · 장면 함수 없음) 의 뒷길로 남는다. 규칙 (하루 네 벌 · 값 · 두 탭) 은 같다.
+
+| 박자 | 하는 일 (`js/app.js` `[7-S]`) | 다른 갈래의 것 (있을 때만 부른다) |
+|---|---|---|
+| 들어감 | `ppol:room` → `roomSet('clothes')`: 마네킹 넷에 오늘의 네 벌 (`roomDress`) · `shop.enter` | `scene.enterRoom` · `scene.mannequins` |
+| 마네킹 톡 | `roomTag(i)`: 그 위에 꼬리표 카드 (그림 · 이름 · 값표 · `입어 보기` / `살래`, 가진 것은 `입고 있어` 또는 `입을래`) | `#btn-mq-0..3` (멀면 먼저 걸어간다) |
+| 입어 보기 | `roomTry`: 내가 갈아입고 한 바퀴, 그 마네킹은 민몸. **아무것도 저장 안 함** · `shop.tryon` | `APP.tryOn` · `scene.playerPose('twirl')` |
+| 거울 | `roomMirror`: 가까이 → 자세 → 돌아옴 · `shop.mirror` | `#btn-room-mirror` · `scene.playerCloseup` |
+| 계산 | `roomReceipt`: 계산대 위 영수증 카드 (고른 것 · 합계 · `그만` / `살래`, 0.6 s 규칙, 모자라면 합계가 흔들림) → `roomPay`: 한 벌씩 옷장에 넣은 것만 값을 낸다 · 입은 채 · 마네킹엔 팔림 표 (내일까지) · `shop.pay` | `#btn-room-counter` · `APP.ownItem` · `APP.wear` |
+| 나감 | `roomSet(null)`: 안 산 옷은 마네킹으로, 내 옷은 제자리로 · `shop.leave` | `APP.tryOff` |
+| 잡화점 | `roomShelf(i)`: 선반 위 꼬리표 카드 → `살래` → 가방으로 폴짝 (shelf0 씨앗 · shelf1~3 그날 염료) · `goods.enter` · `shop.thanks` | `#btn-shelf-0..5` |
+
+카드는 `<dialog>` 가 아니라 `#scene` 안의 `div#shop-card` 이고, 자리는 그 단추의 화면 위치 바로 위 (자리가 없으면 아래). 카드 밖을 누르면 접힌다.
+테스트 손잡이: `APP.shopRoom` → `{ key, basket, tried, card }`.
+
+## 옷가게 (시트 — 방이 없을 때)
 
 - 하루 **네 개**. 살 수 있는 옷 (옷장 목록에서 `shop: { price }` 가 있는 것, 계약 C4) 전부를 한 바퀴 = `ceil(N / 4)` 일에 한 번씩 돌린다 (N 이 40 이하면 열흘 안).
 - 바퀴마다 시드 (`shop|clothes|바퀴 번호`) 로 섞고, 값으로 반을 갈라 **싼 것 둘 · 비싼 것 둘**이 하루에 오게 엇갈려 놓는다 (오늘 살 것 하나 · 모아서 살 것 하나).
