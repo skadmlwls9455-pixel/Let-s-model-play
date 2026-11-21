@@ -5543,6 +5543,9 @@ var SCENE3D = (function () {
 
 
     /* [7-U] 화면 채우기 · 계단 단추 */
+    /* 11-21 가려진 동안 멈춤: 전체 화면 놀이 (부엌 · 달리기) 가 장면을 덮은 동안 프레임 고리를 세운다 (배터리 · 열). 탭이 숨었을 때 (st.hidden) 와 같은 길 —
+       시계 (time) 는 그린 프레임의 dt 로만 가므로 다시 돌 때 뛰지 않는다 (lastDraw = 0 → 첫 프레임 dt 0.016). pause / resume (테스트 · 의식 감기) 과는 따로 센다 */
+    function setCovered(on) { on = !!on; if (!!st.covered === on) return; st.covered = on; if (on) cancelAnimationFrame(raf); else { lastDraw = 0; loop(); } }
 
 
     function pick(cx, cy) {   /* 클라이언트 CSS px (PointerEvent clientX/Y) → 탭 표적 메시 | null */
@@ -6112,7 +6115,7 @@ var SCENE3D = (function () {
         }
       }
     }
-    function loop() { if (st.paused || st.hidden) return; cancelAnimationFrame(raf); raf = requestAnimationFrame(function (ts) { frame(ts); loop(); }); }
+    function loop() { if (st.paused || st.hidden || st.covered) return; cancelAnimationFrame(raf); raf = requestAnimationFrame(function (ts) { frame(ts); loop(); }); }
 
     /* ── 초기 상태 ── */
     var hookSeason = null; try { hookSeason = window.__ppolLook && window.__ppolLook.season; } catch (e) { /* noop */ }
@@ -6965,6 +6968,7 @@ var SCENE3D = (function () {
       /* [7-N] */
 
       /* [7-U] */
+      setCovered: setCovered, covered: function () { return !!st.covered; }, clock: function () { return { time: time, frames: frameNo }; },
 
       spotRect: function (id) { var s = spotInfo(id); if (!s || s.mode !== 'over') return s; var r = container.getBoundingClientRect(); s.client = { x: r.left + s.x, y: r.top + s.y, w: s.w, h: s.h }; return s; },
       doorAnchors: JSON.parse(JSON.stringify(DOOR_ANCHORS)),

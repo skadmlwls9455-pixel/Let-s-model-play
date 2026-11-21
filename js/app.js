@@ -5522,6 +5522,10 @@ var APP = (function () {
     new MutationObserver(soon).observe(pf, { childList: true });
     window.addEventListener('resize', soon);
   })();
+  /* 11-21 전체 화면 놀이 (부엌 #cook-overlay · 달리기 #runner-dlg) 가 열린 동안 3D 장면을 그리지 않는다 (배터리 · 열) — 닫히면 그 자리에서 잇는다 (js/scene3d.js setCovered).
+     두 창의 open 속성만 본다 (달리기 창은 처음 열 때 생긴다 → body 아래 전부를 본다. 여닫는 코드는 건드리지 않는다) */
+  function sceneCoverSync() { if (scene && typeof scene.setCovered === 'function') scene.setCovered(!!document.querySelector('#runner-dlg[open], #cook-overlay[open]')); }
+  if (window.MutationObserver && document.body) new MutationObserver(sceneCoverSync).observe(document.body, { attributes: true, attributeFilter: ['open'], subtree: true });
   function dayCount() { return isObj(S.user) && Array.isArray(S.user.days) ? S.user.days.length : 0; }
   function renderDayN() {
     var el = $('day-n'), n = dayCount(); if (!el) return;
