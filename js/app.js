@@ -5486,6 +5486,173 @@ var APP = (function () {
 
 
   /* [7-S] 가게 (옷가게 · 잡화점 · 바닷가 조개) */
+  /* 11-21 가게 (주인: "옷가게, 상점 … 거기서 옷을 살 수 있게 · 매일 아이템이 달라지는 식으로"). 규칙은 js/shop.js (SHOP — 날짜만으로 정한다), 여기는 시트와 저장.
+     · 시트 하나 (#shop-sheet) 를 옷가게 · 잡화점이 같이 쓴다. 마을 단추 (#btn-shop-clothes · #btn-shop-goods — 건물 갈래) 가 없어도 APP.openShop(kind) 로 열린다.
+     · 사기는 재봉틀과 같은 확인 한 번 ('그만' / '살래' · 뜬 뒤 0.6 s 안의 누름은 안 받는다 · 모자라면 값이 흔들린다). 옷은 누르면 먼저 내 캐릭터에 입혀 보여 준다 (장면 playerShot — 아직 사지도 입지도 않는다).
+     · 옷 목록 · 그림 · 가짐은 캐릭터 갈래의 APP.wardrobe / itemThumb / ownItem (계약 C4) — 없으면 옷가게는 열리지 않는다 (없는 선반을 있는 척하지 않는다).
+     · 저장: S.user.shop = { got: { '갈래:id': 산 날 }, day: { key, seeds } } · S.user.beach = { day, picked: [자리] } (SHOP.normalize — 모르는 칸은 그대로).
+     · 두 탭: 이 탭이 막 산 것 · 주운 것 (shopMine, 60 s) 이 다른 탭의 저장에 덮였으면 다시 얹고 (SHOP.merge), 영수증 (got) 에 있는데 옷장에 없는 옷은 다시 넣는다. 조개 수는 지금까지의 두 탭 규칙 그대로.
+     · 시계 · 기한 · 남은 수 표시 없음. 놓친 옷은 다음 바퀴에 다시 온다. */
+  var shopKind = 'goods', shopAsk = null, shopAskAt = -1e9, shopDay = '', shopBought = null, shopMine = [], beachSent = null;
+  function shopU() { var u = userState(); if (window.SHOP) SHOP.normalize(u); return u; }
+  function shopApi() { var A = window.APP; return A && typeof A.wardrobe === 'function' && typeof A.ownItem === 'function' ? A : null; }
+  function shopCat() { var A = shopApi(), w = null; if (!A) return null; try { w = A.wardrobe(); } catch (e) { console.warn('[app] wardrobe', e); } return isObj(w) && Array.isArray(w.cats) ? w : null; }
+  function shopOwned(u, w) {   /* '갈래:id' → 가진 날 (옷장 기록 + 내 영수증 + 옷장이 가졌다고 하는 것) */
+    var o = {}, k;
+    if (isObj(u.owned)) for (k in u.owned) if (u.owned[k]) o[k] = typeof u.owned[k] === 'string' ? u.owned[k] : '0000-00-00';
+    for (k in u.shop.got) if (typeof u.shop.got[k] === 'string' && !o[k]) o[k] = u.shop.got[k];
+    if (w) w.cats.forEach(function (c) { if (isObj(c) && Array.isArray(c.items)) c.items.forEach(function (x) { if (isObj(x) && x.owned && isObj(x.shop) && !o[c.key + ':' + x.id]) o[c.key + ':' + x.id] = '0000-00-00'; }); });
+    return o;
+  }
+  function shopStock(kind) {
+    if (!window.SHOP) return { kind: kind, items: [] };
+    var u = shopU(), dk = todayKey();
+    if (kind === 'goods') return SHOP.stock('goods', dk, { dyes: DYES.map(function (d) { return { id: d[0], name: d[1], hex: d[2] }; }), dyeCost: DYE_COST }, u.shop);
+    var w = shopCat(); return SHOP.stock('clothes', dk, w, shopOwned(u, w));
+  }
+  function shopMineAdd(m) { m.at = Date.now(); m.born = S.octopus.born || 0; shopMine.push(m); }
+  function shopSync() {   /* 다른 탭의 저장을 받은 뒤 · 시트를 열 때: 내 것 다시 얹기 + 영수증대로 옷장 고치기 */
+    if (!window.SHOP) return; var u = shopU(), now = Date.now(), born = S.octopus.born || 0, dk = todayKey(), mine = { shop: { got: {} }, beach: { day: dk, picked: [] } };
+    shopMine = shopMine.filter(function (m) { return now - m.at < 60000 && m.born === born; });
+    shopMine.forEach(function (m) {
+      if (m.t === 'got') mine.shop.got[m.key] = m.day;
+      else if (m.t === 'seed' && m.day === dk) mine.shop.day = { key: dk, seeds: Math.max(m.n, mine.shop.day ? mine.shop.day.seeds : 0) };
+      else if (m.t === 'pick' && m.day === dk && mine.beach.picked.indexOf(m.i) < 0) mine.beach.picked.push(m.i);
+    });
+    var was = JSON.stringify([u.shop, u.beach]), mg = shopMine.length ? SHOP.merge({ shop: u.shop, beach: u.beach }, mine) : null, ch = false;
+    if (mg && JSON.stringify([mg.shop, mg.beach]) !== was) { u.shop = mg.shop; u.beach = mg.beach; ch = true; }
+    var A = shopApi(), w = A && Object.keys(u.shop.got).length ? shopCat() : null;
+    if (w) w.cats.forEach(function (c) { if (isObj(c) && Array.isArray(c.items)) c.items.forEach(function (x) { if (isObj(x) && !x.owned && isObj(x.shop) && typeof u.shop.got[c.key + ':' + x.id] === 'string') { try { A.ownItem(c.key, x.id); } catch (e) { console.warn('[app] ownItem', e); } } }); });
+    if (ch) { save(); renderBagChip(); }
+    var sh = $('shop-sheet'); if (sh && sh.open) renderShop();
+    beachSync();
+  }
+  function shopShort(miss, el) {   /* 재봉틀과 같은 모자람 알림: 값 그림이 흔들리고 모자란 수 */
+    furnShake(el); toast([h('span', { 'aria-hidden': 'true' }, [shellAmt(miss), ' 모자라']), h('span', { class: 'sr-only', text: '조개가 ' + miss + '개 모자라. 다락방 달리기나 들어온 날 선물로 생겨' })]);
+  }
+  function shopThumb(it, px) {   /* 옷 그림: 캐릭터 갈래의 itemThumb (캔버스 | 그림 주소) → 없으면 그 옷만 바꿔 입은 내 얼굴 샷 → 그것도 없으면 그림 없이 */
+    var A = window.APP, t = null, box = h('span', { class: 'shop-pic', 'aria-hidden': 'true' });
+    try { t = A && typeof A.itemThumb === 'function' ? A.itemThumb(it.cat, it.id, px) : null; } catch (e) { console.warn('[app] itemThumb', e); }
+    if (typeof t === 'string' && t) t = h('img', { src: t, alt: '', width: String(px), height: String(px), draggable: 'false' });
+    else if (!(t && t.nodeType === 1) && lookCanShot()) { try { var look = {}; look[it.cat] = it.id; var src = scene.playerShot({ look: look, frame: it.cat === 'shoes' ? 'feet' : /^(hair|acc|eyes|face)/.test(it.cat) ? 'head' : 'body', shared: true }); if (src) { t = h('canvas', { width: String(src.width), height: String(src.height) }); t.getContext('2d').drawImage(src, 0, 0); } } catch (e2) { console.warn('[app] playerShot', e2); t = null; } }
+    if (t && t.nodeType === 1) { t.classList.add('shop-thumb'); box.appendChild(t); }
+    return box;
+  }
+  var SHOP_SEED = ['................', '...oooooooooo...', '...occcccccco...', '...oooooooooo...', '...occcccccco...', '...ocggccggco...', '...occggggcco...', '...occcggccco...', '...occcggccco...', '...occbbbbcco...', '...occcccccco...', '...oooooooooo...', '................', '.....b....b.....', '........b.......', '................'];
+  function shopSeedPic() {   /* 씨앗 봉투 (16×16 을 조개 그림처럼 32px 로 — 그림 파일을 새로 두지 않고 여기서 찍는다) */
+    var cv = h('canvas', { class: 'shop-seed', width: '16', height: '16' }), cx = cv.getContext('2d'), col = { o: '#5a3422', c: '#f3e3c0', g: '#4fa868', b: '#7a4a30' };
+    SHOP_SEED.forEach(function (row, y) { for (var x = 0; x < 16; x++) if (col[row[x]]) { cx.fillStyle = col[row[x]]; cx.fillRect(x, y, 1, 1); } });
+    return cv;
+  }
+  function shopTry(it) {   /* 입어 보기: 지금 내 모습에서 그 옷 하나만 바꾼 전신 (장면이 그린다 — 저장도 실제 모습도 안 바뀐다) */
+    if (!lookCanShot()) return null;
+    try { var look = {}; look[it.cat] = it.id; var src = scene.playerShot({ look: look, frame: 'full', shared: true }); if (!src) return null; var cv = h('canvas', { class: 'look-stage-cv shop-try', width: String(src.width), height: String(src.height), role: 'img', 'aria-label': it.name + ' 입어 본 내 모습' }); cv.getContext('2d').drawImage(src, 0, 0); return cv; }
+    catch (e) { console.warn('[app] playerShot', e); return null; }
+  }
+  function shopFind(kind, key) { var f = null; shopStock(kind).items.forEach(function (x) { if (x.key === key) f = x; }); return f; }
+  function shopDo(ask) {   /* 확인 ('살래' · '입을래') 을 누른 뒤에만. 값 · 가진 조개 · 가짐을 여기서 다시 본다 (SHOP.buy) */
+    var u = shopU(), dk = todayKey(), it = shopFind(ask.kind, ask.key), nm = it ? it.name : '';
+    if (!it) { shopAsk = null; renderShop(); return; }
+    if (ask.act === 'wear') {
+      shopAsk = null; if (it.owned && setPlayerPart(it.cat, it.id)) toast(nm + eulReul(nm) + ' 입었어');
+      renderShop(); sewFocus('#shop-body .shop-grid', ask.i | 0); return;
+    }
+    var r = SHOP.buy({ shells: u.shells, seeds: u.seeds, dyes: u.dyes, shop: u.shop, owned: ask.kind === 'clothes' ? shopOwned(u, null) : null }, ask.kind, it, dk);
+    if (!r.ok && r.why === 'short') { shopShort(it.price - u.shells, document.querySelector('#shop-body .shop-ask .shell-amt')); return; }   /* 묻는 줄은 그대로 둔다 */
+    shopAsk = null;
+    if (!r.ok) { renderShop(); return; }
+    if (r.own) { var A = shopApi(); try { if (!A) throw new Error('옷장 없음'); A.ownItem(it.cat, it.id); } catch (e) { console.warn('[app] ownItem', e); renderShop(); return; } u = shopU(); }   /* 옷장에 못 넣으면 조개도 안 나간다 */
+    u.shells = r.state.shells; u.seeds = r.state.seeds; u.dyes = r.state.dyes; u.shop = r.state.shop;
+    shopMineAdd(r.own ? { t: 'got', key: r.own, day: dk } : it.type === 'seed' ? { t: 'seed', day: dk, n: u.shop.day ? u.shop.day.seeds : 1 } : { t: 'dye' });
+    shopBought = ask.kind; save(); renderShop(); renderBagChip();
+    toast(ask.kind === 'clothes' ? nm + eulReul(nm) + ' 샀어. 내 모습에서 입어 봐.' : it.type === 'dye' ? nm + ' 염료 1개를 샀어' : '씨앗 1개를 샀어');
+    sewFocus('#shop-body .shop-grid', ask.i | 0);
+  }
+  function shopTap(it, i, btn) {   /* 칸을 눌렀다 — 여기서는 아무것도 쓰지 않는다 */
+    if (shopAsk) return; var u = shopU();
+    if (shopKind === 'clothes') shopAsk = { kind: 'clothes', key: it.key, i: i, act: it.owned ? 'wear' : 'buy' };   /* 옷은 모자라도 입어 볼 수 있다 ('살래' 에서 값이 흔들린다) */
+    else if (it.type === 'seed' && it.left < 1) { toast('오늘은 이게 다야'); return; }
+    else if (u.shells < it.price) { shopShort(it.price - u.shells, btn && btn.querySelector('.sew-cost')); return; }
+    else shopAsk = { kind: 'goods', key: it.key, i: i, act: 'buy' };
+    shopAskAt = performance.now(); renderShop(); sewFocus('#shop-body .shop-ask', 0);
+  }
+  function renderShop() {
+    var body = $('shop-body'), hd = $('shop-h'); if (!body) return; var u = shopU(), frag = document.createDocumentFragment(), st = shopStock(shopKind), goods = shopKind === 'goods';
+    if (hd) hd.textContent = goods ? '잡화점' : '옷가게';
+    frag.appendChild(h('p', { class: 'bag-line' }, [shellAmt(u.shells), goods ? h('span', { text: ' · 씨앗 ' + u.seeds }) : null]));
+    var ask = shopAsk && shopAsk.kind === shopKind ? shopAsk : (shopAsk = null), it = ask ? shopFind(shopKind, ask.key) : null;
+    if (ask && !it) ask = shopAsk = null;
+    if (ask) {   /* 확인 줄 — 선반 자리에 (묻는 동안 선반은 없다: 두 번 톡이 '살래' 로 들어가지 않게) */
+      var wear = ask.act === 'wear', cv = goods ? null : shopTry(it), line, sw = null;
+      if (wear) line = [h('span', { text: it.name + eulReul(it.name) + ' 입을까?' })];
+      else line = [h('span', { text: (it.type === 'dye' ? it.name + ' 염료 1개' : it.type === 'seed' ? '씨앗 1개' : it.name) + ' · ' }), shellAmt(it.price), h('span', { text: ' 살까?' })];
+      if (it.type === 'dye' && it.hex) { sw = h('span', { class: 'sew-sw sew-ask-sw', 'aria-hidden': 'true' }); sw.style.background = it.hex; }
+      var by = h('button', { type: 'button', class: 'btn sm pressable sew-yes', text: wear ? '입을래' : '살래' }), bn = h('button', { type: 'button', class: 'btn sm pressable sew-no', text: '그만' });
+      var early = function (e) { return !(e && e.isTrusted && e.detail === 0) && tapTime(e) - shopAskAt < SHEET_SETTLE; };   /* 재봉틀과 같은 규칙: 같은 자리 두 번 누름은 안 받는다 (키보드는 포커스가 '그만' 에 먼저 간다) */
+      by.addEventListener('click', function (e) { if (early(e)) return; var a = shopAsk; if (a) shopDo(a); });
+      bn.addEventListener('click', function (e) { if (early(e)) return; var i = shopAsk ? shopAsk.i | 0 : 0; shopAsk = null; renderShop(); sewFocus('#shop-body .shop-grid', i); });
+      by.setAttribute('aria-describedby', 'shop-ask-line'); bn.setAttribute('aria-describedby', 'shop-ask-line');
+      frag.appendChild(h('div', { class: 'sew-ask shop-ask', role: 'group', 'aria-labelledby': 'shop-ask-line' }, [cv, h('p', { class: 'sew-ask-line', id: 'shop-ask-line' }, (sw ? [sw] : []).concat(line)), h('div', { class: 'btn-row sew-ask-btns' }, [bn, by])]));
+    } else if (!st.items.length) {
+      frag.appendChild(h('p', { class: 'set-note', text: '옷은 아직 없어.' }));
+    } else {
+      var grid = h('div', { class: 'sew-grid shop-grid', role: 'group', 'aria-label': goods ? '오늘 선반' : '오늘 들어온 옷' });
+      st.items.forEach(function (x, i) {
+        var pic, cost, out = x.type === 'seed' && x.left < 1;
+        if (x.type === 'seed') pic = h('span', { class: 'shop-pic', 'aria-hidden': 'true' }, [shopSeedPic()]);
+        else if (x.type === 'dye') { pic = h('span', { class: 'shop-pic', 'aria-hidden': 'true' }, [h('span', { class: 'sew-sw shop-dye' })]); pic.firstChild.style.background = x.hex || ''; }
+        else pic = shopThumb(x, 64);
+        if (x.owned) cost = h('span', { class: 'sew-cost own' }, [pxIco('check'), h('span', { class: 'sr-only', text: '가지고 있어' })]);
+        else if (out) cost = h('span', { class: 'sew-cost own', text: '내일' });
+        else cost = h('span', { class: 'sew-cost' }, [shellAmt(x.price)]);
+        var b = h('button', { type: 'button', class: 'sew-chip pressable shop-tile' + (x.owned ? ' own' : ''), 'data-key': x.key }, [pic, h('span', { class: 'sew-name', text: x.type === 'dye' ? x.name + ' 염료' : x.name }), cost]);
+        b.addEventListener('click', function () { shopTap(x, i, b); });
+        grid.appendChild(b);
+      });
+      frag.appendChild(grid);
+    }
+    body.textContent = ''; body.appendChild(frag);
+  }
+  function openShop(kind) {   /* 마을 단추와 같은 길 (테스트 · 도구도). 옷장이 없으면 옷가게는 안 연다 */
+    var sh = $('shop-sheet'); if (!sh || !window.SHOP || !S.octopus.name) return false;
+    kind = kind === 'clothes' ? 'clothes' : 'goods'; if (kind === 'clothes' && !shopCat()) return false;
+    shopKind = kind; shopAsk = null; shopBought = null; shopDay = todayKey(); shopSync(); renderShop(); showDialog(sh); return true;
+  }
+  /* 바닷가 조개: 그날의 세 자리 (SHOP.shells) 중 아직 안 주운 것만 장면에 알린다. 주우면 조개 +1 · 그 자리는 내일까지 쉰다. 화면에 남은 수 · 세는 글 없음 */
+  function beachLeft() { return window.SHOP ? SHOP.shellsLeft(todayKey(), shopU().beach) : []; }
+  function beachSync(force) {
+    if (!scene || typeof scene.beachShells !== 'function' || !window.SHOP) return;
+    var list = S.octopus.name ? beachLeft() : [], sig = todayKey() + '|' + list.join();
+    if (!force && sig === beachSent) return;
+    try { scene.beachShells(list); beachSent = sig; } catch (e) { console.warn('[app] beachShells', e); }
+  }
+  function beachPick(i) {
+    if (!window.SHOP || !S.octopus.name) return false; var u = shopU(), dk = todayKey(), r = SHOP.pick(u.beach, i, dk);
+    if (!r.ok) { beachSync(true); return false; }
+    u.beach = r.beach; u.shells += 1; shopMineAdd({ t: 'pick', i: i, day: dk }); save(); renderBagChip(); beachSync(true);
+    toast('조개 1개를 주웠어'); return true;
+  }
+  function shopTick() {   /* 열어 둔 채 날이 바뀌면: 묻던 것은 접고 새 선반 · 새 조개 자리 */
+    var dk = todayKey(); if (dk === shopDay) { beachSync(); return; }
+    shopDay = dk; shopAsk = null; var sh = $('shop-sheet'); if (sh && sh.open) renderShop(); beachSync(true);
+  }
+  function shopInit() {
+    var sh = $('shop-sheet'); if (!sh) return;
+    $('shop-close').addEventListener('click', function () { sh.close(); });
+    sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
+    sh.addEventListener('close', function () {   /* 가게 주인의 대본 줄은 시트가 닫힌 뒤에 (시트 위에서는 대화 상자가 가려진다). 그 갈래가 없으면 아무 말도 없다 */
+      var k = shopBought, A = window.APP; shopBought = null; shopAsk = null;
+      if (k && A && typeof A.npcSay === 'function') { try { A.npcSay(k, 'shop.thanks'); } catch (e) { console.warn('[app] npcSay', e); } }
+    });
+    [['btn-shop-clothes', 'clothes'], ['btn-shop-goods', 'goods']].forEach(function (p) { var b = $(p[0]); if (b) b.addEventListener('click', function () { openShop(p[1]); }); });
+    for (var i = 0; i < 5; i++) (function (n) { var b = $('btn-beach-shell-' + n); if (b) b.addEventListener('click', function () { beachPick(n); }); })(i);
+    shopDay = todayKey();
+    window.addEventListener('storage', function (e) { if (e.key !== KEY) return; setTimeout(shopSync, 0); setTimeout(shopSync, 800); });   /* 앱이 다른 탭의 저장을 받아들인 뒤에 */
+    setInterval(function () { if (!document.hidden) shopTick(); }, 30000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(shopTick, 500); });
+    beachSync(true); setTimeout(function () { beachSync(true); }, 1500); setTimeout(function () { beachSync(true); }, 5000);   /* 바깥이 늦게 지어져도 */
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(shopInit, 0); }); else setTimeout(shopInit, 0);
 
 
   /* [7-C] 카페 (메뉴 · 레코드 · 레시피 선물) */
@@ -5536,6 +5703,7 @@ var APP = (function () {
     /* [7-V] */
 
     /* [7-S] */
+    openShop: openShop, shopStock: shopStock, shopSync: shopSync, beachPick: beachPick, get beachLeft() { return beachLeft(); }, get shopAsk() { return shopAsk ? { kind: shopAsk.kind, key: shopAsk.key, act: shopAsk.act } : null; },
 
     /* [7-C] */
 
