@@ -6188,7 +6188,7 @@ var APP = (function () {
   function ctInHall() { try { return typeof scene.inRoom === 'function' && scene.inRoom() === 'hall'; } catch (e) { return false; } }
   function ctAtStage() {   /* 무대가 보이는 곳인가 (공연장 안 · 또는 공연장이 없을 때의 광장) */
     if (ctInHall()) return true;
-    try { return typeof scene.inRoom === 'function' && scene.inRoom() ? false : typeof scene.area === 'function' ? scene.area() === 'plaza' : false; } catch (e) { return false; }
+    try { return typeof scene.inRoom === 'function' && scene.inRoom() ? false : typeof scene.area === 'function' ? /^(plaza|village)$/.test(scene.area() || '') : false; } catch (e) { return false; }   /* 무대 단추는 가까이 걸어간 뒤에 눌린다 (V) — 마을 길에서도 무대가 보인다 */
   }
   function ctLiveOk() { return !!ctApi() && ctCats().length > 0 && !reduced() && !!ctStageInfo(); }
   function ctHost() {
@@ -6277,6 +6277,7 @@ var APP = (function () {
     var line = h('p', { class: 'ct-line', id: 'ct-w-line', tabindex: '-1' }, [h('span', { class: 'ct-place', text: CT.fill(CT.TEXT.rank, { n: e.rank }) }), shellAmt(CT.shellsOf(e)), h('span', { class: 'ct-rule', text: CT.TEXT.rule })]);
     ctWorldCard('result', [line, h('div', { class: 'btn-row ct-wrow' }, [ctWBtn('ct-w-close', CT.TEXT.close, '', function () { ctCardClear(); })])]);
     var st = ctStageInfo(); if (st) ctPlacards(st, e, 3);
+    var d = $('contest-sheet'); if (d && d.open && !ctRun) ctRender();   /* 뒷길 시트가 열려 있었으면 그것도 결과로 */
   }
   function ctPlacards(st, e, n) {   /* 심사 팻말 (그림 + 별) 을 심사 문어 머리 위에 — n 번째까지 */
     var host = ctHost(), th = CT.themeById(e.theme) || CT.week(todayKey()).theme; if (!host) return;
