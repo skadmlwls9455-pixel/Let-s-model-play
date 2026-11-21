@@ -245,6 +245,21 @@ async function main() {
     await ctx.close();
   }
 
+  /* 진짜 폰 배율 2.625 (에뮬레이션은 이 배율에서 어긋난다 — 창 자체를 그 배율로) */
+  var real = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--force-device-scale-factor=2.625', '--window-size=412,915'] });
+  ctx = await real.newContext({ viewport: null, locale: 'ko-KR' });
+  await ctx.addInitScript({ content: "window.__ppolAwakeMs = 0; if (!localStorage.getItem('__seed')) { localStorage.setItem('__seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(REC({ user: { shells: 20, giftDay: SAT } }))) + "); } window.__ppolTest = { today: '" + SAT + "' };" });
+  page = await open(ctx);
+  await page.evaluate(function () { APP.openContest(); APP.contestEnter(); APP.contestSkip(); });
+  r = await page.evaluate(function () {
+    var d = document.getElementById('contest-sheet'), dpr = window.devicePixelRatio, bad = [];
+    Array.prototype.forEach.call(d.querySelectorAll('canvas.ct-art'), function (c) { var per = c.getBoundingClientRect().width * dpr / c.width; if (Math.abs(per - Math.round(per)) > 0.01) bad.push([c.width, per]); });
+    return { dpr: dpr, n: d.querySelectorAll('canvas.ct-art').length, bad: bad, wide: d.scrollWidth > d.clientWidth + 1 };
+  });
+  check(Math.abs(r.dpr - 2.625) < 0.01 && r.n > 8 && r.bad.length === 0 && !r.wide, '배율 2.625: 그림 ' + r.n + '개 모두 기기 픽셀 정수 배 ' + JSON.stringify([r.dpr, r.bad]));
+  if (SHOTS) await shot(page, '7-result-412-2625');
+  await real.close();
+
   await browser.close();
   console.log('\n' + (failures ? 'FAILED ' + failures + ' / ' : 'ok ') + (passes + failures) + ' checks');
   process.exit(failures ? 1 : 0);
