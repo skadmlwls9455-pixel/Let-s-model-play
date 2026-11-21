@@ -62,7 +62,7 @@
   var SHELLS = [12, 8, 5, 3];                       /* 1 · 2 · 3 · 4등 */
   var PTS = deepFreeze({ stage: 8, tag: 8, pieceMax: 16, themeMax: 56, color: 6, colorMax: 18, match2: 6, match3: 12, dye: 6 });
   var RIVAL_P = [0.8, 0.55, 0.3];                   /* 경쟁자가 칸마다 주제에 맞는 것을 고를 확률 (센 · 중간 · 가벼운) */
-  var RIVAL_COLORS = ['#e07a5f', '#5fa8a0', '#c9a23c', '#8f7fd0', '#6fa35a', '#d07fa8'];
+  var RIVAL_COLORS = ['#e07a5f', '#8f7fd0', '#6fa35a', '#d07fa8', '#5b8fd0', '#e09a4a'];   /* 가게 문어 셋 (청록 · 노랑 · 갈색) 과 안 겹치는 색 */
 
   /* 집 목소리: 제목 · 한 줄 결과만 */
   var TEXT = deepFreeze({
