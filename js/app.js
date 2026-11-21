@@ -152,7 +152,6 @@ var APP = (function () {
   function chipOn(b, on) { b.classList.toggle('on', !!on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
   /* 방 이름: 등불 칸수에 따라 (CG R17) */
   /* 등불 0칸에도 등불 안에 작은 불씨가 켜져 있다 (밤에도 다락이 깜깜하지 않게, 결정 14) → 처음 단계 이름도 '어두운' 이 아니다 */
-  function roomTitle(lv) { return lv >= 8 ? '문어의 다락' : lv >= 5 ? '살림이 생긴 다락' : lv >= 2 ? '등불 켜진 다락' : '불씨 하나 켜진 다락'; }
   /* 등불 칸이 켜질 때 집 목소리 사실 한 줄 (WORLD.roomLevels 순서 · DIALOGUE_UI §4.3): 문어 초상 없이. 코드가 지은 기분('따뜻해졌어' · '진짜 내 다락') ·
      낮에 틀린 말('별도 보여')은 뺐다 — 데려오기 · 모션 줄이기에서도 이 행이 보이게 된 11-08 부터 */
   var ITEM_LINE = { 1: '창턱에 이끼 화분이 놓였어', 2: '낡은 나무 상자가 책상이 됐어', 3: '구석에 양초가 켜졌어', 4: '담요 한 장이 깔렸어',
@@ -761,7 +760,7 @@ var APP = (function () {
     var lv = S.room.lantern;
     if (part !== 'items') scene.setLantern(lv);
     if (part !== 'lantern') { scene.setItems(itemsFor(lv)); scene.setWeather(weatherFor(lv)); }
-    document.title = (S.octopus.name ? S.octopus.name + ' · ' : '') + roomTitle(lv) + ' · 뽈뽈 문어';
+    document.title = (S.octopus.name ? S.octopus.name + ' · ' : '') + '뽈뽈 문어';   /* 11-21: 방 제목은 뺐다 (주인) */
     updateSceneDesc();
     applyLook({ still: true });   /* 장면 몸색이 기록과 다르면 맞춘다 (불러오기 · 초기화 · 다른 탭 · 2D 폴백 · 이름 저장 — 이 길들이 다 여기를 지난다) */
     syncSalonSpot();   /* 거울이 막 생겼으면 (등불 2칸) 미용실 단추를 허락한다 */
@@ -2607,12 +2606,24 @@ var APP = (function () {
     /* 방 그림(art)이 붙은 포스터: 주제 스티커가 그림과 겹치고 기울어 계단이 졌다 (주인 11-10) → 오른쪽 가장자리 세로 띠에만 놓고 (그림 칸 밖),
        반 크기 정수 배 (300px 포스터 = 32px) · 기울기 0 (픽셀 그대로). 높이는 저장된 stickerPos.y 그대로라 포스터마다 다르다. 저장 데이터는 안 바꾼다 */
     if (art) { ss = 16 * Math.max(1, Math.round(w * 0.107 / 16)); stx = sx + sw * ((81 + (Math.abs(pos.x | 0) % 7)) / 100); sty = sy + sh * (Math.max(14, Math.min(84, pos.y)) / 100); pos = { x: pos.x, y: pos.y, rot: 0 }; }
+    /* 11-21 (주인: "지금은 너무 작아서 안 보여"): 스티커를 키운다 — 앨범 카드 32 CSS px · 크게 보기 앞면 · 저장 그림은 1.5배 (posterStickerSize). 제 칸 안에만: 방 그림이 있으면 그 오른쪽 띠, 없으면 장면 칸 —
+       안 들어가면 들어가는 크기까지만 (좁은 쪽지 카드의 띠는 18px 라 예전 크기 그대로). 작은 포스터 (벽 · 들고 오는) 는 그대로 */
+    var ss0 = ss, sdpr = window.devicePixelRatio || 1, sstep = opts.card ? 16 / sdpr : 16; ss = posterStickerSize(ss, opts);
+    if (ss !== ss0) {
+      var sx0 = art ? sx + sw * (note ? 0.75 : 0.58) : sx, sx1 = sx + sw;
+      while (ss > ss0 && (ss > sx1 - sx0 || ss > sh)) ss -= sstep;
+      if (ss <= ss0) ss = ss0;
+      else {
+        stx = clamp(stx, sx0 + ss / 2, sx1 - ss / 2); sty = clamp(sty, sy + ss / 2, sy + sh - ss / 2);
+        if (opts.card && !pos.rot) { stx = Math.round((stx - ss / 2) * sdpr) / sdpr + ss / 2; sty = Math.round((sty - ss / 2) * sdpr) / sdpr + ss / 2; }   /* 카드는 1단위 = 1 CSS px → 기기 px 격자에 */
+      }
+    }
     var stHref = opts.inlineSticker || stickerSrc(trip);
     if (stHref && !/^data:/.test(stHref) && window.UIART && UIART.iconBad && UIART.iconBad(stHref)) stHref = null;   /* 한 번 안 온 그림은 넣지 않는다 (깨진 그림 표시 대신 스티커 없이) */
     if (miniArt) stHref = null;   /* 작은 포스터에 방 그림이 있으면 주제 스티커는 뺀다 (둘이 겹쳐 뭉개진다) */
     if (stHref && (!opts.noExternal || /^data:/.test(stHref))) {
       /* 기울기는 <image> 에 (바깥 g.stk 는 새 카드 등장 애니메이션 scale/fade 가 transform 을 덮어쓴다 — 거기 두면 기울기 · 자리가 풀린다) */
-      s += '<g class="stk"><image href="' + esc(stHref) + '" x="' + (stx - ss / 2).toFixed(1) + '" y="' + (sty - ss / 2).toFixed(1) + '" width="' + ss.toFixed(1) + '" height="' + ss.toFixed(1) + '" transform="rotate(' + (pos.rot || 0) + ' ' + stx.toFixed(1) + ' ' + sty.toFixed(1) + ')" image-rendering="optimizeSpeed" style="image-rendering:pixelated"/></g>';
+      s += '<g class="stk"><image href="' + esc(stHref) + '" x="' + +(stx - ss / 2).toFixed(3) + '" y="' + +(sty - ss / 2).toFixed(3) + '" width="' + +ss.toFixed(3) + '" height="' + +ss.toFixed(3) + '" data-cx="' + +stx.toFixed(3) + '" data-cy="' + +sty.toFixed(3) + '" data-ss="' + +ss.toFixed(3) + '" transform="rotate(' + (pos.rot || 0) + ' ' + +stx.toFixed(3) + ' ' + +sty.toFixed(3) + ')" image-rendering="optimizeSpeed" style="image-rendering:pixelated"/></g>';
     }
     if (opts.mini) {
       s += '<rect x="' + sx + '" y="' + (sy + sh + hgt * 0.08) + '" width="' + (sw * 0.8) + '" height="' + (hgt * 0.05) + '" fill="#5f5849" opacity=".5"/>';
@@ -2824,7 +2835,7 @@ var APP = (function () {
       if (on && !was && bloom) { p.classList.add('bloom'); p.classList.toggle('last', i === 7); setTimeout(function () { p.classList.remove('bloom', 'last'); }, 1000 * speed()); }
     });
     if (cnt) cnt.textContent = n + '/8';
-    var rt = $('room-title'); if (rt) rt.textContent = roomTitle(n);
+    renderDayN();   /* 11-21: 방 제목 자리에 'D+N' (주인) */
     if (bloom && window.AUDIO) AUDIO.on('lantern', { n: n });   /* 소리: 등불 칸이 켜지는 순간 (8칸 = 방 완성) */
   }
   function tripById(id) { for (var i = 0; i < S.trips.length; i++) if (S.trips[i].id === id) return S.trips[i]; return null; }
@@ -2853,7 +2864,7 @@ var APP = (function () {
       var g = h('div', { class: 'aday' }, [h('span', { class: 'adate', text: fmtDate(d) })]);
       byDay[d].forEach(function (t) {
         var note = t.poster.type === 'note', isNew = !!albumFresh[t.id] || (t.id === lastNewPoster && albumOpen());   /* 올라오는 카드: 앨범을 열 때 지난번 뒤로 붙은 것 · 열려 있는 동안 막 붙은 것 */
-        var c = h('button', { type: 'button', class: 'pcard' + (note ? ' note' : '') + (isNew ? ' in' : '') + (newest && t.id === newest.id ? ' newest' : ''), 'data-trip': t.id, 'aria-label': (t.poster.title || '포스터') + ' · ' + (t.poster.line || ''), 'data-raw-attr': rawBy(t) || posterTitleRaw(t) ? 'aria-label' : null, html: note ? posterSVG(t, 84, 112, { noText: true }) : posterSVG(t, 108, 144, { noText: true }) });   /* 이름표에 모델·사람이 쓴 한 줄 (그대로) */
+        var c = h('button', { type: 'button', class: 'pcard' + (note ? ' note' : '') + (isNew ? ' in' : '') + (newest && t.id === newest.id ? ' newest' : ''), 'data-trip': t.id, 'aria-label': (t.poster.title || '포스터') + ' · ' + (t.poster.line || ''), 'data-raw-attr': rawBy(t) || posterTitleRaw(t) ? 'aria-label' : null, html: note ? posterSVG(t, 84, 112, { noText: true, card: true }) : posterSVG(t, 108, 144, { noText: true, card: true }) });   /* 이름표에 모델·사람이 쓴 한 줄 (그대로) */
         if (isNew) c.style.setProperty('--rot', ((mkRng(t.seed >>> 0)() * 6) - 3).toFixed(1) + 'deg');   /* 최종 각도 ±3° (GF R15) */
         c.addEventListener('click', function () { openPoster(t.id); });
         g.appendChild(c);
@@ -3407,6 +3418,7 @@ var APP = (function () {
   }
   function renderSettings() {
     var body = $('set-body'); if (!body) return;
+    setSecRead(body);   /* 11-21: 접힌 · 펼친 구역을 그대로 (다시 그리기 전에 읽는다 — toggle 은 늦게 온다) */
     var frag = document.createDocumentFragment();
     renderGift(frag);   /* 문어 선물 상자 (맨 위) */
     colorRows(frag);   /* 맨 위 문어 색 (거울 전엔 없음) */
@@ -3451,7 +3463,7 @@ var APP = (function () {
     }
     /* 맨 아래 조용한 글자 링크 하나: 만든 것들 (credits.html — 부엌 소리 CC BY 크레딧 · CC0 녹음 · 글꼴 · three.js). 글자는 작아도 누르는 곳 44px */
     frag.appendChild(h('p', { class: 'help set-credits' }, [h('a', { href: 'credits.html', id: 'set-credits', text: '만든 것들', style: 'display:inline-block;padding:12px 4px;margin:-6px 0 -12px' })]));
-    body.innerHTML = ''; body.appendChild(frag);
+    body.innerHTML = ''; body.appendChild(setSecFold(frag));
   }
   /* 설정 › 내 모습 (docs/PLAYER_PARTS.md §3): 제목 옆 초상(3D 장면이 playerPortrait 를 주면 64×64 캔버스를 96px 로 · 2D 면 한 줄 안내) + 한 줄 = 지금 모습 한마디 · '모습 바꾸기'.
      고르는 건 옷장(#look-sheet · 아래 renderLook)에서 — 11-09 주인 "외관도 이런 느낌 ui로 각 항목별로 고를 수 있게 카테고리 나눠도 좋을 듯". 글자에 이모지·기호 없음 */
@@ -4725,7 +4737,7 @@ var APP = (function () {
      놀이방 문 → 마당 문 → 위층 계단 (각 1.6 s). 글자 없음 (단추마다 이미 aria 이름 · 손은 aria-hidden) · 진동 · 소리 없음. 손은 달리기 안내의 12×12 손 (RUNNER.pix('hand')).
      지금 숨은 단추는 건너뛰고 다음 조용한 때 다시. 아무 데나 누르면 이번 차례는 끝 (누른 단추는 제 할 일을 한다). 기기마다 한 번 (ppolppol_ui 'hints' — 문어 기록엔 안 쓴다).
      처음 집에 온 산책이 첫 산책일 때만 켠다 (집에 있던 차례는 안 셈) → 이미 여러 번 다녀온 기록은 보지 않는다. 안내 요정 (윤슬 · 다음 차례) 이 오기 전까지 잇는 다리 */
-  var HINT_SPOTS = [['atticPlay', 'btn-door'], ['atticYard', 'btn-yard'], ['atticStair', 'btn-stair']], HINT_MS = 1600;
+  var HINT_SPOTS = [['atticPlay', 'btn-door'], ['atticYard', 'btn-yard']], HINT_MS = 1600;   /* 11-21: 계단은 뺐다 (가장자리 계단 단추를 없앴다 — 주인) */
   var hintPoll = 0, hintRun = null, greetT = 0, hintCalm = 0;   /* hintCalm = 누름으로 끝낸 뒤 다음 조용한 때까지 (그동안 다음 손은 안 뜬다) */   /* greetT = 첫 인사 말풍선 (이름 지은 직후 · 이름 창 처리) 동안 선물 알림을 붙잡는 타이머 */
   function hintSeen() { var o = uiPref().hints; return (o && typeof o === 'object') ? o : {}; }
   function hintLeft() { var seen = hintSeen(); return HINT_SPOTS.filter(function (sp) { return !seen[sp[0]]; }); }
@@ -4773,15 +4785,11 @@ var APP = (function () {
     if (!p.hintsArm && n === 1 && !Object.keys(hintSeen()).length && !S.trips.some(function (t) { return t && t.status === 'running'; })) setUiPref('hintsArm', 1);
     hintStart();
   }, 3000);
-  /* 폰에서(상태 줄이 방 제목을 숨기는 폭) 등불 말풍선 첫 줄 = 방 제목. 넓은 화면은 상태 줄에 이미 보이니 빼고 한 줄만 */
-  /* 등불 설명의 첫 줄 = 상태 줄에서 숨긴 것들: 방 제목 · (좁은 폰의 한 화면 배치에서) 등불 숫자 */
+  /* 등불 설명의 첫 줄 = 상태 줄에서 숨긴 것: (좁은 폰의 한 화면 배치에서) 등불 숫자. 11-21: 방 제목은 뺐다 (주인) */
   function pipsHead() {
-    var out = [], rt = hiddenRoomTitle(), n = document.querySelector('#pips .pips-n');
-    if (rt) out.push(rt);
-    if (n && n.textContent && getComputedStyle(n).display === 'none') out.push('등불 ' + n.textContent);
-    return out.join(' · ');
+    var n = document.querySelector('#pips .pips-n');
+    return n && n.textContent && getComputedStyle(n).display === 'none' ? '등불 ' + n.textContent : '';
   }
-  function hiddenRoomTitle() { var rt = $('room-title'); return rt && rt.textContent && getComputedStyle(rt).display === 'none' ? rt.textContent : ''; }
   function bindTip() {
     $('pips').addEventListener('click', function (e) { tip(e.currentTarget, LANTERN_TIP, pipsHead()); });
     $('brain-tag').addEventListener('click', function (e) { tip(e.currentTarget, BRAIN_TIP); });
@@ -5076,7 +5084,7 @@ var APP = (function () {
     var n = u.days.length, extra = n % 5 === 0 ? 10 : 0;
     u.shells += 3 + extra; u.seeds += 1; u.giftTell = { day: dk, shells: 3 + extra, n: n };
     checkDay(true);   /* 11-13 (재검증 P4): 열어 둔 채 자정을 넘겼으면 '오늘의 산책' 도 같은 때 새 날로 (방금 끝난 산책 2분 기다림보다 선물이 먼저 왔다) */
-    weekTell(); save(); renderBagChip();   /* 바로 띄울 수 있으면 알린 뒤의 기록 한 번만 쓴다 (보이는 다른 탭이 같은 줄을 또 띄우지 않게) */
+    weekTell(); save(); renderBagChip(); renderDayN();   /* 바로 띄울 수 있으면 알린 뒤의 기록 한 번만 쓴다 (보이는 다른 탭이 같은 줄을 또 띄우지 않게) */
   }
   /* ───────────────────────── 이번 주 할 일 (11-10 주인: "일주일 단위 퀘스트 · 하루 시간 제한은 촉박 · 문어한테 산책 갈지 묻기 · 하나하나 새로고침 3번") ─────────────────────────
      · 주마다(월요일부터) 일곱 가지가 시드로 정해진다. 그중 **다섯 가지**를 하면 주간 선물 (조개 12 + 씨앗 2). 일곱을 다 할 필요 없음.
@@ -5471,6 +5479,59 @@ var APP = (function () {
   /* ───────────────────────── 7차 갈래 자리 (11-21) ─────────────────────────
      갈래마다 제 표시 줄 바로 아래에만 새 코드를 쓴다. 표시 줄과 그 사이 빈 줄은 건드리지 않는다 (합칠 때 부딪히지 않게). */
   /* [7-U] 화면 고침 · 빈 화면 */
+  /* 11-21 날 수 (주인: "D-14 처럼"): 상태 줄의 방 제목 자리에 'D+N' — N 은 가방 · 선물 줄의 '들어온 날 N일째' 와 같은 수 (연 날의 수. 쉬어도 줄지 않는다).
+     첫 날을 세기 전(이름 짓기 전 · 첫 선물 전)엔 아무것도 안 보인다. 읽기만 한다 (S.user 를 여기서 만들지 않는다) */
+  /* 11-21 설정 구역 접기 (주인: 선물 상자 · 내 모습만 펼쳐 두고 나머지는 접어 줘): 구역마다 details.set-sec — 제목 (h3 · 내 모습은 초상이 든 .set-parts-h) 이 summary.
+     제목 차례 · id · 안쪽 칸은 그대로다 (지은 조각을 제목마다 묶기만 한다). 펼침 상태는 쪽이 사는 동안 기억 (시트는 열 때마다 새로 그린다). 맨 아래 '만든 것들' 링크는 구역 밖 */
+  var SET_SEC = { '문어 선물 상자': 'gift', '내 모습': 'look', '소리': 'sound', '화면': 'screen', '내 Claude 와 연결': 'claude', '기록': 'data', '누가 고르나': 'who', '팔레트': 'pal' };
+  var setSecOpen = { gift: true, look: true };
+  function setSecRead(body) { Array.prototype.forEach.call(body.querySelectorAll('details.set-sec'), function (d) { setSecOpen[d.getAttribute('data-sec')] = d.open; }); }
+  function setSecFold(frag) {
+    var out = document.createDocumentFragment(), cur = null;
+    Array.prototype.slice.call(frag.childNodes).forEach(function (n) {
+      var el = n.nodeType === 1, h3 = !el ? null : n.tagName === 'H3' ? n : n.classList.contains('set-parts-h') ? n.querySelector('h3') : null;
+      if (h3) {
+        var key = h3.id === 'set-color-h' ? 'color' : SET_SEC[h3.textContent] || h3.textContent;
+        cur = h('details', { class: 'set-sec', 'data-sec': key }, [h('summary', null, [n])]); if (setSecOpen[key]) cur.open = true;
+        (function (d, k) { d.addEventListener('toggle', function () { setSecOpen[k] = d.open; }); })(cur, key);
+        out.appendChild(cur);
+      } else if (el && n.classList.contains('set-credits')) { cur = null; out.appendChild(n); }
+      else (cur || out).appendChild(n);
+    });
+    return out;
+  }
+  /* 11-21 포스터 스티커 크기 (SVG 단위): 앨범 카드 (opts.card — 1단위 = 1 CSS px) 는 32 CSS px 에 가장 가까운 '아트 1px = 기기 px 정수' 크기 (배율 2 → 32 · 2.625 → 30.48 = 80 기기 px),
+     그 밖 (크게 보기 앞면 300 · 저장 그림 600) 은 예전의 1.5배를 16의 배수로 (32 → 48 · 64 → 96). 작은 포스터 (mini) 는 그대로. 앞면은 CSS 가 늘이고 줄여 그리므로 열린 뒤 fitFrontSticker 가 기기 px 에 맞춘다 */
+  function posterStickerSize(ss, opts) {
+    if (opts.mini || ss < 16) return ss;
+    if (opts.card) { var d = window.devicePixelRatio || 1; return 16 * Math.max(1, Math.round(32 * d / 16)) / d; }
+    return 16 * Math.max(1, Math.round(ss * 1.5 / 16));
+  }
+  /* 크게 보기 앞면: 그려진 폭 (CSS 가 정한다 — 360 폭 0.97배 · 412 폭 1.15배) 과 기기 배율로 스티커를 '아트 1px = 기기 px 정수' 크기 · 자리로 다시 놓는다. 가운데는 그대로 (기운 스티커는 크기만) */
+  function fitFrontSticker() {
+    var sv = document.querySelector('#pd-front svg'), im = sv && sv.querySelector('.stk image'); if (!im || !im.getAttribute('data-ss')) return;
+    var r = sv.getBoundingClientRect(), vb = sv.viewBox.baseVal, k = vb.width && vb.height ? Math.min(r.width / vb.width, r.height / vb.height) : 0, d = window.devicePixelRatio || 1; if (!(k > 0)) return;
+    var ox = r.left + (r.width - vb.width * k) / 2, oy = r.top + (r.height - vb.height * k) / 2;   /* 그림은 칸 가운데에 맞춰 그려진다 (preserveAspectRatio 기본값) */
+    var cx = +im.getAttribute('data-cx'), cy = +im.getAttribute('data-cy'), n = Math.max(1, Math.round(+im.getAttribute('data-ss') * k * d / 16)), ss = 16 * n / (d * k), x = cx - ss / 2, y = cy - ss / 2;
+    if (/rotate\(0 /.test(im.getAttribute('transform') || '')) { x = (Math.round((ox + x * k) * d) / d - ox) / k; y = (Math.round((oy + y * k) * d) / d - oy) / k; }
+    im.setAttribute('x', x.toFixed(4)); im.setAttribute('y', y.toFixed(4)); im.setAttribute('width', ss.toFixed(4)); im.setAttribute('height', ss.toFixed(4));
+  }
+  (function () {
+    var pf = $('pd-front'), t1 = 0; if (!pf || !window.MutationObserver) return;
+    function soon() { requestAnimationFrame(fitFrontSticker); clearTimeout(t1); t1 = setTimeout(function () { fitFrontSticker(); t1 = setTimeout(fitFrontSticker, 700); }, 450); }   /* 두 번 더: 여는 움직임이 끝난 뒤의 폭 · 자리로 */
+    new MutationObserver(soon).observe(pf, { childList: true });
+    window.addEventListener('resize', soon);
+  })();
+  /* 11-21 전체 화면 놀이 (부엌 #cook-overlay · 달리기 #runner-dlg) 가 열린 동안 3D 장면을 그리지 않는다 (배터리 · 열) — 닫히면 그 자리에서 잇는다 (js/scene3d.js setCovered).
+     두 창의 open 속성만 본다 (달리기 창은 처음 열 때 생긴다 → body 아래 전부를 본다. 여닫는 코드는 건드리지 않는다) */
+  function sceneCoverSync() { if (scene && typeof scene.setCovered === 'function') scene.setCovered(!!document.querySelector('#runner-dlg[open], #cook-overlay[open]')); }
+  if (window.MutationObserver && document.body) new MutationObserver(sceneCoverSync).observe(document.body, { attributes: true, attributeFilter: ['open'], subtree: true });
+  function dayCount() { return isObj(S.user) && Array.isArray(S.user.days) ? S.user.days.length : 0; }
+  function renderDayN() {
+    var el = $('day-n'), n = dayCount(); if (!el) return;
+    el.hidden = n < 1; el.textContent = n < 1 ? '' : 'D+' + n;
+    if (n < 1) el.removeAttribute('aria-label'); else el.setAttribute('aria-label', '들어온 지 ' + n + '일째');
+  }
 
 
   /* [7-T] 요리 → 식탁 잇기 · 레시피 */
@@ -5526,6 +5587,7 @@ var APP = (function () {
     get salonStage() { return salonRun ? { id: salonRun.ask.id, n: salonRun.n, face: salonRun.face, action: salonRun.st.action, done: salonRun.done } : null; },
     /* 7차 갈래가 밖에 내놓는 것 (테스트 · 도구): 제 표시 줄 바로 아래에 '이름: 값,' 줄로 (쉼표까지) */
     /* [7-U] */
+    get dayCount() { return dayCount(); },
 
     /* [7-T] */
 
