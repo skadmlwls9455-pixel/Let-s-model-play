@@ -338,8 +338,8 @@ async function gesture(page) {
       await T.page.evaluate(function () { COOK.pick('jeon2'); });
       await T.page.waitForTimeout(400);
       r = await T.page.evaluate(function () { var s = document.querySelector('.ck-stick'), k = s.querySelector('.cook-sticker'), q = k ? k.getBoundingClientRect() : null, c = document.querySelector('.ck-close .ck-chip').getBoundingClientRect(), v = COOK.live().view;
-        return { hidden: s.hidden, w: q ? q.width : 0, x: q ? q.left : 0, bottom: q ? q.bottom : 0, closeL: c.left, row: (44 + v.oy) * v.css, dpr: devicePixelRatio }; });
-      check(!r.hidden && r.w >= 100 && r.w <= 130 && r.x + r.w <= r.closeL && r.bottom <= r.row + 0.5, 'B8 ' + tag + ': the pick sticker shows, ' + r.w.toFixed(1) + ' CSS px (64 to 96 before), clear of the close chip and of the food rows');
+        return { hidden: s.hidden, w: q ? q.width : 0, x: q ? q.left : 0, bottom: q ? q.bottom : 0, closeL: c.left, row: (36 + v.oy) * v.css, dpr: devicePixelRatio }; });
+      check(!r.hidden && r.w >= (Z[0] <= 412 && Z[1] >= 700 ? 120 : 64) && r.w <= 130 && r.x + r.w <= r.closeL && r.bottom + 8 <= r.row + 0.5, 'B8 ' + tag + ': the pick sticker shows, ' + r.w.toFixed(1) + ' CSS px (tall phones: 96 or 85 before; short ones: hidden before), clear of the close chip, ending 8 px above stage row 36');
       /* Playwright's DPR emulation lays out in 1/64 CSS px, so at 2.625 the measured box is off by about 0.001 device px a
          sticker px; the real render path (--force-device-scale-factor) gives exact blocks (js/cook.js fit) */
       check(Math.abs(r.w * r.dpr / 32 - Math.round(r.w * r.dpr / 32)) < (Z[2] === 2.625 ? 0.01 : 1e-6), 'B8 ' + tag + ': a whole number of device px per sticker px (' + (r.w * r.dpr / 32) + ')');

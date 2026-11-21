@@ -819,6 +819,8 @@ var COOK = (function () {
       if (Array.isArray(o.book)) out.book = o.book.filter(function (l) {
         return l && typeof l === 'object' && typeof l.id === 'string' && typeof l.recipe === 'string' && isIntIn(l.seed, 0, 4294967295) && l.look && typeof l.look === 'object';
       }).slice(0, TUNE.book.max);
+      /* 11-21 round 7 check: a field this build does not know (written by a later one) is kept as it is */
+      Object.keys(o).forEach(function (k) { if (!Object.prototype.hasOwnProperty.call(out, k) && k !== 'potOld' && k !== '__proto__') out[k] = o[k]; });
     } catch (e) { /* broken key: start empty */ }
     return out;
   }
@@ -957,7 +959,7 @@ var COOK = (function () {
   var KEY_RE = /^ppolppol_cook(_[a-z0-9]{1,16})?$/;          /* only the kitchen's own keys (never the main save) */
   /* 11-15 layout (spec 2.1; not in TUNE, so saved pots stay valid): VIEW_W art px across, stage rows ROWS between the HUD
      and the chip, MID their centre, ZMAX CSS px per art px at most, HUD 8 + 48 + 8, chip 64 at 16 from the bottom */
-  var LAY = { VIEW_W: 80, ROWS: [28, 132], MID: 80, ZMAX: 6, HUD: 64, CHIP: 64, CHIPB: 16, STICK_ROW: 44, PAD: 8, CLOSE: 48, HIT: 56, NOTE: 44 };
+  var LAY = { VIEW_W: 80, ROWS: [28, 132], MID: 80, ZMAX: 6, HUD: 64, CHIP: 64, CHIPB: 16, STICK_ROW: 36,   /* 11-21: 44 before; the stickers start 56 px higher now, and end 8 px above this row */ PAD: 8, CLOSE: 48, HIT: 56, NOTE: 44 };
   var FMS = 1000 / TUNE.fps;                                  /* one 12 fps frame */
   var ART_W = TUNE.stage.w / TUNE.stage.scale, ART_H = TUNE.stage.h / TUNE.stage.scale;
   var FOOD_X = TUNE.food.batter.cx, FOOD_Y = TUNE.food.batter.cy;   /* food centre on the stage (art px) */
@@ -1210,7 +1212,8 @@ var COOK = (function () {
       case 'pat': L.fx++; fxAdd({ k: 'flash' }, e.si); break;
       case 'dust': L.fx++; L.dust.push([e.x >> 1, e.y >> 1]); if (L.dust.length > 12) L.dust.shift(); break;
       case 'heat':
-        L.fx++; fxAdd({ k: 'flash' }, e.si); L.nudges = 0; buzz('tap');
+        L.fx++; fxAdd({ k: 'flash' }, e.si); L.nudges = 0;
+        if (!st || st.kind !== 'bake') buzz('tap');   /* 11-21: the oven's heat-on is not on the owner's buzz list (flip's is) */
         if (st && st.kind === 'flip' && L.seen.indexOf('flip') < 0) startHand('flick', 'demo', 'flip');   /* seen once it has played to its end */
         break;
       case 'nudge':   /* a press after heat-on that did not flip: the jeon hops; a few of them (with no hand showing) -> the
@@ -1641,7 +1644,10 @@ var COOK = (function () {
     D.bkTabs.forEach(function (b, i) { if (i < lay.tabs.length) { box(b, lay.tabs[i]); b.setAttribute('aria-pressed', i === B.sel ? 'true' : 'false'); } });
     L.dirty = true;
   }
-  function bookTop() { return Math.ceil(L.hudB / L.css) + 1; }
+  function bookTop() {   /* under the close chip; on a wide screen the page stands clear of the chip and may start at the top */
+    var right = (Math.floor(L.W / 2) + 43) * L.css, chipL = L.vw - Math.max(LAY.PAD, L.safe[1] + LAY.PAD) - LAY.CLOSE - LAY.PAD;
+    return right <= chipL ? Math.ceil((L.safe[0] + LAY.PAD) / L.css) + 1 : Math.ceil(L.hudB / L.css) + 1;
+  }
   function bookBot() { return Math.floor((L.vh - L.safe[2] - LAY.PAD) / L.css); }
   function bookTurn(to, dir) {
     var B = L && L.book; if (!B || L.screen !== 'book') return;
@@ -1684,7 +1690,12 @@ var COOK = (function () {
       A.hand(V, o);
     }
   }
-  function bookDown(e) { if (L && L.screen === 'book' && L.book) L.book.sw = { id: e.pointerId, x: e.clientX, y: e.clientY }; }
+  function bookDown(e) {
+    if (!L || L.screen !== 'book' || !L.book) return;
+    /* the standing edge rule: a touch that starts within 24 CSS px of the left or right screen edge turns no page (OS back swipe) */
+    if (e.pointerType !== 'mouse' && (e.clientX < TUNE.edgeCss || e.clientX > window.innerWidth - TUNE.edgeCss)) { L.book.sw = null; return; }
+    L.book.sw = { id: e.pointerId, x: e.clientX, y: e.clientY };
+  }
   function bookUp(e) {   /* a sideways drag turns the page (and eats the click that follows it) */
     var B = L && L.screen === 'book' ? L.book : null, s = B && B.sw;
     if (!s || s.id !== e.pointerId) return;
@@ -1751,10 +1762,14 @@ var COOK = (function () {
        always was. Measured: 360x740 @2 and @3, 412x915 @2, 390x844 @3 -> 96 CSS; 412x915 @2.625 -> 85.3 (n 7) */
     /* 11-21 (owner: "all stickers larger"): the step strip is gone, so the stickers start in the HUD row itself (top0) and
        may grow to floor(4 dpr) device px per sticker px; the right one stops left of the close chip. Measured: 360x740 @2
-       -> 128 CSS, 320x568 @2 -> 112 (hidden there before), 412x915 @2.625 -> 121.9 (n 10) */
+       -> 128 CSS, 320x568 @2 -> 80 (hidden there before), 412x915 @2.625 -> 121.9 (n 10). They end 8 px above stage row
+       STICK_ROW (36): no step of any dish puts food that is touched above it */
     var n0 = Math.max(1, Math.floor(2 * dpr + 1e-6)), n3 = Math.max(n0, Math.floor(4 * dpr + 1e-6)), stickRoom = (LAY.STICK_ROW + oy) * css;
     var closeL = vw - right0 - LAY.CLOSE - LAY.PAD;
-    function stickFits(n) { var sz = 32 * n / dpr; return top0 + sz + 8 <= stickRoom && left0 + sz + LAY.PAD <= closeL - sz; }
+    function stickFits(n) {   /* measured: at a whole DPR of 3 or more an odd n that is no multiple of it (7 at @3) lands 0.05 device px off the grid */
+      if (n > n0 && dpr >= 3 && dpr === Math.floor(dpr) && n % 2 && n % dpr) return false;
+      var sz = 32 * n / dpr; return top0 + sz + 8 <= stickRoom && left0 + sz + LAY.PAD <= closeL - sz;
+    }
     var showStick = stickFits(n0), n2 = n0;
     if (showStick) for (var nn = n3; nn > n0; nn--) {
       if (stickFits(nn)) { n2 = nn; break; }

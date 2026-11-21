@@ -20,7 +20,8 @@
  *          events: turn { i, snd stir } every quarter turn. look { turns }.
  *   pour   need (ms of holding), ms (banked), hold { id, at } | null, shown (ms now), fill 0..3 (thirds reached).
  *          events: pour { on, snd pour | quiet }, fill { i }. Letting go only pauses. look { fill: 3 }.
- *   drag   items [{ x, y, hx, hy, on, slot }], slots [{ x, y, by }], order (slots fill in order), n placed, pen, hand.
+ *   drag   items [{ x, y, hx, hy, on, slot }], slots [{ x, y, by }], order (slots fill in order), zone ([x0, y0, x1, y1] logical or
+ *          null: a drop anywhere inside it counts, e.g. the whole skewer), n placed, pen, hand.
  *          events: lift { i, snd lift }, place { i, k, snd place }, back { i, snd back } (a drop elsewhere: the item is
  *          home again at once, the live half lets it glide). look { n }.
  *   rub    cols, rows, bins [0|1], n, need (80 %), third 0..3, pen, hand. events: rub { n, x, y, snd scrub },
@@ -59,9 +60,10 @@ var COOK_STEPS = (function () {
 
   var BOX = { cx: 72, cy: 86, w: 64, h: 48, rx: [29], ry: [19], inset: 3 };   /* the legacy food box (stage centre) */
   function box(o) { var b = { cx: BOX.cx, cy: BOX.cy, w: BOX.w, h: BOX.h, rx: BOX.rx, ry: BOX.ry, inset: BOX.inset }; for (var k in o) b[k] = o[k]; return b; }
-  var EGGS = [[-24, -40], [0, -44], [24, -40]];         /* three eggs behind the bowl, from the box centre (art px) */
+  var EGGS = [[-24, -30], [0, -32], [24, -30]];         /* three eggs behind the bowl, from the box centre (art px): at stage rows 44 and below,
+                                                           under the reaction stickers */
   var CRACK = { kind: 'tap', marks: 3, hits: 2, at: EGGS, jitter: 0, station: 'counter', name: 'crack', pic: 'step.crack', box: box({ rx: [30], ry: [22] }) };
-  function crack(mix) { var s = {}; for (var k in CRACK) s[k] = CRACK[k]; s.art = { type: 'crack', bowl: [72, 98], mix: mix }; return s; }
+  function crack(mix) { var s = {}; for (var k in CRACK) s[k] = CRACK[k]; s.art = { type: 'crack', bowl: [72, 106], mix: mix }; return s; }
   function stir(turns, name, pic, art, station, c) {
     return { kind: 'stir', turns: turns, station: station || 'counter', name: name, pic: pic, box: box({ cx: c[0], cy: c[1], rx: [24], ry: [14] }), art: art };
   }
@@ -75,7 +77,7 @@ var COOK_STEPS = (function () {
       { kind: 'slice', lines: 2, cross: true, station: 'board', name: 'chop', pic: 'step.slice', box: box({}), art: { type: 'cross', spr: 'jeon.pan', at: [72, 86], bands: [2, 3, 4] } }] },
     { id: 'gyeran', v2: true, tier: 1, at: 'pan', fx: 'bubble', ings: ['egg', 'salt', 'oil'], steps: [
       crack('mix.egg'),
-      stir(3, 'stir', 'step.stir', { type: 'bowl', bowl: [72, 98], mix: 'mix.egg' }, 'counter', [72, 86]),
+      stir(3, 'stir', 'step.stir', { type: 'bowl', bowl: [72, 106], mix: 'mix.egg' }, 'counter', [72, 94]),
       { kind: 'pour', station: 'stove', name: 'pour', pic: 'step.pour', box: box({}), art: { type: 'pour', pan: 'square', spr: 'gyeran.pan', at: [72, 86], frames: [-1, 0, 1, 2], rest: 3 } },
       { kind: 'swipe', strokes: 3, dir: 'up', station: 'stove', name: 'roll', pic: 'step.roll', box: box({}), art: { type: 'roll', pan: 'square', spr: 'gyeran.pan', at: [72, 86], from: 3 } },
       { kind: 'slice', lines: 3, cross: false, station: 'board', name: 'chop', pic: 'step.slice', box: box({ rx: [34], ry: [16] }), art: { type: 'cuts', spr: 'gyeran.board' } }] },
@@ -90,16 +92,16 @@ var COOK_STEPS = (function () {
     { id: 'kkochi2', v2: true, tier: 1, at: 'board', fx: 'petal', ings: ['berry', 'grape', 'tang', 'sugar'], steps: [
       { kind: 'rub', station: 'counter', name: 'wash', pic: 'step.wash', box: box({ cy: 84, w: 60, h: 36 }), art: { type: 'wash', basin: [72, 92], spr: 'fruit.wash', at: [72, 86] } },
       { kind: 'slice', lines: 2, cross: false, station: 'board', name: 'chop', pic: 'step.slice', box: box({ rx: [34], ry: [18] }), art: { type: 'cuts', spr: 'fruit.board' } },
-      { kind: 'drag', station: 'board', name: 'thread', pic: 'step.thread', box: box({}), items: [[48, 64], [72, 60], [96, 64]], slots: [[82, 102], [94, 102], [106, 102]], order: true,
+      { kind: 'drag', station: 'board', name: 'thread', pic: 'step.thread', box: box({}), items: [[48, 64], [72, 60], [96, 64]], slots: [[82, 102], [94, 102], [106, 102]], order: true, zone: [30, 92, 114, 112],
         art: { type: 'thread', skewer: [72, 104], item: 'fruit.piece' } },
       stir(2, 'glaze', 'step.glaze', { type: 'glaze', pot: [72, 96], spr: 'kkochi.coat', at: [50, 80] }, 'stove', [72, 84])] },
     { id: 'cake', v2: true, tier: 1, at: 'oven', fx: 'confetti', ings: ['egg', 'flour', 'sugar', 'cream', 'berry'], steps: [
       crack('mix.cake'),
-      stir(3, 'stir', 'step.stir', { type: 'bowl', bowl: [72, 98], mix: 'mix.cake' }, 'counter', [72, 86]),
+      stir(3, 'stir', 'step.stir', { type: 'bowl', bowl: [72, 106], mix: 'mix.cake' }, 'counter', [72, 94]),
       { kind: 'pour', station: 'counter', name: 'pour', pic: 'step.pour', box: box({}), art: { type: 'pour', pan: 'none', spr: 'tin', at: [72, 92], frames: [0, 1, 2, 3], rest: 3 } },
       { kind: 'bake', band: 3000, station: 'oven', name: 'bake', pic: 'step.bake', box: box({}), art: { type: 'oven', spr: 'oven', at: [72, 102] } },
       { kind: 'rub', station: 'board', name: 'spread', pic: 'step.spread', box: box({ cy: 76, w: 56, h: 30 }), art: { type: 'spread', spr: 'cake.base', at: [72, 98] } },
-      { kind: 'drag', station: 'board', name: 'top', pic: 'step.top', box: box({}), items: [[46, 124], [72, 128], [98, 124]], slots: [[58, 76], [72, 72], [86, 76]], order: false,
+      { kind: 'drag', station: 'board', name: 'top', pic: 'step.top', box: box({}), items: [[46, 50], [72, 46], [98, 50]], slots: [[58, 76], [72, 72], [86, 76]], order: false,
         art: { type: 'top', spr: 'cake.base', at: [72, 98], item: 'berry.top' } }] }
   ]);
   /* a legacy dish and the book dish that took its place (the book opens on it; its stamp counts old lines too) */
@@ -264,7 +266,10 @@ var COOK_STEPS = (function () {
     }
     function tryPlace(st, i, t) {
       var it = st.items[i], k = freeSlot(st, it);
-      if (k < 0 || dist(it.x, it.y, st.slots[k].x, st.slots[k].y) > NUM.drag.snap) return false;
+      if (k < 0) return false;
+      var near = false, z = st.zone;   /* near any free slot, or inside the step's zone: the item goes to slot k */
+      for (var j = 0; j < st.slots.length; j++) if (st.slots[j].by < 0 && dist(it.x, it.y, st.slots[j].x, st.slots[j].y) <= NUM.drag.snap) near = true;
+      if (!near && !(z && it.x >= z[0] && it.x <= z[2] && it.y >= z[1] && it.y <= z[3])) return false;
       place(st, i, k, t);
       return true;
     }
@@ -279,7 +284,8 @@ var COOK_STEPS = (function () {
       init: function (step, seed, food) {
         var items = (step.items || []).map(function (p) { return { x: p[0] * SC, y: p[1] * SC, hx: p[0] * SC, hy: p[1] * SC, on: false, slot: -1 }; });
         var slots = (step.slots || []).map(function (p) { return { x: p[0] * SC, y: p[1] * SC, by: -1 }; });
-        return base('drag', { box: boxOf(food), items: items, slots: slots, order: !!step.order, n: 0, pen: null, hand: null });
+        var zone = Array.isArray(step.zone) && step.zone.length === 4 ? step.zone.map(function (v) { return v * SC; }) : null;
+        return base('drag', { box: boxOf(food), items: items, slots: slots, order: !!step.order, zone: zone, n: 0, pen: null, hand: null });
       },
       down: function (st, s) {
         if (st.done) return;
