@@ -14,10 +14,10 @@ var ROOT = path.resolve(__dirname, '../../..');
   await page.waitForTimeout(600);
   console.log(JSON.stringify(await page.evaluate(function () {
     var sc = APP.scene, K = Math.SQRT1_2, out = [];
-    function scr() { var a = sc.player().at, q = sc.screenOf(a[0], 0.6, a[2]); return [Math.round(q.x), Math.round(q.y)]; }
-    sc.debugPlayerAt(8 * K, 8 * K); sc.wideFocus(); sc.debugSim(1 / 60, 5); out.push(['start', scr()]);
-    function run(x, y, sec, tag) { sc.setPlayerInput(x == null ? null : { x: x, y: y }); for (var i = 0; i < sec * 4; i++) { sc.debugSim(1 / 60, 15); out.push([tag, scr(), +sc.wideMap().vmax.toFixed(2)]); } }
-    run(0, -1, 2, 'down'); run(0, 1, 1.5, 'up'); run(1, 0, 1, 'right'); run(null, 0, 1, 'stop');
+    function st() { var a = sc.player().at; return [+((a[0] + a[2]) * K).toFixed(3), +((a[0] - a[2]) * K).toFixed(3)]; }
+    [[59.7, 12, 1, 0], [59.7, 12, 0, -1], [59.7, 12, 0.707, -0.707], [49, 3, 1, 0], [38.1, 3, 1, 0], [5, 3, 1, 0], [5, -3, 0, 1], [65.7, 7.55, 1, 0], [65.7, 7.55, 0, -1]].forEach(function (c) {
+      [0.02, 0.05, 0.1].forEach(function (dt) { sc.debugPlayerAt((c[0] + c[1]) * K, (c[0] - c[1]) * K); sc.debugSim(dt, 1); var a = st(); sc.setPlayerInput({ x: c[2], y: c[3] }); sc.debugSim(dt, 20); sc.setPlayerInput(null); sc.debugSim(dt, 1); var b = st(); out.push([c.join(','), dt, a, b]); });
+    });
     return out;
   })));
   await browser.close();

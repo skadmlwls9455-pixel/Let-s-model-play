@@ -439,6 +439,29 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     });
     ok(rw.n === 200000 && rw.out === 0 && rw.seen.length === 7, 'L10 막걷기 ' + rw.n + ' 프레임: 걷는 곳 밖으로 나간 프레임 ' + rw.out + (rw.worst ? ' (처음: [출발, 프레임, s, t] ' + JSON.stringify(rw.worst) + ')' : '') + ' · 밟은 곳 ' + rw.seen.join(' '));
     await o.ctx.close();
+    /* 표지판 → 빠른 이동 창 (#travel-pick): 진짜 톡 · 진짜 프레임으로. 칩은 그림만 (글자 0 · title 없음) · 선 곳의 칩은 숨김 · Esc 는 닫고 표지판 단추로 돌아온다 · 고르면 그곳에 선다 */
+    o = await open(browser, 8, { hour: 13, weather: 'clear' }); page = o.page;
+    await yardGo(page);
+    await page.evaluate(function () { var sc = APP.scene, K = Math.SQRT1_2; sc.debugPlayerAt(37.5 * K, 37.5 * K); sc.wideFocus(); });
+    await page.waitForTimeout(500);
+    var sg = await page.evaluate(function () { var b = document.getElementById('btn-sign-1'), r = b.getBoundingClientRect(); return [b.hidden, r.left + r.width / 2, r.top + r.height / 2, b.getAttribute('aria-label'), b.hasAttribute('title')]; });
+    await page.touchscreen.tap(sg[1], sg[2]); await page.waitForTimeout(400);
+    var dl = await page.evaluate(function () {
+      var d = document.getElementById('travel-pick'), dpr = devicePixelRatio || 1;
+      return { open: d.open, text: (d.innerText || '').trim(), titles: d.querySelectorAll('[title]').length, chips: Array.prototype.map.call(d.querySelectorAll('button[data-place]'), function (b) { var r = b.getBoundingClientRect(), c = b.querySelector('canvas').getBoundingClientRect(); return [b.getAttribute('aria-label'), b.hidden, Math.round(r.width), +(c.width * dpr / 16).toFixed(3), r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight]; }) };
+    });
+    var seen = dl.chips.filter(function (c) { return !c[1]; });
+    ok(sg[0] === false && sg[3] === '표지판' && sg[4] === false && dl.open === true, 'L10 표지판 (마을) 을 톡하면 빠른 이동 창이 열린다');
+    ok(dl.text === '' && dl.titles === 0 && seen.length === 2 && seen[0][0] === '집' && seen[1][0] === '바닷가' && seen.every(function (c) { return c[2] >= 44 && c[3] === Math.round(c[3]) && c[4]; }),
+      'L10 빠른 이동 창: 보이는 글자 0 · title 0 · 선 곳 (마을) 은 숨기고 칩 둘 (집 · 바닷가) · 누르는 곳 ≥ 44 px · 그림 한 칸 = 정수 기기 px · 화면 안 ' + JSON.stringify(dl.chips));
+    await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+    var esc = await page.evaluate(function () { return [document.getElementById('travel-pick').open, document.activeElement && document.activeElement.id, APP.scene.area()]; });
+    ok(esc[0] === false && esc[1] === 'btn-sign-1' && esc[2] === 'village', 'L10 Esc 는 창을 닫고 표지판 단추로 돌아온다 (아무 데도 안 간다) ' + JSON.stringify(esc));
+    await page.waitForTimeout(700); await page.touchscreen.tap(sg[1], sg[2]); await page.waitForTimeout(400);
+    await page.click('#travel-pick button[data-place="beach"]'); await page.waitForTimeout(900);
+    var went = await page.evaluate(function () { var sc = APP.scene, a = sc.player().at, q = sc.screenOf(a[0], 0.6, a[2]), raw = localStorage.getItem('ppolppol_v2'); return { open: document.getElementById('travel-pick').open, area: sc.area(), s: +((a[0] + a[2]) * Math.SQRT1_2).toFixed(2), x: Math.round(q.x), fade: sc.wideMap().jump, save: !!raw && JSON.parse(raw).octopus.name === '뚜루', go: getComputedStyle(document.getElementById('btn-go')).visibility }; });
+    ok(went.open === false && went.area === 'beach' && Math.abs(went.s - 51.5) < 0.01 && Math.abs(went.x - 180) < 40 && went.fade === false && went.save && went.go === 'visible', 'L10 칩 (바닷가) 을 고르면 창이 닫히고 바닷가 표지판 곁에 선다 · 큰 단추가 돌아온다 · 저장은 그대로 ' + JSON.stringify(went));
+    await o.ctx.close();
     /* 돌려 본 뒤 (11-18 검증): 돌려 보기가 맞춘 밀기 값을 경계가 품는다 → 빈 땅 톡 · 키우기 · 손 떼기에서 화면이 띠 경계 안으로 덜컥 돌아가지 않는다.
        마당에 막 들어선 집 앞에서 가장 크다 (예전: 90° 에서 톡 44 px · 키우기 0.82 m / 두 손가락 135° 를 천천히 — 이동 하나에 프레임 둘 — 돌리면 13 px 흐르고 떼면 32 px 더) */
     o = await open(browser, 8, { hour: 13, weather: 'clear' }); page = o.page;
