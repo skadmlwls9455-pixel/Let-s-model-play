@@ -5889,7 +5889,8 @@ var SCENE3D = (function () {
       IN.target.set(0, snapPos(yc), 0); IN.target.y = snapPos(yc - liftOf(0, yc, 0, [[hx, 0, hz], [-hx, H, -hz]]));
       PLACE_BOX.inside = [[-hx - 6 / 27, hx + 6 / 27], [-0.48, H], [-hz - 6 / 27, hz + 6 / 27]];
       IN.shade = [[-hx - 0.6, hx + 0.6], [-0.6, H + 0.2], [-hz - 0.6, hz + 0.6]];
-      showPlace('inside'); PLACE.room = 'inside'; container.dataset.room = 'inside'; container.dataset.inside = key;
+      if (IN.zoom0 == null) IN.zoom0 = st.zoomF; ZT = null; st.zoomF = ZOOM_STEPS[3];   /* 11-22 리드 (주인: 화면이 비는 느낌): 방 안 기본은 한 칸 반 가까이 (√2 배 — m 당 38 아트px). 방이 화면 세로를 거의 채우고 화면이 내 캐릭터를 따라간다 (방 상자 안에서만). 두 손가락으로 줄이면 방 전체 (1 배) */
+      showPlace('inside'); PLACE.room = 'inside'; container.dataset.room = 'inside'; container.dataset.inside = key; applyZoom(); touchMode();
       if (plG.parent !== G.g) G.g.add(plG); fpClear(G.g);
       var d = R.door || [hx - 0.4, 0], px = clamp(d[0], -hx + PL_MARGIN, hx - PL_MARGIN), pz = clamp(d[1], -hz + PL_MARGIN, hz - PL_MARGIN);
       PL.sit = false; PL.hop = null; PL.tbl = false; plStop(); PL.place = 'inside'; PL.pos.set(px, 0, pz); PL.faceCam = false; PL.yaw = PL.wantYaw = typeof R.face === 'number' ? R.face : Math.atan2(-px, -pz); PL.moving = false; PL.pending = ''; plSnap();
@@ -5897,8 +5898,8 @@ var SCENE3D = (function () {
     }
     function inHide() {   /* 덮인 프레임: 다시 넓은 바깥의 문 앞으로 */
       var b = IN.back || wideXZ(WIDE.ARRIVE.village[0], WIDE.ARRIVE.village[1]);
-      delete container.dataset.inside; IN.key = null; IN.g = null;
-      showPlace('yard'); PLACE.room = 'yard'; container.dataset.room = 'yard';
+      delete container.dataset.inside; IN.key = null; IN.g = null; ZT = null; st.zoomF = IN.zoom0 == null ? 1 : IN.zoom0; IN.zoom0 = null;   /* 바깥 배율은 들어가기 전 그대로 */
+      showPlace('yard'); applyZoom(); touchMode(); PLACE.room = 'yard'; container.dataset.room = 'yard';
       if (plG.parent !== YROOM.g) YROOM.g.add(plG); fpClear(YROOM.g);
       plStop(); PL.place = 'yard'; PL.pos.set(b[0], 0, b[1]); PL.faceCam = false; PL.yaw = PL.wantYaw = b[2] == null ? Math.PI / 4 : b[2]; PL.moving = false; PL.pending = ''; plSnap();
       placeCamera(); wideCentreOn(); fitShadow(); dither.still = 0;
@@ -5952,6 +5953,13 @@ var SCENE3D = (function () {
       var sp = WIDE_SPOT[id].sp, st2 = sp.stand; if (!st2 || PL.place !== 'inside' || Math.hypot(PL.pos.x - st2[0], PL.pos.z - st2[1]) <= 0.25) return false;
       var key = IN.key; plWalkTo(new T.Vector3(st2[0], 0, st2[1]), Math.atan2(sp.x - st2[0], sp.z - st2[1])).then(function () { if (IN.key === key && PL.place === 'inside' && !el.hidden && Math.hypot(PL.pos.x - st2[0], PL.pos.z - st2[1]) <= 0.4) el.click(); });
       return true;
+    }
+    function viewFocus(x, z, y) {   /* 그 자리 (지금 보이는 장소의 좌표) 를 화면 가로 가운데 · 위에서 3분의 1 높이에 오게 화면을 민다 (경계 안에서 · 0.25 s) → 됐나. 카드가 뜰 때 그 대상이 카드 위로 보이게 */
+      if (!S || !S.N || panLocked() || !panOn()) return false;
+      var g = groupOf(PLACE.vis); _fw.set(+x || 0, y == null ? 1.0 : +y, +z || 0); if (g) _fw.add(g.position); _fw.sub(camTargetNow());
+      var b = panBox(), tx = clamp(Math.round(_fw.dot(_r) * S.N) / S.N, b[0], b[1]), ty = clamp(Math.round((_fw.dot(_u) - S.rh / 6 / S.N) * S.N) / S.N, b[2], b[3]);
+      if (YARD_WIDE && PLACE.vis === 'yard') _wideKeep.on = false;
+      panTo(tx, ty, 0.25, 'tween'); dither.still = 0; return true;
     }
     function inSlots(key) {   /* 방의 치수 · 문 · 자리 (방 안 좌표) — 갈래 S · C · P · N 이 읽는다 */
       var R = ROOM_REG[key]; if (!R) return null; var sp = {};
@@ -7409,6 +7417,7 @@ var SCENE3D = (function () {
       area: wideArea, goPlace: wideGo, beachShells: wideShells, beachShellNear: wideShellNear, beachShellGo: wideShellGo, groundY: function (x, z) { return YARD_WIDE ? wideGroundY(+x || 0, +z || 0) : 0; },   /* 11-21 7차 바깥 한 장: 선 곳 · 빠른 이동 · 조개 · 땅 높이 */
       wideFocus: function () { if (YARD_WIDE && PLACE.vis === 'yard' && PL.place === 'yard') { wideCentreOn(); placeCamera(); } },   /* 시험: 화면 가운데를 내 캐릭터로 (debugPlayerAt 으로 멀리 옮긴 뒤) */
       roomSpotGo: function (btnId) { var k = WIDE_SPOT_KEYS.filter(function (q) { return WIDE_SPOT[q].room === IN.key && WIDE_SPOT[q].sp.btn === btnId; })[0], el = k && SPOTS[k]; return !!(k && el && PLACE.vis === 'inside' && inSpotWalk(k, el)); },   /* 단추를 바로 누른 때 (키보드): 멀면 걸어간 뒤 다시 누른다 → 걷기 시작했나 */
+      roomFocus: viewFocus,   /* roomFocus(x, z[, y]): 그 자리를 화면 위쪽 3분의 1 에 (방 안 · 넓은 바깥 둘 다) */
       roomReg: ROOM_REG, enterRoom: enterRoom, leaveRoom: leaveRoom, inRoom: function () { return PLACE.vis === 'inside' ? IN.key : null; }, roomSlots: inSlots, debugRoomStub: inStub,   /* 11-22 계약 C9: 걸어 들어가는 방 */
       project: function (x, y, z) { var g = groupOf(PLACE.vis), p = _hp.set(+x || 0, +y || 0, +z || 0); if (g) p.add(g.position); p.project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 지금 보이는 장소의 좌표 → #scene 안 CSS px (카드 · 표를 붙일 자리) */
       wideReg: WIDE_REG,   /* 시험 · 다른 스크립트가 등록부에 얹을 때 (갈래 V 는 이 파일 안에서 바로 쓴다) */

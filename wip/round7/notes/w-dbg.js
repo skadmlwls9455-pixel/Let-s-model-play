@@ -16,7 +16,7 @@ var ROOT = path.resolve(__dirname, '../../..');
   await page.waitForTimeout(600);
   var S1 = '/tmp/claude-0/-home-user-Let-s-model-play/bf38d309-8ede-59ca-909d-3c51ecde03b7/scratchpad/shots/';
   page.on('console', function (m) { if (m.type() === 'error') console.log('CON ' + m.text().slice(0, 300)); });
-  await page.evaluate(function () { var sc = APP.scene, K = Math.SQRT1_2; window.__ev = []; document.addEventListener('ppol:room', function (e) { window.__ev.push(e.detail.key); }); sc.debugRoomStub('clothes'); sc.debugPlayerAt(27 * K, 27 * K); });
+  await page.evaluate(function () { var sc = APP.scene, K = Math.SQRT1_2; window.__ev = []; document.addEventListener('ppol:room', function (e) { window.__ev.push(e.detail.key); }); sc.debugRoomStub('clothes'); sc.debugPlayerAt(25 * K, 25 * K); });
   await page.waitForTimeout(500);
   var t0 = Date.now(), r1 = await page.evaluate(function () { return APP.goInside('clothes'); }); await page.waitForTimeout(500);
   console.log('in', r1, Date.now() - t0, JSON.stringify(await page.evaluate(function () { var sc = APP.scene, s = sc.stats(); return { inside: APP.inside, room: APP.room, view: sc.view(), at: sc.player().at, allowed: sc.playerInputAllowed(), calls: s.calls, prog: s.programs, zoom: sc.pan().n, ev: window.__ev, slots: sc.roomSlots('clothes'), pr: sc.project(0, 0, 0) }; })));
