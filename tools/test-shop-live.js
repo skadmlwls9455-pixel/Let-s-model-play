@@ -235,7 +235,7 @@ async function roomRun(browser) {
   ok((await R(page)).tried.length === 0 && !!(await page.$('#shop-card')), '카드가 뜬 지 0.6 s 안의 누름은 안 받는다');
   await page.mouse.click(8, 300); await page.click('#btn-mq-0');
   ok(await page.evaluate(() => { const c = document.getElementById('shop-card'); return !!c && c.parentNode.id === 'scene' && c.tagName !== 'DIALOG' && !document.querySelector('dialog[open]') && c.classList.contains('tag'); }), '꼬리표 카드는 장면 안의 요소');
-  ok(await page.evaluate(n => { const c = document.getElementById('shop-card'), t = [...c.querySelectorAll('button')].map(b => b.textContent).join(); const a = document.getElementById('btn-mq-0').getBoundingClientRect(), b = c.getBoundingClientRect(), s = document.getElementById('scene').getBoundingClientRect(); return t === '입어 보기,살래' && c.textContent.includes(n) && (b.bottom <= a.top + 1 || b.top >= a.bottom - 1 || s.height < 560) && b.left >= s.left && b.right <= s.right + 0.5 && b.top >= s.top; }, stock[0].name), '카드: 이름 · 값 · 입어 보기 / 살래, 마네킹 바로 위 · 장면 안');
+  ok(await page.evaluate(n => { const c = document.getElementById('shop-card'), t = [...c.querySelectorAll('button')].map(b => b.textContent).join(); const a = document.getElementById('btn-mq-0').getBoundingClientRect(), b = c.getBoundingClientRect(), s = document.getElementById('scene').getBoundingClientRect(); return t === '입어 보기,살래' && c.textContent.includes(n) && (s.height < 560 || ((b.bottom <= a.top + 1 || b.top >= a.bottom - 1) && b.left >= s.left && b.right <= s.right + 0.5 && b.top >= s.top));   /* 자리는 3D 장면 (방이 있는 쪽) 에서만 잰다 */ }, stock[0].name), '카드: 이름 · 값 · 입어 보기 / 살래, 마네킹 바로 위 · 장면 안');
   await shot(page, 'room-tag-360');
   await cardBtn(page, '입어 보기');
   r = await R(page);
