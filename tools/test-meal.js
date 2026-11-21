@@ -317,7 +317,7 @@ section('12 round 7: the five dishes of the recipe book', function () {
 });
 
 section('13 round 7: dish pictures and bite masks', function () {
-  check(JSON.stringify(M.pic('jeon2', { band: 2 })) === '{"id":"jeon","frame":2}' && M.pic('jeon2', {}).frame === 1 && M.pic('jeon2', { band: 9 }).frame === 2 && M.pic('jeon2', { band: -3 }).frame === 0 && M.pic('jeon2', null).frame === 1, 'jeon2 → dish.jeon, frame = band 0..2 (missing → 1)');
+  check(JSON.stringify(M.pic('jeon2', { band: 2 })) === '{"id":"jeon","frame":2}' && M.pic('jeon2', {}).frame === 0 && M.pic('jeon2', { band: 9 }).frame === 2 && M.pic('jeon2', { band: -3 }).frame === 0 && M.pic('jeon2', null).frame === 0 && M.pic('jeon2', { v: 2, s: [{}], plate: 1, band: 1 }).frame === 1, 'jeon2 → dish.jeon, frame = top-level band 0..2 (missing → 0)');
   check(M.pic('gyeran', { band: 2 }).id === 'gyeran' && M.pic('gyeran', { band: 2 }).frame === 0 && M.pic('jumeokbap2').id === 'jumeokbap' && M.pic('kkochi2').id === 'kkochi' && M.pic('cake').id === 'cake', 'the other four: frame 0');
   check(M.pic('jeon') === null && M.pic('jumeokbap') === null && M.pic('kkochi') === null && M.pic('nope') === null && M.pic(undefined) === null && M.pic('constructor') === null, 'legacy and unknown dishes have no picture');
   /* 20 x 12 picture: food rows 2..6 (x 4..15), plate rows 7..9 (x 1..18) */
