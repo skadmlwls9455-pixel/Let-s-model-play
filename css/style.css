@@ -2002,6 +2002,9 @@ button.cafe-eat:active { transform: translateY(2px); }
 .ct-wcard .ct-line { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin: 0 -6px 10px; padding: 4px 22px; font-weight: 700; color: var(--ct-ink); outline: none;
   background: linear-gradient(var(--ct-ink), var(--ct-ink)) top / 100% 2px no-repeat, linear-gradient(var(--ct-ink), var(--ct-ink)) bottom / 100% 2px no-repeat, linear-gradient(#f6d36a, #f6d36a) 0 2px / 100% 4px no-repeat, var(--ct-gold);
   clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 0 100%, 12px 50%); }
+.ct-wresult { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
+.ct-wresult .ct-line { flex: 1 1 auto; margin: 0 0 0 -4px; padding: 2px 18px; gap: 8px; }
+.ct-wresult .btn { flex: 0 0 auto; }
 .ct-wrow { margin-top: 0; justify-content: flex-end; flex-wrap: nowrap; }
 .ct-wrow .btn.primary { flex: 1 1 auto; min-height: 44px; }
 .ct-whud { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
