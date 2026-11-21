@@ -214,7 +214,7 @@ section('7 글 · 그림', function () {
   lines.forEach(function (s) { check(!CLAIM.test(s) && !SYMBOL.test(s) && !PRESS.test(s), '글: ' + s); });
   check(C.TEXT.closed === '주말에 열려.' && C.TEXT.rule === '채점 규칙', "'주말에 열려.' · '채점 규칙'");
   check(!/싶대|싶어|싶었|싶다|싶은|궁금했|궁금해|끌렸/.test(SRC), '파일 전체 (주석 포함) 에 바람 말 없음');
-  var arts = C.THEMES.map(function (t) { return C.art('theme', t.id); }).concat(C.STYLES.map(function (s) { return C.art('tag', s); })).concat([C.art('tag', 'match'), C.art('tag', 'c-pink'), C.art('star'), C.art('oct', null, '#123456'), C.art('oct', 'bow', '#123456'), C.art('oct', 'cap', '#123456'), C.art('oct', 'flower', '#123456'), C.art('oct', 'star', '#123456')]);
+  var arts = C.THEMES.map(function (t) { return C.art('theme', t.id); }).concat(C.STYLES.map(function (s) { return C.art('tag', s); })).concat([C.art('tag', 'match'), C.art('tag', 'c-pink'), C.art('star'), C.art('oct', null, '#123456'), C.art('oct', 'bow', '#123456'), C.art('oct', 'cap', '#123456'), C.art('oct', 'flower', '#123456'), C.art('oct', 'star', '#123456'), C.art('oct', 'beret', '#123456')]);
   arts.forEach(function (a, i) {
     var ok = !!a && a.rows.length === a.h && a.rows.every(function (r) { return r.length === a.w && r.split('').every(function (ch) { return ch === '.' || ('xXh'.indexOf(ch) >= 0 && !!a.tint) || !!a.pal[ch]; }); });
     check(ok, '그림 ' + i + ' 줄 길이 · 팔레트');

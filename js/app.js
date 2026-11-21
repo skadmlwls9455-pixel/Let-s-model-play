@@ -6068,17 +6068,23 @@ var APP = (function () {
       ctPodium(e, 'on'), ctCards(e, th, 'on')
     ]);
   }
+  function ctBand() {   /* 시트 머리: 막 그림 띠 — 왼쪽에 옷가게 문어 (N 의 명단이 있으면 그 색 · 베레모), 가운데 간판, 오른쪽에 조개 지갑 */
+    var kp = $('ct-keeper'), pu = $('ct-purse'), who = ctNpc('clothes');
+    if (kp) { kp.textContent = ''; var o = ctArt('oct', who ? 'beret' : null, 3, (who && who.color) || '#8a8494', who && who.name ? who.name : CT.fill(CT.TEXT.ariaJudge, { n: 1 })); if (o) kp.appendChild(o); }
+    if (pu) { pu.textContent = ''; pu.appendChild(shellAmt(userState().shells)); }
+  }
   function ctRender() {
     var body = $('contest-body'); if (!body || !CT) return;
+    ctBand();
     var wk = CT.week(todayKey()); if (!wk) return;
     var e = ctEntry(), frag = document.createDocumentFragment();
     if (ctRun) return;   /* 쇼 중엔 쇼가 그린다 */
     frag.appendChild(ctThemeHead(wk.theme, true));
-    var me = ctMe('full', e ? 1 : 2, CT.TEXT.ariaMe), chg = h('button', { type: 'button', class: 'btn sm pressable', id: 'ct-change', text: CT.TEXT.change });
+    var me = e ? null : ctMe('full', 2, CT.TEXT.ariaMe), chg = h('button', { type: 'button', class: 'btn sm pressable', id: 'ct-change', text: CT.TEXT.change });
     chg.addEventListener('click', function () { openLook(); });
-    frag.appendChild(h('div', { class: 'ct-mine' }, [h('div', { class: 'ct-stage ct-solo' }, [me]), chg]));
-    if (e) frag.appendChild(ctResult(e));
-    else if (wk.open) { var go = h('button', { type: 'button', class: 'btn wide pressable ct-go', id: 'ct-go', text: CT.TEXT.enter }); go.addEventListener('click', ctEnter); frag.appendChild(go); }
+    if (e) frag.appendChild(ctResult(e));   /* 나간 날은 결과만 (그날은 옷을 바꿔도 결과가 그대로라 옷 갈아입기를 두지 않는다) */
+    else frag.appendChild(h('div', { class: 'ct-mine' }, [h('div', { class: 'ct-stage ct-solo' }, [me]), chg]));
+    if (e) { /* 결과가 다 한다 */ } else if (wk.open) { var go = h('button', { type: 'button', class: 'btn wide primary pressable ct-go', id: 'ct-go', text: CT.TEXT.enter }); go.addEventListener('click', ctEnter); frag.appendChild(go); }
     else frag.appendChild(h('p', { class: 'ct-closed', id: 'ct-closed', text: CT.TEXT.closed }));
     body.textContent = ''; body.appendChild(frag); body.dataset.view = e ? 'result' : wk.open ? 'open' : 'closed';
   }
@@ -6087,7 +6093,10 @@ var APP = (function () {
     ctMine = ctMine.filter(function (m) { return m.born === born && m.t > importAt; });   /* 다른 문어 (초기화) 의 것 · 기록을 불러오기 전의 것은 버린다 (불러온 기록을 바꾸지 않게) */
     if (!CT || !ctMine.length) return false;
     var u = userState(), lost = ctMine.filter(function (m) { return !CT.today(u, m.dk); });
-    if (!lost.length) return false;
+    if (!lost.length) {   /* 이 탭엔 남아 있는데 저장소에서만 빠졌으면 (그 저장을 이 탭이 받아들이지 않은 때) 다시 적어 둔다 */
+      try { var st = storeOK ? JSON.parse(localStorage.getItem(KEY) || 'null') : null; if (st && ctMine.some(function (m) { return !CT.today(st.user, m.dk); })) save(); } catch (e) { /* noop */ }
+      return false;
+    }
     var mine = { v: 1, weeks: {} };
     lost.forEach(function (m) { var wk = CT.week(m.dk); if (!mine.weeks[wk.key]) mine.weeks[wk.key] = { theme: wk.theme.id, days: {} }; mine.weeks[wk.key].days[m.dk] = m.entry; u.shells += CT.shellsOf(m.entry); });
     u.contest = CT.merge(mine, u.contest); save(); return true;
@@ -6100,7 +6109,7 @@ var APP = (function () {
     var res = CT.enter(u, dk, ctWorn(), { catalog: ctCats(), salt: S.octopus.born || 0, at: Date.now() });
     if (!res) { ctRender(); return; }
     var e = res.entry;
-    if (!e.paid) { e.paid = true; u.shells += CT.shellsOf(e); ctMine.push({ dk: dk, entry: e, born: S.octopus.born || 0, t: performance.now() }); save(); renderBagChip(); ctLogSync(); ctTell = e; }   /* 조개는 여기 한 번만 (주간 선물과 같은 방식) */
+    if (!e.paid) { e.paid = true; u.shells += CT.shellsOf(e); ctMine.push({ dk: dk, entry: e, born: S.octopus.born || 0, t: performance.now() }); save(); renderBagChip(); ctLogSync(); ctBand(); ctTell = e; }   /* 조개는 여기 한 번만 (주간 선물과 같은 방식) */
     if (res.replay || reduced()) { ctRender(); ctFocusLine(); ctTold(); return; }
     ctShow(e);
   }
