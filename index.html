@@ -187,9 +187,8 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <!-- 가방 꼬리표 (11-10): 위쪽 바 아래 오른쪽에 매달린 조개 그림 + N (11-15 주인 답: 글자 '조개' 대신 그림) — 누르면 살림 시트 (조개 · 씨앗 · 들어온 날 · 텃밭 · 옷 물들이기). 이름을 지은 뒤부터 보인다 -->
   <button type="button" id="btn-bag" class="bag-tag pressable" aria-haspopup="dialog" aria-controls="bag-sheet" hidden><img class="bag-shell" data-icon="souvenir/shell" width="32" height="32" alt="" aria-hidden="true" draggable="false"><span class="sr-only">조개 </span><span id="bag-n">0</span></button>
   <button type="button" id="btn-machine" class="scene-spot" aria-label="다락방 달리기" title="다락방 달리기" aria-haspopup="dialog" hidden></button>
-  <!-- 11-18 위층 계단: 계단 그림 위 투명 단추 (data-spot="over"). 계단이 화면 가장자리 밖이면 (계단은 왼벽 앞쪽 구석 — 360px 폰의 기본 구도에선 안 보인다)
-       data-spot="edge" 로 그쪽 가장자리의 작은 계단 그림 단추 (16×16 ×2, 직접 그린 픽셀 그림) — 누르면 걸어가 오른다 -->
-  <button type="button" id="btn-stair" class="scene-spot" aria-label="위층으로" title="위층으로" hidden><span class="stair-box" aria-hidden="true"><svg class="stair-ico" viewBox="0 0 16 16" width="32" height="32" shape-rendering="crispEdges" focusable="false"><path fill="#2b1d22" d="M2 2h3v1H2zM1 3h1v1H1zM5 3h1v1H5zM1 4h1v1H1zM5 4h1v1H5zM1 5h1v1H1zM5 5h3v1H5zM1 6h1v1H1zM8 6h1v1H8zM1 7h1v1H1zM8 7h1v1H8zM1 8h1v1H1zM8 8h3v1H8zM1 9h1v1H1zM11 9h1v1H11zM1 10h1v1H1zM11 10h1v1H11zM1 11h1v1H1zM11 11h3v1H11zM1 12h1v1H1zM14 12h1v1H14zM1 13h1v1H1zM14 13h1v1H14zM1 14h1v1H1zM14 14h1v1H14zM2 15h12v1H2z"/><path fill="#e7d5b3" d="M2 3h3v1H2zM5 6h3v1H5zM8 9h3v1H8zM11 12h3v1H11z"/><path fill="#ad7757" d="M2 4h2v1H2zM2 5h2v1H2zM2 6h3v1H2zM2 7h5v1H2zM2 8h5v1H2zM2 9h6v1H2zM2 10h8v1H2zM2 11h8v1H2zM2 12h9v1H2zM2 13h11v1H2zM2 14h11v1H2z"/><path fill="#7a4841" d="M4 4h1v1H4zM4 5h1v1H4zM7 7h1v1H7zM7 8h1v1H7zM10 10h1v1H10zM10 11h1v1H10zM13 13h1v1H13zM13 14h1v1H13z"/></svg></span></button>
+  <!-- 11-18 위층 계단: 계단 그림 위 투명 단추 (data-spot="over"). 11-21 (주인): 가장자리의 계단 그림 단추는 없앴다 — 계단이 화면 밖이면 가장자리의 안 보이는 칸 (data-spot="key": 키보드 · 낭독기만) -->
+  <button type="button" id="btn-stair" class="scene-spot" aria-label="위층으로" title="위층으로" hidden></button>
   <button type="button" id="btn-loft-stair" class="scene-spot" aria-label="아래층으로" title="아래층으로" hidden></button>
   <button type="button" id="btn-plot0" class="scene-spot" aria-label="텃밭 첫째 칸" title="텃밭" hidden></button>
   <button type="button" id="btn-plot1" class="scene-spot" aria-label="텃밭 둘째 칸" title="텃밭" hidden></button>
@@ -229,6 +228,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <!-- [7-S] 단추 -->
 
   <!-- [7-C] 단추 -->
+  <div id="cafe-tray" class="cafe-tray" hidden></div>
 
   <!-- [7-N] 단추 -->
 
@@ -260,7 +260,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <div id="status">
   <div class="srow">
     <!-- #brain-tag: 데모 두뇌(규칙)가 고르는 동안 늘 보이는 아주 작은 표시 (정직 표기). 모델(MCP) 여행을 재생하는 동안만 숨긴다 (app.js renderBrainTag) -->
-    <span class="who"><span id="oct-name" class="name">이름 없는 문어</span><button type="button" id="brain-tag" class="brain-tag"><span aria-hidden="true">데모</span><span class="sr-only">데모 규칙이 움직이는 중</span></button><span id="room-title" class="room-title">불씨 하나 켜진 다락</span></span>
+    <span class="who"><span id="oct-name" class="name">이름 없는 문어</span><button type="button" id="brain-tag" class="brain-tag"><span aria-hidden="true">데모</span><span class="sr-only">데모 규칙이 움직이는 중</span></button><span id="day-n" class="day-n" hidden></span></span>
     <button type="button" id="pips" class="pips" aria-label="등불 0/8"><span class="pips-lbl" aria-hidden="true">등불</span><span class="pip-row" aria-hidden="true"></span><span class="pips-n" aria-hidden="true">0/8</span></button>
   </div>
   <p id="tip" class="tip" role="status" aria-live="polite"></p>
@@ -411,10 +411,47 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- [7-S] 창 -->
 
 <!-- [7-C] 창 -->
+<dialog id="cafe-sheet" class="sheet bag-sheet cafe-sheet" aria-labelledby="cafe-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="cafe-h" class="set-h dlg-top" tabindex="-1">카페</h2>
+  <div id="cafe-body"></div>
+  <button type="button" class="btn wide pressable" id="cafe-close">닫기</button>
+</dialog>
+<dialog id="lp-sheet" class="sheet bag-sheet cafe-sheet" aria-labelledby="lp-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="lp-h" class="set-h dlg-top" tabindex="-1">레코드</h2>
+  <div id="lp-body"></div>
+  <button type="button" class="btn wide pressable" id="lp-close">닫기</button>
+</dialog>
 
 <!-- [7-N] 창 -->
+<!-- 11-21 마을 문어의 말 (app.js npcSay): 대본을 읽는 인물 — 이름표는 늘 '이름 · 대본'. 모달이 아니다 (포커스를 가두지 않는다) -->
+<div id="npc-box" class="npc-box" role="group" aria-label="마을 문어의 말" hidden>
+  <canvas id="npc-face" class="npc-face" width="16" height="16" aria-hidden="true"></canvas>
+  <div class="npc-say" aria-live="polite" aria-atomic="true"><span id="npc-tag" class="npc-tag"></span><p id="npc-text" class="npc-text"></p></div>
+  <button type="button" id="npc-next" class="npc-next" aria-label="다음 말"></button>
+</div>
+<!-- 11-21 게시판 (광장 #btn-plaza-board): 낡은 쪽지 넷 — 그림 + 한 줄 (app.js openStory) -->
+<dialog id="story-sheet" class="sheet story-sheet" aria-labelledby="story-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="story-h" class="story-h dlg-top" tabindex="-1">게시판</h2>
+  <ol id="story-notes" class="story-notes"></ol>
+  <div class="story-btns"><button type="button" class="btn pressable" id="story-close">닫기</button></div>
+</dialog>
+<!-- 11-21 처음 한 번 보는 세 줄 (app.js storyIntro · js/intro.js 가 타이틀 뒤에 부른다) -->
+<div id="story-intro" class="story-intro" role="group" aria-label="이야기" hidden>
+  <button type="button" id="story-next" class="story-next" aria-label="다음 줄"></button>
+  <p id="story-line" class="story-line" aria-live="polite"></p>
+  <button type="button" id="story-skip" class="story-skip pressable">건너뛰기</button>
+</div>
 
 <!-- [7-F] 창 -->
+<dialog id="contest-sheet" class="sheet bag-sheet contest-sheet" aria-labelledby="contest-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="contest-h" class="set-h dlg-top" tabindex="-1">주말 콘테스트</h2>
+  <div id="contest-body"></div>
+  <button type="button" class="btn wide pressable" id="contest-close">닫기</button>
+</dialog>
 
 <!-- [7-U] 창 -->
 
@@ -499,10 +536,14 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- [7-S] 스크립트 -->
 
 <!-- [7-C] 스크립트 -->
+<script src="js/cafe.js"></script>
+<script src="js/cafe-music.js"></script>
 
 <!-- [7-N] 스크립트 -->
+<script src="js/npc.js"></script><!-- 마을 문어 (전역 NPC, 11-21): 명단 · 대본 · 게시판 쪽지 · 처음 세 줄. DOM 없음 -->
 
 <!-- [7-F] 스크립트 -->
+<script src="js/contest.js"></script><!-- 11-21 주말 콘테스트 규칙 (전역 CONTEST, DOM 없음): 주제 · 채점 · 경쟁자 · 하루 한 번 (docs/CONTEST.md) -->
 
 <!-- [7-U] 스크립트 -->
 

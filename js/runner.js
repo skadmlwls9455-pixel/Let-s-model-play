@@ -348,12 +348,13 @@ var RUNNER = (function () {
       ctrls, overP
     ]);
     document.body.appendChild(dlg);
-    close.addEventListener('click', function () { dlg.close(); });
-    btnStop.addEventListener('click', function () { dlg.close(); });
+    close.addEventListener('click', shut);
+    btnStop.addEventListener('click', shut);
+    dlg.addEventListener('cancel', function (e) { e.preventDefault(); shut(); });   /* Esc · 뒤로: 우리가 닫는다 (아래 shut) */
     btnAgain.addEventListener('click', function () { if (!btnAgain.disabled) prepare(); });
     document.getElementById('rn-submit').addEventListener('click', submitRun);
     document.getElementById('rn-nick').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submitRun(); } });
-    dlg.addEventListener('close', onClose);
+    dlg.addEventListener('close', function () { if (shutSync) { shutSync = false; return; } onClose(); });   /* shut 이 이미 적었으면 건너뛴다 */
     dlg.addEventListener('keydown', onKey); dlg.addEventListener('keyup', onKey);
     /* 11-15 5차 (주인 답 '화면 반쪽씩'): 화면 왼쪽 반 어디든 = 점프, 오른쪽 반 어디든 = 숙이기 (꾹 누르면 더 높이 그대로).
        동그라미 둘은 자리 표시 — 누른 쪽 동그라미가 눌린 모양이 된다. 손가락마다 어느 쪽인지 기억해 두 엄지를 같이 써도 된다.
@@ -602,6 +603,10 @@ var RUNNER = (function () {
     document.getElementById('rn-best').textContent = String(bestOf(L.store));   /* 11-15 5차: '최고' 글자 → 왕관 그림 (buildDialog) */   /* 이끼 수는 뺐다 (점수에 이미 들어 있다 — 위에는 점수·최고만) */
     snapText(document.getElementById('rn-score')); snapText(document.getElementById('rn-best'));   /* 11-15 (검증 R-1): 글이 바뀔 때만 — 점수 폭이 바뀌면 최고 자리도 옮겨 간다 */
   }
+  /* 11-21: 닫는 그 자리에서 판을 적는다. 'close' 이벤트는 창이 닫힌 뒤 한 박자 늦게 온다 — 그 사이엔 창은 닫혔는데 판 기록이 아직 없었다
+     (장면이 닫힘을 보고 다시 그리기 시작하면 그 틈이 더 벌어진다: 스모크 R 이 CI 에서 걸림). 닫기 단추 · 닫기 (결과 판) · Esc · RUNNER.close() 가 다 여기로 온다 */
+  var shutSync = false;
+  function shut() { if (!dlg || !dlg.open) return; shutSync = true; dlg.close(); onClose(); }
   function onClose() {
     if (L) {
       if (L.state === 'run' || L.state === 'pause') { while (L.queue.length) { var a = L.queue.shift(); if (applyInput(L.sim, a)) L.inputs.push({ t: L.sim.tick, a: a }); } saveRun('quit'); }
@@ -786,7 +791,7 @@ var RUNNER = (function () {
   /* 입구는 app.js 의 놀이방 문 (#btn-door → APP.goRoom('play') → RUNNER.open({ opener })). 예전처럼 다른 시트에 버튼을 끼워 넣지 않는다 (방 보기는 없앴다, 주인 11-07).
      닫으면 포커스는 연 버튼(문)으로 돌아간다 (onClose) */
   API.open = open;
-  API.close = function () { if (dlg && dlg.open) dlg.close(); };
+  API.close = function () { shut(); };
   API.load = load;
   API.pix = function (name) { return PIX[name] ? pixSVG(PIX[name]) : ''; };   /* 11-18: 12×12 픽셀 그림 SVG (다락 첫 손 힌트가 이 손을 빌려 쓴다 — js/app.js hint) */
   API.sprites = function () { return buildSprites(); };   /* 시험용 (11-18): 지금 장면 색으로 구운 문어 그림 묶음 { src, run[4], jump, land, duck, hit, idle, gw } */
