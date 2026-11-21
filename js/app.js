@@ -5608,6 +5608,12 @@ var APP = (function () {
     var img = MEALR.biteMask(s, c.eaten, c.line, 2); if (!img) return;
     if (cv.width !== w * n || cv.height !== hh * n) { cv.width = w * n; cv.height = hh * n; }
     var g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height);
+    /* 11-21 (UI 2차 · 규칙 3): 빈 종이 칸이 아니라 식탁 위 — 그릇 줄 아래로 나무 상판 (밝은 앞 모서리 한 줄 · 나뭇결 두 줄) 과 그릇 밑 그림자 */
+    var ty = Math.max(0, Math.min(hh - 6, c.line - 6)), cx0 = w >> 1, shY = Math.min(hh - 2, c.line + 9);
+    function band(y0, y1, col) { g.fillStyle = col; g.fillRect(0, y0 * n, w * n, (y1 - y0) * n); }
+    band(ty, hh, '#a05b53'); band(ty, ty + 1, '#c09473'); band(ty + 1, ty + 2, '#ad7757'); band(hh - 2, hh, '#7a4841');
+    g.fillStyle = '#8a4f4b'; [[6, ty + 7, 22], [44, ty + 11, 26], [16, hh - 6, 30]].forEach(function (q) { if (q[1] < hh - 2) g.fillRect(q[0] * n, q[1] * n, q[2] * n, n); });
+    g.fillStyle = '#7a4841'; for (var sy = -3; sy <= 3; sy++) { var sw = Math.round(30 * Math.sqrt(1 - sy * sy / 16)); if (shY + sy > ty + 2 && shY + sy < hh - 2) g.fillRect((cx0 - sw) * n, (shY + sy) * n, sw * 2 * n, n); }
     for (var y = 0; y < hh; y++) for (var x = 0; x < w; x++) {
       var k = (y * w + x) * 4; if (img[k + 3] < 128) continue;
       g.fillStyle = 'rgb(' + img[k] + ',' + img[k + 1] + ',' + img[k + 2] + ')'; g.fillRect(x * n, y * n, n, n);
