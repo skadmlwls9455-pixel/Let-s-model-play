@@ -5877,14 +5877,11 @@ var APP = (function () {
     npcEnd(false);   /* 앞의 말은 접는다 (한 번에 하나) */
     return new Promise(function (res) { npcNow = { ln: ln, i: 0, res: res, opener: document.activeElement }; npcMarkSet(id, true); npcShow(); });
   }
-  /* 장면에 오늘의 문어들 (V 갈래의 scene.npcSet 이 있을 때만). 11-21 밤 (계약 C14): 걸어 들어가는 방이 있는 장면 (scene.inRoom) 이면 지금 있는 곳의 문어만 —
-     방 안 = 그 방의 가게 문어 (V 의 keeper 칸) · 바깥 = 자는 문어들. 방이 바뀌면 W 의 ppol:room 이벤트로 다시 넘긴다 */
-  var npcRoom;   /* undefined = 방이 없는 장면 · null = 바깥 · 'clothes' … = 그 방 */
+  /* 장면에 오늘의 문어들 (V 갈래의 scene.npcSet 이 있을 때만). 가게 문어를 가게 앞과 방 안 keeper 칸 어디에 그릴지는 장면이 정한다 (계약 C14) */
   function npcSync() {
     if (!NPCR || !scene || typeof scene.npcSet !== 'function') return false;
-    if (typeof scene.inRoom === 'function') { try { npcRoom = scene.inRoom() || null; } catch (e) { /* 장면 쪽 문제: 마지막으로 안 값 그대로 */ } }
-    var dk = todayKey(), stamp = dk + '|' + npcRoom; if (npcDay === stamp) return false;
-    try { scene.npcSet(npcRoom === undefined ? NPCR.list(dk) : NPCR.list(dk, npcRoom)); npcDay = stamp; return true; } catch (e) { return false; }
+    var dk = todayKey(); if (npcDay === dk) return false;
+    try { scene.npcSet(NPCR.list(dk)); npcDay = dk; return true; } catch (e) { return false; }
   }
   /* 게시판 (#btn-plaza-board → #story-sheet): 낡은 쪽지 넷을 그림 + 한 줄로. 본 쪽지는 S.user.story.notices 에 날짜로 (계약 C8) */
   function storyState() { var u = userState(); if (NPCR) NPCR.normalize(u); return u.story; }
@@ -6001,10 +5998,7 @@ var APP = (function () {
     document.addEventListener('close', function () { if (npcNow) npcEnd(false); }, true);   /* 말이 떠 있던 창이 닫히면 말도 접는다 */
     window.addEventListener('resize', function () { var box = $('npc-box'); if (npcNow && box) npcPlace(box); });
     document.addEventListener('visibilitychange', function () { if (!document.hidden) npcSync(); });
-    document.addEventListener('ppol:room', function (e) {   /* 방에 들어가거나 나왔다 (W): 떠 있던 말은 접고 그곳의 문어로 */
-      var k = e && e.detail ? e.detail.key : null; npcRoom = typeof k === 'string' && k ? k : null;
-      if (npcNow) npcEnd(false); npcSync();
-    });
+    document.addEventListener('ppol:room', function () { if (npcNow) npcEnd(false); });   /* 방에 들어가거나 나왔다 (W): 떠 있던 말은 접는다 */
     setInterval(npcSync, 60000);   /* 열어 둔 채 날이 바뀌면 */
     var bd = $('btn-plaza-board'); if (bd) bd.addEventListener('click', openStory);
     var sd = $('story-sheet');
