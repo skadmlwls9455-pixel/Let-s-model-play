@@ -322,6 +322,8 @@ async function main() {
   check(took > 6000 && took < 20000, '쇼 길이 (' + took + 'ms)');
   r = await wcard(page);
   check(r && r.kind === 'result' && r.inScene && !r.dialog && r.text.indexOf('채점 규칙') >= 0 && r.text.indexOf(e.rank + '등') >= 0, "결과 카드: 등수 · '채점 규칙'");
+  await page.waitForTimeout(500);
+  check(await page.evaluate(function () { var sr = document.getElementById('scene').getBoundingClientRect(); return Array.prototype.every.call(document.querySelectorAll('#ct-world .ct-wplac'), function (p, i) { var r = p.getBoundingClientRect(); return Math.abs((r.left + r.width / 2 - sr.left) - (40 + (i + 1) * 64)) < 3; }); }), '팻말이 심사 문어 자리 (화면 좌표) 에 붙음');
   check(await page.evaluate(function () { return document.querySelectorAll('#ct-world .ct-wplac').length === 3 && Array.prototype.every.call(document.querySelectorAll('#ct-world .ct-wplac'), function (p) { var n = p.querySelectorAll('.ct-stars canvas').length; return n >= 1 && n <= 3 && !!p.getAttribute('aria-label'); }); }), '심사 팻말 셋 (별 1~3)');
   r = await page.evaluate(function () { var sc = window.__sc; return { poses: sc.filter(function (c) { return c[0] === 'pose'; }).map(function (c) { return c[1]; }), walk: sc.filter(function (c) { return c[0] === 'walk'; }).map(function (c) { return c[1]; }), pod: sc.filter(function (c) { return c[0] === 'place' && /^rival/.test(c[1]) && c[3] === 5; }).map(function (c) { return c[1]; }), me: sc.filter(function (c) { return c[0] === 'me'; }).length, said: window.__npcSaid.map(function (x) { return x[0] + ':' + x[1]; }) }; });
   check(r.poses.indexOf('twirl') >= 0 && r.poses.indexOf('pose') >= 0 && r.walk.indexOf(4) >= 0, '내 캐릭터: 길을 걷고 · 돌고 · 선다');
