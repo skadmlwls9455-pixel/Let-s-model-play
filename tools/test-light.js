@@ -324,7 +324,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
        예전 카메라는 세로로 민 만큼 높이도 내려가 s 55 쯤에서 땅 밑으로 들어갔다 → 넓은 바깥에선 땅과 나란히 움직인다 */
     var voidScan = function () {
       var sc = APP.scene, K = Math.SQRT1_2, r = document.getElementById('scene3d').getBoundingClientRect(), out = [];
-      [[0, 0, 'home'], [12, 0, 'road'], [29, 2, 'village'], [42, -7, 'plaza'], [59, 11, 'beach']].forEach(function (pt) {
+      [[0, 0, 'home'], [12, 0, 'road'], [29, 1.5, 'village'], [42, -7, 'plaza'], [59, 11, 'beach']].forEach(function (pt) {
         [0, 90, 180, 270].forEach(function (yw) {
           if (pt[2] !== 'home') sc.debugPlayerAt((pt[0] + pt[1]) * K, (pt[0] - pt[1]) * K);
           sc.setYaw(yw, true); sc.debugSim(0.1, 1); sc.wideFocus(); sc.setPlayerInput({ x: 0, y: 0.01 }); sc.debugSim(0.1, 12); sc.setPlayerInput(null); sc.debugSim(0.1, 3); sc.debugStep(0.1);
@@ -421,7 +421,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     var rw = await page.evaluate(async function () {
       var sc = APP.scene, K = Math.SQRT1_2, M = sc.wideMap(), seed = 20261121, out = 0, worst = null, n = 0, seen = {}, tick = function () { return new Promise(function (q) { setTimeout(q, 0); }); };
       function rnd() { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }
-      var starts = [[3, 0], [10, 1], [25, -2], [33, 5], [42, 6], [47.5, 0], [55, -10], [60, 7]];
+      var starts = [[3, 0], [10, 1], [25, -2], [33, 5], [42, 6], [47.5, 0], [55, -10], [60, 7]];   /* 마을 길 (±2.2) · 카페 마루 · 부두 안에서도 출발 */
       for (var si = 0; si < starts.length; si++) {
         sc.debugPlayerAt((starts[si][0] + starts[si][1]) * K, (starts[si][0] - starts[si][1]) * K);
         for (var f = 0; f < 25000; f++) {
@@ -437,7 +437,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
       sc.setPlayerInput(null); sc.debugSim(0.1, 2);
       return { n: n, out: out, worst: worst, seen: Object.keys(seen).sort() };
     });
-    ok(rw.n === 200000 && rw.out === 0 && rw.seen.length === 7, 'L10 막걷기 ' + rw.n + ' 프레임: 걷는 곳 밖으로 나간 프레임 ' + rw.out + (rw.worst ? ' (처음: [출발, 프레임, s, t] ' + JSON.stringify(rw.worst) + ')' : '') + ' · 밟은 곳 ' + rw.seen.join(' '));
+    ok(rw.n === 200000 && rw.out === 0 && rw.seen.length === 8, 'L10 막걷기 ' + rw.n + ' 프레임: 걷는 곳 밖으로 나간 프레임 ' + rw.out + (rw.worst ? ' (처음: [출발, 프레임, s, t] ' + JSON.stringify(rw.worst) + ')' : '') + ' · 밟은 곳 ' + rw.seen.join(' '));
     await o.ctx.close();
     /* 표지판 → 빠른 이동 창 (#travel-pick): 진짜 톡 · 진짜 프레임으로. 칩은 그림만 (글자 0 · title 없음) · 선 곳의 칩은 숨김 · Esc 는 닫고 표지판 단추로 돌아온다 · 고르면 그곳에 선다 */
     o = await open(browser, 8, { hour: 13, weather: 'clear' }); page = o.page;
