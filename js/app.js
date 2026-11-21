@@ -5811,7 +5811,7 @@ var APP = (function () {
   };
   function npcShade(hex, k) { var n = parseInt(hex.slice(1), 16), r = Math.round((n >> 16) * k), g = Math.round(((n >> 8) & 255) * k), b = Math.round((n & 255) * k); return 'rgb(' + r + ',' + g + ',' + b + ')'; }
   function npcFace(cv, who) {   /* 그림 16×16 px, 그림 px 하나 = 기기 px 정수 (또렷하게) */
-    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.round(3 * dpr)), c = cv.getContext('2d'), x, y, ch;
+    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.round(3.5 * dpr)), c = cv.getContext('2d'), x, y, ch;   /* 11-21 UI 둘째: 초상 56px 쯤 (그림 px = 기기 px 정수) */
     cv.width = cv.height = 16 * k; cv.style.width = cv.style.height = (16 * k / dpr) + 'px';
     c.imageSmoothingEnabled = false; c.clearRect(0, 0, cv.width, cv.height);
     for (y = 0; y < 16; y++) for (x = 0; x < 16; x++) {
@@ -5827,11 +5827,11 @@ var APP = (function () {
     w = Math.min(420, Math.max(200, Math.min(vw, r.right) - Math.max(0, r.left) - 16));
     box.style.width = w + 'px'; hh = box.offsetHeight;
     left = (Math.max(0, r.left) + Math.min(vw, r.right) - w) / 2;
-    if (inDlg) { var dr = box.parentNode.getBoundingClientRect(); top = dr.top - hh - 8 >= 8 ? dr.top - hh - 8 : 8; }
+    if (inDlg) { var dr = box.parentNode.getBoundingClientRect(); top = dr.top - hh - 8 >= 36 ? dr.top - hh - 8 : 36; }   /* 36: 상자 위에 서는 이름표 자리 */
     else {
-      top = Math.max(8, Math.min(vh, r.bottom) - hh - 8);
+      top = Math.max(36, Math.min(vh, r.bottom) - hh - 12);
       var t = $('toast'), tr = t && t.classList.contains('show') && t.parentNode === document.body ? t.getBoundingClientRect() : null;   /* 떠 있는 알림과 겹치면 그 위로 */
-      if (tr && tr.height && tr.top < top + hh && tr.bottom > top) top = Math.max(8, tr.top - hh - 16);
+      if (tr && tr.height && tr.top < top + hh && tr.bottom > top) top = Math.max(36, tr.top - hh - 16);
     }
     box.style.left = (Math.round(left * dpr) / dpr) + 'px'; box.style.top = (Math.round(top * dpr) / dpr) + 'px';
   }
@@ -5887,7 +5887,7 @@ var APP = (function () {
     leave: [['w', 0, 18, 40, 4], ['m', 0, 19, 6, 1], ['m', 12, 20, 6, 1], ['m', 28, 19, 6, 1], ['r', 22, 13, 12, 4], ['k', 28, 5, 1, 8], ['m', 29, 6, 5, 5], ['s', 2, 8, 10, 10], ['r', 1, 5, 12, 3], ['k', 5, 11, 4, 4], ['p', 5, 12, 4, 1], ['p', 5, 14, 4, 1]]
   };
   function storyPic(cv, name) {
-    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.round(2 * dpr)), c = cv.getContext('2d');
+    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.round(3 * dpr)), c = cv.getContext('2d');
     cv.width = 40 * k; cv.height = 24 * k; cv.style.width = (40 * k / dpr) + 'px'; cv.style.height = (24 * k / dpr) + 'px';
     c.imageSmoothingEnabled = false; c.clearRect(0, 0, cv.width, cv.height);
     function R(col, x, y, w, h) { c.fillStyle = col; c.fillRect(x * k, y * k, w * k, h * k); }
@@ -5896,6 +5896,42 @@ var APP = (function () {
       var x = r[1], y = r[2];   /* 작은 문어 8×9 */
       R(STORY_PAL.o, x + 1, y, 6, 1); R(STORY_PAL.o, x, y + 1, 8, 5); R(STORY_PAL.o, x, y + 6, 2, 2); R(STORY_PAL.o, x + 3, y + 6, 2, 2); R(STORY_PAL.o, x + 6, y + 6, 2, 2);
       if (r[3]) { R(STORY_PAL.k, x + 1, y + 3, 2, 1); R(STORY_PAL.k, x + 5, y + 3, 2, 1); } else { R(STORY_PAL.k, x + 2, y + 2, 1, 2); R(STORY_PAL.k, x + 5, y + 2, 1, 2); }
+    });
+  }
+  /* 11-21 UI 둘째: 처음 세 줄의 그림 (한 줄에 한 장, 그림 80×60 px): 도시의 사무실 · 바다로 가는 길 · 다락 창. [색, x, y, w, h]… · 'O' = 작은 문어 (x, y, 색, 눈 감음) */
+  var VIG = [
+    [['#1b2444', 0, 0, 80, 60], ['#24305a', 4, 4, 72, 30], ['#141a33', 8, 14, 10, 20], ['#141a33', 20, 8, 8, 26], ['#141a33', 30, 18, 12, 16], ['#141a33', 44, 10, 9, 24], ['#141a33', 55, 16, 8, 18], ['#141a33', 65, 12, 9, 22],
+      ['#e8c46a', 10, 17, 2, 2], ['#e8c46a', 14, 23, 2, 2], ['#e8c46a', 22, 11, 2, 2], ['#e8c46a', 24, 19, 2, 2], ['#e8c46a', 33, 22, 2, 2], ['#e8c46a', 38, 27, 2, 2], ['#e8c46a', 46, 14, 2, 2], ['#e8c46a', 49, 22, 2, 2], ['#e8c46a', 57, 20, 2, 2], ['#e8c46a', 67, 16, 2, 2], ['#e8c46a', 70, 25, 2, 2],
+      ['#0f1428', 39, 4, 2, 30], ['#0f1428', 4, 34, 72, 2], ['#2a2f4a', 0, 36, 80, 24],
+      ['O', 3, 36, '#4a86d8'], ['O', 19, 36, '#9a5cc8'], ['O', 35, 36, '#4fa868'], ['O', 51, 36, '#f08a3c'],
+      ['#e8c9a0', 67, 38, 6, 6], ['#5a3b28', 66, 36, 8, 3], ['#5a3b28', 66, 39, 1, 3], ['#2a1d16', 68, 40, 1, 2], ['#2a1d16', 71, 40, 1, 2],
+      ['#5a4636', 0, 44, 80, 3], ['#3b2a20', 0, 47, 80, 13], ['#4a352a', 0, 52, 80, 1],
+      ['#0f1428', 12, 37, 5, 7], ['#9fd0e0', 12, 38, 1, 5], ['#0f1428', 28, 37, 5, 7], ['#9fd0e0', 28, 38, 1, 5], ['#0f1428', 44, 37, 5, 7], ['#9fd0e0', 44, 38, 1, 5], ['#0f1428', 60, 37, 5, 7], ['#9fd0e0', 60, 38, 1, 5], ['#0f1428', 75, 38, 4, 6], ['#9fd0e0', 75, 39, 1, 4],
+      ['#f3ead6', 6, 48, 4, 3], ['#f3ead6', 7, 47, 4, 1], ['#f3ead6', 22, 47, 5, 4], ['#f3ead6', 38, 48, 4, 3], ['#f3ead6', 53, 47, 5, 2], ['#f3ead6', 54, 49, 5, 2], ['#f3ead6', 56, 46, 4, 1]],
+    [['#f6c9a0', 0, 0, 80, 10], ['#f8dcb4', 0, 10, 80, 8], ['#fbecc8', 0, 18, 80, 6], ['#fff6dc', 34, 14, 12, 10], ['#5f9fb8', 0, 24, 80, 4], ['#7fb8c8', 0, 28, 80, 3], ['#f3ead6', 30, 25, 20, 1],
+      ['#6f9a5a', 0, 31, 80, 29], ['#5a8548', 0, 28, 26, 6], ['#5a8548', 56, 27, 24, 7], ['#4a7440', 0, 34, 14, 26], ['#4a7440', 68, 36, 12, 24],
+      ['#a8573f', 46, 26, 5, 2], ['#f3ead6', 46, 28, 5, 3], ['#a8573f', 53, 27, 4, 2], ['#f3ead6', 53, 29, 4, 2], ['#a8573f', 28, 27, 4, 2], ['#f3ead6', 28, 29, 4, 2],
+      ['#e8d2a0', 38, 31, 4, 4], ['#e8d2a0', 37, 35, 7, 5], ['#e8d2a0', 34, 40, 11, 6], ['#e8d2a0', 30, 46, 16, 7], ['#e8d2a0', 25, 53, 24, 7],
+      ['#5a3b28', 58, 38, 1, 10], ['#c98a2b', 55, 38, 7, 3],
+      ['#5a3b28', 34, 44, 6, 3], ['#e8c9a0', 35, 46, 4, 3], ['#3f5f8a', 34, 49, 6, 6], ['#2a1d16', 34, 55, 2, 3], ['#2a1d16', 38, 55, 2, 3], ['#a8573f', 40, 49, 3, 5],
+      ['#3f6a38', 8, 38, 6, 8], ['#3f6a38', 6, 41, 10, 4], ['#5a3b28', 10, 46, 2, 4], ['#3f6a38', 70, 42, 6, 8], ['#3f6a38', 68, 45, 10, 4], ['#5a3b28', 72, 50, 2, 4]],
+    [['#3b2a20', 0, 0, 80, 60], ['#4a352a', 0, 9, 80, 1], ['#4a352a', 0, 19, 80, 1], ['#4a352a', 0, 29, 80, 1], ['#4a352a', 0, 39, 80, 1], ['#2a1d16', 0, 0, 80, 3],
+      ['#2a1d16', 24, 6, 32, 30], ['#24305a', 26, 8, 28, 26], ['#33406e', 26, 22, 28, 12], ['#fff6dc', 43, 11, 6, 6], ['#24305a', 46, 11, 3, 3], ['#f3ead6', 30, 12, 1, 1], ['#f3ead6', 36, 17, 1, 1], ['#f3ead6', 50, 20, 1, 1], ['#f3ead6', 33, 26, 1, 1],
+      ['#2a1d16', 39, 8, 2, 26], ['#2a1d16', 26, 20, 28, 2], ['#5a4636', 22, 36, 36, 3],
+      ['#4a5584', 20, 39, 40, 2], ['#3f4870', 16, 41, 48, 3], ['#5a4636', 0, 44, 80, 16], ['#4a352a', 0, 44, 80, 1], ['#4a352a', 0, 52, 80, 1], ['#6a5a52', 18, 44, 44, 8],
+      ['O', 36, 37, '#2a1d16'], ['#f3ead6', 38, 39, 1, 2], ['#f3ead6', 41, 39, 1, 2],
+      ['#c98a2b', 66, 28, 6, 8], ['#f6d98a', 67, 30, 4, 4], ['#2a1d16', 68, 26, 2, 2], ['#5a3b28', 10, 30, 10, 14], ['#4a352a', 10, 36, 10, 1]]
+  ];
+  function storyVig(cv, n) {   /* 화면 폭 (세로는 절반 아래) 에 들어가는 가장 큰 정수 배율 */
+    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.floor(Math.min(window.innerWidth * dpr / 80, window.innerHeight * 0.5 * dpr / 60))), c = cv.getContext('2d');
+    cv.width = 80 * k; cv.height = 60 * k; cv.style.width = (80 * k / dpr) + 'px'; cv.style.height = (60 * k / dpr) + 'px';
+    c.imageSmoothingEnabled = false; c.clearRect(0, 0, cv.width, cv.height);
+    function R(col, x, y, w, h) { c.fillStyle = col; c.fillRect(x * k, y * k, w * k, h * k); }
+    (VIG[n] || []).forEach(function (r) {
+      if (r[0] !== 'O') { R(r[0], r[1], r[2], r[3], r[4]); return; }
+      var x = r[1], y = r[2], col = r[3];
+      R(col, x + 1, y, 6, 1); R(col, x, y + 1, 8, 5); R(col, x, y + 6, 2, 2); R(col, x + 3, y + 6, 2, 2); R(col, x + 6, y + 6, 2, 2);
+      if (col !== '#2a1d16') { R('#2a1d16', x + 2, y + 2, 1, 2); R('#2a1d16', x + 5, y + 2, 1, 2); }
     });
   }
   function openStory() {
@@ -5915,7 +5951,7 @@ var APP = (function () {
     if (typeof done !== 'function') done = function () {};
     if (!NPCR || !el || S.octopus.name || storyState().intro || (navigator.webdriver && !force) || !el.hidden) { done(); return false; }
     var p = $('story-line'), i = 0, over = false, t0 = Date.now(), armed = false;   /* 타이틀을 누른 그 손가락의 click 이 첫 줄을 넘기지 않게: 이 화면을 새로 누른 click 이거나 (armed) 0.4초가 지난 뒤에만 넘긴다 */
-    function show() { p.textContent = NPCR.intro[i]; el.setAttribute('data-n', String(i + 1)); }
+    function show() { p.textContent = NPCR.intro[i]; el.setAttribute('data-n', String(i + 1)); var vg = $('story-vig'); if (vg) { storyVig(vg, i); vg.classList.remove('in'); void vg.offsetWidth; vg.classList.add('in'); } }
     function end() {
       if (over) return; over = true;
       document.removeEventListener('keydown', key, true);
