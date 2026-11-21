@@ -5623,7 +5623,7 @@ var APP = (function () {
     var job = insideJob = Promise.resolve(scene.leaveRoom()).then(function (r) { if (insideJob === job) insideJob = null; syncRoomUI(); return !!(r && r.ok); }, function (e) { console.warn('[app] goOutside', e); if (insideJob === job) insideJob = null; return false; });
     return job;
   }
-  var INSIDE_NAME = { clothes: '옷가게', goods: '잡화점', cafe: '카페' }, insideWalkT = 0;
+  var INSIDE_NAME = { clothes: '옷가게', goods: '잡화점', cafe: '카페', hall: '공연장' }, insideWalkT = 0;
   document.addEventListener('ppol:room', function (e) { var k = e && e.detail ? e.detail.key : null, sc = $('scene'); syncRoomUI(); if (sc && k) sc.setAttribute('aria-label', INSIDE_NAME[k] || '가게 안'); });
   document.addEventListener('click', function (e) {   /* 방 안의 단추를 바로 누른 때 (키보드 · 화면 낭독기): 설 자리에서 멀면 누름을 삼키고 걸어간 뒤 장면이 다시 누른다. 장면이 보낸 누름 (isTrusted false) 은 그대로 */
     var t = e.target; if (!e.isTrusted || !t || !t.id || !scene || typeof scene.roomSpotGo !== 'function' || !insideNow() || !t.classList || !t.classList.contains('scene-spot')) return;
