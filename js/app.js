@@ -5832,6 +5832,11 @@ var APP = (function () {
       top = Math.max(36, Math.min(vh, r.bottom) - hh - 12);
       var t = $('toast'), tr = t && t.classList.contains('show') && t.parentNode === document.body ? t.getBoundingClientRect() : null;   /* 떠 있는 알림과 겹치면 그 위로 */
       if (tr && tr.height && tr.top < top + hh && tr.bottom > top) top = Math.max(36, tr.top - hh - 16);
+      /* 11-21 밤: 장면 안 카드 (꼬리표 · 영수증 — data-npc-avoid 를 단 것) 를 가리지 않는다. 아래 자리가 겹치면 장면 위쪽으로, 거기도 겹치면 아래 그대로 */
+      var cards = [].filter.call(document.querySelectorAll('#scene [data-npc-avoid]'), function (c) { return !c.hidden && c.offsetWidth > 0; }).map(function (c) { return c.getBoundingClientRect(); });
+      var hit = function (y) { return cards.some(function (c) { return c.right > left && c.left < left + w && c.bottom > y - 28 && c.top < y + hh; }); };
+      var up = Math.max(36, (sc ? sc.getBoundingClientRect().top : 0) + 36);
+      if (cards.length && hit(top) && !hit(up)) top = up;
     }
     box.style.left = (Math.round(left * dpr) / dpr) + 'px'; box.style.top = (Math.round(top * dpr) / dpr) + 'px';
   }
@@ -5872,10 +5877,14 @@ var APP = (function () {
     npcEnd(false);   /* 앞의 말은 접는다 (한 번에 하나) */
     return new Promise(function (res) { npcNow = { ln: ln, i: 0, res: res, opener: document.activeElement }; npcMarkSet(id, true); npcShow(); });
   }
-  function npcSync() {   /* 장면에 오늘의 문어들 (V 갈래의 scene.npcSet 이 있을 때만) */
+  /* 장면에 오늘의 문어들 (V 갈래의 scene.npcSet 이 있을 때만). 11-21 밤 (계약 C14): 걸어 들어가는 방이 있는 장면 (scene.inRoom) 이면 지금 있는 곳의 문어만 —
+     방 안 = 그 방의 가게 문어 (V 의 keeper 칸) · 바깥 = 자는 문어들. 방이 바뀌면 W 의 ppol:room 이벤트로 다시 넘긴다 */
+  var npcRoom;   /* undefined = 방이 없는 장면 · null = 바깥 · 'clothes' … = 그 방 */
+  function npcSync() {
     if (!NPCR || !scene || typeof scene.npcSet !== 'function') return false;
-    var dk = todayKey(); if (npcDay === dk) return false;
-    try { scene.npcSet(NPCR.list(dk)); npcDay = dk; return true; } catch (e) { return false; }
+    if (typeof scene.inRoom === 'function') { try { npcRoom = scene.inRoom() || null; } catch (e) { /* 장면 쪽 문제: 마지막으로 안 값 그대로 */ } }
+    var dk = todayKey(), stamp = dk + '|' + npcRoom; if (npcDay === stamp) return false;
+    try { scene.npcSet(npcRoom === undefined ? NPCR.list(dk) : NPCR.list(dk, npcRoom)); npcDay = stamp; return true; } catch (e) { return false; }
   }
   /* 게시판 (#btn-plaza-board → #story-sheet): 낡은 쪽지 넷을 그림 + 한 줄로. 본 쪽지는 S.user.story.notices 에 날짜로 (계약 C8) */
   function storyState() { var u = userState(); if (NPCR) NPCR.normalize(u); return u.story; }
@@ -5992,6 +6001,10 @@ var APP = (function () {
     document.addEventListener('close', function () { if (npcNow) npcEnd(false); }, true);   /* 말이 떠 있던 창이 닫히면 말도 접는다 */
     window.addEventListener('resize', function () { var box = $('npc-box'); if (npcNow && box) npcPlace(box); });
     document.addEventListener('visibilitychange', function () { if (!document.hidden) npcSync(); });
+    document.addEventListener('ppol:room', function (e) {   /* 방에 들어가거나 나왔다 (W): 떠 있던 말은 접고 그곳의 문어로 */
+      var k = e && e.detail ? e.detail.key : null; npcRoom = typeof k === 'string' && k ? k : null;
+      if (npcNow) npcEnd(false); npcSync();
+    });
     setInterval(npcSync, 60000);   /* 열어 둔 채 날이 바뀌면 */
     var bd = $('btn-plaza-board'); if (bd) bd.addEventListener('click', openStory);
     var sd = $('story-sheet');
