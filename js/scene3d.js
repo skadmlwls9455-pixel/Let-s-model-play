@@ -342,8 +342,8 @@ var SCENE3D = (function () {
       { id: 'cap', name: '야구모자' }, { id: 'bandana', name: '두건' }, { id: 'headphones', name: '헤드폰' }, { id: 'scarf', name: '목도리' }, { id: 'sqglasses', name: '네모안경' }, { id: 'bag', name: '작은 가방' }] };
   /* 11-21 기본 모습 둘: PLAYER_DEFAULT = 새로 시작하는 사람의 모습 (어느 쪽으로도 읽히는 차림: 부스스 짧은 머리 · 문어 티와 청바지 · 운동화 · 장식 없음).
      PLAYER_LEGACY = 이번 판 전의 기본 (단발 · 남색 원피스 · 리본) — 이미 있던 모습에서 빠졌거나 모르는 칸은 이쪽으로 채운다 (저장된 모습이 그대로 보이게: 몸 a · 눈썹 없음) */
-  var PLAYER_DEFAULT = { hair: 'tousle', bangs: 'spiky', hairColor: 'brown', skin: 'peach', eyes: 'round', eyeColor: 'dark', brow: 'soft', nose: 'tri', mouth: 'smile', cheek: 'none', body: 'a', outfit: 'octee', shoes: 'sneaker', acc: 'none' };
-  var PLAYER_LEGACY = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', skin: 'peach', eyes: 'round', eyeColor: 'dark', brow: 'none', nose: 'tri', mouth: 'smile', cheek: 'none', body: 'a', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };
+  var PLAYER_DEFAULT = { hair: 'tousle', bangs: 'spiky', hairColor: 'brown', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'octee', shoes: 'sneaker', acc: 'none', brow: 'soft', body: 'a' };   /* 열쇠 차례 = 앱의 PLAYER_CATS (눈썹 · 몸은 뒤) */
+  var PLAYER_LEGACY = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon', brow: 'none', body: 'a' };
   /* 11-21 옷장 목록 (가게 · 콘테스트가 읽는다): 물건마다 tags (느낌 낱말 + 색 갈래 c-…) 와 shop ({ price: 조개 } | null = 누구나 가진 것). 이번 판 전부터 있던 id 는 전부 null — 입고 있던 것이 사라지지 않게.
      적는 법: '갈래:id': '낱말 낱말 … [$값]' */
   var PLAYER_META = {
@@ -5608,7 +5608,7 @@ var SCENE3D = (function () {
           plLock(L, plHP(t[0], t[1] + 0.1, PL_HR - 0.03), plHP(t[0] + 10, t[1] - 0.06, PL_HR + 0.072), 0.08, 0.026, hex); }); };
       H.part = function (L, cfg, hex) {   /* 중단발: 턱선까지 내려오는 옆 · 뒷머리 + 얼굴 옆으로 흘러내리는 긴 앞 가닥 둘 */
         H._cap(L, hex); L.push({ g: Sph(PL_HR, 18, 7, 142, 256, 1.30, 0.91), m: HM(), c: hex }); plHem(L, 0.70, 0.355, 0.39, 0.16, hex, 0.96);
-        [-1, 1].forEach(function (s) { plLock(L, [s * 0.05, 1.25, 0.15], [s * 0.285, 1.08, 0.235], 0.085, 0.07, hex); plLock(L, [s * 0.285, 1.08, 0.235], [s * 0.345, 0.72, 0.17], 0.07, 0.04, hex); }); };
+        [-1, 1].forEach(function (s) { if (!plHat(cfg)) plLock(L, [s * 0.05, 1.25, 0.15], [s * 0.285, 1.08, 0.235], 0.085, 0.07, hex); plLock(L, [s * 0.285, 1.08, 0.235], [s * 0.345, 0.72, 0.17], 0.07, 0.04, hex); }); };
       H.curl = function (L, cfg, hex) {   /* 곱슬: 짧은 머리 위에 동글동글한 컬 */
         L.push({ g: Sph(PL_HR, 18, 12, 142, 256, 0, 1.56), m: HM(), c: hex }); nape(L, hex, 1.56, 2.15); H._fringe(L, hex); H._pole(L, hex);
         var C = [];

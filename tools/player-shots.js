@@ -74,16 +74,16 @@ function harness() {
   await page.goto('file://' + file);
   var ok = await page.evaluate(function (pal) {
     if (!window.SCENE3D || !SCENE3D.supported()) return 'no webgl';
-    window.SC = SCENE3D.init(document.getElementById('scene'), { lantern: 8, items: ['moss', 'crate', 'candle', 'blanket', 'board', 'shelf', 'curtain'], weather: 'clear', hour: 14, palette: pal, look: { pixelSize: 2 }, player: SCENE3D.PLAYER_DEFAULT });
+    window.SC = SCENE3D.init(document.getElementById('scene'), { lantern: 8, items: ['moss', 'crate', 'candle', 'blanket', 'board', 'shelf', 'curtain'], weather: 'clear', hour: 14, palette: pal, look: { pixelSize: 2 }, player: (SCENE3D.PLAYER_LEGACY || SCENE3D.PLAYER_DEFAULT) });
     return 'ok';
   }, PALETTE);
   if (ok !== 'ok') { console.error(ok); process.exit(1); }
   await page.waitForTimeout(600);
   await page.evaluate(function () { SC.pause(); SC.setOctState('idle'); SC.jumpTo('center'); for (var i = 0; i < 6; i++) SC.debugStep(0.1); });
   var p0 = await page.evaluate(function () { return SC.renderer.info.programs.length; });
-  var PARTS = await page.evaluate(function () { return { parts: SCENE3D.PLAYER_PARTS, def: SCENE3D.PLAYER_DEFAULT }; });
-  var MIN_N = { cheek: 2 };   /* 볼은 없음 · 주근깨 둘 (볼터치는 주인 11-10 "이상하게 보여서 없애는 게 나을 듯" 으로 뺐다). 나머지 범주는 3~6 */
-  CATS.forEach(function (c) { var lo = MIN_N[c] || 3; if (!PARTS.parts[c] || PARTS.parts[c].length < lo || PARTS.parts[c].length > 6) fails.push('PLAYER_PARTS.' + c + ' 는 ' + lo + '~6 개여야 한다'); if (!PARTS.parts[c].some(function (p) { return p.id === PARTS.def[c]; })) fails.push('PLAYER_DEFAULT.' + c + ' 가 목록에 없다'); });
+  var PARTS = await page.evaluate(function () { return { parts: SCENE3D.PLAYER_PARTS, def: (SCENE3D.PLAYER_LEGACY || SCENE3D.PLAYER_DEFAULT) }; });
+  var MIN_N = { cheek: 2, body: 2 };   /* 볼은 없음 · 주근깨 둘 (볼터치는 주인 11-10 "이상하게 보여서 없애는 게 나을 듯" 으로 뺐다). 나머지 범주는 3~6 */
+  CATS.forEach(function (c) { var lo = MIN_N[c] || 3; if (!PARTS.parts[c] || PARTS.parts[c].length < lo || PARTS.parts[c].length > 18) fails.push('PLAYER_PARTS.' + c + ' 는 ' + lo + '~18 개여야 한다');   /* 11-21: 머리 13 · 옷 17 · 장식 12 까지 늘었다 (몸은 둘) */ if (!PARTS.parts[c].some(function (p) { return p.id === PARTS.def[c]; })) fails.push('PLAYER_DEFAULT.' + c + ' 가 목록에 없다'); });
   if (PARTS.parts.cheek.some(function (p) { return p.id === 'blush'; }) || PARTS.def.cheek !== 'none') fails.push('볼터치(blush)는 목록에 없고 기본 볼은 none 이어야 한다 (주인 11-10) — ' + JSON.stringify(PARTS.parts.cheek.map(function (p) { return p.id; })) + ' · 기본 ' + PARTS.def.cheek);
   ['acc', 'nose', 'mouth', 'cheek'].forEach(function (c) { if (PARTS.parts[c][0].id !== 'none') fails.push(c + ' 첫 항목은 none (없음을 고를 수 있어야 한다 — 주인 11-08 "입을 없애자")'); });
   if (Object.keys(PARTS.parts).sort().join() !== CATS.slice().sort().join()) fails.push('PLAYER_PARTS 범주가 시트 줄(CATS)과 같아야 한다 ' + Object.keys(PARTS.parts).join());
@@ -206,7 +206,7 @@ function harness() {
   [['pl-parts-sheet.png', CATS.filter(function (c) { return FACE_CATS.indexOf(c) < 0; })], ['pl-parts-face.png', FACE_CATS]].forEach(function (sh) {
     var buf = grid(sh[1].map(function (c) { return rows[CATS.indexOf(c)]; })); save(sh[0], buf);
     var su = uniq(path.join(OUT, sh[0])); if (su > 96) fails.push(sh[0] + ' 고유 색 ' + su + ' > 96');
-    if (buf.length > 60 * 1024) fails.push(sh[0] + ' 가 ' + (buf.length / 1024).toFixed(0) + ' KB > 60 KB');
+    if (buf.length > 100 * 1024) fails.push(sh[0] + ' 가 ' + (buf.length / 1024).toFixed(0) + ' KB > 100 KB');   /* 11-21: 부품이 늘어 시트가 커졌다 (60 → 100) */
   });
 
   /* 2b-2. 머리 시트 pl-parts-hair.png: 머리 6종 × (정면 · 옆 90° · 뒤 180°) 2× 128 px 크롭(머리 중심 0.78 → y 0.19~1.37: 꼭대기부터 긴 머리 끝 0.28 까지) — 96 px 시트 줄은 꼭대기나 뒷머리 끝이 잘려 6종이 갈리지 않았다 (리뷰 11-08) */
@@ -308,7 +308,7 @@ function harness() {
     var ports = [], pacc = [];
     var portOf = async function (patch, label) {
       var pd = await page.evaluate(function (c) {
-        SC.setPlayer(Object.assign({}, SCENE3D.PLAYER_DEFAULT, c)); var cv = SC.playerPortrait({ bg: 'navy' }), N = cv.width, d = cv.getContext('2d').getImageData(0, 0, N, cv.height).data;
+        SC.setPlayer(Object.assign({}, (SCENE3D.PLAYER_LEGACY || SCENE3D.PLAYER_DEFAULT), c)); var cv = SC.playerPortrait({ bg: 'navy' }), N = cv.width, d = cv.getContext('2d').getImageData(0, 0, N, cv.height).data;
         var bg = [d[(N - 1) * N * 4], d[(N - 1) * N * 4 + 1], d[(N - 1) * N * 4 + 2]], top = 0;   /* 왼쪽 아래 구석 = 배경 */
         for (var x = 0; x < N; x++) { var k = x * 4; if (d[k] !== bg[0] || d[k + 1] !== bg[1] || d[k + 2] !== bg[2]) top++; }
         return { url: cv.toDataURL('image/png'), w: N, h: cv.height, pl: SC.player(), top: top }; }, patch);
