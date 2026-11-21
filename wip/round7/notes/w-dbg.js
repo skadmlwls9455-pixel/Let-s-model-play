@@ -12,15 +12,12 @@ var ROOT = path.resolve(__dirname, '../../..');
   await page.evaluate(function () { return APP.goRoom('yard'); });
   await page.waitForFunction(function () { var m = APP.scene.motion(); return APP.room === 'yard' && !m.trans && m.dq === ''; }, null, { timeout: 30000 });
   await page.waitForTimeout(600);
-  console.log(JSON.stringify(await page.evaluate(function () {
-    var sc = APP.scene, K = Math.SQRT1_2, out = [];
-    function st() { var a = sc.player().at; return [+((a[0] + a[2]) * K).toFixed(2), +((a[0] - a[2]) * K).toFixed(2)]; }
-    [[12, 2.9, 0, 1], [6, 0, 0.707, -0.707], [18, -2.9, 0, 1], [7, 2.5, 0, -1], [7, -2.5, 0, -1], [55, -6, -1, 0], [50, 9, 0, -1], [57, 0, 1, 0]].forEach(function (c) {
-      sc.debugPlayerAt((c[0] + c[1]) * K, (c[0] - c[1]) * K); sc.setPlayerInput({ x: c[2], y: c[3] }); sc.debugSim(1 / 30, 150); var a = st(); sc.debugSim(1 / 30, 30); var b = st(); sc.setPlayerInput(null); out.push([c.join(','), a, b, Math.hypot(a[0] - b[0], a[1] - b[1]) > 0.5 ? 'moving' : 'STOP']);
-    });
-    sc.beachShells([0, 1, 2, 3, 4]); sc.debugPlayerAt(55 * K + 2 * K, 55 * K - 2 * K); sc.debugSim(0.1, 3); sc.debugStep(0.1);
-    return out;
+  console.log(JSON.stringify(await page.evaluate(async function () {
+    var sc = APP.scene, K = Math.SQRT1_2, out = [], tick = function () { return new Promise(function (q) { setTimeout(q, 0); }); };
+    sc.beachShells([3]); sc.debugPlayerAt(50.5 * K - 9 * K, 50.5 * K + 9 * K); sc.debugSim(0.05, 3);
+    var done = null; sc.beachShellGo(3).then(function (v) { done = v; });
+    for (var f = 0; f < 400 && done === null; f++) { sc.debugSim(0.05, 1); if (f % 20 === 0) { var a = sc.player().at, q = sc.screenOf(a[0], 0.6, a[2]); out.push([Math.round(q.x), Math.round(q.y)]); } await tick(); }
+    return { done: done, sec: f * 0.05, scr: out };
   })));
-  await page.screenshot({ path: '/tmp/claude-0/-home-user-Let-s-model-play/bf38d309-8ede-59ca-909d-3c51ecde03b7/scratchpad/shots/dbg.png' });
   await browser.close();
 })().catch(function (e) { console.error(e); process.exit(1); });
