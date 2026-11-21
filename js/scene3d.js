@@ -36,7 +36,7 @@ var SCENE3D = (function () {
     L0: -60, LAND: 46, SEA: 60, SEA1: 140, GT: 80, BEACH_Y: -0.6, PIER_Y: -0.42, STEP_S: 46, STEP_D: 0.6,
     /* 11-21 7차 (갈래 W): 집 문 → 숲길 → 마을 → 광장 → 계단 → 모래 → 바다 한 장. S1 = 걸어서 닿는 물가 · PAN_* = 화면 가운데가 볼 수 있는 땅 (대각 네모) ·
        L0..LAND = 풀 땅 · LAND 부터 0.6 m 낮은 모래 · SEA 부터 물 (SEA1 까지) · GT = 땅의 반폭. AREAS = 걷는 곳 [s0, s1, t0, t1] (이웃끼리 조금 겹친다 — 마당 네모는 따로) */
-    AREAS: [[5.0, 38.1, -3, 3], [30.3, 36.7, 2.9, 6.9], [38, 46.1, -8, 8], [46, 49.1, -3, 3], [49, 59.7, -12, 12], [55.9, 65.7, 6.45, 7.55]],
+    AREAS: [[5.0, 20.1, -3, 3], [20, 38.1, -2.2, 2.2], [30.3, 36.7, 2.1, 6.9], [38, 46.1, -8, 8], [46, 49.1, -3, 3], [49, 59.7, -12, 12], [55.9, 65.7, 6.45, 7.55]],   /* 마을 길은 ±2.2 (리드 11-21: 360 폭 화면이 6.7 m 라 가게 앞 |t| 2.3 ~ 3.3 이 화면에 들게) */
     SIGNS: [[6, 2.2], [39, 0], [50, 0]],   /* 표지판 (s, t) */
     ARRIVE: { home: [6.6, 0, -1], village: [37, 0, 1], beach: [51.5, 0.9, 1] },   /* 빠른 이동 도착 자리 (s, t, 보는 쪽: +1 = 바다 쪽 · −1 = 집 쪽) */
     SHELLS: [[52.0, -6.5], [53.4, 4.4], [56.4, -2.6], [57.8, 10.2], [58.6, -6.0]],   /* 조개 자리 다섯 (s, t) */
@@ -5591,7 +5591,7 @@ var SCENE3D = (function () {
     function stBox(sc, tc, y, ls, h, lt, c, tag) { var q = wideXZ(sc, tc); return { g: box(ls, h, lt), m: M(snapPos(q[0]), y, snapPos(q[1]), 0, -Math.PI / 4, 0), c: c, tag: tag || 0 }; }
     function wideDist(sd, td) { var b = 1e9; WIDE.AREAS.forEach(function (a) { var d = Math.hypot(Math.max(a[0] - sd, 0, sd - a[1]), Math.max(a[2] - td, 0, td - a[3])); if (d < b) b = d; }); return b; }   /* 걷는 곳 (길 · 마루 · 광장 · 계단 · 모래 · 부두) 까지의 거리 — 안이면 0 */
     function wideGroundY(x, z) {   /* 땅 높이 (m): 풀 땅 0 · 계단 네 칸 (0.12 m 씩) · 모래 −0.6 · 부두 마루 −0.42 (발치에 한 칸) */
-      var sd = (x + z) * Math.SQRT1_2, td = (x - z) * Math.SQRT1_2, P = WIDE.AREAS[5];
+      var sd = (x + z) * Math.SQRT1_2, td = (x - z) * Math.SQRT1_2, P = WIDE.AREAS[6];
       if (sd < WIDE.STEP_S) return 0;
       if (td >= P[2] - 0.2 && td <= P[3] + 0.2) { if (sd >= 56.2) return WIDE.PIER_Y; if (sd >= 55.8) return -0.51; }
       return Math.max(WIDE.BEACH_Y, -0.12 * (Math.floor((sd - WIDE.STEP_S) / WIDE.STEP_D) + 1));
@@ -5648,7 +5648,7 @@ var SCENE3D = (function () {
         else { B.push({ g: new T.SphereGeometry(r[2], 7, 5), m: M(snapPos(rq[0]), BY, snapPos(rq[1]), 0, ri * 0.7, 0, 1, r[3] / r[2], 0.85), c: EXT_C.rock[ri % 2] }); }
         WIDE_REG.circles.push([rq[0], rq[1], r[2]]);
       });
-      var P = WIDE.AREAS[5], PY = WIDE.PIER_Y, pt = (P[2] + P[3]) / 2;   /* 부두: 모래 (s 56) 에서 물 위로 10 m · 폭 1.6 m · 난간 없음 (캐릭터를 가리지 않는다) */
+      var P = WIDE.AREAS[6], PY = WIDE.PIER_Y, pt = (P[2] + P[3]) / 2;   /* 부두: 모래 (s 56) 에서 물 위로 10 m · 폭 1.6 m · 난간 없음 (캐릭터를 가리지 않는다) */
       B.push(stBox(61, pt, PY - 0.03, 10, 0.06, 1.6, W[3]), stBox(55.9, pt, (BY - 0.51) / 2, 0.36, 0.09, 1.6, W[2]));
       for (i = 0; i <= 20; i++) B.push(stBox(56 + i * 0.5, pt, PY - 0.029, 0.04, 0.062, 1.6, W[1]));
       for (i = 0; i <= 5; i++) [-0.8, 0.8].forEach(function (d) { var end = i === 5, pq = wideXZ(56 + i * 2, pt + d);
