@@ -12,7 +12,7 @@ var REC = { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 8, d
   room: { lantern: 8, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] }, settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
 var NPCS = [{ id: 'clothes', color: '#5c86b0', hat: 'beret', pose: 'stand' }, { id: 'goods', color: '#e8b04a', hat: 'cap', pose: 'stand' }, { id: 'cafe', color: '#9a5058', hat: 'apron', pose: 'stand' },
   { id: 'sleep-1', color: '#8cc05a', hat: 'none', pose: 'sleep' }, { id: 'sleep-2', color: '#e39a8c', hat: 'none', pose: 'sleep' }];
-var BTNS = ['btn-shop-clothes', 'btn-shop-goods', 'btn-cafe-counter', 'btn-cafe-seat', 'btn-cafe-lp', 'btn-plaza-stage', 'btn-plaza-board', 'btn-npc-clothes', 'btn-npc-goods', 'btn-npc-cafe'];
+var BTNS = ['btn-shop-clothes', 'btn-shop-goods', 'btn-cafe-seat', 'btn-cafe-lp', 'btn-plaza-stage', 'btn-plaza-board', 'btn-npc-clothes', 'btn-npc-goods', 'btn-npc-cafe', 'btn-in-clothes', 'btn-in-goods', 'btn-in-cafe'];   /* 바깥의 단추 열둘 (가게 · 카페 · 광장 · 문어 셋 · 문 셋) */
 
 async function open(browser, q, look) {
   var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', hasTouch: true, isMobile: true });
@@ -72,11 +72,11 @@ async function village(page) {
     lap('A2. 단추');
     /* A2. 단추: 자리가 화면 안이면 단추가 그 위에 · 밖이면 숨는다 (여섯 곳에서) */
     var seen = {};
-    for (var pt of [[27, -2.6], [27, 2.6], [33.5, 4.6], [32.4, 5.9], [42, -1.5], [43.5, 2.2]]) {
+    for (var pt of [[26.5, -1.8], [26.5, 1.8], [33.5, 4.6], [32.4, 6.2], [41.2, -1.5], [44.4, 2.6]]) {
       var b2 = await page.evaluate(function (a) {
         __V.at(a.pt[0], a.pt[1]); var sc = APP.scene, box = document.getElementById('scene').getBoundingClientRect(), out = [];
         a.btns.forEach(function (id) {
-          var el = document.getElementById(id), sp = VILLAGE.spot(id), q = VILLAGE.xz(sp.s, sp.t), p = sc.screenOf(q[0], sp.y, q[1]), r = el.getBoundingClientRect();
+          var el = document.getElementById(id), sp = VILLAGE.spot(id) || VILLAGE.DOORS.filter(function (d) { return d.btn === id; })[0], q = VILLAGE.xz(sp.s, sp.t), p = sc.screenOf(q[0], sp.y, q[1]), r = el.getBoundingClientRect();
           out.push({ id: id, hidden: el.hidden, px: [p.x, p.y], rect: [r.left - box.left, r.top - box.top, r.width, r.height], w: box.width, h: box.height });
         });
         return out;
@@ -87,7 +87,7 @@ async function village(page) {
         else if (inside) ok(false, q.id + ' 자리가 화면 안인데 단추가 숨었다 (' + pt + ') ' + JSON.stringify(q.px.map(Math.round)));
       });
     }
-    ok(BTNS.every(function (id) { return seen[id]; }), '열 단추가 다 한 번은 보였다: ' + BTNS.filter(function (id) { return !seen[id]; }).join(' '));
+    ok(BTNS.every(function (id) { return seen[id]; }), '바깥 단추 열둘이 다 한 번은 보였다: ' + BTNS.filter(function (id) { return !seen[id]; }).join(' '));
 
     lap('A3. 누르면');
     /* A3. 누르면 걸어가서 누른다 (멀리서) · 가까이서는 바로 · 걷다가 스틱을 밀면 눌리지 않는다 */
@@ -120,7 +120,7 @@ async function village(page) {
       r.cupNo = sc.cafeCup(true);
       __V.at(32.2, 4.6); var p = sc.cafeSit(true), res = null; p.then(function (x) { res = x; });
       await __V.run(200, function () { return res !== null; }); r.sat = res; r.seated = sc.cafeSeated(); r.sitting = sc.playerSitting(); r.cup = sc.cafeCup(true); r.cupInfo = sc.villageInfo().cup;
-      r.again = await sc.cafeSit(true); r.nearSeated = sc.villageNear('btn-cafe-counter');
+      r.again = await sc.cafeSit(true); r.nearSeated = sc.villageNear('btn-cafe-lp');
       var q = sc.cafeSit(false), res2 = null; q.then(function (x) { res2 = x; }); await __V.run(80, function () { return res2 !== null; }); r.stood = res2; r.seated2 = sc.cafeSeated(); r.cup2 = sc.villageInfo().cup; r.sitting2 = sc.playerSitting();
       var a = VILLAGE.CAFE.seat.aisle, s = __V.st(); r.standD = Math.hypot(s[0] - a[0], s[1] - a[1]);
       res = null; sc.cafeSit(true).then(function (x) { res = x; }); await __V.run(200, function () { return res !== null; }); r.sat2 = res; sc.cafeCup(true);
@@ -150,6 +150,48 @@ async function village(page) {
     ok(t5.p1 === t5.p0, '셰이더 프로그램 수 그대로 (' + t5.p0 + ' → ' + t5.p1 + ')');
     var c90 = t5.rows.filter(function (r) { return r.yaw === 90; })[0].cut, c270 = t5.rows.filter(function (r) { return r.yaw === 270; })[0].cut, c0 = t5.rows[0].cut;
     ok(!c0.vilL && !c0.vilR && c90.vilL !== c90.vilR && c270.vilL !== c270.vilR && c90.vilL !== c270.vilL, '기본 각에선 안 자른다 · 90° 와 270° 에선 카메라 쪽 줄만 무릎 높이로 자른다');
+    /* A6. 무대 (계약 C10): stage() 자리 · stageDress · 심사 · 경쟁 문어 · npcPlace / npcPose */
+    var t8 = await page.evaluate(function (list) {
+      var sc = APP.scene, r = {}, st = sc.stage(); r.st = st;
+      r.d0 = st.dressed; r.d1 = sc.stageDress(true); r.d2 = sc.stage().dressed;
+      r.n = sc.npcSet(list.concat([{ id: 'judge0', color: '#3f9c9c', hat: 'beret', pose: 'sit' }, { id: 'judge1', color: '#cdb94a', hat: 'apron', pose: 'sit' }, { id: 'judge2', color: '#a67c62', hat: 'cap', pose: 'sit' }, { id: 'rival0', color: '#d9694f', hat: 'none', pose: 'stand' }, { id: 'rival1', color: '#5c86b0', hat: 'none', pose: 'stand' }, { id: 'rival2', color: '#9a5058', hat: 'none', pose: 'stand' }]));
+      function at(id) { return sc.villageInfo().npcs.filter(function (q) { return q.id === id; })[0]; }
+      r.j1 = at('judge1'); r.place = sc.npcPlace('rival0', st.podium[0][0], st.podium[0][1], 0); __V.frame(); r.onPodium = at('rival0').at;
+      sc.npcPlace('rival1', st.centre[0], st.centre[1] + 0.9, 0); __V.frame(); r.onStage = at('rival1').at;
+      sc.npcPlace('rival0', null); __V.frame(); r.back = at('rival0').at; r.pose = sc.npcPose('rival2', 'sleep'); r.poseNo = sc.npcPose('nobody', 'sit'); r.placeNo = sc.npcPlace('nobody', 0, 0, 0);
+      r.sleep = at('rival2').pose; sc.stageDress(false); r.d3 = sc.stage().dressed; sc.npcSet(list); r.left = sc.villageInfo().npcs.length;
+      return r;
+    }, NPCS);
+    ok(t8.st.path.length === 4 && t8.st.judges.length === 3 && t8.st.podium.length === 4 && t8.st.wait.length === 2 && t8.st.judges[0].length === 3, 'stage() 의 꼴');
+    ok(t8.d0 === false && t8.d1 === true && t8.d2 === true && t8.d3 === false, 'stageDress 켜고 끄기');
+    ok(t8.n === 11 && Math.abs(t8.j1.at[0] - t8.st.judges[1][0]) < 0.05 && Math.abs(t8.j1.at[2] - t8.st.judges[1][1]) < 0.05, '심사 · 경쟁 문어 여섯이 더 그려진다 · 심사는 심사석에');
+    ok(t8.place === true && Math.abs(t8.onPodium[1] - t8.st.podium[0][2]) < 0.05, 'npcPlace: 시상대 위에 선다 (높이 ' + t8.onPodium[1].toFixed(2) + ')');
+    ok(Math.abs(t8.onStage[1] - t8.st.y) < 0.05 && Math.abs(t8.back[1]) < 0.05, '무대 위는 무대 높이 · 되돌리면 땅');
+    ok(t8.pose === true && t8.sleep === 'sleep' && t8.poseNo === false && t8.placeNo === false && t8.left === 5, 'npcPose · 모르는 id 는 false · 목록에서 빼면 사라진다');
+
+    /* A7. 들어가는 방 (갈래 W 의 방 배관이 있을 때만): 들어가기 · 단추 · 가게 문어 · 드로우콜 ≤ 60 · 카페 자리 / 잔 / 레코드 · 나오기 */
+    var hasRooms = await page.evaluate(function () { return typeof APP.scene.enterRoom === 'function' && APP.scene.villageRooms().reg; });
+    if (!hasRooms) console.log('  (방 배관 없음 — 방은 debugVillageRoom 으로만 짓는다: 아래에서 짓기만 시험)');
+    for (var rk of ['clothes', 'cafe', 'goods']) {
+      var t9 = await page.evaluate(async function (a) {
+        var sc = APP.scene, r = { key: a.key };
+        if (!a.has) { r.dbg = sc.debugVillageRoom(a.key); sc.debugStep(0.1); r.rooms = sc.villageRooms(); sc.debugVillageRoom(null); return r; }
+        var res = null; sc.enterRoom(a.key).then(function (x) { res = x; }); await __V.run(500, function () { return res !== null; }); await __V.run(20); __V.frame();
+        r.enter = res; r.in = sc.inRoom(); r.rooms = sc.villageRooms(); r.calls = sc.stats().calls; r.slots = sc.roomSlots(a.key);
+        r.btns = VILLAGE.ROOMS[a.key].spots.map(function (sp) { var el = document.getElementById(sp.btn); return [sp.btn, !!el && !el.hidden]; });
+        if (a.key === 'cafe') { var s = null; sc.cafeSit(true).then(function (x) { s = x; }); await __V.run(400, function () { return s !== null; }); r.sat = s; r.seated = sc.cafeSeated(); r.cup = sc.cafeCup(true); r.rec = sc.cafeRecord(true, '#3f6690'); __V.frame(); r.info = sc.villageRooms().rooms.cafe; var p = sc.player().at, S = VILLAGE.ROOMS.cafe.slots.seat; r.seatD = Math.hypot(p[0] - S[0], p[2] - S[2]); sc.cafeRecord(false); }
+        var out = null; sc.leaveRoom().then(function (x) { out = x; }); await __V.run(500, function () { return out !== null; }); await __V.run(20); r.leave = out; r.after = sc.inRoom(); r.seatedAfter = sc.cafeSeated(); r.view = sc.view();
+        return r;
+      }, { key: rk, has: hasRooms });
+      if (!hasRooms) { ok(t9.dbg === true && t9.rooms.rooms[rk] && t9.rooms.rooms[rk].keeper === true, rk + ' 방이 지어진다 (가게 문어 포함)'); continue; }
+      ok(t9.enter && t9.enter.ok && t9.in === rk, rk + ' 에 들어간다');
+      ok(t9.rooms.cur === rk && t9.rooms.rooms[rk].keeper === true, rk + ' 안에 가게 문어가 서 있다');
+      ok(t9.calls <= 60, rk + ' 드로우콜 ' + t9.calls + ' (≤ 60)');
+      ok(t9.slots && t9.slots.slots && t9.slots.slots.keeper && t9.slots.slots.exit && t9.slots.built, rk + ' roomSlots(key).slots 에 내 자리들');
+      ok(t9.btns.filter(function (q) { return q[1]; }).length >= Math.min(4, t9.btns.length), rk + ' 단추가 보인다: ' + t9.btns.filter(function (q) { return !q[1]; }).map(function (q) { return q[0]; }).join(' '));
+      if (rk === 'cafe') ok(t9.sat === true && t9.seated && t9.cup === true && t9.rec === true && t9.info.cup && t9.info.record && t9.seatD < 0.1, '카페 안에서 앉기 · 잔 · 레코드 (걸상에서 ' + t9.seatD.toFixed(2) + ' m)');
+      ok(t9.leave && t9.leave.ok && t9.after === null && t9.view === 'yard' && !t9.seatedAfter, rk + ' 에서 나온다 (앉은 채였어도 선 채로 밖에)');
+    }
     ok(o.errs.length === 0, '오류 없음 (낮): ' + o.errs.slice(0, 3).join(' | '));
     await o.ctx.close();
 
