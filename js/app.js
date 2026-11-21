@@ -5469,7 +5469,7 @@ var APP = (function () {
   function cookServeMsg(d) { if (typeof d.id === 'string' && (d.mode === 'call' || d.mode === 'table')) cookServed = { id: d.id, mode: d.mode }; }
   /* ── 들고 가기 (주인 11-21: "요리 → 식탁 → 먹기가 이어지게"): 부엌이 닫히면 내 캐릭터가 조리대 앞에서 요리를 들고 식탁까지 걸어가 내려놓는다.
      'call' 이면 앉고, 이미 있는 부르기 길 (mealCall — 저장소 다시 읽기 · 대답 저장 · 누가 정했나) 로 이어진다. 'table' 이면 식탁 옆에 선다.
-     요리는 result 때 이미 저장됐다 (S.user.table) — 걸음은 보여 주기일 뿐이다. 무엇이 끊든 (스틱 · 방 옮김 · 초대 · 숨은 탭 · 장면 거절 · 15 s) 끝 상태로: 요리는 식탁에, 부르지 않는다.
+     요리는 result 때 이미 저장됐다 (S.user.table) — 걸음은 보여 주기일 뿐이다. 무엇이 끊든 (스틱 · 방 옮김 · 초대 · 숨은 탭 · 장면 거절 · 30 s) 끝 상태로: 요리는 식탁에, 부르지 않는다.
      모션 줄이기 = 걸음 없이 바로 그 끝 ('call' 이면 앉아서 부른다). 2D · 들고 가기를 모르는 장면 = 예전처럼 식탁에 나타난다. 그동안 mealBusy() 가 조리대 · 오락기 · 식탁 단추를 막는다 ── */
   function mealServeOnClose() {
     var sv = cookServed; cookServed = null;
@@ -5486,7 +5486,7 @@ var APP = (function () {
     my.mode = mode;
     try { p = Promise.resolve(scene.playerCarryDish({ id: t.id, recipe: t.recipe, look: t.look, seed: t.seed, pic: MEALR.pic(t.recipe, t.look) }, { sit: mode === 'call', instant: reduced() })); }
     catch (e) { console.warn('[app] playerCarryDish', e); p = Promise.resolve('no'); }
-    Promise.race([p, mealWait(my, 15000 * speed()).then(function () { return 'late'; })]).then(function (r) {
+    Promise.race([p, mealWait(my, 30000 * speed()).then(function () { return 'late'; })])   /* 느린 기기에서도 걸음이 끝날 만큼 (보통 2.3 s) */.then(function (r) {
       if (mealRun !== my) return;   /* 지킴이가 이미 접었다 (mealServeCut) */
       if (r === 'late') { mealServeCut(my); return; }
       if (r === 'no') mealTableSync(true); else mealDishKey = t.id;   /* 장면이 거절 = 아무것도 안 했다 → 예전처럼 나타난다 */
