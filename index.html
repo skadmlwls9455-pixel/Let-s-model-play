@@ -217,6 +217,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <!-- [7-S] 단추 -->
 
   <!-- [7-C] 단추 -->
+  <div id="cafe-tray" class="cafe-tray" hidden></div>
 
   <!-- [7-N] 단추 -->
 
@@ -399,6 +400,18 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- [7-S] 창 -->
 
 <!-- [7-C] 창 -->
+<dialog id="cafe-sheet" class="sheet bag-sheet cafe-sheet" aria-labelledby="cafe-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="cafe-h" class="set-h dlg-top" tabindex="-1">카페</h2>
+  <div id="cafe-body"></div>
+  <button type="button" class="btn wide pressable" id="cafe-close">닫기</button>
+</dialog>
+<dialog id="lp-sheet" class="sheet bag-sheet cafe-sheet" aria-labelledby="lp-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="lp-h" class="set-h dlg-top" tabindex="-1">레코드</h2>
+  <div id="lp-body"></div>
+  <button type="button" class="btn wide pressable" id="lp-close">닫기</button>
+</dialog>
 
 <!-- [7-N] 창 -->
 
@@ -486,6 +499,8 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- [7-S] 스크립트 -->
 
 <!-- [7-C] 스크립트 -->
+<script src="js/cafe.js"></script>
+<script src="js/cafe-music.js"></script>
 
 <!-- [7-N] 스크립트 -->
 
