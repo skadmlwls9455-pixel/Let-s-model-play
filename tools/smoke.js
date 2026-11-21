@@ -2272,8 +2272,8 @@ async function scenarioFirst(browser) {
   await pg.waitForTimeout(5000);
   var hs = await pg.evaluate(function () { return { seen: window.__hh, pref: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}'), yard: !document.getElementById('btn-yard').hidden, inV2: !!JSON.parse(localStorage.getItem('ppolppol_v2')).hints }; });
   console.log('   hints:', JSON.stringify(hs));
-  var order = hs.seen.map(function (x) { return x.on; }), want = ['btn-door', 'btn-yard', 'btn-stair'].filter(function (id) { return order.indexOf(id) >= 0; });
-  ok(walk === 1 && order.length >= 2 && order.join() === want.join() && order[0] === 'btn-door', '11-18 첫 산책 뒤 손 힌트: 차례대로 한 번씩 ' + JSON.stringify(order));
+  var order = hs.seen.map(function (x) { return x.on; }), want = ['btn-door', 'btn-yard'].filter(function (id) { return order.indexOf(id) >= 0; });   /* 11-21: 계단 손 힌트는 뺐다 (가장자리 계단 단추가 없다) */
+  ok(walk === 1 && order.length >= 2 && order.join() === want.join() && order[0] === 'btn-door' && order.indexOf('btn-stair') < 0, '11-18 첫 산책 뒤 손 힌트: 차례대로 한 번씩 ' + JSON.stringify(order));
   ok(hs.seen.every(function (x) { return x.crisp && x.aria === 'true' && !x.title && !x.text && !x.dlg; }), '11-18 손 힌트: 기기 px 정수 자리 · aria-hidden · title 없음 · 글자 없음 · 시트 열린 동안 없음');
   ok(Object.keys(hs.pref.hints || {}).length === order.length && !hs.inV2, '11-18 본 힌트는 ppolppol_ui 에만 (' + JSON.stringify(hs.pref.hints) + ')');
   /* 새로 열기 → 본 힌트는 다시 없음 */
@@ -6261,9 +6261,10 @@ async function scenarioLoft(browser) {
     return { done: false, t: secs };
   }
   async function tap(pg, id) { var r = await pg.evaluate(function (id) { var e = document.getElementById(id); if (!e || e.hidden) return null; var q = e.getBoundingClientRect(), c = { x: q.left + q.width / 2, y: q.top + q.height / 2 };
-    if (id !== 'btn-stair') return c;   /* 11-15: 계단 단추 칸은 바로 왼쪽 뒷벽 문간 (마당 문) 위까지 덮는다 — 보이는 계단을 톡 한다 (칸 안에서 장면이 '계단' 이라고 하는 점, 가운데에서 가까운 것) */
+    if (id !== 'btn-stair') return c;
+    if (e.dataset.spot === 'key') { e.click(); return { key: true }; }   /* 11-21: 계단이 화면 밖 (360 폭 기본 구도) 이면 단추는 안 보이는 키보드 칸 — 키보드가 하듯 단추를 누른다 (손가락 길은 tools/test-light.js L5 가 본다) */   /* 11-15: 계단 단추 칸은 바로 왼쪽 뒷벽 문간 (마당 문) 위까지 덮는다 — 보이는 계단을 톡 한다 (칸 안에서 장면이 '계단' 이라고 하는 점, 가운데에서 가까운 것) */
     var best = null, bd = 1e9; for (var y = q.top + 2; y < q.bottom; y += 4) for (var x = q.left + 2; x < q.right; x += 4) { var k = APP.scene.pickAt(x, y), d = Math.hypot(x - c.x, y - c.y); if (k && k.id === 'atticStair' && d < bd) { bd = d; best = { x: x, y: y }; } }
-    return best || c; }, id); if (r) await pg.touchscreen.tap(r.x, r.y); return !!r; }
+    return best || c; }, id); if (r && !r.key) await pg.touchscreen.tap(r.x, r.y); return !!r; }
   async function stair(pg, up) { await tap(pg, up ? 'btn-stair' : 'btn-loft-stair'); var r = await tick(pg, 16, up ? function () { var m = APP.scene.motion(); return APP.room === 'loft' && m.dq === '' && !m.trans; } : function () { var m = APP.scene.motion(); return !APP.room && m.dq === '' && !m.trans; }); await tick(pg, 0.5); return r.done; }
   async function tapMirror(pg) { var sp = await pg.evaluate(function () { var b = document.getElementById('btn-salon'); if (b.hidden) return null; var r = APP.scene.spotRect('salon'); return r && r.client ? { x: r.client.x + r.client.w / 2, y: r.client.y + r.client.h / 2 } : null; }); if (sp) { await pg.touchscreen.tap(sp.x, sp.y); await tick(pg, 0.6); } return !!sp; }
   function S(pg) { return pg.evaluate(function () { var m = APP.scene.motion(), t = document.getElementById('toast'), bb = document.getElementById('oct-bubble'), b = document.getElementById('btn-salon');

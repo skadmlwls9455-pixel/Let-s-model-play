@@ -4725,7 +4725,7 @@ var APP = (function () {
      놀이방 문 → 마당 문 → 위층 계단 (각 1.6 s). 글자 없음 (단추마다 이미 aria 이름 · 손은 aria-hidden) · 진동 · 소리 없음. 손은 달리기 안내의 12×12 손 (RUNNER.pix('hand')).
      지금 숨은 단추는 건너뛰고 다음 조용한 때 다시. 아무 데나 누르면 이번 차례는 끝 (누른 단추는 제 할 일을 한다). 기기마다 한 번 (ppolppol_ui 'hints' — 문어 기록엔 안 쓴다).
      처음 집에 온 산책이 첫 산책일 때만 켠다 (집에 있던 차례는 안 셈) → 이미 여러 번 다녀온 기록은 보지 않는다. 안내 요정 (윤슬 · 다음 차례) 이 오기 전까지 잇는 다리 */
-  var HINT_SPOTS = [['atticPlay', 'btn-door'], ['atticYard', 'btn-yard'], ['atticStair', 'btn-stair']], HINT_MS = 1600;
+  var HINT_SPOTS = [['atticPlay', 'btn-door'], ['atticYard', 'btn-yard']], HINT_MS = 1600;   /* 11-21: 계단은 뺐다 (가장자리 계단 단추를 없앴다 — 주인) */
   var hintPoll = 0, hintRun = null, greetT = 0, hintCalm = 0;   /* hintCalm = 누름으로 끝낸 뒤 다음 조용한 때까지 (그동안 다음 손은 안 뜬다) */   /* greetT = 첫 인사 말풍선 (이름 지은 직후 · 이름 창 처리) 동안 선물 알림을 붙잡는 타이머 */
   function hintSeen() { var o = uiPref().hints; return (o && typeof o === 'object') ? o : {}; }
   function hintLeft() { var seen = hintSeen(); return HINT_SPOTS.filter(function (sp) { return !seen[sp[0]]; }); }
