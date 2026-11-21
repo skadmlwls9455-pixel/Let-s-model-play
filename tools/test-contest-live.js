@@ -78,6 +78,12 @@ async function main() {
   r = await page.evaluate(function () { return { ret: APP.openContest(), open: document.getElementById('contest-sheet').open, has: typeof CONTEST === 'object' }; });
   check(r.has && r.ret === false && r.open === false, '옷 목록 (APP.wardrobe) 이 없으면 안 열림');
   check(await page.evaluate(function () { return document.getElementById('btn-plaza-stage') === null || true; }), '무대 단추가 없어도 던지지 않음');
+  r = await page.evaluate(function () {
+    var out = [], shapes = [function () { throw new Error('x'); }, function () { return null; }, function () { return { cats: [] }; }, function () { return { cats: [{ key: 'outfit', items: [] }] }; }, function () { return { cats: [{ key: 'outfit', items: [{ id: 'a', worn: true }] }] }; }];
+    shapes.forEach(function (f) { APP.wardrobe = f; out.push(APP.openContest()); APP.contestEnter(); });
+    delete APP.wardrobe; return { out: out, entry: CONTEST.today(APP.state.user, window.__ppolTest.today), open: document.getElementById('contest-sheet').open };
+  });
+  check(r.out.every(function (x) { return x === false; }) && r.entry === null && !r.open, '깨진 · 빈 · 꼬리표 없는 옷 목록이면 안 열리고 안 나감');
   check(page._errs.length === 0, '오류 없음');
   await page.close();
   page = await open(ctx, { q: '&scene=2d' });
@@ -124,6 +130,9 @@ async function main() {
   await page.click('#ct-go');
   r = await page.evaluate(function () { return { st: APP.contestStage, closeHidden: document.getElementById('contest-close').hidden, skip: !!document.getElementById('ct-skip') }; });
   check(r.st && r.st.stage === 'walk' && r.st.n === 1 && r.skip && r.closeHidden, '쇼 시작: 걸어 나오기 1 · 넘기기 단추');
+  r = await page.evaluate(function () { var dpr = window.devicePixelRatio, bad = [], th = document.querySelectorAll('#ct-show canvas.ct-thumb'); Array.prototype.forEach.call(th, function (c) { var per = c.getBoundingClientRect().width * dpr / c.width; if (Math.abs(per - Math.round(per)) > 0.01) bad.push(per); }); return { n: th.length, bad: bad, rule: !!document.querySelector('#ct-show .ct-rule') }; });
+  check(r.n >= 9 && r.bad.length === 0, '경쟁자 옷 그림 ' + r.n + '개도 기기 픽셀 정수 배 ' + JSON.stringify(r.bad));
+  check(r.rule, "쇼 중에도 '채점 규칙' 꼬리표");
   e = await entry(page, SAT);
   check(e && e.paid === true && (await shells(page)) === s0 + e.shells && [12, 8, 5, 3][e.rank - 1] === e.shells, '나가는 순간 조개 한 번 (' + (e && e.rank) + '등 · ' + (e && e.shells) + ')');
   var seen = {}, t0 = Date.now(), frames = 0;
@@ -191,7 +200,7 @@ async function main() {
   s0 = await shells(p1);
   await p1.evaluate(function () { APP.openContest(); APP.contestEnter(); APP.contestSkip(); });
   var e1 = await entry(p1, SAT);
-  await p2.waitForTimeout(300);
+  await p2.waitForFunction(function (d) { return !!CONTEST.today(APP.state.user, d); }, SAT, { timeout: 10000 });   /* 저장 알림이 닿은 뒤 */
   await p2.evaluate(function () { APP.setPlayerPart('outfit', 'raincoat'); APP.openContest(); APP.contestEnter(); });
   var eB = await entry(p2, SAT);
   check(e1 && eB && eB.at === e1.at && eB.rank === e1.rank && !(await p2.evaluate(function () { return APP.contestStage; })), '둘째 탭: 첫 탭의 결과 그대로 (쇼 없이)');
@@ -206,7 +215,7 @@ async function main() {
   await p2.evaluate(function () { window.addEventListener('storage', function (e) { e.stopImmediatePropagation(); }, true); });   /* 둘째 탭이 저장 알림을 못 받은 척 */
   await p1.evaluate(function () { APP.openContest(); APP.contestEnter(); APP.contestSkip(); });
   await p2.evaluate(function () { APP.save(); });   /* 옛 상태 그대로 저장 → 첫 탭의 기록을 덮는다 */
-  await p2.waitForTimeout(400);
+  await p2.waitForFunction(function (d) { var u = JSON.parse(localStorage.getItem('ppolppol_v2')).user; return !!CONTEST.today(u, d); }, SUN, { timeout: 10000 });   /* 첫 탭이 기록을 다시 얹은 뒤 */
   await p2.evaluate(function () { APP.openContest(); APP.contestEnter(); });
   await p1.waitForTimeout(300);
   e1 = await entry(p1, SUN); eB = await entry(p2, SUN);

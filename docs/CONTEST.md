@@ -63,7 +63,7 @@
 
 - 채점은 규칙이다: 결과 줄에 '채점 규칙' 꼬리표. 심사 문어 (가게 문어 셋 — `NPC` 명단이 있으면 이름과 색) 는 그림 카드만 든다. 말 · 마음 · 평가 글이 없다.
 - 경쟁자는 이름 없는 마을 문어 그림자다. 다락 문어는 나오지 않는다.
-- 결과를 닫을 때 `APP.npcSay('clothes', 'contest.result', { rank, shells })` 가 있으면 한 번 부른다 ('대본' 표시는 N 갈래의 말상자가 한다). 없으면 아무것도 띄우지 않는다.
+- `APP.npcSay` 가 있으면 열린 날 처음 열 때 `('clothes', 'contest.open', { theme })`, 결과가 보일 때 `('clothes', 'contest.result', { rank, shells })` 를 한 번씩 부른다 ('대본' 표시는 N 갈래의 말상자가 한다). 없으면 아무것도 띄우지 않는다.
 
 ## 저장 (`S.user.contest`)
 
@@ -73,11 +73,11 @@
 
 - `CONTEST.normalize(user)`: 없거나 깨진 칸만 기본값, 모르는 값은 그대로. `CONTEST.merge(a, b)`: 두 탭 — 주 · 날을 합치고, 같은 날이 둘이면 조개를 준 쪽 (둘 다면 먼저 나간 쪽).
 - 두 탭: 나가기 직전에 저장소를 다시 읽어 다른 탭이 이미 나갔으면 그 결과를 보여 준다 (조개는 한 번). 다른 탭의 옛 저장이 이 탭의 기록을 덮으면 기록과 그때 받은 조개를 함께 다시 얹는다.
-- 오늘 기록 칸에 '콘테스트 N등 · 조개 M' 한 줄 (오늘 칸에만).
+- 그날 기록 칸 (오늘 · 앨범 일기) 에 '콘테스트 N등 · 조개 M' 한 줄 (`dayRows` 가 `ctDayRows` 를 부른다).
 
 ## 다른 갈래와 닿는 곳
 
-- P (옷 목록): `APP.wardrobe()` 의 `cats[].items[]` 에서 `tags` · `worn` 을 읽는다 (`worn` 표시가 없으면 `APP.wearing()`). 경쟁자 옷 그림은 `APP.itemThumb(cat, id, 32)`. 없으면 무대 단추와 `APP.openContest()` 는 아무것도 하지 않는다.
+- P (옷 목록): 입은 것은 `APP.wearing()` 에 `APP.wardrobe()` 의 본디 꼬리표를 합쳐 읽는다 (물들여서 잃는 것이 없게; `wearing` 이 없으면 `worn` 표시). 경쟁자 옷 그림은 `APP.itemThumb(cat, id, 32)`. 꼬리표 달린 옷 목록이 없으면 무대 단추와 `APP.openContest()` 는 아무것도 하지 않는다.
 - V (무대 단추): `#btn-plaza-stage` 누름. 없으면 넘어간다. 2D 장면에서는 열리지 않는다.
 - N (명단 · 대본): `NPC.roster` 의 `clothes` · `goods` · `cafe` 이름 · 색, `APP.npcSay`.
 - 조개: 기존 놀이 보상 함수는 판마다 2 ~ 8개로 고정이고 달리기 과제를 표시하므로 쓰지 않았다. 주간 선물과 같은 방식 (`userState()` → 더하기 → `save()` → `renderBagChip()`) 으로 준다.

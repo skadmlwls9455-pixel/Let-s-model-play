@@ -5547,12 +5547,15 @@ var APP = (function () {
       return cv;
     } catch (e) { console.warn('[contest] playerShot', e); return null; }
   }
-  function ctThumb(cat, id) {   /* 경쟁자가 입은 것 (P 갈래의 그림 — 없으면 안 그린다) */
+  function ctThumb(cat, id) {   /* 경쟁자가 입은 것 (P 갈래의 그림 — 없으면 안 그린다). 받은 그림의 1px 도 기기 픽셀 정수 배로 (약 32 CSS px) */
     var A = ctApi(); if (!A || typeof A.itemThumb !== 'function') return null;
     try {
       var t = A.itemThumb(cat, id, 32); if (!t) return null;
-      if (typeof t === 'string') return h('img', { class: 'ct-thumb', src: t, alt: '', width: '32', height: '32' });
-      var cv = h('canvas', { class: 'ct-thumb', 'aria-hidden': 'true' }); cv.width = t.width || 32; cv.height = t.height || 32; cv.getContext('2d').drawImage(t, 0, 0); return cv;
+      var cv = h('canvas', { class: 'ct-art ct-thumb', 'aria-hidden': 'true' });
+      var put = function (src, w, hh) { if (!(w > 0 && hh > 0)) return; cv.width = w; cv.height = hh; ctSnap(cv, w, hh, 32 / w); cv.getContext('2d').drawImage(src, 0, 0); };
+      if (typeof t === 'string') { cv.width = cv.height = 32; ctSnap(cv, 32, 32, 1); var im = new Image(); im.onload = function () { put(im, im.naturalWidth, im.naturalHeight); }; im.src = t; }
+      else put(t, t.width, t.height);
+      return cv;
     } catch (e) { return null; }
   }
   function ctNpc(id) {   /* 심사 문어의 이름 · 색 (N 갈래의 명단 — 없으면 이름 없는 그림자) */
@@ -5592,7 +5595,7 @@ var APP = (function () {
   function ctResult(e, fresh) {   /* 결과: 등수 + 조개 + '채점 규칙' · 단상 · 심사 카드 */
     var th = CT.themeById(e.theme) || CT.week(todayKey()).theme;
     return h('div', { class: 'ct-result', id: 'ct-result' }, [
-      h('p', { class: 'ct-line', id: 'ct-line', tabindex: '-1' }, [h('span', { class: 'ct-place', text: CT.fill(CT.TEXT.rank, { n: e.rank }) }), shellAmt(e.shells | 0), h('span', { class: 'ct-rule', text: CT.TEXT.rule })]),
+      h('p', { class: 'ct-line', id: 'ct-line', tabindex: '-1' }, [h('span', { class: 'ct-place', text: CT.fill(CT.TEXT.rank, { n: e.rank }) }), shellAmt(CT.shellsOf(e)), h('span', { class: 'ct-rule', text: CT.TEXT.rule })]),
       ctPodium(e, 'on'), ctCards(e, th, 'on')
     ]);
   }
@@ -5612,28 +5615,28 @@ var APP = (function () {
   }
   function ctHeal() {   /* 이 탭이 나간 기록이 다른 탭의 옛 저장에 덮였으면 (그 저장엔 그 기록도 그때 받은 조개도 없다) 기록과 조개를 함께 다시 얹는다. 그날 기록이 있으면 건드리지 않는다 */
     var born = S.octopus.born || 0;
-    ctMine = ctMine.filter(function (m) { return m.born === born; });   /* 다른 문어 (초기화 · 불러오기) 의 것은 버린다 */
+    ctMine = ctMine.filter(function (m) { return m.born === born && m.t > importAt; });   /* 다른 문어 (초기화) 의 것 · 기록을 불러오기 전의 것은 버린다 (불러온 기록을 바꾸지 않게) */
     if (!CT || !ctMine.length) return false;
     var u = userState(), lost = ctMine.filter(function (m) { return !CT.today(u, m.dk); });
     if (!lost.length) return false;
     var mine = { v: 1, weeks: {} };
-    lost.forEach(function (m) { var wk = CT.week(m.dk); if (!mine.weeks[wk.key]) mine.weeks[wk.key] = { theme: wk.theme.id, days: {} }; mine.weeks[wk.key].days[m.dk] = m.entry; u.shells += m.entry.shells | 0; });
+    lost.forEach(function (m) { var wk = CT.week(m.dk); if (!mine.weeks[wk.key]) mine.weeks[wk.key] = { theme: wk.theme.id, days: {} }; mine.weeks[wk.key].days[m.dk] = m.entry; u.shells += CT.shellsOf(m.entry); });
     u.contest = CT.merge(mine, u.contest); save(); return true;
   }
   function ctEnter(ev) {
     if (ev && ev.isTrusted && ev.detail !== 0 && tapTime(ev) - ctOpenedAt < SHEET_SETTLE) return;   /* 시트를 연 손가락이 그대로 누르는 것 */
-    if (!ctApi() || ctRun) return;
+    if (!ctApi() || ctRun || !ctCats().length) return;
     try { var raw = storeOK ? localStorage.getItem(KEY) : null; if (raw && raw !== lastSaved) takeRemote(raw); } catch (e) { /* noop */ }   /* 다른 탭이 방금 나갔을 수 있다 — 그 저장부터 받는다 */
     var dk = todayKey(), u = userState(); CT.normalize(u);
     var res = CT.enter(u, dk, ctWorn(), { catalog: ctCats(), salt: S.octopus.born || 0, at: Date.now() });
     if (!res) { ctRender(); return; }
     var e = res.entry;
-    if (!e.paid) { e.paid = true; u.shells += e.shells | 0; ctMine.push({ dk: dk, entry: e, born: S.octopus.born || 0 }); save(); renderBagChip(); ctLogSync(); ctTell = e; }   /* 조개는 여기 한 번만 (주간 선물과 같은 방식) */
+    if (!e.paid) { e.paid = true; u.shells += CT.shellsOf(e); ctMine.push({ dk: dk, entry: e, born: S.octopus.born || 0, t: performance.now() }); save(); renderBagChip(); ctLogSync(); ctTell = e; }   /* 조개는 여기 한 번만 (주간 선물과 같은 방식) */
     if (res.replay || reduced()) { ctRender(); ctFocusLine(); ctTold(); return; }
     ctShow(e);
   }
   function ctSay(key, vars) { var A = window.APP; if (A && typeof A.npcSay === 'function') { try { A.npcSay('clothes', key, vars); } catch (e) { console.warn('[contest] npcSay', e); } } }   /* 옷가게 문어의 대본 한 줄 (N 갈래의 말상자 · '대본' 표시 — 없으면 아무것도 안 띄운다) */
-  function ctTold() { var t = ctTell; ctTell = null; if (t) ctSay('contest.result', { rank: t.rank, shells: t.shells | 0 }); }   /* 결과가 보일 때 한 번 */
+  function ctTold() { var t = ctTell; ctTell = null; if (t) ctSay('contest.result', { rank: t.rank, shells: CT.shellsOf(t) }); }   /* 결과가 보일 때 한 번 */
   function ctFocusLine() { var l = $('ct-line'); if (l) { try { l.focus({ preventScroll: true }); } catch (e) { l.focus(); } } }
   /* 쇼: 참가자 넷이 차례로 → 심사 카드 셋 → 점수 오름 → 단상 → 결과. 넘기기는 언제나 */
   function ctShow(e) {
@@ -5645,7 +5648,7 @@ var APP = (function () {
     }));
     var skip = h('button', { type: 'button', class: 'btn sm pressable', id: 'ct-skip', text: CT.TEXT.skip });
     skip.addEventListener('click', function () { ctEnd(); });
-    var box = h('div', { class: 'ct-show', id: 'ct-show' }, [ctThemeHead(th, false), line, ctPodium(e), ctCards(e, th), h('div', { class: 'btn-row ct-skip-row' }, [skip])]);
+    var box = h('div', { class: 'ct-show', id: 'ct-show' }, [ctThemeHead(th, false), line, ctPodium(e), ctCards(e, th), h('div', { class: 'btn-row ct-skip-row' }, [h('span', { class: 'ct-rule', text: CT.TEXT.rule }), skip])]);
     body.textContent = ''; body.appendChild(box); body.dataset.view = 'show';
     ctRun = { entry: e, i: -1, timer: 0, raf: 0, box: box };
     var cl = $('contest-close'); if (cl) cl.hidden = true;
@@ -5683,7 +5686,7 @@ var APP = (function () {
   }
   function ctLogSync() { renderLog(); }
   function openContest() {
-    var d = $('contest-sheet'); if (!d || !ctApi()) return false;
+    var d = $('contest-sheet'); if (!d || !ctApi() || !ctCats().length) return false;   /* 꼬리표 달린 옷 목록이 없으면 (P 갈래 없음 · 깨짐) 열지 않는다 */
     var fresh = !d.open; if (fresh) ctOpenedAt = performance.now();
     ctRender(); showDialog(d);
     var dk = todayKey(), wk = CT.week(dk);

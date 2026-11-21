@@ -199,6 +199,12 @@ section('6 normalize · merge', function () {
   check(C.merge(P.contest, Q.contest).weeks[MON].days[SAT].at === 65 && C.merge(Q.contest, P.contest).weeks[MON].days[SAT].at === 65, '둘 다 줬으면 먼저 나간 쪽');
   var mm = C.merge(u.contest, A.contest);
   check(mm.later && mm.weeks.odd === 'str' && mm.weeks[MON].extra === 1 && mm.weeks[MON].days[SAT].future === 'k', '합쳐도 모르는 값 그대로 · 준 쪽이 남음');
+  check(C.merge({ weeks: { w2: 7 } }, { weeks: {} }).weeks.w2 === 7 && C.merge({ weeks: {} }, { weeks: { w2: 7 } }).weeks.w2 === 7, '한쪽에만 있는 모르는 주 값도 남음');
+  var odd = { contest: { v: 1, weeks: {} } }; odd.contest.weeks[MON] = { days: {} }; odd.contest.weeks[MON].days[SAT] = { rank: 2.5, shells: -4, paid: true };
+  check(C.today(odd, SAT) === null && C.enter(odd, SAT, [], { catalog: cat }) === null && odd.contest.weeks[MON].days[SAT].rank === 2.5, '모르는 모양의 그날 값은 결과로 안 읽고 덮어쓰지도 않음');
+  var odd2 = { contest: { v: 1, weeks: {} } }; odd2.contest.weeks[MON] = 'later';
+  check(C.enter(odd2, SAT, [], { catalog: cat }) === null && odd2.contest.weeks[MON] === 'later', '모르는 모양의 주 값도 덮어쓰지 않음');
+  check(C.shellsOf({ rank: 2 }) === 8 && C.shellsOf({ rank: 2, shells: -4 }) === 8 && C.shellsOf({ rank: 1, shells: 12 }) === 12 && C.shellsOf(null) === 0, '깨진 조개 수는 등수의 조개로');
   check(!!C.merge(null, A.contest).weeks[MON] && !!C.merge(A.contest, undefined).weeks[MON] && !!C.merge(null, null).weeks, '한쪽이 없어도');
 });
 

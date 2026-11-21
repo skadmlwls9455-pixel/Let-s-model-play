@@ -159,7 +159,8 @@
     Object.keys(u.contest.weeks).forEach(function (k) { var w = u.contest.weeks[k]; if (isObj(w) && !isObj(w.days)) w.days = {}; });
     return u;
   }
-  function entryOk(e) { return isObj(e) && typeof e.rank === 'number' && e.rank >= 1 && e.rank <= 4; }
+  function entryOk(e) { return isObj(e) && e.rank === Math.floor(e.rank) && e.rank >= 1 && e.rank <= 4; }
+  function shellsOf(e) { return isObj(e) && typeof e.shells === 'number' && e.shells >= 0 && e.shells === Math.floor(e.shells) ? e.shells : entryOk(e) ? SHELLS[e.rank - 1] : 0; }   /* 깨진 수는 등수의 조개로 */
   function today(u, dk) {
     var w = week(dk); if (!w || !isObj(u) || !isObj(u.contest) || !isObj(u.contest.weeks)) return null;
     var W = u.contest.weeks[w.key], e = isObj(W) && isObj(W.days) ? W.days[dk] : null;
@@ -171,7 +172,9 @@
   function enter(u, dk, worn, o) {
     var w = week(dk); if (!w || !w.open || !isObj(u)) return null;
     normalize(u); o = o || {};
-    var had = today(u, dk); if (had) return { rank: had.rank, shells: had.shells | 0, replay: true, entry: had };
+    var had = today(u, dk); if (had) return { rank: had.rank, shells: shellsOf(had), replay: true, entry: had };
+    var W0 = u.contest.weeks[w.key];
+    if (W0 != null && (!isObj(W0) || (isObj(W0.days) && W0.days[dk] != null))) return null;   /* 모르는 모양의 값이 그 자리에 있으면 덮어쓰지 않는다 */
     var list = (Array.isArray(worn) ? worn : []).filter(function (p) { return isObj(p) && p.id != null; });
     var mine = score(list, w.theme, hashSeed('contest-me', w.key, o.salt, list.map(function (p) { return p.cat + ':' + p.id + ':' + (p.dye || ''); }).join(',')));
     var rv = rivals(w.key, o.catalog, w.theme, o.salt);
@@ -198,16 +201,16 @@
     for (k in A) if (Object.prototype.hasOwnProperty.call(A, k) && !(k in out)) out[k] = A[k];
     var wa = isObj(A.weeks) ? A.weeks : {}, wb = isObj(Bc.weeks) ? Bc.weeks : {}, weeks = {};
     Object.keys(wb).concat(Object.keys(wa)).forEach(function (wk) {
-      if (weeks[wk]) return;
+      if (Object.prototype.hasOwnProperty.call(weeks, wk)) return;
       var x = wa[wk], y = wb[wk];
-      if (!isObj(x) || !isObj(y)) { weeks[wk] = isObj(y) ? y : x; return; }
+      if (!isObj(x) || !isObj(y)) { weeks[wk] = isObj(y) ? y : isObj(x) ? x : (y !== undefined ? y : x); return; }
       var W = {}, j; for (j in y) if (Object.prototype.hasOwnProperty.call(y, j)) W[j] = y[j];
       for (j in x) if (Object.prototype.hasOwnProperty.call(x, j) && !(j in W)) W[j] = x[j];
       var dx = isObj(x.days) ? x.days : {}, dy = isObj(y.days) ? y.days : {}, days = {};
       Object.keys(dy).concat(Object.keys(dx)).forEach(function (dk) {
-        if (days[dk]) return;
+        if (Object.prototype.hasOwnProperty.call(days, dk)) return;
         var p = dx[dk], q = dy[dk];
-        if (!entryOk(p) || !entryOk(q)) { days[dk] = entryOk(q) ? q : entryOk(p) ? p : (q || p); return; }
+        if (!entryOk(p) || !entryOk(q)) { days[dk] = entryOk(q) ? q : entryOk(p) ? p : (q !== undefined ? q : p); return; }
         var keep = (!!p.paid !== !!q.paid) ? (p.paid ? p : q) : ((p.at || 0) < (q.at || 0) ? p : q);
         if ((p.paid || q.paid) && !keep.paid) keep.paid = true;
         days[dk] = keep;
@@ -217,7 +220,7 @@
     out.weeks = weeks; if (out.v == null) out.v = 1;
     return out;
   }
-  function logLine(e, full) { return fill(full ? TEXT.logFull : TEXT.log, { n: e.rank, s: e.shells | 0 }); }
+  function logLine(e, full) { return fill(full ? TEXT.logFull : TEXT.log, { n: e.rank, s: shellsOf(e) }); }
 
   /* ── 픽셀 그림 (글자 격자 + 팔레트. '.' = 비침). 그리기는 앱이 한다 ── */
   var PAL = deepFreeze({
@@ -311,7 +314,7 @@
     THEMES: THEMES, STYLES: STYLES, TAG_NAME: TAG_NAME, COLOR_HEX: COLOR_HEX, SHELLS: SHELLS, PTS: PTS, TEXT: TEXT, PAL: PAL,
     hashSeed: hashSeed, rng: rng, fill: fill, themeById: themeById, themeAt: themeAt,
     week: week, score: score, cards: cards, stars: stars, rivals: rivals, enter: enter, today: today, board: board,
-    normalize: normalize, merge: merge, logLine: logLine, art: art
+    normalize: normalize, merge: merge, shellsOf: shellsOf, logLine: logLine, art: art
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.CONTEST = API;
