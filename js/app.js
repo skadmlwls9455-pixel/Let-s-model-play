@@ -5670,7 +5670,7 @@ var APP = (function () {
     var cl = $('cafe-card-close'); if (cl) cl.hidden = mode === 'stamp';
     if (mode === 'menu') { cafeAsk = null; renderCafe(); } else if (mode === 'lp') renderLp(); else cafeStampCard();
     var sc = $('scene'), go = $('btn-go'), sr = sc && sc.getBoundingClientRect(), gr = go && go.getBoundingClientRect();
-    card.style.bottom = (sr && gr && gr.height > 0 && gr.top < sr.bottom && gr.bottom > sr.top ? Math.max(8, Math.round(sr.bottom - gr.top) + 8) : 8) + 'px';
+    card.style.bottom = mode === 'stamp' ? 'auto' : (sr && gr && gr.height > 0 && gr.top < sr.bottom && gr.bottom > sr.top ? Math.max(8, Math.round(sr.bottom - gr.top) + 8) : 8) + 'px';   /* 도장 카드는 작게 위쪽에 (아래 변을 잡으면 세로로 늘어난다) */
     card.hidden = false;
     if (mode !== 'stamp') { var f = body.querySelector('button'); if (f) { try { f.focus({ preventScroll: true }); } catch (e) { f.focus(); } } }
     return true;
@@ -5861,7 +5861,7 @@ var APP = (function () {
     if (cafeRoomOK()) {   /* 방 안: 먹던 것이 있으면 식탁에 있다 (새로 시키지 않는다 — 자리로 간다), 아니면 칠판 확대 */
       if (cafeRoom.stage === 'brew' || cafeRoom.stage === 'ready' || cafeRoom.stage === 'carry') return true;
       if (CAFE.pending(c)) { cafeRoom.stage = 'eat'; cafePlate(); if (!cafeSeated) cafeSeatTap(); return true; }
-      cafeSay('cafe.hello'); return cafeCardOpen('menu', document.activeElement);
+      var opened = cafeCardOpen('menu', document.activeElement); cafeSay('cafe.hello'); return opened;   /* 카드가 먼저 뜬 뒤에 말한다 — 대사창이 카드를 비켜 선다 (data-npc-avoid) */
     }
     if (CAFE.pending(c)) { cafeServe(false); return true; }   /* 먹다 만 것이 있으면 그것부터 다시 낸다 (값은 이미 냈다) */
     cafeCardClose(true); cafeAsk = null; renderCafe(); cafeSay('cafe.hello'); showDialog($('cafe-sheet'));

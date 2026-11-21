@@ -197,8 +197,21 @@ saves and music are unchanged, except that coffee is now three sips (it used to 
 - New keeper keys used if lane N has them: `cafe.order`, `cafe.stamp`, `cafe.record` (besides hello / serve / gift).
 - Sprite ids used if lane A has them, with fallbacks to the menu pictures: `cafe.tray`, `cafe.cup` (frames 0..3),
   `table.cake`, `table.kkochi` (frames 0..3).
-- Checks: `tools/test-cafe.js` 100; `tools/test-cafe-live.js` 91 (section 11 plays the whole chain with real taps in
-  the 3D scene; the scene functions of W, V and T are stubs there). **Not yet run against the real room**: W's rooms,
-  V's cafe room and T's two exports were not pushed when this was written.
-- Pictures (attic as a stand-in room, stubs): `wip/round7/shots/C/room-board.png`, `room-plate.png`,
-  `room-stamp.png`, `room-gift.png`, `room-rack.png`.
+- Checks on this branch alone: `tools/test-cafe.js` 100; `tools/test-cafe-live.js` 92 (section 11 plays the chain
+  with real taps in the 3D scene with W / V / T scene functions stubbed).
+- **Run against the real room** (15:25 UTC, local trial merge of the base + lane/7-w, 7-v, 7-t, 7-a, 7-n on top of this
+  branch; merged without conflicts; not committed): `tools/test-cafe-live.js` 86 passed. On such a build the test
+  skips the stub section and runs section 12 in the real cafe room: village → `APP.goInside('cafe')` → the board
+  button (walk-first, then the card) → order → the keeper's line and the tray on the counter → the counter button →
+  carried, seated, plate set down (`scene.debugSprites()` shows `cafe-plate` = `table.cake` frame 0) → three taps on
+  the plate → stamp card and N's stamp line, T's recipe count 1 → stand → order a skewer, one bite, leave by the door,
+  come back: the plate waits on the table at frame 1 → finish → the rack card, a sleeve, the disc on V's turntable →
+  leaving stops the record. No page errors.
+- Fixed from the real run: the stamp card was stretched to the bottom of the scene; the keeper's greeting was said
+  before the board card opened, so N's dialogue box covered the card's close button (now the card opens first and
+  the box moves to the top).
+- Bound by me because nobody else had: the terrace door `#btn-in-cafe` → `APP.goInside('cafe')`.
+- True room pictures (real scene, no stubs, 360x740): `wip/round7/shots/C/real-r1-inside.png`, `real-r2-board.png`,
+  `real-r5-tray.png`, `real-r6-carry.png`, `real-r7-plate.png`, `real-r8-bite.png`, `real-r9-stamp.png`,
+  `real-r10-rack.png`, `real-r11-disc.png`.
+- Not done yet for this pass: the independent check and the whole smoke suite.
