@@ -81,6 +81,22 @@ V.LAMPS.concat(V.POTS).forEach(function (p) { ok(p.length === 2 && p[0] >= 18 &&
 V.BOXES.slice(0, 2).forEach(function (b3) { [[b3[0], b3[1]], [b3[2], b3[3]], [b3[0], b3[3]], [b3[2], b3[1]]].forEach(function (c2) { ok(Math.abs(V.st(c2[0], c2[1])[1]) >= 2.3, '판매대가 걷는 곳 (|t| ≤ 2.2) 밖 — 2.3 부터'); }); });
 V.SPOTS.forEach(function (s2) { var a2 = V.xz(s2.stand[0], s2.stand[1]); ok(!V.BOXES.some(function (b3) { return a2[0] > b3[0] - 0.24 && a2[0] < b3[2] + 0.24 && a2[1] > b3[1] - 0.24 && a2[1] < b3[3] + 0.24; }), s2.key + ' 서는 자리가 네모 밖'); });
 
+/* 6b. 길 찾기: 길 · 덱 · 광장의 빈 자리 어디서든 열 자리의 서는 자리까지, 모든 구간이 걷는 곳 안이다 (ㄱ 자로 꺾인 길 — 광장 → 카페, 덱 → 잡화점 — 도) */
+(function () {
+  var pts = [], bad = 0, n = 0;
+  for (var s = 20.5; s <= 45.5; s += 1.25) for (var t = -7.5; t <= 7.5; t += 1.25) {
+    if (!V.inWalk(s, t, 0.3) || V.CIRCLES.some(function (c) { return Math.hypot(c[0] - s, c[1] - t) < c[2] + 0.3; })) continue;
+    var a = V.xz(s, t); if (V.BOXES.some(function (b3) { return a[0] > b3[0] - 0.3 && a[0] < b3[2] + 0.3 && a[1] > b3[1] - 0.3 && a[1] < b3[3] + 0.3; })) continue;
+    pts.push([s, t]);
+  }
+  pts.forEach(function (p) { V.SPOTS.forEach(function (sp) {
+    n++; var r = V.route(p, sp.stand), prev = p, okk = r.length >= 1 && Math.abs(r[r.length - 1][0] - sp.stand[0]) < 1e-9;
+    r.forEach(function (q2) { for (var k = 0; k <= 40; k++) { var u = k / 40; if (!V.inWalk(prev[0] + (q2[0] - prev[0]) * u, prev[1] + (q2[1] - prev[1]) * u, -0.03)) okk = false; } prev = q2; });
+    if (!okk) bad++;
+  }); });
+  ok(pts.length >= 90 && bad === 0, '길 찾기 ' + n + ' 갈래 (' + pts.length + ' 자리 × 열 단추) 가 다 걷는 곳 안으로 이어진다 (어긋난 것 ' + bad + ')');
+})();
+
 /* 7. 파일: DOM · 시계 · 난수 없음 */
 var src = fs.readFileSync(path.join(ROOT, 'js/village.js'), 'utf8');
 ok(!/\bdocument\b|\bwindow\b|Math\.random|Date\.now|new Date/.test(src), 'village.js 에 DOM · 시계 · 난수가 없다');
