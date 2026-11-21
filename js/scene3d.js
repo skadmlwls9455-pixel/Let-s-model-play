@@ -5855,7 +5855,8 @@ var SCENE3D = (function () {
       else if (hat === 'apron') L.push({ g: new T.CylinderGeometry(1.0, 1.1, 0.42, 12, 1, true, -Math.PI / 2, Math.PI), m: M(0, 0.26, 0.02), c: VC.cream }, { g: box(0.3, 0.2, 0.06), m: M(0, 0.2, 1.07), c: VC.dusk }, { g: new T.CylinderGeometry(1.0, 1.0, 0.06, 12, 1, true, -Math.PI / 2, Math.PI), m: M(0, 0.48, 0.02), c: VC.dusk });
       return mergeParts(L);
     }
-    function vilNpcSpots() { return VIL.on ? VILLAGE.NPCS.map(function (n) { var q = vilXZ(n.s, n.t); return { id: n.id, x: q[0], y: n.y, z: q[1], face: n.face }; }) : []; }
+    function vilGround(x, z) { return typeof wideGroundY === 'function' ? wideGroundY(x, z) : 0; }   /* 땅 높이 (갈래 W — 바닷가 모래는 0.6 m 낮다). 그 함수가 없으면 평지 */
+    function vilNpcSpots() { return VIL.on ? VILLAGE.NPCS.map(function (n) { var q = vilXZ(n.s, n.t); return { id: n.id, x: q[0], y: n.y + vilGround(q[0], q[1]), z: q[1], face: n.face }; }) : []; }
     function vilNpcApply() {   /* VIL.want → 메시 (바뀐 것만 다시 굽는다). 마을이 아직 안 지어졌으면 기억만 해 둔다 */
       if (!VIL.built) return 0;
       var seen = {}, n = 0;
@@ -5865,8 +5866,8 @@ var SCENE3D = (function () {
         if (o && o.key === key) return;
         if (o) { VIL.g.remove(o.m); o.m.geometry.dispose(); }
         var m = new T.Mesh(vilOctGeo(w.color, w.hat, w.pose === 'sleep'), lambert), q = vilXZ(sp.s, sp.t), R = VIL.R; m.receiveShadow = true;
-        m.position.set(q[0], sp.y, q[1]); m.rotation.y = sp.face; m.scale.set(R, R, R); m.name = 'npc-' + w.id; VIL.g.add(m);
-        VIL.npcs[w.id] = { m: m, key: key, pose: w.pose, y: sp.y, ph: hash('npc' + w.id) % 100 / 100, f: -1 };
+        var gy = sp.y + vilGround(q[0], q[1]); m.position.set(q[0], gy, q[1]); m.rotation.y = sp.face; m.scale.set(R, R, R); m.name = 'npc-' + w.id; VIL.g.add(m);
+        VIL.npcs[w.id] = { m: m, key: key, pose: w.pose, y: gy, ph: hash('npc' + w.id) % 100 / 100, f: -1 };
       });
       Object.keys(VIL.npcs).forEach(function (id) { if (!seen[id]) { var o = VIL.npcs[id]; VIL.g.remove(o.m); o.m.geometry.dispose(); delete VIL.npcs[id]; if (VIL.marks[id]) VIL.marks[id].visible = false; } });
       vilNpcPose(true); dither.still = 0; return n;
