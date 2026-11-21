@@ -7605,7 +7605,7 @@ async function scenarioSceneTap(browser) {
       /* 11-21 7차 (T · 계약 C2): 빈 냄비여도 쟁반 없이 부엌이 열린다 · 'open' 에 ctx { canCall, unlocked } · 요리를 다 만들면 'result' 한 번, 게임은 'ctx' 로 답한다 ·
          부엌의 'serve' 뒤에 닫히면 요리가 식탁에 띡 놓이지 않고 내 캐릭터가 들고 간다 (끝나면 식탁에 · 저장은 result 때 그대로) */
       await setPot(null);
-      await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]'); await page.selectOption('#set-motion', 'auto'); await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });   /* 위에서 켠 모션 줄이기를 되돌린다 (들고 가는 걸음을 본다) */
+      await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]'); await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); }); await page.selectOption('#set-motion', 'auto'); await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });   /* 위에서 켠 모션 줄이기를 되돌린다 (들고 가는 걸음을 본다) */
       await page.waitForTimeout(400);
       await fr.evaluate(function () { window.__ckOpen = []; window.addEventListener('message', function (e) { var d = e.data; if (d && typeof d === 'object' && (d.ppolCook === 'open' || d.ppolCook === 'ctx')) window.__ckOpen.push(JSON.parse(JSON.stringify(d))); }); });
       await page.evaluate(function () { window.__ckMsgs = []; });
