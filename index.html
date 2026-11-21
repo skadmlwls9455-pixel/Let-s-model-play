@@ -435,6 +435,12 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 </div>
 
 <!-- [7-F] 창 -->
+<dialog id="contest-sheet" class="sheet bag-sheet contest-sheet" aria-labelledby="contest-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="contest-h" class="set-h dlg-top" tabindex="-1">주말 콘테스트</h2>
+  <div id="contest-body"></div>
+  <button type="button" class="btn wide pressable" id="contest-close">닫기</button>
+</dialog>
 
 <!-- [7-U] 창 -->
 
@@ -525,6 +531,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <script src="js/npc.js"></script><!-- 마을 문어 (전역 NPC, 11-21): 명단 · 대본 · 게시판 쪽지 · 처음 세 줄. DOM 없음 -->
 
 <!-- [7-F] 스크립트 -->
+<script src="js/contest.js"></script><!-- 11-21 주말 콘테스트 규칙 (전역 CONTEST, DOM 없음): 주제 · 채점 · 경쟁자 · 하루 한 번 (docs/CONTEST.md) -->
 
 <!-- [7-U] 스크립트 -->
 
