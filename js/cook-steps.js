@@ -90,9 +90,9 @@ var COOK_STEPS = (function () {
     { id: 'kkochi2', v2: true, tier: 1, at: 'board', fx: 'petal', ings: ['berry', 'grape', 'tang', 'sugar'], steps: [
       { kind: 'rub', station: 'counter', name: 'wash', pic: 'step.wash', box: box({ cy: 84, w: 60, h: 36 }), art: { type: 'wash', basin: [72, 92], spr: 'fruit.wash', at: [72, 86] } },
       { kind: 'slice', lines: 2, cross: false, station: 'board', name: 'chop', pic: 'step.slice', box: box({ rx: [34], ry: [18] }), art: { type: 'cuts', spr: 'fruit.board' } },
-      { kind: 'drag', station: 'board', name: 'thread', pic: 'step.thread', box: box({}), items: [[48, 64], [72, 60], [96, 64]], slots: [[56, 102], [72, 102], [88, 102]], order: true,
+      { kind: 'drag', station: 'board', name: 'thread', pic: 'step.thread', box: box({}), items: [[48, 64], [72, 60], [96, 64]], slots: [[82, 102], [94, 102], [106, 102]], order: true,
         art: { type: 'thread', skewer: [72, 104], item: 'fruit.piece' } },
-      stir(2, 'glaze', 'step.glaze', { type: 'glaze', pot: [72, 96], spr: 'kkochi.coat', at: [72, 80] }, 'stove', [72, 84])] },
+      stir(2, 'glaze', 'step.glaze', { type: 'glaze', pot: [72, 96], spr: 'kkochi.coat', at: [50, 80] }, 'stove', [72, 84])] },
     { id: 'cake', v2: true, tier: 1, at: 'oven', fx: 'confetti', ings: ['egg', 'flour', 'sugar', 'cream', 'berry'], steps: [
       crack('mix.cake'),
       stir(3, 'stir', 'step.stir', { type: 'bowl', bowl: [72, 98], mix: 'mix.cake' }, 'counter', [72, 86]),
