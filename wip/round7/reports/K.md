@@ -79,7 +79,7 @@ is shared but the brief gives me its cook part: one new block before `onCook`, t
    finished step. An untouched pot (step 0) shows the book.
 3. End buttons for every dish, legacy ones too. Standalone `cook.html` shows both.
 4. Stickers: up to `floor(4 x dpr)` device px per sticker px, starting in the HUD row: 128 CSS px at 360 wide (96 before),
-   112 at 320x568 (hidden before). Larger than "one step"; the owner said "too small to see".
+   80 at 320x568 (hidden before); they end 8 px above stage row 36 (no touched food stands above that row). Larger than "one step"; the owner said "too small to see".
 5. Every outcome is equally good: the bake and flip bands only pick `dish.jeon`'s frame; nothing else in the finished
    picture depends on how the player did (ANSWERS 5).
 6. Words (all `aria-label` only): see the list below. '굽기' bands reuse 보들보들 / 노릇노릇 / 바삭바삭 for the cake.
@@ -102,9 +102,9 @@ is shared but the brief gives me its cook part: one new block before `onCook`, t
 
 | suite | result |
 |---|---|
-| `tools/test-cook-steps.js` (new, node) | 191 ok |
+| `tools/test-cook-steps.js` (new, node) | 194 ok |
 | `tools/test-cook-book-live.js` (new, browser) | 171 ok |
-| `tools/test-cook.js` (unchanged) | 263 passed |
+| `tools/test-cook.js` (unchanged by me; 268 after the base merge) | 268 passed |
 | `tools/test-cook-dishes.js` (unchanged) | 106 ok |
 | `tools/test-cook-stickers.js` (unchanged) | 250 ok |
 | `tools/test-cook-live.js` (again → end button + door, strip checks, `recipe=jeon`) | 435 passed |
@@ -112,12 +112,33 @@ is shared but the brief gives me its cook part: one new block before `onCook`, t
 | `tools/test-cook-stickers-live.js` (new size rule and table, short screens now show) | 232 passed |
 | `tools/test-cook-audio.js` (`recipe=jeon`) | 205 passed |
 | `npm test` | no failures |
-| smoke `Z2` (the game's kitchen part) | passed; the rest of scenario Z hit my shell time limit, not a failure |
 | `python3 tools/subset-fonts.py --check` | stale: none |
 
 Old assertions changed on purpose: "again starts a new dish" (now: an end button closes, the door opens the next dish),
 the step strip (now: asserted absent), sticker sizes and the two short screens (now shown), slide count 12 → 9 per dish
 plus none after the plate. Nothing else was weakened.
+
+## The independent check (one fresh agent, one round of fixes)
+
+It found no crash, no blocked dish, no console error; sound-off, zero-text, reduced motion, whole-pixel art at 2.625,
+saving and the message order held. Eight findings, what I did:
+
+| # | finding | done |
+|---|---|---|
+| 1 `must` | unknown top-level fields of `ppolppol_cook_v0` were dropped on the first write (already so in the base) | `normStore` keeps them; check added |
+| 2 | a fruit dropped on the skewer away from the next slot flew home | `drag` has an optional `zone` (the whole skewer); a drop inside it goes to the next slot; check added |
+| 3 | book pictograms overlapped at 320x568 and 1280x800; effect picture and stamp sat on the dish | a packed two-row layout for those sizes; the effect picture closes the second step row; "made before" is a small seal on the tab |
+| 4 | at 320x568 the pick sticker covered the middle egg | eggs, bowl and berries moved to stage rows 36 and below; `STICK_ROW` 44 → 36 (short screens: 80 CSS px) |
+| 5 | at 320x568 the chip sat over a strawberry | the three berries start above the cake |
+| 6 | the book ignored the 24 px edge rule | a touch that starts in the edge band turns no page |
+| 7 | rotated (landscape) phone: tabs below touch size | not fixed: the kitchen is laid out for portrait; listed below |
+| 8 | the oven's heat-on buzzed | no buzz for `bake` |
+
+Not checked by it: sound actually playing (headless Chromium made no AudioContext for it), a real phone's edge gestures.
+
+## Smoke (whole suite, letter by letter, on the branch merged with base fb279f3)
+
+SMOKE_PLACEHOLDER
 
 ## Screenshots (`wip/round7/shots/K/`)
 
@@ -131,6 +152,8 @@ plus none after the plate. Nothing else was weakened.
 
 ## Left out, and not verified
 
+- Landscape phones: the book falls back to the one-row page and its tabs get smaller than 44 px (finding 7).
+- The rice pot's rim (not a touch target) can lie under a sticker for its 1.8 s on short screens.
 - No per-dish sticker scripts for the new dishes (the common rules fire: stir, place, flip, cut, step, done).
 - No "carried object" over the slide for the new dishes (the finished scene slides out, the next slides in).
 - The synthesized pour / scrub loudness against the music was not judged by ear; the recorded stir / place / lift /
