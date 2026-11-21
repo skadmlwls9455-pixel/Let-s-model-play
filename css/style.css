@@ -1843,51 +1843,69 @@ button.cafe-eat:active { transform: translateY(2px); }
 
 
 /* [7-N] NPC 문어 · 세계관 */
-/* 11-21 마을 문어의 말 (#npc-box): 종이 상자 + 이름표 ('이름 · 대본') + 작은 초상. 자리는 app.js npcPlace 가 기기 px 에 맞춰 준다 */
-.npc-box { position: fixed; left: 8px; top: 8px; z-index: 40; box-sizing: border-box; margin: 0; display: flex; align-items: flex-start; gap: 8px; min-height: 76px; padding: 8px 12px 8px 8px;
-  background: var(--paper0); color: var(--ink); border: 2px solid #3b2a20; box-shadow: inset 0 0 0 2px var(--paper0), inset 0 0 0 3px #c9b892; font-synthesis: none; inset-inline: auto; }
+/* 11-21 마을 문어의 말 (#npc-box) · UI 둘째 다듬기: 종이 상자 (바깥 2px 짙은 선 · 안쪽 2px 밝은 선 · 4px 딱딱한 그림자) + 액자 초상 + 상자 가장자리에 서는 이름표 ('이름 · 대본').
+   자리는 app.js npcPlace 가 기기 px 에 맞춰 준다 */
+.npc-box { position: fixed; left: 8px; top: 36px; z-index: 40; box-sizing: border-box; margin: 0; display: flex; align-items: flex-start; gap: 12px; min-height: 84px; padding: 10px 12px 10px 10px; overflow: visible;
+  background: var(--paper0); color: var(--ink); border: 2px solid #3b2a20; box-shadow: inset 0 0 0 2px #fbf4e6, inset -2px -2px 0 2px #c9b892, 4px 4px 0 #2a1d16; font-synthesis: none; }
 .npc-box[hidden] { display: none; }
-.npc-box:popover-open { inset: auto; }
-.npc-face { flex: 0 0 auto; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.npc-box:popover-open { inset: auto; overflow: visible; }
+.npc-frame { flex: 0 0 auto; display: block; padding: 2px; background: #b9d3d6; border: 2px solid #3b2a20; box-shadow: inset 2px 2px 0 #dcebec, inset -2px -2px 0 #8fb0b6; }
+.npc-box[data-npc="clothes"] .npc-frame { background: #e6c9c0; box-shadow: inset 2px 2px 0 #f3e2dc, inset -2px -2px 0 #c9a79c; }
+.npc-box[data-npc="cafe"] .npc-frame { background: #c9d8e6; box-shadow: inset 2px 2px 0 #e2ecf3, inset -2px -2px 0 #a3b6c8; }
+.npc-face { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
 .npc-say { flex: 1 1 auto; min-width: 0; }
-.npc-tag { display: inline-block; padding: 0 6px; background: #3b2a20; color: #f3ead6; font-size: 12px; line-height: 20px; }
-.npc-text { margin: 4px 0 0; font-size: 15px; line-height: 22px; min-height: 44px; word-break: keep-all; overflow-wrap: anywhere; }
+.npc-tag { position: absolute; left: 10px; bottom: 100%; padding: 2px 10px 0; background: #3b2a20; color: #f3ead6; font-size: 13px; line-height: 22px; border: 2px solid #3b2a20; border-bottom: 0; box-shadow: inset 0 2px 0 #5a4636; white-space: nowrap; }
+.npc-tag:empty { display: none; }
+.npc-text { margin: 2px 0 0; font-size: 17px; line-height: 26px; min-height: 52px; word-break: keep-all; overflow-wrap: anywhere; }
 .npc-next { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; background: transparent; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.npc-next::after { content: ''; position: absolute; right: 8px; bottom: 8px; width: 6px; height: 6px; background: #3b2a20; }   /* 누르면 넘어간다는 작은 점 */
-.npc-box[data-more="1"] .npc-next::after { box-shadow: -10px 0 0 #3b2a20; }   /* 말이 더 있으면 점 둘 */
+.npc-next::after { content: ''; position: absolute; right: 10px; bottom: 10px; width: 8px; height: 8px; background: #8a4f0c; box-shadow: 0 2px 0 #3b2a20; animation: npc-blink 1s steps(1) 8; }   /* 누르면 넘어간다는 깜빡이는 표시 */
+.npc-box[data-more="1"] .npc-next::after { box-shadow: 0 2px 0 #3b2a20, -12px 0 0 #8a4f0c, -12px 2px 0 #3b2a20; }   /* 말이 더 있으면 둘 */
+@keyframes npc-blink { 50% { opacity: 0; } }
 .npc-next:focus-visible { outline: 2px solid var(--amber); outline-offset: -4px; }
 .npc-next:active::after { transform: translateY(2px); }
 :root[data-font="pixel"] .npc-tag { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
 :root[data-font="pixel"] .npc-text { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; min-height: 60px; }
-/* 게시판 */
-.story-sheet .story-h { font-size: 15px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0 0 10px; color: var(--fg); }
+/* 게시판 · UI 둘째 다듬기: 나무 팻말 제목 + 코르크 판에 핀으로 꽂은 종이 쪽지 (2×2) — 쪽지마다 그림 + 한 줄, 아래는 찢긴 가장자리 */
+.story-sheet .story-h { display: table; margin: 0 auto 8px; padding: 2px 20px; font-size: 16px; font-weight: 600; font-family: 'Noto Serif KR', serif; color: #f3ead6; background: #7a4e2c; border: 2px solid #3b2a20; box-shadow: inset 2px 2px 0 #9a6a40, inset -2px -2px 0 #5a3820, 0 4px 0 rgba(42, 29, 22, .35); }
 .story-sheet .story-h:focus { outline: none; }
-.story-notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.story-note { display: flex; align-items: center; gap: 12px; padding: 8px; background: var(--paper0); color: var(--ink); border: 2px solid #c9b892; }
-.story-pic { flex: 0 0 auto; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
-.sheet .story-note p { margin: 0; min-width: 0; word-break: keep-all; overflow-wrap: anywhere; }
-.story-btns { display: flex; justify-content: flex-end; margin-top: 8px; }
+.story-board { padding: 12px 8px 8px; border: 4px solid #7a4e2c; background-color: #c49a6c; box-shadow: inset 2px 2px 0 #9c7448, inset -2px -2px 0 #dcb890, 0 0 0 2px #3b2a20;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' shape-rendering='crispEdges'%3E%3Crect x='2' y='3' width='2' height='2' fill='%23b0845a'/%3E%3Crect x='10' y='1' width='2' height='2' fill='%23d4ac80'/%3E%3Crect x='6' y='9' width='2' height='2' fill='%23b0845a'/%3E%3Crect x='13' y='12' width='2' height='2' fill='%23d4ac80'/%3E%3Crect x='1' y='13' width='2' height='2' fill='%23b88c60'/%3E%3C/svg%3E"); margin: 0 2px; }
+.story-notes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 8px; align-items: start; }
+.story-note { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; padding: 12px 4px 12px; background: #f3ead6; color: var(--ink); box-shadow: inset 2px 2px 0 #fbf4e6, inset -2px 0 0 #dccfae, 3px 3px 0 rgba(59, 42, 32, .45); }
+.story-note:nth-child(2) { background: #efe6c8; top: 3px; } .story-note:nth-child(3) { background: #ece4d8; top: -2px; left: 2px; } .story-note:nth-child(4) { top: 2px; left: -1px; }
+.story-note::before { content: ''; position: absolute; left: 50%; top: -4px; width: 8px; height: 8px; margin-left: -4px; background: #c8323a; box-shadow: inset 2px 2px 0 #f08a8a, 0 2px 0 rgba(42, 29, 22, .5); }   /* 핀 */
+.story-note:nth-child(2)::before { background: #4a86d8; box-shadow: inset 2px 2px 0 #a8c8f0, 0 2px 0 rgba(42, 29, 22, .5); left: 40%; } .story-note:nth-child(3)::before { background: #e8a93a; box-shadow: inset 2px 2px 0 #f6dc9a, 0 2px 0 rgba(42, 29, 22, .5); left: 58%; }
+.story-note::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: repeating-linear-gradient(90deg, #c49a6c 0 4px, transparent 4px 12px, #c49a6c 12px 14px, transparent 14px 20px); }   /* 찢긴 아랫가장자리 */
+.story-pic { flex: 0 0 auto; display: block; max-width: 100%; image-rendering: pixelated; image-rendering: crisp-edges; border-bottom: 2px dotted #c9b892; }
+.sheet .story-note p { margin: 0; padding: 0 4px; min-width: 0; font-size: 14px; line-height: 22px; text-align: center; word-break: keep-all; overflow-wrap: anywhere; }
+.story-btns { display: flex; justify-content: flex-end; margin-top: 12px; }
 .story-btns .btn { min-width: 88px; }
-:root[data-font="pixel"] .story-sheet .story-h { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 36px; font-weight: 700; margin: 0 0 8px; }
-:root[data-font="pixel"] .sheet .story-note p { font-family: var(--f-body); }
-/* 처음 세 줄: 하늘 위 (층층이 짙어지는 밤하늘 띠 · 번짐 없는 계단) */
-.story-intro { position: fixed; inset: 0; z-index: 2147483000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px;
-  background: linear-gradient(#141a33 0 25%, #1b2444 25% 45%, #24305a 45% 62%, #33406e 62% 78%, #4a5584 78% 90%, #6a6f96 90%); color: #f3ead6; font-synthesis: none; animation: story-in .26s steps(4) both; }
+.story-sheet[open] .story-note { animation: story-pop .12s steps(2) both; }
+.story-sheet[open] .story-note:nth-child(2) { animation-delay: .04s; } .story-sheet[open] .story-note:nth-child(3) { animation-delay: .08s; } .story-sheet[open] .story-note:nth-child(4) { animation-delay: .12s; }
+@keyframes story-pop { from { opacity: 0; translate: 0 4px; } to { opacity: 1; translate: 0 0; } }
+:root[data-font="pixel"] .story-sheet .story-h { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 36px; font-weight: 700; margin: 0 auto 8px; }
+:root[data-font="pixel"] .sheet .story-note p { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
+/* 처음 세 줄 · UI 둘째 다듬기: 한 줄에 그림 한 장 (도시의 사무실 · 바다로 가는 길 · 다락 창) — 화면 폭에 맞춘 픽셀 그림 + 그 아래 글 */
+.story-intro { position: fixed; inset: 0; z-index: 2147483000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 0 0 72px;
+  background: #0f1428; color: #f3ead6; font-synthesis: none; animation: story-in .26s steps(4) both; }
 .story-intro[hidden] { display: none; }
 .story-intro.leaving { opacity: 0; transition: opacity .26s steps(4); pointer-events: none; }
 @keyframes story-in { from { opacity: 0; } to { opacity: 1; } }
-.story-line { position: relative; z-index: 1; pointer-events: none; margin: 0; max-width: 300px; text-align: center; font-size: 17px; line-height: 28px; word-break: keep-all; overflow-wrap: anywhere; }
+.story-vig { position: relative; z-index: 1; pointer-events: none; display: block; flex: 0 0 auto; image-rendering: pixelated; image-rendering: crisp-edges; box-shadow: 0 0 0 2px #2a1d16, 0 0 0 4px #5a4636; }
+.story-vig.in { animation: story-in .2s steps(4) both; }
+.story-line { position: relative; z-index: 1; pointer-events: none; margin: 0; padding: 0 24px; max-width: 348px; min-height: 90px; box-sizing: border-box; text-align: center; font-size: 17px; line-height: 28px; word-break: keep-all; overflow-wrap: anywhere; }
 .story-next { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .story-next:focus-visible { outline: 2px solid #d8a062; outline-offset: -6px; }
-.story-intro::after { content: ''; position: absolute; left: 50%; bottom: 96px; width: 6px; height: 6px; margin-left: -3px; background: #f3ead6; animation: story-dot 1.2s steps(2) 3; }
-@keyframes story-dot { 50% { transform: translateY(2px); } }
-.story-skip { position: absolute; z-index: 2; right: 12px; bottom: max(12px, env(safe-area-inset-bottom, 0px)); min-width: 88px; min-height: 44px; padding: 6px 12px; background: transparent; color: #f3ead6; border: 2px solid #f3ead6; font-size: 14px; cursor: pointer; }
+.story-intro::after { content: ''; position: absolute; left: 24px; bottom: max(30px, calc(env(safe-area-inset-bottom, 0px) + 18px)); width: 8px; height: 8px; background: #d8a062; box-shadow: 14px 0 0 #5a4636, 28px 0 0 #5a4636; }   /* 세 줄 가운데 몇째인가 */
+.story-intro[data-n="2"]::after { background: #5a4636; box-shadow: 14px 0 0 #d8a062, 28px 0 0 #5a4636; }
+.story-intro[data-n="3"]::after { background: #5a4636; box-shadow: 14px 0 0 #5a4636, 28px 0 0 #d8a062; }
+.story-skip { position: absolute; z-index: 2; right: 12px; bottom: max(12px, env(safe-area-inset-bottom, 0px)); min-width: 88px; min-height: 44px; padding: 6px 12px; background: #1b2444; color: #f3ead6; border: 2px solid #f3ead6; box-shadow: 4px 4px 0 #05070f; font-size: 14px; cursor: pointer; }
 .story-skip:active { transform: translateY(2px); }
 :root[data-font="pixel"] .story-line { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; }
 :root[data-font="pixel"] .story-skip { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
-:root[data-motion="reduce"] .story-intro, :root[data-motion="reduce"] .story-intro::after { animation: none; }
+:root[data-motion="reduce"] :is(.story-intro, .story-vig.in, .story-sheet[open] .story-note), :root[data-motion="reduce"] .npc-next::after { animation: none; }
 :root[data-motion="reduce"] .story-intro.leaving { transition: none; }
-@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .story-intro, :root:is([data-motion="auto"], :not([data-motion])) .story-intro::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) :is(.story-intro, .story-vig.in, .story-sheet[open] .story-note), :root:is([data-motion="auto"], :not([data-motion])) .npc-next::after { animation: none; } }
 
 
 /* [7-F] 주말 콘테스트 */
