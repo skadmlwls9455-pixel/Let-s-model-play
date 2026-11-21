@@ -212,6 +212,15 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <!-- [7-P] 단추 -->
 
   <!-- [7-W] 단추 -->
+  <!-- 11-21 7차 바깥 한 장: 표지판 셋 (빠른 이동 창을 연다) · 해변의 조개 자리 다섯 (갈래 S 가 무엇을 줄지 정한다). 자리 · 보임은 장면이 맡는다 (js/scene3d.js WIDE_REG) -->
+  <button type="button" id="btn-sign-0" class="scene-spot" aria-label="표지판" hidden></button>
+  <button type="button" id="btn-sign-1" class="scene-spot" aria-label="표지판" hidden></button>
+  <button type="button" id="btn-sign-2" class="scene-spot" aria-label="표지판" hidden></button>
+  <button type="button" id="btn-beach-shell-0" class="scene-spot" aria-label="조개" hidden></button>
+  <button type="button" id="btn-beach-shell-1" class="scene-spot" aria-label="조개" hidden></button>
+  <button type="button" id="btn-beach-shell-2" class="scene-spot" aria-label="조개" hidden></button>
+  <button type="button" id="btn-beach-shell-3" class="scene-spot" aria-label="조개" hidden></button>
+  <button type="button" id="btn-beach-shell-4" class="scene-spot" aria-label="조개" hidden></button>
 
   <!-- [7-V] 단추 -->
 
@@ -394,6 +403,8 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- [7-P] 창 -->
 
 <!-- [7-W] 창 -->
+<!-- 11-21 7차 빠른 이동 (#travel-pick): 표지판 톡 → 그림 칩 (집 · 마을 · 바닷가 — 지금 선 곳은 숨긴다). 보이는 글자 0 · title 없음. 요리 쟁반 (#dish-pick) 과 같은 칩 -->
+<dialog id="travel-pick" class="dish-pick travel-pick" aria-label="어디로 갈까" tabindex="-1"><div class="dp-row"><button type="button" class="dp-chip" data-place="home" aria-label="집"><canvas width="16" height="16" aria-hidden="true"></canvas></button><button type="button" class="dp-chip" data-place="village" aria-label="마을"><canvas width="16" height="16" aria-hidden="true"></canvas></button><button type="button" class="dp-chip" data-place="beach" aria-label="바닷가"><canvas width="16" height="16" aria-hidden="true"></canvas></button></div></dialog>
 
 <!-- [7-V] 창 -->
 

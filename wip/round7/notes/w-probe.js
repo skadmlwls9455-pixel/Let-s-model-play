@@ -25,7 +25,7 @@ function rec() { var RED = '#e0564b', BORN = '2026-11-06T10:00:00.000Z';
       var sc = APP.scene, K = Math.SQRT1_2;
       if (j.shells) sc.beachShells(j.shells);
       if (j.s != null) sc.debugPlayerAt((j.s + (j.t || 0)) * K, (j.s - (j.t || 0)) * K);
-      sc.setYaw(j.yaw || 0, true);
+      sc.setYaw(j.yaw || 0, true); sc.debugSim(0.1, 1); sc.wideFocus();
       sc.setPlayerInput({ x: 0, y: 0.01 }); sc.debugSim(0.1, 30); sc.setPlayerInput(null); sc.debugSim(0.1, 4); sc.debugStep(0.1);
       var st = sc.stats(), a = sc.player().at;
       return { name: j.name, at: a, area: sc.area(), calls: st.calls, prog: st.programs, tris: st.triangles, pan: sc.pan(), map: sc.wideMap() && { seg: sc.wideMap().segments, spots: sc.wideMap().spots.length, cols: sc.wideMap().cols }, trees: sc.wide().trees };
