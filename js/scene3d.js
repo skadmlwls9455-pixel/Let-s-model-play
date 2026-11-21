@@ -5653,17 +5653,25 @@ var SCENE3D = (function () {
     function wideBuild(g) {
       var V = WIDE_PARTS.village, B = WIDE_PARTS.beach, sc = SEASON_C[SEASON.cur], sn = SEASON.cur, GT = WIDE.GT, BY = WIDE.BEACH_Y, i, k, h, q, y;
       /* ── 마을 구간 (s 18 ~ 46): 마을 문 (아치) · 포장한 길 · 광장 · 가게 터 뒤 낮은 담과 덤불 · 표지판 ── */
-      /* 마을 문: 돌 받침 위 나무 기둥 둘 + 덩굴이 감긴 둥근 아치 (11-21 주인: 붉은 가로대에 처마가 나온 문은 신사 같아 싫다 → 붉은 지붕 · 처마 없이, 꽃 덩굴 아치로) */
-      [-3.45, 3.45].forEach(function (t) { V.push(stBox(19, t, 0.2, 0.36, 0.4, 0.36, EXT_C.stone[1]), stBox(19, t, 0.42, 0.42, 0.05, 0.42, EXT_C.stone[0]), stBox(19, t, 1.2, 0.16, 1.6, 0.16, W[3])); });
-      var arcN = 13, arcBl = [PAL.rose[2] || PAL.rose[1], FIXED.white, PAL.amber[4]];
-      for (i = 0; i < arcN; i++) {   /* 반원을 따라 짧은 나무 토막 (계단식) + 잎 뭉치, 사이사이 꽃 */
-        var aa = Math.PI * (i + 0.5) / arcN, at2 = -3.45 * Math.cos(aa), ay = 2.0 + 1.4 * Math.sin(aa), ah = hash('warch' + i);
-        V.push(stBox(19, at2, ay, 0.14, 0.14, 0.62, W[3]));
-        var lq = wideXZ(19 + ((ah % 3) - 1) * 0.03, at2), lr = 0.26 + (ah >>> 3) % 3 * 0.04;
-        V.push({ g: new T.SphereGeometry(lr, 6, 4), m: M(snapPos(lq[0]), ay + 0.1, snapPos(lq[1]), 0, 0, 0, 1, 0.8, 1), c: sc.leaf[i % 3], tag: 13 + i % 3 });
-        if (i % 2 === 0) V.push({ g: box(0.09, 0.09, 0.09), m: M(snapPos(lq[0] + 0.14), ay + 0.16, snapPos(lq[1] + 0.14)), c: arcBl[(ah >>> 6) % 3] });
+      /* 마을 문 (11-21 주인: 신사 같은 문 X → 덩굴 아치도 아직 이상 → "꽃덩굴이 얽힌 구조물"): 깊이가 있는 나무 덩굴 시렁 —
+         기둥 넷 (앞뒤 0.7 m) · 앞뒤 두 줄의 둥근 살 · 그 사이 가로살 · 기둥 사이 X 살. 잎 뭉치가 살을 덮고 기둥을 타고 오르며, 꽃 송이와 아래로 늘어진 덩굴 */
+      var arcN = 13, arcBl = [PAL.rose[2] || PAL.rose[1], FIXED.white, PAL.amber[4], PAL.dusk[2]], AS = [18.65, 19.35];
+      function vine(sd, td, y, r, k) { var lq = wideXZ(sd, td); V.push({ g: new T.SphereGeometry(r, 6, 4), m: M(snapPos(lq[0]), y, snapPos(lq[1]), 0, k, 0, 1, 0.8, 1), c: sc.leaf[k % 3], tag: 13 + k % 3 }); }
+      function bloom(sd, td, y, k) { var lq = wideXZ(sd, td); V.push({ g: box(0.11, 0.11, 0.11), m: M(snapPos(lq[0]), y, snapPos(lq[1])), c: arcBl[k % 4] }, { g: box(0.05, 0.05, 0.05), m: M(snapPos(lq[0]), y + 0.07, snapPos(lq[1])), c: PAL.amber[4] }); }
+      [-3.45, 3.45].forEach(function (t, ti) {
+        V.push(stBox(19, t, 0.12, 1.0, 0.24, 0.4, EXT_C.stone[1]));
+        AS.forEach(function (as) { V.push(stBox(as, t, 1.12, 0.12, 1.8, 0.12, W[3])); });
+        [0.6, 1.2, 1.8].forEach(function (y, k) { V.push(stBox(19, t, y, 0.7, 0.06, 0.06, W[4])); });
+        for (var c = 0; c < 9; c++) { var ch = hash('wclimb' + ti + c); vine(AS[c % 2] + ((ch % 5) - 2) * 0.05, t + ((ch >>> 4) % 5 - 2) * 0.05, 0.35 + c * 0.2, 0.17 + (ch >>> 8) % 3 * 0.03, c + ti); if (c % 3 === 1) bloom(AS[c % 2] + 0.12, t + (ti ? -0.12 : 0.12), 0.45 + c * 0.2, c + ti); }
+      });
+      for (i = 0; i < arcN; i++) {
+        var aa = Math.PI * (i + 0.5) / arcN, at2 = -3.45 * Math.cos(aa), ay = 2.0 + 1.3 * Math.sin(aa), ah = hash('warch' + i);
+        AS.forEach(function (as) { V.push(stBox(as, at2, ay, 0.1, 0.1, 0.9, W[3])); });
+        V.push(stBox(19, at2, ay + 0.06, 0.82, 0.06, 0.07, W[4]));
+        vine(18.65 + (ah % 3) * 0.05, at2 - 0.2, ay + 0.14, 0.24 + (ah >>> 3) % 3 * 0.04, i); vine(19.35 - ((ah >>> 5) % 3) * 0.05, at2 + 0.2, ay + 0.12, 0.23 + (ah >>> 7) % 3 * 0.04, i + 1); vine(19, at2, ay + 0.2, 0.2, i + 2);
+        bloom(19.42, at2 + ((ah >>> 9) % 5 - 2) * 0.08, ay + 0.02 + (ah >>> 12) % 3 * 0.08, i); if (i % 2) bloom(18.75, at2 + 0.15, ay + 0.3, i + 2);
+        if (i % 3 === 1 && i !== 6) { var hl = 2 + (ah >>> 14) % 3; for (k = 0; k < hl; k++) { q = wideXZ(19.38, at2 + ((k % 2) ? 0.04 : -0.03)); V.push({ g: box(0.07, 0.11, 0.07), m: M(snapPos(q[0]), ay - 0.12 - k * 0.13, snapPos(q[1])), c: sc.leaf[(i + k) % 3], tag: 13 + (i + k) % 3 }); } bloom(19.4, at2, ay - 0.16 - hl * 0.13, i + 1); }
       }
-      V.push(stBox(19.02, 0, 2.9, 0.03, 0.9, 0.03, W[2]), stBox(19.02, 0, 2.3, 0.05, 0.3, 0.9, PAL.paper[1]), stBox(19.05, 0, 2.3, 0.03, 0.1, 0.5, W[3]));   /* 아치 가운데에 걸린 빈 나무패 (글자 없음) */
       /* 포장 (리드 11-21): 줄눈은 판석보다 한 톤 어두운 돌 (풀빛 줄 없음) — 줄마다 깔린 바닥 띠 위에 판석. 마을 길은 |t| ≤ 2.5 안팎의 들쭉날쭉한 가장자리 (그 밖은 풀 어깨),
          광장은 가운데 둥근 고리와 십자를 둘째 돌빛으로. 이끼는 몇 포기만 */
       for (i = 0; i < 29; i++) {
