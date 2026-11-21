@@ -10,15 +10,13 @@ var VILLAGE = (function () {
   /* 건물 안 자리 (lx = 앞쪽, lz = 옆) → (s, t). mir = 오른쪽 줄 (x 와 z 를 바꿔 길 건너편에 비춘 꼴) */
   function local(c, mir, lx, lz) { var o = xz(c[0], c[1]), x = mir ? o[0] + lz : o[0] + lx, z = mir ? o[1] + lx : o[1] + lz; return st(x, z); }
 
-  /* 걷는 곳 (갈래 W 의 표와 같은 숫자 — 내 자리가 그 안에 드는지 시험하려고 여기에도 둔다) */
+  /* 걷는 곳 (갈래 W 의 WIDE.AREAS 와 같은 숫자 — 내 캐릭터 가운데가 갈 수 있는 곳. 서는 자리 시험과 길 찾기가 쓴다) */
   var WALK = [
-    { key: 'gate', s0: 18, s1: 20, t0: -3, t1: 3 },
-    { key: 'street', s0: 20, s1: 38, t0: -3, t1: 3 },
-    { key: 'deck', s0: 30, s1: 37, t0: 3, t1: 7 },
-    { key: 'plaza', s0: 38, s1: 46, t0: -8, t1: 8 },
-    { key: 'road', s0: 5, s1: 18, t0: -3, t1: 3 },
-    { key: 'steps', s0: 46, s1: 49, t0: -3, t1: 3 },
-    { key: 'beach', s0: 49, s1: 60, t0: -12, t1: 12 }
+    { key: 'street', s0: 5, s1: 38.1, t0: -3, t1: 3 },          /* 숲길 · 마을 문 · 마을 길 */
+    { key: 'deck', s0: 30.3, s1: 36.7, t0: 2.9, t1: 6.9 },
+    { key: 'plaza', s0: 38, s1: 46.1, t0: -8, t1: 8 },
+    { key: 'steps', s0: 46, s1: 49.1, t0: -3, t1: 3 },
+    { key: 'beach', s0: 49, s1: 59.7, t0: -12, t1: 12 }
   ];
   function inWalk(s, t, pad) { pad = pad || 0; return WALK.some(function (w) { return s >= w.s0 + pad && s <= w.s1 - pad && t >= w.t0 + pad && t <= w.t1 - pad; }); }
 
@@ -27,7 +25,7 @@ var VILLAGE = (function () {
     { id: 'clothes', name: '옷가게', s0: 22, s1: 28, t0: -10, t1: -3.5, c: [24.6, -5.1], hx: 1.3, hz: 1.4, mir: false, open: true },
     { id: 'goods', name: '잡화점', s0: 22, s1: 28, t0: 3.5, t1: 10, c: [24.6, 5.1], hx: 1.3, hz: 1.4, mir: true, open: true },
     { id: 'empty', name: '빈 집', s0: 30, s1: 36, t0: -10, t1: -3.5, c: [31.8, -5.6], hx: 1.3, hz: 1.4, mir: false, open: false },
-    { id: 'cafe', name: '카페', s0: 30, s1: 37, t0: 3.5, t1: 10, c: [33.6, 9.4], hx: 1.1, hz: 1.2, mir: true, open: true },
+    { id: 'cafe', name: '카페', s0: 30, s1: 37, t0: 3.5, t1: 10, c: [33.6, 8.9], hx: 1.1, hz: 1.2, mir: true, open: true },
     { id: 'plaza', name: '광장', s0: 38, s1: 46, t0: -8, t1: 8, c: [42, 0], hx: 0, hz: 0, mir: false, open: true }
   ];
   var DECK = { s0: 30, s1: 37, t0: 3.5, t1: 7 };
@@ -68,15 +66,15 @@ var VILLAGE = (function () {
     { id: 'clothes', s: kc[0], t: kc[1], y: 0.3, face: Math.PI / 2, r: 0.3 },
     { id: 'goods', s: kg[0], t: kg[1], y: 0.3, face: 0, r: 0.3 },
     { id: 'cafe', s: 32.2, t: 7.45, y: 0.34, face: 0, r: 0.3 },
-    { id: 'sleep-1', s: 19, t: -3.5, y: 0.3, face: Math.PI / 2, r: 0.3 },
+    { id: 'sleep-1', s: 20.1, t: -3.6, y: 0.3, face: Math.PI / 2, r: 0.3 },
     { id: 'sleep-2', s: sp[0], t: sp[1], y: 0.3, face: Math.PI / 2, r: 0.3 },
-    { id: 'sleep-3', s: 55, t: -9, y: 0, face: 0.6, r: 0.3 },
-    { id: 'sleep-4', s: 55.4, t: 6.1, y: 0, face: 0.2, r: 0.3 }
+    { id: 'sleep-3', s: 55, t: -9, y: 0.46, face: 0.6, r: 0.3 },      /* 갈래 W 의 넓적 바위 (높이 0.42) 위 — 모래 높이는 장면이 더한다 */
+    { id: 'sleep-4', s: 55.3, t: 5.7, y: 0, face: 0.2, r: 0.3 }
   ];
   function npc(id) { for (var i = 0; i < NPCS.length; i++) if (NPCS[i].id === id) return NPCS[i]; return null; }
 
   /* 길가 소품 (s, t): 가로등 · 화분 */
-  var LAMPS = [[21, -3.2], [29, 3.2], [37.4, -3.2], [38.6, 7.2], [45.4, -7.2]];
+  var LAMPS = [[21.6, -3.2], [29, 3.2], [37.4, -3.2], [38.6, 7.2], [45.4, -7.2]];
   var POTS = [[23.4, -3.3], [27.9, -3.3], [23.4, 3.3], [29.9, -3.3], [36.4, -3.3], [37.6, 3.3]];
   var BOARD = { s: 30.25, t: 2.85, r: 0.2 };   /* 카페 앞 길가의 세움 간판 (잔 그림) — 길 한가운데를 걸어도 카페가 보이게 */
 
