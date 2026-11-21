@@ -502,6 +502,16 @@ function harness() {
     ok(t7a.dur.walking && t7a.dur.moving && JSON.stringify(t7a.dur.input) === '[1,0]' && t7a.dur.foot >= 1 && t7a.dur.steps >= 1, 'T7 걷는 동안 player().walking · moving · input [1,0] · 발자국 ' + t7a.dur.foot + ' · on.playerStep ' + t7a.dur.steps);
     ok(!t7a.stop1.walking && !t7a.stop2.walking && !t7a.stop2.moving && t7a.stop2.input === null, 'T7 null 로 놓으면 바로 walking · moving false · input null (' + JSON.stringify(t7a.stop2) + ')');
     ok(t7a.feet >= 3 && t7a.feet <= 5 && t7a.gone === 0, 'T7 발자국: 1.1 m 에 ' + t7a.feet + ' 개 (달리기 보폭 0.55 m 의 절반마다, 3~5) → 2.3 s 뒤 0 개 (' + t7a.gone + ')');
+    /* 11-21 뛰기: 반 넘게 민 채 0.6 s 가 지나면 3.74 m/s (걷기의 1.7 배) · 반 아래로 늦추거나 놓으면 바로 걷기 · scene.playerSpeeds() */
+    var t7r = await page.evaluate(function () {
+      SC.debugPlayerAt(2.6, -0.6); __st(1); SC.setPlayerInput({ x: -1, y: 0 });   /* 화면 왼쪽 (−x +z): 문어 · 상자를 비켜 가는 빈 바닥 5 m */
+      var w = __st(30), r0 = __st(10), a = r0.at, r1 = __st(15), b = r1.at;
+      SC.setPlayerInput({ x: -0.4, y: 0 }); var slow = __st(2); SC.setPlayerInput({ x: -1, y: 0 }); var again = __st(10); SC.setPlayerInput(null); var off = __st(2);
+      return { sp: SC.playerSpeeds ? SC.playerSpeeds() : null, w: w.run, r0: r0.run, r1: r1.run, d: Math.hypot(b[0] - a[0], b[2] - a[2]), slow: slow.run, again: again.run, off: off.run };
+    });
+    ok(t7r.sp && t7r.sp.walk === 2.2 && Math.abs(t7r.sp.run - 3.74) < 0.01, 'T7 뛰기: playerSpeeds() = 걷기 2.2 · 뛰기 3.74 (' + JSON.stringify(t7r.sp) + ')');
+    ok(t7r.w === false && t7r.r0 === true && t7r.r1 === true && Math.abs(t7r.d - 3.74 * 0.25) < 0.05, 'T7 뛰기: 0.5 s 엔 걷기 · 0.67 s 부터 뛰기 · 뛰는 0.25 s 에 ' + t7r.d.toFixed(3) + ' m (≈ 0.935)');
+    ok(t7r.slow === false && t7r.again === false && t7r.off === false, 'T7 뛰기: 반 아래로 늦추면 바로 걷기 · 다시 밀어도 0.6 s 전엔 걷기 · 놓으면 걷기 (' + JSON.stringify([t7r.slow, t7r.again, t7r.off]) + ')');
     ok(t7a.pi.length === 0, 'T7 다락 안에서 움직이는 동안 on.playerInput 알림 없음 (바뀔 때만: ' + JSON.stringify(t7a.pi) + ')');
     var t7b = await page.evaluate(function () {
       var up = __push(0.9, 0.9, { x: 0, y: 1 }, 30).at;   /* 문어(0, 0.2)는 r 0.6 — (0.9, 0.9) 에서 멀어지는 쪽(−x −z) 0.6 m 끝 (0.48, 0.48) 은 문어에서 0.55 라 막힌다 → 문어를 창가로 */
