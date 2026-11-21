@@ -5545,7 +5545,7 @@ var SCENE3D = (function () {
        그리는 값: 줄(왼쪽 · 오른쪽)마다 합친 메시 하나 + 무릎 높이 쌍둥이 (돌려 봐서 카메라 쪽이 되면 자른다 — 마당 집과 같은 cutAdd), 길 소품 · 광장 각각 하나, 창 유리 (밤에 켜진다) 줄마다 하나.
        새 재질 종류 없음 (lambert · MeshBasic · 내 캐릭터 툰) → 셰이더 프로그램 그대로. 점광도 늘리지 않는다 (밤 불빛 = 발광 쌍둥이 + 땅의 빛 원판) */
     var VIL = { on: typeof VILLAGE !== 'undefined' && !!VILLAGE, built: false, stub: false, grp: {}, win: [], lampGlow: null, pools: null, snow: [], npcs: {}, want: [], marks: {}, cup: null,
-      cafe: { seated: false, inside: false }, t: 0, R: 0.40 };
+      cafe: { seated: false, inside: false }, npcAt: {}, dress: null, dressWant: false, t: 0, R: 0.40 };
     function vilXZ(s, t) { var q = wideXZ(s, t); return [snapPos(q[0]), snapPos(q[1])]; }
     var VC = { cream: '#efe3c8', paper: '#dfd5bf', wallA: '#c2b4a4', wallB: '#b0a292', seam: '#66605c', woodA: '#8a5a3c', woodB: '#7b4f35', woodD: '#5f3928', woodL: '#996643', dark: '#44241b',
       red: '#b04a3c', roofR: '#a04838', roofRL: '#6a2c2c', blue: '#3f6690', blueL: '#5c86b0', blueD: '#2e3b58', sky: '#9fc7e8', moss: '#5f7a3a', mossD: '#3f6a3a', leaf: '#8cc05a', yellow: '#e8b04a',
@@ -5845,7 +5845,7 @@ var SCENE3D = (function () {
       if (VIL.built || !VIL.on) return; VIL.built = true;
       var yard = g; g = VIL.root = new T.Group(); g.name = 'village'; yard.add(g);   /* 마을 것은 모두 이 그룹 아래 (시험에서 통째로 숨겨 내 드로우콜만 잰다 — debugVillageHide) */
       var P = { rowL: [], rowR: [], street: [], plaza: [], thin: [], glL: [], glR: [], lamp: [], pool: [], snowL: [], snowR: [] };
-      vilShops(P); vilEmpty(P); vilCafe(P); vilPlaza(P); vilStreet(P);
+      P.dress = []; vilShops(P); vilEmpty(P); vilCafe(P); vilPlaza(P); vilStreet(P); vilStageParts(P);
       var low = function (q) { return !q.m || q.m.elements[13] < KNEE + 0.02; };
       [['rowL', 'glL', 'snowL', -1], ['rowR', 'glR', 'snowR', 1]].forEach(function (r) {
         var gg = VIL.grp[r[0]], full = vilMesh(P[r[0]]), lo = vilMesh(P[r[0]].filter(low)); gg.add(full); gg.add(lo);
@@ -5863,6 +5863,7 @@ var SCENE3D = (function () {
       var cq = vilXZ(VILLAGE.CAFE.cup.s, VILLAGE.CAFE.cup.t), ty = VILLAGE.CAFE.tables[0].h;
       VIL.cup = vilMesh([{ g: new T.CylinderGeometry(0.075, 0.075, 0.015, 8), m: M(0, 0.008, 0), c: VC.cream }, { g: new T.CylinderGeometry(0.05, 0.04, 0.07, 7), m: M(0, 0.05, 0), c: VC.white }, { g: new T.CylinderGeometry(0.04, 0.04, 0.01, 7), m: M(0, 0.083, 0), c: VC.dark }, { g: box(0.03, 0.035, 0.02), m: M(0.06, 0.05, 0), c: VC.white }]);
       VIL.cup.castShadow = false; VIL.cup.position.set(cq[0], ty, cq[1]); VIL.cup.visible = false; g.add(VIL.cup);
+      VIL.dress = vilMesh(P.dress); VIL.dress.visible = !!VIL.dressWant; VIL.grp.plaza.add(VIL.dress);   /* 무대 꾸밈 (stageDress) */
       VIL.g = g; vilNpcApply(); vilLight(true); dither.still = 0;
     }
     function vilLight(force) {   /* 창 · 등: 시각대의 밤 정도 (em) 를 따라 — 낮엔 하늘 비친 유리 · 밤엔 따뜻한 불빛 (마당 집 1층 창과 같은 식). 겨울이면 지붕 눈 */
@@ -5899,16 +5900,58 @@ var SCENE3D = (function () {
     function vilGround(x, z) { return typeof wideGroundY === 'function' ? wideGroundY(x, z) : 0; }
     function vilNpcY(n) { return n.id === 'sleep-3' && WIDE.ROCKS && WIDE.ROCKS[0] ? WIDE.ROCKS[0][3] + 0.04 : n.y; }   /* sleep-3 은 갈래 W 의 넓적 바위 윗면 (그 표가 있으면 그 높이) */   /* 땅 높이 (갈래 W — 바닷가 모래는 0.6 m 낮다). 그 함수가 없으면 평지 */
     function vilNpcSpots() { return VIL.on ? VILLAGE.NPCS.map(function (n) { var q = vilXZ(n.s, n.t); return { id: n.id, x: q[0], y: vilNpcY(n) + vilGround(q[0], q[1]), z: q[1], face: n.face }; }) : []; }
+    /* 문어 하나의 자리 (월드): 마을 표의 일곱 + 콘테스트의 심사 셋 · 경쟁 셋. npcPlace 로 옮긴 자리가 있으면 그것 (무대 위면 무대 높이 · 시상대면 그 단 높이) */
+    function vilStageY(x, z) {
+      var SG = VILLAGE.STAGE, o = vilXZ(SG.c[0], SG.c[1]); if (Math.abs(x - o[0]) > SG.h || Math.abs(z - o[1]) > SG.h) return vilGround(x, z);
+      var y = SG.y; if (VIL.dress && VIL.dress.visible) VILLAGE.SHOW.podium.forEach(function (p) { var q = wideXZ(p[0], p[1]); if (Math.hypot(q[0] - x, q[1] - z) < 0.36) y = p[2]; }); return y;
+    }
+    function vilNpcSpot(id) {
+      var at = VIL.npcAt[id]; if (at) return { x: at.x, y: vilStageY(at.x, at.z), z: at.z, face: at.face };
+      var n = VILLAGE.npc(id), q; if (n) { q = vilXZ(n.s, n.t); return { x: q[0], y: vilNpcY(n) + vilGround(q[0], q[1]), z: q[1], face: n.face }; }
+      var m = /^(judge|rival)([0-2])$/.exec(id); if (!m) return null;
+      var p = m[1] === 'judge' ? VILLAGE.SHOW.judges[+m[2]] : VILLAGE.SHOW.rivals[+m[2]]; q = wideXZ(p[0], p[1]); return { x: q[0], y: 0, z: q[1], face: m[1] === 'judge' ? p[2] : Math.PI / 4 };
+    }
+    function vilNpcPlace(id, x, z, face) {   /* 문어를 옮긴다 (월드 x · z, 보는 쪽 rad). x 가 null 이면 제자리로 */
+      if (!VIL.on || !(VILLAGE.npc(id) || VILLAGE.EXTRA.indexOf(id) >= 0)) return false;
+      if (x == null) delete VIL.npcAt[id]; else VIL.npcAt[id] = { x: +x || 0, z: +z || 0, face: +face || 0 };
+      vilNpcApply(); return true;
+    }
+    function vilNpcPoseSet(id, pose) {   /* 'stand' | 'sleep' | 'sit' */
+      var ok = false; VIL.want.forEach(function (w) { if (w.id === id) { w.pose = pose === 'sleep' ? 'sleep' : pose === 'sit' ? 'sit' : 'stand'; ok = true; } });
+      if (ok) vilNpcApply(); return ok;
+    }
+    /* ── 광장 무대 (주말 콘테스트): stage() = 자리들 (월드) · stageDress(on) = 꾸밈 (심사석 · 시상대 · 깃발 한 줄 더) — 포스터 판은 늘 서 있다 ── */
+    function vilStageInfo() {
+      var S2 = VILLAGE.SHOW, W2 = function (p) { var q = wideXZ(p[0], p[1]); return [q[0], q[1]]; }, SG = VILLAGE.STAGE;
+      return { wait: W2(S2.wait), path: S2.path.map(W2), judges: S2.judges.map(function (p) { var q = W2(p); return [q[0], q[1], p[2]]; }), podium: S2.podium.map(function (p) { var q = W2(p); return [q[0], q[1], p[2]]; }),
+        rivals: S2.rivals.map(W2), poster: W2(S2.poster), table: W2(S2.table), centre: W2(SG.c), half: SG.h, y: SG.y, dressed: !!(VIL.dress && VIL.dress.visible) };
+    }
+    function vilStageDress(on) { if (!VIL.dress) { VIL.dressWant = !!on; return false; } VIL.dress.visible = !!on; vilNpcApply(); dither.still = 0; return VIL.dress.visible; }
+    function vilStageParts(P) {   /* 포스터 판 (광장 메시 — 늘) + 꾸밈 (따로 한 메시 — 주말에만) */
+      var S2 = VILLAGE.SHOW, SG = VILLAGE.STAGE, L = P.plaza, D = P.dress, K4 = Math.PI / 4, i;
+      /* 포스터 판: 발 둘 · 판 · 작은 지붕 · 빈 종이 (그 주의 주제 그림은 콘테스트 갈래가 그 위에 띄운다) · 핀 둘 — 화면을 본다 */
+      var b = vilXZ(S2.poster[0], S2.poster[1]), SQ = Math.SQRT1_2, R = function (w, h, d, dt, y, ds, c2) { L.push({ g: box(w, h, d), m: M(b[0] + (ds + dt) * SQ, y, b[1] + (ds - dt) * SQ, 0, K4, 0), c: c2 }); };
+      R(0.07, 1.3, 0.07, -0.36, 0.65, 0, VC.woodD); R(0.07, 1.3, 0.07, 0.36, 0.65, 0, VC.woodD); R(0.8, 0.9, 0.05, 0, 0.92, 0, VC.woodA); R(0.94, 0.05, 0.22, 0, 1.4, 0, VC.woodD); R(0.6, 0.72, 0.02, 0, 0.93, 0.035, VC.paper); R(0.05, 0.05, 0.025, -0.22, 1.24, 0.04, VC.red); R(0.05, 0.05, 0.025, 0.22, 1.24, 0.04, VC.red);
+      R(0.3, 0.3, 0.022, 0, 1.0, 0.037, VC.yellow); R(0.14, 0.14, 0.024, 0, 1.0, 0.038, VC.paper); R(0.4, 0.04, 0.022, 0, 0.72, 0.037, VC.rose);   /* 종이 위: 별표 자리의 노란 네모 테와 띠 하나 (글자 없음) */
+      /* 꾸밈: 심사석 (긴 상 · 천 · 빈 팻말 셋 · 걸상 셋) · 시상대 단 셋 · 무대 앞 가장자리의 깃발 줄 · 무대 앞 등 둘 */
+      var t = vilXZ(S2.table[0], S2.table[1]), o = vilXZ(SG.c[0], SG.c[1]), h = SG.h;
+      D.push({ g: box(2.5, 0.05, 0.5), m: M(t[0], 0.5, t[1]), c: VC.woodL }, { g: box(2.5, 0.34, 0.03), m: M(t[0], 0.34, t[1] - 0.24), c: VC.rose }, { g: box(2.5, 0.05, 0.035), m: M(t[0], 0.2, t[1] - 0.242), c: VC.cream });
+      [-1.15, 1.15].forEach(function (d) { D.push({ g: box(0.06, 0.48, 0.4), m: M(t[0] + d, 0.24, t[1]), c: VC.woodD }); });
+      [-0.9, 0, 0.9].forEach(function (d) { D.push({ g: box(0.26, 0.2, 0.03), m: M(t[0] + d, 0.63, t[1] - 0.12, -0.2, 0, 0), c: VC.cream }, { g: box(0.03, 0.1, 0.03), m: M(t[0] + d, 0.55, t[1] - 0.08), c: VC.woodD }); });
+      VILLAGE.SHOW.podium.slice(0, 3).forEach(function (p, n) { var q = vilXZ(p[0], p[1]), ph = p[2] - SG.y; D.push({ g: box(0.7, ph, 0.6), m: M(q[0], SG.y + ph / 2, q[1]), c: [VC.yellow, VC.slateA, VC.woodL][n] }, { g: box(0.72, 0.03, 0.62), m: M(q[0], SG.y + ph - 0.015, q[1]), c: VC.cream }, { g: box(0.16, 0.12, 0.02), m: M(q[0], SG.y + ph / 2, q[1] + 0.305), c: VC.cream }); });
+      for (i = 0; i < 10; i++) { var u = (i + 0.5) / 10; D.push({ g: box(0.15, 0.15, 0.02), m: M(o[0] - h + 2 * h * u, SG.y + 0.02 - 0.0, o[1] + h + 0.012, 0, 0, K4), c: [VC.yellow, VC.red, VC.blueL, VC.cream, VC.moss][i % 5] }); }
+      [-1, 1].forEach(function (sg) { var px = o[0] + sg * (h + 0.25), pz = o[1] + h + 0.2; D.push({ g: box(0.07, 1.1, 0.07), m: M(px, 0.55, pz), c: VC.iron }, { g: box(0.16, 0.18, 0.16), m: M(px, 1.19, pz), c: PAL.amber[3] }, { g: box(0.2, 0.04, 0.2), m: M(px, 1.3, pz), c: VC.iron }); });
+    }
     function vilNpcApply() {   /* VIL.want → 메시 (바뀐 것만 다시 굽는다). 마을이 아직 안 지어졌으면 기억만 해 둔다 */
       if (!VIL.built) return 0;
       var seen = {}, n = 0;
       VIL.want.forEach(function (w) {
-        var sp = VILLAGE.npc(w.id); if (!sp || seen[w.id]) return; seen[w.id] = true; n++;
-        var key = w.color + '|' + w.hat + '|' + w.pose, o = VIL.npcs[w.id];
-        if (o && o.key === key) return;
+        var sp = vilNpcSpot(w.id); if (!sp || seen[w.id]) return; seen[w.id] = true; n++;
+        var key = w.color + '|' + w.hat + '|' + (w.pose === 'sleep'), o = VIL.npcs[w.id];
+        if (o && o.key === key) { o.pose = w.pose; o.y = sp.y; o.m.position.set(sp.x, sp.y, sp.z); o.m.rotation.y = sp.face; o.f = -1; return; }   /* 같은 몸: 자리 · 자세만 다시 */
         if (o) { VIL.g.remove(o.m); o.m.geometry.dispose(); }
-        var m = new T.Mesh(vilOctGeo(w.color, w.hat, w.pose === 'sleep'), lambert), q = vilXZ(sp.s, sp.t), R = VIL.R; m.receiveShadow = true;
-        var gy = vilNpcY(sp) + vilGround(q[0], q[1]); m.position.set(q[0], gy, q[1]); m.rotation.y = sp.face; m.scale.set(R, R, R); m.name = 'npc-' + w.id; VIL.g.add(m);
+        var m = new T.Mesh(vilOctGeo(w.color, w.hat, w.pose === 'sleep'), lambert), q = [sp.x, sp.z], R = VIL.R; m.receiveShadow = true;
+        var gy = sp.y; m.position.set(q[0], gy, q[1]); m.rotation.y = sp.face; m.scale.set(R, R, R); m.name = 'npc-' + w.id; VIL.g.add(m);
         VIL.npcs[w.id] = { m: m, key: key, pose: w.pose, y: gy, ph: hash('npc' + w.id) % 100 / 100, f: -1 };
       });
       Object.keys(VIL.npcs).forEach(function (id) { if (!seen[id]) { var o = VIL.npcs[id]; VIL.g.remove(o.m); o.m.geometry.dispose(); delete VIL.npcs[id]; if (VIL.marks[id]) VIL.marks[id].visible = false; } });
@@ -5916,8 +5959,8 @@ var SCENE3D = (function () {
     }
     function vilNpcSet(list) {   /* [{ id, color, hat, pose }] — 목록에 없는 문어는 지운다. 빈 목록 = 모두 지운다 → 그린 수 */
       if (!VIL.on) return 0;
-      VIL.want = (Array.isArray(list) ? list : []).filter(function (w) { return w && VILLAGE.npc(w.id); }).map(function (w) {
-        return { id: String(w.id), color: /^#[0-9a-f]{6}$/i.test(w.color || '') ? String(w.color).toLowerCase() : '#d9694f', hat: VILLAGE.HATS.indexOf(w.hat) >= 0 ? w.hat : 'none', pose: w.pose === 'sleep' ? 'sleep' : 'stand' };
+      VIL.want = (Array.isArray(list) ? list : []).filter(function (w) { return w && (VILLAGE.npc(w.id) || VILLAGE.EXTRA.indexOf(w.id) >= 0); }).map(function (w) {
+        return { id: String(w.id), color: /^#[0-9a-f]{6}$/i.test(w.color || '') ? String(w.color).toLowerCase() : '#d9694f', hat: VILLAGE.HATS.indexOf(w.hat) >= 0 ? w.hat : 'none', pose: w.pose === 'sleep' ? 'sleep' : w.pose === 'sit' ? 'sit' : 'stand' };
       });
       Object.keys(VR.rooms).forEach(vilRoomNpc);   /* 방 안의 가게 문어도 같은 색 · 모자로 */
       return VIL.built ? vilNpcApply() : VIL.want.length;
@@ -5928,6 +5971,7 @@ var SCENE3D = (function () {
         var o = VIL.npcs[id], per = o.pose === 'sleep' ? 1.6 : 0.8, f = st.reduced ? 0 : Math.floor(VIL.t / per + o.ph) % 2;
         if (!force && f === o.f) return; o.f = f;
         if (o.pose === 'sleep') { o.m.scale.set(R * 1.08, R * (f ? 0.8 : 0.76), R * 1.08); o.m.position.y = o.y; }
+        else if (o.pose === 'sit') { o.m.scale.set(R, R * 0.9, R); o.m.position.y = o.y - 0.06; }   /* 앉음 (심사석): 조금 낮게 · 가만히 */
         else { o.m.scale.set(R, R, R); o.m.position.y = o.y + (f ? PX : 0); }
         var mk = VIL.marks[id]; if (mk && mk.visible) mk.position.y = o.y + (o.pose === 'sleep' ? 0.92 : 1.02) + (f ? PX : 0);
         dither.still = 0;
@@ -7757,6 +7801,7 @@ var SCENE3D = (function () {
       /* 11-21 마을 (docs/VILLAGE.md): npcSpots() → [{ id, x, y, z, face }] · npcSet([{ id, color, hat, pose }]) → 그린 수 · npcMark(id, on) · cafeSit(on) → Promise<bool> · cafeCup(on) · cafeSeated() ·
          villageGo(단추 id | 자리 key) → Promise<가까이 섰나> · villageNear(…) · villageInfo() (시험) · debugVillageStub() / debugVillageFrame(dt) (갈래 W 가 합쳐지기 전의 시험 스텁) */
       npcSpots: vilNpcSpots, npcSet: vilNpcSet, npcMark: vilNpcMark, cafeSit: vilCafeSit, cafeCup: vilCafeCup, cafeSeated: function () { vilSeatSync(); return VIL.cafe.seated && !!PL.sit; },
+      stage: vilStageInfo, stageDress: vilStageDress, npcPlace: vilNpcPlace, npcPose: vilNpcPoseSet,
       cafeRecord: vilCafeRecord, debugVillageRoom: vilRoomDebug, villageRooms: function () { var o = {}; Object.keys(VR.rooms).forEach(function (k) { var RM = VR.rooms[k]; o[k] = { keeper: !!VR.npc[k], lamps: !!(RM.lamp && RM.lamp.visible), cup: !!(RM.cup && RM.cup.visible), record: !!(RM.rec && RM.rec.on) }; }); return { cur: vilRoomKey(), rooms: o, reg: typeof ROOM_REG !== 'undefined' && !!ROOM_REG }; },
       villageGo: vilGo, villageNear: vilNear, debugVillageStub: vilStub, debugVillageFrame: vilStubFrame, debugVillageHide: function (on) { if (VIL.root) { VIL.root.visible = !on; dither.still = 0; } return !!VIL.root; },
       villageInfo: function () { var c = {}; (CUTS.yard || []).forEach(function (e) { if (/^vil/.test(e.key)) c[e.key] = e.cut; }); return { on: VIL.on, built: VIL.built, stub: VIL.stub, npcs: Object.keys(VIL.npcs).map(function (id) { var o = VIL.npcs[id]; return { id: id, pose: o.pose, at: [o.m.position.x, o.m.position.y, o.m.position.z], visible: o.m.visible }; }), marks: Object.keys(VIL.marks).filter(function (id) { return VIL.marks[id].visible; }), cut: c, cup: !!(VIL.cup && VIL.cup.visible), seated: VIL.cafe.seated, lamps: !!(VIL.lampGlow && VIL.lampGlow.visible), snow: VIL.snow.some(function (m) { return m.visible; }), calls: callsBy.yard || 0, reg: { builders: WIDE_REG.builders.length, spots: WIDE_REG.spots.length, boxes: WIDE_REG.boxes.length, circles: WIDE_REG.circles.length, segments: WIDE_REG.segments.length, frame: WIDE_REG.frame.length } }; },
