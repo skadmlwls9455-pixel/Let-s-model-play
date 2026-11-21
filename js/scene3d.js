@@ -5616,7 +5616,8 @@ var SCENE3D = (function () {
       TB.sprKey = ''; spotLast.table = null; dither.still = 0;
       c.res(r);
     }
-    function playerCarryCut() { var c = CARRY; if (!c) return false; if (c.stage === 'walk') plStop(); carryEnd('cut'); return true; }
+    function carryStop(c) { if (c.w && PL.walking === c.w) plStop(); c.w = null; }   /* 내 걸음만 멈춘다 — 그새 시작된 남의 걸음 (문까지 걷기) 은 건드리지 않는다: 끊긴 걸음은 풀리지 않아 문 작업이 걸린 채 남는다 (독립 점검) */
+    function playerCarryCut() { var c = CARRY; if (!c) return false; carryStop(c); carryEnd('cut'); return true; }
     function playerCarryDish(dish, o) {
       o = o || {};
       if (CARRY || !dish || !PROOM || PL.place !== 'play' || PLACE.vis !== 'play' || PL.hop || (PL.sit && !PL.tbl) || !playerInputAllowed() || TB.busy()) return Promise.resolve('no');
@@ -5632,14 +5633,17 @@ var SCENE3D = (function () {
     }
     function stepCarry(dt) {
       var c = CARRY; if (!c) return;
-      if (st.hidden || ctxLost() || PL.place !== 'play' || PLACE.vis !== 'play' || PLACE.trans || (FM && FM.on) || !TB.dish) { if (c.stage === 'walk') plStop(); carryEnd('cut'); return; }
+      if (st.hidden || ctxLost() || PL.place !== 'play' || PLACE.vis !== 'play' || PLACE.trans || (FM && FM.on) || !TB.dish) { carryStop(c); carryEnd('cut'); return; }
+      if (c.stage !== 'sit' && (!playerInputAllowed() || (PL.walking && PL.walking !== c.w))) { carryStop(c); carryEnd('cut'); return; }   /* 문 작업이 잡혔거나 다른 걸음 (문 · 계단 톡) 이 시작됐다 → 그 걸음을 덮어쓰지 않고 바로 끝 상태로 */
       c.t += dt / st.speed;
       if (c.stage !== 'walk' && c.stage !== 'sit' && PL_IN.v) { carryEnd('cut'); return; }   /* 스틱을 밀면 그 자리에서 끝 (걷는 중엔 stepPlayer 가 걸음을 끊는다 → carryLeg null) */
       if (c.stage === 'hold' && c.t >= CARRY_HOLD) {
         var B = BOOTH.me, to = new T.Vector3(B.aisle[0], 0, B.aisle[1]);
         c.stage = 'walk'; c.t = 0; c.gap = true; PL.camGap = 0.5;
-        carryLeg(to, Math.atan2(BOOTH_DISH[0] - to.x, BOOTH_DISH[2] - to.z)).then(function (r) {
+        var leg = carryLeg(to, Math.atan2(BOOTH_DISH[0] - to.x, BOOTH_DISH[2] - to.z)); c.w = PL.walking;
+        leg.then(function (r) {
           if (CARRY !== c) return;
+          c.w = null;
           if (r === null || PL_IN.v || Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z) > 0.2) { carryEnd('cut'); return; }
           c.stage = 'put'; c.t = 0; c.gap = false; PL.camGap = 0;
         });
