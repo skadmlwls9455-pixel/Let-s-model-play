@@ -2584,7 +2584,8 @@ var SCENE3D = (function () {
        방: 다락 ↔ 놀이방을 문으로 오간다 (문어는 놀이방에 안 간다). 쉬는 자리 PL_REST · 문 앞은 DOOR_ANCHORS. 바깥엔 안 나간다 — 바깥이 보이는 동안은 다락 그룹과 같이 숨는다.
        흐름: 문 톡 → playerWalkTo(문 앞 앵커: 1.8 m/s, 서 있다 출발하면 120 ms 예비 눌림) → 도착해 문을 보고 섬 → (goRoom) 문 열림 → 가로 전환 가운데 프레임에 plEnter(건너편 문 앞, 방 안쪽을 보고)
        → 문 닫힘 → 쉬는 자리로 걷는다. 모션 감소 = 걷기 없이 바로. 탭 숨음 · 컨텍스트 잃음 · 준비 전 = 바로 (Promise 가 걸려 있지 않게, walkPoint 와 같다). */
-    var PL_H = 1.22, PL_HEAD_R = 0.35, PL_HEAD_Y = 0.87, PL_HR = 0.38, PL_HC = [0, 0.90, -0.03], PL_SPEED = 1.8, PL_RUN = 2.2, PL_STRIDE = 0.40, PL_RUN_STRIDE = 0.55, PL_TURN = 24, PL_ANTIC = 0.12, PL_LEG = 0.45, PL_ARM = 0.4, PL_SWAY = 0.045;   /* 짧뚱한 몸 = 종종걸음(한 걸음 0.4 m) + 디딤 프레임 좌우 뒤뚱 0.045 rad(머리 꼭대기 ≈ 1 px) */
+    var PL_H = 1.22, PL_HEAD_R = 0.35, PL_HEAD_Y = 0.87, PL_HR = 0.38, PL_HC = [0, 0.90, -0.03], PL_SPEED = 1.8, PL_RUN = 2.2, PL_STRIDE = 0.40, PL_RUN_STRIDE = 0.55, PL_TURN = 24, PL_ANTIC = 0.12, PL_LEG = 0.45, PL_ARM = 0.4, PL_SWAY = 0.045, PL_DASH = 3.74, PL_DASH_STRIDE = 0.85, PL_DASH_HOLD = 0.6, PL_DASH_AUTO = 4;   /* 11-21 뛰기: 반 넘게 민 채 0.6 s = 3.74 m/s (걷기 2.2 의 1.7 배) · 보폭 0.85 · 혼자 걷기는 길이 4 m 넘으면 뛴다 */
+    /* ↑ 걷기 상수:   /* 짧뚱한 몸 = 종종걸음(한 걸음 0.4 m) + 디딤 프레임 좌우 뒤뚱 0.045 rad(머리 꼭대기 ≈ 1 px) */
     var PL_REST = { attic: [1.65, 0, -0.1], play: [0.15, 0, 0.45], yard: [1.95, 0, 0.55] };   /* 11-15 마당: 계단 앞 길가 (밭 첫 줄 바로 위) */   /* 쉬는 자리: 다락 오른쪽 — 가운데 문어와 상자 사이, 화면에서 문어(가운데 앵커)·문짝(x−z 0.62~1.34)과 안 겹친다 (x−z 1.75) · 문 앞까지 1.5 m · 놀이방 빈 바닥 가운데 (문까지 1.7 m) */
     var PL_FACE = { atticPlayDoor: Math.PI / 2, playAtticDoor: -Math.PI / 2, atticStair: -Math.PI / 2, loftStair: Math.PI / 2, atticYard: Math.PI, yardAttic: -Math.PI / 2 };   /* 11-15: 다락 뒷벽 문간은 −z · 마당 현관 계단은 −x */   /* 문 앞에 서서 보는 쪽 (다락 문은 +x 벽 · 놀이방 문은 −x 벽) — 들어올 땐 반대(방 안쪽) */
     var PLC = (function () {
@@ -3149,17 +3150,18 @@ var SCENE3D = (function () {
       var pts = plRoute(from, to), total = 0, prev = from;
       pts.forEach(function (p) { total += Math.hypot(p.x - prev.x, p.z - prev.z); prev = p; });
       PL.faceCam = false; PL.wantYaw = Math.atan2(pts[0].x - from.x, pts[0].z - from.z);
-      var dur = total / PL_SPEED * st.speed, hold = PL.moving ? 0 : PL_ANTIC * st.speed, k = 0, cancelled = false, stuck = 0;
+      var dash = total > PL_DASH_AUTO, spd = dash ? PL_DASH : PL_SPEED;   /* 11-21 먼 길 (4 m 넘게) 은 뛰어간다 */
+      var dur = total / spd * st.speed, hold = PL.moving ? 0 : PL_ANTIC * st.speed, k = 0, cancelled = false, stuck = 0;
       PL.antic = hold; PL.walks++;
       return new Promise(function (resolve) {
         function arrive(snap) { cancelled = true; if (snap) PL.pos.copy(to); PL.walking = null; PL.antic = 0; plFaceAfter(face); resolve(true); }
-        PL.walking = { cancel: function () { cancelled = true; }, finish: function () { if (!cancelled) arrive(true); },
+        PL.walking = { dash: dash, cancel: function () { cancelled = true; }, finish: function () { if (!cancelled) arrive(true); },
           step: function (dt) {
             if (cancelled) return;
             k += dt; PL.antic = Math.max(0, hold - k);
             if (k < hold) return;
             if (k - hold > dur * 1.5 + 0.3) { arrive(false); return; }
-            var tg = pts[0], dx = tg.x - PL.pos.x, dz = tg.z - PL.pos.z, dd = Math.hypot(dx, dz), step = Math.min(dd, PL_SPEED * dt / (st.speed || 1));
+            var tg = pts[0], dx = tg.x - PL.pos.x, dz = tg.z - PL.pos.z, dd = Math.hypot(dx, dz), step = Math.min(dd, spd * dt / (st.speed || 1));
             if (dd > 1e-6) { PL.wantYaw = Math.atan2(dx, dz); if (plMove(dx / dd * step, dz / dd * step) || plMove(dx / dd * step / 2, dz / dd * step / 2)) stuck = 0; else stuck++; }   /* 한 걸음이 장애물 둘레에 걸리면 반 걸음으로 한 번 더 (큰 dt 에서 둘레 앞까지 붙게) */
             dd = Math.hypot(tg.x - PL.pos.x, tg.z - PL.pos.z);
             if (dd < 0.05 || stuck >= 3) { if (pts.length > 1) { pts.shift(); stuck = 0; } else arrive(dd < 0.2); }   /* 마지막 점: 5 cm 안이면 도착 · 막혔어도 20 cm 안이면 그 자리로(쉬는 자리처럼 둘레 안에 둔 목표) · 더 멀면 거기서 끝(관통 금지) */
@@ -3207,7 +3209,7 @@ var SCENE3D = (function () {
       return plWalkTo(new T.Vector3(a[0], 0, a[2]), PL_FACE[anchor]).then(function (walked) { PL.camGap = 0; return { ok: true, walked: walked, anchor: anchor, at: at }; });
     }
     function plFinish() { if (PL.walking && PL.walking.finish) PL.walking.finish(); if (PL.pending) plRest(true); }   /* 컨텍스트 잃음 · destroy: 걷던 길을 지금 도착시킨다 (Promise 는 푼다) */
-    function plInfo() { return { place: PL.place, at: [+PL.pos.x.toFixed(3), 0, +PL.pos.z.toFixed(3)], walking: !!PL.walking || !!PL.stick, moving: !!PL.moving, pending: PL.pending, yaw: +(plG.rotation.y / DEG).toFixed(1), frame: PL.frame | 0, group: plG.parent ? plG.parent.name : '', visible: !!(plG.parent && plG.parent.visible), walks: PL.walks, height: PL_H, look: Object.assign({}, PL.look), input: PL_IN.v ? [+PL_IN.v.x.toFixed(3), +PL_IN.v.y.toFixed(3)] : null, footprints: FP.list.length }; }
+    function plInfo() { return { place: PL.place, at: [+PL.pos.x.toFixed(3), 0, +PL.pos.z.toFixed(3)], walking: !!PL.walking || !!PL.stick, moving: !!PL.moving, run: !!PL.dashing, pending: PL.pending, yaw: +(plG.rotation.y / DEG).toFixed(1), frame: PL.frame | 0, group: plG.parent ? plG.parent.name : '', visible: !!(plG.parent && plG.parent.visible), walks: PL.walks, height: PL_H, look: Object.assign({}, PL.look), input: PL_IN.v ? [+PL_IN.v.x.toFixed(3), +PL_IN.v.y.toFixed(3)] : null, footprints: FP.list.length }; }
     function plStand(done) {   /* 소파에서 내려온다 (앉는 쪽 앞 바닥으로 폴짝) · 11-18 식탁이면 내 통로 자리로 */
       if (PL.tbl) { var TA = BOOTH.me.aisle; PL.sit = false; PL.tbl = false; PL.hop = { t: 0, a: PL.pos.clone(), b: new T.Vector3(TA[0], 0, TA[1]), sit: false, done: done }; tableStood(); return; }
       var f = FURN.sofa, a = sofaAx(), lm = plLim(), k = f.hw + 0.4;
@@ -3248,8 +3250,8 @@ var SCENE3D = (function () {
       if (v) {   /* 스틱 · 방향키: 가던 길(쉬는 자리 등)은 취소, 화면 축 → 월드 수평 축, 범위·장애물 보정 뒤 적용. 막혀서 한 발짝도 못 가면 서서 그쪽을 본다 */
         if (PL.walking) plStop(); PL.pending = ''; PL.antic = 0; PL.heldStop = false;
         PL_IN.rh.set(_r.x, 0, _r.z).normalize(); PL_IN.fh.set(PL_IN.rh.z, 0, -PL_IN.rh.x);   /* 화면 오른쪽 · 화면 위 = 카메라에서 멀어지는 수평 방향 */
-        var wx = PL_IN.rh.x * v.x + PL_IN.fh.x * v.y, wz = PL_IN.rh.z * v.x + PL_IN.fh.z * v.y, step = PL_RUN * dt / (st.speed || 1);   /* 스틱 · 방향키는 종종 달리기 2.2 m/s (주인 11-10 "억지로 느리게 한 느낌" — 1.2 는 방 하나 건너는 데 4초였다). 문 앞까지 혼자 걷기는 1.8 */
-        stick = plMove(wx * step, wz * step);
+        var wx = PL_IN.rh.x * v.x + PL_IN.fh.x * v.y, wz = PL_IN.rh.z * v.x + PL_IN.fh.z * v.y, step = PL_RUN * dt / (st.speed || 1), dashK = plDashHeld(v, dt) ? PL_DASH / PL_RUN : 1;   /* 스틱 · 방향키는 종종 달리기 2.2 m/s (주인 11-10 "억지로 느리게 한 느낌" — 1.2 는 방 하나 건너는 데 4초였다). 문 앞까지 혼자 걷기는 1.8 */
+        stick = (dashK > 1 && plMove(wx * step * dashK, wz * step * dashK)) || plMove(wx * step, wz * step);   /* 11-21 뛰는 걸음이 둘레에 걸리면 걷는 걸음으로 한 번 더 (벽 앞에 뛰는 걸음만큼 틈이 남지 않게) */
         PL.faceCam = false; PL.wantYaw = Math.atan2(wx, wz);
         /* 문에 닿은 채 문 쪽으로 걸으면 넘어간다 (주인 11-10 "닿은 채로 걸어가면 슥 넘어가는"): 문 앞 앵커 0.45 m 안에서 문이 있는 벽 쪽(다락 문 = +x · 놀이방 문 = −x)으로 밀 때 한 번 on.playerDoor(가는 방).
            방금 그 문으로 들어왔으면(PL.doorArm false) 문 앞을 한 번 벗어났다 와야 한다 — 들어오자마자 되돌아가지 않게 */
@@ -3283,12 +3285,14 @@ var SCENE3D = (function () {
           if (pushed && !v) { PL.faceCam = false; PL.wantYaw = Math.atan2(ox, oz); }
         }
       }
+      if (!v) plDashHeld(null, dt);
       PL.stick = stick; PL.held = held; PL.pushed = pushed;
       if (PL.walking) PL.walking.step(dt);
+      var dash = !st.reduced && (stick ? PL.dash : !!(PL.walking && PL.walking.dash));   /* 11-21 뛰는 걸음새인가 (스틱 = 오래 쥠 · 혼자 걷기 = 먼 길) */
       if (PL.pending === 'rest' && !DQ.active && !PLACE.trans) plRest(false);   /* 들어온 문이 닫힌 뒤: 쉬는 자리로 */
       var red = st.reduced, moving = ((!!PL.walking && PL.antic <= 0) || stick || pushed) && !red;
       var mx = PL.pos.x - PL.last.x, mz = PL.pos.z - PL.last.z; if (Math.hypot(mx, mz) > 1e-6) PL_IN.dir.set(mx, 0, mz).normalize();   /* 진행 방향 (발자국 회전·옆 오프셋) */
-      if (moving) { if (!PL.moving) { PL.last.copy(PL.pos); PL.n = Math.floor(PL.phase); } PL.phase += Math.min(0.3, Math.hypot(PL.pos.x - PL.last.x, PL.pos.z - PL.last.z)) / (stick ? PL_RUN_STRIDE : PL_STRIDE); }
+      if (moving) { if (!PL.moving) { PL.last.copy(PL.pos); PL.n = Math.floor(PL.phase); } PL.phase += Math.min(0.3, Math.hypot(PL.pos.x - PL.last.x, PL.pos.z - PL.last.z)) / (dash ? PL_DASH_STRIDE : stick ? PL_RUN_STRIDE : PL_STRIDE); }
       else if (PL.moving) { PL.phase = Math.ceil(PL.phase - 1e-6); if (held) PL.heldStop = true; else PL.settleT = 0; }   /* 멈춤 = 서기 프레임 + 착지 눌림 한 번 (잡은 채 멈췄으면 — 데드존 · 벽에 막힘 — 눌림은 놓을 때) */
       PL.last.copy(PL.pos); PL.moving = moving; PL.settleT += dt;
       stepFoot(dt);
@@ -3302,17 +3306,19 @@ var SCENE3D = (function () {
       var u = PL.phase - Math.floor(PL.phase), f = moving ? Math.floor(u * 4) & 3 : 0, sw = [0, 1, 0, -1][f];
       if (moving && (f & 1) && f !== PL.frame) plFoot(f === 1 ? -1 : 1);   /* 디딤 프레임에 들어설 때 = 한 걸음: 발자국 + on.playerStep() */
       PL.frame = f;
-      plLegL.rotation.x = -sw * PL_LEG; plLegR.rotation.x = sw * PL_LEG;
+      dash = dash && moving; PL.dashing = dash;
+      var legA = dash ? 0.85 : PL_LEG, armA = dash ? 0.95 : PL_ARM;   /* 뛰기: 다리 · 팔을 크게 */
+      plLegL.rotation.x = -sw * legA; plLegR.rotation.x = sw * legA;
       if (PL.sit) plLegL.rotation.x = plLegR.rotation.x = -1.35;   /* 앉은 다리: 앞으로 뻗는다 */
-      plArmL.rotation.x = sw * PL_ARM; plArmR.rotation.x = -sw * PL_ARM;
-      var out = moving ? 0.30 : 0.42; plArmL.rotation.z = -out; plArmR.rotation.z = out;   /* 팔은 살짝 벌려 늘어뜨린다 — 걸을 땐 조금 붙인다 */
-      plBody.rotation.z = sw * PL_SWAY;
+      plArmL.rotation.x = sw * armA; plArmR.rotation.x = -sw * armA;
+      var out = dash ? 0.18 : moving ? 0.30 : 0.42; plArmL.rotation.z = -out; plArmR.rotation.z = out;   /* 팔은 살짝 벌려 늘어뜨린다 — 걸을 땐 조금 붙인다 */
+      plBody.rotation.z = dash ? 0 : sw * PL_SWAY; plBody.rotation.x = dash ? 0.16 : 0;   /* 뛸 땐 뒤뚱 대신 앞으로 살짝 숙인다 */
       var sx = 1, sy = 1, by = 0, tb = Math.floor(PL.t * 8) / 8;
       if (!red) {
         if (!moving && PL.settleT > 0.3) sy = 1 - 0.012 * (0.5 + 0.5 * Math.sin(tb * Math.PI / 2));   /* 숨쉬기 8 fps 스텝 (1 px 안쪽, 가끔 1 px) */
         if (PL.antic > 0) { sy = 0.94; sx = 1.03; }                                                       /* 출발 예비 눌림 */
         else if (!moving && PL.settleT < 0.1) { sy = 0.95; sx = 1.02; }                                   /* 도착 눌림 80 ms */
-        if (moving && (f & 1)) by = -pxUp();
+        if (moving && (f & 1)) by = dash ? pxUp() : -pxUp();   /* 뛰기 = 디딤 프레임에 몸이 1 px 뜬다 (통통) */
         /* 눈 깜빡임 3~7 s 시드 간격 · 120 ms (문어와 같은 규칙) */
         if (PL.blinkLeft > 0) PL.blinkLeft -= dt; else { PL.blinkT -= dt; if (PL.blinkT <= 0) { PL.blinkLeft = 0.12; PL.blinkT = 3 + (hash('plb' + Math.floor(PL.t * 10)) % 1000) / 1000 * 4; } }
       } else PL.blinkLeft = 0;
@@ -3333,7 +3339,7 @@ var SCENE3D = (function () {
       octG.traverse(function (o) { if (o.isMesh && (o.layers.mask & 4)) { octL2.push(o); o.layers.disable(2); } });
       plMeshes.forEach(function (m) { m.layers.enable(2); });
       PL.shut = false; PL.lod = fr.lod; plEyeUV();   /* 눈 뜨고 8×8 칸으로: 정면 61 px/m 는 장면 2× (54 px/m) 보다 촘촘해 2× 그림이 텍셀 ≈ 1.1 px 로 열이 안 빠진다 (요 30° 시절엔 먼 눈 조각이 0.84 px 라 4×5 로 찍었다) — 주인이 눈 · 코 · 입 · 볼을 고르는 바로 그 미리보기라 한쪽이 깨지면 안 된다 */
-      plBody.scale.set(1, 1, 1); plBody.position.y = 0; plBody.rotation.z = 0; plG.rotation.y = -(fr.yaw || 0);   /* 요 = 카메라가 아니라 내 캐릭터를 돌린다 (카메라 · 3점 빛은 그대로 → 돌려 찍어도 앞에서 받는 빛) */
+      plBody.scale.set(1, 1, 1); plBody.position.y = 0; plBody.rotation.z = 0; plBody.rotation.x = 0; plG.rotation.y = -(fr.yaw || 0);   /* 요 = 카메라가 아니라 내 캐릭터를 돌린다 (카메라 · 3점 빛은 그대로 → 돌려 찍어도 앞에서 받는 빛) */
       plLimbs.forEach(function (m) { m.rotation.x = 0; }); plArmL.rotation.z = -0.42; plArmR.rotation.z = 0.42;
       plG.visible = true; if (plG.parent) plG.parent.visible = true; octG.visible = true; if (octG.parent) octG.parent.visible = true; octG.rotation.y = 0;   /* 숨은 장소 그룹에 있어도 찍힌다 (레이어 2 만 그리므로 장소 내용·조명은 안 들어온다) */
       toonP.emissive.setRGB(0, 0, 0); toonP.color.setScalar(0.8); toonEye.emissive.setRGB(0, 0, 0); toonEye.color.setScalar(0.8);   /* 3점 흰빛 rig 는 장면 필보다 밝아 금발 윗면이 올리브 #d0da91 로 떴다 → 재질 색만 0.8 로 눌러 찍는다 (유니폼, 프로그램 그대로). 눈 재질도 같이 — 안 누르면 흰자가 살결보다 한 칸 떠 번쩍인다 */
@@ -3354,7 +3360,7 @@ var SCENE3D = (function () {
       /* 되돌리기 */
       scene.background = sv.bg; renderer.setClearColor(sc, sa); renderer.setRenderTarget(null);
       plMeshes.forEach(function (m) { m.layers.disable(2); }); octL2.forEach(function (o) { o.layers.enable(2); });
-      plBody.scale.set(sv.sx, sv.sy, sv.sz); plBody.position.y = sv.py; plBody.rotation.z = sv.rz; plG.rotation.y = sv.gy; plG.visible = sv.vis; if (plG.parent) plG.parent.visible = sv.pvis;
+      plBody.scale.set(sv.sx, sv.sy, sv.sz); plBody.position.y = sv.py; plBody.rotation.z = sv.rz; plBody.rotation.x = PL.dashing ? 0.16 : 0; plG.rotation.y = sv.gy; plG.visible = sv.vis; if (plG.parent) plG.parent.visible = sv.pvis;
       plLimbs.forEach(function (m, i) { m.rotation.x = sv.limbs[i][0]; m.rotation.z = sv.limbs[i][1]; });
       PL.shut = sv.shut; PL.lod = sv.lod; plEyeUV(); toonEye.emissive.copy(sv.eem); toonEye.color.copy(sv.ecol);
       octG.visible = sv.ovis; if (octG.parent) octG.parent.visible = sv.opvis; octG.rotation.y = sv.oy; toonP.emissive.copy(sv.em); toonP.color.copy(sv.col);
@@ -5533,6 +5539,13 @@ var SCENE3D = (function () {
 
 
     /* [7-P] 내 캐릭터 · 뛰기 · 마네킹 */
+    /* 11-21 뛰기 (주인 "오래 누르고 있으면 자동으로 뛰었으면"): 손잡이 · 방향키를 반 넘게 민 채 PL_DASH_HOLD 초가 지나면 뛴다. 놓거나 반 아래로 늦추면 바로 걷기. 매 프레임 stepPlayer 가 부른다 (v = 입력 벡터 또는 null) */
+    function plDashHeld(v, dt) {
+      if (v && Math.hypot(v.x, v.y) >= 0.5) PL.dashT = (PL.dashT || 0) + dt; else PL.dashT = 0;
+      PL.dash = PL.dashT >= PL_DASH_HOLD;
+      return PL.dash;
+    }
+    function playerSpeeds() { return { walk: PL_RUN, run: PL_DASH }; }   /* 따라가는 화면 (바깥 갈래) 이 읽는다: 걷기 2.2 · 뛰기 3.74 m/s */
 
 
     /* [7-W] 바깥 한 장 · 해안가 · 이동 */
@@ -6956,6 +6969,7 @@ var SCENE3D = (function () {
       /* [7-T] */
 
       /* [7-P] */
+      playerSpeeds: playerSpeeds,
 
       /* [7-W] */
 
