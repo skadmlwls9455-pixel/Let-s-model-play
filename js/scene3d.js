@@ -5961,8 +5961,9 @@ var SCENE3D = (function () {
         if (!V.seated) return Promise.resolve(false);
         return new Promise(function (res) {
           var P = vilSeatPts();
+          V.seated = false;   /* 먼저 내린다: 앉으려 뛰던 중이면 그 앉기 약속은 false 로 풀린다 (아래 done) */
           if (PL.hop) { var h0 = PL.hop; PL.pos.copy(h0.b); PL.sit = h0.sit; PL.hop = null; if (h0.done) h0.done(); }
-          V.seated = false; if (VIL.cup) VIL.cup.visible = false; PL.sit = false; dither.still = 0; vilSeatEmit(false);
+          if (VIL.cup) VIL.cup.visible = false; PL.sit = false; dither.still = 0; vilSeatEmit(false);
           if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.aisle); plSnap(); res(true); return; }
           PL.hop = { t: 0, a: PL.pos.clone(), b: P.aisle, sit: false, cafe: true, done: function () { res(true); } };
         });
@@ -5973,7 +5974,7 @@ var SCENE3D = (function () {
         if (!ok || PL.place !== 'yard' || PLACE.vis !== 'yard' || PL_IN.v || PL.sit || PL.hop) return false;
         PL.sitYaw = P.yaw; PL.faceCam = false; PL.wantYaw = P.yaw; V.seated = true; vilSeatEmit(true);
         if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.seat); PL.sit = true; plSnap(); return true; }
-        return new Promise(function (res) { PL.hop = { t: 0, a: PL.pos.clone(), b: P.seat, sit: true, cafe: true, done: function () { res(true); } }; });
+        return new Promise(function (res) { PL.hop = { t: 0, a: PL.pos.clone(), b: P.seat, sit: true, cafe: true, done: function () { res(VIL.cafe.seated); } }; });
       });
     }
     function vilCafeCup(on) { vilSeatSync(); if (!VIL.cup) return false; VIL.cup.visible = !!on && VIL.cafe.seated; dither.still = 0; return VIL.cup.visible; }

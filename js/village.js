@@ -26,7 +26,7 @@ var VILLAGE = (function () {
     { id: 'clothes', name: '옷가게', s0: 22, s1: 28, t0: -10, t1: -3.5, c: [24.6, -5.25], hx: 1.3, hz: 1.4, mir: false, open: true },
     { id: 'goods', name: '잡화점', s0: 22, s1: 28, t0: 3.5, t1: 10, c: [24.6, 5.25], hx: 1.3, hz: 1.4, mir: true, open: true },
     { id: 'empty', name: '빈 집', s0: 30, s1: 36, t0: -10, t1: -3.5, c: [31.8, -5.6], hx: 1.3, hz: 1.4, mir: false, open: false },
-    { id: 'cafe', name: '카페', s0: 30, s1: 37, t0: 3.5, t1: 10, c: [33.6, 8.9], hx: 1.1, hz: 1.2, mir: true, open: true },
+    { id: 'cafe', name: '카페', s0: 30, s1: 37, t0: 3.5, t1: 10, c: [31.4, 8.95], hx: 1.1, hz: 1.2, mir: true, open: true },
     { id: 'plaza', name: '광장', s0: 38, s1: 46, t0: -8, t1: 8, c: [42, 0], hx: 0, hz: 0, mir: false, open: true }
   ];
   var DECK = { s0: 30, s1: 37, t0: 3.5, t1: 7 };
@@ -128,7 +128,7 @@ var VILLAGE = (function () {
     function free(ax, az, bx2, bz) {
       for (var k = 0; k < CS.length; k++) if (segPt(ax, az, bx2, bz, CS[k][0], CS[k][1]) < CS[k][2] - 0.02) return false;
       for (k = 0; k < BOXES.length; k++) if (segBox(ax, az, bx2, bz, BOXES[k], BODY - 0.02)) return false;
-      var n = Math.max(1, Math.ceil(Math.hypot(bx2 - ax, bz - az) / 0.25));
+      var n = Math.max(1, Math.ceil(Math.hypot(bx2 - ax, bz - az) / 0.08));
       for (k = 1; k < n; k++) { var q = st(ax + (bx2 - ax) * k / n, az + (bz - az) * k / n); if (!inWalk(q[0], q[1], -0.02)) return false; }
       return true;
     }
@@ -136,6 +136,15 @@ var VILLAGE = (function () {
     var N = [A, B], near = function (x, z) { return segPt(A[0], A[1], B[0], B[1], x, z) < 3; };
     CS.forEach(function (c) { if (!near(c[0], c[1])) return; for (var k = 0; k < 8; k++) { var a = k * Math.PI / 4 + Math.PI / 8, r = c[2] + 0.12; N.push([c[0] + Math.cos(a) * r, c[1] + Math.sin(a) * r]); } });
     BOXES.forEach(function (b) { if (!near((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)) return; var p = BODY + 0.12; N.push([b[0] - p, b[1] - p], [b[2] + p, b[1] - p], [b[0] - p, b[3] + p], [b[2] + p, b[3] + p]); });
+    /* 걷는 곳끼리 만나는 자리 (길 ↔ 덱 · 길 ↔ 광장 …) 와 네모의 안쪽 모서리도 거쳐 갈 점이다 — 없으면 ㄱ 자로 꺾인 길 (광장 → 카페, 덱 → 잡화점) 을 못 찾고 가장자리에 가서 섰다 (검증 11-21) */
+    WALK.forEach(function (a, ai) {
+      [[a.s0 + 0.15, a.t0 + 0.15], [a.s0 + 0.15, a.t1 - 0.15], [a.s1 - 0.15, a.t0 + 0.15], [a.s1 - 0.15, a.t1 - 0.15]].forEach(function (c) { N.push(xz(c[0], c[1])); });
+      WALK.slice(ai + 1).forEach(function (b) {
+        var s0 = Math.max(a.s0, b.s0), s1 = Math.min(a.s1, b.s1), t0 = Math.max(a.t0, b.t0), t1 = Math.min(a.t1, b.t1); if (s1 - s0 < 0.04 || t1 - t0 < 0.04) return;
+        var ms = (s0 + s1) / 2, mt = (t0 + t1) / 2, long = s1 - s0 > t1 - t0, n = Math.max(1, Math.min(6, Math.round((long ? s1 - s0 : t1 - t0) / 1.2)));
+        for (var k = 0; k <= n; k++) { var u = n ? k / n : 0.5; N.push(long ? xz(s0 + 0.15 + (s1 - s0 - 0.3) * u, mt) : xz(ms, t0 + 0.15 + (t1 - t0 - 0.3) * u)); }
+      });
+    });
     N = N.filter(function (n, k) { if (k < 2) return true; var q = st(n[0], n[1]); return inWalk(q[0], q[1], 0) && free(n[0], n[1], n[0], n[1]); });
     var D = N.map(function () { return Infinity; }), prev = N.map(function () { return -1; }), done = N.map(function () { return false; }); D[0] = 0;
     for (;;) {
