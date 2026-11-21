@@ -29,9 +29,9 @@ V.LOTS.forEach(function (L) {
 ok(V.DECK.s0 === 30 && V.DECK.s1 === 37 && V.DECK.t0 === 3.5 && V.DECK.t1 === 7, '카페 덱 = C6 (s 30–37 · t 3.5–7)');
 
 /* 3. 단추: C6 의 id 열 개 · 이름 · 서는 자리가 걷는 곳 안 · 자리와 서는 자리가 2.4 m 안 */
-var BTN = { 'btn-shop-clothes': '옷가게', 'btn-shop-goods': '잡화점', 'btn-cafe-counter': '카페 주문', 'btn-cafe-seat': '카페 자리', 'btn-cafe-lp': '레코드', 'btn-plaza-stage': '콘테스트 무대', 'btn-plaza-board': '마을 게시판',
+var BTN = { 'btn-shop-clothes': '옷가게', 'btn-shop-goods': '잡화점', 'btn-cafe-seat': '카페 자리', 'btn-cafe-lp': '레코드', 'btn-plaza-stage': '콘테스트 무대', 'btn-plaza-board': '마을 게시판',
   'btn-npc-clothes': '가게 문어', 'btn-npc-goods': '가게 문어', 'btn-npc-cafe': '가게 문어' };
-ok(V.SPOTS.length === 10, '누르는 자리 열');
+ok(V.SPOTS.length === 9, '바깥의 누르는 자리 아홉 (카페 주문은 방 안으로)');
 var html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), seenKey = {};
 V.SPOTS.forEach(function (s) {
   ok(BTN[s.btn] === s.label, s.btn + ' 이름 = ' + BTN[s.btn]);
