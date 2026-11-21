@@ -351,7 +351,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     await page.evaluate(function () {
       var R = APP.scene.wideReg, K = Math.SQRT1_2; window.__reg = { built: 0, frames: 0, clicks: 0 };
       var b = document.createElement('button'); b.id = 'btn-w-test'; b.className = 'scene-spot'; b.hidden = true; b.setAttribute('aria-label', '시험'); document.getElementById('scene').appendChild(b); b.addEventListener('click', function () { window.__reg.clicks++; });
-      R.builders.push(function (g) { window.__reg.built++; window.__reg.group = !!(g && g.isGroup); window.__reg.seg = { visible: true }; R.segments.push({ s0: 24, s1: 28, obj: window.__reg.seg }); });
+      R.builders.push(function (g) { window.__reg.built++; window.__reg.group = !!(g && g.isGroup); window.__reg.seg = { visible: true }; R.segments.push({ s0: 40, s1: 44, obj: window.__reg.seg }); });
       R.spots.push({ key: 'wtest', btn: 'btn-w-test', x: 25 * K, y: 0.8, z: 25 * K, r: 0.5 });
       R.boxes.push([27 * K - 0.5, 27 * K - 0.5, 27 * K + 0.5, 27 * K + 0.5]);   /* 길 한가운데 (s 27 · t 0) 의 1 m 상자 */
       R.frame.push(function (dt, now) { if (dt >= 0 && now > 0) window.__reg.frames++; });
@@ -362,7 +362,8 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
       var sc = APP.scene, K = Math.SQRT1_2, G = window.__reg, r = { built: G.built, group: G.group, frames: G.frames, segHome: null };
       function push(x, y, n) { sc.setPlayerInput({ x: x, y: y }); sc.debugSim(0.1, n); sc.setPlayerInput(null); sc.debugStep(0.1); return sc.player().at; }
       sc.debugPlayerAt(1.9, 0.5); sc.wideFocus(); push(0, 0.01, 4); r.segHome = G.seg.visible;
-      sc.debugPlayerAt(23.6 * K, 23.6 * K); sc.wideFocus(); push(0, 0.01, 4); r.segNear = G.seg.visible;
+      sc.debugPlayerAt(36 * K, 36 * K); sc.wideFocus(); push(0, 0.01, 4); r.segNear = G.seg.visible;
+      sc.debugPlayerAt(23.6 * K, 23.6 * K); sc.wideFocus(); push(0, 0.01, 4);
       var b = document.getElementById('btn-w-test'), q = b.getBoundingClientRect(); r.btn = [b.hidden, Math.round(q.left + q.width / 2), Math.round(q.top + q.height / 2), b.dataset.spot];
       var pk = sc.pickAt(q.left + q.width / 2, q.top + q.height / 2); r.pick = pk && pk.id;
       return r;
@@ -377,7 +378,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
       return r;
     });
     ok(reg.built === 1 && reg.group === true && reg.frames > 10, 'L10 등록부: builder 는 마당을 지을 때 한 번 (' + reg.built + ') 마당 그룹을 받고 · frame 은 마당이 보이는 프레임마다 (' + reg.frames + ')');
-    ok(reg.segHome === false && reg.segNear === true, 'L10 등록부: 구간 (s 24~28) 은 집 앞에선 숨고 (' + reg.segHome + ') 가까이 가면 보인다 (' + reg.segNear + ')');
+    ok(reg.segHome === false && reg.segNear === true, 'L10 등록부: 구간 (s 40~44) 은 집 앞에선 숨고 (' + reg.segHome + ') 가까이 가면 보인다 (' + reg.segNear + ')');
     ok(reg.btn[0] === false && reg.btn[3] === 'over' && reg.pick === 'wtest' && regClicks === 1, 'L10 등록부: 자리 위에 단추가 놓이고 (' + JSON.stringify(reg.btn) + ') 그림 위 톡이 단추를 한 번 누른다 (' + regClicks + ')');
     ok(reg2.cols[0] >= 1 && reg2.gap >= 0.749 && reg2.past > 28, 'L10 등록부: 길 한가운데 넣은 상자를 뚫지 못하고 비껴 지나간다 (상자 가운데까지 가장 가까이 ' + reg2.gap + ' m ≥ 0.75 · 지나서 s ' + reg2.past + ')');
     /* 문에서 물가까지 걸어갔다 온다 (스틱 아래로 · 위로 — 표지판 둘은 비껴 간다) · 빠른 이동 셋은 걷는 곳 안에 선다 · 조개는 켠 것만 보이고 멀면 걸어간 뒤 눌린다 */

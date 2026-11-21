@@ -5538,7 +5538,8 @@ var APP = (function () {
       });
     }
     travelOpener = opener; travelKbd = !!kbd; travelPicked = false;
-    Array.prototype.forEach.call(d.querySelectorAll('button[data-place]'), function (b) { b.hidden = b.getAttribute('data-place') === TRAVEL_SIGN[i]; });
+    var ar = scene && typeof scene.area === 'function' ? scene.area() : null, here = ar === 'yard' || ar === 'road' ? 'home' : ar === 'village' || ar === 'plaza' ? 'village' : ar === 'beach' ? 'beach' : TRAVEL_SIGN[i];   /* 숨기는 칩 = 내 캐릭터가 선 곳 (멀리 보이는 표지판을 눌러도 — 독립 검증) */
+    Array.prototype.forEach.call(d.querySelectorAll('button[data-place]'), function (b) { b.hidden = b.getAttribute('data-place') === here; });
     travelDraw(d);
     document.documentElement.classList.add('dish-picking');   /* 열린 동안 '산책 갈래?' 단추 · 발자국 손잡이는 숨긴다 (요리 쟁반과 같은 규칙) */
     d.showModal(); travelFit(); window.addEventListener('resize', travelFit);
