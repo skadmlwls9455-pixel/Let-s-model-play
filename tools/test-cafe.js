@@ -85,6 +85,8 @@ check(n1.eaten.bad === 0 && n1.tray.day === null, '음수 · 이상한 날짜만
 check(JSON.stringify(CAFE.normalize(n1)) === j1, '멱등');
 check(JSON.stringify(CAFE.normalize(JSON.parse(j1))) === j1, 'JSON 왕복 (내보내기 · 불러오기)');
 check(CAFE.normalize('x').tray === null && CAFE.normalize({ tray: 3 }).tray === null, '객체가 아닌 것은 빈 기록');
+var lt = CAFE.normalize({ tray: { id: 'tea', left: 2, day: '2026-11-20', extra: 1 } }); CAFE.leave(lt); check(lt.tray && lt.tray.id === 'tea', '모르는 메뉴의 쟁반: 일어나도 그대로');
+CAFE.order(lt, 'coffee', 9, '2026-11-21'); CAFE.leave(lt); check(lt.tray === null && lt.held.length === 1 && lt.held[0].id === 'tea' && lt.held[0].extra === 1, '모르는 메뉴의 쟁반: 새로 시키면 옆 (held) 에 둔다 — 지우지 않는다');
 CAFE.played(n1, 'clair'); CAFE.played(n1, 'elise'); check(n1.lp.clair === 3 && n1.lp.elise === 1, '튼 레코드 수');
 var m = CAFE.merge({ eaten: { cake: 1 }, gifts: { cake: '2026-11-25' }, lp: { clair: 1 } }, { eaten: { cake: 3, kkochi: 2 }, gifts: { cake: '2026-11-22', kkochi2: '2026-11-23' }, lp: { elise: 4 }, tray: { id: 'cake', left: 1, day: '2026-11-22' }, later: 5 });
 check(m.eaten.cake === 3 && m.eaten.kkochi === 2 && m.lp.clair === 1 && m.lp.elise === 4, 'merge: 센 것은 큰 쪽');

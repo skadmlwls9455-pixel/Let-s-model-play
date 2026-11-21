@@ -199,6 +199,7 @@ async function main() {
   ok((await cafe(page)).ui.music.playing === 'traumerei', '다시 틀기');
   await page.evaluate(function () { Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } }); document.dispatchEvent(new Event('visibilitychange')); });
   ok((await cafe(page)).ui.music.playing === null, '탭을 숨기면 멈춘다');
+  ok(await page.locator('#lp-body .lp-sleeve[aria-pressed="true"]').count() === 0 && await page.$eval('#lp-now', function (e) { return e.textContent; }) === '', '…시트의 판 · 곡 이름도 내려간다');
   await page.evaluate(function () { delete document.hidden; });
   await page.locator('#lp-body .lp-sleeve').nth(3).click();
   await page.evaluate(function () { APP.scene.area = function () { return 'village'; }; document.getElementById('lp-sheet').close(); });
@@ -253,6 +254,22 @@ async function main() {
   ok(cr.bad.length === 0, '배율 2.625: 레코드 시트 그림도 정수 배');
   ok(s2.bag.errors.length === 0, '페이지 오류 없음 (412)');
   await b2.close();
+
+  console.log('== 10. 3D 폰 화면: 쟁반이 큰 단추에 가리지 않는다');
+  var b3 = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
+  var sizes = [[360, 740], [320, 568]];
+  for (var i = 0; i < sizes.length; i++) {
+    var c3 = await b3.newContext({ viewport: { width: sizes[i][0], height: sizes[i][1] }, deviceScaleFactor: 2, locale: 'ko-KR' });
+    await c3.addInitScript(INIT);
+    var p3 = await c3.newPage(); await p3.goto(URL0.replace('&scene=2d', ''));
+    await p3.waitForSelector('#name-dialog[open]', { timeout: 20000 }); await p3.fill('#name-in', '뚜루'); await p3.click('#name-form button[type=submit]'); await p3.waitForTimeout(600);
+    await shells(p3, 20); await orderItem(p3, 1); await p3.waitForTimeout(200);
+    var hit = await p3.evaluate(function () { function at(id) { var r = document.getElementById(id).getBoundingClientRect(), e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!e && !!e.closest('#' + id); } return { mode: APP.sceneMode, stand: at('cafe-stand'), eat: at('cafe-eat') }; });
+    ok(hit.stand && hit.eat, sizes[i][0] + ' 폭 (' + hit.mode + '): 먹기 · 일어나기가 맨 위에 있다');
+    if (i === 0) await shot(p3, '10-tray-3d');
+    await c3.close();
+  }
+  await b3.close();
 
   console.log('\n카페 화면: 통과 ' + passes + ' · 실패 ' + failures);
   process.exit(failures ? 1 : 0);

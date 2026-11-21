@@ -5569,6 +5569,9 @@ var APP = (function () {
     up.addEventListener('click', function () { cafeStand(); });
     kids.push(up);
     tr.textContent = ''; kids.forEach(function (k) { tr.appendChild(k); }); tr.hidden = false;
+    /* 11-21 (검증): 3D 폰 화면에서는 큰 단추 (#btn-go) 가 장면 아랫단에 있다 — 쟁반을 그 위로 올린다 (일어나기가 가려져 눌리지 않았다) */
+    var sc = $('scene'), go = $('btn-go'), sr = sc && sc.getBoundingClientRect(), gr = go && go.getBoundingClientRect();
+    tr.style.bottom = (sr && gr && gr.height > 0 && gr.top < sr.bottom && gr.bottom > sr.top ? Math.max(8, Math.round(sr.bottom - gr.top) + 8) : 8) + 'px';
   }
   function cafeCrumbs(from) {   /* 부스러기 몇 알 (꾸밈 — 줄인 움직임에서는 없다) */
     var tr = $('cafe-tray'); if (!tr || !from || reduced()) return;
@@ -5709,8 +5712,9 @@ var APP = (function () {
     var ls = $('lp-sheet'); if (ls) ls.addEventListener('close', function () { if (cafeLp.id && typeof scene.area !== 'function') lpStop(); });
     /* 갈래 V 가 알리는 앉음 · 일어남 (발자국 손잡이로 일어난 것도): 일어나면 자리가 끝나고, 앉으면 쟁반이 나온다 */
     document.addEventListener('ppol:cafe-seat', function (e) { var on = !!(e && e.detail && e.detail.on); if (!on) cafeStand(); else if (!cafeSeated) { cafeSeated = true; renderCafeTray(); if (!cafeWatch) cafeWatch = setInterval(cafeTick, 400); } });
-    document.addEventListener('visibilitychange', function () { if (document.hidden && cafeLp.id) lpStop(); });
-    window.addEventListener('pagehide', function () { if (cafeLp.id) lpStop(); });
+    var lpHide = function () { if (!cafeLp.id) return; lpStop(); var s = $('lp-sheet'); if (s && s.open) renderLp(); };   /* 11-21 (검증): 멈췄으면 시트의 판 · 곡 이름도 내린다 */
+    document.addEventListener('visibilitychange', function () { if (document.hidden) lpHide(); });
+    window.addEventListener('pagehide', lpHide);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', cafeInit); else cafeInit();
 

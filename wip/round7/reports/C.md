@@ -76,26 +76,39 @@ In Für Elise the first-ending bar is skipped (the source MIDI plays both ending
 
 ## Checks
 
-- `tools/test-cafe.js` (new, node): 90 passed.
-- `tools/test-cafe-live.js` (new, browser, 360x740 @2 and 412x915 @2.625): 55 passed.
+- `tools/test-cafe.js` (new, node): 92 passed.
+- `tools/test-cafe-live.js` (new, browser, 360x740 @2 and 412x915 @2.625, 3D at 360 and 320): 58 passed.
 - `npm test`: exit 0. `python3 tools/subset-fonts.py --check`: stale none.
-- `tools/test-audio.js` once: AUDIO_RESULT
+- `tools/test-audio.js` once: 131 passed, 0 failed.
 - Please add to `npm test` and CI: `node tools/test-cafe.js`, `node tools/build-cafe-music.js --check`; to the browser
   suites: `tools/test-cafe-live.js`.
 
 ## Independent check
 
-CHECK_RESULT
+One fresh subagent played the branch at 360x740, 320x568, 412x915 @2.625 and 1280x800. Four findings, all fixed:
+
+1. `must`: in 3D on phones the tray sat under the big '산책 갈래?' button, so '일어나기' could not be tapped. Fixed in
+   `renderCafeTray`: the tray is lifted above `#btn-go` when that button lies inside the scene (new check 10 in
+   `tools/test-cafe-live.js`, screenshot `10-tray-3d`). Whether `#btn-go` shows in the village is unknown here.
+2. `should`: after the tab was hidden, the open record sheet still showed the record as playing. Fixed (`lpHide`).
+3. `should`: at 320 wide '딸기 케이크' wraps to two lines and its price sat lower than its neighbours. Fixed with a
+   two-line name box below 350 px (no font size changed).
+4. `should`: a tray item this build does not know (from a later build) was deleted on the next order. Fixed in
+   `CAFE.order` / `CAFE.leave`: it is kept (moved to `held`), with two new node checks.
+
+Not exercised by the check: the home music bus level after a stop (`AUDIO.state()` does not expose bus levels).
 
 ## Needs another lane to be fully tested
 
-- V: the three buttons, `scene.cafeSit`, `scene.cafeCup` (called only if present; never run here). Whether the tray
-  covers the seated character on the deck.
+- V: the three buttons, `scene.cafeSit`, `scene.cafeCup` (called only if present; never run here) and the
+  `ppol:cafe-seat` event (on: the tray shows; off: the visit ends), added after the lead's message and not run against
+  V's code. Whether the tray covers the seated character on the deck. Standing up does not stop the record: it stops
+  on leaving the village area, as the brief says.
 - W: `scene.area()` (tested with a stub): music and the visit end when it is not `'village'`. If the cafe deck reports
   another area name, the record would stop at once: the name must be `'village'` on the deck.
 - T: `APP.recipeEat` (stubbed). Without it nothing is gifted.
-- N: `APP.npcSay` (stubbed). `cafe.hello` is said just before the menu sheet opens: if N's box is not in the top layer
-  it sits under the sheet.
+- N: `APP.npcSay` (stubbed; the lead says it returns a Promise and shows above an open sheet). `cafe.hello` is said as
+  the menu sheet opens, `cafe.serve` after the order, `cafe.gift` with the gift.
 - A: `COOK_SPR` pictures (fallback drawings used here; real sprites are 32 px and get scale 2 in the menu).
 
 ## Left out, and why
@@ -110,4 +123,4 @@ CHECK_RESULT
 
 ## Screenshots (`wip/round7/shots/C/`)
 
-01-menu, 02-served, 04-gift, 05-coffee, 06-shelf, 07-playing-silent, 08-playing, 09-menu-412.
+01-menu, 02-served, 04-gift, 05-coffee, 06-shelf, 07-playing-silent, 09-menu-412, 10-tray-3d.
