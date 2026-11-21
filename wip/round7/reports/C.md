@@ -5,7 +5,7 @@
 The cafe works end to end on its own branch: menu with shell prices and the confirm pattern, a served dish eaten in three
 touches, the recipe gift on the third serving (through `APP.recipeEat`), and a record shelf of eight public-domain tunes
 played by our own synthesizer under the game's sound rule. It opens without the village through `APP.openCafe()` and
-`APP.openRecords()`. No existing line of any file was changed.
+`APP.openRecords()`. One line was added to an existing function (see below).
 
 ## Changes
 
@@ -23,7 +23,12 @@ played by our own synthesizer under the game's sound rule. It opens without the 
 
 ## Existing lines I changed
 
-None.
+One added line, at the lead's request (11-21), marked `[7-C]`: `js/app.js` `adoptRemote`, `if (same) cafeAdopt(S, R);`
+after the meal merge, so that counts made in this tab are not overwritten by another tab's save (`CAFE.adopt`: larger
+counts, union of gifts, the tray of the received side). It sits where lane T's `recipesAdopt` line goes: keep both.
+Nothing was added to `renderAll`: both sheets re-read the state when opened and after every tap, and every spending
+path re-checks the balance, so a change from elsewhere cannot make them act on stale data; the tray is re-drawn by
+`cafeAdopt` when another tab's save arrives.
 
 ## Decisions the owner should confirm
 
@@ -76,7 +81,7 @@ In Für Elise the first-ending bar is skipped (the source MIDI plays both ending
 
 ## Checks
 
-- `tools/test-cafe.js` (new, node): 92 passed.
+- `tools/test-cafe.js` (new, node): 99 passed.
 - `tools/test-cafe-live.js` (new, browser, 360x740 @2 and 412x915 @2.625, 3D at 360 and 320): 58 passed.
 - `npm test`: exit 0. `python3 tools/subset-fonts.py --check`: stale none.
 - `tools/test-audio.js` once: 131 passed, 0 failed.
@@ -97,6 +102,22 @@ One fresh subagent played the branch at 360x740, 320x568, 412x915 @2.625 and 128
    `CAFE.order` / `CAFE.leave`: it is kept (moved to `held`), with two new node checks.
 
 Not exercised by the check: the home music bus level after a stop (`AUDIO.state()` does not expose bus levels).
+
+## Run against the real lanes (11-21, local trial merge of lane/7-w, 7-v, 7-t on top of this branch; not committed)
+
+- `tools/test-cafe.js` 99 passed, `tools/test-cafe-live.js` 60 passed on the merged tree (the 3D step now travels to
+  the village first when the outside map exists: outside the village a visit ends at once, by design).
+- Real flow in 3D at 360x740: `goPlace('village')` → `#btn-cafe-counter` (V walks the character there, then the menu
+  opens) → order → `scene.cafeSit(true)` walks and sits, `cafeSeated()` true, the cup shows → three touches →
+  real `APP.recipeEat('cake')`: n 1, 2, then 3 with `got` set and the gift line → the stick stands the character up
+  and the `ppol:cafe-seat` event ends the visit → `#btn-cafe-seat` sits and stands → `#btn-cafe-lp`, a sleeve, the
+  speaker button: the tune plays, keeps playing with the sheet closed inside the village, stops after
+  `goPlace('home')` (area `road`). No page errors.
+- Fixed from this run: the cup was asked for before the character had sat down (V shows it only while seated); it is
+  now set when `cafeSit` resolves.
+- Seen, not mine: in the screenshot taken while seated the camera showed the plaza signpost, not the cafe deck (the
+  character was off screen after the scripted walk from the signpost). Worth a look in the merged build.
+- The one textual conflict was the `adoptRemote` line next to lane T's; keeping both lines works.
 
 ## Needs another lane to be fully tested
 

@@ -5559,7 +5559,11 @@ var APP = (function () {
   }
   function cafeServe(fresh) {   /* 자리에 앉고 쟁반을 낸다 */
     var c = cafeState(), it = c.tray && CAFE.item(c.tray.id);
-    cafeSeated = true; cafeScene('cafeSit', true); if (it) cafeScene('cafeCup', true);
+    cafeSeated = true;
+    /* 갈래 V 의 자리: 걸상까지 걸어가 앉은 뒤에야 잔이 보인다 (cafeCup 은 앉아 있을 때만 켜진다) → 앉기가 끝난 뒤에 잔을 놓는다. 앉지 못해도 쟁반은 그대로 */
+    var sat = null; if (scene && typeof scene.cafeSit === 'function') { try { sat = scene.cafeSit(true); } catch (e) { console.warn('[cafe] cafeSit', e); } }
+    var cup = function () { var c2 = cafeState(); if (cafeSeated && c2.tray && CAFE.item(c2.tray.id)) cafeScene('cafeCup', true); };
+    if (sat && typeof sat.then === 'function') sat.then(cup, function () {}); else cup();
     renderCafeTray();
     if (fresh && it) cafeSay('cafe.serve', { dish: it.name });
     if (!cafeWatch) cafeWatch = setInterval(cafeTick, 400);
