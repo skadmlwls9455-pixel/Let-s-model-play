@@ -1777,6 +1777,7 @@ var COOK = (function () {
     if (run) { tick(run, t); handle(drain(run)); if (!L) return; run = L.run; }
     if (L.titleUntil && t >= L.titleUntil) L.titleUntil = 0;
     if (L.screen === 'book') bookUpdate(t);
+    if (run && run.phase === 'step' && run.st.kind === 'pour' && run.st.hold && performance.now() - (L.sndAt.pour || 0) >= 400) sound({ act: 'pour' });   /* the pour sounds for as long as it is held */
     if (L.screen === 'step' && run && run.phase === 'step') {
       if (!L.titleUntil && L.demoAt !== run.si) maybeDemo();
       checkIdle(run);
