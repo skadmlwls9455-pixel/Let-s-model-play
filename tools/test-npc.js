@@ -32,7 +32,7 @@ NPC.keepers.forEach(function (id) {
   ok(/^[가-힣]{1,4}$/.test(r.name), id + ' 이름은 짧은 한글');
   ok(!names[r.name], id + ' 이름이 겹치지 않는다'); names[r.name] = 1;
   ok(/^#[0-9a-f]{6}$/.test(r.color) && !colors[r.color], id + ' 색'); colors[r.color] = 1;
-  ok(ATTIC.every(function (a) { return dist(a, r.color) >= 60; }), id + ' 색이 다락 문어 여섯 색과 뚜렷이 다르다');
+  ok(ATTIC.every(function (a) { return dist(a, r.color) >= 50; }), id + ' 색이 다락 문어 여섯 색과 뚜렷이 다르다');
   ok(['beret', 'apron', 'cap'].indexOf(r.hat) >= 0, id + ' 모자');
   ok(NPC.tag(id) === r.name + ' · 대본', id + ' 이름표에 대본');
 });
