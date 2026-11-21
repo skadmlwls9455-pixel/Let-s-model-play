@@ -20,6 +20,10 @@ var PLAIN_RX = /^[가-힣0-9 .,!?…·{}a-z]+$/;   /* 한글 · 숫자 · 기본
 var C7 = { clothes: ['shop.hello', 'shop.thanks', 'shop.none', 'contest.open', 'contest.result', 'talk'],
   goods: ['shop.hello', 'shop.thanks', 'shop.none', 'contest.open', 'contest.result', 'talk'],
   cafe: ['cafe.hello', 'cafe.serve', 'cafe.gift', 'contest.open', 'contest.result', 'talk'] };
+/* 11-21 밤: 걸어 들어가는 가게 · 무대의 박자 열쇠 (계약 C14) — 두 갈래 이상, 빈칸 없는 갈래가 하나 이상 */
+var C14 = { clothes: ['shop.enter', 'shop.tryon', 'shop.mirror', 'shop.pay', 'shop.leave', 'contest.poster', 'contest.start', 'contest.judge', 'contest.podium'],
+  goods: ['goods.enter', 'shop.pay', 'shop.leave', 'contest.poster', 'contest.start', 'contest.judge', 'contest.podium'],
+  cafe: ['cafe.order', 'cafe.stamp', 'cafe.record', 'contest.poster', 'contest.start', 'contest.judge', 'contest.podium'] };
 var ATTIC = ['#e8463c', '#f08a3c', '#9a5cc8', '#4a86d8', '#4fa868', '#f07aa8'];
 function rgb(h) { return [1, 3, 5].map(function (i) { return parseInt(h.slice(i, i + 2), 16); }); }
 function dist(a, b) { a = rgb(a); b = rgb(b); return Math.sqrt(a.reduce(function (s, v, i) { return s + (v - b[i]) * (v - b[i]); }, 0)); }
@@ -41,6 +45,12 @@ var L = NPC.list('2026-11-21');
 ok(L.length === 7 && L.every(function (x) { return x.id && /^#[0-9a-f]{6}$/.test(x.color) && ['none', 'beret', 'apron', 'cap'].indexOf(x.hat) >= 0 && ['stand', 'sleep'].indexOf(x.pose) >= 0; }), 'list 는 계약 C6 모양');
 ok(L.filter(function (x) { return x.pose === 'sleep'; }).length === 4 && L.slice(0, 3).every(function (x) { return x.pose === 'stand'; }), '셋은 서 있고 넷은 잔다');
 ok(JSON.stringify(NPC.list('2026-11-21')) === JSON.stringify(NPC.list('2026-11-21')), 'list 는 같은 날 같은 값');
+/* 방이 있는 장면 (C14): 방 안엔 그 방의 문어만 · 카페엔 자는 문어 하나 · 바깥엔 자는 셋 */
+function ids(l) { return l.map(function (x) { return x.id + ':' + x.pose; }).join(); }
+ok(ids(NPC.list('2026-11-21', 'clothes')) === 'clothes:stand' && ids(NPC.list('2026-11-21', 'goods')) === 'goods:stand', '옷가게 · 잡화점 안엔 그 가게 문어만');
+ok(ids(NPC.list('2026-11-21', 'cafe')) === 'cafe:stand,sleep-1:sleep', '카페 안엔 느루와 구석 식탁에서 자는 문어 하나');
+ok(NPC.list('2026-11-21', 'hall').length === 0, '공연장 안엔 마을 문어를 세우지 않는다');
+ok(ids(NPC.list('2026-11-21', null)) === 'sleep-2:sleep,sleep-3:sleep,sleep-4:sleep', '바깥엔 자는 문어 셋 (가게 문어는 가게 안에 있다)');
 
 /* 2. 대사: 열쇠마다 세 갈래 이상 · 길이 · 금지 낱말 */
 Object.keys(C7).forEach(function (id) {
@@ -50,7 +60,15 @@ Object.keys(C7).forEach(function (id) {
     ok(plain.length >= 3, id + ' ' + k + ' 빈칸 없는 갈래가 셋 이상 (값 없이 불러도 된다)');
     vs.forEach(function (v, i) { ok(v.length >= 1 && v.length <= 2, id + ' ' + k + ' ' + i + ' 풍선 1~2개'); });
   });
-  ok(NPC.keys(id).slice().sort().join() === C7[id].slice().sort().join(), id + ' 열쇠가 딱 그만큼');
+  C14[id].forEach(function (k) {
+    var vs = NPC.variants(id, k), plain = vs.filter(function (v) { return !/\{/.test(v.join('')); });
+    ok(vs.length >= 2 && vs.length <= 5, id + ' ' + k + ' 갈래 2~5 (지금 ' + vs.length + ')');
+    ok(plain.length >= 1, id + ' ' + k + ' 빈칸 없는 갈래가 하나 이상');
+    vs.forEach(function (v, i) { ok(v.length >= 1 && v.length <= 2, id + ' ' + k + ' ' + i + ' 풍선 1~2개'); });
+    ok(!!NPC.line(id, k, null, 0) && !/\{/.test(NPC.line(id, k, null, 3).bubbles.join('')), id + ' ' + k + ' 값 없이 불러도 줄이 나온다');
+  });
+  ok(/3개/.test(NPC.line(id, 'contest.judge', { n: 3 }, 0).bubbles.join('')) && /0개/.test(NPC.line(id, 'contest.judge', { n: 0 }, 1).bubbles.join('')), id + ' 심사 줄은 맞은 꼬리표 수를 말한다 (0 도)');
+  ok(NPC.keys(id).slice().sort().join() === C7[id].concat(C14[id]).sort().join(), id + ' 열쇠가 딱 그만큼');
 });
 ok(NPC.line('cafe', 'shop.hello') === null && NPC.line('clothes', 'cafe.serve') === null && NPC.line('nobody', 'talk') === null && NPC.line('sleep-1', 'talk') === null, '없는 문어 · 제 것이 아닌 열쇠 · 자는 문어는 null');
 NPC.allText().forEach(function (t) {
