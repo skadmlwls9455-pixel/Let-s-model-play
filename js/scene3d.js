@@ -5545,7 +5545,7 @@ var SCENE3D = (function () {
        그리는 값: 줄(왼쪽 · 오른쪽)마다 합친 메시 하나 + 무릎 높이 쌍둥이 (돌려 봐서 카메라 쪽이 되면 자른다 — 마당 집과 같은 cutAdd), 길 소품 · 광장 각각 하나, 창 유리 (밤에 켜진다) 줄마다 하나.
        새 재질 종류 없음 (lambert · MeshBasic · 내 캐릭터 툰) → 셰이더 프로그램 그대로. 점광도 늘리지 않는다 (밤 불빛 = 발광 쌍둥이 + 땅의 빛 원판) */
     var VIL = { on: typeof VILLAGE !== 'undefined' && !!VILLAGE, built: false, stub: false, grp: {}, win: [], lampGlow: null, pools: null, snow: [], npcs: {}, want: [], marks: {}, cup: null,
-      cafe: { seated: false }, t: 0, R: 0.40 };
+      cafe: { seated: false, inside: false }, t: 0, R: 0.40 };
     function vilXZ(s, t) { var q = wideXZ(s, t); return [snapPos(q[0]), snapPos(q[1])]; }
     var VC = { cream: '#efe3c8', paper: '#dfd5bf', wallA: '#c2b4a4', wallB: '#b0a292', seam: '#66605c', woodA: '#8a5a3c', woodB: '#7b4f35', woodD: '#5f3928', woodL: '#996643', dark: '#44241b',
       red: '#b04a3c', roofR: '#a04838', roofRL: '#6a2c2c', blue: '#3f6690', blueL: '#5c86b0', blueD: '#2e3b58', sky: '#9fc7e8', moss: '#5f7a3a', mossD: '#3f6a3a', leaf: '#8cc05a', yellow: '#e8b04a',
@@ -5947,51 +5947,59 @@ var SCENE3D = (function () {
 
     /* ── 카페 자리 (계약 C6): 첫 식탁의 길 쪽 걸상 옆까지 걷고 → 폴짝 앉아 식탁 쪽을 본다. 스틱을 밀면 일어난다 (소파 · 놀이방 식탁과 같은 규칙).
        앉고 일어날 때 document 에 'ppol:cafe-seat' ({ detail: { on } }) 를 쏜다 — 카페 갈래가 스틱으로 일어난 것도 알 수 있게 ── */
-    function vilSeatPts() { var s = VILLAGE.CAFE.seat, a = vilXZ(s.aisle[0], s.aisle[1]), q = vilXZ(s.s, s.t); return { aisle: new T.Vector3(a[0], 0, a[1]), seat: new T.Vector3(q[0], VILLAGE.CAFE.stoolH - 0.24, q[1]), yaw: s.face }; }
+    function vilCafeIn() { return PL.place === 'inside' && vilRoomKey() === 'cafe' && !!VR.rooms.cafe; }   /* 카페 방 안인가 (그러면 자리 · 잔은 방 안의 것) */
+    function vilCafeOk() { return vilCafeIn() ? PLACE.vis === 'inside' : VIL.built && PL.place === 'yard' && PLACE.vis === 'yard'; }
+    function vilCupM() { return VIL.cafe.inside ? (VR.rooms.cafe && VR.rooms.cafe.cup) : VIL.cup; }
+    function vilSeatPts() {
+      if (VIL.cafe.seated ? VIL.cafe.inside : vilCafeIn()) { var S = VILLAGE.ROOMS.cafe.slots; return { aisle: new T.Vector3(S.aisle[0], 0, S.aisle[2]), seat: new T.Vector3(S.seat[0], S.seat[1] - 0.24, S.seat[2]), yaw: S.seat[3], inside: true }; }
+      var s = VILLAGE.CAFE.seat, a = vilXZ(s.aisle[0], s.aisle[1]), q = vilXZ(s.s, s.t); return { aisle: new T.Vector3(a[0], 0, a[1]), seat: new T.Vector3(q[0], VILLAGE.CAFE.stoolH - 0.24, q[1]), yaw: s.face, inside: false };
+    }
     function vilSeatEmit(on) { try { document.dispatchEvent(new CustomEvent('ppol:cafe-seat', { detail: { on: !!on } })); } catch (e) { /* noop */ } }
     function vilSeatSync() {   /* 앉은 표시가 실제와 어긋났으면 맞춘다 (방을 옮김 · 스틱으로 일어남) */
       var V = VIL.cafe; if (!V.seated) return;
       if (PL.hop && !PL.hop.cafe && !PL.hop.sit) { PL.hop.b.copy(vilSeatPts().aisle); PL.hop.cafe = true; }   /* 스틱으로 일어난 폴짝 (소파 쪽으로 뛰게 돼 있다) → 걸상 옆 통로로 */
-      if (PL.sit && PL.place === 'yard' && Math.hypot(PL.pos.x - vilSeatPts().seat.x, PL.pos.z - vilSeatPts().seat.z) > 0.5) { PL.sit = false; PL.pos.y = 0; plSnap(); }   /* 앉은 채 다른 데로 옮겨졌다 (표지판 빠른 이동) → 서 있는 몸으로 */
-      if (PL.place !== 'yard' || (!PL.sit && !(PL.hop && PL.hop.sit))) { V.seated = false; if (VIL.cup) VIL.cup.visible = false; dither.still = 0; vilSeatEmit(false); }
+      var here = V.inside ? 'inside' : 'yard';
+      if (PL.sit && PL.place === here && Math.hypot(PL.pos.x - vilSeatPts().seat.x, PL.pos.z - vilSeatPts().seat.z) > 0.5) { PL.sit = false; PL.pos.y = 0; plSnap(); }   /* 앉은 채 다른 데로 옮겨졌다 (표지판 빠른 이동) → 서 있는 몸으로 */
+      if (PL.place !== here || (V.inside && vilRoomKey() !== 'cafe') || (!PL.sit && !(PL.hop && PL.hop.sit))) { var cm = vilCupM(); V.seated = false; if (cm) cm.visible = false; dither.still = 0; vilSeatEmit(false); }
     }
     function vilCafeSit(on) {   /* true → Promise<앉았나> · false → Promise<일어났나> */
       var V = VIL.cafe; vilSeatSync();
       if (on === false) {
         if (!V.seated) return Promise.resolve(false);
         return new Promise(function (res) {
-          var P = vilSeatPts();
+          var P = vilSeatPts(), cm0 = vilCupM();
           V.seated = false;   /* 먼저 내린다: 앉으려 뛰던 중이면 그 앉기 약속은 false 로 풀린다 (아래 done) */
           if (PL.hop) { var h0 = PL.hop; PL.pos.copy(h0.b); PL.sit = h0.sit; PL.hop = null; if (h0.done) h0.done(); }
-          if (VIL.cup) VIL.cup.visible = false; PL.sit = false; dither.still = 0; vilSeatEmit(false);
+          if (cm0) cm0.visible = false; PL.sit = false; dither.still = 0; vilSeatEmit(false);
           if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.aisle); plSnap(); res(true); return; }
           PL.hop = { t: 0, a: PL.pos.clone(), b: P.aisle, sit: false, cafe: true, done: function () { res(true); } };
         });
       }
-      if (!VIL.built || V.seated || PL.place !== 'yard' || PLACE.vis !== 'yard' || PL.sit || PL.hop || !playerInputAllowed()) return Promise.resolve(false);
-      var P = vilSeatPts();
+      if (V.seated || !vilCafeOk() || PL.sit || PL.hop || !playerInputAllowed()) return Promise.resolve(false);
+      var P = vilSeatPts(), here = PL.place;
       return vilWalk(P.aisle, Math.atan2(P.seat.x - P.aisle.x, P.seat.z - P.aisle.z)).then(function (ok) {
-        if (!ok || PL.place !== 'yard' || PLACE.vis !== 'yard' || PL_IN.v || PL.sit || PL.hop) return false;
-        PL.sitYaw = P.yaw; PL.faceCam = false; PL.wantYaw = P.yaw; V.seated = true; vilSeatEmit(true);
+        if (!ok || PL.place !== here || !vilCafeOk() || PL_IN.v || PL.sit || PL.hop) return false;
+        PL.sitYaw = P.yaw; PL.faceCam = false; PL.wantYaw = P.yaw; V.seated = true; V.inside = P.inside; vilSeatEmit(true);
         if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.seat); PL.sit = true; plSnap(); return true; }
         return new Promise(function (res) { PL.hop = { t: 0, a: PL.pos.clone(), b: P.seat, sit: true, cafe: true, done: function () { res(VIL.cafe.seated); } }; });
       });
     }
-    function vilCafeCup(on) { vilSeatSync(); if (!VIL.cup) return false; VIL.cup.visible = !!on && VIL.cafe.seated; dither.still = 0; return VIL.cup.visible; }
+    function vilCafeCup(on) { vilSeatSync(); var cm = vilCupM(); if (!cm) return false; cm.visible = !!on && VIL.cafe.seated; dither.still = 0; return cm.visible; }
 
     /* ── 누르는 자리까지 걷기: 단추를 먼 데서 누르면 (1.5 m 밖) 그 자리 앞 (stand) 까지 걸어간 뒤 누른다 — js/app.js 의 [7-V] 가 click 을 잡아 villageGo 를 부른다 ── */
     function vilSpotPts(key) { var sp = VIL.on ? VILLAGE.spot(key) : null; if (!sp && VIL.on) VILLAGE.DOORS.forEach(function (d) { if (d.key === key || d.btn === key) sp = d; }); if (!sp) return null; var q = vilXZ(sp.s, sp.t), a = vilXZ(sp.stand[0], sp.stand[1]); return { sp: sp, x: q[0], z: q[1], ax: a[0], az: a[1] }; }
     function vilWalk(to, face, skip) {   /* 마을 안 혼자 걷기: VILLAGE.route 의 점들을 차례로 → Promise<끝까지 갔나>. 스틱으로 끊기면 false 로 푼다 (plWalkTo 는 끊긴 걸음을 풀지 않는다) */
-      var k = Math.SQRT1_2, pts = VILLAGE.route([(PL.pos.x + PL.pos.z) * k, (PL.pos.x - PL.pos.z) * k], [(to.x + to.z) * k, (to.x - to.z) * k], skip || null);
+      var k = Math.SQRT1_2, here = PL.place, pts = here === 'inside' ? [[0, 0]] : VILLAGE.route([(PL.pos.x + PL.pos.z) * k, (PL.pos.x - PL.pos.z) * k], [(to.x + to.z) * k, (to.x - to.z) * k], skip || null);   /* 방 안에선 곧장 (그 안의 길 찾기는 갈래 W 의 걷기가 한다) */
       var leg = function (i) {
         var last = i === pts.length - 1, q = last ? [to.x, to.z] : wideXZ(pts[i][0], pts[i][1]), p = plWalkTo(new T.Vector3(q[0], 0, q[1]), last ? face : null), w = PL.walking;
         var pr = !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); });
-        return pr.then(function (r) { if (r === null || PL.place !== 'yard' || PL_IN.v) return false; return last ? Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z) <= 0.3 : leg(i + 1); });
+        return pr.then(function (r) { if (r === null || PL.place !== here || PL_IN.v) return false; return last ? Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z) <= 0.3 : leg(i + 1); });
       };
       PL.camGap = Math.max(1.4, S.rw / 2 / S.N - 0.8);   /* 이 걸음 동안 화면이 따라온다 (plFollow 의 혼자 걷기 몫): 스틱으로 걸을 때처럼 캐릭터를 화면 가운데 0.8 m 안에 둔다 — 1.4 m 만 주면 화면 가장자리에 붙어서야 따라와 먼 자리로 걸을 때 캐릭터가 화면 밖에 있었다 */
       return leg(0).then(function (ok) { if (!PL.walking) PL.camGap = 0; return ok; });
     }
     function vilNear(key) {
+      if (PL.place === 'inside') return true;   /* 방 안의 자리는 갈래 W 의 방 배관이 걸어가서 누른다 — 여기선 막지 않는다 (같은 단추를 방 안팎에서 쓴다) */
       var p = vilSpotPts(key); if (!p || !VIL.built || PL.place !== 'yard') return false;
       if (VIL.cafe.seated && /^(cafe|npcCafe)/.test(p.sp.key)) return true;   /* 카페에 앉은 채로는 카페 것을 그 자리에서 */
       return Math.hypot(PL.pos.x - p.x, PL.pos.z - p.z) <= 1.5 || Math.hypot(PL.pos.x - p.ax, PL.pos.z - p.az) <= 0.45;
@@ -6293,7 +6301,7 @@ var SCENE3D = (function () {
       var tt = VILLAGE.ROOMS.cafe.slots.turntable, k = (f % 12) / 12; RM.notes.position.set(tt[0] + 0.1, 1.0 + k * 0.6, tt[2] + (f % 2 ? 0.03 : -0.03)); RM.notes.visible = !st.reduced && k < 0.9;
       dither.still = 0;
     }
-    function vilRoomKey() { return typeof ROOM_REG !== 'undefined' && ROOM_REG && typeof ROOM_REG.cur === 'string' ? ROOM_REG.cur : (VR.dbg || null); }   /* 지금 들어와 있는 방 (갈래 W 의 배관이 ROOM_REG.cur 에 적는다) */
+    function vilRoomKey() { return typeof IN !== 'undefined' && IN && PL.place === 'inside' && typeof IN.key === 'string' ? IN.key : (VR.dbg || null); }   /* 지금 들어와 있는 방 (갈래 W 의 방 상태 IN.key) */
     /* 시험 · 살펴보기 (갈래 W 의 방 배관이 오기 전): 방 하나를 다락 자리에 지어 다락 대신 보여 준다. 다시 부르면 (null) 치운다 */
     function vilRoomDebug(key) {
       if (VR.dbgG) { scene.remove(VR.dbgG); VR.dbgG = null; atticG.visible = true; delete VR.rooms[VR.dbg]; delete VR.npc[VR.dbg]; VR.dbg = null; }
