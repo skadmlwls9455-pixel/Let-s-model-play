@@ -1127,17 +1127,8 @@ html.intro-reveal .scene-door { transition: opacity var(--t-ui) var(--ease-enter
 .scene-spot { position: absolute; left: 0; top: 0; width: 44px; height: 44px; z-index: 8; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .scene-spot[hidden], .scene-door[hidden] { display: none; }
 /* 11-18 위층 계단 단추: 그림 위(over)에선 투명한 칸 · 계단이 화면 밖이면(edge) 그쪽 가장자리의 작은 계단 그림 단추 (문 가장자리 단추 .scene-door 와 같은 상자). 세로 자리는 장면이 계단 발치 높이로 넣는다 (style.top) */
-#btn-stair .stair-box { display: none; }
-#btn-stair[data-spot="edge"] { left: 4px; display: inline-flex; align-items: center; justify-content: center; z-index: 9; }
-#btn-stair[data-spot="edge"][data-side="right"] { left: auto; right: 4px; }
-#btn-stair[data-spot="edge"] .stair-box { display: grid; place-items: center; box-sizing: border-box; width: 36px; height: 36px; border: 1px solid var(--rim); border-radius: 8px; background: var(--panel2); transition: transform var(--t-press) var(--ease-out); }
-#btn-stair .stair-ico { display: block; width: 32px; height: 32px; }
-#btn-stair[data-spot="edge"]:active .stair-box { transform: scale(.97); }
-#btn-stair[data-spot="edge"]:focus-visible { outline: none; box-shadow: none; }
-#btn-stair[data-spot="edge"]:focus-visible .stair-box { outline: 2px solid var(--amber); outline-offset: 2px; }
-:root[data-font="pixel"] #btn-stair[data-spot="edge"] .stair-box { border: 2px solid var(--line); border-radius: 0; box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px), 2px 2px 0 var(--line); }
-:root[data-font="pixel"] #btn-stair[data-spot="edge"]:active .stair-box { transform: translate(2px, 2px); box-shadow: inset 1px 1px 0 var(--hi-px), inset -1px -1px 0 var(--lo-px); }
-:root[data-font="pixel"] #btn-stair[data-spot="edge"]:focus-visible .stair-box { outline-color: var(--fg); }
+/* 11-21 (주인): 왼쪽 가장자리의 계단 단추는 없앴다 — 계단은 제 그림을 누른다. 계단이 화면 밖일 때 단추는 가장자리의 안 보이는 칸 (data-spot="key": 키보드 · 낭독기만, 손가락은 못 누른다) */
+.scene-spot[data-spot="key"] { pointer-events: none; }
 .scene-door[data-spot="over"] { z-index: 8; }
 /* 그림 위 단추는 손가락 · 마우스를 그냥 통과시킨다: 밀기 · 핀치 · 휠이 문 · 오락기 위에서 시작해도 장면이 받고, 톡은 장면이 그린 순서대로 가려 그 단추를 누른다
    (문어가 문 앞이면 문어 — js/scene3d.js pick · js/scene2d.js). 키보드 Tab/Enter · 화면 낭독기는 단추 그대로. 바깥의 가장자리 문 단추(edge)는 보이는 단추라 그대로 받는다 */
