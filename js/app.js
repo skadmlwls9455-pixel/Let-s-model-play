@@ -5510,8 +5510,8 @@ var APP = (function () {
     var w = shopCat(); return SHOP.stock('clothes', dk, w, shopOwned(u, w));
   }
   function shopMineAdd(m) { m.at = Date.now(); m.born = S.octopus.born || 0; shopMine.push(m); }
-  function shopSync() {   /* 다른 탭의 저장을 받은 뒤 · 시트를 열 때: 내 것 다시 얹기 + 영수증대로 옷장 고치기 */
-    if (!window.SHOP) return; var u = shopU(), now = Date.now(), born = S.octopus.born || 0, dk = todayKey(), mine = { shop: { got: {} }, beach: { day: dk, picked: [] } };
+  function shopSync(remote) {   /* remote = 다른 탭의 저장을 받은 뒤: 내 것 다시 얹기 (불러오기 · 초기화 뒤에는 얹지 않는다 — 시트를 열 때는 영수증대로 옷장 고치기만) */
+    if (!window.SHOP) return; if (!remote) shopMine = []; var u = shopU(), now = Date.now(), born = S.octopus.born || 0, dk = todayKey(), mine = { shop: { got: {} }, beach: { day: dk, picked: [] } };
     shopMine = shopMine.filter(function (m) { return now - m.at < 60000 && m.born === born; });
     shopMine.forEach(function (m) {
       if (m.t === 'got') mine.shop.got[m.key] = m.day;
@@ -5530,23 +5530,24 @@ var APP = (function () {
   function shopShort(miss, el) {   /* 재봉틀과 같은 모자람 알림: 값 그림이 흔들리고 모자란 수 */
     furnShake(el); toast([h('span', { 'aria-hidden': 'true' }, [shellAmt(miss), ' 모자라']), h('span', { class: 'sr-only', text: '조개가 ' + miss + '개 모자라. 다락방 달리기나 들어온 날 선물로 생겨' })]);
   }
+  function shopSnap(el, art, want) { var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.floor(want * dpr / art + 1e-6)); el.style.width = (art * k / dpr) + 'px'; el.style.height = ((el.height || art) * k / dpr) + 'px'; return el; }   /* 그림 한 점 = 기기 px 의 정수배 (2.625 배율에서 64px 는 5.25 배라 번진다 → 5 배) */
   function shopThumb(it, px) {   /* 옷 그림: 캐릭터 갈래의 itemThumb (캔버스 | 그림 주소) → 없으면 그 옷만 바꿔 입은 내 얼굴 샷 → 그것도 없으면 그림 없이 */
     var A = window.APP, t = null, box = h('span', { class: 'shop-pic', 'aria-hidden': 'true' });
     try { t = A && typeof A.itemThumb === 'function' ? A.itemThumb(it.cat, it.id, px) : null; } catch (e) { console.warn('[app] itemThumb', e); }
     if (typeof t === 'string' && t) t = h('img', { src: t, alt: '', width: String(px), height: String(px), draggable: 'false' });
     else if (!(t && t.nodeType === 1) && lookCanShot()) { try { var look = {}; look[it.cat] = it.id; var src = scene.playerShot({ look: look, frame: it.cat === 'shoes' ? 'feet' : /^(hair|acc|eyes|face)/.test(it.cat) ? 'head' : 'body', shared: true }); if (src) { t = h('canvas', { width: String(src.width), height: String(src.height) }); t.getContext('2d').drawImage(src, 0, 0); } } catch (e2) { console.warn('[app] playerShot', e2); t = null; } }
-    if (t && t.nodeType === 1) { t.classList.add('shop-thumb'); box.appendChild(t); }
+    if (t && t.nodeType === 1) { t.classList.add('shop-thumb'); if (t.width > 0 && t.width === t.height) shopSnap(t, 32, px); box.appendChild(t); }
     return box;
   }
   var SHOP_SEED = ['................', '...oooooooooo...', '...occcccccco...', '...oooooooooo...', '...occcccccco...', '...ocggccggco...', '...occggggcco...', '...occcggccco...', '...occcggccco...', '...occbbbbcco...', '...occcccccco...', '...oooooooooo...', '................', '.....b....b.....', '........b.......', '................'];
   function shopSeedPic() {   /* 씨앗 봉투 (16×16 을 조개 그림처럼 32px 로 — 그림 파일을 새로 두지 않고 여기서 찍는다) */
     var cv = h('canvas', { class: 'shop-seed', width: '16', height: '16' }), cx = cv.getContext('2d'), col = { o: '#5a3422', c: '#f3e3c0', g: '#4fa868', b: '#7a4a30' };
     SHOP_SEED.forEach(function (row, y) { for (var x = 0; x < 16; x++) if (col[row[x]]) { cx.fillStyle = col[row[x]]; cx.fillRect(x, y, 1, 1); } });
-    return cv;
+    return shopSnap(cv, 16, 48);
   }
   function shopTry(it) {   /* 입어 보기: 지금 내 모습에서 그 옷 하나만 바꾼 전신 (장면이 그린다 — 저장도 실제 모습도 안 바뀐다) */
     if (!lookCanShot()) return null;
-    try { var look = {}; look[it.cat] = it.id; var src = scene.playerShot({ look: look, frame: 'full', shared: true }); if (!src) return null; var cv = h('canvas', { class: 'look-stage-cv shop-try', width: String(src.width), height: String(src.height), role: 'img', 'aria-label': it.name + ' 입어 본 내 모습' }); cv.getContext('2d').drawImage(src, 0, 0); return cv; }
+    try { var look = {}; look[it.cat] = it.id; var src = scene.playerShot({ look: look, frame: 'full', shared: true }); if (!src) return null; var cv = h('canvas', { class: 'look-stage-cv shop-try', width: String(src.width), height: String(src.height), role: 'img', 'aria-label': it.name + ' 입어 본 내 모습' }); cv.getContext('2d').drawImage(src, 0, 0); return shopSnap(cv, src.width, 128); }
     catch (e) { console.warn('[app] playerShot', e); return null; }
   }
   function shopFind(kind, key) { var f = null; shopStock(kind).items.forEach(function (x) { if (x.key === key) f = x; }); return f; }
@@ -5561,7 +5562,7 @@ var APP = (function () {
     if (!r.ok && r.why === 'short') { shopShort(it.price - u.shells, document.querySelector('#shop-body .shop-ask .shell-amt')); return; }   /* 묻는 줄은 그대로 둔다 */
     shopAsk = null;
     if (!r.ok) { renderShop(); return; }
-    if (r.own) { var A = shopApi(); try { if (!A) throw new Error('옷장 없음'); A.ownItem(it.cat, it.id); } catch (e) { console.warn('[app] ownItem', e); renderShop(); return; } u = shopU(); }   /* 옷장에 못 넣으면 조개도 안 나간다 */
+    if (r.own) { var A = shopApi(); try { if (!A) throw new Error('옷장 없음'); if (A.ownItem(it.cat, it.id) === false) throw new Error('옷장이 받지 않음'); } catch (e) { console.warn('[app] ownItem', e); renderShop(); return; } u = shopU(); }   /* 옷장에 못 넣으면 조개도 안 나간다 */
     u.shells = r.state.shells; u.seeds = r.state.seeds; u.dyes = r.state.dyes; u.shop = r.state.shop;
     shopMineAdd(r.own ? { t: 'got', key: r.own, day: dk } : it.type === 'seed' ? { t: 'seed', day: dk, n: u.shop.day ? u.shop.day.seeds : 1 } : { t: 'dye' });
     save(); renderShop(); renderBagChip(); shopSay('shop.thanks');
@@ -5582,6 +5583,7 @@ var APP = (function () {
     frag.appendChild(h('p', { class: 'bag-line' }, [shellAmt(u.shells), goods ? h('span', { text: ' · 씨앗 ' + u.seeds }) : null]));
     var ask = shopAsk && shopAsk.kind === shopKind ? shopAsk : (shopAsk = null), it = ask ? shopFind(shopKind, ask.key) : null;
     if (ask && !it) ask = shopAsk = null;
+    if (!ask) body.style.minHeight = ''; else if (!body.style.minHeight && body.querySelector('.shop-grid')) body.style.minHeight = body.offsetHeight + 'px';   /* 묻는 동안 시트가 줄지 않게 (선반 높이 그대로) */
     if (ask) {   /* 확인 줄 — 선반 자리에 (묻는 동안 선반은 없다: 두 번 톡이 '살래' 로 들어가지 않게) */
       var wear = ask.act === 'wear', cv = goods ? null : shopTry(it), line, sw = null;
       if (wear) line = [h('span', { text: it.name + eulReul(it.name) + ' 입을까?' })];
@@ -5646,12 +5648,12 @@ var APP = (function () {
   function shopInit() {
     var sh = $('shop-sheet'); if (!sh) return;
     $('shop-close').addEventListener('click', function () { sh.close(); });
-    sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
+    sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e) && !(shopAsk && tapTime(e) - shopAskAt < SHEET_SETTLE)) e.currentTarget.close(); });   /* 칸을 두 번 톡했을 때 둘째가 (줄어든 시트의) 바깥에 떨어져 닫히지 않게 */
     sh.addEventListener('close', function () { shopAsk = null; });
     [['btn-shop-clothes', 'clothes'], ['btn-shop-goods', 'goods']].forEach(function (p) { var b = $(p[0]); if (b) b.addEventListener('click', function () { openShop(p[1]); }); });
     for (var i = 0; i < 5; i++) (function (n) { var b = $('btn-beach-shell-' + n); if (b) b.addEventListener('click', function () { beachTap(n); }); })(i);
     shopDay = todayKey();
-    window.addEventListener('storage', function (e) { if (e.key !== KEY) return; setTimeout(shopSync, 0); setTimeout(shopSync, 800); });   /* 앱이 다른 탭의 저장을 받아들인 뒤에 */
+    window.addEventListener('storage', function (e) { if (e.key !== KEY) return; setTimeout(function () { shopSync(true); }, 0); setTimeout(function () { shopSync(true); }, 800); });   /* 앱이 다른 탭의 저장을 받아들인 뒤에 */
     setInterval(function () { if (!document.hidden) shopTick(); }, 30000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) setTimeout(shopTick, 500); });
     beachSync(true); setTimeout(function () { beachSync(true); }, 1500); setTimeout(function () { beachSync(true); }, 5000);   /* 바깥이 늦게 지어져도 */

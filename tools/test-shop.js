@@ -88,6 +88,7 @@ console.log('== 사기');
   var r2 = SHOP.buy(r.state, 'clothes', it, DAY);
   ok(!r2.ok && r2.why === 'owned' && r2.state.shells === 5, '두 번 사도 한 번만 나간다');
   ok(SHOP.buy({ shells: 99, owned: (function () { var o = {}; o[it.key] = DAY; return o; })() }, 'clothes', it, DAY).why === 'owned', '옷장에 있으면 안 산다');
+  ok(SHOP.buy({ shells: 99, owned: {}, shop: { got: (function () { var o = {}; o[it.key] = true; return o; })() } }, 'clothes', it, DAY).ok, '영수증만 있고 옷장에 없으면 다시 살 수 있다 (막힌 칸이 안 생긴다)');
   var r3 = SHOP.buy({ shells: it.price - 1 }, 'clothes', it, DAY);
   ok(!r3.ok && r3.why === 'short' && r3.state.shells === it.price - 1, '모자라면 안 산다');
   ok(SHOP.buy({ shells: 99 }, 'clothes', { key: 'a:b', price: 0 }, DAY).why === 'bad', '값 0 은 안 받는다');

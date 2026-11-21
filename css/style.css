@@ -1794,7 +1794,7 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 
 
 /* [7-S] 가게 (옷가게 · 잡화점 · 바닷가 조개) */
-/* 11-21: 재봉틀 시트의 칸 · 확인 줄 · 값 표를 그대로 쓰고 (sew-*), 선반만 두 칸씩 · 칸마다 그림 64px (옷 그림은 기기 px 에 맞춘 정수배 — pixelated) */
+/* 11-21: 재봉틀 시트의 칸 · 확인 줄 · 값 표를 그대로 쓰고 (sew-*), 선반만 두 칸씩 · 칸마다 그림 자리 64px (그림 크기는 앱이 기기 px 의 정수배로 맞춘다 — shopSnap) */
 .shop-sheet .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .shop-sheet .shop-tile { align-items: center; gap: 4px; padding: 6px 4px; }
 .shop-pic { display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; }
@@ -1805,7 +1805,8 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 .shop-sheet .shop-tile .sew-name { word-break: keep-all; overflow-wrap: anywhere; }
 .shop-sheet .shop-tile .sew-cost { align-self: center; justify-content: center; min-width: 44px; }
 .shop-ask { display: flex; flex-direction: column; align-items: stretch; }
-.shop-ask .shop-try { align-self: center; margin: 0 0 8px; }
+.shop-ask .shop-try { align-self: center; margin: 0 0 8px; box-sizing: content-box; }
+.shop-ask { justify-content: center; }
 :root[data-font="pixel"] .shop-ask .shop-try { border: 0; border-radius: 0; box-shadow: inset 0 0 0 2px var(--line); }
 
 
