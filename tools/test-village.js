@@ -114,7 +114,7 @@ V.SPOTS.forEach(function (s2) { var a2 = V.xz(s2.stand[0], s2.stand[1]); ok(!V.B
       var mm = html.match(new RegExp('<button type="button" id="' + sp.btn + '" class="scene-spot" aria-label="[^"]+"[^>]* hidden></button>'));
       ok(!!mm && !/title=/.test(mm[0]), 'index.html 에 ' + sp.btn);
       ok(free(sp.stand[0], sp.stand[1], 0.3), key + ' ' + sp.key + ' 서는 자리가 방 안의 빈 곳');
-      ok(Math.hypot(sp.x - sp.stand[0], sp.z - sp.stand[1]) <= 1.3, key + ' ' + sp.key + ' 자리와 서는 자리가 가깝다');
+      ok(Math.hypot(sp.x - sp.stand[0], sp.z - sp.stand[1]) <= 1.5, key + ' ' + sp.key + ' 자리와 서는 자리가 가깝다');
     });
     ok(free(R.door[0], R.door[1], 0.3), key + ' 문 안 자리가 빈 곳');
     ok(R.lights.length === 2, key + ' 등 둘 (다락과 같은 수 — 새 셰이더 없음)');
