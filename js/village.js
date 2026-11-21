@@ -45,18 +45,18 @@ var VILLAGE = (function () {
   function at(id, lx, lz) { var L = lot(id); return local(L.c, L.mir, lx, lz); }
 
   /* 누르는 자리: key · 단추 id · 이름 (aria-label) · 자리 (s, t, y) · 톡 반지름 r · stand = 내 캐릭터가 가서 서는 자리 (걷는 곳 안) */
-  var kc = at('clothes', 1.8, -0.7), kg = at('goods', 1.8, -0.7), rc = at('clothes', 2.35, 0.9), rg = at('goods', 2.35, 0.9);
+  var kc = at('clothes', 1.8, -1.0), kg = at('goods', 1.8, -1.0), rc = at('clothes', 2.35, 1.1), rg = at('goods', 2.35, 1.1);   /* 문어는 판매대의 길 쪽 끝 뒤 · 가게를 누르는 자리는 그 반대쪽 (화면에서 44 px 넘게 떨어지게) */
   var SPOTS = [
     { key: 'shopClothes', btn: 'btn-shop-clothes', label: '옷가게', s: rc[0], t: rc[1], y: 0.7, r: 0.5, stand: [rc[0] + 0.3, -2.15] },
     { key: 'shopGoods', btn: 'btn-shop-goods', label: '잡화점', s: rg[0], t: rg[1], y: 0.5, r: 0.5, stand: [rg[0] + 0.3, 2.15] },
-    { key: 'cafeCounter', btn: 'btn-cafe-counter', label: '카페 주문', s: 33.5, t: 6.6, y: 0.75, r: 0.45, stand: [33.5, 5.85] },
+    { key: 'cafeCounter', btn: 'btn-cafe-counter', label: '카페 주문', s: 31.95, t: 6.6, y: 0.75, r: 0.45, stand: [31.95, 5.85] },
     { key: 'cafeSeat', btn: 'btn-cafe-seat', label: '카페 자리', s: CAFE.seat.s, t: CAFE.seat.t, y: 0.4, r: 0.4, stand: CAFE.seat.aisle.slice() },
     { key: 'cafeLp', btn: 'btn-cafe-lp', label: '레코드', s: 30.4, t: 5.2, y: 0.85, r: 0.45, stand: [31.15, 5.2] },
     { key: 'plazaStage', btn: 'btn-plaza-stage', label: '콘테스트 무대', s: STAGE.c[0], t: STAGE.c[1], y: 0.5, r: 0.9, stand: [STAGE.c[0] + 2.0 * K, STAGE.c[1] - 2.0 * K] },
     { key: 'plazaBoard', btn: 'btn-plaza-board', label: '마을 게시판', s: PLAZA.board[0], t: PLAZA.board[1], y: 1.0, r: 0.6, stand: [PLAZA.board[0] + 0.9, PLAZA.board[1]] },
     { key: 'npcClothes', btn: 'btn-npc-clothes', label: '가게 문어', npc: 'clothes', s: kc[0], t: kc[1], y: 0.5, r: 0.45, stand: [kc[0] + 1.45, -2.15] },
     { key: 'npcGoods', btn: 'btn-npc-goods', label: '가게 문어', npc: 'goods', s: kg[0], t: kg[1], y: 0.5, r: 0.45, stand: [kg[0] + 1.45, 2.15] },
-    { key: 'npcCafe', btn: 'btn-npc-cafe', label: '가게 문어', npc: 'cafe', s: 32.2, t: 7.45, y: 0.5, r: 0.45, stand: [32.2, 5.85] }
+    { key: 'npcCafe', btn: 'btn-npc-cafe', label: '가게 문어', npc: 'cafe', s: 33.6, t: 7.45, y: 0.5, r: 0.45, stand: [33.6, 5.85] }
   ];
   function spot(key) { for (var i = 0; i < SPOTS.length; i++) if (SPOTS[i].key === key || SPOTS[i].btn === key) return SPOTS[i]; return null; }
 
@@ -66,7 +66,7 @@ var VILLAGE = (function () {
   var NPCS = [
     { id: 'clothes', s: kc[0], t: kc[1], y: 0.3, face: Math.PI / 2, r: 0.3 },
     { id: 'goods', s: kg[0], t: kg[1], y: 0.3, face: 0, r: 0.3 },
-    { id: 'cafe', s: 32.2, t: 7.45, y: 0.34, face: 0, r: 0.3 },
+    { id: 'cafe', s: 33.6, t: 7.45, y: 0.34, face: 0, r: 0.3 },
     { id: 'sleep-1', s: 20.1, t: -3.6, y: 0.3, face: Math.PI / 2, r: 0.3 },
     { id: 'sleep-2', s: sp[0], t: sp[1], y: 0.3, face: Math.PI / 2, r: 0.3 },
     { id: 'sleep-3', s: 55, t: -9, y: 0.46, face: 0.6, r: 0.3 },      /* 갈래 W 의 넓적 바위 (높이 0.42) 위 — 모래 높이는 장면이 더한다 */

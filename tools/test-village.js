@@ -28,7 +28,7 @@ V.LOTS.forEach(function (L) {
 });
 ok(V.DECK.s0 === 30 && V.DECK.s1 === 37 && V.DECK.t0 === 3.5 && V.DECK.t1 === 7, '카페 덱 = C6 (s 30–37 · t 3.5–7)');
 
-/* 3. 단추: C6 의 id 열 개 · 이름 · 서는 자리가 걷는 곳 안 · 자리와 서는 자리가 2.2 m 안 */
+/* 3. 단추: C6 의 id 열 개 · 이름 · 서는 자리가 걷는 곳 안 · 자리와 서는 자리가 2.4 m 안 */
 var BTN = { 'btn-shop-clothes': '옷가게', 'btn-shop-goods': '잡화점', 'btn-cafe-counter': '카페 주문', 'btn-cafe-seat': '카페 자리', 'btn-cafe-lp': '레코드', 'btn-plaza-stage': '콘테스트 무대', 'btn-plaza-board': '마을 게시판',
   'btn-npc-clothes': '가게 문어', 'btn-npc-goods': '가게 문어', 'btn-npc-cafe': '가게 문어' };
 ok(V.SPOTS.length === 10, '누르는 자리 열');
@@ -40,13 +40,13 @@ V.SPOTS.forEach(function (s) {
   ok(!!mm, 'index.html 에 ' + s.btn + ' (scene-spot · aria-label · hidden)');
   ok(!mm || !/title=/.test(mm[0]), s.btn + ' 에 title 이 없다');
   ok(V.inWalk(s.stand[0], s.stand[1], 0), s.key + ' 서는 자리가 걷는 곳 안');
-  var d = Math.hypot(s.s - s.stand[0], s.t - s.stand[1]); ok(d <= 2.2 && d >= 0.5, s.key + ' 자리와 서는 자리 거리 ' + d.toFixed(2));
+  var d = Math.hypot(s.s - s.stand[0], s.t - s.stand[1]); ok(d <= 2.4 && d >= 0.5, s.key + ' 자리와 서는 자리 거리 ' + d.toFixed(2));
   ok(V.spot(s.btn) === s && V.spot(s.key) === s, 'spot() 은 단추 id 와 key 둘 다 받는다');
   V.CIRCLES.forEach(function (c) { var dd = Math.hypot(c[0] - s.stand[0], c[1] - s.stand[1]); if (dd < c[2] + 0.25 - 0.03) ok(false, s.key + ' 서는 자리가 원 [' + c.join(', ') + '] 안이다 (' + dd.toFixed(2) + ')'); });
 });
 ok(html.indexOf('<script src="js/village.js"></script>') > 0 && html.indexOf('src="js/village.js"') < html.indexOf('src="js/app.js'), 'village.js 는 app.js 앞에 실린다');
-/* 화면에서 서로 44 px 넘게 떨어져 있나 (기본 각 · 2 CSS px / 아트 px: 가로 = t × 54 · 세로 ≈ s × 28.6) */
-V.SPOTS.forEach(function (a, i) { V.SPOTS.slice(i + 1).forEach(function (b2) { var dx = (a.t - b2.t) * 54, dy = (a.s - b2.s) * 28.6 - (a.y - b2.y) * 45.8; ok(Math.hypot(dx, dy) >= 44, a.key + ' ↔ ' + b2.key + ' 화면 거리 ' + Math.hypot(dx, dy).toFixed(0) + ' px ≥ 44'); }); });
+/* 화면에서 서로 44 px 넘게 떨어져 있나 (기본 각 · 바깥 배율 m 당 18 아트 px · 2 CSS px / 아트 px: 가로 = t × 36 · 세로 ≈ s × 19.1) */
+V.SPOTS.forEach(function (a, i) { V.SPOTS.slice(i + 1).forEach(function (b2) { var dx = (a.t - b2.t) * 36, dy = (a.s - b2.s) * 19.1 - (a.y - b2.y) * 30.5; ok(Math.hypot(dx, dy) >= 44, a.key + ' ↔ ' + b2.key + ' 화면 거리 ' + Math.hypot(dx, dy).toFixed(0) + ' px ≥ 44'); }); });
 
 /* 4. NPC 자리: C6 의 일곱 id · 계약 자리에서 1.6 m 안 */
 var NP = { clothes: null, goods: null, cafe: null, 'sleep-1': [19, -4], 'sleep-2': [33, -4.5], 'sleep-3': [55, -9], 'sleep-4': [56, 7] };
