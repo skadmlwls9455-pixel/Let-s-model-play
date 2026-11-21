@@ -70,6 +70,8 @@ jobs:
       # 7차 (11-21) 카페 규칙 (js/cafe.js) · 레코드 음표 (js/cafe-music.js): 값 · 먹기 · 레시피 선물 한 번 · 두 탭 · 음표가 원본 MIDI 와 같은지. 노드만 쓴다
       - run: node tools/test-cafe.js
       - run: node tools/build-cafe-music.js --check
+      # 7차 (11-21) 마을 문어 (js/npc.js): 명단 · 대본 갈래 · 마음 낱말 없음 · 이름표 '대본' · 처음 세 줄 · 게시판 쪽지. 노드만 쓴다
+      - run: node tools/test-npc.js
       # 배포 묶음 (tools/export-site.js): 임시 폴더로 내보내서 게임 파일만 나가는지 (문서 · 스킬 · 도구 · 시험 · 서버 코드 없음), 쪽 · 스타일 · 스크립트 ·
       # 목록이 가리키는 파일이 다 실렸는지, 저장소 맨 위의 새 폴더가 '싣는다 / 안 싣는다' 로 정해졌는지. 노드만 쓴다
       - run: node tools/test-export.js
@@ -158,6 +160,8 @@ jobs:
           - { key: cook-dishes-live, name: 새 요리 둘, cmd: node tools/test-cook-dishes-live.js }
           # 7차 (11-21) 카페: 메뉴 · 먹기 · 선물 줄 · 레코드 (소리 꺼짐 · 켬) · 마을을 떠나면 멈춤
           - { key: cafe-live, name: 카페, cmd: node tools/test-cafe-live.js }
+          # 7차 (11-21) 마을 문어: 대사창 (시트 위 · 포커스 그대로 · 저절로 넘어감) · 게시판 · 처음 세 줄 (?story=1)
+          - { key: npc-live, name: 마을 문어, cmd: node tools/test-npc-live.js }
           # 배포 묶음만 띄워 놀아 보기 (export-site.js 로 임시 폴더에 내보낸 것만 127.0.0.1 빈 포트에) — 우리 주소로 간 요청이 하나도 실패하지 않는지
           - { key: export-crawl, name: 배포 묶음 놀아 보기, cmd: node tools/test-export.js --crawl }
           - { key: intro, name: 입장 화면, cmd: node tools/intro-shots.js }
