@@ -6280,7 +6280,7 @@ var APP = (function () {
   }
   function ctResultCard(e) {   /* 작은 결과 카드: 리본 (등수 · 조개 · '채점 규칙') · 닫기. 단상과 팻말은 장면에 있다 */
     var line = h('p', { class: 'ct-line', id: 'ct-w-line', tabindex: '-1' }, [h('span', { class: 'ct-place', text: CT.fill(CT.TEXT.rank, { n: e.rank }) }), shellAmt(CT.shellsOf(e)), h('span', { class: 'ct-rule', text: CT.TEXT.rule })]);
-    ctWorldCard('result', [line, h('div', { class: 'btn-row ct-wrow' }, [ctWBtn('ct-w-close', CT.TEXT.close, '', function () { ctCardClear(); })])]);
+    ctWorldCard('result', [line, ctWBtn('ct-w-close', CT.TEXT.close, '', function () { ctCardClear(); })]);   /* 리본과 닫기를 한 줄에 (무대를 덜 가리게) */
     var st = ctStageInfo(); if (st) ctPlacards(st, e, 3);
     var d = $('contest-sheet'); if (d && d.open && !ctRun) ctRender();   /* 뒷길 시트가 열려 있었으면 그것도 결과로 */
   }
