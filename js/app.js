@@ -5625,9 +5625,9 @@ var APP = (function () {
     return shopSnap(cv, g.w, want);
   }
   function shopTagSkin(el, sold) {   /* 값표에 종이 꼬리표 그림을 깔고 (자리: 그림의 x 13..36 · y 6..17), 팔린 것 · 다 팔린 것엔 붉은 도장을 얹는다 */
-    var bg = shopSpr('ui.tag', 0, 80); if (!bg) return el;
+    var bg = shopSpr('ui.tag', 0, 120); if (!bg) return el;
     el.classList.add('spr'); bg.classList.add('shop-tag-bg'); el.insertBefore(bg, el.firstChild); el.style.width = bg.style.width; el.style.height = bg.style.height;
-    var st = sold ? shopSpr('ui.sold', 0, 64) : null; if (st) { st.classList.add('shop-tag-sold'); el.appendChild(st); el.classList.add('sold'); }
+    var st = sold ? shopSpr('ui.sold', 0, 96) : null; if (st) { st.classList.add('shop-tag-sold'); el.appendChild(st); el.classList.add('sold'); }
     return el;
   }
   function shopBand(u, goods, slim) {   /* 11-21 UI 2차 (주인: "ui가 너무 조잡"): 시트 맨 위 그림 띠 — 선반 벽 · 계산대 뒤의 가게 주인 (NPC 갈래의 초상, 없으면 빈 계산대) · 오른쪽에 조개 주머니 */
