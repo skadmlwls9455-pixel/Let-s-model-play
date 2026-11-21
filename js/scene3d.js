@@ -32,7 +32,7 @@ var SCENE3D = (function () {
   /* 11-18 넓은 바깥 (시험 중 — 주소에 ?wide=1 이 있을 때만 켠다. 꺼져 있으면 마당은 예전 그대로): 받침이 허공에 뜬 섬 대신 화면 끝까지 이어지는 땅 · 앞 모서리의 울타리 문 · 문 밖으로 나가는 길과 숲.
      대각 좌표 s = (x + z)/√2 (화면 아래쪽 = 카메라 쪽) · t = (x − z)/√2 (화면 오른쪽). 걷는 곳 = 마당 네모 + 문 밖 띠 (S_OUT ≤ s ≤ S1 · |t| ≤ T). G0..G1 = 깔아 둔 땅 (x · z), PAN_* = 화면이 따라갈 수 있는 범위 */
   var YARD_WIDE = (function () { try { return !/[?&]wide=0(?:&|$)/.test(String(location.search || '')); } catch (e) { return true; } })();   /* 11-21 7차: 기본이 넓은 바깥 — 주소에 wide=0 일 때만 예전 마당 (시험용) */
-  var WIDE = { T: 3.0, S_OUT: 5.0, S1: 59.7, PAN_T: 13, PAN_S0: -3, PAN_S1: 63, gate: 2.74,
+  var WIDE = { T: 3.0, S_OUT: 5.0, S1: 59.7, PAN_T: 13, PAN_S0: -3, PAN_S1: 66.5, gate: 2.74,
     L0: -60, LAND: 46, SEA: 60, SEA1: 140, GT: 80, BEACH_Y: -0.6, PIER_Y: -0.42, STEP_S: 46, STEP_D: 0.6,
     /* 11-21 7차 (갈래 W): 집 문 → 숲길 → 마을 → 광장 → 계단 → 모래 → 바다 한 장. S1 = 걸어서 닿는 물가 · PAN_* = 화면 가운데가 볼 수 있는 땅 (대각 네모) ·
        L0..LAND = 풀 땅 · LAND 부터 0.6 m 낮은 모래 · SEA 부터 물 (SEA1 까지) · GT = 땅의 반폭. AREAS = 걷는 곳 [s0, s1, t0, t1] (이웃끼리 조금 겹친다 — 마당 네모는 따로) */
@@ -40,7 +40,7 @@ var SCENE3D = (function () {
     SIGNS: [[6, 2.2], [39, 0], [50, 0]],   /* 표지판 (s, t) */
     ARRIVE: { home: [6.6, 0, -1], village: [37, 0, 1], beach: [51.5, 0.9, 1] },   /* 빠른 이동 도착 자리 (s, t, 보는 쪽: +1 = 바다 쪽 · −1 = 집 쪽) */
     SHELLS: [[52.0, -6.5], [53.4, 4.4], [56.4, -2.6], [57.8, 10.2], [58.6, -6.0]],   /* 조개 자리 다섯 (s, t) */
-    ROCKS: [[55, -9, 0.62, 0.42], [53.2, -11.4, 0.4, 0.3], [57.3, -11.2, 0.34, 0.24], [51.2, 10.6, 0.46, 0.34], [54.6, 11.5, 0.36, 0.26], [58.6, 3.2, 0.3, 0.2]] };   /* 바위 (s, t, 반지름, 높이) — 첫째가 잠든 문어 sleep-3 의 넓적 바위 */   /* gate = 앞쪽 두 변에서 울타리가 끝나는 자리 (그 뒤 모서리까지가 문) */
+    ROCKS: [[55, -9, 0.62, 0.42], [53.2, -12.7, 0.4, 0.3], [57.3, -12.6, 0.34, 0.24], [51.2, 12.75, 0.46, 0.34], [54.6, 12.6, 0.36, 0.26]] };   /* 바위 (s, t, 반지름, 높이) — 첫째가 잠든 문어 sleep-3 의 넓적 바위 */   /* gate = 앞쪽 두 변에서 울타리가 끝나는 자리 (그 뒤 모서리까지가 문) */
   function wideXZ(sd, td) { return [(sd + td) * Math.SQRT1_2, (sd - td) * Math.SQRT1_2]; }
   /* 11-21 7차: 넓은 바깥에 얹는 것들의 등록부 — 갈래 W 가 읽고 (buildYard 끝 · 톡 · 부딪힘 · 가리기 · 프레임), 갈래 V 가 채운다. 서로의 함수를 고치지 않게.
      builders: function (g) (마당 그룹에 메시를 더한다) · spots: { key, btn, x, y, z, r } (누르는 자리 → 단추 id) · boxes: [x0, z0, x1, z1] · circles: [x, z, r] (부딪힘) ·
@@ -3034,14 +3034,17 @@ var SCENE3D = (function () {
       if (YARD_WIDE && PL.place === 'yard') {   /* 넓은 바깥: 세 후보 (전체 → x 만 → z 만) 를 저마다 걷는 곳 안으로 맞춘 뒤 장애물을 본다 */
         var cands = [[nx, nz], [nx, z0], [x0, nz]];
         var slid = false;
-        for (var ci = 0; ci < 3; ci++) { var q = yardClamp(x0, z0, cands[ci][0], cands[ci][1]); if (plPen(q[0], q[1], boxes, circ) <= p0) { PL.pos.set(q[0], PL.pos.y, q[1]); slid = true; break; } }
-        if (!slid && PL_IN.v && !PL.walking) {   /* 11-21 7차: 스틱으로 둥근 것 (바위 · 표지판 · 그루터기 · 나무) 에 걸리면 둘레를 따라 돌아간다 — x 만 · z 만으로는 한가운데로 걸어 들 때 멈춰 섰다. 혼자 걷는 길 (plWalkTo) 은 예전 그대로 (막히면 다음 점으로) */
+        var stick = !!PL_IN.v && !PL.walking;
+        for (var ci = 0; ci < 3; ci++) { var q = yardClamp(x0, z0, cands[ci][0], cands[ci][1]); if (plPen(q[0], q[1], boxes, circ) <= p0 && (!stick || Math.abs(q[0] - x0) + Math.abs(q[1] - z0) > 1e-6)) { PL.pos.set(q[0], PL.pos.y, q[1]); slid = true; break; } }   /* 스틱: 걷는 곳 가장자리에 도로 맞춰져 제자리인 후보는 넘긴다 (둥근 것과 가장자리 사이에 끼어 섰다 — 독립 검증) */
+        if (!slid && stick) {   /* 11-21 7차: 스틱으로 둥근 것 (바위 · 표지판 · 그루터기 · 나무) 에 걸리면 둘레를 따라 돌아간다 — x 만 · z 만으로는 한가운데로 걸어 들 때 멈춰 섰다. 혼자 걷는 길 (plWalkTo) 은 예전 그대로 (막히면 다음 점으로) */
           var stp = Math.hypot(dx, dz);
           for (var cj = 0; cj < circ.length && !slid; cj++) {
             var cc = circ[cj], rx = x0 - cc[0], rz = z0 - cc[1], rd = Math.hypot(rx, rz); if (rd < 1e-6 || Math.hypot(nx - cc[0], nz - cc[1]) >= cc[2]) continue;
             var tx = -rz / rd, tz = rx / rd, sg = dx * tx + dz * tz < 0 ? -1 : 1, wx = x0 + tx * stp * sg - cc[0], wz = z0 + tz * stp * sg - cc[1], wk = Math.max(1, (cc[2] + 1e-4) / Math.hypot(wx, wz));
             var q2 = yardClamp(x0, z0, cc[0] + wx * wk, cc[1] + wz * wk);
-            if (plPen(q2[0], q2[1], boxes, circ) <= p0) { PL.pos.set(q2[0], PL.pos.y, q2[1]); slid = true; }
+            if (plPen(q2[0], q2[1], boxes, circ) <= p0 && Math.abs(q2[0] - x0) + Math.abs(q2[1] - z0) > 1e-6) { PL.pos.set(q2[0], PL.pos.y, q2[1]); slid = true; }
+            else { wx = x0 - tx * stp * sg - cc[0]; wz = z0 - tz * stp * sg - cc[1]; wk = Math.max(1, (cc[2] + 1e-4) / Math.hypot(wx, wz)); q2 = yardClamp(x0, z0, cc[0] + wx * wk, cc[1] + wz * wk);   /* 그쪽이 막혔으면 반대쪽으로 */
+              if (plPen(q2[0], q2[1], boxes, circ) <= p0 && Math.abs(q2[0] - x0) + Math.abs(q2[1] - z0) > 1e-6) { PL.pos.set(q2[0], PL.pos.y, q2[1]); slid = true; } }
           }
         }
         return Math.abs(PL.pos.x - x0) + Math.abs(PL.pos.z - z0) > 1e-9;
@@ -5608,7 +5611,7 @@ var SCENE3D = (function () {
                                     다 무릎 아래라 캐릭터를 가리지 않는다. 가운데 (|t| < 1.3) 는 비워 둔다. 덤불 · 그루터기 · 통나무는 부딪힌다 */
       var sc = SEASON_C[SEASON.cur], bl = [PAL.rose[2] || PAL.rose[1], PAL.amber[4], FIXED.white, PAL.dusk[2]];
       for (var i = 0; i < 18; i++) {
-        var h = hash('wdress' + i), sd = 7.2 + i * 0.62 + (h % 10) * 0.03, side = i % 2 ? 1 : -1, td = side * (1.55 + ((h >>> 4) % 12) * 0.11), q = wideXZ(sd, td), x = snapPos(q[0]), z = snapPos(q[1]), kind = (h >>> 9) % 6, k;
+        var h = hash('wdress' + i), sd = 7.2 + i * 0.62 + (h % 10) * 0.03, side = i % 2 ? 1 : -1, kind = (h >>> 9) % 6, td = side * (kind < 3 ? 1.55 + ((h >>> 4) % 12) * 0.11 : 1.5 + ((h >>> 4) % 6) * 0.1), q = wideXZ(sd, td), x = snapPos(q[0]), z = snapPos(q[1]), k;   /* 부딪히는 것 (덤불 · 그루터기 · 통나무) 은 |t| ≤ 2.0 — 가장자리 (3.0) 와의 사이로 몸이 지나간다 (좁은 틈에 끼어 서지 않게) */
         if (kind < 2) { for (k = 0; k < 4; k++) { var fx = x + ((h >>> (12 + k * 3)) % 5 - 2) * 0.08, fz = z + ((h >>> (13 + k * 3)) % 5 - 2) * 0.08; out.push({ g: box(0.035, 0.14, 0.035), m: M(fx, 0.07, fz), c: sc.tuft, tag: 11 }, { g: box(0.075, 0.075, 0.075), m: M(fx, 0.17, fz), c: bl[(h >>> (20 + k)) % 4] }); } }
         else if (kind === 2) { for (k = 0; k < 2; k++) { var mx = x + k * 0.16, mz = z + k * 0.07, mh = 0.1 + k * 0.05; out.push({ g: box(0.05, mh, 0.05), m: M(mx, mh / 2, mz), c: PAL.paper[2] || PAL.paper[1] }, { g: box(0.15, 0.06, 0.15), m: M(mx, mh + 0.03, mz), c: PAL.rose[1] }, { g: box(0.04, 0.02, 0.04), m: M(mx + 0.03, mh + 0.065, mz), c: FIXED.white }); } }
         else if (kind === 3) { var br = 0.24 + (h >>> 14) % 3 * 0.03; out.push({ g: new T.SphereGeometry(br, 7, 5), m: M(x, br * 0.6, z, 0, 0, 0, 1, 0.8, 1), c: sc.leaf[i % 3], tag: 13 + i % 3 }); WIDE_REG.circles.push([x, z, br * 0.7]); }
@@ -5630,7 +5633,7 @@ var SCENE3D = (function () {
       /* 떠밀려 온 나무 셋 */
       [[51.0, -9.6, 0.9, 1.2], [57.2, 1.2, -0.4, 0.9], [50.6, 5.2, 2.2, 1.0]].forEach(function (d, k) { var dw = loc(d[0], d[1], d[2]); B.push(dw(0, 0.07, 0, d[3], 0.13, 0.14, W[5]), dw(d[3] * 0.2, 0.12, 0.14, 0.3, 0.07, 0.07, W[5], 0.8), dw(-d[3] / 2 - 0.01, 0.07, 0, 0.02, 0.1, 0.11, W[3])); });
       /* 물웅덩이를 낀 바위 무더기 둘 (젖은 모래 가) */
-      [[57.9, -8.4], [58.0, 5.6]].forEach(function (c, k) {
+      [[57.9, -8.4], [58.0, 3.4]].forEach(function (c, k) {
         q = wideXZ(c[0], c[1]); B.push({ g: new T.CylinderGeometry(0.62, 0.62, 0.02, 10), m: M(snapPos(q[0]), BY + 0.012, snapPos(q[1]), 0, 0, 0, 1.25, 1, 0.8), c: WIDE_C.sea[sn][0], tag: 20 }, { g: new T.CylinderGeometry(0.3, 0.3, 0.02, 8), m: M(snapPos(q[0] + 0.1), BY + 0.016, snapPos(q[1])), c: WIDE_C.sea[sn][1], tag: 21 });
         [[-0.75, 0.1, 0.36, 0.3], [0.2, -0.62, 0.3, 0.26], [0.72, 0.25, 0.27, 0.2], [-0.2, 0.66, 0.22, 0.16], [0.9, -0.3, 0.16, 0.12]].forEach(function (r, ri) { var rq = wideXZ(c[0] + r[0], c[1] + r[1]); B.push({ g: new T.SphereGeometry(r[2], 7, 5), m: M(snapPos(rq[0]), BY, snapPos(rq[1]), 0, ri * 0.9 + k, 0, 1, r[3] / r[2], 0.88), c: EXT_C.rock[(ri + k) % 2] }); WIDE_REG.circles.push([rq[0], rq[1], r[2] * 0.9]); });
       });
@@ -5641,7 +5644,7 @@ var SCENE3D = (function () {
       for (i = 0; i < 5; i++) B.push(stBox(53.5, 8.3 + (i - 2) * 0.16, BY + 0.012, 1.3, 0.016, 0.16, i % 2 ? FIXED.white : bl));
       /* 불가사리 넷 · 꾸밈 조개 (줍는 조개 아님 — 아주 작다) */
       [[56.9, -6.2], [58.5, 0.4], [55.2, 9.6], [58.9, -11.0]].forEach(function (c, k) { var sf = loc(c[0], c[1], k * 0.5); for (var a = 0; a < 5; a++) B.push(sf(Math.cos(a * 1.2566) * 0.07, 0.014, Math.sin(a * 1.2566) * 0.07, 0.15, 0.022, 0.05, PAL.dusk[1], -a * 1.2566)); B.push(sf(0, 0.02, 0, 0.07, 0.03, 0.07, PAL.dusk[2])); });
-      for (i = 0; i < 12; i++) { h = hash('wdshell' + i); q = wideXZ(50.2 + (h % 880) / 100, -11.5 + ((h >>> 10) % 230) / 10); if (Math.abs((q[0] - q[1]) * Math.SQRT1_2) < 1.4) continue; B.push({ g: box(0.08, 0.035, 0.06), m: M(snapPos(q[0]), BY + 0.018, snapPos(q[1]), 0, (h >>> 20) % 6, 0), c: (h >>> 24) % 2 ? FIXED.white : PAL.dusk[3] }); }
+      for (i = 0; i < 12; i++) { h = hash('wdshell' + i); q = wideXZ(50.2 + (h % 880) / 100, -11.5 + ((h >>> 10) % 230) / 10); if (Math.abs((q[0] - q[1]) * Math.SQRT1_2) < 1.4) continue; B.push({ g: box(0.08, 0.035, 0.06), m: M(snapPos(q[0]), BY + 0.018, snapPos(q[1]), 0, (h >>> 20) % 6, 0), c: WIDE_C.wet[sn], tag: 19 }); }
       /* 축대 아래 모래 풀 (촘촘히) · 거품 앞의 축축한 모래 (들쭉날쭉한 띠) */
       for (i = 0; i < 70; i++) { h = hash('wdune2' + i); var dt3 = -15 + ((h >>> 10) % 300) / 10, ds3 = 46.35 + (h % 100) / 100 * 1.1; if (Math.abs(dt3) < 3.9) continue; q = wideXZ(ds3, dt3);
         for (var k = 0; k < 3; k++) B.push({ g: box(0.04, 0.2 + ((h >>> (20 + k * 2)) % 3) * 0.07, 0.04), m: M(snapPos(q[0] + (k - 1) * 0.07), BY + 0.1 + ((h >>> (20 + k * 2)) % 3) * 0.035, snapPos(q[1] + (k % 2) * 0.07)), c: WIDE_C.dune[sn], tag: 24 }); }
@@ -5772,8 +5775,8 @@ var SCENE3D = (function () {
       WIDE.SHELLS.forEach(function (sh, k) {
         if (WIDE_SPOT['wshell' + k]) WIDE_SPOT['wshell' + k].sp.on = on[k]; if (!on[k]) return;
         var h = hash('wshell' + k), c = (h % 2) ? PAL.dusk[1] : PAL.rose[1], y = WIDE.BEACH_Y;   /* 부채꼴 조개: 넓은 날 (바다 쪽) → 좁은 꼭지 (집 쪽) · 골 셋 */
-        ps.push(stBox(sh[0] + 0.03, sh[1], y + 0.04, 0.15, 0.08, 0.3, PAL.dusk[3]), stBox(sh[0] - 0.08, sh[1], y + 0.035, 0.08, 0.07, 0.2, PAL.dusk[3]), stBox(sh[0] - 0.15, sh[1], y + 0.03, 0.06, 0.06, 0.09, c));
-        [-0.1, 0, 0.1].forEach(function (d) { ps.push(stBox(sh[0] + 0.01, sh[1] + d, y + 0.083, 0.17, 0.012, 0.04, FIXED.white)); });
+        ps.push(stBox(sh[0] + 0.04, sh[1], y + 0.05, 0.2, 0.1, 0.42, PAL.rose[2] || PAL.rose[1]), stBox(sh[0] - 0.1, sh[1], y + 0.045, 0.1, 0.09, 0.28, PAL.rose[2] || PAL.rose[1]), stBox(sh[0] - 0.19, sh[1], y + 0.04, 0.08, 0.08, 0.12, c));   /* 11-21 (독립 검증): 모래의 흰 점과 헷갈리지 않게 크고 붉은 몸에 흰 골 */
+        [-0.14, 0, 0.14].forEach(function (d) { ps.push(stBox(sh[0] + 0.02, sh[1] + d, y + 0.103, 0.22, 0.012, 0.05, FIXED.white)); });
       });
       if (ps.length) { var m = new T.Mesh(keep(mergeParts(ps)), lambert); m.castShadow = true; m.receiveShadow = true; m.name = 'wideShells'; WSTATE.beach.add(m); WSTATE.shells = m; }
       dither.still = 0; return WSTATE.shellOn.slice();

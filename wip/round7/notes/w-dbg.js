@@ -14,11 +14,13 @@ var ROOT = path.resolve(__dirname, '../../..');
   await page.waitForTimeout(600);
   console.log(JSON.stringify(await page.evaluate(function () {
     var sc = APP.scene, K = Math.SQRT1_2, out = [];
-    function st() { var a = sc.player().at; return [+((a[0] + a[2]) * K).toFixed(3), +((a[0] - a[2]) * K).toFixed(3)]; }
-    [[59.7, 12, 1, 0], [59.7, 12, 0, -1], [59.7, 12, 0.707, -0.707], [49, 3, 1, 0], [38.1, 3, 1, 0], [5, 3, 1, 0], [5, -3, 0, 1], [65.7, 7.55, 1, 0], [65.7, 7.55, 0, -1]].forEach(function (c) {
-      [0.02, 0.05, 0.1].forEach(function (dt) { sc.debugPlayerAt((c[0] + c[1]) * K, (c[0] - c[1]) * K); sc.debugSim(dt, 1); var a = st(); sc.setPlayerInput({ x: c[2], y: c[3] }); sc.debugSim(dt, 20); sc.setPlayerInput(null); sc.debugSim(dt, 1); var b = st(); out.push([c.join(','), dt, a, b]); });
+    function st() { var a = sc.player().at; return [+((a[0] + a[2]) * K).toFixed(2), +((a[0] - a[2]) * K).toFixed(2)]; }
+    [[12, 2.9, 0, 1], [6, 0, 0.707, -0.707], [18, -2.9, 0, 1], [7, 2.5, 0, -1], [7, -2.5, 0, -1], [55, -6, -1, 0], [50, 9, 0, -1], [57, 0, 1, 0]].forEach(function (c) {
+      sc.debugPlayerAt((c[0] + c[1]) * K, (c[0] - c[1]) * K); sc.setPlayerInput({ x: c[2], y: c[3] }); sc.debugSim(1 / 30, 150); var a = st(); sc.debugSim(1 / 30, 30); var b = st(); sc.setPlayerInput(null); out.push([c.join(','), a, b, Math.hypot(a[0] - b[0], a[1] - b[1]) > 0.5 ? 'moving' : 'STOP']);
     });
+    sc.beachShells([0, 1, 2, 3, 4]); sc.debugPlayerAt(55 * K + 2 * K, 55 * K - 2 * K); sc.debugSim(0.1, 3); sc.debugStep(0.1);
     return out;
   })));
+  await page.screenshot({ path: '/tmp/claude-0/-home-user-Let-s-model-play/bf38d309-8ede-59ca-909d-3c51ecde03b7/scratchpad/shots/dbg.png' });
   await browser.close();
 })().catch(function (e) { console.error(e); process.exit(1); });
