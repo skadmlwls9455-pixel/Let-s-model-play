@@ -12,8 +12,9 @@ var VILLAGE = (function () {
 
   /* 걷는 곳 (갈래 W 의 WIDE.AREAS 와 같은 숫자 — 내 캐릭터 가운데가 갈 수 있는 곳. 서는 자리 시험과 길 찾기가 쓴다) */
   var WALK = [
-    { key: 'street', s0: 5, s1: 38.1, t0: -3, t1: 3 },          /* 숲길 · 마을 문 · 마을 길 */
-    { key: 'deck', s0: 30.3, s1: 36.7, t0: 2.9, t1: 6.9 },
+    { key: 'road', s0: 5, s1: 20.1, t0: -3, t1: 3 },            /* 숲길 · 마을 문 */
+    { key: 'street', s0: 20, s1: 38.1, t0: -2.2, t1: 2.2 },     /* 마을 길 (리드 11-21: 가게 앞이 화면에 들게 ±2.2) */
+    { key: 'deck', s0: 30.3, s1: 36.7, t0: 2.1, t1: 6.9 },
     { key: 'plaza', s0: 38, s1: 46.1, t0: -8, t1: 8 },
     { key: 'steps', s0: 46, s1: 49.1, t0: -3, t1: 3 },
     { key: 'beach', s0: 49, s1: 59.7, t0: -12, t1: 12 }
@@ -22,8 +23,8 @@ var VILLAGE = (function () {
 
   /* 터: c = 건물 몸 가운데 (s, t) · hx · hz = 몸 반폭 (앞뒤 · 옆) · mir = 오른쪽 줄 */
   var LOTS = [
-    { id: 'clothes', name: '옷가게', s0: 22, s1: 28, t0: -10, t1: -3.5, c: [24.6, -5.1], hx: 1.3, hz: 1.4, mir: false, open: true },
-    { id: 'goods', name: '잡화점', s0: 22, s1: 28, t0: 3.5, t1: 10, c: [24.6, 5.1], hx: 1.3, hz: 1.4, mir: true, open: true },
+    { id: 'clothes', name: '옷가게', s0: 22, s1: 28, t0: -10, t1: -3.5, c: [24.6, -5.25], hx: 1.3, hz: 1.4, mir: false, open: true },
+    { id: 'goods', name: '잡화점', s0: 22, s1: 28, t0: 3.5, t1: 10, c: [24.6, 5.25], hx: 1.3, hz: 1.4, mir: true, open: true },
     { id: 'empty', name: '빈 집', s0: 30, s1: 36, t0: -10, t1: -3.5, c: [31.8, -5.6], hx: 1.3, hz: 1.4, mir: false, open: false },
     { id: 'cafe', name: '카페', s0: 30, s1: 37, t0: 3.5, t1: 10, c: [33.6, 8.9], hx: 1.1, hz: 1.2, mir: true, open: true },
     { id: 'plaza', name: '광장', s0: 38, s1: 46, t0: -8, t1: 8, c: [42, 0], hx: 0, hz: 0, mir: false, open: true }
@@ -31,7 +32,7 @@ var VILLAGE = (function () {
   var DECK = { s0: 30, s1: 37, t0: 3.5, t1: 7 };
   var STALL = { lx: 2.5, lz: -0.7, hw: 0.25, hd: 0.65, h: 0.42 };   /* 가게 앞 판매대 (건물 안 좌표) — 문어는 그 뒤 (lx 1.8) */
   var STAGE = { c: [43, 4.4], h: 1.4, y: 0.24 };
-  var PLAZA = { board: [40.5, -3.4], well: [42.3, -2.4], benches: [[42.4, -5.0, 0], [44.8, -0.9, 1]], nets: [45.2, 6.9] };   /* 광장 것들 (폰 화면 폭 6.7 m 안에 들게 가운데 가까이) · benches 셋째 값 1 = z 축으로 긴 것   /* 광장 무대 (x · z 축 네모, 반폭 h) */
+  var PLAZA = { board: [40.4, -2.9], well: [42.2, 0], benches: [[42.2, -1.9, 0], [42.2, 1.9, 0], [44.9, -4.6, 1]], nets: [45.2, 6.9], rug: [44.55, 2.85, 0.95] };   /* 광장 것들 (폰 화면 폭 6.7 m 안에 들게 가운데 가까이) · benches 셋째 값 1 = z 축으로 긴 것   /* 광장 무대 (x · z 축 네모, 반폭 h) */
   var CAFE = {
     counter: { s0: 31.0, s1: 34.0, t: 6.6, w: 0.5, h: 0.5 },
     shelf: { s: 30.4, t0: 4.4, t1: 6.0, d: 0.4, h: 0.7 },
@@ -46,15 +47,15 @@ var VILLAGE = (function () {
   /* 누르는 자리: key · 단추 id · 이름 (aria-label) · 자리 (s, t, y) · 톡 반지름 r · stand = 내 캐릭터가 가서 서는 자리 (걷는 곳 안) */
   var kc = at('clothes', 1.8, -0.7), kg = at('goods', 1.8, -0.7), rc = at('clothes', 2.35, 0.9), rg = at('goods', 2.35, 0.9);
   var SPOTS = [
-    { key: 'shopClothes', btn: 'btn-shop-clothes', label: '옷가게', s: rc[0], t: rc[1], y: 0.7, r: 0.5, stand: [rc[0] + 0.6, -2.9] },
-    { key: 'shopGoods', btn: 'btn-shop-goods', label: '잡화점', s: rg[0], t: rg[1], y: 0.5, r: 0.5, stand: [rg[0] + 0.6, 2.9] },
+    { key: 'shopClothes', btn: 'btn-shop-clothes', label: '옷가게', s: rc[0], t: rc[1], y: 0.7, r: 0.5, stand: [rc[0] + 0.3, -2.15] },
+    { key: 'shopGoods', btn: 'btn-shop-goods', label: '잡화점', s: rg[0], t: rg[1], y: 0.5, r: 0.5, stand: [rg[0] + 0.3, 2.15] },
     { key: 'cafeCounter', btn: 'btn-cafe-counter', label: '카페 주문', s: 33.5, t: 6.6, y: 0.75, r: 0.45, stand: [33.5, 5.85] },
     { key: 'cafeSeat', btn: 'btn-cafe-seat', label: '카페 자리', s: CAFE.seat.s, t: CAFE.seat.t, y: 0.4, r: 0.4, stand: CAFE.seat.aisle.slice() },
     { key: 'cafeLp', btn: 'btn-cafe-lp', label: '레코드', s: 30.4, t: 5.2, y: 0.85, r: 0.45, stand: [31.15, 5.2] },
     { key: 'plazaStage', btn: 'btn-plaza-stage', label: '콘테스트 무대', s: STAGE.c[0], t: STAGE.c[1], y: 0.5, r: 0.9, stand: [STAGE.c[0] + 2.0 * K, STAGE.c[1] - 2.0 * K] },
     { key: 'plazaBoard', btn: 'btn-plaza-board', label: '마을 게시판', s: PLAZA.board[0], t: PLAZA.board[1], y: 1.0, r: 0.6, stand: [PLAZA.board[0] + 0.9, PLAZA.board[1]] },
-    { key: 'npcClothes', btn: 'btn-npc-clothes', label: '가게 문어', npc: 'clothes', s: kc[0], t: kc[1], y: 0.5, r: 0.45, stand: [kc[0] + 1.15, kc[1] + 1.15] },
-    { key: 'npcGoods', btn: 'btn-npc-goods', label: '가게 문어', npc: 'goods', s: kg[0], t: kg[1], y: 0.5, r: 0.45, stand: [kg[0] + 1.15, kg[1] - 1.15] },
+    { key: 'npcClothes', btn: 'btn-npc-clothes', label: '가게 문어', npc: 'clothes', s: kc[0], t: kc[1], y: 0.5, r: 0.45, stand: [kc[0] + 1.45, -2.15] },
+    { key: 'npcGoods', btn: 'btn-npc-goods', label: '가게 문어', npc: 'goods', s: kg[0], t: kg[1], y: 0.5, r: 0.45, stand: [kg[0] + 1.45, 2.15] },
     { key: 'npcCafe', btn: 'btn-npc-cafe', label: '가게 문어', npc: 'cafe', s: 32.2, t: 7.45, y: 0.5, r: 0.45, stand: [32.2, 5.85] }
   ];
   function spot(key) { for (var i = 0; i < SPOTS.length; i++) if (SPOTS[i].key === key || SPOTS[i].btn === key) return SPOTS[i]; return null; }
@@ -74,8 +75,9 @@ var VILLAGE = (function () {
   function npc(id) { for (var i = 0; i < NPCS.length; i++) if (NPCS[i].id === id) return NPCS[i]; return null; }
 
   /* 길가 소품 (s, t): 가로등 · 화분 */
-  var LAMPS = [[21.6, -3.2], [29, 3.2], [37.4, -3.2], [38.6, 7.2], [45.4, -7.2]];
-  var POTS = [[23.4, -3.3], [27.9, -3.3], [23.4, 3.3], [29.9, -3.3], [36.4, -3.3], [37.6, 3.3]];
+  var LAMPS = [[21.6, -2.9], [21.6, 2.9], [28.9, -2.9], [28.9, 2.9], [37.3, -2.9], [38.6, 7.2], [45.4, -7.2]];   /* 길가 다섯 (앞 넷은 둘씩 마주 서서 깃발 줄을 건다) · 광장 둘 */
+  var NLAMP = 5;
+  var POTS = [[23.3, -2.75], [27.9, -2.8], [23.3, 2.75], [29.9, -2.9], [36.4, -2.8], [37.6, 2.7]];
   var BOARD = { s: 30.25, t: 2.85, r: 0.2 };   /* 카페 앞 길가의 세움 간판 (잔 그림) — 길 한가운데를 걸어도 카페가 보이게 */
 
   /* 부딪힘 (걷는 곳 안이나 그 가장자리에 선 것만): 원 (s, t, r) · x · z 축 네모는 장면이 건물 좌표에서 바로 만든다 (stage · bench · stall) */
@@ -88,7 +90,7 @@ var VILLAGE = (function () {
     c.stools.forEach(function (q) { CIRCLES.push([q[0], q[1], c.stoolR]); });
     [[30, 3.45], [37, 3.45], [30, 7.05], [37, 7.05]].forEach(function (p) { CIRCLES.push([p[0], p[1], 0.07]); });   /* 덱 기둥 넷 */
     CIRCLES.push([PLAZA.board[0], PLAZA.board[1] - 0.42, 0.22], [PLAZA.board[0], PLAZA.board[1] + 0.42, 0.22]);     /* 게시판 (화면 가로로 선 판) */
-    CIRCLES.push([PLAZA.well[0], PLAZA.well[1], 0.6]);       /* 우물 */
+    CIRCLES.push([PLAZA.well[0], PLAZA.well[1], 0.95]);       /* 우물 */
     CIRCLES.push([PLAZA.nets[0], PLAZA.nets[1], 0.45]);
     CIRCLES.push([BOARD.s, BOARD.t, BOARD.r]);                        /* 그물 · 부표 더미 */
     LAMPS.forEach(function (l) { if (inWalk(l[0], l[1], -0.3)) CIRCLES.push([l[0], l[1], 0.06]); });
@@ -151,6 +153,6 @@ var VILLAGE = (function () {
 
   var HATS = ['none', 'beret', 'apron', 'cap'], POSES = ['stand', 'sleep'];
   return { xz: xz, st: st, local: local, at: at, lot: lot, spot: spot, npc: npc, inWalk: inWalk,
-    WALK: WALK, LOTS: LOTS, DECK: DECK, STALL: STALL, STAGE: STAGE, PLAZA: PLAZA, CAFE: CAFE, SPOTS: SPOTS, NPCS: NPCS, LAMPS: LAMPS, POTS: POTS, BOARD: BOARD, CIRCLES: CIRCLES, BOXES: BOXES, BENCH: BENCH, route: route, SEGMENTS: SEGMENTS, HATS: HATS, POSES: POSES };
+    WALK: WALK, LOTS: LOTS, DECK: DECK, STALL: STALL, STAGE: STAGE, PLAZA: PLAZA, CAFE: CAFE, SPOTS: SPOTS, NPCS: NPCS, LAMPS: LAMPS, NLAMP: NLAMP, POTS: POTS, BOARD: BOARD, CIRCLES: CIRCLES, BOXES: BOXES, BENCH: BENCH, route: route, SEGMENTS: SEGMENTS, HATS: HATS, POSES: POSES };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = VILLAGE;
