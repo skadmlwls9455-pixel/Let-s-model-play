@@ -71,8 +71,10 @@ NEW.forEach(function (id) {
   while (run.phase !== 'reveal' && guard++ < 400) {
     t += 700; K.tick(run, t); var si = run.si, p0 = run.phase === 'step' ? run.st.progress : null;
     K.input(run, { t: t, k: 'b' });
-    if (p0 !== null) { per[si] = (per[si] || 0) + 1; if (run.si === si && run.st.progress < p0) low = true; }
-    evs = evs.concat(K.drain(run));
+    var got = K.drain(run);   /* a press counts when it did something in that step (one inside the 250 ms gate does nothing) */
+    if (p0 !== null && got.some(function (e) { return e.si === si && e.type !== 'start'; })) per[si] = (per[si] || 0) + 1;
+    if (p0 !== null && run.si === si && run.st.progress < p0) low = true;
+    evs = evs.concat(got);
   }
   check(run.phase === 'reveal' && run.done, id + ': the verb button alone reaches the plate');
   check(per.every(function (n) { return n <= 3; }) && per.length === r.steps.length, id + ': at most three presses a step (' + per.join(',') + ')');
