@@ -214,6 +214,17 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <!-- [7-W] 단추 -->
 
   <!-- [7-V] 단추 -->
+  <!-- 11-21 마을 (docs/VILLAGE.md): 그림 위의 보이지 않는 단추 — 자리 · hidden 은 장면 (등록부 WIDE_REG.spots) 이 쥔다. 이름은 aria-label 뿐 (title 없음) -->
+  <button type="button" id="btn-shop-clothes" class="scene-spot" aria-label="옷가게" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-shop-goods" class="scene-spot" aria-label="잡화점" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-cafe-counter" class="scene-spot" aria-label="카페 주문" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-cafe-seat" class="scene-spot" aria-label="카페 자리" hidden></button>
+  <button type="button" id="btn-cafe-lp" class="scene-spot" aria-label="레코드" hidden></button>
+  <button type="button" id="btn-plaza-stage" class="scene-spot" aria-label="콘테스트 무대" hidden></button>
+  <button type="button" id="btn-plaza-board" class="scene-spot" aria-label="마을 게시판" hidden></button>
+  <button type="button" id="btn-npc-clothes" class="scene-spot" aria-label="가게 문어" hidden></button>
+  <button type="button" id="btn-npc-goods" class="scene-spot" aria-label="가게 문어" hidden></button>
+  <button type="button" id="btn-npc-cafe" class="scene-spot" aria-label="가게 문어" hidden></button>
 
   <!-- [7-S] 단추 -->
 
@@ -483,6 +494,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- [7-W] 스크립트 -->
 
 <!-- [7-V] 스크립트 -->
+<script src="js/village.js"></script>
 
 <!-- [7-S] 스크립트 -->
 
