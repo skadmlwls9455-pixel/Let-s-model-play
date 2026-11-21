@@ -5468,6 +5468,35 @@ var APP = (function () {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
+  /* ───────────────────────── 7차 갈래 자리 (11-21) ─────────────────────────
+     갈래마다 제 표시 줄 바로 아래에만 새 코드를 쓴다. 표시 줄과 그 사이 빈 줄은 건드리지 않는다 (합칠 때 부딪히지 않게). */
+  /* [7-U] 화면 고침 · 빈 화면 */
+
+
+  /* [7-T] 요리 → 식탁 잇기 · 레시피 */
+
+
+  /* [7-P] 내 캐릭터 · 뛰기 */
+
+
+  /* [7-W] 바깥 한 장 · 해안가 · 이동 */
+
+
+  /* [7-V] 마을 건물 · NPC 그리기 */
+
+
+  /* [7-S] 가게 (옷가게 · 잡화점 · 바닷가 조개) */
+
+
+  /* [7-C] 카페 (메뉴 · 레코드 · 레시피 선물) */
+
+
+  /* [7-N] NPC 문어 · 세계관 */
+
+
+  /* [7-F] 주말 콘테스트 */
+
+
   /* ───────────────────────── 공개 (§12.3) ───────────────────────── */
   return {
     get state() { return S; },
@@ -5494,6 +5523,26 @@ var APP = (function () {
     get meal() { return mealRun ? { stage: mealRun.stage, dish: mealRun.dish, n: mealRun.n } : null; },
     mealNext: function (a) { if (!DEV_EXPLICIT) return false; mealNext = a === 'eat' || a === 'watch' || a === 'stop' || a === 'none' ? a : null; return true; },
     openSalon: openSalon, salonPick: salonPick, salonAsk: salonAsk, salonFinish: salonFinish, renderSalonSheet: renderSalonSheet, salonRowsDOM: salonRowsDOM,
-    get salonStage() { return salonRun ? { id: salonRun.ask.id, n: salonRun.n, face: salonRun.face, action: salonRun.st.action, done: salonRun.done } : null; }
+    get salonStage() { return salonRun ? { id: salonRun.ask.id, n: salonRun.n, face: salonRun.face, action: salonRun.st.action, done: salonRun.done } : null; },
+    /* 7차 갈래가 밖에 내놓는 것 (테스트 · 도구): 제 표시 줄 바로 아래에 '이름: 값,' 줄로 (쉼표까지) */
+    /* [7-U] */
+
+    /* [7-T] */
+
+    /* [7-P] */
+
+    /* [7-W] */
+
+    /* [7-V] */
+
+    /* [7-S] */
+
+    /* [7-C] */
+
+    /* [7-N] */
+
+    /* [7-F] */
+
+    r7: true
   };
 })();
