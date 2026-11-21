@@ -179,3 +179,11 @@ hotspot `'table'` → `#btn-table`. 앱은 식탁 자리 숫자를 쓰지 않는
 `playerCarryDish(dish, { sit, instant })` → `Promise<'seated' | 'placed' | 'cut' | 'no'>` · `playerCarryCut()` · `tableInfo().carry` (`null | hold | walk | put | sit`) · `tableInfo().sprite` ·
 `setTableDish` 의 `dish.pic` · `setAura` 가 `bubble` · `confetti` 도 받는다 · 시험용 `debugDishSprite()`. 앱의 시험 손잡이: `APP.cookServe(mode)` · `APP.cookMsgTest(d)` · `APP.cookCtx()` · `APP.mealClose`.
 
+### 11.6 계약 C12 — 다른 갈래가 쓰는 픽셀 그림 (카페 · 가게 · 콘테스트)
+
+- `scene.playerCarry(spriteId | null, frame)` → bool: 내 캐릭터가 `COOK_SPR` 그림을 두 손에 든다 (걷든 서 있든, 방을 옮겨도; 앉아 있는 동안 · 식탁으로 들고 가는 동안은 숨는다). `null` = 내려놓음.
+- `scene.spriteProp(name, pos | null, spriteId, frame)` → bool: 한 자리에 카메라를 보는 그림. `pos = { x, y, z, place? }` — 그 장소 그룹의 좌표 (`place` 가 없으면 지금 보이는 곳),
+  `y` = 그림 맨 아랫줄이 놓일 높이, 가로는 그림의 `ax` 열이 그 자리. 같은 `name` 으로 다시 부르면 바뀌고 `null` 이면 치운다. 그 장소가 안 보이면 숨는다.
+- 둘 다 그림 한 칸 = 방 그림 한 칸 (점 하나), 픽셀 중심에 스냅, 밤엔 한 칸 어둡게. 그림이 없으면 아무것도 안 그리고 `false`. 그림은 96×64 까지. 저장하지 않는다 (부르는 쪽이 다시 부른다).
+- 시험용 `scene.debugSprites()`.
+

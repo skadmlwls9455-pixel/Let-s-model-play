@@ -4361,7 +4361,7 @@ var SCENE3D = (function () {
       if (TB.door && PLAY_DOOR) { TB.door.acc += dt / st.speed; while (TB.door && TB.door.acc >= 1 / 12) { TB.door.acc -= 1 / 12; var f = PLAY_DOOR.f + (TB.door.want > PLAY_DOOR.f ? 1 : -1); setLeaf(PLAY_DOOR, f); if (f === TB.door.want) TB.door = null; } }
       if (TB.doorShut) { TB.doorShut--; if (!TB.doorShut && PLAY_DOOR) setLeaf(PLAY_DOOR, 0); }
       if (TB.fade) { TB.fade.t += dt / st.speed; var q = 1 - Math.min(1, Math.floor(TB.fade.t * 24) / 8); setOctFade(q); if (q <= 0) { var fr = TB.fade.res; TB.fade = null; if (fr) fr(); } }
-      stepCarry(dt); stepDish(dt); stepMeBite(dt);
+      stepCarry(dt); stepDish(dt); stepMeBite(dt); stepSprProps();
       var P = TB.pose, b = TB.bite;
       P.lean = 0; P.sx = 1; P.sy = 1; P.by = 0; P.reach = -1;
       if (TB.oct === 'seated') {
@@ -5600,6 +5600,80 @@ var SCENE3D = (function () {
        내려놓고 (눌림 한 번) → sit 이면 폴짝 앉는다. 박자: 들기 0.35 s · 걷기 (1.8 m/s) · 내려놓기 0.25 s (3칸) · 앉기 0.34 s.
        요리는 이미 저장된 사실이라 무엇이 끊든 (스틱 · 방 옮김 · 숨은 탭 · 컨텍스트 잃음 · 가구 모드 · playerCarryCut) 그 자리에서 끝 상태 = 요리는 식탁에, 캐릭터는 선 자리.
        → Promise<'seated' | 'placed' | 'cut' | 'no'> ('no' = 거절: 아무것도 안 했다). 팔 · 몸은 stepPlayer 뒤에 덮어쓴다 (stepMeBite 와 같은 길 — 갈래 P 의 몸 · 걸음은 안 고친다) ── */
+    /* ── 11-21 7차 계약 C12: 다른 갈래 (카페 · 가게 · 콘테스트) 가 쓰는 픽셀 그림 둘 — 식탁 위 요리 그림과 같은 길 (COOK_SPR 그림 한 칸 = 점 하나 = 방 그림 한 칸 · 픽셀 중심 스냅 ·
+       같은 재질 변형 · 밤엔 한 칸 어둡게). 그림이 없으면 (모르는 id · 파일 없음) 아무것도 안 그리고 false.
+       playerCarry(spriteId | null, frame): 내 캐릭터가 그 그림을 두 손에 든다 (걷든 서 있든 · 방을 옮겨도 · 앉으면 숨는다). null = 내려놓음. 식탁으로 들고 가는 동안엔 안 보인다.
+       spriteProp(name, pos | null, spriteId, frame): 한 자리에 카메라를 보는 그림. pos = { x, y, z, place? } (place = 'attic' | 'play' | 'loft' | 'yard' | 'exterior' — 없으면 지금 보이는 곳 ·
+       그 장소 그룹의 좌표 · y = 그림 맨 아랫줄이 놓일 높이 · 가로는 그림의 ax 가 그 자리). null = 치움. 같은 name 으로 다시 부르면 바뀐다 ── */
+    var SPR_MAX = 96 * 64, PCAR = null, SPROPS = {};
+    function sprFetch(id, frame) {
+      var CS = typeof window !== 'undefined' ? window.COOK_SPR : null;
+      if (!CS || typeof CS.get !== 'function' || typeof id !== 'string') return null;
+      try {
+        var sp = CS.get(id, frame | 0), inf = typeof CS.info === 'function' ? CS.info(id) : null;
+        if (!sp || !(sp.w > 0) || !(sp.h > 0) || sp.w * sp.h > SPR_MAX || !sp.d || sp.d.length < sp.w * sp.h * 4) return null;
+        var n = 0; for (var i = 3; i < sp.w * sp.h * 4; i += 4) if (sp.d[i] >= 128) n++;
+        return n ? { w: sp.w, h: sp.h, d: sp.d, ax: inf && isFinite(inf.ax) ? Math.floor(inf.ax) : sp.w >> 1, n: n } : null;
+      } catch (e) { return null; }
+    }
+    function sprHolder(sp, name) {
+      var g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array(sp.n * 3), 3)); g.setAttribute('color', new T.BufferAttribute(new Float32Array(sp.n * 3), 3));
+      var o = new T.Points(g, dishSprMat); o.frustumCulled = false; o.name = name; o.visible = false;
+      return { obj: o, sp: sp, key: '' };
+    }
+    function sprDrop(H) { if (!H) return; if (H.obj.parent) H.obj.parent.remove(H.obj); H.obj.geometry.dispose(); }
+    function sprLay(H, parent, x, y, z) {   /* 부모 좌표 (x, y, z) 에 맨 아랫줄 · ax 열 */
+      var o = H.obj, sp = H.sp;
+      if (!parent || !parent.visible) { o.visible = false; return; }
+      if (o.parent !== parent) { parent.add(o); H.key = ''; }
+      o.visible = true;
+      _tbv.set(x, y, z); parent.localToWorld(_tbv); snapC(_tbv);
+      var dim = 1 - 0.3 * nightK(), key = _tbv.x.toFixed(4) + ',' + _tbv.y.toFixed(4) + ',' + _tbv.z.toFixed(4) + '|' + S.pw + '|' + dim.toFixed(2);
+      if (key === H.key) return; H.key = key;
+      var base = _tbv.clone(), up = pxUp(), pw = S.pw, pa = o.geometry.attributes.position.array, ca = o.geometry.attributes.color.array, n = 0, w = sp.w, h = sp.h, d = sp.d, col = new T.Color();
+      camera.getWorldDirection(_tbw); var V = _tbw.clone();
+      for (var r = 0; r < h; r++) for (var c = 0; c < w; c++) {
+        var k = (r * w + c) * 4; if (d[k + 3] < 128 || n >= sp.n) continue;
+        _tbw.copy(base).addScaledVector(_r, (c - sp.ax) * pw); _tbw.y += (h - 1 - r) * up; _tbw.addScaledVector(V, -0.06);
+        parent.worldToLocal(_tbw);
+        pa[n * 3] = _tbw.x; pa[n * 3 + 1] = _tbw.y; pa[n * 3 + 2] = _tbw.z;
+        col.setRGB(d[k] / 255, d[k + 1] / 255, d[k + 2] / 255).convertSRGBToLinear().multiplyScalar(dim); ca[n * 3] = col.r; ca[n * 3 + 1] = col.g; ca[n * 3 + 2] = col.b; n++;
+      }
+      o.geometry.setDrawRange(0, n); o.geometry.attributes.position.needsUpdate = true; o.geometry.attributes.color.needsUpdate = true; dither.still = 0;
+    }
+    function playerCarry(id, frame) {
+      if (PCAR) { sprDrop(PCAR); PCAR = null; dither.still = 0; }
+      if (id == null) return true;
+      var sp = sprFetch(id, frame); if (!sp) return false;
+      PCAR = sprHolder(sp, 'playerCarrySpr'); PCAR.id = id; PCAR.frame = frame | 0;
+      return true;
+    }
+    function spriteProp(name, pos, id, frame) {
+      name = String(name);
+      if (Object.prototype.hasOwnProperty.call(SPROPS, name)) { sprDrop(SPROPS[name]); delete SPROPS[name]; dither.still = 0; }
+      if (!pos || typeof pos !== 'object') return true;
+      var sp = sprFetch(id, frame); if (!sp || !isFinite(pos.x) || !isFinite(pos.z)) return false;
+      var H = sprHolder(sp, 'spriteProp-' + name);
+      H.place = typeof pos.place === 'string' ? pos.place : PLACE.vis; H.at = [+pos.x, isFinite(pos.y) ? +pos.y : 0, +pos.z]; H.id = id; H.frame = frame | 0;
+      SPROPS[name] = H; return true;
+    }
+    function stepSprProps() {
+      if (PCAR) {
+        var par = plG.parent, show = !!par && plG.visible && !CARRY && !PL.sit && !PL.hop && !(FM && FM.on);
+        if (!show) PCAR.obj.visible = false;
+        else {
+          var yw = plG.rotation.y;
+          sprLay(PCAR, par, plG.position.x + Math.sin(yw) * 0.26, plG.position.y + 0.50, plG.position.z + Math.cos(yw) * 0.26);
+          plArmL.rotation.x = -1.15; plArmR.rotation.x = -1.15; plArmL.rotation.z = -0.1; plArmR.rotation.z = 0.1;   /* 두 팔을 앞으로 (stepPlayer 뒤에 덮어쓴다) */
+        }
+      }
+      for (var k in SPROPS) if (Object.prototype.hasOwnProperty.call(SPROPS, k)) { var H = SPROPS[k]; sprLay(H, groupOf(H.place), H.at[0], H.at[1], H.at[2]); }
+    }
+    function sprInfo() {   /* 시험용 */
+      var out = { carry: PCAR ? { id: PCAR.id, frame: PCAR.frame, visible: PCAR.obj.visible, n: PCAR.sp.n, parent: PCAR.obj.parent ? PCAR.obj.parent.name : '' } : null, props: {} };
+      for (var k in SPROPS) if (Object.prototype.hasOwnProperty.call(SPROPS, k)) { var H = SPROPS[k]; out.props[k] = { id: H.id, frame: H.frame, place: H.place, at: H.at.slice(), visible: H.obj.visible, n: H.sp.n }; }
+      return out;
+    }
     var CARRY = null, CARRY_AT = [1.30, -1.80], CARRY_HOLD = 0.35, CARRY_PUT = 0.25;
     function carryLeg(to, face) { var p = plWalkTo(to, face), w = PL.walking; return !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); }); }   /* 끊기면 null (plWalkTo 는 끊긴 걸음을 풀지 않는다) */
     function dishAt() {   /* 요리 자리 (놀이방 좌표): 식탁 · 들고 있으면 두 손 앞 · 내려놓는 동안은 그 사이 3칸 */
@@ -7086,7 +7160,7 @@ var SCENE3D = (function () {
       octTableBeat: octTableBeat, mealBite: mealBite, octLeaveTable: octLeaveTable, octAtTable: octAtTable, setAura: setAura, auraInfo: auraInfo, debugTableBodies: tableBodies,
       /* 7차 갈래가 장면 API 에 더하는 것 (11-21): 제 표시 줄 바로 아래에 '이름: 값,' 줄로 (쉼표까지) */
       /* [7-T] */
-      playerCarryDish: playerCarryDish, playerCarryCut: playerCarryCut,
+      playerCarryDish: playerCarryDish, playerCarryCut: playerCarryCut, playerCarry: playerCarry, spriteProp: spriteProp, debugSprites: sprInfo,
       debugDishSprite: function () { var o = TB.sprObj; if (!o || !o.visible || !TB.sprOn) return null; o.updateMatrixWorld(true); var pa = o.geometry.attributes.position.array, pts = []; for (var i = 0; i < (TB.sprN || 0); i++) { _tbw.set(pa[i * 3], pa[i * 3 + 1], pa[i * 3 + 2]).applyMatrix4(o.matrixWorld).project(camera); pts.push([(_tbw.x * 0.5 + 0.5) * S.rw, (1 - (_tbw.y * 0.5 + 0.5)) * S.rh]); } return { n: TB.sprN || 0, pts: pts, rw: S.rw, rh: S.rh, eaten: TB.eaten.slice() }; },
 
       /* [7-P] */
