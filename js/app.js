@@ -5558,7 +5558,8 @@ var APP = (function () {
      - 지킴이의 말은 갈래 N 의 APP.npcSay 만 (없으면 아무 말도 대신 지어내지 않는다).
      - 레코드 (#btn-cafe-lp → #lp-sheet): 재킷을 누르면 판이 돈다. 소리는 '소리 켜기' 가 켜져 있을 때만 — 꺼져 있으면 판만 돌고 스피커 그림 단추가 켜기를 권한다 (누르는 것은 플레이어).
        카페 (마을) 를 벗어나거나, 부엌 · 달리기를 열거나, 탭을 숨기면 멈춘다. */
-  var cafeAsk = null, cafeAskAt = 0, cafeSeated = false, cafeWatch = 0, cafeLp = { id: null, sound: false, ang: 0, spin: 0, watch: 0, vol: -1 };
+  var cafeNew = null;   /* 방금 도장이 찍힌 메뉴 (다음에 메뉴를 열 때 그 도장만 반짝) */
+  var cafeAsk = null, cafeAskAt = 0, cafeSeated = false, cafeWatch = 0, cafeLp = { id: null, sound: false, room: false, ang: 0, arm: 0, spin: 0, watch: 0, vol: -1 };
   function cafeState() { var u = userState(); u.cafe = CAFE.normalize(u.cafe); return u.cafe; }
   function cafeAdopt(mineS, R) {   /* adoptRemote: 이 탭 것과 받은 것을 합친다 (큰 수 · 선물 합집합 · 쟁반은 받은 쪽). 받은 쪽이 모자랐으면 다음 틱에 저장 */
     if (!window.CAFE || !isObj(R)) return;
@@ -5584,39 +5585,196 @@ var APP = (function () {
     return c;
   }
   function cafeSpr(sprId, artId) { var s = null; try { s = window.COOK_SPR && typeof COOK_SPR.get === 'function' ? COOK_SPR.get(sprId, 0) : null; } catch (e) { s = null; } return s || CAFE.art(artId); }
+  /* 11-21 콘텐츠 다듬기 (주인: "탭같은 느낌으로 축약하지 말고 … 개별 콘텐츠 같은 느낌"; wip/round7/briefs/CONTENT.md): 카페 방 (갈래 W 의 방 · V 의 가구) 안에서는 창이 아니라 방에서 일이 벌어진다.
+     칠판 (#btn-cafe-menu) → 칠판 확대 카드 = 메뉴 → 시키기 → 지킴이가 잠깐 일하고 (김) 받는 자리에 쟁반 → 카운터 단추로 집어 든다 → 내 자리까지 들고 가 내려놓고 앉는다 → 식탁 위 접시를 누를 때마다 한 입 →
+     다 먹으면 도장 카드에 도장 · 세 번째에 레시피 → 레코드 구석 (#btn-cafe-lp): 선반 확대 카드에서 재킷을 고르면 방의 판이 돈다 → 일어나기 · 문으로 끝. 먹다 만 접시는 식탁에서 기다린다.
+     카드는 #scene 안의 보통 요소 (#cafe-card — dialog 가 아니다). 방이 없으면 (2D · 방 함수 없음) 예전 시트 · 쟁반이 그대로 열린다. 규칙 (값 · 세기 · 선물 · 두 탭 · 음악) 은 그대로.
+     무엇이 끊어도 (걸어 나감 · 문 · 숨은 탭) 저장된 사실만 남는다: 값을 낸 음식은 기록의 쟁반에 있고, 다음에 방에 들어오면 식탁에 놓여 있다 */
+  var cafeRoom = { stage: null, t: 0, plateT: 0, card: null, opener: null, cardT: 0 };   /* stage: null | 'brew' | 'ready' | 'carry' | 'eat' · card: null | 'menu' | 'lp' | 'stamp' */
+  function cafeIn() { try { return !!scene && typeof scene.inRoom === 'function' && scene.inRoom() === 'cafe'; } catch (e) { return false; } }
+  function cafeRoomOK() { return cafeIn() && typeof scene.project === 'function' && typeof scene.spriteProp === 'function' && !!$('cafe-card'); }   /* 방 안의 연출을 다 할 수 있는가 (하나라도 없으면 예전 쟁반) */
+  function cafeSlot(key) {
+    try { var s = scene.roomSlots('cafe'), q = s && s[key]; if (Array.isArray(q)) return { x: +q[0] || 0, y: +q[1] || 0, z: +q[2] || 0 }; if (q && typeof q.x === 'number') return { x: q.x, y: +q.y || 0, z: +q.z || 0 }; } catch (e) { /* 자리 없음 */ }
+    return null;
+  }
+  function cafeProp(name, key, id, frame) { if (!scene || typeof scene.spriteProp !== 'function') return; try { scene.spriteProp(name, key ? cafeSlot(key) : null, id || null, frame | 0); } catch (e) { console.warn('[cafe] spriteProp', e); } }
+  function cafeCarryPic(id) { if (scene && typeof scene.playerCarry === 'function') { try { scene.playerCarry(id, 0); } catch (e) { console.warn('[cafe] playerCarry', e); } } }
+  function cafeHas(id) { try { return !!(window.COOK_SPR && COOK_SPR.info && COOK_SPR.info(id)); } catch (e) { return false; } }
+  function cafePlateId(it) { var a = it.drink ? 'cafe.cup' : 'table.' + (it.id === 'kkochi' ? 'kkochi' : it.id); return cafeHas(a) ? a : it.spr; }   /* 먹는 단계 그림 (갈래 A — 프레임 0..3) 이 있으면 그것, 없으면 메뉴 그림 */
+  function cafePlate() {   /* 식탁 위 접시를 기록대로 (없으면 치운다) */
+    var c = cafeState(), tr = c.tray, it = tr && CAFE.item(tr.id);
+    if (!it || !cafeIn()) { cafeProp('cafe-plate', null); cafePlateBtn(false); return; }
+    cafeProp('cafe-plate', 'table', cafePlateId(it), it.bites - tr.left);
+    cafePlateBtn(tr.left > 0, it);
+  }
+  function cafePlateBtn(on, it) {   /* 접시를 누르는 단추: 장면 위에 식탁 자리를 따라다닌다 (scene.project) */
+    var b = $('btn-cafe-plate'); if (!b) return;
+    if (!on) { b.hidden = true; if (cafeRoom.plateT) { clearInterval(cafeRoom.plateT); cafeRoom.plateT = 0; } return; }
+    b.setAttribute('aria-label', it.name + (it.drink ? ' 마시기' : ' 먹기'));
+    var place = function () {
+      var q = cafeSlot('table'), xy = null; try { xy = q && scene.project(q.x, q.y, q.z); } catch (e) { xy = null; }
+      if (!xy || !cafeIn()) { b.hidden = true; return; }
+      b.style.transform = 'translate(' + Math.round(xy.x - 28) + 'px,' + Math.round(xy.y - 44) + 'px)'; b.hidden = false;
+    };
+    place(); if (!cafeRoom.plateT) cafeRoom.plateT = setInterval(place, 100);
+  }
+  function cafePuff(key, n) {   /* 김 · 부스러기 몇 알 (꾸밈): 방 자리 위에 */
+    var sc = $('scene'), q = cafeSlot(key), xy = null; if (!sc || !q || reduced()) return;
+    try { xy = scene.project(q.x, q.y, q.z); } catch (e) { xy = null; } if (!xy) return;
+    for (var i = 0; i < n; i++) {
+      var el = h('i', { class: 'cafe-crumb' + (key === 'keeper' ? ' steam' : ''), 'aria-hidden': 'true' });
+      el.style.left = Math.round(xy.x + (i - (n - 1) / 2) * 6) + 'px'; el.style.top = Math.round(xy.y - (key === 'keeper' ? 30 : 12)) + 'px';
+      el.style.setProperty('--dx', ((i - (n - 1) / 2) * (key === 'keeper' ? 3 : 9)) + 'px'); el.style.setProperty('--dy', (-12 - (i % 3) * 8) + 'px'); el.style.animationDelay = (key === 'keeper' ? i * 180 : 0) + 'ms';
+      sc.appendChild(el); (function (x) { setTimeout(function () { if (x.parentNode) x.parentNode.removeChild(x); }, 1400); })(el);
+    }
+  }
+  function cafeBrew() {   /* 시킨 뒤: 지킴이가 잠깐 일한다 → 받는 자리에 쟁반 */
+    var c = cafeState(), it = c.tray && CAFE.item(c.tray.id); if (!it) return;
+    cafeRoom.stage = 'brew'; cafeSay('cafe.order', { dish: it.name }); cafePuff('keeper', 5);
+    clearTimeout(cafeRoom.t);
+    cafeRoom.t = setTimeout(function () {
+      if (cafeRoom.stage !== 'brew' || !cafeIn()) return;
+      cafeRoom.stage = 'ready'; cafeProp('cafe-tray', 'pickup', cafeHas('cafe.tray') ? 'cafe.tray' : it.spr, 0);
+      var cb = $('btn-cafe-counter'); if (cb) { if (cb._name == null) cb._name = cb.getAttribute('aria-label') || ''; cb.setAttribute('aria-label', '쟁반 가져가기'); }
+      cafeSay('cafe.serve', { dish: it.name });
+    }, reduced() ? 300 : 1500);
+  }
+  function cafeCounterName() { var cb = $('btn-cafe-counter'); if (cb && cb._name != null) { cb.setAttribute('aria-label', cb._name); cb._name = null; } }
+  function cafeCarry() {   /* 쟁반을 집어 들고 내 자리로: 앉으면 내려놓는다. 걷다 끊겨도 음식은 식탁에 놓인다 (값을 낸 것이 사라지지 않게) */
+    var c = cafeState(), it = c.tray && CAFE.item(c.tray.id); if (!it) { cafeRoom.stage = null; return; }
+    cafeRoom.stage = 'carry'; cafeCounterName(); cafeProp('cafe-tray', null); cafeCarryPic(cafeHas('cafe.tray') ? 'cafe.tray' : it.spr);
+    var sat = null; if (typeof scene.cafeSit === 'function') { try { sat = scene.cafeSit(true); } catch (e) { sat = null; } }
+    var down = function (ok) {
+      if (cafeRoom.stage !== 'carry') return;
+      cafeCarryPic(null); cafeRoom.stage = 'eat'; cafeSeated = !!ok && cafeIn();
+      cafePlate(); if (cafeSeated && it.drink) cafeScene('cafeCup', true);
+      if (!cafeWatch) cafeWatch = setInterval(cafeTick, 400);
+    };
+    if (sat && typeof sat.then === 'function') sat.then(down, function () { down(false); }); else down(false);
+  }
+  function cafeCounterTap() {   /* 카운터 단추: 쟁반이 나와 있으면 집어 든다 · 만드는 중이면 기다린다 · 아니면 메뉴 */
+    if (cafeRoomOK()) { if (cafeRoom.stage === 'ready') { cafeCarry(); return; } if (cafeRoom.stage === 'brew' || cafeRoom.stage === 'carry') return; }
+    openCafe();
+  }
+  function cafePlateTap() {   /* 접시: 앉아 있으면 한 입, 서 있으면 먼저 앉는다 */
+    if (!cafeRoomOK()) return;
+    if (!cafeSeated) { cafeSeatTap(); return; }
+    cafeBite();
+  }
+  /* 카드 (#cafe-card): 방 안 물건의 확대 — 칠판 (menu) · 레코드 선반 (lp) · 도장 카드 (stamp, 잠깐 떴다 사라진다) */
+  function cafeCardOpen(mode, opener) {
+    var card = $('cafe-card'), body = $('cafe-card-body'); if (!card || !body) return false;
+    var sb = $('cafe-body'), lb = $('lp-body'); if (sb) sb.textContent = ''; if (lb) lb.textContent = '';   /* 같은 id 가 두 군데 생기지 않게 시트 쪽은 비운다 */
+    clearTimeout(cafeRoom.cardT);
+    cafeRoom.card = mode; cafeRoom.opener = opener || document.activeElement; card.setAttribute('data-mode', mode); card.setAttribute('aria-label', mode === 'lp' ? '레코드 선반' : mode === 'stamp' ? '도장 카드' : '메뉴 칠판');
+    var cl = $('cafe-card-close'); if (cl) cl.hidden = mode === 'stamp';
+    if (mode === 'menu') { cafeAsk = null; renderCafe(); } else if (mode === 'lp') renderLp(); else cafeStampCard();
+    var sc = $('scene'), go = $('btn-go'), sr = sc && sc.getBoundingClientRect(), gr = go && go.getBoundingClientRect();
+    card.style.bottom = (sr && gr && gr.height > 0 && gr.top < sr.bottom && gr.bottom > sr.top ? Math.max(8, Math.round(sr.bottom - gr.top) + 8) : 8) + 'px';
+    card.hidden = false;
+    if (mode !== 'stamp') { var f = body.querySelector('button'); if (f) { try { f.focus({ preventScroll: true }); } catch (e) { f.focus(); } } }
+    return true;
+  }
+  function cafeCardClose(quiet) {
+    var card = $('cafe-card'), body = $('cafe-card-body'); if (!card || card.hidden) { cafeRoom.card = null; return; }
+    clearTimeout(cafeRoom.cardT); card.hidden = true; if (body) body.textContent = ''; cafeAsk = null;
+    var op = cafeRoom.opener; cafeRoom.card = null; cafeRoom.opener = null;
+    if (!quiet && op && op.focus && document.contains(op) && !op.hidden) { try { op.focus({ preventScroll: true }); } catch (e) { op.focus(); } }
+  }
+  function cafeStampCard() {   /* 다 먹은 뒤: 도장 카드가 잠깐 뜬다 (도장 셋 + 레시피 카드 그림 — 글자 없음) */
+    var body = $('cafe-card-body'); if (!body) return; var c = cafeState(), id = cafeNew, it = id && CAFE.item(id), n = it ? CAFE.dots(c, id) : -1; if (n < 0) return;
+    var dots = h('span', { class: 'cafe-dots big', 'aria-hidden': 'true' });
+    for (var i = 0; i < CAFE.GIFT_AT; i++) dots.appendChild(h('i', { class: (i < n ? 'on' : '') + (i === n - 1 ? ' new' : '') || null }));
+    dots.appendChild(cafeCanvas(cafeSpr('cafe.card', 'card'), 32));
+    body.textContent = ''; body.appendChild(h('div', { class: 'cafe-stampcard' }, [cafeCanvas(cafeSpr(it.spr, it.id), 64), dots, h('span', { class: 'sr-only', text: it.name + ', 세 번 가운데 ' + n + '번 먹었어' })]));
+    cafeNew = null;
+  }
+  function cafeRoomEnter() {   /* 방에 들어왔다: 먹다 만 접시가 식탁에서 기다린다 */
+    var c = cafeState(); cafeRoom.stage = null;
+    if (CAFE.pending(c) && cafeRoomOK()) { cafeRoom.stage = 'eat'; cafePlate(); }
+  }
+  function cafeRoomLeave() {   /* 방을 나갔다 (문 · 빠른 이동 · 무엇이든): 연출을 걷고 자리를 끝낸다. 기록은 그대로 */
+    clearTimeout(cafeRoom.t); cafeRoom.stage = null; cafeCounterName(); cafeCardClose(true);
+    cafeProp('cafe-tray', null); cafeProp('cafe-plate', null); cafePlateBtn(false); cafeCarryPic(null);
+    if (cafeLp.id && cafeLp.room) lpStop();
+    if (cafeSeated) cafeStand(); else { var c = cafeState(); CAFE.leave(c); }
+  }
+
+  /* 11-21 UI 둘째 다듬기 (주인: "ui가 너무 조잡한데"): 시트 맨 위는 그곳의 그림 띠 (벽 · 선반 · 카운터) — 지킴이 초상 (갈래 N 의 npcFace, 없으면 비움) 이 왼쪽, 오른쪽은 kind 에 따라 조개 주머니.
+     그림은 그림 px 2 = 화면 px (기기 px 정수 배). kind: 'menu' 선반에 잔 · 병, 'lp' 선반에 레코드 등 */
+  function cafeBand(kind, right) {
+    var u = cafeUnit(2), W = Math.ceil(Math.min(600, window.innerWidth) / u), H = 48, d = new Uint8ClampedArray(W * H * 4), x, y, i;
+    function px(x0, y0, c) { if (x0 < 0 || y0 < 0 || x0 >= W || y0 >= H) return; var k = (y0 * W + x0) * 4; d[k] = c[0]; d[k + 1] = c[1]; d[k + 2] = c[2]; d[k + 3] = 255; }
+    function box(x0, y0, w, hh, c) { for (var yy = y0; yy < y0 + hh; yy++) for (var xx = x0; xx < x0 + w; xx++) px(xx, yy, c); }
+    var WALL = [233, 210, 168], WALL2 = [220, 194, 148], WOOD = [138, 90, 58], WOODL = [185, 138, 90], WOODD = [96, 58, 38], INK = [59, 42, 38];
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) px(x, y, x % 14 === 0 ? WALL2 : WALL);
+    box(0, 0, W, 2, WOODD);                                             /* 천장 몰딩 */
+    var sx = Math.round(W * 0.56), sw = W - sx - 6;                      /* 선반: 오른쪽 벽 (판자 4 + 그림자 2) */
+    box(sx, 20, sw, 2, WOODL); box(sx, 22, sw, 2, WOOD); box(sx, 24, sw, 1, WALL2);
+    var COL = [[214, 69, 80], [244, 234, 216], [120, 180, 90], [96, 150, 180], [246, 214, 120], [86, 84, 100], [232, 190, 170]];
+    for (i = 0, x = sx + 3; x < sx + sw - 6; i++) {
+      var c = COL[i % COL.length];
+      if (kind === 'lp') { var w1 = 2 + (i % 2); box(x, 9, w1, 11, c); px(x, 9, INK); x += w1 + 1; if (i % 5 === 4) x += 2; }   /* 꽂힌 레코드 등 */
+      else if (i % 3 === 2) { box(x, 12, 5, 8, c); box(x + 1, 10, 3, 2, INK); x += 9; }                                        /* 병 */
+      else { box(x, 15, 6, 5, [244, 234, 216]); box(x, 15, 6, 1, c); px(x + 6, 17, [244, 234, 216]); x += 10; }                 /* 잔 */
+    }
+    box(Math.round(W * 0.3), 2, 1, 8, INK); box(Math.round(W * 0.3) - 3, 10, 7, 3, [246, 214, 120]); box(Math.round(W * 0.3) - 4, 13, 9, 1, WOODD);   /* 등 */
+    box(0, 38, W, 2, WOODL); box(0, 40, W, 1, WOOD); box(0, 41, W, 7, WOODD);                                                  /* 카운터: 윗판 + 앞판 */
+    for (x = 6; x < W; x += 18) box(x, 42, 1, 6, WOOD);
+    var cv = cafeCanvas({ w: W, h: H, d: d }, W * 2); cv.classList.add('cafe-band-pic');
+    var kids = [cv];
+    if (typeof npcFace === 'function' && NPCR && typeof NPCR.who === 'function') {
+      try { var who = NPCR.who('cafe'); if (who) { var face = h('canvas', { class: 'cafe-keeper', 'aria-hidden': 'true' }); npcFace(face, who); kids.push(face); } } catch (e) { console.warn('[cafe] keeper', e); }
+    }
+    if (right) kids.push(right);
+    return h('div', { class: 'cafe-band' }, kids);
+  }
+  function cafeTag(price) { return h('span', { class: 'cafe-cost cafe-tag' }, [shellAmt(price)]); }   /* 가격표: 구멍 난 꼬리표 */
   function renderCafe() {
-    var body = $('cafe-body'); if (!body) return; var u = userState(), c = cafeState(), frag = document.createDocumentFragment();
-    frag.appendChild(h('p', { class: 'bag-line' }, [shellAmt(u.shells)]));
+    var inCard = cafeRoom.card === 'menu', sel = inCard ? '#cafe-card-body' : '#cafe-body', body = document.querySelector(sel); if (!body) return; var u = userState(), c = cafeState(), frag = document.createDocumentFragment();
+    if (inCard) frag.appendChild(h('p', { class: 'bag-line cafe-purse in-card' }, [shellAmt(u.shells)]));   /* 방 안에서는 지킴이 · 카운터가 방에 서 있다 — 카드는 칠판과 조개 주머니만 */
+    else frag.appendChild(cafeBand('menu', h('p', { class: 'bag-line cafe-purse' }, [shellAmt(u.shells)])));
     if (cafeAsk) {
       var it = CAFE.item(cafeAsk), early = function (e) { return !(e && e.isTrusted && e.detail === 0) && tapTime(e) - cafeAskAt < SHEET_SETTLE; };
       var by = h('button', { type: 'button', class: 'btn sm pressable sew-yes', text: '시킬래', 'aria-describedby': 'cafe-ask-line' }), bn = h('button', { type: 'button', class: 'btn sm pressable sew-no', text: '그만', 'aria-describedby': 'cafe-ask-line' });
       by.addEventListener('click', function (e) { if (early(e)) return; var id = cafeAsk; cafeAsk = null; if (id) cafeBuy(id); });
-      bn.addEventListener('click', function (e) { if (early(e)) return; cafeAsk = null; renderCafe(); sewFocus('#cafe-body .cafe-menu', 0); });
-      frag.appendChild(h('div', { class: 'sew-ask', role: 'group', 'aria-labelledby': 'cafe-ask-line' }, [
-        h('p', { class: 'sew-ask-line', id: 'cafe-ask-line' }, [h('span', { text: it.name + ' · ' }), shellAmt(it.price), h('span', { text: ' 시킬까?' })]), h('div', { class: 'btn-row sew-ask-btns' }, [bn, by])]));
+      bn.addEventListener('click', function (e) { if (early(e)) return; cafeAsk = null; renderCafe(); sewFocus(sel + ' .cafe-menu', 0); });
+      /* 물음 = 칠판 위 주문 쪽지: 접시 그림 + 한 줄 + 단추 둘 */
+      frag.appendChild(h('div', { class: 'cafe-board' }, [h('div', { class: 'sew-ask cafe-slip', role: 'group', 'aria-labelledby': 'cafe-ask-line' }, [
+        h('span', { class: 'cafe-slip-pic' }, [cafeCanvas(cafeSpr(it.spr, it.id), 64)]),
+        h('p', { class: 'sew-ask-line', id: 'cafe-ask-line' }, [h('span', { text: it.name + ' · ' }), shellAmt(it.price), h('span', { text: ' 시킬까?' })]), h('div', { class: 'btn-row sew-ask-btns' }, [bn, by])])]));
     } else {
-      var row = h('div', { class: 'cafe-menu', role: 'group', 'aria-label': '메뉴' });
-      CAFE.MENU.forEach(function (it) {
-        var n = CAFE.dots(c, it.id), kids = [h('span', { class: 'cafe-plate' }, [cafeCanvas(cafeSpr(it.spr, it.id), 64)]), h('span', { class: 'cafe-name', text: it.name }), h('span', { class: 'cafe-cost' }, [shellAmt(it.price)])];
-        if (n >= 0) { var dots = h('span', { class: 'cafe-dots', 'aria-hidden': 'true' }); for (var i = 0; i < CAFE.GIFT_AT; i++) dots.appendChild(h('i', { class: i < n ? 'on' : null })); kids.push(dots); kids.push(h('span', { class: 'sr-only', text: ', 세 번 가운데 ' + n + '번 먹었어' })); }
+      /* 칠판 (분필 테두리) 에 이름과 가격표, 그 아래 카운터에 접시 셋, 카운터 앞판에 도장 카드 (도장 셋 + 레시피 카드 — 글자 없음) */
+      var row = h('div', { class: 'cafe-menu cafe-board', role: 'group', 'aria-label': '메뉴' });
+      CAFE.MENU.forEach(function (it, idx) {
+        var n = CAFE.dots(c, it.id), kids = [h('span', { class: 'cafe-name', text: it.name }), cafeTag(it.price), h('span', { class: 'cafe-plate' }, [cafeCanvas(cafeSpr(it.spr, it.id), 64)])];
+        if (n >= 0) {
+          var dots = h('span', { class: 'cafe-dots', 'aria-hidden': 'true' });
+          for (var i = 0; i < CAFE.GIFT_AT; i++) dots.appendChild(h('i', { class: (i < n ? 'on' : '') + (cafeNew === it.id && i === n - 1 ? ' new' : '') || null }));
+          dots.appendChild(cafeCanvas(cafeSpr('cafe.card', 'card'), 16));
+          kids.push(dots); kids.push(h('span', { class: 'sr-only', text: ', 세 번 가운데 ' + n + '번 먹었어' }));
+        } else kids.push(h('span', { class: 'cafe-dots none', 'aria-hidden': 'true' }));
         var b = h('button', { type: 'button', class: 'cafe-item pressable' }, kids);
+        b.style.setProperty('--i', String(idx));
         b.addEventListener('click', function () { cafePick(it.id, b); });
         row.appendChild(b);
       });
-      frag.appendChild(row);
+      frag.appendChild(row); cafeNew = null;
     }
     body.textContent = ''; body.appendChild(frag);
   }
   function cafePick(id, btn) {   /* 메뉴 칸을 눌렀다 — 여기서는 아무것도 쓰지 않는다 */
     var u = userState(), it = CAFE.item(id); if (!it || cafeAsk) return;
     if (u.shells < it.price) { var miss = it.price - u.shells; furnShake(btn && btn.querySelector('.cafe-cost')); toast([h('span', { 'aria-hidden': 'true' }, [shellAmt(miss), ' 모자라']), h('span', { class: 'sr-only', text: '조개가 ' + miss + '개 모자라' })]); return; }
-    cafeAsk = id; cafeAskAt = performance.now(); renderCafe(); sewFocus('#cafe-body .sew-ask', 0);
+    cafeAsk = id; cafeAskAt = performance.now(); renderCafe(); sewFocus((cafeRoom.card === 'menu' ? '#cafe-card-body' : '#cafe-body') + ' .sew-ask', 0);
   }
   function cafeBuy(id) {   /* '시킬래' 를 누른 뒤에만: 조개를 다시 확인하고 쓴다 */
     var u = userState(), c = cafeState(), r = CAFE.order(c, id, u.shells, todayKey());
     if (!r.ok) { renderCafe(); return; }
     u.shells -= r.cost; save(); renderBagChip();
     var sh = $('cafe-sheet'); if (sh && sh.open) sh.close();
+    if (cafeRoom.card === 'menu' && cafeRoomOK()) { cafeCardClose(); cafeBrew(); return; }   /* 방 안: 지킴이가 만들고 쟁반이 나온다 */
+    cafeCardClose(true);
     cafeServe(true);
   }
   function cafeServe(fresh) {   /* 자리에 앉고 쟁반을 낸다 */
@@ -5632,12 +5790,12 @@ var APP = (function () {
   }
   function renderCafeTray() {
     var tr = $('cafe-tray'); if (!tr) return;
-    if (!cafeSeated) { tr.hidden = true; tr.textContent = ''; return; }
+    if (!cafeSeated || cafeRoomOK()) { tr.hidden = true; tr.textContent = ''; return; }   /* 방 안에서는 식탁 위 접시가 쟁반 노릇을 한다 */
     var c = cafeState(), t = c.tray, it = t && CAFE.item(t.id), kids = [];
     if (it) {
       var spr = cafeSpr(it.spr, it.id), cols = it.bites ? Math.ceil(spr.w * t.left / it.bites) : spr.w, pic = cafeCanvas(spr, 64, cols);
       if (it.bites && t.left > 0) {
-        var eat = h('button', { type: 'button', id: 'cafe-eat', class: 'cafe-eat pressable', 'aria-label': it.name + ' 먹기' }, [pic]);
+        var eat = h('button', { type: 'button', id: 'cafe-eat', class: 'cafe-eat pressable', 'aria-label': it.name + (it.drink ? ' 마시기' : ' 먹기') }, [pic]);
         eat.addEventListener('click', cafeBite); kids.push(eat);
       } else if (!it.bites) kids.push(h('div', { id: 'cafe-eat', class: 'cafe-eat', role: 'img', 'aria-label': it.name }, [pic]));   /* 커피는 잔만 놓인다 · 다 먹은 접시는 그림 없이 */
     }
@@ -5661,10 +5819,14 @@ var APP = (function () {
   }
   function cafeBite() {
     var c = cafeState(), r = CAFE.bite(c); if (!r.ok) return;
-    save(); var from = $('cafe-eat'), box = from && from.getBoundingClientRect();
-    renderCafeTray(); cafeCrumbs($('cafe-eat') || from);
-    if (!r.done) { var nx = $('cafe-eat'); if (nx && nx.focus) nx.focus(); return; }
-    var st = $('cafe-stand'); if (st) st.focus();
+    var inRoom = cafeRoomOK();
+    save(); var from = inRoom ? $('btn-cafe-plate') : $('cafe-eat'), box = from && from.getBoundingClientRect();
+    if (inRoom) { cafePlate(); if (!r.item.drink) cafePuff('table', 6); if (r.done && r.item.drink) cafeScene('cafeCup', false); }
+    else { renderCafeTray(); cafeCrumbs($('cafe-eat') || from); }
+    if (!r.done) { var nx = inRoom ? $('btn-cafe-plate') : $('cafe-eat'); if (nx && nx.focus && !nx.hidden) nx.focus(); return; }
+    var st = inRoom ? $('btn-cafe-seat') : $('cafe-stand'); if (st && !st.hidden) st.focus();
+    if (r.item.recipe) cafeNew = r.item.id;
+    if (inRoom && r.item.recipe) { cafeSay('cafe.stamp', { dish: r.item.name }); if (cafeCardOpen('stamp', st)) cafeRoom.cardT = setTimeout(function () { if (cafeRoom.card === 'stamp') cafeCardClose(true); }, 2200); }   /* 도장이 카드에 찍힌다 */
     var eatFn = cafeApi('recipeEat'), res = null;
     if (eatFn && r.item.recipe) { try { res = eatFn(r.item.recipe); } catch (e) { console.warn('[cafe] recipeEat', e); } }
     if (res && res.gift === true) {
@@ -5678,7 +5840,7 @@ var APP = (function () {
     var bag = $('btn-bag'); if (!box || !bag || bag.hidden || reduced()) return;
     var to = bag.getBoundingClientRect(), cv = cafeCanvas(cafeSpr('cafe.card', 'card'), 36), x0 = Math.round(box.left + box.width / 2 - 18), y0 = Math.round(box.top);
     cv.classList.add('cafe-fly'); cv.style.left = x0 + 'px'; cv.style.top = y0 + 'px';
-    var host = document.querySelector('dialog[open]') || document.body; host.appendChild(cv);
+    var host = document.querySelector('dialog[open]') || document.body; host.appendChild(cv);   /* position: fixed — 방 안에서는 body 에 */
     requestAnimationFrame(function () { requestAnimationFrame(function () { cv.style.transform = 'translate(' + Math.round(to.left + to.width / 2 - 18 - x0) + 'px,' + Math.round(to.top - y0) + 'px)'; cv.style.opacity = '0.2'; }); });
     setTimeout(function () { if (cv.parentNode) cv.parentNode.removeChild(cv); }, 900);
   }
@@ -5687,18 +5849,30 @@ var APP = (function () {
     var c = cafeState(); CAFE.leave(c); save();
     cafeSeated = false; cafeScene('cafeCup', false); cafeScene('cafeSit', false);
     renderCafeTray();
+    if (cafeIn()) { cafePlate(); cafeRoom.stage = CAFE.pending(c) ? 'eat' : (cafeRoom.stage === 'eat' ? null : cafeRoom.stage); }   /* 방 안: 먹다 만 접시는 식탁에 남고, 빈 접시는 치운다 */
     if (cafeWatch) { clearInterval(cafeWatch); cafeWatch = 0; }
   }
-  function cafeAway() { return scene && typeof scene.area === 'function' ? scene.area() !== 'village' : false; }   /* 바깥 지도가 있을 때만 '카페를 벗어남' 을 안다 */
+  function cafeAway() { if (cafeIn()) return false; return scene && typeof scene.area === 'function' ? scene.area() !== 'village' : false; }   /* 카페 방 안이면 안 벗어났다 · 바깥 지도가 있을 때만 '카페를 벗어남' 을 안다 */
   function cafeTick() { if (cafeSeated && (cafeAway() || (stk.vec && (stk.vec.x || stk.vec.y)))) cafeStand(); }   /* 걸어 나가면 자리가 끝난다 */
   function openCafe() {
     if (!window.CAFE || !$('cafe-sheet')) return false;
     var c = cafeState();
+    if (cafeRoomOK()) {   /* 방 안: 먹던 것이 있으면 식탁에 있다 (새로 시키지 않는다 — 자리로 간다), 아니면 칠판 확대 */
+      if (cafeRoom.stage === 'brew' || cafeRoom.stage === 'ready' || cafeRoom.stage === 'carry') return true;
+      if (CAFE.pending(c)) { cafeRoom.stage = 'eat'; cafePlate(); if (!cafeSeated) cafeSeatTap(); return true; }
+      cafeSay('cafe.hello'); return cafeCardOpen('menu', document.activeElement);
+    }
     if (CAFE.pending(c)) { cafeServe(false); return true; }   /* 먹다 만 것이 있으면 그것부터 다시 낸다 (값은 이미 냈다) */
-    cafeAsk = null; renderCafe(); cafeSay('cafe.hello'); showDialog($('cafe-sheet'));
+    cafeCardClose(true); cafeAsk = null; renderCafe(); cafeSay('cafe.hello'); showDialog($('cafe-sheet'));
     return true;
   }
-  function cafeSeatTap() { if (!window.CAFE) return; if (cafeSeated) cafeStand(); else cafeServe(false); }
+  function cafeSeatTap() {
+    if (!window.CAFE) return;
+    if (cafeSeated) { cafeStand(); return; }
+    if (cafeRoomOK()) { var c = cafeState(), it = c.tray && CAFE.item(c.tray.id), s = null; try { s = scene.cafeSit(true); } catch (e) { s = null; }   /* 방 안: 앉기만 (접시는 식탁에 있다). 앉음은 ppol:cafe-seat 가 알린다 */
+      if (s && typeof s.then === 'function') s.then(function (ok) { if (ok && it && it.drink && CAFE.pending(cafeState())) cafeScene('cafeCup', true); }, function () {}); return; }
+    cafeServe(false);
+  }
 
   /* 레코드 */
   function lpSoundOn() { return !!(window.AUDIO && typeof AUDIO.enabled === 'function' && AUDIO.enabled()); }
@@ -5716,27 +5890,39 @@ var APP = (function () {
     }
     if (on) { var a = cafeLp.ang * Math.PI / 180; [7, 10].forEach(function (r) { put(15 + Math.cos(a) * r, 16 + Math.sin(a) * r, 200, 196, 210); put(15 - Math.cos(a) * r, 16 - Math.sin(a) * r, 120, 116, 130); }); }
     put(15, 16, 232, 224, 212);
-    var tx = on ? 24 : 33, ty = on ? 20 : 24;   /* 팔: 축 (35, 5) → 바늘 */
+    var ar = on ? Math.max(0, Math.min(1, cafeLp.arm)) : 0, tx = Math.round(33 - 9 * ar), ty = Math.round(24 - 4 * ar);   /* 팔: 축 (35, 5) → 바늘. arm 0 = 쉬는 자리, 1 = 판 위 (올릴 때 몇 걸음에 걸쳐 내려온다) */
     for (var i = 0; i <= 20; i++) put(35 + (tx - 35) * i / 20, 5 + (ty - 5) * i / 20, 232, 224, 212);
     for (y = 3; y <= 7; y++) for (x = 33; x <= 37; x++) put(x, y, 59, 42, 38);
     put(tx, ty, 59, 42, 38); put(tx, ty + 1, 59, 42, 38);
     return { w: w, h: hh, d: d };
   }
-  function lpDraw() { var host = $('lp-deck'); if (!host) return; var cv = cafeCanvas(lpDeck(), 160); cv.id = 'lp-disc'; host.textContent = ''; host.appendChild(cv); }
-  function renderLp() {
-    var body = $('lp-body'); if (!body || !window.CAFE_MUSIC) return; var frag = document.createDocumentFragment(), tunes = CAFE_MUSIC.list(), now = cafeLp.id ? CAFE_MUSIC.tune(cafeLp.id) : null;
-    var top = h('div', { class: 'lp-top' }, [h('div', { id: 'lp-deck', class: 'lp-deck', role: 'img', 'aria-label': now ? '도는 레코드' : '빈 턴테이블' })]);
-    if (!lpSoundOn()) {
-      var sp = h('button', { type: 'button', id: 'lp-sound', class: 'lp-sound pressable', 'aria-label': '소리 켜기' }, [cafeCanvas(CAFE.art('mute'), 48)]);
-      sp.addEventListener('click', function () { if (window.AUDIO && typeof AUDIO.setEnabled === 'function') AUDIO.setEnabled(true); if (cafeLp.id) lpSound(); renderLp(); var f = document.querySelector('#lp-body .lp-sleeve[aria-pressed="true"]') || document.querySelector('#lp-body .lp-sleeve'); if (f) f.focus(); });
-      top.appendChild(sp);
+  function lpDraw() { var host = $('lp-deck'); if (!host) return; var cv = cafeCanvas(lpDeck(), window.innerWidth < 350 ? 160 : 200); cv.id = 'lp-disc'; host.textContent = ''; host.appendChild(cv); }
+  function lpLean(spr) {   /* 재킷을 기대 세운다: 줄마다 옆으로 민 평행사변형 (그림 px 그대로 — 돌리지 않는다) + 뒤에서 삐져나온 판 */
+    var lean = 3, W = spr.w + lean + 3, H = spr.h, d = new Uint8ClampedArray(W * H * 4), x, y;
+    for (y = 0; y < H; y++) {
+      var off = Math.floor((H - 1 - y) * lean / (H - 1));
+      for (x = 0; x < 3; x++) { var k0 = (y * W + off + spr.w + x) * 4, dy = y - H / 2, inside = dy * dy + (x + 6) * (x + 6) <= 81; if (inside && y > 1 && y < H - 2) { d[k0] = 40; d[k0 + 1] = 34; d[k0 + 2] = 44; d[k0 + 3] = 255; } }
+      for (x = 0; x < spr.w; x++) { var s = (y * spr.w + x) * 4, k = (y * W + off + x) * 4; d[k] = spr.d[s]; d[k + 1] = spr.d[s + 1]; d[k + 2] = spr.d[s + 2]; d[k + 3] = spr.d[s + 3]; }
     }
+    return { w: W, h: H, d: d };
+  }
+  function renderLp() {
+    var inCard = cafeRoom.card === 'lp', sel = inCard ? '#cafe-card-body' : '#lp-body', body = document.querySelector(sel); if (!body || !window.CAFE_MUSIC) return; var frag = document.createDocumentFragment(), tunes = CAFE_MUSIC.list(), now = cafeLp.id ? CAFE_MUSIC.tune(cafeLp.id) : null;
+    if (!inCard) frag.appendChild(cafeBand('lp', null));
+    /* 턴테이블 (크게) 과 그 옆 스피커: 소리가 꺼져 있으면 스피커가 '소리 켜기' 단추, 켜져 있으면 그림만 */
+    var top = h('div', { class: 'lp-top' }, inCard ? [] : [h('div', { id: 'lp-deck', class: 'lp-deck', role: 'img', 'aria-label': now ? '도는 레코드' : '빈 턴테이블' })]);   /* 방 안에서는 판이 방의 턴테이블에서 돈다 (scene.cafeRecord) — 카드에는 선반과 스피커만 */
+    if (!lpSoundOn()) {
+      var sp = h('button', { type: 'button', id: 'lp-sound', class: 'lp-sound lp-spk pressable', 'aria-label': '소리 켜기' }, [cafeCanvas(CAFE.art('mute'), 48)]);
+      sp.addEventListener('click', function () { if (window.AUDIO && typeof AUDIO.setEnabled === 'function') AUDIO.setEnabled(true); if (cafeLp.id) lpSound(); renderLp(); var f = document.querySelector(sel + ' .lp-sleeve[aria-pressed="true"]') || document.querySelector(sel + ' .lp-sleeve'); if (f) f.focus(); });
+      top.appendChild(sp);
+    } else top.appendChild(h('div', { class: 'lp-spk' + (cafeLp.sound ? ' live' : ''), 'aria-hidden': 'true' }, [cafeCanvas(CAFE.art('speaker'), 48)]));
     frag.appendChild(top);
     frag.appendChild(h('p', { class: 'lp-now', id: 'lp-now', text: now ? now.name + ' · ' + now.by : '' }));
-    var shelf = h('div', { class: 'lp-shelf', role: 'group', 'aria-label': '레코드' });
+    var shelf = h('div', { class: 'lp-shelf', role: 'group', 'aria-label': '레코드' });   /* 나무 선반 두 단: 단마다 판자 + 그림자 */
     tunes.forEach(function (t, i) {
-      var on = cafeLp.id === t.id, b = h('button', { type: 'button', class: 'lp-sleeve pressable' + (on ? ' on' : ''), 'aria-pressed': String(on), 'aria-label': t.name + ', ' + t.by, 'data-tune': t.id }, [cafeCanvas(CAFE.sleeve(i), 60)]);
-      b.addEventListener('click', function () { lpTap(t.id); var f = document.querySelector('#lp-body .lp-sleeve[data-tune="' + t.id + '"]'); if (f) f.focus(); });
+      var on = cafeLp.id === t.id, b = h('button', { type: 'button', class: 'lp-sleeve pressable' + (on ? ' on' : ''), 'aria-pressed': String(on), 'aria-label': t.name + ', ' + t.by, 'data-tune': t.id }, [cafeCanvas(lpLean(CAFE.sleeve(i)), 78)]);
+      b.style.setProperty('--i', String(i));
+      b.addEventListener('click', function () { lpTap(t.id); var f = document.querySelector(sel + ' .lp-sleeve[data-tune="' + t.id + '"]'); if (f) f.focus(); });
       shelf.appendChild(b);
     });
     frag.appendChild(shelf);
@@ -5750,45 +5936,56 @@ var APP = (function () {
   function lpTap(id) {
     if (cafeLp.id === id) { lpStop(); renderLp(); return; }   /* 같은 재킷을 다시 누르면 멈춘다 */
     if (cafeLp.sound) { CAFE_MUSIC.stop(); cafeLp.sound = false; }
-    cafeLp.id = id; cafeLp.ang = 0;
+    cafeLp.id = id; cafeLp.ang = 0; cafeLp.arm = reduced() ? 1 : 0; cafeLp.room = cafeIn();
+    if (cafeLp.room) { lpRoomDisc(true, id); cafeSay('cafe.record'); }
     var c = cafeState(); CAFE.played(c, id); save();
     lpSound(); renderLp();
-    if (!cafeLp.spin && !reduced()) cafeLp.spin = setInterval(function () { cafeLp.ang = (cafeLp.ang + 30) % 360; var s = $('lp-sheet'); if (s && s.open) lpDraw(); }, 150);
+    if (!cafeLp.spin && !reduced()) cafeLp.spin = setInterval(function () { cafeLp.ang = (cafeLp.ang + 30) % 360; if (cafeLp.arm < 1) cafeLp.arm = Math.min(1, cafeLp.arm + 0.25); var s = $('lp-sheet'); if (s && s.open) lpDraw(); }, 150);
     if (!cafeLp.watch) cafeLp.watch = setInterval(lpTick, 400);
+  }
+  function lpRoomDisc(on, id) {   /* 방의 턴테이블 (갈래 V): 판이 돌고 음표가 떠다닌다. 색 = 그 재킷의 바탕색 */
+    if (!scene || typeof scene.cafeRecord !== 'function') return;
+    var col = null; if (on) { var i = CAFE_MUSIC.list().map(function (x) { return x.id; }).indexOf(id), d = CAFE.sleeve(Math.max(0, i)).d; col = '#' + [d[84], d[85], d[86]].map(function (v) { return (v < 16 ? '0' : '') + v.toString(16); }).join(''); }
+    try { scene.cafeRecord(!!on, col); } catch (e) { console.warn('[cafe] cafeRecord', e); }
   }
   function lpStop() {
     var had = cafeLp.sound;
+    if (cafeLp.room) lpRoomDisc(false);
     if (window.CAFE_MUSIC) CAFE_MUSIC.stop();
-    cafeLp.id = null; cafeLp.sound = false;
+    cafeLp.id = null; cafeLp.sound = false; cafeLp.room = false;
     if (cafeLp.spin) { clearInterval(cafeLp.spin); cafeLp.spin = 0; }
     if (cafeLp.watch) { clearInterval(cafeLp.watch); cafeLp.watch = 0; }
     if (had) lpHome(false);
   }
-  function lpBlocked() { var ck = $('cook-overlay'), rn = $('runner-dlg'); return document.hidden || !!(ck && ck.open) || !!(rn && rn.open) || cafeAway(); }
+  function lpBlocked() { var ck = $('cook-overlay'), rn = $('runner-dlg'); return document.hidden || !!(ck && ck.open) || !!(rn && rn.open) || (cafeLp.room ? !cafeIn() : cafeAway()); }   /* 방에서 튼 판은 방을 나가면 멈춘다 */
   function lpTick() {
     if (!cafeLp.id) return;
-    var s = $('lp-sheet'), open = !!(s && s.open);
-    if (lpBlocked() || (typeof scene.area !== 'function' && !open)) { lpStop(); if (open) renderLp(); return; }   /* 바깥 지도가 없으면 (2D · 시험) 시트가 곧 카페다 */
+    var s = $('lp-sheet'), open = !!(s && s.open) || cafeRoom.card === 'lp';
+    if (lpBlocked() || (!cafeLp.room && typeof scene.area !== 'function' && !open)) { lpStop(); if (open) renderLp(); return; }   /* 바깥 지도가 없으면 (2D · 시험) 시트가 곧 카페다 */
     if (cafeLp.sound && !lpSoundOn()) { CAFE_MUSIC.stop(); cafeLp.sound = false; lpHome(false); if (open) renderLp(); return; }   /* 설정에서 소리를 껐다: 판만 돈다 */
     if (cafeLp.sound) { var v = lpMusicVol(); if (v !== cafeLp.vol) { cafeLp.vol = v; CAFE_MUSIC.setVolume(v); lpHome(true); } }   /* 음악 크기 막대를 따라간다 */
   }
   function openRecords() {
     if (!window.CAFE || !window.CAFE_MUSIC || !$('lp-sheet')) return false;
-    renderLp(); showDialog($('lp-sheet')); return true;
+    if (cafeRoomOK()) return cafeCardOpen('lp', document.activeElement);   /* 방 안: 선반 확대 카드 */
+    cafeCardClose(true); renderLp(); showDialog($('lp-sheet')); return true;
   }
   function cafeInit() {
     if (!window.CAFE) return;
-    var pairs = [['btn-cafe-counter', function () { openCafe(); }], ['btn-cafe-seat', cafeSeatTap], ['btn-cafe-lp', function () { openRecords(); }]];
+    var pairs = [['btn-cafe-counter', cafeCounterTap], ['btn-cafe-menu', function () { openCafe(); }], ['btn-cafe-plate', cafePlateTap], ['btn-cafe-seat', cafeSeatTap], ['btn-cafe-lp', function () { openRecords(); }], ['cafe-card-close', function () { cafeCardClose(); }]];
     pairs.forEach(function (p) { var b = $(p[0]); if (b) b.addEventListener('click', p[1]); });
     ['cafe', 'lp'].forEach(function (k) {
       var sh = $(k + '-sheet'), cl = $(k + '-close'); if (!sh) return;
       if (cl) cl.addEventListener('click', function () { sh.close(); });
       sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e)) e.currentTarget.close(); });
     });
+    var cd = $('cafe-card'); if (cd) cd.addEventListener('keydown', function (e) { if (e.key === 'Escape' && cafeRoom.card && cafeRoom.card !== 'stamp') { e.stopPropagation(); cafeCardClose(); } });
+    /* 갈래 W 가 알리는 방 드나듦: 카페 방에 들어오면 먹다 만 접시를 식탁에, 나가면 자리 · 연출 · 판을 끝낸다 */
+    document.addEventListener('ppol:room', function (e) { var key = e && e.detail ? e.detail.key : null; if (key === 'cafe') cafeRoomEnter(); else cafeRoomLeave(); });
     var ls = $('lp-sheet'); if (ls) ls.addEventListener('close', function () { if (cafeLp.id && typeof scene.area !== 'function') lpStop(); });
     /* 갈래 V 가 알리는 앉음 · 일어남 (발자국 손잡이로 일어난 것도): 일어나면 자리가 끝나고, 앉으면 쟁반이 나온다 */
-    document.addEventListener('ppol:cafe-seat', function (e) { var on = !!(e && e.detail && e.detail.on); if (!on) cafeStand(); else if (!cafeSeated) { cafeSeated = true; renderCafeTray(); if (!cafeWatch) cafeWatch = setInterval(cafeTick, 400); } });
-    var lpHide = function () { if (!cafeLp.id) return; lpStop(); var s = $('lp-sheet'); if (s && s.open) renderLp(); };   /* 11-21 (검증): 멈췄으면 시트의 판 · 곡 이름도 내린다 */
+    document.addEventListener('ppol:cafe-seat', function (e) { var on = !!(e && e.detail && e.detail.on); if (!on) { if (cafeRoom.stage === 'carry') return; cafeStand(); } else if (!cafeSeated) { cafeSeated = true; renderCafeTray(); if (!cafeWatch) cafeWatch = setInterval(cafeTick, 400); } });   /* 들고 가는 중의 '일어남' 은 내려놓기 (down) 가 맡는다 */
+    var lpHide = function () { if (!cafeLp.id) return; lpStop(); var s = $('lp-sheet'); if ((s && s.open) || cafeRoom.card === 'lp') renderLp(); };   /* 11-21 (검증): 멈췄으면 시트의 판 · 곡 이름도 내린다 */
     document.addEventListener('visibilitychange', function () { if (document.hidden) lpHide(); });
     window.addEventListener('pagehide', lpHide);
   }
@@ -6225,8 +6422,8 @@ var APP = (function () {
     /* [7-S] */
 
     /* [7-C] */
-    openCafe: openCafe, openRecords: openRecords, cafeStand: cafeStand, cafeSeatTap: cafeSeatTap,
-    get cafe() { return { seated: cafeSeated, ask: cafeAsk, lp: cafeLp.id, sound: cafeLp.sound, music: window.CAFE_MUSIC ? CAFE_MUSIC.state() : null }; },   /* 카페 (테스트 · 도구): 앉았는가 · 묻는 메뉴 · 올린 판 · 소리가 나는가 */
+    openCafe: openCafe, openRecords: openRecords, cafeStand: cafeStand, cafeSeatTap: cafeSeatTap, cafeCounterTap: cafeCounterTap, cafePlateTap: cafePlateTap,
+    get cafe() { return { seated: cafeSeated, ask: cafeAsk, stage: cafeRoom.stage, card: cafeRoom.card, lp: cafeLp.id, sound: cafeLp.sound, music: window.CAFE_MUSIC ? CAFE_MUSIC.state() : null }; },   /* 카페 (테스트 · 도구): 앉았는가 · 묻는 메뉴 · 올린 판 · 소리가 나는가 */
 
     /* [7-N] */
     npcSay: npcSay, npcSync: npcSync, openStory: openStory, storyIntro: storyIntro,
