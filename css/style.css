@@ -230,12 +230,9 @@ a { color: var(--teal); touch-action: manipulation; }
    이름 자체엔 최소 폭을 두지 않는다(바닥은 방 제목 상한이 지킨다) → 짧은 이름(한두 글자) 뒤에 빈칸 없이 데모 표시가 바로 붙는다 */
 #status .who { --name-min: 39px; }
 #status .name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Noto Serif KR', serif; font-weight: 600; font-size: 15px; color: var(--amber); }
-.room-title { flex: 0 0 auto; max-width: calc(100% - var(--name-min)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
-.room-title::before { content: '·'; margin: 0 6px; color: var(--dim); }
 /* 이름 옆 '데모' 표시 (정직 표기 · 주인: 작게). 줄어들지 않고(flex 0 0) 이름이 먼저 … 로 줄어든다. 숨겨도(모델 여행 재생 중) 오른쪽 등불 칸은 그대로 — .who 가 남는 폭을 다 차지한다 */
 #status .who { --tag-w: 30px; }
 .brain-tag { flex: 0 0 auto; align-self: center; margin-left: 4px; padding: 0 3px; border: 1px solid var(--rim); border-radius: 6px; font-size: 10px; line-height: 14px; font-weight: 500; color: var(--muted); white-space: nowrap; }
-#status .who .room-title { max-width: calc(100% - var(--name-min) - var(--tag-w)); }
 .pips { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pip-row { display: inline-flex; gap: 3px; }
 .pip { display: inline-block; width: 8px; height: 8px; border-radius: 50%; color: var(--dim); box-shadow: inset 0 0 0 1.5px currentColor; opacity: .6; transition: color var(--t-scene) var(--ease-enter), opacity var(--t-scene) var(--ease-enter), transform var(--t-scene) var(--ease-enter), background-color var(--t-scene) var(--ease-enter); }   /* 칸은 그린 점 (예전 ○ ● 글자는 뺐다) */
@@ -586,8 +583,6 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 :root[data-font="pixel"] #status .srow { gap: 8px; min-height: 27px; }
 :root[data-font="pixel"] #status .who { --name-min: 40px; }   /* Galmuri9 20px 한 글자 + … (각 20px — 예전 52px 도 보이는 건 같은 "한 글자…" 였다) */
 :root[data-font="pixel"] #status .name { font-family: var(--f-body); font-weight: 400; font-size: var(--fs-b20, 20px); line-height: 30px; color: var(--fg); }
-:root[data-font="pixel"] .room-title { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 30px; color: var(--muted); }
-:root[data-font="pixel"] .room-title::before { content: '·'; margin: 0 6px; color: var(--line); }
 /* 픽셀 테마의 '데모': Galmuri7 1배(8px, 제 격자 그대로라 또렷) + 1px 선 네모. 높이 12px 라 30px 글줄 안에 들어간다 */
 :root[data-font="pixel"] #status .who { --tag-w: 23px; }
 :root[data-font="pixel"] .brain-tag { margin-left: 3px; padding: 1px 2px; border: 0; border-radius: 0; box-shadow: inset 0 0 0 1px var(--line); font-family: var(--f-meta); font-weight: 400; font-size: var(--fs-u12, 12px); line-height: calc(var(--fs-u12, 12px) + 2px); color: var(--muted); }   /* 5차 검증: 줄 높이를 글자 크기에 맞춘다 (u12 가 올림이 된 뒤 2.25 배율에서 16px 글자가 14px 줄을 넘어 테에 닿았다) */
@@ -959,7 +954,6 @@ dialog[open] { animation: dlg-in var(--t-ui) var(--ease-enter) both; }
 #btn-go .go-txt { display: inline-flex; align-items: center; gap: 6px; }   /* 글자만 (주인 11-07: 이모지 없음) — 예전 이모지 맞춤 2px 내림은 뺐다: 가운데 ±1px, 나가 있는 동안과 같다 */
 /* 폰 폭(< 420px)에서는 상태띠에 방 제목을 숨긴다 — "등불 켜진 다락" 과 "등불 ■■■" 이 겹쳐 읽히고, 24/20/16px 픽셀 글꼴에서 이름이 잘려서.
    그 폭에선 방 제목이 등불을 눌렀을 때의 말풍선 첫 줄에 나온다 (app.js tip · 방 보기를 없앤 뒤 폰에서 방 이름을 볼 곳) · 탭 제목에도 남는다 */
-@media (max-width: 419px) { #status .room-title { display: none; } }
 
 /* ── 이름 짓기 창 (사용자 피드백): 설명은 문장·의미 단위로 줄바꿈, 아래 정직 표기는 작고 연한 갈색 ── */
 #name-dialog .ln { display: block; }
@@ -1561,9 +1555,7 @@ html.intro-on .sofa-dot { opacity: 0; visibility: hidden; }
 :root[data-layout="one"] #status .name { order: 1; }
 :root[data-layout="one"] #status .pips { order: 2; }
 :root[data-layout="one"] #status .brain-tag { order: 3; }
-:root[data-layout="one"] #status .room-title { order: 4; flex: 0 1000 auto; min-width: 0; max-width: none; }   /* .who 를 풀면 (display: contents) 방 제목의 상한 폭(100% − 이름 한 글자)이 줄 전체 폭을 따라가 이름이 0px 로 눌렸다 (420 px 부터 이름이 안 보임) → 모자라면 방 제목이 먼저 … 로 줄어든다 */
 /* 이름(픽셀 네 글자 80px)이 안 잘리게, 바가 좁은 동안은 등불 글자를 접는다: 방 제목은 440 부터 · '등불' 은 470 부터 · n/8 은 500 부터 (칸 수와 aria-label · 누르면 나오는 설명에 그대로 있다) */
-@media (max-width: 439px) { :root[data-layout="one"] #status .room-title { display: none; } }
 @media (max-width: 469px) { :root[data-layout="one"] #status .pips-lbl { display: none; } }
 @media (max-width: 499px) { :root[data-layout="one"] #status .pips-n { display: none; } }
 .furn-btn .ham-ico { display: block; }   /* 11-15 망치: 색이 들어간 그림 (currentColor 아님) — 눌린 동안은 밑줄 대신 단추 테가 호박색 */
@@ -1779,6 +1771,18 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 
 /* ══ 7차 갈래 자리 (11-21): 갈래마다 제 표시 줄 바로 아래에만 새 규칙을 쓴다. 표시 줄과 빈 줄은 건드리지 않는다 ══ */
 /* [7-U] 화면 고침 · 빈 화면 */
+/* 11-21 날 수 'D+N' (주인: 방 제목 대신). 폰에서도 보인다 — 줄어들지 않고 (flex 0 0) 이름이 먼저 … 로 줄어든다. 숫자 폭은 고르게 */
+.day-n { flex: 0 0 auto; margin-left: 6px; color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.day-n[hidden] { display: none; }
+:root[data-font="pixel"] .day-n { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 30px; }
+:root[data-layout="one"] #status .day-n { order: 4; margin-left: 0; }
+/* 폭 ≤ 599 의 한 화면 배치: 바 (폭 − 아이콘 묶음) 에 네 글자 이름 80 + 등불 칸 94 + 'D+N' 48–60 이 다 안 든다 (360 폭: 바 196) → '데모' 꼬리표처럼 바 아래 왼쪽에 매단다 (늘 보인다).
+   ≤ 449 는 '데모' 꼬리표 (6px 부터 28px) 오른쪽 옆, 꼬리표가 숨었을 때 (모델 여행 재생 중) 와 450–599 (꼬리표가 바 안) 는 왼쪽 끝 */
+@media (max-width: 599px) {
+  :root[data-layout="one"] #status .day-n { position: absolute; top: calc(100% + 3px); left: 6px; padding: 0 3px; line-height: 16px; background-color: var(--panel); box-shadow: inset 0 0 0 1px var(--rim); }
+  :root[data-layout="one"][data-font="pixel"] #status .day-n { top: calc(100% + 1px); padding: 1px 3px; line-height: calc(var(--fs-m16, 16px) + 2px); box-shadow: inset 0 0 0 1px var(--line); }
+}
+@media (max-width: 449px) { :root[data-layout="one"] #status .brain-tag:not([hidden]) + .day-n { left: 38px; } }
 
 
 /* [7-T] 요리 → 식탁 잇기 · 레시피 */

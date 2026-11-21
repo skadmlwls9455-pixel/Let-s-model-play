@@ -152,7 +152,6 @@ var APP = (function () {
   function chipOn(b, on) { b.classList.toggle('on', !!on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
   /* 방 이름: 등불 칸수에 따라 (CG R17) */
   /* 등불 0칸에도 등불 안에 작은 불씨가 켜져 있다 (밤에도 다락이 깜깜하지 않게, 결정 14) → 처음 단계 이름도 '어두운' 이 아니다 */
-  function roomTitle(lv) { return lv >= 8 ? '문어의 다락' : lv >= 5 ? '살림이 생긴 다락' : lv >= 2 ? '등불 켜진 다락' : '불씨 하나 켜진 다락'; }
   /* 등불 칸이 켜질 때 집 목소리 사실 한 줄 (WORLD.roomLevels 순서 · DIALOGUE_UI §4.3): 문어 초상 없이. 코드가 지은 기분('따뜻해졌어' · '진짜 내 다락') ·
      낮에 틀린 말('별도 보여')은 뺐다 — 데려오기 · 모션 줄이기에서도 이 행이 보이게 된 11-08 부터 */
   var ITEM_LINE = { 1: '창턱에 이끼 화분이 놓였어', 2: '낡은 나무 상자가 책상이 됐어', 3: '구석에 양초가 켜졌어', 4: '담요 한 장이 깔렸어',
@@ -761,7 +760,7 @@ var APP = (function () {
     var lv = S.room.lantern;
     if (part !== 'items') scene.setLantern(lv);
     if (part !== 'lantern') { scene.setItems(itemsFor(lv)); scene.setWeather(weatherFor(lv)); }
-    document.title = (S.octopus.name ? S.octopus.name + ' · ' : '') + roomTitle(lv) + ' · 뽈뽈 문어';
+    document.title = (S.octopus.name ? S.octopus.name + ' · ' : '') + '뽈뽈 문어';   /* 11-21: 방 제목은 뺐다 (주인) */
     updateSceneDesc();
     applyLook({ still: true });   /* 장면 몸색이 기록과 다르면 맞춘다 (불러오기 · 초기화 · 다른 탭 · 2D 폴백 · 이름 저장 — 이 길들이 다 여기를 지난다) */
     syncSalonSpot();   /* 거울이 막 생겼으면 (등불 2칸) 미용실 단추를 허락한다 */
@@ -2824,7 +2823,7 @@ var APP = (function () {
       if (on && !was && bloom) { p.classList.add('bloom'); p.classList.toggle('last', i === 7); setTimeout(function () { p.classList.remove('bloom', 'last'); }, 1000 * speed()); }
     });
     if (cnt) cnt.textContent = n + '/8';
-    var rt = $('room-title'); if (rt) rt.textContent = roomTitle(n);
+    renderDayN();   /* 11-21: 방 제목 자리에 'D+N' (주인) */
     if (bloom && window.AUDIO) AUDIO.on('lantern', { n: n });   /* 소리: 등불 칸이 켜지는 순간 (8칸 = 방 완성) */
   }
   function tripById(id) { for (var i = 0; i < S.trips.length; i++) if (S.trips[i].id === id) return S.trips[i]; return null; }
@@ -4773,15 +4772,11 @@ var APP = (function () {
     if (!p.hintsArm && n === 1 && !Object.keys(hintSeen()).length && !S.trips.some(function (t) { return t && t.status === 'running'; })) setUiPref('hintsArm', 1);
     hintStart();
   }, 3000);
-  /* 폰에서(상태 줄이 방 제목을 숨기는 폭) 등불 말풍선 첫 줄 = 방 제목. 넓은 화면은 상태 줄에 이미 보이니 빼고 한 줄만 */
-  /* 등불 설명의 첫 줄 = 상태 줄에서 숨긴 것들: 방 제목 · (좁은 폰의 한 화면 배치에서) 등불 숫자 */
+  /* 등불 설명의 첫 줄 = 상태 줄에서 숨긴 것: (좁은 폰의 한 화면 배치에서) 등불 숫자. 11-21: 방 제목은 뺐다 (주인) */
   function pipsHead() {
-    var out = [], rt = hiddenRoomTitle(), n = document.querySelector('#pips .pips-n');
-    if (rt) out.push(rt);
-    if (n && n.textContent && getComputedStyle(n).display === 'none') out.push('등불 ' + n.textContent);
-    return out.join(' · ');
+    var n = document.querySelector('#pips .pips-n');
+    return n && n.textContent && getComputedStyle(n).display === 'none' ? '등불 ' + n.textContent : '';
   }
-  function hiddenRoomTitle() { var rt = $('room-title'); return rt && rt.textContent && getComputedStyle(rt).display === 'none' ? rt.textContent : ''; }
   function bindTip() {
     $('pips').addEventListener('click', function (e) { tip(e.currentTarget, LANTERN_TIP, pipsHead()); });
     $('brain-tag').addEventListener('click', function (e) { tip(e.currentTarget, BRAIN_TIP); });
@@ -5076,7 +5071,7 @@ var APP = (function () {
     var n = u.days.length, extra = n % 5 === 0 ? 10 : 0;
     u.shells += 3 + extra; u.seeds += 1; u.giftTell = { day: dk, shells: 3 + extra, n: n };
     checkDay(true);   /* 11-13 (재검증 P4): 열어 둔 채 자정을 넘겼으면 '오늘의 산책' 도 같은 때 새 날로 (방금 끝난 산책 2분 기다림보다 선물이 먼저 왔다) */
-    weekTell(); save(); renderBagChip();   /* 바로 띄울 수 있으면 알린 뒤의 기록 한 번만 쓴다 (보이는 다른 탭이 같은 줄을 또 띄우지 않게) */
+    weekTell(); save(); renderBagChip(); renderDayN();   /* 바로 띄울 수 있으면 알린 뒤의 기록 한 번만 쓴다 (보이는 다른 탭이 같은 줄을 또 띄우지 않게) */
   }
   /* ───────────────────────── 이번 주 할 일 (11-10 주인: "일주일 단위 퀘스트 · 하루 시간 제한은 촉박 · 문어한테 산책 갈지 묻기 · 하나하나 새로고침 3번") ─────────────────────────
      · 주마다(월요일부터) 일곱 가지가 시드로 정해진다. 그중 **다섯 가지**를 하면 주간 선물 (조개 12 + 씨앗 2). 일곱을 다 할 필요 없음.
@@ -5471,6 +5466,14 @@ var APP = (function () {
   /* ───────────────────────── 7차 갈래 자리 (11-21) ─────────────────────────
      갈래마다 제 표시 줄 바로 아래에만 새 코드를 쓴다. 표시 줄과 그 사이 빈 줄은 건드리지 않는다 (합칠 때 부딪히지 않게). */
   /* [7-U] 화면 고침 · 빈 화면 */
+  /* 11-21 날 수 (주인: "D-14 처럼"): 상태 줄의 방 제목 자리에 'D+N' — N 은 가방 · 선물 줄의 '들어온 날 N일째' 와 같은 수 (연 날의 수. 쉬어도 줄지 않는다).
+     첫 날을 세기 전(이름 짓기 전 · 첫 선물 전)엔 아무것도 안 보인다. 읽기만 한다 (S.user 를 여기서 만들지 않는다) */
+  function dayCount() { return isObj(S.user) && Array.isArray(S.user.days) ? S.user.days.length : 0; }
+  function renderDayN() {
+    var el = $('day-n'), n = dayCount(); if (!el) return;
+    el.hidden = n < 1; el.textContent = n < 1 ? '' : 'D+' + n;
+    if (n < 1) el.removeAttribute('aria-label'); else el.setAttribute('aria-label', '들어온 지 ' + n + '일째');
+  }
 
 
   /* [7-T] 요리 → 식탁 잇기 · 레시피 */
@@ -5526,6 +5529,7 @@ var APP = (function () {
     get salonStage() { return salonRun ? { id: salonRun.ask.id, n: salonRun.n, face: salonRun.face, action: salonRun.st.action, done: salonRun.done } : null; },
     /* 7차 갈래가 밖에 내놓는 것 (테스트 · 도구): 제 표시 줄 바로 아래에 '이름: 값,' 줄로 (쉼표까지) */
     /* [7-U] */
+    get dayCount() { return dayCount(); },
 
     /* [7-T] */
 
