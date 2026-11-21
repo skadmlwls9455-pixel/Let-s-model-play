@@ -22,7 +22,7 @@ V.LOTS.forEach(function (L) {
   if (c[2]) ok(Math.sign(L.c[1]) === c[2] && L.mir === (c[2] > 0), L.id + ' 는 ' + (c[2] < 0 ? '왼쪽' : '오른쪽') + ' 줄');
   if (L.hx) {
     var r = (L.hx + L.hz) * Math.SQRT1_2;   /* 마름모의 s · t 반폭 */
-    ok(Math.abs(L.c[1]) - r >= 3.1, L.id + ' 몸이 길 (|t| ≤ 3) 밖이다 (' + (Math.abs(L.c[1]) - r).toFixed(2) + ')');
+    ok(Math.abs(L.c[1]) - r >= 3.1, L.id + ' 몸이 길 밖이다 (' + (Math.abs(L.c[1]) - r).toFixed(2) + ')');
     ok(L.c[0] - r >= L.s0 - 0.6 && L.c[0] + r <= L.s1 + 0.6, L.id + ' 몸이 제 터의 s 범위 안이다');
   }
 });
@@ -72,11 +72,14 @@ ok(Math.hypot(CF.cup.s - CF.tables[0].s, CF.cup.t - CF.tables[0].t) < CF.tables[
 /* 6. 부딪힘 · 덩어리 */
 ok(V.CIRCLES.length >= 20 && V.CIRCLES.length <= 45, '원 ' + V.CIRCLES.length + ' 개');
 V.CIRCLES.forEach(function (c) { ok(c.length === 3 && c[2] > 0 && c[2] <= 0.7 && c[0] > 17 && c[0] < 61, '원 [' + c.join(', ') + ']'); });
-/* 길 한가운데 (|t| ≤ 1.2) 는 어디도 막히지 않는다 (몸 반지름 0.25) */
-for (var s0 = 18; s0 <= 46; s0 += 0.25) for (var t0 = -1.2; t0 <= 1.2; t0 += 0.3) V.CIRCLES.forEach(function (c) { if (Math.hypot(c[0] - s0, c[1] - t0) < c[2] + 0.25) ok(false, '길 가운데 (' + s0 + ', ' + t0 + ') 가 막혔다'); });
+/* 마을 길 한가운데 (s 18–38 · |t| ≤ 1.2) 는 어디도 막히지 않는다 (몸 반지름 0.25) — 광장 가운데엔 우물이 선다 */
+for (var s0 = 18; s0 <= 38; s0 += 0.25) for (var t0 = -1.2; t0 <= 1.2; t0 += 0.3) V.CIRCLES.forEach(function (c) { if (Math.hypot(c[0] - s0, c[1] - t0) < c[2] + 0.25) ok(false, '길 가운데 (' + s0 + ', ' + t0 + ') 가 막혔다'); });
 pass++;
 ok(V.SEGMENTS.length === 4 && V.SEGMENTS.every(function (g) { return g.s0 < g.s1 && g.s0 >= 15 && g.s1 <= 48; }), '덩어리 넷 (s 범위)');
 V.LAMPS.concat(V.POTS).forEach(function (p) { ok(p.length === 2 && p[0] >= 18 && p[0] <= 46, '길 소품 자리'); });
+
+V.BOXES.slice(0, 2).forEach(function (b3) { [[b3[0], b3[1]], [b3[2], b3[3]], [b3[0], b3[3]], [b3[2], b3[1]]].forEach(function (c2) { ok(Math.abs(V.st(c2[0], c2[1])[1]) >= 2.3, '판매대가 걷는 곳 (|t| ≤ 2.2) 밖 — 2.3 부터'); }); });
+V.SPOTS.forEach(function (s2) { var a2 = V.xz(s2.stand[0], s2.stand[1]); ok(!V.BOXES.some(function (b3) { return a2[0] > b3[0] - 0.24 && a2[0] < b3[2] + 0.24 && a2[1] > b3[1] - 0.24 && a2[1] < b3[3] + 0.24; }), s2.key + ' 서는 자리가 네모 밖'); });
 
 /* 7. 파일: DOM · 시계 · 난수 없음 */
 var src = fs.readFileSync(path.join(ROOT, 'js/village.js'), 'utf8');
