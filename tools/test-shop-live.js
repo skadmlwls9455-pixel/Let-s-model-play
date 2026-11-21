@@ -235,7 +235,7 @@ async function roomRun(browser) {
   ok((await R(page)).tried.length === 0 && !!(await page.$('#shop-card')), '카드가 뜬 지 0.6 s 안의 누름은 안 받는다');
   await page.mouse.click(8, 300); await page.click('#btn-mq-0');
   ok(await page.evaluate(() => { const c = document.getElementById('shop-card'); return !!c && c.parentNode.id === 'scene' && c.tagName !== 'DIALOG' && !document.querySelector('dialog[open]') && c.classList.contains('tag'); }), '꼬리표 카드는 장면 안의 요소');
-  ok(await page.evaluate(n => { const c = document.getElementById('shop-card'), t = [...c.querySelectorAll('button')].map(b => b.textContent).join(); const a = document.getElementById('btn-mq-0').getBoundingClientRect(), b = c.getBoundingClientRect(), s = document.getElementById('scene').getBoundingClientRect(); return t === '입어 보기,살래' && c.textContent.includes(n) && (b.bottom <= a.top + 1 || b.top >= a.bottom - 1) && b.left >= s.left && b.right <= s.right + 0.5 && b.top >= s.top; }, stock[0].name), '카드: 이름 · 값 · 입어 보기 / 살래, 마네킹 바로 위 · 장면 안');
+  ok(await page.evaluate(n => { const c = document.getElementById('shop-card'), t = [...c.querySelectorAll('button')].map(b => b.textContent).join(); const a = document.getElementById('btn-mq-0').getBoundingClientRect(), b = c.getBoundingClientRect(), s = document.getElementById('scene').getBoundingClientRect(); return t === '입어 보기,살래' && c.textContent.includes(n) && (b.bottom <= a.top + 1 || b.top >= a.bottom - 1 || s.height < 560) && b.left >= s.left && b.right <= s.right + 0.5 && b.top >= s.top; }, stock[0].name), '카드: 이름 · 값 · 입어 보기 / 살래, 마네킹 바로 위 · 장면 안');
   await shot(page, 'room-tag-360');
   await cardBtn(page, '입어 보기');
   r = await R(page);
@@ -283,15 +283,18 @@ async function roomRun(browser) {
   /* 잡화점 */
   await enter(page, 'goods');
   ok((await R(page)).said.slice(-1)[0] === 'goods|goods.enter', '잡화점: 가게 주인 줄');
-  await page.click('#btn-shelf-5');
-  ok(!(await page.$('#shop-card')), '빈 선반은 아무 일 없다');
+  await page.click('#btn-shelf-2');
+  ok(!!(await page.$('#shop-card .shop-seed')), '짝수 선반은 씨앗');
+  await page.mouse.click(8, 300);
   await page.click('#btn-shelf-0');
   ok(await page.evaluate(() => { const c = document.getElementById('shop-card'); return !!c && c.parentNode.id === 'scene' && !!c.querySelector('.shop-seed') && [...c.querySelectorAll('button')].map(b => b.textContent).join() === '그만,살래'; }), '선반 톡 → 꼬리표 카드 (씨앗 봉투 · 그만 / 살래)');
   await shot(page, 'room-shelf-360');
   await cardBtn(page, '살래');
   u = await U(page);
-  ok(u.shells === 3 && u.seeds === 2 && !(await page.$('#shop-card')) && (await R(page)).said.slice(-1)[0] === 'goods|shop.thanks', '살래 → 조개 2 · 씨앗 +1 · 카드가 접힌다');
-  await page.click('#btn-shelf-1'); await cardBtn(page, '살래');
+  ok(u.shells === 3 && u.seeds === 2 && !(await page.$('#shop-card')) && (await R(page)).said.slice(-1)[0] === 'goods|shop.pay', '살래 → 조개 2 · 씨앗 +1 · 카드가 접힌다');
+  await page.click('#btn-shelf-5');
+  ok(!!(await page.$('#shop-card .shop-dye')) && await page.evaluate(() => document.getElementById('shop-card').hasAttribute('data-npc-avoid')), '홀수 선반은 염료 (카드는 대사창이 피하게 표시)');
+  await cardBtn(page, '살래');
   ok((await U(page)).shells === 3 && !!(await page.$('#shop-card')), '염료 (6) 는 모자라면 안 사진다');
   await page.mouse.click(8, 300);
   ok(!(await page.$('#shop-card')), '카드 밖을 누르면 접힌다');

@@ -5734,7 +5734,8 @@ var APP = (function () {
     $('shop-close').addEventListener('click', function () { sh.close(); });
     sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e) && !(shopAsk && tapTime(e) - shopAskAt < SHEET_SETTLE)) e.currentTarget.close(); });   /* 칸을 두 번 톡했을 때 둘째가 (줄어든 시트의) 바깥에 떨어져 닫히지 않게 */
     sh.addEventListener('close', function () { shopAsk = null; });
-    [['btn-shop-clothes', 'clothes'], ['btn-shop-goods', 'goods']].forEach(function (p) { var b = $(p[0]); if (b) b.addEventListener('click', function () { if (!roomScene('enterRoom')) openShop(p[1]); }); });   /* 방이 있으면 건물 · 바깥 갈래가 걸어 들어가게 한다 — 시트는 방이 없을 때만 */
+    /* 가게 문 · 진열대 단추: 방이 있으면 걸어 들어가고 (바깥 갈래의 APP.goInside), 못 들어가면 (2D · 방 없음 → false) 예전 시트 */
+    [['btn-shop-clothes', 'clothes'], ['btn-shop-goods', 'goods'], ['btn-in-clothes', 'clothes'], ['btn-in-goods', 'goods']].forEach(function (p) { var b = $(p[0]); if (b) b.addEventListener('click', function () { shopGo(p[1]); }); });
     for (var i = 0; i < 5; i++) (function (n) { var b = $('btn-beach-shell-' + n); if (b) b.addEventListener('click', function () { beachTap(n); }); })(i);
     shopDay = todayKey();
     window.addEventListener('storage', function (e) { if (e.key !== KEY) return; setTimeout(function () { shopSync(true); }, 0); setTimeout(function () { shopSync(true); }, 800); });   /* 앱이 다른 탭의 저장을 받아들인 뒤에 */
@@ -5770,7 +5771,7 @@ var APP = (function () {
   }
   function roomCard(anchor, cls, label, kids) {
     roomCardClose(); var sc = $('scene'); if (!sc) return null;
-    var c = h('div', { id: 'shop-card', class: 'shop-card ' + cls, role: 'group', 'aria-label': label, 'data-anchor': anchor }, kids);
+    var c = h('div', { id: 'shop-card', class: 'shop-card ' + cls, role: 'group', 'aria-label': label, 'data-anchor': anchor, 'data-npc-avoid': '' }, kids);   /* data-npc-avoid: 대사창이 이 카드를 피해 뜬다 (NPC 갈래) */
     sc.appendChild(c); room.card = c; room.at = performance.now(); roomCardPlace(); return c;
   }
   function roomEarly(e) { return !(e && e.isTrusted && e.detail === 0) && tapTime(e) - room.at < SHEET_SETTLE; }   /* 카드가 뜬 뒤 0.6 s 안의 누름은 안 받는다 (같은 자리 두 번 톡) */
@@ -5826,7 +5827,7 @@ var APP = (function () {
     var n = room.card && room.card.querySelector('.shop-purse .shell-n'); if (n) { n.textContent = String(u.shells); shopCount(had, u.shells, n); }
     roomDress(); if (!got.length) { roomCardClose(); return; }
     toast(got.map(function (x) { return x.name; }).join(' · ') + eulReul(got[got.length - 1].name) + ' 샀어');
-    setTimeout(roomCardClose, 700); roomPose('pose'); roomSayAs('clothes', 'shop.pay', { n: got.length });
+    setTimeout(roomCardClose, 700); roomPose('pose'); roomSayAs('clothes', 'shop.pay', { shells: had - u.shells });
   }
   function roomMirror() {   /* 거울: 가까이 들어가 자세 한 번 → 돌아온다 */
     if (room.busy) return; room.busy = true; roomCardClose();
@@ -5841,19 +5842,20 @@ var APP = (function () {
     requestAnimationFrame(function () { g.style.transform = 'translate(' + Math.round(b.left + b.width / 2 - a.left - a.width / 2) + 'px,' + Math.round(b.top + b.height / 2 - a.top - a.height / 2) + 'px)'; g.style.opacity = '0.2'; });
     setTimeout(function () { g.remove(); }, 420);
   }
+  function roomShelfItem(i) { var it = shopStock('goods').items; return i % 2 === 0 ? it[0] : it[1 + (i - 1) / 2] || null; }   /* 건물 갈래의 선반: 짝수 칸 = 씨앗 봉투, 홀수 칸 (1 · 3 · 5) = 그날의 염료 셋 */
   function roomShelf(i) {   /* 잡화점 선반의 꼬리표 카드 */
-    var x = shopStock('goods').items[i]; if (!x) return;
+    var x = roomShelfItem(i); if (!x) return;
     var out = x.type === 'seed' && x.left < 1, nm = x.type === 'dye' ? x.name + ' 염료' : x.name, pic = h('span', { class: 'shop-pic', 'aria-hidden': 'true' }, [x.type === 'seed' ? shopSeedPic() : shopJarPic(x.hex)]), tag = roomTagEl(x, out), btns = [];
     if (out) btns.push(h('p', { class: 'shop-card-note', text: '오늘은 이게 다야' }));
     else {
       btns.push(roomBtn('그만', 'sew-no', function () { roomCardClose(); }));
       btns.push(roomBtn('살래', 'sew-yes', function () {
-        var u = shopU(), dk = todayKey(), it = shopStock('goods').items[i]; if (!it || it.key !== x.key) { roomCardClose(); return; }
+        var u = shopU(), dk = todayKey(), it = roomShelfItem(i); if (!it || it.key !== x.key) { roomCardClose(); return; }
         var r = SHOP.buy({ shells: u.shells, seeds: u.seeds, dyes: u.dyes, shop: u.shop }, 'goods', it, dk);
         if (!r.ok && r.why === 'short') { shopShort(it.price - u.shells, tag); return; }
         if (!r.ok) { roomCardClose(); return; }
         shopApply(u, r, it, dk); save(); renderBagChip(); roomHop(pic.firstChild); roomCardClose();
-        toast(it.type === 'dye' ? it.name + ' 염료 1개를 샀어' : '씨앗 1개를 샀어'); roomSayAs('goods', 'shop.thanks');
+        toast(it.type === 'dye' ? it.name + ' 염료 1개를 샀어' : '씨앗 1개를 샀어'); roomSayAs('goods', 'shop.pay', { shells: it.price });
       }));
     }
     roomCard('btn-shelf-' + i, 'tag', nm, [pic, h('p', { class: 'shop-card-name', text: nm }), tag, h('div', { class: 'btn-row shop-card-btns' }, btns)]);
@@ -5867,6 +5869,13 @@ var APP = (function () {
     room.key = key; room.basket = {}; room.busy = false;
     if (key === 'clothes') { shopSync(); roomDress(); roomSayAs('clothes', 'shop.enter'); }
     else if (key === 'goods') roomSayAs('goods', 'goods.enter');
+  }
+  var shopGoing = false;
+  function shopGo(kind) {
+    var go = roomApi('goInside'); if (!go) { openShop(kind); return; }
+    if (shopGoing) return; shopGoing = true;
+    var done = function (ok) { shopGoing = false; if (ok !== true && !room.key) openShop(kind); };
+    try { var p = go(kind); if (p && typeof p.then === 'function') p.then(done, function () { done(false); }); else done(p); } catch (e) { console.warn('[app] goInside', e); done(false); }
   }
   function shopRoomInit() {
     document.addEventListener('ppol:room', function (e) { roomSet(e && e.detail ? e.detail.key : null); });
