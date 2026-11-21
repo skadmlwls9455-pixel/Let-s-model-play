@@ -263,6 +263,13 @@ async function main() {
     await c3.addInitScript(INIT);
     var p3 = await c3.newPage(); await p3.goto(URL0.replace('&scene=2d', ''));
     await p3.waitForSelector('#name-dialog[open]', { timeout: 20000 }); await p3.fill('#name-in', '뚜루'); await p3.click('#name-form button[type=submit]'); await p3.waitForTimeout(600);
+    /* 바깥 지도 (갈래 W · V) 가 합쳐진 빌드에서는 카페가 마을에만 있다 (마을 밖에서는 자리가 바로 끝난다) → 마을로 간 뒤에 시킨다 */
+    if (await p3.evaluate(function () { return typeof APP.goPlace === 'function' && typeof APP.scene.area === 'function'; })) {
+      for (var tries = 0; tries < 12 && await p3.evaluate(function () { return APP.scene.area() !== 'village'; }); tries++) {
+        await p3.evaluate(function () { if (APP.room !== 'yard') APP.goRoom('yard'); else APP.goPlace('village'); }); await p3.waitForTimeout(2500);
+      }
+      ok(await p3.evaluate(function () { return APP.scene.area(); }) === 'village', sizes[i][0] + ' 폭: 마을에 왔다');
+    }
     await shells(p3, 20); await orderItem(p3, 1); await p3.waitForTimeout(200);
     var hit = await p3.evaluate(function () { function at(id) { var r = document.getElementById(id).getBoundingClientRect(), e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!e && !!e.closest('#' + id); } return { mode: APP.sceneMode, stand: at('cafe-stand'), eat: at('cafe-eat') }; });
     ok(hit.stand && hit.eat, sizes[i][0] + ' 폭 (' + hit.mode + '): 먹기 · 일어나기가 맨 위에 있다');
