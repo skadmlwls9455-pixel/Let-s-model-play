@@ -14,6 +14,14 @@ And earlier the same night, written into lanes: "아 ui가 너무 조잡한데 �
 What that sets as the bar: a feature is a **place with things in it that my character uses**; an asset is made for what it
 is (never a tree ball passed off as a flower); nothing may read as a form with a grid of boxes.
 
+## The owner's answers (11-22 00:05 KST)
+
+1. Shops are separate rooms behind a door, like the attic and the play room: **yes — and the cafe and the contest get
+   their own separate maps too** ("응. 카페나 콘테스트도 아예 맵을 따로 만드는 걸로."). So there is a fourth room, the
+   **contest hall** (`hall`): the show happens inside it, not on the open plaza stage.
+2. Trying clothes on and walking about the shop in them: "좋아".
+3. Order of protection (clothes shop, cafe, contest, general store, attic wardrobe): "Ok".
+
 ## Principles
 
 1. **It happens in the world.** I walk to a thing, the camera frames it, my character does it (walks, picks up, wears,
@@ -41,7 +49,7 @@ lead `session_01Tq2y4UPNUfNv1Bsd1UKef2`.
 **C9 [W] rooms you walk into.** One registry next to `WIDE_REG`:
 `ROOM_REG[key] = { half: [hx, hz], wallH, door: [x, z], outside: <wide spot key or [s, t]>, build(g, kit), boxes, circles,
 spots: [{ key, btn, x, y, z, r, stand }], lights: [[x, y, z], [x, y, z]], frame(dt, t) }` with keys `clothes`, `goods`,
-`cafe` (room-local metres, origin at the floor centre). API: `scene.enterRoom(key)` → Promise<{ ok, reason }> (from the
+`cafe`, `hall` (room-local metres, origin at the floor centre). API: `scene.enterRoom(key)` → Promise<{ ok, reason }> (from the
 wide outside: walk to the door, door beat, cover, the room shows at the indoor zoom), `scene.leaveRoom()` → Promise,
 `scene.inRoom()` → key or null, `scene.roomSlots(key)`, `scene.project(x, y, z)` → `{ x, y }` in CSS px, and a
 `ppol:room` CustomEvent `{ detail: { key } }` on the document (key null when outside again). App side: `APP.goInside(key)`,
@@ -65,10 +73,16 @@ shelves, plants, lamps); every prop is modelled as what it is.
   `scene.cafeRecord(on, colour)` spins the disc and lets notes drift. The deck outside stays as a terrace.
 - `goods` (about 5.2 x 4.8 m): shelves `shelf0..shelf5` (seed packets, dye bottles), barrels, a scale on the counter,
   `keeper`. Buttons `#btn-shelf-0..5`, `#btn-room-counter`, `#btn-npc-goods`, `#btn-room-exit`.
-- The plaza stage: `scene.stage()` → `{ wait, path: [[x, z] x4], judges: [[x, z, face] x3], podium: [[x, z, h] x4] }`,
+- `hall`, the contest hall (about 7.0 x 6.0 m; the owner: its own map): a raised stage with a catwalk into the room,
+  curtains, two spot lamps, a judges' table with three seats facing the catwalk, benches for a small audience, a
+  backstage corner with a clothes rack and a mirror (`rack`, where lane P's look strip opens), a results board on the
+  wall. Buttons `#btn-hall-stage` (enter the show), `#btn-hall-rack`, `#btn-hall-board`, `#btn-room-exit`. Outside, the
+  plaza stage keeps its poster stand and gets the hall's entrance (`#btn-in-hall`, a curtained doorway behind it; the old
+  `#btn-plaza-stage` does the same).
+- In the hall: `scene.stage()` → `{ wait, path: [[x, z] x4], judges: [[x, z, face] x3], podium: [[x, z, h] x4] }`,
   `scene.stageDress(on)` (bunting, a judges' table, lamps; a theme poster stand that is there all week), and for the NPC
   drawing API: ids `judge0..2`, `rival0..2`, `scene.npcPlace(id, x, z, face)`, `scene.npcPose(id, pose)`.
-Order: clothes, cafe, stage, goods.
+Order: clothes, cafe, hall, goods.
 
 **C11 [P] bodies that wear clothes.**
 - `scene.mannequins(key, [{ slot, parts: { outfit, shoes, acc, hair } | null, sold }])`: a plain figure without a face
@@ -116,9 +130,9 @@ the stamp lands on the card; on the third the keeper's line and the recipe card 
 today) → the record corner: I walk there, the rack close-up, a sleeve is picked, the disc spins in the room and notes
 drift, sound only if the setting is on → standing up and the door end the visit; a half-eaten plate waits.
 
-**Weekend contest [F, with V, P, N, A].** all week the stage shows a poster of the coming theme (tap: poster close-up) →
-on the weekend the stage is dressed and the three keepers sit at the judges' table → tap the stage: I walk to the wait
-spot, the entry card (theme, what I wear, `옷 갈아입기` opens P's look strip right there, `나가기`) → the show in the scene,
+**Weekend contest [F, with V, P, N, A].** all week the plaza shows a poster of the coming theme (tap: poster close-up) and
+the hall can be entered (an empty stage, the results board of last time) → on the weekend the hall is dressed and the
+three keepers sit at the judges' table → tap the stage: I walk to the wait spot backstage, the entry card (theme, what I wear, `옷 갈아입기` opens P's look strip right there, `나가기`) → the show in the scene,
 about 12 to 15 s, skippable: the three rivals cross, then I walk the path, twirl and pose → the judges raise placards
 (stars) one after another with N's fact lines → the podium: everyone stands by rank, shells as today, a small result card
 (`채점 규칙` stays) → the stage keeps the result for the day.
@@ -130,7 +144,7 @@ into the bag, the keeper's line. Smallest of the four: build it last.
 
 ## Order of protection if time runs short
 
-Clothes shop, cafe, contest on the stage, general store, attic wardrobe. A place that is not solid keeps its sheet.
+Clothes shop, cafe, contest hall, general store, attic wardrobe. A place that is not solid keeps its sheet.
 
 ## Time
 
