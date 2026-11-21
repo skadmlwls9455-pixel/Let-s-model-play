@@ -8369,6 +8369,21 @@ async function scenarioEatServe(browser) {
   var keep = await pp.evaluate(function () { APP.recipeEat('kkochi2'); return (JSON.parse(localStorage.getItem('ppolppol_v2')).user || {}).recipes; });
   ok(ex && keep.future && keep.future.lv === 5 && keep.cake.n === 4 && keep.kkochi2.n === 1, '모르는 레시피 칸 (나중 판) 은 그대로 남는다 (' + JSON.stringify(keep) + ')');
   await P.ctx.close();
+  /* 9. 계약 C12: 다른 갈래가 쓰는 장면 함수 — 내 캐릭터가 든 그림 · 한 자리의 그림 (모르는 그림이면 false · null 이면 치움) */
+  var C12 = await open({}), pc = C12.page;
+  var c12 = await pc.evaluate(function () {
+    var s = APP.scene, out = { fn: typeof s.playerCarry === 'function' && typeof s.spriteProp === 'function' };
+    out.carry = s.playerCarry('table.cake', 0); out.bad = s.playerCarry('no.such', 0); out.afterBad = s.debugSprites().carry;
+    out.carry2 = s.playerCarry('table.gyeran', 0);
+    out.prop = s.spriteProp('t', { x: 0.5, y: 0, z: 0.5 }, 'dish.cake', 0); out.propBad = s.spriteProp('u', { x: 0, z: 0 }, 'no.such', 0);
+    return out;
+  });
+  await pc.waitForTimeout(400);
+  var c12b = await pc.evaluate(function () { var s = APP.scene, a = s.debugSprites(); s.playerCarry(null); s.spriteProp('t', null); return { a: a, b: s.debugSprites() }; });
+  ok(c12.fn && c12.carry === true && c12.bad === false && c12.afterBad === null && c12.carry2 === true && c12.prop === true && c12.propBad === false, '[C12] playerCarry · spriteProp: 있는 그림 true · 모르는 그림 false (' + JSON.stringify(c12) + ')');
+  ok(c12b.a.carry && c12b.a.carry.id === 'table.gyeran' && c12b.a.carry.visible && c12b.a.carry.n > 0 && c12b.a.props.t && c12b.a.props.t.visible && !c12b.a.props.u, '[C12] 든 그림 · 놓인 그림이 그려진다 (' + JSON.stringify(c12b.a) + ')');
+  ok(c12b.b.carry === null && Object.keys(c12b.b.props).length === 0, '[C12] null 로 치운다');
+  await C12.ctx.close();
   var O = await open({ book: { v: 1, day: D1, dayN: 1, seen: ['tap'], pot: null, book: [{ id: 'ck_o1', recipe: 'jeon', seed: 1, swaps: [], look: {}, day: '2026-11-18', madeAt: 1 }] } }), po = O.page;
   var ob = await po.evaluate(function () { var cook0 = localStorage.getItem('ppolppol_cook_v0'), u = APP.recipesUnlocked().join(), e = [APP.recipeEat('kkochi2'), APP.recipeEat('kkochi2'), APP.recipeEat('kkochi2')]; return { u: u, gifts: e.filter(function (x) { return x.gift; }).length, saved: (JSON.parse(localStorage.getItem('ppolppol_v2')).user || {}).recipes, same: cook0 === localStorage.getItem('ppolppol_cook_v0') }; });
   ok(ob.u === 'jeon2,gyeran,jumeokbap2,kkochi2' && ob.gifts === 0 && ob.saved.kkochi2.old === true && ob.same, '옛 수첩이 있던 사람: 과일 꼬치가 열려 있다 · 다시 선물하지 않는다 · 부엌 저장은 읽기만 (' + JSON.stringify(ob) + ')');
