@@ -316,6 +316,32 @@ section('12 round 7: the five dishes of the recipe book', function () {
   ['jeon', 'jumeokbap', 'kkochi'].forEach(function (r) { check(M.DISHES[r] && M.aria('table', { recipe: r }).indexOf('식탁, ') === 0, 'legacy ' + r + ' still known'); });
 });
 
+section('13 round 7: dish pictures and bite masks', function () {
+  check(JSON.stringify(M.pic('jeon2', { band: 2 })) === '{"id":"jeon","frame":2}' && M.pic('jeon2', {}).frame === 1 && M.pic('jeon2', { band: 9 }).frame === 2 && M.pic('jeon2', { band: -3 }).frame === 0 && M.pic('jeon2', null).frame === 1, 'jeon2 → dish.jeon, frame = band 0..2 (missing → 1)');
+  check(M.pic('gyeran', { band: 2 }).id === 'gyeran' && M.pic('gyeran', { band: 2 }).frame === 0 && M.pic('jumeokbap2').id === 'jumeokbap' && M.pic('kkochi2').id === 'kkochi' && M.pic('cake').id === 'cake', 'the other four: frame 0');
+  check(M.pic('jeon') === null && M.pic('jumeokbap') === null && M.pic('kkochi') === null && M.pic('nope') === null && M.pic(undefined) === null && M.pic('constructor') === null, 'legacy and unknown dishes have no picture');
+  /* 20 x 12 picture: food rows 2..6 (x 4..15), plate rows 7..9 (x 1..18) */
+  var w = 20, h = 12, d = new Uint8ClampedArray(w * h * 4);
+  function px(x, y) { var k = (y * w + x) * 4; d[k] = 200; d[k + 1] = 100; d[k + 2] = 50; d[k + 3] = 255; }
+  for (var y = 2; y <= 6; y++) for (var x = 4; x <= 15; x++) px(x, y);
+  for (y = 7; y <= 9; y++) for (x = 1; x <= 18; x++) px(x, y);
+  var spr = { w: w, h: h, d: d }, before = Array.prototype.slice.call(d);
+  function alpha(m, x, y) { return m[(y * w + x) * 4 + 3]; }
+  function count(m) { var n = 0; for (var i = 3; i < m.length; i += 4) if (m[i] >= 128) n++; return n; }
+  check(M.biteLine(spr) === 7, 'the container line is the first wide row (7)');
+  var full = count(d), m0 = M.biteMask(spr, [], 7, 0), m1 = M.biteMask(spr, [3], 7, 0), m2 = M.biteMask(spr, [3, 0], 7, 0), m4 = M.biteMask(spr, [3, 0, 2, 1], 7, 0);
+  check(m0 !== d && count(m0) === full, 'no bites: a copy, nothing removed');
+  check(count(m1) < full && alpha(m1, 15, 3) === 0 && alpha(m1, 4, 3) === 255 && alpha(m1, 17, 8) === 255, 'bite of quarter 3: the right food goes, the left food and the plate stay');
+  check(count(m2) < count(m1) && alpha(m2, 4, 3) === 0 && alpha(m2, 9, 3) === 255, 'second bite from the left');
+  check(count(m4) === 18 * 3, 'four bites: only the container rows are left');
+  check(Array.prototype.slice.call(d).join() === before.join(), 'the picture itself is never changed');
+  var t1 = M.biteMask(spr, [3], 7, 2), t4 = M.biteMask(spr, [0, 1, 2, 3], 7, 2);
+  check(count(t1) < full && count(t1) !== count(m1), 'toothed edge (amp 2) differs from the straight cut');
+  check(count(t4) >= 18 * 3 && count(t4) < full - 30, 'toothed: the food is gone but for a few crumbs, the plate stays');
+  check(M.biteMask(null, [0]) === null && M.biteMask({ w: 2, h: 2, d: [] }, [0]) === null && M.biteLine(null) === 0, 'broken pictures → null / 0');
+  check(JSON.stringify(Array.prototype.slice.call(M.biteMask(spr, [3], 7, 2))) === JSON.stringify(Array.prototype.slice.call(M.biteMask(spr, [3], 7, 2))), 'deterministic');
+});
+
 section('11 R11: no model-path code', function () {
   check(typeof M.request === 'undefined' && typeof M.readReply === 'undefined' && !/function\s+(request|readReply)\b/.test(SRC), 'no request / readReply in js/meal.js');
 });

@@ -1731,26 +1731,14 @@ dialog.cook-overlay .cook-wait[hidden] { display: none; }
 @keyframes cw-walk { to { background-position: calc(-1 * var(--cw-sheet, 896px)) 0; } }
 :root[data-motion="reduce"] .cook-wait .cw-oct { animation: none; }
 @media (prefers-reduced-motion: reduce) { :root:not([data-motion="auto"]) .cook-wait .cw-oct { animation: none; } }
-.cook-wait .cw-close, dialog.dish-pick .dp-chip { position: absolute; margin: 0; padding: 0; background-color: #e7d5b3; border: 0; border-radius: 0; box-sizing: border-box;
+.cook-wait .cw-close { position: absolute; margin: 0; padding: 0; background-color: #e7d5b3; border: 0; border-radius: 0; box-sizing: border-box;
   box-shadow: inset 0 0 0 var(--dp-b, 2px) #602c2c, inset calc(2 * var(--dp-b, 2px)) calc(2 * var(--dp-b, 2px)) 0 #ebede9,
     inset calc(-2 * var(--dp-b, 2px)) calc(-2 * var(--dp-b, 2px)) 0 #c09473, var(--dp-b, 2px) var(--dp-b, 2px) 0 #602c2c;   /* 부엌 칩 (.ck-paper) 과 같은 종이 */
   -webkit-tap-highlight-color: transparent; touch-action: manipulation; cursor: pointer; }
 .cook-wait .cw-close { --dp-b: var(--cw-b, 2px); left: var(--cw-cx, auto); top: var(--cw-cy, 8px); width: var(--cw-box, 48px); height: var(--cw-box, 48px); }
 .cook-wait .cw-close img { position: absolute; left: var(--cw-icp, 16px); top: var(--cw-icp, 16px); width: var(--cw-ic, 16px); height: var(--cw-ic, 16px); image-rendering: pixelated; }
-.cook-wait .cw-close:active, dialog.dish-pick .dp-chip:active { transform: translate(0, var(--dp-b, 2px)); }
-/* 요리 쟁반: 투명 배경 (뒤의 놀이방이 보인다) · 가운데 아래 · 칩 64 · 틈 16 · 그림 floor(3·dpr) 기기 px 배 (app.js dishPickFit) */
-dialog.dish-pick, :root[data-font="pixel"] dialog.dish-pick, :root[data-font="pixel"] dialog.dish-pick[open] { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
-  border: 0; border-radius: 0; background: transparent; box-shadow: none; animation: none; overflow: hidden; outline: none; }
-dialog.dish-pick::backdrop, :root[data-font="pixel"] dialog.dish-pick::backdrop { background: none transparent; }   /* 픽셀 테마의 대화상자 디더 막 (어둡게) 보다 앞서게 — 뒤의 놀이방이 그대로 보인다 */
-dialog.dish-pick .dp-row { position: absolute; left: var(--dp-x, 0px); top: var(--dp-y, 0px); width: calc(3 * var(--dp-chip, 64px) + 2 * var(--dp-gap, 16px)); height: var(--dp-chip, 64px); }
-dialog.dish-pick .dp-chip { top: 0; width: var(--dp-chip, 64px); height: var(--dp-chip, 64px); }
-dialog.dish-pick .dp-chip:nth-child(1) { left: 0; }
-dialog.dish-pick .dp-chip:nth-child(2) { left: calc(var(--dp-chip, 64px) + var(--dp-gap, 16px)); }
-dialog.dish-pick .dp-chip:nth-child(3) { left: calc(2 * var(--dp-chip, 64px) + 2 * var(--dp-gap, 16px)); }
-dialog.dish-pick .dp-chip img { position: absolute; left: var(--dp-icp, 8px); top: var(--dp-icp, 8px); width: var(--dp-ic, 48px); height: var(--dp-ic, 48px); image-rendering: pixelated; }
-html.dish-picking #btn-go, html.dish-picking #stick { visibility: hidden !important; }   /* 리드 11-18: 쟁반이 열린 동안 아래 막대의 큰 단추 · 손잡이가 칩 사이로 비치지 않게 (닫으면 클래스만 빠진다 → 그대로) */
-dialog.dish-pick .dp-chip:focus { outline: none; }
-dialog.dish-pick .dp-chip:focus-visible, .cook-wait .cw-close:focus-visible { outline: var(--dp-b, 2px) solid #341c27; outline-offset: var(--dp-b, 2px); }
+.cook-wait .cw-close:active { transform: translate(0, var(--dp-b, 2px)); }
+.cook-wait .cw-close:focus-visible { outline: var(--dp-b, 2px) solid #341c27; outline-offset: var(--dp-b, 2px); }
 /* 11-18 식탁 (lane M · docs/MEAL.md): 식탁 단추 (#btn-table — scene-spot 그대로) · 내 자리 노란 점 (#btn-seat — sofa-dot 모양) · 문어 부르기 칩 (#btn-call).
    셋 다 그림만 (글자 0 · title 없음). 칩: 44 px 누르는 곳 안에 40 px 종이 + 16×16 문어 머리 (한 칸 = floor(2·dpr) 기기 px — 크기 · 자리는 app.js mealUI 가 기기 px 로 맞춘다) */
 /* 11-18 리드 (검증 dining-1): #btn-seat 는 .sofa-dot 처럼 누름을 받지 않는다 — 장면의 '처음 보이는 면' 고르기가 정한다 (내 소파 · 식탁 → 'table' → 앉기).
@@ -1782,6 +1770,12 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 
 
 /* [7-T] 요리 → 식탁 잇기 · 레시피 */
+/* 먹는 동안의 큰 요리 그림: 부엌 칩과 같은 종이 칸 · 장면 위쪽 가운데 · 그림 한 칸 = floor(2·dpr) 기기 px (자리 · 크기는 app.js mealCloseDraw 가 기기 px 로) · 누름을 받지 않는다 */
+.meal-close { position: absolute; left: 0; top: 0; z-index: 8; margin: 0; padding: var(--mc-p, 8px); box-sizing: content-box; pointer-events: none; background-color: #e7d5b3;
+  box-shadow: inset 0 0 0 var(--mc-b, 2px) #602c2c, inset calc(2 * var(--mc-b, 2px)) calc(2 * var(--mc-b, 2px)) 0 #ebede9,
+    inset calc(-2 * var(--mc-b, 2px)) calc(-2 * var(--mc-b, 2px)) 0 #c09473, var(--mc-b, 2px) var(--mc-b, 2px) 0 #602c2c; }
+.meal-close[hidden] { display: none; }
+.meal-close canvas { display: block; image-rendering: pixelated; }
 
 
 /* [7-P] 내 캐릭터 · 뛰기 */
