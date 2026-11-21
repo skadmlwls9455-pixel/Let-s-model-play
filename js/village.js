@@ -92,7 +92,8 @@ var VILLAGE = (function () {
     CIRCLES.push([PLAZA.well[0], PLAZA.well[1], 0.95]);       /* 우물 */
     CIRCLES.push([PLAZA.nets[0], PLAZA.nets[1], 0.45]);
     CIRCLES.push([BOARD.s, BOARD.t, BOARD.r]);
-    CIRCLES.push([STAGE.c[0] + (-2.0 + 0.6) * K, STAGE.c[1] + (-2.0 - 0.6) * K, 0.2]);   /* 콘테스트 포스터 판 (SHOW.poster) */                        /* 그물 · 부표 더미 */
+    CIRCLES.push([STAGE.c[0] + (-2.0 + 0.6) * K, STAGE.c[1] + (-2.0 - 0.6) * K, 0.2]);   /* 콘테스트 포스터 판 */
+    CIRCLES.push([STAGE.c[0] + (1.75 + 0.25) * K, STAGE.c[1] + (1.75 - 0.25) * K, 0.12], [STAGE.c[0] + (2.55 + 0.25) * K, STAGE.c[1] + (2.55 - 0.25) * K, 0.12]);   /* 공연장 문의 기둥 둘 */                        /* 그물 · 부표 더미 */
     LAMPS.forEach(function (l) { if (inWalk(l[0], l[1], -0.3)) CIRCLES.push([l[0], l[1], 0.06]); });
     NPCS.forEach(function (n) { CIRCLES.push([n.s, n.t, n.r]); });   /* 문어마다 원 하나 (걷는 곳 밖이어도 등록 — 가장자리에서 몸이 겹치지 않게) */
   })();
@@ -198,7 +199,19 @@ var VILLAGE = (function () {
         { key: 'roomKeeper', btn: 'btn-npc-goods', label: '가게 문어', x: 1.5, y: 1.0, z: -2.05, r: 0.4, stand: [1.4, -0.85] },
         { key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 1.3, y: 0.5, z: 2.3, r: 0.5, stand: [1.3, 1.8] }]),
       boxes: [[1.05, -1.8, 2.55, -1.3], [-2.25, -2.35, 0.85, -1.95], [-2.55, -1.45, -2.15, 1.65]],
-      circles: [[2.2, 0.6, 0.24], [2.25, 1.15, 0.2], [-0.9, 2.0, 0.24]] }
+      circles: [[2.2, 0.6, 0.24], [2.25, 1.15, 0.2], [-0.9, 2.0, 0.24]] },
+    /* 공연장 (주인 11-22 00:05: "카페나 콘테스트도 아예 맵을 따로") — 뒷벽 앞의 높인 무대 (0.3 m) 와 방 안으로 뻗은 길 (캣워크), 막, 조명 둘, 길을 보는 심사석 셋, 구경 벤치 둘, 무대 뒤 구석 (옷걸이 · 거울), 벽의 결과판 */
+    hall: { name: '공연장', half: [3.5, 3.0], wallH: 2.4, door: [2.6, 2.4], face: Math.PI, lights: [[0, 2.1, -1.2], [0.6, 2.1, 1.2]],
+      stage: { x0: -2.3, x1: 2.3, z0: -3.0, z1: -1.55, y: 0.3 }, walk: { x0: -0.5, x1: 0.5, z0: -1.55, z1: 0.75, y: 0.3 }, steps: { z0: 0.75, z1: 1.2 },
+      slots: { stage: [0, 0.3, -2.2, 0], catwalk: [0, 0.3, 0.4, 0], wait: [-1.6, 0, 1.9, HP], rack: [-2.9, 0, 1.6, HP], rackStand: [-2.1, 0, 1.6, -HP], mirror: [-3.22, 0, 2.45, HP], board: [-3.44, 1.45, -0.2, HP], boardStand: [-2.55, 0, 0.9, -HP],
+        judge0: [2.75, 0.3, -0.75, -HP], judge1: [2.75, 0.3, -0.05, -HP], judge2: [2.75, 0.3, 0.65, -HP], table: [2.15, 0.52, -0.05, -HP], exit: [2.6, 0, 2.85, 0] },
+      spots: [
+        { key: 'hallStage', btn: 'btn-hall-stage', label: '무대', x: 0, y: 0.6, z: 0.9, r: 0.55, stand: [-0.95, 1.55] },
+        { key: 'hallRack', btn: 'btn-hall-rack', label: '옷걸이와 거울', x: -2.9, y: 0.9, z: 1.6, r: 0.5, stand: [-2.1, 1.6] },
+        { key: 'hallBoard', btn: 'btn-hall-board', label: '결과판', x: -3.44, y: 1.45, z: -0.2, r: 0.55, stand: [-2.55, 0.9] },
+        { key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 2.6, y: 0.5, z: 2.9, r: 0.5, stand: [2.6, 2.4] }],
+      boxes: [[-2.3, -2.95, -0.5, -1.55], [0.5, -2.95, 2.3, -1.55], [1.9, -1.15, 2.4, 1.05], [-3.3, -1.1, -2.85, 0.35], [-2.5, -1.1, -2.05, 0.35], [-3.45, 1.15, -2.7, 2.05]],
+      circles: [[-1.25, -1.3, 0.14], [1.25, -1.3, 0.14], [2.75, -0.75, 0.2], [2.75, -0.05, 0.2], [2.75, 0.65, 0.2], [-3.22, 2.45, 0.22]] }
   };
   /* 바깥의 가게 문 (들어가는 단추): 건물 안 좌표 (lx, lz) 의 문 앞 → (s, t) */
   var DOORS = (function () {
@@ -206,20 +219,19 @@ var VILLAGE = (function () {
     return [
       { key: 'inClothes', btn: 'btn-in-clothes', label: '옷가게 들어가기', room: 'clothes', s: c[0], t: c[1], y: 0.7, r: 0.45, stand: [c[0] + 0.75, -2.15] },
       { key: 'inGoods', btn: 'btn-in-goods', label: '잡화점 들어가기', room: 'goods', s: g2[0], t: g2[1], y: 0.7, r: 0.45, stand: [g2[0] + 0.75, 2.15] },
-      { key: 'inCafe', btn: 'btn-in-cafe', label: '카페 들어가기', room: 'cafe', s: f[0], t: f[1], y: 0.7, r: 0.45, stand: [f[0], 6.7] }];
+      { key: 'inCafe', btn: 'btn-in-cafe', label: '카페 들어가기', room: 'cafe', s: f[0], t: f[1], y: 0.7, r: 0.45, stand: [f[0], 6.7] },
+      { key: 'inHall', btn: 'btn-in-hall', label: '공연장 들어가기', room: 'hall', s: STAGE.c[0] + 2.4 * K, t: STAGE.c[1] + 1.9 * K, y: 0.9, r: 0.5, stand: [STAGE.c[0] + 3.3 * K, STAGE.c[1] + 1.0 * K] }];
   })();
   /* 광장 무대 (주말 콘테스트): 기다리는 자리 · 걷는 길 넷 · 심사 자리 셋 · 시상대 넷 — (s, t) */
-  var SHOW = (function () {
-    var c = STAGE.c, K2 = Math.SQRT1_2, P = function (dx, dz) { return [c[0] + (dx + dz) * K2, c[1] + (dx - dz) * K2]; };   /* 무대 가운데에서 x · z 로 (무대 앞 = +z) */
-    return { wait: P(-2.3, 2.3), path: [P(-1.5, 2.0), P(-0.7, 2.5), P(0.7, 2.5), P(1.5, 2.0)],          /* 무대 앞 깔개 위를 지나는 길 (땅 위 — 무대는 올라서지 않는 배경이다) */
-      judges: [P(-0.9, 3.9), P(0, 3.9), P(0.9, 3.9)].map(function (p) { return [p[0], p[1], Math.PI]; }), table: P(0, 3.45),   /* 심사석: 무대를 본다 */
-      podium: [[0, -0.5, 0.36], [-0.75, -0.5, 0.24], [0.75, -0.5, 0.14], [1.32, -0.5, 0]].map(function (q) { var p = P(q[0], q[1]); return [p[0], p[1], STAGE.y + q[2]]; }),   /* 시상대 (무대 위): 높이는 땅에서 */
-      rivals: [P(-2.3, 3.0), P(-2.7, 3.5), P(-2.3, 4.0)], poster: P(-2.0, 0.6) };
-  })();
+  /* 콘테스트의 자리 (공연장 방 안 좌표): 기다리는 곳 (무대 뒤 구석) · 걷는 길 넷 (계단 → 길 끝 → 무대 앞 → 무대 가운데) · 심사 자리 셋 · 시상대 넷 (무대 위, y = 바닥에서) · 경쟁 문어가 기다리는 줄 */
+  var SHOW = { room: 'hall', wait: [-1.6, 1.9], path: [[0, 1.35], [0, 0.3], [0, -1.2], [0, -2.1]],
+    judges: [[2.75, -0.75, -HP], [2.75, -0.05, -HP], [2.75, 0.65, -HP]], table: [2.15, -0.05],
+    podium: [[0, -2.45, 0.66], [-0.8, -2.45, 0.54], [0.8, -2.45, 0.44], [1.6, -2.45, 0.3]], rivals: [[-0.9, 2.45], [-0.2, 2.45], [0.5, 2.45]] };
+  var PLAZA_SHOW = (function () { var c = STAGE.c, K2 = Math.SQRT1_2, P = function (dx, dz) { return [c[0] + (dx + dz) * K2, c[1] + (dx - dz) * K2]; }; return { poster: P(-2.0, 0.6), door: P(2.15, 0.25), doorStand: P(2.15, 1.15) }; })();   /* 광장: 포스터 판 · 공연장으로 들어가는 막 드리운 문 (무대 오른쪽) */
   var EXTRA = ['judge0', 'judge1', 'judge2', 'rival0', 'rival1', 'rival2'];   /* 콘테스트 때만 서는 문어 (npcSet 에 올 수 있는 id — 자리는 SHOW, npcPlace 로 옮긴다) */
 
   var HATS = ['none', 'beret', 'apron', 'cap'], POSES = ['stand', 'sleep'];
   return { xz: xz, st: st, local: local, at: at, lot: lot, spot: spot, npc: npc, inWalk: inWalk,
-    WALK: WALK, LOTS: LOTS, DECK: DECK, STALL: STALL, STAGE: STAGE, PLAZA: PLAZA, CAFE: CAFE, SPOTS: SPOTS, NPCS: NPCS, LAMPS: LAMPS, NLAMP: NLAMP, POTS: POTS, BOARD: BOARD, CIRCLES: CIRCLES, BOXES: BOXES, BENCH: BENCH, route: route, ROOMS: ROOMS, DOORS: DOORS, SHOW: SHOW, EXTRA: EXTRA, SEGMENTS: SEGMENTS, HATS: HATS, POSES: POSES };
+    WALK: WALK, LOTS: LOTS, DECK: DECK, STALL: STALL, STAGE: STAGE, PLAZA: PLAZA, CAFE: CAFE, SPOTS: SPOTS, NPCS: NPCS, LAMPS: LAMPS, NLAMP: NLAMP, POTS: POTS, BOARD: BOARD, CIRCLES: CIRCLES, BOXES: BOXES, BENCH: BENCH, route: route, ROOMS: ROOMS, DOORS: DOORS, SHOW: SHOW, PLAZA_SHOW: PLAZA_SHOW, EXTRA: EXTRA, SEGMENTS: SEGMENTS, HATS: HATS, POSES: POSES };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = VILLAGE;
