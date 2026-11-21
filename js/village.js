@@ -213,7 +213,7 @@ var VILLAGE = (function () {
     var c = STAGE.c, K2 = Math.SQRT1_2, P = function (dx, dz) { return [c[0] + (dx + dz) * K2, c[1] + (dx - dz) * K2]; };   /* 무대 가운데에서 x · z 로 (무대 앞 = +z) */
     return { wait: P(-2.3, 2.3), path: [P(-1.5, 2.0), P(-0.7, 2.5), P(0.7, 2.5), P(1.5, 2.0)],          /* 무대 앞 깔개 위를 지나는 길 (땅 위 — 무대는 올라서지 않는 배경이다) */
       judges: [P(-0.9, 3.9), P(0, 3.9), P(0.9, 3.9)].map(function (p) { return [p[0], p[1], Math.PI]; }), table: P(0, 3.45),   /* 심사석: 무대를 본다 */
-      podium: [[0, -0.5, 0.36], [-0.75, -0.5, 0.24], [0.75, -0.5, 0.14], [1.45, -0.5, 0]].map(function (q) { var p = P(q[0], q[1]); return [p[0], p[1], STAGE.y + q[2]]; }),   /* 시상대 (무대 위): 높이는 땅에서 */
+      podium: [[0, -0.5, 0.36], [-0.75, -0.5, 0.24], [0.75, -0.5, 0.14], [1.32, -0.5, 0]].map(function (q) { var p = P(q[0], q[1]); return [p[0], p[1], STAGE.y + q[2]]; }),   /* 시상대 (무대 위): 높이는 땅에서 */
       rivals: [P(-2.3, 3.0), P(-2.7, 3.5), P(-2.3, 4.0)], poster: P(-2.0, 0.6) };
   })();
   var EXTRA = ['judge0', 'judge1', 'judge2', 'rival0', 'rival1', 'rival2'];   /* 콘테스트 때만 서는 문어 (npcSet 에 올 수 있는 id — 자리는 SHOW, npcPlace 로 옮긴다) */

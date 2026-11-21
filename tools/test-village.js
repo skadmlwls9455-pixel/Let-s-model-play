@@ -97,6 +97,42 @@ V.SPOTS.forEach(function (s2) { var a2 = V.xz(s2.stand[0], s2.stand[1]); ok(!V.B
   ok(pts.length >= 90 && bad === 0, '길 찾기 ' + n + ' 갈래 (' + pts.length + ' 자리 × 열 단추) 가 다 걷는 곳 안으로 이어진다 (어긋난 것 ' + bad + ')');
 })();
 
+/* 6c. 들어가는 방 (계약 C10): 크기 · 자리 · 단추 · 부딪힘 */
+(function () {
+  var WANT = { clothes: { size: [6.0, 5.2], slots: ['mq0', 'mq1', 'mq2', 'mq3', 'mirror', 'counter', 'keeper', 'exit'], btns: ['btn-mq-0', 'btn-mq-1', 'btn-mq-2', 'btn-mq-3', 'btn-room-mirror', 'btn-room-counter', 'btn-npc-clothes', 'btn-room-exit'] },
+    cafe: { size: [6.4, 5.2], slots: ['keeper', 'menu', 'pickup', 'seat', 'table', 'turntable', 'lp', 'exit'], btns: ['btn-cafe-menu', 'btn-cafe-counter', 'btn-cafe-seat', 'btn-cafe-lp', 'btn-npc-cafe', 'btn-room-exit'] },
+    goods: { size: [5.2, 4.8], slots: ['shelf0', 'shelf1', 'shelf2', 'shelf3', 'shelf4', 'shelf5', 'keeper', 'counter', 'exit'], btns: ['btn-shelf-0', 'btn-shelf-1', 'btn-shelf-2', 'btn-shelf-3', 'btn-shelf-4', 'btn-shelf-5', 'btn-room-counter', 'btn-npc-goods', 'btn-room-exit'] } };
+  ok(Object.keys(V.ROOMS).sort().join() === 'cafe,clothes,goods', '방 셋');
+  Object.keys(WANT).forEach(function (key) {
+    var R = V.ROOMS[key], W = WANT[key], hx = R.half[0], hz = R.half[1];
+    ok(near(2 * hx, W.size[0], 1e-9) && near(2 * hz, W.size[1], 1e-9) && R.wallH >= 2, key + ' 크기 ' + W.size.join(' x '));
+    function free(x, z, pad) { return Math.abs(x) <= hx - pad && Math.abs(z) <= hz - pad && !R.circles.some(function (c) { return Math.hypot(c[0] - x, c[1] - z) < c[2] + 0.25 - 0.03; }) && !R.boxes.some(function (b) { return x > b[0] - 0.22 && x < b[2] + 0.22 && z > b[1] - 0.22 && z < b[3] + 0.22; }); }
+    W.slots.forEach(function (n) { var q = R.slots[n]; ok(q && q.length === 4 && Math.abs(q[0]) <= hx && Math.abs(q[2]) <= hz + 0.01 && q[1] >= 0 && q[1] < R.wallH, key + ' 자리 ' + n); });
+    ok(R.spots.map(function (sp) { return sp.btn; }).sort().join() === W.btns.slice().sort().join(), key + ' 단추 = C10');
+    R.spots.forEach(function (sp) {
+      var mm = html.match(new RegExp('<button type="button" id="' + sp.btn + '" class="scene-spot" aria-label="[^"]+"[^>]* hidden></button>'));
+      ok(!!mm && !/title=/.test(mm[0]), 'index.html 에 ' + sp.btn);
+      ok(free(sp.stand[0], sp.stand[1], 0.3), key + ' ' + sp.key + ' 서는 자리가 방 안의 빈 곳');
+      ok(Math.hypot(sp.x - sp.stand[0], sp.z - sp.stand[1]) <= 1.3, key + ' ' + sp.key + ' 자리와 서는 자리가 가깝다');
+    });
+    ok(free(R.door[0], R.door[1], 0.3), key + ' 문 안 자리가 빈 곳');
+    ok(R.lights.length === 2, key + ' 등 둘 (다락과 같은 수 — 새 셰이더 없음)');
+    R.boxes.forEach(function (b) { ok(b[0] < b[2] && b[1] < b[3] && b[0] >= -hx - 0.01 && b[2] <= hx + 0.01 && b[1] >= -hz - 0.01 && b[3] <= hz + 0.01, key + ' 부딪힘 네모가 방 안'); });
+    /* 문에서 누르는 자리마다: 방 가운데 통로 (서는 자리들의 볼록한 안쪽) 가 막히지 않았다 — 문 → 서는 자리 곧은 선의 가운데 점이 가구 안이 아니다 (대충의 걸림 검사) */
+  });
+  ['mq0', 'mq1', 'mq2', 'mq3'].forEach(function (n, i) { var a = V.ROOMS.clothes.slots[n], b = V.ROOMS.clothes.slots['mq' + (i + 1)]; if (b) ok(b[0] - a[0] >= 0.9, '마네킹 받침 사이 0.9 m 넘게'); });
+  ok(V.DOORS.length === 3 && V.DOORS.every(function (d) { return V.ROOMS[d.room] && V.inWalk(d.stand[0], d.stand[1], 0) && html.indexOf('id="' + d.btn + '"') > 0; }), '바깥 문 셋: 방 · 서는 자리 · 단추');
+  V.DOORS.forEach(function (d) { V.CIRCLES.forEach(function (c) { if (Math.hypot(c[0] - d.stand[0], c[1] - d.stand[1]) < c[2] + 0.22) ok(false, d.key + ' 문 앞 서는 자리가 원 안'); }); });
+  /* 무대: 자리들이 광장의 빈 곳 */
+  var S2 = V.SHOW; ok(S2.path.length === 4 && S2.judges.length === 3 && S2.podium.length === 4 && S2.rivals.length === 3, '무대 자리: 길 넷 · 심사 셋 · 시상대 넷 · 경쟁 셋');
+  S2.path.concat([S2.wait], S2.rivals, S2.judges).forEach(function (p) {
+    ok(V.inWalk(p[0], p[1], 0.2) && !V.CIRCLES.some(function (c) { return Math.hypot(c[0] - p[0], c[1] - p[1]) < c[2] + 0.25; }), '무대 둘레 자리 (' + p[0].toFixed(1) + ', ' + p[1].toFixed(1) + ') 가 빈 곳');
+    var a = V.xz(p[0], p[1]); ok(!V.BOXES.some(function (b) { return a[0] > b[0] - 0.25 && a[0] < b[2] + 0.25 && a[1] > b[1] - 0.25 && a[1] < b[3] + 0.25; }), '… 네모 밖');
+  });
+  S2.podium.forEach(function (p) { var a = V.xz(p[0], p[1]), c = V.xz(V.STAGE.c[0], V.STAGE.c[1]); ok(Math.abs(a[0] - c[0]) < V.STAGE.h && Math.abs(a[1] - c[1]) < V.STAGE.h && p[2] >= V.STAGE.y, '시상대는 무대 위'); });
+  ok(V.EXTRA.join() === 'judge0,judge1,judge2,rival0,rival1,rival2', '콘테스트 문어 id');
+})();
+
 /* 7. 파일: DOM · 시계 · 난수 없음 */
 var src = fs.readFileSync(path.join(ROOT, 'js/village.js'), 'utf8');
 ok(!/\bdocument\b|\bwindow\b|Math\.random|Date\.now|new Date/.test(src), 'village.js 에 DOM · 시계 · 난수가 없다');
