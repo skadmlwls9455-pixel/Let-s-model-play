@@ -5754,7 +5754,7 @@ var SCENE3D = (function () {
       if (WSTATE.wave && wf !== WSTATE.waveF) { WSTATE.waveF = wf; var wo = -WAVE_F[wf] * Math.SQRT1_2; WSTATE.wave.position.set(wo, 0, wo); }
       /* 따라가기 최고 속도: 걷는 속도를 재서 그 1.3 배 (달리기가 3.8 m/s 여도 화면이 뒤처지지 않는다 — 서 있으면 천천히 예전 값 3 으로) */
       var sp = dt > 1e-4 ? Math.hypot(PL.pos.x - WSTATE.lastX, PL.pos.z - WSTATE.lastZ) / dt : 0; WSTATE.lastX = PL.pos.x; WSTATE.lastZ = PL.pos.z;
-      if (sp < 12) WSTATE.vmax = Math.max(3, sp * 1.3, WSTATE.vmax - dt * 2);
+      if (sp < 6) WSTATE.vmax = Math.max(3, sp * 1.3, WSTATE.vmax - dt * 2);   /* 6 m/s 넘는 건 걸음이 아니라 옮겨진 것 (빠른 이동 · 시험) */
       var lv = PL.stick && PL_IN.v ? PL_IN.v : null, lk = Math.min(1, dt / 0.45);   /* 앞보기: 스틱 쪽으로 가로 1.2 m · 세로 1.5 m 까지 (화면 축) — 0.45 s 에 걸쳐 옮겨 스틱을 흔들어도 화면이 출렁이지 않는다. 서면 그 자리에 둔다. 모션 감소면 없음 */
       if (st.reduced) WSTATE.la[0] = WSTATE.la[1] = 0; else if (lv) { WSTATE.la[0] += (lv.x * 1.2 - WSTATE.la[0]) * lk; WSTATE.la[1] += (lv.y * 1.5 - WSTATE.la[1]) * lk; }
       var J = WSTATE.jump;
