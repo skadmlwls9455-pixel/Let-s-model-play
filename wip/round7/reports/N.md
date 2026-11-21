@@ -134,9 +134,9 @@ must 없음. should 넷을 모두 고쳤다: 손가락으로 타이틀을 누르
 ## 콘텐츠 판 (11-21 밤 · `CONTENT.md` C14)
 
 - 새 대본 열쇠 (사실만, 같은 금지 낱말 검사): 아래 전부. 표와 값은 `docs/NPC.md` "박자 열쇠".
-- `NPC.list(날짜, 방)` + 앱의 `ppol:room` 듣기: 방 안엔 그 방 문어만, 카페엔 자는 문어 하나, 공연장엔 없음, 바깥엔 자는 셋.
+- 사람 세우기 (V 와 맞춤): `NPC.list` 는 늘 일곱을 넘기고, 가게 문어는 V 가 가게 앞과 방 안 keeper 칸에 그린다. `sleep-1` 은 `{ room: 'cafe', slot: 'nap' }` 을 달고 간다 (카페 구석 식탁). `ppol:room` 이 오면 떠 있던 말을 접는다.
 - 대사창은 `data-npc-avoid` 를 단 카드를 가리지 않는다.
-- 검사: `tools/test-npc.js` 1676 · `tools/test-npc-live.js` 63.
+- 검사: `tools/test-npc.js` · `tools/test-npc-live.js` 통과 (수는 마지막 실행 기준).
 - 못 본 것: V 의 진짜 방 · keeper 칸 · W 의 진짜 `ppol:room` (아직 그 갈래 가지에만 있다 — 가짜 함수와 가짜 이벤트로 검사).
 
 ### 시침 (새 줄)
