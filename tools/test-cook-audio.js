@@ -132,7 +132,8 @@ async function kitchen(browser, o) {
   if (o.init) await ctx.addInitScript(o.init);
   var page = await ctx.newPage(), bag = watch(page, o.allow);
   var cdp = await ctx.newCDPSession(page);
-  await page.goto(o.url);
+  /* 11-21 round 7: no dish asked for = the recipe book; these scenes start in an open step of the legacy jeon */
+  await page.goto(/[?&]recipe=/.test(o.url) || !/cook\.html/.test(o.url) ? o.url : o.url + '&recipe=jeon');
   await page.waitForFunction(function () { return window.COOK && COOK.isOpen() && window.AUDIO && typeof AUDIO.state === 'function'; }, null, { timeout: 15000 });
   var K = { ctx: ctx, page: page, cdp: cdp, bag: bag };
   /* 11-15 5차: 어느 장면이든 열자마자 단계다 — 조리대 · 소품 단추가 없다 */
@@ -890,7 +891,7 @@ async function scenarioG(browser, base) {
   await p.setViewportSize({ width: 360, height: 740 });
   await p.click('#cr-back');
   await p.waitForURL(/cook\.html/, { timeout: 8000 });
-  ok(/cook\.html\?seed=12$/.test(p.url()), "'돌아가기' → 온 곳(부엌)으로 (" + p.url().replace(base, '') + ')');
+  ok(/cook\.html\?seed=12(&recipe=jeon)?$/.test(p.url()), "'돌아가기' → 온 곳(부엌)으로 (" + p.url().replace(base, '') + ')');
   noErrors(K, 'G 부엌 · 크레딧');
   await K.close();
 
