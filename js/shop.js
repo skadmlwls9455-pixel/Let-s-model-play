@@ -85,7 +85,7 @@ var SHOP = (function () {
     var price = isObj(item) && typeof item.price === 'number' && isFinite(item.price) ? Math.floor(item.price) : 0;
     if (!isObj(item) || typeof item.key !== 'string' || price < 1 || !isKey(dateKey)) return no('bad');
     if (kind === 'clothes') {
-      if (st.shop.got[item.key] || (isObj(state.owned) && state.owned[item.key])) return no('owned');
+      if (isObj(state.owned) ? state.owned[item.key] : st.shop.got[item.key]) return no('owned');   /* 가졌는지는 옷장 (owned) 이 정한다. 옷장을 안 넘겼을 때만 영수증으로 */
       if (st.shells < price) return no('short');
       st.shells -= price; st.shop.got[item.key] = dateKey;
       return { ok: true, state: st, why: null, own: item.key };

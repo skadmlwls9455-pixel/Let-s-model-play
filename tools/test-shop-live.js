@@ -57,6 +57,12 @@ async function goodsRun(browser) {
   await tile(page, dye);
   ok(!(await page.$('#shop-body .shop-ask')) && (await U(page)).shells === 0 && /모자라/.test(await page.textContent('#toast')), '조개가 없으면 묻지 않고 모자란 수만');
   await setShells(page, 20);
+  /* 윗줄 칸을 두 번 톡: 둘째가 줄어든 시트의 바깥에 떨어져 닫히면 안 된다 */
+  const sb = await page.evaluate(() => { const r = document.querySelector('#shop-body .shop-tile').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + 20 }; });
+  await page.mouse.click(sb.x, sb.y); await page.mouse.click(sb.x, sb.y);
+  ok(await page.evaluate(() => document.getElementById('shop-sheet').open) && !!(await page.$('#shop-body .shop-ask')) && (await U(page)).shells === 20, '칸을 두 번 톡해도 시트가 닫히지 않는다');
+  ok(await page.evaluate(p => { const r = document.getElementById('shop-sheet').getBoundingClientRect(); return p.y >= r.top; }, sb), '묻는 동안 시트 높이가 줄지 않는다');
+  await page.waitForTimeout(700); await page.click('#shop-body .sew-no');
   await shot(page, 'goods-360');
   await dbl(page, 'seed');
   ok(!!(await page.$('#shop-body .shop-ask')) && !(await page.$('#shop-body .shop-grid')) && (await U(page)).shells === 20, '누르면 먼저 묻는다 (아직 안 나간다)');
@@ -108,6 +114,13 @@ async function clothesRun(browser) {
   let u = await U(page);
   ok(u.shells === 3 && !(u.owned || {})[dear.key] && !u.shop.got[dear.key] && !!(await page.$('#shop-body .shop-ask')) && /모자라/.test(await page.textContent('#toast')), '모자라면 안 사진다 (물음은 그대로)');
   await page.click('#shop-body .sew-no');
+  /* 옷장이 받지 않으면 (false) 조개도 안 나간다 */
+  await page.evaluate(() => { window.__own = APP.ownItem; APP.ownItem = () => false; });
+  await setShells(page, cheap.price + 2);
+  await tile(page, cheap.key); await yes(page);
+  u = await U(page);
+  ok(u.shells === cheap.price + 2 && !u.shop.got[cheap.key] && !(u.owned || {})[cheap.key], '옷장이 받지 않으면 조개도 안 나간다');
+  await page.evaluate(() => { APP.ownItem = window.__own; });
   await setShells(page, cheap.price + 2);
   await dbl(page, cheap.key);
   ok((await U(page)).shells === cheap.price + 2, '0.6 s 안의 살래는 안 받는다');
@@ -122,7 +135,7 @@ async function clothesRun(browser) {
   ok((await page.textContent('#shop-body .sew-yes')) === '입을래', '가진 옷은 입을지 묻는다');
   await yes(page);
   ok(await page.evaluate(k => { const p = k.split(':'); return APP.state.settings.player[p[0]] === p[1]; }, cheap.key) && (await U(page)).shells === 2, '입을래 → 입는다 (조개는 그대로)');
-  ok(await page.evaluate(() => window.__said.join()) === 'clothes|shop.hello,clothes|shop.hello,clothes|shop.thanks', '가게 주인 줄: 열 때 인사 · 산 뒤 한 번 (입기 · 모자람 · 그만에는 없다)');
+  ok(await page.evaluate(() => window.__said.join()) === 'clothes|shop.hello,clothes|shop.hello,clothes|shop.hello,clothes|shop.thanks', '가게 주인 줄: 열 때 인사 · 산 뒤 한 번 (입기 · 모자람 · 그만에는 없다)');
   await page.click('#shop-close');
   /* 새로고침 → 대역을 다시 끼워도 산 것은 그대로 */
   await page.reload(); await page.waitForFunction(() => window.APP && APP.openShop, null, { timeout: 30000 }); await page.waitForTimeout(800);
@@ -177,6 +190,12 @@ async function tabsRun(browser) {
   const saved = JSON.parse(await A.evaluate(() => localStorage.getItem('ppolppol_v2')));
   ok(saved.user.shop.got[it.key] === DAY && saved.user.owned[it.key] === DAY, '저장에도 다시 적힌다');
   ok(await A.evaluate(k => !!document.querySelector('#shop-body .shop-tile[data-key="' + k + '"] .sew-cost.own'), it.key), '열린 선반의 표시도 그대로');
+  /* 불러오기 (같은 탭) 뒤에 가게를 열어도 방금 산 것을 다시 얹지 않는다 */
+  await A.evaluate(raw => { const o = JSON.parse(raw); o.user.seeds = 3; APP.importJSON(JSON.stringify(o)); }, stale);
+  await A.evaluate(() => APP.openShop('clothes'));
+  const im = await U(A);
+  ok(im.seeds === 3 && !(im.owned || {})[it.key] && !((im.shop || {}).got || {})[it.key], '불러온 기록에는 얹지 않는다');
+  await A.evaluate(() => document.getElementById('shop-sheet').close());
   /* 다른 문어의 기록 (초기화 뒤 새로 시작한 탭) 이면 얹지 않는다 */
   await A.evaluate(raw => { const o = JSON.parse(raw); o.octopus.born = '2026-11-20T00:00:00.000Z'; delete o.user.owned; delete o.user.shop; const v = JSON.stringify(o); localStorage.setItem('ppolppol_v2', v); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v, storageArea: localStorage })); }, stale);
   await A.waitForTimeout(1300);
