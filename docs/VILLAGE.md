@@ -95,7 +95,35 @@
 - 밝은 몸 색은 어둡게 굽는다 (밝기에 따라 0 ~ 40 % — 바깥 한낮 햇빛에서 하얗게 뜨지 않게). 장면 팔레트에 스냅되므로 중간 밝기의 색이 잘 읽힌다.
 - 가게 문어는 판매대 · 계산대 뒤 발판 위에 선다 (얼굴이 판매대 위로 보이게). 바닷가의 둘은 갈래 W 의 땅 높이 (`wideGroundY`) 를 더한다.
 
+## 들어가는 방 (11-21 밤 — 계약 C9 · C10)
+
+주인: "옷가게 맵을 아예 따로 만들고 마네킹에 입혀진 거를 입어보고 살 수 있는 그런 느낌으로." 가게는 시트가 아니라 **걸어 들어가는 방**이다.
+방을 들이고 내는 일 (문 연출 · 걷는 곳 · 카메라 · 벽 자르기 · 단추 놓기와 걸어가서 누르기) 은 갈래 W 의 `ROOM_REG` 배관이고, 여기서는 방의 자리 표 (`VILLAGE.ROOMS`) 와 짓기 (`vilRoomBuild`) 를 준다.
+
+방 좌표: 원점 = 바닥 가운데 · 바닥 y 0 · 뒷벽 = −x · −z (기본 각에서 보이는 두 벽) · 문은 앞벽 (+z). `build(g)` 는 바닥 널 · 네 벽 · 가구를 그 그룹에 짓고
+`{ cuts }` (벽마다 온 것 + 걸레받이 한 줄짜리 쌍둥이 + 바깥 법선) 를 돌려준다. 소품은 저마다 제 모양대로 만든다 (하나를 다른 것인 척 돌려 쓰지 않는다).
+
+| 방 | 크기 | 무엇 | 자리 (`scene.roomSlots(key).slots`) | 단추 |
+|---|---|---|---|---|
+| `clothes` | 6.0 × 5.2 | 마네킹 받침 넷과 값표 걸이 · 선 거울 · 계산대와 금전함 · 옷걸이 줄 · 재단대와 천 두루마리 · 신발 벤치 · 깔개 · 갈아입는 칸 (걷어 묶은 커튼) · 모자 상자 선반 · 창 | `mq0..mq3` `mirror` `mirrorStand` `counter` `keeper` `fitting` `exit` | `#btn-mq-0..3` `#btn-room-mirror` `#btn-room-counter` `#btn-npc-clothes` `#btn-room-exit` |
+| `cafe` | 6.4 × 5.2 | 계산대 (커피 기계 · 유리 덮개 케이크 받침 · 내주는 자리와 종) · 분필 차림판과 도장 카드 · 식탁 셋과 걸상 · 레코드 장 (턴테이블 · 나팔 · 레코드 꽂이) · 바다 창 · 원두 병 선반 | `keeper` `menu` `pickup` `counter` `table` `seat` `aisle` `table1` `table2` `nap` `turntable` `lp` `exit` | `#btn-cafe-menu` `#btn-cafe-counter` `#btn-cafe-seat` `#btn-cafe-lp` `#btn-npc-cafe` `#btn-room-exit` |
+| `goods` | 5.2 × 4.8 | 선반 장 여섯 (씨앗 봉지 · 물감 병) · 계산대와 접시저울 · 나무통 · 자루 · 물뿌리개 · 걸린 연장 · 창 | `shelf0..shelf5` `counter` `scale` `keeper` `exit` | `#btn-shelf-0..5` `#btn-room-counter` `#btn-npc-goods` `#btn-room-exit` |
+
+- 바깥의 문: `#btn-in-clothes` · `#btn-in-goods` · `#btn-in-cafe` (`VILLAGE.DOORS`). 멀리서 누르면 문 앞까지 걸어간 뒤 눌린다.
+- 가게 문어: `npcSet` 에 준 `clothes` · `goods` · `cafe` 는 바깥 판매대와 방 안 `keeper` 자리 **양쪽에** 같은 색 · 모자로 선다.
+- 카페: `cafeSit` · `cafeCup` · `cafeSeated` 는 카페 방 안이면 방 안의 걸상 · 식탁에서, 아니면 테라스에서. `cafeRecord(on, '#rrggbb')` 는 턴테이블에 그 색 딱지의 판을 올려 돌리고 음표 셋을 띄운다 (모션 감소면 멈춘 채 · 소리는 다른 갈래).
+- 창 유리는 바깥 빛 (낮 하늘 · 노을 · 밤) 을 따르고, 갓등 둘은 저녁부터 켜진다. 점광은 방마다 둘 (`lights` — 다락과 같은 수).
+- 테라스 (바깥 덱) 는 그대로 남는다. 바깥의 `#btn-cafe-counter` 자리는 없어졌다 (주문은 안에서).
+- 방 배관이 없을 때 살펴보기: `scene.debugVillageRoom(key)` (다락 자리에 지어 보여 준다 · `null` 로 치운다).
+
+## 광장 무대 (주말 콘테스트)
+
+- `scene.stage()` → `{ wait, path: [[x, z] ×4], judges: [[x, z, face] ×3], podium: [[x, z, y] ×4], rivals, poster, table, centre, half, y, dressed }` (월드 좌표).
+  걷는 길은 무대 앞 둥근 깔개를 지나는 땅 위의 길이다 (무대는 부딪히는 배경). 시상대는 무대 위 (y = 땅에서의 높이).
+- `scene.stageDress(on)`: 심사석 (긴 상 · 빈 팻말 셋) · 시상대 단 셋 · 무대 앞 깃발 줄 · 등 둘. 포스터 판 (빈 종이) 은 늘 서 있다.
+- 문어 id `judge0..2` · `rival0..2` 를 `npcSet` 이 받는다. `scene.npcPlace(id, x, z, face)` 로 옮기고 (x 가 null 이면 제자리로 · 무대 위 / 시상대 위면 그 높이에 선다), `scene.npcPose(id, 'stand' | 'sit' | 'sleep')`.
+
 ## 시험
 
-- `node tools/test-village.js` — 표: 계약 C6 과 맞는가, 단추 열 개와 `index.html`, 서는 자리가 걷는 곳 안인가, 자리끼리 화면에서 44 px 넘게 떨어져 있나, 길 가운데가 막히지 않았나.
-- `NODE_PATH=$(npm root -g) node tools/test-village-live.js` — 마을 위에서: NPC 나타남 · 사라짐, 단추가 자리 위에, 걸어가서 누르기, 카페 자리, 드로우콜 (s 25 · 34 · 42 × 네 각 · 밤), 프로그램 수, `wide=0` 과 2D 장면에서 오류 없음.
+- `node tools/test-village.js` — 표 (방 · 문 · 무대 포함): 계약 C6 과 맞는가, 단추 열 개와 `index.html`, 서는 자리가 걷는 곳 안인가, 자리끼리 화면에서 44 px 넘게 떨어져 있나, 길 가운데가 막히지 않았나.
+- `NODE_PATH=$(npm root -g) node tools/test-village-live.js` — 마을 위에서: NPC 나타남 · 사라짐, 단추가 자리 위에, 걸어가서 누르기, 카페 자리, 드로우콜 (s 25 · 34 · 42 × 네 각 · 밤), 프로그램 수, 무대 API, 방 셋에 들어가고 나오기 · 카페 안 자리 (방 배관이 있을 때), `wide=0` 과 2D 장면에서 오류 없음.
