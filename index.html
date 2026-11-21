@@ -213,6 +213,35 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <!-- [7-W] 단추 -->
 
   <!-- [7-V] 단추 -->
+  <!-- 11-21 마을 (docs/VILLAGE.md): 그림 위의 보이지 않는 단추 — 자리 · hidden 은 장면 (등록부 WIDE_REG.spots) 이 쥔다. 이름은 aria-label 뿐 (title 없음) -->
+  <button type="button" id="btn-shop-clothes" class="scene-spot" aria-label="옷가게" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-shop-goods" class="scene-spot" aria-label="잡화점" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-cafe-counter" class="scene-spot" aria-label="카페 주문" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-cafe-seat" class="scene-spot" aria-label="카페 자리" hidden></button>
+  <button type="button" id="btn-cafe-lp" class="scene-spot" aria-label="레코드" hidden></button>
+  <button type="button" id="btn-plaza-stage" class="scene-spot" aria-label="콘테스트 무대" hidden></button>
+  <button type="button" id="btn-plaza-board" class="scene-spot" aria-label="마을 게시판" hidden></button>
+  <button type="button" id="btn-npc-clothes" class="scene-spot" aria-label="가게 문어" hidden></button>
+  <button type="button" id="btn-npc-goods" class="scene-spot" aria-label="가게 문어" hidden></button>
+  <button type="button" id="btn-npc-cafe" class="scene-spot" aria-label="가게 문어" hidden></button>
+  <!-- 11-21 밤: 들어가는 가게 (문) 와 방 안의 자리 — 자리 · hidden 은 장면 (WIDE_REG / ROOM_REG 의 spots) 이 쥔다 -->
+  <button type="button" id="btn-in-clothes" class="scene-spot" aria-label="옷가게 들어가기" hidden></button>
+  <button type="button" id="btn-in-goods" class="scene-spot" aria-label="잡화점 들어가기" hidden></button>
+  <button type="button" id="btn-in-cafe" class="scene-spot" aria-label="카페 들어가기" hidden></button>
+  <button type="button" id="btn-room-exit" class="scene-spot" aria-label="밖으로" hidden></button>
+  <button type="button" id="btn-room-counter" class="scene-spot" aria-label="계산대" hidden></button>
+  <button type="button" id="btn-room-mirror" class="scene-spot" aria-label="거울" hidden></button>
+  <button type="button" id="btn-mq-0" class="scene-spot" aria-label="첫째 마네킹" hidden></button>
+  <button type="button" id="btn-mq-1" class="scene-spot" aria-label="둘째 마네킹" hidden></button>
+  <button type="button" id="btn-mq-2" class="scene-spot" aria-label="셋째 마네킹" hidden></button>
+  <button type="button" id="btn-mq-3" class="scene-spot" aria-label="넷째 마네킹" hidden></button>
+  <button type="button" id="btn-cafe-menu" class="scene-spot" aria-label="차림판" hidden></button>
+  <button type="button" id="btn-shelf-0" class="scene-spot" aria-label="첫째 선반" hidden></button>
+  <button type="button" id="btn-shelf-1" class="scene-spot" aria-label="둘째 선반" hidden></button>
+  <button type="button" id="btn-shelf-2" class="scene-spot" aria-label="셋째 선반" hidden></button>
+  <button type="button" id="btn-shelf-3" class="scene-spot" aria-label="넷째 선반" hidden></button>
+  <button type="button" id="btn-shelf-4" class="scene-spot" aria-label="다섯째 선반" hidden></button>
+  <button type="button" id="btn-shelf-5" class="scene-spot" aria-label="여섯째 선반" hidden></button>
 
   <!-- [7-S] 단추 -->
 
@@ -520,6 +549,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- [7-W] 스크립트 -->
 
 <!-- [7-V] 스크립트 -->
+<script src="js/village.js"></script>
 
 <!-- [7-S] 스크립트 -->
 
