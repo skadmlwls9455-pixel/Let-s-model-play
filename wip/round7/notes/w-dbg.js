@@ -15,14 +15,14 @@ var ROOT = path.resolve(__dirname, '../../..');
   }
   await page.waitForTimeout(600);
   var S1 = '/tmp/claude-0/-home-user-Let-s-model-play/bf38d309-8ede-59ca-909d-3c51ecde03b7/scratchpad/shots/';
-  page.on('console', function (m) { if (m.type() === 'error') console.log('CON ' + m.text().slice(0, 200)); });
-  for (var key of ['clothes', 'cafe', 'goods']) {
-    var ok1 = await page.evaluate(function (k) { var sc = APP.scene; if (!sc.roomReg[k]) return 'noreg'; return Promise.resolve(sc.enterRoom(k)).then(function (r) { return r && r.ok; }); }, key);
-    await page.waitForTimeout(1500);
-    var r = await page.evaluate(function () { var out = []; document.querySelectorAll('#scene .scene-spot').forEach(function (b) { if (b.hidden) return; var q = b.getBoundingClientRect(); out.push([b.id, Math.round(q.left), Math.round(q.top)]); }); return out; });
-    console.log(key, ok1, JSON.stringify(r).slice(0, 500));
-    await page.screenshot({ path: S1 + 'room-' + key + '.png' });
-    await page.evaluate(function () { return APP.scene.leaveRoom(); }); await page.waitForTimeout(1500);
+  page.on('console', function (m) { if (m.type() === 'error' || m.type() === 'warning') console.log('CON ' + m.text().slice(0, 160)); });
+  async function tapBtn(id) { var r = await page.evaluate(function (id) { var b = document.getElementById(id); if (!b || b.hidden) return null; var q = b.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; }, id); if (!r) return 'hidden'; await page.touchscreen.tap(r[0], r[1]); return 'tapped'; }
+  await page.evaluate(function () { return APP.goInside('cafe'); }); await page.waitForTimeout(1500);
+  var stands = await page.evaluate(function () { var sp = APP.scene.roomSlots('cafe').spots, o = []; for (var k in sp) if (sp[k].stand) o.push([sp[k].stand[0], sp[k].stand[1], k]); return o; }); console.log(JSON.stringify(stands));
+  for (var start of stands) {
+    var r = await page.evaluate(function (st) { var sc = APP.scene; sc.debugPlayerAt(st[0], st[1]); var done = null; Promise.resolve(sc.cafeSit(true)).then(function (v) { done = v; }); return new Promise(function (res) { var t = 0; (function w() { if (done !== null || t > 120) { res({ done: done, seated: sc.cafeSeated ? sc.cafeSeated() : null, at: sc.player().at }); return; } t++; setTimeout(w, 100); })(); }); }, start);
+    console.log('sit from', start, JSON.stringify(r));
+    await page.evaluate(function () { return APP.scene.cafeSit(false); }); await page.waitForTimeout(800);
   }
   await browser.close();
 })().catch(function (e) { console.error(e); process.exit(1); });
