@@ -321,7 +321,9 @@ async function main() {
   check((await calls(page, 'dress')).some(function (c) { return c[1] === true; }) && r.length && /rival0,rival1,rival2/.test(r[r.length - 1][1]), '주말: 무대를 꾸미고 경쟁자 셋을 세움');
   check((await calls(page, 'npose')).filter(function (c) { return c[2] === 'sit'; }).length >= 3, '심사 문어 셋이 앉음');
   await shot(page, '8-live-entry');
-  await page.waitForTimeout(700); await page.click('#ct-w-go');
+  await page.waitForTimeout(700);
+  await page.evaluate(function () { window.__ctLiveSeen = {}; window.__ctLiveRec = setInterval(function () { var s = APP.contestLive; if (s) window.__ctLiveSeen[s.stage + s.n] = 1; }, 20); });   /* 장면 쇼 박자도 페이지 안에서 20 ms 마다 (바깥 물음은 바쁜 CI 에서 첫 걸음을 놓친다 — 리드 03e0479 와 같은 고침) */
+  await page.click('#ct-w-go');
   e = await entry(page, SAT);
   check(e && e.paid && (await shells(page)) === s0 + e.shells && !!(await page.evaluate(function () { return APP.contestLive; })), '나가기 → 조개 한 번 · 쇼 시작');
   check((await chip(page)) === null || (await chip(page)) === s0, '장면 쇼 동안 조개 칩은 아직 예전 수');
@@ -333,6 +335,7 @@ async function main() {
     if (!seen[r]) { seen[r] = 1; if (r === 'judge3') await shot(page, '9-live-placards'); }
     await page.waitForTimeout(100);
   }
+  Object.assign(seen, await page.evaluate(function () { clearInterval(window.__ctLiveRec); return window.__ctLiveSeen || {}; }));
   check(['walk1', 'walk2', 'walk3', 'walk4', 'pose0', 'judge1', 'judge2', 'judge3'].every(function (k) { return seen[k]; }), '박자가 차례로: ' + Object.keys(seen).join(' '));
   took = Date.now() - t0;
   check(took > 6000 && took < 20000, '쇼 길이 (' + took + 'ms)');
