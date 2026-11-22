@@ -114,3 +114,12 @@ List and sizes: `wip/round7/briefs/SPRITES2.md`. All in the same `js/cook-sprite
 - Tests: `node tools/test-cook-sprites.js` 1821 checks pass; sheets `--check` passes; `npm test` passes.
 - Looked at once by me; no second independent check for this pass. Weak: the sip levels of the 16 px `cafe.cup` differ by
   two or three pixels only; `table.cake` frame 2 is a small block.
+
+## Third pass (11-22): empty dishes under the bites
+
+`empty.jeon`, `empty.gyeran`, `empty.jumeokbap`, `empty.kkochi`, `empty.cake`: 80 x 56, anchor (40, 44), 1 frame each, the
+same container at the same place as `dish.*`, drawn complete where the food covered it. The soy dip stays in its dish (a
+little lower), the ketchup is a smear, crumbs and grains on the plate, the jeon chopsticks lie with their tips on the soy dish
+rim, the two skewer sticks lie on the plate. Lane T draws one under the dish picture and cuts round bites out of the dish.
+Picture: `wip/round7/shots/A/empty-4x.png`. Test: 100 ids, 200 frames, 1876 checks pass; sheets `--check` and `npm test` pass.
+The legacy dishes (`jeon`, `jumeokbap`, `kkochi`) are drawn by `js/cook-art.js`, not by this file: no empty picture for them here.

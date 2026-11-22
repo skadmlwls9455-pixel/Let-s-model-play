@@ -100,7 +100,7 @@ function sheet(cells, maxW, bg, ink) {
 
 /* ---- groups (file name -> which ids) ---- */
 var GROUPS = [
-  ['dishes', function (id) { return /^(dish|icon|table)\./.test(id); }],
+  ['dishes', function (id) { return /^(dish|icon|table|empty)\./.test(id); }],
   ['jeon', function (id) { return /^(bowl|mix\.jeon|greens|jug|jeon\.|whisk)/.test(id); }],
   ['gyeran', function (id) { return /^(mix\.egg|egg$|pan\.square|gyeran\.)/.test(id); }],
   ['jumeokbap', function (id) { return /^(mix\.rice|pot\.rice|paddle|shaker|rice\.|gim)/.test(id); }],

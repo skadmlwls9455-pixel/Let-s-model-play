@@ -467,6 +467,81 @@ var COOK_SPR = (function () {
     F.put(c2, 40, 4, 'uUV', 1);
   });
 
+  /* ================= empty dishes (80 x 56, anchor 40, 44): the same container at the same place, everything eaten =================
+     The table draws one of these UNDER the dish picture and cuts round bites out of the dish, so the container must be
+     complete where the food covered it. Sauce stays in its dish, a few crumbs and smears, utensils rest on a rim. */
+  function crumbs(F, list) { list.forEach(function (q) { F.p(q[0], q[1], q[2]); if (q[3]) F.p(q[0] + 1, q[1], q[3]); }); }
+  def('empty.jeon', 80, 56, 40, 44, 1, function (F) {
+    var t = lay(60, 28), x, y;
+    t.e(0, 4, 60, 24, 'k').e(0, 2, 60, 24, 'a').e(0, 0, 60, 24, 'A');
+    t.on('A').ring(0, 0, 60, 24, 3, 'y').on();
+    t.on('A'); for (y = 4; y < 21; y += 2) for (x = 4 + (y % 4); x < 56; x += 4) { t.p(x, y, 'a'); t.p(x + 1, y, 'a'); } t.on();
+    t.on('y'); for (x = 2; x < 58; x += 3) { t.p(x, x % 2 ? 1 : 22, 'A'); t.p(x, x % 2 ? 22 : 1, 'A'); t.p(x < 30 ? 1 : 58, 6 + (x % 12), 'A'); } t.on();
+    t.on('a'); for (x = 3; x < 58; x += 4) t.p(x, 25 - (x < 12 || x > 47 ? 3 : (x < 20 || x > 39 ? 1 : 0)), 'k'); t.on();
+    F.put(t, 2, 26, 'aKK', 0);
+    crumbs(F, [[16, 34, '3', '2'], [27, 37, '4', '3'], [38, 33, '2'], [22, 41, 'g', 'G'], [33, 42, '3', '2'], [45, 38, '4'], [12, 39, '2'], [41, 44, 'G']]);
+    /* the dish of soy dip, a little lower */
+    var d = lay(18, 12);
+    d.e(0, 2, 18, 10, 'm').e(0, 0, 18, 10, 'w').on('w').e(3, 3, 12, 5, 'S').on().on('S').e(4, 5, 10, 3, 'K').on().p(6, 4, 'W').p(11, 6, 's');
+    d.on('w').p(2, 4, 'K').p(15, 3, 'K').on();
+    F.put(d, 60, 38, OC, 0);
+    /* the chopsticks laid down: their tips rest on the soy dish rim, the ends on the table */
+    var c = lay(34, 9);
+    c.ln(1, 0, 32, 4, 'F', 2).ln(1, 0, 32, 4, 'E');
+    c.ln(0, 4, 32, 7, 'F', 2).ln(0, 4, 32, 7, 'E');
+    F.put(c, 29, 34, 'uUV', 1);
+  });
+  def('empty.gyeran', 80, 56, 40, 44, 1, function (F) {
+    F.put(platter(72, 24, 'z'), 4, 28, OC, 0);
+    /* the sprig is left, lying on the plate */
+    var leaf = lay(12, 7);
+    leaf.rows(0, 0, [
+      '.qqg..qqgg..',
+      'qgggGqggggGg',
+      'ggggGgggGggg',
+      '.gggGggGggG.',
+      '..ggGgGggG..',
+      '...GGGGGG...',
+      '............']);
+    F.put(leaf, 10, 33, OG, 1);
+    /* a smear of ketchup pulled by the last bite, egg crumbs */
+    var k = lay(14, 4); k.rows(0, 0, ['..rr..........', '.rRrrr..r.....', 'rrRRRrrrRr.rr.', '.RRRRRRRRRRRR.']);
+    F.put(k, 52, 42, '', 0);
+    crumbs(F, [[28, 36, '5', '4'], [38, 40, '4'], [46, 35, '5', '3'], [33, 45, '6', '5'], [22, 42, '4'], [44, 46, 'g']]);
+  });
+  def('empty.jumeokbap', 80, 56, 40, 44, 1, function (F) {
+    var leaf = lay(72, 26), pts = [[0, 14], [7, 6], [22, 1], [46, 0], [62, 3], [72, 10], [64, 18], [48, 23], [24, 24], [8, 20]];
+    leaf.poly(pts.map(function (p) { return [p[0], p[1] + 2]; }), '9');
+    leaf.poly(pts.map(function (p) { return [p[0], p[1] + 1]; }), 'j');
+    leaf.poly(pts, 'J');
+    leaf.on('J').poly([[8, 8], [24, 3], [46, 2], [60, 5], [40, 8], [16, 12]], 'Y').on();
+    leaf.on('JY').ln(3, 14, 68, 10, 'j');
+    [[14, 13, 20, 6], [26, 12, 33, 4], [40, 11, 47, 3], [53, 11, 59, 5], [16, 14, 24, 20], [30, 13, 38, 21], [44, 12, 52, 20], [56, 11, 62, 16]].forEach(function (v) { leaf.ln(v[0], v[1], v[2], v[3], 'j'); });
+    leaf.on();
+    F.put(leaf, 4, 28, '988', 0);
+    /* rice grains, sesame and a scrap of seaweed */
+    var g = lay(3, 2); g.rows(0, 0, ['WWQ', '.Qe']);
+    [[20, 35], [29, 39], [37, 33], [45, 41], [52, 36], [24, 44]].forEach(function (q) { F.put(g, q[0], q[1], 'EFF', 0); });
+    crumbs(F, [[33, 44, 'u', 'E'], [42, 37, 'u', 'E'], [17, 40, 'u'], [56, 43, 'E', 'u']]);
+    var gim = lay(5, 3); gim.rows(0, 0, ['TTtT.', 'TtTTT', '.TTT.']);
+    F.put(gim, 39, 45, 'tTT', 1);
+  });
+  def('empty.kkochi', 80, 56, 40, 44, 1, function (F) {
+    var pl = lay(66, 28);
+    pl.e(0, 3, 66, 25, 'H').e(0, 1, 66, 25, 'z').e(0, 0, 66, 24, 'C');
+    pl.on('C').ring(5, 3, 56, 18, 1, 'z').e(8, 5, 50, 14, 'w').e(11, 7, 47, 13, 'C').on();
+    pl.on('C').e(4, 1, 30, 8, 'w').e(6, 2, 30, 8, 'C').on();
+    F.put(pl, 7, 26, 'hii', 0);
+    /* the two bare sticks lying on the plate, a little apart */
+    var s = lay(46, 12);
+    s.ln(0, 3, 44, 0, 'A', 2).ln(0, 3, 44, 0, 'y');
+    s.ln(1, 11, 45, 6, 'A', 2).ln(1, 11, 45, 6, 'y');
+    F.put(s, 17, 31, 'akK', 1);
+    /* drops of glaze and a little juice */
+    crumbs(F, [[22, 44, 'W', 'w'], [57, 45, 'W'], [40, 48, 'W', 'w'], [30, 46, 'r'], [50, 38, '4'], [45, 47, 'g']]);
+  });
+  def('empty.cake', 80, 56, 40, 44, 1, function (F) { cakeDish(F, 3); });
+
   /* ================= small pictures typed by hand: icons 16 x 16, table sprites 16 x 12, step pictograms ================= */
   function typed(id, w, h, ax, ay, rows, maps) {
     def(id, w, h, ax, ay, maps ? maps.length : 1, function (F, f) { F.rows(0, 0, rows); if (maps && maps[f]) F.map(maps[f]); });
