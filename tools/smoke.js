@@ -7509,7 +7509,7 @@ async function scenarioSceneTap(browser) {
         return { label: c.getAttribute('aria-label'), text: c.textContent, title: c.hasAttribute('title'), w: r.width, h: r.height, top: r.top, right: window.innerWidth - r.right, oct: [o.width * dpr % 56, o.x * dpr % 1, o.y * dpr % 1] }; });
     }, function () { return null; });
     await page.tap('#cook-close');
-    k2.closed = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 3000 }).then(function () {
+    k2.closed = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open && document.getElementById('cook-wait').hidden; }, null, { timeout: 3000 })   /* 11-21: 'close' 이벤트는 닫힌 뒤 따로 온다 — 기다림 그림이 걷힌 상태까지 기다린다 */.then(function () {
       return page.evaluate(function () { return { view: APP.scene.view(), focus: document.activeElement && document.activeElement.id, waitHidden: document.getElementById('cook-wait').hidden }; }); }, function () { return null; });
     await page.waitForTimeout(700);
     await page.touchscreen.tap(cpt.x, cpt.y);
@@ -8128,7 +8128,7 @@ async function scenarioU7(browser) {
   ok(sf && (sf.units === 48 || sf.units === 96) && sf.css >= 44 && Math.abs(sf.per - Math.round(sf.per)) < 0.01 && sf.inside, '크게 보기 앞면 스티커: ' + (sf && sf.units) + ' 단위 (예전 32 · 64 의 1.5배) · 그려진 크기 ' + (sf && sf.css.toFixed(1)) + ' CSS px 가 기기 px 정수 배 · 포스터 안');
   await page.keyboard.press('Escape'); await page.waitForTimeout(400);
   if (await page.$('#album-sheet[open]')) { await page.keyboard.press('Escape'); await page.waitForTimeout(400); }
-  /* 전체 화면 놀이 (달리기 · 부엌) 가 열린 동안 3D 장면은 그리지 않는다 · 닫으면 시계가 뛰지 않고 잇는다 (11-21) */
+  /* 전체 화면 놀이 (달리기 · 부엌) 가 열린 동안 3D 장면은 그리지 않는다 (계산은 1 초 10 번 — 귀가 같은 흐름은 끝난다) · 닫으면 시계가 뛰지 않고 잇는다 (11-21) */
   if (await page.evaluate(function () { return APP.sceneMode === '3d' && typeof APP.scene.setCovered === 'function'; })) {
     function clk() { return page.evaluate(function () { var c = APP.scene.clock(); return { t: c.time, n: c.frames, d: c.draws, cov: APP.scene.covered() }; }); }
     await page.evaluate(function () { return APP.goRoom('play'); });
