@@ -14,7 +14,7 @@
 
 | 박자 | 보이는 것 | 저장 |
 |---|---|---|
-| 요리가 옴 | 부엌이 닫히면 요리가 식탁에 나타난다 (나타나기 박자). 놀이방에 들어올 때는 박자 없이 놓여 있다 | `user.table` (기다리던 요리는 바뀐다 — 부엌 수첩엔 남는다) |
+| 요리가 옴 | (7차, §11) 부엌의 끝 단추를 눌렀으면 내 캐릭터가 **들고 간다**. 닫기 칩으로 닫았으면 예전처럼 식탁에 나타난다 (나타나기 박자). 놀이방에 들어올 때는 박자 없이 놓여 있다 | `user.table` — 부엌의 `result` 때 (기다리던 요리는 바뀐다 — 부엌 수첩엔 남는다) |
 | 앉기 | 식탁 (`#btn-table`) 이나 내 자리 노란 점 (`#btn-seat`) → 내 캐릭터가 걸어가 앉는다 | — |
 | 고르기 | 요리가 있고 문어를 부를 수 있으면 문어 자리 위에 **부르기 칩** (`#btn-call`). 이때 식탁을 누르면 혼자 먹는다 | — |
 | 부르기 | 칩 → 저장소 다시 읽기 → `MEAL.canCall` → 장면 `octCanCome()` → **대답 저장** → 문어가 놀이방 문으로 들어와 맞은편에 앉는다 (이미 앉아 있으면 걸어오지 않는다) | 그 요리의 `ask` (한 번) |
@@ -76,7 +76,9 @@ S.user.meals = [ { id: 'ml_…', dish: 'ck_…', recipe, date, at,              
 - 부엌 → 게임: `{ ppolCook: 'result', v: 1, id, recipe, seed, look, day }` 를 `MEAL.normDish` 가 본다 (id `ck_[0-9a-z]{1,13}`, recipe ASCII ≤ 16,
   seed uint32, look 평범한 객체 JSON ≤ 2048 B, day `YYYY-MM-DD` 또는 '').
 - `userState()` 가 `MEAL.normalize(u)` 를 부른다: 객체가 아닌 것만 버리고, 모르는 recipe · fx · by 는 그대로 둔다 (나중 빌드가 알 수 있다 — 이 빌드는 그리지 않는다).
-- 요리 셋: `jeon` 해초전 · 반짝이 (`sparkle`), `jumeokbap` 주먹밥 · 별 (`star`), `kkochi` 과일 꼬치 · 꽃잎 (`petal`).
+- 옛 요리 셋 (7차부터 북엔 없다 — 기다리던 요리 · 옛 기록 · 일기 행은 그대로 그린다): `jeon` 해초전 · 반짝이 (`sparkle`), `jumeokbap` 주먹밥 · 별 (`star`), `kkochi` 과일 꼬치 · 꽃잎 (`petal`).
+- 북의 요리 다섯 (7차): `jeon2` 해초전 · 반짝이, `gyeran` 계란말이 · 방울 (`bubble`), `jumeokbap2` 주먹밥 · 별, `kkochi2` 과일 꼬치 · 꽃잎, `cake` 딸기 케이크 · 색종이 (`confetti`).
+  데모 대답은 여전히 요리를 보지 않는다 (`tools/test-meal.js` 12).
 
 ## 5. 효과 — 그날 하루
 
@@ -126,3 +128,62 @@ hotspot `'table'` → `#btn-table`. 앱은 식탁 자리 숫자를 쓰지 않는
 - 쿼터: 저장 사본에서만 1년 넘은 기록의 `ask.seed` · `ask.raw` 를 뺀다 (`line` 은 안 뺀다) — `slimAsks` 와 같다.
 - 내보내기 · 불러오기 · 초기화: `S.user` 가 지금처럼 같이 간다 (새 맨 위 칸 없음). 식탁에 문어가 앉아 있으면 먼저 접고 바로 다락으로 (`mealDrop`) — 그다음 `octInitial`.
 - `normalize`: 같은 id 가 둘이면 먹은 · 물은 쪽을 남긴다 (식사를 잃지 않게). 모르는 `ate.oct` 값은 저장엔 그대로, 읽을 땐 '식탁에 없었음'.
+
+## 11. 7차 (11-21) — 부엌에서 식탁까지 이어지기 · 새 요리 · 레시피
+
+주인: "다시하기 버튼보다도 문어 불러서 먹을 수 있도록 … 요리 → 식탁 → 먹기가 이어지게." 계약은 `wip/round7/briefs/COMMON.md` C1 – C3.
+
+### 11.1 부엌과 주고받는 글 (`{ ppolCook: … }`)
+
+- 요리 쟁반 (`#dish-pick`) 은 없다. 조리대 톡 = 바로 부엌 덮개. 레시피 북과 "하던 냄비를 이을지" 는 부엌 안의 일이다.
+- 게임 → 부엌 `open` (그리고 첫 주소의 `&ctx=`): `ctx: { canCall, unlocked }`. `canCall` = 지금 부르기 칩을 누르면 문어가 오나 (칩과 같은 조건에서 요리 · 앉기만 뺀 것 —
+  `mealCanCallNow()`), `unlocked` = `recipesUnlocked()`.
+- 부엌 → 게임 `result` (그대로) → `mealDish` 가 저장 → 게임이 `{ ppolCook: 'ctx', canCall }` 로 답한다.
+- 부엌 → 게임 `serve { id, mode: 'call' | 'table' }` (끝 단추, 부엌이 스스로 닫히기 바로 전) → 기억해 두었다가 덮개의 `close` 에서 한 번 쓴다 (`mealServeOnClose`).
+  id 가 기다리는 요리와 다르면 (그새 다른 탭이 먹음) 예전 길. 닫기 칩 · Esc 는 `serve` 가 없다 → 예전처럼 식탁에 나타난다.
+
+### 11.2 들고 가기 (`mealServe` → 장면 `playerCarryDish(dish, { sit, instant })`)
+
+| 박자 | 길이 | 보이는 것 |
+|---|---|---|
+| 들기 `hold` | 0.35 s | 내 캐릭터가 조리대 앞 (1.30, −1.80) 에 서서 두 팔로 요리를 든다 (조리대까지 걸어가는 길은 없다 — 부엌이 방을 덮고 있었다) |
+| 걷기 `walk` | 약 1.3 s (1.8 m/s) | 식탁의 내 통로 자리까지. 화면이 따라온다 (`PL.camGap` 0.5 m) |
+| 내려놓기 `put` | 0.25 s (3칸) | 손에서 식탁으로 → 눌림 한 칸 |
+| 앉기 `sit` | 0.34 s | `call` 일 때만 폴짝 (있던 `playerSitTable`) → `'seated'` → 있던 `mealCall` |
+
+- `table` 이면 내려놓고 통로에 선다 (`'placed'`) — 요리는 예전의 기다리는 요리다.
+- **무엇이 끊든 끝 상태로**: 스틱 · 방향키, 방 옮김, 산책 초대 (`busy`), 숨은 탭, 컨텍스트 잃음, 가구 모드, 문 · 계단 톡 (다른 걸음이 시작되면 그 걸음을 덮어쓰지 않는다), 30 s → 요리는 식탁에, 캐릭터는 선 자리, 부르지 않는다 (`'cut'`).
+  요리는 `result` 때 이미 저장됐으므로 도중에 새로고침하면 기다리는 요리가 식탁에 있다.
+- **막기**: 들고 가는 동안 `mealRun.stage === 'serving'` (`busy`) → 조리대 · 오락기 · 식탁 단추 · 칩이 아무것도 안 한다 (`mealBusy()` 그대로).
+- **모션 줄이기**: 걸음 없이 그 끝 — `call` 이면 바로 앉아 있고 부르기가 이어진다, `table` 이면 요리가 식탁에 있다.
+- **2D · 들고 가기를 모르는 장면 · 장면이 거절 (`'no'`)**: 예전처럼 식탁에 나타난다. 2D 에선 `ctx.canCall` 이 늘 false.
+- 앉은 채 요리했으면 걷지 않는다 (식탁에 나타나고, `call` 이면 바로 부른다).
+- 못 오는 문어 (잠 · 산책 · 바쁨): `mealCall` 이 예전처럼 아무것도 저장하지 않는다. 앉은 채 요리가 기다리고, 부를 수 있게 되면 칩이 뜬다.
+
+### 11.3 요리 그림 (갈래 A 의 `js/cook-sprites.js` — `MEAL.pic(recipe, look)` → `{ id, frame }`)
+
+- 식탁 위 · 손 위: `table.<id>` (16×12) 을 점 하나 = 방 그림 한 칸으로 (`dishSprLayout` — 효과 알갱이와 같은 재질 변형, 픽셀 중심에 스냅, 밤엔 한 칸 어둡게).
+  해초전은 `look.band` (0..2, 없으면 0) 가 그림 칸. 그림이 없으면 (파일이 비었음 · 옛 요리) 예전 메시 (새 요리는 덮개 접시).
+- 먹는 동안: `#meal-close` — `dish.<id>` (80×56) 를 종이 칸에, 한 칸 = `floor(2·dpr)` 기기 px, 장면 위쪽 가운데, 글자 없음 · 누름 없음 (`aria-hidden`). 첫 입에 나타나 식사가 끝나면 사라진다.
+- 한 입 = 그릇 줄 (`MEAL.biteLine`) 위쪽의 음식 폭 4분의 1 (`MEAL.biteMask` — 나는 오른쪽부터, 문어는 왼쪽부터). 식탁 그림과 큰 그림이 같은 규칙. 네 입 뒤엔 그릇만 남는다.
+
+### 11.4 레시피 (`js/recipes.js` · `S.user.recipes = { <id>: { n, got, old? } }`)
+
+- 늘 열림: `jeon2` · `gyeran` · `jumeokbap2`. 선물: `cake` · `kkochi2` — 카페에서 같은 것을 세 번째 먹을 때 (`APP.recipeEat(id)` → `{ n, gift }`, gift 는 딱 한 번).
+- 이번 판 전에 부엌 수첩 (`ppolppol_cook_v0`, 읽기만) 에 줄이 있던 사람은 `kkochi2` 가 열려 있다 — 처음 본 때 `recipes.kkochi2.old = true` 로 적어 둔다 (수첩은 300 줄만 남는다).
+- `APP.recipesUnlocked()` → 북이 시작할 수 있는 id 들. 두 탭: `RECIPES.merge` (큰 수 · 이른 선물 날 · 선물은 잃지 않는다). 모르는 id · 칸은 그대로 둔다.
+- 선물 받았다는 말은 여기서 하지 않는다 (가게 · NPC 갈래의 일). 시간 제한 · 놓치는 것 없음.
+
+### 11.5 장면 API 에 더한 것
+
+`playerCarryDish(dish, { sit, instant })` → `Promise<'seated' | 'placed' | 'cut' | 'no'>` · `playerCarryCut()` · `tableInfo().carry` (`null | hold | walk | put | sit`) · `tableInfo().sprite` ·
+`setTableDish` 의 `dish.pic` · `setAura` 가 `bubble` · `confetti` 도 받는다 · 시험용 `debugDishSprite()`. 앱의 시험 손잡이: `APP.cookServe(mode)` · `APP.cookMsgTest(d)` · `APP.cookCtx()` · `APP.mealClose`.
+
+### 11.6 계약 C12 — 다른 갈래가 쓰는 픽셀 그림 (카페 · 가게 · 콘테스트)
+
+- `scene.playerCarry(spriteId | null, frame)` → bool: 내 캐릭터가 `COOK_SPR` 그림을 두 손에 든다 (걷든 서 있든, 방을 옮겨도; 앉아 있는 동안 · 식탁으로 들고 가는 동안은 숨는다). `null` = 내려놓음.
+- `scene.spriteProp(name, pos | null, spriteId, frame)` → bool: 한 자리에 카메라를 보는 그림. `pos = { x, y, z, place? }` — 그 장소 그룹의 좌표 (`place` 가 없으면 지금 보이는 곳),
+  `y` = 그림 맨 아랫줄이 놓일 높이, 가로는 그림의 `ax` 열이 그 자리. 같은 `name` 으로 다시 부르면 바뀌고 `null` 이면 치운다. 그 장소가 안 보이면 숨는다.
+- 둘 다 그림 한 칸 = 방 그림 한 칸 (점 하나), 픽셀 중심에 스냅, 밤엔 한 칸 어둡게. 그림이 없으면 아무것도 안 그리고 `false`. 그림은 96×64 까지. 저장하지 않는다 (부르는 쪽이 다시 부른다).
+- 시험용 `scene.debugSprites()`.
+
