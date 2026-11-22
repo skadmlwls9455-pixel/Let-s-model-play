@@ -3113,7 +3113,7 @@ var SCENE3D = (function () {
       if (PL.place !== 'yard' || Math.abs(z - EXT.HZC) > 0.55 || x >= EXT.HX1 + 1.10 || x < EXT.HX1 - 0.3) return 0;   /* x 아래 한계 (11-18 검증): 집 뒤 (x < −2.65) 를 같은 z 로 걸으면 0.48 m 떠서 그려졌다 — 마루는 집 앞 (HX1) 뿐 */
       return EXT.PL - 0.12 * (x < EXT.HX1 + 0.38 ? 0 : x < EXT.HX1 + 0.62 ? 1 : x < EXT.HX1 + 0.86 ? 2 : 3);
     }
-    function plSnap() { var p = plG.position.copy(PL.pos); p.y += plGroundY(PL.pos.x, PL.pos.z); snapScreen(p); }
+    function plSnap() { var p = plG.position.copy(PL.pos); p.y += plGroundY(PL.pos.x, PL.pos.z) + (PL.lift || 0); snapScreen(p); }   /* lift = playerPlace 로 올라선 단상 높이 (걸으면 0) */
     function plStop() { if (PL.walking) { PL.walking.cancel(); PL.walking = null; } PL.antic = 0; }
     function plFaceAfter(face) { PL.faceCam = false; if (face != null) PL.wantYaw = face; }   /* 11-18 주인: 멈추면 마지막으로 보던 쪽 그대로 (예전엔 카메라 쪽으로 슉 돌았다 — 부자연스러웠다). face 를 준 자리만 그쪽으로 */
     function plSegHits(ax, az, bx, bz, b) {   /* 선분 a→b 가 상자 [x0, x1, z0, z1] 를 지나나 (slab) */
@@ -3178,7 +3178,7 @@ var SCENE3D = (function () {
       var pts = plRoute(from, to), total = 0, prev = from;
       pts.forEach(function (p) { total += Math.hypot(p.x - prev.x, p.z - prev.z); prev = p; });
       PL.faceCam = false; PL.wantYaw = Math.atan2(pts[0].x - from.x, pts[0].z - from.z);
-      var dash = total > PL_DASH_AUTO, spd = dash ? PL_DASH : PL_SPEED;   /* 11-21 먼 길 (4 m 넘게) 은 뛰어간다 */
+      var dash = PL.walkSpeed ? PL.walkSpeed > PL_RUN : total > PL_DASH_AUTO, spd = PL.walkSpeed || (dash ? PL_DASH : PL_SPEED);   /* 11-21 C11: playerWalkPath 가 속도를 정하면 그 속도 */   /* 11-21 먼 길 (4 m 넘게) 은 뛰어간다 */
       var dur = total / spd * st.speed, hold = PL.moving ? 0 : PL_ANTIC * st.speed, k = 0, cancelled = false, stuck = 0;
       PL.antic = hold; PL.walks++;
       return new Promise(function (resolve) {
@@ -3276,7 +3276,7 @@ var SCENE3D = (function () {
       if (v && PL.sit && !PL.hop) plStand();   /* 앉아 있다가 스틱 · 방향키를 밀면 일어난다 */
       if (PL.hop || PL.sit) v = null;
       if (v) {   /* 스틱 · 방향키: 가던 길(쉬는 자리 등)은 취소, 화면 축 → 월드 수평 축, 범위·장애물 보정 뒤 적용. 막혀서 한 발짝도 못 가면 서서 그쪽을 본다 */
-        if (PL.walking) plStop(); PL.pending = ''; PL.antic = 0; PL.heldStop = false;
+        if (PL.walking) plStop(); PL.pending = ''; PL.antic = 0; PL.heldStop = false; PL.lift = 0;
         PL_IN.rh.set(_r.x, 0, _r.z).normalize(); PL_IN.fh.set(PL_IN.rh.z, 0, -PL_IN.rh.x);   /* 화면 오른쪽 · 화면 위 = 카메라에서 멀어지는 수평 방향 */
         var wx = PL_IN.rh.x * v.x + PL_IN.fh.x * v.y, wz = PL_IN.rh.z * v.x + PL_IN.fh.z * v.y, step = PL_RUN * dt / (st.speed || 1), dashK = plDashHeld(v, dt) ? PL_DASH / PL_RUN : 1;   /* 스틱 · 방향키는 종종 달리기 2.2 m/s (주인 11-10 "억지로 느리게 한 느낌" — 1.2 는 방 하나 건너는 데 4초였다). 문 앞까지 혼자 걷기는 1.8 */
         stick = (dashK > 1 && plMove(wx * step * dashK, wz * step * dashK)) || plMove(wx * step, wz * step);   /* 11-21 뛰는 걸음이 둘레에 걸리면 걷는 걸음으로 한 번 더 (벽 앞에 뛰는 걸음만큼 틈이 남지 않게) */
@@ -3353,6 +3353,7 @@ var SCENE3D = (function () {
       var shut = PL.blinkLeft > 0 && PL.look.eyes !== 'smile';   /* 웃는 눈(^^)은 깜빡이지 않는다 — 실눈이 깜빡이면 무섭다 (주인 11-10) */
       if (shut !== PL.shut) { PL.shut = shut; plEyeUV(); }   /* 감은 눈 = 아틀라스의 '감은 눈' 칸으로 uv 전환 (머리색 한 칸 어두운 선 하나 — 메시·드로우콜·텍스처 추가 없음) */
       plBody.scale.set(sx, sy, sx); plBody.position.y = snapUp(by);
+      plPoseStep(dt);   /* 11-21 C11: 빙글 · 포즈 · 인사 · 만세 (걷기 그림 위에 덮는다) */
     }
     /* 내 캐릭터 초상 (설정 시트 '내 모습' 미리보기, 64×64): 문어 portrait 과 같은 길 — 레이어 2 전용 3점 조명(문어 rig) · pCam · rtP/rtPN/rtPO · postP · 캐시(키 = cfg + 문어 색 + 팔레트 + 배경).
        찍는 동안만 내 캐릭터 7 메시를 레이어 2 에 넣고 문어의 레이어 2 메시는 뺀다(문어 초상엔 내 캐릭터가, 내 초상엔 문어가 안 들어온다). 조명 rig 는 octG 안에 있어 octG 를 보이게 하고 요를 0 으로 맞춘다(빛 방향이 문어 요를 따라 돌지 않게).
@@ -5574,6 +5575,122 @@ var SCENE3D = (function () {
       return PL.dash;
     }
     function playerSpeeds() { return { walk: PL_RUN, run: PL_DASH }; }
+    /* ── 11-21 C11 (주인 "마네킹에 입혀진 거를 입어보고 살 수 있는 그런 느낌"): 옷을 입는 몸 둘 — 가게 마네킹 · 내 캐릭터의 몸짓 ── */
+    /* 마네킹: 얼굴 없는 몸 (위층 마네킹처럼 밝은 나무색) 이 옷 · 신발 · 장식 · 머리 가운데 받은 것만 입는다 (없는 갈래는 민몸). 내 캐릭터와 같은 부품 빌더 · 같은 재질 (toonP) → 셰이더 프로그램이 늘지 않는다.
+       mannequins(key, list): list = [{ slot, parts: { outfit?, shoes?, acc?, hair?, hairColor?, body? } | null, sold, pos?: [x, y, z, face] }] — 자리는 pos, 없으면 roomSlots(key).slots[slot] (V · W 갈래). 붙는 곳은 그 방의 그룹 (W 의 IN.groups[key].g), 없으면 지금 보이는 장소. 다시 부르면 그 방의 마네킹을 다 바꾼다 · 빈 목록 = 다 치움 */
+    var MQ = {}, MQ_SKIN = PAL.amber[3], MQ_DARK = PAL.amber[2];   /* 위층 마네킹과 같은 나무색 칸 */
+    function mqGroup(key) {
+      try { if (typeof IN !== 'undefined' && IN && IN.groups && IN.groups[key] && IN.groups[key].g) return IN.groups[key].g; } catch (e) {}
+      try { if (typeof inBuild === 'function') { var r = inBuild(key); if (r && r.g) return r.g; } } catch (e) {}
+      return groupOf(PLACE.vis) || atticG;
+    }
+    function mqSlot(key, q) {
+      if (Array.isArray(q.pos) && q.pos.length >= 3) return q.pos;
+      try { var rs = typeof roomSlots === 'function' ? roomSlots(key) : null, sl = rs && rs.slots && rs.slots[q.slot]; if (Array.isArray(sl)) return sl; } catch (e) {}
+      return null;
+    }
+    function mqGeo(parts) {   /* 마네킹 한 몸의 부품 → 합친 지오메트리 하나 (머리 · 몸통 · 팔 둘 · 다리 둘을 제자리에 놓아 합친다) */
+      parts = parts || {};
+      var look = normalizePlayer({ hair: parts.hair || 'bob', hairColor: parts.hairColor || 'brown', outfit: parts.outfit || 'dress', shoes: parts.shoes || 'flat', acc: parts.acc || 'none', body: parts.body || 'a', bangs: 'side' });
+      var skin0 = PLC.skin, L = [];
+      PLC.skin = MQ_SKIN;   /* 빌더가 맨살로 그리는 곳 (반소매 팔 · 맨다리 · 손) 을 마네킹 나무색으로 */
+      function put(list, off) { list.forEach(function (q) { q.m = off.clone().multiply(q.m || new T.Matrix4()); L.push(q); }); }
+      try {
+        var head = [{ g: Sph(PL_HEAD_R, 14, 10), m: M(0, PL_HEAD_Y, 0, 0, 0, 0, 1, 0.98, 0.94), c: MQ_SKIN }];
+        if (parts.hair) { PL_BANG = look.bangs; PL_PARTS.hair[look.hair](head, look, plPart('hairColor', look.hairColor).hex); }
+        if (parts.acc && parts.acc !== 'none') PL_PARTS.acc[look.acc](head, look);
+        put(head, new T.Matrix4());
+        var torso = [];
+        if (parts.outfit) PL_PARTS.outfit[look.outfit].torso(torso); else torso.push({ g: Cyl(0.20, 0.23, 0.32), m: M(0, 0.40, 0), c: MQ_SKIN }, { g: Cyl(0.08, 0.09, 0.06), m: M(0, 0.57, 0), c: MQ_DARK });
+        if (look.body === 'b') torso.forEach(function (q) { q.m = M(0, 0, 0, 0, 0, 0, 1.06, 1, 1).multiply(q.m); });
+        put(torso, new T.Matrix4());
+        var sx = look.body === 'b' ? 0.262 : 0.24;
+        [-1, 1].forEach(function (sd) {
+          var arm = [];
+          if (parts.outfit) PL_PARTS.outfit[look.outfit].arm(arm); else plArmTube(arm, MQ_SKIN, -0.02, -0.185);
+          arm.push({ g: Sph(0.058, 8, 6), m: M(0, -0.22, 0), c: MQ_SKIN });
+          put(arm, M(sd * sx, 0.50, 0, 0, 0, sd * 0.30));
+          var o = parts.outfit ? PL_PARTS.outfit[look.outfit] : { leg: MQ_SKIN }, sh = PL_PARTS.shoes[look.shoes], len = parts.shoes ? sh.len : 0.2, r = o.legR || [0.07, 0.068], leg = [];
+          leg.push({ g: Cyl(r[0], r[1], len, 8), m: M(0, -len / 2, 0), c: o.leg === 'skin' ? MQ_SKIN : o.leg });
+          if (o.short) leg.push({ g: Cyl(0.082, 0.08, 0.07, 8), m: M(0, -0.035, 0), c: o.short });
+          if (parts.shoes) sh.parts(leg); else leg.push({ g: box(0.13, 0.04, 0.16), m: M(0, -0.22, 0.01), c: MQ_DARK });
+          put(leg, M(sd * 0.115, 0.24, 0));
+        });
+        var g = mergeParts(L); if (look.body === 'b') plBodyB(g); return g;   /* 몸 b 는 몸통만이 아니라 전체가 조금 넓어진다 — 마네킹은 하나로 합쳐져 있어 괜찮다 */
+      } finally { PLC.skin = skin0; }
+    }
+    function mannequins(key, list) {
+      var old = MQ[key] || [];
+      old.forEach(function (m) { if (m.parent) m.parent.remove(m); var k = disposables.indexOf(m.geometry); if (k >= 0) disposables.splice(k, 1); m.geometry.dispose(); });
+      MQ[key] = [];
+      if (!Array.isArray(list)) { dither.still = 0; return []; }
+      var g = mqGroup(key), out = [];
+      list.forEach(function (q) {
+        if (!q || typeof q !== 'object') return;
+        var at = mqSlot(key, q); if (!at) { out.push({ slot: q.slot, ok: false }); return; }
+        var parts = q.parts && typeof q.parts === 'object' ? {} : null;
+        if (parts) ['outfit', 'shoes', 'acc', 'hair', 'hairColor', 'body'].forEach(function (c) { if (typeof q.parts[c] === 'string' && plPart(c, q.parts[c])) parts[c] = q.parts[c]; });
+        var mesh = new T.Mesh(keep(mqGeo(parts)), toonP); mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = 'mq:' + key + ':' + q.slot;
+        mesh.position.set(+at[0] || 0, +at[1] || 0, +at[2] || 0); mesh.rotation.y = +at[3] || 0; snapScreen(mesh.position);
+        mesh.userData.mq = { key: key, slot: q.slot, parts: parts, sold: !!q.sold };
+        g.add(mesh); MQ[key].push(mesh); out.push({ slot: q.slot, ok: true });
+      });
+      dither.still = 0;
+      return out;
+    }
+    function mannequinInfo(key) { return (MQ[key] || []).map(function (m) { var d = m.userData.mq; return { slot: d.slot, parts: d.parts, sold: d.sold, at: [+m.position.x.toFixed(3), +m.position.y.toFixed(3), +m.position.z.toFixed(3)], group: m.parent ? m.parent.name : '' }; }); }
+
+    /* 몸짓: playerPose(name) → Promise (모션 감소 · 숨은 탭이면 바로). 걷기 그림 위에 덮어 그리고, 스틱을 밀면 바로 끝난다.
+       twirl 빙글 (8방향 한 바퀴 0.8 s) · pose 한 팔 들고 멈춤 0.9 s · bow 꾸벅 0.7 s · cheer 두 팔 들고 통통 두 번 0.9 s */
+    var PL_POSE = { twirl: 0.8, pose: 0.9, bow: 0.7, cheer: 0.9 };
+    function playerPose(name) {
+      if (!PL_POSE[name]) return Promise.resolve(false);
+      if (PL.pose && PL.pose.done) PL.pose.done(false);
+      if (st.reduced || st.hidden || !ready || PL.sit || PL.hop) return Promise.resolve(false);
+      return new Promise(function (res) { PL.pose = { name: name, t: 0, dur: PL_POSE[name] * st.speed, yaw: PL.dir8 || 0, done: res }; dither.still = 0; });
+    }
+    function plPoseStep(dt) {
+      var q = PL.pose; if (!q) return;
+      if (PL.moving || PL_IN.v) { PL.pose = null; q.done(false); return; }
+      q.t += dt; var k = Math.min(1, q.t / q.dur), up = pxUp();
+      if (q.name === 'twirl') { plG.rotation.y = (q.yaw + Math.floor(k * 8)) * (Math.PI / 4); }
+      else if (q.name === 'pose') { plArmR.rotation.z = 2.5; plArmR.rotation.x = 0; plArmL.rotation.z = -0.55; if (k < 0.5) plBody.position.y = snapUp(up); }
+      else if (q.name === 'bow') { plBody.rotation.x = k < 0.75 ? 0.42 : 0; }
+      else if (q.name === 'cheer') { plArmL.rotation.z = -2.6; plArmR.rotation.z = 2.6; plArmL.rotation.x = plArmR.rotation.x = 0; var ph = Math.floor(k * 4); plBody.position.y = snapUp(ph === 0 || ph === 2 ? up * 2 : 0); }
+      dither.still = 0;
+      if (k >= 1) { PL.pose = null; plG.rotation.y = PL.dir8 * (Math.PI / 4); plBody.rotation.x = 0; q.done(true); }
+    }
+    /* 가까이 보기: playerCloseup(true) = 화면이 내 캐릭터 쪽으로 2 배까지 들어가고 캐릭터가 화면을 본다 · false = 들어가기 전 배율로. → Promise (0.2 s 뒤) */
+    var PL_CU = null;
+    function playerCloseup(on) {
+      if (on) {
+        if (!PL_CU) PL_CU = { f: st.zoomF };
+        var sp = null; try { var p = plG.getWorldPosition(new T.Vector3()); p.y += 0.7; p.project(camera); var r = canvas.getBoundingClientRect(); sp = [r.left + (p.x + 1) / 2 * r.width, r.top + (1 - p.y) / 2 * r.height]; } catch (e) {}
+        zoomEase(2, sp ? sp[0] : null, sp ? sp[1] : null);
+        PL.faceCam = true; PL.wantYaw = camYaw(); PAN.arrive = true;
+      } else if (PL_CU) { var f = PL_CU.f; PL_CU = null; PL.faceCam = false; zoomEase(f); }
+      dither.still = 0;
+      return new Promise(function (res) { setTimeout(function () { res(!!on); }, st.reduced ? 0 : 200); });
+    }
+    /* 길 따라 걷기: points = [[x, z], …] (지금 장소의 좌표) · { speed } (m/s, 없으면 보통 걸음) → Promise<boolean> (끝까지 갔나). 걷는 동안 화면이 따라온다 */
+    function playerWalkPath(points, o) {
+      if (!Array.isArray(points) || !points.length) return Promise.resolve(false);
+      var spd = o && +o.speed > 0 ? Math.min(6, +o.speed) : 0, i = 0, ok = true;
+      PL.lift = 0; PL.camGap = 1.2;
+      function next() {
+        if (i >= points.length) { PL.walkSpeed = 0; return Promise.resolve(ok); }
+        var q = points[i++]; if (!Array.isArray(q) || q.length < 2) return next();
+        PL.walkSpeed = spd;
+        return plWalkTo(new T.Vector3(+q[0] || 0, 0, +q[1] || 0), i === points.length && o && o.face != null ? +o.face : null).then(function (w) { ok = ok && (w !== false || st.reduced); return next(); });
+      }
+      return next();
+    }
+    /* 자리 옮기기: playerPlace(x, z, y, face) — 단상처럼 걸어 올라갈 수 없는 곳 (y = 땅 위 높이, 그릴 때만 올린다). 다음에 걸으면 땅으로 */
+    function playerPlace(x, z, y, face) {
+      plStop(); PL.pending = ''; PL.pos.set(+x || 0, 0, +z || 0); PL.lift = Math.max(0, +y || 0); PL.moving = false;
+      if (face != null && isFinite(+face)) PL.yaw = PL.wantYaw = +face;
+      plSnap(); dither.still = 0; return plInfo();
+    }
     /* 11-21 내 캐릭터 새 부품 (주인 "남캐도 자유롭게 · 눈매나 형태가 … 적합하지 않은 느낌"): 몸 둘 · 눈썹 · 눈 넷 · 머리 일곱 · 옷 여덟 · 신발 둘 · 장식 여섯.
        예전 부품과 같은 규칙 (docs/PLAYER_PARTS.md): 머리칼은 r PL_HR 껍질 조각 + 가닥 · 눈은 4×4 칸 안 · 흰색 없음 · 메시 7 개 그대로 · 새 재질 없음. PL_PARTS 를 처음 쓰기 전에 한 번 불린다 */
     function plHat(cfg) { return cfg.acc === 'beret' || cfg.acc === 'strawhat' || cfg.acc === 'cap' || cfg.acc === 'bandana'; }   /* 머리를 덮는 장식 — 정수리로 삐치는 가닥을 뺀다 */
@@ -7142,7 +7259,7 @@ var SCENE3D = (function () {
       /* [7-T] */
 
       /* [7-P] */
-      playerSpeeds: playerSpeeds,
+      playerSpeeds: playerSpeeds, mannequins: mannequins, mannequinInfo: mannequinInfo, playerPose: playerPose, playerCloseup: playerCloseup, playerWalkPath: playerWalkPath, playerPlace: playerPlace,
 
       /* [7-W] */
 

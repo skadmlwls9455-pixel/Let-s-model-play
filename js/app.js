@@ -1141,7 +1141,7 @@ var APP = (function () {
     try {
       if (typeof applyLook === 'function') applyLook({ still: true });   /* 몸 색은 미용실 쪽 applyLook 이 (S.octopus.color) */
       var have = (typeof scene.player === 'function' && scene.player()) ? JSON.stringify(scene.player().look) : null;
-      if (typeof scene.setPlayer === 'function' && have !== JSON.stringify(S.settings.player)) scene.setPlayer(S.settings.player);
+      if (typeof scene.setPlayer === 'function' && have !== JSON.stringify(lookNowWorn())) scene.setPlayer(lookNowWorn());   /* 11-21: 입어 보는 중인 것 (저장 안 함) 을 얹은 모습 */
     } catch (e) { console.warn('[app] syncSceneLook', e); }
   }
   /* 내 모습 한 칸 바꾸기 (설정 시트 칩): 저장 → 장면이 setPlayer 를 알면 메시 다시 → true. 장면 API 는 이 빌드에 없을 수 있어 typeof 로 지킨다 (2D 는 아무것도 안 그리지만 저장은 된다) */
@@ -1152,7 +1152,8 @@ var APP = (function () {
     var next = Object.assign({}, S.settings.player); next[cat] = id;
     S.settings.player = normalizePlayer(next);
     save();
-    if (scene && typeof scene.setPlayer === 'function') { try { scene.setPlayer(S.settings.player); } catch (e) { console.warn('[app] setPlayer', e); } }
+    if (TRY && TRY[cat]) delete TRY[cat];   /* 11-21: 고른 갈래는 입어 보기가 끝난다 */
+    if (scene && typeof scene.setPlayer === 'function') { try { scene.setPlayer(lookNowWorn()); } catch (e) { console.warn('[app] setPlayer', e); } }
     return true;
   }
 
@@ -5591,6 +5592,20 @@ var APP = (function () {
       return { cat: cat, id: x.id, name: x.name, tags: tags };
     }).filter(Boolean);
   }
+  /* 11-21 C11 입어 보기 (가게 갈래): 내 캐릭터가 바로 입고 걸어 다니지만 아무것도 저장하지 않는다 (S.settings.player 그대로). 방을 나오면 (ppol:room 이 null) 다 벗는다 — 산 것은 wear 로 저장된 뒤라 남는다.
+     tryOn(cat, id) → true | false (모르는 물건 · 2D 도 저장 없이 true) · tryOff(cat) (없으면 전부) · trying() → { cat: id } · wear(cat, id) = 가진 것을 입고 저장 (입어 보기는 그 갈래에서 끝) */
+  var TRY = TRY || {};   /* 부팅 중 (이 줄 전) 에 불려도 안전하게 — 위의 쓰는 곳은 TRY 가 없으면 건너뛴다 */
+  function lookNowWorn() { var c = Object.assign({}, S.settings.player); Object.keys(TRY || {}).forEach(function (k) { c[k] = TRY[k]; }); return normalizePlayer(c); }
+  function tryApply() { if (scene && typeof scene.setPlayer === 'function') { try { scene.setPlayer(lookNowWorn()); } catch (e) { console.warn('[app] tryOn', e); } } }
+  function tryOn(cat, id) {
+    if (!partOf(cat, id) || ['outfit', 'shoes', 'acc', 'hair'].indexOf(cat) < 0) return false;
+    if (S.settings.player[cat] === id) { delete TRY[cat]; tryApply(); return true; }
+    TRY[cat] = id; tryApply(); return true;
+  }
+  function tryOff(cat) { if (cat == null) TRY = {}; else delete TRY[cat]; tryApply(); return true; }
+  function trying() { return Object.assign({}, TRY); }
+  function wear(cat, id) { var ok = setPlayerPart(cat, id); if (ok) { delete TRY[cat]; tryApply(); } return ok; }
+  document.addEventListener('ppol:room', function (e) { if (!(e && e.detail && e.detail.key) && Object.keys(TRY).length) tryOff(); });
   function itemThumb(cat, id, sizePx) {   /* 그 물건 하나만 바꿔 입은 내 캐릭터 그림 (새 canvas · 32 px 의 정수 배) | null (2D 장면 · 모르는 물건) */
     if (!partOf(cat, id) || !lookCanShot()) return null;
     var fr = LOOK_FRAME[cat + ':' + id], k = Math.max(1, Math.round((+sizePx || 32) / 32)), look = {};
@@ -6375,7 +6390,7 @@ var APP = (function () {
     /* [7-T] */
 
     /* [7-P] */
-    wardrobe: wardrobe, wearing: wearing, itemThumb: itemThumb, ownItem: ownItem, isOwned: isOwned,
+    wardrobe: wardrobe, wearing: wearing, itemThumb: itemThumb, ownItem: ownItem, isOwned: isOwned, tryOn: tryOn, tryOff: tryOff, trying: trying, wear: wear,
 
     /* [7-W] */
 
