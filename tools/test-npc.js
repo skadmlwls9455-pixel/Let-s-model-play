@@ -45,12 +45,8 @@ var L = NPC.list('2026-11-21');
 ok(L.length === 7 && L.every(function (x) { return x.id && /^#[0-9a-f]{6}$/.test(x.color) && ['none', 'beret', 'apron', 'cap'].indexOf(x.hat) >= 0 && ['stand', 'sleep'].indexOf(x.pose) >= 0; }), 'list 는 계약 C6 모양');
 ok(L.filter(function (x) { return x.pose === 'sleep'; }).length === 4 && L.slice(0, 3).every(function (x) { return x.pose === 'stand'; }), '셋은 서 있고 넷은 잔다');
 ok(JSON.stringify(NPC.list('2026-11-21')) === JSON.stringify(NPC.list('2026-11-21')), 'list 는 같은 날 같은 값');
-/* 방이 있는 장면 (C14): 방 안엔 그 방의 문어만 · 카페엔 자는 문어 하나 · 바깥엔 자는 셋 */
-function ids(l) { return l.map(function (x) { return x.id + ':' + x.pose; }).join(); }
-ok(ids(NPC.list('2026-11-21', 'clothes')) === 'clothes:stand' && ids(NPC.list('2026-11-21', 'goods')) === 'goods:stand', '옷가게 · 잡화점 안엔 그 가게 문어만');
-ok(ids(NPC.list('2026-11-21', 'cafe')) === 'cafe:stand,sleep-1:sleep', '카페 안엔 느루와 구석 식탁에서 자는 문어 하나');
-ok(NPC.list('2026-11-21', 'hall').length === 0, '공연장 안엔 마을 문어를 세우지 않는다');
-ok(ids(NPC.list('2026-11-21', null)) === 'sleep-2:sleep,sleep-3:sleep,sleep-4:sleep', '바깥엔 자는 문어 셋 (가게 문어는 가게 안에 있다)');
+/* 자는 문어 하나는 카페 구석 식탁에 (C14): 방 · 칸을 달아 넘긴다 */
+ok(L[3].id === 'sleep-1' && L[3].room === 'cafe' && L[3].slot === 'nap' && L.filter(function (x) { return x.room; }).length === 1, 'sleep-1 은 카페의 nap 칸 · 나머지는 바깥');
 
 /* 2. 대사: 열쇠마다 세 갈래 이상 · 길이 · 금지 낱말 */
 Object.keys(C7).forEach(function (id) {
