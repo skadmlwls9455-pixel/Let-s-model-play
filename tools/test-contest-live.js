@@ -362,6 +362,28 @@ async function main() {
   check((await shells(page)) === s0 + eL.shells && (await wcard(page)).kind === 'result' && (await page.evaluate(function () { return document.querySelectorAll('#ct-world .ct-wplac').length; })) === 3, '넘긴 뒤 남은 박자가 아무것도 안 바꿈');
   check(page._errs.length === 0, '오류 없음');
   await ctx.close();
+  /* 공연장 방이 있을 때 (V · W 대역): 밖에서 무대 톡 → 공연장으로 들어감 (카드 없음) · 안에서 무대 톡 → 참가 카드 · 팻말은 공연장 안에서만 보임 */
+  ctx = await context(browser, SAT);
+  page = await open(ctx); await page.evaluate(SCENE_STUB);
+  r = await page.evaluate(function () {
+    var sc = APP.scene, inside = null; window.__in = [];
+    sc.roomReg = { hall: {} }; sc.inRoom = function () { return inside; }; sc.area = function () { return inside ? null : 'plaza'; };
+    sc.roomFocus = function (x, z) { window.__sc.push(['focus', x, z]); return true; };
+    APP.goInside = function (k) { window.__in.push(k); inside = k; document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: k } })); return Promise.resolve(true); };
+    window.VILLAGE = window.VILLAGE || {}; window.VILLAGE.PLAZA_SHOW = { poster: [40, -6] };
+    return APP.contestStageTap();
+  });
+  await page.waitForTimeout(400);
+  check(r === true && (await page.evaluate(function () { return window.__in.join(); })) === 'hall' && (await wcard(page)) === null && !(await page.evaluate(function () { return document.getElementById('contest-sheet').open; })), '공연장이 있으면: 밖의 무대 톡은 공연장으로 들어간다 (카드 · 시트 없음)');
+  await page.evaluate(function () { APP.contestStageTap(); });
+  await page.waitForFunction(function () { return !!document.getElementById('ct-w-go'); }, null, { timeout: 8000 });
+  check((await wcard(page)).kind === 'entry', '공연장 안에서 무대 톡 → 참가 카드');
+  await page.waitForTimeout(700); await page.click('#ct-w-go');
+  await page.waitForFunction(function () { return !APP.contestLive; }, null, { timeout: 30000 });
+  r = await page.evaluate(function () { return { focus: window.__sc.filter(function (c) { return c[0] === 'focus'; }).length, plac: document.querySelectorAll('#ct-world .ct-wplac').length, vis: Array.prototype.filter.call(document.querySelectorAll('#ct-world .ct-wplac'), function (p) { return p.style.visibility !== 'hidden'; }).length }; });
+  check(r.focus >= 2 && r.plac === 3 && r.vis === 3, '공연장 쇼: 팻말 · 단상 때 화면을 맞춤 · 팻말 셋이 보임');
+  check(page._errs.length === 0, '오류 없음');
+  await ctx.close();
   /* 뒷길: 움직임 줄이기 · 무대 함수 없음 → 시트 */
   rec = REC(); rec.settings.motion = 'reduce';
   ctx = await context(browser, SAT, rec);
