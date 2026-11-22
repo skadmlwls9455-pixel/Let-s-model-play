@@ -247,7 +247,8 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
         var full = 0;
         for (var k = 0; k < 8; k++) {
           var ix = Math.cos(k * Math.PI / 4), iy = Math.sin(k * Math.PI / 4);
-          sc.debugPlayerAt(x, z); sc.setPlayerInput({ x: ix, y: iy }); sc.debugSim(0.05, 3); var a = sc.player().at, went = Math.hypot(a[0] - x, a[2] - z);
+          sc.debugPlayerAt(x, z); sc.setPlayerInput(null); sc.debugSim(0.05, 1);   /* 11-22: 빈 입력 한 프레임 — 뛰기 (P 갈래: 0.6 s 넘게 쥐면 3.74 m/s) 의 쥔 시간이 방향마다 이어 쌓이지 않게 (쌓이면 나갈 때 · 올 때 걸음새가 달라 되돌아오지 못한다) */
+          sc.setPlayerInput({ x: ix, y: iy }); sc.debugSim(0.05, 3); var a = sc.player().at, went = Math.hypot(a[0] - x, a[2] - z);
           sc.setPlayerInput({ x: -ix, y: -iy }); sc.debugSim(0.05, 3); sc.setPlayerInput(null); a = sc.player().at;
           if (went >= 0.3) { full++; if (Math.hypot(a[0] - x, a[2] - z) > 0.05) return false; }
         }
@@ -293,6 +294,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
       r.calls0 = st0.calls; r.prog0 = st0.programs;
       sc.debugPlayerAt(3.6, 1.0); r.fence = push(0.707, -0.707, 25);                       /* 오른쪽 변의 울타리로 민다 → 마당 안 */
       sc.debugPlayerAt(3.6, 3.6); r.out = st(push(0, -1, 50)); r.outScr = scr();          /* 앞 모서리의 문으로 나가 길을 따라 6 m */
+      sc.debugPlayerAt(16 * K, 16 * K); sc.wideFocus();                                     /* 11-22: 옆으로 밀기는 늘 같은 자리 (s 16 · t 0) 에서 — 5 s 쥐면 뛰기 (P 갈래) 로 s 24 까지 가서 길가 소품 (V 갈래) 에 걸린다 */
       r.side = st(push(1, 0, 45)); r.sideScr = scr();                                      /* 띠의 오른쪽 끝까지 */
       sc.debugPlayerAt(57 * K, 57 * K); sc.wideFocus(); r.end = st(push(0, -1, 30)); r.endScr = scr();    /* 11-21 7차: 길은 바다까지 — 물가 (s 57 에서 아래로 6 m 를 밀어도 S1 에서 선다) */
       var p0 = scr(); sc.setYaw(120, true); sc.debugSim(0.1, 3); sc.debugStep(0.1); r.turn = [p0, scr()]; sc.setYaw(0, true); sc.debugSim(0.1, 3); sc.debugStep(0.1); r.back = scr();
