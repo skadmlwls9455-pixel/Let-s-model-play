@@ -229,33 +229,39 @@ var APP = (function () {
   function paletteDefault() { return (typeof SCENE3D !== 'undefined' && SCENE3D.PAL_DEFAULT) || 'ramps'; }
   /* 내 모습 (내 캐릭터 파츠 — docs/PLAYER_PARTS.md §3): 목록·기본값은 장면(SCENE3D.PLAYER_PARTS · PLAYER_DEFAULT)이 주인. 장면 빌드에 아직 없으면 같은 id 의 비상 목록.
      옷방(왼쪽 문)이 생기기 전까지는 설정 시트 '내 모습' 섹션에서 고른다 (PLAYER_PROGRESSION 11-08 메모). 저장은 settings.player = { hair, hairColor, eyes, eyeColor, nose, mouth, cheek, outfit, shoes, acc } (id). 코 · 입 · 볼은 11-09 에 생겼다 — 옛 기록엔 없어 normalizePlayer 가 기본(세모코 · 미소 · 볼 없음)으로 채운다. 볼터치('blush')는 11-10 에 뺐다 — 저장돼 있던 값은 모르는 id 라 '없음' 이 된다 */
-  var PLAYER_CATS = [['hair', '머리'], ['bangs', '앞머리'], ['hairColor', '머리 색'], ['skin', '피부색'], ['eyes', '눈'], ['eyeColor', '눈 색'], ['nose', '코'], ['mouth', '입'], ['cheek', '볼'], ['outfit', '옷'], ['shoes', '신발'], ['acc', '악세사리']];
+  var PLAYER_CATS = [['hair', '머리'], ['bangs', '앞머리'], ['hairColor', '머리 색'], ['skin', '피부색'], ['eyes', '눈'], ['eyeColor', '눈 색'], ['nose', '코'], ['mouth', '입'], ['cheek', '볼'], ['outfit', '옷'], ['shoes', '신발'], ['acc', '악세사리'], ['brow', '눈썹'], ['body', '몸']];   /* 11-21: 눈썹 · 몸은 뒤에 덧붙인다 (저장 열쇠 차례의 앞 열둘은 그대로) */
   var PLAYER_FALLBACK = {
-    hair: [['bob', '단발'], ['short', '숏컷'], ['long', '긴생머리'], ['twin', '양갈래'], ['pony', '포니테일'], ['wave', '웨이브']],
+    hair: [['bob', '단발'], ['short', '숏컷'], ['long', '긴생머리'], ['twin', '양갈래'], ['pony', '포니테일'], ['wave', '웨이브'], ['crop', '크롭컷'], ['dandy', '댄디컷'], ['tousle', '부스스'], ['part', '중단발'], ['curl', '곱슬'], ['twoblock', '투블럭'], ['lowtail', '꽁지머리']],
     bangs: [['spiky', '삐죽'], ['full', '일자'], ['side', '옆가르마'], ['center', '가운데'], ['see', '시스루']],
     hairColor: [['blonde', '금발', '#ffc16a'], ['brown', '밤갈색', '#9a5a3a'], ['ink', '먹남색', '#1e2a44'], ['silver', '은빛', '#cfc9c0'], ['pink', '분홍', '#de8fa9'], ['lime', '연두', '#a0d070']],
-    eyes: [['round', '동그란'], ['sparkle', '반짝'], ['sleepy', '졸린'], ['almond', '또렷'], ['smile', '웃는'], ['dot', '점']],
+    eyes: [['round', '동그란'], ['sparkle', '반짝'], ['sleepy', '졸린'], ['almond', '또렷'], ['smile', '웃는'], ['dot', '점'], ['calm', '차분'], ['upturn', '날렵'], ['droop', '순한'], ['narrow', '눈웃음']],
+    brow: [['none', '없음'], ['soft', '둥근'], ['flat', '일자'], ['bold', '짙은']],
+    body: [['a', '동글'], ['b', '반듯']],
     eyeColor: [['dark', '흑갈색', '#6a3a30'], ['hazel', '호두색', '#884b2b'], ['sea', '바다색', '#3c5e8b'], ['leaf', '잎새색', '#468232'], ['honey', '꿀색', '#be772b'], ['violet', '제비꽃', '#7a367b']],
     nose: [['none', '없음'], ['dot', '콩코'], ['tri', '세모코']],
     mouth: [['none', '없음'], ['smile', '미소'], ['line', '새침'], ['pout', '뾰로통'], ['open', '활짝'], ['o', '오']],
     cheek: [['none', '없음'], ['freckle', '주근깨']],
     skin: [['peach', '살구', '#ffd096'], ['fair', '밝은', '#ffe2c4'], ['honey', '꿀빛', '#e9b27c'], ['chestnut', '밤빛', '#c48a5c'], ['cocoa', '카카오', '#8f5d3e']],
-    outfit: [['dress', '원피스'], ['knit', '니트'], ['hoodie', '후드'], ['overall', '멜빵'], ['raincoat', '비옷'], ['hanbok', '한복'], ['uniform', '교복'], ['varsity', '야구점퍼'], ['flannel', '체크셔츠']],
-    shoes: [['flat', '단화'], ['boot', '부츠'], ['sneaker', '운동화'], ['loafer', '로퍼']],
-    acc: [['none', '없음'], ['ribbon', '리본'], ['beret', '베레모'], ['glasses', '동글안경'], ['catears', '고양이귀'], ['strawhat', '밀짚모자']]
+    outfit: [['dress', '원피스'], ['knit', '니트'], ['hoodie', '후드'], ['overall', '멜빵'], ['raincoat', '비옷'], ['hanbok', '한복'], ['uniform', '교복'], ['varsity', '야구점퍼'], ['flannel', '체크셔츠'], ['octee', '문어 티'], ['shirt', '셔츠'], ['jersey', '운동복'], ['sailor', '세일러', null, 24], ['fisher', '어부 니트', null, 22], ['windbreak', '바람막이', null, 20], ['cardigan', '가디건', null, 18], ['suit', '정장', null, 36]],   /* 넷째 값 = 가게 값 (조개) — 장면 목록의 shop 과 같게 */
+    shoes: [['flat', '단화'], ['boot', '부츠'], ['sneaker', '운동화'], ['loafer', '로퍼'], ['hightop', '하이탑', null, 14], ['sandal', '샌들']],
+    acc: [['none', '없음'], ['ribbon', '리본'], ['beret', '베레모'], ['glasses', '동글안경'], ['catears', '고양이귀'], ['strawhat', '밀짚모자'], ['cap', '야구모자', null, 12], ['bandana', '두건'], ['headphones', '헤드폰', null, 20], ['scarf', '목도리', null, 14], ['sqglasses', '네모안경'], ['bag', '작은 가방', null, 16]]
   };
-  var PLAYER_FALLBACK_DEFAULT = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon' };
+  /* 11-21: 새로 시작하는 사람의 모습 (DEFAULT) 과 이번 판 전의 기본 (LEGACY — 이미 있던 모습의 빈 칸 · 모르는 id 는 이쪽으로: 저장된 모습이 그대로 보인다). 장면의 PLAYER_DEFAULT · PLAYER_LEGACY 와 같은 값 */
+  var PLAYER_FALLBACK_DEFAULT = { hair: 'tousle', bangs: 'spiky', hairColor: 'brown', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'octee', shoes: 'sneaker', acc: 'none', brow: 'soft', body: 'a' };
+  var PLAYER_FALLBACK_LEGACY = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon', brow: 'none', body: 'a' };
+  function playerLegacy() { return (typeof SCENE3D !== 'undefined' && isObj(SCENE3D.PLAYER_LEGACY)) ? SCENE3D.PLAYER_LEGACY : PLAYER_FALLBACK_LEGACY; }
   function playerParts() {   /* → { hair: [{id, name}], hairColor: [{id, name, hex}], … } 범주마다 1개 이상 */
     var P = (typeof SCENE3D !== 'undefined' && isObj(SCENE3D.PLAYER_PARTS)) ? SCENE3D.PLAYER_PARTS : null, out = {};
     PLAYER_CATS.forEach(function (c) {
       var k = c[0], list = P && Array.isArray(P[k]) ? P[k].filter(function (x) { return isObj(x) && typeof x.id === 'string'; }) : [];
-      out[k] = list.length ? list : PLAYER_FALLBACK[k].map(function (x) { return { id: x[0], name: x[1], hex: x[2] }; });
+      out[k] = list.length ? list : PLAYER_FALLBACK[k].map(function (x) { return { id: x[0], name: x[1], hex: x[2] || undefined, tags: [], shop: x[3] ? { price: x[3] } : null }; });
     });
     return out;
   }
   function normalizePlayer(cfg) {   /* 아는 범주만 · 모르는 id 는 기본값으로 (장면의 setPlayer 와 같은 규칙) */
     var P = playerParts(), D = (typeof SCENE3D !== 'undefined' && isObj(SCENE3D.PLAYER_DEFAULT)) ? SCENE3D.PLAYER_DEFAULT : PLAYER_FALLBACK_DEFAULT, out = {};
     cfg = isObj(cfg) ? cfg : {};
+    if (Object.keys(cfg).length) D = playerLegacy();   /* 11-21: 이미 있는 모습의 빈 칸은 예전 기본으로 (빈 것 = 새 사람만 새 기본) */
     PLAYER_CATS.forEach(function (c) {
       var k = c[0], ids = P[k].map(function (x) { return x.id; }), v = cfg[k], d = ids.indexOf(D[k]) >= 0 ? D[k] : ids[0];
       out[k] = (typeof v === 'string' && ids.indexOf(v) >= 0) ? v : d;
@@ -378,6 +384,7 @@ var APP = (function () {
     var d = defaults();
     s = s || {};
     var seen0 = isObj(s.settings) ? s.settings.albumSeen : undefined;   /* 합치기 전에: 기본값(0)이 '처음 읽는 옛 기록' 판단을 가리지 않게 */
+    var pl0 = isObj(s.settings) ? s.settings.player : undefined;   /* 11-21: 합치기 전의 내 모습 (없으면 아래에서 예전 기본으로 — 새 기본 모습이 옛 기록의 캐릭터를 바꾸지 않게) */
     var color0 = isObj(s.octopus) ? s.octopus.color : undefined;   /* 같은 까닭: 기본 몸 색(빨강)이 옛 기록의 settings.octColor (미용실 전 설정에서 고른 색)를 가리지 않게 */
     s.v = 2;
     s.octopus = Object.assign(d.octopus, s.octopus || {});
@@ -415,7 +422,7 @@ var APP = (function () {
       if (!Array.isArray(s.octopus.colors)) s.octopus.colors = [];
       if (!isObj(s.salon) || !Array.isArray(s.salon.asks)) s.salon = { asks: [] };
     }
-    s.settings.player = normalizePlayer(s.settings.player);   /* 옛 기록(player 없음) · 손으로 고친 id 는 기본값으로 */
+    s.settings.player = normalizePlayer(isObj(pl0) ? pl0 : s.octopus.born ? playerLegacy() : null);   /* 옛 기록(player 없음) · 손으로 고친 id 는 기본값으로 */
     return s;
   }
 
@@ -1134,17 +1141,19 @@ var APP = (function () {
     try {
       if (typeof applyLook === 'function') applyLook({ still: true });   /* 몸 색은 미용실 쪽 applyLook 이 (S.octopus.color) */
       var have = (typeof scene.player === 'function' && scene.player()) ? JSON.stringify(scene.player().look) : null;
-      if (typeof scene.setPlayer === 'function' && have !== JSON.stringify(S.settings.player)) scene.setPlayer(S.settings.player);
+      if (typeof scene.setPlayer === 'function' && have !== JSON.stringify(lookNowWorn())) scene.setPlayer(lookNowWorn());   /* 11-21: 입어 보는 중인 것 (저장 안 함) 을 얹은 모습 */
     } catch (e) { console.warn('[app] syncSceneLook', e); }
   }
   /* 내 모습 한 칸 바꾸기 (설정 시트 칩): 저장 → 장면이 setPlayer 를 알면 메시 다시 → true. 장면 API 는 이 빌드에 없을 수 있어 typeof 로 지킨다 (2D 는 아무것도 안 그리지만 저장은 된다) */
   function setPlayerPart(cat, id) {
     var P = playerParts();
     if (!P[cat] || !P[cat].some(function (x) { return x.id === id; })) return false;
+    if (!isOwned(cat, id)) return false;   /* 11-21: 가게 물건은 가진 것만 입는다 */
     var next = Object.assign({}, S.settings.player); next[cat] = id;
     S.settings.player = normalizePlayer(next);
     save();
-    if (scene && typeof scene.setPlayer === 'function') { try { scene.setPlayer(S.settings.player); } catch (e) { console.warn('[app] setPlayer', e); } }
+    if (TRY && TRY[cat]) delete TRY[cat];   /* 11-21: 고른 갈래는 입어 보기가 끝난다 */
+    if (scene && typeof scene.setPlayer === 'function') { try { scene.setPlayer(lookNowWorn()); } catch (e) { console.warn('[app] setPlayer', e); } }
     return true;
   }
 
@@ -2111,6 +2120,7 @@ var APP = (function () {
     if (sm) { R = sm.state; mineAsks = sm.mine; }
     var mm = MEALR ? MEALR.merge(S, R, mineMeals, now) : null;   /* 11-18 식탁 (docs/MEAL.md): 기록은 id 로 합치고, 이 탭이 막 놓은 요리는 더 새로우면 남긴다 */
     if (mm) { R = mm.state; mineMeals = mm.mine; }
+    if (same) ownedMerge(S, R);   /* 11-21: 산 옷은 두 탭의 합집합 (줄지 않는다) */
     if (same) recipesAdopt(S, R);   /* 11-21 7차: 선물 받은 레시피 · 센 수를 옛 저장이 덮지 않게 (RECIPES.merge) */
     if (same) cafeAdopt(S, R);   /* [7-C] 11-21 7차: 이 탭이 센 카페 기록 (먹은 수 · 선물 · 튼 레코드) 을 다른 탭의 저장이 덮지 않게 (CAFE.adopt) */
     S = R; lastSaved = raw;
@@ -3496,9 +3506,9 @@ var APP = (function () {
      고른 표시: .on + aria-pressed (chipOn). 타일을 누르면 setPlayerPart → 방의 캐릭터도 바로 바뀐다 */
   var LOOK_TABS = [
     { id: 'hair', name: '머리', icon: 'look/hair', secs: [['hair', '모양', 'hair'], ['bangs', '앞머리', 'head'], ['hairColor', '색']] },
-    { id: 'eyes', name: '눈', icon: 'look/eyes', secs: [['eyes', '모양', 'face'], ['eyeColor', '색']] },
+    { id: 'eyes', name: '눈', icon: 'look/eyes', secs: [['eyes', '모양', 'face'], ['eyeColor', '색'], ['brow', '눈썹', 'face']] },
     { id: 'face', name: '얼굴', icon: 'look/face', secs: [['skin', '피부색'], ['nose', '코', 'face'], ['mouth', '입', 'face'], ['cheek', '볼', 'face']] },
-    { id: 'outfit', name: '옷', icon: 'look/outfit', secs: [['outfit', '옷', 'body']] },
+    { id: 'outfit', name: '옷', icon: 'look/outfit', secs: [['body', '몸', 'body'], ['outfit', '옷', 'body']] },
     { id: 'shoes', name: '신발', icon: 'look/shoes', secs: [['shoes', '신발', 'feet']] },
     { id: 'acc', name: '장식', icon: 'look/acc', secs: [['acc', '장식', 'head']] }
   ];
@@ -3513,13 +3523,14 @@ var APP = (function () {
     ['hair', 'outfit', 'acc'].forEach(function (k) { var n = c[k] === 'none' ? '' : lookPartName(k, c[k]); if (n) out.push(n); });
     return out.join(' · ');
   }
-  function lookEyeNote() { var n = $('look-eye-note'), c = S.settings.player; if (n) n.textContent = (c.eyes === 'smile' || c.eyes === 'dot') ? '이 눈 모양은 눈 색이 안 보여' : '눈 색은 크게 봐야 잘 보여'; }
+  function lookEyeNote() { var n = $('look-eye-note'), c = S.settings.player, bn = $('look-brow-note'); if (bn) { bn.textContent = c.bangs === 'full' ? '일자 앞머리는 눈썹을 가려' : ''; bn.hidden = c.bangs !== 'full'; }   /* 11-21 (검증): 일자 앞머리 밑에선 눈썹 넷이 같은 그림이다 — 까닭을 한 줄로 */
+    if (n) n.textContent = (c.eyes === 'smile' || c.eyes === 'dot') ? '이 눈 모양은 눈 색이 안 보여' : '눈 색은 크게 봐야 잘 보여'; }
   function lookNow() {   /* 미리보기 그림 이름 = 앞 · 뒤 + 이 갈래에서 지금 고른 것들. 11-15 (검증 T-6): 그림 밑 한 줄 ('단발 · 삐죽 ·' / '금발' 로 점이 매달렸다) 은 뺐다 — 그림이 보여 준다, 읽어 주기에는 남김 */
     var cv = $('look-stage-cv'); if (!cv) return;
     var c = S.settings.player, t = lookTab(LOOK.tab).secs.map(function (sec) { return c[sec[0]] === 'none' ? sec[1] + ' 없음' : lookPartName(sec[0], c[sec[0]]); }).join(' · ');
     cv.setAttribute('aria-label', (LOOK.back ? '내 모습 뒷모습' : '내 모습 앞모습') + (t ? ': ' + t : ''));
   }
-  var LOOK_WBR = { '긴생머리': 2, '포니테일': 2, '옆가르마': 1, '야구점퍼': 2, '체크셔츠': 2, '동글안경': 2, '고양이귀': 3, '밀짚모자': 2, '고깔모자': 2 };   /* 11-15 (검증 T-3): 넉 자 이름은 좁은 타일에서 잘리지 않고 낱말 마디에서 두 줄로 (마디 없는 이름이 생기면 여기에 — 아니면 글자 중간에서 끊긴다) */
+  var LOOK_WBR = { '긴생머리': 2, '포니테일': 2, '옆가르마': 1, '야구점퍼': 2, '체크셔츠': 2, '동글안경': 2, '고양이귀': 3, '밀짚모자': 2, '고깔모자': 2, '꽁지머리': 2, '바람막이': 2, '야구모자': 2, '네모안경': 2 };   /* 11-15 (검증 T-3): 넉 자 이름은 좁은 타일에서 잘리지 않고 낱말 마디에서 두 줄로 (마디 없는 이름이 생기면 여기에 — 아니면 글자 중간에서 끊긴다) */
   function lookNameNodes(n) { var i = LOOK_WBR[n]; return i ? [n.slice(0, i), h('wbr'), n.slice(i)] : [n]; }
   function lookDrawStage() {
     var cv = $('look-stage-cv'); if (!cv || !lookCanShot()) return;
@@ -3575,8 +3586,11 @@ var APP = (function () {
         var b;
         if (isColor) { b = h('button', { type: 'button', class: 'preset pl-color', 'data-part': cat, 'data-id': x.id, 'data-hex': x.hex || null, title: x.name, 'aria-label': x.name }); b.style.background = x.hex || 'var(--panel2)'; }
         else {
-          b = h('button', { type: 'button', class: 'look-tile', 'data-part': cat, 'data-id': x.id }, [shot ? h('canvas', { class: 'look-thumb', width: '32', height: '32', 'aria-hidden': 'true' }) : null, h('span', { class: 'look-name' }, lookNameNodes(x.name))]);
-          b._frame = sec[2];
+          var lock = !isOwned(cat, x.id);   /* 11-21: 아직 없는 가게 물건 = 잠긴 칸 (흐린 그림 + 자물쇠 + 조개 값) — 누르면 어디서 구하는지 한 줄 */
+          b = h('button', { type: 'button', class: 'look-tile' + (lock ? ' locked' : ''), 'data-part': cat, 'data-id': x.id }, [shot ? h('canvas', { class: 'look-thumb', width: '32', height: '32', 'aria-hidden': 'true' }) : null, h('span', { class: 'look-name' }, lookNameNodes(x.name)),
+            lock ? h('span', { class: 'look-lock' }, [h('span', { class: 'sr-only', text: '잠김 · ' }), shellAmt(x.shop.price, 'look-price')]) : null]);
+          b._frame = LOOK_FRAME[cat + ':' + x.id] || sec[2];
+          if (lock) { b.addEventListener('click', function () { toast('마을 옷가게에서 팔아.'); }); grp.appendChild(b); return; }
         }
         chipOn(b, c[cat] === x.id);
         b.addEventListener('click', function () { lookPick(cat, x.id); });
@@ -3584,6 +3598,7 @@ var APP = (function () {
       });
       frag.appendChild(grp);
       if (cat === 'eyeColor') frag.appendChild(h('p', { class: 'help look-eye-note', id: 'look-eye-note' }));
+      if (cat === 'brow') frag.appendChild(h('p', { class: 'help look-eye-note', id: 'look-brow-note', hidden: 'hidden' }));
     });
     box.innerHTML = ''; box.appendChild(frag); box.scrollTop = 0;
     lookEyeNote(); lookNow(); lookQueueThumbs(); lookMoreSync();
@@ -5254,7 +5269,7 @@ var APP = (function () {
   function euro(w) { var c = String(w).charCodeAt(String(w).length - 1), j = c >= 0xAC00 && c <= 0xD7A3 ? (c - 0xAC00) % 28 : 0; return j && j !== 8 ? '으로' : '로'; }   /* 받침이 있고 ㄹ 이 아니면 '으로' (빨강으로 · 보라로) */
   function dyeItems(cat) {   /* 그 갈래에서 물들일 수 있는 것 (장면이 아는 것만 — 2D 면 '없음' 만 뺀다) */
     var P = playerParts(), ok = scene && typeof scene.dyeable === 'function' ? function (id) { return scene.dyeable(cat, id); } : function (id) { return id !== 'none'; };
-    return (P[cat] || []).filter(function (x) { return ok(x.id); });
+    return (P[cat] || []).filter(function (x) { return ok(x.id) && isOwned(cat, x.id); });   /* 11-21: 가진 것만 */
   }
   function sewTarget() {   /* 고른 것이 없거나 없어졌으면 지금 입은 옷 */
     if (sewPick && dyeItems(sewPick.cat).some(function (x) { return x.id === sewPick.id; })) return sewPick;
@@ -5627,6 +5642,68 @@ var APP = (function () {
 
 
   /* [7-P] 내 캐릭터 · 뛰기 */
+  /* 11-21 옷장 목록 (가게 · 콘테스트 갈래와의 약속 C4): 물건의 tags · shop 은 장면 목록 (SCENE3D.PLAYER_PARTS) 이 주인.
+     가진 것 = shop 이 없는 물건 전부 (이번 판 전부터 있던 것 포함) + S.user.owned['갈래:id'] (산 날). 적는 곳은 ownItem 하나. 입고 있는가와는 따로다 (옛 빌드 탭이 모습을 기본으로 되돌려도 가진 것은 남는다) */
+  var WARD_CATS = [['hair', '머리', 'hair'], ['outfit', '옷', 'body'], ['shoes', '신발', 'feet'], ['acc', '장식', 'head']];
+  var LOOK_FRAME = { 'acc:scarf': 'body', 'acc:bag': 'body' };   /* 몸에 걸치는 장식은 몸 구도로 찍는다 */
+  var HAIR_FAMILY = { blonde: 'c-yellow', brown: 'c-brown', ink: 'c-black', silver: 'c-white', pink: 'c-pink', lime: 'c-green' };
+  function partOf(cat, id) { var l = playerParts()[cat] || []; for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return null; }
+  function ownedMap() { return isObj(S.user) && isObj(S.user.owned) ? S.user.owned : {}; }
+  function isOwned(cat, id) { var x = partOf(cat, id); if (!x) return false; return !isObj(x.shop) || !!ownedMap()[cat + ':' + id]; }
+  function ownItem(cat, id) {   /* 가게가 값을 받은 뒤 부른다 → 가졌으면 true (모르는 물건 false). 이미 가진 것 · 파는 물건이 아닌 것은 그대로 true */
+    var x = partOf(cat, id); if (!x) return false;
+    if (isOwned(cat, id)) return true;
+    var u = userState(); if (!isObj(u.owned)) u.owned = {};
+    u.owned[cat + ':' + id] = todayKey(); save();
+    var d = $('look-sheet'); if (d && d.open) lookRenderItems();
+    return true;
+  }
+  function ownedMerge(A, R) {   /* 두 탭 (같은 문어) 의 가진 것 합치기: A 에만 있는 열쇠를 R 에 더한다. 모르는 열쇠도 그대로 둔다 */
+    var a = isObj(A.user) && isObj(A.user.owned) ? A.user.owned : null; if (!a) return R;
+    if (!isObj(R.user)) R.user = {}; if (!isObj(R.user.owned)) R.user.owned = {};
+    var added = false;
+    Object.keys(a).forEach(function (k) { if (!R.user.owned[k]) { R.user.owned[k] = a[k]; added = true; } });
+    if (added) setTimeout(function () { save(); }, 0);   /* 합친 것을 바로 적어 둔다 (검증 11-21: 다음 저장 전에 탭이 죽으면 산 옷이 빠진 기록만 남았다) */
+    return R;
+  }
+  function wardItem(cat, x) { return { id: x.id, name: x.name, tags: Array.isArray(x.tags) ? x.tags.slice() : [], shop: isObj(x.shop) ? { price: x.shop.price | 0 } : null, owned: isOwned(cat, x.id), worn: S.settings.player[cat] === x.id }; }
+  function wardrobe() { var P = playerParts(); return { cats: WARD_CATS.map(function (k) { return { key: k[0], name: k[1], items: P[k[0]].map(function (x) { return wardItem(k[0], x); }) }; }) }; }
+  function wearing() {   /* 지금 입은 것 [{ cat, id, name, tags }] (머리 · 옷 · 신발 · 장식). 물들인 물건은 색 낱말이 물든 색으로, 머리는 머리 색의 낱말이 붙는다 */
+    var c = S.settings.player, dy = isObj(S.user) && isObj(S.user.dyed) ? S.user.dyed : {};
+    return WARD_CATS.map(function (k) {
+      var cat = k[0], x = partOf(cat, c[cat]); if (!x) return null;
+      var tags = Array.isArray(x.tags) ? x.tags.slice() : [], hex = isObj(dy[cat]) ? dy[cat][x.id] : null, fam = null;
+      if (typeof hex === 'string') DYES.forEach(function (d) { if (d[2] === hex.toLowerCase()) fam = 'c-' + d[0]; });
+      if (cat === 'hair') fam = HAIR_FAMILY[c.hairColor] || null;
+      if (fam) tags = tags.filter(function (t) { return t.indexOf('c-') !== 0; }).concat([fam]);
+      return { cat: cat, id: x.id, name: x.name, tags: tags };
+    }).filter(Boolean);
+  }
+  /* 11-21 C11 입어 보기 (가게 갈래): 내 캐릭터가 바로 입고 걸어 다니지만 아무것도 저장하지 않는다 (S.settings.player 그대로). 방을 나오면 (ppol:room 이 null) 다 벗는다 — 산 것은 wear 로 저장된 뒤라 남는다.
+     tryOn(cat, id) → true | false (모르는 물건 · 2D 도 저장 없이 true) · tryOff(cat) (없으면 전부) · trying() → { cat: id } · wear(cat, id) = 가진 것을 입고 저장 (입어 보기는 그 갈래에서 끝) */
+  var TRY = TRY || {};   /* 부팅 중 (이 줄 전) 에 불려도 안전하게 — 위의 쓰는 곳은 TRY 가 없으면 건너뛴다 */
+  function lookNowWorn() { var c = Object.assign({}, S.settings.player); Object.keys(TRY || {}).forEach(function (k) { c[k] = TRY[k]; }); return normalizePlayer(c); }
+  function tryApply() { if (scene && typeof scene.setPlayer === 'function') { try { scene.setPlayer(lookNowWorn()); } catch (e) { console.warn('[app] tryOn', e); } } }
+  function tryOn(cat, id) {
+    if (!partOf(cat, id) || ['outfit', 'shoes', 'acc', 'hair'].indexOf(cat) < 0) return false;
+    if (S.settings.player[cat] === id) { delete TRY[cat]; tryApply(); return true; }
+    TRY[cat] = id; tryApply(); return true;
+  }
+  function tryOff(cat) { if (cat == null) TRY = {}; else delete TRY[cat]; tryApply(); return true; }
+  function trying() { return Object.assign({}, TRY); }
+  function wear(cat, id) { var ok = setPlayerPart(cat, id); if (ok) { delete TRY[cat]; tryApply(); } return ok; }
+  document.addEventListener('ppol:room', function (e) { if (!(e && e.detail && e.detail.key) && Object.keys(TRY).length) tryOff(); });
+  function itemThumb(cat, id, sizePx) {   /* 그 물건 하나만 바꿔 입은 내 캐릭터 그림 (새 canvas · 32 px 의 정수 배) | null (2D 장면 · 모르는 물건) */
+    if (!partOf(cat, id) || !lookCanShot()) return null;
+    var fr = LOOK_FRAME[cat + ':' + id], k = Math.max(1, Math.round((+sizePx || 32) / 32)), look = {};
+    WARD_CATS.forEach(function (w) { if (w[0] === cat && !fr) fr = w[2]; });
+    look[cat] = id;
+    try {
+      var src = scene.playerShot({ look: look, frame: fr || 'head', shared: true }); if (!src) return null;
+      var cv = document.createElement('canvas'), cx; cv.width = cv.height = 32 * k; cx = cv.getContext('2d'); cx.imageSmoothingEnabled = false; cx.drawImage(src, 0, 0, 32 * k, 32 * k);
+      return cv;
+    } catch (e) { console.warn('[app] itemThumb', e); return null; }
+  }
 
 
   /* [7-W] 바깥 한 장 · 해안가 · 이동 */
@@ -7021,6 +7098,7 @@ var APP = (function () {
     get mealClose() { return mealClose ? { dish: mealClose.dish, eaten: mealClose.eaten.slice(), line: mealClose.line } : null; },
 
     /* [7-P] */
+    wardrobe: wardrobe, wearing: wearing, itemThumb: itemThumb, ownItem: ownItem, isOwned: isOwned, tryOn: tryOn, tryOff: tryOff, trying: trying, wear: wear,
 
     /* [7-W] */
     goPlace: goPlace, travelOpen: travelOpen,
