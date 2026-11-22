@@ -6186,8 +6186,10 @@ var APP = (function () {
     try { var s = scene.stage(); return isObj(s) && Array.isArray(s.path) && s.path.length && Array.isArray(s.judges) && s.judges.length >= 3 && Array.isArray(s.podium) && s.podium.length >= 4 ? s : null; } catch (e) { return null; }
   }
   function ctInHall() { try { return typeof scene.inRoom === 'function' && scene.inRoom() === 'hall'; } catch (e) { return false; } }
+  function ctHallMode() { return !!(scene && scene.roomReg && scene.roomReg.hall); }   /* 공연장 방이 있다 (주인 11-22: "콘테스트도 아예 맵을 따로") — 쇼는 그 안에서만, 무대 좌표는 방 안 기준 */
   function ctAtStage() {   /* 무대가 보이는 곳인가 (공연장 안 · 또는 공연장이 없을 때의 광장) */
     if (ctInHall()) return true;
+    if (ctHallMode()) return false;
     try { return typeof scene.inRoom === 'function' && scene.inRoom() ? false : typeof scene.area === 'function' ? /^(plaza|village)$/.test(scene.area() || '') : false; } catch (e) { return false; }   /* 무대 단추는 가까이 걸어간 뒤에 눌린다 (V) — 마을 길에서도 무대가 보인다 */
   }
   function ctLiveOk() { return !!ctApi() && ctCats().length > 0 && !reduced() && !!ctStageInfo(); }
@@ -6208,7 +6210,7 @@ var APP = (function () {
     if (!ctAnch.length) return;
     var dpr = window.devicePixelRatio || 1, on = ctAtStage();
     ctAnch.forEach(function (el) {
-      var p = on ? ctSceneCall('project', el._pt[0], el._pt[1], el._pt[2]) : null;
+      var p = (el._when ? el._when() : on) ? ctSceneCall('project', el._pt[0], el._pt[1], el._pt[2]) : null;
       if (!p || !isFinite(p.x) || !isFinite(p.y)) { el.style.visibility = 'hidden'; return; }
       el.style.visibility = ''; el.style.transform = 'translate(' + (Math.round((p.x - el.offsetWidth / 2) * dpr) / dpr) + 'px,' + (Math.round((p.y - el.offsetHeight) * dpr) / dpr) + 'px)';
     });
@@ -6226,7 +6228,7 @@ var APP = (function () {
     var key = [dk, at, hall, !!e, wk && wk.open, ctL ? 1 : 0].join('|');
     if (!force && key === ctSceneKey) return; ctSceneKey = key;
     ctPoster(st, wk);
-    if (!at || ctL) return;
+    if (!at || ctL) return;   /* 무대 꾸밈 · 문어 세우기는 무대가 보이는 곳에서만 */
     var open = !!(wk && wk.open) && !!ctApi() && ctCats().length > 0;
     ctSceneCall('stageDress', open);
     if (typeof scene.npcSet !== 'function') return;
@@ -6246,13 +6248,20 @@ var APP = (function () {
       else ctSceneCall('npcPlace', 'rival' + b.who, p[0], p[1], 0);
     });
   }
+  function ctPosterPt(st) {   /* 포스터 판 자리: 공연장이 있으면 광장의 판 (VILLAGE.PLAZA_SHOW · s, t → 마당 좌표), 아니면 무대 정보의 poster */
+    var V = window.VILLAGE, p = V && V.PLAZA_SHOW && V.PLAZA_SHOW.poster;
+    if (ctHallMode() && Array.isArray(p)) return [(p[0] + p[1]) * Math.SQRT1_2, 0.62, (p[0] - p[1]) * Math.SQRT1_2, 'plaza'];
+    return Array.isArray(st.poster) ? [st.poster[0], (st.y || 0) + 1.5, st.poster[1], 'stage'] : null;
+  }
+  function ctOnPlaza() { try { return !(typeof scene.inRoom === 'function' && scene.inRoom()) && typeof scene.area === 'function' && /^(plaza|village)$/.test(scene.area() || ''); } catch (e) { return false; } }
   function ctPoster(st, wk) {   /* 무대 옆 포스터 판에 이번 주 주제 그림 (일주일 내내). 톡 = 무대 톡과 같다 */
-    var host = ctHost(); if (!host || !wk || !Array.isArray(st.poster)) return;
+    var host = ctHost(), pt = ctPosterPt(st); if (!host || !wk || !pt) return;
     if (ctPosterEl && ctPosterEl.dataset.theme === wk.theme.id && document.contains(ctPosterEl)) return;
     if (ctPosterEl) ctPosterEl.remove();
     ctPosterEl = h('button', { type: 'button', class: 'ct-wposter', id: 'ct-wposter', 'data-theme': wk.theme.id, 'aria-label': CT.TEXT.title + ' · ' + wk.theme.title }, [ctArt('theme', wk.theme.id, 2)]);
     ctPosterEl.addEventListener('click', function () { ctStageTap(); });
-    host.appendChild(ctPosterEl); ctAnchor(ctPosterEl, st.poster[0], (st.y || 0) + 1.5, st.poster[1]);
+    if (pt[3] === 'plaza') ctPosterEl._when = ctOnPlaza;
+    host.appendChild(ctPosterEl); ctAnchor(ctPosterEl, pt[0], pt[1], pt[2]);
   }
   function ctDock(el) {   /* 장면 아래쪽 카드: 큰 단추 ('산책 갈래?') 가 장면 아래를 덮는 배치면 그 위로 올린다 */
     var sc = $('scene'), go = $('btn-go'); if (!el || !sc) return;
@@ -6304,17 +6313,19 @@ var APP = (function () {
   function ctStageTap() {   /* 무대 · 포스터 톡 */
     if (ctL || ctRun) return false;
     if (!ctLiveOk()) return openContest();
-    if (!ctAtStage()) {   /* 밖이면 공연장 안으로 (W 의 길) — 없으면 시트 */
-      var A = window.APP;
-      if (A && typeof A.goInside === 'function' && scene.roomReg && scene.roomReg.hall) { Promise.resolve(A.goInside('hall')).then(function (ok) { if (ok) { ctSceneSync(true); } else openContest(); }); return true; }
-      return openContest();
-    }
+    if (!ctAtStage()) return ctGoHall() || openContest();   /* 밖이면 공연장 안으로 (W 의 길) — 없으면 시트 */
     var st = ctStageInfo(); ctSceneSync(true);
     var L = ctL = { stage: 'go', n: 0, skip: false, done: false, entry: null };
     var near = !ctInHall() && typeof scene.villageGo === 'function' ? ctWithin(ctSceneCall('villageGo', 'plazaStage'), 9000) : Promise.resolve();   /* 광장: 먼저 무대 앞까지 (V 의 마을 걷기 — 이미 가까우면 바로 풀린다) */
     near.then(function () { return ctL === L ? ctWalk([st.wait], 5000) : null; }).then(function () { if (ctL === L) { ctL = null; ctEntryCard(); } });
     return true;
   }
+  function ctGoHall() {   /* 공연장 문 (#btn-in-hall · 광장 무대 #btn-plaza-stage) → 방 안으로. 안에서 무대를 톡하면 쇼가 시작된다 */
+    var A = window.APP; if (!ctHallMode() || !A || typeof A.goInside !== 'function') return false;
+    Promise.resolve(A.goInside('hall')).then(function (ok) { if (ok) ctSceneSync(true); });
+    return true;
+  }
+  function ctFocus(x, z, y) { if (ctInHall()) ctSceneCall('roomFocus', x, z, y); }   /* W: 그 자리를 화면 위쪽 3분의 1 에 (팻말 · 단상을 보여 줄 때) */
   function ctLiveEnter(ev) {
     if (ev && ev.isTrusted && ev.detail !== 0 && tapTime(ev) - ctOpenedAt < SHEET_SETTLE) return;
     if (ctL || ctRun) return;
@@ -6341,9 +6352,9 @@ var APP = (function () {
         .then(function () { if (!live()) return; ctLiveSet(L, 'pose', 0); return ctPose('twirl'); })
         .then(function () { if (!live()) return; return ctPose('pose'); });
       [0, 1, 2].forEach(function (i) {   /* 심사 팻말 하나씩 + 센 수를 말하는 대본 */
-        seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'judge', i + 1); ctPlacards(st, e, i + 1); ctSayAs(CT_JUDGES[i], 'contest.judge', { n: ctJudgeN(e, i) }); return ctWaitMs(1500); });
+        seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'judge', i + 1); if (i === 0) ctFocus(st.judges[1][0], st.judges[1][1], 1.0); ctPlacards(st, e, i + 1); ctSayAs(CT_JUDGES[i], 'contest.judge', { n: ctJudgeN(e, i) }); return ctWaitMs(1500); });
       });
-      seq.then(function () { if (!live()) return; ctLiveSet(L, 'podium', 0); ctPodiumPlace(st, e); ctSayAs(CT_JUDGES[0], 'contest.podium'); return ctPose('cheer', 1200); })
+      seq.then(function () { if (!live()) return; ctLiveSet(L, 'podium', 0); ctFocus(st.podium[0][0], st.podium[0][1], 1.0); ctPodiumPlace(st, e); ctSayAs(CT_JUDGES[0], 'contest.podium'); return ctPose('cheer', 1200); })
         .then(function () { if (ctL === L) ctLiveEnd(L); });
     })();
   }
@@ -6356,10 +6367,11 @@ var APP = (function () {
     var l = $('ct-w-line'); if (l) { try { l.focus({ preventScroll: true }); } catch (e) { l.focus(); } }
   }
   function ctLiveInit() {
-    ['btn-hall-stage', 'btn-plaza-stage'].forEach(function (id) { var b = $(id); if (b) b.addEventListener('click', function () { ctStageTap(); }); });
+    var hs = $('btn-hall-stage'); if (hs) hs.addEventListener('click', function () { ctStageTap(); });
+    ['btn-in-hall', 'btn-plaza-stage'].forEach(function (id) { var b = $(id); if (b) b.addEventListener('click', function () { if (ctHallMode()) { ctGoHall(); return; } if (id === 'btn-plaza-stage') ctStageTap(); }); });   /* 리드 결정: 공연장 문은 F 가 묶는다 */
     var rk = $('btn-hall-rack'); if (rk) rk.addEventListener('click', function () { openLook(); });
     var bd = $('btn-hall-board'); if (bd) bd.addEventListener('click', function () { var e = ctEntry(); if (e && ctLiveOk()) ctResultCard(e); else openContest(); });
-    document.addEventListener('ppol:room', function () { ctCardClear(); ctPlacClear(); if (ctL) { ctL.skip = true; ctL = null; } ctSceneKey = null; setTimeout(function () { ctSceneSync(true); }, 0); });
+    document.addEventListener('ppol:room', function () { ctCardClear(); ctPlacClear(); if (ctL) { ctL.skip = true; ctL = null; } ctSceneKey = null; setTimeout(function () { ctSceneSync(true); }, 0); setTimeout(function () { ctSceneKey = null; ctSceneSync(true); }, 700); });   /* N 이 방을 바꿀 때 마을 문어를 다시 세우므로 한 번 더 */
     setInterval(function () { if (!document.hidden && !ctL) ctSceneSync(false); }, 1000);   /* 광장에 들어섬 · 날이 바뀜 · 다른 탭이 나감 */
     setTimeout(function () { ctSceneSync(true); }, 0);
   }
