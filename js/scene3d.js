@@ -148,7 +148,8 @@ var SCENE3D = (function () {
     'varying vec2 vUv;',
     'uniform sampler2D tDiffuse, tDepth, tNormal, uBayer, tBloom; uniform vec2 uRes; uniform float uNear, uFar;',
     'uniform vec3 uPalOk[72]; uniform vec3 uPalRgb[72]; uniform int uPalN; uniform vec3 uW;',
-    'uniform float uDither, uOutline, uHasNormal, uVig, uBloom, uKeepAlpha, uFade, uSky, uStars; uniform vec3 uFadeOk, uSkyOk;',   /* uFade (바깥·전환): 0 = 끔, 1 = 전부 허공색 — 정렬 Bayer 로 픽셀 단위 디더 페이드 */   /* uKeepAlpha 1 = 뷰티 알파를 그대로 (초상 투명 배경) */
+    'uniform float uDither, uOutline, uHasNormal, uVig, uBloom, uKeepAlpha, uFade, uSky, uStars; uniform vec3 uFadeOk, uSkyOk;',
+    'uniform sampler2D tVista; uniform vec2 uVistaRes, uVistaOff; uniform float uVista;',   /* 11-21 먼 풍경 (js/vista.js 그림 한 장): 실내의 허공 픽셀에만 · uVista 0 = 끔 (바깥 · 입장 연출 · 초상) · uVistaOff = 돌려 볼 때 조금 밀리는 아트 px */   /* uFade (바깥·전환): 0 = 끔, 1 = 전부 허공색 — 정렬 Bayer 로 픽셀 단위 디더 페이드 */   /* uKeepAlpha 1 = 뷰티 알파를 그대로 (초상 투명 배경) */
     'vec3 srgbToLinear(vec3 c){ vec3 lo = c / 12.92; vec3 hi = pow((c + 0.055) / 1.055, vec3(2.4)); return mix(lo, hi, step(vec3(0.04045), c)); }',
     'vec3 linToOklab(vec3 c){ c = max(c, vec3(0.0));',
     '  float l = 0.412221469470763 * c.r + 0.5363325372617348 * c.g + 0.0514459932675022 * c.b;',
@@ -199,6 +200,10 @@ var SCENE3D = (function () {
     '  ok = mix(ok, uSkyOk, sa);',
     '  float sh = fract(sin(dot(ap, vec2(12.9898, 78.233))) * 43758.5453);',
     '  ok.x += sk * uStars * step(0.9945, sh) * smoothstep(0.5, 0.62, vUv.y) * (0.35 + 0.3 * step(0.9985, sh));',
+    /* 11-21 (주인: "화면이 비는 느낌이 최대 문제점"): 허공에 먼 풍경 그림 — 다락은 바닷가 마을 위 높은 곳. 아트 px 하나 = 그림 texel 하나 (윗줄부터 그린 그림이라 세로를 뒤집어 읽는다).
+       그림 색은 팔레트 칸 그대로라 아래 스냅을 지나도 안 바뀐다 (위의 하늘 띠 · 별 · 비네트는 이 그림이 덮는다) */
+    '  float vk = step(uFar - 0.5, d0) * step(0.5, uVig) * (1.0 - om) * uVista;',
+    '  ok = mix(ok, linToOklab(srgbToLinear(texture2D(tVista, (vec2(ap.x + uVistaOff.x, uRes.y - 1.0 - ap.y + uVistaOff.y) + 0.5) / uVistaRes).rgb)), vk);',
     '  if (bayer(ap) + 0.5 < uFade) ok = uFadeOk;',   /* 장소 전환 크로스페이드: 아트 픽셀 단위 정렬 디더로 허공색에 덮였다 걷힌다 (uFade 0 이면 bayer+0.5 ≥ 1/32 라 늘 통과 = 변화 없음) */
     '  float best = 1e9, bestL = 0.0; int bi = 0;',
     '  for (int i = 0; i < 72; i++) { if (i >= uPalN) break;',
@@ -7423,6 +7428,27 @@ var SCENE3D = (function () {
 
 
     /* [7-U] 화면 채우기 · 계단 단추 */
+    /* 11-21 빈 화면 채우기: 실내 (다락 · 위층 · 놀이방) 의 허공에 먼 풍경 한 장 (js/vista.js — 하늘 · 바다 · 마을 · 숲). 텍스처 하나 · 드로콜 · 셰이더 프로그램은 그대로.
+       그림 = 렌더 타깃 크기 + 좌우 여백 VST.M (돌려 보면 그림이 반대쪽으로 몇 px 밀린다 = 먼 것처럼). 시각대 · 날씨 · 계절 · 크기가 바뀌거나 물결 칸 (1 초 3 칸) 이 넘어갈 때만 다시 그린다.
+       모션 줄이기면 물결은 멈춘다. 주소에 ?vista=0 이면 끈다 (예전 하늘 띠 그대로) */
+    var VST = { on: !/[?&]vista=0(&|$)/.test((typeof location !== 'undefined' && location.search) || ''), M: 20, tex: null, w: 0, h: 0, key: '', frame: -1, paints: 0 };
+    post.uniforms.tVista = { value: null }; post.uniforms.uVista = { value: 0 }; post.uniforms.uVistaRes = { value: new T.Vector2(1, 1) }; post.uniforms.uVistaOff = { value: new T.Vector2(0, 0) }; post.needsUpdate = true;
+    function vistaShown() { return VST.on && typeof VISTA !== 'undefined' && hasDepthTex && !outdoorP(PLACE.vis) && !INTRO.on; }
+    function vistaStep() {   /* draw() 가 후처리 바로 앞에서 부른다 */
+      var u = post.uniforms;
+      if (!vistaShown()) { u.uVista.value = 0; return; }
+      var w = S.rw + 2 * VST.M, h = S.rh, f = st.reduced ? 0 : VISTA.frame(time), key = w + '|' + h + '|' + VISTA.phase(st.hour) + '|' + st.weather + '|' + SEASON.cur;
+      if (key !== VST.key || f !== VST.frame) {
+        var v = VISTA.paint(w, h, { hour: st.hour, weather: st.weather, season: SEASON.cur, seed: 'attic', t: st.reduced ? 0 : time }), bytes = new Uint8Array(v.d.buffer);
+        if (!VST.tex || VST.w !== w || VST.h !== h) {
+          if (VST.tex) VST.tex.dispose();
+          VST.tex = new T.DataTexture(bytes, w, h, T.RGBAFormat); VST.tex.magFilter = VST.tex.minFilter = T.NearestFilter; VST.tex.generateMipmaps = false; VST.w = w; VST.h = h; u.tVista.value = VST.tex;
+        } else VST.tex.image.data = bytes;
+        VST.tex.needsUpdate = true; VST.key = key; VST.frame = f; VST.paints++;
+      }
+      u.uVista.value = 1; u.uVistaRes.value.set(w, h); u.uVistaOff.value.set(VST.M - clamp(Math.round(yawDelta() / (Math.PI / 2) * 8), -VST.M, VST.M), 0);
+    }
+    disposables.push({ dispose: function () { if (VST.tex) VST.tex.dispose(); VST.tex = null; } });
     /* 11-21 가려진 동안 멈춤: 전체 화면 놀이 (부엌 · 달리기) 가 장면을 덮은 동안 프레임 고리를 세운다 (배터리 · 열). 탭이 숨었을 때 (st.hidden) 와 같은 길 —
        시계 (time) 는 그린 프레임의 dt 로만 가므로 다시 돌 때 뛰지 않는다 (lastDraw = 0 → 첫 프레임 dt 0.016). pause / resume (테스트 · 의식 감기) 과는 따로 센다 */
     function setCovered(on) { on = !!on; if (!!st.covered === on) return; st.covered = on; dither.still = 0; if (!on) loop(); }   /* 11-22: 덮인 동안 그리기만 멈춘다 — 시뮬레이션 (문어 걸음 · 산책 연출 · 문 · 날씨) 은 화면 밖 (T4) 처럼 30 fps 로 돈다. 예전처럼 고리 전체를 멈추면 달리기 · 부엌을 연 채 끝나야 하는 산책이 영영 안 끝났다 (스모크 S · CI 9652270) */
@@ -7981,6 +8007,7 @@ var SCENE3D = (function () {
         quad.material = post; calls += 2;
       }
       post.uniforms.uSky.value = (outdoorP(PLACE.vis) || INTRO.on) ? 0 : 1; post.uniforms.uStars.value = clamp((light.em - 0.6) / 0.4, 0, 1); if (light.out) { var so = hexToOklab('#' + light.out.getHexString()); post.uniforms.uSkyOk.value.set(Math.max(so[0] * 0.62, 0.3), so[1] * 0.8, so[2] * 0.8);   /* 창밖 빛(out)을 한 톤 가라앉힌 색 — 밤엔 남색이 팔레트 맨 아래 칸에 묻히지 않게 밝기 바닥 0.3 */ }   /* 허공 하늘: 다락 · 놀이방만 · 별은 밤(자체광 em 1)에만 */
+      vistaStep();   /* 11-21: 실내의 허공에 먼 풍경 (위 [7-U]) */
       renderer.setRenderTarget(null); renderer.render(quadScene, quadCam); probeSky();
       calls += 1;
       if (t0) { var ms = performance.now() - t0; perf.ring[perf.i] = ms; perf.i = (perf.i + 1) % 60; if (perf.n < 60) perf.n++; perf.sum += ms; perf.cnt++; }
@@ -8867,6 +8894,7 @@ var SCENE3D = (function () {
       /* [7-N] */
 
       /* [7-U] */
+      vista: function () { return { on: VST.on, shown: post.uniforms.uVista.value === 1, w: VST.w, h: VST.h, key: VST.key, frame: VST.frame, paints: VST.paints, off: post.uniforms.uVistaOff.value.x - VST.M }; },
       setCovered: setCovered, covered: function () { return !!st.covered; }, clock: function () { return { time: time, frames: frameNo, draws: drawN }; },
 
       spotRect: function (id) { var s = spotInfo(id); if (!s || s.mode !== 'over') return s; var r = container.getBoundingClientRect(); s.client = { x: r.left + s.x, y: r.top + s.y, w: s.w, h: s.h }; return s; },
