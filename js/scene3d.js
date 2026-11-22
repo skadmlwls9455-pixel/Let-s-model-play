@@ -3658,6 +3658,7 @@ var SCENE3D = (function () {
           }
         }
       }
+      stairEdgeCue();   /* 11-22 [7-U]: 계단이 화면 밖이면 가장자리의 작은 계단 그림 */
     }
     /* 손가락·마우스는 캔버스가 받는다 (단추는 'over' 일 때 pointer-events: none — css/style.css): 밀기·핀치·휠이 문 위에서 시작해도 장면으로 가고, 톡은 그린 순서대로
        (문어가 문 앞이면 문어, 문이 문어 앞이면 문). 톡이 문·오락기로 정해지면 그 단추를 누른다 (키보드 · 화면 낭독기는 단추를 그대로 쓴다) */
@@ -7483,6 +7484,25 @@ var SCENE3D = (function () {
     disposables.push({ dispose: function () { if (VST.tex) VST.tex.dispose(); VST.tex = null; } });
     /* 11-21 가려진 동안 멈춤: 전체 화면 놀이 (부엌 · 달리기) 가 장면을 덮은 동안 프레임 고리를 세운다 (배터리 · 열). 탭이 숨었을 때 (st.hidden) 와 같은 길 —
        시계 (time) 는 그린 프레임의 dt 로만 가므로 다시 돌 때 뛰지 않는다 (lastDraw = 0 → 첫 프레임 dt 0.016). pause / resume (테스트 · 의식 감기) 과는 따로 센다 */
+    /* 11-22 (독립 점검: 360 폭 기본 구도에선 계단이 0 px — 위층 가는 길이 화면에 없다): 계단이 화면 밖인 동안 (atticStair 가 'key' 칸일 때) 그쪽 가장자리에 작은 계단 그림을 흐리게 띄운다.
+       글자 없는 그림이고 위층으로 바로 가는 단추가 아니다 — 누르면 화면을 계단 쪽으로 민다 (viewFocus). 계단이 보이면 사라진다. 낭독기에는 안 읽힌다 (키보드는 안 보이는 '위층으로' 칸이 그대로 닿는다) */
+    var EDGECUE = { el: null, key: '' };
+    function stairEdgeCue() {
+      if (!SPOTS.atticStair) return;   /* 장면이 다 서기 전엔 부르지 않는다 */
+      var s = spotInfo('atticStair'), on = !!(s && s.mode === 'key'), key = on ? s.x + ',' + s.y : '';
+      if (key === EDGECUE.key) return; EDGECUE.key = key;
+      if (!EDGECUE.el) {
+        if (!on) return;
+        var el = document.createElement('div'); el.className = 'stair-cue'; el.setAttribute('aria-hidden', 'true');
+        el.innerHTML = '<i class="stair-cue-arrow"></i><svg class=\"stair-cue-ico\" viewBox=\"0 0 16 16\" width=\"32\" height=\"32\" shape-rendering=\"crispEdges\" focusable=\"false\"><path fill=\"#2b1d22\" d=\"M2 2h3v1H2zM1 3h1v1H1zM5 3h1v1H5zM1 4h1v1H1zM5 4h1v1H5zM1 5h1v1H1zM5 5h3v1H5zM1 6h1v1H1zM8 6h1v1H8zM1 7h1v1H1zM8 7h1v1H8zM1 8h1v1H1zM8 8h3v1H8zM1 9h1v1H1zM11 9h1v1H11zM1 10h1v1H1zM11 10h1v1H11zM1 11h1v1H1zM11 11h3v1H11zM1 12h1v1H1zM14 12h1v1H14zM1 13h1v1H1zM14 13h1v1H14zM1 14h1v1H1zM14 14h1v1H14zM2 15h12v1H2z\"/><path fill=\"#e7d5b3\" d=\"M2 3h3v1H2zM5 6h3v1H5zM8 9h3v1H8zM11 12h3v1H11z\"/><path fill=\"#ad7757\" d=\"M2 4h2v1H2zM2 5h2v1H2zM2 6h3v1H2zM2 7h5v1H2zM2 8h5v1H2zM2 9h6v1H2zM2 10h8v1H2zM2 11h8v1H2zM2 12h9v1H2zM2 13h11v1H2zM2 14h11v1H2z\"/><path fill=\"#7a4841\" d=\"M4 4h1v1H4zM4 5h1v1H4zM7 7h1v1H7zM7 8h1v1H7zM10 10h1v1H10zM10 11h1v1H10zM13 13h1v1H13zM13 14h1v1H13z\"/></svg>';
+        el.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+        el.addEventListener('click', function (e) { e.stopPropagation(); var a = DOOR_ANCHORS.atticStair; if (a) viewFocus(a[0] - 0.4, a[2], 1.2); });
+        container.appendChild(el); EDGECUE.el = el;
+      }
+      EDGECUE.el.hidden = !on; if (!on) return;
+      EDGECUE.el.dataset.side = s.x > 0 ? 'right' : 'left'; EDGECUE.el.style.top = (s.y + 2) + 'px';
+    }
+    disposables.push({ dispose: function () { if (EDGECUE.el && EDGECUE.el.parentNode) EDGECUE.el.parentNode.removeChild(EDGECUE.el); EDGECUE.el = null; } });
     function setCovered(on) { on = !!on; if (!!st.covered === on) return; st.covered = on; dither.still = 0; if (!on) loop(); }   /* 11-22: 덮인 동안 그리기만 멈춘다 — 시뮬레이션 (문어 걸음 · 산책 연출 · 문 · 날씨) 은 화면 밖 (T4) 처럼 30 fps 로 돈다. 예전처럼 고리 전체를 멈추면 달리기 · 부엌을 연 채 끝나야 하는 산책이 영영 안 끝났다 (스모크 S · CI 9652270) */
 
 
