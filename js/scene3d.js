@@ -5845,7 +5845,8 @@ var SCENE3D = (function () {
     }
     function mqSlot(key, q) {
       if (Array.isArray(q.pos) && q.pos.length >= 3) return q.pos;
-      try { var rs = typeof roomSlots === 'function' ? roomSlots(key) : null, sl = rs && rs.slots && rs.slots[q.slot]; if (Array.isArray(sl)) return sl; } catch (e) {}
+      try { var rs = typeof inSlots === 'function' ? inSlots(key) : typeof roomSlots === 'function' ? roomSlots(key) : null, sl =   /* W 의 방 자리 (장면 안 이름은 inSlots — 검증 S 11-22) */
+        rs && rs.slots && rs.slots[q.slot]; if (Array.isArray(sl)) return sl; } catch (e) {}
       return null;
     }
     function mqGeo(parts) {   /* 마네킹 한 몸의 부품 → 합친 지오메트리 하나 (머리 · 몸통 · 팔 둘 · 다리 둘을 제자리에 놓아 합친다) */
