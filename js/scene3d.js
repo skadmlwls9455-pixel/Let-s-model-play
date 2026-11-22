@@ -7422,7 +7422,7 @@ var SCENE3D = (function () {
       if (typeof ROOM_REG === 'undefined' || !ROOM_REG) return false;
       Object.keys(VILLAGE.ROOMS).forEach(function (key) {
         var R = VILLAGE.ROOMS[key], d = null; VILLAGE.DOORS.forEach(function (q) { if (q.room === key) d = q; });
-        ROOM_REG[key] = { half: R.half.slice(), wallH: R.wallH, door: R.door.slice(), face: R.face, outside: d ? d.key : null, slots: R.slots, lights: R.lights,
+        ROOM_REG[key] = { half: R.half.slice(), wallH: R.wallH, door: R.door.slice(), face: R.face, outside: d ? (d.stand ? d.stand.slice() : d.key) : null, slots: R.slots, lights: R.lights,
           boxes: R.boxes.map(function (b) { return b.slice(); }), circles: R.circles.map(function (c) { return c.slice(); }),
           spots: R.spots.map(function (sp) { return { key: key + '.' + sp.key, btn: sp.btn, x: sp.x, y: sp.y, z: sp.z, r: sp.r, stand: sp.stand.slice() }; }),
           build: function (g) { return vilRoomBuild(key, g); }, frame: function (dt) { vilRoomFrame(key, dt); } };
