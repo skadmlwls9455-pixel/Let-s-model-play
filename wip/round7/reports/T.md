@@ -8,9 +8,12 @@ picture → day effect.** The tray is gone; the counter opens the kitchen frame 
 effects (방울, 색종이), recipe unlock state with `APP.recipeEat` / `APP.recipesUnlocked`. Saved data: nothing renamed or
 removed; one new optional field `S.user.recipes`.
 
-Not testable on this branch alone: the real end buttons (lane K's kitchen sends `serve`; here the old kitchen is driven by
-a posted message in smoke Z) and lane A's pictures inside the suites (the base `js/cook-sprites.js` is empty; the suites
-use a small stand-in, the screenshots use lane A's pushed file dropped in by a route).
+Played once with the real kitchen (lane/7-a + lane/7-k merged on top in a scratch tree, not committed): book → dish →
+'문어 부르기' → carried → seated → called → eaten → 방울; '식탁에 두기' seated and standing; the close chip; a stick cut — all
+as designed, 0 page errors. The base is merged in (A, U, C, N, F); C's cafe calls my real `APP.recipeEat`.
+
+Added after the first report: the independent check's `must` fixed (below), contract C12 (`playerCarry`, `spriteProp`)
+for C, S and F, and the eating close-up drawn as a plate on a table top (UI2 rule 3).
 
 ## Changes
 
@@ -46,10 +49,25 @@ character where it stands, no call) by: stick / keys, room change, invitation, h
 follows; `table` = the dish is on the table). 2D / a scene without the function / `'no'`: the old appear beat.
 `ctx.canCall` is false in 2D.
 
+## Fixes from the independent check
+
+- `must` (fixed): pressing a door or '산책 갈래?' during the 0.35 s `hold` beat let the hand-off start its own walk over
+  the door walk; the cancelled door walk never resolved, `roomJob` stayed set, the room never changed and the room buttons
+  stayed hidden until a reload. Now the hand-off never overrides a walk it did not start (`carryStop` only stops its own
+  walk) and ends in the end state as soon as input is not allowed or another walk begins. Smoke EAT checks it.
+- `should` (mitigated): at 1280x800 under heavy machine load a `call` serve once ended with no call — most likely the
+  app's 15 s guard. The guard is now 30 s (a normal hand-off takes about 2.3 s). Not reproduced on a throttled CPU.
+
+## Contract C12 (for C, S, F; announced to them)
+
+`scene.playerCarry(spriteId | null, frame)` and `scene.spriteProp(name, pos | null, spriteId, frame)`, both → bool;
+`scene.debugSprites()` for tests. Same pixel path as the table sprite (one point per sprite px, pixel-centre snap, night
+dimming, no new shader program). Unknown picture → `false`, nothing drawn. `docs/MEAL.md` §11.6. Smoke EAT checks it.
+
 ## Existing lines I changed in shared files (outside my own blocks)
 
 - `js/app.js` `adoptRemote`: one added line `if (same) recipesAdopt(S, R);` after the `MEAL.merge` lines (two tabs must not
-  lose a gifted recipe).
+  lose a gifted recipe). Merged with C's `if (same) cafeAdopt(S, R);`: both lines stay.
 - Everything else is inside the kitchen block, the meal block, the scene's dining block, `#dish-pick` / tray CSS (mine to
   remove) or under `[7-T]` markers.
 
@@ -76,30 +94,31 @@ follows; `table` = the dish is on the table). 2D / a scene without the function 
 - `tools/test-meal.js` 188 → 205: sections 12 (five dishes: result accepted, names, the demo answer ignores the dish, fx,
   rows today / past, no feeling words) and 13 (pictures, bite line, masks, round plate).
 - `tools/test-recipes.js` new, 53.
-- smoke Z (kitchen part): tray checks replaced (see table). **After lane K merges** the old-kitchen assumptions in that
-  part (`COOK.live().kind === 'tap'` right after opening, `COOK.auto`, `.ck-close`) need K's names; the `serve` there is
-  posted by the test, K's real buttons should replace it.
+- smoke Z (kitchen part): tray checks replaced. It works with both kitchens: with lane K's it picks `jeon2` in the book
+  and presses the real '식탁에 두기' button; with the old one it posts the same `serve` and taps the close chip.
 - smoke EAT: `scenarioEatServe` (64 checks): call chain, blocked buttons, close-up size / device px / no text / not over
   the table, bubble grains, seated `table` serve, standing `table` serve, stick cut, hidden tab, reload, room change, no
   pictures, legacy dish, reduced motion, 2D, recipes (gift once, saved, unknown fields kept, old notebook, read-only).
 
 ## Suites run
 
-`npm test` green (all 17) · `node tools/test-recipes.js` 53/0 · `SMOKE_ONLY=Z` 151/0 · `SMOKE_ONLY=EAT` 108/0 ·
-`tools/test-scene-perf.js` see "not verified" below · `python3 tools/subset-fonts.py --check` stale none.
+`npm test` green · `node tools/test-recipes.js` 53/0 · `node tools/test-meal.js` 205/0 · `tools/test-scene-perf.js`
+150/0 · `python3 tools/subset-fonts.py --check` stale none (no new characters) · the whole smoke suite one letter at a
+time on this branch: every letter 0 failed except the ones listed here — EAT 114/0 after the fix, Y 102/0 on a rerun (the
+first run failed while the base was being merged in under it), FM and S: see the lead message (rerun pending at writing).
 
 **Add to `npm test` and CI:** `node tools/test-recipes.js`.
 
 ## Screenshots (`wip/round7/shots/T/`, taken with lane A's pushed `js/cook-sprites.js` routed in)
 
 `360-1-hold` · `360-2-walk` · `360-3-down` · `360-4-arrive` · `360-5-eat` · `360-6-after` (bubble effect) ·
-`412-1-hold` · `412-2-eat` (real 2.625 path).
+`412-1-hold` · `412-2-eat` (real 2.625 path) · `ui2-before-360` / `ui2-after-360` (the close-up on a table top).
 
 ## Needs another lane
 
 - **K**: the real `serve` buttons, the book reading `ctx.unlocked`, `ctx` answers; recipe ids in `result` (`jeon2` …).
   K's per-step look must keep `look.band` (0..2) for `jeon2` or the picture stays the golden frame.
-- **A**: `table.*` and `dish.*` pictures (already on `lane/7-a`; the bite masks were looked at with all five).
+- **A**: `table.*` and `dish.*` pictures (merged in the base; the bite masks were looked at with all five).
 - **C**: calls `APP.recipeEat`. **U**: if the 3D scene is paused behind the kitchen, it must run again by the time the
   overlay's `close` listeners have returned (the hand-off starts in that listener).
 
@@ -108,4 +127,4 @@ follows; `table` = the dish is on the table). 2D / a scene without the function 
 - `assets/icons/dish/{jeon,jumeokbap,kkochi}.png`, their `assets/manifest.json` entries, `tools/make-dish-icons.js` and
   `tools/cook-shots.js` still mention the tray (not mine to edit; unused by the game now).
 - No walk to the counter before cooking. No sound or vibration at the hand-off (the table has none).
-- Not verified: a real phone; the hand-off with lanes P (new body / gait) and W (camera) merged; K's kitchen.
+- Not verified: a real phone; the hand-off with lanes P (new body / gait) and W (camera) merged; a throttled CPU.
