@@ -2111,6 +2111,7 @@ var APP = (function () {
     if (sm) { R = sm.state; mineAsks = sm.mine; }
     var mm = MEALR ? MEALR.merge(S, R, mineMeals, now) : null;   /* 11-18 식탁 (docs/MEAL.md): 기록은 id 로 합치고, 이 탭이 막 놓은 요리는 더 새로우면 남긴다 */
     if (mm) { R = mm.state; mineMeals = mm.mine; }
+    if (same) recipesAdopt(S, R);   /* 11-21 7차: 선물 받은 레시피 · 센 수를 옛 저장이 덮지 않게 (RECIPES.merge) */
     if (same) cafeAdopt(S, R);   /* [7-C] 11-21 7차: 이 탭이 센 카페 기록 (먹은 수 · 선물 · 튼 레코드) 을 다른 탭의 저장이 덮지 않게 (CAFE.adopt) */
     S = R; lastSaved = raw;
     var dyeIn = dyeAdopt();   /* 옛 빌드 탭이 물들인 색 (dye 만 바뀜) 을 받아들인다 */
@@ -4098,7 +4099,7 @@ var APP = (function () {
   function cookSafeSoon() { clearTimeout(cookSafeT); cookSafeT = setTimeout(cookSafeSend, 100); }
   /* 5차 검증 K-5: 게임의 모션 줄이기는 이 쪽 <html> 에만 있다 → 부엌 iframe 에도 알린다 (처음엔 주소 &reduced=1, 그 뒤엔 'open' 바로 전 · 설정이 바뀔 때 {ppolCook:'motion', reduce}).
      K-11: 키로 열었는지도 (&kbd=1 · 'open' 의 kbd) — 부엌 안의 마지막 입력 (닫을 때의 Esc) 이 아니라 여는 손으로 칩 포커스를 정하게 */
-  function cookSrc(kbd, recipe) { return 'cook.html?embed=1' + (reduced() ? '&reduced=1' : '') + (kbd ? '&kbd=1' : '') + (recipe && COOK_TUNES[recipe] ? '&recipe=' + recipe : ''); }   /* 11-18 6차: 쟁반에서 고른 요리 */
+  function cookSrc(kbd, recipe) { return 'cook.html?embed=1' + (reduced() ? '&reduced=1' : '') + (kbd ? '&kbd=1' : '') + (cookRecipeOK(recipe) ? '&recipe=' + recipe : '') + '&ctx=' + encodeURIComponent(JSON.stringify(cookCtx())); }   /* 11-21 7차: 쟁반은 없다 — 부엌의 레시피 북에 문어를 부를 수 있는지 · 열린 레시피를 준다 (ctx) */
   function cookMotionSend() {
     if (!cookFrame || !cookReady) return;
     try { cookFrame.contentWindow.postMessage({ ppolCook: 'motion', reduce: reduced() }, '*'); } catch (e) { /* 닫힌 부엌 */ }
@@ -4110,15 +4111,14 @@ var APP = (function () {
     var ov = $('cook-overlay');
     if (d.ppolCook === 'ready') { cookReady = true; cookWaitEnd(); cookSafeSend(); cookMotionSend(); }   /* 11-18 (점검 rel-01): 기다림 그림 · 닫기 · 6초 시계를 걷는다 */
     else if (d.ppolCook === 'close' && ov && ov.open) { cookKbd = !!d.kbd; ov.close(); }
-    else if (d.ppolCook === 'result') { if (typeof mealDish === 'function') mealDish(d); }   /* 11-18 6차: 다 만든 요리 → 식탁 (M 의 mealDish 가 확인 · 저장) */
+    else if (d.ppolCook === 'result') { if (typeof mealDish === 'function') mealDish(d); cookCtxSend(); }   /* 11-18 6차: 다 만든 요리 → 식탁 (M 의 mealDish 가 확인 · 저장) · 11-21: 끝 단추가 볼 지금 사정을 답한다 */
+    else if (d.ppolCook === 'serve') cookServeMsg(d);   /* 11-21 7차: 끝 단추 (문어 부르기 · 식탁에 두기) — 덮개가 닫히면 들고 간다 */
   }
   function openCook(opener, kbd, recipe) {
     if (typeof mealBusy === 'function' && mealBusy()) return false;   /* 11-18 6차 R19: 문어를 부르는 동안 조리대는 아무것도 안 한다 */
     var ov = $('cook-overlay'); if (!ov || ov.open || !inPlay() || roomJob) return false;
-    if (!recipe || !COOK_TUNES[recipe]) {   /* 11-18 6차 (spec 3.5): 단계 하나라도 해 둔 냄비면 바로 이어서, 아니면 요리 쟁반 */
-      recipe = cookPot();
-      if (!recipe) return dishPickOpen(opener || $('btn-cook'), kbd);
-    }
+    if (!cookRecipeOK(recipe)) recipe = '';   /* 11-21 7차: 요리 쟁반은 없다 — 레시피 북은 부엌 안에 있고, 하던 냄비를 이을지도 부엌이 정한다 */
+    cookServed = null;
     hideTip();
     opener = opener || $('btn-cook'); cookOpener = opener; cookKbd = false;
     if (opener && document.activeElement !== opener && !opener.hidden) focusRoomBtn(opener, !!kbd);   /* 닫으면 브라우저가 포커스를 조리대 단추로 돌려준다 */
@@ -4138,7 +4138,7 @@ var APP = (function () {
         cookKbd = false;
       });
       ov.addEventListener('cancel', function () { cookKbd = true; });   /* Esc = 키보드 → 링 그대로 */
-    } else if (cookReady) { cookSafeSend(); cookMotionSend(); try { cookFrame.contentWindow.postMessage({ ppolCook: 'open', kbd: !!kbd, recipe: recipe }, '*'); } catch (e) { /* 다시 불러온다 */ cookFrame.src = cookSrc(kbd, recipe); } }
+    } else if (cookReady) { cookSafeSend(); cookMotionSend(); try { cookFrame.contentWindow.postMessage({ ppolCook: 'open', kbd: !!kbd, recipe: recipe || undefined, ctx: cookCtx() }, '*'); } catch (e) { /* 다시 불러온다 */ cookFrame.src = cookSrc(kbd, recipe); } }
     else cookFrame.src = cookSrc(kbd, recipe);   /* 11-18 (rel-01): 'ready' 를 한 번도 못 보낸 부엌 → 새로 불러온다 (보여 주기만 하면 영영 빈 화면) */
     showDialog(ov);
     if (!cookReady) cookWaitStart();
@@ -4169,63 +4169,6 @@ var APP = (function () {
     w.style.setProperty('--cw-b', dev(2) + 'px');
   }
 
-  /* ── 11-18 6차: 요리 쟁반 (#dish-pick) — 조리대 톡 → 그림 칩 셋 (해초전 · 주먹밥 · 과일 꼬치), 보이는 글자 0 · title 없음.
-     부엌 저장 (ppolppol_cook_v0) 은 읽기만 한다: 단계를 하나라도 끝낸 냄비 (이어 갈 수 있는 것만) 면 쟁반 없이 바로 이어서.
-     빈 냄비 (si 0 — 부엌은 요리를 시작하자마자 하나 쓴다) · 다른 판 · 깨진 냄비는 쟁반 (spec 3.5). 게임 쪽은 js/cook.js 를 안 싣는다 →
-     요리마다 냄비 해시를 여기 적어 둔다 (smoke Z 가 부엌의 COOK.tuneOf 와 같은지 본다) */
-  var COOK_TUNES = { jeon: 2827089308, jumeokbap: 1403436335, kkochi: 3381042548 };
-  function cookPot() {
-    try {
-      var o = JSON.parse(localStorage.getItem('ppolppol_cook_v0') || 'null'), p = o && typeof o === 'object' && !Array.isArray(o) ? o.pot : null;
-      if (!p || typeof p !== 'object' || Array.isArray(p) || p.ver !== 'cook-1') return null;
-      if (typeof p.recipe !== 'string' || !Object.prototype.hasOwnProperty.call(COOK_TUNES, p.recipe) || p.tune !== COOK_TUNES[p.recipe]) return null;
-      return typeof p.si === 'number' && Math.floor(p.si) === p.si && p.si >= 1 ? p.recipe : null;
-    } catch (e) { return null; }
-  }
-  var dishPickBound = false, dishPickOpener = null, dishPickKbd = false, dishPicked = false;
-  function dishPickOpen(opener, kbd) {
-    var d = $('dish-pick'); if (!d || d.open) return false;
-    hideTip();
-    if (!dishPickBound) {
-      dishPickBound = true;
-      d.addEventListener('click', function (e) {
-        var b = e.target && e.target.closest ? e.target.closest('button[data-recipe]') : null;
-        if (!b) {   /* 칩 밖 (투명 배경) 톡 = 닫기. 조리대 단추 자리의 톡은 닫지 않는다 (조리대를 두 번 누른 둘째 톡에 쟁반이 깜박 닫히지 않게 — 그 자리는 '요리' 다) */
-          if (!(e.target === d || (e.target && e.target.classList && e.target.classList.contains('dp-row')))) return;
-          var op = dishPickOpener, r = op && !op.hidden ? op.getBoundingClientRect() : null;
-          if (r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return;
-          dishPickKbd = false; d.close();
-          return;
-        }
-        var r = b.getAttribute('data-recipe'), k = kbdClick(e), op = dishPickOpener;
-        dishPickKbd = k; dishPicked = true; d.close();   /* close 사건은 나중에 온다 → 고른 것은 깃발로 */
-        openCook(op, k, r);
-      });
-      d.addEventListener('cancel', function () { dishPickKbd = true; });   /* Esc · 뒤로 */
-      d.addEventListener('close', function () {
-        var op = dishPickOpener; window.removeEventListener('resize', dishPickFit);
-        document.documentElement.classList.remove('dish-picking');   /* 큰 단추 · 발자국 손잡이를 그대로 되돌린다 */
-        if (!dishPicked && op && !op.hidden) focusRoomBtn(op, dishPickKbd);   /* 고르지 않고 닫으면 조리대 단추로 */
-      });
-    }
-    dishPickOpener = opener; dishPickKbd = !!kbd; dishPicked = false;
-    if (opener && document.activeElement !== opener && !opener.hidden) focusRoomBtn(opener, !!kbd);
-    document.documentElement.classList.add('dish-picking');   /* 쟁반이 열린 동안 '산책 갈래?' 단추와 발자국 손잡이는 숨긴다 (칩 사이로 글자 조각이 비쳤다 · 모달이라 어차피 못 누른다) */
-    d.showModal();
-    dishPickFit(); window.addEventListener('resize', dishPickFit);
-    var first = d.querySelector('button[data-recipe]');
-    try { if (kbd && first) first.focus({ preventScroll: true }); else d.focus({ preventScroll: true }); } catch (e) { /* 포커스는 그대로 */ }
-    return true;
-  }
-  function dishPickFit() {   /* 칩 64 · 틈 16 · 아래 max(16, 안전 + 16) · 그림 16 px × floor(3·dpr) 기기 px — 모든 가장자리를 기기 px 위에 */
-    var d = $('dish-pick'); if (!d) return;
-    var dpr = window.devicePixelRatio || 1, dev = function (v) { return Math.round(v * dpr) / dpr; }, n = Math.max(1, Math.floor(3 * dpr + 1e-6)), ic = 16 * n / dpr;
-    var chip = dev(64), gap = dev(16), row = 3 * chip + 2 * gap, sf = cookSafe(), vw = window.innerWidth, vh = window.innerHeight;
-    var st = d.style;
-    st.setProperty('--dp-chip', chip + 'px'); st.setProperty('--dp-gap', gap + 'px'); st.setProperty('--dp-ic', ic + 'px');
-    st.setProperty('--dp-icp', (Math.round((chip - ic) / 2 * dpr) / dpr) + 'px'); st.setProperty('--dp-b', dev(2) + 'px');
-    st.setProperty('--dp-x', dev((vw - row) / 2) + 'px'); st.setProperty('--dp-y', dev(vh - Math.max(16, sf.b + 16) - chip) + 'px');
-  }
   /* 구석 쪽지: 놀이방에 있는 동안 문어가 산책에서 돌아오면 (sceneFor 'return'). 이름 + 조사 (WORLD.strings.backNote) · 보러 가기 = 문으로 다락에.
      놀이방을 벗어나면(어느 길로든) 걷는다. 글은 보인 뒤에 넣는다 (role=status 가 읽어 준다) */
   var noteTimer = 0;
@@ -4284,7 +4227,7 @@ var APP = (function () {
      장면 API (lane D, wip/round6/eat-spec.md §10.3) 는 하나하나 있는지 보고 부른다 — 2D 폴백 · 옛 장면엔 식탁이 없다 (요리만 기다린다). 식탁 자리 숫자는 쓰지 않는다 */
   var MEALR = window.MEAL || null;
   var mineMeals = [];          /* 이 탭이 쓴 식탁 기록 [{ table | entry, at }] (MEAL.MINE_MS 동안) — 다른 탭의 옛 저장이 와도 MEAL.merge 가 다시 얹는다 */
-  var mealRun = null;          /* 지금 연출 { stage: coming · thinking · answer · eating, dish(요리 id), n(보인 행), busy, scene, t0, wakers, focus, ring } — 없으면 null */
+  var mealRun = null;          /* 지금 연출 { stage: serving (11-21: 요리를 들고 식탁으로) · coming · thinking · answer · eating, dish(요리 id), n(보인 행), busy, scene, t0, wakers, focus, ring } — 없으면 null */
   var mealSpot = { seat: null, call: null, dish: null };   /* 장면 on.tableSpot (장면 CSS px) */
   var mealDishKey;             /* 장면에 마지막으로 준 식탁 요리 id (undefined = 아직 안 줌) */
   var mealAppear = false;      /* 부엌이 열려 있는 동안 요리가 왔다 → 부엌이 닫히면 나타나기 박자 */
@@ -4313,7 +4256,7 @@ var APP = (function () {
     if (!mealApi('setTableDish')) return;
     var t = mealTable(), key = t ? t.id : null;
     if (key === mealDishKey) return;
-    try { scene.setTableDish(t ? { id: t.id, recipe: t.recipe, look: t.look, seed: t.seed } : null, { appear: !!appear && !!t }); mealDishKey = key; }
+    try { scene.setTableDish(t ? { id: t.id, recipe: t.recipe, look: t.look, seed: t.seed, pic: MEALR ? MEALR.pic(t.recipe, t.look) : null } : null, { appear: !!appear && !!t }); mealDishKey = key; }
     catch (e) { console.warn('[app] setTableDish', e); }
   }
   /* 오늘의 효과 (MEAL.active — 기록에서 끌어낸다): 부팅 · 저장 뒤 · 다른 탭 · 1분 틱 · 다시 보일 때. 날이 바뀌면 둘 다 null. 먹는 연출 중엔 마지막 한 입 뒤 (피어나기) */
@@ -4465,18 +4408,21 @@ var APP = (function () {
   }
   /* 식사: 먼저 저장 (스펙 R9 — 기록 · 식탁 비우기 한 번에) → 대답 행 (문어가 앉아 있던 식사만) → 한 입씩 (같이: 나 · 문어 · 나 · 문어 / 아니면 나 넷) → 효과 피어나기 → 식사 행 */
   function mealEatRun(my, octVal) {
+    var tl = mealTable(); my.look = tl && tl.id === my.dish ? tl.look : null;   /* 11-21: 큰 그림의 구운 정도 (식사를 저장하면 식탁 칸이 빈다) */
     var e = MEALR.eat(S, { at: Date.now(), today: todayKey(), oct: octVal, dish: my.dish });
     if (!e || !isObj(e.ate)) { mealEnd(my); return; }
     my.stage = 'eating';
     if (!mealTable()) mealDishKey = null;   /* 빈 접시는 장면이 내가 일어날 때까지 둔다 (setTableDish(null) 을 부르지 않는다) */
     save(); mineMeals.push({ entry: e, at: Date.now() });
     mealUI(); mealRows(my, 1); updateSceneDesc();
+    mealCloseOpen(my, e);   /* 11-21 7차: 먹는 동안 큰 요리 그림 (첫 입부터 마지막 입까지) */
     var red = reduced(), who = e.ate.oct === true ? ['me', 'oct', 'me', 'oct'] : ['me', 'me', 'me', 'me'];
     function live() { return mealRun === my && scene === my.scene && my.stage === 'eating'; }
     var p = mealWait(my, (red ? 0 : 250) * speed());
-    who.forEach(function (w) {
+    who.forEach(function (w, wi) {
       p = p.then(function () {
         if (!live()) return;
+        mealCloseBite(my, wi, w, red);
         var b = Promise.resolve();
         if (mealApi('mealBite')) { try { b = Promise.resolve(scene.mealBite(w)); } catch (err) { console.warn('[app] mealBite', err); } }
         return Promise.race([b, mealWait(my, 1500 * speed())]);
@@ -4505,7 +4451,7 @@ var APP = (function () {
   }
   function mealEnd(my) {
     if (!my || mealRun !== my) return false;
-    mealRun = null;
+    mealRun = null; mealCloseHide();
     my.wakers.splice(0).forEach(function (f) { f(); });
     try { mealTableSync(false); mealUI(); updateSceneDesc(); }
     catch (e) { console.warn('[app] meal end', e); }
@@ -4517,7 +4463,7 @@ var APP = (function () {
   }
   /* 불러오기 · 초기화: 연출을 접고 식탁의 문어를 바로 다락으로 (그 뒤 octInitial 이 다락 자리에 놓는다) */
   function mealDrop() {
-    if (mealRun) { var my = mealRun; if (my.stage === 'eating') mealFinish(my, false); else mealEnd(my); }
+    if (mealRun) { var my = mealRun; if (my.stage === 'eating') mealFinish(my, false); else if (my.stage === 'serving') mealServeCut(my); else mealEnd(my); }
     if (octAtTable() && mealApi('octLeaveTable')) { try { scene.octLeaveTable({ instant: true }); } catch (e) { console.warn('[app] octLeaveTable', e); } }
   }
   function mealLeave(instant) {   /* 문어가 식탁을 떠난다 (일어남 · 방을 나감) → 다 떠나면 미뤄 둔 것 (쉬기 · 돌아다니기) */
@@ -4536,8 +4482,8 @@ var APP = (function () {
     var my = mealRun;
     if (my) {
       var gone = scene !== my.scene || sceneMode !== '3d', away = gone || roomNow() !== 'play' || busy || document.hidden;
-      var stood = !away && my.stage !== 'coming' && !mealSeated(), late = Date.now() - my.t0 > 30000 * speed();
-      if (away || stood || late) { if (my.stage === 'eating') mealFinish(my, false); else mealAbort(my, away); }
+      var stood = !away && my.stage !== 'coming' && my.stage !== 'serving' && !mealSeated(), late = Date.now() - my.t0 > 30000 * speed();
+      if (away || stood || late) { if (my.stage === 'eating') mealFinish(my, false); else if (my.stage === 'serving') mealServeCut(my); else mealAbort(my, away); }   /* 11-21: 들고 가는 중이면 끝 상태로 (요리는 식탁에 · 부르지 않는다) */
     } else if (octAtTable() && !mealLeaving) {
       if (roomNow() !== 'play' || busy) mealLeave(true);
       else if (!mealSeated()) mealLeave(false);
@@ -4581,7 +4527,7 @@ var APP = (function () {
   }
   function mealInit() {
     var ov = $('cook-overlay');
-    if (ov) ov.addEventListener('close', function () { if (!mealAppear) return; mealAppear = false; if (inPlay()) mealTableSync(true); mealUI(); updateSceneDesc(); });   /* 부엌이 닫히면 방금 온 요리가 식탁에 나타난다 */
+    if (ov) ov.addEventListener('close', function () { if (mealServeOnClose()) return; if (!mealAppear) return; mealAppear = false; if (inPlay()) mealTableSync(true); mealUI(); updateSceneDesc(); });   /* 부엌이 닫히면 방금 온 요리가 식탁에 나타난다 */
     document.addEventListener('visibilitychange', function () { mealTick(); if (!document.hidden) mealApply(); });
     if (!mealIv) mealIv = setInterval(mealTick, 300);
     mealRefresh();
@@ -5537,6 +5483,146 @@ var APP = (function () {
 
 
   /* [7-T] 요리 → 식탁 잇기 · 레시피 */
+  var RECR = window.RECIPES || null;
+  var cookServed = null;       /* 부엌이 보낸 끝 단추 { id, mode: 'call' | 'table' } — 덮개가 닫힐 때 한 번 쓰고 비운다 */
+  function cookRecipeOK(r) { return typeof r === 'string' && /^[a-z][a-z0-9]{0,15}$/.test(r); }
+  /* ── 레시피 (js/recipes.js · S.user.recipes): 처음부터 셋, 카페에서 같은 것을 세 번 먹으면 선물 (갈래 C 가 recipeEat 을 부른다), 이번 판 전에 부엌 수첩에 줄이 있던 사람은 과일 꼬치도.
+     부엌 수첩 (ppolppol_cook_v0) 은 읽기만 한다. 옛 줄을 한 번 보면 recipes.kkochi2.old 로 적어 둔다 (수첩은 300 줄만 남는다 — 나중에 밀려나도 만들던 요리를 잃지 않게) ── */
+  function recipesRead() { var u = S.user; return RECR ? RECR.normalize(isObj(u) ? u.recipes : null) : {}; }
+  function cookBookOld() { try { return !!RECR && RECR.hadNotebook(JSON.parse(localStorage.getItem('ppolppol_cook_v0') || 'null')); } catch (e) { return false; } }
+  function recipesUnlocked() {
+    if (!RECR) return ['jeon2', 'gyeran', 'jumeokbap2'];
+    var st = recipesRead(), old = !!(st.kkochi2 && st.kkochi2.old === true);
+    if (!old && cookBookOld()) {
+      old = true;
+      try { if (!st.kkochi2) st.kkochi2 = { n: 0, got: null }; st.kkochi2.old = true; userState().recipes = st; save(); } catch (e) { console.warn('[app] recipes', e); }
+    }
+    return RECR.unlocked(st, old);
+  }
+  function recipeEat(id) {   /* 카페에서 한 번 먹음 → { n, gift } (gift 는 그 레시피가 잠겨 있다가 세 번째에 딱 한 번) */
+    if (!RECR) return { n: 0, gift: false };
+    recipesUnlocked();   /* 옛 수첩 표시를 먼저 (이미 만들던 요리를 선물로 다시 주지 않는다) */
+    var r = RECR.eat(recipesRead(), String(id), todayKey());
+    if (r.n > 0) { userState().recipes = r.state; save(); }
+    return { n: r.n, gift: r.gift };
+  }
+  function recipesAdopt(mineS, R) {   /* adoptRemote: 이 탭 것과 받은 것을 합친다 (큰 수 · 이른 선물 날). 받은 쪽이 모자랐으면 다음 틱에 저장 */
+    if (!RECR || !isObj(R)) return;
+    var a = isObj(mineS) && isObj(mineS.user) ? mineS.user.recipes : null, b = isObj(R.user) ? R.user.recipes : null;
+    if (!isObj(a)) return;
+    var m = RECR.merge(a, b);
+    if (RECR.same(m, b)) return;
+    if (!isObj(R.user)) R.user = {};
+    R.user.recipes = m;
+    setTimeout(function () { try { save(); } catch (e) { console.warn('[app] recipes save', e); } }, 0);
+  }
+  /* ── 부엌에 주는 사정 (계약 C2 ctx): canCall = 지금 부르기 칩을 누르면 문어가 오나 (칩과 같은 조건 — 요리 · 앉기만 빼고). 열 때와 result 마다 다시 답한다.
+     부엌이 보는 것은 그때의 값일 뿐이라, 끝 단추를 누른 뒤엔 mealCall 이 저장소부터 다시 본다 ── */
+  function mealCanCallNow() {
+    if (!MEALR || mealBusy() || !inPlay() || roomJob || furnMode) return false;
+    if (!mealApi('playerSitTable') || !mealApi('octToTable') || !mealApi('octCanCome')) return false;
+    var o = mealOct(); if (o.away || o.asleep || o.busy) return false;
+    try { return !!scene.octCanCome(); } catch (e) { return false; }
+  }
+  function cookCtx() { return { canCall: mealCanCallNow(), unlocked: recipesUnlocked() }; }
+  function cookCtxSend() {
+    if (!cookFrame || !cookReady) return;
+    try { cookFrame.contentWindow.postMessage({ ppolCook: 'ctx', canCall: mealCanCallNow() }, '*'); } catch (e) { /* 닫힌 부엌 */ }
+  }
+  function cookServeMsg(d) { if (typeof d.id === 'string' && (d.mode === 'call' || d.mode === 'table')) cookServed = { id: d.id, mode: d.mode }; }
+  /* ── 들고 가기 (주인 11-21: "요리 → 식탁 → 먹기가 이어지게"): 부엌이 닫히면 내 캐릭터가 조리대 앞에서 요리를 들고 식탁까지 걸어가 내려놓는다.
+     'call' 이면 앉고, 이미 있는 부르기 길 (mealCall — 저장소 다시 읽기 · 대답 저장 · 누가 정했나) 로 이어진다. 'table' 이면 식탁 옆에 선다.
+     요리는 result 때 이미 저장됐다 (S.user.table) — 걸음은 보여 주기일 뿐이다. 무엇이 끊든 (스틱 · 방 옮김 · 초대 · 숨은 탭 · 장면 거절 · 30 s) 끝 상태로: 요리는 식탁에, 부르지 않는다.
+     모션 줄이기 = 걸음 없이 바로 그 끝 ('call' 이면 앉아서 부른다). 2D · 들고 가기를 모르는 장면 = 예전처럼 식탁에 나타난다. 그동안 mealBusy() 가 조리대 · 오락기 · 식탁 단추를 막는다 ── */
+  function mealServeOnClose() {
+    var sv = cookServed; cookServed = null;
+    if (!sv) return false;
+    var t = mealTable(); if (!t || t.id !== sv.id) return false;   /* 그새 다른 요리 · 다른 탭이 먹음 → 예전 길 */
+    mealAppear = false;
+    if (!mealServe(t, sv.mode)) { if (inPlay()) mealTableSync(true); }
+    mealUI(); updateSceneDesc();
+    return true;
+  }
+  function mealServe(t, mode) {
+    if (!MEALR || mealRun || !inPlay() || roomJob || furnMode || busy || document.hidden || !mealApi('playerCarryDish')) return false;
+    var my = mealRun = mealNewRun('serving', t.id, null, false), p;
+    my.mode = mode;
+    try { p = Promise.resolve(scene.playerCarryDish({ id: t.id, recipe: t.recipe, look: t.look, seed: t.seed, pic: MEALR.pic(t.recipe, t.look) }, { sit: mode === 'call', instant: reduced() })); }
+    catch (e) { console.warn('[app] playerCarryDish', e); p = Promise.resolve('no'); }
+    Promise.race([p, mealWait(my, 30000 * speed()).then(function () { return 'late'; })])   /* 느린 기기에서도 걸음이 끝날 만큼 (보통 2.3 s) */.then(function (r) {
+      if (mealRun !== my) return;   /* 지킴이가 이미 접었다 (mealServeCut) */
+      if (r === 'late') { mealServeCut(my); return; }
+      if (r === 'no') mealTableSync(true); else mealDishKey = t.id;   /* 장면이 거절 = 아무것도 안 했다 → 예전처럼 나타난다 */
+      mealEnd(my);
+      if (r === 'seated' && mode === 'call') mealCall(null, false);   /* 못 오는 사정이면 아무 일도 없다 (칩은 예전 규칙대로) */
+    }, function (e) { console.warn('[app] serve', e); mealServeCut(my); });
+    return true;
+  }
+  function mealServeCut(my) {
+    if (!my || mealRun !== my) return false;
+    if (mealApi('playerCarryCut')) { try { scene.playerCarryCut(); } catch (e) { console.warn('[app] playerCarryCut', e); } }
+    var i = mealInfo(), t = mealTable();
+    if (i && i.dish && t && i.dish.id === t.id) mealDishKey = t.id;   /* 장면이 이미 식탁에 놓았다 */
+    mealEnd(my);
+    return true;
+  }
+  function cookServeTest(mode) {   /* 시험 · 도구: 부엌의 끝 단추처럼 — 기다리는 요리를 들고 간다 (부엌이 열려 있으면 닫는다) */
+    var t = mealTable(); if (!t || (mode !== 'call' && mode !== 'table')) return false;
+    cookServed = { id: t.id, mode: mode };
+    var ov = $('cook-overlay');
+    if (ov && ov.open) { ov.close(); return true; }
+    return mealServeOnClose();
+  }
+  /* ── 먹는 동안의 큰 그림 (#meal-close): 부엌의 다 된 요리 그림 (COOK_SPR 'dish.…' 80×56) 을 종이 칸에 — 한 칸 = floor(2·dpr) 기기 px, 글자 없음.
+     장면 위쪽 가운데 (식탁의 두 캐릭터를 가리지 않게 — 문어 머리 위 칩 자리보다 위) · 한 입마다 그림의 한쪽이 베어 물린 꼴로 사라진다 (나 = 오른쪽부터 · 문어 = 왼쪽부터).
+     그림이 없으면 (옛 요리 · 그림 파일 없음) 칸도 없다 ── */
+  var mealClose = null;   /* { dish, spr, eaten: [0..3], line } */
+  function mealCloseSprite(t) {
+    var CS = window.COOK_SPR, pic = MEALR && t ? MEALR.pic(t.recipe, t.look) : null;
+    if (!pic || !CS || typeof CS.get !== 'function') return null;
+    try { var s = CS.get('dish.' + pic.id, pic.frame); return s && s.w > 0 && s.h > 0 && s.d && s.d.length >= s.w * s.h * 4 ? s : null; } catch (e) { return null; }
+  }
+  function mealCloseOpen(my, e) {
+    var el = $('meal-close'); if (!el || sceneMode !== '3d' || !inPlay()) return;
+    var spr = mealCloseSprite({ recipe: e.recipe, look: my.look }); if (!spr) return;
+    mealClose = { dish: my.dish, spr: spr, eaten: [], line: MEALR.biteLine(spr) };
+    mealCloseDraw(); el.hidden = false;
+  }
+  function mealCloseBite(my, i, who, red) {
+    var c = mealClose; if (!c || c.dish !== my.dish) return;
+    setTimeout(function () {
+      if (mealClose !== c) return;
+      var free = [0, 1, 2, 3].filter(function (q) { return c.eaten.indexOf(q) < 0; }); if (!free.length) return;
+      c.eaten.push(who === 'oct' ? free[0] : free[free.length - 1]);
+      mealCloseDraw();
+    }, (red ? 0 : 170) * speed());   /* 장면의 한입 칸 (2/12 s) 과 같이 */
+  }
+  function mealCloseHide() { mealClose = null; var el = $('meal-close'); if (el) el.hidden = true; }
+  function mealCloseDraw() {
+    var c = mealClose, el = $('meal-close'), cv = el && el.querySelector('canvas'), sc = $('scene'); if (!c || !cv || !sc) return;
+    var dpr = window.devicePixelRatio || 1, n = Math.max(1, Math.floor(2 * dpr + 1e-6)), s = c.spr, w = s.w, hh = s.h;
+    var r0 = sc.getBoundingClientRect(), lo = 8, tb = $('btn-table'), lim = sc.clientHeight;
+    if (layoutOne()) { var st = $('status'); if (st && !st.hidden) lo = Math.max(lo, Math.ceil(st.getBoundingClientRect().bottom - r0.top) + 6); }
+    if (tb && !tb.hidden) { var tr = tb.getBoundingClientRect(); if (tr.height > 0) lim = tr.top - r0.top - 8; }   /* 식탁 자리 (두 캐릭터) 위 8 px 까지만 */
+    while (n > 1 && ((w * n / dpr + 24) > sc.clientWidth - 16 || lo + (hh + 8) * n / dpr > lim || (w + 8) * n / dpr > sc.clientWidth * 0.5)) n--;   /* 작은 화면: 한 칸씩 줄인다 (늘 정수 기기 px) — 위쪽 조개 칸과도 안 닿게 폭은 장면의 반까지 */
+    var img = MEALR.biteMask(s, c.eaten, c.line, 2); if (!img) return;
+    if (cv.width !== w * n || cv.height !== hh * n) { cv.width = w * n; cv.height = hh * n; }
+    var g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height);
+    /* 11-21 (UI 2차 · 규칙 3): 빈 종이 칸이 아니라 식탁 위 — 그릇 줄 아래로 나무 상판 (밝은 앞 모서리 한 줄 · 나뭇결 두 줄) 과 그릇 밑 그림자 */
+    var ty = Math.max(0, Math.min(hh - 6, c.line - 6)), cx0 = w >> 1, shY = Math.min(hh - 2, c.line + 9);
+    function band(y0, y1, col) { g.fillStyle = col; g.fillRect(0, y0 * n, w * n, (y1 - y0) * n); }
+    band(ty, hh, '#a05b53'); band(ty, ty + 1, '#c09473'); band(ty + 1, ty + 2, '#ad7757'); band(hh - 2, hh, '#7a4841');
+    g.fillStyle = '#8a4f4b'; [[6, ty + 7, 22], [44, ty + 11, 26], [16, hh - 6, 30]].forEach(function (q) { if (q[1] < hh - 2) g.fillRect(q[0] * n, q[1] * n, q[2] * n, n); });
+    g.fillStyle = '#7a4841'; for (var sy = -3; sy <= 3; sy++) { var sw = Math.round(30 * Math.sqrt(1 - sy * sy / 16)); if (shY + sy > ty + 2 && shY + sy < hh - 2) g.fillRect((cx0 - sw) * n, (shY + sy) * n, sw * 2 * n, n); }
+    for (var y = 0; y < hh; y++) for (var x = 0; x < w; x++) {
+      var k = (y * w + x) * 4; if (img[k + 3] < 128) continue;
+      g.fillStyle = 'rgb(' + img[k] + ',' + img[k + 1] + ',' + img[k + 2] + ')'; g.fillRect(x * n, y * n, n, n);
+    }
+    var b = n / dpr, pad = 4 * b, cw = w * n / dpr, ch = hh * n / dpr, bw = cw + 2 * pad, ox = r0.left + sc.clientLeft, oy = r0.top + sc.clientTop;
+    cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
+    el.style.setProperty('--mc-b', b + 'px'); el.style.setProperty('--mc-p', pad + 'px');
+    el.style.left = (devPx(ox + (sc.clientWidth - bw) / 2, dpr) - ox) + 'px'; el.style.top = (devPx(oy + lo, dpr) - oy) + 'px';
+  }
 
 
   /* [7-P] 내 캐릭터 · 뛰기 */
@@ -5569,7 +5655,8 @@ var APP = (function () {
      - 지킴이의 말은 갈래 N 의 APP.npcSay 만 (없으면 아무 말도 대신 지어내지 않는다).
      - 레코드 (#btn-cafe-lp → #lp-sheet): 재킷을 누르면 판이 돈다. 소리는 '소리 켜기' 가 켜져 있을 때만 — 꺼져 있으면 판만 돌고 스피커 그림 단추가 켜기를 권한다 (누르는 것은 플레이어).
        카페 (마을) 를 벗어나거나, 부엌 · 달리기를 열거나, 탭을 숨기면 멈춘다. */
-  var cafeAsk = null, cafeAskAt = 0, cafeSeated = false, cafeWatch = 0, cafeLp = { id: null, sound: false, ang: 0, spin: 0, watch: 0, vol: -1 };
+  var cafeNew = null;   /* 방금 도장이 찍힌 메뉴 (다음에 메뉴를 열 때 그 도장만 반짝) */
+  var cafeAsk = null, cafeAskAt = 0, cafeSeated = false, cafeWatch = 0, cafeLp = { id: null, sound: false, ang: 0, arm: 0, spin: 0, watch: 0, vol: -1 };
   function cafeState() { var u = userState(); u.cafe = CAFE.normalize(u.cafe); return u.cafe; }
   function cafeAdopt(mineS, R) {   /* adoptRemote: 이 탭 것과 받은 것을 합친다 (큰 수 · 선물 합집합 · 쟁반은 받은 쪽). 받은 쪽이 모자랐으면 다음 틱에 저장 */
     if (!window.CAFE || !isObj(R)) return;
@@ -5595,26 +5682,65 @@ var APP = (function () {
     return c;
   }
   function cafeSpr(sprId, artId) { var s = null; try { s = window.COOK_SPR && typeof COOK_SPR.get === 'function' ? COOK_SPR.get(sprId, 0) : null; } catch (e) { s = null; } return s || CAFE.art(artId); }
+  /* 11-21 UI 둘째 다듬기 (주인: "ui가 너무 조잡한데"): 시트 맨 위는 그곳의 그림 띠 (벽 · 선반 · 카운터) — 지킴이 초상 (갈래 N 의 npcFace, 없으면 비움) 이 왼쪽, 오른쪽은 kind 에 따라 조개 주머니.
+     그림은 그림 px 2 = 화면 px (기기 px 정수 배). kind: 'menu' 선반에 잔 · 병, 'lp' 선반에 레코드 등 */
+  function cafeBand(kind, right) {
+    var u = cafeUnit(2), W = Math.ceil(Math.min(600, window.innerWidth) / u), H = 48, d = new Uint8ClampedArray(W * H * 4), x, y, i;
+    function px(x0, y0, c) { if (x0 < 0 || y0 < 0 || x0 >= W || y0 >= H) return; var k = (y0 * W + x0) * 4; d[k] = c[0]; d[k + 1] = c[1]; d[k + 2] = c[2]; d[k + 3] = 255; }
+    function box(x0, y0, w, hh, c) { for (var yy = y0; yy < y0 + hh; yy++) for (var xx = x0; xx < x0 + w; xx++) px(xx, yy, c); }
+    var WALL = [233, 210, 168], WALL2 = [220, 194, 148], WOOD = [138, 90, 58], WOODL = [185, 138, 90], WOODD = [96, 58, 38], INK = [59, 42, 38];
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) px(x, y, x % 14 === 0 ? WALL2 : WALL);
+    box(0, 0, W, 2, WOODD);                                             /* 천장 몰딩 */
+    var sx = Math.round(W * 0.56), sw = W - sx - 6;                      /* 선반: 오른쪽 벽 (판자 4 + 그림자 2) */
+    box(sx, 20, sw, 2, WOODL); box(sx, 22, sw, 2, WOOD); box(sx, 24, sw, 1, WALL2);
+    var COL = [[214, 69, 80], [244, 234, 216], [120, 180, 90], [96, 150, 180], [246, 214, 120], [86, 84, 100], [232, 190, 170]];
+    for (i = 0, x = sx + 3; x < sx + sw - 6; i++) {
+      var c = COL[i % COL.length];
+      if (kind === 'lp') { var w1 = 2 + (i % 2); box(x, 9, w1, 11, c); px(x, 9, INK); x += w1 + 1; if (i % 5 === 4) x += 2; }   /* 꽂힌 레코드 등 */
+      else if (i % 3 === 2) { box(x, 12, 5, 8, c); box(x + 1, 10, 3, 2, INK); x += 9; }                                        /* 병 */
+      else { box(x, 15, 6, 5, [244, 234, 216]); box(x, 15, 6, 1, c); px(x + 6, 17, [244, 234, 216]); x += 10; }                 /* 잔 */
+    }
+    box(Math.round(W * 0.3), 2, 1, 8, INK); box(Math.round(W * 0.3) - 3, 10, 7, 3, [246, 214, 120]); box(Math.round(W * 0.3) - 4, 13, 9, 1, WOODD);   /* 등 */
+    box(0, 38, W, 2, WOODL); box(0, 40, W, 1, WOOD); box(0, 41, W, 7, WOODD);                                                  /* 카운터: 윗판 + 앞판 */
+    for (x = 6; x < W; x += 18) box(x, 42, 1, 6, WOOD);
+    var cv = cafeCanvas({ w: W, h: H, d: d }, W * 2); cv.classList.add('cafe-band-pic');
+    var kids = [cv];
+    if (typeof npcFace === 'function' && NPCR && typeof NPCR.who === 'function') {
+      try { var who = NPCR.who('cafe'); if (who) { var face = h('canvas', { class: 'cafe-keeper', 'aria-hidden': 'true' }); npcFace(face, who); kids.push(face); } } catch (e) { console.warn('[cafe] keeper', e); }
+    }
+    if (right) kids.push(right);
+    return h('div', { class: 'cafe-band' }, kids);
+  }
+  function cafeTag(price) { return h('span', { class: 'cafe-cost cafe-tag' }, [shellAmt(price)]); }   /* 가격표: 구멍 난 꼬리표 */
   function renderCafe() {
     var body = $('cafe-body'); if (!body) return; var u = userState(), c = cafeState(), frag = document.createDocumentFragment();
-    frag.appendChild(h('p', { class: 'bag-line' }, [shellAmt(u.shells)]));
+    frag.appendChild(cafeBand('menu', h('p', { class: 'bag-line cafe-purse' }, [shellAmt(u.shells)])));
     if (cafeAsk) {
       var it = CAFE.item(cafeAsk), early = function (e) { return !(e && e.isTrusted && e.detail === 0) && tapTime(e) - cafeAskAt < SHEET_SETTLE; };
       var by = h('button', { type: 'button', class: 'btn sm pressable sew-yes', text: '시킬래', 'aria-describedby': 'cafe-ask-line' }), bn = h('button', { type: 'button', class: 'btn sm pressable sew-no', text: '그만', 'aria-describedby': 'cafe-ask-line' });
       by.addEventListener('click', function (e) { if (early(e)) return; var id = cafeAsk; cafeAsk = null; if (id) cafeBuy(id); });
       bn.addEventListener('click', function (e) { if (early(e)) return; cafeAsk = null; renderCafe(); sewFocus('#cafe-body .cafe-menu', 0); });
-      frag.appendChild(h('div', { class: 'sew-ask', role: 'group', 'aria-labelledby': 'cafe-ask-line' }, [
-        h('p', { class: 'sew-ask-line', id: 'cafe-ask-line' }, [h('span', { text: it.name + ' · ' }), shellAmt(it.price), h('span', { text: ' 시킬까?' })]), h('div', { class: 'btn-row sew-ask-btns' }, [bn, by])]));
+      /* 물음 = 칠판 위 주문 쪽지: 접시 그림 + 한 줄 + 단추 둘 */
+      frag.appendChild(h('div', { class: 'cafe-board' }, [h('div', { class: 'sew-ask cafe-slip', role: 'group', 'aria-labelledby': 'cafe-ask-line' }, [
+        h('span', { class: 'cafe-slip-pic' }, [cafeCanvas(cafeSpr(it.spr, it.id), 64)]),
+        h('p', { class: 'sew-ask-line', id: 'cafe-ask-line' }, [h('span', { text: it.name + ' · ' }), shellAmt(it.price), h('span', { text: ' 시킬까?' })]), h('div', { class: 'btn-row sew-ask-btns' }, [bn, by])])]));
     } else {
-      var row = h('div', { class: 'cafe-menu', role: 'group', 'aria-label': '메뉴' });
-      CAFE.MENU.forEach(function (it) {
-        var n = CAFE.dots(c, it.id), kids = [h('span', { class: 'cafe-plate' }, [cafeCanvas(cafeSpr(it.spr, it.id), 64)]), h('span', { class: 'cafe-name', text: it.name }), h('span', { class: 'cafe-cost' }, [shellAmt(it.price)])];
-        if (n >= 0) { var dots = h('span', { class: 'cafe-dots', 'aria-hidden': 'true' }); for (var i = 0; i < CAFE.GIFT_AT; i++) dots.appendChild(h('i', { class: i < n ? 'on' : null })); kids.push(dots); kids.push(h('span', { class: 'sr-only', text: ', 세 번 가운데 ' + n + '번 먹었어' })); }
+      /* 칠판 (분필 테두리) 에 이름과 가격표, 그 아래 카운터에 접시 셋, 카운터 앞판에 도장 카드 (도장 셋 + 레시피 카드 — 글자 없음) */
+      var row = h('div', { class: 'cafe-menu cafe-board', role: 'group', 'aria-label': '메뉴' });
+      CAFE.MENU.forEach(function (it, idx) {
+        var n = CAFE.dots(c, it.id), kids = [h('span', { class: 'cafe-name', text: it.name }), cafeTag(it.price), h('span', { class: 'cafe-plate' }, [cafeCanvas(cafeSpr(it.spr, it.id), 64)])];
+        if (n >= 0) {
+          var dots = h('span', { class: 'cafe-dots', 'aria-hidden': 'true' });
+          for (var i = 0; i < CAFE.GIFT_AT; i++) dots.appendChild(h('i', { class: (i < n ? 'on' : '') + (cafeNew === it.id && i === n - 1 ? ' new' : '') || null }));
+          dots.appendChild(cafeCanvas(cafeSpr('cafe.card', 'card'), 16));
+          kids.push(dots); kids.push(h('span', { class: 'sr-only', text: ', 세 번 가운데 ' + n + '번 먹었어' }));
+        } else kids.push(h('span', { class: 'cafe-dots none', 'aria-hidden': 'true' }));
         var b = h('button', { type: 'button', class: 'cafe-item pressable' }, kids);
+        b.style.setProperty('--i', String(idx));
         b.addEventListener('click', function () { cafePick(it.id, b); });
         row.appendChild(b);
       });
-      frag.appendChild(row);
+      frag.appendChild(row); cafeNew = null;
     }
     body.textContent = ''; body.appendChild(frag);
   }
@@ -5676,6 +5802,7 @@ var APP = (function () {
     renderCafeTray(); cafeCrumbs($('cafe-eat') || from);
     if (!r.done) { var nx = $('cafe-eat'); if (nx && nx.focus) nx.focus(); return; }
     var st = $('cafe-stand'); if (st) st.focus();
+    if (r.item.recipe) cafeNew = r.item.id;
     var eatFn = cafeApi('recipeEat'), res = null;
     if (eatFn && r.item.recipe) { try { res = eatFn(r.item.recipe); } catch (e) { console.warn('[cafe] recipeEat', e); } }
     if (res && res.gift === true) {
@@ -5727,26 +5854,38 @@ var APP = (function () {
     }
     if (on) { var a = cafeLp.ang * Math.PI / 180; [7, 10].forEach(function (r) { put(15 + Math.cos(a) * r, 16 + Math.sin(a) * r, 200, 196, 210); put(15 - Math.cos(a) * r, 16 - Math.sin(a) * r, 120, 116, 130); }); }
     put(15, 16, 232, 224, 212);
-    var tx = on ? 24 : 33, ty = on ? 20 : 24;   /* 팔: 축 (35, 5) → 바늘 */
+    var ar = on ? Math.max(0, Math.min(1, cafeLp.arm)) : 0, tx = Math.round(33 - 9 * ar), ty = Math.round(24 - 4 * ar);   /* 팔: 축 (35, 5) → 바늘. arm 0 = 쉬는 자리, 1 = 판 위 (올릴 때 몇 걸음에 걸쳐 내려온다) */
     for (var i = 0; i <= 20; i++) put(35 + (tx - 35) * i / 20, 5 + (ty - 5) * i / 20, 232, 224, 212);
     for (y = 3; y <= 7; y++) for (x = 33; x <= 37; x++) put(x, y, 59, 42, 38);
     put(tx, ty, 59, 42, 38); put(tx, ty + 1, 59, 42, 38);
     return { w: w, h: hh, d: d };
   }
-  function lpDraw() { var host = $('lp-deck'); if (!host) return; var cv = cafeCanvas(lpDeck(), 160); cv.id = 'lp-disc'; host.textContent = ''; host.appendChild(cv); }
+  function lpDraw() { var host = $('lp-deck'); if (!host) return; var cv = cafeCanvas(lpDeck(), window.innerWidth < 350 ? 160 : 200); cv.id = 'lp-disc'; host.textContent = ''; host.appendChild(cv); }
+  function lpLean(spr) {   /* 재킷을 기대 세운다: 줄마다 옆으로 민 평행사변형 (그림 px 그대로 — 돌리지 않는다) + 뒤에서 삐져나온 판 */
+    var lean = 3, W = spr.w + lean + 3, H = spr.h, d = new Uint8ClampedArray(W * H * 4), x, y;
+    for (y = 0; y < H; y++) {
+      var off = Math.floor((H - 1 - y) * lean / (H - 1));
+      for (x = 0; x < 3; x++) { var k0 = (y * W + off + spr.w + x) * 4, dy = y - H / 2, inside = dy * dy + (x + 6) * (x + 6) <= 81; if (inside && y > 1 && y < H - 2) { d[k0] = 40; d[k0 + 1] = 34; d[k0 + 2] = 44; d[k0 + 3] = 255; } }
+      for (x = 0; x < spr.w; x++) { var s = (y * spr.w + x) * 4, k = (y * W + off + x) * 4; d[k] = spr.d[s]; d[k + 1] = spr.d[s + 1]; d[k + 2] = spr.d[s + 2]; d[k + 3] = spr.d[s + 3]; }
+    }
+    return { w: W, h: H, d: d };
+  }
   function renderLp() {
     var body = $('lp-body'); if (!body || !window.CAFE_MUSIC) return; var frag = document.createDocumentFragment(), tunes = CAFE_MUSIC.list(), now = cafeLp.id ? CAFE_MUSIC.tune(cafeLp.id) : null;
+    frag.appendChild(cafeBand('lp', null));
+    /* 턴테이블 (크게) 과 그 옆 스피커: 소리가 꺼져 있으면 스피커가 '소리 켜기' 단추, 켜져 있으면 그림만 */
     var top = h('div', { class: 'lp-top' }, [h('div', { id: 'lp-deck', class: 'lp-deck', role: 'img', 'aria-label': now ? '도는 레코드' : '빈 턴테이블' })]);
     if (!lpSoundOn()) {
-      var sp = h('button', { type: 'button', id: 'lp-sound', class: 'lp-sound pressable', 'aria-label': '소리 켜기' }, [cafeCanvas(CAFE.art('mute'), 48)]);
+      var sp = h('button', { type: 'button', id: 'lp-sound', class: 'lp-sound lp-spk pressable', 'aria-label': '소리 켜기' }, [cafeCanvas(CAFE.art('mute'), 48)]);
       sp.addEventListener('click', function () { if (window.AUDIO && typeof AUDIO.setEnabled === 'function') AUDIO.setEnabled(true); if (cafeLp.id) lpSound(); renderLp(); var f = document.querySelector('#lp-body .lp-sleeve[aria-pressed="true"]') || document.querySelector('#lp-body .lp-sleeve'); if (f) f.focus(); });
       top.appendChild(sp);
-    }
+    } else top.appendChild(h('div', { class: 'lp-spk' + (cafeLp.sound ? ' live' : ''), 'aria-hidden': 'true' }, [cafeCanvas(CAFE.art('speaker'), 48)]));
     frag.appendChild(top);
     frag.appendChild(h('p', { class: 'lp-now', id: 'lp-now', text: now ? now.name + ' · ' + now.by : '' }));
-    var shelf = h('div', { class: 'lp-shelf', role: 'group', 'aria-label': '레코드' });
+    var shelf = h('div', { class: 'lp-shelf', role: 'group', 'aria-label': '레코드' });   /* 나무 선반 두 단: 단마다 판자 + 그림자 */
     tunes.forEach(function (t, i) {
-      var on = cafeLp.id === t.id, b = h('button', { type: 'button', class: 'lp-sleeve pressable' + (on ? ' on' : ''), 'aria-pressed': String(on), 'aria-label': t.name + ', ' + t.by, 'data-tune': t.id }, [cafeCanvas(CAFE.sleeve(i), 60)]);
+      var on = cafeLp.id === t.id, b = h('button', { type: 'button', class: 'lp-sleeve pressable' + (on ? ' on' : ''), 'aria-pressed': String(on), 'aria-label': t.name + ', ' + t.by, 'data-tune': t.id }, [cafeCanvas(lpLean(CAFE.sleeve(i)), 78)]);
+      b.style.setProperty('--i', String(i));
       b.addEventListener('click', function () { lpTap(t.id); var f = document.querySelector('#lp-body .lp-sleeve[data-tune="' + t.id + '"]'); if (f) f.focus(); });
       shelf.appendChild(b);
     });
@@ -5761,10 +5900,10 @@ var APP = (function () {
   function lpTap(id) {
     if (cafeLp.id === id) { lpStop(); renderLp(); return; }   /* 같은 재킷을 다시 누르면 멈춘다 */
     if (cafeLp.sound) { CAFE_MUSIC.stop(); cafeLp.sound = false; }
-    cafeLp.id = id; cafeLp.ang = 0;
+    cafeLp.id = id; cafeLp.ang = 0; cafeLp.arm = reduced() ? 1 : 0;
     var c = cafeState(); CAFE.played(c, id); save();
     lpSound(); renderLp();
-    if (!cafeLp.spin && !reduced()) cafeLp.spin = setInterval(function () { cafeLp.ang = (cafeLp.ang + 30) % 360; var s = $('lp-sheet'); if (s && s.open) lpDraw(); }, 150);
+    if (!cafeLp.spin && !reduced()) cafeLp.spin = setInterval(function () { cafeLp.ang = (cafeLp.ang + 30) % 360; if (cafeLp.arm < 1) cafeLp.arm = Math.min(1, cafeLp.arm + 0.25); var s = $('lp-sheet'); if (s && s.open) lpDraw(); }, 150);
     if (!cafeLp.watch) cafeLp.watch = setInterval(lpTick, 400);
   }
   function lpStop() {
@@ -5822,7 +5961,7 @@ var APP = (function () {
   };
   function npcShade(hex, k) { var n = parseInt(hex.slice(1), 16), r = Math.round((n >> 16) * k), g = Math.round(((n >> 8) & 255) * k), b = Math.round((n & 255) * k); return 'rgb(' + r + ',' + g + ',' + b + ')'; }
   function npcFace(cv, who) {   /* 그림 16×16 px, 그림 px 하나 = 기기 px 정수 (또렷하게) */
-    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.round(3 * dpr)), c = cv.getContext('2d'), x, y, ch;
+    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.round(3.5 * dpr)), c = cv.getContext('2d'), x, y, ch;   /* 11-21 UI 둘째: 초상 56px 쯤 (그림 px = 기기 px 정수) */
     cv.width = cv.height = 16 * k; cv.style.width = cv.style.height = (16 * k / dpr) + 'px';
     c.imageSmoothingEnabled = false; c.clearRect(0, 0, cv.width, cv.height);
     for (y = 0; y < 16; y++) for (x = 0; x < 16; x++) {
@@ -5838,11 +5977,16 @@ var APP = (function () {
     w = Math.min(420, Math.max(200, Math.min(vw, r.right) - Math.max(0, r.left) - 16));
     box.style.width = w + 'px'; hh = box.offsetHeight;
     left = (Math.max(0, r.left) + Math.min(vw, r.right) - w) / 2;
-    if (inDlg) { var dr = box.parentNode.getBoundingClientRect(); top = dr.top - hh - 8 >= 8 ? dr.top - hh - 8 : 8; }
+    if (inDlg) { var dr = box.parentNode.getBoundingClientRect(); top = dr.top - hh - 8 >= 36 ? dr.top - hh - 8 : 36; }   /* 36: 상자 위에 서는 이름표 자리 */
     else {
-      top = Math.max(8, Math.min(vh, r.bottom) - hh - 8);
+      top = Math.max(36, Math.min(vh, r.bottom) - hh - 12);
       var t = $('toast'), tr = t && t.classList.contains('show') && t.parentNode === document.body ? t.getBoundingClientRect() : null;   /* 떠 있는 알림과 겹치면 그 위로 */
-      if (tr && tr.height && tr.top < top + hh && tr.bottom > top) top = Math.max(8, tr.top - hh - 16);
+      if (tr && tr.height && tr.top < top + hh && tr.bottom > top) top = Math.max(36, tr.top - hh - 16);
+      /* 11-21 밤: 장면 안 카드 (꼬리표 · 영수증 — data-npc-avoid 를 단 것) 를 가리지 않는다. 아래 자리가 겹치면 장면 위쪽으로, 거기도 겹치면 아래 그대로 */
+      var cards = [].filter.call(document.querySelectorAll('#scene [data-npc-avoid]'), function (c) { return !c.hidden && c.offsetWidth > 0; }).map(function (c) { return c.getBoundingClientRect(); });
+      var hit = function (y) { return cards.some(function (c) { return c.right > left && c.left < left + w && c.bottom > y - 28 && c.top < y + hh; }); };
+      var up = Math.max(36, (sc ? sc.getBoundingClientRect().top : 0) + 36);
+      if (cards.length && hit(top) && !hit(up)) top = up;
     }
     box.style.left = (Math.round(left * dpr) / dpr) + 'px'; box.style.top = (Math.round(top * dpr) / dpr) + 'px';
   }
@@ -5883,10 +6027,14 @@ var APP = (function () {
     npcEnd(false);   /* 앞의 말은 접는다 (한 번에 하나) */
     return new Promise(function (res) { npcNow = { ln: ln, i: 0, res: res, opener: document.activeElement }; npcMarkSet(id, true); npcShow(); });
   }
-  function npcSync() {   /* 장면에 오늘의 문어들 (V 갈래의 scene.npcSet 이 있을 때만) */
+  /* 장면에 오늘의 문어들 (V 갈래의 scene.npcSet 이 있을 때만). 11-21 밤 (계약 C14): 걸어 들어가는 방이 있는 장면 (scene.inRoom) 이면 지금 있는 곳의 문어만 —
+     방 안 = 그 방의 가게 문어 (V 의 keeper 칸) · 바깥 = 자는 문어들. 방이 바뀌면 W 의 ppol:room 이벤트로 다시 넘긴다 */
+  var npcRoom;   /* undefined = 방이 없는 장면 · null = 바깥 · 'clothes' … = 그 방 */
+  function npcSync() {
     if (!NPCR || !scene || typeof scene.npcSet !== 'function') return false;
-    var dk = todayKey(); if (npcDay === dk) return false;
-    try { scene.npcSet(NPCR.list(dk)); npcDay = dk; return true; } catch (e) { return false; }
+    if (typeof scene.inRoom === 'function') { try { npcRoom = scene.inRoom() || null; } catch (e) { /* 장면 쪽 문제: 마지막으로 안 값 그대로 */ } }
+    var dk = todayKey(), stamp = dk + '|' + npcRoom; if (npcDay === stamp) return false;
+    try { scene.npcSet(npcRoom === undefined ? NPCR.list(dk) : NPCR.list(dk, npcRoom)); npcDay = stamp; return true; } catch (e) { return false; }
   }
   /* 게시판 (#btn-plaza-board → #story-sheet): 낡은 쪽지 넷을 그림 + 한 줄로. 본 쪽지는 S.user.story.notices 에 날짜로 (계약 C8) */
   function storyState() { var u = userState(); if (NPCR) NPCR.normalize(u); return u.story; }
@@ -5898,7 +6046,7 @@ var APP = (function () {
     leave: [['w', 0, 18, 40, 4], ['m', 0, 19, 6, 1], ['m', 12, 20, 6, 1], ['m', 28, 19, 6, 1], ['r', 22, 13, 12, 4], ['k', 28, 5, 1, 8], ['m', 29, 6, 5, 5], ['s', 2, 8, 10, 10], ['r', 1, 5, 12, 3], ['k', 5, 11, 4, 4], ['p', 5, 12, 4, 1], ['p', 5, 14, 4, 1]]
   };
   function storyPic(cv, name) {
-    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.round(2 * dpr)), c = cv.getContext('2d');
+    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.round(3 * dpr)), c = cv.getContext('2d');
     cv.width = 40 * k; cv.height = 24 * k; cv.style.width = (40 * k / dpr) + 'px'; cv.style.height = (24 * k / dpr) + 'px';
     c.imageSmoothingEnabled = false; c.clearRect(0, 0, cv.width, cv.height);
     function R(col, x, y, w, h) { c.fillStyle = col; c.fillRect(x * k, y * k, w * k, h * k); }
@@ -5907,6 +6055,42 @@ var APP = (function () {
       var x = r[1], y = r[2];   /* 작은 문어 8×9 */
       R(STORY_PAL.o, x + 1, y, 6, 1); R(STORY_PAL.o, x, y + 1, 8, 5); R(STORY_PAL.o, x, y + 6, 2, 2); R(STORY_PAL.o, x + 3, y + 6, 2, 2); R(STORY_PAL.o, x + 6, y + 6, 2, 2);
       if (r[3]) { R(STORY_PAL.k, x + 1, y + 3, 2, 1); R(STORY_PAL.k, x + 5, y + 3, 2, 1); } else { R(STORY_PAL.k, x + 2, y + 2, 1, 2); R(STORY_PAL.k, x + 5, y + 2, 1, 2); }
+    });
+  }
+  /* 11-21 UI 둘째: 처음 세 줄의 그림 (한 줄에 한 장, 그림 80×60 px): 도시의 사무실 · 바다로 가는 길 · 다락 창. [색, x, y, w, h]… · 'O' = 작은 문어 (x, y, 색, 눈 감음) */
+  var VIG = [
+    [['#1b2444', 0, 0, 80, 60], ['#24305a', 4, 4, 72, 30], ['#141a33', 8, 14, 10, 20], ['#141a33', 20, 8, 8, 26], ['#141a33', 30, 18, 12, 16], ['#141a33', 44, 10, 9, 24], ['#141a33', 55, 16, 8, 18], ['#141a33', 65, 12, 9, 22],
+      ['#e8c46a', 10, 17, 2, 2], ['#e8c46a', 14, 23, 2, 2], ['#e8c46a', 22, 11, 2, 2], ['#e8c46a', 24, 19, 2, 2], ['#e8c46a', 33, 22, 2, 2], ['#e8c46a', 38, 27, 2, 2], ['#e8c46a', 46, 14, 2, 2], ['#e8c46a', 49, 22, 2, 2], ['#e8c46a', 57, 20, 2, 2], ['#e8c46a', 67, 16, 2, 2], ['#e8c46a', 70, 25, 2, 2],
+      ['#0f1428', 39, 4, 2, 30], ['#0f1428', 4, 34, 72, 2], ['#2a2f4a', 0, 36, 80, 24],
+      ['O', 3, 36, '#4a86d8'], ['O', 19, 36, '#9a5cc8'], ['O', 35, 36, '#4fa868'], ['O', 51, 36, '#f08a3c'],
+      ['#e8c9a0', 67, 38, 6, 6], ['#5a3b28', 66, 36, 8, 3], ['#5a3b28', 66, 39, 1, 3], ['#2a1d16', 68, 40, 1, 2], ['#2a1d16', 71, 40, 1, 2],
+      ['#5a4636', 0, 44, 80, 3], ['#3b2a20', 0, 47, 80, 13], ['#4a352a', 0, 52, 80, 1],
+      ['#0f1428', 12, 37, 5, 7], ['#9fd0e0', 12, 38, 1, 5], ['#0f1428', 28, 37, 5, 7], ['#9fd0e0', 28, 38, 1, 5], ['#0f1428', 44, 37, 5, 7], ['#9fd0e0', 44, 38, 1, 5], ['#0f1428', 60, 37, 5, 7], ['#9fd0e0', 60, 38, 1, 5], ['#0f1428', 75, 38, 4, 6], ['#9fd0e0', 75, 39, 1, 4],
+      ['#f3ead6', 6, 48, 4, 3], ['#f3ead6', 7, 47, 4, 1], ['#f3ead6', 22, 47, 5, 4], ['#f3ead6', 38, 48, 4, 3], ['#f3ead6', 53, 47, 5, 2], ['#f3ead6', 54, 49, 5, 2], ['#f3ead6', 56, 46, 4, 1]],
+    [['#f6c9a0', 0, 0, 80, 10], ['#f8dcb4', 0, 10, 80, 8], ['#fbecc8', 0, 18, 80, 6], ['#fff6dc', 34, 14, 12, 10], ['#5f9fb8', 0, 24, 80, 4], ['#7fb8c8', 0, 28, 80, 3], ['#f3ead6', 30, 25, 20, 1],
+      ['#6f9a5a', 0, 31, 80, 29], ['#5a8548', 0, 28, 26, 6], ['#5a8548', 56, 27, 24, 7], ['#4a7440', 0, 34, 14, 26], ['#4a7440', 68, 36, 12, 24],
+      ['#a8573f', 46, 26, 5, 2], ['#f3ead6', 46, 28, 5, 3], ['#a8573f', 53, 27, 4, 2], ['#f3ead6', 53, 29, 4, 2], ['#a8573f', 28, 27, 4, 2], ['#f3ead6', 28, 29, 4, 2],
+      ['#e8d2a0', 38, 31, 4, 4], ['#e8d2a0', 37, 35, 7, 5], ['#e8d2a0', 34, 40, 11, 6], ['#e8d2a0', 30, 46, 16, 7], ['#e8d2a0', 25, 53, 24, 7],
+      ['#5a3b28', 58, 38, 1, 10], ['#c98a2b', 55, 38, 7, 3],
+      ['#5a3b28', 34, 44, 6, 3], ['#e8c9a0', 35, 46, 4, 3], ['#3f5f8a', 34, 49, 6, 6], ['#2a1d16', 34, 55, 2, 3], ['#2a1d16', 38, 55, 2, 3], ['#a8573f', 40, 49, 3, 5],
+      ['#3f6a38', 8, 38, 6, 8], ['#3f6a38', 6, 41, 10, 4], ['#5a3b28', 10, 46, 2, 4], ['#3f6a38', 70, 42, 6, 8], ['#3f6a38', 68, 45, 10, 4], ['#5a3b28', 72, 50, 2, 4]],
+    [['#3b2a20', 0, 0, 80, 60], ['#4a352a', 0, 9, 80, 1], ['#4a352a', 0, 19, 80, 1], ['#4a352a', 0, 29, 80, 1], ['#4a352a', 0, 39, 80, 1], ['#2a1d16', 0, 0, 80, 3],
+      ['#2a1d16', 24, 6, 32, 30], ['#24305a', 26, 8, 28, 26], ['#33406e', 26, 22, 28, 12], ['#fff6dc', 43, 11, 6, 6], ['#24305a', 46, 11, 3, 3], ['#f3ead6', 30, 12, 1, 1], ['#f3ead6', 36, 17, 1, 1], ['#f3ead6', 50, 20, 1, 1], ['#f3ead6', 33, 26, 1, 1],
+      ['#2a1d16', 39, 8, 2, 26], ['#2a1d16', 26, 20, 28, 2], ['#5a4636', 22, 36, 36, 3],
+      ['#4a5584', 20, 39, 40, 2], ['#3f4870', 16, 41, 48, 3], ['#5a4636', 0, 44, 80, 16], ['#4a352a', 0, 44, 80, 1], ['#4a352a', 0, 52, 80, 1], ['#6a5a52', 18, 44, 44, 8],
+      ['O', 36, 37, '#2a1d16'], ['#f3ead6', 38, 39, 1, 2], ['#f3ead6', 41, 39, 1, 2],
+      ['#c98a2b', 66, 28, 6, 8], ['#f6d98a', 67, 30, 4, 4], ['#2a1d16', 68, 26, 2, 2], ['#5a3b28', 10, 30, 10, 14], ['#4a352a', 10, 36, 10, 1]]
+  ];
+  function storyVig(cv, n) {   /* 화면 폭 (세로는 절반 아래) 에 들어가는 가장 큰 정수 배율 */
+    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.floor(Math.min(window.innerWidth * dpr / 80, window.innerHeight * 0.5 * dpr / 60))), c = cv.getContext('2d');
+    cv.width = 80 * k; cv.height = 60 * k; cv.style.width = (80 * k / dpr) + 'px'; cv.style.height = (60 * k / dpr) + 'px';
+    c.imageSmoothingEnabled = false; c.clearRect(0, 0, cv.width, cv.height);
+    function R(col, x, y, w, h) { c.fillStyle = col; c.fillRect(x * k, y * k, w * k, h * k); }
+    (VIG[n] || []).forEach(function (r) {
+      if (r[0] !== 'O') { R(r[0], r[1], r[2], r[3], r[4]); return; }
+      var x = r[1], y = r[2], col = r[3];
+      R(col, x + 1, y, 6, 1); R(col, x, y + 1, 8, 5); R(col, x, y + 6, 2, 2); R(col, x + 3, y + 6, 2, 2); R(col, x + 6, y + 6, 2, 2);
+      if (col !== '#2a1d16') { R('#2a1d16', x + 2, y + 2, 1, 2); R('#2a1d16', x + 5, y + 2, 1, 2); }
     });
   }
   function openStory() {
@@ -5925,8 +6109,8 @@ var APP = (function () {
     var el = $('story-intro'), force = /[?&]story=1(&|$)/.test(location.search);
     if (typeof done !== 'function') done = function () {};
     if (!NPCR || !el || S.octopus.name || storyState().intro || (navigator.webdriver && !force) || !el.hidden) { done(); return false; }
-    var p = $('story-line'), i = 0, over = false, t0 = Date.now();   /* t0: 타이틀을 누른 그 손가락의 click 이 첫 줄을 넘기지 않게 (0.4초 동안은 넘기지 않는다) */
-    function show() { p.textContent = NPCR.intro[i]; el.setAttribute('data-n', String(i + 1)); }
+    var p = $('story-line'), i = 0, over = false, t0 = Date.now(), armed = false;   /* 타이틀을 누른 그 손가락의 click 이 첫 줄을 넘기지 않게: 이 화면을 새로 누른 click 이거나 (armed) 0.4초가 지난 뒤에만 넘긴다 */
+    function show() { p.textContent = NPCR.intro[i]; el.setAttribute('data-n', String(i + 1)); var vg = $('story-vig'); if (vg) { storyVig(vg, i); vg.classList.remove('in'); void vg.offsetWidth; vg.classList.add('in'); } }
     function end() {
       if (over) return; over = true;
       document.removeEventListener('keydown', key, true);
@@ -5935,13 +6119,13 @@ var APP = (function () {
       setTimeout(function () { el.hidden = true; el.classList.remove('leaving'); p.textContent = ''; }, reduced() ? 0 : 260);
       done();
     }
-    function next() { if (over || Date.now() - t0 < 400) return; if (i < NPCR.intro.length - 1) { i++; show(); } else end(); }
+    function next() { if (over || (!armed && Date.now() - t0 < 400)) return; if (i < NPCR.intro.length - 1) { i++; show(); } else end(); }
     function key(e) {
       if (over) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); end(); }
-      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (e.target === $('story-skip')) end(); else next(); }   /* 입장 레이어가 Enter · Space 의 기본 동작을 막는다 → 건너뛰기 단추도 여기서 받는다 */
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (e.repeat) return; armed = true; if (e.target === $('story-skip')) end(); else next(); }   /* 입장 레이어가 Enter · Space 의 기본 동작을 막는다 → 건너뛰기 단추도 여기서 받는다 */
     }
-    $('story-next').onclick = next; $('story-skip').onclick = end;
+    $('story-next').onpointerdown = function () { armed = true; }; $('story-next').onclick = next; $('story-skip').onclick = end;
     document.addEventListener('keydown', key, true);
     el.inert = false;   /* 입장 연출은 제 레이어 밖을 inert 로 묶는다 — 이 줄들은 눌려야 한다 */
     el.hidden = false; show();
@@ -5967,6 +6151,10 @@ var APP = (function () {
     document.addEventListener('close', function () { if (npcNow) npcEnd(false); }, true);   /* 말이 떠 있던 창이 닫히면 말도 접는다 */
     window.addEventListener('resize', function () { var box = $('npc-box'); if (npcNow && box) npcPlace(box); });
     document.addEventListener('visibilitychange', function () { if (!document.hidden) npcSync(); });
+    document.addEventListener('ppol:room', function (e) {   /* 방에 들어가거나 나왔다 (W): 떠 있던 말은 접고 그곳의 문어로 */
+      var k = e && e.detail ? e.detail.key : null; npcRoom = typeof k === 'string' && k ? k : null;
+      if (npcNow) npcEnd(false); npcSync();
+    });
     setInterval(npcSync, 60000);   /* 열어 둔 채 날이 바뀌면 */
     var bd = $('btn-plaza-board'); if (bd) bd.addEventListener('click', openStory);
     var sd = $('story-sheet');
@@ -6015,12 +6203,17 @@ var APP = (function () {
   }
   /* 픽셀 그림: 아트 1px = 기기 픽셀 정수 배 (k = 바라는 CSS 배율) */
   function ctSnap(cv, w, hh, k) { var dpr = window.devicePixelRatio || 1, n = Math.max(1, Math.round(k * dpr)); cv.style.width = (w * n / dpr) + 'px'; cv.style.height = (hh * n / dpr) + 'px'; return n; }
+  function ctMix(a, b, t) {   /* '#rrggbb' 둘을 섞는다 (문어 테두리 · 윤기 색) */
+    var x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16), o = 0;
+    for (var sft = 16; sft >= 0; sft -= 8) o |= Math.round(((x >> sft) & 255) * (1 - t) + ((y >> sft) & 255) * t) << sft;
+    return '#' + ('000000' + o.toString(16)).slice(-6);
+  }
   function ctArt(kind, id, k, tint, label) {
     var a = CT.art(kind, id, tint); if (!a) return null;
     var cv = h('canvas', label ? { class: 'ct-art', role: 'img', 'aria-label': label } : { class: 'ct-art', 'aria-hidden': 'true' }), n = ctSnap(cv, a.w, a.h, k);
     cv.width = a.w * n; cv.height = a.h * n;
-    var cx = cv.getContext('2d');
-    a.rows.forEach(function (row, j) { for (var i = 0; i < row.length; i++) { var ch = row.charAt(i); if (ch === '.') continue; cx.fillStyle = ch === 'x' ? a.tint : a.pal[ch]; cx.fillRect(i * n, j * n, n, n); } });
+    var cx = cv.getContext('2d'), dark = a.tint ? ctMix(a.tint, '#2a2438', 0.42) : null, lite = a.tint ? ctMix(a.tint, '#fff6e0', 0.5) : null;
+    a.rows.forEach(function (row, j) { for (var i = 0; i < row.length; i++) { var ch = row.charAt(i); if (ch === '.') continue; cx.fillStyle = ch === 'x' ? a.tint : ch === 'X' && dark ? dark : ch === 'h' && lite ? lite : a.pal[ch]; cx.fillRect(i * n, j * n, n, n); } });
     return cv;
   }
   function ctMe(frame, k, label) {   /* 내 캐릭터 (지금 차림) — 장면의 전신 · 얼굴 사진 */
@@ -6031,17 +6224,6 @@ var APP = (function () {
       cv.width = src.width; cv.height = src.height; ctSnap(cv, src.width, src.height, k); cv.getContext('2d').drawImage(src, 0, 0);
       return cv;
     } catch (e) { console.warn('[contest] playerShot', e); return null; }
-  }
-  function ctThumb(cat, id) {   /* 경쟁자가 입은 것 (P 갈래의 그림 — 없으면 안 그린다). 받은 그림의 1px 도 기기 픽셀 정수 배로 (약 32 CSS px) */
-    var A = ctApi(); if (!A || typeof A.itemThumb !== 'function') return null;
-    try {
-      var t = A.itemThumb(cat, id, 32); if (!t) return null;
-      var cv = h('canvas', { class: 'ct-art ct-thumb', 'aria-hidden': 'true' });
-      var put = function (src, w, hh) { if (!(w > 0 && hh > 0)) return; cv.width = w; cv.height = hh; ctSnap(cv, w, hh, 32 / w); cv.getContext('2d').drawImage(src, 0, 0); };
-      if (typeof t === 'string') { cv.width = cv.height = 32; ctSnap(cv, 32, 32, 1); var im = new Image(); im.onload = function () { put(im, im.naturalWidth, im.naturalHeight); }; im.src = t; }
-      else put(t, t.width, t.height);
-      return cv;
-    } catch (e) { return null; }
   }
   function ctNpc(id) {   /* 심사 문어의 이름 · 색 (N 갈래의 명단 — 없으면 이름 없는 그림자) */
     var N = window.NPC, r = N && N.roster, f = null;
@@ -6056,26 +6238,27 @@ var APP = (function () {
       var who = ctNpc(CT_JUDGES[i]);
       return h('div', { class: 'ct-judge', 'data-at': String(5 + i), role: 'group', 'aria-label': (who && who.name ? who.name : CT.fill(CT.TEXT.ariaJudge, { n: i + 1 })) + ' · ' + names[c.what] }, [
         h('div', { class: 'ct-card' }, [ctArt('tag', c.icon, 3), ctStars(c.stars)]),
+        h('span', { class: 'ct-stick', 'aria-hidden': 'true' }),
         ctArt('oct', null, 2, (who && who.color) || '#8a8494'),
         who && who.name ? h('span', { class: 'ct-jname', 'aria-hidden': 'true', text: who.name }) : null
       ]);
     }));
   }
   function ctFigure(e, who, k) {   /* 참가자 그림: 나 = 내 캐릭터 얼굴, 그 밖 = 문어 그림자 */
-    if (who === 'me') return ctMe('head', k, CT.TEXT.me) || ctArt('oct', null, 3, '#5f5749', CT.TEXT.me);
+    if (who === 'me') return ctMe('head', k, CT.TEXT.me) || ctArt('oct', 'star', 3, '#8a8494', CT.TEXT.me);
     var r = e.rivals[who] || {};
-    return ctArt('oct', null, 3, typeof r.color === 'string' ? r.color : '#8a8494', CT.fill(CT.TEXT.ariaRival, { n: who + 1 }));
+    return ctArt('oct', CT.RIVAL_HATS[who] || null, 3, typeof r.color === 'string' ? r.color : '#8a8494', CT.fill(CT.TEXT.ariaRival, { n: who + 1 }));
   }
   function ctPodium(e, cls) {   /* 단상: 2 · 1 · 3등 순으로 서고 4등은 옆 바닥 */
     var bd = CT.board(e), order = [1, 0, 2, 3];
-    return h('div', { class: 'ct-podium' + (cls ? ' ' + cls : ''), 'data-at': '9' }, order.map(function (i) {
+    return h('div', { class: 'ct-podium ct-stage' + (cls ? ' ' + cls : ''), 'data-at': '9' }, order.map(function (i) {
       var b = bd[i]; if (!b) return null;
       return h('div', { class: 'ct-pod r' + b.rank + (b.who === 'me' ? ' me' : '') }, [ctFigure(e, b.who, 1.5), h('div', { class: 'ct-block' }, [h('span', { class: 'ct-rank', text: CT.fill(CT.TEXT.rank, { n: b.rank }) }), h('span', { class: 'ct-pts', text: CT.fill(CT.TEXT.ariaTotal, { n: b.total }) })])]);
     }));
   }
   function ctThemeHead(th, big) {
-    var want = h('div', { class: 'ct-want', role: 'group', 'aria-label': CT.TEXT.ariaWant }, th.tags.concat([th.color]).map(function (t) { return ctArt('tag', t, 3, null, CT.TAG_NAME[t] || t); }));
-    return h('div', { class: 'ct-theme' + (big ? ' big' : '') }, [ctArt('theme', th.id, big ? 6 : 3), h('div', { class: 'ct-theme-txt' }, [h('p', { class: 'ct-title', text: th.title }), want])]);
+    var want = h('div', { class: 'ct-want', role: 'group', 'aria-label': CT.TEXT.ariaWant }, th.tags.concat([th.color]).map(function (t) { return h('span', { class: 'ct-chip' }, [ctArt('tag', t, 3, null, CT.TAG_NAME[t] || t)]); }));
+    return h('div', { class: 'ct-theme' + (big ? ' big' : '') }, [h('span', { class: 'ct-poster' }, [ctArt('theme', th.id, big ? 6 : 3)]), h('div', { class: 'ct-theme-txt' }, [h('p', { class: 'ct-title', text: th.title }), want])]);
   }
   function ctResult(e, fresh) {   /* 결과: 등수 + 조개 + '채점 규칙' · 단상 · 심사 카드 */
     var th = CT.themeById(e.theme) || CT.week(todayKey()).theme;
@@ -6092,7 +6275,7 @@ var APP = (function () {
     frag.appendChild(ctThemeHead(wk.theme, true));
     var me = ctMe('full', e ? 1 : 2, CT.TEXT.ariaMe), chg = h('button', { type: 'button', class: 'btn sm pressable', id: 'ct-change', text: CT.TEXT.change });
     chg.addEventListener('click', function () { openLook(); });
-    frag.appendChild(h('div', { class: 'ct-mine' }, [me, chg]));
+    frag.appendChild(h('div', { class: 'ct-mine' }, [h('div', { class: 'ct-stage ct-solo' }, [me]), chg]));
     if (e) frag.appendChild(ctResult(e));
     else if (wk.open) { var go = h('button', { type: 'button', class: 'btn wide pressable ct-go', id: 'ct-go', text: CT.TEXT.enter }); go.addEventListener('click', ctEnter); frag.appendChild(go); }
     else frag.appendChild(h('p', { class: 'ct-closed', id: 'ct-closed', text: CT.TEXT.closed }));
@@ -6126,10 +6309,9 @@ var APP = (function () {
   /* 쇼: 참가자 넷이 차례로 → 심사 카드 셋 → 점수 오름 → 단상 → 결과. 넘기기는 언제나 */
   function ctShow(e) {
     var body = $('contest-body'), th = CT.themeById(e.theme) || CT.week(todayKey()).theme; if (!body) return;
-    var line = h('div', { class: 'ct-lineup' }, [0, 1, 2, 'me'].map(function (who, i) {
-      var fig = who === 'me' ? (ctMe('full', 1, CT.TEXT.me) || ctFigure(e, 'me', 1)) : ctFigure(e, who, 1), r = who === 'me' ? null : e.rivals[who];
-      var thumbs = r && Array.isArray(r.look) ? h('div', { class: 'ct-thumbs', 'aria-hidden': 'true' }, r.look.slice(0, 4).map(function (p) { return ctThumb(p.cat, p.id); })) : null;
-      return h('div', { class: 'ct-slot' + (who === 'me' ? ' me' : ''), 'data-at': String(i + 1) }, [fig, thumbs, h('span', { class: 'ct-total', 'data-total': String(who === 'me' ? e.total : (r && r.total) | 0), text: '0' })]);
+    var line = h('div', { class: 'ct-lineup ct-stage' }, [0, 1, 2, 'me'].map(function (who, i) {
+      var fig = who === 'me' ? (ctMe('full', 1.5, CT.TEXT.me) || ctFigure(e, 'me', 1)) : ctFigure(e, who, 1), r = who === 'me' ? null : e.rivals[who];
+      return h('div', { class: 'ct-slot' + (who === 'me' ? ' me' : ''), 'data-at': String(i + 1) }, [h('span', { class: 'ct-total', 'data-total': String(who === 'me' ? e.total : (r && r.total) | 0), text: '0' }), fig]);
     }));
     var skip = h('button', { type: 'button', class: 'btn sm pressable', id: 'ct-skip', text: CT.TEXT.skip });
     skip.addEventListener('click', function () { ctEnd(); });
@@ -6226,6 +6408,9 @@ var APP = (function () {
     get dayCount() { return dayCount(); },
 
     /* [7-T] */
+    recipeEat: recipeEat, recipesUnlocked: recipesUnlocked, cookServe: cookServeTest, cookCtx: cookCtx,
+    cookMsgTest: function (d) { if (!isObj(d)) return false; if (d.ppolCook === 'serve') cookServeMsg(d); else if (d.ppolCook === 'result') mealDish(d); else return false; return true; },
+    get mealClose() { return mealClose ? { dish: mealClose.dish, eaten: mealClose.eaten.slice(), line: mealClose.line } : null; },
 
     /* [7-P] */
 

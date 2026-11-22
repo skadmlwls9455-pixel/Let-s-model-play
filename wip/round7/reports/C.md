@@ -145,3 +145,31 @@ Not exercised by the check: the home music bus level after a stop (`AUDIO.state(
 ## Screenshots (`wip/round7/shots/C/`)
 
 01-menu, 02-served, 04-gift, 05-coffee, 06-shelf, 07-playing-silent, 09-menu-412, 10-tray-3d.
+
+## UI pass 2 (11-21, after the owner's "ui가 너무 조잡한데 저거 좀 개선해줘봐", brief `UI2.md`)
+
+Looks only; rules, saves, lines, ids, aria names and test hooks are unchanged.
+
+- **Picture band** on both sheets (`cafeBand`): wall, lamp, a shelf (cups and bottles for the menu, record spines for
+  the records), the counter; the keeper's portrait from lane N (`npcFace`, 48 px, own colour and cap) at the left; the
+  shell purse on a paper plate at the right (menu only); the title on a sign plate hanging over the band.
+- **Menu = chalkboard** in a wooden frame with a chalk line: chalk names, prices as hole-punched tags, the three dishes
+  standing on the counter plank, and under each dish a small **stamp card** (three stamp circles and the recipe card
+  picture, no words) in place of the three dots. The stamp just earned drops in with a short sparkle the next time the
+  menu opens. Tiles pop in 40 ms apart.
+- **The question** is an order slip on the board with the dish picture.
+- **Records**: a larger turntable whose arm comes down in steps when a record is put on, a wooden speaker box beside
+  it (the '소리 켜기' button when sound is off, a still picture that bobs when a tune sounds), and a two-plank wooden
+  rack with the sleeves leaning (sheared by whole pixels, a disc showing behind each); the chosen sleeve is lifted.
+- The tray over the scene is a wooden tray.
+- Reduced motion: none of the animations.
+- Not done from the rules: the shell number does not count down on a purchase (the sheet closes at that moment; the
+  purse chip on the scene just shows the new number). The frame of `.sheet` itself is lane U's.
+- Food pictures: `COOK_SPR` is loaded on the game page by lane T's script tag; until T is merged the page shows my
+  fallback drawings. `tools/test-cafe-live.js --sprites` loads the sprite file for pictures.
+- Checks after the change: `tools/test-cafe.js` 99, `tools/test-cafe-live.js` 58, `npm test` exit 0, font check not
+  stale. Looked at 360x740, 412x915 @2.625, 320x568 and the dark scheme.
+- Pictures: `wip/round7/shots/C/ui2-before-menu-360.png` / `ui2-after-menu-360.png`, `ui2-before-menu-412.png` /
+  `ui2-after-menu-412.png`, `ui2-before-record-360.png` / `ui2-after-record-360.png`, `ui2-after-ask-320.png`.
+- Smoke on the branch before this pass (letters A–I, L–P, V, W ran: all passed; the run was stopped for the base
+  merge, the remaining letters were not run).

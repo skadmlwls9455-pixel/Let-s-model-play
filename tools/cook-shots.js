@@ -2,7 +2,7 @@
 /* tools/cook-shots.js - the kitchen's documentation captures (wip/round5/cook-spec.md 16.2) into docs/shots/cook/.
  *   NODE_PATH=$(npm root -g) node tools/cook-shots.js
  *   COOK_SHOTS_DIR=/some/dir   write the PNGs there instead of docs/shots/cook/
- *   ONLY=360x740,embed         only these sets (360x740, 320x568, 412x915, embed)
+ *   ONLY=360x740,embed         only these sets (360x740, 320x568, 412x915, book, embed)
  * What it writes (23 PNGs, sound off, light colour scheme, ?seed=12, one dish played the same way on every size):
  *   360x740 @2 and 320x568 @2 (suffix -360x740 / -320x568):
  *     01-tap-start       700 ms after open, fresh save (nothing seen yet): the first-time demo hand on the first ring
@@ -17,6 +17,9 @@
  *     09-result          the plate 1.04 s after the reveal (t 12 >= 6), the again chip shown
  *     10-result-reduced  the same dish with prefers-reduced-motion: reduce (emulated): the plate at rest, the again chip
  *   412x915 @2.625 (suffix -412x915): 01-tap-start and 09-result
+ *   11-21 round 7 (set 'book', 360x740 @2, real time, the book dishes of js/cook-steps.js; pictures need js/cook-sprites.js):
+ *     20-book, 21-book-locked, 22..30 one step of every kind (slice stir pour flip tap swipe drag rub bake), 31..35 the five plates
+ *     with their end buttons. These are not byte-stable (no fake clock); 09 / 10 now show the end buttons, not an again chip.
  *   11-embed-360x740     index.html (stub world and brain, the first-run name dialog filled), the play room, the kitchen
  *                        opened by a touch on the counter (cook.html?embed=1 in #cook-overlay), the tap step after 3 hits
  * Two saves: 01-03 come from a fresh save (nothing seen); 04-10 from a save that has seen 'tap' and 'flip' but not
@@ -336,7 +339,7 @@ async function setB(browser, set) {   /* seen tap + flip: 04-06 on the stove, 07
     await T.at(rev.revealAt + AT.result, '09');
     var l = await T.live();
     await shoot(T, NAMES['09'] + sfx, [[l.screen === 'reveal' && l.station === 'plate' && !l.slide && l.done, 'the plate, at rest after the slide (' + js([l.screen, l.station, l.slide]) + ')'],
-      [l.chip && l.verb === '다시', 'the again chip shown (' + js([l.chip, l.verb]) + ')'], [!l.hint, 'no hand'], [Math.floor(AT.result / FMS) >= 6, 't >= 6']]);
+      [l.chip && l.end.table && l.verb === '', 'the end buttons shown (' + js([l.chip, l.end]) + ')'], [!l.hint, 'no hand'], [Math.floor(AT.result / FMS) >= 6, 't >= 6']]);
   } finally { await T.done(); }
 }
 
@@ -349,7 +352,7 @@ async function setC(browser, set) {   /* reduced motion (emulated): the same dis
     await T.at(rev.revealAt + AT.result, '10');
     var l = await T.live();
     await shoot(T, NAMES['10'] + sfx, [[l.reduced, 'reduced motion on'], [l.screen === 'reveal' && l.station === 'plate' && !l.slide, 'the plate (' + js([l.screen, l.station]) + ')'],
-      [l.chip && l.verb === '다시', 'the again chip shown (' + js([l.chip, l.verb]) + ')'], [l.stats.slides === 0 && l.stats.squash === 0 && l.stats.shake === 0, 'no slide, squash or shake (' + js(l.stats) + ')']]);
+      [l.chip && l.end.table && l.verb === '', 'the end buttons shown (' + js([l.chip, l.end]) + ')'], [l.stats.slides === 0 && l.stats.squash === 0 && l.stats.shake === 0, 'no slide, squash or shake (' + js(l.stats) + ')']]);
   } finally { await T.done(); }
 }
 
@@ -436,6 +439,79 @@ async function setEmbed(browser) {
   } finally { await ctx.close(); }
 }
 
+/* ---------- 11-21 round 7: the recipe book, one step of every kind, the five plates (real time, mouse pointer) ---------- */
+async function setBook(browser) {
+  var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, hasTouch: true, colorScheme: 'light', locale: 'ko-KR' });
+  var page = await ctx.newPage(), errs = [];
+  page.on('pageerror', function (e) { errs.push(e.message); }); page.on('console', function (m) { if (m.type() === 'error') errs.push(m.text()); });
+  await page.addInitScript(function () { try { if (!sessionStorage.getItem('__s7')) { sessionStorage.setItem('__s7', '1'); localStorage.removeItem('ppolppol_cook_v0'); } } catch (e) { /* none */ } });
+  await page.goto(COOK_URL + '?seed=' + SEED);
+  function live() { return page.evaluate(function () { return COOK.live(); }); }
+  async function snap(name, ok, why) {
+    var l = await live(), text = await page.evaluate(function () { var d = document.getElementById('cook-dlg'), c = d.cloneNode(true), q = c.querySelector('.ck-say'); if (q) q.remove(); return (c.textContent || '').replace(/\s+/g, ''); });
+    if (!ok(l) || text !== '' || l.err || errs.length) { failed.push(name + ': ' + (why || 'state') + ' ' + js([l.screen, l.recipe, l.si, l.kind, text, errs])); console.error('  FAIL ' + name); return; }
+    await page.evaluate(function () { return Promise.all([].map.call(document.querySelectorAll('.cook-sticker'), function (i) { return i.decode ? i.decode().catch(function () {}) : null; })); });
+    await realWait(120);
+    await page.screenshot({ path: path.join(OUT, name + '.png'), animations: 'disabled' });
+    made.push(name); console.log('  ok   ' + name + '  (' + [l.screen, l.recipe || '-', l.kind || '-', l.station].join(', ') + ')');
+  }
+  async function pt(lx, ly) { var v = (await live()).view; return [(lx / 2 + v.ox) * v.css, (ly / 2 + v.oy) * v.css]; }
+  async function open(o) {   /* close (the kitchen saves its pot), drop that pot (a half-made one would win over the dish asked for), open */
+    await page.evaluate(function () { COOK.close(); }); await realWait(120);
+    await page.evaluate(function (x) {
+      try { var sv = JSON.parse(localStorage.getItem('ppolppol_cook_v0') || 'null'); if (sv) { sv.pot = null; localStorage.setItem('ppolppol_cook_v0', JSON.stringify(sv)); } } catch (e) { /* none */ }
+      var q = { storeKey: 'ppolppol_cook_v0', seed: 12 }; for (var k in x) q[k] = x[k]; COOK.open(q);
+    }, o || {});
+    await realWait(200);
+  }
+  async function toStep(id, si) {   /* by the chip, up to the start of step si */
+    await open({ recipe: id });
+    for (var g = 0; g < 80; g++) {
+      var l = await live();
+      if (l.si === si && l.phase === 'step' && !l.slide) break;
+      if (l.phase === 'step' && l.si < si) await page.evaluate(function () { document.querySelector('.ck-verb').click(); });
+      await realWait(330);
+    }
+    await realWait(700);
+  }
+  await realWait(900);
+  await snap('20-book', function (l) { return l.screen === 'book' && l.book.id === 'jeon2' && l.book.open === 3; });
+  await open({ host: true }); await page.evaluate(function () { document.querySelectorAll('.ck-bk-tab')[4].click(); }); await realWait(500);
+  await snap('21-book-locked', function (l) { return l.screen === 'book' && l.book.id === 'cake' && l.book.locked.indexOf('cake') >= 0; });
+  var p, st;
+  await toStep('jeon2', 0); await page.evaluate(function () { document.querySelector('.ck-verb').click(); }); await realWait(400);
+  await snap('22-slice-jeon2', function (l) { return l.kind === 'slice' && l.st.cur === 1; });
+  await toStep('jeon2', 1); st = (await live()).st; p = await pt(st.cx + 40, st.cy); await page.mouse.move(p[0], p[1]); await page.mouse.down();
+  for (var a = 0; a <= 400; a += 20) { p = await pt(st.cx + 40 * Math.cos(a * Math.PI / 180), st.cy + 24 * Math.sin(a * Math.PI / 180)); await page.mouse.move(p[0], p[1]); }
+  await snap('23-stir-jeon2', function (l) { return l.kind === 'stir' && l.progress > 0.2 && !!l.st.hand; }); await page.mouse.up();
+  await toStep('jeon2', 2); p = await pt(144, 200); await page.mouse.move(p[0], p[1]); await page.mouse.down(); await realWait(1300);
+  await snap('24-pour-jeon2', function (l) { return l.kind === 'pour' && !!l.st.hold && l.st.fill >= 1; }); await page.mouse.up();
+  await toStep('jeon2', 3); await page.evaluate(function () { document.querySelector('.ck-verb').click(); }); await realWait(3400);
+  await snap('25-flip-jeon2', function (l) { return l.kind === 'flip' && l.band === 1 && l.bell && l.bell.shown; });
+  await toStep('gyeran', 0); st = (await live()).st; for (var e = 0; e < 3; e++) { p = await pt(st.marks[e > 1 ? 1 : 0].x, st.marks[e > 1 ? 1 : 0].y); await page.mouse.click(p[0], p[1]); await realWait(160); }
+  await realWait(300);
+  await snap('26-tap-gyeran', function (l) { return l.kind === 'tap' && l.st.hits === 3; });
+  await toStep('gyeran', 3); await page.evaluate(function () { document.querySelector('.ck-verb').click(); }); await realWait(500);
+  await snap('27-swipe-gyeran', function (l) { return l.kind === 'swipe' && l.st.n === 1; });
+  await toStep('jumeokbap2', 0); st = (await live()).st; await page.evaluate(function () { document.querySelector('.ck-verb').click(); }); await realWait(350);
+  p = await pt(st.items[1].hx, st.items[1].hy); await page.mouse.move(p[0], p[1]); await page.mouse.down(); p = await pt(st.items[1].hx + 30, st.items[1].hy + 44); await page.mouse.move(p[0], p[1]); await realWait(200);
+  await snap('28-drag-jumeokbap2', function (l) { return l.kind === 'drag' && l.st.n === 1 && !!l.st.pen; }); await page.mouse.up();
+  await toStep('kkochi2', 0); st = (await live()).st; p = await pt(st.box[0] * 2 + 10, st.box[1] * 2 + 30); await page.mouse.move(p[0], p[1]); await page.mouse.down();
+  for (var u = 0; u <= 10; u++) { p = await pt((st.box[0] + st.box[2] * u / 10) * 2, st.box[1] * 2 + 30); await page.mouse.move(p[0], p[1]); }
+  await realWait(150);
+  await snap('29-rub-kkochi2', function (l) { return l.kind === 'rub' && l.st.n > 8 && !!l.st.hand; }); await page.mouse.up();
+  await toStep('cake', 3); await page.evaluate(function () { document.querySelector('.ck-verb').click(); }); await realWait(3400);
+  await snap('30-bake-cake', function (l) { return l.kind === 'bake' && l.band === 1; });
+  var ids = ['jeon2', 'gyeran', 'jumeokbap2', 'kkochi2', 'cake'];
+  for (var i = 0; i < ids.length; i++) {
+    await open({ recipe: ids[i] }); await page.evaluate(function () { COOK.auto(true); });
+    await page.waitForFunction(function () { var l = COOK.live(); return l.screen === 'reveal' && l.chip && !l.slide; }, null, { timeout: 40000 });
+    await realWait(900);
+    await snap((31 + i) + '-plate-' + ids[i], function (l) { return l.screen === 'reveal' && l.end.call && l.end.table; });
+  }
+  await ctx.close();
+}
+
 (async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   fs.writeFileSync(PROBE, '<!doctype html><meta charset="utf-8"><title>clock</title>');
@@ -456,6 +532,7 @@ async function setEmbed(browser) {
         }
       }
     }
+    if (want('book')) { console.log('== book 360x740 @2 (round 7)'); try { await setBook(browser); } catch (eb) { failed.push('book set: ' + (eb && eb.message)); console.error('  FAIL book set threw: ' + (eb && eb.stack || eb)); } }
     if (want('embed')) { console.log('== embed 360x740 @2'); await setEmbed(browser); }
   } finally { await browser.close(); }
   console.log('\n' + made.length + ' captures written to ' + path.relative(ROOT, OUT) + ', ' + failed.length + ' could not be made (' + Math.round((Date.now() - t0) / 1000) + ' s)');
