@@ -106,6 +106,7 @@ var GROUPS = [
   ['jumeokbap', function (id) { return /^(mix\.rice|pot\.rice|paddle|shaker|rice\.|gim)/.test(id); }],
   ['kkochi', function (id) { return /^(basin|fruit\.|skewer|pot\.syrup|kkochi\.)/.test(id); }],
   ['cake', function (id) { return /^(mix\.cake|tin|oven|cake\.|berry\.)/.test(id); }],
+  ['content', function (id) { return /^(cafe|eat|rec|ui|shop|goods|judge)\./.test(id); }],
   ['small', function () { return true; }]
 ];
 function groupsOf(SPR) {

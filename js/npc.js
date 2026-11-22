@@ -284,17 +284,18 @@ var NPC = (function () {
     var n = pool[(typeof seed === 'number' && isFinite(seed) ? Math.abs(Math.floor(seed)) : hash(String(seed) + id + key)) % pool.length];
     return { id: id, key: key, name: r.name, tag: tag(id), by: 'script', n: n, bubbles: all[n].map(function (s) { return fill(s, vars); }) };
   }
-  /* list(dateKey, room) → 장면의 npcSet 에 줄 목록 (계약 C6 · C14). 날짜는 받아만 둔다 (날마다 같다).
-     room 을 안 주면 (방이 없는 장면) 예전처럼 일곱 모두. room 을 주면 (걸어 들어가는 방이 있는 장면):
-       'clothes' | 'goods' | 'cafe' = 그 방의 가게 문어 (카페엔 구석 식탁에서 자는 sleep-1 도) · 그 밖의 방 = 없음 · null = 바깥 — 자는 문어 셋 (sleep-2 선창 · sleep-3 모래밭 · sleep-4 광장 나무 밑) */
-  var SLEEP_AT = { 'sleep-1': 'cafe', 'sleep-2': 'pier', 'sleep-3': 'beach', 'sleep-4': 'plaza' };
-  function list(dateKey, room) {
-    function keep(id) { var r = ROSTER[id]; return { id: id, color: r.color, hat: r.hat, pose: 'stand' }; }
-    function nap(sl) { return { id: sl.id, color: sl.color, hat: 'none', pose: 'sleep' }; }
-    if (room === undefined) return KEEPERS.map(keep).concat(SLEEPERS.map(nap));
-    if (who(room)) return [keep(room)].concat(SLEEPERS.filter(function (sl) { return SLEEP_AT[sl.id] === room; }).map(nap));
-    if (typeof room === 'string' && room) return [];   /* 다른 방 (공연장 hall 등): 마을 문어를 세우지 않는다 (심사 자리는 콘테스트가 따로 놓는다) */
-    return SLEEPERS.filter(function (sl) { return SLEEP_AT[sl.id] !== 'cafe'; }).map(nap);
+  /* list(dateKey) → 장면의 npcSet 에 줄 목록 (계약 C6 · C14). 날짜는 받아만 둔다 (날마다 같다 — 깬 문어 셋 · 자는 문어 넷).
+     가게 문어는 장면 (V) 이 가게 앞과 그 방 안의 keeper 칸에 알아서 그린다. 자는 문어 하나 (sleep-1) 는 카페 구석 식탁에서 잔다:
+     { room: 'cafe', slot: 'nap' } 를 달아 넘긴다 (그 칸을 모르는 장면은 예전 바깥 자리에 그린다) */
+  var SLEEP_AT = { 'sleep-1': { room: 'cafe', slot: 'nap' } };
+  function list(dateKey) {
+    var out = KEEPERS.map(function (id) { var r = ROSTER[id]; return { id: id, color: r.color, hat: r.hat, pose: 'stand' }; });
+    SLEEPERS.forEach(function (sl) {
+      var e = { id: sl.id, color: sl.color, hat: 'none', pose: 'sleep' }, at = SLEEP_AT[sl.id];
+      if (at) { e.room = at.room; e.slot = at.slot; }
+      out.push(e);
+    });
+    return out;
   }
   /* 저장 칸 S.user.story (계약 C8): { intro: 'YYYY-MM-DD' | null, notices: { 쪽지 id: 'YYYY-MM-DD' } }. 모르는 값은 그대로 둔다 */
   function normalize(u) {
