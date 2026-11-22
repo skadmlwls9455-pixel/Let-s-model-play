@@ -5668,6 +5668,8 @@ var APP = (function () {
     clearTimeout(cafeRoom.cardT);
     cafeRoom.card = mode; cafeRoom.opener = opener || document.activeElement; card.setAttribute('data-mode', mode); card.setAttribute('aria-label', mode === 'lp' ? '레코드 선반' : mode === 'stamp' ? '도장 카드' : '메뉴 칠판');
     var cl = $('cafe-card-close'); if (cl) cl.hidden = mode === 'stamp';
+    /* 갈래 W 의 roomFocus (있으면): 카드가 뜨기 전에 그 물건 (칠판 · 레코드 선반) 을 화면 위쪽으로 민다 — 카드 위로 대상이 보이게 */
+    if (mode !== 'stamp' && scene && typeof scene.roomFocus === 'function') { var fq = cafeSlot(mode === 'lp' ? 'lp' : 'menu'); if (fq) { try { scene.roomFocus(fq.x, fq.z, fq.y); } catch (e) { console.warn('[cafe] roomFocus', e); } } }
     if (mode === 'menu') { cafeAsk = null; renderCafe(); } else if (mode === 'lp') renderLp(); else cafeStampCard();
     var sc = $('scene'), go = $('btn-go'), sr = sc && sc.getBoundingClientRect(), gr = go && go.getBoundingClientRect();
     card.style.bottom = mode === 'stamp' ? 'auto' : (sr && gr && gr.height > 0 && gr.top < sr.bottom && gr.bottom > sr.top ? Math.max(8, Math.round(sr.bottom - gr.top) + 8) : 8) + 'px';   /* 도장 카드는 작게 위쪽에 (아래 변을 잡으면 세로로 늘어난다) */
