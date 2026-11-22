@@ -92,6 +92,15 @@ async function pair(today) {
   }
   throw new Error('두 탭이 저장소를 나누지 못함');
 }
+/* 날을 넘긴 뒤 그날 선물을 받아 둔다 (조개 수를 콘테스트만 바꾸게). 안 되면 까닭을 적고 넘어간다 */
+async function giftWait(page, d) {
+  for (var i = 0; i < 40; i++) {
+    var r = await page.evaluate(function (d) { try { APP.dailyGift(); } catch (e) { return 'threw ' + e.message; } var u = APP.state.user; return u && u.giftDay === d ? 'ok' : JSON.stringify({ gift: u && u.giftDay, today: window.__ppolTest && window.__ppolTest.today, ss: sessionStorage.getItem('__ct_day'), name: APP.state.octopus.name }); }, d);
+    if (r === 'ok') return true;
+    if (i === 39) { check(false, '그날 선물을 받지 못함 ' + r); return false; }
+    await page.waitForTimeout(250);
+  }
+}
 function shells(page) { return page.evaluate(function () { return APP.state.user.shells; }); }
 function view(page) { return page.evaluate(function () { var d = document.getElementById('contest-sheet'), b = document.getElementById('contest-body'); return { open: !!d.open, view: b.dataset.view || null, text: [document.getElementById('contest-h').innerText, b.innerText, document.getElementById('contest-close').innerText].join('\n'), go: !!document.getElementById('ct-go'), closed: !!document.getElementById('ct-closed') }; }); }
 function entry(page, dk) { return page.evaluate(function (dk) { return CONTEST.today(APP.state.user, dk); }, dk); }
@@ -204,7 +213,7 @@ async function main() {
   console.log('D 일요일 · 넘기기');
   await page.evaluate(function (d) { sessionStorage.setItem('__ct_day', d); }, SUN);
   await page.reload(); await page.waitForSelector('#btn-go:not(.away)'); await page.waitForTimeout(600); await page.evaluate(STUB);
-  await page.waitForFunction(function (d) { return APP.state.user.giftDay === d; }, SUN, { timeout: 10000 });
+  await giftWait(page, SUN);
   s0 = await shells(page);   /* 날이 바뀌어 그날 선물이 들어온 뒤 */
   await page.evaluate(function () { APP.openContest(); });
   v = await view(page);
@@ -340,7 +349,7 @@ async function main() {
   /* 일요일: 넘기기 */
   await page.evaluate(function (d) { sessionStorage.setItem('__ct_day', d); }, SUN);
   await page.reload(); await page.waitForSelector('#btn-go:not(.away)'); await page.waitForTimeout(600); await page.evaluate(STUB); await page.evaluate(SCENE_STUB);
-  await page.waitForFunction(function (d) { return APP.state.user.giftDay === d; }, SUN, { timeout: 10000 });
+  await giftWait(page, SUN);
   s0 = await shells(page);
   await page.evaluate(function () { APP.contestStageTap(); });
   await page.waitForFunction(function () { return !!document.getElementById('ct-w-go'); }, null, { timeout: 8000 });
