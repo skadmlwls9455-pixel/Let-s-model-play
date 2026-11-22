@@ -215,12 +215,12 @@ var NPC = (function () {
       'cafe.order': [
         ['알았어… 물부터 올릴게.'],
         ['다 되면… 쟁반에 올려 둘게.'],
-        ['{dish}… 접시부터 데울게.']
+        ['{dish}… 금방 내올게.']
       ],
       'cafe.stamp': [
         ['도장 하나… 꾹 눌렀어.'],
         ['카드에 찍었어… 잉크는 바다색이야.'],
-        ['{n}번째 도장이야… 칸은 셋이야.']
+        ['도장 {n}개째야… 칸은 셋이야.']
       ],
       'cafe.record': [
         ['판을 올렸구나… 바늘은 살살 내려와.'],
@@ -261,6 +261,7 @@ var NPC = (function () {
     '다락에 올라가 보니, 문어 하나가 깨어 있었어.'
   ];
 
+  var MUST_SAY = { 'contest.judge': 1, 'contest.result': 1, 'shop.pay': 1 };
   function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
   function who(id) { return Object.prototype.hasOwnProperty.call(ROSTER, id) ? ROSTER[id] : null; }
   function tag(id) { var r = who(id); return r ? r.name + ' · ' + LABEL : ''; }   /* 이름표: 늘 '이름 · 대본' */
@@ -278,9 +279,9 @@ var NPC = (function () {
     var ok = [], i;
     for (i = 0; i < all.length; i++) if (usable(all[i], vars)) ok.push(i);
     if (!ok.length) return null;
-    /* 빈칸을 채울 값이 왔으면 그 갈래를 먼저 (주제 · 조개 수를 말해 주려고 넘긴 것이니까) */
+    /* 수를 알려 주려고 넘긴 열쇠 (심사 · 결과 · 계산) 는 값을 말하는 갈래만. 그 밖에는 값을 말하는 갈래도 다른 갈래와 섞어 돈다 (11-22: 같은 줄만 되풀이되지 않게) */
     var withVar = ok.filter(function (j) { return /\{\w+\}/.test(all[j].join('')); });
-    var pool = withVar.length ? withVar : ok;
+    var pool = withVar.length && MUST_SAY[key] ? withVar : ok;
     var n = pool[(typeof seed === 'number' && isFinite(seed) ? Math.abs(Math.floor(seed)) : hash(String(seed) + id + key)) % pool.length];
     return { id: id, key: key, name: r.name, tag: tag(id), by: 'script', n: n, bubbles: all[n].map(function (s) { return fill(s, vars); }) };
   }
