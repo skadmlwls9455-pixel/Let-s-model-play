@@ -8279,7 +8279,7 @@ async function scenarioEatServe(browser) {
   ok(a2.meals[0].ate && a2.meals[0].ate.oct === true && a2.meals[0].ate.fx === 'bubble' && a2.table === null, '기록: 같이 먹음 · 효과 bubble · 식탁 비움');
   ok(a2.aura.me === 'bubble' && a2.aura.oct === 'bubble', '효과: 둘 다 방울 (' + JSON.stringify(a2.aura) + ')');
   ok(a2.rows.join('|') === '뚜루도 같이 먹기로 했어. 데모 규칙|계란말이를 같이 먹었어. 오늘 하루 둘 다 방울이 따라다녀.', '로그 행 (' + a2.rows.join('|') + ')');
-  ok(!a2.close && a2.pieces === 0 && a2.sprite === false, '끝나면 큰 그림은 사라지고 식탁엔 빈 접시');
+  ok(!a2.close && a2.pieces === 0 && a2.sprite === true, '끝나면 큰 그림은 사라지고 식탁엔 그 요리의 빈 그릇 그림 (11-22: 회색 둥근 접시로 안 바뀐다)');
   var au = await pa.evaluate(function () { var x = APP.scene.auraInfo('me'); return { fx: x.fx, n: x.n, parts: x.parts, vis: x.visible }; });
   ok(au.fx === 'bubble' && au.vis && au.n > 0 && au.n <= 64, '방울 알갱이가 그려진다 (' + JSON.stringify(au) + ')');
   ok(ink0 > 0, '큰 그림에 그림이 있다 (' + ink0 + ' px)');
