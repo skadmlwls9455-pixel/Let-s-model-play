@@ -25,13 +25,19 @@
     return Object.freeze(o);
   }
 
-  /* 요리 셋 (부엌 recipe id → 이름 · 효과). 모르는 요리(나중 빌드)는 기록엔 남고 그리지 않는다 */
+  /* 요리 (부엌 recipe id → 이름 · 효과). 모르는 요리(나중 빌드)는 기록엔 남고 그리지 않는다 */
   var DISHES = deepFreeze({
     jeon: { name: '해초전', fx: 'sparkle' },
     jumeokbap: { name: '주먹밥', fx: 'star' },
-    kkochi: { name: '과일 꼬치', fx: 'petal' }
+    kkochi: { name: '과일 꼬치', fx: 'petal' },
+    /* 11-21 7차: 레시피 북의 새 요리 다섯 (옛 셋은 그대로 안다 — 기다리던 요리 · 옛 기록 · 일기 행이 계속 그려진다) */
+    jeon2: { name: '해초전', fx: 'sparkle' },
+    gyeran: { name: '계란말이', fx: 'bubble' },
+    jumeokbap2: { name: '주먹밥', fx: 'star' },
+    kkochi2: { name: '과일 꼬치', fx: 'petal' },
+    cake: { name: '딸기 케이크', fx: 'confetti' }
   });
-  var FX_NAME = deepFreeze({ sparkle: '반짝이', star: '별', petal: '꽃잎' });
+  var FX_NAME = deepFreeze({ sparkle: '반짝이', star: '별', petal: '꽃잎', bubble: '방울', confetti: '색종이' });
   /* 누가 정했나 꼬리. fallback(아무도 안 고름)은 꼬리가 없다 */
   var TAILS = deepFreeze({ 'demo-rules': '데모 규칙', model: '모델', human: '사람이 정함' });
   var BYS = ['demo-rules', 'model', 'human', 'fallback'];
@@ -420,6 +426,91 @@
   MEAL.aria = aria;
   MEAL.merge = merge;
   MEAL.slim = slim;
+  /* ---------- 11-21 7차: 요리 그림 (js/cook-sprites.js COOK_SPR 의 'dish.<id>' · 'table.<id>') ----------
+     북의 새 요리만 그림이 있다 (옛 셋은 장면의 예전 모양 그대로). 해초전은 구운 정도 (look.band 0..2) 가 그림 칸이다 */
+  var PICS = deepFreeze({ jeon2: 'jeon', gyeran: 'gyeran', jumeokbap2: 'jumeokbap', kkochi2: 'kkochi', cake: 'cake' });
+  function pic(recipe, look) {
+    if (typeof recipe !== 'string' || !has(PICS, recipe)) return null;
+    var f = 0;
+    if (recipe === 'jeon2') { var b = isObj(look) && typeof look.band === 'number' && isFinite(look.band) ? Math.floor(look.band) : 0;   /* 부엌의 look = { v: 2, s, plate, band? } — band 가 없으면 첫 칸 */ f = Math.max(0, Math.min(2, b)); }
+    return { id: PICS[recipe], frame: f };
+  }
+  /* 그림 { w, h, d: RGBA } 에서 그릇 줄을 찾는다: 아래쪽 6할 가운데, 가장 넓은 줄의 9할 넘게 넓은 맨 윗줄 (비스듬히 본 접시의 가장 넓은 데).
+     그 줄 위가 음식 (한 입에 사라지는 곳) 이고, 그 줄부터 아래는 그릇이라 남는다 */
+  function sprOK(spr) { return isObj(spr) && spr.w > 0 && spr.h > 0 && spr.d && spr.d.length >= spr.w * spr.h * 4; }
+  function sprBox(spr, below) {   /* below = 이 줄 위쪽만 (음식의 가로 범위) */
+    var w = spr.w, h = spr.h, d = spr.d, x0 = w, x1 = -1, rows = [], yN = typeof below === 'number' ? Math.min(h, below) : h;
+    for (var y = 0; y < yN; y++) {
+      var a = w, b = -1;
+      for (var x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] >= 128) { if (x < a) a = x; b = x; }
+      rows.push(b < 0 ? 0 : b - a + 1);
+      if (b >= 0) { if (a < x0) x0 = a; if (b > x1) x1 = b; }
+    }
+    return { x0: x0, x1: x1, rows: rows };
+  }
+  function sprBand(spr) {   /* → [그릇 줄, 띠 끝 줄]: 넓은 줄 (가장 넓은 줄의 9할) 이 가장 길게 이어지는 토막 */
+    var B = sprBox(spr), max = 0, h = spr.h, y, a = -1, best = null;
+    for (y = 0; y < h; y++) if (B.rows[y] > max) max = B.rows[y];
+    if (!max) return null;
+    for (y = Math.floor(h * 0.4); y <= h; y++) {
+      var wide = y < h && B.rows[y] >= max * 0.9;
+      if (wide && a < 0) a = y;
+      if (!wide && a >= 0) { if (!best || y - 1 - a > best[1] - best[0]) best = [a, y - 1]; a = -1; }
+    }
+    return best || [Math.floor(h * 0.7), Math.floor(h * 0.7)];
+  }
+  function biteLine(spr) { if (!sprOK(spr)) return 0; var b = sprBand(spr); return b ? b[0] : 0; }
+  /* 한 입 = 그림을 가로 넷으로 나눈 한 칸 (eaten: 0..3, 왼쪽부터) 의 그릇 줄 위쪽. 큰 그림 (amp 2) 은 가장자리가 이빨 자국처럼 들쭉날쭉 → 새 RGBA 배열 (원본은 그대로) */
+  var TEETH = [0, 1, 2, 2, 1, 0];
+  function biteMask(spr, eaten, line, amp) {
+    if (!sprOK(spr)) return null;
+    var w = spr.w, h = spr.h, out = new Uint8ClampedArray(spr.d.length > w * h * 4 ? spr.d.subarray(0, w * h * 4) : spr.d);
+    if (!Array.isArray(eaten) || !eaten.length) return out;
+    var L = typeof line === 'number' && isFinite(line) ? Math.floor(line) : biteLine(spr), A = amp === 0 ? 0 : amp === 1 ? 1 : 2;
+    var B = sprBox(spr, L); if (B.x1 < B.x0) return out;   /* 넷으로 나누는 것은 음식의 폭 (그릇 폭이 아니라) */
+    var span = B.x1 - B.x0 + 1, gone = [false, false, false, false];
+    eaten.forEach(function (q) { if (q === 0 || q === 1 || q === 2 || q === 3) gone[q] = true; });
+    /* 그릇 띠: 그릇 줄부터 넓은 줄이 이어지는 데까지 (비스듬히 본 접시의 윗면). 음식이 그 위에 겹쳐 그려져 있으므로, 먹은 칸의 띠 안쪽은 투명 대신
+       그릇 색 (띠 아래 반에서 가장 흔한 색) 으로 메운다 — 줄마다 양 끝 두 칸 (테두리) 과 그림 아래 끝 세 칸 (앞 테) 은 그대로 */
+    var band = sprBand(spr), yb = band && band[0] === L ? band[1] : L, fill = null, d0 = spr.d, y, x;
+    if (yb - L >= 4) {
+      var cnt = {}, best = 0;
+      for (y = Math.floor((L + yb) / 2); y <= yb; y++) for (x = 0; x < w; x++) {
+        var kk = (y * w + x) * 4; if (d0[kk + 3] < 128) continue;
+        var key = d0[kk] + ',' + d0[kk + 1] + ',' + d0[kk + 2]; cnt[key] = (cnt[key] || 0) + 1;
+        if (cnt[key] > best) { best = cnt[key]; fill = [d0[kk], d0[kk + 1], d0[kk + 2]]; }
+      }
+    }
+    for (y = 0; y < h; y++) {
+      var t = Math.round(TEETH[y % 6] * A / 2), top = fill ? L : L - A, inBand = !!fill && y >= L, e0 = w, e1 = -1;
+      if (inBand) for (x = 0; x < w; x++) if (d0[(y * w + x) * 4 + 3] >= 128) { if (x < e0) e0 = x; e1 = x; }
+      for (x = 0; x < w; x++) {
+        var above = y < top + (fill ? 0 : Math.round(TEETH[x % 6] * A / 2));   /* 그릇 띠가 있으면 윗줄은 곧게 (그릇 뒤 테가 들쭉날쭉하지 않게) */
+        if (!above && !(inBand && x >= e0 + 2 && x <= e1 - 2 && y + 3 < h && d0[((y + 3) * w + x) * 4 + 3] >= 128)) continue;   /* 앞 테 (아래 세 칸 안에 그림 끝) 는 그대로 */
+        var hit = false;
+        for (var q = 0; q < 4 && !hit; q++) {
+          if (!gone[q]) continue;
+          var lo = B.x0 + Math.floor(span * q / 4) - (q > 0 && !gone[q - 1] ? t : 0), hi = B.x0 + Math.floor(span * (q + 1) / 4) + (q < 3 && !gone[q + 1] ? t : 0);
+          if (q === 0) lo = 0; if (q === 3) hi = w;
+          hit = x >= lo && x < hi;
+        }
+        if (!hit) continue;
+        var o4 = (y * w + x) * 4;
+        if (above) {   /* 둥근 접시의 뒤쪽 반: 띠 가운데를 축으로 접은 자리에 그릇이 있으면 그릇으로 남긴다 (가장자리 두 칸은 그 자리 색 = 테두리) */
+          var ym = fill ? Math.round(L + yb - y) : -1, keepIt = false;
+          if (ym > yb && ym < h && d0[(ym * w + x) * 4 + 3] >= 128) {
+            var m0 = w, m1 = -1, xx; for (xx = 0; xx < w; xx++) if (d0[(ym * w + xx) * 4 + 3] >= 128) { if (xx < m0) m0 = xx; m1 = xx; }
+            var mk = (ym * w + x) * 4, rim = x < m0 + 2 || x > m1 - 2 || ym >= h - 1 || d0[((ym + 1) * w + x) * 4 + 3] < 128;
+            out[o4] = rim ? d0[mk] : fill[0]; out[o4 + 1] = rim ? d0[mk + 1] : fill[1]; out[o4 + 2] = rim ? d0[mk + 2] : fill[2]; out[o4 + 3] = 255; keepIt = true;
+          }
+          if (!keepIt) out[o4 + 3] = 0;
+        } else if (out[o4 + 3] >= 128) { out[o4] = fill[0]; out[o4 + 1] = fill[1]; out[o4 + 2] = fill[2]; }
+      }
+    }
+    return out;
+  }
+  MEAL.PICS = PICS; MEAL.pic = pic; MEAL.biteLine = biteLine; MEAL.biteMask = biteMask;
+
   MEAL._copy = { hashSeed: fnv1a, rng: mulberry32 };   /* 시험용: BRAIN 이 없을 때 쓰는 사본 */
 
   root.MEAL = MEAL;

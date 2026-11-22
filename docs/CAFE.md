@@ -14,6 +14,25 @@
 | `wip/round7/cafe-src/` | 음표의 원본 (퍼블릭 도메인 조판의 `.ly` 와 `.mid`) |
 | `docs/CAFE_MUSIC.md` | 곡 목록, 출처, 라이선스 |
 
+## 카페 방 (11-21 콘텐츠 다듬기 — 주인: "탭같은 느낌으로 축약하지 말고 … 개별 콘텐츠 같은 느낌")
+
+3D 장면에 카페 방이 있으면 (`scene.inRoom() === 'cafe'` 이고 `scene.project` · `scene.spriteProp` 이 있을 때) 창 대신 방에서 일이 벌어진다.
+아래 "흐름" 의 시트와 쟁반 판은 방이 없을 때 (2D · 방 함수 없음) 의 대체로 남아 있다. 값 · 세기 · 선물 · 두 탭 · 음악 규칙은 같다.
+
+| 차례 | 플레이어가 하는 일 | 벌어지는 일 | 쓰는 것 |
+|---|---|---|---|
+| 1 | 벽의 칠판 `#btn-cafe-menu` | 칠판 확대 카드 `#cafe-card` (메뉴 셋 · 분필 값 · 도장 카드). `<dialog>` 가 아니라 `#scene` 안의 요소 | V 의 단추 |
+| 2 | 칸 → '시킬래' | 조개가 나가고 카드가 닫힌다. 지킴이가 잠깐 일한다 (김, 1.5초) | `npcSay('cafe.order')` |
+| 3 | (기다림) | 받는 자리에 쟁반. 카운터 단추 이름이 '쟁반 가져가기' | `spriteProp('cafe-tray', pickup, …)` · `npcSay('cafe.serve')` |
+| 4 | 카운터 `#btn-cafe-counter` | 쟁반을 들고 내 자리로 걸어가 앉고 내려놓는다 | `playerCarry` · `cafeSit(true)` · `spriteProp('cafe-plate', table, id, 0)` |
+| 5 | 식탁 위 접시 `#btn-cafe-plate` ×3 | 한 입씩 (그림 프레임 1 · 2 · 3, 부스러기). 커피는 세 모금 | `spriteProp(…, frame)` |
+| 6 | (다 먹음) | 도장 카드가 잠깐 뜨고 도장이 찍힌다. 세 번째면 레시피 한 줄 + 카드가 살림으로 | `npcSay('cafe.stamp' / 'cafe.gift')` · `APP.recipeEat` |
+| 7 | 레코드 구석 `#btn-cafe-lp` | 선반 확대 카드 (재킷 여덟 · 스피커 단추). 재킷을 누르면 방의 판이 돈다 | `scene.cafeRecord(on, '#rrggbb')` · `npcSay('cafe.record')` |
+| 8 | 자리 단추 · 걷기 · 문 | 자리가 끝난다. 먹다 만 접시는 식탁에 남고, 방을 나가면 판도 멈춘다 | `ppol:cafe-seat` · `ppol:room` |
+
+끊겼을 때: 만드는 중이나 들고 가는 중에 방을 나가면 연출만 걷힌다. 값을 낸 음식은 기록의 쟁반 (`S.user.cafe.tray`) 에 그대로 있고,
+다음에 방에 들어오면 식탁에 놓여 있다. 서서 접시를 누르면 먼저 앉는다. 먹던 것이 있는 동안 칠판은 새 주문을 받지 않는다.
+
 ## 흐름
 
 1. **메뉴.** 카운터 단추 `#btn-cafe-counter` (갈래 V) 또는 `APP.openCafe()`. 커피 2 · 딸기 케이크 5 · 과일 꼬치 4 조개.

@@ -1,7 +1,7 @@
 /* tools/meal-stub-scene.js - 식탁 장면 API 대역 (페이지 init 스크립트). 스모크 EAT · tools/test-meal-flow.js 가 쓴다.
  *
  * lane D 의 식탁 (wip/round6/eat-spec.md §10.3) 이 아직 없는 장면에만 붙는다: SCENE3D.init 이 돌려준 장면에 tableInfo 가 없으면
- * setTableDish · tableInfo · playerSitTable · playerStandTable · octCanCome · octToTable · octTableBeat · mealBite · octLeaveTable · octAtTable · setAura
+ * setTableDish · tableInfo · playerSitTable · playerStandTable · playerCarryDish · playerCarryCut (11-21) · octCanCome · octToTable · octTableBeat · mealBite · octLeaveTable · octAtTable · setAura
  * 와 on.tableSpot · hotspot 'table' 을 흉내 낸다 (그림 없음 — 상태와 부른 기록만). 진짜 식탁이 있으면 아무것도 하지 않는다 (window.__mealStub 없음).
  * 시험용 손잡이: __mealStub.stand() (일어남) · __mealStub.no = true (octCanCome false) · __mealStub.calls (부른 기록)
  */
@@ -57,6 +57,21 @@
     sc.mealBite = function (w) { T.calls.push(['bite', w]); if (!T.pieces) return Promise.resolve(false); T.pieces--; return delay(150).then(function () { return true; }); };
     sc.octLeaveTable = function (o) { T.calls.push(['leave', !!(o && o.instant)]); if (T.oct === 'none') return Promise.resolve(); T.oct = 'leaving'; return delay(o && o.instant ? 0 : 300).then(function () { T.oct = 'none'; }); };
     sc.octAtTable = function () { return T.oct === 'seated' || T.oct === 'coming'; };
+    /* 11-21 7차 (T): 들고 가기 — 그림 없음, 상태만 (hold → walk → put → sit). playerCarryCut 은 그 자리에서 끝 (요리는 식탁에) */
+    sc.playerCarryDish = function (d, o) {
+      T.calls.push(['carry', d ? d.id : null, !!(o && o.sit), !!(o && o.instant)]);
+      if (!inPlay() || T.carry) return Promise.resolve('no');
+      T.dish = d; T.pieces = 4; emit();
+      if (T.me === 'seated') return Promise.resolve('seated');
+      if (o && o.instant) { if (o.sit) T.me = 'seated'; emit(); return Promise.resolve(o.sit ? 'seated' : 'placed'); }
+      return new Promise(function (res) {
+        var c = T.carry = { stage: 'hold', res: res };
+        delay(100).then(function () { if (T.carry !== c) return; c.stage = 'walk'; return delay(200); }).then(function () { if (T.carry !== c) return; c.stage = 'put'; return delay(80); })
+          .then(function () { if (T.carry !== c) return; T.carry = null; if (o && o.sit) T.me = 'seated'; emit(); res(o && o.sit ? 'seated' : 'placed'); });
+      });
+    };
+    sc.playerCarryCut = function () { var c = T.carry; if (!c) return false; T.carry = null; c.res('cut'); return true; };
+    var info0 = sc.tableInfo; sc.tableInfo = function () { var i = info0(); i.carry = T.carry ? T.carry.stage : null; i.sprite = false; return i; };
     sc.setAura = function (w, fx, o) { T.calls.push(['aura', w, fx || null, !!(o && o.bloom)]); T.aura[w] = fx || null; };
   }
 })();

@@ -6,7 +6,7 @@
  *   1 불러오기: DOM · 시계 · 난수 없음
  *   2 메뉴와 값 (커피 2 · 딸기 케이크 5 · 과일 꼬치 4), 글에 기호 · 마음 말 없음
  *   3 주문: 모자라면 아무것도 안 바뀜, 먹던 것이 있으면 새로 못 시킴
- *   4 먹기: 세 번 톡 → 다 먹은 수 +1, 커피는 먹는 것이 아님
+ *   4 먹기: 세 번 톡 → 다 먹은 수 +1, 커피도 세 모금
  *   5 레시피 선물: 세 번째에 꼭 한 번 (여기 규칙 · recipeEat 대역 둘 다), 점 셋
  *   6 normalize: 모르는 값 지킴, 멱등 · leave · played · merge
  *   7 그림: 줄 길이 · 재킷 여덟 장이 서로 다름
@@ -56,8 +56,9 @@ r = CAFE.bite(c); check(r.ok && !r.done && r.left === 1, '두 입');
 r = CAFE.bite(c); check(r.ok && r.done && r.n === 1 && c.eaten.cake === 1, '세 입: 다 먹은 수 1');
 r = CAFE.bite(c); check(!r.ok && c.eaten.cake === 1, '빈 접시는 더 안 먹힘');
 CAFE.leave(c); check(c.tray === null, '일어나면 빈 접시는 치움');
-CAFE.order(c, 'coffee', 2, '2026-11-21'); check(c.tray.id === 'coffee' && !CAFE.bite(c).ok && !CAFE.pending(c), '커피는 먹는 것이 아님');
-CAFE.leave(c); check(c.tray === null, '일어나면 커피 잔도 치움');
+CAFE.order(c, 'coffee', 2, '2026-11-21'); check(c.tray.id === 'coffee' && c.tray.left === 3 && CAFE.item('coffee').drink === true, '커피: 세 모금');
+CAFE.bite(c); CAFE.leave(c); check(c.tray && c.tray.left === 2, '마시다 만 커피는 남는다');
+CAFE.bite(c); var cf = CAFE.bite(c); CAFE.leave(c); check(cf.done && c.eaten.coffee === 1 && c.tray === null && CAFE.dots(c, 'coffee') === -1 && !CAFE.giftDue(c, 'coffee'), '커피 다 마심: 센다 · 레시피 · 도장은 없음');
 CAFE.order(c, 'kkochi', 4, '2026-11-21'); CAFE.bite(c); CAFE.leave(c); check(c.tray && c.tray.left === 2 && CAFE.pending(c), '먹다 만 꼬치는 남는다');
 CAFE.bite(c); CAFE.bite(c); CAFE.leave(c);
 
@@ -86,7 +87,7 @@ check(JSON.stringify(CAFE.normalize(n1)) === j1, '멱등');
 check(JSON.stringify(CAFE.normalize(JSON.parse(j1))) === j1, 'JSON 왕복 (내보내기 · 불러오기)');
 check(CAFE.normalize('x').tray === null && CAFE.normalize({ tray: 3 }).tray === null, '객체가 아닌 것은 빈 기록');
 var lt = CAFE.normalize({ tray: { id: 'tea', left: 2, day: '2026-11-20', extra: 1 } }); CAFE.leave(lt); check(lt.tray && lt.tray.id === 'tea', '모르는 메뉴의 쟁반: 일어나도 그대로');
-CAFE.order(lt, 'coffee', 9, '2026-11-21'); CAFE.leave(lt); check(lt.tray === null && lt.held.length === 1 && lt.held[0].id === 'tea' && lt.held[0].extra === 1, '모르는 메뉴의 쟁반: 새로 시키면 옆 (held) 에 둔다 — 지우지 않는다');
+CAFE.order(lt, 'coffee', 9, '2026-11-21'); CAFE.leave(lt); check(lt.tray && lt.tray.id === 'coffee' && lt.held.length === 1 && lt.held[0].id === 'tea' && lt.held[0].extra === 1, '모르는 메뉴의 쟁반: 새로 시키면 옆 (held) 에 둔다 — 지우지 않는다');
 CAFE.played(n1, 'clair'); CAFE.played(n1, 'elise'); check(n1.lp.clair === 3 && n1.lp.elise === 1, '튼 레코드 수');
 var m = CAFE.merge({ eaten: { cake: 1 }, gifts: { cake: '2026-11-25' }, lp: { clair: 1 } }, { eaten: { cake: 3, kkochi: 2 }, gifts: { cake: '2026-11-22', kkochi2: '2026-11-23' }, lp: { elise: 4 }, tray: { id: 'cake', left: 1, day: '2026-11-22' }, later: 5 });
 check(m.eaten.cake === 3 && m.eaten.kkochi === 2 && m.lp.clair === 1 && m.lp.elise === 4, 'merge: 센 것은 큰 쪽');
