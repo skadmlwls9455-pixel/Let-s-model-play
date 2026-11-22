@@ -4231,7 +4231,7 @@ var SCENE3D = (function () {
     function dishRebuild() {
       if (!PROOM) return;
       if (!TB.dish) { if (TB.mesh) TB.mesh.visible = false; if (TB.steam) TB.steam.visible = false; TB.spr = null; TB.sprOn = false; if (TB.sprObj) TB.sprObj.visible = false; return; }
-      TB.spr = TB.n > 0 ? dishSprGet() : null; TB.sprOn = !!TB.spr; TB.sprKey = '';   /* 11-21: 식탁 위 작은 그림 (한 칸 = 방 그림 한 칸) — 다 먹으면 빈 접시 (메시) */
+      TB.spr = dishSprGet(); TB.sprOn = !!TB.spr;   /* 11-22: 다 먹어도 그 요리의 그릇 그림 그대로 (회색 둥근 접시로 바뀌지 않게) */ TB.sprKey = '';   /* 11-21: 식탁 위 작은 그림 (한 칸 = 방 그림 한 칸) — 다 먹으면 빈 접시 (메시) */
       var geo = mergeParts(dishParts());
       if (!TB.mesh) { TB.mesh = new T.Mesh(geo, lambert); TB.mesh.castShadow = false; TB.mesh.receiveShadow = true; TB.mesh.name = 'tableDish'; PROOM.g.add(TB.mesh); }
       else { TB.mesh.geometry.dispose(); TB.mesh.geometry = geo; }
@@ -5667,7 +5667,7 @@ var SCENE3D = (function () {
         var id = 'table.' + d.pic.id, sp = CS.get(id, d.pic.frame), inf = typeof CS.info === 'function' ? CS.info(id) : null;
         if (!sp || !(sp.w > 0) || !(sp.h > 0) || sp.w * sp.h > DISH_SPR_N || !sp.d || sp.d.length < sp.w * sp.h * 4) return null;
         var MR = window.MEAL, px = sp.d;
-        if (TB.eaten.length && MR && typeof MR.biteFood === 'function') px = MR.biteFood(sp, TB.eaten.filter(function (q) { return q >= 0 && q < 4; }), d.pic.id, 0) || sp.d;   /* 11-22: 음식만 줄인다 (접시 · 도구는 그대로) */
+        if (TB.eaten.length && MR && typeof MR.biteFood === 'function') px = MR.biteFood(sp, TB.eaten.filter(function (q) { return q >= 0 && q < 4; }), d.pic.id, 0, CS.get('table.' + d.pic.id + '.empty', 0)) || sp.d;   /* 11-22: 음식만 줄인다 (접시 · 도구는 그대로) */
         return { w: sp.w, h: sp.h, d: px, ax: inf && isFinite(inf.ax) ? inf.ax : sp.w / 2, ay: inf && isFinite(inf.ay) ? inf.ay : sp.h - 2 };
       } catch (e) { return null; }
     }
@@ -5778,8 +5778,7 @@ var SCENE3D = (function () {
     function carryLeg(to, face) { var p = plWalkTo(to, face), w = PL.walking; return !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); }); }   /* 끊기면 null (plWalkTo 는 끊긴 걸음을 풀지 않는다) */
     function carryNear() {   /* 11-22 (독립 점검: 들고 가는 내내 접시가 몸 뒤에 가렸다): 들고 있으면 카메라 쪽으로 0.55 m (정사영이라 화면 자리는 그대로, 깊이만 몸 앞) · 내려놓는 3칸 동안 줄어든다 */
       var c = CARRY; if (!c || !TB.carry) return 0.06;
-      if (c.stage !== 'put') return 0.55;
-      return 0.06 + 0.49 * (1 - Math.min(1, (Math.floor(c.t * 12) + 1) / 3));
+      return 0.55;   /* 내려놓는 세 칸 동안에도 몸 앞 (둘째 칸에 몸 뒤로 숨었다) — 식탁 깊이로는 내려놓은 뒤 (carryEnd) */
     }
     function dishAt() {   /* 요리 자리 (놀이방 좌표): 식탁 · 들고 있으면 두 손 앞 · 내려놓는 동안은 그 사이 3칸 */
       var c = CARRY;
