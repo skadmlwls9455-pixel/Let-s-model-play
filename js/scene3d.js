@@ -6462,7 +6462,7 @@ var SCENE3D = (function () {
       var hx = R.half[0] - PL_MARGIN, hz = R.half[1] - PL_MARGIN, co = inCols(), x0 = PL.pos.x, z0 = PL.pos.z, p0 = plPen(x0, z0, co.boxes, co.circles) + 1e-6;
       var nx = clamp(x0 + dx, -hx, hx), nz = clamp(z0 + dz, -hz, hz);
       var dr = R.door || [R.half[0] - 0.4, 0];
-      if (PL_IN.v && !PL.walking && !IN.busy && !WSTATE.jump && ((z0 + dz > hz + 1e-4 && z0 > hz - 0.05 && dr[1] > 0 && Math.abs(x0 - dr[0]) < 0.8) || (x0 + dx > hx + 1e-4 && x0 > hx - 0.05 && dr[0] > 0 && Math.abs(z0 - dr[1]) < 0.8))) leaveRoom(true);   /* 11-22 (검증): 문 자리에서 스틱으로 문 밖 쪽으로 밀면 나간다 — '밖으로' 단추가 스틱 칸 밑에 깔리는 방 (공연장) 에서도 나갈 수 있게 */
+      if (R.pushOut !== false && PL_IN.v && !PL.walking && !IN.busy && !WSTATE.jump && ((z0 + dz > hz + 1e-4 && z0 > hz - 0.05 && dr[1] > 0 && Math.abs(x0 - dr[0]) < 0.8) || (x0 + dx > hx + 1e-4 && x0 > hx - 0.05 && dr[0] > 0 && Math.abs(z0 - dr[1]) < 0.8))) leaveRoom(true);   /* 11-22 (검증): 문 자리에서 스틱으로 문 밖 쪽으로 밀면 나간다 — '밖으로' 단추가 스틱 칸 밑에 깔리는 방 (공연장) 에서도 나갈 수 있게 */
       if (plPen(nx, nz, co.boxes, co.circles) <= p0) PL.pos.set(nx, 0, nz);
       else if (plPen(nx, z0, co.boxes, co.circles) <= p0) PL.pos.x = nx;
       else if (plPen(x0, nz, co.boxes, co.circles) <= p0) PL.pos.z = nz;
