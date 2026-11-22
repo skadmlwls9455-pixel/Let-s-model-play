@@ -529,7 +529,7 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
       async function run(p, n) { var v = null, f = 0; p.then(function (q) { v = q; }); await tick(); for (; f < (n || 200) && v === null; f++) { sc.debugSim(0.05, 1); await tick(); } sc.debugSim(0.05, 2); await tick(); return [v, +(f * 0.05).toFixed(2)]; }
       window.__room = { ev: [], clicks: 0, built: 0, frames: 0 }; document.addEventListener('ppol:room', function (e) { window.__room.ev.push(e.detail.key); });
       var b = document.createElement('button'); b.id = 'btn-w-room'; b.className = 'scene-spot'; b.hidden = true; b.setAttribute('aria-label', '시험'); document.getElementById('scene').appendChild(b); b.addEventListener('click', function () { window.__room.clicks++; });
-      sc.roomReg.wtest = { half: [3.0, 2.6], wallH: 2.3, door: [2.6, 0.8], outside: [24.8, -2.1], boxes: [[-0.5, -0.5, 0.5, 0.5]], circles: [[-1.8, 1.4, 0.3]],
+      sc.roomReg.wtest = { half: [3.0, 2.6], wallH: 2.3, door: [2.6, 0.8], pushOut: false,   /* 바닥 끝까지 미는 검사가 문 밖으로 나가지 않게 (문 자리에서 밀면 나가기는 따로) */ outside: [24.8, -2.1], boxes: [[-0.5, -0.5, 0.5, 0.5]], circles: [[-1.8, 1.4, 0.3]],
         spots: [{ key: 'room.wtest.a', btn: 'btn-w-room', x: -2.6, y: 0.9, z: -1.2, r: 0.4, stand: [-2.0, -1.2] }], build: function (g, kit) { window.__room.built++; window.__room.kit = !!(g && g.isGroup && kit && kit.mesh && kit.box && kit.flower); kit.mesh([{ g: kit.box(1, 0.8, 1), m: kit.M(0, 0.4, 0), c: kit.PAL.paper[1] }]); }, frame: function (dt, t) { if (dt >= 0 && t > 0) window.__room.frames++; } };
       r.none = (await run(sc.enterRoom('nope'), 5))[0];
       sc.debugPlayerAt(27 * K, 27 * K); sc.debugSim(0.05, 3); var st0 = sc.stats(); r.n0 = sc.pan().n; r.prog0 = st0.programs;
