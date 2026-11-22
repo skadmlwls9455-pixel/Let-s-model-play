@@ -648,7 +648,7 @@ var SCENE3D = (function () {
     }
     function plFollow(arrive) {   /* 스틱 · 방향키로 걷는 동안만 (arrive = 방을 옮긴 뒤 한 번, 아래 PAN.arrive): 캐릭터가 화면 안쪽(가장자리에서 1.1 m)에 들도록 밀 목표. 이미 들어 있으면 null (화면을 빼앗지 않는다).
                                      11-18: 문 · 계단을 톡해 혼자 걸어가는 동안에도 (PL.camGap m — playerWalkTo) — 계단 발치는 360px 폰의 기본 구도에서 화면 밖이라, 안 따라가면 캐릭터가 화면 밖으로 걸어 나갔다 */
-      var wideAuto = YARD_WIDE && PLACE.vis === 'yard', auto = !arrive && typeof PL !== 'undefined' && PL && !PL.stick && PL.walking && (PL.camGap > 0 || wideAuto) && !GEST.mode;   /* 11-21 7차: 넓은 바깥에선 혼자 걷는 길 (가게 · 카페 자리 · 조개로 가는 걸음) 도 늘 따라간다 — 화면보다 맵이 훨씬 커서 안 따라가면 캐릭터가 화면 밖으로 걸어 나갔다 */
+      var wideAuto = YARD_WIDE && (PLACE.vis === 'yard' || PLACE.vis === 'inside'),   /* 11-22 (검증): 방 안에서 무엇을 톡해 걸어갈 때도 화면이 따라간다 */ auto = !arrive && typeof PL !== 'undefined' && PL && !PL.stick && PL.walking && (PL.camGap > 0 || wideAuto) && !GEST.mode;   /* 11-21 7차: 넓은 바깥에선 혼자 걷는 길 (가게 · 카페 자리 · 조개로 가는 걸음) 도 늘 따라간다 — 화면보다 맵이 훨씬 커서 안 따라가면 캐릭터가 화면 밖으로 걸어 나갔다 */
       if (typeof PL === 'undefined' || !PL || !(PL.stick || arrive || auto) || !(PLACE.vis === 'attic' || isRoomP(PLACE.vis)) || PL.place !== PLACE.vis) return null;
       var b = panBox();
       if (YARD_WIDE && PLACE.vis === 'yard' && _wideKeep.on) {   /* 넓은 바깥: 따라가기는 예전 띠 경계로 잰다 (걸으면 화면이 띠 안으로 돌아온다). 돌려 보기가 넓혀 둔 몫 (panBox) 은 화면이 지나온 데까지로 줄인다 — 걷다 서도 튀지 않고, 다시 넓어지지 않는다 */
@@ -2980,7 +2980,8 @@ var SCENE3D = (function () {
       return ready && !INTRO.on && !DQ.active && !DQ.pending && !PLACE.trans && !PLAY && !(FM && FM.on) && (PLACE.vis === 'attic' || isRoomP(PLACE.vis)) && PL.place === PLACE.vis && plG.parent === groupOf(PLACE.vis) && plG.parent.visible;
     }
     function plLim() { return PL.place === 'inside' && ROOM_REG[IN.key] ? [-(Math.max(ROOM_REG[IN.key].half[0], ROOM_REG[IN.key].half[1]) - PL_MARGIN), Math.max(ROOM_REG[IN.key].half[0], ROOM_REG[IN.key].half[1]) - PL_MARGIN] : PL.place === 'play' ? [-(PLAY_R - PL_MARGIN), PLAY_R - PL_MARGIN] : PL.place === 'yard' ? [-(YARD_L - 0.3 - PL_MARGIN), YARD_WIDE ? 60 : YARD_L - 0.3 - PL_MARGIN] : PL.place === 'loft' ? [-(LOFT_R - PL_MARGIN), LOFT_R - PL_MARGIN] : [-(R - PL_MARGIN), RF - PL_MARGIN]; }   /* 걸을 수 있는 범위 [낮은 쪽, 높은 쪽] (x · z 같은 값 — 다락은 앞쪽이 RF 까지) */
-    function plInRoom(x, z) { var l = plLim(); return x >= l[0] && x <= l[1] && z >= l[0] && z <= l[1]; }
+    function plInRoom(x, z) { if (PL.place === 'inside' && ROOM_REG[IN.key]) { var Rh = ROOM_REG[IN.key].half; return Math.abs(x) <= Rh[0] - PL_MARGIN + 1e-6 && Math.abs(z) <= Rh[1] - PL_MARGIN + 1e-6; }   /* 11-22 방 안: 네모 바닥 (가로 · 세로 따로) */
+      var l = plLim(); return x >= l[0] && x <= l[1] && z >= l[0] && z <= l[1]; }
     /* 11-18 넓은 바깥: 마당 네모 (울타리 안) 이거나 문 밖 띠. 마당 안에서 울타리 쪽으로 밀면 예전처럼 네모 가장자리에 서고, 앞 모서리 (문) 쪽으로만 띠로 나간다. 띠에서는 띠 안에 머문다 (대각 벽을 따라 미끄러진다) */
     function yardOut(x, z) { var Y = YARD_L - 0.3 - PL_MARGIN; return Math.abs(x) > Y + 1e-6 || Math.abs(z) > Y + 1e-6; }
     function wideIn(sd, td) { for (var A = WIDE.AREAS, i = 0; i < A.length; i++) if (sd >= A[i][0] && sd <= A[i][1] && td >= A[i][2] && td <= A[i][3]) return true; return false; }
@@ -3172,7 +3173,7 @@ var SCENE3D = (function () {
     }
     function plRoute(from, to) {   /* 경유점 (리뷰 11-09: 직선 lerp 는 상자 속을 걸어 지나갔다): 직선이 장애물 상자를 지나면 상자 모서리(둘레 +0.05) 하나 또는 이웃한 둘을 거친다 — 모든 선분이 상자를 안 지나는 길 중 가장 짧은 것. 없으면(출발·도착이 둘레 안 등) 직선 그대로 (plMove 가 미끄러뜨린다) */
       var boxes = plBoxes(), hit = null, i;
-      if (PL.place === 'yard') {   /* 11-18 (검증): 마당은 둥근 것 (나무 줄기 · 덤불 · 돌) 까지 넣어 처음부터 온 길을 찾는다. 상자 하나만 돌면 다른 상자나 나무에 다시 걸려, 마당 왼쪽 · 집 뒤에서 집 문을 톡하면 문 앞에 못 닿았다 (111 자리 가운데 64) */
+      if (PL.place === 'yard' || PL.place === 'inside') {   /* 11-22: 방 안도 (카페의 둥근 탁자 · 의자 · 진열대를 돌아서 — 검증: 칠판으로 가다 가운데 탁자에 막혀 섰다) */   /* 11-18 (검증): 마당은 둥근 것 (나무 줄기 · 덤불 · 돌) 까지 넣어 처음부터 온 길을 찾는다. 상자 하나만 돌면 다른 상자나 나무에 다시 걸려, 마당 왼쪽 · 집 뒤에서 집 문을 톡하면 문 앞에 못 닿았다 (111 자리 가운데 64) */
         var ya = plRouteAll(from, to, boxes, plCircles());
         if (ya) return ya;
       }
@@ -6436,11 +6437,11 @@ var SCENE3D = (function () {
         return coverRun(function () { inShow(key); }).then(function () { IN.busy = false; if (IN.key !== key) return { ok: false, reason: 'cut', key: IN.key }; emit('door', { act: 'close', room: 'inside', door: key, from: 'yard' }); inEvent(key); return { ok: true, key: key }; });
       });
     }
-    function leaveRoom() {   /* → Promise<{ ok }>: 방에서 넓은 바깥의 문 앞으로 */
+    function leaveRoom(here) {   /* → Promise<{ ok }>: 방에서 넓은 바깥의 문 앞으로 (here = 문 자리로 걷지 않고 바로 — 스틱으로 문 밖을 밀 때) */
       if (PLACE.vis !== 'inside' || !IN.key) return Promise.resolve({ ok: false, reason: 'here', key: null });
       if (IN.busy || WSTATE.jump || PLACE.trans) return Promise.resolve({ ok: false, reason: 'busy', key: IN.key });
       var key = IN.key, R = ROOM_REG[key], d = R.door || [R.half[0] - 0.4, 0], to = new T.Vector3(clamp(d[0], -R.half[0] + PL_MARGIN, R.half[0] - PL_MARGIN), 0, clamp(d[1], -R.half[1] + PL_MARGIN, R.half[1] - PL_MARGIN)); IN.busy = true;
-      var walk = Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z) < 0.15 ? Promise.resolve(true) : (function () { var p = plWalkTo(to, null), w = PL.walking; return !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); }); })();
+      var walk = here === true || Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z) < 0.15 ? Promise.resolve(true) : (function () { var p = plWalkTo(to, null), w = PL.walking; return !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); }); })();
       return walk.then(function (r) {
         if (r === null || PLACE.vis !== 'inside') { IN.busy = false; return { ok: false, reason: 'walk', key: IN.key }; }
         emit('door', { act: 'open', room: 'yard', door: key, from: 'inside' });
@@ -6452,6 +6453,8 @@ var SCENE3D = (function () {
       var R = ROOM_REG[IN.key]; if (!R) return false;
       var hx = R.half[0] - PL_MARGIN, hz = R.half[1] - PL_MARGIN, co = inCols(), x0 = PL.pos.x, z0 = PL.pos.z, p0 = plPen(x0, z0, co.boxes, co.circles) + 1e-6;
       var nx = clamp(x0 + dx, -hx, hx), nz = clamp(z0 + dz, -hz, hz);
+      var dr = R.door || [R.half[0] - 0.4, 0];
+      if (PL_IN.v && !PL.walking && !IN.busy && !WSTATE.jump && ((z0 + dz > hz + 1e-4 && z0 > hz - 0.05 && dr[1] > 0 && Math.abs(x0 - dr[0]) < 0.8) || (x0 + dx > hx + 1e-4 && x0 > hx - 0.05 && dr[0] > 0 && Math.abs(z0 - dr[1]) < 0.8))) leaveRoom(true);   /* 11-22 (검증): 문 자리에서 스틱으로 문 밖 쪽으로 밀면 나간다 — '밖으로' 단추가 스틱 칸 밑에 깔리는 방 (공연장) 에서도 나갈 수 있게 */
       if (plPen(nx, nz, co.boxes, co.circles) <= p0) PL.pos.set(nx, 0, nz);
       else if (plPen(nx, z0, co.boxes, co.circles) <= p0) PL.pos.x = nx;
       else if (plPen(x0, nz, co.boxes, co.circles) <= p0) PL.pos.z = nz;
@@ -6459,7 +6462,7 @@ var SCENE3D = (function () {
     }
     function inSpotWalk(id, el) {   /* 방 안의 자리를 톡: 설 자리 (stand) 에서 0.25 m 넘게 떨어져 있으면 걸어간 뒤 누른다 → 걷기 시작했나 */
       var sp = WIDE_SPOT[id].sp, st2 = sp.stand; if (!st2 || PL.place !== 'inside' || Math.hypot(PL.pos.x - st2[0], PL.pos.z - st2[1]) <= 0.25) return false;
-      var key = IN.key; plWalkTo(new T.Vector3(st2[0], 0, st2[1]), Math.atan2(sp.x - st2[0], sp.z - st2[1])).then(function () { if (IN.key === key && PL.place === 'inside' && !el.hidden && Math.hypot(PL.pos.x - st2[0], PL.pos.z - st2[1]) <= 0.4) el.click(); });
+      var key = IN.key; plWalkTo(new T.Vector3(st2[0], 0, st2[1]), Math.atan2(sp.x - st2[0], sp.z - st2[1])).then(function () { if (IN.key !== key || PL.place !== 'inside') return; if (Math.hypot(PL.pos.x - st2[0], PL.pos.z - st2[1]) > 0.4) { console.warn('[scene3d] 방 자리 ' + id + ' 의 설 자리에 못 닿음 — 선 자리에서 누른다'); PL.faceCam = false; PL.wantYaw = Math.atan2(sp.x - PL.pos.x, sp.z - PL.pos.z); } el.click(); });   /* 11-22 (검증): 막혀서 못 닿아도 조용히 끝내지 않는다 — 그 물건 쪽을 보고 누른다 (메뉴 · 계산은 열린다) */
       return true;
     }
     function viewFocus(x, z, y) {   /* 그 자리 (지금 보이는 장소의 좌표) 를 화면 가로 가운데 · 위에서 3분의 1 높이에 오게 화면을 민다 (경계 안에서 · 0.25 s) → 됐나. 카드가 뜰 때 그 대상이 카드 위로 보이게 */
