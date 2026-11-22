@@ -78,7 +78,7 @@ async function context(browser, today, rec, o) {
   rec = rec || REC(); if (rec.user && rec.user.giftDay === null) rec.user.giftDay = today;   /* 그날 선물은 이미 받은 것으로 (조개 수를 콘테스트만 바꾸게) */
   var ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: o.dpr || 2, locale: 'ko-KR', hasTouch: true, isMobile: true, reducedMotion: o.reduce ? 'reduce' : 'no-preference' });
   await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' + "if (!localStorage.getItem('__seed')) { localStorage.setItem('__seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(rec)) + '); } ' +
-    "window.__ppolTest = Object.assign(window.__ppolTest || {}, { today: sessionStorage.getItem('__ct_day') || " + JSON.stringify(today) + ' });' });
+    "window.__ppolTest = Object.assign(window.__ppolTest || {}, { today: new URLSearchParams(location.search).get('ct_day') || sessionStorage.getItem('__ct_day') || " + JSON.stringify(today) + ' });' });
   return ctx;
 }
 /* 두 탭: file:// 에서는 두 탭이 가끔 저장소를 못 나눈 채 열린다 (헤드리스 브라우저 사정 — 게임 코드와 무관). 나누는지 확인하고, 아니면 새 브라우저로 다시 연다 */
@@ -92,6 +92,12 @@ async function pair(today) {
     await br.close();
   }
   throw new Error('두 탭이 저장소를 나누지 못함');
+}
+/* 11-23: 날 바꾸기는 주소 (ct_day) 로도 넘긴다 — file:// 에서 새로고침 뒤 sessionStorage 가 가끔 비어 날이 안 바뀌었다 (CI 03e0479 '그날 선물을 받지 못함' · ss null) */
+async function dayGo(page, d) {
+  await page.evaluate(function (d) { try { sessionStorage.setItem('__ct_day', d); } catch (e) { /* 주소로 넘긴다 */ } }, d);
+  var u = page.url().replace(/[?&]ct_day=[^&]*/g, '');
+  await page.goto(u + (u.indexOf('?') >= 0 ? '&' : '?') + 'ct_day=' + d);
 }
 /* 날을 넘긴 뒤 그날 선물을 받아 둔다 (조개 수를 콘테스트만 바꾸게). 안 되면 까닭을 적고 넘어간다 */
 async function giftWait(page, d) {
@@ -216,8 +222,7 @@ async function main() {
   check(page._errs.length === 0, '오류 없음');
 
   console.log('D 일요일 · 넘기기');
-  await page.evaluate(function (d) { sessionStorage.setItem('__ct_day', d); }, SUN);
-  await page.reload(); await page.waitForSelector('#btn-go:not(.away)'); await page.waitForTimeout(600); await page.evaluate(STUB);
+  await dayGo(page, SUN); await page.waitForSelector('#btn-go:not(.away)'); await page.waitForTimeout(600); await page.evaluate(STUB);
   await giftWait(page, SUN);
   s0 = await shells(page);   /* 날이 바뀌어 그날 선물이 들어온 뒤 */
   await page.evaluate(function () { APP.openContest(); });
@@ -354,8 +359,7 @@ async function main() {
   check(await page.evaluate(function () { return document.querySelectorAll('#log .ct-row').length === 1; }), '기록 줄 하나');
   check(page._errs.length === 0, '오류 없음');
   /* 일요일: 넘기기 */
-  await page.evaluate(function (d) { sessionStorage.setItem('__ct_day', d); }, SUN);
-  await page.reload(); await page.waitForSelector('#btn-go:not(.away)'); await page.waitForTimeout(600); await page.evaluate(STUB); await page.evaluate(SCENE_STUB);
+  await dayGo(page, SUN); await page.waitForSelector('#btn-go:not(.away)'); await page.waitForTimeout(600); await page.evaluate(STUB); await page.evaluate(SCENE_STUB);
   await giftWait(page, SUN);
   s0 = await shells(page);
   await page.evaluate(function () { APP.contestStageTap(); });
