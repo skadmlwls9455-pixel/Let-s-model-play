@@ -117,6 +117,8 @@ V.SPOTS.forEach(function (s2) { var a2 = V.xz(s2.stand[0], s2.stand[1]); ok(!V.B
       ok(Math.hypot(sp.x - sp.stand[0], sp.z - sp.stand[1]) <= 1.5, key + ' ' + sp.key + ' 자리와 서는 자리가 가깝다');
     });
     ok(free(R.door[0], R.door[1], 0.3), key + ' 문 안 자리가 빈 곳');
+    /* 문에서 누르는 자리마다 곧은 길이 비어 있다 (리드 검토 11-22: 카페 차림판을 누르면 가운데 식탁에 걸려 멈췄다) */
+    R.spots.forEach(function (sp) { var f = R.door, n = 60, hit = false; for (var i = 0; i <= n; i++) { var x = f[0] + (sp.stand[0] - f[0]) * i / n, z = f[1] + (sp.stand[1] - f[1]) * i / n; if (!free(x, z, 0)) hit = true; } ok(!hit, key + ' 문 → ' + sp.key + ' 곧은 길이 비어 있다'); });
     ok(R.lights.length === 2, key + ' 등 둘 (다락과 같은 수 — 새 셰이더 없음)');
     R.boxes.forEach(function (b) { ok(b[0] < b[2] && b[1] < b[3] && b[0] >= -hx - 0.01 && b[2] <= hx + 0.01 && b[1] >= -hz - 0.01 && b[3] <= hz + 0.01, key + ' 부딪힘 네모가 방 안'); });
     /* 문에서 누르는 자리마다: 방 가운데 통로 (서는 자리들의 볼록한 안쪽) 가 막히지 않았다 — 문 → 서는 자리 곧은 선의 가운데 점이 가구 안이 아니다 (대충의 걸림 검사) */
