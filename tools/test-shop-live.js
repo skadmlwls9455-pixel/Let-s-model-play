@@ -240,6 +240,8 @@ async function roomRun(browser) {
   await page.mouse.click(8, 300); await page.click('#btn-mq-0');
   ok(await page.evaluate(() => { const c = document.getElementById('shop-card'); return !!c && c.parentNode.id === 'scene' && c.tagName !== 'DIALOG' && !document.querySelector('dialog[open]') && c.classList.contains('tag'); }), '꼬리표 카드는 장면 안의 요소');
   ok(await page.evaluate(n => { const c = document.getElementById('shop-card'), t = [...c.querySelectorAll('button')].map(b => b.textContent).join(); const a = document.getElementById('btn-mq-0').getBoundingClientRect(), b = c.getBoundingClientRect(), s = document.getElementById('scene').getBoundingClientRect(); return t === '입어 보기,살래' && c.textContent.includes(n) && (s.height < 560 || ((b.bottom <= a.top + 1 || b.top >= a.bottom - 1) && b.left >= s.left && b.right <= s.right + 0.5 && b.top >= s.top));   /* 자리는 3D 장면 (방이 있는 쪽) 에서만 잰다 */ }, stock[0].name), '카드: 이름 · 값 · 입어 보기 / 살래, 마네킹 바로 위 · 장면 안');
+  ok(await page.evaluate(() => { const c = document.getElementById('shop-card').getBoundingClientRect(), st = document.getElementById('status').getBoundingClientRect(), g = document.getElementById('btn-go'), gr = g.getBoundingClientRect(); const sc = document.getElementById('scene').getBoundingClientRect(), over = st.top <= sc.top + 8 && st.bottom > sc.top, goIn = g.offsetParent && gr.top > sc.top && gr.top < sc.bottom; if (sc.height < 560) return true;   /* 방은 3D 장면에만 있다 (2D 는 시트로 간다) */
+    return (!over || c.top >= st.bottom) && (!goIn || c.bottom <= gr.top) && c.top >= sc.top && c.bottom <= sc.bottom + 0.5; }), '카드는 위 상태 줄 아래 · 큰 단추 위');
   await shot(page, 'room-tag-360');
   await cardBtn(page, '입어 보기');
   r = await R(page);
@@ -252,6 +254,7 @@ async function roomRun(browser) {
   await page.click('#btn-mq-1'); await cardBtn(page, '살래');
   const total = stock[0].price + stock[1].price;
   ok(await page.evaluate(t => { const c = document.getElementById('shop-card'); return !!c && c.classList.contains('receipt') && c.querySelectorAll('.shop-rc-list li').length === 2 && c.querySelector('.shop-rc-sum .shell-n').textContent === String(t) && document.activeElement && document.activeElement.textContent === '그만'; }, total), '영수증: 고른 둘 · 합계 · 포커스는 그만');
+  ok(await page.evaluate(() => { const c = document.getElementById('shop-card').getBoundingClientRect(), st = document.getElementById('status').getBoundingClientRect(); const sc = document.getElementById('scene').getBoundingClientRect(); return !(st.top <= sc.top + 8 && st.bottom > sc.top) || c.top >= st.bottom; }), '영수증도 상태 줄 아래');
   await shot(page, 'room-receipt-360');
   await cardBtn(page, '살래');
   r = await R(page);
