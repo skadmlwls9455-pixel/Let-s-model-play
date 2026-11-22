@@ -1,7 +1,7 @@
 /* ============================================================
    뽈뽈 문어 — js/cafe.js (전역 CAFE) · 카페 규칙 (11-21, 7차 갈래 C)
    DOM 없음 · 시계 · 난수 없음 (날짜는 받아서 쓴다) → node 에서 그대로 검사한다 (tools/test-cafe.js). js/meal.js 와 같은 만듦새.
-   - 메뉴 셋: 커피 2 · 딸기 케이크 5 · 과일 꼬치 4 (조개). 케이크 · 꼬치는 세 번 톡으로 먹는다 (그림이 삼분의 일씩 줄어든다).
+   - 메뉴 셋: 커피 2 · 딸기 케이크 5 · 과일 꼬치 4 (조개). 셋 다 세 번 톡으로 먹는다 · 마신다.
    - 같은 메뉴를 세 번 다 먹으면 카페 지킴이가 그 레시피를 준다 (레시피 상태는 갈래 T 의 APP.recipeEat 이 주인 — 없을 때만 여기 규칙).
    - 기록 S.user.cafe = { v, eaten: { 메뉴 id: 다 먹은 수 }, tray: { id, left, day } | null, gifts: { 레시피 id: 날짜 }, lp: { 곡 id: 튼 수 } }
      모르는 칸 · 모르는 메뉴 id 는 그대로 둔다 (나중 빌드가 알 수도 있다).
@@ -11,7 +11,7 @@ var CAFE = (function () {
   'use strict';
   var GIFT_AT = 3, BITES = 3;
   var MENU = [
-    { id: 'coffee', name: '커피', price: 2, spr: 'cafe.coffee', recipe: null, bites: 0 },
+    { id: 'coffee', name: '커피', price: 2, spr: 'cafe.coffee', recipe: null, bites: BITES, drink: true },   /* 11-21 콘텐츠 다듬기: 커피도 세 모금 (마시다 만 잔도 자리에서 기다린다) */
     { id: 'cake', name: '딸기 케이크', price: 5, spr: 'dish.cake', recipe: 'cake', bites: BITES },
     { id: 'kkochi', name: '과일 꼬치', price: 4, spr: 'dish.kkochi', recipe: 'kkochi2', bites: BITES }
   ];
@@ -45,7 +45,7 @@ var CAFE = (function () {
     return { ok: true, cost: it.price, item: it };
   }
   function pending(c) { var t = c && c.tray; return !!(t && item(t.id) && item(t.id).bites > 0 && t.left > 0); }   /* 먹다 만 음식이 쟁반에 있는가 */
-  /* 한 입: 마지막 한 입이면 '다 먹은 수' 가 하나 오른다 (done). 커피는 먹는 것이 아니다 */
+  /* 한 입 · 한 모금: 마지막이면 '다 먹은 수' 가 하나 오른다 (done) */
   function bite(c) {
     c = normalize(c); var t = c.tray, it = t && item(t.id);
     if (!it || !it.bites || t.left <= 0) return { ok: false };
