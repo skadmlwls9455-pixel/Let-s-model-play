@@ -2280,7 +2280,7 @@ async function scenarioFirst(browser) {
   var before = hs.seen.length;
   await pg.reload(); await pg.waitForSelector('#btn-go:not(.away)', { timeout: 30000 });
   var re = await pg.evaluate(function () { return new Promise(function (res) { var n = 0, was = false; var iv = setInterval(function () { var e = document.getElementById('hint-hand'), on = !!(e && !e.hidden); if (on && !was) n++; was = on; }, 40); setTimeout(function () { clearInterval(iv); res({ n: n, pref: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}').hints }); }, 7000); }); });
-  ok(re.n === 3 - before && Object.keys(re.pref || {}).length === 3, '11-18 새로 열면 본 힌트는 다시 없음 (남은 것만 ' + re.n + ' · ' + JSON.stringify(re.pref) + ')');
+  ok(re.n === 2 - before && Object.keys(re.pref || {}).length === 2, '11-18 새로 열면 본 힌트는 다시 없음 (11-21: 힌트는 둘 — 놀이방 문 · 마당 문. 남은 것만 ' + re.n + ' · ' + JSON.stringify(re.pref) + ')');
   /* 여러 번 다녀온 기록: 둘째 산책 뒤엔 (기기 표시를 지워도) 켜지지 않는다 */
   await waitIdle(pg); await pg.click('#btn-go'); await pg.waitForSelector('#btn-go.away', { timeout: 10000 }); await pg.waitForTimeout(1200); await pg.click('#btn-go'); await waitIdle(pg);
   await pg.evaluate(function () { localStorage.setItem('ppolppol_ui', '{}'); });   /* 기기 표시를 지우고 새로 열어도 (산책 둘) 켜지지 않는다 */
@@ -3033,6 +3033,7 @@ async function scenarioFirstColor(browser) {
   console.log('   dev slider:', JSON.stringify(g1));
   ok(g1.mid.n === g0.n && g1.mid.color === RED && g1.mid.sameSave && g1.mid.scenes >= 8, '개발용 슬라이더 input 10번: 장면만 미리 보임 (색 ' + g1.mid.scenes + '가지) · 기록 · 저장 그대로');
   ok(g1.n === g0.n + 1 && g1.last.how === 'dev' && g1.last.by === 'dev' && g1.last.color === g1.color && g1.scene === g1.color && g1.saved === g1.n, "change 1번 → 기록 한 줄 { how: 'dev', by: 'dev' } · 장면 = 기록 색 (" + g1.color + ')');
+  await pf.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: 설정 구역은 접혀서 열린다 → 펼치고 누른다 (?dev=1 탭 · 위 슬라이더 검사는 접힌 채로도 돈다) */
   await pf.click('#set-body .preset[data-hex="' + BLUE + '"]');
   var g2 = await pf.evaluate(function () { var c = APP.state.octopus.colors; return { n: c.length, last: c[c.length - 1], on: (document.querySelector('#set-body .preset.on') || {}).dataset }; });
   ok(g2.n === g1.n + 1 && g2.last.how === 'dev' && g2.last.color === BLUE && g2.on && g2.on.hex === BLUE, '개발용 프리셋 파랑 → 한 줄 더 · 칩 켜짐');
@@ -7482,13 +7483,8 @@ async function scenarioSceneTap(browser) {
   await page.waitForFunction(function () { var e = document.getElementById('btn-cook'); return APP.scene.view() === 'play' && e && !e.hidden && !APP.goResting; }, null, { timeout: 20000 }); await page.waitForTimeout(600);
   var cpt = await page.evaluate(function () { var q = document.getElementById('btn-cook').getBoundingClientRect(), F = [0.5, 0.35, 0.65, 0.2, 0.8]; for (var i = 0; i < F.length; i++) for (var j = 0; j < F.length; j++) { var x = q.x + q.width * F[j], y = q.y + q.height * F[i], k = APP.scene.pickAt(x, y); if (k && k.kind === 'spot' && k.id === 'counter') return { x: x, y: y, w: q.width, h: q.height, label: document.getElementById('btn-cook').getAttribute('aria-label'), pan: JSON.stringify(APP.scene.pan()) }; } return null; });
   var ck = { spot: !!cpt }, k2 = {};
-  /* 11-18 6차 (K2): 조리대 톡 → 요리 쟁반 (#dish-pick) → 칩을 손가락으로 */
-  async function pickDish(id) {
-    var shown = await page.waitForSelector('#dish-pick[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; });
-    if (!shown) return false;
-    await page.tap('#dish-pick .dp-chip[data-recipe="' + id + '"]');
-    return true;
-  }
+  /* 11-21 7차 (T): 요리 쟁반은 없다 — 조리대 톡이 바로 부엌 덮개를 연다 (레시피 북은 부엌 안) */
+  async function pickDish() { return page.waitForSelector('#cook-overlay[open]', { timeout: 5000 }).then(function () { return true; }, function () { return false; }); }
   function cookStore() { return page.evaluate(function () { return localStorage.getItem('ppolppol_cook_v0'); }); }
   if (cpt) {
     /* 11-18 (점검 rel-01): 부엌 쪽이 못 열리면 (cook.html 대신 빈 쪽 = 네트워크가 끊겨 'ready' 가 오지 않는 것처럼) 300 ms 뒤 문어 그림 + 게임 쪽 닫기 → 놀이방으로.
@@ -7496,20 +7492,14 @@ async function scenarioSceneTap(browser) {
     await page.evaluate(function () {
       var d = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src'); window.__ckBlock = true;
       Object.defineProperty(HTMLIFrameElement.prototype, 'src', { configurable: true, get: function () { return d.get.call(this); },
-        set: function (v) { d.set.call(this, window.__ckBlock && /cook\.html/.test(String(v)) ? 'about:blank#k2-blocked' : v); } });   /* 아무것도 안 오는 쪽 = 'ready' 없음 */
+        set: function (v) { if (/cook\.html/.test(String(v))) window.__ckLastSrc = String(v); d.set.call(this, window.__ckBlock && /cook\.html/.test(String(v)) ? 'about:blank#k2-blocked' : v); } });   /* 아무것도 안 오는 쪽 = 'ready' 없음 */
     });
     k2.s0 = await cookStore();
     await page.touchscreen.tap(cpt.x, cpt.y);
-    k2.tray = await page.waitForSelector('#dish-pick[open]', { timeout: 5000 }).then(function () {
-      return page.evaluate(function () {
-        var d = document.getElementById('dish-pick'), dc = d.cloneNode(true), dpr = window.devicePixelRatio || 1;
-        var bd = getComputedStyle(d, '::backdrop'), go = document.getElementById('btn-go'), gr = go.getBoundingClientRect();
-        return { label: d.getAttribute('aria-label'), text: (dc.textContent || '').trim(), backdrop: [bd.backgroundColor, bd.backgroundImage], go: getComputedStyle(go).visibility, goUnder: gr.bottom > window.innerHeight - 100, stick: getComputedStyle(document.getElementById('stick')).visibility, titles: d.querySelectorAll('[title]').length + (d.hasAttribute('title') ? 1 : 0),
-          chips: Array.prototype.map.call(d.querySelectorAll('.dp-chip'), function (c) { var r = c.getBoundingClientRect(), im = c.querySelector('img'), ir = im.getBoundingClientRect();
-            return { name: c.getAttribute('aria-label'), w: r.width, h: r.height, iw: ir.width * dpr, ix: ir.x * dpr, iy: ir.y * dpr, nat: im.naturalWidth, pix: getComputedStyle(im).imageRendering, bottom: window.innerHeight - r.bottom }; }) };
-      });
+    k2.direct = await page.waitForSelector('#cook-overlay[open]', { timeout: 5000 }).then(function () {
+      return page.evaluate(function () { var f = document.querySelector('#cook-overlay iframe'), raw = f ? f.getAttribute('src') || '' : '', m = /[?&]ctx=([^&]*)/.exec(window.__ckLastSrc || raw), c = null; try { c = m ? JSON.parse(decodeURIComponent(m[1])) : null; } catch (e) { c = 'bad'; }
+        return { tray: !!document.getElementById('dish-pick'), go: getComputedStyle(document.getElementById('btn-go')).visibility, ctx: c }; });
     }, function () { return null; });
-    await page.tap('#dish-pick .dp-chip[data-recipe="jeon"]');
     k2.wait = await page.waitForSelector('#cook-wait:not([hidden])', { timeout: 3000 }).then(function () {
       return page.evaluate(function () { var c = document.getElementById('cook-close'), r = c.getBoundingClientRect(), o = document.querySelector('#cook-wait .cw-oct').getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
         return { label: c.getAttribute('aria-label'), text: c.textContent, title: c.hasAttribute('title'), w: r.width, h: r.height, top: r.top, right: window.innerWidth - r.right, oct: [o.width * dpr % 56, o.x * dpr % 1, o.y * dpr % 1] }; });
@@ -7584,8 +7574,8 @@ async function scenarioSceneTap(browser) {
       await page.touchscreen.tap(cpt.x, cpt.y);
       await pickDish('jeon');
       ck.red = await fr.waitForFunction(function () { return COOK.isOpen(); }, null, { timeout: 5000 }).then(async function () {
-        var r0 = await fr.evaluate(function () { var l = COOK.live(); COOK.auto(true); return { reduced: l.reduced, motion: document.documentElement.getAttribute('data-motion'), kind: l.kind }; });
-        var flip = await fr.waitForFunction(function () { var l = COOK.live(); return l.kind === 'flip' && l.phase === 'step'; }, null, { timeout: 20000 }).then(function () { return true; }, function () { return false; });
+        var r0 = await fr.evaluate(function () { var l0 = COOK.live(); if (l0.screen === 'book' && typeof COOK.pick === 'function') COOK.pick('jeon2'); var l = COOK.live(); COOK.auto(true); return { reduced: l.reduced, motion: document.documentElement.getAttribute('data-motion'), kind: l.kind }; });   /* 11-21 (lane/7-k 와 함께): 책이 먼저면 해초전을 고른다 */
+        var flip = await fr.waitForFunction(function () { var l = COOK.live(); return (l.kind === 'flip' || l.si >= 1) && l.phase === 'step'; }, null, { timeout: 30000 }).then(function () { return true; }, function () { return false; });
         var r1 = await fr.evaluate(function () { COOK.auto(false); var l = COOK.live(); return { kind: l.kind, slides: l.stats.slides, shake: l.stats.shake, parts: l.stats.parts }; });
         return { open: r0, flip: flip, after: r1 };
       }, function () { return null; });
@@ -7595,16 +7585,15 @@ async function scenarioSceneTap(browser) {
          고르면 그 냄비는 potOld 에 바이트 그대로 · 다른 요리를 고르면 빈 냄비도 potOld 로 · 주먹밥을 다 만들면 'result' 한 번 */
       async function shut(noKey) {   /* Esc 로 닫고, 바쁜 기계에서 Esc 가 빠졌으면 덮개를 직접 닫는다 — 다음 검사는 부엌까지 닫힌 데서 시작 */
         if (!noKey) await page.keyboard.press('Escape');
-        var gone = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open && !document.getElementById('dish-pick').open; }, null, { timeout: 3000 }).then(function () { return true; }, function () { return false; });
-        if (!gone) await page.evaluate(function () { ['cook-overlay', 'dish-pick'].forEach(function (id) { var d = document.getElementById(id); if (d.open) d.close(); }); });
+        var gone = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 3000 }).then(function () { return true; }, function () { return false; });
+        if (!gone) await page.evaluate(function () { var d = document.getElementById('cook-overlay'); if (d.open) d.close(); });
         var shutOk = await fr.waitForFunction(function () { return !COOK.isOpen(); }, null, { timeout: 5000 }).then(function () { return true; }, function () { return false; });
         (k2.shuts = k2.shuts || []).push(shutOk ? 1 : await fr.evaluate(function () { var l = COOK.live(); return { r: l.recipe, si: l.si, s: l.screen, url: location.search }; }).catch(function (e) { return String(e).slice(0, 80); }));
         await page.waitForTimeout(700);
       }
       await shut(true);
       async function setPot(pot) { await page.evaluate(function (p) { var o = JSON.parse(localStorage.getItem('ppolppol_cook_v0') || '{}'); o.pot = p; localStorage.setItem('ppolppol_cook_v0', JSON.stringify(o)); }, pot); }
-      async function tapCounter() { await page.touchscreen.tap(cpt.x, cpt.y); await page.waitForTimeout(500); return page.evaluate(function () { return { tray: document.getElementById('dish-pick').open, overlay: document.getElementById('cook-overlay').open }; }); }
-      k2.tunes = await fr.evaluate(function () { return ['jeon', 'jumeokbap', 'kkochi'].map(function (id) { return COOK.tuneOf(id); }); });
+      async function tapCounter() { await page.touchscreen.tap(cpt.x, cpt.y); await page.waitForTimeout(500); return page.evaluate(function () { return { tray: !!document.getElementById('dish-pick'), overlay: document.getElementById('cook-overlay').open }; }); }
       k2.straight = [];
       for (var rid of ['jeon', 'jumeokbap', 'kkochi']) {
         var pot1 = await fr.evaluate(function (id) { var b = [{ t: 400, k: 'b' }, { t: 800, k: 'b' }, { t: 1200, k: 'b' }, { t: 1600, k: 'b' }]; return COOK.potOf(COOK.simulate(id, 5, [b], { run: true }).run, 1); }, rid);
@@ -7614,78 +7603,69 @@ async function scenarioSceneTap(browser) {
         k2.straight.push({ id: rid, tune: pot1.tune, tray: tc.tray, overlay: tc.overlay, live: lv });
         await shut();
       }
-      var potE = await fr.evaluate(function () { return COOK.potOf(COOK.createRun('jeon', 9), 1); });
-      await setPot(potE); k2.empty = await tapCounter();
-      k2.emptyFocus = await shut().then(function () { return page.evaluate(function () { return document.activeElement && document.activeElement.id; }); });
-      k2.goEsc = await page.evaluate(function () { return getComputedStyle(document.getElementById('btn-go')).visibility; });
-      var potOldTune = await fr.evaluate(function () { var b = [{ t: 400, k: 'b' }, { t: 800, k: 'b' }, { t: 1200, k: 'b' }, { t: 1600, k: 'b' }]; var p = COOK.potOf(COOK.simulate('jeon', 6, [b], { run: true }).run, 1); p.tune = 12345; return p; });
-      await setPot(potOldTune); var otText = JSON.stringify(potOldTune);
-      k2.oldTray = await tapCounter();
+      /* 11-21 7차 (T · 계약 C2): 빈 냄비여도 쟁반 없이 부엌이 열린다 · 'open' 에 ctx { canCall, unlocked } · 요리를 다 만들면 'result' 한 번, 게임은 'ctx' 로 답한다 ·
+         부엌의 'serve' 뒤에 닫히면 요리가 식탁에 띡 놓이지 않고 내 캐릭터가 들고 간다 (끝나면 식탁에 · 저장은 result 때 그대로) */
+      await setPot(null);
+      await page.click('#btn-settings'); await page.waitForSelector('#settings-sheet[open]'); await page.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); }); await page.selectOption('#set-motion', 'auto'); await page.click('#set-close'); await page.waitForSelector('#settings-sheet[open]', { state: 'hidden' });   /* 위에서 켠 모션 줄이기를 되돌린다 (들고 가는 걸음을 본다) */
+      await page.waitForTimeout(400);
+      await fr.evaluate(function () { window.__ckOpen = []; window.addEventListener('message', function (e) { var d = e.data; if (d && typeof d === 'object' && (d.ppolCook === 'open' || d.ppolCook === 'ctx')) window.__ckOpen.push(JSON.parse(JSON.stringify(d))); }); });
       await page.evaluate(function () { window.__ckMsgs = []; });
-      await page.tap('#dish-pick .dp-chip[data-recipe="jumeokbap"]');
-      k2.oldPick = await fr.waitForFunction(function () { return COOK.isOpen() && COOK.live().recipe; }, null, { timeout: 5000 }).then(async function () {
-        var st = JSON.parse(await cookStore());
-        return { r: await fr.evaluate(function () { return COOK.live().recipe; }), old0: st.potOld && JSON.stringify(st.potOld[0]), pot: st.pot,
-          picking: await page.evaluate(function () { return document.documentElement.classList.contains('dish-picking'); }) };
-      }, function () { return null; });
-      await fr.evaluate(function () { COOK.auto(true); });
-      k2.result = await fr.waitForFunction(function () { return COOK.live().screen === 'reveal'; }, null, { timeout: 30000 }).then(async function () {
+      k2.empty = await tapCounter();
+      k2.openMsg = await fr.waitForFunction(function () { return COOK.isOpen() && window.__ckOpen.length > 0; }, null, { timeout: 5000 }).then(function () { return fr.evaluate(function () { return window.__ckOpen[0]; }); }, function () { return null; });
+      await fr.evaluate(function () { var l0 = COOK.live(); if (l0.screen === 'book' && typeof COOK.pick === 'function') COOK.pick('jeon2'); COOK.auto(true); });
+      k2.result = await fr.waitForFunction(function () { return COOK.live().screen === 'reveal'; }, null, { timeout: 90000 }).then(async function () {
         await page.waitForTimeout(500);
         return page.evaluate(function () { return window.__ckMsgs.filter(function (m) { return m.ppolCook === 'result'; }); });
       }, function () { return null; });
-      await shut();
-      var emptyJ = JSON.parse(await cookStore()).pot;   /* again: a fresh jumeokbap is not made here — write an empty jumeokbap pot */
-      emptyJ = await fr.evaluate(function () { return COOK.potOf(COOK.createRun('jumeokbap', 4), 1); });
-      await setPot(emptyJ); var ejText = JSON.stringify(emptyJ);
-      k2.other = await tapCounter();
-      await page.tap('#dish-pick .dp-chip[data-recipe="kkochi"]');
-      k2.otherPick = await fr.waitForFunction(function () { return COOK.isOpen() && COOK.live().recipe === 'kkochi'; }, null, { timeout: 5000 }).then(async function () {
-        var st = JSON.parse(await cookStore()); return { old0: st.potOld && JSON.stringify(st.potOld[0]), pot: st.pot && st.pot.recipe };
-      }, function () { return null; });
-      await shut();
-      /* R19: 문어를 부르는 동안 (M 의 mealBusy() 가 참) 조리대는 아무것도 안 한다 — M 이 합쳐지기 전엔 전역 가짜로 */
-      var mOwn = /function mealBusy\s*\(/.test(fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8'));
-      if (!mOwn) {
-        await page.evaluate(function () { window.mealBusy = function () { return true; }; });
-        k2.busy = await tapCounter();
-        await page.evaluate(function () { delete window.mealBusy; });
-        k2.unbusy = await tapCounter(); await shut();
-      } else console.log('   (mealBusy 는 M 의 것 — 가짜로 막는 검사는 smoke EAT 가 본다)');
-      /* 독립 점검 (11-18): 조리대를 두 번 톡 (120 ms) 해도 쟁반이 바로 닫히지 않는다 */
+      await fr.evaluate(function () { COOK.auto(false); });
+      k2.ctxBack = await fr.evaluate(function () { return window.__ckOpen.filter(function (m) { return m.ppolCook === 'ctx'; }); });
+      k2.waiting = await page.evaluate(function () { var u = APP.state.user || {}, i = APP.scene.tableInfo ? APP.scene.tableInfo() : null; return { table: u.table ? u.table.id : null, scene: i && i.dish ? i.dish.id : null }; });
+      var rid0 = k2.result && k2.result[0] ? k2.result[0].id : '';
+      /* 새 부엌 (lane/7-k) 이면 진짜 끝 단추 '식탁에 두기' 를 누른다 (900 ms 지킴 뒤 · serve 다음에 스스로 닫힌다). 옛 부엌이면 같은 글을 보내고 닫기 칩 */
+      k2.realEnd = await fr.waitForFunction(function () { var t = document.querySelector('.ck-table'); return !!t && !t.hidden; }, null, { timeout: 4000 }).then(function () { return true; }, function () { return false; });
+      if (k2.realEnd) { await page.waitForTimeout(1200); await fr.evaluate(function () { document.querySelector('.ck-table').click(); }); }
+      else { await fr.evaluate(function (id) { window.parent.postMessage({ ppolCook: 'serve', id: id, mode: 'table' }, '*'); }, rid0); await page.waitForTimeout(150); await (await fr.$('.ck-close')).tap(); }
+      k2.serve = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 5000 }).then(function () {
+        return page.evaluate(function () { var i = APP.scene.tableInfo ? APP.scene.tableInfo() : null; return { meal: APP.meal && APP.meal.stage, busy: APP.mealBusy(), carry: i && i.carry, dish: i && i.dish ? i.dish.id : null }; }); }, function () { return null; });
+      k2.busyTap = k2.serve && k2.serve.busy ? await tapCounter() : null;   /* 들고 가는 동안 조리대는 아무것도 안 한다 */
+      k2.served = await page.waitForFunction(function () { return !APP.mealBusy(); }, null, { timeout: 15000 }).then(function () {
+        return page.evaluate(function () { var u = APP.state.user || {}, i = APP.scene.tableInfo ? APP.scene.tableInfo() : null; return { table: u.table ? u.table.id : null, scene: i && i.dish ? i.dish.id : null, carry: i && i.carry, me: i && i.me, meals: (u.meals || []).length }; }); }, function () { return null; });
+      /* R19: 문어를 부르는 동안 (M 의 mealBusy() 가 참) 조리대는 아무것도 안 한다 — smoke EAT 가 본다 */
+      /* 조리대를 두 번 톡 (120 ms) 해도 부엌은 한 번만 열리고 열린 채 */
+      await page.waitForTimeout(700);
       var cdpT = await page.context().newCDPSession(page);   /* touchscreen.tap 은 한 번에 수백 ms 걸려서 진짜 두 번 톡 (톡 사이 120 ms) 은 CDP 로 */
       for (var tt = 0; tt < 2; tt++) {
         await cdpT.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cpt.x, y: cpt.y, id: 7 + tt }] }); await page.waitForTimeout(40);
         await cdpT.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); if (!tt) await page.waitForTimeout(120);
       }
-      await page.waitForTimeout(500);
-      k2.dbl = await page.evaluate(function () { return document.getElementById('dish-pick').open; });
-      await page.touchscreen.tap(30, 300); await page.waitForTimeout(400);   /* 조리대 밖 (투명 배경) 톡 = 닫기 */
-      k2.backdrop = await page.evaluate(function () { return { open: document.getElementById('dish-pick').open, overlay: document.getElementById('cook-overlay').open, go: getComputedStyle(document.getElementById('btn-go')).visibility }; });
+      await page.waitForTimeout(600);
+      k2.dbl = await page.evaluate(function () { return { overlay: document.getElementById('cook-overlay').open, frames: document.querySelectorAll('#cook-overlay iframe').length }; });
       await shut();
     }
   }
   console.log('   K2 쟁반 · 못 열린 부엌:', JSON.stringify(k2));
-  var tr = k2.tray || {}, chips = tr.chips || [];
-  ok(tr.label === '요리 고르기' && tr.text === '' && tr.titles === 0 && chips.map(function (c) { return c.name; }).join() === '해초전,주먹밥,과일 꼬치', "빈 저장에 조리대 톡 → 요리 쟁반 '요리 고르기' · 칩 해초전 · 주먹밥 · 과일 꼬치 · 보이는 글자 0 · title 0 (" + JSON.stringify(tr.text) + ')');
-  ok(tr.backdrop && /rgba\(0, 0, 0, 0\)|transparent/.test(tr.backdrop[0]) && tr.backdrop[1] === 'none', '쟁반 배경은 투명 (픽셀 테마의 어두운 막 없음: ' + JSON.stringify(tr.backdrop) + ')');
-  ok(tr.go === 'hidden' && tr.stick === 'hidden' && tr.goUnder && k2.goEsc === 'visible' && k2.backdrop && k2.backdrop.go === 'visible' && k2.oldPick && k2.oldPick.picking === false && k2.closed && k2.closed.view === 'play',
-    "쟁반이 열린 동안 '산책 갈래?' 단추 · 발자국 손잡이는 안 보이고 (" + tr.go + ' · ' + tr.stick + '), Esc · 칩 밖 톡 · 고르기로 닫으면 그대로 돌아온다 (' + k2.goEsc + ' · ' + (k2.backdrop && k2.backdrop.go) + ' · ' + (k2.oldPick && k2.oldPick.picking) + ')');
-  ok(k2.dbl === true, '조리대 두 번 톡 (120 ms) → 쟁반은 열린 채 (조리대 자리 톡은 닫지 않는다)');
-  ok(k2.backdrop && !k2.backdrop.open && !k2.backdrop.overlay, '칩 밖 톡 → 쟁반만 닫힌다 (' + JSON.stringify(k2.backdrop) + ')');
-  ok(chips.length === 3 && chips.every(function (c) { return c.w >= 44 && c.h >= 44 && c.nat === 16 && c.iw % 16 === 0 && Math.abs(c.ix - Math.round(c.ix)) < 0.01 && Math.abs(c.iy - Math.round(c.iy)) < 0.01 && c.pix === 'pixelated' && c.bottom >= 16; }), '칩 44px 이상 · 16×16 그림이 정수 배 · 기기 px 위 · 아래 여백 16 이상 (' + JSON.stringify(chips) + ')');
+  var dr = k2.direct || {}, UNL = ['jeon2', 'gyeran', 'jumeokbap2'];
+  ok(k2.direct && dr.tray === false && dr.go === 'visible', '빈 저장에 조리대 톡 → 요리 쟁반 없이 바로 부엌 덮개 (#dish-pick 은 없다 · ' + JSON.stringify(dr) + ')');
+  ok(dr.ctx && typeof dr.ctx.canCall === 'boolean' && Array.isArray(dr.ctx.unlocked) && UNL.every(function (id) { return dr.ctx.unlocked.indexOf(id) >= 0; }), "부엌 주소에 ctx { canCall, unlocked } (계약 C2 · 처음 여는 길): " + JSON.stringify(dr.ctx));
   ok(k2.wait && k2.wait.label === '닫기' && k2.wait.text === '' && !k2.wait.title && k2.wait.w >= 44 && k2.wait.oct.join() === '0,0,0', '부엌이 못 열리면 300 ms 뒤 문어 그림 + 글자 없는 닫기 그림 단추 (aria-label 닫기 · title 없음 · 44px 이상 · 문어는 기기 px 위) (' + JSON.stringify(k2.wait) + ')');
   ok(k2.closed && k2.closed.view === 'play' && k2.closed.focus === 'btn-cook' && k2.closed.waitHidden, '그 닫기 → 놀이방 그대로 · 포커스 조리대 (' + JSON.stringify(k2.closed) + ')');
   ok(k2.timeout && !k2.timeout.open && k2.timeout.toast === '부엌을 못 열었어. 다시 눌러 줘.', "막힌 채 6 초 → 덮개 닫힘 · 토스트 '부엌을 못 열었어. 다시 눌러 줘.' (" + JSON.stringify(k2.timeout) + ')');
   ok(k2.s0 === k2.s1, '못 열린 부엌은 저장을 건드리지 않는다 (ppolppol_cook_v0 그대로)');
   ok(k2.pickFirst && ck.open && ck.kitchen, '풀고 다시 누르면 새로 불러와 부엌이 열린다');
-  ok(k2.tunes && k2.tunes.join() === '2827089308,1403436335,3381042548' && (k2.straight || []).length === 3 && k2.straight.every(function (q) { return !q.tray && q.overlay && q.live && q.live.r === q.id && q.live.si === 1; }),
-    '단계를 끝낸 냄비 (부엌의 tuneOf 그대로 = COOK_TUNES) → 쟁반 없이 바로 그 요리로 (' + JSON.stringify(k2.straight) + ')');
-  ok(k2.empty && k2.empty.tray && !k2.empty.overlay && k2.emptyFocus === 'btn-cook', '빈 냄비 (si 0) → 쟁반 · Esc 로 닫으면 조리대 단추로 (' + JSON.stringify(k2.empty) + ' · ' + k2.emptyFocus + ')');
-  ok(k2.oldTray && k2.oldTray.tray && k2.oldPick && k2.oldPick.r === 'jumeokbap' && k2.oldPick.old0 === otText, '옛 판 냄비 → 쟁반 · 주먹밥을 고르면 주먹밥이 열리고 옛 냄비는 potOld 에 바이트 그대로');
+  ok((k2.straight || []).length === 3 && k2.straight.every(function (q) { return !q.tray && q.overlay && q.live; }),
+    '단계를 끝낸 냄비가 있어도 쟁반 없이 부엌이 열린다 — 이을지는 부엌이 정한다 (게임은 요리를 정해 주지 않는다 · ' + JSON.stringify(k2.straight) + ')');
+  ok(k2.empty && !k2.empty.tray && k2.empty.overlay, '냄비가 없어도 쟁반 없이 부엌 (' + JSON.stringify(k2.empty) + ')');
+  var om = k2.openMsg || {};
+  ok(om.ppolCook === 'open' && om.ctx && typeof om.ctx.canCall === 'boolean' && Array.isArray(om.ctx.unlocked) && UNL.every(function (id) { return om.ctx.unlocked.indexOf(id) >= 0; }), "다시 열 때의 'open' 에 ctx { canCall, unlocked } (" + JSON.stringify(om) + ')');
   var rs = k2.result || [];
-  ok(rs.length === 1 && rs[0].recipe === 'jumeokbap' && rs[0].v === 1 && /^ck_/.test(rs[0].id) && rs[0].look && /^\d{4}-\d{2}-\d{2}$/.test(rs[0].day), "주먹밥을 다 만들면 게임이 'result' 를 한 번 받는다 (" + JSON.stringify(rs) + ')');
-  ok(k2.other && k2.other.tray && k2.otherPick && k2.otherPick.old0 === ejText && k2.otherPick.pot === 'kkochi', '빈 주먹밥 냄비가 있을 때 과일 꼬치를 고르면 그 냄비는 potOld 에 바이트 그대로 · 과일 꼬치가 열린다');
-  if (k2.busy) ok(!k2.busy.tray && !k2.busy.overlay && k2.unbusy && k2.unbusy.tray, '부르는 중 (mealBusy 참) 엔 조리대가 아무것도 안 한다 · 풀리면 쟁반 (' + JSON.stringify([k2.busy, k2.unbusy]) + ')');
+  ok(rs.length === 1 && typeof rs[0].recipe === 'string' && rs[0].v === 1 && /^ck_/.test(rs[0].id) && rs[0].look && /^\d{4}-\d{2}-\d{2}$/.test(rs[0].day), "요리를 다 만들면 게임이 'result' 를 한 번 받는다 (" + JSON.stringify(rs) + ')');
+  ok((k2.ctxBack || []).length >= 1 && typeof k2.ctxBack[0].canCall === 'boolean', "'result' 에 게임이 'ctx' { canCall } 로 답한다 (" + JSON.stringify(k2.ctxBack) + ')');
+  ok(k2.waiting && rs[0] && k2.waiting.table === rs[0].id && k2.waiting.scene !== rs[0].id, '요리는 result 때 저장되고 (user.table), 부엌이 열려 있는 동안 식탁엔 아직 없다 (' + JSON.stringify(k2.waiting) + ')');
+  var sv = k2.serve || {}, sd = k2.served || {};
+  ok(sv.meal === 'serving' && sv.busy === true && sv.carry && sv.dish === (rs[0] && rs[0].id), "부엌의 'serve' (식탁에 두기) 뒤 닫힘 → 띡 놓이지 않고 내 캐릭터가 든다 (" + JSON.stringify(sv) + ')');
+  ok(k2.busyTap && !k2.busyTap.overlay, '들고 가는 동안 조리대는 아무것도 안 한다 (' + JSON.stringify(k2.busyTap) + ')');
+  ok(sd.table === (rs[0] && rs[0].id) && sd.scene === sd.table && !sd.carry && sd.me !== 'seated' && sd.meals === 0, "끝: 요리는 식탁에 · 서 있다 · 아무것도 먹지 않았다 (" + JSON.stringify(sd) + ')');
+  ok(k2.dbl && k2.dbl.overlay && k2.dbl.frames === 1, '조리대 두 번 톡 (120 ms) → 부엌은 하나, 열린 채 (' + JSON.stringify(k2.dbl) + ')');
   console.log('   조리대:', JSON.stringify({ pt: cpt, ck: ck }));
   ok(ck.spot && cpt.w >= 44 && cpt.h >= 44 && cpt.label === '부엌', '놀이방 조리대 위에 부엌 단추 (44px 이상 · «' + (cpt && cpt.label) + '»)');
   ok(ck.open && ck.kitchen && ck.home === 'none', '조리대를 손가락으로 톡 → 게임 안 화면 가득 부엌 (cook.html?embed=1 · 자기 문 · 링크는 숨김)');
@@ -7694,18 +7674,18 @@ async function scenarioSceneTap(browser) {
   ok(ck.closed && ck.after && ck.after.view === 'play' && ck.after.focus === 'btn-cook' && ck.after.pan === cpt.pan, '부엌의 닫기 → 놀이방 그대로 (장면 ' + (ck.after && ck.after.view) + ' · 포커스 ' + (ck.after && ck.after.focus) + ')');
   ok(ck.again && ck.esc && ck.escShut, '다시 열고 Esc 로도 닫힌다 (부엌도 닫힌다)');
   var z = ck.z || {};
-  ok(z.screen === 'step' && z.kind === 'tap', '부엌은 열자마자 요리 단계 (조리대 · 메뉴 없음: ' + z.screen + ' · ' + z.kind + ')');
+  ok(z.screen === 'book' || (z.screen === 'step' && z.kind === 'tap'), '부엌은 열자마자 레시피 북 (lane/7-k 와 함께) — 옛 부엌이면 바로 요리 단계 (' + z.screen + ' · ' + z.kind + ')');
   ok(z.text === '' && z.titles === 0 && z.credits === 0, '부엌 창의 보이는 글자 0 · title 0 · 창 안 크레딧 링크 0 (' + JSON.stringify(z.text) + ')');
   ok(z.close && z.close.label === '닫기' && z.close.text === '' && z.close.w >= 48 && z.close.h >= 48, '닫기는 글자 없는 그림 단추 · aria-label 닫기 · 48px 이상 (' + JSON.stringify(z.close) + ')');
   ok(z.safe && z.safe[0] === '0px' && z.safe.every(function (v) { return /^\d+(\.\d+)?px$/.test(v); }), 'iframe 의 --ck-safe-* 를 부모가 보냈다 (준비됐을 때: ' + JSON.stringify(z.safe) + ')');
   ok(ck.safe2 && ck.safe2.css.join() === '47px,200px,34px,0px' && (!ck.safe2.view || ck.safe2.view.join() === '47,200,34,0'), "부모의 'safe' 47 · 999 · 34 · 'x' → --ck-safe-* 47 · 200 · 34 · 0 px, 열린 부엌이 다시 맞춤 (" + JSON.stringify(ck.safe2) + ')');
   ok(ck.safe3, '부모 창 크기가 바뀌면 진짜 값을 다시 보낸다 (100 ms 모아서)');
   ok(ck.inOrder && ck.inOrder.slice(0, 3).join() === 'safe,motion,open', "다시 열기 바로 전에 'safe' · 'motion' 을 먼저 보낸다 (" + JSON.stringify(ck.inOrder) + ')');
-  ok(ck.again2 && ck.again2.screen === 'step' && ck.again2.id === z.id, '다시 열면 같은 판 이어서 (run ' + (ck.again2 && ck.again2.id) + ')');
+  ok(ck.again2 && (ck.again2.screen === 'book' ? z.screen === 'book' : ck.again2.screen === 'step' && ck.again2.id === z.id), '다시 열면 같은 자리 (책이면 책 · 하던 판이면 그 판: ' + (ck.again2 && ck.again2.screen) + ' · run ' + (ck.again2 && ck.again2.id) + ')');
   ok(ck.tapMsg && ck.tapMsg.kbd === false && ck.escMsg && ck.escMsg.kbd === true, "부엌이 닫힐 때 알린다: 손가락 닫기 kbd false · Esc kbd true (" + JSON.stringify([ck.tapMsg, ck.escMsg]) + ')');
   ok(ck.finger && !ck.finger.ring && !ck.finger.chipFocus && ck.finger.quiet, 'Esc 로 닫은 뒤 손가락으로 다시 열면 칩에 포커스 링 · 포커스 없음 (' + JSON.stringify(ck.finger) + ')');
   var kr = ck.red || {};
-  ok(kr.open && kr.open.reduced === true && kr.open.motion === 'reduce' && kr.flip && kr.after && kr.after.slides === 0 && kr.after.shake === 0 && kr.after.parts === 0, "게임 설정 '모션 줄이기' → 부엌도 줄임 (reduced · data-motion) · 톡톡 다음 화덕으로 가도 미끄러짐 · 흔들림 · 입자 0 (" + JSON.stringify(kr) + ')');
+  ok(kr.open && kr.open.reduced === true && kr.open.motion === 'reduce' && kr.flip && kr.after && kr.after.slides === 0 && kr.after.shake === 0 && kr.after.parts === 0, "게임 설정 '모션 줄이기' → 부엌도 줄임 (reduced · data-motion) · 다음 단계로 가도 미끄러짐 · 흔들림 · 입자 0 (" + JSON.stringify(kr) + ')');
   ok(!bag.length, '장면 톡 시나리오 오류 없음' + (bag.length ? ': ' + bag.join(' | ') : ''));
   await ctx.close();
 }
@@ -8180,11 +8160,263 @@ async function scenarioU7(browser) {
   var d3 = await o3.page.evaluate(function () { var e = document.getElementById('day-n').getBoundingClientRect(), s = document.getElementById('status').getBoundingClientRect(); return { inBar: e.top >= s.top && e.bottom <= s.bottom && e.right <= s.right, txt: document.getElementById('day-n').textContent }; });
   ok(d3.inBar && d3.txt === 'D+3', '1280 px: D+N 이 바 안 (' + JSON.stringify(d3) + ')');
   await o3.ctx.close();
+  /* 빈 화면 채우기 (11-21): 실내 (다락 · 위층 · 놀이방) 의 허공에 먼 풍경 — 마당 (바깥) 에는 없음 · 드로콜은 ?vista=0 과 같다 · 돌려 보면 몇 px 밀린다 · 모션 줄이기면 물결이 멈춘다 */
+  var o4 = await openApp(360, 740, rec, '2026-11-08'), p4 = o4.page;
+  if (await p4.evaluate(function () { return APP.sceneMode === '3d' && typeof APP.scene.vista === 'function' && !!window.VISTA; })) {
+    async function settle(pg, room) { await pg.evaluate(function (r) { return APP.goRoom(r); }, room); await pg.waitForFunction(function (r) { var m = APP.scene.motion(); return (APP.room || 'attic') === r && !m.trans && m.dq === ''; }, room, { timeout: 30000 }); await pg.waitForTimeout(700); }
+    function vis(pg) { return pg.evaluate(function () { var v = APP.scene.vista(), st = APP.scene.stats(); return { shown: v.shown, w: v.w, h: v.h, t: st.target, frame: v.frame, paints: v.paints, off: v.off, calls: st.calls, key: v.key }; }); }
+    /* 화면 구석 (허공) 의 색: 풍경이 깔렸으면 한 가지 색이 아니다 */
+    function corners(pg) { return pg.evaluate(function () { var c = document.querySelector('#scene canvas'), r = c.getBoundingClientRect(), n = {}, k = 0; for (var y = 4; y < r.height; y += 9) [3, r.width - 4].forEach(function (x) { if (APP.scene.voidAt(r.left + x, r.top + y)) k++; }); return { voids: k }; }); }
+    var va = await vis(p4), ca = await corners(p4);
+    ok(va.shown && va.w === va.t[0] + 40 && va.h === va.t[1] && /\|(day|dusk|night|dawn)\|/.test(va.key) && ca.voids > 20, '다락: 허공에 먼 풍경 (그림 = 렌더 타깃 ' + va.t.join('×') + ' + 좌우 여백 · 가장자리 허공 ' + ca.voids + ' 점) ' + va.key);
+    await p4.evaluate(function () { APP.scene.setYaw(90, true); }); await p4.waitForTimeout(500);
+    var vy = await vis(p4); await p4.evaluate(function () { APP.scene.setYaw(0, true); }); await p4.waitForTimeout(300);
+    ok(va.off === 0 && vy.off !== 0 && Math.abs(vy.off) <= 20, '방을 돌리면 풍경이 반대쪽으로 몇 px 밀린다 (0° ' + va.off + ' → 90° ' + vy.off + ' 아트 px)');
+    var f0 = va.frame; await p4.waitForTimeout(1500); var vb = await vis(p4);
+    ok(vb.frame !== f0 && vb.paints > va.paints && vb.paints - va.paints <= 8, '물결은 1 초에 두세 칸만 다시 그린다 (1.5 s 에 ' + (vb.paints - va.paints) + ' 번)');
+    await settle(p4, 'loft'); var vl = await vis(p4); await settle(p4, 'attic'); await settle(p4, 'play'); var vp = await vis(p4); await settle(p4, 'attic');
+    ok(vl.shown && vp.shown, '위층 · 놀이방에도 풍경');
+    if (await p4.evaluate(function () { return !document.getElementById('btn-yard').hidden || true; })) { await settle(p4, 'yard'); var vyd = await vis(p4); ok(!vyd.shown, '마당 (바깥) 에는 풍경을 깔지 않는다 (땅이 화면 끝까지)'); await settle(p4, 'attic'); }
+    await p4.evaluate(function () { APP.scene.setReducedMotion(true); }); await p4.waitForTimeout(700); var r0 = await vis(p4); await p4.waitForTimeout(1200); var r1 = await vis(p4);
+    ok(r0.shown && r0.frame === 0 && r1.frame === 0 && r1.paints === r0.paints, '모션 줄이기: 물결이 멈춘다 (다시 그리지 않음)');
+    var o5 = await openApp(360, 740, rec, '2026-11-08', '&vista=0'), v5 = await vis(o5.page);
+    ok(!v5.shown && v5.calls === va.calls, '?vista=0 이면 끔 (예전 하늘 띠) · 드로콜은 켰을 때와 같다 (' + va.calls + ' = ' + v5.calls + ')');
+    await o5.ctx.close();
+  }
+  await o4.ctx.close();
   ok(bag.length === 0, 'U7: 페이지 오류 없음 (' + bag.join(' | ').slice(0, 200) + ')');
 }
 
 
 /* [7-T] */
+async function scenarioEatServe(browser) {
+  console.log('\n== EAT (7차 T). 부엌 → 식탁: 들고 가기 (부르기 · 식탁에 두기) · 끊김 · 숨은 탭 · 모션 줄이기 · 2D · 새 요리 · 레시피');
+  var bag = []; bag.ignored = [];
+  var BORN = 1762600000000, D1 = '2026-11-21';
+  var haveSpr = false;   /* 갈래 A 가 그림을 채웠나 (바탕 파일은 비어 있다 — get 이 null) */
+  try { var CS0 = require(path.join(ROOT, 'js/cook-sprites.js')); haveSpr = !!(CS0 && CS0.get('table.gyeran', 0) && CS0.get('dish.gyeran', 0)); } catch (e) { haveSpr = false; }
+  /* 갈래 A 의 그림 파일이 아직 없으면 (이 갈래만 있을 때) 작은 대역 그림으로 — 접시 (아래 넓은 줄) 위에 음식 상자 */
+  var FAKE = "(function(){function mk(w,h,f){var d=new Uint8ClampedArray(w*h*4);for(var y=0;y<h;y++)for(var x=0;x<w;x++){var c=f(x,y);if(c){var k=(y*w+x)*4;d[k]=c[0];d[k+1]=c[1];d[k+2]=c[2];d[k+3]=255;}}return{w:w,h:h,d:d};}" +
+    "function t(){return mk(16,12,function(x,y){if(y>=8&&y<=10)return[235,237,233];if(y>=3&&y<8&&x>=4&&x<=11)return[244,212,122];return null;});}" +
+    "function b(){return mk(80,56,function(x,y){if(y>=40&&y<=50&&x>=4&&x<=75)return[235,237,233];if(y>=12&&y<40&&x>=18&&x<=61)return[244,212,122];return null;});}" +
+    "var S={};['jeon','gyeran','jumeokbap','kkochi','cake'].forEach(function(n){S['table.'+n]=t();S['dish.'+n]=b();});" +
+    "window.COOK_SPR={get:function(id){return S[id]||null;},ids:function(){return Object.keys(S);},info:function(id){var a=S[id];return a?{w:a.w,h:a.h,frames:1,ax:a.w===16?8:40,ay:a.w===16?10:44}:null;}};window.__fakeSpr=true;})();";
+  function dish(id, recipe) { return { ppolCook: 'result', v: 1, id: id, recipe: recipe, seed: 5, look: { band: 1 }, day: D1 }; }
+  function REC(user) {
+    return { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 2, days: ['2026-11-19', '2026-11-20'], affinity: {}, visits: {}, state: 'idle', color: '#4a86d8',
+      colors: [{ at: BORN, date: '2026-11-06', color: '#4a86d8', how: 'first', by: 'player' }] }, room: { lantern: 2, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] },
+      settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: '#4a86d8', flipped: false, pixelFont: true, albumSeen: 0 }, user: user || { table: null, meals: [] } };
+  }
+  async function open(o) {
+    o = o || {};
+    var ctx = await browser.newContext({ viewport: { width: o.w || 360, height: o.h || 740 }, deviceScaleFactor: o.dpr || 2, locale: 'ko-KR', reducedMotion: o.reduced ? 'reduce' : 'no-preference' });
+    await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    var page = await ctx.newPage(); watchErrors(page, bag);
+    if (useStubs) { await page.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await page.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
+    await page.addInitScript({ content: "if (!localStorage.getItem('__sv_seed')) { localStorage.setItem('__sv_seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(REC(o.user))) + '); ' +
+      (o.book ? "localStorage.setItem('ppolppol_cook_v0', " + JSON.stringify(JSON.stringify(o.book)) + '); ' : '') + "} window.__ppolTest = { today: '" + D1 + "' };" });
+    await routeWiki(page, 'ok');
+    if (!haveSpr || o.noSpr) await page.route(/\/js\/cook-sprites\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: o.noSpr ? '/* no pictures */' : FAKE }); });
+    await page.goto(INDEX + '?intro=0' + (o.q || ''));
+    await page.waitForFunction(function () { return window.APP && APP.scene && document.documentElement.classList.contains('booted'); }, null, { timeout: 30000 });
+    return { ctx: ctx, page: page };
+  }
+  async function toPlay(pg) { await pg.evaluate(function () { return APP.goRoom('play'); }); var r = await pg.waitForFunction(function () { return APP.room === 'play' && !document.getElementById('btn-table').hidden; }, null, { timeout: 20000 }).then(function () { return true; }, function () { return false; }); await pg.waitForTimeout(500); return r; }
+  function st(pg) { return pg.evaluate(function () {
+    var i = APP.scene.tableInfo ? APP.scene.tableInfo() : null, u = APP.state.user || {}, mc = document.getElementById('meal-close'), p = APP.scene.player ? APP.scene.player() : null;
+    return { carry: i && i.carry, me: i && i.me, oct: i && i.oct, dish: i && i.dish ? i.dish.id : null, sprite: i && i.sprite, pieces: i && i.pieces, aura: i && i.aura, meal: APP.meal && APP.meal.stage, busy: APP.mealBusy(), table: u.table ? u.table.id : null,
+      meals: (u.meals || []).map(function (m) { return { dish: m.dish, ask: m.ask ? m.ask.action + '/' + m.ask.by : null, ate: m.ate ? { oct: m.ate.oct, fx: m.ate.fx } : null }; }), close: !!mc && !mc.hidden, at: p && p.at,
+      rows: [].map.call(document.querySelectorAll('#log .lrow[data-meal] .ltext'), function (x) { return x.textContent; }), call: !document.getElementById('btn-call').hidden };
+  }); }
+  function until(pg, fn, ms, arg) { return pg.waitForFunction(fn, arg === undefined ? null : arg, { timeout: ms || 15000 }).then(function () { return true; }, function () { return false; }); }
+  function idle(pg, ms) { return until(pg, function () { return !APP.mealBusy(); }, ms || 30000); }
+
+  /* 1. 문어 부르기: 들기 → 걷기 → 내려놓기 → 앉기 → 부르기 길 → 먹기 → 방울 */
+  var A = await open({}), pa = A.page;
+  ok(await toPlay(pa), '놀이방');
+  var c0 = await pa.evaluate(function () { return APP.cookCtx(); });
+  ok(c0.canCall === true && c0.unlocked.join() === 'jeon2,gyeran,jumeokbap2', 'ctx: 깨어 있는 문어 · 놀이방 → canCall true · 처음 레시피 셋 (' + JSON.stringify(c0) + ')');
+  await pa.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_sv1', 'gyeran'));
+  var a0 = await st(pa);
+  ok(a0.table === 'ck_sv1' && a0.dish === 'ck_sv1', '새 요리 (계란말이) 가 기록 · 식탁에');
+  ok(a0.sprite === true, '식탁 위 요리는 작은 그림 (COOK_SPR table.gyeran)' + (haveSpr ? '' : ' — 대역 그림'));
+  var seen = [], pos0 = null;
+  ok(await pa.evaluate(function () { return APP.cookServe('call'); }) === true, "cookServe('call') — 부엌의 끝 단추처럼");
+  for (var i = 0; i < 300; i++) {
+    var q = await pa.evaluate(function () { var t = APP.scene.tableInfo(), p = APP.scene.player ? APP.scene.player() : null; return { c: t.carry, m: APP.meal && APP.meal.stage, b: APP.mealBusy(), at: p && p.at, me: t.me }; });
+    if (q.c && seen.indexOf(q.c) < 0) { seen.push(q.c); if (q.c === 'hold') pos0 = q.at; if (q.c === 'walk') await pa.screenshot({ path: path.join(SHOTS, 'eat-serve-walk.png') }); }
+    if (q.c === 'hold' && !seen.blocked) { seen.blocked = await pa.evaluate(function () { var r = APP.openMachine(); document.getElementById('btn-cook').click(); return { machine: r, cook: document.getElementById('cook-overlay').open, tap: APP.mealTableTap(), call: APP.mealCall(), hid: document.getElementById('btn-seat').hidden && document.getElementById('btn-call').hidden, stage: APP.meal && APP.meal.stage }; }); }
+    if (!q.c && q.m !== 'serving') break;
+    await pa.waitForTimeout(30);
+  }
+  ok(seen.join() === 'hold,walk,put,sit' || seen.join() === 'hold,walk,sit', '들기 → 걷기 → 내려놓기 → 앉기 (' + seen.join() + ')');
+  ok(pos0 && Math.abs(pos0[0] - 1.3) < 0.05 && Math.abs(pos0[2] + 1.8) < 0.05, '처음엔 조리대 앞에 선다 (' + JSON.stringify(pos0) + ')');
+  var bl = seen.blocked || {};
+  ok(bl.stage === 'serving' && bl.machine === false && bl.cook === false && bl.tap === false && bl.call === false && bl.hid, '들고 가는 동안 오락기 · 조리대 · 식탁 · 부르기는 아무것도 안 한다 (' + JSON.stringify(bl) + ')');
+  ok(await until(pa, function () { var m = APP.meal; return !!m && m.stage !== 'serving'; }, 8000), '앉으면 부르기 길로 이어진다');
+  var a1 = await st(pa);
+  ok(a1.me === 'seated' && a1.meals.length === 1 && a1.meals[0].ask === 'eat/demo-rules' && a1.meals[0].ate === null, '앉았다 · 대답이 저장됐다 (처음 = 먹기 · 데모 규칙)');
+  ok(await until(pa, function () { return APP.meal && APP.meal.stage === 'eating' && !document.getElementById('meal-close').hidden; }, 20000), '먹는 동안 큰 요리 그림이 보인다');
+  var cl = await pa.evaluate(function () { var el = document.getElementById('meal-close'), cv = el.querySelector('canvas'), r = cv.getBoundingClientRect(), b = el.getBoundingClientRect(), d = window.devicePixelRatio, sc = document.getElementById('scene').getBoundingClientRect(), i = APP.scene.tableInfo().geom;
+    return { w: cv.width, h: cv.height, cssW: r.width, dev: [r.left * d, r.top * d, r.width * d], n: cv.width / 80, text: el.textContent.trim(), hid: el.getAttribute('aria-hidden'), pe: getComputedStyle(el).pointerEvents, bottom: b.bottom - sc.top, left: b.left - sc.left, right: sc.right - b.right, pix: getComputedStyle(cv).imageRendering }; });
+  ok(cl.w % 80 === 0 && cl.h === cl.w / 80 * 56 && cl.n === 4 && Math.abs(cl.cssW - 160) < 0.01 && cl.dev.every(function (v) { return Math.abs(v - Math.round(v)) < 0.05; }) && cl.pix === 'pixelated', '큰 그림: 한 칸 = 4 기기 px (360 @2 → 160 CSS px) · 기기 px 위 (' + JSON.stringify(cl) + ')');
+  ok(cl.text === '' && cl.hid === 'true' && cl.pe === 'none' && cl.left >= 8 && cl.right >= 8, '큰 그림: 글자 0 · 누름을 받지 않는다 · 장면 안');
+  var spots = await pa.evaluate(function () { var b = document.getElementById('meal-close').getBoundingClientRect(), t = document.getElementById('btn-table').getBoundingClientRect(); return { panel: b.bottom, table: t.top }; });
+  ok(spots.panel <= spots.table, '큰 그림은 식탁 자리 (두 캐릭터) 를 가리지 않는다 (' + JSON.stringify(spots) + ')');
+  var ink0 = await pa.evaluate(function () { var cv = document.querySelector('#meal-close canvas'), d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data, n = 0; for (var i = 3; i < d.length; i += 4) if (d[i] > 0) n++; return n; });
+  await pa.screenshot({ path: path.join(SHOTS, 'eat-serve-close.png') });
+  ok(await idle(pa), '식사가 끝난다');
+  var a2 = await st(pa);
+  ok(a2.meals[0].ate && a2.meals[0].ate.oct === true && a2.meals[0].ate.fx === 'bubble' && a2.table === null, '기록: 같이 먹음 · 효과 bubble · 식탁 비움');
+  ok(a2.aura.me === 'bubble' && a2.aura.oct === 'bubble', '효과: 둘 다 방울 (' + JSON.stringify(a2.aura) + ')');
+  ok(a2.rows.join('|') === '뚜루도 같이 먹기로 했어. 데모 규칙|계란말이를 같이 먹었어. 오늘 하루 둘 다 방울이 따라다녀.', '로그 행 (' + a2.rows.join('|') + ')');
+  ok(!a2.close && a2.pieces === 0 && a2.sprite === false, '끝나면 큰 그림은 사라지고 식탁엔 빈 접시');
+  var au = await pa.evaluate(function () { var x = APP.scene.auraInfo('me'); return { fx: x.fx, n: x.n, parts: x.parts, vis: x.visible }; });
+  ok(au.fx === 'bubble' && au.vis && au.n > 0 && au.n <= 64, '방울 알갱이가 그려진다 (' + JSON.stringify(au) + ')');
+  ok(ink0 > 0, '큰 그림에 그림이 있다 (' + ink0 + ' px)');
+  /* 앉은 채 둘째 요리 (딸기 케이크) 를 식탁에 두기: 걷지 않고 식탁에 · 혼자 먹으면 색종이 */
+  await pa.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_sv2', 'cake'));
+  await pa.evaluate(function () { return APP.cookServe('table'); });
+  ok(await idle(pa, 5000), "[앉은 채 · 'table'] 바로 끝난다");
+  var a3 = await st(pa);
+  ok(a3.me === 'seated' && a3.dish === 'ck_sv2' && a3.table === 'ck_sv2' && a3.meals.length === 1, '[앉은 채] 걷지 않는다 · 요리는 식탁에 · 먹지 않았다');
+  await A.ctx.close();
+
+  /* 2. 식탁에 두기: 내려놓고 서 있다 · 부르지 않는다 */
+  var B = await open({ w: 412, h: 915 }), pb = B.page;
+  await toPlay(pb);
+  await pb.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_tb1', 'cake'));
+  await pb.evaluate(function () { return APP.cookServe('table'); });
+  ok(await until(pb, function () { return APP.scene.tableInfo().carry === 'walk'; }, 5000), "['table'] 든 채 걷는다");
+  ok(await idle(pb, 15000), "['table'] 끝난다");
+  await pb.waitForTimeout(600);
+  var b1 = await st(pb);
+  ok(b1.me === 'none' && b1.oct === 'none' && b1.dish === 'ck_tb1' && b1.table === 'ck_tb1' && b1.meals.length === 0 && !b1.carry && !b1.meal, "['table'] 요리는 식탁에 · 서 있다 · 문어를 부르지 않았다 (" + JSON.stringify({ me: b1.me, oct: b1.oct, meals: b1.meals.length }) + ')');
+  ok(b1.at && Math.abs(b1.at[0] - 0.21) < 0.1 && Math.abs(b1.at[2] + 0.30) < 0.1, "['table'] 식탁 옆 통로에 선다 (" + JSON.stringify(b1.at) + ')');
+  var free = await pb.evaluate(function () { return APP.scene.playerInputAllowed ? APP.scene.playerInputAllowed() : null; });
+  ok(free !== false, "['table'] 바로 움직일 수 있다");
+  /* 3. 걷는 중 스틱 → 그 자리에서 끝: 요리는 식탁에 · 부르지 않는다 */
+  await pb.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_tb2', 'jumeokbap2'));
+  await pb.evaluate(function () { return APP.cookServe('call'); });
+  ok(await until(pb, function () { return APP.scene.tableInfo().carry === 'walk'; }, 5000), '[끊김] 걷는 중');
+  await pb.waitForTimeout(250);
+  await pb.evaluate(function () { APP.scene.setPlayerInput({ x: 1, y: 0 }); });
+  ok(await idle(pb, 3000), '[끊김] 스틱을 밀면 바로 끝난다');
+  await pb.evaluate(function () { APP.scene.setPlayerInput(null); });
+  await pb.waitForTimeout(500);
+  var b2 = await st(pb);
+  ok(b2.dish === 'ck_tb2' && b2.table === 'ck_tb2' && !b2.carry && b2.me === 'none' && b2.oct === 'none' && b2.meals.length === 0, '[끊김] 요리는 식탁에 · 캐릭터는 선 자리 · 부르지 않았다 (' + JSON.stringify({ dish: b2.dish, me: b2.me, oct: b2.oct, at: b2.at }) + ')');
+  ok(b2.at && Math.hypot(b2.at[0] - 0.21, b2.at[2] + 0.30) > 0.3, '[끊김] 식탁까지 가지 않았다 (' + JSON.stringify(b2.at) + ')');
+  /* 4. 숨은 탭 → 끝 상태 */
+  await pb.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_tb3', 'kkochi2'));
+  await pb.evaluate(function () { return APP.cookServe('call'); });
+  await until(pb, function () { return !!APP.scene.tableInfo().carry; }, 3000);
+  await pb.evaluate(function () { Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } }); document.dispatchEvent(new Event('visibilitychange')); });
+  await pb.waitForTimeout(300);
+  var b3 = await st(pb);
+  await pb.evaluate(function () { delete document.hidden; Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return false; } }); document.dispatchEvent(new Event('visibilitychange')); });
+  ok(!b3.busy && !b3.carry && b3.dish === 'ck_tb3' && b3.table === 'ck_tb3' && b3.meals.length === 0, '[숨은 탭] 바로 끝 상태 (요리는 식탁에 · 부르지 않았다)');
+  /* 새로고침: 기다리는 요리 그대로 */
+  await pb.reload(); await pb.waitForFunction(function () { return window.APP && APP.scene && document.documentElement.classList.contains('booted'); }, null, { timeout: 30000 });
+  await toPlay(pb);
+  var b4 = await st(pb);
+  ok(b4.table === 'ck_tb3' && b4.dish === 'ck_tb3' && !b4.busy, '[새로고침] 기다리는 요리가 식탁에');
+  /* 방을 옮기면 끝 */
+  await pb.evaluate(function () { return APP.cookServe('table'); });
+  await until(pb, function () { return APP.scene.tableInfo().carry === 'hold'; }, 3000);
+  await pb.evaluate(function () { APP.goRoom('attic'); });
+  ok(await idle(pb, 8000), '[방 옮김] 들고 가기가 끝난다');
+  var b5 = await st(pb);
+  ok(!b5.carry && b5.table === 'ck_tb3', '[방 옮김] 요리는 기록에 그대로');
+  /* 독립 점검 (11-21): 드는 박자 (hold) 에 문을 누르면 문까지 걷는 걸음을 들고 가기가 덮어써서 방이 안 바뀌고 방 단추가 영영 숨었다 → 그 걸음을 그대로 두고 끝 상태로 */
+  ok(await until(pb, function () { return APP.scene.view() === 'attic' && !APP.goResting; }, 20000), '[방 옮김 · 드는 박자] 방이 정말 바뀐다 (문 작업이 걸리지 않는다)');
+  ok(await toPlay(pb), '[방 옮김] 놀이방으로 돌아올 수 있다');
+  var b6 = await pb.evaluate(function () { var i = APP.scene.tableInfo(); return { cook: !document.getElementById('btn-cook').hidden, dish: i.dish && i.dish.id, input: APP.scene.playerInputAllowed(), busy: APP.mealBusy() }; });
+  ok(b6.cook && b6.dish === 'ck_tb3' && b6.input && !b6.busy, '[방 옮김] 돌아오면 조리대 단추 · 식탁의 요리 · 움직임 그대로 (' + JSON.stringify(b6) + ')');
+  await B.ctx.close();
+
+  /* 5. 그림 파일이 없을 때 (COOK_SPR 없음): 덮개 접시로 들고 가고, 큰 그림은 없다 */
+  var N = await open({ noSpr: true }), pn = N.page;
+  await toPlay(pn);
+  await pn.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_ns1', 'gyeran'));
+  await pn.evaluate(function () { return APP.cookServe('call'); });
+  ok(await until(pn, function () { return APP.scene.tableInfo().carry === 'walk' && APP.scene.tableInfo().sprite === false; }, 5000), '[그림 없음] 예전 덮개 접시를 들고 걷는다');
+  ok(await until(pn, function () { return APP.meal && APP.meal.stage === 'eating'; }, 25000), '[그림 없음] 먹기까지 이어진다');
+  ok(await pn.evaluate(function () { return document.getElementById('meal-close').hidden; }), '[그림 없음] 큰 그림 칸은 안 보인다');
+  ok(await idle(pn), '[그림 없음] 식사가 끝난다');
+  /* 옛 요리 (jeon) 는 그대로: 그림 아닌 예전 모양 · 들고 갈 수 있다 */
+  await pn.evaluate(function () { return APP.scene.playerStandTable(); }); await pn.waitForTimeout(900);
+  await N.ctx.close();
+  var L = await open({ user: { table: { v: 1, id: 'ck_old1', recipe: 'kkochi', seed: 5, look: { band: 1, plate: 0 }, day: D1, at: 1 }, meals: [] } }), pl = L.page;
+  await toPlay(pl);
+  var l0 = await st(pl);
+  ok(l0.dish === 'ck_old1' && l0.sprite === false, '[옛 요리] 기다리던 과일 꼬치 (kkochi) 가 예전 모양으로 식탁에');
+  await pl.evaluate(function () { return APP.cookServe('table'); });
+  ok(await idle(pl, 15000), '[옛 요리] 들고 가기도 된다');
+  ok((await st(pl)).dish === 'ck_old1', '[옛 요리] 식탁에');
+  await L.ctx.close();
+
+  /* 6. 모션 줄이기: 걸음 없이 — 'call' 은 앉아서 부른다 */
+  var R = await open({ reduced: true, w: 320, h: 568 }), pr = R.page;
+  await toPlay(pr);
+  await pr.evaluate(function (d) { APP.cookMsgTest(d); }, dish('ck_rd1', 'jeon2'));
+  var walked = false;
+  await pr.evaluate(function () { window.__sawCarry = false; var iv = setInterval(function () { if (APP.scene.tableInfo().carry) window.__sawCarry = true; }, 16); setTimeout(function () { clearInterval(iv); }, 4000); return APP.cookServe('call'); });
+  ok(await until(pr, function () { return APP.scene.tableInfo().me === 'seated'; }, 3000), '[모션 줄이기] 바로 앉아 있다');
+  ok(await idle(pr), '[모션 줄이기] 부르기 · 식사가 끝난다');
+  var r1 = await st(pr); walked = await pr.evaluate(function () { return window.__sawCarry; });
+  ok(!walked && r1.meals.length === 1 && r1.meals[0].ate && r1.meals[0].ate.fx === 'sparkle' && r1.aura.me === 'sparkle', '[모션 줄이기] 걷는 연출 없음 · 해초전 (jeon2) 기록 · 반짝이');
+  ok(r1.rows[r1.rows.length - 1].indexOf('해초전을') === 0, '[모션 줄이기] 식사 행 (' + r1.rows[r1.rows.length - 1] + ')');
+  await R.ctx.close();
+
+  /* 7. 2D: 식탁이 없다 — canCall false · serve 는 기록만 */
+  var G = await open({ q: '&scene=2d' }), pg = G.page;
+  await pg.evaluate(function () { return APP.goRoom('play'); }); await pg.waitForTimeout(800);
+  var g = await pg.evaluate(function (d) { APP.cookMsgTest(d); var c = APP.cookCtx(), r = APP.cookServe('call'); return { mode: APP.sceneMode, can: c.canCall, unl: c.unlocked.length, r: r, table: APP.state.user.table && APP.state.user.table.id, busy: APP.mealBusy(), meals: APP.state.user.meals.length }; }, dish('ck_2d', 'cake'));
+  ok(g.mode === '2d' && g.can === false && g.unl === 3 && g.table === 'ck_2d' && !g.busy && g.meals === 0, '[2D] canCall false · 요리는 기록에 기다린다 · 연출 없음 (' + JSON.stringify(g) + ')');
+  await G.ctx.close();
+
+  /* 8. 레시피: 처음 셋 · 카페 세 번째에 선물 (한 번) · 저장 · 옛 수첩이 있으면 과일 꼬치 */
+  var P = await open({}), pp = P.page;
+  var rc = await pp.evaluate(function () {
+    var out = { u0: APP.recipesUnlocked().join(), eats: [] };
+    for (var i = 0; i < 4; i++) out.eats.push(APP.recipeEat('cake'));
+    out.other = APP.recipeEat('coffee'); out.u1 = APP.recipesUnlocked().join();
+    out.saved = (JSON.parse(localStorage.getItem('ppolppol_v2')).user || {}).recipes;
+    return out;
+  });
+  ok(rc.u0 === 'jeon2,gyeran,jumeokbap2' && rc.eats.map(function (e) { return e.n + ':' + e.gift; }).join() === '1:false,2:false,3:true,4:false' && rc.other.n === 0 && rc.u1 === 'jeon2,gyeran,jumeokbap2,cake', '레시피: 셋 → 케이크 세 번째에 선물 한 번 → 넷 (' + JSON.stringify(rc.eats) + ' · ' + rc.u1 + ')');
+  ok(rc.saved && rc.saved.cake && rc.saved.cake.n === 4 && rc.saved.cake.got === D1, '레시피가 저장됐다 (' + JSON.stringify(rc.saved) + ')');
+  await pp.reload(); await pp.waitForFunction(function () { return window.APP && APP.scene && document.documentElement.classList.contains('booted'); }, null, { timeout: 30000 });
+  ok(await pp.evaluate(function () { return APP.recipesUnlocked().join(); }) === 'jeon2,gyeran,jumeokbap2,cake', '새로고침 뒤에도 열려 있다');
+  var ex = await pp.evaluate(function () { APP.state.user.recipes.future = { n: 2, got: null, lv: 5 }; APP.save(); return !!JSON.parse(localStorage.getItem('ppolppol_v2')).user.recipes.future; });
+  await pp.reload(); await pp.waitForFunction(function () { return window.APP && APP.scene && document.documentElement.classList.contains('booted'); }, null, { timeout: 30000 });
+  var keep = await pp.evaluate(function () { APP.recipeEat('kkochi2'); return (JSON.parse(localStorage.getItem('ppolppol_v2')).user || {}).recipes; });
+  ok(ex && keep.future && keep.future.lv === 5 && keep.cake.n === 4 && keep.kkochi2.n === 1, '모르는 레시피 칸 (나중 판) 은 그대로 남는다 (' + JSON.stringify(keep) + ')');
+  await P.ctx.close();
+  /* 9. 계약 C12: 다른 갈래가 쓰는 장면 함수 — 내 캐릭터가 든 그림 · 한 자리의 그림 (모르는 그림이면 false · null 이면 치움) */
+  var C12 = await open({}), pc = C12.page;
+  var c12 = await pc.evaluate(function () {
+    var s = APP.scene, out = { fn: typeof s.playerCarry === 'function' && typeof s.spriteProp === 'function' };
+    out.carry = s.playerCarry('table.cake', 0); out.bad = s.playerCarry('no.such', 0); out.afterBad = s.debugSprites().carry;
+    out.carry2 = s.playerCarry('table.gyeran', 0);
+    out.prop = s.spriteProp('t', { x: 0.5, y: 0, z: 0.5 }, 'dish.cake', 0); out.propBad = s.spriteProp('u', { x: 0, z: 0 }, 'no.such', 0);
+    return out;
+  });
+  await pc.waitForTimeout(400);
+  var c12b = await pc.evaluate(function () { var s = APP.scene, a = s.debugSprites(); s.playerCarry(null); s.spriteProp('t', null); return { a: a, b: s.debugSprites() }; });
+  ok(c12.fn && c12.carry === true && c12.bad === false && c12.afterBad === null && c12.carry2 === true && c12.prop === true && c12.propBad === false, '[C12] playerCarry · spriteProp: 있는 그림 true · 모르는 그림 false (' + JSON.stringify(c12) + ')');
+  ok(c12b.a.carry && c12b.a.carry.id === 'table.gyeran' && c12b.a.carry.visible && c12b.a.carry.n > 0 && c12b.a.props.t && c12b.a.props.t.visible && !c12b.a.props.u, '[C12] 든 그림 · 놓인 그림이 그려진다 (' + JSON.stringify(c12b.a) + ')');
+  ok(c12b.b.carry === null && Object.keys(c12b.b.props).length === 0, '[C12] null 로 치운다');
+  await C12.ctx.close();
+  var O = await open({ book: { v: 1, day: D1, dayN: 1, seen: ['tap'], pot: null, book: [{ id: 'ck_o1', recipe: 'jeon', seed: 1, swaps: [], look: {}, day: '2026-11-18', madeAt: 1 }] } }), po = O.page;
+  var ob = await po.evaluate(function () { var cook0 = localStorage.getItem('ppolppol_cook_v0'), u = APP.recipesUnlocked().join(), e = [APP.recipeEat('kkochi2'), APP.recipeEat('kkochi2'), APP.recipeEat('kkochi2')]; return { u: u, gifts: e.filter(function (x) { return x.gift; }).length, saved: (JSON.parse(localStorage.getItem('ppolppol_v2')).user || {}).recipes, same: cook0 === localStorage.getItem('ppolppol_cook_v0') }; });
+  ok(ob.u === 'jeon2,gyeran,jumeokbap2,kkochi2' && ob.gifts === 0 && ob.saved.kkochi2.old === true && ob.same, '옛 수첩이 있던 사람: 과일 꼬치가 열려 있다 · 다시 선물하지 않는다 · 부엌 저장은 읽기만 (' + JSON.stringify(ob) + ')');
+  await po.evaluate(function () { localStorage.removeItem('ppolppol_cook_v0'); });
+  ok(await po.evaluate(function () { return APP.recipesUnlocked().join(); }) === 'jeon2,gyeran,jumeokbap2,kkochi2', '수첩이 없어져도 과일 꼬치는 남는다 (recipes.kkochi2.old)');
+  await O.ctx.close();
+  ok(bag.length === 0, '[EAT 7차] 페이지 에러/콘솔 에러 0' + (bag.length ? ': ' + bag.join(' | ') : ''));
+}
 
 
 /* [7-P] */
@@ -8234,6 +8466,7 @@ async function scenarioU7(browser) {
       ['U7', function () { return scenarioU7(browser); }],
 
       /* [7-T] 목록 줄: ['T7', function () { return scenario…(browser); }], */
+      ['EAT', function () { return scenarioEatServe(browser); }],   /* 11-21 7차 T: 부엌 → 식탁 (들고 가기 · 새 요리 · 레시피) — SMOKE_ONLY=EAT 면 식탁 시나리오 둘 다 */
 
       /* [7-P] 목록 줄: ['P7', function () { return scenario…(browser); }], */
 
