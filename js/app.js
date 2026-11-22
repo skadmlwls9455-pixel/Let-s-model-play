@@ -6067,8 +6067,18 @@ var APP = (function () {
     var st = $('status'), go = $('btn-go'), str = st && st.offsetParent ? st.getBoundingClientRect() : null, gor = go && go.offsetParent ? go.getBoundingClientRect() : null;
     var sb = str && str.top <= sr.top + 8 && str.bottom > sr.top ? str.bottom : sr.top, gt = gor && gor.top > sr.top && gor.top < sr.bottom ? gor.top : sr.bottom;   /* 장면 위에 겹쳐 있을 때만 (2D 처럼 장면 밖에 있으면 상관없다) */
     var top = Math.max(sr.top, sb) - sr.top + 8, bot = Math.min(sr.bottom, gt > sb + hh ? gt : sr.bottom) - sr.top - 8;
-    var x = clamp((ar ? ar.left + ar.width / 2 - sr.left : sr.width / 2) - w / 2, 8, Math.max(8, sr.width - w - 8)), y = !ar ? (top + bot - hh) / 2 : ar.top - sr.top - hh - 8 >= top ? ar.top - sr.top - hh - 8 : ar.bottom - sr.top + 8;   /* 위에 자리가 없으면 그 아래 (물건을 가리지 않게) */
-    y = clamp(y, top, Math.max(top, bot - hh));
+    var X0 = 8, X1 = Math.max(8, sr.width - w - 8), Y1 = Math.max(top, bot - hh), cx = clamp((ar ? ar.left + ar.width / 2 - sr.left : sr.width / 2) - w / 2, X0, X1);
+    /* 내 캐릭터의 화면 상자 (장면의 player · project — 있을 때만): 카드가 몸을 덮지 않게 */
+    var pb = null;
+    try { if (roomScene('player') && roomScene('project')) { var pi = scene.player(), ph = pi && pi.height || 1.5, f = pi && pi.at ? scene.project(pi.at[0], 0, pi.at[2]) : null, hd = f ? scene.project(pi.at[0], ph, pi.at[2]) : null;
+      if (f && hd && isFinite(f.x) && isFinite(hd.y)) { var half = Math.max(24, (f.y - hd.y) * 0.45); pb = { l: f.x - half, r: f.x + half, t: hd.y - 8, b: f.y + 4 }; } } } catch (e) { pb = null; }
+    var hit = function (x, y) { return pb && x < pb.r && x + w > pb.l && y < pb.b && y + hh > pb.t; };
+    var cands = [];
+    if (ar) { cands.push([cx, ar.top - sr.top - hh - 8], [cx, ar.bottom - sr.top + 8]); } else cands.push([cx, (top + bot - hh) / 2]);
+    if (pb) { cands.push([cx, pb.t - hh - 8], [cx, pb.b + 8], [pb.l - w - 8, (top + bot - hh) / 2], [pb.r + 8, (top + bot - hh) / 2], [pb.l - w - 8, top], [pb.r + 8, top]); }   /* 위 · 아래가 안 되면 옆 */
+    var x = cands[0][0], y = cands[0][1], ok = false;
+    for (var ci = 0; ci < cands.length && !ok; ci++) { var tx = cands[ci][0], ty = cands[ci][1]; if (tx < X0 - 0.5 || tx > X1 + 0.5 || ty < top - 0.5 || ty > Y1 + 0.5 || hit(tx, ty)) continue; x = tx; y = ty; ok = true; }
+    if (!ok) { x = clamp(x, X0, X1); y = clamp(ar && ar.top - sr.top - hh - 8 >= top ? ar.top - sr.top - hh - 8 : ar ? ar.bottom - sr.top + 8 : y, top, Y1); }   /* 자리가 어디에도 없으면 예전대로 (대상 위 · 아래) */
     c.style.left = Math.round(x * dpr) / dpr + 'px'; c.style.top = Math.round(y * dpr) / dpr + 'px';
   }
   var ROOM_SLOT = { 'btn-mq-0': 'mq0', 'btn-mq-1': 'mq1', 'btn-mq-2': 'mq2', 'btn-mq-3': 'mq3', 'btn-room-counter': 'counter', 'btn-shelf-0': 'shelf0', 'btn-shelf-1': 'shelf1', 'btn-shelf-2': 'shelf2', 'btn-shelf-3': 'shelf3', 'btn-shelf-4': 'shelf4', 'btn-shelf-5': 'shelf5' };
