@@ -8252,6 +8252,26 @@ async function scenarioPlayer7(browser) {
   await page.waitForFunction(function () { return window.APP && APP.state && APP.scene; }, null, { timeout: 20000 });
   var od = await page.evaluate(function () { var p = APP.state.settings.player; APP.setPlayerPart('shoes', 'flat'); var o = JSON.parse(localStorage.getItem('ppolppol_v2')); return { look: [p.hair, p.bangs, p.hairColor, p.skin, p.eyes, p.eyeColor, p.nose, p.mouth, p.cheek, p.outfit, p.shoes, p.acc, p.brow, p.body].join(), later: o.user.owned['outfit:later-thing'], suit: !!o.user.owned['outfit:suit'] }; });
   ok(od.look === 'twin,full,pink,honey,smile,sea,dot,open,freckle,hanbok,boot,beret,none,a' && od.later === '2027-01-01' && od.suit, 'P7 옛 기록: 저장된 모습 그대로 + 눈썹 없음 · 몸 a · 모르는 owned 열쇠는 저장 뒤에도 남는다 ' + JSON.stringify(od));
+  /* C11 입어 보기 · 마네킹 (11-21): 입어 보면 장면은 바로 바뀌고 저장은 그대로 · 방을 나오면 (ppol:room null) 벗는다 · wear 는 저장하고 입어 보기를 끝낸다 · 마네킹은 받은 자리에 선다 */
+  var c11 = await page.evaluate(async function () {
+    var sc = APP.scene, threeD = APP.sceneMode === '3d', r = {};
+    r.was = APP.state.settings.player.outfit;
+    r.on = APP.tryOn('outfit', 'sailor'); r.trying = JSON.stringify(APP.trying()); r.scene = threeD ? sc.player().look.outfit : 'sailor';
+    r.saved = JSON.parse(localStorage.getItem('ppolppol_v2')).settings.player.outfit; r.state = APP.state.settings.player.outfit;
+    document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: null } }));
+    r.offT = JSON.stringify(APP.trying()); r.offScene = threeD ? sc.player().look.outfit : r.state;
+    APP.tryOn('acc', 'headphones'); r.wear = APP.wear('acc', 'sqglasses'); r.afterWear = JSON.stringify(APP.trying()); r.acc = APP.state.settings.player.acc; APP.wear('acc', 'none');
+    if (threeD) {
+      r.mq = sc.mannequins('clothes', [{ slot: 'mq0', parts: { outfit: 'sailor' }, pos: [-0.6, 0, 1.6, 0] }, { slot: 'mq1', parts: null, sold: true, pos: [0.3, 0, 1.9, 0] }, { slot: 'mq9', parts: { outfit: 'suit' } }]).map(function (q) { return q.ok; }).join();
+      r.mqInfo = sc.mannequinInfo('clothes').map(function (q) { return q.slot + ':' + (q.parts ? q.parts.outfit : 'bare') + ':' + q.sold; }).join();
+      r.pose = await sc.playerPose('bow'); r.badPose = await sc.playerPose('nope');
+      sc.mannequins('clothes', []); r.gone = sc.mannequinInfo('clothes').length;
+    }
+    return r;
+  });
+  ok(c11.on && c11.trying === '{"outfit":"sailor"}' && c11.scene === 'sailor' && c11.saved === c11.was && c11.state === c11.was, 'P7 C11 입어 보기: 장면은 세일러 · 저장 · 상태는 입던 옷 그대로 (가게 물건도 입어 볼 수 있다) ' + JSON.stringify(c11));
+  ok(c11.offT === '{}' && c11.offScene === c11.was && c11.wear === true && c11.afterWear === '{}' && c11.acc === 'sqglasses', 'P7 C11 방을 나오면 다 벗는다 · wear 는 그 갈래만 저장하고 그 갈래의 입어 보기를 끝낸다');
+  if (c11.mq !== undefined) ok(c11.mq === 'true,true,false' && c11.mqInfo === 'mq0:sailor:false,mq1:bare:true' && c11.pose === true && c11.badPose === false && c11.gone === 0, 'P7 C11 마네킹: 자리 있는 둘은 서고 (옷 · 민몸 + 팔림) 자리 없는 것은 false · 몸짓 bow 끝남 · 모르는 몸짓 false · 빈 목록이면 다 치움 ' + JSON.stringify([c11.mq, c11.mqInfo, c11.pose, c11.gone]));
   ok(s.bag.length === 0, '[P7] 페이지 에러/콘솔 에러 0' + (s.bag.length ? ' → ' + s.bag.join(' | ') : ''));
   await s.ctx.close();
 }
