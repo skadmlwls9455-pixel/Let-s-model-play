@@ -17,18 +17,12 @@ var ROOT = path.resolve(__dirname, '../../..');
   var S1 = '/tmp/claude-0/-home-user-Let-s-model-play/bf38d309-8ede-59ca-909d-3c51ecde03b7/scratchpad/shots/';
   page.on('console', function (m) { if (m.type() === 'error' || m.type() === 'warning') console.log('CON ' + m.text().slice(0, 160)); });
   async function tapBtn(id) { var r = await page.evaluate(function (id) { var b = document.getElementById(id); if (!b || b.hidden) return null; var q = b.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; }, id); if (!r) return 'hidden'; await page.touchscreen.tap(r[0], r[1]); return 'tapped'; }
-  for (var key of ['hall']) {
-    var ok1 = await page.evaluate(function (k) { var sc = APP.scene; if (!sc.roomReg[k]) return 'noreg'; return Promise.resolve(APP.goInside(k)); }, key);
-    await page.waitForTimeout(1200);
-    var info = await page.evaluate(function () { return { inside: APP.inside, at: APP.scene.player().at }; });
-    if (key === 'cafe') { console.log('menu tap', await tapBtn('btn-cafe-menu')); await page.waitForTimeout(6000); console.log('after menu', JSON.stringify(await page.evaluate(function () { return { at: APP.scene.player().at, open: Array.prototype.map.call(document.querySelectorAll('dialog[open], .card:not([hidden]), [class*=chalk]:not([hidden])'), function (e) { return e.id || e.className; }).slice(0, 5) }; }))); await page.screenshot({ path: S1 + 'cafe-menu.png' }); await page.keyboard.press('Escape'); await page.waitForTimeout(500); }
-    await page.evaluate(function () { APP.scene.setPlayerInput({ x: -0.6, y: -0.8 }); }); await page.waitForTimeout(2500); await page.evaluate(function () { APP.scene.setPlayerInput(null); }); var ex = 'stick'; console.log('exit btn', JSON.stringify(await page.evaluate(function () { var b = document.getElementById('btn-room-exit'), q = b.getBoundingClientRect(); return [b.hidden, Math.round(q.left), Math.round(q.top), document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2).id || document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2).className, APP.scene.player().at]; }))); await page.waitForTimeout(7000); console.log('after', JSON.stringify(await page.evaluate(function () { return APP.scene.player().at; })));
-    console.log(key, ok1, JSON.stringify(info), 'exit', ex, '→', JSON.stringify(await page.evaluate(function () { return { inside: APP.inside, view: APP.scene.view() }; })));
+  await page.evaluate(function () { return APP.goInside('cafe'); }); await page.waitForTimeout(1500);
+  var stands = await page.evaluate(function () { var sp = APP.scene.roomSlots('cafe').spots, o = []; for (var k in sp) if (sp[k].stand) o.push([sp[k].stand[0], sp[k].stand[1], k]); return o; }); console.log(JSON.stringify(stands));
+  for (var start of stands) {
+    var r = await page.evaluate(function (st) { var sc = APP.scene; sc.debugPlayerAt(st[0], st[1]); var done = null; Promise.resolve(sc.cafeSit(true)).then(function (v) { done = v; }); return new Promise(function (res) { var t = 0; (function w() { if (done !== null || t > 120) { res({ done: done, seated: sc.cafeSeated ? sc.cafeSeated() : null, at: sc.player().at }); return; } t++; setTimeout(w, 100); })(); }); }, start);
+    console.log('sit from', start, JSON.stringify(r));
+    await page.evaluate(function () { return APP.scene.cafeSit(false); }); await page.waitForTimeout(800);
   }
-  await page.evaluate(function () { var K = Math.SQRT1_2; APP.scene.debugPlayerAt(38 * K, 38 * K); }); await page.waitForTimeout(800);
-  console.log('sign', await tapBtn('btn-sign-1')); await page.waitForTimeout(600);
-  console.log(JSON.stringify(await page.evaluate(function () { return Array.prototype.map.call(document.querySelectorAll('#travel-pick button'), function (b) { var q = b.getBoundingClientRect(); return [b.dataset.place, b.hidden, Math.round(q.left), Math.round(q.top), Math.round(q.width), Math.round(q.height)]; }); })));
-  await page.screenshot({ path: S1 + 'travel-fix.png' });
-  console.log('tap home', await tapBtn('travel-pick') , await page.evaluate(function () { var b = document.querySelector('#travel-pick button[data-place=home]'); var q = b.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; }).then(async function (c) { await page.touchscreen.tap(c[0], c[1]); await page.waitForTimeout(1200); return page.evaluate(function () { return APP.scene.area(); }); }));
   await browser.close();
 })().catch(function (e) { console.error(e); process.exit(1); });
