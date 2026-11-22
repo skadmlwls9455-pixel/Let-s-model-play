@@ -80,17 +80,22 @@ function store(page) { return page.evaluate(function () { return localStorage.ge
       var st = JSON.parse(await store(pg));
       check(st.pot === null && st.book.length === 1 && st.book[0].recipe === id, 'D1 ' + id + ': one book line, no pot');
       /* D2 again */
-      await pg.evaluate(function () { window.__cdRec = []; document.querySelector('.ck-verb').click(); });
+      /* 11-21 round 7: no 'again': the table button closes the kitchen, the door opens the same dish (?recipe=) anew */
+      await pg.waitForTimeout(300);
+      await pg.evaluate(function () { document.querySelector('.ck-table').click(); });
+      await pg.waitForTimeout(150);
+      var shut = await pg.evaluate(function () { return COOK.live().screen; });
+      await pg.evaluate(function () { window.__cdRec = []; document.getElementById('ck-door').click(); });
       await pg.waitForTimeout(150);
       var ag = await pg.evaluate(function () { var l = COOK.live(); return { r: l.recipe, s: l.screen, si: l.si, rec: window.__cdRec.map(function (x) { return x.sl; }).filter(Boolean) }; });
-      check(ag.r === id && ag.s === 'step' && ag.si === 0, 'D2 ' + id + ': again starts the same dish');
-      check(ag.rec.length > 0 && ag.rec[0] === 'plate>' + w.st[0] + ':null', 'D2 ' + id + ': again slides plate > ' + w.st[0] + ' (' + ag.rec[0] + ')');
+      check(shut === 'closed' && ag.r === id && ag.s === 'step' && ag.si === 0, 'D2 ' + id + ': the table button closes; opening again starts the same dish');
+      check(ag.rec.length === 0, 'D2 ' + id + ': the new dish opens on its first station without a slide (' + ag.rec[0] + ')');
       await P.ctx.close();
     }
     /* D3 begin's pot rules */
-    var P3 = await page0(b, '?seed=5');
+    var P3 = await page0(b, '?seed=5&book=0');   /* 11-21 round 7: book=0 keeps the old open (no dish asked for = the book otherwise) */
     var st0 = await store(P3.page), pot0 = JSON.parse(st0).pot;
-    check(pot0 && pot0.recipe === 'jeon' && pot0.si === 0, 'D3: without ?recipe= the kitchen starts jeon and writes an empty pot (si 0)');
+    check(pot0 && pot0.recipe === 'jeon' && pot0.si === 0, 'D3: the old open (?book=0, no ?recipe=) starts jeon and writes an empty pot (si 0)');
     await P3.page.evaluate(function () { COOK.close(); });
     await P3.page.waitForTimeout(100);
     var potText = js(JSON.parse(await store(P3.page)).pot);
