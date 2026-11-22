@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* tools/test-cafe-live.js - 카페 화면 시험 (브라우저). 실패하면 exit 1.
  *
- *   NODE_PATH=$(npm root -g) node tools/test-cafe-live.js [--shots <폴더>] [--3d]
+ *   NODE_PATH=$(npm root -g) node tools/test-cafe-live.js [--shots <폴더>] [--3d] [--sprites]
  *
  * 마을 (갈래 V · W) 없이 APP.openCafe() · APP.openRecords() 로 연다. 갈래 T · N 은 대역 (APP.recipeEat · APP.npcSay).
  *   1 처음: 쟁반 없음 · AudioContext 0 · audio/ foley/ 요청 0
@@ -18,7 +18,7 @@
 var path = require('path'), fs = require('fs');
 var chromium = require('playwright').chromium;
 var ROOT = path.resolve(__dirname, '..');
-var SHOTS = process.argv.indexOf('--shots') >= 0 ? process.argv[process.argv.indexOf('--shots') + 1] : null, D3 = process.argv.indexOf('--3d') >= 0;
+var SHOTS = process.argv.indexOf('--shots') >= 0 ? process.argv[process.argv.indexOf('--shots') + 1] : null, D3 = process.argv.indexOf('--3d') >= 0, SPRITES = process.argv.indexOf('--sprites') >= 0;
 var URL0 = 'file://' + path.join(ROOT, 'index.html') + '?intro=0' + (D3 ? '' : '&scene=2d');
 var passes = 0, failures = 0;
 function ok(c, msg) { if (c) { passes++; console.log('  ok   ' + msg); } else { failures++; console.log('  FAIL ' + msg); } }
@@ -37,6 +37,7 @@ async function open(browser, opts) {
     await page.fill('#name-in', '뚜루'); await page.click('#name-form button[type=submit]'); await page.waitForSelector('#name-dialog[open]', { state: 'hidden' });
   }
   await page.waitForTimeout(400);
+  if (SPRITES && !(await page.evaluate(function () { return !!window.COOK_SPR; }))) await page.addScriptTag({ path: path.join(ROOT, 'js', 'cook-sprites.js') });   /* --sprites: 음식 그림 (갈래 A) 을 얹어서 찍는다 — 식탁 갈래 (T) 가 합쳐지면 index.html 이 스스로 싣는다 */
   await page.evaluate(function () { APP.dailyGift(); });   /* 그날 선물 (조개 +3) 을 먼저 받아 둔다 — 검사 중간에 조개 수가 바뀌지 않게 */
   await page.waitForTimeout(100);
   return { ctx: ctx, page: page, bag: bag };
@@ -123,7 +124,7 @@ async function main() {
   await shells(page, 80);
   await orderItem(page, 1); await eatAll(page); await page.click('#cafe-stand');
   await page.evaluate(function () { APP.openCafe(); }); await page.waitForSelector('#cafe-sheet[open]');
-  ok(await page.locator('#cafe-body .cafe-item').nth(1).locator('.cafe-dots i.on').count() === 2 && await page.locator('#cafe-body .cafe-item').nth(0).locator('.cafe-dots').count() === 0, '두 번 먹음: 케이크 칸 점 둘 · 커피 칸은 점 없음');
+  ok(await page.locator('#cafe-body .cafe-item').nth(1).locator('.cafe-dots i.on').count() === 2 && await page.locator('#cafe-body .cafe-item').nth(0).locator('.cafe-dots:not(.none)').count() === 0, '두 번 먹음: 케이크 칸 점 둘 · 커피 칸은 점 없음');
   await page.click('#cafe-close');
   await orderItem(page, 1); await eatAll(page);
   c = await cafe(page);
