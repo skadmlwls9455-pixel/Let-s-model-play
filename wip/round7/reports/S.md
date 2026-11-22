@@ -111,7 +111,7 @@
 
 - 만든 것 (`js/app.js` `[7-S]` 의 `room*` 함수들, 표는 `docs/SHOP.md` 맨 위): 들어감 → 마네킹 꼬리표 카드 → 입어 보기 (저장 없음) → 거울 → 계산대 영수증 → 삼 (입은 채 · 팔림 표) → 안 사고 나가면 제자리. 잡화점: 선반 카드 → 살래 → 가방으로.
 - 카드는 dialog 가 아닌 `#scene` 안의 요소. 예전 시트는 `scene.enterRoom` 이 없을 때만 열린다 (방 안에서 마네킹 함수가 없으면 계산대가 예전 시트를 연다).
-- **진짜 방에서 돌려 봤다 (11-22 19:25 UTC, 푸시하지 않은 임시 합침: 이 가지 + W · V · P · N · A)**: 마당 → 마을 → `APP.goInside('clothes')` → 마네킹 넷이 오늘의 네 벌 (P 의 `scene.mannequins`) → 마네킹 톡 (걸어감) → 꼬리표 카드 (A 의 값표) → 입어 보기 (P 의 `APP.tryOn`, 그 마네킹은 민몸) → 거울 (P 의 `playerCloseup` + `pose`) → 계산대 → 영수증 → 살래 → 조개 60 → 30 · 옷장에 들어옴. 그림 `room-real-{dressed,tag,mirror,receipt,paid}-360.png`. P 의 `mannequins` 가 방 칸을 못 읽는 것 (W 의 함수 이름이 `inSlots`) 은 내가 칸 자리를 `pos` 로 함께 넘겨 피했고 P 에게 알렸다. 박자마다의 검사는 `tools/test-shop-live.js` 의 '가게 방' 묶음.
+- **진짜 방에서 돌려 봤다 (11-22 19:40 UTC, 갈래가 다 들어간 base 9280fe5 를 합친 이 가지 그대로 — 대역 없음)**: 마당 → 마을 → `APP.goInside('clothes')` → 마네킹 넷이 오늘의 네 벌 (P 의 `scene.mannequins`) → 마네킹 톡 (걸어감) → 꼬리표 카드 (A 의 값표) → 입어 보기 (P 의 `APP.tryOn`, 그 마네킹은 민몸) → 거울 (P 의 `playerCloseup` + `pose`) → 계산대 → 영수증 → 살래 → 조개 60 → 30 · 옷장에 들어옴. 그림 `room-real-{dressed,tag,mirror,receipt,paid}-360.png`. P 의 `mannequins` 가 방 칸을 못 읽는 것 (W 의 함수 이름이 `inSlots`) 은 내가 칸 자리를 `pos` 로 함께 넘겨 피했고 P 에게 알렸다. 박자마다의 검사는 `tools/test-shop-live.js` 의 '가게 방' 묶음.
 - P · V 에게 보낸 세부 약속: mannequins 의 slot 은 'mq0'..'mq3', parts 는 그 갈래 하나만 · tryOn(cat, id) / tryOff(cat) / wear(cat, id) · 들어가기는 V/W 가, 나는 `ppol:room` 만 듣는다 · 카드 자리는 단추의 화면 위치.
 - 새 글: `입어 보기` · `벗을래` · `입을래` · `입고 있어` · `모두 … 살까?` · `아직 고른 옷이 없어` · `<옷 · 옷>을/를 샀어` · 읽어 주는 이름 `영수증`.
 - 안 한 것: A 의 새 그림 (`ui.tag` 등) 은 안 쓰고 CSS 로 그린 값표 · 영수증을 쓴다. 영수증에서 한 벌만 빼기는 없다 (그만 → 마네킹에서 벗기).
@@ -129,4 +129,4 @@
 `tryOff` 가 없거나 실패해도 벗은 것으로 치던 것 · 다른 것을 입어 보는 중인데 '입고 있어' 라고 하던 것 · 가게 주인의 들어올 때 · 나갈 때 줄이 대사 갈래에 바로 접히던 것 ·
 영수증이 장면보다 길면 단추가 잘리던 것 · 옷 그림이 세로로 늘어나던 것 · 모르는 저장 모양 (나중 빌드) 을 지우던 것.
 안 고친 것: 옷장 API 가 없을 때 옷가게 단추가 아무것도 안 하는 것 (이번 배포엔 P 가 있어 생기지 않는다).
-시험: `tools/test-shop.js` 95 · `tools/test-shop-live.js` 92 · `npm test` 통과.
+시험: `tools/test-shop.js` 95 · `tools/test-shop-live.js` 92 (base 를 합친 가지에서 세 번 연속) · `npm test` 통과.
