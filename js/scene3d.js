@@ -7044,10 +7044,18 @@ var SCENE3D = (function () {
       var leg = function (i) {
         var last = i === pts.length - 1, q = last ? [to.x, to.z] : wideXZ(pts[i][0], pts[i][1]), p = plWalkTo(new T.Vector3(q[0], 0, q[1]), last ? face : null), w = PL.walking;
         var pr = !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); });
-        return pr.then(function (r) { if (r === null || PL.place !== here || PL_IN.v) return false; return last ? Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z) <= 0.3 : leg(i + 1); });
+        return pr.then(function (r) {
+          var late = VIL.walkLate; VIL.walkLate = false;
+          if ((r === null && !late) || PL.place !== here || PL_IN.v) { VIL.walkEnd = 'cut'; return false; }   /* 스틱으로 끊었거나 자리를 옮겼다 */
+          if (late || last) { var d = Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z); VIL.walkEnd = d <= 0.3 ? 'ok' : 'far'; VIL.walkD = d; return d <= 0.3; }
+          return leg(i + 1);
+        });
       };
+      var len = 0; for (var j = 1; j < pts.length; j++) len += Math.hypot(pts[j][0] - pts[j - 1][0], pts[j][1] - pts[j - 1][1]);
+      len += pts.length ? Math.hypot(PL.pos.x - wideXZ(pts[0][0], pts[0][1])[0], PL.pos.z - wideXZ(pts[0][0], pts[0][1])[1]) : 0;
+      VIL.walkEnd = ''; VIL.walkLate = false; VIL.walkDue = VIL.t + len / 1.8 * 1.6 + 2.5;   /* 11-22 리드 검토: 걷기가 가로등 둘레 같은 데 걸려 끝나지 않으면 (15 s 넘게 'walking') 이 시간에 끊는다 — vilFrameStep */
       PL.camGap = Math.max(1.4, S.rw / 2 / S.N - 0.8);   /* 이 걸음 동안 화면이 따라온다 (plFollow 의 혼자 걷기 몫): 스틱으로 걸을 때처럼 캐릭터를 화면 가운데 0.8 m 안에 둔다 — 1.4 m 만 주면 화면 가장자리에 붙어서야 따라와 먼 자리로 걸을 때 캐릭터가 화면 밖에 있었다 */
-      return leg(0).then(function (ok) { if (!PL.walking) PL.camGap = 0; return ok; });
+      return leg(0).then(function (ok) { VIL.walkDue = 0; if (!PL.walking) PL.camGap = 0; return ok; });
     }
     function vilNear(key) {
       if (PL.place === 'inside') return true;   /* 방 안의 자리는 갈래 W 의 방 배관이 걸어가서 누른다 — 여기선 막지 않는다 (같은 단추를 방 안팎에서 쓴다) */
@@ -7062,11 +7070,14 @@ var SCENE3D = (function () {
       if (!playerInputAllowed() && !VIL.cafe.seated) return Promise.resolve(false);
       var go = function () {
         if (PL.place !== 'yard' || PL.sit || PL.hop) return false;
-        return vilWalk(new T.Vector3(p.ax, 0, p.az), Math.atan2(p.x - p.ax, p.z - p.az));
+        return vilWalk(new T.Vector3(p.ax, 0, p.az), Math.atan2(p.x - p.ax, p.z - p.az)).then(function (ok) {
+          if (ok || !p.sp.room || VIL.walkEnd === 'cut' || PL.place !== 'yard') return ok;   /* 11-22 리드 검토: 문은 누르면 늘 들어간다 — 끊지 않았으면 (막혀 조금 모자라게 섰어도 · 시간이 다 됐어도) 그 자리에서 문을 연다 */
+          return Math.hypot(PL.pos.x - p.ax, PL.pos.z - p.az) <= 4 || Math.hypot(PL.pos.x - p.x, PL.pos.z - p.z) <= 4;
+        });
       };
       return VIL.cafe.seated ? vilCafeSit(false).then(go) : Promise.resolve(go());
     }
-    function vilFrameStep(dt) { if (!VIL.built) return; VIL.t += dt; vilSeatSync(); vilLight(false); vilNpcPose(false); }
+    function vilFrameStep(dt) { if (!VIL.built) return; VIL.t += dt; if (VIL.walkDue && VIL.t > VIL.walkDue && PL.walking) { VIL.walkDue = 0; VIL.walkLate = true; var w = PL.walking; plStop(); if (PL.walking === w) w.cancel(); } vilSeatSync(); vilLight(false); vilNpcPose(false); }
 
     /* ── 시험 스텁 (갈래 W 가 합쳐지기 전에만 쓴다): 걷는 띠와 땅을 광장까지 늘리고, 마당 그룹에 builders 를 부르고, 부딪힘을 마당 목록에 더한다. W 의 배관이 이미 지었으면 아무것도 하지 않는다.
        debugVillageFrame(dt) = frame 콜백 + 단추를 자리 위에 놓기 (W 의 배관이 하는 일의 가장 작은 흉내) ── */
