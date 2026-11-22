@@ -153,6 +153,20 @@ function box(p) {
       }, 500); });
     });
     ok(!top1.status && !top1.head, '창이 열려 있을 때 대사창이 상태 줄 · 창 머리를 덮지 않는다: ' + JSON.stringify(top1));
+    /* 카드 (칠판 · 레코드) 를 피해 장면 위쪽으로 올라갈 때도 상태 줄 칸 (데모 꼬리표 · 조개 칩 · 오른쪽 위 단추) 을 덮지 않는다 */
+    var top2 = await p.evaluate(function () {
+      [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); });
+      var bag = document.getElementById('btn-bag'); bag.hidden = false;
+      var sc = document.getElementById('scene'), r = sc.getBoundingClientRect(), c = document.createElement('div');
+      c.setAttribute('data-npc-avoid', ''); c.style.cssText = 'position:absolute;left:0;right:0;height:' + Math.round(r.height * 0.55) + 'px;bottom:0;background:#fff'; sc.appendChild(c);
+      APP.npcSay('cafe', 'cafe.serve');
+      var b = document.getElementById('npc-box').getBoundingClientRect(), tag = document.getElementById('npc-tag').getBoundingClientRect();
+      var hit = function (a, k) { return a.right > k.left && a.left < k.right && a.bottom > k.top && a.top < k.bottom; }, out = { top: b.top, over: [] };
+      ['status', 'brain-tag', 'btn-bag', 'scene-ctl'].forEach(function (id) { var e = document.getElementById(id); if (e && !e.hidden && e.offsetWidth) { var k = e.getBoundingClientRect(); if (hit(b, k) || hit(tag, k)) out.over.push(id); } });
+      c.remove(); return out;
+    });
+    ok(top2.top < 200 && top2.over.length === 0, '위로 올라가도 상태 줄 칸 (데모 꼬리표 · 조개 칩 · 단추) 아래에서 멈춘다: ' + JSON.stringify(top2));
+    await p.keyboard.press('Escape');
     await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
 
     /* 자는 문어: 알림 한 줄 */

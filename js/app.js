@@ -6696,7 +6696,12 @@ var APP = (function () {
     box.style.width = w + 'px'; hh = box.offsetHeight;
     left = (Math.max(0, r.left) + Math.min(vw, r.right) - w) / 2;
     /* 11-22 (점검): 위로 올라갈 때도 상태 줄 아래 (이름표 자리 30px 더) 에서 멈춘다 */
-    var stE = $('status'), stR = stE && stE.offsetParent !== null ? stE.getBoundingClientRect() : null, floor = Math.max(36, stR && stR.bottom > 0 && stR.bottom < vh / 2 ? stR.bottom + 32 : 36);
+    /* 11-22 (둘째 점검): 상태 줄 칸 전부 — 한 화면 배치에선 장면 위에 얹힌 '데모 D+N' 꼬리표 · 조개 칩 · 오른쪽 위 단추 묶음도 — 의 아래 끝 */
+    var floor = 36;
+    ['status', 'brain-tag', 'btn-bag', 'scene-ctl'].forEach(function (id) {
+      var e = $(id); if (!e || e.hidden || !e.offsetWidth) return;
+      var rr = e.getBoundingClientRect(); if (rr.bottom > 0 && rr.bottom < vh / 2) floor = Math.max(floor, rr.bottom + 32);
+    });
     if (inDlg) {   /* 창 바로 위에 자리가 없으면: 창의 머리 (제목) 아래, 창의 단추 줄 위 */
       var dlgEl = box.parentNode, dr = dlgEl.getBoundingClientRect();
       if (dr.top - hh - 8 >= floor) top = dr.top - hh - 8;
