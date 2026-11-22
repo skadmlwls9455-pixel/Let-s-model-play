@@ -8126,7 +8126,7 @@ async function scenarioU7(browser) {
   if (await page.$('#album-sheet[open]')) { await page.keyboard.press('Escape'); await page.waitForTimeout(400); }
   /* 전체 화면 놀이 (달리기 · 부엌) 가 열린 동안 3D 장면은 그리지 않는다 · 닫으면 시계가 뛰지 않고 잇는다 (11-21) */
   if (await page.evaluate(function () { return APP.sceneMode === '3d' && typeof APP.scene.setCovered === 'function'; })) {
-    function clk() { return page.evaluate(function () { var c = APP.scene.clock(); return { t: c.time, n: c.frames, cov: APP.scene.covered() }; }); }
+    function clk() { return page.evaluate(function () { var c = APP.scene.clock(); return { t: c.time, n: c.frames, d: c.draws, cov: APP.scene.covered() }; }); }
     await page.evaluate(function () { return APP.goRoom('play'); });
     await page.waitForFunction(function () { var m = APP.scene.motion(); return APP.room === 'play' && !m.trans && m.dq === ''; }, null, { timeout: 30000 }); await page.waitForTimeout(600);
     var c0 = await clk(); await page.waitForTimeout(700); var c1 = await clk();
@@ -8135,13 +8135,13 @@ async function scenarioU7(browser) {
     await page.evaluate(function () { RUNNER.close(); }); await page.waitForFunction(function () { return APP.scene.clock().frames > 0 && !APP.scene.covered(); }, null, { timeout: 5000 }); await page.waitForTimeout(700);
     var c4 = await clk();
     console.log('   covered:', JSON.stringify([c0, c1, c2, c3, c4]));
-    ok(!c0.cov && c1.n > c0.n && c2.cov && c3.cov && c3.n === c2.n && c3.t === c2.t, '달리기 창이 열린 동안 장면 프레임 0 (' + c2.n + ' → ' + c3.n + ') · 평소엔 돈다 (' + c0.n + ' → ' + c1.n + ')');
-    ok(!c4.cov && c4.n > c3.n && c4.t - c3.t < (c4.n - c3.n) * 0.1 + 1e-6 && c4.t - c3.t < 1.5, '닫으면 다시 돌고 시계는 뛰지 않는다 (+' + (c4.t - c3.t).toFixed(2) + ' s · ' + (c4.n - c3.n) + ' 프레임)');
+    ok(!c0.cov && c1.d > c0.d && c2.cov && c3.cov && c3.d === c2.d && c3.n > c2.n, '달리기 창이 열린 동안 장면은 그리지 않는다 (그리기 ' + c2.d + ' → ' + c3.d + ') · 시뮬레이션은 돈다 (' + c2.n + ' → ' + c3.n + ' — 창을 연 채 산책이 끝나야 한다) · 평소엔 그린다 (' + c0.d + ' → ' + c1.d + ')');
+    ok(!c4.cov && c4.d > c3.d && c4.t - c3.t < (c4.n - c3.n) * 0.1 + 1e-6, '닫으면 다시 그리고 시계는 뛰지 않는다 (+' + (c4.t - c3.t).toFixed(2) + ' s · ' + (c4.n - c3.n) + ' 프레임 · 그리기 +' + (c4.d - c3.d) + ')');
     await page.evaluate(function () { var o = document.getElementById('cook-overlay'); o.showModal(); }); await page.waitForTimeout(200);
     var k0 = await clk(); await page.waitForTimeout(800); var k1 = await clk();
     await page.evaluate(function () { document.getElementById('cook-overlay').close(); }); await page.waitForTimeout(600);
     var k2 = await clk();
-    ok(k0.cov && k1.n === k0.n && !k2.cov && k2.n > k1.n, '부엌 창이 열린 동안에도 프레임 0 · 닫으면 다시 돈다 (' + [k0.n, k1.n, k2.n].join(' → ') + ')');
+    ok(k0.cov && k1.d === k0.d && !k2.cov && k2.d > k1.d, '부엌 창이 열린 동안에도 그리기 0 · 닫으면 다시 그린다 (' + [k0.d, k1.d, k2.d].join(' → ') + ')');
     await page.evaluate(function () { return APP.goRoom('attic'); });
     await page.waitForFunction(function () { var m = APP.scene.motion(); return !APP.room && !m.trans && m.dq === ''; }, null, { timeout: 30000 });
   }
