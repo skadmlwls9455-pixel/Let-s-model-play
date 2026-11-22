@@ -337,6 +337,9 @@ function fail(msg) { console.error('✗ ' + msg); process.exitCode = 1; }
   else {
     await dp.waitForSelector('#intro[data-phase="title"]', { timeout: 15000 });
     await dp.click('.intro-title');
+    /* 11-21 (7차 N): 진짜 새 사람 (자동화 표시를 가린 판) 은 타이틀 뒤에 이야기 세 줄을 먼저 본다 → 건너뛰기를 눌러야 들어간다 */
+    if (!(await dp.waitForSelector('#story-intro:not([hidden])', { timeout: 3000 }).then(function () { return true; }, function () { return false; }))) fail('하루 한 번: 새 사람에게 이야기 세 줄이 안 뜸');
+    else await dp.click('#story-skip');
     await dp.waitForSelector('#intro', { state: 'detached', timeout: 8000 });
     var mark = await dp.evaluate(function () { try { return localStorage.getItem('ppolppol_intro_day'); } catch (e) { return 'ERR'; } });
     if (mark !== '2026-11-07') fail('하루 한 번: 들어간 뒤 기록이 ' + mark);
