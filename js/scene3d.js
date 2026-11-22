@@ -4167,7 +4167,8 @@ var SCENE3D = (function () {
         L.push({ g: box(0.30, 0.012, 0.012), m: M(0, 0.045, 0), c: W[3] });
         var fr = [PAL.navy[2], PAL.rose[2], PAL.rose[2], PAL.rose[2], PAL.amber[3]];
         fr.forEach(function (c, i) { if (TB.eaten.indexOf(i) >= 0 || (left === 0)) return; L.push({ g: box(0.05, 0.05, 0.05), m: M(-0.11 + i * 0.055, 0.047, 0), c: c }); if (i > 0 && i < 4) L.push({ g: box(0.05, 0.012, 0.05), m: M(-0.11 + i * 0.055, 0.075, 0), c: PAL.moss[2] }); });
-      } else {   /* 모르는 요리 (나중 판): 덮개 덮은 접시 (자료는 그대로) */
+      } else if (TB.sprOn) {   /* 11-21 7차: 그림 있는 요리 — 그릇까지 그림 (dishSprLayout) 이 그린다. 이 메시는 숨는다 */
+      } else if (!(d.pic && left <= 0)) {   /* 모르는 요리 (나중 판): 덮개 덮은 접시 (자료는 그대로) · 11-21: 그림을 못 구한 새 요리도 — 다 먹으면 빈 접시 */
         L.push({ g: new T.SphereGeometry(0.12, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), m: M(0, 0.02, 0, 0, 0, 0, 1, 0.7, 1), c: PAL.slate[2] }, { g: new T.SphereGeometry(0.02, 6, 4), m: M(0, 0.108, 0), c: PAL.slate[1] });
       }
       TB.crumbs.forEach(function (q) { L.push({ g: box(0.018, 0.006, 0.018), m: M(q[0], 0.024, q[1]), c: crust }); });
@@ -4175,17 +4176,18 @@ var SCENE3D = (function () {
     }
     function dishRebuild() {
       if (!PROOM) return;
-      if (!TB.dish) { if (TB.mesh) TB.mesh.visible = false; if (TB.steam) TB.steam.visible = false; return; }
+      if (!TB.dish) { if (TB.mesh) TB.mesh.visible = false; if (TB.steam) TB.steam.visible = false; TB.spr = null; TB.sprOn = false; if (TB.sprObj) TB.sprObj.visible = false; return; }
+      TB.spr = TB.n > 0 ? dishSprGet() : null; TB.sprOn = !!TB.spr; TB.sprKey = '';   /* 11-21: 식탁 위 작은 그림 (한 칸 = 방 그림 한 칸) — 다 먹으면 빈 접시 (메시) */
       var geo = mergeParts(dishParts());
       if (!TB.mesh) { TB.mesh = new T.Mesh(geo, lambert); TB.mesh.castShadow = false; TB.mesh.receiveShadow = true; TB.mesh.name = 'tableDish'; PROOM.g.add(TB.mesh); }
       else { TB.mesh.geometry.dispose(); TB.mesh.geometry = geo; }
-      TB.mesh.visible = true; TB.mesh.position.set(BOOTH_DISH[0], BOOTH_DISH[1], BOOTH_DISH[2]);
+      TB.mesh.visible = !TB.sprOn; TB.mesh.position.set(BOOTH_DISH[0], BOOTH_DISH[1], BOOTH_DISH[2]);
       if (!TB.steam) { TB.steam = new T.Points(new T.BufferGeometry(), steamMat); TB.steam.geometry.setAttribute('position', new T.BufferAttribute(new Float32Array(6), 3)); TB.steam.frustumCulled = false; PROOM.g.add(TB.steam); }
       dither.still = 0;
     }
     function setTableDish(dish, o) {   /* dish = null | { id, recipe, look, seed } → bool. 식사 연출 중이면 끝난 뒤로 미룬다 · 놀이방을 아직 안 지었으면 기억해 둔다 */
       o = o || {};
-      var d = dish && typeof dish === 'object' ? { id: String(dish.id || ''), recipe: String(dish.recipe || ''), seed: dish.seed, look: dish.look && typeof dish.look === 'object' ? dish.look : {} } : null;
+      var d = dish && typeof dish === 'object' ? { id: String(dish.id || ''), recipe: String(dish.recipe || ''), seed: dish.seed, look: dish.look && typeof dish.look === 'object' ? dish.look : {}, pic: dishPicOf(dish.pic) } : null;
       if (TB.busy()) { TB.queued = { d: d, o: o }; return true; }
       var same = d && TB.dish && TB.dish.id === d.id;
       TB.dish = d; TB.look = d ? d.look : null;
@@ -4202,14 +4204,15 @@ var SCENE3D = (function () {
       if (!TB.mesh || !TB.dish) return;
       var m = TB.mesh, f = -1;
       if (TB.appear >= 0) { TB.appear += dt / st.speed; f = Math.floor(TB.appear * 12); if (f >= 6) { TB.appear = -1; f = -1; } }
-      var up = pxUp(), y = BOOTH_DISH[1];
+      var up = pxUp(), at = dishAt(), y = at[1];   /* 11-21: 들고 가는 동안은 손 자리 (dishAt) */
       m.scale.set(1, 1, 1);
       if (f === 0) y += 2 * up; else if (f === 1) y += up; else if (f === 2) m.scale.set(1.08, 0.7, 1.08);
-      _tbv.set(BOOTH_DISH[0], y, BOOTH_DISH[2]); m.position.copy(_tbv);
+      _tbv.set(at[0], y, at[2]); m.position.copy(_tbv);
+      dishSprLayout(at[0], y, at[2], f === 2);
       /* 김: 접시 위 1px 두 점이 세 칸 동안 한 줄씩 오른다 */
       var steam = TB.steam, sf = -1;
       if (f >= 3) sf = f - 3;
-      else if (f < 0 && TB.n > 0 && !st.reduced) { TB.steamT += dt / st.speed; var c = TB.steamT % 1.5; if (c < 0.25) sf = Math.floor(c * 12); }
+      else if (f < 0 && TB.n > 0 && !st.reduced && !TB.carry) { TB.steamT += dt / st.speed; var c = TB.steamT % 1.5; if (c < 0.25) sf = Math.floor(c * 12); }
       steam.visible = sf >= 0 && !st.reduced;
       if (steam.visible && sf !== TB.steamF) {
         var a = steam.geometry.attributes.position.array;
@@ -4224,6 +4227,7 @@ var SCENE3D = (function () {
       var sx = who === 'oct' ? -1 : 1, rec = TB.dish.recipe;   /* 내 자리 = +x 쪽 · 문어 = −x 쪽 (접시 좌표) */
       if (rec === 'jeon') { var order = sx > 0 ? [0, 1, 2, 3] : [2, 3, 0, 1]; for (var i = 0; i < 4; i++) if (TB.eaten.indexOf(order[i]) < 0) { TB.eaten.push(order[i]); break; } }
       else if (rec === 'kkochi') { var fo = sx > 0 ? [4, 3, 2, 1, 0] : [0, 1, 2, 3, 4]; for (var j = 0; j < 5; j++) if (TB.eaten.indexOf(fo[j]) < 0) { TB.eaten.push(fo[j]); break; } }
+      else if (TB.dish.pic) { var fq = [0, 1, 2, 3].filter(function (q) { return TB.eaten.indexOf(q) < 0; }); if (fq.length) TB.eaten.push(sx > 0 ? fq[fq.length - 1] : fq[0]); }   /* 11-21 그림 요리: 가로 넷 가운데 한 칸 (나 = 오른쪽부터 · 문어 = 왼쪽부터 — 큰 그림과 같다) */
       TB.n--;
       var h = hash('crumb' + (TB.dish.id || '') + TB.n), nc = 2 + (h & 1);
       for (var c = 0; c < nc; c++) TB.crumbs.push([sx * (0.09 + ((h >> (3 + c * 3)) & 3) * 0.012), (((h >> (9 + c * 4)) & 7) - 3.5) * 0.02]);
@@ -4392,7 +4396,7 @@ var SCENE3D = (function () {
       if (TB.door && PLAY_DOOR) { TB.door.acc += dt / st.speed; while (TB.door && TB.door.acc >= 1 / 12) { TB.door.acc -= 1 / 12; var f = PLAY_DOOR.f + (TB.door.want > PLAY_DOOR.f ? 1 : -1); setLeaf(PLAY_DOOR, f); if (f === TB.door.want) TB.door = null; } }
       if (TB.doorShut) { TB.doorShut--; if (!TB.doorShut && PLAY_DOOR) setLeaf(PLAY_DOOR, 0); }
       if (TB.fade) { TB.fade.t += dt / st.speed; var q = 1 - Math.min(1, Math.floor(TB.fade.t * 24) / 8); setOctFade(q); if (q <= 0) { var fr = TB.fade.res; TB.fade = null; if (fr) fr(); } }
-      stepDish(dt); stepMeBite(dt);
+      stepCarry(dt); stepDish(dt); stepMeBite(dt); stepSprProps();
       var P = TB.pose, b = TB.bite;
       P.lean = 0; P.sx = 1; P.sy = 1; P.by = 0; P.reach = -1;
       if (TB.oct === 'seated') {
@@ -4432,7 +4436,7 @@ var SCENE3D = (function () {
       var k = JSON.stringify(out); if (k !== TB.spotK) { TB.spotK = k; emit('tableSpot', out); }
     }
     function tableInfo() {
-      return { built: !!PROOM, dish: TB.dish ? { id: TB.dish.id, recipe: TB.dish.recipe } : null, pieces: TB.dish ? TB.n : 0, queued: TB.queued !== undefined,
+      return { built: !!PROOM, dish: TB.dish ? { id: TB.dish.id, recipe: TB.dish.recipe } : null, pieces: TB.dish ? TB.n : 0, queued: TB.queued !== undefined, carry: CARRY ? CARRY.stage : null, sprite: !!TB.sprOn,
         me: PL.tbl && PL.sit && !PL.hop ? 'seated' : PL.tbl || TB.meWalk ? 'walking' : 'none', oct: TB.oct, beat: TB.beat, aura: { me: AU.me.fx, oct: AU.oct.fx },
         pose: { lean: +(TB.pose.lean / DEG).toFixed(2), reach: TB.pose.reach, legs: TB.pose.legs, decal: octDecal.visible }, held: TB.held ? (TB.held.anchor || 'point') : null, geom: tableGeom() };
     }
@@ -4479,7 +4483,8 @@ var SCENE3D = (function () {
        새 셰이더 프로그램 없음: 두 재질 변형을 부팅 예열에서 다락 · 바깥 조명 묶음으로 컴파일 (놀이방 · 위층 = 다락과 같은 점광 2 · 마당 = 바깥과 같은 묶음 — T8 이 캐시 키로 잰다) */
     /* 11-18 (리드 후속: '효과가 한눈에 보이게'): 알갱이 = 2×2 렌더 px 밝은 심 (효과 제 색) + 1 px 어두운 테 (네 쪽 2 px 블록을 1 px 밀어 먼저 그린다) — 한 Points (크기 2, 정점색) 한 드로우콜.
        점은 픽셀 모서리에 (2 px 점이 정확히 2×2 칸에 앉게) · 블룸 없음 · 6~10 알갱이가 머리 · 어깨 둘레에 (얼굴 열은 피한다) · 반짝이 = 커졌다 작아지며 위로 1 px 씩 · 별 = 머리 위 고리를 돈다 · 꽃잎 = 흔들리며 떨어진다 */
-    var AURA_C = { sparkle: { core: '#ebede9', mid: '#a4dddb', edge: '#3c5e8b' }, star: { core: '#f4d47a', mid: '#e8a63e', edge: '#7a4a2c' }, petal: { core: '#f2a6c0', mid: '#fbe0ea', edge: '#9a3c62' } };
+    var AURA_C = { sparkle: { core: '#ebede9', mid: '#a4dddb', edge: '#3c5e8b' }, star: { core: '#f4d47a', mid: '#e8a63e', edge: '#7a4a2c' }, petal: { core: '#f2a6c0', mid: '#fbe0ea', edge: '#9a3c62' },
+      bubble: { core: '#ebede9', mid: '#73bed3', edge: '#3c5e8b' }, confetti: { core: '#e8c170', mid: '#f2a6c0', edge: '#3e2731', more: ['#e8c170', '#f2a6c0', '#a4dddb', '#a8ca58'] } };   /* 11-21 7차: 방울 (계란말이) · 색종이 (딸기 케이크) */
     var AURA_N = 64, AURA_TW = 4, AURA_PX = 2;
     function auraMake(name) {
       var g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array(AURA_N * 3), 3)); g.setAttribute('color', new T.BufferAttribute(new Float32Array(AURA_N * 3), 3));
@@ -4494,7 +4499,7 @@ var SCENE3D = (function () {
     atticG.add(AU.me.obj); extG.add(AU.oct.obj);   /* 예열: 다락 패스엔 내 것 · 바깥 패스엔 문어 것이 각 조명 묶음으로 두 변형을 컴파일한다 (숨겨도 compile 은 재질을 훑는다) */
     function setAura(who, fx, o) {
       var A = AU[who === 'oct' ? 'oct' : 'me']; if (!A) return;
-      fx = fx === 'sparkle' || fx === 'star' || fx === 'petal' ? fx : null;
+      fx = typeof fx === 'string' && Object.prototype.hasOwnProperty.call(AURA_C, fx) ? fx : null;
       if (fx !== A.fx) { A.fx = fx; A.slots = []; A.key = ''; A.step = -1; }
       A.bloom = fx && o && o.bloom && !st.reduced ? 0 : -1; A.key = '';
       dither.still = 0;
@@ -4559,6 +4564,26 @@ var SCENE3D = (function () {
           if (prow < 2) continue;
           if (prow > faceLo && prow < faceHi && Math.abs(pcol) < faceC + 2) pcol = (pcol < 0 || (pcol === 0 && (k & 1)) ? -1 : 1) * (faceC + 2);   /* 얼굴 높이에선 얼굴 열 밖으로 비켜 떨어진다 */
           grain(pcol, prow, 'petal', (k & 1) === 0);
+        }
+      } else if (fx === 'bubble') {   /* 11-21 방울 6 개: 어깨 높이에서 생겨 칸마다 1 행 떠오르고 4칸마다 1 열 흔들린다 — 점 → 빈 고리 (2 px 알갱이 넷 · 위쪽 하나는 흰 빛) → 톡 터짐 (네 귀 점) → 쉼. 얼굴 열 밖 */
+        for (var bi = 0; bi < 6; bi++) {
+          var bph = red ? 4 : s + bi * 2, bcyc = Math.floor(bph / 12), bu = ((bph % 12) + 12) % 12, bs = auraSlot(A, bi, red ? 0 : bcyc);
+          if (bu >= 10) continue;
+          var bcol = sideCol(bs.side, bs.u) + (red ? 0 : (Math.floor(bu / 4) & 1 ? 1 : 0)), brow = shR + Math.round(bs.v * (topR - shR) * 0.6) + (red ? 0 : bu);
+          parts++;
+          if (bu < 1) put(bcol, brow, Cc.mid);
+          else if (bu < 9) { put(bcol - 1, brow, Cc.mid); put(bcol + 1, brow, Cc.mid); put(bcol, brow - 1, Cc.edge); put(bcol, brow + 1, Cc.core); }
+          else { put(bcol - 2, brow - 1, Cc.mid); put(bcol + 2, brow - 1, Cc.mid); put(bcol - 2, brow + 2, Cc.core); put(bcol + 2, brow + 2, Cc.core); }
+        }
+      } else if (fx === 'confetti') {   /* 11-21 색종이 9 장 (네 색): 머리 위에서 생겨 칸마다 1 행 떨어지며 좌우로 흔들리고, 두 칸마다 눕고 선다 (가로 둘 ↔ 세로 둘) · 아래 어두운 테 한 점. 얼굴 열은 비켜 간다 */
+        var ctop = topR + Math.max(3, Math.round(0.24 / up)), cn = red ? 7 : 9, cper = ctop + 2;
+        for (var ci = 0; ci < cn; ci++) {
+          var cph = red ? 0 : s + Math.floor(ci * cper / cn), ccyc = Math.floor(cph / cper), cfall = cph % cper, cs = auraSlot(A, ci, ccyc), cw = red ? 0 : [0, 1, 0, -1][Math.floor(cfall / 2) & 3];
+          var crow = red ? Math.round(shR + (ctop - shR) * (ci + 1) / (cn + 1)) : ctop - cfall, ccol = Math.round((cs.u * 2 - 1) * (faceC + 3 + spread)) + cw, hexc = Cc.more[ci & 3], flat = red ? (ci & 1) === 0 : ((cfall >> 1) + ci) % 2 === 0;
+          if (crow < 2) continue;
+          if (crow > faceLo && crow < faceHi && Math.abs(ccol) < faceC + 3) ccol = (ccol < 0 || (ccol === 0 && (ci & 1)) ? -1 : 1) * (faceC + 3);
+          parts++;
+          put(flat ? ccol + 1 : ccol, flat ? crow - 1 : crow - 2, Cc.edge); put(ccol, crow, hexc); put(flat ? ccol + 1 : ccol, flat ? crow : crow - 1, hexc);
         }
       }
       for (var z = n; z < AURA_N; z++) { pa[z * 3] = 0; pa[z * 3 + 1] = -50; pa[z * 3 + 2] = 0; }
@@ -5565,6 +5590,183 @@ var SCENE3D = (function () {
     }
     /* ───────── 7차 갈래 자리 (11-21): 갈래마다 제 표시 줄 바로 아래에만 새 함수를 쓴다. 표시 줄과 빈 줄은 건드리지 않는다 ───────── */
     /* [7-T] 식탁 · 들고 가기 · 새 효과 */
+    /* ── 11-21 7차 식탁 위 요리 그림: 갈래 A 의 작은 그림 COOK_SPR 'table.<id>' (16×12) 을 Points 하나로 — 그림 한 칸 = 점 하나 (크기 1) = 방 그림 한 칸.
+       화면 정수 열/행 · 픽셀 중심에 스냅 (효과 알갱이와 같은 길 · 같은 재질 변형이라 새 셰이더 없음) · 밤엔 방처럼 한 칸 어둡게. 그림이 없으면 (파일 없음 · 옛 요리) 예전 메시 그대로.
+       한 입 = 그릇 줄 위쪽의 가로 4분의 1 (MEAL.biteMask — 큰 그림과 같은 규칙) ── */
+    var DISH_SPR_N = 16 * 16;
+    function dishPicOf(p) { return p && typeof p === 'object' && typeof p.id === 'string' && /^[a-z]{1,12}$/.test(p.id) ? { id: p.id, frame: p.frame > 0 ? Math.min(8, p.frame | 0) : 0 } : null; }
+    function dishSprGet() {
+      var d = TB.dish, CS = typeof window !== 'undefined' ? window.COOK_SPR : null;
+      if (!d || !d.pic || !CS || typeof CS.get !== 'function') return null;
+      try {
+        var id = 'table.' + d.pic.id, sp = CS.get(id, d.pic.frame), inf = typeof CS.info === 'function' ? CS.info(id) : null;
+        if (!sp || !(sp.w > 0) || !(sp.h > 0) || sp.w * sp.h > DISH_SPR_N || !sp.d || sp.d.length < sp.w * sp.h * 4) return null;
+        var MR = window.MEAL, px = sp.d;
+        if (TB.eaten.length && MR && typeof MR.biteMask === 'function') px = MR.biteMask(sp, TB.eaten.filter(function (q) { return q >= 0 && q < 4; }), MR.biteLine(sp), 0) || sp.d;
+        return { w: sp.w, h: sp.h, d: px, ax: inf && isFinite(inf.ax) ? inf.ax : sp.w / 2, ay: inf && isFinite(inf.ay) ? inf.ay : sp.h - 2 };
+      } catch (e) { return null; }
+    }
+    var dishSprMat = keep(new T.PointsMaterial({ color: 0xffffff, vertexColors: true, size: 1, sizeAttenuation: false }));
+    function dishSprLayout(x, y, z, squash) {
+      var sp = TB.sprOn ? TB.spr : null, o = TB.sprObj;
+      if (!sp || !PROOM) { if (o) o.visible = false; return; }
+      if (!o) {
+        var g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array(DISH_SPR_N * 3), 3)); g.setAttribute('color', new T.BufferAttribute(new Float32Array(DISH_SPR_N * 3), 3));
+        o = TB.sprObj = new T.Points(keep(g), dishSprMat); o.frustumCulled = false; o.name = 'tableDishSpr'; PROOM.g.add(o);
+      }
+      o.visible = true;
+      _tbv.set(x, y, z); PROOM.g.localToWorld(_tbv); snapC(_tbv);
+      var dim = 1 - 0.3 * nightK(), key = _tbv.x.toFixed(4) + ',' + _tbv.y.toFixed(4) + ',' + _tbv.z.toFixed(4) + '|' + S.pw + '|' + (squash ? 1 : 0) + '|' + dim.toFixed(2);
+      if (key === TB.sprKey) return; TB.sprKey = key;
+      var base = _tbv.clone(), up = pxUp(), pw = S.pw, pa = o.geometry.attributes.position.array, ca = o.geometry.attributes.color.array, n = 0, w = sp.w, h = sp.h, d = sp.d, col = new T.Color();
+      camera.getWorldDirection(_tbw); var V = _tbw.clone(), ax = Math.floor(sp.ax);
+      for (var r = 0; r < h; r++) for (var c = 0; c < w; c++) {
+        var k = (r * w + c) * 4; if (d[k + 3] < 128 || n >= DISH_SPR_N) continue;
+        var row = h - 1 - r; if (squash) row = Math.floor(row * 0.75);   /* 내려놓는 칸: 한 번 눌린다 */
+        _tbw.copy(base).addScaledVector(_r, (c - ax) * pw); _tbw.y += row * up; _tbw.addScaledVector(V, -0.06);   /* 맨 아랫줄이 식탁 위에 · 카메라 쪽으로 조금 (상판과 겹치지 않게) */
+        PROOM.g.worldToLocal(_tbw);
+        pa[n * 3] = _tbw.x; pa[n * 3 + 1] = _tbw.y; pa[n * 3 + 2] = _tbw.z;
+        col.setRGB(d[k] / 255, d[k + 1] / 255, d[k + 2] / 255).convertSRGBToLinear().multiplyScalar(dim); ca[n * 3] = col.r; ca[n * 3 + 1] = col.g; ca[n * 3 + 2] = col.b; n++;
+      }
+      o.geometry.setDrawRange(0, n); o.geometry.attributes.position.needsUpdate = true; o.geometry.attributes.color.needsUpdate = true; TB.sprN = n; dither.still = 0;
+    }
+    /* ── 11-21 7차 들고 가기 (주인: "요리 → 식탁 → 먹기가 이어지게"): 부엌이 닫히면 내 캐릭터가 조리대 앞에 서서 요리를 들고 → 식탁 통로까지 걷고 (화면이 따라온다) →
+       내려놓고 (눌림 한 번) → sit 이면 폴짝 앉는다. 박자: 들기 0.35 s · 걷기 (1.8 m/s) · 내려놓기 0.25 s (3칸) · 앉기 0.34 s.
+       요리는 이미 저장된 사실이라 무엇이 끊든 (스틱 · 방 옮김 · 숨은 탭 · 컨텍스트 잃음 · 가구 모드 · playerCarryCut) 그 자리에서 끝 상태 = 요리는 식탁에, 캐릭터는 선 자리.
+       → Promise<'seated' | 'placed' | 'cut' | 'no'> ('no' = 거절: 아무것도 안 했다). 팔 · 몸은 stepPlayer 뒤에 덮어쓴다 (stepMeBite 와 같은 길 — 갈래 P 의 몸 · 걸음은 안 고친다) ── */
+    /* ── 11-21 7차 계약 C12: 다른 갈래 (카페 · 가게 · 콘테스트) 가 쓰는 픽셀 그림 둘 — 식탁 위 요리 그림과 같은 길 (COOK_SPR 그림 한 칸 = 점 하나 = 방 그림 한 칸 · 픽셀 중심 스냅 ·
+       같은 재질 변형 · 밤엔 한 칸 어둡게). 그림이 없으면 (모르는 id · 파일 없음) 아무것도 안 그리고 false.
+       playerCarry(spriteId | null, frame): 내 캐릭터가 그 그림을 두 손에 든다 (걷든 서 있든 · 방을 옮겨도 · 앉으면 숨는다). null = 내려놓음. 식탁으로 들고 가는 동안엔 안 보인다.
+       spriteProp(name, pos | null, spriteId, frame): 한 자리에 카메라를 보는 그림. pos = { x, y, z, place? } (place = 'attic' | 'play' | 'loft' | 'yard' | 'exterior' — 없으면 지금 보이는 곳 ·
+       그 장소 그룹의 좌표 · y = 그림 맨 아랫줄이 놓일 높이 · 가로는 그림의 ax 가 그 자리). null = 치움. 같은 name 으로 다시 부르면 바뀐다 ── */
+    var SPR_MAX = 96 * 64, PCAR = null, SPROPS = {};
+    function sprFetch(id, frame) {
+      var CS = typeof window !== 'undefined' ? window.COOK_SPR : null;
+      if (!CS || typeof CS.get !== 'function' || typeof id !== 'string') return null;
+      try {
+        var sp = CS.get(id, frame | 0), inf = typeof CS.info === 'function' ? CS.info(id) : null;
+        if (!sp || !(sp.w > 0) || !(sp.h > 0) || sp.w * sp.h > SPR_MAX || !sp.d || sp.d.length < sp.w * sp.h * 4) return null;
+        var n = 0; for (var i = 3; i < sp.w * sp.h * 4; i += 4) if (sp.d[i] >= 128) n++;
+        return n ? { w: sp.w, h: sp.h, d: sp.d, ax: inf && isFinite(inf.ax) ? Math.floor(inf.ax) : sp.w >> 1, n: n } : null;
+      } catch (e) { return null; }
+    }
+    function sprHolder(sp, name) {
+      var g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array(sp.n * 3), 3)); g.setAttribute('color', new T.BufferAttribute(new Float32Array(sp.n * 3), 3));
+      var o = new T.Points(g, dishSprMat); o.frustumCulled = false; o.name = name; o.visible = false;
+      return { obj: o, sp: sp, key: '' };
+    }
+    function sprDrop(H) { if (!H) return; if (H.obj.parent) H.obj.parent.remove(H.obj); H.obj.geometry.dispose(); }
+    function sprLay(H, parent, x, y, z) {   /* 부모 좌표 (x, y, z) 에 맨 아랫줄 · ax 열 */
+      var o = H.obj, sp = H.sp;
+      if (!parent || !parent.visible) { o.visible = false; return; }
+      if (o.parent !== parent) { parent.add(o); H.key = ''; }
+      o.visible = true;
+      _tbv.set(x, y, z); parent.localToWorld(_tbv); snapC(_tbv);
+      var dim = 1 - 0.3 * nightK(), key = _tbv.x.toFixed(4) + ',' + _tbv.y.toFixed(4) + ',' + _tbv.z.toFixed(4) + '|' + S.pw + '|' + dim.toFixed(2);
+      if (key === H.key) return; H.key = key;
+      var base = _tbv.clone(), up = pxUp(), pw = S.pw, pa = o.geometry.attributes.position.array, ca = o.geometry.attributes.color.array, n = 0, w = sp.w, h = sp.h, d = sp.d, col = new T.Color();
+      camera.getWorldDirection(_tbw); var V = _tbw.clone();
+      for (var r = 0; r < h; r++) for (var c = 0; c < w; c++) {
+        var k = (r * w + c) * 4; if (d[k + 3] < 128 || n >= sp.n) continue;
+        _tbw.copy(base).addScaledVector(_r, (c - sp.ax) * pw); _tbw.y += (h - 1 - r) * up; _tbw.addScaledVector(V, -0.06);
+        parent.worldToLocal(_tbw);
+        pa[n * 3] = _tbw.x; pa[n * 3 + 1] = _tbw.y; pa[n * 3 + 2] = _tbw.z;
+        col.setRGB(d[k] / 255, d[k + 1] / 255, d[k + 2] / 255).convertSRGBToLinear().multiplyScalar(dim); ca[n * 3] = col.r; ca[n * 3 + 1] = col.g; ca[n * 3 + 2] = col.b; n++;
+      }
+      o.geometry.setDrawRange(0, n); o.geometry.attributes.position.needsUpdate = true; o.geometry.attributes.color.needsUpdate = true; dither.still = 0;
+    }
+    function playerCarry(id, frame) {
+      if (PCAR) { sprDrop(PCAR); PCAR = null; dither.still = 0; }
+      if (id == null) return true;
+      var sp = sprFetch(id, frame); if (!sp) return false;
+      PCAR = sprHolder(sp, 'playerCarrySpr'); PCAR.id = id; PCAR.frame = frame | 0;
+      return true;
+    }
+    function spriteProp(name, pos, id, frame) {
+      name = String(name);
+      if (Object.prototype.hasOwnProperty.call(SPROPS, name)) { sprDrop(SPROPS[name]); delete SPROPS[name]; dither.still = 0; }
+      if (!pos || typeof pos !== 'object') return true;
+      var sp = sprFetch(id, frame); if (!sp || !isFinite(pos.x) || !isFinite(pos.z)) return false;
+      var H = sprHolder(sp, 'spriteProp-' + name);
+      H.place = typeof pos.place === 'string' ? pos.place : PLACE.vis; H.at = [+pos.x, isFinite(pos.y) ? +pos.y : 0, +pos.z]; H.id = id; H.frame = frame | 0;
+      SPROPS[name] = H; return true;
+    }
+    function stepSprProps() {
+      if (PCAR) {
+        var par = plG.parent, show = !!par && plG.visible && !CARRY && !PL.sit && !PL.hop && !(FM && FM.on);
+        if (!show) PCAR.obj.visible = false;
+        else {
+          var yw = plG.rotation.y;
+          sprLay(PCAR, par, plG.position.x + Math.sin(yw) * 0.26, plG.position.y + 0.50, plG.position.z + Math.cos(yw) * 0.26);
+          plArmL.rotation.x = -1.15; plArmR.rotation.x = -1.15; plArmL.rotation.z = -0.1; plArmR.rotation.z = 0.1;   /* 두 팔을 앞으로 (stepPlayer 뒤에 덮어쓴다) */
+        }
+      }
+      for (var k in SPROPS) if (Object.prototype.hasOwnProperty.call(SPROPS, k)) { var H = SPROPS[k]; sprLay(H, groupOf(H.place), H.at[0], H.at[1], H.at[2]); }
+    }
+    function sprInfo() {   /* 시험용 */
+      var out = { carry: PCAR ? { id: PCAR.id, frame: PCAR.frame, visible: PCAR.obj.visible, n: PCAR.sp.n, parent: PCAR.obj.parent ? PCAR.obj.parent.name : '' } : null, props: {} };
+      for (var k in SPROPS) if (Object.prototype.hasOwnProperty.call(SPROPS, k)) { var H = SPROPS[k]; out.props[k] = { id: H.id, frame: H.frame, place: H.place, at: H.at.slice(), visible: H.obj.visible, n: H.sp.n }; }
+      return out;
+    }
+    var CARRY = null, CARRY_AT = [1.30, -1.80], CARRY_HOLD = 0.35, CARRY_PUT = 0.25;
+    function carryLeg(to, face) { var p = plWalkTo(to, face), w = PL.walking; return !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); }); }   /* 끊기면 null (plWalkTo 는 끊긴 걸음을 풀지 않는다) */
+    function dishAt() {   /* 요리 자리 (놀이방 좌표): 식탁 · 들고 있으면 두 손 앞 · 내려놓는 동안은 그 사이 3칸 */
+      var c = CARRY;
+      if (!c || !TB.carry) return BOOTH_DISH;
+      var yw = plG.rotation.y, hx = PL.pos.x + Math.sin(yw) * 0.26, hz = PL.pos.z + Math.cos(yw) * 0.26, hy = c.stage === 'hold' && c.t < 0.12 ? 0.62 : 0.50;   /* 첫 칸은 조리대 높이에서 */
+      if (c.stage !== 'put') return [hx, hy, hz];
+      var k = Math.min(1, (Math.floor(c.t * 12) + 1) / 3);
+      return [hx + (BOOTH_DISH[0] - hx) * k, hy + (BOOTH_DISH[1] + 0.06 * (1 - k) - hy) * k, hz + (BOOTH_DISH[2] - hz) * k];
+    }
+    function carryEnd(r) {
+      var c = CARRY; if (!c) return;
+      CARRY = null; TB.carry = false; if (c.gap) PL.camGap = 0;
+      if (r !== 'cut' && !st.reduced) { TB.appear = 2 / 12; }   /* 눌림 칸부터 (떨어지는 두 칸은 손이 했다) */
+      TB.sprKey = ''; spotLast.table = null; dither.still = 0;
+      c.res(r);
+    }
+    function carryStop(c) { if (c.w && PL.walking === c.w) plStop(); c.w = null; }   /* 내 걸음만 멈춘다 — 그새 시작된 남의 걸음 (문까지 걷기) 은 건드리지 않는다: 끊긴 걸음은 풀리지 않아 문 작업이 걸린 채 남는다 (독립 점검) */
+    function playerCarryCut() { var c = CARRY; if (!c) return false; carryStop(c); carryEnd('cut'); return true; }
+    function playerCarryDish(dish, o) {
+      o = o || {};
+      if (CARRY || !dish || !PROOM || PL.place !== 'play' || PLACE.vis !== 'play' || PL.hop || (PL.sit && !PL.tbl) || !playerInputAllowed() || TB.busy()) return Promise.resolve('no');
+      var instant = !!o.instant || st.reduced || st.hidden || ctxLost();
+      if (PL.tbl && PL.sit) { setTableDish(dish, { appear: !instant }); return Promise.resolve('seated'); }   /* 앉은 채 요리했다: 걷지 않는다 */
+      if (instant) {
+        setTableDish(dish, {});
+        return o.sit ? playerSitTable().then(function (ok) { return ok ? 'seated' : 'placed'; }) : Promise.resolve('placed');
+      }
+      plStop(); PL.pos.set(CARRY_AT[0], 0, CARRY_AT[1]); PL.faceCam = false; PL.yaw = PL.wantYaw = Math.PI; PL.moving = false; PL.pending = ''; plSnap();   /* 조리대 앞 (걸어가는 길은 없다 — 부엌이 방을 덮고 있었다) */
+      setTableDish(dish, {}); TB.carry = true; TB.appear = -1; TB.sprKey = '';
+      return new Promise(function (res) { CARRY = { stage: 'hold', t: 0, res: res, sit: !!o.sit, gap: false }; });
+    }
+    function stepCarry(dt) {
+      var c = CARRY; if (!c) return;
+      if (st.hidden || ctxLost() || PL.place !== 'play' || PLACE.vis !== 'play' || PLACE.trans || (FM && FM.on) || !TB.dish) { carryStop(c); carryEnd('cut'); return; }
+      if (c.stage !== 'sit' && (!playerInputAllowed() || (PL.walking && PL.walking !== c.w))) { carryStop(c); carryEnd('cut'); return; }   /* 문 작업이 잡혔거나 다른 걸음 (문 · 계단 톡) 이 시작됐다 → 그 걸음을 덮어쓰지 않고 바로 끝 상태로 */
+      c.t += dt / st.speed;
+      if (c.stage !== 'walk' && c.stage !== 'sit' && PL_IN.v) { carryEnd('cut'); return; }   /* 스틱을 밀면 그 자리에서 끝 (걷는 중엔 stepPlayer 가 걸음을 끊는다 → carryLeg null) */
+      if (c.stage === 'hold' && c.t >= CARRY_HOLD) {
+        var B = BOOTH.me, to = new T.Vector3(B.aisle[0], 0, B.aisle[1]);
+        c.stage = 'walk'; c.t = 0; c.gap = true; PL.camGap = 0.5;
+        var leg = carryLeg(to, Math.atan2(BOOTH_DISH[0] - to.x, BOOTH_DISH[2] - to.z)); c.w = PL.walking;
+        leg.then(function (r) {
+          if (CARRY !== c) return;
+          c.w = null;
+          if (r === null || PL_IN.v || Math.hypot(PL.pos.x - to.x, PL.pos.z - to.z) > 0.2) { carryEnd('cut'); return; }
+          c.stage = 'put'; c.t = 0; c.gap = false; PL.camGap = 0;
+        });
+      } else if (c.stage === 'put' && c.t >= CARRY_PUT) {
+        if (!c.sit) { carryEnd('placed'); return; }
+        c.stage = 'sit'; c.t = 0; TB.carry = false; TB.appear = st.reduced ? -1 : 2 / 12; TB.sprKey = '';
+        playerSitTable().then(function (ok) { if (CARRY === c) { c.stage = 'done'; carryEnd(ok ? 'seated' : 'placed'); TB.appear = -1; } });
+        return;
+      }
+      if (c.stage === 'hold' || c.stage === 'walk' || c.stage === 'put') {   /* 두 팔을 앞으로 (들기) — 내려놓을 땐 조금 더 뻗는다 */
+        var ax = c.stage === 'put' ? -1.45 : -1.15;
+        plArmL.rotation.x = ax; plArmR.rotation.x = ax; plArmL.rotation.z = -0.1; plArmR.rotation.z = 0.1;
+      }
+    }
 
 
     /* [7-P] 내 캐릭터 · 뛰기 · 마네킹 */
@@ -5844,7 +6046,7 @@ var SCENE3D = (function () {
     /* [7-U] 화면 채우기 · 계단 단추 */
     /* 11-21 가려진 동안 멈춤: 전체 화면 놀이 (부엌 · 달리기) 가 장면을 덮은 동안 프레임 고리를 세운다 (배터리 · 열). 탭이 숨었을 때 (st.hidden) 와 같은 길 —
        시계 (time) 는 그린 프레임의 dt 로만 가므로 다시 돌 때 뛰지 않는다 (lastDraw = 0 → 첫 프레임 dt 0.016). pause / resume (테스트 · 의식 감기) 과는 따로 센다 */
-    function setCovered(on) { on = !!on; if (!!st.covered === on) return; st.covered = on; if (on) cancelAnimationFrame(raf); else { lastDraw = 0; loop(); } }
+    function setCovered(on) { on = !!on; if (!!st.covered === on) return; st.covered = on; dither.still = 0; if (!on) loop(); }   /* 11-22: 덮인 동안 그리기만 멈춘다 — 시뮬레이션 (문어 걸음 · 산책 연출 · 문 · 날씨) 은 화면 밖 (T4) 처럼 30 fps 로 돈다. 예전처럼 고리 전체를 멈추면 달리기 · 부엌을 연 채 끝나야 하는 산책이 영영 안 끝났다 (스모크 S · CI 9652270) */
 
 
     function pick(cx, cy) {   /* 클라이언트 CSS px (PointerEvent clientX/Y) → 탭 표적 메시 | null */
@@ -6345,7 +6547,7 @@ var SCENE3D = (function () {
       var idle = octQuiet && !PL.walking && !PL.stick && !PL_IN.v && !GEST.mode && !PAN.mode && !ZT && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !(CER.active && !isRoomP(PLACE.vis)) && !DQ.active && !SAL.active && !(SAL.spark > 0) && !(SAL.offerT >= 0);   /* 손가락·관성 · 미용실 연출 중엔 60 fps */
       /* 프레임 상한은 *시간* 기준 (docs/research/a11y-and-mobile-perf.md 1): 가만히(또는 화면 밖) 30fps · 그 밖 60fps — 120Hz 폰도 60. 건너뛴 콜백의 시간은 버리지 않고
          다음에 그리는 프레임의 dt 로 넘긴다 (예전 홀수 콜백 건너뛰기는 dt 째 버려서 가만히 있을 때 비·양초·먼지·깜빡임·커튼이 반속도였다). debugStep(st.force) 은 항상 주어진 dt 로 진행·렌더 */
-      if (!st.force && lastDraw && ts - lastDraw < (idle || st.offscreen ? 1000 / 30 : 1000 / 60) - 1) return;
+      if (!st.force && lastDraw && ts - lastDraw < (idle || st.offscreen || st.covered ? 1000 / 30 : 1000 / 60) - 1) return;
       var dt = lastDraw ? Math.min(0.1, (ts - lastDraw) / 1000) : 0.016; lastDraw = ts; time += dt; frameNo++;
       if (ctxLost()) return;
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
@@ -6375,7 +6577,7 @@ var SCENE3D = (function () {
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(candleG.quaternion).invert().multiply(camera.quaternion);   /* 11-15: 양초 그룹이 상자와 같이 돌아도 글로우는 화면을 본다 */
       if (ATTIC_CUE) ATTIC_CUE.glow.quaternion.copy(camera.quaternion); if (LROOM) LROOM.cue.glow.quaternion.copy(camera.quaternion);   /* 11-15 계단 초롱 글로우도 늘 카메라 쪽으로 */
       stepZoom(dt); stepPan(dt); placeCamera(); if (YARD_WIDE && PLACE.vis === 'yard') { wideHoldCentre(); fitShadowView(); wideCull(); } updateOverlay();
-      if ((!st.offscreen || st.force) && !st.simOnly) draw(t0);   /* 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 · simOnly = 시험의 debugSim (그리지 않고 민다) */
+      if ((!st.offscreen || st.force) && !st.simOnly && !st.covered) draw(t0);   /* 덮임 (전체 화면 놀이, 11-22) 도 그리지 않는다 · 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 · simOnly = 시험의 debugSim (그리지 않고 민다) */
       if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
     }
     function draw(t0) {   /* 렌더 패스: 뷰티 → 노멀 → 발광(+블러) → 후처리 합성 · 프레임 ms · 드로우콜 로그 */
@@ -6414,7 +6616,7 @@ var SCENE3D = (function () {
         }
       }
     }
-    function loop() { if (st.paused || st.hidden || st.covered) return; cancelAnimationFrame(raf); raf = requestAnimationFrame(function (ts) { frame(ts); loop(); }); }
+    function loop() { if (st.paused || st.hidden) return; cancelAnimationFrame(raf); raf = requestAnimationFrame(function (ts) { frame(ts); loop(); }); }
 
     /* ── 초기 상태 ── */
     var hookSeason = null; try { hookSeason = window.__ppolLook && window.__ppolLook.season; } catch (e) { /* noop */ }
@@ -7257,6 +7459,8 @@ var SCENE3D = (function () {
       octTableBeat: octTableBeat, mealBite: mealBite, octLeaveTable: octLeaveTable, octAtTable: octAtTable, setAura: setAura, auraInfo: auraInfo, debugTableBodies: tableBodies,
       /* 7차 갈래가 장면 API 에 더하는 것 (11-21): 제 표시 줄 바로 아래에 '이름: 값,' 줄로 (쉼표까지) */
       /* [7-T] */
+      playerCarryDish: playerCarryDish, playerCarryCut: playerCarryCut, playerCarry: playerCarry, spriteProp: spriteProp, debugSprites: sprInfo,
+      debugDishSprite: function () { var o = TB.sprObj; if (!o || !o.visible || !TB.sprOn) return null; o.updateMatrixWorld(true); var pa = o.geometry.attributes.position.array, pts = []; for (var i = 0; i < (TB.sprN || 0); i++) { _tbw.set(pa[i * 3], pa[i * 3 + 1], pa[i * 3 + 2]).applyMatrix4(o.matrixWorld).project(camera); pts.push([(_tbw.x * 0.5 + 0.5) * S.rw, (1 - (_tbw.y * 0.5 + 0.5)) * S.rh]); } return { n: TB.sprN || 0, pts: pts, rw: S.rw, rh: S.rh, eaten: TB.eaten.slice() }; },
 
       /* [7-P] */
       playerSpeeds: playerSpeeds, mannequins: mannequins, mannequinInfo: mannequinInfo, playerPose: playerPose, playerCloseup: playerCloseup, playerWalkPath: playerWalkPath, playerPlace: playerPlace,
@@ -7268,7 +7472,7 @@ var SCENE3D = (function () {
       /* [7-N] */
 
       /* [7-U] */
-      setCovered: setCovered, covered: function () { return !!st.covered; }, clock: function () { return { time: time, frames: frameNo }; },
+      setCovered: setCovered, covered: function () { return !!st.covered; }, clock: function () { return { time: time, frames: frameNo, draws: drawN }; },
 
       spotRect: function (id) { var s = spotInfo(id); if (!s || s.mode !== 'over') return s; var r = container.getBoundingClientRect(); s.client = { x: r.left + s.x, y: r.top + s.y, w: s.w, h: s.h }; return s; },
       doorAnchors: JSON.parse(JSON.stringify(DOOR_ANCHORS)),
