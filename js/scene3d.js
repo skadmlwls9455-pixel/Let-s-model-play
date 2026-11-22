@@ -6110,6 +6110,7 @@ var SCENE3D = (function () {
     function vilIsExtra(id) { return VILLAGE.EXTRA.indexOf(id) >= 0; }
     function vilHallY(x, z) {   /* 공연장 바닥 높이: 무대 · 길 위 0.3 · 꾸민 날 시상대 위면 그 단 */
       var H = VILLAGE.ROOMS.hall, a = H.stage, b = H.walk, y = (x >= a.x0 && x <= a.x1 && z >= a.z0 && z <= a.z1) || (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) ? a.y : 0;
+      if (!y && Math.abs(x) <= 0.45 && z > H.steps.z0 && z <= H.steps.z1) y = z <= H.steps.z0 + 0.24 ? 0.2 : 0.1;   /* 길 끝의 계단 두 칸 (발이 계단 속에 묻히지 않게) */
       if (y && VR.dressOn) VILLAGE.SHOW.podium.forEach(function (p, n) { if (n < 3 && Math.hypot(p[0] - x, p[1] - z) < 0.36) y = p[2]; }); return y;
     }
     function vilHallSpot(id) {
@@ -6426,7 +6427,7 @@ var SCENE3D = (function () {
       /* 액자 옷 그림 (뒷벽 왼쪽, 선반 아래): 금빛 틀 · 크림 바탕 · 원피스 그림 */
       P.nz.push({ g: box(0.5, 0.62, 0.03), m: M(-1.5, 1.32, -hz + 0.02), c: VC.yellow }, { g: box(0.42, 0.54, 0.035), m: M(-1.5, 1.32, -hz + 0.022), c: VC.cream }, { g: box(0.12, 0.1, 0.04), m: M(-1.5, 1.44, -hz + 0.024), c: VC.rose }, { g: box(0.22, 0.24, 0.04), m: M(-1.5, 1.27, -hz + 0.024), c: VC.rose }, { g: box(0.06, 0.06, 0.042), m: M(-1.5, 1.53, -hz + 0.025), c: VC.paper });
       /* 벽 그림: 옷본 종이 (재단 선이 그려진 판) · 실패 꽂이 */
-      P.nx.push({ g: box(0.03, 0.5, 0.4), m: M(-hx + 0.02, 1.4, -1.75), c: VC.paper }, { g: box(0.035, 0.3, 0.02), m: M(-hx + 0.022, 1.42, -1.8), c: VC.blue }, { g: box(0.035, 0.02, 0.26), m: M(-hx + 0.022, 1.3, -1.72), c: VC.blue }, { g: box(0.04, 0.56, 0.04), m: M(-hx + 0.022, 1.4, -1.97), c: VC.woodD }, { g: box(0.04, 0.56, 0.04), m: M(-hx + 0.022, 1.4, -1.53), c: VC.woodD });
+      P.nx.push({ g: box(0.03, 0.5, 0.4), m: M(-hx + 0.02, 1.4, -1.75), c: VC.sky }, { g: box(0.035, 0.12, 0.14), m: M(-hx + 0.022, 1.5, -1.75), c: VC.white }, { g: box(0.035, 0.2, 0.26), m: M(-hx + 0.022, 1.32, -1.75), c: VC.white }, { g: box(0.036, 0.16, 0.2), m: M(-hx + 0.023, 1.33, -1.75), c: VC.sky },   /* 벽에 꽂은 옷본: 하늘색 종이에 흰 원피스 윤곽 */ { g: box(0.04, 0.56, 0.04), m: M(-hx + 0.022, 1.4, -1.97), c: VC.woodD }, { g: box(0.04, 0.56, 0.04), m: M(-hx + 0.022, 1.4, -1.53), c: VC.woodD });
       P.nz.push({ g: box(0.7, 0.04, 0.1), m: M(2.2, 1.3, -hz + 0.05), c: VC.woodL }); [VC.red, VC.yellow, VC.blueL, VC.moss, VC.rose, VC.cream].forEach(function (c2, n) { P.nz.push({ g: new T.CylinderGeometry(0.04, 0.04, 0.09, 6), m: M(1.92 + n * 0.11, 1.365, -hz + 0.06), c: c2 }); });
     }
     /* ── 카페 안: 계산대 (커피 기계 · 유리 덮개 케이크 받침 · 내주는 쟁반 자리) · 뒷벽의 분필 차림판 · 식탁 셋과 걸상 · 레코드 장 (턴테이블 · 레코드 꽂이) · 바다 창 ── */
