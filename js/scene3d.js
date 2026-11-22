@@ -4259,7 +4259,8 @@ var SCENE3D = (function () {
       var up = pxUp(), at = dishAt(), y = at[1];   /* 11-21: 들고 가는 동안은 손 자리 (dishAt) */
       m.scale.set(1, 1, 1);
       if (f === 0) y += 2 * up; else if (f === 1) y += up; else if (f === 2) m.scale.set(1.08, 0.7, 1.08);
-      _tbv.set(at[0], y, at[2]); m.position.copy(_tbv);
+      _tbv.set(at[0], y, at[2]); if (TB.carry) { camera.getWorldDirection(_tbw); _tbw.y = 0; if (_tbw.lengthSq() > 1e-6) { _tbw.normalize(); _tbv.addScaledVector(_tbw, -(carryNear() - 0.06)); } }   /* 그림이 없는 접시 (메시) 도 몸 앞으로 */
+      m.position.copy(_tbv); m.renderOrder = TB.carry ? 6 : 0;
       dishSprLayout(at[0], y, at[2], f === 2);
       /* 김: 접시 위 1px 두 점이 세 칸 동안 한 줄씩 오른다 */
       var steam = TB.steam, sf = -1;
@@ -5664,7 +5665,7 @@ var SCENE3D = (function () {
         var id = 'table.' + d.pic.id, sp = CS.get(id, d.pic.frame), inf = typeof CS.info === 'function' ? CS.info(id) : null;
         if (!sp || !(sp.w > 0) || !(sp.h > 0) || sp.w * sp.h > DISH_SPR_N || !sp.d || sp.d.length < sp.w * sp.h * 4) return null;
         var MR = window.MEAL, px = sp.d;
-        if (TB.eaten.length && MR && typeof MR.biteMask === 'function') px = MR.biteMask(sp, TB.eaten.filter(function (q) { return q >= 0 && q < 4; }), MR.biteLine(sp), 0) || sp.d;
+        if (TB.eaten.length && MR && typeof MR.biteFood === 'function') px = MR.biteFood(sp, TB.eaten.filter(function (q) { return q >= 0 && q < 4; }), d.pic.id, 0) || sp.d;   /* 11-22: 음식만 줄인다 (접시 · 도구는 그대로) */
         return { w: sp.w, h: sp.h, d: px, ax: inf && isFinite(inf.ax) ? inf.ax : sp.w / 2, ay: inf && isFinite(inf.ay) ? inf.ay : sp.h - 2 };
       } catch (e) { return null; }
     }
@@ -5678,14 +5679,15 @@ var SCENE3D = (function () {
       }
       o.visible = true;
       _tbv.set(x, y, z); PROOM.g.localToWorld(_tbv); snapC(_tbv);
-      var dim = 1 - 0.3 * nightK(), key = _tbv.x.toFixed(4) + ',' + _tbv.y.toFixed(4) + ',' + _tbv.z.toFixed(4) + '|' + S.pw + '|' + (squash ? 1 : 0) + '|' + dim.toFixed(2);
+      var dim = 1 - 0.3 * nightK(), key = _tbv.x.toFixed(4) + ',' + _tbv.y.toFixed(4) + ',' + _tbv.z.toFixed(4) + '|' + S.pw + '|' + (squash ? 1 : 0) + '|' + dim.toFixed(2) + '|' + carryNear().toFixed(3);
+      o.renderOrder = TB.carry ? 6 : 0;   /* 11-22 (독립 점검): 들고 가는 동안엔 몸 다음에 그린다 */
       if (key === TB.sprKey) return; TB.sprKey = key;
       var base = _tbv.clone(), up = pxUp(), pw = S.pw, pa = o.geometry.attributes.position.array, ca = o.geometry.attributes.color.array, n = 0, w = sp.w, h = sp.h, d = sp.d, col = new T.Color();
-      camera.getWorldDirection(_tbw); var V = _tbw.clone(), ax = Math.floor(sp.ax);
+      camera.getWorldDirection(_tbw); var V = _tbw.clone(), ax = Math.floor(sp.ax), near = carryNear();
       for (var r = 0; r < h; r++) for (var c = 0; c < w; c++) {
         var k = (r * w + c) * 4; if (d[k + 3] < 128 || n >= DISH_SPR_N) continue;
         var row = h - 1 - r; if (squash) row = Math.floor(row * 0.75);   /* 내려놓는 칸: 한 번 눌린다 */
-        _tbw.copy(base).addScaledVector(_r, (c - ax) * pw); _tbw.y += row * up; _tbw.addScaledVector(V, -0.06);   /* 맨 아랫줄이 식탁 위에 · 카메라 쪽으로 조금 (상판과 겹치지 않게) */
+        _tbw.copy(base).addScaledVector(_r, (c - ax) * pw); _tbw.y += row * up; _tbw.addScaledVector(V, -near);   /* 맨 아랫줄이 식탁 위에 · 카메라 쪽으로 조금 (상판과 겹치지 않게) — 들고 있으면 몸 앞으로 (11-22) */
         PROOM.g.worldToLocal(_tbw);
         pa[n * 3] = _tbw.x; pa[n * 3 + 1] = _tbw.y; pa[n * 3 + 2] = _tbw.z;
         col.setRGB(d[k] / 255, d[k + 1] / 255, d[k + 2] / 255).convertSRGBToLinear().multiplyScalar(dim); ca[n * 3] = col.r; ca[n * 3 + 1] = col.g; ca[n * 3 + 2] = col.b; n++;
@@ -5722,7 +5724,7 @@ var SCENE3D = (function () {
       var o = H.obj, sp = H.sp;
       if (!parent || !parent.visible) { o.visible = false; return; }
       if (o.parent !== parent) { parent.add(o); H.key = ''; }
-      o.visible = true;
+      o.visible = true; o.renderOrder = H === PCAR ? 6 : 0;
       _tbv.set(x, y, z); parent.localToWorld(_tbv); snapC(_tbv);
       var dim = 1 - 0.3 * nightK(), key = _tbv.x.toFixed(4) + ',' + _tbv.y.toFixed(4) + ',' + _tbv.z.toFixed(4) + '|' + S.pw + '|' + dim.toFixed(2);
       if (key === H.key) return; H.key = key;
@@ -5730,7 +5732,7 @@ var SCENE3D = (function () {
       camera.getWorldDirection(_tbw); var V = _tbw.clone();
       for (var r = 0; r < h; r++) for (var c = 0; c < w; c++) {
         var k = (r * w + c) * 4; if (d[k + 3] < 128 || n >= sp.n) continue;
-        _tbw.copy(base).addScaledVector(_r, (c - sp.ax) * pw); _tbw.y += (h - 1 - r) * up; _tbw.addScaledVector(V, -0.06);
+        _tbw.copy(base).addScaledVector(_r, (c - sp.ax) * pw); _tbw.y += (h - 1 - r) * up; _tbw.addScaledVector(V, H === PCAR ? -0.55 : -0.06);   /* 든 그림은 몸 앞 (화면 자리는 그대로 — 정사영) */
         parent.worldToLocal(_tbw);
         pa[n * 3] = _tbw.x; pa[n * 3 + 1] = _tbw.y; pa[n * 3 + 2] = _tbw.z;
         col.setRGB(d[k] / 255, d[k + 1] / 255, d[k + 2] / 255).convertSRGBToLinear().multiplyScalar(dim); ca[n * 3] = col.r; ca[n * 3 + 1] = col.g; ca[n * 3 + 2] = col.b; n++;
@@ -5772,10 +5774,16 @@ var SCENE3D = (function () {
     }
     var CARRY = null, CARRY_AT = [1.30, -1.80], CARRY_HOLD = 0.35, CARRY_PUT = 0.25;
     function carryLeg(to, face) { var p = plWalkTo(to, face), w = PL.walking; return !w ? p : new Promise(function (res) { var c = w.cancel; w.cancel = function () { c(); res(null); }; p.then(res); }); }   /* 끊기면 null (plWalkTo 는 끊긴 걸음을 풀지 않는다) */
+    function carryNear() {   /* 11-22 (독립 점검: 들고 가는 내내 접시가 몸 뒤에 가렸다): 들고 있으면 카메라 쪽으로 0.55 m (정사영이라 화면 자리는 그대로, 깊이만 몸 앞) · 내려놓는 3칸 동안 줄어든다 */
+      var c = CARRY; if (!c || !TB.carry) return 0.06;
+      if (c.stage !== 'put') return 0.55;
+      return 0.06 + 0.49 * (1 - Math.min(1, (Math.floor(c.t * 12) + 1) / 3));
+    }
     function dishAt() {   /* 요리 자리 (놀이방 좌표): 식탁 · 들고 있으면 두 손 앞 · 내려놓는 동안은 그 사이 3칸 */
       var c = CARRY;
       if (!c || !TB.carry) return BOOTH_DISH;
-      var yw = plG.rotation.y, hx = PL.pos.x + Math.sin(yw) * 0.26, hz = PL.pos.z + Math.cos(yw) * 0.26, hy = c.stage === 'hold' && c.t < 0.12 ? 0.62 : 0.50;   /* 첫 칸은 조리대 높이에서 */
+      camera.getWorldDirection(_tbw); var cx = -_tbw.x, cz = -_tbw.z, cl = Math.hypot(cx, cz) || 1, yw = plG.rotation.y;   /* 11-22: 몸이 어느 쪽을 보든 접시는 몸의 카메라 쪽 앞 (가슴 높이) — 걸어가는 쪽이 화면 안쪽이어도 보이게 */
+      var hx = PL.pos.x + cx / cl * 0.24 + Math.sin(yw) * 0.06, hz = PL.pos.z + cz / cl * 0.24 + Math.cos(yw) * 0.06, hy = c.stage === 'hold' && c.t < 0.12 ? 0.62 : 0.46;   /* 첫 칸은 조리대 높이에서 */
       if (c.stage !== 'put') return [hx, hy, hz];
       var k = Math.min(1, (Math.floor(c.t * 12) + 1) / 3);
       return [hx + (BOOTH_DISH[0] - hx) * k, hy + (BOOTH_DISH[1] + 0.06 * (1 - k) - hy) * k, hz + (BOOTH_DISH[2] - hz) * k];
