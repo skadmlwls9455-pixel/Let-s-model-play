@@ -98,6 +98,28 @@ function box(p) {
     var guard = 0; while (!(await box(p)).hidden && guard++ < 3) await p.keyboard.press('Enter');
     ok((await box(p)).hidden, '대사창의 단추에서 Enter 로 닫힌다');
 
+    /* 11-21 밤 (계약 C14): 방이 있는 장면이면 그곳의 문어만 넘긴다 · 방이 바뀌면 떠 있던 말은 접힌다 · 카드 (data-npc-avoid) 를 가리지 않는다 */
+    var rm = await p.evaluate(function () {
+      window.__calls = []; var room = null; APP.scene.inRoom = function () { return room; };
+      var out = {}; APP.npcSync(); out.outside = window.__calls.pop()[1].map(function (x) { return x.id; }).join();
+      APP.npcSay('cafe', 'cafe.order'); room = 'cafe'; document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: 'cafe' } }));
+      out.folded = APP.npc === null; out.cafe = window.__calls.filter(function (c) { return c[0] === 'set'; }).pop()[1].map(function (x) { return x.id; }).join();
+      room = 'hall'; document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: 'hall' } })); out.hall = window.__calls.filter(function (c) { return c[0] === 'set'; }).pop()[1].length;
+      room = null; document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: null } })); out.back = window.__calls.filter(function (c) { return c[0] === 'set'; }).pop()[1].length;
+      delete APP.scene.inRoom; return out;
+    });
+    ok(rm.outside === 'sleep-2,sleep-3,sleep-4' && rm.cafe === 'cafe,sleep-1' && rm.hall === 0 && rm.back === 3, '방마다 그곳의 문어만 (바깥 자는 셋 · 카페 느루와 자는 하나 · 공연장 없음): ' + JSON.stringify(rm));
+    ok(rm.folded, '방이 바뀌면 떠 있던 말은 접힌다');
+    var av = await p.evaluate(function () {
+      var sc = document.getElementById('scene'), r = sc.getBoundingClientRect(), c = document.createElement('div');
+      c.setAttribute('data-npc-avoid', ''); c.style.cssText = 'position:absolute;left:40px;width:200px;height:120px;top:' + (r.height - 140) + 'px;background:#fff'; sc.appendChild(c);
+      APP.npcSay('clothes', 'shop.pay', { shells: 12 });
+      var b = document.getElementById('npc-box').getBoundingClientRect(), k = c.getBoundingClientRect(), txt = document.getElementById('npc-text').textContent;
+      var over = b.right > k.left && b.left < k.right && b.bottom > k.top && b.top < k.bottom; c.remove(); return { over: over, top: b.top, txt: txt };
+    });
+    ok(!av.over && av.top >= 0 && /12개/.test(av.txt), '카드 (꼬리표 · 영수증) 를 가리지 않는다 · 조개 수를 말한다: ' + JSON.stringify(av));
+    await p.keyboard.press('Escape');
+
     /* 자는 문어: 알림 한 줄 */
     await p.click('#btn-npc-sleep-1');
     ok(await p.evaluate(function () { var t = document.getElementById('toast'); return t.classList.contains('show') && t.textContent === '자고 있어.'; }) && (await box(p)).hidden, '자는 문어를 누르면 "자고 있어." 한 줄 (대사창 아님)');
@@ -154,8 +176,7 @@ function box(p) {
     await p.mouse.click(180, 400);
     var s1 = await story(p); ok(!s1.hidden && s1.text === LINES[0] && !s1.name && s1.phase === 'title', '타이틀을 누르면 첫 줄 (이름 창보다 먼저)');
     ok(await p.evaluate(function () { return document.getElementById('story-line').getAttribute('aria-live') === 'polite' && !!document.getElementById('story-skip').offsetWidth; }), '낭독 · 건너뛰기 단추');
-    await p.mouse.click(180, 300); ok((await story(p)).text === LINES[0], '타이틀을 누른 손가락이 첫 줄을 넘기지 않는다 (바로 이어진 누르기는 먹지 않는다)');
-    await p.waitForTimeout(450); await p.mouse.click(180, 300); ok((await story(p)).text === LINES[1], '누르면 둘째 줄');
+    await p.mouse.click(180, 300); ok((await story(p)).text === LINES[1], '누르면 둘째 줄');
     await p.keyboard.press('Enter'); ok((await story(p)).text === LINES[2], 'Enter 로 셋째 줄');
     await p.mouse.click(180, 300);
     await p.waitForFunction(function () { return document.getElementById('name-dialog').open; }, null, { timeout: 8000 });
@@ -167,7 +188,9 @@ function box(p) {
     await p.context().close();
 
     /* 건너뛰기 · Esc · 모션 감소 */
-    p = await open(browser, '?intro=1&story=1'); await toTitle(p); await p.mouse.click(180, 400);
+    p = await open(browser, '?intro=1&story=1'); await toTitle(p);
+    var ghost = await p.evaluate(function () { INTRO.dismiss(); document.getElementById('story-next').click(); return [document.getElementById('story-intro').hidden, document.getElementById('story-line').textContent]; });
+    ok(ghost[0] === false && ghost[1] === LINES[0], '타이틀을 누른 그 손가락의 click 은 첫 줄을 넘기지 않는다');
     ok(!(await story(p)).hidden, '첫 줄');
     await p.focus('#story-skip'); await p.keyboard.press('Enter');   /* 자판으로 건너뛰기 */
     await p.waitForFunction(function () { return document.getElementById('name-dialog').open && document.getElementById('story-intro').hidden; }, null, { timeout: 8000 });
