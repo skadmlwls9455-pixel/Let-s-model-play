@@ -119,7 +119,10 @@ async function openPage(browser, o) {
   page.on('console', function (m) { if (m.type() === 'error') errs.push('console: ' + m.text()); });
   if (o.clock !== false) await page.clock.install({ time: new Date(o.time || '2026-11-08T10:00:00') });
   if (o.paused) await pauseClock(page);   /* before the page exists: its whole life then runs on T.go only, to the millisecond */
-  await page.goto(o.url || (URL0 + (o.q ? '?' + o.q : '')));
+  /* 11-21 round 7: with no dish asked for the kitchen opens on the recipe book (tools/test-cook-book-live.js). This suite
+     guards the engine with the legacy jeon, so it asks for it by id */
+  var q7 = o.q ? (/(^|&)recipe=/.test(o.q) ? o.q : o.q + '&recipe=jeon') : 'recipe=jeon';
+  await page.goto(o.url || (URL0 + '?' + q7));
   var cdp = await ctx.newCDPSession(page);
   var T = { page: page, ctx: ctx, cdp: cdp, errs: errs };
   T.go = function (ms) { return o.clock === false ? page.waitForTimeout(ms) : page.clock.runFor(ms); };
@@ -163,6 +166,14 @@ async function openPage(browser, o) {
   T.active = function () { return page.evaluate(function () { var a = document.activeElement; return a ? (a.id ? '#' + a.id : '') + '.' + String(a.className || '').trim().split(/\s+/).join('.') : null; }); };
   T.verb = function () {
     return page.evaluate(function () { var v = document.querySelector('.ck-verb'); return { label: v.getAttribute('aria-label') || '', text: v.textContent, hidden: v.hidden, opacity: getComputedStyle(v).opacity, shown: v.classList.contains('ck-shown') }; });
+  };
+  /* 11-21 round 7: the plate ends on two end buttons and there is no 'again'. A second dish in the same page = the table
+     button (the kitchen closes), then the page's door (it opens again with the same options) */
+  T.again = async function () {
+    await page.evaluate(function () { document.querySelector('.ck-table').click(); });
+    await realWait(80); await T.go(60);
+    await page.evaluate(function () { document.getElementById('ck-door').click(); });
+    await T.go(60);
   };
   T.verbClick = function () { return page.evaluate(function () { document.querySelector('.ck-verb').click(); }); };
   T.store = function () { return page.evaluate(function (k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return 'broken'; } }, KEY); };
@@ -238,8 +249,10 @@ async function L1(browser) {   /* touch: open straight into the tap step, the di
     var st = await T.store();
     check(st && st.pot === null && st.book.length === 1 && st.book[0].recipe === 'jeon' && JSON.stringify(st.book[0].look) === dishLook, 'L1 ' + su.tag + ': one book line with the look of the plate, no pot');
     l = await T.live();
-    check(l.verb === '다시' && l.screen === 'reveal' && !l.hint, 'L1 ' + su.tag + ': the result shows the again chip (다시), no hand');
-    await afterSwipe(); await T.tapEl('.ck-verb'); await realWait(40); await T.go(50);
+    check(l.verb === '' && l.end.call && l.end.table && l.screen === 'reveal' && !l.hint, 'L1 ' + su.tag + ': the result shows the two end buttons (no again chip), no hand');
+    await afterSwipe(); await T.tapEl('.ck-table'); await realWait(80); await T.go(60);
+    check((await T.live()).screen === 'closed', 'L1 ' + su.tag + ': a touch on the table button closes the kitchen');
+    await T.page.evaluate(function () { document.getElementById('ck-door').click(); }); await T.go(60);
     l = await T.until(function (x) { return x.screen === 'step'; }, 2000, 'again');
     st = await T.store();
     check(l.kind === 'tap' && l.si === 0 && l.id !== id0 && st.book.length === 1 && st.pot && st.pot.runId === l.id && st.pot.si === 0,
@@ -283,15 +296,18 @@ async function L2(browser) {   /* keyboard only: Tab close -> chip, every step w
   var r0 = l.revealAt, now = await T.now();
   await T.go(Math.max(0, T.t0 + r0 + 470 - now));
   v = await T.verb();
-  check(/ck-verb/.test(await T.active()) && v.label === '다시' && v.opacity === '1', 'L2: at 450 ms the result chip 다시 has focus (' + (await T.active()) + ')');
+  check(/ck-call/.test(await T.active()) && v.hidden, 'L2: at 450 ms the first end button has focus, the chip is gone (' + (await T.active()) + ')');
   var id0 = l.id;
   await T.page.keyboard.press('Enter'); await T.go(50);
   l = await T.live();
   check(l.screen === 'reveal' && l.id === id0, 'L2: Enter before 900 ms does nothing');
   now = await T.now(); await T.go(Math.max(0, T.t0 + r0 + 920 - now));
-  await T.page.keyboard.press('Enter'); await T.go(50);
+  await T.page.keyboard.press('Enter'); await realWait(80); await T.go(50);
   l = await T.live();
-  check(l.screen === 'step' && l.si === 0 && l.id !== id0 && /ck-verb/.test(await T.active()), 'L2: Enter after 900 ms starts a new dish, focus on the chip (' + (await T.active()) + ')');
+  check(l.screen === 'closed' && l.served === undefined && /ck-door/.test(await T.active()), 'L2: Enter after 900 ms on the end button closes the kitchen, focus back on the opener (' + (await T.active()) + ')');
+  await T.page.keyboard.press('Enter'); await T.go(60);
+  l = await T.live();
+  check(l.screen === 'step' && l.si === 0 && l.id !== id0 && /ck-verb/.test(await T.active()), 'L2: Enter on the door starts a new dish, focus on the chip (' + (await T.active()) + ')');
   await T.go(400);
   await T.page.keyboard.press('Escape'); await T.go(100);
   l = await T.live();
@@ -341,7 +357,7 @@ async function L3(browser) {   /* touch: quiet chip, still in the tab order and 
   await playFlip(T, 500);
   await playSlice(T);
   await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
-  await T.go(1000); await afterSwipe(); await T.tapEl('.ck-verb'); await realWait(40); await T.go(50);
+  await T.go(1000); await afterSwipe(); await T.tapEl('.ck-table'); await realWait(80); await T.go(60); await T.page.evaluate(function () { document.getElementById('ck-door').click(); }); await T.go(60);
   await T.until(function (x) { return x.screen === 'step'; }, 2000, 'again');
   await T.go(700);
   v = await T.verb();
@@ -507,9 +523,11 @@ async function L6(browser) {   /* sound off is the main case: every counted inpu
     check(tail.indexOf('quiet') >= 0, 'L6: quiet on ' + label + ' (' + tail.join(',') + ')');
   }
   var n1 = await A.page.evaluate(function () { return window.__acts.length; });
-  await A.go(300); await afterSwipe(); await A.tapEl('.ck-verb'); await realWait(40); await A.go(900);
+  await A.go(300); await afterSwipe(); await A.tapEl('.ck-table'); await realWait(80); await A.go(60);
+  n1 = await A.page.evaluate(function () { return window.__acts.length; });
+  await A.page.evaluate(function () { document.getElementById('ck-door').click(); }); await A.go(900);
   var again = await A.page.evaluate(function (n) { return window.__acts.slice(n).map(function (x) { return x.p.act; }); }, n1);
-  check(again[0] === 'pick', 'L6: again sends pick for the new dish (' + again.join(',') + ')');
+  check(again[0] === 'pick', 'L6: the next dish sends pick (' + again.join(',') + ')');
   await quietAfter('hidden tab', function () {
     return A.page.evaluate(function () {
       Object.defineProperty(document, 'hidden', { configurable: true, get: function () { return true; } });
@@ -581,7 +599,7 @@ async function L8() {   /* reload in step 2: straight back at the flip on the st
     check(l.screen === 'step' && l.si === 1 && l.kind === 'flip' && l.station === 'stove' && !l.slide && l.st.heat === false && l.progress === 0, 'L8: it opens straight at the flip on the stove, from its start (heat off, no slide)');
     check(JSON.stringify(l.look.dents) === JSON.stringify(store.pot.looks[0].dents) && l.id === store.pot.runId && l.seed === store.pot.seed, 'L8: step 1 look, run id and seed kept');
     check((await R.dlgText()) === '', 'L8: no text at all');
-    check((await R.strip()) === 'done,on,up', 'L8: the strip shows step 1 done and step 2 current (' + (await R.strip()) + ')');
+    check((await R.strip()) === '' && (await R.page.evaluate(function () { return document.querySelector('.ck-strip') === null; })), 'L8: no step strip any more (round 7: the owner read it as buttons)');
     check(R.errs.length === 0, 'L8: no errors ' + R.errs.join(' | '));
     await R.done();
   } finally { await bB.close(); }
@@ -647,8 +665,8 @@ async function L10(browser) {   /* storage full: play, close, notice, go -> no e
   await T.page.evaluate(function () { COOK.auto(true); });
   var l = await T.until(function (x) { return x.screen === 'reveal'; }, 15000, 'reveal');
   check(l.done, 'L10: a whole dish with a full storage');
-  await T.go(1000); await T.verbClick(); await T.go(300);
-  check((await T.live()).screen === 'step', 'L10: again works with a full storage');
+  await T.go(1000); await T.again(); await T.go(300);
+  check((await T.live()).screen === 'step', 'L10: a second dish works with a full storage');
   await T.page.evaluate(function () { COOK.close(); });
   await T.go(200);
   await T.page.evaluate(function () { document.getElementById('ck-door').click(); });
@@ -725,6 +743,7 @@ async function toFlipQuiet(T) {   /* tap step by touch (the chip stays quiet), t
   await T.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 4000, 'flip');
   await T.go(700); await T.tap(144, 176); await T.go(1000);
 }
+async function endPoint(T) { var r = await T.rect('.ck-call'); return [r.x + r.w / 2, r.y + r.h / 2]; }   /* 11-21: the first end button on the plate */
 async function rowPoint(T) { var r = await T.rect('.ck-verb'); return [r.x + r.w / 2, r.y + r.h / 2]; }
 
 async function L15(browser) {   /* the quiet chip: a stray touch only shows it; a flick from it still flips; a click with no
@@ -805,18 +824,18 @@ async function L16(browser) {   /* hints: a first demo is not wiped by presses t
   check(v.hidden && (await T.live()).verb === '', 'L16: at 300 ms the result has no chip yet');
   await at(470);
   v = await T.verb();
-  check(!v.hidden && v.opacity === '1' && v.label === '다시' && /ck-stage/.test(await T.active()), 'L16: from 450 ms the again chip shows (not quiet), focus stays on the stage by touch');
+  check(v.hidden && (await T.live()).end.call && (await T.live()).end.table && /ck-stage/.test(await T.active()), 'L16: from 450 ms the two end buttons show, focus stays on the stage by touch');
   await at(600);
-  await T.tapCss(await rowPoint(T));
-  check((await T.live()).id === id0 && (await T.live()).screen === 'reveal', 'L16: a press on the chip before 900 ms does nothing');
+  await T.tapCss(await endPoint(T));
+  check((await T.live()).id === id0 && (await T.live()).screen === 'reveal', 'L16: a press on an end button before 900 ms does nothing');
   await T.tapCss(await T.pt(144, 172));   /* the plate */
   var hand = false;
   for (var w = 0; w < 5400; w += 200) { await T.go(200); if ((await T.live()).hint) hand = true; }
   l = await T.live();
   check(!hand && l.screen === 'reveal' && l.id === id0, 'L16: pressing the plate does nothing, and no hand shows for 6 s (no auto-advance)');
-  await T.tapCss(await rowPoint(T)); await T.go(50);
+  await realWait(1200); await T.tapCss(await endPoint(T)); await realWait(80); await T.go(50);
   l = await T.live();
-  check(l.screen === 'step' && l.si === 0 && l.id !== id0, 'L16: after 900 ms the chip starts a new dish');
+  check(l.screen === 'closed', 'L16: after 900 ms an end button closes the kitchen');
   check(T.errs.length === 0, 'L16: no errors (result) ' + T.errs.join(' | '));
   await T.done();
 }
@@ -1013,7 +1032,7 @@ async function L19(browser) {   /* what cook.js hands the scene painters, frame 
     'L19: one seed for the whole dish: the pan, the board and the plate get the same whole number (' + JSON.stringify(seeds) + ')');
   check(all.length > 0 && all.every(function (r) { return r.still === false; }), 'L19: with motion on, every painter call gets still false (' + JSON.stringify(vals(all, 'still')) + ')');
 
-  await T.go(1000); await T.verbClick();                 /* again, then the second dish up to its flip step */
+  await T.go(1000); await T.again();                     /* a second dish, up to its flip step */
   await handled(function (x) { return x.screen === 'step'; }, 'second dish');
   await verbThrough(T, 'tap', 3);
   await T.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 3000, 'flip again');
@@ -1071,11 +1090,10 @@ async function N1(browser) {
   l = await T.live();
   var n = await T.now(); await T.go(T.t0 + l.revealAt + 1000 - n); await snap('result 1 s');
   n = await T.now(); await T.go(T.t0 + l.revealAt + 6000 - n); await snap('result 6 s');
-  await T.verbClick();
-  await slideSamples();
+  await T.again();
   await snap('after again');
   var slides = Object.keys(frames).length;
-  check(slides === 12, 'N1: every frame of the four slides was sampled (' + Object.keys(frames).join(' ') + ')');
+  check(slides === 9, 'N1: every frame of the three slides was sampled (' + Object.keys(frames).join(' ') + ')');
   var badT = shots.filter(function (s) { return s.text !== ''; });
   check(badT.length === 0, 'N1: the dialog has no text outside the aria-live line on any screen (' + badT.map(function (s) { return s.label2 + ': ' + js(s.text); }).join(' | ') + ')');
   check(shots.every(function (s) { return s.titled === 0; }), 'N1: no element in the dialog has a title');
@@ -1126,22 +1144,22 @@ async function N2(browser) {
     check(Math.abs(sim.x - F.ox * css) < 0.01 && Math.abs(sim.y - F.oy * css) < 0.01 && Math.abs(sim.w - 144 * css) < 0.01 && Math.abs(sim.h - 160 * css) < 0.01, 'N2 ' + tag + ': the .ck-sim box is the stage (ox, oy, 144, 160 art px)');
 
     /* N4 HUD */
-    var close = await T.rect('.ck-close'), chip = await T.rect('.ck-chip'), verb = await T.rect('.ck-verb'), strip = await T.rect('.ck-strip');
+    var close = await T.rect('.ck-close'), chip = await T.rect('.ck-chip'), verb = await T.rect('.ck-verb');
     check(Math.abs(chip.w - 48) < 0.6 && Math.abs(chip.h - 48) < 0.6 && Math.abs(close.w - 56) < 0.6 && Math.abs(close.h - 56) < 0.6 &&
       chip.x >= close.x && chip.r <= close.r + 0.01 && chip.y >= close.y && chip.b <= close.b + 0.01, 'N4 ' + tag + ': the close chip is 48 x 48 inside a 56 x 56 hit area (' + js([chip.w, close.w]) + ')');
     check(Math.abs(verb.w - 64) < 0.6 && Math.abs(verb.h - 64) < 0.6 && Math.abs(verb.y - F.chipTop) < 0.6 && Math.abs(verb.x + verb.w / 2 - F.w / 2) <= 1, 'N4 ' + tag + ': the chip is 64 x 64 at the bottom centre');
-    check([close, verb, strip].every(function (r) { return r.x >= 0 && r.y >= 0 && r.r <= F.w + 0.01 && r.b <= F.h + 0.01; }), 'N4 ' + tag + ': strip, close and chip are inside the safe rectangle');
+    check([close, verb].every(function (r) { return r.x >= 0 && r.y >= 0 && r.r <= F.w + 0.01 && r.b <= F.h + 0.01; }) && (await T.rect('.ck-strip')) === null, 'N4 ' + tag + ': close and chip are inside the safe rectangle; there is no strip');
     var box = [(40 + F.ox) * css, (62 + F.oy) * css, 64 * css, 48 * css];
     function hits(r, b) { return r.x < b[0] + b[2] && r.r > b[0] && r.y < b[1] + b[3] && r.b > b[1]; }
-    check(!hits(close, box) && !hits(verb, box) && !hits(strip, box), 'N4 ' + tag + ': no HUD item overlaps the food box');
+    check(!hits(close, box) && !hits(verb, box), 'N4 ' + tag + ': no HUD item overlaps the food box');
     var icons = await T.page.evaluate(function () {
-      return Array.prototype.map.call(document.querySelectorAll('.ck-strip canvas, .ck-close canvas, .ck-verb canvas'), function (c) { var r = c.getBoundingClientRect(); return [r.left, r.top, r.width, r.height, c.width]; });
+      return Array.prototype.map.call(document.querySelectorAll('.ck-close canvas, .ck-verb canvas'), function (c) { var r = c.getBoundingClientRect(); return [r.left, r.top, r.width, r.height, c.width]; });
     });
     var n2 = Math.floor(2 * F.dpr + 1e-6), n3 = Math.floor(3 * F.dpr + 1e-6);
-    check(icons.length === 5 && icons.every(function (r, j) {
-      var n = j === 4 ? n3 : n2, raised = j === 0;   /* the current strip icon is raised by 2 px (a whole device px too) */
-      return onDev(r[0]) && (onDev(r[1]) || raised && onDev(r[1])) && Math.abs(r[2] * F.dpr - 16 * n) < 0.05 && r[4] === 16 * n;
-    }), 'N4 ' + tag + ': strip and HUD icons on whole device px, n device px per icon px (' + icons.map(function (r) { return (r[0] * F.dpr).toFixed(2) + '/' + (r[1] * F.dpr).toFixed(2) + ':' + r[4]; }).join(' ') + ')');
+    check(icons.length === 2 && icons.every(function (r, j) {
+      var n = j === 1 ? n3 : n2;
+      return onDev(r[0]) && onDev(r[1]) && Math.abs(r[2] * F.dpr - 16 * n) < 0.05 && r[4] === 16 * n;
+    }), 'N4 ' + tag + ': HUD icons on whole device px, n device px per icon px (' + icons.map(function (r) { return (r[0] * F.dpr).toFixed(2) + '/' + (r[1] * F.dpr).toFixed(2) + ':' + r[4]; }).join(' ') + ')');
     var marks = l.st.marks.map(function (m) { return ((m.x / 2) + F.ox) * css; });
     check(marks.every(function (x) { return x >= 32 && x <= F.w - 32; }), 'N4 ' + tag + ': tap marks >= 32 CSS px from both edges (ring centres ' + marks.map(function (x) { return x.toFixed(0); }).join(',') + ')');
 
@@ -1166,7 +1184,7 @@ async function N2(browser) {
     check(ends.every(function (p) { return p[0] >= 32 - 0.01 && p[0] <= F.w - 32 + 0.01; }), 'N4 ' + tag + ': guide ends >= 32 CSS px from both edges (' + ends.map(function (p) { return p[0].toFixed(0); }).join(',') + ')');
     var gb = ends.reduce(function (a, p) { return [Math.min(a[0], p[0]), Math.min(a[1], p[1]), Math.max(a[2], p[0]), Math.max(a[3], p[1])]; }, [1e9, 1e9, -1e9, -1e9]);
     var gbox = [gb[0], gb[1], gb[2] - gb[0], gb[3] - gb[1]];
-    check(!hits(close, gbox) && !hits(verb, gbox) && !hits(strip, gbox), 'N4 ' + tag + ': no HUD item overlaps a guide');
+    check(!hits(close, gbox) && !hits(verb, gbox), 'N4 ' + tag + ': no HUD item overlaps a guide');
     check(T.errs.length === 0 && l.err === 0, 'N2 ' + tag + ': no errors ' + T.errs.join(' | '));
     await T.done();
   }
@@ -1206,9 +1224,9 @@ async function N5(browser) {
   var c = await watch('plate');
   check(c.s[0] && c.s[0].from === 'board' && c.s[0].to === 'plate' && c.s[0].carry === 'cut' && c.s[3] === null && c.pix.length === 3 && c.pix[0] === c.pix[1] && c.pix[1] === c.pix[2],
     'N5: board->plate carries the cut jeon, its centre fixed on screen');
-  await T.go(1000); await T.verbClick();
-  var d = await watch('tap');
-  check(d.s[0] && d.s[0].from === 'plate' && d.s[0].to === 'counter' && d.s[0].carry === null && d.s[2] && d.s[3] === null, 'N5: again slides plate->counter without a carry (' + js(d.s) + ')');
+  await T.go(1000); await T.again();
+  var d = await T.live();
+  check(d.screen === 'step' && d.si === 0 && d.station === 'counter' && !d.slide && d.stats.slides === 0, 'N5: the next dish opens on its first station without a slide');
   check(T.errs.length === 0, 'N5: no errors ' + T.errs.join(' | '));
   await T.done();
 }
@@ -1264,11 +1282,12 @@ async function N6(browser) {
   check(cuts.length === 2 && cuts.every(function (x) { return x.p === 16; }), 'N6: each line cut gives 16 (' + js(cuts.map(function (x) { return x.p; })) + ')');
   check(plate.length === 0, 'N6: the plate gives nothing (round 5 check O-5: the owner named only tap, flip and slice: ' + js(plate.map(function (x) { return [x.p, Math.round(x.t - R)]; })) + ')');
   var n4 = vib.length;
-  await T.tapCss(await (async function () { var r = await T.rect('.ck-verb'); return [r.x + r.w / 2, r.y + r.h / 2]; })());   /* the again press itself */
+  var bz = js((await T.live()).stats.buzz);
+  await T.tapCss(await (async function () { var r = await T.rect('.ck-table'); return [r.x + r.w / 2, r.y + r.h / 2]; })());   /* an end button's press itself */
   await T.go(1200);
   vib = await T.page.evaluate(function () { return window.__vib.slice(); });
-  check(vib.length === n4, 'N6: again (a chip press) and its slide give nothing');
-  l = await T.live();
+  check(vib.length === n4, 'N6: an end button gives nothing');
+  l = { stats: { buzz: JSON.parse(bz) } };
   check(js(l.stats.buzz) === js({ tap: 10, flip: 1, cut: 2 }), 'N6: stats.buzz counts the attempts, tap / flip / cut only (' + js(l.stats.buzz) + ')');
   check(T.errs.length === 0, 'N6: no errors ' + T.errs.join(' | '));
   await T.done();
@@ -1316,10 +1335,10 @@ async function N7(browser) {
   await verbThrough(T, 'flip', 2); await verbThrough(T, 'slice', 2);
   l = await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
   var b0 = (await T.store()).book.length;
-  await T.go(1000); await T.verbClick(); await T.go(50);
+  await T.go(1000); await T.again(); await T.go(50);
   l = await T.live();
   var st = await T.store();
-  check(l.screen === 'step' && l.si === 0 && l.id !== id0 && st.book.length === b0 && b0 === 1 && st.pot && st.pot.runId === l.id, 'N7: again: a new run id, the book has the dish (+1), a pot for the new run');
+  check(l.screen === 'step' && l.si === 0 && l.id !== id0 && st.book.length === b0 && b0 === 1 && st.pot && st.pot.runId === l.id, 'N7: the next dish: a new run id, the book has the dish (+1), a pot for the new run');
   check(T.errs.length === 0, 'N7: no errors ' + T.errs.join(' | '));
   await T.done();
 }
@@ -1332,8 +1351,8 @@ async function N10(browser) {
   var l = await T.live(), v = l.view;
   check(ok && v.hudB === 111 && v.chipTop === 844 - 114 && js(v.safe) === js([47, 0, 34, 0]), 'N10: hudB 111 and chipTop vh - 114 (' + js([v.hudB, v.chipTop, v.safe]) + ')');
   check(v.k === 14 && v.W === 84 && v.H === 183 && v.ox === -30 && v.oy === 10, 'N10: 390x844@3 with insets 47/34 matches spec 2.3 (' + js([v.k, v.W, v.H, v.ox, v.oy]) + ')');
-  var close = await T.rect('.ck-chip'), strip = await T.rect('.ck-strip'), verb = await T.rect('.ck-verb'), cv = await T.rect('.ck-cv');
-  check(close.y >= 47 + 8 - 0.01 && strip.y >= 47 + 8 - 0.01 && verb.b <= 844 - 34 - 16 + 0.01, 'N10: the HUD and the chip sit inside the insets (' + js([close.y, strip.y, verb.b]) + ')');
+  var close = await T.rect('.ck-chip'), verb = await T.rect('.ck-verb'), cv = await T.rect('.ck-cv');
+  check(close.y >= 47 + 8 - 0.01 && verb.b <= 844 - 34 - 16 + 0.01, 'N10: the HUD and the chip sit inside the insets (' + js([close.y, verb.b]) + ')');
   check(cv.x === 0 && cv.y === 0 && cv.w >= 390 && cv.h >= 844, 'N10: the canvas still covers the dialog (under the notch and the home bar)');
   check(T.errs.length === 0, 'N10: no errors ' + T.errs.join(' | '));
   await T.done();

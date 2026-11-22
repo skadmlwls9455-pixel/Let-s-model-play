@@ -1138,6 +1138,33 @@ var AUDIO = (function () {
     if (!byId[DING.id]) byId[DING.id] = { id: DING.id, kind: 'sfx', made: DING, make: makeDing, duration: DING.dur, min_gap_ms: 300, duck_db: 0 };   /* 목록을 다시 읽으면 지워지니 부를 때마다 */
     ckShot(DING.id);
   }
+  /* 11-21 7차 붓기 · 문지르기 (새 단계): ding 처럼 파일 없이 만든다 — 새 파일 · 새 출처 · 받기 없음. 걸러 낸 잡음 한 토막
+     (붓기 0.45 s · 300~1400 Hz · 9 Hz 로 꿀렁 / 문지르기 0.16 s · 1.8~5.2 kHz), 고정 시드 LCG 라 늘 같은 소리. 붓기는 누르고 있는 동안
+     부엌이 0.4 s 마다 다시 보낸다 (루프가 아니라 손을 떼면 0.45 s 안에 끝난다). 크기 rel −22 (ding −16 보다 작게) · 피크 −3 dBFS 아래 */
+  var SYN = { pour: { id: 'cook_pour', dur: 0.45, rel: -22, lo: 300, hi: 1400, am: 9 }, scrub: { id: 'cook_scrub', dur: 0.16, rel: -22, lo: 1800, hi: 5200, am: 0 } };
+  function makeSyn(S) {
+    return function () {
+      var sr = ctx.sampleRate, n = Math.ceil(S.dur * sr), y = new Float32Array(n), sd = 0x2545f491, lp = 0, hp = 0, i;
+      var a1 = 1 - Math.exp(-2 * Math.PI * S.hi / sr), a2 = 1 - Math.exp(-2 * Math.PI * S.lo / sr);
+      for (i = 0; i < n; i++) {
+        sd = (Math.imul(sd, 1664525) + 1013904223) | 0;
+        var w = (sd >>> 8) / 8388608 - 1; lp += a1 * (w - lp); hp += a2 * (lp - hp);
+        y[i] = (lp - hp) * Math.sin(Math.PI * i / n) * (S.am ? 0.7 + 0.3 * Math.sin(2 * Math.PI * S.am * i / sr) : 1);
+      }
+      var g = dbg(-20 + S.rel) / activeRms(y, sr), pk = 0;
+      for (i = 0; i < n; i++) pk = Math.max(pk, Math.abs(y[i] * g));
+      if (pk > dbg(-3)) g *= dbg(-3) / pk;
+      for (i = 0; i < n; i++) y[i] *= g;
+      var buf = ctx.createBuffer(1, n, sr);
+      buf.getChannelData(0).set(y);
+      return buf;
+    };
+  }
+  function ckSyn(e, S) {
+    if (Date.now() - e.wall > COOK_LATE * 1000) return;
+    if (!byId[S.id]) byId[S.id] = { id: S.id, kind: 'sfx', made: S, make: makeSyn(S), duration: S.dur, min_gap_ms: 100, duck_db: 0 };
+    ckShot(S.id);
+  }
   /* 들어오는 대로 불(band)을 기억하고, 켜져 있으면 바로 (부엌 층을 아직 받는 중이면 받은 뒤에 같은 차례로) */
   function onCook(d) {
     var act = typeof d.act === 'string' ? d.act : '';
@@ -1151,8 +1178,9 @@ var AUDIO = (function () {
       CK.hid = CK.band !== null && !!document.hidden;   /* 탭이 숨어서 멈춘 지글: 돌아와 다시 오는 sizzle 은 불 켜기가 아니다 */
       CK.band = null; CK.early = null;
     }
-    if (!active()) { if (act !== 'sizzle' && act !== 'quiet' && act !== 'ding' && pref.on && !reason) CK.early = e; return; }   /* 첫 손길(팬 들기)이 잠금을 풀기 전에 왔다 */
-    if (act === 'ding') { ckDing(e); return; }   /* 11-18 ding: 파일이 없으니 부엌 층(foley 목록)을 기다리지 않는다 */
+    if (!active()) { if (act !== 'sizzle' && act !== 'quiet' && act !== 'ding' && !SYN[act] && pref.on && !reason) CK.early = e; return; }   /* 첫 손길(팬 들기)이 잠금을 풀기 전에 왔다 */
+    if (act === 'ding') { ckDing(e); return; }
+    if (SYN[act]) { ckSyn(e, SYN[act]); return; }   /* 11-21: 붓기 · 문지르기도 파일이 없다 */   /* 11-18 ding: 파일이 없으니 부엌 층(foley 목록)을 기다리지 않는다 */
     if (FM && !CK.pending) { cookAct(e); return; }
     CK.pending++;
     CK.q = CK.q.then(loadFoley).then(guard(function (ok) { CK.pending--; if (ok) cookAct(e); }), function () { CK.pending--; });
