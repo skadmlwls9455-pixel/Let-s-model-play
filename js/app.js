@@ -3507,7 +3507,8 @@ var APP = (function () {
     ['hair', 'outfit', 'acc'].forEach(function (k) { var n = c[k] === 'none' ? '' : lookPartName(k, c[k]); if (n) out.push(n); });
     return out.join(' · ');
   }
-  function lookEyeNote() { var n = $('look-eye-note'), c = S.settings.player; if (n) n.textContent = (c.eyes === 'smile' || c.eyes === 'dot') ? '이 눈 모양은 눈 색이 안 보여' : '눈 색은 크게 봐야 잘 보여'; }
+  function lookEyeNote() { var n = $('look-eye-note'), c = S.settings.player, bn = $('look-brow-note'); if (bn) { bn.textContent = c.bangs === 'full' ? '일자 앞머리는 눈썹을 가려' : ''; bn.hidden = c.bangs !== 'full'; }   /* 11-21 (검증): 일자 앞머리 밑에선 눈썹 넷이 같은 그림이다 — 까닭을 한 줄로 */
+    if (n) n.textContent = (c.eyes === 'smile' || c.eyes === 'dot') ? '이 눈 모양은 눈 색이 안 보여' : '눈 색은 크게 봐야 잘 보여'; }
   function lookNow() {   /* 미리보기 그림 이름 = 앞 · 뒤 + 이 갈래에서 지금 고른 것들. 11-15 (검증 T-6): 그림 밑 한 줄 ('단발 · 삐죽 ·' / '금발' 로 점이 매달렸다) 은 뺐다 — 그림이 보여 준다, 읽어 주기에는 남김 */
     var cv = $('look-stage-cv'); if (!cv) return;
     var c = S.settings.player, t = lookTab(LOOK.tab).secs.map(function (sec) { return c[sec[0]] === 'none' ? sec[1] + ' 없음' : lookPartName(sec[0], c[sec[0]]); }).join(' · ');
@@ -3581,6 +3582,7 @@ var APP = (function () {
       });
       frag.appendChild(grp);
       if (cat === 'eyeColor') frag.appendChild(h('p', { class: 'help look-eye-note', id: 'look-eye-note' }));
+      if (cat === 'brow') frag.appendChild(h('p', { class: 'help look-eye-note', id: 'look-brow-note', hidden: 'hidden' }));
     });
     box.innerHTML = ''; box.appendChild(frag); box.scrollTop = 0;
     lookEyeNote(); lookNow(); lookQueueThumbs(); lookMoreSync();
@@ -5508,7 +5510,9 @@ var APP = (function () {
   function ownedMerge(A, R) {   /* 두 탭 (같은 문어) 의 가진 것 합치기: A 에만 있는 열쇠를 R 에 더한다. 모르는 열쇠도 그대로 둔다 */
     var a = isObj(A.user) && isObj(A.user.owned) ? A.user.owned : null; if (!a) return R;
     if (!isObj(R.user)) R.user = {}; if (!isObj(R.user.owned)) R.user.owned = {};
-    Object.keys(a).forEach(function (k) { if (!R.user.owned[k]) R.user.owned[k] = a[k]; });
+    var added = false;
+    Object.keys(a).forEach(function (k) { if (!R.user.owned[k]) { R.user.owned[k] = a[k]; added = true; } });
+    if (added) setTimeout(function () { save(); }, 0);   /* 합친 것을 바로 적어 둔다 (검증 11-21: 다음 저장 전에 탭이 죽으면 산 옷이 빠진 기록만 남았다) */
     return R;
   }
   function wardItem(cat, x) { return { id: x.id, name: x.name, tags: Array.isArray(x.tags) ? x.tags.slice() : [], shop: isObj(x.shop) ? { price: x.shop.price | 0 } : null, owned: isOwned(cat, x.id), worn: S.settings.player[cat] === x.id }; }
