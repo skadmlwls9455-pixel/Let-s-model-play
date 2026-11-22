@@ -1,6 +1,8 @@
 # 갈래 P 보고 — 내 캐릭터 (lane/7-p, 11-21)
 
 ## 결론
+(11-22 덧붙임) 이 세션이 하루 멈췄다가 다시 이어 했다: 기준 합치기 · 독립 확인에서 나온 것 고침 · C11 1~2단계 (마네킹 · 입어 보기 · 입기 · 몸짓 · 가까이 보기 · 길 걷기 · 단상) 를 올렸다. 위층 옷장 띠 (C11 3단계) 는 리드 확인을 기다린다.
+
 다 됐다: 뛰기 · 몸 둘과 눈썹 · 눈 넷 · 머리 일곱 · 옷 여덟 · 신발 둘 · 장식 여섯 · 옷장 목록 (태그 · 값 · 가진 것) 과 잠긴 칸 · 마네킹 문어 티셔츠. 자른 것 없음.
 저장된 모습은 그대로 보인다 (빈 칸은 눈썹 없음 · 몸 a). 새로 시작하는 사람만 새 기본 모습 (부스스 머리 · 문어 티 · 운동화).
 
@@ -61,10 +63,15 @@ vendor/fonts/* : 새 이름 글자 때문에 다시 만들었다 (`subset-fonts.
 - 고친 핀: smoke S (옷장 갈래 14 · 타일 묶음 12 · 눈 탭 이름 · 저장 열쇠 차례; S 는 예전 기본 모습으로 갈아입고 시작) · G (2D 타일 18 · 요약 줄 '부스스 · 문어 티') · 옛 기록 부팅 검사는 기록을 앱이 뜨기 전에 넣게 고쳤다 (전에는 떠날 때의 저장이 덮어 검사가 헛돌았다).
 
 ## 돌린 묶음
-SUITES_PLACEHOLDER
+- `npm test`: 전부 통과 (기준 합친 뒤 9f0be97 · 1b33a22 에서 다시).
+- `node tools/test-dye-adopt.js`: 12 ok · `python3 tools/subset-fonts.py --check`: stale none (합친 뒤 다시 만듦).
+- `node tools/test-scene-perf.js`: 153 passed, 0 failed (T7 뛰기 셋 포함, 합치기 전).
+- `node tools/test-player-parts-live.js`: 8 passed, 0 failed.
+- smoke (합친 뒤): G 16/0 · Y 102/0 · P7 15/0. 합치기 전 전체 한 번: 부엌 검사 넷 (냄비 · 쟁반 · 주먹밥 result) 과 '두 번 톡 보호' 하나가 실패 — 내 파일과 무관해 보이나 합친 뒤엔 다시 안 돌렸다.
+- `node tools/player-shots.js`: 낡은 도구 (기준 커밋에서도 74 실패). 새로 생긴 종류는 개수 · 시트 크기 핀 (고쳤다) 과 드로우콜 기준 · 금발 칸 · 깜빡임 (기본 모습이 바뀐 탓 — 예전 기본으로 돌려 놓았다).
 
 ## 그림 (wip/round7/shots/P/)
-four.png (네 캐릭터) · combos.png (72 조합) · look-locked.png (잠긴 칸) · look-eyes.png (눈썹) · look-outfit.png · mannequin.png · run-frame.png
+four.png (네 캐릭터) · eyes-brows.png (새 눈 넷 · 눈썹 셋) · mannequins.png · closeup.png (C11) · combos.png (72 조합) · look-locked.png (잠긴 칸) · look-eyes.png (눈썹) · look-outfit.png · mannequin.png · run-frame.png
 
 ## 다른 갈래가 합쳐져야 다 볼 수 있는 것
 - 바깥에서 뛸 때 화면이 따라오는지 (W: `FOLLOW.vmax` 3 m/s 가 뛰는 속도보다 낮다 → `scene.playerSpeeds()` 를 읽어 올려야 한다).
@@ -76,3 +83,11 @@ four.png (네 캐릭터) · combos.png (72 조합) · look-locked.png (잠긴 �
 - 412×915 @2.625 실기기 비율 · 320×568 · 데스크톱 화면은 따로 찍지 않았다 (옷장 배치는 그대로, 타일만 늘었다).
 - 방 안에서 뛸 때 화면 따라가기는 예전 한계 (3 m/s) 그대로다. 방이 작아 화면 밖으로 나가지는 않았다.
 - 야구모자의 챙은 정면 미리보기에서는 거의 안 보인다 (위에서 내려다보는 방 화면에서 보인다).
+
+## C11 (11-22)
+- 장면: `mannequins(key, [{ slot, parts, sold, pos? }])` → `[{ slot, ok }]` · `mannequinInfo(key)` · `playerPose(name)` · `playerCloseup(on)` · `playerWalkPath(points, { speed, face })` · `playerPlace(x, z, y, face)`.
+- 앱: `tryOn(cat, id)` · `tryOff(cat?)` · `trying()` · `wear(cat, id)`; 'ppol:room' 의 key 가 null 이면 다 벗는다. 저장은 `wear` · `setPlayerPart` 만.
+- 마네킹은 얼굴 없는 나무색 몸 (위층 마네킹 색), 내 캐릭터와 같은 부품 빌더 · 같은 재질 — 셰이더 프로그램은 늘지 않는다 (마네킹 하나 = 메시 하나).
+- W · V 갈래의 방이 기준에 없어 그 방 안에서는 못 돌려 봤다 (자리는 `roomSlots(key).slots`, 그룹은 `IN.groups[key].g` 를 읽는다).
+- 독립 확인 뒤 고친 것: 일자 앞머리 밑에선 눈썹 넷이 같은 그림 → 눈썹 칸 아래 한 줄 '일자 앞머리는 눈썹을 가려' · 둥근 눈썹을 한 칸 짙게 · 두 탭 합친 산 옷은 바로 저장.
+- 새 글: '일자 앞머리는 눈썹을 가려'.
