@@ -422,7 +422,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- [7-N] 창 -->
 <!-- 11-21 마을 문어의 말 (app.js npcSay): 대본을 읽는 인물 — 이름표는 늘 '이름 · 대본'. 모달이 아니다 (포커스를 가두지 않는다) -->
 <div id="npc-box" class="npc-box" role="group" aria-label="마을 문어의 말" hidden>
-  <canvas id="npc-face" class="npc-face" width="16" height="16" aria-hidden="true"></canvas>
+  <span class="npc-frame" aria-hidden="true"><canvas id="npc-face" class="npc-face" width="16" height="16"></canvas></span>
   <div class="npc-say" aria-live="polite" aria-atomic="true"><span id="npc-tag" class="npc-tag"></span><p id="npc-text" class="npc-text"></p></div>
   <button type="button" id="npc-next" class="npc-next" aria-label="다음 말"></button>
 </div>
@@ -430,12 +430,13 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <dialog id="story-sheet" class="sheet story-sheet" aria-labelledby="story-h">
   <div class="handle" aria-hidden="true"></div>
   <h2 id="story-h" class="story-h dlg-top" tabindex="-1">게시판</h2>
-  <ol id="story-notes" class="story-notes"></ol>
+  <div class="story-board"><ol id="story-notes" class="story-notes"></ol></div>
   <div class="story-btns"><button type="button" class="btn pressable" id="story-close">닫기</button></div>
 </dialog>
 <!-- 11-21 처음 한 번 보는 세 줄 (app.js storyIntro · js/intro.js 가 타이틀 뒤에 부른다) -->
 <div id="story-intro" class="story-intro" role="group" aria-label="이야기" hidden>
   <button type="button" id="story-next" class="story-next" aria-label="다음 줄"></button>
+  <canvas id="story-vig" class="story-vig" width="80" height="60" aria-hidden="true"></canvas>
   <p id="story-line" class="story-line" aria-live="polite"></p>
   <button type="button" id="story-skip" class="story-skip pressable">건너뛰기</button>
 </div>

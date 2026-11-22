@@ -61,6 +61,7 @@
 
   var SHELLS = [12, 8, 5, 3];                       /* 1 · 2 · 3 · 4등 */
   var PTS = deepFreeze({ stage: 8, tag: 8, pieceMax: 16, themeMax: 56, color: 6, colorMax: 18, match2: 6, match3: 12, dye: 6 });
+  var RIVAL_HATS = ['bow', 'cap', 'flower'];         /* 경쟁자 셋의 머리 장식 (알아보기 쉽게 — 채점과 무관) */
   var RIVAL_P = [0.8, 0.55, 0.3];                   /* 경쟁자가 칸마다 주제에 맞는 것을 고를 확률 (센 · 중간 · 가벼운) */
   var RIVAL_COLORS = ['#e07a5f', '#8f7fd0', '#6fa35a', '#d07fa8', '#5b8fd0', '#e09a4a'];   /* 가게 문어 셋 (청록 · 노랑 · 갈색) 과 안 겹치는 색 */
 
@@ -244,10 +245,17 @@
       swatch: ['.kkkkkkk.', 'kxxxxxxxk', 'kxwxxxxxk', 'kxxxxxxxk', 'kxxxxxxxk', 'kxxxxxxxk', 'kxxxxxxxk', 'kxxxxxxxk', '.kkkkkkk.']
     },
     star: ['...y...', '...y...', 'yyyYyyy', '.yYYYy.', '..yyy..', '.yy.yy.', '.y...y.'],
+    /* 문어 (x = 몸 색 · X = 짙은 테두리 · h = 밝은 윤기 — 몸 색에서 만든다). octHat = 머리 위 장식 (비치지 않는 칸만 덮는다) */
     oct: [
-      '....xxxxxxxx....', '..xxxxxxxxxxxx..', '.xxxxxxxxxxxxxx.', '.xxxxxxxxxxxxxx.', 'xxxxxxxxxxxxxxxx', 'xxxkkxxxxxxkkxxx', 'xxxkkxxxxxxkkxxx',
-      'xxxxxxxxxxxxxxxx', 'xxxxxxxxxxxxxxxx', '.xxxxxxxxxxxxxx.', '.xx.xxx.xxx.xxx.', 'xxx.xx..xx..xxx.', 'xx..xx..xx...xx.', '.x...x...x....x.'
+      '....XXXXXXXX....', '..XXxxxxxxxxXX..', '.XxxhhxxxxxxxxX.', '.XxhxxxxxxxxxxX.', 'XxxxxxxxxxxxxxxX', 'XxxkkxxxxxxkkxxX', 'XxxkwxxxxxxkwxxX',
+      'XxxxxxxxxxxxxxxX', 'XxxxxxxxxxxxxxxX', 'XxxxxxxxxxxxxxxX', 'XxxXXxxXXxxXXxxX', 'XxxXXxxXXxxXXxxX', '.XX..XX..XX..XX.'
     ],
+    octHat: {
+      bow: ['.........pp.pp..', '.........ppPpp..', '.........pp.pp..'],
+      flower: ['...p............', '..pyp...........', '...p............'],
+      cap: ['....bbbbbbbb....', '..bbbbbbbbbbBBBB'],
+      star: ['..........y.....', '.........yYy....', '..........y.....']
+    },
     theme: {
       beach: [
         'cccccccccccccccc', 'ccccccccccccYYcc', 'cccccccccccYYYYc', 'cccccccccccYYYYc', 'ccccccccccccYYcc', 'cccccccccccccccc', 'bbbbbbbbbbbbbbbb', 'bbwwbbbbbbwwbbbb',
@@ -304,7 +312,11 @@
     var rows = null, pal = PAL;
     if (kind === 'theme') rows = ART.theme[id];
     else if (kind === 'star') rows = ART.star;
-    else if (kind === 'oct') { rows = ART.oct; tint = tint || '#8a8494'; }
+    else if (kind === 'oct') {
+      rows = ART.oct; tint = tint || '#8a8494';
+      var hat = id != null && ART.octHat[id];
+      if (hat) rows = rows.map(function (r, j) { var o = hat[j]; if (!o) return r; var out = ''; for (var i = 0; i < r.length; i++) out += o.charAt(i) !== '.' ? o.charAt(i) : r.charAt(i); return out; });
+    }
     else if (kind === 'tag') { if (COLOR_HEX[id]) { rows = ART.tag.swatch; tint = COLOR_HEX[id]; } else rows = ART.tag[id]; }
     if (!rows) return null;
     return { w: rows[0].length, h: rows.length, rows: rows, pal: pal, tint: tint || null };
@@ -312,7 +324,7 @@
 
   var API = {
     THEMES: THEMES, STYLES: STYLES, TAG_NAME: TAG_NAME, COLOR_HEX: COLOR_HEX, SHELLS: SHELLS, PTS: PTS, TEXT: TEXT, PAL: PAL,
-    hashSeed: hashSeed, rng: rng, fill: fill, themeById: themeById, themeAt: themeAt,
+    RIVAL_HATS: RIVAL_HATS, hashSeed: hashSeed, rng: rng, fill: fill, themeById: themeById, themeAt: themeAt,
     week: week, score: score, cards: cards, stars: stars, rivals: rivals, enter: enter, today: today, board: board,
     normalize: normalize, merge: merge, shellsOf: shellsOf, logLine: logLine, art: art
   };
