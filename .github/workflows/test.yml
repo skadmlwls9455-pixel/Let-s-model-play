@@ -76,6 +76,8 @@ jobs:
       - run: node tools/test-contest.js
       # 7차 (11-21) 부엌 새 단계 (js/cook-steps.js · js/cook-steps-art.js): 다섯 요리 · 여섯 손짓 · 끝 단추 · 결과 꼴. 노드만 쓴다
       - run: node tools/test-cook-steps.js
+      # 7차 (11-21) 레시피 규칙 (js/recipes.js): 늘 열린 셋 · 세 번째에 선물 한 번 · 옛 수첩 · 두 탭. 노드만 쓴다
+      - run: node tools/test-recipes.js
       # 배포 묶음 (tools/export-site.js): 임시 폴더로 내보내서 게임 파일만 나가는지 (문서 · 스킬 · 도구 · 시험 · 서버 코드 없음), 쪽 · 스타일 · 스크립트 ·
       # 목록이 가리키는 파일이 다 실렸는지, 저장소 맨 위의 새 폴더가 '싣는다 / 안 싣는다' 로 정해졌는지. 노드만 쓴다
       - run: node tools/test-export.js
