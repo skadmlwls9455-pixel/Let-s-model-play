@@ -1866,6 +1866,8 @@ dialog.travel-pick .dp-chip canvas { position: absolute; left: var(--dp-icp, 8px
 .shop-card.tag .shop-pic { grid-row: 1 / span 2; width: 72px; height: 72px; border-bottom: 0; box-shadow: none; align-items: center; }
 .shop-card.tag .sew-cost { justify-self: center; }
 .shop-card.tag .shop-card-btns { grid-column: 1 / -1; }
+.shop-card { max-height: calc(100% - 16px); }
+.shop-card.receipt .shop-rc-list { overflow-y: auto; min-height: 0; flex: 0 1 auto; }   /* 고른 것이 많아도 단추 줄은 늘 보인다 */
 .shop-card.receipt { width: 232px; align-items: stretch; padding: 12px; }
 .shop-card.receipt::after { content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 4px; background: repeating-linear-gradient(90deg, var(--sw-line) 0 4px, transparent 4px 8px); }
 .shop-card .shop-pic { align-self: center; width: 80px; height: 72px; padding: 0; }
