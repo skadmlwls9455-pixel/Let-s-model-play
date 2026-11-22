@@ -1762,6 +1762,11 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
   :root[data-layout="one"][data-font="pixel"] #status .day-n { top: calc(100% + 3px); padding: 1px 2px; border: 0; border-radius: 0; box-shadow: inset 0 0 0 1px var(--line); font-family: var(--f-meta); font-weight: 400; font-size: var(--fs-u12, 12px); line-height: calc(var(--fs-u12, 12px) + 2px); }
 }
 @media (max-width: 449px) { :root[data-layout="one"] #status .brain-tag:not([hidden]) + .day-n { left: 38px; } }
+/* 11-22 (점검: 보이는 글자는 모두 16 px 이상): '데모' · 'D+N' 꼬리표 글자를 16 px 로 (모양은 둘이 같다 — 테 1 px · 작은 안쪽 여백). 폰에선 바 바로 아래 왼쪽에 나란히 */
+#status .brain-tag, #status .day-n { font-size: 16px; line-height: 20px; }
+:root[data-font="pixel"] #status .brain-tag, :root[data-font="pixel"] #status .day-n { font-size: var(--fs-m16, 16px); line-height: calc(var(--fs-m16, 16px) + 2px); }
+@media (max-width: 599px) { :root[data-layout="one"] #status .day-n { font-size: 16px; line-height: 20px; } :root[data-layout="one"][data-font="pixel"] #status .day-n { font-size: var(--fs-m16, 16px); line-height: calc(var(--fs-m16, 16px) + 2px); } }
+@media (max-width: 449px) { :root[data-layout="one"] #status .brain-tag:not([hidden]) + .day-n { left: 47px; } :root[data-layout="one"][data-font="pixel"] #status .brain-tag:not([hidden]) + .day-n { left: 50px; } }
 /* 11-22 계단 그림 (js/scene3d.js stairCue): 계단이 화면 밖일 때 그쪽 가장자리에 흐린 계단 그림 + 픽셀 화살표. 글자 없음 · 누르면 화면이 계단 쪽으로 밀린다 (44px 누르는 곳) */
 .stair-cue { position: absolute; left: 0; z-index: 8; width: 44px; height: 44px; display: flex; align-items: center; justify-content: flex-start; gap: 1px; padding-left: 2px; box-sizing: border-box; opacity: .72; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .stair-cue[hidden] { display: none; }
