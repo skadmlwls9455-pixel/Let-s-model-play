@@ -6979,7 +6979,8 @@ async function scenarioGarden(browser) {
       await p1.evaluate(function () { APP.scene.setGarden([null, { color: '#c8323a', water: 0 }, null]); });
       var s1 = await boxPng(1), noise = await pxDiff(e1, e2), seedPx = await pxDiff(e1, s1);
       await p1.evaluate(function () { APP.scene.setGarden([null, null, null]); });
-      ok(seedPx >= 100 + noise, '씨앗을 심은 칸은 빈 칸과 칸 상자 안 ' + seedPx + ' px 다르다 (100 px 이상 — 예전 4×3 px 점 둔덕은 42 px · 빈 칸끼리 잡음 ' + noise + ' px)');
+      var gN = await p1.evaluate(function () { return APP.scene.pan().n || 27; }), gNeed = Math.round(100 * Math.pow(gN / 27, 2));   /* 11-22 7차: 넓은 바깥은 m 당 18 아트px (2/3 배) — 같은 둔덕이 화면에서 (2/3)² 넓이. 문턱도 같은 비로 (예전 점 둔덕 42 px 의 두 배 넘게 그대로) */
+      ok(seedPx >= gNeed + noise, '씨앗을 심은 칸은 빈 칸과 칸 상자 안 ' + seedPx + ' px 다르다 (' + gNeed + ' px 이상 · m 당 ' + gN + ' 아트px — 예전 4×3 px 점 둔덕은 27 배율에서 42 px · 빈 칸끼리 잡음 ' + noise + ' px)');
       var dbg = await p1.evaluate(function () { return APP.scene.plotsDebug(); });
       ok(dbg.fence[0] + 0.04 < dbg.c[0][0] - dbg.frame, '울타리 끝 기둥(x ' + (dbg.fence[0] + 0.04).toFixed(2) + ' 까지)은 첫째 칸 테(x ' + (dbg.c[0][0] - dbg.frame).toFixed(2) + ' 부터) 밖');
 

@@ -15,17 +15,14 @@ var ROOT = path.resolve(__dirname, '../../..');
   }
   await page.waitForTimeout(600);
   var S1 = '/tmp/claude-0/-home-user-Let-s-model-play/bf38d309-8ede-59ca-909d-3c51ecde03b7/scratchpad/shots/';
-  page.on('console', function (m) { if (m.type() === 'error') console.log('CON ' + m.text().slice(0, 300)); });
-  await page.evaluate(function () { var sc = APP.scene, K = Math.SQRT1_2; window.__ev = []; document.addEventListener('ppol:room', function (e) { window.__ev.push(e.detail.key); }); sc.debugRoomStub('clothes'); sc.debugPlayerAt(25 * K, 25 * K); });
-  await page.waitForTimeout(500);
-  var t0 = Date.now(), r1 = await page.evaluate(function () { return APP.goInside('clothes'); }); await page.waitForTimeout(500);
-  console.log('in', r1, Date.now() - t0, JSON.stringify(await page.evaluate(function () { var sc = APP.scene, s = sc.stats(); return { inside: APP.inside, room: APP.room, view: sc.view(), at: sc.player().at, allowed: sc.playerInputAllowed(), calls: s.calls, prog: s.programs, zoom: sc.pan().n, ev: window.__ev, slots: sc.roomSlots('clothes'), pr: sc.project(0, 0, 0) }; })));
-  await page.screenshot({ path: S1 + 'in1.png' });
-  await page.evaluate(function () { APP.scene.setPlayerInput({ x: -0.7, y: 0.7 }); }); await page.waitForTimeout(1500); await page.evaluate(function () { APP.scene.setPlayerInput(null); }); await page.waitForTimeout(300);
-  await page.screenshot({ path: S1 + 'in2.png' });
-  console.log('walked', JSON.stringify(await page.evaluate(function () { return APP.scene.player().at; })));
-  var r2 = await page.evaluate(function () { return APP.goOutside(); }); await page.waitForTimeout(600);
-  console.log('out', r2, JSON.stringify(await page.evaluate(function () { var sc = APP.scene; return { inside: APP.inside, room: APP.room, view: sc.view(), at: sc.player().at, area: sc.area(), allowed: sc.playerInputAllowed(), n: sc.pan().n, ev: window.__ev, prog: sc.stats().programs }; })));
-  await page.screenshot({ path: S1 + 'in3.png' });
+  page.on('console', function (m) { if (m.type() === 'error') console.log('CON ' + m.text().slice(0, 200)); });
+  for (var key of ['clothes', 'cafe', 'goods']) {
+    var ok1 = await page.evaluate(function (k) { var sc = APP.scene; if (!sc.roomReg[k]) return 'noreg'; return Promise.resolve(sc.enterRoom(k)).then(function (r) { return r && r.ok; }); }, key);
+    await page.waitForTimeout(1500);
+    var r = await page.evaluate(function () { var out = []; document.querySelectorAll('#scene .scene-spot').forEach(function (b) { if (b.hidden) return; var q = b.getBoundingClientRect(); out.push([b.id, Math.round(q.left), Math.round(q.top)]); }); return out; });
+    console.log(key, ok1, JSON.stringify(r).slice(0, 500));
+    await page.screenshot({ path: S1 + 'room-' + key + '.png' });
+    await page.evaluate(function () { return APP.scene.leaveRoom(); }); await page.waitForTimeout(1500);
+  }
   await browser.close();
 })().catch(function (e) { console.error(e); process.exit(1); });

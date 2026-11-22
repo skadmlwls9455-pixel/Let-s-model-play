@@ -6289,6 +6289,7 @@ var SCENE3D = (function () {
       if (inR ? (PLACE.vis !== 'inside' || IN.key !== w.room || !IN.g || sp.on === false || WSTATE.jump || PLACE.trans || INTRO.on) : PLACE.vis !== 'yard' || !YROOM || sp.on === false || DQ.active || DQ.pending || PLACE.trans || INTRO.on || yardDoorBusy() || WSTATE.jump) return null;
       var r = sp.r || 0.4, y = sp.y || 0; w.box.min.set(sp.x - r, y - r, sp.z - r); w.box.max.set(sp.x + r, y + r, sp.z + r);
       var q = boxScreen(w.box, inR ? IN.g : YROOM.g); if (!isFinite(q.l)) return null;
+      if (inR) { var qcx = (q.l + q.r) / 2, qcy = (q.t + q.b) / 2; if (qcx < 0 || qcx > S.W || qcy < 0 || qcy > S.H) return null; }   /* 11-22 (갈래 V 검증): 방 안의 자리는 가운데가 화면 밖이면 숨긴다 — 넓힌 44 px 칸이 화면 가장자리의 엉뚱한 물건 위에 걸렸다 (거울 · 음반대 · 선반 5) */
       var vl = Math.max(0, q.l), vt = Math.max(0, q.t), vr = Math.min(S.W, q.r), vb = Math.min(S.H, q.b);
       if (vr - vl < SPOT_MIN_VIS || vb - vt < SPOT_MIN_VIS) return null;
       var ww = Math.min(S.W, Math.round(Math.max(44, vr - vl))), hh = Math.min(S.H, Math.round(Math.max(44, vb - vt)));
