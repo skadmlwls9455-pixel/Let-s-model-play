@@ -2026,7 +2026,7 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
 .npc-box[data-npc="cafe"] .npc-frame { background: #c9d8e6; box-shadow: inset 2px 2px 0 #e2ecf3, inset -2px -2px 0 #a3b6c8; }
 .npc-face { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
 .npc-say { flex: 1 1 auto; min-width: 0; }
-.npc-tag { position: absolute; left: 10px; bottom: 100%; padding: 2px 10px 0; background: #3b2a20; color: #f3ead6; font-size: 13px; line-height: 22px; border: 2px solid #3b2a20; border-bottom: 0; box-shadow: inset 0 2px 0 #5a4636; white-space: nowrap; }
+.npc-tag { position: absolute; left: 10px; bottom: 100%; padding: 2px 10px 0; background: #3b2a20; color: #f3ead6; font-size: 16px; line-height: 22px; border: 2px solid #3b2a20; border-bottom: 0; box-shadow: inset 0 2px 0 #5a4636; white-space: nowrap; }
 .npc-tag:empty { display: none; }
 .npc-text { margin: 2px 0 0; font-size: 17px; line-height: 26px; min-height: 52px; word-break: keep-all; overflow-wrap: anywhere; }
 .npc-next { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; background: transparent; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
@@ -2049,9 +2049,9 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
 .story-note:nth-child(2)::before { background: #4a86d8; box-shadow: inset 2px 2px 0 #a8c8f0, 0 2px 0 rgba(42, 29, 22, .5); left: 40%; } .story-note:nth-child(3)::before { background: #e8a93a; box-shadow: inset 2px 2px 0 #f6dc9a, 0 2px 0 rgba(42, 29, 22, .5); left: 58%; }
 .story-note::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: repeating-linear-gradient(90deg, #c49a6c 0 4px, transparent 4px 12px, #c49a6c 12px 14px, transparent 14px 20px); }   /* 찢긴 아랫가장자리 */
 .story-pic { flex: 0 0 auto; display: block; max-width: 100%; image-rendering: pixelated; image-rendering: crisp-edges; border-bottom: 2px dotted #c9b892; }
-.sheet .story-note p { margin: 0; padding: 0 4px; min-width: 0; font-size: 14px; line-height: 22px; text-align: center; word-break: keep-all; overflow-wrap: anywhere; }
+.sheet .story-note p { margin: 0; padding: 0 4px; min-width: 0; font-size: 16px; line-height: 22px; text-align: center; word-break: keep-all; overflow-wrap: anywhere; }
 .story-btns { display: flex; justify-content: flex-end; margin-top: 12px; }
-.story-btns .btn { min-width: 88px; }
+.story-btns .btn { min-width: 88px; font-size: max(16px, 1em); }   /* 11-22 (점검): 어느 글꼴 설정에서도 16px 이상 */
 .story-sheet[open] .story-note { animation: story-pop .12s steps(2) both; }
 .story-sheet[open] .story-note:nth-child(2) { animation-delay: .04s; } .story-sheet[open] .story-note:nth-child(3) { animation-delay: .08s; } .story-sheet[open] .story-note:nth-child(4) { animation-delay: .12s; }
 @keyframes story-pop { from { opacity: 0; translate: 0 4px; } to { opacity: 1; translate: 0 0; } }
@@ -2071,7 +2071,7 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
 .story-intro::after { content: ''; position: absolute; left: 24px; bottom: max(30px, calc(env(safe-area-inset-bottom, 0px) + 18px)); width: 8px; height: 8px; background: #d8a062; box-shadow: 14px 0 0 #5a4636, 28px 0 0 #5a4636; }   /* 세 줄 가운데 몇째인가 */
 .story-intro[data-n="2"]::after { background: #5a4636; box-shadow: 14px 0 0 #d8a062, 28px 0 0 #5a4636; }
 .story-intro[data-n="3"]::after { background: #5a4636; box-shadow: 14px 0 0 #5a4636, 28px 0 0 #d8a062; }
-.story-skip { position: absolute; z-index: 2; right: 12px; bottom: max(12px, env(safe-area-inset-bottom, 0px)); min-width: 88px; min-height: 44px; padding: 6px 12px; background: #1b2444; color: #f3ead6; border: 2px solid #f3ead6; box-shadow: 4px 4px 0 #05070f; font-size: 14px; cursor: pointer; }
+.story-skip { position: absolute; z-index: 2; right: 12px; bottom: max(12px, env(safe-area-inset-bottom, 0px)); min-width: 88px; min-height: 44px; padding: 6px 12px; background: #1b2444; color: #f3ead6; border: 2px solid #f3ead6; box-shadow: 4px 4px 0 #05070f; font-size: 16px; cursor: pointer; }
 .story-skip:active { transform: translateY(2px); }
 :root[data-font="pixel"] .story-line { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; }
 :root[data-font="pixel"] .story-skip { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
