@@ -20,6 +20,8 @@
 
 ## 기존 줄을 고친 곳
 
+(콘텐츠 판에서도 더 고친 기존 줄은 없다 — 모두 `[7-F]` 블록 안.)
+
 - `js/app.js` `dayRows`: `flush(null);` 줄 바로 아래에 `ctDayRows(list, asks, meals).forEach(…)` 한 줄을 **더했다** (리드 11-21: #log 를 지켜보지 말고 식탁 줄처럼 `dayRows` 에 한 줄). 그날 콘테스트 결과 줄이 오늘 칸과 앨범 일기에 함께 나온다. 있던 줄의 글자는 바꾸지 않았다.
 - `.github/workflows/test.yml` 의 lane 가지 제외 한 줄 (리드 요청) 은 이 세션의 권한 검사에 막혀 **못 했다** — 파일은 BASE 그대로.
 
@@ -108,6 +110,19 @@
 - 전 · 후 사진: `wip/round7/shots/F/ui2-before-360-theme.png` · `ui2-after-360-theme.png` · `ui2-before-360-result.png` · `ui2-after-360-result.png` · `ui2-before-412-result.png` · `ui2-after-412-result.png`.
 - 두 탭 테스트: 기준 가지를 합친 뒤 헤드리스 브라우저에서 두 탭이 가끔 file:// 저장소를 못 나눈 채 열려서 (게임 코드와 무관 — 둘째 탭이 씨앗 기록을 다시 쓰는 것으로 확인) 테스트가 나누는지 확인하고 새 브라우저로 다시 열게 했다. 세 번 연속 63 통과.
 - 두 탭 보강: 이 탭엔 남았는데 저장소에서만 빠진 참가 기록도 다시 적는다 (`ctHeal`).
+
+## 콘텐츠 판 — 공연장 안에서 벌어지는 콘테스트 (`wip/round7/briefs/CONTENT.md`)
+
+주인 (11-21 23:40 KST): "기능들을 단순히 탭같은 느낌으로 축약하지 말고 … 개별 콘텐츠 같은 느낌을 내도록". 주인 (11-22 00:05): 콘테스트는 따로 된 방 (공연장 `hall`).
+
+- 박자: 광장 포스터 판에 이번 주 주제 그림 (일주일 내내 · 톡 = 공연장으로) → 공연장 문 (`#btn-in-hall` · 옛 `#btn-plaza-stage`) → `APP.goInside('hall')` → 무대 톡 (`#btn-hall-stage`): 대기 자리로 걷고 참가 카드 (주제 · 바라는 것 · '옷 갈아입기' · '나가기', 평일엔 '주말에 열려.') → 쇼: 경쟁자 셋이 차례로 길을 지남 → 내 캐릭터가 길을 걷고 돌고 섬 → 심사 팻말 셋 (심사석 위 · 별 1~3) + 센 수를 말하는 대본 (`contest.judge {n}`) → 단상 (등수대로) + `contest.podium` → 작은 결과 카드 (금빛 리본 · 등수 · 조개 · '채점 규칙'). 넘기기는 늘. 그날 다시 톡하면 결과 카드 그대로.
+- 카드는 dialog 가 아니라 `#scene` 안의 `#ct-world` 요소 (`data-npc-avoid` — 대사창이 피해 간다). 팻말 · 포스터는 `scene.project` 로 매 프레임 자리를 잡는다 (기기 픽셀에 맞춰).
+- 주말엔 `scene.stageDress(true)`, 심사 `judge0..2` (가게 문어 색 · 모자) 가 앉고 경쟁자 `rival0..2` 가 선다. 팻말 · 단상 때 `scene.roomFocus` 로 화면을 맞춘다.
+- 규칙 · 저장 · 조개 · 두 탭은 시트와 같은 길 (`ctEnterCore`) — 하루 한 번, 조개 한 번.
+- 뒷길: 2D · 움직임 줄이기 · 무대 함수 없음 · 공연장 밖에서는 예전 시트가 열린다.
+- P 의 `scene.playerWalkPath` · `playerPose` · `playerPlace` 는 아직 없어서 계약 이름으로 부르고 없으면 건너뛴다 — 지금은 내 캐릭터가 걷지 않고 무대 앞에 선 채로 쇼가 지나간다 (경쟁자 셋은 걷는다).
+- 검사: `tools/test-contest-live.js` H 절 (대역): 무대 톡 → 카드 (#scene 안 · dialog 아님) → 박자 차례 → 팻말 셋 자리 → 단상 → 결과 카드 → 다시 톡 = 그대로 · 넘기기 · 공연장 문 · 움직임 줄이기와 무대 함수 없음은 시트. 96 통과 (세 번 연속 통과 확인은 92 판에서).
+- 진짜 V · W · N · A · T 를 임시로 합친 빌드 (푸시 안 함 · P 는 글꼴 파일이 부딪혀 빼고) 에서 공연장 문 → 무대 톡 → 쇼 → 결과까지 확인: `wip/round7/shots/F/content-hall-entry.png` · `content-hall-walk.png` (경쟁자가 길을 걸음) · `content-hall-placards.png` · `content-hall-result.png` (360x740).
 
 ## 빼거나 못 한 것
 

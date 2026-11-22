@@ -81,3 +81,7 @@
 - V (무대 단추): `#btn-plaza-stage` 누름. 없으면 넘어간다. 2D 장면에서는 열리지 않는다.
 - N (명단 · 대본): `NPC.roster` 의 `clothes` · `goods` · `cafe` 이름 · 색, `APP.npcSay`.
 - 조개: 기존 놀이 보상 함수는 판마다 2 ~ 8개로 고정이고 달리기 과제를 표시하므로 쓰지 않았다. 주간 선물과 같은 방식 (`userState()` → 더하기 → `save()` → `renderBagChip()`) 으로 준다.
+
+## 공연장 안의 쇼 (11-22 콘텐츠 판)
+
+공연장 방 (`hall`, V) 이 있으면 쇼는 그 안에서 벌어진다: 광장 포스터 판 (주제 그림) → 공연장 문 → 무대 톡 → 참가 카드 → 경쟁자 셋 · 내 차례 → 심사 팻말 셋과 센 수 대본 → 단상 → 결과 카드. 카드는 `#scene` 안의 요소 (`#ct-world`), 자리는 `scene.project`. 2D · 움직임 줄이기 · 무대 함수가 없을 때는 시트. 계약: V `scene.stage()` (방 안 좌표) · `stageDress` · `npcSet` / `npcPlace` / `npcPose` (`judge0..2` · `rival0..2`), W `APP.goInside('hall')` · `scene.inRoom()` · `scene.project` · `scene.roomFocus`, P `scene.playerWalkPath` · `playerPose` · `playerPlace` (없으면 건너뜀), N `contest.open` · `contest.start` · `contest.judge {n}` · `contest.podium` · `contest.result`.
