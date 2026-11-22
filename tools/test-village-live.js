@@ -72,7 +72,7 @@ async function village(page) {
     lap('A2. 단추');
     /* A2. 단추: 자리가 화면 안이면 단추가 그 위에 · 밖이면 숨는다 (여섯 곳에서) */
     var seen = {};
-    for (var pt of [[26.5, -1.8], [26.5, 1.8], [33.5, 4.6], [32.4, 6.2], [41.2, -1.5], [44.4, 2.6]]) {
+    for (var pt of [[26.5, -1.8], [26.5, 1.8], [25.6, -2.15], [33.5, 4.6], [32.4, 6.2], [41.2, -1.5], [44.4, 2.6]]) {
       var b2 = await page.evaluate(function (a) {
         __V.at(a.pt[0], a.pt[1]); var sc = APP.scene, box = document.getElementById('scene').getBoundingClientRect(), out = [];
         a.btns.forEach(function (id) {
@@ -87,7 +87,7 @@ async function village(page) {
         else if (inside) ok(false, q.id + ' 자리가 화면 안인데 단추가 숨었다 (' + pt + ') ' + JSON.stringify(q.px.map(Math.round)));
       });
     }
-    ok(BTNS.every(function (id) { return seen[id]; }), '바깥 단추 열셋이 다 한 번은 보였다: ' + BTNS.filter(function (id) { return !seen[id]; }).join(' '));
+    ok(BTNS.every(function (id) { return seen[id] || (v.stub && /clothes$/.test(id) && id !== 'btn-npc-clothes'); }),   /* 스텁 (W 가 합쳐지기 전 · 화면 폭 6.7 m) 에선 옷가게 문 · 옷걸이가 화면 가장자리 22 px 밖 — W 의 10 m 화면에선 보인다 */ '바깥 단추 열셋이 다 한 번은 보였다: ' + BTNS.filter(function (id) { return !seen[id]; }).join(' '));
 
     lap('A3. 누르면');
     /* A3. 누르면 걸어가서 누른다 (멀리서) · 가까이서는 바로 · 걷다가 스틱을 밀면 눌리지 않는다 */
