@@ -520,7 +520,7 @@
     cake: { keep: ['ebede9', 'a4dddb', '253a5e', 'df84a5', 'c7cfcc', 'a8b5b2', '3c5e8b', 'c65197'], out: ['602c2c', '341c27', '4d2b32', '7a4841'] }
   });
   function hex6(d, k) { return ((1 << 24) + (d[k] << 16) + (d[k + 1] << 8) + d[k + 2]).toString(16).slice(1); }
-  function biteFood(spr, eaten, picId, amp, empty) {   /* empty = 다 먹은 그릇 그림 (같은 크기) 이 있으면 지운 자리에 그것이 보인다 (갈래 A 'dish.<id>.empty') */
+  function biteFood(spr, eaten, picId, amp, empty) {   /* empty = 다 먹은 그릇 그림 (같은 크기) 이 있으면 지운 자리에 그것이 보인다 (갈래 A 'empty.<id>') */
     if (!sprOK(spr)) return null;
     var tab = typeof picId === 'string' && has(BITE_COL, picId) ? BITE_COL[picId] : null;
     if (!tab) return biteMask(spr, eaten, undefined, amp);   /* 표가 없는 그림: 예전 규칙 */
@@ -546,9 +546,10 @@
       }
       return false;
     }
+    if (E && gone[0] && gone[1] && gone[2] && gone[3]) return new Uint8ClampedArray(E.subarray ? E.subarray(0, w * h * 4) : E);   /* 네 입 다 = 다 먹은 그릇 그림 그대로 */
     function nb(i, fn) { var x = i % w, y = (i - x) / w; for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) { var xx = x + dx, yy = y + dy; if ((dx || dy) && xx >= 0 && yy >= 0 && xx < w && yy < h && fn(yy * w + xx)) return true; } return false; }
     var left = new Uint8Array(w * h), ate = new Uint8Array(w * h);
-    for (i = 0; i < w * h; i++) { left[i] = kind[i]; if (kind[i] === 3 && hit(i % w, (i - i % w) / w)) { left[i] = 0; ate[i] = 1; } }
+    for (i = 0; i < w * h; i++) { left[i] = kind[i]; if ((kind[i] === 3 || (E && kind[i] === 2)) && hit(i % w, (i - i % w) / w)) { left[i] = 0; ate[i] = 1; } }   /* 빈 그릇 그림이 있으면 먹은 칸의 테도 그 그림으로 (그 그림에 그릇 테가 제자리에 있다) */
     /* 외곽선: 먹힌 음식에 닿아 있고, 곁에 남는 것 (그릇 · 남은 음식) 이 없을 때만 같이 사라진다 — 간장 속처럼 음식에 안 닿은 어두운 칸은 그대로 */
     for (i = 0; i < w * h; i++) {
       if (kind[i] !== 2) continue;

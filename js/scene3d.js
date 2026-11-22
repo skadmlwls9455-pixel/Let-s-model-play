@@ -5667,7 +5667,7 @@ var SCENE3D = (function () {
         var id = 'table.' + d.pic.id, sp = CS.get(id, d.pic.frame), inf = typeof CS.info === 'function' ? CS.info(id) : null;
         if (!sp || !(sp.w > 0) || !(sp.h > 0) || sp.w * sp.h > DISH_SPR_N || !sp.d || sp.d.length < sp.w * sp.h * 4) return null;
         var MR = window.MEAL, px = sp.d;
-        if (TB.eaten.length && MR && typeof MR.biteFood === 'function') px = MR.biteFood(sp, TB.eaten.filter(function (q) { return q >= 0 && q < 4; }), d.pic.id, 0, CS.get('table.' + d.pic.id + '.empty', 0)) || sp.d;   /* 11-22: 음식만 줄인다 (접시 · 도구는 그대로) */
+        if (TB.eaten.length && MR && typeof MR.biteFood === 'function') px = MR.biteFood(sp, TB.eaten.filter(function (q) { return q >= 0 && q < 4; }), d.pic.id, 0, CS.get('empty.table.' + d.pic.id, 0)) || sp.d;   /* 11-22: 음식만 줄인다 (접시 · 도구는 그대로) */
         return { w: sp.w, h: sp.h, d: px, ax: inf && isFinite(inf.ax) ? inf.ax : sp.w / 2, ay: inf && isFinite(inf.ay) ? inf.ay : sp.h - 2 };
       } catch (e) { return null; }
     }

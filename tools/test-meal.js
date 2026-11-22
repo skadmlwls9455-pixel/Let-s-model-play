@@ -362,8 +362,9 @@ section('13 round 7: dish pictures and bite masks', function () {
   check(M.biteFood(sp3, [], 'cake', 0)[(2 * W3 + 10) * 4 + 3] === 255 && M.biteFood(null, [0], 'cake') === null, 'biteFood: no bites → unchanged · broken picture → null');
   check(Object.keys(M.BITE_COL).join() === 'jeon,gyeran,jumeokbap,kkochi,cake', 'a colour table for each of the five pictures');
   var emp3 = { w: W3, h: H3, d: new Uint8ClampedArray(W3 * H3 * 4) }; for (var e3 = 0; e3 < W3 * H3; e3++) { emp3.d[e3 * 4] = 1; emp3.d[e3 * 4 + 1] = 2; emp3.d[e3 * 4 + 2] = 3; emp3.d[e3 * 4 + 3] = 255; }
-  var fe = M.biteFood(sp3, [0, 1, 2, 3], 'cake', 0, emp3);
-  check(c3(fe, 10, 2) === '010203' && c3(fe, 0, 7) === 'ebede9', 'biteFood with an empty-plate picture: eaten pixels show that picture, the rest stays');
+  var fe = M.biteFood(sp3, [1, 2, 3], 'cake', 0, emp3), fa = M.biteFood(sp3, [0, 1, 2, 3], 'cake', 0, emp3);
+  check(c3(fe, 10, 2) === '010203' && c3(fe, 6, 2) === 'ffd95c' && c3(fe, 0, 7) === 'ebede9', 'biteFood with an empty-plate picture: eaten pixels show that picture, the rest stays');
+  check(c3(fa, 0, 0) === '010203' && c3(fa, 10, 6) === '010203', 'biteFood: after the fourth bite the empty-plate picture as it is');
   check(M.biteMask(null, [0]) === null && M.biteMask({ w: 2, h: 2, d: [] }, [0]) === null && M.biteLine(null) === 0, 'broken pictures → null / 0');
   check(JSON.stringify(Array.prototype.slice.call(M.biteMask(spr, [3], 7, 2))) === JSON.stringify(Array.prototype.slice.call(M.biteMask(spr, [3], 7, 2))), 'deterministic');
 });
