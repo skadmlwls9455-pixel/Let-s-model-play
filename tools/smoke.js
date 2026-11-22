@@ -3033,6 +3033,7 @@ async function scenarioFirstColor(browser) {
   console.log('   dev slider:', JSON.stringify(g1));
   ok(g1.mid.n === g0.n && g1.mid.color === RED && g1.mid.sameSave && g1.mid.scenes >= 8, '개발용 슬라이더 input 10번: 장면만 미리 보임 (색 ' + g1.mid.scenes + '가지) · 기록 · 저장 그대로');
   ok(g1.n === g0.n + 1 && g1.last.how === 'dev' && g1.last.by === 'dev' && g1.last.color === g1.color && g1.scene === g1.color && g1.saved === g1.n, "change 1번 → 기록 한 줄 { how: 'dev', by: 'dev' } · 장면 = 기록 색 (" + g1.color + ')');
+  await pf.evaluate(function () { var d = document.querySelector('#set-body details[data-sec="color"]'); if (d) d.open = true; });   /* 11-21: '문어 색' 구역은 접혀서 열린다 → 펼치고 누른다 */
   await pf.click('#set-body .preset[data-hex="' + BLUE + '"]');
   var g2 = await pf.evaluate(function () { var c = APP.state.octopus.colors; return { n: c.length, last: c[c.length - 1], on: (document.querySelector('#set-body .preset.on') || {}).dataset }; });
   ok(g2.n === g1.n + 1 && g2.last.how === 'dev' && g2.last.color === BLUE && g2.on && g2.on.hex === BLUE, '개발용 프리셋 파랑 → 한 줄 더 · 칩 켜짐');
@@ -7515,7 +7516,7 @@ async function scenarioSceneTap(browser) {
         return { label: c.getAttribute('aria-label'), text: c.textContent, title: c.hasAttribute('title'), w: r.width, h: r.height, top: r.top, right: window.innerWidth - r.right, oct: [o.width * dpr % 56, o.x * dpr % 1, o.y * dpr % 1] }; });
     }, function () { return null; });
     await page.tap('#cook-close');
-    k2.closed = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open; }, null, { timeout: 3000 }).then(function () {
+    k2.closed = await page.waitForFunction(function () { return !document.getElementById('cook-overlay').open && document.getElementById('cook-wait').hidden; }, null, { timeout: 3000 })   /* 11-21: 'close' 이벤트는 닫힌 뒤 따로 온다 — 기다림 그림이 걷힌 상태까지 기다린다 */.then(function () {
       return page.evaluate(function () { return { view: APP.scene.view(), focus: document.activeElement && document.activeElement.id, waitHidden: document.getElementById('cook-wait').hidden }; }); }, function () { return null; });
     await page.waitForTimeout(700);
     await page.touchscreen.tap(cpt.x, cpt.y);
@@ -8144,9 +8145,9 @@ async function scenarioU7(browser) {
   ok(sf && (sf.units === 48 || sf.units === 96) && sf.css >= 44 && Math.abs(sf.per - Math.round(sf.per)) < 0.01 && sf.inside, '크게 보기 앞면 스티커: ' + (sf && sf.units) + ' 단위 (예전 32 · 64 의 1.5배) · 그려진 크기 ' + (sf && sf.css.toFixed(1)) + ' CSS px 가 기기 px 정수 배 · 포스터 안');
   await page.keyboard.press('Escape'); await page.waitForTimeout(400);
   if (await page.$('#album-sheet[open]')) { await page.keyboard.press('Escape'); await page.waitForTimeout(400); }
-  /* 전체 화면 놀이 (달리기 · 부엌) 가 열린 동안 3D 장면은 그리지 않는다 · 닫으면 시계가 뛰지 않고 잇는다 (11-21) */
+  /* 전체 화면 놀이 (달리기 · 부엌) 가 열린 동안 3D 장면은 그리지 않는다 (계산은 1 초 10 번 — 귀가 같은 흐름은 끝난다) · 닫으면 시계가 뛰지 않고 잇는다 (11-21) */
   if (await page.evaluate(function () { return APP.sceneMode === '3d' && typeof APP.scene.setCovered === 'function'; })) {
-    function clk() { return page.evaluate(function () { var c = APP.scene.clock(); return { t: c.time, n: c.frames, cov: APP.scene.covered() }; }); }
+    function clk() { return page.evaluate(function () { var c = APP.scene.clock(); return { t: c.time, n: c.draws, f: c.frames, cov: APP.scene.covered() }; }); }
     await page.evaluate(function () { return APP.goRoom('play'); });
     await page.waitForFunction(function () { var m = APP.scene.motion(); return APP.room === 'play' && !m.trans && m.dq === ''; }, null, { timeout: 30000 }); await page.waitForTimeout(600);
     var c0 = await clk(); await page.waitForTimeout(700); var c1 = await clk();
@@ -8155,13 +8156,13 @@ async function scenarioU7(browser) {
     await page.evaluate(function () { RUNNER.close(); }); await page.waitForFunction(function () { return APP.scene.clock().frames > 0 && !APP.scene.covered(); }, null, { timeout: 5000 }); await page.waitForTimeout(700);
     var c4 = await clk();
     console.log('   covered:', JSON.stringify([c0, c1, c2, c3, c4]));
-    ok(!c0.cov && c1.n > c0.n && c2.cov && c3.cov && c3.n === c2.n && c3.t === c2.t, '달리기 창이 열린 동안 장면 프레임 0 (' + c2.n + ' → ' + c3.n + ') · 평소엔 돈다 (' + c0.n + ' → ' + c1.n + ')');
-    ok(!c4.cov && c4.n > c3.n && c4.t - c3.t < (c4.n - c3.n) * 0.1 + 1e-6 && c4.t - c3.t < 1.5, '닫으면 다시 돌고 시계는 뛰지 않는다 (+' + (c4.t - c3.t).toFixed(2) + ' s · ' + (c4.n - c3.n) + ' 프레임)');
+    ok(!c0.cov && c1.n > c0.n && c2.cov && c3.cov && c3.n === c2.n && c3.f > c2.f && c3.f - c2.f <= 16 && c3.t > c2.t, '달리기 창이 열린 동안 그린 장 0 (' + c2.n + ' → ' + c3.n + ') · 계산은 1 초 10 번쯤 (' + (c3.f - c2.f) + ' 번 / 1.2 s) · 평소엔 그린다 (' + c0.n + ' → ' + c1.n + ')');
+    ok(!c4.cov && c4.n > c3.n && c4.t - c3.t < 1.5, '닫으면 다시 그리고 시계는 뛰지 않는다 (+' + (c4.t - c3.t).toFixed(2) + ' s · ' + (c4.n - c3.n) + ' 장)');
     await page.evaluate(function () { var o = document.getElementById('cook-overlay'); o.showModal(); }); await page.waitForTimeout(200);
     var k0 = await clk(); await page.waitForTimeout(800); var k1 = await clk();
     await page.evaluate(function () { document.getElementById('cook-overlay').close(); }); await page.waitForTimeout(600);
     var k2 = await clk();
-    ok(k0.cov && k1.n === k0.n && !k2.cov && k2.n > k1.n, '부엌 창이 열린 동안에도 프레임 0 · 닫으면 다시 돈다 (' + [k0.n, k1.n, k2.n].join(' → ') + ')');
+    ok(k0.cov && k1.n === k0.n && !k2.cov && k2.n > k1.n, '부엌 창이 열린 동안에도 그린 장 0 · 닫으면 다시 그린다 (' + [k0.n, k1.n, k2.n].join(' → ') + ')');
     await page.evaluate(function () { return APP.goRoom('attic'); });
     await page.waitForFunction(function () { var m = APP.scene.motion(); return !APP.room && !m.trans && m.dq === ''; }, null, { timeout: 30000 });
   }
