@@ -78,6 +78,8 @@ jobs:
       - run: node tools/test-cook-steps.js
       # 7차 (11-21) 레시피 규칙 (js/recipes.js): 늘 열린 셋 · 세 번째에 선물 한 번 · 옛 수첩 · 두 탭. 노드만 쓴다
       - run: node tools/test-recipes.js
+      # 7차 (11-21) 마을 표 (js/village.js): 터 · 가게 · 카페 마루 · 광장 · 방 넷 (옷가게 · 잡화점 · 카페 · 공연장) 의 자리와 칸. 노드만 쓴다
+      - run: node tools/test-village.js
       # 배포 묶음 (tools/export-site.js): 임시 폴더로 내보내서 게임 파일만 나가는지 (문서 · 스킬 · 도구 · 시험 · 서버 코드 없음), 쪽 · 스타일 · 스크립트 ·
       # 목록이 가리키는 파일이 다 실렸는지, 저장소 맨 위의 새 폴더가 '싣는다 / 안 싣는다' 로 정해졌는지. 노드만 쓴다
       - run: node tools/test-export.js
@@ -172,6 +174,8 @@ jobs:
           - { key: contest-live, name: 콘테스트, cmd: node tools/test-contest-live.js }
           # 7차 (11-21) 레시피 북과 새 요리 다섯 — 진짜 손짓 · 키보드로 한 판씩, 끝 단추 둘
           - { key: cook-book-live, name: 레시피 북, cmd: node tools/test-cook-book-live.js }
+          # 7차 (11-21) 마을 건물 · 방 넷 들어가고 나오기 · 카페 자리 · 공연장 무대 · 마을 문어 그리기
+          - { key: village-live, name: 마을 · 방, cmd: node tools/test-village-live.js }
           # 배포 묶음만 띄워 놀아 보기 (export-site.js 로 임시 폴더에 내보낸 것만 127.0.0.1 빈 포트에) — 우리 주소로 간 요청이 하나도 실패하지 않는지
           - { key: export-crawl, name: 배포 묶음 놀아 보기, cmd: node tools/test-export.js --crawl }
           - { key: intro, name: 입장 화면, cmd: node tools/intro-shots.js }
