@@ -6329,6 +6329,7 @@ var APP = (function () {
   function ctLiveEnter(ev) {
     if (ev && ev.isTrusted && ev.detail !== 0 && tapTime(ev) - ctOpenedAt < SHEET_SETTLE) return;
     if (ctL || ctRun) return;
+    if (!ctAtStage()) { ctCardClear(); openContest(); return; }   /* 무대가 안 보이는 곳 (공연장 밖) 에서는 쇼를 하지 않는다 — 시트로 */
     var e = ctEnterCore(); if (!e) { ctEntryCard(); return; }
     if (e.replay || !ctLiveOk()) { ctResultCard(e.entry); ctTold(); return; }
     ctLiveShow(e.entry);
