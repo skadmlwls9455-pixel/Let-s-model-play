@@ -73,7 +73,7 @@
 | 이름 | 하는 일 |
 |---|---|
 | `npcSpots()` | `[{ id, x, y, z, face }]` — `clothes` `goods` `cafe` `sleep-1` … `sleep-4` |
-| `npcSet(list)` | `list = [{ id, color: '#rrggbb', hat: 'none' \| 'beret' \| 'apron' \| 'cap', pose: 'stand' \| 'sleep' }]` 의 문어를 제자리에 그린다. 목록에 없는 문어는 지운다. `npcSet([])` = 모두 지운다. 마당을 짓기 전에 불러도 기억했다가 그린다. 그린 수를 돌려준다 |
+| `npcSet(list, opt)` | `list = [{ id, color, hat, pose, room?, slot? }]` 의 문어를 제자리에 그린다. 목록에 없는 문어는 지운다 (심사 · 경쟁 문어 여섯은 목록에 그 id 가 하나도 없으면 남긴다 — 다 지우려면 `{ all: true }`). `npcSet([])` = 모두 지운다. 마당을 짓기 전에 불러도 기억했다가 그린다. 그린 수를 돌려준다 |
 | `npcMark(id, on)` | 그 문어 머리 위에 작은 노란 마름모 (글자 · 기분 그림 아님) |
 | `cafeSit(true)` | 카페 걸상까지 걷고 앉는다 → `Promise<앉았나>` |
 | `cafeSit(false)` | 일어난다 → `Promise<일어났나>` |
