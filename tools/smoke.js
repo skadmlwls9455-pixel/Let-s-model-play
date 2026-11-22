@@ -2282,7 +2282,11 @@ async function scenarioFirst(browser) {
   var re = await pg.evaluate(function () { return new Promise(function (res) { var n = 0, was = false; var iv = setInterval(function () { var e = document.getElementById('hint-hand'), on = !!(e && !e.hidden); if (on && !was) n++; was = on; }, 40); setTimeout(function () { clearInterval(iv); res({ n: n, pref: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}').hints }); }, 7000); }); });
   ok(re.n === 2 - before && Object.keys(re.pref || {}).length === 2, '11-18 새로 열면 본 힌트는 다시 없음 (11-21: 힌트는 둘 — 놀이방 문 · 마당 문. 남은 것만 ' + re.n + ' · ' + JSON.stringify(re.pref) + ')');
   /* 여러 번 다녀온 기록: 둘째 산책 뒤엔 (기기 표시를 지워도) 켜지지 않는다 */
-  await waitIdle(pg); await pg.click('#btn-go'); await pg.waitForSelector('#btn-go.away', { timeout: 10000 }); await pg.waitForTimeout(1200); await pg.click('#btn-go'); await waitIdle(pg);
+  /* 11-22: 둘째 초대에 데모 문어가 '집에 있기' 로 정하는 날이 있다 (날짜 시드 — 'home' 차례는 산책이 아니다). 산책 기록이 둘이 될 때까지 (넷까지) 다시 초대한다 */
+  for (var inv = 0; inv < 4; inv++) {
+    await waitIdle(pg); await pg.click('#btn-go'); await pg.waitForSelector('#btn-go.away', { timeout: 10000 }); await pg.waitForTimeout(1200); await pg.click('#btn-go'); await waitIdle(pg);
+    if ((await pg.evaluate(function () { return APP.state.trips.filter(function (t) { return t.status === 'done' && t.kind === 'out'; }).length; })) >= 2) break;
+  }
   await pg.evaluate(function () { localStorage.setItem('ppolppol_ui', '{}'); });   /* 기기 표시를 지우고 새로 열어도 (산책 둘) 켜지지 않는다 */
   await pg.reload(); await pg.waitForSelector('#btn-go:not(.away)', { timeout: 30000 });
   var two = await pg.evaluate(function () { return new Promise(function (res) { var n = 0; var iv = setInterval(function () { var e = document.getElementById('hint-hand'); if (e && !e.hidden) n++; }, 40); setTimeout(function () { clearInterval(iv); res({ n: n, walks: APP.state.trips.filter(function (t) { return t.status === 'done' && t.kind === 'out'; }).length, arm: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}').hintsArm }); }, 6000); }); });
