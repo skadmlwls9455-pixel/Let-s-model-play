@@ -2633,6 +2633,7 @@ var SCENE3D = (function () {
     var PL_H = 1.22, PL_HEAD_R = 0.35, PL_HEAD_Y = 0.87, PL_HR = 0.38, PL_HC = [0, 0.90, -0.03], PL_SPEED = 1.8, PL_RUN = 2.2, PL_STRIDE = 0.40, PL_RUN_STRIDE = 0.55, PL_TURN = 24, PL_ANTIC = 0.12, PL_LEG = 0.45, PL_ARM = 0.4, PL_SWAY = 0.045, PL_DASH = 3.74, PL_DASH_STRIDE = 0.85, PL_DASH_HOLD = 0.6, PL_DASH_AUTO = 4;   /* 11-21 뛰기: 반 넘게 민 채 0.6 s = 3.74 m/s (걷기 2.2 의 1.7 배) · 보폭 0.85 · 혼자 걷기는 길이 4 m 넘으면 뛴다 */
     /* ↑ 걷기 상수:   /* 짧뚱한 몸 = 종종걸음(한 걸음 0.4 m) + 디딤 프레임 좌우 뒤뚱 0.045 rad(머리 꼭대기 ≈ 1 px) */
     var PL_REST = { attic: [1.72, 0, 0.82], play: [0.15, 0, 0.45], yard: [1.95, 0, 0.55] };   /* 11-22 (검토): 다락 쉬는 자리 (1.65, −0.1) 는 앞의 놀이방 문짝 뒤라 첫 화면에서 머리만 보였다 → (1.72, 0.82): 360 · 412 폭 모두 문짝 · 상자에 안 가리고 문어도 안 가리며 온몸이 보인다   /* 11-15 마당: 계단 앞 길가 (밭 첫 줄 바로 위) */   /* 쉬는 자리: 다락 오른쪽 — 가운데 문어와 상자 사이, 화면에서 문어(가운데 앵커)·문짝(x−z 0.62~1.34)과 안 겹친다 (x−z 1.75) · 문 앞까지 1.5 m · 놀이방 빈 바닥 가운데 (문까지 1.7 m) */
+    var PL_CLEAR = { atticPlayDoor: [2.15, 1.6], atticYard: [0.95, -0.55] };   /* 11-22 (검토): 다락의 놀이방 문 앞 (2.95, 1.92) 은 앞의 문짝에, 마당 문 앞 (1.9, −1.95) 은 상자에 몸이 가린다 → 들어온 뒤 한 걸음 비켜설 자리 (360 · 412 폭에서 온몸이 보인다). 쉬는 자리까지 혼자 걸어가지는 않는다 (주인 11-10) */
     var PL_FACE = { atticPlayDoor: Math.PI / 2, playAtticDoor: -Math.PI / 2, atticStair: -Math.PI / 2, loftStair: Math.PI / 2, atticYard: Math.PI, yardAttic: -Math.PI / 2 };   /* 11-15: 다락 뒷벽 문간은 −z · 마당 현관 계단은 −x */   /* 문 앞에 서서 보는 쪽 (다락 문은 +x 벽 · 놀이방 문은 −x 벽) — 들어올 땐 반대(방 안쪽) */
     var PLC = (function () {
       var skin = '#ffd096';   /* ≈ mixHex(amber[4], dusk[3], .5) — 필 빛에서 #e7d5b3 로 앉아 흰자 #ebede9 와 한 칸 갈린다 (v0 의 paper·dusk 섞음은 앞면이 흰자와 같은 칸이었다) */
@@ -3253,7 +3254,7 @@ var SCENE3D = (function () {
         var g = groupOf(to); if (plG.parent !== g) g.add(plG); fpClear(g);
         var an = to === 'play' ? 'playAtticDoor' : to === 'loft' ? 'loftStair' : to === 'yard' ? 'yardAttic' : from === 'loft' ? 'atticStair' : from === 'yard' ? 'atticYard' : 'atticPlayDoor', a = DOOR_ANCHORS[an];
         PL.sit = false; PL.hop = null; PL.tbl = false; var mb0 = TB.meBite; TB.meBite = null; if (mb0) mb0.done(false); plStop(); PL.place = to; PL.pos.set(a[0], 0, a[2]); PL.yaw = PL.wantYaw = PL_FACE[an] + Math.PI; PL.faceCam = false;
-        /* 11-18 주인: 돌린 각에서 들어와도 방 안쪽을 본 채 (카메라 쪽으로 돌려 세우던 11-15 규칙은 뺐다) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
+        /* 11-18 주인: 돌린 각에서 들어와도 방 안쪽을 본 채 (카메라 쪽으로 돌려 세우던 11-15 규칙은 뺐다) */ PL.moving = false; PL.phase = Math.ceil(PL.phase); PL.pending = PL_CLEAR[an] ? 'clear:' + an : ''; PL.doorArm = false; PL.doorCd = 0.5; plSnap();   /* 11-10: 문을 지난 뒤 혼자 쉬는 자리로 걸어가지 않는다 (주인 "자동으로 중앙으로 돌아가는 건 어색") — 들어온 문 앞에 그대로 선다 */
       } else { if (plG.parent !== atticG) atticG.add(plG); fpClear(atticG); PL.place = 'attic'; plRest(true); }
     }
     var WIDE_WALK = 8;   /* 11-19 넓은 바깥: 울타리 밖에서 집 문까지 남은 길 (m — 여기 → 울타리 문 → 계단 발치 → 문 앞, 곧은 선으로) 이 이보다 길면 걷지 않는다. 울타리 문에서 문 앞까지가 6.48 m 라 울타리 문 1.5 m 안에서만 걸어 들어온다 (걸음 5 s 쯤까지 — 마당 안의 가장 긴 걸음 6.6 s 보다 짧다) */
@@ -3368,6 +3369,7 @@ var SCENE3D = (function () {
       if (PL.walking) PL.walking.step(dt);
       var dash = !st.reduced && (stick ? PL.dash : !!(PL.walking && PL.walking.dash));   /* 11-21 뛰는 걸음새인가 (스틱 = 오래 쥠 · 혼자 걷기 = 먼 길) */
       if (PL.pending === 'rest' && !DQ.active && !PLACE.trans) plRest(false);   /* 들어온 문이 닫힌 뒤: 쉬는 자리로 */
+      if (PL.pending.indexOf('clear:') === 0 && !DQ.active && !PLACE.trans && !PL_IN.held) { var cq = PL_CLEAR[PL.pending.slice(6)]; PL.pending = ''; if (cq && PL.place === 'attic') plWalkTo(new T.Vector3(cq[0], 0, cq[1]), null); }   /* 11-22 (검토): 문이 닫히면 문짝 · 상자에 가리지 않는 자리로 한 걸음 (쥔 채 들어왔으면 그 걸음이 이어지고 비키지 않는다) */
       var red = st.reduced, moving = ((!!PL.walking && PL.antic <= 0) || stick || pushed) && !red;
       var mx = PL.pos.x - PL.last.x, mz = PL.pos.z - PL.last.z; if (Math.hypot(mx, mz) > 1e-6) PL_IN.dir.set(mx, 0, mz).normalize();   /* 진행 방향 (발자국 회전·옆 오프셋) */
       if (moving) { if (!PL.moving) { PL.last.copy(PL.pos); PL.n = Math.floor(PL.phase); } PL.phase += Math.min(0.3, Math.hypot(PL.pos.x - PL.last.x, PL.pos.z - PL.last.z)) / (dash ? PL_DASH_STRIDE : stick ? PL_RUN_STRIDE : PL_STRIDE); }
