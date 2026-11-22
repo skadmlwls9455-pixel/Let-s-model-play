@@ -50,7 +50,7 @@ function box(p) {
     ok(b0.hidden && b0.npc === null, '처음엔 대사창이 숨어 있다');
     ok(b0.live === 'polite' && b0.role === 'group', '읽기 영역 aria-live polite · 모달이 아니다');
     await p.evaluate(function () { window.__calls = []; APP.scene.npcSet = function (l) { window.__calls.push(['set', l]); }; APP.scene.npcMark = function (id, on) { window.__calls.push(['mark', id, on]); }; });
-    ok(await p.evaluate(function () { return APP.npcSync(); }) === true, 'scene.npcSet 이 있으면 오늘의 문어들을 넘긴다');
+    ok(await p.evaluate(function () { return APP.npcSync(true); }) === true, 'scene.npcSet 이 있으면 오늘의 문어들을 넘긴다');   /* 11-22: 진짜 장면 (갈래 V) 이 부팅 때 이미 받았으므로 force 로 다시 넘겨 가로챈다 */
     var set = await p.evaluate(function () { return window.__calls[0][1]; });
     ok(set.length === 7 && set[0].id === 'clothes' && set[0].hat === 'beret' && set[6].pose === 'sleep', 'npcSet 목록 (셋 + 자는 넷)');
     ok(await p.evaluate(function () { return APP.npcSync(); }) === false, '같은 날 두 번 넘기지 않는다');
