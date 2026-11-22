@@ -4655,9 +4655,10 @@ var APP = (function () {
       el.style.left = Math.round(cx - hr.left - half) + 'px'; el.style.top = Math.round(cy - hr.top - half) + 'px'; el.style.bottom = 'auto';
       el.classList.add('on');
       stickFromPointer(el, e);
+      stk.tap = scene && typeof scene.pickAt === 'function' ? (function () { var pk = scene.pickAt(e.clientX, e.clientY); return pk && pk.kind === 'spot' ? { x: e.clientX, y: e.clientY, t: Date.now(), far: false } : null; })() : null;   /* 11-22 (검증): 스틱 칸 밑의 그려진 자리 (공연장 '밖으로' · 표지판) — 짧게 톡하면 그 자리를 누른다 (끌면 예전처럼 스틱) */
     });
-    zone.addEventListener('pointermove', function (e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.preventDefault(); e.stopPropagation(); stickFromPointer(el, e); });
-    function up(e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.stopPropagation(); stickRelease(el); if (!stk.allowed && zone !== el && !zone.hidden) zone.hidden = true; }   /* 방을 옮기는 사이 손을 떼면 그때 놓는다 (구역도 숨는다) */
+    zone.addEventListener('pointermove', function (e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.preventDefault(); e.stopPropagation(); if (stk.tap && Math.hypot(e.clientX - stk.tap.x, e.clientY - stk.tap.y) > 10) stk.tap.far = true; stickFromPointer(el, e); });
+    function up(e) { if (stk.pid == null || stk.pid !== e.pointerId) return; e.stopPropagation(); var tp = stk.tap; stk.tap = null; stickRelease(el); if (tp && !tp.far && e.type === 'pointerup' && Date.now() - tp.t < 400 && scene && typeof scene.spotTapAt === 'function') scene.spotTapAt(tp.x, tp.y); if (!stk.allowed && zone !== el && !zone.hidden) zone.hidden = true; }   /* 방을 옮기는 사이 손을 떼면 그때 놓는다 (구역도 숨는다) */
     zone.addEventListener('pointerup', up); zone.addEventListener('pointercancel', up); zone.addEventListener('lostpointercapture', up);
     zone.addEventListener('contextmenu', function (e) { e.preventDefault(); });
     el.addEventListener('contextmenu', function (e) { e.preventDefault(); });   /* 길게 누르고 있어도 메뉴가 뜨지 않게 */
