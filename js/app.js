@@ -5654,7 +5654,8 @@ var APP = (function () {
      - 지킴이의 말은 갈래 N 의 APP.npcSay 만 (없으면 아무 말도 대신 지어내지 않는다).
      - 레코드 (#btn-cafe-lp → #lp-sheet): 재킷을 누르면 판이 돈다. 소리는 '소리 켜기' 가 켜져 있을 때만 — 꺼져 있으면 판만 돌고 스피커 그림 단추가 켜기를 권한다 (누르는 것은 플레이어).
        카페 (마을) 를 벗어나거나, 부엌 · 달리기를 열거나, 탭을 숨기면 멈춘다. */
-  var cafeAsk = null, cafeAskAt = 0, cafeSeated = false, cafeWatch = 0, cafeLp = { id: null, sound: false, ang: 0, spin: 0, watch: 0, vol: -1 };
+  var cafeNew = null;   /* 방금 도장이 찍힌 메뉴 (다음에 메뉴를 열 때 그 도장만 반짝) */
+  var cafeAsk = null, cafeAskAt = 0, cafeSeated = false, cafeWatch = 0, cafeLp = { id: null, sound: false, ang: 0, arm: 0, spin: 0, watch: 0, vol: -1 };
   function cafeState() { var u = userState(); u.cafe = CAFE.normalize(u.cafe); return u.cafe; }
   function cafeAdopt(mineS, R) {   /* adoptRemote: 이 탭 것과 받은 것을 합친다 (큰 수 · 선물 합집합 · 쟁반은 받은 쪽). 받은 쪽이 모자랐으면 다음 틱에 저장 */
     if (!window.CAFE || !isObj(R)) return;
@@ -5680,26 +5681,65 @@ var APP = (function () {
     return c;
   }
   function cafeSpr(sprId, artId) { var s = null; try { s = window.COOK_SPR && typeof COOK_SPR.get === 'function' ? COOK_SPR.get(sprId, 0) : null; } catch (e) { s = null; } return s || CAFE.art(artId); }
+  /* 11-21 UI 둘째 다듬기 (주인: "ui가 너무 조잡한데"): 시트 맨 위는 그곳의 그림 띠 (벽 · 선반 · 카운터) — 지킴이 초상 (갈래 N 의 npcFace, 없으면 비움) 이 왼쪽, 오른쪽은 kind 에 따라 조개 주머니.
+     그림은 그림 px 2 = 화면 px (기기 px 정수 배). kind: 'menu' 선반에 잔 · 병, 'lp' 선반에 레코드 등 */
+  function cafeBand(kind, right) {
+    var u = cafeUnit(2), W = Math.ceil(Math.min(600, window.innerWidth) / u), H = 48, d = new Uint8ClampedArray(W * H * 4), x, y, i;
+    function px(x0, y0, c) { if (x0 < 0 || y0 < 0 || x0 >= W || y0 >= H) return; var k = (y0 * W + x0) * 4; d[k] = c[0]; d[k + 1] = c[1]; d[k + 2] = c[2]; d[k + 3] = 255; }
+    function box(x0, y0, w, hh, c) { for (var yy = y0; yy < y0 + hh; yy++) for (var xx = x0; xx < x0 + w; xx++) px(xx, yy, c); }
+    var WALL = [233, 210, 168], WALL2 = [220, 194, 148], WOOD = [138, 90, 58], WOODL = [185, 138, 90], WOODD = [96, 58, 38], INK = [59, 42, 38];
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) px(x, y, x % 14 === 0 ? WALL2 : WALL);
+    box(0, 0, W, 2, WOODD);                                             /* 천장 몰딩 */
+    var sx = Math.round(W * 0.56), sw = W - sx - 6;                      /* 선반: 오른쪽 벽 (판자 4 + 그림자 2) */
+    box(sx, 20, sw, 2, WOODL); box(sx, 22, sw, 2, WOOD); box(sx, 24, sw, 1, WALL2);
+    var COL = [[214, 69, 80], [244, 234, 216], [120, 180, 90], [96, 150, 180], [246, 214, 120], [86, 84, 100], [232, 190, 170]];
+    for (i = 0, x = sx + 3; x < sx + sw - 6; i++) {
+      var c = COL[i % COL.length];
+      if (kind === 'lp') { var w1 = 2 + (i % 2); box(x, 9, w1, 11, c); px(x, 9, INK); x += w1 + 1; if (i % 5 === 4) x += 2; }   /* 꽂힌 레코드 등 */
+      else if (i % 3 === 2) { box(x, 12, 5, 8, c); box(x + 1, 10, 3, 2, INK); x += 9; }                                        /* 병 */
+      else { box(x, 15, 6, 5, [244, 234, 216]); box(x, 15, 6, 1, c); px(x + 6, 17, [244, 234, 216]); x += 10; }                 /* 잔 */
+    }
+    box(Math.round(W * 0.3), 2, 1, 8, INK); box(Math.round(W * 0.3) - 3, 10, 7, 3, [246, 214, 120]); box(Math.round(W * 0.3) - 4, 13, 9, 1, WOODD);   /* 등 */
+    box(0, 38, W, 2, WOODL); box(0, 40, W, 1, WOOD); box(0, 41, W, 7, WOODD);                                                  /* 카운터: 윗판 + 앞판 */
+    for (x = 6; x < W; x += 18) box(x, 42, 1, 6, WOOD);
+    var cv = cafeCanvas({ w: W, h: H, d: d }, W * 2); cv.classList.add('cafe-band-pic');
+    var kids = [cv];
+    if (typeof npcFace === 'function' && NPCR && typeof NPCR.who === 'function') {
+      try { var who = NPCR.who('cafe'); if (who) { var face = h('canvas', { class: 'cafe-keeper', 'aria-hidden': 'true' }); npcFace(face, who); kids.push(face); } } catch (e) { console.warn('[cafe] keeper', e); }
+    }
+    if (right) kids.push(right);
+    return h('div', { class: 'cafe-band' }, kids);
+  }
+  function cafeTag(price) { return h('span', { class: 'cafe-cost cafe-tag' }, [shellAmt(price)]); }   /* 가격표: 구멍 난 꼬리표 */
   function renderCafe() {
     var body = $('cafe-body'); if (!body) return; var u = userState(), c = cafeState(), frag = document.createDocumentFragment();
-    frag.appendChild(h('p', { class: 'bag-line' }, [shellAmt(u.shells)]));
+    frag.appendChild(cafeBand('menu', h('p', { class: 'bag-line cafe-purse' }, [shellAmt(u.shells)])));
     if (cafeAsk) {
       var it = CAFE.item(cafeAsk), early = function (e) { return !(e && e.isTrusted && e.detail === 0) && tapTime(e) - cafeAskAt < SHEET_SETTLE; };
       var by = h('button', { type: 'button', class: 'btn sm pressable sew-yes', text: '시킬래', 'aria-describedby': 'cafe-ask-line' }), bn = h('button', { type: 'button', class: 'btn sm pressable sew-no', text: '그만', 'aria-describedby': 'cafe-ask-line' });
       by.addEventListener('click', function (e) { if (early(e)) return; var id = cafeAsk; cafeAsk = null; if (id) cafeBuy(id); });
       bn.addEventListener('click', function (e) { if (early(e)) return; cafeAsk = null; renderCafe(); sewFocus('#cafe-body .cafe-menu', 0); });
-      frag.appendChild(h('div', { class: 'sew-ask', role: 'group', 'aria-labelledby': 'cafe-ask-line' }, [
-        h('p', { class: 'sew-ask-line', id: 'cafe-ask-line' }, [h('span', { text: it.name + ' · ' }), shellAmt(it.price), h('span', { text: ' 시킬까?' })]), h('div', { class: 'btn-row sew-ask-btns' }, [bn, by])]));
+      /* 물음 = 칠판 위 주문 쪽지: 접시 그림 + 한 줄 + 단추 둘 */
+      frag.appendChild(h('div', { class: 'cafe-board' }, [h('div', { class: 'sew-ask cafe-slip', role: 'group', 'aria-labelledby': 'cafe-ask-line' }, [
+        h('span', { class: 'cafe-slip-pic' }, [cafeCanvas(cafeSpr(it.spr, it.id), 64)]),
+        h('p', { class: 'sew-ask-line', id: 'cafe-ask-line' }, [h('span', { text: it.name + ' · ' }), shellAmt(it.price), h('span', { text: ' 시킬까?' })]), h('div', { class: 'btn-row sew-ask-btns' }, [bn, by])])]));
     } else {
-      var row = h('div', { class: 'cafe-menu', role: 'group', 'aria-label': '메뉴' });
-      CAFE.MENU.forEach(function (it) {
-        var n = CAFE.dots(c, it.id), kids = [h('span', { class: 'cafe-plate' }, [cafeCanvas(cafeSpr(it.spr, it.id), 64)]), h('span', { class: 'cafe-name', text: it.name }), h('span', { class: 'cafe-cost' }, [shellAmt(it.price)])];
-        if (n >= 0) { var dots = h('span', { class: 'cafe-dots', 'aria-hidden': 'true' }); for (var i = 0; i < CAFE.GIFT_AT; i++) dots.appendChild(h('i', { class: i < n ? 'on' : null })); kids.push(dots); kids.push(h('span', { class: 'sr-only', text: ', 세 번 가운데 ' + n + '번 먹었어' })); }
+      /* 칠판 (분필 테두리) 에 이름과 가격표, 그 아래 카운터에 접시 셋, 카운터 앞판에 도장 카드 (도장 셋 + 레시피 카드 — 글자 없음) */
+      var row = h('div', { class: 'cafe-menu cafe-board', role: 'group', 'aria-label': '메뉴' });
+      CAFE.MENU.forEach(function (it, idx) {
+        var n = CAFE.dots(c, it.id), kids = [h('span', { class: 'cafe-name', text: it.name }), cafeTag(it.price), h('span', { class: 'cafe-plate' }, [cafeCanvas(cafeSpr(it.spr, it.id), 64)])];
+        if (n >= 0) {
+          var dots = h('span', { class: 'cafe-dots', 'aria-hidden': 'true' });
+          for (var i = 0; i < CAFE.GIFT_AT; i++) dots.appendChild(h('i', { class: (i < n ? 'on' : '') + (cafeNew === it.id && i === n - 1 ? ' new' : '') || null }));
+          dots.appendChild(cafeCanvas(cafeSpr('cafe.card', 'card'), 16));
+          kids.push(dots); kids.push(h('span', { class: 'sr-only', text: ', 세 번 가운데 ' + n + '번 먹었어' }));
+        } else kids.push(h('span', { class: 'cafe-dots none', 'aria-hidden': 'true' }));
         var b = h('button', { type: 'button', class: 'cafe-item pressable' }, kids);
+        b.style.setProperty('--i', String(idx));
         b.addEventListener('click', function () { cafePick(it.id, b); });
         row.appendChild(b);
       });
-      frag.appendChild(row);
+      frag.appendChild(row); cafeNew = null;
     }
     body.textContent = ''; body.appendChild(frag);
   }
@@ -5761,6 +5801,7 @@ var APP = (function () {
     renderCafeTray(); cafeCrumbs($('cafe-eat') || from);
     if (!r.done) { var nx = $('cafe-eat'); if (nx && nx.focus) nx.focus(); return; }
     var st = $('cafe-stand'); if (st) st.focus();
+    if (r.item.recipe) cafeNew = r.item.id;
     var eatFn = cafeApi('recipeEat'), res = null;
     if (eatFn && r.item.recipe) { try { res = eatFn(r.item.recipe); } catch (e) { console.warn('[cafe] recipeEat', e); } }
     if (res && res.gift === true) {
@@ -5812,26 +5853,38 @@ var APP = (function () {
     }
     if (on) { var a = cafeLp.ang * Math.PI / 180; [7, 10].forEach(function (r) { put(15 + Math.cos(a) * r, 16 + Math.sin(a) * r, 200, 196, 210); put(15 - Math.cos(a) * r, 16 - Math.sin(a) * r, 120, 116, 130); }); }
     put(15, 16, 232, 224, 212);
-    var tx = on ? 24 : 33, ty = on ? 20 : 24;   /* 팔: 축 (35, 5) → 바늘 */
+    var ar = on ? Math.max(0, Math.min(1, cafeLp.arm)) : 0, tx = Math.round(33 - 9 * ar), ty = Math.round(24 - 4 * ar);   /* 팔: 축 (35, 5) → 바늘. arm 0 = 쉬는 자리, 1 = 판 위 (올릴 때 몇 걸음에 걸쳐 내려온다) */
     for (var i = 0; i <= 20; i++) put(35 + (tx - 35) * i / 20, 5 + (ty - 5) * i / 20, 232, 224, 212);
     for (y = 3; y <= 7; y++) for (x = 33; x <= 37; x++) put(x, y, 59, 42, 38);
     put(tx, ty, 59, 42, 38); put(tx, ty + 1, 59, 42, 38);
     return { w: w, h: hh, d: d };
   }
-  function lpDraw() { var host = $('lp-deck'); if (!host) return; var cv = cafeCanvas(lpDeck(), 160); cv.id = 'lp-disc'; host.textContent = ''; host.appendChild(cv); }
+  function lpDraw() { var host = $('lp-deck'); if (!host) return; var cv = cafeCanvas(lpDeck(), window.innerWidth < 350 ? 160 : 200); cv.id = 'lp-disc'; host.textContent = ''; host.appendChild(cv); }
+  function lpLean(spr) {   /* 재킷을 기대 세운다: 줄마다 옆으로 민 평행사변형 (그림 px 그대로 — 돌리지 않는다) + 뒤에서 삐져나온 판 */
+    var lean = 3, W = spr.w + lean + 3, H = spr.h, d = new Uint8ClampedArray(W * H * 4), x, y;
+    for (y = 0; y < H; y++) {
+      var off = Math.floor((H - 1 - y) * lean / (H - 1));
+      for (x = 0; x < 3; x++) { var k0 = (y * W + off + spr.w + x) * 4, dy = y - H / 2, inside = dy * dy + (x + 6) * (x + 6) <= 81; if (inside && y > 1 && y < H - 2) { d[k0] = 40; d[k0 + 1] = 34; d[k0 + 2] = 44; d[k0 + 3] = 255; } }
+      for (x = 0; x < spr.w; x++) { var s = (y * spr.w + x) * 4, k = (y * W + off + x) * 4; d[k] = spr.d[s]; d[k + 1] = spr.d[s + 1]; d[k + 2] = spr.d[s + 2]; d[k + 3] = spr.d[s + 3]; }
+    }
+    return { w: W, h: H, d: d };
+  }
   function renderLp() {
     var body = $('lp-body'); if (!body || !window.CAFE_MUSIC) return; var frag = document.createDocumentFragment(), tunes = CAFE_MUSIC.list(), now = cafeLp.id ? CAFE_MUSIC.tune(cafeLp.id) : null;
+    frag.appendChild(cafeBand('lp', null));
+    /* 턴테이블 (크게) 과 그 옆 스피커: 소리가 꺼져 있으면 스피커가 '소리 켜기' 단추, 켜져 있으면 그림만 */
     var top = h('div', { class: 'lp-top' }, [h('div', { id: 'lp-deck', class: 'lp-deck', role: 'img', 'aria-label': now ? '도는 레코드' : '빈 턴테이블' })]);
     if (!lpSoundOn()) {
-      var sp = h('button', { type: 'button', id: 'lp-sound', class: 'lp-sound pressable', 'aria-label': '소리 켜기' }, [cafeCanvas(CAFE.art('mute'), 48)]);
+      var sp = h('button', { type: 'button', id: 'lp-sound', class: 'lp-sound lp-spk pressable', 'aria-label': '소리 켜기' }, [cafeCanvas(CAFE.art('mute'), 48)]);
       sp.addEventListener('click', function () { if (window.AUDIO && typeof AUDIO.setEnabled === 'function') AUDIO.setEnabled(true); if (cafeLp.id) lpSound(); renderLp(); var f = document.querySelector('#lp-body .lp-sleeve[aria-pressed="true"]') || document.querySelector('#lp-body .lp-sleeve'); if (f) f.focus(); });
       top.appendChild(sp);
-    }
+    } else top.appendChild(h('div', { class: 'lp-spk' + (cafeLp.sound ? ' live' : ''), 'aria-hidden': 'true' }, [cafeCanvas(CAFE.art('speaker'), 48)]));
     frag.appendChild(top);
     frag.appendChild(h('p', { class: 'lp-now', id: 'lp-now', text: now ? now.name + ' · ' + now.by : '' }));
-    var shelf = h('div', { class: 'lp-shelf', role: 'group', 'aria-label': '레코드' });
+    var shelf = h('div', { class: 'lp-shelf', role: 'group', 'aria-label': '레코드' });   /* 나무 선반 두 단: 단마다 판자 + 그림자 */
     tunes.forEach(function (t, i) {
-      var on = cafeLp.id === t.id, b = h('button', { type: 'button', class: 'lp-sleeve pressable' + (on ? ' on' : ''), 'aria-pressed': String(on), 'aria-label': t.name + ', ' + t.by, 'data-tune': t.id }, [cafeCanvas(CAFE.sleeve(i), 60)]);
+      var on = cafeLp.id === t.id, b = h('button', { type: 'button', class: 'lp-sleeve pressable' + (on ? ' on' : ''), 'aria-pressed': String(on), 'aria-label': t.name + ', ' + t.by, 'data-tune': t.id }, [cafeCanvas(lpLean(CAFE.sleeve(i)), 78)]);
+      b.style.setProperty('--i', String(i));
       b.addEventListener('click', function () { lpTap(t.id); var f = document.querySelector('#lp-body .lp-sleeve[data-tune="' + t.id + '"]'); if (f) f.focus(); });
       shelf.appendChild(b);
     });
@@ -5846,10 +5899,10 @@ var APP = (function () {
   function lpTap(id) {
     if (cafeLp.id === id) { lpStop(); renderLp(); return; }   /* 같은 재킷을 다시 누르면 멈춘다 */
     if (cafeLp.sound) { CAFE_MUSIC.stop(); cafeLp.sound = false; }
-    cafeLp.id = id; cafeLp.ang = 0;
+    cafeLp.id = id; cafeLp.ang = 0; cafeLp.arm = reduced() ? 1 : 0;
     var c = cafeState(); CAFE.played(c, id); save();
     lpSound(); renderLp();
-    if (!cafeLp.spin && !reduced()) cafeLp.spin = setInterval(function () { cafeLp.ang = (cafeLp.ang + 30) % 360; var s = $('lp-sheet'); if (s && s.open) lpDraw(); }, 150);
+    if (!cafeLp.spin && !reduced()) cafeLp.spin = setInterval(function () { cafeLp.ang = (cafeLp.ang + 30) % 360; if (cafeLp.arm < 1) cafeLp.arm = Math.min(1, cafeLp.arm + 0.25); var s = $('lp-sheet'); if (s && s.open) lpDraw(); }, 150);
     if (!cafeLp.watch) cafeLp.watch = setInterval(lpTick, 400);
   }
   function lpStop() {
@@ -5907,7 +5960,7 @@ var APP = (function () {
   };
   function npcShade(hex, k) { var n = parseInt(hex.slice(1), 16), r = Math.round((n >> 16) * k), g = Math.round(((n >> 8) & 255) * k), b = Math.round((n & 255) * k); return 'rgb(' + r + ',' + g + ',' + b + ')'; }
   function npcFace(cv, who) {   /* 그림 16×16 px, 그림 px 하나 = 기기 px 정수 (또렷하게) */
-    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.round(3 * dpr)), c = cv.getContext('2d'), x, y, ch;
+    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.round(3.5 * dpr)), c = cv.getContext('2d'), x, y, ch;   /* 11-21 UI 둘째: 초상 56px 쯤 (그림 px = 기기 px 정수) */
     cv.width = cv.height = 16 * k; cv.style.width = cv.style.height = (16 * k / dpr) + 'px';
     c.imageSmoothingEnabled = false; c.clearRect(0, 0, cv.width, cv.height);
     for (y = 0; y < 16; y++) for (x = 0; x < 16; x++) {
@@ -5923,11 +5976,16 @@ var APP = (function () {
     w = Math.min(420, Math.max(200, Math.min(vw, r.right) - Math.max(0, r.left) - 16));
     box.style.width = w + 'px'; hh = box.offsetHeight;
     left = (Math.max(0, r.left) + Math.min(vw, r.right) - w) / 2;
-    if (inDlg) { var dr = box.parentNode.getBoundingClientRect(); top = dr.top - hh - 8 >= 8 ? dr.top - hh - 8 : 8; }
+    if (inDlg) { var dr = box.parentNode.getBoundingClientRect(); top = dr.top - hh - 8 >= 36 ? dr.top - hh - 8 : 36; }   /* 36: 상자 위에 서는 이름표 자리 */
     else {
-      top = Math.max(8, Math.min(vh, r.bottom) - hh - 8);
+      top = Math.max(36, Math.min(vh, r.bottom) - hh - 12);
       var t = $('toast'), tr = t && t.classList.contains('show') && t.parentNode === document.body ? t.getBoundingClientRect() : null;   /* 떠 있는 알림과 겹치면 그 위로 */
-      if (tr && tr.height && tr.top < top + hh && tr.bottom > top) top = Math.max(8, tr.top - hh - 16);
+      if (tr && tr.height && tr.top < top + hh && tr.bottom > top) top = Math.max(36, tr.top - hh - 16);
+      /* 11-21 밤: 장면 안 카드 (꼬리표 · 영수증 — data-npc-avoid 를 단 것) 를 가리지 않는다. 아래 자리가 겹치면 장면 위쪽으로, 거기도 겹치면 아래 그대로 */
+      var cards = [].filter.call(document.querySelectorAll('#scene [data-npc-avoid]'), function (c) { return !c.hidden && c.offsetWidth > 0; }).map(function (c) { return c.getBoundingClientRect(); });
+      var hit = function (y) { return cards.some(function (c) { return c.right > left && c.left < left + w && c.bottom > y - 28 && c.top < y + hh; }); };
+      var up = Math.max(36, (sc ? sc.getBoundingClientRect().top : 0) + 36);
+      if (cards.length && hit(top) && !hit(up)) top = up;
     }
     box.style.left = (Math.round(left * dpr) / dpr) + 'px'; box.style.top = (Math.round(top * dpr) / dpr) + 'px';
   }
@@ -5968,10 +6026,14 @@ var APP = (function () {
     npcEnd(false);   /* 앞의 말은 접는다 (한 번에 하나) */
     return new Promise(function (res) { npcNow = { ln: ln, i: 0, res: res, opener: document.activeElement }; npcMarkSet(id, true); npcShow(); });
   }
-  function npcSync() {   /* 장면에 오늘의 문어들 (V 갈래의 scene.npcSet 이 있을 때만) */
+  /* 장면에 오늘의 문어들 (V 갈래의 scene.npcSet 이 있을 때만). 11-21 밤 (계약 C14): 걸어 들어가는 방이 있는 장면 (scene.inRoom) 이면 지금 있는 곳의 문어만 —
+     방 안 = 그 방의 가게 문어 (V 의 keeper 칸) · 바깥 = 자는 문어들. 방이 바뀌면 W 의 ppol:room 이벤트로 다시 넘긴다 */
+  var npcRoom;   /* undefined = 방이 없는 장면 · null = 바깥 · 'clothes' … = 그 방 */
+  function npcSync() {
     if (!NPCR || !scene || typeof scene.npcSet !== 'function') return false;
-    var dk = todayKey(); if (npcDay === dk) return false;
-    try { scene.npcSet(NPCR.list(dk)); npcDay = dk; return true; } catch (e) { return false; }
+    if (typeof scene.inRoom === 'function') { try { npcRoom = scene.inRoom() || null; } catch (e) { /* 장면 쪽 문제: 마지막으로 안 값 그대로 */ } }
+    var dk = todayKey(), stamp = dk + '|' + npcRoom; if (npcDay === stamp) return false;
+    try { scene.npcSet(npcRoom === undefined ? NPCR.list(dk) : NPCR.list(dk, npcRoom)); npcDay = stamp; return true; } catch (e) { return false; }
   }
   /* 게시판 (#btn-plaza-board → #story-sheet): 낡은 쪽지 넷을 그림 + 한 줄로. 본 쪽지는 S.user.story.notices 에 날짜로 (계약 C8) */
   function storyState() { var u = userState(); if (NPCR) NPCR.normalize(u); return u.story; }
@@ -5983,7 +6045,7 @@ var APP = (function () {
     leave: [['w', 0, 18, 40, 4], ['m', 0, 19, 6, 1], ['m', 12, 20, 6, 1], ['m', 28, 19, 6, 1], ['r', 22, 13, 12, 4], ['k', 28, 5, 1, 8], ['m', 29, 6, 5, 5], ['s', 2, 8, 10, 10], ['r', 1, 5, 12, 3], ['k', 5, 11, 4, 4], ['p', 5, 12, 4, 1], ['p', 5, 14, 4, 1]]
   };
   function storyPic(cv, name) {
-    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.round(2 * dpr)), c = cv.getContext('2d');
+    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.round(3 * dpr)), c = cv.getContext('2d');
     cv.width = 40 * k; cv.height = 24 * k; cv.style.width = (40 * k / dpr) + 'px'; cv.style.height = (24 * k / dpr) + 'px';
     c.imageSmoothingEnabled = false; c.clearRect(0, 0, cv.width, cv.height);
     function R(col, x, y, w, h) { c.fillStyle = col; c.fillRect(x * k, y * k, w * k, h * k); }
@@ -5992,6 +6054,42 @@ var APP = (function () {
       var x = r[1], y = r[2];   /* 작은 문어 8×9 */
       R(STORY_PAL.o, x + 1, y, 6, 1); R(STORY_PAL.o, x, y + 1, 8, 5); R(STORY_PAL.o, x, y + 6, 2, 2); R(STORY_PAL.o, x + 3, y + 6, 2, 2); R(STORY_PAL.o, x + 6, y + 6, 2, 2);
       if (r[3]) { R(STORY_PAL.k, x + 1, y + 3, 2, 1); R(STORY_PAL.k, x + 5, y + 3, 2, 1); } else { R(STORY_PAL.k, x + 2, y + 2, 1, 2); R(STORY_PAL.k, x + 5, y + 2, 1, 2); }
+    });
+  }
+  /* 11-21 UI 둘째: 처음 세 줄의 그림 (한 줄에 한 장, 그림 80×60 px): 도시의 사무실 · 바다로 가는 길 · 다락 창. [색, x, y, w, h]… · 'O' = 작은 문어 (x, y, 색, 눈 감음) */
+  var VIG = [
+    [['#1b2444', 0, 0, 80, 60], ['#24305a', 4, 4, 72, 30], ['#141a33', 8, 14, 10, 20], ['#141a33', 20, 8, 8, 26], ['#141a33', 30, 18, 12, 16], ['#141a33', 44, 10, 9, 24], ['#141a33', 55, 16, 8, 18], ['#141a33', 65, 12, 9, 22],
+      ['#e8c46a', 10, 17, 2, 2], ['#e8c46a', 14, 23, 2, 2], ['#e8c46a', 22, 11, 2, 2], ['#e8c46a', 24, 19, 2, 2], ['#e8c46a', 33, 22, 2, 2], ['#e8c46a', 38, 27, 2, 2], ['#e8c46a', 46, 14, 2, 2], ['#e8c46a', 49, 22, 2, 2], ['#e8c46a', 57, 20, 2, 2], ['#e8c46a', 67, 16, 2, 2], ['#e8c46a', 70, 25, 2, 2],
+      ['#0f1428', 39, 4, 2, 30], ['#0f1428', 4, 34, 72, 2], ['#2a2f4a', 0, 36, 80, 24],
+      ['O', 3, 36, '#4a86d8'], ['O', 19, 36, '#9a5cc8'], ['O', 35, 36, '#4fa868'], ['O', 51, 36, '#f08a3c'],
+      ['#e8c9a0', 67, 38, 6, 6], ['#5a3b28', 66, 36, 8, 3], ['#5a3b28', 66, 39, 1, 3], ['#2a1d16', 68, 40, 1, 2], ['#2a1d16', 71, 40, 1, 2],
+      ['#5a4636', 0, 44, 80, 3], ['#3b2a20', 0, 47, 80, 13], ['#4a352a', 0, 52, 80, 1],
+      ['#0f1428', 12, 37, 5, 7], ['#9fd0e0', 12, 38, 1, 5], ['#0f1428', 28, 37, 5, 7], ['#9fd0e0', 28, 38, 1, 5], ['#0f1428', 44, 37, 5, 7], ['#9fd0e0', 44, 38, 1, 5], ['#0f1428', 60, 37, 5, 7], ['#9fd0e0', 60, 38, 1, 5], ['#0f1428', 75, 38, 4, 6], ['#9fd0e0', 75, 39, 1, 4],
+      ['#f3ead6', 6, 48, 4, 3], ['#f3ead6', 7, 47, 4, 1], ['#f3ead6', 22, 47, 5, 4], ['#f3ead6', 38, 48, 4, 3], ['#f3ead6', 53, 47, 5, 2], ['#f3ead6', 54, 49, 5, 2], ['#f3ead6', 56, 46, 4, 1]],
+    [['#f6c9a0', 0, 0, 80, 10], ['#f8dcb4', 0, 10, 80, 8], ['#fbecc8', 0, 18, 80, 6], ['#fff6dc', 34, 14, 12, 10], ['#5f9fb8', 0, 24, 80, 4], ['#7fb8c8', 0, 28, 80, 3], ['#f3ead6', 30, 25, 20, 1],
+      ['#6f9a5a', 0, 31, 80, 29], ['#5a8548', 0, 28, 26, 6], ['#5a8548', 56, 27, 24, 7], ['#4a7440', 0, 34, 14, 26], ['#4a7440', 68, 36, 12, 24],
+      ['#a8573f', 46, 26, 5, 2], ['#f3ead6', 46, 28, 5, 3], ['#a8573f', 53, 27, 4, 2], ['#f3ead6', 53, 29, 4, 2], ['#a8573f', 28, 27, 4, 2], ['#f3ead6', 28, 29, 4, 2],
+      ['#e8d2a0', 38, 31, 4, 4], ['#e8d2a0', 37, 35, 7, 5], ['#e8d2a0', 34, 40, 11, 6], ['#e8d2a0', 30, 46, 16, 7], ['#e8d2a0', 25, 53, 24, 7],
+      ['#5a3b28', 58, 38, 1, 10], ['#c98a2b', 55, 38, 7, 3],
+      ['#5a3b28', 34, 44, 6, 3], ['#e8c9a0', 35, 46, 4, 3], ['#3f5f8a', 34, 49, 6, 6], ['#2a1d16', 34, 55, 2, 3], ['#2a1d16', 38, 55, 2, 3], ['#a8573f', 40, 49, 3, 5],
+      ['#3f6a38', 8, 38, 6, 8], ['#3f6a38', 6, 41, 10, 4], ['#5a3b28', 10, 46, 2, 4], ['#3f6a38', 70, 42, 6, 8], ['#3f6a38', 68, 45, 10, 4], ['#5a3b28', 72, 50, 2, 4]],
+    [['#3b2a20', 0, 0, 80, 60], ['#4a352a', 0, 9, 80, 1], ['#4a352a', 0, 19, 80, 1], ['#4a352a', 0, 29, 80, 1], ['#4a352a', 0, 39, 80, 1], ['#2a1d16', 0, 0, 80, 3],
+      ['#2a1d16', 24, 6, 32, 30], ['#24305a', 26, 8, 28, 26], ['#33406e', 26, 22, 28, 12], ['#fff6dc', 43, 11, 6, 6], ['#24305a', 46, 11, 3, 3], ['#f3ead6', 30, 12, 1, 1], ['#f3ead6', 36, 17, 1, 1], ['#f3ead6', 50, 20, 1, 1], ['#f3ead6', 33, 26, 1, 1],
+      ['#2a1d16', 39, 8, 2, 26], ['#2a1d16', 26, 20, 28, 2], ['#5a4636', 22, 36, 36, 3],
+      ['#4a5584', 20, 39, 40, 2], ['#3f4870', 16, 41, 48, 3], ['#5a4636', 0, 44, 80, 16], ['#4a352a', 0, 44, 80, 1], ['#4a352a', 0, 52, 80, 1], ['#6a5a52', 18, 44, 44, 8],
+      ['O', 36, 37, '#2a1d16'], ['#f3ead6', 38, 39, 1, 2], ['#f3ead6', 41, 39, 1, 2],
+      ['#c98a2b', 66, 28, 6, 8], ['#f6d98a', 67, 30, 4, 4], ['#2a1d16', 68, 26, 2, 2], ['#5a3b28', 10, 30, 10, 14], ['#4a352a', 10, 36, 10, 1]]
+  ];
+  function storyVig(cv, n) {   /* 화면 폭 (세로는 절반 아래) 에 들어가는 가장 큰 정수 배율 */
+    var dpr = window.devicePixelRatio || 1, k = Math.max(1, Math.floor(Math.min(window.innerWidth * dpr / 80, window.innerHeight * 0.5 * dpr / 60))), c = cv.getContext('2d');
+    cv.width = 80 * k; cv.height = 60 * k; cv.style.width = (80 * k / dpr) + 'px'; cv.style.height = (60 * k / dpr) + 'px';
+    c.imageSmoothingEnabled = false; c.clearRect(0, 0, cv.width, cv.height);
+    function R(col, x, y, w, h) { c.fillStyle = col; c.fillRect(x * k, y * k, w * k, h * k); }
+    (VIG[n] || []).forEach(function (r) {
+      if (r[0] !== 'O') { R(r[0], r[1], r[2], r[3], r[4]); return; }
+      var x = r[1], y = r[2], col = r[3];
+      R(col, x + 1, y, 6, 1); R(col, x, y + 1, 8, 5); R(col, x, y + 6, 2, 2); R(col, x + 3, y + 6, 2, 2); R(col, x + 6, y + 6, 2, 2);
+      if (col !== '#2a1d16') { R('#2a1d16', x + 2, y + 2, 1, 2); R('#2a1d16', x + 5, y + 2, 1, 2); }
     });
   }
   function openStory() {
@@ -6010,8 +6108,8 @@ var APP = (function () {
     var el = $('story-intro'), force = /[?&]story=1(&|$)/.test(location.search);
     if (typeof done !== 'function') done = function () {};
     if (!NPCR || !el || S.octopus.name || storyState().intro || (navigator.webdriver && !force) || !el.hidden) { done(); return false; }
-    var p = $('story-line'), i = 0, over = false, t0 = Date.now();   /* t0: 타이틀을 누른 그 손가락의 click 이 첫 줄을 넘기지 않게 (0.4초 동안은 넘기지 않는다) */
-    function show() { p.textContent = NPCR.intro[i]; el.setAttribute('data-n', String(i + 1)); }
+    var p = $('story-line'), i = 0, over = false, t0 = Date.now(), armed = false;   /* 타이틀을 누른 그 손가락의 click 이 첫 줄을 넘기지 않게: 이 화면을 새로 누른 click 이거나 (armed) 0.4초가 지난 뒤에만 넘긴다 */
+    function show() { p.textContent = NPCR.intro[i]; el.setAttribute('data-n', String(i + 1)); var vg = $('story-vig'); if (vg) { storyVig(vg, i); vg.classList.remove('in'); void vg.offsetWidth; vg.classList.add('in'); } }
     function end() {
       if (over) return; over = true;
       document.removeEventListener('keydown', key, true);
@@ -6020,13 +6118,13 @@ var APP = (function () {
       setTimeout(function () { el.hidden = true; el.classList.remove('leaving'); p.textContent = ''; }, reduced() ? 0 : 260);
       done();
     }
-    function next() { if (over || Date.now() - t0 < 400) return; if (i < NPCR.intro.length - 1) { i++; show(); } else end(); }
+    function next() { if (over || (!armed && Date.now() - t0 < 400)) return; if (i < NPCR.intro.length - 1) { i++; show(); } else end(); }
     function key(e) {
       if (over) return;
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); end(); }
-      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (e.target === $('story-skip')) end(); else next(); }   /* 입장 레이어가 Enter · Space 의 기본 동작을 막는다 → 건너뛰기 단추도 여기서 받는다 */
+      else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (e.repeat) return; armed = true; if (e.target === $('story-skip')) end(); else next(); }   /* 입장 레이어가 Enter · Space 의 기본 동작을 막는다 → 건너뛰기 단추도 여기서 받는다 */
     }
-    $('story-next').onclick = next; $('story-skip').onclick = end;
+    $('story-next').onpointerdown = function () { armed = true; }; $('story-next').onclick = next; $('story-skip').onclick = end;
     document.addEventListener('keydown', key, true);
     el.inert = false;   /* 입장 연출은 제 레이어 밖을 inert 로 묶는다 — 이 줄들은 눌려야 한다 */
     el.hidden = false; show();
@@ -6052,6 +6150,10 @@ var APP = (function () {
     document.addEventListener('close', function () { if (npcNow) npcEnd(false); }, true);   /* 말이 떠 있던 창이 닫히면 말도 접는다 */
     window.addEventListener('resize', function () { var box = $('npc-box'); if (npcNow && box) npcPlace(box); });
     document.addEventListener('visibilitychange', function () { if (!document.hidden) npcSync(); });
+    document.addEventListener('ppol:room', function (e) {   /* 방에 들어가거나 나왔다 (W): 떠 있던 말은 접고 그곳의 문어로 */
+      var k = e && e.detail ? e.detail.key : null; npcRoom = typeof k === 'string' && k ? k : null;
+      if (npcNow) npcEnd(false); npcSync();
+    });
     setInterval(npcSync, 60000);   /* 열어 둔 채 날이 바뀌면 */
     var bd = $('btn-plaza-board'); if (bd) bd.addEventListener('click', openStory);
     var sd = $('story-sheet');
@@ -6100,12 +6202,17 @@ var APP = (function () {
   }
   /* 픽셀 그림: 아트 1px = 기기 픽셀 정수 배 (k = 바라는 CSS 배율) */
   function ctSnap(cv, w, hh, k) { var dpr = window.devicePixelRatio || 1, n = Math.max(1, Math.round(k * dpr)); cv.style.width = (w * n / dpr) + 'px'; cv.style.height = (hh * n / dpr) + 'px'; return n; }
+  function ctMix(a, b, t) {   /* '#rrggbb' 둘을 섞는다 (문어 테두리 · 윤기 색) */
+    var x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16), o = 0;
+    for (var sft = 16; sft >= 0; sft -= 8) o |= Math.round(((x >> sft) & 255) * (1 - t) + ((y >> sft) & 255) * t) << sft;
+    return '#' + ('000000' + o.toString(16)).slice(-6);
+  }
   function ctArt(kind, id, k, tint, label) {
     var a = CT.art(kind, id, tint); if (!a) return null;
     var cv = h('canvas', label ? { class: 'ct-art', role: 'img', 'aria-label': label } : { class: 'ct-art', 'aria-hidden': 'true' }), n = ctSnap(cv, a.w, a.h, k);
     cv.width = a.w * n; cv.height = a.h * n;
-    var cx = cv.getContext('2d');
-    a.rows.forEach(function (row, j) { for (var i = 0; i < row.length; i++) { var ch = row.charAt(i); if (ch === '.') continue; cx.fillStyle = ch === 'x' ? a.tint : a.pal[ch]; cx.fillRect(i * n, j * n, n, n); } });
+    var cx = cv.getContext('2d'), dark = a.tint ? ctMix(a.tint, '#2a2438', 0.42) : null, lite = a.tint ? ctMix(a.tint, '#fff6e0', 0.5) : null;
+    a.rows.forEach(function (row, j) { for (var i = 0; i < row.length; i++) { var ch = row.charAt(i); if (ch === '.') continue; cx.fillStyle = ch === 'x' ? a.tint : ch === 'X' && dark ? dark : ch === 'h' && lite ? lite : a.pal[ch]; cx.fillRect(i * n, j * n, n, n); } });
     return cv;
   }
   function ctMe(frame, k, label) {   /* 내 캐릭터 (지금 차림) — 장면의 전신 · 얼굴 사진 */
@@ -6116,17 +6223,6 @@ var APP = (function () {
       cv.width = src.width; cv.height = src.height; ctSnap(cv, src.width, src.height, k); cv.getContext('2d').drawImage(src, 0, 0);
       return cv;
     } catch (e) { console.warn('[contest] playerShot', e); return null; }
-  }
-  function ctThumb(cat, id) {   /* 경쟁자가 입은 것 (P 갈래의 그림 — 없으면 안 그린다). 받은 그림의 1px 도 기기 픽셀 정수 배로 (약 32 CSS px) */
-    var A = ctApi(); if (!A || typeof A.itemThumb !== 'function') return null;
-    try {
-      var t = A.itemThumb(cat, id, 32); if (!t) return null;
-      var cv = h('canvas', { class: 'ct-art ct-thumb', 'aria-hidden': 'true' });
-      var put = function (src, w, hh) { if (!(w > 0 && hh > 0)) return; cv.width = w; cv.height = hh; ctSnap(cv, w, hh, 32 / w); cv.getContext('2d').drawImage(src, 0, 0); };
-      if (typeof t === 'string') { cv.width = cv.height = 32; ctSnap(cv, 32, 32, 1); var im = new Image(); im.onload = function () { put(im, im.naturalWidth, im.naturalHeight); }; im.src = t; }
-      else put(t, t.width, t.height);
-      return cv;
-    } catch (e) { return null; }
   }
   function ctNpc(id) {   /* 심사 문어의 이름 · 색 (N 갈래의 명단 — 없으면 이름 없는 그림자) */
     var N = window.NPC, r = N && N.roster, f = null;
@@ -6141,26 +6237,27 @@ var APP = (function () {
       var who = ctNpc(CT_JUDGES[i]);
       return h('div', { class: 'ct-judge', 'data-at': String(5 + i), role: 'group', 'aria-label': (who && who.name ? who.name : CT.fill(CT.TEXT.ariaJudge, { n: i + 1 })) + ' · ' + names[c.what] }, [
         h('div', { class: 'ct-card' }, [ctArt('tag', c.icon, 3), ctStars(c.stars)]),
+        h('span', { class: 'ct-stick', 'aria-hidden': 'true' }),
         ctArt('oct', null, 2, (who && who.color) || '#8a8494'),
         who && who.name ? h('span', { class: 'ct-jname', 'aria-hidden': 'true', text: who.name }) : null
       ]);
     }));
   }
   function ctFigure(e, who, k) {   /* 참가자 그림: 나 = 내 캐릭터 얼굴, 그 밖 = 문어 그림자 */
-    if (who === 'me') return ctMe('head', k, CT.TEXT.me) || ctArt('oct', null, 3, '#5f5749', CT.TEXT.me);
+    if (who === 'me') return ctMe('head', k, CT.TEXT.me) || ctArt('oct', 'star', 3, '#8a8494', CT.TEXT.me);
     var r = e.rivals[who] || {};
-    return ctArt('oct', null, 3, typeof r.color === 'string' ? r.color : '#8a8494', CT.fill(CT.TEXT.ariaRival, { n: who + 1 }));
+    return ctArt('oct', CT.RIVAL_HATS[who] || null, 3, typeof r.color === 'string' ? r.color : '#8a8494', CT.fill(CT.TEXT.ariaRival, { n: who + 1 }));
   }
   function ctPodium(e, cls) {   /* 단상: 2 · 1 · 3등 순으로 서고 4등은 옆 바닥 */
     var bd = CT.board(e), order = [1, 0, 2, 3];
-    return h('div', { class: 'ct-podium' + (cls ? ' ' + cls : ''), 'data-at': '9' }, order.map(function (i) {
+    return h('div', { class: 'ct-podium ct-stage' + (cls ? ' ' + cls : ''), 'data-at': '9' }, order.map(function (i) {
       var b = bd[i]; if (!b) return null;
       return h('div', { class: 'ct-pod r' + b.rank + (b.who === 'me' ? ' me' : '') }, [ctFigure(e, b.who, 1.5), h('div', { class: 'ct-block' }, [h('span', { class: 'ct-rank', text: CT.fill(CT.TEXT.rank, { n: b.rank }) }), h('span', { class: 'ct-pts', text: CT.fill(CT.TEXT.ariaTotal, { n: b.total }) })])]);
     }));
   }
   function ctThemeHead(th, big) {
-    var want = h('div', { class: 'ct-want', role: 'group', 'aria-label': CT.TEXT.ariaWant }, th.tags.concat([th.color]).map(function (t) { return ctArt('tag', t, 3, null, CT.TAG_NAME[t] || t); }));
-    return h('div', { class: 'ct-theme' + (big ? ' big' : '') }, [ctArt('theme', th.id, big ? 6 : 3), h('div', { class: 'ct-theme-txt' }, [h('p', { class: 'ct-title', text: th.title }), want])]);
+    var want = h('div', { class: 'ct-want', role: 'group', 'aria-label': CT.TEXT.ariaWant }, th.tags.concat([th.color]).map(function (t) { return h('span', { class: 'ct-chip' }, [ctArt('tag', t, 3, null, CT.TAG_NAME[t] || t)]); }));
+    return h('div', { class: 'ct-theme' + (big ? ' big' : '') }, [h('span', { class: 'ct-poster' }, [ctArt('theme', th.id, big ? 6 : 3)]), h('div', { class: 'ct-theme-txt' }, [h('p', { class: 'ct-title', text: th.title }), want])]);
   }
   function ctResult(e, fresh) {   /* 결과: 등수 + 조개 + '채점 규칙' · 단상 · 심사 카드 */
     var th = CT.themeById(e.theme) || CT.week(todayKey()).theme;
@@ -6177,7 +6274,7 @@ var APP = (function () {
     frag.appendChild(ctThemeHead(wk.theme, true));
     var me = ctMe('full', e ? 1 : 2, CT.TEXT.ariaMe), chg = h('button', { type: 'button', class: 'btn sm pressable', id: 'ct-change', text: CT.TEXT.change });
     chg.addEventListener('click', function () { openLook(); });
-    frag.appendChild(h('div', { class: 'ct-mine' }, [me, chg]));
+    frag.appendChild(h('div', { class: 'ct-mine' }, [h('div', { class: 'ct-stage ct-solo' }, [me]), chg]));
     if (e) frag.appendChild(ctResult(e));
     else if (wk.open) { var go = h('button', { type: 'button', class: 'btn wide pressable ct-go', id: 'ct-go', text: CT.TEXT.enter }); go.addEventListener('click', ctEnter); frag.appendChild(go); }
     else frag.appendChild(h('p', { class: 'ct-closed', id: 'ct-closed', text: CT.TEXT.closed }));
@@ -6211,10 +6308,9 @@ var APP = (function () {
   /* 쇼: 참가자 넷이 차례로 → 심사 카드 셋 → 점수 오름 → 단상 → 결과. 넘기기는 언제나 */
   function ctShow(e) {
     var body = $('contest-body'), th = CT.themeById(e.theme) || CT.week(todayKey()).theme; if (!body) return;
-    var line = h('div', { class: 'ct-lineup' }, [0, 1, 2, 'me'].map(function (who, i) {
-      var fig = who === 'me' ? (ctMe('full', 1, CT.TEXT.me) || ctFigure(e, 'me', 1)) : ctFigure(e, who, 1), r = who === 'me' ? null : e.rivals[who];
-      var thumbs = r && Array.isArray(r.look) ? h('div', { class: 'ct-thumbs', 'aria-hidden': 'true' }, r.look.slice(0, 4).map(function (p) { return ctThumb(p.cat, p.id); })) : null;
-      return h('div', { class: 'ct-slot' + (who === 'me' ? ' me' : ''), 'data-at': String(i + 1) }, [fig, thumbs, h('span', { class: 'ct-total', 'data-total': String(who === 'me' ? e.total : (r && r.total) | 0), text: '0' })]);
+    var line = h('div', { class: 'ct-lineup ct-stage' }, [0, 1, 2, 'me'].map(function (who, i) {
+      var fig = who === 'me' ? (ctMe('full', 1.5, CT.TEXT.me) || ctFigure(e, 'me', 1)) : ctFigure(e, who, 1), r = who === 'me' ? null : e.rivals[who];
+      return h('div', { class: 'ct-slot' + (who === 'me' ? ' me' : ''), 'data-at': String(i + 1) }, [h('span', { class: 'ct-total', 'data-total': String(who === 'me' ? e.total : (r && r.total) | 0), text: '0' }), fig]);
     }));
     var skip = h('button', { type: 'button', class: 'btn sm pressable', id: 'ct-skip', text: CT.TEXT.skip });
     skip.addEventListener('click', function () { ctEnd(); });
