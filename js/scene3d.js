@@ -6177,11 +6177,14 @@ var SCENE3D = (function () {
       Object.keys(VIL.npcs).forEach(function (id) { if (!seen[id]) { var o = VIL.npcs[id]; VIL.g.remove(o.m); o.m.geometry.dispose(); delete VIL.npcs[id]; if (VIL.marks[id]) VIL.marks[id].visible = false; } });
       vilNpcPose(true); dither.still = 0; return n;
     }
-    function vilNpcSet(list) {   /* [{ id, color, hat, pose }] — 목록에 없는 문어는 지운다. 빈 목록 = 모두 지운다 → 그린 수 */
+    function vilNpcSet(list, opt) {   /* [{ id, color, hat, pose, room?, slot? }] — 목록에 없는 문어는 지운다 → 그린 수.
+                                         단, 심사 · 경쟁 문어 (judge0..2 · rival0..2) 는 목록에 그 id 가 하나도 없으면 그대로 둔다 — 마을 문어 목록 (갈래 N, 날이 바뀔 때) 이 콘테스트 갈래가 세운 여섯을 지우지 않게.
+                                         그 여섯까지 다 지우려면 npcSet(list, { all: true }) */
       if (!VIL.on) return 0;
-      VIL.want = (Array.isArray(list) ? list : []).filter(function (w) { return w && (VILLAGE.npc(w.id) || vilIsExtra(w.id)); }).map(function (w) {
+      var keepX = !(opt && opt.all) && !(Array.isArray(list) && list.some(function (w) { return w && vilIsExtra(w.id); })), kept = keepX ? VIL.want.filter(function (w) { return vilIsExtra(w.id); }) : [];
+      VIL.want = kept.concat((Array.isArray(list) ? list : []).filter(function (w) { return w && (VILLAGE.npc(w.id) || vilIsExtra(w.id)); }).map(function (w) {
         return { id: String(w.id), room: VILLAGE.ROOMS[w.room] ? String(w.room) : null, slot: w.slot ? String(w.slot) : null, color: /^#[0-9a-f]{6}$/i.test(w.color || '') ? String(w.color).toLowerCase() : '#d9694f', hat: VILLAGE.HATS.indexOf(w.hat) >= 0 ? w.hat : 'none', pose: w.pose === 'sleep' ? 'sleep' : w.pose === 'sit' ? 'sit' : 'stand' };
-      });
+      }));
       Object.keys(VR.rooms).forEach(function (k) { vilRoomNpc(k); vilRoomGuests(k); }); vilHallNpc();   /* 방 안의 가게 문어 · 손님 문어 · 공연장의 문어도 */
       return VIL.built ? vilNpcApply() : VIL.want.length;
     }
