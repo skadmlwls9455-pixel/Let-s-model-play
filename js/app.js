@@ -7117,7 +7117,7 @@ var APP = (function () {
     ctSceneCall('stageDress', open);
     if (typeof scene.npcSet !== 'function') return;
     var base = !hall && window.NPC && typeof NPC.list === 'function' ? (NPC.list(dk) || []).filter(function (n) { return isObj(n) && !/^(judge|rival)\d$/.test(n.id); }) : [];
-    if (!open) { if (hall) ctSceneCall('npcSet', []); else { CT_JUDGES.forEach(function (id) { ctSceneCall('npcPlace', id, null); }); } return; }
+    if (!open) { if (hall) ctSceneCall('npcSet', [], { all: true });   /* V (b769635): 빈 목록만으로는 심사 · 경쟁 문어가 안 지워진다 */ else { CT_JUDGES.forEach(function (id) { ctSceneCall('npcPlace', id, null); }); } return; }
     var rv = ctRivalsNow(e), list = base.slice();
     if (hall) CT_JUDGES.forEach(function (id, i) { var who = ctNpc(id), ro = window.NPC && isObj(NPC.roster) && isObj(NPC.roster[id]) ? NPC.roster[id] : null; list.push({ id: 'judge' + i, color: (who && who.color) || '#8a8494', hat: (ro && ro.hat) || 'none', pose: 'stand' }); });
     rv.forEach(function (r, k) { list.push({ id: 'rival' + k, color: typeof r.color === 'string' ? r.color : '#8a8494', hat: 'none', pose: 'stand' }); });
