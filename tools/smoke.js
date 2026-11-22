@@ -2159,7 +2159,7 @@ async function scenarioRunner() {
     var rnSeen = function () {
       return page.evaluate(function () {
         function shown(e) { var r = e.getBoundingClientRect(); return r.width > 2 && r.height > 2 && !e.closest('[hidden], .sr-only') && getComputedStyle(e).visibility !== 'hidden'; }
-        var words = [].filter.call(document.querySelectorAll('#runner-dlg *'), function (e) { return shown(e) && [].some.call(e.childNodes, function (n) { return n.nodeType === 3 && n.textContent.trim(); }); })
+        var words = [].filter.call(document.querySelectorAll('#runner-dlg *'), function (e) { return shown(e) && !e.closest('#toast') && [].some.call(e.childNodes, function (n) { return n.nodeType === 3 && n.textContent.trim(); }); })   /* 11-23: 들판의 글만 — 창이 열릴 때 떠 있던 알림 (#toast) 은 창 안으로 옮겨져 잠깐 보이는 것이 맞다 (R-9). 부팅 2.5 s 뒤의 오늘 선물이 앞 판을 닫은 틈에 뜨면 여기 잡혔다 (CI 37eb9b0) */
           .map(function (e) { return e.textContent.trim(); }).filter(function (t) { return !/^\d+$/.test(t) && t !== '닫기'; });
         var hb = document.querySelector('.rn-hud-best');
         return { state: RUNNER.live().state, words: words, hand: shown(document.getElementById('rn-hand')), pause: shown(document.getElementById('rn-pause')), msg: document.getElementById('rn-msg').textContent,
