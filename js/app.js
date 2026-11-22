@@ -5842,17 +5842,26 @@ var APP = (function () {
     if (kind === 'goods') return SHOP.stock('goods', dk, { dyes: DYES.map(function (d) { return { id: d[0], name: d[1], hex: d[2] }; }), dyeCost: DYE_COST }, u.shop);
     var w = shopCat(); return SHOP.stock('clothes', dk, w, shopOwned(u, w));
   }
-  function shopMineAdd(m) { m.at = Date.now(); m.born = S.octopus.born || 0; shopMine.push(m); }
+  function shopMineAdd(m) { m.at = Date.now(); m.pt = performance.now(); m.born = S.octopus.born || 0; shopMine.push(m); }   /* m.d = 조개 수의 변화 (산 것 −값 · 주운 것 +1): 다시 얹을 때 조개도 함께 (산 것만 남고 값은 빠지는 일이 없게) */
   function shopSync(remote) {   /* remote = 다른 탭의 저장을 받은 뒤: 내 것 다시 얹기 (불러오기 · 초기화 뒤에는 얹지 않는다 — 시트를 열 때는 영수증대로 옷장 고치기만) */
     if (!window.SHOP) return; if (!remote) shopMine = []; var u = shopU(), now = Date.now(), born = S.octopus.born || 0, dk = todayKey(), mine = { shop: { got: {} }, beach: { day: dk, picked: [] } };
-    shopMine = shopMine.filter(function (m) { return now - m.at < 60000 && m.born === born; });
+    shopMine = shopMine.filter(function (m) { return now - m.at < 60000 && m.born === born && !(m.pt <= importAt); });   /* 불러오기 앞의 것은 버린다 (불러온 기록에 얹지 않게) */
+    var sh0 = u.shells, sd0 = u.seeds;
+    if (remote) shopMine.forEach(function (m) {   /* 다른 탭의 기록이 이 탭의 사기 · 줍기를 모르면: 그것과 함께 조개 (와 씨앗) 도 다시. 조개가 모자라면 그 산 것은 버린다 */
+      var miss = m.t === 'got' ? typeof u.shop.got[m.key] !== 'string' : m.day !== dk ? false : m.t === 'pick' ? !(u.beach.day === dk && Array.isArray(u.beach.picked) && u.beach.picked.indexOf(m.i) >= 0) : m.t === 'seed' ? !(isObj(u.shop.day) && u.shop.day.key === dk && (u.shop.day.seeds | 0) >= m.n) : false;
+      m.drop = false; if (!miss) return; var d = m.d | 0;
+      if (u.shells + d < 0) { m.drop = true; return; }
+      u.shells += d; if (m.t === 'seed') u.seeds += 1;
+    });
     shopMine.forEach(function (m) {
+      if (m.drop) return;
       if (m.t === 'got') mine.shop.got[m.key] = m.day;
       else if (m.t === 'seed' && m.day === dk) mine.shop.day = { key: dk, seeds: Math.max(m.n, mine.shop.day ? mine.shop.day.seeds : 0) };
       else if (m.t === 'pick' && m.day === dk && mine.beach.picked.indexOf(m.i) < 0) mine.beach.picked.push(m.i);
     });
     var was = JSON.stringify([u.shop, u.beach]), mg = shopMine.length ? SHOP.merge({ shop: u.shop, beach: u.beach }, mine) : null, ch = false;
     if (mg && JSON.stringify([mg.shop, mg.beach]) !== was) { u.shop = mg.shop; u.beach = mg.beach; ch = true; }
+    if (u.shells !== sh0 || u.seeds !== sd0) ch = true;
     var A = shopApi(), w = A && Object.keys(u.shop.got).length ? shopCat() : null;
     if (w) w.cats.forEach(function (c) { if (isObj(c) && Array.isArray(c.items)) c.items.forEach(function (x) { if (isObj(x) && !x.owned && isObj(x.shop) && typeof u.shop.got[c.key + ':' + x.id] === 'string') { try { A.ownItem(c.key, x.id); } catch (e) { console.warn('[app] ownItem', e); } } }); });
     if (ch) { save(); renderBagChip(); }
@@ -5869,7 +5878,7 @@ var APP = (function () {
     try { t = A && typeof A.itemThumb === 'function' ? A.itemThumb(it.cat, it.id, px) : null; } catch (e) { console.warn('[app] itemThumb', e); }
     if (typeof t === 'string' && t) t = h('img', { src: t, alt: '', width: String(px), height: String(px), draggable: 'false' });
     else if (!(t && t.nodeType === 1) && lookCanShot()) { try { var look = {}; look[it.cat] = it.id; var src = scene.playerShot({ look: look, frame: it.cat === 'shoes' ? 'feet' : /^(hair|acc|eyes|face)/.test(it.cat) ? 'head' : 'body', shared: true }); if (src) { t = h('canvas', { width: String(src.width), height: String(src.height) }); t.getContext('2d').drawImage(src, 0, 0); } } catch (e2) { console.warn('[app] playerShot', e2); t = null; } }
-    if (t && t.nodeType === 1) { t.classList.add('shop-thumb'); if (t.width > 0 && t.width === t.height) shopSnap(t, 32, px); box.appendChild(t); }
+    if (t && t.nodeType === 1) { t.classList.add('shop-thumb'); if (t.width > 0 && t.width === t.height) shopSnap(t, t.width, px); box.appendChild(t); }
     return box;
   }
   var SHOP_SEED = ['................', '...oooooooooo...', '...occcccccco...', '...oooooooooo...', '...occcccccco...', '...ocggccggco...', '...occggggcco...', '...occcggccco...', '...occcggccco...', '...occbbbbcco...', '...occcccccco...', '...oooooooooo...', '................', '.....b....b.....', '........b.......', '................'];
@@ -5932,7 +5941,7 @@ var APP = (function () {
     if (r.own) { var A = shopApi(); try { if (!A) throw new Error('옷장 없음'); if (A.ownItem(it.cat, it.id) === false) throw new Error('옷장이 받지 않음'); } catch (e) { console.warn('[app] ownItem', e); renderShop(); return; } u = shopU(); }   /* 옷장에 못 넣으면 조개도 안 나간다 */
     var had = u.shells; shopJust = it.key;
     u.shells = r.state.shells; u.seeds = r.state.seeds; u.dyes = r.state.dyes; u.shop = r.state.shop;
-    shopMineAdd(r.own ? { t: 'got', key: r.own, day: dk } : it.type === 'seed' ? { t: 'seed', day: dk, n: u.shop.day ? u.shop.day.seeds : 1 } : { t: 'dye' });
+    shopMineAdd(r.own ? { t: 'got', key: r.own, day: dk, d: -it.price } : it.type === 'seed' ? { t: 'seed', day: dk, n: u.shop.day ? u.shop.day.seeds : 1, d: -it.price } : { t: 'dye' });
     save(); renderShop(); shopJust = null; shopCount(had, u.shells); renderBagChip(); shopSay('shop.thanks');
     toast(ask.kind === 'clothes' ? nm + eulReul(nm) + ' 샀어. 내 모습에서 입어 봐.' : it.type === 'dye' ? nm + ' 염료 1개를 샀어' : '씨앗 1개를 샀어');
     sewFocus('#shop-body .shop-grid', ask.i | 0);
@@ -6001,7 +6010,7 @@ var APP = (function () {
   function beachPick(i) {
     if (!window.SHOP || !S.octopus.name) return false; var u = shopU(), dk = todayKey(), r = SHOP.pick(u.beach, i, dk);
     if (!r.ok) { beachSync(true); return false; }
-    u.beach = r.beach; u.shells += 1; shopMineAdd({ t: 'pick', i: i, day: dk }); save(); renderBagChip(); beachSync(true);
+    u.beach = r.beach; u.shells += 1; shopMineAdd({ t: 'pick', i: i, day: dk, d: 1 }); save(); renderBagChip(); beachSync(true);
     toast('조개 1개를 주웠어'); return true;
   }
   function beachTap(i) {   /* 조개 단추: 멀리서 눌렀으면 먼저 걸어가고 (바깥 갈래의 beachShellNear · beachShellGo — 있을 때만), 닿으면 줍는다 */
@@ -6013,7 +6022,7 @@ var APP = (function () {
   function shopTick() {   /* 열어 둔 채 날이 바뀌면: 묻던 것은 접고 새 선반 · 새 조개 자리 */
     var dk = todayKey(); if (dk === shopDay) { beachSync(); return; }
     shopDay = dk; shopAsk = null; var sh = $('shop-sheet'); if (sh && sh.open) renderShop(); beachSync(true);
-    if (room.key) { roomCardClose(); roomDress(); }   /* 방 안에서 날이 바뀌면 마네킹도 새 옷으로 */
+    if (room.key) { roomCardClose(); for (var k in room.basket) if (room.basket[k].tried) roomTryOff(room.basket[k]); room.basket = {}; roomDress(); }   /* 방 안에서 날이 바뀌면: 입어 보던 것은 벗고 마네킹은 새 옷으로 */
   }
   function shopInit() {
     shopRoomInit();
@@ -6047,6 +6056,7 @@ var APP = (function () {
     if (room.key !== 'clothes' || !roomScene('mannequins')) return;
     var list = shopStock('clothes').items.map(function (x, i) { var b = room.basket[x.key], bare = x.owned || !!(b && b.tried), parts = null; if (!bare) { parts = {}; parts[x.cat] = x.id; } return { slot: 'mq' + i, parts: parts, sold: !!x.owned }; });
     for (var i = list.length; i < 4; i++) list.push({ slot: 'mq' + i, parts: null, sold: false });
+    try { var R = roomScene('roomSlots') ? scene.roomSlots('clothes') : null; list.forEach(function (m) { var sl = R && R.slots && R.slots[m.slot]; if (Array.isArray(sl)) m.pos = sl.slice(0, 4); }); } catch (e) { /* noop */ }   /* 자리도 함께 넘긴다 (마네킹 쪽이 방 칸을 못 읽어도 서게 — 계약 C11 의 pos) */
     try { scene.mannequins('clothes', list); } catch (e) { console.warn('[app] mannequins', e); }
   }
   function roomCardClose() { if (room.card) { room.card.remove(); room.card = null; } }
@@ -6072,7 +6082,7 @@ var APP = (function () {
   function roomEarly(e) { return !(e && e.isTrusted && e.detail === 0) && tapTime(e) - room.at < SHEET_SETTLE; }   /* 카드가 뜬 뒤 0.6 s 안의 누름은 안 받는다 (같은 자리 두 번 톡) */
   function roomBtn(text, cls, fn) { var b = h('button', { type: 'button', class: 'btn sm pressable ' + cls, text: text }); b.addEventListener('click', function (e) { e.stopPropagation(); if (roomEarly(e)) return; fn(b); }); return b; }
   function roomTagEl(x, out) { return shopTagSkin(x.owned ? h('span', { class: 'sew-cost own' }, [pxIco('check'), h('span', { class: 'sr-only', text: '가지고 있어' })]) : out ? h('span', { class: 'sew-cost own' }, [h('span', { class: 'shop-tag-txt', text: '내일' })]) : h('span', { class: 'sew-cost' }, [shellAmt(x.price)]), x.owned); }
-  function roomTryOff(x) { var f = roomApi('tryOff'); if (f) { try { f(x.cat); } catch (e) { console.warn('[app] tryOff', e); } } delete room.basket[x.key]; }
+  function roomTryOff(x) { var f = roomApi('tryOff'), k; if (!f) return false; try { f(x.cat); } catch (e) { console.warn('[app] tryOff', e); return false; } for (k in room.basket) if (room.basket[k].cat === x.cat) delete room.basket[k]; return true; }   /* 벗기가 된 때에만 바구니에서 뺀다 */
   function roomTry(x) {   /* 입어 보기: 같은 갈래에 입어 보던 것은 마네킹으로 돌아간다. 저장 없음 */
     var f = roomApi('tryOn'), k; if (!f) return;
     for (k in room.basket) if (room.basket[k].cat === x.cat && k !== x.key) delete room.basket[k];
@@ -6083,10 +6093,11 @@ var APP = (function () {
   function roomTag(i) {   /* 마네킹의 꼬리표 카드 */
     var x = shopStock('clothes').items[i]; if (!x) return;
     var b = room.basket[x.key], tried = !!(b && b.tried), btns = [];
-    if (x.owned) { if (wornOf(x.cat) === x.id) btns.push(h('p', { class: 'shop-card-note', text: '입고 있어' })); else btns.push(roomBtn('입을래', 'sew-yes', function () { roomCardClose(); if (roomWear(x)) { toast(x.name + eulReul(x.name) + ' 입었어'); roomPose('twirl'); } })); }
+    var other = false, tk; for (tk in room.basket) if (room.basket[tk].tried && room.basket[tk].cat === x.cat && tk !== x.key) other = true;
+    if (x.owned) { if (wornOf(x.cat) === x.id && !other) btns.push(h('p', { class: 'shop-card-note', text: '입고 있어' })); else btns.push(roomBtn('입을래', 'sew-yes', function () { roomCardClose(); if (roomWear(x)) { toast(x.name + eulReul(x.name) + ' 입었어'); roomPose('twirl'); } })); }
     else {
-      if (tried) btns.push(roomBtn('벗을래', 'sew-no', function () { roomTryOff(x); roomCardClose(); roomDress(); }));
-      else if (roomApi('tryOn')) btns.push(roomBtn('입어 보기', 'sew-no', function () { roomTry(x); }));
+      if (tried) btns.push(roomBtn('벗을래', 'sew-no', function () { roomCardClose(); if (roomTryOff(x)) roomDress(); }));
+      else if (roomApi('tryOn') && roomApi('tryOff')) btns.push(roomBtn('입어 보기', 'sew-no', function () { roomTry(x); }));
       btns.push(roomBtn('살래', 'sew-yes', function () { if (!room.basket[x.key]) room.basket[x.key] = { cat: x.cat, id: x.id, tried: false }; roomCardClose(); var cb = $('btn-room-counter'); if (cb && !cb.hidden) cb.click(); else roomReceipt(); }));   /* 계산대로 (멀면 건물 갈래가 먼저 걸어가게 한다) */
     }
     roomCard('btn-mq-' + i, 'tag', x.name, [shopThumb(x, 64), h('p', { class: 'shop-card-name', text: x.name }), roomTagEl(x), h('div', { class: 'btn-row shop-card-btns' }, btns)]);
@@ -6105,7 +6116,7 @@ var APP = (function () {
   }
   function shopApply(u, r, it, dk) {   /* SHOP.buy 가 돌려준 상태를 저장 칸에 (조개 · 씨앗 · 염료 · 기록) + 이 탭이 막 산 것 표시 */
     u.shells = r.state.shells; u.seeds = r.state.seeds; u.dyes = r.state.dyes; u.shop = r.state.shop;
-    shopMineAdd(r.own ? { t: 'got', key: r.own, day: dk } : it.type === 'seed' ? { t: 'seed', day: dk, n: u.shop.day ? u.shop.day.seeds : 1 } : { t: 'dye' });
+    shopMineAdd(r.own ? { t: 'got', key: r.own, day: dk, d: -it.price } : it.type === 'seed' ? { t: 'seed', day: dk, n: u.shop.day ? u.shop.day.seeds : 1, d: -it.price } : { t: 'dye' });
   }
   function roomPay(sumEl) {   /* 확인 뒤에만: 합계를 다시 보고, 한 벌씩 옷장에 넣은 것만 값을 낸다 */
     var list = roomBasket(), u = shopU(), dk = todayKey(), A = shopApi(), total = 0, had = u.shells, got = [];
@@ -6122,12 +6133,13 @@ var APP = (function () {
     var n = room.card && room.card.querySelector('.shop-purse .shell-n'); if (n) { n.textContent = String(u.shells); shopCount(had, u.shells, n); }
     roomDress(); if (!got.length) { roomCardClose(); return; }
     toast(got.map(function (x) { return x.name; }).join(' · ') + eulReul(got[got.length - 1].name) + ' 샀어');
-    setTimeout(roomCardClose, 700); roomPose('pose'); roomSayAs('clothes', 'shop.pay', { shells: had - u.shells });
+    var rc = room.card; setTimeout(function () { if (room.card === rc) roomCardClose(); }, 700); roomPose('pose'); roomSayAs('clothes', 'shop.pay', { shells: had - u.shells });
   }
-  function roomMirror() {   /* 거울: 가까이 들어가 자세 한 번 → 돌아온다 */
-    if (room.busy) return; room.busy = true; roomCardClose();
+  function roomMirror() {   /* 거울: 가까이 들어가 자세 한 번 → 돌아온다 (도중에 방을 나가면 남은 박자는 건너뛴다) */
+    if (room.busy) return; room.busy = true; roomCardClose(); var tok = room.gen, here = function () { return tok === room.gen && room.key === 'clothes'; };
     var close = function (on) { if (!roomScene('playerCloseup')) return Promise.resolve(); try { return roomWait(scene.playerCloseup(on)); } catch (e) { return Promise.resolve(); } };
-    close(true).then(function () { roomSayAs('clothes', 'shop.mirror'); return roomPose('pose'); }).then(function () { return roomWait(null, 0); }).then(function () { return close(false); }).then(function () { room.busy = false; }, function () { room.busy = false; });
+    var free = function () { if (tok === room.gen) room.busy = false; };
+    close(true).then(function () { if (!here()) return; roomSayAs('clothes', 'shop.mirror'); return roomPose('pose'); }).then(function () { return close(false); }).then(free, free);
   }
   function roomHop(from) {   /* 산 물건이 가방 (조개 꼬리표) 으로 폴짝 — 움직임 줄이기면 없음 */
     var bag = $('btn-bag'), mo = document.documentElement.getAttribute('data-motion');
@@ -6160,16 +6172,17 @@ var APP = (function () {
     key = key === 'clothes' || key === 'goods' ? key : null; if (key === room.key) return;
     var was = room.key, left = 0, k, f = roomApi('tryOff');
     roomCardClose();
-    if (was === 'clothes') { for (k in room.basket) if (room.basket[k].tried) { left++; if (f) { try { f(room.basket[k].cat); } catch (e) { console.warn('[app] tryOff', e); } } } if (left) roomSayAs('clothes', 'shop.leave'); }
-    room.key = key; room.basket = {}; room.busy = false;
-    if (key === 'clothes') { shopSync(); roomDress(); roomSayAs('clothes', 'shop.enter'); }
-    else if (key === 'goods') roomSayAs('goods', 'goods.enter');
+    if (was === 'clothes') { for (k in room.basket) if (room.basket[k].tried) { left++; if (f) { try { f(room.basket[k].cat); } catch (e) { console.warn('[app] tryOff', e); } } } if (left) setTimeout(function () { roomSayAs('clothes', 'shop.leave'); }, 0); }
+    room.key = key; room.basket = {}; room.busy = false; room.gen = (room.gen | 0) + 1; shopGoing = false;
+    if (key === 'clothes') { shopSync(); roomDress(); }
+    if (key) setTimeout(function () { if (room.key === key) roomSayAs(key, key === 'clothes' ? 'shop.enter' : 'goods.enter'); }, 0);   /* 대사 갈래가 방이 바뀔 때 떠 있던 줄을 접은 다음에 */
   }
   var shopGoing = false;
-  function shopGo(kind) {
-    var go = roomApi('goInside'); if (!go) { openShop(kind); return; }
+  function shopGo(kind) {   /* 문 · 진열대: 걸어 들어가기 (바깥 갈래의 APP.goInside). 움직임 줄이기 · 방 없음 · 못 들어감 · 8 s 안에 답이 없음 → 예전 시트 */
+    var go = roomApi('goInside'); if (!go || reduced()) { openShop(kind); return; }
     if (shopGoing) return; shopGoing = true;
-    var done = function (ok) { shopGoing = false; if (ok !== true && !room.key) openShop(kind); };
+    var fin = false, done = function (ok) { if (fin) return; fin = true; clearTimeout(tm); shopGoing = false; if (!(ok === true || (ok && ok.ok === true)) && !room.key) setTimeout(function () { if (!room.key) openShop(kind); }, 0); };
+    var tm = setTimeout(function () { done(false); }, 8000);
     try { var p = go(kind); if (p && typeof p.then === 'function') p.then(done, function () { done(false); }); else done(p); } catch (e) { console.warn('[app] goInside', e); done(false); }
   }
   function shopRoomInit() {
@@ -7107,7 +7120,7 @@ var APP = (function () {
     /* [7-V] */
 
     /* [7-S] */
-    openShop: openShop, shopStock: shopStock, shopSync: shopSync, beachPick: beachPick, get beachLeft() { return beachLeft(); }, get shopAsk() { return shopAsk ? { kind: shopAsk.kind, key: shopAsk.key, act: shopAsk.act } : null; },
+    openShop: openShop, shopStock: shopStock, shopSync: shopSync, beachPick: beachPick, beachSync: beachSync, get beachLeft() { return beachLeft(); }, get shopAsk() { return shopAsk ? { kind: shopAsk.kind, key: shopAsk.key, act: shopAsk.act } : null; },
     get shopRoom() { return { key: room.key, basket: Object.keys(room.basket), tried: Object.keys(room.basket).filter(function (k) { return room.basket[k].tried; }), card: room.card ? room.card.className : null }; },
 
     /* [7-C] */

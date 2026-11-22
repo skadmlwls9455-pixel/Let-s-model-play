@@ -70,10 +70,10 @@ var SHOP = (function () {
     if (!isObj(u)) return u;
     if (!isObj(u.shop)) u.shop = {};
     if (!isObj(u.shop.got)) u.shop.got = {};
-    if (!(isObj(u.shop.day) && isKey(u.shop.day.key))) u.shop.day = null; else u.shop.day.seeds = Math.max(0, u.shop.day.seeds | 0);
+    if (u.shop.day === undefined) u.shop.day = null;   /* 모르는 모양 (나중 빌드) 은 그대로 둔다: 읽는 쪽이 '오늘 것 없음' 으로 읽고, 오늘 것을 쓸 때 새로 만든다 */
     if (!isObj(u.beach)) u.beach = {};
-    if (!isKey(u.beach.day)) u.beach.day = null;
-    if (!Array.isArray(u.beach.picked)) u.beach.picked = [];
+    if (u.beach.day === undefined) u.beach.day = null;
+    if (u.beach.picked === undefined) u.beach.picked = [];
     return u;
   }
   function copy(x) { return x == null ? x : JSON.parse(JSON.stringify(x)); }

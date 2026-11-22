@@ -49,7 +49,7 @@ const shot = async (page, name) => { if (SHOTS) { fs.mkdirSync(SHOTS, { recursiv
 async function goodsRun(browser) {
   console.log('== 잡화점');
   const { ctx, page } = await open(browser, { shells: 0, q: '&scene=2d' });   /* 잡화점은 장면이 필요 없다 → 2D 로 (빠르고, 2D 폴백에서도 도는지 같이 본다) */
-  ok(await page.evaluate(() => APP.openShop('clothes')) === false && !(await page.evaluate(() => document.getElementById('shop-sheet').open)), '옷장이 없으면 옷가게는 안 열린다');
+  ok(await page.evaluate(() => { const w = APP.wardrobe; APP.wardrobe = undefined; const r = APP.openShop('clothes'); APP.wardrobe = w; return r; }) === false && !(await page.evaluate(() => document.getElementById('shop-sheet').open)), '옷장이 없으면 옷가게는 안 열린다');
   ok(await page.evaluate(() => APP.openShop('goods')) === true, '잡화점 열기');
   let t = await tiles(page);
   ok(await page.textContent('#shop-h') === '잡화점' && t.length === 4 && t[0].key === 'seed' && t.filter(x => /^dye:/.test(x.key)).length === 3 && t.every(x => x.pic), '씨앗 + 염료 색 셋, 칸마다 그림');
@@ -151,7 +151,7 @@ async function clothesRun(browser) {
 async function beachRun(browser) {
   console.log('== 바닷가 조개');
   const { ctx, page } = await open(browser, { shells: 0 });
-  await page.evaluate(() => { window.__bs = []; APP.scene.beachShells = l => { window.__bs.push(l.slice()); }; APP.shopSync(); });
+  await page.evaluate(() => { window.__bs = []; APP.scene.beachShells = l => { window.__bs.push(l.slice()); }; APP.beachSync(true); });   /* 진짜 장면은 부팅 때 이미 받았다 → 다시 보내게 */
   let st = await page.evaluate(() => ({ sent: window.__bs.slice(-1)[0], left: APP.beachLeft }));
   ok(st.left.length === 3 && JSON.stringify(st.sent) === JSON.stringify(st.left), '그날의 세 자리를 장면에 알린다');
   const no = [0, 1, 2, 3, 4].find(i => !st.left.includes(i));
@@ -184,9 +184,12 @@ async function tabsRun(browser) {
   await A.evaluate(raw => { const o = JSON.parse(raw); o.user.seeds = 7; const v = JSON.stringify(o); localStorage.setItem('ppolppol_v2', v); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v, storageArea: localStorage })); }, stale);
   await A.waitForTimeout(1300);
   const a = await U(A);
-  ok(a.seeds === 7 && a.shells === 40, '탭 A 가 다른 탭의 기록을 받았다 (조개는 지금까지의 두 탭 규칙대로 그쪽 값)');
+  ok(a.seeds === 7 && a.shells === 40 - it.price + 1, '탭 A 가 다른 탭의 기록을 받고, 이 탭이 산 것 · 주운 것은 조개 변화와 함께 다시 얹는다 (공짜 옷 · 잃은 조개 없음)');
   ok(a.shop.got[it.key] === DAY && a.owned[it.key] === DAY, '산 옷은 사라지지 않는다 (영수증 · 옷장)');
   ok(a.beach.day === DAY && a.beach.picked.indexOf(left[0]) >= 0 && (await A.evaluate(() => APP.beachLeft)).length === 2, '주운 자리도 다시 나오지 않는다');
+  await A.evaluate(raw => { const v = localStorage.getItem('ppolppol_v2'); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v, storageArea: localStorage })); });
+  await A.waitForTimeout(1300);
+  ok((await U(A)).shells === 40 - it.price + 1, '같은 기록을 또 받아도 두 번 얹지 않는다');
   const saved = JSON.parse(await A.evaluate(() => localStorage.getItem('ppolppol_v2')));
   ok(saved.user.shop.got[it.key] === DAY && saved.user.owned[it.key] === DAY, '저장에도 다시 적힌다');
   ok(await A.evaluate(k => !!document.querySelector('#shop-body .shop-tile[data-key="' + k + '"] .sew-cost.own'), it.key), '열린 선반의 표시도 그대로');
@@ -206,12 +209,13 @@ async function tabsRun(browser) {
 
 /* 가게 방 (걸어 들어가는 옷가게 · 잡화점): 방 · 단추 · 마네킹 · 입어 보기는 다른 갈래 것이라 여기서 대역으로 끼운다 (계약 C9~C11 의 이름 그대로). 누름은 진짜 누름 */
 function roomStub() {
-  const sc = document.getElementById('scene'), mk = (id, x, y) => { if (document.getElementById(id)) return; const b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'scene-spot'; b.setAttribute('aria-label', id); b.style.cssText = 'left:' + x + 'px;top:' + y + 'px;outline:2px dashed #0a0'; sc.appendChild(b); };
+  const sc = document.getElementById('scene'), mk = (id, x, y) => { const old = document.getElementById(id); if (old) { old.hidden = false; old.style.cssText = 'left:' + x + 'px;top:' + y + 'px;outline:2px dashed #0a0'; return; } const b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'scene-spot'; b.setAttribute('aria-label', id); b.style.cssText = 'left:' + x + 'px;top:' + y + 'px;outline:2px dashed #0a0'; sc.appendChild(b); };
   for (let i = 0; i < 4; i++) mk('btn-mq-' + i, 24 + i * 80, 230);
   mk('btn-room-mirror', 290, 150); mk('btn-room-counter', 150, 290);
   for (let i = 0; i < 6; i++) mk('btn-shelf-' + i, 16 + i * 56, 190);
   const L = window.__room = { mq: [], pose: [], close: [], tryOff: [], wear: [] }, T = window.__try = {};
   APP.scene.enterRoom = () => Promise.resolve({ ok: true }); APP.scene.inRoom = () => null;
+  APP.scene.roomSlots = k => ({ slots: { mq0: [-1.8, 0.14, -2, 0], mq1: [-0.6, 0.14, -2, 0], mq2: [0.6, 0.14, -2, 0], mq3: [1.8, 0.14, -2, 0], counter: [2, 0, 1, 0] } });
   APP.scene.mannequins = (k, l) => { L.mq.push(JSON.parse(JSON.stringify(l))); };
   APP.scene.playerPose = n => { L.pose.push(n); return Promise.resolve(); };
   APP.scene.playerCloseup = on => { L.close.push(on); return Promise.resolve(); };
@@ -226,9 +230,9 @@ async function roomRun(browser) {
   const { ctx, page } = await open(browser, { shells: 10, q: SHOTS ? '' : '&scene=2d' });
   await page.evaluate(stub); await page.evaluate(roomStub);
   const stock = await page.evaluate(() => APP.shopStock('clothes').items), look0 = await page.evaluate(() => JSON.stringify(APP.state.settings.player)), raw0 = await page.evaluate(() => localStorage.getItem('ppolppol_v2'));
-  await enter(page, 'clothes');
+  await enter(page, 'clothes'); await page.waitForTimeout(150);
   let r = await R(page);
-  ok(r.key === 'clothes' && r.mq.length === 4 && r.mq.every((m, i) => m.slot === 'mq' + i && !m.sold && m.parts && m.parts[stock[i].cat] === stock[i].id && Object.keys(m.parts).length === 1), '들어가면 마네킹 넷이 오늘의 네 벌');
+  ok(r.key === 'clothes' && r.mq.length === 4 && r.mq.every((m, i) => m.slot === 'mq' + i && !m.sold && m.parts && m.parts[stock[i].cat] === stock[i].id && Object.keys(m.parts).length === 1 && Array.isArray(m.pos) && m.pos[1] === 0.14), '들어가면 마네킹 넷이 오늘의 네 벌');
   ok(r.said.join() === 'clothes|shop.enter', '가게 주인 줄 한 번');
   /* 마네킹 톡 → 꼬리표 카드 (dialog 가 아니라 장면 안의 요소) */
   await page.evaluate(() => { document.getElementById('btn-mq-0').click(); document.querySelector('#shop-card button').click(); });   /* 같은 자리 두 번 톡 */
@@ -270,7 +274,7 @@ async function roomRun(browser) {
   /* 안 사고 나가기 */
   await page.click('#btn-mq-2'); await cardBtn(page, '입어 보기');
   const offs = (await R(page)).log.tryOff.length;
-  await enter(page, null);
+  await enter(page, null); await page.waitForTimeout(150);   /* 가게 주인 줄은 대사 갈래가 방 바뀜을 처리한 다음 틱에 */
   r = await R(page);
   ok(r.key === null && r.log.tryOff.length === offs + 1 && r.log.tryOff.slice(-1)[0] === stock[2].cat && r.basket.length === 0 && r.said.slice(-1)[0] === 'clothes|shop.leave' && !(u.owned || {})[stock[2].key], '안 사고 나가면 제자리로 (가게 주인 줄)');
   ok((await U(page)).shells === 5, '나가도 조개는 그대로');
