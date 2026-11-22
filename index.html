@@ -443,6 +443,12 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- [7-V] 창 -->
 
 <!-- [7-S] 창 -->
+<dialog id="shop-sheet" class="sheet bag-sheet sew-sheet shop-sheet" aria-labelledby="shop-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="shop-h" class="set-h dlg-top" tabindex="-1">가게</h2>
+  <div id="shop-body"></div>
+  <button type="button" class="btn wide pressable" id="shop-close">닫기</button>
+</dialog>
 
 <!-- [7-C] 창 -->
 <dialog id="cafe-sheet" class="sheet bag-sheet cafe-sheet" aria-labelledby="cafe-h">
@@ -571,6 +577,8 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <script src="js/village.js"></script>
 
 <!-- [7-S] 스크립트 -->
+<script src="js/shop.js"></script>
+<!-- 가게 카드의 그림 (값표 · 팔림 도장 · 영수증 · 씨앗) 은 COOK_SPR — js/cook-sprites.js 는 위 [7-T] 스크립트 자리에서 한 번만 싣는다 (11-22 합치기: 두 번 실리던 것을 하나로). 없으면 CSS 로 그린 것이 남는다 -->
 
 <!-- [7-C] 스크립트 -->
 <script src="js/cafe.js"></script>
