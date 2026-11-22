@@ -2128,7 +2128,7 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
 #contest-body[data-view="result"] .ct-mine { flex: 0 0 auto; flex-direction: row; justify-content: center; align-items: center; gap: 16px; }
 #contest-body[data-view="result"] .ct-solo { flex: 0 0 auto; min-height: 0; align-self: auto; margin: 0; padding: 20px 20px 8px; }
 #contest-body[data-view="result"] .ct-solo::after { width: 56px; margin-left: -28px; }
-.contest-sheet .ct-closed { margin: 0 0 16px; text-align: center; font-size: 15px; font-weight: 700; color: var(--fg); }
+.contest-sheet .ct-closed { margin: 0 0 16px; text-align: center; font-size: 16px; font-weight: 700; color: var(--fg); }
 :root[data-font="pixel"] .contest-sheet .ct-closed { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; }
 .ct-go { margin-bottom: 8px; }
 /* 결과 리본 (금빛 띠 · 양 끝 제비꼬리) */
@@ -2138,7 +2138,9 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
   clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 0 100%, 12px 50%); }
 .ct-place { font-size: 20px; }
 :root[data-font="pixel"] .ct-place, :root[data-font="pixel"] .ct-line .shell-amt { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 36px; }
-.ct-rule { font-size: 11px; font-weight: 500; color: #6a5a5a; padding: 0 6px; background: var(--ct-paper); box-shadow: 0 0 0 1px var(--ct-ink); white-space: nowrap; }
+/* 시스템 글꼴 (픽셀 글꼴 끔) 에서도 콘테스트 안의 글은 16 px 이상 (단추 · 조개 수 · 지갑 · 간판) — 픽셀 글꼴은 --fs-* 그대로 */
+:root:not([data-font="pixel"]) :is(.contest-sheet, .ct-world) :is(.btn, .shell-amt, .ct-purse, .ct-sign) { font-size: 16px; }
+.ct-rule { font-size: 16px; font-weight: 500; color: #6a5a5a; padding: 0 6px; background: var(--ct-paper); box-shadow: 0 0 0 1px var(--ct-ink); white-space: nowrap; }
 :root[data-font="pixel"] .ct-rule { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; box-shadow: 0 0 0 2px var(--ct-ink); }
 /* 단상 (무대 위): 금 · 은 · 동 띠가 있는 계단, 4등은 낮은 발판 */
 .ct-podium { flex: 1 1 auto; min-height: 168px; display: flex; align-items: flex-end; justify-content: center; gap: 4px; margin: 0 -14px 16px; padding: 24px 6px 0; }

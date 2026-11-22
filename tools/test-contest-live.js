@@ -49,7 +49,7 @@ function SCENE_STUB() {
   var sc = APP.scene; window.__sc = [];
   sc.stage = function () { return { wait: [1, 1], path: [[1, 0], [2, 0], [3, 0], [4, 0]], judges: [[1, 3, 0], [2, 3, 0], [3, 3, 0]], podium: [[1, 5, 0.6], [2, 5, 0.48], [3, 5, 0.38], [4, 5, 0.24]], rivals: [[0, 6], [1, 6], [2, 6]], poster: [0.5, 0], y: 0 }; };
   sc.project = function (x, y, z) { return { x: 40 + x * 64, y: 330 - z * 30 - y * 40 }; };
-  sc.area = function () { return 'plaza'; }; sc.inRoom = function () { return null; };
+  sc.area = function () { return 'plaza'; }; sc.inRoom = function () { return null; }; sc.roomReg = {};   /* 공연장이 없는 판 (있는 판은 아래에서 따로) */
   sc.stageDress = function (on) { window.__sc.push(['dress', !!on]); };
   sc.npcSet = function (l) { window.__sc.push(['set', l.map(function (n) { return n.id; }).join(',')]); };
   sc.npcPlace = function (id, x, z) { window.__sc.push(['place', id, x, z]); };
@@ -58,6 +58,7 @@ function SCENE_STUB() {
   sc.playerPose = function (n) { window.__sc.push(['pose', n]); return new Promise(function (r) { setTimeout(r, 150); }); };
   sc.playerPlace = function (x, z, y) { window.__sc.push(['me', x, z, y]); };
 }
+function chip(page) { return page.evaluate(function () { var b = document.getElementById('btn-bag'), n = b && b.querySelector('.shell-n'); return n ? +n.textContent : null; }); }
 function calls(page, kind) { return page.evaluate(function (k) { return window.__sc.filter(function (c) { return c[0] === k; }); }, kind); }
 function wcard(page) { return page.evaluate(function () { var c = document.getElementById('ct-wcard'); return c ? { kind: c.dataset.kind, inScene: !!c.closest('#scene'), dialog: !!c.closest('dialog'), text: c.innerText, go: !!document.getElementById('ct-w-go'), avoid: c.hasAttribute('data-npc-avoid') } : null; }); }
 async function open(ctx, o) {
@@ -113,12 +114,12 @@ async function main() {
   console.log('A 옷 목록 없음 · 2D');
   ctx = await context(browser, SAT);
   page = await open(ctx, { stub: false });
-  r = await page.evaluate(function () { return { ret: APP.openContest(), open: document.getElementById('contest-sheet').open, has: typeof CONTEST === 'object' }; });
+  r = await page.evaluate(function () { delete APP.wardrobe; delete APP.wearing; return { ret: APP.openContest(), open: document.getElementById('contest-sheet').open, has: typeof CONTEST === 'object' }; });
   check(r.has && r.ret === false && r.open === false, '옷 목록 (APP.wardrobe) 이 없으면 안 열림');
   check(await page.evaluate(function () { return document.getElementById('btn-plaza-stage') === null || true; }), '무대 단추가 없어도 던지지 않음');
   r = await page.evaluate(function () {
     var out = [], shapes = [function () { throw new Error('x'); }, function () { return null; }, function () { return { cats: [] }; }, function () { return { cats: [{ key: 'outfit', items: [] }] }; }, function () { return { cats: [{ key: 'outfit', items: [{ id: 'a', worn: true }] }] }; }];
-    shapes.forEach(function (f) { APP.wardrobe = f; out.push(APP.openContest()); APP.contestEnter(); });
+    delete APP.wearing; shapes.forEach(function (f) { APP.wardrobe = f; out.push(APP.openContest()); APP.contestEnter(); });
     delete APP.wardrobe; return { out: out, entry: CONTEST.today(APP.state.user, window.__ppolTest.today), open: document.getElementById('contest-sheet').open };
   });
   check(r.out.every(function (x) { return x === false; }) && r.entry === null && !r.open, '깨진 · 빈 · 꼬리표 없는 옷 목록이면 안 열리고 안 나감');
@@ -173,6 +174,7 @@ async function main() {
   check(r.rule, "쇼 중에도 '채점 규칙' 꼬리표");
   e = await entry(page, SAT);
   check(e && e.paid === true && (await shells(page)) === s0 + e.shells && [12, 8, 5, 3][e.rank - 1] === e.shells, '나가는 순간 조개 한 번 (' + (e && e.rank) + '등 · ' + (e && e.shells) + ')');
+  check((await chip(page)) === null || (await chip(page)) === s0, '쇼 동안 조개 칩은 아직 예전 수 (' + (await chip(page)) + ')');
   var seen = {}, t0 = Date.now(), frames = 0;
   while (Date.now() - t0 < 20000) {
     r = await page.evaluate(function () { var s = APP.contestStage; return s ? s.stage + s.n : null; });
@@ -191,6 +193,7 @@ async function main() {
     return { pods: b.querySelectorAll('.ct-pod').length, me: b.querySelectorAll('.ct-pod.me').length, cards: b.querySelectorAll('.ct-judge').length, stars: Array.prototype.map.call(b.querySelectorAll('.ct-stars'), function (s) { return s.querySelectorAll('canvas').length; }),
       amt: b.querySelector('.ct-line .shell-n').textContent, close: !document.getElementById('contest-close').hidden, log: Array.prototype.map.call(document.querySelectorAll('#log .ct-row'), function (x) { return x.querySelector('.ltool').textContent + ' ' + x.querySelector('.ltext').textContent; }) };
   });
+  check((await chip(page)) === null || (await chip(page)) === s0 + e.shells, '결과가 보이면 조개 칩이 새 수');
   check(r.pods === 4 && r.me === 1 && r.cards === 3 && r.stars.every(function (n) { return n >= 1 && n <= 3; }) && r.close, '단상 넷 (나 하나) · 심사 카드 셋 · 별 1~3');
   check(+r.amt === e.shells, '결과의 조개 수 = 받은 수');
   check(r.log.length === 1 && r.log[0] === '콘테스트 ' + e.rank + '등 · 조개 ' + e.shells, '오늘 기록 줄: ' + JSON.stringify(r.log));
@@ -285,6 +288,7 @@ async function main() {
     });
     check(r.n > 8 && r.bad.length === 0, sizes[i].join('x') + ': 그림 ' + r.n + '개 모두 기기 픽셀 정수 배 ' + JSON.stringify(r.bad));
     check(!r.wide && r.inView, sizes[i].join('x') + ': 옆으로 넘치지 않음');
+    if (sizes[i][0] === 360) { var cl = await page.evaluate(function () { var c = document.getElementById('contest-close').getBoundingClientRect(); return [Math.round(c.bottom), window.innerHeight]; }); check(cl[0] <= cl[1], '360x740 결과 시트: 닫기가 화면 안 ' + JSON.stringify(cl)); }
     check(r.fs.every(function (f) { return f >= (sizes[i][2] >= 2 ? 16 : 12); }), sizes[i].join('x') + ': 글자가 집 크기 (폰 16px 이상) ' + JSON.stringify(r.fs));
     check(page._errs.length === 0, '오류 없음');
     await ctx.close();
@@ -318,6 +322,7 @@ async function main() {
   await page.waitForTimeout(700); await page.click('#ct-w-go');
   e = await entry(page, SAT);
   check(e && e.paid && (await shells(page)) === s0 + e.shells && !!(await page.evaluate(function () { return APP.contestLive; })), '나가기 → 조개 한 번 · 쇼 시작');
+  check((await chip(page)) === null || (await chip(page)) === s0, '장면 쇼 동안 조개 칩은 아직 예전 수');
   check(await page.evaluate(function () { return !!document.querySelector('.ct-whud .ct-rule') && !!document.getElementById('ct-w-skip') && !document.querySelector('dialog[open]'); }), "쇼 중: 넘기기 · '채점 규칙' · 시트 없음");
   seen = {}; t0 = Date.now();
   while (Date.now() - t0 < 30000) {
@@ -396,6 +401,22 @@ async function main() {
   await page.evaluate(function () { delete APP.scene.stage; APP.contestStageTap(); }); await page.waitForTimeout(300);
   check(await page.evaluate(function () { return typeof APP.scene.stage !== 'function' ? document.getElementById('contest-sheet').open && !document.getElementById('ct-wcard') : true; }), '무대 함수가 없으면: 시트가 열림');
   check(page._errs.length === 0, '오류 없음');
+  await ctx.close();
+
+  /* 픽셀 글꼴을 끈 설정: 시트 · 장면 카드의 글자가 모두 16 px 이상 */
+  rec = REC(); rec.settings.pixelFont = false;
+  ctx = await context(browser, SAT, rec);
+  page = await open(ctx); await page.evaluate(SCENE_STUB);
+  function small() { return page.evaluate(function () { var bad = []; ['contest-sheet', 'ct-world'].forEach(function (id) { var root = document.getElementById(id); if (!root) return; var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); while (w.nextNode()) { var t = w.currentNode, el = t.parentElement; if (!t.nodeValue.trim() || !el || el.closest('.sr-only')) continue; var r = el.getBoundingClientRect(); if (r.width < 1 || getComputedStyle(el).visibility === 'hidden') continue; var f = parseFloat(getComputedStyle(el).fontSize); if (f < 16) bad.push(t.nodeValue.trim().slice(0, 8) + ' ' + f); } }); return { font: document.documentElement.dataset.font || '', bad: bad }; }); }
+  await page.evaluate(function () { APP.openContest(); }); r = await small();
+  check(r.font !== 'pixel' && r.bad.length === 0, '픽셀 글꼴 끔 · 시트 (나가기 전): 16 px 아래 글자 없음 ' + JSON.stringify(r));
+  await page.evaluate(function () { APP.contestEnter(); APP.contestSkip(); }); r = await small();
+  check(r.bad.length === 0, '픽셀 글꼴 끔 · 결과 시트: 16 px 아래 글자 없음 ' + JSON.stringify(r.bad));
+  r = await page.evaluate(function () { var c = document.getElementById('contest-close').getBoundingClientRect(); return [Math.round(c.top), Math.round(c.bottom), window.innerHeight]; });
+  check(r[1] <= r[2] && r[0] >= 0, '픽셀 글꼴 끔 · 360x740 결과 시트: 닫기가 화면 안 ' + JSON.stringify(r));
+  await page.evaluate(function () { document.getElementById('contest-sheet').close(); APP.contestStageTap(); });
+  await page.waitForFunction(function () { return !!document.getElementById('ct-wcard'); }, null, { timeout: 8000 }); r = await small();
+  check(r.bad.length === 0, '픽셀 글꼴 끔 · 장면 결과 카드: 16 px 아래 글자 없음 ' + JSON.stringify(r.bad));
   await ctx.close();
 
   /* 진짜 폰 배율 2.625 (에뮬레이션은 이 배율에서 어긋난다 — 창 자체를 그 배율로) */
