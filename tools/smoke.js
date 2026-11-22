@@ -4938,13 +4938,17 @@ async function scenarioTapLine(browser) {
   var r3 = await page.evaluate(function () {
     return new Promise(function (res) {
       function flat(o, p, out) { if (o && typeof o === 'object') Object.keys(o).forEach(function (k) { flat(o[k], p ? p + '.' + k : k, out); }); else out[p] = JSON.stringify(o); return out; }
-      function changed(a, b) { var A = flat(JSON.parse(a), '', {}), B = flat(JSON.parse(b), '', {}); return Object.keys(B).filter(function (k) { return A[k] !== B[k]; }).concat(Object.keys(A).filter(function (k) { return !(k in B); })).slice(0, 8); }
+      /* 11-23 (CI 1f443c8 · 스모크 T 42/1): 첫날 선물 타이머 (부팅 2.5 s · 첫인사 2.8 s · 1분 틱) 가 280 ms 창 안에 들면 settings.lastSeen · user.giftTell 이 바뀌어 톡과 무관하게 깨졌다 → 그날 선물 칸 (gift · days · shells · seeds) 과 lastSeen 은 빼고 본다. 톡이 바꾸는 다른 칸은 여전히 잡힌다 */
+      var BG = /^(settings\.lastSeen|user\.(giftTell|giftDay|days|shells|seeds)(\.|$))/;
+      function changedAll(a, b) { var A = flat(JSON.parse(a), '', {}), B = flat(JSON.parse(b), '', {}); return Object.keys(B).filter(function (k) { return A[k] !== B[k]; }).concat(Object.keys(A).filter(function (k) { return !(k in B); })); }
+      function changed(a, b) { return changedAll(a, b).slice(0, 8); }
+      function same(a, b) { if (a === b) return true; try { return changedAll(a, b).filter(function (k) { return !BG.test(k); }).length === 0; } catch (e) { return false; } }
       var rows = document.querySelectorAll('#log .lrow').length, st = JSON.stringify(APP.state), ls = localStorage.getItem('ppolppol_v2');
       window.__aud = []; APP.tapOct(); APP.tapOct(); APP.tapOct();
       var b = document.getElementById('oct-bubble'), text = b.hidden ? '' : b.textContent, sr = document.getElementById('oct-say');
       setTimeout(function () { var srText = sr ? sr.textContent : null; APP.tapOct(); setTimeout(function () { APP.tapOct();
         var st2 = JSON.stringify(APP.state);
-        res({ text: text, rows: document.querySelectorAll('#log .lrow').length - rows, sameState: st2 === st, sameLS: localStorage.getItem('ppolppol_v2') === ls, changed: st2 === st ? [] : changed(st, st2),
+        res({ text: text, rows: document.querySelectorAll('#log .lrow').length - rows, sameState: same(st, st2), sameLS: same(ls, localStorage.getItem('ppolppol_v2')), changed: st2 === st ? [] : changed(st, st2),
           voice: window.__aud.filter(function (a) { return a.n === 'bubble'; }).length, tag: !document.getElementById('brain-tag').hidden, tapAttr: b.getAttribute('data-tap'),
           sr: srText, srLive: sr ? sr.getAttribute('aria-live') + '/' + sr.getAttribute('role') + '/' + sr.className : null, srLog: !!(sr && sr.closest('#log')) });
       }, 120); }, 160);
