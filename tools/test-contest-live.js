@@ -166,6 +166,7 @@ async function main() {
   check(v.view === 'open' && v.go && !v.closed && v.text.indexOf('주말에 열려') < 0, '토요일: 나가기 단추');
   await shot(page, '2-theme-weekend');
   await page.waitForTimeout(700);
+  await page.evaluate(function () { window.__ctSeen = {}; window.__ctRec = setInterval(function () { var s = APP.contestStage; if (s) window.__ctSeen[s.stage + s.n] = 1; }, 20); });   /* 11-23: 쇼 단계는 페이지 안에서 20 ms 마다 적는다 — 바깥에서 120 ms 마다 묻던 것은 바쁜 CI 에서 첫 걸음 (walk2) 을 놓쳤다 (7b70acb) */
   await page.click('#ct-go');
   r = await page.evaluate(function () { return { st: APP.contestStage, closeHidden: document.getElementById('contest-close').hidden, skip: !!document.getElementById('ct-skip') }; });
   check(r.st && r.st.stage === 'walk' && r.st.n === 1 && r.skip && r.closeHidden, '쇼 시작: 걸어 나오기 1 · 넘기기 단추');
@@ -183,6 +184,7 @@ async function main() {
     await page.waitForTimeout(120); frames++;
   }
   var took = Date.now() - t0;
+  Object.assign(seen, await page.evaluate(function () { clearInterval(window.__ctRec); return window.__ctSeen || {}; }));
   check(['walk2', 'walk3', 'walk4', 'judge1', 'judge2', 'judge3', 'count0', 'podium0'].every(function (k) { return seen[k]; }), '단계가 차례로 다 나옴: ' + Object.keys(seen).join(' '));
   check(took > 8000 && took < 16000, '쇼 길이 약 12초 (' + took + 'ms)');
   v = await view(page);
