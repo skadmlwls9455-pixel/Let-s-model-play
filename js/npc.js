@@ -62,6 +62,50 @@ var NPC = (function () {
         ['예전엔 마을 옷을 다 내가 고쳤어.', '하루에 서른 벌씩.'],
         ['옆집 문어는 바늘을 쥔 채 잠들었어.', '바늘은 내가 빼 뒀어.'],
         ['신발 끈이 한쪽만 길어. 봐 줄까.']
+      ],
+      /* 11-21 밤 (걸어 들어가는 가게 · 무대): 박자마다 한마디. 사실만 */
+      'shop.enter': [
+        ['들어와. 마네킹 넷이 입고 있어.'],
+        ['어서 와. 꼬리표는 목에 달아 놨어.'],
+        ['문 닫아 줘. 먼지가 옷에 앉아.']
+      ],
+      'shop.tryon': [
+        ['입어 봐. 어깨선부터 볼게.'],
+        ['소매 길이 맞네. 한 바퀴 돌아 봐.'],
+        ['{item}, 단은 손 안 대도 되겠어.']
+      ],
+      'shop.mirror': [
+        ['거울은 왼쪽이 조금 길게 보여.'],
+        ['옷깃 한쪽이 접혔어. 펴고 봐.'],
+        ['뒤도 봐. 솔기가 반듯해.']
+      ],
+      'shop.pay': [
+        ['조개 받았어. 꼬리표는 내가 뗄게.'],
+        ['계산 끝. 입은 채로 가도 돼.'],
+        ['조개 {shells}개 맞아. 영수증 여기.']
+      ],
+      'shop.leave': [
+        ['가는구나. 문은 내가 닫을게.'],
+        ['입어 본 옷은 마네킹에 다시 입힐게.'],
+        ['조심히 가. 단추 하나 풀렸어.']
+      ],
+      'contest.poster': [
+        ['포스터는 내가 붙였어. 모서리 맞춰서.'],
+        ['주말에 무대가 열려. 주제는 포스터에 있어.'],
+        ['이번 주제는 {theme}. 포스터에 적었어.']
+      ],
+      'contest.start': [
+        ['시작할게. 걷는 길은 무대 가운데야.'],
+        ['심사 자리 앉았어. 줄자는 내려놨어.']
+      ],
+      'contest.judge': [
+        ['다 봤어. 팻말 들게.'],
+        ['주제 꼬리표 {n}개 맞았어. 세어 봤어.'],
+        ['{n}개. 옷깃부터 신발까지 봤어.']
+      ],
+      'contest.podium': [
+        ['단상에 서. 자리는 순서대로야.'],
+        ['끝났어. 조개는 단상에서 줄게.']
       ]
     },
     goods: {
@@ -98,6 +142,38 @@ var NPC = (function () {
         ['자는 문어는 넷이야. 아침마다 세어 봐.'],
         ['마을 사람들은 배 타고 떠났어.', '떠난 날짜도 장부에 있어.'],
         ['씨앗 서랍이 스물네 칸이야. 다 이름 붙였어.']
+      ],
+      'goods.enter': [
+        ['어서 와 어서 와. 선반 여섯 칸, 다 채웠어.'],
+        ['왔네 왔어. 저울은 영점 맞춰 놨어.'],
+        ['들어와. 통은 셋, 병은 선반에 있어.']
+      ],
+      'shop.pay': [
+        ['조개 받았다. 장부에 적는다, 한 줄.'],
+        ['됐어 됐어. 거스를 것 없이 딱 맞아.'],
+        ['조개 {shells}개, 세 번 셌어. 맞아.']
+      ],
+      'shop.leave': [
+        ['가는구나. 나간 시간도 적어 둘게.'],
+        ['문 닫으면 종이 울려. 한 번 울려.']
+      ],
+      'contest.poster': [
+        ['포스터 봤어 봤어. 주제 옮겨 적었어.'],
+        ['무대는 주말에 열린대. 달력에 동그라미.'],
+        ['주제는 {theme}. 공책 첫 줄에 적었어.']
+      ],
+      'contest.start': [
+        ['시작한대 시작해. 연필 깎아 놨어.'],
+        ['심사표 석 장, 다 챙겼어.']
+      ],
+      'contest.judge': [
+        ['다 적었어. 팻말 든다.'],
+        ['맞은 꼬리표 {n}개. 하나씩 짚어서 셌어.'],
+        ['{n}개 {n}개. 표에 적었어.']
+      ],
+      'contest.podium': [
+        ['순서대로 서. 하나, 둘, 셋, 넷.'],
+        ['조개는 봉투에 넣어 놨어. 세어서.']
       ]
     },
     cafe: {
@@ -135,6 +211,39 @@ var NPC = (function () {
         ['예전엔 새벽 배마다 커피를 날랐어…', '하루 백 잔쯤.'],
         ['부두 밑 문어가 제일 먼저 잠들었어…', '그 뒤로 하나둘.'],
         ['물이 빠지면… 모래에 조개가 보여.']
+      ],
+      'cafe.order': [
+        ['알았어… 물부터 올릴게.'],
+        ['다 되면… 쟁반에 올려 둘게.'],
+        ['{dish}… 접시부터 데울게.']
+      ],
+      'cafe.stamp': [
+        ['도장 하나… 꾹 눌렀어.'],
+        ['카드에 찍었어… 잉크는 바다색이야.'],
+        ['{n}번째 도장이야… 칸은 셋이야.']
+      ],
+      'cafe.record': [
+        ['판을 올렸구나… 바늘은 살살 내려와.'],
+        ['그 판… 겉장에 모래가 묻어 있어.'],
+        ['{title}… 판이 돌기 시작했어.']
+      ],
+      'contest.poster': [
+        ['포스터가 붙었네… 여기서도 보여.'],
+        ['무대는 주말에 열려… 주제는 포스터에 있어.'],
+        ['주제는 {theme}… 천천히 읽어 봐.']
+      ],
+      'contest.start': [
+        ['시작하네… 무대 불이 켜졌어.'],
+        ['심사 자리에 앉았어… 팻말은 무릎에 뒀어.']
+      ],
+      'contest.judge': [
+        ['다 봤어… 팻말 들게.'],
+        ['맞은 꼬리표가… {n}개야.'],
+        ['{n}개… 걸음마다 하나씩 봤어.']
+      ],
+      'contest.podium': [
+        ['단상에 올라가… 순서대로 서면 돼.'],
+        ['끝났어… 조개는 여기 있어.']
       ]
     }
   };
@@ -175,10 +284,17 @@ var NPC = (function () {
     var n = pool[(typeof seed === 'number' && isFinite(seed) ? Math.abs(Math.floor(seed)) : hash(String(seed) + id + key)) % pool.length];
     return { id: id, key: key, name: r.name, tag: tag(id), by: 'script', n: n, bubbles: all[n].map(function (s) { return fill(s, vars); }) };
   }
-  /* list(dateKey) → 장면의 npcSet 에 줄 목록 (계약 C6). 날짜는 받아만 둔다 (오늘은 날마다 같다 — 깬 문어 셋 · 자는 문어 넷) */
+  /* list(dateKey) → 장면의 npcSet 에 줄 목록 (계약 C6 · C14). 날짜는 받아만 둔다 (날마다 같다 — 깬 문어 셋 · 자는 문어 넷).
+     가게 문어는 장면 (V) 이 가게 앞과 그 방 안의 keeper 칸에 알아서 그린다. 자는 문어 하나 (sleep-1) 는 카페 구석 식탁에서 잔다:
+     { room: 'cafe', slot: 'nap' } 를 달아 넘긴다 (그 칸을 모르는 장면은 예전 바깥 자리에 그린다) */
+  var SLEEP_AT = { 'sleep-1': { room: 'cafe', slot: 'nap' } };
   function list(dateKey) {
     var out = KEEPERS.map(function (id) { var r = ROSTER[id]; return { id: id, color: r.color, hat: r.hat, pose: 'stand' }; });
-    SLEEPERS.forEach(function (s) { out.push({ id: s.id, color: s.color, hat: 'none', pose: 'sleep' }); });
+    SLEEPERS.forEach(function (sl) {
+      var e = { id: sl.id, color: sl.color, hat: 'none', pose: 'sleep' }, at = SLEEP_AT[sl.id];
+      if (at) { e.room = at.room; e.slot = at.slot; }
+      out.push(e);
+    });
     return out;
   }
   /* 저장 칸 S.user.story (계약 C8): { intro: 'YYYY-MM-DD' | null, notices: { 쪽지 id: 'YYYY-MM-DD' } }. 모르는 값은 그대로 둔다 */
@@ -208,7 +324,7 @@ var NPC = (function () {
   }
 
   return {
-    LABEL: LABEL, roster: ROSTER, keepers: KEEPERS, sleepers: SLEEPERS, lines: LINES, notices: NOTICES, intro: INTRO, SLEEP_SAY: SLEEP_SAY,
+    LABEL: LABEL, sleepAt: SLEEP_AT, roster: ROSTER, keepers: KEEPERS, sleepers: SLEEPERS, lines: LINES, notices: NOTICES, intro: INTRO, SLEEP_SAY: SLEEP_SAY,
     who: who, tag: tag, keys: keys, variants: variants, line: line, list: list, normalize: normalize, seeNotices: seeNotices, allText: allText, hash: hash
   };
 })();

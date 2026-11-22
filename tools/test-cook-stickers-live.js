@@ -157,7 +157,9 @@ async function openPage(browser, o) {
   page.on('request', function (r) { net.push(r.url()); });
   await page.clock.install({ time: new Date('2026-11-08T10:00:00') });
   if (o.paused !== false) await pauseClock(page);
-  await page.goto((o.url || FILE0) + (o.q ? '?' + o.q : ''));
+  /* 11-21 round 7: no dish asked for = the recipe book; this suite plays the legacy jeon, so it asks for it by id */
+  var q7 = o.q ? (/(^|&)recipe=/.test(o.q) ? o.q : o.q + '&recipe=jeon') : 'recipe=jeon';
+  await page.goto((o.url || FILE0) + '?' + q7);
   var cdp = await ctx.newCDPSession(page);
   var T = { page: page, ctx: ctx, cdp: cdp, errs: errs, net: net };
   T.go = function (ms) { return page.clock.runFor(ms); };
@@ -273,19 +275,25 @@ var DISH = null;   /* K1's first dish (look, tags): K9 plays the same touches wi
    n0 = floor(2 dpr) (unchanged); round 6 (11-18, spec 2.3): when shown, n is the largest of n0 .. floor(3 dpr) that fits
    (11-18 lead: no '1/64 zoom' condition any more: the drift seen at 2.625 was the test browser's DPR emulation; the
    real render path gives exact blocks at every n, checked below with --force-device-scale-factor) */
+/* 11-21 round 7 (owner: all stickers larger; the step strip is gone): the layer starts in the HUD row itself, top =
+   max(8, safeT + 8); n is the largest of floor(2 dpr) .. floor(4 dpr) whose sticker ends 8 px above stage row 36 and
+   leaves the two slots apart (row 36 since the check of 11-21: eggs and berries stand at rows 36 and below); slot 1 ends 8 px left of the 48 px close chip. Shown whenever floor(2 dpr) fits. */
 function stickGeo(v, dpr, vw) {
-  var n0 = Math.floor(2 * dpr), n3 = Math.floor(3 * dpr), room = (44 + v.oy) * v.css, safe = v.safe || [0, 0, 0, 0];
-  var shown = v.hudB + 4 + 32 * n0 / dpr + 8 <= room, n = n0;
-  if (shown) for (var k = n3; k > n0; k--) { if (v.hudB + 4 + 32 * k / dpr + 8 <= room) { n = k; break; } }
+  var n0 = Math.floor(2 * dpr), n3 = Math.floor(4 * dpr), room = (36 + v.oy) * v.css, safe = v.safe || [0, 0, 0, 0];
+  var top = Math.max(8, safe[0] + 8), l0 = Math.max(8, safe[3] + 8), r1 = vw - Math.max(8, safe[1] + 8) - 48 - 8;
+  function fits(k) { if (k > n0 && dpr >= 3 && dpr === Math.floor(dpr) && k % 2 && k % dpr) return false; var z = 32 * k / dpr; return top + z + 8 <= room && l0 + z + 8 <= r1 - z; }
+  var shown = fits(n0), n = n0;
+  if (shown) for (var k = n3; k > n0; k--) { if (fits(k)) { n = k; break; } }
   var s = 32 * n / dpr;
-  return { n: n, s: s, top: v.hudB + 4, l0: Math.max(8, safe[3] + 8), r1: vw - Math.max(8, safe[1] + 8), shown: shown };
+  return { n: n, s: s, top: top, l0: l0, r1: r1, shown: shown };
 }
-var STICK_SIZES = [   /* s: the sticker size in CSS px (round 6, spec 2.3: 1.5x where there is room, never smaller) */
-  { vp: { width: 360, height: 740 }, dpr: 2, shown: true, s: 96 }, { vp: { width: 360, height: 740 }, dpr: 3, shown: true, s: 96 },
-  { vp: { width: 412, height: 915 }, dpr: 2.625, shown: true, s: 85.33, real: true },   /* 11-18 lead: on the real render path (see BLK) */ { vp: { width: 412, height: 915 }, dpr: 2, shown: true, s: 96 },
-  { vp: { width: 390, height: 844 }, dpr: 3, shown: true, s: 96 }, { vp: { width: 360, height: 640 }, dpr: 2, shown: true, s: 64 },
-  { vp: { width: 320, height: 568 }, dpr: 2, shown: false }, { vp: { width: 320, height: 568 }, dpr: 3, shown: false },
-  { vp: { width: 360, height: 560 }, dpr: 2, shown: false }
+var STICK_SIZES = [   /* s: the sticker size in CSS px. 11-21 round 7 (owner: all stickers larger): up to floor(4 dpr) device px a
+                         sticker px from the HUD row's top; 96 -> 128, 85.33 -> 121.90, 64 -> 128, and the short screens show them now */
+  { vp: { width: 360, height: 740 }, dpr: 2, shown: true, s: 128 }, { vp: { width: 360, height: 740 }, dpr: 3, shown: true, s: 128 },
+  { vp: { width: 412, height: 915 }, dpr: 2.625, shown: true, s: 121.90, real: true },   /* 11-18 lead: on the real render path (see BLK) */ { vp: { width: 412, height: 915 }, dpr: 2, shown: true, s: 128 },
+  { vp: { width: 390, height: 844 }, dpr: 3, shown: true, s: 128 }, { vp: { width: 360, height: 640 }, dpr: 2, shown: true, s: 96 },
+  { vp: { width: 320, height: 568 }, dpr: 2, shown: true, s: 80 }, { vp: { width: 320, height: 568 }, dpr: 3, shown: true, s: 64 },
+  { vp: { width: 360, height: 560 }, dpr: 2, shown: true, s: 80 }
 ];
 function visibleStickers(page) {   /* only what a player can see (the layer may be hidden on short screens) */
   return page.evaluate(function () {
@@ -371,7 +379,7 @@ async function K2(browser) {
   var on = await T.onStage(), n = on[0], v = (await T.live()).view, g = stickGeo(v, 2, 360);
   check(on.length === 1 && n.parent === 'ck-stick', 'K2: the pick sticker is up, in the kitchen\'s layer');
   check(!!n && near(n.w, g.s) && near(n.h, g.s) && near(n.ay, g.top, 0.5) && (near(n.ax, g.l0, 0.5) || near(n.ax + n.w, g.r1, 0.5)),
-    'K2: ' + g.s + ' x ' + g.s + ' CSS px at hudB + 4 (' + g.top + '), in slot 0 (left ' + g.l0 + ') or slot 1 (right edge ' + g.r1 + ') (' + JSON.stringify(n && [n.ax, n.ay, n.w, n.h]) + ')');
+    'K2: ' + g.s + ' x ' + g.s + ' CSS px at the top of the HUD row (' + g.top + '), in slot 0 (left ' + g.l0 + ') or slot 1 (right edge ' + g.r1 + ') (' + JSON.stringify(n && [n.ax, n.ay, n.w, n.h]) + ')');
   check(n && n.pe === 'none', 'K2: it takes no pointer events');
   var stage1 = await T.rect('.ck-stage');
   check(JSON.stringify(stage0) === JSON.stringify(stage1), 'K2: the stage did not move or grow');
@@ -433,7 +441,7 @@ async function K2(browser) {
     if (su.shown) {
       check(two.length === 2 && two.every(function (x) { return x.vis && near(x.px, gg.n, 0.02) && near(x.py, gg.n, 0.02); }), 'K2 ' + tag + ': one sticker pixel is n = ' + gg.n + ' device px (' + two.map(function (x) { return x.px.toFixed(3); }).join(', ') + ')');
       var snap = function (v) { return Math.round(v * m.dpr) / m.dpr; }, tol = 0.5 / m.dpr + 0.01;   /* spec 2.5: every box sits on whole device px (round(v dpr) / dpr) */
-      check(two.length === 2 && two.every(function (x) { return near(x.w, gg.s, 0.02) && near(x.y, snap(gg.top), tol); }), 'K2 ' + tag + ': both are ' + gg.s.toFixed(2) + ' CSS px at hudB + 4 = ' + gg.top + ' (' + two.map(function (x) { return x.w.toFixed(2) + '@' + x.y.toFixed(2); }).join(' / ') + ')');
+      check(two.length === 2 && two.every(function (x) { return near(x.w, gg.s, 0.02) && near(x.y, snap(gg.top), tol); }), 'K2 ' + tag + ': both are ' + gg.s.toFixed(2) + ' CSS px at the top = ' + gg.top + ' (' + two.map(function (x) { return x.w.toFixed(2) + '@' + x.y.toFixed(2); }).join(' / ') + ')');
       check(two.length === 2 && near(two[0].x, snap(gg.l0), tol) && near(two[1].x + two[1].w, snap(gg.r1), tol), 'K2 ' + tag + ': slot 0 at left ' + gg.l0 + ', slot 1 ends at ' + gg.r1 + ' (' + two.map(function (x) { return x.x.toFixed(2) + '..' + (x.x + x.w).toFixed(2); }).join(' / ') + ')');
       check(two.every(function (x) { return near(x.dx, Math.round(x.dx), 0.02) && near(x.dy, Math.round(x.dy), 0.02); }), 'K2 ' + tag + ': on whole device px (' + two.map(function (x) { return x.dx.toFixed(2) + ',' + x.dy.toFixed(2); }).join(' / ') + ')');
       check(two.every(function (x) { return x.x >= 0 && x.y >= 0 && x.x + x.w <= m.vw + 0.01 && x.y + x.h <= m.vh + 0.01; }) && !m.scroll, 'K2 ' + tag + ': inside the window, nothing scrolls');
@@ -452,7 +460,7 @@ async function K2(browser) {
   /* 11-18 lead: 2.625 now grows to n 7 (zoom 4/3) and is checked on the REAL render path (a browser started with
      --force-device-scale-factor=2.625, viewport null): Playwright's deviceScaleFactor emulation lays out in CSS 1/64 units
      and resamples any zoom that is not a whole 1/64 (95 % exact at n 7), which no phone does */
-  var BLK = [{ vp: { width: 412, height: 915 }, dpr: 2.625, n: 7, real: true }, { vp: { width: 360, height: 740 }, dpr: 2, n: 6 }, { vp: { width: 360, height: 740 }, dpr: 3, n: 9 }];
+  var BLK = [{ vp: { width: 412, height: 915 }, dpr: 2.625, n: 10, real: true }, { vp: { width: 360, height: 740 }, dpr: 2, n: 8 }, { vp: { width: 360, height: 740 }, dpr: 3, n: 12 }];   /* 11-21 round 7: n 7 / 6 / 9 before */
   for (var bi = 0; bi < BLK.length; bi++) {
   var BK = BLK[bi], btag = BK.vp.width + 'x' + BK.vp.height + '@' + BK.dpr;
   var realBr = BK.real ? await chromium.launch({ args: ['--force-device-scale-factor=' + BK.dpr, '--window-size=' + BK.vp.width + ',' + BK.vp.height] }) : null;
@@ -483,7 +491,7 @@ async function K2(browser) {
     }
     return { id: b.id, n: n, tr: b.tr, exact: best };
   });
-  check(blocks.length === 2 && blocks.every(function (b) { return b.n === BK.n && b.exact === 1; }), 'K2 ' + btag + ': resting stickers are exact ' + BK.n + ' x ' + BK.n + ' device-px blocks (2.625 on the real render path, n 7 = zoom 4/3) (' + blocks.map(function (b) { return b.id + ' ' + (b.exact * 100).toFixed(1) + ' % ' + b.tr; }).join(', ') + ')');
+  check(blocks.length === 2 && blocks.every(function (b) { return b.n === BK.n && b.exact === 1; }), 'K2 ' + btag + ': resting stickers are exact ' + BK.n + ' x ' + BK.n + ' device-px blocks (2.625 on the real render path) (' + blocks.map(function (b) { return b.id + ' ' + (b.exact * 100).toFixed(1) + ' % ' + b.tr; }).join(', ') + ')');
   check(X.errs.length === 0, 'K2 ' + btag + ' blocks: no errors ' + X.errs.join(' | '));
   await X.done();
   if (realBr) await realBr.close();
@@ -497,7 +505,7 @@ async function K3(browser) {
       function r(sel) { var e = document.querySelector(sel); if (!e || e.hidden) return null; var b = e.getBoundingClientRect(); return b.width || b.height ? { x: b.left, y: b.top, w: b.width, h: b.height } : null; }
       var sim = document.querySelector('.ck-sim').getBoundingClientRect(), u = sim.width / 144, l = COOK.live(), st = l.st, dlg = document.querySelector('.ck-dlg'), need = {};
       function art(x, y, w, h) { return { x: sim.left + x * u, y: sim.top + y * u, w: w * u, h: h * u }; }
-      ['.ck-strip', '.ck-close', '.ck-verb', '.ck-note'].forEach(function (s) { var x = r(s); if (x) need[s] = x; });   /* the HUD and the chip (its box even while quiet) */
+      ['.ck-close', '.ck-verb', '.ck-call', '.ck-table', '.ck-note'].forEach(function (s) { var x = r(s); if (x) need[s] = x; });   /* the HUD and the chip (its box even while quiet) */
       if (st && st.box) need.food = art(st.box[0], st.box[1], st.box[2], st.box[3]);
       (st && st.marks || []).forEach(function (m, i) { need['mark' + i] = art(m.x / 2 - 8, m.y / 2 - 12, 16, 24); });   /* the mark and the hand over it */
       (st && st.lines || []).forEach(function (L, i) { var b = art(Math.min(L.ax, L.bx) / 2, Math.min(L.ay, L.by) / 2, Math.abs(L.bx - L.ax) / 2, Math.abs(L.by - L.ay) / 2); need['line' + i] = { x: b.x - 4, y: b.y - 4, w: b.w + 8, h: b.h + 8 }; });
@@ -513,7 +521,7 @@ async function K3(browser) {
     var g = await geo();
     seen += g.st.length;
     g.st.forEach(function (s) { Object.keys(g.need).forEach(function (k) { if (inter(s, g.need[k]) > 0) cover.push(label + ': ' + s.id + ' over ' + k); }); });
-    if (g.scroll || JSON.stringify(g.stage) !== JSON.stringify(base.stage) || JSON.stringify(g.verb) !== JSON.stringify(base.verb) || JSON.stringify(g.close) !== JSON.stringify(base.close)) shift.push(label);
+    if (g.scroll || JSON.stringify(g.stage) !== JSON.stringify(base.stage) || (g.verb && JSON.stringify(g.verb) !== JSON.stringify(base.verb)) || JSON.stringify(g.close) !== JSON.stringify(base.close)) shift.push(label);
     return g;
   }
   await atStep(T); await T.settle();
@@ -572,9 +580,9 @@ async function K3(browser) {
   check(cover.length === 0, 'K3: no sticker ever lies over the food, a mark or hand, a guide line, the strip, the close button or the chip' + (cover.length ? ' (' + cover.slice(0, 4).join('; ') + ')' : ''));
   check(shift.length === 0, 'K3: no layout shift and no scroll while stickers come and go' + (shift.length ? ' (' + shift.join(', ') + ')' : ''));
   var z = await T.page.evaluate(function () {
-    var lay = getComputedStyle(document.querySelector('.ck-stick')), c = document.querySelector('.ck-close').getBoundingClientRect(), v = document.querySelector('.ck-verb').getBoundingClientRect();
+    var lay = getComputedStyle(document.querySelector('.ck-stick')), c = document.querySelector('.ck-close').getBoundingClientRect(), vE = document.querySelector('.ck-verb'), v = (vE.hidden ? document.querySelector('.ck-table') : vE).getBoundingClientRect();   /* on the plate the end buttons stand where the chip was */
     var ec = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2), ev = document.elementFromPoint(v.left + v.width / 2, v.top + v.height / 2);
-    return { pe: lay.pointerEvents, close: !!ec && !!ec.closest('.ck-close'), verb: !!ev && !!ev.closest('.ck-verb') };
+    return { pe: lay.pointerEvents, close: !!ec && !!ec.closest('.ck-close'), verb: !!ev && !!ev.closest('.ck-verb, .ck-table') };
   });
   check(z.pe === 'none' && z.close && z.verb, 'K3: the layer takes no touch and the close button and the chip are on top (' + JSON.stringify(z) + ')');
   await T.page.evaluate(function () { COOK_STICKERS.show('star', { slot: 1 }); });
@@ -591,10 +599,11 @@ async function K3(browser) {
     var H = await openPage(browser, { store: SEEN_ALL, q: 'seed=' + SEED, vp: short[q].vp, dpr: short[q].dpr }), tg = short[q].vp.width + 'x' + short[q].vp.height;
     await atStep(H);
     var hs = await H.stk(), vis = await visibleStickers(H.page), lvH = await H.live();
-    check(lvH.stick === false && hs.nodes.length >= 1 && vis.length === 0, 'K3 ' + tg + ': the layer is hidden: the pick sticker ran (' + hs.nodes.length + ') and none is visible (' + vis.length + ')');
+    /* 11-21 round 7: with the strip gone the layer starts in the HUD row, so these short screens show stickers too */
+    check(lvH.stick === true && hs.nodes.length >= 1 && vis.length >= 1, 'K3 ' + tg + ': the layer shows on a short screen now: the pick sticker ran (' + hs.nodes.length + ') and is visible (' + vis.length + ')');
+    var gS = stickGeo(lvH.view, short[q].dpr, short[q].vp.width), bS = await H.page.evaluate(function () { var b = document.querySelector('.cook-sticker').getBoundingClientRect(), v = COOK.live().view; return [b.width, b.bottom - 8, (36 + v.oy) * v.css]; });
+    check(Math.abs(bS[0] - gS.s) < 0.02 && bS[0] >= 64 && bS[1] <= bS[2] + 0.01, 'K3 ' + tg + ': it is ' + bS[0] + ' CSS px and ends 8 px above stage row 36 (' + bS[1] + ' + 8 <= ' + bS[2] + ')');
     await verbThrough(H, 'tap', 3);
-    vis = await visibleStickers(H.page);
-    check(vis.length === 0, 'K3 ' + tg + ': still none visible after the tap step');
     check(H.errs.length === 0, 'K3 ' + tg + ': no errors ' + H.errs.join(' | '));
     await H.done();
   }
@@ -632,11 +641,15 @@ async function K4(browser) {
   check(up1 >= 1, 'K4: dish 1: a sticker at the plate (' + up1 + ')');
   await T.go(1000);
   var n0 = (await T.stk()).cues.length, k0 = (await T.stk()).nodes.length;
-  await T.verbClick(); await T.go(34);
+  /* 11-21 round 7: no 'again'. The table button closes the kitchen, the page's door opens the next dish */
+  await T.page.evaluate(function () { document.querySelector('.ck-table').click(); });
+  await new Promise(function (ok) { setTimeout(ok, 80); }); await T.go(60);
+  n0 = (await T.stk()).cues.length;
+  await T.page.evaluate(function () { document.getElementById('ck-door').click(); }); await T.go(34);
   var l2 = await T.until(function (x) { return x.screen === 'step' && x.kind === 'tap' && x.id !== r1.id; }, 3000, 'again: a new dish');
   await T.go(300);
   var after = (await T.stk()).cues.slice(n0);
-  check(after.length >= 1 && after[0].act === 'pick' && after.filter(function (x) { return x.act === 'pick'; }).length === 1 && !!after[0].r, 'K4: again starts the second dish with one pick moment and its sticker (' + after.map(function (x) { return x.act; }).join(',') + ')');
+  check(after.length >= 1 && after[0].act === 'pick' && after.filter(function (x) { return x.act === 'pick'; }).length === 1 && !!after[0].r, 'K4: the next dish starts with one pick moment and its sticker (' + after.map(function (x) { return x.act; }).join(',') + ')');
   await T.page.evaluate(function () { COOK.auto(true); });
   await T.until(function (x) { return x.screen === 'reveal' && x.id === l2.id; }, 15000, 'reveal 2');
   await T.go(300);

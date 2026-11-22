@@ -299,3 +299,84 @@ v0 머리칼(큰 구 덮개 + 가운데 갈래 혹 구)은 혹처럼 보였다. 
 | 2-6 | 눈 사이 틈 주석 | **반영** | '0.1225 (눈 폭의 78 %, 3.3 px)' |
 | 2-7 | v0 V 앞머리 흔적 | **반영** | §0.2 '지울 것' |
 | 2-8 | 신발 틈 1.35 px | **반영** | 엉덩이 ±0.115, 신발 폭 ≤ 0.16 → 틈 0.07 |
+
+---
+
+## §7 11-21 — 몸 둘 · 눈썹 · 새 부품 · 옷장 목록 · 뛰기
+
+주인: "지금은 여캐만 가능한데 남캐도 자유롭게 커스터마이징 가능하도록 · 눈매나 형태가 약간 캐릭터 구현하기에 적합하지 않은 느낌" · "오래 누르고 있으면 자동으로 뛰었으면" · "하얀 티셔츠에 문어 그려진 옷을 마네킹 위에".
+
+참고한 원리 (이름 없이): 성별을 묻지 않고 몸 · 머리 · 옷을 따로 고른다 · 머리가 인상을 가장 크게 바꾼다 (짧은 머리 실루엣을 여럿) · 눈은 몇 가지 뚜렷한 꼴 (반듯 · 올라감 · 내려감 · 가늘게) · 눈썹이 인상의 절반 · 옷은 치마와 바지가 반반.
+
+### 규칙 (예전 그대로)
+흰자 · 흰 글린트 없음 · 눈은 4×4 칸 (세로 타원 금지) · 반짝은 눈 색을 밝힌 점 · 메시 7 + 데칼 · 새 재질 · 텍스처 · 셰이더 프로그램 없음 · 머리칼은 r 0.38 껍질 조각 + 가닥 (구는 컬 · 매듭만).
+
+### 갈래 둘이 늘었다
+- `body` 몸: `a` 동글 (예전 몸) · `b` 반듯 — 옷을 따로 그리지 않고 몸통 메시의 정점 x 를 위 × 1.12 · 아래 × 0.92 로 민다 (`plBodyB`), 어깨는 ±0.24 → ±0.262 (`plShoulders`). 치마도 둘 다 맞는다.
+- `brow` 눈썹: `none` 없음 · `soft` 둥근 · `flat` 일자 · `bold` 짙은 — 눈과 같은 아틀라스의 4×2 px 조각 한 쌍 (오른쪽은 뒤집음), 눈 윗줄에서 살결 한 줄 위 (20 줄), 색은 머리 색을 따른다 (`plBrowHex`). 아틀라스 칸: x 48 · y 48 / 52 / 56.
+- 저장 열쇠 차례: 예전 열둘 뒤에 `brow`, `body`. 옷장 탭: 눈썹은 '눈' 탭 · 몸은 '옷' 탭.
+
+### 기본 모습 둘
+- 새로 시작하는 사람 (`PLAYER_DEFAULT`): 부스스 · 밤갈색 · 둥근 눈썹 · 문어 티 · 운동화 · 장식 없음 · 몸 a.
+- 이미 있던 기록 (`PLAYER_LEGACY` = 예전 기본: 단발 · 금발 · 원피스 · 단화 · 리본 · 눈썹 없음 · 몸 a): 저장된 모습의 빈 칸 · 모르는 id 는 이쪽으로 → 저장된 모습은 그대로 보인다.
+
+### 새 부품
+| 갈래 | id | 이름 | 그림 |
+|---|---|---|---|
+| hair | crop | 크롭컷 | 귀 위에서 끝나는 윗머리 + 어두운 옆 · 뒤 |
+| hair | dandy | 댄디컷 | 볼륨 있는 윗머리를 한쪽으로 넘김 |
+| hair | tousle | 부스스 | 사방으로 뻗친 짧은 머리 (새 기본) |
+| hair | part | 중단발 | 턱선 길이 + 얼굴 옆 긴 가닥 |
+| hair | curl | 곱슬 | 동글동글한 컬 |
+| hair | twoblock | 투블럭 | 처마 같은 윗머리 + 어두운 옆 · 뒤 |
+| hair | lowtail | 꽁지머리 | 목덜미에서 짧게 묶음 |
+| eyes | calm | 차분 | 윗선이 반듯한 눈 |
+| eyes | upturn | 날렵 | 눈꼬리가 올라간 눈 (오른눈은 뒤집어 그린다 — `art.mir`) |
+| eyes | droop | 순한 | 눈꼬리가 내려간 눈 (뒤집음) |
+| eyes | narrow | 눈웃음 | 가늘게 뜬 눈, 호 아래 눈 색 |
+
+머리를 덮는 장식 (`plHat`: 베레모 · 밀짚모자 · 야구모자 · 두건) 을 쓰면 정수리로 삐치는 가닥 · 윗머리 볼륨은 뺀다. 짧은 머리는 뒤통수 아래를 `nape` 껍질로 덮는다 (뒤에서 민머리로 보이지 않게).
+
+### 옷장 목록 (가게 · 콘테스트가 읽는다)
+`SCENE3D.PLAYER_PARTS` 의 물건마다 `tags` (느낌 낱말 + 색 갈래 `c-…` 하나) 와 `shop` (`{ price }` | `null`). 적는 곳은 `PLAYER_META` 한 표. **이번 판 전부터 있던 id 는 전부 `shop: null`**. 몸 · 머리 · 앞머리 · 색 · 눈 · 눈썹 · 코 · 입 · 볼은 팔지 않는다.
+
+| 갈래 | id | 이름 | 낱말 | 값 |
+|---|---|---|---|---|
+| hair | bob / short / long / twin / pony / wave | 단발 / 숏컷 / 긴생머리 / 양갈래 / 포니테일 / 웨이브 | cute neat / sporty fresh / neat cool / cute flower / sporty fresh / cosy flower | 그냥 |
+| hair | crop / dandy / tousle / part / curl / twoblock / lowtail | 위 표 | sporty cool / neat cool / cosy fresh / cool neat / cute cosy / cool sporty / cool sea | 그냥 |
+| outfit | dress | 원피스 | cute neat c-blue | 그냥 |
+| outfit | knit | 니트 | cosy warm c-red | 그냥 |
+| outfit | hoodie | 후드 | cosy sporty c-white | 그냥 |
+| outfit | overall | 멜빵 | cute fresh c-blue | 그냥 |
+| outfit | raincoat | 비옷 | fresh sea c-orange | 그냥 |
+| outfit | hanbok | 한복 | neat flower c-red | 그냥 |
+| outfit | uniform | 교복 | neat cool c-blue | 그냥 |
+| outfit | varsity | 야구점퍼 | sporty cool c-red | 그냥 |
+| outfit | flannel | 체크셔츠 | cosy warm c-red | 그냥 |
+| outfit | octee | 문어 티 | cute sea fresh c-white | 그냥 (새 기본 · 마네킹과 같은 옷) |
+| outfit | shirt | 셔츠 | neat cool c-blue | 그냥 |
+| outfit | jersey | 운동복 | sporty fresh c-green | 그냥 |
+| outfit | sailor | 세일러 | sea neat fresh c-blue | 24 |
+| outfit | fisher | 어부 니트 | cosy warm sea c-white | 22 |
+| outfit | windbreak | 바람막이 | sporty fresh c-yellow | 20 |
+| outfit | cardigan | 가디건 | cosy neat flower c-pink | 18 |
+| outfit | suit | 정장 | neat cool star c-black | 36 |
+| shoes | flat / boot / sneaker / loafer | 단화 / 부츠 / 운동화 / 로퍼 | neat c-black / warm sea c-blue / sporty c-red / neat c-brown | 그냥 |
+| shoes | hightop | 하이탑 | sporty cool c-black | 14 |
+| shoes | sandal | 샌들 | fresh sea c-brown | 그냥 |
+| acc | none / ribbon / beret / glasses / catears / strawhat | 없음 / 리본 / 베레모 / 동글안경 / 고양이귀 / 밀짚모자 | — / cute c-red / neat cosy c-red / neat c-black / cute star c-black / fresh flower c-yellow | 그냥 |
+| acc | cap | 야구모자 | sporty cool c-blue | 12 |
+| acc | bandana | 두건 | cool sea c-blue | 그냥 |
+| acc | headphones | 헤드폰 | cool star c-white | 20 |
+| acc | scarf | 목도리 | warm cosy c-orange | 14 |
+| acc | sqglasses | 네모안경 | neat cool c-black | 그냥 |
+| acc | bag | 작은 가방 | neat cosy c-brown | 16 |
+
+앱 (`js/app.js` `[7-P]`): `APP.wardrobe()` → `{ cats: [{ key, name, items: [{ id, name, tags, shop, owned, worn }] }] }` (머리 · 옷 · 신발 · 장식) · `APP.wearing()` → `[{ cat, id, name, tags }]` (물들인 물건의 색 낱말은 물든 색으로, 머리는 머리 색의 낱말) · `APP.itemThumb(cat, id, px)` → 새 canvas (32 의 정수 배) | null · `APP.ownItem(cat, id)` → `S.user.owned['갈래:id'] = 산 날` · `APP.isOwned(cat, id)`.
+가진 것 = `shop` 없는 물건 전부 + `owned` 열쇠. `setPlayerPart` 는 없는 가게 물건을 거절한다 (`normalizePlayer` 는 가진 것을 묻지 않는다 — 불러올 때 모습을 지우지 않게). 두 탭은 `ownedMerge` 로 합집합. 옷장은 없는 물건을 잠긴 칸 (흐린 그림 · 자물쇠 · 조개 값) 으로 보이고 누르면 '마을 옷가게에서 팔아.' · 재봉틀은 가진 것만.
+
+### 뛰기
+손잡이 · 방향키를 반 넘게 민 채 0.6 s → 3.74 m/s (걷기 2.2 의 1.7 배). 반 아래로 늦추거나 놓으면 바로 걷기. 걸음새: 같은 4 프레임 · 보폭 0.85 m · 다리 ±0.85 · 팔 ±0.95 · 몸을 앞으로 0.16 rad 숙이고 디딤 프레임에 1 px 뜬다 (걷기는 1 px 내려간다). 뛰는 걸음이 둘레에 걸리면 걷는 걸음으로 한 번 더 (벽 앞 틈이 걷기와 같다). 혼자 걷기 (문 톡 등) 는 길이 4 m 넘으면 같은 속도로 뛴다. `scene.playerSpeeds()` → `{ walk: 2.2, run: 3.74 }` · `scene.player().run`. 모션 감소에선 걸음새 없이 속도만.
+
+### 마네킹
+위층 마네킹은 흰 원피스 대신 문어 티 (`plDollTee`: 짧은 소매 · 밑단 · 가슴의 빨간 문어). 단추 · 이름 (`마네킹 · 옷 물들이기`) 은 그대로.
