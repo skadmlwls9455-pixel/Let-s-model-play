@@ -8299,12 +8299,12 @@ async function scenarioEatServe(browser) {
   /* 방을 옮기면 끝 */
   await pb.evaluate(function () { return APP.cookServe('table'); });
   await until(pb, function () { return APP.scene.tableInfo().carry === 'hold'; }, 3000);
-  await pb.evaluate(function () { APP.goRoom('attic'); });
+  await pb.evaluate(function () { window.__svRoom = Promise.resolve(APP.goRoom('attic')).then(function (r) { window.__svRoomDone = r; }); });
   ok(await idle(pb, 8000), '[방 옮김] 들고 가기가 끝난다');
   var b5 = await st(pb);
   ok(!b5.carry && b5.table === 'ck_tb3', '[방 옮김] 요리는 기록에 그대로');
   /* 독립 점검 (11-21): 드는 박자 (hold) 에 문을 누르면 문까지 걷는 걸음을 들고 가기가 덮어써서 방이 안 바뀌고 방 단추가 영영 숨었다 → 그 걸음을 그대로 두고 끝 상태로 */
-  ok(await until(pb, function () { return APP.scene.view() === 'attic' && !APP.goResting; }, 20000), '[방 옮김 · 드는 박자] 방이 정말 바뀐다 (문 작업이 걸리지 않는다)');
+  ok(await until(pb, function () { return !!window.__svRoomDone && window.__svRoomDone.ok === true && APP.scene.view() === 'attic' && !APP.goResting; }, 20000), '[방 옮김 · 드는 박자] 방이 정말 바뀐다 (문 작업이 풀린다)');
   ok(await toPlay(pb), '[방 옮김] 놀이방으로 돌아올 수 있다');
   var b6 = await pb.evaluate(function () { var i = APP.scene.tableInfo(); return { cook: !document.getElementById('btn-cook').hidden, dish: i.dish && i.dish.id, input: APP.scene.playerInputAllowed(), busy: APP.mealBusy() }; });
   ok(b6.cook && b6.dish === 'ck_tb3' && b6.input && !b6.busy, '[방 옮김] 돌아오면 조리대 단추 · 식탁의 요리 · 움직임 그대로 (' + JSON.stringify(b6) + ')');
