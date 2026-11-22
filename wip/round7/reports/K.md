@@ -142,7 +142,7 @@ Not checked by it: sound actually playing (headless Chromium made no AudioContex
 - **Z**: one check in the game's cannot-load wait layer (`js/app.js`, '그 닫기 → 놀이방 그대로 · 포커스 조리대',
   `waitHidden: false`). The identical failure happens on the base `9652270` alone (run in a separate worktree).
 - **O** (a settings colour preset not visible, click timeout), **FM** (hint count), **S** (a 120 s wait timeout): outside
-  the kitchen; their base-only rerun was still running when this report was written.
+  the kitchen, and they fail the same way on the base `9652270` alone (FM even one check more there). None is caused by K.
 
 ## Screenshots (`wip/round7/shots/K/`)
 
