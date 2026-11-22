@@ -100,12 +100,13 @@ Object.keys(C7).forEach(function (id) {
     ok(JSON.stringify(NPC.line(id, k, null, 5)) === JSON.stringify(NPC.line(id, k, null, 5)), id + ' ' + k + ' 같은 씨앗 같은 줄');
   });
 });
-var t1 = NPC.line('clothes', 'contest.open', { theme: '바다' }, 0);
-ok(t1 && /바다/.test(t1.bubbles.join('')), '주제를 넘기면 주제를 말하는 갈래');
+function some(id, k, v, rx) { for (var i = 0; i < 8; i++) { var l = NPC.line(id, k, v, i); if (l && rx.test(l.bubbles.join(''))) return true; } return false; }
+function rotates(id, k, v) { var seen = {}; for (var i = 0; i < 8; i++) seen[NPC.line(id, k, v, i).n] = 1; return Object.keys(seen).length; }
+ok(some('clothes', 'contest.open', { theme: '바다' }, /바다/), '주제를 넘기면 주제를 말하는 갈래도 나온다');
+ok(rotates('clothes', 'contest.open', { theme: '바다' }) >= 3 && rotates('cafe', 'cafe.stamp', { n: 2 }) >= 3, '값을 넘겨도 같은 줄만 되풀이하지 않는다');
 var t2 = NPC.line('goods', 'contest.result', { shells: 7 }, 3);
 ok(t2 && /7개/.test(t2.bubbles.join('')), '조개 수를 넘기면 그 수를 말한다');
-var t3 = NPC.line('cafe', 'cafe.gift', { dish: '딸기 케이크' }, 1);
-ok(t3 && /딸기 케이크/.test(t3.bubbles.join('')), '요리 이름');
+ok(some('cafe', 'cafe.gift', { dish: '딸기 케이크' }, /딸기 케이크/), '요리 이름');
 ok(!/\{|undefined|null/.test(NPC.line('cafe', 'cafe.gift', { dish: '' }, 1).bubbles.join('')), '빈 값이면 빈칸 갈래를 안 고른다');
 
 /* 4. 저장 칸: 모르는 값은 그대로 */

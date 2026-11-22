@@ -119,6 +119,42 @@ function box(p) {
     ok(!av.over && av.top >= 0 && /12개/.test(av.txt), '카드 (꼬리표 · 영수증) 를 가리지 않는다 · 조개 수를 말한다: ' + JSON.stringify(av));
     await p.keyboard.press('Escape');
 
+    /* 11-22 (점검): 방이 바뀌는 그 틱에 다른 갈래가 부른 말은 접히지 않는다 (먼저 듣는 쪽이어도) · 그 전부터 떠 있던 말만 접힌다 */
+    var tick = await p.evaluate(function () {
+      APP.npcSay('cafe', 'talk'); var old = APP.npc && APP.npc.key;
+      var f = function () { APP.npcSay('clothes', 'shop.enter'); };
+      window.addEventListener('ppol:room', f, true);   /* 창에서 먼저 받는 듣는이 = 내 것보다 먼저 도는 다른 갈래 */
+      document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: 'clothes' } }));
+      window.removeEventListener('ppol:room', f, true);
+      var r = { old: old, now: APP.npc && APP.npc.key };
+      document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: null } })); r.after = APP.npc; return r;
+    });
+    ok(tick.old === 'talk' && tick.now === 'shop.enter' && tick.after === null, '방이 바뀐 틱에 부른 새 말은 살고, 다음 방 바뀜에 접힌다: ' + JSON.stringify(tick));
+    /* 글자 크기: 어느 글꼴 설정에서도 16px 이상 (대사창 · 게시판 · 이야기 세 줄) */
+    var fs = await p.evaluate(function () {
+      APP.npcSay('goods', 'talk'); APP.openStory();
+      var el = document.getElementById('story-intro'); el.hidden = false; document.getElementById('story-line').textContent = '가';
+      var sel = ['.npc-tag', '.npc-text', '.story-note p', '.story-h', '.story-line', '.story-skip', '#story-close'], out = {}, root = document.documentElement, was = root.getAttribute('data-font');
+      ['pixel', 'plain'].forEach(function (f) { root.setAttribute('data-font', f); sel.forEach(function (q) { var n = document.querySelector(q); out[f + ' ' + q] = n ? parseFloat(getComputedStyle(n).fontSize) : -1; }); });
+      if (was == null) root.removeAttribute('data-font'); else root.setAttribute('data-font', was);
+      el.hidden = true; document.getElementById('story-line').textContent = ''; document.getElementById('story-sheet').close(); return out;
+    });
+    ok(Object.keys(fs).every(function (k) { return fs[k] >= 16; }), '글자는 16px 이상 (두 글꼴 설정): ' + JSON.stringify(fs));
+    await p.keyboard.press('Escape');
+    /* 위로 올라갈 때도 상태 줄을 덮지 않고, 열린 창의 머리와 단추를 피한다 */
+    var top1 = await p.evaluate(function () {
+      document.getElementById('btn-settings').click();
+      return new Promise(function (res) { setTimeout(function () {
+        APP.npcSay('clothes', 'talk');
+        var b = document.getElementById('npc-box').getBoundingClientRect(), tag = document.getElementById('npc-tag').getBoundingClientRect(), st = document.getElementById('status').getBoundingClientRect();
+        var d = document.querySelector('dialog[open]'), h = d && d.querySelector('.dlg-top, h2, h3'), hr = h ? h.getBoundingClientRect() : null;
+        var hit = function (a, c) { return a.right > c.left && a.left < c.right && a.bottom > c.top && a.top < c.bottom; };
+        res({ status: hit(tag, st) || hit(b, st), head: hr ? hit(b, hr) || hit(tag, hr) : false, top: b.top });
+      }, 500); });
+    });
+    ok(!top1.status && !top1.head, '창이 열려 있을 때 대사창이 상태 줄 · 창 머리를 덮지 않는다: ' + JSON.stringify(top1));
+    await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
+
     /* 자는 문어: 알림 한 줄 */
     await p.click('#btn-npc-sleep-1');
     ok(await p.evaluate(function () { var t = document.getElementById('toast'); return t.classList.contains('show') && t.textContent === '자고 있어.'; }) && (await box(p)).hidden, '자는 문어를 누르면 "자고 있어." 한 줄 (대사창 아님)');
@@ -137,7 +173,8 @@ function box(p) {
     ok(st.shells >= 5 && st.name === '뽈뽈', '다른 저장 값은 그대로');
     await p.evaluate(function () { APP.npcSay('goods', 'shop.hello'); });
     var b4 = await box(p), sheetTop = await p.evaluate(function () { return document.getElementById('story-sheet').getBoundingClientRect().top; });
-    ok(!b4.hidden && b4.parent === 'story-sheet' && b4.top >= 0 && (b4.bottom <= sheetTop || b4.top <= 8), '시트가 열려 있으면 그 위에 뜬다 (시트 안의 단추를 가리지 않는다)');
+    var geo = await p.evaluate(function () { var d = document.getElementById('story-sheet'), h = document.getElementById('story-h').getBoundingClientRect(), c = document.getElementById('story-close').getBoundingClientRect(); return { hb: h.bottom, ct: c.top }; });
+    ok(!b4.hidden && b4.parent === 'story-sheet' && b4.top >= 0 && (b4.bottom <= sheetTop || (b4.top >= geo.hb && b4.bottom <= geo.ct)), '시트가 열려 있으면 그 위에, 자리가 없으면 시트 머리 아래 · 단추 위에 뜬다: ' + JSON.stringify([b4.top, b4.bottom, sheetTop, geo]));
     ok(await p.evaluate(function () { var b = document.getElementById('npc-box'), r = b.getBoundingClientRect(), e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!e && b.contains(e); }), '시트 위에서도 누를 수 있다');
     await p.click('#story-close');
     /* 말이 떠 있는 동안 시트가 열리면 그 위로 옮겨 간다 */

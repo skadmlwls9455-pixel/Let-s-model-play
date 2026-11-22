@@ -6681,15 +6681,27 @@ var APP = (function () {
     w = Math.min(420, Math.max(200, Math.min(vw, r.right) - Math.max(0, r.left) - 16));
     box.style.width = w + 'px'; hh = box.offsetHeight;
     left = (Math.max(0, r.left) + Math.min(vw, r.right) - w) / 2;
-    if (inDlg) { var dr = box.parentNode.getBoundingClientRect(); top = dr.top - hh - 8 >= 36 ? dr.top - hh - 8 : 36; }   /* 36: 상자 위에 서는 이름표 자리 */
+    /* 11-22 (점검): 위로 올라갈 때도 상태 줄 아래 (이름표 자리 30px 더) 에서 멈춘다 */
+    var stE = $('status'), stR = stE && stE.offsetParent !== null ? stE.getBoundingClientRect() : null, floor = Math.max(36, stR && stR.bottom > 0 && stR.bottom < vh / 2 ? stR.bottom + 32 : 36);
+    if (inDlg) {   /* 창 바로 위에 자리가 없으면: 창의 머리 (제목) 아래, 창의 단추 줄 위 */
+      var dlgEl = box.parentNode, dr = dlgEl.getBoundingClientRect();
+      if (dr.top - hh - 8 >= floor) top = dr.top - hh - 8;
+      else {
+        var head = dlgEl.querySelector('.dlg-top, h2, h3'), hb = head ? head.getBoundingClientRect().bottom : dr.top;
+        var btns = [].filter.call(dlgEl.querySelectorAll('button.btn, .btn'), function (x) { return x.offsetWidth > 0; }).map(function (x) { return x.getBoundingClientRect().top; }).filter(function (t) { return t > hb; });
+        var lim = btns.length ? Math.min.apply(null, btns) - 8 : vh - 8;
+        top = Math.max(floor, hb + 32);
+        if (top + hh > lim) top = Math.max(floor, lim - hh);
+      }
+    }
     else {
-      top = Math.max(36, Math.min(vh, r.bottom) - hh - 12);
+      top = Math.max(floor, Math.min(vh, r.bottom) - hh - 12);
       var t = $('toast'), tr = t && t.classList.contains('show') && t.parentNode === document.body ? t.getBoundingClientRect() : null;   /* 떠 있는 알림과 겹치면 그 위로 */
-      if (tr && tr.height && tr.top < top + hh && tr.bottom > top) top = Math.max(36, tr.top - hh - 16);
+      if (tr && tr.height && tr.top < top + hh && tr.bottom > top) top = Math.max(floor, tr.top - hh - 16);
       /* 11-21 밤: 장면 안 카드 (꼬리표 · 영수증 — data-npc-avoid 를 단 것) 를 가리지 않는다. 아래 자리가 겹치면 장면 위쪽으로, 거기도 겹치면 아래 그대로 */
       var cards = [].filter.call(document.querySelectorAll('#scene [data-npc-avoid]'), function (c) { return !c.hidden && c.offsetWidth > 0; }).map(function (c) { return c.getBoundingClientRect(); });
       var hit = function (y) { return cards.some(function (c) { return c.right > left && c.left < left + w && c.bottom > y - 28 && c.top < y + hh; }); };
-      var up = Math.max(36, (sc ? sc.getBoundingClientRect().top : 0) + 36);
+      var up = Math.max(floor, (sc ? sc.getBoundingClientRect().top : 0) + 36);
       if (cards.length && hit(top) && !hit(up)) top = up;
     }
     box.style.left = (Math.round(left * dpr) / dpr) + 'px'; box.style.top = (Math.round(top * dpr) / dpr) + 'px';
@@ -6730,7 +6742,7 @@ var APP = (function () {
     var k = id + ' ' + key, n = npcCount[k] = npcCount[k] == null ? NPCR.hash(todayKey() + k) % 60 : npcCount[k] + 1;
     var ln = NPCR.line(id, key, vars, n); if (!ln) return Promise.resolve(false);
     npcEnd(false);   /* 앞의 말은 접는다 (한 번에 하나) */
-    return new Promise(function (res) { npcNow = { ln: ln, i: 0, res: res, opener: document.activeElement }; npcMarkSet(id, true); npcShow(); });
+    return new Promise(function (res) { npcNow = { ln: ln, i: 0, res: res, opener: document.activeElement, at: performance.now() }; npcMarkSet(id, true); npcShow(); });
   }
   /* 장면에 오늘의 문어들 (V 갈래의 scene.npcSet 이 있을 때만). 가게 문어를 가게 앞과 방 안 keeper 칸 어디에 그릴지는 장면이 정한다 (계약 C14) */
   function npcSync(force) {   /* force: 같은 날이어도 다시 넘긴다 (시험 · 장면이 다시 지어졌을 때) */
@@ -6853,7 +6865,7 @@ var APP = (function () {
     document.addEventListener('close', function () { if (npcNow) npcEnd(false); }, true);   /* 말이 떠 있던 창이 닫히면 말도 접는다 */
     window.addEventListener('resize', function () { var box = $('npc-box'); if (npcNow && box) npcPlace(box); });
     document.addEventListener('visibilitychange', function () { if (!document.hidden) npcSync(); });
-    document.addEventListener('ppol:room', function () { if (npcNow) npcEnd(false); });   /* 방에 들어가거나 나왔다 (W): 떠 있던 말은 접는다 */
+    document.addEventListener('ppol:room', function (e) { if (npcNow && !(npcNow.at >= e.timeStamp)) npcEnd(false); });   /* 방에 들어가거나 나왔다 (W): 그 전부터 떠 있던 말만 접는다 — 같은 방 바뀜에 다른 갈래가 부른 들어올 때 · 나갈 때 말은 (듣는 순서와 상관없이) 살린다 */
     setInterval(npcSync, 60000);   /* 열어 둔 채 날이 바뀌면 */
     var bd = $('btn-plaza-board'); if (bd) bd.addEventListener('click', openStory);
     var sd = $('story-sheet');
