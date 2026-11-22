@@ -60,6 +60,8 @@ html.ck-boot .ck-home { visibility: hidden; }
 <script src="js/cook-sprites.js"></script>
 <script src="js/cook-art.js"></script>
 <script src="js/cook-dishes.js"></script>
+<script src="js/cook-steps.js"></script>
+<script src="js/cook-steps-art.js"></script>
 <script src="js/cook.js"></script>
 <script src="js/cook-stickers.js"></script>
 <script>
@@ -90,6 +92,20 @@ html.ck-boot .ck-home { visibility: hidden; }
   /* 11-18 round 6: the dish picked on the game's tray (&recipe= on the first load, then 'open' {recipe}); standalone: ?recipe=.
      Passed on every open (the kitchen's own rules decide when a half-made dish wins: js/cook.js begin) */
   var recipeIn = get('recipe');
+  /* 11-21 round 7 (contract C2): the game's context. &ctx= (URL-encoded JSON) on the first load, then 'open' { ctx } and
+     'ctx' { canCall }: canCall = the octopus can be called now, unlocked = the book dishes that may be started. Inside the
+     game a missing ctx means no call and the three free dishes; the standalone page has everything */
+  var ctxIn = null;
+  function readCtx(v) {
+    try {
+      if (typeof v === 'string') v = JSON.parse(v);
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+      var o = { canCall: v.canCall === true };
+      if (Array.isArray(v.unlocked)) o.unlocked = v.unlocked.filter(function (x) { return typeof x === 'string' && /^[a-z0-9]{1,16}$/.test(x); }).slice(0, 32);
+      return o;
+    } catch (e) { return null; }
+  }
+  ctxIn = readCtx(get('ctx'));
   function tell(what, extra) {
     var m = { ppolCook: what }, k;
     if (extra) for (k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) m[k] = extra[k];
@@ -106,6 +122,8 @@ html.ck-boot .ck-home { visibility: hidden; }
     if (kbdIn !== null) o.kbd = kbdIn;
     if (get('rec') === '1') o.rec = true;
     if (recipeIn) o.recipe = recipeIn;
+    if (get('book') === '0') o.book = false;
+    if (embed) { o.host = true; if (ctxIn) o.ctx = ctxIn; o.onServe = function (sv) { tell('serve', { id: sv.id, mode: sv.mode }); }; }
     /* 11-18 round 6 (spec 3.6): a finished dish goes to the game once, as plain facts (the game's table takes it) */
     if (embed) o.onResult = function (res) {
       var out = res && res.out; if (!out) return;
@@ -142,7 +160,8 @@ html.ck-boot .ck-home { visibility: hidden; }
       var d = e.data; if (!d || typeof d !== 'object') return;
       if (d.ppolCook === 'safe') setSafe(d);
       else if (d.ppolCook === 'motion') setMotion(d.reduce === true);
-      else if (d.ppolCook === 'open') { kbdIn = d.kbd === true; recipeIn = typeof d.recipe === 'string' ? d.recipe : null; go(false); }
+      else if (d.ppolCook === 'open') { kbdIn = d.kbd === true; recipeIn = typeof d.recipe === 'string' ? d.recipe : null; ctxIn = readCtx(d.ctx) || ctxIn; go(false); }
+      else if (d.ppolCook === 'ctx') { if (ctxIn) ctxIn.canCall = d.canCall === true; else ctxIn = { canCall: d.canCall === true }; try { if (window.COOK && COOK.setCtx) COOK.setCtx({ canCall: d.canCall === true }); } catch (x) { /* next open */ } }
       else if (d.ppolCook === 'close' && window.COOK && COOK.isOpen && COOK.isOpen()) COOK.close();
     });
   }
