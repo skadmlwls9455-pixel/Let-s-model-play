@@ -6259,6 +6259,13 @@ var SCENE3D = (function () {
       for (i = 0; i < Math.round(2 * GT / 0.6); i++) { h = hash('wfoam' + i); var ft = -GT + 0.3 + i * 0.6;
         wp.push(stBox(WIDE.SEA + ((h % 3) - 1) * 0.07, ft, BY + 0.011, 0.15, 0.012, 0.6, FIXED.white));
         if ((h >>> 4) % 3) wp.push(stBox(WIDE.SEA + 1.5 + ((h >>> 8) % 3) * 0.11, ft, BY - 0.03, 0.08, 0.012, 0.6, FIXED.white)); }
+      for (i = 0; i < 220; i++) {   /* 11-22 (검증: 바다가 한 색 판) — 물결 줄 (얕은 데는 밝게 · 먼 데는 짧고 성기게) 과 반짝이 점 · 물결 메시에 합쳐 드로우콜 그대로 · 거품과 같이 일렁인다 */
+        h = hash('wripple' + i); var rs = WIDE.SEA + 2.2 + (h % 1000) / 1000 * 30, rt = -30 + ((h >>> 10) % 1000) / 1000 * 60, far = rs > WIDE.SEA + 12, rl = far ? 0.3 + (h >>> 20) % 3 * 0.12 : 0.55 + (h >>> 20) % 4 * 0.18;
+        if (Math.abs(rt - 7) < 1.2 && rs < 66.5) continue;   /* 부두 밑은 비운다 */
+        wp.push(stBox(rs, rt, BY - 0.028, 0.06, 0.008, rl, (h >>> 24) % 5 ? (far ? WIDE_C.sea[sn][1] : WIDE_C.sea[sn][0]) : FIXED.white, (h >>> 24) % 5 ? (far ? 21 : 20) : 0));
+        if ((h >>> 27) % 4 === 0) wp.push(stBox(rs + 0.2, rt + rl * 0.3, BY - 0.026, 0.05, 0.008, 0.05, FIXED.white));
+      }
+      for (i = 0; i < Math.round(2 * GT / 1.2); i++) { h = hash('wdeep' + i); wp.push(stBox(WIDE.SEA + 11.6 + (h % 5) * 0.12, -GT + 0.6 + i * 1.2, BY - 0.032, 0.12, 0.008, 1.2, WIDE_C.sea[sn][2], 22)); }   /* 깊은 띠로 넘어가는 들쭉날쭉한 가장자리 */
       var wv = new T.Mesh(keep(mergeParts(wp)), lambert); wv.receiveShadow = true; wv.name = 'wideWave'; bg.add(wv);
       WSTATE.village = vm; WSTATE.beach = bg; WSTATE.sand = bm; WSTATE.wave = wv;
       WIDE_REG.segments.push({ s0: 17, s1: 47.5, obj: vm }, { s0: 43.5, s1: 1e3, obj: bg });
@@ -6271,6 +6278,7 @@ var SCENE3D = (function () {
     function wideSeason() {   /* 계절: 내 구간 메시의 풀 · 덤불 · 모래 · 바다 (applySeasonYard 가 부른다) */
       if (!WSTATE.village) return; var c = SEASON_C[SEASON.cur], sn = SEASON.cur, vg = WSTATE.village.geometry, bg = WSTATE.sand.geometry;
       recolor(vg, 11, c.tuft); recolor(vg, 13, c.leaf[0]); recolor(vg, 14, c.leaf[1]); recolor(vg, 15, c.leaf[2]);
+      if (WSTATE.wave) { recolor(WSTATE.wave.geometry, 20, WIDE_C.sea[sn][0]); recolor(WSTATE.wave.geometry, 21, WIDE_C.sea[sn][1]); recolor(WSTATE.wave.geometry, 22, WIDE_C.sea[sn][2]); }
       recolor(bg, 18, WIDE_C.sand[sn]); recolor(bg, 19, WIDE_C.wet[sn]); recolor(bg, 20, WIDE_C.sea[sn][0]); recolor(bg, 21, WIDE_C.sea[sn][1]); recolor(bg, 22, WIDE_C.sea[sn][2]); recolor(bg, 23, WIDE_C.grain[sn]); recolor(bg, 24, WIDE_C.dune[sn]);
     }
     /* 등록부 (WIDE_REG): 새로 들어온 자리를 단추 칸으로 · 부딪힘 상자 [x0, z0, x1, z1] 를 마당 형식 [x0, x1, z0, z1] 으로 (늘면 다시) */
