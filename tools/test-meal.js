@@ -350,6 +350,17 @@ section('13 round 7: dish pictures and bite masks', function () {
   check(!has2(e4, [240, 150, 40]) && has2(e4, [230, 230, 240]) && has2(e4, [60, 60, 90]), 'round plate, four bites: no food colour left, plate surface and rim remain');
   check(a2(e4, 20, 14) >= 128 && a2(e4, 20, 26) >= 128 && a2(e4, 20, 6) === 0, 'round plate: its back half is kept (mirrored), above the plate is empty');
   check(has2(e1, [240, 150, 40]) && a2(e1, 12, 8) === 255 && a2(e1, 28, 8) === 0, 'round plate, one bite: only the right part of the food is gone');
+  /* 11-22: biteFood — 음식 색만 줄이고 그릇 (keep) 은 그대로, 그릇이 가리던 자리는 그 줄의 그릇 색 */
+  var W3 = 20, H3 = 10, d3 = new Uint8ClampedArray(W3 * H3 * 4);
+  function p3(x, y, hx) { var k = (y * W3 + x) * 4; d3[k] = parseInt(hx.slice(0, 2), 16); d3[k + 1] = parseInt(hx.slice(2, 4), 16); d3[k + 2] = parseInt(hx.slice(4, 6), 16); d3[k + 3] = 255; }
+  for (var y3 = 5; y3 < 9; y3++) for (var x3 = 0; x3 < W3; x3++) p3(x3, y3, 'ebede9');   /* cake plate */
+  for (y3 = 1; y3 < 7; y3++) for (x3 = 6; x3 < 14; x3++) p3(x3, y3, 'ffd95c');   /* sponge over the plate */
+  var sp3 = { w: W3, h: H3, d: d3 }, f4 = M.biteFood(sp3, [0, 1, 2, 3], 'cake', 0), f1 = M.biteFood(sp3, [3], 'cake', 0);
+  function c3(m, x, y) { var k = (y * W3 + x) * 4; return m[k + 3] < 128 ? null : ((1 << 24) + (m[k] << 16) + (m[k + 1] << 8) + m[k + 2]).toString(16).slice(1); }
+  check(c3(f4, 10, 2) === null && c3(f4, 10, 6) === 'ebede9' && c3(f4, 0, 7) === 'ebede9' && c3(f4, 19, 5) === 'ebede9', 'biteFood: all eaten → no sponge above the plate, the plate under it is plate colour, the plate edge stays');
+  check(c3(f1, 13, 2) === null && c3(f1, 6, 2) === 'ffd95c', 'biteFood: one bite takes the right quarter of the food only');
+  check(M.biteFood(sp3, [], 'cake', 0)[(2 * W3 + 10) * 4 + 3] === 255 && M.biteFood(null, [0], 'cake') === null, 'biteFood: no bites → unchanged · broken picture → null');
+  check(Object.keys(M.BITE_COL).join() === 'jeon,gyeran,jumeokbap,kkochi,cake', 'a colour table for each of the five pictures');
   check(M.biteMask(null, [0]) === null && M.biteMask({ w: 2, h: 2, d: [] }, [0]) === null && M.biteLine(null) === 0, 'broken pictures → null / 0');
   check(JSON.stringify(Array.prototype.slice.call(M.biteMask(spr, [3], 7, 2))) === JSON.stringify(Array.prototype.slice.call(M.biteMask(spr, [3], 7, 2))), 'deterministic');
 });
