@@ -6299,8 +6299,9 @@ var APP = (function () {
   /* 11-22 (검증): 걷기가 막히면 (가구에 걸림 · 길 없음) cafeSit 이 false 로 끝나거나 끝나지 않는다 → 12초 뒤에는 못 앉은 것으로 본다.
      못 앉으면 서서 먹는다 (sitFail): 값을 낸 음식은 언제나 먹을 수 있어야 한다 */
   var CAFE_SIT_MS = 12000;
+  function cafeSceneSeated() { try { return !!(scene && typeof scene.cafeSeated === 'function' && scene.cafeSeated()); } catch (e) { return false; } }
   function cafeTrySit(cb) {
-    var done = false, fin = function (ok) { if (done) return; done = true; clearTimeout(tm); if (!ok) cafeRoom.sitFail = true; cb(!!ok); }, tm = setTimeout(function () { fin(false); }, CAFE_SIT_MS), s = null;
+    var done = false, fin = function (ok) { if (done) return; done = true; clearTimeout(tm); if (!ok) cafeRoom.sitFail = true; cb(!!ok); }, tm = setTimeout(function () { fin(cafeSceneSeated()); }, CAFE_SIT_MS), s = null;   /* 11-22 (검증 둘째): 한도가 와도 장면이 이미 앉혔으면 앉은 것 — 느린 화면에서 걷기 · 폴짝이 한도를 넘어도 상태와 그림이 같게 */
     if (!scene || typeof scene.cafeSit !== 'function') { fin(false); return; }
     try { s = scene.cafeSit(true); } catch (e) { s = null; }
     if (s && typeof s.then === 'function') s.then(function (ok) { fin(ok); }, function () { fin(false); }); else fin(false);
@@ -6311,7 +6312,7 @@ var APP = (function () {
     cafeRoom.sitFail = false;
     var down = function (ok) {
       if (cafeRoom.stage !== 'carry') return;
-      cafeCarryPic(null); cafeRoom.stage = 'eat'; cafeSeated = !!ok && cafeIn();
+      cafeCarryPic(null); cafeRoom.stage = 'eat'; cafeSeated = (!!ok || cafeSceneSeated()) && cafeIn(); if (cafeSeated) cafeRoom.sitFail = false;
       cafePlate(); if (cafeSeated && it.drink) cafeScene('cafeCup', true);
       if (!cafeWatch) cafeWatch = setInterval(cafeTick, 400);
     };
@@ -6650,12 +6651,26 @@ var APP = (function () {
     });
     /* 테라스의 카페 문 (#btn-in-cafe, 갈래 V — 멀면 먼저 걸어간다): 눌리면 방으로 (APP.goInside, 갈래 W). 이미 방 안이거나 함수가 없으면 아무 일도 없다 */
     var door = $('btn-in-cafe'); if (door) door.addEventListener('click', function () { var go = cafeApi('goInside'); if (go && !(scene && typeof scene.inRoom === 'function' && scene.inRoom())) { try { var pr = go('cafe'); if (pr && typeof pr.catch === 'function') pr.catch(function () {}); } catch (e) { console.warn('[cafe] goInside', e); } } });
+    /* 11-22 (검증 둘째): 앉아 있을 때 자리 단추는 그 자리에서 일어나기만 한다 — 갈래 V 의 '멀면 먼저 걷기' (document 캡처) 보다 먼저 (window 캡처) 받는다.
+       안 그러면 걷기가 일으켜 세우고, 다시 보낸 누름이 도로 앉혔다 */
+    window.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('#btn-cafe-seat') : null;
+      if (!b || b._vilGo || !cafeSeated) return;
+      e.stopImmediatePropagation(); e.preventDefault(); cafeStand();
+    }, true);
     var cd = $('cafe-card'); if (cd) cd.addEventListener('keydown', function (e) { if (e.key === 'Escape' && cafeRoom.card && cafeRoom.card !== 'stamp') { e.stopPropagation(); cafeCardClose(); } });
     /* 갈래 W 가 알리는 방 드나듦: 카페 방에 들어오면 먹다 만 접시를 식탁에, 나가면 자리 · 연출 · 판을 끝낸다 */
     document.addEventListener('ppol:room', function (e) { var key = e && e.detail ? e.detail.key : null; if (key === 'cafe') cafeRoomEnter(); else cafeRoomLeave(); });
     var ls = $('lp-sheet'); if (ls) ls.addEventListener('close', function () { if (cafeLp.id && typeof scene.area !== 'function') lpStop(); });
     /* 갈래 V 가 알리는 앉음 · 일어남 (발자국 손잡이로 일어난 것도): 일어나면 자리가 끝나고, 앉으면 쟁반이 나온다 */
-    document.addEventListener('ppol:cafe-seat', function (e) { var on = !!(e && e.detail && e.detail.on); if (!on) { if (cafeRoom.stage === 'carry') return; cafeStand(); } else if (!cafeSeated) { cafeSeated = true; renderCafeTray(); if (!cafeWatch) cafeWatch = setInterval(cafeTick, 400); } });   /* 들고 가는 중의 '일어남' 은 내려놓기 (down) 가 맡는다 */
+    document.addEventListener('ppol:cafe-seat', function (e) {   /* 장면 (갈래 V) 이 알리는 앉음 · 일어남 — 상태를 늘 장면에 맞춘다 */
+      var on = !!(e && e.detail && e.detail.on);
+      if (!on) { if (cafeRoom.stage === 'carry') return; cafeStand(); return; }   /* 들고 가는 중의 '일어남' 은 내려놓기 (down) 가 맡는다 */
+      if (cafeSeated) return;
+      if (cafeRoom.stage === 'carry') return;   /* 들고 가는 중의 '앉음' 은 down 이 받는다 (sat 이 풀리거나 한도에서 장면을 다시 본다) */
+      cafeSeated = true; cafeRoom.sitFail = false; renderCafeTray(); if (!cafeWatch) cafeWatch = setInterval(cafeTick, 400);
+      if (cafeIn()) { var c0 = cafeState(), it0 = c0.tray && CAFE.item(c0.tray.id); if (it0 && it0.drink && CAFE.pending(c0)) cafeScene('cafeCup', true); }   /* 한도 뒤에 늦게 앉았어도 잔이 보이게 */
+    });
     var lpHide = function () { if (!cafeLp.id) return; lpStop(); var s = $('lp-sheet'); if ((s && s.open) || cafeRoom.card === 'lp') renderLp(); };   /* 11-21 (검증): 멈췄으면 시트의 판 · 곡 이름도 내린다 */
     document.addEventListener('visibilitychange', function () { if (document.hidden) lpHide(); });
     window.addEventListener('pagehide', lpHide);
