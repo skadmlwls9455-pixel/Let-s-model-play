@@ -120,9 +120,9 @@
 - 주말엔 `scene.stageDress(true)`, 심사 `judge0..2` (가게 문어 색 · 모자) 가 앉고 경쟁자 `rival0..2` 가 선다. 팻말 · 단상 때 `scene.roomFocus` 로 화면을 맞춘다.
 - 규칙 · 저장 · 조개 · 두 탭은 시트와 같은 길 (`ctEnterCore`) — 하루 한 번, 조개 한 번.
 - 뒷길: 2D · 움직임 줄이기 · 무대 함수 없음 · 공연장 밖에서는 예전 시트가 열린다.
-- P 의 `scene.playerWalkPath` · `playerPose` · `playerPlace` 는 아직 없어서 계약 이름으로 부르고 없으면 건너뛴다 — 지금은 내 캐릭터가 걷지 않고 무대 앞에 선 채로 쇼가 지나간다 (경쟁자 셋은 걷는다).
+- P 의 `scene.playerWalkPath` · `playerPose` · `playerPlace` (lane/7-p 1b33a22) 는 함수일 때만 부른다. P 까지 임시로 합친 빌드에서 내 캐릭터가 길을 걷고 (`content-hall-me-walk.png`) 등수 자리 단상에 선다 (`content-hall-podium.png`). P 가 없으면 내 캐릭터는 선 채로 쇼가 지나간다.
 - 검사: `tools/test-contest-live.js` H 절 (대역): 무대 톡 → 카드 (#scene 안 · dialog 아님) → 박자 차례 → 팻말 셋 자리 → 단상 → 결과 카드 → 다시 톡 = 그대로 · 넘기기 · 공연장 문 · 움직임 줄이기와 무대 함수 없음은 시트. 96 통과 (세 번 연속 통과 확인은 92 판에서).
-- 진짜 V · W · N · A · T 를 임시로 합친 빌드 (푸시 안 함 · P 는 글꼴 파일이 부딪혀 빼고) 에서 공연장 문 → 무대 톡 → 쇼 → 결과까지 확인: `wip/round7/shots/F/content-hall-entry.png` · `content-hall-walk.png` (경쟁자가 길을 걸음) · `content-hall-placards.png` · `content-hall-result.png` (360x740).
+- 진짜 V · W · N · A · T 를 임시로 합친 빌드 (푸시 안 함) 에서 공연장 문 → 무대 톡 → 쇼 → 결과까지 확인: `wip/round7/shots/F/content-hall-entry.png` · `content-hall-walk.png` (경쟁자가 길을 걸음) · `content-hall-placards.png` · `content-hall-result.png` (360x740).
 
 ## 빼거나 못 한 것
 
