@@ -6291,17 +6291,26 @@ var APP = (function () {
     }, reduced() ? 300 : 1500);
   }
   function cafeCounterName() { var cb = $('btn-cafe-counter'); if (cb && cb._name != null) { cb.setAttribute('aria-label', cb._name); cb._name = null; } }
+  /* 11-22 (검증): 걷기가 막히면 (가구에 걸림 · 길 없음) cafeSit 이 false 로 끝나거나 끝나지 않는다 → 12초 뒤에는 못 앉은 것으로 본다.
+     못 앉으면 서서 먹는다 (sitFail): 값을 낸 음식은 언제나 먹을 수 있어야 한다 */
+  var CAFE_SIT_MS = 12000;
+  function cafeTrySit(cb) {
+    var done = false, fin = function (ok) { if (done) return; done = true; clearTimeout(tm); if (!ok) cafeRoom.sitFail = true; cb(!!ok); }, tm = setTimeout(function () { fin(false); }, CAFE_SIT_MS), s = null;
+    if (!scene || typeof scene.cafeSit !== 'function') { fin(false); return; }
+    try { s = scene.cafeSit(true); } catch (e) { s = null; }
+    if (s && typeof s.then === 'function') s.then(function (ok) { fin(ok); }, function () { fin(false); }); else fin(false);
+  }
   function cafeCarry() {   /* 쟁반을 집어 들고 내 자리로: 앉으면 내려놓는다. 걷다 끊겨도 음식은 식탁에 놓인다 (값을 낸 것이 사라지지 않게) */
     var c = cafeState(), it = c.tray && CAFE.item(c.tray.id); if (!it) { cafeRoom.stage = null; return; }
     cafeRoom.stage = 'carry'; cafeCounterName(); cafeProp('cafe-tray', null); cafeCarryPic(cafeHas('cafe.tray') ? 'cafe.tray' : it.spr);
-    var sat = null; if (typeof scene.cafeSit === 'function') { try { sat = scene.cafeSit(true); } catch (e) { sat = null; } }
+    cafeRoom.sitFail = false;
     var down = function (ok) {
       if (cafeRoom.stage !== 'carry') return;
       cafeCarryPic(null); cafeRoom.stage = 'eat'; cafeSeated = !!ok && cafeIn();
       cafePlate(); if (cafeSeated && it.drink) cafeScene('cafeCup', true);
       if (!cafeWatch) cafeWatch = setInterval(cafeTick, 400);
     };
-    if (sat && typeof sat.then === 'function') sat.then(down, function () { down(false); }); else down(false);
+    cafeTrySit(down);
   }
   function cafeCounterTap() {   /* 카운터 단추: 쟁반이 나와 있으면 집어 든다 · 만드는 중이면 기다린다 · 아니면 메뉴 */
     if (cafeRoomOK()) { if (cafeRoom.stage === 'ready') { cafeCarry(); return; } if (cafeRoom.stage === 'brew' || cafeRoom.stage === 'carry') return; }
@@ -6309,7 +6318,7 @@ var APP = (function () {
   }
   function cafePlateTap() {   /* 접시: 앉아 있으면 한 입, 서 있으면 먼저 앉는다 */
     if (!cafeRoomOK()) return;
-    if (!cafeSeated) { cafeSeatTap(); return; }
+    if (!cafeSeated && !cafeRoom.sitFail) { cafeSeatTap(); return; }   /* 서 있으면 먼저 앉는다 — 앉기가 막혔으면 (sitFail) 서서 먹는다 */
     cafeBite();
   }
   /* 카드 (#cafe-card): 방 안 물건의 확대 — 칠판 (menu) · 레코드 선반 (lp) · 도장 카드 (stamp, 잠깐 떴다 사라진다) */
@@ -6344,7 +6353,7 @@ var APP = (function () {
     cafeNew = null;
   }
   function cafeRoomEnter() {   /* 방에 들어왔다: 먹다 만 접시가 식탁에서 기다린다 */
-    var c = cafeState(); cafeRoom.stage = null;
+    var c = cafeState(); cafeRoom.stage = null; cafeRoom.sitFail = false;
     if (CAFE.pending(c) && cafeRoomOK()) { cafeRoom.stage = 'eat'; cafePlate(); }
   }
   function cafeRoomLeave() {   /* 방을 나갔다 (문 · 빠른 이동 · 무엇이든): 연출을 걷고 자리를 끝낸다. 기록은 그대로 */
@@ -6523,8 +6532,8 @@ var APP = (function () {
   function cafeSeatTap() {
     if (!window.CAFE) return;
     if (cafeSeated) { cafeStand(); return; }
-    if (cafeRoomOK()) { var c = cafeState(), it = c.tray && CAFE.item(c.tray.id), s = null; try { s = scene.cafeSit(true); } catch (e) { s = null; }   /* 방 안: 앉기만 (접시는 식탁에 있다). 앉음은 ppol:cafe-seat 가 알린다 */
-      if (s && typeof s.then === 'function') s.then(function (ok) { if (ok && it && it.drink && CAFE.pending(cafeState())) cafeScene('cafeCup', true); }, function () {}); return; }
+    if (cafeRoomOK()) { var c = cafeState(), it = c.tray && CAFE.item(c.tray.id);   /* 방 안: 앉기만 (접시는 식탁에 있다). 앉음은 ppol:cafe-seat 가 알린다 */
+      cafeTrySit(function (ok) { if (ok) { cafeRoom.sitFail = false; if (it && it.drink && CAFE.pending(cafeState())) cafeScene('cafeCup', true); } }); return; }
     cafeServe(false);
   }
 
