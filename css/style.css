@@ -1931,6 +1931,11 @@ dialog.travel-pick .dp-chip canvas { position: absolute; left: var(--dp-icp, 8px
    UI 둘째 다듬기 (주인 11-21 "ui가 너무 조잡한데"): 맨 위 그림 띠 (벽 · 선반 · 카운터 · 지킴이 · 간판) → 칠판 메뉴 (분필 테두리 · 가격표 · 카운터 위 접시 · 도장 카드) · 나무 레코드 선반 · 큰 턴테이블.
    칠판 · 나무 · 종이 색은 낮밤 테마와 무관하게 고정 (물건의 색) */
 .cafe-sheet { --c-ink: #3b2a26; --c-paper: #f3ead6; --c-paper2: #d9c9a8; --c-wood: #8a5a3a; --c-woodl: #b98a5a; --c-woodd: #603a26; --c-board: #2e3a35; --c-board2: #25302c; --c-chalk: #f1ecdc; overflow-x: hidden; }
+/* 11-22 (검증 둘째): 보이는 글은 모두 16px 이상 — 픽셀 글꼴이 아닐 때 (system) 장면 안 카드 · 시트 · 쟁반의 이름 · 값 · 단추가 15 · 13px 였다. 픽셀 글꼴은 아래 :root[data-font="pixel"] 규칙 (--fs-*) 이 먼저 */
+.cafe-sheet, .cafe-card, .cafe-tray { font-size: 16px; }
+.cafe-sheet .cafe-name, .cafe-sheet .lp-now { font-size: 20px; }
+.cafe-sheet .cafe-cost, .cafe-sheet .shell-n, .cafe-sheet .sew-ask-line, .cafe-card .btn, .cafe-tray .btn, .cafe-sheet .btn { font-size: 16px; }
+.cafe-sheet .shell-n { font-weight: 700; }
 .cafe-pic { display: block; image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: pixelated; }
 /* 간판: 제목이 그림 띠 위에 걸린 나무 판 */
 .cafe-sheet .set-h { position: relative; z-index: 2; width: max-content; margin: 4px auto -48px; padding: 2px 16px; color: var(--c-ink); background: var(--c-paper); box-shadow: 0 0 0 2px var(--c-ink), inset 2px 2px 0 #fffaf0, inset -2px -2px 0 var(--c-paper2), 0 6px 0 -2px var(--c-woodd); }

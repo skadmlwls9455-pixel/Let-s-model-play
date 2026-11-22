@@ -147,7 +147,23 @@ async function realRoom(p, s) {
   r = await st(); ok(r.carry === null && r.props['cafe-plate'] && r.plate, '…손은 비고 · 커피가 식탁에');
   for (q = 0; q < 3; q++) { await p.click('#btn-cafe-plate'); await p.waitForTimeout(200); }
   ok((await st()).st.eaten.coffee === 2, '…서서 다 마셨다');
+  /* 11-22 (검증 둘째) 느린 화면: 앉기가 한도 (12초) 를 넘겨 끝난다 — 한도에 장면이 이미 앉혔으면 상태도 앉음 */
+  await p.evaluate(function () { APP.scene.cafeSit = function (on) { if (!on) return window.__realSit(on); return window.__realSit(true).then(function (ok) { return new Promise(function (res) { setTimeout(function () { res(ok); }, 14000); }); }); }; });
+  await tap('btn-cafe-menu'); await until(function () { return APP.cafe.card === 'menu'; });
+  await p.locator('#cafe-card .cafe-item').nth(0).click(); await p.waitForSelector('#cafe-card .sew-ask'); await p.waitForTimeout(700); await p.click('#cafe-card .sew-yes');
+  await until(function () { return APP.cafe.stage === 'ready'; }, 8000); await tap('btn-cafe-counter');
+  ok(await until(function () { return APP.cafe.stage === 'eat'; }, 20000), '느린 앉기: 한도에서 내려놓는다');
+  await p.waitForTimeout(300);
+  r = await p.evaluate(function () { return { app: APP.cafe.seated, sc: APP.scene.cafeSeated() }; });
+  ok(r.app === true && r.sc === true, '…장면이 앉혔으면 상태도 앉음 (' + JSON.stringify(r) + ')');
   await p.evaluate(function () { APP.scene.cafeSit = window.__realSit; });
+  /* 앉아 있을 때 자리 단추: 그 자리에서 일어나기만 (걸어갔다가 도로 앉지 않는다) */
+  await tap('btn-cafe-seat'); await p.waitForTimeout(3000);
+  r = await p.evaluate(function () { return { app: APP.cafe.seated, sc: APP.scene.cafeSeated() }; });
+  ok(r.app === false && r.sc === false, '앉은 채 자리 단추: 일어나고 3초 뒤에도 서 있다 (' + JSON.stringify(r) + ')');
+  await tap('btn-cafe-plate'); await until(function () { return APP.cafe.seated; }, 30000); await p.waitForTimeout(400);
+  for (q = 0; q < 3; q++) { await p.click('#btn-cafe-plate'); await p.waitForTimeout(200); }
+  await tap('btn-cafe-seat'); await until(function () { return !APP.cafe.seated; }, 15000);
   /* 레코드 구석 */
   await tap('btn-cafe-lp');
   ok(await until(function () { return APP.cafe.card === 'lp'; }), '레코드 단추: 걸어가서 선반 확대 카드');
@@ -339,6 +355,12 @@ async function main() {
   await page.evaluate(function () { APP.openCafe(); }); await page.waitForSelector('#cafe-sheet[open]');
   var txt = await page.evaluate(function () { return document.getElementById('cafe-sheet').innerText + ' ' + document.getElementById('lp-sheet').textContent; });
   ok(/^[가-힣0-9\s·?.,]+$/.test(txt), '보이는 글: 한글 · 숫자 · 기본 문장부호뿐');
+  var font0 = await page.evaluate(function () { return document.documentElement.getAttribute('data-font'); });
+  for (var fm of ['system', 'pixel']) {   /* 11-22 (검증 둘째): 보이는 글은 모두 16px 이상 (두 글꼴 모두) */
+    var small = await page.evaluate(function (f) { document.documentElement.setAttribute('data-font', f); var o = []; document.querySelectorAll('#cafe-sheet *').forEach(function (e) { if (!e.childElementCount && e.textContent.trim() && e.offsetParent && !e.classList.contains('sr-only')) { var fs = parseFloat(getComputedStyle(e).fontSize); if (fs < 16) o.push(e.textContent.trim() + ':' + fs); } }); return o; }, fm);
+    ok(small.length === 0, '글꼴 ' + fm + ': 메뉴의 보이는 글 16px 이상' + (small.length ? ' — ' + small.join(' ') : ''));
+  }
+  await page.evaluate(function (f) { if (f == null) document.documentElement.removeAttribute('data-font'); else document.documentElement.setAttribute('data-font', f); }, font0);
   ok(await page.evaluate(function () { return !document.querySelector('#cafe-sheet [title], #lp-sheet [title], #cafe-tray [title]'); }), 'title 속성 없음');
   async function crisp(pg) { return pg.evaluate(function () { var d = window.devicePixelRatio, bad = []; document.querySelectorAll('canvas.cafe-pic').forEach(function (cv) { var k = parseFloat(cv.style.width) * d / cv.width; if (Math.abs(k - Math.round(k)) > 0.01 || k < 1) bad.push(cv.width + '→' + k); }); return { n: document.querySelectorAll('canvas.cafe-pic').length, bad: bad, d: d }; }); }
   var cr = await crisp(page);
