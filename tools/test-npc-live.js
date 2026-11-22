@@ -9,13 +9,16 @@ var pass = 0, fail = 0;
 function ok(c, msg) { if (c) pass++; else { fail++; console.log('  FAIL ' + msg); } }
 var SAVE = { octopus: { name: '뽈뽈' }, user: { shells: 5, story: { notices: { help: '2026-11-01', later: 'keep' }, future: [1] } } };
 
-function stubs() {   /* 페이지 안에서 돈다: app.js 가 묶기 전에 V 의 단추를 넣는다 */
+function stubs() {   /* 페이지 안에서 돈다: V 의 단추가 없으면 가짜를 넣고, 있으면 (진짜 장면 — 바깥이 화면에 없을 때는 숨어 있다) 시험 동안 보이게 고정한다 */
   document.addEventListener('DOMContentLoaded', function () {
-    var sc = document.getElementById('scene');
+    var sc = document.getElementById('scene'), css = '';
     ['btn-npc-clothes', 'btn-npc-goods', 'btn-npc-cafe', 'btn-npc-sleep-1', 'btn-plaza-board'].forEach(function (id, i) {
-      var b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'scene-spot'; b.setAttribute('aria-label', id);
-      b.style.cssText = 'left:' + (8 + i * 48) + 'px;top:120px'; sc.appendChild(b);
+      if (!document.getElementById(id)) {
+        var b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'scene-spot'; b.setAttribute('aria-label', id); sc.appendChild(b);
+      }
+      css += '#' + id + ' { display: block !important; visibility: visible !important; pointer-events: auto !important; position: absolute !important; left: ' + (8 + i * 48) + 'px !important; top: 120px !important; transform: none !important; opacity: 1 !important; z-index: 30 !important; }\n';
     });
+    var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   });
 }
 async function open(browser, q, opt) {
@@ -45,6 +48,7 @@ function box(p) {
     /* ── 1. 대사창 (3D) ── */
     var p = await open(browser, '?intro=0', { save: SAVE });
     ok(await p.evaluate(function () { return APP.sceneMode; }) === '3d', '3D 장면');
+    await p.evaluate(function () { window.__ppolTest.npcHold = true; if (typeof APP.scene.villageNear === 'function') APP.scene.villageNear = function () { return true; }; });   /* 11-22: 다락에서 시험한다 — 마을 단추의 '멀면 먼저 걸어가기' (V) 는 가까이 있는 것으로   /* 11-22: 확인하는 사이 저절로 넘어가 닫히지 않게 (저절로 넘김은 아래 ?slow 판에서 따로 본다) */
     await p.waitForFunction(function () { return !document.getElementById('toast').classList.contains('show'); }, null, { timeout: 8000 }).catch(function () {});
     var b0 = await box(p);
     ok(b0.hidden && b0.npc === null, '처음엔 대사창이 숨어 있다');
