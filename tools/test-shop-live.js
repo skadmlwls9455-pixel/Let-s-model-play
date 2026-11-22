@@ -184,9 +184,12 @@ async function tabsRun(browser) {
   await A.evaluate(raw => { const o = JSON.parse(raw); o.user.seeds = 7; const v = JSON.stringify(o); localStorage.setItem('ppolppol_v2', v); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v, storageArea: localStorage })); }, stale);
   await A.waitForTimeout(1300);
   const a = await U(A);
-  ok(a.seeds === 7 && a.shells === 40, '탭 A 가 다른 탭의 기록을 받았다 (조개는 지금까지의 두 탭 규칙대로 그쪽 값)');
+  ok(a.seeds === 7 && a.shells === 40 - it.price + 1, '탭 A 가 다른 탭의 기록을 받고, 이 탭이 산 것 · 주운 것은 조개 변화와 함께 다시 얹는다 (공짜 옷 · 잃은 조개 없음)');
   ok(a.shop.got[it.key] === DAY && a.owned[it.key] === DAY, '산 옷은 사라지지 않는다 (영수증 · 옷장)');
   ok(a.beach.day === DAY && a.beach.picked.indexOf(left[0]) >= 0 && (await A.evaluate(() => APP.beachLeft)).length === 2, '주운 자리도 다시 나오지 않는다');
+  await A.evaluate(raw => { const v = localStorage.getItem('ppolppol_v2'); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v, storageArea: localStorage })); });
+  await A.waitForTimeout(1300);
+  ok((await U(A)).shells === 40 - it.price + 1, '같은 기록을 또 받아도 두 번 얹지 않는다');
   const saved = JSON.parse(await A.evaluate(() => localStorage.getItem('ppolppol_v2')));
   ok(saved.user.shop.got[it.key] === DAY && saved.user.owned[it.key] === DAY, '저장에도 다시 적힌다');
   ok(await A.evaluate(k => !!document.querySelector('#shop-body .shop-tile[data-key="' + k + '"] .sew-cost.own'), it.key), '열린 선반의 표시도 그대로');
