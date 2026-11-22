@@ -4016,6 +4016,7 @@ var APP = (function () {
     var d = $('btn-door'); if (d) { d.hidden = false; d.removeAttribute('data-spot'); ['left', 'top', 'width', 'height', 'right', 'bottom'].forEach(function (k) { d.style[k] = ''; }); }
     var sc = $('scene'); if (sc) { sc.setAttribute('data-view', 'attic'); sc.setAttribute('aria-label', '문어의 다락방'); }
     var sd = $('btn-sew-doll'); if (sd) sd.hidden = true;   /* 11-18 위층 마네킹 단추 (위 목록 줄을 고치지 않고 따로) */
+    wideUIReset();   /* 11-21 7차: 표지판 · 조개 단추 · 빠른 이동 창 */
   }
   function goRoom(name, opener, kbd) {   /* → Promise<{ ok, reason?, view, room, place }> (예전 7물결엔 bool). kbd = 키보드 · 화면 낭독기로 눌렀다 (도착한 쪽 단추에 포커스 링) */
     var to = name === 'play' ? 'play' : name === 'loft' ? 'loft' : name === 'yard' ? 'yard' : name === 'attic' || name === 'back' ? 'attic' : null;
@@ -5629,6 +5630,101 @@ var APP = (function () {
 
 
   /* [7-W] 바깥 한 장 · 해안가 · 이동 */
+  /* 11-21 7차 바깥 한 장 (갈래 W): 표지판 → 빠른 이동 창 (#travel-pick, 그림 칩 — 보이는 글자 0) → APP.goPlace · 해변 조개 단추는 멀면 먼저 걸어간다.
+     칩 그림은 16×16 을 여기서 캔버스에 찍는다 (그림 파일 · 목록을 늘리지 않는다): 집 · 마을 문 · 파도 */
+  var TRAVEL_PAL = { o: '#341c27', r: '#b04a3c', R: '#7a2c2c', w: '#efe3c8', b: '#6fa8c8', d: '#8a5a3c', g: '#7aa04c', p: '#8a5a3c', t: '#a8a29a', f: '#fbf6ea', B: '#3a6f9a', s: '#c8ac7c' };
+  var TRAVEL_ART = { home: ['................', '.......oo.......', '......orro......', '.....orrrro.....', '....orrrrrro....', '...orrrrrrrro...', '..orrrrrrrrrro..', '.oRRRRRRRRRRRRo.', '..owwwwwwwwwwo..', '..owbbwwwdddwo..', '..owbbwwwdddwo..', '..owwwwwwdddwo..', '..owwwwwwdddwo..', '..oooooooooooo..', '.gggggggggggggg.', '................'], village: ['................', '................', '....oo..........', '...orro...oo....', '..orrrro.obbo...', '.oRRRRRRobbbbo..', '..owwwwooBBBBBo.', '..owbbwo.owwwwo.', '..owbbwo.owbwwo.', '..owwwwo.owwwdo.', '..owddwo.owwwdo.', '..owddwo.owwwdo.', '..ooooooooooooo.', '.tttttttttttttt.', '.gggggggggggggg.', '................'], beach: ['................', '................', '......oooo......', '....oofffoo.....', '...offbbbbfo....', '..ofbbbbfbbfo...', '..ofbbfoofbbo...', '..ofbfo.ofbbfo..', '...oo...ofbbbfo.', '........ofbbbbo.', 'oo.....offbbbbfo', 'bfoo.oofbbbbbbbb', 'bbffofbbbbbbbbbb', 'BBBBBBBBBBBBBBBB', 'ssssssssssssssss', '................'] };
+  var TRAVEL_SIGN = ['home', 'village', 'beach'], travelBound = false, travelOpener = null, travelKbd = false, travelPicked = false, travelJob = null;
+  function goPlace(place, kbd) {   /* 'home' | 'village' | 'beach' → Promise<boolean>: 마당 (바깥) 에 있을 때만 · 화면을 잠깐 덮고 그곳의 표지판 곁에 선다 */
+    if (!scene || sceneMode !== '3d' || typeof scene.goPlace !== 'function' || TRAVEL_SIGN.indexOf(place) < 0 || roomNow() !== 'yard' || roomJob || travelJob || furnMode) return Promise.resolve(false);
+    hideTip();
+    var done = function (ok) {
+      if (travelJob === job) travelJob = null; updateSceneDesc();
+      if (ok) requestAnimationFrame(function () { requestAnimationFrame(function () { var b = $('btn-sign-' + TRAVEL_SIGN.indexOf(place)), cur = document.activeElement; if (b && !b.hidden && (!cur || cur === document.body || /^btn-sign-/.test(cur.id || ''))) focusRoomBtn(b, !!kbd); }); });
+      return !!ok;
+    };
+    var job = travelJob = Promise.resolve(scene.goPlace(place)).then(done, function (e) { console.warn('[app] goPlace', e); return done(false); });
+    return job;
+  }
+  function travelDraw(d) {
+    Array.prototype.forEach.call(d.querySelectorAll('button[data-place]'), function (b) {
+      var cv = b.querySelector('canvas'), art = TRAVEL_ART[b.getAttribute('data-place')]; if (!cv || !art || cv.getAttribute('data-drawn')) return;
+      var c = cv.getContext('2d'); if (!c) return; cv.setAttribute('data-drawn', '1');
+      for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) { var col = TRAVEL_PAL[art[y].charAt(x)]; if (col) { c.fillStyle = col; c.fillRect(x, y, 1, 1); } }
+    });
+  }
+  function travelFit() {   /* 요리 쟁반과 같은 셈 (칩 64 · 틈 16 · 그림 16 px × floor(3·dpr) 기기 px) — 보이는 칩만 가운데로 */
+    var d = $('travel-pick'); if (!d) return;
+    var dpr = window.devicePixelRatio || 1, dev = function (v) { return Math.round(v * dpr) / dpr; }, n = Math.max(1, Math.floor(3 * dpr + 1e-6)), ic = 16 * n / dpr;
+    var chip = dev(64), gap = dev(16), sf = cookSafe(), vw = window.innerWidth, vh = window.innerHeight, st = d.style, k = 0;
+    var chips = Array.prototype.filter.call(d.querySelectorAll('button[data-place]'), function (b) { return !b.hidden; });
+    st.setProperty('--dp-chip', chip + 'px'); st.setProperty('--dp-gap', gap + 'px'); st.setProperty('--dp-ic', ic + 'px');
+    st.setProperty('--dp-icp', (Math.round((chip - ic) / 2 * dpr) / dpr) + 'px'); st.setProperty('--dp-b', dev(2) + 'px');
+    st.setProperty('--dp-x', dev((vw - (chips.length * chip + (chips.length - 1) * gap)) / 2) + 'px'); st.setProperty('--dp-y', dev(vh - Math.max(16, sf.b + 16) - chip) + 'px');
+    chips.forEach(function (b) { b.style.setProperty('--tp-x', dev(k * (chip + gap)) + 'px'); k++; });
+  }
+  function travelOpen(i, opener, kbd) {
+    var d = $('travel-pick'); if (!d || d.open || roomNow() !== 'yard' || roomJob || travelJob) return false;
+    hideTip();
+    if (!travelBound) {
+      travelBound = true;
+      d.addEventListener('click', function (e) {
+        var b = e.target && e.target.closest ? e.target.closest('button[data-place]') : null;
+        if (!b) {   /* 칩 밖 톡 = 닫기 (표지판 자리의 톡은 두 번 누른 둘째 톡이라 닫지 않는다) */
+          if (!(e.target === d || (e.target && e.target.classList && e.target.classList.contains('dp-row')))) return;
+          var op = travelOpener, r = op && !op.hidden ? op.getBoundingClientRect() : null;
+          if (r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return;
+          travelKbd = false; d.close(); return;
+        }
+        var k = kbdClick(e); travelKbd = k; travelPicked = true; d.close();
+        goPlace(b.getAttribute('data-place'), k);
+      });
+      d.addEventListener('cancel', function () { travelKbd = true; });
+      d.addEventListener('close', function () {
+        var op = travelOpener; window.removeEventListener('resize', travelFit);
+        document.documentElement.classList.remove('dish-picking');
+        if (!travelPicked && op && !op.hidden) focusRoomBtn(op, travelKbd);
+      });
+    }
+    travelOpener = opener; travelKbd = !!kbd; travelPicked = false;
+    var ar = scene && typeof scene.area === 'function' ? scene.area() : null, here = ar === 'yard' || ar === 'road' ? 'home' : ar === 'village' || ar === 'plaza' ? 'village' : ar === 'beach' ? 'beach' : TRAVEL_SIGN[i];   /* 숨기는 칩 = 내 캐릭터가 선 곳 (멀리 보이는 표지판을 눌러도 — 독립 검증) */
+    Array.prototype.forEach.call(d.querySelectorAll('button[data-place]'), function (b) { b.hidden = b.getAttribute('data-place') === here; });
+    travelDraw(d);
+    document.documentElement.classList.add('dish-picking');   /* 열린 동안 '산책 갈래?' 단추 · 발자국 손잡이는 숨긴다 (요리 쟁반과 같은 규칙) */
+    d.showModal(); travelFit(); window.addEventListener('resize', travelFit);
+    var first = d.querySelector('button[data-place]:not([hidden])');
+    try { if (kbd && first) first.focus({ preventScroll: true }); else d.focus({ preventScroll: true }); } catch (e) { /* 포커스는 그대로 */ }
+    return true;
+  }
+  /* 11-22 계약 C9: 걸어 들어가는 방 (옷가게 · 잡화점 · 카페). 장면이 문 밖까지 걷고 화면을 덮은 뒤 방을 보여 준다. 2D · 장면 함수가 없으면 false (예전 시트가 열린다 — 부르는 쪽이 정한다) */
+  var insideJob = null;
+  function goInside(key) {   /* → Promise<boolean> */
+    if (!scene || sceneMode !== '3d' || typeof scene.enterRoom !== 'function' || roomJob || travelJob || insideJob || furnMode) return Promise.resolve(false);
+    hideTip();
+    var job = insideJob = Promise.resolve(scene.enterRoom(key)).then(function (r) { if (insideJob === job) insideJob = null; syncRoomUI(); return !!(r && r.ok); }, function (e) { console.warn('[app] goInside', e); if (insideJob === job) insideJob = null; return false; });
+    return job;
+  }
+  function goOutside() {   /* → Promise<boolean> */
+    if (!scene || typeof scene.leaveRoom !== 'function' || insideJob) return Promise.resolve(false);
+    var job = insideJob = Promise.resolve(scene.leaveRoom()).then(function (r) { if (insideJob === job) insideJob = null; syncRoomUI(); return !!(r && r.ok); }, function (e) { console.warn('[app] goOutside', e); if (insideJob === job) insideJob = null; return false; });
+    return job;
+  }
+  var INSIDE_NAME = { clothes: '옷가게', goods: '잡화점', cafe: '카페', hall: '공연장' }, insideWalkT = 0;
+  document.addEventListener('ppol:room', function (e) { var k = e && e.detail ? e.detail.key : null, sc = $('scene'); syncRoomUI(); if (sc && k) sc.setAttribute('aria-label', INSIDE_NAME[k] || '가게 안'); });
+  document.addEventListener('click', function (e) {   /* 방 안의 단추를 바로 누른 때 (키보드 · 화면 낭독기): 설 자리에서 멀면 누름을 삼키고 걸어간 뒤 장면이 다시 누른다. 장면이 보낸 누름 (isTrusted false) 은 그대로 */
+    var t = e.target; if (!e.isTrusted || !t || !t.id || !scene || typeof scene.roomSpotGo !== 'function' || !insideNow() || !t.classList || !t.classList.contains('scene-spot')) return;
+    if (Date.now() - insideWalkT < 300) return;
+    if (scene.roomSpotGo(t.id)) { insideWalkT = Date.now(); e.stopImmediatePropagation(); e.preventDefault(); }
+  }, true);
+  function insideNow() { return scene && typeof scene.inRoom === 'function' ? scene.inRoom() : null; }
+  function wideUIReset() { for (var i = 0; i < 5; i++) { var a = $('btn-sign-' + i), b = $('btn-beach-shell-' + i); if (a) a.hidden = true; if (b) b.hidden = true; } var d = $('travel-pick'); if (d && d.open) d.close(); }   /* 장면을 잃었을 때 (resetRoomUI) */
+  [0, 1, 2].forEach(function (i) { var b = $('btn-sign-' + i); if (b) b.addEventListener('click', function (e) { travelOpen(i, b, kbdClick(e)); }); });
+  document.addEventListener('click', function (e) {   /* 조개: 1.5 m 보다 멀면 누름을 삼키고 곁까지 걸어간 뒤 다시 누른다 (그림 위 톡 · 키보드 둘 다 — 무엇을 주는지는 갈래 S 의 click) */
+    var t = e.target, m = t && t.id ? /^btn-beach-shell-(\d)$/.exec(t.id) : null; if (!m || !scene || typeof scene.beachShellNear !== 'function' || typeof scene.beachShellGo !== 'function') return;
+    var i = +m[1]; if (scene.beachShellNear(i)) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+    Promise.resolve(scene.beachShellGo(i)).then(function (near) { if (near && !t.hidden) t.click(); });
+  }, true);
 
 
   /* [7-V] 마을 건물 · NPC 그리기 */
@@ -6398,6 +6494,8 @@ var APP = (function () {
     /* [7-P] */
 
     /* [7-W] */
+    goPlace: goPlace, travelOpen: travelOpen,
+    goInside: goInside, goOutside: goOutside, get inside() { return insideNow(); },
 
     /* [7-V] */
 
