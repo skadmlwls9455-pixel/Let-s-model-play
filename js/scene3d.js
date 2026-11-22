@@ -5747,7 +5747,7 @@ var SCENE3D = (function () {
     /* [7-U] 화면 채우기 · 계단 단추 */
     /* 11-21 가려진 동안 멈춤: 전체 화면 놀이 (부엌 · 달리기) 가 장면을 덮은 동안 프레임 고리를 세운다 (배터리 · 열). 탭이 숨었을 때 (st.hidden) 와 같은 길 —
        시계 (time) 는 그린 프레임의 dt 로만 가므로 다시 돌 때 뛰지 않는다 (lastDraw = 0 → 첫 프레임 dt 0.016). pause / resume (테스트 · 의식 감기) 과는 따로 센다 */
-    function setCovered(on) { on = !!on; if (!!st.covered === on) return; st.covered = on; if (on) cancelAnimationFrame(raf); else { lastDraw = 0; loop(); } }
+    function setCovered(on) { on = !!on; if (!!st.covered === on) return; st.covered = on; dither.still = 0; if (!on) loop(); }   /* 11-22: 덮인 동안 그리기만 멈춘다 — 시뮬레이션 (문어 걸음 · 산책 연출 · 문 · 날씨) 은 화면 밖 (T4) 처럼 30 fps 로 돈다. 예전처럼 고리 전체를 멈추면 달리기 · 부엌을 연 채 끝나야 하는 산책이 영영 안 끝났다 (스모크 S · CI 9652270) */
 
 
     function pick(cx, cy) {   /* 클라이언트 CSS px (PointerEvent clientX/Y) → 탭 표적 메시 | null */
@@ -6248,7 +6248,7 @@ var SCENE3D = (function () {
       var idle = octQuiet && !PL.walking && !PL.stick && !PL_IN.v && !GEST.mode && !PAN.mode && !ZT && light.t >= 1 && dither.still > 0.3 && !PLACE.trans && !(CER.active && !isRoomP(PLACE.vis)) && !DQ.active && !SAL.active && !(SAL.spark > 0) && !(SAL.offerT >= 0);   /* 손가락·관성 · 미용실 연출 중엔 60 fps */
       /* 프레임 상한은 *시간* 기준 (docs/research/a11y-and-mobile-perf.md 1): 가만히(또는 화면 밖) 30fps · 그 밖 60fps — 120Hz 폰도 60. 건너뛴 콜백의 시간은 버리지 않고
          다음에 그리는 프레임의 dt 로 넘긴다 (예전 홀수 콜백 건너뛰기는 dt 째 버려서 가만히 있을 때 비·양초·먼지·깜빡임·커튼이 반속도였다). debugStep(st.force) 은 항상 주어진 dt 로 진행·렌더 */
-      if (!st.force && lastDraw && ts - lastDraw < (idle || st.offscreen ? 1000 / 30 : 1000 / 60) - 1) return;
+      if (!st.force && lastDraw && ts - lastDraw < (idle || st.offscreen || st.covered ? 1000 / 30 : 1000 / 60) - 1) return;
       var dt = lastDraw ? Math.min(0.1, (ts - lastDraw) / 1000) : 0.016; lastDraw = ts; time += dt; frameNo++;
       if (ctxLost()) return;
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
@@ -6278,7 +6278,7 @@ var SCENE3D = (function () {
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(candleG.quaternion).invert().multiply(camera.quaternion);   /* 11-15: 양초 그룹이 상자와 같이 돌아도 글로우는 화면을 본다 */
       if (ATTIC_CUE) ATTIC_CUE.glow.quaternion.copy(camera.quaternion); if (LROOM) LROOM.cue.glow.quaternion.copy(camera.quaternion);   /* 11-15 계단 초롱 글로우도 늘 카메라 쪽으로 */
       stepZoom(dt); stepPan(dt); placeCamera(); if (YARD_WIDE && PLACE.vis === 'yard') { wideHoldCentre(); fitShadowView(); wideCull(); } updateOverlay();
-      if ((!st.offscreen || st.force) && !st.simOnly) draw(t0);   /* 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 · simOnly = 시험의 debugSim (그리지 않고 민다) */
+      if ((!st.offscreen || st.force) && !st.simOnly && !st.covered) draw(t0);   /* 덮임 (전체 화면 놀이, 11-22) 도 그리지 않는다 · 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 · simOnly = 시험의 debugSim (그리지 않고 민다) */
       if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
     }
     function draw(t0) {   /* 렌더 패스: 뷰티 → 노멀 → 발광(+블러) → 후처리 합성 · 프레임 ms · 드로우콜 로그 */
@@ -6317,7 +6317,7 @@ var SCENE3D = (function () {
         }
       }
     }
-    function loop() { if (st.paused || st.hidden || st.covered) return; cancelAnimationFrame(raf); raf = requestAnimationFrame(function (ts) { frame(ts); loop(); }); }
+    function loop() { if (st.paused || st.hidden) return; cancelAnimationFrame(raf); raf = requestAnimationFrame(function (ts) { frame(ts); loop(); }); }
 
     /* ── 초기 상태 ── */
     var hookSeason = null; try { hookSeason = window.__ppolLook && window.__ppolLook.season; } catch (e) { /* noop */ }
@@ -7172,7 +7172,7 @@ var SCENE3D = (function () {
       /* [7-N] */
 
       /* [7-U] */
-      setCovered: setCovered, covered: function () { return !!st.covered; }, clock: function () { return { time: time, frames: frameNo }; },
+      setCovered: setCovered, covered: function () { return !!st.covered; }, clock: function () { return { time: time, frames: frameNo, draws: drawN }; },
 
       spotRect: function (id) { var s = spotInfo(id); if (!s || s.mode !== 'over') return s; var r = container.getBoundingClientRect(); s.client = { x: r.left + s.x, y: r.top + s.y, w: s.w, h: s.h }; return s; },
       doorAnchors: JSON.parse(JSON.stringify(DOOR_ANCHORS)),
