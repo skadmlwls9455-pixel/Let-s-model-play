@@ -92,6 +92,7 @@ var VILLAGE = (function () {
     CIRCLES.push([PLAZA.well[0], PLAZA.well[1], 0.95]);       /* 우물 */
     CIRCLES.push([PLAZA.nets[0], PLAZA.nets[1], 0.45]);
     CIRCLES.push([BOARD.s, BOARD.t, BOARD.r]);
+    CIRCLES.push([36.95, 3.95, 0.08], [36.95, 4.85, 0.08]);   /* 카페 입구 기둥 둘 */
     CIRCLES.push([STAGE.c[0] + (-2.0 + 0.6) * K, STAGE.c[1] + (-2.0 - 0.6) * K, 0.2]);   /* 콘테스트 포스터 판 */
     CIRCLES.push([STAGE.c[0] + (1.75 + 0.25) * K, STAGE.c[1] + (1.75 - 0.25) * K, 0.12], [STAGE.c[0] + (2.55 + 0.25) * K, STAGE.c[1] + (2.55 - 0.25) * K, 0.12]);   /* 공연장 문의 기둥 둘 */                        /* 그물 · 부표 더미 */
     LAMPS.forEach(function (l) { if (inWalk(l[0], l[1], -0.3)) CIRCLES.push([l[0], l[1], 0.06]); });
@@ -166,40 +167,40 @@ var VILLAGE = (function () {
      slots = 이름 붙은 자리 [x, y, z, 보는 쪽] (마네킹 받침 · 문어 · 거울 …: 다른 갈래가 여기에 그리거나 세운다) ·
      spots = 누르는 자리 { key, btn, label, x, y, z, r, stand: [x, z] } · boxes [x0, z0, x1, z1] · circles [x, z, r] = 부딪힘 · lights = 등 둘 ── */
   var HP = Math.PI / 2;
-  function mqSpots() { return [0, 1, 2, 3].map(function (i) { var x = -2.3 + i * 1.05; return { key: 'mq' + i, btn: 'btn-mq-' + i, label: ['첫째', '둘째', '셋째', '넷째'][i] + ' 마네킹', x: x, y: 0.95, z: -1.95, r: 0.42, stand: [x, -1.05] }; }); }
+  function mqSpots() { return [0, 1, 2, 3].map(function (i) { var x = -1.2 + i * 1.05; return { key: 'mq' + i, btn: 'btn-mq-' + i, label: ['첫째', '둘째', '셋째', '넷째'][i] + ' 마네킹', x: x, y: 0.95, z: -1.95, r: 0.42, stand: [x, -1.05] }; }); }
   function shelfSpots() { return [0, 1, 2, 3, 4, 5].map(function (i) { var back = i < 3, x = back ? -1.75 + i * 1.05 : -2.3, z = back ? -2.1 : -0.95 + (i - 3) * 1.05; return { key: 'shelf' + i, btn: 'btn-shelf-' + i, label: ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째'][i] + ' 선반', x: x, y: 0.95, z: z, r: 0.42, stand: back ? [x, -1.3] : [-1.5, z] }; }); }
   var ROOMS = {
-    clothes: { name: '옷가게', half: [3.0, 2.6], wallH: 2.2, door: [1.9, 2.0], face: Math.PI, lights: [[-0.6, 1.9, -0.4], [1.6, 1.9, 0.6]],
-      slots: { mq0: [-2.3, 0.14, -1.95, 0], mq1: [-1.25, 0.14, -1.95, 0], mq2: [-0.2, 0.14, -1.95, 0], mq3: [0.85, 0.14, -1.95, 0],
-        mirror: [-2.72, 0, 0.9, HP], mirrorStand: [-1.85, 0, 0.9, -HP], counter: [2.2, 0.56, -1.75, 0], keeper: [2.2, 0.3, -2.25, 0], fitting: [-2.3, 0, 2.0, HP], exit: [1.9, 0, 2.45, 0] },
+    clothes: { name: '옷가게', half: [3.0, 2.6], wallH: 2.2, door: [1.2, 2.0], face: Math.PI, lights: [[-0.6, 1.9, -0.4], [1.6, 1.9, 0.6]],
+      slots: { mq0: [-1.2, 0.14, -1.95, 0], mq1: [-0.15, 0.14, -1.95, 0], mq2: [0.9, 0.14, -1.95, 0], mq3: [1.95, 0.14, -1.95, 0],
+        mirror: [-2.72, 0, 0.9, HP], mirrorStand: [-1.85, 0, 0.9, -HP], counter: [-2.25, 0.56, -1.75, 0], keeper: [-2.25, 0.3, -2.25, 0], fitting: [-2.3, 0, 2.0, HP], exit: [1.2, 0, 2.45, 0] },
       spots: mqSpots().concat([
         { key: 'roomMirror', btn: 'btn-room-mirror', label: '거울', x: -2.72, y: 0.95, z: 0.9, r: 0.5, stand: [-1.85, 0.9] },
-        { key: 'roomCounter', btn: 'btn-room-counter', label: '계산대', x: 2.62, y: 0.7, z: -1.75, r: 0.4, stand: [1.25, -1.25] },   /* 계산대 왼쪽 끝 (문어 · 계산대와 한 줄로 겹치지 않게) */
-        { key: 'roomKeeper', btn: 'btn-npc-clothes', label: '가게 문어', x: 1.9, y: 1.0, z: -2.25, r: 0.4, stand: [1.75, -1.05] },
-        { key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 1.9, y: 0.5, z: 2.5, r: 0.5, stand: [1.9, 2.0] }]),
-      boxes: [[1.45, -2.0, 2.95, -1.5], [-2.95, -0.95, -2.55, 0.35], [2.0, 0.25, 2.9, 0.95], [-1.5, 2.2, -0.1, 2.55], [-2.95, 0.6, -2.6, 1.2], [-2.95, 1.55, -1.75, 2.55]],
-      circles: [[-2.3, -1.95, 0.4], [-1.25, -1.95, 0.4], [-0.2, -1.95, 0.4], [0.85, -1.95, 0.4], [2.7, 2.3, 0.22], [1.75, -0.55, 0.18], [2.75, 1.4, 0.15]] },   /* … 화분 · 모자걸이 · 스탠드 등 */
+        { key: 'roomCounter', btn: 'btn-room-counter', label: '계산대', x: -1.83, y: 0.7, z: -1.75, r: 0.4, stand: [-2.25, -1.2] },   /* 계산대 앞 왼쪽 (옷걸이와 사이) (문어 · 계산대와 한 줄로 겹치지 않게) */
+        { key: 'roomKeeper', btn: 'btn-npc-clothes', label: '가게 문어', x: -2.25, y: 1.0, z: -2.25, r: 0.4, stand: [-1.35, -1.25] },
+        { key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 1.2, y: 0.5, z: 2.5, r: 0.5, stand: [1.2, 2.0] }]),
+      boxes: [[-2.95, -2.0, -1.45, -1.5], [-2.95, -0.95, -2.55, 0.35], [2.0, 0.25, 2.9, 0.95], [-1.5, 2.2, -0.1, 2.55], [-2.95, 0.6, -2.6, 1.2], [-2.95, 1.55, -1.75, 2.55]],
+      circles: [[-1.2, -1.95, 0.4], [-0.15, -1.95, 0.4], [0.9, -1.95, 0.4], [1.95, -1.95, 0.4], [2.7, -2.3, 0.22], [2.7, -0.6, 0.18], [2.75, 1.4, 0.15]] },   /* … 화분 · 모자걸이 · 스탠드 등 */
     cafe: { name: '카페', half: [3.2, 2.6], wallH: 2.2, door: [0.5, 2.0], face: Math.PI, lights: [[0.9, 1.9, -0.9], [-1.2, 1.9, 0.8]],
-      slots: { keeper: [1.3, 0.3, -2.25, 0], menu: [-1.9, 1.35, -2.54, 0], pickup: [0.55, 0.58, -1.75, 0], counter: [1.3, 0.56, -1.75, 0], table: [-0.7, 0.46, 0.45, 0], seat: [-1.42, 0.3, 0.45, HP], aisle: [-1.42, 0, 1.1, Math.PI],
-        table1: [1.25, 0.46, 0.55, 0], table2: [2.45, 0.46, 1.65, 0], nap: [2.45, 0.3, 0.95, 0], turntable: [-2.82, 0.8, 1.55, HP], lp: [-2.82, 0.45, 0.6, HP], exit: [0.5, 0, 2.45, 0] },
+      slots: { keeper: [0.2, 0.3, -2.25, 0], menu: [-1.2, 1.35, -2.54, 0],   /* 카페 문어는 내주는 자리 바로 뒤 (문에서 화면에 든다) */ pickup: [0.55, 0.58, -1.75, 0], counter: [1.3, 0.56, -1.75, 0], table: [-1.6, 0.46, 0.3, 0], seat: [-0.88, 0.3, 0.3, -HP], aisle: [-0.88, 0, 0.95, Math.PI],
+        table1: [1.9, 0.46, 0.3, 0], table2: [2.45, 0.46, 1.7, 0], nap: [2.45, 0.3, 1.05, 0], turntable: [-2.82, 0.8, 1.55, HP], lp: [-2.82, 0.45, 0.6, HP], exit: [0.5, 0, 2.45, 0] },
       spots: [
-        { key: 'cafeMenu', btn: 'btn-cafe-menu', label: '차림판', x: -1.9, y: 1.35, z: -2.5, r: 0.55, stand: [-1.9, -1.55] },
+        { key: 'cafeMenu', btn: 'btn-cafe-menu', label: '차림판', x: -1.2, y: 1.35, z: -2.5, r: 0.55, stand: [-1.2, -1.4] },
         { key: 'cafeCounter', btn: 'btn-cafe-counter', label: '카페 주문', x: 0.55, y: 0.75, z: -1.75, r: 0.4, stand: [0.55, -1.05] },
-        { key: 'cafeSeat', btn: 'btn-cafe-seat', label: '카페 자리', x: -1.42, y: 0.45, z: 0.45, r: 0.4, stand: [-1.42, 1.1] },
+        { key: 'cafeSeat', btn: 'btn-cafe-seat', label: '카페 자리', x: -0.88, y: 0.45, z: 0.3, r: 0.4, stand: [-0.88, 0.95] },
         { key: 'cafeLp', btn: 'btn-cafe-lp', label: '레코드', x: -2.82, y: 0.85, z: 1.1, r: 0.55, stand: [-2.0, 1.1] },
-        { key: 'roomKeeper', btn: 'btn-npc-cafe', label: '가게 문어', x: 1.6, y: 1.0, z: -2.25, r: 0.4, stand: [1.6, -1.05] },
+        { key: 'roomKeeper', btn: 'btn-npc-cafe', label: '가게 문어', x: 0.2, y: 1.0, z: -2.25, r: 0.4, stand: [-0.15, -1.1] },
         { key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 0.5, y: 0.5, z: 2.5, r: 0.5, stand: [0.5, 2.0] }],
       boxes: [[-0.2, -2.0, 3.15, -1.5], [-3.15, -0.25, -2.6, 2.2]],
-      circles: [[-0.7, 0.45, 0.36], [1.25, 0.55, 0.36], [2.45, 1.65, 0.36], [-1.42, 0.45, 0.16], [0.02, 0.45, 0.16], [1.25, -0.17, 0.16], [1.25, 1.27, 0.16], [2.45, 0.95, 0.16], [-2.85, -2.25, 0.25], [-2.85, -0.05, 0.2]] },
-    goods: { name: '잡화점', half: [2.6, 2.4], wallH: 2.2, door: [1.3, 1.8], face: Math.PI, lights: [[-0.4, 1.9, -0.4], [1.2, 1.9, 0.6]],
-      slots: { keeper: [1.75, 0.3, -2.05, 0], counter: [1.75, 0.56, -1.55, 0], scale: [2.2, 0.58, -1.55, 0], exit: [1.3, 0, 2.25, 0],
+      circles: [[-1.6, 0.3, 0.36], [1.9, 0.3, 0.36], [2.45, 1.7, 0.36], [-0.88, 0.3, 0.16], [-2.2, 0.3, 0.16], [1.9, -0.4, 0.16], [2.62, 0.3, 0.16], [2.45, 1.05, 0.16], [-2.85, -2.25, 0.25], [-2.85, -0.05, 0.2]] },
+    goods: { name: '잡화점', half: [2.6, 2.4], wallH: 2.2, door: [1.9, 1.8],   /* 문은 앞벽 오른쪽 (들어서면 계산대의 문어가 화면에 든다) */ face: Math.PI, lights: [[-0.4, 1.9, -0.4], [1.2, 1.9, 0.6]],
+      slots: { keeper: [1.2, 0.3, -2.05, 0], counter: [1.75, 0.56, -1.55, 0], scale: [2.2, 0.58, -1.55, 0], exit: [1.9, 0, 2.25, 0],
         shelf0: [-1.75, 0, -2.2, 0], shelf1: [-0.7, 0, -2.2, 0], shelf2: [0.35, 0, -2.2, 0], shelf3: [-2.4, 0, -0.95, HP], shelf4: [-2.4, 0, 0.1, HP], shelf5: [-2.4, 0, 1.15, HP] },
       spots: shelfSpots().concat([
-        { key: 'roomCounter', btn: 'btn-room-counter', label: '계산대', x: 2.2, y: 0.7, z: -1.55, r: 0.4, stand: [2.0, -0.85] },
-        { key: 'roomKeeper', btn: 'btn-npc-goods', label: '가게 문어', x: 1.5, y: 1.0, z: -2.05, r: 0.4, stand: [1.4, -0.85] },
-        { key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 1.3, y: 0.5, z: 2.3, r: 0.5, stand: [1.3, 1.8] }]),
-      boxes: [[1.05, -1.8, 2.55, -1.3], [-2.25, -2.35, 0.85, -1.95], [-2.55, -1.45, -2.15, 1.65]],
-      circles: [[2.2, 0.6, 0.24], [2.25, 1.15, 0.2], [-0.9, 2.0, 0.24], [-0.45, 2.1, 0.24], [0.3, 2.05, 0.15], [-2.25, 2.05, 0.2]] },   /* 통 둘 · 자루 둘 · 물뿌리개 · 화분 */
+        { key: 'roomCounter', btn: 'btn-room-counter', label: '계산대', x: 2.2, y: 0.7, z: -1.55, r: 0.4, stand: [1.6, -0.85] },
+        { key: 'roomKeeper', btn: 'btn-npc-goods', label: '가게 문어', x: 1.2, y: 1.0, z: -2.05, r: 0.4, stand: [1.0, -0.85] },
+        { key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 1.9, y: 0.5, z: 2.3, r: 0.5, stand: [1.9, 1.8] }]),
+      boxes: [[0.9, -1.8, 2.55, -1.3], [-2.25, -2.35, 0.85, -1.95], [-2.55, -1.45, -2.15, 1.65]],
+      circles: [[2.35, 0.6, 0.24], [2.4, 1.15, 0.2], [-0.9, 2.0, 0.24], [-0.45, 2.1, 0.24], [0.3, 2.05, 0.15], [-2.25, 2.05, 0.2]] },   /* 통 둘 · 자루 둘 · 물뿌리개 · 화분 */
     /* 공연장 (주인 11-22 00:05: "카페나 콘테스트도 아예 맵을 따로") — 뒷벽 앞의 높인 무대 (0.3 m) 와 방 안으로 뻗은 길 (캣워크), 막, 조명 둘, 길을 보는 심사석 셋, 구경 벤치 둘, 무대 뒤 구석 (옷걸이 · 거울), 벽의 결과판 */
     hall: { name: '공연장', half: [3.5, 3.0], wallH: 2.4, door: [2.6, 2.4], face: Math.PI, lights: [[0, 2.1, -1.2], [1.4, 2.1, 1.9]],   /* 둘째 등은 길 위가 아니라 문 쪽 (길 위에 선 캐릭터 머리를 가렸다) */
       stage: { x0: -2.3, x1: 2.3, z0: -3.0, z1: -1.55, y: 0.3 }, walk: { x0: -0.5, x1: 0.5, z0: -1.55, z1: 0.75, y: 0.3 }, steps: { z0: 0.75, z1: 1.2 },
@@ -213,13 +214,14 @@ var VILLAGE = (function () {
       boxes: [[-2.3, -2.95, -0.5, -1.55], [0.5, -2.95, 2.3, -1.55], [1.9, -1.15, 2.4, 1.05], [-3.3, -1.1, -2.85, 0.35], [-2.5, -1.1, -2.05, 0.35], [-3.45, 1.15, -2.7, 2.05], [-2.65, 2.5, -1.3, 2.85]],   /* … 무대 뒤 옷걸이 · 가림막 */
       circles: [[-1.25, -1.3, 0.14], [1.25, -1.3, 0.14], [2.75, -0.75, 0.2], [2.75, -0.05, 0.2], [2.75, 0.65, 0.2], [-3.22, 2.45, 0.22], [3.15, 1.6, 0.22]] }
   };
+  var CAFE_DOOR = [36.95, 4.4];   /* 카페 입구: 덱의 앞 (광장 쪽) 가장자리에 선 문틀 — 길을 걸어 내려오면 정면으로 보인다 (리드 검토 11-22) */
   /* 바깥의 가게 문 (들어가는 단추): 건물 안 좌표 (lx, lz) 의 문 앞 → (s, t) */
   var DOORS = (function () {
-    var c = at('clothes', 1.45, 0.3), g2 = at('goods', 1.45, 0.3), f = at('cafe', 1.25, -0.3);
+    var c = at('clothes', 1.45, 0.3), g2 = at('goods', 1.45, 0.3), f = CAFE_DOOR;
     return [
       { key: 'inClothes', btn: 'btn-in-clothes', label: '옷가게 들어가기', room: 'clothes', s: c[0], t: c[1], y: 0.7, r: 0.45, stand: [c[0] + 0.75, -2.15] },
       { key: 'inGoods', btn: 'btn-in-goods', label: '잡화점 들어가기', room: 'goods', s: g2[0], t: g2[1], y: 0.7, r: 0.45, stand: [g2[0] + 0.75, 2.15] },
-      { key: 'inCafe', btn: 'btn-in-cafe', label: '카페 들어가기', room: 'cafe', s: f[0], t: f[1], y: 0.7, r: 0.45, stand: [f[0], 6.7] },
+      { key: 'inCafe', btn: 'btn-in-cafe', label: '카페 들어가기', room: 'cafe', s: f[0], t: f[1], y: 1.0, r: 0.5, stand: [38.35, f[1]] },
       { key: 'inHall', btn: 'btn-in-hall', label: '공연장 들어가기', room: 'hall', s: STAGE.c[0] + 2.4 * K, t: STAGE.c[1] + 1.9 * K, y: 0.9, r: 0.5, stand: [STAGE.c[0] + 3.3 * K, STAGE.c[1] + 1.0 * K] }];
   })();
   /* 광장 무대 (주말 콘테스트): 기다리는 자리 · 걷는 길 넷 · 심사 자리 셋 · 시상대 넷 — (s, t) */
@@ -232,6 +234,6 @@ var VILLAGE = (function () {
 
   var HATS = ['none', 'beret', 'apron', 'cap'], POSES = ['stand', 'sleep'];
   return { xz: xz, st: st, local: local, at: at, lot: lot, spot: spot, npc: npc, inWalk: inWalk,
-    WALK: WALK, LOTS: LOTS, DECK: DECK, STALL: STALL, STAGE: STAGE, PLAZA: PLAZA, CAFE: CAFE, SPOTS: SPOTS, NPCS: NPCS, LAMPS: LAMPS, NLAMP: NLAMP, POTS: POTS, BOARD: BOARD, CIRCLES: CIRCLES, BOXES: BOXES, BENCH: BENCH, route: route, ROOMS: ROOMS, DOORS: DOORS, SHOW: SHOW, PLAZA_SHOW: PLAZA_SHOW, EXTRA: EXTRA, SEGMENTS: SEGMENTS, HATS: HATS, POSES: POSES };
+    WALK: WALK, LOTS: LOTS, DECK: DECK, STALL: STALL, STAGE: STAGE, PLAZA: PLAZA, CAFE: CAFE, SPOTS: SPOTS, NPCS: NPCS, LAMPS: LAMPS, NLAMP: NLAMP, POTS: POTS, BOARD: BOARD, CIRCLES: CIRCLES, BOXES: BOXES, BENCH: BENCH, route: route, ROOMS: ROOMS, DOORS: DOORS, CAFE_DOOR: CAFE_DOOR, SHOW: SHOW, PLAZA_SHOW: PLAZA_SHOW, EXTRA: EXTRA, SEGMENTS: SEGMENTS, HATS: HATS, POSES: POSES };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = VILLAGE;
