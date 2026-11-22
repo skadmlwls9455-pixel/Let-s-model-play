@@ -101,12 +101,12 @@ async function main() {
   check(!/\d/.test(v.text.replace(/조개\s*\d+/g, '')) && !/남은|마지막|까지|시간|내일/.test(v.text), '날짜 · 시계 · 재촉 글 없음: ' + JSON.stringify(v.text));
   check(!/[^가-힣ㄱ-ㆎ0-9a-zA-Z\s.,·!?]/.test(v.text), '기호 · 이모지 없음');
   r = await page.evaluate(function () {
-    var b = document.getElementById('contest-body'), th = b.querySelector('.ct-theme.big > canvas'), want = b.querySelectorAll('.ct-want canvas'), me = b.querySelector('.ct-mine canvas'), wk = CONTEST.week(window.__ppolTest.today);
+    var b = document.getElementById('contest-body'), th = b.querySelector('.ct-theme.big .ct-poster canvas'), want = b.querySelectorAll('.ct-want canvas'), me = b.querySelector('.ct-mine canvas'), wk = CONTEST.week(window.__ppolTest.today);
     return { th: th ? th.getBoundingClientRect().width : 0, want: want.length, labels: Array.prototype.map.call(want, function (c) { return c.getAttribute('aria-label'); }), me: me ? [me.width, me.height, me.getBoundingClientRect().width] : null, need: wk.theme.tags.length + 1, title: b.querySelector('.ct-title').textContent === wk.theme.title, titles: document.querySelectorAll('#contest-sheet [title]').length };
   });
   check(r.th >= 90 && r.title, '주제 그림 (' + r.th + 'px) 과 제목');
   check(r.want === r.need && r.labels.every(function (l) { return !!l; }), '바라는 꼬리표 그림 ' + r.want + '개 (이름은 읽어 주기에만)');
-  check(r.me && r.me[0] === 64 && r.me[1] === 96 && r.me[2] === 128, '내 모습 (장면의 전신 사진)');
+  check(r.me && r.me[0] === 64 && r.me[1] === 96 && r.me[2] === 128, '내 모습 (장면의 전신 사진 · 무대 위)');
   check(r.titles === 0, 'title 속성 없음');
   await shot(page, '1-theme-weekday');
   check(await page.evaluate(function () { APP.contestEnter(); return CONTEST.today(APP.state.user, window.__ppolTest.today) === null && !APP.contestStage; }) && (await shells(page)) === s0, '평일엔 나가기를 불러도 아무 일 없음');
@@ -130,8 +130,8 @@ async function main() {
   await page.click('#ct-go');
   r = await page.evaluate(function () { return { st: APP.contestStage, closeHidden: document.getElementById('contest-close').hidden, skip: !!document.getElementById('ct-skip') }; });
   check(r.st && r.st.stage === 'walk' && r.st.n === 1 && r.skip && r.closeHidden, '쇼 시작: 걸어 나오기 1 · 넘기기 단추');
-  r = await page.evaluate(function () { var dpr = window.devicePixelRatio, bad = [], th = document.querySelectorAll('#ct-show canvas.ct-thumb'); Array.prototype.forEach.call(th, function (c) { var per = c.getBoundingClientRect().width * dpr / c.width; if (Math.abs(per - Math.round(per)) > 0.01) bad.push(per); }); return { n: th.length, bad: bad, rule: !!document.querySelector('#ct-show .ct-rule') }; });
-  check(r.n >= 9 && r.bad.length === 0, '경쟁자 옷 그림 ' + r.n + '개도 기기 픽셀 정수 배 ' + JSON.stringify(r.bad));
+  r = await page.evaluate(function () { var dpr = window.devicePixelRatio, bad = [], th = document.querySelectorAll('#ct-show canvas.ct-art'); Array.prototype.forEach.call(th, function (c) { var per = c.getBoundingClientRect().width * dpr / c.width; if (Math.abs(per - Math.round(per)) > 0.01) bad.push(per); }); return { n: th.length, bad: bad, rule: !!document.querySelector('#ct-show .ct-rule'), stage: !!document.querySelector('#ct-show .ct-lineup.ct-stage') }; });
+  check(r.n >= 12 && r.bad.length === 0 && r.stage, '쇼 무대의 그림 ' + r.n + '개 모두 기기 픽셀 정수 배 ' + JSON.stringify(r.bad));
   check(r.rule, "쇼 중에도 '채점 규칙' 꼬리표");
   e = await entry(page, SAT);
   check(e && e.paid === true && (await shells(page)) === s0 + e.shells && [12, 8, 5, 3][e.rank - 1] === e.shells, '나가는 순간 조개 한 번 (' + (e && e.rank) + '등 · ' + (e && e.shells) + ')');
