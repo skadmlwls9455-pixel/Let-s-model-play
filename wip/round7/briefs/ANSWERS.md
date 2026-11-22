@@ -34,7 +34,7 @@ wins over this file.
 | 13 | map continuity | default | outdoors one continuous map from the yard to the sea with a following camera and signposts for quick travel; rooms indoors still change through doors |
 | 14 | boy or girl | default | no gender choice: two body shapes and every hair and outfit freely mixed |
 | 15 | faces and clothes | default | the doll-like proportions stay; more eye styles, brows, short and medium hair, trouser outfits, shoes, accessories |
-| 16 | shops | default | touching a shop (its keeper at the counter) opens a picture sheet with today's shelf; the cafe is an open deck you walk into and sit down in (no separate interior room this round) |
+| 16 | shops | **owner (11-21 23:40 · 11-22 00:05 KST)** | **rooms you walk into**, not sheets: the clothes shop, the general store, the cafe and the contest each get their own map behind a door ("옷가게 맵을 아예 따로 만들고 마네킹에 입혀진 거를 입어보고 살 수 있는" · "카페나 콘테스트도 아예 맵을 따로"). Clothes are tried on for real and worn while walking about the shop. The old sheets stay only for the 2D scene. See `CONTENT.md` |
 | 17 | daily stock | default | clothes shop: four items a day, changing with the date; no timers, no limited editions, everything comes round again |
 | 18 | general store | default | seeds and dyes |
 | 19 | cafe music | default | compositions whose copyright has ended, played by the game's own synthesizer with a little record crackle; a list of about twenty candidates for the owner in `docs/CAFE_MUSIC.md` |
