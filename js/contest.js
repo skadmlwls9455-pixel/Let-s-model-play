@@ -254,6 +254,7 @@
       bow: ['.........pp.pp..', '.........ppPpp..', '.........pp.pp..'],
       flower: ['...p............', '..pyp...........', '...p............'],
       cap: ['....bbbbbbbb....', '..bbbbbbbbbbBBBB'],
+      beret: ['...RRRRRRRRR.R..', '..RRrRRRRRRRRR..'],
       star: ['..........y.....', '.........yYy....', '..........y.....']
     },
     theme: {
