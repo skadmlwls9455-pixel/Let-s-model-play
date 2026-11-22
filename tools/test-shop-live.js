@@ -212,6 +212,7 @@ function roomStub() {
   for (let i = 0; i < 6; i++) mk('btn-shelf-' + i, 16 + i * 56, 190);
   const L = window.__room = { mq: [], pose: [], close: [], tryOff: [], wear: [] }, T = window.__try = {};
   APP.scene.enterRoom = () => Promise.resolve({ ok: true }); APP.scene.inRoom = () => null;
+  APP.scene.roomSlots = k => ({ slots: { mq0: [-1.8, 0.14, -2, 0], mq1: [-0.6, 0.14, -2, 0], mq2: [0.6, 0.14, -2, 0], mq3: [1.8, 0.14, -2, 0], counter: [2, 0, 1, 0] } });
   APP.scene.mannequins = (k, l) => { L.mq.push(JSON.parse(JSON.stringify(l))); };
   APP.scene.playerPose = n => { L.pose.push(n); return Promise.resolve(); };
   APP.scene.playerCloseup = on => { L.close.push(on); return Promise.resolve(); };
@@ -228,7 +229,7 @@ async function roomRun(browser) {
   const stock = await page.evaluate(() => APP.shopStock('clothes').items), look0 = await page.evaluate(() => JSON.stringify(APP.state.settings.player)), raw0 = await page.evaluate(() => localStorage.getItem('ppolppol_v2'));
   await enter(page, 'clothes');
   let r = await R(page);
-  ok(r.key === 'clothes' && r.mq.length === 4 && r.mq.every((m, i) => m.slot === 'mq' + i && !m.sold && m.parts && m.parts[stock[i].cat] === stock[i].id && Object.keys(m.parts).length === 1), '들어가면 마네킹 넷이 오늘의 네 벌');
+  ok(r.key === 'clothes' && r.mq.length === 4 && r.mq.every((m, i) => m.slot === 'mq' + i && !m.sold && m.parts && m.parts[stock[i].cat] === stock[i].id && Object.keys(m.parts).length === 1 && Array.isArray(m.pos) && m.pos[1] === 0.14), '들어가면 마네킹 넷이 오늘의 네 벌');
   ok(r.said.join() === 'clothes|shop.enter', '가게 주인 줄 한 번');
   /* 마네킹 톡 → 꼬리표 카드 (dialog 가 아니라 장면 안의 요소) */
   await page.evaluate(() => { document.getElementById('btn-mq-0').click(); document.querySelector('#shop-card button').click(); });   /* 같은 자리 두 번 톡 */
