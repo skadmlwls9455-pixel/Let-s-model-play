@@ -4921,13 +4921,21 @@ async function scenarioTapLine(browser) {
   ok(a1.phase === 'awake' && /^(idle|walk)$/.test(a1.oct) && a1.saved === 'sleep' && a1.sleeps === 0, '데려온 뒤 곧장 자지 않는다: 깨어 있는 틈 (저장은 쉬는 중 · 잠 훅 아직 0)');
   ok(a1.line && a1.line.by === 'demo-rules' && a1.line.text && a1.line.text !== a1.poster, '데모 산책 톡 한 줄이 있다 (포스터 한 줄과 다름): ' + (a1.line && a1.line.text));
   /* 3. 톡 다섯 번: 그 줄 · 로그 행 · 저장 · 기록 그대로 · 소리는 한 번 · '데모' 꼬리표 보임 · 몸이 톡 */
+  /* 11-21 CI (2ed1134 · 스모크 T 42/1): 귀가 공개의 마지막 저장 ('새 포스터' 알림 뒤 — save() 는 settings.lastSeen 을 올린다) 이 큰 단추가 돌아온 뒤에 올 수 있다.
+     느린 러너에서 그 저장이 아래 280 ms 창 안에 들어 '상태 · 저장 그대로' 가 톡과 무관하게 깨졌다 (여기서 잰 차례: 알림 4.8 s → 단추 5.6 s, 러너에선 뒤집힘).
+     → 저장이 0.5 s 동안 잠잠해진 뒤부터 잰다 (최대 4 s · 틈 9 s 안). 톡이 저장을 건드리면 여전히 잡힌다 (기준은 톡 바로 앞) · 어긋나면 바뀐 칸을 같이 적는다 */
+  await page.evaluate(function () { return new Promise(function (res) { var last = localStorage.getItem('ppolppol_v2'), t0 = performance.now(), q0 = t0;
+    (function poll() { var now = performance.now(), cur = localStorage.getItem('ppolppol_v2'); if (cur !== last) { last = cur; q0 = now; } if (now - q0 >= 500 || now - t0 >= 4000) return res(); setTimeout(poll, 50); })(); }); });
   var r3 = await page.evaluate(function () {
     return new Promise(function (res) {
+      function flat(o, p, out) { if (o && typeof o === 'object') Object.keys(o).forEach(function (k) { flat(o[k], p ? p + '.' + k : k, out); }); else out[p] = JSON.stringify(o); return out; }
+      function changed(a, b) { var A = flat(JSON.parse(a), '', {}), B = flat(JSON.parse(b), '', {}); return Object.keys(B).filter(function (k) { return A[k] !== B[k]; }).concat(Object.keys(A).filter(function (k) { return !(k in B); })).slice(0, 8); }
       var rows = document.querySelectorAll('#log .lrow').length, st = JSON.stringify(APP.state), ls = localStorage.getItem('ppolppol_v2');
       window.__aud = []; APP.tapOct(); APP.tapOct(); APP.tapOct();
       var b = document.getElementById('oct-bubble'), text = b.hidden ? '' : b.textContent, sr = document.getElementById('oct-say');
       setTimeout(function () { var srText = sr ? sr.textContent : null; APP.tapOct(); setTimeout(function () { APP.tapOct();
-        res({ text: text, rows: document.querySelectorAll('#log .lrow').length - rows, sameState: JSON.stringify(APP.state) === st, sameLS: localStorage.getItem('ppolppol_v2') === ls,
+        var st2 = JSON.stringify(APP.state);
+        res({ text: text, rows: document.querySelectorAll('#log .lrow').length - rows, sameState: st2 === st, sameLS: localStorage.getItem('ppolppol_v2') === ls, changed: st2 === st ? [] : changed(st, st2),
           voice: window.__aud.filter(function (a) { return a.n === 'bubble'; }).length, tag: !document.getElementById('brain-tag').hidden, tapAttr: b.getAttribute('data-tap'),
           sr: srText, srLive: sr ? sr.getAttribute('aria-live') + '/' + sr.getAttribute('role') + '/' + sr.className : null, srLog: !!(sr && sr.closest('#log')) });
       }, 120); }, 160);
