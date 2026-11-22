@@ -182,7 +182,7 @@ async function village(page) {
         }
         if (a.key === 'cafe') { sc.npcSet(a.list.concat([{ id: 'sleep-3', color: '#8898b0', hat: 'none', pose: 'sleep', room: 'cafe', slot: 'nap' }])); await __V.run(2); r.guests = sc.villageRooms().rooms.cafe.guests; r.outside = sc.villageInfo().npcs.map(function (q) { return q.id; }); sc.npcSet(a.list); }
         if (a.key === 'cafe') { var s = null; sc.cafeSit(true).then(function (x) { s = x; }); await __V.run(400, function () { return s !== null; }); r.sat = s; r.seated = sc.cafeSeated(); r.cup = sc.cafeCup(true); r.rec = sc.cafeRecord(true, '#3f6690'); __V.frame(); r.info = sc.villageRooms().rooms.cafe; var p = sc.player().at, S = VILLAGE.ROOMS.cafe.slots.seat; r.seatD = Math.hypot(p[0] - S[0], p[2] - S[2]); sc.cafeRecord(false); }
-        var out = null; sc.leaveRoom().then(function (x) { out = x; }); await __V.run(500, function () { return out !== null; }); await __V.run(20); r.leave = out; r.after = sc.inRoom(); r.seatedAfter = sc.cafeSeated(); r.view = sc.view();
+        var out = null; sc.leaveRoom().then(function (x) { out = x; }); await __V.run(500, function () { return out !== null; }); await __V.run(20); r.leave = out; r.after = sc.inRoom(); r.seatedAfter = sc.cafeSeated(); r.view = sc.view(); var pa = sc.player().at, dq = VILLAGE.DOORS.filter(function (q) { return q.room === a.key; })[0], k = Math.SQRT1_2; r.outD = dq ? Math.hypot((pa[0] + pa[2]) * k - dq.stand[0], (pa[0] - pa[2]) * k - dq.stand[1]) : 0;
         return r;
       }, { key: rk, has: hasRooms, list: NPCS });
       if (!hasRooms) { ok(t9.dbg === true && t9.rooms.rooms[rk] && (rk === 'hall' || t9.rooms.rooms[rk].keeper === true), rk + ' 방이 지어진다 (가게 문어 포함)'); continue; }
@@ -195,6 +195,7 @@ async function village(page) {
       if (rk === 'cafe') ok(t9.guests.join() === 'sleep-3' && t9.outside.indexOf('sleep-3') < 0, 'npcSet 의 room · slot: 카페 구석에서 자는 문어 (바깥에는 없다)');
       if (rk === 'cafe') ok(t9.sat === true && t9.seated && t9.cup === true && t9.rec === true && t9.info.cup && t9.info.record && t9.seatD < 0.1, '카페 안에서 앉기 · 잔 · 레코드 (걸상에서 ' + t9.seatD.toFixed(2) + ' m)');
       ok(t9.leave && t9.leave.ok && t9.after === null && t9.view === 'yard' && !t9.seatedAfter, rk + ' 에서 나온다 (앉은 채였어도 선 채로 밖에)');
+      ok(t9.outD < 0.3, rk + ' 에서 나오면 문 앞 선 자리에 (' + t9.outD.toFixed(2) + ' m)');
     }
     ok(o.errs.length === 0, '오류 없음 (낮): ' + o.errs.slice(0, 3).join(' | '));
     await o.ctx.close();
