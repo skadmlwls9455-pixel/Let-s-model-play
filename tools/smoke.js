@@ -2280,7 +2280,7 @@ async function scenarioFirst(browser) {
   var before = hs.seen.length;
   await pg.reload(); await pg.waitForSelector('#btn-go:not(.away)', { timeout: 30000 });
   var re = await pg.evaluate(function () { return new Promise(function (res) { var n = 0, was = false; var iv = setInterval(function () { var e = document.getElementById('hint-hand'), on = !!(e && !e.hidden); if (on && !was) n++; was = on; }, 40); setTimeout(function () { clearInterval(iv); res({ n: n, pref: JSON.parse(localStorage.getItem('ppolppol_ui') || '{}').hints }); }, 7000); }); });
-  ok(re.n === 3 - before && Object.keys(re.pref || {}).length === 3, '11-18 새로 열면 본 힌트는 다시 없음 (남은 것만 ' + re.n + ' · ' + JSON.stringify(re.pref) + ')');
+  ok(re.n === 2 - before && Object.keys(re.pref || {}).length === 2, '11-18 새로 열면 본 힌트는 다시 없음 (11-21: 힌트는 둘 — 놀이방 문 · 마당 문. 남은 것만 ' + re.n + ' · ' + JSON.stringify(re.pref) + ')');
   /* 여러 번 다녀온 기록: 둘째 산책 뒤엔 (기기 표시를 지워도) 켜지지 않는다 */
   await waitIdle(pg); await pg.click('#btn-go'); await pg.waitForSelector('#btn-go.away', { timeout: 10000 }); await pg.waitForTimeout(1200); await pg.click('#btn-go'); await waitIdle(pg);
   await pg.evaluate(function () { localStorage.setItem('ppolppol_ui', '{}'); });   /* 기기 표시를 지우고 새로 열어도 (산책 둘) 켜지지 않는다 */
@@ -3033,6 +3033,7 @@ async function scenarioFirstColor(browser) {
   console.log('   dev slider:', JSON.stringify(g1));
   ok(g1.mid.n === g0.n && g1.mid.color === RED && g1.mid.sameSave && g1.mid.scenes >= 8, '개발용 슬라이더 input 10번: 장면만 미리 보임 (색 ' + g1.mid.scenes + '가지) · 기록 · 저장 그대로');
   ok(g1.n === g0.n + 1 && g1.last.how === 'dev' && g1.last.by === 'dev' && g1.last.color === g1.color && g1.scene === g1.color && g1.saved === g1.n, "change 1번 → 기록 한 줄 { how: 'dev', by: 'dev' } · 장면 = 기록 색 (" + g1.color + ')');
+  await pf.evaluate(function () { [].forEach.call(document.querySelectorAll('#set-body details.set-sec'), function (d) { d.open = true; }); });   /* 11-21: 설정 구역은 접혀서 열린다 → 펼치고 누른다 (?dev=1 탭 · 위 슬라이더 검사는 접힌 채로도 돈다) */
   await pf.click('#set-body .preset[data-hex="' + BLUE + '"]');
   var g2 = await pf.evaluate(function () { var c = APP.state.octopus.colors; return { n: c.length, last: c[c.length - 1], on: (document.querySelector('#set-body .preset.on') || {}).dataset }; });
   ok(g2.n === g1.n + 1 && g2.last.how === 'dev' && g2.last.color === BLUE && g2.on && g2.on.hex === BLUE, '개발용 프리셋 파랑 → 한 줄 더 · 칩 켜짐');
@@ -8125,7 +8126,7 @@ async function scenarioU7(browser) {
   if (await page.$('#album-sheet[open]')) { await page.keyboard.press('Escape'); await page.waitForTimeout(400); }
   /* 전체 화면 놀이 (달리기 · 부엌) 가 열린 동안 3D 장면은 그리지 않는다 · 닫으면 시계가 뛰지 않고 잇는다 (11-21) */
   if (await page.evaluate(function () { return APP.sceneMode === '3d' && typeof APP.scene.setCovered === 'function'; })) {
-    function clk() { return page.evaluate(function () { var c = APP.scene.clock(); return { t: c.time, n: c.frames, cov: APP.scene.covered() }; }); }
+    function clk() { return page.evaluate(function () { var c = APP.scene.clock(); return { t: c.time, n: c.frames, d: c.draws, cov: APP.scene.covered() }; }); }
     await page.evaluate(function () { return APP.goRoom('play'); });
     await page.waitForFunction(function () { var m = APP.scene.motion(); return APP.room === 'play' && !m.trans && m.dq === ''; }, null, { timeout: 30000 }); await page.waitForTimeout(600);
     var c0 = await clk(); await page.waitForTimeout(700); var c1 = await clk();
@@ -8134,13 +8135,13 @@ async function scenarioU7(browser) {
     await page.evaluate(function () { RUNNER.close(); }); await page.waitForFunction(function () { return APP.scene.clock().frames > 0 && !APP.scene.covered(); }, null, { timeout: 5000 }); await page.waitForTimeout(700);
     var c4 = await clk();
     console.log('   covered:', JSON.stringify([c0, c1, c2, c3, c4]));
-    ok(!c0.cov && c1.n > c0.n && c2.cov && c3.cov && c3.n === c2.n && c3.t === c2.t, '달리기 창이 열린 동안 장면 프레임 0 (' + c2.n + ' → ' + c3.n + ') · 평소엔 돈다 (' + c0.n + ' → ' + c1.n + ')');
-    ok(!c4.cov && c4.n > c3.n && c4.t - c3.t < (c4.n - c3.n) * 0.1 + 1e-6 && c4.t - c3.t < 1.5, '닫으면 다시 돌고 시계는 뛰지 않는다 (+' + (c4.t - c3.t).toFixed(2) + ' s · ' + (c4.n - c3.n) + ' 프레임)');
+    ok(!c0.cov && c1.d > c0.d && c2.cov && c3.cov && c3.d === c2.d && c3.n > c2.n, '달리기 창이 열린 동안 장면은 그리지 않는다 (그리기 ' + c2.d + ' → ' + c3.d + ') · 시뮬레이션은 돈다 (' + c2.n + ' → ' + c3.n + ' — 창을 연 채 산책이 끝나야 한다) · 평소엔 그린다 (' + c0.d + ' → ' + c1.d + ')');
+    ok(!c4.cov && c4.d > c3.d && c4.t - c3.t < (c4.n - c3.n) * 0.1 + 1e-6, '닫으면 다시 그리고 시계는 뛰지 않는다 (+' + (c4.t - c3.t).toFixed(2) + ' s · ' + (c4.n - c3.n) + ' 프레임 · 그리기 +' + (c4.d - c3.d) + ')');
     await page.evaluate(function () { var o = document.getElementById('cook-overlay'); o.showModal(); }); await page.waitForTimeout(200);
     var k0 = await clk(); await page.waitForTimeout(800); var k1 = await clk();
     await page.evaluate(function () { document.getElementById('cook-overlay').close(); }); await page.waitForTimeout(600);
     var k2 = await clk();
-    ok(k0.cov && k1.n === k0.n && !k2.cov && k2.n > k1.n, '부엌 창이 열린 동안에도 프레임 0 · 닫으면 다시 돈다 (' + [k0.n, k1.n, k2.n].join(' → ') + ')');
+    ok(k0.cov && k1.d === k0.d && !k2.cov && k2.d > k1.d, '부엌 창이 열린 동안에도 그리기 0 · 닫으면 다시 그린다 (' + [k0.d, k1.d, k2.d].join(' → ') + ')');
     await page.evaluate(function () { return APP.goRoom('attic'); });
     await page.waitForFunction(function () { var m = APP.scene.motion(); return !APP.room && !m.trans && m.dq === ''; }, null, { timeout: 30000 });
   }
@@ -8159,6 +8160,30 @@ async function scenarioU7(browser) {
   var d3 = await o3.page.evaluate(function () { var e = document.getElementById('day-n').getBoundingClientRect(), s = document.getElementById('status').getBoundingClientRect(); return { inBar: e.top >= s.top && e.bottom <= s.bottom && e.right <= s.right, txt: document.getElementById('day-n').textContent }; });
   ok(d3.inBar && d3.txt === 'D+3', '1280 px: D+N 이 바 안 (' + JSON.stringify(d3) + ')');
   await o3.ctx.close();
+  /* 빈 화면 채우기 (11-21): 실내 (다락 · 위층 · 놀이방) 의 허공에 먼 풍경 — 마당 (바깥) 에는 없음 · 드로콜은 ?vista=0 과 같다 · 돌려 보면 몇 px 밀린다 · 모션 줄이기면 물결이 멈춘다 */
+  var o4 = await openApp(360, 740, rec, '2026-11-08'), p4 = o4.page;
+  if (await p4.evaluate(function () { return APP.sceneMode === '3d' && typeof APP.scene.vista === 'function' && !!window.VISTA; })) {
+    async function settle(pg, room) { await pg.evaluate(function (r) { return APP.goRoom(r); }, room); await pg.waitForFunction(function (r) { var m = APP.scene.motion(); return (APP.room || 'attic') === r && !m.trans && m.dq === ''; }, room, { timeout: 30000 }); await pg.waitForTimeout(700); }
+    function vis(pg) { return pg.evaluate(function () { var v = APP.scene.vista(), st = APP.scene.stats(); return { shown: v.shown, w: v.w, h: v.h, t: st.target, frame: v.frame, paints: v.paints, off: v.off, calls: st.calls, key: v.key }; }); }
+    /* 화면 구석 (허공) 의 색: 풍경이 깔렸으면 한 가지 색이 아니다 */
+    function corners(pg) { return pg.evaluate(function () { var c = document.querySelector('#scene canvas'), r = c.getBoundingClientRect(), n = {}, k = 0; for (var y = 4; y < r.height; y += 9) [3, r.width - 4].forEach(function (x) { if (APP.scene.voidAt(r.left + x, r.top + y)) k++; }); return { voids: k }; }); }
+    var va = await vis(p4), ca = await corners(p4);
+    ok(va.shown && va.w === va.t[0] + 40 && va.h === va.t[1] && /\|(day|dusk|night|dawn)\|/.test(va.key) && ca.voids > 20, '다락: 허공에 먼 풍경 (그림 = 렌더 타깃 ' + va.t.join('×') + ' + 좌우 여백 · 가장자리 허공 ' + ca.voids + ' 점) ' + va.key);
+    await p4.evaluate(function () { APP.scene.setYaw(90, true); }); await p4.waitForTimeout(500);
+    var vy = await vis(p4); await p4.evaluate(function () { APP.scene.setYaw(0, true); }); await p4.waitForTimeout(300);
+    ok(va.off === 0 && vy.off !== 0 && Math.abs(vy.off) <= 20, '방을 돌리면 풍경이 반대쪽으로 몇 px 밀린다 (0° ' + va.off + ' → 90° ' + vy.off + ' 아트 px)');
+    var f0 = va.frame; await p4.waitForTimeout(1500); var vb = await vis(p4);
+    ok(vb.frame !== f0 && vb.paints > va.paints && vb.paints - va.paints <= 8, '물결은 1 초에 두세 칸만 다시 그린다 (1.5 s 에 ' + (vb.paints - va.paints) + ' 번)');
+    await settle(p4, 'loft'); var vl = await vis(p4); await settle(p4, 'attic'); await settle(p4, 'play'); var vp = await vis(p4); await settle(p4, 'attic');
+    ok(vl.shown && vp.shown, '위층 · 놀이방에도 풍경');
+    if (await p4.evaluate(function () { return !document.getElementById('btn-yard').hidden || true; })) { await settle(p4, 'yard'); var vyd = await vis(p4); ok(!vyd.shown, '마당 (바깥) 에는 풍경을 깔지 않는다 (땅이 화면 끝까지)'); await settle(p4, 'attic'); }
+    await p4.evaluate(function () { APP.scene.setReducedMotion(true); }); await p4.waitForTimeout(700); var r0 = await vis(p4); await p4.waitForTimeout(1200); var r1 = await vis(p4);
+    ok(r0.shown && r0.frame === 0 && r1.frame === 0 && r1.paints === r0.paints, '모션 줄이기: 물결이 멈춘다 (다시 그리지 않음)');
+    var o5 = await openApp(360, 740, rec, '2026-11-08', '&vista=0'), v5 = await vis(o5.page);
+    ok(!v5.shown && v5.calls === va.calls, '?vista=0 이면 끔 (예전 하늘 띠) · 드로콜은 켰을 때와 같다 (' + va.calls + ' = ' + v5.calls + ')');
+    await o5.ctx.close();
+  }
+  await o4.ctx.close();
   ok(bag.length === 0, 'U7: 페이지 오류 없음 (' + bag.join(' | ').slice(0, 200) + ')');
 }
 
