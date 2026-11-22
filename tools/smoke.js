@@ -5245,8 +5245,10 @@ async function scenarioBringBack(browser) {
   ok(Bq.retFrames >= 5 && Bq.retFrames <= 45, '귀가 의식은 짧은 판 (다락 문 0.3 s 전환 + 문간에서 2배 걸음 — 길 · 계단 없음) · 귀가 중 한 번 더 눌러도 감기지 않는다: ' + Bq.retFrames + ' 프레임');
   /* 11-15 (CI K): 누른 순간 한 프레임이 느린 러너에선 5~6 s 멈춰 (로컬 1~3 s), 그 뒤 모든 벽시계가 밀렸다 — 귀가가 시작된 때부터 잰다.
      지키는 것은 그대로: 데려오면 짧은 귀가 (긴 귀가는 길 · 계단을 걸어 20 s 를 훌쩍 넘는다) */
-  ok(tToast > tRet && tToast - tRet <= 12000 && tPip >= tToast, "짧은 귀가에 '새 포스터 · …' 토스트 → 등불 칸 (귀가 시작부터 토스트 " + (tToast - tRet) + ' · 등불 ' + (tPip - tRet) + ' ms)');
-  ok(tDone >= tPip && tDone - tRet <= 16000, '버튼은 짧은 귀가 뒤 돌아온다 (귀가 시작부터 ' + (tDone - tRet) + ' ms · 귀가 중 한 번 더 눌러도 새 산책 없음: 차례 ' + Bq.ntrips + ')');
+  /* 11-23 (CI 37eb9b0 · 1f443c8): 소프트웨어 GL 러너가 3~6 fps 로 그리면 장면 시간 (dt 상한 0.1 s) 이 벽시계보다 느리게 흘러 짧은 귀가도 토스트 14.6 s · 버튼 18 s 가 된다
+     (같은 기계에서 552fe54 와 프레임 · 콜 수 같음 — 코드가 느려진 것 아님). '짧은 판' 은 위의 retFrames (5~45) 가 지킨다 — 벽시계는 순서와 넉넉한 상한만 */
+  ok(tToast > tRet && tToast - tRet <= 24000 && tPip >= tToast, "짧은 귀가에 '새 포스터 · …' 토스트 → 등불 칸 (귀가 시작부터 토스트 " + (tToast - tRet) + ' · 등불 ' + (tPip - tRet) + ' ms)');
+  ok(tDone >= tPip && tDone - tRet <= 30000, '버튼은 짧은 귀가 뒤 돌아온다 (귀가 시작부터 ' + (tDone - tRet) + ' ms · 귀가 중 한 번 더 눌러도 새 산책 없음: 차례 ' + Bq.ntrips + ')');
   ok(Bq.fly >= 1 && Bq.phase === 'awake' && Bq.sleeps === 0, '포스터가 앨범으로 날아가고 · 문어는 깨어 있다 (잠 훅 아직 0 · ' + Bq.phase + ')');
   ok(Bq.roomRow.length === 1 && Bq.roomRow[0].text === '창턱에 이끼 화분이 놓였어' && !Bq.roomRow[0].expr, "데려와도 '방' 줄 — 집 목소리 사실 문장, 문어 초상 없음 (" + JSON.stringify(Bq.roomRow) + ')');
   var sl = await Bq.page.waitForFunction(function () { return window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; }).length >= 1; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
