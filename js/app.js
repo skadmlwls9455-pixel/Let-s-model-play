@@ -5786,10 +5786,18 @@ var APP = (function () {
     y = clamp(y, 8, Math.max(8, sr.height - hh - 8));
     c.style.left = Math.round(x * dpr) / dpr + 'px'; c.style.top = Math.round(y * dpr) / dpr + 'px';
   }
+  var ROOM_SLOT = { 'btn-mq-0': 'mq0', 'btn-mq-1': 'mq1', 'btn-mq-2': 'mq2', 'btn-mq-3': 'mq3', 'btn-room-counter': 'counter', 'btn-shelf-0': 'shelf0', 'btn-shelf-1': 'shelf1', 'btn-shelf-2': 'shelf2', 'btn-shelf-3': 'shelf3', 'btn-shelf-4': 'shelf4', 'btn-shelf-5': 'shelf5' };
+  function roomFocusOn(anchor) {   /* 카드를 띄우기 전에 그 물건 (마네킹 · 계산대 · 선반) 을 화면에 들인다 (바깥 갈래의 scene.roomFocus — 있을 때만) */
+    if (!room.key || !roomScene('roomFocus') || !roomScene('roomSlots')) return;
+    try { var R = scene.roomSlots(room.key), sl = R && R.slots && R.slots[ROOM_SLOT[anchor]]; if (Array.isArray(sl)) scene.roomFocus(sl[0], sl[2], sl[1]); } catch (e) { console.warn('[app] roomFocus', e); }
+  }
+  function roomFollow() {   /* 화면이 캐릭터를 따라 움직이니 카드가 떠 있는 동안 자리를 다시 잰다 */
+    if (!room.card) return; roomCardPlace(); requestAnimationFrame(roomFollow);
+  }
   function roomCard(anchor, cls, label, kids) {
-    roomCardClose(); var sc = $('scene'); if (!sc) return null;
+    roomCardClose(); var sc = $('scene'); if (!sc) return null; roomFocusOn(anchor);
     var c = h('div', { id: 'shop-card', class: 'shop-card ' + cls, role: 'group', 'aria-label': label, 'data-anchor': anchor, 'data-npc-avoid': '' }, kids);   /* data-npc-avoid: 대사창이 이 카드를 피해 뜬다 (NPC 갈래) */
-    sc.appendChild(c); room.card = c; room.at = performance.now(); roomCardPlace(); return c;
+    sc.appendChild(c); room.card = c; room.at = performance.now(); roomCardPlace(); requestAnimationFrame(roomFollow); return c;
   }
   function roomEarly(e) { return !(e && e.isTrusted && e.detail === 0) && tapTime(e) - room.at < SHEET_SETTLE; }   /* 카드가 뜬 뒤 0.6 s 안의 누름은 안 받는다 (같은 자리 두 번 톡) */
   function roomBtn(text, cls, fn) { var b = h('button', { type: 'button', class: 'btn sm pressable ' + cls, text: text }); b.addEventListener('click', function (e) { e.stopPropagation(); if (roomEarly(e)) return; fn(b); }); return b; }
