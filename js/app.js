@@ -5622,7 +5622,8 @@ var APP = (function () {
     if (layoutOne()) { var st = $('status'); if (st && !st.hidden) lo = Math.max(lo, Math.ceil(st.getBoundingClientRect().bottom - r0.top) + 6); }
     if (tb && !tb.hidden) { var tr = tb.getBoundingClientRect(); if (tr.height > 0) lim = tr.top - r0.top - 8; }   /* 식탁 자리 (두 캐릭터) 위 8 px 까지만 */
     while (n > 1 && ((w * n / dpr + 24) > sc.clientWidth - 16 || lo + (hh + 8) * n / dpr > lim || (w + 8) * n / dpr > sc.clientWidth * 0.5)) n--;   /* 작은 화면: 한 칸씩 줄인다 (늘 정수 기기 px) — 위쪽 조개 칸과도 안 닿게 폭은 장면의 반까지 */
-    var img = (MEALR.biteFood ? MEALR.biteFood(s, c.eaten, c.pic, 2) : MEALR.biteMask(s, c.eaten, c.line, 2)); if (!img) return;   /* 11-22: 음식만 줄인다 */
+    var CSe = window.COOK_SPR, emp = null; try { emp = c.pic && CSe && CSe.get('empty.' + c.pic, 0); } catch (x) { emp = null; }   /* 갈래 A 의 '다 먹은 그릇' 그림이 있으면 그 위에서 한 입씩 */
+    var img = (MEALR.biteFood ? MEALR.biteFood(s, c.eaten, c.pic, 2, emp) : MEALR.biteMask(s, c.eaten, c.line, 2)); if (!img) return;   /* 11-22: 음식만 줄인다 */
     if (cv.width !== w * n || cv.height !== hh * n) { cv.width = w * n; cv.height = hh * n; }
     var g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height);
     /* 11-21 (UI 2차 · 규칙 3): 빈 종이 칸이 아니라 식탁 위 — 그릇 줄 아래로 나무 상판 (밝은 앞 모서리 한 줄 · 나뭇결 두 줄) 과 그릇 밑 그림자 */
