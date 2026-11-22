@@ -128,8 +128,9 @@ async function clothesRun(browser) {
   u = await U(page);
   ok(u.shells === 2 && u.owned[cheap.key] === DAY && u.shop.got[cheap.key] === DAY, '사기: 조개가 나가고 옷장에 들어온다');
   ok(new RegExp(cheap.name + '(을|를) 샀어. 내 모습에서 입어 봐.').test(await page.textContent('#toast')), '산 것을 한 줄로');
+  await page.waitForFunction(k => !!document.querySelector('#shop-body .shop-tile[data-key="' + k + '"] .sew-cost.own'), cheap.key, { timeout: 8000 }).catch(() => {});   /* 산 뒤 선반이 다시 그려질 때까지 */
   t = await tiles(page);
-  ok(t.length === 4 && t.find(x => x.key === cheap.key).own && t.filter(x => x.own).length === 1, '산 칸에 있음 표시 (선반은 그대로)');
+  ok(t.length === 4 && (t.find(x => x.key === cheap.key) || {}).own && t.filter(x => x.own).length === 1, '산 칸에 있음 표시 (선반은 그대로)');
   await shot(page, 'stamp-360');
   await tile(page, cheap.key);
   ok((await page.textContent('#shop-body .sew-yes')) === '입을래', '가진 옷은 입을지 묻는다');
@@ -141,7 +142,8 @@ async function clothesRun(browser) {
   await page.reload(); await page.waitForFunction(() => window.APP && APP.openShop, null, { timeout: 30000 }); await page.waitForTimeout(800);
   await page.evaluate(stub); await page.evaluate(() => APP.openShop('clothes'));
   t = await tiles(page); u = await U(page);
-  ok(u.owned[cheap.key] === DAY && u.shells === 2 && t.find(x => x.key === cheap.key).own, '새로고침해도 산 옷 · 표시 그대로');
+  if (!(u.owned[cheap.key] === DAY && u.shells === 2 && (t.find(x => x.key === cheap.key) || {}).own)) console.log('   (새로고침 뒤) ' + JSON.stringify({ owned: u.owned, shells: u.shells, tiles: t.map(x => x.key + (x.own ? '*' : '')), cheap: cheap.key }));
+  ok(u.owned[cheap.key] === DAY && u.shells === 2 && (t.find(x => x.key === cheap.key) || {}).own, '새로고침해도 산 옷 · 표시 그대로');
   await page.evaluate(d => { sessionStorage.setItem('__day', d); window.__ppolTest.today = d; APP.openShop('clothes'); }, NEXT);
   t = await tiles(page);
   ok(t.length === 4 && !t.some(x => x.key === cheap.key) && t.every(x => !x.own), '다음 날: 산 옷은 빠지고 다른 것이 온다');
@@ -242,6 +244,10 @@ async function roomRun(browser) {
   ok(await page.evaluate(n => { const c = document.getElementById('shop-card'), t = [...c.querySelectorAll('button')].map(b => b.textContent).join(); const a = document.getElementById('btn-mq-0').getBoundingClientRect(), b = c.getBoundingClientRect(), s = document.getElementById('scene').getBoundingClientRect(); return t === '입어 보기,살래' && c.textContent.includes(n) && (s.height < 560 || ((b.bottom <= a.top + 1 || b.top >= a.bottom - 1) && b.left >= s.left && b.right <= s.right + 0.5 && b.top >= s.top));   /* 자리는 3D 장면 (방이 있는 쪽) 에서만 잰다 */ }, stock[0].name), '카드: 이름 · 값 · 입어 보기 / 살래, 마네킹 바로 위 · 장면 안');
   ok(await page.evaluate(() => { const c = document.getElementById('shop-card').getBoundingClientRect(), st = document.getElementById('status').getBoundingClientRect(), g = document.getElementById('btn-go'), gr = g.getBoundingClientRect(); const sc = document.getElementById('scene').getBoundingClientRect(), over = st.top <= sc.top + 8 && st.bottom > sc.top, goIn = g.offsetParent && gr.top > sc.top && gr.top < sc.bottom; if (sc.height < 560) return true;   /* 방은 3D 장면에만 있다 (2D 는 시트로 간다) */
     return (!over || c.top >= st.bottom) && (!goIn || c.bottom <= gr.top) && c.top >= sc.top && c.bottom <= sc.bottom + 0.5; }), '카드는 위 상태 줄 아래 · 큰 단추 위');
+  ok(await page.evaluate(() => { const sc = APP.scene; if (typeof sc.player !== 'function' || typeof sc.project !== 'function' || document.getElementById('scene').getBoundingClientRect().height < 560) return true;
+    const pi = sc.player(), f = sc.project(pi.at[0], 0, pi.at[2]), hd = sc.project(pi.at[0], pi.height || 1.5, pi.at[2]), s = document.getElementById('scene').getBoundingClientRect(), r = document.getElementById('shop-card').getBoundingClientRect();
+    const c = [r.left - s.left, r.top - s.top, r.right - s.left, r.bottom - s.top], half = Math.max(24, (f.y - hd.y) * 0.45);
+    return !(c[1] < f.y && c[3] > hd.y && c[0] < f.x + half && c[2] > f.x - half); }), '카드가 내 캐릭터 몸을 덮지 않는다');
   await shot(page, 'room-tag-360');
   await cardBtn(page, '입어 보기');
   r = await R(page);
