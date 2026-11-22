@@ -6707,6 +6707,7 @@ var APP = (function () {
     box.setAttribute('data-npc', run.ln.id); box.setAttribute('data-more', run.i < run.ln.bubbles.length - 1 ? '1' : '0');
     npcPlace(box);
     clearTimeout(npcTimer);
+    var th = window.__ppolTest; if (th && typeof th === 'object' && th.npcHold) return;   /* 11-22 테스트 훅: 읽을 시간이 지나도 저절로 넘기지 않는다 (느린 기계에서 시험이 확인하는 사이 닫히지 않게) */
     npcTimer = setTimeout(function () { if (npcNow === run) npcNext(); }, Math.min(8000, Math.max(3500, (1500 + 65 * Array.from(text).length) * 1.5)) * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--speed')) || 1));
   }
   function npcNext() { if (!npcNow) return; if (npcNow.i < npcNow.ln.bubbles.length - 1) { npcNow.i++; npcShow(); } else npcEnd(true); }
