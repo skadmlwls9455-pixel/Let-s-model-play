@@ -1714,26 +1714,14 @@ dialog.cook-overlay .cook-wait[hidden] { display: none; }
 @keyframes cw-walk { to { background-position: calc(-1 * var(--cw-sheet, 896px)) 0; } }
 :root[data-motion="reduce"] .cook-wait .cw-oct { animation: none; }
 @media (prefers-reduced-motion: reduce) { :root:not([data-motion="auto"]) .cook-wait .cw-oct { animation: none; } }
-.cook-wait .cw-close, dialog.dish-pick .dp-chip { position: absolute; margin: 0; padding: 0; background-color: #e7d5b3; border: 0; border-radius: 0; box-sizing: border-box;
+.cook-wait .cw-close { position: absolute; margin: 0; padding: 0; background-color: #e7d5b3; border: 0; border-radius: 0; box-sizing: border-box;
   box-shadow: inset 0 0 0 var(--dp-b, 2px) #602c2c, inset calc(2 * var(--dp-b, 2px)) calc(2 * var(--dp-b, 2px)) 0 #ebede9,
     inset calc(-2 * var(--dp-b, 2px)) calc(-2 * var(--dp-b, 2px)) 0 #c09473, var(--dp-b, 2px) var(--dp-b, 2px) 0 #602c2c;   /* 부엌 칩 (.ck-paper) 과 같은 종이 */
   -webkit-tap-highlight-color: transparent; touch-action: manipulation; cursor: pointer; }
 .cook-wait .cw-close { --dp-b: var(--cw-b, 2px); left: var(--cw-cx, auto); top: var(--cw-cy, 8px); width: var(--cw-box, 48px); height: var(--cw-box, 48px); }
 .cook-wait .cw-close img { position: absolute; left: var(--cw-icp, 16px); top: var(--cw-icp, 16px); width: var(--cw-ic, 16px); height: var(--cw-ic, 16px); image-rendering: pixelated; }
-.cook-wait .cw-close:active, dialog.dish-pick .dp-chip:active { transform: translate(0, var(--dp-b, 2px)); }
-/* 요리 쟁반: 투명 배경 (뒤의 놀이방이 보인다) · 가운데 아래 · 칩 64 · 틈 16 · 그림 floor(3·dpr) 기기 px 배 (app.js dishPickFit) */
-dialog.dish-pick, :root[data-font="pixel"] dialog.dish-pick, :root[data-font="pixel"] dialog.dish-pick[open] { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
-  border: 0; border-radius: 0; background: transparent; box-shadow: none; animation: none; overflow: hidden; outline: none; }
-dialog.dish-pick::backdrop, :root[data-font="pixel"] dialog.dish-pick::backdrop { background: none transparent; }   /* 픽셀 테마의 대화상자 디더 막 (어둡게) 보다 앞서게 — 뒤의 놀이방이 그대로 보인다 */
-dialog.dish-pick .dp-row { position: absolute; left: var(--dp-x, 0px); top: var(--dp-y, 0px); width: calc(3 * var(--dp-chip, 64px) + 2 * var(--dp-gap, 16px)); height: var(--dp-chip, 64px); }
-dialog.dish-pick .dp-chip { top: 0; width: var(--dp-chip, 64px); height: var(--dp-chip, 64px); }
-dialog.dish-pick .dp-chip:nth-child(1) { left: 0; }
-dialog.dish-pick .dp-chip:nth-child(2) { left: calc(var(--dp-chip, 64px) + var(--dp-gap, 16px)); }
-dialog.dish-pick .dp-chip:nth-child(3) { left: calc(2 * var(--dp-chip, 64px) + 2 * var(--dp-gap, 16px)); }
-dialog.dish-pick .dp-chip img { position: absolute; left: var(--dp-icp, 8px); top: var(--dp-icp, 8px); width: var(--dp-ic, 48px); height: var(--dp-ic, 48px); image-rendering: pixelated; }
-html.dish-picking #btn-go, html.dish-picking #stick { visibility: hidden !important; }   /* 리드 11-18: 쟁반이 열린 동안 아래 막대의 큰 단추 · 손잡이가 칩 사이로 비치지 않게 (닫으면 클래스만 빠진다 → 그대로) */
-dialog.dish-pick .dp-chip:focus { outline: none; }
-dialog.dish-pick .dp-chip:focus-visible, .cook-wait .cw-close:focus-visible { outline: var(--dp-b, 2px) solid #341c27; outline-offset: var(--dp-b, 2px); }
+.cook-wait .cw-close:active { transform: translate(0, var(--dp-b, 2px)); }
+.cook-wait .cw-close:focus-visible { outline: var(--dp-b, 2px) solid #341c27; outline-offset: var(--dp-b, 2px); }
 /* 11-18 식탁 (lane M · docs/MEAL.md): 식탁 단추 (#btn-table — scene-spot 그대로) · 내 자리 노란 점 (#btn-seat — sofa-dot 모양) · 문어 부르기 칩 (#btn-call).
    셋 다 그림만 (글자 0 · title 없음). 칩: 44 px 누르는 곳 안에 40 px 종이 + 16×16 문어 머리 (한 칸 = floor(2·dpr) 기기 px — 크기 · 자리는 app.js mealUI 가 기기 px 로 맞춘다) */
 /* 11-18 리드 (검증 dining-1): #btn-seat 는 .sofa-dot 처럼 누름을 받지 않는다 — 장면의 '처음 보이는 면' 고르기가 정한다 (내 소파 · 식탁 → 'table' → 앉기).
@@ -1791,19 +1779,128 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 
 
 /* [7-T] 요리 → 식탁 잇기 · 레시피 */
+/* 먹는 동안의 큰 요리 그림: 부엌 칩과 같은 종이 칸 · 장면 위쪽 가운데 · 그림 한 칸 = floor(2·dpr) 기기 px (자리 · 크기는 app.js mealCloseDraw 가 기기 px 로) · 누름을 받지 않는다 */
+.meal-close { position: absolute; left: 0; top: 0; z-index: 8; margin: 0; padding: var(--mc-p, 8px); box-sizing: content-box; pointer-events: none; background-color: #e7d5b3;
+  box-shadow: inset 0 0 0 var(--mc-b, 2px) #602c2c, inset calc(2 * var(--mc-b, 2px)) calc(2 * var(--mc-b, 2px)) 0 #ebede9,
+    inset calc(-2 * var(--mc-b, 2px)) calc(-2 * var(--mc-b, 2px)) 0 #c09473, var(--mc-b, 2px) var(--mc-b, 2px) 0 #602c2c; }
+.meal-close[hidden] { display: none; }
+.meal-close canvas { display: block; image-rendering: pixelated; }
 
 
 /* [7-P] 내 캐릭터 · 뛰기 */
+/* 11-21 옷장의 잠긴 칸 (아직 없는 가게 물건): 그림은 흐리게 · 왼쪽 위에 자물쇠 (네모 몸통 + 고리) · 이름 아래 조개 값. 글 없이도 다르게 보인다 */
+.look-tile.locked { border-style: dashed; cursor: default; }
+.look-tile.locked .look-thumb { opacity: .4; }
+.look-tile.locked .look-name { opacity: .7; }
+.look-tile.locked::before { content: ''; position: absolute; top: 12px; left: 6px; width: 12px; height: 10px; background: var(--muted); }
+.look-tile.locked::after { content: ''; position: absolute; top: 4px; left: 8px; width: 8px; height: 8px; box-sizing: border-box; border: 2px solid var(--muted); border-bottom: 0; }
+.look-lock { display: flex; align-items: center; justify-content: center; min-height: 20px; }
+.look-tile .look-lock .shell-amt .shell-ico, :root[data-font="pixel"] .look-tile .look-lock .shell-amt .shell-ico { display: block; width: 16px; height: 16px; margin: 0 2px 0 0; }
 
 
 /* [7-W] 바깥 한 장 · 해안가 · 이동 */
+/* 빠른 이동 칩: 요리 쟁반의 칩 모양 그대로 · 자리는 app.js travelFit 이 보이는 칩만 기기 px 로 놓는다 (숨긴 칩 자리는 비우지 않는다) · 그림은 16×16 캔버스를 정수 배로 */
+dialog.travel-pick .dp-row .dp-chip[data-place] { left: var(--tp-x, 0px); }
+dialog.travel-pick .dp-chip[hidden] { display: none; }
+dialog.travel-pick .dp-chip canvas { position: absolute; left: var(--dp-icp, 8px); top: var(--dp-icp, 8px); width: var(--dp-ic, 48px); height: var(--dp-ic, 48px); image-rendering: pixelated; }
 
 
 /* [7-V] 마을 건물 · NPC 그리기 */
 
 
 /* [7-S] 가게 (옷가게 · 잡화점 · 바닷가 조개) */
-
+/* 11-21 UI 2차 (주인: "ui가 너무 조잡한데"): 양식이 아니라 가게 — 맨 위 그림 띠 (선반 벽 · 계산대 뒤의 가게 주인 · 조개 주머니), 간판에 앉은 제목,
+   물건은 널빤지 위에 서 있고 값은 구멍 뚫린 꼬리표로 달린다 (가진 것 · 다 팔린 것은 꼬리표에 도장). 입어 보기는 서 있는 거울, 확인은 종이 영수증.
+   그림 속 색은 테마와 무관하게 고정 (나무 · 종이). 틈은 8px 박자, 테는 바깥 2px 어두운 줄 + 안쪽 2px 밝은 줄. 그림 크기는 앱이 기기 px 의 정수배로 (shopSnap) */
+.shop-sheet, .shop-card, .shop-hop { --sw-line: #3a2a20; --sw-wall: #d9b98a; --sw-wall-hi: #e8cfa4; --sw-wall-lo: #c4a070; --sw-plank: #8a5a36; --sw-plank-hi: #b98a5a; --sw-paper: #f3ead6; --sw-paper-lo: #d8c9a8; --sw-stamp: #a8432e; }
+.shop-sheet { max-height: 94dvh; }
+.shop-sheet #shop-h { display: table; position: relative; z-index: 1; margin: 0 auto -16px; padding: 4px 16px; min-width: 120px; text-align: center; color: #fff7ee; background: #8a4f0c; border: 2px solid var(--sw-line); box-shadow: inset 2px 2px 0 #c98a3a, inset -2px -2px 0 #5e3406, 0 4px 0 rgba(0, 0, 0, .25); font-weight: 700; }
+:root[data-font="pixel"] .shop-sheet #shop-h { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 32px; }
+.shop-band { position: relative; height: 96px; margin: 0 0 8px; border: 2px solid var(--sw-line); box-shadow: inset 2px 2px 0 var(--sw-wall-hi); overflow: hidden; image-rendering: pixelated;
+  background:
+    linear-gradient(var(--sw-plank-hi) 0 0) 0 62px / 100% 2px no-repeat, linear-gradient(var(--sw-plank) 0 0) 0 64px / 100% 28px no-repeat, linear-gradient(#5e3a20 0 0) 0 60px / 100% 2px no-repeat,
+    linear-gradient(var(--sw-plank) 0 0) 96px 36px / calc(100% - 192px) 4px no-repeat, linear-gradient(rgba(0, 0, 0, .2) 0 0) 96px 40px / calc(100% - 192px) 2px no-repeat,
+    linear-gradient(var(--sw-wall-hi) 0 16px, var(--sw-wall) 16px 40px, var(--sw-wall-lo) 40px); }
+.shop-band.goods { --sw-wall: #c9c2a0; --sw-wall-hi: #ddd8b8; --sw-wall-lo: #b3ab88; }
+.shop-band .shop-keeper { position: absolute; left: 16px; bottom: 22px; image-rendering: pixelated; image-rendering: crisp-edges; }
+.shop-band .shop-counter { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; background: linear-gradient(var(--sw-plank-hi) 0 2px, var(--sw-plank) 2px 22px, #5e3a20 22px); border-top: 2px solid var(--sw-line); }
+.shop-sheet .shop-band .shop-purse { position: absolute; right: 8px; bottom: 6px; margin: 0; padding: 2px 8px 2px 6px; min-height: 36px; display: flex; align-items: center; color: #2a2620; background: var(--sw-paper); border: 2px solid var(--sw-line); box-shadow: inset -2px -2px 0 var(--sw-paper-lo), 2px 2px 0 rgba(0, 0, 0, .3); font-weight: 700; }
+.shop-sheet .shop-purse .shell-ico { margin: 0 2px 0 0; }
+.shop-band.slim { height: 44px; background: none; border: 0; box-shadow: none; margin: 0; }
+.shop-sheet .shop-band.slim .shop-purse { top: 2px; bottom: auto; right: 0; }
+/* 선반 벽: 위에서 비추는 빛 (계단 명암), 물건 줄마다 널빤지 4px + 그림자 2px */
+.shop-sheet .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 0; margin: 0 0 8px; padding: 8px 8px 8px; border: 2px solid var(--sw-line); box-shadow: inset 2px 2px 0 var(--sw-wall-hi); background: linear-gradient(var(--sw-wall-hi) 0 24px, var(--sw-wall) 24px 96px, var(--sw-wall-lo) 96px); }
+.shop-sheet .shop-tile, :root[data-font="pixel"] .shop-sheet .shop-tile { display: flex; flex-direction: column; align-items: center; gap: 0; min-height: 48px; padding: 0 0 8px; border: 0; border-radius: 0; background: none; box-shadow: none; color: #2a2620; }
+:root[data-font="pixel"] .shop-sheet .shop-tile:active { transform: translate(2px, 2px); }
+.shop-sheet .shop-tile:focus-visible { outline: 2px solid var(--sw-line); outline-offset: -2px; }
+.shop-pic { display: flex; align-items: flex-end; justify-content: center; align-self: stretch; height: 76px; padding-top: 8px; border-bottom: 4px solid var(--sw-plank); box-shadow: 0 2px 0 rgba(0, 0, 0, .25), inset 0 -2px 0 var(--sw-plank-hi); }
+.shop-thumb, .shop-seed, .shop-dye { display: block; width: 64px; height: 64px; image-rendering: pixelated; image-rendering: crisp-edges; }
+/* 값 꼬리표: 널빤지에서 실로 내려온 종이표 (왼쪽 모서리를 접고 구멍 하나) */
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost, :root[data-font="pixel"] :is(.shop-sheet .shop-tile, .shop-card) .sew-cost { position: relative; display: inline-flex; align-items: center; justify-content: center; align-self: center; min-width: 64px; min-height: 36px; margin-top: 10px; padding: 2px 8px 2px 16px; border-radius: 0; color: #2a2620; background: var(--sw-paper); box-shadow: inset 0 0 0 2px var(--sw-line), 2px 2px 0 rgba(0, 0, 0, .3); clip-path: polygon(8px 0, 100% 0, 100% calc(100% + 2px), calc(100% + 2px) calc(100% + 2px), 8px calc(100% + 2px), 0 calc(100% - 6px), 0 8px); font-weight: 700; }
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost::before { content: ''; position: absolute; left: 6px; top: 50%; width: 4px; height: 4px; margin-top: -2px; background: var(--sw-line); }
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost .shell-ico { margin: 0; }
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost.own { padding: 2px 10px 2px 20px; }
+.shop-sheet .shop-tile .sew-name { margin-top: 6px; padding: 0 2px; color: #2a2620; word-break: keep-all; overflow-wrap: anywhere; text-align: center; }
+:root[data-font="pixel"] .shop-sheet .shop-tile .sew-name { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 24px; }
+/* 서 있는 거울 (입어 보기) · 종이 영수증 (확인) */
+.shop-sheet .shop-ask, :root[data-font="pixel"] .shop-sheet .shop-ask { position: relative; display: flex; flex-direction: column; align-items: stretch; justify-content: center; margin: auto 0; padding: 12px 12px 12px; border: 0; border-radius: 0; color: #2a2620; background: var(--sw-paper); box-shadow: inset 0 0 0 2px var(--sw-line), inset 2px 2px 0 2px #fffaf0, 4px 4px 0 rgba(0, 0, 0, .3); }
+.shop-sheet .shop-ask::after { content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 4px; background: repeating-linear-gradient(90deg, var(--sw-line) 0 4px, transparent 4px 8px); }
+.shop-mirror { position: relative; align-self: center; display: block; margin: 0 0 20px; padding: 4px; background: linear-gradient(135deg, #f4f8f4 0 30%, #dfe9e4 30% 36%, #eef3ee 36% 70%, #dfe9e4 70% 74%, #eef3ee 74%); border: 4px solid var(--sw-plank); box-shadow: inset 0 0 0 2px var(--sw-plank-hi), 0 0 0 2px var(--sw-line); }
+.shop-mirror::after { content: ''; position: absolute; left: 16%; right: 16%; bottom: -14px; height: 8px; background: var(--sw-plank); box-shadow: 0 0 0 2px var(--sw-line); }
+.shop-try { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.shop-sheet .shop-ask .sew-ask-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 2px dotted var(--sw-line); color: #2a2620; }
+:root[data-font="pixel"] .shop-sheet .shop-ask .sew-ask-line { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; }
+.shop-sheet .shop-ask .sew-ask-line .shell-amt { font-weight: 700; }
+.shop-sheet .shop-ask .btn { color: #2a2620; background-color: var(--sw-paper); }
+.shop-sheet .shop-ask .sew-yes { color: #fff7ee; background-color: #8a4f0c; background-image: none; font-weight: 700; }
+:root[data-font="pixel"] .shop-sheet .shop-ask .sew-yes { box-shadow: inset 2px 2px 0 #c98a3a, inset -2px -2px 0 #5e3406, 2px 2px 0 var(--sw-line); border-color: var(--sw-line); }
+.shop-sheet .set-note { margin: 8px 0; }
+:root[data-font="pixel"] :is(.shop-sheet .shop-tile, .shop-card) .sew-cost.own, :is(.shop-sheet .shop-tile, .shop-card) .sew-cost.own { color: var(--sw-stamp); }
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost.own::after { content: ''; position: absolute; left: 14px; right: 4px; top: 4px; bottom: 4px; border: 2px solid var(--sw-stamp); }
+#shop-body { display: flex; flex-direction: column; }
+#shop-body { padding-bottom: 12px; }
+.shop-ask-pic { display: flex; justify-content: center; margin: 0 0 8px; }
+/* 11-21 밤 가게 방의 카드 (#scene 안의 평범한 요소 — dialog 아님): 마네킹 · 선반의 꼬리표 카드, 계산대의 영수증. 종이 · 2px 테 · 4px 굳은 그림자, 틈 8px */
+.shop-card { position: absolute; left: 0; top: 0; z-index: 12; box-sizing: border-box; width: 200px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: #2a2620; background: var(--sw-paper); box-shadow: inset 0 0 0 2px var(--sw-line), inset 2px 2px 0 2px #fffaf0, 4px 4px 0 rgba(0, 0, 0, .35); }
+.shop-card.tag { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; gap: 4px 8px; width: 232px; }   /* 물건을 덜 가리게 낮게: 왼쪽 그림, 오른쪽 이름 · 값표, 아래 단추 */
+.shop-card.tag .shop-pic { grid-row: 1 / span 2; width: 72px; height: 72px; border-bottom: 0; box-shadow: none; align-items: center; }
+.shop-card.tag .sew-cost { justify-self: center; }
+.shop-card.tag .shop-card-btns { grid-column: 1 / -1; }
+.shop-card.receipt { width: 232px; align-items: stretch; padding: 12px; }
+.shop-card.receipt::after { content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 4px; background: repeating-linear-gradient(90deg, var(--sw-line) 0 4px, transparent 4px 8px); }
+.shop-card .shop-pic { align-self: center; width: 80px; height: 72px; padding: 0; }
+.shop-card .sew-cost { margin-top: 0; }
+.shop-card p { margin: 0; }
+:root[data-font="pixel"] .shop-card :is(.sew-cost, .shop-purse, .shop-rc-list .shell-amt) { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; font-weight: 700; }
+.shop-card-name, .shop-card-note, .shop-rc-list, .shop-rc-sum { color: #2a2620; text-align: center; word-break: keep-all; }
+:root[data-font="pixel"] :is(.shop-card-name, .shop-card-note, .shop-rc-list, .shop-rc-sum) { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 28px; }
+.shop-card-name { font-weight: 700; }
+.shop-card-btns { margin: 0; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.shop-card .btn { color: #2a2620; background-color: var(--sw-paper); white-space: nowrap; }
+.shop-card .sew-yes { color: #fff7ee; background-color: #8a4f0c; background-image: none; font-weight: 700; }
+:root[data-font="pixel"] .shop-card .sew-yes { box-shadow: inset 2px 2px 0 #c98a3a, inset -2px -2px 0 #5e3406, 2px 2px 0 var(--sw-line); border-color: var(--sw-line); }
+.shop-card.receipt .shop-purse { align-self: flex-end; display: inline-flex; align-items: center; font-weight: 700; }
+.shop-rc-list { list-style: none; margin: 0; padding: 0 0 8px; border-bottom: 2px dotted var(--sw-line); text-align: left; }
+.shop-rc-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
+.shop-rc-sum { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0 4px; font-weight: 700; }
+.shop-card.receipt .shop-card-btns { justify-content: flex-end; }
+.shop-hop { position: fixed; z-index: 60; pointer-events: none; image-rendering: pixelated; transition: transform 360ms steps(6), opacity 360ms steps(6); }
+/* 그림 갈래의 그림을 입힌 값표 (ui.tag 40×24 → 120×72, 글 자리는 그림의 x 13..36 · y 6..17) · 팔림 도장 (ui.sold) · 영수증 머리 그림 */
+.shop-spr { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost.spr, :root[data-font="pixel"] :is(.shop-sheet .shop-tile, .shop-card) .sew-cost.spr { box-sizing: border-box; min-width: 0; min-height: 0; padding: 0 6% 4% 30%; background: none; box-shadow: none; clip-path: none; justify-content: center; }
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost.spr::before, :is(.shop-sheet .shop-tile, .shop-card) .sew-cost.spr::after { content: none; }
+.sew-cost.spr > .shop-tag-bg { position: absolute; left: 0; top: 0; z-index: 0; }
+.sew-cost.spr > :not(.shop-spr) { position: relative; z-index: 1; }
+.sew-cost.spr.sold > .px-ico, .sew-cost.spr.sold > svg { display: none; }
+.sew-cost.spr > .shop-tag-sold { position: absolute; left: 50%; top: 50%; z-index: 2; transform: translate(-42%, -50%); }
+.shop-rc-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.shop-rc-top > :only-child { margin-left: auto; }
+/* 작은 움직임 (움직임 줄이기면 없음): 열릴 때 물건이 40 ms 간격으로 놓이고, 산 물건의 도장이 여섯 장으로 찍힌다 */
+@keyframes shop-put { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes shop-stamp { 0% { transform: translateY(-8px); filter: brightness(1.6); } 50% { transform: translateY(2px); filter: brightness(1.3); } 100% { transform: none; filter: none; } }
+:root:not([data-motion="reduce"]) .shop-grid.enter .shop-tile { animation: shop-put 120ms steps(3) both; animation-delay: calc(var(--i, 0) * 40ms); }
+:root:not([data-motion="reduce"]) .shop-tile .sew-cost.new { animation: shop-stamp 240ms steps(6) both; }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .shop-grid.enter .shop-tile, :root:is([data-motion="auto"], :not([data-motion])) .shop-tile .sew-cost.new { animation: none; } }
 
 /* [7-C] 카페 (메뉴 · 레코드 · 레시피 선물) */
 /* 11-21: 메뉴 시트 · 쟁반 · 레코드 시트. 그림은 canvas (그림 px = 기기 px 의 정수 배 — app.js cafeCanvas), 눌림은 2px 내림 (크기는 안 바뀐다).
@@ -1848,6 +1945,28 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 .cafe-slip-pic { display: flex; justify-content: center; margin-bottom: 6px; }
 .cafe-slip .sew-ask-line { text-align: center; color: var(--c-ink); }
 .cafe-slip .sew-ask-btns { justify-content: center; }
+/* 11-21 콘텐츠 다듬기: 방 안 물건의 확대 카드 (#scene 안의 보통 요소 — dialog 아님) · 식탁 위 접시 단추 */
+.cafe-card { position: absolute; left: 0; right: 0; bottom: 8px; margin: 0 auto; z-index: 14; box-sizing: border-box; width: min(344px, calc(100% - 16px)); max-height: calc(100% - 72px); overflow-y: auto; overflow-x: hidden; padding: 8px 12px 10px; color: var(--c-ink); background: var(--c-paper); box-shadow: 0 0 0 2px var(--c-ink), inset 2px 2px 0 #fffaf0, inset -2px -2px 0 var(--c-paper2), 4px 4px 0 rgba(59,42,38,.35); animation: cafe-pop .16s steps(4) both; }
+.cafe-card[hidden] { display: none; }
+.cafe-card[data-mode="stamp"] { width: fit-content; padding: 10px 14px; bottom: auto; top: 30%; }
+.cafe-card #cafe-card-close { display: block; margin: 0 0 0 auto; }
+.cafe-card #cafe-card-close[hidden] { display: none; }
+.cafe-card .cafe-purse.in-card { position: static; display: block; width: max-content; margin: 0 0 0 auto; }
+.cafe-card .cafe-board { margin: 12px 6px 14px; }
+.cafe-card .lp-shelf { margin: 8px 0 12px; }
+.cafe-card .lp-top { float: right; margin: 0 0 8px 8px; }
+.cafe-card .lp-now { display: flex; align-items: center; min-height: 56px; margin: 0 0 8px; text-align: left; }
+.cafe-card .lp-shelf { clear: both; }
+.cafe-card .lp-spk { width: 56px; height: 56px; }
+.cafe-card .lp-now { color: var(--c-ink); }
+.cafe-card .cafe-item, .cafe-card .lp-sleeve { animation: cafe-pop .16s steps(4) both; animation-delay: calc(var(--i, 0) * 40ms); }
+.cafe-stampcard { display: flex; align-items: center; gap: 12px; }
+.cafe-dots.big { height: 44px; gap: 8px; padding: 0 10px; }
+.cafe-dots.big i { width: 20px; height: 20px; }
+.cafe-plate-btn { position: absolute; left: 0; top: 0; z-index: 9; width: 56px; height: 56px; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.cafe-plate-btn[hidden] { display: none; }
+.cafe-plate-btn:focus-visible { outline: 2px dashed #f1ecdc; outline-offset: -2px; }
+.cafe-crumb.steam { width: 4px; height: 6px; background: #f1ecdc; animation: cafe-crumb 1.1s steps(8) forwards; }
 /* 쟁반 (장면 위): 나무 쟁반 */
 .cafe-tray { position: absolute; left: 50%; bottom: 8px; z-index: 12; transform: translateX(-50%); display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 6px 12px; background: #b98a5a; box-shadow: 0 0 0 2px #3b2a26, inset 2px 2px 0 #d7ad7c, inset -2px -2px 0 #8a5a3a, 4px 4px 0 rgba(59,42,38,.35); }
 .cafe-tray[hidden] { display: none; }
@@ -1876,8 +1995,8 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
 .lp-sleeve::after { content: ''; position: absolute; left: 0; right: 0; bottom: -8px; height: 2px; background: rgba(0,0,0,.35); }
 .lp-sleeve.on .cafe-pic { transform: translateY(-6px); box-shadow: 0 6px 0 -2px #e9a53a; }
 .lp-sleeve:focus-visible { outline: 2px dashed var(--c-chalk); outline-offset: -4px; }
-@media (prefers-reduced-motion: reduce) { .cafe-crumb { animation: none; display: none; } .cafe-fly { transition: none; } .cafe-dots i.new, .cafe-sheet[open] .cafe-item, .cafe-sheet[open] .lp-sleeve, .lp-spk.live .cafe-pic { animation: none; } }
-:root[data-motion="reduce"] .cafe-dots i.new, :root[data-motion="reduce"] .cafe-sheet[open] .cafe-item, :root[data-motion="reduce"] .cafe-sheet[open] .lp-sleeve, :root[data-motion="reduce"] .lp-spk.live .cafe-pic { animation: none; }
+@media (prefers-reduced-motion: reduce) { .cafe-card, .cafe-card .cafe-item, .cafe-card .lp-sleeve { animation: none; } .cafe-crumb { animation: none; display: none; } .cafe-fly { transition: none; } .cafe-dots i.new, .cafe-sheet[open] .cafe-item, .cafe-sheet[open] .lp-sleeve, .lp-spk.live .cafe-pic { animation: none; } }
+:root[data-motion="reduce"] .cafe-card, :root[data-motion="reduce"] .cafe-card .cafe-item, :root[data-motion="reduce"] .cafe-card .lp-sleeve, :root[data-motion="reduce"] .cafe-dots i.new, :root[data-motion="reduce"] .cafe-sheet[open] .cafe-item, :root[data-motion="reduce"] .cafe-sheet[open] .lp-sleeve, :root[data-motion="reduce"] .lp-spk.live .cafe-pic { animation: none; }
 
 
 /* [7-N] NPC 문어 · 세계관 */

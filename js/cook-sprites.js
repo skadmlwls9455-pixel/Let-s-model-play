@@ -291,8 +291,23 @@ var COOK_SPR = (function () {
       '.....RR.....']);
     return b;
   }
-  def('dish.cake', 80, 56, 40, 44, 1, function (F) {
+  /* remove the pixels of a layer inside any of the circles [cx, cy, r] (a bite) */
+  function bite(l, circles) {
+    for (var y = 0; y < l.h; y++) for (var x = 0; x < l.w; x++) for (var i = 0; i < circles.length; i++) {
+      var dx = x - circles[i][0], dy = y - circles[i][1];
+      if (dx * dx + dy * dy <= circles[i][2] * circles[i][2]) l.c[y * l.w + x] = 0;
+    }
+    return l;
+  }
+  /* bites: 0 whole, 1 the tip gone, 2 half gone (and the berry), 3 an empty plate with crumbs */
+  function cakeDish(F, bites) {
     F.put(platter(66, 26, 'p'), 7, 26, OC, 0);
+    if (bites === 3) {
+      [[22, 38], [30, 42], [41, 36], [48, 41], [36, 45], [27, 34]].forEach(function (q, i) { F.p(q[0], q[1], i % 2 ? '5' : '4').p(q[0] + 1, q[1], 'b'); });
+      F.on('w').e(40, 37, 9, 4, 'W').on();
+      var cap = lay(5, 4); cap.rows(0, 0, ['.gGg.', 'gGgGg', '.GgG.', '..G..']); F.put(cap, 52, 38, OG, 1);
+      return;
+    }
     var c = lay(60, 40), T = [2, 16], B = [54, 4], C = [46, 20], H = 18;
     function band(a, b, ch) { c.poly([[T[0], T[1] + a], [C[0], C[1] + a], [C[0], C[1] + b], [T[0], T[1] + b]], ch); }
     /* the frosted outer side (right) */
@@ -312,12 +327,17 @@ var COOK_SPR = (function () {
     c.ln(T[0] + 1, T[1] + 1, C[0] - 1, C[1] + 1, 'Q');
     /* a cream swirl under the berry */
     c.e(20, 9, 18, 8, 'Q').e(20, 8, 17, 7, 'W');
+    if (bites === 1) bite(c, [[3, 20], [8, 30], [2, 34]].map(function (q) { return [q[0], q[1], 9]; }));
+    if (bites === 2) bite(c, [[10, 14, 16], [14, 30, 15], [26, 10, 7], [4, 36, 12]]);
     F.put(c, 12, 8, 'EFu', 2);
-    F.put(strawberry(), 36, 7, OR, 2);
+    if (bites < 2) F.put(strawberry(), 36, 7, OR, 2);
+    if (bites) { F.p(17, 44, '5').p(18, 44, 'b').p(24, 47, '4').p(25, 47, 'b').p(13, 40, '5'); return; }
     /* half a berry on the plate, cut face up */
     var hb = lay(9, 8); hb.rows(0, 0, ['..gGg....', '.rrrrrr..', 'rr====rr.', 'r==WW==rR', 'r==W===rR', '.r====rR.', '..rrrrR..', '...RRR...']);
     F.put(hb, 16, 39, OR, 1);
-  });
+  }
+  def('dish.cake', 80, 56, 40, 44, 1, function (F) { cakeDish(F, 0); });
+  def('eat.cake', 80, 56, 40, 44, 4, cakeDish);
 
   /* ---- triangle rice balls on a leaf plate ---- */
   function rot(pts, cx, cy, c, s) { return pts.map(function (p) { var x = p[0] - cx, y = p[1] - cy; return [cx + x * c - y * s, cy + x * s + y * c]; }); }
@@ -371,7 +391,8 @@ var COOK_SPR = (function () {
     g.p(g.w - 4, g.h - 4, 'W');
     return g;
   }
-  def('dish.kkochi', 80, 56, 40, 44, 1, function (F) {
+  /* gone: how many fruits are eaten off the tip of each skewer (0 to 3) */
+  function kkochiDish(F, gone) {
     var pl = lay(66, 28);
     pl.e(0, 3, 66, 25, 'H').e(0, 1, 66, 25, 'z').e(0, 0, 66, 24, 'C');
     pl.on('C').ring(5, 3, 56, 18, 1, 'z').e(8, 5, 50, 14, 'w').e(11, 7, 47, 13, 'C').on();
@@ -382,6 +403,7 @@ var COOK_SPR = (function () {
       s.ln(x0, 49, x1, 9, 'A', 2).ln(x0, 49, x1, 9, 'y');
       F.put(s, 0, 0, 'akK', 1);
       fruits.forEach(function (f, i) {
+        if (i >= 3 - gone) return;
         var cx = 40 - dir * (9 + i * 9), cy = 33 - i * 9;
         F.put(f, cx - 6, cy - 6, f.ol, 2);
       });
@@ -391,7 +413,9 @@ var COOK_SPR = (function () {
     skewer(-1, [tg, sb, gr]);
     /* drops of glaze on the plate */
     F.p(22, 44, 'W').p(23, 44, 'w').p(57, 45, 'W').p(40, 48, 'W').p(41, 48, 'w');
-  });
+  }
+  def('dish.kkochi', 80, 56, 40, 44, 1, function (F) { kkochiDish(F, 0); });
+  def('eat.kkochi', 80, 56, 40, 44, 4, kkochiDish);
 
   /* ---- seaweed pancake: cut pieces stacked on a round wicker tray, one lifted on chopsticks, a dish of soy dip ---- */
   var JEON_PTS = [   /* wedges of a round pancake: a curved crust edge and a cut tip */
@@ -573,7 +597,8 @@ var COOK_SPR = (function () {
     '.9uuuuuuuuJjj9..',
     '..99jjjjjjj99...',
     '....9999999.....']);
-  typed('table.kkochi', 16, 12, 8, 10, [
+  function typedFrames(id, w, h, ax, ay, frames) { def(id, w, h, ax, ay, frames.length, function (F, f) { F.rows(0, 0, frames[f]); }); }
+  typedFrames('table.kkochi', 16, 12, 8, 10, [[
     '..............y.',
     '..........kkky..',
     '.........k54k...',
@@ -585,8 +610,44 @@ var COOK_SPR = (function () {
     'hCy$$$CCwwCCCzh.',
     '.hyCCCCCCCCCzh..',
     '..hhzzzzzzzhh...',
-    '....hhhhhhh.....']);
-  typed('table.cake', 16, 12, 8, 10, [
+    '....hhhhhhh.....'], [
+    '..............y.',
+    '.............y..',
+    '............y...',
+    '......PPP..y....',
+    '.....PqgPay.....',
+    '..$$$PgGPhhhhh..',
+    '.$crr$PPCCCCCCh.',
+    'h$rrR$CCCCCCCCh.',
+    'hCy$$$CCwwCCCzh.',
+    '.hyCCCCCCCCCzh..',
+    '..hhzzzzzzzhh...',
+    '....hhhhhhh.....'], [
+    '..............y.',
+    '.............y..',
+    '............y...',
+    '...........y....',
+    '.........ay.....',
+    '..$$$..ayhhhhh..',
+    '.$crr$ayCCCCCCh.',
+    'h$rrR$CCCCCCCCh.',
+    'hCy$$$CCwwCCCzh.',
+    '.hyCCCCCCCCCzh..',
+    '..hhzzzzzzzhh...',
+    '....hhhhhhh.....'], [
+    '..............y.',
+    '.............y..',
+    '............y...',
+    '...........y....',
+    '.........ay.....',
+    '.......ayhhhhh..',
+    '.hhhhayCCCCCCCh.',
+    'hCCCyCCCCCCCCCh.',
+    'hCyCCCCCwwCCCzh.',
+    '.hyCCCCCCCCCzh..',
+    '..hhzzzzzzzhh...',
+    '....hhhhhhh.....']]);
+  typedFrames('table.cake', 16, 12, 8, 10, [[
     '........g.......',
     '.......$r$......',
     '....FFF$r$FF....',
@@ -598,8 +659,43 @@ var COOK_SPR = (function () {
     'hwkkkkkkkkkkkwh.',
     'hwwwwwwwwwwwwwh.',
     'hlllllllllllllh.',
-    '.hhhhhhhhhhhhh..']);
-
+    '.hhhhhhhhhhhhh..'], [
+    '........g.......',
+    '.......$r$......',
+    '.....FF$r$FF....',
+    '....FWWW$WWWF...',
+    '....FWWWWWWQF...',
+    '....k55555554k..',
+    'hhhhkrWWrWWWWkh.',
+    'hwwwk55555554kh.',
+    'hwwwwkkkkkkkkwh.',
+    'hwwwwwwwwwwwwwh.',
+    'hlllllllllllllh.',
+    '.hhhhhhhhhhhhh..'], [
+    '................',
+    '................',
+    '................',
+    '.........FFFF...',
+    '........FWWWQF..',
+    '........k5554k..',
+    'hhhhhhhhkWrWWkh.',
+    'hwwwwwwwk5554kh.',
+    'hwwrwwwwwkkkkwh.',
+    'hwwwww5wwwwwwwh.',
+    'hlllllllllllllh.',
+    '.hhhhhhhhhhhhh..'], [
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    'hhhhhhhhhhhhhhh.',
+    'hwwwwwwwwwwwwwh.',
+    'hww5wwwwgwwwwwh.',
+    'hwwwwwQwwww5wwh.',
+    'hwwwwwwwwwwwwwh.',
+    'hlllllllllllllh.',
+    '.hhhhhhhhhhhhh..']]);
   /* step pictograms: the hand action without words. Arrows are blue (h), things keep their food colours */
   function step(id, rows) { typed('step.' + id, 16, 16, 8, 13, rows); }
   step('slice', [
@@ -2003,7 +2099,7 @@ var COOK_SPR = (function () {
     '..llllllmmm...'], OC);
 
   /* ---- cafe.coffee: a cup of coffee on a saucer, a curl of steam ---- */
-  def('cafe.coffee', 32, 32, 16, 26, 1, function (F) {
+  function coffeeCup(F, lvl) {   /* lvl 0 full with steam, 1 lower, 2 low, 3 empty with a ring */
     var s = lay(28, 9);
     s.e(0, 1, 28, 8, 'm').e(0, 0, 28, 8, 'w').on('w').ring(3, 1, 22, 5, 1, 'p').e(14, 3, 14, 5, 'l').on();
     F.put(s, 2, 21, OC, 0);
@@ -2013,9 +2109,17 @@ var COOK_SPR = (function () {
     var c = lay(18, 15);
     c.rr(0, 2, 18, 13, 6, 'w').r(0, 2, 18, 5, 'w');
     c.on('w').r(13, 0, 5, 15, 'l').r(16, 0, 2, 15, 'm').r(2, 6, 1, 6, 'W').r(4, 13, 10, 2, 'l').r(0, 9, 13, 1, 'p').on();
-    c.e(0, 0, 18, 6, 'w').e(1, 1, 16, 4, 'K').e(2, 1, 13, 3, 'k').p(4, 2, 'a').p(5, 2, 'a').p(6, 2, 'y');
+    c.e(0, 0, 18, 6, 'w');
+    if (lvl === 0) c.e(1, 1, 16, 4, 'K').e(2, 1, 13, 3, 'k').p(4, 2, 'a').p(5, 2, 'a').p(6, 2, 'y');
+    else {
+      c.e(1, 1, 16, 4, 'm').on('m').e(1, 2, 14, 3, 'l').on();
+      if (lvl === 1) c.e(3, 2, 13, 3, 'K').e(4, 2, 9, 2, 'k');
+      if (lvl === 2) c.e(6, 3, 9, 2, 'K').p(8, 3, 'k').p(9, 3, 'k');
+      if (lvl === 3) c.p(7, 4, 'E').p(8, 4, 'E').p(9, 4, 'f').p(11, 3, 'E');
+    }
     c.on('w').e(9, 3, 9, 3, 'l').on();
     F.put(c, 5, 11, OC, 1);
+    if (lvl) return;
     var st = lay(8, 9);
     st.rows(0, 0, [
       '...WW...',
@@ -2028,7 +2132,9 @@ var COOK_SPR = (function () {
       '..WW....',
       '...W....']);
     F.put(st, 9, 1, 'vvE', 0);
-  });
+  }
+  def('cafe.coffee', 32, 32, 16, 26, 1, function (F) { coffeeCup(F, 0); });
+  def('cafe.cup.big', 32, 32, 16, 26, 4, coffeeCup);
 
   /* ---- cafe.card: a small recipe card: a tiny cake picture and lines ---- */
   ckSmall('cafe.card', [
@@ -2045,6 +2151,188 @@ var COOK_SPR = (function () {
     'QWWWWWWWWWWe',
     'QWEEEEEEEWWe',
     'eeeeeeeeeeee'], 'FuU');
+
+  /* ================= content pass (wip/round7/briefs/SPRITES2.md): cafe, shops, contest ================= */
+  var CUP_ROWS = [
+    '................',
+    '................',
+    '................',
+    '................',
+    '...hhhhhhhh.....',
+    '..hwKKKKKKwh....',
+    '..hwwKkkKwwhhh..',
+    '..hwwwwwwwlh.wh.',
+    '..hwwwwwwwlh.wh.',
+    '..hWwwwwwwlhhh..',
+    '..hWpppppplh....',
+    '...hwwwwwlh.....',
+    '.hhhhwwwlhhhh...',
+    'hwwwwhhhhwwwlh..',
+    '.hllllllllllh...',
+    '..hhhhhhhhhh....'];
+  def('cafe.cup', 16, 16, 8, 13, 4, function (F, f) {   /* table size: the coffee sinks sip by sip */
+    F.rows(0, 0, CUP_ROWS);
+    if (f > 0) F.rows(4, 5, ['llllll']);
+    if (f === 1) F.rows(5, 6, ['KKKK']);
+    if (f === 2) F.rows(5, 6, ['lKKl']);
+    if (f === 3) F.rows(5, 6, ['lmEl']);
+  });
+  def('cafe.tray', 48, 32, 24, 22, 1, function (F) {
+    var t = lay(44, 26);
+    t.rr(0, 3, 44, 23, 5, 'u').rr(0, 0, 44, 23, 5, 'F');
+    t.on('F').rr(1, 1, 42, 3, 2, 'f').rr(3, 3, 38, 17, 4, 'E').on();
+    t.on('E').rr(3, 3, 38, 2, 2, 'F').r(3, 5, 2, 15, 'f').r(8, 7, 20, 1, 'e').r(12, 15, 22, 1, 'f').r(30, 10, 8, 1, 'f').on();
+    t.on('F').rr(0, 8, 2, 7, 1, 'U').rr(42, 8, 2, 7, 1, 'U').on();
+    F.put(t, 2, 3, OD, 0);
+  });
+  def('cafe.stampcard', 48, 32, 24, 16, 4, function (F, f) {
+    var c = lay(44, 28), i;
+    c.rr(0, 0, 44, 28, 2, 'e').rr(0, 0, 43, 27, 2, 'W');
+    c.on('W').r(3, 3, 37, 1, 'E').r(3, 23, 37, 1, 'E').r(3, 3, 1, 21, 'E').r(39, 3, 1, 21, 'E').on();
+    /* a small cup mark and a coffee-brown bar on top */
+    c.rows(6, 6, ['kkkkk.', 'kKKkkk', 'kkkk.k', '.kkkk.']).r(15, 7, 22, 2, 'k').r(15, 10, 14, 1, 'E');
+    for (i = 0; i < 3; i++) {
+      var x = 5 + i * 12;
+      if (i < f) { c.ring(x, 12, 10, 10, 2, 'r').on('W').e(x + 3, 15, 4, 4, 'r').on().p(x + 2, 13, 'c').p(x + 7, 20, 'R').p(x + 4, 16, 'c'); }
+      else c.ring(x, 12, 10, 10, 1, 'E');
+    }
+    F.put(c, 2, 2, 'FuU', 0);
+  });
+  typedFrames('cafe.stamp', 16, 16, 8, 13, [[
+    '................',
+    '................',
+    '......UUUU......',
+    '.....UAAAaU.....',
+    '.....UyAAaU.....',
+    '.....UyAAaU.....',
+    '......UAaU......',
+    '......UAaU......',
+    '.....UUAaUU.....',
+    '....UyAAAAaU....',
+    '....UAAAAaaU....',
+    '...$$$$$$$$$$...',
+    '...$rrrrrrrR$...',
+    '...$$$$$$$$$$...',
+    '................',
+    '................']]);
+  def('cafe.recipe', 32, 40, 16, 20, 2, function (F, f) {
+    var c = lay(28, 36), pic = lay(16, 16), y;
+    c.rr(0, 0, 28, 36, 2, 'e').rr(0, 0, 27, 35, 2, 'W');
+    c.on('W').r(2, 2, 23, 18, 'Q').r(3, 3, 21, 16, 'e').on();
+    TABLE[f ? 'icon.kkochi' : 'icon.cake'].fn(pic, 0);
+    c.put(pic, 5, 3, '', 0);
+    for (y = 23; y < 33; y += 3) c.r(3, y, y === 32 ? 12 : (y === 26 ? 18 : 21), 1, 'E');
+    c.p(13, 0, 'r').p(14, 0, 'r').p(13, 1, 'R').p(14, 1, 'r');
+    F.put(c, 2, 2, 'FuU', 0);
+  });
+  /* eight record sleeves: plain shapes, no letters */
+  def('rec.sleeve', 24, 24, 12, 12, 8, function (F, f) {
+    var s = lay(22, 22), i;
+    if (f === 0) { s.r(0, 0, 22, 22, 'z').r(0, 15, 22, 7, 'H').e(6, 4, 10, 10, '5').on('5').e(8, 6, 4, 3, '6').on(); for (i = 0; i < 4; i++) s.p(4 + i * 5, 17 + (i % 2), 'C').p(5 + i * 5, 17 + (i % 2), 'C'); s.p(3, 8, '4').p(18, 8, '4').p(11, 1, '4').p(5, 3, '4').p(16, 3, '4'); }
+    if (f === 1) { s.r(0, 0, 22, 22, 'i'); for (i = 0; i < 22; i++) { var wv = [0, 0, 1, 2, 2, 1][i % 6]; s.p(i, 5 + wv, 'C').p(i, 10 + wv, 'z').p(i, 11 + wv, 'z').p(i, 16 + wv, 'H'); } }
+    if (f === 2) { s.r(0, 0, 22, 22, 'y').e(-6, 11, 22, 18, '9').e(7, 9, 22, 20, 'j').on('j').e(9, 10, 12, 6, 'J').on().e(14, 2, 5, 5, 'W'); }
+    if (f === 3) { s.r(0, 0, 22, 22, 'Q'); for (i = -22; i < 22; i += 8) { s.ln(i, 21, i + 21, 0, 'r', 2); s.ln(i + 4, 21, i + 25, 0, '4'); } }
+    if (f === 4) { s.r(0, 0, 22, 22, '(').e(5, 4, 12, 12, '6').e(9, 3, 11, 11, '(').p(4, 17, 'W').p(16, 16, 'W').p(18, 6, '6').p(8, 19, 'p').p(2, 5, 'W'); }
+    if (f === 5) { s.r(0, 0, 22, 22, 'Y').poly([[3, 18], [5, 8], [12, 3], [19, 3], [18, 11], [12, 17]], 'G').on('G').ln(4, 17, 18, 4, 'q').ln(9, 12, 9, 7, 'q').ln(12, 10, 17, 9, 'q').on(); }
+    if (f === 6) { s.r(0, 0, 22, 22, 'p'); for (i = 0; i < 16; i++) { var dx = 2 + (i % 4) * 5, dy = 2 + ((i / 4) | 0) * 5; s.r(dx, dy, 3, 3, (i + ((i / 4) | 0)) % 2 ? 'W' : '>'); } }
+    if (f === 7) { s.r(0, 0, 22, 22, 'D').poly([[11, 1], [21, 11], [11, 21], [1, 11]], '4').poly([[11, 5], [17, 11], [11, 17], [5, 11]], 'r').poly([[11, 8], [14, 11], [11, 14], [8, 11]], 'W'); }
+    s.on('*').r(0, 0, 22, 1, '^').r(21, 0, 1, 22, '-').r(0, 21, 22, 1, '-').on();
+    F.put(s, 1, 1, OD, 0);
+  });
+  def('rec.disc', 24, 24, 12, 12, 2, function (F, f) {
+    var d = lay(22, 22);
+    d.e(0, 0, 22, 22, 'x').ring(2, 2, 18, 18, 1, 'D').ring(5, 5, 12, 12, 1, 'D').e(7, 7, 8, 8, 'r').on('r').e(8, 8, 4, 3, 'c').on().p(10, 10, 'W').p(11, 10, 'W').p(10, 11, 'W').p(11, 11, 'W');
+    d.on('xD');
+    if (f === 0) d.ln(4, 5, 7, 8, 'N').ln(3, 7, 6, 9, 'd').ln(14, 14, 17, 17, 'd').ln(15, 12, 18, 15, 'N');
+    else d.ln(17, 5, 14, 8, 'N').ln(18, 7, 15, 9, 'd').ln(7, 14, 4, 17, 'd').ln(6, 12, 3, 15, 'N');
+    d.on();
+    d.p(f ? 12 : 9, f ? 8 : 12, 'y');
+    F.put(d, 1, 1, 'dDD', 0);
+  });
+  /* ---- shops ---- */
+  def('ui.tag', 40, 24, 20, 12, 1, function (F) {
+    var t = lay(38, 20);
+    t.poly([[8, 0], [38, 0], [38, 20], [8, 20], [0, 13], [0, 7]], 'e');
+    t.on('e').poly([[8, 0], [37, 0], [37, 19], [8, 19], [1, 12], [1, 7]], 'W').on();
+    t.on('W').r(9, 2, 27, 1, 'Q').r(9, 17, 27, 1, 'Q').on();
+    t.e(3, 8, 5, 5, 'E').e(4, 9, 3, 3, 'U');
+    F.put(t, 1, 3, 'FuU', 0);
+    /* the string: through the hole and away to the upper left */
+    F.ln(6, 12, 3, 6, 'A').ln(3, 6, 5, 1, 'A').ln(5, 1, 9, 1, 'a').p(6, 13, 'a');
+  });
+  def('ui.sold', 32, 16, 16, 8, 1, function (F) {   /* stamp ink: a worn frame and a check stroke */
+    F.r(3, 1, 26, 2, 'r').r(3, 13, 26, 2, 'r').r(1, 3, 2, 10, 'r').r(29, 3, 2, 10, 'r').p(2, 2, 'r').p(29, 2, 'r').p(2, 13, 'r').p(29, 13, 'r');
+    F.ln(9, 7, 13, 10, 'r', 2).ln(13, 10, 21, 4, 'r', 2);
+    F.on('r').r(10, 1, 3, 1, 'R').r(22, 14, 4, 1, 'R').r(1, 8, 1, 2, 'R').p(17, 7, 'R').p(30, 6, 'R').p(6, 13, 'R').p(25, 1, 'R').on();
+  });
+  def('ui.receipt', 32, 40, 16, 20, 1, function (F) {
+    var r = lay(26, 36), x;
+    r.r(0, 0, 26, 33, 'W');
+    for (x = 0; x < 26; x += 4) r.poly([[x, 33], [x + 4, 33], [x + 2, 36]], 'W');
+    r.on('W').r(24, 0, 2, 36, 'Q').r(3, 2, 14, 1, 'E').r(3, 4, 8, 1, 'e').r(3, 31, 20, 1, 'E').on();
+    F.put(r, 3, 1, 'FuU', 0);
+  });
+  def('shop.open', 32, 24, 16, 4, 2, function (F, f) {
+    var b = lay(26, 13);
+    b.rr(0, 0, 26, 13, 2, 'F').on('F').r(1, 1, 24, 1, 'f').r(1, 11, 24, 1, 'u').r(4, 5, 5, 1, 'u').r(18, 8, 4, 1, 'u').on();
+    if (f === 0) b.e(10, 3, 6, 7, '5').on('5').e(11, 4, 3, 3, '6').on().p(12, 4, 'W').p(8, 6, 'y').p(17, 6, 'y').p(9, 3, 'y').p(16, 3, 'y').p(9, 9, 'y').p(16, 9, 'y');
+    else { b.map({ F: 'u', f: 'F', u: 'U' }); b.ln(9, 3, 16, 9, 'V').ln(16, 3, 9, 9, 'V'); }
+    F.ln(16, 4, 6, 9, 'A').ln(16, 4, 25, 9, 'A').p(16, 3, 'a').p(15, 3, 'a').p(16, 2, 'a');
+    F.put(b, 3, 10, OD, 0);
+  });
+  var SEED_ROWS = [
+    '................',
+    '..uuuuuuuuuuuu..',
+    '..uEEEEEEEEEEu..',
+    '..uuuuuuuuuuuu..',
+    '..uWWWWWWWWWQu..',
+    '..uWWWppWWWWQu..',
+    '..uWWpp5pWWWQu..',
+    '..uWWp555pWWQu..',
+    '..uWWpp5ppWWQu..',
+    '..uWWWppWWWWQu..',
+    '..uWWWWGWWWWQu..',
+    '..uWWgWGWgWWQu..',
+    '..uWWWgGgWWWQu..',
+    '..uWWWWGWWWWQu..',
+    '..uWWWWWWWWWQu..',
+    '..uyyyyyyyyyAu..',
+    '..uyAyAyAyAyAu..',
+    '..uuuuuuuuuuuu..',
+    '................',
+    '................'];
+  def('goods.seed', 16, 20, 8, 17, 3, function (F, f) { F.rows(0, 0, SEED_ROWS); if (f === 1) F.map({ p: '5', '5': '2' }); if (f === 2) F.map({ p: 'z', '5': 'W' }); });
+  var DYE_ROWS = [
+    '................',
+    '................',
+    '......aaaa......',
+    '......ayAa......',
+    '.....dddddd.....',
+    '.....dCWCCd.....',
+    '.....dCWCCd.....',
+    '....ddCCCCdd....',
+    '...dCCWCCCCCd...',
+    '..dCWrrrrrrrCd..',
+    '..dCWrrrrrrRCd..',
+    '..dCrcrrrrrRCd..',
+    '..dCrcrrrrrRCd..',
+    '..dCrrrrrrRRCd..',
+    '..dCrrrrrRRRCd..',
+    '..dCCRRRRRRCCd..',
+    '...dCCCCCCCCd...',
+    '....dddddddd....',
+    '................',
+    '................'];
+  def('goods.dye', 16, 20, 8, 17, 3, function (F, f) { F.rows(0, 0, DYE_ROWS); if (f === 1) F.map({ r: 'H', R: 'h', c: 'z' }); if (f === 2) F.map({ r: 'g', R: 'G', c: 'q' }); });
+  /* ---- contest ---- */
+  def('judge.card', 24, 32, 12, 30, 3, function (F, f) {
+    var st = lay(2, 13); st.r(0, 0, 2, 13, 'F').r(1, 0, 1, 13, 'u');
+    F.put(st, 11, 17, OD, 0);
+    var b = lay(20, 15), n = f + 1, i;
+    b.rr(0, 0, 20, 15, 2, 'e').rr(0, 0, 19, 14, 2, 'W').on('W').r(2, 2, 15, 1, 'Q').r(2, 11, 15, 1, 'Q').on();
+    for (i = 0; i < n; i++) b.rows((n === 1 ? 7 : (n === 2 ? 4 : 1)) + i * 6, 5, ['..5..', '55554', '.544.', '.4.4.']);
+    F.put(b, 2, 2, 'FuU', 1);
+  });
 
 /*SPRITES*/
 

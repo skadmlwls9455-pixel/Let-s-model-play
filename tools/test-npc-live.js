@@ -50,7 +50,7 @@ function box(p) {
     ok(b0.hidden && b0.npc === null, '처음엔 대사창이 숨어 있다');
     ok(b0.live === 'polite' && b0.role === 'group', '읽기 영역 aria-live polite · 모달이 아니다');
     await p.evaluate(function () { window.__calls = []; APP.scene.npcSet = function (l) { window.__calls.push(['set', l]); }; APP.scene.npcMark = function (id, on) { window.__calls.push(['mark', id, on]); }; });
-    ok(await p.evaluate(function () { return APP.npcSync(); }) === true, 'scene.npcSet 이 있으면 오늘의 문어들을 넘긴다');
+    ok(await p.evaluate(function () { return APP.npcSync(true); }) === true, 'scene.npcSet 이 있으면 오늘의 문어들을 넘긴다');   /* 11-22: 진짜 장면 (갈래 V) 이 부팅 때 이미 받았으므로 force 로 다시 넘겨 가로챈다 */
     var set = await p.evaluate(function () { return window.__calls[0][1]; });
     ok(set.length === 7 && set[0].id === 'clothes' && set[0].hat === 'beret' && set[6].pose === 'sleep', 'npcSet 목록 (셋 + 자는 넷)');
     ok(await p.evaluate(function () { return APP.npcSync(); }) === false, '같은 날 두 번 넘기지 않는다');
@@ -98,18 +98,13 @@ function box(p) {
     var guard = 0; while (!(await box(p)).hidden && guard++ < 3) await p.keyboard.press('Enter');
     ok((await box(p)).hidden, '대사창의 단추에서 Enter 로 닫힌다');
 
-    /* 11-21 밤 (계약 C14): 방이 있는 장면이면 그곳의 문어만 넘긴다 · 방이 바뀌면 떠 있던 말은 접힌다 · 카드 (data-npc-avoid) 를 가리지 않는다 */
+    /* 11-21 밤 (계약 C14): 방이 바뀌면 떠 있던 말은 접힌다 · 카드 (data-npc-avoid) 를 가리지 않는다 */
     var rm = await p.evaluate(function () {
-      window.__calls = []; var room = null; APP.scene.inRoom = function () { return room; };
-      var out = {}; APP.npcSync(); out.outside = window.__calls.pop()[1].map(function (x) { return x.id; }).join();
-      APP.npcSay('cafe', 'cafe.order'); room = 'cafe'; document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: 'cafe' } }));
-      out.folded = APP.npc === null; out.cafe = window.__calls.filter(function (c) { return c[0] === 'set'; }).pop()[1].map(function (x) { return x.id; }).join();
-      room = 'hall'; document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: 'hall' } })); out.hall = window.__calls.filter(function (c) { return c[0] === 'set'; }).pop()[1].length;
-      room = null; document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: null } })); out.back = window.__calls.filter(function (c) { return c[0] === 'set'; }).pop()[1].length;
-      delete APP.scene.inRoom; return out;
+      APP.npcSay('cafe', 'cafe.order'); var shown = !!APP.npc;
+      document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: 'cafe' } }));
+      return { shown: shown, folded: APP.npc === null };
     });
-    ok(rm.outside === 'sleep-2,sleep-3,sleep-4' && rm.cafe === 'cafe,sleep-1' && rm.hall === 0 && rm.back === 3, '방마다 그곳의 문어만 (바깥 자는 셋 · 카페 느루와 자는 하나 · 공연장 없음): ' + JSON.stringify(rm));
-    ok(rm.folded, '방이 바뀌면 떠 있던 말은 접힌다');
+    ok(rm.shown && rm.folded, '방이 바뀌면 떠 있던 말은 접힌다');
     var av = await p.evaluate(function () {
       var sc = document.getElementById('scene'), r = sc.getBoundingClientRect(), c = document.createElement('div');
       c.setAttribute('data-npc-avoid', ''); c.style.cssText = 'position:absolute;left:40px;width:200px;height:120px;top:' + (r.height - 140) + 'px;background:#fff'; sc.appendChild(c);

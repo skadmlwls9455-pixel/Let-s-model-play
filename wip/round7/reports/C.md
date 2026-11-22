@@ -173,3 +173,45 @@ Looks only; rules, saves, lines, ids, aria names and test hooks are unchanged.
   `ui2-after-menu-412.png`, `ui2-before-record-360.png` / `ui2-after-record-360.png`, `ui2-after-ask-320.png`.
 - Smoke on the branch before this pass (letters A–I, L–P, V, W ran: all passed; the run was stopped for the base
   merge, the remaining letters were not run).
+
+## Content pass (11-21 late, after the owner's "탭같은 느낌으로 축약하지 말고 … 개별 콘텐츠 같은 느낌", brief `CONTENT.md`)
+
+The cafe now plays in the room when the 3D scene has one (`scene.inRoom() === 'cafe'` with `scene.project` and
+`scene.spriteProp`); the sheets and the tray panel stay as the fallback (2D, or any of those functions missing). Rules,
+saves and music are unchanged, except that coffee is now three sips (it used to be a still cup).
+
+- Beats (all in `js/app.js` `[7-C]`): chalkboard button → board close-up card `#cafe-card` (`cafeCardOpen('menu')`, a
+  plain element in `#scene`, not a dialog) → order and confirm (`cafeBuy`) → the keeper works for 1.5 s with steam
+  (`cafeBrew`) → the tray on the pick-up spot (`spriteProp`) → the counter button takes it (`cafeCarry`: `playerCarry`,
+  `cafeSit(true)`, set down as `spriteProp('cafe-plate', table, id, frame)`) → each tap on `#btn-cafe-plate` is a bite
+  (`cafePlateTap` → `cafeBite`, frame 1..3, crumbs) → the stamp card pops up with the new stamp (`cafeStampCard`), on
+  the third the gift line and the flying recipe card → rack button → rack close-up card (`cafeCardOpen('lp')`) → a
+  sleeve spins the room's disc (`scene.cafeRecord(on, colour)`) → the seat button, walking or the door end the visit
+  (`ppol:cafe-seat`, `ppol:room` → `cafeRoomLeave`); a half-eaten plate is put back on the table on the next entry
+  (`cafeRoomEnter`).
+- Interruptions tested: leaving while the keeper works, leaving while carrying, standing up mid-meal, tapping the
+  plate while standing (sits first), the board while a plate waits (no new order). In every case only saved facts
+  remain: what was paid for is in `S.user.cafe.tray`.
+- New player-facing names: card aria '메뉴 칠판' / '레코드 선반' / '도장 카드', button '닫기' on the card, plate button
+  '<이름> 먹기' or '커피 마시기', counter button '쟁반 가져가기' while a tray stands there.
+- New keeper keys used if lane N has them: `cafe.order`, `cafe.stamp`, `cafe.record` (besides hello / serve / gift).
+- Sprite ids used if lane A has them, with fallbacks to the menu pictures: `cafe.tray`, `cafe.cup` (frames 0..3),
+  `table.cake`, `table.kkochi` (frames 0..3).
+- Checks on this branch alone: `tools/test-cafe.js` 100; `tools/test-cafe-live.js` 92 (section 11 plays the chain
+  with real taps in the 3D scene with W / V / T scene functions stubbed).
+- **Run against the real room** (15:25 UTC, local trial merge of the base + lane/7-w, 7-v, 7-t, 7-a, 7-n on top of this
+  branch; merged without conflicts; not committed): `tools/test-cafe-live.js` 86 passed. On such a build the test
+  skips the stub section and runs section 12 in the real cafe room: village → `APP.goInside('cafe')` → the board
+  button (walk-first, then the card) → order → the keeper's line and the tray on the counter → the counter button →
+  carried, seated, plate set down (`scene.debugSprites()` shows `cafe-plate` = `table.cake` frame 0) → three taps on
+  the plate → stamp card and N's stamp line, T's recipe count 1 → stand → order a skewer, one bite, leave by the door,
+  come back: the plate waits on the table at frame 1 → finish → the rack card, a sleeve, the disc on V's turntable →
+  leaving stops the record. No page errors.
+- Fixed from the real run: the stamp card was stretched to the bottom of the scene; the keeper's greeting was said
+  before the board card opened, so N's dialogue box covered the card's close button (now the card opens first and
+  the box moves to the top).
+- Bound by me because nobody else had: the terrace door `#btn-in-cafe` → `APP.goInside('cafe')`.
+- True room pictures (real scene, no stubs, 360x740): `wip/round7/shots/C/real-r1-inside.png`, `real-r2-board.png`,
+  `real-r5-tray.png`, `real-r6-carry.png`, `real-r7-plate.png`, `real-r8-bite.png`, `real-r9-stamp.png`,
+  `real-r10-rack.png`, `real-r11-disc.png`.
+- Not done yet for this pass: the independent check and the whole smoke suite.
