@@ -4130,7 +4130,7 @@ var APP = (function () {
       cookFrame.className = 'cook-frame'; cookFrame.title = '부엌';
       cookFrame.src = cookSrc(kbd, recipe);
       ov.appendChild(cookFrame);
-      var cc = $('cook-close'); if (cc) cc.addEventListener('click', function (e) { cookKbd = kbdClick(e); ov.close(); });   /* 11-18 (rel-01): 못 열린 부엌에서 나가는 문 */
+      var cc = $('cook-close'); if (cc) cc.addEventListener('click', function (e) { cookKbd = kbdClick(e); cookWaitEnd(); ov.close(); });   /* 11-22: 그림은 누르는 순간 걷는다 (대화상자의 close 사건은 한 박자 늦게 온다) */   /* 11-18 (rel-01): 못 열린 부엌에서 나가는 문 */
       ov.addEventListener('close', function () {
         if (!cookReady) cookAbort();   /* 11-18 (rel-01): 안 열린 부엌은 멈춘다 (늦게 열려 냄비를 만들지 않게) · 다음엔 새로 불러온다 */
         cookWaitEnd();
