@@ -1791,6 +1791,10 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 
 
 /* [7-W] 바깥 한 장 · 해안가 · 이동 */
+/* 빠른 이동 칩: 요리 쟁반의 칩 모양 그대로 · 자리는 app.js travelFit 이 보이는 칩만 기기 px 로 놓는다 (숨긴 칩 자리는 비우지 않는다) · 그림은 16×16 캔버스를 정수 배로 */
+dialog.travel-pick .dp-row .dp-chip[data-place] { left: var(--tp-x, 0px); }
+dialog.travel-pick .dp-chip[hidden] { display: none; }
+dialog.travel-pick .dp-chip canvas { position: absolute; left: var(--dp-icp, 8px); top: var(--dp-icp, 8px); width: var(--dp-ic, 48px); height: var(--dp-ic, 48px); image-rendering: pixelated; }
 
 
 /* [7-V] 마을 건물 · NPC 그리기 */
