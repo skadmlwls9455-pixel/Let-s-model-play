@@ -180,6 +180,7 @@ async function village(page) {
           sc.debugPlayerAt(st.path[1][0], st.path[1][1]); await __V.run(6); r.lift = sc.villageRooms().lift; sc.debugPlayerAt(st.wait[0], st.wait[1]); await __V.run(6); r.lift0 = sc.villageRooms().lift; r.calls2 = sc.stats().calls;
           sc.npcSet([]); sc.stageDress(false); r.hall0 = sc.villageRooms().hallNpcs.length; sc.npcSet(a.list);
         }
+        if (a.key === 'cafe') { sc.npcSet(a.list.concat([{ id: 'sleep-3', color: '#8898b0', hat: 'none', pose: 'sleep', room: 'cafe', slot: 'nap' }])); await __V.run(2); r.guests = sc.villageRooms().rooms.cafe.guests; r.outside = sc.villageInfo().npcs.map(function (q) { return q.id; }); sc.npcSet(a.list); }
         if (a.key === 'cafe') { var s = null; sc.cafeSit(true).then(function (x) { s = x; }); await __V.run(400, function () { return s !== null; }); r.sat = s; r.seated = sc.cafeSeated(); r.cup = sc.cafeCup(true); r.rec = sc.cafeRecord(true, '#3f6690'); __V.frame(); r.info = sc.villageRooms().rooms.cafe; var p = sc.player().at, S = VILLAGE.ROOMS.cafe.slots.seat; r.seatD = Math.hypot(p[0] - S[0], p[2] - S[2]); sc.cafeRecord(false); }
         var out = null; sc.leaveRoom().then(function (x) { out = x; }); await __V.run(500, function () { return out !== null; }); await __V.run(20); r.leave = out; r.after = sc.inRoom(); r.seatedAfter = sc.cafeSeated(); r.view = sc.view();
         return r;
@@ -191,6 +192,7 @@ async function village(page) {
       ok(t9.calls <= 60, rk + ' 드로우콜 ' + t9.calls + ' (≤ 60)');
       ok(t9.slots && t9.slots.slots && (rk === 'hall' ? t9.slots.slots.stage : t9.slots.slots.keeper) && t9.slots.slots.exit && t9.slots.built, rk + ' roomSlots(key).slots 에 내 자리들');
       ok(t9.btns.filter(function (q) { return q[1]; }).length >= Math.min(3, t9.btns.length),   /* 방이 화면보다 넓어 먼 구석의 단추는 가려 있을 수 있다 */ rk + ' 단추가 보인다: ' + t9.btns.filter(function (q) { return !q[1]; }).map(function (q) { return q[0]; }).join(' '));
+      if (rk === 'cafe') ok(t9.guests.join() === 'sleep-3' && t9.outside.indexOf('sleep-3') < 0, 'npcSet 의 room · slot: 카페 구석에서 자는 문어 (바깥에는 없다)');
       if (rk === 'cafe') ok(t9.sat === true && t9.seated && t9.cup === true && t9.rec === true && t9.info.cup && t9.info.record && t9.seatD < 0.1, '카페 안에서 앉기 · 잔 · 레코드 (걸상에서 ' + t9.seatD.toFixed(2) + ' m)');
       ok(t9.leave && t9.leave.ok && t9.after === null && t9.view === 'yard' && !t9.seatedAfter, rk + ' 에서 나온다 (앉은 채였어도 선 채로 밖에)');
     }
