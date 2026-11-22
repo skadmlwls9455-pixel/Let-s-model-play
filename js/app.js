@@ -5759,7 +5759,7 @@ var APP = (function () {
       d.addEventListener('cancel', function () { travelKbd = true; });
       d.addEventListener('close', function () {
         var op = travelOpener; window.removeEventListener('resize', travelFit);
-        document.documentElement.classList.remove('dish-picking');
+        document.documentElement.classList.remove('travel-picking');
         if (!travelPicked && op && !op.hidden) focusRoomBtn(op, travelKbd);
       });
     }
@@ -5767,7 +5767,7 @@ var APP = (function () {
     var ar = scene && typeof scene.area === 'function' ? scene.area() : null, here = ar === 'yard' || ar === 'road' ? 'home' : ar === 'village' || ar === 'plaza' ? 'village' : ar === 'beach' ? 'beach' : TRAVEL_SIGN[i];   /* 숨기는 칩 = 내 캐릭터가 선 곳 (멀리 보이는 표지판을 눌러도 — 독립 검증) */
     Array.prototype.forEach.call(d.querySelectorAll('button[data-place]'), function (b) { b.hidden = b.getAttribute('data-place') === here; });
     travelDraw(d);
-    document.documentElement.classList.add('dish-picking');   /* 열린 동안 '산책 갈래?' 단추 · 발자국 손잡이는 숨긴다 (요리 쟁반과 같은 규칙) */
+    document.documentElement.classList.add('travel-picking');   /* 열린 동안 '산책 갈래?' 단추 · 발자국 손잡이는 숨긴다 */
     d.showModal(); travelFit(); window.addEventListener('resize', travelFit);
     var first = d.querySelector('button[data-place]:not([hidden])');
     try { if (kbd && first) first.focus({ preventScroll: true }); else d.focus({ preventScroll: true }); } catch (e) { /* 포커스는 그대로 */ }
@@ -5793,6 +5793,7 @@ var APP = (function () {
     if (Date.now() - insideWalkT < 300) return;
     if (scene.roomSpotGo(t.id)) { insideWalkT = Date.now(); e.stopImmediatePropagation(); e.preventDefault(); }
   }, true);
+  (function () { var b = $('btn-room-exit'); if (b) b.addEventListener('click', function () { goOutside(); }); })();   /* 11-22 (검증 MUST): 방 '밖으로' 단추 — 그림 위 톡은 장면이 문 자리로 걸어간 뒤 누르고, 누르면 어느 방이든 밖으로 */
   function insideNow() { return scene && typeof scene.inRoom === 'function' ? scene.inRoom() : null; }
   function wideUIReset() { for (var i = 0; i < 5; i++) { var a = $('btn-sign-' + i), b = $('btn-beach-shell-' + i); if (a) a.hidden = true; if (b) b.hidden = true; } var d = $('travel-pick'); if (d && d.open) d.close(); }   /* 장면을 잃었을 때 (resetRoomUI) */
   [0, 1, 2].forEach(function (i) { var b = $('btn-sign-' + i); if (b) b.addEventListener('click', function (e) { travelOpen(i, b, kbdClick(e)); }); });
