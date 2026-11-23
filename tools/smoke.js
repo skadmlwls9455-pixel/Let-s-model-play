@@ -2222,7 +2222,8 @@ async function scenarioFirst(browser) {
   var bag = []; bag.ignored = [];
   async function fresh(q, dpr) {
     var c = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: dpr || 2, locale: 'ko-KR', colorScheme: 'light' });
-    await c.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    /* 11-23 (CI e41d779 · 11-23 에 FM 10/2): 데모 문어가 날짜 시드로 첫 초대에도 '집에 있기' 를 고르는 날이 있어 첫 산책 뒤 손 힌트가 안 떴다 — 이 시나리오는 늘 나가는 차례로 (forceKind, 스모크 K 와 같은 훅) */
+    await c.addInitScript({ content: "window.__ppolAwakeMs = 0; window.__ppolTest = Object.assign(window.__ppolTest || {}, { forceKind: 'out' });" });
     var pg = await c.newPage(); watchErrors(pg, bag);
     if (useStubs) { await pg.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await pg.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
     await routeWiki(pg, 'ok');
