@@ -67,7 +67,7 @@
 
   /* 집 목소리: 제목 · 한 줄 결과만 */
   var TEXT = deepFreeze({
-    title: '주말 콘테스트', label: '콘테스트', closed: '주말에 열려.', rule: '채점 규칙',
+    title: '주말 콘테스트', label: '콘테스트', closed: '주말에 열려.', notNow: '지금은 콘테스트 하는 때가 아니야. 주말에 열려.', rule: '채점 규칙',
     enter: '나가기', change: '옷 갈아입기', skip: '넘기기', close: '닫기',
     rank: '{n}등', log: '{n}등 · 조개 {s}', logFull: '콘테스트 {n}등 · 조개 {s}',
     ariaWant: '이번 주 주제에 맞는 것', ariaMe: '지금 내 차림', ariaRival: '참가 문어 {n}', ariaJudge: '심사 {n}',
