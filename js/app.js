@@ -6958,10 +6958,17 @@ var APP = (function () {
     npcHomeT = setTimeout(function () { if (npcNow || !npcLooked) return; npcLooked = false; if (scene && typeof scene.roomHome === 'function') { try { scene.roomHome(); } catch (e) { /* 장면 쪽 문제 */ } } }, 500);
   }
   /* 장면에 오늘의 문어들 (V 갈래의 scene.npcSet 이 있을 때만). 가게 문어를 가게 앞과 방 안 keeper 칸 어디에 그릴지는 장면이 정한다 (계약 C14) */
+  function npcResident(id) {   /* → 한 일 ('say' | 'sleep' | null) */
+    if (!NPCR || sceneMode !== '3d') return null;
+    if (npcNow && npcNow.ln.id === id) { npcNext(); return 'say'; }
+    var key = NPCR.residentKey(userState(), id, todayKey(), hourNow());
+    if (!key) { toast(NPCR.SLEEP_SAY); return 'sleep'; }
+    save(); npcSay(id, key); return 'say';
+  }
   function npcSync(force) {   /* force: 같은 날이어도 다시 넘긴다 (시험 · 장면이 다시 지어졌을 때) */
     if (!NPCR || !scene || typeof scene.npcSet !== 'function') return false;
-    var dk = todayKey(); if (npcDay === dk && !force) return false;
-    try { scene.npcSet(NPCR.list(dk)); npcDay = dk; return true; } catch (e) { return false; }
+    var dk = todayKey(), h = hourNow(), stamp = dk + '|' + NPCR.phase(h); if (npcDay === stamp && !force) return false;   /* 11-24: 시간 칸 (낮 · 저녁 · 밤) 이 바뀌어도 다시 — 집에 사는 넷이 밤엔 잔다 */
+    try { scene.npcSet(NPCR.list(dk, h)); npcDay = stamp; return true; } catch (e) { return false; }
   }
   /* 게시판 (#btn-plaza-board → #story-sheet): 낡은 쪽지 넷을 그림 + 한 줄로. 본 쪽지는 S.user.story.notices 에 날짜로 (계약 C8) */
   function storyState() { var u = userState(); if (NPCR) NPCR.normalize(u); return u.story; }
@@ -7061,11 +7068,11 @@ var APP = (function () {
   }
   function npcInit() {
     npcSync();
-    ['clothes', 'goods', 'cafe'].forEach(function (id) {   /* 가게 문어를 누르면 한마디 (V 갈래의 단추 — 없으면 건너뛴다). 말하는 중에 다시 누르면 다음으로 */
+    ['clothes', 'goods', 'cafe', 'stylist'].forEach(function (id) {   /* 가게 문어 · 미용사 (11-24) 를 누르면 한마디 (V 갈래의 단추 — 없으면 건너뛴다). 말하는 중에 다시 누르면 다음으로 */
       var b = $('btn-npc-' + id); if (b) b.addEventListener('click', function () { if (npcNow && npcNow.ln.id === id) npcNext(); else npcSay(id, 'talk'); });
     });
-    [1, 2, 3, 4].forEach(function (i) {   /* 자는 문어: 말하지 않는다. 집 목소리 한 줄 */
-      var b = $('btn-npc-sleep-' + i); if (b && NPCR) b.addEventListener('click', function () { toast(NPCR.SLEEP_SAY); });
+    [1, 2, 3, 4].forEach(function (i) {   /* 11-24: 집에 사는 문어 넷 — 낮 · 저녁엔 대본 한마디 (처음 · 그날 처음 · 집 안), 밤엔 자고 있다 (말하지 않는다 — 집 목소리 한 줄) */
+      var id = 'sleep-' + i, b = $('btn-npc-' + id); if (b && NPCR) b.addEventListener('click', function () { npcResident(id); });
     });
     var nx = $('npc-next'); if (nx) nx.addEventListener('click', npcNext);
     /* 말이 떠 있는 동안 모달 창이 열리면 그 창 위로 옮긴다 (밑에 깔려 안 보이고 안 눌리지 않게) */
@@ -7584,7 +7591,7 @@ var APP = (function () {
     get cafe() { return { seated: cafeSeated, ask: cafeAsk, stage: cafeRoom.stage, card: cafeRoom.card, lp: cafeLp.id, sound: cafeLp.sound, music: window.CAFE_MUSIC ? CAFE_MUSIC.state() : null }; },   /* 카페 (테스트 · 도구): 앉았는가 · 묻는 메뉴 · 올린 판 · 소리가 나는가 */
 
     /* [7-N] */
-    npcSay: npcSay, npcSync: npcSync, openStory: openStory, storyIntro: storyIntro,
+    npcSay: npcSay, npcSync: npcSync, npcResident: npcResident, openStory: openStory, storyIntro: storyIntro,
     get npc() { return npcNow ? { id: npcNow.ln.id, key: npcNow.ln.key, n: npcNow.ln.n, i: npcNow.i, tag: npcNow.ln.tag, text: npcNow.ln.bubbles[npcNow.i] } : null; },   /* 지금 떠 있는 마을 문어의 말 (테스트 · 도구) */
 
     /* [7-F] */
