@@ -30,8 +30,8 @@ ok(V.DECK.s0 === 30 && V.DECK.s1 === 37 && V.DECK.t0 === 3.5 && V.DECK.t1 === 7,
 
 /* 3. 단추: C6 의 id 열 개 · 이름 · 서는 자리가 걷는 곳 안 · 자리와 서는 자리가 2.4 m 안 */
 var BTN = { 'btn-shop-clothes': '옷가게', 'btn-shop-goods': '잡화점', 'btn-cafe-seat': '카페 자리', 'btn-cafe-lp': '레코드', 'btn-plaza-stage': '콘테스트 무대', 'btn-plaza-board': '마을 게시판',
-  'btn-npc-clothes': '가게 문어', 'btn-npc-goods': '가게 문어', 'btn-npc-cafe': '가게 문어' };
-ok(V.SPOTS.length === 9, '바깥의 누르는 자리 아홉 (카페 주문은 방 안으로)');
+  'btn-npc-clothes': '가게 문어', 'btn-npc-goods': '가게 문어', 'btn-npc-cafe': '가게 문어', 'btn-npc-sleep-1': '집 문어', 'btn-npc-sleep-2': '집 문어', 'btn-npc-sleep-3': '집 문어', 'btn-npc-sleep-4': '집 문어' };
+ok(V.SPOTS.length === 13, '바깥의 누르는 자리 열셋 (카페 주문은 방 안으로 · 집 문어 넷)');
 var html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), seenKey = {};
 V.SPOTS.forEach(function (s) {
   ok(BTN[s.btn] === s.label, s.btn + ' 이름 = ' + BTN[s.btn]);
@@ -104,7 +104,7 @@ V.SPOTS.forEach(function (s2) { var a2 = V.xz(s2.stand[0], s2.stand[1]); ok(!V.B
     hall: { size: [7.0, 6.0], slots: ['stage', 'catwalk', 'wait', 'rack', 'mirror', 'board', 'judge0', 'judge1', 'judge2', 'exit'], btns: ['btn-hall-stage', 'btn-hall-rack', 'btn-hall-board', 'btn-room-exit'] },
     goods: { size: [5.2, 4.8], slots: ['shelf0', 'shelf1', 'shelf2', 'shelf3', 'shelf4', 'shelf5', 'keeper', 'counter', 'exit'], btns: ['btn-shelf-0', 'btn-shelf-1', 'btn-shelf-2', 'btn-shelf-3', 'btn-shelf-4', 'btn-shelf-5', 'btn-room-counter', 'btn-npc-goods', 'btn-room-exit'] } };
   ok(Object.keys(V.ROOMS).sort().join() === 'cafe,clothes,goods,hall,home1,home2,home3,home4,salon', '방 아홉 (가게 · 카페 · 공연장 넷 + 문어 집 넷 + 미용실)');
-  ['home1', 'home2', 'home3', 'home4'].forEach(function (k) { WANT[k] = { size: [4.4, 4.0], slots: ['bed', 'table', 'tableTop', 'job', 'exit'], btns: ['btn-room-exit'] }; });   /* 11-24 문어 집 넷 (한 틀) */
+  ['home1', 'home2', 'home3', 'home4'].forEach(function (k) { WANT[k] = { size: [4.4, 4.0], slots: ['bed', 'table', 'tableTop', 'job', 'exit'], btns: ['btn-room-exit', 'btn-npc-sleep-' + k.slice(4)] }; });   /* 11-24 문어 집 넷 (한 틀) */
   WANT.salon = { size: [4.8, 4.2], slots: ['chair', 'aisle', 'mirror', 'keeper', 'stylistWork', 'sink', 'bottles', 'bench', 'exit'], btns: ['btn-salon-chair', 'btn-npc-stylist', 'btn-room-exit'] };
   Object.keys(WANT).forEach(function (key) {
     var R = V.ROOMS[key], W = WANT[key], hx = R.half[0], hz = R.half[1];
