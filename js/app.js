@@ -179,13 +179,13 @@ var APP = (function () {
   function cornerName(c) { return (W && W.corners && W.corners[c] && W.corners[c].name) || c; }
   function greetingByHour(hr) { return hr < 6 ? '밤이 깊었네' : hr < 9 ? '좋은 아침' : hr < 17 ? '좋은 오후' : hr < 19 ? '노을이 지네' : '밤이네'; }
   var toastTimer = null, toastRow = false;   /* toastRow: 지금 떠 있는 게 '새 줄 알림'(rowToast)인가 */
-  function toast(msg, raw) {   /* <output aria-live=polite> 하나, 한 번에 하나, 2.5초 (UI R21). raw = { part, by }: 그 안의 남의 글(위키 제목 등)만 data-raw. 11-15 (검증 U-4): msg 가 배열이면 글 · 노드 그대로 (조개 그림 + 수) */
+  function toast(msg, raw, top) {   /* top (11-24): 문어 이야기 알림은 화면 위에 (octToast — 주인). <output aria-live=polite> 하나, 한 번에 하나, 2.5초 (UI R21). raw = { part, by }: 그 안의 남의 글(위키 제목 등)만 data-raw. 11-15 (검증 U-4): msg 가 배열이면 글 · 노드 그대로 (조개 그림 + 수) */
     var t = $('toast'); if (!t) return;
-    clearTimeout(rowTimer); rowWait = null; toastRow = false; t.classList.remove('row');   /* 보통 알림이 새 줄 알림을 밀어낸다 (거꾸로는 아니다 — rowToast) */
+    clearTimeout(rowTimer); rowWait = null; toastRow = false; t.classList.remove('row'); t.classList.toggle('top', !!top);   /* 보통 알림이 새 줄 알림을 밀어낸다 (거꾸로는 아니다 — rowToast) */
     var moved = raiseToast(t);
     if (moved && !t.classList.contains('show')) void t.offsetWidth;   /* 옮긴 직후에도 나타나는 전환이 돌게 */
     t.textContent = ''; (Array.isArray(msg) ? msg : partRaw(msg, raw && raw.part, raw && raw.by)).forEach(function (n) { if (n != null) t.appendChild(typeof n === 'string' ? document.createTextNode(n) : n); }); toastPlace(t); t.classList.add('show'); toastSnap(t);   /* 11-15 (UI 점검): 글 시작을 기기 px 에 */
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2500);
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); toastTopOff(t); }, 2500);
   }
   /* 알림 글 시작을 기기 px 에 (UIART.snapLeft) — 11-18: 글 뒤에 오는 조개 그림 + 수 (.shell-amt) 도 따로 맞춘다. 앞 글 ('오늘 선물: ') 의 폭이 기기 px 정수가 아닌 환경
      (글자 폭을 CSS px 로 반올림하는 곳 — CI 기계가 그렇다: 100 CSS px = 262.5 기기 px @2.625) 에선 그림과 수가 반 px 에 걸려 흐렸다. 그림 32 + 여백 4 + 틈 4 = 40 CSS px 라 묶음의 시작만 맞추면 수도 맞는다 */
@@ -708,16 +708,17 @@ var APP = (function () {
   function rowToast() {
     var row = rowWait, t = $('toast'); rowWait = null;
     if (!row || !t || !document.body.contains(row) || !layoutOne() || logOpen()) return;
+    var ck = $('cook-overlay'); if (ck && ck.open) return;   /* 11-24: 부엌 (글자 0) 위에는 새 줄 알림을 띄우지 않는다 — 오늘 단추의 점은 그대로 */
     if (t.classList.contains('show') && !toastRow) return;   /* 보통 알림(저장 · 복사 …)은 밀어내지 않는다. 점은 이미 켜져 있다 */
     var lab = row.querySelector('.ltool'), txt = row.querySelector('.ltext'), src = document.querySelector('#btn-today .snd-box svg'), body = h('span', { class: 't-txt' });
     if (!txt) return;
     if (lab && lab.textContent) body.appendChild(document.createTextNode(lab.textContent + ' · '));
     rowLine(txt, body);
     var moved = raiseToast(t); if (moved && !t.classList.contains('show')) void t.offsetWidth;
-    t.textContent = ''; t.classList.add('row');
+    t.textContent = ''; t.classList.add('row'); t.classList.add('top');   /* 11-24 (주인: 뚜루 관련 메세지는 위에): 산책 행 알림은 화면 위 */
     if (src) { var ic = src.cloneNode(true); ic.setAttribute('class', 't-ico'); ic.setAttribute('width', '16'); ic.setAttribute('height', '16'); ic.setAttribute('aria-hidden', 'true'); t.appendChild(ic); }
     t.appendChild(body); toastRow = true; toastPlace(t); t.classList.add('show'); toastSnap(t);   /* 11-15 (UI 점검): 글 시작을 기기 px 에 */
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); toastRow = false; }, 2500);
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); toastRow = false; toastTopOff(t); }, 2500);
   }
   /* 알림 자리: 기본은 바닥 줄 바로 위(--stack-b). 떠 있는 대사 · '돌아왔어' 쪽지와 겹치면 그 위로 올린다 (--toast-b).
      등장 애니메이션(transform)에 속지 않게 자리는 offset 으로 잰다. 시트 안으로 옮겨 간 알림은 건드리지 않는다 */
@@ -728,6 +729,7 @@ var APP = (function () {
     return { left: x, top: y, right: x + el.offsetWidth, bottom: y + el.offsetHeight };
   }
   function toastPlace(t) {
+    if (t.classList.contains('top')) { t.style.removeProperty('--toast-b'); toastTopPlace(t); return; }   /* 11-24: 위 알림은 위 띠 밑에 */
     t.style.removeProperty('--toast-b');
     if (!layoutOne() || t.parentNode !== document.body) return;
     var vw = window.innerWidth, vh = window.innerHeight, w = t.offsetWidth, hh = t.offsetHeight, i, pass;
@@ -857,7 +859,7 @@ var APP = (function () {
   function openSalon() {
     var d = $('salon-sheet');
     /* 11-11 미용실은 위층: 3D 에서는 문어가 위층에 따라 올라와 있을 때만 연다. 다락(거울 없음)에서는 열리지 않고, 위층인데 문어가 아래층에서 자고 있으면 한 줄만 (깨우지 않는다 · 기록 0) */
-    if (sceneMode === '3d' && !octWithMe()) { if (SAL && scene && d && roomNow() === 'loft' && !salonRun && !busy && !roomJob) toast(oct.state === 'sleep' ? SLEEP_DOWN_SAY : oct.state === 'away' ? AWAY_SAY : DOWN_SAY); return false; }   /* 11-12 (검증): 깨어서 아래층에 있을 때도 한 줄 (혼자 올라오게 하지는 않는다) */
+    if (sceneMode === '3d' && !octWithMe()) { if (SAL && scene && d && roomNow() === 'loft' && !salonRun && !busy && !roomJob) octToast(oct.state === 'sleep' ? SLEEP_DOWN_SAY : oct.state === 'away' ? AWAY_SAY : DOWN_SAY); return false; }   /* 11-12 (검증): 깨어서 아래층에 있을 때도 한 줄 (혼자 올라오게 하지는 않는다) */
     if (!SAL || !scene || !d || salonRun || busy || (inPlay() && !octWithMe()) || roomJob || introUp() || furnMode) return false;   /* 방(놀이방 · 위층)에서는 문어가 따라 올라와 있을 때만 (11-11 미용실은 위층) · furnMode = 가구 배치 중 */
     if (d.open) return true;
     syncFromStore();   /* 다른 탭이 오늘 이미 물었으면 시트 대신 토스트 */
@@ -1825,7 +1827,7 @@ var APP = (function () {
       var planned = res[0];
       if (!planned) {
         S.trips = S.trips.filter(function (t) { return t !== trip; }); save();
-        pre.remove(); setBusy(false); settleOct(); toast('두뇌가 잠깐 멈췄어. 다시 불러 줘');
+        pre.remove(); setBusy(false); settleOct(); octToast('두뇌가 잠깐 멈췄어. 다시 불러 줘');
         return null;
       }
       if (!woke) questMark('ask');   /* 이번 주 할 일: 묻는 것만 센다 (나갈지는 문어가 정한다). 11-12 (검증 F10): 차례가 정해진 뒤에 — 두뇌가 멈춰 없던 일이 된 물음은 세지 않는다. 11-12 주인 (검증 W5 (b)): 자는 문어를 깨운 누름은 세지 않는다 (그 차례 동안 다시 눌러도 초대가 아니다 — busy) */
@@ -2000,7 +2002,7 @@ var APP = (function () {
   }
   function homeWait() {
     homeWaitOn = true; homeGo(true);
-    var v = sceneView(); if (v === 'play' || v === 'yard') noteBack(); else toast(homeLine());
+    var v = sceneView(); if (v === 'play' || v === 'yard') noteBack(); else octToast(homeLine());
     return new Promise(function (res) {
       var t = setInterval(function () {
         if (!skipFlag && inPlay()) return;
@@ -3413,10 +3415,10 @@ var APP = (function () {
     if (giftBusy) return;
     var name = S.octopus.name || '문어', list = giftList(), c = null; list.forEach(function (x) { if (x.id === id) c = x; });
     if (sceneMode !== '3d' || !scene || typeof scene.setOctWear !== 'function') { toast('지금 화면에서는 내밀 수 없어'); return; }
-    if (oct.state === 'away' || busy) { toast(name + '가 나가 있어'); return; }
-    if (oct.state === 'sleep') { toast(name + '가 자고 있어'); return; }
+    if (oct.state === 'away' || busy) { octToast(name + '가 나가 있어'); return; }
+    if (oct.state === 'sleep') { octToast(name + '가 자고 있어'); return; }
     var wear = Object.assign({}, giftWear());
-    if (!c && !wear.head && !wear.back) { toast(name + '는 아무것도 안 쓰고 있어'); return; }
+    if (!c && !wear.head && !wear.back) { octToast(name + '는 아무것도 안 쓰고 있어'); return; }
     var sh = $('settings-sheet'); if (sh && sh.open) sh.close();
     /* 11-11: 문어의 대답은 그날 하루 그대로 선다 — 같은 것을 같은 날 다시 내밀어도 주사위를 새로 굴리지 않는다 (예전엔 내밀 때마다 새 주사위라, 거절해도 몇 번 누르면 '쓰기로 했어' 가 나왔다 = 문어의 선택이 아니었다).
        다른 것은 그날에도 내밀 수 있다. 시드에서 '몇 번째 누름' 을 빼서 같은 날 · 같은 물건이면 답이 같다 */
@@ -4223,7 +4225,7 @@ var APP = (function () {
     var n = $('back-note'), t = $('back-note-txt'); if (!n || !t) return;
     var nm = S.octopus.name || '', txt = typeof STR.backNote === 'function' ? STR.backNote(nm) : (nm || '문어') + ' 돌아왔어.';
     if (!n.hidden && t.textContent === txt) return;
-    clearTimeout(noteTimer); t.textContent = ''; n.hidden = false; toastRefit();
+    clearTimeout(noteTimer); t.textContent = ''; n.hidden = false; noteTopPlace(); toastRefit();
     noteTimer = setTimeout(function () {   /* 이름은 따로 (긴 이름은 css 가 줄임표로 — 쪽지가 두 줄을 넘지 않게). 읽어 주는 글은 온전한 문장 그대로 */
       if (n.hidden) return;
       var who = nm || '문어';
@@ -6318,6 +6320,35 @@ var APP = (function () {
 
 
   /* [7-C] 카페 (메뉴 · 레코드 · 레시피 선물) */
+  /* 11-24 (주인: "뚜루 관련 메세지도 아래에 띄우면 사용자가 보는 화면에 거슬리는 거 같아서 (게임 할 때는 자꾸 아래에 글자가 떠서 신경쓰였음) 위에 띄우도록"):
+     문어 이야기 알림 (산책 행 알림 · 문어 상태 알림 · '돌아왔어' 쪽지) 은 화면 위 — 위 띠 (상태 줄 · 아이콘 · 데모 · D+N · 조개) 밑, 그 밖의 위 물건 (달리기 점수 띠 · NPC 대사 · 쪽지) 과 안 겹치게.
+     다른 알림 (가게 · 카페 · 밭) 은 예전처럼 아래 */
+  function octToast(msg, raw) { toast(msg, raw, true); }
+  function toastTopOff(t) { setTimeout(function () { if (!t.classList.contains('show')) t.classList.remove('top'); }, 400); }   /* 사라지는 동안 자리가 튀지 않게 조금 뒤에 */
+  function topClear(left, right, skip, page) {   /* [left, right] 가로 칸에서 화면 위쪽 물건들 밑 y (뷰포트 px). 위 40% 안에 있는 것만 본다. page = 열린 창은 보지 않는다 (장면 안 쪽지 — 창 밑에 있다) */
+    var vh = window.innerHeight, vw = window.innerWidth, y = 8, host = page ? null : openDialog(), hr = host ? host.getBoundingClientRect() : null;
+    var full = !!hr && hr.top <= 1 && hr.left <= 1 && hr.bottom >= vh - 1 && hr.right >= vw - 1;   /* 화면을 다 덮는 창 (달리기): 그 뒤의 위 띠는 안 보이니 창의 위 띠만 */
+    var els = (full ? ['npc-box'] : ['status', 'scene-ctl', 'brain-tag', 'day-n', 'btn-bag', 'save-warn', 'npc-box', 'back-note']).map(function (id) { return $(id); }).filter(function (e) { return !full || (e && host.contains(e)); });
+    if (host) [].push.apply(els, host.querySelectorAll('.rn-top'));
+    els.forEach(function (e) {
+      if (!e || e === skip || e.hidden) return;
+      var r = e.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0) || r.top > vh * 0.4) return;
+      var cs = getComputedStyle(e); if (cs.visibility === 'hidden' || +cs.opacity === 0) return;
+      if (r.right > left - 4 && r.left < right + 4) y = Math.max(y, r.bottom + 8);
+    });
+    return y;
+  }
+  function toastTopPlace(t) {
+    var vw = window.innerWidth, w = t.offsetWidth, left = (vw - w) / 2, dpr = window.devicePixelRatio || 1;
+    t.style.setProperty('--toast-t', Math.round(topClear(left, left + w, t) * dpr) / dpr + 'px');
+  }
+  function noteTopPlace() {   /* '돌아왔어' 쪽지: 장면 왼쪽 위 (위 띠 밑) */
+    var n = $('back-note'), sc = $('scene'); if (!n || n.hidden || !sc) return;
+    var sr = sc.getBoundingClientRect(), r = n.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    n.style.setProperty('--note-t', Math.round(Math.max(8, topClear(r.left, r.right, n, true) - sr.top) * dpr) / dpr + 'px');
+  }
+  window.addEventListener('resize', function () { noteTopPlace(); toastRefit(); });
+  (function () { var bn = document.getElementById('back-note'); if (bn && window.ResizeObserver) new ResizeObserver(function () { noteTopPlace(); toastRefit(); }).observe(bn); })();   /* 쪽지 글은 조금 뒤에 채워진다 (noteBack) — 폭이 바뀌면 다시 (조개 칩 밑으로) */
   /* 11-21 카페 (docs/CAFE.md): 규칙은 js/cafe.js (CAFE), 음악은 js/cafe-music.js (CAFE_MUSIC). 여기는 화면만.
      - 카운터 단추 (#btn-cafe-counter, 갈래 V — 없을 수 있다) → 메뉴 시트 → 물음 ('시킬래') 뒤에만 조개가 나간다 (재봉틀과 같은 확인 줄 · 같은 0.6초 규칙).
      - 시킨 것은 화면 아래 쟁반 (#cafe-tray) 에 그림으로 나온다. 케이크 · 꼬치는 세 번 톡으로 먹는다. 다 먹으면 갈래 T 의 APP.recipeEat (없으면 세기만 한다 — 없는 레시피를 받았다고 말하지 않는다).
