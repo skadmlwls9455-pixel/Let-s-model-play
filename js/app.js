@@ -6022,7 +6022,7 @@ var APP = (function () {
     var sh = $('shop-sheet'); if (!sh) return;
     $('shop-close').addEventListener('click', function () { sh.close(); });
     sh.addEventListener('click', function (e) { if (clickedOutside(e.currentTarget, e) && !(LST && tapTime(e) - LST.at < SHEET_SETTLE)) e.currentTarget.close(); });   /* 칸을 두 번 톡했을 때 둘째가 (줄어든 시트의) 바깥에 떨어져 닫히지 않게 */
-    sh.addEventListener('close', function () { if (LST && !LST.card) listClose(); });   /* 시트를 닫으면 담은 것은 버린다 */
+    sh.addEventListener('close', function () { if (LST && !LST.card && !sh.open) listClose(); });   /* 시트를 닫으면 담은 것은 버린다 (close 는 늦게 온다 — 그 사이 다시 열렸으면 새 목록은 그대로) */
     /* 가게 문 · 진열대 단추: 방이 있으면 걸어 들어가고 (바깥 갈래의 APP.goInside), 못 들어가면 (2D · 방 없음 → false) 예전 시트 */
     [['btn-shop-clothes', 'clothes'], ['btn-shop-goods', 'goods'], ['btn-in-clothes', 'clothes'], ['btn-in-goods', 'goods']].forEach(function (p) { var b = $(p[0]); if (b) b.addEventListener('click', function () { shopGo(p[1]); }); });
     for (var i = 0; i < 5; i++) (function (n) { var b = $('btn-beach-shell-' + n); if (b) b.addEventListener('click', function () { beachTap(n); }); })(i);
@@ -6190,9 +6190,9 @@ var APP = (function () {
   function listBtn(text, cls, label, fn) { var b = h('button', { type: 'button', class: 'btn sm pressable ' + cls, text: text }); if (label) b.setAttribute('aria-label', label); b.addEventListener('click', function (e) { e.stopPropagation(); if (listEarly(e)) return; fn(b, e); }); return b; }
   function listAdd(x, d, el) {   /* 담기 · 빼기. 담으면 조개가 모자라는 것은 안 담고 (값이 흔들리고) 한 줄 */
     if (!LST || x.mark) return; var n = LST.cart[x.key] | 0, max = Math.max(1, x.max | 0), nx = clamp(n + d, 0, max);
-    if (nx === n) { if (d > 0 && n >= max) { LST.msg = max === 1 ? '' : '오늘은 이게 다야'; listRender(); } return; }
+    if (nx === n) { if (d > 0 && n >= max) { LST.msg = max === 1 && !x.qty ? '' : '오늘은 이게 다야'; listRender(); } return; }
     if (nx > n) { var need = listTotal() + (nx - n) * x.price, have = shopU().shells; if (need > have) { LST.msg = '조개가 ' + (need - have) + '개 모자라'; listRender(); var t = document.querySelector('#shop-list [data-key="' + x.key + '"] .ls-price'); furnShake(t || el); return; } }
-    LST.cart[x.key] = nx; if (!nx) delete LST.cart[x.key]; LST.msg = ''; listRender(); var f = document.querySelector('#shop-list [data-key="' + x.key + '"] ' + (max > 1 ? (d > 0 ? '.ls-plus' : '.ls-minus') : '.ls-row')); if (f && !f.disabled) f.focus({ preventScroll: true });
+    LST.cart[x.key] = nx; if (!nx) delete LST.cart[x.key]; LST.msg = ''; listRender(); var f = document.querySelector('#shop-list [data-key="' + x.key + '"] ' + (max > 1 || x.qty ? (d > 0 ? '.ls-plus' : '.ls-minus') : '.ls-row')); if (f && !f.disabled) f.focus({ preventScroll: true });
   }
   function listKids() {   /* 목록 카드의 속: 머리 (조개 · 담으면 남는 수) · 줄 · 알림 한 줄 · 단추 */
     var o = LST.o, u = shopU(), total = listTotal(), lines = listLines(), items = o.items(), kids = [];
@@ -6202,7 +6202,7 @@ var APP = (function () {
     var ul = h('ul', { class: 'ls-list', 'aria-label': o.title });
     if (!items.length) ul.appendChild(h('li', { class: 'ls-empty', text: '오늘은 이게 다야' }));
     items.forEach(function (x) {
-      var n = LST.cart[x.key] | 0, multi = (x.max | 0) > 1, pic = h('span', { class: 'ls-pic', 'aria-hidden': 'true' }, [x.pic ? x.pic() : null]);
+      var n = LST.cart[x.key] | 0, multi = !!x.qty || (x.max | 0) > 1, pic = h('span', { class: 'ls-pic', 'aria-hidden': 'true' }, [x.pic ? x.pic() : null]);
       var tag = x.mark === 'owned' ? h('span', { class: 'ls-price stamp' }, [pxIco('check'), h('span', { class: 'sr-only', text: '가지고 있어' })]) : x.mark === 'sold' ? h('span', { class: 'ls-price stamp', text: '내일' }) : h('span', { class: 'ls-price' }, [shellAmt(x.price)]);   /* 목록 줄의 값은 작은 표 (큰 꼬리표 그림은 이름 자리를 먹는다) */
       var name = h('span', { class: 'ls-name' }, [h('span', { text: x.name }), x.note ? h('span', { class: 'ls-note', text: x.note }) : null]), li;
       if (multi && !x.mark) {
@@ -6267,7 +6267,7 @@ var APP = (function () {
     if (kind === 'clothes') { for (var k in room.basket) if (room.basket[k].tried) tried[k] = 1; }
     return st.map(function (x) {
       if (kind === 'clothes') return { key: x.key, name: x.name, price: x.price, max: 1, mark: x.owned ? 'owned' : null, note: tried[x.key] ? '입어 보는 중' : '', cat: x.cat, id: x.id, pic: function () { return shopThumb(x, 48); } };
-      return { key: x.key, name: x.type === 'dye' ? x.name + ' 염료' : x.name, price: x.price, max: x.type === 'seed' ? x.left : 9, mark: x.type === 'seed' && x.left < 1 ? 'sold' : null, type: x.type, id: x.id, hex: x.hex, pic: function () { return x.type === 'seed' ? shopSeedPic() : shopJarPic(x.hex, x.id); } };
+      return { key: x.key, name: x.type === 'dye' ? x.name + ' 염료' : x.name, price: x.price, max: x.type === 'seed' ? x.left : 9, qty: true,   /* 잡화는 늘 − + (남은 수가 하나여도) */ mark: x.type === 'seed' && x.left < 1 ? 'sold' : null, type: x.type, id: x.id, hex: x.hex, pic: function () { return x.type === 'seed' ? shopSeedPic() : shopJarPic(x.hex, x.id); } };
     });
   }
   function shopListBuy(kind, lines) {

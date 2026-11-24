@@ -1967,7 +1967,7 @@ dialog.travel-pick .dp-chip canvas { position: absolute; left: var(--dp-icp, 8px
 .ls-price .shell-ico { width: 24px; height: 24px; margin: 0; }
 .ls-price.stamp { color: var(--sw-stamp); box-shadow: inset 0 0 0 2px var(--sw-stamp); padding: 0 8px; }
 :root[data-font="pixel"] .ls-price { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 28px; }
-.ls-price { font-size: max(16px, 1em); }
+:root:not([data-font="pixel"]) .shop-list .ls-price { font-size: max(16px, 1em); }
 .ls-msg { margin: 0; min-height: 0; color: var(--sw-stamp); font-weight: 700; }
 .ls-msg:empty { display: none; }
 .ls-btns { justify-content: space-between; }
@@ -1975,7 +1975,7 @@ dialog.travel-pick .dp-chip canvas { position: absolute; left: var(--dp-icp, 8px
 .ls-btns .ls-buy:disabled { opacity: .55; }
 .ls-empty { padding: 8px; }
 :root[data-font="pixel"] :is(.ls-title, .ls-name, .ls-note, .ls-msg, .ls-n, .ls-empty, .ls-left) { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 26px; }
-:is(.ls-title, .ls-name, .ls-note, .ls-msg, .ls-n, .ls-empty, .ls-left) { font-size: max(16px, 1em); }
+:root:not([data-font="pixel"]) .shop-list :is(.ls-title, .ls-name, .ls-note, .ls-msg, .ls-n, .ls-empty, .ls-left, .ls-purse, .shop-rc-list, .shop-rc-sum) { font-size: max(16px, 1em); }   /* .sheet p (13px) 보다 세게 */
 .shop-sheet-list { margin: 8px 0 0; }
 @media (orientation: landscape) and (max-height: 500px) { .ls-list { max-height: 40vh; } .ls-item { min-height: 48px; } }
 /* 작은 움직임 (움직임 줄이기면 없음): 열릴 때 물건이 40 ms 간격으로 놓이고, 산 물건의 도장이 여섯 장으로 찍힌다 */
