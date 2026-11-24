@@ -8,6 +8,7 @@
    모르는 칸 · 모르는 물건은 지우지 않는다 (나중 빌드가 알 수도 있다). */
 var SHOP = (function () {
   'use strict';
+  var SMALL = 5;   /* 11-24: 날마다 진열에 이 값 이하인 것 하나 (첫날 조개로도 살 수 있게). 그런 옷이 목록에 없거나 다 가졌으면 그대로 */
   var PER_DAY = 4, SEED_PRICE = 2, SEED_MAX = 3, DYE_N = 3, SPOTS = 5, SPOTS_DAY = 3;
   function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
   function isKey(k) { return typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k); }
@@ -38,18 +39,32 @@ var SHOP = (function () {
     for (var k = 0; k < half; k++) { out.push(lo[k].x); if (hi[k]) out.push(hi[k].x); }
     return out;
   }
+  function shelfOf(list, d, per, own, dateKey, salt) {   /* 한 줄의 바퀴: 하루 per 개, 전에 산 것은 다음 차례의 아직 없는 것으로 */
+    var n = list.length; if (!n || per < 1) return [];
+    per = Math.min(per, n); var len = Math.ceil(n / per), cyc = Math.floor(d / len), pos = d - cyc * len, ord = cycleOrder(list, cyc + salt), picks = [], used = {};
+    for (var i = 0; i < per; i++) { var it = ord[(pos * per + i) % n]; if (used[it.key]) continue; picks.push(it); used[it.key] = 1; }
+    var next = (pos * per + per) % n, seen = 0;
+    return picks.map(function (p) {
+      if (!own[p.key] || own[p.key] === dateKey) return p;
+      while (seen < n) { var c = ord[(next + seen) % n]; seen++; if ((!own[c.key] || own[c.key] === dateKey) && !used[c.key]) { used[c.key] = 1; return c; } }   /* 오늘 산 대신 것도 받는다 (산 자리에 그대로 남게) */
+      return p;
+    });
+  }
   function clothesStock(dateKey, cat, owned) {
     var items = shopItems(cat), n = items.length, own = isObj(owned) ? owned : {};
     if (!n || !isKey(dateKey)) return { kind: 'clothes', day: dateKey, items: [], total: n };
-    var per = Math.min(PER_DAY, n), len = cycleLen(n), d = dayNo(dateKey), cyc = Math.floor(d / len), pos = d - cyc * len, ord = cycleOrder(items, cyc), picks = [], used = {};
-    for (var i = 0; i < per; i++) { var it = ord[(pos * per + i) % n]; picks.push(it); used[it.key] = 1; }
-    /* 전에 산 것 (오늘 산 것이 아닌) 은 다음 차례의 아직 없는 것으로. 남은 것이 없으면 그대로 두고 '있음' 표시 */
-    var next = (pos * per + per) % n, seen = 0;
-    picks = picks.map(function (p) {
-      if (!own[p.key] || own[p.key] === dateKey) return p;
-      while (seen < n) { var c = ord[(next + seen) % n]; seen++; if (!own[c.key] && !used[c.key]) { used[c.key] = 1; return c; } }
-      return p;
-    });
+    var d = dayNo(dateKey), per = Math.min(PER_DAY, n), picks;
+    /* 11-24: 작은 것 (SMALL 이하) 은 제 칸 하나에서 날마다 돌고, 나머지는 남은 칸에서 제 바퀴를 돈다 → 첫날에도 살 수 있는 것이 늘 하나 있고, 어느 것도 차례를 잃지 않는다.
+       작은 것을 다 가졌으면 (오늘 산 것은 빼고) 그 칸도 나머지 바퀴가 쓴다 */
+    var small = items.filter(function (x) { return x.price <= SMALL; }), rest = items.filter(function (x) { return x.price > SMALL; });
+    var smallLeft = small.filter(function (x) { return !own[x.key] || own[x.key] === dateKey; });
+    if (small.length && rest.length && smallLeft.length) {
+      var today = smallLeft.filter(function (x) { return own[x.key] === dateKey; }), sm = today.length ? today[0] : smallLeft[((d % smallLeft.length) + smallLeft.length) % smallLeft.length];
+      picks = shelfOf(rest, d, per - 1, own, dateKey, 0).concat([sm]);
+      var extra = smallLeft.filter(function (x) { return x !== sm; });   /* 큰 것을 다 가져 바꿀 것이 없는 칸은 남은 작은 것으로 (살 수 있는 것이 팔린 마네킹 뒤에 숨지 않게) */
+      picks = picks.map(function (p) { return own[p.key] && own[p.key] !== dateKey && extra.length ? extra.shift() : p; });
+    } else picks = shelfOf(rest.length ? rest : items, d, per, own, dateKey, 0);
+    if (picks.length < per) { var have = {}; picks.forEach(function (p) { have[p.key] = 1; }); items.forEach(function (x) { if (picks.length < per && !have[x.key]) { picks.push(x); have[x.key] = 1; } }); }
     return { kind: 'clothes', day: dateKey, total: n, items: picks.map(function (p) { return { key: p.key, cat: p.cat, id: p.id, name: p.name, price: p.price, owned: !!own[p.key] }; }) };
   }
   /* 잡화점: cat = { dyes: [{ id, name, hex }], dyeCost } · shop = 저장된 shop (오늘 산 씨앗 수) */
@@ -132,7 +147,7 @@ var SHOP = (function () {
     var b = Object.assign({}, isObj(beach) ? beach : {}); b.picked = (b.day === dateKey && Array.isArray(b.picked) ? b.picked : []).concat([idx]); b.day = dateKey;
     return { ok: true, beach: b };
   }
-  return { PER_DAY: PER_DAY, SEED_PRICE: SEED_PRICE, SEED_MAX: SEED_MAX, DYE_N: DYE_N, SPOTS: SPOTS, SPOTS_DAY: SPOTS_DAY,
+  return { PER_DAY: PER_DAY, SMALL: SMALL, SEED_PRICE: SEED_PRICE, SEED_MAX: SEED_MAX, DYE_N: DYE_N, SPOTS: SPOTS, SPOTS_DAY: SPOTS_DAY,
     stock: stock, buy: buy, normalize: normalize, merge: merge, shopItems: shopItems, cycleLen: cycleLen, shells: shells, shellsLeft: shellsLeft, pick: pick };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = SHOP;
