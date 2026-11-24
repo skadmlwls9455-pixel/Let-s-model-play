@@ -1711,18 +1711,18 @@ var APP = (function () {
   function goTap(e) {
     if (afterSheet(e)) return;   /* 시트가 닫힌 바로 뒤 (두 번 톡의 둘째): 초대 · 데려오기 · 연출 감기 어느 것도 하지 않는다 */
     salonFinish();   /* 미용실 연출 중이면 남은 연출을 한 번에 감고 (새 색 · 대야 치움 · 남은 행) 초대는 평소대로 */
-    var now = Date.now(), rapid = goRapid(now); lastGo = now;
+    var now = Date.now(), rapid = goRapid(now), quick = now - lastGo < SKIP_GUARD; lastGo = now;   /* 11-24 quick: 앞 누름에서 SKIP_GUARD 안 — 모션 줄이기면 출발이 한 프레임이라 두 번 톡의 둘째가 skipReady 를 지나 산책을 바로 끝냈다 */
     if (inPlay() || roomJob) {   /* 놀이방이면 먼저 문으로 문어 방에 돌아와서 (8물결). 누른 *그때* 의 뜻대로: 다녀오는 중이었으면 데려오기(건너뛰기)만 — 문을 지나는 사이 산책이 끝났으면 아무것도 안 한다 (새 산책이 되지 않게) */
       var wasBusy = busy;
       backToOctRoom().then(function (ok) {
         if (!ok) return;
-        if (wasBusy) { if (busy && Date.now() >= skipReady) skip(); }
+        if (wasBusy) { if (busy && !quick && Date.now() >= skipReady) skip(); }
         else if (!busy && !rapid) invite();
       });
       return;
     }
     if (!busy) { if (!rapid) invite(); return; }
-    if (Date.now() < skipReady) return;
+    if (quick || Date.now() < skipReady) return;
     skip();
   }
   /* 상태 줄 이름 옆 '데모' 표시 (정직 표기, index.html #brain-tag): 데모 두뇌(규칙)가 고르는 동안 늘. 모델(MCP)이 고른 여행을 재생하는 동안만 숨긴다 */
@@ -5491,6 +5491,32 @@ var APP = (function () {
      두 창의 open 속성만 본다 (달리기 창은 처음 열 때 생긴다 → body 아래 전부를 본다. 여닫는 코드는 건드리지 않는다) */
   function sceneCoverSync() { if (scene && typeof scene.setCovered === 'function') scene.setCovered(!!document.querySelector('#runner-dlg[open], #cook-overlay[open]')); }
   if (window.MutationObserver && document.body) new MutationObserver(sceneCoverSync).observe(document.body, { attributes: true, attributeFilter: ['open'], subtree: true });
+  /* 11-24 글자 바닥 (점검: 픽셀 글꼴을 끄면 (data-font=system) 13 · 12 · 11 px 글자가 HUD · 설정 · 앨범 · 일기 · 가방 · 옷장 곳곳에 남았다 — 보이는 글자는 늘 16 px 이상):
+     기본 글꼴 모드에서만, 글자를 직접 품은 요소의 계산된 크기가 16 px 밑이면 그 요소만 16 px 로 올린다 (줄 높이가 모자라면 함께). 새로 그려지는 시트 · 줄도 따라 맞춘다 (MutationObserver).
+     픽셀 글꼴로 돌아가면 올린 것을 다 거둔다. SVG 글 (포스터 그림 속) · 화면 낭독기 전용 글 (.sr-only) 은 건드리지 않는다 */
+  var FF = { on: false, mo: null, q: [], raf: 0 };
+  function ffText(el) { for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3 && /\S/.test(c.nodeValue)) return true; return false; }
+  function ffOne(el) {
+    if (el.nodeType !== 1 || el.namespaceURI !== 'http://www.w3.org/1999/xhtml' || el.closest('svg, .sr-only, [data-ff-skip]') || !ffText(el)) return;
+    var cs = getComputedStyle(el), f = parseFloat(cs.fontSize); if (!(f > 0) || f >= 15.99) return;
+    el.style.setProperty('font-size', '16px'); el.setAttribute('data-ff', '1');
+    var lh = parseFloat(cs.lineHeight); if (lh > 0 && lh < 20) el.style.setProperty('line-height', '20px');
+  }
+  function ffFix(root) { if (!root || root.nodeType !== 1) return; ffOne(root); var all = root.getElementsByTagName('*'); for (var i = 0; i < all.length; i++) ffOne(all[i]); }
+  function ffFlush() { FF.raf = 0; var q = FF.q; FF.q = []; if (FF.on) for (var i = 0; i < q.length; i++) if (q[i].isConnected) ffFix(q[i]); }
+  function ffSync() {
+    var on = document.documentElement.getAttribute('data-font') === 'system';
+    if (on === FF.on) return; FF.on = on;
+    if (on) {
+      ffFix(document.body);
+      FF.mo = FF.mo || new MutationObserver(function (ms) { ms.forEach(function (m) { for (var i = 0; i < m.addedNodes.length; i++) { var n = m.addedNodes[i]; FF.q.push(n.nodeType === 1 ? n : m.target); } }); if (!FF.raf) FF.raf = requestAnimationFrame(ffFlush); });
+      FF.mo.observe(document.body, { childList: true, subtree: true });
+    } else {
+      if (FF.mo) FF.mo.disconnect();
+      Array.prototype.forEach.call(document.querySelectorAll('[data-ff]'), function (el) { el.style.removeProperty('font-size'); el.style.removeProperty('line-height'); el.removeAttribute('data-ff'); });
+    }
+  }
+  if (window.MutationObserver && document.body) { new MutationObserver(ffSync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-font'] }); ffSync(); }
   function dayCount() { return isObj(S.user) && Array.isArray(S.user.days) ? S.user.days.length : 0; }
   function renderDayN() {
     var el = $('day-n'), n = dayCount(); if (!el) return;

@@ -1772,9 +1772,14 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 .stair-cue[hidden] { display: none; }
 .stair-cue[data-side="right"] { left: auto; right: 0; flex-direction: row-reverse; padding: 0 2px 0 0; }
 .stair-cue-ico { display: block; width: 32px; height: 32px; image-rendering: pixelated; }
-.stair-cue-arrow { display: block; flex: 0 0 auto; width: 6px; height: 10px; background: #e8c170; clip-path: polygon(6px 0, 4px 0, 4px 2px, 2px 2px, 2px 4px, 0 4px, 0 6px, 2px 6px, 2px 8px, 4px 8px, 4px 10px, 6px 10px); }
+.stair-cue-arrow { display: block; flex: 0 0 auto; width: 6px; height: 10px; background: #602c2c; clip-path: polygon(6px 0, 4px 0, 4px 2px, 2px 2px, 2px 4px, 0 4px, 0 6px, 2px 6px, 2px 8px, 4px 8px, 4px 10px, 6px 10px); }
 .stair-cue[data-side="right"] .stair-cue-arrow { transform: scaleX(-1); }
 .stair-cue:active { transform: translate(2px, 2px); }
+/* 11-24 (점검: 탁자 위 갈색 72 % 는 잘 안 보였다): 밝은 종이 바탕 + 어두운 테 (픽셀 단추 모양 그대로) · 화살표는 짙은 갈색 · 흐림 없음 */
+.stair-cue { opacity: 1; width: 44px; height: 40px; padding: 0 2px; gap: 1px; background: rgba(235, 237, 233, .9); box-shadow: inset 0 0 0 2px #2b1d22, 2px 2px 0 rgba(27, 21, 34, .45); }
+.stair-cue { left: 4px; }
+.stair-cue[data-side="right"] { left: auto; right: 4px; padding: 0 2px; }
+.stair-cue .stair-cue-ico { width: 32px; height: 32px; }
 :root.furn-on .stair-cue, #scene.salon-on .stair-cue { visibility: hidden; }
 /* 11-21 설정 구역 접기 (js/app.js setSecFold): 제목 줄 = summary (누르는 곳 44px), 오른쪽 끝에 픽셀 꺾쇠 그림 (글자 아님 — 닫힘 ▸ 모양 · 열림 ▾ 모양을 clip-path 계단으로).
    구역 사이 줄은 summary 가 긋는다 (안의 h3 · .set-parts-h 는 제 줄 · 여백을 내려놓는다) */

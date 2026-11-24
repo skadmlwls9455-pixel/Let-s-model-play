@@ -8200,6 +8200,35 @@ async function scenarioU7(browser) {
     await o5.ctx.close();
   }
   await o4.ctx.close();
+  /* 11-24 보이는 글자는 16 px 이상 — 픽셀 글꼴을 끈 (data-font=system) 화면 · 시트 전부 (HUD · 등불 말풍선 · 알림 · 설정 (다 펼침) · 앨범 · 오늘의 산책 · 가방 · 옷장) */
+  var sysRec = JSON.parse(JSON.stringify(rec)); sysRec.settings.pixelFont = false;
+  var o6 = await openApp(360, 740, sysRec), p6 = o6.page;
+  function small(tag) { return p6.evaluate(function (tag) {
+    var out = [], w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), n;
+    while ((n = w.nextNode())) {
+      var e = n.parentElement; if (!n.nodeValue.trim() || !e || e.closest('svg, .sr-only')) continue;
+      var r = e.getBoundingClientRect(); if (!r.width || !r.height) continue;
+      var p = e, vis = true; while (p) { var c = getComputedStyle(p); if (c.display === 'none' || c.visibility === 'hidden' || (p.tagName === 'DIALOG' && !p.open) || (p.tagName === 'DETAILS' && !p.open && !e.closest('summary'))) { vis = false; break; } p = p.parentElement; }
+      if (vis && parseFloat(getComputedStyle(e).fontSize) < 15.99) out.push(tag + ':' + (e.id || e.className || e.tagName) + ' ' + getComputedStyle(e).fontSize + ' «' + n.nodeValue.trim().slice(0, 8) + '»');
+    }
+    return out; }, tag); }
+  var sm = [].concat(await small('hud'));
+  await p6.click('#pips'); await p6.waitForTimeout(200); sm = sm.concat(await small('tip'));
+  for (var sh of [['set', function () { APP.openSettings(); [].forEach.call(document.querySelectorAll('#set-body details'), function (d) { d.open = true; }); }], ['album', function () { document.getElementById('btn-album').click(); }],
+    ['today', function () { var b = document.getElementById('btn-today'); if (b) b.click(); }], ['bag', function () { document.getElementById('btn-bag').click(); }], ['look', function () { APP.openLook(); }]]) {
+    await p6.evaluate(function () { [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); }); }); await p6.waitForTimeout(300);
+    await p6.evaluate(sh[1]); await p6.waitForTimeout(700); sm = sm.concat(await small(sh[0]));
+  }
+  ok(sm.length === 0, '픽셀 글꼴을 끈 화면 · 시트에 16 px 밑 글자 없음 (' + sm.length + ' · ' + sm.slice(0, 4).join(' / ') + ')');
+  await o6.ctx.close();
+  /* 11-24 모션 줄이기: '산책 갈래?' 를 빠르게 두 번 (110 ms) 톡 → 둘째는 데려오기가 아니다 (SKIP_GUARD 600 ms 는 모션과 상관없이) */
+  var rmRec = JSON.parse(JSON.stringify(rec)); rmRec.settings.motion = 'reduce';
+  var o7 = await openApp(360, 740, rmRec), p7 = o7.page;
+  await p7.emulateMedia({ reducedMotion: 'reduce' }); await p7.waitForTimeout(2600);
+  var dt = await p7.evaluate(function () { return new Promise(function (res) { var g = document.getElementById('btn-go'); g.click(); setTimeout(function () { g.click(); }, 110);
+    setTimeout(function () { res({ away: g.classList.contains('away'), running: APP.state.trips.filter(function (t) { return t.status === 'running'; }).length }); }, 450); }); });
+  ok(dt.away && dt.running === 1, '모션 줄이기: 빠른 두 번 톡의 둘째는 산책을 끝내지 않는다 (' + JSON.stringify(dt) + ')');
+  await o7.ctx.close();
   ok(bag.length === 0, 'U7: 페이지 오류 없음 (' + bag.join(' | ').slice(0, 200) + ')');
 }
 
