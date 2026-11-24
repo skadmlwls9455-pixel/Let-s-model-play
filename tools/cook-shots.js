@@ -448,7 +448,7 @@ async function setBook(browser) {
   await page.goto(COOK_URL + '?seed=' + SEED);
   function live() { return page.evaluate(function () { return COOK.live(); }); }
   async function snap(name, ok, why) {
-    var l = await live(), text = await page.evaluate(function () { var d = document.getElementById('cook-dlg'), c = d.cloneNode(true), q = c.querySelector('.ck-say'); if (q) q.remove(); return (c.textContent || '').replace(/\s+/g, ''); });
+    var l = await live(), text = await page.evaluate(function () { var d = document.getElementById('cook-dlg'), c = d.cloneNode(true), q = c.querySelector('.ck-say'); if (q) q.remove(); q = c.querySelector('.ck-bk-words'); if (q) q.remove(); return (c.textContent || '').replace(/\s+/g, ''); });
     if (!ok(l) || text !== '' || l.err || errs.length) { failed.push(name + ': ' + (why || 'state') + ' ' + js([l.screen, l.recipe, l.si, l.kind, text, errs])); console.error('  FAIL ' + name); return; }
     await page.evaluate(function () { return Promise.all([].map.call(document.querySelectorAll('.cook-sticker'), function (i) { return i.decode ? i.decode().catch(function () {}) : null; })); });
     await realWait(120);

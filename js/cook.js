@@ -1639,7 +1639,8 @@ var COOK = (function () {
     B.lay = lay;
     function box(b, r) { b.style.left = (r[0] * css) + 'px'; b.style.top = (r[1] * css) + 'px'; b.style.width = (r[2] * css) + 'px'; b.style.height = (r[3] * css) + 'px'; }
     box(D.bkGo, lay.go);
-    D.bkGo.setAttribute('aria-label', WORDS.dish[id] || '');
+    var pw = EXT && EXT.pageWords ? EXT.pageWords(id) : null;   /* 11-24 r5: the dish and its ingredients, as the page shows them */
+    D.bkGo.setAttribute('aria-label', pw && !B.locked[id] ? pw.name + '. ' + pw.ings.join(', ') : WORDS.dish[id] || '');
     if (B.locked[id]) D.bkGo.setAttribute('aria-disabled', 'true'); else D.bkGo.removeAttribute('aria-disabled');
     D.bkTabs.forEach(function (b, i) { if (i < lay.tabs.length) { box(b, lay.tabs[i]); b.setAttribute('aria-pressed', i === B.sel ? 'true' : 'false'); } });
     L.dirty = true;
@@ -1662,7 +1663,7 @@ var COOK = (function () {
     if (B.locked[id] || !recipe(id)) { B.shakeAt = L.lastT; L.dirty = true; return; }
     if (e && e.detail === 0) setKbd(true);
     markSeen('book');
-    L.recipe = id; L.hint = null; D.bk.hidden = true;
+    L.recipe = id; L.hint = null; D.bk.hidden = true; bookWordsOff();
     var keep = L.book; L.book = null;
     if (!begin(false)) { L.book = keep; L.screen = 'book'; L.run = null; D.bk.hidden = false; bookSync(); }
   }
@@ -1684,11 +1685,33 @@ var COOK = (function () {
     var B = L.book, A = art(), fr = bookFrame(t);
     V.d.set(bgFor('counter', L.ox, L.oy).d);
     B.lay = A.steps.book(V, { ids: B.ids, sel: B.sel, locked: B.locked, made: B.made, top: bookTop(), bot: bookBot(), open: fr.open, dx: fr.dx, f: Math.floor(t / FMS) });
+    bookWords(B.lay && B.lay.words, B.ids[B.sel]);
     if (L.hint && fr.open >= 3) {
       var h = L.hint, o = {}; for (var k in h.spec) o[k] = h.spec[k];
       o.f = L.reduced ? 0 : Math.floor((t - h.at) / FMS) % 4; o.still = L.reduced;
       A.hand(V, o);
     }
+  }
+  /* 11-24 r5: the page's words (the dish's name, its ingredients' names) as real text over the painted page. The book is the
+     one kitchen screen with words (the owner asked for names); screen readers hear them on the dish button, so these are
+     aria-hidden. Each line starts on a whole device px (as cook.html's own words do) */
+  function bookWordsOff() { if (D && D.bkWords) { D.bkWords.textContent = ''; D.bkWords.ckKey = ''; } }   /* no words outside the book */
+  function bookWords(list, id) {
+    var pw = EXT && EXT.pageWords ? EXT.pageWords(id) : null, key = pw && list && list.length ? id + '|' + L.css + '|' + JSON.stringify(list) : '';
+    if (D.bkWords.ckKey === key) return;
+    D.bkWords.ckKey = key; D.bkWords.textContent = '';
+    if (!key) return;
+    var css = L.css, dpr = L.dpr || 1;
+    list.forEach(function (w) {
+      var text = w.k === 'name' ? pw.name : pw.ings[w.i]; if (!text) return;
+      var sp = el('span', { class: 'ck-bk-w ck-bk-' + w.k, text: text });
+      sp.style.left = (Math.round(w.x * css * dpr) / dpr) + 'px'; sp.style.top = (Math.round(w.y * css * dpr) / dpr) + 'px'; sp.style.width = (Math.round(w.w * css * dpr) / dpr) + 'px';
+      D.bkWords.appendChild(sp);
+    });
+    Array.prototype.forEach.call(D.bkWords.children, function (sp) {   /* centred text: move the glyph run onto the device grid */
+      try { var r = document.createRange(); r.selectNodeContents(sp); var b = r.getBoundingClientRect();
+        if (b.width) sp.style.translate = ((Math.round(b.left * dpr) - b.left * dpr) / dpr) + 'px ' + ((Math.round(b.top * dpr) - b.top * dpr) / dpr) + 'px'; } catch (e) { /* a soft edge at worst */ }
+    });
   }
   function bookDown(e) {
     if (!L || L.screen !== 'book' || !L.book) return;
@@ -1984,7 +2007,8 @@ var COOK = (function () {
     d.bkGo = el('button', { type: 'button', class: 'ck-bk-go', 'aria-label': '' });
     d.bkTabs = [];
     for (var bi = 0; bi < bookIds().length; bi++) d.bkTabs.push(el('button', { type: 'button', class: 'ck-bk-tab', 'aria-label': '', 'aria-pressed': 'false' }));
-    d.bk = el('div', { class: 'ck-bk', hidden: '' }, d.bkTabs.concat([d.bkGo]));
+    d.bkWords = el('div', { class: 'ck-bk-words', 'aria-hidden': 'true' });   /* 11-24 r5: the page's words (bookWords) */
+    d.bk = el('div', { class: 'ck-bk', hidden: '' }, [d.bkWords].concat(d.bkTabs, [d.bkGo]));
     d.dlg = el('dialog', { class: 'ck-dlg', id: 'cook-dlg', 'aria-label': WORDS.dish.jeon }, [d.stage, d.hud, d.bk, d.verb, d.call, d.table, d.note, d.say, d.probe]);
     d.ctx = d.cv.getContext('2d');
     document.body.appendChild(d.dlg);
@@ -2050,7 +2074,7 @@ var COOK = (function () {
     var me = L, byKey = !!(me.closeKbd || kbd);
     settle0(me);
     L = null;
-    D.note.hidden = true; D.bk.hidden = true; D.call.hidden = true; D.table.hidden = true;
+    D.note.hidden = true; D.bk.hidden = true; bookWordsOff(); D.call.hidden = true; D.table.hidden = true;
     if (!me.after) {   /* focus back to the opener, else the play-room door, else the main button (design 3.3) */
       var list = [me.opener, document.getElementById('btn-play-door'), document.getElementById('btn-go')];
       for (var i = 0; i < list.length; i++) if (shownEl(list[i])) { focusEl(list[i]); break; }
@@ -2091,7 +2115,7 @@ var COOK = (function () {
         k: 1, css: 1, dpr: 1, W: 0, H: 0, ox: 0, oy: 0, stride: 8, hudB: 0, chipTop: 0, safe: [0, 0, 0, 0], vw: 0, vh: 0 };
       if (L.palette && /^[a-z0-9-]+$/.test(L.palette)) D.dlg.setAttribute('data-palette', L.palette); else D.dlg.removeAttribute('data-palette');
       D.note.hidden = true; D.say.textContent = ''; D.closeCv.ckIcon = iconOf('close'); D.closeCv.ckN = 0;
-      D.verbCv.ckName = null; D.bk.hidden = true; D.call.hidden = true; D.table.hidden = true;
+      D.verbCv.ckName = null; D.bk.hidden = true; bookWordsOff(); D.call.hidden = true; D.table.hidden = true;
       if (art().steps) { D.callCv.ckIcon = art().steps.endIcon('call'); D.tableCv.ckIcon = art().steps.endIcon('table'); D.callCv.ckN = 0; D.tableCv.ckN = 0; }
       document.documentElement.classList.add('ck-open');
       setKbd(typeof opts.kbd === 'boolean' ? opts.kbd : kbd);   /* the host's own last input (cook.html in the game), else ours */

@@ -354,15 +354,19 @@
   var END_KEY = { o: C.w0, C: CORAL, k: C.w0, f: C.r1, F: C.a2, h: C.a3, w: C.s3, P: C.s6, t: C.w1, T: C.w3, s: C.w1, S: C.w4 };
   function endIcon(name) { var b = A.blank(20, 20); grid(b, END[name] || END.table, END_KEY, 0, 0); return b; }
 
-  /* ---------- the recipe book ---------- */
-  var TAB_W = 15, TAB_H = 19, PAGE_H = 98, PAGE_MID = 104, PAGE_TALL = 116;   /* mid, tall: the step pictograms get two rows (no overlap); tall has air between the rows */
-  /* where the page sits in a view W wide with rows top..bot free: { x0, y0, w, tabs: [[x, y, w, h]...], go: [x, y, w, h] } */
+  /* ---------- the recipe book ----------
+     11-24 r5 (owner: drop the cooking steps from the book and keep the ingredients; pictures and words were too dense): one dish a page:
+     the finished dish, its name, its ingredients (picture with the name under it, three a row). No steps, no step pictures,
+     no day-effect picture. The words are not painted: book() returns where they go (L.words, art px of the view) and the
+     live half lays real text there. */
+  var TAB_W = 15, TAB_H = 19, PAGE_H = 110, CELL_W = 26, CELL_H = 21;
+  /* where the page sits in a view W wide with rows top..bot free: { x0, y0, w, h, tabs: [[x, y, w, h]...], go: [x, y, w, h], up } */
   function bookLay(Wv, top, bot, n) {
-    var room = bot - top, tall = room >= PAGE_TALL + TAB_H, mid = !tall && room >= PAGE_MID + TAB_H - 1, ph = tall ? PAGE_TALL : mid ? PAGE_MID : PAGE_H;
-    var total = ph + TAB_H, y0 = top + Math.max(0, (bot - top - total) >> 1), w = Math.min(Wv - 4, 84), x0 = (Wv - w) >> 1;
+    var room = bot - top, ph = Math.max(PAGE_H - 8, Math.min(PAGE_H, room - TAB_H + 1)), up = PAGE_H - ph;   /* a short screen lifts the dish a little */
+    var total = ph + TAB_H, y0 = top + Math.max(0, (room - total) >> 1), w = Math.min(Wv - 4, 84), x0 = (Wv - w) >> 1;
     var tw = n * TAB_W, tx = (Wv - tw) >> 1, tabs = [];
     for (var i = 0; i < n; i++) tabs.push([tx + i * TAB_W, y0 + ph - 1, TAB_W, TAB_H]);
-    return { x0: x0, y0: y0, w: w, h: ph, tall: tall, two: tall || mid, tabs: tabs, go: [x0 + 2, y0 + 2, w - 4, 56] };
+    return { x0: x0, y0: y0, w: w, h: ph, up: up, tabs: tabs, go: [x0 + 2, y0 + 2, w - 4, 52 - up] };
   }
   function paper(V, x0, y0, w, h) {
     rect(V, x0 + 2, y0 + 2, w, h, C.w1);                    /* its shadow on the counter */
@@ -370,15 +374,12 @@
     rect(V, x0 + 1, y0 + 1, w - 2, 1, C.s6); rect(V, x0 + 1, y0 + 1, 1, h - 2, C.s6);
     for (var y = y0 + 4; y < y0 + h - 2; y += 6) { put(V, x0 + 3, y, C.r0); put(V, x0 + 4, y, C.w4); }   /* the binding holes */
   }
-  function row(V, ids, x0, w, y, frameOf) {   /* small pictures in a row, spread over w */
-    var n = ids.length; if (!n) return;
-    var pitch = n > 1 ? Math.min(20, Math.floor((w - 16) / (n - 1))) : 0, x = x0 + ((w - (16 + pitch * (n - 1))) >> 1);
-    ids.forEach(function (id, i) { spr(V, id, frameOf ? frameOf(i) : 0, x + i * pitch + 8, y + 13); });
-  }
-  /* o = { ids, sel, locked: { id: true }, made: { id: true }, top, bot, open (0..3, 3 = open), dx (page nudge), f } */
+  /* o = { ids, sel, locked: { id: true }, made: { id: true }, top, bot, open (0..3, 3 = open), dx (page nudge), f } -> the layout,
+     with words: [{ k: 'name' | 'ing', i, x, y, w }] (x = left, y = top, w = box width; art px of V) once the page is open */
   function book(V, o) {
     var ids = o.ids || [], n = ids.length, L = bookLay(V.w, o.top | 0, o.bot | 0, n), id = ids[o.sel | 0], r = ST ? ST.recipe(id) : null;
     var open = o.open == null ? 3 : o.open | 0, x0 = L.x0 + (o.dx | 0), y0 = L.y0, w = L.w, cx = x0 + (w >> 1);
+    L.words = [];
     if (open <= 0) {   /* the closed cover */
       rect(V, x0 + 2, y0 + 2, w, L.h + 8, C.w0); rect(V, x0, y0, w, L.h + 8, C.w0); rect(V, x0 + 1, y0 + 1, w - 2, L.h + 6, C.r1);
       rect(V, x0 + 1, y0 + 1, 5, L.h + 6, C.r0); rect(V, x0 + 8, y0 + 6, w - 14, 1, C.a1); rect(V, x0 + 8, y0 + L.h, w - 14, 1, C.a1);
@@ -394,28 +395,25 @@
       if (o.made && o.made[ids[i]] && !lock) { rect(V, x + t[2] - 5, y + 2, 3, 3, RED); put(V, x + t[2] - 4, y + 3, ROSE); }   /* made before: a small red seal on its tab */
     });
     if (open === 2 || !r) return L;
-    var locked = !!(o.locked && o.locked[id]), two = L.two, pack = two && !L.tall, dy = y0 + (pack ? 1 : 2);
-    var yD = dy + (pack ? 44 : 46), yI = dy + (pack ? 55 : 60), yS = dy + (pack ? 71 : 78), gap = pack ? 16 : 18;
-    if (!pack) for (var ly = dy + 62; ly < y0 + L.h - 3; ly += 18) rect(V, x0 + 7, ly + 16, w - 12, 1, C.w5);   /* ruled lines under the rows */
-    if (locked) {
+    var locked = !!(o.locked && o.locked[id]), dy = y0 + 2 - L.up, yD = dy + 44, yN = dy + 57, yG = dy + 64;   /* the last label ends near dy + 106, above the tabs */
+    if (locked) {   /* a gift from the cafe: the dish as a dark shape with a small cup, and its name */
       silhouette(V, DISH[id], 0, cx, yD, C.w4);
-      rect(V, cx - 10, dy + 18, 20, 20, C.r0); rect(V, cx - 9, dy + 19, 18, 18, C.w6); spr(V, 'lock.cup', 0, cx, dy + 33);
+      rect(V, cx - 10, dy + 16, 20, 20, C.r0); rect(V, cx - 9, dy + 17, 18, 18, C.w6); spr(V, 'lock.cup', 0, cx, dy + 31);
+      L.words.push({ k: 'name', i: 0, x: x0 + 4, y: yN, w: w - 8 });
       return L;
     }
     spr(V, DISH[id], id === 'jeon2' ? 1 : 0, cx, yD);
-    var ings = (r.ings || []).map(function (k) { return 'ing.' + k; }), pics = r.steps.map(function (s) { return s.pic; });
-    if (two) {   /* two rows of steps in reading order; the day effect closes the second row */
-      var n1 = (pics.length + 1) >> 1;
-      row(V, ings, x0 + 5, w - 7, yI);
-      row(V, pics.slice(0, n1), x0 + 6, w - 10, yS);
-      row(V, pics.slice(n1), x0 + 6, w - 28, yS + gap);
-      fxPic(V, r.fx, x0 + w - 18, yS + gap + 2);
-    } else {
-      row(V, ings, x0 + 6, w - 26, yI); fxPic(V, r.fx, x0 + w - 17, yI + 2);
-      row(V, pics, x0 + 6, w - 10, yS);
-    }
+    L.words.push({ k: 'name', i: 0, x: x0 + 4, y: yN, w: w - 8 });
+    rect(V, x0 + 8, yG - 2, w - 16, 1, C.w5);   /* a thin rule between the name and the ingredients */
+    var ings = r.ings || [], per = 3;
+    ings.forEach(function (k, i) {
+      var rowN = Math.floor(i / per), inRow = Math.min(per, ings.length - rowN * per), col = i % per;
+      var left = cx - ((inRow * CELL_W) >> 1) + col * CELL_W, top = yG + rowN * CELL_H;
+      spr(V, 'ing.' + k, 0, left + (CELL_W >> 1), top + 13);
+      L.words.push({ k: 'ing', i: i, x: left, y: top + 16, w: CELL_W });
+    });
     return L;
   }
 
-  A.steps = { spr: spr, sprOf: sprOf, book: book, bookLay: bookLay, endIcon: endIcon, hand2: hand2, SIZE: SIZE, DISH: DISH, ICON: ICON, painter: P, fxPic: fxPic };
+  A.steps = { spr: spr, sprOf: sprOf, book: book, bookLay: bookLay, endIcon: endIcon, hand2: hand2, SIZE: SIZE, DISH: DISH, ICON: ICON, painter: P, fxPic: fxPic, CELL: [CELL_W, CELL_H] };
 })();

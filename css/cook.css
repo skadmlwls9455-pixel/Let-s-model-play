@@ -82,6 +82,11 @@ html.ck-open body { overscroll-behavior: none; }
    no picture of their own (keys and screen readers reach the book through them) */
 .ck-bk { position: absolute; inset: 0; pointer-events: none; }
 .ck-bk[hidden] { display: none; }
+/* 11-24 r5: the book page's words, the only words in the kitchen (the dish's name, its ingredients' names) */
+.ck-bk-words { position: absolute; inset: 0; pointer-events: none; }
+.ck-bk-w { position: absolute; display: block; margin: 0; padding: 0; text-align: center; white-space: nowrap; overflow: visible;
+  color: #341c27; font-family: var(--f-meta, 'Galmuri11', sans-serif); font-size: var(--fs-m16, 16px); line-height: 1; font-synthesis: none; }
+.ck-bk-name { font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: var(--fs-u20, 20px); }
 .ck-bk button { position: absolute; box-sizing: border-box; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
   pointer-events: auto; cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .ck-bk button[hidden] { display: none; }
