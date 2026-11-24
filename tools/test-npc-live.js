@@ -226,12 +226,30 @@ function box(p) {
     ok(look.coverAfter === false, '말상자가 그 문어를 가리지 않는다');
     ok(look.back.indexOf('home') >= 0, '말이 끝나면 화면을 내 캐릭터 쪽으로 되돌린다');
     ok(look.middle.length === 0 && look.card.length === 0 && look.notDrawn.length === 0, '이미 잘 보이거나 · 카드가 떠 있거나 · 그려져 있지 않으면 화면을 밀지 않는다');
+    /* 말을 걸 때 화면이 아직 되돌아가는 중 (앞 말의 roomHome) 이라 가운데 띠 안에 있어 보여도, 0.45 s 뒤 다시 보고 가장자리면 민다 */
+    var again = await p.evaluate(function () {
+      [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); });
+      var S = APP.scene, keep = { where: S.npcWhere, project: S.project, focus: S.roomFocus, home: S.roomHome }, log = [], sxy = { x: innerWidth / 2, y: innerHeight * 0.4 };
+      var sc = document.getElementById('scene').getBoundingClientRect();
+      S.npcWhere = function (id) { return id === 'clothes' ? { x: 0, y: 0, z: 0 } : null; };
+      S.project = function () { return { x: sxy.x - sc.left, y: sxy.y - sc.top }; };
+      S.roomFocus = function () { log.push('focus'); return true; }; S.roomHome = function () { log.push('home'); return true; };
+      APP.npcSay('clothes', 'talk'); var first = log.slice(); sxy = { x: 20, y: innerHeight * 0.4 };   /* 되돌아가기가 끝나니 가장자리 */
+      return new Promise(function (res) { setTimeout(function () {
+        var out = { first: first, later: log.slice() };
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        Object.keys(keep).forEach(function (k) { if (keep[k] === undefined) delete S[k]; else S[k] = keep[k]; });
+        res(out);
+      }, 800); });
+    });
+    ok(again.first.length === 0 && again.later.indexOf('focus') >= 0, '화면이 되돌아가는 중이었으면 0.45 s 뒤 다시 보고 민다: ' + JSON.stringify(again));
 
     /* 11-24: 집에 사는 문어 — 낮엔 처음 만남 인사 (이름표 '토리 · 대본'), 같은 날 다시 누르면 낮 말 · 저장에 만난 날 · 밤엔 '자고 있어.' 한 줄 (대사창 아님) */
     await p.evaluate(function () { window.__ppolLook = Object.assign(window.__ppolLook || {}, { hour: 12 }); });
     await p.click('#btn-npc-sleep-1');
     var r1 = await box(p);
     ok(!r1.hidden && r1.tag === '토리 · 대본' && r1.npc.key === 'home.first', '집에 사는 문어: 처음 만남 (이름표 토리 · 대본): ' + JSON.stringify(r1.npc));
+    ok(await p.evaluate(function () { return document.getElementById('btn-npc-sleep-1').getAttribute('aria-label'); }) === '토리', '집 문어 단추의 이름은 그 문어의 이름');
     await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
     var r2 = await p.evaluate(function () { var k = APP.npcResident('sleep-1'), n = APP.npc; var saved = JSON.parse(localStorage.getItem('ppolppol_v2')).user.story; document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return { k: k, key: n && n.key, met: saved.met && saved.met['sleep-1'] }; });
     ok(r2.k === 'say' && r2.key === 'talk' && r2.met === '2026-11-21', '같은 날 다시 → 낮 말 · 만난 날 저장: ' + JSON.stringify(r2));
