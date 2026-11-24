@@ -17,12 +17,18 @@ var ROOT = path.resolve(__dirname, '../../..');
   var S1 = '/tmp/claude-0/-home-user-Let-s-model-play/bf38d309-8ede-59ca-909d-3c51ecde03b7/scratchpad/shots/';
   page.on('console', function (m) { if (m.type() === 'error' || m.type() === 'warning') console.log('CON ' + m.text().slice(0, 160)); });
   async function tapBtn(id) { var r = await page.evaluate(function (id) { var b = document.getElementById(id); if (!b || b.hidden) return null; var q = b.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; }, id); if (!r) return 'hidden'; await page.touchscreen.tap(r[0], r[1]); return 'tapped'; }
-  await page.evaluate(function () { return APP.goInside('cafe'); }); await page.waitForTimeout(1500);
-  var stands = await page.evaluate(function () { var sp = APP.scene.roomSlots('cafe').spots, o = []; for (var k in sp) if (sp[k].stand) o.push([sp[k].stand[0], sp[k].stand[1], k]); return o; }); console.log(JSON.stringify(stands));
-  for (var start of stands) {
-    var r = await page.evaluate(function (st) { var sc = APP.scene; sc.debugPlayerAt(st[0], st[1]); var done = null; Promise.resolve(sc.cafeSit(true)).then(function (v) { done = v; }); return new Promise(function (res) { var t = 0; (function w() { if (done !== null || t > 120) { res({ done: done, seated: sc.cafeSeated ? sc.cafeSeated() : null, at: sc.player().at }); return; } t++; setTimeout(w, 100); })(); }); }, start);
-    console.log('sit from', start, JSON.stringify(r));
-    await page.evaluate(function () { return APP.scene.cafeSit(false); }); await page.waitForTimeout(800);
-  }
+  async function tapAt(x, y) { await page.touchscreen.tap(x, y); }
+  await page.evaluate(function () { return APP.goInside('hall'); }); await page.waitForTimeout(1500);
+  var ex = await page.evaluate(function () { var b = document.getElementById('btn-room-exit'), q = b.getBoundingClientRect(); return [b.hidden, q.left + q.width / 2, q.top + q.height * 0.7]; });
+  console.log('hall exit at', JSON.stringify(ex)); await tapAt(ex[1], ex[2]); await page.waitForTimeout(7000);
+  console.log('after tap', JSON.stringify(await page.evaluate(function () { return { inside: APP.inside, at: APP.scene.player().at }; })));
+  await page.evaluate(function () { return APP.goInside('hall'); }); await page.waitForTimeout(1500);
+  var bd = await page.evaluate(function () { var sp = APP.scene.roomSlots('hall').spots, k = Object.keys(sp).filter(function (q) { var e = sp[q]; return e.stand && e.stand[0] < -2; })[0]; return [k, sp[k] && sp[k].btn, Object.keys(sp)]; });
+  console.log('board', JSON.stringify(bd));
+  if (bd[1]) { await page.evaluate(function (id) { APP.scene.roomSpotGo(id); }, bd[1]); var mx = 0; for (var i = 0; i < 20; i++) { await page.waitForTimeout(300); var f = await page.evaluate(function () { var a = APP.scene.player().at, p = APP.scene.project(a[0], 0, a[2]); return [Math.round(p.x), Math.round(p.y)]; }); if (f[0] < 20 || f[0] > 340) mx++; } console.log('frames off-screen during board walk', mx, JSON.stringify(await page.evaluate(function () { var a = APP.scene.player().at, p = APP.scene.project(a[0], 0, a[2]); return [a, Math.round(p.x)]; }))); }
+  await page.evaluate(function () { return APP.goOutside(); }); await page.waitForTimeout(1500);
+  await page.evaluate(function () { return APP.goInside('goods'); }); await page.waitForTimeout(1500);
+  await page.evaluate(function () { APP.scene.setPlayerInput({ x: 0.7, y: -0.7 }); }); await page.waitForTimeout(4000); await page.evaluate(function () { APP.scene.setPlayerInput(null); });
+  console.log('goods right+down', JSON.stringify(await page.evaluate(function () { return { inside: APP.inside, at: APP.scene.player().at }; })));
   await browser.close();
 })().catch(function (e) { console.error(e); process.exit(1); });

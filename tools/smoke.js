@@ -2222,7 +2222,8 @@ async function scenarioFirst(browser) {
   var bag = []; bag.ignored = [];
   async function fresh(q, dpr) {
     var c = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: dpr || 2, locale: 'ko-KR', colorScheme: 'light' });
-    await c.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+    /* 11-23 (CI e41d779 · 11-23 에 FM 10/2): 데모 문어가 날짜 시드로 첫 초대에도 '집에 있기' 를 고르는 날이 있어 첫 산책 뒤 손 힌트가 안 떴다 — 이 시나리오는 늘 나가는 차례로 (forceKind, 스모크 K 와 같은 훅) */
+    await c.addInitScript({ content: "window.__ppolAwakeMs = 0; window.__ppolTest = Object.assign(window.__ppolTest || {}, { forceKind: 'out' });" });
     var pg = await c.newPage(); watchErrors(pg, bag);
     if (useStubs) { await pg.addInitScript({ path: path.join(ROOT, 'tools/stubs.js') }); if (haveReal) await pg.route(/\/js\/(world|brain)\.js$/, function (route) { return route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* stubbed by tools/smoke.js */' }); }); }
     await routeWiki(pg, 'ok');
@@ -4938,13 +4939,17 @@ async function scenarioTapLine(browser) {
   var r3 = await page.evaluate(function () {
     return new Promise(function (res) {
       function flat(o, p, out) { if (o && typeof o === 'object') Object.keys(o).forEach(function (k) { flat(o[k], p ? p + '.' + k : k, out); }); else out[p] = JSON.stringify(o); return out; }
-      function changed(a, b) { var A = flat(JSON.parse(a), '', {}), B = flat(JSON.parse(b), '', {}); return Object.keys(B).filter(function (k) { return A[k] !== B[k]; }).concat(Object.keys(A).filter(function (k) { return !(k in B); })).slice(0, 8); }
+      /* 11-23 (CI 1f443c8 · 스모크 T 42/1): 첫날 선물 타이머 (부팅 2.5 s · 첫인사 2.8 s · 1분 틱) 가 280 ms 창 안에 들면 settings.lastSeen · user.giftTell 이 바뀌어 톡과 무관하게 깨졌다 → 그날 선물 칸 (gift · days · shells · seeds) 과 lastSeen 은 빼고 본다. 톡이 바꾸는 다른 칸은 여전히 잡힌다 */
+      var BG = /^(settings\.lastSeen|user\.(giftTell|giftDay|days|shells|seeds)(\.|$))/;
+      function changedAll(a, b) { var A = flat(JSON.parse(a), '', {}), B = flat(JSON.parse(b), '', {}); return Object.keys(B).filter(function (k) { return A[k] !== B[k]; }).concat(Object.keys(A).filter(function (k) { return !(k in B); })); }
+      function changed(a, b) { return changedAll(a, b).slice(0, 8); }
+      function same(a, b) { if (a === b) return true; try { return changedAll(a, b).filter(function (k) { return !BG.test(k); }).length === 0; } catch (e) { return false; } }
       var rows = document.querySelectorAll('#log .lrow').length, st = JSON.stringify(APP.state), ls = localStorage.getItem('ppolppol_v2');
       window.__aud = []; APP.tapOct(); APP.tapOct(); APP.tapOct();
       var b = document.getElementById('oct-bubble'), text = b.hidden ? '' : b.textContent, sr = document.getElementById('oct-say');
       setTimeout(function () { var srText = sr ? sr.textContent : null; APP.tapOct(); setTimeout(function () { APP.tapOct();
         var st2 = JSON.stringify(APP.state);
-        res({ text: text, rows: document.querySelectorAll('#log .lrow').length - rows, sameState: st2 === st, sameLS: localStorage.getItem('ppolppol_v2') === ls, changed: st2 === st ? [] : changed(st, st2),
+        res({ text: text, rows: document.querySelectorAll('#log .lrow').length - rows, sameState: same(st, st2), sameLS: same(ls, localStorage.getItem('ppolppol_v2')), changed: st2 === st ? [] : changed(st, st2),
           voice: window.__aud.filter(function (a) { return a.n === 'bubble'; }).length, tag: !document.getElementById('brain-tag').hidden, tapAttr: b.getAttribute('data-tap'),
           sr: srText, srLive: sr ? sr.getAttribute('aria-live') + '/' + sr.getAttribute('role') + '/' + sr.className : null, srLog: !!(sr && sr.closest('#log')) });
       }, 120); }, 160);
@@ -5240,16 +5245,18 @@ async function scenarioBringBack(browser) {
      짧은 귀가인지는 프레임 수로 (긴 귀가 = 길 · 계단 · 현관 ≈ 8 s 장면 시간 = 80 프레임 넘게, 짧은 귀가 ≈ 0.7 s = 7~45 프레임), 벽시계는 순서와 넉넉한 상한만 */
   /* 11-14 (CI 스모크 K, 4313 ms 로 한 번 빨강): '곧' 은 프레임으로 잰다 — 폰(60 fps)에선 귀가 시작 ≈ 0.7 s ≈ 42 프레임, 느린 러너는 프레임이 띄엄띄엄이라
      벽시계로 몇 배가 된다. 데려오기가 안 되면 귀가는 산책이 다 끝난 뒤(장면 시간 수십 초 = 수백 프레임)라 90 프레임으로 가른다. 벽시계는 넉넉한 상한만 */
-  ok(tRet >= 0 && fRet >= 0 && fRet <= 90 && tRet <= 12000, '누르면 곧 다락 문으로 귀가가 시작된다 (' + fRet + ' 프레임 · ' + tRet + ' ms)');
+  ok(tRet >= 0 && fRet >= 0 && fRet <= 90 && tRet <= 30000, '누르면 곧 다락 문으로 귀가가 시작된다 (' + fRet + ' 프레임 · ' + tRet + ' ms)');   /* 11-23: '곧' 은 프레임 (fRet ≤ 90) 이 지킨다 — 러너가 누른 순간 10 ~ 18 s 멈춘 판이 셋 (37eb9b0 · db95288), 벽시계는 넉넉히 */
   /* 아래 한도: 짧은 귀가는 장면 시간 ≈ 0.55 s 이고 장면 dt 상한이 0.1 s 라 기계가 바빠도 5 프레임 넘게 걸린다 — 귀가 중 한 번 더 누른 게 의식을 감아 버리면 1~2 프레임 */
   ok(Bq.retFrames >= 5 && Bq.retFrames <= 45, '귀가 의식은 짧은 판 (다락 문 0.3 s 전환 + 문간에서 2배 걸음 — 길 · 계단 없음) · 귀가 중 한 번 더 눌러도 감기지 않는다: ' + Bq.retFrames + ' 프레임');
   /* 11-15 (CI K): 누른 순간 한 프레임이 느린 러너에선 5~6 s 멈춰 (로컬 1~3 s), 그 뒤 모든 벽시계가 밀렸다 — 귀가가 시작된 때부터 잰다.
      지키는 것은 그대로: 데려오면 짧은 귀가 (긴 귀가는 길 · 계단을 걸어 20 s 를 훌쩍 넘는다) */
-  ok(tToast > tRet && tToast - tRet <= 12000 && tPip >= tToast, "짧은 귀가에 '새 포스터 · …' 토스트 → 등불 칸 (귀가 시작부터 토스트 " + (tToast - tRet) + ' · 등불 ' + (tPip - tRet) + ' ms)');
-  ok(tDone >= tPip && tDone - tRet <= 16000, '버튼은 짧은 귀가 뒤 돌아온다 (귀가 시작부터 ' + (tDone - tRet) + ' ms · 귀가 중 한 번 더 눌러도 새 산책 없음: 차례 ' + Bq.ntrips + ')');
+  /* 11-23 (CI 37eb9b0 · 1f443c8): 소프트웨어 GL 러너가 3~6 fps 로 그리면 장면 시간 (dt 상한 0.1 s) 이 벽시계보다 느리게 흘러 짧은 귀가도 토스트 14.6 s · 버튼 18 s 가 된다
+     (같은 기계에서 552fe54 와 프레임 · 콜 수 같음 — 코드가 느려진 것 아님). '짧은 판' 은 위의 retFrames (5~45) 가 지킨다 — 벽시계는 순서와 넉넉한 상한만 (db95288: 토스트 25.7 s → 60 s · 버튼 70 s) */
+  ok(tToast > tRet && tToast - tRet <= 60000 && tPip >= tToast, "짧은 귀가에 '새 포스터 · …' 토스트 → 등불 칸 (귀가 시작부터 토스트 " + (tToast - tRet) + ' · 등불 ' + (tPip - tRet) + ' ms)');
+  ok(tDone >= tPip && tDone - tRet <= 70000, '버튼은 짧은 귀가 뒤 돌아온다 (귀가 시작부터 ' + (tDone - tRet) + ' ms · 귀가 중 한 번 더 눌러도 새 산책 없음: 차례 ' + Bq.ntrips + ')');
   ok(Bq.fly >= 1 && Bq.phase === 'awake' && Bq.sleeps === 0, '포스터가 앨범으로 날아가고 · 문어는 깨어 있다 (잠 훅 아직 0 · ' + Bq.phase + ')');
   ok(Bq.roomRow.length === 1 && Bq.roomRow[0].text === '창턱에 이끼 화분이 놓였어' && !Bq.roomRow[0].expr, "데려와도 '방' 줄 — 집 목소리 사실 문장, 문어 초상 없음 (" + JSON.stringify(Bq.roomRow) + ')');
-  var sl = await Bq.page.waitForFunction(function () { return window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; }).length >= 1; }, null, { timeout: 15000 }).then(function () { return true; }, function () { return false; });
+  var sl = await Bq.page.waitForFunction(function () { return window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; }).length >= 1; }, null, { timeout: 45000 }).then(function () { return true; }, function () { return false; });
   await Bq.page.waitForTimeout(800);
   var nSleep = await Bq.page.evaluate(function () { return window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; }).length; });
   ok(sl && nSleep === 1, '틈이 끝나면 잠 훅 한 번 (' + nSleep + ')');
@@ -8279,7 +8286,7 @@ async function scenarioEatServe(browser) {
   ok(a2.meals[0].ate && a2.meals[0].ate.oct === true && a2.meals[0].ate.fx === 'bubble' && a2.table === null, '기록: 같이 먹음 · 효과 bubble · 식탁 비움');
   ok(a2.aura.me === 'bubble' && a2.aura.oct === 'bubble', '효과: 둘 다 방울 (' + JSON.stringify(a2.aura) + ')');
   ok(a2.rows.join('|') === '뚜루도 같이 먹기로 했어. 데모 규칙|계란말이를 같이 먹었어. 오늘 하루 둘 다 방울이 따라다녀.', '로그 행 (' + a2.rows.join('|') + ')');
-  ok(!a2.close && a2.pieces === 0 && a2.sprite === false, '끝나면 큰 그림은 사라지고 식탁엔 빈 접시');
+  ok(!a2.close && a2.pieces === 0 && a2.sprite === true, '끝나면 큰 그림은 사라지고 식탁엔 그 요리의 빈 그릇 그림 (11-22: 회색 둥근 접시로 안 바뀐다)');
   var au = await pa.evaluate(function () { var x = APP.scene.auraInfo('me'); return { fx: x.fx, n: x.n, parts: x.parts, vis: x.visible }; });
   ok(au.fx === 'bubble' && au.vis && au.n > 0 && au.n <= 64, '방울 알갱이가 그려진다 (' + JSON.stringify(au) + ')');
   ok(ink0 > 0, '큰 그림에 그림이 있다 (' + ink0 + ' px)');
