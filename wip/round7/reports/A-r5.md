@@ -49,6 +49,7 @@ A log row '옷장 · 황제 망토는 내 옷장에도 있어. 나도 입어 볼
 - `js/scene3d.js`: `PLAYER_PARTS.acc` (+2), `PLAYER_META` (+2 and the `!award` parse), `PL_PARTS.acc` (+2 builders in P's block), `ACC_MAIN` (+2).
 - `css/style.css`: the `.look-tile.locked` rules (lock mark centred, padding for the name).
 - `tools/smoke.js`:
+  - P7 catalogue: 14 accessories; award items are not owned until earned.
   - Q gift: the answer regex now expects '문어 뚜루는 …을/를 안 …기로 했어. (데모 규칙이 고름)'.
   - P7 locked tiles: no price, no picture, name shown.
   - P7 new award check: locked before, owned and wearable after the award.
@@ -63,9 +64,9 @@ A log row '옷장 · 황제 망토는 내 옷장에도 있어. 나도 입어 볼
 - Item names '종이 왕관', '황제 망토' (already in the font subset as costume names).
 
 ## Checks
-- `npm test`: passes. `tools/subset-fonts.py --check`: see the commit notes.
-- `node tools/test-player-parts-live.js`: 10 passed.
-- `SMOKE_ONLY=P7,Q node tools/smoke.js`: see the result below.
+- `npm test`: passes. `python3 tools/subset-fonts.py --check`: stale none (no font regeneration needed).
+- `node tools/test-player-parts-live.js`: 10 passed, 0 failed.
+- `SMOKE_ONLY=P7,Q node tools/smoke.js`: 91 passed, 1 failed on the first run. The failure was the P7 catalogue check, which still expected 12 accessories and every unpriced item to be owned. I updated it: 14 accessories, and award items are owned only once earned. After that, `SMOKE_ONLY=P7` gave 17 passed, 0 failed (Q was not rerun: its checks passed in the first run and nothing it covers changed).
 
 ## Screenshots (360 x 740 @2, `wip/round7/r5/A/`)
 - `1-gift-before-360.png` / `1-gift-after-360.png`
