@@ -2479,7 +2479,8 @@ async function scenarioWave7(browser) {
           named: bs.every(function (b) { return color ? !!b.getAttribute('aria-label') && !!b.title : !!(b.querySelector('.look-name') || {}).textContent; }),
           tall: bs.every(function (b) { var r = b.getBoundingClientRect(); return r.height >= 32 && r.width >= 32; }),
           thumbs: th.length, drawn: th.filter(function (c) { return c.dataset.drawn === '1'; }).length, ink: sg.length ? Math.min.apply(null, sg.map(function (x) { return x.ink; })) : 0, distinct: Object.keys(seen).length, sigs: sg.map(function (x) { return x.h; }),
-          thW: th[0] ? th[0].clientWidth : 0, thPx: th[0] ? px(th[0]) : false };
+          thW: th[0] ? th[0].clientWidth : 0, thPx: th[0] ? px(th[0]) : false,
+          locked: bs.filter(function (b) { return !!b.querySelector('.look-lock'); }).length, lockedThumbs: bs.filter(function (b) { return !!b.querySelector('.look-lock') && !!b.querySelector('canvas.look-thumb'); }).length };   /* 11-24 (주인 '옷가게에서 파는 것들은 미리 보여주지 말고 이름만'): 안 가진 칸은 그림 없이 이름 + 자물쇠 */
       });
       var cs = cv ? sig(cv) : null, kr = close.getBoundingClientRect(), lbl = cv ? cv.getAttribute('aria-label') || '' : '', cut = lbl.indexOf(': ');   /* 11-15 (검증 T-6): 지금 고른 것들은 그림 이름 뒤 (': ' 다음) — 그림 밑 보이는 한 줄은 없다 */
       return { open: sheet.open, under: document.getElementById('settings-sheet').open, focus: document.activeElement ? document.activeElement.id : null, rail: { role: rail.getAttribute('role'), label: rail.getAttribute('aria-label'), ori: rail.getAttribute('aria-orientation') }, tabs: tabs,
@@ -2510,8 +2511,8 @@ async function scenarioWave7(browser) {
   ok(lookAll.every(function (x) { return !x.emoji; }) && lookSt.eyes.eye === '눈 색은 크게 봐야 잘 보여', '옷장: 이모지 0 · 눈 갈래엔 눈 색 안내 한 줄 (' + lookSt.eyes.eye + ')');
   if (CAN_SHOT) {
     var lookTiles = lookGroups.filter(function (g) { return !g.color; });
-    ok(lookAll.every(function (x) { return !x.noShot && x.note2d === null; }) && lookTiles.length === 12 && lookTiles.every(function (g) { return g.thumbs === g.n && g.drawn === g.n && g.thW === 64 && g.thPx && g.ink > 40 && g.distinct === g.n; }) && lookGroups.every(function (g) { return !g.color || g.thumbs === 0; }),
-      '옷장 (3D): 타일마다 그림 (32×32 → 64px pixelated · 다 그려짐 · 빈 그림 없음 · 한 묶음 안에서 서로 다른 그림) · 색 동그라미엔 그림 없음 ' + JSON.stringify(lookTiles.map(function (g) { return [g.part, g.thumbs, g.drawn, g.distinct, g.ink, g.thW]; })));
+    ok(lookAll.every(function (x) { return !x.noShot && x.note2d === null; }) && lookTiles.length === 12 && lookTiles.every(function (g) { var own = g.n - g.locked; return g.thumbs === own && g.drawn === own && g.thW === 64 && g.thPx && g.ink > 40 && g.distinct === own && g.lockedThumbs === 0; }) && lookGroups.every(function (g) { return !g.color || g.thumbs === 0; }),
+      '옷장 (3D): 가진 타일마다 그림 (32×32 → 64px pixelated · 다 그려짐 · 빈 그림 없음 · 한 묶음 안에서 서로 다른 그림) · 안 가진 (잠긴) 타일엔 그림 없음 · 색 동그라미엔 그림 없음 ' + JSON.stringify(lookTiles.map(function (g) { return [g.part, g.n, g.locked, g.thumbs, g.drawn, g.distinct, g.ink, g.thW, g.lockedThumbs]; })));
     ok(stage0 && stage0.w === 64 && stage0.h === 96 && stage0.cw === 128 && stage0.ch === 192 && stage0.px && stage0.role === 'img' && stage0.label === '내 모습 앞모습' && stage0.ink > 300 && lookSt.hair.turn === '뒤 보기', '옷장 (3D): 전신 미리보기 64×96 → 128×192px pixelated · role=img 앞모습 · 그려짐 · 뒤 보기 단추 ' + JSON.stringify(stage0));
     ok(lookAll.map(function (x) { return x.now; }).join(' / ') === '단발 · 삐죽 · 금발 / 동그란 · 흑갈색 · 눈썹 없음 / 살구 · 세모코 · 미소 · 볼 없음 / 동글 · 원피스 / 단화 / 리본' && lookAll.every(function (x) { return !x.nowEl; }), '옷장 (3D): 미리보기 그림 이름 (읽어 주기) = 그 갈래에서 지금 고른 것 · 그림 밑 보이는 한 줄은 없음 ' + JSON.stringify(lookAll.map(function (x) { return x.now; })));
     await page.click('#look-turn'); var lookBack = await lookRead(page);
