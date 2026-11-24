@@ -2807,8 +2807,11 @@ async function scenarioWave7(browser) {
     return { open: document.getElementById('runner-dlg').open, rows: document.querySelectorAll('#log .lrow').length, st: t.status, oct: APP.state.octopus.state, sleep: sl.length, has: sl.length ? sl[sl.length - 1].has : false, got: sl.length ? sl[sl.length - 1].d.reaction : undefined, want: want, view: APP.scene.view() };
   });
   console.log('   door walk:', JSON.stringify(Object.assign({ rows0: r0 }, d1)));
-  ok(d1.open && d1.st === 'done' && d1.rows > r0 + 2 && d1.view === 'play', '달리기 창을 연 채로 산책이 끝까지 (로그 행 ' + r0 + ' → ' + d1.rows + ' · 창은 그대로 · 놀이방 그대로)');
-  ok(d1.sleep === 0, '귀가 장면을 미루는 동안 잠들기 소리 훅은 아직 없다 (잠은 귀가 장면 뒤)');
+  ok(d1.open && d1.st === 'done' && d1.rows > r0 && d1.view === 'play', '달리기 창을 연 채로 산책이 끝까지 (로그 행 ' + r0 + ' → ' + d1.rows + ' · 창은 그대로 · 놀이방 그대로)');
+  /* 미루는 동안: 새 잠들기 훅 없음 · 마무리 행도 아직 (앞 단계의 낮잠 훅이 __aud 에 남아 있을 수 있어 수를 세어 둔다) */
+  await page.waitForTimeout(2000);
+  var d1b = await page.evaluate(function () { return { sleep: window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; }).length, rows: document.querySelectorAll('#log .lrow').length, wait: APP.homeWaiting }; });
+  ok(d1b.wait && d1b.sleep === d1.sleep && d1b.rows === d1.rows, '귀가 장면을 미루는 동안 (2초): 잠들지 않고 마무리 행도 아직 ' + JSON.stringify(d1b));
   await page.screenshot({ path: path.join(SHOTS, 'runner-over-walk.png') });
   await page.keyboard.press('Escape'); await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
   var d2 = await page.evaluate(function () { var n = document.getElementById('back-note'); return { focus: document.activeElement && document.activeElement.id, view: APP.scene.view(), note: !n.hidden, txt: document.getElementById('back-note-txt').textContent }; });
@@ -2821,9 +2824,10 @@ async function scenarioWave7(browser) {
   await page.waitForFunction(function () { return !document.getElementById('btn-go').classList.contains('away'); }, null, { timeout: 60000 });
   var d4 = await page.evaluate(function (want) {
     var sl = window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; });
-    return { oct: APP.state.octopus.state, sleep: sl.length, has: sl.length ? sl[sl.length - 1].has : false, got: sl.length ? sl[sl.length - 1].d.reaction : undefined, want: want };
+    return { oct: APP.state.octopus.state, sleep: sl.length, has: sl.length ? sl[sl.length - 1].has : false, got: sl.length ? sl[sl.length - 1].d.reaction : undefined, want: want, rows: document.querySelectorAll('#log .lrow').length };
   }, d1.want);
-  ok(d4.oct === 'sleep' && d4.sleep >= 1 && d4.has && d4.got === d4.want, "귀가 장면 뒤 잠들 때 소리 훅 state { state: 'sleep', reaction: " + JSON.stringify(d4.got) + ' } = 이 차례의 반응');
+  ok(d4.oct === 'sleep' && d4.sleep > d1.sleep && d4.has && d4.got === d4.want, "귀가 장면 뒤 (새로) 잠들 때 소리 훅 state { state: 'sleep', reaction: " + JSON.stringify(d4.got) + ' } = 이 차례의 반응 (' + d1.sleep + ' → ' + d4.sleep + ')');
+  ok(d4.rows > r0 + 2, '귀가 장면 뒤 로그 행 ' + r0 + ' → ' + d4.rows + ' (산책 행 + 마무리 행)');
 
   /* 6. 자정 넘김: 1분 틱(여기선 화면 돌아옴)에 오늘 칸만 · 지난 날은 앨범 › 일기 (새 날 먼저 · 읽기만) · 문어의 요즘
      6a. 다른 탭(B): 자정 뒤 이 탭이 산책이 아닌 것(문어 색)을 저장하면 B 는 저장 이벤트로 다시 그리며 넘긴다 → 인사 · 어제 메모가 1분 틱으로 넘긴 이 탭과 같다
