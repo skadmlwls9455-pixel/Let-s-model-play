@@ -7416,11 +7416,12 @@ var APP = (function () {
     return true;
   }
   var ctNoteAt = -1e9;
+  function ctOpenNow() { var wk = CT ? CT.week(todayKey()) : null; return !!(wk && wk.open); }   /* 오늘 콘테스트가 열리는 날인가 (토 · 일, 기기 달력) — V 의 문 단추가 걷기 전에 묻는다 */
+  function ctNotOpenNote() { if (performance.now() - ctNoteAt > 1200) { ctNoteAt = performance.now(); toast(CT.TEXT.notNow); } return true; }   /* 닫힌 날의 한 줄 (1.2 s 안에 다시 눌러도 한 번) */
   function ctGoHall() {   /* 공연장 문 (#btn-in-hall · 광장 무대 #btn-plaza-stage · 포스터) → 방 안으로. 안에서 무대를 톡하면 쇼가 시작된다 */
     var A = window.APP; if (!ctHallMode() || !A || typeof A.goInside !== 'function') return false;
-    var wk = CT.week(todayKey());
-    if (!wk || !wk.open) {   /* 11-24 주인: "콘테스트도 안 하는 때에는 맵에 굳이 안 들어가게 해도 될 거 같음. 하는 시간이 아냐." — 닫힌 날엔 들어가지 않고 한 줄만 (언제 열리는지 사실로) */
-      if (performance.now() - ctNoteAt > 1200) { ctNoteAt = performance.now(); toast(CT.TEXT.notNow); }
+    if (!ctOpenNow()) {   /* 11-24 주인: "콘테스트도 안 하는 때에는 맵에 굳이 안 들어가게 해도 될 거 같음. 하는 시간이 아냐." — 닫힌 날엔 들어가지 않고 한 줄만 (언제 열리는지 사실로) */
+      ctNotOpenNote();
       return true;
     }
     Promise.resolve(A.goInside('hall')).then(function (ok) { if (ok) ctSceneSync(true); });
@@ -7558,6 +7559,7 @@ var APP = (function () {
     get npc() { return npcNow ? { id: npcNow.ln.id, key: npcNow.ln.key, n: npcNow.ln.n, i: npcNow.i, tag: npcNow.ln.tag, text: npcNow.ln.bubbles[npcNow.i] } : null; },   /* 지금 떠 있는 마을 문어의 말 (테스트 · 도구) */
 
     /* [7-F] */
+    contestOpen: function () { return ctOpenNow(); }, contestNotOpenNote: function () { return ctNotOpenNote(); },   /* 11-24: V 의 공연장 문이 닫힌 날엔 걷지 않고 바로 한 줄을 띄우게 */
     openContest: openContest, contestEnter: function () { ctEnter(null); }, contestSkip: ctEnd, contestStageTap: function () { return ctStageTap(); }, contestLiveEnter: function () { ctLiveEnter(null); }, contestLiveSkip: function () { if (ctL) ctLiveEnd(ctL); }, get contestLive() { return ctL ? { stage: ctL.stage, n: ctL.n } : null; },
     get contestStage() { return ctRun ? { stage: CT_STEPS[ctRun.i] ? CT_STEPS[ctRun.i][0] : null, n: CT_STEPS[ctRun.i] ? CT_STEPS[ctRun.i][1] : 0, i: ctRun.i } : null; },   /* 11-21 주말 콘테스트 (테스트 · 도구): 무대 단추와 같은 길 · 나가기 · 쇼 넘기기 · 지금 쇼 단계 */
 

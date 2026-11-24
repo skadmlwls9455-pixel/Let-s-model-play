@@ -392,6 +392,7 @@ async function main() {
   await page.waitForTimeout(500);
   var wd = await page.evaluate(function () { var t = document.getElementById('toast'); return { inn: window.__in.join(), toast: t ? t.textContent : '', card: !!document.getElementById('ct-wcard'), sheet: document.getElementById('contest-sheet').open }; });
   check(r === true && wd.inn === '' && !wd.card && !wd.sheet, '평일: 무대 · 공연장 문 · 광장 무대 톡 모두 공연장에 들어가지 않음 (카드 · 시트도 없음) ' + JSON.stringify(wd));
+  check(await page.evaluate(function () { return APP.contestOpen() === false && APP.contestNotOpenNote() === true; }), '평일: APP.contestOpen() 은 false (V 의 문이 걷기 전에 묻는다)');
   check(wd.toast.indexOf('지금은 콘테스트 하는 때가 아니야. 주말에 열려.') >= 0, "평일: 한 줄 '지금은 콘테스트 하는 때가 아니야. 주말에 열려.' (" + wd.toast + ')');
   await page.waitForTimeout(1300);
   await page.evaluate(function () { var p = document.getElementById('ct-wposter'); if (p) p.click(); });
@@ -402,6 +403,7 @@ async function main() {
   /* 안에 있는 동안 날이 바뀌어 닫혀도 내보내지 않는다 (나가는 길만 그대로) */
   ctx = await context(browser, SUN);
   page = await open(ctx); await page.evaluate(SCENE_STUB);
+  check(await page.evaluate(function () { return APP.contestOpen() === true; }), '일요일: APP.contestOpen() 은 true');
   r = await page.evaluate(function () {
     var sc = APP.scene, inside = 'hall'; window.__out = 0;
     sc.roomReg = { hall: {} }; sc.inRoom = function () { return inside; }; sc.area = function () { return null; };
