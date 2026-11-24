@@ -4750,7 +4750,7 @@ var SCENE3D = (function () {
       it.until = function () { return !tr || PLACE.trans !== tr; };
       return it;
     }
-    function yardDoorBusy() { return !!(CER && CER.active && (CER.name === 'depart' || CER.name === 'return')); }   /* 11-15: 문어가 산책 문을 쓰는 동안 (출발 · 귀가 의식) — 마당 문 단추는 숨고 goRoom('yard') 는 기다리라고 돌려준다 */
+    function yardDoorBusy() { return !!(CER && CER.active && CER.name === 'return'); }   /* 11-24 (주인: "문어 산책 보낸 뒤에 … 캐릭터는 캐릭터대로 할 일"): 출발 의식 동안엔 마당 문을 막지 않는다 — 캐릭터가 먼저 나가도 문어는 다락에서 제 걸음으로 나간다. 귀가 의식 동안만 (문어가 그 문간으로 들어온다) */   /* 11-15: 문어가 산책 문을 쓰는 동안 (출발 · 귀가 의식) — 마당 문 단추는 숨고 goRoom('yard') 는 기다리라고 돌려준다 */
     function goRoom(room, o) {
       o = o || {};
       var enter = isRoomP(room), stair = room === 'loft' || (!enter && PLACE.room === 'loft');   /* 위층은 문이 아니라 계단: 문짝 · 끼익 없이 위아래로 미끄러진다 */

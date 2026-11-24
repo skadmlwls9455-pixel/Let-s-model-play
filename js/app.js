@@ -1713,6 +1713,7 @@ var APP = (function () {
     salonFinish();   /* 미용실 연출 중이면 남은 연출을 한 번에 감고 (새 색 · 대야 치움 · 남은 행) 초대는 평소대로 */
     var now = Date.now(), rapid = goRapid(now), quick = now - lastGo < SKIP_GUARD; lastGo = now;   /* 11-24 quick: 앞 누름에서 SKIP_GUARD 안 — 모션 줄이기면 출발이 한 프레임이라 두 번 톡의 둘째가 skipReady 를 지나 산책을 바로 끝냈다 */
     if (quick) return;   /* 11-24: 앞 톡에서 600 ms 안의 톡은 무엇도 하지 않는다 — 출발이 늦게 켜지는 기기에선 둘째 톡이 아직 '집에 있음' 을 보고 초대를 또 불러 산책이 바로 끝났다 (점검: 412 · 모션 줄이기 · 19.5시) */
+    if (homeWaitOn && (inPlay() || roomJob)) { backToOctRoom(); return; }   /* 11-24: 문어는 이미 돌아와 귀가 장면을 기다린다 — 다락으로만 (거기서 귀가 장면 전부. 데려오기로 줄이지 않는다) */
     if (inPlay() || roomJob) {   /* 놀이방이면 먼저 문으로 문어 방에 돌아와서 (8물결). 누른 *그때* 의 뜻대로: 다녀오는 중이었으면 데려오기(건너뛰기)만 — 문을 지나는 사이 산책이 끝났으면 아무것도 안 한다 (새 산책이 되지 않게) */
       var wasBusy = busy;
       backToOctRoom().then(function (ok) {
@@ -1926,16 +1927,9 @@ var APP = (function () {
     });
     return revealing.ceremony;
   }
-  /* 이벤트별 장면 연출. skipFlag 면 즉시 */
-  function sceneFor(trip, ev) {
-    var fast = skipFlag || reduced();
-    switch (ev.type) {
-      case 'depart':
-        if (oct.state === 'away') return Promise.resolve();   /* 초대: 의식은 공개 전에 끝났다 */
-        if (fast) { octState('away'); return Promise.resolve(); }
-        return departOut().then(function () { return sleep(400 * speed()); });   /* 이벤트 JSON 재생 등 */
-      case 'return':
-        commitTrip(trip);
+  /* 귀가 장면 (sceneFor 'return' 에서 기록을 남긴 뒤): 다락 문으로 들어와 보드까지 · 포스터. 11-24 에 미룰 수 있게 함수로 뺐다 (안은 그대로) */
+  function returnScene(trip) {
+        var fast = skipFlag || reduced();
         /* 들고 오는 포스터 = 이 여행의 것 (id: 장면이 걸 때 그 포스터의 벽 칸으로 날린다 — 건너뛰기·데모 재생처럼 벽에 먼저 붙었어도) */
         var mode = trip.poster ? 'carry' : 'walk', carryX = trip.poster ? { svg: posterSVG(trip, 48, 64, { mini: true, noExternal: true }), id: trip.id } : null;
         var wasOut = !!(revealing && revealing.outside);
@@ -1992,6 +1986,40 @@ var APP = (function () {
             });
           });
         });
+  }
+  /* 11-24 (주인: "문어 산책 보낸 뒤에 방에만 있지 않고 캐릭터는 캐릭터대로 할 일 할 수 있도록"): 문어가 돌아왔을 때 캐릭터가 다락 밖 (마당 · 마을 · 가게 · 카페 · 바닷가 · 놀이방 · 위층) 이면
+     귀가 장면은 미루고 한 줄만 ('…돌아왔어.' — 놀이방 · 마당은 구석 쪽지, 그 밖은 알림). 캐릭터가 다락 (이야기 장소) 으로 돌아오면 그때 귀가 장면 · 포스터.
+     큰 버튼 (데려오기) 을 누르면 바로 짧은 귀가. 기록은 이미 저장했다 — 미루는 것은 장면뿐 (새로 고치면 문어는 집에서 연다: 문어의 '나가 있음' 은 저장하지 않는다) */
+  var homeWaitOn = false;
+  function homeLater() { return !skipFlag && sceneMode === '3d' && hasCeremony() && oct.state === 'away' && inPlay(); }
+  function homeLine() { var nm = S.octopus.name || ''; return typeof STR.backNote === 'function' ? STR.backNote(nm) : (nm || '문어') + ' 돌아왔어.'; }
+  function homeGo(waiting) {   /* 기다리는 동안 큰 버튼: '보러 갈래?' (누르면 다락으로 — 거기서 귀가 장면). 끝나면 '다녀오는 중…' 으로 (귀가 장면이 도는 동안) */
+    var go = $('btn-go'); if (!go || !busy) return;
+    go.innerHTML = '<span class="go-txt">' + (waiting ? '보러 갈래?' : '다녀오는 중…') + '</span>';
+    go.setAttribute('aria-label', waiting ? homeLine() + ' 누르면 다락으로' : '다녀오는 중. 누르면 바로 돌아오게');
+  }
+  function homeWait() {
+    homeWaitOn = true; homeGo(true);
+    var v = sceneView(); if (v === 'play' || v === 'yard') noteBack(); else toast(homeLine());
+    return new Promise(function (res) {
+      var t = setInterval(function () {
+        if (!skipFlag && inPlay()) return;
+        clearInterval(t); homeWaitOn = false; homeGo(false); res();
+      }, 250);
+    });
+  }
+  /* 이벤트별 장면 연출. skipFlag 면 즉시 */
+  function sceneFor(trip, ev) {
+    var fast = skipFlag || reduced();
+    switch (ev.type) {
+      case 'depart':
+        if (oct.state === 'away') return Promise.resolve();   /* 초대: 의식은 공개 전에 끝났다 */
+        if (fast) { octState('away'); return Promise.resolve(); }
+        return departOut().then(function () { return sleep(400 * speed()); });   /* 이벤트 JSON 재생 등 */
+      case 'return':
+        commitTrip(trip);   /* 기록은 돌아온 그 시각에 (장면을 미뤄도) */
+        if (homeLater()) return homeWait().then(function () { return returnScene(trip); });   /* 11-24: 캐릭터가 집 (다락) 밖이면 귀가 장면은 다락에 들어설 때 */
+        return returnScene(trip);
       case 'hang_poster':
         if (!trip.poster) return Promise.resolve();
         if (revealing && revealing.homing) { renderWall(); return Promise.resolve(); }   /* 데려온 귀가: 문 앞에서 벽에 바로 (보드까지 걸어가 붙이지 않는다) */
@@ -7544,6 +7572,7 @@ var APP = (function () {
     get shopRoom() { return { key: room.key, basket: Object.keys(room.basket), tried: Object.keys(room.basket).filter(function (k) { return room.basket[k].tried; }), card: room.card ? room.card.className : null }; },
 
     /* [7-C] */
+    get homeWaiting() { return homeWaitOn; },   /* 11-24 (테스트 · 도구): 캐릭터가 밖이라 귀가 장면을 미루는 중인가 */
     openCafe: openCafe, openRecords: openRecords, cafeStand: cafeStand, cafeSeatTap: cafeSeatTap, cafeCounterTap: cafeCounterTap, cafePlateTap: cafePlateTap,
     get cafe() { return { seated: cafeSeated, ask: cafeAsk, stage: cafeRoom.stage, card: cafeRoom.card, lp: cafeLp.id, sound: cafeLp.sound, music: window.CAFE_MUSIC ? CAFE_MUSIC.state() : null }; },   /* 카페 (테스트 · 도구): 앉았는가 · 묻는 메뉴 · 올린 판 · 소리가 나는가 */
 

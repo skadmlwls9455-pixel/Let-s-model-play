@@ -7341,11 +7341,11 @@ async function scenarioGarden(browser) {
   await pY.reload(); await pY.waitForSelector('#btn-go:not(.away)', { timeout: WAIT });
   var y3 = await pY.evaluate(function () { return { told: APP.state.user.plotTold, open: APP.scene.garden().length }; });
   ok(y3.told === 4 && y3.open === 4, '다시 열어도 알린 칸 ' + y3.told + ' = 열린 칸 ' + y3.open + ' (그 한 줄은 다시 없다)');
-  /* 출발 의식 동안: 마당 문 단추는 숨고 goRoom('yard') 은 기다린다 · 스틱으로 문간에 밀어도 안 나간다 */
+  /* 출발 의식 동안 (11-24 바뀜 — 주인: "문어 산책 보낸 뒤에 … 캐릭터는 캐릭터대로 할 일"): 마당 문 단추가 보이고 goRoom('yard') 로 나간다. 문어는 다락에서 제 걸음으로 나간다 */
   await pY.waitForFunction(function () { return !APP.goResting && !document.querySelector('dialog[open]'); }, null, { timeout: WAIT });
-  var dep = await pY.evaluate(function () { window.__dep = new Promise(function (r) { APP.scene.departCeremony(r); }); return new Promise(function (res) { requestAnimationFrame(function () { requestAnimationFrame(function () { var b = document.getElementById('btn-yard'); Promise.resolve(APP.goRoom('yard')).then(function (r) { res({ cer: APP.scene.ceremony(), hidden: b.hidden, r: r, view: APP.scene.view() }); }); }); }); }); });
+  var dep = await pY.evaluate(function () { window.__dep = new Promise(function (r) { APP.scene.departCeremony(r); }); return new Promise(function (res) { requestAnimationFrame(function () { requestAnimationFrame(function () { var b = document.getElementById('btn-yard'), hid = b.hidden, cer0 = APP.scene.ceremony(); Promise.resolve(APP.goRoom('yard')).then(function (r) { res({ cer: cer0, hidden: hid, r: r, view: APP.scene.view() }); }); }); }); }); });
   await pY.evaluate(function () { return window.__dep; });
-  ok(dep.cer === 'depart' && dep.hidden && dep.r && dep.r.ok === false && dep.r.reason === 'ceremony' && dep.view === 'attic', '문어 출발 의식 동안 마당 문은 숨고 · 나가지 않는다 (' + JSON.stringify(dep.r) + ')');
+  ok(dep.cer === 'depart' && !dep.hidden && dep.r && dep.r.ok === true && dep.view === 'yard', '문어 출발 의식 동안에도 마당 문이 보이고 · 마당으로 나간다 (' + JSON.stringify(dep.r) + ')');
   await cY.close();
   reportErrors(bag, 'X');
 }
