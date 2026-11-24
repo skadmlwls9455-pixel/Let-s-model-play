@@ -290,7 +290,7 @@ async function scenarioMain(browser) {
   ok(strip.h <= 44 && strip.rows === 1 && Math.abs(strip.nameTop - strip.pipsTop) < 12, '상태 줄 한 줄 ≤44px (' + strip.h + 'px)');
   ok(/등불/.test(strip.txt) && /1\/8/.test(strip.txt) && !strip.demo && !strip.stat && !/여행|함께한 날/.test(strip.txt), "상태 줄: '등불 … 1/8', 예전 데모 두뇌 칩·여행·함께한 날 없음");
   /* 11-15 5차 (주인: 작은 글자도 받침이 안 뭉개지게 — Galmuri7 8px → Galmuri11 12px, 기기 배율에 맞추면 최대 약 13.7px): 작되 읽히는 크기 */
-  ok(strip.tag === '데모' && strip.tagSr === '데모 규칙이 움직이는 중' && strip.tagFs >= 10 && strip.tagFs <= 14, "상태 줄(좁으면 바로 아래)의 작은 '데모' 표시 (" + strip.tagFs + "px, 화면 낭독기 '데모 규칙이 움직이는 중')");
+  ok(strip.tag === '데모' && strip.tagSr === '데모 규칙이 움직이는 중' && strip.tagFs >= 16 && strip.tagFs <= 16 * 1.35 + 0.02, "상태 줄(좁으면 바로 아래)의 '데모' 표시 — 11-22 보이는 글자는 16 px 이상 (" + strip.tagFs + "px, 화면 낭독기 '데모 규칙이 움직이는 중')");
   ok(!(await page.$('#hint-in')) && !(await page.$('#hint-box')), '힌트 칸은 개발 화면에도 없다 (11-10 에 없앰)');
   ok((await page.$$('#log .lrow')).length >= 5, '로그 행 ≥5');
   await page.waitForTimeout(200);
@@ -8224,6 +8224,7 @@ async function scenarioU7(browser) {
   /* 11-24 모션 줄이기: '산책 갈래?' 를 빠르게 두 번 (110 ms) 톡 → 둘째는 데려오기가 아니다 (SKIP_GUARD 600 ms 는 모션과 상관없이) */
   var rmRec = JSON.parse(JSON.stringify(rec)); rmRec.settings.motion = 'reduce';
   var o7 = await openApp(360, 740, rmRec), p7 = o7.page;
+  await p7.route(/wikipedia\.org/, function (r) { return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); });   /* 나가는 산책의 위키 요청은 밖으로 보내지 않는다 */
   await p7.emulateMedia({ reducedMotion: 'reduce' }); await p7.waitForTimeout(2600);
   var dt = await p7.evaluate(function () { return new Promise(function (res) { var g = document.getElementById('btn-go'); g.click(); setTimeout(function () { g.click(); }, 110);
     setTimeout(function () { res({ away: g.classList.contains('away'), running: APP.state.trips.filter(function (t) { return t.status === 'running'; }).length }); }, 450); }); });
