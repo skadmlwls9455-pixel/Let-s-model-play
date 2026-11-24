@@ -7415,10 +7415,25 @@ async function bootCrawl(browser) {
     ok(Math.abs(b.cw - 56 * b.u) < 0.02 && Math.abs(b.ch - 39 * b.u) < 0.02 && (V[2] !== 1 || V[0] !== 1280 || b.u === 4), '11-18 로딩 문어 ' + tag + ': 크기 56u × 39u (u ' + b.u.toFixed(3) + ' CSS px = 기기 ' + b.U + ' px · ' + b.cw.toFixed(2) + '×' + b.ch.toFixed(2) + ')');
     ok(Math.abs(mv - 26) <= 2.6, '11-18 로딩 문어 ' + tag + ': 0.5 초에 아트 ' + mv.toFixed(1) + ' px 오른쪽 (52 px/초 ±10 %)');
     ok([b.a0.x, b.a5.x, b.a0.y, b.a0.w, b.a0.h].every(function (v) { return whole(v, b.dpr); }), '11-18 로딩 문어 ' + tag + ': 자리 · 크기가 기기 px 정수 (' + [b.a0.x, b.a5.x, b.a0.w].map(function (v) { return (v * b.dpr).toFixed(2); }).join(' · ') + ')');
-    if (V[0] === 360) {   /* 최소 1.0 초: booted 를 일찍 붙여도 boot-min 전엔 덮개가 그대로 */
-      var mc = await p.evaluate(function () { return new Promise(function (res) { var t0 = performance.now(); document.documentElement.classList.add('booted'); var d = getComputedStyle(document.getElementById('boot')).display, min = document.documentElement.classList.contains('boot-min');
-        (function w() { if (getComputedStyle(document.getElementById('boot')).display === 'none') res({ early: d, min: min, at: performance.now() - t0 }); else setTimeout(w, 20); })(); }); });
-      ok(mc.early !== 'none' && mc.at < 1200, '11-18 로딩 최소 1.0 초: 일찍 온 booted 에도 덮개가 남았다가 boot-min 과 함께 걷힘 (' + JSON.stringify(mc) + ')');
+    if (V[0] === 360) {   /* 최소 1.0 초: booted 를 일찍 붙여도 boot-min 전엔 덮개가 그대로.
+        11-24: booted 는 새 쪽에서 #boot 가 생기는 순간 붙인다 (MutationObserver) — 예전엔 'load' · 문어 재기 뒤에 붙여서, CI 러너가 느린 날엔 이미 1 초가 지나 boot-min 이 붙은 뒤였다 (CI d5e0582 스모크 Z: min true · early none) */
+      var pm = await c.newPage(); await pm.route(/\/js\/app\.js$/, holdApp);
+      await pm.addInitScript(function () {
+        var done = false;
+        function go() {
+          var b = document.getElementById('boot'); if (done || !b) return; done = true;
+          var de = document.documentElement, t0 = performance.now(), min = de.classList.contains('boot-min');
+          de.classList.add('booted');
+          var d = getComputedStyle(b).display;
+          (function w() { if (getComputedStyle(b).display === 'none') window.__bootMin = { early: d, min: min, at: performance.now() - t0 }; else setTimeout(w, 20); })();
+        }
+        new MutationObserver(function (m, o) { go(); if (done) o.disconnect(); }).observe(document, { childList: true, subtree: true });
+      });
+      await pm.goto(INDEX + '?dev=0&intro=0', { waitUntil: 'commit' });
+      await pm.waitForFunction(function () { return !!window.__bootMin; }, null, { timeout: 8000 }).catch(function () {});
+      var mc = await pm.evaluate(function () { return window.__bootMin || null; });
+      await pm.close();
+      ok(!!mc && !mc.min && mc.early !== 'none' && mc.at < 1200, '11-18 로딩 최소 1.0 초: 일찍 온 booted 에도 덮개가 남았다가 boot-min 과 함께 걷힘 (' + JSON.stringify(mc) + ')');
     }
     await c.close();
   }
