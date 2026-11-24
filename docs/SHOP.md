@@ -42,11 +42,12 @@
 - `닫기` · Esc · 카드 밖 톡 · 방을 나감 → 담은 것은 버린다 (조개는 안 나간다). 닫으면 포커스는 계산대 (의자) 단추로.
 - 다른 탭의 저장 · 날 바뀜: 담은 것은 두고 조개 · 가짐 · 남은 수만 새로 (담은 수는 남은 수에 맞춘다). 영수증 동안에는 다시 그리지 않는다.
 - 두 글꼴 16px 바닥 · 누를 것 44px · 줄만 굴러가고 머리 · 단추는 늘 보인다 (320 폭은 `−` `+` 를 아랫줄로, 가로 화면은 상태 줄과 큰 단추 사이 높이까지).
-- 부품 쪽 고리: `listOpen({ id, title, host: 'card' | 요소, anchor, items(), buy(lines) → { got, paid }, buyText, onChange, onPick(x), onShort(x | null, 모자란 수), onDone(res, paid), onClose, after })`.
+- 부품 쪽 고리: `listOpen({ id, title, host: 'card' | 요소, anchor, items(), buy(lines) → { got, paid }, buyText, seeMe, onChange, onPick(x), onShort(x | null, 모자란 수), onDone(res, paid), onClose, after })`.
 
 ## 미용실 (11-24, 방 · 의자는 건물 갈래, 새 색은 캐릭터 갈래)
 
-- 의자에 앉으면 (`ppol:salon-seat { on: true }`) 같은 목록으로 머리 모양 · 머리 색 — 갈래마다 하나. 고르면 앉은 채로 미리 입혀 봄 (`APP.tryOn` — 받는 갈래만). 지금 것은 `지금` 표시.
+- 의자에 앉으면 (`ppol:salon-seat { on: true }`) 같은 목록으로 머리 색 · 머리 모양 (색이 먼저) — 갈래마다 하나. 고르면 앉은 채로 미리 입혀 봄 (`APP.tryOn` — 받는 갈래만). 지금 것은 `지금` 표시.
+- 카드는 앉은 내 캐릭터를 덮지 않는다 (`seeMe` — 몸 위 · 아래 중 넓은 쪽 높이까지 줄이고 줄은 카드 안에서 굴러감, 그 쪽이 220px 보다 좁으면 예전 자리). 대사창은 카드를 비켜 반대쪽에 뜬다.
 - 지금 가진 모양 · 색은 공짜 `바꾸기` (영수증 `바꿨어`). 값 있는 새 색은 캐릭터 갈래의 `APP.salonCatalogue()` → `{ styles, colors: [{ id, name, hex, price, owned }] }` 와 `APP.salonBuy(kind, id)` 가 있을 때만 판다 (입을 수 있는 색만 · `salonBuy` 가 받은 뒤에 조개를 낸다 · 두 탭 기록에 값). 없으면 값 있는 줄은 목록에 없다.
 - 일어나면 (`on: false`) 목록과 미리 보기를 접고 고른 것은 버린다.
 - 미용사 소라 대본 (NPC 갈래의 열쇠): 앉을 때 `salon.sit` · 색을 고를 때 `salon.pick { color }` · 색이 모자랄 때 `salon.short { need }` · 색을 바꾼 뒤 `salon.after { shells }`. 대본이 색 이야기 (병 · 칠) 라 머리 모양만 고르거나 바꿀 때는 말하지 않는다. `salon.leave` (나갈 때) 는 방을 나가는 쪽이 부른다.

@@ -6065,6 +6065,8 @@ var APP = (function () {
     var pb = null;
     try { if (roomScene('player') && roomScene('project')) { var pi = scene.player(), ph = pi && pi.height || 1.5, f = pi && pi.at ? scene.project(pi.at[0], 0, pi.at[2]) : null, hd = f ? scene.project(pi.at[0], ph, pi.at[2]) : null;
       if (f && hd && isFinite(f.x) && isFinite(hd.y)) { var half = Math.max(24, (f.y - hd.y) * 0.45); pb = { l: f.x - half, r: f.x + half, t: hd.y - 8, b: f.y + 4 }; } } } catch (e) { pb = null; }
+    var seeMe = !!pb && c.classList.contains('see-me'), up = pb ? pb.t - 8 - top : 0, dn = pb ? bot - (pb.b + 8) : 0;   /* see-me (미용실 목록): 앉은 내 캐릭터가 보여야 미리 입혀 보기가 보인다 — 몸 위 · 아래 중 넓은 쪽 높이까지 줄인다 (줄은 카드 안에서 굴러감) */
+    if (seeMe && Math.max(up, dn) >= 220) { c.style.maxHeight = Math.floor(Math.max(up, dn)) + 'px'; hh = c.offsetHeight; Y1 = Math.max(top, bot - hh); } else seeMe = false;
     var keep = pb ? [pb] : [];   /* 덮지 않을 것: 내 캐릭터 · 조개 칩 · '밖으로' 자리 */
     ['btn-bag', 'btn-room-exit'].forEach(function (id) { var e = $(id); if (!e || e.hidden || !e.offsetParent) return; var q = e.getBoundingClientRect(); if (q.width) keep.push({ l: q.left - sr.left - 2, r: q.right - sr.left + 2, t: q.top - sr.top - 2, b: q.bottom - sr.top + 2 }); });
     var hit = function (x, y) { return keep.some(function (k) { return x < k.r && x + w > k.l && y < k.b && y + hh > k.t; }); };
@@ -6074,8 +6076,9 @@ var APP = (function () {
     if (pb) { cands.push([cx, pb.t - hh - 8], [cx, pb.b + 8], [pb.l - w - 8, (top + bot - hh) / 2], [pb.r + 8, (top + bot - hh) / 2], [pb.l - w - 8, top], [pb.r + 8, top]); }   /* 위 · 아래가 안 되면 옆 */
     var x = cands[0][0], y = cands[0][1], ok = false;
     for (var ci = 0; ci < cands.length && !ok; ci++) { var tx = cands[ci][0], ty = cands[ci][1]; if (tx < X0 - 0.5 || tx > X1 + 0.5 || ty < top - 0.5 || ty > Y1 + 0.5 || hit(tx, ty)) continue; x = tx; y = ty; ok = true; }
-    if (!ok) { x = clamp(x, X0, X1); y = clamp(ar && ar.top - sr.top - hh - 8 >= top ? ar.top - sr.top - hh - 8 : ar ? ar.bottom - sr.top + 8 : y, top, Y1); }   /* 자리가 어디에도 없으면 예전대로 (대상 위 · 아래) */
-    c.style.maxHeight = Math.max(160, bot - top) + 'px';   /* 상태 줄 아래 · 큰 단추 위 칸보다 크지 않게 (목록은 줄만 굴러간다 — 가로 화면) */
+    if (!ok && seeMe) { x = clamp(x, X0, X1); y = clamp(dn >= up ? pb.b + 8 : pb.t - hh - 8, top, Y1); }   /* see-me: 조개 칩 · '밖으로' 자리를 덮더라도 내 캐릭터는 덮지 않는다 (넓은 쪽) */
+    else if (!ok) { x = clamp(x, X0, X1); y = clamp(ar && ar.top - sr.top - hh - 8 >= top ? ar.top - sr.top - hh - 8 : ar ? ar.bottom - sr.top + 8 : y, top, Y1); }   /* 자리가 어디에도 없으면 예전대로 (대상 위 · 아래) */
+    if (!seeMe) c.style.maxHeight = Math.max(160, bot - top) + 'px';   /* 상태 줄 아래 · 큰 단추 위 칸보다 크지 않게 (목록은 줄만 굴러간다 — 가로 화면) */
     c.style.left = Math.round(x * dpr) / dpr + 'px'; c.style.top = Math.round(y * dpr) / dpr + 'px';
   }
   var ROOM_SLOT = { 'btn-mq-0': 'mq0', 'btn-mq-1': 'mq1', 'btn-mq-2': 'mq2', 'btn-mq-3': 'mq3', 'btn-room-counter': 'counter', 'btn-shelf-0': 'shelf0', 'btn-shelf-1': 'shelf1', 'btn-shelf-2': 'shelf2', 'btn-shelf-3': 'shelf3', 'btn-shelf-4': 'shelf4', 'btn-shelf-5': 'shelf5' };
@@ -6266,7 +6269,7 @@ var APP = (function () {
   }
   function listOpen(o) {
     listClose(); var box;
-    if (o.host === 'card') { box = roomCard(o.anchor, 'list', o.title, []); if (!box) return null; }
+    if (o.host === 'card') { box = roomCard(o.anchor, 'list' + (o.seeMe ? ' see-me' : ''), o.title, []); if (!box) return null; }
     else { box = o.host; if (!box) return null; }
     box.id = o.host === 'card' ? 'shop-card' : box.id; var inner = h('div', { id: 'shop-list', class: 'shop-list' }); box.appendChild(inner);
     LST = { o: o, cart: {}, at: performance.now(), msg: '', host: inner, card: o.host === 'card' ? box : null };
@@ -6338,7 +6341,7 @@ var APP = (function () {
      같은 계산대 목록 부품. 고르면 앉은 채로 미리 입혀 보고 (캐릭터 갈래의 tryOn — 받는 갈래만), '바꾸기' 를 누르기 전엔 아무것도 쓰지 않는다. 일어나면 목록과 미리 보기는 접는다.
      미용사 소라의 대본 (NPC 갈래의 열쇠, docs/NPC.md): 앉을 때 salon.sit · 색을 고를 때 salon.pick { color } · 색이 모자랄 때 salon.short { need } · 색을 바꾼 뒤 salon.after.
      색 이야기 (병 · 칠) 라 머리 모양만 고르거나 바꿀 때는 말하지 않는다. salon.leave (나갈 때) 는 방을 나가는 쪽이 부른다 */
-  var SALON_KINDS = [['hair', '머리 모양'], ['hairColor', '머리 색']];
+  var SALON_KINDS = [['hairColor', '머리 색'], ['hair', '머리 모양']];   /* 색이 먼저 (미용실에서만 파는 새 색 · 미용사 대본도 색 이야기 — 카드가 줄어도 처음 보이게) */
   function salonItems() {
     var A = window.APP, cat = null, P = playerParts(), out = [], cur = S.settings.player || {};
     try { cat = A && typeof A.salonCatalogue === 'function' ? A.salonCatalogue() : null; } catch (e) { cat = null; }
@@ -6377,7 +6380,7 @@ var APP = (function () {
   }
   function salonOpen() {
     var who = typeof NPCR !== 'undefined' && NPCR && NPCR.who ? NPCR.who('stylist') : null;
-    listOpen({ id: 'stylist', title: (who && who.name ? who.name + ' · ' : '') + '머리 모양 · 색', host: 'card', anchor: 'btn-salon-chair', buyText: '바꾸기',
+    listOpen({ id: 'stylist', title: (who && who.name ? who.name + ' · ' : '') + '머리 색 · 모양', host: 'card', anchor: 'btn-salon-chair', buyText: '바꾸기', seeMe: true,
       items: salonItems, buy: salonBuyLines,
       onChange: salonPreview,
       onPick: function (x) { if (x.group === 'hairColor') roomSayAs('stylist', 'salon.pick', { color: x.name }); },

@@ -270,9 +270,18 @@ async function roomRun(browser) {
   const sh0 = (await U(page)).shells, p0 = await page.evaluate(() => Object.assign({}, APP.state.settings.player));
   const said = () => page.evaluate(() => window.__said.slice()), saidV = k => page.evaluate(k => window.__saidV.filter(x => x[1] === k), k);
   await page.evaluate(() => { window.__said.length = 0; window.__saidV.length = 0; });
+  await page.evaluate(() => { const sc = APP.scene; sc.player = () => ({ at: [0, 0, 0], height: 1.5 }); sc.project = (x, y) => ({ x: 180, y: y > 0.5 ? 300 : 380 }); });   /* 앉은 내 캐릭터의 화면 자리 대역 (장면 안 300~380px) */
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })));
   await page.waitForTimeout(200);
   ok((await said()).join() === 'stylist|salon.sit', '미용실: 앉으면 미용사 대본 salon.sit 한 줄');
+  const seeMe = () => page.evaluate(() => {   /* 앉은 내 캐릭터 (미리 입혀 보기) 를 카드가 덮지 않는다 — 몸 위 · 아래 중 넓은 쪽이 220px 이상일 때 */
+    const sc = APP.scene, s = document.getElementById('scene').getBoundingClientRect(), c = document.getElementById('shop-card').getBoundingClientRect(), pi = sc.player(), f = sc.project(pi.at[0], 0, pi.at[2]), hd = sc.project(pi.at[0], pi.height || 1.5, pi.at[2]);
+    const vis = id => { const e = document.getElementById(id); return e && !e.hidden && e.offsetParent ? e.getBoundingClientRect() : null; }, st = vis('status'), go = vis('btn-go');
+    const top = (st && st.top <= s.top + 8 && st.bottom > s.top ? st.bottom : s.top) + 8, bot = (go && go.top > s.top && go.top < s.bottom ? go.top : s.bottom) - 8, pt = s.top + hd.y - 8, pbm = s.top + f.y + 4;
+    const room = Math.max(pt - 8 - top, bot - (pbm + 8)); return { room: Math.round(room), clear: c.bottom <= pt + 0.5 || c.top >= pbm - 0.5, cls: document.getElementById('shop-card').className };
+  });
+  const sm = await seeMe();
+  ok(/see-me/.test(sm.cls) && sm.room >= 220 && sm.clear, '미용실 카드는 앉은 내 캐릭터를 덮지 않는다 (몸 위 · 아래 중 넓은 쪽 ' + sm.room + 'px · 대역 자리라 늘 220 이상)');
   rows = await lsRows(page);
   ok(rows.some(x => /^hair:/.test(x.key)) && rows.some(x => /^hairColor:/.test(x.key)) && rows.filter(x => x.off).length === 2, '미용실: 앉으면 머리 모양 · 색 목록 (지금 것은 표시)');
   const hc = rows.find(x => /^hairColor:/.test(x.key) && !x.off).key, hs = rows.find(x => /^hair:/.test(x.key) && !x.off).key, hs2 = rows.filter(x => /^hair:/.test(x.key) && !x.off)[1].key;
