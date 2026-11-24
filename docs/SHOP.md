@@ -1,4 +1,4 @@
-# 가게 (옷가게 · 잡화점 · 바닷가 조개) — 11-21
+# 가게 (옷가게 · 잡화점 · 미용실 목록 · 바닷가 조개) — 11-21 · 11-24
 
 주인: "마을 … 옷가게, 상점 등을 만들고 거기서 옷을 살 수 있게 해줘. 매일 아이템이 달라지는 식으로."
 
@@ -9,8 +9,8 @@
 | 파일 | 하는 일 |
 |---|---|
 | `js/shop.js` (전역 `SHOP`) | 규칙. DOM · 시계 · 무작위 없음 (날짜와 목록을 받아서만 정한다) |
-| `js/app.js` `[7-S]` 블록 | 시트 (`#shop-sheet`) · 사기 · 조개 줍기 · 두 탭 |
-| `css/style.css` `[7-S]` | 선반 두 칸씩 · 그림 칸 (나머지는 재봉틀 시트의 `sew-*` 를 그대로) |
+| `js/app.js` `[7-S]` 블록 | 가게 방 · 계산대 목록 (`listOpen`) · 2D 시트 (`#shop-sheet`) · 미용실 목록 · 조개 줍기 · 두 탭 |
+| `css/style.css` `[7-S]` | 장면 안 카드 (`.shop-card`) · 목록 (`.shop-list` · `.ls-*`) · 시트의 그림 띠 (나머지는 재봉틀 시트의 `sew-*` 를 그대로) |
 | `tools/test-shop.js` · `tools/test-shop-live.js` | 규칙 (node) · 화면 (브라우저, 옷장은 대역 여섯 개) |
 
 ## 가게 방 (걸어 들어가는 가게 — 11-21 밤, 주인: "옷가게 맵을 아예 따로 만들고 마네킹에 입혀진 거를 입어보고 살 수 있는")
@@ -20,26 +20,45 @@
 | 박자 | 하는 일 (`js/app.js` `[7-S]`) | 다른 갈래의 것 (있을 때만 부른다) |
 |---|---|---|
 | 들어감 | `ppol:room` → `roomSet('clothes')`: 마네킹 넷에 오늘의 네 벌 (`roomDress`) · `shop.enter` | `scene.enterRoom` · `scene.mannequins` |
-| 마네킹 톡 | `roomTag(i)`: 그 위에 꼬리표 카드 (그림 · 이름 · 값표 · `입어 보기` / `살래`, 가진 것은 `입고 있어` 또는 `입을래`) | `#btn-mq-0..3` (멀면 먼저 걸어간다) |
+| 마네킹 톡 | `roomTag(i)`: 그 위에 꼬리표 카드 (그림 · 이름 · 값표 · `입어 보기` / 벗기 · `계산대에서 살 수 있어`, 가진 것은 `입고 있어` 또는 입기) | `#btn-mq-0..3` (멀면 먼저 걸어간다) |
 | 입어 보기 | `roomTry`: 내가 갈아입고 한 바퀴, 그 마네킹은 민몸. **아무것도 저장 안 함** · `shop.tryon` | `APP.tryOn` · `scene.playerPose('twirl')` |
 | 거울 | `roomMirror`: 가까이 → 자세 → 돌아옴 · `shop.mirror` | `#btn-room-mirror` · `scene.playerCloseup` |
-| 계산 | `roomReceipt`: 계산대 위 영수증 카드 (고른 것 · 합계 · `그만` / `살래`, 0.6 s 규칙, 모자라면 합계가 흔들림) → `roomPay`: 한 벌씩 옷장에 넣은 것만 값을 낸다 · 입은 채 · 마네킹엔 팔림 표 (내일까지) · `shop.pay` | `#btn-room-counter` · `APP.ownItem` · `APP.wear` |
+| 계산 | 계산대 · 가게 문어 톡 → 계산대 앞으로 걸어가 `shopListOpen(kind, 'card')`: 계산대 위 목록 카드 (아래 「계산대 목록」). 산 옷은 옷장에 넣은 것만 값을 낸다 · 입어 보던 옷은 입은 채 (입어 보지 않고 산 옷은 옷장에만) · 마네킹엔 팔림 표 (내일까지) · `shop.pay { shells }` | `#btn-room-counter` · `#btn-npc-clothes` · `#btn-npc-goods` · `APP.ownItem` · `APP.wear` |
 | 나감 | `roomSet(null)`: 안 산 옷은 마네킹으로, 내 옷은 제자리로 · `shop.leave` | `APP.tryOff` |
-| 잡화점 | `roomShelf(i)`: 선반 위 꼬리표 카드 → `살래` → 가방으로 폴짝 (shelf0 씨앗 · shelf1~3 그날 염료) · `goods.enter` · `shop.thanks` | `#btn-shelf-0..5` |
+| 잡화점 | 선반 그림 = 그날 파는 것 (`scene.goodsShelf(items)` — 들어갈 때 · 산 뒤 · 날이 바뀔 때). `roomShelf(i)`: 선반 톡 → 그 물건 이름 · 값 · `계산대에서 살 수 있어` (진열 차례대로, 빈 자리는 빈 선반) · `goods.enter` | `#btn-shelf-0..5` · `scene.goodsShelf` |
 
-카드는 `<dialog>` 가 아니라 `#scene` 안의 `div#shop-card` 이고, 자리는 그 단추의 화면 위치 바로 위 (자리가 없으면 아래). 카드 밖을 누르면 접힌다.
-테스트 손잡이: `APP.shopRoom` → `{ key, basket, tried, card }`.
+카드는 `<dialog>` 가 아니라 `#scene` 안의 `div#shop-card` (`data-npc-avoid` — 대사창이 비켜 선다) 이고, 자리는 그 단추의 화면 위치 위 · 아래 · 옆 중에 캐릭터 · 큰 단추 · 상태 줄을 가리지 않는 곳. 카드 밖을 누르면 접힌다 (Esc 도, 다른 창이 떠 있거나 글 칸에 쓰는 중이면 Esc 는 그쪽 것).
+테스트 손잡이: `APP.shopRoom` → `{ key, basket, tried, card }` · `APP.shopList` → `{ id, card, cart, total, msg, done }`.
 
-## 옷가게 (시트 — 방이 없을 때)
+## 계산대 목록 (`listOpen` — 11-24, 주인: "계산대로 가면 리스트업된 게 쭈르르 떠서 그걸 담는 걸로 … 조개 얼마 남았는지도 띄워주고")
+
+사는 건 이 목록에서만 (가게 방 · 2D 시트 · 미용실이 같은 부품).
+
+- 머리: 가게 문어 얼굴 · `<이름>의 계산대` · 늘 `조개 N`, 담으면 `담으면 M 남아` (`aria-live`).
+- 줄: 그림 48 · 이름 · 값표. 옷은 줄 톡 = 담기 / 빼기 (`aria-pressed`), 잡화는 `−` `+` (씨앗은 그날 남은 수까지, 염료는 9 까지 · 단추 이름에 지금 개수). 가진 것 · 다 판 것 · 지금 것은 흐린 줄 (톡하면 `이미 가지고 있어` · `오늘은 이게 다야` · `지금 이거야`).
+- 담으면 조개가 모자라는 줄은 안 담기고 값표가 흔들리며 한 줄: `조개가 N개 모자라`.
+- **담기는 아무것도 쓰지 않는다.** `사기 (합계)` 를 누른 뒤에만, 한 번 (뜬 뒤 0.6 s 안의 누름은 안 받음 · 두 번 톡해도 한 번). 값 · 가진 조개 · 가짐은 그 자리에서 다시 본다 (`SHOP.buy` 를 한 개씩 — 옷장이 안 받은 옷은 값을 안 낸다).
+- 계산 뒤 같은 카드가 영수증으로 1.5 s (`산 것 · N 냈어`, 묻는 말 · 단추 없음, 포커스는 합계 줄) → 닫힘 · 가게 문어 대본 한 줄.
+- `닫기` · Esc · 카드 밖 톡 · 방을 나감 → 담은 것은 버린다 (조개는 안 나간다). 닫으면 포커스는 계산대 (의자) 단추로.
+- 다른 탭의 저장 · 날 바뀜: 담은 것은 두고 조개 · 가짐 · 남은 수만 새로 (담은 수는 남은 수에 맞춘다). 영수증 동안에는 다시 그리지 않는다.
+- 두 글꼴 16px 바닥 · 누를 것 44px · 줄만 굴러가고 머리 · 단추는 늘 보인다 (320 폭은 `−` `+` 를 아랫줄로, 가로 화면은 상태 줄과 큰 단추 사이 높이까지).
+- 부품 쪽 고리: `listOpen({ id, title, host: 'card' | 요소, anchor, items(), buy(lines) → { got, paid }, buyText, onChange, onPick(x), onShort(x | null, 모자란 수), onDone(res, paid), onClose, after })`.
+
+## 미용실 (11-24, 방 · 의자는 건물 갈래, 새 색은 캐릭터 갈래)
+
+- 의자에 앉으면 (`ppol:salon-seat { on: true }`) 같은 목록으로 머리 모양 · 머리 색 — 갈래마다 하나. 고르면 앉은 채로 미리 입혀 봄 (`APP.tryOn` — 받는 갈래만). 지금 것은 `지금` 표시.
+- 지금 가진 모양 · 색은 공짜 `바꾸기` (영수증 `바꿨어`). 값 있는 새 색은 캐릭터 갈래의 `APP.salonCatalogue()` → `{ styles, colors: [{ id, name, hex, price, owned }] }` 와 `APP.salonBuy(kind, id)` 가 있을 때만 판다 (입을 수 있는 색만 · `salonBuy` 가 받은 뒤에 조개를 낸다 · 두 탭 기록에 값). 없으면 값 있는 줄은 목록에 없다.
+- 일어나면 (`on: false`) 목록과 미리 보기를 접고 고른 것은 버린다.
+- 미용사 소라 대본 (NPC 갈래의 열쇠): 앉을 때 `salon.sit` · 색을 고를 때 `salon.pick { color }` · 색이 모자랄 때 `salon.short { need }` · 색을 바꾼 뒤 `salon.after { shells }`. 대본이 색 이야기 (병 · 칠) 라 머리 모양만 고르거나 바꿀 때는 말하지 않는다. `salon.leave` (나갈 때) 는 방을 나가는 쪽이 부른다.
+
+## 옷가게 선반 규칙 (방 · 시트 같음)
 
 - 하루 **네 개**. 살 수 있는 옷 (옷장 목록에서 `shop: { price }` 가 있는 것, 계약 C4) 전부를 한 바퀴 = `ceil(N / 4)` 일에 한 번씩 돌린다 (N 이 40 이하면 열흘 안).
 - 바퀴마다 시드 (`shop|clothes|바퀴 번호`) 로 섞고, 값으로 반을 갈라 **싼 것 둘 · 비싼 것 둘**이 하루에 오게 엇갈려 놓는다 (오늘 살 것 하나 · 모아서 살 것 하나).
 - 전에 산 옷은 다음 차례의 아직 없는 옷으로 바뀐다. **오늘 산 옷은 체크 표시와 함께 그 자리에 남는다.** 다 가졌으면 있는 것을 표시와 함께 보여 준다.
 - 같은 날 · 같은 목록이면 어느 기기에서나 같은 선반.
-- 칸을 누르면 **내 캐릭터에 입혀 본 그림** (장면 `playerShot` — 저장도 실제 모습도 안 바뀐다) 과 `그만` / `살래`. 조개가 모자라도 입어 볼 수 있고, `살래` 에서 값이 흔들리며 모자란 수를 알린다.
-- 가진 옷 칸을 누르면 `그만` / `입을래`.
-- 묻는 동안 시트 높이는 선반 높이 그대로고, 뜬 뒤 0.6 s 안의 누름은 `살래` · `그만` · 시트 바깥 모두 받지 않는다 (같은 자리 두 번 톡).
-- 그림 (옷 · 씨앗 봉투 · 입어 보기) 은 한 점이 기기 px 의 정수배가 되게 크기를 맞춘다 (`shopSnap` — 2.625 배율에서 64px 자리의 32px 그림은 5배).
+- 2D 시트 (방이 없을 때): 그림 띠 아래에 같은 계산대 목록 (시트에서도 사는 건 목록에서만, `닫기` 는 시트를 닫는다).
+- 그림 (옷 · 씨앗 봉투 · 염료 병) 은 한 점이 기기 px 의 정수배가 되게 크기를 맞춘다 (`shopSnap` — 2.625 배율에서 64px 자리의 32px 그림은 5배).
 - 값은 옷장 목록 (캐릭터 갈래) 에서 온다. 여기에는 옷 값 표가 없다.
 
 ## 잡화점
@@ -73,7 +92,8 @@ beach = { day: 'YYYY-MM-DD' | null, picked: [자리] }
 | `#btn-shop-clothes` · `#btn-shop-goods` (건물) | `APP.openShop('clothes' | 'goods')` 로만 열린다 |
 | `APP.wardrobe` · `ownItem` · `itemThumb` (캐릭터) | 옷가게는 열리지 않는다. `itemThumb` 만 없으면 그 옷만 바꿔 입은 내 캐릭터 샷 |
 | `scene.beachShells` · `#btn-beach-shell-N` (바깥) | 조개 줍기는 `APP.beachPick(i)` 로만 |
-| `APP.npcSay(kind, key)` (NPC) | 아무 말도 없다. 있으면 시트 위에: 열 때 `shop.hello` (선반이 비었으면 `shop.none`) · 산 직후 `shop.thanks` |
+| `APP.npcSay(id, key, vars)` (NPC) | 아무 말도 없다. 있으면 방: 들어올 때 `shop.enter` · `goods.enter` · 입어 볼 때 `shop.tryon` · 거울 `shop.mirror` · 산 뒤 `shop.pay { shells }` · 나갈 때 `shop.leave`. 시트: 열 때 `shop.hello` (선반이 비었으면 `shop.none`) · 산 뒤 `shop.thanks`. 미용실은 위 「미용실」 |
+| `ppol:salon-seat` · `#btn-salon-chair` (건물) · `APP.salonCatalogue` · `salonBuy` (캐릭터) | 미용실 목록이 안 뜬다 · 값 있는 새 색은 목록에 없다 |
 | `scene.beachShellNear(i)` · `beachShellGo(i)` (바깥) | 조개 단추를 누르면 바로 줍는다. 있으면 멀 때 먼저 걸어가고 닿으면 줍는다 |
 
 ## 일주일 보기 (옷 열두 개짜리 보기 목록 — 실제 옷 · 값은 옷장 목록을 따른다)

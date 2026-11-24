@@ -22,7 +22,7 @@ function stub() {
   const owned = () => (APP.state.user && APP.state.user.owned) || {};
   APP.wardrobe = () => ({ cats: ['outfit', 'shoes', 'acc'].map(k => ({ key: k, name: k, items: P[k].map(x => ({ id: x.id, name: x.name, tags: [], shop: PR[k + ':' + x.id] ? { price: PR[k + ':' + x.id] } : null, owned: !PR[k + ':' + x.id] || !!owned()[k + ':' + x.id], worn: worn[k] === x.id })) })) });
   APP.ownItem = (c, i) => { const u = APP.state.user; if (!u.owned) u.owned = {}; u.owned[c + ':' + i] = window.__ppolTest.today; APP.save(); return true; };
-  window.__said = []; APP.npcSay = (id, key) => { window.__said.push(id + '|' + key); };
+  window.__said = []; window.__saidV = []; APP.npcSay = (id, key, vars) => { window.__said.push(id + '|' + key); window.__saidV.push([id, key, vars || {}]); };
   return Object.keys(PR).length;
 }
 async function open(browser, o) {
@@ -268,13 +268,20 @@ async function roomRun(browser) {
   await page.evaluate(() => { document.getElementById('shop-sheet').close(); APP.goInside = window.__giOld; APP.state.settings.motion = 'auto'; document.documentElement.setAttribute('data-motion', 'auto'); });
   /* 미용실 (건물 갈래의 의자 → ppol:salon-seat): 같은 목록 · 지금 가진 머리 모양 · 색은 공짜로 바꾸기 */
   const sh0 = (await U(page)).shells, p0 = await page.evaluate(() => Object.assign({}, APP.state.settings.player));
+  const said = () => page.evaluate(() => window.__said.slice()), saidV = k => page.evaluate(k => window.__saidV.filter(x => x[1] === k), k);
+  await page.evaluate(() => { window.__said.length = 0; window.__saidV.length = 0; });
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })));
   await page.waitForTimeout(200);
+  ok((await said()).join() === 'stylist|salon.sit', '미용실: 앉으면 미용사 대본 salon.sit 한 줄');
   rows = await lsRows(page);
   ok(rows.some(x => /^hair:/.test(x.key)) && rows.some(x => /^hairColor:/.test(x.key)) && rows.filter(x => x.off).length === 2, '미용실: 앉으면 머리 모양 · 색 목록 (지금 것은 표시)');
   const hc = rows.find(x => /^hairColor:/.test(x.key) && !x.off).key, hs = rows.find(x => /^hair:/.test(x.key) && !x.off).key, hs2 = rows.filter(x => /^hair:/.test(x.key) && !x.off)[1].key;
   await lsWait(page);
-  await lsAdd(page, hs); await lsAdd(page, hs2); await lsAdd(page, hc);
+  await lsAdd(page, hs); await lsAdd(page, hs2);
+  ok(!(await saidV('salon.pick')).length, '머리 모양을 고를 땐 미용사가 말하지 않는다 (대본이 색 이야기)');
+  await lsAdd(page, hc);
+  const hcName = await page.evaluate(id => APP.playerParts().hairColor.find(x => x.id === id).name, hc.split(':')[1]);
+  ok(await saidV('salon.pick').then(v => v.length === 1 && v[0][0] === 'stylist' && v[0][2].color === hcName), '색을 고르면 salon.pick { color: 색 이름 }');
   L = await LS(page);
   ok(Object.keys(L.cart).sort().join() === [hs2, hc].sort().join() && L.total === 0, '갈래마다 하나 (모양 · 색) · 값 없음');
   ok(await page.evaluate(() => { const b = document.querySelector('#shop-list .ls-buy'); return !b.disabled && /바꾸기/.test(b.textContent); }), "'바꾸기' 단추");
@@ -282,11 +289,44 @@ async function roomRun(browser) {
   const p1 = await page.evaluate(() => Object.assign({}, APP.state.settings.player));
   ok(p1.hair === hs2.split(':')[1] && p1.hairColor === hc.split(':')[1] && (await U(page)).shells === sh0, '바꾸기: 머리 모양 · 색이 바뀌고 조개는 그대로');
   ok(await page.evaluate(() => /바꿨어/.test(document.getElementById('shop-list').textContent)), "영수증 자리에 '바꿨어'");
+  ok(await said().then(a => a.includes('stylist|salon.after') && !a.some(x => /salon\.done/.test(x))), '색을 바꾼 뒤 salon.after (없는 열쇠 salon.done 은 안 부름)');
   await page.waitForTimeout(1700);
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })));
   await lsWait(page); await lsAdd(page, hs);
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: false } })));
   ok(!(await LS(page)) && (await page.evaluate(() => APP.state.settings.player.hair)) === p1.hair, '일어나면 목록을 접고 고른 것은 버린다');
+  /* 머리 모양만 바꾸기: 미용사의 바꾼 뒤 대본은 색 이야기라 말하지 않는다 */
+  await page.evaluate(() => { window.__said.length = 0; window.__saidV.length = 0; document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })); });
+  await lsWait(page); rows = await lsRows(page);
+  const hs3 = rows.find(x => /^hair:/.test(x.key) && !x.off).key;
+  await lsAdd(page, hs3); await lsBuy(page); await page.waitForTimeout(300);
+  ok((await page.evaluate(() => APP.state.settings.player.hair)) === hs3.split(':')[1] && !(await said()).includes('stylist|salon.after'), '머리 모양만 바꾸면 salon.after 없음');
+  await page.waitForTimeout(1700);
+  /* 값 있는 새 색 (캐릭터 갈래의 APP.salonCatalogue · APP.salonBuy 가 있을 때): 모자라면 소라가 salon.short { need } · 사면 값을 내고 입는다 */
+  await page.evaluate(() => {
+    const P = APP.playerParts(), cur = APP.state.settings.player; window.__sb = []; window.__scOld = [APP.salonCatalogue, APP.salonBuy];
+    window.__newC = P.hairColor.find(x => x.id !== cur.hairColor).id;
+    APP.salonCatalogue = () => ({ styles: P.hair.map(x => ({ id: x.id, name: x.name, price: 0, owned: true })), colors: P.hairColor.map(x => ({ id: x.id, name: x.name, hex: x.hex, price: x.id === window.__newC ? 7 : 0, owned: x.id !== window.__newC || window.__sb.some(b => b[1] === x.id) })) });
+    APP.salonBuy = (k, id) => { window.__sb.push([k, id]); return true; };
+    window.__said.length = 0; window.__saidV.length = 0;
+  });
+  await setShells(page, 5);
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })));
+  await lsWait(page);
+  const nk = 'hairColor:' + (await page.evaluate(() => window.__newC));
+  ok(await page.evaluate(k => { const r = document.querySelector('#shop-list .ls-item[data-key="' + k + '"]'); return !!r && /7/.test(r.querySelector('.ls-price').textContent); }, nk), '새 색 줄에 값 7');
+  await lsAdd(page, nk); await page.waitForTimeout(100);
+  ok(!Object.keys((await LS(page)).cart).length && (await lsMsg(page)) === '조개가 2개 모자라' && await saidV('salon.short').then(v => v.length === 1 && v[0][2].need === 2), '조개가 모자라면 안 담기고 salon.short { need: 2 }');
+  await setShells(page, 10); await lsAdd(page, nk); await page.waitForTimeout(100);
+  ok((await LS(page)).total === 7 && (await saidV('salon.pick')).length === 1, '조개가 되면 담김 (합계 7) · salon.pick');
+  await setShells(page, 3); await lsBuy(page); await page.waitForTimeout(150);
+  ok((await lsMsg(page)) === '조개가 4개 모자라' && !(await page.evaluate(() => window.__sb.length)) && await saidV('salon.short').then(v => v.length === 2 && v[1][2].need === 4), "'바꾸기' 때 모자라면 안 사고 salon.short { need: 4 }");
+  await setShells(page, 10); await page.waitForTimeout(300); await lsBuy(page); await page.waitForTimeout(300);
+  const ub = await U(page), pb = await page.evaluate(() => Object.assign({}, APP.state.settings.player));
+  ok(ub.shells === 3 && pb.hairColor === nk.split(':')[1] && (await page.evaluate(() => JSON.stringify(window.__sb))) === JSON.stringify([['hairColor', nk.split(':')[1]]]), '새 색: 조개 7 을 내고 (salonBuy 한 번) 그 색으로');
+  ok(await page.evaluate(() => /냈어/.test(document.getElementById('shop-list').textContent)) && await saidV('salon.after').then(v => v.length === 1 && v[0][2].shells === 7), "영수증 '7 냈어' · salon.after { shells: 7 }");
+  await page.waitForTimeout(1700);
+  await page.evaluate(() => { APP.salonCatalogue = window.__scOld[0]; APP.salonBuy = window.__scOld[1]; });
   await ctx.close();
 }
 

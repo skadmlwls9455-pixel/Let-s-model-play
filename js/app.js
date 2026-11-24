@@ -6205,10 +6205,12 @@ var APP = (function () {
   function listAdd(x, d, el) {   /* 담기 · 빼기. 담으면 조개가 모자라는 것은 안 담고 (값이 흔들리고) 한 줄 */
     if (!LST || x.mark) return; listClamp(); var n = LST.cart[x.key] | 0, max = Math.max(1, x.max | 0), nx = clamp(n + d, 0, max);
     if (nx === n) { if (d > 0 && n >= max) listSay(max === 1 && !x.qty ? '' : '오늘은 이게 다야'); return; }
-    if (nx > n) { var need = listTotal() + (nx - n) * x.price, have = shopU().shells; if (need > have) { listSay('조개가 ' + (need - have) + '개 모자라'); var t = document.querySelector('#shop-list [data-key="' + x.key + '"] .ls-price'); furnShake(t || el); return; } }
+    if (nx > n) { var need = listTotal() + (nx - n) * x.price, have = shopU().shells; if (need > have) { listSay('조개가 ' + (need - have) + '개 모자라'); var t = document.querySelector('#shop-list [data-key="' + x.key + '"] .ls-price'); furnShake(t || el); listHook('onShort', x, need - have); return; } }
     if (nx && x.group) LST.o.items().forEach(function (y) { if (y.group === x.group && y.key !== x.key) delete LST.cart[y.key]; });   /* 갈래마다 하나 (머리 모양 · 색) */
-    LST.cart[x.key] = nx; if (!nx) delete LST.cart[x.key]; listSay(''); listRender(); if (LST.o.onChange) { try { LST.o.onChange(); } catch (e) { console.warn('[app] list change', e); } }
+    LST.cart[x.key] = nx; if (!nx) delete LST.cart[x.key]; listSay(''); listRender(); listHook('onChange');
+    if (nx > n) listHook('onPick', x);
   }
+  function listHook(name, a, b) { var f = LST && LST.o[name]; if (typeof f === 'function') { try { f(a, b); } catch (e) { console.warn('[app] list ' + name, e); } } }   /* 목록을 쓰는 쪽의 고리 (onChange · onPick 담은 것 · onShort 모자란 것 · 모자란 수) */
   function listHead() {   /* 머리: 가게 문어 얼굴 · 제목 · 조개 (늘 같은 마디 — 바뀌는 글만 바꾼다) */
     var o = LST.o, who = typeof NPCR !== 'undefined' && NPCR && typeof NPCR.who === 'function' ? NPCR.who(o.id) : null, face = null;
     if (who && typeof npcFace === 'function') { try { face = h('canvas', { class: 'ls-face', 'aria-hidden': 'true' }); npcFace(face, who); } catch (e) { face = null; } }
@@ -6280,7 +6282,7 @@ var APP = (function () {
   function listBuy() {   /* '사기': 담은 것을 한 번에. 값 · 조개 · 가짐은 buy 가 다시 본다. 같은 카드가 영수증으로 1.5 s */
     if (!LST || LST.done) return; var L = LST; listClamp(); var lines = listLines(), total = listTotal(), u = shopU();
     if (!lines.length) return;
-    if (total > u.shells) { listSay('조개가 ' + (total - u.shells) + '개 모자라'); furnShake(L.host.querySelector('.ls-buy')); return; }
+    if (total > u.shells) { listSay('조개가 ' + (total - u.shells) + '개 모자라'); furnShake(L.host.querySelector('.ls-buy')); listHook('onShort', null, total - u.shells); return; }
     var had = u.shells, res = null; try { res = L.o.buy(lines); } catch (e) { console.warn('[app] list buy', e); }
     if (!res || !res.got || !res.got.length) { listSay('못 샀어'); listRender(); return; }
     L.cart = {}; L.done = true; u = shopU();
@@ -6333,7 +6335,9 @@ var APP = (function () {
   }
   /* 11-24 마을 미용실 (주인 결정: 미용사 문어 · 의자 · 거울, 앉으면 머리 모양 · 색 목록, 조개로 바꿈, 새 색은 미용실에서만 팔고 한 번 산 색은 옷장에서도 바꿈).
      의자 · 방은 건물 갈래 (앉으면 document 'ppol:salon-seat' { on }), 새 색의 값 · 가진 색 기록은 캐릭터 갈래 (APP.salonCatalogue · APP.salonBuy — 아직 없으면 지금 있는 모양 · 색만, 바꾸기는 공짜).
-     같은 계산대 목록 부품. 고르면 앉은 채로 미리 입혀 보고 (캐릭터 갈래의 tryOn — 받는 갈래만), '바꾸기' 를 누르기 전엔 아무것도 쓰지 않는다. 일어나면 목록과 미리 보기는 접는다 */
+     같은 계산대 목록 부품. 고르면 앉은 채로 미리 입혀 보고 (캐릭터 갈래의 tryOn — 받는 갈래만), '바꾸기' 를 누르기 전엔 아무것도 쓰지 않는다. 일어나면 목록과 미리 보기는 접는다.
+     미용사 소라의 대본 (NPC 갈래의 열쇠, docs/NPC.md): 앉을 때 salon.sit · 색을 고를 때 salon.pick { color } · 색이 모자랄 때 salon.short { need } · 색을 바꾼 뒤 salon.after.
+     색 이야기 (병 · 칠) 라 머리 모양만 고르거나 바꿀 때는 말하지 않는다. salon.leave (나갈 때) 는 방을 나가는 쪽이 부른다 */
   var SALON_KINDS = [['hair', '머리 모양'], ['hairColor', '머리 색']];
   function salonItems() {
     var A = window.APP, cat = null, P = playerParts(), out = [], cur = S.settings.player || {};
@@ -6359,11 +6363,12 @@ var APP = (function () {
     var u = shopU(), A = window.APP, got = [], paid0 = u.shells;
     lines.forEach(function (l) {
       var x = l.x;
-      if (x.price > 0) {   /* 새 색: 캐릭터 갈래가 값을 받아 '가짐' 에 적는다 (그 함수가 없으면 팔지 않는다) */
-        if (!(A && typeof A.salonBuy === 'function') || u.shells < x.price) return;
+      if (x.price > 0) {   /* 새 색: 캐릭터 갈래가 값을 받아 '가짐' 에 적는다 (그 함수가 없으면 · 입을 수 없는 것이면 팔지 않는다) */
+        if (!(A && typeof A.salonBuy === 'function') || u.shells < x.price || !(playerParts()[x.group] || []).some(function (q) { return q.id === x.id; })) return;
         var ok = false; try { ok = A.salonBuy(x.group, x.id) !== false; } catch (e) { console.warn('[app] salonBuy', e); }
         if (!ok) return; u = shopU(); u.shells = Math.max(0, u.shells - x.price);
         shopMineAdd({ t: 'salon', key: x.key, day: todayKey(), d: -x.price });
+        setPlayerPart(x.group, x.id); got.push({ x: x, n: 1 }); return;   /* 값을 냈으면 산 것 (입히기가 안 돼도 영수증에 — 가진 색은 옷장에서도 바꾼다) */
       }
       if (setPlayerPart(x.group, x.id)) got.push({ x: x, n: 1 });
     });
@@ -6375,10 +6380,12 @@ var APP = (function () {
     listOpen({ id: 'stylist', title: (who && who.name ? who.name + ' · ' : '') + '머리 모양 · 색', host: 'card', anchor: 'btn-salon-chair', buyText: '바꾸기',
       items: salonItems, buy: salonBuyLines,
       onChange: salonPreview,
-      onDone: function (res, paid) { salonUnpreview(); roomPose('pose'); roomSayAs('stylist', 'salon.done', { shells: paid }); },
+      onPick: function (x) { if (x.group === 'hairColor') roomSayAs('stylist', 'salon.pick', { color: x.name }); },
+      onShort: function (x, need) { if (x ? x.group === 'hairColor' : listLines().some(function (l) { return l.x.group === 'hairColor' && l.x.price > 0; })) roomSayAs('stylist', 'salon.short', { need: need }); },
+      onDone: function (res, paid) { salonUnpreview(); roomPose('pose'); if (res.got.some(function (g) { return g.x.group === 'hairColor'; })) roomSayAs('stylist', 'salon.after', { shells: paid }); },
       onClose: salonUnpreview });
   }
-  document.addEventListener('ppol:salon-seat', function (e) { var on = !!(e && e.detail && e.detail.on); if (on) salonOpen(); else if (LST && LST.o.id === 'stylist') listClose(); });
+  document.addEventListener('ppol:salon-seat', function (e) { var on = !!(e && e.detail && e.detail.on); if (on) { salonOpen(); roomSayAs('stylist', 'salon.sit'); } else if (LST && LST.o.id === 'stylist') listClose(); });   /* 목록이 먼저 뜬 뒤에 말한다 (대사창이 카드를 비켜 선다) */
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(shopInit, 0); }); else setTimeout(shopInit, 0);
 
 
