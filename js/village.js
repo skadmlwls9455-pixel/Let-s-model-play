@@ -41,7 +41,15 @@ var VILLAGE = (function () {
     seat: { s: 33.4, t: 3.95, aisle: [32.75, 3.95], face: 3 * Math.PI / 4 },   /* 내 자리: 첫 식탁의 길 쪽 걸상 — 식탁을 옆에 두고 (+t 쪽을 보고) 앉는다. 식탁 뒤에 앉히면 기본 각에서 식탁이 몸을 가렸다 */
     cup: { s: 33.4, t: 4.5 }
   };
-  function lot(id) { for (var i = 0; i < LOTS.length; i++) if (LOTS[i].id === id) return LOTS[i]; return null; }
+  /* 11-24 다섯째 바퀴 (주인: "지금 집이 비어있는데 각 문어들이 살았으면 좋겠어" · 미용실 = 내 캐릭터 머리): 새 터 넷 — 숲길 양옆 집 둘 · 광장 양옆 집 하나와 미용실.
+     문은 걷는 곳 가장자리를 본다 (lx 1.45 · lz −0.4 — 서는 자리까지 1.5 m 안). 빈 집 (LOTS 의 empty) 은 sleep-2 의 집. C6 의 터 다섯 (LOTS) 은 그대로 */
+  var HOME_LOTS = [
+    { id: 'home1', name: '숲길 집', s0: 13.4, s1: 17.4, t0: -7.2, t1: -3.4, c: [15.4, -5.3], hx: 1.3, hz: 1.4, mir: false, open: true, seg: 'homes' },
+    { id: 'home4', name: '숲길 건너 집', s0: 13.4, s1: 17.4, t0: 3.4, t1: 7.2, c: [15.4, 5.3], hx: 1.3, hz: 1.4, mir: true, open: true, seg: 'homes' },
+    { id: 'home3', name: '광장 집', s0: 39.2, s1: 43.2, t0: 8.4, t1: 12.2, c: [41.2, 10.3], hx: 1.3, hz: 1.4, mir: true, open: true, seg: 'plaza' },
+    { id: 'salon', name: '미용실', s0: 39.2, s1: 43.2, t0: -12.2, t1: -8.4, c: [41.2, -10.3], hx: 1.3, hz: 1.4, mir: false, open: true, seg: 'plaza' }
+  ];
+  function lot(id) { var A = LOTS.concat(HOME_LOTS); for (var i = 0; i < A.length; i++) if (A[i].id === id) return A[i]; return null; }
   function at(id, lx, lz) { var L = lot(id); return local(L.c, L.mir, lx, lz); }
 
   /* 누르는 자리: key · 단추 id · 이름 (aria-label) · 자리 (s, t, y) · 톡 반지름 r · stand = 내 캐릭터가 가서 서는 자리 (걷는 곳 안) */
@@ -72,6 +80,13 @@ var VILLAGE = (function () {
     { id: 'sleep-4', s: 55.3, t: 5.7, y: 0, face: 0.2, r: 0.3 }
   ];
   function npc(id) { for (var i = 0; i < NPCS.length; i++) if (NPCS[i].id === id) return NPCS[i]; return null; }
+  /* 11-24 집 문어 넷의 대화 단추 (N 이 #btn-npc-sleep-N 에 대본을 단다): 낮 자리 위 — 집에 들어가 있으면 장면이 끈다 (on). 서는 자리는 걷는 곳 안 */
+  (function () {
+    var n2 = npc('sleep-2'), st2 = [n2.s + 0.3, -2.0];
+    [['sleep-1', [19.6, -2.7]], ['sleep-2', st2], ['sleep-3', [55, -7.9]], ['sleep-4', [55.3, 4.7]]].forEach(function (q, i) {
+      var n = npc(q[0]); SPOTS.push({ key: 'npcSleep' + (i + 1), btn: 'btn-npc-sleep-' + (i + 1), label: '집 문어', npc: q[0], s: n.s, t: n.t, y: n.y + 0.35, r: 0.42, stand: q[1] });
+    });
+  })();
 
   /* 길가 소품 (s, t): 가로등 · 화분 */
   var LAMPS = [[21.6, -2.9], [21.6, 2.9], [28.9, -2.9], [28.9, 2.9], [37.3, -2.9], [38.6, 7.2], [45.4, -7.2]];   /* 길가 다섯 (앞 넷은 둘씩 마주 서서 깃발 줄을 건다) · 광장 둘 */
@@ -160,7 +175,7 @@ var VILLAGE = (function () {
   }
 
   /* 가려 숨길 덩어리 (s 범위) */
-  var SEGMENTS = [{ key: 'rowL', s0: 20, s1: 37 }, { key: 'rowR', s0: 20, s1: 38 }, { key: 'street', s0: 17, s1: 38.5 }, { key: 'plaza', s0: 37, s1: 47 }];
+  var SEGMENTS = [{ key: 'homes', s0: 11, s1: 19.5 }, { key: 'rowL', s0: 20, s1: 37 }, { key: 'rowR', s0: 20, s1: 38 }, { key: 'street', s0: 17, s1: 38.5 }, { key: 'plaza', s0: 37, s1: 47 }];
 
   /* ── 들어가는 방 (11-21 밤, 주인: "옷가게 맵을 아예 따로 만들고 마네킹에 입혀진 거를 입어보고 살 수 있는" — 계약 C10). 방 좌표 [m]: 원점 = 바닥 가운데 · 바닥 y 0 ·
      뒷벽 = −x · −z (기본 각에서 보이는 두 벽) · 문은 앞벽 (+z). half = 반폭 [hx, hz] · door = 들어와 서는 자리 · face = 그때 보는 쪽 ·
@@ -181,7 +196,7 @@ var VILLAGE = (function () {
       boxes: [[-2.95, -2.0, -1.45, -1.5], [-2.95, -0.95, -2.55, 0.35], [2.0, 0.25, 2.9, 0.95], [-1.5, 2.2, -0.1, 2.55], [-2.95, 0.6, -2.6, 1.2], [-2.95, 1.55, -1.75, 2.55]],
       circles: [[-1.2, -1.95, 0.4], [-0.15, -1.95, 0.4], [0.9, -1.95, 0.4], [1.95, -1.95, 0.4], [2.7, -2.3, 0.22], [2.7, -0.6, 0.18], [2.75, 1.4, 0.15]] },   /* … 화분 · 모자걸이 · 스탠드 등 */
     cafe: { name: '카페', half: [3.2, 2.6], wallH: 2.2, door: [0.5, 2.0], face: Math.PI, lights: [[0.9, 1.9, -0.9], [-1.2, 1.9, 0.8]],
-      slots: { keeper: [0.2, 0.3, -2.25, 0], menu: [-1.2, 1.35, -2.54, 0],   /* 카페 문어는 내주는 자리 바로 뒤 (문에서 화면에 든다) */ pickup: [0.55, 0.58, -1.75, 0], counter: [1.3, 0.56, -1.75, 0], table: [-1.6, 0.46, 0.3, 0], seat: [-0.88, 0.3, 0.3, -HP], aisle: [-0.88, 0, 0.95, Math.PI],
+      slots: { keeper: [0.2, 0.3, -2.25, Math.PI / 5], menu: [-1.2, 1.35, -2.54, 0],   /* 카페 문어는 내주는 자리 바로 뒤 (문에서 화면에 든다) */ pickup: [0.55, 0.58, -1.75, 0], counter: [1.3, 0.56, -1.75, 0], table: [-1.6, 0.46, 0.3, 0], seat: [-0.88, 0.3, 0.3, -HP], aisle: [-0.88, 0, 0.95, Math.PI],
         table1: [1.9, 0.46, 0.3, 0], table2: [2.45, 0.46, 1.7, 0], nap: [2.45, 0.3, 1.05, 0], turntable: [-2.82, 0.8, 1.55, HP], lp: [-2.82, 0.45, 0.6, HP], exit: [0.5, 0, 2.45, 0] },
       spots: [
         { key: 'cafeMenu', btn: 'btn-cafe-menu', label: '차림판', x: -1.2, y: 1.35, z: -2.5, r: 0.55, stand: [-1.2, -1.4] },
@@ -193,7 +208,7 @@ var VILLAGE = (function () {
       boxes: [[-0.2, -2.0, 3.15, -1.5], [-3.15, -0.25, -2.6, 2.2]],
       circles: [[-1.6, 0.3, 0.36], [1.9, 0.3, 0.36], [2.45, 1.7, 0.36], [-0.88, 0.3, 0.16], [-2.2, 0.3, 0.16], [1.9, -0.4, 0.16], [2.62, 0.3, 0.16], [2.45, 1.05, 0.16], [-2.85, -2.25, 0.25], [-2.85, -0.05, 0.2]] },
     goods: { name: '잡화점', half: [2.6, 2.4], wallH: 2.2, door: [1.9, 1.8],   /* 문은 앞벽 오른쪽 (들어서면 계산대의 문어가 화면에 든다) */ face: Math.PI, lights: [[-0.4, 1.9, -0.4], [1.2, 1.9, 0.6]],
-      slots: { keeper: [0.45, 0.3, -2.05, 0], counter: [0.75, 0.56, -1.55, 0], scale: [1.05, 0.58, -1.55, 0], exit: [1.9, 0, 2.25, 0],   /* 11-22 리드 검토: 계산대와 문어를 뒷벽 가운데로 (오른쪽 끝이면 360 화면 가장자리에 걸렸다) — 셋째 선반은 오른쪽으로 */
+      slots: { keeper: [0.45, 0.44, -2.05, Math.PI / 5], counter: [0.75, 0.56, -1.55, 0], scale: [1.25, 0.58, -1.55, 0], exit: [1.9, 0, 2.25, 0],   /* 11-22 리드 검토: 계산대와 문어를 뒷벽 가운데로 (오른쪽 끝이면 360 화면 가장자리에 걸렸다) — 셋째 선반은 오른쪽으로 */
         shelf0: [-1.75, 0, -2.2, 0], shelf1: [-0.7, 0, -2.2, 0], shelf2: [1.95, 0, -2.2, 0], shelf3: [-2.4, 0, -0.95, HP], shelf4: [-2.4, 0, 0.1, HP], shelf5: [-2.4, 0, 1.15, HP] },
       spots: shelfSpots().concat([
         { key: 'roomCounter', btn: 'btn-room-counter', label: '계산대', x: 1.05, y: 0.7, z: -1.55, r: 0.4, stand: [1.05, -0.85] },
@@ -214,14 +229,44 @@ var VILLAGE = (function () {
       boxes: [[-2.3, -2.95, -0.5, -1.55], [0.5, -2.95, 2.3, -1.55], [1.9, -1.15, 2.4, 1.05], [-3.3, -1.1, -2.85, 0.35], [-2.5, -1.1, -2.05, 0.35], [-3.45, 1.15, -2.7, 2.05], [-2.65, 2.5, -1.3, 2.85]],   /* … 무대 뒤 옷걸이 · 가림막 */
       circles: [[-1.25, -1.3, 0.14], [1.25, -1.3, 0.14], [2.75, -0.75, 0.2], [2.75, -0.05, 0.2], [2.75, 0.65, 0.2], [-3.22, 2.45, 0.22], [3.15, 1.6, 0.22]] }
   };
+  /* 11-24 다섯째 바퀴: 문어 집 넷 (한 틀 — 침대 뒤 왼쪽 · 식탁과 걸상 둘 · 뒷벽 창 · 깔개 · 오른쪽 벽의 '그 문어의 일' 자리) · 미용실.
+     look = 그 집의 색과 일 (장면이 읽는다: wall · floor · quilt · trim · job = 'garden' | 'post' | 'shell' | 'fish'). 사는 문어 자리: table (깬 채 걸상) · bed (자는) */
+  function homeRoom(name, look, num) {
+    return { name: name, home: true, look: look, half: [2.2, 2.0], wallH: 2.2, door: [1.3, 1.4], face: Math.PI, lights: [[-0.7, 1.9, -0.3], [1.2, 1.9, 0.7]],
+      slots: { bed: [-1.45, 0.44, -1.5, HP], table: [-1.55, 0.32, 0.45, HP], tableTop: [-0.85, 0.5, 0.45, 0], job: [1.85, 0, -0.6, -HP], exit: [1.3, 0, 1.85, 0] },
+      spots: [{ key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 1.3, y: 0.5, z: 1.9, r: 0.5, stand: [1.3, 1.4] },
+        { key: 'roomResident', btn: 'btn-npc-sleep-' + num, label: '집 문어', x: -1.55, y: 0.75, z: 0.45, r: 0.42, stand: [-0.45, -0.55] }],   /* 사는 문어 (식탁 · 침대 — 장면이 따라 옮기고, 집에 없으면 끈다) */
+      boxes: [[-2.15, -1.95, -0.75, -1.05], [1.75, -1.75, 2.15, 0.45]],   /* 침대 · 일 자리 선반 (오른쪽 벽) */
+      circles: [[-0.85, 0.45, 0.42], [-1.55, 0.45, 0.17], [-0.85, 1.15, 0.17], [-1.75, 1.55, 0.2]] };   /* 식탁 · 걸상 둘 · 화분 */
+  }
+  ROOMS.home1 = homeRoom('숲길 집', { wall: 'moss', floor: 'woodL', quilt: 'cream', trim: 'woodD', job: 'post' }, 1);
+  ROOMS.home2 = homeRoom('빈 집', { wall: 'slateA', floor: 'woodB', quilt: 'rose', trim: 'slateD', job: 'fix' }, 2);
+  ROOMS.home3 = homeRoom('광장 집', { wall: 'sand', floor: 'white', quilt: 'sky', trim: 'woodA', job: 'shell' }, 3);
+  ROOMS.home4 = homeRoom('숲길 건너 집', { wall: 'blueD', floor: 'woodA', quilt: 'yellow', trim: 'woodD', job: 'fish' }, 4);
+  /* 미용실: 뒷벽 가운데 큰 거울과 미용 의자 (거울을 본다) · 왼쪽 세면대와 수건 선반 · 오른쪽 머리 색 병 선반 · 앞 오른쪽 기다리는 벤치. 미용사 (npc 'stylist') 는 의자 오른쪽 */
+  ROOMS.salon = { name: '미용실', half: [2.4, 2.1], wallH: 2.3, door: [1.5, 1.5], face: Math.PI, lights: [[-0.3, 2.0, -0.6], [1.3, 2.0, 0.9]],
+    slots: { chair: [-0.3, 0.5, -1.15, Math.PI], aisle: [-0.3, 0, -0.35, Math.PI], mirror: [-0.3, 1.25, -2.07, 0], keeper: [0.55, 0, -1.2, -HP + 0.3], stylistWork: [0.3, 0, -1.25, -HP], sink: [-1.7, 0.8, -1.75, 0], bottles: [2.15, 1.0, -1.1, -HP], bench: [1.95, 0.4, 0.15, -HP], exit: [1.5, 0, 1.95, 0] },
+    spots: [
+      { key: 'salonChair', btn: 'btn-salon-chair', label: '미용 의자', x: -0.3, y: 0.8, z: -1.15, r: 0.45, stand: [-0.3, -0.35] },
+      { key: 'roomKeeper', btn: 'btn-npc-stylist', label: '미용사 문어', x: 0.55, y: 1.0, z: -1.2, r: 0.4, stand: [0.75, -0.3] },
+      { key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 1.5, y: 0.5, z: 2.0, r: 0.5, stand: [1.5, 1.5] }],
+    boxes: [[-0.75, -1.5, 0.15, -0.8], [-2.35, -2.05, -1.05, -1.45], [1.95, -1.6, 2.35, -0.6], [1.75, -0.45, 2.15, 0.75]],   /* 의자 · 세면대 · 병 선반 · 벤치 */
+    circles: [[0.55, -1.2, 0.28], [-2.05, 1.65, 0.22]] };   /* 미용사 · 화분 */
   var CAFE_DOOR = [36.95, 4.4];   /* 카페 입구: 덱의 앞 (광장 쪽) 가장자리에 선 문틀 — 길을 걸어 내려오면 정면으로 보인다 (리드 검토 11-22) */
   /* 바깥의 가게 문 (들어가는 단추): 건물 안 좌표 (lx, lz) 의 문 앞 → (s, t) */
   var DOORS = (function () {
     var c = at('clothes', 1.45, 0.3), g2 = at('goods', 1.45, 0.3), f = CAFE_DOOR;
+    function homeDoor(key, btn, label, room, lotId) {   /* 문 = 앞벽 (빈 집은 현관 마루 끝) · 서는 자리 = 걷는 곳 가장자리 (|t| 를 걷는 곳 반폭 − 0.15 로) */
+      var L = lot(lotId), d = lotId === 'empty' ? at(lotId, 2.55, -0.45) : at(lotId, 1.45, -0.4), w = Math.abs(L.c[0] - 15.4) < 3 ? 3 : L.c[0] > 37 ? 8 : 2.2, sg = L.c[1] < 0 ? -1 : 1;
+      return { key: key, btn: btn, label: label, room: room, s: d[0], t: d[1], y: 0.7, r: 0.45, stand: [d[0], sg * (w - (w < 3 ? 0.2 : 0.3))], lot: lotId };
+    }
     return [
       { key: 'inClothes', btn: 'btn-in-clothes', label: '옷가게 들어가기', room: 'clothes', s: c[0], t: c[1], y: 0.7, r: 0.45, stand: [c[0] + 0.75, -2.15] },
       { key: 'inGoods', btn: 'btn-in-goods', label: '잡화점 들어가기', room: 'goods', s: g2[0], t: g2[1], y: 0.7, r: 0.45, stand: [g2[0] + 0.75, 2.15] },
       { key: 'inCafe', btn: 'btn-in-cafe', label: '카페 들어가기', room: 'cafe', s: f[0], t: f[1], y: 1.0, r: 0.5, stand: [38.35, f[1] - 0.95] },   /* 11-24 리드 검토: 나오면 무대 뒤틀의 왼쪽 기둥 (t 4.4) · 깃발 줄이 몸 앞에 걸리지 않게 왼쪽에 선다 */
+      homeDoor('inHome1', 'btn-in-home-1', '숲길 집 들어가기', 'home1', 'home1'), homeDoor('inHome2', 'btn-in-home-2', '빈 집 들어가기', 'home2', 'empty'),
+      homeDoor('inHome3', 'btn-in-home-3', '광장 집 들어가기', 'home3', 'home3'), homeDoor('inHome4', 'btn-in-home-4', '숲길 건너 집 들어가기', 'home4', 'home4'),
+      homeDoor('inSalon', 'btn-in-salon', '미용실 들어가기', 'salon', 'salon'),
       { key: 'inHall', btn: 'btn-in-hall', label: '공연장 들어가기', room: 'hall', s: STAGE.c[0] + 2.4 * K, t: STAGE.c[1] + 1.9 * K, y: 0.9, r: 0.5, stand: [STAGE.c[0] + 3.3 * K, STAGE.c[1] + 1.0 * K] }];
   })();
   /* 광장 무대 (주말 콘테스트): 기다리는 자리 · 걷는 길 넷 · 심사 자리 셋 · 시상대 넷 — (s, t) */
@@ -232,8 +277,23 @@ var VILLAGE = (function () {
   var PLAZA_SHOW = (function () { var c = STAGE.c, K2 = Math.SQRT1_2, P = function (dx, dz) { return [c[0] + (dx + dz) * K2, c[1] + (dx - dz) * K2]; }; return { poster: P(-2.0, 0.6), door: P(2.15, 0.25), doorStand: P(2.15, 1.15) }; })();   /* 광장: 포스터 판 · 공연장으로 들어가는 막 드리운 문 (무대 오른쪽) */
   var EXTRA = ['judge0', 'judge1', 'judge2', 'rival0', 'rival1', 'rival2'];   /* 콘테스트 때만 서는 문어 (npcSet 에 올 수 있는 id — 자리는 SHOW, npcPlace 로 옮긴다) */
 
+  /* 문어 집과 시간표 (11-24 주인 결정): 낮 (7 – 17 시) 은 밖 — 지금의 잠든 자리 (NPCS) · 저녁 (17 – 21 시) 은 집 안 식탁 걸상 · 밤 (21 – 7 시) 은 집 안 침대.
+     장면의 npcSet 은 sleep-1 ~ 4 에 room · slot 이 없으면 이 시간표를 장면의 시각으로 쓴다. 집에 없을 때 문은 잠기고 '지금은 ○○에 있어' (dayName — 사실만) */
+  var HOMES = {
+    'sleep-1': { room: 'home1', door: 'inHome1', dayName: '마을 문 벤치' },
+    'sleep-2': { room: 'home2', door: 'inHome2', dayName: '집 앞 마루' },
+    'sleep-3': { room: 'home3', door: 'inHome3', dayName: '바닷가 바위' },
+    'sleep-4': { room: 'home4', door: 'inHome4', dayName: '부두' }
+  };
+  function where(id, hour) {   /* → { home: false } (밖, NPCS 자리) | { home: true, room, slot, pose } */
+    var H = HOMES[id]; if (!H) return null; var h = ((+hour % 24) + 24) % 24;
+    if (h >= 7 && h < 17) return { home: false, dayName: H.dayName };
+    return h < 21 && h >= 17 ? { home: true, room: H.room, slot: 'table', pose: 'sit' } : { home: true, room: H.room, slot: 'bed', pose: 'sleep' };
+  }
+  function homeOf(room) { var o = null; Object.keys(HOMES).forEach(function (id) { if (HOMES[id].room === room) o = id; }); return o; }
+  function lockedLine(id) { var H = HOMES[id]; return H ? '문이 잠겨 있어. 지금은 ' + H.dayName + '에 있어.' : ''; }   /* 11-24 리드: 집 목소리 반말 (-어) 로 맞춤 */
   var HATS = ['none', 'beret', 'apron', 'cap'], POSES = ['stand', 'sleep'];
   return { xz: xz, st: st, local: local, at: at, lot: lot, spot: spot, npc: npc, inWalk: inWalk,
-    WALK: WALK, LOTS: LOTS, DECK: DECK, STALL: STALL, STAGE: STAGE, PLAZA: PLAZA, CAFE: CAFE, SPOTS: SPOTS, NPCS: NPCS, LAMPS: LAMPS, NLAMP: NLAMP, POTS: POTS, BOARD: BOARD, CIRCLES: CIRCLES, BOXES: BOXES, BENCH: BENCH, route: route, ROOMS: ROOMS, DOORS: DOORS, CAFE_DOOR: CAFE_DOOR, SHOW: SHOW, PLAZA_SHOW: PLAZA_SHOW, EXTRA: EXTRA, SEGMENTS: SEGMENTS, HATS: HATS, POSES: POSES };
+    WALK: WALK, LOTS: LOTS, DECK: DECK, STALL: STALL, STAGE: STAGE, PLAZA: PLAZA, CAFE: CAFE, SPOTS: SPOTS, NPCS: NPCS, LAMPS: LAMPS, NLAMP: NLAMP, POTS: POTS, BOARD: BOARD, CIRCLES: CIRCLES, BOXES: BOXES, BENCH: BENCH, route: route, ROOMS: ROOMS, HOME_LOTS: HOME_LOTS, HOMES: HOMES, where: where, homeOf: homeOf, lockedLine: lockedLine, DOORS: DOORS, CAFE_DOOR: CAFE_DOOR, SHOW: SHOW, PLAZA_SHOW: PLAZA_SHOW, EXTRA: EXTRA, SEGMENTS: SEGMENTS, HATS: HATS, POSES: POSES };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = VILLAGE;

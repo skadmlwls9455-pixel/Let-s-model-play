@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /* tools/test-cook-book-live.js -- round 7 (11-21): the recipe book, the five book dishes and the end buttons in a real
  * browser (Playwright, Chromium).   NODE_PATH=$(npm root -g) node tools/test-cook-book-live.js
- * B1 the book is the first screen: zero visible characters, names in aria-labels, no run and no pot yet; tabs, arrow
+ * B1 the book is the first screen: 11-24 r5 the page shows only the dish, its name and its ingredients (words in
+ *    .ck-bk-words, nothing else visible), names in aria-labels, no run and no pot yet; tabs, arrow
  *    keys and a sideways drag turn the page; the first-time hand shows once.
  * B2 locked dishes (a host with no ctx: the three free ones): a touch only shakes; setCtx; standalone = all open.
  * B3 touching the dish picture starts it; a pot with a finished step skips the book on the next open, an empty pot does not;
@@ -11,6 +12,8 @@
  * B5 every book dish by keyboard only (Enter on the chip), ending on the end buttons.
  * B6 the end buttons: sizes, gap, the 900 ms guard, 'serve' with the mode, close without serve, canCall false.
  * B7 the embed: 'result' once, 'ctx' in, 'serve' then 'close' out.
+ * B9 (11-24 r5) gestures, not buttons: the chip unseen and untouchable on touch (kept for the keyboard), one sticker cue a
+ *    dish (the plate), the plate's drawn places (drag the dish onto the table), the easier judgement after 15 s.
  * B8 layout at four sizes: boxes on screen, tabs outside nothing, stickers larger; reduced motion.
  */
 'use strict';
@@ -23,7 +26,7 @@ function js(o) { return JSON.stringify(o); }
 var NEW = ['jeon2', 'gyeran', 'jumeokbap2', 'kkochi2', 'cake'];
 var NAMES = { jeon2: '해초전', gyeran: '계란말이', jumeokbap2: '주먹밥', kkochi2: '과일 꼬치', cake: '딸기 케이크' };
 var REC = function () {   /* every frame: what shows, and whether the dialog has any visible character or a title */
-  window.__bk = { rows: [], txt: 0, titles: 0, err: 0, res: [], serve: [], close: [] };
+  window.__bk = { rows: [], txt: 0, titles: 0, err: 0, res: [], serve: [], close: [], wordsOff: 0 };
   window.AUDIO = { on: function () {}, init: function () {} };
   function tick() {
     try {
@@ -31,6 +34,8 @@ var REC = function () {   /* every frame: what shows, and whether the dialog has
         var l = COOK.live(), d = document.getElementById('cook-dlg');
         if (d && d.open) {
           var c = d.cloneNode(true), s = c.querySelector('.ck-say'); if (s) s.remove();
+          /* 11-24 r5: the book page's words (the dish's name, its ingredients) are the one place with text: counted apart */
+          var bw = c.querySelector('.ck-bk-words'); if (bw) { if (bw.textContent && l.screen !== 'book') window.__bk.wordsOff++; bw.remove(); }
           if ((c.textContent || '').replace(/\s+/g, '')) window.__bk.txt++;
           window.__bk.titles += d.querySelectorAll('[title]').length;
         }
@@ -114,10 +119,18 @@ async function gesture(page) {
       return { label: d.getAttribute('aria-label'), tabs: tabs.map(function (t) { return [t.getAttribute('aria-label'), t.getAttribute('aria-pressed'), box(t)]; }), go: [go.getAttribute('aria-label'), box(go)],
         verbHidden: d.querySelector('.ck-verb').hidden, endHidden: d.querySelector('.ck-call').hidden && d.querySelector('.ck-table').hidden, strip: !!d.querySelector('.ck-strip'), cols: Object.keys(cols).length, closeLabel: d.querySelector('.ck-close').getAttribute('aria-label') };
     });
-    check(r.label === '요리 수첩' && js(r.tabs.map(function (t) { return t[0]; })) === js(NEW.map(function (id) { return NAMES[id]; })) && r.go[0] === '해초전' && r.closeLabel === '닫기', 'B1 names live in aria-labels (요리 수첩, the five dishes, 닫기)');
+    check(r.label === '요리 수첩' && js(r.tabs.map(function (t) { return t[0]; })) === js(NEW.map(function (id) { return NAMES[id]; })) && r.go[0].indexOf('해초전') === 0 && r.closeLabel === '닫기', 'B1 names live in aria-labels (요리 수첩, the five dishes, 닫기)');
     check(r.tabs[0][1] === 'true' && r.tabs[1][1] === 'false', 'B1 the shown dish\'s tab is pressed');
     check(r.verbHidden && r.endHidden && !r.strip, 'B1 no chip, no end buttons, no step strip');
     check(r.cols > 12, 'B1 the page is painted (' + r.cols + ' colours sampled)');
+    var WORDS7 = { jeon2: ['해초전', '밀가루', '물', '해초', '기름'], gyeran: ['계란말이', '달걀 3개', '소금', '기름'], cake: ['딸기 케이크'] };
+    var ww = await T.page.evaluate(function () { return [].map.call(document.querySelectorAll('.ck-bk-w'), function (e) { var q = e.getBoundingClientRect(); return [e.textContent, q.left, q.top, q.width, q.height, e.closest('[aria-hidden]') ? 1 : 0]; }); });
+    check(js(ww.map(function (x) { return x[0]; })) === js(WORDS7.jeon2), 'B1 r5: the first page shows the dish name and its ingredients only (' + ww.map(function (x) { return x[0]; }).join(' · ') + ')');
+    check(ww.every(function (x) { return x[5] === 1 && x[1] >= 0 && x[1] + x[3] <= 360 && x[4] > 0; }), 'B1 r5: the words are aria-hidden (the dish button says them) and on screen');
+    var lab = await T.page.evaluate(function () { return document.querySelector('.ck-bk-go').getAttribute('aria-label'); });
+    check(lab === '해초전. 밀가루, 물, 해초, 기름', 'B1 r5: the dish button reads the name and the ingredients (' + lab + ')');
+    var tabTop = await T.page.evaluate(function () { return document.querySelector('.ck-bk-tab').getBoundingClientRect().top; });
+    check(ww.every(function (x) { return x[2] + x[4] <= tabTop + 0.5; }), 'B1 r5: every word ends above the bookmark tabs');
     check(r.tabs.every(function (t) { return t[2][2] >= 44 && t[2][3] >= 44 && t[2][0] >= 0 && t[2][0] + t[2][2] <= 360; }) && r.go[1][2] >= 200 && r.go[1][3] >= 150, 'B1 touch boxes: tabs at least 44 px, the dish picture large');
     check(l.hint === 'book', 'B1 the first-time hand is on the dish picture');
     await T.page.mouse.click(r.tabs[2][2][0] + 30, r.tabs[2][2][1] + 30);
@@ -130,7 +143,7 @@ async function gesture(page) {
     await T.page.mouse.move(120, 300); await T.page.mouse.down(); await T.page.mouse.move(250, 300); await T.page.mouse.up();
     await T.page.mouse.move(120, 300); await T.page.mouse.down(); await T.page.mouse.move(250, 300); await T.page.mouse.up();
     l = await live(T.page); check(l.book.id === 'jeon2', 'B1 drags to the right stop at the first dish');
-    s = await bk(T.page); check(s.txt === 0 && s.titles === 0 && s.err === 0, 'B1 zero visible characters and no title on every frame of the book');
+    s = await bk(T.page); check(s.txt === 0 && s.titles === 0 && s.err === 0 && s.wordsOff === 0, 'B1 nothing visible but the page\'s words, and no title, on every frame of the book');
     await T.page.keyboard.press('Escape'); await T.page.waitForTimeout(100);
     l = await live(T.page); check(l.screen === 'closed', 'B1 Escape closes the book');
     check(T.errs.length === 0, 'B1 no console errors ' + js(T.errs));
@@ -167,7 +180,7 @@ async function gesture(page) {
     await waitStep(T.page, 0); await gesture(T.page); await waitStep(T.page, 1);
     s = await store(T.page); check(s.pot && s.pot.si === 1 && s.pot.looks.length === 1 && s.potOld === undefined, 'B3 the pot holds the finished step (and the same pot went on, nothing moved to potOld)');
     await T.page.reload(); await T.page.waitForFunction(function () { return window.COOK && COOK.live().screen !== 'closed'; });
-    l = await live(T.page); check(l.screen === 'step' && l.recipe === 'jeon2' && l.si === 1 && l.kind === 'stir', 'B3 a pot with a finished step resumes straight into cooking (the book is skipped)');
+    l = await live(T.page); check(l.screen === 'step' && l.recipe === 'jeon2' && l.si === 1 && l.kind === 'stir', 'B3 a pot with a finished step resumes straight into cooking (the book is skipped) ' + js([l.screen, l.recipe, l.si, l.kind]));
     await T.ctx.close();
     T = await open(b, '?recipe=gyeran'); l = await live(T.page);
     check(l.screen === 'step' && l.recipe === 'gyeran' && l.kind === 'tap', 'B3 an asked-for recipe starts at once'); await T.ctx.close();
@@ -204,7 +217,7 @@ async function gesture(page) {
       await T.page.waitForFunction(function () { var q = COOK.live(); return q.screen === 'reveal' && q.chip && !q.slide; }, null, { timeout: 8000 }).catch(function () {});
       l = await live(T.page); s = await bk(T.page); var st2 = await store(T.page);
       check(l.screen === 'reveal' && l.done && l.end.table && l.end.call, 'B4 ' + id + ': the plate with both end buttons');
-      check(s.txt === 0 && s.titles === 0 && s.err === 0, 'B4 ' + id + ': zero visible characters on every frame');
+      check(s.txt === 0 && s.titles === 0 && s.err === 0 && s.wordsOff === 0, 'B4 ' + id + ': zero visible characters on every cooking frame (the book\'s words are gone once a dish starts)');
       check(s.res.length === 1 && st2.pot === null && st2.book[0].recipe === id && st2.book[0].look.v === 2, 'B4 ' + id + ': one result, the pot cleared, a notebook line with a v 2 look');
       check(s.rows.filter(function (x) { return />/.test(x); }).length >= 1 && l.stats.slides >= 2, 'B4 ' + id + ': stations slide (' + l.stats.slides + ' slides)');
       check(l.err === 0 && T.errs.length === 0, 'B4 ' + id + ': no errors ' + js(T.errs));
@@ -220,7 +233,7 @@ async function gesture(page) {
       r = await T.page.evaluate(function () { var g = document.querySelector('.ck-bk-go'); g.focus(); return g.getAttribute('aria-label'); });
       await T.page.keyboard.press('Enter');
       l = await live(T.page);
-      check(r === NAMES[NEW[di]] && l.screen === 'step' && l.recipe === NEW[di], 'B5 ' + NEW[di] + ': arrows and Enter on the dish picture start it');
+      check(typeof r === 'string' && r.indexOf(NAMES[NEW[di]] + '. ') === 0 && l.screen === 'step' && l.recipe === NEW[di], 'B5 ' + NEW[di] + ': arrows and Enter on the dish picture start it');
       check(await T.page.evaluate(function () { return document.activeElement === document.querySelector('.ck-verb') && document.getElementById('cook-dlg').classList.contains('ck-kbd'); }), 'B5 ' + NEW[di] + ': by key the chip has the focus and rings show');
       var labels = {};
       for (k = 0; k < 60; k++) {
@@ -337,9 +350,12 @@ async function gesture(page) {
       check(Math.abs(r.cv[0] - Math.round(r.cv[0])) < 1e-6 && Math.abs(r.cv[1] - Math.round(r.cv[1])) < 1e-6 && Math.abs(r.view.css * r.dpr - Math.round(r.view.css * r.dpr)) < 1e-6, 'B8 ' + tag + ': one art px is a whole number of device px, the canvas a whole number of CSS px');
       await T.page.evaluate(function () { COOK.pick('jeon2'); });
       await T.page.waitForTimeout(400);
+      /* 11-24 r5: the kitchen cues a sticker only on the plate; the size and place rule is measured on one put up directly */
+      await T.page.evaluate(function () { if (window.COOK_STICKERS && COOK_STICKERS.show) COOK_STICKERS.show('thumbs', { slot: 1 }); });
+      await T.page.waitForTimeout(400);
       r = await T.page.evaluate(function () { var s = document.querySelector('.ck-stick'), k = s.querySelector('.cook-sticker'), q = k ? k.getBoundingClientRect() : null, c = document.querySelector('.ck-close .ck-chip').getBoundingClientRect(), v = COOK.live().view;
         return { hidden: s.hidden, w: q ? q.width : 0, x: q ? q.left : 0, bottom: q ? q.bottom : 0, closeL: c.left, row: (36 + v.oy) * v.css, dpr: devicePixelRatio }; });
-      check(!r.hidden && r.w >= (Z[0] <= 412 && Z[1] >= 700 ? 120 : 64) && r.w <= 130 && r.x + r.w <= r.closeL && r.bottom + 8 <= r.row + 0.5, 'B8 ' + tag + ': the pick sticker shows, ' + r.w.toFixed(1) + ' CSS px (tall phones: 96 or 85 before; short ones: hidden before), clear of the close chip, ending 8 px above stage row 36');
+      check(!r.hidden && r.w >= (Z[0] <= 412 && Z[1] >= 700 ? 120 : 64) && r.w <= 130 && r.x + r.w <= r.closeL && r.bottom + 8 <= r.row + 0.5, 'B8 ' + tag + ': a sticker shows, ' + r.w.toFixed(1) + ' CSS px (tall phones: 96 or 85 before; short ones: hidden before), clear of the close chip, ending 8 px above stage row 36');
       /* Playwright's DPR emulation lays out in 1/64 CSS px, so at 2.625 the measured box is off by about 0.001 device px a
          sticker px; the real render path (--force-device-scale-factor) gives exact blocks (js/cook.js fit) */
       check(Math.abs(r.w * r.dpr / 32 - Math.round(r.w * r.dpr / 32)) < (Z[2] === 2.625 ? 0.01 : 1e-6), 'B8 ' + tag + ': a whole number of device px per sticker px (' + (r.w * r.dpr / 32) + ')');
@@ -352,6 +368,61 @@ async function gesture(page) {
     await T.page.waitForFunction(function () { var q = COOK.live(); return q.screen === 'reveal' && q.chip; }, null, { timeout: 30000 });
     l = await live(T.page); s = await bk(T.page);
     check(l.stats.slides === 0 && l.stats.shake === 0 && l.stats.parts === 0 && s.rows.every(function (x) { return !/>/.test(x); }), 'B8 reduced motion: no slide, no shake, no particles through a whole dish');
+    await T.ctx.close();
+
+    /* ---------- B9 (11-24 r5, owner: "버튼이 막 있어서 게임 같지 않다"): gestures, not buttons ---------- */
+    T = await open(b, '');
+    await T.page.evaluate(function () {   /* count what reaches the stickers */
+      window.__cues = []; var S = window.COOK_STICKERS, c0 = S.cue; S.cue = function (act, d) { window.__cues.push(act); return c0.apply(S, arguments); };
+    });
+    await T.page.evaluate(function () { COOK.pick('gyeran'); });
+    await T.page.waitForTimeout(600);
+    r = await T.page.evaluate(function () {
+      var v = document.querySelector('.ck-verb'), q = v.getBoundingClientRect(), cs = getComputedStyle(v), e = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2);
+      return { op: cs.opacity, pe: cs.pointerEvents, hit: e ? (e.closest('.ck-verb') ? 'verb' : e.closest('.ck-stage') ? 'stage' : 'other') : null, label: v.getAttribute('aria-label'), focusable: v.tabIndex >= 0 && !v.hidden };
+    });
+    check(r.op === '0' && r.pe === 'none' && r.hit === 'stage' && r.label === '달걀 깨기' && r.focusable, 'B9 on touch the verb chip is unseen and untouchable (a touch there reaches the food); it keeps its name and stays in the tab order (' + js(r) + ')');
+    await T.page.waitForTimeout(6200);
+    l = await live(T.page); r = await T.page.evaluate(function () { return getComputedStyle(document.querySelector('.ck-verb')).opacity; });
+    check(l.stats.idle >= 1 && r === '0', 'B9 5 s idle brings the ghost hand, never the chip (idle hands ' + l.stats.idle + ', opacity ' + r + ')');
+    await T.page.keyboard.press('Tab'); await T.page.keyboard.press('Tab');
+    r = await T.page.evaluate(function () { var v = document.querySelector('.ck-verb'); return [document.activeElement === v, getComputedStyle(v).opacity]; });
+    check(r[0] && r[1] === '1', 'B9 by keyboard the chip is reached and seen');
+    for (var kk = 0; kk < 40; kk++) { l = await live(T.page); if (l.screen === 'reveal') break; await T.page.keyboard.press('Enter'); await T.page.waitForTimeout(330); }
+    await T.page.waitForFunction(function () { var q = COOK.live(); return q.screen === 'reveal' && q.chip; }, null, { timeout: 8000 }).catch(function () {});
+    await T.page.waitForTimeout(400);
+    r = await T.page.evaluate(function () { return window.__cues; });
+    check(js(r) === js(['done']), 'B9 a whole dish cues the reaction stickers once, at the plate (' + r.join(',') + ')');
+    r = await T.page.evaluate(function () { var c = document.querySelector('.ck-call'); return [getComputedStyle(c).opacity, document.activeElement === c]; });
+    check(r[0] === '1' && r[1], 'B9 by keyboard the plate gives the framed end buttons, the first one focused');
+    await T.page.mouse.move(5, 300); await T.page.mouse.click(5, 300);   /* a pointer press: keyboard mode off */
+    l = await live(T.page);
+    r = await T.page.evaluate(function () { var c = document.querySelector('.ck-call'), t = document.querySelector('.ck-table'); return [getComputedStyle(c).opacity, getComputedStyle(c).pointerEvents, getComputedStyle(t).opacity]; });
+    check(js(r) === js(['0', 'none', '0']) && l.spots.length === 2 && l.spots[0].m === 'call' && l.spots[1].m === 'table', 'B9 by touch the framed buttons are gone and the octopus and the table are drawn under the dish (' + js(r) + ')');
+    check(l.spots.every(function (o) { return o.x >= 24 && o.x <= 336 && o.y < 740 - 16; }) && l.dish.y < l.spots[0].y, 'B9 the two places are on screen, below the dish, inside the edge band');
+    await T.page.evaluate(function () { window.__sv = []; });
+    await T.page.mouse.move(l.dish.x, l.dish.y); await T.page.mouse.down();
+    await T.page.mouse.move(l.dish.x + 10, l.dish.y + 60, { steps: 4 }); await T.page.mouse.up(); await T.page.waitForTimeout(150);
+    l = await live(T.page);
+    check(l.screen === 'reveal' && !l.holding, 'B9 the dish let go between the places goes back; nothing is served');
+    await T.page.mouse.move(l.dish.x, l.dish.y); await T.page.mouse.down();
+    var tg = l.spots[1];
+    await T.page.mouse.move((l.dish.x + tg.x) / 2, (l.dish.y + tg.y) / 2, { steps: 4 });
+    var mid = await live(T.page);
+    await T.page.mouse.move(tg.x, tg.y, { steps: 4 }); await T.page.mouse.up(); await T.page.waitForTimeout(150);
+    l = await live(T.page); s = await store(T.page);
+    check(mid.holding && l.screen === 'closed', 'B9 the dish dragged onto the table: held on the way, then served and the kitchen closes');
+    check(s.seen.indexOf('serve') >= 0, 'B9 the first-time hand on the plate counts as seen once a dish was served');
+    check(T.errs.length === 0, 'B9 no errors ' + js(T.errs));
+    await T.ctx.close();
+    T = await open(b, '?recipe=cake');
+    for (kk = 0; kk < 6; kk++) { l = await live(T.page); if (l.si === 1 && l.phase === 'step') break; await T.page.evaluate(function () { document.querySelector('.ck-verb').click(); }); await T.page.waitForTimeout(450); }
+    await T.page.waitForFunction(function () { var q = COOK.live(); return q.si === 1 && q.phase === 'step'; }, null, { timeout: 5000 }).catch(function () {});
+    var need0 = (await live(T.page)).st.need;
+    await T.page.waitForTimeout(16000);
+    l = await live(T.page);
+    check(l.kind === 'stir' && l.st.ease === true && l.st.need < need0 && l.stats.ease === 1 && l.hint === 'idle' && l.progress === 0, 'B9 15 s without progress: the stir asks for fewer turns (' + need0 + ' -> ' + l.st.need + '), the hand shows again, nothing is skipped');
+    check(T.errs.length === 0 && l.err === 0, 'B9 no errors (ease) ' + js(T.errs));
     await T.ctx.close();
   } catch (e) { fails++; console.error('  FAIL (threw) ' + (e && e.stack || e)); }
   await b.close();

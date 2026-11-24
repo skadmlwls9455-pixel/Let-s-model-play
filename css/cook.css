@@ -67,6 +67,9 @@ html.ck-open body { overscroll-behavior: none; }
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .ck-verb[hidden] { display: none; }
 .ck-verb.ck-shown, .ck-verb:focus { opacity: 1; }
+/* 11-24 r5 (owner: too many buttons, not like a game): on touch and mouse the chip is never seen and never pressed; touches
+   go to the food under it. It is the keyboard and screen-reader path: visible in keyboard mode (.ck-kbd) */
+.ck-dlg:not(.ck-kbd) .ck-verb { opacity: 0 !important; pointer-events: none; }
 .ck-verb:active { transform: translate(var(--ck-px2, 2px), var(--ck-px2, 2px));
   box-shadow: inset 0 0 0 var(--ck-px2, 2px) #602c2c, inset calc(2 * var(--ck-px2, 2px)) calc(2 * var(--ck-px2, 2px)) 0 #ebede9,
     inset calc(-2 * var(--ck-px2, 2px)) calc(-2 * var(--ck-px2, 2px)) 0 #c09473; }
@@ -75,6 +78,9 @@ html.ck-open body { overscroll-behavior: none; }
 .ck-end { position: absolute; margin: 0; padding: 0; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .ck-end[hidden] { display: none; }
+/* 11-24 r5: when the plate screen draws its two places (the dish is dragged onto them), the framed end buttons are the
+   keyboard and screen-reader path only: unseen and untouchable outside keyboard mode */
+.ck-dlg.ck-spots:not(.ck-kbd) .ck-end { opacity: 0; pointer-events: none; }
 .ck-end:active { transform: translate(var(--ck-px2, 2px), var(--ck-px2, 2px));
   box-shadow: inset 0 0 0 var(--ck-px2, 2px) #602c2c, inset calc(2 * var(--ck-px2, 2px)) calc(2 * var(--ck-px2, 2px)) 0 #ebede9,
     inset calc(-2 * var(--ck-px2, 2px)) calc(-2 * var(--ck-px2, 2px)) 0 #c09473; }
@@ -82,6 +88,11 @@ html.ck-open body { overscroll-behavior: none; }
    no picture of their own (keys and screen readers reach the book through them) */
 .ck-bk { position: absolute; inset: 0; pointer-events: none; }
 .ck-bk[hidden] { display: none; }
+/* 11-24 r5: the book page's words, the only words in the kitchen (the dish's name, its ingredients' names) */
+.ck-bk-words { position: absolute; inset: 0; pointer-events: none; }
+.ck-bk-w { position: absolute; display: block; margin: 0; padding: 0; text-align: center; white-space: nowrap; overflow: visible;
+  color: #341c27; font-family: var(--f-meta, 'Galmuri11', sans-serif); font-size: var(--fs-m16, 16px); line-height: 1; font-synthesis: none; }
+.ck-bk-name { font-family: var(--f-ui, 'Galmuri11', sans-serif); font-size: var(--fs-u20, 20px); }
 .ck-bk button { position: absolute; box-sizing: border-box; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
   pointer-events: auto; cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .ck-bk button[hidden] { display: none; }

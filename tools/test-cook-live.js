@@ -250,7 +250,7 @@ async function L1(browser) {   /* touch: open straight into the tap step, the di
     check(st && st.pot === null && st.book.length === 1 && st.book[0].recipe === 'jeon' && JSON.stringify(st.book[0].look) === dishLook, 'L1 ' + su.tag + ': one book line with the look of the plate, no pot');
     l = await T.live();
     check(l.verb === '' && l.end.call && l.end.table && l.screen === 'reveal' && !l.hint, 'L1 ' + su.tag + ': the result shows the two end buttons (no again chip), no hand');
-    await afterSwipe(); await T.tapEl('.ck-table'); await realWait(80); await T.go(60);
+    await afterSwipe(); await T.tapCss(await spotPoint(T, 'table')); await realWait(80); await T.go(60);
     check((await T.live()).screen === 'closed', 'L1 ' + su.tag + ': a touch on the table button closes the kitchen');
     await T.page.evaluate(function () { document.getElementById('ck-door').click(); }); await T.go(60);
     l = await T.until(function (x) { return x.screen === 'step'; }, 2000, 'again');
@@ -327,7 +327,7 @@ async function L2(browser) {   /* keyboard only: Tab close -> chip, every step w
   await T.done();
 }
 
-async function L3(browser) {   /* touch: quiet chip, still in the tab order and the accessibility tree; 5 s idle shows it */
+async function L3(browser) {   /* touch: quiet chip, still in the tab order and the accessibility tree; 11-24 r5: idle never shows it on touch */
   var T = await openPage(browser, { store: null });
   await T.until(function (l) { return l.kind === 'tap'; }, 2000, 'tap');
   await T.go(700);
@@ -349,15 +349,15 @@ async function L3(browser) {   /* touch: quiet chip, still in the tab order and 
   for (var w = 0; w < 6000 && !idleSeen; w += 100) { await T.go(100); idleSeen = (await T.live()).hint === 'idle'; }
   v = await T.verb();
   check(idleSeen, 'L3: 5 s without progress -> one ghost hand');
-  check(v.opacity === '1' && v.shown, 'L3: ... and from then on the chip shows');
+  check(v.opacity === '0', 'L3: r5 ... and the chip stays unseen on touch (gestures only; the chip is the keyboard path)');
   await playTap(T);
   await T.until(function (x) { return x.kind === 'flip'; }, 3000, 'flip');
   v = await T.verb();
-  check(v.shown && v.opacity === '1', 'L3: it stays visible in the next step (until the dish ends)');
+  check(v.opacity === '0', 'L3: r5 it stays unseen in the next step too');
   await playFlip(T, 500);
   await playSlice(T);
   await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
-  await T.go(1000); await afterSwipe(); await T.tapEl('.ck-table'); await realWait(80); await T.go(60); await T.page.evaluate(function () { document.getElementById('ck-door').click(); }); await T.go(60);
+  await T.go(1000); await afterSwipe(); await T.tapCss(await spotPoint(T, 'table')); await realWait(80); await T.go(60); await T.page.evaluate(function () { document.getElementById('ck-door').click(); }); await T.go(60);
   await T.until(function (x) { return x.screen === 'step'; }, 2000, 'again');
   await T.go(700);
   v = await T.verb();
@@ -523,7 +523,7 @@ async function L6(browser) {   /* sound off is the main case: every counted inpu
     check(tail.indexOf('quiet') >= 0, 'L6: quiet on ' + label + ' (' + tail.join(',') + ')');
   }
   var n1 = await A.page.evaluate(function () { return window.__acts.length; });
-  await A.go(300); await afterSwipe(); await A.tapEl('.ck-table'); await realWait(80); await A.go(60);
+  await A.go(300); await afterSwipe(); await A.tapCss(await spotPoint(A, 'table')); await realWait(80); await A.go(60);
   n1 = await A.page.evaluate(function () { return window.__acts.length; });
   await A.page.evaluate(function () { document.getElementById('ck-door').click(); }); await A.go(900);
   var again = await A.page.evaluate(function (n) { return window.__acts.slice(n).map(function (x) { return x.p.act; }); }, n1);
@@ -569,8 +569,10 @@ async function L7(browser) {   /* reduced motion: no slide (the station changes 
   check(a === b && b === c, 'L7: ... as a still pose (no frame changes)');
   await playTap(T); await playFlip(T, 3500); await playSlice(T);
   l = await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
-  var r0 = await T.hash(); await T.go(600); var r1 = await T.hash();
-  check(r0 === r1, 'L7: the plate is at rest from its first frame (no drop, squash or shake)');
+  /* 11-24 r5: the two places to put the dish appear at 450 ms (a new still picture, not motion): rest is measured after them,
+     up to the first-time hand at 1.2 s */
+  await T.go(500); var r0 = await T.hash(); await T.go(600); var r1 = await T.hash();
+  check(r0 === r1, 'L7: the plate is at rest (no drop, squash or shake; the places do not breathe under reduced motion)');
   l = await T.live();
   check(l.look.dents.length === 9, 'L7: dents stay');
   check(l.stats.squash === 0 && l.stats.shake === 0 && l.stats.parts === 0 && l.stats.arc === 0 && l.stats.slides === 0, 'L7: no squash, shake, particles, arc or slide (' + JSON.stringify(l.stats) + ')');
@@ -743,7 +745,9 @@ async function toFlipQuiet(T) {   /* tap step by touch (the chip stays quiet), t
   await T.until(function (x) { return x.kind === 'flip' && x.phase === 'step'; }, 4000, 'flip');
   await T.go(700); await T.tap(144, 176); await T.go(1000);
 }
-async function endPoint(T) { var r = await T.rect('.ck-call'); return [r.x + r.w / 2, r.y + r.h / 2]; }   /* 11-21: the first end button on the plate */
+/* 11-24 r5: on the plate the dish goes onto a place drawn on the stage (the octopus, the table); a touch on a place works too */
+async function spotPoint(T, m) { var l = await T.live(), s = (l.spots || []).filter(function (o) { return o.m === m; })[0]; return s ? [s.x, s.y] : [0, 0]; }
+async function endPoint(T) { return spotPoint(T, 'call'); }
 async function rowPoint(T) { var r = await T.rect('.ck-verb'); return [r.x + r.w / 2, r.y + r.h / 2]; }
 
 async function L15(browser) {   /* the quiet chip: a stray touch only shows it; a flick from it still flips; a click with no
@@ -751,12 +755,12 @@ async function L15(browser) {   /* the quiet chip: a stray touch only shows it; 
   var T = await openPage(browser, { store: SEEN_ALL, q: 'seed=61' });
   await T.until(function (x) { return x.kind === 'tap' && x.phase === 'step'; }, 3000, 'tap');
   await T.go(700);
-  var rp = await rowPoint(T), v0 = await T.verb();
+  var rp = await rowPoint(T), v0 = await T.verb(), hit = await T.page.evaluate(function (p) { var e = document.elementFromPoint(p[0], p[1]); return e ? (e.closest('.ck-verb') ? 'verb' : e.closest('.ck-stage') ? 'stage' : e.className) : null; }, rp);
   await T.tapCss(rp);
   var l = await T.live(), v1 = await T.verb();
-  check(v0.opacity === '0' && v1.opacity === '1' && l.st.hits === 0, 'L15: tap step - a touch on the quiet chip shows it and counts nothing (hits ' + l.st.hits + ')');
+  check(v0.opacity === '0' && v1.opacity === '0' && hit === 'stage' && l.st.hits <= 1, 'L15: r5 tap step - a touch on the chip spot reaches the stage, never the chip, and the chip stays unseen (' + hit + ', hits ' + l.st.hits + ')');
   await T.tapCss(rp); await T.go(100);
-  check((await T.live()).st.hits === 3, 'L15: once shown, a touch on the chip presses it (one mark, 3 hits)');
+  check((await T.live()).st.hits <= 2 && (await T.verb()).opacity === '0', 'L15: r5 ... a second touch there is still not a chip press (no three hits at once)');
   check(T.errs.length === 0, 'L15: no errors (tap) ' + T.errs.join(' | '));
   await T.done();
 
@@ -765,7 +769,7 @@ async function L15(browser) {   /* the quiet chip: a stray touch only shows it; 
   check((await T.verb()).opacity === '0', 'L15: flip step after heat-on, the chip is still quiet');
   await T.tapCss(await rowPoint(T)); await T.go(300);
   l = await T.live();
-  check(l.kind === 'flip' && l.phase === 'step' && l.st.res === null && (await T.verb()).opacity === '1', 'L15: flip - a stray touch on the quiet chip never flips (the chip shows instead)');
+  check(l.kind === 'flip' && l.phase === 'step' && l.st.res === null && (await T.verb()).opacity === '0', 'L15: r5 flip - a stray touch on the chip spot never flips and the chip stays unseen');
   check(T.errs.length === 0, 'L15: no errors (stray) ' + T.errs.join(' | '));
   await T.done();
 
@@ -808,7 +812,7 @@ async function L16(browser) {   /* hints: a first demo is not wiped by presses t
   check((await T.live()).hint !== 'demo' && seen.indexOf('flip') >= 0, 'L16: after the demo has played to its end, flip counts as seen');
   for (i = 0; i < 3; i++) { await T.tap(130 + i * 6, 180); await T.go(150); }
   l = await T.live();
-  check(l.hint === 'teach' && l.stats.teach === 1 && (await T.verb()).opacity === '1', 'L16: three presses that do not flip -> the up-swipe hand once more and the chip shows');
+  check(l.hint === 'teach' && l.stats.teach === 1 && (await T.verb()).opacity === '0', 'L16: three presses that do not flip -> the up-swipe hand once more (r5: the chip stays unseen on touch)');
   for (i = 0; i < 30; i++) { await T.tap(130 + (i % 4) * 6, 180); await T.go(150); }
   check((await T.live()).stats.teach === 2, 'L16: the re-teach hand comes at most twice a step');
   check(T.errs.length === 0, 'L16: no errors (hints) ' + T.errs.join(' | '));
@@ -829,10 +833,10 @@ async function L16(browser) {   /* hints: a first demo is not wiped by presses t
   await T.tapCss(await endPoint(T));
   check((await T.live()).id === id0 && (await T.live()).screen === 'reveal', 'L16: a press on an end button before 900 ms does nothing');
   await T.tapCss(await T.pt(144, 172));   /* the plate */
-  var hand = false;
-  for (var w = 0; w < 5400; w += 200) { await T.go(200); if ((await T.live()).hint) hand = true; }
+  var hand = false, hands = {};
+  for (var w = 0; w < 5400; w += 200) { await T.go(200); var hn = (await T.live()).hint; if (hn) { hands[hn] = 1; if (hn !== 'serve') hand = true; } }
   l = await T.live();
-  check(!hand && l.screen === 'reveal' && l.id === id0, 'L16: pressing the plate does nothing, and no hand shows for 6 s (no auto-advance)');
+  check(!hand && l.screen === 'reveal' && l.id === id0, 'L16: r5 a touch on the dish does not serve it, nothing advances by itself; the only hand is the first-time one that shows where the dish goes (' + Object.keys(hands).join(',') + ')');
   await realWait(1200); await T.tapCss(await endPoint(T)); await realWait(80); await T.go(50);
   l = await T.live();
   check(l.screen === 'closed', 'L16: after 900 ms an end button closes the kitchen');
@@ -1111,15 +1115,23 @@ async function N1(browser) {
     '<iframe src="' + URL0 + '?embed=1&seed=5"></iframe>');
   var E = await openPage(browser, { store: null, url: 'file://' + wrap, settle: 1200 });
   var fr = E.page.frames().filter(function (f) { return /cook\.html/.test(f.url()); })[0], texts = [];
-  async function bodyText() { return fr.evaluate(function () { var s = document.querySelector('.ck-say'), say = s ? s.innerText : ''; return document.body.innerText.replace(say, '').trim(); }); }
+  async function bodyText(book) { return fr.evaluate(function (book) { var s = document.querySelector('.ck-say'), say = s ? s.innerText : '', w = document.querySelector('.ck-bk-words'), bw = book && w ? w.innerText : ''; return document.body.innerText.replace(say, '').replace(bw, '').trim(); }, !!book); }
+  var bookWords = '', endScreen = null;
   if (fr) {
-    texts.push(await bodyText());
+    /* 11-24 r5 (주인 "레시피 북 … 재료만 남겨줘"): 수첩 쪽만 요리 이름 · 재료 이름이 글로 뜬다 — 그 밖은 글 없음. 예전엔 수첩에서 요리를 시작하지 않아 '요리 중 · 결과' 도 수첩이었다 → 이제 요리 그림을 눌러 진짜로 시작한다 */
+    bookWords = await fr.evaluate(function () { var w = document.querySelector('.ck-bk-words'); return w ? w.innerText.trim() : ''; });
+    texts.push(await bodyText(true));
+    await fr.evaluate(function () { var g = document.querySelector('.ck-bk-go'); if (g) g.click(); });
+    await E.go(600);
     await fr.evaluate(function () { COOK.auto(true); });
     await E.go(1500); texts.push(await bodyText());
-    for (var k = 0; k < 40 && (await fr.evaluate(function () { return COOK.live().screen; })) !== 'reveal'; k++) await E.go(300);
+    for (var k = 0; k < 80 && (await fr.evaluate(function () { return COOK.live().screen; })) !== 'reveal'; k++) await E.go(300);
+    endScreen = await fr.evaluate(function () { return COOK.live().screen; });
     await E.go(1200); texts.push(await bodyText());
   }
-  check(fr && texts.length === 3 && texts.every(function (t) { return t === ''; }), 'N1 embed: the page inside the frame shows no text (open, mid-dish, result: ' + js(texts) + ')');
+  check(fr && texts.length === 3 && texts.every(function (t) { return t === ''; }), 'N1 embed: the page inside the frame shows no text (open — besides the book page\'s own words, mid-dish, result: ' + js(texts) + ')');
+  check(endScreen === 'reveal', 'N1 embed: the dish started from the book page cooks through to the plate (' + endScreen + ')');
+  check(/^해초전\s/.test(bookWords), 'N1 embed: the open book page shows the dish name and its ingredients only (' + js(bookWords) + ')');
   check(E.errs.length === 0, 'N1 embed: no errors ' + E.errs.join(' | '));
   await E.done();
 }
@@ -1283,7 +1295,7 @@ async function N6(browser) {
   check(plate.length === 0, 'N6: the plate gives nothing (round 5 check O-5: the owner named only tap, flip and slice: ' + js(plate.map(function (x) { return [x.p, Math.round(x.t - R)]; })) + ')');
   var n4 = vib.length;
   var bz = js((await T.live()).stats.buzz);
-  await T.tapCss(await (async function () { var r = await T.rect('.ck-table'); return [r.x + r.w / 2, r.y + r.h / 2]; })());   /* an end button's press itself */
+  await T.tapCss(await spotPoint(T, 'table'));   /* r5: the table place's press itself */
   await T.go(1200);
   vib = await T.page.evaluate(function () { return window.__vib.slice(); });
   check(vib.length === n4, 'N6: an end button gives nothing');

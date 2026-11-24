@@ -9,7 +9,8 @@
  * UNITS as in js/cook.js: step data is in art px on the 144 x 160 stage (food centre 72, 86); step state and pointer
  * samples are logical px (art x 2); time is integer ms on the step clock; looks are small integers.
  *
- * RECIPE  { id, v2: true, tier, at, ings: [ing ids], fx (the day effect's name, for the book page), steps: [...] }
+ * RECIPE  { id, v2: true, tier, at, ings: [ing ids], count ({ ing: n } where the book shows how many), fx (the day effect's name),
+ *   steps: [...] }
  *   v2 = looks are kept per step: COOK.lookOf(run) = { v: 2, s: [look per step], plate, band? } (band = the last flip or
  *   bake band, for the dish picture). A legacy recipe keeps its flat look.
  * STEP    { kind, station ('counter' | 'stove' | 'board'), name (WORDS.verb key: the button's aria-label), pic (the
@@ -40,6 +41,9 @@ var COOK_STEPS = (function () {
   }
 
   /* every number of the new kinds (kept out of COOK.TUNE: TUNE_HASH and every legacy pot stay as they were) */
+  /* 11-24 r5: after 15 s with no progress a kinder judgement (input 'e'). Kept OUT of NUM: NUM is hashed into every saved pot
+     (tuneText), and a half-made dish of an earlier build must still resume */
+  var EASE = freeze({ ms: 15000, stir: 0.5, pour: 0.5, rub: 0.4, swipe: 0.5, snap: 56 });
   var NUM = freeze({
     stir: { turns: 3, rMin: 8, quarter: 90 },          /* samples closer than 8 logical px to the centre do not count */
     pour: { ms: 2400, parts: 3 },                      /* about 2.4 s of holding in total */
@@ -55,7 +59,11 @@ var COOK_STEPS = (function () {
     verb: { chop: '썰기', stir: '젓기', pour: '붓기', flip: '뒤집기', heat: '불 켜기', crack: '달걀 깨기', roll: '말기', scoop: '밥 담기',
       sprinkle: '깨 뿌리기', press: '모양 잡기', wrap: '김 붙이기', wash: '씻기', thread: '꼬치에 끼우기', glaze: '시럽 입히기',
       bake: '굽기', out: '꺼내기', spread: '크림 바르기', top: '딸기 올리기' },
-    book: '요리 수첩', call: '문어 부르기', table: '식탁에 두기'
+    book: '요리 수첩', call: '문어 부르기', table: '식탁에 두기',
+    /* 11-24 r5 (owner: drop every cooking step from the recipe book, keep only the ingredients): their names on the page */
+    ing: { flour: '밀가루', water: '물', greens: '해초', oil: '기름', egg: '달걀', salt: '소금', rice: '밥', sesame: '깨', gim: '김',
+      berry: '딸기', grape: '청포도', tang: '귤', sugar: '설탕', cream: '생크림' },
+    count: '개'
   });
 
   var BOX = { cx: 72, cy: 86, w: 64, h: 48, rx: [29], ry: [19], inset: 3 };   /* the legacy food box (stage centre) */
@@ -75,7 +83,7 @@ var COOK_STEPS = (function () {
       { kind: 'pour', station: 'stove', name: 'pour', pic: 'step.pour', box: box({}), art: { type: 'pour', pan: 'round', spr: 'jeon.pan', at: [72, 86], frames: [-1, 0, 1, 2], rest: 2 } },
       { kind: 'flip', band: 3000, station: 'stove', name: 'flip', pic: 'step.flip', box: box({}), art: { type: 'flip', pan: 'round', spr: 'jeon.pan', at: [72, 86], bands: [2, 3, 4] } },
       { kind: 'slice', lines: 2, cross: true, station: 'board', name: 'chop', pic: 'step.slice', box: box({}), art: { type: 'cross', spr: 'jeon.pan', at: [72, 86], bands: [2, 3, 4] } }] },
-    { id: 'gyeran', v2: true, tier: 1, at: 'pan', fx: 'bubble', ings: ['egg', 'salt', 'oil'], steps: [
+    { id: 'gyeran', v2: true, tier: 1, at: 'pan', fx: 'bubble', ings: ['egg', 'salt', 'oil'], count: { egg: 3 }, steps: [
       crack('mix.egg'),
       stir(3, 'stir', 'step.stir', { type: 'bowl', bowl: [72, 106], mix: 'mix.egg' }, 'counter', [72, 94]),
       { kind: 'pour', station: 'stove', name: 'pour', pic: 'step.pour', box: box({}), art: { type: 'pour', pan: 'square', spr: 'gyeran.pan', at: [72, 86], frames: [-1, 0, 1, 2], rest: 3 } },
@@ -95,7 +103,7 @@ var COOK_STEPS = (function () {
       { kind: 'drag', station: 'board', name: 'thread', pic: 'step.thread', box: box({}), items: [[48, 64], [72, 60], [96, 64]], slots: [[82, 102], [94, 102], [106, 102]], order: true, zone: [30, 92, 114, 112],
         art: { type: 'thread', skewer: [72, 104], item: 'fruit.piece' } },
       stir(2, 'glaze', 'step.glaze', { type: 'glaze', pot: [72, 96], spr: 'kkochi.coat', at: [50, 80] }, 'stove', [72, 84])] },
-    { id: 'cake', v2: true, tier: 1, at: 'oven', fx: 'confetti', ings: ['egg', 'flour', 'sugar', 'cream', 'berry'], steps: [
+    { id: 'cake', v2: true, tier: 1, at: 'oven', fx: 'confetti', ings: ['egg', 'flour', 'sugar', 'cream', 'berry'], count: { egg: 3, berry: 3 }, steps: [
       crack('mix.cake'),
       stir(3, 'stir', 'step.stir', { type: 'bowl', bowl: [72, 106], mix: 'mix.cake' }, 'counter', [72, 94]),
       { kind: 'pour', station: 'counter', name: 'pour', pic: 'step.pour', box: box({}), art: { type: 'pour', pan: 'none', spr: 'tin', at: [72, 92], frames: [0, 1, 2, 3], rest: 3 } },
@@ -108,6 +116,11 @@ var COOK_STEPS = (function () {
   var NEXT = freeze({ jeon: 'jeon2', jumeokbap: 'jumeokbap2', kkochi: 'kkochi2' });
   var FREE = freeze(['jeon2', 'gyeran', 'jumeokbap2']);   /* the book's dishes that need no gift (contract C2) */
 
+  /* the words of the book page for one dish: { name, ings: [one per ingredient, with its count where given] } (null for an unknown id) */
+  function pageWords(id) {
+    var r = recipe(id); if (!r) return null;
+    return { name: WORDS.dish[id], ings: r.ings.map(function (k) { var n = r.count && r.count[k]; return WORDS.ing[k] + (n ? ' ' + n + WORDS.count : ''); }) };
+  }
   function recipe(id) { for (var i = 0; i < RECIPES.length; i++) if (RECIPES[i].id === id) return RECIPES[i]; return null; }
   /* what a pot of this recipe is hashed with: its steps and every number above */
   function tuneText(id) { var r = recipe(id); return r ? JSON.stringify(r.steps) + '|' + JSON.stringify(NUM) : null; }
@@ -182,7 +195,7 @@ var COOK_STEPS = (function () {
     KIND.stir = {
       multi: false, sayHalf: true,
       init: function (step, seed, food) {
-        return base('stir', { box: boxOf(food), cx: food.cx * SC, cy: food.cy * SC, need: turnsOf(step) * 360, deg: 0, q: 0, pen: null, hand: null });
+        return base('stir', { box: boxOf(food), cx: food.cx * SC, cy: food.cy * SC, need: turnsOf(step) * 360, turns: turnsOf(step), deg: 0, q: 0, pen: null, hand: null });
       },
       down: function (st, s) { if (st.done) return; st.pen = { id: s.id, a: angOf(st, s) }; st.hand = at(s); },
       move: function (st, s) {
@@ -196,7 +209,12 @@ var COOK_STEPS = (function () {
       cancel: function (st, s) { if (!s || (st.pen && st.pen.id === s.id)) { st.pen = null; st.hand = null; } },
       tick: function () {},
       alt: function (st, t) { stirBy(st, 360, t); },   /* one press = one turn */
-      look: function (st) { return { turns: Math.round(st.need / 360) }; },
+      ease: function (st, t) {   /* half the turns that are left, whole quarters */
+        st.ease = true; st.prog = t;
+        st.need = Math.max(st.deg, Math.ceil((st.deg + (st.need - st.deg) * EASE.stir) / NUM.stir.quarter) * NUM.stir.quarter, NUM.stir.quarter);
+        rise(st, st.deg / st.need, t);
+      },
+      look: function (st) { return { turns: st.turns }; },
       tag: function () { return null; }
     };
 
@@ -224,6 +242,11 @@ var COOK_STEPS = (function () {
       multi: false, sayHalf: true,
       init: function (step, seed, food) {
         return base('pour', { box: boxOf(food), need: clampI(step.ms, 300, 60000, NUM.pour.ms), ms: 0, shown: 0, fill: 0, hold: null });
+      },
+      ease: function (st, t) {   /* the jug pours faster: what is left takes half the time */
+        st.ease = true; pourRise(st, t); if (st.done) return;
+        var cur = st.shown; st.ms = Math.min(st.need, cur + Math.ceil((st.need - cur) * (1 - EASE.pour))); if (st.hold) st.hold.at = t;
+        pourRise(st, t);
       },
       down: function (st, s) {
         if (st.done || st.hold) return;
@@ -268,7 +291,7 @@ var COOK_STEPS = (function () {
       var it = st.items[i], k = freeSlot(st, it);
       if (k < 0) return false;
       var near = false, z = st.zone;   /* near any free slot, or inside the step's zone: the item goes to slot k */
-      for (var j = 0; j < st.slots.length; j++) if (st.slots[j].by < 0 && dist(it.x, it.y, st.slots[j].x, st.slots[j].y) <= NUM.drag.snap) near = true;
+      for (var j = 0; j < st.slots.length; j++) if (st.slots[j].by < 0 && dist(it.x, it.y, st.slots[j].x, st.slots[j].y) <= (st.ease ? EASE.snap : NUM.drag.snap)) near = true;
       if (!near && !(z && it.x >= z[0] && it.x <= z[2] && it.y >= z[1] && it.y <= z[3])) return false;
       place(st, i, k, t);
       return true;
@@ -313,6 +336,7 @@ var COOK_STEPS = (function () {
         if (st.done || !tryPlace(st, p.i, s.t)) goHome(st, false);
       },
       cancel: function (st, s) { if (!s || (st.pen && st.pen.id === s.id)) goHome(st, true); },
+      ease: function (st, t) { st.ease = true; st.prog = t; },   /* a drop twice as far from a free slot still goes on */
       tick: function () {},
       alt: function (st, t) {   /* one press = the next item goes to its slot */
         if (st.done) return;
@@ -370,6 +394,12 @@ var COOK_STEPS = (function () {
       move: function (st, s) { if (st.pen && st.pen.id === s.id) rubTo(st, s); },
       up: function (st, s) { if (st.pen && st.pen.id === s.id) { rubTo(st, s); st.pen = null; st.hand = null; } },
       cancel: function (st, s) { if (!s || (st.pen && st.pen.id === s.id)) { st.pen = null; st.hand = null; } },
+      ease: function (st, t) {   /* a smaller share of the food is enough; the rest fills itself */
+        st.ease = true; st.prog = t;
+        st.need = Math.max(1, Math.min(st.need, Math.ceil(st.bins.length * EASE.rub)));
+        if (st.n >= st.need) { for (var k = 0; k < st.bins.length; k++) st.bins[k] = 1; st.n = st.bins.length; rubThirds(st); }
+        rise(st, Math.min(1, st.n / st.need), t);
+      },
       tick: function () {},
       alt: function (st, t) {   /* one press = a third of the bins, in reading order */
         if (st.done) return;
@@ -395,14 +425,15 @@ var COOK_STEPS = (function () {
     }
     KIND.swipe = {
       multi: false, sayHalf: false,
-      init: function (step, seed, food) { return base('swipe', { box: boxOf(food), need: strokesOf(step), n: 0, dir: 'up', stroke: null, hand: null }); },
+      init: function (step, seed, food) { return base('swipe', { box: boxOf(food), need: strokesOf(step), strokes: strokesOf(step), n: 0, dir: 'up', stroke: null, hand: null }); },
       down: function (st, s) { if (st.done) return; st.stroke = { id: s.id, x0: s.x, y0: s.y, used: false }; st.hand = at(s); },
       move: function (st, s) { if (st.stroke && st.stroke.id === s.id) { st.hand = at(s); swipeTest(st, s); } },
       up: function (st, s) { if (st.stroke && st.stroke.id === s.id) { swipeTest(st, s); st.stroke = null; st.hand = null; } },
       cancel: function (st, s) { if (!s || (st.stroke && st.stroke.id === s.id)) { st.stroke = null; st.hand = null; } },
       tick: function () {},
       alt: function (st, t) { roll(st, t); },
-      look: function (st) { return { n: st.need }; },
+      ease: function (st, t) { st.ease = true; st.prog = t; st.need = Math.max(st.n + 1, Math.ceil(st.n + (st.need - st.n) * EASE.swipe)); rise(st, st.n / st.need, t); },
+      look: function (st) { return { n: st.strokes }; },
       tag: function () { return null; }
     };
 
@@ -440,8 +471,8 @@ var COOK_STEPS = (function () {
     return true;
   }
 
-  return { NUM: NUM, WORDS: WORDS, RECIPES: RECIPES, NEXT: NEXT, FREE: FREE, KINDS: ['stir', 'pour', 'drag', 'rub', 'swipe', 'bake'],
-    recipe: recipe, tuneText: tuneText, defaultLook: defaultLook, validLook: validLook, validTag: validTag, between: between,
+  return { NUM: NUM, EASE: EASE, WORDS: WORDS, RECIPES: RECIPES, NEXT: NEXT, FREE: FREE, KINDS: ['stir', 'pour', 'drag', 'rub', 'swipe', 'bake'],
+    recipe: recipe, pageWords: pageWords, tuneText: tuneText, defaultLook: defaultLook, validLook: validLook, validTag: validTag, between: between,
     verb: verb, hintAt: hintAt, install: install };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = COOK_STEPS;

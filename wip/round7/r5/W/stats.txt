@@ -1,0 +1,49 @@
+scenario                           wip/round7/r5/W/trace-before.json | wip/round7/r5/W/trace-after.json
+auto yard-stick
+    trace-before.json {'frames': 330, 'plShake': 53, 'groundShake': 0, 'plJitterPx': 72, 'plFlips': 32, 'camAccMax': 0.37, 'camReversals': 0, 'camMaxStep': 1, 'plSpread': [0, 13]}
+    trace-after.json {'frames': 330, 'plShake': 0, 'groundShake': 0, 'plJitterPx': 35, 'plFlips': 0, 'camAccMax': 0.45, 'camReversals': 1, 'camMaxStep': 2, 'plSpread': [0, 18]}
+auto village-zigzag
+    trace-before.json {'frames': 330, 'plShake': 100, 'groundShake': 0, 'plJitterPx': 291, 'plFlips': 73, 'camAccMax': 0.41, 'camReversals': 7, 'camMaxStep': 1, 'plSpread': [26, 6]}
+    trace-after.json {'frames': 330, 'plShake': 7, 'groundShake': 0, 'plJitterPx': 205, 'plFlips': 3, 'camAccMax': 1.04, 'camReversals': 6, 'camMaxStep': 1, 'plSpread': [26, 13]}
+auto beach-stick
+    trace-before.json {'frames': 330, 'plShake': 38, 'groundShake': 0, 'plJitterPx': 82, 'plFlips': 10, 'camAccMax': 0.64, 'camReversals': 0, 'camMaxStep': 2, 'plSpread': [15, 4]}
+    trace-after.json {'frames': 330, 'plShake': 0, 'groundShake': 0, 'plJitterPx': 59, 'plFlips': 0, 'camAccMax': 0.41, 'camReversals': 1, 'camMaxStep': 3, 'plSpread': [35, 4]}
+auto yard-stick-jank
+    trace-before.json {'frames': 250, 'plShake': 16, 'groundShake': 0, 'plJitterPx': 95, 'plFlips': 12, 'camAccMax': 5.44, 'camReversals': 0, 'camMaxStep': 5, 'plSpread': [4, 67]}
+    trace-after.json {'frames': 250, 'plShake': 0, 'groundShake': 0, 'plJitterPx': 34, 'plFlips': 0, 'camAccMax': 4.55, 'camReversals': 1, 'camMaxStep': 6, 'plSpread': [6, 14]}
+auto village-tap-run
+    trace-before.json {'frames': 330, 'plShake': 0, 'groundShake': 0, 'plJitterPx': 125, 'plFlips': 0, 'camAccMax': 0, 'camReversals': 0, 'camMaxStep': 0, 'plSpread': [11, 114]}
+    trace-after.json {'frames': 330, 'plShake': 0, 'groundShake': 0, 'plJitterPx': 125, 'plFlips': 0, 'camAccMax': 0.41, 'camReversals': 0, 'camMaxStep': 0, 'plSpread': [11, 114]}
+auto village-tap-run-1.5x
+    trace-before.json {'frames': 290, 'plShake': 0, 'groundShake': 0, 'plJitterPx': 144, 'plFlips': 0, 'camAccMax': 0, 'camReversals': 0, 'camMaxStep': 0, 'plSpread': [11, 133]}
+    trace-after.json {'frames': 290, 'plShake': 0, 'groundShake': 0, 'plJitterPx': 144, 'plFlips': 0, 'camAccMax': 0.41, 'camReversals': 0, 'camMaxStep': 0, 'plSpread': [11, 133]}
+auto shop-stick
+    trace-before.json {'frames': 300, 'plShake': 10, 'groundShake': 0, 'plJitterPx': 258, 'plFlips': 8, 'camAccMax': 0.49, 'camReversals': 0, 'camMaxStep': 2, 'plSpread': [31, 137]}
+    trace-after.json {'frames': 300, 'plShake': 3, 'groundShake': 0, 'plJitterPx': 259, 'plFlips': 3, 'camAccMax': 0.92, 'camReversals': 2, 'camMaxStep': 2, 'plSpread': [29, 127]}
+auto attic-stick
+    trace-before.json {'frames': 290, 'plShake': 2, 'groundShake': 0, 'plJitterPx': 119, 'plFlips': 2, 'camAccMax': 1.23, 'camReversals': 0, 'camMaxStep': 2, 'plSpread': [73, 13]}
+    trace-after.json {'frames': 290, 'plShake': 1, 'groundShake': 0, 'plJitterPx': 126, 'plFlips': 1, 'camAccMax': 0.58, 'camReversals': 1, 'camMaxStep': 3, 'plSpread': [63, 13]}
+reduce yard-stick
+    trace-before.json {'frames': 330, 'plShake': 157, 'groundShake': 0, 'plJitterPx': 175, 'plFlips': 120, 'camAccMax': 1, 'camReversals': 0, 'camMaxStep': 1, 'plSpread': [0, 18]}
+    trace-after.json {'frames': 330, 'plShake': 0, 'groundShake': 0, 'plJitterPx': 19, 'plFlips': 0, 'camAccMax': 1.39, 'camReversals': 0, 'camMaxStep': 1, 'plSpread': [0, 18]}
+reduce village-zigzag
+    trace-before.json {'frames': 330, 'plShake': 158, 'groundShake': 0, 'plJitterPx': 344, 'plFlips': 125, 'camAccMax': 1, 'camReversals': 0, 'camMaxStep': 1, 'plSpread': [24, 18]}
+    trace-after.json {'frames': 330, 'plShake': 7, 'groundShake': 0, 'plJitterPx': 197, 'plFlips': 6, 'camAccMax': 1.12, 'camReversals': 0, 'camMaxStep': 1, 'plSpread': [24, 18]}
+reduce beach-stick
+    trace-before.json {'frames': 330, 'plShake': 46, 'groundShake': 0, 'plJitterPx': 87, 'plFlips': 16, 'camAccMax': 2, 'camReversals': 0, 'camMaxStep': 2, 'plSpread': [14, 4]}
+    trace-after.json {'frames': 330, 'plShake': 1, 'groundShake': 0, 'plJitterPx': 19, 'plFlips': 0, 'camAccMax': 1.44, 'camReversals': 0, 'camMaxStep': 2, 'plSpread': [14, 4]}
+reduce yard-stick-jank
+    trace-before.json {'frames': 250, 'plShake': 109, 'groundShake': 0, 'plJitterPx': 127, 'plFlips': 84, 'camAccMax': 4, 'camReversals': 0, 'camMaxStep': 4, 'plSpread': [0, 18]}
+    trace-after.json {'frames': 250, 'plShake': 1, 'groundShake': 0, 'plJitterPx': 19, 'plFlips': 0, 'camAccMax': 2.97, 'camReversals': 0, 'camMaxStep': 4, 'plSpread': [0, 18]}
+reduce village-tap-run
+    trace-before.json None
+    trace-after.json None
+reduce village-tap-run-1.5x
+    trace-before.json None
+    trace-after.json None
+reduce shop-stick
+    trace-before.json {'frames': 300, 'plShake': 20, 'groundShake': 0, 'plJitterPx': 204, 'plFlips': 11, 'camAccMax': 1, 'camReversals': 0, 'camMaxStep': 2, 'plSpread': [27, 77]}
+    trace-after.json {'frames': 300, 'plShake': 3, 'groundShake': 0, 'plJitterPx': 188, 'plFlips': 3, 'camAccMax': 2.1, 'camReversals': 0, 'camMaxStep': 2, 'plSpread': [26, 78]}
+reduce attic-stick
+    trace-before.json {'frames': 290, 'plShake': 4, 'groundShake': 0, 'plJitterPx': 101, 'plFlips': 4, 'camAccMax': 2, 'camReversals': 0, 'camMaxStep': 2, 'plSpread': [54, 13]}
+    trace-after.json {'frames': 290, 'plShake': 1, 'groundShake': 0, 'plJitterPx': 97, 'plFlips': 1, 'camAccMax': 1.17, 'camReversals': 0, 'camMaxStep': 2, 'plSpread': [54, 13]}

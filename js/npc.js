@@ -18,13 +18,27 @@ var NPC = (function () {
     cafe: { id: 'cafe', name: '느루', color: '#a67c62', hat: 'cap', shop: '카페',
       voice: '느리게, 말끝을 늘여 말한다. 바다와 물때 이야기를 한다', habit: '바다 쪽을 본다' }
   };
+  /* 11-24 (주인: "지금 집이 비어있는데 각 문어들이 살았으면 좋겠어"): 자던 문어 넷이 깨어 집마다 산다. id 는 예전 그대로 (sleep-1 … — 장면 · 저장이 이 이름을 쓴다).
+     낮 (7~17) 엔 집 앞 · 마을의 제 자리, 저녁 (17~21) 엔 집 안 식탁, 밤 (21~7) 엔 집 안 침대에서 잔다 (자리는 장면 — V 의 VILLAGE.where). 몸 색은 자던 때 그대로 */
+  ROSTER['sleep-1'] = { id: 'sleep-1', name: '토리', color: '#9fb5a0', hat: 'cap', home: '숲 길 왼쪽 집', day: '마을 문 옆 벤치',
+    voice: '묻고는 제가 답한다. 뭐든 센다', habit: '들어오는 이를 센다 (예전엔 편지를 날랐다)' };
+  ROSTER['sleep-2'] = { id: 'sleep-2', name: '소금', color: '#c8b89a', hat: 'apron', home: '빈 집이던 집', day: '그 집 현관',
+    voice: '말끝에 "툭." 을 붙인다. 연장 · 못 · 판자 이야기', habit: '벽을 두드려 본다 (예전엔 마을 집을 고쳤다)' };
+  ROSTER['sleep-3'] = { id: 'sleep-3', name: '조약', color: '#8898b0', hat: 'none', home: '광장 오른쪽 집', day: '바닷가 바위',
+    voice: '소곤소곤, 짧게. 돌의 색을 늘어놓는다', habit: '돌을 줄 세운다' };
+  ROSTER['sleep-4'] = { id: 'sleep-4', name: '그물', color: '#d0a0a0', hat: 'beret', home: '숲 길 오른쪽 집', day: '부두 발치',
+    voice: '"어이." 로 시작한다. 매듭 · 밧줄 · 배 숫자', habit: '매듭을 짓는다 (예전엔 배를 묶었다)' };
+  /* 11-24: 마을 미용실 미용사 (미용실 방은 V · 목록과 값은 S · 새 머리 색은 P) */
+  ROSTER.stylist = { id: 'stylist', name: '소라', color: '#c75c7a', hat: 'cap', shop: '미용실',
+    voice: '손이 먼저 말한다. 병 · 빗 · 거울 이야기를 순서대로', habit: '빗을 셋 꽂고 다닌다' };
   var KEEPERS = ['clothes', 'goods', 'cafe'];
-  /* 자는 문어 넷 (색만) */
+  var RESIDENTS = ['sleep-1', 'sleep-2', 'sleep-3', 'sleep-4'];
+  /* 예전 이름 (자던 문어 넷 — 색만). 지금도 같은 넷이다 */
   var SLEEPERS = [
     { id: 'sleep-1', color: '#9fb5a0' }, { id: 'sleep-2', color: '#c8b89a' },
     { id: 'sleep-3', color: '#8898b0' }, { id: 'sleep-4', color: '#d0a0a0' }
   ];
-  var SLEEP_SAY = '자고 있어.';   /* 자는 문어를 눌렀을 때: 집 목소리 한 줄 (문어는 말하지 않는다) */
+  var SLEEP_SAY = '자고 있어.';   /* 밤에 자는 문어를 눌렀을 때: 집 목소리 한 줄 (문어는 말하지 않는다) */
 
   /* 대사. 한 갈래 = [풍선…]. {theme} · {shells} · {dish} 는 vars 에 그 값이 있을 때만 고른다 */
   var LINES = {
@@ -139,7 +153,7 @@ var NPC = (function () {
       talk: [
         ['나는 뭐든 적어. 깬 날도 적었어.', '작년 겨울, 눈 온 날이야.'],
         ['예전엔 배가 오면 짐을 내가 다 셌어.', '상자 이백 개도 셌어.'],
-        ['자는 문어는 넷이야. 아침마다 세어 봐.'],
+        ['자던 문어 넷이 깼어. 아침마다 세어 봐.'],
         ['마을 사람들은 배 타고 떠났어.', '떠난 날짜도 장부에 있어.'],
         ['씨앗 서랍이 스물네 칸이야. 다 이름 붙였어.']
       ],
@@ -248,6 +262,124 @@ var NPC = (function () {
     }
   };
 
+  /* 11-24: 집에 사는 문어 넷 · 미용사. talk = 낮 (집 앞 · 마을) · home.first = 처음 만남 · home.again = 그날 처음 다시 만남 · home.in = 저녁 집 안 */
+  LINES['sleep-1'] = {
+    talk: [
+      ['이 길로 몇이 왔게? 너까지 둘이야.'],
+      ['예전엔 편지를 날랐어. 하루 마흔 통.'],
+      ['벤치 판자가 일곱 장이야. 셋째가 삐걱해.'],
+      ['문 위 아치, 누가 칠했게? 나야.']
+    ],
+    'home.first': [
+      ['처음 보네. 나는 토리. 숲 길 왼쪽 집에 살아.'],
+      ['문으로 들어왔지? 나는 토리야.', '저 벤치가 내 낮 자리야.']
+    ],
+    'home.again': [
+      ['또 왔네. 몇 번째게? 세어 뒀어.'],
+      ['아, 너구나. 벤치 반 비워 줄게.'],
+      ['발소리로 알았어. 너지?']
+    ],
+    'home.in': [
+      ['우리 집이야. 편지 상자가 셋 있어.'],
+      ['저녁엔 식탁에서 우표를 세.'],
+      ['문 열어 뒀어. 들어와도 돼.']
+    ]
+  };
+  LINES['sleep-2'] = {
+    talk: [
+      ['이 집 문틀, 내가 다시 맞췄어. 툭.'],
+      ['못 세 개면 판자 하나. 툭.'],
+      ['지붕 기와는 열두 줄이야. 툭.'],
+      ['예전엔 마을 집을 다 고쳤어. 툭.']
+    ],
+    'home.first': [
+      ['처음이지. 나는 소금. 이 집에 살아. 툭.'],
+      ['비어 있던 집, 이제 내가 살아. 툭.']
+    ],
+    'home.again': [
+      ['또 봤네. 문 경첩에 기름칠했어. 툭.'],
+      ['너구나. 문 닫는 소리로 알았어. 툭.']
+    ],
+    'home.in': [
+      ['식탁 다리 하나 새로 깎았어. 툭.'],
+      ['벽을 두드려 봐. 속이 꽉 찼어. 툭.'],
+      ['연장은 벽에 순서대로 걸어 둬. 툭.']
+    ]
+  };
+  LINES['sleep-3'] = {
+    talk: [
+      ['회색, 흰색, 줄무늬. 돌 셋.'],
+      ['이 바위, 물때마다 젖는 데가 달라.'],
+      ['조개 하나, 돌 둘. 주머니에 넣었어.'],
+      ['모래 밑에 돌이 많아. 파 봐.']
+    ],
+    'home.first': [
+      ['…처음 봐. 나는 조약. 광장 오른쪽 집.'],
+      ['조약이야. 돌을 모아.', '바닷가 바위가 내 낮 자리야.']
+    ],
+    'home.again': [
+      ['…또 봤네. 돌 하나 늘었어.'],
+      ['너구나. 줄무늬 돌 찾았어.']
+    ],
+    'home.in': [
+      ['창턱에 돌이 마흔 개. 줄 세웠어.'],
+      ['…여기가 집. 돌은 그대로 둬.'],
+      ['저녁엔 돌을 색깔별로 나눠.']
+    ]
+  };
+  LINES['sleep-4'] = {
+    talk: [
+      ['어이. 부두 기둥이 스무 개야. 다 묶어 봤지.'],
+      ['배 매듭은 두 번 감고 한 번 꿰.'],
+      ['어이. 그물 코 하나가 터졌어. 깁는 중.'],
+      ['예전엔 배 여섯 척을 묶었어.']
+    ],
+    'home.first': [
+      ['어이, 처음이네. 나는 그물. 숲 길 오른쪽 집.'],
+      ['그물이야. 부두 발치가 내 낮 자리야.']
+    ],
+    'home.again': [
+      ['어이, 또 봤네. 매듭 하나 알려 줄까.'],
+      ['너구나. 밧줄 냄새로 알았어.']
+    ],
+    'home.in': [
+      ['밧줄은 벽에 감아 둬. 여덟 바퀴.'],
+      ['식탁 위가 그물투성이야. 앉을 데는 있어.'],
+      ['저녁엔 그물을 기워. 코가 백 개야.']
+    ]
+  };
+  LINES.stylist = {
+    talk: [
+      ['머리 색 병이 열두 개, 빗이 셋.'],
+      ['바다 색 병이 먼저 줄어.'],
+      ['거울은 아침마다 닦아.']
+    ],
+    'salon.sit': [
+      ['앉아. 의자 높이 맞출게.'],
+      ['어깨에 천 두를게. 가만히.'],
+      ['앉았구나. 빗부터 꺼낼게.']
+    ],
+    'salon.pick': [
+      ['그 병이구나. 흔들어서 쓸게.'],
+      ['그 색이면 빗질 세 번이야.'],
+      ['{color}, 병 뚜껑 열었어.']
+    ],
+    'salon.after': [
+      ['다 됐어. 거울 봐.'],
+      ['끝. 뒷머리도 같은 색이야.'],
+      ['다 칠했어. 금방 말라.']
+    ],
+    'salon.short': [
+      ['조개가 조금 모자라. 병은 그대로 둘게.'],
+      ['이번엔 넘어가자. 병은 선반에 둘게.'],
+      ['그 병은 조개 {need}개가 더 들어.']
+    ],
+    'salon.leave': [
+      ['잘 가. 빗은 내가 정리할게.'],
+      ['문 조심해. 턱이 있어.'],
+      ['의자는 내가 닦아 둘게.']
+    ]
+  };
   /* 세계관의 흔적 (docs/STORY.md). 게시판의 낡은 쪽지 넷 (차례대로) · 처음 한 번 보는 세 줄 */
   var NOTICES = [
     { id: 'help', pic: 'help', text: '일손 구해요. 문어라면 누구든.' },
@@ -285,18 +417,26 @@ var NPC = (function () {
     var n = pool[(typeof seed === 'number' && isFinite(seed) ? Math.abs(Math.floor(seed)) : hash(String(seed) + id + key)) % pool.length];
     return { id: id, key: key, name: r.name, tag: tag(id), by: 'script', n: n, bubbles: all[n].map(function (s) { return fill(s, vars); }) };
   }
-  /* list(dateKey) → 장면의 npcSet 에 줄 목록 (계약 C6 · C14). 날짜는 받아만 둔다 (날마다 같다 — 깬 문어 셋 · 자는 문어 넷).
-     가게 문어는 장면 (V) 이 가게 앞과 그 방 안의 keeper 칸에 알아서 그린다. 자는 문어 하나 (sleep-1) 는 카페 구석 식탁에서 잔다:
-     { room: 'cafe', slot: 'nap' } 를 달아 넘긴다 (그 칸을 모르는 장면은 예전 바깥 자리에 그린다) */
-  var SLEEP_AT = { 'sleep-1': { room: 'cafe', slot: 'nap' } };
-  function list(dateKey) {
+  /* list(dateKey, hour) → 장면의 npcSet 에 줄 목록 (계약 C6 · C14). 날짜는 받아만 둔다.
+     가게 문어 셋은 장면 (V) 이 가게 앞과 그 방 안 keeper 칸에 그린다. 집에 사는 넷은 room · slot 없이 넘긴다 — 자리는 장면의 시간표 (VILLAGE.where).
+     자세만 시각으로: 밤 (21~7) 엔 'sleep', 그 밖엔 'stand'. 미용사는 장면이 미용실 안에 그린다. hour 를 안 주면 낮 (12 시) */
+  function phase(hour) { var h = typeof hour === 'number' && isFinite(hour) ? ((hour % 24) + 24) % 24 : 12; return h >= 21 || h < 7 ? 'night' : h >= 17 ? 'evening' : 'day'; }
+  function list(dateKey, hour) {
+    var ph = phase(hour);
     var out = KEEPERS.map(function (id) { var r = ROSTER[id]; return { id: id, color: r.color, hat: r.hat, pose: 'stand' }; });
-    SLEEPERS.forEach(function (sl) {
-      var e = { id: sl.id, color: sl.color, hat: 'none', pose: 'sleep' }, at = SLEEP_AT[sl.id];
-      if (at) { e.room = at.room; e.slot = at.slot; }
-      out.push(e);
-    });
+    RESIDENTS.forEach(function (id) { var r = ROSTER[id]; out.push({ id: id, color: r.color, hat: r.hat, pose: ph === 'night' ? 'sleep' : 'stand' }); });
+    out.push({ id: 'stylist', color: ROSTER.stylist.color, hat: ROSTER.stylist.hat, pose: 'stand' });
     return out;
+  }
+  /* 집에 사는 문어를 눌렀다 → 할 말의 열쇠 (null = 자고 있다: 집 목소리 '자고 있어.'). 처음이면 home.first, 그날 처음이면 home.again, 저녁엔 home.in, 그 밖엔 talk.
+     u = S.user (story.met 에 처음 만난 날 · story.metDay 에 그날 만난 날을 적는다) */
+  function residentKey(u, id, dateKey, hour) {
+    if (RESIDENTS.indexOf(id) < 0) return null;
+    var ph = phase(hour); if (ph === 'night') return null;
+    normalize(u); var st = u.story;
+    if (!st.met[id]) { st.met[id] = dateKey; st.metDay[id] = dateKey; return 'home.first'; }
+    if (st.metDay[id] !== dateKey) { st.metDay[id] = dateKey; return ph === 'evening' ? 'home.in' : 'home.again'; }
+    return ph === 'evening' ? 'home.in' : 'talk';
   }
   /* 저장 칸 S.user.story (계약 C8): { intro: 'YYYY-MM-DD' | null, notices: { 쪽지 id: 'YYYY-MM-DD' } }. 모르는 값은 그대로 둔다 */
   function normalize(u) {
@@ -305,6 +445,8 @@ var NPC = (function () {
     var st = u.story;
     if (!(typeof st.intro === 'string' && st.intro)) { if (st.intro !== true) st.intro = null; }
     if (!isObj(st.notices)) st.notices = {};
+    if (!isObj(st.met)) st.met = {};   /* 11-24: 집에 사는 문어를 처음 만난 날 */
+    if (!isObj(st.metDay)) st.metDay = {};   /* 11-24: 그날 처음 만난 날 (다시 만남 인사를 하루 한 번) */
     return u;
   }
   function seeNotices(u, dateKey) {   /* 게시판을 열었다 → 아직 안 본 쪽지에 날짜. 새로 본 수를 돌려준다 */
@@ -314,7 +456,7 @@ var NPC = (function () {
   }
   function allText() {   /* 검사 · 문서용: 화면에 나오는 글 전부 [{ where, text }] */
     var out = [];
-    KEEPERS.forEach(function (id) {
+    KEEPERS.concat(RESIDENTS, ['stylist']).forEach(function (id) {
       out.push({ where: id + ' name', text: ROSTER[id].name });
       keys(id).forEach(function (k) { LINES[id][k].forEach(function (v, i) { v.forEach(function (s, j) { out.push({ where: id + ' ' + k + ' ' + i + '.' + j, text: s, npc: id }); }); }); });
     });
@@ -325,7 +467,7 @@ var NPC = (function () {
   }
 
   return {
-    LABEL: LABEL, sleepAt: SLEEP_AT, roster: ROSTER, keepers: KEEPERS, sleepers: SLEEPERS, lines: LINES, notices: NOTICES, intro: INTRO, SLEEP_SAY: SLEEP_SAY,
+    LABEL: LABEL, roster: ROSTER, keepers: KEEPERS, residents: RESIDENTS, phase: phase, residentKey: residentKey, sleepers: SLEEPERS, lines: LINES, notices: NOTICES, intro: INTRO, SLEEP_SAY: SLEEP_SAY,
     who: who, tag: tag, keys: keys, variants: variants, line: line, list: list, normalize: normalize, seeNotices: seeNotices, allText: allText, hash: hash
   };
 })();

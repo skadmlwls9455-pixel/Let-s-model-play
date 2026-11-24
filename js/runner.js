@@ -5,21 +5,35 @@
  */
 var RUNNER = (function () {
   'use strict';
-  /* 11-15 runner-2: 세로 전체 화면 (주인 HANDOFF 6). 시뮬은 문어 자리(OCT_X)와 속도만 바뀌었다 — 옛 판(runner-1)은 서버가 거절, 순위는 판마다 따로 */
-  var VERSION = 'runner-2';
+  /* 11-15 runner-2: 세로 전체 화면 (주인 HANDOFF 6). 시뮬은 문어 자리(OCT_X)와 속도만 바뀌었다 — 옛 판(runner-1)은 서버가 거절, 순위는 판마다 따로.
+     11-24 runner-3 (주인: "캐릭터 크기를 런게임에서 늘리는 바람에 장애물 부딪히는 게 싱크가 안 맞게"): 부딪힘 상자를 그려진 문어 몸에 맞췄다 (BOX). 점수 · 조개 · 최고 규칙은 그대로 */
+  var VERSION = 'runner-3';
   var SUB = 256;                       /* 1 아트 px = 256 서브 px (정수) */
   var C = {
     W: 192, H: 108, GY: 92,            /* W = 보이는 폭의 최대(아트 px, SPAWN_X 보다 좁게 — 장애물이 화면 밖에서 생긴다). H·GY 는 옛 가로 띠 크기 (그림은 화면 크기를 따른다, fit) */
-    OCT_X: 10, OCT_W: 14, H_STAND: 18, H_DUCK: 10,   /* 11-15: 문어를 왼쪽 끝으로 (30 → 10) — 크게 보여도 앞이 넓게 */
-    JV: 760, G: 44, GH: 20, HOLD_MAX: 12, CUT: 680, GF: 140, BUF: 6,   /* 서브 px / 틱, 서브 px / 틱² */
+    OCT_CX: 17,                        /* 문어 그림의 가운데 열 (아트 px) — 그림은 상태마다 이 열에 가운데를 맞춘다 (왼쪽 끝은 0 에서 자른다, drawOct) */
+    OCT_X: 2, OCT_W: 30,               /* 서 있을 때 부딪힘 상자 전체의 뒤 끝 · 폭 (앞 끝 = 32) — 조종 봇 · 시험용 요약. 실제 판정은 BOX */
+    /* 11-24 runner-3: 부딪힘 상자 = 그려진 몸 (다락 문어를 구운 그림, js/runner.js BAKE) 에 맞춘 상태별 두 칸 [x0, x1, 높이0, 높이1) (아트 px, 높이는 바닥에서).
+       머리 칸 + 다리 칸. 가장자리 몇 px 는 봐준다: 머리 둥근 꼭대기 2 줄 · 외곽선 1 열 · 가늘게 뻗은 다리 끝 4 열 (장애물 쪽도 가장자리 2 px 를 봐준다, step).
+       예전 (runner-2) 은 한 칸 x 12..22 · 높이 18 (숙이면 10) — 34 × 25 로 키운 그림보다 훨씬 작아 안 닿았는데 지나가거나 늦게 부딪혔다.
+       tools/test-runner.js 는 숫자를, 스모크 R 은 실제 구운 그림의 보이는 픽셀과 이 칸들이 맞는지 잰다 */
+    BOX: {
+      stand: [[7, 27, 6, 22], [4, 30, 0, 6]],     /* 34 × 25 (달리기 · 서기 · 부딪힘): 머리 x 6..27 · 높이 7..23, 옆으로 뻗은 다리 x 0..33 · 높이 0..6 */
+      land: [[8, 30, 6, 19], [4, 34, 0, 6]],      /* 38 × 21 (땅에 닿고 6 틱) */
+      air: [[8, 26, 7, 23], [5, 29, 1, 7]],       /* 32 × 26 (뛰는 중) */
+      duck: [[6, 33, 5, 12], [3, 36, 1, 6]]       /* 40 × 13 (숙이기 — 꼭대기 12 < 거미줄 13 · 옆으로 납작하게 뻗은 다리 x 0..39) */
+    },
+    JV: 523, G: 19, GH: 9, HOLD_MAX: 19, CUT: 468, GF: 60, BUF: 6,   /* 서브 px / 틱, 서브 px / 틱² · 11-24 runner-3: 34 px 로 큰 문어 몸 (BOX) 을 넘을 수 있게 체공 1.6 배 · 높이 1.1 배
+                                          (톡 19 → 22 px · 0.5 → 0.8 초, 꾹 40 → 44 px). 예전 수 (760 · 44 · 20 · 12 · 680 · 140) 로는 시작 속도에서 상자 · 책 · 물웅덩이를 넘을 수 없었다 */
     V0: 224, VMAX: 358, RAMP: 24,      /* 11-15: 속도 0.875 → 1.4 px/틱, 24 틱마다 +1 서브 px (≈ 54 초에 최고). 예전 1.25 → 2.75 — 크게 보이는 만큼 느리게:
                                           360 폭 폰(앞 ≈ 80 px)에서 장애물이 보이고 닿기까지 최고 속도에서도 ≈ 0.95 초 (예전 ≈ 0.9 초), 화면 위 빠르기도 예전과 비슷 */
     SPAWN_X: 200, PT: 8, MOSS: 20, FIRST_GAP: 40, MAX_TICKS: 60 * 60 * 30
   };
-  /* 장애물: lo/hi = 바닥에서 잰 높이(px). web 은 천장까지 → 숙여야 지나간다 */
+  /* 장애물: lo/hi = 바닥에서 잰 높이(px) = 그림의 아랫줄 · 윗줄 (스모크 R 이 잰다). web 은 천장까지 → 숙여야 지나간다.
+     11-24 runner-3: 물웅덩이 hi 7 → 3 (보이는 웅덩이 2 줄 + 튀는 물 1 줄 — 위에서 떨어지는 빗방울은 넘어도 된다) */
   var KINDS = {
     crate: { w: 12, lo: 0, hi: 9 }, crate2: { w: 22, lo: 0, hi: 9 }, candle: { w: 4, lo: 0, hi: 16 },
-    books: { w: 10, lo: 0, hi: 20 }, web: { w: 16, lo: 13, hi: 120 }, rain: { w: 20, lo: 0, hi: 7 }   /* 11-15 runner-2: 물웅덩이 24 → 20 (느려진 만큼 넘을 틈을 예전만큼) */
+    books: { w: 10, lo: 0, hi: 20 }, web: { w: 16, lo: 13, hi: 120 }, rain: { w: 20, lo: 0, hi: 3 }   /* 11-15 runner-2: 물웅덩이 24 → 20 (느려진 만큼 넘을 틈을 예전만큼) */
   };
   var ACTS = { jd: 1, ju: 1, dd: 1, du: 1 };
 
@@ -59,6 +73,9 @@ var RUNNER = (function () {
     s.gap = gapPx * SUB;
     if (s.spawned > 2 && r() % 4 === 0) s.obs.push({ k: 'moss', x: x + (K.w + (gapPx >> 1)) * SUB, w: 6, lo: 24, hi: 30, id: s.nextId++, got: false });
   }
+  /* 지금 몸 상태의 부딪힘 칸 (그림 고르기 drawOct 와 같은 규칙: 숙이기 · 뛰기 · 착지 6 틱 · 서기) */
+  function boxState(s) { return s.ground && s.dHeld ? 'duck' : !s.ground ? 'air' : s.tick - s.landT < 6 ? 'land' : 'stand'; }
+  function boxesOf(s) { return C.BOX[boxState(s)]; }
   function step(s) {
     if (s.dead) return s;
     s.tick++;
@@ -77,13 +94,16 @@ var RUNNER = (function () {
     s.obs = keep;
     s.sinceSpawn += s.speed;
     if (s.sinceSpawn >= s.gap) { s.sinceSpawn -= s.gap; spawn(s); }
-    var oh = (s.ground && s.dHeld) ? C.H_DUCK : C.H_STAND;
-    var ox0 = (C.OCT_X + 2) * SUB, ox1 = (C.OCT_X + C.OCT_W - 2) * SUB, oy0 = s.y, oy1 = s.y + oh * SUB;
-    for (var j = 0; j < s.obs.length; j++) {
+    var BX = boxesOf(s);
+    for (var j = 0; j < s.obs.length && !s.dead; j++) {
       var b = s.obs[j]; if (b.got) continue;
       var ins = b.w >= 8 ? 2 * SUB : SUB, x0 = b.x + ins, x1 = b.x + b.w * SUB - ins;   /* 가장자리 너그럽게 */
-      if (x1 > ox0 && x0 < ox1 && b.hi * SUB > oy0 && b.lo * SUB < oy1) {
-        if (b.k === 'moss') { b.got = true; s.moss++; } else { s.dead = true; s.hitKind = b.k; break; }
+      for (var q = 0; q < BX.length; q++) {
+        var bx = BX[q];
+        if (x1 > bx[0] * SUB && x0 < bx[1] * SUB && b.hi * SUB > s.y + bx[2] * SUB && b.lo * SUB < s.y + bx[3] * SUB) {
+          if (b.k === 'moss') { b.got = true; s.moss++; } else { s.dead = true; s.hitKind = b.k; }
+          break;
+        }
       }
     }
     s.score = Math.floor(s.dist / (C.PT * SUB)) + s.moss * C.MOSS;
@@ -106,7 +126,7 @@ var RUNNER = (function () {
     return r.score === run.score && r.ticks === run.ticks;
   }
 
-  var API = { VERSION: VERSION, C: C, KINDS: KINDS, hash32: hash32, mulberry32: mulberry32, seedFor: seedFor,
+  var API = { VERSION: VERSION, C: C, KINDS: KINDS, hash32: hash32, mulberry32: mulberry32, seedFor: seedFor, boxState: boxState,
     createSim: createSim, applyInput: applyInput, step: step, simulate: simulate, verify: verify };
   if (typeof document === 'undefined' || typeof window === 'undefined') return API;   /* node: 여기까지만 */
 
@@ -114,7 +134,7 @@ var RUNNER = (function () {
   var KEY = 'ppolppol_runner';
   function load() { try { var o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o && typeof o === 'object') return o; } catch (e) { /* 저장소 없음 */ } return { v: 1, best: 0, best2: 0, runs: 0, day: '', dayN: 0, last: null }; }
   /* 11-15: 최고는 판(VERSION)마다 따로. best = 옛 게임(runner-1) 최고 — 지우지도 바꾸지도 않고 '예전 게임 최고' 로만 보인다. best2 = runner-2 */
-  function bestOf(st) { return (st && st.best2) | 0; }
+  function bestOf(st) { return (st && st.best2) | 0; }   /* 11-24 runner-3: 점수 · 최고 규칙이 같아 best2 를 그대로 이어 쓴다 (부딪힘 칸 · 점프만 바뀜) */
   function oldBestOf(st) { return (st && st.best) | 0; }
   function store(o) { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) { /* 저장 실패해도 놀이는 계속 */ } }
   function dateKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
@@ -232,32 +252,36 @@ var RUNNER = (function () {
     SPR_CACHE[key] = out;
     return out;
   }
-  /* 코드로 그린 문어 (굽기를 못 할 때): 머리 타원 + 뭉툭한 다리 6, 상태별로 너비 sx · 높이 sy · 다리 위상 lp 만 바꿔 처음부터 그린다 (줄이기 · 돌리기 없음) */
+  /* 코드로 그린 문어 (굽기를 못 할 때): 머리 타원 + 옆으로 뻗은 다리 띠 + 뭉툭한 다리 넷, 상태별로 너비 sx · 높이 sy · 다리 위상 lp 만 바꿔 처음부터 그린다 (줄이기 · 돌리기 없음).
+     11-24: 크기는 구운 그림과 같게 (서기 ≈ 34 × 24) — 부딪힘 칸 (C.BOX) 이 그림과 맞게 */
   function drawnOctopus(hex, o) {
-    var W = 44, H = 34, d = { width: W, height: H, data: new Uint8ClampedArray(W * H * 4) };
-    function put(x, y, c) { if (x < 0 || y < 0 || x >= W || y >= H) return; var i = (y * W + x) * 4; d.data[i] = c[0]; d.data[i + 1] = c[1]; d.data[i + 2] = c[2]; d.data[i + 3] = 255; }
+    var W = 52, H = 36, d = { width: W, height: H, data: new Uint8ClampedArray(W * H * 4) };
+    function put(x, y, c) { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return; var i = (y * W + x) * 4; d.data[i] = c[0]; d.data[i + 1] = c[1]; d.data[i + 2] = c[2]; d.data[i + 3] = 255; }
     var base = hexRGB(hex), sh = mix(base, -0.28), hi = mix(base, 0.35), ink = [23, 32, 56];
-    var sx = o.sx || 1, sy = o.sy || 1, rx = 8.6 * sx, ry = 7.6 * sy, legH = Math.max(2, Math.round(6 * sy)), foot = H - 2, cy = foot - legH - ry + 2, cx = W / 2;
+    var sx = o.sx || 1, sy = o.sy || 1, cx = 26, foot = H - 2, strip = Math.max(2, Math.round(3 * sy)), legH = Math.max(1, Math.round(3 * sy));
+    var rx = 10.4 * sx, ry = 8.3 * sy, cy = foot - legH - strip - ry + 3;
     for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
       var ex = (x + 0.5 - cx) / rx, ey = (y + 0.5 - cy) / ry;
       if (ex * ex + ey * ey <= 1) put(x, y, (ey > 0.45 || ex > 0.6) ? sh : base);
     }
-    [-9, -6, -3, 1, 4, 7].forEach(function (off, n) {   /* 다리 6 — lp 로 번갈아 한 칸 들린다 */
-      var ax = Math.round(cx + off * sx), lift = (o.lp != null && (n & 1) === (o.lp & 1)) ? 1 : 0;
-      for (var y = foot - legH; y <= foot - lift; y++) { put(ax, y, y > foot - 2 ? sh : base); put(ax + 1, y, sh); }
+    var half = Math.round(16 * sx);
+    for (var yy = foot - legH - strip + 1; yy <= foot - legH; yy++) for (var xx = cx - half; xx < cx + half; xx++) put(xx, yy, yy === foot - legH ? sh : base);   /* 옆으로 뻗은 다리 띠 */
+    [-10, -3, 3, 10].forEach(function (off, n) {   /* 아래로 뭉툭한 다리 넷 — lp 로 번갈아 한 칸 들린다 */
+      var ax = Math.round(cx + off * sx) - 1, lift = (o.lp != null && (n & 1) === (o.lp & 1)) ? 1 : 0;
+      for (var y2 = foot - legH + 1; y2 <= foot - lift; y2++) { put(ax, y2, sh); put(ax + 1, y2, sh); put(ax + 2, y2, base); }
     });
-    put(Math.round(cx - 4 * sx), Math.round(cy - 4 * sy), hi); put(Math.round(cx - 3 * sx), Math.round(cy - 4 * sy), hi);
-    var eyY = Math.round(cy), eL = Math.round(cx - 3 * sx), eR = Math.round(cx + 3 * sx);
-    put(eL, eyY, ink); put(eR, eyY, ink); if (sy >= 0.8) { put(eL, eyY + 1, ink); put(eR, eyY + 1, ink); }   /* idle 눈 (점 · 납작할 땐 한 칸) */
+    put(cx - 4 * sx, cy - 4 * sy, hi); put(cx - 3 * sx, cy - 4 * sy, hi);
+    var eyY = Math.round(cy + 2 * sy), eL = Math.round(cx + 2 * sx), eR = Math.round(cx + 6 * sx);   /* 눈은 오른쪽 (달리는 쪽) 을 본다 · idle */
+    put(eL, eyY, ink); put(eR, eyY, ink); if (sy >= 0.8) { put(eL, eyY + 1, ink); put(eR, eyY + 1, ink); }
     var src = new Uint8ClampedArray(d.data);   /* 외곽선 1 px (#241527) */
-    for (var y2 = 0; y2 < H; y2++) for (var x2 = 0; x2 < W; x2++) {
-      if (src[(y2 * W + x2) * 4 + 3]) continue;
-      var nb = [[x2 - 1, y2], [x2 + 1, y2], [x2, y2 - 1], [x2, y2 + 1]].some(function (q) { return q[0] >= 0 && q[1] >= 0 && q[0] < W && q[1] < H && src[(q[1] * W + q[0]) * 4 + 3]; });
-      if (nb) put(x2, y2, OUTLINE);
+    for (var y3 = 0; y3 < H; y3++) for (var x3 = 0; x3 < W; x3++) {
+      if (src[(y3 * W + x3) * 4 + 3]) continue;
+      var nb = [[x3 - 1, y3], [x3 + 1, y3], [x3, y3 - 1], [x3, y3 + 1]].some(function (q) { return q[0] >= 0 && q[1] >= 0 && q[0] < W && q[1] < H && src[(q[1] * W + q[0]) * 4 + 3]; });
+      if (nb) put(x3, y3, OUTLINE);
     }
     return d;
   }
-  var DRAWN = { run: [{ lp: 0 }, { lp: 1, sy: 1.04 }, { lp: 1 }, { lp: 0, sy: 1.04 }], jump: [{ sx: 0.92, sy: 1.10 }], land: [{ sx: 1.10, sy: 0.88 }], duck: [{ sx: 1.20, sy: 0.45 }], hit: [{}], idle: [{}] };
+  var DRAWN = { run: [{ lp: 0 }, { lp: 1 }, { lp: 1 }, { lp: 0 }], jump: [{ sx: 0.94, sy: 1.08 }], land: [{ sx: 1.10, sy: 0.86 }], duck: [{ sx: 1.16, sy: 0.5 }], hit: [{}], idle: [{}] };
   function buildSprites() {
     var sc = null;
     try { sc = window.APP && window.APP.scene; } catch (e) { sc = null; }
@@ -755,20 +779,16 @@ var RUNNER = (function () {
     }
   }
   function drawOct(s, T, ts) {   /* 11-18: 상태별 구운 그림을 제 크기 그대로 (drawImage 에 폭 · 높이를 주지 않는다) · 자리는 정수 */
-    var S = L.sprites, h = Math.floor(s.y / SUB), st = L.state;
-    var duck = s.ground && s.dHeld && st !== 'over';
-    var key = 'run', f = 0, bob = 0;
-    if (st === 'over') key = 'hit';
-    else if (st === 'ready' || st === 'pause') { key = 'idle'; bob = (L.reduced ? 0 : Math.floor(ts / 500) % 2) ? -1 : 0; }
-    else if (duck) key = 'duck';
-    else if (!s.ground) key = 'jump';
-    else if (s.tick - s.landT < 6) key = 'land';
-    else { f = Math.floor(s.tick / 5) % 4; if (S.src !== 'bake') bob = f % 2 ? -1 : 0; }   /* 구운 걸음은 걸음 중간 1 px 들림이 그림에 들어 있다 (0 / −1 그대로) */
+    var S = L.sprites, h = Math.floor(s.y / SUB), st = L.state, bs = boxState(s);   /* 11-24: 그림 = 부딪힘 칸과 같은 상태 (boxState) */
+    var key = { duck: 'duck', air: 'jump', land: 'land', stand: 'run' }[bs], f = 0, bob = 0;
+    if (st === 'ready' || st === 'pause') { key = 'idle'; bob = (L.reduced ? 0 : Math.floor(ts / 500) % 2) ? -1 : 0; }
+    else if (st === 'over') { if (key === 'run') key = 'hit'; }   /* 11-24: 부딪힌 순간의 몸 그대로 (숙인 채 · 뛰던 채 — 예전엔 늘 선 그림이라 닿은 자리가 달라 보였다) */
+    else if (key === 'run') { f = Math.floor(s.tick / 5) % 4; if (S.src !== 'bake') bob = f % 2 ? -1 : 0; }   /* 구운 걸음은 걸음 중간 1 px 들림이 그림에 들어 있다 (0 / −1 그대로) */
     var fr = S[key], img = fr[f % fr.length], w = img.width, hh = img.height;
     /* 그림자: 땅에 닿는 폭에서, 높이 오를수록 좁게 */
     var sw = Math.max(6, (S.gw || 14) - (h >> 1));
-    R(C.OCT_X + 7 - (sw >> 1), V.G, sw, 1, T.shadow);
-    var dx = Math.max(0, C.OCT_X + 7 - (w >> 1)), dy = V.G - h - hh + 1 + bob;   /* 맨 아래 줄(발) = 바닥선 V.G − 높이 · 넓은 칸 (착지 38 · 숙이기 42) 은 왼쪽 끝에서 잘리지 않게 0 부터 */
+    R(C.OCT_CX - (sw >> 1), V.G, sw, 1, T.shadow);
+    var dx = Math.max(0, C.OCT_CX - (w >> 1)), dy = V.G - h - hh + bob;   /* 11-24: 맨 아래 줄(발) = 높이 0 의 줄 V.G − 1 − 높이 (장애물 아랫줄과 같은 줄 — 예전엔 한 줄 아래 바닥선 위였다) · 넓은 칸은 왼쪽 끝 0 부터 */
     ctx.drawImage(img, dx | 0, dy | 0);
   }
   /* 꾸밈 입자(계절 꽃잎·눈): 판 시드에서 갈라 낸 따로 된 mulberry32 — 시뮬레이션 난수(s.rng)는 건드리지 않는다. 같은 판은 같은 입자 */
@@ -794,7 +814,35 @@ var RUNNER = (function () {
   API.close = function () { shut(); };
   API.load = load;
   API.pix = function (name) { return PIX[name] ? pixSVG(PIX[name]) : ''; };   /* 11-18: 12×12 픽셀 그림 SVG (다락 첫 손 힌트가 이 손을 빌려 쓴다 — js/app.js hint) */
-  API.sprites = function () { return buildSprites(); };   /* 시험용 (11-18): 지금 장면 색으로 구운 문어 그림 묶음 { src, run[4], jump, land, duck, hit, idle, gw } */
+  API.sprites = function () { return buildSprites(); };
+  /* 시험용 (11-24): 장애물 하나 (what = 'crate' …) 또는 문어 한 몸 상태 (what = 'stand' | 'land' | 'air' | 'duck' | 'hit', o.y = 높이 px · o.f = 걸음 칸) 를
+     빈 캔버스에 실제 그리기 함수 (drawObs · drawOct) 로 그려, 보이는 픽셀을 시뮬 좌표로 돌려준다: { px: [[x, 높이], …], box: [[x0, x1, 높이0, 높이1], …] }.
+     x = 아트 px (문어는 화면 왼쪽 0 부터, 장애물은 제 x 0 부터), 높이 = 바닥선 위 (0 = 장애물 아랫줄 · 발 줄). 그림자 줄 (바닥선 V.G) 은 뺀다 */
+  API.probeArt = function (what, o) {
+    o = o || {};
+    var sv = { ctx: ctx, V: V, L: L }, W = 96, H = 160, G = 140, cv2 = document.createElement('canvas'); cv2.width = W; cv2.height = H;
+    var c2 = cv2.getContext('2d'); c2.imageSmoothingEnabled = false;
+    try {
+      ctx = c2; V = { W: W, H: H, G: G, k: 1, css: 1 };
+      var ck = L ? L.clock : clock(), T = THEME[ck.phase], O = OBJ[ck.phase === 'night' ? 'night' : 'day'];
+      L = { sprites: L ? L.sprites : buildSprites(), state: what === 'hit' ? 'over' : 'run', reduced: true, clock: ck };
+      var box, ox = 0;
+      if (KINDS[what] || what === 'moss') {
+        var K = KINDS[what] || { w: 6, lo: 24, hi: 30 }; ox = 40;
+        drawObs({ k: what, x: ox * SUB, w: K.w, lo: K.lo, hi: K.hi, id: o.id || 1, got: false }, O, T, 0);
+        box = [[0, K.w, K.lo, Math.min(K.hi, G - bandTop())]];   /* 거미줄은 천장까지 (그림은 들보에서 끝난다) */
+      } else {
+        var bs = what === 'hit' ? 'stand' : what, y = (o.y | 0);
+        var sm = { y: y * SUB, ground: bs !== 'air' && !y, dHeld: bs === 'duck', tick: bs === 'land' ? 103 : (o.f | 0) * 5 + 1000, landT: bs === 'land' ? 100 : -99 };
+        if (bs === 'air' && !y) sm.y = 0, sm.ground = false;
+        drawOct(sm, T, 0);
+        box = C.BOX[boxState(sm)].map(function (b) { return [b[0], b[1], b[2] + y, b[3] + y]; });
+      }
+      var d = c2.getImageData(0, 0, W, H).data, px = [];
+      for (var yy = 0; yy < G; yy++) for (var xx = 0; xx < W; xx++) if (d[(yy * W + xx) * 4 + 3]) px.push([xx - ox, G - 1 - yy]);
+      return { px: px, box: box };
+    } finally { ctx = sv.ctx; V = sv.V; L = sv.L; }
+  };   /* 시험용 (11-18): 지금 장면 색으로 구운 문어 그림 묶음 { src, run[4], jump, land, duck, hit, idle, gw } */
   API.live = function () { return L ? { state: L.state, score: L.sim.score, ticks: L.sim.tick, seed: L.seed, inputs: L.inputs.slice(), night: L.sim.night, sprites: L.sprites.src, phase: L.clock.phase, season: L.clock.season, speed: L.sim.speed, ground: L.sim.ground, y: L.sim.y, moss: L.sim.moss, duck: !!(L.sim.ground && L.sim.dHeld), view: { W: V.W, H: V.H, G: V.G, css: V.css },
     obs: L.sim.obs.map(function (o) { return { k: o.k, x: Math.floor(o.x / SUB), w: o.w, got: o.got }; }) } : null; };   /* 읽기 전용 복사본 (스모크·디버그용) */
   return API;
