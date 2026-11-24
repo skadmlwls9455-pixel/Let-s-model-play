@@ -363,7 +363,8 @@ var SCENE3D = (function () {
   var PLAYER_DEFAULT = { hair: 'tousle', bangs: 'spiky', hairColor: 'brown', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'octee', shoes: 'sneaker', acc: 'none', brow: 'soft', body: 'a' };   /* 열쇠 차례 = 앱의 PLAYER_CATS (눈썹 · 몸은 뒤) */
   var PLAYER_LEGACY = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon', brow: 'none', body: 'a' };
   /* 11-21 옷장 목록 (가게 · 콘테스트가 읽는다): 물건마다 tags (느낌 낱말 + 색 갈래 c-…) 와 shop ({ price: 조개 } | null = 누구나 가진 것). 이번 판 전부터 있던 id 는 전부 null — 입고 있던 것이 사라지지 않게.
-     적는 법: '갈래:id': '낱말 낱말 … [$값]' */
+     적는 법: '갈래:id': '낱말 낱말 … [$값]'
+     11-24 (넷째 바퀴 · 가게 갈래): 첫날 조개 3 개로도 하나는 살 수 있게 야구모자 4 · 목도리 5 — 옷가게는 날마다 이 둘 중 하나를 진열에 넣는다 (js/shop.js SMALL) */
   var PLAYER_META = {
     'hair:bob': 'cute neat', 'hair:short': 'sporty fresh', 'hair:long': 'neat cool', 'hair:twin': 'cute flower', 'hair:pony': 'sporty fresh', 'hair:wave': 'cosy flower',
     'hair:crop': 'sporty cool', 'hair:dandy': 'neat cool', 'hair:tousle': 'cosy fresh', 'hair:part': 'cool neat', 'hair:curl': 'cute cosy', 'hair:twoblock': 'cool sporty', 'hair:lowtail': 'cool sea',
@@ -373,7 +374,7 @@ var SCENE3D = (function () {
     'outfit:windbreak': 'sporty fresh c-yellow $20', 'outfit:cardigan': 'cosy neat flower c-pink $18', 'outfit:suit': 'neat cool star c-black $36',
     'shoes:flat': 'neat c-black', 'shoes:boot': 'warm sea c-blue', 'shoes:sneaker': 'sporty c-red', 'shoes:loafer': 'neat c-brown', 'shoes:hightop': 'sporty cool c-black $14', 'shoes:sandal': 'fresh sea c-brown',
     'acc:none': '', 'acc:ribbon': 'cute c-red', 'acc:beret': 'neat cosy c-red', 'acc:glasses': 'neat c-black', 'acc:catears': 'cute star c-black', 'acc:strawhat': 'fresh flower c-yellow',
-    'acc:cap': 'sporty cool c-blue $12', 'acc:bandana': 'cool sea c-blue', 'acc:headphones': 'cool star c-white $20', 'acc:scarf': 'warm cosy c-orange $14', 'acc:sqglasses': 'neat cool c-black', 'acc:bag': 'neat cosy c-brown $16' };
+    'acc:cap': 'sporty cool c-blue $4', 'acc:bandana': 'cool sea c-blue', 'acc:headphones': 'cool star c-white $20', 'acc:scarf': 'warm cosy c-orange $5', 'acc:sqglasses': 'neat cool c-black', 'acc:bag': 'neat cosy c-brown $16' };
   Object.keys(PLAYER_PARTS).forEach(function (cat) { PLAYER_PARTS[cat].forEach(function (x) {
     var m = PLAYER_META[cat + ':' + x.id], w = typeof m === 'string' ? m.split(' ').filter(Boolean) : [], pr = w.length && w[w.length - 1].charAt(0) === '$' ? +w.pop().slice(1) : 0;
     x.tags = w; x.shop = pr > 0 ? { price: pr } : null;

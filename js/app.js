@@ -5953,8 +5953,9 @@ var APP = (function () {
     toast(ask.kind === 'clothes' ? nm + eulReul(nm) + ' 샀어. 내 모습에서 입어 봐.' : it.type === 'dye' ? nm + ' 염료 1개를 샀어' : '씨앗 1개를 샀어');
     sewFocus('#shop-body .shop-grid', ask.i | 0);
   }
-  function shopTap(it, i, btn) {   /* 칸을 눌렀다 — 여기서는 아무것도 쓰지 않는다 */
-    if (shopAsk) return; var u = shopU();
+  var shopShutAt = -1e9;
+  function shopTap(it, i, btn, e) {   /* 칸을 눌렀다 — 여기서는 아무것도 쓰지 않는다 */
+    if (shopAsk) return; if (!(e && e.isTrusted && e.detail === 0) && tapTime(e) - shopShutAt < SHEET_SETTLE) return;   /* 11-24: '살래' · '그만' 바로 뒤의 둘째 톡이 밑의 칸에 떨어지지 않게 */ var u = shopU();
     if (shopKind === 'clothes') shopAsk = { kind: 'clothes', key: it.key, i: i, act: it.owned ? 'wear' : 'buy' };   /* 옷은 모자라도 입어 볼 수 있다 ('살래' 에서 값이 흔들린다) */
     else if (it.type === 'seed' && it.left < 1) { toast('오늘은 이게 다야'); return; }
     else if (u.shells < it.price) { shopShort(it.price - u.shells, btn && btn.querySelector('.sew-cost')); return; }
@@ -5974,8 +5975,8 @@ var APP = (function () {
       else line = [h('span', { text: (it.type === 'dye' ? it.name + ' 염료 1개' : it.type === 'seed' ? '씨앗 1개' : it.name) + ' · ' }), shellAmt(it.price), h('span', { text: ' 살까?' })];
       var by = h('button', { type: 'button', class: 'btn sm pressable sew-yes', text: wear ? '입을래' : '살래' }), bn = h('button', { type: 'button', class: 'btn sm pressable sew-no', text: '그만' });
       var early = function (e) { return !(e && e.isTrusted && e.detail === 0) && tapTime(e) - shopAskAt < SHEET_SETTLE; };   /* 재봉틀과 같은 규칙: 같은 자리 두 번 누름은 안 받는다 (키보드는 포커스가 '그만' 에 먼저 간다) */
-      by.addEventListener('click', function (e) { if (early(e)) return; var a = shopAsk; if (a) shopDo(a); });
-      bn.addEventListener('click', function (e) { if (early(e)) return; var i = shopAsk ? shopAsk.i | 0 : 0; shopAsk = null; renderShop(); sewFocus('#shop-body .shop-grid', i); });
+      by.addEventListener('click', function (e) { if (early(e)) return; var a = shopAsk; shopShutAt = tapTime(e); if (a) shopDo(a); });
+      bn.addEventListener('click', function (e) { if (early(e)) return; shopShutAt = tapTime(e); var i = shopAsk ? shopAsk.i | 0 : 0; shopAsk = null; renderShop(); sewFocus('#shop-body .shop-grid', i); });
       by.setAttribute('aria-describedby', 'shop-ask-line'); bn.setAttribute('aria-describedby', 'shop-ask-line');
       frag.appendChild(h('div', { class: 'sew-ask shop-ask', role: 'group', 'aria-labelledby': 'shop-ask-line' }, [cv ? h('span', { class: 'shop-mirror' }, [cv]) : goods ? h('span', { class: 'shop-ask-pic', 'aria-hidden': 'true' }, [it.type === 'seed' ? shopSeedPic() : shopJarPic(it.hex, it.id)]) : null, h('p', { class: 'sew-ask-line', id: 'shop-ask-line' }, (sw ? [sw] : []).concat(line)), h('div', { class: 'btn-row sew-ask-btns' }, [bn, by])]));
     } else if (!st.items.length) {
@@ -5993,7 +5994,7 @@ var APP = (function () {
         shopTagSkin(cost, x.owned);
         var b = h('button', { type: 'button', class: 'sew-chip pressable shop-tile' + (x.owned ? ' own' : ''), 'data-key': x.key }, [pic, cost, h('span', { class: 'sew-name', text: x.type === 'dye' ? x.name + ' 염료' : x.name })]);
         b.style.setProperty('--i', String(i));
-        b.addEventListener('click', function () { shopTap(x, i, b); });
+        b.addEventListener('click', function (e) { shopTap(x, i, b, e); });
         grid.appendChild(b);
       });
       frag.appendChild(grid);
@@ -6066,7 +6067,7 @@ var APP = (function () {
     try { var R = roomScene('roomSlots') ? scene.roomSlots('clothes') : null; list.forEach(function (m) { var sl = R && R.slots && R.slots[m.slot]; if (Array.isArray(sl)) m.pos = sl.slice(0, 4); }); } catch (e) { /* noop */ }   /* 자리도 함께 넘긴다 (마네킹 쪽이 방 칸을 못 읽어도 서게 — 계약 C11 의 pos) */
     try { scene.mannequins('clothes', list); } catch (e) { console.warn('[app] mannequins', e); }
   }
-  function roomCardClose() { if (room.card) { room.card.remove(); room.card = null; } }
+  function roomCardClose(byTap) { if (room.card) { var cr = room.card.getBoundingClientRect(); room.shutRect = { l: cr.left - 12, r: cr.right + 12, t: cr.top - 12, b: cr.bottom + 12 }; room.card.remove(); room.card = null; if (byTap) room.shutAt = performance.now(); if (room.key && roomScene('roomHome')) { try { scene.roomHome(); } catch (e) { console.warn('[app] roomHome', e); } } } }   /* 카드를 띄울 때 roomFocus 로 옮긴 화면을 내 캐릭터 쪽으로 되돌린다 (바깥 갈래 — 있을 때만) */   /* byTap: 카드 안 단추로 닫혔다 → 0.6 s 동안 장면 누름은 쉰다 (빠른 두 번 톡이 밑의 다른 마네킹 · 선반에 떨어지지 않게) */
   function roomCardPlace() {   /* 그 단추 (마네킹 · 계산대 · 선반 위에 놓인) 의 화면 자리 바로 위, 장면 안쪽 8px, 기기 px 에 맞춰 */
     var c = room.card, sc = $('scene'); if (!c || !sc) return; var a = $(c.dataset.anchor || ''), dpr = window.devicePixelRatio || 1, sr = sc.getBoundingClientRect(), ar = a && !a.hidden ? a.getBoundingClientRect() : null, w = c.offsetWidth, hh = c.offsetHeight;
     /* 세로 자리는 장면 안에서도 위 상태 줄 아래 · 큰 단추 위 칸만 (장면이 화면을 다 채워 그 둘 밑으로 깔린다 — 이름이 잘리고 위 단추를 덮었다) */
@@ -6078,9 +6079,12 @@ var APP = (function () {
     var pb = null;
     try { if (roomScene('player') && roomScene('project')) { var pi = scene.player(), ph = pi && pi.height || 1.5, f = pi && pi.at ? scene.project(pi.at[0], 0, pi.at[2]) : null, hd = f ? scene.project(pi.at[0], ph, pi.at[2]) : null;
       if (f && hd && isFinite(f.x) && isFinite(hd.y)) { var half = Math.max(24, (f.y - hd.y) * 0.45); pb = { l: f.x - half, r: f.x + half, t: hd.y - 8, b: f.y + 4 }; } } } catch (e) { pb = null; }
-    var hit = function (x, y) { return pb && x < pb.r && x + w > pb.l && y < pb.b && y + hh > pb.t; };
+    var keep = pb ? [pb] : [];   /* 덮지 않을 것: 내 캐릭터 · 조개 칩 · '밖으로' 자리 */
+    ['btn-bag', 'btn-room-exit'].forEach(function (id) { var e = $(id); if (!e || e.hidden || !e.offsetParent) return; var q = e.getBoundingClientRect(); if (q.width) keep.push({ l: q.left - sr.left - 2, r: q.right - sr.left + 2, t: q.top - sr.top - 2, b: q.bottom - sr.top + 2 }); });
+    var hit = function (x, y) { return keep.some(function (k) { return x < k.r && x + w > k.l && y < k.b && y + hh > k.t; }); };
     var cands = [];
     if (ar) { cands.push([cx, ar.top - sr.top - hh - 8], [cx, ar.bottom - sr.top + 8]); } else cands.push([cx, (top + bot - hh) / 2]);
+    keep.slice(pb ? 1 : 0).forEach(function (k) { cands.push([cx, k.b + 8], [cx, k.t - hh - 8]); });
     if (pb) { cands.push([cx, pb.t - hh - 8], [cx, pb.b + 8], [pb.l - w - 8, (top + bot - hh) / 2], [pb.r + 8, (top + bot - hh) / 2], [pb.l - w - 8, top], [pb.r + 8, top]); }   /* 위 · 아래가 안 되면 옆 */
     var x = cands[0][0], y = cands[0][1], ok = false;
     for (var ci = 0; ci < cands.length && !ok; ci++) { var tx = cands[ci][0], ty = cands[ci][1]; if (tx < X0 - 0.5 || tx > X1 + 0.5 || ty < top - 0.5 || ty > Y1 + 0.5 || hit(tx, ty)) continue; x = tx; y = ty; ok = true; }
@@ -6101,7 +6105,7 @@ var APP = (function () {
     sc.appendChild(c); room.card = c; room.at = performance.now(); roomCardPlace(); requestAnimationFrame(roomFollow); return c;
   }
   function roomEarly(e) { return !(e && e.isTrusted && e.detail === 0) && tapTime(e) - room.at < SHEET_SETTLE; }   /* 카드가 뜬 뒤 0.6 s 안의 누름은 안 받는다 (같은 자리 두 번 톡) */
-  function roomBtn(text, cls, fn) { var b = h('button', { type: 'button', class: 'btn sm pressable ' + cls, text: text }); b.addEventListener('click', function (e) { e.stopPropagation(); if (roomEarly(e)) return; fn(b); }); return b; }
+  function roomBtn(text, cls, fn) { var b = h('button', { type: 'button', class: 'btn sm pressable ' + cls, text: text }); b.addEventListener('click', function (e) { e.stopPropagation(); if (roomEarly(e)) return; var was = room.card, wr = was ? was.getBoundingClientRect() : null; room.tapAt = tapTime(e); fn(b); if (room.card !== was && wr) { room.shutAt = performance.now(); room.shutRect = { l: wr.left - 12, r: wr.right + 12, t: wr.top - 12, b: wr.bottom + 12 }; } }); return b; }   /* 카드가 닫혔거나 다른 카드 (영수증) 로 바뀌었다 → 그 자리의 0.6 s 쉼 */
   function roomTagEl(x, out) { return shopTagSkin(x.owned ? h('span', { class: 'sew-cost own' }, [pxIco('check'), h('span', { class: 'sr-only', text: '가지고 있어' })]) : out ? h('span', { class: 'sew-cost own' }, [h('span', { class: 'shop-tag-txt', text: '내일' })]) : h('span', { class: 'sew-cost' }, [shellAmt(x.price)]), x.owned); }
   function roomTryOff(x) { var f = roomApi('tryOff'), k; if (!f) return false; try { f(x.cat); } catch (e) { console.warn('[app] tryOff', e); return false; } for (k in room.basket) if (room.basket[k].cat === x.cat) delete room.basket[k]; return true; }   /* 벗기가 된 때에만 바구니에서 뺀다 */
   function roomTry(x) {   /* 입어 보기: 같은 갈래에 입어 보던 것은 마네킹으로 돌아간다. 저장 없음 */
@@ -6154,7 +6158,9 @@ var APP = (function () {
     var n = room.card && room.card.querySelector('.shop-purse .shell-n'); if (n) { n.textContent = String(u.shells); shopCount(had, u.shells, n); }
     roomDress(); if (!got.length) { roomCardClose(); return; }
     toast(got.map(function (x) { return x.name; }).join(' · ') + eulReul(got[got.length - 1].name) + ' 샀어');
-    var rc = room.card; setTimeout(function () { if (room.card === rc) roomCardClose(); }, 700); roomPose('pose'); roomSayAs('clothes', 'shop.pay', { shells: had - u.shells });
+    var rc = room.card;
+    if (rc) { var sl = rc.querySelector('.shop-rc-sum'), br = rc.querySelector('.shop-card-btns'); if (sl) { sl.textContent = ''; sl.appendChild(shellAmt(had - u.shells)); sl.appendChild(h('span', { text: ' 냈어' })); } if (br) br.remove(); }   /* 값을 낸 영수증: 묻는 말 · 단추 없이 */
+    setTimeout(function () { if (room.card === rc) { roomCardClose(); var cb = $('btn-room-counter'); if (cb && !cb.hidden) cb.focus({ preventScroll: true }); } }, 1500);   /* 가게 주인이 '영수증' 을 말하는 동안 보이게 */ roomPose('pose'); roomSayAs('clothes', 'shop.pay', { shells: had - u.shells });
   }
   function roomMirror() {   /* 거울: 가까이 들어가 자세 한 번 → 돌아온다 (도중에 방을 나가면 남은 박자는 건너뛴다) */
     if (room.busy) return; room.busy = true; roomCardClose(); var tok = room.gen, here = function () { return tok === room.gen && room.key === 'clothes'; };
@@ -6199,8 +6205,8 @@ var APP = (function () {
     if (key) setTimeout(function () { if (room.key === key) roomSayAs(key, key === 'clothes' ? 'shop.enter' : 'goods.enter'); }, 0);   /* 대사 갈래가 방이 바뀔 때 떠 있던 줄을 접은 다음에 */
   }
   var shopGoing = false;
-  function shopGo(kind) {   /* 문 · 진열대: 걸어 들어가기 (바깥 갈래의 APP.goInside). 움직임 줄이기 · 방 없음 · 못 들어감 · 8 s 안에 답이 없음 → 예전 시트 */
-    var go = roomApi('goInside'); if (!go || reduced()) { openShop(kind); return; }
+  function shopGo(kind) {   /* 문 · 진열대: 걸어 들어가기 (바깥 갈래의 APP.goInside). 방 없음 · 못 들어감 · 8 s 안에 답이 없음 → 예전 시트 */
+    var go = roomApi('goInside'); if (!go) { openShop(kind); return; }   /* 11-24: 움직임 줄이기여도 방으로 (카페 · 공연장처럼) — 시트는 방이 없을 때 (2D · goInside 가 false) 만 */
     if (shopGoing) return; shopGoing = true;
     var fin = false, done = function (ok) { if (fin) return; fin = true; clearTimeout(tm); shopGoing = false; if (!(ok === true || (ok && ok.ok === true)) && !room.key) setTimeout(function () { if (!room.key) openShop(kind); }, 0); };
     var tm = setTimeout(function () { done(false); }, 8000);
@@ -6216,7 +6222,18 @@ var APP = (function () {
         else if (b.id === 'btn-room-counter') { if (roomScene('mannequins')) roomReceipt(); else openShop('clothes'); }   /* 마네킹이 없는 방이면 예전 선반 시트 */
       } else if ((m = /^btn-shelf-(\d)$/.exec(b.id))) roomShelf(+m[1]);
     });
-    document.addEventListener('pointerdown', function (e) { if (room.card && !room.card.contains(e.target)) roomCardClose(); }, true);   /* 카드 밖을 누르면 접는다 */
+    document.addEventListener('pointerdown', function (e) { if (room.card && !room.card.contains(e.target)) roomCardClose(); }, true);
+    document.addEventListener('keydown', function (e) { if (e.key !== 'Escape' || !room.card || document.querySelector('dialog[open]')) return; var ae = document.activeElement; if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return; roomCardClose(); e.preventDefault(); });   /* 열린 창 · 글 칸이 있으면 그쪽 Esc 가 먼저 */   /* Esc 로도 카드를 접는다 */
+    /* 카드 안 단추로 카드가 닫힌 직후 0.6 s: 장면 안 누름 (마네킹 · 선반 단추 · 그림 위 톡) 은 받지 않는다 — 창 (window) 의 잡기 단계라 건물 · 바깥 갈래의 처리보다 먼저 */
+    ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'click'].forEach(function (ev) {
+      window.addEventListener(ev, function (e) {
+        if (!room.key || !(room.shutAt > 0) || (e.isTrusted && e.detail === 0 && ev === 'click')) return;
+        var t = e.target, sc = $('scene'); if (!sc || !t || !sc.contains(t) || (room.card && room.card.contains(t))) return;
+        var pt = e.changedTouches && e.changedTouches[0] || e.touches && e.touches[0] || e, q = room.shutRect;   /* 닫힌 카드가 있던 자리만 (걷기 손잡이 · 조개 칩 · 밖으로 · 위 단추는 그대로) */
+        if (!q || !(pt.clientX >= q.l && pt.clientX <= q.r && pt.clientY >= q.t && pt.clientY <= q.b)) return;
+        if (tapTime(e) - room.shutAt < SHEET_SETTLE) { e.stopImmediatePropagation(); if (e.cancelable) e.preventDefault(); }
+      }, { capture: true, passive: false });
+    });   /* 카드 밖을 누르면 접는다 */
     window.addEventListener('resize', roomCardPlace);
     if (roomScene('inRoom')) { try { roomSet(scene.inRoom()); } catch (e) { /* noop */ } }
   }
@@ -7473,7 +7490,7 @@ var APP = (function () {
     /* [7-V] */
 
     /* [7-S] */
-    openShop: openShop, shopStock: shopStock, shopSync: shopSync, beachPick: beachPick, beachSync: beachSync, get beachLeft() { return beachLeft(); }, get shopAsk() { return shopAsk ? { kind: shopAsk.kind, key: shopAsk.key, act: shopAsk.act } : null; },
+    openShop: openShop, shopGo: shopGo, shopStock: shopStock, shopSync: shopSync, beachPick: beachPick, beachSync: beachSync, get beachLeft() { return beachLeft(); }, get shopAsk() { return shopAsk ? { kind: shopAsk.kind, key: shopAsk.key, act: shopAsk.act } : null; },
     get shopRoom() { return { key: room.key, basket: Object.keys(room.basket), tried: Object.keys(room.basket).filter(function (k) { return room.basket[k].tried; }), card: room.card ? room.card.className : null }; },
 
     /* [7-C] */
