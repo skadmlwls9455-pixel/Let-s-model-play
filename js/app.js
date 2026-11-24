@@ -5813,7 +5813,11 @@ var APP = (function () {
     var b = e.target && e.target.closest ? e.target.closest('button.scene-spot') : null;
     if (!b || VIL_BTNS.indexOf(b.id) < 0 || !scene || typeof scene.villageGo !== 'function' || typeof scene.villageNear !== 'function') return;
     if (b._vilGo) { b._vilGo = false; return; }
-    if ((b.id === 'btn-in-hall' || b.id === 'btn-plaza-stage') && window.CONTEST && typeof CONTEST.week === 'function') { var wk = CONTEST.week(todayKey()); if (!wk || !wk.open) return; }   /* 11-24 F: 콘테스트가 닫힌 날엔 걷지 않는다 — 문 단추 일 (F 의 한 줄) 이 바로 뜨게 */
+    if (b.id === 'btn-in-hall' || b.id === 'btn-plaza-stage') {   /* 11-24 F: 콘테스트가 닫힌 날엔 걷지 않고 F 의 한 줄만 (APP.contestOpen · contestNotOpenNote — 없으면 CONTEST.week 로 보고 F 의 click 처리기에 넘긴다) */
+      var A = window.APP;
+      if (A && typeof A.contestOpen === 'function') { if (!A.contestOpen()) { e.stopImmediatePropagation(); e.preventDefault(); if (typeof A.contestNotOpenNote === 'function') A.contestNotOpenNote(); return; } }
+      else if (window.CONTEST && typeof CONTEST.week === 'function') { var wk = CONTEST.week(todayKey()); if (!wk || !wk.open) return; }
+    }
     if (scene.villageNear(b.id)) return;
     e.stopImmediatePropagation(); e.preventDefault();
     scene.villageGo(b.id).then(function (ok) { if (!ok) return; b._vilGo = true; b.click(); b._vilGo = false; });
