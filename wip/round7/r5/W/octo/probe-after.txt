@@ -1,0 +1,20 @@
+ok  loft: rug→salon                  frames 120 minClear 0.441 bad 0 maxHop 0.17 {"from":[-0.2962962962962963,-0.1111111111111111],"to":[-1.75,-1.1],"mode":"direct","pts":1,"hops":[]}
+ok  default window→door              frames 300 minClear 0.365 bad 0 maxHop 0.17 {"from":[-1.8,0.4],"to":[1.95,-2.05],"mode":"walk","pts":15,"hops":[]}
+ok  default blanket→door             frames 300 minClear 0.364 bad 0 maxHop 0.17 {"from":[-0.6666666666666666,1.6037037037037036],"to":[1.95,-2.05],"mode":"walk","pts":15,"hops":[]}
+ok  default center→door              frames 180 minClear 0.365 bad 0 maxHop 0.17 {"from":[0,0.2],"to":[1.95,-2.05],"mode":"walk","pts":15,"hops":[]}
+ok  default board→door               frames 180 minClear 0.361 bad 0 maxHop 0.17 {"from":[0.1,-2],"to":[1.95,-2.05],"mode":"walk","pts":9,"hops":[]}
+ok  default crate→door               frames 120 minClear 0.365 bad 0 maxHop 0.17 {"from":[1.0190301168721785,-1.0956708580912726],"to":[1.95,-2.05],"mode":"walk","pts":22,"hops":[]}
+ok  default door→blanket             frames 300 minClear 0.365 bad 0 maxHop 0.17 {"from":[1.95,-2.05],"to":[-0.6666666666666666,1.6037037037037036],"mode":"walk","pts":15,"hops":[]}
+ok  gap: crate-anchor→door           frames 240 minClear 0.423 bad 0 maxHop 0.17 {"from":[-0.9829874257261826,0.057090350616535],"to":[1.95,-2.05],"mode":"walk","pts":8,"hops":[]}
+ok  gap: window→blanket              frames 240 minClear 0.417 bad 0 maxHop 0.17 {"from":[-1.2696699141100893,-0.13033008588991057],"to":[-0.6666666666666666,2.1037037037037036],"mode":"walk","pts":29,"hops":[]}
+ok  enclosed door: center→door       frames 120 minClear 0.567 bad 0 maxHop 0.17 {"from":[0,0.2],"to":[0.7125631329235416,-0.8125631329235419],"mode":"direct","pts":1,"hops":[]}
+ok  enclosed door: door→window       frames 180 minClear 0.567 bad 0 maxHop 0.17 {"from":[0.7125631329235416,-0.8125631329235419],"to":[-1.8,0.4],"mode":"direct","pts":1,"hops":[]}
+ok  moved: blanket→door              frames 360 minClear 0.41 bad 0 maxHop 0.17 {"from":[-0.6666666666666666,1.6037037037037036],"to":[1.95,-2.05],"mode":"walk","pts":36,"hops":[]}
+ok  moved: window→board              frames 180 minClear 0.445 bad 0 maxHop 0.17 {"from":[-1.8,0.4],"to":[0.1,-2],"mode":"direct","pts":1,"hops":[]}
+ok  tight: furniture around octopus → door frames 300 minClear 0.28 bad 0 maxHop 0.17 {"from":[0,0.2],"to":[1.95,-2.05],"mode":"walk","pts":30,"hops":[]}
+ok  depart from blanket (moved)      frames 338 (not done) minClear 0.41 bad 0 maxHop 0 {"from":[1.95,-2.05],"to":[1.95,-2.4],"mode":"direct","pts":1,"hops":[]}
+ok  fresh crate anchor→door          frames 120 minClear 0.365 bad 0 maxHop 0.17 {"from":[1.0190301168721785,-1.0956708580912726],"to":[1.95,-2.05],"mode":"walk","pts":22,"hops":[]}
+ok  pocket (legal): crate→door       frames 300 minClear 0.169 bad 0 maxHop 1.01 {"from":[-1.5809698831278218,-2.0543291419087275],"to":[1.95,-2.05],"mode":"hop","pts":25,"hops":[0.82]}
+ok  enclosed door (legal): door→window frames 300 minClear 0 bad 0 maxHop 1.19 {"from":[1.95,-2.05],"to":[-1.8,0.4],"mode":"hop","pts":14,"hops":[0.98]}
+ok  depart, door enclosed (ENC)      frames 235 (not done) minClear 0 bad 0 maxHop 1.43 {"from":[0.7125631329235416,-0.8125631329235419],"to":[1.95,-2.4],"mode":"hop","pts":16,"hops":[1.2]}
+ok  depart, door enclosed (legal)    frames 211 (not done) minClear 0 bad 0 maxHop 1.19 {"from":[1.95,-2.05],"to":[1.95,-2.4],"mode":"direct","pts":1,"hops":[]}

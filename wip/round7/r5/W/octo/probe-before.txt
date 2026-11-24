@@ -1,0 +1,20 @@
+ok  loft: rug→salon                  frames 120 minClear 1.787 bad 0 maxHop 0.17 null
+ok  default window→door              frames 300 minClear 0.584 bad 0 maxHop 0.17 null
+ok  default blanket→door             frames 300 minClear 0.584 bad 0 maxHop 0.17 null
+ok  default center→door              frames 240 minClear 0.584 bad 0 maxHop 0.17 null
+ok  default board→door               frames 120 minClear 0.847 bad 0 maxHop 0.17 null
+ok  default crate→door               frames 120 minClear 0.457 bad 0 maxHop 0.17 null
+ok  default door→blanket             frames 300 minClear 0.584 bad 0 maxHop 0.17 null
+ok  gap: crate-anchor→door           frames 240 minClear 0.423 bad 0 maxHop 0.17 null
+ok  gap: window→blanket              frames 300 minClear 0.44 bad 0 maxHop 0.17 null
+ok  enclosed door: center→door       frames 120 minClear 0.567 bad 0 maxHop 0.17 null
+ok  enclosed door: door→window       frames 180 minClear 0.567 bad 0 maxHop 0.17 null
+ok  moved: blanket→door              frames 360 minClear 0.44 bad 0 maxHop 0.17 null
+ok  moved: window→board              frames 180 minClear 0.607 bad 0 maxHop 0.17 null
+BAD tight: furniture around octopus → door frames 180 minClear 0 bad 48 maxHop 0.17 null
+ok  depart from blanket (moved)      frames 341 (not done) minClear 0.44 bad 0 maxHop 0 null
+ok  fresh crate anchor→door          frames 120 minClear 0.457 bad 0 maxHop 0.17 null
+BAD pocket (legal): crate→door       frames 240 minClear 0 bad 67 maxHop 0.17 null
+BAD enclosed door (legal): door→window frames 300 minClear 0 bad 51 maxHop 0.17 null
+BAD depart, door enclosed (ENC)      frames 259 (not done) minClear 0 bad 114 maxHop 0 null
+BAD depart, door enclosed (legal)    frames 204 (not done) minClear 0 bad 44 maxHop 0 null
