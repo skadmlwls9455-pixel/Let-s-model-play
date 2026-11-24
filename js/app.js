@@ -7326,12 +7326,12 @@ var APP = (function () {
     rv.forEach(function (r, k) { list.push({ id: 'rival' + k, color: typeof r.color === 'string' ? r.color : '#8a8494', hat: 'none', pose: 'stand' }); });
     ctSceneCall('npcSet', list);
     st.judges.slice(0, 3).forEach(function (j, i) { ctSceneCall('npcPlace', ctJudgeId(i), j[0], j[1], j[2]); ctSceneCall('npcPose', ctJudgeId(i), 'sit'); });
-    if (e) ctPodiumPlace(st, e);
+    if (e) ctPodiumPlace(st, e, !hall);   /* 공연장이 없을 때 (광장 무대) 는 전처럼 단상에 */
   }
-  function ctPodiumPlace(st, e) {   /* 등수대로 단상에 (내 캐릭터는 자리를 옮기는 함수가 있을 때만) */
+  function ctPodiumPlace(st, e, me) {   /* 등수대로 단상에. 내 캐릭터 (me 일 때 · 자리를 옮기는 함수가 있을 때만) 는 쇼의 단상 박자 · 끝에서만 — 공연장 안에서는 결과를 닫으면 대기 자리로 내려오므로 (ctBack), 1초마다 · 방에 들어설 때 다시 맞추면서 도로 올리지 않는다 */
     CT.board(e).forEach(function (b) {
       var p = st.podium[b.rank - 1]; if (!p) return;
-      if (b.who === 'me') { if (typeof scene.playerPlace === 'function') ctSceneCall('playerPlace', p[0], p[1], p[2]); }
+      if (b.who === 'me') { if (me && typeof scene.playerPlace === 'function') ctSceneCall('playerPlace', p[0], p[1], p[2]); }
       else ctSceneCall('npcPlace', 'rival' + b.who, p[0], p[1], 0);
     });
   }
@@ -7456,7 +7456,7 @@ var APP = (function () {
       [0, 1, 2].forEach(function (i) {   /* 심사 팻말 하나씩 + 센 수를 말하는 대본 */
         seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'judge', i + 1); if (i === 0) ctFocus(st.judges[1][0], st.judges[1][1], 2.2);   /* 맞춘 점을 머리 위로 올려 잡아 팻말이 위쪽 대사창 아래에 오게 */ ctPlacards(st, e, i + 1); ctSayAs(CT_JUDGES[i], 'contest.judge', { n: ctJudgeN(e, i) }); return ctWaitMs(1500); });
       });
-      seq.then(function () { if (!live()) return; ctLiveSet(L, 'podium', 0); ctFocus(st.podium[0][0], st.podium[0][1], 2.4); ctPodiumPlace(st, e);   /* 단상 위 캐릭터가 대사창 아래에 보이게 */ ctSayAs(CT_JUDGES[0], 'contest.podium'); return ctPose('cheer', 1200); })
+      seq.then(function () { if (!live()) return; ctLiveSet(L, 'podium', 0); ctFocus(st.podium[0][0], st.podium[0][1], 2.4); ctPodiumPlace(st, e, true);   /* 단상 위 캐릭터가 대사창 아래에 보이게 */ ctSayAs(CT_JUDGES[0], 'contest.podium'); return ctPose('cheer', 1200); })
         .then(function () { if (ctL === L) ctLiveEnd(L); });
     })();
   }
@@ -7464,7 +7464,7 @@ var APP = (function () {
     if (!L || ctL !== L) return;
     L.skip = true; L.done = true; ctL = null;
     var st = ctStageInfo(), host = ctHost(); if (host) { delete host.dataset.stage; delete host.dataset.n; }
-    if (st) { [0, 1, 2].forEach(function (k) { ctSceneCall('npcPlace', 'rival' + k, null); }); ctPodiumPlace(st, L.entry); }
+    if (st) { [0, 1, 2].forEach(function (k) { ctSceneCall('npcPlace', 'rival' + k, null); }); ctPodiumPlace(st, L.entry, true); }
     ctResultCard(L.entry); ctSceneKey = null; ctTold();
     var l = $('ct-w-line'); if (l) { try { l.focus({ preventScroll: true }); } catch (e) { l.focus(); } }
   }
