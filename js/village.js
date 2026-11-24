@@ -80,6 +80,13 @@ var VILLAGE = (function () {
     { id: 'sleep-4', s: 55.3, t: 5.7, y: 0, face: 0.2, r: 0.3 }
   ];
   function npc(id) { for (var i = 0; i < NPCS.length; i++) if (NPCS[i].id === id) return NPCS[i]; return null; }
+  /* 11-24 집 문어 넷의 대화 단추 (N 이 #btn-npc-sleep-N 에 대본을 단다): 낮 자리 위 — 집에 들어가 있으면 장면이 끈다 (on). 서는 자리는 걷는 곳 안 */
+  (function () {
+    var n2 = npc('sleep-2'), st2 = [n2.s + 0.3, -2.0];
+    [['sleep-1', [19.6, -2.7]], ['sleep-2', st2], ['sleep-3', [55, -7.9]], ['sleep-4', [55.3, 4.7]]].forEach(function (q, i) {
+      var n = npc(q[0]); SPOTS.push({ key: 'npcSleep' + (i + 1), btn: 'btn-npc-sleep-' + (i + 1), label: '집 문어', npc: q[0], s: n.s, t: n.t, y: n.y + 0.35, r: 0.42, stand: q[1] });
+    });
+  })();
 
   /* 길가 소품 (s, t): 가로등 · 화분 */
   var LAMPS = [[21.6, -2.9], [21.6, 2.9], [28.9, -2.9], [28.9, 2.9], [37.3, -2.9], [38.6, 7.2], [45.4, -7.2]];   /* 길가 다섯 (앞 넷은 둘씩 마주 서서 깃발 줄을 건다) · 광장 둘 */
@@ -189,7 +196,7 @@ var VILLAGE = (function () {
       boxes: [[-2.95, -2.0, -1.45, -1.5], [-2.95, -0.95, -2.55, 0.35], [2.0, 0.25, 2.9, 0.95], [-1.5, 2.2, -0.1, 2.55], [-2.95, 0.6, -2.6, 1.2], [-2.95, 1.55, -1.75, 2.55]],
       circles: [[-1.2, -1.95, 0.4], [-0.15, -1.95, 0.4], [0.9, -1.95, 0.4], [1.95, -1.95, 0.4], [2.7, -2.3, 0.22], [2.7, -0.6, 0.18], [2.75, 1.4, 0.15]] },   /* … 화분 · 모자걸이 · 스탠드 등 */
     cafe: { name: '카페', half: [3.2, 2.6], wallH: 2.2, door: [0.5, 2.0], face: Math.PI, lights: [[0.9, 1.9, -0.9], [-1.2, 1.9, 0.8]],
-      slots: { keeper: [0.2, 0.3, -2.25, 0], menu: [-1.2, 1.35, -2.54, 0],   /* 카페 문어는 내주는 자리 바로 뒤 (문에서 화면에 든다) */ pickup: [0.55, 0.58, -1.75, 0], counter: [1.3, 0.56, -1.75, 0], table: [-1.6, 0.46, 0.3, 0], seat: [-0.88, 0.3, 0.3, -HP], aisle: [-0.88, 0, 0.95, Math.PI],
+      slots: { keeper: [0.2, 0.3, -2.25, Math.PI / 5], menu: [-1.2, 1.35, -2.54, 0],   /* 카페 문어는 내주는 자리 바로 뒤 (문에서 화면에 든다) */ pickup: [0.55, 0.58, -1.75, 0], counter: [1.3, 0.56, -1.75, 0], table: [-1.6, 0.46, 0.3, 0], seat: [-0.88, 0.3, 0.3, -HP], aisle: [-0.88, 0, 0.95, Math.PI],
         table1: [1.9, 0.46, 0.3, 0], table2: [2.45, 0.46, 1.7, 0], nap: [2.45, 0.3, 1.05, 0], turntable: [-2.82, 0.8, 1.55, HP], lp: [-2.82, 0.45, 0.6, HP], exit: [0.5, 0, 2.45, 0] },
       spots: [
         { key: 'cafeMenu', btn: 'btn-cafe-menu', label: '차림판', x: -1.2, y: 1.35, z: -2.5, r: 0.55, stand: [-1.2, -1.4] },
@@ -201,7 +208,7 @@ var VILLAGE = (function () {
       boxes: [[-0.2, -2.0, 3.15, -1.5], [-3.15, -0.25, -2.6, 2.2]],
       circles: [[-1.6, 0.3, 0.36], [1.9, 0.3, 0.36], [2.45, 1.7, 0.36], [-0.88, 0.3, 0.16], [-2.2, 0.3, 0.16], [1.9, -0.4, 0.16], [2.62, 0.3, 0.16], [2.45, 1.05, 0.16], [-2.85, -2.25, 0.25], [-2.85, -0.05, 0.2]] },
     goods: { name: '잡화점', half: [2.6, 2.4], wallH: 2.2, door: [1.9, 1.8],   /* 문은 앞벽 오른쪽 (들어서면 계산대의 문어가 화면에 든다) */ face: Math.PI, lights: [[-0.4, 1.9, -0.4], [1.2, 1.9, 0.6]],
-      slots: { keeper: [0.45, 0.3, -2.05, 0], counter: [0.75, 0.56, -1.55, 0], scale: [1.05, 0.58, -1.55, 0], exit: [1.9, 0, 2.25, 0],   /* 11-22 리드 검토: 계산대와 문어를 뒷벽 가운데로 (오른쪽 끝이면 360 화면 가장자리에 걸렸다) — 셋째 선반은 오른쪽으로 */
+      slots: { keeper: [0.45, 0.44, -2.05, Math.PI / 5], counter: [0.75, 0.56, -1.55, 0], scale: [1.25, 0.58, -1.55, 0], exit: [1.9, 0, 2.25, 0],   /* 11-22 리드 검토: 계산대와 문어를 뒷벽 가운데로 (오른쪽 끝이면 360 화면 가장자리에 걸렸다) — 셋째 선반은 오른쪽으로 */
         shelf0: [-1.75, 0, -2.2, 0], shelf1: [-0.7, 0, -2.2, 0], shelf2: [1.95, 0, -2.2, 0], shelf3: [-2.4, 0, -0.95, HP], shelf4: [-2.4, 0, 0.1, HP], shelf5: [-2.4, 0, 1.15, HP] },
       spots: shelfSpots().concat([
         { key: 'roomCounter', btn: 'btn-room-counter', label: '계산대', x: 1.05, y: 0.7, z: -1.55, r: 0.4, stand: [1.05, -0.85] },
@@ -224,17 +231,18 @@ var VILLAGE = (function () {
   };
   /* 11-24 다섯째 바퀴: 문어 집 넷 (한 틀 — 침대 뒤 왼쪽 · 식탁과 걸상 둘 · 뒷벽 창 · 깔개 · 오른쪽 벽의 '그 문어의 일' 자리) · 미용실.
      look = 그 집의 색과 일 (장면이 읽는다: wall · floor · quilt · trim · job = 'garden' | 'post' | 'shell' | 'fish'). 사는 문어 자리: table (깬 채 걸상) · bed (자는) */
-  function homeRoom(name, look) {
+  function homeRoom(name, look, num) {
     return { name: name, home: true, look: look, half: [2.2, 2.0], wallH: 2.2, door: [1.3, 1.4], face: Math.PI, lights: [[-0.7, 1.9, -0.3], [1.2, 1.9, 0.7]],
       slots: { bed: [-1.45, 0.44, -1.5, HP], table: [-1.55, 0.32, 0.45, HP], tableTop: [-0.85, 0.5, 0.45, 0], job: [1.85, 0, -0.6, -HP], exit: [1.3, 0, 1.85, 0] },
-      spots: [{ key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 1.3, y: 0.5, z: 1.9, r: 0.5, stand: [1.3, 1.4] }],
+      spots: [{ key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 1.3, y: 0.5, z: 1.9, r: 0.5, stand: [1.3, 1.4] },
+        { key: 'roomResident', btn: 'btn-npc-sleep-' + num, label: '집 문어', x: -1.55, y: 0.75, z: 0.45, r: 0.42, stand: [-0.45, -0.55] }],   /* 사는 문어 (식탁 · 침대 — 장면이 따라 옮기고, 집에 없으면 끈다) */
       boxes: [[-2.15, -1.95, -0.75, -1.05], [1.75, -1.75, 2.15, 0.45]],   /* 침대 · 일 자리 선반 (오른쪽 벽) */
       circles: [[-0.85, 0.45, 0.42], [-1.55, 0.45, 0.17], [-0.85, 1.15, 0.17], [-1.75, 1.55, 0.2]] };   /* 식탁 · 걸상 둘 · 화분 */
   }
-  ROOMS.home1 = homeRoom('숲길 집', { wall: 'moss', floor: 'woodL', quilt: 'cream', trim: 'woodD', job: 'garden' });
-  ROOMS.home2 = homeRoom('빈 집', { wall: 'slateA', floor: 'woodB', quilt: 'rose', trim: 'slateD', job: 'post' });
-  ROOMS.home3 = homeRoom('광장 집', { wall: 'sand', floor: 'white', quilt: 'sky', trim: 'woodA', job: 'shell' });
-  ROOMS.home4 = homeRoom('숲길 건너 집', { wall: 'blueD', floor: 'woodA', quilt: 'yellow', trim: 'woodD', job: 'fish' });
+  ROOMS.home1 = homeRoom('숲길 집', { wall: 'moss', floor: 'woodL', quilt: 'cream', trim: 'woodD', job: 'post' }, 1);
+  ROOMS.home2 = homeRoom('빈 집', { wall: 'slateA', floor: 'woodB', quilt: 'rose', trim: 'slateD', job: 'fix' }, 2);
+  ROOMS.home3 = homeRoom('광장 집', { wall: 'sand', floor: 'white', quilt: 'sky', trim: 'woodA', job: 'shell' }, 3);
+  ROOMS.home4 = homeRoom('숲길 건너 집', { wall: 'blueD', floor: 'woodA', quilt: 'yellow', trim: 'woodD', job: 'fish' }, 4);
   /* 미용실: 뒷벽 가운데 큰 거울과 미용 의자 (거울을 본다) · 왼쪽 세면대와 수건 선반 · 오른쪽 머리 색 병 선반 · 앞 오른쪽 기다리는 벤치. 미용사 (npc 'stylist') 는 의자 오른쪽 */
   ROOMS.salon = { name: '미용실', half: [2.4, 2.1], wallH: 2.3, door: [1.5, 1.5], face: Math.PI, lights: [[-0.3, 2.0, -0.6], [1.3, 2.0, 0.9]],
     slots: { chair: [-0.3, 0.5, -1.15, Math.PI], aisle: [-0.3, 0, -0.35, Math.PI], mirror: [-0.3, 1.25, -2.07, 0], keeper: [0.55, 0, -1.2, -HP + 0.3], stylistWork: [0.3, 0, -1.25, -HP], sink: [-1.7, 0.8, -1.75, 0], bottles: [2.15, 1.0, -1.1, -HP], bench: [1.95, 0.4, 0.15, -HP], exit: [1.5, 0, 1.95, 0] },

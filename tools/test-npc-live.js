@@ -6,7 +6,7 @@ var path = require('path');
 var chromium = require('playwright').chromium;
 var URL = 'file://' + path.join(__dirname, '..', 'index.html');
 var pass = 0, fail = 0;
-function ok(c, msg) { if (c) pass++; else { fail++; console.log('  FAIL ' + msg); } }
+function ok(c, msg) { if (process.env.NPC_DEBUG) console.log('  .. ' + String(msg).slice(0, 60)); if (c) pass++; else { fail++; console.log('  FAIL ' + msg); } }
 var SAVE = { octopus: { name: '뽈뽈' }, user: { shells: 5, story: { notices: { help: '2026-11-01', later: 'keep' }, future: [1] } } };
 
 function stubs() {   /* 페이지 안에서 돈다: V 의 단추가 없으면 가짜를 넣고, 있으면 (진짜 장면 — 바깥이 화면에 없을 때는 숨어 있다) 시험 동안 보이게 고정한다 */
@@ -56,7 +56,7 @@ function box(p) {
     await p.evaluate(function () { window.__calls = []; APP.scene.npcSet = function (l) { window.__calls.push(['set', l]); }; APP.scene.npcMark = function (id, on) { window.__calls.push(['mark', id, on]); }; });
     ok(await p.evaluate(function () { return APP.npcSync(true); }) === true, 'scene.npcSet 이 있으면 오늘의 문어들을 넘긴다');   /* 11-22: 진짜 장면 (갈래 V) 이 부팅 때 이미 받았으므로 force 로 다시 넘겨 가로챈다 */
     var set = await p.evaluate(function () { return window.__calls[0][1]; });
-    ok(set.length === 7 && set[0].id === 'clothes' && set[0].hat === 'beret' && set[6].pose === 'sleep', 'npcSet 목록 (셋 + 자는 넷)');
+    ok(set.length === 8 && set[0].id === 'clothes' && set[0].hat === 'beret' && set[3].id === 'sleep-1' && set[7].id === 'stylist', 'npcSet 목록 (가게 셋 + 집에 사는 넷 + 미용사)');
     ok(await p.evaluate(function () { return APP.npcSync(); }) === false, '같은 날 두 번 넘기지 않는다');
 
     await p.evaluate(function () { document.getElementById('btn-settings') && document.getElementById('btn-settings').focus(); window.__focus0 = document.activeElement; window.__r = null; APP.npcSay('clothes', 'shop.hello').then(function (v) { window.__r = v; }); });
@@ -85,7 +85,7 @@ function box(p) {
     await p.keyboard.press('Escape'); await p.waitForFunction(function () { return window.__r !== null; });
     ok(await p.evaluate(function () { return window.__r; }) === false && (await box(p)).hidden, 'Esc 로 닫힌다 (false)');
     ok(await p.evaluate(function () { return APP.npcSay('cafe', 'shop.hello'); }) === false && (await box(p)).hidden, '제 것이 아닌 열쇠면 아무것도 안 보인다');
-    ok(await p.evaluate(function () { return APP.npcSay('sleep-1', 'talk'); }) === false, '자는 문어는 말하지 않는다');
+    ok(await p.evaluate(function () { return APP.npcSay('sleep-1', 'shop.hello'); }) === false, '집에 사는 문어에게 없는 열쇠면 아무것도 안 보인다');
     var rr = await p.evaluate(function () { var a = APP.npcSay('clothes', 'talk'), b = APP.npcSay('goods', 'shop.thanks'); return a.then(function (v) { return [v, APP.npc && APP.npc.id]; }); });
     ok(rr[0] === false && rr[1] === 'goods', '새 말이 오면 앞의 말은 접힌다 (한 번에 하나)');
     await p.keyboard.press('Escape');
@@ -226,10 +226,35 @@ function box(p) {
     ok(look.coverAfter === false, '말상자가 그 문어를 가리지 않는다');
     ok(look.back.indexOf('home') >= 0, '말이 끝나면 화면을 내 캐릭터 쪽으로 되돌린다');
     ok(look.middle.length === 0 && look.card.length === 0 && look.notDrawn.length === 0, '이미 잘 보이거나 · 카드가 떠 있거나 · 그려져 있지 않으면 화면을 밀지 않는다');
+    /* 말을 걸 때 화면이 아직 되돌아가는 중 (앞 말의 roomHome) 이라 가운데 띠 안에 있어 보여도, 0.45 s 뒤 다시 보고 가장자리면 민다 */
+    var again = await p.evaluate(function () {
+      [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); });
+      var S = APP.scene, keep = { where: S.npcWhere, project: S.project, focus: S.roomFocus, home: S.roomHome }, log = [], sxy = { x: innerWidth / 2, y: innerHeight * 0.4 };
+      var sc = document.getElementById('scene').getBoundingClientRect();
+      S.npcWhere = function (id) { return id === 'clothes' ? { x: 0, y: 0, z: 0 } : null; };
+      S.project = function () { return { x: sxy.x - sc.left, y: sxy.y - sc.top }; };
+      S.roomFocus = function () { log.push('focus'); return true; }; S.roomHome = function () { log.push('home'); return true; };
+      APP.npcSay('clothes', 'talk'); var first = log.slice(); sxy = { x: 20, y: innerHeight * 0.4 };   /* 되돌아가기가 끝나니 가장자리 */
+      return new Promise(function (res) { setTimeout(function () {
+        var out = { first: first, later: log.slice() };
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        Object.keys(keep).forEach(function (k) { if (keep[k] === undefined) delete S[k]; else S[k] = keep[k]; });
+        res(out);
+      }, 800); });
+    });
+    ok(again.first.length === 0 && again.later.indexOf('focus') >= 0, '화면이 되돌아가는 중이었으면 0.45 s 뒤 다시 보고 민다: ' + JSON.stringify(again));
 
-    /* 자는 문어: 알림 한 줄 */
+    /* 11-24: 집에 사는 문어 — 낮엔 처음 만남 인사 (이름표 '토리 · 대본'), 같은 날 다시 누르면 낮 말 · 저장에 만난 날 · 밤엔 '자고 있어.' 한 줄 (대사창 아님) */
+    await p.evaluate(function () { window.__ppolLook = Object.assign(window.__ppolLook || {}, { hour: 12 }); });
     await p.click('#btn-npc-sleep-1');
-    ok(await p.evaluate(function () { var t = document.getElementById('toast'); return t.classList.contains('show') && t.textContent === '자고 있어.'; }) && (await box(p)).hidden, '자는 문어를 누르면 "자고 있어." 한 줄 (대사창 아님)');
+    var r1 = await box(p);
+    ok(!r1.hidden && r1.tag === '토리 · 대본' && r1.npc.key === 'home.first', '집에 사는 문어: 처음 만남 (이름표 토리 · 대본): ' + JSON.stringify(r1.npc));
+    ok(await p.evaluate(function () { return document.getElementById('btn-npc-sleep-1').getAttribute('aria-label'); }) === '토리', '집 문어 단추의 이름은 그 문어의 이름');
+    await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
+    var r2 = await p.evaluate(function () { var k = APP.npcResident('sleep-1'), n = APP.npc; var saved = JSON.parse(localStorage.getItem('ppolppol_v2')).user.story; document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return { k: k, key: n && n.key, met: saved.met && saved.met['sleep-1'] }; });
+    ok(r2.k === 'say' && r2.key === 'talk' && r2.met === '2026-11-21', '같은 날 다시 → 낮 말 · 만난 날 저장: ' + JSON.stringify(r2));
+    var r3 = await p.evaluate(function () { window.__ppolLook.hour = 23; var k = APP.npcResident('sleep-1'), t = document.getElementById('toast'); window.__ppolLook.hour = 12; return { k: k, npc: APP.npc, toast: t.classList.contains('show') && t.textContent }; });
+    ok(r3.k === 'sleep' && r3.npc === null && r3.toast === '자고 있어.', '밤엔 자고 있다: "자고 있어." 한 줄 (대사창 아님): ' + JSON.stringify(r3));
 
     /* ── 2. 게시판 ── */
     await p.click('#btn-plaza-board');

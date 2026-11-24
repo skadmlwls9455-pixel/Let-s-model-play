@@ -2479,7 +2479,8 @@ async function scenarioWave7(browser) {
           named: bs.every(function (b) { return color ? !!b.getAttribute('aria-label') && !!b.title : !!(b.querySelector('.look-name') || {}).textContent; }),
           tall: bs.every(function (b) { var r = b.getBoundingClientRect(); return r.height >= 32 && r.width >= 32; }),
           thumbs: th.length, drawn: th.filter(function (c) { return c.dataset.drawn === '1'; }).length, ink: sg.length ? Math.min.apply(null, sg.map(function (x) { return x.ink; })) : 0, distinct: Object.keys(seen).length, sigs: sg.map(function (x) { return x.h; }),
-          thW: th[0] ? th[0].clientWidth : 0, thPx: th[0] ? px(th[0]) : false };
+          thW: th[0] ? th[0].clientWidth : 0, thPx: th[0] ? px(th[0]) : false,
+          locked: bs.filter(function (b) { return !!b.querySelector('.look-lock'); }).length, lockedThumbs: bs.filter(function (b) { return !!b.querySelector('.look-lock') && !!b.querySelector('canvas.look-thumb'); }).length };   /* 11-24 (주인 '옷가게에서 파는 것들은 미리 보여주지 말고 이름만'): 안 가진 칸은 그림 없이 이름 + 자물쇠 */
       });
       var cs = cv ? sig(cv) : null, kr = close.getBoundingClientRect(), lbl = cv ? cv.getAttribute('aria-label') || '' : '', cut = lbl.indexOf(': ');   /* 11-15 (검증 T-6): 지금 고른 것들은 그림 이름 뒤 (': ' 다음) — 그림 밑 보이는 한 줄은 없다 */
       return { open: sheet.open, under: document.getElementById('settings-sheet').open, focus: document.activeElement ? document.activeElement.id : null, rail: { role: rail.getAttribute('role'), label: rail.getAttribute('aria-label'), ori: rail.getAttribute('aria-orientation') }, tabs: tabs,
@@ -2510,8 +2511,8 @@ async function scenarioWave7(browser) {
   ok(lookAll.every(function (x) { return !x.emoji; }) && lookSt.eyes.eye === '눈 색은 크게 봐야 잘 보여', '옷장: 이모지 0 · 눈 갈래엔 눈 색 안내 한 줄 (' + lookSt.eyes.eye + ')');
   if (CAN_SHOT) {
     var lookTiles = lookGroups.filter(function (g) { return !g.color; });
-    ok(lookAll.every(function (x) { return !x.noShot && x.note2d === null; }) && lookTiles.length === 12 && lookTiles.every(function (g) { return g.thumbs === g.n && g.drawn === g.n && g.thW === 64 && g.thPx && g.ink > 40 && g.distinct === g.n; }) && lookGroups.every(function (g) { return !g.color || g.thumbs === 0; }),
-      '옷장 (3D): 타일마다 그림 (32×32 → 64px pixelated · 다 그려짐 · 빈 그림 없음 · 한 묶음 안에서 서로 다른 그림) · 색 동그라미엔 그림 없음 ' + JSON.stringify(lookTiles.map(function (g) { return [g.part, g.thumbs, g.drawn, g.distinct, g.ink, g.thW]; })));
+    ok(lookAll.every(function (x) { return !x.noShot && x.note2d === null; }) && lookTiles.length === 12 && lookTiles.every(function (g) { var own = g.n - g.locked; return g.thumbs === own && g.drawn === own && g.thW === 64 && g.thPx && g.ink > 40 && g.distinct === own && g.lockedThumbs === 0; }) && lookGroups.every(function (g) { return !g.color || g.thumbs === 0; }),
+      '옷장 (3D): 가진 타일마다 그림 (32×32 → 64px pixelated · 다 그려짐 · 빈 그림 없음 · 한 묶음 안에서 서로 다른 그림) · 안 가진 (잠긴) 타일엔 그림 없음 · 색 동그라미엔 그림 없음 ' + JSON.stringify(lookTiles.map(function (g) { return [g.part, g.n, g.locked, g.thumbs, g.drawn, g.distinct, g.ink, g.thW, g.lockedThumbs]; })));
     ok(stage0 && stage0.w === 64 && stage0.h === 96 && stage0.cw === 128 && stage0.ch === 192 && stage0.px && stage0.role === 'img' && stage0.label === '내 모습 앞모습' && stage0.ink > 300 && lookSt.hair.turn === '뒤 보기', '옷장 (3D): 전신 미리보기 64×96 → 128×192px pixelated · role=img 앞모습 · 그려짐 · 뒤 보기 단추 ' + JSON.stringify(stage0));
     ok(lookAll.map(function (x) { return x.now; }).join(' / ') === '단발 · 삐죽 · 금발 / 동그란 · 흑갈색 · 눈썹 없음 / 살구 · 세모코 · 미소 · 볼 없음 / 동글 · 원피스 / 단화 / 리본' && lookAll.every(function (x) { return !x.nowEl; }), '옷장 (3D): 미리보기 그림 이름 (읽어 주기) = 그 갈래에서 지금 고른 것 · 그림 밑 보이는 한 줄은 없음 ' + JSON.stringify(lookAll.map(function (x) { return x.now; })));
     await page.click('#look-turn'); var lookBack = await lookRead(page);
@@ -5727,9 +5728,9 @@ async function scenarioWeek(browser) {
   }, pick);
   console.log('   내민 직후:', JSON.stringify(off));
   ok(off.day === pick.day && off.asked && off.n >= 1 && off.exprs[0] === 'idle', '선물 상자: ' + pick.name + ' 내밀자마자 그날 물어봤다는 기록이 저장돼 있다 (giftAsked ' + off.day + ' · ' + pick.id + ') — 답이 나오기 전');
-  var NO = new RegExp('^뚜루는 ' + pick.name + ' 안 (쓰기|두르기)로 했어\\.$');
-  var ans = await pb.waitForFunction(function () { return window.__toasts.some(function (x) { return /기로 했어\.$/.test(x.t); }); }, null, { timeout: WAIT, polling: 50 }).then(function () { return true; }, function () { return false; });
-  var fin = await pb.evaluate(function () { var a = window.__toasts.filter(function (x) { return /기로 했어\.$/.test(x.t); })[0]; return { toast: a ? a.t : '', exprs: a ? a.ex : [], wear: APP.state.settings.octWear || null, row: [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).filter(function (t) { return /선물/.test(t); }).pop() || '' }; });
+  var NO = new RegExp('^문어 뚜루는 ' + pick.name + '(을|를) 안 (쓰기|두르기)로 했어\\. \\(데모 규칙이 고름\\)$');   /* 11-24 (주인: 내 캐릭터가 거절한 것처럼 읽혔다): 주어 '문어 <이름>' · 받침대로 조사 · 알림에도 데모 규칙 */
+  var ans = await pb.waitForFunction(function () { return window.__toasts.some(function (x) { return /기로 했어\. \(데모 규칙이 고름\)/.test(x.t); }); }, null, { timeout: WAIT, polling: 50 }).then(function () { return true; }, function () { return false; });
+  var fin = await pb.evaluate(function () { var a = window.__toasts.filter(function (x) { return /기로 했어\. \(데모 규칙이 고름\)/.test(x.t); })[0]; return { toast: a ? a.t : '', exprs: a ? a.ex : [], wear: APP.state.settings.octWear || null, row: [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).filter(function (t) { return /선물/.test(t); }).pop() || '' }; });
   console.log('   답:', JSON.stringify(fin));
   ok(ans && NO.test(fin.toast) && /\(데모 규칙이 고름\)/.test(fin.row), '선물 상자: 답은 «' + fin.toast + '» · 기록 줄에 (데모 규칙이 고름)');
   ok(ans && fin.exprs.length >= 1 && fin.exprs.every(function (e) { return e === 'idle'; }), '안 쓴다는 답이 뜬 순간까지의 장면 얼굴: 들여다보는 틈도 답도 평소 얼굴 (11-15 주인 C6 b — 예전 curious → idle) (' + fin.exprs.join(' → ') + ') — 반눈 calm 없음');
@@ -8522,7 +8523,7 @@ async function scenarioPlayer7(browser) {
       if (!Array.isArray(i.tags) || i.tags.some(function (t) { return q.TAGS.indexOf(t) < 0; }) || i.tags.filter(function (t) { return t.indexOf('c-') === 0; }).length > 1 || typeof i.name !== 'string' || !i.name) bad.push(c.key + ':' + i.id);
       if (q.OLD.indexOf(i.id) >= 0 && (i.shop !== null || !i.owned)) bad.push('old ' + c.key + ':' + i.id);
       if (i.shop && !(i.shop.price >= 4 && i.shop.price <= 36)) bad.push('price ' + i.id);   /* 11-24 가게 갈래 S: 첫날 조개로도 하나는 사게 야구모자 4 · 목도리 5 */
-      if (!!i.shop === i.owned) bad.push('owned ' + i.id); }); });
+      if (i.award ? i.owned || i.shop : !!i.shop === i.owned) bad.push('owned ' + i.id); }); });   /* 11-24: 주간 상은 값 없이도 받아야 가진다 (새 사람은 아직 없다) */
     var shop = []; w.cats.forEach(function (c) { c.items.forEach(function (i) { if (i.shop) shop.push(c.key + ':' + i.id); }); });
     var P = APP.playerParts();
     return { look: [p.hair, p.outfit, p.shoes, p.acc, p.body, p.brow].join(), scene: APP.sceneMode === '3d' ? APP.scene.player().look.outfit : 'octee', keys: w.cats.map(function (c) { return c.key + c.items.length; }).join(), bad: bad, shop: shop,
@@ -8532,7 +8533,7 @@ async function scenarioPlayer7(browser) {
       sp: APP.sceneMode === '3d' && APP.scene.playerSpeeds ? APP.scene.playerSpeeds() : null, mode: APP.sceneMode, thumb: (function () { var c = APP.itemThumb('acc', 'cap', 64); return c ? c.width + 'x' + c.height : null; })() };
   }, { OLD: OLD, TAGS: TAGS });
   ok(a.look === 'tousle,octee,sneaker,none,a,soft' && a.scene === 'octee', 'P7 새로 시작한 사람의 기본 모습: 부스스 · 문어 티 · 운동화 · 장식 없음 · 몸 a · 둥근 눈썹 (' + a.look + ')');
-  ok(a.keys === 'hair13,outfit17,shoes6,acc12' && a.n === '2,4,10,13,17,6,12' && !a.bad.length, 'P7 옷장 목록: 머리 13 · 옷 17 · 신발 6 · 장식 12 (몸 2 · 눈썹 4 · 눈 10) · 물건마다 이름 · 정해진 낱말만 · 색 갈래는 하나 · 예전 것은 전부 그냥 가진 것 ' + JSON.stringify([a.keys, a.n, a.bad]));
+  ok(a.keys === 'hair13,outfit17,shoes6,acc14' && a.n === '2,4,10,13,17,6,14' && !a.bad.length, 'P7 옷장 목록: 머리 13 · 옷 17 · 신발 6 · 장식 14 (11-24 주간 상 둘) (몸 2 · 눈썹 4 · 눈 10) · 물건마다 이름 · 정해진 낱말만 · 색 갈래는 하나 · 예전 것은 전부 그냥 가진 것 ' + JSON.stringify([a.keys, a.n, a.bad]));
   ok(a.shop.join() === 'outfit:sailor,outfit:fisher,outfit:windbreak,outfit:cardigan,outfit:suit,shoes:hightop,acc:cap,acc:headphones,acc:scarf,acc:bag', 'P7 가게 물건 열 가지 (조개 4~36) ' + a.shop.join());
   ok(a.wearing === 'hair:tousle,outfit:octee,shoes:sneaker,acc:none' && a.wtags, 'P7 wearing(): 지금 입은 머리 · 옷 · 신발 · 장식과 낱말 (' + a.wearing + ')');
   ok(a.refuse === false && a.still === 'octee' && !a.user, 'P7 아직 없는 가게 옷은 입을 수 없다 (setPlayerPart false · 옷 그대로 · 가진 것 기록 없음)');
@@ -8544,14 +8545,28 @@ async function scenarioPlayer7(browser) {
   var lk = await page.evaluate(function () {
     var L = [].slice.call(document.querySelectorAll('#look-items .look-tile.locked')), t = L[0], r = t.getBoundingClientRect(), amt = t.querySelector('.shell-amt');
     var cs = getComputedStyle(t, '::before');
-    return { n: L.length, ids: L.map(function (b) { return b.dataset.id; }).join(), price: amt ? amt.textContent.replace(/\D+/g, '') : '', mark: parseFloat(cs.width) > 0, h: Math.round(r.height), title: !!t.getAttribute('title'), emoji: /\p{Extended_Pictographic}/u.test(t.innerText) };
+    return { n: L.length, ids: L.map(function (b) { return b.dataset.id; }).join(), price: amt ? amt.textContent.replace(/\D+/g, '') : '', pics: L.filter(function (b) { return b.querySelector('canvas, img'); }).length, name: (t.querySelector('.look-name') || {}).textContent || '', mark: parseFloat(cs.width) > 0, h: Math.round(r.height), title: !!t.getAttribute('title'), emoji: /\p{Extended_Pictographic}/u.test(t.innerText) };
   });
   await page.evaluate(function () { document.querySelector('#look-items .look-tile.locked[data-id="suit"]').click(); });
   await page.waitForTimeout(200);
   var lk2 = await page.evaluate(function () { return { toast: document.getElementById('toast').textContent, outfit: APP.state.settings.player.outfit, own: APP.ownItem('outfit', 'suit'), left: document.querySelectorAll('#look-items .look-tile.locked').length, wear: APP.setPlayerPart('outfit', 'suit'), now: APP.state.settings.player.outfit, key: APP.state.user.owned['outfit:suit'], unknown: APP.ownItem('outfit', 'nope') }; });
-  ok(lk.n === 5 && lk.ids === 'sailor,fisher,windbreak,cardigan,suit' && lk.price === '24' && lk.mark && lk.h >= 44 && !lk.title && !lk.emoji, 'P7 옷장 옷 갈래: 잠긴 칸 다섯 (자물쇠 표시 · 조개 값 · 44px 이상 · 이모지 없음) ' + JSON.stringify(lk));
+  ok(lk.n === 5 && lk.ids === 'sailor,fisher,windbreak,cardigan,suit' && lk.price === '' && lk.pics === 0 && lk.name === '세일러' && lk.mark && lk.h >= 44 && !lk.title && !lk.emoji, 'P7 옷장 옷 갈래: 잠긴 칸 다섯 — 11-24 (주인: "미리 보여주지 말고 이름만") 그림 · 값 없이 이름과 자물쇠 표시 · 44px 이상 · 이모지 없음 ' + JSON.stringify(lk));
   ok(lk2.toast === '마을 옷가게에서 팔아.' && lk2.outfit === 'octee', 'P7 잠긴 칸을 누르면 한 줄 («' + lk2.toast + '») · 옷은 그대로');
   ok(lk2.own === true && lk2.left === 4 && lk2.wear === true && lk2.now === 'suit' && /^\d{4}-\d\d-\d\d$/.test(lk2.key || '') && lk2.unknown === false, 'P7 ownItem 뒤: 잠긴 칸 넷 · 입을 수 있다 · S.user.owned 에 산 날 · 모르는 물건은 false ' + JSON.stringify(lk2));
+  /* 11-24 주간 상 (종이 왕관 · 황제 망토): 받기 전엔 장식 갈래의 잠긴 칸 (한 줄은 달리기 상) · 받으면 옷장을 열 때 내 옷장에 들어와 입을 수 있다 (문어의 답과 따로) */
+  var aw = await page.evaluate(async function () {
+    document.getElementById('look-tab-acc').click(); await new Promise(function (r) { setTimeout(r, 200); });
+    var q = function () { return [].map.call(document.querySelectorAll('#look-items .look-tile.locked'), function (b) { return b.dataset.id; }).join(); }, before = q();
+    document.querySelector('#look-items .look-tile[data-id="emperor_cape"]').click(); await new Promise(function (r) { setTimeout(r, 100); });
+    var t0 = document.getElementById('toast').textContent, acc0 = APP.state.settings.player.acc;
+    localStorage.setItem('ppolppol_runner', JSON.stringify({ net: { awards: { paper_crown: [], emperor_cape: ['2026-W47'] } } }));
+    document.getElementById('look-sheet').close(); APP.openLook(); document.getElementById('look-tab-acc').click(); await new Promise(function (r) { setTimeout(r, 200); });
+    var after = q(), key = (APP.state.user.owned || {})['acc:emperor_cape'];
+    document.querySelector('#look-items .look-tile[data-id="emperor_cape"]').click(); await new Promise(function (r) { setTimeout(r, 100); });
+    var acc1 = APP.state.settings.player.acc; localStorage.removeItem('ppolppol_runner'); APP.setPlayerPart('acc', acc0); document.getElementById('look-tab-outfit').click();
+    return { before: before, toast: t0, acc0: acc0, after: after, key: key, acc1: acc1 };
+  });
+  ok(/paper_crown/.test(aw.before) && /emperor_cape/.test(aw.before) && aw.toast === '다락방 달리기 주간 상으로 받아.' && aw.acc0 !== 'emperor_cape' && /paper_crown/.test(aw.after) && !/emperor_cape/.test(aw.after) && /^\d{4}-\d\d-\d\d$/.test(aw.key || '') && aw.acc1 === 'emperor_cape', 'P7 주간 상: 받기 전엔 잠긴 칸 («' + aw.toast + '») · 받으면 내 옷장에 (받은 날) 들어와 입을 수 있다 ' + JSON.stringify(aw));
   await page.reload();
   await page.waitForFunction(function () { return window.APP && APP.state && APP.scene; }, null, { timeout: 20000 });
   var re = await page.evaluate(function () { var k = 'ppolppol_v2', o = JSON.parse(localStorage.getItem(k)); return { outfit: APP.state.settings.player.outfit, owned: APP.isOwned('outfit', 'suit'), saved: o.user && o.user.owned && !!o.user.owned['outfit:suit'] }; });
@@ -8608,6 +8623,35 @@ async function scenarioPlayer7(browser) {
 
 
 /* [7-S] */
+/* 11-24 다섯째 바퀴 · 가게: 사는 건 계산대 목록에서만 (2D 시트에서도 같은 목록). 담기는 아무것도 쓰지 않고, '사기' 한 번에 계산, 닫으면 담은 것은 버린다 */
+async function scenarioShop7(browser) {
+  console.log('\n== S7. 가게 계산대 목록');
+  var BORN = 1762600000000, RED = '#e8463c', bag = []; bag.ignored = [];
+  var rec = { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 3, days: ['2026-11-21'], affinity: {}, visits: {}, state: 'idle', color: RED, colors: [{ at: BORN, date: '2026-11-21', color: RED, how: 'first', by: 'player' }] },
+    room: { lantern: 3, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] }, user: { shells: 10, seeds: 1, days: ['2026-11-21'], giftDay: '2026-11-21', later: { keep: 1 } },
+    settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
+  var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', hasTouch: true, isMobile: true });
+  await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+  var page = await ctx.newPage(); watchErrors(page, bag);
+  await page.addInitScript({ content: "if (!localStorage.getItem('__seed')) { localStorage.setItem('__seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(rec)) + "); } window.__ppolTest = { today: '2026-11-21' };" });
+  await page.goto('file://' + ROOT + '/index.html?dev=0&intro=0&scene=2d');
+  await page.waitForSelector('#btn-go:not(.away)', { timeout: 20000 }); await page.waitForTimeout(500);
+  var opened = await page.evaluate(function () { return APP.openShop('goods'); });
+  var r0 = await page.evaluate(function () { var L = document.getElementById('shop-list'); return { list: !!L, rows: L ? L.querySelectorAll('.ls-item').length : 0, purse: L ? L.querySelector('.ls-purse').textContent.replace(/\s+/g, ' ') : '', buyOff: L ? L.querySelector('.ls-buy').disabled : null }; });
+  ok(opened && r0.list && r0.rows === 4 && /10/.test(r0.purse) && r0.buyOff, "잡화점: 목록 네 줄 · 위에 조개 10 · 담기 전엔 '사기' 를 못 누름");
+  await page.waitForTimeout(700);
+  await page.click('#shop-list .ls-item[data-key="seed"] .ls-plus'); await page.click('#shop-list .ls-item[data-key="seed"] .ls-plus');
+  var r1 = await page.evaluate(function () { return { cart: APP.shopList.cart.seed, shells: APP.state.user.shells, left: document.querySelector('#shop-list .ls-purse').textContent }; });
+  ok(r1.cart === 2 && r1.shells === 10 && /담으면 6 남아/.test(r1.left), '담기: 씨앗 둘 · 담으면 6 남아 · 조개는 아직 그대로');
+  await page.click('#shop-list .ls-buy');
+  var r2 = await page.evaluate(function () { var u = APP.state.user; return { shells: u.shells, seeds: u.seeds, keep: u.later && u.later.keep, paid: /냈어/.test(document.getElementById('shop-list').textContent) }; });
+  ok(r2.shells === 6 && r2.seeds === 3 && r2.keep === 1 && r2.paid, "'사기' 한 번에 계산 · 같은 자리가 영수증 (모르는 값 그대로)");
+  await page.waitForTimeout(1700); await page.waitForTimeout(700);
+  await page.click('#shop-list .ls-item[data-key="seed"] .ls-plus');
+  await page.click('#shop-close'); await page.waitForTimeout(200);
+  ok(await page.evaluate(function () { return APP.state.user.shells === 6 && APP.state.user.seeds === 3 && !APP.shopList; }), '닫으면 담은 것은 버린다 (조개 그대로)');
+  reportErrors(bag, 'S7'); await ctx.close();
+}
 
 
 /* [7-C] */
@@ -8655,6 +8699,7 @@ async function scenarioPlayer7(browser) {
       /* [7-V] 목록 줄: ['V7', function () { return scenario…(browser); }], */
 
       /* [7-S] 목록 줄: ['S7', function () { return scenario…(browser); }], */
+      ['S7', function () { return scenarioShop7(browser); }],
 
       /* [7-C] 목록 줄: ['C7', function () { return scenario…(browser); }], */
 

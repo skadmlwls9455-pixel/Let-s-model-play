@@ -40,13 +40,41 @@ NPC.keepers.forEach(function (id) {
   ok(['beret', 'apron', 'cap'].indexOf(r.hat) >= 0, id + ' 모자');
   ok(NPC.tag(id) === r.name + ' · 대본', id + ' 이름표에 대본');
 });
-ok(NPC.sleepers.length === 4 && NPC.sleepers.every(function (s, i) { return s.id === 'sleep-' + (i + 1) && /^#[0-9a-f]{6}$/.test(s.color) && !colors[s.color]; }), '자는 문어 넷');
-var L = NPC.list('2026-11-21');
-ok(L.length === 7 && L.every(function (x) { return x.id && /^#[0-9a-f]{6}$/.test(x.color) && ['none', 'beret', 'apron', 'cap'].indexOf(x.hat) >= 0 && ['stand', 'sleep'].indexOf(x.pose) >= 0; }), 'list 는 계약 C6 모양');
-ok(L.filter(function (x) { return x.pose === 'sleep'; }).length === 4 && L.slice(0, 3).every(function (x) { return x.pose === 'stand'; }), '셋은 서 있고 넷은 잔다');
-ok(JSON.stringify(NPC.list('2026-11-21')) === JSON.stringify(NPC.list('2026-11-21')), 'list 는 같은 날 같은 값');
-/* 자는 문어 하나는 카페 구석 식탁에 (C14): 방 · 칸을 달아 넘긴다 */
-ok(L[3].id === 'sleep-1' && L[3].room === 'cafe' && L[3].slot === 'nap' && L.filter(function (x) { return x.room; }).length === 1, 'sleep-1 은 카페의 nap 칸 · 나머지는 바깥');
+ok(NPC.sleepers.length === 4 && NPC.sleepers.every(function (s, i) { return s.id === 'sleep-' + (i + 1) && /^#[0-9a-f]{6}$/.test(s.color) && !colors[s.color]; }), '자던 문어 넷 (색은 그대로)');
+/* 11-24: 집에 사는 넷 · 미용사 — 이름 · 색 · 모자 · 이름표 */
+ok(NPC.residents.join() === 'sleep-1,sleep-2,sleep-3,sleep-4', '집에 사는 넷의 id 는 예전 그대로');
+NPC.residents.concat(['stylist']).forEach(function (id, i) {
+  var r = NPC.roster[id];
+  ok(!!r && /^[가-힣]{1,4}$/.test(r.name) && !names[r.name], id + ' 이름 (짧은 한글 · 겹치지 않음)'); names[r.name] = 1;
+  ok(/^#[0-9a-f]{6}$/.test(r.color) && !colors[r.color], id + ' 색'); colors[r.color] = 1;
+  if (i < 4) ok(r.color === NPC.sleepers[i].color, id + ' 몸 색은 자던 때 그대로');
+  else ok(ATTIC.every(function (a) { return dist(a, r.color) >= 50; }), '미용사 색이 다락 문어 여섯 색과 뚜렷이 다르다');
+  ok(['none', 'beret', 'apron', 'cap'].indexOf(r.hat) >= 0 && NPC.tag(id) === r.name + ' · 대본', id + ' 모자 · 이름표');
+});
+var L = NPC.list('2026-11-21', 12), LN = NPC.list('2026-11-21', 23);
+ok(L.length === 8 && L.every(function (x) { return x.id && /^#[0-9a-f]{6}$/.test(x.color) && ['none', 'beret', 'apron', 'cap'].indexOf(x.hat) >= 0 && ['stand', 'sleep'].indexOf(x.pose) >= 0; }), 'list 는 계약 C6 모양 (셋 · 넷 · 미용사)');
+ok(L.every(function (x) { return x.pose === 'stand' && !x.room && !x.slot; }), '낮엔 다 서 있고 자리는 장면의 시간표 (room · slot 없음)');
+ok(LN.filter(function (x) { return x.pose === 'sleep'; }).map(function (x) { return x.id; }).join() === 'sleep-1,sleep-2,sleep-3,sleep-4', '밤 (21~7) 엔 집에 사는 넷만 잔다');
+ok(NPC.phase(7) === 'day' && NPC.phase(16.9) === 'day' && NPC.phase(17) === 'evening' && NPC.phase(20.9) === 'evening' && NPC.phase(21) === 'night' && NPC.phase(3) === 'night' && NPC.phase() === 'day', '시간 칸 (V 의 시간표와 같은 경계)');
+ok(JSON.stringify(NPC.list('2026-11-21', 12)) === JSON.stringify(NPC.list('2026-11-21', 12)), 'list 는 같은 날 같은 값');
+/* 집에 사는 문어의 열쇠: 처음 → 그날 처음 → 그다음 · 저녁 · 밤 */
+var uu = { story: { future: 1 } };
+ok(NPC.residentKey(uu, 'sleep-3', '2026-11-24', 10) === 'home.first' && NPC.residentKey(uu, 'sleep-3', '2026-11-24', 11) === 'talk' && NPC.residentKey(uu, 'sleep-3', '2026-11-25', 10) === 'home.again' && NPC.residentKey(uu, 'sleep-3', '2026-11-25', 18) === 'home.in' && NPC.residentKey(uu, 'sleep-3', '2026-11-25', 22) === null, '처음 만남 · 다시 만남 · 낮 · 저녁 집 안 · 밤엔 잔다');
+ok(uu.story.future === 1 && uu.story.met['sleep-3'] === '2026-11-24', '만난 날 저장 · 모르는 값은 그대로');
+ok(NPC.residentKey(uu, 'clothes', '2026-11-25', 10) === null, '가게 문어는 이 길로 오지 않는다');
+
+/* 11-24: 집에 사는 넷 · 미용사의 열쇠 */
+var C15 = { 'sleep-1': ['talk', 'home.first', 'home.again', 'home.in'], 'sleep-2': ['talk', 'home.first', 'home.again', 'home.in'], 'sleep-3': ['talk', 'home.first', 'home.again', 'home.in'], 'sleep-4': ['talk', 'home.first', 'home.again', 'home.in'],
+  stylist: ['talk', 'salon.sit', 'salon.pick', 'salon.after', 'salon.short', 'salon.leave'] };
+Object.keys(C15).forEach(function (id) {
+  ok(NPC.keys(id).slice().sort().join() === C15[id].slice().sort().join(), id + ' 열쇠가 딱 그만큼');
+  C15[id].forEach(function (k) {
+    var vs = NPC.variants(id, k), plain = vs.filter(function (v) { return !/\{/.test(v.join('')); });
+    ok(vs.length >= 2 && vs.length <= 5 && plain.length >= 2, id + ' ' + k + ' 갈래 2~5 · 빈칸 없는 갈래 둘 이상');
+    vs.forEach(function (v, i) { ok(v.length >= 1 && v.length <= 2, id + ' ' + k + ' ' + i + ' 풍선 1~2개'); });
+  });
+});
+ok(/3개/.test(NPC.line('stylist', 'salon.short', { need: 3 }, 2).bubbles.join('')) || [0, 1, 2, 3, 4, 5].some(function (i) { return /3개/.test(NPC.line('stylist', 'salon.short', { need: 3 }, i).bubbles.join('')); }), '미용사: 모자란 조개 수를 말하는 갈래');
 
 /* 2. 대사: 열쇠마다 세 갈래 이상 · 길이 · 금지 낱말 */
 Object.keys(C7).forEach(function (id) {
@@ -66,7 +94,7 @@ Object.keys(C7).forEach(function (id) {
   ok(/3개/.test(NPC.line(id, 'contest.judge', { n: 3 }, 0).bubbles.join('')) && /0개/.test(NPC.line(id, 'contest.judge', { n: 0 }, 1).bubbles.join('')), id + ' 심사 줄은 맞은 꼬리표 수를 말한다 (0 도)');
   ok(NPC.keys(id).slice().sort().join() === C7[id].concat(C14[id]).sort().join(), id + ' 열쇠가 딱 그만큼');
 });
-ok(NPC.line('cafe', 'shop.hello') === null && NPC.line('clothes', 'cafe.serve') === null && NPC.line('nobody', 'talk') === null && NPC.line('sleep-1', 'talk') === null, '없는 문어 · 제 것이 아닌 열쇠 · 자는 문어는 null');
+ok(NPC.line('cafe', 'shop.hello') === null && NPC.line('clothes', 'cafe.serve') === null && NPC.line('nobody', 'talk') === null && NPC.line('sleep-1', 'shop.hello') === null, '없는 문어 · 제 것이 아닌 열쇠는 null');
 NPC.allText().forEach(function (t) {
   var s = t.text;
   ok(PLAIN_RX.test(s), t.where + ' 이모지 · 기호 없음: ' + s);

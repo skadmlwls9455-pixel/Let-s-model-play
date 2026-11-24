@@ -1115,15 +1115,23 @@ async function N1(browser) {
     '<iframe src="' + URL0 + '?embed=1&seed=5"></iframe>');
   var E = await openPage(browser, { store: null, url: 'file://' + wrap, settle: 1200 });
   var fr = E.page.frames().filter(function (f) { return /cook\.html/.test(f.url()); })[0], texts = [];
-  async function bodyText() { return fr.evaluate(function () { var s = document.querySelector('.ck-say'), say = s ? s.innerText : ''; return document.body.innerText.replace(say, '').trim(); }); }
+  async function bodyText(book) { return fr.evaluate(function (book) { var s = document.querySelector('.ck-say'), say = s ? s.innerText : '', w = document.querySelector('.ck-bk-words'), bw = book && w ? w.innerText : ''; return document.body.innerText.replace(say, '').replace(bw, '').trim(); }, !!book); }
+  var bookWords = '', endScreen = null;
   if (fr) {
-    texts.push(await bodyText());
+    /* 11-24 r5 (주인 "레시피 북 … 재료만 남겨줘"): 수첩 쪽만 요리 이름 · 재료 이름이 글로 뜬다 — 그 밖은 글 없음. 예전엔 수첩에서 요리를 시작하지 않아 '요리 중 · 결과' 도 수첩이었다 → 이제 요리 그림을 눌러 진짜로 시작한다 */
+    bookWords = await fr.evaluate(function () { var w = document.querySelector('.ck-bk-words'); return w ? w.innerText.trim() : ''; });
+    texts.push(await bodyText(true));
+    await fr.evaluate(function () { var g = document.querySelector('.ck-bk-go'); if (g) g.click(); });
+    await E.go(600);
     await fr.evaluate(function () { COOK.auto(true); });
     await E.go(1500); texts.push(await bodyText());
-    for (var k = 0; k < 40 && (await fr.evaluate(function () { return COOK.live().screen; })) !== 'reveal'; k++) await E.go(300);
+    for (var k = 0; k < 80 && (await fr.evaluate(function () { return COOK.live().screen; })) !== 'reveal'; k++) await E.go(300);
+    endScreen = await fr.evaluate(function () { return COOK.live().screen; });
     await E.go(1200); texts.push(await bodyText());
   }
-  check(fr && texts.length === 3 && texts.every(function (t) { return t === ''; }), 'N1 embed: the page inside the frame shows no text (open, mid-dish, result: ' + js(texts) + ')');
+  check(fr && texts.length === 3 && texts.every(function (t) { return t === ''; }), 'N1 embed: the page inside the frame shows no text (open — besides the book page\'s own words, mid-dish, result: ' + js(texts) + ')');
+  check(endScreen === 'reveal', 'N1 embed: the dish started from the book page cooks through to the plate (' + endScreen + ')');
+  check(/^해초전\s/.test(bookWords), 'N1 embed: the open book page shows the dish name and its ingredients only (' + js(bookWords) + ')');
   check(E.errs.length === 0, 'N1 embed: no errors ' + E.errs.join(' | '));
   await E.done();
 }

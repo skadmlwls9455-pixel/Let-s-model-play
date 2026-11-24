@@ -969,12 +969,12 @@ var COOK = (function () {
   var FOOD_X = TUNE.food.batter.cx, FOOD_Y = TUNE.food.batter.cy;   /* food centre on the stage (art px) */
   var STATION = { tap: 'counter', flip: 'stove', slice: 'board', stir: 'counter', pour: 'stove', drag: 'counter', rub: 'counter', swipe: 'stove', bake: 'counter' };
   var END = { BIG: 80, BIG_S: 72, SMALL: 60, GAP: 12, ART: 20 };   /* 11-21 the two end buttons (CSS px; BIG_S below 340 wide), their 20 x 20 pictures */
-  var HAND2 = { circle: 1, hold: 1, carry: 1, rub: 1 };
-  var IDLE_GLOW = 1500;   /* 11-24 r5: ms without progress before the one thing to touch starts to breathe (a 1 px outline) */            /* ghost hands drawn by COOK_ART.steps.hand2 (18 frames a loop) */
-  var BOOK_MS = { swipe: 24, hand: 600 };
+  var HAND2 = { circle: 1, hold: 1, carry: 1, rub: 1 };            /* ghost hands drawn by COOK_ART.steps.hand2 (18 frames a loop) */
+  var IDLE_GLOW = 1500;   /* 11-24 r5: ms without progress before the one thing to touch starts to breathe (a 1 px outline) */
+  var BOOK_MS = { swipe: 24, hand: 600 };   /* the book: a sideways drag of 24 CSS px turns the page; the first-time hand waits 600 ms */
   /* 11-24 r5 the plate screen: the two places to put the dish (stage art px, their centres), how near counts, how far a press
      must move to lift the dish, and when the first-time hand shows the way */
-  var SERVE = { call: [48, 128], table: [96, 128], reach: 16, lift: 3, hintMs: 1200, dish: [72, 92, 38, 26] };                          /* the book: a sideways drag of 24 CSS px turns the page; the first-time hand waits 600 ms */
+  var SERVE = { call: [48, 128], table: [96, 128], reach: 16, lift: 3, hintMs: 1200, dish: [72, 92, 38, 26] };
   /* 11-18 round 6: a step's station (its own, else its kind's); per recipe what rides over a slide between two stations and
      onto the plate (jeon: the pan, then the cooked jeon, then the cut jeon) */
   function stationOf(step) { return (step && step.station) || STATION[step && step.kind] || 'counter'; }
