@@ -562,6 +562,37 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
     ok(rm.leave[0] === true && rm.inside2 === null && rm.view2 === 'yard' && rm.area === 'village' && Math.abs(rm.back[0] - 24.8) < 0.05 && Math.abs(rm.back[1] + 2.1) < 0.05 && rm.allowed2 === true && Math.abs(rm.scr[0] - 180) < 40 && rm.scr[1] > 90, 'L11 나오면 들어간 문 밖 (s ' + rm.back[0] + ' · t ' + rm.back[1] + ') 에 서고 화면이 따라온다 ' + JSON.stringify(rm.scr) + ' (' + rm.leave[1] + ' s)');
     ok(rm.again === true && rm.built === 1 && rm.kit === true && rm.home[0] === true && rm.home[1] === 'attic' && !rm.home[2] && rm.home[3] === null && JSON.stringify(rm.ev) === '["wtest",null,"wtest",null]', 'L11 다시 들어가도 build 는 한 번 · 방 안에서 집으로 (goRoom attic) = 먼저 나온 뒤 다락 (' + rm.home[4] + ' s) · ppol:room 사건 ' + JSON.stringify(rm.ev));
     await o.ctx.close();
+    /* ── L12 (7차 다섯째 바퀴 갈래 W) 뛸 때 화면이 안 흔들린다 (주인: "뛸 때 화면이 같이 흔들려 울렁거려") ──
+       마당 길 · 마을 지그재그 · 다락에서 스틱으로 뛰고 (버벅이는 폰처럼 0.1 s 프레임을 섞어) 프레임마다 camTrace 를 잰다.
+       ① 그려진 캐릭터의 화면 자리가 앞뒤로 떨지 않는다 (방향이 뒤집힌 횟수 — 예전엔 프레임마다 0 · 1 아트px 를 오갔다)
+       ② 카메라 (반올림 전 밀기) 의 가속이 부드럽다 (2차 차분) ③ 뛰다 서도 카메라가 한 프레임에 2 아트px 넘게 튀지 않는다 ── */
+    o = await open(browser, 8, { hour: 13, weather: 'clear' }); page = o.page;
+    await yardGo(page);
+    var sh = await page.evaluate(async function () {
+      var sc = APP.scene, K = Math.SQRT1_2, tick = function () { return new Promise(function (q) { setTimeout(q, 0); }); }, out = {};
+      async function pump(p) { var v = null, f = 0; p.then(function (q) { v = q; }, function () { v = false; }); await tick(); for (; f < 300 && v === null; f++) { sc.debugSim(0.05, 1); await tick(); } return v; }
+      async function trial(name, setup, input, n, dts) {
+        setup(); sc.setPlayerInput(null); sc.debugSim(1 / 60, 90); var R = [];
+        for (var f = 0; f < n + 90; f++) { var dt = f < n && dts ? dts(f) : 1 / 60; sc.setPlayerInput(f < n ? input(f) : null); sc.debugSim(dt, 1); var c = sc.camTrace(); c.dt = dt; R.push(c); if (f % 40 === 39) await tick(); }
+        var flips = 0, back = 0, acc = 0, stopStep = 0, run = R.some(function (c) { return c.run; });
+        function quick(key) {   /* 한 칸 갔다가 4 프레임 안에 거꾸로 한 칸 = 떨림 (방향을 틀어 천천히 돌아오는 건 안 센다) */
+          var m = 0; for (var k = 0; k < 2; k++) { var ls = 0, lf = -99; for (var f = 1; f < R.length; f++) { var d = R[f][key][k] - R[f - 1][key][k], s = d > 0.5 ? 1 : d < -0.5 ? -1 : 0; if (!s) continue; if (ls && s !== ls && f - lf <= 4) m++; ls = s; lf = f; } } return m;
+        }
+        flips = quick('pl'); back = quick('cam');
+        for (f = 2; f < R.length; f++) for (var k = 0; k < 2; k++) acc = Math.max(acc, Math.abs((R[f].pan[k] - R[f - 1].pan[k]) / (R[f].dt * 60) - (R[f - 1].pan[k] - R[f - 2].pan[k]) / (R[f - 1].dt * 60)));   /* 속도 (아트px / 60분의 1 초) 의 프레임 사이 변화 — 버벅인 프레임도 같은 잣대 */
+        for (f = n + 1; f < R.length; f++) stopStep = Math.max(stopStep, Math.abs(R[f].cam[0] - R[f - 1].cam[0]), Math.abs(R[f].cam[1] - R[f - 1].cam[1]));
+        out[name] = { flips: flips, back: back, acc: +acc.toFixed(2), stop: +stopStep.toFixed(2), run: run, rest: R[R.length - 1].mode };
+      }
+      await trial('yard', function () { sc.debugPlayerAt(6 * K, 6 * K); sc.wideFocus(); }, function () { return { x: 0, y: -1 }; }, 150, function (f) { return f % 9 === 4 ? 0.1 : 1 / 60; });
+      await trial('village', function () { sc.debugPlayerAt(25 * K, 25 * K); sc.wideFocus(); }, function (f) { return f % 60 < 30 ? { x: 0.7, y: -0.7 } : { x: -0.7, y: -0.7 }; }, 180);
+      await pump(APP.goRoom('attic')); sc.debugSim(0.05, 20);
+      await trial('attic', function () { }, function (f) { return f < 80 ? { x: -1, y: 0.2 } : { x: 1, y: -0.4 }; }, 160);
+      return out;
+    });
+    ['yard', 'village', 'attic'].forEach(function (k) { var v = sh[k], lim = k === 'village' ? 8 : 2;   /* 마을은 0.5 s 마다 방향을 튼다 (여섯 번) — 틀 때 한 번씩까지 (고치기 전 같은 길 100 번 남짓) */
+      ok(v && v.flips <= lim && v.back <= 2 && v.acc <= 1.5 && v.stop <= 2 && v.rest === '', 'L12 ' + k + ' 뛰기: 캐릭터 화면 떨림 ' + (v && v.flips) + ' 번 (≤ ' + lim + ' — 예전 수십 번) · 땅 떨림 ' + (v && v.back) + ' 번 (≤ 2) · 카메라 가속 최대 ' + (v && v.acc) + ' 아트px/프레임² (≤ 1.5) · 서고 나서 한 프레임 ' + (v && v.stop) + ' 아트px (≤ 2) · 쉬면 멈춤 ' + JSON.stringify(v)); });
+    ok(sh.yard.run && sh.village.run, 'L12 시험이 실제로 뛰었다 (스틱 0.6 s 넘게)');
+    await o.ctx.close();
   } catch (e) {
     fails++; console.error('CRASH ' + (e && e.stack || e));
   } finally { await browser.close(); }
