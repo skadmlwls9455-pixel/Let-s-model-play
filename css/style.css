@@ -1980,13 +1980,14 @@ dialog.travel-pick .dp-chip canvas { position: absolute; left: var(--dp-icp, 8px
 .cafe-slip .sew-ask-line { text-align: center; color: var(--c-ink); }
 .cafe-slip .sew-ask-btns { justify-content: center; }
 /* 11-21 콘텐츠 다듬기: 방 안 물건의 확대 카드 (#scene 안의 보통 요소 — dialog 아님) · 식탁 위 접시 단추 */
-.cafe-card { position: absolute; left: 0; right: 0; bottom: 8px; margin: 0 auto; z-index: 14; box-sizing: border-box; width: min(344px, calc(100% - 16px)); max-height: calc(100% - 72px); overflow-y: auto; overflow-x: hidden; padding: 8px 12px 10px; color: var(--c-ink); background: var(--c-paper); box-shadow: 0 0 0 2px var(--c-ink), inset 2px 2px 0 #fffaf0, inset -2px -2px 0 var(--c-paper2), 4px 4px 0 rgba(59,42,38,.35); animation: cafe-pop .16s steps(4) both; }
+.cafe-card { position: absolute; left: 8px; top: 8px; margin: 0; z-index: 14; box-sizing: border-box; width: min(344px, calc(100% - 16px)); max-height: calc(100% - 72px); overflow-y: auto; overflow-x: hidden; padding: 8px 12px 10px; color: var(--c-ink); background: var(--c-paper); box-shadow: 0 0 0 2px var(--c-ink), inset 2px 2px 0 #fffaf0, inset -2px -2px 0 var(--c-paper2), 4px 4px 0 rgba(59,42,38,.35); animation: cafe-pop .16s steps(4) both; }
 .cafe-card[hidden] { display: none; }
-.cafe-card[data-mode="stamp"] { width: fit-content; padding: 10px 14px; bottom: auto; top: 30%; }
+.cafe-card[data-mode="stamp"] { width: fit-content; padding: 10px 14px; }
 .cafe-card #cafe-card-close { display: block; margin: 0 0 0 auto; }
+.cafe-card #cafe-card-body:has(.cafe-purse.in-card) + #cafe-card-close { margin-top: -44px; }   /* 조개 주머니와 닫기를 한 줄에 (카드를 줄여 캐릭터를 비켜 설 자리를 낸다) */
 .cafe-card #cafe-card-close[hidden] { display: none; }
-.cafe-card .cafe-purse.in-card { position: static; display: block; width: max-content; margin: 0 0 0 auto; }
-.cafe-card .cafe-board { margin: 12px 6px 14px; }
+.cafe-card .cafe-purse.in-card { position: static; display: block; width: max-content; margin: 0; }
+.cafe-card .cafe-board { margin: 8px 6px 12px; }
 .cafe-card .lp-shelf { margin: 8px 0 12px; }
 .cafe-card .lp-top { float: right; margin: 0 0 8px 8px; }
 .cafe-card .lp-now { display: flex; align-items: center; min-height: 56px; margin: 0 0 8px; text-align: left; }
