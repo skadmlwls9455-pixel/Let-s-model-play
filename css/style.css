@@ -1777,6 +1777,12 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 .stair-cue-arrow { display: block; flex: 0 0 auto; width: 6px; height: 10px; background: #602c2c; clip-path: polygon(6px 0, 4px 0, 4px 2px, 2px 2px, 2px 4px, 0 4px, 0 6px, 2px 6px, 2px 8px, 4px 8px, 4px 10px, 6px 10px); }
 .stair-cue[data-side="right"] .stair-cue-arrow { transform: scaleX(-1); }
 .stair-cue:active { transform: translate(2px, 2px); }
+/* 11-24 (주인: 포스터를 누르면 화면이 검어졌다 깜빡인다): 창 뒤 어두운 막 (::backdrop) 도 창 본체와 같이 서서히 — 막이 첫 프레임에 다 깔리고 본체만 나타나서 한 장이 유독 어두웠다.
+   모션 줄이기면 그대로 (움직임 없음) */
+dialog[open]::backdrop { animation: dlg-bd-in var(--t-ui) var(--ease-enter) both; }
+@keyframes dlg-bd-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) dialog[open]::backdrop { animation: none; } }
+:root[data-motion="reduce"] dialog[open]::backdrop { animation: none; }
 /* 11-24 (점검: 탁자 위 갈색 72 % 는 잘 안 보였다): 밝은 종이 바탕 + 어두운 테 (픽셀 단추 모양 그대로) · 화살표는 짙은 갈색 · 흐림 없음 */
 .stair-cue { opacity: 1; width: 44px; height: 40px; padding: 0 2px; gap: 1px; background: rgba(235, 237, 233, .9); box-shadow: inset 0 0 0 2px #2b1d22, 2px 2px 0 rgba(27, 21, 34, .45); }
 .stair-cue { left: 4px; }
