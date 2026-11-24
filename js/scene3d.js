@@ -567,8 +567,46 @@ var SCENE3D = (function () {
         if (wide && PAN.y) camera.position.addScaledVector(_camZ.setFromMatrixColumn(camera.matrixWorld, 2), -PAN.y / Math.tan(TILT));   /* 11-21 7차: 긴 맵 — 세로로 민 만큼 시선 축으로도 옮겨 카메라 높이를 그대로 둔다 (직교라 그림은 같다). 안 그러면 s 55 쯤에서 카메라가 땅 밑으로 내려가 near · far 가 땅을 자른다 */
       }
       if (LIFT.y) { if (ref === tgt) ref = _pnt.copy(tgt); ref.addScaledVector(_u, -LIFT.y); camera.position.addScaledVector(_u, -LIFT.y); }   /* 시트가 아래를 덮는 동안 장면을 위로 (setSheetInset) */
-      snapScreen(camera.position, ref);   /* 타깃을 카메라 우/상 축 기준 pixelWorldSize 격자에 스냅 → 패닝/추적 중 픽셀 크리프 없음 */
+      if (!camLock(ref)) { snapScreen(camera.position, ref); _camSD[0] = _camSD[1] = 0; }   /* 타깃을 카메라 우/상 축 기준 pixelWorldSize 격자에 스냅 → 패닝/추적 중 픽셀 크리프 없음 */
       camera.updateMatrixWorld();
+    }
+    /* [7-W] 다섯째 바퀴 (주인: "뛸 때 화면이 같이 흔들려 울렁거려"): 카메라와 내 캐릭터가 저마다 따로 아트px 격자에 반올림돼서, 따라가는 동안 둘의 차이가
+       프레임마다 0 · 1 아트px 사이를 오갔다 (캐릭터가 화면에서 1 아트px = 폰 2 CSS px 씩 앞뒤로 떤다 · 잰 값 wip/round7/r5/W).
+       → 화면이 내 캐릭터를 따라 움직이는 동안 (따라가기 · 걷기) 은 그려지는 카메라 칸을 셋 중에서 고른다 (화면 축마다):
+         ① 캐릭터와 같이 한 칸 (캐릭터의 화면 자리 그대로) ② 지난 칸 그대로 ③ 가장 가까운 칸 — 매끄러운 카메라에서 1 아트px 안이고,
+         카메라가 가는 쪽과 거꾸로 가지 않는 첫 것. 그래서 캐릭터는 화면에서 안 떨고, 땅은 한 방향으로만 흐른다 (앞뒤로 안 떤다).
+       화면이 서 있으면 (매끄러운 카메라가 안 움직임) 예전 그대로 가장 가까운 칸. 카메라는 늘 월드 격자 위 (다른 물건도 정수 px 그대로) */
+    var _camSD = [0, 0], _clr = new T.Vector3(), CLK = { on: false, place: '', pw: 0, c: [0, 0], rel: [0, 0], ref: [0, 0], dir: [0, 0], at: [0, 0] };
+    function camLock(ref) {
+      var want = typeof PL !== 'undefined' && !!PL && !!plG && !!plG.parent && PL.place === PLACE.vis && panOn() && !INTRO.on && !PAN.cut && !!S.pw && (PAN.mode === 'follow' || !!PL.moving || !!PL.stick);
+      if (!want) {
+        var was = CLK.on && CLK.place === PLACE.vis && !GEST.mode && (_camSD[0] || _camSD[1]); CLK.on = false;
+        if (!was || !panOn() || PAN.mode) return false;
+        PAN.x += _camSD[0]; PAN.y += _camSD[1]; camera.position.addScaledVector(_r, _camSD[0]).addScaledVector(_u, _camSD[1]); _camSD[0] = _camSD[1] = 0;   /* 걷기가 끝난 프레임 (모션 줄이기의 딱 따라가기 등): 지금 그려진 칸으로 밀기를 옮겨 둔다 — 가장 가까운 칸으로 돌아가며 한 칸 튀지 않게 */
+        return true;
+      }
+      var pw = S.pw, g = plG.parent.position, fresh = !CLK.on || CLK.place !== PLACE.vis || CLK.pw !== pw;
+      _clr.copy(PL.pos); _clr.y += (PL.place === 'yard' ? plGroundY(PL.pos.x, PL.pos.z) : 0) + (PL.lift || 0);   /* plSnap 과 같은 점 (부모 그룹 안 좌표) — 몸의 통통 · 출렁임은 안 넣는다 */
+      for (var k = 0; k < 2; k++) {
+        var ax = k ? _u : _r, rp = ref.dot(ax) / pw, P = Math.round(_clr.dot(ax) / pw) + g.dot(ax) / pw, c = Math.round(rp);
+        if (!fresh) {
+          var v = rp - CLK.ref[k];
+          if (Math.abs(v) <= 1e-4) { if (Math.abs(CLK.c[k] - rp) <= 1) c = CLK.c[k]; }   /* 같은 프레임에 다시 놓거나 화면이 서 있음: 고른 칸 그대로 */
+          else {
+            var cand = [Math.round(P - CLK.rel[k]), CLK.c[k], c], hit = false;
+            for (var i = 0; i < 3 && !hit; i++) {
+              var st2 = cand[i] - CLK.c[k], flip = st2 && CLK.dir[k] && (st2 > 0 ? 1 : -1) !== CLK.dir[k] && frameNo - CLK.at[k] <= 4;   /* 방금 한 칸 간 쪽을 4 프레임 안에 되돌리지 않는다 (방향을 틀 때 땅이 한 칸 앞뒤로 떨지 않게) */
+              if (Math.abs(cand[i] - rp) <= 1 && st2 * v >= 0 && !flip) { c = cand[i]; hit = true; }
+            }
+            if (!hit && Math.abs(CLK.c[k] - rp) <= 1.5) c = CLK.c[k];
+          }
+        }
+        if (!fresh && c !== CLK.c[k]) { CLK.dir[k] = c > CLK.c[k] ? 1 : -1; CLK.at[k] = frameNo; } else if (fresh) CLK.dir[k] = 0;
+        CLK.c[k] = c; CLK.rel[k] = P - c; CLK.ref[k] = rp; _camSD[k] = (c - rp) * pw;
+      }
+      CLK.on = true; CLK.place = PLACE.vis; CLK.pw = pw;
+      camera.position.addScaledVector(_r, _camSD[0]).addScaledVector(_u, _camSD[1]);
+      return true;
     }
     /* ── 밀기 + 관성 + 고무줄 (docs/INTERIOR_MODE.md §3.4): PAN.x/y = 카메라 오프셋(월드 m, 화면 우/상 축). 손가락 1:1 · 뗄 때 마지막 100 ms 평균 속도(80 ms 멈췄으면 0,
        0.25 px/ms 미만 0, 최대 2 px/ms) → 매 프레임 v = v·e^(−dt/0.25 s), 0.03 px/ms 아래면 멈춤 · 경계 = 장소 상자를 화면 축에 투영 + 여백 12 아트px (방이 화면 밖으로 안 나간다) ·
@@ -660,8 +698,10 @@ var SCENE3D = (function () {
       var ox = _fw.dot(_r), oy = _fw.dot(_u), hx = Math.max(0, S.rw / 2 / S.N - (auto ? PL.camGap : atFoot ? 1.5 : arrive ? 0.5 : 1.1)), hy = Math.max(0, S.rh / 2 / S.N - 1.4);   /* 도착은 몸이 화면 안이면 됨 (0.5 m — 0° 기본 구도는 안 민다) */
       if ((PLACE.vis === 'yard' || PLACE.vis === 'inside') && !arrive && (!auto || (wideAuto && !(PL.camGap > 0)))) { hx = Math.min(hx, YARD_FOLLOW[0]); hy = Math.min(hy, YARD_FOLLOW[1]); if (YARD_WIDE && !auto) { ox += WSTATE.la[0]; oy += WSTATE.la[1]; } }   /* 11-21 7차: 넓은 바깥은 가는 쪽을 조금 더 보여 준다 (앞보기 — wideStep 이 천천히 옮긴다) */   /* 11-18 마당 (바깥): 캐릭터를 화면 가운데 가까이 두고 따라간다 (가운데에서 0.8 · 1.0 m 벗어나면 민다) — 방은 가장자리에 닿을 때만 미는 예전 그대로. 넓은 바깥의 첫 단계 */
       var tx = clamp(PAN.x, ox - hx, ox + hx), ty = clamp(PAN.y, oy - hy, oy + hy);
-      tx = clamp(Math.round(tx * S.N) / S.N, b[0], b[1]); ty = clamp(Math.round(ty * S.N) / S.N, b[2], b[3]);
-      return (Math.abs(tx - PAN.x) < 0.5 / S.N && Math.abs(ty - PAN.y) < 0.5 / S.N && PAN.mode !== 'follow') ? null : [tx, ty];
+      if (arrive) { tx = Math.round(tx * S.N) / S.N; ty = Math.round(ty * S.N) / S.N; }   /* [7-W] 다섯째 바퀴: 걷는 동안의 목표는 반올림하지 않는다 — 계단처럼 뛰는 목표를 쫓으면 카메라 속도가 프레임마다 출렁였다. 쉴 때는 followStep 이 격자에 맞춘다 */
+      tx = clamp(tx, b[0], b[1]); ty = clamp(ty, b[2], b[3]);
+      var tol = arrive ? 0.5 / S.N : 1 / S.N;   /* 쉬는 화면은 격자에 맞춰 목표에서 반 칸까지 비켜 있다 → 한 칸 안이면 다시 안 움직인다 (섰다 · 움직였다 · 섰다 떨림 없음) */
+      return (Math.abs(tx - PAN.x) < tol && Math.abs(ty - PAN.y) < tol && PAN.mode !== 'follow') ? null : [tx, ty, !arrive];
     }
     function stepPan(dt) {
       stepLift(dt); stepYaw(dt);   /* 11-15 돌려 보기: 각도 · 관성 · 벽 자르기 (밀기 경계가 돌아간 방을 따르게 먼저) */
@@ -681,6 +721,8 @@ var SCENE3D = (function () {
           if (pf === null && (GEST.mode || !(PL && (PL.moving || PL.walking || PL.pending)))) PAN.arrive = false;
         }
         if (pf !== null) { followStep(pf, dt); return; }
+        if (PAN.mode === 'follow' && PAN.spr && !st.reduced) { followSpring([PAN.lfx, PAN.lfy, true], dt); return; }   /* [7-W] 다섯째 바퀴: 손을 떼 서면 마지막 목표로 스프링이 마저 선다 (바로 정수 px 로 끊으면 한 칸 튀었다) */
+        if (PAN.mode === 'follow' && CLK.on) { panToDrawn(); return; }   /* 모션 줄이기로 딱 따라가다 섰다 */
         if (PAN.mode === 'follow') panSettle();   /* 의식이 끝나면 따라가던 자리에서 정수 px 로 */
       }
       if (!PAN.mode) return;
@@ -702,8 +744,31 @@ var SCENE3D = (function () {
        → 최고 프레임당 ≈ 5 CSS px). 반 아트px 안·거의 멈춤이면 정수 px 에 쉰다. 장소가 막 바뀐 프레임(cut)·모션 감소 = 바로 그 자리 */
     var FOLLOW = { tau: 0.12, vmax: 3, amax: 8 };
     var YARD_FOLLOW = [0.8, 1.0];   /* 마당에서 스틱으로 걸을 때 캐릭터가 화면 가운데에서 벗어나도 되는 거리 (m: 가로 · 세로) */
+    /* [7-W] 다섯째 바퀴: 내 캐릭터 따라가기 (f[2]) 는 감쇠 스프링 — 임계 감쇠 (ω = FOLLOW.w) + 목표 속도 앞먹임 (0.12 s 로 고른 값). 일정하게 뛰면 뒤처짐 없이 같은 속도로,
+       뛰기 시작 · 방향 틀기 · 서기는 0.2 ~ 0.4 s 에 걸쳐 부드럽게 (튕김 없음). 걸음마다 바뀌는 잰 속도 (예전 WSTATE.vmax) 를 최고 속도로 쓰지 않는다 — 그 값이 프레임마다 흔들려
+       화면도 같이 흔들렸다. 아주 멀리 떨어진 목표 (방을 옮긴 뒤 등) 만 가속 상한이 받는다. 쉬면 지금 그려진 격자 자리에 선다 (한 칸 튐 없음) */
+    FOLLOW.w = 8; FOLLOW.amax2 = 30;
+    function followSpring(f, dt) {
+      if (PAN.mode !== 'follow' || !PAN.spr) { PAN.fvx = PAN.fvy = 0; PAN.lfx = f[0]; PAN.lfy = f[1]; } PAN.spr = true;
+      var ivx = (f[0] - PAN.lfx) / Math.max(dt, 1e-4), ivy = (f[1] - PAN.lfy) / Math.max(dt, 1e-4); PAN.lfx = f[0]; PAN.lfy = f[1];
+      if (Math.hypot(ivx, ivy) > 14) ivx = ivy = 0;   /* 목표가 순간 옮겨짐 (빠른 이동 · 시험) — 속도로 치지 않는다 */
+      var kf = 1 - Math.exp(-dt / 0.12); PAN.fvx += (ivx - PAN.fvx) * kf; PAN.fvy += (ivy - PAN.fvy) * kf;
+      var n = Math.max(1, Math.ceil(dt / (1 / 60) - 1e-6)), h = dt / n, w = FOLLOW.w;   /* 느린 프레임 (폰이 버벅일 때 dt 0.1 s) 도 같은 곡선 */
+      for (var i = 0; i < n; i++) {
+        var ax = w * w * (f[0] - PAN.x) + 2 * w * (PAN.fvx - PAN.vx), ay = w * w * (f[1] - PAN.y) + 2 * w * (PAN.fvy - PAN.vy), al = Math.hypot(ax, ay);
+        if (al > FOLLOW.amax2) { ax *= FOLLOW.amax2 / al; ay *= FOLLOW.amax2 / al; }
+        PAN.vx += ax * h; PAN.vy += ay * h; PAN.x += PAN.vx * h; PAN.y += PAN.vy * h;
+      }
+      var d = Math.hypot(f[0] - PAN.x, f[1] - PAN.y) * S.N;
+      if (d < 0.5 && Math.hypot(PAN.vx, PAN.vy) * S.N < 6 && Math.hypot(PAN.fvx, PAN.fvy) * S.N < 3) {
+        panToDrawn(); PAN.fvx = PAN.fvy = 0;   /* 지금 그려진 자리 (격자 위) 에 선다 */
+      } else { PAN.mode = 'follow'; dither.still = 0; }
+    }
+    function panToDrawn() { PAN.x += _camSD[0]; PAN.y += _camSD[1]; _camSD[0] = _camSD[1] = 0; PAN.vx = PAN.vy = 0; PAN.mode = ''; }   /* 밀기를 지금 그려진 카메라 칸으로 (camLock 이 고른 칸) — 따라가기를 끝낼 때 한 칸 튀지 않게 */
     function followStep(f, dt) {
+      if (f[2] && st.reduced && !PAN.cut) { PAN.x = f[0]; PAN.y = f[1]; PAN.vx = PAN.vy = 0; PAN.mode = 'follow'; PAN.spr = false; return; }   /* [7-W] 다섯째 바퀴: 모션 줄이기 = 스프링 없이 딱 붙어 따라가되 프레임마다 (예전엔 반 칸씩 모였다 두 프레임에 한 번 움직였다) — 서면 그려진 칸에 선다 (stepPan) */
       if (PAN.cut || st.reduced) { PAN.x = f[0]; PAN.y = f[1]; PAN.vx = PAN.vy = 0; PAN.cut = false; PAN.mode = ''; return; }
+      if (f[2]) { followSpring(f, dt); return; } PAN.spr = false;
       var dx = f[0] - PAN.x, dy = f[1] - PAN.y, d = Math.hypot(dx, dy);
       var vm = YARD_WIDE && PLACE.vis === 'yard' ? WSTATE.vmax : FOLLOW.vmax, sp = d > 1e-6 ? Math.min(vm, d / FOLLOW.tau, Math.sqrt(2 * FOLLOW.amax * d)) : 0;   /* 11-21 7차: 넓은 바깥은 걷는 속도를 따라 (wideStep) */
       var ax = (d > 1e-6 ? dx / d * sp : 0) - PAN.vx, ay = (d > 1e-6 ? dy / d * sp : 0) - PAN.vy, al = Math.hypot(ax, ay), am = FOLLOW.amax * Math.max(dt, 1e-4);
@@ -725,6 +790,7 @@ var SCENE3D = (function () {
     }
     function yawMoved() {   /* 그려지는 각이 바뀌었다: 디더 쉼 · 쉬는 문어는 카메라 쪽을 본다 (내 캐릭터는 돌리지 않는다 — 11-18 주인: 보던 쪽 그대로) */
       dither.still = 0;
+      if (PAN.mode === 'follow' && PAN.spr && !(typeof PL !== 'undefined' && PL && PL.stick)) { PAN.mode = ''; PAN.vx = PAN.vy = 0; }   /* [7-W] 다섯째 바퀴: 손을 뗀 뒤 마저 서던 스프링은 돌리면 그 자리에서 끝 — 돌리기 전 화면 축의 목표를 쫓아 화면이 흘러갔다 (L8) */
       if (oct && !oct.walking && !(CER && CER.active) && !(SAL && SAL.active) && st.octState !== 'walk' && st.octState !== 'carry' && st.octState !== 'away') oct.wantYaw = camYaw();
     }
     function yawLive() {   /* 손가락 · 마우스가 yawDrag 를 바꿨다 → 바로 그 각으로 (1:1) */
@@ -6366,9 +6432,10 @@ var SCENE3D = (function () {
       PLACE.fade = k >= 1 ? 0 : k < 0.5 ? k * 2 : 2 - k * 2; if (k >= 1) { WSTATE.jump = null; J.res(true); }
     }
     var _jumpAt = { x: 1e9, z: 1e9, place: '' };
-    function jumpFollow() {   /* 11-24 (검증): 모션 감소 · 즉시 옮기기 (들고 가 앉기 · 즉시 자리 걷기) 는 걸음이 없어 따라가기가 안 돌았다 → 한 프레임에 0.3 m 넘게 옮겨졌으면 캐릭터가 화면 안 (가장자리 0.5 m) 에 들게 바로 민다 */
+    function jumpFollow(dt) {   /* 11-24 (검증): 모션 감소 · 즉시 옮기기 (들고 가 앉기 · 즉시 자리 걷기) 는 걸음이 없어 따라가기가 안 돌았다 → 한 프레임에 0.3 m 넘게 옮겨졌으면 캐릭터가 화면 안 (가장자리 0.5 m) 에 들게 바로 민다 */
+      var jdt = _jumpAt.dt || 0; _jumpAt.dt = dt || 0;
       if (typeof PL === 'undefined' || !PL || PL.place !== PLACE.vis || (PLACE.vis !== 'inside' && PLACE.vis !== 'yard')) { _jumpAt.place = ''; return; }
-      var moved = _jumpAt.place === PL.place && Math.hypot(PL.pos.x - _jumpAt.x, PL.pos.z - _jumpAt.z) > 0.3;
+      var moved = _jumpAt.place === PL.place && Math.hypot(PL.pos.x - _jumpAt.x, PL.pos.z - _jumpAt.z) > 0.3 + 9 * Math.max(jdt, dt || 0);   /* [7-W] 다섯째 바퀴: 버벅인 프레임 (dt 0.1 s) 에 뛰어간 한 걸음 (≈ 0.4 ~ 0.6 m) 은 옮겨진 게 아니다 — 예전엔 화면이 가운데로 덜컥 되돌아갔다 */
       _jumpAt.x = PL.pos.x; _jumpAt.z = PL.pos.z; _jumpAt.place = PL.place;
       if (!moved || GEST.mode || WSTATE.jump || panLocked() || !panOn()) return;
       var f = plFollow(true); if (!f && PLACE.vis !== 'inside') return; viewHome(); if (st.reduced) placeCamera();   /* 방 안에서는 늘 캐릭터를 가운데 쪽으로 (앉은 자리 앞의 접시까지 보이게) · 바깥은 화면 밖일 때만 */
@@ -6524,10 +6591,16 @@ var SCENE3D = (function () {
       var wf = st.reduced ? 0 : Math.floor(time * 5) % WAVE_F.length;
       if (WSTATE.wave && wf !== WSTATE.waveF) { WSTATE.waveF = wf; var wo = -WAVE_F[wf] * Math.SQRT1_2; WSTATE.wave.position.set(wo, 0, wo); }
       /* 따라가기 최고 속도: 걷는 속도를 재서 그 1.3 배 (달리기가 3.8 m/s 여도 화면이 뒤처지지 않는다 — 서 있으면 천천히 예전 값 3 으로) */
-      var sp = dt > 1e-4 ? Math.hypot(PL.pos.x - WSTATE.lastX, PL.pos.z - WSTATE.lastZ) / dt : 0; WSTATE.lastX = PL.pos.x; WSTATE.lastZ = PL.pos.z;
-      if (sp < 6) WSTATE.vmax = Math.max(3, sp * 1.3, WSTATE.vmax - dt * 2);   /* 6 m/s 넘는 건 걸음이 아니라 옮겨진 것 (빠른 이동 · 시험) */
-      var lv = PL.stick && PL_IN.v ? PL_IN.v : null, lk = Math.min(1, dt / 0.45);   /* 앞보기: 스틱 쪽으로 가로 1.2 m · 세로 1.5 m 까지 (화면 축) — 0.45 s 에 걸쳐 옮겨 스틱을 흔들어도 화면이 출렁이지 않는다. 서면 그 자리에 둔다. 모션 감소면 없음 */
-      if (st.reduced) WSTATE.la[0] = WSTATE.la[1] = 0; else if (lv) { WSTATE.la[0] += (lv.x * 1.2 - WSTATE.la[0]) * lk; WSTATE.la[1] += (lv.y * 1.5 - WSTATE.la[1]) * lk; }
+      var mvx = dt > 1e-4 ? (PL.pos.x - WSTATE.lastX) / dt : 0, mvz = dt > 1e-4 ? (PL.pos.z - WSTATE.lastZ) / dt : 0, sp = Math.hypot(mvx, mvz); WSTATE.lastX = PL.pos.x; WSTATE.lastZ = PL.pos.z;
+      if (sp < 6) WSTATE.vmax = Math.max(3, sp * 1.3, WSTATE.vmax - dt * 2);   /* 6 m/s 넘는 건 걸음이 아니라 옮겨진 것 (빠른 이동 · 시험) — 이제 화면 따라가기는 이 값을 안 쓴다 (wideMap 보고용) */
+      /* 앞보기 ([7-W] 다섯째 바퀴): 스틱 방향이 아니라 실제로 움직인 속도 (화면 축) × 0.3 s, 길이 0.9 m 까지 — 0.6 s 에 걸쳐 옮긴다.
+         예전 (스틱 쪽 1.2 · 1.5 m, 0.45 s) 은 방향을 틀 때마다 화면이 2 m 넘게 반대로 휘둘렸고 (지그재그로 뛰면 출렁), 벽에 막혀 서 있어도 스틱을 밀면 화면만 미끄러졌다. 서면 그 자리에 둔다. 모션 감소면 없음 */
+      if (st.reduced) WSTATE.la[0] = WSTATE.la[1] = 0;
+      else if (PL.stick && sp > 0.3 && sp < 8) {
+        var tr = (mvx * _r.x + mvz * _r.z) * 0.3, tu = (mvx * _u.x + mvz * _u.z) * 0.3, tl = Math.hypot(tr, tu), lk = 1 - Math.exp(-dt / 0.6);
+        if (tl > 0.9) { tr *= 0.9 / tl; tu *= 0.9 / tl; }
+        WSTATE.la[0] += (tr - WSTATE.la[0]) * lk; WSTATE.la[1] += (tu - WSTATE.la[1]) * lk;
+      }
       for (i = 0; i < WIDE_REG.frame.length; i++) { try { WIDE_REG.frame[i](dt, time); } catch (e) { if (!WSTATE.frameErr) { WSTATE.frameErr = true; console.error('[scene3d] WIDE_REG.frame', e); } } }
     }
 
@@ -8048,7 +8121,7 @@ var SCENE3D = (function () {
       stepHang(dt); stepIntro(dt);
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(candleG.quaternion).invert().multiply(camera.quaternion);   /* 11-15: 양초 그룹이 상자와 같이 돌아도 글로우는 화면을 본다 */
       if (ATTIC_CUE) ATTIC_CUE.glow.quaternion.copy(camera.quaternion); if (LROOM) LROOM.cue.glow.quaternion.copy(camera.quaternion);   /* 11-15 계단 초롱 글로우도 늘 카메라 쪽으로 */
-      stepZoom(dt); stepPan(dt); placeCamera(); if (YARD_WIDE && PLACE.vis === 'yard') { wideHoldCentre(); fitShadowView(); wideCull(); wideStep(dt); } if (YARD_WIDE) { coverStep(dt); inFrame(dt); jumpFollow(); } updateOverlay();
+      stepZoom(dt); stepPan(dt); placeCamera(); if (YARD_WIDE && PLACE.vis === 'yard') { wideHoldCentre(); fitShadowView(); wideCull(); wideStep(dt); } if (YARD_WIDE) { coverStep(dt); inFrame(dt); jumpFollow(dt); } updateOverlay();
       if ((!st.offscreen || st.force) && !st.simOnly && !st.covered) draw(t0);   /* 덮임 (전체 화면 놀이, 11-22) 도 그리지 않는다 · 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 · simOnly = 시험의 debugSim (그리지 않고 민다) */
       if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
     }
@@ -8940,6 +9013,11 @@ var SCENE3D = (function () {
 
       /* [7-W] */
       area: wideArea, goPlace: wideGo, beachShells: wideShells, beachShellNear: wideShellNear, beachShellGo: wideShellGo, groundY: function (x, z) { return YARD_WIDE ? wideGroundY(+x || 0, +z || 0) : 0; },   /* 11-21 7차 바깥 한 장: 선 곳 · 빠른 이동 · 조개 · 땅 높이 */
+      camTrace: function () {   /* [7-W] 다섯째 바퀴 시험: 이 프레임의 카메라 (그려진 자리 · 아트px, 화면 축) · 밀기 (반올림 전) · 내 캐릭터의 그려진 화면 자리 (아트px, 카메라 기준) */
+        camera.updateMatrixWorld(); _r.setFromMatrixColumn(camera.matrixWorld, 0); _u.setFromMatrixColumn(camera.matrixWorld, 1);
+        var N = 1 / S.pw, c = camera.position, w = plG.getWorldPosition(new T.Vector3());
+        return { cam: [+(c.dot(_r) * N).toFixed(3), +(c.dot(_u) * N).toFixed(3)], pan: [+(PAN.x * S.N).toFixed(3), +(PAN.y * S.N).toFixed(3)], pl: [+((w.dot(_r) - c.dot(_r)) * N).toFixed(3), +((w.dot(_u) - c.dot(_u)) * N).toFixed(3)], n: S.N, p: S.p, mode: PAN.mode, place: PLACE.vis, run: !!PL.dashing };
+      },
       wideFocus: function () { if (YARD_WIDE && PLACE.vis === 'yard' && PL.place === 'yard') { wideCentreOn(); placeCamera(); } },   /* 시험: 화면 가운데를 내 캐릭터로 (debugPlayerAt 으로 멀리 옮긴 뒤) */
       roomSpotGo: function (btnId) { var k = WIDE_SPOT_KEYS.filter(function (q) { return WIDE_SPOT[q].room === IN.key && WIDE_SPOT[q].sp.btn === btnId; })[0], el = k && SPOTS[k]; return !!(k && el && PLACE.vis === 'inside' && inSpotWalk(k, el)); },   /* 단추를 바로 누른 때 (키보드): 멀면 걸어간 뒤 다시 누른다 → 걷기 시작했나 */
       roomFocus: viewFocus, roomHome: viewHome,   /* roomHome(): 카드 · 결과를 닫은 뒤 화면을 캐릭터 쪽으로 (0.3 s) */   /* roomFocus(x, z[, y]): 그 자리를 화면 위쪽 3분의 1 에 (방 안 · 넓은 바깥 둘 다) */
