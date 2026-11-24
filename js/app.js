@@ -5517,11 +5517,20 @@ var APP = (function () {
     }
   }
   if (window.MutationObserver && document.body) { new MutationObserver(ffSync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-font'] }); ffSync(); }
+  /* 11-24 폰 (꼬리표를 바 아래에 매다는 폭): 'D+N' 은 '데모' 꼬리표의 실제 오른쪽 끝에서 4 px — 글자 크기가 배율마다 달라 (16 · 18 · 20.6 px) 고정 자리는 겹치거나 벌어졌다 */
+  function placeDayN() {
+    var el = $('day-n'), tg = $('brain-tag'); if (!el || !tg) return;
+    if (getComputedStyle(el).position !== 'absolute' || tg.hidden || getComputedStyle(tg).position !== 'absolute') { el.style.removeProperty('left'); return; }
+    el.style.left = (tg.offsetLeft + tg.offsetWidth + 4) + 'px';
+  }
+  if (window.ResizeObserver) { var dnRO = new ResizeObserver(function () { placeDayN(); }); ['brain-tag', 'day-n'].forEach(function (id) { var e = $(id); if (e) dnRO.observe(e); }); }
+  window.addEventListener('resize', function () { placeDayN(); });
   function dayCount() { return isObj(S.user) && Array.isArray(S.user.days) ? S.user.days.length : 0; }
   function renderDayN() {
     var el = $('day-n'), n = dayCount(); if (!el) return;
     el.hidden = n < 1; el.textContent = n < 1 ? '' : 'D+' + n;
     if (n < 1) el.removeAttribute('aria-label'); else el.setAttribute('aria-label', '들어온 지 ' + n + '일째');
+    placeDayN();
   }
 
 
