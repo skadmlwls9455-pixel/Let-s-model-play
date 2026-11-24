@@ -82,13 +82,17 @@ async function realRoom(p, s) {
   ok(await until(function () { return APP.cafe.card === 'menu'; }), '칠판 단추: 걸어가서 칠판 확대 카드');
   r = await st();
   ok(r.dlg === 0 && await p.locator('#cafe-card .cafe-item').count() === 3, '카드는 dialog 가 아니다 · 메뉴 셋');
+  /* 11-24 (검증): 카드가 내 캐릭터의 화면 상자를 덮지 않는다 · 상태 줄 아래 · 큰 단추 위 */
+  var cov = await p.evaluate(function () { var c = document.getElementById('cafe-card').getBoundingClientRect(), sr = document.getElementById('scene').getBoundingClientRect(), pi = APP.scene.player(), f = APP.scene.project(pi.at[0], 0, pi.at[2]), hd = APP.scene.project(pi.at[0], pi.height || 1.5, pi.at[2]), half = Math.max(24, (f.y - hd.y) * 0.45), pb = { l: sr.left + f.x - half, r: sr.left + f.x + half, t: sr.top + hd.y - 8, b: sr.top + f.y + 4 }, go = document.getElementById('btn-go').getBoundingClientRect();
+    return { over: c.left < pb.r && c.right > pb.l && c.top < pb.b && c.bottom > pb.t, card: [c.left, c.top, c.right, c.bottom].map(Math.round), pb: [pb.l, pb.t, pb.r, pb.b].map(Math.round), aboveGo: !(go.height > 0) || c.bottom <= go.top + 1 }; });
+  ok(!cov.over && cov.aboveGo, '칠판 카드는 내 캐릭터를 덮지 않는다 · 큰 단추 위 (' + JSON.stringify(cov) + ')');
   await shot(p, '21-real-board');
   await p.locator('#cafe-card .cafe-item').nth(1).click(); await p.waitForSelector('#cafe-card .sew-ask'); await p.waitForTimeout(700);
   var br = await p.evaluate(function () { document.querySelector('#cafe-card .sew-yes').click(); return { shells: APP.state.user.shells, stage: APP.cafe.stage, card: !document.getElementById('cafe-card').hidden }; });
   ok(br.shells === 55 && br.stage === 'brew' && !br.card, '"시킬래": 조개 55 · 지킴이가 만드는 중');
   ok(await until(function () { return APP.cafe.stage === 'ready'; }, 8000), '쟁반이 나왔다');
   r = await st();
-  ok(r.props['cafe-tray'] && r.props['cafe-tray'].visible !== false, '받는 자리에 쟁반 그림 (' + (r.props['cafe-tray'] && r.props['cafe-tray'].id) + ')');
+  ok(r.props['cafe-tray'] && r.props['cafe-tray'].visible !== false && r.props['cafe-tray'].id !== 'cafe.tray', '받는 자리에 시킨 음식 그림 (' + (r.props['cafe-tray'] && r.props['cafe-tray'].id) + ') — 세워진 빈 쟁반이 아니다');
   await shot(p, '22-real-tray');
   await tap('btn-cafe-counter');
   ok(await until(function () { return APP.cafe.stage === 'carry' || APP.cafe.stage === 'eat'; }), '카운터 단추: 쟁반을 집어 들었다');
@@ -127,8 +131,26 @@ async function realRoom(p, s) {
   await tap('btn-cafe-plate'); await until(function () { return APP.cafe.seated && APP.scene.cafeSeated(); }); await p.waitForTimeout(600);
   await p.click('#btn-cafe-plate'); await p.waitForTimeout(200); await p.click('#btn-cafe-plate'); await p.waitForTimeout(2600);
   ok((await st()).st.eaten.kkochi === 1, '앉아서 마저 먹었다');
+  /* 11-24 (검증): 마시다 만 커피에 앉기 — 상태와 그림이 같다 (커피 한 모금 → 나감 → 다시 들어옴 → 기다리는 잔을 누름) */
+  await tap('btn-cafe-seat'); await until(function () { return !APP.cafe.seated; }, 15000);
+  await tap('btn-cafe-menu'); await until(function () { return APP.cafe.card === 'menu'; });
+  await p.locator('#cafe-card .cafe-item').nth(0).click(); await p.waitForSelector('#cafe-card .sew-ask'); await p.waitForTimeout(700); await p.click('#cafe-card .sew-yes');
+  await until(function () { return APP.cafe.stage === 'ready'; }, 8000); await tap('btn-cafe-counter');
+  await until(function () { return APP.cafe.stage === 'eat' && APP.scene.cafeSeated(); }); await p.waitForTimeout(400);
+  await p.click('#btn-cafe-plate'); await p.waitForTimeout(200);
+  await p.evaluate(function () { return APP.goOutside(); }); await until(function () { return APP.scene.inRoom() !== 'cafe'; }); await p.waitForTimeout(600);
+  await p.evaluate(function () { return APP.goInside('cafe'); }); await until(function () { return APP.scene.inRoom() === 'cafe'; }); await p.waitForTimeout(1500);
+  await tap('btn-cafe-plate');
+  ok(await until(function () { return APP.cafe.seated && APP.scene.cafeSeated(); }, 30000), '기다리는 잔을 누름: 앉는다');
+  await p.waitForTimeout(1500);
+  r = await p.evaluate(function () { return { app: APP.cafe.seated, sc: APP.scene.cafeSeated(), left: APP.state.user.cafe.tray.left }; });
+  ok(r.app && r.sc && r.left === 2, '…1.5초 뒤에도 상태 · 장면 모두 앉음 (' + JSON.stringify(r) + ')');
+  await p.click('#btn-cafe-plate'); await p.waitForTimeout(200);
+  ok((await p.evaluate(function () { return APP.state.user.cafe.tray.left; })) === 1, '…첫 누름이 한 모금 (삼켜지지 않는다)');
+  await p.click('#btn-cafe-plate'); await p.waitForTimeout(300);
   await tap('btn-cafe-seat'); await until(function () { return !APP.cafe.seated; }, 15000);
   /* 끊김 (11-22 검증): 걷기가 막혀 앉지 못함 — 진짜 장면의 cafeSit 을 '못 앉음' 으로 바꿔 둔다. 그래도 값을 낸 음식은 먹을 수 있다 */
+  var cof0 = await p.evaluate(function () { return APP.state.user.cafe.eaten.coffee | 0; });
   await p.evaluate(function () { var s = APP.scene; window.__realSit = s.cafeSit; s.cafeSit = function (on) { return on ? Promise.resolve(false) : window.__realSit(on); }; });
   await tap('btn-cafe-menu'); await until(function () { return APP.cafe.card === 'menu'; });
   await p.locator('#cafe-card .cafe-item').nth(0).click(); await p.waitForSelector('#cafe-card .sew-ask'); await p.waitForTimeout(700); await p.click('#cafe-card .sew-yes');
@@ -137,7 +159,7 @@ async function realRoom(p, s) {
   await p.waitForTimeout(400); r = await st();
   ok(r.carry === null && !r.ui.seated && r.props['cafe-plate'] && r.plate, '…손은 비고 · 커피가 식탁에 · 누를 단추가 있다');
   for (var q = 0; q < 3; q++) { await p.click('#btn-cafe-plate'); await p.waitForTimeout(200); }
-  ok((await st()).st.eaten.coffee === 1, '…서서 다 마셨다');
+  ok((await st()).st.eaten.coffee === cof0 + 1, '…서서 다 마셨다');
   await p.evaluate(function () { APP.scene.cafeSit = function (on) { return on ? new Promise(function () {}) : window.__realSit(on); }; });   /* 걷다가 걸려 끝나지 않음 */
   await tap('btn-cafe-menu'); await until(function () { return APP.cafe.card === 'menu'; });
   await p.locator('#cafe-card .cafe-item').nth(0).click(); await p.waitForSelector('#cafe-card .sew-ask'); await p.waitForTimeout(700); await p.click('#cafe-card .sew-yes');
@@ -146,7 +168,7 @@ async function realRoom(p, s) {
   ok(await until(function () { return APP.cafe.stage === 'eat'; }, 16000), '…12초 뒤에는 내려놓는다');
   r = await st(); ok(r.carry === null && r.props['cafe-plate'] && r.plate, '…손은 비고 · 커피가 식탁에');
   for (q = 0; q < 3; q++) { await p.click('#btn-cafe-plate'); await p.waitForTimeout(200); }
-  ok((await st()).st.eaten.coffee === 2, '…서서 다 마셨다');
+  ok((await st()).st.eaten.coffee === cof0 + 2, '…서서 다 마셨다');
   /* 11-22 (검증 둘째) 느린 화면: 앉기가 한도 (12초) 를 넘겨 끝난다 — 한도에 장면이 이미 앉혔으면 상태도 앉음 */
   await p.evaluate(function () { APP.scene.cafeSit = function (on) { if (!on) return window.__realSit(on); return window.__realSit(true).then(function (ok) { return new Promise(function (res) { setTimeout(function () { res(ok); }, 14000); }); }); }; });
   await tap('btn-cafe-menu'); await until(function () { return APP.cafe.card === 'menu'; });
