@@ -8507,12 +8507,12 @@ async function scenarioPlayer7(browser) {
   var lk = await page.evaluate(function () {
     var L = [].slice.call(document.querySelectorAll('#look-items .look-tile.locked')), t = L[0], r = t.getBoundingClientRect(), amt = t.querySelector('.shell-amt');
     var cs = getComputedStyle(t, '::before');
-    return { n: L.length, ids: L.map(function (b) { return b.dataset.id; }).join(), price: amt ? amt.textContent.replace(/\D+/g, '') : '', mark: parseFloat(cs.width) > 0, h: Math.round(r.height), title: !!t.getAttribute('title'), emoji: /\p{Extended_Pictographic}/u.test(t.innerText) };
+    return { n: L.length, ids: L.map(function (b) { return b.dataset.id; }).join(), price: amt ? amt.textContent.replace(/\D+/g, '') : '', pics: L.filter(function (b) { return b.querySelector('canvas, img'); }).length, name: (t.querySelector('.look-name') || {}).textContent || '', mark: parseFloat(cs.width) > 0, h: Math.round(r.height), title: !!t.getAttribute('title'), emoji: /\p{Extended_Pictographic}/u.test(t.innerText) };
   });
   await page.evaluate(function () { document.querySelector('#look-items .look-tile.locked[data-id="suit"]').click(); });
   await page.waitForTimeout(200);
   var lk2 = await page.evaluate(function () { return { toast: document.getElementById('toast').textContent, outfit: APP.state.settings.player.outfit, own: APP.ownItem('outfit', 'suit'), left: document.querySelectorAll('#look-items .look-tile.locked').length, wear: APP.setPlayerPart('outfit', 'suit'), now: APP.state.settings.player.outfit, key: APP.state.user.owned['outfit:suit'], unknown: APP.ownItem('outfit', 'nope') }; });
-  ok(lk.n === 5 && lk.ids === 'sailor,fisher,windbreak,cardigan,suit' && lk.price === '24' && lk.mark && lk.h >= 44 && !lk.title && !lk.emoji, 'P7 옷장 옷 갈래: 잠긴 칸 다섯 (자물쇠 표시 · 조개 값 · 44px 이상 · 이모지 없음) ' + JSON.stringify(lk));
+  ok(lk.n === 5 && lk.ids === 'sailor,fisher,windbreak,cardigan,suit' && lk.price === '' && lk.pics === 0 && lk.name === '세일러' && lk.mark && lk.h >= 44 && !lk.title && !lk.emoji, 'P7 옷장 옷 갈래: 잠긴 칸 다섯 — 11-24 (주인: "미리 보여주지 말고 이름만") 그림 · 값 없이 이름과 자물쇠 표시 · 44px 이상 · 이모지 없음 ' + JSON.stringify(lk));
   ok(lk2.toast === '마을 옷가게에서 팔아.' && lk2.outfit === 'octee', 'P7 잠긴 칸을 누르면 한 줄 («' + lk2.toast + '») · 옷은 그대로');
   ok(lk2.own === true && lk2.left === 4 && lk2.wear === true && lk2.now === 'suit' && /^\d{4}-\d\d-\d\d$/.test(lk2.key || '') && lk2.unknown === false, 'P7 ownItem 뒤: 잠긴 칸 넷 · 입을 수 있다 · S.user.owned 에 산 날 · 모르는 물건은 false ' + JSON.stringify(lk2));
   await page.reload();

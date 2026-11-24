@@ -3572,6 +3572,7 @@ var APP = (function () {
     body.classList.toggle('more', it.scrollHeight - it.clientHeight - it.scrollTop > 4);
   }
   function lookPick(cat, id) {
+    if (WARD_CATS.some(function (k) { return k[0] === cat; }) && partOf(cat, id) && !isOwned(cat, id)) { var px = partOf(cat, id); toast(px.award ? '다락방 달리기 주간 상으로 받아.' : '마을 옷가게에서 팔아.'); return; }   /* 11-24: 옷장에서는 가진 것만 — 입어 보기는 옷가게에서 */
     var was = normalizePlayer(S.settings.player)[cat];
     if (!setPlayerPart(cat, id)) return;
     var box = $('look-items'), c = S.settings.player;
@@ -3592,11 +3593,11 @@ var APP = (function () {
         var b;
         if (isColor) { b = h('button', { type: 'button', class: 'preset pl-color', 'data-part': cat, 'data-id': x.id, 'data-hex': x.hex || null, title: x.name, 'aria-label': x.name }); b.style.background = x.hex || 'var(--panel2)'; }
         else {
-          var lock = !isOwned(cat, x.id);   /* 11-21: 아직 없는 가게 물건 = 잠긴 칸 (흐린 그림 + 자물쇠 + 조개 값) — 누르면 어디서 구하는지 한 줄 */
-          b = h('button', { type: 'button', class: 'look-tile' + (lock ? ' locked' : ''), 'data-part': cat, 'data-id': x.id }, [shot ? h('canvas', { class: 'look-thumb', width: '32', height: '32', 'aria-hidden': 'true' }) : null, h('span', { class: 'look-name' }, lookNameNodes(x.name)),
-            lock ? h('span', { class: 'look-lock' }, [h('span', { class: 'sr-only', text: '잠김 · ' }), shellAmt(x.shop.price, 'look-price')]) : null]);
+          var lock = !isOwned(cat, x.id);   /* 아직 없는 물건 = 잠긴 칸 — 11-24 (주인: "옷가게에서 파는 것들은 미리 보여주지 말고 이름만 보여주고 사고 입어보는 건 옷가게에서"): 그림 · 값 없이 이름 + 자물쇠. 누르면 어디서 구하는지 한 줄 */
+          b = h('button', { type: 'button', class: 'look-tile' + (lock ? ' locked' : ''), 'data-part': cat, 'data-id': x.id }, [shot && !lock ? h('canvas', { class: 'look-thumb', width: '32', height: '32', 'aria-hidden': 'true' }) : null, h('span', { class: 'look-name' }, lookNameNodes(x.name)),
+            lock ? h('span', { class: 'look-lock' }, [h('span', { class: 'sr-only', text: '잠김' })]) : null]);
           b._frame = LOOK_FRAME[cat + ':' + x.id] || sec[2];
-          if (lock) { b.addEventListener('click', function () { toast('마을 옷가게에서 팔아.'); }); grp.appendChild(b); return; }
+          if (lock) { b.addEventListener('click', function () { toast(x.award ? '다락방 달리기 주간 상으로 받아.' : '마을 옷가게에서 팔아.'); }); grp.appendChild(b); return; }
         }
         chipOn(b, c[cat] === x.id);
         b.addEventListener('click', function () { lookPick(cat, x.id); });
