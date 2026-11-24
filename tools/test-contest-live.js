@@ -399,8 +399,26 @@ async function main() {
   check(await page.evaluate(function () { var c = document.getElementById('ct-wcard'); return !!c && c.classList.contains('top') && c.style.bottom === 'auto'; }), '공연장 안의 결과 카드는 장면 위쪽 (아래의 밖으로 · 단상 위 캐릭터를 안 덮게)');
   await page.evaluate(function () { window.__sc.length = 0; });
   await page.click('#ct-w-close');
+  r = await page.evaluate(function () { return null; });
   r = await page.evaluate(function () { return { me: window.__sc.filter(function (c) { return c[0] === 'me'; }), focus: window.__sc.filter(function (c) { return c[0] === 'focus'; }) }; });
   check(r.me.length === 1 && r.me[0][1] === 1 && r.me[0][2] === 1 && r.me[0][3] === 0 && r.focus.length === 1 && r.focus[0][1] === 1 && r.focus[0][2] === 1, '결과 카드를 닫으면 쇼 전으로: 대기 자리로 내려오고 화면도 거기로 ' + JSON.stringify(r));
+  /* V 의 npcWalk · W 의 roomHome 이 있을 때: 경쟁자는 길을 걸음으로 (점마다 옮기지 않음) · 닫으면 roomHome */
+  await page.evaluate(function (d) { sessionStorage.setItem('__ct_day', d); }, SUN);
+  await page.reload(); await page.waitForSelector('#btn-go:not(.away)'); await page.waitForTimeout(600); await page.evaluate(STUB); await page.evaluate(SCENE_STUB);
+  await giftWait(page, SUN);
+  await page.evaluate(function () {
+    var sc = APP.scene, inside = 'hall'; sc.roomReg = { hall: {} }; sc.inRoom = function () { return inside; }; sc.area = function () { return null; };
+    sc.roomFocus = function () { window.__sc.push(['focus']); return true; }; sc.roomHome = function () { window.__sc.push(['home']); return true; };
+    sc.npcWalk = function (id, pts, face) { window.__sc.push(['nwalk', id, pts.length, face === undefined]); return new Promise(function (r) { setTimeout(function () { r(true); }, 200); }); };
+    APP.contestStageTap();
+  });
+  await page.waitForFunction(function () { return !!document.getElementById('ct-w-go'); }, null, { timeout: 8000 });
+  await page.waitForTimeout(700); await page.click('#ct-w-go');
+  await page.waitForFunction(function () { return !APP.contestLive; }, null, { timeout: 30000 });
+  r = await page.evaluate(function () { var sc = window.__sc; return { nwalk: sc.filter(function (c) { return c[0] === 'nwalk'; }), hops: sc.filter(function (c) { return c[0] === 'place' && /^rival/.test(c[1]) && c[2] != null && c[3] === 0; }).length }; });
+  check(r.nwalk.length === 3 && r.nwalk.every(function (c) { return c[2] === 4 && c[3]; }) && r.hops === 0, 'npcWalk 가 있으면 경쟁자 셋이 길 네 점을 걸음으로 (방향은 안 넘김 · 점 옮기기 없음) ' + JSON.stringify(r));
+  await page.evaluate(function () { window.__sc.length = 0; }); await page.click('#ct-w-close');
+  check(await page.evaluate(function () { return window.__sc.some(function (c) { return c[0] === 'home'; }) && !window.__sc.some(function (c) { return c[0] === 'focus'; }); }), '닫으면 roomHome (있을 때)');
   check(page._errs.length === 0, '오류 없음');
   await ctx.close();
   /* 뒷길: 움직임 줄이기 · 무대 함수 없음 → 시트 */
