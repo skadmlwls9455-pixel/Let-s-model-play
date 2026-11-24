@@ -327,7 +327,7 @@ async function L2(browser) {   /* keyboard only: Tab close -> chip, every step w
   await T.done();
 }
 
-async function L3(browser) {   /* touch: quiet chip, still in the tab order and the accessibility tree; 5 s idle shows it */
+async function L3(browser) {   /* touch: quiet chip, still in the tab order and the accessibility tree; 11-24 r5: idle never shows it on touch */
   var T = await openPage(browser, { store: null });
   await T.until(function (l) { return l.kind === 'tap'; }, 2000, 'tap');
   await T.go(700);
@@ -349,11 +349,11 @@ async function L3(browser) {   /* touch: quiet chip, still in the tab order and 
   for (var w = 0; w < 6000 && !idleSeen; w += 100) { await T.go(100); idleSeen = (await T.live()).hint === 'idle'; }
   v = await T.verb();
   check(idleSeen, 'L3: 5 s without progress -> one ghost hand');
-  check(v.opacity === '1' && v.shown, 'L3: ... and from then on the chip shows');
+  check(v.opacity === '0', 'L3: r5 ... and the chip stays unseen on touch (gestures only; the chip is the keyboard path)');
   await playTap(T);
   await T.until(function (x) { return x.kind === 'flip'; }, 3000, 'flip');
   v = await T.verb();
-  check(v.shown && v.opacity === '1', 'L3: it stays visible in the next step (until the dish ends)');
+  check(v.opacity === '0', 'L3: r5 it stays unseen in the next step too');
   await playFlip(T, 500);
   await playSlice(T);
   await T.until(function (x) { return x.screen === 'reveal'; }, 3000, 'reveal');
@@ -751,12 +751,12 @@ async function L15(browser) {   /* the quiet chip: a stray touch only shows it; 
   var T = await openPage(browser, { store: SEEN_ALL, q: 'seed=61' });
   await T.until(function (x) { return x.kind === 'tap' && x.phase === 'step'; }, 3000, 'tap');
   await T.go(700);
-  var rp = await rowPoint(T), v0 = await T.verb();
+  var rp = await rowPoint(T), v0 = await T.verb(), hit = await T.page.evaluate(function (p) { var e = document.elementFromPoint(p[0], p[1]); return e ? (e.closest('.ck-verb') ? 'verb' : e.closest('.ck-stage') ? 'stage' : e.className) : null; }, rp);
   await T.tapCss(rp);
   var l = await T.live(), v1 = await T.verb();
-  check(v0.opacity === '0' && v1.opacity === '1' && l.st.hits === 0, 'L15: tap step - a touch on the quiet chip shows it and counts nothing (hits ' + l.st.hits + ')');
+  check(v0.opacity === '0' && v1.opacity === '0' && hit === 'stage' && l.st.hits <= 1, 'L15: r5 tap step - a touch on the chip spot reaches the stage, never the chip, and the chip stays unseen (' + hit + ', hits ' + l.st.hits + ')');
   await T.tapCss(rp); await T.go(100);
-  check((await T.live()).st.hits === 3, 'L15: once shown, a touch on the chip presses it (one mark, 3 hits)');
+  check((await T.live()).st.hits <= 2 && (await T.verb()).opacity === '0', 'L15: r5 ... a second touch there is still not a chip press (no three hits at once)');
   check(T.errs.length === 0, 'L15: no errors (tap) ' + T.errs.join(' | '));
   await T.done();
 
@@ -765,7 +765,7 @@ async function L15(browser) {   /* the quiet chip: a stray touch only shows it; 
   check((await T.verb()).opacity === '0', 'L15: flip step after heat-on, the chip is still quiet');
   await T.tapCss(await rowPoint(T)); await T.go(300);
   l = await T.live();
-  check(l.kind === 'flip' && l.phase === 'step' && l.st.res === null && (await T.verb()).opacity === '1', 'L15: flip - a stray touch on the quiet chip never flips (the chip shows instead)');
+  check(l.kind === 'flip' && l.phase === 'step' && l.st.res === null && (await T.verb()).opacity === '0', 'L15: r5 flip - a stray touch on the chip spot never flips and the chip stays unseen');
   check(T.errs.length === 0, 'L15: no errors (stray) ' + T.errs.join(' | '));
   await T.done();
 
@@ -808,7 +808,7 @@ async function L16(browser) {   /* hints: a first demo is not wiped by presses t
   check((await T.live()).hint !== 'demo' && seen.indexOf('flip') >= 0, 'L16: after the demo has played to its end, flip counts as seen');
   for (i = 0; i < 3; i++) { await T.tap(130 + i * 6, 180); await T.go(150); }
   l = await T.live();
-  check(l.hint === 'teach' && l.stats.teach === 1 && (await T.verb()).opacity === '1', 'L16: three presses that do not flip -> the up-swipe hand once more and the chip shows');
+  check(l.hint === 'teach' && l.stats.teach === 1 && (await T.verb()).opacity === '0', 'L16: three presses that do not flip -> the up-swipe hand once more (r5: the chip stays unseen on touch)');
   for (i = 0; i < 30; i++) { await T.tap(130 + (i % 4) * 6, 180); await T.go(150); }
   check((await T.live()).stats.teach === 2, 'L16: the re-teach hand comes at most twice a step');
   check(T.errs.length === 0, 'L16: no errors (hints) ' + T.errs.join(' | '));
