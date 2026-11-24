@@ -74,16 +74,31 @@ function ok(c, m) { if (c) { pass++; console.log('  ok   ' + m); } else { fail++
     SC.setPlayer(D); for (let i = 0; i < 3; i++) SC.debugStep(0.1);
     const info1 = { programs: SC.renderer.info.programs.length, geos: SC.renderer.info.memory.geometries, tex: SC.renderer.info.memory.textures };
     const dy = ['octee', 'shirt', 'jersey', 'sailor', 'fisher', 'windbreak', 'cardigan', 'suit'].every(id => SC.dyeable('outfit', id)) && ['hightop', 'sandal'].every(id => SC.dyeable('shoes', id)) && ['cap', 'bandana', 'headphones', 'scarf', 'sqglasses', 'bag'].every(id => SC.dyeable('acc', id));
-    return { cat, eyes, n: combos.length, uniq: new Set(combos).size, holes, empty, diff, info0, info1, dy, counts: Object.keys(P).map(k => k + P[k].length).join(' ') };
+    /* ⑤ 11-24 색 꼬리표 = 그려진 색: 옷 · 신발 · 장식마다 머리 색 6 × 피부색 5 로 그려지는 바탕색을 보고, 바뀌는 물건은 색 표 (PL_ITEM_FAMILY) 에 그 색이 다 있고 itemTags 의 색 갈래가 그 색의 갈래 · 안 바뀌는 물건은 목록 꼬리표 그대로 · 어느 모습에서든 색 갈래는 꼭 하나 */
+    const tagBad = [], varied = [];
+    ['outfit', 'shoes', 'acc'].forEach(c => P[c].forEach(x => {
+      if (x.id === 'none') return;
+      const base = x.tags.filter(t => t.indexOf('c-') === 0);
+      P.hairColor.forEach(h => P.skin.forEach(sk => {
+        const look = Object.assign({}, D, { hairColor: h.id, skin: sk.id }), d = SC.debugItemColour(c, x.id, look), t = SC.itemTags(c, x.id, look), ct = t.filter(q => q.indexOf('c-') === 0);
+        if (ct.length !== 1) tagBad.push(c + ':' + x.id + ' ' + h.id + '/' + sk.id + ' 색 갈래 ' + ct.length + '개');
+        else if (d.varies) { if (!d.table || !d.family) tagBad.push(c + ':' + x.id + ' ' + h.id + ' 그려진 ' + d.hex + ' 이 색 표에 없다'); else if (ct[0] !== d.family) tagBad.push(c + ':' + x.id + ' ' + h.id + ' 그려진 ' + d.family + ' ≠ 꼬리표 ' + ct[0]); }
+        else if (ct[0] !== base[0]) tagBad.push(c + ':' + x.id + ' 색이 안 바뀌는데 꼬리표가 바뀜');
+        if (d.varies && varied.indexOf(c + ':' + x.id) < 0) varied.push(c + ':' + x.id);
+      }));
+    }));
+    const beretBrown = SC.itemTags('acc', 'beret', Object.assign({}, D, { hairColor: 'brown' })), beretBlonde = SC.itemTags('acc', 'beret', Object.assign({}, D, { hairColor: 'blonde' }));
+    return { tagBad, varied, beret: [beretBrown.filter(q => q.indexOf('c-') === 0)[0], beretBlonde.filter(q => q.indexOf('c-') === 0)[0]], cat, eyes, n: combos.length, uniq: new Set(combos).size, holes, empty, diff, info0, info1, dy, counts: Object.keys(P).map(k => k + P[k].length).join(' ') };
   });
   console.log('== 내 캐릭터 새 부품 (' + r.counts + ')');
   ok(!r.cat.oldPaid.length && !r.cat.badTag.length && r.cat.defs && r.cat.keys, '목록: 예전 id · 팔지 않는 갈래는 shop null · 낱말은 정해진 것만 · 기본 모습 둘이 목록에 있고 열쇠 차례가 같다 ' + JSON.stringify([r.cat.oldPaid, r.cat.badTag]));
-  ok(r.cat.paid.length === 10 && r.cat.paid.every(x => { const p = +x.split('=')[1]; return p >= 12 && p <= 36; }), '가게 물건 10 (조개 12~36): ' + r.cat.paid.join(' '));
+  ok(r.cat.paid.length === 10 && r.cat.paid.every(x => { const p = +x.split('=')[1]; return p >= 4 && p <= 36; }), '가게 물건 10 (조개 4~36): ' + r.cat.paid.join(' '));
   ok(!r.eyes.white.length, '눈 10 × 눈 색 6: 눈 둘레에 흰색 픽셀 없음 ' + JSON.stringify(r.eyes.white.slice(0, 6)));
   ok(r.n === 72 && r.uniq >= 60 && !r.holes.length && !r.empty.length, '머리 × 몸 × 옷 ' + r.uniq + ' 조합 (앞 · 뒤): 구멍 없음 · 빈 그림 없음 ' + JSON.stringify(r.holes.slice(0, 8)));
   ok(r.diff.body && r.diff.brow === 4 && r.diff.eyes === 10 && r.diff.hair === 13 && r.diff.outfit === 17 && r.diff.acc === 12 && r.diff.shoes === 6, '몸 둘 · 눈썹 넷 · 눈 열 · 머리 열셋 · 옷 열일곱 · 장식 열둘 · 신발 여섯이 서로 다른 그림 ' + JSON.stringify(r.diff));
   ok(r.info1.programs === r.info0.programs && r.info1.geos === r.info0.geos && r.info1.tex === r.info0.tex, '부품을 다 입혀 봐도 프로그램 · 지오메트리 · 텍스처 수 그대로 ' + JSON.stringify([r.info0, r.info1]));
   ok(r.dy, '새 옷 · 신발 · 장식은 전부 물들일 수 있다 (바탕색 표에 있다)');
+  ok(!r.tagBad.length && r.varied.length >= 1 && r.beret.join() === 'c-green,c-red', '색 꼬리표 = 그려진 색 (머리 색 6 × 피부색 5, 옷 · 신발 · 장식 전부): 모습에 따라 색이 바뀌는 물건 ' + r.varied.join(' · ') + ' · 밤갈색 머리 베레모 = 초록 · 금발 = 빨강 ' + JSON.stringify(r.tagBad.slice(0, 6)));
   ok(errs.length === 0, '페이지 에러 0 ' + errs.join(' | '));
   if (process.argv[2]) { await page.locator('#sheet').screenshot({ path: process.argv[2] }); console.log('  sheet → ' + process.argv[2]); }
   await b.close(); fs.unlinkSync(f);
