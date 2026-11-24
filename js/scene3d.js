@@ -5611,6 +5611,20 @@ var SCENE3D = (function () {
       CUT_DYN.yard = function () { var H = cutOf('yard', 'house'), out = [[YROOM.door, H], [YROOM.decoHouse, H]]; YROOM.wins.forEach(function (m) { out.push([m, H]); }); return out; };   /* 집에 붙은 것들 (보임은 계절 · 빛 코드 몫이라 layers 로 숨긴다) */
       dither.still = 0;
     }
+    /* [7-W] 다섯째 바퀴 (리드 · 갈래 V): 숲길 양쪽 (s 11.5 ~ 19.4 · |t| 3.2 ~ 10.6) 과 광장 양쪽 (s 37.4 ~ 46 · |t| 9.4 ~ 14.6) 은 문어 집 넷 · 미용실 터 — 숲을 비운다.
+       → 1 = 터 밖 (그대로) · 0 = 비움 · 0.58 = 낮은 나무만 (키 ≈ 1.3 m — 터의 뒤 (s 가 작은 쪽, 화면 위) · 바깥 옆 (길에서 먼 쪽) 띠, 집 터 가장자리에서 0.8 m 넘게).
+       집 몸 · 길 쪽 문 앞 · 집 앞쪽 (s 가 큰 쪽 — 화면에서 집을 가린다) 은 늘 비운다. WIDE.AREAS (걷는 곳) 는 그대로 */
+    var WIDE_HOME_ZONES = [[11.5, 19.4, 3.2, 10.6], [37.4, 46, 9.4, 14.6]];
+    function wideHomeBand(sd, td) {
+      var at = Math.abs(td), z = null;
+      for (var i = 0; i < WIDE_HOME_ZONES.length; i++) { var Z = WIDE_HOME_ZONES[i]; if (sd > Z[0] && sd < Z[1] && at > Z[2] && at < Z[3]) { z = Z; break; } }
+      if (!z) return 1;
+      var L = null, lots = typeof VILLAGE !== 'undefined' && VILLAGE && VILLAGE.HOME_LOTS ? VILLAGE.HOME_LOTS : [];
+      for (i = 0; i < lots.length; i++) { var q = lots[i]; if (q.s1 > z[0] && q.s0 < z[1] && (q.c[1] < 0) === (td < 0)) { L = q; break; } }
+      if (!L) return 0;
+      var far = Math.max(Math.abs(L.t0), Math.abs(L.t1));
+      return sd < L.s0 - 0.8 || at > far + 0.8 ? 0.58 : 0;
+    }
     function wideTrees() {   /* 11-18 넓은 바깥의 숲: 대각 좌표에 시드로 흩는다 (마당 네모 둘레 · 걷는 곳 · 가게 터는 비운다 · 서로 1.75 m 넘게) → { round, cone } 의 [x, z, 배율, 요].
                                  11-21 7차: 마을 뒤 (s 45) 까지 · 반폭 30 m. 걷는 곳 가까운 나무는 낮춘다 — 키 ≤ 거리 × tan 32° + 0.45 m: 어느 각으로 돌려 봐도 (90° · 270° 포함) 길가의 캐릭터가 발목까지만 가린다. 0.45 배 아래면 심지 않는다 */
       var out = { round: [], cone: [] }, all = [], grid = {};
@@ -5619,8 +5633,9 @@ var SCENE3D = (function () {
         if (Math.abs(q[0]) < YARD_L + 0.7 && Math.abs(q[1]) < YARD_L + 0.7) continue;
         if (at > 16 && (r >>> 5) % 3 === 0) continue;   /* 먼 숲은 조금 성기게 */
         if ((sd > 19.2 && sd < 38.6 && at < 11.2) || (sd >= 37.4 && at < 9.4) || (sd > 18 && sd < 20 && at < 7.6)) continue;   /* 가게 터 · 광장 · 마을 문 울타리 */
+        var hl = wideHomeBand(sd, td); if (hl === 0) continue;   /* [7-W] 다섯째 바퀴: 갈래 V 의 문어 집 넷 · 미용실 터 (집 몸 · 길 쪽 문 앞 · 집 앞쪽은 비우고, 뒤 · 바깥 가장자리엔 낮은 나무만) */
         var wd = wideDist(sd, td); if (wd < 0.8) continue;
-        var sc = Math.min(0.85 + ((r >>> 20) % 5) * 0.09, (wd * 0.62 + 0.45) / 2.2); if (sc < 0.45) continue;
+        var sc = Math.min(0.85 + ((r >>> 20) % 5) * 0.09, (wd * 0.62 + 0.45) / 2.2, hl); if (sc < 0.45) continue;
         var gx = Math.floor(q[0] / 1.75), gz = Math.floor(q[1] / 1.75), ok = true;
         for (var a = -1; a <= 1 && ok; a++) for (var b = -1; b <= 1 && ok; b++) { var cell = grid[(gx + a) + ',' + (gz + b)]; if (cell) for (var k = 0; k < cell.length && ok; k++) if (Math.hypot(cell[k][0] - q[0], cell[k][1] - q[1]) < 1.75) ok = false; }
         if (!ok) continue;
