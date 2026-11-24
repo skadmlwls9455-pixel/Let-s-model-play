@@ -170,13 +170,13 @@ var VILLAGE = (function () {
   function mqSpots() { return [0, 1, 2, 3].map(function (i) { var x = -1.2 + i * 1.05; return { key: 'mq' + i, btn: 'btn-mq-' + i, label: ['첫째', '둘째', '셋째', '넷째'][i] + ' 마네킹', x: x, y: 0.95, z: -1.95, r: 0.42, stand: [x, -1.05] }; }); }
   function shelfSpots() { return [0, 1, 2, 3, 4, 5].map(function (i) { var back = i < 3, x = back ? [-1.75, -0.7, 1.95][i] : -2.3, z = back ? -2.1 : -0.95 + (i - 3) * 1.05; return { key: 'shelf' + i, btn: 'btn-shelf-' + i, label: ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째'][i] + ' 선반', x: x, y: 0.95, z: z, r: 0.42, stand: back ? [i === 2 ? x - 0.25 : x, -1.3] : [-1.5, z] }; }); }
   var ROOMS = {
-    clothes: { name: '옷가게', half: [3.0, 2.6], wallH: 2.2, door: [1.2, 2.0], face: Math.PI, lights: [[-0.6, 1.9, -0.4], [1.6, 1.9, 0.6]],
+    clothes: { name: '옷가게', half: [3.0, 2.6], wallH: 2.2, door: [1.2, 2.0], face: Math.PI, lights: [[-1.4, 1.9, 0.45], [1.6, 1.9, 0.6]],   /* 11-24 리드 검토: 첫째 등은 왼쪽 거울 쪽으로 (가게 문어 얼굴 앞에 줄과 갓이 걸렸다) */
       slots: { mq0: [-1.2, 0.14, -1.95, 0], mq1: [-0.15, 0.14, -1.95, 0], mq2: [0.9, 0.14, -1.95, 0], mq3: [1.95, 0.14, -1.95, 0],
-        mirror: [-2.72, 0, 0.9, HP], mirrorStand: [-1.85, 0, 0.9, -HP], counter: [-2.25, 0.56, -1.75, 0], keeper: [-2.25, 0.3, -2.25, 0], fitting: [-2.3, 0, 2.0, HP], exit: [1.2, 0, 2.45, 0] },
+        mirror: [-2.72, 0, 0.9, HP], mirrorStand: [-1.85, 0, 0.9, -HP], counter: [-2.25, 0.56, -1.75, 0], keeper: [-2.6, 0.44, -2.25, Math.PI / 5], fitting: [-2.3, 0, 2.0, HP], exit: [1.2, 0, 2.45, 0] },
       spots: mqSpots().concat([
         { key: 'roomMirror', btn: 'btn-room-mirror', label: '거울', x: -2.72, y: 0.95, z: 0.9, r: 0.5, stand: [-1.85, 0.9] },
         { key: 'roomCounter', btn: 'btn-room-counter', label: '계산대', x: -1.83, y: 0.7, z: -1.75, r: 0.4, stand: [-2.25, -1.2] },   /* 계산대 앞 왼쪽 (옷걸이와 사이) (문어 · 계산대와 한 줄로 겹치지 않게) */
-        { key: 'roomKeeper', btn: 'btn-npc-clothes', label: '가게 문어', x: -2.25, y: 1.0, z: -2.25, r: 0.4, stand: [-1.35, -1.25] },
+        { key: 'roomKeeper', btn: 'btn-npc-clothes', label: '가게 문어', x: -2.6, y: 1.1, z: -2.25, r: 0.4, stand: [-1.6, -1.2] },
         { key: 'roomExit', btn: 'btn-room-exit', label: '밖으로', x: 1.2, y: 0.5, z: 2.5, r: 0.5, stand: [1.2, 2.0] }]),
       boxes: [[-2.95, -2.0, -1.45, -1.5], [-2.95, -0.95, -2.55, 0.35], [2.0, 0.25, 2.9, 0.95], [-1.5, 2.2, -0.1, 2.55], [-2.95, 0.6, -2.6, 1.2], [-2.95, 1.55, -1.75, 2.55]],
       circles: [[-1.2, -1.95, 0.4], [-0.15, -1.95, 0.4], [0.9, -1.95, 0.4], [1.95, -1.95, 0.4], [2.7, -2.3, 0.22], [2.7, -0.6, 0.18], [2.75, 1.4, 0.15]] },   /* … 화분 · 모자걸이 · 스탠드 등 */
@@ -221,7 +221,7 @@ var VILLAGE = (function () {
     return [
       { key: 'inClothes', btn: 'btn-in-clothes', label: '옷가게 들어가기', room: 'clothes', s: c[0], t: c[1], y: 0.7, r: 0.45, stand: [c[0] + 0.75, -2.15] },
       { key: 'inGoods', btn: 'btn-in-goods', label: '잡화점 들어가기', room: 'goods', s: g2[0], t: g2[1], y: 0.7, r: 0.45, stand: [g2[0] + 0.75, 2.15] },
-      { key: 'inCafe', btn: 'btn-in-cafe', label: '카페 들어가기', room: 'cafe', s: f[0], t: f[1], y: 1.0, r: 0.5, stand: [38.35, f[1]] },
+      { key: 'inCafe', btn: 'btn-in-cafe', label: '카페 들어가기', room: 'cafe', s: f[0], t: f[1], y: 1.0, r: 0.5, stand: [38.35, f[1] - 0.95] },   /* 11-24 리드 검토: 나오면 무대 뒤틀의 왼쪽 기둥 (t 4.4) · 깃발 줄이 몸 앞에 걸리지 않게 왼쪽에 선다 */
       { key: 'inHall', btn: 'btn-in-hall', label: '공연장 들어가기', room: 'hall', s: STAGE.c[0] + 2.4 * K, t: STAGE.c[1] + 1.9 * K, y: 0.9, r: 0.5, stand: [STAGE.c[0] + 3.3 * K, STAGE.c[1] + 1.0 * K] }];
   })();
   /* 광장 무대 (주말 콘테스트): 기다리는 자리 · 걷는 길 넷 · 심사 자리 셋 · 시상대 넷 — (s, t) */
