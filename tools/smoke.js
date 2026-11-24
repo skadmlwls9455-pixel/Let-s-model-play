@@ -8623,6 +8623,35 @@ async function scenarioPlayer7(browser) {
 
 
 /* [7-S] */
+/* 11-24 다섯째 바퀴 · 가게: 사는 건 계산대 목록에서만 (2D 시트에서도 같은 목록). 담기는 아무것도 쓰지 않고, '사기' 한 번에 계산, 닫으면 담은 것은 버린다 */
+async function scenarioShop7(browser) {
+  console.log('\n== S7. 가게 계산대 목록');
+  var BORN = 1762600000000, RED = '#e8463c', bag = []; bag.ignored = [];
+  var rec = { v: 2, octopus: { name: '뚜루', born: BORN, trips: 0, invites: 3, days: ['2026-11-21'], affinity: {}, visits: {}, state: 'idle', color: RED, colors: [{ at: BORN, date: '2026-11-21', color: RED, how: 'first', by: 'player' }] },
+    room: { lantern: 3, souvenirs: [], posterOrder: [] }, trips: [], notes: {}, curiosityNotes: [], salon: { asks: [] }, user: { shells: 10, seeds: 1, days: ['2026-11-21'], giftDay: '2026-11-21', later: { keep: 1 } },
+    settings: { motion: 'auto', thumbs: true, lastSeen: 1762650000000, octColor: RED, flipped: false, pixelFont: true, albumSeen: 0 } };
+  var ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 1, locale: 'ko-KR', hasTouch: true, isMobile: true });
+  await ctx.addInitScript({ content: 'window.__ppolAwakeMs = 0;' });
+  var page = await ctx.newPage(); watchErrors(page, bag);
+  await page.addInitScript({ content: "if (!localStorage.getItem('__seed')) { localStorage.setItem('__seed', '1'); localStorage.setItem('ppolppol_v2', " + JSON.stringify(JSON.stringify(rec)) + "); } window.__ppolTest = { today: '2026-11-21' };" });
+  await page.goto('file://' + ROOT + '/index.html?dev=0&intro=0&scene=2d');
+  await page.waitForSelector('#btn-go:not(.away)', { timeout: 20000 }); await page.waitForTimeout(500);
+  var opened = await page.evaluate(function () { return APP.openShop('goods'); });
+  var r0 = await page.evaluate(function () { var L = document.getElementById('shop-list'); return { list: !!L, rows: L ? L.querySelectorAll('.ls-item').length : 0, purse: L ? L.querySelector('.ls-purse').textContent.replace(/\s+/g, ' ') : '', buyOff: L ? L.querySelector('.ls-buy').disabled : null }; });
+  ok(opened && r0.list && r0.rows === 4 && /10/.test(r0.purse) && r0.buyOff, "잡화점: 목록 네 줄 · 위에 조개 10 · 담기 전엔 '사기' 를 못 누름");
+  await page.waitForTimeout(700);
+  await page.click('#shop-list .ls-item[data-key="seed"] .ls-plus'); await page.click('#shop-list .ls-item[data-key="seed"] .ls-plus');
+  var r1 = await page.evaluate(function () { return { cart: APP.shopList.cart.seed, shells: APP.state.user.shells, left: document.querySelector('#shop-list .ls-purse').textContent }; });
+  ok(r1.cart === 2 && r1.shells === 10 && /담으면 6 남아/.test(r1.left), '담기: 씨앗 둘 · 담으면 6 남아 · 조개는 아직 그대로');
+  await page.click('#shop-list .ls-buy');
+  var r2 = await page.evaluate(function () { var u = APP.state.user; return { shells: u.shells, seeds: u.seeds, keep: u.later && u.later.keep, paid: /냈어/.test(document.getElementById('shop-list').textContent) }; });
+  ok(r2.shells === 6 && r2.seeds === 3 && r2.keep === 1 && r2.paid, "'사기' 한 번에 계산 · 같은 자리가 영수증 (모르는 값 그대로)");
+  await page.waitForTimeout(1700); await page.waitForTimeout(700);
+  await page.click('#shop-list .ls-item[data-key="seed"] .ls-plus');
+  await page.click('#shop-close'); await page.waitForTimeout(200);
+  ok(await page.evaluate(function () { return APP.state.user.shells === 6 && APP.state.user.seeds === 3 && !APP.shopList; }), '닫으면 담은 것은 버린다 (조개 그대로)');
+  reportErrors(bag, 'S7'); await ctx.close();
+}
 
 
 /* [7-C] */
@@ -8670,6 +8699,7 @@ async function scenarioPlayer7(browser) {
       /* [7-V] 목록 줄: ['V7', function () { return scenario…(browser); }], */
 
       /* [7-S] 목록 줄: ['S7', function () { return scenario…(browser); }], */
+      ['S7', function () { return scenarioShop7(browser); }],
 
       /* [7-C] 목록 줄: ['C7', function () { return scenario…(browser); }], */
 
