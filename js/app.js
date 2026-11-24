@@ -6940,10 +6940,10 @@ var APP = (function () {
   var npcNow = null, npcCount = {}, npcDay = null, npcTimer = null;
   var NPC_ART = ['................', '.....bbbbbb.....', '...bbbbbbbbbb...', '..bbbbbbbbbbbb..', '..bbbbbbbbbbbb..', '.bbbbbbbbbbbbbb.', '.bbbdbbbbbbdbbb.', '.bbbdbbbbbbdbbb.',
     '.bbbbbbbbbbbbbb.', '.bbbbbbbbbbbbbb.', '..ssssssssssss..', '..bb.bb..bb.bb..', '.bb..bb..bb..bb.', '.s...s....s...s.', '................', '................'];
-  var NPC_HAT = {   /* 초상의 모자 (장면의 npcSet 모자 이름과 같다): [색, x, y, w, h]… (그림 px) */
-    beret: [['#7a2f3a', 4, 0, 9, 1], ['#7a2f3a', 2, 1, 12, 2], ['#5c222b', 2, 3, 12, 1], ['#7a2f3a', 8, -1, 1, 1]],
-    apron: [['#f3ead6', 5, 10, 6, 3], ['#c5bda8', 7, 11, 2, 1]],
-    cap: [['#e8dcc4', 3, 1, 10, 2], ['#e8dcc4', 5, 0, 6, 1], ['#b9a98a', 3, 3, 13, 1]]
+  var NPC_HAT = {   /* 초상의 모자 (장면의 npcSet 모자 이름과 같다): [색, x, y, w, h]… (그림 px). 11-24: 색을 장면 (V 의 vilOctGeo) 과 맞춤 — 베레 남색 · 캡 빨강 + 짙은 챙 · 앞치마 크림 */
+    beret: [['#2a3f6a', 4, 0, 9, 1], ['#2a3f6a', 2, 1, 12, 2], ['#1f2f50', 2, 3, 12, 1], ['#2a3f6a', 8, -1, 1, 1]],
+    apron: [['#efe3c8', 5, 10, 6, 3], ['#c5bda8', 7, 11, 2, 1]],
+    cap: [['#b04a3c', 3, 1, 10, 2], ['#b04a3c', 5, 0, 6, 1], ['#6a2c2c', 3, 3, 13, 1]]
   };
   function npcShade(hex, k) { var n = parseInt(hex.slice(1), 16), r = Math.round((n >> 16) * k), g = Math.round(((n >> 8) & 255) * k), b = Math.round((n & 255) * k); return 'rgb(' + r + ',' + g + ',' + b + ')'; }
   function npcFace(cv, who) {   /* 그림 16×16 px, 그림 px 하나 = 기기 px 정수 (또렷하게) */
@@ -7073,14 +7073,17 @@ var APP = (function () {
       return { x: w.x, y: w.y, z: w.z, sx: sr.left + q.x, sy: sr.top + q.y, hall: hall };
     } catch (e) { return null; }
   }
-  function npcLook(run) {
+  function npcLook(run, again) {   /* again: 0.45 s 뒤 한 번 더 본다 (그 사이 화면이 되돌아가는 중이었으면 — 앞 말의 roomHome — 처음 잰 자리는 가는 길의 자리다) */
     clearTimeout(npcHomeT);
     var w = npcWhere(run.ln.id); if (!w || typeof scene.roomFocus !== 'function') return false;
     if (w.hall || document.querySelector('#scene [data-npc-avoid]:not([hidden])')) return false;
     var box = $('npc-box'), br = box && !box.hidden ? box.getBoundingClientRect() : null, vw = window.innerWidth, vh = window.innerHeight, top = 0;
     ['status', 'brain-tag', 'btn-bag', 'scene-ctl'].forEach(function (id) { var e = $(id); if (e && !e.hidden && e.offsetWidth) { var r = e.getBoundingClientRect(); if (r.bottom < vh / 2) top = Math.max(top, r.bottom); } });
     var low = br && br.top > vh / 2 ? br.top - 28 : vh;
-    if (w.sx >= vw * 0.2 && w.sx <= vw * 0.8 && w.sy >= top + 40 && w.sy <= low - 24) return false;   /* 이미 잘 보인다 */
+    if (w.sx >= vw * 0.2 && w.sx <= vw * 0.8 && w.sy >= top + 40 && w.sy <= low - 24) {   /* 이미 잘 보인다 */
+      if (!again) setTimeout(function () { if (npcNow === run) { npcLook(run, true); if (box && !box.hidden) npcPlace(box); } }, 450);
+      return false;
+    }
     var ok = false; try { ok = !!scene.roomFocus(w.x, w.z, w.y + 0.4); } catch (e) { ok = false; }
     if (ok) { npcLooked = true; [320, 700].forEach(function (ms) { setTimeout(function () { if (npcNow === run && box && !box.hidden) npcPlace(box); }, ms); }); }
     return ok;
@@ -7204,7 +7207,7 @@ var APP = (function () {
       var b = $('btn-npc-' + id); if (b) b.addEventListener('click', function () { if (npcNow && npcNow.ln.id === id) npcNext(); else npcSay(id, 'talk'); });
     });
     [1, 2, 3, 4].forEach(function (i) {   /* 11-24: 집에 사는 문어 넷 — 낮 · 저녁엔 대본 한마디 (처음 · 그날 처음 · 집 안), 밤엔 자고 있다 (말하지 않는다 — 집 목소리 한 줄) */
-      var id = 'sleep-' + i, b = $('btn-npc-' + id); if (b && NPCR) b.addEventListener('click', function () { npcResident(id); });
+      var id = 'sleep-' + i, b = $('btn-npc-' + id); if (b && NPCR) { b.addEventListener('click', function () { npcResident(id); }); if (NPCR.who(id)) b.setAttribute('aria-label', NPCR.who(id).name); }   /* 11-24: 단추 이름을 그 문어의 이름으로 (넷 모두 '집 문어' 였다) */
     });
     var nx = $('npc-next'); if (nx) nx.addEventListener('click', npcNext);
     /* 말이 떠 있는 동안 모달 창이 열리면 그 창 위로 옮긴다 (밑에 깔려 안 보이고 안 눌리지 않게) */

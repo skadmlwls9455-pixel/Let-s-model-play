@@ -9303,7 +9303,8 @@ var SCENE3D = (function () {
         try {
           var vis = groupOf(PLACE.vis), list = [];
           if (typeof VR !== 'undefined' && VR) {
-            if (VR.npc && VR.npc[id]) list.push(VR.npc[id].m);
+            var rk = id === 'stylist' ? 'salon' : id;   /* 11-24: 가게 문어는 그 방 이름 칸에 (미용사는 미용실 salon 칸) */
+            if (VR.npc && VR.npc[rk]) list.push(VR.npc[rk].m);
             Object.keys(VR.rooms || {}).forEach(function (k) { var g = VR.rooms[k].guests; if (g && g[id]) list.push(g[id].m); });
             if (VR.hallNpc && VR.hallNpc[id]) list.push(VR.hallNpc[id].m);
           }
