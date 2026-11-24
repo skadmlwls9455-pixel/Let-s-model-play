@@ -6063,7 +6063,7 @@ var APP = (function () {
     try { var R = roomScene('roomSlots') ? scene.roomSlots('clothes') : null; list.forEach(function (m) { var sl = R && R.slots && R.slots[m.slot]; if (Array.isArray(sl)) m.pos = sl.slice(0, 4); }); } catch (e) { /* noop */ }   /* 자리도 함께 넘긴다 (마네킹 쪽이 방 칸을 못 읽어도 서게 — 계약 C11 의 pos) */
     try { scene.mannequins('clothes', list); } catch (e) { console.warn('[app] mannequins', e); }
   }
-  function roomCardClose(byTap) { if (room.card) { room.card.remove(); room.card = null; if (byTap) room.shutAt = performance.now(); } }   /* byTap: 카드 안 단추로 닫혔다 → 0.6 s 동안 장면 누름은 쉰다 (빠른 두 번 톡이 밑의 다른 마네킹 · 선반에 떨어지지 않게) */
+  function roomCardClose(byTap) { if (room.card) { room.card.remove(); room.card = null; if (byTap) room.shutAt = performance.now(); if (room.key && roomScene('roomHome')) { try { scene.roomHome(); } catch (e) { console.warn('[app] roomHome', e); } } } }   /* 카드를 띄울 때 roomFocus 로 옮긴 화면을 내 캐릭터 쪽으로 되돌린다 (바깥 갈래 — 있을 때만) */   /* byTap: 카드 안 단추로 닫혔다 → 0.6 s 동안 장면 누름은 쉰다 (빠른 두 번 톡이 밑의 다른 마네킹 · 선반에 떨어지지 않게) */
   function roomCardPlace() {   /* 그 단추 (마네킹 · 계산대 · 선반 위에 놓인) 의 화면 자리 바로 위, 장면 안쪽 8px, 기기 px 에 맞춰 */
     var c = room.card, sc = $('scene'); if (!c || !sc) return; var a = $(c.dataset.anchor || ''), dpr = window.devicePixelRatio || 1, sr = sc.getBoundingClientRect(), ar = a && !a.hidden ? a.getBoundingClientRect() : null, w = c.offsetWidth, hh = c.offsetHeight;
     /* 세로 자리는 장면 안에서도 위 상태 줄 아래 · 큰 단추 위 칸만 (장면이 화면을 다 채워 그 둘 밑으로 깔린다 — 이름이 잘리고 위 단추를 덮었다) */
