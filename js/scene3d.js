@@ -6908,10 +6908,45 @@ var SCENE3D = (function () {
         if (!vilIsExtra(w.id) || seen[w.id]) return; seen[w.id] = true;
         var sp = vilHallSpot(w.id), key = w.color + '|' + w.hat + '|' + (w.pose === 'sleep'), o = VR.hallNpc[w.id];
         if (!o || o.key !== key) { if (o) { RM.g.remove(o.m); o.m.geometry.dispose(); } var m = new T.Mesh(vilOctGeo(w.color, w.hat, w.pose === 'sleep'), lambert); m.receiveShadow = true; m.name = 'npc-hall-' + w.id; RM.g.add(m); o = VR.hallNpc[w.id] = { m: m, key: key }; }
-        var R = VIL.R, sit = w.pose === 'sit'; o.pose = w.pose; o.y = sp.y; o.m.position.set(sp.x, sp.y - (sit ? 0.06 : 0), sp.z); o.m.rotation.y = sp.face; o.m.scale.set(R * (w.pose === 'sleep' ? 1.08 : 1), R * (w.pose === 'sleep' ? 0.78 : sit ? 0.9 : 1), R * (w.pose === 'sleep' ? 1.08 : 1));
+        var R = VIL.R, sit = w.pose === 'sit', fresh = !o.tw; o.pose = w.pose; o.y = sp.y; o.sit = sit ? 0.06 : 0;
+        /* 11-24 리드 검토: 방이 보이는 동안 자리를 옮기면 걸어간다 (vilHallWalk — 한 걸음씩 순간 이동하지 않는다). 처음 · 모션 감소 · 방이 안 보일 땐 바로 그 자리에 */
+        var mv = !fresh && !st.reduced && vilRoomKey() === 'hall' && w.pose !== 'sleep' && Math.hypot(o.tw.x - sp.x, o.tw.z - sp.z) > 0.02;
+        if (!mv) { o.tw = { x: sp.x, z: sp.z, face: sp.face, tx: sp.x, tz: sp.z, tf: sp.face, ph: 0 }; o.m.position.set(sp.x, sp.y - o.sit, sp.z); o.m.rotation.set(0, sp.face, 0); }
+        else { o.tw.tx = sp.x; o.tw.tz = sp.z; o.tw.tf = sp.face; }
+        o.m.scale.set(R * (w.pose === 'sleep' ? 1.08 : 1), R * (w.pose === 'sleep' ? 0.78 : sit ? 0.9 : 1), R * (w.pose === 'sleep' ? 1.08 : 1));
       });
       Object.keys(VR.hallNpc).forEach(function (id) { if (!seen[id]) { RM.g.remove(VR.hallNpc[id].m); VR.hallNpc[id].m.geometry.dispose(); delete VR.hallNpc[id]; } });
       dither.still = 0;
+    }
+    function vilHallWalk(dt) {   /* 공연장 문어의 걷기: 1.6 m/s 로 새 자리까지 · 가는 쪽을 보고 뒤뚱 (좌우 기울기 + 한 픽셀 들썩) · 닿으면 받은 쪽을 본다 */
+      var moving = false;
+      Object.keys(VR.hallNpc).forEach(function (id) {
+        var o = VR.hallNpc[id], w = o.tw; if (!w) return;
+        var dx = w.tx - w.x, dz = w.tz - w.z, d = Math.hypot(dx, dz);
+        if (d < 1e-4) { if (w.ph) { w.ph = 0; o.m.rotation.set(0, w.tf, 0); o.m.position.set(w.x, vilHallY(w.x, w.z) - o.sit, w.z); dither.still = 0; } else if (o.m.rotation.y !== w.tf) { o.m.rotation.y = w.tf; dither.still = 0; } return; }
+        var stp = Math.min(d, 1.6 * dt); w.x += dx / d * stp; w.z += dz / d * stp; w.ph += dt * 9; moving = true;
+        var arrived = d - stp < 1e-4, hy = vilHallY(w.x, w.z);
+        o.m.position.set(w.x, hy - o.sit + (arrived ? 0 : (Math.floor(w.ph / Math.PI) % 2 ? PX : 0)), w.z);
+        o.m.rotation.set(0, arrived ? w.tf : Math.atan2(dx, dz), arrived ? 0 : Math.sin(w.ph) * 0.12);
+        if (arrived) { w.x = w.tx; w.z = w.tz; w.ph = 0; }
+      });
+      if (moving) dither.still = 0;
+    }
+    function vilHallWalking() { return Object.keys(VR.hallNpc).filter(function (id) { var w = VR.hallNpc[id].tw; return w && Math.hypot(w.tx - w.x, w.tz - w.z) > 1e-4; }); }
+    function vilNpcWalk(id, pts, face) {   /* 공연장 문어를 점들 [[x, z], …] 을 따라 걷게 → Promise<끝까지 갔나> (방이 안 보이면 마지막 점에 바로 선다) */
+      if (!vilIsExtra(id) || !pts || !pts.length) return Promise.resolve(false);
+      var i = 0;
+      return new Promise(function (res) {
+        var next = function () {
+          var o = VR.hallNpc[id]; if (!o || !VR.rooms.hall) { res(false); return; }
+          if (i >= pts.length) { res(true); return; }
+          var p = pts[i], nx = pts[i + 1], f = nx ? Math.atan2(nx[0] - p[0], nx[1] - p[1]) : (face != null ? face : Math.atan2(p[0] - (o.tw ? o.tw.x : p[0]), p[1] - (o.tw ? o.tw.z : p[1]) || 1));
+          i++; vilNpcPlace(id, p[0], p[1], f);
+          var tick = function () { var w = VR.hallNpc[id] && VR.hallNpc[id].tw; if (!w) { res(false); return; } if (Math.hypot(w.tx - w.x, w.tz - w.z) < 1e-4) next(); else setTimeout(tick, 50); };
+          tick();
+        };
+        next();
+      });
     }
     function vilNpcPlace(id, x, z, face) {   /* 문어를 옮긴다 (보는 쪽 rad · x 가 null 이면 제자리로). 마을의 문어 = 월드 x · z · 심사 / 경쟁 문어 = 공연장 방 안 x · z (무대 · 시상대 위면 그 높이에 선다) */
       if (!VIL.on) return false; var ex = vilIsExtra(id); if (!ex && !VILLAGE.npc(id)) return false;
@@ -7413,6 +7448,7 @@ var SCENE3D = (function () {
       vilRoomLight(RM, false); vilSeatSync();
       var o = VR.npc[key]; if (o) { var f = st.reduced ? 0 : Math.floor(VIL.t / 0.8) % 2; if (f !== o.f) { o.f = f; o.m.position.y = o.y + (f ? PX : 0); dither.still = 0; } }
       if (key === 'cafe') vilRecordStep();
+      if (key === 'hall') vilHallWalk(dt);
       if (key === 'hall' && PL.place === 'inside' && !PL.sit && !PL.hop) { var hy = vilHallY(PL.pos.x, PL.pos.z); if (hy) plG.position.y += hy; }   /* 무대 · 길 위에 서면 그 높이만큼 올려 그린다 (걷는 값 PL.pos.y 는 0 그대로 — 마당 현관 마루와 같은 식) */
     }
     /* ── 카페 안의 움직이는 것: 내 잔 (cafeCup) · 턴테이블 위 레코드 (cafeRecord — 돌고, 음표가 떠오른다) ── */
@@ -8951,7 +8987,7 @@ var SCENE3D = (function () {
       npcSpots: vilNpcSpots, npcSet: vilNpcSet, npcMark: vilNpcMark, cafeSit: vilCafeSit, cafeCup: vilCafeCup, cafeSeated: function () { vilSeatSync(); return VIL.cafe.seated && !!PL.sit; },
       stage: vilStageInfo, stageDress: vilStageDress, npcPlace: vilNpcPlace, npcPose: vilNpcPoseSet,
       cafeRecord: vilCafeRecord, debugVillageRoom: vilRoomDebug, villageRooms: function () { var o = {}, hn = Object.keys(VR.hallNpc).map(function (id) { var q = VR.hallNpc[id]; return { id: id, pose: q.pose, at: [q.m.position.x, q.y, q.m.position.z] }; }); Object.keys(VR.rooms).forEach(function (k) { var RM = VR.rooms[k]; o[k] = { keeper: !!VR.npc[k], guests: Object.keys(RM.guests || {}), lamps: !!(RM.lamp && RM.lamp.visible), cup: !!(RM.cup && RM.cup.visible), record: !!(RM.rec && RM.rec.on) }; }); return { cur: vilRoomKey(), rooms: o, hallNpcs: hn, lift: +plG.position.y.toFixed(3), reg: typeof ROOM_REG !== 'undefined' && !!ROOM_REG }; },
-      villageGo: vilGo, villageNear: vilNear, debugVillageWalk: function () { return { end: VIL.walkEnd, due: VIL.walkDue, t: VIL.t, walking: !!PL.walking, d: VIL.walkD, place: PL.place, inp: !!PL_IN.v }; }, debugVillageStub: vilStub, debugVillageFrame: vilStubFrame, debugVillageHide: function (on) { if (VIL.root) { VIL.root.visible = !on; dither.still = 0; } return !!VIL.root; },
+      villageGo: vilGo, villageNear: vilNear, npcWalk: vilNpcWalk, npcWalking: vilHallWalking, debugVillageWalk: function () { return { end: VIL.walkEnd, due: VIL.walkDue, t: VIL.t, walking: !!PL.walking, d: VIL.walkD, place: PL.place, inp: !!PL_IN.v }; }, debugVillageStub: vilStub, debugVillageFrame: vilStubFrame, debugVillageHide: function (on) { if (VIL.root) { VIL.root.visible = !on; dither.still = 0; } return !!VIL.root; },
       villageInfo: function () { var c = {}; (CUTS.yard || []).forEach(function (e) { if (/^vil/.test(e.key)) c[e.key] = e.cut; }); return { on: VIL.on, built: VIL.built, stub: VIL.stub, npcs: Object.keys(VIL.npcs).map(function (id) { var o = VIL.npcs[id]; return { id: id, pose: o.pose, at: [o.m.position.x, o.m.position.y, o.m.position.z], visible: o.m.visible }; }), marks: Object.keys(VIL.marks).filter(function (id) { return VIL.marks[id].visible; }), cut: c, cup: !!(VIL.cup && VIL.cup.visible), seated: VIL.cafe.seated, lamps: !!(VIL.lampGlow && VIL.lampGlow.visible), snow: VIL.snow.some(function (m) { return m.visible; }), calls: callsBy.yard || 0, reg: { builders: WIDE_REG.builders.length, spots: WIDE_REG.spots.length, boxes: WIDE_REG.boxes.length, circles: WIDE_REG.circles.length, segments: WIDE_REG.segments.length, frame: WIDE_REG.frame.length } }; },
 
       /* [7-N] */
