@@ -80,6 +80,16 @@ console.log('== 옷 선반');
   var okDays = 0, all = {}; for (var e = 0; e < 14; e++) { var t = SHOP.stock('clothes', keyAdd(DAY, e), REAL, {}).items; if (t.some(function (x) { return x.price <= 3 + 2; })) okDays++; t.forEach(function (x) { all[x.key] = 1; }); }
   eq(okDays, 14, '이번 판 진짜 목록: 날마다 조개 5 이하가 하나');
   eq(Object.keys(all).length, 10, '이번 판 진짜 목록: 두 주 안에 열 가지 다');
+  /* 검토 11-24: 전에 가진 것 대신 들어온 옷을 오늘 사면 그 자리에 남는다 */
+  var base = SHOP.stock('clothes', DAY, REAL, {}).items.filter(function (x) { return x.price > SHOP.SMALL; }), o1 = {}; o1[base[0].key] = '2026-01-01';
+  var rep1 = SHOP.stock('clothes', DAY, REAL, o1).items.filter(function (x) { return x.key !== base[0].key && base.map(function (b) { return b.key; }).indexOf(x.key) < 0 && x.price > SHOP.SMALL; })[0];
+  ok(!!rep1, '가진 것 대신 다른 옷이 들어온다');
+  o1[rep1.key] = DAY;
+  ok(SHOP.stock('clothes', DAY, REAL, o1).items.some(function (x) { return x.key === rep1.key && x.owned; }), '그 대신 들어온 옷을 오늘 사도 그 자리에 남는다 (표시와 함께)');
+  /* 큰 것을 다 가졌으면 남은 작은 것 둘이 다 진열에 */
+  var o2 = {}; SHOP.shopItems(REAL).forEach(function (x) { if (x.price > SHOP.SMALL) o2[x.key] = '2026-01-01'; });
+  var sm2 = SHOP.stock('clothes', DAY, REAL, o2).items.filter(function (x) { return !x.owned; });
+  eq(sm2.map(function (x) { return x.id; }).sort(), ['cap', 'scarf'], '큰 것을 다 가졌으면 살 수 있는 작은 것 둘이 다 나온다');
 })();
 
 console.log('== 잡화점');

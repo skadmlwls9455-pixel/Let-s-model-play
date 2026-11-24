@@ -142,7 +142,7 @@ async function clothesRun(browser) {
   await page.reload(); await page.waitForFunction(() => window.APP && APP.openShop, null, { timeout: 30000 }); await page.waitForTimeout(800);
   await page.evaluate(stub); await page.evaluate(() => APP.openShop('clothes'));
   t = await tiles(page); u = await U(page);
-  if (!(u.owned[cheap.key] === DAY && u.shells === 2 && (t.find(x => x.key === cheap.key) || {}).own)) console.log('   (새로고침 뒤) ' + JSON.stringify({ owned: u.owned, shells: u.shells, tiles: t.map(x => x.key + (x.own ? '*' : '')), cheap: cheap.key }));
+  if (!(u.owned[cheap.key] === DAY && u.shells === 2 && (t.find(x => x.key === cheap.key) || {}).own)) console.log('   (새로고침 뒤) ' + JSON.stringify({ owned: u.owned, shells: u.shells, tiles: t.map(x => x.key + (x.own ? '*' : '')), cheap: cheap.key, before: stock.map(x => x.key + ':' + x.price), after: await page.evaluate(() => ({ today: window.__ppolTest && window.__ppolTest.today, items: APP.shopStock('clothes').items.map(x => x.key + ':' + x.price + (x.owned ? '*' : '')), pr: sessionStorage.getItem('__pr') })) }));
   ok(u.owned[cheap.key] === DAY && u.shells === 2 && (t.find(x => x.key === cheap.key) || {}).own, '새로고침해도 산 옷 · 표시 그대로');
   await page.evaluate(d => { sessionStorage.setItem('__day', d); window.__ppolTest.today = d; APP.openShop('clothes'); }, NEXT);
   t = await tiles(page);
@@ -277,6 +277,7 @@ async function roomRun(browser) {
   ok(u.shells === 5 && u.owned[stock[0].key] === DAY && u.owned[stock[1].key] === DAY && u.shop.got[stock[0].key] === DAY, '계산: 합계만큼 조개가 나가고 둘 다 내 것');
   ok(r.log.wear.length === 2 && r.basket.length === 0 && r.mq[0].sold && r.mq[0].parts === null && r.mq[1].sold && !r.mq[2].sold && r.said.includes('clothes|shop.pay'), '입은 채 · 마네킹엔 팔림 표 · 가게 주인 줄');
   ok(JSON.parse(await page.evaluate(() => localStorage.getItem('ppolppol_v2'))).user.owned[stock[1].key] === DAY, '저장됐다');
+  ok(await page.evaluate(() => { const c = document.getElementById('shop-card'); return !!c && c.classList.contains('receipt') && !c.querySelector('button') && /냈어/.test(c.textContent) && !/살까/.test(c.textContent); }), '값을 낸 영수증: 묻는 말 · 단추 없이 냈어');
   await page.waitForTimeout(900);
   await page.click('#btn-mq-0');
   ok(/입고 있어|입을래/.test(await page.textContent('#shop-card')) && !/살래/.test(await page.textContent('#shop-card')), '팔린 마네킹의 카드에는 살래가 없다');
@@ -328,6 +329,13 @@ async function roomRun(browser) {
   ok(r.tried.length === 1 && r.card === null, '빠른 두 번 톡: 입어 보기만 되고 밑의 다른 마네킹 카드는 안 열린다');
   await page.waitForTimeout(700); await page.click('#btn-mq-3'); await page.waitForTimeout(300);
   ok(!!(await page.$('#shop-card')), '0.6 s 뒤에는 다시 누를 수 있다');
+  /* 꼬리표의 살래를 빠르게 두 번: 둘째 톡이 (영수증으로 바뀐 뒤) 밑의 마네킹을 열지 않는다 */
+  await page.waitForTimeout(700);
+  const sb2 = await page.evaluate(() => { const b = [...document.querySelectorAll('#shop-card button')].find(x => x.textContent === '살래'); const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.evaluate(b => { const m = document.getElementById('btn-mq-0'); m.style.left = (b[0] - 22) + 'px'; m.style.top = (b[1] - 22) + 'px'; }, sb2);
+  await page.mouse.click(sb2[0], sb2[1]); await page.waitForTimeout(90); await page.mouse.click(sb2[0], sb2[1]); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => { const c = document.getElementById('shop-card'); return !!c && c.classList.contains('receipt'); }), '꼬리표 살래 두 번 톡: 영수증이 남고 다른 카드는 안 열린다');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(100);
   await page.keyboard.press('Escape'); await page.waitForTimeout(100);
   await page.click('#btn-room-counter'); await page.waitForTimeout(300);
   const fs2 = await page.evaluate(() => [...document.querySelectorAll('#shop-card .shop-rc-list li, #shop-card .shop-rc-sum, #shop-card .shell-n, #shop-card .btn')].map(e => parseFloat(getComputedStyle(e).fontSize)));

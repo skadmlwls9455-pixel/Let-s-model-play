@@ -46,7 +46,7 @@ var SHOP = (function () {
     var next = (pos * per + per) % n, seen = 0;
     return picks.map(function (p) {
       if (!own[p.key] || own[p.key] === dateKey) return p;
-      while (seen < n) { var c = ord[(next + seen) % n]; seen++; if (!own[c.key] && !used[c.key]) { used[c.key] = 1; return c; } }
+      while (seen < n) { var c = ord[(next + seen) % n]; seen++; if ((!own[c.key] || own[c.key] === dateKey) && !used[c.key]) { used[c.key] = 1; return c; } }   /* 오늘 산 대신 것도 받는다 (산 자리에 그대로 남게) */
       return p;
     });
   }
@@ -61,6 +61,8 @@ var SHOP = (function () {
     if (small.length && rest.length && smallLeft.length) {
       var today = smallLeft.filter(function (x) { return own[x.key] === dateKey; }), sm = today.length ? today[0] : smallLeft[((d % smallLeft.length) + smallLeft.length) % smallLeft.length];
       picks = shelfOf(rest, d, per - 1, own, dateKey, 0).concat([sm]);
+      var extra = smallLeft.filter(function (x) { return x !== sm; });   /* 큰 것을 다 가져 바꿀 것이 없는 칸은 남은 작은 것으로 (살 수 있는 것이 팔린 마네킹 뒤에 숨지 않게) */
+      picks = picks.map(function (p) { return own[p.key] && own[p.key] !== dateKey && extra.length ? extra.shift() : p; });
     } else picks = shelfOf(rest.length ? rest : items, d, per, own, dateKey, 0);
     if (picks.length < per) { var have = {}; picks.forEach(function (p) { have[p.key] = 1; }); items.forEach(function (x) { if (picks.length < per && !have[x.key]) { picks.push(x); have[x.key] = 1; } }); }
     return { kind: 'clothes', day: dateKey, total: n, items: picks.map(function (p) { return { key: p.key, cat: p.cat, id: p.id, name: p.name, price: p.price, owned: !!own[p.key] }; }) };
