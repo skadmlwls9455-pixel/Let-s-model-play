@@ -6742,13 +6742,34 @@ var APP = (function () {
     }
     else {
       top = Math.max(floor, Math.min(vh, r.bottom) - hh - 12);
+      /* 11-24 (넷째 점검): 발자국 손잡이 (#stick) · 큰 단추 (#btn-go) 를 덮지 않는다 — 덮으면 그 위로 (엄지 끌기가 말 닫기로 먹히던 것) */
+      ['stick', 'btn-go'].forEach(function (id) {
+        var e = $(id); if (!e || e.hidden || !e.offsetWidth || e.closest('[hidden]')) return;
+        var k = e.getBoundingClientRect(); if (!k.height || !(k.right > left && k.left < left + w && k.bottom > top - 28 && k.top < top + hh)) return;
+        if (k.top - hh - 8 >= floor) top = k.top - hh - 8;
+      });
       var t = $('toast'), tr = t && t.classList.contains('show') && t.parentNode === document.body ? t.getBoundingClientRect() : null;   /* 떠 있는 알림과 겹치면 그 위로 */
       if (tr && tr.height && tr.top < top + hh && tr.bottom > top) top = Math.max(floor, tr.top - hh - 16);
       /* 11-21 밤: 장면 안 카드 (꼬리표 · 영수증 — data-npc-avoid 를 단 것) 를 가리지 않는다. 아래 자리가 겹치면 장면 위쪽으로, 거기도 겹치면 아래 그대로 */
       var cards = [].filter.call(document.querySelectorAll('#scene [data-npc-avoid]'), function (c) { return !c.hidden && c.offsetWidth > 0; }).map(function (c) { return c.getBoundingClientRect(); });
+      /* 11-24 (넷째 점검): 공연장에선 단상 위 (1 · 2 · 3 등 자리의 머리 둘레) 도 피한다 — 결과 때 내 캐릭터를 덮지 않게 */
+      if (scene && typeof scene.inRoom === 'function' && typeof scene.stage === 'function' && typeof scene.project === 'function') {
+        try {
+          if (scene.inRoom() === 'hall') {
+            var sg = scene.stage(), srect = sc ? sc.getBoundingClientRect() : { left: 0, top: 0 };
+            (sg && Array.isArray(sg.podium) ? sg.podium.slice(0, 3) : []).forEach(function (pd) {
+              var q = scene.project(pd[0], (pd[2] || 0) + 0.8, pd[1]); if (!q || !isFinite(q.x) || !isFinite(q.y)) return;
+              var x = srect.left + q.x, y = srect.top + q.y; cards.push({ left: x - 36, right: x + 36, top: y - 70, bottom: y + 30 });
+            });
+          }
+        } catch (e) { /* 장면 쪽 문제: 단상은 피하지 못해도 말은 보인다 */ }
+      }
       var hit = function (y) { return cards.some(function (c) { return c.right > left && c.left < left + w && c.bottom > y - 28 && c.top < y + hh; }); };
       var up = Math.max(floor, (sc ? sc.getBoundingClientRect().top : 0) + 36);
-      if (cards.length && hit(top) && !hit(up)) top = up;
+      if (cards.length && hit(top)) {   /* 아래 → 위 → 그 사이 (8px 씩) 에서 처음으로 안 겹치는 자리. 다 겹치면 아래 그대로 */
+        if (!hit(up)) top = up;
+        else for (var yy = up + 8; yy < top; yy += 8) if (!hit(yy)) { top = yy; break; }
+      }
     }
     box.style.left = (Math.round(left * dpr) / dpr) + 'px'; box.style.top = (Math.round(top * dpr) / dpr) + 'px';
   }
@@ -6764,6 +6785,7 @@ var APP = (function () {
     $('npc-next').setAttribute('aria-label', run.i < run.ln.bubbles.length - 1 ? '다음 말' : '말 닫기');
     box.setAttribute('data-npc', run.ln.id); box.setAttribute('data-more', run.i < run.ln.bubbles.length - 1 ? '1' : '0');
     npcPlace(box);
+    if (host !== document.body) [200, 420].forEach(function (ms) { setTimeout(function () { if (npcNow === run && box.parentNode === host) npcPlace(box); }, ms); });   /* 11-24: 시트가 다 올라온 뒤 다시 잰다 (올라오는 동안 재면 8~24px 낮게 놓였다) */
     clearTimeout(npcTimer);
     var th = window.__ppolTest; if (th && typeof th === 'object' && th.npcHold) return;   /* 11-22 테스트 훅: 읽을 시간이 지나도 저절로 넘기지 않는다 (느린 기계에서 시험이 확인하는 사이 닫히지 않게) */
     npcTimer = setTimeout(function () { if (npcNow === run) npcNext(); }, Math.min(8000, Math.max(3500, (1500 + 65 * Array.from(text).length) * 1.5)) * (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--speed')) || 1));
