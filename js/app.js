@@ -5835,6 +5835,16 @@ var APP = (function () {
     }
     if (b.id === 'btn-salon-chair' && typeof scene.salonSit === 'function') scene.salonSit(!scene.salonSeated());
   });
+  /* 11-24 (S · 리드): 미용실을 나갈 때 미용사 소라의 salon.leave — 문 쪽으로 걷기 시작할 때 (장면의 'ppol:room-leaving') 또는 문 단추를 바로 누른 때 (키보드 · 앉은 채 — 장면의 roomLeaving 은 들어온 동안 한 번만 보낸다) */
+  var VIL_LEAVE_SAY = { salon: ['stylist', 'salon.leave'] };
+  document.addEventListener('ppol:room-leaving', function (e) {
+    var k = e && e.detail ? e.detail.key : null, q = VIL_LEAVE_SAY[k], A = window.APP; if (!q || !A || typeof A.npcSay !== 'function') return;
+    try { var p = A.npcSay(q[0], q[1]); if (p && typeof p.catch === 'function') p.catch(function () { /* noop */ }); } catch (er) { console.warn('[village] leave line', er); }
+  });
+  window.addEventListener('click', function (e) {   /* 문 단추 누름이 W 의 '먼저 걸어가기' 보다 먼저 (window 캡처) — 걸어가는 길이면 장면이 이미 보냈고 (들어온 동안 한 번), 앉은 채 · 키보드면 여기서 */
+    var b = e.target && e.target.closest ? e.target.closest('#btn-room-exit') : null; if (!b || !scene || typeof scene.inRoom !== 'function' || typeof scene.roomLeaving !== 'function') return;
+    var k = scene.inRoom(); if (k && VIL_LEAVE_SAY[k]) scene.roomLeaving(k);
+  }, true);
 
 
   /* [7-S] 가게 (옷가게 · 잡화점 · 바닷가 조개) */

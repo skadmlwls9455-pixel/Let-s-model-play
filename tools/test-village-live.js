@@ -237,7 +237,11 @@ async function village(page) {
             var kp = VILLAGE.ROOMS.salon.slots.stylistWork, pk = sc.project(kp[0], 0.5, kp[2]), ch = VILLAGE.ROOMS.salon.slots.chair, pc = sc.project(ch[0], 0.6, ch[2]); r.stylistX = Math.round(pk.x); r.chairX = Math.round(pc.x);
             var s2 = null; sc.salonSit(false).then(function (x) { s2 = x; }); await __V.run(300, function () { return s2 !== null; }); r.stood = s2; r.seated2 = sc.salonSeated(); r.ev = seatEv.join();
           }
-          var lv = null; sc.leaveRoom().then(function (x) { lv = x; }); await __V.run(500, function () { return lv !== null; }); await __V.run(20);
+          if (D.room === 'salon' && typeof sc.roomSpotGo === 'function') {   /* 미용실은 문 단추로 나간다: 문 쪽으로 걷기 시작하면 'ppol:room-leaving' (미용사 인사) — 아직 방 안일 때 한 번 */
+            var lev = []; var onLv = function (e) { lev.push([e.detail.key, sc.inRoom()]); }; document.addEventListener('ppol:room-leaving', onLv);
+            r.exitGo = sc.roomSpotGo('btn-room-exit'); await __V.run(900, function () { return sc.inRoom() === null; }); await __V.run(20);
+            document.removeEventListener('ppol:room-leaving', onLv); r.leaveEv = JSON.stringify(lev);
+          } else { var lv = null; sc.leaveRoom().then(function (x) { lv = x; }); await __V.run(500, function () { return lv !== null; }); await __V.run(20); }
           var pa = sc.player().at; r.outD = Math.hypot((pa[0] + pa[2]) * K - D.stand[0], (pa[0] - pa[2]) * K - D.stand[1]); r.after = sc.inRoom();
           out.push(r);
         }
@@ -249,6 +253,7 @@ async function village(page) {
         if (r.guest !== undefined) ok(r.guest && r.bedX > 8 && r.bedX < t7.W - 8, r.key + ': 밤엔 사는 문어가 침대에 · 침대가 360 화면 안 (' + r.bedX + ')'); if (r.guest !== undefined) ok(r.resBtn, r.key + ': 사는 문어 단추 (#btn-npc-sleep-N) 가 침대 위에 보인다');
         if (r.room === 'salon') ok(r.sat === true && r.seated && r.stood === true && !r.seated2 && r.ev === 'true,false' && r.stylistX > 8 && r.stylistX < t7.W - 8 && r.chairX > 8 && r.chairX < t7.W - 8, '미용실: 의자에 앉고 일어난다 · ppol:salon-seat (' + r.ev + ') · 의자 · 미용사가 화면 안 (' + r.chairX + ' / ' + r.stylistX + ')');
         ok(r.after === null && r.outD < 0.3, r.key + ': 나오면 문 앞 선 자리 (' + r.outD.toFixed(2) + ' m)');
+        if (r.room === 'salon') ok(r.exitGo === true && r.leaveEv === '[["salon","salon"]]', '미용실: 문 단추로 나가면 걷기 시작할 때 ppol:room-leaving 한 번 (아직 방 안) ' + r.leaveEv);
       });
       /* 낮 (12 시): 집이 비어 문이 잠긴다 — 사실 한 줄 · 문 톡에 알림이 뜨고 들어가지 않는다 */
       var t8 = await page.evaluate(async function (list) {

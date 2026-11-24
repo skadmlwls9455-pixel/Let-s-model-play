@@ -7611,12 +7611,28 @@ var SCENE3D = (function () {
       if (rs) { var gw = null; VIL.want.forEach(function (w) { if (w.id === who && w.room === key) gw = w; }); var gs = gw && VILLAGE.ROOMS[key].slots[gw.slot]; rs.on = !!gs; if (gs) { rs.x = gs[0]; rs.z = gs[2]; rs.y = gs[1] + (gw.pose === 'sleep' ? 0.25 : 0.45); } }
       dither.still = 0;
     }
+    /* 11-24 (S · 리드): 방을 나가려고 문 쪽으로 걷기 시작하면 (새 걸음이 문 앞 선 자리를 향하면) 'ppol:room-leaving' { key } 를 한 번 보낸다 — 미용사의 salon.leave 처럼
+       그 방 사람이 아직 보일 때 인사하게 (js/app.js [7-V]). 문 단추를 바로 누른 때 (키보드 · 앉은 채) 는 app 쪽이 roomLeaving 으로 같은 일을 한다 (들어온 동안 한 번) */
+    try { document.addEventListener('ppol:room', function () { VR.leaveSaid = null; }); } catch (e) { /* noop */ }
+    function vilLeaveWatch(key) {
+      var w = PL.walking; if (!w) { VR.leaveW = null; return; }
+      if (VR.leaveW === w) return; VR.leaveW = w;
+      var R = VILLAGE.ROOMS[key], ex = null; (R ? R.spots : []).forEach(function (sp) { if (sp.key === 'roomExit') ex = sp; }); if (!ex) return;
+      var dx = ex.stand[0] - PL.pos.x, dz = ex.stand[1] - PL.pos.z; if (Math.hypot(dx, dz) < 0.5) return;
+      var dy = PL.wantYaw - Math.atan2(dx, dz); dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      if (Math.abs(dy) < 0.35) vilLeaving(key);
+    }
+    function vilLeaving(key) {   /* 한 번 들어온 동안 한 번 (문 쪽으로 걷다 말았다 다시 가도 되풀이하지 않는다 — 들어올 때 'ppol:room' 이 지운다) */
+      if (!key || VR.leaveSaid === key) return false; VR.leaveSaid = key;
+      try { document.dispatchEvent(new CustomEvent('ppol:room-leaving', { detail: { key: key } })); } catch (e) { /* noop */ } return true;
+    }
     function vilRoomFrame(key, dt) {   /* ROOM_REG[key].frame: 방이 보이는 동안 */
       var RM = VR.rooms[key]; if (!RM) return; VR.cur = key; VIL.t += dt;
       vilRoomLight(RM, false); vilSeatSync();
       var o = VR.npc[key]; if (o) { var f = st.reduced ? 0 : Math.floor(VIL.t / 0.8) % 2; if (f !== o.f) { o.f = f; o.m.position.y = o.y + (f ? PX : 0); dither.still = 0; } }
       if (key === 'cafe') vilRecordStep();
       if (key === 'salon') vilSalonSync();
+      vilLeaveWatch(key);
       if (VIL.rawList && VIL.schedKey !== vilSchedKey()) vilNpcSet(VIL.rawList, VIL.rawOpt);
       if (key === 'hall') vilHallWalk(dt);
       if (key === 'hall' && PL.place === 'inside' && !PL.sit && !PL.hop) { var hy = vilHallY(PL.pos.x, PL.pos.z); if (hy) plG.position.y += hy; }   /* 무대 · 길 위에 서면 그 높이만큼 올려 그린다 (걷는 값 PL.pos.y 는 0 그대로 — 마당 현관 마루와 같은 식) */
@@ -9157,7 +9173,7 @@ var SCENE3D = (function () {
       npcSpots: vilNpcSpots, npcSet: vilNpcSet, npcMark: vilNpcMark, cafeSit: vilCafeSit, cafeCup: vilCafeCup, cafeSeated: function () { vilSeatSync(); return VIL.cafe.seated && !!PL.sit; },
       stage: vilStageInfo, stageDress: vilStageDress, npcPlace: vilNpcPlace, npcPose: vilNpcPoseSet,
       cafeRecord: vilCafeRecord, debugVillageRoom: vilRoomDebug, villageRooms: function () { var o = {}, hn = Object.keys(VR.hallNpc).map(function (id) { var q = VR.hallNpc[id]; return { id: id, pose: q.pose, at: [q.m.position.x, q.y, q.m.position.z] }; }); Object.keys(VR.rooms).forEach(function (k) { var RM = VR.rooms[k]; o[k] = { keeper: !!VR.npc[k], guests: Object.keys(RM.guests || {}), lamps: !!(RM.lamp && RM.lamp.visible), cup: !!(RM.cup && RM.cup.visible), record: !!(RM.rec && RM.rec.on) }; }); return { cur: vilRoomKey(), rooms: o, hallNpcs: hn, lift: +plG.position.y.toFixed(3), reg: typeof ROOM_REG !== 'undefined' && !!ROOM_REG }; },
-      villageGo: vilGo, villageNear: vilNear, goodsShelf: vilGoodsShelf, homeOpen: vilHomeOpen, salonSit: vilSalonSit, salonSeated: function () { vilSalonSync(); return !!(VIL.salon && VIL.salon.seated); }, npcWalk: vilNpcWalk, npcWalking: vilHallWalking, debugVillageWalk: function () { return { end: VIL.walkEnd, due: VIL.walkDue, t: VIL.t, walking: !!PL.walking, d: VIL.walkD, place: PL.place, inp: !!PL_IN.v }; }, debugVillageStub: vilStub, debugVillageFrame: vilStubFrame, debugVillageHide: function (on) { if (VIL.root) { VIL.root.visible = !on; dither.still = 0; } return !!VIL.root; },
+      villageGo: vilGo, villageNear: vilNear, roomLeaving: function (key) { return vilLeaving(key || vilRoomKey()); }, goodsShelf: vilGoodsShelf, homeOpen: vilHomeOpen, salonSit: vilSalonSit, salonSeated: function () { vilSalonSync(); return !!(VIL.salon && VIL.salon.seated); }, npcWalk: vilNpcWalk, npcWalking: vilHallWalking, debugVillageWalk: function () { return { end: VIL.walkEnd, due: VIL.walkDue, t: VIL.t, walking: !!PL.walking, d: VIL.walkD, place: PL.place, inp: !!PL_IN.v }; }, debugVillageStub: vilStub, debugVillageFrame: vilStubFrame, debugVillageHide: function (on) { if (VIL.root) { VIL.root.visible = !on; dither.still = 0; } return !!VIL.root; },
       villageInfo: function () { var c = {}; (CUTS.yard || []).forEach(function (e) { if (/^vil/.test(e.key)) c[e.key] = e.cut; }); return { on: VIL.on, built: VIL.built, stub: VIL.stub, npcs: Object.keys(VIL.npcs).map(function (id) { var o = VIL.npcs[id]; return { id: id, pose: o.pose, at: [o.m.position.x, o.m.position.y, o.m.position.z], visible: o.m.visible }; }), marks: Object.keys(VIL.marks).filter(function (id) { return VIL.marks[id].visible; }), cut: c, cup: !!(VIL.cup && VIL.cup.visible), seated: VIL.cafe.seated, lamps: !!(VIL.lampGlow && VIL.lampGlow.visible), snow: VIL.snow.some(function (m) { return m.visible; }), calls: callsBy.yard || 0, reg: { builders: WIDE_REG.builders.length, spots: WIDE_REG.spots.length, boxes: WIDE_REG.boxes.length, circles: WIDE_REG.circles.length, segments: WIDE_REG.segments.length, frame: WIDE_REG.frame.length } }; },
 
       /* [7-N] */
