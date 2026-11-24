@@ -5521,6 +5521,15 @@ var APP = (function () {
     ffAfter();
   }
   if (window.MutationObserver && document.body) { new MutationObserver(ffSync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-font'] }); ffSync(); }
+  /* 11-24 (스모크 U · 320px · 기본 글꼴): 맞춘 뒤에 로그 상자 크기가 바뀌면 (시트 머리 · 글꼴이 늦게 들어오거나 바뀜) 5 px 모자란 자리에 멈춰 위 행이 반쯤 잘렸다
+     → 맨 아래를 따라가는 동안 (logStick) 로그 상자 크기가 바뀌거나 글꼴이 다 들어오면 다음 프레임에 다시 맞춘다. 손으로 굴려 읽는 중이면 건드리지 않는다 */
+  (function () {
+    var log = $('log'); if (!log) return;
+    var pend = 0, again = function () { pend = 0; try { if (logStick && Date.now() >= progScrollUntil) ffSnapLog(); } catch (e) { /* 부팅 중: 로그가 아직 비었다 */ } };
+    var soon = function () { if (!pend) pend = requestAnimationFrame(again); };
+    if (window.ResizeObserver) new ResizeObserver(soon).observe(log);
+    if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', soon);
+  })();
   /* 11-24 폰 (꼬리표를 바 아래에 매다는 폭): 'D+N' 은 '데모' 꼬리표의 실제 오른쪽 끝에서 4 px — 글자 크기가 배율마다 달라 (16 · 18 · 20.6 px) 고정 자리는 겹치거나 벌어졌다 */
   function placeDayN() {
     var el = $('day-n'), tg = $('brain-tag'); if (!el || !tg) return;

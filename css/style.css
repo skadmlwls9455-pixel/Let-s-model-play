@@ -304,6 +304,8 @@ a { color: var(--teal); touch-action: manipulation; }
 .ltext .st { color: var(--muted); font-size: 12px; }
 .ltext .sub { display: block; color: var(--muted); font-size: 12px; }
 .ltext .first { color: var(--teal); }
+/* 11-24 (7차 넷째 바퀴): 기본 글꼴 (data-font=system) 에서도 로그 글자 16px — 그린 뒤에 키우는 글자 바닥 (app.js FF) 을 기다리지 않고 CSS 로 바로, 그래야 로그 맞춤 (logSnapTop) 이 처음부터 다 자란 행을 잰다 (스모크 U 320px · 기본 글꼴에서 위 행이 반쯤 잘렸다) */
+:root[data-font="system"] .lrow, :root[data-font="system"] .ltool, :root[data-font="system"] .ltext .st, :root[data-font="system"] .ltext .sub, :root[data-font="system"] .ltext .lby, :root[data-font="system"] .lday summary { font-size: 16px; }
 .lrow.typing .ltext { color: var(--muted); letter-spacing: 2px; animation: pill-breathe 1.4s ease-in-out infinite; }
 .lempty { color: var(--muted); font-size: 13px; padding: 12px 0; }
 /* 초상 대화창 행 (§15.2, ui-ref-portrait-dialog): 왼쪽 64×64 초상을 96px 로(nearest), 남색 바탕 틀, 오른쪽 라벨 + 말. 초상 <canvas> 는 aria-hidden — 읽히는 건 글자뿐 */
