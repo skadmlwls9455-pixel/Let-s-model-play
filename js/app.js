@@ -1436,8 +1436,9 @@ var APP = (function () {
     if (rest.lying) return;
     rest.lying = true;
     if (!watching()) { sleepNow(t, true); return; }   /* 보는 사람이 없다: 걷지 않고 담요에서 */
-    var guard = setTimeout(function () { if (rest && rest.id === my && rest.lying) sleepNow(t, true); }, 6000);
-    walkTo('blanket').then(function () { clearTimeout(guard); if (rest && rest.id === my && rest.lying) sleepNow(t); });   /* lying 이 풀렸으면 (미용실 연출이 끼어듦) 눕지 않는다 */
+    var wp = walkTo('blanket'), eta = scene && typeof scene.walkEta === 'function' ? scene.walkEta() : 0;   /* [7-W] 다섯째 바퀴: 문어 길이 가구를 돌아가면 6 s 를 넘을 수 있다 → 남은 걸음 + 1 s 까지 기다린다 (지킴이가 먼저 터져 담요로 순간 이동하지 않게) */
+    var guard = setTimeout(function () { if (rest && rest.id === my && rest.lying) sleepNow(t, true); }, Math.max(6000, eta * 1000 + 1000));
+    wp.then(function () { clearTimeout(guard); if (rest && rest.id === my && rest.lying) sleepNow(t); });   /* lying 이 풀렸으면 (미용실 연출이 끼어듦) 눕지 않는다 */
   }
   function sleepNow(t, place) {
     if (octAtTable()) { setTimeout(function () { sleepNow(t, place); }, 700); return; }   /* 11-18: 식탁에서 잠들지 않는다 (지킴이 6 s 가 여기로 와도) */
