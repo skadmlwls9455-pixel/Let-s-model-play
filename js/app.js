@@ -5666,13 +5666,17 @@ var APP = (function () {
     if (added) setTimeout(function () { save(); }, 0);   /* 합친 것을 바로 적어 둔다 (검증 11-21: 다음 저장 전에 탭이 죽으면 산 옷이 빠진 기록만 남았다) */
     return R;
   }
-  function wardItem(cat, x) { return { id: x.id, name: x.name, tags: Array.isArray(x.tags) ? x.tags.slice() : [], shop: isObj(x.shop) ? { price: x.shop.price | 0 } : null, owned: isOwned(cat, x.id), worn: S.settings.player[cat] === x.id }; }
+  function itemTagsNow(cat, x) {   /* 11-24 (검토): 꼬리표의 색 갈래는 지금 모습에서 그려지는 색 (밤갈색 머리의 베레모 = 초록) — 장면이 없으면 (2D) 목록 그대로 */
+    try { if (sceneMode === '3d' && scene && typeof scene.itemTags === 'function') { var t = scene.itemTags(cat, x.id, S.settings.player); if (Array.isArray(t)) return t; } } catch (e) { console.warn('[app] itemTags', e); }
+    return Array.isArray(x.tags) ? x.tags.slice() : [];
+  }
+  function wardItem(cat, x) { return { id: x.id, name: x.name, tags: itemTagsNow(cat, x), shop: isObj(x.shop) ? { price: x.shop.price | 0 } : null, owned: isOwned(cat, x.id), worn: S.settings.player[cat] === x.id }; }
   function wardrobe() { var P = playerParts(); return { cats: WARD_CATS.map(function (k) { return { key: k[0], name: k[1], items: P[k[0]].map(function (x) { return wardItem(k[0], x); }) }; }) }; }
   function wearing() {   /* 지금 입은 것 [{ cat, id, name, tags }] (머리 · 옷 · 신발 · 장식). 물들인 물건은 색 낱말이 물든 색으로, 머리는 머리 색의 낱말이 붙는다 */
     var c = S.settings.player, dy = isObj(S.user) && isObj(S.user.dyed) ? S.user.dyed : {};
     return WARD_CATS.map(function (k) {
       var cat = k[0], x = partOf(cat, c[cat]); if (!x) return null;
-      var tags = Array.isArray(x.tags) ? x.tags.slice() : [], hex = isObj(dy[cat]) ? dy[cat][x.id] : null, fam = null;
+      var tags = itemTagsNow(cat, x), hex = isObj(dy[cat]) ? dy[cat][x.id] : null, fam = null;
       if (typeof hex === 'string') DYES.forEach(function (d) { if (d[2] === hex.toLowerCase()) fam = 'c-' + d[0]; });
       if (cat === 'hair') fam = HAIR_FAMILY[c.hairColor] || null;
       if (fam) tags = tags.filter(function (t) { return t.indexOf('c-') !== 0; }).concat([fam]);

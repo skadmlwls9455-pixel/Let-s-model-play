@@ -5851,6 +5851,37 @@ var SCENE3D = (function () {
       return PL.dash;
     }
     function playerSpeeds() { return { walk: PL_RUN, run: PL_DASH }; }
+    /* 11-24 (검토): 옷장 꼬리표의 색 갈래 (c-…) 가 그려진 색과 어긋나지 않게. 모습 (머리 색 등) 에 따라 색이 바뀌는 물건 (베레모: 밤갈색 머리면 초록) 은 꼬리표도 그 모습에서 그려지는 색을 따른다.
+       plMainHex(cat, id, look) = 그 모습에서 실제로 그려지는 바탕색 (물들이기 전 · 빌더가 만든 조각 가운데 바탕색 표 …_MAIN 에 있는 첫 색). itemTags(cat, id, look) = 목록 꼬리표에서 색 갈래만 그 색의 갈래로 (모습에 따라 색이 안 바뀌는 물건은 목록 그대로) */
+    /* 모습에 따라 그려지는 색이 바뀌는 물건의 색 갈래 (그 물건 빌더와 같은 색 값으로 적는다 — 빌더의 색을 바꾸면 여기도). 표에 없는데 색이 바뀌는 물건이 생기면 tools/test-player-parts-live.js 가 잡는다 */
+    var PL_ITEM_FAMILY = { 'acc:beret': [[PLC.red, 'c-red'], [PAL.moss[1], 'c-green']], 'acc:catears': [[PAL.slate[0], 'c-black'], [PAL.slate[2], 'c-black']] };
+    function plFamilyOf(cat, id, hex) { var t = PL_ITEM_FAMILY[cat + ':' + id]; if (!t || !hex) return null; for (var i = 0; i < t.length; i++) if (String(t[i][0]).toLowerCase() === hex) return t[i][1]; return null; }
+    function plMainHex(cat, id, look) {
+      var cfg = normalizePlayer(Object.assign({}, look || PL.look, (function () { var o = {}; o[cat] = id; return o; })())), L = [], mains = cat === 'outfit' ? OUTFIT_MAIN[id] : cat === 'shoes' ? SHOES_MAIN[id] : cat === 'acc' ? ACC_MAIN[id] : null;
+      if (!mains || !mains.length) return null;
+      var skin0 = PLC.skin; plSkin(cfg);
+      try {
+        if (cat === 'outfit') { PL_PARTS.outfit[id].torso(L); PL_PARTS.outfit[id].arm(L); }
+        else if (cat === 'shoes') PL_PARTS.shoes[id].parts(L);
+        else PL_PARTS.acc[id](L, cfg);
+      } finally { L.forEach(function (q) { if (q.g && q.g.dispose) q.g.dispose(); }); plSkin(PL.look); if (!PL.look) PLC.skin = skin0; }
+      var ms = mains.map(function (c) { return String(c).toLowerCase(); });
+      for (var i = 0; i < L.length; i++) if (ms.indexOf(String(L[i].c).toLowerCase()) >= 0) return String(L[i].c).toLowerCase();
+      return null;
+    }
+    var PL_TAG_VARY = {};   /* '갈래:id' → true: 머리 색 · 피부색에 따라 그려지는 바탕색이 바뀌는 물건 (처음 물을 때 한 번 센다) */
+    function plTagVaries(cat, id) {
+      var k = cat + ':' + id; if (k in PL_TAG_VARY) return PL_TAG_VARY[k];
+      var seen = {}; PLAYER_PARTS.hairColor.forEach(function (h) { PLAYER_PARTS.skin.forEach(function (sk) { seen[plMainHex(cat, id, Object.assign({}, PL.look, { hairColor: h.id, skin: sk.id }))] = 1; }); });
+      return (PL_TAG_VARY[k] = Object.keys(seen).length > 1);
+    }
+    function itemTags(cat, id, look) {
+      var x = plPart(cat, id); if (!x) return null;
+      var tags = Array.isArray(x.tags) ? x.tags.slice() : [];
+      if (!plTagVaries(cat, id)) return tags;
+      var fam = plFamilyOf(cat, id, plMainHex(cat, id, look)); if (!fam) return tags;
+      return tags.filter(function (t) { return t.indexOf('c-') !== 0; }).concat([fam]);
+    }
     /* ── 11-21 C11 (주인 "마네킹에 입혀진 거를 입어보고 살 수 있는 그런 느낌"): 옷을 입는 몸 둘 — 가게 마네킹 · 내 캐릭터의 몸짓 ── */
     /* 마네킹: 얼굴 없는 몸 (위층 마네킹처럼 밝은 나무색) 이 옷 · 신발 · 장식 · 머리 가운데 받은 것만 입는다 (없는 갈래는 민몸). 내 캐릭터와 같은 부품 빌더 · 같은 재질 (toonP) → 셰이더 프로그램이 늘지 않는다.
        mannequins(key, list): list = [{ slot, parts: { outfit?, shoes?, acc?, hair?, hairColor?, body? } | null, sold, pos?: [x, y, z, face] }] — 자리는 pos, 없으면 roomSlots(key).slots[slot] (V · W 갈래). 붙는 곳은 그 방의 그룹 (W 의 IN.groups[key].g), 없으면 지금 보이는 장소. 다시 부르면 그 방의 마네킹을 다 바꾼다 · 빈 목록 = 다 치움 */
@@ -8924,7 +8955,7 @@ var SCENE3D = (function () {
       debugDishSprite: function () { var o = TB.sprObj; if (!o || !o.visible || !TB.sprOn) return null; o.updateMatrixWorld(true); var pa = o.geometry.attributes.position.array, pts = []; for (var i = 0; i < (TB.sprN || 0); i++) { _tbw.set(pa[i * 3], pa[i * 3 + 1], pa[i * 3 + 2]).applyMatrix4(o.matrixWorld).project(camera); pts.push([(_tbw.x * 0.5 + 0.5) * S.rw, (1 - (_tbw.y * 0.5 + 0.5)) * S.rh]); } return { n: TB.sprN || 0, pts: pts, rw: S.rw, rh: S.rh, eaten: TB.eaten.slice() }; },
 
       /* [7-P] */
-      playerSpeeds: playerSpeeds, mannequins: mannequins, mannequinInfo: mannequinInfo, playerPose: playerPose, playerCloseup: playerCloseup, playerWalkPath: playerWalkPath, playerPlace: playerPlace,
+      playerSpeeds: playerSpeeds, itemTags: itemTags, debugItemColour: function (cat, id, look) { var h = plMainHex(cat, id, look); return { hex: h, family: plFamilyOf(cat, id, h), varies: plTagVaries(cat, id), table: !!PL_ITEM_FAMILY[cat + ':' + id] }; }, mannequins: mannequins, mannequinInfo: mannequinInfo, playerPose: playerPose, playerCloseup: playerCloseup, playerWalkPath: playerWalkPath, playerPlace: playerPlace,
 
       /* [7-W] */
       area: wideArea, goPlace: wideGo, beachShells: wideShells, beachShellNear: wideShellNear, beachShellGo: wideShellGo, groundY: function (x, z) { return YARD_WIDE ? wideGroundY(+x || 0, +z || 0) : 0; },   /* 11-21 7차 바깥 한 장: 선 곳 · 빠른 이동 · 조개 · 땅 높이 */

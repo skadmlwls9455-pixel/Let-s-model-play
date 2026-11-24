@@ -8509,6 +8509,19 @@ async function scenarioPlayer7(browser) {
   ok(c11.on && c11.trying === '{"outfit":"sailor"}' && c11.scene === 'sailor' && c11.saved === c11.was && c11.state === c11.was, 'P7 C11 입어 보기: 장면은 세일러 · 저장 · 상태는 입던 옷 그대로 (가게 물건도 입어 볼 수 있다) ' + JSON.stringify(c11));
   ok(c11.offT === '{}' && c11.offScene === c11.was && c11.wear === true && c11.afterWear === '{}' && c11.acc === 'sqglasses', 'P7 C11 방을 나오면 다 벗는다 · wear 는 그 갈래만 저장하고 그 갈래의 입어 보기를 끝낸다');
   if (c11.mq !== undefined) ok(c11.mq === 'true,true,false' && c11.mqInfo === 'mq0:sailor:false,mq1:bare:true' && c11.pose === true && c11.badPose === false && c11.gone === 0, 'P7 C11 마네킹: 자리 있는 둘은 서고 (옷 · 민몸 + 팔림) 자리 없는 것은 false · 몸짓 bow 끝남 · 모르는 몸짓 false · 빈 목록이면 다 치움 ' + JSON.stringify([c11.mq, c11.mqInfo, c11.pose, c11.gone]));
+  /* 11-24 (검토): 베레모는 밤갈색 머리면 초록으로 그려진다 → 옷장 목록 · 입은 것의 색 꼬리표도 초록 (콘테스트 색 심사가 읽는다) · 금발이면 빨강 */
+  var bt = await page.evaluate(function () {
+    if (APP.sceneMode !== '3d') return null;
+    function fam(t) { return (t || []).filter(function (q) { return q.indexOf('c-') === 0; }).join(); }
+    function ward() { var r = null; APP.wardrobe().cats.forEach(function (c) { if (c.key === 'acc') c.items.forEach(function (i) { if (i.id === 'beret') r = i.tags; }); }); return r; }
+    APP.setPlayerPart('acc', 'beret'); APP.setPlayerPart('hairColor', 'brown');
+    var a = { ward: fam(ward()), worn: fam((APP.wearing().filter(function (x) { return x.cat === 'acc'; })[0] || {}).tags) };
+    APP.setPlayerPart('hairColor', 'blonde');
+    var b = { ward: fam(ward()), worn: fam((APP.wearing().filter(function (x) { return x.cat === 'acc'; })[0] || {}).tags) };
+    APP.setPlayerPart('acc', 'none');
+    return [a, b];
+  });
+  if (bt) ok(bt[0].ward === 'c-green' && bt[0].worn === 'c-green' && bt[1].ward === 'c-red' && bt[1].worn === 'c-red', 'P7 베레모 색 꼬리표 = 그려진 색: 밤갈색 머리 → 초록 · 금발 → 빨강 (옷장 목록 · 입은 것) ' + JSON.stringify(bt));
   ok(s.bag.length === 0, '[P7] 페이지 에러/콘솔 에러 0' + (s.bag.length ? ' → ' + s.bag.join(' | ') : ''));
   await s.ctx.close();
 }
