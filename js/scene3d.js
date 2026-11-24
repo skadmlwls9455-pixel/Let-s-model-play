@@ -364,7 +364,7 @@ var SCENE3D = (function () {
   var PLAYER_LEGACY = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon', brow: 'none', body: 'a' };
   /* 11-21 옷장 목록 (가게 · 콘테스트가 읽는다): 물건마다 tags (느낌 낱말 + 색 갈래 c-…) 와 shop ({ price: 조개 } | null = 누구나 가진 것). 이번 판 전부터 있던 id 는 전부 null — 입고 있던 것이 사라지지 않게.
      적는 법: '갈래:id': '낱말 낱말 … [$값]'
-     11-24 (넷째 바퀴 · 가게 갈래): 첫날 조개 3 개로도 하나는 살 수 있게 모자 4 · 목도리 5 — 옷가게는 날마다 이 둘 중 하나를 진열에 넣는다 (js/shop.js SMALL) */
+     11-24 (넷째 바퀴 · 가게 갈래): 첫날 조개 3 개로도 하나는 살 수 있게 야구모자 4 · 목도리 5 — 옷가게는 날마다 이 둘 중 하나를 진열에 넣는다 (js/shop.js SMALL) */
   var PLAYER_META = {
     'hair:bob': 'cute neat', 'hair:short': 'sporty fresh', 'hair:long': 'neat cool', 'hair:twin': 'cute flower', 'hair:pony': 'sporty fresh', 'hair:wave': 'cosy flower',
     'hair:crop': 'sporty cool', 'hair:dandy': 'neat cool', 'hair:tousle': 'cosy fresh', 'hair:part': 'cool neat', 'hair:curl': 'cute cosy', 'hair:twoblock': 'cool sporty', 'hair:lowtail': 'cool sea',
