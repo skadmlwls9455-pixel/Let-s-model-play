@@ -1062,8 +1062,10 @@ var COOK = (function () {
       var stk = window.COOK_STICKERS;
       if (!stk || typeof stk.cue !== 'function' || !D || !L || !snd || typeof snd.act !== 'string') return;
       if (stickOn !== stk) { if (typeof stk.mount === 'function') stk.mount(D.stick, { scale: 2 }); stickOn = stk; }
+      /* 11-24 r5 (owner: "반응 스티커는 접시에서만 한 번"): every other cooking moment speaks through the food itself */
+      if (snd.act !== 'done') return;
       var d = clone(snd);
-      if (snd.act === 'pick' && L.run) d.runId = L.run.seed;
+      if (L.run) d.runId = L.run.seed;
       if (!stk.cue(snd.act, d)) return;
       var kids = D.stick.children, slot = kids.length ? kids[kids.length - 1].getAttribute('data-slot') : null;
       for (var i = kids.length - 2; i >= 0 && slot !== null; i--) {   /* one picture a corner: a new one takes the place of the one there */
@@ -1158,7 +1160,8 @@ var COOK = (function () {
     if (L.seen.indexOf(k) >= 0 || run.st.progress > 0) return;
     startHand(k === 'flip' ? 'tap' : k, 'demo', k === 'flip' ? null : k);   /* flip: first the heat-on tap; the up-swipe demo follows heat-on */
   }
-  function checkIdle(run) {   /* no progress for 5 s: one ghost hand, and from then on the chip shows (design 2.3, 2.4) */
+  function checkIdle(run) {   /* no progress for 5 s: one ghost hand. 11-24 r5: the chip does not show for it any more (touch
+                                 play is gestures only; the chip is the keyboard and screen-reader path) */
     if (L.hint || L.titleUntil) return;
     var due = hintAt(run); if (due === null) return;
     var key = run.si + '|' + due;
@@ -1167,7 +1170,6 @@ var COOK = (function () {
     var st = run.st;
     startHand(st.kind === 'flip' ? (st.heat ? 'flick' : 'tap') : st.kind, 'idle');
     L.stats.idle++;
-    if (!L.shown) { L.shown = true; updVerb(); }
   }
 
   /* ---------- sim events -> juice, sound, haptics, words, saving ---------- */
@@ -1219,7 +1221,7 @@ var COOK = (function () {
       case 'nudge':   /* a press after heat-on that did not flip: the jeon hops; a few of them (with no hand showing) -> the
                          up-swipe hand once more and the chip shows; at most twice a step, so it never nags */
         L.fx++; fxAdd({ k: 'bump' }, e.si);
-        if (!L.hint && ++L.nudges >= TUNE.flip.teach && L.taught < 2) { L.nudges = 0; L.taught++; startHand('flick', 'teach'); L.stats.teach++; L.shown = true; }
+        if (!L.hint && ++L.nudges >= TUNE.flip.teach && L.taught < 2) { L.nudges = 0; L.taught++; startHand('flick', 'teach'); L.stats.teach++; }
         break;
       case 'flip':
         L.fx++; L.finger = null; L.stats.flips++; L.nudges = 0;
@@ -1552,16 +1554,9 @@ var COOK = (function () {
     if (L.screen === 'step' && L.run) { hideTitle(); send({ t: t, k: 'b' }); }
     updVerb();
   }
-  function quietVerb() { return !!D && !!L && !D.verb.hidden && !L.shown && document.activeElement !== D.verb; }
-  function onRowDown(e) {   /* a finger or mouse press on the quiet (invisible) chip never does the verb: it shows the chip (a
-                               visible reaction) and the stroke goes to the stage, so a thumb flick that starts on it still
-                               flips and a stray tap there never flips or cuts. Keyboard and screen-reader presses (a click
-                               with no pointer press) act at once. */
-    if (!L || L.screen !== 'step' || !quietVerb()) return;
-    if (e.pointerType === 'mouse' && e.button !== 0) return;
-    L.rowPress = true; L.shown = true; L.stats.rowPress++; updVerb(); L.dirty = true;
-    onDown(e, true);
-  }
+  /* 11-24 r5: a finger or mouse never meets the chip any more: outside keyboard mode it takes no pointer events (css/cook.css),
+     so a touch on its spot is a touch on the food under it. Keyboard and screen-reader presses (a click with no pointer
+     press) act at once, as before */
   function cancelAll() { if (L && L.run) { L.down = {}; L.finger = null; send({ t: simT(), k: 'c' }); } }
 
   /* ---------- a dish: open straight into it (resume or new), and again (spec 3.1, 3.6) ---------- */
@@ -2032,7 +2027,6 @@ var COOK = (function () {
       if (e.repeat && (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar')) { e.preventDefault(); e.stopPropagation(); }
     }, true);
     d.dlg.addEventListener('pointerdown', function () { if (L) { L.downAt = performance.now(); L.rowPress = false; } }, true);   /* every press, first */
-    d.verb.addEventListener('pointerdown', function (e) { try { onRowDown(e); } catch (x) { if (L) L.err++; } }, true);
     d.stage.addEventListener('pointerdown', function (e) { try { onDown(e); } catch (x) { if (L) L.err++; } });
     d.stage.addEventListener('pointermove', function (e) { try { onMove(e); } catch (x) { if (L) L.err++; } });
     d.stage.addEventListener('pointerup', function (e) { try { onUp(e); } catch (x) { if (L) L.err++; } });
@@ -2186,7 +2180,7 @@ var COOK = (function () {
       end: { call: !D.call.hidden, table: !D.table.hidden, at: L.screen === 'reveal' ? L.againAt : null }, canCall: L.canCall, served: L.served,
       screen: L.screen, recipe: run ? run.recipe : null, si: run ? run.si : null, kind: st && run.phase !== 'reveal' ? st.kind : null,
       phase: run ? run.phase : null, progress: st ? st.progress : 0, done: run ? !!run.done : false, tag: st ? st.tag : null,
-      band: st && (st.kind === 'flip' || st.kind === 'bake') ? st.band : null, quiet: !(L.shown || document.activeElement === D.verb), fx: L.fx,
+      band: st && (st.kind === 'flip' || st.kind === 'bake') ? st.band : null, quiet: !(kbd && (L.shown || document.activeElement === D.verb)), fx: L.fx,
       verb: D.verb.hidden ? '' : D.verb.getAttribute('aria-label') || '', hint: L.hint ? L.hint.why : null, title: false, note: !D.note.hidden,
       station: stationNow(), slide: sp && sl ? { from: sl.from, to: sl.to, f: sp.f, s: sp.s, carry: sl.carry } : null,
       view: { k: L.k, css: L.css, W: L.W, H: L.H, ox: L.ox, oy: L.oy, hudB: L.hudB, chipTop: L.chipTop, safe: L.safe.slice() },
