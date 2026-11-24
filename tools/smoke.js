@@ -2797,7 +2797,8 @@ async function scenarioWave7(browser) {
   await clickSpot(page, '#btn-machine');
   await page.waitForSelector('#runner-dlg[open]');
   ok(await page.evaluate(function () { return RUNNER.live() && RUNNER.live().state === 'ready'; }), '오락기 → 다락방 달리기 창 (준비)');
-  await page.waitForFunction(function () { return APP.state.trips.every(function (t) { return t.status === 'done'; }) && !document.getElementById('btn-go').classList.contains('away'); }, null, { timeout: 120000 });
+  /* 11-24: 놀이방 (달리기 창) 에 있는 동안 돌아오면 기록은 그 시각에 저장 (done) · 귀가 장면은 다락에 들어설 때 (APP.homeWaiting) — 잠들기 · 그 소리 훅도 그 뒤 */
+  await page.waitForFunction(function () { return APP.state.trips.every(function (t) { return t.status === 'done'; }) && APP.homeWaiting === true; }, null, { timeout: 120000 });
   await page.waitForTimeout(300);
   var d1 = await page.evaluate(function () {
     var t = APP.state.trips[APP.state.trips.length - 1], r = t.reaction !== undefined ? t.reaction : (t.receipt || {}).reaction, four = ['폴짝', '우쭐', '덤덤', '졸림'].indexOf(r) >= 0;
@@ -2807,16 +2808,22 @@ async function scenarioWave7(browser) {
   });
   console.log('   door walk:', JSON.stringify(Object.assign({ rows0: r0 }, d1)));
   ok(d1.open && d1.st === 'done' && d1.rows > r0 + 2 && d1.view === 'play', '달리기 창을 연 채로 산책이 끝까지 (로그 행 ' + r0 + ' → ' + d1.rows + ' · 창은 그대로 · 놀이방 그대로)');
-  ok(d1.oct === 'sleep' && d1.sleep >= 1 && d1.has && d1.got === d1.want, "잠들 때 소리 훅 state { state: 'sleep', reaction: " + JSON.stringify(d1.got) + ' } = 이 차례의 반응');
+  ok(d1.sleep === 0, '귀가 장면을 미루는 동안 잠들기 소리 훅은 아직 없다 (잠은 귀가 장면 뒤)');
   await page.screenshot({ path: path.join(SHOTS, 'runner-over-walk.png') });
   await page.keyboard.press('Escape'); await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
   var d2 = await page.evaluate(function () { var n = document.getElementById('back-note'); return { focus: document.activeElement && document.activeElement.id, view: APP.scene.view(), note: !n.hidden, txt: document.getElementById('back-note-txt').textContent }; });
   ok(d2.focus === 'btn-machine' && d2.view === 'play', '달리기 창을 닫으면 포커스는 오락기로 · 놀이방 그대로 ' + JSON.stringify(d2));
   ok(d2.note && d2.txt === '뚜루가 돌아왔어.', "놀이방에 있는 동안 문어가 돌아옴 → 구석 쪽지 '뚜루가 돌아왔어.' " + JSON.stringify(d2.txt));
   await page.click('#btn-back-see');
-  await page.waitForFunction(function () { return APP.scene.view() === 'attic' && !APP.scene.room() && document.activeElement && document.activeElement.id === 'btn-door'; }, null, { timeout: 20000 }).catch(function () {});
+  await page.waitForFunction(function () { return APP.scene.view() === 'attic' && !APP.scene.room() && !APP.scene.ceremony() && document.activeElement && document.activeElement.id === 'btn-door'; }, null, { timeout: 60000 }).catch(function () {});
   var d3 = await page.evaluate(function () { return { view: APP.scene.view(), focus: document.activeElement && document.activeElement.id, note: !document.getElementById('back-note').hidden, door: window.__aud.filter(function (a) { return a.n === 'door'; }).length }; });
-  ok(d3.view === 'attic' && d3.focus === 'btn-door' && !d3.note && d3.door === 4, '보러 가기 → 문으로 다락 (쪽지는 걷힘 · 포커스는 다락 문 · 문 소리 넷) ' + JSON.stringify(d3));
+  ok(d3.view === 'attic' && d3.focus === 'btn-door' && !d3.note && d3.door === 4, '보러 가기 → 문으로 나와 귀가 장면 → 다락 (쪽지는 걷힘 · 포커스는 다락 문 · 문 소리 넷) ' + JSON.stringify(d3));
+  await page.waitForFunction(function () { return !document.getElementById('btn-go').classList.contains('away'); }, null, { timeout: 60000 });
+  var d4 = await page.evaluate(function (want) {
+    var sl = window.__aud.filter(function (a) { return a.n === 'state' && a.d.state === 'sleep'; });
+    return { oct: APP.state.octopus.state, sleep: sl.length, has: sl.length ? sl[sl.length - 1].has : false, got: sl.length ? sl[sl.length - 1].d.reaction : undefined, want: want };
+  }, d1.want);
+  ok(d4.oct === 'sleep' && d4.sleep >= 1 && d4.has && d4.got === d4.want, "귀가 장면 뒤 잠들 때 소리 훅 state { state: 'sleep', reaction: " + JSON.stringify(d4.got) + ' } = 이 차례의 반응');
 
   /* 6. 자정 넘김: 1분 틱(여기선 화면 돌아옴)에 오늘 칸만 · 지난 날은 앨범 › 일기 (새 날 먼저 · 읽기만) · 문어의 요즘
      6a. 다른 탭(B): 자정 뒤 이 탭이 산책이 아닌 것(문어 색)을 저장하면 B 는 저장 이벤트로 다시 그리며 넘긴다 → 인사 · 어제 메모가 1분 틱으로 넘긴 이 탭과 같다
@@ -4212,7 +4219,9 @@ async function scenarioWave8(browser) {
       inside: q.left >= sc.left && q.right <= sc.right && q.bottom <= sc.bottom + 0.5, ctl: q.left < ctl.right && q.right > ctl.left && q.top < ctl.bottom && q.bottom > ctl.top, oct: getComputedStyle(document.getElementById('oct')).display, bub: !document.getElementById('oct-bubble').hidden && getComputedStyle(document.getElementById('oct')).display !== 'none' };
   });
   console.log('   in play during walk:', JSON.stringify({ w0: w0, w1: w1 }));
-  ok(w0.running && w0.place === 'exterior' && w1.rows > w0.rows && w1.place === 'attic' && w1.view === 'play' && !w1.left.length, '산책은 놀이방에서도 그대로 (로그 행 ' + w0.rows + ' → ' + w1.rows + ' · 이야기 장소 바깥 → 다락) · 화면은 한 번도 놀이방을 떠나지 않음');
+  var hw1 = await page.evaluate(function () { return APP.homeWaiting === true; });
+  /* 11-24 (주인: "문어 산책 보낸 뒤에 … 캐릭터는 캐릭터대로 할 일"): 놀이방에 있는 동안 돌아오면 귀가 장면은 다락에 들어설 때 — 이야기 장소는 바깥 그대로 · 기다림 표시 */
+  ok(w0.running && w0.place === 'exterior' && w1.rows > w0.rows && w1.place === 'exterior' && hw1 && w1.view === 'play' && !w1.left.length, '산책은 놀이방에서도 그대로 (로그 행 ' + w0.rows + ' → ' + w1.rows + ') · 돌아오면 귀가 장면은 미룬다 (이야기 장소 바깥 그대로) · 화면은 한 번도 놀이방을 떠나지 않음');
   ok(w1.txt === '뚜루가 돌아왔어.' && w1.role === 'status' && w1.btn.t === '보러 가기' && w1.btn.h >= 44 && w1.btn.w >= 44 && w1.inside && !w1.ctl && !w1.bub, "구석 쪽지: '뚜루가 돌아왔어.' (조사 · 기호 없음 · role=status) + '보러 가기' (44px) · 장면 안 · 오른쪽 위 묶음과 안 겹침 · 문어 말풍선은 놀이방에 안 뜬다");
   var stN = await stickInfo();
   if (stickApi) ok(!stN.hidden && !stN.note, '구석 쪽지가 떠 있어도 놀이방 스틱과 안 겹친다 (쪽지가 스틱 위로 올라간다) ' + JSON.stringify({ stick: { left: stN.left, bottom: stN.bottom }, overlap: stN.note }));
@@ -4225,8 +4234,12 @@ async function scenarioWave8(browser) {
   await page.click('#btn-back-see');
   await inAttic();
   await page.evaluate(function () { window.__inPlay = false; });
+  var hw2 = await page.waitForFunction(function () { return !APP.homeWaiting && (APP.scene.ceremony() === 'leave' || APP.scene.ceremony() === 'return'); }, null, { timeout: 10000 }).then(function () { return true; }, function () { return false; });
+  ok(hw2, '보러 가기 → 놀이방을 나서자 귀가 장면 (퇴장 · 귀가 의식)');
+  await page.waitForFunction(function () { return APP.scene.view() === 'attic' && !APP.scene.ceremony(); }, null, { timeout: 60000 });
+  await page.waitForTimeout(300);
   var w2 = await spots(), n2 = await page.evaluate(function () { return !document.getElementById('back-note').hidden; });
-  ok(w2.view === 'attic' && w2.oct && !n2 && w2.focus === 'btn-door', '보러 가기 → 문으로 다락 (쪽지는 걷힘 · 문어가 보인다 · 포커스는 다락 문)');
+  ok(w2.view === 'attic' && w2.oct && !n2 && w2.focus === 'btn-door', '보러 가기 → 귀가 장면 뒤 다락 (쪽지는 걷힘 · 문어가 보인다 · 포커스는 다락 문)');
   await page.waitForFunction(function () { return !document.getElementById('btn-go').classList.contains('away'); }, null, { timeout: 60000 });
 
   /* 7. 모션 줄이기: 열린 문 한 장 → 컷 (미끄럼 없음) · 문 소리 open · close 는 그대로 */
