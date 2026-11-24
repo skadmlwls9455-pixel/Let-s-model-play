@@ -1813,8 +1813,10 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 .look-tile.locked { border-style: dashed; cursor: default; }
 .look-tile.locked .look-thumb { opacity: .4; }
 .look-tile.locked .look-name { opacity: .7; }
-.look-tile.locked::before { content: ''; position: absolute; top: 12px; left: 6px; width: 12px; height: 10px; background: var(--muted); }
-.look-tile.locked::after { content: ''; position: absolute; top: 4px; left: 8px; width: 8px; height: 8px; box-sizing: border-box; border: 2px solid var(--muted); border-bottom: 0; }
+.look-tile.locked, :root[data-font] .look-tile.locked { padding-top: 30px; }   /* 11-24: 잠긴 칸은 그림 없이 이름만 — 자물쇠는 이름 위 가운데 */
+.look-tile.locked::before { content: ''; position: absolute; top: 14px; left: calc(50% - 6px); width: 12px; height: 10px; background: var(--muted); }
+.look-tile.locked::after { content: ''; position: absolute; top: 6px; left: calc(50% - 4px); width: 8px; height: 8px; box-sizing: border-box; border: 2px solid var(--muted); border-bottom: 0; }
+.look-tile.locked .look-lock { min-height: 0; }
 .look-lock { display: flex; align-items: center; justify-content: center; min-height: 20px; }
 .look-tile .look-lock .shell-amt .shell-ico, :root[data-font="pixel"] .look-tile .look-lock .shell-amt .shell-ico { display: block; width: 16px; height: 16px; margin: 0 2px 0 0; }
 

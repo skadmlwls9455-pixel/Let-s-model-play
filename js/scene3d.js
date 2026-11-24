@@ -357,7 +357,8 @@ var SCENE3D = (function () {
       { id: 'octee', name: '문어 티' }, { id: 'shirt', name: '셔츠' }, { id: 'jersey', name: '운동복' }, { id: 'sailor', name: '세일러' }, { id: 'fisher', name: '어부 니트' }, { id: 'windbreak', name: '바람막이' }, { id: 'cardigan', name: '가디건' }, { id: 'suit', name: '정장' }],   /* 11-10: 한복 · 한국 교복 · 미국풍 둘 (일본풍은 넣지 않는다 — 주인) */
     shoes: [{ id: 'flat', name: '단화' }, { id: 'boot', name: '부츠' }, { id: 'sneaker', name: '운동화' }, { id: 'loafer', name: '로퍼' }, { id: 'hightop', name: '하이탑' }, { id: 'sandal', name: '샌들' }],
     acc: [{ id: 'none', name: '없음' }, { id: 'ribbon', name: '리본' }, { id: 'beret', name: '베레모' }, { id: 'glasses', name: '동글안경' }, { id: 'catears', name: '고양이귀' }, { id: 'strawhat', name: '밀짚모자' },
-      { id: 'cap', name: '야구모자' }, { id: 'bandana', name: '두건' }, { id: 'headphones', name: '헤드폰' }, { id: 'scarf', name: '목도리' }, { id: 'sqglasses', name: '네모안경' }, { id: 'bag', name: '작은 가방' }] };
+      { id: 'cap', name: '야구모자' }, { id: 'bandana', name: '두건' }, { id: 'headphones', name: '헤드폰' }, { id: 'scarf', name: '목도리' }, { id: 'sqglasses', name: '네모안경' }, { id: 'bag', name: '작은 가방' },
+      { id: 'paper_crown', name: '종이 왕관' }, { id: 'emperor_cape', name: '황제 망토' }] };   /* 11-24 (주인: "문어가 안 입어도 캐릭터 옷장에는 넣어줘"): 다락방 달리기 주간 상 — 상을 받으면 내 옷장에도 들어온다 (앱 awardWardrobe) */
   /* 11-21 기본 모습 둘: PLAYER_DEFAULT = 새로 시작하는 사람의 모습 (어느 쪽으로도 읽히는 차림: 부스스 짧은 머리 · 문어 티와 청바지 · 운동화 · 장식 없음).
      PLAYER_LEGACY = 이번 판 전의 기본 (단발 · 남색 원피스 · 리본) — 이미 있던 모습에서 빠졌거나 모르는 칸은 이쪽으로 채운다 (저장된 모습이 그대로 보이게: 몸 a · 눈썹 없음) */
   var PLAYER_DEFAULT = { hair: 'tousle', bangs: 'spiky', hairColor: 'brown', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'octee', shoes: 'sneaker', acc: 'none', brow: 'soft', body: 'a' };   /* 열쇠 차례 = 앱의 PLAYER_CATS (눈썹 · 몸은 뒤) */
@@ -374,10 +375,12 @@ var SCENE3D = (function () {
     'outfit:windbreak': 'sporty fresh c-yellow $20', 'outfit:cardigan': 'cosy neat flower c-pink $18', 'outfit:suit': 'neat cool star c-black $36',
     'shoes:flat': 'neat c-black', 'shoes:boot': 'warm sea c-blue', 'shoes:sneaker': 'sporty c-red', 'shoes:loafer': 'neat c-brown', 'shoes:hightop': 'sporty cool c-black $14', 'shoes:sandal': 'fresh sea c-brown',
     'acc:none': '', 'acc:ribbon': 'cute c-red', 'acc:beret': 'neat cosy c-red', 'acc:glasses': 'neat c-black', 'acc:catears': 'cute star c-black', 'acc:strawhat': 'fresh flower c-yellow',
-    'acc:cap': 'sporty cool c-blue $4', 'acc:bandana': 'cool sea c-blue', 'acc:headphones': 'cool star c-white $20', 'acc:scarf': 'warm cosy c-orange $5', 'acc:sqglasses': 'neat cool c-black', 'acc:bag': 'neat cosy c-brown $16' };
+    'acc:cap': 'sporty cool c-blue $4', 'acc:bandana': 'cool sea c-blue', 'acc:headphones': 'cool star c-white $20', 'acc:scarf': 'warm cosy c-orange $5', 'acc:sqglasses': 'neat cool c-black', 'acc:bag': 'neat cosy c-brown $16',
+    'acc:paper_crown': 'cute star c-yellow !award', 'acc:emperor_cape': 'cool star warm c-red !award' };   /* !award = 가게에서 안 판다 · 상을 받아야 가진다 */
   Object.keys(PLAYER_PARTS).forEach(function (cat) { PLAYER_PARTS[cat].forEach(function (x) {
-    var m = PLAYER_META[cat + ':' + x.id], w = typeof m === 'string' ? m.split(' ').filter(Boolean) : [], pr = w.length && w[w.length - 1].charAt(0) === '$' ? +w.pop().slice(1) : 0;
-    x.tags = w; x.shop = pr > 0 ? { price: pr } : null;
+    var m = PLAYER_META[cat + ':' + x.id], w = typeof m === 'string' ? m.split(' ').filter(Boolean) : [], aw = w.indexOf('!award') >= 0, pr;
+    w = w.filter(function (t) { return t !== '!award'; }); pr = w.length && w[w.length - 1].charAt(0) === '$' ? +w.pop().slice(1) : 0;
+    x.tags = w; x.shop = pr > 0 ? { price: pr } : null; if (aw) x.award = true;
   }); });
   /* 문어 코스튬 (11-10 주인: "코스튬 그림 · 문어에게 씌우는 장면 코드 · 선물 상자 화면 · 내밀었을 때 문어의 선택 연출 — 진행하자", docs/MINIGAMES.md §6).
      slot head = 머리 위 · back = 등. award = 다락방 달리기 주간 상으로 받아야 상자에 들어온다 (나머지는 처음부터). 기하 빌더는 init 안 OCT_WEAR */
@@ -6139,7 +6142,15 @@ var SCENE3D = (function () {
       A.bag = function (L) { var c = '#9a5a3a', d = '#6a3a2a';   /* 작은 가방: 오른 어깨에서 왼 허리로 가로지르는 끈 (앞 · 뒤) + 허리 앞의 작은 가방 */
         L.push({ g: box(0.03, 0.38, 0.02), m: M(-0.01, 0.43, 0.226, 0, 0, -0.75), c: d }, { g: box(0.03, 0.38, 0.02), m: M(-0.01, 0.43, -0.226, 0, 0, -0.75), c: d },
           { g: box(0.13, 0.11, 0.06), m: M(-0.15, 0.295, 0.245), c: c }, { g: box(0.135, 0.05, 0.065), m: M(-0.15, 0.33, 0.247), c: d }, { g: Sph(0.018, 5, 4), m: M(-0.15, 0.3, 0.28), c: PAL.amber[3] }); };
-      Object.assign(ACC_MAIN, { cap: ['#3a6fb0', '#2a5288'], bandana: ['#3f8fa8', '#2f7088'], headphones: [WH], scarf: ['#d8703a', '#b0522a'], sqglasses: [BK], bag: ['#9a5a3a', '#6a3a2a'] });
+      A.paper_crown = function (L) { var c = '#e8a93a', d = '#c47d1c';   /* 11-24 종이 왕관 (주간 상): 정수리에 얹은 노란 종이 띠 + 뾰족한 끝 다섯 + 앞 끝에 빨간 보석 하나. 문어 것과 같은 색 */
+        L.push({ g: new T.CylinderGeometry(0.255, 0.27, 0.11, 14, 1, true), m: M(PL_HC[0], 1.235, PL_HC[2]), c: c }, { g: new T.CylinderGeometry(0.272, 0.272, 0.025, 14, 1, true), m: M(PL_HC[0], 1.19, PL_HC[2]), c: d });
+        for (var i = 0; i < 5; i++) { var a = i / 5 * Math.PI * 2; L.push({ g: new T.ConeGeometry(0.06, 0.12, 4), m: M(PL_HC[0] + Math.sin(a) * 0.255, 1.345, PL_HC[2] + Math.cos(a) * 0.255), c: c }); }
+        L.push({ g: Sph(0.03, 6, 4), m: M(PL_HC[0], 1.235, PL_HC[2] + 0.275), c: '#c83a3a' }); };
+      A.emperor_cape = function (L) { var c = '#a8232e', d = '#7e1a24', g = '#f0c040';   /* 11-24 황제 망토 (주간 상): 어깨에서 무릎께까지 등을 덮는 반원 자락 (안감 짙은 빨강) + 목의 금빛 깃 + 앞 여밈 단추 */
+        L.push({ g: new T.CylinderGeometry(0.25, 0.38, 0.5, 16, 1, true, Math.PI * 0.3, Math.PI * 1.4), m: M(0, 0.32, -0.015), c: c },
+          { g: new T.CylinderGeometry(0.24, 0.37, 0.48, 16, 1, true, Math.PI * 0.34, Math.PI * 1.32), m: M(0, 0.32, -0.01), c: d },
+          { g: Cyl(0.215, 0.245, 0.07, 14), m: M(0, 0.565, 0), c: g }, { g: Sph(0.032, 6, 4), m: M(-0.07, 0.53, 0.235), c: g }, { g: Sph(0.032, 6, 4), m: M(0.07, 0.53, 0.235), c: g }); };
+      Object.assign(ACC_MAIN, { cap: ['#3a6fb0', '#2a5288'], bandana: ['#3f8fa8', '#2f7088'], headphones: [WH], scarf: ['#d8703a', '#b0522a'], sqglasses: [BK], bag: ['#9a5a3a', '#6a3a2a'], paper_crown: ['#e8a93a', '#c47d1c'], emperor_cape: ['#a8232e', '#7e1a24'] });
     }   /* 따라가는 화면 (바깥 갈래) 이 읽는다: 걷기 2.2 · 뛰기 3.74 m/s */
 
 

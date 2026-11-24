@@ -5727,9 +5727,9 @@ async function scenarioWeek(browser) {
   }, pick);
   console.log('   내민 직후:', JSON.stringify(off));
   ok(off.day === pick.day && off.asked && off.n >= 1 && off.exprs[0] === 'idle', '선물 상자: ' + pick.name + ' 내밀자마자 그날 물어봤다는 기록이 저장돼 있다 (giftAsked ' + off.day + ' · ' + pick.id + ') — 답이 나오기 전');
-  var NO = new RegExp('^뚜루는 ' + pick.name + ' 안 (쓰기|두르기)로 했어\\.$');
-  var ans = await pb.waitForFunction(function () { return window.__toasts.some(function (x) { return /기로 했어\.$/.test(x.t); }); }, null, { timeout: WAIT, polling: 50 }).then(function () { return true; }, function () { return false; });
-  var fin = await pb.evaluate(function () { var a = window.__toasts.filter(function (x) { return /기로 했어\.$/.test(x.t); })[0]; return { toast: a ? a.t : '', exprs: a ? a.ex : [], wear: APP.state.settings.octWear || null, row: [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).filter(function (t) { return /선물/.test(t); }).pop() || '' }; });
+  var NO = new RegExp('^문어 뚜루는 ' + pick.name + '(을|를) 안 (쓰기|두르기)로 했어\\. \\(데모 규칙이 고름\\)$');   /* 11-24 (주인: 내 캐릭터가 거절한 것처럼 읽혔다): 주어 '문어 <이름>' · 받침대로 조사 · 알림에도 데모 규칙 */
+  var ans = await pb.waitForFunction(function () { return window.__toasts.some(function (x) { return /기로 했어\. \(데모 규칙이 고름\)/.test(x.t); }); }, null, { timeout: WAIT, polling: 50 }).then(function () { return true; }, function () { return false; });
+  var fin = await pb.evaluate(function () { var a = window.__toasts.filter(function (x) { return /기로 했어\. \(데모 규칙이 고름\)/.test(x.t); })[0]; return { toast: a ? a.t : '', exprs: a ? a.ex : [], wear: APP.state.settings.octWear || null, row: [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).filter(function (t) { return /선물/.test(t); }).pop() || '' }; });
   console.log('   답:', JSON.stringify(fin));
   ok(ans && NO.test(fin.toast) && /\(데모 규칙이 고름\)/.test(fin.row), '선물 상자: 답은 «' + fin.toast + '» · 기록 줄에 (데모 규칙이 고름)');
   ok(ans && fin.exprs.length >= 1 && fin.exprs.every(function (e) { return e === 'idle'; }), '안 쓴다는 답이 뜬 순간까지의 장면 얼굴: 들여다보는 틈도 답도 평소 얼굴 (11-15 주인 C6 b — 예전 curious → idle) (' + fin.exprs.join(' → ') + ') — 반눈 calm 없음');
@@ -8522,7 +8522,7 @@ async function scenarioPlayer7(browser) {
       if (!Array.isArray(i.tags) || i.tags.some(function (t) { return q.TAGS.indexOf(t) < 0; }) || i.tags.filter(function (t) { return t.indexOf('c-') === 0; }).length > 1 || typeof i.name !== 'string' || !i.name) bad.push(c.key + ':' + i.id);
       if (q.OLD.indexOf(i.id) >= 0 && (i.shop !== null || !i.owned)) bad.push('old ' + c.key + ':' + i.id);
       if (i.shop && !(i.shop.price >= 4 && i.shop.price <= 36)) bad.push('price ' + i.id);   /* 11-24 가게 갈래 S: 첫날 조개로도 하나는 사게 야구모자 4 · 목도리 5 */
-      if (!!i.shop === i.owned) bad.push('owned ' + i.id); }); });
+      if (i.award ? i.owned || i.shop : !!i.shop === i.owned) bad.push('owned ' + i.id); }); });   /* 11-24: 주간 상은 값 없이도 받아야 가진다 (새 사람은 아직 없다) */
     var shop = []; w.cats.forEach(function (c) { c.items.forEach(function (i) { if (i.shop) shop.push(c.key + ':' + i.id); }); });
     var P = APP.playerParts();
     return { look: [p.hair, p.outfit, p.shoes, p.acc, p.body, p.brow].join(), scene: APP.sceneMode === '3d' ? APP.scene.player().look.outfit : 'octee', keys: w.cats.map(function (c) { return c.key + c.items.length; }).join(), bad: bad, shop: shop,
@@ -8532,7 +8532,7 @@ async function scenarioPlayer7(browser) {
       sp: APP.sceneMode === '3d' && APP.scene.playerSpeeds ? APP.scene.playerSpeeds() : null, mode: APP.sceneMode, thumb: (function () { var c = APP.itemThumb('acc', 'cap', 64); return c ? c.width + 'x' + c.height : null; })() };
   }, { OLD: OLD, TAGS: TAGS });
   ok(a.look === 'tousle,octee,sneaker,none,a,soft' && a.scene === 'octee', 'P7 새로 시작한 사람의 기본 모습: 부스스 · 문어 티 · 운동화 · 장식 없음 · 몸 a · 둥근 눈썹 (' + a.look + ')');
-  ok(a.keys === 'hair13,outfit17,shoes6,acc12' && a.n === '2,4,10,13,17,6,12' && !a.bad.length, 'P7 옷장 목록: 머리 13 · 옷 17 · 신발 6 · 장식 12 (몸 2 · 눈썹 4 · 눈 10) · 물건마다 이름 · 정해진 낱말만 · 색 갈래는 하나 · 예전 것은 전부 그냥 가진 것 ' + JSON.stringify([a.keys, a.n, a.bad]));
+  ok(a.keys === 'hair13,outfit17,shoes6,acc14' && a.n === '2,4,10,13,17,6,14' && !a.bad.length, 'P7 옷장 목록: 머리 13 · 옷 17 · 신발 6 · 장식 14 (11-24 주간 상 둘) (몸 2 · 눈썹 4 · 눈 10) · 물건마다 이름 · 정해진 낱말만 · 색 갈래는 하나 · 예전 것은 전부 그냥 가진 것 ' + JSON.stringify([a.keys, a.n, a.bad]));
   ok(a.shop.join() === 'outfit:sailor,outfit:fisher,outfit:windbreak,outfit:cardigan,outfit:suit,shoes:hightop,acc:cap,acc:headphones,acc:scarf,acc:bag', 'P7 가게 물건 열 가지 (조개 4~36) ' + a.shop.join());
   ok(a.wearing === 'hair:tousle,outfit:octee,shoes:sneaker,acc:none' && a.wtags, 'P7 wearing(): 지금 입은 머리 · 옷 · 신발 · 장식과 낱말 (' + a.wearing + ')');
   ok(a.refuse === false && a.still === 'octee' && !a.user, 'P7 아직 없는 가게 옷은 입을 수 없다 (setPlayerPart false · 옷 그대로 · 가진 것 기록 없음)');
@@ -8544,14 +8544,28 @@ async function scenarioPlayer7(browser) {
   var lk = await page.evaluate(function () {
     var L = [].slice.call(document.querySelectorAll('#look-items .look-tile.locked')), t = L[0], r = t.getBoundingClientRect(), amt = t.querySelector('.shell-amt');
     var cs = getComputedStyle(t, '::before');
-    return { n: L.length, ids: L.map(function (b) { return b.dataset.id; }).join(), price: amt ? amt.textContent.replace(/\D+/g, '') : '', mark: parseFloat(cs.width) > 0, h: Math.round(r.height), title: !!t.getAttribute('title'), emoji: /\p{Extended_Pictographic}/u.test(t.innerText) };
+    return { n: L.length, ids: L.map(function (b) { return b.dataset.id; }).join(), price: amt ? amt.textContent.replace(/\D+/g, '') : '', pics: L.filter(function (b) { return b.querySelector('canvas, img'); }).length, name: (t.querySelector('.look-name') || {}).textContent || '', mark: parseFloat(cs.width) > 0, h: Math.round(r.height), title: !!t.getAttribute('title'), emoji: /\p{Extended_Pictographic}/u.test(t.innerText) };
   });
   await page.evaluate(function () { document.querySelector('#look-items .look-tile.locked[data-id="suit"]').click(); });
   await page.waitForTimeout(200);
   var lk2 = await page.evaluate(function () { return { toast: document.getElementById('toast').textContent, outfit: APP.state.settings.player.outfit, own: APP.ownItem('outfit', 'suit'), left: document.querySelectorAll('#look-items .look-tile.locked').length, wear: APP.setPlayerPart('outfit', 'suit'), now: APP.state.settings.player.outfit, key: APP.state.user.owned['outfit:suit'], unknown: APP.ownItem('outfit', 'nope') }; });
-  ok(lk.n === 5 && lk.ids === 'sailor,fisher,windbreak,cardigan,suit' && lk.price === '24' && lk.mark && lk.h >= 44 && !lk.title && !lk.emoji, 'P7 옷장 옷 갈래: 잠긴 칸 다섯 (자물쇠 표시 · 조개 값 · 44px 이상 · 이모지 없음) ' + JSON.stringify(lk));
+  ok(lk.n === 5 && lk.ids === 'sailor,fisher,windbreak,cardigan,suit' && lk.price === '' && lk.pics === 0 && lk.name === '세일러' && lk.mark && lk.h >= 44 && !lk.title && !lk.emoji, 'P7 옷장 옷 갈래: 잠긴 칸 다섯 — 11-24 (주인: "미리 보여주지 말고 이름만") 그림 · 값 없이 이름과 자물쇠 표시 · 44px 이상 · 이모지 없음 ' + JSON.stringify(lk));
   ok(lk2.toast === '마을 옷가게에서 팔아.' && lk2.outfit === 'octee', 'P7 잠긴 칸을 누르면 한 줄 («' + lk2.toast + '») · 옷은 그대로');
   ok(lk2.own === true && lk2.left === 4 && lk2.wear === true && lk2.now === 'suit' && /^\d{4}-\d\d-\d\d$/.test(lk2.key || '') && lk2.unknown === false, 'P7 ownItem 뒤: 잠긴 칸 넷 · 입을 수 있다 · S.user.owned 에 산 날 · 모르는 물건은 false ' + JSON.stringify(lk2));
+  /* 11-24 주간 상 (종이 왕관 · 황제 망토): 받기 전엔 장식 갈래의 잠긴 칸 (한 줄은 달리기 상) · 받으면 옷장을 열 때 내 옷장에 들어와 입을 수 있다 (문어의 답과 따로) */
+  var aw = await page.evaluate(async function () {
+    document.getElementById('look-tab-acc').click(); await new Promise(function (r) { setTimeout(r, 200); });
+    var q = function () { return [].map.call(document.querySelectorAll('#look-items .look-tile.locked'), function (b) { return b.dataset.id; }).join(); }, before = q();
+    document.querySelector('#look-items .look-tile[data-id="emperor_cape"]').click(); await new Promise(function (r) { setTimeout(r, 100); });
+    var t0 = document.getElementById('toast').textContent, acc0 = APP.state.settings.player.acc;
+    localStorage.setItem('ppolppol_runner', JSON.stringify({ net: { awards: { paper_crown: [], emperor_cape: ['2026-W47'] } } }));
+    document.getElementById('look-sheet').close(); APP.openLook(); document.getElementById('look-tab-acc').click(); await new Promise(function (r) { setTimeout(r, 200); });
+    var after = q(), key = (APP.state.user.owned || {})['acc:emperor_cape'];
+    document.querySelector('#look-items .look-tile[data-id="emperor_cape"]').click(); await new Promise(function (r) { setTimeout(r, 100); });
+    var acc1 = APP.state.settings.player.acc; localStorage.removeItem('ppolppol_runner'); APP.setPlayerPart('acc', acc0); document.getElementById('look-tab-outfit').click();
+    return { before: before, toast: t0, acc0: acc0, after: after, key: key, acc1: acc1 };
+  });
+  ok(/paper_crown/.test(aw.before) && /emperor_cape/.test(aw.before) && aw.toast === '다락방 달리기 주간 상으로 받아.' && aw.acc0 !== 'emperor_cape' && /paper_crown/.test(aw.after) && !/emperor_cape/.test(aw.after) && /^\d{4}-\d\d-\d\d$/.test(aw.key || '') && aw.acc1 === 'emperor_cape', 'P7 주간 상: 받기 전엔 잠긴 칸 («' + aw.toast + '») · 받으면 내 옷장에 (받은 날) 들어와 입을 수 있다 ' + JSON.stringify(aw));
   await page.reload();
   await page.waitForFunction(function () { return window.APP && APP.state && APP.scene; }, null, { timeout: 20000 });
   var re = await page.evaluate(function () { var k = 'ppolppol_v2', o = JSON.parse(localStorage.getItem(k)); return { outfit: APP.state.settings.player.outfit, owned: APP.isOwned('outfit', 'suit'), saved: o.user && o.user.owned && !!o.user.owned['outfit:suit'] }; });
