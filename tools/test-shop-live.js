@@ -253,6 +253,27 @@ async function roomRun(browser) {
   await page.evaluate(() => APP.shopGo('goods')); await page.waitForTimeout(400);
   ok(await page.evaluate(() => document.getElementById('shop-sheet').open && !!document.querySelector('#shop-body #shop-list')), '못 들어가면 (2D 처럼) 시트 안의 같은 목록');
   await page.evaluate(() => { document.getElementById('shop-sheet').close(); APP.goInside = window.__giOld; APP.state.settings.motion = 'auto'; document.documentElement.setAttribute('data-motion', 'auto'); });
+  /* 미용실 (건물 갈래의 의자 → ppol:salon-seat): 같은 목록 · 지금 가진 머리 모양 · 색은 공짜로 바꾸기 */
+  const sh0 = (await U(page)).shells, p0 = await page.evaluate(() => Object.assign({}, APP.state.settings.player));
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })));
+  await page.waitForTimeout(200);
+  rows = await lsRows(page);
+  ok(rows.some(x => /^hair:/.test(x.key)) && rows.some(x => /^hairColor:/.test(x.key)) && rows.filter(x => x.off).length === 2, '미용실: 앉으면 머리 모양 · 색 목록 (지금 것은 표시)');
+  const hc = rows.find(x => /^hairColor:/.test(x.key) && !x.off).key, hs = rows.find(x => /^hair:/.test(x.key) && !x.off).key, hs2 = rows.filter(x => /^hair:/.test(x.key) && !x.off)[1].key;
+  await lsWait(page);
+  await lsAdd(page, hs); await lsAdd(page, hs2); await lsAdd(page, hc);
+  L = await LS(page);
+  ok(Object.keys(L.cart).sort().join() === [hs2, hc].sort().join() && L.total === 0, '갈래마다 하나 (모양 · 색) · 값 없음');
+  ok(await page.evaluate(() => { const b = document.querySelector('#shop-list .ls-buy'); return !b.disabled && /바꾸기/.test(b.textContent); }), "'바꾸기' 단추");
+  await lsBuy(page);
+  const p1 = await page.evaluate(() => Object.assign({}, APP.state.settings.player));
+  ok(p1.hair === hs2.split(':')[1] && p1.hairColor === hc.split(':')[1] && (await U(page)).shells === sh0, '바꾸기: 머리 모양 · 색이 바뀌고 조개는 그대로');
+  ok(await page.evaluate(() => /바꿨어/.test(document.getElementById('shop-list').textContent)), "영수증 자리에 '바꿨어'");
+  await page.waitForTimeout(1700);
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })));
+  await lsWait(page); await lsAdd(page, hs);
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: false } })));
+  ok(!(await LS(page)) && (await page.evaluate(() => APP.state.settings.player.hair)) === p1.hair, '일어나면 목록을 접고 고른 것은 버린다');
   await ctx.close();
 }
 

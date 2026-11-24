@@ -6199,7 +6199,8 @@ var APP = (function () {
     if (!LST || x.mark) return; var n = LST.cart[x.key] | 0, max = Math.max(1, x.max | 0), nx = clamp(n + d, 0, max);
     if (nx === n) { if (d > 0 && n >= max) { LST.msg = max === 1 && !x.qty ? '' : '오늘은 이게 다야'; listRender(); } return; }
     if (nx > n) { var need = listTotal() + (nx - n) * x.price, have = shopU().shells; if (need > have) { LST.msg = '조개가 ' + (need - have) + '개 모자라'; listRender(); var t = document.querySelector('#shop-list [data-key="' + x.key + '"] .ls-price'); furnShake(t || el); return; } }
-    LST.cart[x.key] = nx; if (!nx) delete LST.cart[x.key]; LST.msg = ''; listRender(); var f = document.querySelector('#shop-list [data-key="' + x.key + '"] ' + (max > 1 || x.qty ? (d > 0 ? '.ls-plus' : '.ls-minus') : '.ls-row')); if (f && !f.disabled) f.focus({ preventScroll: true });
+    if (nx && x.group) LST.o.items().forEach(function (y) { if (y.group === x.group && y.key !== x.key) delete LST.cart[y.key]; });   /* 갈래마다 하나 (머리 모양 · 색) */
+    LST.cart[x.key] = nx; if (!nx) delete LST.cart[x.key]; LST.msg = ''; listRender(); if (LST.o.onChange) { try { LST.o.onChange(); } catch (e) { console.warn('[app] list change', e); } } var f = document.querySelector('#shop-list [data-key="' + x.key + '"] ' + (max > 1 || x.qty ? (d > 0 ? '.ls-plus' : '.ls-minus') : '.ls-row')); if (f && !f.disabled) f.focus({ preventScroll: true });
   }
   function listKids() {   /* 목록 카드의 속: 머리 (조개 · 담으면 남는 수) · 줄 · 알림 한 줄 · 단추 */
     var o = LST.o, u = shopU(), total = listTotal(), lines = listLines(), items = o.items(), kids = [];
@@ -6210,7 +6211,7 @@ var APP = (function () {
     if (!items.length) ul.appendChild(h('li', { class: 'ls-empty', text: '오늘은 이게 다야' }));
     items.forEach(function (x) {
       var n = LST.cart[x.key] | 0, multi = !!x.qty || (x.max | 0) > 1, pic = h('span', { class: 'ls-pic', 'aria-hidden': 'true' }, [x.pic ? x.pic() : null]);
-      var tag = x.mark === 'owned' ? h('span', { class: 'ls-price stamp' }, [pxIco('check'), h('span', { class: 'sr-only', text: '가지고 있어' })]) : x.mark === 'sold' ? h('span', { class: 'ls-price stamp', text: '내일' }) : h('span', { class: 'ls-price' }, [shellAmt(x.price)]);   /* 목록 줄의 값은 작은 표 (큰 꼬리표 그림은 이름 자리를 먹는다) */
+      var tag = x.mark === 'owned' ? h('span', { class: 'ls-price stamp' }, [pxIco('check'), h('span', { class: 'sr-only', text: '가지고 있어' })]) : x.mark === 'sold' ? h('span', { class: 'ls-price stamp', text: '내일' }) : !x.price ? null : h('span', { class: 'ls-price' }, [shellAmt(x.price)]);   /* 값 없는 것은 값표 없이 */   /* 목록 줄의 값은 작은 표 (큰 꼬리표 그림은 이름 자리를 먹는다) */
       var name = h('span', { class: 'ls-name' }, [h('span', { text: x.name }), x.note ? h('span', { class: 'ls-note', text: x.note }) : null]), li;
       if (multi && !x.mark) {
         var mi = listBtn('−', 'ls-minus', x.name + ' 하나 빼기', function () { listAdd(x, -1); }), pl = listBtn('+', 'ls-plus', x.name + ' 하나 더', function (b) { listAdd(x, 1, b); });
@@ -6226,8 +6227,9 @@ var APP = (function () {
     });
     kids.push(ul);
     kids.push(h('p', { class: 'ls-msg', role: 'status', 'aria-live': 'polite', text: LST.msg || '' }));
-    var buy = listBtn('사기', 'sew-yes ls-buy', null, function () { listBuy(); });
-    if (total) { buy.textContent = ''; buy.appendChild(h('span', { text: '사기 ' })); buy.appendChild(shellAmt(total)); buy.setAttribute('aria-label', '사기 조개 ' + total + '개 · ' + lines.map(function (l) { return l.x.name + (l.n > 1 ? ' ' + l.n + '개' : ''); }).join(' · ')); } else buy.disabled = true;
+    var bt = o.buyText || '사기', buy = listBtn(bt, 'sew-yes ls-buy', null, function () { listBuy(); });
+    if (!total && lines.length) buy.disabled = false;   /* 값이 없는 것 (지금 가진 머리 모양 · 색 바꾸기) */
+    else if (total) { buy.textContent = ''; buy.appendChild(h('span', { text: bt + ' ' })); buy.appendChild(shellAmt(total)); buy.setAttribute('aria-label', bt + ' 조개 ' + total + '개 · ' + lines.map(function (l) { return l.x.name + (l.n > 1 ? ' ' + l.n + '개' : ''); }).join(' · ')); } else buy.disabled = true;
     kids.push(h('div', { class: 'btn-row shop-card-btns ls-btns' }, [listBtn('닫기', 'sew-no ls-close', null, function () { listClose(true); }), buy]));
     return kids;
   }
@@ -6249,7 +6251,7 @@ var APP = (function () {
   function listClose(byTap) {   /* 담은 것은 버린다 (조개는 그대로) */
     if (!LST) return; var L = LST; LST = null;
     if (L.card && room.card === L.card) roomCardClose(byTap); else if (L.host && L.host.parentNode) L.host.remove();
-    if (L.o.onClose) { try { L.o.onClose(); } catch (e) { console.warn('[app] list close', e); } }
+    if (L.o.onClose && !L.done) { try { L.o.onClose(); } catch (e) { console.warn('[app] list close', e); } }
   }
   function listBuy() {   /* '사기': 담은 것을 한 번에. 값 · 조개 · 가짐은 buy 가 다시 본다. 같은 카드가 영수증으로 1.5 s */
     if (!LST) return; var L = LST, lines = listLines(), total = listTotal(), u = shopU();
@@ -6258,13 +6260,13 @@ var APP = (function () {
     var had = u.shells, res = null; try { res = L.o.buy(lines); } catch (e) { console.warn('[app] list buy', e); }
     if (!res || !res.got || !res.got.length) { L.msg = '못 샀어'; listRender(); return; }
     L.cart = {}; L.done = true; u = shopU();
-    var rows = res.got.map(function (g) { return h('li', {}, [h('span', { class: 'shop-rc-name', text: g.x.name + (g.n > 1 ? ' ' + g.n + '개' : '') }), shellAmt(g.n * g.x.price)]); });
+    var rows = res.got.map(function (g) { return h('li', {}, [h('span', { class: 'shop-rc-name', text: g.x.name + (g.n > 1 ? ' ' + g.n + '개' : '') }), g.x.price ? shellAmt(g.n * g.x.price) : null]); });
     L.host.textContent = '';
     [h('div', { class: 'shop-rc-top' }, [shopSpr('ui.receipt', 0, 32), h('p', { class: 'bag-line shop-purse ls-purse', 'aria-live': 'polite' }, [shellAmt(u.shells)])]),
-     h('ul', { class: 'shop-rc-list' }, rows), h('p', { class: 'shop-rc-sum', role: 'status' }, [shellAmt(had - u.shells), h('span', { text: ' 냈어' })])].forEach(function (k) { L.host.appendChild(k); });
+     h('ul', { class: 'shop-rc-list' }, rows), h('p', { class: 'shop-rc-sum', role: 'status' }, had - u.shells > 0 ? [shellAmt(had - u.shells), h('span', { text: ' 냈어' })] : [h('span', { text: '바꿨어' })])].forEach(function (k) { L.host.appendChild(k); });
     if (L.card) { L.card.classList.add('receipt'); roomCardPlace(); }
     var n = L.host.querySelector('.shop-purse .shell-n'); if (n) shopCount(had, u.shells, n);
-    toast(res.got.map(function (g) { return g.x.name; }).join(' · ') + eulReul(res.got[res.got.length - 1].x.name) + ' 샀어');
+    toast(res.got.map(function (g) { return g.x.name; }).join(' · ') + (had - u.shells > 0 ? eulReul(res.got[res.got.length - 1].x.name) + ' 샀어' : euro(res.got[res.got.length - 1].x.name) + ' 바꿨어'));
     if (L.o.onDone) { try { L.o.onDone(res, had - u.shells); } catch (e) { console.warn('[app] list done', e); } }
     setTimeout(function () { if (LST !== L) return; listClose(); if (L.o.after) L.o.after(); }, 1500);   /* 가게 주인이 말하는 동안 보이게 */
   }
@@ -6304,6 +6306,54 @@ var APP = (function () {
       },
       after: function () { if (host !== 'card') renderShop(); else { var cb = $('btn-room-counter'); if (cb && !cb.hidden) cb.focus({ preventScroll: true }); } } });
   }
+  /* 11-24 마을 미용실 (주인 결정: 미용사 문어 · 의자 · 거울, 앉으면 머리 모양 · 색 목록, 조개로 바꿈, 새 색은 미용실에서만 팔고 한 번 산 색은 옷장에서도 바꿈).
+     의자 · 방은 건물 갈래 (앉으면 document 'ppol:salon-seat' { on }), 새 색의 값 · 가진 색 기록은 캐릭터 갈래 (APP.salonCatalogue · APP.salonBuy — 아직 없으면 지금 있는 모양 · 색만, 바꾸기는 공짜).
+     같은 계산대 목록 부품. 고르면 앉은 채로 미리 입혀 보고 (캐릭터 갈래의 tryOn — 받는 갈래만), '바꾸기' 를 누르기 전엔 아무것도 쓰지 않는다. 일어나면 목록과 미리 보기는 접는다 */
+  var SALON_KINDS = [['hair', '머리 모양'], ['hairColor', '머리 색']];
+  function salonItems() {
+    var A = window.APP, cat = null, P = playerParts(), out = [], cur = S.settings.player || {};
+    try { cat = A && typeof A.salonCatalogue === 'function' ? A.salonCatalogue() : null; } catch (e) { cat = null; }
+    SALON_KINDS.forEach(function (k) {
+      var list = cat && Array.isArray(cat[k[0] === 'hair' ? 'styles' : 'colors']) ? cat[k[0] === 'hair' ? 'styles' : 'colors'] : (P[k[0]] || []).map(function (x) { return { id: x.id, name: x.name, hex: x.hex, price: 0, owned: true }; });
+      list.forEach(function (x) {
+        if (!x || typeof x.id !== 'string') return;
+        var price = x.owned ? 0 : Math.max(0, x.price | 0), worn = cur[k[0]] === x.id;
+        out.push({ key: k[0] + ':' + x.id, group: k[0], id: x.id, name: x.name || x.id, price: price, max: 1, mark: worn ? 'owned' : null, note: worn ? '지금' : (price ? '' : k[1]), hex: x.hex,
+          pic: function () { if (k[0] === 'hairColor' && x.hex) { var sw = h('span', { class: 'sew-sw ls-swatch' }); sw.style.background = x.hex; return sw; } return lookCanShot() ? shopThumb({ cat: k[0], id: x.id }, 48).firstChild || null : null; } });
+      });
+    });
+    return out;
+  }
+  function salonPreview() {   /* 담은 것 (갈래마다 하나) 을 앉은 채로 미리 — 받는 갈래만 */
+    var on = roomApi('tryOn'), off = roomApi('tryOff'); if (!on || !off || !LST || LST.o.id !== 'stylist') return;
+    var want = {}; listLines().forEach(function (l) { want[l.x.group] = l.x.id; });
+    SALON_KINDS.forEach(function (k) { try { if (want[k[0]]) on(k[0], want[k[0]]); else off(k[0]); } catch (e) { /* 그 갈래는 미리 보기를 안 받는다 */ } });
+  }
+  function salonUnpreview() { var off = roomApi('tryOff'); if (off) SALON_KINDS.forEach(function (k) { try { off(k[0]); } catch (e) { /* noop */ } }); }
+  function salonBuyLines(lines) {
+    var u = shopU(), A = window.APP, got = [], paid0 = u.shells;
+    lines.forEach(function (l) {
+      var x = l.x;
+      if (x.price > 0) {   /* 새 색: 캐릭터 갈래가 값을 받아 '가짐' 에 적는다 (그 함수가 없으면 팔지 않는다) */
+        if (!(A && typeof A.salonBuy === 'function') || u.shells < x.price) return;
+        var ok = false; try { ok = A.salonBuy(x.group, x.id) !== false; } catch (e) { console.warn('[app] salonBuy', e); }
+        if (!ok) return; u = shopU(); u.shells = Math.max(0, u.shells - x.price);
+        shopMineAdd({ t: 'salon', key: x.key, day: todayKey(), d: -x.price });
+      }
+      if (setPlayerPart(x.group, x.id)) got.push({ x: x, n: 1 });
+    });
+    if (got.length) { save(); renderBagChip(); }
+    return { got: got, paid: paid0 - u.shells };
+  }
+  function salonOpen() {
+    var who = typeof NPCR !== 'undefined' && NPCR && NPCR.who ? NPCR.who('stylist') : null;
+    listOpen({ id: 'stylist', title: (who && who.name ? who.name + ' · ' : '') + '머리 모양 · 색', host: 'card', anchor: 'btn-salon-chair', buyText: '바꾸기',
+      items: salonItems, buy: salonBuyLines,
+      onChange: salonPreview,
+      onDone: function (res, paid) { salonUnpreview(); roomPose('pose'); roomSayAs('stylist', 'salon.done', { shells: paid }); },
+      onClose: salonUnpreview });
+  }
+  document.addEventListener('ppol:salon-seat', function (e) { var on = !!(e && e.detail && e.detail.on); if (on) salonOpen(); else if (LST && LST.o.id === 'stylist') listClose(); });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(shopInit, 0); }); else setTimeout(shopInit, 0);
 
 
@@ -7558,7 +7608,7 @@ var APP = (function () {
     /* [7-V] */
 
     /* [7-S] */
-    openShop: openShop, shopGo: shopGo, shopStock: shopStock, shopSync: shopSync, beachPick: beachPick, beachSync: beachSync, get beachLeft() { return beachLeft(); }, get shopList() { return LST ? { id: LST.o.id, card: !!LST.card, cart: Object.assign({}, LST.cart), total: listTotal(), msg: LST.msg, done: !!LST.done } : null; }, shopListOpen: shopListOpen, listOpen: listOpen, listClose: listClose,
+    openShop: openShop, shopGo: shopGo, shopStock: shopStock, shopSync: shopSync, beachPick: beachPick, beachSync: beachSync, get beachLeft() { return beachLeft(); }, salonOpen: salonOpen, get shopList() { return LST ? { id: LST.o.id, card: !!LST.card, cart: Object.assign({}, LST.cart), total: listTotal(), msg: LST.msg, done: !!LST.done } : null; }, shopListOpen: shopListOpen, listOpen: listOpen, listClose: listClose,
     get shopRoom() { return { key: room.key, basket: Object.keys(room.basket), tried: Object.keys(room.basket).filter(function (k) { return room.basket[k].tried; }), card: room.card ? room.card.className : null }; },
 
     /* [7-C] */
