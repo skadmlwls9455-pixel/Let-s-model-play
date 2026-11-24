@@ -7599,6 +7599,13 @@ var SCENE3D = (function () {
       EDGECUE.el.dataset.side = s.x > 0 ? 'right' : 'left'; EDGECUE.el.style.top = (s.y + 2) + 'px';
     }
     disposables.push({ dispose: function () { if (EDGECUE.el && EDGECUE.el.parentNode) EDGECUE.el.parentNode.removeChild(EDGECUE.el); EDGECUE.el = null; } });
+    /* 11-24: 손 뗌 (pointerup) 처리가 끝난 다음 차례에 — 위 톡 처리 참고. 타이머가 아니라 메시지 차례 (시계를 세운 시험 · 바쁜 탭의 타이머 미룸과 상관없이 바로 다음) */
+    var U7_AFTERUP = { q: [], ch: null };
+    function afterUp(fn) {
+      if (!U7_AFTERUP.ch && typeof MessageChannel !== 'undefined') { U7_AFTERUP.ch = new MessageChannel(); U7_AFTERUP.ch.port1.onmessage = function () { var q = U7_AFTERUP.q; U7_AFTERUP.q = []; q.forEach(function (f) { try { f(); } catch (e) { console.warn('[scene3d] afterUp', e); } }); }; }
+      if (!U7_AFTERUP.ch) { setTimeout(fn, 0); return; }
+      U7_AFTERUP.q.push(fn); U7_AFTERUP.ch.port2.postMessage(0);
+    }
     function setCovered(on) { on = !!on; if (!!st.covered === on) return; st.covered = on; dither.still = 0; if (!on) loop(); }   /* 11-22: 덮인 동안 그리기만 멈춘다 — 시뮬레이션 (문어 걸음 · 산책 연출 · 문 · 날씨) 은 화면 밖 (T4) 처럼 30 fps 로 돈다. 예전처럼 고리 전체를 멈추면 달리기 · 부엌을 연 채 끝나야 하는 산책이 영영 안 끝났다 (스모크 S · CI 9652270) */
 
 
@@ -7774,10 +7781,13 @@ var SCENE3D = (function () {
         if (FM.on || k === 'oct' || k === 'window' || k === 'poster' || k === 'souvenir' || k === 'spot' || (!k && PLACE.vis === 'attic' && !PLACE.room && furnAt(press.x, press.y) === 'sofa')) guardTapClick(e.clientX, e.clientY);   /* 11-15: 뒤따르는 진짜 click 은 삼킨다 (위 tapGuard) */
         if (FM.on) furnSelect(press.furn || null);   /* 11-15 가구 모드: 가구 톡 = 고르기 · 빈 곳 톡 = 고르기 풀기 (다른 톡은 없다) */
         else if (k === 'oct') { oct.wantYaw = camYaw(); if (on.tap) on.tap(); }
-        else if (k === 'window') { if (on.windowTap) on.windowTap(); }
-        else if (k === 'poster') { if (on.posterTap) on.posterTap(o.userData.id); }
-        else if (k === 'souvenir') { if (on.souvenirTap) on.souvenirTap(o.userData.sv); }
-        else if (k === 'spot') spotTap(o.userData.spot);   /* 문 · 오락기: 그 자리의 진짜 단추를 누른다 (앱의 click 처리 그대로) */
+        /* 11-24 (주인: 포스터를 누르면 화면이 검어졌다 깜빡인다): 창 · 포스터 · 기념품 · 문 단추는 이 pointerup 이 다 끝난 뒤에 연다 (afterUp).
+           대화창은 closedby="any" (바깥을 누르면 브라우저가 닫는다 — app.js bindDialogs) 라, pointerup 처리 안에서 열면 브라우저가 바로 그 손 뗌을 '창 바깥 누름' 으로 보고
+           2 ms 뒤 닫았다 — 열린 한 장의 어두운 막만 보이고 창은 안 열렸다. 뒤따르는 click 은 guardTapClick 이 막는다 */
+        else if (k === 'window') afterUp(function () { if (on.windowTap) on.windowTap(); });
+        else if (k === 'poster') { var pid = o.userData.id; afterUp(function () { if (on.posterTap) on.posterTap(pid); }); }
+        else if (k === 'souvenir') { var psv = o.userData.sv; afterUp(function () { if (on.souvenirTap) on.souvenirTap(psv); }); }
+        else if (k === 'spot') { var psp = o.userData.spot; afterUp(function () { spotTap(psp); }); }   /* 문 · 오락기: 그 자리의 진짜 단추를 누른다 (앱의 click 처리 그대로) */
         else if (!k && PLACE.vis === 'attic' && !PLACE.room && furnAt(press.x, press.y) === 'sofa') playerSit();   /* 소파 톡 = 앉기 (노란 점은 표시일 뿐 — 누르기는 장면이 받아야 같은 자리에서 꾹 눌러 옮길 수 있다) */
       }
       if (GEST.mode !== 'pan' && !PAN.mode && !ZT && panOn() && !panLocked()) panSettle();   /* 고무줄 복귀·관성을 톡·꾹으로 멈췄으면 경계 밖·소수 자리에 남지 않게 (안이면 정수 px 로만) */

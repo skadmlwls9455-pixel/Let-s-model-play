@@ -7486,9 +7486,11 @@ async function scenarioSceneTap(browser) {
     var mode = APP.scene.pan().mode, q = document.getElementById('btn-sew').getBoundingClientRect(), x = q.x + q.width / 2, y = q.y + q.height / 2, k = APP.scene.pickAt(x, y);
     ev('pointerdown', x, y, 8); ev('pointerup', x, y, 8);
     cv.setPointerCapture = keep;
-    var r = { mode: mode, pick: k && k.kind + ':' + k.id, open: document.getElementById('sew-sheet').open };
-    document.getElementById('sew-sheet').close();
-    return r;
+    /* 11-24: 장면 톡은 손 뗌 처리가 끝난 다음 차례에 연다 (scene3d afterUp — closedby="any" 가 그 손 뗌으로 바로 닫지 않게) → 메시지 한 차례 뒤에 본다 */
+    return new Promise(function (res) { var ch = new MessageChannel(); ch.port1.onmessage = function () {
+      var r = { mode: mode, pick: k && k.kind + ':' + k.id, open: document.getElementById('sew-sheet').open };
+      document.getElementById('sew-sheet').close();
+      res(r); }; ch.port2.postMessage(0); });
   });
   console.log('   관성 중 톡:', JSON.stringify(co));
   ok(co.mode === 'coast' && co.pick === 'spot:sew' && co.open, '관성으로 흐르는 중에 재봉틀을 톡 하면 멈추고 시트도 연다 (' + co.mode + ' · ' + co.pick + ')');
@@ -8230,6 +8232,24 @@ async function scenarioU7(browser) {
     setTimeout(function () { res({ away: g.classList.contains('away'), running: APP.state.trips.filter(function (t) { return t.status === 'running'; }).length }); }, 450); }); });
   ok(dt.away && dt.running === 1, '모션 줄이기: 빠른 두 번 톡의 둘째는 산책을 끝내지 않는다 (' + JSON.stringify(dt) + ')');
   await o7.ctx.close();
+  /* 11-24 (주인: 거실에서 포스터를 누르면 화면이 검어졌다 깜빡인다): 벽 포스터를 손가락으로 톡 → 포스터 창이 열린 채 남고, 톡 뒤 프레임 (화면 그대로 떠서) 에 앞뒤보다 어두운 장이 없다.
+     원인은 장면이 pointerup 처리 안에서 창을 열어 closedby="any" 가 그 손 뗌으로 2 ms 뒤 닫던 것 · 창 뒤 막이 한 번에 깔리던 것 */
+  var pRec = JSON.parse(JSON.stringify(rec)); pRec.room.lantern = 5; pRec.room.posterOrder = ['u7w1']; pRec.trips = [{ id: 'u7w1', date: '2026-11-07', seq: 1, seed: 71, status: 'done', kind: 'out', startedAt: 1, endedAt: 2, events: [], receipt: null, poster: { title: '시험 포스터', type: 'poster', line: '시험 한 줄', scene: 'home' } }];
+  var o8 = await openApp(360, 740, pRec), p8 = o8.page; await p8.waitForTimeout(1500);
+  var wp = await p8.evaluate(function () { if (APP.sceneMode !== '3d') return null; for (var y = 60; y < innerHeight - 140; y += 5) for (var x = 8; x < innerWidth - 8; x += 5) { var r = APP.scene.pickAt(x, y); if (r && r.kind === 'poster') return [x, y]; } return null; });
+  if (wp) {
+    var cdp8 = await o8.ctx.newCDPSession(p8), fr8 = [];
+    cdp8.on('Page.screencastFrame', function (f) { fr8.push(f.data); cdp8.send('Page.screencastFrameAck', { sessionId: f.sessionId }).catch(function () {}); });
+    await cdp8.send('Page.startScreencast', { format: 'png', everyNthFrame: 1 }); await p8.waitForTimeout(300);
+    await p8.evaluate(function () { window.__pdlog = []; var d = document.getElementById('poster-dialog'); new MutationObserver(function () { window.__pdlog.push(d.open); }).observe(d, { attributes: true, attributeFilter: ['open'] }); });
+    await p8.touchscreen.tap(wp[0], wp[1]); await p8.waitForTimeout(1600); await cdp8.send('Page.stopScreencast');
+    var pd = await p8.evaluate(function () { return { open: document.getElementById('poster-dialog').open, log: window.__pdlog }; });
+    var lum = []; for (var fi = 0; fi < fr8.length; fi++) lum.push(await p8.evaluate(function (src) { return new Promise(function (res) { var im = new Image(); im.onload = function () { var c = document.createElement('canvas'); c.width = im.width; c.height = im.height; var g = c.getContext('2d'); g.drawImage(im, 0, 0); var d = g.getImageData(0, 0, c.width, c.height).data, s = 0, n = 0; for (var k = 0; k < d.length; k += 28) { s += 0.2126 * d[k] + 0.7152 * d[k + 1] + 0.0722 * d[k + 2]; n++; } res(s / n / 255); }; im.src = 'data:image/png;base64,' + src; }); }, fr8[fi]));
+    var dip = 0; for (var li = 1; li < lum.length - 1; li++) dip = Math.max(dip, Math.min(lum[li - 1], lum[li + 1]) - lum[li]);
+    ok(pd.open && pd.log.join() === 'true', '벽 포스터 톡 → 포스터 창이 열린 채 (열림 기록 ' + JSON.stringify(pd.log) + ' — 예전엔 true,false: 2 ms 뒤 닫힘)');
+    ok(lum.length >= 5 && dip < 0.04, '톡 뒤 ' + lum.length + ' 장: 앞뒤보다 어두운 장 없음 (가장 깊은 꺼짐 ' + dip.toFixed(3) + ' · 밝기 ' + lum.map(function (v) { return v.toFixed(2); }).join(' ') + ')');
+  }
+  await o8.ctx.close();
   ok(bag.length === 0, 'U7: 페이지 오류 없음 (' + bag.join(' | ').slice(0, 200) + ')');
 }
 
