@@ -6861,6 +6861,8 @@ var APP = (function () {
       if (tr && tr.height && tr.top < top + hh && tr.bottom > top) top = Math.max(floor, tr.top - hh - 16);
       /* 11-21 밤: 장면 안 카드 (꼬리표 · 영수증 — data-npc-avoid 를 단 것) 를 가리지 않는다. 아래 자리가 겹치면 장면 위쪽으로, 거기도 겹치면 아래 그대로 */
       var cards = [].filter.call(document.querySelectorAll('#scene [data-npc-avoid]'), function (c) { return !c.hidden && c.offsetWidth > 0; }).map(function (c) { return c.getBoundingClientRect(); });
+      /* 11-24 (다섯째 바퀴): 말하는 문어 자리 (머리 둘레) 도 피한다 — 말상자가 그 문어를 가리지 않게 */
+      if (npcNow) { var me = npcWhere(npcNow.ln.id); if (me) cards.push({ left: me.sx - 40, right: me.sx + 40, top: me.sy - 50, bottom: me.sy + 40 }); }
       /* 11-24 (넷째 점검): 공연장에선 단상 위 (1 · 2 · 3 등 자리의 머리 둘레) 도 피한다 — 결과 때 내 캐릭터를 덮지 않게 */
       if (scene && typeof scene.inRoom === 'function' && typeof scene.stage === 'function' && typeof scene.project === 'function') {
         try {
@@ -6902,7 +6904,7 @@ var APP = (function () {
   function npcNext() { if (!npcNow) return; if (npcNow.i < npcNow.ln.bubbles.length - 1) { npcNow.i++; npcShow(); } else npcEnd(true); }
   function npcEnd(done) {
     var run = npcNow, box = $('npc-box'); if (!run) return;
-    npcNow = null; clearTimeout(npcTimer);
+    npcNow = null; clearTimeout(npcTimer); npcLookBack();
     if (box) {
       var had = box.contains(document.activeElement);
       try { if (box.matches(':popover-open')) box.hidePopover(); } catch (e) { /* popover 없음 */ }
@@ -6919,7 +6921,41 @@ var APP = (function () {
     var k = id + ' ' + key, n = npcCount[k] = npcCount[k] == null ? NPCR.hash(todayKey() + k) % 60 : npcCount[k] + 1;
     var ln = NPCR.line(id, key, vars, n); if (!ln) return Promise.resolve(false);
     npcEnd(false);   /* 앞의 말은 접는다 (한 번에 하나) */
-    return new Promise(function (res) { npcNow = { ln: ln, i: 0, res: res, opener: document.activeElement, at: performance.now() }; npcMarkSet(id, true); npcShow(); });
+    return new Promise(function (res) { npcNow = { ln: ln, i: 0, res: res, opener: document.activeElement, at: performance.now() }; npcMarkSet(id, true); npcShow(); npcLook(npcNow); });
+  }
+  /* 11-24 (다섯째 바퀴 · 주인 "문어 npc들은 안 보이고 창으로만 뜨는데"): 말하는 문어가 화면에 보이게.
+     · npcWhere(id): 장면이 그 문어를 지금 보이는 장소에 그려 두었으면 그 자리 (scene.npcWhere — [7-N] 장면 블록). 공연장의 심사 문어는 judge0..2 (콘테스트 갈래의 순서 clothes · goods · cafe).
+     · npcLook: 그 문어가 화면 가운데 띠 (가로 20~80 % · 상태 줄 칸 아래 ~ 말상자 위) 밖이면 화면을 그 문어 쪽으로 민다 (scene.roomFocus — 위에서 3분의 1). 다른 갈래가 카드 (data-npc-avoid) 를
+       띄워 화면을 맞추고 있거나 공연장 쇼 중이면 그쪽이 화면을 쥔다 (밀지 않는다). 말이 끝나고 다음 말이 0.5 s 안에 안 오면 화면을 내 캐릭터 쪽으로 되돌린다 (scene.roomHome).
+     · 말상자는 그 문어 자리를 피해 놓는다 (npcPlace) */
+  var NPC_JUDGE = { clothes: 'judge0', goods: 'judge1', cafe: 'judge2' }, npcLooked = false, npcHomeT = 0;
+  function npcWhere(id) {
+    if (!scene || typeof scene.npcWhere !== 'function' || typeof scene.project !== 'function') return null;
+    var w = null;
+    try {
+      var hall = typeof scene.inRoom === 'function' && scene.inRoom() === 'hall';
+      w = (hall && NPC_JUDGE[id] ? scene.npcWhere(NPC_JUDGE[id]) : null) || scene.npcWhere(id);
+      if (!w) return null;
+      var q = scene.project(w.x, w.y + 0.35, w.z), sr = $('scene').getBoundingClientRect();
+      if (!q || !isFinite(q.x) || !isFinite(q.y)) return null;
+      return { x: w.x, y: w.y, z: w.z, sx: sr.left + q.x, sy: sr.top + q.y, hall: hall };
+    } catch (e) { return null; }
+  }
+  function npcLook(run) {
+    clearTimeout(npcHomeT);
+    var w = npcWhere(run.ln.id); if (!w || typeof scene.roomFocus !== 'function') return false;
+    if (w.hall || document.querySelector('#scene [data-npc-avoid]:not([hidden])')) return false;
+    var box = $('npc-box'), br = box && !box.hidden ? box.getBoundingClientRect() : null, vw = window.innerWidth, vh = window.innerHeight, top = 0;
+    ['status', 'brain-tag', 'btn-bag', 'scene-ctl'].forEach(function (id) { var e = $(id); if (e && !e.hidden && e.offsetWidth) { var r = e.getBoundingClientRect(); if (r.bottom < vh / 2) top = Math.max(top, r.bottom); } });
+    var low = br && br.top > vh / 2 ? br.top - 28 : vh;
+    if (w.sx >= vw * 0.2 && w.sx <= vw * 0.8 && w.sy >= top + 40 && w.sy <= low - 24) return false;   /* 이미 잘 보인다 */
+    var ok = false; try { ok = !!scene.roomFocus(w.x, w.z, w.y + 0.4); } catch (e) { ok = false; }
+    if (ok) { npcLooked = true; [320, 700].forEach(function (ms) { setTimeout(function () { if (npcNow === run && box && !box.hidden) npcPlace(box); }, ms); }); }
+    return ok;
+  }
+  function npcLookBack() {   /* 말이 끝났다: 다음 말이 곧 오지 않으면 화면을 내 캐릭터 쪽으로 */
+    if (!npcLooked) return; clearTimeout(npcHomeT);
+    npcHomeT = setTimeout(function () { if (npcNow || !npcLooked) return; npcLooked = false; if (scene && typeof scene.roomHome === 'function') { try { scene.roomHome(); } catch (e) { /* 장면 쪽 문제 */ } } }, 500);
   }
   /* 장면에 오늘의 문어들 (V 갈래의 scene.npcSet 이 있을 때만). 가게 문어를 가게 앞과 방 안 keeper 칸 어디에 그릴지는 장면이 정한다 (계약 C14) */
   function npcSync(force) {   /* force: 같은 날이어도 다시 넘긴다 (시험 · 장면이 다시 지어졌을 때) */

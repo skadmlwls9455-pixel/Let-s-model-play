@@ -191,6 +191,42 @@ function box(p) {
     ok(sf.par === 'story-sheet' && sf.f >= 16, '시트 위의 대사 글자도 16px 이상: ' + JSON.stringify(sf));
     await p.keyboard.press('Escape');
 
+    /* 11-24 (다섯째 바퀴): 말하는 문어가 화면에 보이게 — 가운데 띠 밖이면 화면을 그 문어 쪽으로 · 말상자는 그 문어를 가리지 않게 · 말이 끝나면 화면을 되돌림 · 카드가 떠 있으면 밀지 않음 */
+    var look = await p.evaluate(function () {
+      [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); });
+      var S = APP.scene, keep = { where: S.npcWhere, project: S.project, focus: S.roomFocus, home: S.roomHome, inRoom: S.inRoom }, log = [], at = { x: 0, y: 0, z: 0 }, sxy = { x: 30, y: 300 };
+      var sc = document.getElementById('scene').getBoundingClientRect();
+      S.npcWhere = function (id) { return id === 'clothes' ? at : null; };
+      S.project = function () { return { x: sxy.x - sc.left, y: sxy.y - sc.top }; };
+      S.roomFocus = function (x, z, y) { log.push('focus'); sxy = { x: innerWidth / 2, y: innerHeight * 0.55 }; return true; };
+      S.roomHome = function () { log.push('home'); return true; };
+      S.inRoom = function () { return 'clothes'; };
+      var out = {};
+      APP.npcSay('clothes', 'talk'); out.edge = log.slice();
+      return new Promise(function (res) { setTimeout(function () {
+        var b = document.getElementById('npc-box').getBoundingClientRect(), cx = innerWidth / 2, cy = innerHeight * 0.55;
+        out.coverAfter = cx > b.left && cx < b.right && cy > b.top - 28 && cy < b.bottom;
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        setTimeout(function () {
+          out.back = log.slice();
+          log.length = 0; sxy = { x: innerWidth / 2, y: innerHeight * 0.3 }; APP.npcSay('clothes', 'talk'); out.middle = log.slice();
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          log.length = 0; sxy = { x: 20, y: 300 };
+          var c = document.createElement('div'); c.setAttribute('data-npc-avoid', ''); c.style.cssText = 'position:absolute;left:0;top:0;width:10px;height:10px'; document.getElementById('scene').appendChild(c);
+          APP.npcSay('clothes', 'talk'); out.card = log.slice(); c.remove();
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          log.length = 0; APP.npcSay('goods', 'talk'); out.notDrawn = log.slice();
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          Object.keys(keep).forEach(function (k) { if (keep[k] === undefined) delete S[k]; else S[k] = keep[k]; });
+          res(out);
+        }, 800);
+      }, 900); });
+    });
+    ok(look.edge.join() === 'focus', '말하는 문어가 화면 가장자리면 화면을 그 문어 쪽으로: ' + JSON.stringify(look));
+    ok(look.coverAfter === false, '말상자가 그 문어를 가리지 않는다');
+    ok(look.back.indexOf('home') >= 0, '말이 끝나면 화면을 내 캐릭터 쪽으로 되돌린다');
+    ok(look.middle.length === 0 && look.card.length === 0 && look.notDrawn.length === 0, '이미 잘 보이거나 · 카드가 떠 있거나 · 그려져 있지 않으면 화면을 밀지 않는다');
+
     /* 자는 문어: 알림 한 줄 */
     await p.click('#btn-npc-sleep-1');
     ok(await p.evaluate(function () { var t = document.getElementById('toast'); return t.classList.contains('show') && t.textContent === '자고 있어.'; }) && (await box(p)).hidden, '자는 문어를 누르면 "자고 있어." 한 줄 (대사창 아님)');
