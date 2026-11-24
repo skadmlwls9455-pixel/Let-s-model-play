@@ -593,6 +593,35 @@ function rectOf(page, sel) { return page.evaluate(function (sel) { var e = docum
       ok(v && v.flips <= lim && v.back <= 2 && v.acc <= 1.5 && v.stop <= 2 && v.rest === '', 'L12 ' + k + ' 뛰기: 캐릭터 화면 떨림 ' + (v && v.flips) + ' 번 (≤ ' + lim + ' — 예전 수십 번) · 땅 떨림 ' + (v && v.back) + ' 번 (≤ 2) · 카메라 가속 최대 ' + (v && v.acc) + ' 아트px/프레임² (≤ 1.5) · 서고 나서 한 프레임 ' + (v && v.stop) + ' 아트px (≤ 2) · 쉬면 멈춤 ' + JSON.stringify(v)); });
     ok(sh.yard.run && sh.village.run, 'L12 시험이 실제로 뛰었다 (스틱 0.6 s 넘게)');
     await o.ctx.close();
+    /* ── L13 (7차 다섯째 바퀴 갈래 W · 갈래 V 알림) 숲길 · 광장 집 문을 누르면 서는 자리까지 걸어가 들어간다 ──
+       예전: 숲길 집 1 문 바로 앞 그루터기 + 울타리 밖에선 장애물을 돌지 않는 걸음 → 문 2 m 앞에서 섰다 (건너편에서 누르면 20 s 넘게 끼었다).
+       18 시 (집 문어가 집에 있어 문이 열림) · 앱과 같은 길 (단추 → villageGo → enterRoom) */
+    o = await open(browser, 8, { hour: 18, weather: 'clear' }); page = o.page;
+    await yardGo(page);
+    var dr = await page.evaluate(async function () {
+      var sc = APP.scene, K = Math.SQRT1_2, tick = function () { return new Promise(function (q) { setTimeout(q, 0); }); }, out = [];
+      if (typeof VILLAGE === 'undefined' || !VILLAGE.DOORS) return null;
+      function st() { var a = sc.player().at; return [(a[0] + a[2]) * K, (a[0] - a[2]) * K]; }
+      var D = {}; VILLAGE.DOORS.forEach(function (d) { D[d.btn] = d; });
+      var CASES = [['btn-in-home-1', [8, 0]], ['btn-in-home-1', [16, 0]], ['btn-in-home-1', [12, 2.5]], ['btn-in-home-1', [16, 2.6]], ['btn-in-home-4', [12, -2.5]], ['btn-in-home-4', [16, -2.6]], ['btn-in-home-3', [38, 0]], ['btn-in-salon', [44, -4]]];
+      for (var c = 0; c < CASES.length; c++) {
+        var btn = CASES[c][0], s0 = CASES[c][1], d = D[btn]; if (!d) { out.push([btn, 'no door']); continue; }
+        sc.debugPlayerAt((s0[0] + s0[1]) * K, (s0[0] - s0[1]) * K); sc.wideFocus(); sc.debugSim(0.05, 10);
+        document.getElementById(btn).click(); var f = 0, end = st();
+        for (; f < 160 && !sc.inRoom(); f++) { sc.debugSim(0.05, 1); if (!sc.inRoom()) end = st(); if (f % 20 === 19) await tick(); }
+        out.push([btn, s0, !!sc.inRoom(), +(f * 0.05).toFixed(2), +Math.hypot(end[0] - d.stand[0], end[1] - d.stand[1]).toFixed(2)]);
+        if (sc.inRoom()) {
+          for (var i = 0; i < 40; i++) { sc.debugSim(0.05, 1); if (i % 10 === 9) await tick(); }
+          for (var tries = 0; tries < 5 && sc.inRoom(); tries++) { var lv = null; APP.goOutside().then(function (q) { lv = q; }); for (i = 0; i < 200 && (lv === null || sc.inRoom()); i++) { sc.debugSim(0.05, 1); await tick(); } }
+          sc.debugSim(0.05, 10);
+        }
+      }
+      return out;
+    });
+    if (dr === null) ok(true, 'L13 마을 없음 — 건너뜀');
+    else { var bad13 = dr.filter(function (q) { return !(q[2] === true && q[3] <= 6 && q[4] <= 0.2); });
+      ok(bad13.length === 0, 'L13 집 문 넷 · 출발 자리 ' + dr.length + ' 곳: 서는 자리 (20 cm 안) 까지 걸어가 6 s 안에 들어간다 — [단추, 출발 (s, t), 들어감, 초, 서는 자리까지 m] ' + JSON.stringify(bad13.length ? bad13 : dr.map(function (q) { return [q[0].replace('btn-in-', ''), q[3], q[4]]; }))); }
+    await o.ctx.close();
   } catch (e) {
     fails++; console.error('CRASH ' + (e && e.stack || e));
   } finally { await browser.close(); }
