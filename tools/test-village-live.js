@@ -258,9 +258,14 @@ async function village(page) {
         var b = document.getElementById(D.btn); b._vilGo = true; b.click(); b._vilGo = false; await __V.run(30);
         r.in = sc.inRoom(); r.toast = (document.getElementById('toast') || {}).textContent || ''; r.salon = sc.homeOpen('salon').open;
         var D2 = VILLAGE.DOORS.filter(function (q) { return q.key === 'inHome2'; })[0]; __V.at(D2.stand[0], D2.stand[1]); await __V.run(4); var b2 = document.getElementById('btn-npc-sleep-2'), b3 = document.getElementById('btn-npc-sleep-3'); r.out2 = !!b2 && !b2.hidden; r.out3 = !!b3 && !b3.hidden;
+        /* 집 문어 단추도 먼 데서 누르면 먼저 걸어간다 (가게 문어와 같이): 첫 누름은 삼키고, 서는 자리에 선 뒤 다시 누른다 */
+        var bb = document.getElementById('btn-npc-sleep-2'), cnt = 0, S2 = VILLAGE.spot('npcSleep2'), K2 = Math.SQRT1_2; bb.addEventListener('click', function () { cnt++; });
+        __V.at(24, 0); await __V.run(4); bb.click(); r.cnt0 = cnt;
+        await __V.run(800, function () { return cnt > 0; }); r.cnt1 = cnt; var pa2 = sc.player().at; r.walkD = Math.hypot((pa2[0] + pa2[2]) * K2 - S2.stand[0], (pa2[0] - pa2[2]) * K2 - S2.stand[1]);
         sc.setTime(22, true); return r;
       }, NPCS);
       ok(t8.open.open === false && /바닷가 바위/.test(t8.open.line) && t8.in === null && t8.toast.indexOf('잠겨') >= 0 && t8.salon === true, '낮엔 문어 집 문이 잠긴다: ' + t8.toast + ' (미용실은 열림)');
+      ok(t8.cnt0 === 0 && t8.cnt1 === 1 && t8.walkD < 0.5, '집 문어 단추: 먼 데서 누르면 걸어가 선 뒤에 눌린다 (' + t8.cnt0 + ' → ' + t8.cnt1 + ', 선 자리에서 ' + (t8.walkD || 0).toFixed(2) + ' m)');
       ok(t8.out2 && !t8.out3, '낮: 집 앞 마루의 문어 단추가 보인다 · 먼 바닷가 문어 단추는 화면 밖이라 숨는다');
       ok(t8.out === 'sleep-1,sleep-2,sleep-3,sleep-4', '낮엔 자는 문어들이 밖에 (' + t8.out + ')');
     }
