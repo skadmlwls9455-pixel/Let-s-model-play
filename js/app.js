@@ -3414,7 +3414,9 @@ var APP = (function () {
       giftBusy = false;
       if (yes) { scene.setOctWear(wear); refreshPortraits(); } expressRow('idle');   /* 11-15 (주인 C6 b): 데모 규칙이 고른 답이라 쓰기로 해도 평소 얼굴 (예전 happy) */   /* 11-11 (검증 W2): 안 쓴다는 답은 보통 얼굴로 (반눈 calm 은 시무룩해 보인다 — 미용실 '그대로' 와 같게, docs/SALON.md §3.4) */
       appendLogRow(ensureTodaySection(), logRow('선물', line + ' (데모 규칙이 고름)', 'c-amber', true));
-      toast(line + ' (데모 규칙이 고름)');
+      var mine = c && c.award && partOf('acc', c.id) ? (awardWardrobe(), isOwned('acc', c.id)) : false;   /* 11-24: 상은 내 옷장에도 (문어의 답과 따로) */
+      if (mine) appendLogRow(ensureTodaySection(), logRow('옷장', c.name + giftJosa(c.name, '은') + ' 내 옷장에도 있어. 나도 입어 볼 수 있어.', 'c-amber', true));
+      toast(line + ' (데모 규칙이 고름)' + (mine && !yes ? ' 내 옷장엔 있어.' : ''));
     }, 1300);
   }
   function renderGift(frag) {
@@ -3660,6 +3662,7 @@ var APP = (function () {
   function openLook() {
     var d = $('look-sheet'); if (!d) return;
     if (!d.open) { sheetDragReset(d); d._openedAt = performance.now(); LOOK.back = false; questMark('look'); }   /* 열 때마다 제자리 · 앞모습부터 (갈래는 마지막에 보던 대로) */
+    awardWardrobe();   /* 11-24: 받은 주간 상은 내 옷장에 (열 때마다 본다 — 달리기는 다른 화면에서 끝난다) */
     renderLook();
     showDialog(d);
     lookMoreSync();
@@ -4934,6 +4937,7 @@ var APP = (function () {
     /* 탭을 떠날 때 저장 · 다른 탭이 저장하면 다시 그린다 (R4, R5) */
     document.addEventListener('visibilitychange', function () { if (document.hidden && S.octopus.name) save(); else if (!document.hidden) { checkDay(); syncRest(); claudeSync(false); } if (rest) restTick(); });   /* 깨어 있는 틈은 보이는 동안만 센다 · Claude 에서 다녀온 산책 */
     setTimeout(function () { claudeSync(false); }, 2500);   /* 열 때 한 번: Claude 에서 다녀온 산책 (연결했을 때만) */
+    setTimeout(function () { if (S.octopus.name) awardWardrobe(); }, 0);   /* 11-24: 이미 받은 주간 상 (예전에 문어가 안 쓰기로 한 것 포함) 을 내 옷장에 */
     window.addEventListener('pagehide', restKeep);   /* 새로고침: 남은 틈을 이 탭에 넘긴다 (octInitial 이 읽고 지운다) */
     window.addEventListener('pageshow', function (e) { if (e.persisted) { try { sessionStorage.removeItem(REST_KEY); } catch (err) { /* noop */ } } });   /* 뒤로 가기 캐시에서 돌아왔으면 넘길 것 없음 (틈은 그대로 이어진다) */
     window.addEventListener('scroll', function () { if (rest && !rest.lying) { clearTimeout(scrollRest); scrollRest = setTimeout(restTick, 120); } }, { passive: true });   /* 장면을 다시 올려 보면 곧바로 이어 센다 */
@@ -5701,11 +5705,23 @@ var APP = (function () {
   /* 11-21 옷장 목록 (가게 · 콘테스트 갈래와의 약속 C4): 물건의 tags · shop 은 장면 목록 (SCENE3D.PLAYER_PARTS) 이 주인.
      가진 것 = shop 이 없는 물건 전부 (이번 판 전부터 있던 것 포함) + S.user.owned['갈래:id'] (산 날). 적는 곳은 ownItem 하나. 입고 있는가와는 따로다 (옛 빌드 탭이 모습을 기본으로 되돌려도 가진 것은 남는다) */
   var WARD_CATS = [['hair', '머리', 'hair'], ['outfit', '옷', 'body'], ['shoes', '신발', 'feet'], ['acc', '장식', 'head']];
-  var LOOK_FRAME = { 'acc:scarf': 'body', 'acc:bag': 'body' };   /* 몸에 걸치는 장식은 몸 구도로 찍는다 */
+  var LOOK_FRAME = { 'acc:scarf': 'body', 'acc:bag': 'body', 'acc:emperor_cape': 'body' };   /* 몸에 걸치는 장식은 몸 구도로 찍는다 */
   var HAIR_FAMILY = { blonde: 'c-yellow', brown: 'c-brown', ink: 'c-black', silver: 'c-white', pink: 'c-pink', lime: 'c-green' };
   function partOf(cat, id) { var l = playerParts()[cat] || []; for (var i = 0; i < l.length; i++) if (l[i].id === id) return l[i]; return null; }
   function ownedMap() { return isObj(S.user) && isObj(S.user.owned) ? S.user.owned : {}; }
-  function isOwned(cat, id) { var x = partOf(cat, id); if (!x) return false; return !isObj(x.shop) || !!ownedMap()[cat + ':' + id]; }
+  function isOwned(cat, id) { var x = partOf(cat, id); if (!x) return false; if (x.award) return !!ownedMap()[cat + ':' + id]; return !isObj(x.shop) || !!ownedMap()[cat + ':' + id]; }   /* 11-24: 상 (award) 은 받아야 가진다 — 가게 값이 없어도 */
+  /* 11-24 (주인: "황제 망토 같은 경우에는 문어가 안 입어도 캐릭터 옷장에는 넣어줘서 캐릭터는 입을 수 있게 해줘"): 다락방 달리기 주간 상 (종이 왕관 · 황제 망토) 을
+     받았으면 내 옷장에도 하나 — 문어가 쓰든 안 쓰든 (문어의 답이 내가 입어 볼 길을 막지 않게). 받은 날 = 옷장에 들어온 날. 새로 넣었으면 그 물건 이름들 */
+  function awardWardrobe() {
+    var aw = giftAwards(), got = [];
+    Object.keys(aw).forEach(function (id) {
+      if (!aw[id]) return; var x = partOf('acc', id); if (!x || !x.award || ownedMap()['acc:' + id]) return;
+      var u = userState(); if (!isObj(u.owned)) u.owned = {};
+      u.owned['acc:' + id] = todayKey(); got.push(x.name);
+    });
+    if (got.length) { save(); var d = $('look-sheet'); if (d && d.open) lookRenderItems(); }
+    return got;
+  }
   function ownItem(cat, id) {   /* 가게가 값을 받은 뒤 부른다 → 가졌으면 true (모르는 물건 false). 이미 가진 것 · 파는 물건이 아닌 것은 그대로 true */
     var x = partOf(cat, id); if (!x) return false;
     if (isOwned(cat, id)) return true;
@@ -5726,7 +5742,7 @@ var APP = (function () {
     try { if (sceneMode === '3d' && scene && typeof scene.itemTags === 'function') { var t = scene.itemTags(cat, x.id, S.settings.player); if (Array.isArray(t)) return t; } } catch (e) { console.warn('[app] itemTags', e); }
     return Array.isArray(x.tags) ? x.tags.slice() : [];
   }
-  function wardItem(cat, x) { return { id: x.id, name: x.name, tags: itemTagsNow(cat, x), shop: isObj(x.shop) ? { price: x.shop.price | 0 } : null, owned: isOwned(cat, x.id), worn: S.settings.player[cat] === x.id }; }
+  function wardItem(cat, x) { return { id: x.id, name: x.name, tags: itemTagsNow(cat, x), shop: isObj(x.shop) ? { price: x.shop.price | 0 } : null, award: !!x.award, owned: isOwned(cat, x.id), worn: S.settings.player[cat] === x.id }; }
   function wardrobe() { var P = playerParts(); return { cats: WARD_CATS.map(function (k) { return { key: k[0], name: k[1], items: P[k[0]].map(function (x) { return wardItem(k[0], x); }) }; }) }; }
   function wearing() {   /* 지금 입은 것 [{ cat, id, name, tags }] (머리 · 옷 · 신발 · 장식). 물들인 물건은 색 낱말이 물든 색으로, 머리는 머리 색의 낱말이 붙는다 */
     var c = S.settings.player, dy = isObj(S.user) && isObj(S.user.dyed) ? S.user.dyed : {};

@@ -29,6 +29,7 @@ function ok(c, m) { if (c) { pass++; console.log('  ok   ' + m); } else { fail++
       if (i < (OLD[c] || 0) && x.shop) cat.oldPaid.push(c + ':' + x.id);
       if (!Array.isArray(x.tags) || x.tags.some(t => TAGS.indexOf(t) < 0)) cat.badTag.push(c + ':' + x.id);
       if (x.shop) cat.paid.push(c + ':' + x.id + '=' + x.shop.price);
+      if (x.award) (cat.award = cat.award || []).push(c + ':' + x.id + (x.shop ? '=sold' : ''));
       if (x.shop && ['outfit', 'shoes', 'acc'].indexOf(c) < 0) cat.oldPaid.push('never-sold ' + c + ':' + x.id); }));
     SC.setPlayer(Object.assign({}, D, { hair: 'bob' })); SC.setPlayer(D); SC.playerShot({ look: { hair: 'bob' }, frame: 'full' }); for (let w = 0; w < 6; w++) SC.debugStep(0.1);   /* 첫 프레임 · 첫 그림까지 데운 뒤를 기준으로 */
     const info0 = { programs: SC.renderer.info.programs.length, geos: SC.renderer.info.memory.geometries, tex: SC.renderer.info.memory.textures };
@@ -92,10 +93,11 @@ function ok(c, m) { if (c) { pass++; console.log('  ok   ' + m); } else { fail++
   });
   console.log('== 내 캐릭터 새 부품 (' + r.counts + ')');
   ok(!r.cat.oldPaid.length && !r.cat.badTag.length && r.cat.defs && r.cat.keys, '목록: 예전 id · 팔지 않는 갈래는 shop null · 낱말은 정해진 것만 · 기본 모습 둘이 목록에 있고 열쇠 차례가 같다 ' + JSON.stringify([r.cat.oldPaid, r.cat.badTag]));
+  ok((r.cat.award || []).join() === 'acc:paper_crown,acc:emperor_cape', '11-24 주간 상 (종이 왕관 · 황제 망토) 은 장식에 있고 가게에서 안 판다 (shop null) ' + JSON.stringify(r.cat.award));
   ok(r.cat.paid.length === 10 && r.cat.paid.every(x => { const p = +x.split('=')[1]; return p >= 4 && p <= 36; }), '가게 물건 10 (조개 4~36): ' + r.cat.paid.join(' '));
   ok(!r.eyes.white.length, '눈 10 × 눈 색 6: 눈 둘레에 흰색 픽셀 없음 ' + JSON.stringify(r.eyes.white.slice(0, 6)));
   ok(r.n === 72 && r.uniq >= 60 && !r.holes.length && !r.empty.length, '머리 × 몸 × 옷 ' + r.uniq + ' 조합 (앞 · 뒤): 구멍 없음 · 빈 그림 없음 ' + JSON.stringify(r.holes.slice(0, 8)));
-  ok(r.diff.body && r.diff.brow === 4 && r.diff.eyes === 10 && r.diff.hair === 13 && r.diff.outfit === 17 && r.diff.acc === 12 && r.diff.shoes === 6, '몸 둘 · 눈썹 넷 · 눈 열 · 머리 열셋 · 옷 열일곱 · 장식 열둘 · 신발 여섯이 서로 다른 그림 ' + JSON.stringify(r.diff));
+  ok(r.diff.body && r.diff.brow === 4 && r.diff.eyes === 10 && r.diff.hair === 13 && r.diff.outfit === 17 && r.diff.acc === 14 && r.diff.shoes === 6, '몸 둘 · 눈썹 넷 · 눈 열 · 머리 열셋 · 옷 열일곱 · 장식 열넷 (11-24 주간 상 둘) · 신발 여섯이 서로 다른 그림 ' + JSON.stringify(r.diff));
   ok(r.info1.programs === r.info0.programs && r.info1.geos === r.info0.geos && r.info1.tex === r.info0.tex, '부품을 다 입혀 봐도 프로그램 · 지오메트리 · 텍스처 수 그대로 ' + JSON.stringify([r.info0, r.info1]));
   ok(r.dy, '새 옷 · 신발 · 장식은 전부 물들일 수 있다 (바탕색 표에 있다)');
   ok(!r.tagBad.length && r.varied.length >= 1 && r.beret.join() === 'c-green,c-red', '색 꼬리표 = 그려진 색 (머리 색 6 × 피부색 5, 옷 · 신발 · 장식 전부): 모습에 따라 색이 바뀌는 물건 ' + r.varied.join(' · ') + ' · 밤갈색 머리 베레모 = 초록 · 금발 = 빨강 ' + JSON.stringify(r.tagBad.slice(0, 6)));

@@ -8515,6 +8515,20 @@ async function scenarioPlayer7(browser) {
   ok(lk.n === 5 && lk.ids === 'sailor,fisher,windbreak,cardigan,suit' && lk.price === '' && lk.pics === 0 && lk.name === '세일러' && lk.mark && lk.h >= 44 && !lk.title && !lk.emoji, 'P7 옷장 옷 갈래: 잠긴 칸 다섯 — 11-24 (주인: "미리 보여주지 말고 이름만") 그림 · 값 없이 이름과 자물쇠 표시 · 44px 이상 · 이모지 없음 ' + JSON.stringify(lk));
   ok(lk2.toast === '마을 옷가게에서 팔아.' && lk2.outfit === 'octee', 'P7 잠긴 칸을 누르면 한 줄 («' + lk2.toast + '») · 옷은 그대로');
   ok(lk2.own === true && lk2.left === 4 && lk2.wear === true && lk2.now === 'suit' && /^\d{4}-\d\d-\d\d$/.test(lk2.key || '') && lk2.unknown === false, 'P7 ownItem 뒤: 잠긴 칸 넷 · 입을 수 있다 · S.user.owned 에 산 날 · 모르는 물건은 false ' + JSON.stringify(lk2));
+  /* 11-24 주간 상 (종이 왕관 · 황제 망토): 받기 전엔 장식 갈래의 잠긴 칸 (한 줄은 달리기 상) · 받으면 옷장을 열 때 내 옷장에 들어와 입을 수 있다 (문어의 답과 따로) */
+  var aw = await page.evaluate(async function () {
+    document.getElementById('look-tab-acc').click(); await new Promise(function (r) { setTimeout(r, 200); });
+    var q = function () { return [].map.call(document.querySelectorAll('#look-items .look-tile.locked'), function (b) { return b.dataset.id; }).join(); }, before = q();
+    document.querySelector('#look-items .look-tile[data-id="emperor_cape"]').click(); await new Promise(function (r) { setTimeout(r, 100); });
+    var t0 = document.getElementById('toast').textContent, acc0 = APP.state.settings.player.acc;
+    localStorage.setItem('ppolppol_runner', JSON.stringify({ net: { awards: { paper_crown: [], emperor_cape: ['2026-W47'] } } }));
+    document.getElementById('look-sheet').close(); APP.openLook(); document.getElementById('look-tab-acc').click(); await new Promise(function (r) { setTimeout(r, 200); });
+    var after = q(), key = (APP.state.user.owned || {})['acc:emperor_cape'];
+    document.querySelector('#look-items .look-tile[data-id="emperor_cape"]').click(); await new Promise(function (r) { setTimeout(r, 100); });
+    var acc1 = APP.state.settings.player.acc; localStorage.removeItem('ppolppol_runner'); APP.setPlayerPart('acc', acc0); document.getElementById('look-tab-outfit').click();
+    return { before: before, toast: t0, acc0: acc0, after: after, key: key, acc1: acc1 };
+  });
+  ok(/paper_crown/.test(aw.before) && /emperor_cape/.test(aw.before) && aw.toast === '다락방 달리기 주간 상으로 받아.' && aw.acc0 !== 'emperor_cape' && /paper_crown/.test(aw.after) && !/emperor_cape/.test(aw.after) && /^\d{4}-\d\d-\d\d$/.test(aw.key || '') && aw.acc1 === 'emperor_cape', 'P7 주간 상: 받기 전엔 잠긴 칸 («' + aw.toast + '») · 받으면 내 옷장에 (받은 날) 들어와 입을 수 있다 ' + JSON.stringify(aw));
   await page.reload();
   await page.waitForFunction(function () { return window.APP && APP.state && APP.scene; }, null, { timeout: 20000 });
   var re = await page.evaluate(function () { var k = 'ppolppol_v2', o = JSON.parse(localStorage.getItem(k)); return { outfit: APP.state.settings.player.outfit, owned: APP.isOwned('outfit', 'suit'), saved: o.user && o.user.owned && !!o.user.owned['outfit:suit'] }; });
