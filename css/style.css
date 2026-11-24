@@ -2158,7 +2158,7 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
 .ct-place { font-size: 20px; }
 :root[data-font="pixel"] .ct-place, :root[data-font="pixel"] .ct-line .shell-amt { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 36px; }
 /* 시스템 글꼴 (픽셀 글꼴 끔) 에서도 콘테스트 안의 글은 16 px 이상 (단추 · 조개 수 · 지갑 · 간판) — 픽셀 글꼴은 --fs-* 그대로 */
-:root:not([data-font="pixel"]) :is(.contest-sheet, .ct-world) :is(.btn, .shell-amt, .ct-purse, .ct-sign) { font-size: 16px; }
+:root:not([data-font="pixel"]) :is(.contest-sheet, .ct-world) :is(.btn, .shell-amt, .ct-purse, .ct-sign, .ct-title, .ct-closed, .ct-pts, .ct-jname, .ct-rank, .ct-total) { font-size: 16px; }
 .ct-rule { font-size: 16px; font-weight: 500; color: #6a5a5a; padding: 0 6px; background: var(--ct-paper); box-shadow: 0 0 0 1px var(--ct-ink); white-space: nowrap; }
 :root[data-font="pixel"] .ct-rule { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; box-shadow: 0 0 0 2px var(--ct-ink); }
 /* 단상 (무대 위): 금 · 은 · 동 띠가 있는 계단, 4등은 낮은 발판 */

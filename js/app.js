@@ -7223,6 +7223,14 @@ var APP = (function () {
     var sc = $('scene'), go = $('btn-go'); if (!el || !sc) return;
     var sr = sc.getBoundingClientRect(), gr = go && go.offsetParent ? go.getBoundingClientRect() : null;
     el.style.bottom = (gr && gr.top < sr.bottom && gr.bottom > sr.top ? Math.round(sr.bottom - gr.top) + 10 : 10) + 'px';
+    ctDockExit(el);
+  }
+  function ctDockExit(el) {   /* 공연장 안: 카드는 늘 장면 위쪽 (상태 줄 아래). 아래쪽의 '밖으로' 자리와 단상 위 내 캐릭터를 덮지 않고, 대사창은 카드를 피해 아래로 간다 (등수와 상관없이) */
+    if (!el || !ctInHall()) return;
+    var sc = $('scene'), top = 10; if (!sc) return;
+    var sr = sc.getBoundingClientRect();
+    ['status', 'brain-tag', 'btn-bag'].forEach(function (id) { var o = $(id); if (!o || o.hidden || !o.offsetParent) return; var q = o.getBoundingClientRect(); if (q.bottom > sr.top && q.top < sr.top + sr.height / 3) top = Math.max(top, Math.round(q.bottom - sr.top) + 8); });   /* 장면 위에 얹힌 상태 줄 · '데모' 표시 · 조개 칩 아래로 */
+    el.style.bottom = 'auto'; el.style.top = top + 'px'; el.classList.add('top');
   }
   function ctCardClear() { var host = ctHost(); if (host) Array.prototype.slice.call(host.querySelectorAll('.ct-wcard, .ct-whud')).forEach(function (el) { el.remove(); }); }
   function ctPlacClear() { var host = ctHost(); if (host) Array.prototype.slice.call(host.querySelectorAll('.ct-wplac')).forEach(function (el) { el.remove(); }); }
@@ -7245,7 +7253,7 @@ var APP = (function () {
   }
   function ctResultCard(e) {   /* 작은 결과 카드: 리본 (등수 · 조개 · '채점 규칙') · 닫기. 단상과 팻말은 장면에 있다 */
     var line = h('p', { class: 'ct-line', id: 'ct-w-line', tabindex: '-1' }, [h('span', { class: 'ct-place', text: CT.fill(CT.TEXT.rank, { n: e.rank }) }), shellAmt(CT.shellsOf(e)), h('span', { class: 'ct-rule', text: CT.TEXT.rule })]);
-    ctWorldCard('result', [line, ctWBtn('ct-w-close', CT.TEXT.close, '', function () { ctCardClear(); })]);   /* 리본과 닫기를 한 줄에 (무대를 덜 가리게) */
+    ctWorldCard('result', [line, ctWBtn('ct-w-close', CT.TEXT.close, '', function () { ctCardClear(); ctBack(); })]);   /* 리본과 닫기를 한 줄에 (무대를 덜 가리게) */
     var st = ctStageInfo(); if (st) ctPlacards(st, e, 3);
     var d = $('contest-sheet'); if (d && d.open && !ctRun) ctRender();   /* 뒷길 시트가 열려 있었으면 그것도 결과로 */
   }
@@ -7281,6 +7289,11 @@ var APP = (function () {
     Promise.resolve(A.goInside('hall')).then(function (ok) { if (ok) ctSceneSync(true); });
     return true;
   }
+  function ctBack() {   /* 결과 카드를 닫으면 쇼 전으로: 내 캐릭터는 단상에서 대기 자리로 내려오고 화면도 거기로 (자리 단추가 다시 보이게). 경쟁자 · 팻말은 그날 단상에 남는다 */
+    var st = ctStageInfo(); if (!st || !ctInHall() || !Array.isArray(st.wait)) return;
+    if (typeof scene.playerPlace === 'function') ctSceneCall('playerPlace', st.wait[0], st.wait[1], 0);
+    ctFocus(st.wait[0], st.wait[1], 1.0);
+  }
   function ctFocus(x, z, y) { if (ctInHall()) ctSceneCall('roomFocus', x, z, y); }   /* W: 그 자리를 화면 위쪽 3분의 1 에 (팻말 · 단상을 보여 줄 때) */
   function ctLiveEnter(ev) {
     if (ev && ev.isTrusted && ev.detail !== 0 && tapTime(ev) - ctOpenedAt < SHEET_SETTLE) return;
@@ -7302,16 +7315,17 @@ var APP = (function () {
     (function run() {
       var seq = Promise.resolve().then(function () { return ctWaitMs(700); });
       [0, 1, 2].forEach(function (k) {   /* 경쟁자 셋이 차례로 길을 지난다 */
-        st.path.forEach(function (pt, pi) { seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'walk', k + 1); var nx = st.path[pi + 1] || st.path[pi - 1] || pt; ctSceneCall('npcPlace', 'rival' + k, pt[0], pt[1], Math.atan2(nx[0] - pt[0], nx[1] - pt[1])); return ctWaitMs(260); }); });
+        if (typeof scene.npcWalk === 'function') seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'walk', k + 1); return ctWithin(ctSceneCall('npcWalk', 'rival' + k, st.path, { speed: 1.4 }), 6000); });   /* V: 걸음으로 길을 지난다 */
+        else st.path.forEach(function (pt, pi) { seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'walk', k + 1); var nx = st.path[pi + 1] || st.path[pi - 1] || pt; ctSceneCall('npcPlace', 'rival' + k, pt[0], pt[1], Math.atan2(nx[0] - pt[0], nx[1] - pt[1])); return ctWaitMs(260); }); });
         seq = seq.then(function () { if (!live()) return; ctSceneCall('npcPlace', 'rival' + k, null); return ctWaitMs(120); });
       });
       seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'walk', 4); return ctWalk(st.path, 7000); })   /* 내 차례: 걷고 · 돌고 · 선다 */
         .then(function () { if (!live()) return; ctLiveSet(L, 'pose', 0); return ctPose('twirl'); })
         .then(function () { if (!live()) return; return ctPose('pose'); });
       [0, 1, 2].forEach(function (i) {   /* 심사 팻말 하나씩 + 센 수를 말하는 대본 */
-        seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'judge', i + 1); if (i === 0) ctFocus(st.judges[1][0], st.judges[1][1], 1.0); ctPlacards(st, e, i + 1); ctSayAs(CT_JUDGES[i], 'contest.judge', { n: ctJudgeN(e, i) }); return ctWaitMs(1500); });
+        seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'judge', i + 1); if (i === 0) ctFocus(st.judges[1][0], st.judges[1][1], 2.2);   /* 맞춘 점을 머리 위로 올려 잡아 팻말이 위쪽 대사창 아래에 오게 */ ctPlacards(st, e, i + 1); ctSayAs(CT_JUDGES[i], 'contest.judge', { n: ctJudgeN(e, i) }); return ctWaitMs(1500); });
       });
-      seq.then(function () { if (!live()) return; ctLiveSet(L, 'podium', 0); ctFocus(st.podium[0][0], st.podium[0][1], 1.0); ctPodiumPlace(st, e); ctSayAs(CT_JUDGES[0], 'contest.podium'); return ctPose('cheer', 1200); })
+      seq.then(function () { if (!live()) return; ctLiveSet(L, 'podium', 0); ctFocus(st.podium[0][0], st.podium[0][1], 2.4); ctPodiumPlace(st, e);   /* 단상 위 캐릭터가 대사창 아래에 보이게 */ ctSayAs(CT_JUDGES[0], 'contest.podium'); return ctPose('cheer', 1200); })
         .then(function () { if (ctL === L) ctLiveEnd(L); });
     })();
   }

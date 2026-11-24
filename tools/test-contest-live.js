@@ -396,6 +396,11 @@ async function main() {
   await page.waitForFunction(function () { return !APP.contestLive; }, null, { timeout: 30000 });
   r = await page.evaluate(function () { return { focus: window.__sc.filter(function (c) { return c[0] === 'focus'; }).length, plac: document.querySelectorAll('#ct-world .ct-wplac').length, vis: Array.prototype.filter.call(document.querySelectorAll('#ct-world .ct-wplac'), function (p) { return p.style.visibility !== 'hidden'; }).length }; });
   check(r.focus >= 2 && r.plac === 3 && r.vis === 3, '공연장 쇼: 팻말 · 단상 때 화면을 맞춤 · 팻말 셋이 보임');
+  check(await page.evaluate(function () { var c = document.getElementById('ct-wcard'); return !!c && c.classList.contains('top') && c.style.bottom === 'auto'; }), '공연장 안의 결과 카드는 장면 위쪽 (아래의 밖으로 · 단상 위 캐릭터를 안 덮게)');
+  await page.evaluate(function () { window.__sc.length = 0; });
+  await page.click('#ct-w-close');
+  r = await page.evaluate(function () { return { me: window.__sc.filter(function (c) { return c[0] === 'me'; }), focus: window.__sc.filter(function (c) { return c[0] === 'focus'; }) }; });
+  check(r.me.length === 1 && r.me[0][1] === 1 && r.me[0][2] === 1 && r.me[0][3] === 0 && r.focus.length === 1 && r.focus[0][1] === 1 && r.focus[0][2] === 1, '결과 카드를 닫으면 쇼 전으로: 대기 자리로 내려오고 화면도 거기로 ' + JSON.stringify(r));
   check(page._errs.length === 0, '오류 없음');
   await ctx.close();
   /* 뒷길: 움직임 줄이기 · 무대 함수 없음 → 시트 */
@@ -417,6 +422,10 @@ async function main() {
   ctx = await context(browser, SAT, rec);
   page = await open(ctx); await page.evaluate(SCENE_STUB);
   function small() { return page.evaluate(function () { var bad = []; ['contest-sheet', 'ct-world'].forEach(function (id) { var root = document.getElementById(id); if (!root) return; var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); while (w.nextNode()) { var t = w.currentNode, el = t.parentElement; if (!t.nodeValue.trim() || !el || el.closest('.sr-only')) continue; var r = el.getBoundingClientRect(); if (r.width < 1 || getComputedStyle(el).visibility === 'hidden') continue; var f = parseFloat(getComputedStyle(el).fontSize); if (f < 16) bad.push(t.nodeValue.trim().slice(0, 8) + ' ' + f); } }); return { font: document.documentElement.dataset.font || '', bad: bad }; }); }
+  await page.evaluate(function () { APP.contestStageTap(); });
+  await page.waitForFunction(function () { return !!document.getElementById('ct-w-go'); }, null, { timeout: 8000 }); r = await small();
+  check(r.font !== 'pixel' && r.bad.length === 0, '픽셀 글꼴 끔 · 장면 참가 카드 (주제 제목 · 단추): 16 px 아래 글자 없음 ' + JSON.stringify(r));
+  await page.click('#ct-w-close');
   await page.evaluate(function () { APP.openContest(); }); r = await small();
   check(r.font !== 'pixel' && r.bad.length === 0, '픽셀 글꼴 끔 · 시트 (나가기 전): 16 px 아래 글자 없음 ' + JSON.stringify(r));
   await page.evaluate(function () { APP.contestEnter(); APP.contestSkip(); }); r = await small();
