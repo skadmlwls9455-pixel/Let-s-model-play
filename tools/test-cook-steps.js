@@ -228,6 +228,30 @@ section('the kinds, one by one');
   check(K.betweenOf('swipe') === 600 && K.betweenOf('tap') === 400 && K.betweenOf('flip') === 1000, 'betweenOf: the new kinds\' own pauses, the old ones as before');
 })();
 
+section('r5: the easier judgement after a long stall (input e), pot hashes pinned');
+(function () {
+  check(js(NEW.map(function (id) { return K.tuneOf(id); })) === js([3756369934, 1300762558, 1212280296, 634135231, 3294457461]), 'r5: the pot hashes of the five dishes are unchanged (EASE lives outside the hashed numbers)');
+  function at(id, si) { var ev = touchSteps(id, 2), run = si ? K.resumeRun(K.potOf(K.simulate(id, 2, ev.slice(0, si), { run: true }).run, 0)) : K.createRun(id, 2); K.tick(run, 0); return run; }
+  var run = at('jeon2', 1); K.input(run, { t: 400, k: 'e' });
+  check(run.st.ease === true && run.st.need === 540 && run.st.progress === 0, 'r5 stir: e halves the turns that are left (1080 -> 540 deg), progress stays');
+  run = at('jeon2', 2); K.input(run, { t: 300, k: 'd', x: 100, y: 100, id: 1 }); K.input(run, { t: 900, k: 'u', x: 100, y: 100, id: 1 }); K.input(run, { t: 1000, k: 'e' });
+  check(run.st.ms === 600 + Math.ceil(1800 * 0.5) && !run.st.done, 'r5 pour: e adds half of what is left (' + run.st.ms + ' ms banked)');
+  run = at('kkochi2', 0); K.input(run, { t: 400, k: 'e' });
+  check(run.st.need === Math.ceil(48 * 0.4) && run.st.ease, 'r5 rub: e asks for 40 % of the food');
+  run = at('gyeran', 3); K.input(run, { t: 400, k: 'e' });
+  check(run.st.need === 2 && run.st.ease, 'r5 swipe: e asks for 2 strokes instead of 3');
+  run = at('jumeokbap2', 0); K.input(run, { t: 400, k: 'e' }); var it = run.st.items[0], sl = run.st.slots[0];
+  K.input(run, { t: 500, k: 'd', x: it.hx, y: it.hy, id: 2 }); K.input(run, { t: 520, k: 'm', x: sl.x + 45, y: sl.y, id: 2 });
+  check(run.st.n === 1, 'r5 drag: after e an item 45 px from its slot goes on (28 before)');
+  run = at('gyeran', 0); var before = js(run.st); K.input(run, { t: 400, k: 'e' });
+  check(js(run.st) === before, 'r5 tap (no ease): e changes nothing');
+  var ev = touchSteps('jeon2', 9); ev[1] = [{ t: 16000, k: 'e' }].concat(ev[1].map(function (e) { return { t: e.t + 16000, k: e.k, x: e.x, y: e.y, p: e.p, id: e.id }; }));
+  var runs = [30, 60, 120, 240].map(function (hz) { var o = K.simulate('jeon2', 9, ev, { cadence: hz, run: true }); return js([o.done, o.look, o.run.tags]); });
+  check(runs.every(function (x) { return x === runs[0]; }) && JSON.parse(runs[0])[0] === true, 'r5: a run with e replays the same at four tick rates and finishes');
+  var lk = K.simulate('jeon2', 9, ev).look;
+  check(js(lk) === js(K.normLook('jeon2', lk)), 'r5: an eased step keeps the recipe\'s look (turns 3 stays 3)');
+})();
+
 section('words and static rules');
 (function () {
   var dec = new TextDecoder('euc-kr'), ks = {};

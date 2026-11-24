@@ -16,6 +16,8 @@
  *   (tick-then-input), so calling tick yourself before it is allowed and changes nothing (tick is idempotent).
  *   ev = { t: vis ms, k: 'd'|'m'|'u'|'c'|'b', x, y: logical px, p: 't'|'m'|'n', id: pointerId }.
  *   k 'c' with no id cancels every open pointer (send it on hidden and on shown again). k 'b' = verb button.
+ *   11-24 r5: k 'e' = ease: after a long stall the live half asks the step to judge the same gesture more kindly (a kind
+ *   with an ease() halves what is left to do). It is an input like the others, so a replay gives the same run.
  *   The sim applies: the TUNE.gateMs gate for new pointers and 'b'; only pointers pressed in this step count;
  *   flip and slice follow the first finger only; tap counts every pointerdown. The host applies TUNE.edgeCss.
  *   rec = { si, t (step clock), k, x, y, p, id } or null. ?rec=1: push rec into window.__cookRec =
@@ -592,7 +594,7 @@ var COOK = (function () {
   function input(run, ev) {
     if (!run || typeof run !== 'object' || !run.st || !ev || typeof ev !== 'object') return null;
     var k = ev.k;
-    if (k !== 'd' && k !== 'm' && k !== 'u' && k !== 'c' && k !== 'b') return null;
+    if (k !== 'd' && k !== 'm' && k !== 'u' && k !== 'c' && k !== 'b' && k !== 'e') return null;   /* 11-24 r5: 'e' = the easier judgement after a long stall */
     var x = num(ev.x), y = num(ev.y);
     if ((k === 'd' || k === 'm' || k === 'u') && (x === null || y === null)) return null;
     var t = num(ev.t); if (t === null) t = run.t === null ? 0 : run.t;
@@ -614,6 +616,8 @@ var COOK = (function () {
     } else if (k === 'c') {
       if (all) { K.cancel(st, null); run.ptr = { live: [], prim: null }; }
       else if (ptr.live.indexOf(id) >= 0) { K.cancel(st, s); drop(ptr.live, id); if (ptr.prim === id) ptr.prim = null; }
+    } else if (k === 'e') {
+      if (typeof K.ease === 'function' && !st.done) K.ease(st, rel);   /* the same gesture, judged more kindly (never a skip) */
     } else {
       if (rel < TUNE.gateMs) return rec;
       K.alt(st, rel);
@@ -965,7 +969,8 @@ var COOK = (function () {
   var FOOD_X = TUNE.food.batter.cx, FOOD_Y = TUNE.food.batter.cy;   /* food centre on the stage (art px) */
   var STATION = { tap: 'counter', flip: 'stove', slice: 'board', stir: 'counter', pour: 'stove', drag: 'counter', rub: 'counter', swipe: 'stove', bake: 'counter' };
   var END = { BIG: 80, BIG_S: 72, SMALL: 60, GAP: 12, ART: 20 };   /* 11-21 the two end buttons (CSS px; BIG_S below 340 wide), their 20 x 20 pictures */
-  var HAND2 = { circle: 1, hold: 1, carry: 1, rub: 1 };            /* ghost hands drawn by COOK_ART.steps.hand2 (18 frames a loop) */
+  var HAND2 = { circle: 1, hold: 1, carry: 1, rub: 1 };
+  var IDLE_GLOW = 1500;   /* 11-24 r5: ms without progress before the one thing to touch starts to breathe (a 1 px outline) */            /* ghost hands drawn by COOK_ART.steps.hand2 (18 frames a loop) */
   var BOOK_MS = { swipe: 24, hand: 600 };
   /* 11-24 r5 the plate screen: the two places to put the dish (stage art px, their centres), how near counts, how far a press
      must move to lift the dish, and when the first-time hand shows the way */
@@ -1200,12 +1205,26 @@ var COOK = (function () {
         L.fx++; fxAdd({ k: 'hit' }, e.si); buzz('tap');
         d = st && st.kind === 'tap' && !isV2(run) && st.dents[e.i];   /* 11-21: a book dish's marks are the eggs or the rice's sides */
         burst('drop', d ? st.box[0] + d[0] : e.x >> 1, d ? st.box[1] + d[1] : e.y >> 1, 3, 6, 2);
+        if (isV2(run)) {   /* 11-24 r5: taps in an even beat (0.15 to 0.5 s apart) crack and press with a little more spark */
+          if (L.beatAt != null && L.lastT - L.beatAt >= 150 && L.lastT - L.beatAt <= 500) { burst('spark', e.x >> 1, (e.y >> 1) - 4, 2, 3, 2); L.stats.good++; }
+          L.beatAt = L.lastT;
+        }
         break;
       /* 11-21 the new kinds: a quarter turn and a placed item buzz like a tap, a roll like a flip (owner list) */
-      case 'turn': L.fx++; fxAdd({ k: 'flash' }, e.si); buzz('tap'); if (st) burst('drop', st.cx >> 1, st.cy >> 1, 1, 2, 3); break;
+      case 'turn':   /* 11-24 r5: a steady stir swirls; a frantic one (a quarter turn in under 70 ms) splashes over the rim, and still counts */
+        L.fx++; fxAdd({ k: 'flash' }, e.si); buzz('tap');
+        if (st) {
+          var fast = L.turnAt != null && L.lastT - L.turnAt < 70;
+          if (fast) { burst('drop', (st.cx >> 1) + (e.i & 1 ? 22 : -22), (st.cy >> 1) - 6, 2, 3, 4); L.stats.sloppy++; } else burst('drop', st.cx >> 1, st.cy >> 1, 1, 2, 3);
+        }
+        L.turnAt = L.lastT; break;
       case 'pour': L.fx++; break;
       case 'fill': L.fx++; fxAdd({ k: 'flash' }, e.si); break;
-      case 'lift': case 'back': L.fx++; break;
+      case 'lift': L.fx++; break;
+      case 'back':   /* 11-24 r5: let go away from its place: the item slides home (no penalty), from where it was let go */
+        L.fx++;
+        if (L.upAt && !L.reduced) { L.glide2 = { i: e.i, x: L.upAt[0], y: L.upAt[1], at: L.lastT }; L.stats.sloppy++; }
+        break;
       case 'place':
         L.fx++; fxAdd({ k: 'hit' }, e.si); buzz('tap');
         if (st && st.slots && st.slots[e.k]) burst('drop', st.slots[e.k].x >> 1, st.slots[e.k].y >> 1, 2, 4, 2);
@@ -1253,7 +1272,7 @@ var COOK = (function () {
     var run = L.run, r = recipe(run.recipe);
     L.prng = mulberry32(fxSeed(run.seed, run.si));
     if (run.si === 0 || e.kind === 'flip') { L.landAt = null; L.landBuzz = null; }   /* a resumed dish can start at the flip */
-    L.parts = []; L.dust = []; L.finger = null; L.hint = null; L.demoAt = -1; L.nudges = 0; L.taught = 0;
+    L.parts = []; L.dust = []; L.finger = null; L.hint = null; L.demoAt = -1; L.nudges = 0; L.taught = 0; L.beatAt = null; L.turnAt = null; L.glide2 = null; L.stroke = null;
     L.titleUntil = (run.t0 != null ? run.t0 : L.lastT) + TUNE.titleMs;   /* no title any more: the demo hand still waits for it */
     if (L.noSlide) { L.noSlide = false; return; }   /* open, resume and again place the station themselves */
     var prev = r && e.si > 0 ? r.steps[e.si - 1] : null, cur = r && r.steps[e.si];
@@ -1565,6 +1584,7 @@ var COOK = (function () {
     L.rect = D.cv.getBoundingClientRect();
     var q = logical(e);
     L.down[e.pointerId] = true;
+    var st0 = L.run.st; L.stroke = { id: e.pointerId, x: q.x / 2, y: q.y / 2, si: L.run.si, p: st0.progress, n: st0.n };
     send({ t: simT(evAt(e)), k: 'd', x: q.x, y: q.y, p: ptype(e), id: e.pointerId });
     if (L) follow(e.pointerId, q);
   }
@@ -1585,8 +1605,38 @@ var COOK = (function () {
     if (!L || !L.down[e.pointerId]) return;
     delete L.down[e.pointerId];
     var q = logical(e);
+    L.upAt = [q.x / 2, q.y / 2];
     send({ t: simT(evAt(e)), k: 'u', x: q.x, y: q.y, p: ptype(e), id: e.pointerId });
-    if (L) { L.finger = null; L.dirty = true; }
+    if (L) { sloppy(q); L.finger = null; L.dirty = true; }
+  }
+  /* 11-24 r5: a stroke that did nothing still leaves a mark, never a penalty: a cut beside the guide scratches the board, a
+     sideways stroke makes the roll wobble */
+  function sloppy(q) {
+    var k = L.stroke, run = L.run, st = run && run.st; L.stroke = null;
+    if (!k || !st || run.si !== k.si || run.phase !== 'step') return;
+    var dx = q.x / 2 - k.x, dy = q.y / 2 - k.y, far = Math.abs(dx) + Math.abs(dy);
+    if (st.kind === 'slice' && isV2(run) && st.progress === k.p && far >= 12) {
+      for (var i = 0; i <= 10; i++) L.dust.push([Math.round(k.x + dx * i / 10), Math.round(k.y + dy * i / 10)]);
+      if (L.dust.length > 44) L.dust.splice(0, L.dust.length - 44);
+      L.stats.sloppy++;
+    } else if (st.kind === 'swipe' && st.n === k.n && Math.abs(dx) >= 12) { fxAdd({ k: 'bump' }, run.si); L.stats.sloppy++; }
+  }
+  function glideNow(t) {   /* the item sliding home: { i, x, y } (art px) for 3 frames, else null */
+    var g = L.glide2; if (!g || !L.run || !L.run.st || !L.run.st.items) return null;
+    var k = Math.floor((t - g.at) / FMS), it = L.run.st.items[g.i];
+    if (k >= 3 || !it) { L.glide2 = null; return null; }
+    return { i: g.i, x: g.x + (((it.hx >> 1) - g.x) * (k + 1)) / 4, y: g.y + (((it.hy >> 1) - g.y) * (k + 1)) / 4 };
+  }
+  /* 11-24 r5: no progress for EASE ms: the step is asked to judge the same gesture more kindly (input 'e', never a skip), and
+     the hand shows once more */
+  function checkEase(run) {
+    var X = EXT && EXT.EASE, st = run.st; if (!X || !st || st.done || Object.keys(L.down).length) return;
+    var key = run.id + '|' + run.si;
+    if (L.eased === key || (run.t - run.t0) - st.prog < X.ms) return;
+    L.eased = key;
+    if (typeof KIND[st.kind].ease === 'function') { send({ t: simT(), k: 'e' }); L.stats.ease++; }
+    if (!L || !L.run || L.run.si !== run.si || run.st.done) return;
+    L.hintKey = null; startHand(st.kind === 'flip' ? (st.heat ? 'flick' : 'tap') : st.kind === 'bake' ? 'tap' : st.kind, 'idle');
   }
   function onCancel(e) {   /* pointercancel keeps all progress (never a penalty) */
     if (L && L.screen === 'reveal') { plateUp(e, true); return; }
@@ -1864,6 +1914,7 @@ var COOK = (function () {
     if (L.screen === 'step' && run && run.phase === 'step') {
       if (!L.titleUntil && L.demoAt !== run.si) maybeDemo();
       checkIdle(run);
+      if (L && L.run === run) checkEase(run);
     }
     if (L.hint && t - L.hint.at >= L.hint.dur) { if (L.hint.seen) markSeen(L.hint.seen); L.hint = null; L.dirty = true; }
     if (L.landBuzz != null && t >= L.landBuzz) { L.landBuzz = null; buzz('flip'); }   /* the landing frame (arc frame 3) */
@@ -1934,7 +1985,9 @@ var COOK = (function () {
       if (r2 && r2.v2 && P && P.stepScene) {   /* 11-21 a book dish: one painter draws every step from the recipe's own data */
         if (run.phase === 'reveal') P.revealScene(b, { id: run.recipe, look: lk, t: fx.t, still: L.reduced });
         else P.stepScene(b, { step: r2.steps[Math.min(run.si, r2.steps.length - 1)], st: st, band: lk.band, J: { flash: J.flash, squash: J.squash, bump: J.bump, arc: J.arc, cut: c },
-          hit: st.kind === 'tap' ? lastHit(st, t) : null, finger: L.finger, f: f, still: L.reduced });
+          hit: st.kind === 'tap' ? lastHit(st, t) : null, finger: L.finger, f: f, still: L.reduced,
+          idle: run.phase === 'step' && !st.done && !L.hint && !Object.keys(L.down).length && (run.t - run.t0) - st.prog >= IDLE_GLOW,   /* 11-24 r5: the thing to touch breathes */
+          dust: L.dust, glide: glideNow(t) });
         return true;
       }
       if (run.phase === 'reveal') {
@@ -2164,7 +2217,7 @@ var COOK = (function () {
         fx: 0, fxq: [], parts: [], dust: [], prng: null, hint: null, hintKey: null, demoAt: -1, titleUntil: 0, finger: null,
         down: {}, rect: null, sndAt: {}, said: [], note: null, auto: null, revealAt: 0, chipAt: 0, againAt: 0, chipOn: false,
         downAt: 0, rowPress: false, nudges: 0, taught: 0, landAt: null, landBuzz: null, nextAt: null, noSlide: false, slide: null,
-        stats: { parts: 0, squash: 0, shake: 0, arc: 0, hints: 0, idle: 0, flips: 0, teach: 0, rowPress: 0, slides: 0, potOld: 0, turns: 0, serve: 0, buzz: { tap: 0, flip: 0, cut: 0 } },
+        stats: { parts: 0, squash: 0, shake: 0, arc: 0, hints: 0, idle: 0, flips: 0, teach: 0, rowPress: 0, slides: 0, potOld: 0, turns: 0, serve: 0, buzz: { tap: 0, flip: 0, cut: 0 }, good: 0, sloppy: 0, ease: 0 },
         frames: 0, err: 0, dirty: true, buf: art().blank(ART_W, ART_H), view: null, img: null, bgc: [], raf: 0,
         k: 1, css: 1, dpr: 1, W: 0, H: 0, ox: 0, oy: 0, stride: 8, hudB: 0, chipTop: 0, safe: [0, 0, 0, 0], vw: 0, vh: 0 };
       if (L.palette && /^[a-z0-9-]+$/.test(L.palette)) D.dlg.setAttribute('data-palette', L.palette); else D.dlg.removeAttribute('data-palette');
