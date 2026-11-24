@@ -106,6 +106,10 @@ ok(some('clothes', 'contest.open', { theme: '바다' }, /바다/), '주제를 �
 ok(rotates('clothes', 'contest.open', { theme: '바다' }) >= 3 && rotates('cafe', 'cafe.stamp', { n: 2 }) >= 3, '값을 넘겨도 같은 줄만 되풀이하지 않는다');
 var t2 = NPC.line('goods', 'contest.result', { shells: 7 }, 3);
 ok(t2 && /7개/.test(t2.bubbles.join('')), '조개 수를 넘기면 그 수를 말한다');
+/* 11-24: 심사 문어마다 제가 센 것을 이름으로 말한다 (시침 = 주제 꼬리표 · 모아 = 주제 색 · 느루 = 같은 결) */
+[['clothes', /주제 꼬리표/], ['goods', /주제 색/], ['cafe', /결/]].forEach(function (j) {
+  for (var i = 0; i < 6; i++) { var l = NPC.line(j[0], 'contest.judge', { n: 2 }, i); ok(j[1].test(l.bubbles.join('')) && /2개/.test(l.bubbles.join('')), j[0] + ' 심사 줄은 제가 센 것을 이름으로: ' + l.bubbles.join(' ')); }
+});
 ok(some('cafe', 'cafe.gift', { dish: '딸기 케이크' }, /딸기 케이크/), '요리 이름');
 ok(!/\{|undefined|null/.test(NPC.line('cafe', 'cafe.gift', { dish: '' }, 1).bubbles.join('')), '빈 값이면 빈칸 갈래를 안 고른다');
 

@@ -169,6 +169,28 @@ function box(p) {
     await p.keyboard.press('Escape');
     await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
 
+    /* 11-24 (넷째 점검): 발자국 손잡이 · 큰 단추를 덮지 않는다 */
+    var stk = await p.evaluate(function () {
+      [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); });
+      var s = document.getElementById('stick'), was = s.hidden; s.hidden = false; s.style.setProperty('display', 'block', 'important');
+      APP.npcSay('clothes', 'shop.enter');
+      var hit = function (a, k) { return a.right > k.left && a.left < k.right && a.bottom > k.top && a.top < k.bottom; };
+      var b = document.getElementById('npc-box').getBoundingClientRect(), out = [];
+      ['stick', 'btn-go'].forEach(function (id) { var e = document.getElementById(id); if (e && e.offsetWidth && hit(b, e.getBoundingClientRect())) out.push(id); });
+      s.hidden = was; s.style.removeProperty('display'); return out;
+    });
+    ok(stk.length === 0, '대사창이 발자국 손잡이 · 큰 단추를 덮지 않는다: ' + JSON.stringify(stk));
+    await p.keyboard.press('Escape');
+    /* 시트 위의 대사 글자도 16px 이상 (픽셀 글꼴을 끈 설정) */
+    var sf = await p.evaluate(function () {
+      var root = document.documentElement, was = root.getAttribute('data-font'); root.setAttribute('data-font', 'plain');
+      APP.openStory(); APP.npcSay('goods', 'talk');
+      var f = parseFloat(getComputedStyle(document.getElementById('npc-text')).fontSize), par = document.getElementById('npc-box').parentNode.id;
+      document.getElementById('story-sheet').close(); if (was == null) root.removeAttribute('data-font'); else root.setAttribute('data-font', was); return { f: f, par: par };
+    });
+    ok(sf.par === 'story-sheet' && sf.f >= 16, '시트 위의 대사 글자도 16px 이상: ' + JSON.stringify(sf));
+    await p.keyboard.press('Escape');
+
     /* 자는 문어: 알림 한 줄 */
     await p.click('#btn-npc-sleep-1');
     ok(await p.evaluate(function () { var t = document.getElementById('toast'); return t.classList.contains('show') && t.textContent === '자고 있어.'; }) && (await box(p)).hidden, '자는 문어를 누르면 "자고 있어." 한 줄 (대사창 아님)');
