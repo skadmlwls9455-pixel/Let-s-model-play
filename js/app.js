@@ -6015,6 +6015,7 @@ var APP = (function () {
   function shopTick() {   /* 열어 둔 채 날이 바뀌면: 묻던 것은 접고 새 선반 · 새 조개 자리 */
     var dk = todayKey(); if (dk === shopDay) { beachSync(); return; }
     shopDay = dk; var sh = $('shop-sheet'); if (sh && sh.open) renderShop(); beachSync(true);
+    goodsShelfSync();
     if (room.key) { roomCardClose(); for (var k in room.basket) if (room.basket[k].tried) roomTryOff(room.basket[k]); room.basket = {}; roomDress(); }   /* 방 안에서 날이 바뀌면: 입어 보던 것은 벗고 마네킹은 새 옷으로 */
   }
   function shopInit() {
@@ -6130,7 +6131,11 @@ var APP = (function () {
     requestAnimationFrame(function () { g.style.transform = 'translate(' + Math.round(b.left + b.width / 2 - a.left - a.width / 2) + 'px,' + Math.round(b.top + b.height / 2 - a.top - a.height / 2) + 'px)'; g.style.opacity = '0.2'; });
     setTimeout(function () { g.remove(); }, 420);
   }
-  function roomShelfItem(i) { var it = shopStock('goods').items; return i % 2 === 0 ? it[0] : it[1 + (i - 1) / 2] || null; }   /* 건물 갈래의 선반: 짝수 칸 = 씨앗 봉투, 홀수 칸 (1 · 3 · 5) = 그날의 염료 셋 */
+  function roomShelfItem(i) { return shopStock('goods').items[i] || null; }   /* 11-24: 선반은 그날 진열 차례대로 (건물 갈래의 goodsShelf) — 넷째 · 다섯째 선반은 빈 자리 */
+  function goodsShelfSync() {   /* 잡화점 선반 그림 = 그날 파는 것 (씨앗은 남은 수만큼 · 다 팔면 빈 선반). 건물 갈래의 scene.goodsShelf — 있을 때만 */
+    if (!roomScene('goodsShelf') || !window.SHOP || !S.octopus.name) return;
+    try { scene.goodsShelf(shopStock('goods').items.map(function (x) { return x.type === 'seed' ? { type: 'seed', left: x.left } : { type: x.type, hex: x.hex || null, id: x.id }; })); } catch (e) { console.warn('[app] goodsShelf', e); }
+  }   /* 건물 갈래의 선반: 짝수 칸 = 씨앗 봉투, 홀수 칸 (1 · 3 · 5) = 그날의 염료 셋 */
   function roomShelf(i) {   /* 잡화점 선반: 그 물건 이름 · 값 · '계산대에서 살 수 있어' (11-24: 사는 건 계산대 목록에서만) */
     var x = roomShelfItem(i); if (!x) return;
     var out = x.type === 'seed' && x.left < 1, nm = x.type === 'dye' ? x.name + ' 염료' : x.name, pic = h('span', { class: 'shop-pic', 'aria-hidden': 'true' }, [x.type === 'seed' ? shopSeedPic() : shopJarPic(x.hex, x.id)]);
@@ -6143,6 +6148,7 @@ var APP = (function () {
     if (was === 'clothes') { for (k in room.basket) if (room.basket[k].tried) { left++; if (f) { try { f(room.basket[k].cat); } catch (e) { console.warn('[app] tryOff', e); } } } if (left) setTimeout(function () { roomSayAs('clothes', 'shop.leave'); }, 0); }
     room.key = key; room.basket = {}; room.busy = false; room.gen = (room.gen | 0) + 1; shopGoing = false;
     if (key === 'clothes') { shopSync(); roomDress(); }
+    if (key === 'goods') goodsShelfSync();
     if (key) setTimeout(function () { if (room.key === key) roomSayAs(key, key === 'clothes' ? 'shop.enter' : 'goods.enter'); }, 0);   /* 대사 갈래가 방이 바뀔 때 떠 있던 줄을 접은 다음에 */
   }
   var shopGoing = false;
@@ -6176,6 +6182,7 @@ var APP = (function () {
       }, { capture: true, passive: false });
     });   /* 카드 밖을 누르면 접는다 */
     window.addEventListener('resize', roomCardPlace);
+    goodsShelfSync(); setTimeout(goodsShelfSync, 1500);   /* 방이 아직 없어도 장면이 기억해 뒀다가 그린다 */
     if (roomScene('inRoom')) { try { roomSet(scene.inRoom()); } catch (e) { /* noop */ } }
   }
   /* 11-24 다섯째 바퀴 · 계산대 목록 (주인: "npc 상점 직원을 두고 계산대로 가면 리스트업된 게 쭈르르 떠서 그걸 담는 걸로 하자 … 조개 얼마 남았는지도 띄워주고". 결정: 두 가게 다 · 사는 건 계산대 목록에서만 · 마네킹 입어 보기는 그대로).
@@ -6292,7 +6299,7 @@ var APP = (function () {
       buy: function (lines) { return shopListBuy(kind, lines); },
       onDone: function (res, paid) {
         if (kind === 'clothes') { res.got.forEach(function (g) { var b = room.basket[g.x.key]; if (b && b.tried) { roomWear(g.x); delete room.basket[g.x.key]; } }); roomDress(); if (room.key) roomPose('pose'); }
-        else if (room.key) { var p = LST && LST.host.querySelector('.shop-rc-top canvas'); roomHop(p); }
+        else { if (room.key) { var p = LST && LST.host.querySelector('.shop-rc-top canvas'); roomHop(p); } goodsShelfSync(); }
         if (room.key) roomSayAs(kind, 'shop.pay', { shells: paid }); else shopSay('shop.thanks');
       },
       after: function () { if (host !== 'card') renderShop(); else { var cb = $('btn-room-counter'); if (cb && !cb.hidden) cb.focus({ preventScroll: true }); } } });

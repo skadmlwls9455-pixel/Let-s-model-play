@@ -217,6 +217,8 @@ async function roomRun(browser) {
   /* 잡화점 */
   await enter(page, 'goods'); await page.waitForTimeout(150);
   ok((await R(page)).said.slice(-1)[0] === 'goods|goods.enter', '잡화점: 가게 주인 줄');
+  let sh = await page.evaluate(() => window.__room.shelf.slice(-1)[0]);
+  ok(Array.isArray(sh) && sh.length === 4 && sh[0].type === 'seed' && sh[0].left === 3 && sh.slice(1).every(x => x.type === 'dye' && /^#/.test(x.hex)), '들어가면 선반 그림 = 그날 파는 것 (씨앗 셋 · 염료 셋)');
   await page.click('#btn-shelf-0'); await page.waitForTimeout(200);
   ok(await page.evaluate(() => { const c = document.getElementById('shop-card'); return !!c && !!c.querySelector('.shop-seed') && !c.querySelector('button') && /계산대에서 살 수 있어/.test(c.textContent); }), '선반 톡: 이름 · 계산대에서 살 수 있어 (살래 없음)');
   await shot(page, 'room-shelf-360');
@@ -226,6 +228,8 @@ async function roomRun(browser) {
   await lsBuy(page);
   u = await U(page);
   ok(u.shells === 1 && u.seeds === 3 && (await R(page)).said.slice(-1)[0] === 'goods|shop.pay', '잡화점: 씨앗 둘을 한 번에');
+  sh = await page.evaluate(() => window.__room.shelf.slice(-1)[0]);
+  ok(sh && sh[0].type === 'seed' && sh[0].left === 1, '산 뒤 선반도 (씨앗 남은 하나)');
   await page.waitForTimeout(1700);
   /* 시스템 글꼴 · 빠른 두 번 톡 · 움직임 줄이기 */
   await page.evaluate(() => { APP.state.settings.pixelFont = false; document.documentElement.setAttribute('data-font', 'system'); });
@@ -348,6 +352,7 @@ function roomStub() {
   APP.scene.enterRoom = () => Promise.resolve({ ok: true }); APP.scene.inRoom = () => null;
   APP.scene.roomSlots = k => ({ slots: { mq0: [-1.8, 0.14, -2, 0], mq1: [-0.6, 0.14, -2, 0], mq2: [0.6, 0.14, -2, 0], mq3: [1.8, 0.14, -2, 0], counter: [2, 0, 1, 0] } });
   APP.scene.mannequins = (k, l) => { L.mq.push(JSON.parse(JSON.stringify(l))); };
+  L.shelf = []; APP.scene.goodsShelf = l => { L.shelf.push(JSON.parse(JSON.stringify(l))); return 1; };
   APP.scene.playerPose = n => { L.pose.push(n); return Promise.resolve(); };
   APP.scene.playerCloseup = on => { L.close.push(on); return Promise.resolve(); };
   APP.tryOn = (c, id) => { T[c] = id; }; APP.tryOff = c => { L.tryOff.push(c); delete T[c]; }; APP.trying = () => Object.assign({}, T);
