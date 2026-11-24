@@ -3268,9 +3268,19 @@ var SCENE3D = (function () {
     function plRouteAll(from, to, boxes, circles) {   /* 11-18 (검증): '상자 하나 돌기' 로 길이 안 나올 때 — 상자 여럿이 겹쳐 막는 자리 (마당 왼쪽 · 집 뒤에서 집 문: 집 몸통 · 현관 옆 · 우체통 · 나무).
                                                        장애물 모서리 (상자는 둘레 +0.05 · 둥근 것은 감싸는 네모의 모서리) 가운데 서로 보이는 것끼리 이어 가장 짧은 길 (다익스트라). 없으면 null → 예전처럼
                                                        (출발 · 도착이 둘레 안 · 가구로 둘러싸인 칸). 넓은 바깥에선 마당 안에서만 (울타리 밖은 걷는 곳이 띠뿐이라 playerWalkTo 가 울타리 문을 먼저 거친다) */
-      var wide = YARD_WIDE && PL.place === 'yard', m = 0.05, e = 0.01, P = [[from.x, from.z], [to.x, to.z]], i, j;
-      if (wide && (yardOut(from.x, from.z) || yardOut(to.x, to.z))) return null;
-      function corner(x, z) { if (plInRoom(x, z) && !(wide && yardOut(x, z)) && plPen(x, z, boxes, circles) <= 0) P.push([x, z]); }
+      var wide = YARD_WIDE && PL.place === 'yard', m = 0.05, e = 0.01, P = [[from.x, from.z], [to.x, to.z]], i, j, band = false;
+      if (wide && (yardOut(from.x, from.z) || yardOut(to.x, to.z))) {
+        if (!yardOut(from.x, from.z) || !yardOut(to.x, to.z)) return null;   /* 울타리 안 ↔ 밖은 playerWalkTo 가 울타리 문을 먼저 거친다 */
+        /* [7-W] 다섯째 바퀴 (갈래 V 알림: 숲길에서 집 1 문 2 m 앞에서 멈춤): 울타리 밖 띠에서도 장애물을 돌아간다 — 예전엔 곧장 걸어 숲길 소품 (그루터기 · 통나무) 에 막혀 섰다.
+           곧은 길에서 2 m 안의 장애물만 넣고 (마을 · 해변 등록부가 70 개 넘는다), 돌아가는 모서리는 걷는 곳 (WIDE.AREAS) 안이어야 한다 */
+        band = true;
+        var sx = to.x - from.x, sz = to.z - from.z, sl = sx * sx + sz * sz;
+        var segD = function (x, z) { var u = sl > 1e-12 ? clamp(((x - from.x) * sx + (z - from.z) * sz) / sl, 0, 1) : 0; return Math.hypot(from.x + sx * u - x, from.z + sz * u - z); };
+        circles = circles.filter(function (c) { return segD(c[0], c[1]) < c[2] + 2; });
+        boxes = boxes.filter(function (b) { return segD((b[0] + b[1]) / 2, (b[2] + b[3]) / 2) < Math.hypot(b[1] - b[0], b[3] - b[2]) / 2 + 2; });
+      }
+      function inBand(x, z) { return wideIn((x + z) * Math.SQRT1_2, (x - z) * Math.SQRT1_2); }
+      function corner(x, z) { if ((band ? inBand(x, z) : plInRoom(x, z) && !(wide && yardOut(x, z))) && plPen(x, z, boxes, circles) <= 0) P.push([x, z]); }
       boxes.forEach(function (b) { corner(b[0] - m, b[2] - m); corner(b[1] + m, b[2] - m); corner(b[1] + m, b[3] + m); corner(b[0] - m, b[3] + m); });
       circles.forEach(function (c) { var q = c[2] + m; corner(c[0] - q, c[1] - q); corner(c[0] + q, c[1] - q); corner(c[0] + q, c[1] + q); corner(c[0] - q, c[1] + q); });
       function free(p, q) {   /* 둘레에 닿기만 하는 선분 (둘레에 붙어 선 출발 자리) 은 막힌 것이 아니다 → 1 cm 안쪽부터 막힌 것으로 */
@@ -5617,6 +5627,20 @@ var SCENE3D = (function () {
       CUT_DYN.yard = function () { var H = cutOf('yard', 'house'), out = [[YROOM.door, H], [YROOM.decoHouse, H]]; YROOM.wins.forEach(function (m) { out.push([m, H]); }); return out; };   /* 집에 붙은 것들 (보임은 계절 · 빛 코드 몫이라 layers 로 숨긴다) */
       dither.still = 0;
     }
+    /* [7-W] 다섯째 바퀴 (리드 · 갈래 V): 숲길 양쪽 (s 11.5 ~ 19.4 · |t| 3.2 ~ 10.6) 과 광장 양쪽 (s 37.4 ~ 46 · |t| 9.4 ~ 14.6) 은 문어 집 넷 · 미용실 터 — 숲을 비운다.
+       → 1 = 터 밖 (그대로) · 0 = 비움 · 0.58 = 낮은 나무만 (키 ≈ 1.3 m — 터의 뒤 (s 가 작은 쪽, 화면 위) · 바깥 옆 (길에서 먼 쪽) 띠, 집 터 가장자리에서 0.8 m 넘게).
+       집 몸 · 길 쪽 문 앞 · 집 앞쪽 (s 가 큰 쪽 — 화면에서 집을 가린다) 은 늘 비운다. WIDE.AREAS (걷는 곳) 는 그대로 */
+    var WIDE_HOME_ZONES = [[11.5, 19.4, 3.2, 10.6], [37.4, 46, 9.4, 14.6]];
+    function wideHomeBand(sd, td) {
+      var at = Math.abs(td), z = null;
+      for (var i = 0; i < WIDE_HOME_ZONES.length; i++) { var Z = WIDE_HOME_ZONES[i]; if (sd > Z[0] && sd < Z[1] && at > Z[2] && at < Z[3]) { z = Z; break; } }
+      if (!z) return 1;
+      var L = null, lots = typeof VILLAGE !== 'undefined' && VILLAGE && VILLAGE.HOME_LOTS ? VILLAGE.HOME_LOTS : [];
+      for (i = 0; i < lots.length; i++) { var q = lots[i]; if (q.s1 > z[0] && q.s0 < z[1] && (q.c[1] < 0) === (td < 0)) { L = q; break; } }
+      if (!L) return 0;
+      var far = Math.max(Math.abs(L.t0), Math.abs(L.t1));
+      return sd < L.s0 - 0.8 || at > far + 0.8 ? 0.58 : 0;
+    }
     function wideTrees() {   /* 11-18 넓은 바깥의 숲: 대각 좌표에 시드로 흩는다 (마당 네모 둘레 · 걷는 곳 · 가게 터는 비운다 · 서로 1.75 m 넘게) → { round, cone } 의 [x, z, 배율, 요].
                                  11-21 7차: 마을 뒤 (s 45) 까지 · 반폭 30 m. 걷는 곳 가까운 나무는 낮춘다 — 키 ≤ 거리 × tan 32° + 0.45 m: 어느 각으로 돌려 봐도 (90° · 270° 포함) 길가의 캐릭터가 발목까지만 가린다. 0.45 배 아래면 심지 않는다 */
       var out = { round: [], cone: [] }, all = [], grid = {};
@@ -5625,8 +5649,9 @@ var SCENE3D = (function () {
         if (Math.abs(q[0]) < YARD_L + 0.7 && Math.abs(q[1]) < YARD_L + 0.7) continue;
         if (at > 16 && (r >>> 5) % 3 === 0) continue;   /* 먼 숲은 조금 성기게 */
         if ((sd > 19.2 && sd < 38.6 && at < 11.2) || (sd >= 37.4 && at < 9.4) || (sd > 18 && sd < 20 && at < 7.6)) continue;   /* 가게 터 · 광장 · 마을 문 울타리 */
+        var hl = wideHomeBand(sd, td); if (hl === 0) continue;   /* [7-W] 다섯째 바퀴: 갈래 V 의 문어 집 넷 · 미용실 터 (집 몸 · 길 쪽 문 앞 · 집 앞쪽은 비우고, 뒤 · 바깥 가장자리엔 낮은 나무만) */
         var wd = wideDist(sd, td); if (wd < 0.8) continue;
-        var sc = Math.min(0.85 + ((r >>> 20) % 5) * 0.09, (wd * 0.62 + 0.45) / 2.2); if (sc < 0.45) continue;
+        var sc = Math.min(0.85 + ((r >>> 20) % 5) * 0.09, (wd * 0.62 + 0.45) / 2.2, hl); if (sc < 0.45) continue;
         var gx = Math.floor(q[0] / 1.75), gz = Math.floor(q[1] / 1.75), ok = true;
         for (var a = -1; a <= 1 && ok; a++) for (var b = -1; b <= 1 && ok; b++) { var cell = grid[(gx + a) + ',' + (gz + b)]; if (cell) for (var k = 0; k < cell.length && ok; k++) if (Math.hypot(cell[k][0] - q[0], cell[k][1] - q[1]) < 1.75) ok = false; }
         if (!ok) continue;
@@ -6263,8 +6288,11 @@ var SCENE3D = (function () {
     function wideRoadDress(out) {   /* 숲길 (s 7 ~ 18) 가의 낮은 것들: 꽃 무더기 · 버섯 · 작은 덤불 · 그루터기 · 쓰러진 통나무. 폰 화면 폭 (6.7 m) 이 걷는 띠와 거의 같아 숲이 화면 밖이라 길이 비어 보였다.
                                     다 무릎 아래라 캐릭터를 가리지 않는다. 가운데 (|t| < 1.3) 는 비워 둔다. 덤불 · 그루터기 · 통나무는 부딪힌다 */
       var sc = SEASON_C[SEASON.cur], bl = [PAL.rose[2] || PAL.rose[1], PAL.amber[4], FIXED.white, PAL.dusk[2]];
+      /* [7-W] 다섯째 바퀴: 길가 집의 문 앞 통로 (서는 자리 s ± 1.0 m · 그 쪽 길가) 는 비운다 — 숲길 집 1 문 바로 앞에 그루터기가 있어 걸음이 문 2 m 앞에서 막혔다 (갈래 V 알림) */
+      var doorS = typeof VILLAGE !== 'undefined' && VILLAGE && VILLAGE.DOORS ? VILLAGE.DOORS.filter(function (d) { return d && d.stand && d.stand[0] > 6 && d.stand[0] < 19; }).map(function (d) { return d.stand; }) : [];
       for (var i = 0; i < 18; i++) {
-        var h = hash('wdress' + i), sd = 7.2 + i * 0.62 + (h % 10) * 0.03, side = i % 2 ? 1 : -1, kind = (h >>> 9) % 6, td = side * (kind < 3 ? 1.55 + ((h >>> 4) % 12) * 0.11 : 1.5 + ((h >>> 4) % 6) * 0.1), q = wideXZ(sd, td), x = snapPos(q[0]), z = snapPos(q[1]), k;   /* 부딪히는 것 (덤불 · 그루터기 · 통나무) 은 |t| ≤ 2.0 — 가장자리 (3.0) 와의 사이로 몸이 지나간다 (좁은 틈에 끼어 서지 않게) */
+        var h = hash('wdress' + i), sd = 7.2 + i * 0.62 + (h % 10) * 0.03, side = i % 2 ? 1 : -1, kind = (h >>> 9) % 6, td = side * (kind < 3 ? 1.55 + ((h >>> 4) % 12) * 0.11 : 1.5 + ((h >>> 4) % 6) * 0.1), q = wideXZ(sd, td), x = snapPos(q[0]), z = snapPos(q[1]), k;
+        if (doorS.some(function (d) { return Math.abs(sd - d[0]) < 1.0 && (d[1] < 0) === (side < 0); })) continue;   /* 부딪히는 것 (덤불 · 그루터기 · 통나무) 은 |t| ≤ 2.0 — 가장자리 (3.0) 와의 사이로 몸이 지나간다 (좁은 틈에 끼어 서지 않게) */
         if (kind < 2) { for (k = 0; k < 4; k++) { var fx = x + ((h >>> (12 + k * 3)) % 5 - 2) * 0.08, fz = z + ((h >>> (13 + k * 3)) % 5 - 2) * 0.08; out.push({ g: box(0.035, 0.16, 0.035), m: M(fx, 0.08, fz), c: LEAF_C[k % 3] }); wideFlower(out, fx, 0.2, fz, (h >>> (20 + k)) % 5, 0.05); } }
         else if (kind === 2) { for (k = 0; k < 2; k++) { var mx = x + k * 0.16, mz = z + k * 0.07, mh = 0.1 + k * 0.05; out.push({ g: box(0.05, mh, 0.05), m: M(mx, mh / 2, mz), c: PAL.paper[2] || PAL.paper[1] }, { g: box(0.15, 0.06, 0.15), m: M(mx, mh + 0.03, mz), c: PAL.rose[1] }, { g: box(0.04, 0.02, 0.04), m: M(mx + 0.03, mh + 0.065, mz), c: FIXED.white }); } }
         else if (kind === 3) { var br = 0.24 + (h >>> 14) % 3 * 0.03; out.push({ g: new T.SphereGeometry(br, 7, 5), m: M(x, br * 0.6, z, 0, 0, 0, 1, 0.8, 1), c: sc.leaf[i % 3], tag: 13 + i % 3 }); WIDE_REG.circles.push([x, z, br * 0.7]); }
