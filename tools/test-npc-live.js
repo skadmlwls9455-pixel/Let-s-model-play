@@ -9,13 +9,16 @@ var pass = 0, fail = 0;
 function ok(c, msg) { if (c) pass++; else { fail++; console.log('  FAIL ' + msg); } }
 var SAVE = { octopus: { name: '뽈뽈' }, user: { shells: 5, story: { notices: { help: '2026-11-01', later: 'keep' }, future: [1] } } };
 
-function stubs() {   /* 페이지 안에서 돈다: app.js 가 묶기 전에 V 의 단추를 넣는다 */
+function stubs() {   /* 페이지 안에서 돈다: V 의 단추가 없으면 가짜를 넣고, 있으면 (진짜 장면 — 바깥이 화면에 없을 때는 숨어 있다) 시험 동안 보이게 고정한다 */
   document.addEventListener('DOMContentLoaded', function () {
-    var sc = document.getElementById('scene');
+    var sc = document.getElementById('scene'), css = '';
     ['btn-npc-clothes', 'btn-npc-goods', 'btn-npc-cafe', 'btn-npc-sleep-1', 'btn-plaza-board'].forEach(function (id, i) {
-      var b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'scene-spot'; b.setAttribute('aria-label', id);
-      b.style.cssText = 'left:' + (8 + i * 48) + 'px;top:120px'; sc.appendChild(b);
+      if (!document.getElementById(id)) {
+        var b = document.createElement('button'); b.type = 'button'; b.id = id; b.className = 'scene-spot'; b.setAttribute('aria-label', id); sc.appendChild(b);
+      }
+      css += '#' + id + ' { display: block !important; visibility: visible !important; pointer-events: auto !important; position: absolute !important; left: ' + (8 + i * 48) + 'px !important; top: 120px !important; transform: none !important; opacity: 1 !important; z-index: 30 !important; }\n';
     });
+    var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
   });
 }
 async function open(browser, q, opt) {
@@ -45,12 +48,13 @@ function box(p) {
     /* ── 1. 대사창 (3D) ── */
     var p = await open(browser, '?intro=0', { save: SAVE });
     ok(await p.evaluate(function () { return APP.sceneMode; }) === '3d', '3D 장면');
+    await p.evaluate(function () { window.__ppolTest.npcHold = true; if (typeof APP.scene.villageNear === 'function') APP.scene.villageNear = function () { return true; }; });   /* 11-22: 다락에서 시험한다 — 마을 단추의 '멀면 먼저 걸어가기' (V) 는 가까이 있는 것으로   /* 11-22: 확인하는 사이 저절로 넘어가 닫히지 않게 (저절로 넘김은 아래 ?slow 판에서 따로 본다) */
     await p.waitForFunction(function () { return !document.getElementById('toast').classList.contains('show'); }, null, { timeout: 8000 }).catch(function () {});
     var b0 = await box(p);
     ok(b0.hidden && b0.npc === null, '처음엔 대사창이 숨어 있다');
     ok(b0.live === 'polite' && b0.role === 'group', '읽기 영역 aria-live polite · 모달이 아니다');
     await p.evaluate(function () { window.__calls = []; APP.scene.npcSet = function (l) { window.__calls.push(['set', l]); }; APP.scene.npcMark = function (id, on) { window.__calls.push(['mark', id, on]); }; });
-    ok(await p.evaluate(function () { return APP.npcSync(); }) === true, 'scene.npcSet 이 있으면 오늘의 문어들을 넘긴다');
+    ok(await p.evaluate(function () { return APP.npcSync(true); }) === true, 'scene.npcSet 이 있으면 오늘의 문어들을 넘긴다');   /* 11-22: 진짜 장면 (갈래 V) 이 부팅 때 이미 받았으므로 force 로 다시 넘겨 가로챈다 */
     var set = await p.evaluate(function () { return window.__calls[0][1]; });
     ok(set.length === 7 && set[0].id === 'clothes' && set[0].hat === 'beret' && set[6].pose === 'sleep', 'npcSet 목록 (셋 + 자는 넷)');
     ok(await p.evaluate(function () { return APP.npcSync(); }) === false, '같은 날 두 번 넘기지 않는다');
@@ -98,18 +102,13 @@ function box(p) {
     var guard = 0; while (!(await box(p)).hidden && guard++ < 3) await p.keyboard.press('Enter');
     ok((await box(p)).hidden, '대사창의 단추에서 Enter 로 닫힌다');
 
-    /* 11-21 밤 (계약 C14): 방이 있는 장면이면 그곳의 문어만 넘긴다 · 방이 바뀌면 떠 있던 말은 접힌다 · 카드 (data-npc-avoid) 를 가리지 않는다 */
+    /* 11-21 밤 (계약 C14): 방이 바뀌면 떠 있던 말은 접힌다 · 카드 (data-npc-avoid) 를 가리지 않는다 */
     var rm = await p.evaluate(function () {
-      window.__calls = []; var room = null; APP.scene.inRoom = function () { return room; };
-      var out = {}; APP.npcSync(); out.outside = window.__calls.pop()[1].map(function (x) { return x.id; }).join();
-      APP.npcSay('cafe', 'cafe.order'); room = 'cafe'; document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: 'cafe' } }));
-      out.folded = APP.npc === null; out.cafe = window.__calls.filter(function (c) { return c[0] === 'set'; }).pop()[1].map(function (x) { return x.id; }).join();
-      room = 'hall'; document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: 'hall' } })); out.hall = window.__calls.filter(function (c) { return c[0] === 'set'; }).pop()[1].length;
-      room = null; document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: null } })); out.back = window.__calls.filter(function (c) { return c[0] === 'set'; }).pop()[1].length;
-      delete APP.scene.inRoom; return out;
+      APP.npcSay('cafe', 'cafe.order'); var shown = !!APP.npc;
+      document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: 'cafe' } }));
+      return { shown: shown, folded: APP.npc === null };
     });
-    ok(rm.outside === 'sleep-2,sleep-3,sleep-4' && rm.cafe === 'cafe,sleep-1' && rm.hall === 0 && rm.back === 3, '방마다 그곳의 문어만 (바깥 자는 셋 · 카페 느루와 자는 하나 · 공연장 없음): ' + JSON.stringify(rm));
-    ok(rm.folded, '방이 바뀌면 떠 있던 말은 접힌다');
+    ok(rm.shown && rm.folded, '방이 바뀌면 떠 있던 말은 접힌다');
     var av = await p.evaluate(function () {
       var sc = document.getElementById('scene'), r = sc.getBoundingClientRect(), c = document.createElement('div');
       c.setAttribute('data-npc-avoid', ''); c.style.cssText = 'position:absolute;left:40px;width:200px;height:120px;top:' + (r.height - 140) + 'px;background:#fff'; sc.appendChild(c);
@@ -118,6 +117,78 @@ function box(p) {
       var over = b.right > k.left && b.left < k.right && b.bottom > k.top && b.top < k.bottom; c.remove(); return { over: over, top: b.top, txt: txt };
     });
     ok(!av.over && av.top >= 0 && /12개/.test(av.txt), '카드 (꼬리표 · 영수증) 를 가리지 않는다 · 조개 수를 말한다: ' + JSON.stringify(av));
+    await p.keyboard.press('Escape');
+
+    /* 11-22 (점검): 방이 바뀌는 그 틱에 다른 갈래가 부른 말은 접히지 않는다 (먼저 듣는 쪽이어도) · 그 전부터 떠 있던 말만 접힌다 */
+    var tick = await p.evaluate(function () {
+      APP.npcSay('cafe', 'talk'); var old = APP.npc && APP.npc.key;
+      var f = function () { APP.npcSay('clothes', 'shop.enter'); };
+      window.addEventListener('ppol:room', f, true);   /* 창에서 먼저 받는 듣는이 = 내 것보다 먼저 도는 다른 갈래 */
+      document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: 'clothes' } }));
+      window.removeEventListener('ppol:room', f, true);
+      var r = { old: old, now: APP.npc && APP.npc.key };
+      document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: null } })); r.after = APP.npc; return r;
+    });
+    ok(tick.old === 'talk' && tick.now === 'shop.enter' && tick.after === null, '방이 바뀐 틱에 부른 새 말은 살고, 다음 방 바뀜에 접힌다: ' + JSON.stringify(tick));
+    /* 글자 크기: 어느 글꼴 설정에서도 16px 이상 (대사창 · 게시판 · 이야기 세 줄) */
+    var fs = await p.evaluate(function () {
+      APP.npcSay('goods', 'talk'); APP.openStory();
+      var el = document.getElementById('story-intro'); el.hidden = false; document.getElementById('story-line').textContent = '가';
+      var sel = ['.npc-tag', '.npc-text', '.story-note p', '.story-h', '.story-line', '.story-skip', '#story-close'], out = {}, root = document.documentElement, was = root.getAttribute('data-font');
+      ['pixel', 'plain'].forEach(function (f) { root.setAttribute('data-font', f); sel.forEach(function (q) { var n = document.querySelector(q); out[f + ' ' + q] = n ? parseFloat(getComputedStyle(n).fontSize) : -1; }); });
+      if (was == null) root.removeAttribute('data-font'); else root.setAttribute('data-font', was);
+      el.hidden = true; document.getElementById('story-line').textContent = ''; document.getElementById('story-sheet').close(); return out;
+    });
+    ok(Object.keys(fs).every(function (k) { return fs[k] >= 16; }), '글자는 16px 이상 (두 글꼴 설정): ' + JSON.stringify(fs));
+    await p.keyboard.press('Escape');
+    /* 위로 올라갈 때도 상태 줄을 덮지 않고, 열린 창의 머리와 단추를 피한다 */
+    var top1 = await p.evaluate(function () {
+      document.getElementById('btn-settings').click();
+      return new Promise(function (res) { setTimeout(function () {
+        APP.npcSay('clothes', 'talk');
+        var b = document.getElementById('npc-box').getBoundingClientRect(), tag = document.getElementById('npc-tag').getBoundingClientRect(), st = document.getElementById('status').getBoundingClientRect();
+        var d = document.querySelector('dialog[open]'), h = d && d.querySelector('.dlg-top, h2, h3'), hr = h ? h.getBoundingClientRect() : null;
+        var hit = function (a, c) { return a.right > c.left && a.left < c.right && a.bottom > c.top && a.top < c.bottom; };
+        res({ status: hit(tag, st) || hit(b, st), head: hr ? hit(b, hr) || hit(tag, hr) : false, top: b.top });
+      }, 500); });
+    });
+    ok(!top1.status && !top1.head, '창이 열려 있을 때 대사창이 상태 줄 · 창 머리를 덮지 않는다: ' + JSON.stringify(top1));
+    /* 카드 (칠판 · 레코드) 를 피해 장면 위쪽으로 올라갈 때도 상태 줄 칸 (데모 꼬리표 · 조개 칩 · 오른쪽 위 단추) 을 덮지 않는다 */
+    var top2 = await p.evaluate(function () {
+      [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); });
+      var bag = document.getElementById('btn-bag'); bag.hidden = false;
+      var sc = document.getElementById('scene'), r = sc.getBoundingClientRect(), c = document.createElement('div');
+      c.setAttribute('data-npc-avoid', ''); c.style.cssText = 'position:absolute;left:0;right:0;height:' + Math.round(r.height * 0.55) + 'px;bottom:0;background:#fff'; sc.appendChild(c);
+      APP.npcSay('cafe', 'cafe.serve');
+      var b = document.getElementById('npc-box').getBoundingClientRect(), tag = document.getElementById('npc-tag').getBoundingClientRect();
+      var hit = function (a, k) { return a.right > k.left && a.left < k.right && a.bottom > k.top && a.top < k.bottom; }, out = { top: b.top, over: [] };
+      ['status', 'brain-tag', 'btn-bag', 'scene-ctl'].forEach(function (id) { var e = document.getElementById(id); if (e && !e.hidden && e.offsetWidth) { var k = e.getBoundingClientRect(); if (hit(b, k) || hit(tag, k)) out.over.push(id); } });
+      c.remove(); return out;
+    });
+    ok(top2.top < 200 && top2.over.length === 0, '위로 올라가도 상태 줄 칸 (데모 꼬리표 · 조개 칩 · 단추) 아래에서 멈춘다: ' + JSON.stringify(top2));
+    await p.keyboard.press('Escape');
+    await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
+
+    /* 11-24 (넷째 점검): 발자국 손잡이 · 큰 단추를 덮지 않는다 */
+    var stk = await p.evaluate(function () {
+      [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); });
+      var s = document.getElementById('stick'), was = s.hidden; s.hidden = false; s.style.setProperty('display', 'block', 'important');
+      APP.npcSay('clothes', 'shop.enter');
+      var hit = function (a, k) { return a.right > k.left && a.left < k.right && a.bottom > k.top && a.top < k.bottom; };
+      var b = document.getElementById('npc-box').getBoundingClientRect(), out = [];
+      ['stick', 'btn-go'].forEach(function (id) { var e = document.getElementById(id); if (e && e.offsetWidth && hit(b, e.getBoundingClientRect())) out.push(id); });
+      s.hidden = was; s.style.removeProperty('display'); return out;
+    });
+    ok(stk.length === 0, '대사창이 발자국 손잡이 · 큰 단추를 덮지 않는다: ' + JSON.stringify(stk));
+    await p.keyboard.press('Escape');
+    /* 시트 위의 대사 글자도 16px 이상 (픽셀 글꼴을 끈 설정) */
+    var sf = await p.evaluate(function () {
+      var root = document.documentElement, was = root.getAttribute('data-font'); root.setAttribute('data-font', 'plain');
+      APP.openStory(); APP.npcSay('goods', 'talk');
+      var f = parseFloat(getComputedStyle(document.getElementById('npc-text')).fontSize), par = document.getElementById('npc-box').parentNode.id;
+      document.getElementById('story-sheet').close(); if (was == null) root.removeAttribute('data-font'); else root.setAttribute('data-font', was); return { f: f, par: par };
+    });
+    ok(sf.par === 'story-sheet' && sf.f >= 16, '시트 위의 대사 글자도 16px 이상: ' + JSON.stringify(sf));
     await p.keyboard.press('Escape');
 
     /* 자는 문어: 알림 한 줄 */
@@ -138,7 +209,8 @@ function box(p) {
     ok(st.shells >= 5 && st.name === '뽈뽈', '다른 저장 값은 그대로');
     await p.evaluate(function () { APP.npcSay('goods', 'shop.hello'); });
     var b4 = await box(p), sheetTop = await p.evaluate(function () { return document.getElementById('story-sheet').getBoundingClientRect().top; });
-    ok(!b4.hidden && b4.parent === 'story-sheet' && b4.top >= 0 && (b4.bottom <= sheetTop || b4.top <= 8), '시트가 열려 있으면 그 위에 뜬다 (시트 안의 단추를 가리지 않는다)');
+    var geo = await p.evaluate(function () { var d = document.getElementById('story-sheet'), h = document.getElementById('story-h').getBoundingClientRect(), c = document.getElementById('story-close').getBoundingClientRect(); return { hb: h.bottom, ct: c.top }; });
+    ok(!b4.hidden && b4.parent === 'story-sheet' && b4.top >= 0 && (b4.bottom <= sheetTop || (b4.top >= geo.hb && b4.bottom <= geo.ct)), '시트가 열려 있으면 그 위에, 자리가 없으면 시트 머리 아래 · 단추 위에 뜬다: ' + JSON.stringify([b4.top, b4.bottom, sheetTop, geo]));
     ok(await p.evaluate(function () { var b = document.getElementById('npc-box'), r = b.getBoundingClientRect(), e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!e && b.contains(e); }), '시트 위에서도 누를 수 있다');
     await p.click('#story-close');
     /* 말이 떠 있는 동안 시트가 열리면 그 위로 옮겨 간다 */

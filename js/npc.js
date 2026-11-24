@@ -101,7 +101,7 @@ var NPC = (function () {
       'contest.judge': [
         ['다 봤어. 팻말 들게.'],
         ['주제 꼬리표 {n}개 맞았어. 세어 봤어.'],
-        ['{n}개. 옷깃부터 신발까지 봤어.']
+        ['주제 꼬리표 {n}개. 옷깃부터 신발까지 봤어.']
       ],
       'contest.podium': [
         ['단상에 서. 자리는 순서대로야.'],
@@ -168,8 +168,8 @@ var NPC = (function () {
       ],
       'contest.judge': [
         ['다 적었어. 팻말 든다.'],
-        ['맞은 꼬리표 {n}개. 하나씩 짚어서 셌어.'],
-        ['{n}개 {n}개. 표에 적었어.']
+        ['주제 색이 {n}개. 하나씩 짚어서 셌어.'],
+        ['주제 색 {n}개, {n}개. 표에 적었어.']
       ],
       'contest.podium': [
         ['순서대로 서. 하나, 둘, 셋, 넷.'],
@@ -215,12 +215,12 @@ var NPC = (function () {
       'cafe.order': [
         ['알았어… 물부터 올릴게.'],
         ['다 되면… 쟁반에 올려 둘게.'],
-        ['{dish}… 접시부터 데울게.']
+        ['{dish}… 금방 내올게.']
       ],
       'cafe.stamp': [
         ['도장 하나… 꾹 눌렀어.'],
         ['카드에 찍었어… 잉크는 바다색이야.'],
-        ['{n}번째 도장이야… 칸은 셋이야.']
+        ['도장 {n}개째야… 칸은 셋이야.']
       ],
       'cafe.record': [
         ['판을 올렸구나… 바늘은 살살 내려와.'],
@@ -238,8 +238,8 @@ var NPC = (function () {
       ],
       'contest.judge': [
         ['다 봤어… 팻말 들게.'],
-        ['맞은 꼬리표가… {n}개야.'],
-        ['{n}개… 걸음마다 하나씩 봤어.']
+        ['결이 같은 게… {n}개야.'],
+        ['같은 결로 모인 게… {n}개.']
       ],
       'contest.podium': [
         ['단상에 올라가… 순서대로 서면 돼.'],
@@ -261,6 +261,7 @@ var NPC = (function () {
     '다락에 올라가 보니, 문어 하나가 깨어 있었어.'
   ];
 
+  var MUST_SAY = { 'contest.judge': 1, 'contest.result': 1, 'shop.pay': 1 };
   function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
   function who(id) { return Object.prototype.hasOwnProperty.call(ROSTER, id) ? ROSTER[id] : null; }
   function tag(id) { var r = who(id); return r ? r.name + ' · ' + LABEL : ''; }   /* 이름표: 늘 '이름 · 대본' */
@@ -278,23 +279,24 @@ var NPC = (function () {
     var ok = [], i;
     for (i = 0; i < all.length; i++) if (usable(all[i], vars)) ok.push(i);
     if (!ok.length) return null;
-    /* 빈칸을 채울 값이 왔으면 그 갈래를 먼저 (주제 · 조개 수를 말해 주려고 넘긴 것이니까) */
+    /* 수를 알려 주려고 넘긴 열쇠 (심사 · 결과 · 계산) 는 값을 말하는 갈래만. 그 밖에는 값을 말하는 갈래도 다른 갈래와 섞어 돈다 (11-22: 같은 줄만 되풀이되지 않게) */
     var withVar = ok.filter(function (j) { return /\{\w+\}/.test(all[j].join('')); });
-    var pool = withVar.length ? withVar : ok;
+    var pool = withVar.length && MUST_SAY[key] ? withVar : ok;
     var n = pool[(typeof seed === 'number' && isFinite(seed) ? Math.abs(Math.floor(seed)) : hash(String(seed) + id + key)) % pool.length];
     return { id: id, key: key, name: r.name, tag: tag(id), by: 'script', n: n, bubbles: all[n].map(function (s) { return fill(s, vars); }) };
   }
-  /* list(dateKey, room) → 장면의 npcSet 에 줄 목록 (계약 C6 · C14). 날짜는 받아만 둔다 (날마다 같다).
-     room 을 안 주면 (방이 없는 장면) 예전처럼 일곱 모두. room 을 주면 (걸어 들어가는 방이 있는 장면):
-       'clothes' | 'goods' | 'cafe' = 그 방의 가게 문어 (카페엔 구석 식탁에서 자는 sleep-1 도) · 그 밖의 방 = 없음 · null = 바깥 — 자는 문어 셋 (sleep-2 선창 · sleep-3 모래밭 · sleep-4 광장 나무 밑) */
-  var SLEEP_AT = { 'sleep-1': 'cafe', 'sleep-2': 'pier', 'sleep-3': 'beach', 'sleep-4': 'plaza' };
-  function list(dateKey, room) {
-    function keep(id) { var r = ROSTER[id]; return { id: id, color: r.color, hat: r.hat, pose: 'stand' }; }
-    function nap(sl) { return { id: sl.id, color: sl.color, hat: 'none', pose: 'sleep' }; }
-    if (room === undefined) return KEEPERS.map(keep).concat(SLEEPERS.map(nap));
-    if (who(room)) return [keep(room)].concat(SLEEPERS.filter(function (sl) { return SLEEP_AT[sl.id] === room; }).map(nap));
-    if (typeof room === 'string' && room) return [];   /* 다른 방 (공연장 hall 등): 마을 문어를 세우지 않는다 (심사 자리는 콘테스트가 따로 놓는다) */
-    return SLEEPERS.filter(function (sl) { return SLEEP_AT[sl.id] !== 'cafe'; }).map(nap);
+  /* list(dateKey) → 장면의 npcSet 에 줄 목록 (계약 C6 · C14). 날짜는 받아만 둔다 (날마다 같다 — 깬 문어 셋 · 자는 문어 넷).
+     가게 문어는 장면 (V) 이 가게 앞과 그 방 안의 keeper 칸에 알아서 그린다. 자는 문어 하나 (sleep-1) 는 카페 구석 식탁에서 잔다:
+     { room: 'cafe', slot: 'nap' } 를 달아 넘긴다 (그 칸을 모르는 장면은 예전 바깥 자리에 그린다) */
+  var SLEEP_AT = { 'sleep-1': { room: 'cafe', slot: 'nap' } };
+  function list(dateKey) {
+    var out = KEEPERS.map(function (id) { var r = ROSTER[id]; return { id: id, color: r.color, hat: r.hat, pose: 'stand' }; });
+    SLEEPERS.forEach(function (sl) {
+      var e = { id: sl.id, color: sl.color, hat: 'none', pose: 'sleep' }, at = SLEEP_AT[sl.id];
+      if (at) { e.room = at.room; e.slot = at.slot; }
+      out.push(e);
+    });
+    return out;
   }
   /* 저장 칸 S.user.story (계약 C8): { intro: 'YYYY-MM-DD' | null, notices: { 쪽지 id: 'YYYY-MM-DD' } }. 모르는 값은 그대로 둔다 */
   function normalize(u) {

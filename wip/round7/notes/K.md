@@ -29,4 +29,3 @@ cook-shots rewrite -> synthesized pour/scrub -> open animation polish -> cake ->
 
 ## Log
 - 11-21: a..e done and pushed; suites green (see reports/K.md). Working tree has lane A's js/cook-sprites.js locally (assume-unchanged; never commit it). Waiting for the independent check, then one round of fixes, final report.
-- 11-22 owner rule (via lead): no model name in commits, code, comments, reports. Commit messages end with the Claude-Session line only; write them with git commit -F <file> so no Co-Authored-By line is added. 81ad873 and 5b5971a carry one; left as is (no force push; the lead squash-merges).

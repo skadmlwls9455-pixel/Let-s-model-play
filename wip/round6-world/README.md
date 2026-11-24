@@ -136,7 +136,7 @@ cd ../ppol-swim && npm ci --no-audit --no-fund && npm i --no-save --no-audit --n
 (화면 시험에 쓰는 Playwright 를 **미리** 깐다 — 자동 모드의 세션은 스스로 고른 패키지 설치를 거절당할 수 있다. `package.json` 은 바뀌지 않는다.)
 
 ```bash
-CLAUDE_CODE_PROMPT_CACHE_TTL=1h claude -p "wip/round6-world/briefs/COMMON.md 와 wip/round6-world/briefs/S-swim.md 를 읽고 그 갈래를 끝까지 해. Playwright 가 없으면 npm 공식 레지스트리의 playwright 패키지를 npm i --no-save playwright 로, 그 Chromium 을 npx playwright install chromium 으로 깔아도 된다." --model claude-opus-5-5 --effort high --autocompact 300k --strict-mcp-config --max-budget-usd 55 --permission-mode auto --permission-prompts none --output-format json > ../ppol-swim.json
+CLAUDE_CODE_PROMPT_CACHE_TTL=1h claude -p "wip/round6-world/briefs/COMMON.md 와 wip/round6-world/briefs/S-swim.md 를 읽고 그 갈래를 끝까지 해. Playwright 가 없으면 npm 공식 레지스트리의 playwright 패키지를 npm i --no-save playwright 로, 그 Chromium 을 npx playwright install chromium 으로 깔아도 된다." --effort high --autocompact 300k --strict-mcp-config --max-budget-usd 55 --permission-mode auto --permission-prompts none --output-format json > ../ppol-swim.json
 ```
 
 다른 갈래는 이름 · 지시문 · 상한만 바꾼다:
@@ -166,7 +166,7 @@ git push -u origin lane/6-swim
 끊겼을 때 (상한에 닿음 · 창을 닫음) — 같은 폴더에서 **새 세션으로** 이어 하기 (메모와 커밋을 보고 남은 것만 한다):
 
 ```bash
-CLAUDE_CODE_PROMPT_CACHE_TTL=1h claude -p "wip/round6-world/briefs/COMMON.md 와 wip/round6-world/briefs/S-swim.md 를 읽고, wip/round6-world/notes 의 메모 · git log · git status 를 보고 남은 것만 끝내. Playwright 가 없으면 npm 공식 레지스트리의 playwright 패키지를 npm i --no-save playwright 로, 그 Chromium 을 npx playwright install chromium 으로 깔아도 된다." --model claude-opus-5-5 --effort high --autocompact 300k --strict-mcp-config --max-budget-usd 12 --permission-mode auto --permission-prompts none --output-format json > ../ppol-swim-2.json
+CLAUDE_CODE_PROMPT_CACHE_TTL=1h claude -p "wip/round6-world/briefs/COMMON.md 와 wip/round6-world/briefs/S-swim.md 를 읽고, wip/round6-world/notes 의 메모 · git log · git status 를 보고 남은 것만 끝내. Playwright 가 없으면 npm 공식 레지스트리의 playwright 패키지를 npm i --no-save playwright 로, 그 Chromium 을 npx playwright install chromium 으로 깔아도 된다." --effort high --autocompact 300k --strict-mcp-config --max-budget-usd 12 --permission-mode auto --permission-prompts none --output-format json > ../ppol-swim-2.json
 ```
 
 참고:

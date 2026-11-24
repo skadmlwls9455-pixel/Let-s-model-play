@@ -45,12 +45,8 @@ var L = NPC.list('2026-11-21');
 ok(L.length === 7 && L.every(function (x) { return x.id && /^#[0-9a-f]{6}$/.test(x.color) && ['none', 'beret', 'apron', 'cap'].indexOf(x.hat) >= 0 && ['stand', 'sleep'].indexOf(x.pose) >= 0; }), 'list 는 계약 C6 모양');
 ok(L.filter(function (x) { return x.pose === 'sleep'; }).length === 4 && L.slice(0, 3).every(function (x) { return x.pose === 'stand'; }), '셋은 서 있고 넷은 잔다');
 ok(JSON.stringify(NPC.list('2026-11-21')) === JSON.stringify(NPC.list('2026-11-21')), 'list 는 같은 날 같은 값');
-/* 방이 있는 장면 (C14): 방 안엔 그 방의 문어만 · 카페엔 자는 문어 하나 · 바깥엔 자는 셋 */
-function ids(l) { return l.map(function (x) { return x.id + ':' + x.pose; }).join(); }
-ok(ids(NPC.list('2026-11-21', 'clothes')) === 'clothes:stand' && ids(NPC.list('2026-11-21', 'goods')) === 'goods:stand', '옷가게 · 잡화점 안엔 그 가게 문어만');
-ok(ids(NPC.list('2026-11-21', 'cafe')) === 'cafe:stand,sleep-1:sleep', '카페 안엔 느루와 구석 식탁에서 자는 문어 하나');
-ok(NPC.list('2026-11-21', 'hall').length === 0, '공연장 안엔 마을 문어를 세우지 않는다');
-ok(ids(NPC.list('2026-11-21', null)) === 'sleep-2:sleep,sleep-3:sleep,sleep-4:sleep', '바깥엔 자는 문어 셋 (가게 문어는 가게 안에 있다)');
+/* 자는 문어 하나는 카페 구석 식탁에 (C14): 방 · 칸을 달아 넘긴다 */
+ok(L[3].id === 'sleep-1' && L[3].room === 'cafe' && L[3].slot === 'nap' && L.filter(function (x) { return x.room; }).length === 1, 'sleep-1 은 카페의 nap 칸 · 나머지는 바깥');
 
 /* 2. 대사: 열쇠마다 세 갈래 이상 · 길이 · 금지 낱말 */
 Object.keys(C7).forEach(function (id) {
@@ -104,12 +100,17 @@ Object.keys(C7).forEach(function (id) {
     ok(JSON.stringify(NPC.line(id, k, null, 5)) === JSON.stringify(NPC.line(id, k, null, 5)), id + ' ' + k + ' 같은 씨앗 같은 줄');
   });
 });
-var t1 = NPC.line('clothes', 'contest.open', { theme: '바다' }, 0);
-ok(t1 && /바다/.test(t1.bubbles.join('')), '주제를 넘기면 주제를 말하는 갈래');
+function some(id, k, v, rx) { for (var i = 0; i < 8; i++) { var l = NPC.line(id, k, v, i); if (l && rx.test(l.bubbles.join(''))) return true; } return false; }
+function rotates(id, k, v) { var seen = {}; for (var i = 0; i < 8; i++) seen[NPC.line(id, k, v, i).n] = 1; return Object.keys(seen).length; }
+ok(some('clothes', 'contest.open', { theme: '바다' }, /바다/), '주제를 넘기면 주제를 말하는 갈래도 나온다');
+ok(rotates('clothes', 'contest.open', { theme: '바다' }) >= 3 && rotates('cafe', 'cafe.stamp', { n: 2 }) >= 3, '값을 넘겨도 같은 줄만 되풀이하지 않는다');
 var t2 = NPC.line('goods', 'contest.result', { shells: 7 }, 3);
 ok(t2 && /7개/.test(t2.bubbles.join('')), '조개 수를 넘기면 그 수를 말한다');
-var t3 = NPC.line('cafe', 'cafe.gift', { dish: '딸기 케이크' }, 1);
-ok(t3 && /딸기 케이크/.test(t3.bubbles.join('')), '요리 이름');
+/* 11-24: 심사 문어마다 제가 센 것을 이름으로 말한다 (시침 = 주제 꼬리표 · 모아 = 주제 색 · 느루 = 같은 결) */
+[['clothes', /주제 꼬리표/], ['goods', /주제 색/], ['cafe', /결/]].forEach(function (j) {
+  for (var i = 0; i < 6; i++) { var l = NPC.line(j[0], 'contest.judge', { n: 2 }, i); ok(j[1].test(l.bubbles.join('')) && /2개/.test(l.bubbles.join('')), j[0] + ' 심사 줄은 제가 센 것을 이름으로: ' + l.bubbles.join(' ')); }
+});
+ok(some('cafe', 'cafe.gift', { dish: '딸기 케이크' }, /딸기 케이크/), '요리 이름');
 ok(!/\{|undefined|null/.test(NPC.line('cafe', 'cafe.gift', { dish: '' }, 1).bubbles.join('')), '빈 값이면 빈칸 갈래를 안 고른다');
 
 /* 4. 저장 칸: 모르는 값은 그대로 */

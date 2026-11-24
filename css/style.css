@@ -304,6 +304,8 @@ a { color: var(--teal); touch-action: manipulation; }
 .ltext .st { color: var(--muted); font-size: 12px; }
 .ltext .sub { display: block; color: var(--muted); font-size: 12px; }
 .ltext .first { color: var(--teal); }
+/* 11-24 (7차 넷째 바퀴): 기본 글꼴 (data-font=system) 에서도 로그 글자 16px — 그린 뒤에 키우는 글자 바닥 (app.js FF) 을 기다리지 않고 CSS 로 바로, 그래야 로그 맞춤 (logSnapTop) 이 처음부터 다 자란 행을 잰다 (스모크 U 320px · 기본 글꼴에서 위 행이 반쯤 잘렸다) */
+:root[data-font="system"] .lrow, :root[data-font="system"] .ltool, :root[data-font="system"] .ltext .st, :root[data-font="system"] .ltext .sub, :root[data-font="system"] .ltext .lby, :root[data-font="system"] .lday summary { font-size: 16px; }
 .lrow.typing .ltext { color: var(--muted); letter-spacing: 2px; animation: pill-breathe 1.4s ease-in-out infinite; }
 .lempty { color: var(--muted); font-size: 13px; padding: 12px 0; }
 /* 초상 대화창 행 (§15.2, ui-ref-portrait-dialog): 왼쪽 64×64 초상을 96px 로(nearest), 남색 바탕 틀, 오른쪽 라벨 + 말. 초상 <canvas> 는 aria-hidden — 읽히는 건 글자뿐 */
@@ -1714,26 +1716,14 @@ dialog.cook-overlay .cook-wait[hidden] { display: none; }
 @keyframes cw-walk { to { background-position: calc(-1 * var(--cw-sheet, 896px)) 0; } }
 :root[data-motion="reduce"] .cook-wait .cw-oct { animation: none; }
 @media (prefers-reduced-motion: reduce) { :root:not([data-motion="auto"]) .cook-wait .cw-oct { animation: none; } }
-.cook-wait .cw-close, dialog.dish-pick .dp-chip { position: absolute; margin: 0; padding: 0; background-color: #e7d5b3; border: 0; border-radius: 0; box-sizing: border-box;
+.cook-wait .cw-close { position: absolute; margin: 0; padding: 0; background-color: #e7d5b3; border: 0; border-radius: 0; box-sizing: border-box;
   box-shadow: inset 0 0 0 var(--dp-b, 2px) #602c2c, inset calc(2 * var(--dp-b, 2px)) calc(2 * var(--dp-b, 2px)) 0 #ebede9,
     inset calc(-2 * var(--dp-b, 2px)) calc(-2 * var(--dp-b, 2px)) 0 #c09473, var(--dp-b, 2px) var(--dp-b, 2px) 0 #602c2c;   /* 부엌 칩 (.ck-paper) 과 같은 종이 */
   -webkit-tap-highlight-color: transparent; touch-action: manipulation; cursor: pointer; }
 .cook-wait .cw-close { --dp-b: var(--cw-b, 2px); left: var(--cw-cx, auto); top: var(--cw-cy, 8px); width: var(--cw-box, 48px); height: var(--cw-box, 48px); }
 .cook-wait .cw-close img { position: absolute; left: var(--cw-icp, 16px); top: var(--cw-icp, 16px); width: var(--cw-ic, 16px); height: var(--cw-ic, 16px); image-rendering: pixelated; }
-.cook-wait .cw-close:active, dialog.dish-pick .dp-chip:active { transform: translate(0, var(--dp-b, 2px)); }
-/* 요리 쟁반: 투명 배경 (뒤의 놀이방이 보인다) · 가운데 아래 · 칩 64 · 틈 16 · 그림 floor(3·dpr) 기기 px 배 (app.js dishPickFit) */
-dialog.dish-pick, :root[data-font="pixel"] dialog.dish-pick, :root[data-font="pixel"] dialog.dish-pick[open] { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
-  border: 0; border-radius: 0; background: transparent; box-shadow: none; animation: none; overflow: hidden; outline: none; }
-dialog.dish-pick::backdrop, :root[data-font="pixel"] dialog.dish-pick::backdrop { background: none transparent; }   /* 픽셀 테마의 대화상자 디더 막 (어둡게) 보다 앞서게 — 뒤의 놀이방이 그대로 보인다 */
-dialog.dish-pick .dp-row { position: absolute; left: var(--dp-x, 0px); top: var(--dp-y, 0px); width: calc(3 * var(--dp-chip, 64px) + 2 * var(--dp-gap, 16px)); height: var(--dp-chip, 64px); }
-dialog.dish-pick .dp-chip { top: 0; width: var(--dp-chip, 64px); height: var(--dp-chip, 64px); }
-dialog.dish-pick .dp-chip:nth-child(1) { left: 0; }
-dialog.dish-pick .dp-chip:nth-child(2) { left: calc(var(--dp-chip, 64px) + var(--dp-gap, 16px)); }
-dialog.dish-pick .dp-chip:nth-child(3) { left: calc(2 * var(--dp-chip, 64px) + 2 * var(--dp-gap, 16px)); }
-dialog.dish-pick .dp-chip img { position: absolute; left: var(--dp-icp, 8px); top: var(--dp-icp, 8px); width: var(--dp-ic, 48px); height: var(--dp-ic, 48px); image-rendering: pixelated; }
-html.dish-picking #btn-go, html.dish-picking #stick { visibility: hidden !important; }   /* 리드 11-18: 쟁반이 열린 동안 아래 막대의 큰 단추 · 손잡이가 칩 사이로 비치지 않게 (닫으면 클래스만 빠진다 → 그대로) */
-dialog.dish-pick .dp-chip:focus { outline: none; }
-dialog.dish-pick .dp-chip:focus-visible, .cook-wait .cw-close:focus-visible { outline: var(--dp-b, 2px) solid #341c27; outline-offset: var(--dp-b, 2px); }
+.cook-wait .cw-close:active { transform: translate(0, var(--dp-b, 2px)); }
+.cook-wait .cw-close:focus-visible { outline: var(--dp-b, 2px) solid #341c27; outline-offset: var(--dp-b, 2px); }
 /* 11-18 식탁 (lane M · docs/MEAL.md): 식탁 단추 (#btn-table — scene-spot 그대로) · 내 자리 노란 점 (#btn-seat — sofa-dot 모양) · 문어 부르기 칩 (#btn-call).
    셋 다 그림만 (글자 0 · title 없음). 칩: 44 px 누르는 곳 안에 40 px 종이 + 16×16 문어 머리 (한 칸 = floor(2·dpr) 기기 px — 크기 · 자리는 app.js mealUI 가 기기 px 로 맞춘다) */
 /* 11-18 리드 (검증 dining-1): #btn-seat 는 .sofa-dot 처럼 누름을 받지 않는다 — 장면의 '처음 보이는 면' 고르기가 정한다 (내 소파 · 식탁 → 'table' → 앉기).
@@ -1770,10 +1760,29 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 /* 폭 ≤ 599 의 한 화면 배치: 바 (폭 − 아이콘 묶음) 에 네 글자 이름 80 + 등불 칸 94 + 'D+N' 48–60 이 다 안 든다 (360 폭: 바 196) → '데모' 꼬리표처럼 바 아래 왼쪽에 매단다 (늘 보인다).
    ≤ 449 는 '데모' 꼬리표 (6px 부터 28px) 오른쪽 옆, 꼬리표가 숨었을 때 (모델 여행 재생 중) 와 450–599 (꼬리표가 바 안) 는 왼쪽 끝 */
 @media (max-width: 599px) {
-  :root[data-layout="one"] #status .day-n { position: absolute; top: calc(100% + 3px); left: 6px; padding: 0 3px; line-height: 16px; background-color: var(--panel); box-shadow: inset 0 0 0 1px var(--rim); }
-  :root[data-layout="one"][data-font="pixel"] #status .day-n { top: calc(100% + 1px); padding: 1px 3px; line-height: calc(var(--fs-m16, 16px) + 2px); box-shadow: inset 0 0 0 1px var(--line); }
+  :root[data-layout="one"] #status .day-n { position: absolute; top: calc(100% + 3px); left: 6px; margin: 0; padding: 0 3px; border: 1px solid var(--rim); border-radius: 6px; font-size: 10px; line-height: 14px; font-weight: 500; background-color: var(--panel); }   /* 11-22: '데모' 꼬리표와 같은 모양 · 같은 크기 (나란히) */
+  :root[data-layout="one"][data-font="pixel"] #status .day-n { top: calc(100% + 3px); padding: 1px 2px; border: 0; border-radius: 0; box-shadow: inset 0 0 0 1px var(--line); font-family: var(--f-meta); font-weight: 400; font-size: var(--fs-u12, 12px); line-height: calc(var(--fs-u12, 12px) + 2px); }
 }
 @media (max-width: 449px) { :root[data-layout="one"] #status .brain-tag:not([hidden]) + .day-n { left: 38px; } }
+/* 11-22 (점검: 보이는 글자는 모두 16 px 이상): '데모' · 'D+N' 꼬리표 글자를 16 px 로 (모양은 둘이 같다 — 테 1 px · 작은 안쪽 여백). 폰에선 바 바로 아래 왼쪽에 나란히 */
+#status .brain-tag, #status .day-n { font-size: 16px; line-height: 20px; }
+:root[data-font="pixel"] #status .brain-tag, :root[data-font="pixel"] #status .day-n { font-size: var(--fs-m16, 16px); line-height: calc(var(--fs-m16, 16px) + 2px); }
+@media (max-width: 599px) { :root[data-layout="one"] #status .day-n { font-size: 16px; line-height: 20px; } :root[data-layout="one"][data-font="pixel"] #status .day-n { font-size: var(--fs-m16, 16px); line-height: calc(var(--fs-m16, 16px) + 2px); } }
+@media (max-width: 449px) { :root[data-layout="one"] #status .brain-tag:not([hidden]) + .day-n { left: 47px; } :root[data-layout="one"][data-font="pixel"] #status .brain-tag:not([hidden]) + .day-n { left: 50px; } }
+/* 11-22 계단 그림 (js/scene3d.js stairCue): 계단이 화면 밖일 때 그쪽 가장자리에 흐린 계단 그림 + 픽셀 화살표. 글자 없음 · 누르면 화면이 계단 쪽으로 밀린다 (44px 누르는 곳) */
+.stair-cue { position: absolute; left: 0; z-index: 8; width: 44px; height: 44px; display: flex; align-items: center; justify-content: flex-start; gap: 1px; padding-left: 2px; box-sizing: border-box; opacity: .72; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.stair-cue[hidden] { display: none; }
+.stair-cue[data-side="right"] { left: auto; right: 0; flex-direction: row-reverse; padding: 0 2px 0 0; }
+.stair-cue-ico { display: block; width: 32px; height: 32px; image-rendering: pixelated; }
+.stair-cue-arrow { display: block; flex: 0 0 auto; width: 6px; height: 10px; background: #602c2c; clip-path: polygon(6px 0, 4px 0, 4px 2px, 2px 2px, 2px 4px, 0 4px, 0 6px, 2px 6px, 2px 8px, 4px 8px, 4px 10px, 6px 10px); }
+.stair-cue[data-side="right"] .stair-cue-arrow { transform: scaleX(-1); }
+.stair-cue:active { transform: translate(2px, 2px); }
+/* 11-24 (점검: 탁자 위 갈색 72 % 는 잘 안 보였다): 밝은 종이 바탕 + 어두운 테 (픽셀 단추 모양 그대로) · 화살표는 짙은 갈색 · 흐림 없음 */
+.stair-cue { opacity: 1; width: 44px; height: 40px; padding: 0 2px; gap: 1px; background: rgba(235, 237, 233, .9); box-shadow: inset 0 0 0 2px #2b1d22, 2px 2px 0 rgba(27, 21, 34, .45); }
+.stair-cue { left: 4px; }
+.stair-cue[data-side="right"] { left: auto; right: 4px; padding: 0 2px; }
+.stair-cue .stair-cue-ico { width: 32px; height: 32px; }
+:root.furn-on .stair-cue, #scene.salon-on .stair-cue { visibility: hidden; }
 /* 11-21 설정 구역 접기 (js/app.js setSecFold): 제목 줄 = summary (누르는 곳 44px), 오른쪽 끝에 픽셀 꺾쇠 그림 (글자 아님 — 닫힘 ▸ 모양 · 열림 ▾ 모양을 clip-path 계단으로).
    구역 사이 줄은 summary 가 긋는다 (안의 h3 · .set-parts-h 는 제 줄 · 여백을 내려놓는다) */
 .settings-sheet .set-sec > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 8px; border-top: 1px solid var(--rim); cursor: pointer; list-style: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
@@ -1791,25 +1800,158 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 
 
 /* [7-T] 요리 → 식탁 잇기 · 레시피 */
+/* 먹는 동안의 큰 요리 그림: 부엌 칩과 같은 종이 칸 · 장면 위쪽 가운데 · 그림 한 칸 = floor(2·dpr) 기기 px (자리 · 크기는 app.js mealCloseDraw 가 기기 px 로) · 누름을 받지 않는다 */
+.meal-close { position: absolute; left: 0; top: 0; z-index: 8; margin: 0; padding: var(--mc-p, 8px); box-sizing: content-box; pointer-events: none; background-color: #e7d5b3;
+  box-shadow: inset 0 0 0 var(--mc-b, 2px) #602c2c, inset calc(2 * var(--mc-b, 2px)) calc(2 * var(--mc-b, 2px)) 0 #ebede9,
+    inset calc(-2 * var(--mc-b, 2px)) calc(-2 * var(--mc-b, 2px)) 0 #c09473, var(--mc-b, 2px) var(--mc-b, 2px) 0 #602c2c; }
+.meal-close[hidden] { display: none; }
+.meal-close canvas { display: block; image-rendering: pixelated; }
 
 
 /* [7-P] 내 캐릭터 · 뛰기 */
+/* 11-21 옷장의 잠긴 칸 (아직 없는 가게 물건): 그림은 흐리게 · 왼쪽 위에 자물쇠 (네모 몸통 + 고리) · 이름 아래 조개 값. 글 없이도 다르게 보인다 */
+.look-tile.locked { border-style: dashed; cursor: default; }
+.look-tile.locked .look-thumb { opacity: .4; }
+.look-tile.locked .look-name { opacity: .7; }
+.look-tile.locked::before { content: ''; position: absolute; top: 12px; left: 6px; width: 12px; height: 10px; background: var(--muted); }
+.look-tile.locked::after { content: ''; position: absolute; top: 4px; left: 8px; width: 8px; height: 8px; box-sizing: border-box; border: 2px solid var(--muted); border-bottom: 0; }
+.look-lock { display: flex; align-items: center; justify-content: center; min-height: 20px; }
+.look-tile .look-lock .shell-amt .shell-ico, :root[data-font="pixel"] .look-tile .look-lock .shell-amt .shell-ico { display: block; width: 16px; height: 16px; margin: 0 2px 0 0; }
 
 
 /* [7-W] 바깥 한 장 · 해안가 · 이동 */
+/* 빠른 이동 칩: 요리 쟁반의 칩 모양 그대로 · 자리는 app.js travelFit 이 보이는 칩만 기기 px 로 놓는다 (숨긴 칩 자리는 비우지 않는다) · 그림은 16×16 캔버스를 정수 배로 */
+/* 11-22: 요리 쟁반 규칙이 빠진 뒤 (e1c31ce) 빠른 이동 칩이 무너졌다 → 제 규칙을 다 갖는다. 투명한 온 화면 대화상자 · 아래 가운데 칩 줄 · 칩 64 px 종이 · 그림 16 px × 정수 기기 px (app.js travelFit) */
+dialog.travel-pick, :root[data-font="pixel"] dialog.travel-pick, :root[data-font="pixel"] dialog.travel-pick[open] { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
+  border: 0; border-radius: 0; background: transparent; box-shadow: none; animation: none; overflow: hidden; outline: none; }
+dialog.travel-pick::backdrop, :root[data-font="pixel"] dialog.travel-pick::backdrop { background: none transparent; backdrop-filter: none; }
+dialog.travel-pick .dp-row { position: absolute; left: var(--dp-x, 0px); top: var(--dp-y, 0px); width: calc(3 * var(--dp-chip, 64px) + 2 * var(--dp-gap, 16px)); height: var(--dp-chip, 64px); }
+dialog.travel-pick .dp-chip { position: absolute; top: 0; width: var(--dp-chip, 64px); height: var(--dp-chip, 64px); margin: 0; padding: 0; background-color: #e7d5b3; border: 0; border-radius: 0; box-sizing: border-box;
+  box-shadow: inset 0 0 0 var(--dp-b, 2px) #602c2c, inset calc(2 * var(--dp-b, 2px)) calc(2 * var(--dp-b, 2px)) 0 #ebede9,
+    inset calc(-2 * var(--dp-b, 2px)) calc(-2 * var(--dp-b, 2px)) 0 #c09473, var(--dp-b, 2px) var(--dp-b, 2px) 0 #602c2c;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; cursor: pointer; }
+dialog.travel-pick .dp-chip:active { transform: translate(0, var(--dp-b, 2px)); }
+dialog.travel-pick .dp-chip:focus { outline: none; }
+dialog.travel-pick .dp-chip:focus-visible { outline: var(--dp-b, 2px) solid #341c27; outline-offset: var(--dp-b, 2px); }
+html.travel-picking #btn-go, html.travel-picking #stick { visibility: hidden !important; }
+dialog.travel-pick .dp-row .dp-chip[data-place] { left: var(--tp-x, 0px); }
+dialog.travel-pick .dp-chip[hidden] { display: none; }
+dialog.travel-pick .dp-chip canvas { position: absolute; left: var(--dp-icp, 8px); top: var(--dp-icp, 8px); width: var(--dp-ic, 48px); height: var(--dp-ic, 48px); image-rendering: pixelated; }
 
 
 /* [7-V] 마을 건물 · NPC 그리기 */
 
 
 /* [7-S] 가게 (옷가게 · 잡화점 · 바닷가 조개) */
-
+/* 11-21 UI 2차 (주인: "ui가 너무 조잡한데"): 양식이 아니라 가게 — 맨 위 그림 띠 (선반 벽 · 계산대 뒤의 가게 주인 · 조개 주머니), 간판에 앉은 제목,
+   물건은 널빤지 위에 서 있고 값은 구멍 뚫린 꼬리표로 달린다 (가진 것 · 다 팔린 것은 꼬리표에 도장). 입어 보기는 서 있는 거울, 확인은 종이 영수증.
+   그림 속 색은 테마와 무관하게 고정 (나무 · 종이). 틈은 8px 박자, 테는 바깥 2px 어두운 줄 + 안쪽 2px 밝은 줄. 그림 크기는 앱이 기기 px 의 정수배로 (shopSnap) */
+.shop-sheet, .shop-card, .shop-hop { --sw-line: #3a2a20; --sw-wall: #d9b98a; --sw-wall-hi: #e8cfa4; --sw-wall-lo: #c4a070; --sw-plank: #8a5a36; --sw-plank-hi: #b98a5a; --sw-paper: #f3ead6; --sw-paper-lo: #d8c9a8; --sw-stamp: #a8432e; }
+.shop-sheet { max-height: 94dvh; }
+.shop-sheet #shop-h { display: table; position: relative; z-index: 1; margin: 0 auto -16px; padding: 4px 16px; min-width: 120px; text-align: center; color: #fff7ee; background: #8a4f0c; border: 2px solid var(--sw-line); box-shadow: inset 2px 2px 0 #c98a3a, inset -2px -2px 0 #5e3406, 0 4px 0 rgba(0, 0, 0, .25); font-weight: 700; }
+:root[data-font="pixel"] .shop-sheet #shop-h { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 32px; }
+.shop-band { position: relative; height: 96px; margin: 0 0 8px; border: 2px solid var(--sw-line); box-shadow: inset 2px 2px 0 var(--sw-wall-hi); overflow: hidden; image-rendering: pixelated;
+  background:
+    linear-gradient(var(--sw-plank-hi) 0 0) 0 62px / 100% 2px no-repeat, linear-gradient(var(--sw-plank) 0 0) 0 64px / 100% 28px no-repeat, linear-gradient(#5e3a20 0 0) 0 60px / 100% 2px no-repeat,
+    linear-gradient(var(--sw-plank) 0 0) 96px 36px / calc(100% - 192px) 4px no-repeat, linear-gradient(rgba(0, 0, 0, .2) 0 0) 96px 40px / calc(100% - 192px) 2px no-repeat,
+    linear-gradient(var(--sw-wall-hi) 0 16px, var(--sw-wall) 16px 40px, var(--sw-wall-lo) 40px); }
+.shop-band.goods { --sw-wall: #c9c2a0; --sw-wall-hi: #ddd8b8; --sw-wall-lo: #b3ab88; }
+.shop-band .shop-keeper { position: absolute; left: 16px; bottom: 22px; image-rendering: pixelated; image-rendering: crisp-edges; }
+.shop-band .shop-counter { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; background: linear-gradient(var(--sw-plank-hi) 0 2px, var(--sw-plank) 2px 22px, #5e3a20 22px); border-top: 2px solid var(--sw-line); }
+.shop-sheet .shop-band .shop-purse { position: absolute; right: 8px; bottom: 6px; margin: 0; padding: 2px 8px 2px 6px; min-height: 36px; display: flex; align-items: center; color: #2a2620; background: var(--sw-paper); border: 2px solid var(--sw-line); box-shadow: inset -2px -2px 0 var(--sw-paper-lo), 2px 2px 0 rgba(0, 0, 0, .3); font-weight: 700; }
+.shop-sheet .shop-purse .shell-ico { margin: 0 2px 0 0; }
+.shop-band.slim { height: 44px; background: none; border: 0; box-shadow: none; margin: 0; }
+.shop-sheet .shop-band.slim .shop-purse { top: 2px; bottom: auto; right: 0; }
+/* 선반 벽: 위에서 비추는 빛 (계단 명암), 물건 줄마다 널빤지 4px + 그림자 2px */
+.shop-sheet .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 0; margin: 0 0 8px; padding: 8px 8px 8px; border: 2px solid var(--sw-line); box-shadow: inset 2px 2px 0 var(--sw-wall-hi); background: linear-gradient(var(--sw-wall-hi) 0 24px, var(--sw-wall) 24px 96px, var(--sw-wall-lo) 96px); }
+.shop-sheet .shop-tile, :root[data-font="pixel"] .shop-sheet .shop-tile { display: flex; flex-direction: column; align-items: center; gap: 0; min-height: 48px; padding: 0 0 8px; border: 0; border-radius: 0; background: none; box-shadow: none; color: #2a2620; }
+:root[data-font="pixel"] .shop-sheet .shop-tile:active { transform: translate(2px, 2px); }
+.shop-sheet .shop-tile:focus-visible { outline: 2px solid var(--sw-line); outline-offset: -2px; }
+.shop-pic { display: flex; align-items: flex-end; justify-content: center; align-self: stretch; height: 76px; padding-top: 8px; border-bottom: 4px solid var(--sw-plank); box-shadow: 0 2px 0 rgba(0, 0, 0, .25), inset 0 -2px 0 var(--sw-plank-hi); }
+.shop-thumb, .shop-seed, .shop-dye { display: block; width: 64px; height: 64px; image-rendering: pixelated; image-rendering: crisp-edges; }
+/* 값 꼬리표: 널빤지에서 실로 내려온 종이표 (왼쪽 모서리를 접고 구멍 하나) */
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost, :root[data-font="pixel"] :is(.shop-sheet .shop-tile, .shop-card) .sew-cost { position: relative; display: inline-flex; align-items: center; justify-content: center; align-self: center; min-width: 64px; min-height: 36px; margin-top: 10px; padding: 2px 8px 2px 16px; border-radius: 0; color: #2a2620; background: var(--sw-paper); box-shadow: inset 0 0 0 2px var(--sw-line), 2px 2px 0 rgba(0, 0, 0, .3); clip-path: polygon(8px 0, 100% 0, 100% calc(100% + 2px), calc(100% + 2px) calc(100% + 2px), 8px calc(100% + 2px), 0 calc(100% - 6px), 0 8px); font-weight: 700; }
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost::before { content: ''; position: absolute; left: 6px; top: 50%; width: 4px; height: 4px; margin-top: -2px; background: var(--sw-line); }
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost .shell-ico { margin: 0; }
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost.own { padding: 2px 10px 2px 20px; }
+.shop-sheet .shop-tile .sew-name { margin-top: 6px; padding: 0 2px; color: #2a2620; word-break: keep-all; overflow-wrap: anywhere; text-align: center; }
+:root[data-font="pixel"] .shop-sheet .shop-tile .sew-name { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 24px; }
+/* 서 있는 거울 (입어 보기) · 종이 영수증 (확인) */
+.shop-sheet .shop-ask, :root[data-font="pixel"] .shop-sheet .shop-ask { position: relative; display: flex; flex-direction: column; align-items: stretch; justify-content: center; margin: auto 0; padding: 12px 12px 12px; border: 0; border-radius: 0; color: #2a2620; background: var(--sw-paper); box-shadow: inset 0 0 0 2px var(--sw-line), inset 2px 2px 0 2px #fffaf0, 4px 4px 0 rgba(0, 0, 0, .3); }
+.shop-sheet .shop-ask::after { content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 4px; background: repeating-linear-gradient(90deg, var(--sw-line) 0 4px, transparent 4px 8px); }
+.shop-mirror { position: relative; align-self: center; display: block; margin: 0 0 20px; padding: 4px; background: linear-gradient(135deg, #f4f8f4 0 30%, #dfe9e4 30% 36%, #eef3ee 36% 70%, #dfe9e4 70% 74%, #eef3ee 74%); border: 4px solid var(--sw-plank); box-shadow: inset 0 0 0 2px var(--sw-plank-hi), 0 0 0 2px var(--sw-line); }
+.shop-mirror::after { content: ''; position: absolute; left: 16%; right: 16%; bottom: -14px; height: 8px; background: var(--sw-plank); box-shadow: 0 0 0 2px var(--sw-line); }
+.shop-try { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.shop-sheet .shop-ask .sew-ask-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 2px dotted var(--sw-line); color: #2a2620; }
+:root[data-font="pixel"] .shop-sheet .shop-ask .sew-ask-line { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; }
+.shop-sheet .shop-ask .sew-ask-line .shell-amt { font-weight: 700; }
+.shop-sheet .shop-ask .btn { color: #2a2620; background-color: var(--sw-paper); }
+.shop-sheet .shop-ask .sew-yes { color: #fff7ee; background-color: #8a4f0c; background-image: none; font-weight: 700; }
+:root[data-font="pixel"] .shop-sheet .shop-ask .sew-yes { box-shadow: inset 2px 2px 0 #c98a3a, inset -2px -2px 0 #5e3406, 2px 2px 0 var(--sw-line); border-color: var(--sw-line); }
+.shop-sheet .set-note { margin: 8px 0; }
+:root[data-font="pixel"] :is(.shop-sheet .shop-tile, .shop-card) .sew-cost.own, :is(.shop-sheet .shop-tile, .shop-card) .sew-cost.own { color: var(--sw-stamp); }
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost.own::after { content: ''; position: absolute; left: 14px; right: 4px; top: 4px; bottom: 4px; border: 2px solid var(--sw-stamp); }
+#shop-body { display: flex; flex-direction: column; }
+#shop-body { padding-bottom: 12px; }
+.shop-ask-pic { display: flex; justify-content: center; margin: 0 0 8px; }
+/* 11-21 밤 가게 방의 카드 (#scene 안의 평범한 요소 — dialog 아님): 마네킹 · 선반의 꼬리표 카드, 계산대의 영수증. 종이 · 2px 테 · 4px 굳은 그림자, 틈 8px */
+.shop-card { position: absolute; left: 0; top: 0; z-index: 12; box-sizing: border-box; width: 200px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: #2a2620; background: var(--sw-paper); box-shadow: inset 0 0 0 2px var(--sw-line), inset 2px 2px 0 2px #fffaf0, 4px 4px 0 rgba(0, 0, 0, .35); }
+.shop-card.tag { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; gap: 4px 8px; width: 232px; }   /* 물건을 덜 가리게 낮게: 왼쪽 그림, 오른쪽 이름 · 값표, 아래 단추 */
+.shop-card.tag .shop-pic { grid-row: 1 / span 2; width: 72px; height: 72px; border-bottom: 0; box-shadow: none; align-items: center; }
+.shop-card.tag .sew-cost { justify-self: center; }
+.shop-card.tag .shop-card-btns { grid-column: 1 / -1; }
+.shop-card { max-height: calc(100% - 16px); }
+.shop-card.receipt .shop-rc-list { overflow-y: auto; min-height: 0; flex: 0 1 auto; }   /* 고른 것이 많아도 단추 줄은 늘 보인다 */
+.shop-card.receipt { width: 232px; align-items: stretch; padding: 12px; }
+.shop-card.receipt::after { content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 4px; background: repeating-linear-gradient(90deg, var(--sw-line) 0 4px, transparent 4px 8px); }
+.shop-card .shop-pic { align-self: center; width: 80px; height: 72px; padding: 0; }
+.shop-card .sew-cost { margin-top: 0; }
+.shop-card p { margin: 0; }
+:root[data-font="pixel"] .shop-card :is(.sew-cost, .shop-purse, .shop-rc-list .shell-amt) { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; font-weight: 700; }
+.shop-card-name, .shop-card-note, .shop-rc-list, .shop-rc-sum { color: #2a2620; text-align: center; word-break: keep-all; }
+:root[data-font="pixel"] :is(.shop-card-name, .shop-card-note, .shop-rc-list, .shop-rc-sum) { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 28px; }
+.shop-card-name { font-weight: 700; }
+.shop-card-btns { margin: 0; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.shop-card .btn { color: #2a2620; background-color: var(--sw-paper); white-space: nowrap; }
+.shop-card .sew-yes { color: #fff7ee; background-color: #8a4f0c; background-image: none; font-weight: 700; }
+:root[data-font="pixel"] .shop-card .sew-yes { box-shadow: inset 2px 2px 0 #c98a3a, inset -2px -2px 0 #5e3406, 2px 2px 0 var(--sw-line); border-color: var(--sw-line); }
+.shop-card.receipt .shop-purse { align-self: flex-end; display: inline-flex; align-items: center; font-weight: 700; }
+.shop-rc-list { list-style: none; margin: 0; padding: 0 0 8px; border-bottom: 2px dotted var(--sw-line); text-align: left; }
+.shop-rc-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
+.shop-rc-sum { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0 4px; font-weight: 700; }
+.shop-card.receipt .shop-card-btns { justify-content: flex-end; }
+.shop-hop { position: fixed; z-index: 60; pointer-events: none; image-rendering: pixelated; transition: transform 360ms steps(6), opacity 360ms steps(6); }
+/* 그림 갈래의 그림을 입힌 값표 (ui.tag 40×24 → 120×72, 글 자리는 그림의 x 13..36 · y 6..17) · 팔림 도장 (ui.sold) · 영수증 머리 그림 */
+.shop-spr { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost.spr, :root[data-font="pixel"] :is(.shop-sheet .shop-tile, .shop-card) .sew-cost.spr { box-sizing: border-box; min-width: 0; min-height: 0; padding: 0 6% 4% 30%; background: none; box-shadow: none; clip-path: none; justify-content: center; }
+:is(.shop-sheet .shop-tile, .shop-card) .sew-cost.spr::before, :is(.shop-sheet .shop-tile, .shop-card) .sew-cost.spr::after { content: none; }
+.sew-cost.spr > .shop-tag-bg { position: absolute; left: 0; top: 0; z-index: 0; }
+.sew-cost.spr > :not(.shop-spr) { position: relative; z-index: 1; }
+.sew-cost.spr.sold > .px-ico, .sew-cost.spr.sold > svg { display: none; }
+.sew-cost.spr > .shop-tag-sold { position: absolute; left: 50%; top: 50%; z-index: 2; transform: translate(-42%, -50%); }
+.shop-rc-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.shop-rc-top > :only-child { margin-left: auto; }
+/* 11-24: 픽셀 글꼴을 끈 설정 (시스템 글꼴) 에서도 가게 글자는 16px 이상 (위 규칙은 픽셀 글꼴에만 크기를 준다) */
+:is(.shop-card, .shop-sheet) :is(.sew-name, .shop-card-name, .shop-card-note, .shop-rc-list, .shop-rc-sum, .sew-ask-line, .shell-n, .bag-line, .set-note, .shop-tag-txt) { font-size: max(16px, 1em); }
+:is(.shop-card, .shop-sheet) .btn.sm, .shop-sheet #shop-close { font-size: max(16px, 1em); min-height: 44px; }
+.shop-sheet #shop-h { font-size: 20px; }
+/* 작은 움직임 (움직임 줄이기면 없음): 열릴 때 물건이 40 ms 간격으로 놓이고, 산 물건의 도장이 여섯 장으로 찍힌다 */
+@keyframes shop-put { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes shop-stamp { 0% { transform: translateY(-8px); filter: brightness(1.6); } 50% { transform: translateY(2px); filter: brightness(1.3); } 100% { transform: none; filter: none; } }
+:root:not([data-motion="reduce"]) .shop-grid.enter .shop-tile { animation: shop-put 120ms steps(3) both; animation-delay: calc(var(--i, 0) * 40ms); }
+:root:not([data-motion="reduce"]) .shop-tile .sew-cost.new { animation: shop-stamp 240ms steps(6) both; }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .shop-grid.enter .shop-tile, :root:is([data-motion="auto"], :not([data-motion])) .shop-tile .sew-cost.new { animation: none; } }
 
 /* [7-C] 카페 (메뉴 · 레코드 · 레시피 선물) */
 /* 11-21: 메뉴 시트 · 쟁반 · 레코드 시트. 그림은 canvas (그림 px = 기기 px 의 정수 배 — app.js cafeCanvas), 눌림은 2px 내림 (크기는 안 바뀐다).
    UI 둘째 다듬기 (주인 11-21 "ui가 너무 조잡한데"): 맨 위 그림 띠 (벽 · 선반 · 카운터 · 지킴이 · 간판) → 칠판 메뉴 (분필 테두리 · 가격표 · 카운터 위 접시 · 도장 카드) · 나무 레코드 선반 · 큰 턴테이블.
    칠판 · 나무 · 종이 색은 낮밤 테마와 무관하게 고정 (물건의 색) */
 .cafe-sheet { --c-ink: #3b2a26; --c-paper: #f3ead6; --c-paper2: #d9c9a8; --c-wood: #8a5a3a; --c-woodl: #b98a5a; --c-woodd: #603a26; --c-board: #2e3a35; --c-board2: #25302c; --c-chalk: #f1ecdc; overflow-x: hidden; }
+/* 11-22 (검증 둘째): 보이는 글은 모두 16px 이상 — 픽셀 글꼴이 아닐 때 (system) 장면 안 카드 · 시트 · 쟁반의 이름 · 값 · 단추가 15 · 13px 였다. 픽셀 글꼴은 아래 :root[data-font="pixel"] 규칙 (--fs-*) 이 먼저 */
+.cafe-sheet, .cafe-card, .cafe-tray { font-size: 16px; }
+.cafe-sheet .cafe-name, .cafe-sheet .lp-now { font-size: 20px; }
+.cafe-sheet .cafe-cost, .cafe-sheet .shell-n, .cafe-sheet .sew-ask-line, .cafe-card .btn, .cafe-tray .btn, .cafe-sheet .btn { font-size: 16px; }
+.cafe-sheet .shell-n { font-weight: 700; }
 .cafe-pic { display: block; image-rendering: pixelated; image-rendering: crisp-edges; image-rendering: pixelated; }
 /* 간판: 제목이 그림 띠 위에 걸린 나무 판 */
 .cafe-sheet .set-h { position: relative; z-index: 2; width: max-content; margin: 4px auto -48px; padding: 2px 16px; color: var(--c-ink); background: var(--c-paper); box-shadow: 0 0 0 2px var(--c-ink), inset 2px 2px 0 #fffaf0, inset -2px -2px 0 var(--c-paper2), 0 6px 0 -2px var(--c-woodd); }
@@ -1848,6 +1990,29 @@ html.intro-on .meal-call { opacity: 0; visibility: hidden; }
 .cafe-slip-pic { display: flex; justify-content: center; margin-bottom: 6px; }
 .cafe-slip .sew-ask-line { text-align: center; color: var(--c-ink); }
 .cafe-slip .sew-ask-btns { justify-content: center; }
+/* 11-21 콘텐츠 다듬기: 방 안 물건의 확대 카드 (#scene 안의 보통 요소 — dialog 아님) · 식탁 위 접시 단추 */
+.cafe-card { position: absolute; left: 8px; top: 8px; margin: 0; z-index: 14; box-sizing: border-box; width: min(344px, calc(100% - 16px)); max-height: calc(100% - 72px); overflow-y: auto; overflow-x: hidden; padding: 8px 12px 10px; color: var(--c-ink); background: var(--c-paper); box-shadow: 0 0 0 2px var(--c-ink), inset 2px 2px 0 #fffaf0, inset -2px -2px 0 var(--c-paper2), 4px 4px 0 rgba(59,42,38,.35); animation: cafe-pop .16s steps(4) both; }
+.cafe-card[hidden] { display: none; }
+.cafe-card[data-mode="stamp"] { width: fit-content; padding: 10px 14px; }
+.cafe-card #cafe-card-close { display: block; margin: 0 0 0 auto; }
+.cafe-card #cafe-card-body:has(.cafe-purse.in-card) + #cafe-card-close { margin-top: -44px; }   /* 조개 주머니와 닫기를 한 줄에 (카드를 줄여 캐릭터를 비켜 설 자리를 낸다) */
+.cafe-card #cafe-card-close[hidden] { display: none; }
+.cafe-card .cafe-purse.in-card { position: static; display: block; width: max-content; margin: 0; }
+.cafe-card .cafe-board { margin: 8px 6px 12px; }
+.cafe-card .lp-shelf { margin: 8px 0 12px; }
+.cafe-card .lp-top { float: right; margin: 0 0 8px 8px; }
+.cafe-card .lp-now { display: flex; align-items: center; min-height: 56px; margin: 0 0 8px; text-align: left; }
+.cafe-card .lp-shelf { clear: both; }
+.cafe-card .lp-spk { width: 56px; height: 56px; }
+.cafe-card .lp-now { color: var(--c-ink); }
+.cafe-card .cafe-item, .cafe-card .lp-sleeve { animation: cafe-pop .16s steps(4) both; animation-delay: calc(var(--i, 0) * 40ms); }
+.cafe-stampcard { display: flex; align-items: center; gap: 12px; }
+.cafe-dots.big { height: 44px; gap: 8px; padding: 0 10px; }
+.cafe-dots.big i { width: 20px; height: 20px; }
+.cafe-plate-btn { position: absolute; left: 0; top: 0; z-index: 9; width: 56px; height: 56px; margin: 0; padding: 0; border: 0; background: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.cafe-plate-btn[hidden] { display: none; }
+.cafe-plate-btn:focus-visible { outline: 2px dashed #f1ecdc; outline-offset: -2px; }
+.cafe-crumb.steam { width: 4px; height: 6px; background: #f1ecdc; animation: cafe-crumb 1.1s steps(8) forwards; }
 /* 쟁반 (장면 위): 나무 쟁반 */
 .cafe-tray { position: absolute; left: 50%; bottom: 8px; z-index: 12; transform: translateX(-50%); display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 6px 12px; background: #b98a5a; box-shadow: 0 0 0 2px #3b2a26, inset 2px 2px 0 #d7ad7c, inset -2px -2px 0 #8a5a3a, 4px 4px 0 rgba(59,42,38,.35); }
 .cafe-tray[hidden] { display: none; }
@@ -1876,8 +2041,8 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
 .lp-sleeve::after { content: ''; position: absolute; left: 0; right: 0; bottom: -8px; height: 2px; background: rgba(0,0,0,.35); }
 .lp-sleeve.on .cafe-pic { transform: translateY(-6px); box-shadow: 0 6px 0 -2px #e9a53a; }
 .lp-sleeve:focus-visible { outline: 2px dashed var(--c-chalk); outline-offset: -4px; }
-@media (prefers-reduced-motion: reduce) { .cafe-crumb { animation: none; display: none; } .cafe-fly { transition: none; } .cafe-dots i.new, .cafe-sheet[open] .cafe-item, .cafe-sheet[open] .lp-sleeve, .lp-spk.live .cafe-pic { animation: none; } }
-:root[data-motion="reduce"] .cafe-dots i.new, :root[data-motion="reduce"] .cafe-sheet[open] .cafe-item, :root[data-motion="reduce"] .cafe-sheet[open] .lp-sleeve, :root[data-motion="reduce"] .lp-spk.live .cafe-pic { animation: none; }
+@media (prefers-reduced-motion: reduce) { .cafe-card, .cafe-card .cafe-item, .cafe-card .lp-sleeve { animation: none; } .cafe-crumb { animation: none; display: none; } .cafe-fly { transition: none; } .cafe-dots i.new, .cafe-sheet[open] .cafe-item, .cafe-sheet[open] .lp-sleeve, .lp-spk.live .cafe-pic { animation: none; } }
+:root[data-motion="reduce"] .cafe-card, :root[data-motion="reduce"] .cafe-card .cafe-item, :root[data-motion="reduce"] .cafe-card .lp-sleeve, :root[data-motion="reduce"] .cafe-dots i.new, :root[data-motion="reduce"] .cafe-sheet[open] .cafe-item, :root[data-motion="reduce"] .cafe-sheet[open] .lp-sleeve, :root[data-motion="reduce"] .lp-spk.live .cafe-pic { animation: none; }
 
 
 /* [7-N] NPC 문어 · 세계관 */
@@ -1892,9 +2057,9 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
 .npc-box[data-npc="cafe"] .npc-frame { background: #c9d8e6; box-shadow: inset 2px 2px 0 #e2ecf3, inset -2px -2px 0 #a3b6c8; }
 .npc-face { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
 .npc-say { flex: 1 1 auto; min-width: 0; }
-.npc-tag { position: absolute; left: 10px; bottom: 100%; padding: 2px 10px 0; background: #3b2a20; color: #f3ead6; font-size: 13px; line-height: 22px; border: 2px solid #3b2a20; border-bottom: 0; box-shadow: inset 0 2px 0 #5a4636; white-space: nowrap; }
+.npc-tag { position: absolute; left: 10px; bottom: 100%; padding: 2px 10px 0; background: #3b2a20; color: #f3ead6; font-size: 16px; line-height: 22px; border: 2px solid #3b2a20; border-bottom: 0; box-shadow: inset 0 2px 0 #5a4636; white-space: nowrap; }
 .npc-tag:empty { display: none; }
-.npc-text { margin: 2px 0 0; font-size: 17px; line-height: 26px; min-height: 52px; word-break: keep-all; overflow-wrap: anywhere; }
+.npc-box .npc-text { margin: 2px 0 0; font-size: 17px; line-height: 26px; min-height: 52px; word-break: keep-all; overflow-wrap: anywhere; }
 .npc-next { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; background: transparent; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .npc-next::after { content: ''; position: absolute; right: 10px; bottom: 10px; width: 8px; height: 8px; background: #8a4f0c; box-shadow: 0 2px 0 #3b2a20; animation: npc-blink 1s steps(1) 8; }   /* 누르면 넘어간다는 깜빡이는 표시 */
 .npc-box[data-more="1"] .npc-next::after { box-shadow: 0 2px 0 #3b2a20, -12px 0 0 #8a4f0c, -12px 2px 0 #3b2a20; }   /* 말이 더 있으면 둘 */
@@ -1902,7 +2067,7 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
 .npc-next:focus-visible { outline: 2px solid var(--amber); outline-offset: -4px; }
 .npc-next:active::after { transform: translateY(2px); }
 :root[data-font="pixel"] .npc-tag { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
-:root[data-font="pixel"] .npc-text { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; min-height: 60px; }
+:root[data-font="pixel"] .npc-box .npc-text { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; min-height: 60px; }
 /* 게시판 · UI 둘째 다듬기: 나무 팻말 제목 + 코르크 판에 핀으로 꽂은 종이 쪽지 (2×2) — 쪽지마다 그림 + 한 줄, 아래는 찢긴 가장자리 */
 .story-sheet .story-h { display: table; margin: 0 auto 8px; padding: 2px 20px; font-size: 16px; font-weight: 600; font-family: 'Noto Serif KR', serif; color: #f3ead6; background: #7a4e2c; border: 2px solid #3b2a20; box-shadow: inset 2px 2px 0 #9a6a40, inset -2px -2px 0 #5a3820, 0 4px 0 rgba(42, 29, 22, .35); }
 .story-sheet .story-h:focus { outline: none; }
@@ -1915,9 +2080,9 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
 .story-note:nth-child(2)::before { background: #4a86d8; box-shadow: inset 2px 2px 0 #a8c8f0, 0 2px 0 rgba(42, 29, 22, .5); left: 40%; } .story-note:nth-child(3)::before { background: #e8a93a; box-shadow: inset 2px 2px 0 #f6dc9a, 0 2px 0 rgba(42, 29, 22, .5); left: 58%; }
 .story-note::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: repeating-linear-gradient(90deg, #c49a6c 0 4px, transparent 4px 12px, #c49a6c 12px 14px, transparent 14px 20px); }   /* 찢긴 아랫가장자리 */
 .story-pic { flex: 0 0 auto; display: block; max-width: 100%; image-rendering: pixelated; image-rendering: crisp-edges; border-bottom: 2px dotted #c9b892; }
-.sheet .story-note p { margin: 0; padding: 0 4px; min-width: 0; font-size: 14px; line-height: 22px; text-align: center; word-break: keep-all; overflow-wrap: anywhere; }
+.sheet .story-note p { margin: 0; padding: 0 4px; min-width: 0; font-size: 16px; line-height: 22px; text-align: center; word-break: keep-all; overflow-wrap: anywhere; }
 .story-btns { display: flex; justify-content: flex-end; margin-top: 12px; }
-.story-btns .btn { min-width: 88px; }
+.story-btns .btn { min-width: 88px; font-size: max(16px, 1em); }   /* 11-22 (점검): 어느 글꼴 설정에서도 16px 이상 */
 .story-sheet[open] .story-note { animation: story-pop .12s steps(2) both; }
 .story-sheet[open] .story-note:nth-child(2) { animation-delay: .04s; } .story-sheet[open] .story-note:nth-child(3) { animation-delay: .08s; } .story-sheet[open] .story-note:nth-child(4) { animation-delay: .12s; }
 @keyframes story-pop { from { opacity: 0; translate: 0 4px; } to { opacity: 1; translate: 0 0; } }
@@ -1937,7 +2102,7 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
 .story-intro::after { content: ''; position: absolute; left: 24px; bottom: max(30px, calc(env(safe-area-inset-bottom, 0px) + 18px)); width: 8px; height: 8px; background: #d8a062; box-shadow: 14px 0 0 #5a4636, 28px 0 0 #5a4636; }   /* 세 줄 가운데 몇째인가 */
 .story-intro[data-n="2"]::after { background: #5a4636; box-shadow: 14px 0 0 #d8a062, 28px 0 0 #5a4636; }
 .story-intro[data-n="3"]::after { background: #5a4636; box-shadow: 14px 0 0 #5a4636, 28px 0 0 #d8a062; }
-.story-skip { position: absolute; z-index: 2; right: 12px; bottom: max(12px, env(safe-area-inset-bottom, 0px)); min-width: 88px; min-height: 44px; padding: 6px 12px; background: #1b2444; color: #f3ead6; border: 2px solid #f3ead6; box-shadow: 4px 4px 0 #05070f; font-size: 14px; cursor: pointer; }
+.story-skip { position: absolute; z-index: 2; right: 12px; bottom: max(12px, env(safe-area-inset-bottom, 0px)); min-width: 88px; min-height: 44px; padding: 6px 12px; background: #1b2444; color: #f3ead6; border: 2px solid #f3ead6; box-shadow: 4px 4px 0 #05070f; font-size: 16px; cursor: pointer; }
 .story-skip:active { transform: translateY(2px); }
 :root[data-font="pixel"] .story-line { font-family: var(--f-body); font-size: var(--fs-b20, 20px); line-height: 30px; }
 :root[data-font="pixel"] .story-skip { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; }
@@ -1947,21 +2112,38 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
 
 
 /* [7-F] 주말 콘테스트 */
-/* 11-21 주말 콘테스트 시트 (#contest-sheet): 주제 포스터 · 무대 위 내 차림 · 쇼 · 결과. 그림은 캔버스 (아트 1px = 기기 픽셀 정수 배 — js 의 ctSnap), 글은 제목과 한 줄 결과뿐.
-   무대 (.ct-stage) 는 그림이다: 밤빛 벽 · 붉은 막 · 나무 바닥 (밝은 · 어두운 테마에서 같은 색) */
-.contest-sheet { max-height: 100dvh; min-height: min(100dvh, 560px); --ct-ink: #3a2a3a; --ct-wall: #3d3a5c; --ct-wall2: #343150; --ct-floor: #c79a62; --ct-floor2: #a97c4c; --ct-cur: #b5363f; --ct-cur2: #8f2430; --ct-paper: #f6ecd2; }
-.contest-sheet .set-h { font-size: 15px; font-weight: 600; font-family: 'Noto Serif KR', serif; margin: 0; color: var(--fg); }
-:root[data-font="pixel"] .contest-sheet .set-h { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 36px; font-weight: 700; }
+/* 11-21 주말 콘테스트 시트 (#contest-sheet): 막 띠 (옷가게 문어 · 간판 · 조개 지갑) · 주제 포스터 · 무대 위 내 차림 · 쇼 · 결과.
+   그림은 캔버스 (아트 1px = 기기 픽셀 정수 배 — js 의 ctSnap), 글은 제목과 한 줄 결과뿐. 무대 · 막은 그림이라 밝은 · 어두운 테마에서 같은 색.
+   틀: 바깥 2px 짙은 선 · 안쪽 2px 밝은 · 어두운 모서리 · 4px 딱딱한 그림자, 간격은 8px 박자 (wip/round7/briefs/UI2.md) */
+.contest-sheet { --ct-ink: #3a2a3a; --ct-wall: #3d3a5c; --ct-wall2: #343150; --ct-floor: #c79a62; --ct-floor2: #a97c4c; --ct-cur: #b5363f; --ct-cur2: #8f2430; --ct-paper: #f6ecd2; --ct-gold: #e8a93a;
+  --ct-card: 0 0 0 2px var(--ct-ink), inset 2px 2px 0 #fffaf0, inset -2px -2px 0 #d9c9a4, 4px 4px 0 2px rgba(58, 42, 58, .3); }
+.contest-sheet[open] { display: flex; flex-direction: column; height: 100dvh; max-height: 100dvh; }
+@media (min-width: 620px) { .contest-sheet[open] { height: min(100dvh, 780px); } }
+.contest-sheet > * { flex-shrink: 0; }
+#contest-body { flex: 1 1 auto; display: flex; flex-direction: column; }
+#contest-body > *, #ct-result > *, .ct-show > * { flex-shrink: 0; }
 .ct-art { display: block; flex: 0 0 auto; image-rendering: pixelated; image-rendering: crisp-edges; }
+/* 머리 띠: 붉은 막 + 금빛 단 */
+.ct-band { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; height: 96px; box-sizing: border-box; margin: 0 -14px 16px; padding: 0 10px 14px;
+  background:
+    linear-gradient(var(--ct-ink), var(--ct-ink)) bottom / 100% 2px no-repeat,
+    linear-gradient(var(--ct-gold), var(--ct-gold)) 0 calc(100% - 2px) / 100% 4px no-repeat,
+    repeating-linear-gradient(90deg, var(--ct-cur) 0 20px, var(--ct-cur2) 20px 26px);
+  box-shadow: 0 0 0 2px var(--ct-ink); }
+.ct-keeper { display: block; flex: 0 0 auto; margin: 0 0 6px 2px; padding: 6px 6px 2px; background: var(--ct-paper); box-shadow: var(--ct-card); }
+.contest-sheet .ct-sign { flex: 0 1 auto; min-width: 0; margin: 0 0 4px; padding: 4px 10px; color: var(--ct-ink); background: var(--ct-paper); box-shadow: var(--ct-card); font-size: 16px; font-weight: 700; white-space: nowrap; }
+:root[data-font="pixel"] .contest-sheet .ct-sign { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 36px; font-weight: 700; }
+.ct-purse { flex: 0 0 auto; margin: 0 2px 6px 0; padding: 2px 8px; color: var(--ct-ink); background: var(--ct-paper); box-shadow: var(--ct-card); font-weight: 700; }
+:root[data-font="pixel"] .ct-purse { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 28px; }
 /* 주제: 액자에 든 포스터 + 제목 + 바라는 것 칩 */
-.ct-theme { display: flex; gap: 14px; align-items: center; margin: 10px 2px 12px; }
-.ct-poster { display: block; flex: 0 0 auto; padding: 4px; background: var(--ct-paper); box-shadow: 0 0 0 2px var(--ct-ink), 4px 4px 0 2px rgba(58, 42, 58, .28); }
+.ct-theme { display: flex; gap: 16px; align-items: center; margin: 0 2px 16px; }
+.ct-poster { display: block; flex: 0 0 auto; padding: 4px; background: var(--ct-paper); box-shadow: var(--ct-card); }
 .ct-theme-txt { min-width: 0; }
 .contest-sheet .ct-title { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: var(--fg); }
 :root[data-font="pixel"] .contest-sheet .ct-title { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; }
-.ct-want { display: flex; gap: 8px; flex-wrap: wrap; }
-.ct-chip { display: flex; align-items: center; justify-content: center; padding: 5px; background: var(--ct-paper); box-shadow: 0 0 0 2px var(--ct-ink); }
-/* 무대 */
+.ct-want { display: flex; gap: 10px; flex-wrap: wrap; }
+.ct-chip { display: flex; align-items: center; justify-content: center; padding: 6px; background: var(--ct-paper); box-shadow: var(--ct-card); }
+/* 무대 (시트 가장자리까지) */
 .ct-stage { position: relative; box-sizing: border-box; box-shadow: 0 0 0 2px var(--ct-ink);
   background:
     repeating-linear-gradient(90deg, var(--ct-cur) 0 14px, var(--ct-cur2) 14px 18px) top / 100% 14px no-repeat,
@@ -1970,54 +2152,88 @@ button.lp-spk .cafe-pic { box-shadow: 0 0 0 2px var(--c-ink), 0 0 0 4px #e9a53a;
     linear-gradient(var(--ct-floor), var(--ct-floor)) bottom / 100% 26px no-repeat,
     linear-gradient(var(--ct-ink), var(--ct-ink)) 0 calc(100% - 26px) / 100% 2px no-repeat,
     repeating-linear-gradient(90deg, var(--ct-wall) 0 22px, var(--ct-wall2) 22px 24px); }
-.ct-mine { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 0 2px 12px; }
-.ct-solo { display: flex; justify-content: center; align-items: flex-end; align-self: stretch; padding: 24px 8px 10px; }
+.ct-mine { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 0 0 16px; }
+.ct-solo { flex: 1 1 auto; min-height: 236px; display: flex; justify-content: center; align-items: flex-end; align-self: stretch; margin: 0 -14px; padding: 24px 8px 10px; }
 .ct-solo::after { content: ''; position: absolute; left: 50%; bottom: 6px; width: 96px; height: 10px; margin-left: -48px; background: rgba(255, 246, 200, .38); }   /* 발밑 조명 */
 .ct-solo > .ct-art { position: relative; z-index: 1; }
-#contest-body[data-view="result"] .ct-mine { flex-direction: row; justify-content: center; align-items: center; gap: 14px; }
-#contest-body[data-view="result"] .ct-solo { align-self: auto; padding: 20px 20px 8px; }
+#contest-body[data-view="result"] .ct-mine { flex: 0 0 auto; flex-direction: row; justify-content: center; align-items: center; gap: 16px; }
+#contest-body[data-view="result"] .ct-solo { flex: 0 0 auto; min-height: 0; align-self: auto; margin: 0; padding: 20px 20px 8px; }
 #contest-body[data-view="result"] .ct-solo::after { width: 56px; margin-left: -28px; }
-.contest-sheet .ct-closed { margin: 4px 0 14px; text-align: center; font-size: 15px; font-weight: 700; color: var(--fg); }
+.contest-sheet .ct-closed { margin: 0 0 16px; text-align: center; font-size: 16px; font-weight: 700; color: var(--fg); }
 :root[data-font="pixel"] .contest-sheet .ct-closed { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; }
 .ct-go { margin-bottom: 8px; }
-/* 결과 띠 */
-.contest-sheet .ct-line { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin: 2px 2px 12px; padding: 6px 8px; font-weight: 700; color: var(--ct-ink); background: var(--ct-paper); box-shadow: 0 0 0 2px var(--ct-ink), 4px 4px 0 2px rgba(58, 42, 58, .28); outline: none; }
+/* 결과 리본 (금빛 띠 · 양 끝 제비꼬리) */
+#ct-result { flex: 1 1 auto; display: flex; flex-direction: column; }
+.contest-sheet .ct-line { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin: 0 -6px 16px; padding: 4px 22px; font-weight: 700; color: var(--ct-ink); outline: none;
+  background: linear-gradient(var(--ct-ink), var(--ct-ink)) top / 100% 2px no-repeat, linear-gradient(var(--ct-ink), var(--ct-ink)) bottom / 100% 2px no-repeat, linear-gradient(#f6d36a, #f6d36a) 0 2px / 100% 4px no-repeat, var(--ct-gold);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 0 100%, 12px 50%); }
 .ct-place { font-size: 20px; }
 :root[data-font="pixel"] .ct-place, :root[data-font="pixel"] .ct-line .shell-amt { font-family: var(--f-ui); font-size: var(--fs-u24, 24px); line-height: 36px; }
-.ct-rule { font-size: 11px; font-weight: 500; color: var(--muted); padding: 0 6px; box-shadow: 0 0 0 1px var(--rim); white-space: nowrap; }
-.ct-line .ct-rule { color: #6a5a5a; box-shadow: 0 0 0 1px #a89a86; }
-:root[data-font="pixel"] .ct-rule { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; box-shadow: 0 0 0 2px var(--rim); }
-:root[data-font="pixel"] .ct-line .ct-rule { box-shadow: 0 0 0 2px #a89a86; }
+/* 시스템 글꼴 (픽셀 글꼴 끔) 에서도 콘테스트 안의 글은 16 px 이상 (단추 · 조개 수 · 지갑 · 간판) — 픽셀 글꼴은 --fs-* 그대로 */
+:root:not([data-font="pixel"]) :is(.contest-sheet, .ct-world) :is(.btn, .shell-amt, .ct-purse, .ct-sign, .ct-title, .ct-closed, .ct-pts, .ct-jname, .ct-rank, .ct-total) { font-size: 16px; }
+.ct-rule { font-size: 16px; font-weight: 500; color: #6a5a5a; padding: 0 6px; background: var(--ct-paper); box-shadow: 0 0 0 1px var(--ct-ink); white-space: nowrap; }
+:root[data-font="pixel"] .ct-rule { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 24px; box-shadow: 0 0 0 2px var(--ct-ink); }
 /* 단상 (무대 위): 금 · 은 · 동 띠가 있는 계단, 4등은 낮은 발판 */
-.ct-podium { display: flex; align-items: flex-end; justify-content: center; gap: 4px; margin: 0 2px 12px; padding: 22px 6px 0; }
-.ct-pod { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 0 1 76px; min-width: 0; }
+.ct-podium { flex: 1 1 auto; min-height: 168px; display: flex; align-items: flex-end; justify-content: center; gap: 4px; margin: 0 -14px 16px; padding: 24px 6px 0; }
+.ct-pod { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 0 1 80px; min-width: 0; }
 .ct-block { width: 100%; box-sizing: border-box; padding-top: 8px; display: flex; flex-direction: column; align-items: center; background: linear-gradient(var(--ct-band, #cfc9c0), var(--ct-band, #cfc9c0)) top / 100% 6px no-repeat, var(--ct-paper); box-shadow: inset 0 0 0 2px var(--ct-ink); color: var(--ct-ink); }
 .ct-pod.r1 .ct-block { height: 98px; --ct-band: #e8a93a; } .ct-pod.r2 .ct-block { height: 84px; --ct-band: #b9bcc9; } .ct-pod.r3 .ct-block { height: 72px; --ct-band: #c98a5a; }
 .ct-pod.r4 .ct-block { height: 62px; --ct-band: #8a8494; }
 .ct-pod.me .ct-block { background: linear-gradient(var(--ct-band), var(--ct-band)) top / 100% 6px no-repeat, #fff6c8; }
-.ct-rank { font-size: 14px; font-weight: 700; }
-.ct-pts { font-size: 11px; color: #6a5a5a; }
+.ct-rank { font-size: 16px; font-weight: 700; }
+.ct-pts { font-size: 16px; color: #6a5a5a; }
 :root[data-font="pixel"] .ct-rank { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 26px; }
 :root[data-font="pixel"] .ct-pts, :root[data-font="pixel"] .ct-jname { font-family: var(--f-meta); font-size: var(--fs-m16, 16px); line-height: 22px; }
-/* 심사: 카드 팻말을 든 문어 셋이 긴 탁자 뒤에 */
-.ct-judges { display: flex; justify-content: space-around; align-items: flex-end; gap: 4px; margin: 4px 2px 12px; padding: 0 4px 4px; border-bottom: 8px solid var(--ct-floor2); box-shadow: 0 2px 0 var(--ct-ink), inset 0 -2px 0 var(--ct-ink); }
+/* 심사: 팻말을 든 문어 셋이 긴 탁자 뒤에 */
+.ct-judges { display: flex; justify-content: space-around; align-items: flex-end; gap: 4px; margin: 0 -6px 16px; padding: 0 4px 4px; border-bottom: 8px solid var(--ct-floor2); box-shadow: 0 2px 0 var(--ct-ink), inset 0 -2px 0 var(--ct-ink); }
 .ct-judge { display: flex; flex-direction: column; align-items: center; min-width: 0; }
-.ct-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 8px; background: var(--ct-paper); box-shadow: 0 0 0 2px var(--ct-ink); }
+.ct-card { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px; background: var(--ct-paper); box-shadow: var(--ct-card); }
 .ct-stick { display: block; width: 4px; height: 8px; background: var(--ct-ink); }
 .ct-stars { display: flex; gap: 2px; min-height: 14px; }
-.ct-jname { font-size: 11px; color: var(--muted); white-space: nowrap; margin-top: 2px; }
+.ct-jname { font-size: 16px; color: var(--muted); white-space: nowrap; margin-top: 2px; }
 /* 쇼: 무대 위 참가자 넷 */
-.ct-lineup { display: flex; justify-content: space-around; align-items: flex-end; min-height: 196px; margin: 0 2px 12px; padding: 22px 4px 8px; }
+.ct-show { flex: 1 1 auto; display: flex; flex-direction: column; }
+.ct-lineup { flex: 1 1 auto; display: flex; justify-content: space-around; align-items: flex-end; min-height: 200px; margin: 0 -14px 16px; padding: 24px 4px 8px; }
 .ct-slot { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; }
-.ct-total { min-width: 36px; padding: 0 4px; text-align: center; font-size: 14px; font-weight: 700; color: var(--ct-ink); background: var(--ct-paper); box-shadow: 0 0 0 2px var(--ct-ink); }
+.ct-total { min-width: 36px; padding: 0 4px; text-align: center; font-size: 16px; font-weight: 700; color: var(--ct-ink); background: var(--ct-paper); box-shadow: 0 0 0 2px var(--ct-ink); }
 :root[data-font="pixel"] .ct-total { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 26px; }
 .ct-show:not(.counting) .ct-total { visibility: hidden; }
 .ct-show [data-at] { visibility: hidden; }
 .ct-show [data-at].on { visibility: visible; animation: ct-in .32s steps(4) both; }
 .ct-show:not(.podium) .ct-podium, .ct-show.podium .ct-lineup { display: none; }
-.ct-show .ct-podium { min-height: 196px; visibility: visible; }
+.ct-show .ct-podium { min-height: 200px; visibility: visible; }
 .ct-show .ct-podium:not(.on) > * { visibility: hidden; }
-.ct-skip-row { justify-content: space-between; }
+.ct-skip-row { justify-content: space-between; margin-top: 0; }
+/* 결과가 뜰 때 단상 · 팻말이 40ms 간격으로 */
+.ct-result .ct-pod, .ct-result .ct-judge { animation: ct-in .24s steps(3) both; }
+.ct-result .ct-pod:nth-child(2), .ct-result .ct-judge:nth-child(2) { animation-delay: 40ms; } .ct-result .ct-pod:nth-child(3), .ct-result .ct-judge:nth-child(3) { animation-delay: 80ms; } .ct-result .ct-pod:nth-child(4) { animation-delay: 120ms; }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .ct-result .ct-pod, :root:is([data-motion="auto"], :not([data-motion])) .ct-result .ct-judge { animation: none; } }
+:root[data-motion="reduce"] .ct-result .ct-pod, :root[data-motion="reduce"] .ct-result .ct-judge { animation: none; }
+/* 11-22 장면 안의 콘테스트 (#scene 안의 #ct-world — dialog 아님): 포스터 · 참가 카드 · 팻말 · 결과 카드 */
+.ct-world { position: absolute; inset: 0; z-index: 12; pointer-events: none; overflow: hidden;
+  --ct-ink: #3a2a3a; --ct-floor2: #a97c4c; --ct-paper: #f6ecd2; --ct-gold: #e8a93a; --ct-card: 0 0 0 2px var(--ct-ink), inset 2px 2px 0 #fffaf0, inset -2px -2px 0 #d9c9a4, 4px 4px 0 2px rgba(58, 42, 58, .3); }
+.ct-world > * { pointer-events: auto; }
+.ct-wposter, .ct-wplac { position: absolute; left: 0; top: 0; will-change: transform; }
+.ct-wposter { padding: 3px; border: 0; background: var(--ct-paper); box-shadow: 0 0 0 2px var(--ct-ink); cursor: pointer; }
+.ct-wplac { display: flex; flex-direction: column; align-items: center; pointer-events: none; }   /* 자리는 transform 으로 잡는다 — 뜨는 움직임은 안쪽 카드에 */
+.ct-wplac .ct-stars { min-height: 7px; gap: 1px; }
+.ct-wplac .ct-stick { height: 12px; width: 2px; }
+.ct-wplac .ct-card { padding: 3px 4px; gap: 2px; box-shadow: 0 0 0 2px var(--ct-ink); animation: ct-in .32s steps(4) both; }
+.ct-wcard { position: absolute; left: 10px; right: 10px; bottom: 10px; padding: 10px 12px 12px; color: var(--ct-ink); background: var(--ct-paper); box-shadow: var(--ct-card); animation: ct-in .24s steps(3) both; }
+.ct-wcard .ct-theme { margin: 0 0 10px; }
+.ct-wcard .ct-title, .ct-wcard .ct-closed { color: var(--ct-ink); font-weight: 700; margin: 0 0 8px; }
+:root[data-font="pixel"] .ct-wcard .ct-title, :root[data-font="pixel"] .ct-wcard .ct-closed { font-family: var(--f-ui); font-size: var(--fs-u20, 20px); line-height: 30px; }
+.ct-wcard .ct-closed { text-align: center; }
+.ct-wcard .ct-line { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin: 0 -6px 10px; padding: 4px 22px; font-weight: 700; color: var(--ct-ink); outline: none;
+  background: linear-gradient(var(--ct-ink), var(--ct-ink)) top / 100% 2px no-repeat, linear-gradient(var(--ct-ink), var(--ct-ink)) bottom / 100% 2px no-repeat, linear-gradient(#f6d36a, #f6d36a) 0 2px / 100% 4px no-repeat, var(--ct-gold);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 0 100%, 12px 50%); }
+.ct-wresult { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
+.ct-wresult .ct-line { flex: 1 1 auto; margin: 0 0 0 -4px; padding: 2px 18px; gap: 8px; }
+.ct-wresult .btn { flex: 0 0 auto; }
+.ct-wrow { margin-top: 0; justify-content: flex-end; flex-wrap: nowrap; }
+.ct-wrow .btn.primary { flex: 1 1 auto; min-height: 44px; }
+.ct-whud { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .ct-wcard, :root:is([data-motion="auto"], :not([data-motion])) .ct-wplac .ct-card { animation: none; } }
 @keyframes ct-in { from { transform: translateY(8px); } to { transform: none; } }
 @media (prefers-reduced-motion: reduce) { :root:is([data-motion="auto"], :not([data-motion])) .ct-show [data-at].on { animation: none; } }
 :root[data-motion="reduce"] .ct-show [data-at].on { animation: none; }

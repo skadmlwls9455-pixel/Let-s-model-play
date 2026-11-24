@@ -99,3 +99,27 @@ does not load it yet (lane T adds the script tag).
   consumer chooses the scale.
 - The cooking states were drawn by three parallel artists and reviewed once by me; the dishes got two passes and the fix round.
 - The fragment files used while drawing are gone: `js/cook-sprites.js` is the only source.
+
+## Second pass (content pass, C13) — 11-21 late
+
+List and sizes: `wip/round7/briefs/SPRITES2.md`. All in the same `js/cook-sprites.js` (now 95 ids, 195 frames, 104 KB).
+- Cafe: `cafe.tray`, `cafe.cup` (4), `cafe.cup.big` (4), `eat.cake` (4), `eat.kkochi` (4), `cafe.stampcard` (4),
+  `cafe.stamp`, `cafe.recipe` (2), `rec.sleeve` (8), `rec.disc` (2). `table.cake` and `table.kkochi` grew from 1 to 4
+  frames (frame 0 unchanged).
+- Shops: `ui.tag` (free area x 13..36, y 6..17), `ui.sold`, `ui.receipt` (free area x 5..26, y 6..30), `shop.open` (2),
+  `goods.seed` (3), `goods.dye` (3).
+- Contest: `judge.card` (3).
+- Code: `dish.cake`, `dish.kkochi` and `cafe.coffee` became shared painters with a bite / level parameter (their frame 0
+  paints the same bytes as before). New sheet group `tests/evidence/food/content.png`. Picture: `wip/round7/shots/A/content-4x.png`.
+- Tests: `node tools/test-cook-sprites.js` 1821 checks pass; sheets `--check` passes; `npm test` passes.
+- Looked at once by me; no second independent check for this pass. Weak: the sip levels of the 16 px `cafe.cup` differ by
+  two or three pixels only; `table.cake` frame 2 is a small block.
+
+## Third pass (11-22): empty dishes under the bites
+
+`empty.jeon`, `empty.gyeran`, `empty.jumeokbap`, `empty.kkochi`, `empty.cake`: 80 x 56, anchor (40, 44), 1 frame each, the
+same container at the same place as `dish.*`, drawn complete where the food covered it. The soy dip stays in its dish (a
+little lower), the ketchup is a smear, crumbs and grains on the plate, the jeon chopsticks lie with their tips on the soy dish
+rim, the two skewer sticks lie on the plate. Lane T draws one under the dish picture and cuts round bites out of the dish.
+Picture: `wip/round7/shots/A/empty-4x.png`. Test: 100 ids, 200 frames, 1876 checks pass; sheets `--check` and `npm test` pass.
+The legacy dishes (`jeon`, `jumeokbap`, `kkochi`) are drawn by `js/cook-art.js`, not by this file: no empty picture for them here.

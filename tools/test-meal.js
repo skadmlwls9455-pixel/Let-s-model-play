@@ -51,8 +51,9 @@ section('0 load', function () {
   vm.runInNewContext(SRC, ctx);
   check(ctx.MEAL && typeof ctx.MEAL.demoAnswer === 'function', 'loads in a bare context (browser path)');
   check(M.P_EAT === 0.6 && M.FIRST_EAT === true && M.MINE_MS === 60000, 'P_EAT 0.6 · FIRST_EAT · MINE_MS 60000');
-  check(JSON.stringify(M.DISHES) === JSON.stringify({ jeon: { name: '해초전', fx: 'sparkle' }, jumeokbap: { name: '주먹밥', fx: 'star' }, kkochi: { name: '과일 꼬치', fx: 'petal' } }), 'DISHES exact');
-  check(JSON.stringify(M.FX_NAME) === JSON.stringify({ sparkle: '반짝이', star: '별', petal: '꽃잎' }), 'FX_NAME exact');
+  check(JSON.stringify(M.DISHES) === JSON.stringify({ jeon: { name: '해초전', fx: 'sparkle' }, jumeokbap: { name: '주먹밥', fx: 'star' }, kkochi: { name: '과일 꼬치', fx: 'petal' },
+    jeon2: { name: '해초전', fx: 'sparkle' }, gyeran: { name: '계란말이', fx: 'bubble' }, jumeokbap2: { name: '주먹밥', fx: 'star' }, kkochi2: { name: '과일 꼬치', fx: 'petal' }, cake: { name: '딸기 케이크', fx: 'confetti' } }), 'DISHES exact (11-21: the legacy three + the five of the recipe book)');
+  check(JSON.stringify(M.FX_NAME) === JSON.stringify({ sparkle: '반짝이', star: '별', petal: '꽃잎', bubble: '방울', confetti: '색종이' }), 'FX_NAME exact');
   check(JSON.stringify(M.TAILS) === JSON.stringify({ 'demo-rules': '데모 규칙', model: '모델', human: '사람이 정함' }), 'TAILS exact');
   check(Object.isFrozen(M.TEXT) && Object.isFrozen(M.DISHES.jeon), 'tables are frozen');
 });
@@ -282,6 +283,90 @@ section('10 slim', function () {
   check(out && out[0] !== old && !('seed' in out[0].ask) && !('raw' in out[0].ask) && out[0].ask.line === '말 그대로', 'older than 365 days: seed and raw dropped, line kept');
   check(out[1] === mid && old.ask.seed === 9, 'newer entries and the original untouched');
   check(M.slim([mid], D0) === null, 'nothing to slim → null');
+});
+
+section('12 round 7: the five dishes of the recipe book', function () {
+  var NEW = { jeon2: ['해초전', 'sparkle', '반짝이'], gyeran: ['계란말이', 'bubble', '방울'], jumeokbap2: ['주먹밥', 'star', '별'], kkochi2: ['과일 꼬치', 'petal', '꽃잎'], cake: ['딸기 케이크', 'confetti', '색종이'] };
+  var CLAIM = /좋|싫|맛있|싶|배불|즐거|재밌|행복|기뻐|기쁘|반가|궁금|설레|원해|바라|고마|미안|슬프|아쉬|맛|기분/;
+  Object.keys(NEW).forEach(function (r, i) {
+    var w = NEW[r], id = 'ck_n' + i;
+    var msg = { ppolCook: 'result', v: 1, id: id, recipe: r, seed: 5, look: { band: 2, steps: [{ k: 'stir', n: 3 }] }, day: D0 };
+    var n = M.normDish(msg);
+    check(n && n.recipe === r && n.look.band === 2, r + ': result message accepted');
+    var St = stateWith({ table: Object.assign({ at: 10 }, n) });
+    check(M.aria('table', { recipe: r }) === '식탁, ' + w[0] && M.aria('table', { recipe: r, seated: true }) === w[0] + ' 먹기', r + ': table button names');
+    var first = M.demoAnswer({ dish: id, name: '뚜루', born: 111, asksBefore: 0 }), later = M.demoAnswer({ dish: id, name: '뚜루', born: 111, asksBefore: 3 });
+    var same = M.demoAnswer({ dish: id, name: '뚜루', born: 111, asksBefore: 3, recipe: 'jeon', fx: 'sparkle' });
+    check(first.action === 'eat' && first.rule === 'first' && JSON.stringify(later) === JSON.stringify(same), r + ': the demo answer does not look at the dish');
+    var ask = M.makeAsk(St, { at: 20, today: D0, dish: St.user.table });
+    var e = M.eat(St, { at: 30, today: D0, oct: ask.ask.action === 'eat', dish: id });
+    check(e && e.ate && e.ate.fx === w[1] && St.user.table === null, r + ': eating records fx ' + w[1] + ' and clears the table');
+    var act = M.active(St, D0);
+    check(act.me === w[1] && act.oct === w[1] && M.active(St, D1).me === null, r + ': day effect today, none tomorrow');
+    var rows = M.rows(e, '뚜루', D0), past = M.rows(e, '뚜루', D1);
+    var meal = rows[rows.length - 1].text;
+    check(meal === M.josa(w[0], '을') + ' 같이 먹었어. 오늘 하루 둘 다 ' + M.josa(w[2], '이') + ' 따라다녀.', r + ': meal row "' + meal + '"');
+    check(past[past.length - 1].text === M.josa(w[0], '을') + ' 같이 먹었어. 그날 하루 둘 다 ' + M.josa(w[2], '이') + ' 따라다녔어.', r + ': past meal row');
+    check(rows.every(function (x) { return !CLAIM.test(x.text); }), r + ': no feeling or taste words in the rows');
+    var alone = stateWith({ table: Object.assign({ at: 10 }, M.normDish(msg)) }), ea = M.eat(alone, { at: 30, today: D0, oct: null, dish: id });
+    check(M.rows(ea, '뚜루', D0).length === 1 && M.rows(ea, '뚜루', D0)[0].text === M.josa(w[0], '을') + ' 먹었어. 오늘 하루 ' + M.josa(w[2], '이') + ' 따라다녀.', r + ': eaten alone → one row');
+    check(M.sceneDesc(stateWith({ table: Object.assign({ at: 10 }, M.normDish(msg)) }), D0, '뚜루', false).indexOf('식탁에 ' + M.josa(w[0], '이') + ' 있어.') >= 0, r + ': scene description names the dish');
+  });
+  check(M.josa('방울', '이') === '방울이' && M.josa('색종이', '이') === '색종이가' && M.josa('계란말이', '을') === '계란말이를' && M.josa('딸기 케이크', '을') === '딸기 케이크를', 'particles of the new words');
+  ['jeon', 'jumeokbap', 'kkochi'].forEach(function (r) { check(M.DISHES[r] && M.aria('table', { recipe: r }).indexOf('식탁, ') === 0, 'legacy ' + r + ' still known'); });
+});
+
+section('13 round 7: dish pictures and bite masks', function () {
+  check(JSON.stringify(M.pic('jeon2', { band: 2 })) === '{"id":"jeon","frame":2}' && M.pic('jeon2', {}).frame === 0 && M.pic('jeon2', { band: 9 }).frame === 2 && M.pic('jeon2', { band: -3 }).frame === 0 && M.pic('jeon2', null).frame === 0 && M.pic('jeon2', { v: 2, s: [{}], plate: 1, band: 1 }).frame === 1, 'jeon2 → dish.jeon, frame = top-level band 0..2 (missing → 0)');
+  check(M.pic('gyeran', { band: 2 }).id === 'gyeran' && M.pic('gyeran', { band: 2 }).frame === 0 && M.pic('jumeokbap2').id === 'jumeokbap' && M.pic('kkochi2').id === 'kkochi' && M.pic('cake').id === 'cake', 'the other four: frame 0');
+  check(M.pic('jeon') === null && M.pic('jumeokbap') === null && M.pic('kkochi') === null && M.pic('nope') === null && M.pic(undefined) === null && M.pic('constructor') === null, 'legacy and unknown dishes have no picture');
+  /* 20 x 12 picture: food rows 2..6 (x 4..15), plate rows 7..9 (x 1..18) */
+  var w = 20, h = 12, d = new Uint8ClampedArray(w * h * 4);
+  function px(x, y) { var k = (y * w + x) * 4; d[k] = 200; d[k + 1] = 100; d[k + 2] = 50; d[k + 3] = 255; }
+  for (var y = 2; y <= 6; y++) for (var x = 4; x <= 15; x++) px(x, y);
+  for (y = 7; y <= 9; y++) for (x = 1; x <= 18; x++) px(x, y);
+  var spr = { w: w, h: h, d: d }, before = Array.prototype.slice.call(d);
+  function alpha(m, x, y) { return m[(y * w + x) * 4 + 3]; }
+  function count(m) { var n = 0; for (var i = 3; i < m.length; i += 4) if (m[i] >= 128) n++; return n; }
+  check(M.biteLine(spr) === 7, 'the container line is the first wide row (7)');
+  var full = count(d), m0 = M.biteMask(spr, [], 7, 0), m1 = M.biteMask(spr, [3], 7, 0), m2 = M.biteMask(spr, [3, 0], 7, 0), m4 = M.biteMask(spr, [3, 0, 2, 1], 7, 0);
+  check(m0 !== d && count(m0) === full, 'no bites: a copy, nothing removed');
+  check(count(m1) < full && alpha(m1, 15, 3) === 0 && alpha(m1, 4, 3) === 255 && alpha(m1, 17, 8) === 255, 'bite of quarter 3: the right food goes, the left food and the plate stay');
+  check(count(m2) < count(m1) && alpha(m2, 4, 3) === 0 && alpha(m2, 9, 3) === 255, 'second bite from the left');
+  check(count(m4) === 18 * 3, 'four bites: only the container rows are left');
+  check(Array.prototype.slice.call(d).join() === before.join(), 'the picture itself is never changed');
+  var t1 = M.biteMask(spr, [3], 7, 2), t4 = M.biteMask(spr, [0, 1, 2, 3], 7, 2);
+  check(count(t1) < full && count(t1) !== count(m1), 'toothed edge (amp 2) differs from the straight cut');
+  check(count(t4) >= 18 * 3 && count(t4) < full - 30, 'toothed: the food is gone but for a few crumbs, the plate stays');
+  /* 둥근 접시 (타원) 위에 음식이 겹쳐 그려진 그림: 다 먹으면 음식 색은 없고, 접시는 뒤쪽 반까지 남는다 */
+  var W2 = 40, H2 = 30, d2 = new Uint8ClampedArray(W2 * H2 * 4);
+  function p2(x, y, c) { var k = (y * W2 + x) * 4; d2[k] = c[0]; d2[k + 1] = c[1]; d2[k + 2] = c[2]; d2[k + 3] = 255; }
+  for (var yy = 0; yy < H2; yy++) for (var xx = 0; xx < W2; xx++) { var ex = (xx - 19.5) / 19, ey = (yy - 20) / 8; if (ex * ex + ey * ey <= 1) p2(xx, yy, ex * ex + ey * ey > 0.8 ? [60, 60, 90] : [230, 230, 240]); }
+  for (yy = 4; yy <= 22; yy++) for (xx = 10; xx <= 29; xx++) p2(xx, yy, [240, 150, 40]);
+  var sp2 = { w: W2, h: H2, d: d2 }, L2 = M.biteLine(sp2), e4 = M.biteMask(sp2, [0, 1, 2, 3], L2, 2), e1 = M.biteMask(sp2, [3], L2, 2);
+  function has2(m, c) { for (var i = 0; i < m.length; i += 4) if (m[i + 3] >= 128 && m[i] === c[0] && m[i + 1] === c[1] && m[i + 2] === c[2]) return true; return false; }
+  function a2(m, x, y) { return m[(y * W2 + x) * 4 + 3]; }
+  check(L2 >= 16 && L2 <= 20, 'round plate: the container line is in the wide middle of the ellipse (' + L2 + ')');
+  check(!has2(e4, [240, 150, 40]) && has2(e4, [230, 230, 240]) && has2(e4, [60, 60, 90]), 'round plate, four bites: no food colour left, plate surface and rim remain');
+  check(a2(e4, 20, 14) >= 128 && a2(e4, 20, 26) >= 128 && a2(e4, 20, 6) === 0, 'round plate: its back half is kept (mirrored), above the plate is empty');
+  check(has2(e1, [240, 150, 40]) && a2(e1, 12, 8) === 255 && a2(e1, 28, 8) === 0, 'round plate, one bite: only the right part of the food is gone');
+  /* 11-22: biteFood — 음식 색만 줄이고 그릇 (keep) 은 그대로, 그릇이 가리던 자리는 그 줄의 그릇 색 */
+  var W3 = 20, H3 = 10, d3 = new Uint8ClampedArray(W3 * H3 * 4);
+  function p3(x, y, hx) { var k = (y * W3 + x) * 4; d3[k] = parseInt(hx.slice(0, 2), 16); d3[k + 1] = parseInt(hx.slice(2, 4), 16); d3[k + 2] = parseInt(hx.slice(4, 6), 16); d3[k + 3] = 255; }
+  for (var y3 = 5; y3 < 9; y3++) for (var x3 = 0; x3 < W3; x3++) p3(x3, y3, 'ebede9');   /* cake plate */
+  for (y3 = 1; y3 < 7; y3++) for (x3 = 6; x3 < 14; x3++) p3(x3, y3, 'ffd95c');   /* sponge over the plate */
+  var sp3 = { w: W3, h: H3, d: d3 }, f4 = M.biteFood(sp3, [0, 1, 2, 3], 'cake', 0), f1 = M.biteFood(sp3, [3], 'cake', 0);
+  function c3(m, x, y) { var k = (y * W3 + x) * 4; return m[k + 3] < 128 ? null : ((1 << 24) + (m[k] << 16) + (m[k + 1] << 8) + m[k + 2]).toString(16).slice(1); }
+  check(c3(f4, 10, 2) === null && c3(f4, 10, 6) === 'ebede9' && c3(f4, 0, 7) === 'ebede9' && c3(f4, 19, 5) === 'ebede9', 'biteFood: all eaten → no sponge above the plate, the plate under it is plate colour, the plate edge stays');
+  check(c3(f1, 13, 2) === null && c3(f1, 6, 2) === 'ffd95c', 'biteFood: one bite takes the right quarter of the food only');
+  check(M.biteFood(sp3, [], 'cake', 0)[(2 * W3 + 10) * 4 + 3] === 255 && M.biteFood(null, [0], 'cake') === null, 'biteFood: no bites → unchanged · broken picture → null');
+  check(Object.keys(M.BITE_COL).join() === 'jeon,gyeran,jumeokbap,kkochi,cake', 'a colour table for each of the five pictures');
+  var emp3 = { w: W3, h: H3, d: new Uint8ClampedArray(W3 * H3 * 4) }; for (var e3 = 0; e3 < W3 * H3; e3++) { emp3.d[e3 * 4] = 1; emp3.d[e3 * 4 + 1] = 2; emp3.d[e3 * 4 + 2] = 3; emp3.d[e3 * 4 + 3] = 255; }
+  var fe = M.biteFood(sp3, [1, 2, 3], 'cake', 0, emp3), fa = M.biteFood(sp3, [0, 1, 2, 3], 'cake', 0, emp3);
+  check(c3(fe, 10, 2) === '010203' && c3(fe, 6, 2) === 'ffd95c' && c3(fe, 0, 7) === 'ebede9', 'biteFood with an empty-plate picture: eaten pixels show that picture, the rest stays');
+  check(c3(fa, 0, 0) === '010203' && c3(fa, 10, 6) === '010203', 'biteFood: after the fourth bite the empty-plate picture as it is');
+  check(M.biteMask(null, [0]) === null && M.biteMask({ w: 2, h: 2, d: [] }, [0]) === null && M.biteLine(null) === 0, 'broken pictures → null / 0');
+  check(JSON.stringify(Array.prototype.slice.call(M.biteMask(spr, [3], 7, 2))) === JSON.stringify(Array.prototype.slice.call(M.biteMask(spr, [3], 7, 2))), 'deterministic');
 });
 
 section('11 R11: no model-path code', function () {

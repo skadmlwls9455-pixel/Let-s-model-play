@@ -14,14 +14,21 @@ function ok(c, msg) { if (c) pass++; else { fail++; console.log('FAIL ' + msg); 
 /* id: [w, h, ax, ay, frames] */
 var WANT = {
   'dish.jeon': [80, 56, 40, 44, 3], 'dish.gyeran': [80, 56, 40, 44, 1], 'dish.jumeokbap': [80, 56, 40, 44, 1], 'dish.kkochi': [80, 56, 40, 44, 1], 'dish.cake': [80, 56, 40, 44, 1],
-  'table.jeon': [16, 12, 8, 10, 3], 'table.gyeran': [16, 12, 8, 10, 1], 'table.jumeokbap': [16, 12, 8, 10, 1], 'table.kkochi': [16, 12, 8, 10, 1], 'table.cake': [16, 12, 8, 10, 1],
+  'table.jeon': [16, 12, 8, 10, 3], 'table.gyeran': [16, 12, 8, 10, 1], 'table.jumeokbap': [16, 12, 8, 10, 1], 'table.kkochi': [16, 12, 8, 10, 4], 'table.cake': [16, 12, 8, 10, 4],
   'bowl': [88, 68, 44, 40, 1], 'mix.jeon': [60, 40, 30, 22, 4], 'mix.egg': [60, 40, 30, 22, 4], 'mix.rice': [60, 40, 30, 22, 3], 'mix.cake': [60, 40, 30, 22, 4],
   'egg': [24, 28, 12, 22, 3], 'greens': [72, 32, 36, 20, 4], 'jug': [44, 44, 22, 34, 2], 'jeon.pan': [76, 56, 38, 30, 5], 'pan.square': [100, 76, 50, 42, 1],
   'gyeran.pan': [84, 60, 42, 32, 7], 'gyeran.board': [76, 40, 38, 26, 4], 'pot.rice': [76, 60, 38, 38, 4], 'paddle': [28, 36, 14, 30, 2], 'shaker': [20, 32, 10, 28, 1],
   'rice.shape': [60, 48, 30, 32, 5], 'gim': [24, 32, 12, 26, 1], 'basin': [100, 68, 50, 40, 1], 'fruit.wash': [68, 44, 34, 24, 3], 'fruit.board': [76, 44, 38, 26, 3],
   'fruit.piece': [20, 20, 10, 14, 3], 'skewer': [100, 20, 50, 12, 4], 'pot.syrup': [76, 60, 38, 38, 2], 'kkochi.coat': [100, 28, 50, 16, 3], 'tin': [76, 60, 38, 36, 4],
   'oven': [116, 100, 58, 60, 4], 'cake.base': [76, 56, 38, 38, 4], 'berry.top': [16, 18, 8, 14, 1], 'whisk': [28, 44, 14, 40, 1],
-  'book.emblem': [32, 32, 16, 16, 1], 'cafe.coffee': [32, 32, 16, 26, 1]
+  'book.emblem': [32, 32, 16, 16, 1], 'cafe.coffee': [32, 32, 16, 26, 1],
+  /* content pass (wip/round7/briefs/SPRITES2.md) */
+  'cafe.tray': [48, 32, 24, 22, 1], 'cafe.cup': [16, 16, 8, 13, 4], 'cafe.cup.big': [32, 32, 16, 26, 4], 'eat.cake': [80, 56, 40, 44, 4], 'eat.kkochi': [80, 56, 40, 44, 4],
+  'cafe.stampcard': [48, 32, 24, 16, 4], 'cafe.stamp': [16, 16, 8, 13, 1], 'cafe.recipe': [32, 40, 16, 20, 2], 'rec.sleeve': [24, 24, 12, 12, 8], 'rec.disc': [24, 24, 12, 12, 2],
+  'ui.tag': [40, 24, 20, 12, 1], 'ui.sold': [32, 16, 16, 8, 1], 'ui.receipt': [32, 40, 16, 20, 1], 'shop.open': [32, 24, 16, 4, 2],
+  'goods.seed': [16, 20, 8, 17, 3], 'goods.dye': [16, 20, 8, 17, 3], 'judge.card': [24, 32, 12, 30, 3],
+  /* empty dishes under the bitten dish picture */
+  'empty.jeon': [80, 56, 40, 44, 1], 'empty.gyeran': [80, 56, 40, 44, 1], 'empty.jumeokbap': [80, 56, 40, 44, 1], 'empty.kkochi': [80, 56, 40, 44, 1], 'empty.cake': [80, 56, 40, 44, 1]
 };
 ['icon.jeon', 'icon.gyeran', 'icon.jumeokbap', 'icon.kkochi', 'icon.cake', 'lock.cup', 'cafe.card',
   'ing.flour', 'ing.water', 'ing.greens', 'ing.oil', 'ing.egg', 'ing.salt', 'ing.rice', 'ing.gim', 'ing.sesame', 'ing.berry', 'ing.grape', 'ing.tang', 'ing.sugar', 'ing.cream',

@@ -207,17 +207,63 @@ html:not(.booted) #oct-svg { visibility: hidden; }
   <button type="button" id="btn-call" class="meal-call" aria-label="문어 부르기" hidden></button>
   <!-- 7차 갈래 자리 (11-21) · 장면 단추: 갈래마다 제 표시 줄 바로 아래에만 -->
   <!-- [7-T] 단추 -->
+  <!-- 11-21 먹는 동안의 큰 요리 그림 (app.js mealCloseDraw): 그림뿐 · 글자 0 · 누를 수 없다 (식사 행은 로그가 읽어 준다) -->
+  <div id="meal-close" class="meal-close" aria-hidden="true" hidden><canvas width="80" height="56"></canvas></div>
 
   <!-- [7-P] 단추 -->
 
   <!-- [7-W] 단추 -->
+  <!-- 11-21 7차 바깥 한 장: 표지판 셋 (빠른 이동 창을 연다) · 해변의 조개 자리 다섯 (갈래 S 가 무엇을 줄지 정한다). 자리 · 보임은 장면이 맡는다 (js/scene3d.js WIDE_REG) -->
+  <button type="button" id="btn-sign-0" class="scene-spot" aria-label="표지판" hidden></button>
+  <button type="button" id="btn-sign-1" class="scene-spot" aria-label="표지판" hidden></button>
+  <button type="button" id="btn-sign-2" class="scene-spot" aria-label="표지판" hidden></button>
+  <button type="button" id="btn-beach-shell-0" class="scene-spot" aria-label="조개" hidden></button>
+  <button type="button" id="btn-beach-shell-1" class="scene-spot" aria-label="조개" hidden></button>
+  <button type="button" id="btn-beach-shell-2" class="scene-spot" aria-label="조개" hidden></button>
+  <button type="button" id="btn-beach-shell-3" class="scene-spot" aria-label="조개" hidden></button>
+  <button type="button" id="btn-beach-shell-4" class="scene-spot" aria-label="조개" hidden></button>
 
   <!-- [7-V] 단추 -->
+  <!-- 11-21 마을 (docs/VILLAGE.md): 그림 위의 보이지 않는 단추 — 자리 · hidden 은 장면 (등록부 WIDE_REG.spots) 이 쥔다. 이름은 aria-label 뿐 (title 없음) -->
+  <button type="button" id="btn-shop-clothes" class="scene-spot" aria-label="옷가게" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-shop-goods" class="scene-spot" aria-label="잡화점" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-cafe-counter" class="scene-spot" aria-label="카페 주문" aria-haspopup="dialog" hidden></button>
+  <button type="button" id="btn-cafe-seat" class="scene-spot" aria-label="카페 자리" hidden></button>
+  <button type="button" id="btn-cafe-lp" class="scene-spot" aria-label="레코드" hidden></button>
+  <button type="button" id="btn-plaza-stage" class="scene-spot" aria-label="콘테스트 무대" hidden></button>
+  <button type="button" id="btn-plaza-board" class="scene-spot" aria-label="마을 게시판" hidden></button>
+  <button type="button" id="btn-npc-clothes" class="scene-spot" aria-label="가게 문어" hidden></button>
+  <button type="button" id="btn-npc-goods" class="scene-spot" aria-label="가게 문어" hidden></button>
+  <button type="button" id="btn-npc-cafe" class="scene-spot" aria-label="가게 문어" hidden></button>
+  <!-- 11-21 밤: 들어가는 가게 (문) 와 방 안의 자리 — 자리 · hidden 은 장면 (WIDE_REG / ROOM_REG 의 spots) 이 쥔다 -->
+  <button type="button" id="btn-in-clothes" class="scene-spot" aria-label="옷가게 들어가기" hidden></button>
+  <button type="button" id="btn-in-goods" class="scene-spot" aria-label="잡화점 들어가기" hidden></button>
+  <button type="button" id="btn-in-cafe" class="scene-spot" aria-label="카페 들어가기" hidden></button>
+  <button type="button" id="btn-in-hall" class="scene-spot" aria-label="공연장 들어가기" hidden></button>
+  <button type="button" id="btn-room-exit" class="scene-spot" aria-label="밖으로" hidden></button>
+  <button type="button" id="btn-hall-stage" class="scene-spot" aria-label="무대" hidden></button>
+  <button type="button" id="btn-hall-rack" class="scene-spot" aria-label="옷걸이와 거울" hidden></button>
+  <button type="button" id="btn-hall-board" class="scene-spot" aria-label="결과판" hidden></button>
+  <button type="button" id="btn-room-counter" class="scene-spot" aria-label="계산대" hidden></button>
+  <button type="button" id="btn-room-mirror" class="scene-spot" aria-label="거울" hidden></button>
+  <button type="button" id="btn-mq-0" class="scene-spot" aria-label="첫째 마네킹" hidden></button>
+  <button type="button" id="btn-mq-1" class="scene-spot" aria-label="둘째 마네킹" hidden></button>
+  <button type="button" id="btn-mq-2" class="scene-spot" aria-label="셋째 마네킹" hidden></button>
+  <button type="button" id="btn-mq-3" class="scene-spot" aria-label="넷째 마네킹" hidden></button>
+  <button type="button" id="btn-cafe-menu" class="scene-spot" aria-label="차림판" hidden></button>
+  <button type="button" id="btn-shelf-0" class="scene-spot" aria-label="첫째 선반" hidden></button>
+  <button type="button" id="btn-shelf-1" class="scene-spot" aria-label="둘째 선반" hidden></button>
+  <button type="button" id="btn-shelf-2" class="scene-spot" aria-label="셋째 선반" hidden></button>
+  <button type="button" id="btn-shelf-3" class="scene-spot" aria-label="넷째 선반" hidden></button>
+  <button type="button" id="btn-shelf-4" class="scene-spot" aria-label="다섯째 선반" hidden></button>
+  <button type="button" id="btn-shelf-5" class="scene-spot" aria-label="여섯째 선반" hidden></button>
 
   <!-- [7-S] 단추 -->
 
   <!-- [7-C] 단추 -->
   <div id="cafe-tray" class="cafe-tray" hidden></div>
+  <button type="button" id="btn-cafe-plate" class="cafe-plate-btn" aria-label="접시" hidden></button>
+  <div id="cafe-card" class="cafe-card cafe-sheet" role="group" aria-label="메뉴 칠판" data-npc-avoid hidden><div id="cafe-card-body"></div><button type="button" class="btn sm pressable" id="cafe-card-close">닫기</button></div>
 
   <!-- [7-N] 단추 -->
 
@@ -386,7 +432,6 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- 11-15: 부엌 (조리대 톡). 화면 가득 · 안은 cook.html?embed=1 (닫기 · Esc 는 부엌 쪽이 받아 postMessage 로 알린다) -->
 <dialog id="cook-overlay" class="cook-overlay" aria-label="부엌"><div id="cook-wait" class="cook-wait" hidden><i class="cw-oct" aria-hidden="true"></i><button type="button" id="cook-close" class="cw-close" aria-label="닫기"><img src="assets/icons/dish/close.png" alt="" width="16" height="16"></button></div></dialog>
 <!-- 11-18 6차: 부엌이 아직 안 열렸을 때 (점검 rel-01) 300 ms 뒤 기어가는 문어 + 닫기 (그림뿐) · 6 초면 닫고 토스트. 요리 쟁반: 조리대 톡 → 그림 칩 셋 (보이는 글자 0 · title 없음) -->
-<dialog id="dish-pick" class="dish-pick" aria-label="요리 고르기" tabindex="-1"><div class="dp-row"><button type="button" class="dp-chip" data-recipe="jeon" aria-label="해초전"><img src="assets/icons/dish/jeon.png" alt="" width="16" height="16"></button><button type="button" class="dp-chip" data-recipe="jumeokbap" aria-label="주먹밥"><img src="assets/icons/dish/jumeokbap.png" alt="" width="16" height="16"></button><button type="button" class="dp-chip" data-recipe="kkochi" aria-label="과일 꼬치"><img src="assets/icons/dish/kkochi.png" alt="" width="16" height="16"></button></div></dialog>
 
 <!-- 7차 갈래 자리 (11-21) · 창과 시트: 갈래마다 제 표시 줄 바로 아래에만 -->
 <!-- [7-T] 창 -->
@@ -394,10 +439,18 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- [7-P] 창 -->
 
 <!-- [7-W] 창 -->
+<!-- 11-21 7차 빠른 이동 (#travel-pick): 표지판 톡 → 그림 칩 (집 · 마을 · 바닷가 — 지금 선 곳은 숨긴다). 보이는 글자 0 · title 없음. 요리 쟁반 (#dish-pick) 과 같은 칩 -->
+<dialog id="travel-pick" class="dish-pick travel-pick" aria-label="어디로 갈까" tabindex="-1"><div class="dp-row"><button type="button" class="dp-chip" data-place="home" aria-label="집"><canvas width="16" height="16" aria-hidden="true"></canvas></button><button type="button" class="dp-chip" data-place="village" aria-label="마을"><canvas width="16" height="16" aria-hidden="true"></canvas></button><button type="button" class="dp-chip" data-place="beach" aria-label="바닷가"><canvas width="16" height="16" aria-hidden="true"></canvas></button></div></dialog>
 
 <!-- [7-V] 창 -->
 
 <!-- [7-S] 창 -->
+<dialog id="shop-sheet" class="sheet bag-sheet sew-sheet shop-sheet" aria-labelledby="shop-h">
+  <div class="handle" aria-hidden="true"></div>
+  <h2 id="shop-h" class="set-h dlg-top" tabindex="-1">가게</h2>
+  <div id="shop-body"></div>
+  <button type="button" class="btn wide pressable" id="shop-close">닫기</button>
+</dialog>
 
 <!-- [7-C] 창 -->
 <dialog id="cafe-sheet" class="sheet bag-sheet cafe-sheet" aria-labelledby="cafe-h">
@@ -438,7 +491,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <!-- [7-F] 창 -->
 <dialog id="contest-sheet" class="sheet bag-sheet contest-sheet" aria-labelledby="contest-h">
   <div class="handle" aria-hidden="true"></div>
-  <h2 id="contest-h" class="set-h dlg-top" tabindex="-1">주말 콘테스트</h2>
+  <div class="ct-band"><span id="ct-keeper" class="ct-keeper"></span><h2 id="contest-h" class="set-h dlg-top ct-sign" tabindex="-1">주말 콘테스트</h2><span id="ct-purse" class="ct-purse"></span></div>
   <div id="contest-body"></div>
   <button type="button" class="btn wide pressable" id="contest-close">닫기</button>
 </dialog>
@@ -515,14 +568,19 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <script src="js/poster-art.js"></script><!-- 전역 POSTER_ART: 포스터 앞면에 방 그림을 붙인다 (없어도 게임은 그대로 — 예전처럼 사진) -->
 <!-- 7차 갈래 자리 (11-21) · app.js 앞에 싣는 규칙 파일 (DOM 없는 전역): 갈래마다 제 표시 줄 바로 아래에만 -->
 <!-- [7-T] 스크립트 -->
+<script src="js/recipes.js"></script><!-- 11-21 레시피 규칙 (전역 RECIPES, DOM 없음): 처음부터 셋 · 카페 선물 둘 -->
+<script src="js/cook-sprites.js"></script><!-- 11-21 음식 그림 (전역 COOK_SPR, DOM 없음): 식탁 위 작은 그림 · 먹는 동안의 큰 그림. 없으면 예전 모양 -->
 
 <!-- [7-P] 스크립트 -->
 
 <!-- [7-W] 스크립트 -->
 
 <!-- [7-V] 스크립트 -->
+<script src="js/village.js"></script>
 
 <!-- [7-S] 스크립트 -->
+<script src="js/shop.js"></script>
+<!-- 가게 카드의 그림 (값표 · 팔림 도장 · 영수증 · 씨앗) 은 COOK_SPR — js/cook-sprites.js 는 위 [7-T] 스크립트 자리에서 한 번만 싣는다 (11-22 합치기: 두 번 실리던 것을 하나로). 없으면 CSS 로 그린 것이 남는다 -->
 
 <!-- [7-C] 스크립트 -->
 <script src="js/cafe.js"></script>
@@ -535,6 +593,7 @@ html:not(.booted) #oct-svg { visibility: hidden; }
 <script src="js/contest.js"></script><!-- 11-21 주말 콘테스트 규칙 (전역 CONTEST, DOM 없음): 주제 · 채점 · 경쟁자 · 하루 한 번 (docs/CONTEST.md) -->
 
 <!-- [7-U] 스크립트 -->
+<script src="js/vista.js"></script>
 
 <script src="js/app.js"></script>
 <script src="js/ui-art.js"></script>

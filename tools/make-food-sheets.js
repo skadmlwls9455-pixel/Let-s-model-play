@@ -100,12 +100,13 @@ function sheet(cells, maxW, bg, ink) {
 
 /* ---- groups (file name -> which ids) ---- */
 var GROUPS = [
-  ['dishes', function (id) { return /^(dish|icon|table)\./.test(id); }],
+  ['dishes', function (id) { return /^(dish|icon|table|empty)\./.test(id); }],
   ['jeon', function (id) { return /^(bowl|mix\.jeon|greens|jug|jeon\.|whisk)/.test(id); }],
   ['gyeran', function (id) { return /^(mix\.egg|egg$|pan\.square|gyeran\.)/.test(id); }],
   ['jumeokbap', function (id) { return /^(mix\.rice|pot\.rice|paddle|shaker|rice\.|gim)/.test(id); }],
   ['kkochi', function (id) { return /^(basin|fruit\.|skewer|pot\.syrup|kkochi\.)/.test(id); }],
   ['cake', function (id) { return /^(mix\.cake|tin|oven|cake\.|berry\.)/.test(id); }],
+  ['content', function (id) { return /^(cafe|eat|rec|ui|shop|goods|judge)\./.test(id); }],
   ['small', function () { return true; }]
 ];
 function groupsOf(SPR) {
