@@ -352,6 +352,23 @@
     table: ['....................', '....................', '.....ffff...........', '....fFFFFf.....ss...', '...fFFhFFFf....sS...', '...fFFFFFFf....sS...', '..wwwwwwwwww...sS...', '..wPPPPPPPPw...sS...', '...wwwwwwww....sS...', 'tttttttttttttt.sS...', 'tTTTTTTTTTTTTt.sssss', 'tttttttttttttt.sSSSs', '..tt......tt...sssss', '..tt......tt...s...s', '..tt......tt...s...s', '..tt......tt...s...s', '..tt......tt...s...s', '....................', '....................', '....................']
   };
   var END_KEY = { o: C.w0, C: CORAL, k: C.w0, f: C.r1, F: C.a2, h: C.a3, w: C.s3, P: C.s6, t: C.w1, T: C.w3, s: C.w1, S: C.w4 };
+  /* 11-24 r5 (owner: end by dragging the plate onto the octopus or the table, no big buttons): the two places drawn on the
+     plate screen. 20 x 20 art px each, centred on (x, y), on a soft round spot; hot = a dish is held over it (a light ring) */
+  var SPOT = {
+    call: ['....................', '.......oooooo.......', '.....ooCCCCCCoo.....', '....oCCCCCCCCCCo....', '...oCCCCCCCCCCCCo...', '...oCCkkCCCCkkCCo...',
+      '...oCCkWCCCCkWCCo...', '...oCCCCCCCCCCCCo...', '...oCCCCCrrCCCCCo...', '....oCCCCCCCCCCo....', '....oCCCCCCCCCCo....', '...oCCoCCoCCoCCoCo..',
+      '..oCCooCCooCCooCCo..', '..oCo.oCo.oCo.oCCo..', '..oo..oo..oo..oCo...', '...............oo...', '....................', '....................', '....................', '....................'],
+    table: ['....................', '....................', '....................', '....................', '....................', '.ttttttttttttttttt..',
+      '.tTTTTTTTTTTTTTTTt..', '.tTTTTTTTTTTTTTTTt..', '.ttttttttttttttttt..', '.tLLLLLLLLLLLLLLLt..', '..tt..........tt....', '..tt..........tt....', '..tt..........tt....',
+      '..tt..........tt....', '..tt..........tt....', '..tt..........tt....', '..tt..........tt....', '....................', '....................', '....................']
+  };
+  var SPOT_KEY = { o: C.w0, C: CORAL, k: C.w0, W: C.s6, r: C.r0, t: C.w1, T: C.w3, L: C.w2 };
+  function serveSpot(b, name, x, y, hot) {
+    x |= 0; y |= 0;
+    A.ellipse(b, x, y + 7, 13, 5, C.w4); A.ellipse(b, x, y + 6, 12, 4, C.w5);   /* where it stands */
+    if (hot) for (var a = 0; a < 360; a += 10) put(b, x + ((15 * A.cos(a)) >> 12), y + ((12 * A.sin(a)) >> 12), C.s6);
+    grid(b, SPOT[name] || SPOT.table, SPOT_KEY, x - 10, y - 12);
+  }
   function endIcon(name) { var b = A.blank(20, 20); grid(b, END[name] || END.table, END_KEY, 0, 0); return b; }
 
   /* ---------- the recipe book ----------
@@ -415,5 +432,5 @@
     return L;
   }
 
-  A.steps = { spr: spr, sprOf: sprOf, book: book, bookLay: bookLay, endIcon: endIcon, hand2: hand2, SIZE: SIZE, DISH: DISH, ICON: ICON, painter: P, fxPic: fxPic, CELL: [CELL_W, CELL_H] };
+  A.steps = { spr: spr, sprOf: sprOf, book: book, bookLay: bookLay, endIcon: endIcon, hand2: hand2, SIZE: SIZE, DISH: DISH, ICON: ICON, painter: P, fxPic: fxPic, CELL: [CELL_W, CELL_H], serveSpot: serveSpot };
 })();

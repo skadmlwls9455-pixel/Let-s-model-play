@@ -966,7 +966,10 @@ var COOK = (function () {
   var STATION = { tap: 'counter', flip: 'stove', slice: 'board', stir: 'counter', pour: 'stove', drag: 'counter', rub: 'counter', swipe: 'stove', bake: 'counter' };
   var END = { BIG: 80, BIG_S: 72, SMALL: 60, GAP: 12, ART: 20 };   /* 11-21 the two end buttons (CSS px; BIG_S below 340 wide), their 20 x 20 pictures */
   var HAND2 = { circle: 1, hold: 1, carry: 1, rub: 1 };            /* ghost hands drawn by COOK_ART.steps.hand2 (18 frames a loop) */
-  var BOOK_MS = { swipe: 24, hand: 600 };                          /* the book: a sideways drag of 24 CSS px turns the page; the first-time hand waits 600 ms */
+  var BOOK_MS = { swipe: 24, hand: 600 };
+  /* 11-24 r5 the plate screen: the two places to put the dish (stage art px, their centres), how near counts, how far a press
+     must move to lift the dish, and when the first-time hand shows the way */
+  var SERVE = { call: [48, 128], table: [96, 128], reach: 16, lift: 3, hintMs: 1200, dish: [72, 92, 38, 26] };                          /* the book: a sideways drag of 24 CSS px turns the page; the first-time hand waits 600 ms */
   /* 11-18 round 6: a step's station (its own, else its kind's); per recipe what rides over a slide between two stations and
      onto the plate (jeon: the pan, then the cooked jeon, then the cut jeon) */
   function stationOf(step) { return (step && step.station) || STATION[step && step.kind] || 'counter'; }
@@ -1272,7 +1275,7 @@ var COOK = (function () {
   function onReveal(e) {
     var at = L.nextAt != null && L.nextAt <= L.lastT ? L.nextAt : L.lastT;
     L.screen = 'reveal'; L.revealAt = at; L.chipAt = at + TUNE.reveal.focusMs; L.againAt = at + AGAIN_MS; L.chipOn = false; L.down = {};
-    L.hint = null; L.parts = []; L.titleUntil = 0;
+    L.hint = null; L.parts = []; L.titleUntil = 0; L.pd = null; L.glide = null; L.serveHint = false;
     fxAdd({ k: 'rise' }, e.si, at); fxAdd({ k: 'shake', from: TUNE.reveal.frames - 1, dx: 0, dy: 1 }, e.si, at);
     var r = recipe(L.run.recipe), last = r ? stationOf(r.steps[r.steps.length - 1]) : 'board', lk = lookOf(L.run);
     if (r && r.v2) startSlide(last, 'plate', at, null, null, null, copyBuf(L.buf));
@@ -1474,6 +1477,50 @@ var COOK = (function () {
     if (both) put2(D.call, D.callCv, x0, big);
     put2(D.table, D.tableCv, both ? x0 + big + END.GAP : x0, wT);
   }
+  /* 11-24 r5 the plate: the dish is dragged onto the octopus or the table drawn under it (or one of them is touched). The
+     framed end buttons stay for the keyboard and screen readers (css/cook.css shows them in keyboard mode only) */
+  function spots() { var A = art(); if (!A || !A.steps || !A.steps.serveSpot) return []; var o = []; if (L.canCall) o.push({ m: 'call', x: SERVE.call[0], y: SERVE.call[1] }); o.push({ m: 'table', x: SERVE.table[0], y: SERVE.table[1] }); return o; }
+  function spotAt(ax, ay) { var s = spots(); for (var i = 0; i < s.length; i++) if (Math.abs(ax - s[i].x) <= SERVE.reach && Math.abs(ay - s[i].y) <= SERVE.reach) return s[i].m; return null; }
+  function onDish(ax, ay) { var d = SERVE.dish; return Math.abs(ax - d[0]) <= d[2] && Math.abs(ay - d[1]) <= d[3]; }
+  function plateDown(e) {
+    if (!L.chipOn || !spots().length) return;
+    if (e.pointerType !== 'mouse' && (e.clientX < TUNE.edgeCss || e.clientX > window.innerWidth - TUNE.edgeCss)) return;
+    L.rect = D.cv.getBoundingClientRect();
+    var q = logical(e), ax = q.x / 2, ay = q.y / 2, m = spotAt(ax, ay);
+    if (!m && !onDish(ax, ay)) return;
+    try { D.stage.setPointerCapture(e.pointerId); } catch (x) { /* synthetic or ended pointer */ }
+    L.pd = { id: e.pointerId, spot: m, x: ax, y: ay, sx: ax, sy: ay, drag: false }; L.glide = null; L.hint = null; L.dirty = true;
+  }
+  function plateMove(e) {
+    var p = L.pd; if (!p || p.id !== e.pointerId) return;
+    var q = logical(e); p.x = q.x / 2; p.y = q.y / 2;
+    if (!p.spot && !p.drag && Math.abs(p.x - p.sx) + Math.abs(p.y - p.sy) >= SERVE.lift) p.drag = true;
+    p.over = p.drag ? spotAt(p.x, p.y) : null; L.dirty = true;
+  }
+  function plateUp(e, cancel) {
+    var p = L.pd; if (!p || p.id !== e.pointerId) return;
+    if (!cancel) plateMove(e);
+    L.pd = null; L.dirty = true;
+    var to = cancel ? null : p.drag ? spotAt(p.x, p.y) : p.spot && spotAt(p.x, p.y) === p.spot ? p.spot : null;
+    if (to && simT(evAt(e)) >= L.againAt) { markSeen('serve'); serve(to, e); return; }
+    if (p.drag && !L.reduced) L.glide = { x: p.x, y: p.y, at: L.lastT };   /* let go elsewhere (or too early): it slides back */
+    if (!p.drag && !p.spot && L.seen.indexOf('serve') < 0) L.serveHint = false;   /* a touch on the dish: show the way again */
+  }
+  function paintServe(b, t) {   /* the two places, the dish in the hand, the dish sliding back */
+    var A = art(), s = spots(), p = L.pd, f = Math.floor(t / FMS);
+    if (!s.length || !L.chipOn) return;
+    var idle = !p && !L.hint, breathe = idle && !L.reduced ? ((f >> 2) % 6) === 0 : false;
+    s.forEach(function (o) { A.steps.serveSpot(b, o.m, o.x, o.y, (p && p.drag && p.over === o.m) || (p && p.spot === o.m) || breathe); });
+    var at = null;
+    if (p && p.drag) at = [p.x, p.y];
+    else if (L.glide) { var g = L.glide, k = Math.floor((t - g.at) / FMS); if (k >= 3) L.glide = null; else at = [g.x + ((SERVE.dish[0] - g.x) * (k + 1) >> 2), g.y + ((SERVE.dish[1] - g.y) * (k + 1) >> 2)]; }
+    if (at) {
+      if (!L.handDish || L.handDish.id !== L.run.id) L.handDish = { id: L.run.id, b: drawDish(L.run.recipe, lookOf(L.run), L.run.seed, 40, 26) };
+      var hb = L.handDish.b, x0 = Math.round(at[0]) - 20, y0 = Math.round(at[1]) - 30;   /* above the finger: the place under it stays in sight */
+      A.dither(b, x0 + 8, y0 + 26, 26, 3, A.PAL.w2, 0);
+      A.blit(b, hb, x0, y0);
+    }
+  }
   function serve(mode, e) {   /* an end button: tell the host which one, then close. The old chip's guards stay: nothing before 900 ms */
     if (!L || L.screen !== 'reveal' || !L.chipOn || simT(evAt(e)) < L.againAt) return;
     if (mode === 'call' && !L.canCall) return;
@@ -1510,7 +1557,7 @@ var COOK = (function () {
     if (!routed && e.target && e.target.closest && e.target.closest('button')) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     hideTitle();   /* a ghost hand stays until progress or its own end: a press that changes nothing does not wipe it */
-    if (L.screen === 'reveal') { e.preventDefault(); return; }   /* the plate is only to look at: pressing it does nothing */
+    if (L.screen === 'reveal') { e.preventDefault(); plateDown(e); return; }   /* 11-24 r5: the dish can be lifted onto a place */
     if (L.screen !== 'step' || !L.run) return;
     if (e.pointerType !== 'mouse' && (e.clientX < TUNE.edgeCss || e.clientX > window.innerWidth - TUNE.edgeCss)) return;   /* OS back swipe */
     e.preventDefault();
@@ -1522,6 +1569,7 @@ var COOK = (function () {
     if (L) follow(e.pointerId, q);
   }
   function onMove(e) {
+    if (L && L.screen === 'reveal') { plateMove(e); return; }
     if (!L || !L.down[e.pointerId] || L.screen !== 'step' || !L.run) return;
     var list = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : null, p = ptype(e), q = null;
     if (!list || !list.length) list = [e];
@@ -1533,13 +1581,15 @@ var COOK = (function () {
     if (q) follow(e.pointerId, q);
   }
   function onUp(e) {
-    if (!L || L.screen === 'reveal' || !L.down[e.pointerId]) return;
+    if (L && L.screen === 'reveal') { plateUp(e, false); return; }
+    if (!L || !L.down[e.pointerId]) return;
     delete L.down[e.pointerId];
     var q = logical(e);
     send({ t: simT(evAt(e)), k: 'u', x: q.x, y: q.y, p: ptype(e), id: e.pointerId });
     if (L) { L.finger = null; L.dirty = true; }
   }
   function onCancel(e) {   /* pointercancel keeps all progress (never a penalty) */
+    if (L && L.screen === 'reveal') { plateUp(e, true); return; }
     if (!L || !L.down[e.pointerId]) return;
     delete L.down[e.pointerId];
     send({ t: simT(evAt(e)), k: 'c', id: e.pointerId });
@@ -1822,6 +1872,11 @@ var COOK = (function () {
         L.chipOn = true; L.shown = true; updVerb();
         focusEl(kbd ? (L.canCall ? D.call : D.table) : D.stage);
       }
+      /* first time on a plate (this device): one ghost hand carries the dish to its place, twice over 3 s */
+      if (L.chipOn && !L.serveHint && !L.pd && !L.hint && L.seen.indexOf('serve') < 0 && t >= L.chipAt + SERVE.hintMs && spots().length) {
+        var to = spots()[0];
+        L.serveHint = true; L.hint = { spec: { kind: 'carry', x0: SERVE.dish[0], y0: SERVE.dish[1], x1: to.x, y1: to.y }, at: t, dur: 36 * FMS, why: 'serve', seen: null }; L.stats.hints++; L.dirty = true;
+      }
     }
     if (L.auto) autoStep(t);
     var jf = frameSig(t);
@@ -1931,7 +1986,7 @@ var COOK = (function () {
       });
       if (!bare) A.particles(b, list);
     }
-    if (L.hint && !bare) {
+    if (L.hint && !bare && L.screen !== 'reveal') {   /* on the plate the hand goes over the two places (render) */
       var h = L.hint, hf = Math.floor((t - h.at) / FMS) % 4, o = {};
       for (var key in h.spec) o[key] = h.spec[key];
       o.f = L.reduced ? 0 : hf; o.still = L.reduced;
@@ -1953,6 +2008,11 @@ var COOK = (function () {
       paintStage(L.buf, J, t, false);
       var bl = bellNow(t), BA = art();   /* 11-18: the golden bell sits on top of the stove scene */
       if (bl && bl.shown && BA && BA.bell && BA.GEO.bell) BA.bell(L.buf, BA.GEO.bell[0], BA.GEO.bell[1], bl.f, L.reduced);
+      if (L.screen === 'reveal') {
+        paintServe(L.buf, t);
+        if (L.hint) { var hh = L.hint, ho = {}; for (var hk in hh.spec) ho[hk] = hh.spec[hk]; ho.f = L.reduced ? 0 : Math.floor((t - hh.at) / FMS) % 4; ho.still = L.reduced;
+          if (HAND2[ho.kind] && BA.steps) BA.steps.hand2(L.buf, ho, ((t - hh.at) % (18 * FMS)) / (18 * FMS), L.reduced); else BA.hand(L.buf, ho); }
+      }
       layer(V, stationNow(), L.buf, L.ox, L.oy, 0, V.w);
     }
     if (J.shake) { shakeView(V, J.shake[0], J.shake[1]); L.stats.shake++; }
@@ -2098,7 +2158,7 @@ var COOK = (function () {
            may be started (null = all: the standalone page). No ctx inside a host = no call, the three free dishes */
         canCall: opts.ctx && typeof opts.ctx === 'object' ? opts.ctx.canCall === true : !opts.host,
         unlocked: opts.ctx && typeof opts.ctx === 'object' && Array.isArray(opts.ctx.unlocked) ? opts.ctx.unlocked.filter(function (x) { return typeof x === 'string'; }).slice(0, 32) : opts.host && EXT ? EXT.FREE.slice() : null,
-        book: null, served: null, endKey: -1,
+        book: null, served: null, endKey: -1, pd: null, glide: null, serveHint: false, handDish: null,
         clock: { base: 0, since: document.hidden ? null : performance.now() }, lastT: 0, jf: -1,
         run: null, runDay: null, screen: 'step', seen: [], shown: false, finished: null,
         fx: 0, fxq: [], parts: [], dust: [], prng: null, hint: null, hintKey: null, demoAt: -1, titleUntil: 0, finger: null,
@@ -2110,6 +2170,7 @@ var COOK = (function () {
       if (L.palette && /^[a-z0-9-]+$/.test(L.palette)) D.dlg.setAttribute('data-palette', L.palette); else D.dlg.removeAttribute('data-palette');
       D.note.hidden = true; D.say.textContent = ''; D.closeCv.ckIcon = iconOf('close'); D.closeCv.ckN = 0;
       D.verbCv.ckName = null; D.bk.hidden = true; bookWordsOff(); D.call.hidden = true; D.table.hidden = true;
+      D.dlg.classList.toggle('ck-spots', !!(art().steps && art().steps.serveSpot));   /* the plate's places are drawn: the end buttons are the keyboard path */
       if (art().steps) { D.callCv.ckIcon = art().steps.endIcon('call'); D.tableCv.ckIcon = art().steps.endIcon('table'); D.callCv.ckN = 0; D.tableCv.ckN = 0; }
       document.documentElement.classList.add('ck-open');
       setKbd(typeof opts.kbd === 'boolean' ? opts.kbd : kbd);   /* the host's own last input (cook.html in the game), else ours */
@@ -2178,6 +2239,8 @@ var COOK = (function () {
     var run = L.run, st = run && run.st, sp = slideAt(L.lastT), sl = L.slide, B = L.book;
     return { book: B ? { ids: B.ids.slice(), sel: B.sel, id: B.ids[B.sel], locked: Object.keys(B.locked), made: Object.keys(B.made), open: bookFrame(L.lastT).open, lay: clone(B.lay) } : null,
       end: { call: !D.call.hidden, table: !D.table.hidden, at: L.screen === 'reveal' ? L.againAt : null }, canCall: L.canCall, served: L.served,
+      spots: L.screen === 'reveal' && L.chipOn ? spots().map(function (o) { return { m: o.m, x: (o.x + L.ox) * L.css, y: (o.y + L.oy) * L.css }; }) : [],   /* 11-24 r5: client px */
+      dish: L.screen === 'reveal' ? { x: (SERVE.dish[0] + L.ox) * L.css, y: (SERVE.dish[1] + L.oy) * L.css } : null, holding: !!(L.pd && L.pd.drag),
       screen: L.screen, recipe: run ? run.recipe : null, si: run ? run.si : null, kind: st && run.phase !== 'reveal' ? st.kind : null,
       phase: run ? run.phase : null, progress: st ? st.progress : 0, done: run ? !!run.done : false, tag: st ? st.tag : null,
       band: st && (st.kind === 'flip' || st.kind === 'bake') ? st.band : null, quiet: !(kbd && (L.shown || document.activeElement === D.verb)), fx: L.fx,

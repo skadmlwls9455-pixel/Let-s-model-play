@@ -104,7 +104,9 @@ var PPOL_STICKERS = (function () {
       var d = detail || {};
       if (!act || typeof act !== 'string') return null;
       var arg = cfg.scriptArg || 'script';
-      if (act === 'start' || (cfg.startActs && cfg.startActs[act]) || !run) { var b = { runId: d.runId }; b[arg] = d[arg] != null ? d[arg] : d.script; begin(b); }
+      /* 11-24 r5: 부엌은 이제 접시 (done) 만 알린다 — pick 이 안 오니, 다른 판 id 가 오면 그 판으로 새로 시작한다 (두 번째 요리가 첫 요리의 판으로 그려지지 않게) */
+      var other = d.runId != null && !!run && run.id !== String(d.runId);
+      if (act === 'start' || (cfg.startActs && cfg.startActs[act]) || !run || other) { var b = { runId: d.runId }; b[arg] = d[arg] != null ? d[arg] : d.script; begin(b); }
       if (d[arg] && !run.script) setScript(d[arg]);
       var fromAct = cfg.scriptFrom && cfg.scriptFrom(act, d);   /* 순간이 스크립트를 정해 줄 때 (요리: done 의 dish.id) */
       if (fromAct && SCRIPTS[fromAct]) run.script = fromAct;
