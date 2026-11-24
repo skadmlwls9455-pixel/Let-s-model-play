@@ -9040,6 +9040,27 @@ var SCENE3D = (function () {
       villageInfo: function () { var c = {}; (CUTS.yard || []).forEach(function (e) { if (/^vil/.test(e.key)) c[e.key] = e.cut; }); return { on: VIL.on, built: VIL.built, stub: VIL.stub, npcs: Object.keys(VIL.npcs).map(function (id) { var o = VIL.npcs[id]; return { id: id, pose: o.pose, at: [o.m.position.x, o.m.position.y, o.m.position.z], visible: o.m.visible }; }), marks: Object.keys(VIL.marks).filter(function (id) { return VIL.marks[id].visible; }), cut: c, cup: !!(VIL.cup && VIL.cup.visible), seated: VIL.cafe.seated, lamps: !!(VIL.lampGlow && VIL.lampGlow.visible), snow: VIL.snow.some(function (m) { return m.visible; }), calls: callsBy.yard || 0, reg: { builders: WIDE_REG.builders.length, spots: WIDE_REG.spots.length, boxes: WIDE_REG.boxes.length, circles: WIDE_REG.circles.length, segments: WIDE_REG.segments.length, frame: WIDE_REG.frame.length } }; },
 
       /* [7-N] */
+      /* 11-24 (7차 N 다섯째 바퀴 · 주인 "문어 npc들은 안 보이고 창으로만 뜨는데"): 말하는 마을 문어가 지금 보이는 장소의 어디에 서 있나 → { x, y, z } (그 장소의 좌표 — roomFocus · project 에 그대로) | null.
+         방 안 = 그 방의 가게 문어 · 손님 자리 (카페의 자는 문어) · 공연장의 심사 · 경쟁 문어 / 바깥 = 마을 판매대 · 자는 자리. 그려져 있지 않거나 지금 안 보이는 장소에 있으면 null */
+      npcWhere: function (id) {
+        try {
+          var vis = groupOf(PLACE.vis), list = [];
+          if (typeof VR !== 'undefined' && VR) {
+            if (VR.npc && VR.npc[id]) list.push(VR.npc[id].m);
+            Object.keys(VR.rooms || {}).forEach(function (k) { var g = VR.rooms[k].guests; if (g && g[id]) list.push(g[id].m); });
+            if (VR.hallNpc && VR.hallNpc[id]) list.push(VR.hallNpc[id].m);
+          }
+          if (typeof VIL !== 'undefined' && VIL && VIL.npcs && VIL.npcs[id]) list.push(VIL.npcs[id].m);
+          for (var i = 0; i < list.length; i++) {
+            var m = list[i], up = m, seen = false, shown = true;
+            for (; up; up = up.parent) { if (!up.visible) shown = false; if (up === vis) seen = true; }
+            if (!seen || !shown) continue;
+            var v = m.getWorldPosition(new T.Vector3()); v.sub(vis.position);
+            return { x: v.x, y: v.y, z: v.z };
+          }
+        } catch (e) { /* 장면이 덜 지어짐 */ }
+        return null;
+      },
 
       /* [7-U] */
       vista: function () { return { on: VST.on, shown: post.uniforms.uVista.value === 1, w: VST.w, h: VST.h, key: VST.key, frame: VST.frame, paints: VST.paints, off: post.uniforms.uVistaOff.value.x - VST.M }; },
