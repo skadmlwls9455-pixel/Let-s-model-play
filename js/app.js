@@ -5808,7 +5808,7 @@ var APP = (function () {
   /* [7-V] 마을 건물 · NPC 그리기 */
   /* 11-21 마을 단추 (docs/VILLAGE.md): 먼 데서 누르면 (1.5 m 밖) 내 캐릭터가 그 앞까지 걸어간 뒤에 눌린다. 단추의 일 (가게 창 · 대화 · 카페) 은 다른 갈래가 단추에 직접 건다 —
      여기선 document 캡처 단계에서 click 을 먼저 잡아, 멀면 막고 걷게 한 뒤 같은 단추를 다시 누른다 (다시 누른 click 은 _vilGo 표시로 그대로 통과). 2D 장면엔 마을이 없어 아무 일도 없다 */
-  var VIL_BTNS = ['btn-shop-clothes', 'btn-shop-goods', 'btn-cafe-counter', 'btn-cafe-seat', 'btn-cafe-lp', 'btn-plaza-stage', 'btn-plaza-board', 'btn-npc-clothes', 'btn-npc-goods', 'btn-npc-cafe', 'btn-in-clothes', 'btn-in-goods', 'btn-in-cafe', 'btn-in-hall'];
+  var VIL_BTNS = ['btn-shop-clothes', 'btn-shop-goods', 'btn-cafe-counter', 'btn-cafe-seat', 'btn-cafe-lp', 'btn-plaza-stage', 'btn-plaza-board', 'btn-npc-clothes', 'btn-npc-goods', 'btn-npc-cafe', 'btn-in-clothes', 'btn-in-goods', 'btn-in-cafe', 'btn-in-hall', 'btn-in-home-1', 'btn-in-home-2', 'btn-in-home-3', 'btn-in-home-4', 'btn-in-salon'];
   document.addEventListener('click', function (e) {
     var b = e.target && e.target.closest ? e.target.closest('button.scene-spot') : null;
     if (!b || VIL_BTNS.indexOf(b.id) < 0 || !scene || typeof scene.villageGo !== 'function' || typeof scene.villageNear !== 'function') return;
@@ -5817,6 +5817,19 @@ var APP = (function () {
     e.stopImmediatePropagation(); e.preventDefault();
     scene.villageGo(b.id).then(function (ok) { if (!ok) return; b._vilGo = true; b.click(); b._vilGo = false; });
   }, true);
+  /* 11-24 문어 집 넷 · 미용실 (주인 결정): 문 단추는 V 가 단다. 그 집 문어가 집에 있으면 (저녁 · 밤) 들어가고, 없으면 잠김 — 사실 한 줄 ('문이 잠겨 있다. 지금은 ○○에 있다.').
+     미용 의자 (방 안) 는 앉기 / 일어나기 — 앉으면 장면이 'ppol:salon-seat' 을 보낸다 (목록은 S · 색은 P) */
+  var VIL_HOME_DOORS = { 'btn-in-home-1': 'home1', 'btn-in-home-2': 'home2', 'btn-in-home-3': 'home3', 'btn-in-home-4': 'home4', 'btn-in-salon': 'salon' };
+  document.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('button.scene-spot') : null; if (!b || !scene) return;
+    var room = VIL_HOME_DOORS[b.id];
+    if (room && typeof scene.enterRoom === 'function' && typeof scene.homeOpen === 'function') {
+      var h = scene.homeOpen(room);
+      if (!h.open) { toast(h.line); return; }
+      scene.enterRoom(room); return;
+    }
+    if (b.id === 'btn-salon-chair' && typeof scene.salonSit === 'function') scene.salonSit(!scene.salonSeated());
+  });
 
 
   /* [7-S] 가게 (옷가게 · 잡화점 · 바닷가 조개) */

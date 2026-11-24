@@ -213,6 +213,53 @@ async function village(page) {
       return { rows: out, lamps: sc.villageInfo().lamps };
     }, NPCS);
     ok(t6.lamps === true, '밤에는 가로등이 켜진다');
+
+    /* B2. 11-24 문어 집 넷 · 미용실 (밤 22 시 — 자는 문어 넷은 집 안 침대): 먼 데서 문 톡 → 걸어가 들어간다 · 사는 문어 · 드로우콜 · 나오면 문 앞 선 자리.
+       미용실: 의자에 앉기 (ppol:salon-seat) · 미용사가 의자 옆 · 일어나기 */
+    if (hasRooms) {
+      var t7 = await page.evaluate(async function (list) {
+        var sc = APP.scene, K = Math.SQRT1_2, out = [], seatEv = [];
+        document.addEventListener('ppol:salon-seat', function (e) { seatEv.push(e.detail.on); });
+        sc.npcSet(list.filter(function (w) { return !w.room; }).concat([{ id: 'sleep-3', color: '#8898b0', hat: 'none', pose: 'sleep' }, { id: 'sleep-4', color: '#b0a088', hat: 'none', pose: 'sleep' }, { id: 'stylist', color: '#c46a86', hat: 'beret', pose: 'stand' }]));
+        for (var d of ['inHome1', 'inHome2', 'inHome3', 'inHome4', 'inSalon']) {
+          var D = VILLAGE.DOORS.filter(function (q) { return q.key === d; })[0], r = { key: d, room: D.room };
+          var from = D.lot === 'home1' || D.lot === 'home4' ? [10, 0] : D.lot === 'empty' ? [26, 0] : [39.6, 0];   /* 광장 가운데 (42, 0) 는 우물 */
+          __V.at(from[0], from[1]);
+          var go = null; sc.villageGo(D.btn).then(function (x) { go = x; }); await __V.run(900, function () { return go !== null; }); r.go = go;
+          var b = document.getElementById(D.btn); b._vilGo = true; b.click(); b._vilGo = false;
+          await __V.run(500, function () { return sc.inRoom() === D.room; }); await __V.run(20); __V.frame();
+          r.in = sc.inRoom(); r.calls = sc.stats().calls; r.info = sc.villageRooms().rooms[D.room];
+          var who = VILLAGE.homeOf(D.room); if (who) { var g = sc.villageRooms().rooms[D.room]; r.guest = g && g.guests.indexOf(who) >= 0; var sl = VILLAGE.ROOMS[D.room].slots.bed, pr = sc.project(sl[0], sl[1] + 0.3, sl[2]); r.bedX = Math.round(pr.x); }
+          if (D.room === 'salon') {
+            var s1 = null; sc.salonSit(true).then(function (x) { s1 = x; }); await __V.run(600, function () { return s1 !== null; }); r.sat = s1; r.seated = sc.salonSeated(); await __V.run(4); __V.frame();
+            var kp = VILLAGE.ROOMS.salon.slots.stylistWork, pk = sc.project(kp[0], 0.5, kp[2]), ch = VILLAGE.ROOMS.salon.slots.chair, pc = sc.project(ch[0], 0.6, ch[2]); r.stylistX = Math.round(pk.x); r.chairX = Math.round(pc.x);
+            var s2 = null; sc.salonSit(false).then(function (x) { s2 = x; }); await __V.run(300, function () { return s2 !== null; }); r.stood = s2; r.seated2 = sc.salonSeated(); r.ev = seatEv.join();
+          }
+          var lv = null; sc.leaveRoom().then(function (x) { lv = x; }); await __V.run(500, function () { return lv !== null; }); await __V.run(20);
+          var pa = sc.player().at; r.outD = Math.hypot((pa[0] + pa[2]) * K - D.stand[0], (pa[0] - pa[2]) * K - D.stand[1]); r.after = sc.inRoom();
+          out.push(r);
+        }
+        return { rows: out, W: document.getElementById('scene').getBoundingClientRect().width };
+      }, NPCS);
+      t7.rows.forEach(function (r) {
+        ok(r.go === true && r.in === r.room, r.key + ': 먼 데서 문 톡 → 걸어가 들어간다 (' + r.go + ' / ' + r.in + ')');
+        ok(r.calls <= 60, r.key + ' 드로우콜 ' + r.calls + ' (≤ 60)');
+        if (r.guest !== undefined) ok(r.guest && r.bedX > 8 && r.bedX < t7.W - 8, r.key + ': 밤엔 사는 문어가 침대에 · 침대가 360 화면 안 (' + r.bedX + ')');
+        if (r.room === 'salon') ok(r.sat === true && r.seated && r.stood === true && !r.seated2 && r.ev === 'true,false' && r.stylistX > 8 && r.stylistX < t7.W - 8 && r.chairX > 8 && r.chairX < t7.W - 8, '미용실: 의자에 앉고 일어난다 · ppol:salon-seat (' + r.ev + ') · 의자 · 미용사가 화면 안 (' + r.chairX + ' / ' + r.stylistX + ')');
+        ok(r.after === null && r.outD < 0.3, r.key + ': 나오면 문 앞 선 자리 (' + r.outD.toFixed(2) + ' m)');
+      });
+      /* 낮 (12 시): 집이 비어 문이 잠긴다 — 사실 한 줄 · 문 톡에 알림이 뜨고 들어가지 않는다 */
+      var t8 = await page.evaluate(async function (list) {
+        var sc = APP.scene, r = {}; sc.setTime(12, true); await __V.run(4);
+        r.open = sc.homeOpen('home3'); r.out = sc.villageInfo().npcs.map(function (q) { return q.id; }).filter(function (id) { return /^sleep/.test(id); }).sort().join();
+        var D = VILLAGE.DOORS.filter(function (q) { return q.key === 'inHome3'; })[0]; __V.at(D.stand[0], D.stand[1]);
+        var b = document.getElementById(D.btn); b._vilGo = true; b.click(); b._vilGo = false; await __V.run(30);
+        r.in = sc.inRoom(); r.toast = (document.getElementById('toast') || {}).textContent || ''; r.salon = sc.homeOpen('salon').open;
+        sc.setTime(22, true); return r;
+      }, NPCS);
+      ok(t8.open.open === false && /바닷가 바위/.test(t8.open.line) && t8.in === null && t8.toast.indexOf('잠겨') >= 0 && t8.salon === true, '낮엔 문어 집 문이 잠긴다: ' + t8.toast + ' (미용실은 열림)');
+      ok(t8.out === 'sleep-1,sleep-2,sleep-3,sleep-4', '낮엔 자는 문어들이 밖에 (' + t8.out + ')');
+    }
     t6.rows.forEach(function (r) { ok(r.all <= 150 && r.mine <= 40, '밤 s ' + r.s + ': 전체 ' + r.all + ' · 마을 ' + r.mine); });
     console.log('  draw calls (밤): ' + t6.rows.map(function (r) { return r.s + ' ' + r.all + '(' + r.mine + ')'; }).join(' · '));
     ok(o.errs.length === 0, '오류 없음 (밤): ' + o.errs.slice(0, 3).join(' | '));

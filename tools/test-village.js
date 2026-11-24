@@ -75,7 +75,7 @@ V.CIRCLES.forEach(function (c) { ok(c.length === 3 && c[2] > 0 && c[2] <= 1 && c
 /* 마을 길 한가운데 (s 18–38 · |t| ≤ 1.2) 는 어디도 막히지 않는다 (몸 반지름 0.25) — 광장 가운데엔 우물이 선다 */
 for (var s0 = 18; s0 <= 38; s0 += 0.25) for (var t0 = -1.2; t0 <= 1.2; t0 += 0.3) V.CIRCLES.forEach(function (c) { if (Math.hypot(c[0] - s0, c[1] - t0) < c[2] + 0.25) ok(false, '길 가운데 (' + s0 + ', ' + t0 + ') 가 막혔다'); });
 pass++;
-ok(V.SEGMENTS.length === 4 && V.SEGMENTS.every(function (g) { return g.s0 < g.s1 && g.s0 >= 15 && g.s1 <= 48; }), '덩어리 넷 (s 범위)');
+ok(V.SEGMENTS.length === 5 && V.SEGMENTS.every(function (g) { return g.s0 < g.s1 && g.s0 >= 10 && g.s1 <= 48; }) && V.HOME_LOTS.every(function (L) { var sg = V.SEGMENTS.filter(function (g) { return g.key === L.seg; })[0]; return sg && L.s0 >= sg.s0 && L.s1 <= sg.s1; }), '덩어리 다섯 (s 범위 — 새 집은 그 덩어리 안)');
 V.LAMPS.concat(V.POTS).forEach(function (p) { ok(p.length === 2 && p[0] >= 18 && p[0] <= 46, '길 소품 자리'); });
 
 V.BOXES.slice(0, 2).forEach(function (b3) { [[b3[0], b3[1]], [b3[2], b3[3]], [b3[0], b3[3]], [b3[2], b3[1]]].forEach(function (c2) { ok(Math.abs(V.st(c2[0], c2[1])[1]) >= 2.3, '판매대가 걷는 곳 (|t| ≤ 2.2) 밖 — 2.3 부터'); }); });
@@ -103,7 +103,9 @@ V.SPOTS.forEach(function (s2) { var a2 = V.xz(s2.stand[0], s2.stand[1]); ok(!V.B
     cafe: { size: [6.4, 5.2], slots: ['keeper', 'menu', 'pickup', 'seat', 'table', 'turntable', 'lp', 'exit'], btns: ['btn-cafe-menu', 'btn-cafe-counter', 'btn-cafe-seat', 'btn-cafe-lp', 'btn-npc-cafe', 'btn-room-exit'] },
     hall: { size: [7.0, 6.0], slots: ['stage', 'catwalk', 'wait', 'rack', 'mirror', 'board', 'judge0', 'judge1', 'judge2', 'exit'], btns: ['btn-hall-stage', 'btn-hall-rack', 'btn-hall-board', 'btn-room-exit'] },
     goods: { size: [5.2, 4.8], slots: ['shelf0', 'shelf1', 'shelf2', 'shelf3', 'shelf4', 'shelf5', 'keeper', 'counter', 'exit'], btns: ['btn-shelf-0', 'btn-shelf-1', 'btn-shelf-2', 'btn-shelf-3', 'btn-shelf-4', 'btn-shelf-5', 'btn-room-counter', 'btn-npc-goods', 'btn-room-exit'] } };
-  ok(Object.keys(V.ROOMS).sort().join() === 'cafe,clothes,goods,hall', '방 넷');
+  ok(Object.keys(V.ROOMS).sort().join() === 'cafe,clothes,goods,hall,home1,home2,home3,home4,salon', '방 아홉 (가게 · 카페 · 공연장 넷 + 문어 집 넷 + 미용실)');
+  ['home1', 'home2', 'home3', 'home4'].forEach(function (k) { WANT[k] = { size: [4.4, 4.0], slots: ['bed', 'table', 'tableTop', 'job', 'exit'], btns: ['btn-room-exit'] }; });   /* 11-24 문어 집 넷 (한 틀) */
+  WANT.salon = { size: [4.8, 4.2], slots: ['chair', 'aisle', 'mirror', 'keeper', 'stylistWork', 'sink', 'bottles', 'bench', 'exit'], btns: ['btn-salon-chair', 'btn-npc-stylist', 'btn-room-exit'] };
   Object.keys(WANT).forEach(function (key) {
     var R = V.ROOMS[key], W = WANT[key], hx = R.half[0], hz = R.half[1];
     ok(near(2 * hx, W.size[0], 1e-9) && near(2 * hz, W.size[1], 1e-9) && R.wallH >= 2, key + ' 크기 ' + W.size.join(' x '));
@@ -124,7 +126,23 @@ V.SPOTS.forEach(function (s2) { var a2 = V.xz(s2.stand[0], s2.stand[1]); ok(!V.B
     /* 문에서 누르는 자리마다: 방 가운데 통로 (서는 자리들의 볼록한 안쪽) 가 막히지 않았다 — 문 → 서는 자리 곧은 선의 가운데 점이 가구 안이 아니다 (대충의 걸림 검사) */
   });
   ['mq0', 'mq1', 'mq2', 'mq3'].forEach(function (n, i) { var a = V.ROOMS.clothes.slots[n], b = V.ROOMS.clothes.slots['mq' + (i + 1)]; if (b) ok(b[0] - a[0] >= 0.9, '마네킹 받침 사이 0.9 m 넘게'); });
-  ok(V.DOORS.length === 4 && V.DOORS.every(function (d) { return V.ROOMS[d.room] && V.inWalk(d.stand[0], d.stand[1], 0) && html.indexOf('id="' + d.btn + '"') > 0; }), '바깥 문 넷: 방 · 서는 자리 · 단추');
+  ok(V.DOORS.length === 9 && V.DOORS.every(function (d) { return V.ROOMS[d.room] && V.inWalk(d.stand[0], d.stand[1], 0) && html.indexOf('id="' + d.btn + '"') > 0; }), '바깥 문 아홉: 방 · 서는 자리 · 단추');
+  /* 11-24 새 터: 서로 · 지금 터 · 걷는 곳 · 가로등 · 화분과 겹치지 않는다 */
+  var ALL = V.LOTS.filter(function (L) { return L.id !== 'plaza'; }).concat(V.HOME_LOTS);
+  V.HOME_LOTS.forEach(function (L) {
+    ALL.forEach(function (M2) { if (M2 !== L) ok(L.s1 <= M2.s0 || M2.s1 <= L.s0 || L.t1 <= M2.t0 || M2.t1 <= L.t0, L.id + ' 와 ' + M2.id + ' 터가 안 겹친다'); });
+    var hit = false; for (var a = 0; a <= 20; a++) for (var b = 0; b <= 20; b++) { var q = V.local(L.c, L.mir, -L.hx + 2 * L.hx * a / 20, -L.hz + 2 * L.hz * b / 20); if (V.inWalk(q[0], q[1], -0.1)) hit = true; }
+    ok(!hit, L.id + ' 집 몸이 걷는 곳에서 0.1 m 넘게 떨어져 있다');
+    ok(!V.LAMPS.concat(V.POTS).some(function (p) { return p[0] > L.s0 - 0.3 && p[0] < L.s1 + 0.3 && p[1] > L.t0 - 0.3 && p[1] < L.t1 + 0.3; }), L.id + ' 터에 가로등 · 화분 없음');
+  });
+  /* 시간표 · 잠김 줄 */
+  ['sleep-1', 'sleep-2', 'sleep-3', 'sleep-4'].forEach(function (id) {
+    var d = V.where(id, 12), e = V.where(id, 19), n = V.where(id, 2), H = V.HOMES[id];
+    ok(!d.home && e.home && e.slot === 'table' && e.pose === 'sit' && n.home && n.slot === 'bed' && n.pose === 'sleep' && V.ROOMS[e.room] && V.ROOMS[e.room].home && V.homeOf(e.room) === id, id + ' 시간표: 낮 밖 · 저녁 식탁 · 밤 침대 (' + e.room + ')');
+    ok(V.where(id, 7).home === false && V.where(id, 17).home === true && V.where(id, 6.99).home === true, id + ' 시간 경계 7 시 · 17 시');
+    var ln = V.lockedLine(id); ok(ln.indexOf(H.dayName) > 0 && !/[!?~♪★]/.test(ln), id + ' 잠김 줄: ' + ln);
+    ok(V.DOORS.some(function (d2) { return d2.key === H.door && d2.room === H.room; }), id + ' 집 문');
+  });
   V.DOORS.forEach(function (d) { V.CIRCLES.forEach(function (c) { if (Math.hypot(c[0] - d.stand[0], c[1] - d.stand[1]) < c[2] + 0.22) ok(false, d.key + ' 문 앞 서는 자리가 원 안'); }); });
   /* 콘테스트 자리 (공연장 방 안): 기다리는 곳 · 경쟁 줄은 빈 바닥 · 걷는 길은 계단 → 길 → 무대 · 시상대는 무대 위 · 심사 자리는 걸상 */
   var S2 = V.SHOW, HL = V.ROOMS.hall, inB = function (b, x, z) { return x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1; };
