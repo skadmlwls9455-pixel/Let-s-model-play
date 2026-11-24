@@ -273,7 +273,8 @@ async function roomRun(browser) {
   await page.evaluate(() => { const sc = APP.scene; sc.player = () => ({ at: [0, 0, 0], height: 1.5 }); sc.project = (x, y) => ({ x: 180, y: y > 0.5 ? 300 : 380 }); });   /* 앉은 내 캐릭터의 화면 자리 대역 (장면 안 300~380px) */
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })));
   await page.waitForTimeout(200);
-  ok((await said()).join() === 'stylist|salon.sit', '미용실: 앉으면 미용사 대본 salon.sit 한 줄');
+  await page.waitForFunction(() => window.__said.length > 0, null, { timeout: 3000 }).catch(() => {});   /* 카드가 자리 잡은 뒤 (길어야 1.5 s) */
+  ok((await said()).join() === 'stylist|salon.sit', '미용실: 앉으면 (카드가 자리 잡은 뒤) 미용사 대본 salon.sit 한 줄');
   const seeMe = () => page.evaluate(() => {   /* 앉은 내 캐릭터 (미리 입혀 보기) 를 카드가 덮지 않는다 — 몸 위 · 아래 중 넓은 쪽이 220px 이상일 때 */
     const sc = APP.scene, s = document.getElementById('scene').getBoundingClientRect(), c = document.getElementById('shop-card').getBoundingClientRect(), pi = sc.player(), f = sc.project(pi.at[0], 0, pi.at[2]), hd = sc.project(pi.at[0], pi.height || 1.5, pi.at[2]);
     const vis = id => { const e = document.getElementById(id); return e && !e.hidden && e.offsetParent ? e.getBoundingClientRect() : null; }, st = vis('status'), go = vis('btn-go');
@@ -300,6 +301,9 @@ async function roomRun(browser) {
   ok(await page.evaluate(() => /바꿨어/.test(document.getElementById('shop-list').textContent)), "영수증 자리에 '바꿨어'");
   ok(await said().then(a => a.includes('stylist|salon.after') && !a.some(x => /salon\.done/.test(x))), '색을 바꾼 뒤 salon.after (없는 열쇠 salon.done 은 안 부름)');
   await page.waitForTimeout(1700);
+  await page.evaluate(() => { window.__said.length = 0; document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })); document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: false } })); });
+  await page.waitForTimeout(1700);
+  ok(!(await said()).includes('stylist|salon.sit'), '앉자마자 일어나면 (목록을 접으면) 앉을 때 대본은 없다');
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: true } })));
   await lsWait(page); await lsAdd(page, hs);
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('ppol:salon-seat', { detail: { on: false } })));

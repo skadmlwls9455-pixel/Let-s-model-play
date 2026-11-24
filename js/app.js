@@ -6388,7 +6388,17 @@ var APP = (function () {
       onDone: function (res, paid) { salonUnpreview(); roomPose('pose'); if (res.got.some(function (g) { return g.x.group === 'hairColor'; })) roomSayAs('stylist', 'salon.after', { shells: paid }); },
       onClose: salonUnpreview });
   }
-  document.addEventListener('ppol:salon-seat', function (e) { var on = !!(e && e.detail && e.detail.on); if (on) { salonOpen(); roomSayAs('stylist', 'salon.sit'); } else if (LST && LST.o.id === 'stylist') listClose(); });   /* 목록이 먼저 뜬 뒤에 말한다 (대사창이 카드를 비켜 선다) */
+  function salonSaySettled(key) {   /* 카드가 자리를 잡은 뒤에 말한다 — 앉는 폴짝 동안 카드가 내 캐릭터를 따라 옮겨 가서, 그 전에 뜬 대사창이 처음 자리 (카드 위) 에 남았다. 세 프레임 그대로면 (길어야 1.5 s). 그 사이 목록을 접었으면 말하지 않는다 */
+    var L = LST, last = '', same = 0, t0 = performance.now();
+    (function tick() {
+      if (!L || LST !== L || L.done) return;
+      var r = L.card ? L.card.getBoundingClientRect() : null, k = r ? [Math.round(r.left), Math.round(r.top), Math.round(r.height)].join() : '';
+      same = k === last ? same + 1 : 0; last = k;
+      if (same >= 3 || performance.now() - t0 > 1500) { roomSayAs('stylist', key); return; }
+      requestAnimationFrame(tick);
+    })();
+  }
+  document.addEventListener('ppol:salon-seat', function (e) { var on = !!(e && e.detail && e.detail.on); if (on) { salonOpen(); salonSaySettled('salon.sit'); } else if (LST && LST.o.id === 'stylist') listClose(); });   /* 목록이 먼저 자리를 잡은 뒤에 말한다 (대사창이 카드를 비켜 선다) */
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(shopInit, 0); }); else setTimeout(shopInit, 0);
 
 
