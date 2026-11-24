@@ -43,6 +43,7 @@ var { chromium } = require('playwright');
 
 var ROOT = path.resolve(__dirname, '..');
 var INDEX = 'file://' + path.join(ROOT, 'index.html');
+var RUNNER_V = require(path.join(ROOT, 'js/runner.js')).VERSION, RUNNER_KINDS = Object.assign({ moss: 1 }, require(path.join(ROOT, 'js/runner.js')).KINDS);   /* 지금 달리기 판 (11-24 runner-3) */
 var DEV = INDEX + '?dev=1';   /* 데모 조작 패널(#demo)을 쓰는 시나리오: file:// 도 개발 모드지만 드러내 놓고 */
 function dayAfter(n) { var d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 var SHOTS = process.env.SHOTS || '/tmp/claude-0/-home-user/779b4de3-ceb6-5233-b661-33f83b7682a5/scratchpad/build/shots/';
@@ -1866,7 +1867,7 @@ async function runnerTouch(br) {
     await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' });
     var after = await page.evaluate(function () { var st = JSON.parse(localStorage.getItem('ppolppol_runner')); return { view: APP.scene.view(), best: st.best, best2: st.best2, last: st.last && st.last.version, focus: document.activeElement && document.activeElement.id }; });
     ok(after.view === 'play' && after.focus === 'btn-machine', '닫기 → 놀이방 그대로 · 오락기로 포커스');
-    ok(after.best === 345 && after.last === 'runner-2' && after.best2 >= 0, '옛 최고(best 345)는 그대로 · 새 판은 runner-2 로 따로 (best2 ' + after.best2 + ')');
+    ok(after.best === 345 && after.last === RUNNER_V && after.best2 >= 0, '옛 최고(best 345)는 그대로 · 새 판 ('  + RUNNER_V + ') 은 best2 로 따로 (runner-2 부터의 최고 — 11-24 runner-3 도 점수 규칙이 같아 이어 간다 · best2 ' + after.best2 + ')');
     var q = await page.evaluate(function () { return { vib: window.__vib || [] }; });
     ok(q.vib.indexOf('12') >= 0 && q.vib.every(function (v) { return v === '12' || v === '[40,30,40]'; }), '진동은 점프 (12) · 부딪힘 ([40,30,40]) 만 — 착지 · 이끼 없음 (11-15 검증 O-5 · ' + q.vib.join(' ') + ')');
     reportErrors(bag, 'R2');
@@ -1973,7 +1974,7 @@ async function runnerCrisp(br) {
     await routeRepo(page, O);
     await page.route(O + '/api/runner/**', async function (route) {
       var p = new URL(route.request().url()).pathname.replace(/^.*\/api\/runner\//, '');
-      if (p === 'seed') { await gate; return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, token: 'tok', seed: 4242, night: false, week: '2026-W46', v: 'runner-2' }) }); }
+      if (p === 'seed') { await gate; return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, token: 'tok', seed: 4242, night: false, week: '2026-W46', v: 'runner-3' }) }); }
       return route.fulfill(p === 'top' ? { status: 200, contentType: 'application/json', body: '{"ok":true,"top":[]}' } : { status: 404, contentType: 'application/json', body: '{}' });
     });
   });
@@ -1998,7 +1999,7 @@ async function runnerCrisp(br) {
     await routeRepo(page, O);
     await page.route(O + '/api/runner/**', function (route) {
       var p = new URL(route.request().url()).pathname.replace(/^.*\/api\/runner\//, '');
-      if (p === 'seed') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, token: 'tok', seed: 4242, night: false, week: '2026-W46', v: 'runner-2' }) });
+      if (p === 'seed') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, token: 'tok', seed: 4242, night: false, week: '2026-W46', v: 'runner-3' }) });
       if (p === 'top') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, top: TOP }) });
       return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
     });
@@ -2047,6 +2048,26 @@ async function runnerCrisp(br) {
 /* R. 다락방 달리기 (js/runner.js): 놀이방 문(#btn-door) → 놀이방 → 오락기(#btn-machine, 8물결) → 6초 스크립트 탭 → 부딪힘 또는 닫기 → 저장된 판의 simulate() 점수 = 화면 점수.
  *   SwiftShader(WebGL 강제, look-shots 와 같은 인자) · 360×740 @2x · 스크린샷 tests/evidence/runner-{start,mid,over}.png
  *   실제 판 기록은 tests/evidence/runner-live-run.json 에 남겨 node tools/test-runner.js 가 다시 시뮬한다. */
+/* 11-24 runner-3: RUNNER.probeArt (실제 drawOct · drawObs 로 하나만 그린 보이는 픽셀) 를 시뮬 부딪힘 칸과 잰다 — 페이지 안에서 돈다.
+   maxOut = 칸 밖 픽셀이 칸에서 떨어진 가장 먼 거리 (체비쇼프 px) · cover = 칸 안 칸 중 보이는 픽셀 비율 (거미줄은 그물이라 아래 끝만 · 천장까지 실은 뺀다) */
+function artMeasure() {
+  function M(what, o) {
+    var r = RUNNER.probeArt(what, o), B = r.box, set = {};
+    r.px.forEach(function (p) { set[p[0] + ',' + p[1]] = 1; });
+    function dist(x, h) { return Math.min.apply(null, B.map(function (b) { return Math.max(Math.max(b[0] - x, 0, x - (b[1] - 1)), Math.max(b[2] - h, 0, h - (b[3] - 1))); })); }
+    var maxOut = 0; r.px.forEach(function (p) { maxOut = Math.max(maxOut, dist(p[0], p[1])); });
+    var cells = 0, filled = 0; B.forEach(function (b) { for (var x = b[0]; x < b[1]; x++) for (var h = b[2]; h < Math.min(b[3], what === 'web' ? b[2] + 10 : 999); h++) { cells++; if (set[x + ',' + h]) filled++; } });
+    return { what: what, f: o && o.f != null ? o.f : null, y: o && o.y, n: r.px.length, maxOut: maxOut, cover: +(filled / Math.max(1, cells)).toFixed(3) };
+  }
+  var L = [M('stand', {}), M('land', {}), M('air', { y: 20 }), M('duck', {}), M('hit', {})];
+  [1, 2, 3].forEach(function (f) { L.push(M('stand', { f: f })); });
+  ['crate', 'crate2', 'candle', 'books', 'web', 'rain', 'moss'].forEach(function (k) { L.push(M(k)); });
+  return L;
+}
+/* 봐주는 몫: 문어 다리 끝 4 px (걸음 칸에서 흔들리는 다리 끝 6) · 촛불 끝 3 px · 빗방울 4 px · 그 밖 0. 칸 안의 보이는 몸: 둥근 머리를 네모 칸에 담아 75 % 이상 (거미줄 그물 · 물웅덩이 빗방울 칸은 성기게) */
+var ARTLIM = { _: { out: 4, cover: 0.75 }, stand: { out: 6, cover: 0.75 }, crate: { out: 0, cover: 0.95 }, crate2: { out: 0, cover: 0.95 }, books: { out: 0, cover: 0.85 },
+  candle: { out: 3, cover: 0.8 }, web: { out: 0, cover: 0.3 }, rain: { out: 4, cover: 0.5 }, moss: { out: 0, cover: 0.7 } };   /* 물웅덩이: 칸 = 웅덩이 + 튀는 물 (높이 0..2), 위에서 떨어지는 빗방울 (높이 3..6) 은 넘어도 된다 */
+
 async function scenarioRunner() {
   console.log('\n== R. 다락방 달리기 (같이 놀기)');
   var EVD = path.join(ROOT, 'tests/evidence'); fs.mkdirSync(EVD, { recursive: true });
@@ -2097,10 +2118,18 @@ async function scenarioRunner() {
     });
     var webLo = await page.evaluate(function () { return RUNNER.KINDS.web.lo; });   /* 거미줄 그림 아래 끝 = 바닥 위 lo px (그림 맨 아래 줄은 바닥선 위 lo + 1 번째 줄) */
     ok(spr.st.duck.h <= webLo, '11-18 숙인 문어 꼭대기가 거미줄 그림 아래 끝보다 1 px 넘게 아래 (숙이기 높이 ' + spr.st.duck.h + ' ≤ ' + webLo + ' — 겹친 줄 0, 빈 줄 ' + (webLo - spr.st.duck.h + 1) + ')');
+    /* 11-24 runner-3 (주인: "캐릭터 크기를 늘리는 바람에 장애물 부딪히는 게 싱크가 안 맞게"): 실제 그리기 함수로 그린 보이는 픽셀 ↔ 시뮬 부딪힘 칸.
+       문어 (서기 · 걸음 칸 넷 · 착지 · 뛰기 · 숙이기 · 부딪힘) 와 장애물 마다: 칸 밖으로 나간 픽셀은 가장자리 몇 px 까지만 (봐주는 몫) · 칸 안은 대부분 보이는 몸 */
+    var art = await page.evaluate(artMeasure);
+    console.log('   그림 ↔ 판정: ' + art.map(function (r) { return r.what + (r.f != null ? r.f : '') + ' 밖 ' + r.maxOut + ' · 찬 ' + r.cover; }).join(' | '));
+    art.forEach(function (r) {
+      var lim = ARTLIM[r.what] || ARTLIM._;
+      ok(r.n > 0 && r.maxOut <= lim.out && r.cover >= lim.cover, '11-24 ' + r.what + (r.f != null ? ' 걸음 ' + r.f : '') + (r.y ? ' 높이 ' + r.y : '') + ': 보이는 픽셀이 부딪힘 칸에서 ' + r.maxOut + ' px 안 (≤ ' + lim.out + ') · 칸의 ' + Math.round(r.cover * 100) + ' % 가 보이는 몸 (≥ ' + Math.round(lim.cover * 100) + ' %)');
+    });
     ok(spr.st.idle.foot > 0 && spr.st.duck.foot > 0, '11-18 발이 그림 맨 아래 줄에 닿음 (idle ' + spr.st.idle.foot + ' · duck ' + spr.st.duck.foot + ' px)');
     await page.evaluate(function () {   /* 그리기 호출 엿보기: 문어 그림은 제 크기 그대로(인자 3 개) · 정수 자리 */
       var cx = document.getElementById('rn-cv').getContext('2d'), o = cx.drawImage; window.__octDraws = [];
-      cx.drawImage = function (img) { if (img && img.octKey) window.__octDraws.push({ k: img.octKey, n: arguments.length, x: arguments[1], y: arguments[2] }); return o.apply(this, arguments); };
+      cx.drawImage = function (img) { if (img && img.octKey) { var L = RUNNER.live(); window.__octDraws.push({ k: img.octKey, n: arguments.length, x: arguments[1], y: arguments[2], foot: arguments[2] + img.height - 1, want: L.view.G - 1 - Math.floor(L.y / 256), st: L.state }); } return o.apply(this, arguments); };   /* 11-24: 발 줄 = 높이 0 의 줄 (장애물 아랫줄) − 높이 */
     });
     ok(info.minBtn >= 44, '보이는 버튼 ≥ 44px (' + info.minBtn + ')');
     ok(info.docW <= 360, '가로 스크롤 없음');
@@ -2133,7 +2162,8 @@ async function scenarioRunner() {
     if ((await page.evaluate(function () { var L = RUNNER.live(); return L.state === 'run' && L.obs.length >= 2; }))) await page.screenshot({ path: path.join(EVD, 'runner-mid.png') });
     var rest = 6000 - (Date.now() - t0); if (rest > 0) await page.waitForFunction(function () { return RUNNER.live().state === 'over'; }, null, { timeout: rest }).catch(function () {});
     var midObs = await page.evaluate(function () { clearInterval(window.__rnPilot); return RUNNER.live().ticks; });
-    var od = await page.evaluate(function () { var D = window.__octDraws || [], seen = {}; D.forEach(function (d) { seen[d.k] = (seen[d.k] || 0) + 1; }); return { n: D.length, bad: D.filter(function (d) { return d.n !== 3 || d.x !== Math.round(d.x) || d.y !== Math.round(d.y); }).length, seen: seen }; });
+    var od = await page.evaluate(function () { var D = window.__octDraws || [], seen = {}; D.forEach(function (d) { seen[d.k] = (seen[d.k] || 0) + 1; }); var run = D.filter(function (d) { return d.st === 'run' || d.st === 'over'; }); return { n: D.length, bad: D.filter(function (d) { return d.n !== 3 || d.x !== Math.round(d.x) || d.y !== Math.round(d.y); }).length, seen: seen, feet: run.length, feetBad: run.filter(function (d) { return d.foot !== d.want; }).length }; });
+    ok(od.feet > 10 && od.feetBad === 0, '11-24 달리는 동안 문어 발 줄 = 바닥선 − 높이 (장애물 아랫줄과 같은 줄) · ' + od.feet + '번 중 어긋남 ' + od.feetBad);
     ok(od.n > 20 && od.bad === 0 && od.seen.run > 0, '11-18 문어 그리기 ' + od.n + '번 모두 제 크기 · 정수 자리 (상태별 ' + JSON.stringify(od.seen) + ')');
     var ended = await page.evaluate(function () { return RUNNER.live().state; });
     if (ended !== 'over') { await page.click('#rn-close'); await page.waitForSelector('#runner-dlg[open]', { state: 'hidden' }); }
@@ -2145,7 +2175,7 @@ async function scenarioRunner() {
       return { run: run, best: st && st.best2, shown: shown, sim: sim, verify: run ? RUNNER.verify(run) : false, focus: document.activeElement && document.activeElement.id };
     });
     console.log('   run: end=' + (res.run && res.run.end) + ' ticks=' + (res.run && res.run.ticks) + ' inputs=' + (res.run && res.run.inputs.length) + ' saved=' + (res.run && res.run.score) + ' shown=' + res.shown + ' sim=' + JSON.stringify(res.sim) + ' (6초 동안 ' + midObs + ' 틱)');
-    must(res.run && res.run.version === 'runner-2' && res.run.inputs.length >= 2, 'localStorage ppolppol_runner 에 판 기록 (seed·inputs·score·version)');
+    must(res.run && res.run.version === RUNNER_V && res.run.inputs.length >= 2, 'localStorage ppolppol_runner 에 판 기록 (seed·inputs·score·version)');
     ok(res.sim.score === res.run.score && String(res.sim.score) === res.shown, 'simulate() 점수 = 저장 점수 = 화면 점수 (' + res.shown + ')');
     ok(res.verify, 'RUNNER.verify(기록) 통과');
     ok(res.best >= res.run.score, '최고 기록 저장');
@@ -2212,6 +2242,13 @@ async function scenarioRunner() {
     await ctx.close();
     await runnerTouch(br);
     await runnerCrisp(br);
+    /* 11-24: 3D 가 없을 때 그린 문어 ('drawn') 도 같은 부딪힘 칸에 맞는다 */
+    var c2d = await br.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, locale: 'ko-KR' }), p2d = await c2d.newPage();
+    await p2d.goto(INDEX + '?dev=0&intro=0&scene=2d'); await p2d.waitForFunction(function () { return window.RUNNER && RUNNER.probeArt; }, null, { timeout: 30000 });
+    var art2 = await p2d.evaluate(function (src) { var f = eval('(' + src + ')'); return { src: RUNNER.sprites().src, L: f() }; }, artMeasure.toString());
+    console.log('   그림 ↔ 판정 (2D 그린 문어): ' + art2.L.filter(function (r) { return !RUNNER_KINDS[r.what]; }).map(function (r) { return r.what + (r.f != null ? r.f : '') + ' 밖 ' + r.maxOut + ' · 찬 ' + r.cover; }).join(' | '));
+    ok(art2.src === 'drawn' && art2.L.every(function (r) { var lim = ARTLIM[r.what] || ARTLIM._; return r.n > 0 && r.maxOut <= lim.out && r.cover >= lim.cover; }), '11-24 3D 없이 그린 문어도 보이는 픽셀이 부딪힘 칸에 맞는다 (' + art2.src + ')');
+    await c2d.close();
   } finally { await br.close(); }
 }
 
@@ -5690,9 +5727,9 @@ async function scenarioWeek(browser) {
   }, pick);
   console.log('   내민 직후:', JSON.stringify(off));
   ok(off.day === pick.day && off.asked && off.n >= 1 && off.exprs[0] === 'idle', '선물 상자: ' + pick.name + ' 내밀자마자 그날 물어봤다는 기록이 저장돼 있다 (giftAsked ' + off.day + ' · ' + pick.id + ') — 답이 나오기 전');
-  var NO = new RegExp('^뚜루는 ' + pick.name + ' 안 (쓰기|두르기)로 했어\\.$');
-  var ans = await pb.waitForFunction(function () { return window.__toasts.some(function (x) { return /기로 했어\.$/.test(x.t); }); }, null, { timeout: WAIT, polling: 50 }).then(function () { return true; }, function () { return false; });
-  var fin = await pb.evaluate(function () { var a = window.__toasts.filter(function (x) { return /기로 했어\.$/.test(x.t); })[0]; return { toast: a ? a.t : '', exprs: a ? a.ex : [], wear: APP.state.settings.octWear || null, row: [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).filter(function (t) { return /선물/.test(t); }).pop() || '' }; });
+  var NO = new RegExp('^문어 뚜루는 ' + pick.name + '(을|를) 안 (쓰기|두르기)로 했어\\. \\(데모 규칙이 고름\\)$');   /* 11-24 (주인: 내 캐릭터가 거절한 것처럼 읽혔다): 주어 '문어 <이름>' · 받침대로 조사 · 알림에도 데모 규칙 */
+  var ans = await pb.waitForFunction(function () { return window.__toasts.some(function (x) { return /기로 했어\. \(데모 규칙이 고름\)/.test(x.t); }); }, null, { timeout: WAIT, polling: 50 }).then(function () { return true; }, function () { return false; });
+  var fin = await pb.evaluate(function () { var a = window.__toasts.filter(function (x) { return /기로 했어\. \(데모 규칙이 고름\)/.test(x.t); })[0]; return { toast: a ? a.t : '', exprs: a ? a.ex : [], wear: APP.state.settings.octWear || null, row: [].map.call(document.querySelectorAll('#log .lrow'), function (r) { return r.textContent; }).filter(function (t) { return /선물/.test(t); }).pop() || '' }; });
   console.log('   답:', JSON.stringify(fin));
   ok(ans && NO.test(fin.toast) && /\(데모 규칙이 고름\)/.test(fin.row), '선물 상자: 답은 «' + fin.toast + '» · 기록 줄에 (데모 규칙이 고름)');
   ok(ans && fin.exprs.length >= 1 && fin.exprs.every(function (e) { return e === 'idle'; }), '안 쓴다는 답이 뜬 순간까지의 장면 얼굴: 들여다보는 틈도 답도 평소 얼굴 (11-15 주인 C6 b — 예전 curious → idle) (' + fin.exprs.join(' → ') + ') — 반눈 calm 없음');
@@ -8485,7 +8522,7 @@ async function scenarioPlayer7(browser) {
       if (!Array.isArray(i.tags) || i.tags.some(function (t) { return q.TAGS.indexOf(t) < 0; }) || i.tags.filter(function (t) { return t.indexOf('c-') === 0; }).length > 1 || typeof i.name !== 'string' || !i.name) bad.push(c.key + ':' + i.id);
       if (q.OLD.indexOf(i.id) >= 0 && (i.shop !== null || !i.owned)) bad.push('old ' + c.key + ':' + i.id);
       if (i.shop && !(i.shop.price >= 4 && i.shop.price <= 36)) bad.push('price ' + i.id);   /* 11-24 가게 갈래 S: 첫날 조개로도 하나는 사게 야구모자 4 · 목도리 5 */
-      if (!!i.shop === i.owned) bad.push('owned ' + i.id); }); });
+      if (i.award ? i.owned || i.shop : !!i.shop === i.owned) bad.push('owned ' + i.id); }); });   /* 11-24: 주간 상은 값 없이도 받아야 가진다 (새 사람은 아직 없다) */
     var shop = []; w.cats.forEach(function (c) { c.items.forEach(function (i) { if (i.shop) shop.push(c.key + ':' + i.id); }); });
     var P = APP.playerParts();
     return { look: [p.hair, p.outfit, p.shoes, p.acc, p.body, p.brow].join(), scene: APP.sceneMode === '3d' ? APP.scene.player().look.outfit : 'octee', keys: w.cats.map(function (c) { return c.key + c.items.length; }).join(), bad: bad, shop: shop,
@@ -8495,7 +8532,7 @@ async function scenarioPlayer7(browser) {
       sp: APP.sceneMode === '3d' && APP.scene.playerSpeeds ? APP.scene.playerSpeeds() : null, mode: APP.sceneMode, thumb: (function () { var c = APP.itemThumb('acc', 'cap', 64); return c ? c.width + 'x' + c.height : null; })() };
   }, { OLD: OLD, TAGS: TAGS });
   ok(a.look === 'tousle,octee,sneaker,none,a,soft' && a.scene === 'octee', 'P7 새로 시작한 사람의 기본 모습: 부스스 · 문어 티 · 운동화 · 장식 없음 · 몸 a · 둥근 눈썹 (' + a.look + ')');
-  ok(a.keys === 'hair13,outfit17,shoes6,acc12' && a.n === '2,4,10,13,17,6,12' && !a.bad.length, 'P7 옷장 목록: 머리 13 · 옷 17 · 신발 6 · 장식 12 (몸 2 · 눈썹 4 · 눈 10) · 물건마다 이름 · 정해진 낱말만 · 색 갈래는 하나 · 예전 것은 전부 그냥 가진 것 ' + JSON.stringify([a.keys, a.n, a.bad]));
+  ok(a.keys === 'hair13,outfit17,shoes6,acc14' && a.n === '2,4,10,13,17,6,14' && !a.bad.length, 'P7 옷장 목록: 머리 13 · 옷 17 · 신발 6 · 장식 14 (11-24 주간 상 둘) (몸 2 · 눈썹 4 · 눈 10) · 물건마다 이름 · 정해진 낱말만 · 색 갈래는 하나 · 예전 것은 전부 그냥 가진 것 ' + JSON.stringify([a.keys, a.n, a.bad]));
   ok(a.shop.join() === 'outfit:sailor,outfit:fisher,outfit:windbreak,outfit:cardigan,outfit:suit,shoes:hightop,acc:cap,acc:headphones,acc:scarf,acc:bag', 'P7 가게 물건 열 가지 (조개 4~36) ' + a.shop.join());
   ok(a.wearing === 'hair:tousle,outfit:octee,shoes:sneaker,acc:none' && a.wtags, 'P7 wearing(): 지금 입은 머리 · 옷 · 신발 · 장식과 낱말 (' + a.wearing + ')');
   ok(a.refuse === false && a.still === 'octee' && !a.user, 'P7 아직 없는 가게 옷은 입을 수 없다 (setPlayerPart false · 옷 그대로 · 가진 것 기록 없음)');
@@ -8507,14 +8544,28 @@ async function scenarioPlayer7(browser) {
   var lk = await page.evaluate(function () {
     var L = [].slice.call(document.querySelectorAll('#look-items .look-tile.locked')), t = L[0], r = t.getBoundingClientRect(), amt = t.querySelector('.shell-amt');
     var cs = getComputedStyle(t, '::before');
-    return { n: L.length, ids: L.map(function (b) { return b.dataset.id; }).join(), price: amt ? amt.textContent.replace(/\D+/g, '') : '', mark: parseFloat(cs.width) > 0, h: Math.round(r.height), title: !!t.getAttribute('title'), emoji: /\p{Extended_Pictographic}/u.test(t.innerText) };
+    return { n: L.length, ids: L.map(function (b) { return b.dataset.id; }).join(), price: amt ? amt.textContent.replace(/\D+/g, '') : '', pics: L.filter(function (b) { return b.querySelector('canvas, img'); }).length, name: (t.querySelector('.look-name') || {}).textContent || '', mark: parseFloat(cs.width) > 0, h: Math.round(r.height), title: !!t.getAttribute('title'), emoji: /\p{Extended_Pictographic}/u.test(t.innerText) };
   });
   await page.evaluate(function () { document.querySelector('#look-items .look-tile.locked[data-id="suit"]').click(); });
   await page.waitForTimeout(200);
   var lk2 = await page.evaluate(function () { return { toast: document.getElementById('toast').textContent, outfit: APP.state.settings.player.outfit, own: APP.ownItem('outfit', 'suit'), left: document.querySelectorAll('#look-items .look-tile.locked').length, wear: APP.setPlayerPart('outfit', 'suit'), now: APP.state.settings.player.outfit, key: APP.state.user.owned['outfit:suit'], unknown: APP.ownItem('outfit', 'nope') }; });
-  ok(lk.n === 5 && lk.ids === 'sailor,fisher,windbreak,cardigan,suit' && lk.price === '24' && lk.mark && lk.h >= 44 && !lk.title && !lk.emoji, 'P7 옷장 옷 갈래: 잠긴 칸 다섯 (자물쇠 표시 · 조개 값 · 44px 이상 · 이모지 없음) ' + JSON.stringify(lk));
+  ok(lk.n === 5 && lk.ids === 'sailor,fisher,windbreak,cardigan,suit' && lk.price === '' && lk.pics === 0 && lk.name === '세일러' && lk.mark && lk.h >= 44 && !lk.title && !lk.emoji, 'P7 옷장 옷 갈래: 잠긴 칸 다섯 — 11-24 (주인: "미리 보여주지 말고 이름만") 그림 · 값 없이 이름과 자물쇠 표시 · 44px 이상 · 이모지 없음 ' + JSON.stringify(lk));
   ok(lk2.toast === '마을 옷가게에서 팔아.' && lk2.outfit === 'octee', 'P7 잠긴 칸을 누르면 한 줄 («' + lk2.toast + '») · 옷은 그대로');
   ok(lk2.own === true && lk2.left === 4 && lk2.wear === true && lk2.now === 'suit' && /^\d{4}-\d\d-\d\d$/.test(lk2.key || '') && lk2.unknown === false, 'P7 ownItem 뒤: 잠긴 칸 넷 · 입을 수 있다 · S.user.owned 에 산 날 · 모르는 물건은 false ' + JSON.stringify(lk2));
+  /* 11-24 주간 상 (종이 왕관 · 황제 망토): 받기 전엔 장식 갈래의 잠긴 칸 (한 줄은 달리기 상) · 받으면 옷장을 열 때 내 옷장에 들어와 입을 수 있다 (문어의 답과 따로) */
+  var aw = await page.evaluate(async function () {
+    document.getElementById('look-tab-acc').click(); await new Promise(function (r) { setTimeout(r, 200); });
+    var q = function () { return [].map.call(document.querySelectorAll('#look-items .look-tile.locked'), function (b) { return b.dataset.id; }).join(); }, before = q();
+    document.querySelector('#look-items .look-tile[data-id="emperor_cape"]').click(); await new Promise(function (r) { setTimeout(r, 100); });
+    var t0 = document.getElementById('toast').textContent, acc0 = APP.state.settings.player.acc;
+    localStorage.setItem('ppolppol_runner', JSON.stringify({ net: { awards: { paper_crown: [], emperor_cape: ['2026-W47'] } } }));
+    document.getElementById('look-sheet').close(); APP.openLook(); document.getElementById('look-tab-acc').click(); await new Promise(function (r) { setTimeout(r, 200); });
+    var after = q(), key = (APP.state.user.owned || {})['acc:emperor_cape'];
+    document.querySelector('#look-items .look-tile[data-id="emperor_cape"]').click(); await new Promise(function (r) { setTimeout(r, 100); });
+    var acc1 = APP.state.settings.player.acc; localStorage.removeItem('ppolppol_runner'); APP.setPlayerPart('acc', acc0); document.getElementById('look-tab-outfit').click();
+    return { before: before, toast: t0, acc0: acc0, after: after, key: key, acc1: acc1 };
+  });
+  ok(/paper_crown/.test(aw.before) && /emperor_cape/.test(aw.before) && aw.toast === '다락방 달리기 주간 상으로 받아.' && aw.acc0 !== 'emperor_cape' && /paper_crown/.test(aw.after) && !/emperor_cape/.test(aw.after) && /^\d{4}-\d\d-\d\d$/.test(aw.key || '') && aw.acc1 === 'emperor_cape', 'P7 주간 상: 받기 전엔 잠긴 칸 («' + aw.toast + '») · 받으면 내 옷장에 (받은 날) 들어와 입을 수 있다 ' + JSON.stringify(aw));
   await page.reload();
   await page.waitForFunction(function () { return window.APP && APP.state && APP.scene; }, null, { timeout: 20000 });
   var re = await page.evaluate(function () { var k = 'ppolppol_v2', o = JSON.parse(localStorage.getItem(k)); return { outfit: APP.state.settings.player.outfit, owned: APP.isOwned('outfit', 'suit'), saved: o.user && o.user.owned && !!o.user.owned['outfit:suit'] }; });

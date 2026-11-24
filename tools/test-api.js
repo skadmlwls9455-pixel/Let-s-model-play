@@ -64,11 +64,12 @@ function body(tok, run, nick, patch) { var b = { token: tok, inputs: run.inputs,
   check(core.weekKey(Date.UTC(2027, 0, 1, 3)) === '2026-W53', '2027-01-01 은 2026-W53');
   check(core.weekKey(Date.UTC(2027, 0, 4, 3)) === '2027-W01', '2027-01-04 는 2027-W01');
   var p1 = core.encodePath({ week: '2026-W45', score: 25, ticks: 157, runId: 'abcdef012345', nick: '뽈뽈 문어' });
-  check(p1 === 'runner2/2026-W45/09999975-000157-abcdef012345~' + core.b64u(Buffer.from('뽈뽈 문어')) + '.json', '경로 모양 (runner-2 = runner2/) ' + p1);
+  check(p1 === 'runner3/2026-W45/09999975-000157-abcdef012345~' + core.b64u(Buffer.from('뽈뽈 문어')) + '.json', '경로 모양 (runner-3 = runner3/ · 11-24) ' + p1);
+  check(core.encodePath({ week: '2026-W45', score: 25, ticks: 157, runId: 'abcdef012345', nick: '뽈뽈 문어' }, 'runner-2').indexOf('runner2/2026-W45/') === 0, '옛 판 runner-2 경로 (runner2/) 는 그대로');
   var p1old = core.encodePath({ week: '2026-W45', score: 25, ticks: 157, runId: 'abcdef012345', nick: '뽈뽈 문어' }, 'runner-1');
   check(p1old === 'runner/2026-W45/09999975-000157-abcdef012345~' + core.b64u(Buffer.from('뽈뽈 문어')) + '.json' && core.idPath('2026-W45', 'abcdef012345', 'runner-1') === 'runner-ids/2026-W45/abcdef012345.json', '옛 판(runner-1) 경로는 예전 그대로 (runner/ · runner-ids/) ' + p1old);
-  check(core.idPath('2026-W45', 'abcdef012345') === 'runner2-ids/2026-W45/abcdef012345.json' && core.weekPrefix('2026-W45') === 'runner2/2026-W45/', 'runner-2 표시·목록 경로 (runner2-ids/ · runner2/)');
-  check(core.decodePath(p1old).dir === 'runner' && core.decodePath(p1).dir === 'runner2', '경로에서 판 읽기');
+  check(core.idPath('2026-W45', 'abcdef012345') === 'runner3-ids/2026-W45/abcdef012345.json' && core.weekPrefix('2026-W45') === 'runner3/2026-W45/', 'runner-3 표시·목록 경로 (runner3-ids/ · runner3/)');
+  check(core.decodePath(p1old).dir === 'runner' && core.decodePath(p1).dir === 'runner3', '경로에서 판 읽기');
   var d1 = core.decodePath(p1);
   check(d1 && d1.score === 25 && d1.ticks === 157 && d1.nick === '뽈뽈 문어' && d1.runId === 'abcdef012345', '경로 왕복');
   check(core.encodePath({ week: 'w', score: 900, ticks: 9, runId: 'a', nick: 'x' }) < core.encodePath({ week: 'w', score: 30, ticks: 9, runId: 'a', nick: 'x' }), '사전순: 높은 점수가 앞');
@@ -207,23 +208,33 @@ function body(tok, run, nick, patch) { var b = { token: tok, inputs: run.inputs,
   for (var m = 0; m < 22; m++) await call('submit', { method: 'POST', body: body(token(runs[m % 5].seed, false, T0 - 200000 - m), runs[m % 5], 'm' + m) });
   check((await call('top', {})).json.top.length === 20, '상위 20 까지만');
 
-  console.log('== 3b. 판(VERSION)마다 순위표 따로 (11-15 runner-2)');
+  console.log('== 3b. 판(VERSION)마다 순위표 따로 (11-15 runner-2 · 11-24 runner-3)');
   mem = core.memoryStore(); core.setStore(mem); clock = T0;
   await mem.put(core.encodePath({ week: '2026-W45', score: 9000, ticks: 5000, runId: 'cccccccccccc', nick: 'old one' }, 'runner-1'), {});
   await mem.put(core.idPath('2026-W45', 'cccccccccccc', 'runner-1'), { runId: 'cccccccccccc', at: T0 - 99999, score: 9000, ticks: 5000 });
   var t0v = await call('top', {});
-  check(t0v.status === 200 && t0v.json.total === 0 && t0v.json.v === 'runner-2', '옛 판 기록만 있으면 이번 주 runner-2 순위는 비어 있음 (섞지 않음) ' + JSON.stringify(t0v.json));
+  check(t0v.status === 200 && t0v.json.total === 0 && t0v.json.v === 'runner-3', '옛 판 기록만 있으면 이번 주 runner-3 순위는 비어 있음 (섞지 않음) ' + JSON.stringify(t0v.json));
   var vr = runs[0], vrs = await call('submit', { method: 'POST', body: body(token(vr.seed, false, T0 - 120000), vr, '새 판') });
   var t1v = await call('top', {});
-  check(vrs.status === 200 && vrs.json.rank === 1 && vrs.json.total === 1 && t1v.json.total === 1 && t1v.json.top[0].nick === '새 판', 'runner-2 판은 runner-2 순위에서 1등 (옛 9000점 위에 안 끼움) ' + JSON.stringify(t1v.json.top));
+  check(vrs.status === 200 && vrs.json.rank === 1 && vrs.json.total === 1 && t1v.json.total === 1 && t1v.json.top[0].nick === '새 판', 'runner-3 판은 runner-3 순위에서 1등 (옛 9000점 위에 안 끼움) ' + JSON.stringify(t1v.json.top));
   check((await core.board(mem, '2026-W45', 'runner-1')).length === 1 && mem._map.has(core.encodePath({ week: '2026-W45', score: 9000, ticks: 5000, runId: 'cccccccccccc', nick: 'old one' }, 'runner-1')), '옛 판 기록은 지우지 않고 그대로');
   var rv1 = await call('submit', { method: 'POST', body: body(core.signToken({ seed: vr.seed, night: false, iat: T0 - 120000, week: '2026-W45', v: 'runner-1' }, SECRET), vr, 'x') });
   check(rv1.status === 400 && rv1.json.error === 'old_version' && (await call('top', {})).json.total === 1, 'runner-1 토큰 → 400 old_version, 아무것도 안 씀 ' + JSON.stringify(rv1.json));
   var sv = await call('seed', { query: { tz: '540' } });
-  check(sv.json.v === 'runner-2' && core.readToken(sv.json.token, SECRET).v === 'runner-2', 'seed 토큰은 runner-2');
+  check(sv.json.v === 'runner-3' && core.readToken(sv.json.token, SECRET).v === 'runner-3', 'seed 토큰은 runner-3');
   clock = Date.UTC(2026, 10, 8, 15, 30, 6);
   var aOld = await call('award', { query: { runId: 'cccccccccccc', week: '2026-W45' } });
   check(aOld.status === 200 && aOld.json.award === 'emperor_cape' && aOld.json.rank === 1, '바꾸기 전 runner-1 로 올린 판도 그 판 순위로 망토 (옛 순위표에서 찾음) ' + JSON.stringify(aOld.json));
+  clock = T0;
+  /* 11-24: runner-2 로 올린 판도 (runner-3 으로 바꾼 주) 그 판 순위표에서 찾는다 · runner-2 토큰은 400 */
+  await mem.put(core.encodePath({ week: '2026-W45', score: 500, ticks: 3000, runId: 'dddddddddddd', nick: 'two' }, 'runner-2'), {});
+  await mem.put(core.idPath('2026-W45', 'dddddddddddd', 'runner-2'), { runId: 'dddddddddddd', at: T0 - 9999, score: 500, ticks: 3000 });
+  var rv2 = await call('submit', { method: 'POST', body: body(core.signToken({ seed: 5, night: false, iat: T0 - 300000, week: '2026-W45', v: 'runner-2' }, SECRET), runOf(5, false, []), 'hit') });
+  check(rv2.status === 400 && rv2.json.error === 'old_version', 'runner-2 토큰 → 400 old_version (11-24) ' + JSON.stringify(rv2.json));
+  var t2v = (await call('top', {})).json; check(t2v.total === 1 && t2v.top.every(function (r) { return r.nick !== 'two'; }), 'runner-2 기록은 runner-3 순위에 안 섞임 ' + JSON.stringify(t2v));
+  clock = Date.UTC(2026, 10, 8, 15, 30, 6);
+  var a2 = await call('award', { query: { runId: 'dddddddddddd', week: '2026-W45' } });
+  check(a2.status === 200 && a2.json.award === 'emperor_cape' && a2.json.rank === 1, 'runner-2 로 올린 판도 그 판 순위표에서 망토 (11-24) ' + JSON.stringify(a2.json));
   clock = T0;
 
   console.log('== 4. 상 (주가 바뀔 때)');
@@ -335,10 +346,10 @@ function body(tok, run, nick, patch) { var b = { token: tok, inputs: run.inputs,
   /* 동시에: 먼저 표시를 쓴 요청이 아직 기록을 쓰는 중에 같은 토큰으로 다른 판이 오면 409 (먼저 온 판만 남음) */
   mem = core.memoryStore(); core.setStore(mem); clock = T0;
   var rp = mem.put, slow = true;
-  mem.put = async function (p, j) { if (/^runner2\//.test(p) && slow) { slow = false; await new Promise(function (r) { setTimeout(r, 30); }); } return rp.call(mem, p, j); };
+  mem.put = async function (p, j) { if (/^runner3\//.test(p) && slow) { slow = false; await new Promise(function (r) { setTimeout(r, 30); }); } return rp.call(mem, p, j); };
   var both = await Promise.all([call('submit', { method: 'POST', body: body(tPw, pw, 'first') }),
     new Promise(function (r) { setTimeout(r, 5); }).then(function () { return call('submit', { method: 'POST', body: body(tPw, pw2, 'second') }); })]);
-  var rawR = await mem.list('runner2/2026-W45/');
+  var rawR = await mem.list('runner3/2026-W45/');
   check(both[0].status === 200 && both[0].json.score === pw.score && both[0].json.nick === 'first', '먼저 온 판은 200, 제 점수·닉네임 그대로 ' + JSON.stringify(both[0].json));
   check(both[1].status === 409 && both[1].json.error === 'duplicate' && rawR.length === 1, '쓰는 중에 온 다른 판은 409, 기록 1개 ' + JSON.stringify(both[1].json) + ' raw ' + rawR.length);
   var again = await call('submit', { method: 'POST', body: body(tPw, pw, 'first') });
