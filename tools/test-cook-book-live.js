@@ -178,7 +178,7 @@ async function gesture(page) {
     await waitStep(T.page, 0); await gesture(T.page); await waitStep(T.page, 1);
     s = await store(T.page); check(s.pot && s.pot.si === 1 && s.pot.looks.length === 1 && s.potOld === undefined, 'B3 the pot holds the finished step (and the same pot went on, nothing moved to potOld)');
     await T.page.reload(); await T.page.waitForFunction(function () { return window.COOK && COOK.live().screen !== 'closed'; });
-    l = await live(T.page); check(l.screen === 'step' && l.recipe === 'jeon2' && l.si === 1 && l.kind === 'stir', 'B3 a pot with a finished step resumes straight into cooking (the book is skipped)');
+    l = await live(T.page); check(l.screen === 'step' && l.recipe === 'jeon2' && l.si === 1 && l.kind === 'stir', 'B3 a pot with a finished step resumes straight into cooking (the book is skipped) ' + js([l.screen, l.recipe, l.si, l.kind]));
     await T.ctx.close();
     T = await open(b, '?recipe=gyeran'); l = await live(T.page);
     check(l.screen === 'step' && l.recipe === 'gyeran' && l.kind === 'tap', 'B3 an asked-for recipe starts at once'); await T.ctx.close();
@@ -348,9 +348,12 @@ async function gesture(page) {
       check(Math.abs(r.cv[0] - Math.round(r.cv[0])) < 1e-6 && Math.abs(r.cv[1] - Math.round(r.cv[1])) < 1e-6 && Math.abs(r.view.css * r.dpr - Math.round(r.view.css * r.dpr)) < 1e-6, 'B8 ' + tag + ': one art px is a whole number of device px, the canvas a whole number of CSS px');
       await T.page.evaluate(function () { COOK.pick('jeon2'); });
       await T.page.waitForTimeout(400);
+      /* 11-24 r5: the kitchen cues a sticker only on the plate; the size and place rule is measured on one put up directly */
+      await T.page.evaluate(function () { if (window.COOK_STICKERS && COOK_STICKERS.show) COOK_STICKERS.show('thumbs', { slot: 1 }); });
+      await T.page.waitForTimeout(400);
       r = await T.page.evaluate(function () { var s = document.querySelector('.ck-stick'), k = s.querySelector('.cook-sticker'), q = k ? k.getBoundingClientRect() : null, c = document.querySelector('.ck-close .ck-chip').getBoundingClientRect(), v = COOK.live().view;
         return { hidden: s.hidden, w: q ? q.width : 0, x: q ? q.left : 0, bottom: q ? q.bottom : 0, closeL: c.left, row: (36 + v.oy) * v.css, dpr: devicePixelRatio }; });
-      check(!r.hidden && r.w >= (Z[0] <= 412 && Z[1] >= 700 ? 120 : 64) && r.w <= 130 && r.x + r.w <= r.closeL && r.bottom + 8 <= r.row + 0.5, 'B8 ' + tag + ': the pick sticker shows, ' + r.w.toFixed(1) + ' CSS px (tall phones: 96 or 85 before; short ones: hidden before), clear of the close chip, ending 8 px above stage row 36');
+      check(!r.hidden && r.w >= (Z[0] <= 412 && Z[1] >= 700 ? 120 : 64) && r.w <= 130 && r.x + r.w <= r.closeL && r.bottom + 8 <= r.row + 0.5, 'B8 ' + tag + ': a sticker shows, ' + r.w.toFixed(1) + ' CSS px (tall phones: 96 or 85 before; short ones: hidden before), clear of the close chip, ending 8 px above stage row 36');
       /* Playwright's DPR emulation lays out in 1/64 CSS px, so at 2.625 the measured box is off by about 0.001 device px a
          sticker px; the real render path (--force-device-scale-factor) gives exact blocks (js/cook.js fit) */
       check(Math.abs(r.w * r.dpr / 32 - Math.round(r.w * r.dpr / 32)) < (Z[2] === 2.625 ? 0.01 : 1e-6), 'B8 ' + tag + ': a whole number of device px per sticker px (' + (r.w * r.dpr / 32) + ')');
