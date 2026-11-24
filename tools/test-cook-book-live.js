@@ -12,6 +12,8 @@
  * B5 every book dish by keyboard only (Enter on the chip), ending on the end buttons.
  * B6 the end buttons: sizes, gap, the 900 ms guard, 'serve' with the mode, close without serve, canCall false.
  * B7 the embed: 'result' once, 'ctx' in, 'serve' then 'close' out.
+ * B9 (11-24 r5) gestures, not buttons: the chip unseen and untouchable on touch (kept for the keyboard), one sticker cue a
+ *    dish (the plate), the plate's drawn places (drag the dish onto the table), the easier judgement after 15 s.
  * B8 layout at four sizes: boxes on screen, tabs outside nothing, stickers larger; reduced motion.
  */
 'use strict';
@@ -366,6 +368,61 @@ async function gesture(page) {
     await T.page.waitForFunction(function () { var q = COOK.live(); return q.screen === 'reveal' && q.chip; }, null, { timeout: 30000 });
     l = await live(T.page); s = await bk(T.page);
     check(l.stats.slides === 0 && l.stats.shake === 0 && l.stats.parts === 0 && s.rows.every(function (x) { return !/>/.test(x); }), 'B8 reduced motion: no slide, no shake, no particles through a whole dish');
+    await T.ctx.close();
+
+    /* ---------- B9 (11-24 r5, owner: "버튼이 막 있어서 게임 같지 않다"): gestures, not buttons ---------- */
+    T = await open(b, '');
+    await T.page.evaluate(function () {   /* count what reaches the stickers */
+      window.__cues = []; var S = window.COOK_STICKERS, c0 = S.cue; S.cue = function (act, d) { window.__cues.push(act); return c0.apply(S, arguments); };
+    });
+    await T.page.evaluate(function () { COOK.pick('gyeran'); });
+    await T.page.waitForTimeout(600);
+    r = await T.page.evaluate(function () {
+      var v = document.querySelector('.ck-verb'), q = v.getBoundingClientRect(), cs = getComputedStyle(v), e = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2);
+      return { op: cs.opacity, pe: cs.pointerEvents, hit: e ? (e.closest('.ck-verb') ? 'verb' : e.closest('.ck-stage') ? 'stage' : 'other') : null, label: v.getAttribute('aria-label'), focusable: v.tabIndex >= 0 && !v.hidden };
+    });
+    check(r.op === '0' && r.pe === 'none' && r.hit === 'stage' && r.label === '달걀 깨기' && r.focusable, 'B9 on touch the verb chip is unseen and untouchable (a touch there reaches the food); it keeps its name and stays in the tab order (' + js(r) + ')');
+    await T.page.waitForTimeout(6200);
+    l = await live(T.page); r = await T.page.evaluate(function () { return getComputedStyle(document.querySelector('.ck-verb')).opacity; });
+    check(l.stats.idle >= 1 && r === '0', 'B9 5 s idle brings the ghost hand, never the chip (idle hands ' + l.stats.idle + ', opacity ' + r + ')');
+    await T.page.keyboard.press('Tab'); await T.page.keyboard.press('Tab');
+    r = await T.page.evaluate(function () { var v = document.querySelector('.ck-verb'); return [document.activeElement === v, getComputedStyle(v).opacity]; });
+    check(r[0] && r[1] === '1', 'B9 by keyboard the chip is reached and seen');
+    for (var kk = 0; kk < 40; kk++) { l = await live(T.page); if (l.screen === 'reveal') break; await T.page.keyboard.press('Enter'); await T.page.waitForTimeout(330); }
+    await T.page.waitForFunction(function () { var q = COOK.live(); return q.screen === 'reveal' && q.chip; }, null, { timeout: 8000 }).catch(function () {});
+    await T.page.waitForTimeout(400);
+    r = await T.page.evaluate(function () { return window.__cues; });
+    check(js(r) === js(['done']), 'B9 a whole dish cues the reaction stickers once, at the plate (' + r.join(',') + ')');
+    r = await T.page.evaluate(function () { var c = document.querySelector('.ck-call'); return [getComputedStyle(c).opacity, document.activeElement === c]; });
+    check(r[0] === '1' && r[1], 'B9 by keyboard the plate gives the framed end buttons, the first one focused');
+    await T.page.mouse.move(5, 300); await T.page.mouse.click(5, 300);   /* a pointer press: keyboard mode off */
+    l = await live(T.page);
+    r = await T.page.evaluate(function () { var c = document.querySelector('.ck-call'), t = document.querySelector('.ck-table'); return [getComputedStyle(c).opacity, getComputedStyle(c).pointerEvents, getComputedStyle(t).opacity]; });
+    check(js(r) === js(['0', 'none', '0']) && l.spots.length === 2 && l.spots[0].m === 'call' && l.spots[1].m === 'table', 'B9 by touch the framed buttons are gone and the octopus and the table are drawn under the dish (' + js(r) + ')');
+    check(l.spots.every(function (o) { return o.x >= 24 && o.x <= 336 && o.y < 740 - 16; }) && l.dish.y < l.spots[0].y, 'B9 the two places are on screen, below the dish, inside the edge band');
+    await T.page.evaluate(function () { window.__sv = []; });
+    await T.page.mouse.move(l.dish.x, l.dish.y); await T.page.mouse.down();
+    await T.page.mouse.move(l.dish.x + 10, l.dish.y + 60, { steps: 4 }); await T.page.mouse.up(); await T.page.waitForTimeout(150);
+    l = await live(T.page);
+    check(l.screen === 'reveal' && !l.holding, 'B9 the dish let go between the places goes back; nothing is served');
+    await T.page.mouse.move(l.dish.x, l.dish.y); await T.page.mouse.down();
+    var tg = l.spots[1];
+    await T.page.mouse.move((l.dish.x + tg.x) / 2, (l.dish.y + tg.y) / 2, { steps: 4 });
+    var mid = await live(T.page);
+    await T.page.mouse.move(tg.x, tg.y, { steps: 4 }); await T.page.mouse.up(); await T.page.waitForTimeout(150);
+    l = await live(T.page); s = await store(T.page);
+    check(mid.holding && l.screen === 'closed', 'B9 the dish dragged onto the table: held on the way, then served and the kitchen closes');
+    check(s.seen.indexOf('serve') >= 0, 'B9 the first-time hand on the plate counts as seen once a dish was served');
+    check(T.errs.length === 0, 'B9 no errors ' + js(T.errs));
+    await T.ctx.close();
+    T = await open(b, '?recipe=cake');
+    for (kk = 0; kk < 6; kk++) { l = await live(T.page); if (l.si === 1 && l.phase === 'step') break; await T.page.evaluate(function () { document.querySelector('.ck-verb').click(); }); await T.page.waitForTimeout(450); }
+    await T.page.waitForFunction(function () { var q = COOK.live(); return q.si === 1 && q.phase === 'step'; }, null, { timeout: 5000 }).catch(function () {});
+    var need0 = (await live(T.page)).st.need;
+    await T.page.waitForTimeout(16000);
+    l = await live(T.page);
+    check(l.kind === 'stir' && l.st.ease === true && l.st.need < need0 && l.stats.ease === 1 && l.hint === 'idle' && l.progress === 0, 'B9 15 s without progress: the stir asks for fewer turns (' + need0 + ' -> ' + l.st.need + '), the hand shows again, nothing is skipped');
+    check(T.errs.length === 0 && l.err === 0, 'B9 no errors (ease) ' + js(T.errs));
     await T.ctx.close();
   } catch (e) { fails++; console.error('  FAIL (threw) ' + (e && e.stack || e)); }
   await b.close();
