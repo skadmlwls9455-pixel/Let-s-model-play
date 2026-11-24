@@ -245,6 +245,9 @@ section('words and static rules');
     check(!/title\s*[:=]/.test(src.replace(/titleMs/g, '')), f + ': no title attribute');
   });
   check(X.WORDS.call === '문어 부르기' && X.WORDS.table === '식탁에 두기' && X.WORDS.book === '요리 수첩', 'the end buttons\' and the book\'s names');
+  check(NEW.every(function (id) { var p = X.pageWords(id), r = X.recipe(id); return p && p.name === X.WORDS.dish[id] && p.ings.length === r.ings.length && p.ings.every(function (w) { return /^[가-힣 ]+( [0-9][가-힣])?$/.test(w) || /^[가-힣]+ [0-9]개$/.test(w); }); }),
+    'r5 the book page words: every dish has a name and one word per ingredient (count where given)');
+  check(js(X.pageWords('gyeran')) === js({ name: '계란말이', ings: ['달걀 3개', '소금', '기름'] }) && X.pageWords('nope') === null, 'r5 pageWords(gyeran) and an unknown id');
   var cs = fs.readFileSync(path.join(ROOT, 'js/cook.js'), 'utf8'), ch2 = fs.readFileSync(path.join(ROOT, 'cook.html'), 'utf8'), cc = fs.readFileSync(path.join(ROOT, 'css/cook.css'), 'utf8');
   check(cs.indexOf('ck-strip') < 0 && cc.indexOf('.ck-strip') < 0 && cc.indexOf('.ck-step') < 0 && cs.indexOf('buildStrip') < 0, 'the step strip is gone from js/cook.js and css/cook.css');
   check(cs.indexOf('function again') < 0, "the live half has no 'again'");

@@ -9,7 +9,8 @@
  * UNITS as in js/cook.js: step data is in art px on the 144 x 160 stage (food centre 72, 86); step state and pointer
  * samples are logical px (art x 2); time is integer ms on the step clock; looks are small integers.
  *
- * RECIPE  { id, v2: true, tier, at, ings: [ing ids], fx (the day effect's name, for the book page), steps: [...] }
+ * RECIPE  { id, v2: true, tier, at, ings: [ing ids], count ({ ing: n } where the book shows how many), fx (the day effect's name),
+ *   steps: [...] }
  *   v2 = looks are kept per step: COOK.lookOf(run) = { v: 2, s: [look per step], plate, band? } (band = the last flip or
  *   bake band, for the dish picture). A legacy recipe keeps its flat look.
  * STEP    { kind, station ('counter' | 'stove' | 'board'), name (WORDS.verb key: the button's aria-label), pic (the
@@ -55,7 +56,11 @@ var COOK_STEPS = (function () {
     verb: { chop: '썰기', stir: '젓기', pour: '붓기', flip: '뒤집기', heat: '불 켜기', crack: '달걀 깨기', roll: '말기', scoop: '밥 담기',
       sprinkle: '깨 뿌리기', press: '모양 잡기', wrap: '김 붙이기', wash: '씻기', thread: '꼬치에 끼우기', glaze: '시럽 입히기',
       bake: '굽기', out: '꺼내기', spread: '크림 바르기', top: '딸기 올리기' },
-    book: '요리 수첩', call: '문어 부르기', table: '식탁에 두기'
+    book: '요리 수첩', call: '문어 부르기', table: '식탁에 두기',
+    /* 11-24 r5 (owner: drop every cooking step from the recipe book, keep only the ingredients): their names on the page */
+    ing: { flour: '밀가루', water: '물', greens: '해초', oil: '기름', egg: '달걀', salt: '소금', rice: '밥', sesame: '깨', gim: '김',
+      berry: '딸기', grape: '청포도', tang: '귤', sugar: '설탕', cream: '생크림' },
+    count: '개'
   });
 
   var BOX = { cx: 72, cy: 86, w: 64, h: 48, rx: [29], ry: [19], inset: 3 };   /* the legacy food box (stage centre) */
@@ -75,7 +80,7 @@ var COOK_STEPS = (function () {
       { kind: 'pour', station: 'stove', name: 'pour', pic: 'step.pour', box: box({}), art: { type: 'pour', pan: 'round', spr: 'jeon.pan', at: [72, 86], frames: [-1, 0, 1, 2], rest: 2 } },
       { kind: 'flip', band: 3000, station: 'stove', name: 'flip', pic: 'step.flip', box: box({}), art: { type: 'flip', pan: 'round', spr: 'jeon.pan', at: [72, 86], bands: [2, 3, 4] } },
       { kind: 'slice', lines: 2, cross: true, station: 'board', name: 'chop', pic: 'step.slice', box: box({}), art: { type: 'cross', spr: 'jeon.pan', at: [72, 86], bands: [2, 3, 4] } }] },
-    { id: 'gyeran', v2: true, tier: 1, at: 'pan', fx: 'bubble', ings: ['egg', 'salt', 'oil'], steps: [
+    { id: 'gyeran', v2: true, tier: 1, at: 'pan', fx: 'bubble', ings: ['egg', 'salt', 'oil'], count: { egg: 3 }, steps: [
       crack('mix.egg'),
       stir(3, 'stir', 'step.stir', { type: 'bowl', bowl: [72, 106], mix: 'mix.egg' }, 'counter', [72, 94]),
       { kind: 'pour', station: 'stove', name: 'pour', pic: 'step.pour', box: box({}), art: { type: 'pour', pan: 'square', spr: 'gyeran.pan', at: [72, 86], frames: [-1, 0, 1, 2], rest: 3 } },
@@ -95,7 +100,7 @@ var COOK_STEPS = (function () {
       { kind: 'drag', station: 'board', name: 'thread', pic: 'step.thread', box: box({}), items: [[48, 64], [72, 60], [96, 64]], slots: [[82, 102], [94, 102], [106, 102]], order: true, zone: [30, 92, 114, 112],
         art: { type: 'thread', skewer: [72, 104], item: 'fruit.piece' } },
       stir(2, 'glaze', 'step.glaze', { type: 'glaze', pot: [72, 96], spr: 'kkochi.coat', at: [50, 80] }, 'stove', [72, 84])] },
-    { id: 'cake', v2: true, tier: 1, at: 'oven', fx: 'confetti', ings: ['egg', 'flour', 'sugar', 'cream', 'berry'], steps: [
+    { id: 'cake', v2: true, tier: 1, at: 'oven', fx: 'confetti', ings: ['egg', 'flour', 'sugar', 'cream', 'berry'], count: { egg: 3, berry: 3 }, steps: [
       crack('mix.cake'),
       stir(3, 'stir', 'step.stir', { type: 'bowl', bowl: [72, 106], mix: 'mix.cake' }, 'counter', [72, 94]),
       { kind: 'pour', station: 'counter', name: 'pour', pic: 'step.pour', box: box({}), art: { type: 'pour', pan: 'none', spr: 'tin', at: [72, 92], frames: [0, 1, 2, 3], rest: 3 } },
@@ -108,6 +113,11 @@ var COOK_STEPS = (function () {
   var NEXT = freeze({ jeon: 'jeon2', jumeokbap: 'jumeokbap2', kkochi: 'kkochi2' });
   var FREE = freeze(['jeon2', 'gyeran', 'jumeokbap2']);   /* the book's dishes that need no gift (contract C2) */
 
+  /* the words of the book page for one dish: { name, ings: [one per ingredient, with its count where given] } (null for an unknown id) */
+  function pageWords(id) {
+    var r = recipe(id); if (!r) return null;
+    return { name: WORDS.dish[id], ings: r.ings.map(function (k) { var n = r.count && r.count[k]; return WORDS.ing[k] + (n ? ' ' + n + WORDS.count : ''); }) };
+  }
   function recipe(id) { for (var i = 0; i < RECIPES.length; i++) if (RECIPES[i].id === id) return RECIPES[i]; return null; }
   /* what a pot of this recipe is hashed with: its steps and every number above */
   function tuneText(id) { var r = recipe(id); return r ? JSON.stringify(r.steps) + '|' + JSON.stringify(NUM) : null; }
@@ -441,7 +451,7 @@ var COOK_STEPS = (function () {
   }
 
   return { NUM: NUM, WORDS: WORDS, RECIPES: RECIPES, NEXT: NEXT, FREE: FREE, KINDS: ['stir', 'pour', 'drag', 'rub', 'swipe', 'bake'],
-    recipe: recipe, tuneText: tuneText, defaultLook: defaultLook, validLook: validLook, validTag: validTag, between: between,
+    recipe: recipe, pageWords: pageWords, tuneText: tuneText, defaultLook: defaultLook, validLook: validLook, validTag: validTag, between: between,
     verb: verb, hintAt: hintAt, install: install };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = COOK_STEPS;
