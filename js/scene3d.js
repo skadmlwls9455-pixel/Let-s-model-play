@@ -363,7 +363,8 @@ var SCENE3D = (function () {
   var PLAYER_DEFAULT = { hair: 'tousle', bangs: 'spiky', hairColor: 'brown', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'octee', shoes: 'sneaker', acc: 'none', brow: 'soft', body: 'a' };   /* 열쇠 차례 = 앱의 PLAYER_CATS (눈썹 · 몸은 뒤) */
   var PLAYER_LEGACY = { hair: 'bob', bangs: 'spiky', hairColor: 'blonde', skin: 'peach', eyes: 'round', eyeColor: 'dark', nose: 'tri', mouth: 'smile', cheek: 'none', outfit: 'dress', shoes: 'flat', acc: 'ribbon', brow: 'none', body: 'a' };
   /* 11-21 옷장 목록 (가게 · 콘테스트가 읽는다): 물건마다 tags (느낌 낱말 + 색 갈래 c-…) 와 shop ({ price: 조개 } | null = 누구나 가진 것). 이번 판 전부터 있던 id 는 전부 null — 입고 있던 것이 사라지지 않게.
-     적는 법: '갈래:id': '낱말 낱말 … [$값]' */
+     적는 법: '갈래:id': '낱말 낱말 … [$값]'
+     11-24 (넷째 바퀴 · 가게 갈래): 첫날 조개 3 개로도 하나는 살 수 있게 야구모자 4 · 목도리 5 — 옷가게는 날마다 이 둘 중 하나를 진열에 넣는다 (js/shop.js SMALL) */
   var PLAYER_META = {
     'hair:bob': 'cute neat', 'hair:short': 'sporty fresh', 'hair:long': 'neat cool', 'hair:twin': 'cute flower', 'hair:pony': 'sporty fresh', 'hair:wave': 'cosy flower',
     'hair:crop': 'sporty cool', 'hair:dandy': 'neat cool', 'hair:tousle': 'cosy fresh', 'hair:part': 'cool neat', 'hair:curl': 'cute cosy', 'hair:twoblock': 'cool sporty', 'hair:lowtail': 'cool sea',
@@ -373,7 +374,7 @@ var SCENE3D = (function () {
     'outfit:windbreak': 'sporty fresh c-yellow $20', 'outfit:cardigan': 'cosy neat flower c-pink $18', 'outfit:suit': 'neat cool star c-black $36',
     'shoes:flat': 'neat c-black', 'shoes:boot': 'warm sea c-blue', 'shoes:sneaker': 'sporty c-red', 'shoes:loafer': 'neat c-brown', 'shoes:hightop': 'sporty cool c-black $14', 'shoes:sandal': 'fresh sea c-brown',
     'acc:none': '', 'acc:ribbon': 'cute c-red', 'acc:beret': 'neat cosy c-red', 'acc:glasses': 'neat c-black', 'acc:catears': 'cute star c-black', 'acc:strawhat': 'fresh flower c-yellow',
-    'acc:cap': 'sporty cool c-blue $12', 'acc:bandana': 'cool sea c-blue', 'acc:headphones': 'cool star c-white $20', 'acc:scarf': 'warm cosy c-orange $14', 'acc:sqglasses': 'neat cool c-black', 'acc:bag': 'neat cosy c-brown $16' };
+    'acc:cap': 'sporty cool c-blue $4', 'acc:bandana': 'cool sea c-blue', 'acc:headphones': 'cool star c-white $20', 'acc:scarf': 'warm cosy c-orange $5', 'acc:sqglasses': 'neat cool c-black', 'acc:bag': 'neat cosy c-brown $16' };
   Object.keys(PLAYER_PARTS).forEach(function (cat) { PLAYER_PARTS[cat].forEach(function (x) {
     var m = PLAYER_META[cat + ':' + x.id], w = typeof m === 'string' ? m.split(' ').filter(Boolean) : [], pr = w.length && w[w.length - 1].charAt(0) === '$' ? +w.pop().slice(1) : 0;
     x.tags = w; x.shop = pr > 0 ? { price: pr } : null;
@@ -5850,6 +5851,37 @@ var SCENE3D = (function () {
       return PL.dash;
     }
     function playerSpeeds() { return { walk: PL_RUN, run: PL_DASH }; }
+    /* 11-24 (검토): 옷장 꼬리표의 색 갈래 (c-…) 가 그려진 색과 어긋나지 않게. 모습 (머리 색 등) 에 따라 색이 바뀌는 물건 (베레모: 밤갈색 머리면 초록) 은 꼬리표도 그 모습에서 그려지는 색을 따른다.
+       plMainHex(cat, id, look) = 그 모습에서 실제로 그려지는 바탕색 (물들이기 전 · 빌더가 만든 조각 가운데 바탕색 표 …_MAIN 에 있는 첫 색). itemTags(cat, id, look) = 목록 꼬리표에서 색 갈래만 그 색의 갈래로 (모습에 따라 색이 안 바뀌는 물건은 목록 그대로) */
+    /* 모습에 따라 그려지는 색이 바뀌는 물건의 색 갈래 (그 물건 빌더와 같은 색 값으로 적는다 — 빌더의 색을 바꾸면 여기도). 표에 없는데 색이 바뀌는 물건이 생기면 tools/test-player-parts-live.js 가 잡는다 */
+    var PL_ITEM_FAMILY = { 'acc:beret': [[PLC.red, 'c-red'], [PAL.moss[1], 'c-green']], 'acc:catears': [[PAL.slate[0], 'c-black'], [PAL.slate[2], 'c-black']] };
+    function plFamilyOf(cat, id, hex) { var t = PL_ITEM_FAMILY[cat + ':' + id]; if (!t || !hex) return null; for (var i = 0; i < t.length; i++) if (String(t[i][0]).toLowerCase() === hex) return t[i][1]; return null; }
+    function plMainHex(cat, id, look) {
+      var cfg = normalizePlayer(Object.assign({}, look || PL.look, (function () { var o = {}; o[cat] = id; return o; })())), L = [], mains = cat === 'outfit' ? OUTFIT_MAIN[id] : cat === 'shoes' ? SHOES_MAIN[id] : cat === 'acc' ? ACC_MAIN[id] : null;
+      if (!mains || !mains.length) return null;
+      var skin0 = PLC.skin; plSkin(cfg);
+      try {
+        if (cat === 'outfit') { PL_PARTS.outfit[id].torso(L); PL_PARTS.outfit[id].arm(L); }
+        else if (cat === 'shoes') PL_PARTS.shoes[id].parts(L);
+        else PL_PARTS.acc[id](L, cfg);
+      } finally { L.forEach(function (q) { if (q.g && q.g.dispose) q.g.dispose(); }); plSkin(PL.look); if (!PL.look) PLC.skin = skin0; }
+      var ms = mains.map(function (c) { return String(c).toLowerCase(); });
+      for (var i = 0; i < L.length; i++) if (ms.indexOf(String(L[i].c).toLowerCase()) >= 0) return String(L[i].c).toLowerCase();
+      return null;
+    }
+    var PL_TAG_VARY = {};   /* '갈래:id' → true: 머리 색 · 피부색에 따라 그려지는 바탕색이 바뀌는 물건 (처음 물을 때 한 번 센다) */
+    function plTagVaries(cat, id) {
+      var k = cat + ':' + id; if (k in PL_TAG_VARY) return PL_TAG_VARY[k];
+      var seen = {}; PLAYER_PARTS.hairColor.forEach(function (h) { PLAYER_PARTS.skin.forEach(function (sk) { seen[plMainHex(cat, id, Object.assign({}, PL.look, { hairColor: h.id, skin: sk.id }))] = 1; }); });
+      return (PL_TAG_VARY[k] = Object.keys(seen).length > 1);
+    }
+    function itemTags(cat, id, look) {
+      var x = plPart(cat, id); if (!x) return null;
+      var tags = Array.isArray(x.tags) ? x.tags.slice() : [];
+      if (!plTagVaries(cat, id)) return tags;
+      var fam = plFamilyOf(cat, id, plMainHex(cat, id, look)); if (!fam) return tags;
+      return tags.filter(function (t) { return t.indexOf('c-') !== 0; }).concat([fam]);
+    }
     /* ── 11-21 C11 (주인 "마네킹에 입혀진 거를 입어보고 살 수 있는 그런 느낌"): 옷을 입는 몸 둘 — 가게 마네킹 · 내 캐릭터의 몸짓 ── */
     /* 마네킹: 얼굴 없는 몸 (위층 마네킹처럼 밝은 나무색) 이 옷 · 신발 · 장식 · 머리 가운데 받은 것만 입는다 (없는 갈래는 민몸). 내 캐릭터와 같은 부품 빌더 · 같은 재질 (toonP) → 셰이더 프로그램이 늘지 않는다.
        mannequins(key, list): list = [{ slot, parts: { outfit?, shoes?, acc?, hair?, hairColor?, body? } | null, sold, pos?: [x, y, z, face] }] — 자리는 pos, 없으면 roomSlots(key).slots[slot] (V · W 갈래). 붙는 곳은 그 방의 그룹 (W 의 IN.groups[key].g), 없으면 지금 보이는 장소. 다시 부르면 그 방의 마네킹을 다 바꾼다 · 빈 목록 = 다 치움 */
@@ -6365,6 +6397,19 @@ var SCENE3D = (function () {
       var J = WSTATE.jump; if (!J) return;
       J.t += dt; var k = J.t / 0.3; if (k >= 0.5 && !J.done) { J.done = true; J.put(); }
       PLACE.fade = k >= 1 ? 0 : k < 0.5 ? k * 2 : 2 - k * 2; if (k >= 1) { WSTATE.jump = null; J.res(true); }
+    }
+    var _jumpAt = { x: 1e9, z: 1e9, place: '' };
+    function jumpFollow() {   /* 11-24 (검증): 모션 감소 · 즉시 옮기기 (들고 가 앉기 · 즉시 자리 걷기) 는 걸음이 없어 따라가기가 안 돌았다 → 한 프레임에 0.3 m 넘게 옮겨졌으면 캐릭터가 화면 안 (가장자리 0.5 m) 에 들게 바로 민다 */
+      if (typeof PL === 'undefined' || !PL || PL.place !== PLACE.vis || (PLACE.vis !== 'inside' && PLACE.vis !== 'yard')) { _jumpAt.place = ''; return; }
+      var moved = _jumpAt.place === PL.place && Math.hypot(PL.pos.x - _jumpAt.x, PL.pos.z - _jumpAt.z) > 0.3;
+      _jumpAt.x = PL.pos.x; _jumpAt.z = PL.pos.z; _jumpAt.place = PL.place;
+      if (!moved || GEST.mode || WSTATE.jump || panLocked() || !panOn()) return;
+      var f = plFollow(true); if (!f && PLACE.vis !== 'inside') return; viewHome(); if (st.reduced) placeCamera();   /* 방 안에서는 늘 캐릭터를 가운데 쪽으로 (앉은 자리 앞의 접시까지 보이게) · 바깥은 화면 밖일 때만 */
+    }
+    function viewHome() {   /* 화면을 내 캐릭터 쪽으로 되돌린다 (카드 · 결과를 닫은 뒤 — 캐릭터와 둘레의 자리가 다시 보이게) → 됐나 */
+      if (!S || !S.N || panLocked() || !panOn() || typeof PL === 'undefined' || PL.place !== PLACE.vis) return false;
+      var g = groupOf(PLACE.vis); _fw.set(PL.pos.x, 0.6 + (PL.place === 'yard' ? plGroundY(PL.pos.x, PL.pos.z) : 0), PL.pos.z); if (g) _fw.add(g.position); _fw.sub(camTargetNow());
+      var b = panBox(); panTo(clamp(Math.round(_fw.dot(_r) * S.N) / S.N, b[0], b[1]), clamp(Math.round(_fw.dot(_u) * S.N) / S.N, b[2], b[3]), 0.3, 'tween'); if (PLACE.vis === 'yard') _wideKeep.on = false; dither.still = 0; return true;
     }
     function inFrame(dt) { var R = PLACE.vis === 'inside' ? ROOM_REG[IN.key] : null; if (R && typeof R.frame === 'function') { try { R.frame(dt, time); } catch (e) { if (!IN.frameErr) { IN.frameErr = true; console.error('[scene3d] ROOM_REG.frame', e); } } } }
     function coverRun(put) {   /* → Promise: 덮인 가운데 프레임에 put() */
@@ -6909,11 +6954,47 @@ var SCENE3D = (function () {
       VIL.want.forEach(function (w) {
         if (!vilIsExtra(w.id) || seen[w.id]) return; seen[w.id] = true;
         var sp = vilHallSpot(w.id), key = w.color + '|' + w.hat + '|' + (w.pose === 'sleep'), o = VR.hallNpc[w.id];
-        if (!o || o.key !== key) { if (o) { RM.g.remove(o.m); o.m.geometry.dispose(); } var m = new T.Mesh(vilOctGeo(w.color, w.hat, w.pose === 'sleep'), lambert); m.receiveShadow = true; m.name = 'npc-hall-' + w.id; RM.g.add(m); o = VR.hallNpc[w.id] = { m: m, key: key }; }
-        var R = VIL.R, sit = w.pose === 'sit'; o.pose = w.pose; o.y = sp.y; o.m.position.set(sp.x, sp.y - (sit ? 0.06 : 0), sp.z); o.m.rotation.y = sp.face; o.m.scale.set(R * (w.pose === 'sleep' ? 1.08 : 1), R * (w.pose === 'sleep' ? 0.78 : sit ? 0.9 : 1), R * (w.pose === 'sleep' ? 1.08 : 1));
+        if (!o || o.key !== key) { var tw0 = o && o.tw; if (o) { RM.g.remove(o.m); o.m.geometry.dispose(); } var m = new T.Mesh(vilOctGeo(w.color, w.hat, w.pose === 'sleep'), lambert); m.receiveShadow = true; m.name = 'npc-hall-' + w.id; RM.g.add(m); o = VR.hallNpc[w.id] = { m: m, key: key, tw: tw0 }; if (tw0) m.position.set(tw0.x, vilHallY(tw0.x, tw0.z), tw0.z); }   /* 색 · 모자가 바뀌어 다시 지어도 걷던 자리에서 잇는다 */
+        var R = VIL.R, sit = w.pose === 'sit', fresh = !o.tw; o.pose = w.pose; o.y = sp.y; o.sit = sit ? 0.06 : 0;
+        /* 11-24 리드 검토: 방이 보이는 동안 자리를 옮기면 걸어간다 (vilHallWalk — 한 걸음씩 순간 이동하지 않는다). 처음 · 모션 감소 · 방이 안 보일 땐 바로 그 자리에 */
+        var mv = !fresh && !st.reduced && vilRoomKey() === 'hall' && w.pose !== 'sleep' && Math.hypot(o.tw.x - sp.x, o.tw.z - sp.z) > 0.02;
+        if (!mv) { o.tw = { x: sp.x, z: sp.z, face: sp.face, tx: sp.x, tz: sp.z, tf: sp.face, ph: 0 }; o.m.position.set(sp.x, sp.y - o.sit, sp.z); o.m.rotation.set(0, sp.face, 0); }
+        else { o.tw.tx = sp.x; o.tw.tz = sp.z; o.tw.tf = sp.face; o.tw.spd = 0; }
+        o.m.scale.set(R * (w.pose === 'sleep' ? 1.08 : 1), R * (w.pose === 'sleep' ? 0.78 : sit ? 0.9 : 1), R * (w.pose === 'sleep' ? 1.08 : 1));
       });
       Object.keys(VR.hallNpc).forEach(function (id) { if (!seen[id]) { RM.g.remove(VR.hallNpc[id].m); VR.hallNpc[id].m.geometry.dispose(); delete VR.hallNpc[id]; } });
       dither.still = 0;
+    }
+    function vilHallWalk(dt) {   /* 공연장 문어의 걷기: 1.6 m/s 로 새 자리까지 · 가는 쪽을 보고 뒤뚱 (좌우 기울기 + 한 픽셀 들썩) · 닿으면 받은 쪽을 본다 */
+      var moving = false;
+      Object.keys(VR.hallNpc).forEach(function (id) {
+        var o = VR.hallNpc[id], w = o.tw; if (!w) return;
+        var dx = w.tx - w.x, dz = w.tz - w.z, d = Math.hypot(dx, dz);
+        if (d < 1e-4) { if (w.ph) { w.ph = 0; o.m.rotation.set(0, w.tf, 0); o.m.position.set(w.x, vilHallY(w.x, w.z) - o.sit, w.z); dither.still = 0; } else if (o.m.rotation.y !== w.tf) { o.m.rotation.y = w.tf; dither.still = 0; } return; }
+        var stp = Math.min(d, (w.spd || 1.6) * dt); w.x += dx / d * stp; w.z += dz / d * stp; w.ph += dt * 9; moving = true;
+        var arrived = d - stp < 1e-4, hy = vilHallY(w.x, w.z);
+        o.m.position.set(w.x, hy - o.sit + (arrived ? 0 : (Math.floor(w.ph / Math.PI) % 2 ? PX : 0)), w.z);
+        o.m.rotation.set(0, arrived ? w.tf : Math.atan2(dx, dz), arrived ? 0 : Math.sin(w.ph) * 0.12);
+        if (arrived) { w.x = w.tx; w.z = w.tz; w.ph = 0; }
+      });
+      if (moving) dither.still = 0;
+    }
+    function vilHallWalking() { return Object.keys(VR.hallNpc).filter(function (id) { var w = VR.hallNpc[id].tw; return w && Math.hypot(w.tx - w.x, w.tz - w.z) > 1e-4; }); }
+    function vilNpcWalk(id, pts, opt) {   /* opt = 마지막에 볼 쪽 (rad) 또는 { speed (m/s, 기본 1.6), face } */
+      var face = typeof opt === 'number' ? opt : opt && opt.face != null ? +opt.face : null, spd = opt && +opt.speed > 0 ? +opt.speed : 0;   /* 공연장 문어를 점들 [[x, z], …] 을 따라 걷게 → Promise<끝까지 갔나> (방이 안 보이면 마지막 점에 바로 선다) */
+      if (!vilIsExtra(id) || !pts || !pts.length) return Promise.resolve(false);
+      var i = 0;
+      return new Promise(function (res) {
+        var next = function () {
+          var o = VR.hallNpc[id]; if (!o || !VR.rooms.hall) { res(false); return; }
+          if (i >= pts.length) { res(true); return; }
+          var p = pts[i], nx = pts[i + 1], f = nx ? Math.atan2(nx[0] - p[0], nx[1] - p[1]) : (face != null ? face : Math.atan2(p[0] - (o.tw ? o.tw.x : p[0]), p[1] - (o.tw ? o.tw.z : p[1]) || 1));
+          i++; vilNpcPlace(id, p[0], p[1], f); if (VR.hallNpc[id] && VR.hallNpc[id].tw) VR.hallNpc[id].tw.spd = spd;
+          var tick = function () { var w = VR.hallNpc[id] && VR.hallNpc[id].tw; if (!w) { res(false); return; } if (Math.hypot(w.tx - w.x, w.tz - w.z) < 1e-4) next(); else setTimeout(tick, 50); };
+          tick();
+        };
+        next();
+      });
     }
     function vilNpcPlace(id, x, z, face) {   /* 문어를 옮긴다 (보는 쪽 rad · x 가 null 이면 제자리로). 마을의 문어 = 월드 x · z · 심사 / 경쟁 문어 = 공연장 방 안 x · z (무대 · 시상대 위면 그 높이에 선다) */
       if (!VIL.on) return false; var ex = vilIsExtra(id); if (!ex && !VILLAGE.npc(id)) return false;
@@ -7032,9 +7113,10 @@ var SCENE3D = (function () {
       var P = vilSeatPts(), here = PL.place;
       return vilWalk(P.aisle, Math.atan2(P.seat.x - P.aisle.x, P.seat.z - P.aisle.z)).then(function (ok) {
         if (!ok || PL.place !== here || !vilCafeOk() || PL_IN.v || PL.sit || PL.hop) return false;
-        PL.sitYaw = P.yaw; PL.faceCam = false; PL.wantYaw = P.yaw; V.seated = true; V.inside = P.inside; vilSeatEmit(true);
-        if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.seat); PL.sit = true; plSnap(); return true; }
-        return new Promise(function (res) { PL.hop = { t: 0, a: PL.pos.clone(), b: P.seat, sit: true, cafe: true, done: function () { res(VIL.cafe.seated); } }; });
+        PL.sitYaw = P.yaw; PL.faceCam = false; PL.wantYaw = P.yaw; V.seated = true; V.inside = P.inside;
+        /* 알림 (ppol:cafe-seat) 은 앉는 폴짝을 건 뒤에 — 알림을 받고 곧장 cafeCup · cafeSeated 를 부르면 vilSeatSync 가 '앉지도 뛰지도 않음' 으로 보고 내려 버렸다 (11-24 C) */
+        if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.seat); PL.sit = true; plSnap(); vilSeatEmit(true); return true; }
+        return new Promise(function (res) { PL.hop = { t: 0, a: PL.pos.clone(), b: P.seat, sit: true, cafe: true, done: function () { res(VIL.cafe.seated); } }; vilSeatEmit(true); });
       });
     }
     function vilCafeCup(on) { vilSeatSync(); var cm = vilCupM(); if (!cm) return false; cm.visible = !!on && VIL.cafe.seated; dither.still = 0; return cm.visible; }
@@ -7187,9 +7269,9 @@ var SCENE3D = (function () {
       });
       /* 계산대 (뒷벽 오른쪽) + 금전함 (서랍 · 숫자 판 · 손잡이) + 포장 종이 두루마리 + 리본 타래 */
       vilCounter(L, -2.95, -1.55, -1.75, VC.woodL, VC.rose);   /* 계산대는 뒷벽 왼쪽 (문 가까이 — 들어서면 가게 문어가 화면에 든다) */
-      L.push({ g: box(0.34, 0.16, 0.3), m: M(-1.83, 0.62, -1.78), c: VC.slateD }, { g: box(0.3, 0.14, 0.12), m: M(-1.83, 0.75, -1.88, -0.4, 0, 0), c: VC.slateA }, { g: box(0.2, 0.05, 0.02), m: M(-1.83, 0.79, -1.83, -0.4, 0, 0), c: VC.cream }, { g: box(0.3, 0.04, 0.02), m: M(-1.83, 0.58, -1.625), c: VC.yellow }, { g: box(0.03, 0.12, 0.03), m: M(-1.63, 0.72, -1.8), c: VC.iron }, { g: new T.SphereGeometry(0.03, 5, 4), m: M(-1.63, 0.79, -1.8), c: VC.red });
-      L.push({ g: new T.CylinderGeometry(0.06, 0.06, 0.4, 8), m: M(-2.7, 0.6, -1.85, 0, 0, Math.PI / 2), c: VC.paper }, { g: new T.CylinderGeometry(0.02, 0.02, 0.46, 6), m: M(-2.7, 0.6, -1.85, 0, 0, Math.PI / 2), c: VC.woodD }, { g: new T.CylinderGeometry(0.05, 0.05, 0.05, 8), m: M(-2.35, 0.565, -1.6), c: VC.red }, { g: new T.CylinderGeometry(0.05, 0.05, 0.05, 8), m: M(-2.25, 0.565, -1.66), c: VC.blueL });
-      L.push({ g: box(0.5, 0.3, 0.5), m: M(S.keeper[0], 0.15, S.keeper[2]), c: VC.woodA }, { g: box(0.52, 0.04, 0.52), m: M(S.keeper[0], 0.24, S.keeper[2]), c: VC.woodD });   /* 가게 문어의 발판 */
+      L.push({ g: box(0.34, 0.16, 0.3), m: M(-1.75, 0.62, -1.78), c: VC.slateD }, { g: box(0.3, 0.14, 0.12), m: M(-1.75, 0.75, -1.88, -0.4, 0, 0), c: VC.slateA }, { g: box(0.2, 0.05, 0.02), m: M(-1.75, 0.79, -1.75, -0.4, 0, 0), c: VC.cream }, { g: box(0.3, 0.04, 0.02), m: M(-1.75, 0.58, -1.625), c: VC.yellow }, { g: box(0.03, 0.12, 0.03), m: M(-1.6, 0.72, -1.8), c: VC.iron }, { g: new T.SphereGeometry(0.03, 5, 4), m: M(-1.6, 0.79, -1.8), c: VC.red });
+      L.push({ g: new T.CylinderGeometry(0.06, 0.06, 0.3, 8), m: M(-2.83, 0.6, -1.72, Math.PI / 2, 0, 0), c: VC.paper }, { g: new T.CylinderGeometry(0.02, 0.02, 0.36, 6), m: M(-2.83, 0.6, -1.72, Math.PI / 2, 0, 0), c: VC.woodD }, { g: new T.CylinderGeometry(0.05, 0.05, 0.05, 8), m: M(-1.95, 0.565, -1.6), c: VC.red }, { g: new T.CylinderGeometry(0.05, 0.05, 0.05, 8), m: M(-2.05, 0.565, -1.56), c: VC.blueL });   /* 11-24 리드 검토: 두루마리는 계산대 왼쪽 끝에 세로로 · 리본은 앞쪽 가장자리로 (가게 문어 얼굴 앞을 비운다) */
+      L.push({ g: box(0.5, S.keeper[1] - 0.04, 0.5), m: M(S.keeper[0], (S.keeper[1] - 0.04) / 2, S.keeper[2]), c: VC.woodA }, { g: box(0.52, 0.04, 0.52), m: M(S.keeper[0], S.keeper[1] - 0.06, S.keeper[2]), c: VC.woodD });   /* 가게 문어의 발판 (높이는 keeper 자리를 따른다 — 계산대 위로 얼굴이 나오게) */
       /* 옷걸이 줄 (창 아래, 왼벽 따라): 발 둘 · 가로대 · 옷걸이에 걸린 옷 여섯 (어깨 + 몸 + 걸이 고리) */
       [-0.9, 0.3].forEach(function (z) { L.push({ g: box(0.05, 1.05, 0.05), m: M(-2.72, 0.525, z), c: VC.iron }, { g: box(0.34, 0.04, 0.06), m: M(-2.72, 0.02, z), c: VC.iron }); });
       L.push({ g: box(0.04, 0.04, 1.28), m: M(-2.72, 1.05, -0.3), c: VC.iron });
@@ -7415,6 +7497,7 @@ var SCENE3D = (function () {
       vilRoomLight(RM, false); vilSeatSync();
       var o = VR.npc[key]; if (o) { var f = st.reduced ? 0 : Math.floor(VIL.t / 0.8) % 2; if (f !== o.f) { o.f = f; o.m.position.y = o.y + (f ? PX : 0); dither.still = 0; } }
       if (key === 'cafe') vilRecordStep();
+      if (key === 'hall') vilHallWalk(dt);
       if (key === 'hall' && PL.place === 'inside' && !PL.sit && !PL.hop) { var hy = vilHallY(PL.pos.x, PL.pos.z); if (hy) plG.position.y += hy; }   /* 무대 · 길 위에 서면 그 높이만큼 올려 그린다 (걷는 값 PL.pos.y 는 0 그대로 — 마당 현관 마루와 같은 식) */
     }
     /* ── 카페 안의 움직이는 것: 내 잔 (cafeCup) · 턴테이블 위 레코드 (cafeRecord — 돌고, 음표가 떠오른다) ── */
@@ -8047,7 +8130,7 @@ var SCENE3D = (function () {
       stepHang(dt); stepIntro(dt);
       lampGlow.quaternion.copy(camera.quaternion); candleGlow.quaternion.copy(candleG.quaternion).invert().multiply(camera.quaternion);   /* 11-15: 양초 그룹이 상자와 같이 돌아도 글로우는 화면을 본다 */
       if (ATTIC_CUE) ATTIC_CUE.glow.quaternion.copy(camera.quaternion); if (LROOM) LROOM.cue.glow.quaternion.copy(camera.quaternion);   /* 11-15 계단 초롱 글로우도 늘 카메라 쪽으로 */
-      stepZoom(dt); stepPan(dt); placeCamera(); if (YARD_WIDE && PLACE.vis === 'yard') { wideHoldCentre(); fitShadowView(); wideCull(); wideStep(dt); } if (YARD_WIDE) { coverStep(dt); inFrame(dt); } updateOverlay();
+      stepZoom(dt); stepPan(dt); placeCamera(); if (YARD_WIDE && PLACE.vis === 'yard') { wideHoldCentre(); fitShadowView(); wideCull(); wideStep(dt); } if (YARD_WIDE) { coverStep(dt); inFrame(dt); jumpFollow(); } updateOverlay();
       if ((!st.offscreen || st.force) && !st.simOnly && !st.covered) draw(t0);   /* 덮임 (전체 화면 놀이, 11-22) 도 그리지 않는다 · 화면 밖(T4): 시뮬레이션은 위에서 다 돌았고 렌더 패스만 건너뛴다 · simOnly = 시험의 debugSim (그리지 않고 민다) */
       if (frameNo === 2 && !PORT.warm) { PORT.warm = true; try { portrait('idle', { shared: true }); } catch (e) { /* 초상 워밍업(셰이더 변형 컴파일 1회)은 실패해도 장면엔 영향 없음 */ } }
     }
@@ -8935,13 +9018,13 @@ var SCENE3D = (function () {
       debugDishSprite: function () { var o = TB.sprObj; if (!o || !o.visible || !TB.sprOn) return null; o.updateMatrixWorld(true); var pa = o.geometry.attributes.position.array, pts = []; for (var i = 0; i < (TB.sprN || 0); i++) { _tbw.set(pa[i * 3], pa[i * 3 + 1], pa[i * 3 + 2]).applyMatrix4(o.matrixWorld).project(camera); pts.push([(_tbw.x * 0.5 + 0.5) * S.rw, (1 - (_tbw.y * 0.5 + 0.5)) * S.rh]); } return { n: TB.sprN || 0, pts: pts, rw: S.rw, rh: S.rh, eaten: TB.eaten.slice() }; },
 
       /* [7-P] */
-      playerSpeeds: playerSpeeds, mannequins: mannequins, mannequinInfo: mannequinInfo, playerPose: playerPose, playerCloseup: playerCloseup, playerWalkPath: playerWalkPath, playerPlace: playerPlace,
+      playerSpeeds: playerSpeeds, itemTags: itemTags, debugItemColour: function (cat, id, look) { var h = plMainHex(cat, id, look); return { hex: h, family: plFamilyOf(cat, id, h), varies: plTagVaries(cat, id), table: !!PL_ITEM_FAMILY[cat + ':' + id] }; }, mannequins: mannequins, mannequinInfo: mannequinInfo, playerPose: playerPose, playerCloseup: playerCloseup, playerWalkPath: playerWalkPath, playerPlace: playerPlace,
 
       /* [7-W] */
       area: wideArea, goPlace: wideGo, beachShells: wideShells, beachShellNear: wideShellNear, beachShellGo: wideShellGo, groundY: function (x, z) { return YARD_WIDE ? wideGroundY(+x || 0, +z || 0) : 0; },   /* 11-21 7차 바깥 한 장: 선 곳 · 빠른 이동 · 조개 · 땅 높이 */
       wideFocus: function () { if (YARD_WIDE && PLACE.vis === 'yard' && PL.place === 'yard') { wideCentreOn(); placeCamera(); } },   /* 시험: 화면 가운데를 내 캐릭터로 (debugPlayerAt 으로 멀리 옮긴 뒤) */
       roomSpotGo: function (btnId) { var k = WIDE_SPOT_KEYS.filter(function (q) { return WIDE_SPOT[q].room === IN.key && WIDE_SPOT[q].sp.btn === btnId; })[0], el = k && SPOTS[k]; return !!(k && el && PLACE.vis === 'inside' && inSpotWalk(k, el)); },   /* 단추를 바로 누른 때 (키보드): 멀면 걸어간 뒤 다시 누른다 → 걷기 시작했나 */
-      roomFocus: viewFocus,   /* roomFocus(x, z[, y]): 그 자리를 화면 위쪽 3분의 1 에 (방 안 · 넓은 바깥 둘 다) */
+      roomFocus: viewFocus, roomHome: viewHome,   /* roomHome(): 카드 · 결과를 닫은 뒤 화면을 캐릭터 쪽으로 (0.3 s) */   /* roomFocus(x, z[, y]): 그 자리를 화면 위쪽 3분의 1 에 (방 안 · 넓은 바깥 둘 다) */
       roomReg: ROOM_REG, enterRoom: enterRoom, leaveRoom: leaveRoom, inRoom: function () { return PLACE.vis === 'inside' ? IN.key : null; }, roomSlots: inSlots, debugRoomStub: inStub,   /* 11-22 계약 C9: 걸어 들어가는 방 */
       project: function (x, y, z) { var g = groupOf(PLACE.vis), p = _hp.set(+x || 0, +y || 0, +z || 0); if (g) p.add(g.position); p.project(camera); return { x: S.offX + (p.x * 0.5 + 0.5) * S.cw, y: S.offY + (1 - (p.y * 0.5 + 0.5)) * S.ch }; },   /* 지금 보이는 장소의 좌표 → #scene 안 CSS px (카드 · 표를 붙일 자리) */
       wideReg: WIDE_REG,   /* 시험 · 다른 스크립트가 등록부에 얹을 때 (갈래 V 는 이 파일 안에서 바로 쓴다) */
@@ -8953,7 +9036,7 @@ var SCENE3D = (function () {
       npcSpots: vilNpcSpots, npcSet: vilNpcSet, npcMark: vilNpcMark, cafeSit: vilCafeSit, cafeCup: vilCafeCup, cafeSeated: function () { vilSeatSync(); return VIL.cafe.seated && !!PL.sit; },
       stage: vilStageInfo, stageDress: vilStageDress, npcPlace: vilNpcPlace, npcPose: vilNpcPoseSet,
       cafeRecord: vilCafeRecord, debugVillageRoom: vilRoomDebug, villageRooms: function () { var o = {}, hn = Object.keys(VR.hallNpc).map(function (id) { var q = VR.hallNpc[id]; return { id: id, pose: q.pose, at: [q.m.position.x, q.y, q.m.position.z] }; }); Object.keys(VR.rooms).forEach(function (k) { var RM = VR.rooms[k]; o[k] = { keeper: !!VR.npc[k], guests: Object.keys(RM.guests || {}), lamps: !!(RM.lamp && RM.lamp.visible), cup: !!(RM.cup && RM.cup.visible), record: !!(RM.rec && RM.rec.on) }; }); return { cur: vilRoomKey(), rooms: o, hallNpcs: hn, lift: +plG.position.y.toFixed(3), reg: typeof ROOM_REG !== 'undefined' && !!ROOM_REG }; },
-      villageGo: vilGo, villageNear: vilNear, debugVillageWalk: function () { return { end: VIL.walkEnd, due: VIL.walkDue, t: VIL.t, walking: !!PL.walking, d: VIL.walkD, place: PL.place, inp: !!PL_IN.v }; }, debugVillageStub: vilStub, debugVillageFrame: vilStubFrame, debugVillageHide: function (on) { if (VIL.root) { VIL.root.visible = !on; dither.still = 0; } return !!VIL.root; },
+      villageGo: vilGo, villageNear: vilNear, npcWalk: vilNpcWalk, npcWalking: vilHallWalking, debugVillageWalk: function () { return { end: VIL.walkEnd, due: VIL.walkDue, t: VIL.t, walking: !!PL.walking, d: VIL.walkD, place: PL.place, inp: !!PL_IN.v }; }, debugVillageStub: vilStub, debugVillageFrame: vilStubFrame, debugVillageHide: function (on) { if (VIL.root) { VIL.root.visible = !on; dither.still = 0; } return !!VIL.root; },
       villageInfo: function () { var c = {}; (CUTS.yard || []).forEach(function (e) { if (/^vil/.test(e.key)) c[e.key] = e.cut; }); return { on: VIL.on, built: VIL.built, stub: VIL.stub, npcs: Object.keys(VIL.npcs).map(function (id) { var o = VIL.npcs[id]; return { id: id, pose: o.pose, at: [o.m.position.x, o.m.position.y, o.m.position.z], visible: o.m.visible }; }), marks: Object.keys(VIL.marks).filter(function (id) { return VIL.marks[id].visible; }), cut: c, cup: !!(VIL.cup && VIL.cup.visible), seated: VIL.cafe.seated, lamps: !!(VIL.lampGlow && VIL.lampGlow.visible), snow: VIL.snow.some(function (m) { return m.visible; }), calls: callsBy.yard || 0, reg: { builders: WIDE_REG.builders.length, spots: WIDE_REG.spots.length, boxes: WIDE_REG.boxes.length, circles: WIDE_REG.circles.length, segments: WIDE_REG.segments.length, frame: WIDE_REG.frame.length } }; },
 
       /* [7-N] */
