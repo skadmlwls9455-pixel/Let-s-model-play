@@ -1712,6 +1712,7 @@ var APP = (function () {
     if (afterSheet(e)) return;   /* 시트가 닫힌 바로 뒤 (두 번 톡의 둘째): 초대 · 데려오기 · 연출 감기 어느 것도 하지 않는다 */
     salonFinish();   /* 미용실 연출 중이면 남은 연출을 한 번에 감고 (새 색 · 대야 치움 · 남은 행) 초대는 평소대로 */
     var now = Date.now(), rapid = goRapid(now), quick = now - lastGo < SKIP_GUARD; lastGo = now;   /* 11-24 quick: 앞 누름에서 SKIP_GUARD 안 — 모션 줄이기면 출발이 한 프레임이라 두 번 톡의 둘째가 skipReady 를 지나 산책을 바로 끝냈다 */
+    if (quick) return;   /* 11-24: 앞 톡에서 600 ms 안의 톡은 무엇도 하지 않는다 — 출발이 늦게 켜지는 기기에선 둘째 톡이 아직 '집에 있음' 을 보고 초대를 또 불러 산책이 바로 끝났다 (점검: 412 · 모션 줄이기 · 19.5시) */
     if (inPlay() || roomJob) {   /* 놀이방이면 먼저 문으로 문어 방에 돌아와서 (8물결). 누른 *그때* 의 뜻대로: 다녀오는 중이었으면 데려오기(건너뛰기)만 — 문을 지나는 사이 산책이 끝났으면 아무것도 안 한다 (새 산책이 되지 않게) */
       var wasBusy = busy;
       backToOctRoom().then(function (ok) {
@@ -5504,7 +5505,7 @@ var APP = (function () {
     var lh = parseFloat(cs.lineHeight); if (lh > 0 && lh < 20) el.style.setProperty('line-height', '20px');
   }
   function ffFix(root) { if (!root || root.nodeType !== 1) return; ffOne(root); var all = root.getElementsByTagName('*'); for (var i = 0; i < all.length; i++) ffOne(all[i]); }
-  function ffFlush() { FF.raf = 0; var q = FF.q; FF.q = []; if (FF.on) for (var i = 0; i < q.length; i++) if (q[i].isConnected) ffFix(q[i]); ffAfter(); }
+  function ffFlush() { FF.raf = 0; var q = FF.q, t0 = performance.now(), n = 0; FF.q = []; if (FF.on) for (var i = 0; i < q.length; i++) if (q[i].isConnected && !(i && q[i] === q[i - 1])) { ffFix(q[i]); n++; } FF.cost = { ms: +(performance.now() - t0).toFixed(2), roots: n }; ffAfter(); }
   function ffSnapLog() { var log = $('log'); if (!log || !logStick) return; var top = logSnapTop(log); progScrollUntil = Date.now() + 80; logTarget = -1; log.scrollTop = top; logLastY = log.scrollTop; }
   function ffAfter() { if (!FF.moved) return; FF.moved = false; try { ffSnapLog(); requestAnimationFrame(function () { try { ffSnapLog(); } catch (e) {} }); } catch (e) { /* 부팅 중: 로그가 아직 없다 */ } }   /* 바로 놓고 (부드러운 스크롤이 크기 바뀜과 엉키지 않게) 다음 프레임에 한 번 더 */   /* 크기가 바뀌면 오늘의 산책 로그의 맨 위 행 맞춤을 다시 (붙여 둔 채일 때만 — scrollLog 가 본다) */
   function ffSync() {
@@ -5512,7 +5513,7 @@ var APP = (function () {
     if (on === FF.on) return; FF.on = on;
     if (on) {
       ffFix(document.body);
-      FF.mo = FF.mo || new MutationObserver(function (ms) { ms.forEach(function (m) { for (var i = 0; i < m.addedNodes.length; i++) { var n = m.addedNodes[i]; FF.q.push(n.nodeType === 1 ? n : m.target); } }); ffFlush(); });   /* 그린 그 자리에서 (다음 프레임 전) */
+      FF.mo = FF.mo || new MutationObserver(function (ms) { ms.forEach(function (m) { for (var i = 0; i < m.addedNodes.length; i++) { var n = m.addedNodes[i]; FF.q.push(n.nodeType === 1 ? n : m.target); } }); if (!FF.raf) FF.raf = requestAnimationFrame(ffFlush); });   /* 한 프레임에 한 번 묶어서 (로그는 재기 직전에 logSnapTop 이 먼저 적용한다) */
       FF.mo.observe(document.body, { childList: true, subtree: true });
     } else {
       if (FF.mo) FF.mo.disconnect();
@@ -7417,6 +7418,7 @@ var APP = (function () {
     /* 7차 갈래가 밖에 내놓는 것 (테스트 · 도구): 제 표시 줄 바로 아래에 '이름: 값,' 줄로 (쉼표까지) */
     /* [7-U] */
     get dayCount() { return dayCount(); },
+    get fontFloor() { return { on: FF.on, cost: FF.cost || null, raised: document.querySelectorAll('[data-ff]').length }; },
 
     /* [7-T] */
     recipeEat: recipeEat, recipesUnlocked: recipesUnlocked, cookServe: cookServeTest, cookCtx: cookCtx,
