@@ -174,8 +174,8 @@ async function main() {
   await page.waitForTimeout(700);
   await page.evaluate(function () { window.__ctSeen = {}; window.__ctRec = setInterval(function () { var s = APP.contestStage; if (s) window.__ctSeen[s.stage + s.n] = 1; }, 20); });   /* 11-23: 쇼 단계는 페이지 안에서 20 ms 마다 적는다 — 바깥에서 120 ms 마다 묻던 것은 바쁜 CI 에서 첫 걸음 (walk2) 을 놓쳤다 (7b70acb) */
   await page.click('#ct-go');
-  r = await page.evaluate(function () { return { st: APP.contestStage, closeHidden: document.getElementById('contest-close').hidden, skip: !!document.getElementById('ct-skip') }; });
-  check(r.st && r.st.stage === 'walk' && r.st.n === 1 && r.skip && r.closeHidden, '쇼 시작: 걸어 나오기 1 · 넘기기 단추');
+  r = await page.evaluate(function () { return { st: APP.contestStage, seen: Object.keys(window.__ctSeen || {}), closeHidden: document.getElementById('contest-close').hidden, skip: !!document.getElementById('ct-skip') }; });
+  check(r.st && r.seen[0] === 'walk1' && r.skip && r.closeHidden, '쇼 시작: 걸어 나오기 1 · 넘기기 단추 ' + JSON.stringify(r));   /* 11-24: 첫 단계는 페이지 안 기록으로 — 바쁜 기계에서는 묻는 사이 walk2 로 넘어가 있었다 */
   r = await page.evaluate(function () { var dpr = window.devicePixelRatio, bad = [], th = document.querySelectorAll('#ct-show canvas.ct-art'); Array.prototype.forEach.call(th, function (c) { var per = c.getBoundingClientRect().width * dpr / c.width; if (Math.abs(per - Math.round(per)) > 0.01) bad.push(per); }); return { n: th.length, bad: bad, rule: !!document.querySelector('#ct-show .ct-rule'), stage: !!document.querySelector('#ct-show .ct-lineup.ct-stage') }; });
   check(r.n >= 12 && r.bad.length === 0 && r.stage, '쇼 무대의 그림 ' + r.n + '개 모두 기기 픽셀 정수 배 ' + JSON.stringify(r.bad));
   check(r.rule, "쇼 중에도 '채점 규칙' 꼬리표");
@@ -382,7 +382,7 @@ async function main() {
   r = await page.evaluate(function () {
     var sc = APP.scene, inside = null; window.__in = [];
     sc.roomReg = { hall: {} }; sc.inRoom = function () { return inside; }; sc.area = function () { return inside ? null : 'plaza'; };
-    sc.roomFocus = function (x, z) { window.__sc.push(['focus', x, z]); return true; };
+    sc.roomFocus = function (x, z) { window.__sc.push(['focus', x, z]); return true; }; sc.roomHome = null;   /* 이 쪽은 roomHome 이 없을 때 (W 전) 의 뒷길: roomFocus 로 대기 자리. roomHome 은 아래 쪽에서 */
     APP.goInside = function (k) { window.__in.push(k); inside = k; document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: k } })); return Promise.resolve(true); };
     window.VILLAGE = window.VILLAGE || {}; window.VILLAGE.PLAZA_SHOW = { poster: [40, -6] };
     return APP.contestStageTap();
@@ -396,6 +396,34 @@ async function main() {
   await page.waitForFunction(function () { return !APP.contestLive; }, null, { timeout: 30000 });
   r = await page.evaluate(function () { return { focus: window.__sc.filter(function (c) { return c[0] === 'focus'; }).length, plac: document.querySelectorAll('#ct-world .ct-wplac').length, vis: Array.prototype.filter.call(document.querySelectorAll('#ct-world .ct-wplac'), function (p) { return p.style.visibility !== 'hidden'; }).length }; });
   check(r.focus >= 2 && r.plac === 3 && r.vis === 3, '공연장 쇼: 팻말 · 단상 때 화면을 맞춤 · 팻말 셋이 보임');
+  check(await page.evaluate(function () { var c = document.getElementById('ct-wcard'); return !!c && c.classList.contains('top') && c.style.bottom === 'auto'; }), '공연장 안의 결과 카드는 장면 위쪽 (아래의 밖으로 · 단상 위 캐릭터를 안 덮게)');
+  await page.evaluate(function () { window.__sc.length = 0; });
+  await page.click('#ct-w-close');
+  r = await page.evaluate(function () { return null; });
+  r = await page.evaluate(function () { return { me: window.__sc.filter(function (c) { return c[0] === 'me'; }), focus: window.__sc.filter(function (c) { return c[0] === 'focus'; }) }; });
+  check(r.me.length === 1 && r.me[0][1] === 1 && r.me[0][2] === 1 && r.me[0][3] === 0 && r.focus.length === 1 && r.focus[0][1] === 1 && r.focus[0][2] === 1, '결과 카드를 닫으면 쇼 전으로: 대기 자리로 내려오고 화면도 거기로 ' + JSON.stringify(r));
+  await page.waitForTimeout(1300);   /* 1초마다 다시 맞춤 · 방에 다시 들어섬: 내 캐릭터를 단상에 도로 올리지 않는다 (경쟁자만) */
+  await page.evaluate(function () { document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: 'hall' } })); });
+  await page.waitForTimeout(1000);
+  r = await page.evaluate(function () { return { me: window.__sc.filter(function (c) { return c[0] === 'me'; }), riv: window.__sc.filter(function (c) { return c[0] === 'place' && /^rival/.test(c[1]) && c[2] != null; }).length }; });
+  check(r.me.length === 1 && r.riv >= 3, '닫은 뒤 다시 맞춰도 · 방에 다시 들어서도 내 캐릭터는 단상에 안 올라감 (경쟁자는 단상에) ' + JSON.stringify(r));
+  /* V 의 npcWalk · W 의 roomHome 이 있을 때: 경쟁자는 길을 걸음으로 (점마다 옮기지 않음) · 닫으면 roomHome */
+  await page.evaluate(function (d) { sessionStorage.setItem('__ct_day', d); }, SUN);
+  await page.reload(); await page.waitForSelector('#btn-go:not(.away)'); await page.waitForTimeout(600); await page.evaluate(STUB); await page.evaluate(SCENE_STUB);
+  await giftWait(page, SUN);
+  await page.evaluate(function () {
+    var sc = APP.scene, inside = 'hall'; sc.roomReg = { hall: {} }; sc.inRoom = function () { return inside; }; sc.area = function () { return null; };
+    sc.roomFocus = function () { window.__sc.push(['focus']); return true; }; sc.roomHome = function () { window.__sc.push(['home']); return true; };
+    sc.npcWalk = function (id, pts, face) { window.__sc.push(['nwalk', id, pts.length, face === undefined]); return new Promise(function (r) { setTimeout(function () { r(true); }, 200); }); };
+    APP.contestStageTap();
+  });
+  await page.waitForFunction(function () { return !!document.getElementById('ct-w-go'); }, null, { timeout: 8000 });
+  await page.waitForTimeout(700); await page.click('#ct-w-go');
+  await page.waitForFunction(function () { return !APP.contestLive; }, null, { timeout: 30000 });
+  r = await page.evaluate(function () { var sc = window.__sc; return { nwalk: sc.filter(function (c) { return c[0] === 'nwalk'; }), hops: sc.filter(function (c) { return c[0] === 'place' && /^rival/.test(c[1]) && c[2] != null && c[3] === 0; }).length }; });
+  check(r.nwalk.length === 3 && r.nwalk.every(function (c) { return c[2] === 4 && c[3]; }) && r.hops === 0, 'npcWalk 가 있으면 경쟁자 셋이 길 네 점을 걸음으로 (방향은 안 넘김 · 점 옮기기 없음) ' + JSON.stringify(r));
+  await page.evaluate(function () { window.__sc.length = 0; }); await page.click('#ct-w-close');
+  check(await page.evaluate(function () { return window.__sc.some(function (c) { return c[0] === 'home'; }) && !window.__sc.some(function (c) { return c[0] === 'focus'; }); }), '닫으면 roomHome (있을 때)');
   check(page._errs.length === 0, '오류 없음');
   await ctx.close();
   /* 뒷길: 움직임 줄이기 · 무대 함수 없음 → 시트 */
@@ -417,6 +445,10 @@ async function main() {
   ctx = await context(browser, SAT, rec);
   page = await open(ctx); await page.evaluate(SCENE_STUB);
   function small() { return page.evaluate(function () { var bad = []; ['contest-sheet', 'ct-world'].forEach(function (id) { var root = document.getElementById(id); if (!root) return; var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); while (w.nextNode()) { var t = w.currentNode, el = t.parentElement; if (!t.nodeValue.trim() || !el || el.closest('.sr-only')) continue; var r = el.getBoundingClientRect(); if (r.width < 1 || getComputedStyle(el).visibility === 'hidden') continue; var f = parseFloat(getComputedStyle(el).fontSize); if (f < 16) bad.push(t.nodeValue.trim().slice(0, 8) + ' ' + f); } }); return { font: document.documentElement.dataset.font || '', bad: bad }; }); }
+  await page.evaluate(function () { APP.contestStageTap(); });
+  await page.waitForFunction(function () { return !!document.getElementById('ct-w-go'); }, null, { timeout: 8000 }); r = await small();
+  check(r.font !== 'pixel' && r.bad.length === 0, '픽셀 글꼴 끔 · 장면 참가 카드 (주제 제목 · 단추): 16 px 아래 글자 없음 ' + JSON.stringify(r));
+  await page.click('#ct-w-close');
   await page.evaluate(function () { APP.openContest(); }); r = await small();
   check(r.font !== 'pixel' && r.bad.length === 0, '픽셀 글꼴 끔 · 시트 (나가기 전): 16 px 아래 글자 없음 ' + JSON.stringify(r));
   await page.evaluate(function () { APP.contestEnter(); APP.contestSkip(); }); r = await small();
