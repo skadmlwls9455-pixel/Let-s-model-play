@@ -290,7 +290,7 @@ async function scenarioMain(browser) {
   ok(strip.h <= 44 && strip.rows === 1 && Math.abs(strip.nameTop - strip.pipsTop) < 12, '상태 줄 한 줄 ≤44px (' + strip.h + 'px)');
   ok(/등불/.test(strip.txt) && /1\/8/.test(strip.txt) && !strip.demo && !strip.stat && !/여행|함께한 날/.test(strip.txt), "상태 줄: '등불 … 1/8', 예전 데모 두뇌 칩·여행·함께한 날 없음");
   /* 11-15 5차 (주인: 작은 글자도 받침이 안 뭉개지게 — Galmuri7 8px → Galmuri11 12px, 기기 배율에 맞추면 최대 약 13.7px): 작되 읽히는 크기 */
-  ok(strip.tag === '데모' && strip.tagSr === '데모 규칙이 움직이는 중' && strip.tagFs >= 10 && strip.tagFs <= 14, "상태 줄(좁으면 바로 아래)의 작은 '데모' 표시 (" + strip.tagFs + "px, 화면 낭독기 '데모 규칙이 움직이는 중')");
+  ok(strip.tag === '데모' && strip.tagSr === '데모 규칙이 움직이는 중' && strip.tagFs >= 16 && strip.tagFs <= 16 * 1.35 + 0.02, "상태 줄(좁으면 바로 아래)의 '데모' 표시 — 11-22 보이는 글자는 16 px 이상 (" + strip.tagFs + "px, 화면 낭독기 '데모 규칙이 움직이는 중')");
   ok(!(await page.$('#hint-in')) && !(await page.$('#hint-box')), '힌트 칸은 개발 화면에도 없다 (11-10 에 없앰)');
   ok((await page.$$('#log .lrow')).length >= 5, '로그 행 ≥5');
   await page.waitForTimeout(200);
@@ -5128,7 +5128,7 @@ async function scenarioTapFit(browser) {
           if (r.dy) slid++;
           /* 11-15 갈래 H (주인: 말풍선이 화면을 가린다) → 5차 (주인: 글자 조금 키움): 폭은 장면의 60% (150~220px) · 픽셀은 Galmuri11 을 기기 px 에 맞춘 약 17px
              (눈금 12 × 정수 n / 배율 — index.html 머리 스크립트의 --bub-fs, 배율 1 이면 12px) · 줄 높이 1.5 · 24+… 줄은 세 줄 안 */
-          var capW = Math.max(150, Math.min(220, Math.floor(r.sw * 0.6))), bubFs = Math.ceil(12 * Math.max(1, Math.round(17 * r.dpr / 12)) / r.dpr * 64) / 64;   /* 11-15 js/fs-snap.js 와 같은 식 (1/64 px 올림) */
+          var capW = Math.max(150, Math.min(220, Math.floor(r.sw * 0.6))), bubFs = (function (v) { return v > 17 * 1.35 ? 17 : v; })(Math.ceil(12 * Math.max(1, Math.ceil(17 * r.dpr / 12 - 1e-6)) / r.dpr * 64) / 64);   /* 11-24 js/fs-snap.js 그대로 (17 px 밑으로 안 내려감 · 다음 눈금이 너무 크면 17) */
           if (r.w > capW + 0.5) sizeBad.push(vp[0] + ' ' + theme + ' ' + a + ' L' + li + ' w ' + r.w + ' > ' + capW);
           if (theme === 'pixel' && (Math.abs(parseFloat(r.fs) - bubFs) > 0.01 || r.ff !== 'Galmuri11' || Math.abs(r.lh - bubFs * 1.5) > 0.6)) sizeBad.push(vp[0] + ' pixel font ' + r.fs + ' ' + r.ff + ' ' + r.lh + ' (바람 ' + bubFs + ')');
           if (li === 1 && r.lh && Math.round((r.h - r.bt) / r.lh) > 3) sizeBad.push(vp[0] + ' ' + theme + ' ' + a + ' lines ' + Math.round((r.h - r.bt) / r.lh));
@@ -8200,6 +8200,36 @@ async function scenarioU7(browser) {
     await o5.ctx.close();
   }
   await o4.ctx.close();
+  /* 11-24 보이는 글자는 16 px 이상 — 픽셀 글꼴을 끈 (data-font=system) 화면 · 시트 전부 (HUD · 등불 말풍선 · 알림 · 설정 (다 펼침) · 앨범 · 오늘의 산책 · 가방 · 옷장) */
+  var sysRec = JSON.parse(JSON.stringify(rec)); sysRec.settings.pixelFont = false;
+  var o6 = await openApp(360, 740, sysRec), p6 = o6.page;
+  function small(tag) { return p6.evaluate(function (tag) {
+    var out = [], w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), n;
+    while ((n = w.nextNode())) {
+      var e = n.parentElement; if (!n.nodeValue.trim() || !e || e.closest('svg, .sr-only')) continue;
+      var r = e.getBoundingClientRect(); if (!r.width || !r.height) continue;
+      var p = e, vis = true; while (p) { var c = getComputedStyle(p); if (c.display === 'none' || c.visibility === 'hidden' || (p.tagName === 'DIALOG' && !p.open) || (p.tagName === 'DETAILS' && !p.open && !e.closest('summary'))) { vis = false; break; } p = p.parentElement; }
+      if (vis && parseFloat(getComputedStyle(e).fontSize) < 15.99) out.push(tag + ':' + (e.id || e.className || e.tagName) + ' ' + getComputedStyle(e).fontSize + ' «' + n.nodeValue.trim().slice(0, 8) + '»');
+    }
+    return out; }, tag); }
+  var sm = [].concat(await small('hud'));
+  await p6.click('#pips'); await p6.waitForTimeout(200); sm = sm.concat(await small('tip'));
+  for (var sh of [['set', function () { APP.openSettings(); [].forEach.call(document.querySelectorAll('#set-body details'), function (d) { d.open = true; }); }], ['album', function () { document.getElementById('btn-album').click(); }],
+    ['today', function () { var b = document.getElementById('btn-today'); if (b) b.click(); }], ['bag', function () { document.getElementById('btn-bag').click(); }], ['look', function () { APP.openLook(); }]]) {
+    await p6.evaluate(function () { [].forEach.call(document.querySelectorAll('dialog[open]'), function (d) { d.close(); }); }); await p6.waitForTimeout(300);
+    await p6.evaluate(sh[1]); await p6.waitForTimeout(700); sm = sm.concat(await small(sh[0]));
+  }
+  ok(sm.length === 0, '픽셀 글꼴을 끈 화면 · 시트에 16 px 밑 글자 없음 (' + sm.length + ' · ' + sm.slice(0, 4).join(' / ') + ')');
+  await o6.ctx.close();
+  /* 11-24 모션 줄이기: '산책 갈래?' 를 빠르게 두 번 (110 ms) 톡 → 둘째는 데려오기가 아니다 (SKIP_GUARD 600 ms 는 모션과 상관없이) */
+  var rmRec = JSON.parse(JSON.stringify(rec)); rmRec.settings.motion = 'reduce';
+  var o7 = await openApp(360, 740, rmRec), p7 = o7.page;
+  await p7.route(/wikipedia\.org/, function (r) { return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }); });   /* 나가는 산책의 위키 요청은 밖으로 보내지 않는다 */
+  await p7.emulateMedia({ reducedMotion: 'reduce' }); await p7.waitForTimeout(2600);
+  var dt = await p7.evaluate(function () { return new Promise(function (res) { var g = document.getElementById('btn-go'); g.click(); setTimeout(function () { g.click(); }, 110);
+    setTimeout(function () { res({ away: g.classList.contains('away'), running: APP.state.trips.filter(function (t) { return t.status === 'running'; }).length }); }, 450); }); });
+  ok(dt.away && dt.running === 1, '모션 줄이기: 빠른 두 번 톡의 둘째는 산책을 끝내지 않는다 (' + JSON.stringify(dt) + ')');
+  await o7.ctx.close();
   ok(bag.length === 0, 'U7: 페이지 오류 없음 (' + bag.join(' | ').slice(0, 200) + ')');
 }
 

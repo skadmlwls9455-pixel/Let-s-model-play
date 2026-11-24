@@ -1711,18 +1711,18 @@ var APP = (function () {
   function goTap(e) {
     if (afterSheet(e)) return;   /* 시트가 닫힌 바로 뒤 (두 번 톡의 둘째): 초대 · 데려오기 · 연출 감기 어느 것도 하지 않는다 */
     salonFinish();   /* 미용실 연출 중이면 남은 연출을 한 번에 감고 (새 색 · 대야 치움 · 남은 행) 초대는 평소대로 */
-    var now = Date.now(), rapid = goRapid(now); lastGo = now;
+    var now = Date.now(), rapid = goRapid(now), quick = now - lastGo < SKIP_GUARD; lastGo = now;   /* 11-24 quick: 앞 누름에서 SKIP_GUARD 안 — 모션 줄이기면 출발이 한 프레임이라 두 번 톡의 둘째가 skipReady 를 지나 산책을 바로 끝냈다 */
     if (inPlay() || roomJob) {   /* 놀이방이면 먼저 문으로 문어 방에 돌아와서 (8물결). 누른 *그때* 의 뜻대로: 다녀오는 중이었으면 데려오기(건너뛰기)만 — 문을 지나는 사이 산책이 끝났으면 아무것도 안 한다 (새 산책이 되지 않게) */
       var wasBusy = busy;
       backToOctRoom().then(function (ok) {
         if (!ok) return;
-        if (wasBusy) { if (busy && Date.now() >= skipReady) skip(); }
+        if (wasBusy) { if (busy && !quick && Date.now() >= skipReady) skip(); }
         else if (!busy && !rapid) invite();
       });
       return;
     }
     if (!busy) { if (!rapid) invite(); return; }
-    if (Date.now() < skipReady) return;
+    if (quick || Date.now() < skipReady) return;
     skip();
   }
   /* 상태 줄 이름 옆 '데모' 표시 (정직 표기, index.html #brain-tag): 데모 두뇌(규칙)가 고르는 동안 늘. 모델(MCP)이 고른 여행을 재생하는 동안만 숨긴다 */
@@ -2434,6 +2434,7 @@ var APP = (function () {
      위 가장자리에 걸린 행이 있으면: 가장 새 행이 그대로 다 보이는 한 그 행 머리로 올린다. 그래도 안 되면 아래 빈칸을 그만큼 늘려 다음 행 머리에 맞춘다 (잘린 상자 대신 아래 여백).
      행 자리는 offsetTop (#log 가 기준 — 등장 애니메이션의 transform 과 상관없이). logGap = 맨 아래에서 올린 만큼 (손으로 굴렸는지 볼 때 같이 뺀다) */
   function logSnapTop(log) {
+    if (FF.on) ffFix(log);   /* 11-24: 기본 글꼴의 글자 바닥을 재기 전에 (그린 뒤에 커지면 맞춘 자리가 어긋났다) */
     log.style.paddingBottom = '';
     var max = log.scrollHeight - log.clientHeight, view = log.clientHeight, GAP = 2;
     logGap = 0;
@@ -5491,11 +5492,49 @@ var APP = (function () {
      두 창의 open 속성만 본다 (달리기 창은 처음 열 때 생긴다 → body 아래 전부를 본다. 여닫는 코드는 건드리지 않는다) */
   function sceneCoverSync() { if (scene && typeof scene.setCovered === 'function') scene.setCovered(!!document.querySelector('#runner-dlg[open], #cook-overlay[open]')); }
   if (window.MutationObserver && document.body) new MutationObserver(sceneCoverSync).observe(document.body, { attributes: true, attributeFilter: ['open'], subtree: true });
+  /* 11-24 글자 바닥 (점검: 픽셀 글꼴을 끄면 (data-font=system) 13 · 12 · 11 px 글자가 HUD · 설정 · 앨범 · 일기 · 가방 · 옷장 곳곳에 남았다 — 보이는 글자는 늘 16 px 이상):
+     기본 글꼴 모드에서만, 글자를 직접 품은 요소의 계산된 크기가 16 px 밑이면 그 요소만 16 px 로 올린다 (줄 높이가 모자라면 함께). 새로 그려지는 시트 · 줄도 따라 맞춘다 (MutationObserver).
+     픽셀 글꼴로 돌아가면 올린 것을 다 거둔다. SVG 글 (포스터 그림 속) · 화면 낭독기 전용 글 (.sr-only) 은 건드리지 않는다 */
+  var FF = { on: false, mo: null, q: [], raf: 0, moved: false };
+  function ffText(el) { for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3 && /\S/.test(c.nodeValue)) return true; return false; }
+  function ffOne(el) {
+    if (el.nodeType !== 1 || el.namespaceURI !== 'http://www.w3.org/1999/xhtml' || el.closest('svg, .sr-only, [data-ff-skip]') || !ffText(el)) return;
+    var cs = getComputedStyle(el), f = parseFloat(cs.fontSize); if (!(f > 0) || f >= 15.99) return;
+    el.style.setProperty('font-size', '16px'); el.setAttribute('data-ff', '1'); FF.moved = true;
+    var lh = parseFloat(cs.lineHeight); if (lh > 0 && lh < 20) el.style.setProperty('line-height', '20px');
+  }
+  function ffFix(root) { if (!root || root.nodeType !== 1) return; ffOne(root); var all = root.getElementsByTagName('*'); for (var i = 0; i < all.length; i++) ffOne(all[i]); }
+  function ffFlush() { FF.raf = 0; var q = FF.q; FF.q = []; if (FF.on) for (var i = 0; i < q.length; i++) if (q[i].isConnected) ffFix(q[i]); ffAfter(); }
+  function ffSnapLog() { var log = $('log'); if (!log || !logStick) return; var top = logSnapTop(log); progScrollUntil = Date.now() + 80; logTarget = -1; log.scrollTop = top; logLastY = log.scrollTop; }
+  function ffAfter() { if (!FF.moved) return; FF.moved = false; try { ffSnapLog(); requestAnimationFrame(function () { try { ffSnapLog(); } catch (e) {} }); } catch (e) { /* 부팅 중: 로그가 아직 없다 */ } }   /* 바로 놓고 (부드러운 스크롤이 크기 바뀜과 엉키지 않게) 다음 프레임에 한 번 더 */   /* 크기가 바뀌면 오늘의 산책 로그의 맨 위 행 맞춤을 다시 (붙여 둔 채일 때만 — scrollLog 가 본다) */
+  function ffSync() {
+    var on = document.documentElement.getAttribute('data-font') === 'system';
+    if (on === FF.on) return; FF.on = on;
+    if (on) {
+      ffFix(document.body);
+      FF.mo = FF.mo || new MutationObserver(function (ms) { ms.forEach(function (m) { for (var i = 0; i < m.addedNodes.length; i++) { var n = m.addedNodes[i]; FF.q.push(n.nodeType === 1 ? n : m.target); } }); ffFlush(); });   /* 그린 그 자리에서 (다음 프레임 전) */
+      FF.mo.observe(document.body, { childList: true, subtree: true });
+    } else {
+      if (FF.mo) FF.mo.disconnect();
+      Array.prototype.forEach.call(document.querySelectorAll('[data-ff]'), function (el) { el.style.removeProperty('font-size'); el.style.removeProperty('line-height'); el.removeAttribute('data-ff'); FF.moved = true; });
+    }
+    ffAfter();
+  }
+  if (window.MutationObserver && document.body) { new MutationObserver(ffSync).observe(document.documentElement, { attributes: true, attributeFilter: ['data-font'] }); ffSync(); }
+  /* 11-24 폰 (꼬리표를 바 아래에 매다는 폭): 'D+N' 은 '데모' 꼬리표의 실제 오른쪽 끝에서 4 px — 글자 크기가 배율마다 달라 (16 · 18 · 20.6 px) 고정 자리는 겹치거나 벌어졌다 */
+  function placeDayN() {
+    var el = $('day-n'), tg = $('brain-tag'); if (!el || !tg) return;
+    if (getComputedStyle(el).position !== 'absolute' || tg.hidden || getComputedStyle(tg).position !== 'absolute') { el.style.removeProperty('left'); return; }
+    el.style.left = (tg.offsetLeft + tg.offsetWidth + 4) + 'px';
+  }
+  if (window.ResizeObserver) { var dnRO = new ResizeObserver(function () { placeDayN(); }); ['brain-tag', 'day-n'].forEach(function (id) { var e = $(id); if (e) dnRO.observe(e); }); }
+  window.addEventListener('resize', function () { placeDayN(); });
   function dayCount() { return isObj(S.user) && Array.isArray(S.user.days) ? S.user.days.length : 0; }
   function renderDayN() {
     var el = $('day-n'), n = dayCount(); if (!el) return;
     el.hidden = n < 1; el.textContent = n < 1 ? '' : 'D+' + n;
     if (n < 1) el.removeAttribute('aria-label'); else el.setAttribute('aria-label', '들어온 지 ' + n + '일째');
+    placeDayN();
   }
 
 
