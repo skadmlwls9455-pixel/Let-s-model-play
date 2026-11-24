@@ -6907,12 +6907,12 @@ var SCENE3D = (function () {
       VIL.want.forEach(function (w) {
         if (!vilIsExtra(w.id) || seen[w.id]) return; seen[w.id] = true;
         var sp = vilHallSpot(w.id), key = w.color + '|' + w.hat + '|' + (w.pose === 'sleep'), o = VR.hallNpc[w.id];
-        if (!o || o.key !== key) { if (o) { RM.g.remove(o.m); o.m.geometry.dispose(); } var m = new T.Mesh(vilOctGeo(w.color, w.hat, w.pose === 'sleep'), lambert); m.receiveShadow = true; m.name = 'npc-hall-' + w.id; RM.g.add(m); o = VR.hallNpc[w.id] = { m: m, key: key }; }
+        if (!o || o.key !== key) { var tw0 = o && o.tw; if (o) { RM.g.remove(o.m); o.m.geometry.dispose(); } var m = new T.Mesh(vilOctGeo(w.color, w.hat, w.pose === 'sleep'), lambert); m.receiveShadow = true; m.name = 'npc-hall-' + w.id; RM.g.add(m); o = VR.hallNpc[w.id] = { m: m, key: key, tw: tw0 }; if (tw0) m.position.set(tw0.x, vilHallY(tw0.x, tw0.z), tw0.z); }   /* 색 · 모자가 바뀌어 다시 지어도 걷던 자리에서 잇는다 */
         var R = VIL.R, sit = w.pose === 'sit', fresh = !o.tw; o.pose = w.pose; o.y = sp.y; o.sit = sit ? 0.06 : 0;
         /* 11-24 리드 검토: 방이 보이는 동안 자리를 옮기면 걸어간다 (vilHallWalk — 한 걸음씩 순간 이동하지 않는다). 처음 · 모션 감소 · 방이 안 보일 땐 바로 그 자리에 */
         var mv = !fresh && !st.reduced && vilRoomKey() === 'hall' && w.pose !== 'sleep' && Math.hypot(o.tw.x - sp.x, o.tw.z - sp.z) > 0.02;
         if (!mv) { o.tw = { x: sp.x, z: sp.z, face: sp.face, tx: sp.x, tz: sp.z, tf: sp.face, ph: 0 }; o.m.position.set(sp.x, sp.y - o.sit, sp.z); o.m.rotation.set(0, sp.face, 0); }
-        else { o.tw.tx = sp.x; o.tw.tz = sp.z; o.tw.tf = sp.face; }
+        else { o.tw.tx = sp.x; o.tw.tz = sp.z; o.tw.tf = sp.face; o.tw.spd = 0; }
         o.m.scale.set(R * (w.pose === 'sleep' ? 1.08 : 1), R * (w.pose === 'sleep' ? 0.78 : sit ? 0.9 : 1), R * (w.pose === 'sleep' ? 1.08 : 1));
       });
       Object.keys(VR.hallNpc).forEach(function (id) { if (!seen[id]) { RM.g.remove(VR.hallNpc[id].m); VR.hallNpc[id].m.geometry.dispose(); delete VR.hallNpc[id]; } });
@@ -6924,7 +6924,7 @@ var SCENE3D = (function () {
         var o = VR.hallNpc[id], w = o.tw; if (!w) return;
         var dx = w.tx - w.x, dz = w.tz - w.z, d = Math.hypot(dx, dz);
         if (d < 1e-4) { if (w.ph) { w.ph = 0; o.m.rotation.set(0, w.tf, 0); o.m.position.set(w.x, vilHallY(w.x, w.z) - o.sit, w.z); dither.still = 0; } else if (o.m.rotation.y !== w.tf) { o.m.rotation.y = w.tf; dither.still = 0; } return; }
-        var stp = Math.min(d, 1.6 * dt); w.x += dx / d * stp; w.z += dz / d * stp; w.ph += dt * 9; moving = true;
+        var stp = Math.min(d, (w.spd || 1.6) * dt); w.x += dx / d * stp; w.z += dz / d * stp; w.ph += dt * 9; moving = true;
         var arrived = d - stp < 1e-4, hy = vilHallY(w.x, w.z);
         o.m.position.set(w.x, hy - o.sit + (arrived ? 0 : (Math.floor(w.ph / Math.PI) % 2 ? PX : 0)), w.z);
         o.m.rotation.set(0, arrived ? w.tf : Math.atan2(dx, dz), arrived ? 0 : Math.sin(w.ph) * 0.12);
@@ -6933,7 +6933,8 @@ var SCENE3D = (function () {
       if (moving) dither.still = 0;
     }
     function vilHallWalking() { return Object.keys(VR.hallNpc).filter(function (id) { var w = VR.hallNpc[id].tw; return w && Math.hypot(w.tx - w.x, w.tz - w.z) > 1e-4; }); }
-    function vilNpcWalk(id, pts, face) {   /* 공연장 문어를 점들 [[x, z], …] 을 따라 걷게 → Promise<끝까지 갔나> (방이 안 보이면 마지막 점에 바로 선다) */
+    function vilNpcWalk(id, pts, opt) {   /* opt = 마지막에 볼 쪽 (rad) 또는 { speed (m/s, 기본 1.6), face } */
+      var face = typeof opt === 'number' ? opt : opt && opt.face != null ? +opt.face : null, spd = opt && +opt.speed > 0 ? +opt.speed : 0;   /* 공연장 문어를 점들 [[x, z], …] 을 따라 걷게 → Promise<끝까지 갔나> (방이 안 보이면 마지막 점에 바로 선다) */
       if (!vilIsExtra(id) || !pts || !pts.length) return Promise.resolve(false);
       var i = 0;
       return new Promise(function (res) {
@@ -6941,7 +6942,7 @@ var SCENE3D = (function () {
           var o = VR.hallNpc[id]; if (!o || !VR.rooms.hall) { res(false); return; }
           if (i >= pts.length) { res(true); return; }
           var p = pts[i], nx = pts[i + 1], f = nx ? Math.atan2(nx[0] - p[0], nx[1] - p[1]) : (face != null ? face : Math.atan2(p[0] - (o.tw ? o.tw.x : p[0]), p[1] - (o.tw ? o.tw.z : p[1]) || 1));
-          i++; vilNpcPlace(id, p[0], p[1], f);
+          i++; vilNpcPlace(id, p[0], p[1], f); if (VR.hallNpc[id] && VR.hallNpc[id].tw) VR.hallNpc[id].tw.spd = spd;
           var tick = function () { var w = VR.hallNpc[id] && VR.hallNpc[id].tw; if (!w) { res(false); return; } if (Math.hypot(w.tx - w.x, w.tz - w.z) < 1e-4) next(); else setTimeout(tick, 50); };
           tick();
         };
@@ -7065,9 +7066,10 @@ var SCENE3D = (function () {
       var P = vilSeatPts(), here = PL.place;
       return vilWalk(P.aisle, Math.atan2(P.seat.x - P.aisle.x, P.seat.z - P.aisle.z)).then(function (ok) {
         if (!ok || PL.place !== here || !vilCafeOk() || PL_IN.v || PL.sit || PL.hop) return false;
-        PL.sitYaw = P.yaw; PL.faceCam = false; PL.wantYaw = P.yaw; V.seated = true; V.inside = P.inside; vilSeatEmit(true);
-        if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.seat); PL.sit = true; plSnap(); return true; }
-        return new Promise(function (res) { PL.hop = { t: 0, a: PL.pos.clone(), b: P.seat, sit: true, cafe: true, done: function () { res(VIL.cafe.seated); } }; });
+        PL.sitYaw = P.yaw; PL.faceCam = false; PL.wantYaw = P.yaw; V.seated = true; V.inside = P.inside;
+        /* 알림 (ppol:cafe-seat) 은 앉는 폴짝을 건 뒤에 — 알림을 받고 곧장 cafeCup · cafeSeated 를 부르면 vilSeatSync 가 '앉지도 뛰지도 않음' 으로 보고 내려 버렸다 (11-24 C) */
+        if (st.reduced || st.hidden || ctxLost()) { PL.pos.copy(P.seat); PL.sit = true; plSnap(); vilSeatEmit(true); return true; }
+        return new Promise(function (res) { PL.hop = { t: 0, a: PL.pos.clone(), b: P.seat, sit: true, cafe: true, done: function () { res(VIL.cafe.seated); } }; vilSeatEmit(true); });
       });
     }
     function vilCafeCup(on) { vilSeatSync(); var cm = vilCupM(); if (!cm) return false; cm.visible = !!on && VIL.cafe.seated; dither.still = 0; return cm.visible; }
