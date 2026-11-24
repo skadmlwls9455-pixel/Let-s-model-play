@@ -7292,7 +7292,7 @@ var APP = (function () {
   function ctBack() {   /* 결과 카드를 닫으면 쇼 전으로: 내 캐릭터는 단상에서 대기 자리로 내려오고 화면도 거기로 (자리 단추가 다시 보이게). 경쟁자 · 팻말은 그날 단상에 남는다 */
     var st = ctStageInfo(); if (!st || !ctInHall() || !Array.isArray(st.wait)) return;
     if (typeof scene.playerPlace === 'function') ctSceneCall('playerPlace', st.wait[0], st.wait[1], 0);
-    ctFocus(st.wait[0], st.wait[1], 1.0);
+    if (typeof scene.roomHome === 'function') ctSceneCall('roomHome'); else ctFocus(st.wait[0], st.wait[1], 1.0);   /* W: 화면을 내 캐릭터 쪽으로 · 자리 단추가 다시 보인다 */
   }
   function ctFocus(x, z, y) { if (ctInHall()) ctSceneCall('roomFocus', x, z, y); }   /* W: 그 자리를 화면 위쪽 3분의 1 에 (팻말 · 단상을 보여 줄 때) */
   function ctLiveEnter(ev) {
@@ -7315,7 +7315,7 @@ var APP = (function () {
     (function run() {
       var seq = Promise.resolve().then(function () { return ctWaitMs(700); });
       [0, 1, 2].forEach(function (k) {   /* 경쟁자 셋이 차례로 길을 지난다 */
-        if (typeof scene.npcWalk === 'function') seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'walk', k + 1); return ctWithin(ctSceneCall('npcWalk', 'rival' + k, st.path, { speed: 1.4 }), 6000); });   /* V: 걸음으로 길을 지난다 */
+        if (typeof scene.npcWalk === 'function') seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'walk', k + 1); return ctWithin(ctSceneCall('npcWalk', 'rival' + k, st.path), 8000); });   /* V: 걸음으로 길을 지난다 (셋째 값은 방향 — 안 넘기면 걸어온 쪽) */
         else st.path.forEach(function (pt, pi) { seq = seq.then(function () { if (!live()) return; ctLiveSet(L, 'walk', k + 1); var nx = st.path[pi + 1] || st.path[pi - 1] || pt; ctSceneCall('npcPlace', 'rival' + k, pt[0], pt[1], Math.atan2(nx[0] - pt[0], nx[1] - pt[1])); return ctWaitMs(260); }); });
         seq = seq.then(function () { if (!live()) return; ctSceneCall('npcPlace', 'rival' + k, null); return ctWaitMs(120); });
       });
