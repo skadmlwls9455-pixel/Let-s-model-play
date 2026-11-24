@@ -376,6 +376,44 @@ async function main() {
   check((await shells(page)) === s0 + eL.shells && (await wcard(page)).kind === 'result' && (await page.evaluate(function () { return document.querySelectorAll('#ct-world .ct-wplac').length; })) === 3, '넘긴 뒤 남은 박자가 아무것도 안 바꿈');
   check(page._errs.length === 0, '오류 없음');
   await ctx.close();
+  /* 11-24 주인: 콘테스트가 열리지 않는 날 (평일) 엔 공연장에 들어가지 않는다 — 공연장 문 · 광장 무대 · 포스터 톡 모두 한 줄만. 포스터는 광장에서 계속 보인다.
+     (예전엔 평일에도 들어가서 빈 무대를 봤다 — 그 검사는 이 규칙으로 바꿨다) */
+  ctx = await context(browser, WED);
+  page = await open(ctx); await page.evaluate(SCENE_STUB);
+  r = await page.evaluate(function () {
+    var sc = APP.scene; window.__in = [];
+    sc.roomReg = { hall: {} }; sc.inRoom = function () { return null; }; sc.area = function () { return 'plaza'; };
+    APP.goInside = function (k) { window.__in.push(k); return Promise.resolve(true); };
+    window.VILLAGE = window.VILLAGE || {}; window.VILLAGE.PLAZA_SHOW = { poster: [40, -6] };
+    var t = APP.contestStageTap();
+    ['btn-in-hall', 'btn-plaza-stage'].forEach(function (id) { var b = document.getElementById(id); if (b) b.click(); });
+    return t;
+  });
+  await page.waitForTimeout(500);
+  var wd = await page.evaluate(function () { var t = document.getElementById('toast'); return { inn: window.__in.join(), toast: t ? t.textContent : '', card: !!document.getElementById('ct-wcard'), sheet: document.getElementById('contest-sheet').open }; });
+  check(r === true && wd.inn === '' && !wd.card && !wd.sheet, '평일: 무대 · 공연장 문 · 광장 무대 톡 모두 공연장에 들어가지 않음 (카드 · 시트도 없음) ' + JSON.stringify(wd));
+  check(wd.toast.indexOf('지금은 콘테스트 하는 때가 아니야. 주말에 열려.') >= 0, "평일: 한 줄 '지금은 콘테스트 하는 때가 아니야. 주말에 열려.' (" + wd.toast + ')');
+  await page.waitForTimeout(1300);
+  await page.evaluate(function () { var p = document.getElementById('ct-wposter'); if (p) p.click(); });
+  await page.waitForTimeout(300);
+  check(await page.evaluate(function () { var p = document.getElementById('ct-wposter'); return !!p && !!p.querySelector('canvas') && window.__in.length === 0; }), '평일: 이번 주 주제 포스터는 광장에 그대로 · 눌러도 들어가지 않음');
+  check(page._errs.length === 0, '오류 없음');
+  await ctx.close();
+  /* 안에 있는 동안 날이 바뀌어 닫혀도 내보내지 않는다 (나가는 길만 그대로) */
+  ctx = await context(browser, SUN);
+  page = await open(ctx); await page.evaluate(SCENE_STUB);
+  r = await page.evaluate(function () {
+    var sc = APP.scene, inside = 'hall'; window.__out = 0;
+    sc.roomReg = { hall: {} }; sc.inRoom = function () { return inside; }; sc.area = function () { return null; };
+    APP.goOutside = function () { window.__out++; inside = null; return Promise.resolve(true); };
+    window.__ppolTest.today = '2026-11-23';
+    return APP.contestStageTap();
+  });
+  await page.waitForFunction(function () { return !!document.getElementById('ct-wcard'); }, null, { timeout: 8000 });
+  check(await page.evaluate(function () { return window.__out === 0 && APP.scene.inRoom() === 'hall' && !!document.getElementById('ct-w-closed') && !document.getElementById('ct-w-go'); }), '안에서 날이 바뀌어 닫히면: 내보내지 않음 · 무대 톡은 참가 카드에 주말에 열려 (나가기 없음)');
+  check(page._errs.length === 0, '오류 없음');
+  await ctx.close();
+
   /* 공연장 방이 있을 때 (V · W 대역): 밖에서 무대 톡 → 공연장으로 들어감 (카드 없음) · 안에서 무대 톡 → 참가 카드 · 팻말은 공연장 안에서만 보임 */
   ctx = await context(browser, SAT);
   page = await open(ctx); await page.evaluate(SCENE_STUB);

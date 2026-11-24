@@ -7415,8 +7415,14 @@ var APP = (function () {
     near.then(function () { return ctL === L ? ctWalk([st.wait], 5000) : null; }).then(function () { if (ctL === L) { ctL = null; ctEntryCard(); } });
     return true;
   }
-  function ctGoHall() {   /* 공연장 문 (#btn-in-hall · 광장 무대 #btn-plaza-stage) → 방 안으로. 안에서 무대를 톡하면 쇼가 시작된다 */
+  var ctNoteAt = -1e9;
+  function ctGoHall() {   /* 공연장 문 (#btn-in-hall · 광장 무대 #btn-plaza-stage · 포스터) → 방 안으로. 안에서 무대를 톡하면 쇼가 시작된다 */
     var A = window.APP; if (!ctHallMode() || !A || typeof A.goInside !== 'function') return false;
+    var wk = CT.week(todayKey());
+    if (!wk || !wk.open) {   /* 11-24 주인: "콘테스트도 안 하는 때에는 맵에 굳이 안 들어가게 해도 될 거 같음. 하는 시간이 아냐." — 닫힌 날엔 들어가지 않고 한 줄만 (언제 열리는지 사실로) */
+      if (performance.now() - ctNoteAt > 1200) { ctNoteAt = performance.now(); toast(CT.TEXT.notNow); }
+      return true;
+    }
     Promise.resolve(A.goInside('hall')).then(function (ok) { if (ok) ctSceneSync(true); });
     return true;
   }
