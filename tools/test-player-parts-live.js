@@ -92,7 +92,7 @@ function ok(c, m) { if (c) { pass++; console.log('  ok   ' + m); } else { fail++
   });
   console.log('== 내 캐릭터 새 부품 (' + r.counts + ')');
   ok(!r.cat.oldPaid.length && !r.cat.badTag.length && r.cat.defs && r.cat.keys, '목록: 예전 id · 팔지 않는 갈래는 shop null · 낱말은 정해진 것만 · 기본 모습 둘이 목록에 있고 열쇠 차례가 같다 ' + JSON.stringify([r.cat.oldPaid, r.cat.badTag]));
-  ok(r.cat.paid.length === 10 && r.cat.paid.every(x => { const p = +x.split('=')[1]; return p >= 12 && p <= 36; }), '가게 물건 10 (조개 12~36): ' + r.cat.paid.join(' '));
+  ok(r.cat.paid.length === 10 && r.cat.paid.every(x => { const p = +x.split('=')[1]; return p >= 4 && p <= 36; }), '가게 물건 10 (조개 4~36): ' + r.cat.paid.join(' '));
   ok(!r.eyes.white.length, '눈 10 × 눈 색 6: 눈 둘레에 흰색 픽셀 없음 ' + JSON.stringify(r.eyes.white.slice(0, 6)));
   ok(r.n === 72 && r.uniq >= 60 && !r.holes.length && !r.empty.length, '머리 × 몸 × 옷 ' + r.uniq + ' 조합 (앞 · 뒤): 구멍 없음 · 빈 그림 없음 ' + JSON.stringify(r.holes.slice(0, 8)));
   ok(r.diff.body && r.diff.brow === 4 && r.diff.eyes === 10 && r.diff.hair === 13 && r.diff.outfit === 17 && r.diff.acc === 12 && r.diff.shoes === 6, '몸 둘 · 눈썹 넷 · 눈 열 · 머리 열셋 · 옷 열일곱 · 장식 열둘 · 신발 여섯이 서로 다른 그림 ' + JSON.stringify(r.diff));

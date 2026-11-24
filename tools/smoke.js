@@ -8484,7 +8484,7 @@ async function scenarioPlayer7(browser) {
     w.cats.forEach(function (c) { c.items.forEach(function (i) { all.push(c.key + ':' + i.id);
       if (!Array.isArray(i.tags) || i.tags.some(function (t) { return q.TAGS.indexOf(t) < 0; }) || i.tags.filter(function (t) { return t.indexOf('c-') === 0; }).length > 1 || typeof i.name !== 'string' || !i.name) bad.push(c.key + ':' + i.id);
       if (q.OLD.indexOf(i.id) >= 0 && (i.shop !== null || !i.owned)) bad.push('old ' + c.key + ':' + i.id);
-      if (i.shop && !(i.shop.price >= 12 && i.shop.price <= 36)) bad.push('price ' + i.id);
+      if (i.shop && !(i.shop.price >= 4 && i.shop.price <= 36)) bad.push('price ' + i.id);   /* 11-24 가게 갈래 S: 첫날 조개로도 하나는 사게 야구모자 4 · 목도리 5 */
       if (!!i.shop === i.owned) bad.push('owned ' + i.id); }); });
     var shop = []; w.cats.forEach(function (c) { c.items.forEach(function (i) { if (i.shop) shop.push(c.key + ':' + i.id); }); });
     var P = APP.playerParts();
@@ -8496,7 +8496,7 @@ async function scenarioPlayer7(browser) {
   }, { OLD: OLD, TAGS: TAGS });
   ok(a.look === 'tousle,octee,sneaker,none,a,soft' && a.scene === 'octee', 'P7 새로 시작한 사람의 기본 모습: 부스스 · 문어 티 · 운동화 · 장식 없음 · 몸 a · 둥근 눈썹 (' + a.look + ')');
   ok(a.keys === 'hair13,outfit17,shoes6,acc12' && a.n === '2,4,10,13,17,6,12' && !a.bad.length, 'P7 옷장 목록: 머리 13 · 옷 17 · 신발 6 · 장식 12 (몸 2 · 눈썹 4 · 눈 10) · 물건마다 이름 · 정해진 낱말만 · 색 갈래는 하나 · 예전 것은 전부 그냥 가진 것 ' + JSON.stringify([a.keys, a.n, a.bad]));
-  ok(a.shop.join() === 'outfit:sailor,outfit:fisher,outfit:windbreak,outfit:cardigan,outfit:suit,shoes:hightop,acc:cap,acc:headphones,acc:scarf,acc:bag', 'P7 가게 물건 열 가지 (조개 12~36) ' + a.shop.join());
+  ok(a.shop.join() === 'outfit:sailor,outfit:fisher,outfit:windbreak,outfit:cardigan,outfit:suit,shoes:hightop,acc:cap,acc:headphones,acc:scarf,acc:bag', 'P7 가게 물건 열 가지 (조개 4~36) ' + a.shop.join());
   ok(a.wearing === 'hair:tousle,outfit:octee,shoes:sneaker,acc:none' && a.wtags, 'P7 wearing(): 지금 입은 머리 · 옷 · 신발 · 장식과 낱말 (' + a.wearing + ')');
   ok(a.refuse === false && a.still === 'octee' && !a.user, 'P7 아직 없는 가게 옷은 입을 수 없다 (setPlayerPart false · 옷 그대로 · 가진 것 기록 없음)');
   if (a.mode === '3d') ok(a.sp && a.sp.walk === 2.2 && Math.abs(a.sp.run - 3.74) < 0.01 && a.thumb === '64x64', 'P7 scene.playerSpeeds() 걷기 2.2 · 뛰기 3.74 · itemThumb 64 px 그림 ' + JSON.stringify([a.sp, a.thumb]));
