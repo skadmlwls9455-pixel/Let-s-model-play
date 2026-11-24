@@ -33,7 +33,8 @@ console.log('== 옷 선반');
   ok(changed, n + '개: 날이 바뀌면 선반이 바뀐다');
 });
 (function () {   /* 연속 한 바퀴 (바퀴 경계에 맞춘 날부터) 에 전부 정확히 */
-  var C = catalogue(26), len = SHOP.cycleLen(26), d0 = Math.floor(Date.UTC(2026, 10, 21) / 864e5), start = keyAdd(DAY, len - (d0 % len)), seen = {};
+  var C = catalogue(26); C.cats.forEach(function (c) { c.items.forEach(function (x) { if (x.shop && x.shop.price <= SHOP.SMALL) x.shop.price += 10; }); });   /* 작은 것이 없는 목록: 넷이 한 바퀴를 같이 돈다 */
+  var len = SHOP.cycleLen(26), d0 = Math.floor(Date.UTC(2026, 10, 21) / 864e5), start = keyAdd(DAY, len - (d0 % len)), seen = {};
   for (var d = 0; d < len; d++) keys(SHOP.stock('clothes', keyAdd(start, d), C, {})).forEach(function (k) { seen[k] = 1; });
   eq(Object.keys(seen).length, 26, '한 바퀴에 전부');
 })();
@@ -61,6 +62,24 @@ console.log('== 옷 선반');
   eq(SHOP.stock('clothes', DAY, { cats: [] }, {}).items, [], '살 것이 없으면 빈 선반');
   eq(SHOP.stock('clothes', DAY, null, null).items, [], '목록이 없으면 빈 선반');
   eq(SHOP.stock('clothes', DAY, catalogue(2), {}).items.length, 2, '둘뿐이면 둘');
+})();
+
+(function () {   /* 11-24: 날마다 첫날 조개로도 살 수 있는 것 하나 */
+  var C = catalogue(26), small = SHOP.shopItems(C).filter(function (x) { return x.price <= SHOP.SMALL; }), seen = {}, everyDay = true;
+  ok(small.length >= 2, '보기 목록에 작은 것이 있다');
+  for (var d = 0; d < 30; d++) { var it = SHOP.stock('clothes', keyAdd(DAY, d), C, {}).items, sm = it.filter(function (x) { return x.price <= SHOP.SMALL; }); if (sm.length !== 1 || it.length !== 4) everyDay = false; sm.forEach(function (x) { seen[x.key] = 1; }); }
+  ok(everyDay, '날마다 작은 것이 꼭 하나 (네 칸)');
+  eq(Object.keys(seen).length, small.length, '작은 것도 돌아가며 다 나온다');
+  var own = {}; small.forEach(function (x) { own[x.key] = '2026-01-01'; });
+  var full = SHOP.stock('clothes', DAY, C, own).items;
+  ok(full.length === 4 && full.every(function (x) { return x.price > SHOP.SMALL; }), '작은 것을 다 가졌으면 그 칸은 다른 옷');
+  var k0 = SHOP.stock('clothes', DAY, C, {}).items.filter(function (x) { return x.price <= SHOP.SMALL; })[0].key, own2 = {}; own2[k0] = DAY;
+  ok(SHOP.stock('clothes', DAY, C, own2).items.some(function (x) { return x.key === k0 && x.owned; }), '오늘 산 작은 것은 그 자리에 남는다');
+  var REAL = { cats: [{ key: 'outfit', items: [['sailor', 24], ['fisher', 22], ['windbreak', 20], ['cardigan', 18], ['suit', 36]].map(function (p) { return { id: p[0], name: p[0], shop: { price: p[1] } }; }) },
+    { key: 'shoes', items: [{ id: 'hightop', name: 'hightop', shop: { price: 14 } }] }, { key: 'acc', items: [['cap', 4], ['headphones', 20], ['scarf', 5], ['bag', 16]].map(function (p) { return { id: p[0], name: p[0], shop: { price: p[1] } }; }) }] };
+  var okDays = 0, all = {}; for (var e = 0; e < 14; e++) { var t = SHOP.stock('clothes', keyAdd(DAY, e), REAL, {}).items; if (t.some(function (x) { return x.price <= 3 + 2; })) okDays++; t.forEach(function (x) { all[x.key] = 1; }); }
+  eq(okDays, 14, '이번 판 진짜 목록: 날마다 조개 5 이하가 하나');
+  eq(Object.keys(all).length, 10, '이번 판 진짜 목록: 두 주 안에 열 가지 다');
 })();
 
 console.log('== 잡화점');

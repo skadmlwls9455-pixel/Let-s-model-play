@@ -40,10 +40,10 @@ async function open(browser, o) {
 const U = page => page.evaluate(() => JSON.parse(JSON.stringify(APP.state.user)));
 const tiles = page => page.evaluate(() => [...document.querySelectorAll('#shop-body .shop-tile')].map(b => ({ key: b.dataset.key, own: !!b.querySelector('.sew-cost.own'), text: b.textContent, pic: !!b.querySelector('.shop-thumb, .shop-seed, .shop-dye') })));
 const setShells = (page, n) => page.evaluate(n => { APP.state.user.shells = n; APP.save(); APP.openShop(document.getElementById('shop-h').textContent === '옷가게' ? 'clothes' : 'goods'); }, n);
-const tile = (page, key) => page.click('#shop-body .shop-tile[data-key="' + key + '"]');
+const tile = async (page, key) => { await page.waitForTimeout(650); await page.click('#shop-body .shop-tile[data-key="' + key + '"]'); };   /* 앞의 '살래' · '그만' 뒤 0.6 s 칸 쉼이 지난 뒤 */
 const yes = async (page, wait) => { if (wait !== false) await page.waitForTimeout(700); await page.click('#shop-body .sew-yes'); };
 /* 같은 자리 두 번 톡: 칸을 누르자마자 (0.6 s 안) 살래를 누른다 */
-const dbl = (page, key) => page.evaluate(k => { document.querySelector('#shop-body .shop-tile[data-key="' + k + '"]').click(); const y = document.querySelector('#shop-body .sew-yes'); if (y) y.click(); }, key);
+const dbl = async (page, key) => { await page.waitForTimeout(650); return page.evaluate(k => { document.querySelector('#shop-body .shop-tile[data-key="' + k + '"]').click(); const y = document.querySelector('#shop-body .sew-yes'); if (y) y.click(); }, key); };
 const shot = async (page, name) => { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await page.waitForTimeout(400); await page.screenshot({ path: path.join(SHOTS, name + '.png') }); } };
 
 async function goodsRun(browser) {
@@ -226,7 +226,7 @@ function roomStub() {
 }
 const enter = (page, key) => page.evaluate(k => document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: k } })), key);
 const R = page => page.evaluate(() => Object.assign({ mq: window.__room.mq.slice(-1)[0], log: window.__room, trying: Object.assign({}, window.__try), said: window.__said.slice() }, APP.shopRoom));
-const cardBtn = async (page, text, wait) => { if (wait !== false) await page.waitForTimeout(700); await page.click('#shop-card button:has-text("' + text + '")'); };
+const cardBtn = async (page, text, wait) => { if (wait !== false) await page.waitForTimeout(700); await page.click('#shop-card button:has-text("' + text + '")'); if (!(await page.$('#shop-card'))) await page.waitForTimeout(650); };   /* 카드가 닫혔으면 0.6 s 쉼 (빠른 두 번 톡 막이) 이 지난 뒤 다음 누름 */
 async function roomRun(browser) {
   console.log('== 가게 방');
   const { ctx, page } = await open(browser, { shells: 10, q: SHOTS ? '' : '&scene=2d' });
@@ -311,6 +311,41 @@ async function roomRun(browser) {
   ok((await U(page)).shells === 3 && !!(await page.$('#shop-card')), '염료 (6) 는 모자라면 안 사진다');
   await page.mouse.click(8, 300);
   ok(!(await page.$('#shop-card')), '카드 밖을 누르면 접힌다');
+  /* 11-24 넷째 바퀴: 시스템 글꼴에서도 카드 글자 16px 이상 · 빠른 두 번 톡 · 움직임 줄이기에서도 방으로 · Esc */
+  await enter(page, 'clothes'); await page.waitForTimeout(150);
+  await page.evaluate(() => { APP.state.settings.pixelFont = false; document.documentElement.setAttribute('data-font', 'system'); });
+  await page.click('#btn-mq-2'); await page.waitForTimeout(300);
+  const fs1 = await page.evaluate(() => [...document.querySelectorAll('#shop-card .shop-card-name, #shop-card .shell-n, #shop-card .btn')].map(e => parseFloat(getComputedStyle(e).fontSize)));
+  ok(fs1.length >= 3 && fs1.every(f => f >= 16), '시스템 글꼴: 꼬리표 카드 글자 16px 이상 (' + fs1.join(',') + ')');
+  await page.keyboard.press('Escape');
+  ok(!(await page.$('#shop-card')), 'Esc 로 카드가 접힌다');
+  await page.click('#btn-mq-2'); await page.waitForTimeout(700);
+  const b1 = await page.evaluate(() => { const b = [...document.querySelectorAll('#shop-card button')].find(x => x.textContent === '입어 보기'); const r = b.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.evaluate(b => { const m = document.getElementById('btn-mq-3'); m.style.left = (b[0] - 22) + 'px'; m.style.top = (b[1] - 22) + 'px'; }, b1);   /* 입어 보기 바로 밑에 다른 마네킹 단추 */
+  await page.mouse.click(b1[0], b1[1]); await page.waitForTimeout(90); await page.mouse.click(b1[0], b1[1]);
+  await page.waitForTimeout(300);
+  r = await R(page);
+  ok(r.tried.length === 1 && r.card === null, '빠른 두 번 톡: 입어 보기만 되고 밑의 다른 마네킹 카드는 안 열린다');
+  await page.waitForTimeout(700); await page.click('#btn-mq-3'); await page.waitForTimeout(300);
+  ok(!!(await page.$('#shop-card')), '0.6 s 뒤에는 다시 누를 수 있다');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(100);
+  await page.click('#btn-room-counter'); await page.waitForTimeout(300);
+  const fs2 = await page.evaluate(() => [...document.querySelectorAll('#shop-card .shop-rc-list li, #shop-card .shop-rc-sum, #shop-card .shell-n, #shop-card .btn')].map(e => parseFloat(getComputedStyle(e).fontSize)));
+  ok(fs2.length >= 4 && fs2.every(f => f >= 16), '시스템 글꼴: 영수증 글자 16px 이상 (' + fs2.join(',') + ')');
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { APP.state.settings.pixelFont = true; document.documentElement.setAttribute('data-font', 'pixel'); });
+  await enter(page, null); await page.waitForTimeout(150);
+  /* 움직임 줄이기: 가게 문을 누르면 방으로 (시트 아님) */
+  await page.evaluate(() => { APP.state.settings.motion = 'reduce'; document.documentElement.setAttribute('data-motion', 'reduce'); window.__gi = []; window.__giOld = APP.goInside; APP.goInside = k => { window.__gi.push(k); document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: k } })); return Promise.resolve(true); }; });
+  await page.evaluate(() => { if (document.getElementById('scene').getBoundingClientRect().height < 560) { const b = document.getElementById('btn-in-clothes') || document.getElementById('btn-shop-clothes'); b.click(); } else APP.shopGo('clothes'); });   /* 3D 에선 건물 갈래가 문 단추를 먼저 잡아 걸어간다 — 같은 길 (shopGo) 을 바로 */
+  await page.waitForTimeout(400);
+  ok(await page.evaluate(() => window.__gi.join() === 'clothes' && !document.getElementById('shop-sheet').open && APP.shopRoom.key === 'clothes'), '움직임 줄이기에서도 가게 문은 방으로');
+  await page.evaluate(() => { APP.goInside = () => Promise.resolve(false); document.dispatchEvent(new CustomEvent('ppol:room', { detail: { key: null } })); });
+  await page.waitForTimeout(100);
+  await page.evaluate(() => { if (document.getElementById('scene').getBoundingClientRect().height < 560) { const b = document.getElementById('btn-in-goods') || document.getElementById('btn-shop-goods'); b.click(); } else APP.shopGo('goods'); });
+  await page.waitForTimeout(400);
+  ok(await page.evaluate(() => document.getElementById('shop-sheet').open), '못 들어가면 (2D 처럼) 예전 시트');
+  await page.evaluate(() => { document.getElementById('shop-sheet').close(); APP.goInside = window.__giOld; APP.state.settings.motion = 'auto'; document.documentElement.setAttribute('data-motion', 'auto'); });
   await ctx.close();
 }
 
