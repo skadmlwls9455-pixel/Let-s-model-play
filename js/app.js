@@ -3380,6 +3380,7 @@ var APP = (function () {
   var giftPick = null, giftBusy = false;
   function giftAwards() { try { var r = JSON.parse(localStorage.getItem('ppolppol_runner') || '{}'), a = (r.net && r.net.awards) || {}; return { paper_crown: !!(a.paper_crown && a.paper_crown.length), emperor_cape: !!(a.emperor_cape && a.emperor_cape.length) }; } catch (e) { return {}; } }
   function giftList() { var C = (typeof SCENE3D !== 'undefined' && Array.isArray(SCENE3D.COSTUMES)) ? SCENE3D.COSTUMES : [], aw = giftAwards(); return C.filter(function (c) { return !c.award || aw[c.id]; }); }
+  function giftJosa(w, p) { if (B && typeof B.josa === 'function') return B.josa(w, p); var c = String(w || '').charCodeAt(String(w || '').length - 1), j = c >= 0xAC00 && c <= 0xD7A3 ? (c - 0xAC00) % 28 : 0, P = { '은': ['은', '는'], '이': ['이', '가'], '을': ['을', '를'] }[p]; return P ? (j ? P[0] : P[1]) : p; }   /* 받침대로 은/는 · 이/가 · 을/를 */
   function giftWear() { return isObj(S.settings.octWear) ? S.settings.octWear : {}; }
   function giftOffer(id) {   /* id = 코스튬 | null('맨머리도 괜찮아' — 벗어도 된다고 알려 주기) */
     if (giftBusy) return;
@@ -3397,11 +3398,14 @@ var APP = (function () {
     ga.ids[gk] = 1;
     /* 11-12 (검증 F16): 답은 누른 순간에 정해 물어봤다는 표시와 같은 저장에 (쓰기로 했으면 쓰는 것까지) — 1.3 s 틈에 새로고침해도 물음만 쓰이고 답이 없는 일이 없게. 틈 뒤엔 보여 주기만 */
     var rng = mkRng(B ? B.hashSeed('gift', todayKey(), gk, name) : hash('gift|' + todayKey() + '|' + gk + '|' + name)), yes = rng() < (c ? 0.65 : 0.8), line;
+    /* 11-24 (주인: "문어가 아니라 플레이어 캐릭터가 안 두르기로 했다고 잘못 출력돼"): 줄의 주어가 이름 하나뿐이고 조사도 고정 ('말랑는') 이라, 장면에 서 있는 내 캐릭터의 일로 읽혔다
+       → 주어를 '문어 <이름>' 으로, 조사는 받침대로, 알림에도 '(데모 규칙이 고름)' — 누가 정했는지 (문어 · 데모 규칙) 가 줄마다 보이게 */
+    var who = '문어 ' + name, wE = who + giftJosa(name, '은'), wI = who + giftJosa(name, '이'), obj = c ? c.name + giftJosa(c.name, '을') : '';
     if (c) {
-      if (yes) { wear[c.slot] = c.id; line = name + '가 ' + c.name + (c.slot === 'back' ? ' 두르기로 했어.' : ' 쓰기로 했어.'); }
-      else line = name + '는 ' + c.name + (c.slot === 'back' ? ' 안 두르기로 했어.' : ' 안 쓰기로 했어.');
+      if (yes) { wear[c.slot] = c.id; line = wI + ' ' + obj + (c.slot === 'back' ? ' 두르기로 했어.' : ' 쓰기로 했어.'); }
+      else line = wE + ' ' + obj + (c.slot === 'back' ? ' 안 두르기로 했어.' : ' 안 쓰기로 했어.');
     } else {
-      if (yes) { wear = {}; line = name + '가 옷장에 넣어 두기로 했어.'; } else line = name + '는 그대로 쓰고 있기로 했어.';
+      if (yes) { wear = {}; line = wI + ' 옷장에 넣어 두기로 했어.'; } else line = wE + ' 그대로 쓰고 있기로 했어.';
     }
     if (yes) S.settings.octWear = wear;
     giftBusy = true; S.settings.giftN = (S.settings.giftN | 0) + 1; save();   /* 11-12 (검증 OW-6): questMark('gift') 는 뺐다 — '선물' 은 이번 주 할 일이 아니다 (66c8110). 11-11 (검증 W12): 물어본 것은 바로 저장 — 1.3 s 틈의 새로고침 · 다른 탭이 같은 물음을 또 연출하지 않게 */
@@ -3410,7 +3414,7 @@ var APP = (function () {
       giftBusy = false;
       if (yes) { scene.setOctWear(wear); refreshPortraits(); } expressRow('idle');   /* 11-15 (주인 C6 b): 데모 규칙이 고른 답이라 쓰기로 해도 평소 얼굴 (예전 happy) */   /* 11-11 (검증 W2): 안 쓴다는 답은 보통 얼굴로 (반눈 calm 은 시무룩해 보인다 — 미용실 '그대로' 와 같게, docs/SALON.md §3.4) */
       appendLogRow(ensureTodaySection(), logRow('선물', line + ' (데모 규칙이 고름)', 'c-amber', true));
-      toast(line);
+      toast(line + ' (데모 규칙이 고름)');
     }, 1300);
   }
   function renderGift(frag) {
