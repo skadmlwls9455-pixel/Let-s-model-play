@@ -44,7 +44,7 @@ const lsRows = page => page.evaluate(() => [...document.querySelectorAll('#shop-
 const lsWait = page => page.waitForTimeout(650);   /* 목록이 뜬 뒤 0.6 s 안의 누름은 받지 않는다 */
 const lsAdd = async (page, key, minus) => { const plus = await page.$('#shop-list .ls-item[data-key="' + key + '"] .ls-plus'); await page.click('#shop-list .ls-item[data-key="' + key + '"] ' + (plus ? (minus ? '.ls-minus' : '.ls-plus') : '.ls-row'), { force: true }); };   /* 가진 줄은 aria-disabled (낭독기용) — 톡하면 한 줄을 보이니 그대로 누른다 */
 const lsBuy = page => page.click('#shop-list .ls-buy');
-const lsMsg = page => page.evaluate(() => { const m = document.querySelector('#shop-list .ls-msg'); return m ? m.textContent : ''; });
+const lsMsg = page => page.evaluate(() => (APP.shopList && APP.shopList.msg) || '');   /* 알림 줄 (aria-live) 은 한 박자 뒤에 채워진다 — 상태에서 읽는다 */
 const purse = page => page.evaluate(() => { const p = document.querySelector('#shop-list .ls-purse'); return p ? p.textContent.replace(/\s+/g, ' ').trim() : ''; });
 const setShells = (page, n) => page.evaluate(n => { APP.state.user.shells = n; APP.save(); }, n);
 const shot = async (page, name) => { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await page.waitForTimeout(400); await page.screenshot({ path: path.join(SHOTS, name + '.png') }); } };
@@ -76,10 +76,18 @@ async function goodsRun(browser) {
   L = await LS(page);
   ok(L.cart[dye] === 2 && L.total === 16 && /조개가 2개 모자라/.test(await lsMsg(page)), '담으면 모자라는 것은 안 담긴다');
   await shot(page, 'goods-short-360');
+  /* 검토 11-24: 모자라 거절 뒤에도 포커스는 같은 + · 알림 줄은 같은 마디 */
+  const msgNode = await page.evaluateHandle(() => document.querySelector('#shop-list .ls-msg'));
+  await page.focus('#shop-list .ls-item[data-key="' + dye + '"] .ls-plus'); await page.keyboard.press('Enter'); await page.waitForTimeout(100);
+  ok(await page.evaluate(k => { const a = document.activeElement; return !!a && a.classList.contains('ls-plus') && a.closest('[data-key]').dataset.key === k; }, dye), '거절 뒤에도 포커스는 그 줄의 +');
+  ok(await page.evaluate(m => m === document.querySelector('#shop-list .ls-msg') && /모자라/.test(m.textContent), msgNode), '알림 줄은 늘 같은 마디 (낭독기가 읽는다)');
   await page.evaluate(() => { const b = document.querySelector('#shop-list .ls-buy'); b.click(); b.click(); });   /* 사기 두 번 톡 */
   let u = await U(page);
   ok(u.shells === 4 && u.seeds === 3 && u.dyes[dye.slice(4)] === (dye === 'dye:red' ? 3 : 2) && u.future.keep === 1 && u.dyes.later === 4, '사기: 한 번에 계산 (두 번 톡해도 한 번 · 모르는 값 그대로)');
   ok(await page.evaluate(() => /냈어/.test(document.getElementById('shop-list').textContent) && !document.querySelector('#shop-list .ls-buy')), '같은 자리가 영수증으로 (냈어 · 단추 없음)');
+  await page.evaluate(() => { const v = localStorage.getItem('ppolppol_v2'); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v, storageArea: localStorage })); });
+  await page.waitForTimeout(900);
+  ok(await page.evaluate(() => /냈어/.test(document.getElementById('shop-list').textContent) && !document.querySelector('#shop-list .ls-buy')), '영수증 동안 다른 탭의 저장이 와도 영수증 그대로');
   await shot(page, 'goods-paid-360');
   ok(await page.evaluate(() => +document.getElementById('bag-n').textContent) === 4, '조개 꼬리표도 같이');
   await page.waitForTimeout(1700);
@@ -88,14 +96,19 @@ async function goodsRun(browser) {
   await lsWait(page);
   await lsAdd(page, 'seed');
   ok((await LS(page)).cart.seed === 1, '씨앗은 남은 하나까지');
-  await page.click('#shop-close');
+  /* 다른 탭이 마지막 씨앗을 샀다 → 담은 수가 남은 수에 맞춰진다 */
+  await page.evaluate(() => { const o = JSON.parse(localStorage.getItem('ppolppol_v2')); o.user.shop.day.seeds = 3; const v = JSON.stringify(o); localStorage.setItem('ppolppol_v2', v); window.dispatchEvent(new StorageEvent('storage', { key: 'ppolppol_v2', newValue: v, storageArea: localStorage })); });
+  await page.waitForTimeout(1300);
+  ok(!(await LS(page)).cart.seed && (await LS(page)).total === 0, '다른 탭이 남은 씨앗을 사면 담은 수도 줄어든다');
+  await page.click('#shop-list .ls-close'); await page.waitForTimeout(150);
+  ok(!(await page.evaluate(() => document.getElementById('shop-sheet').open)), "시트의 '닫기' 는 시트를 닫는다");
   ok((await U(page)).shells === 4 && (await U(page)).seeds === 3, '닫으면 담은 것은 버린다 (조개 그대로)');
   await page.evaluate(() => APP.openShop('goods'));
   ok((await LS(page)).total === 0, '다시 열면 담은 것 없음');
   await page.keyboard.press('Escape'); await page.waitForTimeout(100);
   await page.reload(); await page.waitForFunction(() => window.APP && APP.openShop, null, { timeout: 30000 }); await page.waitForTimeout(800);
   u = await U(page);
-  ok(u.shells === 4 && u.seeds === 3 && u.shop.day.seeds === 2 && u.future.keep === 1, '새로고침해도 그대로');
+  ok(u.shells === 4 && u.seeds === 3 && u.shop.day.seeds >= 2 && u.future.keep === 1, '새로고침해도 그대로');   /* 씨앗 수는 앞의 다른 탭 흉내 (가짜 storage 이벤트) 와 이 탭의 저장 차례에 따라 2 또는 3 */
   await page.evaluate(d => { window.__ppolTest.today = d; }, NEXT);
   await page.evaluate(() => APP.openShop('goods'));
   ok((await lsRows(page)).length === 4 && await page.evaluate(() => APP.shopStock('goods').items[0].left) === 3, '다음 날: 씨앗 다시 셋');

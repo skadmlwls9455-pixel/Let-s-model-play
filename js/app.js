@@ -6075,6 +6075,7 @@ var APP = (function () {
     var x = cands[0][0], y = cands[0][1], ok = false;
     for (var ci = 0; ci < cands.length && !ok; ci++) { var tx = cands[ci][0], ty = cands[ci][1]; if (tx < X0 - 0.5 || tx > X1 + 0.5 || ty < top - 0.5 || ty > Y1 + 0.5 || hit(tx, ty)) continue; x = tx; y = ty; ok = true; }
     if (!ok) { x = clamp(x, X0, X1); y = clamp(ar && ar.top - sr.top - hh - 8 >= top ? ar.top - sr.top - hh - 8 : ar ? ar.bottom - sr.top + 8 : y, top, Y1); }   /* 자리가 어디에도 없으면 예전대로 (대상 위 · 아래) */
+    c.style.maxHeight = Math.max(160, bot - top) + 'px';   /* 상태 줄 아래 · 큰 단추 위 칸보다 크지 않게 (목록은 줄만 굴러간다 — 가로 화면) */
     c.style.left = Math.round(x * dpr) / dpr + 'px'; c.style.top = Math.round(y * dpr) / dpr + 'px';
   }
   var ROOM_SLOT = { 'btn-mq-0': 'mq0', 'btn-mq-1': 'mq1', 'btn-mq-2': 'mq2', 'btn-mq-3': 'mq3', 'btn-room-counter': 'counter', 'btn-shelf-0': 'shelf0', 'btn-shelf-1': 'shelf1', 'btn-shelf-2': 'shelf2', 'btn-shelf-3': 'shelf3', 'btn-shelf-4': 'shelf4', 'btn-shelf-5': 'shelf5' };
@@ -6191,54 +6192,75 @@ var APP = (function () {
            buy(lines: [{ x, n }]) → { got: [{ x, n }], paid } (값 · 조개 · 가짐을 그 자리에서 다시 본다), onDone(res) }
      담기는 아무것도 쓰지 않는다. '사기' 를 누른 뒤에만 쓴다 (열린 뒤 0.6 s 안의 누름은 받지 않는다). 닫기 · Esc · 카드 밖 · 방 나가기 = 담은 것은 버린다 */
   var LST = null;
-  function listLines() { if (!LST) return []; var out = []; LST.o.items().forEach(function (x) { var n = LST.cart[x.key] | 0; if (n > 0 && !x.mark) out.push({ x: x, n: n }); }); return out; }
+  function listClamp() {   /* 담은 수를 지금의 물건 · 남은 수에 맞춘다 (다른 탭 · 날 바뀜 뒤 — 오늘 남은 것보다 많이 담겨 있지 않게) */
+    if (!LST) return; var seen = {};
+    LST.o.items().forEach(function (x) { seen[x.key] = 1; var n = LST.cart[x.key] | 0; if (!n) return; var mx = Math.max(0, x.max | 0); if (x.mark || mx < 1) delete LST.cart[x.key]; else if (n > mx) LST.cart[x.key] = mx; });
+    Object.keys(LST.cart).forEach(function (k) { if (!seen[k]) delete LST.cart[k]; });
+  }
+  function listLines() { if (!LST) return []; var out = []; LST.o.items().forEach(function (x) { var n = LST.cart[x.key] | 0; if (n > 0 && !x.mark) out.push({ x: x, n: Math.min(n, Math.max(1, x.max | 0)) }); }); return out; }
   function listTotal() { var t = 0; listLines().forEach(function (l) { t += l.n * l.x.price; }); return t; }
   function listEarly(e) { return !LST || (!(e && e.isTrusted && e.detail === 0) && tapTime(e) - LST.at < SHEET_SETTLE); }
   function listBtn(text, cls, label, fn) { var b = h('button', { type: 'button', class: 'btn sm pressable ' + cls, text: text }); if (label) b.setAttribute('aria-label', label); b.addEventListener('click', function (e) { e.stopPropagation(); if (listEarly(e)) return; fn(b, e); }); return b; }
+  function listSay(msg) { if (!LST) return; LST.msg = msg || ''; if (LST.msgEl) { LST.msgEl.textContent = ''; if (msg) setTimeout(function () { if (LST && LST.msgEl && LST.msg === msg) LST.msgEl.textContent = msg; }, 30); } }   /* 알림 줄은 늘 같은 자리 (aria-live) — 같은 말도 다시 읽히게 비웠다 채운다 */
   function listAdd(x, d, el) {   /* 담기 · 빼기. 담으면 조개가 모자라는 것은 안 담고 (값이 흔들리고) 한 줄 */
-    if (!LST || x.mark) return; var n = LST.cart[x.key] | 0, max = Math.max(1, x.max | 0), nx = clamp(n + d, 0, max);
-    if (nx === n) { if (d > 0 && n >= max) { LST.msg = max === 1 && !x.qty ? '' : '오늘은 이게 다야'; listRender(); } return; }
-    if (nx > n) { var need = listTotal() + (nx - n) * x.price, have = shopU().shells; if (need > have) { LST.msg = '조개가 ' + (need - have) + '개 모자라'; listRender(); var t = document.querySelector('#shop-list [data-key="' + x.key + '"] .ls-price'); furnShake(t || el); return; } }
+    if (!LST || x.mark) return; listClamp(); var n = LST.cart[x.key] | 0, max = Math.max(1, x.max | 0), nx = clamp(n + d, 0, max);
+    if (nx === n) { if (d > 0 && n >= max) listSay(max === 1 && !x.qty ? '' : '오늘은 이게 다야'); return; }
+    if (nx > n) { var need = listTotal() + (nx - n) * x.price, have = shopU().shells; if (need > have) { listSay('조개가 ' + (need - have) + '개 모자라'); var t = document.querySelector('#shop-list [data-key="' + x.key + '"] .ls-price'); furnShake(t || el); return; } }
     if (nx && x.group) LST.o.items().forEach(function (y) { if (y.group === x.group && y.key !== x.key) delete LST.cart[y.key]; });   /* 갈래마다 하나 (머리 모양 · 색) */
-    LST.cart[x.key] = nx; if (!nx) delete LST.cart[x.key]; LST.msg = ''; listRender(); if (LST.o.onChange) { try { LST.o.onChange(); } catch (e) { console.warn('[app] list change', e); } } var f = document.querySelector('#shop-list [data-key="' + x.key + '"] ' + (max > 1 || x.qty ? (d > 0 ? '.ls-plus' : '.ls-minus') : '.ls-row')); if (f && !f.disabled) f.focus({ preventScroll: true });
+    LST.cart[x.key] = nx; if (!nx) delete LST.cart[x.key]; listSay(''); listRender(); if (LST.o.onChange) { try { LST.o.onChange(); } catch (e) { console.warn('[app] list change', e); } }
   }
-  function listKids() {   /* 목록 카드의 속: 머리 (조개 · 담으면 남는 수) · 줄 · 알림 한 줄 · 단추 */
-    var o = LST.o, u = shopU(), total = listTotal(), lines = listLines(), items = o.items(), kids = [];
-    var who = typeof NPCR !== 'undefined' && NPCR && typeof NPCR.who === 'function' ? NPCR.who(o.id) : null, face = null;
+  function listHead() {   /* 머리: 가게 문어 얼굴 · 제목 · 조개 (늘 같은 마디 — 바뀌는 글만 바꾼다) */
+    var o = LST.o, who = typeof NPCR !== 'undefined' && NPCR && typeof NPCR.who === 'function' ? NPCR.who(o.id) : null, face = null;
     if (who && typeof npcFace === 'function') { try { face = h('canvas', { class: 'ls-face', 'aria-hidden': 'true' }); npcFace(face, who); } catch (e) { face = null; } }
-    kids.push(h('div', { class: 'ls-head' }, [face, h('p', { class: 'ls-title', text: o.title }), h('p', { class: 'bag-line shop-purse ls-purse', 'aria-live': 'polite' }, [shellAmt(u.shells), total ? h('span', { class: 'ls-left', text: ' · 담으면 ' + Math.max(0, u.shells - total) + ' 남아' }) : null])]));
+    LST.purseEl = h('p', { class: 'bag-line shop-purse ls-purse', 'aria-live': 'polite' });
+    return h('div', { class: 'ls-head' }, [face, h('p', { class: 'ls-title', text: o.title }), LST.purseEl]);
+  }
+  function listPurse() {   /* 조개 · 담으면 남는 수: 바뀐 때만 글을 바꾼다 (낭독기가 한 번 읽는다) */
+    if (!LST || !LST.purseEl) return; var u = shopU(), total = listTotal(), key = u.shells + '|' + total;
+    if (LST.purseKey === key) return; LST.purseKey = key; var el = LST.purseEl; el.textContent = '';
+    el.appendChild(shellAmt(u.shells)); if (total) el.appendChild(h('span', { class: 'ls-left', text: ' · 담으면 ' + Math.max(0, u.shells - total) + ' 남아' }));
+  }
+  function listBody() {   /* 바뀌는 몸: 줄 · 단추 */
+    var o = LST.o, total = listTotal(), lines = listLines(), items = o.items(), kids = [];
     var ul = h('ul', { class: 'ls-list', 'aria-label': o.title });
     if (!items.length) ul.appendChild(h('li', { class: 'ls-empty', text: '오늘은 이게 다야' }));
     items.forEach(function (x) {
-      var n = LST.cart[x.key] | 0, multi = !!x.qty || (x.max | 0) > 1, pic = h('span', { class: 'ls-pic', 'aria-hidden': 'true' }, [x.pic ? x.pic() : null]);
-      var tag = x.mark === 'owned' ? h('span', { class: 'ls-price stamp' }, [pxIco('check'), h('span', { class: 'sr-only', text: '가지고 있어' })]) : x.mark === 'sold' ? h('span', { class: 'ls-price stamp', text: '내일' }) : !x.price ? null : h('span', { class: 'ls-price' }, [shellAmt(x.price)]);   /* 값 없는 것은 값표 없이 */   /* 목록 줄의 값은 작은 표 (큰 꼬리표 그림은 이름 자리를 먹는다) */
+      var n = Math.min(LST.cart[x.key] | 0, Math.max(1, x.max | 0)), multi = !!x.qty || (x.max | 0) > 1, pic = h('span', { class: 'ls-pic', 'aria-hidden': 'true' }, [x.pic ? x.pic() : null]);
+      var tag = x.mark === 'owned' ? h('span', { class: 'ls-price stamp' }, [pxIco('check'), h('span', { class: 'sr-only', text: '가지고 있어' })]) : x.mark === 'sold' ? h('span', { class: 'ls-price stamp', text: '내일' }) : !x.price ? null : h('span', { class: 'ls-price' }, [shellAmt(x.price)]);   /* 값 없는 것은 값표 없이 */
       var name = h('span', { class: 'ls-name' }, [h('span', { text: x.name }), x.note ? h('span', { class: 'ls-note', text: x.note }) : null]), li;
       if (multi && !x.mark) {
-        var mi = listBtn('−', 'ls-minus', x.name + ' 하나 빼기', function () { listAdd(x, -1); }), pl = listBtn('+', 'ls-plus', x.name + ' 하나 더', function (b) { listAdd(x, 1, b); });
+        var cnt = ' (지금 ' + n + '개)', mi = listBtn('−', 'ls-minus', x.name + ' 하나 빼기' + cnt, function () { listAdd(x, -1); }), pl = listBtn('+', 'ls-plus', x.name + ' 하나 더' + cnt, function (b) { listAdd(x, 1, b); });
         if (!n) mi.disabled = true;
-        li = h('li', { class: 'ls-item' + (n ? ' on' : ''), 'data-key': x.key }, [pic, name, tag, h('span', { class: 'ls-qty' }, [mi, h('span', { class: 'ls-n', 'aria-label': x.name + ' ' + n + '개', text: String(n) }), pl])]);
+        li = h('li', { class: 'ls-item qty' + (n ? ' on' : ''), 'data-key': x.key }, [pic, name, tag, h('span', { class: 'ls-qty' }, [mi, h('span', { class: 'ls-n', 'aria-hidden': 'true', text: String(n) }), pl])]);
       } else {
         var row = h('button', { type: 'button', class: 'ls-row pressable', 'aria-pressed': String(!!n) }, [pic, name, tag, h('span', { class: 'ls-check', 'aria-hidden': 'true' }, n ? [pxIco('check')] : [])]);
         if (x.mark) { row.setAttribute('aria-disabled', 'true'); row.classList.add('off'); }
-        row.addEventListener('click', function (e) { if (listEarly(e)) return; if (x.mark) { LST.msg = x.mark === 'owned' ? '이미 가지고 있어' : '오늘은 이게 다야'; listRender(); return; } listAdd(x, n ? -1 : 1, row); });
+        row.addEventListener('click', function (e) { if (listEarly(e)) return; if (x.mark) { listSay(x.mark === 'owned' ? (x.group ? '지금 이거야' : '이미 가지고 있어') : '오늘은 이게 다야'); return; } listAdd(x, n ? -1 : 1, row); });
         li = h('li', { class: 'ls-item' + (n ? ' on' : '') + (x.mark ? ' off' : ''), 'data-key': x.key }, [row]);
       }
       ul.appendChild(li);
     });
     kids.push(ul);
-    kids.push(h('p', { class: 'ls-msg', role: 'status', 'aria-live': 'polite', text: LST.msg || '' }));
     var bt = o.buyText || '사기', buy = listBtn(bt, 'sew-yes ls-buy', null, function () { listBuy(); });
     if (!total && lines.length) buy.disabled = false;   /* 값이 없는 것 (지금 가진 머리 모양 · 색 바꾸기) */
     else if (total) { buy.textContent = ''; buy.appendChild(h('span', { text: bt + ' ' })); buy.appendChild(shellAmt(total)); buy.setAttribute('aria-label', bt + ' 조개 ' + total + '개 · ' + lines.map(function (l) { return l.x.name + (l.n > 1 ? ' ' + l.n + '개' : ''); }).join(' · ')); } else buy.disabled = true;
-    kids.push(h('div', { class: 'btn-row shop-card-btns ls-btns' }, [listBtn('닫기', 'sew-no ls-close', null, function () { listClose(true); }), buy]));
+    kids.push(h('div', { class: 'btn-row shop-card-btns ls-btns' }, [listBtn('닫기', 'sew-no ls-close', null, function () { if (LST && !LST.card) { var sh = $('shop-sheet'); if (sh && sh.open) { sh.close(); return; } } listClose(true); }), buy]));   /* 시트에선 '닫기' = 시트를 닫는다 */
     return kids;
   }
-  function listRender(first) {   /* 다시 그린다 (자리 · 굴린 자리는 그대로) */
-    if (!LST) return; var host = LST.host, sc = host && host.querySelector('.ls-list'), top = sc ? sc.scrollTop : 0, kids = listKids();
-    host.textContent = ''; kids.forEach(function (k) { if (k) host.appendChild(k); });
-    var sc2 = host.querySelector('.ls-list'); if (sc2) sc2.scrollTop = top;
+  function listRender(first) {   /* 줄 · 단추만 다시 그린다 (머리 · 알림 줄은 그대로 — 낭독기가 바뀐 글만 읽게). 포커스는 같은 단추로 돌아간다. 영수증 중이면 그리지 않는다 */
+    if (!LST || LST.done) return; listClamp();
+    var host = LST.host, ae = document.activeElement, fk = null, fc = null;
+    if (ae && host.contains(ae)) { var li = ae.closest('[data-key]'); fk = li ? li.dataset.key : null; fc = ['ls-row', 'ls-plus', 'ls-minus', 'ls-buy', 'ls-close'].filter(function (c) { return ae.classList.contains(c); })[0] || null; }
+    if (!LST.bodyEl) { host.textContent = ''; host.appendChild(listHead()); LST.bodyEl = h('div', { class: 'ls-body' }); host.appendChild(LST.bodyEl); LST.msgEl = h('p', { class: 'ls-msg', role: 'status', 'aria-live': 'polite' }); host.appendChild(LST.msgEl); LST.btnsEl = h('div', { class: 'ls-foot' }); host.appendChild(LST.btnsEl); }
+    var sc = LST.bodyEl.querySelector('.ls-list'), top = sc ? sc.scrollTop : 0, kids = listBody();
+    LST.bodyEl.textContent = ''; LST.bodyEl.appendChild(kids[0]); LST.btnsEl.textContent = ''; LST.btnsEl.appendChild(kids[1]);
+    var sc2 = LST.bodyEl.querySelector('.ls-list'); if (sc2) sc2.scrollTop = top;
+    listPurse();
     if (LST.card) roomCardPlace();
-    if (first) { var f = host.querySelector('.ls-row:not(.off), .ls-plus'); if (f) f.focus({ preventScroll: true }); }
+    var f = null;
+    if (fc) { f = fk ? host.querySelector('[data-key="' + fk + '"] .' + fc) : host.querySelector('.' + fc); if (f && f.disabled && fc === 'ls-minus') f = host.querySelector('[data-key="' + fk + '"] .ls-plus'); if (f && f.disabled) f = host.querySelector('.ls-close'); }
+    if (first) f = host.querySelector('.ls-row:not(.off), .ls-plus');
+    if (f) f.focus({ preventScroll: true });
   }
   function listOpen(o) {
     listClose(); var box;
@@ -6248,27 +6270,30 @@ var APP = (function () {
     LST = { o: o, cart: {}, at: performance.now(), msg: '', host: inner, card: o.host === 'card' ? box : null };
     listRender(true); return inner;
   }
-  function listClose(byTap) {   /* 담은 것은 버린다 (조개는 그대로) */
-    if (!LST) return; var L = LST; LST = null;
-    if (L.card && room.card === L.card) roomCardClose(byTap); else if (L.host && L.host.parentNode) L.host.remove();
+  function listClose(byTap) {   /* 담은 것은 버린다 (조개는 그대로). 장면 카드였으면 포커스는 그 단추 (계산대 · 의자) 로 */
+    if (!LST) return; var L = LST; LST = null; clearTimeout(L.rcT);
+    var back = L.card && document.activeElement && L.card.contains(document.activeElement) ? $(L.o.anchor) : null;
+    if (L.card && room.card === L.card) roomCardClose(byTap); else if (L.card && L.card.parentNode) L.card.remove(); else if (L.host && L.host.parentNode) L.host.remove();
+    if (back && !back.hidden && back.offsetParent) back.focus({ preventScroll: true });
     if (L.o.onClose && !L.done) { try { L.o.onClose(); } catch (e) { console.warn('[app] list close', e); } }
   }
   function listBuy() {   /* '사기': 담은 것을 한 번에. 값 · 조개 · 가짐은 buy 가 다시 본다. 같은 카드가 영수증으로 1.5 s */
-    if (!LST) return; var L = LST, lines = listLines(), total = listTotal(), u = shopU();
+    if (!LST || LST.done) return; var L = LST; listClamp(); var lines = listLines(), total = listTotal(), u = shopU();
     if (!lines.length) return;
-    if (total > u.shells) { L.msg = '조개가 ' + (total - u.shells) + '개 모자라'; listRender(); furnShake(L.host.querySelector('.ls-buy')); return; }
+    if (total > u.shells) { listSay('조개가 ' + (total - u.shells) + '개 모자라'); furnShake(L.host.querySelector('.ls-buy')); return; }
     var had = u.shells, res = null; try { res = L.o.buy(lines); } catch (e) { console.warn('[app] list buy', e); }
-    if (!res || !res.got || !res.got.length) { L.msg = '못 샀어'; listRender(); return; }
+    if (!res || !res.got || !res.got.length) { listSay('못 샀어'); listRender(); return; }
     L.cart = {}; L.done = true; u = shopU();
-    var rows = res.got.map(function (g) { return h('li', {}, [h('span', { class: 'shop-rc-name', text: g.x.name + (g.n > 1 ? ' ' + g.n + '개' : '') }), g.x.price ? shellAmt(g.n * g.x.price) : null]); });
-    L.host.textContent = '';
-    [h('div', { class: 'shop-rc-top' }, [shopSpr('ui.receipt', 0, 32), h('p', { class: 'bag-line shop-purse ls-purse', 'aria-live': 'polite' }, [shellAmt(u.shells)])]),
-     h('ul', { class: 'shop-rc-list' }, rows), h('p', { class: 'shop-rc-sum', role: 'status' }, had - u.shells > 0 ? [shellAmt(had - u.shells), h('span', { text: ' 냈어' })] : [h('span', { text: '바꿨어' })])].forEach(function (k) { L.host.appendChild(k); });
+    var paid = had - u.shells, rows = res.got.map(function (g) { return h('li', {}, [h('span', { class: 'shop-rc-name', text: g.x.name + (g.n > 1 ? ' ' + g.n + '개' : '') }), g.x.price ? shellAmt(g.n * g.x.price) : null]); });
+    var sum = h('p', { class: 'shop-rc-sum', tabindex: '-1' }, paid > 0 ? [shellAmt(paid), h('span', { text: ' 냈어' })] : [h('span', { text: '바꿨어' })]);
+    L.host.textContent = ''; L.bodyEl = L.msgEl = L.btnsEl = L.purseEl = null;
+    [h('div', { class: 'shop-rc-top' }, [shopSpr('ui.receipt', 0, 32), h('p', { class: 'bag-line shop-purse ls-purse' }, [shellAmt(u.shells)])]), h('ul', { class: 'shop-rc-list' }, rows), sum].forEach(function (k) { L.host.appendChild(k); });   /* 영수증의 조개 수는 세어 내리지만 낭독기에는 한 번만 (live 아님 — 합계 줄로 포커스) */
     if (L.card) { L.card.classList.add('receipt'); roomCardPlace(); }
+    sum.focus({ preventScroll: true });
     var n = L.host.querySelector('.shop-purse .shell-n'); if (n) shopCount(had, u.shells, n);
-    toast(res.got.map(function (g) { return g.x.name; }).join(' · ') + (had - u.shells > 0 ? eulReul(res.got[res.got.length - 1].x.name) + ' 샀어' : euro(res.got[res.got.length - 1].x.name) + ' 바꿨어'));
-    if (L.o.onDone) { try { L.o.onDone(res, had - u.shells); } catch (e) { console.warn('[app] list done', e); } }
-    setTimeout(function () { if (LST !== L) return; listClose(); if (L.o.after) L.o.after(); }, 1500);   /* 가게 주인이 말하는 동안 보이게 */
+    toast(res.got.map(function (g) { return g.x.name; }).join(' · ') + (paid > 0 ? eulReul(res.got[res.got.length - 1].x.name) + ' 샀어' : euro(res.got[res.got.length - 1].x.name) + ' 바꿨어'));
+    if (L.o.onDone) { try { L.o.onDone(res, paid); } catch (e) { console.warn('[app] list done', e); } }
+    L.rcT = setTimeout(function () { if (LST !== L) return; var back = L.card ? $(L.o.anchor) : null; listClose(); if (back && !back.hidden && back.offsetParent) back.focus({ preventScroll: true }); if (L.o.after) L.o.after(); }, 1500);   /* 가게 주인이 말하는 동안 보이게 */
   }
   /* 가게 둘의 목록 */
   function shopListItems(kind) {
