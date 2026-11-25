@@ -8,6 +8,7 @@
   function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function esc(s) { return BJ.draw.esc(s == null ? '' : s); }
+  var clean = BJ.draw.clean;
 
   /* ─────────────── 상태 ─────────────── */
 
@@ -15,7 +16,7 @@
   function uid() { return 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
   var STYLE_KEYS = ['layout', 'font', 'stretch', 'textWeight', 'sizes', 'paper', 'ink', 'rough', 'paperGrain', 'frame', 'rays', 'headerLines',
-    'footer', 'sideDots', 'charMode', 'ground', 'charScale', 'theme', 'symmetric', 'seal', 'year', 'yearFmt', 'yearCustom', 'topText', 'bottomText'];
+    'footer', 'sideDots', 'charMode', 'ground', 'charScale', 'charFlip', 'theme', 'symmetric', 'seal', 'year', 'yearFmt', 'yearCustom', 'topText', 'bottomText', 'offsets'];
 
   function fresh() {
     return {
@@ -30,26 +31,142 @@
       theme: 'health', items: [], symmetric: true,
       offsets: {},
       seal: { text: '', where: 'back', style: 'fill', pos: {} },
-      back: { frame: true, image: null, mode: 'normal', fit: { dx: 0, dy: 0, s: 1 }, caption: '' },
+      back: { frame: true, image: null, aspect: 0, mode: 'normal', fit: { dx: 0, dy: 0, s: 1 }, caption: '' },
       worry: '', ideas: null
     };
   }
 
+  /* ── 들어오는 값 다듬기: 저장된 것 · 백업 파일 · 다른 판의 값이 깨졌거나 이상해도 앱이 멈추거나 엉뚱한 글자가 화면에 끼지 않게 ── */
+  var HEX = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+  var IMG_RE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+\/=]+$/;
+  var FONT_RE = /^data:[\w.+\/-]*;base64,[A-Za-z0-9+\/=]+$/;
+  var ID_RE = /^[\w-]{1,40}$/;
+  function str(v, max) { return v == null ? '' : clean(String(v)).slice(0, max || 200); }
+  function numIn(v, a, b, d) { v = +v; return isFinite(v) ? clamp(v, a, b) : d; }
+  function oneOf(v, list, d) { return list.indexOf(v) >= 0 ? v : d; }
+
+  function cleanItem(it) {
+    if (!it || typeof it !== 'object' || !P.P[it.prop]) return null;
+    var o = { prop: it.prop, s: numIn(it.s, 0.2, 4, 0.7), r: numIn(it.r, -360, 360, 0), flip: !!it.flip };
+    if (it.slot && C.SLOT_NAMES[it.slot]) { o.slot = it.slot; o.dx = numIn(it.dx, -1200, 1200, 0); o.dy = numIn(it.dy, -1200, 1200, 0); }
+    else { o.x = numIn(it.x, -1200, 1800, 300); o.y = numIn(it.y, -1200, 2100, 450); }
+    if (it.s0 != null) o.s0 = numIn(it.s0, 0.2, 4, 0.8);
+    return o;
+  }
+  function cleanOff(o) {
+    var r = {};
+    if (o.dx != null) r.dx = numIn(o.dx, -1200, 1200, 0);
+    if (o.dy != null) r.dy = numIn(o.dy, -1200, 1200, 0);
+    if (o.s != null) r.s = numIn(o.s, 0.2, 4, 1);
+    if (o.r != null) r.r = numIn(o.r, -360, 360, 0);
+    return r;
+  }
+  function cleanIdeas(x) {
+    if (!x || typeof x !== 'object' || !x.data || !Array.isArray(x.data.ideas)) return null;
+    var ideas = x.data.ideas.slice(0, 6).map(function (i) {
+      if (!i || typeof i !== 'object') return null;
+      var t = str(i.title, 60);
+      if (!t) return null;
+      return {
+        title: t, scene: str(i.scene, 800), pose: str(i.pose, 300), symbol: str(i.symbol, 300), caption: str(i.caption, 80), prompt_en: str(i.prompt_en, 2000),
+        props: Array.isArray(i.props) ? i.props.slice(0, 8).map(function (p) { return str(p, 40); }).filter(Boolean) : []
+      };
+    }).filter(Boolean);
+    if (!ideas.length) return null;
+    return { data: { summary: str(x.data.summary, 300), ideas: ideas }, engine: str(x.engine, 20), engineName: str(x.engineName, 120), at: numIn(x.at, 0, 1e15, 0) };
+  }
+
   function migrate(d) {
-    var f = fresh(), out = Object.assign(f, d || {});
-    out.sizes = Object.assign(fresh().sizes, d && d.sizes);
-    out.seal = Object.assign(fresh().seal, d && d.seal);
-    out.seal.pos = out.seal.pos || {};
-    out.back = Object.assign(fresh().back, d && d.back);
-    out.back.fit = Object.assign({ dx: 0, dy: 0, s: 1 }, out.back.fit);
-    out.offsets = out.offsets || {};
-    out.items = Array.isArray(out.items) ? out.items.filter(function (it) { return it && P.P[it.prop]; }) : [];
+    d = d && typeof d === 'object' ? d : {};
+    var f = fresh(), out = f;
+    out.id = typeof d.id === 'string' && ID_RE.test(d.id) ? d.id : f.id;
+    out.name = str(d.name, 40);
+    out.createdAt = numIn(d.createdAt, 0, 1e15, f.createdAt);
+    out.updatedAt = numIn(d.updatedAt, 0, 1e15, f.updatedAt);
+    out.ilju = G.ilju(d.ilju).index;
+    out.gender = d.gender === 'm' ? 'm' : 'f';
+    out.year = Math.round(numIn(d.year, 1900, 2200, f.year));
+    out.yearFmt = oneOf(d.yearFmt, ['num-hj', 'num-ko', 'hj', 'num', 'animal', 'custom', 'none'], f.yearFmt);
+    out.yearCustom = str(d.yearCustom, 30);
+    out.layout = C.LAYOUTS[d.layout] ? d.layout : f.layout;
+    out.topText = d.topText == null ? f.topText : str(d.topText, 24);
+    out.bottomText = d.bottomText == null ? f.bottomText : str(d.bottomText, 24);
+    out.font = typeof d.font === 'string' && d.font.length < 80 ? d.font : f.font;
+    out.stretch = numIn(d.stretch, 0.6, 2.5, f.stretch);
+    out.textWeight = numIn(d.textWeight, 0, 10, f.textWeight);
+    var sz = d.sizes || {};
+    out.sizes = { year: numIn(sz.year, 0.3, 2, 1), top: numIn(sz.top, 0.3, 2, 1), bottom: numIn(sz.bottom, 0.3, 2, 1) };
+    out.paper = HEX.test(d.paper) ? d.paper : f.paper;
+    out.ink = HEX.test(d.ink) ? d.ink : f.ink;
+    out.rough = numIn(d.rough, 0, 3, f.rough);
+    out.paperGrain = !!d.paperGrain;
+    out.frame = oneOf(d.frame, ['stamp', 'cloud', 'simple', 'none'], f.frame);
+    ['rays', 'headerLines', 'footer', 'sideDots'].forEach(function (k) { out[k] = d[k] == null ? f[k] : !!d[k]; });
+    out.charMode = oneOf(d.charMode, ['color', 'line'], f.charMode);
+    out.ground = !!d.ground;
+    out.charScale = numIn(d.charScale, 0.3, 3, 1);
+    out.charFlip = !!d.charFlip;
+    out.theme = typeof d.theme === 'string' && (C.THEMES[d.theme] || d.theme === '') ? d.theme : '';
+    out.symmetric = d.symmetric == null ? true : !!d.symmetric;
+    var seen = {};
+    out.items = (Array.isArray(d.items) ? d.items : []).map(cleanItem).filter(function (it) {
+      if (!it) return false;
+      if (it.slot) { if (seen[it.slot]) return false; seen[it.slot] = 1; }
+      return true;
+    }).slice(0, 300);
+    out.offsets = {};
+    ['year', 'top', 'bottom', 'char', 'caption'].forEach(function (k) { var o = d.offsets && d.offsets[k]; if (o && typeof o === 'object') out.offsets[k] = cleanOff(o); });
+    var se = d.seal || {};
+    out.seal = { text: str(se.text, 4), where: oneOf(se.where, ['front', 'back', 'both', 'none'], 'back'), style: oneOf(se.style, ['fill', 'line'], 'fill'), pos: {} };
+    ['front', 'back'].forEach(function (k) {
+      var p = se.pos && se.pos[k];
+      if (p && typeof p === 'object') out.seal.pos[k] = { x: numIn(p.x, -1200, 1800, 534), y: numIn(p.y, -1200, 2100, 780), s: numIn(p.s, 0.2, 4, 0.74) };
+    });
+    var bk = d.back || {}, fit = bk.fit || {};
+    out.back = {
+      frame: bk.frame == null ? true : !!bk.frame,
+      image: typeof bk.image === 'string' && IMG_RE.test(bk.image) ? bk.image : null,
+      aspect: numIn(bk.aspect, 0, 100, 0),
+      mode: oneOf(bk.mode, ['normal', 'multiply', 'ink'], 'normal'),
+      fit: { dx: numIn(fit.dx, -2000, 2000, 0), dy: numIn(fit.dy, -2000, 2000, 0), s: numIn(fit.s, 0.1, 5, 1) },
+      caption: str(bk.caption, 40)
+    };
+    out.worry = str(d.worry, 4000);
+    out.ideas = cleanIdeas(d.ideas);
+    clampAnchors(out);
     return out;
+  }
+
+  /* 무엇이든 카드 안에 붙잡아 둔다 — 기준점(가운데)이 카드 밖으로 나가면 다시는 잡을 수 없어서 */
+  var BOX = { x0: 30, x1: 570, y0: 30, y1: 870 };
+  function clampAt(base, v, lo, hi) { return clamp(base + v, lo, hi) - base; }
+  function textBase(d, id) {
+    var lay = C.LAYOUTS[d.layout] || C.LAYOUTS.split;
+    if (id === 'caption') return [C.CAPTION.x, C.CAPTION.y];
+    if (id === 'char') return [lay.char.x, lay.char.y];
+    return [lay[id].x, lay[id].y];
+  }
+  function clampAnchors(d) {
+    var lay = C.LAYOUTS[d.layout] || C.LAYOUTS.split;
+    Object.keys(d.offsets).forEach(function (id) {
+      var o = d.offsets[id], b = textBase(d, id);
+      if (o.dx != null) o.dx = clampAt(b[0], o.dx, BOX.x0, BOX.x1);
+      if (o.dy != null) o.dy = clampAt(b[1], o.dy, BOX.y0, BOX.y1);
+    });
+    d.items.forEach(function (it) {
+      if (it.slot) {
+        var p = lay.slots[it.slot] || [300, 450];
+        it.dx = clampAt(p[0], it.dx || 0, BOX.x0, BOX.x1); it.dy = clampAt(p[1], it.dy || 0, BOX.y0, BOX.y1);
+      } else { it.x = clamp(it.x, BOX.x0, BOX.x1); it.y = clamp(it.y, BOX.y0, BOX.y1); }
+    });
+    Object.keys(d.seal.pos).forEach(function (k) { var p = d.seal.pos[k]; p.x = clamp(p.x, BOX.x0, BOX.x1); p.y = clamp(p.y, BOX.y0, BOX.y1); });
+    var f = d.back.fit;
+    f.dx = clampAt(300, f.dx, BOX.x0, BOX.x1); f.dy = clampAt(450, f.dy, BOX.y0, BOX.y1);
   }
 
   var S = fresh();
   var dirty = false;
-  var ui = { view: 'front', sel: null, selSide: 'front', drawerCat: 'deco', customChars: {}, llm: null, running: null };
+  var ui = { view: 'front', sel: null, selSide: 'front', drawerCat: 'deco', customChars: {}, llm: null, running: null, runSeq: 0, refocusing: false, lastEngine: null };
 
   function getPath(o, path) { return path.split('.').reduce(function (a, k) { return a == null ? undefined : a[k]; }, o); }
   function setPath(o, path, v) {
@@ -80,7 +197,7 @@
     return S.items.map(function (it) {
       if (!it.slot) return it;
       var pos = lay.slots[it.slot] || [300, 450];
-      return { prop: it.prop, x: pos[0] + (it.dx || 0), y: pos[1] + (it.dy || 0), s: it.s, r: it.r, flip: it.flip };
+      return { prop: it.prop, slot: it.slot, x: pos[0] + (it.dx || 0), y: pos[1] + (it.dy || 0), s: it.s, r: it.r, flip: it.flip };
     });
   }
 
@@ -109,13 +226,35 @@
   var raf = 0;
   function requestRender() { if (!raf) raf = requestAnimationFrame(function () { raf = 0; render(); }); }
 
+  function hostOf(side) { return side === 'back' ? backHost : frontHost; }
+
   function render() {
     var rs = renderState();
-    frontHost.innerHTML = C.front(rs, env('f'));
-    backHost.innerHTML = C.back(rs, env('b'));
+    /* 키보드로 고른 것이 다시 그린 뒤에도 그대로 잡혀 있게 */
+    var ae = document.activeElement, fid = null, fside = null, wasKbd = $('#cards').classList.contains('kbd');
+    if (ae && ae.getAttribute && ae.getAttribute('data-el') && (frontHost.contains(ae) || backHost.contains(ae))) {
+      fid = ae.getAttribute('data-el'); fside = frontHost.contains(ae) ? 'front' : 'back';
+    }
+    frontHost.innerHTML = C.front(rs, env('f', { interactive: true }));
+    backHost.innerHTML = C.back(rs, env('b', { interactive: true }));
     $('#backHint').hidden = !!S.back.image;
+    /* 고른 것이 없어졌으면 (안 쓰기 · 비우기 · 지우기) 고르기도 푼다 */
+    if (ui.sel && !hostOf(ui.selSide).querySelector('[data-el="' + ui.sel + '"]')) ui.sel = null;
     updateSel();
     updateWho();
+    if (fid) refocus(fid, fside, wasKbd);
+  }
+
+  function refocus(fid, side, wasKbd) {
+    var host = hostOf(side), el = host.querySelector('[data-el="' + fid + '"][tabindex]');
+    if (!el && /^item:/.test(fid)) {
+      var all = host.querySelectorAll('[data-el^="item:"][tabindex]');
+      el = all.length ? all[Math.min(+fid.slice(5) || 0, all.length - 1)] : null;
+    }
+    if (!el) return;
+    ui.refocusing = true;
+    try { el.focus({ preventScroll: true }); } catch (e) {} finally { ui.refocusing = false; }
+    if (!ui.sel && wasKbd) select(el.getAttribute('data-el'), side);
   }
 
   function updateWho() {
@@ -125,33 +264,103 @@
 
   /* ─────────────── 저장 ─────────────── */
 
-  var saveTimer = 0;
-  function setSaveState(t) { $('#saveState').textContent = t; }
+  /* 저장은 한 줄로 세워서 차례로 (먼저 시작한 옛 판이 나중에 덮어쓰지 않게).
+     rev: 고칠 때마다 1 씩 — 저장하는 사이에 또 고쳤으면 '저장됨'으로 바꾸지 않고 한 번 더 저장한다.
+     base: 이 창이 마지막으로 읽거나 쓴 판의 시각 — 저장된 판이 그보다 새것이면 (다른 창 · 백업 불러오기) 덮어쓰지 않는다. */
+  var saveTimer = 0, rev = 0, saving = Promise.resolve(), base = { id: null, at: 0 }, stored = false, memMode = false;
+  var chan = null;
+  try { chan = new BroadcastChannel('bujeok-gongbang'); } catch (e) { chan = null; }
+
+  function setSaveState(t, cls) {
+    var el = $('#saveState');
+    el.textContent = t;
+    el.className = 'save-state' + (cls ? ' ' + cls : '');
+    el.title = cls === 'warn' ? '이 창에서는 저장이 안 돼요. 창을 닫으면 사라지니 PNG 나 백업 파일로 받아 두세요.' : cls === 'err' ? '저장하지 못했어요. 보관함에서 백업 파일을 받아 두세요.' : '';
+  }
+  function setSaved() {
+    if (memMode) setSaveState('임시 저장', 'warn');
+    else setSaveState(stored ? '저장됨' : '');
+  }
+  function saveAlert(msg) {
+    var el = $('#saveAlert');
+    if (!msg) { if (el) el.hidden = true; return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'saveAlert'; el.className = 'save-alert'; el.setAttribute('role', 'alert');
+      el.innerHTML = '<p></p><button type="button" class="btn small">닫기</button>';
+      el.querySelector('button').addEventListener('click', function () { el.hidden = true; });
+      document.body.appendChild(el);
+    }
+    el.querySelector('p').textContent = msg;
+    el.hidden = false;
+  }
   function markDirty() {
-    dirty = true;
+    dirty = true; rev++;
     clearTimeout(saveTimer);
     setSaveState('저장 중…');
     saveTimer = setTimeout(save, 500);
   }
   function save() {
-    if (!dirty) return Promise.resolve();
-    S.updatedAt = Date.now();
-    var copy = JSON.parse(JSON.stringify(S));
-    return Promise.all([BJ.store.put('designs', S.id, copy), BJ.store.put('kv', 'current', S.id)])
-      .then(function () { dirty = false; setSaveState('저장됨'); })
-      .catch(function () { setSaveState('저장 실패 — 보관함에서 백업 파일을 받아 두세요'); });
+    clearTimeout(saveTimer);
+    if (!dirty) return saving;
+    var doc = S, mine = rev;
+    doc.updatedAt = Date.now();
+    var copy = JSON.parse(JSON.stringify(doc));
+    saving = saving.catch(function () {}).then(function () {
+      var known = base.id === copy.id ? base.at : 0;
+      return BJ.store.update('designs', copy.id, function (old) {
+        if (old && known && (old.updatedAt || 0) > known) return undefined;   /* 저장된 쪽이 더 새 판 */
+        return copy;
+      }).then(function (res) {
+        if (res.wrote) return copy;
+        /* 다른 창 · 백업에서 더 새로 고친 판이 있다 → 지우지 않고, 이 창에서 고친 것은 따로 저장 */
+        var fork = JSON.parse(JSON.stringify(copy));
+        fork.id = uid(); fork.name = (copy.name || '이름 없음') + ' (이 창에서 고친 판)'; fork.createdAt = fork.updatedAt = Date.now();
+        return BJ.store.put('designs', fork.id, fork).then(function () {
+          if (S === doc) { S.id = fork.id; S.name = fork.name; S.createdAt = fork.createdAt; S.updatedAt = fork.updatedAt; syncControls(); updateWho(); }
+          toast('다른 창이나 백업에서 더 새로 고친 판이 있어서, 이 창에서 고친 것은 “' + fork.name + '”으로 따로 저장했어요.', 7000);
+          return fork;
+        });
+      });
+    }).then(function (w) {
+      base = { id: w.id, at: w.updatedAt };
+      return BJ.store.put('kv', 'current', w.id).then(function () {
+        if (S === doc) stored = true;
+        if (S === doc && rev === mine) { dirty = false; setSaved(); }
+        saveAlert(null);
+        if (chan) try { chan.postMessage({ t: 'saved', id: w.id, at: w.updatedAt }); } catch (e) {}
+      });
+    }).catch(function (e) {
+      setSaveState('저장 실패', 'err');
+      saveAlert('저장하지 못했어요 — ' + ((e && e.message) || '이 브라우저에 쓰지 못했어요') + '. 보관함에서 백업 파일을 받아 두세요.');
+    });
+    return saving;
   }
+  /* 창을 닫거나 다른 앱으로 갈 때 남은 것을 바로 쓴다 (beforeunload 의 비동기 저장은 끝까지 간다는 보장이 없어서 미리) */
+  document.addEventListener('visibilitychange', function () { if (document.hidden && dirty) save(); });
+  window.addEventListener('pagehide', function () { if (dirty) save(); });
   window.addEventListener('beforeunload', function () { if (dirty) save(); });
+  /* 다른 창에서 같은 부적을 저장했으면: 여기서 고친 게 없을 때 그 판을 불러온다 (고친 게 있으면 저장할 때 따로 저장) */
+  if (chan) chan.onmessage = function (ev) {
+    var m = ev.data || {};
+    if (m.t !== 'saved' || m.id !== S.id || dirty || ui.running) return;
+    if (base.id === m.id && m.at <= base.at) return;
+    BJ.store.get('designs', m.id).then(function (d) {
+      if (d && !dirty && d.id === S.id) { loadDesign(d, { keepRun: false }); toast('다른 창에서 고친 내용을 불러왔어요'); }
+    }).catch(function () {});
+  };
 
   /* ─────────────── 바꾸기 ─────────────── */
 
   function change(path, v) {
+    if (typeof v === 'string') v = clean(v);   /* 붙여 넣은 보이지 않는 제어 문자는 빼고 */
     setPath(S, path, v);
     if (path === 'ilju' || path === 'gender' || path === 'charMode' || path === 'ink' || path === 'paper') buildGrid();
+    if (path === 'ink' || path === 'paper') buildDrawer();
     if (path === 'ilju' || path === 'gender') { showIljuNow(); syncCustomChar(); }
     if (path === 'font') ensureFont();
     if (path === 'yearFmt') $('#rowYearCustom').hidden = v !== 'custom';
-    if (path === 'layout') { ui.sel = null; }
+    if (path === 'layout') { ui.sel = null; clampAnchors(S); }
     syncControls();
     requestRender();
     markDirty();
@@ -176,8 +385,14 @@
       var ev = (el.type === 'checkbox' || el.tagName === 'SELECT' || el.type === 'color') ? 'change' : 'input';
       el.addEventListener(ev, function () {
         var v = el.type === 'checkbox' ? el.checked : (el.type === 'range' || el.type === 'number') ? parseFloat(el.value) : el.value;
-        if (el.type === 'number' && (isNaN(v) || v < 1900 || v > 2200)) return;
+        if (el.type === 'number' && (isNaN(v) || v < 1900 || v > 2200)) { el.setAttribute('aria-invalid', 'true'); return; }
+        if (el.type === 'number') el.removeAttribute('aria-invalid');
         change(path, v);
+      });
+      /* 해를 비우거나 엉뚱한 수를 넣고 나가면, 카드에 실제로 쓰인 해로 되돌린다 */
+      if (el.type === 'number') el.addEventListener('change', function () {
+        var v = parseFloat(el.value);
+        if (isNaN(v) || v < 1900 || v > 2200) { el.value = getPath(S, path); el.removeAttribute('aria-invalid'); toast('해는 1900 ~ 2200 사이로 써 주세요'); }
       });
     });
   }
@@ -186,7 +401,7 @@
     $$('[data-bind]').forEach(function (el) {
       var v = getPath(S, el.getAttribute('data-bind'));
       if (el.classList.contains('seg')) {
-        $$('button[data-v]', el).forEach(function (b) { b.classList.toggle('on', String(v) === b.getAttribute('data-v')); });
+        $$('button[data-v]', el).forEach(function (b) { var on = String(v) === b.getAttribute('data-v'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
       } else if (el.type === 'checkbox') {
         el.checked = !!v;
       } else if (document.activeElement !== el) {
@@ -195,8 +410,8 @@
     });
     $('#outStretch').textContent = '×' + (+S.stretch).toFixed(2);
     $('#rowYearCustom').hidden = S.yearFmt !== 'custom';
-    $$('#paletteChips .chip').forEach(function (b) { b.classList.toggle('on', b.dataset.paper === S.paper && b.dataset.ink === S.ink); });
-    $$('#themeChips .chip').forEach(function (b) { b.classList.toggle('on', b.dataset.theme === S.theme); });
+    $$('#paletteChips .chip').forEach(function (b) { var on = b.dataset.paper === S.paper && b.dataset.ink === S.ink; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    $$('#themeChips .chip').forEach(function (b) { var on = b.dataset.theme === S.theme; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
     syncSlots();
     var yf = $('#inYearFmt');
     if (yf) {   /* 표기 예시를 지금 해로 */
@@ -225,10 +440,13 @@
       '<br><span class="dim">' + esc(info.imagery) + ' · ' + esc(info.item.ko) + '</span>';
   }
 
+  function otherChar() { return ui.customChars['char:' + S.ilju + ':' + (S.gender === 'm' ? 'f' : 'm')] || null; }
   function syncCustomChar() {
-    var cc = customChar();
+    var cc = customChar(), oc = otherChar();
     $('#customCharState').textContent = cc ? '지금 일주에 내 그림이 들어가 있어요.' : '지금은 기본 캐릭터예요.';
-    $$('#segCharMode button').forEach(function (b) { b.classList.toggle('on', !!cc && cc.mode === b.dataset.v); });
+    $$('#segCharMode button').forEach(function (b) { var on = !!cc && cc.mode === b.dataset.v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    /* '여 · 남 같이'는 저장된 그림을 보고 맞춘다: 둘이 같은 그림이거나 아직 아무 그림도 없으면 켜고, 따로 올렸으면 끈다 */
+    $('#inCharBoth').checked = (!cc && !oc) || !!(cc && oc && cc.dataURL === oc.dataURL);
   }
 
   /* ─────────────── ③ 장식 ─────────────── */
@@ -307,7 +525,7 @@
   /* ─────────────── 고르기 · 끌기 ─────────────── */
 
   var NAMES = { year: '해 (맨 윗줄)', top: '윗줄', bottom: '아랫줄', char: '캐릭터', caption: '뒷면 한 마디', 'seal-front': '낙관', 'seal-back': '낙관', backimg: '뒷면 그림' };
-  var SEAL_DEFAULT = { front: { x: 476, y: 846, s: 1 }, back: { x: 470, y: 790, s: 1 } };
+  function backFitS() { return S.back.frame === false ? 1.1 : 0.94; }
 
   function handle(id) {
     if (!id) return null;
@@ -317,16 +535,24 @@
       return {
         name: (P.P[it.prop] || {}).name || '장식', item: true,
         get: function () { return it.slot ? [it.dx || 0, it.dy || 0] : [it.x, it.y]; },
-        set: function (x, y) { if (it.slot) { it.dx = x; it.dy = y; } else { it.x = x; it.y = y; } },
+        set: function (x, y) {
+          if (it.slot) { var p = layout().slots[it.slot] || [300, 450]; it.dx = clampAt(p[0], x, BOX.x0, BOX.x1); it.dy = clampAt(p[1], y, BOX.y0, BOX.y1); }
+          else { it.x = clamp(x, BOX.x0, BOX.x1); it.y = clamp(y, BOX.y0, BOX.y1); }
+        },
         scale: function (f) { it.s = clamp((it.s || 1) * f, 0.2, 4); },
         rotate: function (d) { it.r = ((it.r || 0) + d) % 360; },
         flip: function () { it.flip = !it.flip; },
         dup: function () {
-          var a = absItems()[i], c = { prop: it.prop, x: a.x + 24, y: a.y + 24, s: it.s, r: it.r, flip: it.flip };
+          var a = absItems()[i], c = { prop: it.prop, x: clamp(a.x + 24, BOX.x0, BOX.x1), y: clamp(a.y + 24, BOX.y0, BOX.y1), s: it.s, s0: it.s0 || (it.slot ? C.SLOT_SIZE[it.slot] : 0.8), r: it.r, flip: it.flip };
           S.items.push(c); return 'item:' + (S.items.length - 1);
         },
         del: function () { S.items.splice(i, 1); },
-        reset: function () { if (it.slot) { it.dx = 0; it.dy = 0; it.s = C.SLOT_SIZE[it.slot] || 0.7; } it.r = 0; }
+        /* 제자리로: 자리 장식은 처음 자리 · 크기 · 방향, 꺼내 놓은 장식은 처음 크기 · 방향 (놓은 자리는 그대로) */
+        reset: function () {
+          if (it.slot) { it.dx = 0; it.dy = 0; it.s = C.SLOT_SIZE[it.slot] || 0.7; it.flip = /r$/.test(it.slot) && !NO_FLIP[it.prop]; }
+          else { it.s = it.s0 || 0.8; it.flip = false; }
+          it.r = 0;
+        }
       };
     }
     if (/^(year|top|bottom|char|caption)$/.test(id)) {
@@ -334,7 +560,7 @@
       return {
         name: NAMES[id],
         get: function () { return [o().dx || 0, o().dy || 0]; },
-        set: function (x, y) { o().dx = x; o().dy = y; },
+        set: function (x, y) { var b = textBase(S, id); o().dx = clampAt(b[0], x, BOX.x0, BOX.x1); o().dy = clampAt(b[1], y, BOX.y0, BOX.y1); },
         scale: function (f) { o().s = clamp((o().s || 1) * f, 0.3, 3); },
         rotate: function (d) { o().r = ((o().r || 0) + d) % 360; },
         flip: id === 'char' ? function () { S.charFlip = !S.charFlip; } : null,
@@ -343,23 +569,24 @@
     }
     if (id === 'seal-front' || id === 'seal-back') {
       var side = id.slice(5);
-      var q = function () { return (S.seal.pos[side] = S.seal.pos[side] || Object.assign({}, SEAL_DEFAULT[side])); };
+      var q = function () { return (S.seal.pos[side] = S.seal.pos[side] || C.sealDefault(S, side)); };
       return {
         name: NAMES[id],
         get: function () { return [q().x, q().y]; },
-        set: function (x, y) { q().x = x; q().y = y; },
+        set: function (x, y) { q().x = clamp(x, BOX.x0, BOX.x1); q().y = clamp(y, BOX.y0, BOX.y1); },
         scale: function (f) { q().s = clamp((q().s || 1) * f, 0.4, 3); },
         reset: function () { delete S.seal.pos[side]; }
       };
     }
     if (id === 'backimg') {
-      var fit = S.back.fit;
+      var fit = S.back.fit, sl = $('#inBackScale');
       return {
         name: NAMES[id],
         get: function () { return [fit.dx || 0, fit.dy || 0]; },
-        set: function (x, y) { fit.dx = x; fit.dy = y; },
-        scale: function (f) { fit.s = clamp((fit.s || 1) * f, 0.2, 3); },
-        reset: function () { fit.dx = 0; fit.dy = 0; fit.s = 1; }
+        set: function (x, y) { fit.dx = clampAt(300, x, BOX.x0, BOX.x1); fit.dy = clampAt(450, y, BOX.y0, BOX.y1); },
+        /* ⑤ 의 '그림 크기' 밀대와 같은 범위로 (밀대가 끝에 붙어서 다음 손질에 크기가 튀지 않게) */
+        scale: function (f) { fit.s = clamp((fit.s || 1) * f, +(sl && sl.min) || 0.4, +(sl && sl.max) || 1.3); },
+        reset: function () { fit.dx = 0; fit.dy = 0; fit.s = backFitS(); }
       };
     }
     return null;
@@ -376,7 +603,8 @@
     if (!h) { $('#selbar').hidden = true; ui.sel = null; return; }
     var wrap = $('.card-wrap[data-side="' + ui.selSide + '"]'), host = $('.card-host', wrap);
     var els = $$('[data-el="' + ui.sel + '"]', host);
-    if (!els.length) { $('#selbar').hidden = true; return; }
+    /* 안 보이는 카드(앞면만 볼 때의 뒷면 등)의 것은 손잡이를 띄우지 않는다 */
+    if (!els.length || wrap.offsetParent === null) { $('#selbar').hidden = true; return; }
     var r0 = wrap.getBoundingClientRect(), box = null;
     els.forEach(function (el) {
       var r = el.getBoundingClientRect();
@@ -400,7 +628,7 @@
 
   function act(a) {
     var h = handle(ui.sel);
-    if (!h) return;
+    if (!h || $('#selbar').hidden) return;
     if (a === 'smaller') h.scale(1 / 1.1);
     else if (a === 'bigger') h.scale(1.1);
     else if (a === 'rotL' && h.rotate) h.rotate(-10);
@@ -421,14 +649,34 @@
   var drag = null;
   function bindDrag(host, side) {
     host.addEventListener('pointerdown', function (e) {
+      if (e.button) return;   /* 왼쪽 단추 · 손가락만 */
       var g = e.target.closest && e.target.closest('[data-el]');
       if (!g) { select(null); return; }
       var id = g.getAttribute('data-el'), h = handle(id), svg = host.querySelector('svg');
       if (!h || !svg) return;
       select(id, side);
+      /* 카드를 누르면 입력칸에서 손을 뗀다 — 그래야 화살표 · Delete 가 고른 것에 간다 */
+      var f = g.hasAttribute('tabindex') ? g : host.querySelector('[data-el="' + id + '"][tabindex]');
+      if (f) { ui.refocusing = true; try { f.focus({ preventScroll: true }); } catch (err) {} finally { ui.refocusing = false; } }
+      else { var ae = document.activeElement; if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) ae.blur(); }
+      $('#cards').classList.remove('kbd');
       drag = { host: host, h: h, p0: toSvg(svg, e), orig: h.get(), moved: false };
       try { host.setPointerCapture(e.pointerId); } catch (err) {}
       e.preventDefault();
+    });
+    /* 키보드(Tab)로 들어오면 그것을 고른다 */
+    host.addEventListener('focusin', function (e) {
+      var g = e.target.closest && e.target.closest('[data-el]');
+      if (!g) return;
+      var kbd = false;
+      try { kbd = g.matches(':focus-visible'); } catch (err) {}
+      $('#cards').classList.toggle('kbd', kbd);
+      if (ui.refocusing) return;
+      var id = g.getAttribute('data-el');
+      if (ui.sel !== id || ui.selSide !== side) select(id, side);
+    });
+    host.addEventListener('focusout', function (e) {
+      if (!ui.refocusing && !(e.relatedTarget && host.contains(e.relatedTarget))) $('#cards').classList.remove('kbd');
     });
     host.addEventListener('pointermove', function (e) {
       if (!drag || drag.host !== host) return;
@@ -452,35 +700,43 @@
       if (!ui.sel || ui.selSide !== side) return;
       var g = e.target.closest && e.target.closest('[data-el="' + ui.sel + '"]');
       if (!g) return;
+      /* 세로로 굴린 만큼만 (가로로 밀기는 무시). 마우스 한 칸(100px) ≈ ×1.05, 트랙패드는 조금씩 */
+      if (!e.deltaY || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       e.preventDefault();
-      handle(ui.sel).scale(e.deltaY < 0 ? 1.05 : 1 / 1.05);
+      var dy = clamp(e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1), -300, 300);
+      handle(ui.sel).scale(Math.exp(-dy * 0.0005));
+      if (ui.sel === 'backimg') syncControls();
       requestRender(); markDirty();
     }, { passive: false });
   }
 
   /* ─────────────── 올린 그림 ─────────────── */
 
+  /* → { url: PNG data URL, w, h } */
   function readImage(file, max) {
     return new Promise(function (resolve, reject) {
       var url = URL.createObjectURL(file), img = new Image();
       img.onload = function () {
         var w = img.naturalWidth, h = img.naturalHeight, k = Math.min(1, max / Math.max(w, h));
+        if (!w || !h) { URL.revokeObjectURL(url); reject(new Error('그림을 읽지 못했어요')); return; }
         var c = document.createElement('canvas');
-        c.width = Math.round(w * k); c.height = Math.round(h * k);
+        c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
         URL.revokeObjectURL(url);
-        resolve(c.toDataURL('image/png'));
+        resolve({ url: c.toDataURL('image/png'), w: c.width, h: c.height });
       };
       img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('그림을 읽지 못했어요')); };
       img.src = url;
     });
   }
 
+  /* 알림: 보관함 창이 열려 있으면 그 안에 띄운다 (창 뒤에 가려지지 않게) */
   function toast(t, ms) {
-    var el = $('#toast');
+    var el = $('#toast'), dlg = $('#archive'), home = dlg && dlg.open ? dlg : document.body;
+    if (el.parentNode !== home) home.appendChild(el);
     el.textContent = t; el.hidden = false;
     clearTimeout(toast.t);
-    toast.t = setTimeout(function () { el.hidden = true; }, ms || 2600);
+    toast.t = setTimeout(function () { el.hidden = true; }, ms || Math.max(2600, Math.min(8000, 1600 + String(t).length * 60)));
   }
 
   /* ─────────────── ⑥ 그림 프롬프트 ─────────────── */
@@ -492,7 +748,9 @@
     if (!ui.llm) ui.llm = { engine: 'ollama', urls: {}, models: {}, style: STYLE_DEFAULT, neg: NEG_DEFAULT, n: 2 };
     return ui.llm;
   }
-  function saveLlm() { BJ.store.put('kv', 'llm', ui.llm); }
+  function saveLlm() {
+    return BJ.store.put('kv', 'llm', ui.llm).catch(function (e) { toast((e && e.message) || '설정을 저장하지 못했어요', 5000); });
+  }
 
   var HELP = {
     ollama: 'Ollama 를 깔고 한국어가 되는 모델을 하나 받아 두면 돼요 (예: <code>ollama pull gemma3:12b</code> · 가볍게는 <code>gemma3:4b</code> · 한국어 특화 <code>exaone3.5:7.8b</code>). 이 페이지를 <code>http://localhost</code> 로 열면 바로 되고, 다른 주소(배포한 사이트 · 파일로 열기)라면 Ollama 에 그 주소를 허락해 줘야 해요 — README 의 “Ollama 연결” 참고.',
@@ -503,6 +761,12 @@
 
   function syncEngine() {
     var cfg = llmCfg(), eng = cfg.engine, def = BJ.llm.ENGINES.filter(function (e) { return e.id === eng; })[0] || BJ.llm.ENGINES[0];
+    /* 엔진을 바꾸면 앞 엔진의 모델 목록 · 연결 상태는 지운다 */
+    if (ui.lastEngine && ui.lastEngine !== eng) {
+      $('#modelList').innerHTML = '';
+      if (!ui.running) { setStatus(''); countEl().textContent = ''; }
+    }
+    ui.lastEngine = eng;
     $('#inEngine').value = eng;
     $('#rowEngineUrl').hidden = !(eng === 'ollama' || eng === 'openai');
     $('#rowEngineModel').hidden = eng === 'rules';
@@ -570,38 +834,94 @@
     if (!d) return '';
     var info = G.ilju(S.ilju), lines = ['[' + info.ko + '일주 ' + (S.gender === 'm' ? '남' : '여') + ' · ' + info.title + '] ' + (S.name || ''), '고민: ' + S.worry, d.summary, ''];
     d.ideas.forEach(function (x, i) {
-      lines.push((i + 1) + '. ' + x.title, x.scene, '자세: ' + x.pose, '소품: ' + x.props.join(', '), '바뀐 것: ' + x.symbol, '한 마디: ' + x.caption, 'Prompt: ' + fullPrompt(x.prompt_en), 'Negative: ' + (llmCfg().neg || ''), '');
+      lines.push((i + 1) + '. ' + x.title, x.scene || '', '자세: ' + (x.pose || ''), '소품: ' + (x.props || []).join(', '), '바뀐 것: ' + (x.symbol || ''), '한 마디: ' + (x.caption || ''), 'Prompt: ' + fullPrompt(x.prompt_en), 'Negative: ' + (llmCfg().neg || ''), '');
     });
     return lines.join('\n');
   }
 
+  /* 상태 줄(화면 낭독기가 읽는 곳)은 바뀔 때만 쓰고, 글자 수 같은 잦은 숫자는 옆 칸(읽지 않음)에 */
+  function setStatus(t, err) {
+    var st = $('#llmStatus');
+    st.className = 'llm-status' + (err ? ' err' : '');
+    if (st.textContent !== t) st.textContent = t;
+  }
+  function countEl() {
+    var c = $('#llmCount');
+    if (!c) {
+      c = document.createElement('span');
+      c.id = 'llmCount'; c.className = 'llm-count'; c.setAttribute('aria-hidden', 'true');
+      $('#llmStatus').insertAdjacentElement('afterend', c);
+    }
+    return c;
+  }
+
+  /* 지금 도는 생성을 멈춘다 (다른 부적을 열거나 새 부적을 만들 때 · 멈추기). 늦게 온 답은 runSeq 로 버린다 */
+  function stopRun(quiet) {
+    var was = !!ui.running;
+    if (ui.running) { try { ui.running.abort(); } catch (e) {} }
+    ui.running = null; ui.runSeq++;
+    $('#btnIdeas').textContent = '그림 아이디어 만들기';
+    $('#ideas').removeAttribute('aria-busy');
+    countEl().textContent = '';
+    $('#llmStream').hidden = true;
+    if (was) setStatus(quiet ? '' : '멈췄어요.');
+  }
+
   function runIdeas() {
-    if (ui.running) { ui.running.abort(); return; }
-    var cfg = engineConf(), btn = $('#btnIdeas'), status = $('#llmStatus'), stream = $('#llmStream');
+    if (ui.running) { stopRun(); return; }
+    var cfg = engineConf(), btn = $('#btnIdeas'), stream = $('#llmStream'), count = countEl();
     var ctl = new AbortController(), engName = (BJ.llm.ENGINES.filter(function (e) { return e.id === cfg.engine; })[0] || {}).name;
+    var runId = ++ui.runSeq, targetId = S.id, writing = false;
     ui.running = ctl;
     btn.textContent = '멈추기';
-    status.textContent = cfg.engine === 'rules' ? '' : '연결하는 중…';
-    status.className = 'llm-status';
+    setStatus(cfg.engine === 'rules' ? '' : '연결하는 중…');
+    count.textContent = '';
+    $('#ideas').setAttribute('aria-busy', 'true');
     stream.hidden = cfg.engine === 'rules';
     stream.textContent = '';
+    function live() { return runId === ui.runSeq; }
     BJ.llm.generate(cfg, llmInput(), {
       signal: ctl.signal,
-      onStatus: function (t) { status.textContent = t; },
-      onToken: function (t, raw) { stream.textContent = raw.slice(-1600); stream.scrollTop = stream.scrollHeight; status.textContent = '쓰는 중… (' + raw.length + '자)'; }
+      onStatus: function (t) {
+        if (!live()) return;
+        /* '모델 준비 중 (처음 한 번만 받아요): 37%…' → 앞말만 상태 줄에, 나머지는 옆 칸에 */
+        t = String(t || '');
+        var head = t.split(/[:：]/)[0].trim();
+        setStatus(head);
+        count.textContent = t.length > head.length ? t.slice(head.length).replace(/^[\s:：]+/, '').slice(0, 80) : '';
+      },
+      onToken: function (t, raw) {
+        if (!live()) return;
+        stream.textContent = raw.slice(-1600); stream.scrollTop = stream.scrollHeight;
+        if (!writing) { writing = true; setStatus('쓰는 중…'); }
+        count.textContent = raw.length + '자';
+      }
     }).then(function (r) {
-      S.ideas = { data: r.data, engine: cfg.engine, engineName: engName + (cfg.model ? ' · ' + cfg.model : ''), at: Date.now() };
-      status.textContent = '';
+      if (!live()) return;
+      var res = { data: r.data, engine: cfg.engine, engineName: engName + (cfg.model ? ' · ' + cfg.model : ''), at: Date.now() };
+      if (S.id === targetId) {
+        S.ideas = cleanIdeas(res) || res;
+        renderIdeas(); markDirty();
+        setStatus('아이디어 ' + ((S.ideas.data.ideas || []).length) + '개를 만들었어요.');
+      } else {
+        /* 그사이 다른 부적으로 바뀌었으면 — 부탁한 부적에만 넣는다 (지운 부적은 되살리지 않는다) */
+        BJ.store.update('designs', targetId, function (d) { if (!d) return undefined; d.ideas = res; d.updatedAt = Date.now(); return d; }).catch(function () {});
+        setStatus('');
+      }
       stream.hidden = true;
-      renderIdeas(); markDirty();
     }).catch(function (e) {
-      if (e && e.name === 'AbortError') { status.textContent = '멈췄어요.'; return; }
-      status.className = 'llm-status err';
-      status.textContent = (e && e.message) || '알 수 없는 오류';
-      if (cfg.engine !== 'rules') status.textContent += ' — 급하면 엔진을 “LLM 없이”로 바꿔도 돼요.';
+      if (!live()) return;
+      if (e && e.name === 'AbortError') { setStatus('멈췄어요.'); return; }
+      var msg = (e && e.message) || '알 수 없는 오류가 났어요';
+      if (cfg.engine !== 'rules') msg += ' — 급하면 엔진을 “LLM 없이”로 바꿔도 돼요.';
+      setStatus(msg, true);
+      stream.hidden = !stream.textContent;
     }).then(function () {
+      if (!live()) return;
       ui.running = null;
       btn.textContent = '그림 아이디어 만들기';
+      count.textContent = '';
+      $('#ideas').removeAttribute('aria-busy');
     });
   }
 
@@ -613,15 +933,24 @@
     $('#inStyle').addEventListener('change', function () { llmCfg().style = this.value; saveLlm(); renderIdeas(); });
     $('#inNeg').addEventListener('change', function () { llmCfg().neg = this.value; saveLlm(); renderIdeas(); });
     $('#inIdeas').addEventListener('change', function () { llmCfg().n = +this.value; saveLlm(); });
+    var EMPTY = {
+      ollama: '설치된 모델이 없어요. 터미널에서 ollama pull 로 하나 받아 주세요 (예: ollama pull gemma3:12b).',
+      openai: '불러온 모델이 없어요. LM Studio 같은 서버에서 모델을 불러온(Load) 뒤 다시 눌러 주세요.',
+      webllm: '이 브라우저에서 돌릴 수 있는 모델을 찾지 못했어요.'
+    };
     $('#btnModels').addEventListener('click', function () {
-      var st = $('#llmStatus');
-      st.className = 'llm-status'; st.textContent = '모델 목록을 불러오는 중…';
+      var eng = llmCfg().engine;
+      if (eng === 'rules') { setStatus('“LLM 없이”는 모델이 필요 없어요.'); return; }
+      setStatus('모델 목록을 불러오는 중…');
       BJ.llm.listModels(engineConf()).then(function (list) {
+        if (llmCfg().engine !== eng) return;   /* 그사이 엔진을 바꿨으면 버린다 */
+        list = (list || []).map(String);
         $('#modelList').innerHTML = list.map(function (m) { return '<option value="' + esc(m) + '">'; }).join('');
-        if (!list.length) { st.textContent = '설치된 모델이 없어요. 터미널에서 ollama pull 로 하나 받아 주세요.'; return; }
-        if (!llmCfg().models[llmCfg().engine]) { llmCfg().models[llmCfg().engine] = list[0]; syncEngine(); saveLlm(); }
-        st.textContent = '연결됨 · 모델 ' + list.length + '개: ' + list.slice(0, 6).join(', ') + (list.length > 6 ? ' …' : '');
-      }).catch(function (e) { st.className = 'llm-status err'; st.textContent = e.message; });
+        if (!list.length) { setStatus(EMPTY[eng] || '모델이 없어요.'); return; }
+        /* 비어 있으면 목록의 첫째(엔진 쪽에서 쓸 만한 순서로 준 것)를 넣는다 */
+        if (!llmCfg().models[eng]) { llmCfg().models[eng] = list[0]; syncEngine(); saveLlm(); }
+        setStatus('연결됨 · 모델 ' + list.length + '개: ' + list.slice(0, 6).join(', ') + (list.length > 6 ? ' …' : ''));
+      }).catch(function (e) { if (llmCfg().engine === eng) setStatus((e && e.message) || '모델 목록을 불러오지 못했어요', true); });
     });
     $('#btnIdeas').addEventListener('click', runIdeas);
     $('#btnCopyRaw').addEventListener('click', function () {
@@ -633,8 +962,13 @@
       if (!b) return;
       if (b.dataset.copy) copyText($('#' + b.dataset.copy).textContent);
       else if (b.dataset.cap != null) {
-        var x = S.ideas.data.ideas[+b.dataset.cap];
-        S.back.caption = x.caption; syncControls(); requestRender(); markDirty(); toast('뒷면 한 마디에 넣었어요');
+        var x = S.ideas && S.ideas.data.ideas[+b.dataset.cap];
+        if (!x) return;
+        /* 뒷면 한 마디 칸과 같은 길이까지만 (모델이 길게 써도 카드 글자가 깨알만 해지지 않게) */
+        var max = +$('#inCaption').maxLength > 0 ? +$('#inCaption').maxLength : 20, cap = Array.from(clean(x.caption || '').trim());
+        S.back.caption = cap.slice(0, max).join('').trim();
+        syncControls(); requestRender(); markDirty();
+        toast(cap.length > max ? '한 마디가 ' + max + '자를 넘어서 앞부분만 넣었어요 — ⑤ 뒷면에서 다듬어 주세요' : '뒷면 한 마디에 넣었어요', cap.length > max ? 5000 : 0);
       } else if (b.id === 'btnCopyAll') copyText(ideasAsText());
     });
   }
@@ -653,124 +987,203 @@
     return { main: main.replace(/\s/g, '') || '가', hanja: hanja };
   }
 
-  function exportSVG(side, opts) {
+  /* → { svg, failed } — failed: 글꼴 일부를 받지 못해 컴퓨터 글꼴로 대신 그려진다 */
+  function exportParts(side, opts) {
     opts = opts || {};
     var u = usedChars(side);
-    return F.embedCSS(S.font, u.main, u.hanja).then(function (css) {
+    return F.embedCSS(S.font, u.main, u.hanja).then(function (fc) {
       var rs = renderState();
       if (opts.blankBack) rs = Object.assign({}, rs, { back: Object.assign({}, rs.back, { caption: '' }), seal: Object.assign({}, rs.seal, { where: 'none' }) });
-      var e = env(side === 'front' ? 'xf' : 'xb', { fontCSS: css, backImage: opts.blankBack ? null : S.back.image });
-      return side === 'front' ? C.front(rs, e) : C.back(rs, e);
+      var e = env(side === 'front' ? 'xf' : 'xb', { fontCSS: fc.css, backImage: opts.blankBack ? null : S.back.image });
+      return { svg: side === 'front' ? C.front(rs, e) : C.back(rs, e), failed: !!fc.failed };
     });
   }
+  function exportSVG(side, opts) { return exportParts(side, opts).then(function (r) { return r.svg; }); }
+  var FONT_WARN = '받았어요. 다만 글꼴을 받지 못해 컴퓨터 글꼴로 그려졌어요 — 인터넷 연결을 확인하고 다시 받아 주세요.';
 
   function fileBase() {
     var info = G.ilju(S.ilju);
     return ('부적_' + (S.name ? S.name.replace(/[\\/:*?"<>|\s]+/g, '_') + '_' : '') + info.ko + (S.gender === 'm' ? '남' : '여')).slice(0, 60);
   }
 
+  function outStatus(t, cls) { var st = $('#outStatus'); st.className = 'llm-status' + (cls ? ' ' + cls : ''); st.textContent = t; }
+
   function doExport(kind) {
-    var scale = +$('#inScale').value || 3, st = $('#outStatus');
-    st.className = 'llm-status'; st.textContent = '그리는 중…';
+    var scale = +$('#inScale').value || 3, failed = false;
+    outStatus('그리는 중…');
+    function part(side) { return exportParts(side).then(function (r) { failed = failed || r.failed; return BJ.exporter.toCanvas(r.svg, scale); }); }
     var job;
     if (kind === 'both') {
-      job = Promise.all([exportSVG('front'), exportSVG('back')]).then(function (s) {
-        return Promise.all([BJ.exporter.toCanvas(s[0], scale), BJ.exporter.toCanvas(s[1], scale)]);
-      }).then(function (cs) { return BJ.exporter.canvasBlob(BJ.exporter.sideBySide(cs[0], cs[1], scale)); })
+      job = Promise.all([part('front'), part('back')])
+        .then(function (cs) { return BJ.exporter.canvasBlob(BJ.exporter.sideBySide(cs[0], cs[1], scale)); })
         .then(function (b) { BJ.exporter.download(b, fileBase() + '_앞뒤.png'); });
     } else {
-      job = exportSVG(kind).then(function (svg) { return BJ.exporter.toCanvas(svg, scale); })
-        .then(BJ.exporter.canvasBlob).then(function (b) { BJ.exporter.download(b, fileBase() + (kind === 'front' ? '_앞.png' : '_뒤.png')); });
+      job = part(kind).then(BJ.exporter.canvasBlob).then(function (b) { BJ.exporter.download(b, fileBase() + (kind === 'front' ? '_앞.png' : '_뒤.png')); });
     }
-    job.then(function () { st.textContent = '받았어요.'; }).catch(function (e) { st.className = 'llm-status err'; st.textContent = e.message || '내보내지 못했어요'; });
+    job.then(function () { if (failed) outStatus(FONT_WARN, 'err'); else outStatus('받았어요.'); })
+      .catch(function (e) { outStatus((e && e.message) || '내보내지 못했어요', 'err'); });
   }
 
   function doPrint() {
-    var st = $('#outStatus');
-    st.className = 'llm-status'; st.textContent = '인쇄용으로 그리는 중…';
-    Promise.all([exportSVG('front'), exportSVG('back')]).then(function (s) {
-      return Promise.all([BJ.exporter.toCanvas(s[0], 4), BJ.exporter.toCanvas(s[1], 4)]);
+    /* 인쇄 창은 누른 그 자리에서 먼저 연다 (다 그린 뒤에 열면 팝업 차단에 걸린다) */
+    var w = BJ.exporter.openPrint(fileBase()), failed = false;
+    if (!w) { outStatus('팝업이 막혔어요. 주소창 옆에서 팝업을 허용하고 다시 눌러 주세요.', 'err'); return; }
+    outStatus('인쇄용으로 그리는 중…');
+    Promise.all([exportParts('front'), exportParts('back')]).then(function (r) {
+      failed = r[0].failed || r[1].failed;
+      return Promise.all([BJ.exporter.toCanvas(r[0].svg, 4), BJ.exporter.toCanvas(r[1].svg, 4)]);
     }).then(function (cs) {
-      var ok = BJ.exporter.print(cs.map(function (c) { return c.toDataURL('image/png'); }), fileBase());
-      st.textContent = ok ? '인쇄 창을 열었어요. 배율은 100%(실제 크기)로 맞춰 주세요.' : '팝업이 막혔어요. 주소창 옆에서 팝업을 허용해 주세요.';
-    }).catch(function (e) { st.className = 'llm-status err'; st.textContent = e.message; });
+      if (w.closed) { outStatus('인쇄 창이 닫혀서 멈췄어요.'); return; }
+      BJ.exporter.print(cs.map(function (c) { return c.toDataURL('image/png'); }), fileBase(), w);
+      outStatus((failed ? '글꼴을 받지 못해 컴퓨터 글꼴로 그렸어요 (인터넷 연결 확인). ' : '') + '인쇄 창을 열었어요. 배율은 100%(실제 크기)로 맞춰 주세요.', failed ? 'err' : '');
+    }).catch(function (e) {
+      try { w.close(); } catch (e2) {}
+      outStatus((e && e.message) || '인쇄용으로 그리지 못했어요', 'err');
+    });
   }
 
   function backTemplate() {
-    exportSVG('back', { blankBack: true }).then(function (svg) { return BJ.exporter.toCanvas(svg, 3); })
-      .then(BJ.exporter.canvasBlob).then(function (b) { BJ.exporter.download(b, '빈_뒷면_1800x2700.png'); toast('빈 뒷면을 받았어요. 그림판 앱에서 이 위에 그리면 크기가 딱 맞아요.', 3600); })
-      .catch(function (e) { toast(e.message); });
+    var failed = false;
+    exportParts('back', { blankBack: true }).then(function (r) { failed = r.failed; return BJ.exporter.toCanvas(r.svg, 3); })
+      .then(BJ.exporter.canvasBlob).then(function (b) {
+        BJ.exporter.download(b, '빈_뒷면_1800x2700.png');
+        toast('빈 뒷면을 받았어요. 그림판 앱에서 이 위에 그리면 크기가 딱 맞아요.' + (failed ? ' (글꼴을 받지 못해 낙관 글자는 컴퓨터 글꼴로 그려졌어요)' : ''), 4000);
+      })
+      .catch(function (e) { toast((e && e.message) || '빈 뒷면을 만들지 못했어요'); });
   }
 
   /* ─────────────── 보관함 ─────────────── */
 
-  function openArchive() {
-    save().then(function () { return BJ.store.all('designs'); }).then(function (rows) {
-      rows.sort(function (a, b) { return (b.value.updatedAt || 0) - (a.value.updatedAt || 0); });
-      var h = rows.map(function (r) {
-        var d = r.value, info = G.ilju(d.ilju || 0), when = new Date(d.updatedAt || Date.now());
-        return '<li class="' + (d.id === S.id ? 'cur' : '') + '"><div class="thumb">' + BJ.chars.svg(d.ilju || 0, d.gender, { mode: d.charMode, ink: d.ink, paper: d.paper }) + '</div>' +
-          '<div class="meta"><b>' + esc(d.name || '이름 없음') + '</b><span>' + info.ko + '일주 ' + (d.gender === 'm' ? '남' : '여') + ' · ' + esc((d.topText || '') + ' ' + (d.bottomText || '')) + '</span>' +
-          '<span class="dim">' + when.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + (d.worry ? ' · 고민 있음' : '') + (d.back && d.back.image ? ' · 뒷면 그림' : '') + '</span></div>' +
-          '<div class="acts"><button class="btn small" data-open="' + d.id + '" type="button">열기</button><button class="btn small ghost" data-dup="' + d.id + '" type="button">복제</button><button class="btn small ghost danger" data-del="' + d.id + '" type="button">지우기</button></div></li>';
-      }).join('');
-      $('#archiveList').innerHTML = h || '<li class="empty">아직 저장된 부적이 없어요.</li>';
-      var dlg = $('#archive');
-      if (dlg.showModal) { if (!dlg.open) dlg.showModal(); } else dlg.setAttribute('open', '');
-    });
+  /* 보관함 목록에 보여 줄 만큼만 (저장된 값을 그대로 HTML 에 넣지 않는다) */
+  function peek(v) {
+    v = v && typeof v === 'object' ? v : {};
+    return {
+      name: str(v.name, 40), ilju: G.ilju(v.ilju).index, gender: v.gender === 'm' ? 'm' : 'f', mode: v.charMode === 'line' ? 'line' : 'color',
+      ink: HEX.test(v.ink) ? v.ink : '#C93B22', paper: HEX.test(v.paper) ? v.paper : '#F2BE35',
+      text: str(v.topText, 24) + ' ' + str(v.bottomText, 24), at: numIn(v.updatedAt, 0, 1e15, 0), worry: !!v.worry, img: !!(v.back && v.back.image)
+    };
+  }
+  function archiveRow(r) {
+    var d = peek(r.value), info = G.ilju(d.ilju), when = new Date(d.at || Date.now()), key = esc(r.key);
+    return '<li class="' + (r.key === S.id ? 'cur' : '') + '"><div class="thumb">' + BJ.chars.svg(d.ilju, d.gender, { mode: d.mode, ink: d.ink, paper: d.paper }) + '</div>' +
+      '<div class="meta"><b>' + esc(d.name || '이름 없음') + '</b><span>' + info.ko + '일주 ' + (d.gender === 'm' ? '남' : '여') + ' · ' + esc(d.text) + '</span>' +
+      '<span class="dim">' + when.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + (d.worry ? ' · 고민 있음' : '') + (d.img ? ' · 뒷면 그림' : '') + '</span></div>' +
+      '<div class="acts"><button class="btn small" data-open="' + key + '" type="button">열기</button><button class="btn small ghost" data-dup="' + key + '" type="button">복제</button><button class="btn small ghost danger" data-del="' + key + '" type="button">지우기</button></div></li>';
+  }
+  function archiveNote() {
+    var n = $('#archive .note');
+    if (n) n.textContent = memMode
+      ? '이 창에서는 저장이 안 돼요 (사생활 보호 창?). 창을 닫으면 사라지니, 다 만들면 PNG 로 받거나 백업 파일을 받아 두세요.'
+      : '만든 부적은 이 브라우저에 저절로 저장돼요. 다른 컴퓨터로 옮기거나 혹시 몰라 남겨 두려면 백업 파일을 받아 두세요.';
   }
 
+  /* 보관함은 무슨 일이 있어도 열린다 (한 줄이 깨져도 그 줄만 '읽을 수 없는 부적'으로) */
+  function openArchive() {
+    var dlg = $('#archive');
+    return save().catch(function () {}).then(function () { return BJ.store.all('designs'); }).then(function (rows) {
+      rows.sort(function (a, b) { return peek(b.value).at - peek(a.value).at; });
+      var h = rows.map(function (r) {
+        try { return archiveRow(r); } catch (e) {
+          return '<li class="bad"><div class="meta"><b>읽을 수 없는 부적</b><span class="dim">저장된 값이 깨져 있어요</span></div>' +
+            '<div class="acts"><button class="btn small ghost danger" data-del="' + esc(r.key) + '" type="button">지우기</button></div></li>';
+        }
+      }).join('');
+      $('#archiveList').innerHTML = h || '<li class="empty">아직 저장된 부적이 없어요.</li>';
+    }).catch(function (e) {
+      $('#archiveList').innerHTML = '<li class="empty">보관함을 읽지 못했어요: ' + esc((e && e.message) || '') + '</li>';
+    }).then(function () {
+      archiveNote();
+      if (dlg.showModal) { if (!dlg.open) dlg.showModal(); } else dlg.setAttribute('open', '');
+      var t = $('#toast'); if (!t.hidden && t.parentNode !== dlg) dlg.appendChild(t);
+    });
+  }
+  function closeArchive() { var d = $('#archive'); if (d.close) d.close(); else d.removeAttribute('open'); }
+
   function loadDesign(d) {
+    stopRun(true);
+    clearTimeout(saveTimer);
     S = migrate(d);
-    dirty = false;
+    dirty = false; stored = true;
+    base = { id: S.id, at: S.updatedAt };
     ui.sel = null;
-    BJ.store.put('kv', 'current', S.id);
+    BJ.store.put('kv', 'current', S.id).catch(function () {});
     afterLoad();
   }
 
   function afterLoad() {
+    /* 올린 글꼴이 이 브라우저에 없으면 (지웠거나 읽지 못한 글꼴) 기본 글꼴로 */
+    var fontGone = !fontOk(S.font);
+    if (fontGone) S.font = F.LIST[0].id;
     syncControls(); buildGrid(); showIljuNow(); syncCustomChar(); renderIdeas(); ensureFont(); render();
-    setSaveState(dirty ? '' : '저장됨');
+    if (dirty) setSaveState('저장 중…'); else setSaved();
+    if (fontGone) { toast('저장된 내 글꼴을 이 브라우저에서 찾지 못해서 기본 글꼴로 바꿨어요', 5000); markDirty(); }
+    /* 예전에 올린 뒷면 그림은 비율을 몰라서 — 한 번 재 둔다 */
+    if (S.back.image && !S.back.aspect) {
+      var im = new Image(), doc = S;
+      im.onload = function () { if (S === doc && S.back.image === im.src && im.naturalHeight) { S.back.aspect = im.naturalWidth / im.naturalHeight; requestRender(); } };
+      im.src = S.back.image;
+    }
   }
 
+  /* 새 부적: 꾸밈(글자 · 틀 · 색 · 장식 · 놓은 자리 · 뒷면 틀과 처리)은 그대로, 신청자 칸(이름 · 고민 · 아이디어 · 뒷면 그림 · 한 마디)만 비운다 */
+  function nextDesign() {
+    var keep = {};
+    STYLE_KEYS.forEach(function (k) { keep[k] = JSON.parse(JSON.stringify(S[k])); });
+    var n = fresh();
+    Object.assign(n, keep);
+    n.items = JSON.parse(JSON.stringify(S.items));
+    n.ilju = S.ilju; n.gender = S.gender;
+    n.back = Object.assign(fresh().back, { frame: S.back.frame, mode: S.back.mode, fit: { dx: 0, dy: 0, s: S.back.fit.s } });
+    return n;
+  }
+  function switchTo(n) {
+    stopRun(true);
+    clearTimeout(saveTimer);
+    S = n; dirty = false; stored = false; ui.sel = null;
+    base = { id: S.id, at: 0 };
+    afterLoad();
+  }
   function newDesign() {
     save().then(function () {
-      var keep = {};
-      STYLE_KEYS.forEach(function (k) { keep[k] = JSON.parse(JSON.stringify(S[k])); });
-      var slotItems = S.items.filter(function (it) { return it.slot; });
-      var n = fresh();
-      Object.assign(n, keep);
-      n.items = JSON.parse(JSON.stringify(slotItems));
-      n.ilju = S.ilju; n.gender = S.gender;
-      S = n; dirty = false; ui.sel = null;
-      afterLoad();
+      switchTo(nextDesign());
       toast('새 부적 — 꾸밈은 그대로, 신청자 칸은 비웠어요');
     });
   }
 
   function bindArchive() {
     $('#btnArchive').addEventListener('click', openArchive);
-    $('#btnArchiveClose').addEventListener('click', function () { var d = $('#archive'); if (d.close) d.close(); else d.removeAttribute('open'); });
+    $('#btnArchiveClose').addEventListener('click', closeArchive);
+    $('#archive').addEventListener('close', function () { var t = $('#toast'); if (t.parentNode !== document.body) document.body.appendChild(t); });
     $('#btnNew').addEventListener('click', newDesign);
     $('#archiveList').addEventListener('click', function (e) {
       var b = e.target.closest('button');
       if (!b) return;
       if (b.dataset.open) {
-        BJ.store.get('designs', b.dataset.open).then(function (d) { if (d) { loadDesign(d); var dl = $('#archive'); if (dl.close) dl.close(); } });
+        BJ.store.get('designs', b.dataset.open).then(function (d) {
+          if (!d) { toast('그 부적을 찾지 못했어요'); return openArchive(); }
+          if (d.id !== b.dataset.open) d = Object.assign({}, d, { id: b.dataset.open });
+          loadDesign(d); closeArchive();
+        }).catch(function (err) { toast((err && err.message) || '열지 못했어요', 5000); });
       } else if (b.dataset.dup) {
         BJ.store.get('designs', b.dataset.dup).then(function (d) {
           if (!d) return;
-          var c = JSON.parse(JSON.stringify(d));
-          c.id = uid(); c.name = (c.name || '이름 없음') + ' (복제)'; c.createdAt = c.updatedAt = Date.now();
+          var c = migrate(d);
+          c.id = uid(); c.name = str((c.name || '이름 없음') + ' (복제)', 40); c.createdAt = c.updatedAt = Date.now();
           return BJ.store.put('designs', c.id, c).then(openArchive);
-        });
+        }).catch(function (err) { toast((err && err.message) || '복제하지 못했어요', 5000); });
       } else if (b.dataset.del) {
         if (!confirm('이 부적을 보관함에서 지울까요? 되돌릴 수 없어요.')) return;
-        var id = b.dataset.del;
-        BJ.store.del('designs', id).then(function () {
-          if (id === S.id) { S.id = uid(); dirty = false; }
-          openArchive();
-        });
+        var id = b.dataset.del, wasOpen = id === S.id;
+        if (wasOpen) { clearTimeout(saveTimer); dirty = false; }
+        saving.catch(function () {}).then(function () { return BJ.store.del('designs', id); }).then(function () {
+          /* 열려 있던 부적을 지웠으면: 꾸밈은 그대로 둔 새 부적으로 (지운 부적이 다음 저장 때 되살아나지 않게) */
+          if (wasOpen && id === S.id) {
+            switchTo(nextDesign());
+            BJ.store.del('kv', 'current').catch(function () {});
+            toast('지웠어요. 꾸밈은 그대로 둔 새 부적을 열었어요');
+          }
+          return openArchive();
+        }).catch(function (err) { toast((err && err.message) || '지우지 못했어요', 5000); });
       }
     });
     $('#btnBackup').addEventListener('click', function () {
@@ -786,28 +1199,115 @@
       this.value = '';
       if (!f) return;
       f.text().then(function (t) {
-        var data = JSON.parse(t);
-        if (!data || data.app !== 'bujeok-gongbang') throw new Error('부적 공방 백업 파일이 아니에요');
-        var jobs = (data.designs || []).map(function (d) {
-          return BJ.store.get('designs', d.id).then(function (old) { if (!old || (old.updatedAt || 0) < (d.updatedAt || 0)) return BJ.store.put('designs', d.id, d); });
-        });
-        (data.assets || []).forEach(function (a) { jobs.push(BJ.store.put('assets', a.key, a.value)); });
-        return Promise.all(jobs).then(loadAssets).then(function () {
-          buildGrid(); buildFontSelect(); render(); openArchive();
-          toast('백업을 불러왔어요 (부적 ' + (data.designs || []).length + '개)');
-        });
-      }).catch(function (e) { toast(e.message || '불러오지 못했어요', 4000); });
+        var data;
+        try { data = JSON.parse(t); } catch (e) { throw new Error('백업 파일을 읽지 못했어요 (형식이 깨졌어요)'); }
+        if (!data || typeof data !== 'object' || data.app !== 'bujeok-gongbang') throw new Error('부적 공방 백업 파일이 아니에요');
+        return restore(data);
+      }).catch(function (e) { toast((e && e.message) || '불러오지 못했어요', 6000); })
+        .then(function () { return openArchive(); });
+    });
+  }
+
+  /* ─────────────── 백업 불러오기 ─────────────── */
+
+  /* 백업 속 그림 · 글꼴: 이 앱이 만든 모양인지 확인 */
+  function cleanAsset(key, v) {
+    if (typeof key !== 'string' || !v || typeof v !== 'object') return null;
+    var m = /^char:(\d{1,2}):([fm])$/.exec(key);
+    if (m && v.kind === 'char' && +m[1] < 60 && typeof v.dataURL === 'string' && IMG_RE.test(v.dataURL)) {
+      return { kind: 'char', ilju: +m[1], gender: m[2], dataURL: v.dataURL, mode: oneOf(v.mode, ['normal', 'multiply', 'ink'], 'multiply'), updatedAt: numIn(v.updatedAt, 0, 1e15, 0) };
+    }
+    m = /^font:([\w-]{1,40})$/.exec(key);
+    if (m && v.kind === 'font' && v.id === m[1] && typeof v.dataURL === 'string' && FONT_RE.test(v.dataURL)) {
+      return { kind: 'font', id: v.id, name: str(v.name, 60) || '내 글꼴', dataURL: v.dataURL, updatedAt: numIn(v.updatedAt, 0, 1e15, 0) };
+    }
+    return null;
+  }
+  function cleanLlm(L) {
+    if (!L || typeof L !== 'object') return null;
+    var ids = BJ.llm.ENGINES.map(function (e) { return e.id; }), out = { engine: oneOf(L.engine, ids, 'ollama'), urls: {}, models: {}, style: STYLE_DEFAULT, neg: NEG_DEFAULT, n: 2 };
+    ids.forEach(function (k) {
+      var u = L.urls && L.urls[k], m = L.models && L.models[k];
+      if (typeof u === 'string' && /^https?:\/\/[^\s"'<>]{1,200}$/.test(u)) out.urls[k] = u;
+      if (typeof m === 'string' && m.length <= 160) out.models[k] = str(m, 160);
+    });
+    if (typeof L.style === 'string') out.style = str(L.style, 1500);
+    if (typeof L.neg === 'string') out.neg = str(L.neg, 1500);
+    out.n = Math.round(numIn(L.n, 1, 3, 2));
+    return out;
+  }
+
+  /* 부적은 더 새 판만, 그림 · 글꼴은 지금 것이 없거나 백업 쪽이 더 새것일 때만 들인다. 깨진 것은 빼고 세어서 알려 준다 */
+  function restore(data) {
+    var designs = Array.isArray(data.designs) ? data.designs : [], assets = Array.isArray(data.assets) ? data.assets : [];
+    var good = [], bad = 0, goodA = [], badA = 0;
+    designs.forEach(function (d) {
+      if (!d || typeof d !== 'object' || typeof d.id !== 'string' || !ID_RE.test(d.id)) { bad++; return; }
+      try {
+        var m = migrate(d);
+        /* 시각이 없는 부적은 '아주 옛것'으로 (지금 것을 덮지 않게) */
+        m.updatedAt = numIn(d.updatedAt, 0, 1e15, 0); m.createdAt = numIn(d.createdAt, 0, 1e15, m.updatedAt);
+        good.push(m);
+      } catch (e) { bad++; }
+    });
+    assets.forEach(function (a) { var c = a && cleanAsset(a.key, a.value); if (c) goodA.push({ key: a.key, value: c }); else badA++; });
+    var imported = {}, nNew = 0, nOld = 0, aNew = 0, aKept = 0;
+    return save().catch(function () {}).then(function () {
+      return Promise.all(good.map(function (d) {
+        return BJ.store.update('designs', d.id, function (old) {
+          if (old && (old.updatedAt || 0) >= (d.updatedAt || 0)) return undefined;
+          return d;
+        }).then(function (r) { if (r.wrote) { nNew++; imported[d.id] = d; } else nOld++; });
+      }).concat(goodA.map(function (a) {
+        return BJ.store.update('assets', a.key, function (old) {
+          if (!old) return a.value;
+          if (old.dataURL === a.value.dataURL) return undefined;                       /* 같은 그림 */
+          if ((a.value.updatedAt || 0) > (old.updatedAt || 0) && old.updatedAt) return a.value;   /* 둘 다 시각이 있고 백업이 더 새것 */
+          aKept++; return undefined;                                                  /* 지금 것을 지킨다 */
+        }).then(function (r) { if (r.wrote) aNew++; });
+      })));
+    }).then(loadAssets).then(function () {
+      buildGrid(); buildFontSelect(); syncCustomChar(); requestRender();
+      var msgs = ['부적 ' + nNew + '개를 불러왔어요'];
+      if (nOld) msgs.push(nOld + '개는 이미 같거나 더 새 판이 있어서 건너뛰었어요');
+      if (bad) msgs.push('읽을 수 없는 부적 ' + bad + '개는 뺐어요');
+      if (aNew) msgs.push('내 그림 · 글꼴 ' + aNew + '개');
+      if (aKept) msgs.push('지금 것과 다른 내 그림 · 글꼴 ' + aKept + '개는 지금 것을 그대로 두었어요');
+      if (badA) msgs.push('읽을 수 없는 그림 · 글꼴 ' + badA + '개는 뺐어요');
+      /* 열려 있는 부적의 더 새 판이 들어왔으면 편집 화면도 그 판으로 (안 그러면 다음 저장이 옛 판으로 덮는다) */
+      var mine = imported[S.id];
+      if (mine) {
+        clearTimeout(saveTimer);
+        if (!dirty || confirm('지금 열린 부적의 더 새 판이 백업에 있어요. 백업 판으로 바꿀까요?\n(취소하면 지금 고친 것은 따로 저장해요)')) {
+          loadDesign(mine); msgs.push('열린 부적도 백업의 새 판으로 바꿨어요');
+        } else {
+          S.id = uid(); S.name = str((S.name || '이름 없음') + ' (이 창에서 고친 판)', 40); base = { id: S.id, at: 0 }; stored = false;
+          syncControls(); markDirty();
+        }
+      }
+      toast(msgs.join(' · '), 8000);
+      /* 엔진 설정: 고민 글이 가는 주소라서 묻고 바꾼다 */
+      var L = cleanLlm(data.llm), cur = llmCfg();
+      if (L && JSON.stringify(L) !== JSON.stringify(cleanLlm(cur))) {
+        var eng = BJ.llm.ENGINES.filter(function (e) { return e.id === L.engine; })[0], url = L.urls[L.engine] || (eng && eng.url) || '';
+        if (confirm('백업에 그림 아이디어 엔진 설정도 있어요: ' + (eng ? eng.name : L.engine) + (url && L.engine !== 'rules' && L.engine !== 'webllm' ? ' · ' + url : '') +
+          '\n이 설정으로 바꿀까요? 고민 글이 이 주소로 가니, 내가 쓰던 주소인지 꼭 확인해 주세요.')) {
+          ui.llm = L; saveLlm(); syncEngine(); renderIdeas();
+        }
+      }
     });
   }
 
   /* ─────────────── 글꼴 · 그림 자산 ─────────────── */
 
+  function fontOk(v) { return typeof v === 'string' && (v.indexOf('custom:') === 0 ? !!F.custom[v.slice(7)] : !!F.find(v)); }
+
   function buildFontSelect() {
-    var h = F.LIST.map(function (f) { return '<option value="' + f.id + '">' + f.name + '</option>'; }).join('');
+    var h = F.LIST.map(function (f) { return '<option value="' + esc(f.id) + '">' + esc(f.name) + '</option>'; }).join('');
     var mine = Object.keys(F.custom);
-    if (mine.length) h += '<optgroup label="내 글꼴">' + mine.map(function (id) { return '<option value="custom:' + id + '">' + esc(F.custom[id].name) + '</option>'; }).join('') + '</optgroup>';
+    if (mine.length) h += '<optgroup label="내 글꼴">' + mine.map(function (id) { return '<option value="custom:' + esc(id) + '">' + esc(F.custom[id].name) + '</option>'; }).join('') + '</optgroup>';
     $('#inFont').innerHTML = h;
-    $('#inFont').value = S.font;
+    $('#inFont').value = fontOk(S.font) ? S.font : F.LIST[0].id;
   }
 
   function loadAssets() {
@@ -815,10 +1315,10 @@
       ui.customChars = {};
       var jobs = [];
       rows.forEach(function (r) {
-        var a = r.value;
+        var a = cleanAsset(r.key, r.value);
         if (!a) return;
         if (a.kind === 'char') ui.customChars[r.key] = a;
-        if (a.kind === 'font') jobs.push(F.addCustom(a.id, a.name, a.dataURL).catch(function () {}));
+        if (a.kind === 'font' && !F.custom[a.id]) jobs.push(F.addCustom(a.id, a.name, a.dataURL).catch(function () {}));
       });
       return Promise.all(jobs);
     });
@@ -838,13 +1338,26 @@
 
   function bindMisc() {
     /* 탭 */
+    function openTab(t, focus) {
+      $$('.tab').forEach(function (x) { var on = x === t; x.classList.toggle('on', on); x.setAttribute('aria-selected', on ? 'true' : 'false'); x.tabIndex = on ? 0 : -1; });
+      $$('.pane').forEach(function (p) { p.classList.toggle('on', p.dataset.pane === t.dataset.tab); });
+      try { t.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
+      if (focus) t.focus();
+      if (t.dataset.tab === 'back' || t.dataset.tab === 'llm') setView(ui.view === 'front' ? 'both' : ui.view);
+    }
     $$('.tab').forEach(function (t) {
-      t.addEventListener('click', function () {
-        $$('.tab').forEach(function (x) { x.classList.toggle('on', x === t); });
-        $$('.pane').forEach(function (p) { p.classList.toggle('on', p.dataset.pane === t.dataset.tab); });
-        if (t.dataset.tab === 'back' || t.dataset.tab === 'llm') setView(ui.view === 'front' ? 'both' : ui.view);
-      });
+      t.addEventListener('click', function () { openTab(t); });
     });
+    /* 탭 줄: ← → Home End 로 옮겨 다니기 */
+    $('.tabs').addEventListener('keydown', function (e) {
+      var tabs = $$('.tab'), i = tabs.indexOf(document.activeElement);
+      if (i < 0) return;
+      var j = e.key === 'ArrowRight' ? (i + 1) % tabs.length : e.key === 'ArrowLeft' ? (i - 1 + tabs.length) % tabs.length : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : -1;
+      if (j < 0) return;
+      e.preventDefault(); e.stopPropagation();
+      openTab(tabs[j], true);
+    });
+    (function () { var on = $('.tab.on') || $('.tab'); $$('.tab').forEach(function (x) { x.setAttribute('aria-selected', x === on ? 'true' : 'false'); x.tabIndex = x === on ? 0 : -1; }); })();
     $$('.side-tabs .seg-btn').forEach(function (b) { b.addEventListener('click', function () { setView(b.dataset.view); }); });
 
     $('#iljuGrid').addEventListener('click', function (e) {
@@ -884,55 +1397,80 @@
     $('#drawer').addEventListener('click', function (e) {
       var b = e.target.closest('.prop');
       if (!b) return;
-      S.items.push({ prop: b.dataset.prop, x: 300, y: 450, s: 0.8, r: 0, flip: false });
+      S.items.push({ prop: b.dataset.prop, x: 300, y: 450, s: 0.8, s0: 0.8, r: 0, flip: false });
       setView(ui.view === 'back' ? 'front' : ui.view);
       select('item:' + (S.items.length - 1), 'front');
       requestRender(); markDirty();
     });
 
     $$('#selbar [data-act]').forEach(function (b) { b.addEventListener('click', function () { act(b.dataset.act); }); });
+    /* 카드 단축키: 포커스가 카드(또는 손잡이 줄)에 있거나 아무 데도 없을 때만.
+       입력칸 · 탭 · 다른 단추에 있을 때의 키는 그 칸의 것 */
     document.addEventListener('keydown', function (e) {
-      var tag = (e.target.tagName || '').toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || tag === 'select' || !ui.sel) return;
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+      var ae = document.activeElement, inCard = !!(ae && ae.closest && ae.closest('#cards, #selbar'));
+      if (ae && ae !== document.body && ae !== document.documentElement && !inCard) return;
+      if (inCard && ae.closest('#selbar') && (e.key === 'Enter' || e.key === ' ')) return;
+      if (!ui.sel) {
+        /* 키보드로 머문 것을 Enter · Space 로 다시 고르기 */
+        var g = inCard && ae.getAttribute && ae.getAttribute('data-el');
+        if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(g, frontHost.contains(ae) ? 'front' : 'back'); }
+        return;
+      }
+      if ($('#selbar').hidden) return;
       var h = handle(ui.sel);
       if (!h) return;
       if ((e.key === 'Delete' || e.key === 'Backspace') && h.del) { e.preventDefault(); act('del'); }
-      else if (e.key === 'Escape') select(null);
+      else if (e.key === 'Escape') { e.preventDefault(); select(null); }
+      else if (e.key === '+' || e.key === '=') { e.preventDefault(); act('bigger'); }
+      else if (e.key === '-' || e.key === '_') { e.preventDefault(); act('smaller'); }
       else if (/^Arrow/.test(e.key)) {
         e.preventDefault();
         var d = e.shiftKey ? 10 : 2, p = h.get();
         h.set(p[0] + (e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0), p[1] + (e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0));
+        if (ui.sel === 'backimg') syncControls();
         requestRender(); markDirty();
       }
     });
     window.addEventListener('resize', function () { requestRender(); });
 
     /* 내 캐릭터 그림 */
+    /* 그림은 저장이 된 다음에만 화면에 넣는다 (저장이 안 됐는데 들어간 것처럼 보이지 않게) */
+    function putChar(key, a) { return BJ.store.put('assets', key, a).then(function () { ui.customChars[key] = a; }); }
+    function charDone(p, okMsg) {
+      return p.then(function () { if (okMsg) toast(okMsg); }, function (e) { toast((e && e.message) || '저장하지 못했어요', 6000); })
+        .then(function () { buildGrid(); syncCustomChar(); requestRender(); });
+    }
     $('#inCharFile').addEventListener('change', function () {
       var f = this.files[0];
       this.value = '';
       if (!f) return;
-      readImage(f, 1400).then(function (url) {
-        var genders = $('#inCharBoth').checked ? ['f', 'm'] : [S.gender];
-        return Promise.all(genders.map(function (g) {
-          var key = 'char:' + S.ilju + ':' + g, a = { kind: 'char', ilju: S.ilju, gender: g, dataURL: url, mode: 'multiply' };
-          ui.customChars[key] = a;
-          return BJ.store.put('assets', key, a);
+      var il = S.ilju, gs = $('#inCharBoth').checked ? ['f', 'm'] : [S.gender], now = Date.now();
+      charDone(readImage(f, 1400).then(function (img) {
+        return Promise.all(gs.map(function (g) {
+          return putChar('char:' + il + ':' + g, { kind: 'char', ilju: il, gender: g, dataURL: img.url, mode: 'multiply', updatedAt: now });
         }));
-      }).then(function () { buildGrid(); syncCustomChar(); requestRender(); toast('내 그림으로 바꿨어요'); })
-        .catch(function (e) { toast(e.message); });
+      }), '내 그림으로 바꿨어요');
     });
     $('#segCharMode').addEventListener('click', function (e) {
-      var b = e.target.closest('button[data-v]'), cc = customChar();
+      var b = e.target.closest('button[data-v]'), cc = customChar(), oc = otherChar();
       if (!b || !cc) return;
-      cc.mode = b.dataset.v;
-      BJ.store.put('assets', 'char:' + S.ilju + ':' + S.gender, cc);
-      syncCustomChar(); requestRender();
+      /* 여 · 남이 같은 그림을 쓰고 '같이'가 켜져 있으면 둘 다 */
+      var keys = ['char:' + S.ilju + ':' + S.gender], now = Date.now();
+      if (oc && oc.dataURL === cc.dataURL && $('#inCharBoth').checked) keys.push('char:' + S.ilju + ':' + (S.gender === 'm' ? 'f' : 'm'));
+      charDone(Promise.all(keys.map(function (k) { return putChar(k, Object.assign({}, ui.customChars[k], { mode: b.dataset.v, updatedAt: now })); })));
     });
     $('#btnCharClear').addEventListener('click', function () {
-      var genders = $('#inCharBoth').checked ? ['f', 'm'] : [S.gender];
-      Promise.all(genders.map(function (g) { var k = 'char:' + S.ilju + ':' + g; delete ui.customChars[k]; return BJ.store.del('assets', k); }))
-        .then(function () { buildGrid(); syncCustomChar(); requestRender(); });
+      var cc = customChar(), oc = otherChar(), other = S.gender === 'm' ? 'f' : 'm', gs = [S.gender];
+      if ($('#inCharBoth').checked && oc) {
+        /* 다른 성별 그림이 따로 올린 것이면 물어본다 */
+        if (cc && oc.dataURL === cc.dataURL) gs.push(other);
+        else if (confirm((other === 'm' ? '남' : '여') + ' 쪽에 따로 올린 그림도 지울까요? (취소하면 지금 성별 것만 지워요)')) gs.push(other);
+      }
+      charDone(Promise.all(gs.map(function (g) {
+        var k = 'char:' + S.ilju + ':' + g;
+        return BJ.store.del('assets', k).then(function () { delete ui.customChars[k]; });
+      })), '기본 캐릭터로 돌렸어요');
     });
 
     /* 내 글꼴 */
@@ -940,12 +1478,15 @@
       var f = this.files[0];
       this.value = '';
       if (!f) return;
+      var id = uid(), name = str(f.name.replace(/\.[^.]+$/, ''), 60) || '내 글꼴';
       F.blobToDataURL(f).then(function (url) {
-        var id = uid(), name = f.name.replace(/\.[^.]+$/, '');
-        return F.addCustom(id, name, url).then(function () {
-          return BJ.store.put('assets', 'font:' + id, { kind: 'font', id: id, name: name, dataURL: url });
-        }).then(function () { buildFontSelect(); change('font', 'custom:' + id); toast('글꼴을 넣었어요: ' + name); });
-      }).catch(function () { toast('글꼴을 읽지 못했어요 (ttf · otf · woff · woff2)'); });
+        return F.addCustom(id, name, url).catch(function () { throw new Error('글꼴을 읽지 못했어요 (ttf · otf · woff · woff2 파일인지 봐 주세요)'); })
+          .then(function () {
+            return BJ.store.put('assets', 'font:' + id, { kind: 'font', id: id, name: name, dataURL: url, updatedAt: Date.now() })
+              .catch(function (e) { F.removeCustom(id); throw e; });   /* 저장이 안 되면 목록에서도 뺀다 */
+          });
+      }).then(function () { buildFontSelect(); change('font', 'custom:' + id); toast('글꼴을 넣었어요: ' + name); })
+        .catch(function (e) { toast((e && e.message) || '글꼴을 넣지 못했어요', 6000); });
     });
 
     /* 뒷면 */
@@ -953,14 +1494,14 @@
       var f = this.files[0];
       this.value = '';
       if (!f) return;
-      readImage(f, 1800).then(function (url) {
-        S.back.image = url; S.back.fit = { dx: 0, dy: 0, s: S.back.frame === false ? 1.1 : 0.94 };
+      readImage(f, 1800).then(function (img) {
+        S.back.image = img.url; S.back.aspect = img.w / img.h; S.back.fit = { dx: 0, dy: 0, s: backFitS() };
         if (S.back.mode !== 'ink') S.back.mode = 'multiply';
         setView(ui.view === 'front' ? 'back' : ui.view);
         syncControls(); requestRender(); markDirty();
       }).catch(function (e) { toast(e.message); });
     });
-    $('#btnBackClear').addEventListener('click', function () { S.back.image = null; requestRender(); markDirty(); });
+    $('#btnBackClear').addEventListener('click', function () { S.back.image = null; S.back.aspect = 0; if (ui.sel === 'backimg') select(null); requestRender(); markDirty(); });
     $('#btnBackTemplate').addEventListener('click', backTemplate);
 
     /* 내보내기 */
@@ -974,9 +1515,21 @@
 
   function setView(v) {
     ui.view = v;
-    $('#cards').className = 'cards view-' + v;
-    $$('.side-tabs .seg-btn').forEach(function (b) { b.classList.toggle('on', b.dataset.view === v); });
+    var c = $('#cards');
+    ['front', 'back', 'both'].forEach(function (k) { c.classList.toggle('view-' + k, k === v); });
+    $$('.side-tabs .seg-btn').forEach(function (b) { var on = b.dataset.view === v; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    /* 고른 것이 안 보이는 쪽에 있으면 고르기를 푼다 (보이지 않는 것을 몰래 고치지 않게) */
+    if (ui.sel) { var w = $('.card-wrap[data-side="' + ui.selSide + '"]'); if (w && w.offsetParent === null) select(null); }
     requestRender();
+  }
+
+  /* 폰에서는 미리보기가 위에 붙어 있어서, 포커스 받은 칸이 그 밑에 숨지 않게 스크롤 여백을 맞춘다 */
+  function fitScrollPad() {
+    var stage = $('.stage'), top = $('.topbar'), tabs = $('.tabs'), px = 0;
+    function sticky(el) { return el && getComputedStyle(el).position === 'sticky'; }
+    if (window.matchMedia('(max-width: 900px)').matches) { if (sticky(stage)) px = stage.offsetHeight + 12; }
+    else px = (sticky(top) ? top.offsetHeight : 0) + (sticky(tabs) ? tabs.offsetHeight : 0) + (sticky(top) || sticky(tabs) ? 12 : 0);
+    document.documentElement.style.scrollPaddingTop = px ? px + 'px' : '';
   }
 
   function init() {
@@ -988,19 +1541,22 @@
     bindLlm();
     bindArchive();
     BJ.store.persist();
-    Promise.all([loadAssets(), BJ.store.get('kv', 'llm'), BJ.store.get('kv', 'current')]).then(function (r) {
-      ui.llm = r[1] || null;
+    fitScrollPad();
+    window.addEventListener('resize', fitScrollPad);
+    if (window.ResizeObserver) { var ro = new ResizeObserver(fitScrollPad); [$('.stage'), $('.topbar'), $('.tabs')].forEach(function (el) { if (el) ro.observe(el); }); }
+    Promise.all([loadAssets().catch(function () {}), BJ.store.get('kv', 'llm').catch(function () { return null; }), BJ.store.get('kv', 'current').catch(function () { return null; }), BJ.store.memoryOnly()]).then(function (r) {
+      memMode = !!r[3];
+      ui.llm = cleanLlm(r[1]) || null;
       llmCfg();
       syncEngine();
       buildFontSelect();
-      return r[2] ? BJ.store.get('designs', r[2]) : null;
+      return typeof r[2] === 'string' ? BJ.store.get('designs', r[2]).catch(function () { return null; }) : null;
     }).then(function (d) {
-      if (d) S = migrate(d);
-      else { S = fresh(); applyTheme('health'); }
+      if (d) { S = migrate(d); stored = true; base = { id: S.id, at: S.updatedAt }; }
+      else { S = fresh(); applyTheme('health'); stored = false; base = { id: S.id, at: 0 }; }
       afterLoad();
-      return BJ.store.memoryOnly();
-    }).then(function (mem) {
-      if (mem) toast('이 창에서는 저장이 안 돼요 (사생활 보호 창?). 다 만들면 PNG 로 받아 두세요.', 6000);
+      archiveNote();
+      if (memMode) toast('이 창에서는 저장이 안 돼요 (사생활 보호 창?). 다 만들면 PNG 나 백업 파일로 받아 두세요.', 8000);
     }).catch(function (e) {
       S = fresh(); applyTheme('health'); afterLoad();
       console.error(e);

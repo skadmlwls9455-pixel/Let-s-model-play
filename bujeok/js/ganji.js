@@ -95,7 +95,7 @@
   function mod(n, m) { return ((n % m) + m) % m; }
 
   function ilju(i) {
-    i = mod(i, 60);
+    i = mod(Math.round(+i) || 0, 60);   /* 깨진 값(문자 · 소수 · 빈 값)은 갑자로 */
     var s = STEMS[i % 10], b = BRANCHES[i % 12], e = ELEMENTS[s.el];
     return {
       index: i, stem: i % 10, branch: i % 12,

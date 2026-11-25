@@ -11,6 +11,29 @@
 
   var W = 600, H = 900;
 
+  /* 저장된 값이 깨졌어도 그림이 깨지지 않게: 색은 #RGB(A) / #RRGGBB(AA) 만, 숫자는 유한한 값만 */
+  function col(c, d) { c = String(c == null ? '' : c); return /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(c) ? c : d; }
+  function num(v, d) { v = +v; return isFinite(v) ? v : d; }
+  /* 올린 그림 주소: 이 앱이 만든 data:image 만 (따옴표 · 꺾쇠가 없는 것) */
+  function okImage(u) { return typeof u === 'string' && /^data:image\/(png|jpeg|webp|gif);base64,/.test(u.slice(0, 40)) && u.indexOf('"') < 0 && u.indexOf('<') < 0; }
+
+  /* 틀 안쪽 너비 — 글자가 이보다 넓어지지 않게 (크기 밀대를 올려도 틀을 넘지 않게) */
+  var FRAME_INNER = { stamp: 404, cloud: 470, simple: 490, none: 560 };
+  /* 연도 옆 줄무늬가 바깥으로 갈 수 있는 끝 (틀 선 · 구름 장식을 건드리지 않게) */
+  var STRIPE_LIMIT = { stamp: 104, cloud: 116, simple: 62, none: 40 };
+  /* 낙관 기본 자리: 틀 오른쪽 띠 아래쪽 (장식 · 글자 · 뒷면 한 마디와 겹치지 않는 곳) */
+  var SEAL_SPOTS = { stamp: { x: 534, y: 780, s: 0.74 }, cloud: { x: 518, y: 780, s: 0.74 }, simple: { x: 520, y: 780, s: 0.74 }, none: { x: 520, y: 780, s: 0.74 } };
+  function frameOf(st, side) { return side === 'back' && st.back && st.back.frame === false ? 'none' : (FRAME_INNER[st.frame] ? st.frame : 'stamp'); }
+  function sealDefault(st, side) { return Object.assign({}, SEAL_SPOTS[frameOf(st, side)]); }
+
+  /* 화면용 그림이면 키보드로도 고를 수 있게 (내보내는 그림에는 넣지 않는다) */
+  var LABELS = { year: '해', top: '윗줄', bottom: '아랫줄', char: '캐릭터', caption: '뒷면 한 마디', 'seal-front': '낙관', 'seal-back': '낙관', backimg: '뒷면 그림' };
+  function elAttr(env, id, label) {
+    var a = ' data-el="' + id + '"';
+    if (env && env.interactive) a += ' tabindex="0" role="button" aria-label="' + esc(label || LABELS[id] || id) + '"';
+    return a;
+  }
+
   /* 레이아웃: 1번처럼 위아래로 나누기 · 2번처럼 아래 두 줄 */
   var LAYOUTS = {
     split: {
@@ -91,14 +114,15 @@
         '</filter>';
     }
     /* 올린 그림을 선 색으로 (흰 바탕은 투명) */
-    var ink = hexToRgb(st.ink);
+    var ink = hexToRgb(col(st.ink, '#C93B22'));
     out += '<filter id="' + ids.toInk + '" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 ' + r1(ink[0] / 255 * 100) / 100 + '  0 0 0 0 ' + r1(ink[1] / 255 * 100) / 100 + '  0 0 0 0 ' + r1(ink[2] / 255 * 100) / 100 + '  -0.333 -0.333 -0.333 1 0"/></filter>';
     return out + '</defs>';
   }
 
   function hexToRgb(h) {
     h = String(h || '#000').replace('#', '');
-    if (h.length === 3) h = h.replace(/./g, '$&$&');
+    if (h.length === 3 || h.length === 4) h = h.slice(0, 3).replace(/./g, '$&$&');
+    h = h.slice(0, 6);
     var n = parseInt(h, 16);
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   }
@@ -136,13 +160,25 @@
   }
 
   /* 연도 옆 줄무늬 · 아래 장식 · 집중선 */
-  function extras(st, lay, ink, charPos) {
+  function extras(st, lay, ink, charPos, yfit) {
     var s = '', sw = 6;
     function L(d, w) { return D.line(d, ink, w || sw); }
     if (st.headerLines !== false) {
-      var y = lay.year.y + (st.offsets.year ? st.offsets.year.dy || 0 : 0);
-      s += L('M112 ' + (y - 12) + 'H162M112 ' + y + 'H150M112 ' + (y + 12) + 'H162', 5) + L('M438 ' + (y - 12) + 'H488M450 ' + y + 'H488M438 ' + (y + 12) + 'H488', 5);
-      s += D.circle(173, y, 4, ink) + D.circle(427, y, 4, ink);
+      /* 줄무늬 · 점은 해 글자의 실제 너비를 따라 바깥에 (글자를 긋지 않게) */
+      var lim = STRIPE_LIMIT[frameOf(st, 'front')], cy, half, cx;
+      if (yfit && yfit.w) { cx = yfit.x; cy = yfit.y; half = yfit.w / 2; }
+      else { cx = 300; cy = lay.year.y + num((st.offsets.year || {}).dy, 0); half = 117; }
+      var dotL = cx - half - 10, dotR = cx + half + 10;
+      [-1, 1].forEach(function (k) {
+        var inner = cx + k * (half + 22), outer = k < 0 ? Math.max(lim, inner - 50) : Math.min(W - lim, inner + 50);
+        var len = Math.abs(outer - inner);
+        if (len >= 14) {
+          var mid = inner + k * Math.min(12, len - 10);
+          s += L('M' + r1(inner) + ' ' + r1(cy - 12) + 'H' + r1(outer) + 'M' + r1(mid) + ' ' + r1(cy) + 'H' + r1(outer) + 'M' + r1(inner) + ' ' + r1(cy + 12) + 'H' + r1(outer), 5);
+        }
+        var dx = k < 0 ? dotL : dotR;
+        if (k < 0 ? dx - 4 > lim - 8 : dx + 4 < W - lim + 8) s += D.circle(dx, cy, 4, ink);
+      });
     }
     if (st.footer !== false) {
       s += L('M170 791H430M184 806H416', 5);
@@ -161,55 +197,87 @@
   /* ── 글자 ── */
   function fontStack(st) { return "'" + (st.fontFamily || 'Poor Story') + "', 'Noto Serif KR', sans-serif"; }
 
-  function textLine(id, txt, spec, st, env, ink) {
-    if (!txt) return '';
-    var off = st.offsets[id] || {}, scale = (st.sizes && st.sizes[id]) || 1;
-    var size = spec.size * scale * (off.s || 1), stretch = st.stretch || 1.3;
-    var fam = fontStack(st);
-    /* 가로로 넘치면 글자 크기를 줄인다 (넓적한 맛은 그대로) */
+  /* 글자 한 줄의 크기 · 자리. 가로로 넘치면 글자 크기를 줄인다 (넓적한 맛은 그대로).
+     capW: 틀 · 옆 장식 · 낙관 때문에 더 좁혀야 할 때의 최대 너비 */
+  function fitLine(id, txt, spec, st, env, capW) {
+    var off = st.offsets[id] || {}, scale = num(st.sizes && st.sizes[id], 1) || 1, os = num(off.s, 1) || 1;
+    var size = spec.size * scale * os, stretch = num(st.stretch, 1.3) || 1.3, w = 0;
+    var maxW = spec.maxW * os * Math.max(1, scale * 0.9);
+    if (capW != null && capW < maxW) maxW = capW;
     if (env && env.measure) {
-      var w = env.measure(txt, size) * stretch, maxW = spec.maxW * (off.s || 1) * Math.max(1, scale * 0.9);
-      if (w > maxW) size = size * maxW / w;
+      w = env.measure(txt, size) * stretch;
+      if (w > maxW) { size = size * maxW / w; w = maxW; }
     }
-    var x = spec.x + (off.dx || 0), y = spec.y + (off.dy || 0);
-    var weight = st.fontWeight || 400, stroke = st.textWeight == null ? 1.5 : st.textWeight;
-    return '<g data-el="' + id + '" transform="translate(' + r1(x) + ' ' + r1(y) + ') scale(' + r1(stretch * 100) / 100 + ' 1)">' +
-      '<text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-family="' + esc(fam) + '" font-weight="' + weight + '" font-size="' + r1(size) + '"' +
+    return { size: size, w: w, stretch: stretch, x: spec.x + num(off.dx, 0), y: spec.y + num(off.dy, 0), r: num(off.r, 0) };
+  }
+
+  function textLine(id, txt, spec, st, env, ink, capW, fit) {
+    if (!txt) return '';
+    var f = fit || fitLine(id, txt, spec, st, env, capW);
+    var fam = fontStack(st), weight = num(st.fontWeight, 400);
+    /* 굵기는 글자 크기에 맞춰 — 작게 줄어든 줄 · 해 줄이 뭉개지지 않게 */
+    var stroke = num(st.textWeight, 1.5) * Math.max(0.5, Math.min(1, f.size / 112));
+    return '<g' + elAttr(env, id, (LABELS[id] || id) + ': ' + txt) + ' transform="translate(' + r1(f.x) + ' ' + r1(f.y) + ')' + (f.r ? ' rotate(' + r1(f.r) + ')' : '') + ' scale(' + r1(f.stretch * 100) / 100 + ' 1)">' +
+      '<text x="0" y="0" text-anchor="middle" dominant-baseline="central" font-family="' + esc(fam) + '" font-weight="' + weight + '" font-size="' + r1(f.size) + '"' +
       ' fill="' + ink + '" stroke="' + ink + '" stroke-width="' + r1(stroke) + '" stroke-linejoin="round" paint-order="stroke">' + esc(txt) + '</text></g>';
   }
 
+  /* 같은 줄에 놓인 자리 장식(왼쪽 위 · 오른쪽 위 …)과 겹치지 않을 최대 너비 */
+  function rowCap(st, spec, id) {
+    var off = st.offsets[id] || {}, cx = spec.x + num(off.dx, 0), cy = spec.y + num(off.dy, 0);
+    var half = spec.size * num(st.sizes && st.sizes[id], 1) * num(off.s, 1) * 0.42, lim = Infinity;
+    (st.items || []).forEach(function (it) {
+      if (!it.slot) return;
+      /* 소품은 ±40 칸 안에 그려진다 (구름처럼 꽉 차는 것도 있어서 넉넉히 42) */
+      var R = 42 * num(it.s, 0.7), x = num(it.x, 0), y = num(it.y, 0);
+      if (Math.abs(y - cy) > half + R) return;
+      var room = x < cx ? cx - (x + R) - 10 : (x - R) - cx - 10;
+      if (room < lim) lim = room;
+    });
+    if (lim === Infinity || 2 * lim < spec.maxW * 0.5) return null;   /* 한가운데로 끌어온 장식이면 무시 */
+    return 2 * lim;
+  }
+
   /* 낙관 (서명 도장) */
-  function seal(st, side, ink, paper) {
+  function sealPos(st, side) {
+    var se = st.seal || {}, p = se.pos && se.pos[side], d = sealDefault(st, side);
+    return p ? { x: num(p.x, d.x), y: num(p.y, d.y), s: num(p.s, d.s) || d.s } : d;
+  }
+  function sealOn(st, side) { var se = st.seal; return !!(se && se.text && (se.where === 'both' || se.where === side)); }
+
+  function seal(st, side, ink, paper, env) {
     var se = st.seal;
-    if (!se || !se.text || !(se.where === 'both' || se.where === side)) return '';
-    var pos = (se.pos && se.pos[side]) || { x: side === 'front' ? 476 : 470, y: side === 'front' ? 846 : 790, s: 1 };
-    var t = String(se.text).slice(0, 4), n = t.length, box = 46, fill = se.style !== 'line';
+    if (!sealOn(st, side)) return '';
+    var pos = sealPos(st, side);
+    var t = Array.from(D.clean(se.text)).slice(0, 4), n = t.length, box = 46, fill = se.style !== 'line';
+    if (!n) return '';
     var s = D.shape('M' + (-box / 2) + ' ' + (-box / 2) + 'h' + box + 'v' + box + 'h' + (-box) + 'Z', fill ? ink : 'none', ink, 3.5);
-    var col = fill ? paper : ink, fam = esc(fontStack(st));
+    var tcol = fill ? paper : ink, fam = esc(fontStack(st));
     var cells = n === 1 ? [[0, 0, 30]] : n === 2 ? [[0, -10, 18], [0, 10, 18]] : n === 3 ? [[7, -11, 15], [7, 9, 15], [-9, 0, 17]] : [[9, -10, 16], [9, 10, 16], [-9, -10, 16], [-9, 10, 16]];
     for (var i = 0; i < n; i++) {
-      s += '<text x="' + cells[i][0] + '" y="' + cells[i][1] + '" text-anchor="middle" dominant-baseline="central" font-family="' + fam + '" font-size="' + cells[i][2] + '" font-weight="700" fill="' + col + '">' + esc(t[i]) + '</text>';
+      s += '<text x="' + cells[i][0] + '" y="' + cells[i][1] + '" text-anchor="middle" dominant-baseline="central" font-family="' + fam + '" font-size="' + cells[i][2] + '" font-weight="700" fill="' + tcol + '">' + esc(t[i]) + '</text>';
     }
-    return '<g data-el="seal-' + side + '" transform="translate(' + r1(pos.x) + ' ' + r1(pos.y) + ') scale(' + (pos.s || 1) + ')">' + s + '</g>';
+    return '<g' + elAttr(env, 'seal-' + side, '낙관: ' + t.join('')) + ' transform="translate(' + r1(pos.x) + ' ' + r1(pos.y) + ') scale(' + r1(pos.s * 1000) / 1000 + ')">' + s + '</g>';
   }
 
   /* 올린 그림 (캐릭터 대신 · 뒷면 그림) */
   function image(href, x, y, w, h, mode, ids) {
+    if (!okImage(href)) return '';
     var extra = mode === 'ink' ? ' filter="url(#' + ids.toInk + ')"' : mode === 'multiply' ? ' style="mix-blend-mode:multiply"' : '';
     return '<image href="' + href + '" x="' + r1(x) + '" y="' + r1(y) + '" width="' + r1(w) + '" height="' + r1(h) + '" preserveAspectRatio="xMidYMid meet"' + extra + '/>';
   }
 
   function charPosition(st) {
     var lay = LAYOUTS[st.layout] || LAYOUTS.split, off = st.offsets.char || {};
-    return { x: lay.char.x + (off.dx || 0), y: lay.char.y + (off.dy || 0), s: lay.char.s * (st.charScale || 1) * (off.s || 1) };
+    return { x: lay.char.x + num(off.dx, 0), y: lay.char.y + num(off.dy, 0), s: lay.char.s * (num(st.charScale, 1) || 1) * (num(off.s, 1) || 1), r: num(off.r, 0) };
   }
 
   /* ── 앞면 ── */
   function front(st, env) {
     env = env || {};
     var ids = { rough: 'rough-' + (env.uid || 'f'), grain: 'grain-' + (env.uid || 'f'), toInk: 'toink-' + (env.uid || 'f') };
-    var ink = st.ink, paper = st.paper, lay = LAYOUTS[st.layout] || LAYOUTS.split;
-    var cp = charPosition(st);
+    var ink = col(st.ink, '#C93B22'), paper = col(st.paper, '#F2BE35'), lay = LAYOUTS[st.layout] || LAYOUTS.split;
+    var cp = charPosition(st), frameW = FRAME_INNER[frameOf(st, 'front')];
     var out = [];
     out.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '">');
     if (env.fontCSS) out.push('<style>' + env.fontCSS + '</style>');
@@ -217,47 +285,61 @@
     out.push('<rect width="' + W + '" height="' + H + '" fill="' + paper + '"/>');
     if (st.paperGrain) out.push('<rect width="' + W + '" height="' + H + '" filter="url(#' + ids.grain + ')" opacity="0.5"/>');
 
+    /* 해: 줄무늬가 있으면 그 자리만큼 비워 둔다 */
+    var yearCap = Math.min(frameW, st.headerLines !== false ? 288 : frameW);
+    var yfit = env.yearText ? fitLine('year', env.yearText, lay.year, st, env, yearCap) : null;
+
     var art = [];
     art.push(frame(st, ink, paper));
-    art.push(extras(st, lay, ink, cp));
+    art.push(extras(st, lay, ink, cp, yfit));
 
     /* 캐릭터 */
-    var flip = st.charFlip ? -1 : 1;
+    var flip = st.charFlip ? -1 : 1, ctr = 'translate(' + r1(cp.x) + ' ' + r1(cp.y) + ')' + (cp.r ? ' rotate(' + r1(cp.r) + ')' : '');
     if (!env.customChar) {
-      art.push('<g data-el="char" transform="translate(' + r1(cp.x) + ' ' + r1(cp.y) + ') scale(' + r1(cp.s * flip * 1000) / 1000 + ' ' + r1(cp.s * 1000) / 1000 + ')">' +
+      art.push('<g' + elAttr(env, 'char') + ' transform="' + ctr + ' scale(' + r1(cp.s * flip * 1000) / 1000 + ' ' + r1(cp.s * 1000) / 1000 + ')">' +
         '<rect x="-105" y="-128" width="210" height="236" fill="none" pointer-events="all"/>' +
         BJ.chars.render(st.ilju, st.gender, { ink: ink, paper: paper, mode: st.charMode, ground: st.ground !== false }) + '</g>');
+    } else {
+      /* 올린 그림의 잡는 자리: 장식 · 글자보다 아래에 (투명한 둘레가 옆 장식을 가로채지 않게) */
+      art.push('<g' + elAttr(env, 'char') + ' transform="' + ctr + ' scale(' + r1(cp.s * 1000) / 1000 + ')">' +
+        '<rect x="-105" y="-128" width="210" height="236" fill="none" pointer-events="all"/></g>');
+    }
+    var roughAttr = (st.rough == null || st.rough > 0) ? ' filter="url(#' + ids.rough + ')"' : '';
+    var artOpen = '<g class="art"' + roughAttr + ' stroke-linecap="round" stroke-linejoin="round">';
+
+    /* 올린 캐릭터 그림은 질감 필터 밖에 (그린 사람의 선을 그대로) — 틀 위, 장식 · 글자 아래 */
+    if (env.customChar) {
+      out.push(artOpen + art.join('') + '</g>');
+      art = [];
+      var bw = 236 * cp.s, bh = 250 * cp.s;
+      out.push('<g data-el="char" class="custom-char" pointer-events="none" transform="' + ctr + ' scale(' + flip + ' 1)">' +
+        image(env.customChar, -bw / 2, -bh * 0.56, bw, bh, env.customCharMode, ids) + '</g>');
     }
 
     /* 장식 */
     (st.items || []).forEach(function (it, i) {
-      art.push('<g data-el="item:' + i + '">' + BJ.props.render(it, ink, paper) + '</g>');
+      var nm = BJ.props.P[it.prop] ? BJ.props.P[it.prop].name : '장식';
+      art.push('<g' + elAttr(env, 'item:' + i, '장식: ' + nm) + '>' + BJ.props.render(it, ink, paper) + '</g>');
     });
 
     /* 글자 */
-    art.push(textLine('year', env.yearText, lay.year, st, env, ink));
-    art.push(textLine('top', st.topText, lay.top, st, env, ink));
-    art.push(textLine('bottom', st.bottomText, lay.bottom, st, env, ink));
-    art.push(seal(st, 'front', ink, paper));
+    art.push(textLine('year', env.yearText, lay.year, st, env, ink, null, yfit));
+    art.push(textLine('top', st.topText, lay.top, st, env, ink, minCap(frameW, rowCap(st, lay.top, 'top'))));
+    art.push(textLine('bottom', st.bottomText, lay.bottom, st, env, ink, minCap(frameW, rowCap(st, lay.bottom, 'bottom'))));
+    art.push(seal(st, 'front', ink, paper, env));
 
-    var roughAttr = (st.rough == null || st.rough > 0) ? ' filter="url(#' + ids.rough + ')"' : '';
-    out.push('<g class="art"' + roughAttr + ' stroke-linecap="round" stroke-linejoin="round">' + art.join('') + '</g>');
-
-    /* 올린 캐릭터 그림은 질감 필터 밖에 (그린 사람의 선을 그대로) */
-    if (env.customChar) {
-      var bw = 236 * cp.s, bh = 250 * cp.s;
-      out.push('<g data-el="char" class="custom-char" transform="translate(' + r1(cp.x) + ' ' + r1(cp.y) + ') scale(' + flip + ' 1)">' +
-        image(env.customChar, -bw / 2, -bh * 0.56, bw, bh, env.customCharMode, ids) + '</g>');
-    }
+    out.push(artOpen + art.join('') + '</g>');
     out.push('</svg>');
     return out.join('');
   }
+
+  function minCap(a, b) { return b == null ? a : Math.min(a, b); }
 
   /* ── 뒷면: 빈 장 (그림은 작가가 직접) ── */
   function back(st, env) {
     env = env || {};
     var ids = { rough: 'rough-' + (env.uid || 'b'), grain: 'grain-' + (env.uid || 'b'), toInk: 'toink-' + (env.uid || 'b') };
-    var ink = st.ink, paper = st.paper, bk = st.back || {};
+    var ink = col(st.ink, '#C93B22'), paper = col(st.paper, '#F2BE35'), bk = st.back || {};
     var out = [];
     out.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '">');
     if (env.fontCSS) out.push('<style>' + env.fontCSS + '</style>');
@@ -265,24 +347,39 @@
     out.push('<rect width="' + W + '" height="' + H + '" fill="' + paper + '"/>');
     if (st.paperGrain) out.push('<rect width="' + W + '" height="' + H + '" filter="url(#' + ids.grain + ')" opacity="0.5"/>');
     if (env.backImage) {
-      var f = bk.fit || {}, s = f.s || 1, w = 416 * s, h = 744 * s;
-      out.push('<g data-el="backimg" transform="translate(' + r1(300 + (f.dx || 0)) + ' ' + r1(450 + (f.dy || 0)) + ')">' +
+      /* 그림의 실제 비율대로 상자를 잡는다 (고르는 자리 · 점선 상자가 보이는 그림과 같게) */
+      var f = bk.fit || {}, s = num(f.s, 1) || 1, ar = num(bk.aspect, 0), w0 = 416, h0 = 744;
+      if (ar > 0) { w0 = Math.min(416, 744 * ar); h0 = w0 / ar; }
+      var w = w0 * s, h = h0 * s;
+      out.push('<g' + elAttr(env, 'backimg') + ' transform="translate(' + r1(300 + num(f.dx, 0)) + ' ' + r1(450 + num(f.dy, 0)) + ')">' +
         image(env.backImage, -w / 2, -h / 2, w, h, bk.mode, ids) + '</g>');
     }
     var art = [];
     if (bk.frame !== false) art.push(frame(st, ink, paper));
     if (bk.caption) {
-      art.push(textLine('caption', bk.caption, { x: 300, y: 778, size: 48, maxW: 380 }, st, env, ink));
+      var cspec = CAPTION, cap = FRAME_INNER[frameOf(st, 'back')];
+      /* 낙관이 한 마디 줄에 걸치면 그 앞에서 끝나게 */
+      if (sealOn(st, 'back')) {
+        var sp = sealPos(st, 'back'), sh = 23 * sp.s;
+        if (Math.abs(sp.y - cspec.y) < sh + cspec.size * 0.5) {
+          var room = sp.x >= 300 ? (sp.x - sh - 10) - 300 : 300 - (sp.x + sh + 10);
+          if (2 * room >= 120) cap = Math.min(cap, 2 * room);
+        }
+      }
+      art.push(textLine('caption', bk.caption, cspec, st, env, ink, cap));
     }
-    art.push(seal(st, 'back', ink, paper));
+    art.push(seal(st, 'back', ink, paper, env));
     var roughAttr = (st.rough == null || st.rough > 0) ? ' filter="url(#' + ids.rough + ')"' : '';
     out.push('<g class="art"' + roughAttr + ' stroke-linecap="round" stroke-linejoin="round">' + art.join('') + '</g>');
     out.push('</svg>');
     return out.join('');
   }
 
+  var CAPTION = { x: 300, y: 778, size: 48, maxW: 380 };
+
   BJ.card = {
     W: W, H: H, LAYOUTS: LAYOUTS, SLOT_NAMES: SLOT_NAMES, SLOT_PAIRS: SLOT_PAIRS, SLOT_SIZE: SLOT_SIZE, THEMES: THEMES, PALETTES: PALETTES,
-    front: front, back: back, charPosition: charPosition, fontStack: fontStack, roughFilter: roughFilter
+    CAPTION: CAPTION, FRAME_INNER: FRAME_INNER,
+    front: front, back: back, charPosition: charPosition, sealDefault: sealDefault, sealPos: sealPos, fontStack: fontStack, roughFilter: roughFilter
   };
 })();

@@ -60,12 +60,29 @@
     ]).catch(function () {});
   }
 
+  /* 내 글꼴: 실제로 읽힌 다음에만 목록에 올린다 (깨진 파일이 '내 글꼴'에 남지 않게) */
   function addCustom(id, name, dataURL) {
-    var family = 'BJ Custom ' + id;
-    custom[id] = { id: id, family: family, name: name, dataURL: dataURL };
-    if (typeof FontFace === 'undefined') return Promise.resolve(custom[id]);
-    var ff = new FontFace(family, 'url(' + dataURL + ')');
-    return ff.load().then(function (loaded) { document.fonts.add(loaded); return custom[id]; });
+    var family = 'BJ Custom ' + id, entry = { id: id, family: family, name: name, dataURL: dataURL };
+    if (!/^data:[\w.+\/-]*;base64,[A-Za-z0-9+\/=]*$/.test(String(dataURL).slice(0, 200)) || /["'()\\<>]/.test(String(dataURL))) {
+      return Promise.reject(new Error('글꼴 파일이 아니에요'));
+    }
+    if (typeof FontFace === 'undefined') { custom[id] = entry; return Promise.resolve(entry); }
+    var ff;
+    try { ff = new FontFace(family, 'url(' + dataURL + ')'); } catch (e) { return Promise.reject(e); }
+    return ff.load().then(function (loaded) {
+      document.fonts.add(loaded);
+      custom[id] = entry;
+      return entry;
+    });
+  }
+  function removeCustom(id) {
+    var c = custom[id];
+    delete custom[id];
+    if (c && document.fonts && document.fonts.forEach) {
+      var drop = [];
+      document.fonts.forEach(function (f) { if (f.family === c.family || f.family === '"' + c.family + '"') drop.push(f); });
+      drop.forEach(function (f) { try { document.fonts.delete(f); } catch (e) {} });
+    }
   }
 
   function blobToDataURL(blob) {
@@ -77,37 +94,52 @@
     });
   }
 
-  /* 내보내기용 @font-face (쓰인 글자만). 실패하면 빈 글자 — 그때는 컴퓨터에 있는 글꼴로 대신 그려진다 */
+  /* 내보내기용 @font-face (쓰인 글자만). → { css, failed }
+     failed 면 받지 못한 글자가 있다는 뜻 — 그 글자는 컴퓨터에 있는 글꼴로 대신 그려지니 화면에서 알려 준다.
+     화면처럼 Noto Serif KR 을 모든 글자의 대신 글꼴로 넣는다 (고른 글꼴에 없는 글자 · 기호가 화면과 같게 나오도록). */
+  var FALLBACK = { id: 'Noto Serif KR', q: 'Noto+Serif+KR:wght@700', w: 700 };
   function embedCSS(value, chars, hanjaChars) {
     var r = resolve(value), parts = [];
-    if (r.custom) parts.push(Promise.resolve("@font-face{font-family:'" + r.family + "';src:url(" + r.custom.dataURL + ');}'));
+    chars = chars || ''; hanjaChars = hanjaChars || '';
+    if (r.custom) parts.push(Promise.resolve({ css: "@font-face{font-family:'" + r.family + "';src:url(" + r.custom.dataURL + ');}', failed: false }));
     else if (chars) parts.push(google(r.def, chars));
     if (hanjaChars) parts.push(google(HANJA, hanjaChars));
-    return Promise.all(parts).then(function (a) { return a.join('\n'); });
+    if (chars) parts.push(google(FALLBACK, chars));
+    return Promise.all(parts).then(function (a) {
+      return { css: a.map(function (x) { return x.css; }).join('\n'), failed: a.some(function (x) { return x.failed; }) };
+    });
   }
 
   function google(def, chars) {
-    var uniq = Array.from(new Set(Array.from(chars))).join('');
+    /* 띄어쓰기도 꼭 넣는다 — 빠지면 구글이 줄 높이 정보가 다른 글꼴 조각을 줘서 PNG 글자가 위아래로 밀린다 */
+    var uniq = Array.from(new Set(Array.from(chars + ' '))).join('');
     var key = def.q + '|' + uniq;
-    if (cssCache[key]) return Promise.resolve(cssCache[key]);
+    if (cssCache[key]) return Promise.resolve({ css: cssCache[key], failed: false });
     var url = 'https://fonts.googleapis.com/css2?family=' + def.q + '&text=' + encodeURIComponent(uniq) + '&display=block';
     return fetch(url).then(function (res) { if (!res.ok) throw new Error('font css ' + res.status); return res.text(); })
       .then(function (css) {
         var urls = [];
         css.replace(/url\((https:[^)]+)\)/g, function (m, u) { urls.push(u); return m; });
+        if (!urls.length) throw new Error('font css empty');
         return Promise.all(urls.map(function (u) {
-          return fetch(u).then(function (r) { return r.blob(); }).then(blobToDataURL).then(function (d) { return [u, d]; });
+          return fetch(u).then(function (r) {
+            if (!r.ok) throw new Error('font file ' + r.status);
+            return r.blob();
+          }).then(function (b) {
+            if (b.type && !/font|octet-stream/.test(b.type)) throw new Error('font file type ' + b.type);
+            return blobToDataURL(b);
+          }).then(function (d) { return [u, d]; });
         })).then(function (pairs) {
           pairs.forEach(function (p) { css = css.split(p[0]).join(p[1]); });
-          cssCache[key] = css;
-          return css;
+          cssCache[key] = css;   /* 다 받은 것만 기억한다 */
+          return { css: css, failed: false };
         });
       })
-      .catch(function () { return ''; });
+      .catch(function () { return { css: '', failed: true }; });
   }
 
   BJ.fonts = {
     LIST: LIST, HANJA: HANJA, custom: custom, find: find, resolve: resolve, stack: stack, measure: measure, ensure: ensure,
-    addCustom: addCustom, embedCSS: embedCSS, blobToDataURL: blobToDataURL
+    addCustom: addCustom, removeCustom: removeCustom, embedCSS: embedCSS, blobToDataURL: blobToDataURL
   };
 })();

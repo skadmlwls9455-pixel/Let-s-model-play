@@ -62,12 +62,28 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
   }
 
-  /* 인쇄: 10 × 15 cm 실제 크기로 앞면 한 쪽, 뒷면 한 쪽 */
-  function print(pngURLs, title) {
+  function escText(t) { return String(t || '').replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  /* 인쇄 창은 누른 그 순간에 연다 (그림을 다 그린 뒤에 열면 팝업 차단에 걸린다). 그리는 동안은 안내 글만 */
+  function openPrint(title) {
     var w = window.open('', '_blank');
-    if (!w) return false;
-    var pages = pngURLs.map(function (u) { return '<div class="pg"><img src="' + u + '"></div>'; }).join('');
-    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + (title || '부적 인쇄') + '</title>' +
+    if (!w) return null;
+    try {
+      w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + escText(title || '부적 인쇄') + '</title></head>' +
+        '<body style="font:16px/1.6 sans-serif;color:#5b4636;background:#fbf5e9;display:flex;align-items:center;justify-content:center;height:100vh;margin:0">' +
+        '<p>인쇄용으로 그리는 중이에요…</p></body></html>');
+      w.document.close();
+    } catch (e) {}
+    return w;
+  }
+
+  /* 인쇄: 10 × 15 cm 실제 크기로 앞면 한 쪽, 뒷면 한 쪽. w 를 주면 미리 열어 둔 창에 채운다 */
+  function print(pngURLs, title, w) {
+    w = w || window.open('', '_blank');
+    if (!w || w.closed) return false;
+    var pages = pngURLs.map(function (u) { return '<div class="pg"><img src="' + u + '" alt=""></div>'; }).join('');
+    w.document.open();
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + escText(title || '부적 인쇄') + '</title>' +
       '<style>@page{margin:12mm}body{margin:0}.pg{page-break-after:always;display:flex;justify-content:center;padding-top:6mm}' +
       '.pg:last-child{page-break-after:auto}img{width:100mm;height:150mm;display:block}</style></head><body>' + pages +
       '<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>');
@@ -75,5 +91,5 @@
     return true;
   }
 
-  BJ.exporter = { toCanvas: toCanvas, canvasBlob: canvasBlob, sideBySide: sideBySide, download: download, print: print, sized: sized };
+  BJ.exporter = { toCanvas: toCanvas, canvasBlob: canvasBlob, sideBySide: sideBySide, download: download, print: print, openPrint: openPrint, sized: sized };
 })();

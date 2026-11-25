@@ -136,9 +136,12 @@
   function render(item, ink, paper) {
     var def = P[item.prop];
     if (!def) return '';
-    var s = item.s || 1, swCard = 6.4 * Math.pow(s, 0.35);
+    var s = +item.s;
+    if (!(s > 0 && s < 50)) s = 1;
+    var swCard = 6.4 * Math.pow(s, 0.35);
     var o = { ink: ink, paper: paper, sw: swCard / s };
-    var tr = 'translate(' + r1(item.x) + ' ' + r1(item.y) + ') rotate(' + r1(item.r || 0) + ') scale(' + (item.flip ? -s : s) + ' ' + s + ')';
+    var x = +item.x || 0, y = +item.y || 0, rot = +item.r || 0, ss = r1(s * 1000) / 1000;
+    var tr = 'translate(' + r1(x) + ' ' + r1(y) + ') rotate(' + r1(rot) + ') scale(' + (item.flip ? -ss : ss) + ' ' + ss + ')';
     return '<g transform="' + tr + '">' + def.draw(o) + '</g>';
   }
 

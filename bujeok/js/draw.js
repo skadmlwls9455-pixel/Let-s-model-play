@@ -73,7 +73,7 @@
 
   function attrs(o) {
     var s = '';
-    for (var k in o) if (o[k] != null && o[k] !== false) s += ' ' + k + '="' + o[k] + '"';
+    for (var k in o) if (o[k] != null && o[k] !== false) s += ' ' + k + '="' + esc(o[k]) + '"';
     return s;
   }
 
@@ -83,15 +83,15 @@
   }
   /* 선만 */
   function line(d, color, sw, extra) {
-    return '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="' + r1(sw) + '"' + (extra || '') + '/>';
+    return '<path d="' + d + '" fill="none" stroke="' + esc(color) + '" stroke-width="' + r1(sw) + '"' + (extra || '') + '/>';
   }
   /* 칠만 */
-  function fillOnly(d, color, extra) { return '<path d="' + d + '" fill="' + color + '"' + (extra || '') + '/>'; }
+  function fillOnly(d, color, extra) { return '<path d="' + d + '" fill="' + esc(color) + '"' + (extra || '') + '/>'; }
 
   /* 소시지 모양 (팔 · 꼬리 · 뿔): 굵은 선 위에 조금 가는 선을 겹쳐 테두리가 생긴다 */
   function capsule(d, w, fill, lineColor, sw) {
-    return '<path d="' + d + '" fill="none" stroke="' + lineColor + '" stroke-width="' + r1(w + sw * 2) + '"/>' +
-      '<path d="' + d + '" fill="none" stroke="' + fill + '" stroke-width="' + r1(w) + '"/>';
+    return '<path d="' + d + '" fill="none" stroke="' + esc(lineColor) + '" stroke-width="' + r1(w + sw * 2) + '"/>' +
+      '<path d="' + d + '" fill="none" stroke="' + esc(fill) + '" stroke-width="' + r1(w) + '"/>';
   }
 
   function circle(cx, cy, r, fill, lineColor, sw) {
@@ -122,8 +122,12 @@
     return 'M' + pts.map(function (p) { return r1(p[0]) + ' ' + r1(p[1]); }).join('L') + (closed ? 'Z' : '');
   }
 
+  /* XML 에 못 들어가는 제어 문자(붙여 넣기로 섞여 들어오는 \u000B 등)는 빼고, 특수 문자는 바꾼다.
+     화면(innerHTML)은 너그럽지만 PNG 로 바꿀 때는 SVG 를 엄격한 XML 로 읽어서, 하나만 있어도 통째로 실패한다. */
+  var BAD_XML = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g;
+  function clean(s) { return String(s == null ? '' : s).replace(BAD_XML, ''); }
   function esc(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return clean(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   /* 문자열 → 32비트 시드 */
@@ -137,6 +141,6 @@
   BJ.draw = {
     r1: r1, rng: rng, curve: curve, blob: blob, wob: wob, mirror: mirror, attrs: attrs,
     scallop: scallop, shape: shape, line: line, fillOnly: fillOnly, capsule: capsule, circle: circle, ellipse: ellipse, g: g,
-    starPts: starPts, poly: poly, esc: esc, hash: hash
+    starPts: starPts, poly: poly, esc: esc, clean: clean, hash: hash
   };
 })();
